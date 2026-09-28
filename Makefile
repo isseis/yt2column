@@ -6,7 +6,7 @@ GOTEST=$(GOCMD) test
 # and .pre-commit-config.yaml). Using `go run @version` ignores whatever
 # golangci-lint is on PATH, so local `make lint` always matches CI. Bump all
 # three pins together.
-GOLANGCI_VERSION?=v2.11.4
+GOLANGCI_VERSION?=v2.13.2
 GOLINT=$(GOCMD) run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_VERSION) run --build-tags test
 GOFUMPTCMD=gofumpt
 

@@ -83,7 +83,7 @@ jobs:
         with:
           install-mode: goinstall
           # Keep in sync with GOLANGCI_VERSION in Makefile.
-          version: v2.11.4
+          version: v2.13.2
           verify: false
           args: --build-tags test --timeout=5m
 

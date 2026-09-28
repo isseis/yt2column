@@ -57,26 +57,26 @@
 - 変更: `Makefile`・`.pre-commit-config.yaml`・`.github/workflows/ci.yml`
 
 **タスク**
-- [ ] **ステップ 1-1**: golangci-lint のピンを v2.11.4 から v2.13.0 に更新する。`Makefile:9` の `GOLANGCI_VERSION`・`.pre-commit-config.yaml` の golangci-lint エントリ・`.github/workflows/ci.yml` の version ピンの 3 箇所を、`Makefile:5-9` のコメント「Bump all three pins together」どおり同時に更新する。
-  - 根拠: golangci-lint の CHANGELOG で v2.13.0（2026-08-19 リリース）が「🎉 go1.27 support」を追加したことを確認した（github.com/golangci/golangci-lint CHANGELOG.md）。go1.26 対応は v2.9.0 で追加されており、v2.11.4 は go1.26 まで対応するが、go1.27 には未対応。ローカルの Go 1.27.1 と v2.11.4 の組み合わせで解析が失敗することは §1.3 のとおり確認済み。
-- [ ] **ステップ 1-2**: `make lint` を実行し、既存ツリー全体（現時点では `cmd/yt2column/main.go` のみ）で失敗しないことを確認する。`fmt` を import するパッケージでの実証は、`internal/secret` を新設するステップ 1-5 以降（PR-2）で行う（PR-1 時点には `fmt` を import する Go ソースが存在しないため）。
-- [ ] **ステップ 1-3**: `make test` が通ることを確認する。
-- [ ] **ステップ 1-4**: 前提タスクのコミット（golangci-lint 更新のみ）をタスク本体のコミットから分離する。
+- [x] **ステップ 1-1**: golangci-lint のピンを v2.11.4 から v2.13.2 に更新する。`Makefile:9` の `GOLANGCI_VERSION`・`.pre-commit-config.yaml` の golangci-lint エントリ・`.github/workflows/ci.yml` の version ピンの 3 箇所を、`Makefile:5-9` のコメント「Bump all three pins together」どおり同時に更新する。
+  - 根拠: golangci-lint の CHANGELOG で v2.13.0（2026-08-19 リリース）が「🎉 go1.27 support」を追加したことを確認した（github.com/golangci/golangci-lint CHANGELOG.md）。go1.26 対応は v2.9.0 で追加されており、v2.11.4 は go1.26 まで対応するが、go1.27 には未対応。ローカルの Go 1.27.1 と v2.11.4 の組み合わせで解析が失敗することは §1.3 のとおり確認済み。go1.27 対応の最初のリリースである v2.13.0 は staticcheck が `honnef.co/go/tools v0.8.0-rc.1`（リリース候補）に依存するため、最終版の staticcheck（v0.8.1）を同梱する直後のパッチ v2.13.2 をピンする（リポジトリの方針「CI と同一の exact なバージョンをピンする」に沿い、RC と最終版の静的解析結果の乖離を避ける）。v2.13.2 の go.mod は `go 1.26.0` を宣言しており、CI の go 1.26.5 とローカルの go 1.27.1 の両方でビルド・実行できる。
+- [x] **ステップ 1-2**: `make lint` を実行し、既存ツリー全体（現時点では `cmd/yt2column/main.go` のみ）で失敗しないことを確認する。`fmt` を import するパッケージでの実証は、`internal/secret` を新設するステップ 1-5 以降（PR-2）で行う（PR-1 時点には `fmt` を import する Go ソースが存在しないため）。
+- [x] **ステップ 1-3**: `make test` が通ることを確認する。
+- [x] **ステップ 1-4**: 前提タスクのコミット（golangci-lint 更新のみ）をタスク本体のコミットから分離する。
 
 ### PR-1 作成ポイント: toolchain prerequisite
 
 **対象ステップ**: 1-1 / 1-2 / 1-3 / 1-4
 
-**推奨タイトル**: `build(0001): bump golangci-lint to v2.13.0 for go1.27 support`
+**推奨タイトル**: `build(0001): bump golangci-lint to v2.13.2 for go1.27 support`
 
-**レビュー観点**: `Makefile`・`.pre-commit-config.yaml`・`.github/workflows/ci.yml` の 3 箇所のピンが同時に更新されているか / v2.13.0 の選定根拠（go1.27 対応）が記録されているか / 更新後にローカル `make lint` が既存ツリー全体で通るか（`fmt` を import するパッケージでの実証は PR-2 で行う）
+**レビュー観点**: `Makefile`・`.pre-commit-config.yaml`・`.github/workflows/ci.yml` の 3 箇所のピンが同時に更新されているか / v2.13.2 の選定根拠（go1.27 対応・staticcheck 最終版同梱）が記録されているか / 更新後にローカル `make lint` が既存ツリー全体で通るか（`fmt` を import するパッケージでの実証は PR-2 で行う）
 
 **実装モデル要件**: standard
 
 **判定理由**: 対象ステップ 1-1〜1-4 は golangci-lint のバージョン更新のみで、アプローチは CHANGELOG で確定済み。panel-mode トリガー・競合アプローチとも該当せず。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
@@ -289,7 +289,7 @@
 
 | マイルストーン | 内容 | 成果物 | 完了条件 |
 |---|---|---|---|
-| M1 | フェーズ 1 | `internal/secret`（`Secret` 型と AC-18〜23 のテスト）。前提タスクとして golangci-lint の v2.13.0 への更新（3 箇所のピン）を含む | `make test` / `make lint` が通る。`fmt` を import するパッケージでの lint 実証は PR-2（ステップ 1-5 以降）で行う |
+| M1 | フェーズ 1 | `internal/secret`（`Secret` 型と AC-18〜23 のテスト）。前提タスクとして golangci-lint の v2.13.2 への更新（3 箇所のピン）を含む | `make test` / `make lint` が通る。`fmt` を import するパッケージでの lint 実証は PR-2（ステップ 1-5 以降）で行う |
 | M2 | フェーズ 2 | 4 つの葉パッケージのデータ型と interface | 同上 |
 | M3 | フェーズ 3 | 4 つの fake（`testutil/mocks.go`・`mocks_test.go`） | 同上（`-tags test` でコンパイルされる） |
 | M4 | フェーズ 4 | `internal/pipeline`（`Stage`・`StageError`・`New`・`Run` と各テスト・guard） | 同上 |
@@ -301,7 +301,7 @@
 
 | PR | 対象ステップ | 主な変更内容 | 実装モデル要件 |
 |---|---|---|---|
-| PR-1 | 1-1 / 1-2 / 1-3 / 1-4 | golangci-lint の v2.13.0 への更新（`Makefile`・`.pre-commit-config.yaml`・`.github/workflows/ci.yml` の 3 箇所のピン） | standard |
+| PR-1 | 1-1 / 1-2 / 1-3 / 1-4 | golangci-lint の v2.13.2 への更新（`Makefile`・`.pre-commit-config.yaml`・`.github/workflows/ci.yml` の 3 箇所のピン） | standard |
 | PR-2 | 1-5 / 1-6 / 1-7 / 1-8 | `internal/secret`（`Secret` 型と AC-18〜23 のテスト、package_reference） | frontier-recommended |
 | PR-3 | 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 | 4 つの葉パッケージのデータ型と interface（package_reference） | standard |
 | PR-4 | 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8 / 3-9 | 4 つの fake（`testutil/mocks.go`・`mocks_test.go`、package_reference） | standard |
@@ -354,7 +354,7 @@ AC ごとの検証は次のとおり。`test` は実行可能なテスト、`sta
 
 | リスク | 影響 | 対策 |
 |---|---|---|
-| ローカルツールチェーン（go 1.27.1）と golangci-lint v2.11.4 の非互換で `make lint` が失敗する | 各フェーズの完了条件を満たせない | フェーズ 1 の前提タスクで golangci-lint を v2.13.0（go1.27 対応）に更新する（§1.3・§2 フェーズ 1） |
+| ローカルツールチェーン（go 1.27.1）と golangci-lint v2.11.4 の非互換で `make lint` が失敗する | 各フェーズの完了条件を満たせない | フェーズ 1 の前提タスクで golangci-lint を v2.13.2（go1.27 対応・staticcheck 最終版同梱）に更新する（§1.3・§2 フェーズ 1） |
 | `fmt`・slog・`encoding/json` の特定の書式指定子や埋め込みパターンで挙動が想定と異なる | AC-18〜20 の不成立 | 計画作成時にローカル Go で挙動を検証済み（§1.3）。テストは全指定子のテーブルと公開/非公開フィールドの両経路をカバーする |
 | typed-nil の interface が `Run` 実行時にパニックを起こす | AC-14 の不成立 | `New` でリフレクションによる nil 検出を行い、構築時に `ErrNilStage` を返す。テストで 3 引数すべての typed-nil をテーブル検証する |
 | lint（revive の `exported`・`package-comments`、goconst、err113 など）が新設コードで指摘を出す | `make lint` が通らない | パッケージコメント・公開識別子への英語ドキュメントコメント、`[REDACTED]` のパッケージ定数化、静的 `errors.New` の使用を各フェーズのタスクに含めた |
@@ -376,7 +376,7 @@ AC ごとの検証は次のとおり。`test` は実行可能なテスト、`sta
 ## 8. 成功基準 (Success Criteria)
 
 - 全 AC（AC-01〜AC-23）に、§5 のとおり `test` または `static` の検証がある。
-- `make test` と `make lint` が通る（green gate）。ローカルの開発環境でも `make lint` が stdlib を import するパッケージを解析できる（golangci-lint v2.13.0 への更新はフェーズ 1 の前提タスクで実施。`fmt` を import するパッケージでの実証は PR-2 で行う）。
+- `make test` と `make lint` が通る（green gate）。ローカルの開発環境でも `make lint` が stdlib を import するパッケージを解析できる（golangci-lint v2.13.2 への更新はフェーズ 1 の前提タスクで実施。`fmt` を import するパッケージでの実証は PR-2 で行う）。
 - 本番バイナリに fake が含まれない（`TestFakesCarryBuildTag` が 4 つの `mocks.go` の `//go:build test` を検証）。
 - `docs/dev/project_overview.md` の `LLMClient` の記述が本設計に一致し、`docs/dev/developer_guide/package_reference.md` に全新設パッケージが登録されている（各フェーズのタスクで `rg` による正の確認を行う）。
 - `cmd/yt2column/main.go` が変更されていない（CLI 配線は #6）。
