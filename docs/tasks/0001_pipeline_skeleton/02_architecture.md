@@ -8,7 +8,7 @@
 | Created | 2026-09-29 |
 | Review date | 2026-09-29 |
 | Reviewer | isseis |
-| Comments | 編集（2026-09-29）: 「葉」「葉パッケージ」を「リーフ」「リーフパッケージ」に置き換え（用語集に追記）。用語の置き換えのみで、意思決定の変更はない。 |
+| Comments | 編集（2026-09-29）: 「葉」「葉パッケージ」を「リーフ」「リーフパッケージ」に置き換え（用語集に追記）。用語の置き換えのみで、意思決定の変更はない。編集（2026-09-29）: §8 フェーズ 2 の「リーフパッケージ」を「段階パッケージ」に訂正（`internal/writer`・`internal/publisher` は依存先を持つためリーフではない）。表記の訂正のみで、意思決定の変更はない。 |
 
 ---
 
@@ -727,7 +727,7 @@ fake 自体の振る舞い（指定した戻り値を返す・呼び出しを記
 依存の向きに沿って下から順に実装し、各フェーズで `make test && make lint` を通す。
 
 1. **フェーズ 1: `internal/secret`** — 他パッケージの依存先にならないリーフ。`Secret` 型と AC-18〜AC-26 のテスト。
-2. **フェーズ 2: リーフパッケージの型と interface** — `internal/transcript`・`internal/llm`・`internal/writer`・`internal/publisher` のデータ型と interface。
+2. **フェーズ 2: 段階パッケージの型と interface** — `internal/transcript`・`internal/llm`・`internal/writer`・`internal/publisher` のデータ型と interface。
 3. **フェーズ 3: fake** — 4 つの `testutil/mocks.go`（`//go:build test`）。
 4. **フェーズ 4: `internal/pipeline`** — `Stage`・`StageError`・`ErrNilStage`・`New`・`Run` と AC-09〜AC-14 のテスト。fake を注入して検証する。
 5. **フェーズ 5: ドキュメント更新** — `docs/dev/project_overview.md` の `LLMClient` 周りの更新（01_requirements.md §5.1 と付録A のとおり）。

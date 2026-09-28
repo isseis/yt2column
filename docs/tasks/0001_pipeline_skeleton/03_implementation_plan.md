@@ -85,7 +85,7 @@
 - [ ] **ステップ 1-4**: 主要な対策を実装時に壊してテストが失敗することを確認し、コミットメッセージに記録する（例: `Format` を元の値を出力する実装に変えると `TestSecretFmtRedaction` が失敗する、`String()`・`GoString()` を元の値に変えると `TestSecretStringGoString` が失敗する、`LogValue` を外すと `TestSecretSlogRedaction` が失敗する、`MarshalJSON` を外すと `TestSecretJSONRedaction` が失敗する、クロージャ保持を素の `string` フィールドに変えると `TestSecretUnexportedFieldNoLeak` が失敗する、`New` の空文字列チェックを外すと `TestSecretNewEmpty` が失敗する）。
 - [ ] **ステップ 1-5**: `make fmt` → `make test` → `make lint` を通す。
 
-### フェーズ 2: リーフパッケージのデータ型と interface
+### フェーズ 2: 段階パッケージのデータ型と interface
 
 **対象ファイル**
 - 新設: `internal/transcript/transcript.go`・`internal/llm/llm.go`・`internal/writer/writer.go`・`internal/publisher/publisher.go`
@@ -123,7 +123,8 @@
 - [ ] **ステップ 3-4**: `internal/publisher/testutil/mocks.go` に `FakePublisher` を、`mocks_test.go` にその振る舞いのテストを作成する（記録する入力は `Article`）。
 - [ ] **ステップ 3-5**: fake の振る舞い（戻り値・エラー・呼び出し記録）を実装時に壊し、各 `mocks_test.go` が失敗することを確認して、コミットメッセージに記録する（例: メソッドを値レシーバに変えると `Calls` が記録されず失敗する）。
 - [ ] **ステップ 3-6**: `docs/dev/developer_guide/package_reference.md` に `testutil` 4 パッケージの行を追加する。
-- [ ] **ステップ 3-7**: `make fmt` → `make test` → `make lint` を通す。`make test` は `-tags test` で実行されるため、fake が同じタグでコンパイルされることをこのフェーズのゲートで確認する（`Makefile:63-64`）。
+- [ ] **ステップ 3-7**: タグなしのビルドに fake が含まれないことを `go list -e -f '{{.ImportPath}} {{len .GoFiles}}' ./internal/...` で確認し、4 つの `testutil` パッケージの `GoFiles` が 0 件であることを出力とともに記録する（architecture §7.2 が本計画に委ねた `go list` のコマンド。AC-17）。
+- [ ] **ステップ 3-8**: `make fmt` → `make test` → `make lint` を通す。`make test` は `-tags test` で実行されるため、fake が同じタグでコンパイルされることをこのフェーズのゲートで確認する（`Makefile:63-64`）。
 
 ### フェーズ 4: `internal/pipeline`
 
@@ -140,7 +141,7 @@
   - `New` は interface 値の `== nil` に加え、動的値が nil の interface（typed-nil）を拒否し、`ErrNilStage` をラップしてどの段階が未設定かを含むエラーを返す（AC-14）。検出は `reflect.ValueOf(v)` の `Kind` が nil になりうる種別（`reflect.Ptr`・`reflect.Func`・`reflect.Map`・`reflect.Slice`・`reflect.Chan`）である場合に `IsNil()` で判定し、それ以外の Kind は nil 判定の対象外とする（architecture §3.4 が本計画に委ねた実装方法）。
   - `Run` は冒頭で 3 つの段階の nil を再確認し、nil なら段階を呼び出さずに `ErrNilStage` をラップしたエラーを返す（ゼロ値の fail-closed、AC-14）。各段階の呼び出し前に `ctx.Err()` を確認し、キャンセル済みなら `ctx.Err()` をそのまま返して以降の段階を呼ばない（AC-13）。段階の失敗は対応する `Stage` を付けた `StageError` で包む（AC-11・AC-12）。すべて成功した場合は投稿した `Article` を返す（AC-09・AC-10）。
   - パッケージコメントとすべての公開識別子に英語のドキュメントコメントを付ける。
-- [ ] **ステップ 4-2**: `internal/pipeline/pipeline_test.go` を作成し、AC-09〜AC-14 の振る舞いテストと、§5 に記載する guard テストを置く。テストはフェーズ 3 の fake を注入して行う。AC-13 の段階間キャンセルは、`Fetch` の呼び出しを観測してから `ctx.Err()` が `context.Canceled` を返すよう切り替えるカスタム `context.Context`（`pipeline_test.go` 内で定義）という決定的な同期手段で実現し、タイマー待ちやスリープは使わない。`Stage` のゼロ値・既知の値・未知の値を検証する補助テスト（`TestStageString`。`StageError.Error()` が `Stage.String()` を使うことを含む）も置く。ファイルを読む guard（`TestInterfaceDocComments`・`TestFakesCarryBuildTag`）は、対象ファイルの集合（件数）が期待どおりであることを先に確認し、空集合で素通りしないようにする。`TestInterfaceDocComments` の英語判定（CJK 文字を含まない、など）は実装時に定義する。
+- [ ] **ステップ 4-2**: `internal/pipeline/pipeline_test.go` を作成し、AC-09〜AC-14 の振る舞いテストと、§5 に記載する guard テストを置く。テストはフェーズ 3 の fake を注入して行う。`pipeline_test.go` は `//go:build test` のタグ付き `testutil` パッケージを import するため、ファイル先頭に `//go:build test` を付ける（付けないと、タグを渡さない `go vet ./...` や IDE が `build constraints exclude all Go files` で失敗する。architecture §3.5 の AC-17 の注意と同じ理由）。AC-13 の段階間キャンセルは、`Fetch` の呼び出しを観測してから `ctx.Err()` が `context.Canceled` を返すよう切り替えるカスタム `context.Context`（`pipeline_test.go` 内で定義）という決定的な同期手段で実現し、タイマー待ちやスリープは使わない。`Stage` のゼロ値・既知の値・未知の値を検証する補助テスト（`TestStageString`。`StageError.Error()` が `Stage.String()` を使うことを含む）も置く。ファイルを読む guard（`TestInterfaceDocComments`・`TestFakesCarryBuildTag`）は、対象ファイルの集合（件数）が期待どおりであることを先に確認し、空集合で素通りしないようにする。`TestInterfaceDocComments` の英語判定（CJK 文字を含まない、など）は実装時に定義する。
 - [ ] **ステップ 4-3**: `docs/dev/developer_guide/package_reference.md` に `internal/pipeline` の行を追加する。
 - [ ] **ステップ 4-4**: 主要な分岐と guard を実装時に壊してテストが失敗することを確認し、コミットメッセージに記録する（例: `Run` の nil 検査を外すと `TestPipelineZeroValueRun` が失敗する、段階の失敗を包まずに返すと `TestPipelineStageError` が失敗する、guard 対象のフィールドを追加すると `TestCommonTypesFieldSets` が失敗する、`//go:build test` を外すと `TestFakesCarryBuildTag` が失敗する、interface の第 1 引数を `context.Context` 以外に変えると `TestInterfaceContracts` が失敗する、interface の契約コメントから条項を削ると `TestInterfaceDocComments` が失敗する、`Secret` に平文を返す公開メソッドを追加すると `TestSecretRevealExclusive` が失敗する、キャンセルの検出点を変えると `TestPipelineCanceled` が失敗する）。
 - [ ] **ステップ 4-5**: `make fmt` → `make test` → `make lint` を通す。
@@ -170,14 +171,14 @@
 | マイルストーン | 内容 | 成果物 | 完了条件 |
 |---|---|---|---|
 | M1 | フェーズ 1 | `internal/secret`（`Secret` 型と AC-18〜AC-26 のテスト） | `make test` / `make lint` が通る |
-| M2 | フェーズ 2 | 4 つのリーフパッケージのデータ型と interface | 同上 |
+| M2 | フェーズ 2 | 4 つの段階パッケージ（`transcript`・`llm`・`writer`・`publisher`）のデータ型と interface | 同上 |
 | M3 | フェーズ 3 | 4 つの fake（`testutil/mocks.go`・`mocks_test.go`） | 同上（`-tags test` でコンパイルされる） |
 | M4 | フェーズ 4 | `internal/pipeline`（`Stage`・`StageError`・`New`・`Run` と各テスト・guard） | 同上 |
 | M5 | フェーズ 5 | `docs/dev/project_overview.md` の更新 | 同上・正の確認と旧表記の残骸なし |
 
 ### 3.2. 実装順序の根拠
 
-architecture §8 の依存の向き（secret → リーフパッケージ → fake → pipeline → ドキュメント）に従う。各フェーズは独立してグリーンゲートを通せる単位とし、package_reference.md の登録は各パッケージを新設するフェーズのコミットに含める（フェーズ 5 にまとめない）。
+architecture §8 の依存の向き（secret → 段階パッケージ（transcript・llm → writer → publisher）→ fake → pipeline → ドキュメント）に従う。各フェーズは独立してグリーンゲートを通せる単位とし、package_reference.md の登録は各パッケージを新設するフェーズのコミットに含める（フェーズ 5 にまとめない）。
 
 ## 4. テスト戦略 (Test Strategy)
 
@@ -185,7 +186,7 @@ architecture §7 のテスト戦略に従う。
 
 - **ユニットテスト**: 外部コマンド・LLM API・Webhook を一切呼ばない。パイプラインのテストは 4 つの fake（フェーズ 3）を注入して行う。
 - **`internal/secret`**: `fmt`・`slog`・`encoding/json`・構造体への埋め込み（公開/非公開フィールド）・ゼロ値・空文字列の各経路を検証する。`fmt` の直接書式化は固定文字列との完全一致で検証し、非公開フィールド経路は元の値が現れないことを検証する。`String()`・`GoString()` の直接呼び出しも個別に検証する。
-- **型・interface の検証**: fake のコンパイル時アサーション（AC-06）に加え、`internal/pipeline/pipeline_test.go` に guard テストを置く。検証対象は次の 5 点である。共通データ型（`Segment`・`Transcript`・`GenerateRequest`・`GenerateResponse`・`Article`）の公開フィールドの名前と型の集合（AC-01・AC-02・AC-03・AC-04・AC-05。`Transcript.Segments` が `[]Segment` であることまで固定する）、4 つの interface の第 1 引数（AC-07）、interface のドキュメントコメントの契約条項（AC-08）、`Secret` の公開メソッド集合が設計どおりで平文を返すのが `Reveal` のみであること（AC-24）、`testutil/` 配下の全ファイルの `//go:build test`（AC-17）。リーフパッケージにはパッケージ本体の `_test.go` を置かない（architecture §7.1）ため、guard テストを `internal/pipeline/pipeline_test.go` に集約する。
+- **型・interface の検証**: fake のコンパイル時アサーション（AC-06）に加え、`internal/pipeline/pipeline_test.go` に guard テストを置く。検証対象は次の 5 点である。共通データ型（`Segment`・`Transcript`・`GenerateRequest`・`GenerateResponse`・`Article`）の公開フィールドの名前と型の集合（AC-01・AC-02・AC-03・AC-04・AC-05。`Transcript.Segments` が `[]Segment` であることまで固定する）、4 つの interface の第 1 引数（AC-07）、interface のドキュメントコメントの契約条項（AC-08）、`Secret` の公開メソッド集合が設計どおりで平文を返すのが `Reveal` のみであること（AC-24）、`testutil/` 配下の全ファイルの `//go:build test`（AC-17）。`internal/transcript`・`internal/llm`・`internal/writer`・`internal/publisher` にはパッケージ本体の `_test.go` を置かない（architecture §7.1）ため、guard テストを `internal/pipeline/pipeline_test.go` に集約する。
 - **統合テスト**: 該当なし。本タスクの成果物は外部と接続する実装を持たない（architecture §7.1）。外部接続を伴う統合は #3・#4・#7 で検証する。
 - **セキュリティテスト**: `internal/secret` の AC-18〜AC-26 のテストが、秘密情報が fmt・slog・JSON の各出力経路に現れないことを検証する。パイプラインがエラーに秘密情報を付け加えないことは、`StageError` が元のエラーをそのまま包むことのテストで確認する。
 - **テストの実装詳細**（アサーションの書き方、テストデータ）は実装時に決定する。各テストは対応する対策・分岐を壊したときに失敗することを実装時に確認し、コミットメッセージに記録する。
@@ -212,7 +213,7 @@ AC ごとの検証は次のとおり。`test` は実行可能なテスト、`sta
 | AC-14 | nil 段階（typed-nil を含む）の構築とゼロ値の使用を拒否 | test | `internal/pipeline/pipeline_test.go::TestPipelineNewNilStage`・`TestPipelineZeroValueRun` |
 | AC-15 | fake の戻り値・エラー指定 | test | 各 `internal/<pkg>/testutil/mocks_test.go` |
 | AC-16 | fake の呼び出し記録 | test | 各 `internal/<pkg>/testutil/mocks_test.go` |
-| AC-17 | fake が `//go:build test` でのみビルドされる | static | `internal/pipeline/pipeline_test.go::TestFakesCarryBuildTag`（`testutil/` 配下の全 `.go` ファイルを検証） |
+| AC-17 | fake が `//go:build test` でのみビルドされる | static | `internal/pipeline/pipeline_test.go::TestFakesCarryBuildTag`（`testutil/` 配下の全 `.go` ファイルを検証）＋ステップ 3-7 の `go list`（タグなしで `testutil` の `GoFiles` が 0 件） |
 | AC-18 | `fmt` の委譲される指定子で `[REDACTED]` | test | `internal/secret/secret_test.go::TestSecretFmtRedaction` |
 | AC-19 | `String()`・`GoString()` の直接呼び出し | test | `internal/secret/secret_test.go::TestSecretStringGoString` |
 | AC-20 | 委譲されない書式指定子でも元の値が出ない | test | `internal/secret/secret_test.go::TestSecretFmtNoDelegateVerbs` |
@@ -246,7 +247,7 @@ AC ごとの検証は次のとおり。`test` は実行可能なテスト、`sta
 
 - [ ] フェーズ 1 完了（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5）
 - [ ] フェーズ 2 完了（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7）
-- [ ] フェーズ 3 完了（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7）
+- [ ] フェーズ 3 完了（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8）
 - [ ] フェーズ 4 完了（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5）
 - [ ] フェーズ 5 完了（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5）
 - [ ] 各フェーズで `make fmt` → `make test` → `make lint` が通る
