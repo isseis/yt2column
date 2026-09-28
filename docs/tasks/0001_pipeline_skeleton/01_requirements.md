@@ -104,7 +104,7 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 API キーや Webhook URL などの秘密情報を保持する型（仮称 `Secret`）を定義する。
 
 **Acceptance Criteria**:
-- **AC-18**: `Secret` は `fmt.Formatter`（`Format(fmt.State, rune)`）を実装し、`fmt` パッケージで出力した場合、書式指定子（`%s`・`%v`・`%+v`・`%#v`・`%q`・`%d`・`%x` など、値の書式化を伴う指定子）にかかわらず、元の値ではなく `[REDACTED]` を含む固定文字列が出力される。`Secret` を公開フィールドとして含む構造体を `%v`・`%+v`・`%#v` で出力した場合も、各フィールドの書式化に `fmt.Formatter` が使われるため、元の値は出力されない。`Secret` が構造体の**非公開フィールド**として含まれる場合、`fmt` はそのフィールドの `Format`・`String()`・`GoString()` を呼ばずリフレクションで内容を表示するため、`Secret` 型のメソッドの実装だけでは元の値を隠せない。この場合の実現方法は §5 の制約で固定する。
+- **AC-18**: `Secret` は `fmt.Formatter`（`Format(fmt.State, rune)`）を実装し、`fmt` パッケージで `fmt.Formatter` に委譲される書式指定子（`%s`・`%v`・`%+v`・`%#v`・`%q`・`%d`・`%x` など）で出力した場合、元の値ではなく `[REDACTED]` を含む固定文字列が出力される。一方、`fmt.Formatter` に委譲されない書式指定子（非ポインタ値への `%p`、非 error への `%w` など）では、`fmt` が元の値の表現を出力に埋め込むため、出力に元の値が一切現れないことを要件とし、テストで確認する。`Secret` を公開フィールドとして含む構造体を `%v`・`%+v`・`%#v` で出力した場合も、各フィールドの書式化に `fmt.Formatter` が使われるため、元の値は出力されない。`Secret` が構造体の**非公開フィールド**として含まれる場合、`fmt` はそのフィールドの `Format`・`String()`・`GoString()` を呼ばずリフレクションで内容を表示するため、`Secret` 型のメソッドの実装だけでは元の値を隠せない。この場合の実現方法は §5 の制約で固定する。
 - **AC-19**: `Secret` を `log/slog` の属性として出力した場合、元の値ではなく `[REDACTED]` が出力される。`Secret` を非公開フィールドとして含む構造体を属性として出力した場合も、元の値は出力されない（ただし slog の TextHandler は構造体の非公開フィールドを `fmt` と同様にリフレクションで表示するため、実現方法は §5 の制約で固定する）。
 - **AC-20**: `Secret` を `encoding/json` でエンコードした場合、元の値ではなく `"[REDACTED]"` が出力される。`Secret` を公開フィールドとして含む構造体をエンコードした場合も、`"[REDACTED]"` が出力される。`Secret` を非公開フィールドとして含む構造体の場合、`encoding/json` はそのフィールドを出力に含めないため、元の値は出力されない。
 - **AC-21**: 元の値は、秘密情報を取り出すことが名前から明らかな専用のメソッドを明示的に呼んだ場合にだけ取得できる。
@@ -137,7 +137,7 @@ API キーや Webhook URL などの秘密情報を保持する型（仮称 `Secr
 -   [project_overview.md](../../dev/project_overview.md) の「決定済みの方針」「前提・制約」に従う。
 -   ユニットテストは外部コマンド・外部 API・Webhook を呼ばない。
 -   型と interface を置くパッケージの分け方は設計（`02_architecture.md`）で決める。循環 import が生じないこと。
--   `Secret` を構造体の**非公開フィールド**として保持する場合、その値が `fmt` および slog（TextHandler）の出力に現れないことは、`Secret` 型のメソッド実装だけでは達成できない（`fmt` と slog の TextHandler は構造体の非公開フィールドをリフレクションで表示し、`Format`・`String()`・`GoString()` を呼ばない）。実現方法は次のいずれかを設計（`02_architecture.md`）で固定する: (a) 包含する構造体が `fmt.Formatter` を実装する、(b) 秘密情報を `fmt` がリフレクションできない形（例: `func() string` クロージャ）で保持する。
+-   `Secret` を構造体の**非公開フィールド**として保持する場合、その値が `fmt` および slog（TextHandler）の出力に現れないことは、`Secret` 型のメソッド実装だけでは達成できない（`fmt` と slog の TextHandler は構造体の非公開フィールドをリフレクションで表示し、`Format`・`String()`・`GoString()` を呼ばない）。そのため、秘密情報は `fmt` がリフレクションできない形（例: `func() string` クロージャ）で保持することを設計（`02_architecture.md`）で必須として固定する。これにより、非公開フィールドのリフレクション経由でも元の値を露出させず、`Secret` 型自体が非開示を保証する。
 
 ### 5.1. project_overview.md との差分
 
