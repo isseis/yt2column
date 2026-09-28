@@ -8,7 +8,7 @@
 | Created | 2026-09-28 |
 | Review date | 2026-09-28 |
 | Reviewer | isseis |
-| Comments | 編集（2026-09-28）: §8 の package_reference.md 登録フェーズの列挙を「（1・2・4）」から「（1・2・3・4）」に修正（フェーズ 3 で testutil 4 パッケージを新設するため）。意思決定の変更はない。 |
+| Comments | 編集（2026-09-28）: §8 の package_reference.md 登録フェーズの列挙を「（1・2・4）」から「（1・2・3・4）」に修正（フェーズ 3 で testutil 4 パッケージを新設するため）。意思決定の変更はない。 再編集（2026-09-29）: PR-3 レビュー指摘対応として、型・interface の契約 guard テストを、検証対象を定義する各葉パッケージの外部テストファイル（`transcript_test.go` など）に置く構成に改訂（§7.1・§7.2・§3.6）。「葉パッケージに `_test.go` を置かない」規則は代入値を読み返すだけの振る舞いテストを対象とするものとし、契約 guard テストは対象外とする。API を導入する PR と同じ PR 内でその契約を検証できるようにしたもので、意思決定の変更はない。 |
 
 ---
 
@@ -471,19 +471,23 @@ func (f *FakeTranscriptSource) Fetch(ctx context.Context, videoURL string) (tran
 | `internal/secret/secret.go` | `Secret` 型（クロージャ保持・`Format`/`LogValue`/`MarshalJSON`/`New`/`Reveal`） | 新設 |
 | `internal/secret/secret_test.go` | AC-18〜AC-23 のテスト | 新設 |
 | `internal/transcript/transcript.go` | `Segment`・`Transcript` 型、`TranscriptSource` interface | 新設 |
+| `internal/transcript/transcript_test.go` | 型・interface の契約 guard テスト（AC-01・AC-02・AC-05・AC-06・AC-07・AC-08） | 新設 |
 | `internal/transcript/testutil/mocks.go` | `FakeTranscriptSource` | 新設 |
-| `internal/transcript/testutil/mocks_test.go` | fake の振る舞いのテスト（AC-15・AC-16） | 新設 |
+| `internal/transcript/testutil/mocks_test.go` | fake の振る舞いのテスト（AC-15・AC-16）と build tag guard（AC-17） | 新設 |
 | `internal/llm/llm.go` | `GenerateRequest`・`GenerateResponse` 型、`LLMClient` interface | 新設 |
+| `internal/llm/llm_test.go` | 型・interface の契約 guard テスト（AC-03・AC-05・AC-06・AC-07・AC-08） | 新設 |
 | `internal/llm/testutil/mocks.go` | `FakeLLMClient` | 新設 |
-| `internal/llm/testutil/mocks_test.go` | fake の振る舞いのテスト（AC-15・AC-16） | 新設 |
+| `internal/llm/testutil/mocks_test.go` | fake の振る舞いのテスト（AC-15・AC-16）と build tag guard（AC-17） | 新設 |
 | `internal/writer/writer.go` | `Article` 型、`ArticleWriter` interface | 新設 |
+| `internal/writer/writer_test.go` | 型・interface の契約 guard テスト（AC-04・AC-05・AC-06・AC-07・AC-08） | 新設 |
 | `internal/writer/testutil/mocks.go` | `FakeArticleWriter` | 新設 |
-| `internal/writer/testutil/mocks_test.go` | fake の振る舞いのテスト（AC-15・AC-16） | 新設 |
+| `internal/writer/testutil/mocks_test.go` | fake の振る舞いのテスト（AC-15・AC-16）と build tag guard（AC-17） | 新設 |
 | `internal/publisher/publisher.go` | `Publisher` interface | 新設 |
+| `internal/publisher/publisher_test.go` | interface の契約 guard テスト（AC-06・AC-07・AC-08） | 新設 |
 | `internal/publisher/testutil/mocks.go` | `FakePublisher` | 新設 |
-| `internal/publisher/testutil/mocks_test.go` | fake の振る舞いのテスト（AC-15・AC-16） | 新設 |
+| `internal/publisher/testutil/mocks_test.go` | fake の振る舞いのテスト（AC-15・AC-16）と build tag guard（AC-17） | 新設 |
 | `internal/pipeline/pipeline.go` | `Pipeline`・`New`・`Run`・`Stage`・`StageError`・`ErrNilStage` | 新設 |
-| `internal/pipeline/pipeline_test.go` | AC-09〜AC-14 のテスト | 新設 |
+| `internal/pipeline/pipeline_test.go` | AC-09〜AC-14 と `Stage.String()` のテスト | 新設 |
 | `docs/dev/developer_guide/package_reference.md` | 新設パッケージの登録（各パッケージを追加するコミットと同じコミットで更新する。package_reference.md 冒頭の規則） | 変更 |
 | `docs/dev/project_overview.md` | §パイプラインの `LLMClient` 周り（戻り値・責務の記述・`GenerateRequest` のフィールド名・想定ディレクトリ構成の `internal/secret/`）を本設計に合わせて更新（01_requirements.md §5.1、付録A） | 変更 |
 
@@ -649,20 +653,24 @@ flowchart TD
   - `Secret` を直接出力する経路と、公開フィールドとして埋め込んだ構造体の出力は、**`[REDACTED]` が出力に現れること**を検証する（「元の値が現れない」ことだけの検証では、`Format` が空文字や値の長さ・ハッシュを出力しても通ってしまうため、AC-18・AC-19・AC-20 の基準を満たす検証にならない）。AC-18 のテーブルテストは、委譲される主な書式指定子（`%s`・`%v`・`%+v`・`%#v`・`%q`・`%d`・`%x`）に加え、あまり使われない指定子（`%c`・`%U`・`%b`・`%e` など）と未知の指定子を含め、`Format` がどの指定子でも元の値に委譲せず固定文字列を書く（fail-secure）ことを確認する。
   - 非公開フィールド経路の出力は元の値の代わりにクロージャの関数アドレス（`0x...`）が現れる。この経路の検証は「元の値が出力に一切現れないこと」だけを確認し、関数アドレスそのものを検証しない（アドレスはプロセスごとに変わるため、スナップショットやゴールデンファイルの比較対象にしてはならない）。`Secret` を含む構造体の出力をゴールデンファイル化しない。
   - `Reveal()`（AC-21）・空文字列の `New`（AC-22）・ゼロ値の `Reveal()`（AC-23）もそれぞれ検証する。
-- 型・interface の定義（AC-01〜AC-08 の一部）は、各 `testutil/mocks.go` に置くコンパイル時アサーション（例: `var _ transcript.TranscriptSource = (*FakeTranscriptSource)(nil)`）で検証され、パイプラインのフローテストでデータの受け渡しと順序が検証される。構造体のフィールドに代入した値をそのまま読み返すだけのテストは、無条件に通り何も検証しないため書かない（CLAUDE.md「Testing Strategy」）。そのため `internal/transcript`・`internal/llm`・`internal/writer`・`internal/publisher` には、本タスクではパッケージ本体の `_test.go` を置かない。
+- 型・interface の定義（AC-01〜AC-08 の一部）の検証は、次の 3 層で行う。
+  - **契約 guard テスト（各葉パッケージの外部テストファイル）**: `internal/transcript`・`internal/llm`・`internal/writer`・`internal/publisher` の各パッケージに、そのパッケージが定義する型・interface の契約を検証する `transcript_test.go`・`llm_test.go`・`writer_test.go`・`publisher_test.go`（各 `package <domain>_test`）を置く。共通データ型のフィールド集合が（名前, 型）ペアで設計どおりであること（AC-01〜AC-05）、interface のメソッド集合と完全シグネチャ（第 1 引数の `context.Context` を含む）が設計どおりであること（AC-06・AC-07）、ドキュメントコメントが契約条項を含み英語であること（AC-08）を、リフレクションとソース読み込みで検証する。API を定義する PR と同じ PR で検証することで、誤ったフィールド型やシグネチャが PR のグリーンゲートを通過してマージされるのを防ぐ。
+  - **fake のコンパイル時アサーション**: 各 `testutil/mocks.go` の `var _ transcript.TranscriptSource = (*FakeTranscriptSource)(nil)` が、fake が interface を満たすことを検証する。
+  - **パイプラインのフローテスト**: `internal/pipeline/pipeline_test.go` が、fake が返したデータが次段へ同じ値で渡ることを検証する（AC-09・AC-10。AC-01・AC-02・AC-04 のフローレベルの検証も兼ねる）。
+  - 構造体のフィールドに代入した値をそのまま読み返すだけのテストは、無条件に通り何も検証しないため書かない（CLAUDE.md「Testing Strategy」）。葉パッケージの `_test.go` は上記の契約 guard テストに限定し、振る舞いテスト（フローテスト）は置かない。
 
 ### 7.2. 受け入れ基準と設計要素の対応
 
 | AC | 設計要素 | テストの対象 |
 |---|---|---|
-| AC-01 | `Transcript.Segments`（`StartMs`・`Text`・順序保持） | パイプラインのフローテスト（fake が返した `Transcript` が `ArticleWriter` の fake に同じ値で渡ることを確認）。フィールドに代入した値を読み返すだけの型テストは書かない（CLAUDE.md「Testing Strategy」） |
-| AC-02 | `Transcript` のメタ情報 5 項目 | 同上 |
-| AC-03 | `GenerateResponse{Text, Model}` | `FakeLLMClient` の `mocks_test.go`（指定した `GenerateResponse` がそのまま返ること） |
-| AC-04 | `Article{Title, Body, SourceURL, Model}` | パイプラインのフローテスト（`ArticleWriter` の fake が返した `Article` が `Publisher` の fake と `Run` の戻り値に同じ値で現れることを確認） |
-| AC-05 | 共通型にプロバイダ固有の項目・SDK 型を含めない | `internal/llm` が `internal/llm/<provider>` を import できない構造（依存の一方通行）、depguard による SDK import の制限、型定義の目視 |
-| AC-06 | 4 つの interface | fake が interface を満たすことのコンパイル時検証 |
-| AC-07 | 全メソッドの第 1 引数が `context.Context` | コンパイル時検証 |
-| AC-08 | interface の英語ドキュメントコメント | 静的確認 |
+| AC-01 | `Transcript.Segments`（`StartMs`・`Text`・順序保持） | `internal/transcript/transcript_test.go` のフィールド集合 guard（`Segment` が `StartMs int64`・`Text string`、`Transcript.Segments` が `[]Segment` と（名前, 型）ペアで一致）＋ パイプラインのフローテスト（fake が返した `Transcript` が `ArticleWriter` の fake に同じ値で渡ることを確認） |
+| AC-02 | `Transcript` のメタ情報 5 項目 | 同上（`TestTranscriptFieldSet` で 5 項目と `Segments` の（名前, 型）ペアを検証） |
+| AC-03 | `GenerateResponse{Text, Model}` | `internal/llm/llm_test.go` のフィールド集合 guard（`GenerateResponse` が `Text string`・`Model string` と（名前, 型）ペアで一致） |
+| AC-04 | `Article{Title, Body, SourceURL, Model}` | `internal/writer/writer_test.go` のフィールド集合 guard（`Article` が `Title string`・`Body string`・`SourceURL string`・`Model string` と（名前, 型）ペアで一致）＋ パイプラインのフローテスト（`ArticleWriter` の fake が返した `Article` が `Publisher` の fake と `Run` の戻り値に同じ値で現れることを確認） |
+| AC-05 | 共通型にプロバイダ固有の項目・SDK 型を含めない | 各パッケージのフィールド集合 guard（余分なフィールドの追加とフィールド型の変更を（名前, 型）ペアで検出）＋ `internal/llm` が `internal/llm/<provider>` を import できない構造（依存の一方通行）、depguard による SDK import の制限 |
+| AC-06 | 4 つの interface | 各パッケージのシグネチャ guard（メソッド集合と完全シグネチャ（入力・出力・エラー）をリフレクションで検証）＋ fake が interface を満たすことのコンパイル時検証 |
+| AC-07 | 全メソッドの第 1 引数が `context.Context` | 各パッケージのシグネチャ guard（コンパイル時検証では第 1 引数の位置を判定できないため、リフレクションで検証） |
+| AC-08 | interface の英語ドキュメントコメント | 各パッケージのドキュメントコメント guard（契約条項の包含と英語であることをソース読み込みで検証）＋ `make lint`（revive の `exported`） |
 | AC-09 | 段階が順に 1 回ずつ呼ばれ出力が伝播 | `internal/pipeline` のフローテスト |
 | AC-10 | 成功時に投稿した `Article` を返す | 同上 |
 | AC-11 | 失敗時に以降の段階を呼ばない | 同上（fake の `Calls` で未呼び出しを確認） |
@@ -671,7 +679,7 @@ flowchart TD
 | AC-14 | nil 段階の構築を拒否（typed-nil を含む） | `internal/pipeline` の構築テスト |
 | AC-15 | fake の戻り値・エラー指定 | 各 `testutil/mocks_test.go` とパイプラインの利用テスト |
 | AC-16 | fake の呼び出し記録 | 同上 |
-| AC-17 | fake が `//go:build test` でビルドされる | `make build` に fake が含まれないことの確認 |
+| AC-17 | fake が `//go:build test` でビルドされる | 各 `testutil/mocks_test.go` の build tag guard（対応する `mocks.go` の `//go:build test` を検証） |
 | AC-18 | `fmt.Formatter` による全経路の隠蔽 | `internal/secret` のテーブルテスト |
 | AC-19 | slog 属性の `[REDACTED]` | `internal/secret` のテスト |
 | AC-20 | JSON エンコードの `"[REDACTED]"` | `internal/secret` のテスト |
