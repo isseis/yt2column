@@ -1,0 +1,122 @@
+version: "2"
+
+run:
+  timeout: 10m
+
+linters:
+  enable:
+    # Default linters
+    - "errcheck"    # Detect unchecked errors
+    - "govet"       # Reports suspicious constructs (go vet)
+    - "ineffassign" # Detects unused variable assignments
+    - "staticcheck" # go vet on steroids
+    - "unused"      # Detect unused constants, variables, functions and types
+
+    # Suggested additional linters
+    - "gocyclo"   # Detect cyclomatic complexity
+    - "goconst"   # Detect repeated values that can be made constants
+    - "gocritic"  # Provides diagnostics that check for bugs, performance and style issues.
+    - "gosec"     # Security linter
+    - "importas"  # Enforces consistent import aliases.
+    - "misspell"  # Fix spelling errors
+    - "revive"    # General purpose linter
+    - "unconvert" # Detect unnecessary type conversions
+    - "unparam"   # Detect unused function parameters
+
+    # Modern-idiom enforcement (see CLAUDE.md, "Go Idioms").
+    - "modernize"     # Suggest modern language/library features
+    - "intrange"      # for i := 0; i < n; i++  ->  for range n
+    - "copyloopvar"   # Drop the pre-Go-1.22 `i := i` loop-variable copy
+    - "usestdlibvars" # Use stdlib constants (http.MethodPost) over string literals
+
+    # Optional
+    - "bodyclose"  # Check whether HTTP response bodies are closed
+    - "err113"     # Enforce standard error handling practices
+    - "depguard"   # Forbid certain package imports
+    - "dupl"       # Detect duplicate code
+    - "errchkjson" # some JSON-specific checks
+    - "mnd"        # Detect magic numbers
+    - "nakedret"   # Detect naked returns
+
+  settings:
+    gocyclo:
+      min-complexity: 20
+
+    goconst:
+      match-constant: false
+      min-occurrences: 3
+
+    depguard:
+      rules:
+        # Minimal-dependency policy (CLAUDE.md, "Dependencies"). Adding a
+        # module here requires stating why the standard library is not enough.
+        deps:
+          list-mode: strict
+          files:
+            - $all
+          allow:
+            - $gostd
+            - github.com/isseis/yt2column
+            - google.golang.org/genai
+            - github.com/anthropics/anthropic-sdk-go
+
+        # Provider SDKs are confined to their adapter package; no other
+        # package may reference an SDK type.
+        gemini-sdk-confinement:
+          list-mode: lax
+          files:
+            - $all
+            - "!**/internal/llm/gemini/**"
+          deny:
+            - pkg: google.golang.org/genai
+              desc: "import the Gemini SDK only in internal/llm/gemini"
+        claude-sdk-confinement:
+          list-mode: lax
+          files:
+            - $all
+            - "!**/internal/llm/claude/**"
+          deny:
+            - pkg: github.com/anthropics/anthropic-sdk-go
+              desc: "import the Anthropic SDK only in internal/llm/claude"
+
+        legacy:
+          list-mode: lax
+          files:
+            - $all
+          deny:
+            - pkg: github.com/google/generative-ai-go
+              desc: "legacy Gemini SDK; use google.golang.org/genai"
+
+    mnd:
+      checks:
+        - argument
+        - case
+        - condition
+        - operation
+        - return
+        - assign
+
+      ignored-numbers:
+        - '0o600' # Cache files
+        - '0o700' # Cache directories
+        - '0o644' # Default file permissions for files
+        - '0o755' # Default file permissions for directories
+
+  exclusions:
+    rules:
+      # Exclude some linters from running on tests files.
+      - path: _test\.go
+        linters:
+          - gocyclo
+          - errcheck
+          - err113
+          - dupl
+          - gosec
+          - goconst
+
+      # Exclude SA5011 (nil pointer dereference after t.Fatal) from test files
+      # t.Fatal() stops execution, but staticcheck doesn't recognize this
+      - path: _test\.go
+        text: "SA5011"
+        linters:
+          - staticcheck

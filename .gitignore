@@ -1,0 +1,9 @@
+build/
+/yt2column
+.claude/settings.local.json
+.envrc
+.env
+coverage*.out
+coverage*.html
+
+.vscode/
