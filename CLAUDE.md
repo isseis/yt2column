@@ -90,10 +90,12 @@ for the packages that exist today.
   stays out of `cmd/` so it can later back a Slack bot or a scheduled job.
 - **Interface-based Design**: Every pipeline stage (`TranscriptSource`,
   `LLMClient`, `Publisher`) is an interface with a fake for tests.
-- **Provider SDKs stay in their adapter package**: `google.golang.org/genai` is
-  imported only under `internal/llm/gemini`, the Anthropic SDK only under
-  `internal/llm/claude`. No other package references an SDK type. Enforced by
-  `depguard` in `.golangci.yml`.
+- **Provider details stay in their adapter package**: request/response shapes of
+  a provider API (e.g. DeepSeek's `thinking` parameter and `reasoning_content`)
+  live only under `internal/llm/<provider>`. If a provider SDK is added later
+  (`google.golang.org/genai` for `internal/llm/gemini`, the Anthropic SDK for
+  `internal/llm/claude`), it is imported only there; `depguard` in
+  `.golangci.yml` already enforces that.
 - **Delegate the fragile part**: subtitle retrieval is delegated to `yt-dlp`. Do
   not reimplement YouTube scraping in Go.
 - **YAGNI**: Use simple and clear approach to satisfy the requirement. Don't take complex approach for not-yet-planned features. No LangChain-style frameworks or multi-provider abstraction libraries.
@@ -178,7 +180,7 @@ See [Test Organization Guide](docs/dev/developer_guide/test_organization.md) for
 - After editing files, make sure to run `make test` and `make lint` and fix errors.
 - `yt-dlp` must be on `PATH` (or set `YT2COLUMN_YTDLP_PATH`) to run the CLI; it is
   not needed for `make test`.
-- Secrets (`GEMINI_API_KEY`, `SLACK_WEBHOOK_URL`, ...) go in `.envrc` / `.env`,
+- Secrets (`DEEPSEEK_API_KEY`, `SLACK_WEBHOOK_URL`, ...) go in `.envrc` / `.env`,
   which are git-ignored. Never commit them and never print them.
 
 ### Dependencies
@@ -187,11 +189,9 @@ Keep external libraries to a minimum. HTTP, JSON, CLI flags, and configuration u
 the standard library. The allowed modules are listed in the `depguard` `deps` rule
 in `.golangci.yml`; adding one means adding it there, and the commit message (and
 the task's architecture document, when there is one) must state why the standard
-library is not enough. Currently allowed:
-
-- `google.golang.org/genai` — official Gemini SDK (not the legacy
-  `github.com/google/generative-ai-go`)
-- `github.com/anthropics/anthropic-sdk-go` — reserved for the future Claude adapter
+library is not enough. Currently no module outside the standard library is
+allowed: the initial LLM provider (DeepSeek) exposes an OpenAI-compatible HTTP API
+that is called with `net/http` and `encoding/json`.
 
 ## Go Idioms
 
