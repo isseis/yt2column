@@ -85,7 +85,7 @@
 - [ ] **ステップ 1-4**: 主要な対策を実装時に壊してテストが失敗することを確認し、コミットメッセージに記録する（例: `Format` を元の値を出力する実装に変えると `TestSecretFmtRedaction` が失敗する、`String()`・`GoString()` を元の値に変えると `TestSecretStringGoString` が失敗する、`LogValue` を外すと `TestSecretSlogRedaction` が失敗する、`MarshalJSON` を外すと `TestSecretJSONRedaction` が失敗する、クロージャ保持を素の `string` フィールドに変えると `TestSecretUnexportedFieldNoLeak` が失敗する、`New` の空文字列チェックを外すと `TestSecretNewEmpty` が失敗する）。
 - [ ] **ステップ 1-5**: `make fmt` → `make test` → `make lint` を通す。
 
-### フェーズ 2: 段階パッケージのデータ型と interface
+### フェーズ 2: 構成要素パッケージのデータ型と interface
 
 **対象ファイル**
 - 新設: `internal/transcript/transcript.go`・`internal/llm/llm.go`・`internal/writer/writer.go`・`internal/publisher/publisher.go`
@@ -171,14 +171,14 @@
 | マイルストーン | 内容 | 成果物 | 完了条件 |
 |---|---|---|---|
 | M1 | フェーズ 1 | `internal/secret`（`Secret` 型と AC-18〜AC-26 のテスト） | `make test` / `make lint` が通る |
-| M2 | フェーズ 2 | 4 つの段階パッケージ（`transcript`・`llm`・`writer`・`publisher`）のデータ型と interface | 同上 |
+| M2 | フェーズ 2 | 4 つの構成要素パッケージ（`transcript`・`llm`・`writer`・`publisher`）のデータ型と interface | 同上 |
 | M3 | フェーズ 3 | 4 つの fake（`testutil/mocks.go`・`mocks_test.go`） | 同上（`-tags test` でコンパイルされる） |
 | M4 | フェーズ 4 | `internal/pipeline`（`Stage`・`StageError`・`New`・`Run` と各テスト・guard） | 同上 |
 | M5 | フェーズ 5 | `docs/dev/project_overview.md` の更新 | 同上・正の確認と旧表記の残骸なし |
 
 ### 3.2. 実装順序の根拠
 
-architecture §8 の依存の向き（secret → 段階パッケージ（transcript・llm → writer → publisher）→ fake → pipeline → ドキュメント）に従う。各フェーズは独立してグリーンゲートを通せる単位とし、package_reference.md の登録は各パッケージを新設するフェーズのコミットに含める（フェーズ 5 にまとめない）。
+architecture §8 の依存の向き（secret → 構成要素パッケージ（transcript・llm → writer → publisher）→ fake → pipeline → ドキュメント）に従う。各フェーズは独立してグリーンゲートを通せる単位とし、package_reference.md の登録は各パッケージを新設するフェーズのコミットに含める（フェーズ 5 にまとめない）。
 
 ## 4. テスト戦略 (Test Strategy)
 
