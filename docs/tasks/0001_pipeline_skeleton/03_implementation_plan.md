@@ -157,7 +157,7 @@
   - `TestCommonTypesFieldSets`（AC-03・AC-05、guard）: リフレクションで共通データ型の公開フィールドの（名前, 型）ペアの集合が、設計どおりの正確な集合（`Transcript` は `VideoID string`・`VideoURL string`・`Title string`・`ChannelName string`・`Description string`・`Segments []Segment`、`Segment` は `StartMs int64`・`Text string`、`GenerateRequest` は `SystemPrompt string`・`UserPrompt string`・`MaxOutputTokens int`、`GenerateResponse` は `Text string`・`Model string`、`Article` は `Title string`・`Body string`・`SourceURL string`・`Model string`）であることを検証。フィールド名だけでなく各フィールドの正確な Go 型（`reflect.Type`）も名前と一緒に比較する。負の性質: `GenerateRequest` に余分なフィールドを足すこと、既存フィールドの型を変えること（例: `GenerateResponse.Model` を `string` 以外の型にする）で失敗する。この guard が実際に失敗することを実装時に確認し、コミットメッセージに記録する。
   - `TestInterfaceContracts`（AC-07、guard）: リフレクションで 4 つの interface の各メソッドの第 1 引数の型が `context.Context` であることを検証。この guard が、第 1 引数から `context.Context` を外すと失敗することを実装時に確認し、コミットメッセージに記録する。
   - `TestInterfaceDocComments`（AC-08、guard）: 4 つの interface のソースファイル（`internal/transcript/transcript.go`・`internal/llm/llm.go`・`internal/writer/writer.go`・`internal/publisher/publisher.go`）を読み、各 interface のドキュメントコメントが、その interface に要求される契約条項（失敗時にエラーを返す条項と、値返しの interface では空の結果を正常な結果として返さない条項。architecture §3.2 の文言）を含み、英語である（CJK 文字を含まない）ことを検証。負の性質: コメントの削除・日本語化・契約条項の欠落で失敗する。この guard が、`make lint`（revive の `exported`）では検出できない契約内容の欠落を検出することを実装時に確認し、コミットメッセージに記録する。
-  - `TestSecretRevealExclusive`（AC-21、guard）: リフレクションで `secret.Secret` 型のメソッド集合を調べ、平文文字列を返す公開メソッド（結果が `(string, error)` のメソッド）が `Reveal` の 1 つだけであることを検証。負の性質: `Value()` のような余分な公開アクセサを追加すると失敗する。この guard が、`Reveal` 以外の平文取得経路を追加すると失敗することを実装時に確認し、コミットメッセージに記録する。
+  - `TestSecretRevealExclusive`（AC-21、guard）: リフレクションで `secret.Secret` と `*secret.Secret` の両方の公開メソッド集合を調べ、設計が実際に定義するメソッド（`New`・`Reveal`・`Format`・`LogValue`・`MarshalJSON`。平文文字列を返すのは `Reveal` のみ）の明示的な許可リストと照合し、許可リストにない公開メソッドが存在しないことを検証する。戻り値のシグネチャ（`(string, error)`）だけからの推測はしない。負の性質: 許可リストにない公開アクセサを追加すると失敗する（`Value() string`・`Bytes() []byte` のような値レシーバのアクセサに限らず、ポインタレシーバのアクセサも含む）。この guard が、`Reveal` 以外の平文取得経路を追加すると失敗することを実装時に確認し、コミットメッセージに記録する。
   - `TestFakesCarryBuildTag`（AC-17、guard）: 4 つの `testutil/mocks.go` を、`go test` のワーキングディレクトリ（パッケージディレクトリ）からの相対パスで読み、先頭に `//go:build test` があることを検証する。
   - 各テストが、対応する分岐（段階停止・キャンセル検査・nil 判定・guard の対象）を壊すと失敗することを実装時に確認し、コミットメッセージに記録する。
 - [ ] `docs/dev/developer_guide/package_reference.md` に `internal/pipeline` の行を追加する。追加後、`rg` でパッケージパスが一致することを確認する。
@@ -191,7 +191,7 @@
 | M4 | フェーズ 4 | `internal/pipeline`（`Stage`・`StageError`・`New`・`Run` と各テスト・guard） | 同上 |
 | M5 | フェーズ 5 | `docs/dev/project_overview.md` の更新 | 同上・正の確認と旧表記の残骸なし |
 
-各フェーズを 1 コミット単位で進め、package_reference.md の登録は各パッケージを新設するフェーズのコミットに含める（フェーズ 5 にまとめない）。
+各フェーズを 1 コミット単位で進め、package_reference.md の登録は各パッケージを新設するフェーズのコミットに含める（フェーズ 5 にまとめない）。ただし、フェーズ 1 の前提タスク（golangci-lint の更新）は、フェーズ 1 内で `internal/secret` の作業とは分離した独自のコミットとして進める例外を適用する（前提タスクのタスク文のとおり）。
 
 ## 4. テスト戦略 (Test Strategy)
 
@@ -199,7 +199,7 @@ architecture §7 のテスト戦略に従う。
 
 - **ユニットテスト**: 外部コマンド・LLM API・Webhook を一切呼ばない。パイプラインのテストは 4 つの fake（フェーズ 3）を注入して行う。
 - **`internal/secret`**: `fmt.Sprintf`・`slog`・`encoding/json`・構造体への埋め込み（公開/非公開フィールド）・ゼロ値・空文字列の各経路を検証する。直接の書式化経路（`Secret` 単体と公開フィールドとして含む構造体）は出力が固定文字列と**完全一致**することを検証し（例: `%s`・`%v` は `[REDACTED]`、`%q` は `"[REDACTED]"`。`[REDACTED]` が現れることだけの検証では、`[REDACTED]-<長さ>`・`[REDACTED]-<ハッシュ>`・引用符の欠落が通ってしまうため）、非公開フィールド経路は元の値が**現れないこと**を検証する。非公開フィールド経路の出力（関数アドレス）はゴールデンファイル化しない。
-- **型・interface の検証**: fake のコンパイル時アサーション（AC-06）に加え、リフレクションによる guard テストで、interface の第 1 引数が `context.Context` であること（AC-07）、interface のドキュメントコメントが契約条項を含み英語であること（AC-08）、`secret.Secret` のメソッド集合で平文を返す公開メソッドが `Reveal` のみであること（AC-21）、共通データ型のフィールド集合が（名前, 型）ペアで設計どおりであること（AC-03・AC-05）を検証する。葉パッケージにはパッケージ本体の `_test.go` を置かない（architecture §7.1）ため、guard テストは `internal/pipeline/pipeline_test.go` に置く。
+- **型・interface の検証**: fake のコンパイル時アサーション（AC-06）に加え、リフレクションによる guard テストで、interface の第 1 引数が `context.Context` であること（AC-07）、interface のドキュメントコメントが契約条項を含み英語であること（AC-08）、`secret.Secret` と `*secret.Secret` の両方の公開メソッド集合が、設計が定義するメソッド（`New`・`Reveal`・`Format`・`LogValue`・`MarshalJSON`）の明示的な許可リストと一致し、平文文字列を返すのが `Reveal` のみであること（AC-21）、共通データ型のフィールド集合が（名前, 型）ペアで設計どおりであること（AC-03・AC-05）を検証する。葉パッケージにはパッケージ本体の `_test.go` を置かない（architecture §7.1）ため、guard テストは `internal/pipeline/pipeline_test.go` に置く。
 - **build tag（AC-17）**: `TestFakesCarryBuildTag` が 4 つの `mocks.go` の `//go:build test` を検証する。`make test` が `-tags test` で fake をコンパイルすることを確認する。
 - **テストの実装詳細**（テスト関数名の付け方・配置、アサーションの書き方）は実装時に決定し、本計画では細部を固定しない。各テストは対応する対策・分岐を壊したときに失敗することを実装時に確認する。
 
@@ -229,7 +229,7 @@ AC ごとの検証は次のとおり。`test` は実行可能なテスト、`sta
 | AC-18 | fmt の全経路で元の値が出ない | test | `internal/secret/secret_test.go::TestSecretFmtRedaction`（直接書式化は固定文字列との**完全一致**を検証。例: `%s`・`%v` → `[REDACTED]`、`%q` → `"[REDACTED]"`。負の性質: 固定文字列以外を出力する指定子は失敗）・`TestSecretFmtNoDelegateVerbs`・`TestSecretUnexportedFieldNoLeak`（後 2 つは元の値が現れないことを検証） |
 | AC-19 | slog 属性で元の値が出ない | test | `internal/secret/secret_test.go::TestSecretSlogRedaction` |
 | AC-20 | JSON エンコードで元の値が出ない | test | `internal/secret/secret_test.go::TestSecretJSONRedaction` |
-| AC-21 | `Reveal()` のみが元の値を返す | test | `internal/secret/secret_test.go::TestSecretReveal`（振る舞い）＋ `internal/pipeline/pipeline_test.go::TestSecretRevealExclusive`（guard。リフレクションでメソッド集合を調べ、平文を返す公開メソッドが `Reveal` のみであることを検証） |
+| AC-21 | `Reveal()` のみが元の値を返す | test | `internal/secret/secret_test.go::TestSecretReveal`（振る舞い）＋ `internal/pipeline/pipeline_test.go::TestSecretRevealExclusive`（guard。`Secret` と `*Secret` の両方の公開メソッド集合を、設計が定義するメソッド（`New`・`Reveal`・`Format`・`LogValue`・`MarshalJSON`）の明示的な許可リストと照合し、平文文字列を返すのが `Reveal` のみであることを検証） |
 | AC-22 | `New("")` がエラー | test | `internal/secret/secret_test.go::TestSecretNewEmpty` |
 | AC-23 | ゼロ値の `Reveal()` がエラー | test | `internal/secret/secret_test.go::TestSecretZeroValueReveal` |
 
