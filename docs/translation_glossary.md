@@ -26,7 +26,7 @@
 | コラム記事 | column article | `Article` 型。生成結果 |
 | 出典リンク | source link | 記事末尾に付与する元動画へのリンク |
 | 投稿先 | publisher | `Publisher` interface |
-| プロバイダ | provider | LLM の提供元（Gemini, Claude など） |
+| プロバイダ | provider | LLM の提供元（DeepSeek, Gemini, Claude など） |
 | プロンプトテンプレート | prompt template | `prompts/` 以下のファイル |
 | キャッシュ | cache | 動画 ID ごとの字幕・info.json の保存 |
 | 動画 ID | video ID | YouTube の 11 文字の ID |

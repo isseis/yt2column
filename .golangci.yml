@@ -57,11 +57,9 @@ linters:
           allow:
             - $gostd
             - github.com/isseis/yt2column
-            - google.golang.org/genai
-            - github.com/anthropics/anthropic-sdk-go
 
-        # Provider SDKs are confined to their adapter package; no other
-        # package may reference an SDK type.
+        # Provider SDKs (none adopted yet) are confined to their adapter
+        # package; no other package may reference an SDK type.
         gemini-sdk-confinement:
           list-mode: lax
           files:

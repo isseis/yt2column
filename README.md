@@ -9,8 +9,8 @@ URL → TranscriptSource → Transcript → ArticleWriter → Article → Publis
 ```
 
 - Subtitles are fetched with [yt-dlp](https://github.com/yt-dlp/yt-dlp).
-- The initial LLM provider is Gemini (`google.golang.org/genai`); providers are
-  pluggable.
+- The initial LLM provider is DeepSeek (OpenAI-compatible API, called with the
+  Go standard library); providers are pluggable.
 - Designed for local execution.
 
 > **Status:** early development — no release yet.
@@ -19,16 +19,15 @@ URL → TranscriptSource → Transcript → ArticleWriter → Article → Publis
 
 - Go (see `go.mod`)
 - `yt-dlp` on `PATH` (or set `YT2COLUMN_YTDLP_PATH`)
-- A Gemini API key and a Slack Incoming Webhook URL
+- A DeepSeek API key and a Slack Incoming Webhook URL
 
 ## Configuration
 
 | Variable | Description |
 |---|---|
-| `YT2COLUMN_LLM_PROVIDER` | `gemini` (default) or `claude` |
-| `YT2COLUMN_MODEL` | LLM model name (use a specific version, not a `-latest` alias) |
-| `GEMINI_API_KEY` | Gemini API key |
-| `ANTHROPIC_API_KEY` | Anthropic API key (when the Claude provider is added) |
+| `YT2COLUMN_LLM_PROVIDER` | `deepseek` (default) |
+| `YT2COLUMN_MODEL` | LLM model name (e.g. `deepseek-flash`) |
+| `DEEPSEEK_API_KEY` | DeepSeek API key |
 | `SLACK_WEBHOOK_URL` | Slack Incoming Webhook URL |
 | `YT2COLUMN_CACHE_DIR` | Cache directory for subtitles and video metadata |
 | `YT2COLUMN_YTDLP_PATH` | Path to `yt-dlp` (defaults to the one on `PATH`) |
