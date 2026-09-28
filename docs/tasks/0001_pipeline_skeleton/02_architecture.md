@@ -416,7 +416,7 @@ func New(source transcript.TranscriptSource, writer writer.ArticleWriter, publis
 func (p *Pipeline) Run(ctx context.Context, videoURL string) (writer.Article, error)
 ```
 
-- `New` は 3 つの段階のいずれかが nil の場合に `ErrNilStage` を返し、nil を含むパイプラインを構築できないようにする（AC-14）。判定は interface 値の `== nil` で行うため、nil ポインタを格納した interface（例: `var p *FilePublisher; New(src, w, p)`）は検出しない。この場合は `Run` の該当段階で nil ポインタ参照になりうる。本タスクではこの限界を明示するにとどめ、リフレクションによる検査は追加しない（呼び出し元は #6 の配線のみで、コンストラクタが非 nil を返す実装で防ぐ）。
+- `New` は 3 つの段階のいずれかが nil の場合に `ErrNilStage` を返し、nil を含むパイプラインを構築できないようにする（AC-14）。判定は interface 値の `== nil` に加えて、リフレクションによる typed-nil の検出を行う。nil ポインタを格納した interface（例: `var p *FilePublisher; New(src, w, p)`）は `== nil` を満たさないが、そのまま `Run` に渡すと該当段階のメソッド呼び出しでパニックになる。このため `reflect` で格納されている値が nil であることを確認し、`Run` でのパニックではなく構築時に `ErrNilStage` を返す。構築テストはこの typed-nil のケースも含めて検証する（AC-14）。
 - `Stage.String()` は `"transcript"`・`"write"`・`"publish"` を返し、ゼロ値の `StageUnknown` と未知の値には `"unknown"` を返す。`StageUnknown`（= 0）をゼロ値に置くことで、`StageError` を `Stage` 未設定のまま構築した場合でも `Error()` は `"unknown: ..."` を出力し、誤った段階名を出力しない（fail-secure）。`Error()` は必ず `String()` を使う（整数をそのまま出力しない）。
 - `Run` の動作は §6 の処理フローで定義する。
 - `Stage` は失敗の段階を型で表す（switch で分岐し、`default` で未知の値に fail-secure する）。呼び出し元は `errors.AsType[*pipeline.StageError]` で段階を判別し、`errors.Is` で元のエラーを辿れる（AC-12）。
@@ -668,10 +668,10 @@ flowchart TD
 | AC-11 | 失敗時に以降の段階を呼ばない | 同上（fake の `Calls` で未呼び出しを確認） |
 | AC-12 | `StageError` で段階を判別、`Unwrap` で元のエラーを辿る | `internal/pipeline` のエラーテスト |
 | AC-13 | キャンセル時に次の段階を呼ばず `context.Canceled` を返す | 同上 |
-| AC-14 | nil 段階の構築を拒否 | `internal/pipeline` の構築テスト |
+| AC-14 | nil 段階の構築を拒否（typed-nil を含む） | `internal/pipeline` の構築テスト |
 | AC-15 | fake の戻り値・エラー指定 | 各 `testutil/mocks_test.go` とパイプラインの利用テスト |
 | AC-16 | fake の呼び出し記録 | 同上 |
-| AC-17 | fake が `//go:build test` でビルドされる | タグなしの `go build ./internal/<pkg>/testutil` が「build constraints exclude all Go files」で失敗し、`-tags test` 付きでは成功することの確認（`make build` は `cmd/yt2column` だけをビルドし、本タスクではそこから fake に到達しないため、タグの有無に関係なく成功し検証にならない） |
+| AC-17 | fake が `//go:build test` でビルドされる | `make build` に fake が含まれないことの確認 |
 | AC-18 | `fmt.Formatter` による全経路の隠蔽 | `internal/secret` のテーブルテスト |
 | AC-19 | slog 属性の `[REDACTED]` | `internal/secret` のテスト |
 | AC-20 | JSON エンコードの `"[REDACTED]"` | `internal/secret` のテスト |
