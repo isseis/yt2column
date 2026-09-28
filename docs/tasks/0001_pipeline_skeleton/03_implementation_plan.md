@@ -37,7 +37,7 @@
   - `docs/dev/project_overview.md:37`: `Generate(ctx context.Context, req GenerateRequest) (string, error)`
   - `docs/dev/project_overview.md:39`: `// GenerateRequest: System, User, MaxOutputTokens, Temperature など、プロバイダ共通の最小限の項目のみ`
   - あわせて `project_overview.md:33` の責務の記述（「テキストを返す」）と、想定ディレクトリ構成（`project_overview.md:68-83`、`internal/secret/` が未記載）を architecture 付録A のとおり更新する（フェーズ 5）。
-- **`Secret` の構築経路**: 新設の `internal/secret` は葉パッケージで `value func() string` を非公開フィールドに持ち、公開コンストラクタは `New` のみ。構築経路は `New` とゼロ値の 2 経路に限定され、ゼロ値は `Reveal()` がエラーを返して拒否する（AC-26）。同一パッケージ内の複合リテラルによる直接構築は、型定義を `secret.go` に集約して目視で確認できる範囲に限定する（architecture §3.3 に追加の構造は生じない）。等値判定は要件がないため追加しない（YAGNI、architecture §9）。
+- **`Secret` の構築経路**: 新設の `internal/secret` はリーフパッケージで `value func() string` を非公開フィールドに持ち、公開コンストラクタは `New` のみ。構築経路は `New` とゼロ値の 2 経路に限定され、ゼロ値は `Reveal()` がエラーを返して拒否する（AC-26）。同一パッケージ内の複合リテラルによる直接構築は、型定義を `secret.go` に集約して目視で確認できる範囲に限定する（architecture §3.3 に追加の構造は生じない）。等値判定は要件がないため追加しない（YAGNI、architecture §9）。
 - **ツールチェーン（解決済み・前提タスク不要）**: golangci-lint のピンは 3 箇所とも既に `v2.13.2` で、以前のタスクで更新済み（`Makefile:9`・`.pre-commit-config.yaml:23`・`.github/workflows/ci.yml:86`）。ローカルの Go は 1.27.1、`go.mod` は `go 1.26.5`。`make test` は `go test -tags test -race`（`Makefile:63-64`）、`make lint` は `--build-tags test`（`Makefile:10`）で実行され、`//go:build test` の fake は両方のゲートでコンパイルされる。本番バイナリの `make build` は `./cmd/yt2column` のみをビルドする（`Makefile:53-55`）。
 - **新規の外部依存**: なし。標準ライブラリのみを使う（depguard の `deps` ルール、`.golangci.yml:53-59`）。
 - **検証済みの Go 標準ライブラリの挙動**: 本計画のテスト設計が依存する `fmt`・`log/slog`・`encoding/json` の挙動を、ローカルの Go 1.27.1（`go version` で確認）で、一時的な検証用モジュール（`go run .`、2026-09-29 実行）を使って確認した。CI は `go-version-file: go.mod` により go 1.26.5 で実行される（`.github/workflows/ci.yml:57`）。主要な出力は次のとおり（`Secret` は `Format`・`String()`・`GoString()`・`LogValue`・`MarshalJSON` を実装し、元の値を `func() string` で保持する型）。
@@ -85,7 +85,7 @@
 - [ ] **ステップ 1-4**: 主要な対策を実装時に壊してテストが失敗することを確認し、コミットメッセージに記録する（例: `Format` を元の値を出力する実装に変えると `TestSecretFmtRedaction` が失敗する、`String()`・`GoString()` を元の値に変えると `TestSecretStringGoString` が失敗する、`LogValue` を外すと `TestSecretSlogRedaction` が失敗する、`MarshalJSON` を外すと `TestSecretJSONRedaction` が失敗する、クロージャ保持を素の `string` フィールドに変えると `TestSecretUnexportedFieldNoLeak` が失敗する、`New` の空文字列チェックを外すと `TestSecretNewEmpty` が失敗する）。
 - [ ] **ステップ 1-5**: `make fmt` → `make test` → `make lint` を通す。
 
-### フェーズ 2: 葉パッケージのデータ型と interface
+### フェーズ 2: リーフパッケージのデータ型と interface
 
 **対象ファイル**
 - 新設: `internal/transcript/transcript.go`・`internal/llm/llm.go`・`internal/writer/writer.go`・`internal/publisher/publisher.go`
@@ -170,14 +170,14 @@
 | マイルストーン | 内容 | 成果物 | 完了条件 |
 |---|---|---|---|
 | M1 | フェーズ 1 | `internal/secret`（`Secret` 型と AC-18〜AC-26 のテスト） | `make test` / `make lint` が通る |
-| M2 | フェーズ 2 | 4 つの葉パッケージのデータ型と interface | 同上 |
+| M2 | フェーズ 2 | 4 つのリーフパッケージのデータ型と interface | 同上 |
 | M3 | フェーズ 3 | 4 つの fake（`testutil/mocks.go`・`mocks_test.go`） | 同上（`-tags test` でコンパイルされる） |
 | M4 | フェーズ 4 | `internal/pipeline`（`Stage`・`StageError`・`New`・`Run` と各テスト・guard） | 同上 |
 | M5 | フェーズ 5 | `docs/dev/project_overview.md` の更新 | 同上・正の確認と旧表記の残骸なし |
 
 ### 3.2. 実装順序の根拠
 
-architecture §8 の依存の向き（secret → 葉パッケージ → fake → pipeline → ドキュメント）に従う。各フェーズは独立してグリーンゲートを通せる単位とし、package_reference.md の登録は各パッケージを新設するフェーズのコミットに含める（フェーズ 5 にまとめない）。
+architecture §8 の依存の向き（secret → リーフパッケージ → fake → pipeline → ドキュメント）に従う。各フェーズは独立してグリーンゲートを通せる単位とし、package_reference.md の登録は各パッケージを新設するフェーズのコミットに含める（フェーズ 5 にまとめない）。
 
 ## 4. テスト戦略 (Test Strategy)
 
@@ -185,7 +185,7 @@ architecture §7 のテスト戦略に従う。
 
 - **ユニットテスト**: 外部コマンド・LLM API・Webhook を一切呼ばない。パイプラインのテストは 4 つの fake（フェーズ 3）を注入して行う。
 - **`internal/secret`**: `fmt`・`slog`・`encoding/json`・構造体への埋め込み（公開/非公開フィールド）・ゼロ値・空文字列の各経路を検証する。`fmt` の直接書式化は固定文字列との完全一致で検証し、非公開フィールド経路は元の値が現れないことを検証する。`String()`・`GoString()` の直接呼び出しも個別に検証する。
-- **型・interface の検証**: fake のコンパイル時アサーション（AC-06）に加え、`internal/pipeline/pipeline_test.go` に guard テストを置く。検証対象は次の 5 点である。共通データ型（`Segment`・`Transcript`・`GenerateRequest`・`GenerateResponse`・`Article`）の公開フィールドの名前と型の集合（AC-01・AC-02・AC-03・AC-04・AC-05。`Transcript.Segments` が `[]Segment` であることまで固定する）、4 つの interface の第 1 引数（AC-07）、interface のドキュメントコメントの契約条項（AC-08）、`Secret` の公開メソッド集合が設計どおりで平文を返すのが `Reveal` のみであること（AC-24）、`testutil/` 配下の全ファイルの `//go:build test`（AC-17）。葉パッケージにはパッケージ本体の `_test.go` を置かない（architecture §7.1）ため、guard テストを `internal/pipeline/pipeline_test.go` に集約する。
+- **型・interface の検証**: fake のコンパイル時アサーション（AC-06）に加え、`internal/pipeline/pipeline_test.go` に guard テストを置く。検証対象は次の 5 点である。共通データ型（`Segment`・`Transcript`・`GenerateRequest`・`GenerateResponse`・`Article`）の公開フィールドの名前と型の集合（AC-01・AC-02・AC-03・AC-04・AC-05。`Transcript.Segments` が `[]Segment` であることまで固定する）、4 つの interface の第 1 引数（AC-07）、interface のドキュメントコメントの契約条項（AC-08）、`Secret` の公開メソッド集合が設計どおりで平文を返すのが `Reveal` のみであること（AC-24）、`testutil/` 配下の全ファイルの `//go:build test`（AC-17）。リーフパッケージにはパッケージ本体の `_test.go` を置かない（architecture §7.1）ため、guard テストを `internal/pipeline/pipeline_test.go` に集約する。
 - **統合テスト**: 該当なし。本タスクの成果物は外部と接続する実装を持たない（architecture §7.1）。外部接続を伴う統合は #3・#4・#7 で検証する。
 - **セキュリティテスト**: `internal/secret` の AC-18〜AC-26 のテストが、秘密情報が fmt・slog・JSON の各出力経路に現れないことを検証する。パイプラインがエラーに秘密情報を付け加えないことは、`StageError` が元のエラーをそのまま包むことのテストで確認する。
 - **テストの実装詳細**（アサーションの書き方、テストデータ）は実装時に決定する。各テストは対応する対策・分岐を壊したときに失敗することを実装時に確認し、コミットメッセージに記録する。

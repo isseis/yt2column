@@ -8,7 +8,7 @@
 | Created | 2026-09-29 |
 | Review date | 2026-09-29 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 編集（2026-09-29）: 「葉」「葉パッケージ」を「リーフ」「リーフパッケージ」に置き換え（用語集に追記）。用語の置き換えのみで、意思決定の変更はない。 |
 
 ---
 
@@ -18,7 +18,7 @@
 
 1. **段階の責務をパッケージに閉じ込める。** `TranscriptSource`・`ArticleWriter`・`Publisher` の 3 つの段階と、`ArticleWriter` の内部部品である `LLMClient` の interface と入出力データ型は、それぞれ対応するパッケージ（`internal/transcript`・`internal/writer`・`internal/publisher`・`internal/llm`）が所有する。パイプライン（`internal/pipeline`）は実装の詳細を知らず、interface だけに依存する。
 2. **データ型そのものが契約である。** 段階間の受け渡しは構造化された値で行い、秘密情報の非開示は `Secret` 型の実装が保証する（§3.3）。
-3. **プロバイダ固有の知識はパイプラインの外に置く。** 共通データ型と interface に、LLM プロバイダの SDK の型やプロバイダ固有の項目を一切持ち込まない（AC-05。受け入れ基準の一覧は 01_requirements.md 参照）。`internal/llm` は依存先を持たない葉であり、`internal/llm/<provider>` を import できないため、共通型へのプロバイダ型の混入は依存の向き（常にプロバイダ実装 → 共通型の一方通行）で構造的に防がれる。加えて depguard の SDK 閉じ込めルール（`.golangci.yml:63-86`）が SDK の import を `internal/llm/<provider>` 以外から拒否する。ただし `deps` ルールは標準ライブラリと自モジュールだけを許可する厳格な設定（`.golangci.yml:53-59`）であり、SDK を実際に導入する変更では、同じ変更で `deps.allow` にその SDK を追加しない限り、閉じ込めルールの有無にかかわらず全パッケージで拒否される（§9 参照）。
+3. **プロバイダ固有の知識はパイプラインの外に置く。** 共通データ型と interface に、LLM プロバイダの SDK の型やプロバイダ固有の項目を一切持ち込まない（AC-05。受け入れ基準の一覧は 01_requirements.md 参照）。`internal/llm` は依存先を持たないリーフであり、`internal/llm/<provider>` を import できないため、共通型へのプロバイダ型の混入は依存の向き（常にプロバイダ実装 → 共通型の一方通行）で構造的に防がれる。加えて depguard の SDK 閉じ込めルール（`.golangci.yml:63-86`）が SDK の import を `internal/llm/<provider>` 以外から拒否する。ただし `deps` ルールは標準ライブラリと自モジュールだけを許可する厳格な設定（`.golangci.yml:53-59`）であり、SDK を実際に導入する変更では、同じ変更で `deps.allow` にその SDK を追加しない限り、閉じ込めルールの有無にかかわらず全パッケージで拒否される（§9 参照）。
 4. **パイプラインは失敗時に段階を特定でき、元のエラーを保持する。** 段階の失敗は段階名つきの `StageError` に包んで伝播し、`Unwrap()` で元のエラーを辿れるようにする（AC-12）。
 5. **「空はエラー」を interface の契約として宣言する。** 空の結果を正常として返す実装を許さない契約を、各 interface の英語のドキュメントコメントに書く（AC-08）。
 
@@ -134,8 +134,8 @@ flowchart LR
 
 各型と interface の置き場所は、循環 import が生じない次の向きで固定する。
 
-- `internal/secret` は葉（依存先を持たない）。`Secret` 型は API キーと Webhook URL を保持する（#4・#7・#6 が import する）。
-- `internal/transcript`・`internal/llm` は葉。それぞれ自パッケージの interface と入出力データ型を持つ。
+- `internal/secret` はリーフ（依存先を持たない）。`Secret` 型は API キーと Webhook URL を保持する（#4・#7・#6 が import する）。
+- `internal/transcript`・`internal/llm` はリーフ。それぞれ自パッケージの interface と入出力データ型を持つ。
 - `internal/writer` は `internal/transcript` を import する（`ArticleWriter` が `Transcript` を入力として受け取るため）。
 - `internal/publisher` は `internal/writer` を import する（`Publisher` が `Article` を入力として受け取るため）。
 - `internal/pipeline` は `internal/transcript`・`internal/writer`・`internal/publisher` を import する。`internal/llm` は import しない（`LLMClient` は `ArticleWriter` が内部で使う部品であり、パイプラインが直接扱わないため）。
@@ -144,7 +144,7 @@ import の向きがこの順序どおりの一方通行になるため、循環 
 
 補足を 2 点挙げる。
 
-- **`internal/writer` → `internal/llm` の依存は本タスクでは生じない。** `ArticleWriter` interface のシグネチャは `LLMClient` の型を参照しない（§3.2）。`LLMClient` を呼び出すのは `ArticleWriter` の実装（#5）であり、その実装は `internal/writer` に置く（project_overview.md の想定ディレクトリ構成と同じ）。#5 の時点で `internal/writer` が `internal/llm` を import するが、`internal/llm` は葉なので循環しない。
+- **`internal/writer` → `internal/llm` の依存は本タスクでは生じない。** `ArticleWriter` interface のシグネチャは `LLMClient` の型を参照しない（§3.2）。`LLMClient` を呼び出すのは `ArticleWriter` の実装（#5）であり、その実装は `internal/writer` に置く（project_overview.md の想定ディレクトリ構成と同じ）。#5 の時点で `internal/writer` が `internal/llm` を import するが、`internal/llm` はリーフなので循環しない。
 - **`internal/publisher` が `internal/writer` を import するのは `Article` 型のためだけである。** これは YAGNI の観点から許容する（`Article` は writer 段階の産物で、当面の利用者は publisher とパイプラインだけ）。将来 `Article` に別の消費者が増えた場合は、共通型を独立パッケージへ移す選択肢を検討する。
 
 ### 2.3. データフロー（成功時）
@@ -726,8 +726,8 @@ fake 自体の振る舞い（指定した戻り値を返す・呼び出しを記
 
 依存の向きに沿って下から順に実装し、各フェーズで `make test && make lint` を通す。
 
-1. **フェーズ 1: `internal/secret`** — 他パッケージの依存先にならない葉。`Secret` 型と AC-18〜AC-26 のテスト。
-2. **フェーズ 2: 葉パッケージの型と interface** — `internal/transcript`・`internal/llm`・`internal/writer`・`internal/publisher` のデータ型と interface。
+1. **フェーズ 1: `internal/secret`** — 他パッケージの依存先にならないリーフ。`Secret` 型と AC-18〜AC-26 のテスト。
+2. **フェーズ 2: リーフパッケージの型と interface** — `internal/transcript`・`internal/llm`・`internal/writer`・`internal/publisher` のデータ型と interface。
 3. **フェーズ 3: fake** — 4 つの `testutil/mocks.go`（`//go:build test`）。
 4. **フェーズ 4: `internal/pipeline`** — `Stage`・`StageError`・`ErrNilStage`・`New`・`Run` と AC-09〜AC-14 のテスト。fake を注入して検証する。
 5. **フェーズ 5: ドキュメント更新** — `docs/dev/project_overview.md` の `LLMClient` 周りの更新（01_requirements.md §5.1 と付録A のとおり）。
