@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-09-28 |
-| Review date | `-` |
-| Reviewer | `-` |
-| Comments | `-` |
+| Review date | 2026-09-28 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 実装の概要 (Implementation Overview)
 
