@@ -8,7 +8,7 @@
 | Created | 2026-09-28 |
 | Review date | 2026-09-28 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 編集（2026-09-28）: §8 の package_reference.md 登録フェーズの列挙を「（1・2・4）」から「（1・2・3・4）」に修正（フェーズ 3 で testutil 4 パッケージを新設するため）。意思決定の変更はない。 |
 
 ---
 
@@ -697,7 +697,7 @@ fake 自体の振る舞い（指定した戻り値を返す・呼び出しを記
 4. **フェーズ 4: `internal/pipeline`** — `Stage`・`StageError`・`ErrNilStage`・`New`・`Run` と AC-09〜14 のテスト。fake を注入して検証する。
 5. **フェーズ 5: ドキュメント更新** — `docs/dev/project_overview.md` の `LLMClient` 周りの更新（01_requirements.md §5.1 と付録A のとおり）。
 
-各フェーズで `make fmt` → `make test` → `make lint` を実行する。`docs/dev/developer_guide/package_reference.md` への登録はフェーズ 5 にまとめず、各パッケージを新設するフェーズ（1・2・4）のコミットで行う（package_reference.md 冒頭の「パッケージを追加するコミットと同じコミットで更新する」規則）。
+各フェーズで `make fmt` → `make test` → `make lint` を実行する。`docs/dev/developer_guide/package_reference.md` への登録はフェーズ 5 にまとめず、各パッケージを新設するフェーズ（1・2・3・4）のコミットで行う（package_reference.md 冒頭の「パッケージを追加するコミットと同じコミットで更新する」規則）。
 
 ---
 
