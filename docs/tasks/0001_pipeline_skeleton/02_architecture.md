@@ -365,7 +365,7 @@ func (s Secret) MarshalJSON() ([]byte, error)
 
 **使用上の注意（設計上の指針）。** `Secret` を保持する側（#6 の config 構造体など）は、公開フィールド・非公開フィールドどちらでも安全に持てる。ただし次の点を利用側に伝える。
 
-- `Secret` は `func` フィールドを持つため非比較型である。`==` だけでなく `reflect.DeepEqual`・`cmp.Equal` も、同じ元の値を保持する 2 つの `Secret` を等しいと判定せず（func は両方が nil のときだけ等しい）、`map` のキーにもできない。将来 #6 の設定検証やテストで `Secret` の等値判定が必要になった場合は、値を出力しない比較メソッド（例: `Matches(plaintext string) bool`）を追加する。本タスクのスコープには等値判定の要件がないため、YAGNI により現時点では追加しない（§9 参照）。
+- `Secret` は `func` フィールドを持つため非比較型である。`==` はコンパイルエラーになり、`reflect.DeepEqual` は同じ元の値を保持する 2 つの `Secret` を等しいと判定せず（func は両方が nil のときだけ等しい）、`map` のキーにもできない（なお `go-cmp` の `cmp.Equal` は非公開フィールドを持つ型に対して panic する。また `go-cmp` は depguard で許可されていない）。将来 #6 の設定検証やテストで `Secret` の等値判定が必要になった場合は、値を出力しない比較メソッド（例: `Matches(plaintext string) bool`）を追加する。本タスクのスコープには等値判定の要件がないため、YAGNI により現時点では追加しない（§9 参照）。
 - `Reveal()` で取得した値は、呼び出し元の責務で秘密として扱う。非開示保証（fmt・slog・JSON の出力経路）は `Secret` 型に内在するが、`Reveal()` の結果は唯一、呼び出し側の規律に依存する面である（§5.1）。
 
 ### 3.4. パイプライン
@@ -416,7 +416,7 @@ func New(source transcript.TranscriptSource, writer writer.ArticleWriter, publis
 func (p *Pipeline) Run(ctx context.Context, videoURL string) (writer.Article, error)
 ```
 
-- `New` は 3 つの段階のいずれかが nil の場合に `ErrNilStage` を返し、nil を含むパイプラインを構築できないようにする（AC-14）。
+- `New` は 3 つの段階のいずれかが nil の場合に `ErrNilStage` を返し、nil を含むパイプラインを構築できないようにする（AC-14）。判定は interface 値の `== nil` で行うため、nil ポインタを格納した interface（例: `var p *FilePublisher; New(src, w, p)`）は検出しない。この場合は `Run` の該当段階で nil ポインタ参照になりうる。本タスクではこの限界を明示するにとどめ、リフレクションによる検査は追加しない（呼び出し元は #6 の配線のみで、コンストラクタが非 nil を返す実装で防ぐ）。
 - `Stage.String()` は `"transcript"`・`"write"`・`"publish"` を返し、ゼロ値の `StageUnknown` と未知の値には `"unknown"` を返す。`StageUnknown`（= 0）をゼロ値に置くことで、`StageError` を `Stage` 未設定のまま構築した場合でも `Error()` は `"unknown: ..."` を出力し、誤った段階名を出力しない（fail-secure）。`Error()` は必ず `String()` を使う（整数をそのまま出力しない）。
 - `Run` の動作は §6 の処理フローで定義する。
 - `Stage` は失敗の段階を型で表す（switch で分岐し、`default` で未知の値に fail-secure する）。呼び出し元は `errors.AsType[*pipeline.StageError]` で段階を判別し、`errors.Is` で元のエラーを辿れる（AC-12）。
@@ -439,17 +439,24 @@ func (p *Pipeline) Run(ctx context.Context, videoURL string) (writer.Article, er
 
 // FakeTranscriptSource has a configurable result and error, and records calls.
 type FakeTranscriptSource struct {
-    Result Transcript
+    Result transcript.Transcript
     Err    error
     Calls  []FakeTranscriptSourceCall
 }
 
 // FakeTranscriptSourceCall records the arguments of one call.
 type FakeTranscriptSourceCall struct {
-    Ctx     context.Context
+    Ctx      context.Context
     VideoURL string
 }
+
+var _ transcript.TranscriptSource = (*FakeTranscriptSource)(nil)
+
+// Fetch records the call and returns Result and Err.
+func (f *FakeTranscriptSource) Fetch(ctx context.Context, videoURL string) (transcript.Transcript, error)
 ```
+
+- メソッドは**ポインタレシーバ**で定義する。値レシーバにすると `Calls` への追記がコピーに対して行われ、テストから呼び出しが見えなくなる（AC-16 を満たさない）。
 
 - **AC-15**: テストから戻り値（`Result`）とエラー（`Err`）を指定できる。
 - **AC-16**: 呼び出しごとに引数を `Calls` に追記し、呼ばれた回数（`len(Calls)`）と引数をテストから参照できる。
@@ -464,24 +471,20 @@ type FakeTranscriptSourceCall struct {
 | `internal/secret/secret.go` | `Secret` 型（クロージャ保持・`Format`/`LogValue`/`MarshalJSON`/`New`/`Reveal`） | 新設 |
 | `internal/secret/secret_test.go` | AC-18〜AC-23 のテスト | 新設 |
 | `internal/transcript/transcript.go` | `Segment`・`Transcript` 型、`TranscriptSource` interface | 新設 |
-| `internal/transcript/transcript_test.go` | AC-01・AC-02・AC-06〜AC-08 の検証（型・interface） | 新設 |
 | `internal/transcript/testutil/mocks.go` | `FakeTranscriptSource` | 新設 |
 | `internal/transcript/testutil/mocks_test.go` | fake の振る舞いのテスト（AC-15・AC-16） | 新設 |
 | `internal/llm/llm.go` | `GenerateRequest`・`GenerateResponse` 型、`LLMClient` interface | 新設 |
-| `internal/llm/llm_test.go` | AC-03・AC-06〜AC-08 の検証 | 新設 |
 | `internal/llm/testutil/mocks.go` | `FakeLLMClient` | 新設 |
 | `internal/llm/testutil/mocks_test.go` | fake の振る舞いのテスト（AC-15・AC-16） | 新設 |
 | `internal/writer/writer.go` | `Article` 型、`ArticleWriter` interface | 新設 |
-| `internal/writer/writer_test.go` | AC-04・AC-06〜AC-08 の検証 | 新設 |
 | `internal/writer/testutil/mocks.go` | `FakeArticleWriter` | 新設 |
 | `internal/writer/testutil/mocks_test.go` | fake の振る舞いのテスト（AC-15・AC-16） | 新設 |
 | `internal/publisher/publisher.go` | `Publisher` interface | 新設 |
-| `internal/publisher/publisher_test.go` | AC-06〜AC-08 の検証 | 新設 |
 | `internal/publisher/testutil/mocks.go` | `FakePublisher` | 新設 |
 | `internal/publisher/testutil/mocks_test.go` | fake の振る舞いのテスト（AC-15・AC-16） | 新設 |
 | `internal/pipeline/pipeline.go` | `Pipeline`・`New`・`Run`・`Stage`・`StageError`・`ErrNilStage` | 新設 |
 | `internal/pipeline/pipeline_test.go` | AC-09〜AC-14 のテスト | 新設 |
-| `docs/dev/developer_guide/package_reference.md` | 新設パッケージの登録（本コミットで更新） | 変更 |
+| `docs/dev/developer_guide/package_reference.md` | 新設パッケージの登録（各パッケージを追加するコミットと同じコミットで更新する。package_reference.md 冒頭の規則） | 変更 |
 | `docs/dev/project_overview.md` | §パイプラインの `LLMClient` 周り（戻り値・責務の記述・`GenerateRequest` のフィールド名・想定ディレクトリ構成の `internal/secret/`）を本設計に合わせて更新（01_requirements.md §5.1、付録A） | 変更 |
 
 `cmd/yt2column/main.go` は本タスクでは変更しない（CLI 配線は #6）。
@@ -646,16 +649,16 @@ flowchart TD
   - `Secret` を直接出力する経路と、公開フィールドとして埋め込んだ構造体の出力は、**`[REDACTED]` が出力に現れること**を検証する（「元の値が現れない」ことだけの検証では、`Format` が空文字や値の長さ・ハッシュを出力しても通ってしまうため、AC-18・AC-19・AC-20 の基準を満たす検証にならない）。AC-18 のテーブルテストは、委譲される主な書式指定子（`%s`・`%v`・`%+v`・`%#v`・`%q`・`%d`・`%x`）に加え、あまり使われない指定子（`%c`・`%U`・`%b`・`%e` など）と未知の指定子を含め、`Format` がどの指定子でも元の値に委譲せず固定文字列を書く（fail-secure）ことを確認する。
   - 非公開フィールド経路の出力は元の値の代わりにクロージャの関数アドレス（`0x...`）が現れる。この経路の検証は「元の値が出力に一切現れないこと」だけを確認し、関数アドレスそのものを検証しない（アドレスはプロセスごとに変わるため、スナップショットやゴールデンファイルの比較対象にしてはならない）。`Secret` を含む構造体の出力をゴールデンファイル化しない。
   - `Reveal()`（AC-21）・空文字列の `New`（AC-22）・ゼロ値の `Reveal()`（AC-23）もそれぞれ検証する。
-- 型・interface の定義（AC-01〜AC-08 の一部）は、fake が interface を満たすことでコンパイル時に検証され、パイプラインのフローテストでデータの受け渡しと順序が検証される。
+- 型・interface の定義（AC-01〜AC-08 の一部）は、各 `testutil/mocks.go` に置くコンパイル時アサーション（例: `var _ transcript.TranscriptSource = (*FakeTranscriptSource)(nil)`）で検証され、パイプラインのフローテストでデータの受け渡しと順序が検証される。構造体のフィールドに代入した値をそのまま読み返すだけのテストは、無条件に通り何も検証しないため書かない（CLAUDE.md「Testing Strategy」）。そのため `internal/transcript`・`internal/llm`・`internal/writer`・`internal/publisher` には、本タスクではパッケージ本体の `_test.go` を置かない。
 
 ### 7.2. 受け入れ基準と設計要素の対応
 
 | AC | 設計要素 | テストの対象 |
 |---|---|---|
-| AC-01 | `Transcript.Segments`（`StartMs`・`Text`・順序保持） | `internal/transcript` の型テストとパイプラインのフローテスト |
+| AC-01 | `Transcript.Segments`（`StartMs`・`Text`・順序保持） | パイプラインのフローテスト（fake が返した `Transcript` が `ArticleWriter` の fake に同じ値で渡ることを確認）。フィールドに代入した値を読み返すだけの型テストは書かない（CLAUDE.md「Testing Strategy」） |
 | AC-02 | `Transcript` のメタ情報 5 項目 | 同上 |
-| AC-03 | `GenerateResponse{Text, Model}` | `internal/llm` の型テストとフローテスト |
-| AC-04 | `Article{Title, Body, SourceURL, Model}` | `internal/writer` の型テストとフローテスト |
+| AC-03 | `GenerateResponse{Text, Model}` | `FakeLLMClient` の `mocks_test.go`（指定した `GenerateResponse` がそのまま返ること） |
+| AC-04 | `Article{Title, Body, SourceURL, Model}` | パイプラインのフローテスト（`ArticleWriter` の fake が返した `Article` が `Publisher` の fake と `Run` の戻り値に同じ値で現れることを確認） |
 | AC-05 | 共通型にプロバイダ固有の項目・SDK 型を含めない | `internal/llm` が `internal/llm/<provider>` を import できない構造（依存の一方通行）、depguard による SDK import の制限、型定義の目視 |
 | AC-06 | 4 つの interface | fake が interface を満たすことのコンパイル時検証 |
 | AC-07 | 全メソッドの第 1 引数が `context.Context` | コンパイル時検証 |
@@ -668,7 +671,7 @@ flowchart TD
 | AC-14 | nil 段階の構築を拒否 | `internal/pipeline` の構築テスト |
 | AC-15 | fake の戻り値・エラー指定 | 各 `testutil/mocks_test.go` とパイプラインの利用テスト |
 | AC-16 | fake の呼び出し記録 | 同上 |
-| AC-17 | fake が `//go:build test` でビルドされる | `make build` に fake が含まれないことの確認 |
+| AC-17 | fake が `//go:build test` でビルドされる | タグなしの `go build ./internal/<pkg>/testutil` が「build constraints exclude all Go files」で失敗し、`-tags test` 付きでは成功することの確認（`make build` は `cmd/yt2column` だけをビルドし、本タスクではそこから fake に到達しないため、タグの有無に関係なく成功し検証にならない） |
 | AC-18 | `fmt.Formatter` による全経路の隠蔽 | `internal/secret` のテーブルテスト |
 | AC-19 | slog 属性の `[REDACTED]` | `internal/secret` のテスト |
 | AC-20 | JSON エンコードの `"[REDACTED]"` | `internal/secret` のテスト |
@@ -692,9 +695,9 @@ fake 自体の振る舞い（指定した戻り値を返す・呼び出しを記
 2. **フェーズ 2: 葉パッケージの型と interface** — `internal/transcript`・`internal/llm`・`internal/writer`・`internal/publisher` のデータ型と interface。
 3. **フェーズ 3: fake** — 4 つの `testutil/mocks.go`（`//go:build test`）。
 4. **フェーズ 4: `internal/pipeline`** — `Stage`・`StageError`・`ErrNilStage`・`New`・`Run` と AC-09〜14 のテスト。fake を注入して検証する。
-5. **フェーズ 5: ドキュメント更新** — `docs/dev/developer_guide/package_reference.md` への登録、`docs/dev/project_overview.md` の `LLMClient` 周りの更新（01_requirements.md §5.1 と付録A のとおり）。
+5. **フェーズ 5: ドキュメント更新** — `docs/dev/project_overview.md` の `LLMClient` 周りの更新（01_requirements.md §5.1 と付録A のとおり）。
 
-各フェーズで `make fmt` → `make test` → `make lint` を実行する。
+各フェーズで `make fmt` → `make test` → `make lint` を実行する。`docs/dev/developer_guide/package_reference.md` への登録はフェーズ 5 にまとめず、各パッケージを新設するフェーズ（1・2・4）のコミットで行う（package_reference.md 冒頭の「パッケージを追加するコミットと同じコミットで更新する」規則）。
 
 ---
 
