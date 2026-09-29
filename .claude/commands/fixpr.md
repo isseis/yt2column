@@ -209,17 +209,16 @@ Agent prompt (inline `clusters` from Phase 2, the `valid` threads, and the
 >       relevant F-/AC- item, not a mechanism).
 >    d. Record the concern in a handoff document in the same task directory
 >       so the phase it belongs to does not lose it, routing by the phase
->       the concern belongs to, not by the commented document: a
->       design-level concern (raised on the requirements document) goes to
->       `design_handoff.md`; an implementation-level concern goes to
->       `implementation_handoff.md`, even when it was raised on the
->       requirements document; an architecture-level concern goes to
->       `implementation_handoff.md`. A concern raised on the implementation
->       plan document has no later phase to hand off to, so keep its
->       obligation at planning altitude in the plan itself — state what must
->       be verified, not the exact assertion or shell pipeline — and do NOT
->       park it in `implementation_handoff.md`, which the same plan
->       consumes. Write in the project's document language. If the file does
+>       the concern belongs to, not by the commented document: a design- or
+>       architecture-level concern goes to `design_handoff.md` (which
+>       `/mkarch` consumes); an implementation-level concern goes to
+>       `implementation_handoff.md` (which `/mkplan` consumes), even when it
+>       was raised on the requirements document. A concern raised on the
+>       implementation plan document has no later phase to hand off to, so
+>       keep its obligation at planning altitude in the plan itself — state
+>       what must be verified, not the exact assertion or shell pipeline —
+>       and do NOT park it in `implementation_handoff.md`, which the same
+>       plan consumes. Write in the project's document language. If the file does
 >       not exist, create it with a short header stating its role: it
 >       collects concerns raised in review that belong to a later phase, and
 >       that phase's document (architecture document or implementation plan)
@@ -244,6 +243,13 @@ Agent prompt (inline `clusters` from Phase 2, the `valid` threads, and the
 >      implementation plan document after the edited one), since it was
 >      approved against the old decision; the reply says those need
 >      re-approval too.
+>    - Adding or extending a handoff item is also a decision change, even when
+>      no process document text was edited (so the approved-status check above
+>      never ran). Set that handoff's already-approved consumer back to
+>      `draft` — the architecture document for a `design_handoff.md` item, the
+>      implementation plan document for an `implementation_handoff.md` item —
+>      and, for a `design_handoff.md` item, the implementation plan document
+>      after it as well; the reply says those need re-approval.
 >    - Editorial correction — keep the status and record the edit in the
 >      `Comments` field, stating that no decision changed.
 > 5. Do NOT run build checks — that happens in the next phase.
@@ -251,10 +257,12 @@ Agent prompt (inline `clusters` from Phase 2, the `valid` threads, and the
 >    (one English sentence describing exactly what was changed, for the PR
 >    reply). If a cluster fix subsumed a thread, set `applied=true` and
 >    reference the structural change. For an off-level thread, the reply
->    says which later phase the detail belongs to and names the handoff
->    item it was recorded in (e.g. "`design_handoff.md` H-07" or
->    "`implementation_handoff.md` I-03"), plus any
->    abstraction-level change made to the commented passage.
+>    says which later phase the detail belongs to and names where the concern
+>    was recorded — the handoff item (e.g. "`design_handoff.md` H-07" or
+>    "`implementation_handoff.md` I-03") or, for a concern raised on the
+>    implementation plan document, the plan section or task where the
+>    obligation was retained — plus any abstraction-level change made to the
+>    commented passage.
 >
 > Clusters (structural changes): `<inline JSON>`
 >
