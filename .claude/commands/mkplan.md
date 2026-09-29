@@ -16,9 +16,9 @@ Work in the following order.
 2. Read `02_architecture.md` in the target task directory.
 
 3. Verify that implementation planning is allowed.
-- Check the document status in `02_architecture.md`.
-- If the status is not `approved`, do not create `03_implementation_plan.md`.
-- In that case, stop and report that implementation planning cannot begin until `02_architecture.md` is `approved`.
+- Check the document status in `01_requirements.md` and `02_architecture.md`.
+- If either status is not `approved`, do not create `03_implementation_plan.md`.
+- In that case, stop and report that implementation planning cannot begin until both `01_requirements.md` and `02_architecture.md` are `approved`, naming which one is not.
 
 4. Read the remaining required input documents.
 - `01_requirements.md` in the target task directory

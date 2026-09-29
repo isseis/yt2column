@@ -99,21 +99,28 @@ Agent prompt (inline the fetched `threads` JSON from Phase 1):
 > **Abstraction-level check — do this before choosing `valid`.** Process
 > documents live under the task root (`docs/tasks/NNNN_<name>/`, see
 > `.claude/commands/_context.md`). For a thread on one of them, ask whether the
-> comment asks the document to specify detail that belongs to a later phase:
-> - On the requirements document (`01_requirements.md`): design- or
->   implementation-level detail — which library API, flag, or pre-check to use,
->   how a malformed input is detected, internal data structures or file
->   layout, temporary-file or retry mechanics, standard-library pitfalls, how
->   a test is constructed. The requirements document states observable
->   behavior only: what is accepted, which sentinel a rejection maps to, what
->   state changes.
-> - On the architecture document (`02_architecture.md`): implementation-level
->   detail — signatures of internal or helper functions, specific API call
->   sequences, line-level code, test code structure. The architecture
->   document states components, responsibilities, interfaces, data flow, and
->   design decisions. Public interface definitions (the method signatures and
->   field types shown in interface or class diagrams) are architecture
->   content, so a correction to them is `"valid"`, not `"off-level"`.
+> comment asks the document to specify detail that belongs to a later phase.
+> Each process document has its own boundary:
+> - On the requirements document (`01_requirements.md`): its own level is
+>   observable behavior only — what is accepted, which sentinel a rejection
+>   maps to, what state changes. Off-level is design- or implementation-level
+>   detail: which library API, flag passed to a dependency (e.g. a `yt-dlp`
+>   option), or pre-check to use, how a malformed input is detected, internal
+>   data structures or file layout, temporary-file or retry mechanics,
+>   standard-library pitfalls, how a test is constructed. Valid exception:
+>   user-facing CLI and configuration options are part of the accepted
+>   contract, so a correction to them is `"valid"`, not `"off-level"`.
+> - On the architecture document (`02_architecture.md`): its own level is
+>   components, responsibilities, interfaces (including their method
+>   signatures and field types), data flow, and design decisions. Off-level is
+>   signatures of internal or helper functions, specific API call sequences,
+>   line-level code, and test code structure. Valid exception: public
+>   interface definitions are architecture content, so a correction to them
+>   is `"valid"`, not `"off-level"`.
+> - On the implementation plan document (`03_implementation_plan.md`): its own
+>   level is phases, concrete tasks, files to modify, and the verification
+>   approach at planning altitude. Off-level is exact assertions, full shell
+>   pipelines, line-level code, and test code structure.
 >
 > If so, the verdict is `"off-level"`, **not** `"valid"`, even when the
 > comment is technically correct. Adding later-phase detail to a document
@@ -190,29 +197,40 @@ Agent prompt (inline `clusters` from Phase 2, the `valid` threads, and the
 >       at the document's own level: observable behavior for the requirements
 >       document (`01_requirements.md`); components, responsibilities,
 >       interfaces, and design decisions for the architecture document
->       (`02_architecture.md`). Keep every acceptance-criterion ID — never
->       renumber or delete one (see the requirements process guide); reword
->       it instead.
+>       (`02_architecture.md`); phases, concrete tasks, files to modify, and
+>       the verification approach at planning altitude for the implementation
+>       plan document (`03_implementation_plan.md`). Never renumber an
+>       acceptance-criterion ID; reword a criterion that still carries an
+>       observable obligation, and delete one that states only later-phase
+>       mechanics, leaving its ID unused (as the requirements process guide
+>       allows).
 >    c. If `behaviorGap` is true, state the missing behavior at the document's
 >       level (for the requirements document, an observable condition in the
 >       relevant F-/AC- item, not a mechanism).
 >    d. Record the concern in a handoff document in the same task directory
->       so the phase it belongs to does not lose it. Route by that phase, not
->       by the commented document: a design-level concern (raised on the
->       requirements document) goes to `design_handoff.md`; an
->       implementation-level concern goes to `implementation_handoff.md`,
->       even when it was raised on the requirements document. Write in the
->       project's document language. If the file does not exist, create it
->       with a short header stating its role: it collects concerns raised in
->       review that belong to a later phase, and that phase's document
->       (architecture document or implementation plan) records, for each
->       item, the approach taken or why it does not apply. Add the concern as the next numbered item
->       (`H-NN` in `design_handoff.md`, `I-NN` in
->       `implementation_handoff.md`) with: what the concern is, why it
->       matters, a candidate approach, and the related F-/AC- IDs. If an
->       existing item already covers it, extend that item instead of adding
->       a duplicate. If the commented document does not yet link to the
->       handoff document, add one sentence that does.
+>       so the phase it belongs to does not lose it, routing by the phase
+>       the concern belongs to, not by the commented document: a
+>       design-level concern (raised on the requirements document) goes to
+>       `design_handoff.md`; an implementation-level concern goes to
+>       `implementation_handoff.md`, even when it was raised on the
+>       requirements document; an architecture-level concern goes to
+>       `implementation_handoff.md`. A concern raised on the implementation
+>       plan document has no later phase to hand off to, so keep its
+>       obligation at planning altitude in the plan itself — state what must
+>       be verified, not the exact assertion or shell pipeline — and do NOT
+>       park it in `implementation_handoff.md`, which the same plan
+>       consumes. Write in the project's document language. If the file does
+>       not exist, create it with a short header stating its role: it
+>       collects concerns raised in review that belong to a later phase, and
+>       that phase's document (architecture document or implementation plan)
+>       records, for each item, the approach taken or why it does not apply.
+>       Add the concern as the next numbered item (`H-NN` in
+>       `design_handoff.md`, `I-NN` in `implementation_handoff.md`) with:
+>       what the concern is, why it matters, a candidate approach, and the
+>       related F-/AC- IDs. If an existing item already covers it, extend
+>       that item instead of adding a duplicate. If the commented document
+>       does not yet link to the handoff document, add one sentence that
+>       does.
 > 4. For each process document you edited in steps 1–3 (the requirements
 >    document, the architecture document, or the implementation plan
 >    document), check its Document Status. If it is `approved`, classify the
@@ -221,6 +239,11 @@ Agent prompt (inline `clusters` from Phase 2, the `valid` threads, and the
 >    - Decision change — always the case for a `behaviorGap` addition, and for
 >      any rewrite that changes what an F-/AC- item or design decision says:
 >      set the status back to `draft`; the reply says re-approval is needed.
+>      Also set back to `draft` any later-phase document in the same task
+>      that is already `approved` (the architecture document and/or the
+>      implementation plan document after the edited one), since it was
+>      approved against the old decision; the reply says those need
+>      re-approval too.
 >    - Editorial correction — keep the status and record the edit in the
 >      `Comments` field, stating that no decision changed.
 > 5. Do NOT run build checks — that happens in the next phase.
@@ -365,7 +388,8 @@ the user with **both** of the following — bare counts alone are not enough:
    was this round substantive or noise, and is it worth running again or safe
    to merge. If most threads were off-level, say so: the document is
    converging and the remaining concerns now wait in the handoff document.
-   Name any process document Phase 3 returned from `approved` to `draft`, so
+   Name every process document Phase 3 returned from `approved` to `draft`
+   (edited documents and the later-phase documents reset with them), so
    the user knows it needs re-approval before the next phase proceeds.
 
 3. **Skipped threads**: list every thread left out of Phase 5 (unclear
