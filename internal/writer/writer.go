@@ -20,5 +20,5 @@ type Article struct {
 // Implementations must return an error on failure and must not
 // return an empty Article as a successful result.
 type ArticleWriter interface {
-	Write(ctx context.Context, transcript transcript.Transcript) (Article, error)
+	Write(ctx context.Context, t transcript.Transcript) (Article, error)
 }
