@@ -30,20 +30,7 @@ import (
 // unknownStage is a Stage value outside the defined range.
 const unknownStage Stage = 99
 
-// cancelingContext is a context that becomes canceled when flip is called.
-type cancelingContext struct {
-	context.Context
-	canceled bool
-}
-
-func (c *cancelingContext) Err() error {
-	if c.canceled {
-		return context.Canceled
-	}
-	return c.Context.Err()
-}
-
-// flipAfterFetch flips the context after observing the Fetch call.
+// flipAfterFetch cancels the context after observing the Fetch call.
 type flipAfterFetch struct {
 	inner *transcripttestutil.FakeTranscriptSource
 	flip  func()
@@ -52,6 +39,17 @@ type flipAfterFetch struct {
 func (s *flipAfterFetch) Fetch(ctx context.Context, videoURL string) (transcript.Transcript, error) {
 	s.flip()
 	return s.inner.Fetch(ctx, videoURL)
+}
+
+// flipAfterWrite cancels the context after observing the Write call.
+type flipAfterWrite struct {
+	inner *writertestutil.FakeArticleWriter
+	flip  func()
+}
+
+func (w *flipAfterWrite) Write(ctx context.Context, t transcript.Transcript) (writer.Article, error) {
+	w.flip()
+	return w.inner.Write(ctx, t)
 }
 
 func TestPipelineSuccess(t *testing.T) {
@@ -197,29 +195,85 @@ func TestPipelineStageError(t *testing.T) {
 }
 
 func TestPipelineCanceled(t *testing.T) {
-	ctx := &cancelingContext{Context: context.Background()}
-	srcFake := &transcripttestutil.FakeTranscriptSource{}
-	src := &flipAfterFetch{inner: srcFake, flip: func() { ctx.canceled = true }}
-	wr := &writertestutil.FakeArticleWriter{}
-	pub := &publishertestutil.FakePublisher{}
+	t.Run("canceled before start", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
 
-	p, err := New(src, wr, pub)
-	if err != nil {
-		t.Fatalf("New returned error: %v", err)
-	}
-	_, err = p.Run(ctx, "url")
-	if !errors.Is(err, context.Canceled) {
-		t.Errorf("Run error = %v, want context.Canceled", err)
-	}
-	if len(srcFake.Calls) != 1 {
-		t.Errorf("source calls = %d, want 1", len(srcFake.Calls))
-	}
-	if len(wr.Calls) != 0 {
-		t.Error("writer called after cancellation")
-	}
-	if len(pub.Calls) != 0 {
-		t.Error("publisher called after cancellation")
-	}
+		src := &transcripttestutil.FakeTranscriptSource{}
+		pub := &publishertestutil.FakePublisher{}
+		p, err := New(src, &writertestutil.FakeArticleWriter{}, pub)
+		if err != nil {
+			t.Fatalf("New returned error: %v", err)
+		}
+
+		_, err = p.Run(ctx, "url")
+		if err != context.Canceled {
+			t.Errorf("Run error = %v, want context.Canceled", err)
+		}
+		if _, ok := errors.AsType[*StageError](err); ok {
+			t.Error("cancellation was wrapped in a StageError")
+		}
+		if len(src.Calls) != 0 {
+			t.Error("source called after cancellation")
+		}
+		if len(pub.Calls) != 0 {
+			t.Error("publisher called after cancellation")
+		}
+	})
+
+	t.Run("canceled after fetch", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		srcFake := &transcripttestutil.FakeTranscriptSource{}
+		src := &flipAfterFetch{inner: srcFake, flip: cancel}
+		wrFake := &writertestutil.FakeArticleWriter{}
+		pub := &publishertestutil.FakePublisher{}
+		p, err := New(src, wrFake, pub)
+		if err != nil {
+			t.Fatalf("New returned error: %v", err)
+		}
+
+		_, err = p.Run(ctx, "url")
+		if err != context.Canceled {
+			t.Errorf("Run error = %v, want context.Canceled", err)
+		}
+		if _, ok := errors.AsType[*StageError](err); ok {
+			t.Error("cancellation was wrapped in a StageError")
+		}
+		if len(srcFake.Calls) != 1 {
+			t.Errorf("source calls = %d, want 1", len(srcFake.Calls))
+		}
+		if len(wrFake.Calls) != 0 {
+			t.Error("writer called after cancellation")
+		}
+		if len(pub.Calls) != 0 {
+			t.Error("publisher called after cancellation")
+		}
+	})
+
+	t.Run("canceled after write", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		wrFake := &writertestutil.FakeArticleWriter{}
+		wr := &flipAfterWrite{inner: wrFake, flip: cancel}
+		pub := &publishertestutil.FakePublisher{}
+		p, err := New(&transcripttestutil.FakeTranscriptSource{}, wr, pub)
+		if err != nil {
+			t.Fatalf("New returned error: %v", err)
+		}
+
+		_, err = p.Run(ctx, "url")
+		if err != context.Canceled {
+			t.Errorf("Run error = %v, want context.Canceled", err)
+		}
+		if _, ok := errors.AsType[*StageError](err); ok {
+			t.Error("cancellation was wrapped in a StageError")
+		}
+		if len(wrFake.Calls) != 1 {
+			t.Errorf("writer calls = %d, want 1", len(wrFake.Calls))
+		}
+		if len(pub.Calls) != 0 {
+			t.Error("publisher called after cancellation")
+		}
+	})
 }
 
 func TestPipelineNewNilStage(t *testing.T) {
@@ -354,6 +408,9 @@ func TestCommonTypesFieldSets(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			if tc.typ.NumField() != len(tc.want) {
+				t.Errorf("%s has %d fields, want %d", tc.name, tc.typ.NumField(), len(tc.want))
+			}
 			got := exportedFieldTypes(tc.typ)
 			if !maps.Equal(got, tc.want) {
 				t.Errorf("%s fields = %v, want %v", tc.name, got, tc.want)
@@ -438,6 +495,9 @@ func TestSecretRevealExclusive(t *testing.T) {
 	typ := reflect.TypeFor[secret.Secret]()
 	got := make(map[string]struct{}, typ.NumMethod())
 	for m := range typ.Methods() {
+		got[m.Name] = struct{}{}
+	}
+	for m := range reflect.TypeFor[*secret.Secret]().Methods() {
 		got[m.Name] = struct{}{}
 	}
 	if !maps.Equal(got, allowed) {
