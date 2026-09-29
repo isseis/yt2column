@@ -31,4 +31,6 @@
 | キャッシュ | cache | 動画 ID ごとの字幕・info.json の保存 |
 | 動画 ID | video ID | YouTube の 11 文字の ID |
 | 段階 | stage | パイプラインを構成する処理の単位（`TranscriptSource`・`ArticleWriter`・`Publisher`） |
+| 構成要素パッケージ | component package | パイプラインの構成要素（3 つの段階と、`ArticleWriter` が使う `LLMClient`）の interface とデータ型を持つパッケージ（`internal/transcript`・`internal/llm`・`internal/writer`・`internal/publisher`）。リーフとは限らない |
+| リーフパッケージ | leaf package | 依存先を持たないパッケージ（例: `internal/llm`）。旧称: 葉パッケージ |
 | 秘密情報 | secret | API キー・Webhook URL など。`Secret` 型で保持する |
