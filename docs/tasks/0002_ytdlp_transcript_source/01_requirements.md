@@ -83,6 +83,7 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 `yt-dlp` を外部コマンドとして起動し、字幕（json3）と info.json をキャッシュディレクトリへ出力させる。
 
 -   `exec.CommandContext` に引数を配列で渡し、シェル（`sh -c` など）を経由しない。
+-   子プロセスに渡す環境変数は allowlist に限定し、設定されている変数のみを渡し、秘密情報（`DEEPSEEK_API_KEY`・`SLACK_WEBHOOK_URL` など）を引き継がない。allowlist は `PATH`・`HOME`・`TMPDIR`・`XDG_CONFIG_HOME`・`XDG_CACHE_HOME`・proxy 関連・locale・`SSL_CERT_FILE` / `SSL_CERT_DIR` を含む。ブロックリストではなく allowlist とする（秘密情報を追加したときに漏れないため）。
 -   URL の直前に `--` を置き、URL を 1 個の引数として渡す。
 -   取得オプションとして `--skip-download --write-subs --write-auto-subs --sub-langs ja --sub-format json3 --write-info-json` を渡し、出力テンプレートはキャッシュディレクトリと動画 ID から組み立てる。
 -   `context` によるタイムアウトを設定する。タイムアウトは構築時に受け取り、正の値でなければならない。
@@ -92,10 +93,11 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 
 **Acceptance Criteria**:
 - **AC-06**: `yt-dlp` は、動画 ID から組み立てた出力テンプレートと正規化 URL を引数として起動され、URL の直前に `--` が置かれる。
-- **AC-07**: `yt-dlp` の起動にシェルを経由しない。外部コマンドの実行は差し替え可能で、引数の配列はテストから検証できる。
+- **AC-07**: `yt-dlp` の起動にシェルを経由しない。外部コマンドの実行は差し替え可能で、引数の配列と子プロセスへ渡す環境変数はテストから検証できる。
 - **AC-08**: タイムアウトまたはキャンセルで `yt-dlp` が終了した場合、`errors.Is(err, context.DeadlineExceeded)` または `errors.Is(err, context.Canceled)` が真になるエラーを返す。
 - **AC-09**: `yt-dlp` が非ゼロで終了した場合、および実行ファイルが見つからない場合は、`errors.Is(err, ErrYtDlpExec)` が真になるエラーを返す。エラーメッセージに標準エラー出力を含める場合は先頭 4 KiB までで切り詰められる。
 - **AC-28**: タイムアウトに 0 以下の値を指定した構築はエラーになる。
+- **AC-44**: `yt-dlp` の起動時に子プロセスへ渡る環境変数は allowlist に限定される。テストは、テスト専用の目印 `YT2COLUMN_TEST_UNLISTED_MARKER`（ブロックリストでは除かれない名前）と `DEEPSEEK_API_KEY` を親の環境に設定し、さらに allowlist の変数（`PATH`・`HOME`・`TMPDIR`・`SSL_CERT_FILE`・`HTTPS_PROXY`・`LANG`）を設定して `Fetch` を実行する。子へ渡る環境に目印と `DEEPSEEK_API_KEY` が含まれず、設定した allowlist の各変数が同じ値で含まれることを、外部コマンドの実行の差し替えで検証する。未設定の allowlist の変数は子の環境に含まれない。
 
 #### F-003: json3 パーサ
 
@@ -200,6 +202,7 @@ info.json 形式のメタ情報を読み、タイトル・チャンネル名・�
 
 -   [security.md](../../dev/security.md) §1（外部コマンド）・§5（キャッシュ）に従う。
 -   シェルを経由せず、引数を配列で渡す（F-002・AC-07）。
+-   子プロセスへ渡す環境変数を allowlist に限定し、秘密情報を引き継がない（F-002・AC-44）。
 -   URL を検証し、正規化 URL を `--` の後に渡す（F-001・F-002・AC-06）。
 -   動画 ID を `[A-Za-z0-9_-]{11}` に限定し、パス区切りや `..` を含む URL 文字列をキャッシュのパスに使わない（F-001・AC-02・AC-04）。
 -   `yt-dlp` の起動にタイムアウトを設定する（F-002）。
@@ -227,7 +230,7 @@ info.json 形式のメタ情報を読み、タイトル・チャンネル名・�
 ## 5. 制約条件 (Constraints)
 
 -   [project_overview.md](../../dev/project_overview.md) の「決定済みの方針」「前提・制約」に従う。
--   ユニットテストは `yt-dlp`・ネットワークを呼ばない。そのため、外部コマンドの実行はテストから差し替え可能にする（F-002・AC-07）。統合テスト（F-008）は実 `yt-dlp`・ネットワークを使うが、既定のテストには含めず、専用の Make ターゲットで実行する。統合テストは、`make lint`・pre-commit・CI の lint の解析対象に含め、常にコンパイル・解析されるようにする（lint では `test` と `integration` の両方のビルドタグを使う）。
+-   ユニットテストは `yt-dlp`・ネットワークを呼ばない。そのため、外部コマンドの実行はテストから差し替え可能にし、引数の配列と子プロセスへ渡す環境変数をテストから検証できるようにする（F-002・AC-07・AC-44）。統合テスト（F-008）は実 `yt-dlp`・ネットワークを使うが、既定のテストには含めず、専用の Make ターゲットで実行する。統合テストは、`make lint`・pre-commit・CI の lint の解析対象に含め、常にコンパイル・解析されるようにする（lint では `test` と `integration` の両方のビルドタグを使う）。
 -   環境変数の読み込みと CLI フラグの定義は #6 の責務とする。本タスクの `YtDlpSource` は、キャッシュディレクトリ・`yt-dlp` の実行パス・タイムアウト・強制再取得の指定を構築時に受け取る。強制再取得の指定を CLI フラグとして配線するのは #6 である。キャッシュディレクトリの指定がない場合の扱い（既定ディレクトリを使うかエラーにするか）は設計（`02_architecture.md`）で決める。
 -   パッケージの分割は設計（`02_architecture.md`）で決める。循環 import を生じないこと。
 -   実装計画書のフェーズ 0 に事前調査を含める。調査項目は、手動字幕と自動字幕のどちらを優先するか、およびその出力ファイル名、字幕なし動画での `yt-dlp` の終了コードと出力、実際の `info.json` のフィールド名、実際の自動字幕 json3 の重複イベントの有無である。調査結果はアーキテクチャ設計書に記録し、`testdata/` に実出力を保存する。採用するファイル名と優先規則は調査結果を基に固定する。`testdata/` の配置（パッケージ内かリポジトリ直下か）は設計で決める。
