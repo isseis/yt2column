@@ -24,7 +24,7 @@ URL → TranscriptSource → Transcript → ArticleWriter → Article → Publis
 各段階は interface で抽象化し、実装を差し替えられるようにする。
 
 - `TranscriptSource`: 初期実装は `YtDlpSource`。
-  - 例: `yt-dlp --skip-download --write-subs --write-auto-subs --sub-langs ja --sub-format json3 --write-info-json -o "<cache>/%(id)s" <URL>`
+  - 例: `yt-dlp --ignore-config --no-plugin-dirs --skip-download --write-subs --write-auto-subs --sub-langs ja --sub-format json3 --write-info-json -o "<cache>/%(id)s" -- <URL>`
   - json3 の `events[].segs[].utf8` を連結して本文にする。`tStartMs` も保持する（将来、見出しごとに動画の該当時刻へのリンクを付けるため）。
   - info.json からタイトル・チャンネル名・概要欄を取り出し、メタ情報として `Transcript` に含める。
   - 手動字幕と自動字幕が両方ある場合の挙動（どちらが優先されるか、出力ファイル名）は `02_architecture.md` の作成時に実 `yt-dlp` の出力で確認し、同書に記録すること（承認前に確定させる）。

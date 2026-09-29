@@ -89,13 +89,13 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 `yt-dlp` を外部コマンドとして起動し、日本語字幕（手動字幕・自動字幕）の json3 と info.json を出力させる。動画本体はダウンロードしない。具体的なオプション列は設計で固定する。
 
 -   引数を配列で渡し、シェル（`sh -c` など）を経由しない。
--   子プロセスに渡す環境変数は allowlist に限定し、設定されている変数のみを渡す。allowlist は `PATH`・`HOME`・`TMPDIR`・`XDG_CONFIG_HOME`・`XDG_CACHE_HOME`・proxy 関連・locale・`SSL_CERT_FILE` / `SSL_CERT_DIR` を含む。ブロックリストではなく allowlist とする（秘密情報を追加したときに漏れないため）。allowlist の変数が 1 つも設定されていない環境でも、親の環境を子プロセスへ引き継がない。
+-   子プロセスに渡す環境変数は allowlist に限定し、設定されている変数のみを渡す。allowlist は固定された有限個の変数名の集合であり、秘密情報の変数名（例: `*_API_KEY`、Webhook URL）を決して含まない。ブロックリストではなく allowlist とする（秘密情報を追加したときに漏れないため）。具体的な変数名の集合は `02_architecture.md` で固定する。allowlist の変数が 1 つも設定されていない環境でも、親の環境を子プロセスへ引き継がない。
 -   利用者・システムの yt-dlp 設定ファイルを読み込ませない（`--ignore-config`）。設定ファイルからのオプション注入（`--exec` など）や出力先の上書きを防ぐためである。あわせて、既定のプラグインディレクトリを読み込ませない（`--no-plugin-dirs`）。環境に依存するプラグインの import を防ぎ、起動を決定的にするためである。
 -   URL は正規化 URL を 1 個の引数として渡し、オプションとして解釈されないよう直前に `--` を置く。
 -   キャッシュディレクトリのパスは、`yt-dlp` の出力テンプレートの書式として解釈されない形で渡す。パスに `%` を含んでいても（例: `%(title)s`、`%%`）、出力は指定したディレクトリの下にだけ作られる。
 -   タイムアウトは構築時に受け取り、正の値でなければならない。タイムアウトまたはキャンセルの後、`Fetch` は有界の時間内に戻る。`yt-dlp` が起動した子孫プロセスが残っていても、その終了を待ち続けない。
 -   実行パスは構築時に指定でき、未指定時は PATH 上の `yt-dlp` を使う（`YT2COLUMN_YTDLP_PATH` は #6 の設定読み込みが読む）。
--   非ゼロ終了や実行ファイルが見つからない場合は `ErrYtDlpExec` を返す。エラーメッセージに含める標準エラー出力は先頭 4 KiB までとし、親が保持する標準エラー出力も、子プロセスの出力量によらず 4 KiB を超えない。標準エラー出力が大量でも、子プロセスの終了を妨げない。
+-   非ゼロ終了、実行ファイルが見つからない場合、および権限拒否・無効な実行ファイルなど外部コマンドの起動または待機の失敗（タイムアウトとキャンセルを除く）は `ErrYtDlpExec` を返す。エラーメッセージに含める標準エラー出力は先頭 4 KiB までとし、親が保持する標準エラー出力も、子プロセスの出力量によらず 4 KiB を超えない。標準エラー出力が大量でも、子プロセスの終了を妨げない。
 -   タイムアウトまたはキャンセルは `context.DeadlineExceeded` / `context.Canceled` として報告する。
 
 **Acceptance Criteria**:
@@ -103,10 +103,12 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 - **AC-07**: `yt-dlp` の起動にシェルを経由しない。外部コマンドの実行は差し替え可能で、引数の配列と子プロセスへ渡す環境変数はテストから検証できる。
 - **AC-08**: タイムアウトまたはキャンセルで `yt-dlp` が終了した場合、`errors.Is(err, context.DeadlineExceeded)` または `errors.Is(err, context.Canceled)` が真になるエラーを返す。`yt-dlp` が起動した子孫プロセスが標準エラー出力を開いたままタイムアウト後も実行を続ける場合も、`Fetch` はタイムアウトから設計で固定した猶予の範囲内に戻り、`errors.Is(err, context.DeadlineExceeded)` が真になるエラーを返す。
 - **AC-09**: `yt-dlp` が非ゼロで終了した場合、および実行ファイルが見つからない場合は、`errors.Is(err, ErrYtDlpExec)` が真になるエラーを返す。エラーメッセージに標準エラー出力を含める場合は先頭 4 KiB までで切り詰められる。
+- **AC-62**: 外部コマンドの起動または待機に失敗した場合、タイムアウトとキャンセルを除き、`errors.Is(err, ErrYtDlpExec)` が真になるエラーを返す。対象には、実行ファイルが見つからない場合、実行権限がない場合、無効な実行ファイルである場合、その他の起動・待機の失敗が含まれる。タイムアウトは `context.DeadlineExceeded`、キャンセルは `context.Canceled` のままであり、`ErrYtDlpExec` ではない。
 - **AC-51**: 子プロセスが 4 KiB を大きく超える標準エラー出力を出して非ゼロ終了したとき、返るエラーのメッセージに含まれる標準エラー出力は先頭 4 KiB までであり、それ以降の出力は保持されない。
 - **AC-56**: 子プロセスが 4 KiB を大きく超える標準エラー出力を出してから自分で非ゼロ終了するとき、`Fetch` はタイムアウトを待たずに戻り、返るエラーは `errors.Is(err, ErrYtDlpExec)` が真になり、`context.DeadlineExceeded` ではない。
 - **AC-28**: タイムアウトに 0 以下の値を指定した構築はエラーになる。
 - **AC-44**: 子プロセスへ渡る環境変数は allowlist に限定される。親の環境にテスト専用の目印 `YT2COLUMN_TEST_UNLISTED_MARKER`・`DEEPSEEK_API_KEY`・allowlist の変数（`PATH`・`HOME`・`TMPDIR`・`SSL_CERT_FILE`・`HTTPS_PROXY`・`LANG`）を設定して `Fetch` を実行すると、子へ渡る環境は設定した allowlist の各変数を同じ値で含み、目印と `DEEPSEEK_API_KEY` を含まず、未設定の allowlist の変数も含まない。allowlist の変数を 1 つも設定せず `DEEPSEEK_API_KEY` だけを設定した親の環境では、子へ渡る環境は空である。
+- **AC-66**: 子プロセスへ渡る環境変数は、`02_architecture.md` で固定した allowlist の変数名の集合に対して、親の環境で設定されている各変数が同じ値で渡され、allowlist に含まれない変数はすべて渡されない。allowlist の変数が 1 つも設定されていない親の環境では、子へ渡る環境は空である。
 
 #### F-003: json3 パーサ
 
@@ -118,6 +120,7 @@ json3 形式の字幕を読み、セグメントの並びに変換する。
 -   自動字幕の json3 には、ローリング表示に由来して、直前のイベントと本文が重複するイベントが含まれることがある。重複の判定は文字列の一致だけで行わず、イベントの時刻と時間的な重なりに基づいて行う。時間的に離れて現れる同一本文は、意図的な繰り返しとして本文に残す。具体的な判定規則は `02_architecture.md` の作成時に実データから導き、同書で固定する。判定規則が読むフィールドの値が不正な入力も拒否する。
 -   受理する形は、ちょうど 1 つの JSON オブジェクトで、`events` が JSON 配列、その各要素が JSON オブジェクト、`segs` は存在する場合は JSON オブジェクトの配列、`utf8` は存在する場合は JSON 文字列であるものに限る。これに合致しない入力は `ErrParseSubtitles` とし、`ErrNoSubtitles` ではない。
 -   文字列として正しくエンコードされていない入力（不正な UTF-8 のバイト列、対になっていない UTF-16 サロゲートのエスケープ）は、デコーダが置換文字（U+FFFD）に置き換えて受理しうるが、これも補正とみなして `ErrParseSubtitles` で拒否する。
+-   字幕ファイルが存在するが読み取れない場合（ディレクトリである、読み取り権限がないなど）は `ErrParseSubtitles` とし、パースエラー型にそのファイルのパスを保持する。キャッシュを変更しない。`yt-dlp` が正常終了して字幕ファイルが存在しない場合は `ErrNoSubtitles` とする（F-006）。
 -   入力の json3 ファイルのサイズ、およびイベント数には上限を設ける。上限値は `02_architecture.md` で固定する。上限を超える入力は `ErrParseSubtitles` とし、ちょうど上限の入力は受理する。
 -   いずれの拒否時も、補正も部分的な結果の返却もしない。
 
@@ -135,6 +138,7 @@ json3 形式の字幕を読み、セグメントの並びに変換する。
 - **AC-54**: 本文を含むイベントの `tStartMs` が `int64` で表現できない値（例: `9223372036854775808`）である場合、`errors.Is(err, ErrParseSubtitles)` が真になるエラーになり、部分的な結果を返さない。
 - **AC-55**: `events` の要素に JSON オブジェクト以外の要素（`null`、文字列、数値、配列など）が 1 つでも含まれる場合（例: `{"events":[null]}`、およびオブジェクトと `null` が混在する配列）、`errors.Is(err, ErrParseSubtitles)` が真になるエラーになり、`ErrNoSubtitles` ではなく、部分的な結果を返さない。
 - **AC-57**: `segs` が存在するのに JSON 配列でない場合、`segs` の要素に JSON オブジェクト以外の要素が 1 つでも含まれる場合（例: `{"events":[{"tStartMs":0,"segs":[{"utf8":"kept"},null]}]}`）、および `utf8` が存在するのに JSON 文字列でない場合（例: `"utf8":null`）は、`errors.Is(err, ErrParseSubtitles)` が真になるエラーになり、`ErrNoSubtitles` ではなく、部分的な結果を返さない。
+- **AC-63**: 字幕ファイルが存在しても読み取れない場合（例: ディレクトリである、読み取り権限がないファイルである）、`errors.Is(err, ErrParseSubtitles)` が真になるエラーを返し、`ErrNoSubtitles` ではなく、対象ファイルのパスを保持するパースエラー型（AC-36）を返し、キャッシュを変更しない。
 
 #### F-004: info.json パーサ
 
@@ -143,8 +147,10 @@ info.json 形式のメタ情報を読み、タイトル・チャンネル名・�
 -   タイトルとチャンネル名は必須で、欠落または空の場合は `ErrParseInfo` とする。概要欄は任意で、空をエラーにしない。
 -   `id` は要求された検証済みの動画 ID と一致しなければならない。一致しない場合は `ErrParseInfo` とする。
 -   受理する形は、ちょうど 1 つの JSON オブジェクトに限る。壊れた JSON、オブジェクト以外のトップレベル、後続データを持つ入力は `ErrParseInfo` とする。
+-   消費するメタ情報フィールド（`id`・`title`・`channel`・概要欄）は、存在するなら JSON 文字列でなければならない。存在するのに JSON 文字列でない値（例: `"description":null`）は `ErrParseInfo` とする。概要欄が存在しない場合と空文字列は引き続き有効である。
+-   info.json は消費しないメンバーを多数含みうる（実 `yt-dlp` の出力がそうである）。消費しないメンバーは無視して受理する。一方、トップレベルが JSON オブジェクトでない、`null` である、消費するフィールドが存在するのに期待する型でない場合などの構造的な不正は拒否する。
 -   文字列として正しくエンコードされていない入力（不正な UTF-8 のバイト列、対になっていない UTF-16 サロゲートのエスケープ）は、F-003 と同じく補正とみなして `ErrParseInfo` で拒否する。
--   `yt-dlp` が正常終了した後に info.json が存在しない、または読み取れない場合も `ErrParseInfo` とする。
+-   字幕ファイルが存在するのに `yt-dlp` が正常終了した後に info.json が存在しない、または読み取れない場合も `ErrParseInfo` とする（字幕ファイルが存在しない場合は `ErrNoSubtitles`。F-006・AC-61）。
 -   入力の info.json ファイルのサイズには上限を設ける。上限値は `02_architecture.md` で固定する。上限を超える入力は `ErrParseInfo` とし、ちょうど上限の入力は受理する。
 -   いずれの拒否時も `Transcript` を組み立てない。
 
@@ -153,6 +159,8 @@ info.json 形式のメタ情報を読み、タイトル・チャンネル名・�
 - **AC-15**: info.json として不正な JSON、およびトップレベルの JSON 値の後に空白以外のデータが続く入力（例: 有効な info.json の後に ` {}` や ` x` が続く入力）は、`errors.Is(err, ErrParseInfo)` が真になるエラーになる。
 - **AC-53**: 不正な UTF-8 バイト列を含む info.json、および対になっていないサロゲートのエスケープ（例: `"title":"\ud800"`）を含む info.json は、`errors.Is(err, ErrParseInfo)` が真になるエラーになり、`Transcript` を組み立てない。テストは、そのようなバイト列またはエスケープを含む `testdata/` のサンプルで行う。
 - **AC-16**: 概要欄は空でありうる（空をエラーにしない）。一方、タイトルとチャンネル名が欠落または空の場合は、`errors.Is(err, ErrParseInfo)` が真になるエラーになり、`Transcript` を組み立てない。
+- **AC-65**: 消費するメタ情報フィールド（`id`・`title`・`channel`・存在する場合の概要欄）が JSON 文字列でない場合（例: `"description":null`）、`errors.Is(err, ErrParseInfo)` が真になるエラーになり、`Transcript` を組み立てない。概要欄が存在しない場合と空文字列の場合は引き続き有効である。
+- **AC-64**: info.json が消費しない多数の未知のメンバー（実 `yt-dlp` の出力にあるフィールド）を含んでいても、それらは無視されて受理され、`Transcript` が組み立てられる。一方、トップレベルが JSON オブジェクトでない、`null` である、または消費するフィールドが存在するのに期待する型でない場合は `errors.Is(err, ErrParseInfo)` が真になるエラーになる。
 - **AC-47**: info.json の `id` が要求された検証済みの動画 ID と一致しない場合、`errors.Is(err, ErrParseInfo)` が真になるエラーになり、`Transcript` を組み立てない。
 - **AC-60**: `yt-dlp` が正常終了して有効な字幕ファイルを出力したが info.json を出力しない場合、`errors.Is(err, ErrParseInfo)` が真になるエラーを返し、`Transcript` を組み立てず、キャッシュを変更しない。
 - **AC-50**: info.json ファイルのサイズが `02_architecture.md` で固定した上限ちょうどの入力は受理され、上限を超える入力は `errors.Is(err, ErrParseInfo)` が真になるエラーになり、部分的な結果を返さない。
@@ -191,8 +199,11 @@ info.json 形式のメタ情報を読み、タイトル・チャンネル名・�
 
 `yt-dlp` が正常終了したが字幕ファイルが存在しない場合、および字幕ファイルが存在してもセグメントが 0 件の場合を検出し、分かりやすいエラー（`ErrNoSubtitles`）として報告する。
 
+字幕ファイルの存在確認は info.json の確認より先に行う。字幕ファイルが存在しない場合は info.json の有無にかかわらず `ErrNoSubtitles` とし、info.json の不在・読み取り不能を `ErrParseInfo` とするのは字幕ファイルが存在する場合に限る（F-004・AC-60・AC-61）。
+
 **Acceptance Criteria**:
 - **AC-21**: `yt-dlp` が正常終了しても字幕ファイルが存在しない場合、`errors.Is(err, ErrNoSubtitles)` が真になるエラーを返す。
+- **AC-61**: `yt-dlp` が正常終了し、字幕ファイルと info.json のどちらも存在しない場合、`errors.Is(err, ErrNoSubtitles)` が真になるエラーを返し、`ErrParseInfo` ではない。字幕ファイルの存在確認を info.json の確認より先に行う。字幕ファイルが存在し、info.json が存在しない場合は `ErrParseInfo`（AC-60）であり、`ErrNoSubtitles` ではない。
 - **AC-22**: エラーメッセージから、字幕がない動画であることと対象の動画（動画 ID または URL）が分かる。
 - **AC-23**: 字幕ファイルが存在してもセグメントが 1 件もない結果は成功として返さず、`ErrNoSubtitles` をラップしたエラーになる。
 - **AC-24**: 次のエラーは、`errors.Is` で相互に区別できる。`ErrInvalidVideoURL`（URL 検証）、`ErrYtDlpExec`（`yt-dlp` の実行失敗）、`ErrParseSubtitles`・`ErrParseInfo`（パース）、`ErrNoSubtitles`（字幕なし）。タイムアウトとキャンセルは `context.DeadlineExceeded` / `context.Canceled` で判別できる（AC-08）。
@@ -240,10 +251,29 @@ URL・json3・info.json・`yt-dlp` の実行は信頼できない入力を扱う
 |---|---|---|---|
 | URL | F-001 | `ErrInvalidVideoURL` | AC-01〜AC-05 |
 | json3 | F-003 | `ErrParseSubtitles`（`ErrNoSubtitles` ではない） | AC-12・AC-45・AC-48・AC-49・AC-52・AC-54・AC-55・AC-57 |
-| info.json | F-004 | `ErrParseInfo` | AC-15・AC-16・AC-47・AC-50・AC-53・AC-60 |
-| `yt-dlp` の実行 | F-002 | `ErrYtDlpExec`、`context.DeadlineExceeded` / `context.Canceled` | AC-06・AC-08・AC-09・AC-51・AC-56 |
+| info.json | F-004 | `ErrParseInfo` | AC-15・AC-16・AC-47・AC-50・AC-53・AC-60・AC-64・AC-65 |
+| `yt-dlp` の実行 | F-002 | `ErrYtDlpExec`、`context.DeadlineExceeded` / `context.Canceled` | AC-06・AC-08・AC-09・AC-51・AC-56・AC-62 |
 
 各 AC に挙げた入力例は、要件レビューで確認した具体例であり、拒否すべき入力の網羅ではない。網羅は上の共通の規則が担い、その具体化は設計で行う。
+
+#### 3.2.1. 失敗経路の番兵対応 (Failure-path Sentinel Mapping)
+
+外部コマンドの起動と待機、およびキャッシュの読み込みの失敗は、次の規則で番兵に対応づける。番兵は `errors.Is` で判別できる形でラップして返し、部分的な結果を返さず、キャッシュを変更しない。
+
+| 失敗経路 | 番兵 | 主な AC |
+|---|---|---|
+| `yt-dlp` の起動・待機の失敗（実行ファイル不在、権限拒否、無効な実行ファイル、その他の起動・待機失敗。タイムアウトとキャンセルを除く） | `ErrYtDlpExec` | AC-09・AC-62 |
+| `yt-dlp` のタイムアウト | `context.DeadlineExceeded` | AC-08 |
+| `yt-dlp` のキャンセル | `context.Canceled` | AC-08・AC-26 |
+| `yt-dlp` は正常終了したが字幕ファイルが存在しない（info.json の有無を問わない） | `ErrNoSubtitles` | AC-21・AC-61 |
+| 字幕ファイルは存在するが読み取れない | `ErrParseSubtitles`（パスを保持） | AC-63 |
+| 字幕ファイルは読めるが json3 として不正 | `ErrParseSubtitles` | AC-12・AC-45・AC-48・AC-49・AC-52・AC-54・AC-55・AC-57 |
+| 字幕ファイルは存在するが info.json が存在しない、または読み取れない | `ErrParseInfo` | AC-60 |
+| info.json は読めるが内容が不正 | `ErrParseInfo` | AC-15・AC-16・AC-47・AC-50・AC-53・AC-64・AC-65 |
+| キャッシュの読み込みで字幕のパースに失敗 | `ErrParseSubtitles`（パスを保持） | AC-36 |
+| キャッシュの読み込みで info.json のパースに失敗 | `ErrParseInfo`（パスを保持） | AC-36 |
+
+字幕ファイルの存在確認を info.json の確認より先に行う。`yt-dlp` が正常終了して字幕ファイルと info.json のどちらも存在しない場合は `ErrNoSubtitles` とし、`ErrParseInfo` とはしない（AC-61）。
 
 ## 4. 非機能要件 (Non-Functional Requirements)
 
@@ -296,7 +326,7 @@ URL・json3・info.json・`yt-dlp` の実行は信頼できない入力を扱う
 
 ### 5.1. project_overview.md との差分
 
--   [project_overview.md](../../dev/project_overview.md) の `YtDlpSource` の例には、URL の直前の `--` と `--ignore-config` が示されていない。security.md §1 と、設定ファイルによるオプション注入を防ぐ要求に合わせ、本書では両方を必須とする。
+-   [project_overview.md](../../dev/project_overview.md) の `YtDlpSource` の例を F-002 に合わせて更新した。`--ignore-config`・`--no-plugin-dirs` と URL 直前の `--` を追加し、本書の必須のオプション列と一致させた。security.md §1 と、設定ファイルによるオプション注入を防ぐ要求に合わせたものである。
 -   project_overview.md は「手動字幕と自動字幕が両方ある場合の挙動は実装時に確認すること」として未確定のままにしていた。本書では、この確認を `02_architecture.md` の作成時（承認前）に行い、結果を同書に記録するものとし、project_overview.md もこの実施時期に合わせて更新した。決定済みの方針を変更するものではない。
 
 ## 6. 用語集 (Glossary)
