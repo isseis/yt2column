@@ -71,7 +71,7 @@
 - 変更: `docs/dev/developer_guide/package_reference.md`
 
 **タスク**
-- [ ] **ステップ 1-1**: `internal/secret/secret.go` を作成し、architecture §3.3 の型定義どおりに実装する。
+- [x] **ステップ 1-1**: `internal/secret/secret.go` を作成し、architecture §3.3 の型定義どおりに実装する。
   - 元の値を `func() string` クロージャで保持する（`01_requirements.md` §5 の制約）。
   - `New(value string) (Secret, error)`: 空文字列はエラーにする（AC-22）。拒否のエラーはパッケージレベルの静的センチネル（`errors.New`）とする（err113 が `%w` のない `fmt.Errorf` を拒否するため）。
   - `Reveal() (string, error)`: ゼロ値（nil クロージャ）はエラーにする（AC-23）。元の値を返す経路はこのメソッドのみにする（AC-21）。
@@ -80,10 +80,10 @@
   - `LogValue() slog.Value`: 属性として `[REDACTED]` を返す（AC-19）。
   - `MarshalJSON() ([]byte, error)`: `"[REDACTED]"` を返す（AC-20）。
   - パッケージコメントとすべての公開識別子に英語のドキュメントコメントを付ける（revive の `package-comments` と `exported` が `make lint` で検査する）。`[REDACTED]` の繰り返しは goconst を避けるためパッケージ定数にまとめる。
-- [ ] **ステップ 1-2**: `internal/secret/secret_test.go` を作成し、AC-18〜AC-26 のテストを置く（テスト関数名は §5）。`fmt` の直接書式化は固定文字列との完全一致で検証する（`[REDACTED]` の部分一致だけでは、長さやハッシュを付け足した出力を見逃す）。非公開フィールド経路は元の値が現れないことを検証し、出力される関数アドレスはゴールデンファイル化しない（architecture §7.1）。
-- [ ] **ステップ 1-3**: `docs/dev/developer_guide/package_reference.md` の冒頭を更新し（「No packages exist yet」の記述と「Move each entry here」の案内）、`internal/secret` の行を追加する。プレースホルダの `| _(none yet)_ | |` 行（`package_reference.md:14`）は削除する。
-- [ ] **ステップ 1-4**: 主要な対策を実装時に壊してテストが失敗することを確認し、コミットメッセージに記録する（例: `Format` を元の値を出力する実装に変えると `TestSecretFmtRedaction` が失敗する、`String()`・`GoString()` を元の値に変えると `TestSecretStringGoString` が失敗する、`LogValue` を外すと `TestSecretSlogRedaction` が失敗する、`MarshalJSON` を外すと `TestSecretJSONRedaction` が失敗する、クロージャ保持を素の `string` フィールドに変えると `TestSecretUnexportedFieldNoLeak` が失敗する、`New` の空文字列チェックを外すと `TestSecretNewEmpty` が失敗する）。
-- [ ] **ステップ 1-5**: `make fmt` → `make test` → `make lint` を通す。
+- [x] **ステップ 1-2**: `internal/secret/secret_test.go` を作成し、AC-18〜AC-26 のテストを置く（テスト関数名は §5）。`fmt` の直接書式化は固定文字列との完全一致で検証する（`[REDACTED]` の部分一致だけでは、長さやハッシュを付け足した出力を見逃す）。非公開フィールド経路は元の値が現れないことを検証し、出力される関数アドレスはゴールデンファイル化しない（architecture §7.1）。
+- [x] **ステップ 1-3**: `docs/dev/developer_guide/package_reference.md` の冒頭を更新し（「No packages exist yet」の記述と「Move each entry here」の案内）、`internal/secret` の行を追加する。プレースホルダの `| _(none yet)_ | |` 行（`package_reference.md:14`）は削除する。
+- [x] **ステップ 1-4**: 主要な対策を実装時に壊してテストが失敗することを確認し、コミットメッセージに記録する（例: `Format` を元の値を出力する実装に変えると `TestSecretFmtRedaction` が失敗する、`String()`・`GoString()` を元の値に変えると `TestSecretStringGoString` が失敗する、`LogValue` を元の値を返す実装に変えると `TestSecretSlogRedaction` が失敗する（`LogValue` を外すだけでは、slog が `fmt` 経由で `Format` を呼ぶため `[REDACTED]` のままになり失敗しない）、`MarshalJSON` を外すと `TestSecretJSONRedaction` が失敗する、クロージャ保持を素の `string` フィールドに変えると `TestSecretUnexportedFieldNoLeak` が失敗する、`New` の空文字列チェックを外すと `TestSecretNewEmpty` が失敗する）。
+- [x] **ステップ 1-5**: `make fmt` → `make test` → `make lint` を通す。
 
 ### PR-1 作成ポイント: secret type and redaction guarantees
 
