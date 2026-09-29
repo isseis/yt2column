@@ -1,0 +1,519 @@
+//go:build test
+
+package pipeline
+
+import (
+	"context"
+	"errors"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"maps"
+	"os"
+	"path/filepath"
+	"reflect"
+	"slices"
+	"strings"
+	"testing"
+	"unicode"
+
+	"github.com/isseis/yt2column/internal/llm"
+	"github.com/isseis/yt2column/internal/publisher"
+	"github.com/isseis/yt2column/internal/publisher/testutil"
+	"github.com/isseis/yt2column/internal/secret"
+	"github.com/isseis/yt2column/internal/transcript"
+	"github.com/isseis/yt2column/internal/transcript/testutil"
+	"github.com/isseis/yt2column/internal/writer"
+	"github.com/isseis/yt2column/internal/writer/testutil"
+)
+
+// unknownStage is a Stage value outside the defined range.
+const unknownStage Stage = 99
+
+// cancelingContext is a context that becomes canceled when flip is called.
+type cancelingContext struct {
+	context.Context
+	canceled bool
+}
+
+func (c *cancelingContext) Err() error {
+	if c.canceled {
+		return context.Canceled
+	}
+	return c.Context.Err()
+}
+
+// flipAfterFetch flips the context after observing the Fetch call.
+type flipAfterFetch struct {
+	inner *transcripttestutil.FakeTranscriptSource
+	flip  func()
+}
+
+func (s *flipAfterFetch) Fetch(ctx context.Context, videoURL string) (transcript.Transcript, error) {
+	s.flip()
+	return s.inner.Fetch(ctx, videoURL)
+}
+
+func TestPipelineSuccess(t *testing.T) {
+	in := transcript.Transcript{
+		VideoID:     "video-1",
+		VideoURL:    "https://example.com/watch?v=video-1",
+		Title:       "Title",
+		ChannelName: "Channel",
+		Description: "Description",
+		Segments: []transcript.Segment{
+			{StartMs: 0, Text: "first"},
+			{StartMs: 1500, Text: "second"},
+			{StartMs: 3000, Text: "third"},
+		},
+	}
+	out := writer.Article{Title: "Article", Body: "Body", SourceURL: in.VideoURL, Model: "model"}
+
+	src := &transcripttestutil.FakeTranscriptSource{Result: in}
+	wr := &writertestutil.FakeArticleWriter{Result: out}
+	pub := &publishertestutil.FakePublisher{}
+	p, err := New(src, wr, pub)
+	if err != nil {
+		t.Fatalf("New returned error: %v", err)
+	}
+
+	got, err := p.Run(context.Background(), in.VideoURL)
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !reflect.DeepEqual(got, out) {
+		t.Errorf("Run returned %+v, want %+v", got, out)
+	}
+
+	if len(src.Calls) != 1 || len(wr.Calls) != 1 || len(pub.Calls) != 1 {
+		t.Fatalf("call counts = source %d, writer %d, publisher %d; want 1 each", len(src.Calls), len(wr.Calls), len(pub.Calls))
+	}
+	if src.Calls[0].VideoURL != in.VideoURL {
+		t.Errorf("source got videoURL %q, want %q", src.Calls[0].VideoURL, in.VideoURL)
+	}
+	if !reflect.DeepEqual(wr.Calls[0].Transcript, in) {
+		t.Errorf("writer got %+v, want %+v", wr.Calls[0].Transcript, in)
+	}
+	if !reflect.DeepEqual(pub.Calls[0].Article, out) {
+		t.Errorf("publisher got %+v, want %+v", pub.Calls[0].Article, out)
+	}
+}
+
+func TestPipelineStageFailure(t *testing.T) {
+	stageErr := errors.New("stage failed")
+
+	cases := []struct {
+		name         string
+		fail         Stage
+		wantSrcCalls int
+		wantWrCalls  int
+		wantPubCalls int
+	}{
+		{"transcript", StageTranscript, 1, 0, 0},
+		{"write", StageWrite, 1, 1, 0},
+		{"publish", StagePublish, 1, 1, 1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			src := &transcripttestutil.FakeTranscriptSource{}
+			wr := &writertestutil.FakeArticleWriter{}
+			pub := &publishertestutil.FakePublisher{}
+			switch tc.fail {
+			case StageTranscript:
+				src.Err = stageErr
+			case StageWrite:
+				wr.Err = stageErr
+			case StagePublish:
+				pub.Err = stageErr
+			}
+
+			p, err := New(src, wr, pub)
+			if err != nil {
+				t.Fatalf("New returned error: %v", err)
+			}
+			if _, err := p.Run(context.Background(), "url"); err == nil {
+				t.Fatal("Run returned nil error")
+			}
+
+			if len(src.Calls) != tc.wantSrcCalls {
+				t.Errorf("source calls = %d, want %d", len(src.Calls), tc.wantSrcCalls)
+			}
+			if len(wr.Calls) != tc.wantWrCalls {
+				t.Errorf("writer calls = %d, want %d", len(wr.Calls), tc.wantWrCalls)
+			}
+			if len(pub.Calls) != tc.wantPubCalls {
+				t.Errorf("publisher calls = %d, want %d", len(pub.Calls), tc.wantPubCalls)
+			}
+		})
+	}
+}
+
+func TestPipelineStageError(t *testing.T) {
+	original := errors.New("boom")
+
+	cases := []struct {
+		name      string
+		want      Stage
+		configure func(*transcripttestutil.FakeTranscriptSource, *writertestutil.FakeArticleWriter, *publishertestutil.FakePublisher)
+	}{
+		{"transcript", StageTranscript, func(s *transcripttestutil.FakeTranscriptSource, _ *writertestutil.FakeArticleWriter, _ *publishertestutil.FakePublisher) {
+			s.Err = original
+		}},
+		{"write", StageWrite, func(_ *transcripttestutil.FakeTranscriptSource, w *writertestutil.FakeArticleWriter, _ *publishertestutil.FakePublisher) {
+			w.Err = original
+		}},
+		{"publish", StagePublish, func(_ *transcripttestutil.FakeTranscriptSource, _ *writertestutil.FakeArticleWriter, p *publishertestutil.FakePublisher) {
+			p.Err = original
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			src := &transcripttestutil.FakeTranscriptSource{}
+			wr := &writertestutil.FakeArticleWriter{}
+			pub := &publishertestutil.FakePublisher{}
+			tc.configure(src, wr, pub)
+
+			p, err := New(src, wr, pub)
+			if err != nil {
+				t.Fatalf("New returned error: %v", err)
+			}
+			_, err = p.Run(context.Background(), "url")
+
+			stageErr, ok := errors.AsType[*StageError](err)
+			if !ok {
+				t.Fatalf("Run error = %v, want *StageError", err)
+			}
+			if stageErr.Stage != tc.want {
+				t.Errorf("StageError.Stage = %v, want %v", stageErr.Stage, tc.want)
+			}
+			if !errors.Is(err, original) {
+				t.Errorf("errors.Is(err, original) = false for %v", err)
+			}
+			if want := tc.name + ": boom"; err.Error() != want {
+				t.Errorf("error = %q, want %q", err.Error(), want)
+			}
+		})
+	}
+}
+
+func TestPipelineCanceled(t *testing.T) {
+	ctx := &cancelingContext{Context: context.Background()}
+	srcFake := &transcripttestutil.FakeTranscriptSource{}
+	src := &flipAfterFetch{inner: srcFake, flip: func() { ctx.canceled = true }}
+	wr := &writertestutil.FakeArticleWriter{}
+	pub := &publishertestutil.FakePublisher{}
+
+	p, err := New(src, wr, pub)
+	if err != nil {
+		t.Fatalf("New returned error: %v", err)
+	}
+	_, err = p.Run(ctx, "url")
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("Run error = %v, want context.Canceled", err)
+	}
+	if len(srcFake.Calls) != 1 {
+		t.Errorf("source calls = %d, want 1", len(srcFake.Calls))
+	}
+	if len(wr.Calls) != 0 {
+		t.Error("writer called after cancellation")
+	}
+	if len(pub.Calls) != 0 {
+		t.Error("publisher called after cancellation")
+	}
+}
+
+func TestPipelineNewNilStage(t *testing.T) {
+	validSrc := &transcripttestutil.FakeTranscriptSource{}
+	validWr := &writertestutil.FakeArticleWriter{}
+	validPub := &publishertestutil.FakePublisher{}
+
+	cases := []struct {
+		name string
+		src  transcript.TranscriptSource
+		wr   writer.ArticleWriter
+		pub  publisher.Publisher
+		want string
+	}{
+		{"nil source", nil, validWr, validPub, "transcript"},
+		{"nil writer", validSrc, nil, validPub, "write"},
+		{"nil publisher", validSrc, validWr, nil, "publish"},
+		{"typed-nil source", (*transcripttestutil.FakeTranscriptSource)(nil), validWr, validPub, "transcript"},
+		{"typed-nil writer", validSrc, (*writertestutil.FakeArticleWriter)(nil), validPub, "write"},
+		{"typed-nil publisher", validSrc, validWr, (*publishertestutil.FakePublisher)(nil), "publish"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			p, err := New(tc.src, tc.wr, tc.pub)
+			if err == nil {
+				t.Fatal("New returned nil error")
+			}
+			if p != nil {
+				t.Error("New returned a non-nil pipeline together with an error")
+			}
+			if !errors.Is(err, ErrNilStage) {
+				t.Errorf("New error = %v, want ErrNilStage", err)
+			}
+			if !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("New error = %q, want it to contain %q", err.Error(), tc.want)
+			}
+		})
+	}
+}
+
+func TestPipelineZeroValueRun(t *testing.T) {
+	t.Run("zero value", func(t *testing.T) {
+		var p Pipeline
+		_, err := p.Run(context.Background(), "url")
+		if !errors.Is(err, ErrNilStage) {
+			t.Errorf("Run error = %v, want ErrNilStage", err)
+		}
+	})
+
+	t.Run("partial pipeline", func(t *testing.T) {
+		src := &transcripttestutil.FakeTranscriptSource{}
+		wr := &writertestutil.FakeArticleWriter{}
+		p := &Pipeline{source: src, writer: wr} // publisher is nil
+
+		_, err := p.Run(context.Background(), "url")
+		if !errors.Is(err, ErrNilStage) {
+			t.Errorf("Run error = %v, want ErrNilStage", err)
+		}
+		if len(src.Calls) != 0 {
+			t.Error("source called despite an unset publisher")
+		}
+		if len(wr.Calls) != 0 {
+			t.Error("writer called despite an unset publisher")
+		}
+	})
+}
+
+func TestStageString(t *testing.T) {
+	cases := []struct {
+		name  string
+		stage Stage
+		want  string
+	}{
+		{"zero value", StageUnknown, "unknown"},
+		{"transcript", StageTranscript, "transcript"},
+		{"write", StageWrite, "write"},
+		{"publish", StagePublish, "publish"},
+		{"unknown value", unknownStage, "unknown"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.stage.String(); got != tc.want {
+				t.Errorf("Stage(%d).String() = %q, want %q", tc.stage, got, tc.want)
+			}
+		})
+	}
+
+	t.Run("StageError uses String", func(t *testing.T) {
+		if got := (&StageError{Stage: StageTranscript, Err: errors.New("boom")}).Error(); got != "transcript: boom" {
+			t.Errorf("StageError.Error() = %q, want %q", got, "transcript: boom")
+		}
+		if got := (&StageError{Stage: unknownStage, Err: errors.New("boom")}).Error(); got != "unknown: boom" {
+			t.Errorf("StageError.Error() = %q, want %q", got, "unknown: boom")
+		}
+	})
+}
+
+// TestCommonTypesFieldSets fixes the exported fields of the common data types.
+func TestCommonTypesFieldSets(t *testing.T) {
+	cases := []struct {
+		name string
+		typ  reflect.Type
+		want map[string]string
+	}{
+		{"Segment", reflect.TypeFor[transcript.Segment](), map[string]string{
+			"StartMs": "int64",
+			"Text":    "string",
+		}},
+		{"Transcript", reflect.TypeFor[transcript.Transcript](), map[string]string{
+			"VideoID":     "string",
+			"VideoURL":    "string",
+			"Title":       "string",
+			"ChannelName": "string",
+			"Description": "string",
+			"Segments":    "[]transcript.Segment",
+		}},
+		{"GenerateRequest", reflect.TypeFor[llm.GenerateRequest](), map[string]string{
+			"SystemPrompt":    "string",
+			"UserPrompt":      "string",
+			"MaxOutputTokens": "int",
+		}},
+		{"GenerateResponse", reflect.TypeFor[llm.GenerateResponse](), map[string]string{
+			"Text":  "string",
+			"Model": "string",
+		}},
+		{"Article", reflect.TypeFor[writer.Article](), map[string]string{
+			"Title":     "string",
+			"Body":      "string",
+			"SourceURL": "string",
+			"Model":     "string",
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := exportedFieldTypes(tc.typ)
+			if !maps.Equal(got, tc.want) {
+				t.Errorf("%s fields = %v, want %v", tc.name, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestInterfaceContracts checks that every stage method takes a context first.
+func TestInterfaceContracts(t *testing.T) {
+	ctxType := reflect.TypeFor[context.Context]()
+	cases := []struct {
+		name  string
+		iface reflect.Type
+	}{
+		{"TranscriptSource", reflect.TypeFor[transcript.TranscriptSource]()},
+		{"LLMClient", reflect.TypeFor[llm.LLMClient]()},
+		{"ArticleWriter", reflect.TypeFor[writer.ArticleWriter]()},
+		{"Publisher", reflect.TypeFor[publisher.Publisher]()},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.iface.NumMethod() != 1 {
+				t.Fatalf("%s has %d methods, want 1", tc.name, tc.iface.NumMethod())
+			}
+			m := tc.iface.Method(0)
+			if m.Type.NumIn() < 1 || m.Type.In(0) != ctxType {
+				t.Errorf("%s.%s first parameter is not context.Context", tc.name, m.Name)
+			}
+		})
+	}
+}
+
+// TestInterfaceDocComments checks the contract clauses in the interface docs.
+func TestInterfaceDocComments(t *testing.T) {
+	cases := []struct {
+		path    string
+		name    string
+		clauses []string
+	}{
+		{"../transcript/transcript.go", "TranscriptSource", []string{
+			"must return an error on failure",
+			"must not return an empty Transcript as a successful result",
+		}},
+		{"../llm/llm.go", "LLMClient", []string{
+			"must not return an empty response without an error",
+		}},
+		{"../writer/writer.go", "ArticleWriter", []string{
+			"must return an error on failure",
+			"must not return an empty Article as a successful result",
+		}},
+		{"../publisher/publisher.go", "Publisher", []string{
+			"must return an error on failure",
+			"must not publish incomplete content",
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			doc := strings.Join(strings.Fields(interfaceDoc(t, tc.path, tc.name)), " ")
+			for _, clause := range tc.clauses {
+				if !strings.Contains(doc, clause) {
+					t.Errorf("%s doc comment is missing %q; got:\n%s", tc.name, clause, doc)
+				}
+			}
+			if hasCJK(doc) {
+				t.Errorf("%s doc comment contains CJK text:\n%s", tc.name, doc)
+			}
+		})
+	}
+}
+
+// TestSecretRevealExclusive checks the exported method set of secret.Secret.
+func TestSecretRevealExclusive(t *testing.T) {
+	allowed := map[string]struct{}{
+		"Reveal":      {},
+		"Format":      {},
+		"String":      {},
+		"GoString":    {},
+		"LogValue":    {},
+		"MarshalJSON": {},
+	}
+	typ := reflect.TypeFor[secret.Secret]()
+	got := make(map[string]struct{}, typ.NumMethod())
+	for m := range typ.Methods() {
+		got[m.Name] = struct{}{}
+	}
+	if !maps.Equal(got, allowed) {
+		t.Errorf("secret.Secret exported methods = %v, want %v", slices.Sorted(maps.Keys(got)), slices.Sorted(maps.Keys(allowed)))
+	}
+}
+
+// TestFakesCarryBuildTag checks that every testutil file is test-only.
+func TestFakesCarryBuildTag(t *testing.T) {
+	files, err := filepath.Glob("../*/testutil/*.go")
+	if err != nil {
+		t.Fatalf("glob testutil files: %v", err)
+	}
+	if len(files) != 8 {
+		t.Fatalf("found %d testutil files, want 8: %v", len(files), files)
+	}
+	for _, path := range files {
+		t.Run(path, func(t *testing.T) {
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("read %s: %v", path, err)
+			}
+			first, _, _ := strings.Cut(string(data), "\n")
+			if first != "//go:build test" {
+				t.Errorf("%s first line = %q, want %q", path, first, "//go:build test")
+			}
+		})
+	}
+}
+
+func exportedFieldTypes(t reflect.Type) map[string]string {
+	fields := make(map[string]string, t.NumField())
+	for f := range t.Fields() {
+		if f.IsExported() {
+			fields[f.Name] = f.Type.String()
+		}
+	}
+	return fields
+}
+
+func interfaceDoc(t *testing.T, path, name string) string {
+	t.Helper()
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
+	if err != nil {
+		t.Fatalf("parse %s: %v", path, err)
+	}
+	for _, decl := range file.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok || gen.Tok != token.TYPE {
+			continue
+		}
+		for _, spec := range gen.Specs {
+			typeSpec, ok := spec.(*ast.TypeSpec)
+			if !ok || typeSpec.Name.Name != name {
+				continue
+			}
+			if _, ok := typeSpec.Type.(*ast.InterfaceType); !ok {
+				t.Fatalf("%s: %s is not an interface", path, name)
+			}
+			if gen.Doc == nil {
+				t.Fatalf("%s: %s has no doc comment", path, name)
+			}
+			return gen.Doc.Text()
+		}
+	}
+	t.Fatalf("%s: interface %s not found", path, name)
+	return ""
+}
+
+func hasCJK(s string) bool {
+	for _, r := range s {
+		if unicode.Is(unicode.Han, r) || unicode.Is(unicode.Hiragana, r) ||
+			unicode.Is(unicode.Katakana, r) || unicode.Is(unicode.Hangul, r) {
+			return true
+		}
+	}
+	return false
+}

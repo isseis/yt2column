@@ -184,7 +184,7 @@
 - 変更: `docs/dev/developer_guide/package_reference.md`
 
 **タスク**
-- [ ] **ステップ 4-1**: `internal/pipeline/pipeline.go` を作成し、architecture §3.4 の定義どおりに実装する。
+- [x] **ステップ 4-1**: `internal/pipeline/pipeline.go` を作成し、architecture §3.4 の定義どおりに実装する。
   - `Stage` 列挙型（ゼロ値 `StageUnknown`）と `String()`。ゼロ値と未知の値には `"unknown"` を返す（fail-secure）。`StageError.Error()` は必ず `String()` を使う。
   - `StageError`（`Stage`・`Err`）と `Error()`・`Unwrap()`。エラーメッセージは `"<段階名>: <元のエラー>"` の形式とし、元のエラー以外の情報を付け加えない。
   - センチネル `ErrNilStage`。
@@ -192,10 +192,10 @@
   - `New` は interface 値の `== nil` に加え、動的値が nil の interface（typed-nil）を拒否し、`ErrNilStage` をラップしてどの段階が未設定かを含むエラーを返す（AC-14）。検出は `reflect.ValueOf(v)` の `Kind` が nil になりうる種別（`reflect.Ptr`・`reflect.Func`・`reflect.Map`・`reflect.Slice`・`reflect.Chan`）である場合に `IsNil()` で判定し、それ以外の Kind は nil 判定の対象外とする（architecture §3.4 が本計画に委ねた実装方法）。
   - `Run` は冒頭で 3 つの段階の nil を再確認し、nil なら段階を呼び出さずに `ErrNilStage` をラップしたエラーを返す（ゼロ値の fail-closed、AC-14a）。各段階の呼び出し前に `ctx.Err()` を確認し、キャンセル済みなら `ctx.Err()` をそのまま返して以降の段階を呼ばない（AC-13）。段階の失敗は対応する `Stage` を付けた `StageError` で包む（AC-11・AC-12）。すべて成功した場合は投稿した `Article` を返す（AC-09・AC-10）。
   - パッケージコメントとすべての公開識別子に英語のドキュメントコメントを付ける。
-- [ ] **ステップ 4-2**: `internal/pipeline/pipeline_test.go` を作成し、AC-09〜AC-14・AC-14a の振る舞いテストと、§5 に記載する guard テストを置く。テストはフェーズ 3 の fake を注入して行う。`TestPipelineSuccess` では、source fake が返す `Transcript` に順序つきの複数セグメントとメタ情報を持たせ、writer fake が記録した値が並び順・内容ともに一致することを検証する（AC-01・AC-02）。`pipeline_test.go` は `//go:build test` のタグ付き `testutil` パッケージを import するため、ファイル先頭に `//go:build test` を付ける（付けないと、タグを渡さない `go vet ./...` や IDE が `build constraints exclude all Go files` で失敗する。architecture §3.5 の AC-17 の注意と同じ理由）。AC-13 の段階間キャンセルは、`Fetch` の呼び出しを観測してから `ctx.Err()` が `context.Canceled` を返すよう切り替えるカスタム `context.Context`（`pipeline_test.go` 内で定義）という決定的な同期手段で実現し、タイマー待ちやスリープは使わない。`Stage` のゼロ値・既知の値・未知の値を検証する補助テスト（`TestStageString`。`StageError.Error()` が `Stage.String()` を使うことを含む）も置く。ファイルを読む guard（`TestInterfaceDocComments`・`TestFakesCarryBuildTag`）は、対象ファイルの集合（件数）が期待どおりであることを先に確認し、空集合で素通りしないようにする。`TestInterfaceDocComments` の英語判定（CJK 文字を含まない、など）は実装時に定義する。
-- [ ] **ステップ 4-3**: `docs/dev/developer_guide/package_reference.md` に `internal/pipeline` の行を追加する。
-- [ ] **ステップ 4-4**: 主要な分岐と guard を実装時に壊してテストが失敗することを確認し、コミットメッセージに記録する（例: `Run` の nil 検査を外すと `TestPipelineZeroValueRun` が失敗する、段階の失敗を包まずに返すと `TestPipelineStageError` が失敗する、guard 対象のフィールドを追加すると `TestCommonTypesFieldSets` が失敗する、`//go:build test` を外すと `TestFakesCarryBuildTag` が失敗する、interface の第 1 引数を `context.Context` 以外に変えると `TestInterfaceContracts` が失敗する、interface の契約コメントから条項を削ると `TestInterfaceDocComments` が失敗する、`Secret` に平文を返す公開メソッドを追加すると `TestSecretRevealExclusive` が失敗する、キャンセルの検出点を変えると `TestPipelineCanceled` が失敗する）。
-- [ ] **ステップ 4-5**: `make fmt` → `make test` → `make lint` を通す。
+- [x] **ステップ 4-2**: `internal/pipeline/pipeline_test.go` を作成し、AC-09〜AC-14・AC-14a の振る舞いテストと、§5 に記載する guard テストを置く。テストはフェーズ 3 の fake を注入して行う。`TestPipelineSuccess` では、source fake が返す `Transcript` に順序つきの複数セグメントとメタ情報を持たせ、writer fake が記録した値が並び順・内容ともに一致することを検証する（AC-01・AC-02）。`pipeline_test.go` は `//go:build test` のタグ付き `testutil` パッケージを import するため、ファイル先頭に `//go:build test` を付ける（付けないと、タグを渡さない `go vet ./...` や IDE が `build constraints exclude all Go files` で失敗する。architecture §3.5 の AC-17 の注意と同じ理由）。AC-13 の段階間キャンセルは、`Fetch` の呼び出しを観測してから `ctx.Err()` が `context.Canceled` を返すよう切り替えるカスタム `context.Context`（`pipeline_test.go` 内で定義）という決定的な同期手段で実現し、タイマー待ちやスリープは使わない。`Stage` のゼロ値・既知の値・未知の値を検証する補助テスト（`TestStageString`。`StageError.Error()` が `Stage.String()` を使うことを含む）も置く。ファイルを読む guard（`TestInterfaceDocComments`・`TestFakesCarryBuildTag`）は、対象ファイルの集合（件数）が期待どおりであることを先に確認し、空集合で素通りしないようにする。`TestInterfaceDocComments` の英語判定（CJK 文字を含まない、など）は実装時に定義する。
+- [x] **ステップ 4-3**: `docs/dev/developer_guide/package_reference.md` に `internal/pipeline` の行を追加する。
+- [x] **ステップ 4-4**: 主要な分岐と guard を実装時に壊してテストが失敗することを確認し、コミットメッセージに記録する（例: `Run` の nil 検査を外すと `TestPipelineZeroValueRun` が失敗する、段階の失敗を包まずに返すと `TestPipelineStageError` が失敗する、guard 対象のフィールドを追加すると `TestCommonTypesFieldSets` が失敗する、`//go:build test` を外すと `TestFakesCarryBuildTag` が失敗する、interface の第 1 引数を `context.Context` 以外に変えると `TestInterfaceContracts` が失敗する、interface の契約コメントから条項を削ると `TestInterfaceDocComments` が失敗する、`Secret` に平文を返す公開メソッドを追加すると `TestSecretRevealExclusive` が失敗する、キャンセルの検出点を変えると `TestPipelineCanceled` が失敗する）。
+- [x] **ステップ 4-5**: `make fmt` → `make test` → `make lint` を通す。
 
 ### PR-4 作成ポイント: pipeline orchestration
 
