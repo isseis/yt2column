@@ -94,6 +94,18 @@ Include the following section at the top of `01_requirements.md`, `02_architectu
 - **AC-05**: [Edge case handling]
 ```
 
+**Untrusted input boundaries:** when a requirement consumes untrusted input (network responses, external-command output, or files derived from them), state, for each boundary, the accepted form, every rejection condition, the sentinel error each rejection maps to, and any size/record limit. Check the contract against the type-derived completeness checklist below so that malformed shapes the target type can admit are not left unspecified. The checklist is a completeness aid; the contract must state each item explicitly. Once every item is stated, the boundary specification is complete.
+
+- **Bytes:** is the raw input valid UTF-8 before decoding? (`encoding/json` can succeed by replacing invalid bytes with U+FFFD, so check with `utf8.Valid`.)
+- **Top level:** is the expected JSON kind required? Are `null` and other kinds rejected?
+- **Arrays:** is each element the expected kind? Are `null` and non-object elements rejected?
+- **Numbers:** in addition to sign and integrality, is the value representable in the target Go type (e.g. `int64`)?
+- **Required vs optional fields:** which fields are mandatory, and how are missing/empty values handled?
+- **Identity:** is an identifier that must match the request (e.g. an `id`) verified?
+- **Size/record limits:** is there a finite limit, with an oversized input rejected via the corresponding sentinel?
+- **Partial results:** is no partial result returned on rejection?
+- **External-process output capture:** is the capture bounded while still draining the remainder? (Stopping the read at the cap can block the child on a full pipe.)
+
 ## 2. Architecture Design Document (`docs/tasks/XXXX_feature/02_architecture.md`)
 
 **Purpose**: High-level design focusing on system structure, component interactions, and design decisions.
