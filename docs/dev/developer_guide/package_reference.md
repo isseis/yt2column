@@ -11,3 +11,7 @@ described in [project_overview.md](../project_overview.md) ("想定ディレク�
 | Package | Responsibility |
 |---|---|
 | `internal/secret` | Holds a secret (API key, Webhook URL) and guarantees it never appears in `fmt`, `log/slog`, or JSON output |
+| `internal/transcript` | Defines the transcript stage: `Transcript`/`Segment` and the `TranscriptSource` interface |
+| `internal/llm` | Defines the provider-independent `LLMClient` interface and its `GenerateRequest`/`GenerateResponse` types |
+| `internal/writer` | Defines the article-writing stage: `Article` and the `ArticleWriter` interface |
+| `internal/publisher` | Defines the publishing stage: the `Publisher` interface |
