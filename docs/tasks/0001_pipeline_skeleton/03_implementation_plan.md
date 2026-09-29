@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-09-29 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 意思決定の変更（2026-09-29）: PR #24・#25 のレビュー指摘に従い、AC-14a の分離、AC-01〜AC-03 の振る舞い基準化（AC-01・AC-02 はパイプラインのフローテスト、AC-03 は #4 に引き継ぎ）、`go list` の `testutil` パッケージ明示と `.Error` の描画に合わせて、実装ステップ・テスト設計・AC トレーサビリティを更新した。上流の `01_requirements.md`・`02_architecture.md` も `draft` に戻したため、`draft` に戻す。 |
+| Review date | 2026-09-29 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 実装の概要 (Implementation Overview)
 

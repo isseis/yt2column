@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-09-29 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 意思決定の変更（2026-09-29）: PR #24・#25 のレビュー指摘に従い、既存 ID（AC-19〜AC-23）を保全したまま、String/GoString・非委譲書式・非公開フィールドの基準（AC-24〜AC-26）とゼロ値 `Pipeline.Run` の基準（AC-14a）を追加した。AC-01〜AC-03 は公開フィールドの列挙ではなく観測可能な振る舞いとして記述し（`requirements_process.md` §1「behavior, not implementation」）、AC-03 の挙動検証は #4 に引き継ぐ。再承認のため `draft` に戻す。 |
+| Review date | 2026-09-29 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
