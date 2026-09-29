@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-09-29 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 意思決定の変更（2026-09-29）: PR #24・#25 のレビュー指摘に従い、`01_requirements.md` の AC 識別子（AC-14a・AC-19〜AC-26）に合わせて参照を更新した。AC-01〜AC-03 は観測可能な振る舞いとして扱い、AC-01・AC-02 はパイプラインのフローテストで、AC-03 は #4 のアダプタテストで検証する。公開フィールドの配置は設計上の制約（§3.1）として残す。再承認のため `draft` に戻す。 |
+| Review date | 2026-09-29 |
+| Reviewer | isseis |
+| Comments | - |
 
 ---
 
