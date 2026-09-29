@@ -98,8 +98,8 @@ Include the following section at the top of `01_requirements.md`, `02_architectu
 
 - **Bytes:** is the raw input valid UTF-8 before decoding? (`encoding/json` can succeed by replacing invalid bytes with U+FFFD, so check with `utf8.Valid`.)
 - **Top level:** is the expected JSON kind required? Are `null` and other kinds rejected?
-- **Arrays:** is each element the expected kind? Are `null` and non-object elements rejected?
-- **Numbers:** in addition to sign and integrality, is the value representable in the target Go type (e.g. `int64`)?
+- **Arrays:** is each element the expected kind? Are `null` and non-object elements rejected? Apply this element-kind check (and the type checks inside each element) recursively to nested arrays as well (e.g. `events[].segs`).
+- **Numbers:** in addition to sign and integrality, is the value representable in the target Go type (e.g. `int64`)? Is an unrepresentable value (e.g. `9223372036854775808`) rejected? This applies to every numeric field the logic reads, not only the most obvious one.
 - **Required vs optional fields:** which fields are mandatory, and how are missing/empty values handled?
 - **Identity:** is an identifier that must match the request (e.g. an `id`) verified?
 - **Size/record limits:** is there a finite limit, with an oversized input rejected via the corresponding sentinel?

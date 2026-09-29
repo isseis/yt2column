@@ -86,7 +86,7 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 `yt-dlp` を外部コマンドとして起動し、字幕（json3）と info.json をキャッシュディレクトリへ出力させる。
 
 -   `exec.CommandContext` に引数を配列で渡し、シェル（`sh -c` など）を経由しない。
--   子プロセスに渡す環境変数は allowlist に限定し、設定されている変数のみを渡し、秘密情報（`DEEPSEEK_API_KEY`・`SLACK_WEBHOOK_URL` など）を引き継がない。allowlist は `PATH`・`HOME`・`TMPDIR`・`XDG_CONFIG_HOME`・`XDG_CACHE_HOME`・proxy 関連・locale・`SSL_CERT_FILE` / `SSL_CERT_DIR` を含む。ブロックリストではなく allowlist とする（秘密情報を追加したときに漏れないため）。
+-   子プロセスに渡す環境変数は allowlist に限定し、設定されている変数のみを渡し、秘密情報（`DEEPSEEK_API_KEY`・`SLACK_WEBHOOK_URL` など）を引き継がない。allowlist は `PATH`・`HOME`・`TMPDIR`・`XDG_CONFIG_HOME`・`XDG_CACHE_HOME`・proxy 関連・locale・`SSL_CERT_FILE` / `SSL_CERT_DIR` を含む。ブロックリストではなく allowlist とする（秘密情報を追加したときに漏れないため）。allowlist の変数が 1 つも設定されていない場合も、`exec.Cmd.Env` には nil ではなく空の（非 nil の）スライスを渡す。Go では `Env` が nil だと親の環境をすべて引き継ぐため、nil のスライスに `append` して組み立てると、allowlist の変数がない環境で秘密情報が子プロセスへ漏れる。
 -   URL の直前に `--` を置き、URL を 1 個の引数として渡す。
 -   取得オプションとして `--ignore-config --no-plugin-dirs --skip-download --write-subs --write-auto-subs --sub-langs ja --sub-format json3 --write-info-json` を渡し、出力テンプレートはキャッシュディレクトリと動画 ID から組み立てる。
 -   利用者・システムの yt-dlp 設定ファイルの影響を排除するため、`--ignore-config` を常に渡す。これにより、設定ファイルからのオプション注入（`--exec` など）や出力テンプレートの上書きを防ぐ。あわせて `--no-plugin-dirs` を常に渡し、既定の利用者・システムのプラグインディレクトリを読み込ませないことで、環境に依存するプラグインの import を防ぎ、起動を決定的にする。環境変数は yt-dlp 自身の TLS・キャッシュのために `HOME`・`XDG_CONFIG_HOME`・`XDG_CACHE_HOME` を引き継ぐが、設定ファイルは読ませない。
@@ -103,7 +103,7 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 - **AC-51**: 子プロセスが 4 KiB を大きく超える標準エラー出力を出して非ゼロ終了したとき、返るエラーのメッセージに含まれる標準エラー出力は先頭 4 KiB までであり、それ以降の出力は保持されない。子プロセスの出力量によらず、親が保持する標準エラー出力は 4 KiB を超えない。
 - **AC-56**: 子プロセスが 4 KiB を大きく超える標準エラー出力を出してから非ゼロ終了するとき、捕捉は読み取りを止めずに残りをドレインする。したがって、子プロセスは `context` のタイムアウトで殺されることなく自分で終了し、返るエラーは `context.DeadlineExceeded` ではなく `errors.Is(err, ErrYtDlpExec)` が真になる。テストは、超過分を消費済みとして破棄する上限付きの書き込み先、または残りをドレインして先頭 4 KiB だけを保持する並行 goroutine による捕捉で検証し、`io.LimitReader` で読み取りを 4 KiB で止める実装では失敗する。
 - **AC-28**: タイムアウトに 0 以下の値を指定した構築はエラーになる。
-- **AC-44**: `yt-dlp` の起動時に子プロセスへ渡る環境変数は allowlist に限定される。テストは、テスト専用の目印 `YT2COLUMN_TEST_UNLISTED_MARKER`（ブロックリストでは除かれない名前）と `DEEPSEEK_API_KEY` を親の環境に設定し、さらに allowlist の変数（`PATH`・`HOME`・`TMPDIR`・`SSL_CERT_FILE`・`HTTPS_PROXY`・`LANG`）を設定して `Fetch` を実行する。子へ渡る環境に目印と `DEEPSEEK_API_KEY` が含まれず、設定した allowlist の各変数が同じ値で含まれることを、外部コマンドの実行の差し替えで検証する。未設定の allowlist の変数は子の環境に含まれない。
+- **AC-44**: `yt-dlp` の起動時に子プロセスへ渡る環境変数は allowlist に限定される。テストは、テスト専用の目印 `YT2COLUMN_TEST_UNLISTED_MARKER`（ブロックリストでは除かれない名前）と `DEEPSEEK_API_KEY` を親の環境に設定し、さらに allowlist の変数（`PATH`・`HOME`・`TMPDIR`・`SSL_CERT_FILE`・`HTTPS_PROXY`・`LANG`）を設定して `Fetch` を実行する。子へ渡る環境に目印と `DEEPSEEK_API_KEY` が含まれず、設定した allowlist の各変数が同じ値で含まれることを、外部コマンドの実行の差し替えで検証する。未設定の allowlist の変数は子の環境に含まれない。さらに、allowlist の変数を 1 つも設定せず `DEEPSEEK_API_KEY` だけを設定した親の環境でも、子へ渡る環境は空であり（親の環境を引き継がず）、`DEEPSEEK_API_KEY` を含まないことを検証する。
 
 #### F-003: json3 パーサ
 
@@ -112,7 +112,7 @@ json3 形式の字幕を読み、セグメントの並びに変換する。
 -   `events` の各要素（以下、イベント）を 1 つのセグメントにする。開始時刻はイベントの `tStartMs`、本文は `segs[].utf8` を順に連結した文字列とする。
 -   本文を含むイベントは、0 以上の整数の `tStartMs` を持たなければならない。その値は `int64` で表現できなければならず、`math.MaxInt64`（`9223372036854775807`）を超えてはならない。欠落している場合、負数・非整数など 0 以上の整数として解釈できない値の場合、または `int64` で表現できない値（先頭の範囲外の値は `9223372036854775808`）の場合は `ErrParseSubtitles` とし、補正も部分的な結果の返却もしない。
 -   `segs` を持たないイベント、および `utf8` が空の seg は無視する。
--   自動字幕の json3 には、ローリング表示に由来して、直前のイベントと本文が重複するイベントが含まれることがある。重複の判定は文字列の一致だけで行わず、イベントの `tStartMs` と時間的な重なりの構造に基づいて行う。時間的に離れて現れる同一本文は、意図的な繰り返しとして本文に残す。具体的な判定規則は `02_architecture.md` の作成時に実データから導き、同書に記録したものを固定して使う。
+-   自動字幕の json3 には、ローリング表示に由来して、直前のイベントと本文が重複するイベントが含まれることがある。重複の判定は文字列の一致だけで行わず、イベントの `tStartMs` と時間的な重なりの構造に基づいて行う。時間的に離れて現れる同一本文は、意図的な繰り返しとして本文に残す。具体的な判定規則は `02_architecture.md` の作成時に実データから導き、同書に記録したものを固定して使う。判定規則が `tStartMs` 以外の数値フィールド（`dDurationMs` など）を使う場合、そのフィールドにも `tStartMs` と同じ検証（0 以上の整数で `int64` で表現できること。欠落時の扱いを含む）を `02_architecture.md` で明記して適用し、満たさない入力は `ErrParseSubtitles` とし、部分的な結果を返さない。
 -   入力の JSON をデコードする前に、生のバイト列が `utf8.Valid` であることを検証する。`encoding/json` は不正なバイト列を黙って U+FFFD に置換するため、これを検証しないと補正された文字起こしを返してしまう。不正な UTF-8 は `ErrParseSubtitles` とし、部分的な結果を返さない。
 -   壊れた JSON、`events` を持たない JSON、`events` が JSON の `null` である JSON、および `events` が配列以外の値である JSON はエラー（`ErrParseSubtitles`）とし、部分的な結果を返さない。`events` が配列でない場合は字幕なし（`ErrNoSubtitles`）ではなく `ErrParseSubtitles` として報告する。
 -   `events` の各要素は JSON オブジェクトでなければならない。`null` 要素や、文字列・数値・配列などオブジェクト以外の要素が 1 つでも含まれる場合は `ErrParseSubtitles` とし、部分的な結果を返さない（`ErrNoSubtitles` ではない）。
@@ -235,7 +235,7 @@ URL・json3・info.json・`yt-dlp` 実行という信頼できない入力を扱
     -   **バイト列:** デコードの前に生のバイト列が `utf8.Valid` であることを検証し、不正な UTF-8 は拒否する（AC-52）。
     -   **トップレベル:** `events` を持たない、`events` が `null`、`events` が配列以外の値である場合は拒否する（AC-12）。
     -   **配列:** `events` の各要素は JSON オブジェクトでなければならない。`null` 要素や、文字列・数値・配列などオブジェクト以外の要素は拒否する（AC-55）。入れ子の配列にも同じ検査を適用し、`segs` は存在する場合は JSON 配列であること、`segs` の各要素は JSON オブジェクトであることを必須とし、`null` や非オブジェクト要素は拒否する（AC-57）。
-    -   **数値:** 本文を含むイベントの `tStartMs` は 0 以上の整数で、`int64` で表現できること（`math.MaxInt64` = `9223372036854775807` 以下）を必須とする。欠落・負数・非整数・`int64` 範囲外は拒否する（AC-10・AC-45・AC-54）。
+    -   **数値:** 本文を含むイベントの `tStartMs` は 0 以上の整数で、`int64` で表現できること（`math.MaxInt64` = `9223372036854775807` 以下）を必須とする。欠落・負数・非整数・`int64` 範囲外は拒否する（AC-10・AC-45・AC-54）。重複判定に使う `tStartMs` 以外の数値フィールド（`dDurationMs` など）も同じ検証の対象とし、その範囲・欠落時の扱いは判定規則とあわせて `02_architecture.md` で固定する（F-003）。
     -   **必須項目と任意項目:** 本文を含むイベントは `tStartMs` を必須とする。`segs` を持たないイベントと `utf8` が空の seg は任意（無視する）（AC-11・AC-45）。存在する `utf8` は JSON 文字列であることを必須とし、`null` や文字列以外の `utf8` は拒否する（AC-57）。
     -   **同一性:** 対象外。
     -   **サイズ・件数の上限:** ファイルサイズとデコードするイベント数に上限を設け、超過時は拒否する。上限値は `02_architecture.md` で固定する（AC-48・AC-49）。
