@@ -91,7 +91,7 @@
 
 **推奨タイトル**: `feat(0001): add Secret type with output-redaction guarantees`
 
-**レビュー観点**: 元の値が fmt（委譲・非委譲・非公開フィールド）・`String()`/`GoString()`・slog・JSON の全経路で現れないこと（AC-18〜AC-23） / `func() string` クロージャ保持と構築経路の 2 経路限定が設計どおりであること / 空文字列とゼロ値を拒否すること（AC-25・AC-26） / 元の値を取り出す経路が `Reveal()` のみであること（AC-24。メソッド集合の guard `TestSecretRevealExclusive` は architecture §7.1 により PR-4 で入るため、本 PR では目視で確認する） / 各テストが対応する対策を壊すと失敗することをコミットで記録していること
+**レビュー観点**: 元の値が fmt（委譲・非委譲・非公開フィールド）・`String()`/`GoString()`・slog・JSON の全経路で現れないこと（AC-18・AC-19・AC-20・AC-24・AC-25・AC-26） / `func() string` クロージャ保持と構築経路の 2 経路限定が設計どおりであること / 空文字列とゼロ値を拒否すること（AC-22・AC-23） / 元の値を取り出す経路が `Reveal()` のみであること（AC-21。メソッド集合の guard `TestSecretRevealExclusive` は architecture §7.1 により PR-4 で入るため、本 PR では目視で確認する） / 各テストが対応する対策を壊すと失敗することをコミットで記録していること
 
 **実装モデル要件**: frontier-recommended
 
