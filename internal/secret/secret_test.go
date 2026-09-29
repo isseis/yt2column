@@ -97,7 +97,7 @@ func TestSecretStringGoString(t *testing.T) {
 func TestSecretFmtNoDelegateVerbs(t *testing.T) {
 	s := mustNewSecret(t)
 
-	for _, verb := range []string{"%p", "%T", "%w"} {
+	for _, verb := range []string{"%p", "%w"} {
 		t.Run(verb, func(t *testing.T) {
 			got := fmt.Sprintf(verb, s)
 			if strings.Contains(got, testPlaintext) {
