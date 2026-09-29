@@ -220,17 +220,17 @@
 - 変更: `docs/dev/project_overview.md`
 
 **タスク**
-- [ ] **ステップ 5-1**: `project_overview.md:33` の `LLMClient` の責務の記述を更新する。
+- [x] **ステップ 5-1**: `project_overview.md:33` の `LLMClient` の責務の記述を更新する。
   - 変更前: `- \`LLMClient\`: プロバイダごとの薄いアダプタ。責務は「system プロンプトと user プロンプトを受け取り、テキストを返す」ことだけ。`
   - 変更後: `- \`LLMClient\`: プロバイダごとの薄いアダプタ。責務は「system プロンプトと user プロンプトを受け取り、生成テキストとモデル名を返す」ことだけ。`
-- [ ] **ステップ 5-2**: `project_overview.md:35-40` のコード例を更新する。
+- [x] **ステップ 5-2**: `project_overview.md:35-40` のコード例を更新する。
   - `Generate(ctx context.Context, req GenerateRequest) (string, error)` を `Generate(ctx context.Context, req GenerateRequest) (GenerateResponse, error)` に変更する。
   - コメント `// GenerateRequest: System, User, MaxOutputTokens, Temperature など、プロバイダ共通の最小限の項目のみ` を `// GenerateRequest: SystemPrompt, UserPrompt, MaxOutputTokens など、プロバイダ共通の最小限の項目のみ` に変更する。
-- [ ] **ステップ 5-3**: `project_overview.md:68-83` の想定ディレクトリ構成に `internal/secret/` の行を追加する（例: `internal/secret/          # 秘密情報（API キー・Webhook URL）を保持する型`）。`internal/llm/claude/` の行（`project_overview.md:78`）の直後、`internal/publisher/` の行（`project_overview.md:79`）の直前に追加する。
-- [ ] **ステップ 5-4**: 正の確認と旧表記の残骸の確認を行う。
+- [x] **ステップ 5-3**: `project_overview.md:68-83` の想定ディレクトリ構成に `internal/secret/` の行を追加する（例: `internal/secret/          # 秘密情報（API キー・Webhook URL）を保持する型`）。`internal/llm/claude/` の行（`project_overview.md:78`）の直後、`internal/publisher/` の行（`project_overview.md:79`）の直前に追加する。
+- [x] **ステップ 5-4**: 正の確認と旧表記の残骸の確認を行う。
   - 正の確認: `rg -n -e 'GenerateResponse' -e 'SystemPrompt' -e 'UserPrompt' -e 'internal/secret/' docs/dev/project_overview.md` が該当行を返すことを確認し、出力を記録する。
   - 残骸の確認: `rg -n -e '\(string, error\)' -e '\bSystem\b' -e '\bTemperature\b' docs/dev/project_overview.md` が一致なし（exit 1）になることを確認し、出力を記録する（計画作成時の更新前の出力は `:37`・`:39` の 2 件、HEAD `4a2fde5` で確認済み）。`docs/tasks/0001_pipeline_skeleton/` 配下の履歴記述（`01_requirements.md` §5.1、architecture 付録A）は意図的に旧表記のまま残す。
-- [ ] **ステップ 5-5**: `make fmt` → `make test` → `make lint` を通す。
+- [x] **ステップ 5-5**: `make fmt` → `make test` → `make lint` を通す。
 
 ### PR-5 作成ポイント: project overview alignment
 
