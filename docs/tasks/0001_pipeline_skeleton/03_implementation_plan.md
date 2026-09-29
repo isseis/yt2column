@@ -71,7 +71,7 @@
 - 変更: `docs/dev/developer_guide/package_reference.md`
 
 **タスク**
-- [ ] **ステップ 1-1**: `internal/secret/secret.go` を作成し、architecture §3.3 の型定義どおりに実装する。
+- [x] **ステップ 1-1**: `internal/secret/secret.go` を作成し、architecture §3.3 の型定義どおりに実装する。
   - 元の値を `func() string` クロージャで保持する（`01_requirements.md` §5 の制約）。
   - `New(value string) (Secret, error)`: 空文字列はエラーにする（AC-22）。拒否のエラーはパッケージレベルの静的センチネル（`errors.New`）とする（err113 が `%w` のない `fmt.Errorf` を拒否するため）。
   - `Reveal() (string, error)`: ゼロ値（nil クロージャ）はエラーにする（AC-23）。元の値を返す経路はこのメソッドのみにする（AC-21）。
@@ -80,10 +80,27 @@
   - `LogValue() slog.Value`: 属性として `[REDACTED]` を返す（AC-19）。
   - `MarshalJSON() ([]byte, error)`: `"[REDACTED]"` を返す（AC-20）。
   - パッケージコメントとすべての公開識別子に英語のドキュメントコメントを付ける（revive の `package-comments` と `exported` が `make lint` で検査する）。`[REDACTED]` の繰り返しは goconst を避けるためパッケージ定数にまとめる。
-- [ ] **ステップ 1-2**: `internal/secret/secret_test.go` を作成し、AC-18〜AC-26 のテストを置く（テスト関数名は §5）。`fmt` の直接書式化は固定文字列との完全一致で検証する（`[REDACTED]` の部分一致だけでは、長さやハッシュを付け足した出力を見逃す）。非公開フィールド経路は元の値が現れないことを検証し、出力される関数アドレスはゴールデンファイル化しない（architecture §7.1）。
-- [ ] **ステップ 1-3**: `docs/dev/developer_guide/package_reference.md` の冒頭を更新し（「No packages exist yet」の記述と「Move each entry here」の案内）、`internal/secret` の行を追加する。プレースホルダの `| _(none yet)_ | |` 行（`package_reference.md:14`）は削除する。
-- [ ] **ステップ 1-4**: 主要な対策を実装時に壊してテストが失敗することを確認し、コミットメッセージに記録する（例: `Format` を元の値を出力する実装に変えると `TestSecretFmtRedaction` が失敗する、`String()`・`GoString()` を元の値に変えると `TestSecretStringGoString` が失敗する、`LogValue` を外すと `TestSecretSlogRedaction` が失敗する、`MarshalJSON` を外すと `TestSecretJSONRedaction` が失敗する、クロージャ保持を素の `string` フィールドに変えると `TestSecretUnexportedFieldNoLeak` が失敗する、`New` の空文字列チェックを外すと `TestSecretNewEmpty` が失敗する）。
-- [ ] **ステップ 1-5**: `make fmt` → `make test` → `make lint` を通す。
+- [x] **ステップ 1-2**: `internal/secret/secret_test.go` を作成し、AC-18〜AC-26 のテストを置く（テスト関数名は §5）。`fmt` の直接書式化は固定文字列との完全一致で検証する（`[REDACTED]` の部分一致だけでは、長さやハッシュを付け足した出力を見逃す）。非公開フィールド経路は元の値が現れないことを検証し、出力される関数アドレスはゴールデンファイル化しない（architecture §7.1）。
+- [x] **ステップ 1-3**: `docs/dev/developer_guide/package_reference.md` の冒頭を更新し（「No packages exist yet」の記述と「Move each entry here」の案内）、`internal/secret` の行を追加する。プレースホルダの `| _(none yet)_ | |` 行（`package_reference.md:14`）は削除する。
+- [x] **ステップ 1-4**: 主要な対策を実装時に壊してテストが失敗することを確認し、コミットメッセージに記録する（例: `Format` を元の値を出力する実装に変えると `TestSecretFmtRedaction` が失敗する、`String()`・`GoString()` を元の値に変えると `TestSecretStringGoString` が失敗する、`LogValue` を元の値を返す実装に変えると `TestSecretSlogRedaction` が失敗する（`LogValue` を外すだけでは、slog が `fmt` 経由で `Format` を呼ぶため `[REDACTED]` のままになり失敗しない）、`MarshalJSON` を外すと `TestSecretJSONRedaction` が失敗する、クロージャ保持を素の `string` フィールドに変えると `TestSecretUnexportedFieldNoLeak` が失敗する、`New` の空文字列チェックを外すと `TestSecretNewEmpty` が失敗する）。
+- [x] **ステップ 1-5**: `make fmt` → `make test` → `make lint` を通す。
+
+### PR-1 作成ポイント: secret type and redaction guarantees
+
+**対象ステップ**: 1-1 / 1-2 / 1-3 / 1-4 / 1-5
+
+**推奨タイトル**: `feat(0001): add Secret type with output-redaction guarantees`
+
+**レビュー観点**: 元の値が fmt（委譲・非委譲・非公開フィールド）・`String()`/`GoString()`・slog・JSON の全経路で現れないこと（AC-18・AC-19・AC-20・AC-24・AC-25・AC-26） / `func() string` クロージャ保持と構築経路の 2 経路限定が設計どおりであること / 空文字列とゼロ値を拒否すること（AC-22・AC-23） / 元の値を取り出す経路が `Reveal()` のみであること（AC-21。メソッド集合の guard `TestSecretRevealExclusive` は architecture §7.1 により PR-4 で入るため、本 PR では目視で確認する） / 各テストが対応する対策を壊すと失敗することをコミットで記録していること
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: 秘密情報の非開示という、誤ると漏洩に直結する高リスクな単独ステップ（ステップ 1-1・1-2）を隔離した PR。競合する実装方針の併記はないが、「リスク隔離」の対象となる high-risk なステップのため。
+
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: 構成要素パッケージのデータ型と interface
 
@@ -99,6 +116,23 @@
 - [ ] **ステップ 2-5**: この 4 パッケージにパッケージ本体の `_test.go` は置かない（architecture §7.1）。
 - [ ] **ステップ 2-6**: `docs/dev/developer_guide/package_reference.md` に `internal/transcript`・`internal/llm`・`internal/writer`・`internal/publisher` の 4 行を追加する。
 - [ ] **ステップ 2-7**: `make fmt` → `make test` → `make lint` を通す。
+
+### PR-2 作成ポイント: stage interfaces and common data types
+
+**対象ステップ**: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7
+
+**推奨タイトル**: `feat(0001): add pipeline stage interfaces and common data types`
+
+**レビュー観点**: データ型と interface のシグネチャが architecture §3.1・§3.2 の Go 定義と一致すること / プロバイダ固有の項目や SDK の型が混入していないこと（AC-05） / interface の契約コメントが英語で「空の結果を正常としない」条項を含むこと（AC-08） / `package_reference.md` に 4 パッケージが登録されていること / 型・interface の guard（`TestCommonTypesFieldSets`・`TestInterfaceContracts`・`TestInterfaceDocComments`）は architecture §7.1 により PR-4 で入るため、本 PR のレビューで一致を目視で確認すること
+
+**実装モデル要件**: standard
+
+**判定理由**: 型宣言と interface 定義のみで、競合する実装方針の併記も高リスクな制御（リカバリ・並行・状態機械）もなく、どのトリガーにも該当しない。下流タスクが依存する契約を凍結するが、競合方針や高リスクな制御を含まないため frontier の要件には達しない。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: テスト用の fake
 
@@ -126,6 +160,23 @@
 - [ ] **ステップ 3-7**: タグなしのビルドに fake が含まれないことを `go list -e -f '{{.ImportPath}} {{len .GoFiles}} {{.Error}}' ./internal/transcript/testutil ./internal/llm/testutil ./internal/writer/testutil ./internal/publisher/testutil` で確認する。4 つの `testutil` パッケージそれぞれについて、`GoFiles` が 0 件であること、および `.Error` が「すべての Go ファイルがビルド制約で除外された」ことを示す（`build constraints exclude all Go files`）ことを出力とともに記録する（architecture §7.2 が本計画に委ねた `go list` のコマンド。AC-17）。`-e` はエラーを標準エラーではなくパッケージの `Error` フィールドに入れるため、テンプレートで `.Error` を描画しないと、存在しない import path の誤りも `0` とだけ表示されて期待結果と区別できない。`./internal/...` のようなパターンは、すべてのファイルがビルド制約で除外されたディレクトリを列挙しない（`go help packages` はパターンが「パッケージのディレクトリ」に展開されるとし、`go help list` は名前付きパッケージを 1 行ずつ列挙するとする）ため、`testutil` パッケージは import path を明示して `go list` に渡す。
 - [ ] **ステップ 3-8**: `make fmt` → `make test` → `make lint` を通す。`make test` は `-tags test` で実行されるため、fake が同じタグでコンパイルされることをこのフェーズのゲートで確認する（`Makefile:63-64`）。
 
+### PR-3 作成ポイント: test fakes for stage interfaces
+
+**対象ステップ**: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8
+
+**推奨タイトル**: `feat(0001): add test fakes for the pipeline stage interfaces`
+
+**レビュー観点**: `testutil/` 配下の全ファイルに `//go:build test` が付き、本番バイナリに含まれないこと（AC-17） / ポインタレシーバで呼び出しが `Calls` に記録されること（AC-15・AC-16） / `var _ <interface> = (*<Fake>)(nil)` で interface を満たすこと（AC-06） / タグなし `go list` で `testutil` の `GoFiles` が 0 件であることを記録していること / タグの guard（`TestFakesCarryBuildTag`）は architecture §7.1 により PR-4 で入るため、本 PR の緑ゲートはタグなし `go list` の記録で担保すること
+
+**実装モデル要件**: standard
+
+**判定理由**: 定型的なテストダブルで、競合する実装方針の併記も高リスクな制御もなく、どのトリガーにも該当しない。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ### フェーズ 4: `internal/pipeline`
 
 **対象ファイル**
@@ -146,6 +197,23 @@
 - [ ] **ステップ 4-4**: 主要な分岐と guard を実装時に壊してテストが失敗することを確認し、コミットメッセージに記録する（例: `Run` の nil 検査を外すと `TestPipelineZeroValueRun` が失敗する、段階の失敗を包まずに返すと `TestPipelineStageError` が失敗する、guard 対象のフィールドを追加すると `TestCommonTypesFieldSets` が失敗する、`//go:build test` を外すと `TestFakesCarryBuildTag` が失敗する、interface の第 1 引数を `context.Context` 以外に変えると `TestInterfaceContracts` が失敗する、interface の契約コメントから条項を削ると `TestInterfaceDocComments` が失敗する、`Secret` に平文を返す公開メソッドを追加すると `TestSecretRevealExclusive` が失敗する、キャンセルの検出点を変えると `TestPipelineCanceled` が失敗する）。
 - [ ] **ステップ 4-5**: `make fmt` → `make test` → `make lint` を通す。
 
+### PR-4 作成ポイント: pipeline orchestration
+
+**対象ステップ**: 4-1 / 4-2 / 4-3 / 4-4 / 4-5
+
+**推奨タイトル**: `feat(0001): add pipeline orchestration with stage errors and cancellation`
+
+**レビュー観点**: 段階の実行順・失敗時の打ち切り・キャンセル時の挙動（AC-09〜AC-13） / typed-nil とゼロ値の fail-closed（AC-14） / `Stage` のゼロ値が fail-secure に `"unknown"` を返すこと / guard テストが設計どおりの集合を検証し、空集合で素通りしないこと / 横断 guard（`TestCommonTypesFieldSets`・`TestInterfaceContracts`・`TestInterfaceDocComments`・`TestSecretRevealExclusive`・`TestFakesCarryBuildTag`）がマージ済みの PR-1〜PR-3 の成果物に対して通ること
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: キャンセル同期・typed-nil 検出・ゼロ値 fail-closed を含むリスクの高い制御フローの単独ステップ（ステップ 4-1・4-2）を隔離した PR。競合する実装方針の併記はないが、「リスク隔離」の対象となる complex なステップのため。あわせて architecture §7.1 により PR-1〜PR-3 の成果物を検証する横断 guard も本 PR に含む。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ### フェーズ 5: ドキュメント更新
 
 **対象ファイル**
@@ -164,6 +232,23 @@
   - 残骸の確認: `rg -n -e '\(string, error\)' -e '\bSystem\b' -e '\bTemperature\b' docs/dev/project_overview.md` が一致なし（exit 1）になることを確認し、出力を記録する（計画作成時の更新前の出力は `:37`・`:39` の 2 件、HEAD `4a2fde5` で確認済み）。`docs/tasks/0001_pipeline_skeleton/` 配下の履歴記述（`01_requirements.md` §5.1、architecture 付録A）は意図的に旧表記のまま残す。
 - [ ] **ステップ 5-5**: `make fmt` → `make test` → `make lint` を通す。
 
+### PR-5 作成ポイント: project overview alignment
+
+**対象ステップ**: 5-1 / 5-2 / 5-3 / 5-4 / 5-5
+
+**推奨タイトル**: `docs(0001): align project overview with the pipeline skeleton design`
+
+**レビュー観点**: `LLMClient` の責務と戻り値の記述が本設計（`GenerateResponse`）と一致すること / 想定ディレクトリ構成に `internal/secret/` が追加されていること / 旧表記（`(string, error)`・`System`・`Temperature`）の残骸がないことを `rg` の出力で確認していること
+
+**実装モデル要件**: standard
+
+**判定理由**: ドキュメントの表記更新のみで、競合する実装方針も高リスクな制御もなく、どのトリガーにも該当しない。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
 
 ### 3.1. マイルストーン
@@ -176,7 +261,21 @@
 | M4 | フェーズ 4 | `internal/pipeline`（`Stage`・`StageError`・`New`・`Run` と各テスト・guard） | 同上 |
 | M5 | フェーズ 5 | `docs/dev/project_overview.md` の更新 | 同上・正の確認と旧表記の残骸なし |
 
-### 3.2. 実装順序の根拠
+### 3.2. PR 構成
+
+PR はフェーズと 1 対 1 に対応させる。各 PR は主たる関心事（秘密情報型 / 型と interface / fake / パイプライン本体 / ドキュメント）を持ち、単独でグリーンゲートを通せる単位とする。
+
+guard テスト（型・interface・fake の設計適合を検証するテスト）は architecture §7.1 により `internal/pipeline/pipeline_test.go` に集約されるため、PR-1〜PR-3 の成果物に対する guard 検証は PR-4 で入る。したがって、PR-1〜PR-3 のレビューでは guard が後続 PR で入ることを踏まえて設計への適合を目視で確認し、PR-4 ではマージ済みの PR-1〜PR-3 の成果物に対して guard が通ることを確認する。PR-4 はこの横断 guard を併せ持つため、`internal/pipeline` 本体だけでなく他パッケージの契約検証もレビュー対象になる。
+
+| PR | 対象ステップ | 主な変更内容 | 実装モデル要件 |
+|---|---|---|---|
+| PR-1 | 1-1 / 1-2 / 1-3 / 1-4 / 1-5 | `internal/secret`（`Secret` 型と AC-18〜AC-26 のテスト）、`package_reference.md` 登録 | frontier-recommended |
+| PR-2 | 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 | 4 つの構成要素パッケージのデータ型と interface、`package_reference.md` 登録 | standard |
+| PR-3 | 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8 | 4 つの fake（`testutil/mocks.go`・`mocks_test.go`）、`package_reference.md` 登録、タグなし `go list` の確認 | standard |
+| PR-4 | 4-1 / 4-2 / 4-3 / 4-4 / 4-5 | `internal/pipeline`（`Stage`（`String()`）・`StageError`・`ErrNilStage`・`New`・`Run`）と振る舞いテスト、PR-1〜PR-3 を検証する横断 guard テスト、`package_reference.md` 登録 | frontier-recommended |
+| PR-5 | 5-1 / 5-2 / 5-3 / 5-4 / 5-5 | `docs/dev/project_overview.md` の `LLMClient` 周りの更新 | standard |
+
+### 3.3. 実装順序の根拠
 
 architecture §8 の依存の向き（secret → 構成要素パッケージ（transcript・llm → writer → publisher）→ fake → pipeline → ドキュメント）に従う。各フェーズは独立してグリーンゲートを通せる単位とし、package_reference.md の登録は各パッケージを新設するフェーズのコミットに含める（フェーズ 5 にまとめない）。
 
@@ -239,6 +338,7 @@ AC ごとの検証は次のとおり。`test` は実行可能なテスト、`sta
 | typed-nil の interface が `Run` 実行時にパニックを起こす | AC-14・AC-14a の不成立 | `New` と `Run` の両方で nil を検出し、構築時・使用時に `ErrNilStage` を返す。テストで 3 引数すべての typed-nil とゼロ値を検証する |
 | `Run` を `New` を通さないゼロ値で呼ぶ | パニック | `Run` の冒頭で段階の nil を再確認する（architecture §3.4 のゼロ値の fail-closed） |
 | lint（revive の `exported`・`package-comments`、goconst、err113、mnd）が新設コードで指摘を出す | `make lint` が通らない | パッケージコメント・公開識別子への英語ドキュメントコメント、`[REDACTED]` のパッケージ定数化、静的センチネルの使用をタスクに含めた。テスト内の数値リテラルに mnd が出た場合は定数化または必要最小限の `//nolint:mnd` で対応する |
+| 4 つの `testutil/mocks.go` は非テストファイルのため `.golangci.yml` の `_test.go` 除外が効かず、`dupl`（近似コード）が発火しうる | PR-3 の `make lint` が通らない | 4 つの fake は意図的に同型である。`dupl` が出た場合は理由付きの `//nolint:dupl` を付ける。`_test.go` 除外の対象外であることを前提に PR-3 のゲートで確認する |
 | AC-13 の段階間キャンセルのテストが racy になる | テストが間欠的に失敗する | 決定的な同期手段（カスタム `context.Context`）を実装時に使い、タイマー待ち・スリープを使わない |
 | guard テストが部分一致のような弱い検証で素通りする | AC の検証が成立しない | guard は「設計どおりの集合・完全契約」を検証する内容とし、実装時に壊して失敗することを確認してコミットメッセージに記録する |
 | 将来の interface シグネチャ変更が fake を壊す | コンパイルエラー | fake のコンパイル時アサーションが `make test` で検出する |
@@ -246,12 +346,12 @@ AC ごとの検証は次のとおり。`test` は実行可能なテスト、`sta
 
 ## 7. 実装チェックリスト (Implementation Checklist)
 
-- [ ] フェーズ 1 完了（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5）
-- [ ] フェーズ 2 完了（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7）
-- [ ] フェーズ 3 完了（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8）
-- [ ] フェーズ 4 完了（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5）
-- [ ] フェーズ 5 完了（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5）
-- [ ] 各フェーズで `make fmt` → `make test` → `make lint` が通る
+- [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5）
+- [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7）
+- [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8）
+- [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5）
+- [ ] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5）
+- [ ] 各 PR で `make fmt` → `make test` → `make lint` が通る
 - [ ] 各テストについて、対応する対策・分岐を実装時に壊し、テストが失敗することを確認済み（コミットメッセージに記録）
 - [ ] `docs/dev/developer_guide/package_reference.md` に 10 パッケージが登録されている
 - [ ] `cmd/yt2column/main.go` が変更されていない
@@ -266,7 +366,6 @@ AC ごとの検証は次のとおり。`test` は実行可能なテスト、`sta
 
 ## 9. 次のステップ (Next Steps)
 
-- 本計画は `draft`。人間レビューで内容を確認し、問題がなければ `approved` にする（`docs/dev/developer_guide/requirements_process.md`）。
-- `approved` 後、`/mkplan2 0001` で PR 境界を本計画に埋め込む。
-- `/runplan 0001` でフェーズ順に実装する。
+- 本計画は `approved`。PR 境界は §2 の `PR-N 作成ポイント` と §3.2 に埋め込み済み。
+- `/runplan 0001` で PR の順に実装する（各 PR は独立してグリーンゲートを通す）。
 - 本タスク完了後、後続タスク（#3・#4・#5・#6・#7）が、本タスクで定めた型・interface・fake に依存して並行開発できる。
