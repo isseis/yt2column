@@ -28,15 +28,16 @@ URL → TranscriptSource → Transcript → ArticleWriter → Article → Publis
   - json3 の `events[].segs[].utf8` を連結して本文にする。`tStartMs` も保持する（将来、見出しごとに動画の該当時刻へのリンクを付けるため）。
   - info.json からタイトル・チャンネル名・概要欄を取り出し、メタ情報として `Transcript` に含める。
   - 手動字幕と自動字幕が両方ある場合の挙動（どちらが優先されるか、出力ファイル名）は実装時に確認すること。
-- `ArticleWriter`: プロバイダに依存しない。プロンプトテンプレートにタイムスタンプを除いた本文とメタ情報を埋め込み、`LLMClient` を呼び出して、結果を `Article`（タイトル・Markdown 本文）に変換する。
+- `ArticleWriter`: プロバイダに依存しない。プロンプトテンプレートにタイムスタンプを除いた本文とメタ情報を埋め込み、`LLMClient` を呼び出して、結果を `Article`（タイトル・Markdown 本文・出典 URL・生成モデル名）に変換する。
   - プロンプトの組み立てと出力の後処理はここに集約し、全プロバイダで共有する。
-- `LLMClient`: プロバイダごとの薄いアダプタ。責務は「system プロンプトと user プロンプトを受け取り、テキストを返す」ことだけ。
+- `LLMClient`: プロバイダごとの薄いアダプタ。責務は「system プロンプトと user プロンプトを受け取り、生成テキストとモデル名を返す」ことだけ。
 
   ```go
   type LLMClient interface {
-      Generate(ctx context.Context, req GenerateRequest) (string, error)
+      Generate(ctx context.Context, req GenerateRequest) (GenerateResponse, error)
   }
-  // GenerateRequest: System, User, MaxOutputTokens, Temperature など、プロバイダ共通の最小限の項目のみ
+  // GenerateRequest: SystemPrompt, UserPrompt, MaxOutputTokens など、プロバイダ共通の最小限の項目のみ
+  // GenerateResponse: Text, Model（生成テキストと、生成に使われたモデル名）
   ```
 
   - 初期実装は `internal/llm/deepseek`。Gemini・Claude は必要になったら `internal/llm/gemini`・`internal/llm/claude` として追加する。
@@ -76,6 +77,7 @@ internal/llm/             # LLMClient interface と共通型
 internal/llm/deepseek/    # DeepSeek 実装（標準ライブラリで OpenAI 互換 API を呼ぶ）
 internal/llm/gemini/      # Gemini 実装（将来追加。google.golang.org/genai）
 internal/llm/claude/      # Claude 実装（将来追加）
+internal/secret/          # 秘密情報（API キー・Webhook URL）を保持する型
 internal/publisher/       # Slack / File
 internal/config/          # 環境変数からの設定読み込み
 prompts/                  # プロンプトテンプレート
