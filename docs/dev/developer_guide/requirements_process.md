@@ -94,7 +94,11 @@ Include the following section at the top of `01_requirements.md`, `02_architectu
 - **AC-05**: [Edge case handling]
 ```
 
-**Untrusted input boundaries:** when a requirement consumes untrusted input (network responses, external-command output, or files derived from them), state, for each boundary, the accepted form, every rejection condition, the sentinel error each rejection maps to, and any size/record limit. Check the contract against the type-derived completeness checklist below so that malformed shapes the target type can admit are not left unspecified. The checklist is a completeness aid; the contract must state each item explicitly. Once every item is stated, the boundary specification is complete.
+**Untrusted input boundaries:** when a requirement consumes untrusted input (network responses, external-command output, or files derived from them), state, for each boundary, the accepted form, the sentinel error a rejection maps to, any size/record limit, and the rule that input the standard library would silently repair or ignore is rejected rather than accepted. State observable behavior only; how a malformed shape is detected (which API, which pre-check) is decided in `02_architecture.md`. Concrete malformed inputs found during review may be added to the acceptance criteria as examples, but they are not a claim of completeness.
+
+**Design handoff:** when requirements review surfaces implementation-level concerns (library pitfalls, mechanism choices, test construction), record them in `docs/tasks/XXXX_feature/design_handoff.md` instead of expanding the requirements. `02_architecture.md` records, for each handoff item, the approach taken or why it does not apply.
+
+The type-derived checklist below is applied when designing each boundary in `02_architecture.md`. It is an aid against oversights, not a completeness guarantee.
 
 - **Bytes:** is the raw input valid UTF-8 before decoding? (`encoding/json` can succeed by replacing invalid bytes with U+FFFD, so check with `utf8.Valid`.) Are `\uD800`-`\uDFFF` escapes in JSON strings correctly paired? (An unpaired surrogate escape passes `utf8.Valid`, and `encoding/json` replaces it with U+FFFD without returning an error.)
 - **Top level:** is the expected JSON kind required? Are `null` and other kinds rejected? Is the input exactly one top-level value, with any non-whitespace trailing data (a second value or junk) rejected? (`json.Decoder.Decode` can succeed after reading only the first value and leave the trailing bytes unread, so confirm that decoding reaches EOF.)
