@@ -43,6 +43,7 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 -   キャッシュの無効化（利用者によるファイル削除）と強制再取得
 -   字幕なしの検出
 -   上記を束ねた `transcript.TranscriptSource` の実装（`YtDlpSource`）
+-   実 `yt-dlp` とネットワークを使う手動実行の統合テスト（既定のテストからは除外）
 
 ### 2.3. スコープ外 (Out of Scope)
 
@@ -53,6 +54,7 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 -   タイムスタンプを使った機能（#10）。本タスクは `tStartMs` を保持するだけである。
 -   記事生成（#5）と Slack 投稿（#7）
 -   `yt-dlp` の出力のうち、字幕と info.json 以外
+-   CI での統合テストの実行（実 `yt-dlp` とネットワークが必要なため、ローカルでの手動実行に限る）
 
 ## 3. 機能要件 (Functional Requirements)
 
@@ -164,7 +166,28 @@ info.json 形式のメタ情報を読み、タイトル・チャンネル名・�
 - **AC-25**: `YtDlpSource` は `transcript.TranscriptSource` を実装する。`Fetch(ctx, videoURL)` は、動画 ID・動画 URL・タイトル・チャンネル名・概要欄・セグメントを持つ `Transcript` を返す。
 - **AC-26**: `ctx` が既にキャンセルされている場合、`Fetch` は `yt-dlp` を起動せずに `context.Canceled` を返す。`yt-dlp` の実行中にキャンセルされた場合はプロセスを終了し、`context.Canceled` を返す（AC-08）。
 - **AC-27**: `Fetch` のユニットテストは、実際の `yt-dlp` もネットワークも呼ばない。`testdata/` と、`testdata/` の出力を配置した一時キャッシュディレクトリで検証する。
-- **AC-33**: 実装計画書に、実際の動画 1 本に対する手動検証を完了条件として含める。手動検証は実際の `yt-dlp` とネットワークを使い、その結果（終了コード、生成されたファイル名、得られた `Transcript` の概要）を実装計画書に記録する。`make test` には含めない。
+- **AC-33**: 実装計画書に、実際の動画 1 本に対する手動実行を完了条件として含める。手動実行は F-008 の統合テストで行い、使用した動画 URL と結果を実装計画書に記録する。
+
+#### F-008: 実 yt-dlp を使う統合テスト
+
+実際の `yt-dlp` とネットワークを使って `YtDlpSource` の動作を確認する統合テストをリポジトリに含める。既定のテスト（`make test`）では実行せず、専用の Make ターゲットで手動実行する。
+
+-   統合テストは専用のビルドタグ（例: `integration`）で分離し、`make test`（`-tags test`）には含めない。
+-   専用の Make ターゲット `make test-integration` を追加し、実 `yt-dlp` とネットワークを使うことを表示する。テスト結果のキャッシュを避けるため `-count=1` を付け、明示的な `-timeout` を設定する。
+-   対象の動画 URL は環境変数 `YT2COLUMN_TEST_VIDEO_URL` で指定する。`make test-integration` が Make 変数 `YT2COLUMN_TEST_VIDEO_URL` の既定値をエクスポートし、実行時に差し替え可能にする。テスト自身は既定値を持たない。既定値はフェーズ 0 で選んだ、日本語字幕を持つ安定した動画とする。
+-   キャッシュには `t.TempDir` を使い、失敗時も含めて取得物をリポジトリに残さない。
+-   確認する内容は、実際の動画からの `Transcript` 取得、キャッシュの再利用、強制再取得である。字幕なし動画など対象動画に依存して壊れやすいケースは既定の統合テストに含めず、URL の差し替えで対応する。
+-   統合テストは、リポジトリのすべての lint 実行経路（`make lint`、pre-commit、CI の lint）の解析対象に含める（lint は `test` と `integration` の両方のビルドタグで解析する）。
+-   `yt-dlp` が見つからない場合やネットワークに失敗した場合はスキップせず、失敗として報告する。
+
+**Acceptance Criteria**:
+- **AC-37**: 統合テストは既定の `make test` の対象に含まれず、`make test` と `make test-ci` の実行では実 `yt-dlp` もネットワークも呼ばれない。
+- **AC-38**: `make test-integration` は、`-count=1` と明示的な `-timeout` を付けて統合テストを実行し、少なくとも 1 件のテストが実行されたこと（スキップやテスト結果のキャッシュではないこと）が `-v` 出力から確認できる。ターゲットは実 `yt-dlp` とネットワークを使うことを表示する。
+- **AC-39**: 統合テストは、指定された動画 URL に対して `Fetch` し、タイトル・チャンネル名が非空で、セグメントが 1 件以上あることを検証する。既定の動画に対しては、期待する動画 ID（定数）と一致することを検証する。
+- **AC-40**: 統合テストは、同じ動画の 2 回目の `Fetch` が `yt-dlp` を起動せずにキャッシュから結果を返すことを検証する。テストは、実行されると目印ファイルを書き込むラッパー実行ファイルを `yt-dlp` のパスに指定し、2 回目の `Fetch` が成功し、目印ファイルが作られていないことを確認する。
+- **AC-41**: 統合テストは、強制再取得が既存のキャッシュを無視して再取得することを検証する。テストは、1 回目の `Fetch` の後でキャッシュの字幕と info.json を、目印となる文字列を含む有効な内容に置き換え、強制再取得した `Fetch` の結果にその目印が現れないことを確認する。
+- **AC-42**: 対象の動画 URL が環境変数 `YT2COLUMN_TEST_VIDEO_URL` に設定されていない場合、統合テストはスキップせず、変数名を示す明確なエラーメッセージで失敗する。`make test-integration` は既定値を設定するため、この失敗は `go test -tags integration` を直接実行したときに確認する。
+- **AC-43**: 統合テストにコンパイルエラーまたは lint 違反があると、`make lint`、pre-commit の golangci-lint、CI の lint ジョブが失敗する。
 
 ## 4. 非機能要件 (Non-Functional Requirements)
 
@@ -192,18 +215,19 @@ info.json 形式のメタ情報を読み、タイトル・チャンネル名・�
 
 -   macOS と Linux でビルド・テストできること。
 -   Go のバージョンは `go.mod` に従う。
--   実行時は `yt-dlp` が PATH 上にある（または `YT2COLUMN_YTDLP_PATH` が設定されている）ことを前提とする。ユニットテストには不要である。
+-   実行時は `yt-dlp` が PATH 上にある（または `YT2COLUMN_YTDLP_PATH` が設定されている）ことを前提とする。ユニットテストには不要である。統合テスト（F-008）は `yt-dlp` が PATH 上にある環境で実行する。
 
 ### 4.5. 保守性 (Maintainability)
 
 -   標準ライブラリ以外のモジュールを追加しないこと（`.golangci.yml` の depguard `deps` ルール）。
 -   json3 と info.json のパーサは外部コマンドの起動から分離し、`testdata/` の実出力でテストできること。
+-   統合テストは既定のテストから分離し、専用の Make ターゲットで実行できること（F-008）。
 -   Go のコメント・識別子・文字列リテラルは英語で書くこと。
 
 ## 5. 制約条件 (Constraints)
 
 -   [project_overview.md](../../dev/project_overview.md) の「決定済みの方針」「前提・制約」に従う。
--   ユニットテストは `yt-dlp`・ネットワークを呼ばない。そのため、外部コマンドの実行はテストから差し替え可能にする（F-002・AC-07）。
+-   ユニットテストは `yt-dlp`・ネットワークを呼ばない。そのため、外部コマンドの実行はテストから差し替え可能にする（F-002・AC-07）。統合テスト（F-008）は実 `yt-dlp`・ネットワークを使うが、既定のテストには含めず、専用の Make ターゲットで実行する。統合テストは、`make lint`・pre-commit・CI の lint の解析対象に含め、常にコンパイル・解析されるようにする（lint では `test` と `integration` の両方のビルドタグを使う）。
 -   環境変数の読み込みと CLI フラグの定義は #6 の責務とする。本タスクの `YtDlpSource` は、キャッシュディレクトリ・`yt-dlp` の実行パス・タイムアウト・強制再取得の指定を構築時に受け取る。強制再取得の指定を CLI フラグとして配線するのは #6 である。キャッシュディレクトリの指定がない場合の扱い（既定ディレクトリを使うかエラーにするか）は設計（`02_architecture.md`）で決める。
 -   パッケージの分割は設計（`02_architecture.md`）で決める。循環 import を生じないこと。
 -   実装計画書のフェーズ 0 に事前調査を含める。調査項目は、手動字幕と自動字幕のどちらを優先するか、およびその出力ファイル名、字幕なし動画での `yt-dlp` の終了コードと出力、実際の `info.json` のフィールド名、実際の自動字幕 json3 の重複イベントの有無である。調査結果はアーキテクチャ設計書に記録し、`testdata/` に実出力を保存する。採用するファイル名と優先規則は調査結果を基に固定する。`testdata/` の配置（パッケージ内かリポジトリ直下か）は設計で決める。
@@ -230,3 +254,4 @@ info.json 形式のメタ情報を読み、タイトル・チャンネル名・�
 -   **正規化 URL:** 動画 ID から組み立てた `https://www.youtube.com/watch?v=<id>`。`yt-dlp` には元の入力ではなくこれを渡す。
 -   **`ErrInvalidVideoURL` / `ErrYtDlpExec` / `ErrParseSubtitles` / `ErrParseInfo` / `ErrNoSubtitles`:** それぞれ URL 検証・`yt-dlp` の実行失敗・字幕のパース・info.json のパース・字幕なしを表す番兵エラー。
 -   **フェーズ 0:** 実装計画書の最初のフェーズ。事前調査を行い、`testdata/` の実出力を取得する。
+-   **統合テスト（integration test）:** 実際の `yt-dlp` とネットワークを使うテスト。既定の `make test` には含めず、`make test-integration` で手動実行する。
