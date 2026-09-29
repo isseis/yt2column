@@ -213,8 +213,18 @@ Agent prompt (inline `clusters` from Phase 2, the `valid` threads, and the
 >       existing item already covers it, extend that item instead of adding
 >       a duplicate. If the commented document does not yet link to the
 >       handoff document, add one sentence that does.
-> 4. Do NOT run build checks — that happens in the next phase.
-> 5. For each thread, return `threadId`, `applied` (true/false), `replyBody`
+> 4. For each process document you edited in steps 1–3 (the requirements
+>    document, the architecture document, or the implementation plan
+>    document), check its Document Status. If it is `approved`, classify the
+>    edit per "Editing an approved document" in the requirements process guide
+>    (`docs/dev/developer_guide/requirements_process.md`):
+>    - Decision change — always the case for a `behaviorGap` addition, and for
+>      any rewrite that changes what an F-/AC- item or design decision says:
+>      set the status back to `draft`; the reply says re-approval is needed.
+>    - Editorial correction — keep the status and record the edit in the
+>      `Comments` field, stating that no decision changed.
+> 5. Do NOT run build checks — that happens in the next phase.
+> 6. For each thread, return `threadId`, `applied` (true/false), `replyBody`
 >    (one English sentence describing exactly what was changed, for the PR
 >    reply). If a cluster fix subsumed a thread, set `applied=true` and
 >    reference the structural change. For an off-level thread, the reply
@@ -355,6 +365,8 @@ the user with **both** of the following — bare counts alone are not enough:
    was this round substantive or noise, and is it worth running again or safe
    to merge. If most threads were off-level, say so: the document is
    converging and the remaining concerns now wait in the handoff document.
+   Name any process document Phase 3 returned from `approved` to `draft`, so
+   the user knows it needs re-approval before the next phase proceeds.
 
 3. **Skipped threads**: list every thread left out of Phase 5 (unclear
    verdict, valid- or off-level-but-unapplied, missing `databaseId`, or empty
