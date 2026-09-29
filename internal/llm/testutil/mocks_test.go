@@ -15,23 +15,30 @@ func TestFakeLLMClientRecordsAndReturns(t *testing.T) {
 	result := llm.GenerateResponse{Text: "generated", Model: "deepseek-chat"}
 	fake := &FakeLLMClient{Result: result}
 	ctx := context.Background()
-	req := llm.GenerateRequest{SystemPrompt: "system", UserPrompt: "user", MaxOutputTokens: 256}
+	requests := []llm.GenerateRequest{
+		{SystemPrompt: "system-1", UserPrompt: "user-1", MaxOutputTokens: 256},
+		{SystemPrompt: "system-2", UserPrompt: "user-2", MaxOutputTokens: 512},
+	}
 
-	got, err := fake.Generate(ctx, req)
-	if err != nil {
-		t.Fatalf("Generate returned error: %v", err)
+	for _, req := range requests {
+		got, err := fake.Generate(ctx, req)
+		if err != nil {
+			t.Fatalf("Generate returned error: %v", err)
+		}
+		if !reflect.DeepEqual(got, result) {
+			t.Errorf("Generate result = %+v, want %+v", got, result)
+		}
 	}
-	if !reflect.DeepEqual(got, result) {
-		t.Errorf("Generate result = %+v, want %+v", got, result)
+	if len(fake.Calls) != len(requests) {
+		t.Fatalf("recorded %d calls, want %d", len(fake.Calls), len(requests))
 	}
-	if len(fake.Calls) != 1 {
-		t.Fatalf("recorded %d calls, want 1", len(fake.Calls))
-	}
-	if fake.Calls[0].Ctx != ctx {
-		t.Error("Generate did not record the context")
-	}
-	if !reflect.DeepEqual(fake.Calls[0].Req, req) {
-		t.Errorf("recorded request = %+v, want %+v", fake.Calls[0].Req, req)
+	for i, req := range requests {
+		if fake.Calls[i].Ctx != ctx {
+			t.Errorf("call %d did not record the context", i)
+		}
+		if !reflect.DeepEqual(fake.Calls[i].Request, req) {
+			t.Errorf("call %d request = %+v, want %+v", i, fake.Calls[i].Request, req)
+		}
 	}
 }
 

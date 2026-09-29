@@ -11,22 +11,29 @@ import (
 	"github.com/isseis/yt2column/internal/writer"
 )
 
-func TestFakePublisherRecordsAndReturns(t *testing.T) {
+func TestFakePublisherRecords(t *testing.T) {
 	fake := &FakePublisher{}
 	ctx := context.Background()
-	in := writer.Article{Title: "Title", Body: "Body", SourceURL: "url", Model: "model"}
+	inputs := []writer.Article{
+		{Title: "Title", Body: "Body", SourceURL: "url", Model: "model"},
+		{Title: "Title 2", Body: "Body 2", SourceURL: "url-2", Model: "model-2"},
+	}
 
-	if err := fake.Publish(ctx, in); err != nil {
-		t.Fatalf("Publish returned error: %v", err)
+	for _, in := range inputs {
+		if err := fake.Publish(ctx, in); err != nil {
+			t.Fatalf("Publish returned error: %v", err)
+		}
 	}
-	if len(fake.Calls) != 1 {
-		t.Fatalf("recorded %d calls, want 1", len(fake.Calls))
+	if len(fake.Calls) != len(inputs) {
+		t.Fatalf("recorded %d calls, want %d", len(fake.Calls), len(inputs))
 	}
-	if fake.Calls[0].Ctx != ctx {
-		t.Error("Publish did not record the context")
-	}
-	if !reflect.DeepEqual(fake.Calls[0].Article, in) {
-		t.Errorf("recorded article = %+v, want %+v", fake.Calls[0].Article, in)
+	for i, in := range inputs {
+		if fake.Calls[i].Ctx != ctx {
+			t.Errorf("call %d did not record the context", i)
+		}
+		if !reflect.DeepEqual(fake.Calls[i].Article, in) {
+			t.Errorf("call %d article = %+v, want %+v", i, fake.Calls[i].Article, in)
+		}
 	}
 }
 

@@ -16,23 +16,30 @@ func TestFakeArticleWriterRecordsAndReturns(t *testing.T) {
 	result := writer.Article{Title: "Title", Body: "Body", SourceURL: "url", Model: "model"}
 	fake := &FakeArticleWriter{Result: result}
 	ctx := context.Background()
-	in := transcript.Transcript{VideoID: "video-1", Segments: []transcript.Segment{{StartMs: 1, Text: "a"}}}
+	inputs := []transcript.Transcript{
+		{VideoID: "video-1", Segments: []transcript.Segment{{StartMs: 1, Text: "a"}}},
+		{VideoID: "video-2", Segments: []transcript.Segment{{StartMs: 2, Text: "b"}}},
+	}
 
-	got, err := fake.Write(ctx, in)
-	if err != nil {
-		t.Fatalf("Write returned error: %v", err)
+	for _, in := range inputs {
+		got, err := fake.Write(ctx, in)
+		if err != nil {
+			t.Fatalf("Write returned error: %v", err)
+		}
+		if !reflect.DeepEqual(got, result) {
+			t.Errorf("Write result = %+v, want %+v", got, result)
+		}
 	}
-	if !reflect.DeepEqual(got, result) {
-		t.Errorf("Write result = %+v, want %+v", got, result)
+	if len(fake.Calls) != len(inputs) {
+		t.Fatalf("recorded %d calls, want %d", len(fake.Calls), len(inputs))
 	}
-	if len(fake.Calls) != 1 {
-		t.Fatalf("recorded %d calls, want 1", len(fake.Calls))
-	}
-	if fake.Calls[0].Ctx != ctx {
-		t.Error("Write did not record the context")
-	}
-	if !reflect.DeepEqual(fake.Calls[0].Transcript, in) {
-		t.Errorf("recorded transcript = %+v, want %+v", fake.Calls[0].Transcript, in)
+	for i, in := range inputs {
+		if fake.Calls[i].Ctx != ctx {
+			t.Errorf("call %d did not record the context", i)
+		}
+		if !reflect.DeepEqual(fake.Calls[i].Transcript, in) {
+			t.Errorf("call %d transcript = %+v, want %+v", i, fake.Calls[i].Transcript, in)
+		}
 	}
 }
 

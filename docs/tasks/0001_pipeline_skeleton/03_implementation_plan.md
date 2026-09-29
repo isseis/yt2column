@@ -146,7 +146,7 @@
 **共通パターン（4 つの fake すべてに適用）**
 - `mocks.go`・`mocks_test.go` の両方の先頭に `//go:build test` を付ける（AC-17。`docs/dev/developer_guide/test_organization.md:91-93`）。
 - パッケージ名は `<domain>testutil`（`transcripttestutil`・`llmtestutil`・`writertestutil`・`publishertestutil`）とする（同ガイドの分類 A）。
-- 設定可能な `Result` と `Err`、および呼び出し記録用の `Calls []<Fake>Call`（各要素は `Ctx` と入力引数を持つ）をフィールドに持つ。メソッドは**ポインタレシーバ**で定義し、呼び出しごとに入力引数を `Calls` に追記する（AC-15・AC-16）。
+- 設定可能な `Result` と `Err`、および呼び出し記録用の `Calls []<Fake>Call`（各要素は `Ctx` と入力引数を持つ）をフィールドに持つ（`FakePublisher` は `Publish` が `error` のみを返すため `Result` を持たず `Err` のみを持つ）。メソッドは**ポインタレシーバ**で定義し、呼び出しごとに入力引数を `Calls` に追記する（AC-15・AC-16）。
 - コンパイル時アサーション `var _ <interface> = (*<Fake>)(nil)` を置く（AC-06）。
 - パッケージコメントとすべての公開識別子に英語のドキュメントコメントを付ける。
 

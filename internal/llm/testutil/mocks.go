@@ -20,14 +20,14 @@ type FakeLLMClient struct {
 
 // FakeLLMClientCall records the arguments of one Generate call.
 type FakeLLMClientCall struct {
-	Ctx context.Context
-	Req llm.GenerateRequest
+	Ctx     context.Context
+	Request llm.GenerateRequest
 }
 
 var _ llm.LLMClient = (*FakeLLMClient)(nil)
 
 // Generate records the call and returns the configured result and error.
 func (f *FakeLLMClient) Generate(ctx context.Context, req llm.GenerateRequest) (llm.GenerateResponse, error) {
-	f.Calls = append(f.Calls, FakeLLMClientCall{Ctx: ctx, Req: req})
+	f.Calls = append(f.Calls, FakeLLMClientCall{Ctx: ctx, Request: req})
 	return f.Result, f.Err
 }
