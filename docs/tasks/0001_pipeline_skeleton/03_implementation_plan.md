@@ -123,7 +123,7 @@
 - [ ] **ステップ 3-4**: `internal/publisher/testutil/mocks.go` に `FakePublisher` を、`mocks_test.go` にその振る舞いのテストを作成する（記録する入力は `Article`）。
 - [ ] **ステップ 3-5**: fake の振る舞い（戻り値・エラー・呼び出し記録）を実装時に壊し、各 `mocks_test.go` が失敗することを確認して、コミットメッセージに記録する（例: メソッドを値レシーバに変えると `Calls` が記録されず失敗する）。
 - [ ] **ステップ 3-6**: `docs/dev/developer_guide/package_reference.md` に `testutil` 4 パッケージの行を追加する。
-- [ ] **ステップ 3-7**: タグなしのビルドに fake が含まれないことを `go list -e -f '{{.ImportPath}} {{len .GoFiles}}' ./internal/transcript/testutil ./internal/llm/testutil ./internal/writer/testutil ./internal/publisher/testutil` で確認し、4 つの `testutil` パッケージの `GoFiles` が 0 件であることを出力とともに記録する（architecture §7.2 が本計画に委ねた `go list` のコマンド。AC-17）。`./internal/...` のようなパターンは、すべてのファイルがビルド制約で除外されたディレクトリを列挙しない（`go help packages` はパターンが「パッケージのディレクトリ」に展開されるとし、`go help list` は名前付きパッケージを 1 行ずつ列挙するとする）ため、`testutil` パッケージは import path を明示して `go list` に渡す。明示すれば `GoFiles` が 0 件となり、`-e` により `build constraints exclude all Go files` のエラーも併せて確認できる。
+- [ ] **ステップ 3-7**: タグなしのビルドに fake が含まれないことを `go list -e -f '{{.ImportPath}} {{len .GoFiles}} {{.Error}}' ./internal/transcript/testutil ./internal/llm/testutil ./internal/writer/testutil ./internal/publisher/testutil` で確認する。4 つの `testutil` パッケージそれぞれについて、`GoFiles` が 0 件であること、および `.Error` が「すべての Go ファイルがビルド制約で除外された」ことを示す（`build constraints exclude all Go files`）ことを出力とともに記録する（architecture §7.2 が本計画に委ねた `go list` のコマンド。AC-17）。`-e` はエラーを標準エラーではなくパッケージの `Error` フィールドに入れるため、テンプレートで `.Error` を描画しないと、存在しない import path の誤りも `0` とだけ表示されて期待結果と区別できない。`./internal/...` のようなパターンは、すべてのファイルがビルド制約で除外されたディレクトリを列挙しない（`go help packages` はパターンが「パッケージのディレクトリ」に展開されるとし、`go help list` は名前付きパッケージを 1 行ずつ列挙するとする）ため、`testutil` パッケージは import path を明示して `go list` に渡す。
 - [ ] **ステップ 3-8**: `make fmt` → `make test` → `make lint` を通す。`make test` は `-tags test` で実行されるため、fake が同じタグでコンパイルされることをこのフェーズのゲートで確認する（`Makefile:63-64`）。
 
 ### フェーズ 4: `internal/pipeline`
@@ -214,7 +214,7 @@ AC ごとの検証は次のとおり。`test` は実行可能なテスト、`sta
 | AC-14a | ゼロ値の `Pipeline` の `Run` を拒否（段階を呼ばない） | test | `internal/pipeline/pipeline_test.go::TestPipelineZeroValueRun` |
 | AC-15 | fake の戻り値・エラー指定 | test | 各 `internal/<pkg>/testutil/mocks_test.go` |
 | AC-16 | fake の呼び出し記録 | test | 各 `internal/<pkg>/testutil/mocks_test.go` |
-| AC-17 | fake が `//go:build test` でのみビルドされる | static | `internal/pipeline/pipeline_test.go::TestFakesCarryBuildTag`（`testutil/` 配下の全 `.go` ファイルを検証）＋ステップ 3-7 の `go list`（タグなしで `testutil` の `GoFiles` が 0 件） |
+| AC-17 | fake が `//go:build test` でのみビルドされる | static | `internal/pipeline/pipeline_test.go::TestFakesCarryBuildTag`（`testutil/` 配下の全 `.go` ファイルを検証）＋ステップ 3-7 の `go list`（タグなしで `testutil` の `GoFiles` が 0 件、かつ `.Error` がビルド制約による除外を示す） |
 | AC-18 | `fmt` の委譲される指定子で `[REDACTED]` | test | `internal/secret/secret_test.go::TestSecretFmtRedaction` |
 | AC-19 | slog 属性で元の値が出ない | test | `internal/secret/secret_test.go::TestSecretSlogRedaction` |
 | AC-20 | JSON エンコードで元の値が出ない | test | `internal/secret/secret_test.go::TestSecretJSONRedaction` |
