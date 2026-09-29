@@ -109,13 +109,13 @@
 - 変更: `docs/dev/developer_guide/package_reference.md`
 
 **タスク**
-- [ ] **ステップ 2-1**: `internal/transcript/transcript.go` に `Segment`・`Transcript` を architecture §3.1 のとおり定義する。
-- [ ] **ステップ 2-2**: `internal/llm/llm.go` に `GenerateRequest`・`GenerateResponse` を architecture §3.1 のとおり定義する。プロバイダ固有の項目（`thinking`・`reasoning_content` など）や SDK の型は含めない（AC-05）。
-- [ ] **ステップ 2-3**: `internal/writer/writer.go` に `Article` を architecture §3.1 のとおり定義する。
-- [ ] **ステップ 2-4**: 4 つの interface（`TranscriptSource`・`LLMClient`・`ArticleWriter`・`Publisher`）を architecture §3.2 の Go 定義どおりに定義する。すべてのメソッドの第 1 引数は `context.Context`。契約（失敗時はエラーを返す・空の結果を正常な結果として返さない・`Publisher` は不完全な記事を投稿しない）を英語のドキュメントコメントとして書く（AC-06〜AC-08）。コメントの文言は architecture §3.2 に従う。4 パッケージそれぞれに英語のパッケージコメントを付ける（revive の `package-comments`）。
-- [ ] **ステップ 2-5**: この 4 パッケージにパッケージ本体の `_test.go` は置かない（architecture §7.1）。
-- [ ] **ステップ 2-6**: `docs/dev/developer_guide/package_reference.md` に `internal/transcript`・`internal/llm`・`internal/writer`・`internal/publisher` の 4 行を追加する。
-- [ ] **ステップ 2-7**: `make fmt` → `make test` → `make lint` を通す。
+- [x] **ステップ 2-1**: `internal/transcript/transcript.go` に `Segment`・`Transcript` を architecture §3.1 のとおり定義する。
+- [x] **ステップ 2-2**: `internal/llm/llm.go` に `GenerateRequest`・`GenerateResponse` を architecture §3.1 のとおり定義する。プロバイダ固有の項目（`thinking`・`reasoning_content` など）や SDK の型は含めない（AC-05）。
+- [x] **ステップ 2-3**: `internal/writer/writer.go` に `Article` を architecture §3.1 のとおり定義する。
+- [x] **ステップ 2-4**: 4 つの interface（`TranscriptSource`・`LLMClient`・`ArticleWriter`・`Publisher`）を architecture §3.2 の Go 定義どおりに定義する。すべてのメソッドの第 1 引数は `context.Context`。契約（失敗時はエラーを返す・空の結果を正常な結果として返さない・`Publisher` は不完全な記事を投稿しない）を英語のドキュメントコメントとして書く（AC-06〜AC-08）。コメントの文言は architecture §3.2 に従う。4 パッケージそれぞれに英語のパッケージコメントを付ける（revive の `package-comments`）。
+- [x] **ステップ 2-5**: この 4 パッケージにパッケージ本体の `_test.go` は置かない（architecture §7.1）。
+- [x] **ステップ 2-6**: `docs/dev/developer_guide/package_reference.md` に `internal/transcript`・`internal/llm`・`internal/writer`・`internal/publisher` の 4 行を追加する。
+- [x] **ステップ 2-7**: `make fmt` → `make test` → `make lint` を通す。
 
 ### PR-2 作成ポイント: stage interfaces and common data types
 
