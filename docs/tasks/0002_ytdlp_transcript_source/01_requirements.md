@@ -69,6 +69,7 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 -   対応する URL 形式は、`youtube.com/watch?v=<id>`、`youtu.be/<id>`、`youtube.com/embed/<id>`、`youtube.com/shorts/<id>`、`youtube.com/live/<id>` とする。ホストは `youtube.com`（および `www`・`m` のサブドメイン）と `youtu.be` に限り、それ以外は拒否する。
 -   `v` 以外のクエリパラメータ（`t`・`list` など）とフラグメント（`#...`）は無視する。`v` が複数ある入力は、どれを採るかを推測せず拒否する。
 -   動画 ID は `[A-Za-z0-9_-]{11}` に一致すること。
+-   対応する URL 形式の動画 ID の後に、余分な・末尾のパス区切り以降の要素がある入力は、補正・正規化せずに拒否する（例: `https://youtu.be/<id>/../../etc`、`https://www.youtube.com/shorts/<id>/extra`）。
 -   動画 ID 以外の URL 文字列（パス区切りや `..` を含む部分）は、キャッシュのパスに使わない。
 -   `yt-dlp` には、動画 ID から組み立てた正規化 URL `https://www.youtube.com/watch?v=<id>` を渡す。
 -   検証に失敗した場合は `ErrInvalidVideoURL` を返す。
@@ -76,8 +77,8 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 **Acceptance Criteria**:
 - **AC-01**: 上記の各 URL 形式から、11 文字の動画 ID を取り出せる。
 - **AC-02**: 動画 ID が `[A-Za-z0-9_-]{11}` に一致しない場合、補正（切り詰め・ゼロ埋め・置換など）をせずエラーになる。
-- **AC-03**: 対応する URL 形式でない入力はエラーになる。対象は、`http`・`https` 以外のスキームを持つ URL（例: `ftp://youtube.com/watch?v=<id>`、`file://<id>`）、スキームのない入力（例: `youtube.com/watch?v=<id>`）、`youtube.com`・`youtu.be` 以外のホスト、動画 ID を含まない URL、11 文字の文字列を含むが対応する形式のいずれにも当てはまらない URL（例: `youtube.com/channel/<11文字>`）、`v` を複数持つ URL、URL ではなく動画 ID 単体の文字列、前後に空白がある入力である。
-- **AC-04**: 動画 ID を含みつつパス区切りや `..` を含む URL（例: `https://youtu.be/<id>/../../etc`）を入力しても、キャッシュのパスは検証済みの動画 ID だけから組み立てられ、元の URL の文字列はパスに現れない。
+- **AC-03**: 対応する URL 形式でない入力はエラーになる。対象は、`http`・`https` 以外のスキームを持つ URL（例: `ftp://youtube.com/watch?v=<id>`、`file://<id>`）、スキームのない入力（例: `youtube.com/watch?v=<id>`）、`youtube.com`・`youtu.be` 以外のホスト、動画 ID を含まない URL、11 文字の文字列を含むが対応する形式のいずれにも当てはまらない URL（例: `youtube.com/channel/<11文字>`）、`v` を複数持つ URL、URL ではなく動画 ID 単体の文字列、前後に空白がある入力、および動画 ID の後に余分な・末尾のパス区切り以降の要素が続く URL（例: `https://youtu.be/<id>/../../etc`、`https://www.youtube.com/shorts/<id>/extra`）である。いずれも `errors.Is(err, ErrInvalidVideoURL)` が真になる。
+- **AC-04**: `v` 以外のクエリパラメータにパス区切りや `..` を含む URL（例: `https://www.youtube.com/watch?v=<id>&list=../../../etc`）を入力しても受理され（`v` 以外のクエリパラメータは無視される）、キャッシュのパスは検証済みの動画 ID だけから組み立てられ、元の URL の文字列はパスに現れない。
 - **AC-05**: 検証済みの動画 ID から、正規化 URL `https://www.youtube.com/watch?v=<id>` を組み立てられる。
 
 #### F-002: yt-dlp の起動
@@ -87,15 +88,15 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 -   `exec.CommandContext` に引数を配列で渡し、シェル（`sh -c` など）を経由しない。
 -   子プロセスに渡す環境変数は allowlist に限定し、設定されている変数のみを渡し、秘密情報（`DEEPSEEK_API_KEY`・`SLACK_WEBHOOK_URL` など）を引き継がない。allowlist は `PATH`・`HOME`・`TMPDIR`・`XDG_CONFIG_HOME`・`XDG_CACHE_HOME`・proxy 関連・locale・`SSL_CERT_FILE` / `SSL_CERT_DIR` を含む。ブロックリストではなく allowlist とする（秘密情報を追加したときに漏れないため）。
 -   URL の直前に `--` を置き、URL を 1 個の引数として渡す。
--   取得オプションとして `--ignore-config --skip-download --write-subs --write-auto-subs --sub-langs ja --sub-format json3 --write-info-json` を渡し、出力テンプレートはキャッシュディレクトリと動画 ID から組み立てる。
--   利用者・システムの yt-dlp 設定ファイルの影響を排除するため、`--ignore-config` を常に渡す。これにより、設定ファイルからのオプション注入（`--exec` など）や出力テンプレートの上書きを防ぐ。環境変数は yt-dlp 自身の TLS・キャッシュのために `HOME`・`XDG_CONFIG_HOME`・`XDG_CACHE_HOME` を引き継ぐが、設定ファイルは読ませない。
+-   取得オプションとして `--ignore-config --no-plugin-dirs --skip-download --write-subs --write-auto-subs --sub-langs ja --sub-format json3 --write-info-json` を渡し、出力テンプレートはキャッシュディレクトリと動画 ID から組み立てる。
+-   利用者・システムの yt-dlp 設定ファイルの影響を排除するため、`--ignore-config` を常に渡す。これにより、設定ファイルからのオプション注入（`--exec` など）や出力テンプレートの上書きを防ぐ。あわせて `--no-plugin-dirs` を常に渡し、既定の利用者・システムのプラグインディレクトリを読み込ませないことで、環境に依存するプラグインの import を防ぎ、起動を決定的にする。環境変数は yt-dlp 自身の TLS・キャッシュのために `HOME`・`XDG_CONFIG_HOME`・`XDG_CACHE_HOME` を引き継ぐが、設定ファイルは読ませない。
 -   `context` によるタイムアウトを設定する。タイムアウトは構築時に受け取り、正の値でなければならない。
 -   実行パスは構築時に指定でき、未指定時は PATH 上の `yt-dlp` を使う（`YT2COLUMN_YTDLP_PATH` は #6 の設定読み込みが読む）。
 -   非ゼロ終了や実行ファイルが見つからない場合は `ErrYtDlpExec` を返す。標準エラー出力をメッセージに含める場合は先頭 4 KiB までに切り詰める。
 -   タイムアウトまたはキャンセルは `context.DeadlineExceeded` / `context.Canceled` として報告する。
 
 **Acceptance Criteria**:
-- **AC-06**: `yt-dlp` は、`--ignore-config` を含む固定のオプション、動画 ID から組み立てた出力テンプレート、正規化 URL を引数として起動され、URL の直前に `--` が置かれる。
+- **AC-06**: `yt-dlp` は、`--ignore-config`・`--no-plugin-dirs` を含む固定のオプション、動画 ID から組み立てた出力テンプレート、正規化 URL を引数として起動され、URL の直前に `--` が置かれる。
 - **AC-07**: `yt-dlp` の起動にシェルを経由しない。外部コマンドの実行は差し替え可能で、引数の配列と子プロセスへ渡す環境変数はテストから検証できる。
 - **AC-08**: タイムアウトまたはキャンセルで `yt-dlp` が終了した場合、`errors.Is(err, context.DeadlineExceeded)` または `errors.Is(err, context.Canceled)` が真になるエラーを返す。
 - **AC-09**: `yt-dlp` が非ゼロで終了した場合、および実行ファイルが見つからない場合は、`errors.Is(err, ErrYtDlpExec)` が真になるエラーを返す。エラーメッセージに標準エラー出力を含める場合は先頭 4 KiB までで切り詰められる。
@@ -111,6 +112,7 @@ json3 形式の字幕を読み、セグメントの並びに変換する。
 -   `segs` を持たないイベント、および `utf8` が空の seg は無視する。
 -   自動字幕の json3 には、ローリング表示に由来して、直前のイベントと本文が重複するイベントが含まれることがある。重複の判定は文字列の一致だけで行わず、イベントの `tStartMs` と時間的な重なりの構造に基づいて行う。時間的に離れて現れる同一本文は、意図的な繰り返しとして本文に残す。具体的な判定規則は `02_architecture.md` の作成時に実データから導き、同書に記録したものを固定して使う。
 -   壊れた JSON、または `events` を持たない JSON はエラー（`ErrParseSubtitles`）とし、部分的な結果を返さない。
+-   入力の json3 ファイルのサイズ、およびデコードするイベント数には上限を設ける。上限値は `02_architecture.md` で固定し（本要件では値を決めない）、上限を超える入力は `ErrParseSubtitles` とし、部分的な結果を返さない。入力がちょうど上限の場合は受理する。
 
 **Acceptance Criteria**:
 - **AC-10**: `segs[].utf8` をこの順に連結した文字列がセグメントの本文になり、イベントの `tStartMs` がその開始時刻（ミリ秒）になる。
@@ -120,16 +122,22 @@ json3 形式の字幕を読み、セグメントの並びに変換する。
 - **AC-32**: 重複したイベントを含む実データを入力したとき、重複の判定は `tStartMs` と時間的な重なりの構造に基づいて行われ、ローリング表示に由来する同一文は本文に重複して現れない。
 - **AC-45**: 本文を含むイベントの `tStartMs` が欠落している場合、または負数・非整数など 0 以上の整数として解釈できない値である場合、`errors.Is(err, ErrParseSubtitles)` が真になるエラーになり、部分的な結果を返さない。
 - **AC-46**: 同一の本文が時間的な重なりを持たずに離れて現れる入力を与えたとき、その本文はいずれも重複として除去されず、すべて本文に残る。
+- **AC-48**: json3 ファイルのサイズが `02_architecture.md` で固定した上限ちょうどの入力は受理され、上限を超える入力は `errors.Is(err, ErrParseSubtitles)` が真になるエラーになり、部分的な結果を返さない。
+- **AC-49**: デコードするイベント数が `02_architecture.md` で固定した上限ちょうどの入力は受理され、上限を超える入力は `errors.Is(err, ErrParseSubtitles)` が真になるエラーになり、部分的な結果を返さない。
 
 #### F-004: info.json パーサ
 
 info.json 形式のメタ情報を読み、タイトル・チャンネル名・概要欄を取り出す。タイトルとチャンネル名は必須で、概要欄は任意である。あわせて `id` を読み、要求された検証済みの動画 ID と一致することを必須とする。一致しない場合は補正せずに拒否する。
 
+-   概要欄は空でありうる（空をエラーにしない）。`title` またはチャンネル名が欠落または空の場合は `ErrParseInfo` とし、`Transcript` を組み立てない。
+-   入力の info.json ファイルのサイズには上限を設ける。上限値は `02_architecture.md` で固定し（本要件では値を決めない）、上限を超える入力は `ErrParseInfo` とし、部分的な結果を返さない。入力がちょうど上限の場合は受理する。
+
 **Acceptance Criteria**:
 - **AC-14**: info.json からタイトル・チャンネル名・概要欄を取り出した結果が、`Transcript` の `Title`・`ChannelName`・`Description` にそれぞれ入る。
 - **AC-15**: info.json として不正な JSON は、`errors.Is(err, ErrParseInfo)` が真になるエラーになる。
-- **AC-16**: 概要欄は空でありうる（空をエラーにしない）。一方、タイトルとチャンネル名が欠落または空の場合はエラーになる。
+- **AC-16**: 概要欄は空でありうる（空をエラーにしない）。一方、タイトルとチャンネル名が欠落または空の場合は、`errors.Is(err, ErrParseInfo)` が真になるエラーになり、`Transcript` を組み立てない。
 - **AC-47**: info.json の `id` が要求された検証済みの動画 ID と一致しない場合、`errors.Is(err, ErrParseInfo)` が真になるエラーになり、`Transcript` を組み立てない。
+- **AC-50**: info.json ファイルのサイズが `02_architecture.md` で固定した上限ちょうどの入力は受理され、上限を超える入力は `errors.Is(err, ErrParseInfo)` が真になるエラーになり、部分的な結果を返さない。
 
 #### F-005: キャッシュ
 
@@ -193,10 +201,20 @@ info.json 形式のメタ情報を読み、タイトル・チャンネル名・�
 - **AC-37**: 統合テストは既定の `make test` の対象に含まれず、`make test` と `make test-ci` の実行では実 `yt-dlp` もネットワークも呼ばれない。
 - **AC-38**: `make test-integration` は、`-count=1` と明示的な `-timeout` を付けて統合テストを実行し、少なくとも 1 件のテストが実行されたこと（スキップやテスト結果のキャッシュではないこと）が `-v` 出力から確認できる。ターゲットは実 `yt-dlp` とネットワークを使うことを表示する。
 - **AC-39**: 統合テストは、指定された動画 URL に対して `Fetch` し、タイトル・チャンネル名が非空で、セグメントが 1 件以上あることを検証する。既定の動画に対しては、期待する動画 ID（定数）と一致することを検証する。
-- **AC-40**: 統合テストは、同じ動画の 2 回目の `Fetch` が `yt-dlp` を起動せずにキャッシュから結果を返すことを検証する。テストは、実行されると目印ファイルを書き込むラッパー実行ファイルを `yt-dlp` のパスに指定し、2 回目の `Fetch` が成功し、目印ファイルが作られていないことを確認する。
+- **AC-40**: 統合テストは、同じ動画の 2 回目の `Fetch` が `yt-dlp` を起動せずにキャッシュから同じ結果を返すことを検証する。テストは、1 回目の `Fetch` の結果の `Transcript` を保持する。続いて、実行されると目印ファイルを書き込むラッパー実行ファイルを `yt-dlp` のパスに指定し、2 回目の `Fetch` が成功し、目印ファイルが作られておらず、返る `Transcript` が 1 回目と等しい（メタ情報・セグメントの並び・各セグメントの開始時刻が同一である）ことを確認する。
 - **AC-41**: 統合テストは、強制再取得が既存のキャッシュを無視して再取得することを検証する。テストは、1 回目の `Fetch` の後でキャッシュの字幕と info.json を、目印となる文字列を含む有効な内容に置き換え、強制再取得した `Fetch` の結果にその目印が現れないことを確認する。
 - **AC-42**: 対象の動画 URL が環境変数 `YT2COLUMN_TEST_VIDEO_URL` に設定されていない場合、統合テストはスキップせず、変数名を示す明確なエラーメッセージで失敗する。`make test-integration` は既定値を設定するため、この失敗は `go test -tags integration` を直接実行したときに確認する。
 - **AC-43**: 統合テストにコンパイルエラーまたは lint 違反があると、`make lint`、pre-commit の golangci-lint、CI の lint ジョブが失敗する。
+
+### 3.2. 信頼できない入力の境界契約 (Boundary Validation Contract)
+
+URL・json3・info.json という信頼できない入力を扱う各境界は、次の契約に従う。各境界は「受理する形」に合致する入力だけを受理し、いずれかの拒否条件に当てはまる入力は補正・正規化・切り詰めをせずに拒否する。拒否時は必ず対応する番兵エラーを `errors.Is` で判別できる形でラップし、部分的な結果を返さない。サイズ・件数の上限を超える入力も同じ番兵で拒否する。
+
+-   **URL（F-001）:** 受理する形は、スキームが `http`・`https` で、ホストが `youtube.com`（`www`・`m` を含む）または `youtu.be` であり、対応する URL 形式（`youtube.com/watch?v=<id>`・`youtu.be/<id>`・`youtube.com/embed/<id>`・`youtube.com/shorts/<id>`・`youtube.com/live/<id>`）から `[A-Za-z0-9_-]{11}` の動画 ID を取り出せ、動画 ID の後に余分なパス要素が続かないものに限る。拒否条件は、スキームの欠落・`http`/`https` 以外、対象外ホスト、動画 ID の欠落・不正、`v` の重複、動画 ID の後に続く余分な・末尾のパス区切り、前後の空白、URL 形式に当てはまらない文字列である。拒否時は補正せず `ErrInvalidVideoURL` を返す。
+-   **json3（F-003）:** 受理する形は、`events` 配列を持ち、本文を含む各イベントが 0 以上の整数の `tStartMs` を持つものに限る。拒否条件は、壊れた JSON、`events` の欠落、`tStartMs` の欠落・負数・非整数、ファイルサイズが上限を超える場合、デコードするイベント数が上限を超える場合である。拒否時は `ErrParseSubtitles` を返す。
+-   **info.json（F-004）:** 受理する形は、`title` とチャンネル名が非空で、`id` が要求された検証済みの動画 ID と一致するものに限る。拒否条件は、壊れた JSON、`title`・チャンネル名の欠落または空、`id` の不一致、ファイルサイズが上限を超える場合である。拒否時は `ErrParseInfo` を返す。
+
+json3 と info.json の具体的なサイズ・件数の上限値は `02_architecture.md` で固定する（本要件では値を決めない）。上限の判定はファイルの読み込み時点で行い、上限を超えた入力からは部分的な結果を返さない（[security.md](../../dev/security.md) §3）。
 
 ## 4. 非機能要件 (Non-Functional Requirements)
 
@@ -207,12 +225,14 @@ info.json 形式のメタ情報を読み、タイトル・チャンネル名・�
 
 ### 4.2. セキュリティ (Security)
 
--   [security.md](../../dev/security.md) §1（外部コマンド）・§5（キャッシュ）に従う。
+-   [security.md](../../dev/security.md) §1（外部コマンド）・§3（ネットワーク通信）・§5（キャッシュ）に従う。
 -   シェルを経由せず、引数を配列で渡す（F-002・AC-07）。
 -   子プロセスへ渡す環境変数を allowlist に限定し、秘密情報を引き継がない（F-002・AC-44）。
 -   `yt-dlp` に `--ignore-config` を渡し、利用者・システムの設定ファイルによるオプション注入（`--exec` など）や出力テンプレートの上書きを防ぐ（F-002・AC-06）。
+-   `yt-dlp` に `--no-plugin-dirs` を渡し、既定の利用者・システムのプラグインディレクトリを読み込ませない（F-002・AC-06）。これにより、環境に依存するプラグインの import を防ぎ、起動を決定的に保つ。
 -   URL を検証し、正規化 URL を `--` の後に渡す（F-001・F-002・AC-06）。スキームは `http`・`https` のみを受理し、それ以外は拒否する（F-001・AC-03）。
 -   動画 ID を `[A-Za-z0-9_-]{11}` に限定し、パス区切りや `..` を含む URL 文字列をキャッシュのパスに使わない（F-001・AC-02・AC-04）。info.json の `id` は要求された動画 ID と一致することを要求する（F-004・AC-47）。
+-   json3 と info.json という信頼できない入力をパースするとき、ファイルサイズとイベント数に上限を設け、上限を超える入力は対応する番兵で拒否して部分的な結果を返さない（F-003・F-004・AC-48・AC-49・AC-50）。上限値は `02_architecture.md` で固定する（[security.md](../../dev/security.md) §3）。
 -   `yt-dlp` の起動にタイムアウトを設定する（F-002）。
 -   標準エラー出力をエラーに含める場合は先頭 4 KiB までに切り詰める（F-002・AC-09）。
 -   キャッシュディレクトリは `0o700`、ファイルは `0o600` で作成する（F-005・AC-19）。
