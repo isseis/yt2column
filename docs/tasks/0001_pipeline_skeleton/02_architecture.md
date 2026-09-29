@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Created | 2026-09-29 |
-| Review date | 2026-09-29 |
-| Reviewer | isseis |
-| Comments | 編集（2026-09-29）: 「葉」「葉パッケージ」を「リーフ」「リーフパッケージ」に置き換え（用語集に追記）。用語の置き換えのみで、意思決定の変更はない。編集（2026-09-29）: §8 フェーズ 2 の「リーフパッケージ」を「構成要素パッケージ」に訂正（`internal/writer`・`internal/publisher` は依存先を持つためリーフではない。用語集に追記）。表記の訂正のみで、意思決定の変更はない。 |
+| Review date | - |
+| Reviewer | - |
+| Comments | 意思決定の変更（2026-09-29）: PR #24・#25 のレビュー指摘に従い、`01_requirements.md` の AC 識別子（AC-14a・AC-19〜AC-26）に合わせて参照を更新した。AC-01〜AC-03 は観測可能な振る舞いとして扱い、AC-01・AC-02 はパイプラインのフローテストで、AC-03 は #4 のアダプタテストで検証する。公開フィールドの配置は設計上の制約（§3.1）として残す。再承認のため `draft` に戻す。 |
 
 ---
 
@@ -363,19 +363,19 @@ func (s Secret) MarshalJSON() ([]byte, error)
 **保持形式の固定（01_requirements.md §5 の制約）。** `Secret` は元の値を `func() string` のクロージャで保持する。これは要件の制約として必須であり、次の理由による。
 
 - `fmt` と slog の TextHandler は、構造体の**非公開フィールド**に対して `Format`・`String()`・`GoString()` を呼ばず、リフレクションで内容を表示する（01_requirements.md §5）。公開フィールドなら `Format` が呼ばれて隠せるが、非公開フィールドでは `Secret` 型のメソッド実装だけでは隠せない。
-- `func() string` で保持すれば、リフレクションが見られるのは関数ポインタのアドレスだけで、クロージャに閉じ込めた元の値には到達できない。これにより、`Secret` を非公開フィールドとして持つ構造体を `%v`・`%+v`・`%#v` や slog 属性で出力しても、元の値は現れない（AC-21・AC-22）。`encoding/json` は非公開フィールドを出力に含めないため、同様に漏れない（AC-23）。
+- `func() string` で保持すれば、リフレクションが見られるのは関数ポインタのアドレスだけで、クロージャに閉じ込めた元の値には到達できない。これにより、`Secret` を非公開フィールドとして持つ構造体を `%v`・`%+v`・`%#v` や slog 属性で出力しても、元の値は現れない（AC-26・AC-19）。`encoding/json` は非公開フィールドを出力に含めないため、同様に漏れない（AC-20）。
 
 各受け入れ基準は次のメカニズムで満たす。
 
 - **AC-18（fmt）**: `fmt.Formatter` を実装し、`%s`・`%v`・`%+v`・`%#v`・`%q`・`%d`・`%x` など、`fmt` が `Formatter` に委譲する書式指定子では常に `[REDACTED]` を含む固定文字列を出力する（`%q` は引用符付きの表現になる）。`Secret` を公開フィールドとして含む構造体では、各フィールドの書式化に `Format` が使われるため元の値は出ない。
-- **AC-19（直接呼び出し）**: `String()` と `GoString()` は、直接呼び出された場合も `[REDACTED]` を含む固定文字列を返す。
-- **AC-20（委譲されない書式）**: `%p`（非ポインタ値）や非 error への `%w` など、`fmt` が `Formatter` に委譲しない指定子でも、クロージャ保持により元の値は出力に現れない。テストで確認する。
-- **AC-21（非公開フィールド経由の fmt）**: クロージャ保持により、リフレクション経由でも元の値は現れない。
-- **AC-22（slog）**: `slog.LogValuer` を実装し、属性として `[REDACTED]` を返す。非公開フィールド経由の漏れもクロージャ保持で防ぐ。
-- **AC-23（JSON）**: `json.Marshaler` を実装し、`"[REDACTED]"` を返す。公開フィールドとして持つ構造体のエンコードでも同様。非公開フィールドは JSON が省略する。
-- **AC-24（取り出し）**: 元の値を返す経路は `Reveal()` のみで、名前から秘密情報を取り出すメソッドであることが明らかである。
-- **AC-25（空値拒否）**: `New("")` はエラーを返す。
-- **AC-26（ゼロ値）**: `Secret{}` の `Reveal()` はエラーを返す（nil クロージャ）。
+- **AC-24（直接呼び出し）**: `String()` と `GoString()` は、直接呼び出された場合も `[REDACTED]` を含む固定文字列を返す。
+- **AC-25（委譲されない書式）**: `%p`（非ポインタ値）や非 error への `%w` など、`fmt` が `Formatter` に委譲しない指定子でも、クロージャ保持により元の値は出力に現れない。テストで確認する。
+- **AC-26（非公開フィールド経由の fmt）**: クロージャ保持により、リフレクション経由でも元の値は現れない。
+- **AC-19（slog）**: `slog.LogValuer` を実装し、属性として `[REDACTED]` を返す。非公開フィールド経由の漏れもクロージャ保持で防ぐ。
+- **AC-20（JSON）**: `json.Marshaler` を実装し、`"[REDACTED]"` を返す。公開フィールドとして持つ構造体のエンコードでも同様。非公開フィールドは JSON が省略する。
+- **AC-21（取り出し）**: 元の値を返す経路は `Reveal()` のみで、名前から秘密情報を取り出すメソッドであることが明らかである。
+- **AC-22（空値拒否）**: `New("")` はエラーを返す。
+- **AC-23（ゼロ値）**: `Secret{}` の `Reveal()` はエラーを返す（nil クロージャ）。
 
 **使用上の注意（設計上の指針）。** `Secret` を保持する側（#6 の config 構造体など）は、公開フィールド・非公開フィールドどちらでも安全に持てる。ただし、利用側が注意すべき点が次の 2 つある。
 
@@ -435,7 +435,7 @@ func (p *Pipeline) Run(ctx context.Context, videoURL string) (writer.Article, er
 ```
 
 - `New` は 3 つの段階のいずれかが nil の場合に、`ErrNilStage` をラップし、どの段階が未設定か（`transcript`・`write`・`publish`）を含むエラーを返す。呼び出し元は `errors.Is(err, ErrNilStage)` で判別できる。`New` は、interface 値が `== nil` の場合に加えて、interface が非 nil でもその動的値が nil である場合（nil ポインタ・map・func・slice・chan）も拒否する。nil ポインタを格納した interface（例: `var p *FilePublisher; New(src, w, p)`）は `== nil` を満たさないが、そのまま `Run` に渡すと該当段階のメソッド呼び出しでパニックになるため、これを構築時に拒否する。検出の実装方法（`reflect` の利用と、nil 判定できない Kind の扱い）は `03_implementation_plan.md` で定める。構築テストはこの typed-nil のケースも含めて検証する（AC-14）。
-- **ゼロ値の fail-closed。** `Pipeline` はエクスポートされた構造体なので、`New` を通さずゼロ値（`var p pipeline.Pipeline`）で使うこともできる。`Run` は冒頭で 3 つの段階の nil を再確認し、いずれかが nil なら段階を呼び出さずに `ErrNilStage` をラップしたエラーを返す。これにより、`New` を経由しない利用でもパニックせず、構築時と同じエラーになる。段階の nil 検査は「構築時」と「使用時」の両方で行う。
+- **ゼロ値の fail-closed。** `Pipeline` はエクスポートされた構造体なので、`New` を通さずゼロ値（`var p pipeline.Pipeline`）で使うこともできる。`Run` は冒頭で 3 つの段階の nil を再確認し、いずれかが nil なら段階を呼び出さずに `ErrNilStage` をラップしたエラーを返す。これにより、`New` を経由しない利用でもパニックせず、構築時と同じエラーになる（AC-14a）。段階の nil 検査は「構築時」と「使用時」の両方で行う。
 - `Stage.String()` は `"transcript"`・`"write"`・`"publish"` を返し、ゼロ値の `StageUnknown` と未知の値には `"unknown"` を返す。`StageUnknown`（= 0）をゼロ値に置くことで、`StageError` を `Stage` 未設定のまま構築した場合でも `Error()` は `"unknown: ..."` を出力し、誤った段階名を出力しない（fail-secure）。`Error()` は必ず `String()` を使う（整数をそのまま出力しない）。
 - `Run` の動作は §6 の処理フローで定義する。
 - `Stage` は失敗の段階を型で表す（switch で分岐し、`default` で未知の値に fail-secure する）。呼び出し元は `errors.AsType[*pipeline.StageError]` で段階を判別し、`errors.Is` で元のエラーを辿れる（AC-12）。
@@ -649,7 +649,7 @@ flowchart TD
 
 **図8 パイプライン実行フロー**。矢印 A → B は処理の順序（A の後に B を実行する）を表す。`{"..."}` は分岐条件、`(["..."])` は結果（エラーまたは成功の戻り値）を表す。
 
-- `Run` は冒頭で 3 つの段階の nil を確認し、nil があれば段階を呼び出さずに `ErrNilStage` を返す（AC-14、§3.4）。
+- `Run` は冒頭で 3 つの段階の nil を確認し、nil があれば段階を呼び出さずに `ErrNilStage` を返す（AC-14a、§3.4）。
 - 各段階の呼び出しの前に `ctx.Err()` を確認し、キャンセル済みなら次の段階を呼ばずに `ctx.Err()` をそのまま返す（AC-13）。キャンセル経路では `errors.Is(err, context.Canceled)` が真になる（期限切れの場合は `context.DeadlineExceeded` がそのまま返る）。
 - 段階がエラーを返した場合、以降の段階は呼ばれず、`StageError` を返す（AC-11）。特に `TranscriptSource`・`ArticleWriter` の失敗時は `Publisher` を呼ばない。
 - すべて成功した場合、3 つの段階が 1 回ずつ順に呼ばれ、投稿した `Article` を呼び出し元へ返す（AC-09・AC-10）。
@@ -672,24 +672,24 @@ flowchart TD
 
 - `internal/pipeline` のテストは、`transcripttestutil`・`writertestutil`・`publishertestutil` の fake を注入し、成功・失敗・キャンセル・nil 段階の各ケースを検証する。fake が記録した呼び出し（`Calls`）で「どの段階が何回、どんな引数で呼ばれたか」を検証する。
 - `internal/secret` のテストは、`fmt.Sprintf`・`slog`・`encoding/json`・構造体への埋め込み（公開/非公開フィールド）・ゼロ値・空文字列の各経路を検証する。
-  - `Secret` を直接出力する経路と、公開フィールドとして埋め込んだ構造体の出力は、**`[REDACTED]` が出力に現れること**を検証する（「元の値が現れない」ことだけの検証では、`Format` が空文字や値の長さ・ハッシュを出力しても通ってしまうため、AC-18・AC-22・AC-23 の基準を満たす検証にならない）。AC-18 のテーブルテストは、委譲される主な書式指定子（`%s`・`%v`・`%+v`・`%#v`・`%q`・`%d`・`%x`）に加え、あまり使われない指定子（`%c`・`%U`・`%b`・`%e` など）と未知の指定子を含め、`Format` がどの指定子でも元の値に委譲せず固定文字列を書く（fail-secure）ことを確認する。`String()`・`GoString()` の直接呼び出し（AC-19）も個別に検証する。
+  - `Secret` を直接出力する経路と、公開フィールドとして埋め込んだ構造体の出力は、**`[REDACTED]` が出力に現れること**を検証する（「元の値が現れない」ことだけの検証では、`Format` が空文字や値の長さ・ハッシュを出力しても通ってしまうため、AC-18・AC-19・AC-20 の基準を満たす検証にならない）。AC-18 のテーブルテストは、委譲される主な書式指定子（`%s`・`%v`・`%+v`・`%#v`・`%q`・`%d`・`%x`）に加え、あまり使われない指定子（`%c`・`%U`・`%b`・`%e` など）と未知の指定子を含め、`Format` がどの指定子でも元の値に委譲せず固定文字列を書く（fail-secure）ことを確認する。`String()`・`GoString()` の直接呼び出し（AC-24）も個別に検証する。
   - 非公開フィールド経路の出力は元の値の代わりにクロージャの関数アドレス（`0x...`）が現れる。この経路の検証は「元の値が出力に一切現れないこと」だけを確認し、関数アドレスそのものを検証しない（アドレスはプロセスごとに変わるため、スナップショットやゴールデンファイルの比較対象にしてはならない）。`Secret` を含む構造体の出力をゴールデンファイル化しない。
-  - `Reveal()`（AC-24）・空文字列の `New`（AC-25）・ゼロ値の `Reveal()`（AC-26）もそれぞれ検証する。
-- 型・interface の定義（AC-01〜AC-08 の一部）は、各 `testutil/mocks.go` に置くコンパイル時アサーション（例: `var _ transcript.TranscriptSource = (*FakeTranscriptSource)(nil)`）で検証され、パイプラインのフローテストでデータの受け渡しと順序が検証される。構造体のフィールドに代入した値をそのまま読み返すだけのテストは、無条件に通り何も検証しないため書かない（CLAUDE.md「Testing Strategy」）。そのため `internal/transcript`・`internal/llm`・`internal/writer`・`internal/publisher` には、本タスクではパッケージ本体の `_test.go` を置かない。
+  - `Reveal()`（AC-21）・空文字列の `New`（AC-22）・ゼロ値の `Reveal()`（AC-23）もそれぞれ検証する。
+- interface の定義（AC-06〜AC-08）は、各 `testutil/mocks.go` に置くコンパイル時アサーション（例: `var _ transcript.TranscriptSource = (*FakeTranscriptSource)(nil)`）で検証され、パイプラインのフローテストでデータの受け渡しと順序が検証される（AC-01・AC-02・AC-04）。構造体のフィールドに代入した値をそのまま読み返すだけのテストは、無条件に通り何も検証しないため書かない（CLAUDE.md「Testing Strategy」）。そのため `internal/transcript`・`internal/llm`・`internal/writer`・`internal/publisher` には、本タスクではパッケージ本体の `_test.go` を置かない。
 
 **統合テスト**: 該当なし。本タスクの成果物は外部（yt-dlp・LLM API・Webhook）と接続する実装を持たない。外部接続を伴う統合は #3・#4・#7 の各タスクで検証する。
 
 **セキュリティテスト**: `internal/secret` の AC-18〜AC-26 のテスト（上記）が、秘密情報が fmt・slog・JSON の各出力経路に現れないことを検証する。パイプラインがエラーに秘密情報を付け加えないこと（01_requirements.md §4.2）は、`StageError` が元のエラーをそのまま包むことのテストで確認する。
 
-**AC-01〜AC-03 の検証方法**: これらは「型が値を保持できる」という基準であり、本タスクでは型定義（静的検証）で確認する。本タスクにはセグメント・メタ情報・モデル名を生成または解析するコードがなく、値を転送するだけのフローテストでは基準の成否を判定できない。値を実際に生成・解析する #3・#4 のテストで挙動として検証する。この判断の理由は `03_implementation_plan.md` の受け入れ基準の検証方法にも記録する。
+**AC-01〜AC-03 の検証方法**: AC-01（セグメントの並び順）と AC-02（メタ情報）は、段階間の受け渡しで値が保たれるという観測可能な振る舞いであり、`03_implementation_plan.md` のパイプラインのフローテスト（`TestPipelineSuccess`）で検証する。AC-03（LLM 応答のテキストとモデル名）を生成・消費するコードは本タスクにないため、挙動検証は #4（アダプタが実際に使われたモデル名を記録する）のテストと #5（`Article.Model` への引き継ぎ）に引き継ぐ。公開フィールドの配置は型の設計上の制約（§3.1）であり、AC の検証ではなく `TestCommonTypesFieldSets` で設計どおりに固定する。
 
 ### 7.2. 受け入れ基準と設計要素の対応
 
 | AC | 設計要素 | テストの対象 |
 |---|---|---|
-| AC-01 | `Transcript.Segments`（`[]Segment`・`StartMs int64`・`Text string`） | 静的検証（型定義）。順序保持の挙動検証は #3 の json3 パーサテスト（`testdata/`）で行う（§7.1） |
-| AC-02 | `Transcript` のメタ情報 5 フィールド | 静的検証（型定義）。値の生成は #3 |
-| AC-03 | `GenerateResponse{Text, Model}` | 静的検証（型定義）。応答からのモデル名の記録は #4 のテストで行う |
+| AC-01 | 段階間を渡る `Transcript` のセグメント（`[]Segment`・`StartMs int64`・`Text string`） | パイプラインのフローテスト（source fake が返した複数セグメントが writer fake に同じ並び・内容で届くことを確認） |
+| AC-02 | 段階間を渡る `Transcript` のメタ情報 5 フィールド | 同上（writer fake が記録したメタ情報が一致することを確認） |
+| AC-03 | `GenerateResponse` のテキストとモデル名 | #4 のアダプタテスト（実際に使われたモデル名の記録）と #5 の `Article.Model` への引き継ぎ。本タスクには生成・消費するコードがない |
 | AC-04 | `Article{Title, Body, SourceURL, Model}` | パイプラインのフローテスト（`ArticleWriter` の fake が返した `Article` が `Publisher` の fake と `Run` の戻り値に同じ値で現れることを確認） |
 | AC-05 | 共通型にプロバイダ固有の項目・SDK 型を含めない | `internal/llm` が `internal/llm/<provider>` を import できない構造（依存の一方通行）、depguard による SDK import の制限、型定義の目視 |
 | AC-06 | 4 つの interface | fake が interface を満たすことのコンパイル時検証 |
@@ -700,19 +700,20 @@ flowchart TD
 | AC-11 | 失敗時に以降の段階を呼ばない | 同上（fake の `Calls` で未呼び出しを確認） |
 | AC-12 | `StageError` で段階を判別、`Unwrap` で元のエラーを辿る | `internal/pipeline` のエラーテスト |
 | AC-13 | キャンセル時に次の段階を呼ばず `context.Canceled` を返す | 同上 |
-| AC-14 | nil 段階（typed-nil を含む）の構築と、ゼロ値の使用を拒否 | `internal/pipeline` の構築テスト（`errors.Is(err, ErrNilStage)` と、エラーに含まれる段階名を確認する） |
+| AC-14 | nil 段階（typed-nil を含む）の構築を拒否 | `internal/pipeline` の構築テスト（`errors.Is(err, ErrNilStage)` と、エラーに含まれる段階名を確認する） |
+| AC-14a | ゼロ値の `Pipeline` の `Run` を拒否（段階を呼ばない） | `internal/pipeline` のゼロ値テスト（`Run` が `ErrNilStage` を返し、fake の `Calls` が空であることを確認する） |
 | AC-15 | fake の戻り値・エラー指定 | 各 `testutil/mocks_test.go` とパイプラインの利用テスト |
 | AC-16 | fake の呼び出し記録 | 同上 |
 | AC-17 | fake が `//go:build test` でのみビルドされる | タグなしのビルドで `testutil` が含まれないことの確認（`go list` を用いる具体的なコマンドは `03_implementation_plan.md` で定める） |
 | AC-18 | `fmt.Formatter` による全経路の隠蔽 | `internal/secret` のテーブルテスト |
-| AC-19 | `String()`・`GoString()` の直接呼び出し | `internal/secret` のテスト |
-| AC-20 | 委譲されない書式指定子でも元の値が出ない | 同上 |
-| AC-21 | 非公開フィールド経由の fmt 出力 | 同上 |
-| AC-22 | slog 属性の `[REDACTED]` | `internal/secret` のテスト |
-| AC-23 | JSON エンコードの `"[REDACTED]"` | 同上 |
-| AC-24 | `Reveal()` のみが元の値を返す | 同上 |
-| AC-25 | `New("")` がエラー | 同上 |
-| AC-26 | ゼロ値の `Reveal()` がエラー | 同上 |
+| AC-19 | slog 属性の `[REDACTED]` | `internal/secret` のテスト |
+| AC-20 | JSON エンコードの `"[REDACTED]"` | 同上 |
+| AC-21 | `Reveal()` のみが元の値を返す | 同上 |
+| AC-22 | `New("")` がエラー | 同上 |
+| AC-23 | ゼロ値の `Reveal()` がエラー | 同上 |
+| AC-24 | `String()`・`GoString()` の直接呼び出し | `internal/secret` のテスト |
+| AC-25 | 委譲されない書式指定子でも元の値が出ない | 同上 |
+| AC-26 | 非公開フィールド経由の fmt 出力 | 同上 |
 
 テストの実装上の詳細（テスト関数名、ファイル内の位置）は `03_implementation_plan.md` で定める。
 
@@ -729,7 +730,7 @@ fake 自体の振る舞い（指定した戻り値を返す・呼び出しを記
 1. **フェーズ 1: `internal/secret`** — 他パッケージの依存先にならないリーフ。`Secret` 型と AC-18〜AC-26 のテスト。
 2. **フェーズ 2: 構成要素パッケージの型と interface** — `internal/transcript`・`internal/llm`・`internal/writer`・`internal/publisher` のデータ型と interface。
 3. **フェーズ 3: fake** — 4 つの `testutil/mocks.go`（`//go:build test`）。
-4. **フェーズ 4: `internal/pipeline`** — `Stage`・`StageError`・`ErrNilStage`・`New`・`Run` と AC-09〜AC-14 のテスト。fake を注入して検証する。
+4. **フェーズ 4: `internal/pipeline`** — `Stage`・`StageError`・`ErrNilStage`・`New`・`Run` と AC-09〜AC-14・AC-14a のテスト。fake を注入して検証する。
 5. **フェーズ 5: ドキュメント更新** — `docs/dev/project_overview.md` の `LLMClient` 周りの更新（01_requirements.md §5.1 と付録A のとおり）。
 
 各フェーズで `make fmt` → `make test` → `make lint` を実行する。`docs/dev/developer_guide/package_reference.md` への登録はフェーズ 5 にまとめず、各パッケージを新設するフェーズ（1・2・3・4）のコミットで行う（package_reference.md 冒頭の「パッケージを追加するコミットと同じコミットで更新する」規則）。
