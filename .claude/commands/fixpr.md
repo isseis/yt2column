@@ -22,6 +22,93 @@ keep this in sync if that table changes): `make fmt && make test && make lint`
 
 ---
 
+## Convergence policy
+
+This loop has no natural end: a push triggers a fresh review, and a review
+returns findings whenever it is asked. Stop by policy, not by exhausting
+findings.
+
+- **Round cap**: apply at most two fixpr rounds to the same PR. From the third
+  round, act on `must-fix` only and leave the rest.
+- **Severity floor**: once every remaining finding is `no-harm` (cosmetic or
+  invalid), the review has converged — stop editing and merge.
+- **Batch**: push once per round; a push per finding triggers a review per
+  finding.
+- **Accept, don't chase**: a finding that is a mirror case of a rule already
+  fixed is closed by generalizing that rule (Phase 3), not by another
+  per-instance patch. If it recurs after that, record it as accepted risk or a
+  new issue and merge; do not reopen the same rule again.
+- The Final report states whether the round was substantive or recurring churn
+  and whether the floor is reached.
+
+## Shared rules: document levels and the handoff contract
+
+Phases 2 and 3 and the Final report inline this section verbatim into their
+agent prompts. Edit these rules here only; do not restate them in the phase
+bodies.
+
+**R1 — Document levels (the off-level test).** Each process document states
+only what is at its own level:
+
+- `01_requirements.md`: observable behavior — what is accepted, which sentinel
+  a rejection maps to, what state changes. Valid exception: user-facing CLI and
+  configuration options are part of the accepted contract, so a correction to
+  them is `"valid"`, not `"off-level"`.
+- `02_architecture.md`: components, responsibilities, interfaces (including
+  their method signatures and field types), data flow, design decisions. Valid
+  exception: public interface definitions are architecture content.
+- `03_implementation_plan.md`: phases, concrete tasks, files to modify, and the
+  verification approach at planning altitude.
+
+A comment is `"off-level"` when it asks a document to carry detail below its
+level — for `01_requirements.md`: which library API, a flag passed to an
+implementation dependency (e.g. a `yt-dlp` option), or pre-check to use, how
+malformed input is detected, internal data structures or file layout,
+temporary-file or retry mechanics, standard-library pitfalls, how a test is
+constructed; for `02_architecture.md`: internal or helper function signatures,
+specific call sequences, line-level code, test code structure; for
+`03_implementation_plan.md`: exact assertions, full shell pipelines,
+line-level code, test code structure — even when the comment is technically
+correct. Use `"off-level"` also when the commented passage already
+over-specifies such detail.
+
+**R2 — Handoff routing.** Route by the phase the concern belongs to, not by
+the commented document:
+
+| Concern level | Destination | Consumer |
+|---|---|---|
+| design (raised on `01_requirements.md`) | `design_handoff.md` | `/mkarch` |
+| architecture (raised on `01_requirements.md`) | `design_handoff.md` | `/mkarch` |
+| implementation (raised on `01_requirements.md` or `02_architecture.md`) | `implementation_handoff.md` | `/mkplan` |
+| plan-level (raised on `03_implementation_plan.md`) | none — retain the obligation in the plan at planning altitude | — |
+
+**R3 — Handoff lifecycle.** Any change to a handoff item — add, extend,
+correct, replace, or delete — is a decision change. Set the consumer that
+already consumed it back to `draft`, and any later approved document after it,
+even when no process-document text was edited:
+
+- a `design_handoff.md` item reopens `02_architecture.md`, and then
+  `03_implementation_plan.md`;
+- an `implementation_handoff.md` item reopens `03_implementation_plan.md`.
+
+Say so in the reply.
+
+**R4 — Off-level reply.** The reply names where the concern was recorded: the
+handoff item (`design_handoff.md` H-NN or `implementation_handoff.md` I-NN) or,
+for a plan-level concern, the plan section or task where the obligation was
+retained, plus the abstraction-level change made to the commented passage.
+
+**R5 — Handoff item format.** Write in the project's document language. If the
+file does not exist, create it with a short header stating its role: it
+collects concerns raised in review that belong to a later phase, and that
+phase's document (architecture document or implementation plan) records, for
+each item, the approach taken or why it does not apply. Add the concern as the
+next numbered item (`H-NN` in `design_handoff.md`, `I-NN` in
+`implementation_handoff.md`) with: what the concern is, why it matters, a
+candidate approach, and the related F-/AC- IDs. If an existing item already
+covers it, extend that item instead of adding a duplicate. If the commented
+document does not yet link to the handoff document, add one sentence that does.
+
 ## Phase 1 — Fetch (model: haiku)
 
 Agent prompt:
@@ -98,38 +185,15 @@ Agent prompt (inline the fetched `threads` JSON from Phase 1):
 >
 > **Abstraction-level check — do this before choosing `valid`.** Process
 > documents live under the task root (`docs/tasks/NNNN_<name>/`, see
-> `.claude/commands/_context.md`). For a thread on one of them, ask whether the
-> comment asks the document to specify detail that belongs to a later phase.
-> Each process document has its own boundary:
-> - On the requirements document (`01_requirements.md`): its own level is
->   observable behavior only — what is accepted, which sentinel a rejection
->   maps to, what state changes. Off-level is design- or implementation-level
->   detail: which library API, flag passed to a dependency (e.g. a `yt-dlp`
->   option), or pre-check to use, how a malformed input is detected, internal
->   data structures or file layout, temporary-file or retry mechanics,
->   standard-library pitfalls, how a test is constructed. Valid exception:
->   user-facing CLI and configuration options are part of the accepted
->   contract, so a correction to them is `"valid"`, not `"off-level"`.
-> - On the architecture document (`02_architecture.md`): its own level is
->   components, responsibilities, interfaces (including their method
->   signatures and field types), data flow, and design decisions. Off-level is
->   signatures of internal or helper functions, specific API call sequences,
->   line-level code, and test code structure. Valid exception: public
->   interface definitions are architecture content, so a correction to them
->   is `"valid"`, not `"off-level"`.
-> - On the implementation plan document (`03_implementation_plan.md`): its own
->   level is phases, concrete tasks, files to modify, and the verification
->   approach at planning altitude. Off-level is exact assertions, full shell
->   pipelines, line-level code, and test code structure.
+> `.claude/commands/_context.md`). For a thread on one of them, apply the
+> shared rules R1 and R2 (inlined below) to decide whether the comment asks
+> the document to carry detail below its own level; if so, the verdict is
+> `"off-level"`, **not** `"valid"`, even when the comment is technically
+> correct — the fix is to raise the document's abstraction level (Phase 3).
+> The underlying concern still counts for `severity`; an off-level comment
+> can be `must-fix` if the concern is a real defect.
 >
-> If so, the verdict is `"off-level"`, **not** `"valid"`, even when the
-> comment is technically correct. Adding later-phase detail to a document
-> invites the next review round to find the next edge case of that detail, so
-> reviews never converge; the fix is to raise the document's abstraction
-> level instead (Phase 3). Also use `"off-level"` when the comment targets a
-> passage that already over-specifies such detail, even if the comment only
-> asks to refine it. The underlying concern still counts for `severity` — an
-> off-level comment can be `must-fix` if the concern is a real defect.
+> <inline the full "Shared rules" section (R1–R5) verbatim here>
 >
 > For `"off-level"` threads, also set `behaviorGap`: `true` if the comment
 > reveals an observable behavior the document does not yet require at its own
@@ -186,9 +250,20 @@ Agent prompt (inline `clusters` from Phase 2, the `valid` threads, and the
 
 > Apply ALL of the following fixes to the repository files.
 >
+> Off-level handling, handoff routing, handoff lifecycle, and the reply
+> requirements follow the shared rules R1–R5, inlined here verbatim:
+>
+> <inline the full "Shared rules" section (R1–R5) verbatim here>
+>
 > Steps:
 > 1. Apply cluster (structural) fixes first — they may subsume per-thread fixes.
 > 2. Then apply any remaining per-thread fixes not covered by a cluster fix.
+>    Generalize before patching: when a finding instances a rule already
+>    stated elsewhere in the commented document, or already refined in a
+>    previous round on this PR, change that rule once at its normative
+>    location and make the other occurrences reference it rather than patching
+>    each occurrence. A finding that is a mirror case of a rule just fixed is a
+>    signal to generalize, not to add another special case.
 > 3. Handle each off-level thread by raising the commented document's
 >    abstraction level — never by adding the requested detail to it:
 >    a. Do NOT add the later-phase detail the comment asks for to the
@@ -207,62 +282,28 @@ Agent prompt (inline `clusters` from Phase 2, the `valid` threads, and the
 >    c. If `behaviorGap` is true, state the missing behavior at the document's
 >       level (for the requirements document, an observable condition in the
 >       relevant F-/AC- item, not a mechanism).
->    d. Record the concern in a handoff document in the same task directory
->       so the phase it belongs to does not lose it, routing by the phase
->       the concern belongs to, not by the commented document: a design- or
->       architecture-level concern goes to `design_handoff.md` (which
->       `/mkarch` consumes); an implementation-level concern goes to
->       `implementation_handoff.md` (which `/mkplan` consumes), even when it
->       was raised on the requirements document. A concern raised on the
->       implementation plan document has no later phase to hand off to, so
->       keep its obligation at planning altitude in the plan itself — state
->       what must be verified, not the exact assertion or shell pipeline —
->       and do NOT park it in `implementation_handoff.md`, which the same
->       plan consumes. Write in the project's document language. If the file does
->       not exist, create it with a short header stating its role: it
->       collects concerns raised in review that belong to a later phase, and
->       that phase's document (architecture document or implementation plan)
->       records, for each item, the approach taken or why it does not apply.
->       Add the concern as the next numbered item (`H-NN` in
->       `design_handoff.md`, `I-NN` in `implementation_handoff.md`) with:
->       what the concern is, why it matters, a candidate approach, and the
->       related F-/AC- IDs. If an existing item already covers it, extend
->       that item instead of adding a duplicate. If the commented document
->       does not yet link to the handoff document, add one sentence that
->       does.
-> 4. For each process document you edited in steps 1–3 (the requirements
->    document, the architecture document, or the implementation plan
->    document), check its Document Status. If it is `approved`, classify the
->    edit per "Editing an approved document" in the requirements process guide
->    (`docs/dev/developer_guide/requirements_process.md`):
->    - Decision change — always the case for a `behaviorGap` addition, and for
->      any rewrite that changes what an F-/AC- item or design decision says:
->      set the status back to `draft`; the reply says re-approval is needed.
->      Also set back to `draft` any later-phase document in the same task
->      that is already `approved` (the architecture document and/or the
->      implementation plan document after the edited one), since it was
->      approved against the old decision; the reply says those need
->      re-approval too.
->    - Adding or extending a handoff item is also a decision change, even when
->      no process document text was edited (so the approved-status check above
->      never ran). Set that handoff's already-approved consumer back to
->      `draft` — the architecture document for a `design_handoff.md` item, the
->      implementation plan document for an `implementation_handoff.md` item —
->      and, for a `design_handoff.md` item, the implementation plan document
->      after it as well; the reply says those need re-approval.
->    - Editorial correction — keep the status and record the edit in the
->      `Comments` field, stating that no decision changed.
+>    d. Record the concern in the handoff document named by R2, using the item
+>       format and dedup rule in R5. A concern raised on the implementation
+>       plan document has no later consumer: R2 sends it to no handoff, so keep
+>       its obligation at planning altitude in the plan itself — state what
+>       must be verified, not the exact assertion or shell pipeline — and do
+>       NOT park it in `implementation_handoff.md`.
+> 4. Apply R3 to the Document Status of every process document you edited and
+>    every handoff item you added or changed, per "Editing an approved
+>    document" in the requirements process guide
+>    (`docs/dev/developer_guide/requirements_process.md`): a decision change
+>    (including any handoff item change) resets the affected approved document,
+>    and any later approved document after it, to `draft`; an editorial
+>    correction keeps the status and records the change in `Comments`, stating
+>    that no decision changed. Say in the reply which documents need
+>    re-approval.
 > 5. Do NOT run build checks — that happens in the next phase.
 > 6. For each thread, return `threadId`, `applied` (true/false), `replyBody`
 >    (one English sentence describing exactly what was changed, for the PR
 >    reply). If a cluster fix subsumed a thread, set `applied=true` and
 >    reference the structural change. For an off-level thread, the reply
->    says which later phase the detail belongs to and names where the concern
->    was recorded — the handoff item (e.g. "`design_handoff.md` H-07" or
->    "`implementation_handoff.md` I-03") or, for a concern raised on the
->    implementation plan document, the plan section or task where the
->    obligation was retained — plus any abstraction-level change made to the
->    commented passage.
+>    follows R4 (which later phase the detail belongs to, and where the
+>    concern was recorded or retained).
 >
 > Clusters (structural changes): `<inline JSON>`
 >
@@ -391,14 +432,16 @@ the user with **both** of the following — bare counts alone are not enough:
    - 🟢 **no-harm** — cosmetic, or invalid/inapplicable: safe to ignore
 
    For each thread show its `topic`, its `verdict`, whether a fix was
-   `applied`, for off-level threads the handoff item it was recorded in, and
+   `applied`, for off-level threads where the concern was recorded (the
+   handoff item, or the plan section or task for a plan-level concern), and
    (for unresolved/unclear ones) the `url`. Then give a one-line overall read:
-   was this round substantive or noise, and is it worth running again or safe
-   to merge. If most threads were off-level, say so: the document is
-   converging and the remaining concerns now wait in the handoff document.
-   Name every process document Phase 3 returned from `approved` to `draft`
-   (edited documents and the later-phase documents reset with them), so
-   the user knows it needs re-approval before the next phase proceeds.
+   was this round substantive or recurring churn, is the severity floor
+   reached (Convergence policy), and is it safe to merge rather than run
+   again. If most threads were off-level, say so: the document is converging
+   and the remaining concerns now wait in the handoff document. Name every
+   process document Phase 3 returned from `approved` to `draft` (edited
+   documents and the later-phase documents reset with them), so the user knows
+   it needs re-approval before the next phase proceeds.
 
 3. **Skipped threads**: list every thread left out of Phase 5 (unclear
    verdict, valid- or off-level-but-unapplied, missing `databaseId`, or empty
