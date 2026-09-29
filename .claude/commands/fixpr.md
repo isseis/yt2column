@@ -108,9 +108,12 @@ Agent prompt (inline the fetched `threads` JSON from Phase 1):
 >   behavior only: what is accepted, which sentinel a rejection maps to, what
 >   state changes.
 > - On the architecture document (`02_architecture.md`): implementation-level
->   detail — exact function signatures, specific API call sequences,
->   line-level code, test code structure. The architecture document states
->   components, responsibilities, interfaces, data flow, and design decisions.
+>   detail — signatures of internal or helper functions, specific API call
+>   sequences, line-level code, test code structure. The architecture
+>   document states components, responsibilities, interfaces, data flow, and
+>   design decisions. Public interface definitions (the method signatures and
+>   field types shown in interface or class diagrams) are architecture
+>   content, so a correction to them is `"valid"`, not `"off-level"`.
 >
 > If so, the verdict is `"off-level"`, **not** `"valid"`, even when the
 > comment is technically correct. Adding later-phase detail to a document
@@ -193,15 +196,17 @@ Agent prompt (inline `clusters` from Phase 2, the `valid` threads, and the
 >    c. If `behaviorGap` is true, state the missing behavior at the document's
 >       level (for the requirements document, an observable condition in the
 >       relevant F-/AC- item, not a mechanism).
->    d. Record the concern in the handoff document in the same task directory
->       so the next phase does not lose it: `design_handoff.md` for a thread
->       on the requirements document, `implementation_handoff.md` for a
->       thread on the architecture document. Write in the project's document
->       language. If the file does not exist, create it with a short header
->       stating its role: it collects concerns raised in review that belong
->       to the next phase, and the next-phase document (architecture document
->       or implementation plan) records, for each item, the approach taken or
->       why it does not apply. Add the concern as the next numbered item
+>    d. Record the concern in a handoff document in the same task directory
+>       so the phase it belongs to does not lose it. Route by that phase, not
+>       by the commented document: a design-level concern (raised on the
+>       requirements document) goes to `design_handoff.md`; an
+>       implementation-level concern goes to `implementation_handoff.md`,
+>       even when it was raised on the requirements document. Write in the
+>       project's document language. If the file does not exist, create it
+>       with a short header stating its role: it collects concerns raised in
+>       review that belong to a later phase, and that phase's document
+>       (architecture document or implementation plan) records, for each
+>       item, the approach taken or why it does not apply. Add the concern as the next numbered item
 >       (`H-NN` in `design_handoff.md`, `I-NN` in
 >       `implementation_handoff.md`) with: what the concern is, why it
 >       matters, a candidate approach, and the related F-/AC- IDs. If an
@@ -213,8 +218,9 @@ Agent prompt (inline `clusters` from Phase 2, the `valid` threads, and the
 >    (one English sentence describing exactly what was changed, for the PR
 >    reply). If a cluster fix subsumed a thread, set `applied=true` and
 >    reference the structural change. For an off-level thread, the reply
->    says that the detail belongs to a later phase and names the handoff
->    item it was recorded in (e.g. "`design_handoff.md` H-07"), plus any
+>    says which later phase the detail belongs to and names the handoff
+>    item it was recorded in (e.g. "`design_handoff.md` H-07" or
+>    "`implementation_handoff.md` I-03"), plus any
 >    abstraction-level change made to the commented passage.
 >
 > Clusters (structural changes): `<inline JSON>`
