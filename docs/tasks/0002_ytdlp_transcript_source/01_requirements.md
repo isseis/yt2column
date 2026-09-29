@@ -1,0 +1,222 @@
+# 要件定義書：yt-dlp による字幕取得
+
+## Document Status
+
+| Item | Value |
+|---|---|
+| Status | `draft` |
+| Created | 2026-09-29 |
+| Review date | - |
+| Reviewer | - |
+| Comments | - |
+
+## 1. 概要 (Overview)
+
+**目的:** 本書は、yt2column の `TranscriptSource` の初期実装である `YtDlpSource` に関する要件を定義する。`YtDlpSource` は、動画 URL から字幕（json3）とメタ情報（info.json）を取得し、パイプラインの次段階（`ArticleWriter`）へ `Transcript`（文字起こし）として渡す。
+
+**背景:**
+yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Article → Publisher` というパイプラインで動作する（[project_overview.md](../../dev/project_overview.md)）。字幕取得は YouTube の非公式な仕様に依存する最も壊れやすい部分であり、活発に保守されている外部コマンド `yt-dlp` に委譲する方針が決まっている。本タスクはその委譲の実装を提供する。
+
+パイプラインの骨格（#2、タスク `0001_pipeline_skeleton`）で `Transcript`・`Segment` 型と `TranscriptSource` という interface は定義済みである。本タスクはその interface を満たす最初の実装を作る。
+
+また、プロンプトを調整するたびに字幕を取り直さないよう、動画 ID ごとに字幕と info.json をキャッシュする。字幕が存在しない動画（投稿者が字幕を無効化している、公開直後で自動字幕が未生成など）は、`yt-dlp` が正常終了しても字幕ファイルが出力されない。これを検出し、分かりやすいエラーとして報告する。
+
+対応 issue: #3
+
+## 2. 目的とスコープ (Goals and Scope)
+
+### 2.1. 目的 (Goals)
+
+-   実際の YouTube 動画の字幕とメタ情報を、`yt-dlp` を通じて取得できる。
+-   一度取得した動画は、`yt-dlp` を再実行せずにキャッシュから読める。
+-   字幕がない動画を、他の失敗と区別できる分かりやすいエラーとして報告する。
+-   `yt-dlp` の起動とその出力のパースを、実際の `yt-dlp` もネットワークも使わずにテストできる。
+-   URL と `yt-dlp` の出力という信頼できない入力を、補正せずに検証し、そのまま扱う。
+
+### 2.2. スコープ (In Scope)
+
+-   動画 URL の検証と動画 ID の抽出
+-   `yt-dlp` の起動（引数、タイムアウト、エラー処理）
+-   json3 のパーサ（字幕）
+-   info.json のパーサ（メタ情報）
+-   動画 ID ごとのキャッシュ
+-   字幕なしの検出
+-   上記を束ねた `transcript.TranscriptSource` の実装（`YtDlpSource`）
+
+### 2.3. スコープ外 (Out of Scope)
+
+-   環境変数からの設定読み込み（#6）。本タスクの `YtDlpSource` は、キャッシュディレクトリ・`yt-dlp` の実行パス・タイムアウトを構築時に受け取る。
+-   `yt-dlp` のインストールとバージョン管理
+-   Whisper 等による音声の文字起こし（音声認識）へのフォールバック
+-   日本語以外の字幕の取得、字幕の翻訳
+-   タイムスタンプを使った機能（#10）。本タスクは `tStartMs` を保持するだけである。
+-   記事生成（#5）と Slack 投稿（#7）
+-   `yt-dlp` の出力のうち、字幕と info.json 以外
+
+## 3. 機能要件 (Functional Requirements)
+
+### 3.1. 機能一覧
+
+#### F-001: 動画 URL の検証と動画 ID の抽出
+
+受け取った URL を検証し、YouTube の動画 ID（11 文字）を取り出す。不正な値は補正せず拒否する。
+
+-   対応する URL 形式は、`youtube.com/watch?v=<id>`、`youtu.be/<id>`、`youtube.com/embed/<id>`、`youtube.com/shorts/<id>`、`youtube.com/live/<id>` とする。ホストは `youtube.com`（および `www`・`m` のサブドメイン）と `youtu.be` に限り、それ以外は拒否する。
+-   `v` 以外のクエリパラメータ（`t`・`list` など）とフラグメント（`#...`）は無視する。`v` が複数ある入力は、どれを採るかを推測せず拒否する。
+-   動画 ID は `[A-Za-z0-9_-]{11}` に一致すること。
+-   動画 ID 以外の URL 文字列（パス区切りや `..` を含む部分）は、キャッシュのパスに使わない。
+-   `yt-dlp` には、動画 ID から組み立てた正規化 URL `https://www.youtube.com/watch?v=<id>` を渡す。
+-   検証に失敗した場合は `ErrInvalidVideoURL` を返す。
+
+**Acceptance Criteria**:
+- **AC-01**: 上記の各 URL 形式から、11 文字の動画 ID を取り出せる。
+- **AC-02**: 動画 ID が `[A-Za-z0-9_-]{11}` に一致しない場合、補正（切り詰め・ゼロ埋め・置換など）をせずエラーになる。
+- **AC-03**: 対応する URL 形式でない入力はエラーになる。対象は、`youtube.com`・`youtu.be` 以外のホスト、動画 ID を含まない URL、11 文字の文字列を含むが対応する形式のいずれにも当てはまらない URL（例: `youtube.com/channel/<11文字>`）、`v` を複数持つ URL、URL ではなく動画 ID 単体の文字列、前後に空白がある入力である。
+- **AC-04**: 動画 ID を含みつつパス区切りや `..` を含む URL（例: `https://youtu.be/<id>/../../etc`）を入力しても、キャッシュのパスは検証済みの動画 ID だけから組み立てられ、元の URL の文字列はパスに現れない。
+- **AC-05**: 検証済みの動画 ID から、正規化 URL `https://www.youtube.com/watch?v=<id>` を組み立てられる。
+
+#### F-002: yt-dlp の起動
+
+`yt-dlp` を外部コマンドとして起動し、字幕（json3）と info.json をキャッシュディレクトリへ出力させる。
+
+-   `exec.CommandContext` に引数を配列で渡し、シェル（`sh -c` など）を経由しない。
+-   URL の直前に `--` を置き、URL を 1 個の引数として渡す。
+-   取得オプションとして `--skip-download --write-subs --write-auto-subs --sub-langs ja --sub-format json3 --write-info-json` を渡し、出力テンプレートはキャッシュディレクトリと動画 ID から組み立てる。
+-   `context` によるタイムアウトを設定する。タイムアウトは構築時に受け取り、正の値でなければならない。
+-   実行パスは構築時に指定でき、未指定時は PATH 上の `yt-dlp` を使う（`YT2COLUMN_YTDLP_PATH` は #6 の設定読み込みが読む）。
+-   非ゼロ終了や実行ファイルが見つからない場合は `ErrYtDlpExec` を返す。標準エラー出力をメッセージに含める場合は先頭 4 KiB までに切り詰める。
+-   タイムアウトまたはキャンセルは `context.DeadlineExceeded` / `context.Canceled` として報告する。
+
+**Acceptance Criteria**:
+- **AC-06**: `yt-dlp` は、動画 ID から組み立てた出力テンプレートと正規化 URL を引数として起動され、URL の直前に `--` が置かれる。
+- **AC-07**: `yt-dlp` の起動にシェルを経由しない。外部コマンドの実行は差し替え可能で、引数の配列はテストから検証できる。
+- **AC-08**: タイムアウトまたはキャンセルで `yt-dlp` が終了した場合、`errors.Is(err, context.DeadlineExceeded)` または `errors.Is(err, context.Canceled)` が真になるエラーを返す。
+- **AC-09**: `yt-dlp` が非ゼロで終了した場合、および実行ファイルが見つからない場合は、`errors.Is(err, ErrYtDlpExec)` が真になるエラーを返す。エラーメッセージに標準エラー出力を含める場合は先頭 4 KiB までで切り詰められる。
+- **AC-28**: タイムアウトに 0 以下の値を指定した構築はエラーになる。
+
+#### F-003: json3 パーサ
+
+json3 形式の字幕を読み、セグメントの並びに変換する。
+
+-   `events` の各要素（以下、イベント）を 1 つのセグメントにする。開始時刻はイベントの `tStartMs`、本文は `segs[].utf8` を順に連結した文字列とする。
+-   `segs` を持たないイベント、および `utf8` が空の seg は無視する。
+-   自動字幕の json3 には、直前のイベントと本文が重複するイベントが含まれることがある。重複は本文から取り除く。
+-   壊れた JSON、または `events` を持たない JSON はエラー（`ErrParseSubtitles`）とし、部分的な結果を返さない。
+
+**Acceptance Criteria**:
+- **AC-10**: `segs[].utf8` をこの順に連結した文字列がセグメントの本文になり、イベントの `tStartMs` がその開始時刻（ミリ秒）になる。
+- **AC-11**: `segs` を持たないイベント、および `utf8` が空の seg はセグメントに含めない。
+- **AC-12**: json3 として不正な JSON、または `events` を持たない JSON は、`errors.Is(err, ErrParseSubtitles)` が真になるエラーになる。
+- **AC-13**: パーサは `testdata/` に保存した実際の `yt-dlp` 出力でテストされる。
+- **AC-32**: 重複したイベントを含む実データを入力したとき、本文に同一文が重複して現れない。
+
+#### F-004: info.json パーサ
+
+info.json 形式のメタ情報を読み、タイトル・チャンネル名・概要欄を取り出す。タイトルとチャンネル名は必須で、概要欄は任意である。
+
+**Acceptance Criteria**:
+- **AC-14**: info.json からタイトル・チャンネル名・概要欄を取り出した結果が、`Transcript` の `Title`・`ChannelName`・`Description` にそれぞれ入る。
+- **AC-15**: info.json として不正な JSON は、`errors.Is(err, ErrParseInfo)` が真になるエラーになる。
+- **AC-16**: 概要欄は空でありうる（空をエラーにしない）。一方、タイトルとチャンネル名が欠落または空の場合はエラーになる。
+
+#### F-005: キャッシュ
+
+字幕ファイルと info.json を、動画 ID ごとにキャッシュする。
+
+-   キャッシュが揃っている場合は `yt-dlp` を起動せず、キャッシュから `Transcript` を組み立てる。
+-   キャッシュが揃っていない場合（一部だけ存在する場合を含む）は `yt-dlp` を起動し、出力をキャッシュに保存してから組み立てる。
+-   前回の実行で残ったファイルを今回の出力と誤認しないよう、`yt-dlp` の起動前に当該動画のキャッシュファイルを取り除く。
+-   ディレクトリは `0o700`、ファイルは `0o600` で作成する。
+-   読み書きに使うファイル名は動画 ID から組み立てる。字幕ファイルは言語と拡張子のサフィックスを持つため、実際の名前はフェーズ 0（実装計画書の最初のフェーズ。§6 参照）で固定し、アーキテクチャ設計書に記録する。
+-   手動字幕と自動字幕の両方が存在する場合に採用するファイルは、フェーズ 0 で固定した規則で決める。
+
+**Acceptance Criteria**:
+- **AC-17**: キャッシュが揃っている動画では、`yt-dlp` を起動せずに `Transcript` を返す。
+- **AC-18**: キャッシュが揃っていない動画では、`yt-dlp` を起動して出力をキャッシュに保存し、その出力から `Transcript` を返す。
+- **AC-19**: キャッシュディレクトリは作成時に `0o700`、キャッシュファイルは `0o600` である。
+- **AC-20**: キャッシュの読み書きに使うファイル名は動画 ID から組み立てる。ディレクトリ内の他のファイル名や、動画 ID 以外の文字列を信用しない。
+- **AC-29**: キャッシュの一部だけ（字幕または info.json の片方）が存在する場合、キャッシュヒットとみなさずに `yt-dlp` を起動する。
+- **AC-30**: 前回の実行で残った字幕ファイルがある状態で今回の実行が字幕を生成しなかった場合、その残存ファイルを今回の出力と誤認せず、字幕なしとして扱う。
+- **AC-31**: 手動字幕と自動字幕の両方を含むキャッシュを入力したとき、採用されるセグメントはフェーズ 0 で固定した規則どおりのファイルから得られる。
+
+#### F-006: 字幕なしの検出
+
+`yt-dlp` が正常終了したが字幕ファイルが存在しない場合、および字幕ファイルが存在してもセグメントが 0 件の場合を検出し、分かりやすいエラー（`ErrNoSubtitles`）として報告する。
+
+**Acceptance Criteria**:
+- **AC-21**: `yt-dlp` が正常終了しても字幕ファイルが存在しない場合、`errors.Is(err, ErrNoSubtitles)` が真になるエラーを返す。
+- **AC-22**: エラーメッセージから、字幕がない動画であることと対象の動画（動画 ID または URL）が分かる。
+- **AC-23**: 字幕ファイルが存在してもセグメントが 1 件もない結果は成功として返さず、`ErrNoSubtitles` をラップしたエラーになる。
+- **AC-24**: 次のエラーは、`errors.Is` で相互に区別できる。`ErrInvalidVideoURL`（URL 検証）、`ErrYtDlpExec`（`yt-dlp` の実行失敗）、`ErrParseSubtitles`・`ErrParseInfo`（パース）、`ErrNoSubtitles`（字幕なし）。タイムアウトとキャンセルは `context.DeadlineExceeded` / `context.Canceled` で判別できる（AC-08）。
+
+#### F-007: YtDlpSource（全体）
+
+上記の機能を束ね、`transcript.TranscriptSource` を実装する。
+
+**Acceptance Criteria**:
+- **AC-25**: `YtDlpSource` は `transcript.TranscriptSource` を実装する。`Fetch(ctx, videoURL)` は、動画 ID・動画 URL・タイトル・チャンネル名・概要欄・セグメントを持つ `Transcript` を返す。
+- **AC-26**: `ctx` が既にキャンセルされている場合、`Fetch` は `yt-dlp` を起動せずに `context.Canceled` を返す。`yt-dlp` の実行中にキャンセルされた場合はプロセスを終了し、`context.Canceled` を返す（AC-08）。
+- **AC-27**: `Fetch` のユニットテストは、実際の `yt-dlp` もネットワークも呼ばない。`testdata/` と、`testdata/` の出力を配置した一時キャッシュディレクトリで検証する。
+- **AC-33**: 実装計画書に、実際の動画 1 本に対する手動検証を完了条件として含める。手動検証は実際の `yt-dlp` とネットワークを使い、その結果（終了コード、生成されたファイル名、得られた `Transcript` の概要）を実装計画書に記録する。`make test` には含めない。
+
+## 4. 非機能要件 (Non-Functional Requirements)
+
+### 4.1. 性能 (Performance)
+
+-   キャッシュが揃った動画の `Fetch` は `yt-dlp` を起動せず（AC-17）、ローカル I/O のみで完了する。
+-   `yt-dlp` とネットワークが実行時間を支配するため、本タスクにローカル処理の性能要件はない。
+
+### 4.2. セキュリティ (Security)
+
+-   [security.md](../../dev/security.md) §1（外部コマンド）・§5（キャッシュ）に従う。
+-   シェルを経由せず、引数を配列で渡す（F-002・AC-07）。
+-   URL を検証し、正規化 URL を `--` の後に渡す（F-001・F-002・AC-06）。
+-   動画 ID を `[A-Za-z0-9_-]{11}` に限定し、パス区切りや `..` を含む URL 文字列をキャッシュのパスに使わない（F-001・AC-02・AC-04）。
+-   `yt-dlp` の起動にタイムアウトを設定する（F-002）。
+-   標準エラー出力をエラーに含める場合は先頭 4 KiB までに切り詰める（F-002・AC-09）。
+-   キャッシュディレクトリは `0o700`、ファイルは `0o600` で作成する（F-005・AC-19）。
+-   字幕・タイトル・概要欄は信頼できない入力として扱う。本タスクでは保存と受け渡しだけを行い、他のコマンドやコードとして実行しない。
+
+### 4.3. 信頼性・可用性 (Reliability/Availability)
+
+-   `context` のキャンセルとタイムアウトに従う（AC-08・AC-26）。
+
+### 4.4. 互換性 (Compatibility)
+
+-   macOS と Linux でビルド・テストできること。
+-   Go のバージョンは `go.mod` に従う。
+-   実行時は `yt-dlp` が PATH 上にある（または `YT2COLUMN_YTDLP_PATH` が設定されている）ことを前提とする。ユニットテストには不要である。
+
+### 4.5. 保守性 (Maintainability)
+
+-   標準ライブラリ以外のモジュールを追加しないこと（`.golangci.yml` の depguard `deps` ルール）。
+-   json3 と info.json のパーサは外部コマンドの起動から分離し、`testdata/` の実出力でテストできること。
+-   Go のコメント・識別子・文字列リテラルは英語で書くこと。
+
+## 5. 制約条件 (Constraints)
+
+-   [project_overview.md](../../dev/project_overview.md) の「決定済みの方針」「前提・制約」に従う。
+-   ユニットテストは `yt-dlp`・ネットワークを呼ばない。そのため、外部コマンドの実行はテストから差し替え可能にする（F-002・AC-07）。
+-   環境変数の読み込みは #6 の責務とする。本タスクの `YtDlpSource` は、キャッシュディレクトリ・`yt-dlp` の実行パス・タイムアウトを構築時に受け取る。キャッシュディレクトリの指定がない場合の扱い（既定ディレクトリを使うかエラーにするか）は設計（`02_architecture.md`）で決める。
+-   パッケージの分割は設計（`02_architecture.md`）で決める。循環 import を生じないこと。
+-   実装計画書のフェーズ 0 に事前調査を含める。調査項目は、手動字幕と自動字幕のどちらを優先するか、およびその出力ファイル名、字幕なし動画での `yt-dlp` の終了コードと出力、実際の `info.json` のフィールド名、実際の自動字幕 json3 の重複イベントの有無である。調査結果はアーキテクチャ設計書に記録し、`testdata/` に実出力を保存する。採用するファイル名と優先規則は調査結果を基に固定する。`testdata/` の配置（パッケージ内かリポジトリ直下か）は設計で決める。
+-   キャッシュのキーは動画 ID とする。URL はキーにしない。
+-   Whisper 等による音声の文字起こし（音声認識）へのフォールバックは行わない。
+
+### 5.1. project_overview.md との差分
+
+-   [project_overview.md](../../dev/project_overview.md) の `YtDlpSource` の例には、URL の直前の `--` が示されていない。security.md §1 の要求に合わせ、本書では `--` を必須とする。
+-   project_overview.md は「手動字幕と自動字幕が両方ある場合の挙動は実装時に確認すること」として未確定のままにしている。本タスクのフェーズ 0 で確認してアーキテクチャ設計書に記録し、本書の完了時に project_overview.md を更新する。決定済みの方針を変更するものではない。
+
+## 6. 用語集 (Glossary)
+
+用語は [translation_glossary.md](../../translation_glossary.md) と統一する。本タスクで新たに使う用語は次のとおり。
+
+-   **動画 ID（video ID）:** YouTube の動画を一意に識別する 11 文字の ID。`[A-Za-z0-9_-]{11}` に一致する。
+-   **セグメント（segment）:** `Transcript` の本文を構成する部分。開始時刻（ミリ秒）と文字列を持つ（`0001_pipeline_skeleton` の F-001 で定義）。
+-   **json3:** YouTube の字幕形式。`events[].segs[].utf8` に本文、`tStartMs` に開始時刻（ミリ秒）を持つ。
+-   **info.json:** `yt-dlp` が `--write-info-json` で出力する動画メタ情報の JSON。
+-   **キャッシュ（cache）:** 動画 ID ごとに保存する字幕ファイルと info.json。プロンプト調整のたびに再取得しないためのもの。
+-   **正規化 URL:** 動画 ID から組み立てた `https://www.youtube.com/watch?v=<id>`。`yt-dlp` には元の入力ではなくこれを渡す。
+-   **`ErrInvalidVideoURL` / `ErrYtDlpExec` / `ErrParseSubtitles` / `ErrParseInfo` / `ErrNoSubtitles`:** それぞれ URL 検証・`yt-dlp` の実行失敗・字幕のパース・info.json のパース・字幕なしを表す番兵エラー。
+-   **フェーズ 0:** 実装計画書の最初のフェーズ。事前調査を行い、`testdata/` の実出力を取得する。
