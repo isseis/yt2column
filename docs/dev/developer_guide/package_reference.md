@@ -15,3 +15,7 @@ described in [project_overview.md](../project_overview.md) ("想定ディレク�
 | `internal/llm` | Defines the provider-independent `LLMClient` interface and its `GenerateRequest`/`GenerateResponse` types |
 | `internal/writer` | Defines the article-writing stage: `Article` and the `ArticleWriter` interface |
 | `internal/publisher` | Defines the publishing stage: the `Publisher` interface |
+| `internal/transcript/testutil` | Test double (`FakeTranscriptSource`) for `transcript.TranscriptSource`; built only with `-tags test` |
+| `internal/llm/testutil` | Test double (`FakeLLMClient`) for `llm.LLMClient`; built only with `-tags test` |
+| `internal/writer/testutil` | Test double (`FakeArticleWriter`) for `writer.ArticleWriter`; built only with `-tags test` |
+| `internal/publisher/testutil` | Test double (`FakePublisher`) for `publisher.Publisher`; built only with `-tags test` |

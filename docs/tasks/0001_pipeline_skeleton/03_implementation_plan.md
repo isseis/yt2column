@@ -151,14 +151,14 @@
 - パッケージコメントとすべての公開識別子に英語のドキュメントコメントを付ける。
 
 **タスク**
-- [ ] **ステップ 3-1**: `internal/transcript/testutil/mocks.go` に `FakeTranscriptSource` を、`mocks_test.go` にその振る舞いのテストを作成する（記録する入力は `VideoURL`）。
-- [ ] **ステップ 3-2**: `internal/llm/testutil/mocks.go` に `FakeLLMClient` を、`mocks_test.go` にその振る舞いのテストを作成する（記録する入力は `GenerateRequest`）。
-- [ ] **ステップ 3-3**: `internal/writer/testutil/mocks.go` に `FakeArticleWriter` を、`mocks_test.go` にその振る舞いのテストを作成する（記録する入力は `Transcript`）。
-- [ ] **ステップ 3-4**: `internal/publisher/testutil/mocks.go` に `FakePublisher` を、`mocks_test.go` にその振る舞いのテストを作成する（記録する入力は `Article`）。
-- [ ] **ステップ 3-5**: fake の振る舞い（戻り値・エラー・呼び出し記録）を実装時に壊し、各 `mocks_test.go` が失敗することを確認して、コミットメッセージに記録する（例: メソッドを値レシーバに変えると `Calls` が記録されず失敗する）。
-- [ ] **ステップ 3-6**: `docs/dev/developer_guide/package_reference.md` に `testutil` 4 パッケージの行を追加する。
-- [ ] **ステップ 3-7**: タグなしのビルドに fake が含まれないことを `go list -e -f '{{.ImportPath}} {{len .GoFiles}} {{.Error}}' ./internal/transcript/testutil ./internal/llm/testutil ./internal/writer/testutil ./internal/publisher/testutil` で確認する。4 つの `testutil` パッケージそれぞれについて、`GoFiles` が 0 件であること、および `.Error` が「すべての Go ファイルがビルド制約で除外された」ことを示す（`build constraints exclude all Go files`）ことを出力とともに記録する（architecture §7.2 が本計画に委ねた `go list` のコマンド。AC-17）。`-e` はエラーを標準エラーではなくパッケージの `Error` フィールドに入れるため、テンプレートで `.Error` を描画しないと、存在しない import path の誤りも `0` とだけ表示されて期待結果と区別できない。`./internal/...` のようなパターンは、すべてのファイルがビルド制約で除外されたディレクトリを列挙しない（`go help packages` はパターンが「パッケージのディレクトリ」に展開されるとし、`go help list` は名前付きパッケージを 1 行ずつ列挙するとする）ため、`testutil` パッケージは import path を明示して `go list` に渡す。
-- [ ] **ステップ 3-8**: `make fmt` → `make test` → `make lint` を通す。`make test` は `-tags test` で実行されるため、fake が同じタグでコンパイルされることをこのフェーズのゲートで確認する（`Makefile:63-64`）。
+- [x] **ステップ 3-1**: `internal/transcript/testutil/mocks.go` に `FakeTranscriptSource` を、`mocks_test.go` にその振る舞いのテストを作成する（記録する入力は `VideoURL`）。
+- [x] **ステップ 3-2**: `internal/llm/testutil/mocks.go` に `FakeLLMClient` を、`mocks_test.go` にその振る舞いのテストを作成する（記録する入力は `GenerateRequest`）。
+- [x] **ステップ 3-3**: `internal/writer/testutil/mocks.go` に `FakeArticleWriter` を、`mocks_test.go` にその振る舞いのテストを作成する（記録する入力は `Transcript`）。
+- [x] **ステップ 3-4**: `internal/publisher/testutil/mocks.go` に `FakePublisher` を、`mocks_test.go` にその振る舞いのテストを作成する（記録する入力は `Article`）。
+- [x] **ステップ 3-5**: fake の振る舞い（戻り値・エラー・呼び出し記録）を実装時に壊し、各 `mocks_test.go` が失敗することを確認して、コミットメッセージに記録する（例: メソッドを値レシーバに変えると `Calls` が記録されず失敗する）。
+- [x] **ステップ 3-6**: `docs/dev/developer_guide/package_reference.md` に `testutil` 4 パッケージの行を追加する。
+- [x] **ステップ 3-7**: タグなしのビルドに fake が含まれないことを `go list -e -f '{{.ImportPath}} {{len .GoFiles}} {{.Error}}' ./internal/transcript/testutil ./internal/llm/testutil ./internal/writer/testutil ./internal/publisher/testutil` で確認する。4 つの `testutil` パッケージそれぞれについて、`GoFiles` が 0 件であること、および `.Error` が「すべての Go ファイルがビルド制約で除外された」ことを示す（`build constraints exclude all Go files`）ことを出力とともに記録する（architecture §7.2 が本計画に委ねた `go list` のコマンド。AC-17）。`-e` はエラーを標準エラーではなくパッケージの `Error` フィールドに入れるため、テンプレートで `.Error` を描画しないと、存在しない import path の誤りも `0` とだけ表示されて期待結果と区別できない。`./internal/...` のようなパターンは、すべてのファイルがビルド制約で除外されたディレクトリを列挙しない（`go help packages` はパターンが「パッケージのディレクトリ」に展開されるとし、`go help list` は名前付きパッケージを 1 行ずつ列挙するとする）ため、`testutil` パッケージは import path を明示して `go list` に渡す。
+- [x] **ステップ 3-8**: `make fmt` → `make test` → `make lint` を通す。`make test` は `-tags test` で実行されるため、fake が同じタグでコンパイルされることをこのフェーズのゲートで確認する（`Makefile:63-64`）。
 
 ### PR-3 作成ポイント: test fakes for stage interfaces
 
