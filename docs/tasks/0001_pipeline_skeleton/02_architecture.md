@@ -8,7 +8,7 @@
 | Created | 2026-09-29 |
 | Review date | - |
 | Reviewer | - |
-| Comments | 意思決定の変更（2026-09-29）: PR #24 のレビュー指摘に従い、`01_requirements.md` の AC 識別子（AC-14a・AC-19〜AC-26）に合わせて参照を更新し、AC-01〜AC-03 を構造基準として扱う。再承認のため `draft` に戻す。 |
+| Comments | 意思決定の変更（2026-09-29）: PR #24・#25 のレビュー指摘に従い、`01_requirements.md` の AC 識別子（AC-14a・AC-19〜AC-26）に合わせて参照を更新した。AC-01〜AC-03 は観測可能な振る舞いとして扱い、AC-01・AC-02 はパイプラインのフローテストで、AC-03 は #4 のアダプタテストで検証する。公開フィールドの配置は設計上の制約（§3.1）として残す。再承認のため `draft` に戻す。 |
 
 ---
 
@@ -675,21 +675,21 @@ flowchart TD
   - `Secret` を直接出力する経路と、公開フィールドとして埋め込んだ構造体の出力は、**`[REDACTED]` が出力に現れること**を検証する（「元の値が現れない」ことだけの検証では、`Format` が空文字や値の長さ・ハッシュを出力しても通ってしまうため、AC-18・AC-19・AC-20 の基準を満たす検証にならない）。AC-18 のテーブルテストは、委譲される主な書式指定子（`%s`・`%v`・`%+v`・`%#v`・`%q`・`%d`・`%x`）に加え、あまり使われない指定子（`%c`・`%U`・`%b`・`%e` など）と未知の指定子を含め、`Format` がどの指定子でも元の値に委譲せず固定文字列を書く（fail-secure）ことを確認する。`String()`・`GoString()` の直接呼び出し（AC-24）も個別に検証する。
   - 非公開フィールド経路の出力は元の値の代わりにクロージャの関数アドレス（`0x...`）が現れる。この経路の検証は「元の値が出力に一切現れないこと」だけを確認し、関数アドレスそのものを検証しない（アドレスはプロセスごとに変わるため、スナップショットやゴールデンファイルの比較対象にしてはならない）。`Secret` を含む構造体の出力をゴールデンファイル化しない。
   - `Reveal()`（AC-21）・空文字列の `New`（AC-22）・ゼロ値の `Reveal()`（AC-23）もそれぞれ検証する。
-- 型・interface の定義（AC-01〜AC-08 の一部）は、各 `testutil/mocks.go` に置くコンパイル時アサーション（例: `var _ transcript.TranscriptSource = (*FakeTranscriptSource)(nil)`）で検証され、パイプラインのフローテストでデータの受け渡しと順序が検証される。構造体のフィールドに代入した値をそのまま読み返すだけのテストは、無条件に通り何も検証しないため書かない（CLAUDE.md「Testing Strategy」）。そのため `internal/transcript`・`internal/llm`・`internal/writer`・`internal/publisher` には、本タスクではパッケージ本体の `_test.go` を置かない。
+- interface の定義（AC-06〜AC-08）は、各 `testutil/mocks.go` に置くコンパイル時アサーション（例: `var _ transcript.TranscriptSource = (*FakeTranscriptSource)(nil)`）で検証され、パイプラインのフローテストでデータの受け渡しと順序が検証される（AC-01・AC-02・AC-04）。構造体のフィールドに代入した値をそのまま読み返すだけのテストは、無条件に通り何も検証しないため書かない（CLAUDE.md「Testing Strategy」）。そのため `internal/transcript`・`internal/llm`・`internal/writer`・`internal/publisher` には、本タスクではパッケージ本体の `_test.go` を置かない。
 
 **統合テスト**: 該当なし。本タスクの成果物は外部（yt-dlp・LLM API・Webhook）と接続する実装を持たない。外部接続を伴う統合は #3・#4・#7 の各タスクで検証する。
 
 **セキュリティテスト**: `internal/secret` の AC-18〜AC-26 のテスト（上記）が、秘密情報が fmt・slog・JSON の各出力経路に現れないことを検証する。パイプラインがエラーに秘密情報を付け加えないこと（01_requirements.md §4.2）は、`StageError` が元のエラーをそのまま包むことのテストで確認する。
 
-**AC-01〜AC-03 の検証方法**: これらは型定義の宣言内容（公開フィールドの名前と型）そのものを要求する構造基準であり、`03_implementation_plan.md` の guard テスト（`TestCommonTypesFieldSets`）で検証する。セグメント・メタ情報・モデル名を実際に生成・解析する挙動は #3（字幕の json3 パース）・#4（モデル名の記録）のタスクで扱う。
+**AC-01〜AC-03 の検証方法**: AC-01（セグメントの並び順）と AC-02（メタ情報）は、段階間の受け渡しで値が保たれるという観測可能な振る舞いであり、`03_implementation_plan.md` のパイプラインのフローテスト（`TestPipelineSuccess`）で検証する。AC-03（LLM 応答のテキストとモデル名）を生成・消費するコードは本タスクにないため、挙動検証は #4（アダプタが実際に使われたモデル名を記録する）のテストと #5（`Article.Model` への引き継ぎ）に引き継ぐ。公開フィールドの配置は型の設計上の制約（§3.1）であり、AC の検証ではなく `TestCommonTypesFieldSets` で設計どおりに固定する。
 
 ### 7.2. 受け入れ基準と設計要素の対応
 
 | AC | 設計要素 | テストの対象 |
 |---|---|---|
-| AC-01 | `Transcript.Segments`（`[]Segment`・`StartMs int64`・`Text string`） | 静的検証（`Transcript`・`Segment` の公開フィールドの名前と型の集合。`03_implementation_plan.md::TestCommonTypesFieldSets`） |
-| AC-02 | `Transcript` のメタ情報 5 フィールド | 同上 |
-| AC-03 | `GenerateResponse` のテキストとモデル名のフィールド | 同上 |
+| AC-01 | 段階間を渡る `Transcript` のセグメント（`[]Segment`・`StartMs int64`・`Text string`） | パイプラインのフローテスト（source fake が返した複数セグメントが writer fake に同じ並び・内容で届くことを確認） |
+| AC-02 | 段階間を渡る `Transcript` のメタ情報 5 フィールド | 同上（writer fake が記録したメタ情報が一致することを確認） |
+| AC-03 | `GenerateResponse` のテキストとモデル名 | #4 のアダプタテスト（実際に使われたモデル名の記録）と #5 の `Article.Model` への引き継ぎ。本タスクには生成・消費するコードがない |
 | AC-04 | `Article{Title, Body, SourceURL, Model}` | パイプラインのフローテスト（`ArticleWriter` の fake が返した `Article` が `Publisher` の fake と `Run` の戻り値に同じ値で現れることを確認） |
 | AC-05 | 共通型にプロバイダ固有の項目・SDK 型を含めない | `internal/llm` が `internal/llm/<provider>` を import できない構造（依存の一方通行）、depguard による SDK import の制限、型定義の目視 |
 | AC-06 | 4 つの interface | fake が interface を満たすことのコンパイル時検証 |

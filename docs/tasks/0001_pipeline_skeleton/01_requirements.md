@@ -8,7 +8,7 @@
 | Created | 2026-09-29 |
 | Review date | - |
 | Reviewer | - |
-| Comments | 意思決定の変更（2026-09-29）: PR #24 のレビュー指摘に従い、既存 ID（AC-19〜AC-23）を保全したまま、String/GoString・非委譲書式・非公開フィールドの基準（AC-24〜AC-26）とゼロ値 `Pipeline.Run` の基準（AC-14a）を追加し、AC-01〜AC-03 を構造基準に書き換えた。再承認のため `draft` に戻す。 |
+| Comments | 意思決定の変更（2026-09-29）: PR #24・#25 のレビュー指摘に従い、既存 ID（AC-19〜AC-23）を保全したまま、String/GoString・非委譲書式・非公開フィールドの基準（AC-24〜AC-26）とゼロ値 `Pipeline.Run` の基準（AC-14a）を追加した。AC-01〜AC-03 は公開フィールドの列挙ではなく観測可能な振る舞いとして記述し（`requirements_process.md` §1「behavior, not implementation」）、AC-03 の挙動検証は #4 に引き継ぐ。再承認のため `draft` に戻す。 |
 
 ## 1. 概要 (Overview)
 
@@ -58,9 +58,9 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 -   **コラム記事（`Article`）**: タイトル・Markdown 形式の本文・出典リンク（元動画の URL）と、生成に使われたモデル名を保持する。
 
 **Acceptance Criteria**:
-- **AC-01**: `Transcript` は、セグメントの並び（出現順を保つ `[]Segment`）を公開フィールドとして持ち、各 `Segment` は開始時刻（ミリ秒）と文字列を公開フィールドとして持つ。
-- **AC-02**: `Transcript` は、動画 ID・動画 URL・タイトル・チャンネル名・概要欄を、それぞれ公開フィールドとして持つ。
-- **AC-03**: LLM の応答型（`GenerateResponse`）は、生成されたテキストと、生成に使われたモデル名を、それぞれ公開フィールドとして持つ。
+- **AC-01**: `Transcript` のセグメント（開始時刻（ミリ秒）と文字列）は、段階間で受け渡される際に、渡された並び順のまま保たれる。
+- **AC-02**: `Transcript` のメタ情報（動画 ID・動画 URL・タイトル・チャンネル名・概要欄）は、段階間で受け渡される際に保たれる。
+- **AC-03**: LLM の応答は、生成されたテキストと、実際に生成に使われたモデル名を呼び出し元へ返す。
 - **AC-04**: `Article` は、タイトル・Markdown 本文・出典リンク（元動画の URL）・生成に使われたモデル名を保持できる。
 - **AC-05**: 共通データ型と interface のシグネチャは、LLM プロバイダの SDK の型や、プロバイダ固有の項目（DeepSeek の `thinking` パラメータ、`reasoning_content` など）を含まない。
 
