@@ -34,45 +34,39 @@ flowchart LR
     subgraph SRC["YtDlpSource（オーケストレーション）"]
         direction TB
         VID["URL 検証<br>（動画 ID の抽出・正規化）"]
-        CACHE["キャッシュ読み書き<br>（ヒット判定・世代コミット）"]
+        CACHE["キャッシュ読み書き<br>（ペアのヒット判定・世代コミット）"]
         RUN["コマンド実行<br>（commandExecutor）"]
-        J3["json3 パーサ"]
-        IJ["info.json パーサ"]
+        PARSE["ペアの検証<br>（字幕 → info.json の順）"]
         ASM["Transcript の組み立て"]
     end
 
     YTDLP["yt-dlp<br>（外部コマンド）"]
     ID[("動画 ID")]
     NURL[("正規化 URL")]
-    SUB[("字幕 json3")]
-    INF[("info.json")]
-    CF[("キャッシュファイル")]
+    PAIR[("字幕 json3 と info.json<br>（ペア）")]
+    CF[("キャッシュファイル<br>（2 ファイルで 1 世代）")]
     TC[("Transcript")]
 
     URL --> VID
     VID --> ID
     VID --> NURL
     ID --> CACHE
-    CACHE -->|"ヒットした字幕"| J3
-    CACHE -->|"ヒットした info.json"| IJ
+    CACHE -->|"ヒットしたペア"| PARSE
     CACHE -->|"ミス / 強制再取得"| RUN
     RUN --> NURL
     RUN --> YTDLP
-    YTDLP --> SUB
-    YTDLP --> INF
-    SUB --> J3
-    INF --> IJ
-    J3 -->|"セグメント"| ASM
-    IJ -->|"メタ情報"| ASM
+    YTDLP --> PAIR
+    PAIR --> PARSE
+    PARSE -->|"セグメントとメタ情報"| ASM
     ASM --> TC
     CACHE <-->|"読み書き"| CF
 
-    class URL,ID,NURL,SUB,INF,CF,TC data
-    class VID,CACHE,RUN,J3,IJ,ASM enhanced
+    class URL,ID,NURL,PAIR,CF,TC data
+    class VID,CACHE,RUN,PARSE,ASM enhanced
     class YTDLP process
 ```
 
-**図1 概念モデル**。実線の矢印 A → B は「A が B を生成する、または B を入力として利用する」を表す。`YtDlpSource` は段階の入口と進行の制御を担うオーケストレータであり、URL 検証・キャッシュの読み書き・コマンド実行・json3 パース・info.json パース・`Transcript` の組み立ては独立した責務として実装する（§3.3）。キャッシュがヒットした場合は、キャッシュした字幕と info.json をそれぞれのパーサ（`J3`・`IJ`）へ渡し、コマンド実行を経由せずに組み立てだけを通る。`CACHE <--> CF` はキャッシュの読み書きを表す。各責務の分割と差し替え点は §3.3 に示す。
+**図1 概念モデル**。実線の矢印 A → B は「A が B を生成する、または B を入力として利用する」を表す。`YtDlpSource` は段階の入口と進行の制御を担うオーケストレータであり、URL 検証・キャッシュの読み書き・コマンド実行・ペアの検証・`Transcript` の組み立ては独立した責務として実装する（§3.3）。字幕 json3 と info.json は常にペアで処理し、キャッシュも 2 ファイルで 1 世代として扱う。キャッシュがヒットした場合はキャッシュしたペアを、ミス時は `yt-dlp` が出力したペアを、同じ「ペアの検証」に渡す。形式ごとの解析（json3 パーサ・info.json パーサ）は「ペアの検証」の内部にあり、詳細は §3.4 に示す。`CACHE <--> CF` はキャッシュの読み書きを表す。各責務の分割と差し替え点は §3.3 に示す。
 
 ```mermaid
 flowchart LR
@@ -298,13 +292,14 @@ type commandExecutor interface {
 - **URL 検証**（`video_id.go`）: 入力 URL から動画 ID と正規化 URL を返す純粋な処理（§3.6）。
 - **キャッシュの読み書き**（`cache.go`）: パスの組み立て、読み込み、ステージング、世代コミットとロールバック、後始末（§3.5）。
 - **コマンド実行**（`exec.go`）: `yt-dlp` の起動、allowlist 環境、標準エラー出力の上限付きドレイン（§5.2）。
-- **json3 パーサ**（`json3.go`）: 字幕ファイルを検証してセグメントを返す純粋な処理（§3.4）。
-- **info.json パーサ**（`info.go`）: info.json を検証してメタ情報を返す純粋な処理（§3.4）。
+- **ペアの検証**（`json3.go`・`info.go`）: 字幕ファイルと info.json をペアとして、字幕 → info.json の決定的な順序で検証し、セグメントとメタ情報を返す純粋な処理（§3.4）。形式ごとの解析は json3 パーサ（`json3.go`）と info.json パーサ（`info.go`）が担い、ペアの順序と番兵の優先は `Fetch` が制御する（§6.2）。
 - **`Transcript` の組み立て**: 動画 ID・正規化 URL・メタ情報・セグメントをまとめる。
 
 `Fetch` の処理順は §6.1 に示す。`Fetch` は `ctx` のキャンセルに従い、開始前にキャンセル済みなら `yt-dlp` を起動せず `context.Canceled` を返す（AC-26）。
 
-### 3.4. パーサ
+### 3.4. ペアの検証とパーサ
+
+字幕 json3 と info.json は常にペアで処理する。キャッシュの完全性も 2 ファイルの存在で判定し（AC-29）、検証は字幕 → info.json の決定的な順序で行う（§6.2）。形式ごとの解析は json3 パーサと info.json パーサに分けるが、呼び出し側から見た責務は「ペアの検証」の 1 つであり、順序と番兵の優先は `Fetch` が制御する。
 
 json3 と info.json のパーサは、外部コマンドの起動から分離した純粋な処理とし、`testdata/` の実出力でテストできる形にする（AC-13・AC-27、要件 §4.5）。両者は次の共通手段で「標準ライブラリが黙って補正する入力」を拒否する（design_handoff H-05・H-12）。
 
@@ -319,7 +314,7 @@ json3 と info.json のパーサは、外部コマンドの起動から分離し
 
 ### 3.5. キャッシュ
 
-キャッシュは動画 ID ごとの 2 ファイル（§3.7）で構成する。`yt-dlp` にはキャッシュディレクトリへ直接書かせず、キャッシュディレクトリ内に作るステージング領域（`<cacheDir>/<動画 ID>.staging-*`、`0o700`）へ `-P` で出力させる（design_handoff H-07）。これにより前回の残存ファイルを今回の出力と誤認しない（AC-30）。
+キャッシュは動画 ID ごとの 2 ファイル（§3.7）で構成する。2 ファイルは 1 つの世代として扱い、キャッシュの完全性は両方の存在で判定する。`yt-dlp` にはキャッシュディレクトリへ直接書かせず、キャッシュディレクトリ内に作るステージング領域（`<cacheDir>/<動画 ID>.staging-*`、`0o700`）へ `-P` で出力させる（design_handoff H-07）。これにより前回の残存ファイルを今回の出力と誤認しない（AC-30）。
 
 **所有権の規則。** キャッシュディレクトリ内で名前が `<動画 ID>.` で始まるエントリは、その動画のキャッシュ（2 ファイルと、実行中・中断時に作られるステージング領域・退避ファイル）として扱う。それ以外のエントリには触れない。動画 ID は一意であり、他の動画 ID がこの接頭辞に一致することはない（AC-20・AC-59）。
 
@@ -377,11 +372,11 @@ json3 と info.json のパーサは、外部コマンドの起動から分離し
 
 | ファイル | 責務 | 状態 |
 |---|---|---|
-| `internal/transcript/ytdlp.go` | `Options`・`YtDlpSource`・`NewYtDlpSource`・`Fetch` の全体制御とキャッシュ判定 | 新設 |
+| `internal/transcript/ytdlp.go` | `Options`・`YtDlpSource`・`NewYtDlpSource`・`Fetch` の全体制御とキャッシュ判定。ペアの検証の順序制御 | 新設 |
 | `internal/transcript/video_id.go` | URL 検証と動画 ID の抽出、正規化 URL の組み立て（F-001） | 新設 |
 | `internal/transcript/exec.go` | `commandExecutor` interface、`os/exec` を使う実装、4 KiB 上限付きでドレインする `cappedWriter`、allowlist 環境の組み立て（F-002） | 新設 |
-| `internal/transcript/json3.go` | json3 の検証とセグメント化（F-003） | 新設 |
-| `internal/transcript/info.go` | info.json の検証とメタ情報の取り出し（F-004） | 新設 |
+| `internal/transcript/json3.go` | json3 の解析（ペアの検証の一部。F-003） | 新設 |
+| `internal/transcript/info.go` | info.json の解析（ペアの検証の一部。F-004） | 新設 |
 | `internal/transcript/cache.go` | キャッシュのパス組み立て、読み込み、ステージング、世代単位のコミットとロールバック、後始末（F-005） | 新設 |
 | `internal/transcript/errors.go` | 番兵エラーと `ParseError`（F-006・AC-24・AC-36） | 新設 |
 | `internal/transcript/video_id_test.go` | AC-01〜AC-05・AC-03 のテスト | 新設 |
