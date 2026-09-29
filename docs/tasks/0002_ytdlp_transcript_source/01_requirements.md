@@ -92,7 +92,7 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 -   利用者・システムの yt-dlp 設定ファイルの影響を排除するため、`--ignore-config` を常に渡す。これにより、設定ファイルからのオプション注入（`--exec` など）や出力テンプレートの上書きを防ぐ。あわせて `--no-plugin-dirs` を常に渡し、既定の利用者・システムのプラグインディレクトリを読み込ませないことで、環境に依存するプラグインの import を防ぎ、起動を決定的にする。環境変数は yt-dlp 自身の TLS・キャッシュのために `HOME`・`XDG_CONFIG_HOME`・`XDG_CACHE_HOME` を引き継ぐが、設定ファイルは読ませない。
 -   `context` によるタイムアウトを設定する。タイムアウトは構築時に受け取り、正の値でなければならない。
 -   実行パスは構築時に指定でき、未指定時は PATH 上の `yt-dlp` を使う（`YT2COLUMN_YTDLP_PATH` は #6 の設定読み込みが読む）。
--   非ゼロ終了や実行ファイルが見つからない場合は `ErrYtDlpExec` を返す。標準エラー出力をメッセージに含める場合は先頭 4 KiB までに切り詰める。
+-   非ゼロ終了や実行ファイルが見つからない場合は `ErrYtDlpExec` を返す。標準エラー出力は、読み取りの時点で 4 KiB に達したらそれ以降を保持しない形（`io.LimitReader` や上限付きの書き込み先など）で捕捉し、子プロセスがどれだけ出力しても親のメモリを消費し尽くせないようにする。エラーメッセージに含める標準エラー出力は、この捕捉した先頭 4 KiB までとする。
 -   タイムアウトまたはキャンセルは `context.DeadlineExceeded` / `context.Canceled` として報告する。
 
 **Acceptance Criteria**:
@@ -100,6 +100,7 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 - **AC-07**: `yt-dlp` の起動にシェルを経由しない。外部コマンドの実行は差し替え可能で、引数の配列と子プロセスへ渡す環境変数はテストから検証できる。
 - **AC-08**: タイムアウトまたはキャンセルで `yt-dlp` が終了した場合、`errors.Is(err, context.DeadlineExceeded)` または `errors.Is(err, context.Canceled)` が真になるエラーを返す。
 - **AC-09**: `yt-dlp` が非ゼロで終了した場合、および実行ファイルが見つからない場合は、`errors.Is(err, ErrYtDlpExec)` が真になるエラーを返す。エラーメッセージに標準エラー出力を含める場合は先頭 4 KiB までで切り詰められる。
+- **AC-51**: 子プロセスが 4 KiB を大きく超える標準エラー出力を出して非ゼロ終了したとき、返るエラーのメッセージに含まれる標準エラー出力は先頭 4 KiB までであり、それ以降の出力は保持されない。捕捉は読み取りの時点で 4 KiB に制限され、子プロセスの出力量によらず親のメモリを消費し尽くせない。
 - **AC-28**: タイムアウトに 0 以下の値を指定した構築はエラーになる。
 - **AC-44**: `yt-dlp` の起動時に子プロセスへ渡る環境変数は allowlist に限定される。テストは、テスト専用の目印 `YT2COLUMN_TEST_UNLISTED_MARKER`（ブロックリストでは除かれない名前）と `DEEPSEEK_API_KEY` を親の環境に設定し、さらに allowlist の変数（`PATH`・`HOME`・`TMPDIR`・`SSL_CERT_FILE`・`HTTPS_PROXY`・`LANG`）を設定して `Fetch` を実行する。子へ渡る環境に目印と `DEEPSEEK_API_KEY` が含まれず、設定した allowlist の各変数が同じ値で含まれることを、外部コマンドの実行の差し替えで検証する。未設定の allowlist の変数は子の環境に含まれない。
 
@@ -111,13 +112,15 @@ json3 形式の字幕を読み、セグメントの並びに変換する。
 -   本文を含むイベントは、0 以上の整数の `tStartMs` を持たなければならない。欠落している場合、または負数・非整数など 0 以上の整数として解釈できない値の場合は `ErrParseSubtitles` とし、補正も部分的な結果の返却もしない。
 -   `segs` を持たないイベント、および `utf8` が空の seg は無視する。
 -   自動字幕の json3 には、ローリング表示に由来して、直前のイベントと本文が重複するイベントが含まれることがある。重複の判定は文字列の一致だけで行わず、イベントの `tStartMs` と時間的な重なりの構造に基づいて行う。時間的に離れて現れる同一本文は、意図的な繰り返しとして本文に残す。具体的な判定規則は `02_architecture.md` の作成時に実データから導き、同書に記録したものを固定して使う。
--   壊れた JSON、または `events` を持たない JSON はエラー（`ErrParseSubtitles`）とし、部分的な結果を返さない。
+-   入力の JSON をデコードする前に、生のバイト列が `utf8.Valid` であることを検証する。`encoding/json` は不正なバイト列を黙って U+FFFD に置換するため、これを検証しないと補正された文字起こしを返してしまう。不正な UTF-8 は `ErrParseSubtitles` とし、部分的な結果を返さない。
+-   壊れた JSON、`events` を持たない JSON、`events` が JSON の `null` である JSON、および `events` が配列以外の値である JSON はエラー（`ErrParseSubtitles`）とし、部分的な結果を返さない。`events` が配列でない場合は字幕なし（`ErrNoSubtitles`）ではなく `ErrParseSubtitles` として報告する。
 -   入力の json3 ファイルのサイズ、およびデコードするイベント数には上限を設ける。上限値は `02_architecture.md` で固定し（本要件では値を決めない）、上限を超える入力は `ErrParseSubtitles` とし、部分的な結果を返さない。入力がちょうど上限の場合は受理する。
 
 **Acceptance Criteria**:
 - **AC-10**: `segs[].utf8` をこの順に連結した文字列がセグメントの本文になり、イベントの `tStartMs` がその開始時刻（ミリ秒）になる。
 - **AC-11**: `segs` を持たないイベント、および `utf8` が空の seg はセグメントに含めない。
-- **AC-12**: json3 として不正な JSON、または `events` を持たない JSON は、`errors.Is(err, ErrParseSubtitles)` が真になるエラーになる。
+- **AC-12**: json3 として不正な JSON、`events` を持たない JSON、`events` が `null` である JSON（例: `{"events":null}`）、および `events` が配列以外の値である JSON は、`errors.Is(err, ErrParseSubtitles)` が真になるエラーになり、`ErrNoSubtitles` ではない。
+- **AC-52**: 不正な UTF-8 バイト列を含む json3 を入力したとき、`errors.Is(err, ErrParseSubtitles)` が真になるエラーになり、部分的な結果を返さない。テストは、そのようなバイト列を含む `testdata/` のサンプルで行う。
 - **AC-13**: パーサは `testdata/` に保存した実際の `yt-dlp` 出力でテストされる。
 - **AC-32**: 重複したイベントを含む実データを入力したとき、重複の判定は `tStartMs` と時間的な重なりの構造に基づいて行われ、ローリング表示に由来する同一文は本文に重複して現れない。
 - **AC-45**: 本文を含むイベントの `tStartMs` が欠落している場合、または負数・非整数など 0 以上の整数として解釈できない値である場合、`errors.Is(err, ErrParseSubtitles)` が真になるエラーになり、部分的な結果を返さない。
@@ -130,11 +133,13 @@ json3 形式の字幕を読み、セグメントの並びに変換する。
 info.json 形式のメタ情報を読み、タイトル・チャンネル名・概要欄を取り出す。タイトルとチャンネル名は必須で、概要欄は任意である。あわせて `id` を読み、要求された検証済みの動画 ID と一致することを必須とする。一致しない場合は補正せずに拒否する。
 
 -   概要欄は空でありうる（空をエラーにしない）。`title` またはチャンネル名が欠落または空の場合は `ErrParseInfo` とし、`Transcript` を組み立てない。
+-   入力の JSON をデコードする前に、生のバイト列が `utf8.Valid` であることを検証する。`encoding/json` は不正なバイト列を黙って U+FFFD に置換するため、これを検証しないと補正されたメタ情報を返してしまう。不正な UTF-8 は `ErrParseInfo` とし、`Transcript` を組み立てない。
 -   入力の info.json ファイルのサイズには上限を設ける。上限値は `02_architecture.md` で固定し（本要件では値を決めない）、上限を超える入力は `ErrParseInfo` とし、部分的な結果を返さない。入力がちょうど上限の場合は受理する。
 
 **Acceptance Criteria**:
 - **AC-14**: info.json からタイトル・チャンネル名・概要欄を取り出した結果が、`Transcript` の `Title`・`ChannelName`・`Description` にそれぞれ入る。
 - **AC-15**: info.json として不正な JSON は、`errors.Is(err, ErrParseInfo)` が真になるエラーになる。
+- **AC-53**: 不正な UTF-8 バイト列を含む info.json を入力したとき、`errors.Is(err, ErrParseInfo)` が真になるエラーになり、`Transcript` を組み立てない。テストは、そのようなバイト列を含む `testdata/` のサンプルで行う。
 - **AC-16**: 概要欄は空でありうる（空をエラーにしない）。一方、タイトルとチャンネル名が欠落または空の場合は、`errors.Is(err, ErrParseInfo)` が真になるエラーになり、`Transcript` を組み立てない。
 - **AC-47**: info.json の `id` が要求された検証済みの動画 ID と一致しない場合、`errors.Is(err, ErrParseInfo)` が真になるエラーになり、`Transcript` を組み立てない。
 - **AC-50**: info.json ファイルのサイズが `02_architecture.md` で固定した上限ちょうどの入力は受理され、上限を超える入力は `errors.Is(err, ErrParseInfo)` が真になるエラーになり、部分的な結果を返さない。
@@ -211,8 +216,8 @@ info.json 形式のメタ情報を読み、タイトル・チャンネル名・�
 URL・json3・info.json という信頼できない入力を扱う各境界は、次の契約に従う。各境界は「受理する形」に合致する入力だけを受理し、いずれかの拒否条件に当てはまる入力は補正・正規化・切り詰めをせずに拒否する。拒否時は必ず対応する番兵エラーを `errors.Is` で判別できる形でラップし、部分的な結果を返さない。サイズ・件数の上限を超える入力も同じ番兵で拒否する。
 
 -   **URL（F-001）:** 受理する形は、スキームが `http`・`https` で、ホストが `youtube.com`（`www`・`m` を含む）または `youtu.be` であり、対応する URL 形式（`youtube.com/watch?v=<id>`・`youtu.be/<id>`・`youtube.com/embed/<id>`・`youtube.com/shorts/<id>`・`youtube.com/live/<id>`）から `[A-Za-z0-9_-]{11}` の動画 ID を取り出せ、動画 ID の後に余分なパス要素が続かないものに限る。拒否条件は、スキームの欠落・`http`/`https` 以外、対象外ホスト、動画 ID の欠落・不正、`v` の重複、動画 ID の後に続く余分な・末尾のパス区切り、前後の空白、URL 形式に当てはまらない文字列である。拒否時は補正せず `ErrInvalidVideoURL` を返す。
--   **json3（F-003）:** 受理する形は、`events` 配列を持ち、本文を含む各イベントが 0 以上の整数の `tStartMs` を持つものに限る。拒否条件は、壊れた JSON、`events` の欠落、`tStartMs` の欠落・負数・非整数、ファイルサイズが上限を超える場合、デコードするイベント数が上限を超える場合である。拒否時は `ErrParseSubtitles` を返す。
--   **info.json（F-004）:** 受理する形は、`title` とチャンネル名が非空で、`id` が要求された検証済みの動画 ID と一致するものに限る。拒否条件は、壊れた JSON、`title`・チャンネル名の欠落または空、`id` の不一致、ファイルサイズが上限を超える場合である。拒否時は `ErrParseInfo` を返す。
+-   **json3（F-003）:** 受理する形は、`events` が JSON 配列であり、本文を含む各イベントが 0 以上の整数の `tStartMs` を持つものに限る。拒否条件は、壊れた JSON、生のバイト列が不正な UTF-8 である場合、`events` の欠落、`events` が `null` または配列以外の値である場合、`tStartMs` の欠落・負数・非整数、ファイルサイズが上限を超える場合、デコードするイベント数が上限を超える場合である。拒否時は `ErrParseSubtitles` を返す（`ErrNoSubtitles` ではない）。
+-   **info.json（F-004）:** 受理する形は、`title` とチャンネル名が非空で、`id` が要求された検証済みの動画 ID と一致するものに限る。拒否条件は、壊れた JSON、生のバイト列が不正な UTF-8 である場合、`title`・チャンネル名の欠落または空、`id` の不一致、ファイルサイズが上限を超える場合である。拒否時は `ErrParseInfo` を返す。
 
 json3 と info.json の具体的なサイズ・件数の上限値は `02_architecture.md` で固定する（本要件では値を決めない）。上限の判定はファイルの読み込み時点で行い、上限を超えた入力からは部分的な結果を返さない（[security.md](../../dev/security.md) §3）。
 
@@ -233,8 +238,9 @@ json3 と info.json の具体的なサイズ・件数の上限値は `02_archite
 -   URL を検証し、正規化 URL を `--` の後に渡す（F-001・F-002・AC-06）。スキームは `http`・`https` のみを受理し、それ以外は拒否する（F-001・AC-03）。
 -   動画 ID を `[A-Za-z0-9_-]{11}` に限定し、パス区切りや `..` を含む URL 文字列をキャッシュのパスに使わない（F-001・AC-02・AC-04）。info.json の `id` は要求された動画 ID と一致することを要求する（F-004・AC-47）。
 -   json3 と info.json という信頼できない入力をパースするとき、ファイルサイズとイベント数に上限を設け、上限を超える入力は対応する番兵で拒否して部分的な結果を返さない（F-003・F-004・AC-48・AC-49・AC-50）。上限値は `02_architecture.md` で固定する（[security.md](../../dev/security.md) §3）。
+-   json3 と info.json の生のバイト列は、デコードの前に `utf8.Valid` で検証し、不正な UTF-8 は対応する番兵（`ErrParseSubtitles` / `ErrParseInfo`）で拒否する。`encoding/json` が不正なバイト列を U+FFFD に黙って置換した補正済みの結果を返さない（F-003・F-004・AC-52・AC-53）。
 -   `yt-dlp` の起動にタイムアウトを設定する（F-002）。
--   標準エラー出力をエラーに含める場合は先頭 4 KiB までに切り詰める（F-002・AC-09）。
+-   標準エラー出力は読み取りの時点で先頭 4 KiB までに制限して捕捉し、子プロセスの出力量によらず親のメモリを消費しない（F-002・AC-09・AC-51）。
 -   キャッシュディレクトリは `0o700`、ファイルは `0o600` で作成する（F-005・AC-19）。
 -   字幕・タイトル・概要欄は信頼できない入力として扱う。本タスクでは保存と受け渡しだけを行い、他のコマンドやコードとして実行しない。
 
