@@ -145,6 +145,25 @@ func writeTestFile(t *testing.T, path, content string) {
 	}
 }
 
+// writeSparseFile creates a file of size bytes without writing its content.
+func writeSparseFile(t *testing.T, path string, size int64) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatalf("create %s: %v", filepath.Dir(path), err)
+	}
+	file, err := os.Create(path) //nolint:gosec // the path names a file inside a test temp directory
+	if err != nil {
+		t.Fatalf("create %s: %v", path, err)
+	}
+	if err := file.Truncate(size); err != nil {
+		_ = file.Close()
+		t.Fatalf("truncate %s: %v", path, err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatalf("close %s: %v", path, err)
+	}
+}
+
 // placeRealCache places the committed real fixtures as a valid cache (slot a,
 // pointer a) and returns the fixture bytes.
 func placeRealCache(t *testing.T, dir, id string) (subtitles, info []byte) {

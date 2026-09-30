@@ -67,30 +67,29 @@ func assertSingleGeneration(t *testing.T, transcript Transcript) {
 	}
 }
 
-// assertNoDangling checks, using only the file names, that the video has no
-// entries beyond the pointer and the slot the pointer names.
+// assertNoDangling checks that only the pointer and the slot it names remain
+// among the video's fixed names. Entries outside the rule, such as
+// <id>.notes, are ignored.
 func assertNoDangling(t *testing.T, dir, id string) {
 	t.Helper()
-	allowed := map[string]bool{pointerPath(dir, id): true}
-	pointer, err := os.ReadFile(pointerPath(dir, id))
-	if err == nil {
+	allowed := map[string]bool{}
+	if pointer, err := os.ReadFile(pointerPath(dir, id)); err == nil {
 		if slot := string(pointer); slot == slotNameA || slot == slotNameB {
+			allowed[pointerPath(dir, id)] = true
 			allowed[slotDirPath(dir, id, slot)] = true
 		}
-	} else if !errors.Is(err, fs.ErrNotExist) {
-		t.Fatalf("read pointer: %v", err)
 	}
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatalf("read cache dir: %v", err)
-	}
-	for _, entry := range entries {
-		if !strings.HasPrefix(entry.Name(), id+".") {
+	for _, path := range []string{
+		pointerPath(dir, id),
+		slotDirPath(dir, id, slotNameA),
+		slotDirPath(dir, id, slotNameB),
+		pointerTmpPath(dir, id),
+	} {
+		if allowed[path] {
 			continue
 		}
-		path := filepath.Join(dir, entry.Name())
-		if !allowed[path] {
-			t.Errorf("%s is a dangling entry", path)
+		if _, err := os.Lstat(path); !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("%s is a dangling entry (error = %v)", path, err)
 		}
 	}
 }
@@ -745,30 +744,20 @@ func TestFetchForceRefresh(t *testing.T) {
 	assertNoDangling(t, dir, id)
 }
 
-func TestFetchForceRefreshFailureKeepsCache(t *testing.T) {
-	id := testdataRealVideoID
+// refreshFailureCase is one failure kind that a Fetch must survive without
+// changing an existing valid cache.
+type refreshFailureCase struct {
+	name     string
+	timeout  time.Duration
+	canceled bool
+	behavior func(t *testing.T, id string, cancel context.CancelFunc) func(fakeCommandCall) error
+}
 
-	assertCacheKept := func(t *testing.T, source *YtDlpSource, ctx context.Context, dir string, oldSubtitles, oldInfo []byte) {
-		t.Helper()
-		if _, err := source.Fetch(ctx, watchURL(id)); err == nil {
-			t.Fatal("Fetch error = nil, want a failure")
-		}
-		slotA := slotDirPath(dir, id, slotNameA)
-		assertFileContent(t, pointerPath(dir, id), slotNameA)
-		assertFileContent(t, subtitlesPath(slotA, id), string(oldSubtitles))
-		assertFileContent(t, infoPath(slotA, id), string(oldInfo))
-		if _, err := os.Lstat(slotDirPath(dir, id, slotNameB)); !errors.Is(err, fs.ErrNotExist) {
-			t.Errorf("write slot remains after the failed refresh (error = %v)", err)
-		}
-		assertNoDangling(t, dir, id)
-	}
-
-	cases := []struct {
-		name     string
-		timeout  time.Duration
-		canceled bool
-		behavior func(t *testing.T, id string, cancel context.CancelFunc) func(fakeCommandCall) error
-	}{
+// refreshFailureCases returns every failure kind a forced refresh must
+// survive: a non-zero exit, a timeout, a cancellation during the run, and a
+// successful run that produces no usable pair.
+func refreshFailureCases() []refreshFailureCase {
+	return []refreshFailureCase{
 		{
 			name: "nonzero exit",
 			behavior: func(*testing.T, string, context.CancelFunc) func(fakeCommandCall) error {
@@ -842,10 +831,32 @@ func TestFetchForceRefreshFailureKeepsCache(t *testing.T) {
 			},
 		},
 	}
-	for _, tc := range cases {
+}
+
+func TestFetchForceRefreshFailureKeepsCache(t *testing.T) {
+	id := testdataRealVideoID
+
+	assertCacheKept := func(t *testing.T, source *YtDlpSource, ctx context.Context, dir string, oldSubtitles, oldInfo []byte) {
+		t.Helper()
+		if _, err := source.Fetch(ctx, watchURL(id)); err == nil {
+			t.Fatal("Fetch error = nil, want a failure")
+		}
+		slotA := slotDirPath(dir, id, slotNameA)
+		assertFileContent(t, pointerPath(dir, id), slotNameA)
+		assertFileContent(t, subtitlesPath(slotA, id), string(oldSubtitles))
+		assertFileContent(t, infoPath(slotA, id), string(oldInfo))
+		if _, err := os.Lstat(slotDirPath(dir, id, slotNameB)); !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("write slot remains after the failed refresh (error = %v)", err)
+		}
+		assertFileContent(t, filepath.Join(dir, id+".notes"), "notes")
+		assertNoDangling(t, dir, id)
+	}
+
+	for _, tc := range refreshFailureCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := filepath.Join(t.TempDir(), "cache")
 			oldSubtitles, oldInfo := placeRealCache(t, dir, id)
+			writeTestFile(t, filepath.Join(dir, id+".notes"), "notes")
 
 			ctx := t.Context()
 			cancel := context.CancelFunc(func() {})
@@ -949,6 +960,36 @@ func TestFetchEntryTypeMismatch(t *testing.T) {
 		if _, err := os.Lstat(pointerPath(dir, id)); !errors.Is(err, fs.ErrNotExist) {
 			t.Errorf("a failed commit wrote a pointer (error = %v)", err)
 		}
+	})
+
+	t.Run("slot is a symlink to another directory", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), "cache")
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			t.Fatalf("mkdir %s: %v", dir, err)
+		}
+		outside := filepath.Join(t.TempDir(), "outside")
+		if err := os.MkdirAll(outside, 0o700); err != nil {
+			t.Fatalf("mkdir %s: %v", outside, err)
+		}
+		writeSlotFiles(t, outside, id, subtitleDocument("outside"), infoDocument(id, "outside"))
+		if err := os.Symlink(outside, slotDirPath(dir, id, slotNameA)); err != nil {
+			t.Fatalf("symlink: %v", err)
+		}
+		placePointer(t, dir, id, slotNameA)
+
+		fake := &fakeCommandExecutor{behavior: writeGeneration(t, id, runGeneration(id))}
+		source := newTestSource(t, dir, fake, nil)
+		transcript, err := source.Fetch(t.Context(), watchURL(id))
+		if err != nil {
+			t.Fatalf("Fetch error = %v", err)
+		}
+		if fake.callCount() != 1 {
+			t.Fatalf("yt-dlp ran %d times, want 1: a symlinked slot is not a valid cache", fake.callCount())
+		}
+		if transcript.Title != "title-run" {
+			t.Errorf("title = %q, want the run generation, not the linked directory", transcript.Title)
+		}
+		assertFileContent(t, subtitlesPath(outside, id), subtitleDocument("outside"))
 	})
 
 	t.Run("pointer is a symlink", func(t *testing.T) {
@@ -1293,15 +1334,31 @@ func TestFetchInterruptedStates(t *testing.T) {
 			})
 
 			t.Run("forced failure", func(t *testing.T) {
-				dir := filepath.Join(t.TempDir(), "cache")
-				state.build(t, dir)
-				fake := &fakeCommandExecutor{behavior: failRun(errors.New("exit status 1"))}
-				source := newTestSource(t, dir, fake, func(options *Options) { options.ForceRefresh = true })
+				for _, failure := range refreshFailureCases() {
+					t.Run(failure.name, func(t *testing.T) {
+						dir := filepath.Join(t.TempDir(), "cache")
+						state.build(t, dir)
 
-				if _, err := source.Fetch(t.Context(), watchURL(id)); err == nil {
-					t.Fatal("Fetch error = nil, want a failure")
+						ctx := t.Context()
+						cancel := context.CancelFunc(func() {})
+						if failure.canceled {
+							ctx, cancel = context.WithCancel(ctx)
+						}
+						defer cancel()
+						fake := &fakeCommandExecutor{behavior: failure.behavior(t, id, cancel)}
+						source := newTestSource(t, dir, fake, func(options *Options) {
+							options.ForceRefresh = true
+							if failure.timeout != 0 {
+								options.Timeout = failure.timeout
+							}
+						})
+
+						if _, err := source.Fetch(ctx, watchURL(id)); err == nil {
+							t.Fatal("Fetch error = nil, want a failure")
+						}
+						assertNoDangling(t, dir, id)
+					})
 				}
-				assertNoDangling(t, dir, id)
 			})
 		})
 	}
@@ -1411,6 +1468,98 @@ func TestFetchUnreadableSubtitleFile(t *testing.T) {
 			t.Errorf("ParseError.Path = %q, want %q", parseErr.Path, path)
 		}
 		assertFileContent(t, pointerPath(dir, id), slotNameA)
+	})
+}
+
+func TestFetchUnreadablePointer(t *testing.T) {
+	requireNonRoot(t)
+	dir := filepath.Join(t.TempDir(), "cache")
+	id := testdataRealVideoID
+	subtitles, info := placeRealCache(t, dir, id)
+	chmodForTest(t, pointerPath(dir, id), 0o000)
+
+	fake := &fakeCommandExecutor{}
+	source := newTestSource(t, dir, fake, nil)
+	_, err := source.Fetch(t.Context(), watchURL(id))
+	if err == nil {
+		t.Fatal("Fetch error = nil, want a read failure")
+	}
+	if !errors.Is(err, fs.ErrPermission) {
+		t.Errorf("Fetch error = %v, want a permission failure", err)
+	}
+	if fake.callCount() != 0 {
+		t.Errorf("yt-dlp ran %d times, want 0", fake.callCount())
+	}
+	// Treating an unreadable pointer as invalid would have deleted the cache.
+	slotDir := slotDirPath(dir, id, slotNameA)
+	assertFileContent(t, subtitlesPath(slotDir, id), string(subtitles))
+	assertFileContent(t, infoPath(slotDir, id), string(info))
+	if _, err := os.Lstat(pointerPath(dir, id)); err != nil {
+		t.Errorf("pointer disappeared: %v", err)
+	}
+}
+
+func TestFetchOversizedFiles(t *testing.T) {
+	id := testdataRealVideoID
+
+	t.Run("cached subtitle over the limit", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), "cache")
+		slotDir := slotDirPath(dir, id, slotNameA)
+		writeSparseFile(t, subtitlesPath(slotDir, id), maxSubtitlesBytes+1)
+		writeTestFile(t, infoPath(slotDir, id), infoDocument(id, "old"))
+		placePointer(t, dir, id, slotNameA)
+		fake := &fakeCommandExecutor{}
+		source := newTestSource(t, dir, fake, nil)
+
+		_, err := source.Fetch(t.Context(), watchURL(id))
+		if !errors.Is(err, ErrParseSubtitles) || !errors.Is(err, errInputTooLarge) {
+			t.Fatalf("Fetch error = %v, want ErrParseSubtitles with the size limit", err)
+		}
+		parseErr, ok := errors.AsType[*ParseError](err)
+		if !ok || parseErr.Path != subtitlesPath(slotDir, id) {
+			t.Errorf("Fetch error = %v, want a ParseError with the subtitle path", err)
+		}
+		if fake.callCount() != 0 {
+			t.Errorf("yt-dlp ran %d times, want 0", fake.callCount())
+		}
+	})
+
+	t.Run("cached info over the limit", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), "cache")
+		slotDir := slotDirPath(dir, id, slotNameA)
+		writeTestFile(t, subtitlesPath(slotDir, id), subtitleDocument("old"))
+		writeSparseFile(t, infoPath(slotDir, id), maxInfoBytes+1)
+		placePointer(t, dir, id, slotNameA)
+		fake := &fakeCommandExecutor{}
+		source := newTestSource(t, dir, fake, nil)
+
+		_, err := source.Fetch(t.Context(), watchURL(id))
+		if !errors.Is(err, ErrParseInfo) || !errors.Is(err, errInputTooLarge) {
+			t.Fatalf("Fetch error = %v, want ErrParseInfo with the size limit", err)
+		}
+		parseErr, ok := errors.AsType[*ParseError](err)
+		if !ok || parseErr.Path != infoPath(slotDir, id) {
+			t.Errorf("Fetch error = %v, want a ParseError with the info path", err)
+		}
+	})
+
+	t.Run("run output over the limit", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), "cache")
+		fake := &fakeCommandExecutor{behavior: func(call fakeCommandCall) error {
+			slotDir := slotDirFromArgs(t, call.args)
+			writeSparseFile(t, subtitlesPath(slotDir, id), maxSubtitlesBytes+1)
+			writeTestFile(t, infoPath(slotDir, id), infoDocument(id, "run"))
+			return nil
+		}}
+		source := newTestSource(t, dir, fake, nil)
+
+		_, err := source.Fetch(t.Context(), watchURL(id))
+		if !errors.Is(err, ErrParseSubtitles) || !errors.Is(err, errInputTooLarge) {
+			t.Fatalf("Fetch error = %v, want ErrParseSubtitles with the size limit", err)
+		}
+		if _, err := os.Lstat(pointerPath(dir, id)); !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("an oversized run output committed a cache entry (error = %v)", err)
+		}
 	})
 }
 

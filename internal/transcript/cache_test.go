@@ -3,6 +3,7 @@
 package transcript
 
 import (
+	"context"
 	"errors"
 	"io/fs"
 	"os"
@@ -19,7 +20,13 @@ func TestCachePermissions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("prepareWriteSlot error = %v", err)
 	}
-	writeSlotFiles(t, slotDir, id, "{}", "{}")
+	// The files start with a looser mode so the assertions below fail when
+	// persistSlot does not tighten them.
+	for _, path := range []string{subtitlesPath(slotDir, id), infoPath(slotDir, id)} {
+		if err := os.WriteFile(path, []byte("{}"), 0o644); err != nil {
+			t.Fatalf("write %s: %v", path, err)
+		}
+	}
 	if err := persistSlot(slotDir, id); err != nil {
 		t.Fatalf("persistSlot error = %v", err)
 	}
@@ -211,6 +218,21 @@ func TestPruneCachePartialFailure(t *testing.T) {
 	}
 }
 
+func TestReadMissingCacheFile(t *testing.T) {
+	dir := t.TempDir()
+	missingSubtitles := filepath.Join(dir, "missing.json3")
+	missingInfo := filepath.Join(dir, "missing.info.json")
+
+	// A file that disappeared between the existence check and the read is a
+	// miss, not a parse error, so the next Fetch re-fetches it.
+	if _, err := readSubtitlesFile(missingSubtitles); !errors.Is(err, errFileMissing) {
+		t.Errorf("readSubtitlesFile error = %v, want errFileMissing", err)
+	}
+	if _, err := readInfoFile(missingInfo, testdataRealVideoID); !errors.Is(err, errFileMissing) {
+		t.Errorf("readInfoFile error = %v, want errFileMissing", err)
+	}
+}
+
 func TestRemoveCache(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "cache")
 	fake := &fakeCommandExecutor{}
@@ -369,6 +391,53 @@ func TestRemoveCacheFailure(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestRemoveCacheCanceled(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "cache")
+	id := testdataRealVideoID
+	placeRealCache(t, dir, id)
+	source := newTestSource(t, dir, &fakeCommandExecutor{}, nil)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	err := source.RemoveCache(ctx, "https://www.youtube.com/watch?v="+id)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("RemoveCache error = %v, want context.Canceled", err)
+	}
+	assertFileContent(t, pointerPath(dir, id), slotNameA)
+}
+
+func TestPruneCacheCanceled(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "cache")
+	id := testdataRealVideoID
+	placeSlot(t, dir, id, slotNameA, generationFor(id, "stale"))
+	source := newTestSource(t, dir, &fakeCommandExecutor{}, nil)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	err := source.PruneCache(ctx)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("PruneCache error = %v, want context.Canceled", err)
+	}
+	if _, err := os.Lstat(slotDirPath(dir, id, slotNameA)); err != nil {
+		t.Errorf("cancellation deleted a dangling entry: %v", err)
+	}
+}
+
+func TestRemoveDanglingCanceled(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "cache")
+	id := testdataRealVideoID
+	placeSlot(t, dir, id, slotNameA, generationFor(id, "stale"))
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if err := removeDangling(ctx, dir, id, pointerMissing); !errors.Is(err, context.Canceled) {
+		t.Fatalf("removeDangling error = %v, want context.Canceled", err)
+	}
+	if _, err := os.Lstat(slotDirPath(dir, id, slotNameA)); err != nil {
+		t.Errorf("cancellation deleted a dangling entry: %v", err)
+	}
 }
 
 // readDirNames returns the sorted names in dir.

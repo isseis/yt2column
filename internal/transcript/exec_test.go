@@ -316,6 +316,32 @@ func TestCommandExecutorWaitDelay(t *testing.T) {
 	})
 }
 
+func TestRedactStderr(t *testing.T) {
+	const secret = "s3cret-proxy-value"
+	env := []string{
+		"HTTPS_PROXY=" + secret,
+		"NO_PROXY=",
+		"LANG=en_US.UTF-8",
+	}
+	cases := map[string]struct {
+		input string
+		want  string
+	}{
+		"full proxy value":     {"error: " + secret + " failed", "error: " + redactedMarker + " failed"},
+		"value cut at the cap": {"error: " + secret[:7], "error: " + redactedMarker},
+		"URL userinfo":         {"https://user:pass@proxy.example/x", "https://" + redactedMarker + "@proxy.example/x"},
+		"empty proxy value":    {"nothing to redact", "nothing to redact"},
+		"non-proxy value kept": {"LANG=en_US.UTF-8", "LANG=en_US.UTF-8"},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			if got := redactStderr(tc.input, env); got != tc.want {
+				t.Errorf("redactStderr(%q, env) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
 // writeHelperScript writes an executable POSIX shell script and returns its path.
 func writeHelperScript(t *testing.T, content string) string {
 	t.Helper()

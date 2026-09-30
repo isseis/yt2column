@@ -104,6 +104,9 @@ func (s *YtDlpSource) RemoveCache(ctx context.Context, videoURL string) error {
 // The caller must not run Fetch or another PruneCache on the same CacheDir
 // concurrently.
 func (s *YtDlpSource) PruneCache(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	dir := s.options.CacheDir
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -152,6 +155,11 @@ func (s *YtDlpSource) readCached(id, normalizedURL string) (Transcript, bool, er
 	}
 
 	slotDir := slotDirPath(dir, id, slot)
+	if info, err := os.Lstat(slotDir); err != nil || !info.IsDir() {
+		// A missing or non-directory slot, including a symlink, is not a
+		// valid generation and is never followed.
+		return Transcript{}, false, nil
+	}
 	subtitleFile := subtitlesPath(slotDir, id)
 	infoFile := infoPath(slotDir, id)
 	if !cacheFileExists(subtitleFile) || !cacheFileExists(infoFile) {

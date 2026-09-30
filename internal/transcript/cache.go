@@ -103,13 +103,19 @@ func readPointer(dir, id string) (pointerState, error) {
 		if errors.Is(err, fs.ErrNotExist) {
 			return pointerMissing, nil
 		}
-		// A pointer that exists but cannot be read is not a valid one.
-		return pointerInvalid, nil
+		// An unreadable pointer is an error, not an invalid one: treating it
+		// as invalid would let the cleanup delete an intact cache.
+		return pointerMissing, err
 	}
 	defer func() { _ = file.Close() }()
 	var content [1]byte
-	if _, err := io.ReadFull(file, content[:]); err != nil {
-		return pointerInvalid, nil
+	switch _, err := io.ReadFull(file, content[:]); {
+	case err == nil:
+	case errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF):
+		// The file was truncated under us: there is no valid generation.
+		return pointerMissing, nil
+	default:
+		return pointerMissing, err
 	}
 	switch content[0] {
 	case 'a':

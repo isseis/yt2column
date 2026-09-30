@@ -349,7 +349,7 @@ AC ごとの検証は次のとおり。`test` は実行可能なテスト、`sta
 | AC-56 | 大量の標準エラー出力の後の非ゼロ終了でタイムアウトを待たない | test | `internal/transcript/exec_test.go::TestCommandExecutorDrainsStderr`・`internal/transcript/ytdlp_test.go::TestFetchStderrCapAndRedaction` |
 | AC-57 | `segs`・`utf8` の形の拒否 | test | `internal/transcript/json3_test.go::TestParseSubtitlesElementKinds` |
 | AC-58 | 強制再取得の失敗で既存キャッシュを保護 | test | `internal/transcript/ytdlp_test.go::TestFetchForceRefreshFailureKeepsCache`（非ゼロ終了・タイムアウト・キャンセル・字幕なしの正常終了・不正 json3・不正 info.json・`id` 不一致・info.json なしの 8 ケース） |
-| AC-59 | 別動画・無関係なファイルの不変と一時ファイルの非残存 | test | `internal/transcript/ytdlp_test.go::TestFetchUnrelatedEntriesUntouched`（成功・各失敗の後に別動画のキャッシュと無関係なファイルが不変であること）・`TestFetchEntryTypeMismatch`（固定名に置いた種別の異なるエントリに触れずファイルシステムエラーを返すこと） |
+| AC-59 | 別動画・無関係なファイルの不変と一時ファイルの非残存 | test | `internal/transcript/ytdlp_test.go::TestFetchUnrelatedEntriesUntouched`（成功・失敗の後に別動画のキャッシュと無関係なファイルが不変であること）・`TestFetchForceRefreshFailureKeepsCache`（AC-58 の各失敗の後に当該動画の `<id>.notes` と書き込み先スロットが残らないこと）・`TestFetchEntryTypeMismatch`（固定名に置いた種別の異なるエントリに触れずファイルシステムエラーを返すこと） |
 | AC-60 | 字幕あり info.json なしで `ErrParseInfo` | test | `internal/transcript/ytdlp_test.go::TestFetchInfoMissing` |
 | AC-61 | 両方なしで `ErrNoSubtitles`（字幕優先） | test | `internal/transcript/ytdlp_test.go::TestFetchNoSubtitles` |
 | AC-62 | 起動・待機失敗の番兵 | test | `internal/transcript/ytdlp_test.go::TestFetchYtDlpFailure`・`internal/transcript/exec_test.go::TestCommandExecutorStartFailure`（実 executor の起動失敗が握り潰されず `ErrYtDlpExec` へ対応付けられる） |
