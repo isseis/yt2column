@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-09-30 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 2026-09-30: 要件 §5 の事前調査のうち、字幕なし動画での `yt-dlp` の終了コードと出力を §1.4 に追記した（終了コード 0・info.json のみ出力。既存の設計を変える結果ではない）。 |
+| Review date | 2026-09-30 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 設計の全体像 (Design Overview)
 
