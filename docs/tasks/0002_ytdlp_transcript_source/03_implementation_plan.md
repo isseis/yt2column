@@ -41,7 +41,7 @@
 - **pre-commit の lint タグだけが未変更。** `.pre-commit-config.yaml:23` は `run --build-tags test`。`testdata/` の除外は `check-added-large-files` が初期設定から（`:37`）、`trailing-whitespace`・`end-of-file-fixer` がコミット `4bf3ffd` で追加済み（`:32`・`:34`）のため、変更はタグの 1 箇所で足りる。
 - **CI の lint タグも未変更。** `.github/workflows/ci.yml:88` は `--build-tags test --timeout=5m`。`make test-ci` は `:61` で実行される。
 - **ドキュメントの更新対象。** `docs/dev/developer_guide/package_reference.md:14` の `internal/transcript` の行は現在「型と interface を定義する」であり、実装を追加する説明に更新する。`docs/dev/developer_guide/requirements_process.md:97` の境界チェックは「標準ライブラリが黙って修復・無視する入力は拒否する」と読め、消費しないメンバーを受理する本要件（requirements §3.2、AC-64・AC-67）と整合させる（`design_handoff.md` の H-13）。該当の言い回しは同ファイルにのみ現れる（`rg` で確認）。`docs/dev/project_overview.md:26-30` は最終的な起動引数と事前調査の実施時期を反映済みで、architecture §3.8 に変更対象として挙がっていない。
-- **`cmd/yt2column/main.go` は変更しない。** 現在は空の `main()` のみで（`cmd/yt2column/main.go:1-10`）、設定読み込みと CLI 配線は #6 が行う。
+- **`cmd/yt2column/main.go` は変更しない。** 現在は空の `main()` のみで（`cmd/yt2column/main.go:1-4`）、設定読み込みと CLI 配線は #6 が行う。
 - **外部前提の確認。** `go.mod:3` は `go 1.26.5`、手元のツールチェーンは go1.27.1（`go version`、2026-09-30）。`exec.Cmd.WaitDelay`（Go 1.20 以降）と `errors.AsType`（Go 1.26、CLAUDE.md:206-215）が使える。依存追加は不要で、標準ライブラリのみ（`.golangci.yml:49-59` の depguard）。ベースラインの `go test -tags test ./...` は本計画作成時に成功した（2026-09-30、HEAD `7180e80`。全パッケージが `ok` または `[no test files]`）。
 - **architecture との整合。** 本計画は architecture §8 のフェーズ構成・順序をそのまま採用する。調査で architecture の修正が必要な不整合は見つかっていない。
 
@@ -89,7 +89,7 @@
 
 **タスク**
 - [ ] **ステップ 2-1**: `exec.go` に `commandExecutor` interface（architecture §3.2）と `os/exec` を使う実装を追加する。実装は、引数配列での起動（シェルを経由しない）、`exec.CommandContext` によるタイムアウト・キャンセル、`WaitDelay` 相当の猶予 5 秒（architecture §3.7、定数化）、受け取った `io.Writer` の標準エラー出力への接続、allowlist 環境の組み立て（architecture §3.7 の集合、設定されている変数のみ、allowlist の変数が 1 つも設定されていなくても非 nil の空スライスを渡すこと、秘密情報を含めないこと）を含む。`Run` は生の実行結果を返し、タイムアウト・キャンセルの判別は行わない（`Fetch` の責務。architecture §3.2）。
-- [ ] **ステップ 2-2**: 同じく `exec.go` に、標準エラー出力を 4 KiB まで保持しつつ超過分も読み捨てる `cappedWriter` を追加する。あわせて、保持した標準エラー出力を `ErrYtDlpExec` に含める前に proxy 変数の値と URL の userinfo を伏字にする処理（architecture §4.2）を、`Fetch` から呼べる形で追加する。環境の組み立ては architecture §3.8 で `exec.go` の責務とされているため、その秘密情報を守るこの処理も同じファイルに置く。上限の境界で切れた断片も残さない。
+- [ ] **ステップ 2-2**: 同じく `exec.go` に、標準エラー出力を 4 KiB まで保持しつつ超過分も読み捨てる `cappedWriter` を追加する。標準エラー出力の伏字化（architecture §4.2）はこのフェーズでは追加しない。呼び出し元の `Fetch` と検証する `TestFetchStderrCapAndRedaction` がフェーズ 3 で揃うため、このフェーズで追加すると呼び出しもテストもない非公開関数になり、`unused` によって `make lint` のゲートが通らない（ステップ 3-3 で追加する）。
 - [ ] **ステップ 2-3**: `exec_test.go` を作成し、§5 の AC 表に挙げたテストを実装する（AC-08・AC-51・AC-56）。`t.TempDir` に置いたヘルパー実行ファイル（標準エラー出力を 4 KiB を大きく超えて書いてから非ゼロ終了するもの、および標準エラー出力を開いたまま残る子孫を起動するもの）を使い、ドレインと `WaitDelay` による有界な待機を検証する。待機の有界性は固定の猶予 + 十分な余裕で判定し、厳密な時間比較にしない。
 - [ ] **ステップ 2-4**: `package_reference.md` の `internal/transcript` の行を、このフェーズで加わる外部コマンド実行の境界を含む説明に更新する。
 - [ ] **ステップ 2-5**: 主要な分岐を壊して失敗を確認し、コミットメッセージに記録する。対象の例: 4 KiB の境界（ちょうど/超過）を取り違えると `TestCappedWriter` が失敗する、`cappedWriter` のドレインを止めると `TestCommandExecutorDrainsStderr` が失敗する、`WaitDelay` を外すと `TestCommandExecutorWaitDelay` が失敗する。
@@ -99,6 +99,7 @@
 
 **対象ファイル**
 - 新設: `internal/transcript/cache.go`・`internal/transcript/ytdlp.go`
+- 変更: `internal/transcript/exec.go`（標準エラー出力の伏字化を追加）
 - 新設: `internal/transcript/cache_test.go`・`internal/transcript/ytdlp_test.go`（`//go:build test`）
 - 変更: `internal/transcript/test_helpers.go`（fake `commandExecutor`、キャッシュ状態 S1〜S6 を作るヘルパーを追加）
 - 新設: `internal/transcript/test_helpers_env.go`（`//go:build test || integration`。統合テストの環境変数の確認を純粋な関数として置き、`make test` からユニットテストできるようにする）
@@ -106,7 +107,7 @@
 **タスク**
 - [ ] **ステップ 3-1**: `test_helpers.go` に fake `commandExecutor` とキャッシュ状態ヘルパーを追加し、`test_helpers_env.go` に環境変数の確認（`missingIntegrationEnv(getenv func(string) string) []string`）を実装する。`test_helpers_env.go` は `test_helpers.go` の他のヘルパーに依存させない（`-tags integration` 単独でもコンパイルできるようにする）。fake は引数・環境・渡された `io.Writer`（標準エラー出力）を記録し、ケースごとに設定できる関数で出力の書き込み・終了状態の模擬・`ctx` の状態に応じた失敗を行う。タイムアウト・キャンセルを模擬するときは、実装と同じく context のエラーではない失敗を返す（architecture §3.2）。キャッシュ状態ヘルパーは architecture §6.3 の S1〜S6 を固定名で直接作れるようにする。パーミッションを変えるヘルパーは、変えた時点で `t.Cleanup` に復元を登録する。`test_helpers.go` を使う `_test.go` に `//go:build test` を付け、`integration_test.go` は `//go:build integration` とする（§1.2）。
 - [ ] **ステップ 3-2**: `cache.go` に固定名の組み立て、ポインタの有界な読み取り（I-04）、ヒット判定とスロットの読み込み、書き込み先スロットの準備、ポインタの一時ファイルの排他作成とリネームによるコミット、dangling なエントリの判定と削除、`RemoveCache`（ポインタを先に削除）、`PruneCache`（列挙・名前の判定・種別確認・`errors.Join` での集約・`ctx` の打ち切り）を、architecture §3.5 の手順どおりに実装する。ディレクトリは `0o700`、ファイルは `0o600`（AC-19）。他の動画・無関係なエントリには触れず、シンボリックリンクを辿らない。
-- [ ] **ステップ 3-3**: `ytdlp.go` に `Options`・`YtDlpSource`・`NewYtDlpSource`・`Fetch`・`RemoveCache`・`PruneCache` を実装する。`NewYtDlpSource` は実 executor を設定し、`CacheDir` が空、または `Timeout` が 0 以下なら拒否する（AC-28）。`Fetch` は architecture §6.1 の順序で進め、開始前に `ctx` の終了を確認し（AC-26）、キャッシュヒットでは `yt-dlp` を起動せず、ミス・強制再取得ではフェーズ 2 の executor と allowlist 環境で起動して検証・コミットする。動画 ID を得た後は成否によらず終了時に当該動画の dangling なエントリを削除する（ベストエフォート。AC-69）。エラーは architecture §4.1 の形で番兵をラップし、パース失敗は `*ParseError` でパスを保持し、標準エラー出力は伏字化してから含める。`var _ TranscriptSource = (*YtDlpSource)(nil)` のコンパイル時アサーションを置く。
+- [ ] **ステップ 3-3**: `ytdlp.go` に `Options`・`YtDlpSource`・`NewYtDlpSource`・`Fetch`・`RemoveCache`・`PruneCache` を実装する。`NewYtDlpSource` は実 executor を設定し、`CacheDir` が空、または `Timeout` が 0 以下なら拒否する（AC-28）。`Fetch` は architecture §6.1 の順序で進め、開始前に `ctx` の終了を確認し（AC-26）、キャッシュヒットでは `yt-dlp` を起動せず、ミス・強制再取得ではフェーズ 2 の executor と allowlist 環境で起動して検証・コミットする。動画 ID を得た後は成否によらず終了時に当該動画の dangling なエントリを削除する（ベストエフォート。AC-69）。エラーは architecture §4.1 の形で番兵をラップし、パース失敗は `*ParseError` でパスを保持し、標準エラー出力は伏字化してから含める。伏字化の処理（proxy 変数の値と URL の userinfo の置き換え、上限の境界で切れた断片も残さないこと。architecture §4.2）はこのステップで `exec.go` に追加する。環境の組み立ては architecture §3.8 で `exec.go` の責務とされているため、その秘密情報を守るこの処理も同じファイルに置く。`var _ TranscriptSource = (*YtDlpSource)(nil)` のコンパイル時アサーションを置く。
 - [ ] **ステップ 3-4**: `cache_test.go` を作成し、§5 の AC 表に挙げたキャッシュの削除・掃除のテストを実装する（AC-19・AC-20・AC-70〜AC-75）。パーミッションで失敗を起こすテストは §4.1 の root 前提に従う。
 - [ ] **ステップ 3-5**: `ytdlp_test.go` を作成し、§5 の AC 表に挙げた `Fetch` レベルのテストを実装する（AC-04・AC-06〜AC-09・AC-14・AC-17〜AC-18・AC-20〜AC-31・AC-34〜AC-36・AC-42（`TestMissingIntegrationEnv`）・AC-44・AC-51・AC-56・AC-58〜AC-63・AC-66・AC-68・AC-69）。テストは、構築後に非公開の executor フィールドを `test_helpers.go` の fake に置き換え、`Options.YtDlpPath` には存在しないパスを指定する（差し替え忘れが実 `yt-dlp` の起動にならないようにする）。`TestFetchCacheHit` は `testdata/` の実出力を配置したキャッシュから `Transcript` の `VideoID`・正規化 `VideoURL`・`Title`・`ChannelName`・`Description` に入ること、および別形式の URL（`youtu.be/<id>`）で要求したヒットでも `VideoID` と `VideoURL` が同じ正規化値になることを検証する（AC-14・AC-25、design_handoff H-15）。`TestFetchCacheMiss` でも `VideoID` と正規化 `VideoURL` を検証する。`TestFetchOversizedPointer` のポインタは、有効な 1 バイト（`a` または `b`）で始まり 1 バイトを大きく超える内容にし、先頭 1 バイトだけを見る実装を検出できるようにする。実データのタイトル等の日本語は期待値リテラルとして埋め込まず、フィクスチャから読むか性質（非空など）で検証する。
 - [ ] **ステップ 3-6**: `package_reference.md` の `internal/transcript` の行を、`YtDlpSource`（`Fetch`・`RemoveCache`・`PruneCache`）とキャッシュを含む最終的な説明に更新する。
@@ -147,8 +148,8 @@
 | マイルストーン | 内容 | 成果物 | 完了条件 |
 |---|---|---|---|
 | M1 | フェーズ 1 | `errors.go`・`video_id.go`・`json3.go`・`info.go`、各テスト、`test_helpers.go`（フィクスチャのパス定数）、AC-52・AC-53 用の合成サンプル、`package_reference.md` の更新 | `make test` / `make lint` が通る |
-| M2 | フェーズ 2 | `exec.go`（`commandExecutor`・`cappedWriter`・allowlist 環境・伏字化）と `exec_test.go`、`package_reference.md` の更新 | 同上 |
-| M3 | フェーズ 3 | `cache.go`・`ytdlp.go`・`test_helpers.go`（fake とキャッシュ状態）・`test_helpers_env.go` と `cache_test.go`・`ytdlp_test.go`、`package_reference.md` の更新 | 同上 |
+| M2 | フェーズ 2 | `exec.go`（`commandExecutor`・`cappedWriter`・allowlist 環境）と `exec_test.go`、`package_reference.md` の更新 | 同上 |
+| M3 | フェーズ 3 | `cache.go`・`ytdlp.go`・`exec.go` の伏字化・`test_helpers.go`（fake とキャッシュ状態）・`test_helpers_env.go` と `cache_test.go`・`ytdlp_test.go`、`package_reference.md` の更新 | 同上 |
 | M4 | フェーズ 4 | `integration_test.go`、Makefile・pre-commit・CI のタグ変更、手動実行の記録 | 同上・`make test-integration` が通る |
 | M5 | フェーズ 5 | `requirements_process.md` の更新 | 同上・記述の整合を確認済み |
 
