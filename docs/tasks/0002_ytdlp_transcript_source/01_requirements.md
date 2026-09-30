@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-09-29 |
 | Review date | 2026-09-30 |
 | Reviewer | isseis |
-| Comments | 2026-09-30: AC-67 で、`tStartMs` を消費するのは本文を含むイベントだけであり、破棄されるイベントの `tStartMs` は検証しないことを明記した（F-003・AC-45・AC-54 および design_handoff H-16 に合わせる）。AC-67 の文言上の受理結果が変わるため、判断の変更として `draft` に戻した。 |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
