@@ -5,12 +5,14 @@ package transcript
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -1667,4 +1669,71 @@ func TestFetchSymlinkSlotOutput(t *testing.T) {
 		assertMode(t, target, targetMode)
 		assertFileContent(t, pointerPath(dir, id), slotNameA)
 	})
+}
+
+// firstLineIs reports an error unless the file at path exists and its first
+// line is exactly want.
+func firstLineIs(path, want string) error {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	line, _, _ := strings.Cut(string(content), "\n")
+	if line != want {
+		return fmt.Errorf("%s: first line is %q, want %q", path, line, want)
+	}
+	return nil
+}
+
+// TestIntegrationTestBuildTag pins the build tag that keeps the integration
+// test, which runs the real yt-dlp against the network, out of `make test`
+// and `make test-ci`. The guard itself is checked to fail on a missing file
+// and on a different first line.
+func TestIntegrationTestBuildTag(t *testing.T) {
+	const want = "//go:build integration"
+	if err := firstLineIs("integration_test.go", want); err != nil {
+		t.Fatalf("integration_test.go must start with %q: %v", want, err)
+	}
+
+	dir := t.TempDir()
+	if err := firstLineIs(filepath.Join(dir, "missing_test.go"), want); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("missing file: error = %v, want fs.ErrNotExist", err)
+	}
+	wrong := filepath.Join(dir, "wrong_test.go")
+	if err := os.WriteFile(wrong, []byte("//go:build test\n\npackage transcript\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := firstLineIs(wrong, want); err == nil {
+		t.Error("wrong first line: error = nil, want a mismatch")
+	}
+}
+
+// buildTagsFlag matches a golangci-lint --build-tags argument and its value.
+var buildTagsFlag = regexp.MustCompile(`--build-tags[= ](\S+)`)
+
+// TestLintTagsIncludeIntegration pins that every lint path (make lint,
+// pre-commit, CI) analyzes the integration test: each file passes
+// --build-tags, and every occurrence names both build tags.
+func TestLintTagsIncludeIntegration(t *testing.T) {
+	const want = "test,integration"
+	root := filepath.Join("..", "..")
+	for _, name := range []string{
+		"Makefile",
+		".pre-commit-config.yaml",
+		filepath.Join(".github", "workflows", "ci.yml"),
+	} {
+		content, err := os.ReadFile(filepath.Join(root, name))
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		matches := buildTagsFlag.FindAllStringSubmatch(string(content), -1)
+		if len(matches) == 0 {
+			t.Errorf("%s: no --build-tags argument", name)
+		}
+		for _, match := range matches {
+			if match[1] != want {
+				t.Errorf("%s: --build-tags %s, want %s", name, match[1], want)
+			}
+		}
+	}
 }

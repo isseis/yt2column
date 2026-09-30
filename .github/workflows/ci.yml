@@ -85,7 +85,7 @@ jobs:
           # Keep in sync with GOLANGCI_VERSION in Makefile.
           version: v2.13.2
           verify: false
-          args: --build-tags test --timeout=5m
+          args: --build-tags test,integration --timeout=5m
 
       - name: Verify modules
         run: |
