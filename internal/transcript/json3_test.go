@@ -93,6 +93,7 @@ func TestParseSubtitlesElementKinds(t *testing.T) {
 		"event array":  `{"events":[[]]}`,
 		"mixed null":   `{"events":[{"segs":[]},null]}`,
 		"segs object":  `{"events":[{"tStartMs":0,"segs":{}}]}`,
+		"segs null":    `{"events":[{"tStartMs":0,"segs":null}]}`,
 		"segs string":  `{"events":[{"tStartMs":0,"segs":"x"}]}`,
 		"seg null":     `{"events":[{"tStartMs":0,"segs":[{"utf8":"kept"},null]}]}`,
 		"seg number":   `{"events":[{"tStartMs":0,"segs":[1]}]}`,

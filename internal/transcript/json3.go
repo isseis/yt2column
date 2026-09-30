@@ -307,7 +307,9 @@ func decodeInt64(raw json.RawMessage) (int64, error) {
 }
 
 // validateJSONEncoding rejects raw byte sequences that encoding/json would
-// repair silently: invalid UTF-8 and unpaired UTF-16 surrogate escapes.
+// repair silently: invalid UTF-8 and unpaired UTF-16 surrogate escapes. The
+// check covers the whole document, including members the parser ignores, and
+// runs before any field is consumed.
 func validateJSONEncoding(data []byte) error {
 	if !utf8.Valid(data) {
 		return errInvalidEncoding

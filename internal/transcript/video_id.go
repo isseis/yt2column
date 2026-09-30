@@ -22,6 +22,8 @@ func validateVideoURL(rawURL string) (videoID string, normalizedURL string, err 
 		return "", "", fmt.Errorf("%w: scheme must be http or https", ErrInvalidVideoURL)
 	}
 	if parsed.User != nil {
+		// No accepted form carries userinfo, and a URL can smuggle credentials
+		// in it, so reject it instead of ignoring it.
 		return "", "", fmt.Errorf("%w: URL must not carry userinfo", ErrInvalidVideoURL)
 	}
 	query := parsed.Query()
