@@ -35,15 +35,21 @@ flowchart LR
         direction TB
         VID["URL 検証<br>（動画 ID の抽出・正規化）"]
         CACHE["キャッシュ読み書き<br>（ペアのヒット判定・世代コミット）"]
-        RUN["コマンド実行<br>（commandExecutor）"]
         PARSE["ペアの検証<br>（字幕 → info.json の順）"]
         ASM["Transcript の組み立て"]
+
+        subgraph MISS["キャッシュミス / 強制再取得"]
+            direction TB
+            RUN["コマンド実行<br>（commandExecutor）"]
+            YTDLP["yt-dlp<br>（外部コマンド）"]
+            PAIR[("字幕 json3 と info.json<br>（ペア）")]
+            RUN --> YTDLP
+            YTDLP -->|"ステージング領域へ出力"| PAIR
+        end
     end
 
-    YTDLP["yt-dlp<br>（外部コマンド）"]
     ID[("動画 ID")]
     NURL[("正規化 URL")]
-    PAIR[("字幕 json3 と info.json<br>（ペア）")]
     CF[("キャッシュファイル<br>（2 ファイルで 1 世代）")]
     TC[("Transcript")]
 
@@ -54,19 +60,18 @@ flowchart LR
     CACHE -->|"ヒットしたペア"| PARSE
     CACHE -->|"ミス / 強制再取得"| RUN
     RUN --> NURL
-    RUN --> YTDLP
-    YTDLP --> PAIR
     PAIR --> PARSE
     PARSE -->|"セグメントとメタ情報"| ASM
+    ASM -->|"成功時だけ置き換え"| CACHE
     ASM --> TC
     CACHE <-->|"読み書き"| CF
 
     class URL,ID,NURL,PAIR,CF,TC data
-    class VID,CACHE,RUN,PARSE,ASM enhanced
+    class VID,CACHE,PARSE,ASM,RUN enhanced
     class YTDLP process
 ```
 
-**図1 概念モデル**。実線の矢印 A → B は「A が B を生成する、または B を入力として利用する」を表す。`YtDlpSource` は段階の入口と進行の制御を担うオーケストレータであり、URL 検証・キャッシュの読み書き・コマンド実行・ペアの検証・`Transcript` の組み立ては独立した責務として実装する（§3.3）。字幕 json3 と info.json は常にペアで処理し、キャッシュも 2 ファイルで 1 世代として扱う。キャッシュがヒットした場合はキャッシュしたペアを、ミス時は `yt-dlp` が出力したペアを、同じ「ペアの検証」に渡す。形式ごとの解析（json3 パーサ・info.json パーサ）は「ペアの検証」の内部にあり、詳細は §3.4 に示す。`CACHE <--> CF` はキャッシュの読み書きを表す。各責務の分割と差し替え点は §3.3 に示す。
+**図1 概念モデル**。実線の矢印 A → B は「A の結果を B が入力として使う、または A の成功を受けて B を更新する」を表す。`YtDlpSource` は段階の入口と進行の制御を担うオーケストレータであり、URL 検証・キャッシュの読み書き・コマンド実行・ペアの検証・`Transcript` の組み立てを独立した責務として実装する（§3.3）。字幕 json3 と info.json は常にペアで処理し、キャッシュも 2 ファイルで 1 世代として扱う。キャッシュがヒットした場合はキャッシュしたペアを、ミス時は「キャッシュミス / 強制再取得」の処理（`yt-dlp` の起動とステージング領域への出力）で得たペアを、同じ「ペアの検証」に渡す。キャッシュを置き換えるのは、ペアの検証に成功して `Transcript` を組み立てられた場合だけである（`ASM --> CACHE`）。形式ごとの解析（json3 パーサ・info.json パーサ）は「ペアの検証」の内部にあり、詳細は §3.4 に示す。`CACHE <--> CF` はキャッシュの読み書きを表す。
 
 ```mermaid
 flowchart LR
