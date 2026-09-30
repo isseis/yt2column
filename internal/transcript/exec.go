@@ -46,8 +46,9 @@ var allowedEnvVars = []string{
 // commandExecutor runs an external command. Tests replace it to observe the
 // arguments, the environment, and the standard error output.
 type commandExecutor interface {
-	// Run executes name with args and env. It returns the raw result and does
-	// not classify a timeout or a cancellation, so Fetch inspects ctx after a
+	// Run executes name with args and env. A nil env means an empty
+	// environment, never the parent's. It returns the raw result and does not
+	// classify a timeout or a cancellation, so Fetch inspects ctx after a
 	// failed Run.
 	Run(ctx context.Context, name string, args, env []string, stderr io.Writer) error
 }
@@ -61,6 +62,11 @@ var _ commandExecutor = osExecutor{}
 // Run implements commandExecutor.
 func (osExecutor) Run(ctx context.Context, name string, args, env []string, stderr io.Writer) error {
 	cmd := exec.CommandContext(ctx, name, args...) //nolint:gosec // the executable is a trusted setting and the arguments never pass through a shell
+	if env == nil {
+		// os/exec would make the child inherit the parent environment, which
+		// could hand it secrets; fail safe with an explicit empty one.
+		env = []string{}
+	}
 	cmd.Env = env
 	cmd.Stderr = stderr
 	cmd.WaitDelay = execWaitDelay

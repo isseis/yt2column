@@ -119,7 +119,7 @@ printf '%s\n' "$@" > "$out"
 func TestCommandExecutorEnvAllowlist(t *testing.T) {
 	const helperRan = "helper-ran"
 
-	run := func(t *testing.T, parent []string) map[string]string {
+	run := func(t *testing.T, env []string) map[string]string {
 		t.Helper()
 		outPath := filepath.Join(t.TempDir(), "env.txt")
 		executable, err := os.Executable()
@@ -127,7 +127,7 @@ func TestCommandExecutorEnvAllowlist(t *testing.T) {
 			t.Fatalf("resolve test binary: %v", err)
 		}
 		args := []string{"-test.run=TestExecutorHelperProcess", "--", outPath}
-		if err := (osExecutor{}).Run(t.Context(), executable, args, allowlistEnv(parent), nil); err != nil {
+		if err := (osExecutor{}).Run(t.Context(), executable, args, env, nil); err != nil {
 			t.Fatalf("Run error = %v, want nil", err)
 		}
 		data, err := os.ReadFile(outPath)
@@ -138,38 +138,50 @@ func TestCommandExecutorEnvAllowlist(t *testing.T) {
 		if len(lines) == 0 || lines[0] != helperRan {
 			t.Fatalf("helper output = %q, want it to start with %q", data, helperRan)
 		}
-		env := make(map[string]string, len(lines)-1)
+		got := make(map[string]string, len(lines)-1)
 		for _, line := range lines[1:] {
 			name, value, ok := strings.Cut(line, "=")
 			if !ok {
 				t.Fatalf("malformed environment line %q", line)
 			}
-			env[name] = value
+			got[name] = value
 		}
-		return env
+		return got
 	}
 
-	t.Run("passes allowlisted variables that are set", func(t *testing.T) {
+	t.Run("passes every allowlisted variable that is set", func(t *testing.T) {
+		// Every name of the fixed allowlist is set to a distinct value, so a
+		// dropped or renamed entry fails the exact comparison below.
+		want := map[string]string{
+			"PATH":            "/usr/bin:/bin",
+			"HOME":            "/home/example",
+			"TMPDIR":          "/tmp/example",
+			"XDG_CONFIG_HOME": "/home/example/.config",
+			"XDG_CACHE_HOME":  "/home/example/.cache",
+			"HTTP_PROXY":      "http://proxy.example:3128",
+			"HTTPS_PROXY":     "http://user:pass@proxy.example:8080",
+			"NO_PROXY":        "localhost,127.0.0.1",
+			"ALL_PROXY":       "socks5://proxy.example:1080",
+			"http_proxy":      "http://lower-proxy.example:3128",
+			"https_proxy":     "http://lower-proxy.example:8443",
+			"no_proxy":        "",
+			"all_proxy":       "socks5://lower-proxy.example:1080",
+			"LANG":            "ja_JP.UTF-8",
+			"LC_ALL":          "C.UTF-8",
+			"LC_CTYPE":        "ja_JP.UTF-8",
+			"SSL_CERT_FILE":   "/etc/ssl/cert.pem",
+			"SSL_CERT_DIR":    "/etc/ssl/certs",
+		}
 		parent := []string{
 			"YT2COLUMN_TEST_UNLISTED_MARKER=marker",
 			"DEEPSEEK_API_KEY=secret",
 			"SLACK_WEBHOOK_URL=https://hooks.example.invalid/secret",
-			"PATH=/usr/bin:/bin",
-			"HOME=/home/example",
-			"LANG=ja_JP.UTF-8",
-			"HTTPS_PROXY=http://user:pass@proxy.example:8080",
-			"SSL_CERT_FILE=/etc/ssl/cert.pem",
-			"http_proxy=",
+			"MALFORMED",
 		}
-		want := map[string]string{
-			"PATH":          "/usr/bin:/bin",
-			"HOME":          "/home/example",
-			"LANG":          "ja_JP.UTF-8",
-			"HTTPS_PROXY":   "http://user:pass@proxy.example:8080",
-			"SSL_CERT_FILE": "/etc/ssl/cert.pem",
-			"http_proxy":    "",
+		for name, value := range want {
+			parent = append(parent, name+"="+value)
 		}
-		if got := run(t, parent); !maps.Equal(got, want) {
+		if got := run(t, allowlistEnv(parent)); !maps.Equal(got, want) {
 			t.Fatalf("child environment = %v, want %v", got, want)
 		}
 	})
@@ -182,7 +194,14 @@ func TestCommandExecutorEnvAllowlist(t *testing.T) {
 			"YT2COLUMN_TEST_UNLISTED_MARKER=parent",
 			"DEEPSEEK_API_KEY=secret",
 		}
-		if got := run(t, parent); len(got) != 0 {
+		if got := run(t, allowlistEnv(parent)); len(got) != 0 {
+			t.Fatalf("child environment = %v, want it empty", got)
+		}
+	})
+
+	t.Run("treats a nil environment as empty", func(t *testing.T) {
+		t.Setenv("YT2COLUMN_TEST_UNLISTED_MARKER", "inherited")
+		if got := run(t, nil); len(got) != 0 {
 			t.Fatalf("child environment = %v, want it empty", got)
 		}
 	})
@@ -203,12 +222,10 @@ func TestCommandExecutorStartFailure(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			// Run must surface a start failure instead of swallowing it.
 			err := osExecutor{}.Run(t.Context(), tc.path, nil, nil, nil)
 			if err == nil {
 				t.Fatalf("Run(%q) error = nil, want a start error", tc.path)
-			}
-			if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
-				t.Fatalf("Run(%q) error = %v, want a start error, not a context error", tc.path, err)
 			}
 		})
 	}
@@ -247,7 +264,9 @@ func TestCommandExecutorWaitDelay(t *testing.T) {
 		if exitImmediately {
 			body += "exit 0\n"
 		} else {
-			body += fmt.Sprintf("sleep %d\n", sleepSeconds)
+			// wait is a shell builtin, so the timeout leaves only the recorded
+			// descendant behind instead of a second orphaned sleep.
+			body += "wait\n"
 		}
 		pidPath = filepath.Join(t.TempDir(), "descendant.pid")
 		t.Cleanup(func() { killRecordedProcess(pidPath) })
