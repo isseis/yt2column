@@ -8,7 +8,7 @@
 | Created | 2026-09-30 |
 | Review date | - |
 | Reviewer | - |
-| Comments | - |
+| Comments | 2026-09-30: 要件 §5 の事前調査のうち、字幕なし動画での `yt-dlp` の終了コードと出力を §1.4 に追記した（終了コード 0・info.json のみ出力。既存の設計を変える結果ではない）。 |
 
 ## 1. 設計の全体像 (Design Overview)
 
@@ -123,6 +123,14 @@ flowchart LR
 **レート制限。** 調査の後半で YouTube の字幕取得が HTTP 429（Too Many Requests）を返すようになった。保存したフィクスチャは 429 の前に取得済みである。
 
 **出力ファイル名と `-P`。** 出力は `<動画 ID>.ja.json3` と `<動画 ID>.info.json` で、`-o` の `%(id)s` が動画 ID に展開された。あわせて `-P` に `%(title)s` と `%%` を含むディレクトリ名を指定して実行し、`yt-dlp` がその名前を文字どおりのディレクトリとして扱い（展開せず）、出力をその下にだけ作ることを確認した（AC-06、design_handoff H-02）。
+
+**字幕なし動画での終了コードと出力。** 字幕の無い動画 `hlbh4P0Mz8M` に対し、§3.7 の本番の起動引数（`--write-subs --write-auto-subs --sub-langs ja --sub-format json3 --write-info-json -P <dir> -o "%(id)s"`）で `yt-dlp` を実行した（2026-09-30）。結果は次のとおりである。
+
+- 終了コードは 0 だった。
+- 出力は `<動画 ID>.info.json` だけで、字幕ファイルは作られなかった。info.json の `subtitles` に `ja` は無く（`live_chat` のみ）、`automatic_captions` は空だった。
+- 字幕が無いことは標準出力の `[info] There are no subtitles for the requested languages` で通知され、エラーにはならなかった。標準エラー出力は、字幕と無関係な JavaScript ランタイム不在の警告だけだった。
+
+したがって、字幕なし動画は `yt-dlp` の正常終了後の検証に達し、§6.2 の順序で字幕ファイルの不在として `ErrNoSubtitles` になる（`ErrYtDlpExec` ではない。AC-21・AC-61）。字幕なしの判定は終了コードや出力の文言に依存せず、字幕ファイルの有無だけで行う。この動画は観測時にライブ配信中（`live_status` が `is_live`）だった。字幕を要求した言語で得られない場合の通知は、配信形態によらず同じ `[info]` の経路とみられるが、通常の動画（VOD）では観測していない。この出力は CC BY ではないため、**保存する実データの条件**に従い `testdata/` には保存しない。字幕なしの経路のユニットテストは、fake executor が正常終了して info.json だけを書く状況で構成する（§7）。
 
 **統合テストの既定の動画。** 手動トラックが位置調整用でない CC BY の動画として、`EQCUZyB4DqE`（太田市日本語スピーチコンテスト）を使う。`info.json` で CC BY と `ja` 自動字幕の存在を確認済みである（手動字幕は無い）。字幕の実取得は 429 のため本調査では完了しておらず、最初の手動実行（F-008・AC-33）で行う。
 
