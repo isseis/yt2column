@@ -14,6 +14,10 @@ import (
 // Fixed names of the per-video cache layout. A video has two slots, one
 // pointer, and one pointer temporary file; a slot holds exactly the subtitle
 // file and the info.json of one yt-dlp run.
+//
+// What the cache guarantees across failures, interruptions, and power loss,
+// and why, is in docs/dev/cache_consistency.md; keep its §7 checklist true
+// when changing this file.
 const (
 	slotNameA       = "a"
 	slotNameB       = "b"
@@ -82,7 +86,8 @@ func infoPath(slotDir, id string) string {
 
 // readPointer classifies the pointer of one video. It never reads more than
 // one byte of the pointer's content, so an oversized pointer is invalid
-// instead of being loaded.
+// instead of being loaded. Only an exact one-byte a or b is valid, so a torn
+// pointer is never taken for a generation (docs/dev/cache_consistency.md §4.6).
 func readPointer(dir, id string) (pointerState, error) {
 	path := pointerPath(dir, id)
 	info, err := os.Lstat(path)
@@ -227,7 +232,9 @@ func prepareWriteSlot(dir, id, slot string) (string, error) {
 }
 
 // persistSlot makes the run output durable before the commit: it sets the
-// cache file permissions and syncs the files and the slot directory.
+// cache file permissions and syncs the files and the slot directory. It must
+// finish before commitCache, so a durable pointer never names a slot whose
+// content is not durable (docs/dev/cache_consistency.md §4.3, §4.4).
 func persistSlot(slotDir, id string) error {
 	for _, path := range []string{subtitlesPath(slotDir, id), infoPath(slotDir, id)} {
 		if err := os.Chmod(path, 0o600); err != nil {
@@ -260,7 +267,8 @@ func syncDir(path string) error {
 
 // commitCache makes the slot the valid generation by atomically replacing the
 // pointer. This is the only point that changes which generation is valid, so a
-// failure before it leaves the existing cache untouched.
+// failure before it leaves the existing cache untouched. Why each step and its
+// order is crash safe is in docs/dev/cache_consistency.md §4.2-§4.4 and §5.
 func commitCache(dir, id, slot string) error {
 	currentTmp := pointerTmpPath(dir, id)
 	if err := removeStalePointerTmp(currentTmp); err != nil {
@@ -289,7 +297,7 @@ func commitCache(dir, id, slot string) error {
 		return err
 	}
 	// The rename itself is atomic; syncing the directory afterwards is a
-	// best-effort durability improvement.
+	// best-effort durability improvement (docs/dev/cache_consistency.md §5.3).
 	_ = syncDir(dir)
 	return nil
 }

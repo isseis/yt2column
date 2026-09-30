@@ -90,6 +90,7 @@ func (s *YtDlpSource) RemoveCache(ctx context.Context, videoURL string) error {
 	// leaves the valid cache untouched. The pointer's content is not read:
 	// a regular pointer is removed whatever it holds, even when unreadable,
 	// and a pointer of another type is left untouched.
+	// See docs/dev/cache_consistency.md §5.2.
 	if err := removeCacheEntry(cacheEntry{path: pointerPath(dir, id)}); err != nil {
 		return err
 	}
@@ -184,7 +185,8 @@ func (s *YtDlpSource) readCached(id, normalizedURL string) (Transcript, bool, er
 }
 
 // runYtDlp runs one yt-dlp into the slot that is not currently valid, verifies
-// the output, and commits it. A failure leaves the existing cache untouched.
+// the output, and commits it. A failure leaves the existing cache untouched;
+// docs/dev/cache_consistency.md §5.1 walks through every interruption point.
 func (s *YtDlpSource) runYtDlp(ctx context.Context, id, normalizedURL string) (Transcript, error) {
 	dir := s.options.CacheDir
 	state, err := readPointer(dir, id)
