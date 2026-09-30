@@ -24,7 +24,7 @@
 - 本番コードで新設するファイルは architecture §2.1・§3.8 に列挙された 7 ファイル（`errors.go`・`video_id.go`・`json3.go`・`info.go`・`exec.go`・`cache.go`・`ytdlp.go`）に限る。7 ファイルはすべて新設であり、8 つ目の本番ファイルは追加しない。json3 と info.json が共有する厳密デコード処理（architecture §3.4）は `json3.go` に置き、両パーサが同じパッケージ内で呼ぶ。
 - ユニットテストは、`NewYtDlpSource` で構築した `YtDlpSource` の非公開の executor フィールドを fake に置き換える（同一パッケージのテストから差し替える。architecture §3.2・§3.3）。
 - テストは architecture §7 に従う。ユニットテストは実 `yt-dlp` もネットワークも呼ばず、パッケージ内の fake `commandExecutor` と `testdata/` の実出力、`t.TempDir` のキャッシュを使う（AC-27）。
-- パッケージ内で共有するテストヘルパーは `test_organization.md` の分類 B に従い、`internal/transcript/test_helpers.go` に `//go:build test` を付けて置く。統合テストとユニットテストの両方から使う環境変数の確認は `internal/transcript/test_helpers_env.go` に `//go:build test || integration` を付けて置く（本番ビルドからは除外したまま、`make test` からユニットテストできるようにするため）。`test_helpers.go` を使うすべての `_test.go` の先頭にも `//go:build test` を付ける（`internal/pipeline/pipeline_test.go:1` と同じ理由）。`integration_test.go` だけは `//go:build integration` とする。
+- パッケージ内で共有するテストヘルパーは `test_organization.md` の分類 B に従い、`internal/transcript/test_helpers.go` に `//go:build test` を付けて置く。`test_helpers.go` を使うすべての `_test.go` の先頭にも `//go:build test` を付ける（`internal/pipeline/pipeline_test.go:1` と同じ理由）。`integration_test.go` だけは `//go:build integration` とし、統合テストの環境変数の確認は共有ヘルパーに置かず `integration_test.go` 内で直接行う。
 - Go のコメント・識別子・文字列リテラルは英語で書く。`AC-NN` / `F-NNN` は Go ソースに書かず、本計画にだけ記録する（`runplan.md` の pre-commit チェック）。
 - 上限値・猶予・固定名は名前付き定数にする（`mnd`・`goconst` 対策。`.golangci.yml:88-101` の `ignored-numbers` はパーミッションのみ）。
 - 各フェーズの完了条件は `make fmt` → `make test` → `make lint` が通ること。各テストは、対応する分岐・対策を実際に壊して失敗することを確認してコミットメッセージに記録する（CLAUDE.md「Testing Strategy」）。
@@ -75,9 +75,9 @@
 - [ ] **ステップ 1-5**: `test_helpers.go` を作成し、`testdata/` の実出力と合成サンプルのパスを定数として定義する。以降のテストファイルは相対パスのリテラルを書かず、この定数を使う。
 - [ ] **ステップ 1-6**: json3 と info.json の共通の厳密デコード（architecture §3.4、design_handoff H-05・H-12、implementation_handoff I-01・I-03）を `json3.go` に実装し、`info.go` から呼ぶ。生バイト列の UTF-8 検証、対になっていないサロゲートエスケープの検出、トップレベルがちょうど 1 つの値で後続データが無いこと（EOF 到達）の確認、`null` と型不一致の区別、`int64` 範囲の検証、消費するメンバーのトークン段階での重複検出を含める。消費しないメンバーの重複は無視する。新たな本番ファイルは追加しない。
 - [ ] **ステップ 1-7**: `json3.go` に json3 パーサ（F-003・architecture §3.4・§3.7）を実装する。`events[].segs[].utf8` の連結、`segs` なし・空 `utf8`・空白のみのイベントの除外、本文を持つイベントだけの `tStartMs` 検証（H-16）、重複除去を行わないこと、サイズ 8 MiB・イベント数 65,536 の上限、失敗時の `ErrParseSubtitles` を返す `*ParseError` を実装する。
-- [ ] **ステップ 1-8**: `json3_test.go` を作成し、§5 の AC 表に挙げた json3 パーサのテストを実装する（AC-10〜AC-13・AC-32・AC-45・AC-46・AC-48・AC-49・AC-52・AC-54・AC-55・AC-57・AC-67）。AC-52 はステップ 1-4 のサンプルを入力にし、パースの前にサンプル自身の性質（不正な UTF-8 バイト列を含む / `\ud800` のエスケープを含む）を検証して、サンプルが別の理由で不正な JSON と判定され、本来確かめたい検証が働いたか分からないままテストが成功するのを防ぐ。
+- [ ] **ステップ 1-8**: `json3_test.go` を作成し、§5 の AC 表に挙げた json3 パーサのテストを実装する（AC-10〜AC-13・AC-32・AC-45・AC-46・AC-48・AC-49・AC-52・AC-54・AC-55・AC-57・AC-67）。AC-52 はステップ 1-4 のサンプルを入力にし、パースの前にサンプル自身の性質（不正な UTF-8 バイト列を含む / `\ud800` のエスケープを含む）を検証して、サンプルが別の理由で不正な JSON と判定され、本来確かめたい検証が働いたか分からないままテストが成功するのを防ぐ。`TestParseSubtitlesUTF8` には受け入れケースも加える。有効な高/低サロゲートペア（非 BMP 文字、例: `\ud83d\ude00`）を含む正当な入力、およびエスケープされたバックスラッシュに続けて `ud800` と書いた通常テキスト（`\\ud800`）を含む正当な入力が受理されることを検証し、生バイト列の判定が正当な入力を過剰に拒否しないことを確かめる。
 - [ ] **ステップ 1-9**: `info.go` に info.json パーサ（F-004）を実装する。`id` と要求された動画 ID の照合、`title`・`channel` の必須と空の拒否、`description` の任意、消費フィールドの型検証、サイズ 8 MiB の上限、`ErrParseInfo` を返す `*ParseError` を実装する。
-- [ ] **ステップ 1-10**: `info_test.go` を作成し、§5 の AC 表に挙げた info.json パーサのテストを実装する（AC-14〜AC-16・AC-47・AC-50・AC-53・AC-64・AC-65）。AC-53 はステップ 1-4 のサンプルを入力にし、ステップ 1-8 と同じくサンプル自身の性質を先に検証する。
+- [ ] **ステップ 1-10**: `info_test.go` を作成し、§5 の AC 表に挙げた info.json パーサのテストを実装する（AC-14〜AC-16・AC-47・AC-50・AC-53・AC-64・AC-65）。AC-53 はステップ 1-4 のサンプルを入力にし、ステップ 1-8 と同じくサンプル自身の性質を先に検証する。`TestParseInfoUTF8` にもステップ 1-8 と同じ受け入れケース（有効なサロゲートペアと `\\ud800` の通常テキストの受理）を加える。
 - [ ] **ステップ 1-11**: `package_reference.md:14` の `internal/transcript` の行を、このフェーズで加わる URL 検証・json3/info.json パーサ・番兵エラーを含む説明に更新する。`testutil` の行は変更しない。
 - [ ] **ステップ 1-12**: 主要な分岐を実装時に壊して各テストが失敗することを確認し、コミットメッセージに記録する。対象の例: EOF 確認を外すと `TestParseSubtitlesRejectsSimple`・`TestParseInfoRejectsMalformed` が失敗する、`null` をゼロ値として受理すると `TestParseSubtitlesElementKinds`・`TestParseInfoTypeMismatch` が失敗する、上限の境界（ちょうど/超過）を取り違えると `TestParseSubtitlesLimits`・`TestParseInfoLimits` が失敗する、破棄イベントの `tStartMs` も検証すると `TestParseSubtitlesTimestamps` が失敗する、動画 ID を補正すると `TestValidateVideoURL` が失敗する、生バイト列の UTF-8 検証を外すと `TestParseSubtitlesUTF8` が失敗する、サロゲートのエスケープ検出を外すと `TestParseSubtitlesUTF8`・`TestParseInfoUTF8` が失敗する。
 - [ ] **ステップ 1-13**: `make fmt` → `make test` → `make lint` を通す。`test_helpers.go` はこのフェーズの `make test`（`-tags test`）でコンパイルされることを確認する。
@@ -90,9 +90,9 @@
 **タスク**
 - [ ] **ステップ 2-1**: `exec.go` に `commandExecutor` interface（architecture §3.2）と `os/exec` を使う実装を追加する。実装は、引数配列での起動（シェルを経由しない）、`exec.CommandContext` によるタイムアウト・キャンセル、`WaitDelay` 相当の猶予 5 秒（architecture §3.7、定数化）、受け取った `io.Writer` の標準エラー出力への接続、allowlist 環境の組み立て（architecture §3.7 の集合、設定されている変数のみ、allowlist の変数が 1 つも設定されていなくても非 nil の空スライスを渡すこと、秘密情報を含めないこと）を含む。`Run` は生の実行結果を返し、タイムアウト・キャンセルの判別は行わない（`Fetch` の責務。architecture §3.2）。
 - [ ] **ステップ 2-2**: 同じく `exec.go` に、標準エラー出力を 4 KiB まで保持しつつ超過分も読み捨てる `cappedWriter` を追加する。標準エラー出力の伏字化（architecture §4.2）はこのフェーズでは追加しない。呼び出し元の `Fetch` と検証する `TestFetchStderrCapAndRedaction` がフェーズ 3 で揃うため、このフェーズで追加すると呼び出しもテストもない非公開関数になり、`unused` によって `make lint` のゲートが通らない（ステップ 3-3 で追加する）。
-- [ ] **ステップ 2-3**: `exec_test.go` を作成し、§5 の AC 表に挙げたテストを実装する（AC-08・AC-51・AC-56）。`t.TempDir` に置いたヘルパー実行ファイル（標準エラー出力を 4 KiB を大きく超えて書いてから非ゼロ終了するもの、および標準エラー出力を開いたまま残る子孫を起動するもの）を使い、ドレインと `WaitDelay` による有界な待機を検証する。待機の有界性は固定の猶予 + 十分な余裕で判定し、厳密な時間比較にしない。
+- [ ] **ステップ 2-3**: `exec_test.go` を作成し、§5 の AC 表に挙げたテストを実装する（AC-07〜AC-09・AC-44・AC-51・AC-56・AC-62・AC-66）。`t.TempDir` に置いたヘルパー実行ファイル（標準エラー出力を 4 KiB を大きく超えて書いてから非ゼロ終了するもの、および標準エラー出力を開いたまま残る子孫を起動するもの）を使い、ドレインと `WaitDelay` による有界な待機を検証する。待機の有界性は固定の猶予 + 十分な余裕で判定し、厳密な時間比較にしない。実 executor をヘルパー実行ファイルを通して直接検証する `TestCommandExecutorEnvAllowlist`（子プロセスが受け取る環境が allowlist の設定済み変数とその値だけで、allowlist の変数が 1 つも設定されていなければ非 nil の空環境）、`TestCommandExecutorNoShell`（シェルメタ文字を含む引数がシェルに解釈されずそのまま届く）、`TestCommandExecutorStartFailure`（存在しないパスと実行不能ファイルで executor がエラーを返して握り潰さない。`Fetch` が `ErrYtDlpExec` へ対応付ける検証は `Fetch` が加わるフェーズ 3 で同テストに追加する）も実装する。
 - [ ] **ステップ 2-4**: `package_reference.md` の `internal/transcript` の行を、このフェーズで加わる外部コマンド実行の境界を含む説明に更新する。
-- [ ] **ステップ 2-5**: 主要な分岐を壊して失敗を確認し、コミットメッセージに記録する。対象の例: 4 KiB の境界（ちょうど/超過）を取り違えると `TestCappedWriter` が失敗する、`cappedWriter` のドレインを止めると `TestCommandExecutorDrainsStderr` が失敗する、`WaitDelay` を外すと `TestCommandExecutorWaitDelay` が失敗する。
+- [ ] **ステップ 2-5**: 主要な分岐を壊して失敗を確認し、コミットメッセージに記録する。対象の例: 4 KiB の境界（ちょうど/超過）を取り違えると `TestCappedWriter` が失敗する、`cappedWriter` のドレインを止めると `TestCommandExecutorDrainsStderr` が失敗する、`WaitDelay` を外すと `TestCommandExecutorWaitDelay` が失敗する、allowlist を組み立てず親環境をそのまま `exec.Cmd.Env` に渡すと `TestCommandExecutorEnvAllowlist` が失敗する、引数を `sh -c` 経由で渡すように変えると `TestCommandExecutorNoShell` が失敗する、実 `exec.Cmd` の起動エラーを握り潰すと `TestCommandExecutorStartFailure` が失敗する。
 - [ ] **ステップ 2-6**: `make fmt` → `make test` → `make lint` を通す。`gosec` の G204（可変のコマンド名での実行）が指摘された場合は、`exec.CommandContext` の呼び出しに限定した最小の `//nolint:gosec` を理由コメント付きで付ける（ファイル全体に広げない）。指摘の有無と対応をコミットメッセージに記録する。
 
 ### フェーズ 3: キャッシュと `Fetch`（`cache.go`・`ytdlp.go`）
@@ -100,19 +100,19 @@
 **対象ファイル**
 - 新設: `internal/transcript/cache.go`・`internal/transcript/ytdlp.go`
 - 変更: `internal/transcript/exec.go`（標準エラー出力の伏字化を追加）
+- 変更: `internal/transcript/exec_test.go`（`TestCommandExecutorStartFailure` に `Fetch` が実 executor の起動失敗を `ErrYtDlpExec` へ対応付ける検証を追加）
 - 新設: `internal/transcript/cache_test.go`・`internal/transcript/ytdlp_test.go`（`//go:build test`）
 - 変更: `internal/transcript/test_helpers.go`（fake `commandExecutor`、キャッシュ状態 S1〜S6 を作るヘルパーを追加）
-- 新設: `internal/transcript/test_helpers_env.go`（`//go:build test || integration`。統合テストの環境変数の確認を純粋な関数として置き、`make test` からユニットテストできるようにする）
 
 **タスク**
-- [ ] **ステップ 3-1**: `test_helpers.go` に fake `commandExecutor` とキャッシュ状態ヘルパーを追加し、`test_helpers_env.go` に環境変数の確認（`missingIntegrationEnv(getenv func(string) string) []string`）を実装する。`test_helpers_env.go` は `test_helpers.go` の他のヘルパーに依存させない（`-tags integration` 単独でもコンパイルできるようにする）。fake は引数・環境・渡された `io.Writer`（標準エラー出力）を記録し、ケースごとに設定できる関数で出力の書き込み・終了状態の模擬・`ctx` の状態に応じた失敗を行う。タイムアウト・キャンセルを模擬するときは、実装と同じく context のエラーではない失敗を返す（architecture §3.2）。キャッシュ状態ヘルパーは architecture §6.3 の S1〜S6 を固定名で直接作れるようにする。パーミッションを変えるヘルパーは、変えた時点で `t.Cleanup` に復元を登録する。`test_helpers.go` を使う `_test.go` に `//go:build test` を付け、`integration_test.go` は `//go:build integration` とする（§1.2）。
+- [ ] **ステップ 3-1**: `test_helpers.go` に fake `commandExecutor` とキャッシュ状態ヘルパーを追加する。fake は引数・環境・渡された `io.Writer`（標準エラー出力）を記録し、ケースごとに設定できる関数で出力の書き込み・終了状態の模擬・`ctx` の状態に応じた失敗を行う。タイムアウト・キャンセルを模擬するときは、実装と同じく context のエラーではない失敗を返す（architecture §3.2）。キャッシュ状態ヘルパーは architecture §6.3 の S1〜S6 を固定名で直接作れるようにする。パーミッションを変えるヘルパーは、変えた時点で `t.Cleanup` に復元を登録する。`test_helpers.go` を使う `_test.go` に `//go:build test` を付け、`integration_test.go` は `//go:build integration` とする（§1.2）。
 - [ ] **ステップ 3-2**: `cache.go` に固定名の組み立て、ポインタの有界な読み取り（I-04）、ヒット判定とスロットの読み込み、書き込み先スロットの準備、ポインタの一時ファイルの排他作成とリネームによるコミット、dangling なエントリの判定と削除、`RemoveCache`（ポインタを先に削除）、`PruneCache`（列挙・名前の判定・種別確認・`errors.Join` での集約・`ctx` の打ち切り）を、architecture §3.5 の手順どおりに実装する。ディレクトリは `0o700`、ファイルは `0o600`（AC-19）。他の動画・無関係なエントリには触れず、シンボリックリンクを辿らない。
 - [ ] **ステップ 3-3**: `ytdlp.go` に `Options`・`YtDlpSource`・`NewYtDlpSource`・`Fetch`・`RemoveCache`・`PruneCache` を実装する。`NewYtDlpSource` は実 executor を設定し、`CacheDir` が空、または `Timeout` が 0 以下なら拒否する（AC-28）。`Fetch` は architecture §6.1 の順序で進め、開始前に `ctx` の終了を確認し（AC-26）、キャッシュヒットでは `yt-dlp` を起動せず、ミス・強制再取得ではフェーズ 2 の executor と allowlist 環境で起動して検証・コミットする。動画 ID を得た後は成否によらず終了時に当該動画の dangling なエントリを削除する（ベストエフォート。AC-69）。エラーは architecture §4.1 の形で番兵をラップし、パース失敗は `*ParseError` でパスを保持し、標準エラー出力は伏字化してから含める。伏字化の処理（proxy 変数の値と URL の userinfo の置き換え、上限の境界で切れた断片も残さないこと。architecture §4.2）はこのステップで `exec.go` に追加する。環境の組み立ては architecture §3.8 で `exec.go` の責務とされているため、その秘密情報を守るこの処理も同じファイルに置く。`var _ TranscriptSource = (*YtDlpSource)(nil)` のコンパイル時アサーションを置く。
-- [ ] **ステップ 3-4**: `cache_test.go` を作成し、§5 の AC 表に挙げたキャッシュの削除・掃除のテストを実装する（AC-19・AC-20・AC-70〜AC-75）。パーミッションで失敗を起こすテストは §4.1 の root 前提に従う。
-- [ ] **ステップ 3-5**: `ytdlp_test.go` を作成し、§5 の AC 表に挙げた `Fetch` レベルのテストを実装する（AC-04・AC-06〜AC-09・AC-14・AC-17〜AC-18・AC-20〜AC-31・AC-34〜AC-36・AC-42（`TestMissingIntegrationEnv`）・AC-44・AC-51・AC-56・AC-58〜AC-63・AC-66・AC-68・AC-69）。テストは、構築後に非公開の executor フィールドを `test_helpers.go` の fake に置き換え、`Options.YtDlpPath` には存在しないパスを指定する（差し替え忘れが実 `yt-dlp` の起動にならないようにする）。`TestFetchCacheHit` は `testdata/` の実出力を配置したキャッシュから `Transcript` の `VideoID`・正規化 `VideoURL`・`Title`・`ChannelName`・`Description` に入ること、および別形式の URL（`youtu.be/<id>`）で要求したヒットでも `VideoID` と `VideoURL` が同じ正規化値になることを検証する（AC-14・AC-25、design_handoff H-15）。`TestFetchCacheMiss` でも `VideoID` と正規化 `VideoURL` を検証する。`TestFetchOversizedPointer` のポインタは、有効な 1 バイト（`a` または `b`）で始まり 1 バイトを大きく超える内容にし、先頭 1 バイトだけを見る実装を検出できるようにする。実データのタイトル等の日本語は期待値リテラルとして埋め込まず、フィクスチャから読むか性質（非空など）で検証する。
+- [ ] **ステップ 3-4**: `cache_test.go` を作成し、§5 の AC 表に挙げたキャッシュの削除・掃除のテストを実装する（AC-19・AC-20・AC-70〜AC-75）。パーミッションで失敗を起こすテスト（`TestRemoveCacheFailure`・`TestPruneCachePartialFailure`・`TestFetchDanglingDeleteFailure`）は非 root の実行環境（CI とローカル開発）を前提とし、root を検出したら「unsupported test environment」と明示して失敗させる（黙ってパス・スキップしない）。ディレクトリのモードを変えた時点で `t.Cleanup` に復元を登録する（§4.1）。
+- [ ] **ステップ 3-5**: `ytdlp_test.go` を作成し、§5 の AC 表に挙げた `Fetch` レベルのテストを実装する（AC-04・AC-06〜AC-09・AC-14・AC-17〜AC-18・AC-20〜AC-31・AC-34〜AC-36・AC-44・AC-51・AC-56・AC-58〜AC-63・AC-66・AC-68・AC-69）。テストは、構築後に非公開の executor フィールドを `test_helpers.go` の fake に置き換え、`Options.YtDlpPath` には存在しないパスを指定する（差し替え忘れが実 `yt-dlp` の起動にならないようにする）。`TestFetchCacheHit` は `testdata/` の実出力を配置したキャッシュから `Transcript` の `VideoID`・正規化 `VideoURL`・`Title`・`ChannelName`・`Description` に入ること、および別形式の URL（`youtu.be/<id>`）で要求したヒットでも `VideoID` と `VideoURL` が同じ正規化値になることを検証する（AC-14・AC-25、design_handoff H-15）。`TestFetchCacheMiss` でも `VideoID` と正規化 `VideoURL` を検証する。`TestFetchOversizedPointer` のポインタは、有効な 1 バイト（`a` または `b`）で始まり 1 バイトを大きく超える内容にし、先頭 1 バイトだけを見る実装を検出できるようにする。実データのタイトル等の日本語は期待値リテラルとして埋め込まず、フィクスチャから読むか性質（非空など）で検証する。
 - [ ] **ステップ 3-6**: `package_reference.md` の `internal/transcript` の行を、`YtDlpSource`（`Fetch`・`RemoveCache`・`PruneCache`）とキャッシュを含む最終的な説明に更新する。
 - [ ] **ステップ 3-7**: 主要な分岐を壊して失敗を確認し、コミットメッセージに記録する。対象の例: `Fetch` 終了時の dangling の削除を外すと `TestFetchInterruptedStates` が失敗する、`RemoveCache` でポインタを最後に削除すると `TestRemoveCacheFailure` が失敗する、掃除でディレクトリを列挙せず固定名だけを見ると `TestPruneCache` が失敗する、コミット前にキャッシュを書き換えると `TestFetchForceRefreshFailureKeepsCache` が失敗する、検証順序を info.json 優先に変えると `TestFetchValidationOrder` が失敗する、allowlist を `os.Environ()` に変えると `TestFetchEnvAllowlist` が失敗する、ポインタの大きさの確認を外して先頭 1 バイトだけを見る実装にすると `TestFetchOversizedPointer` が失敗する、キャッシュ読み込みの `ParseError` に書き込み先スロットのパスを入れると `TestFetchCacheParseError` が失敗する、dangling の削除失敗で `Fetch` の戻り値を変えると `TestFetchDanglingDeleteFailure` が失敗する、字幕なしのエラーから動画 ID を外すと `TestFetchNoSubtitles` が失敗する。
-- [ ] **ステップ 3-8**: `make fmt` → `make test` → `make lint` を通す。`test_helpers.go` がこのフェーズの `make test`（`-tags test`）でコンパイルされることを確認する（`Makefile:63-64`）。`test_helpers_env.go` は `test || integration` の両方のタグでコンパイルされる。
+- [ ] **ステップ 3-8**: `make fmt` → `make test` → `make lint` を通す。`test_helpers.go` がこのフェーズの `make test`（`-tags test`）でコンパイルされることを確認する（`Makefile:63-64`）。
 
 ### フェーズ 4: 統合テストと lint 経路（`integration_test.go`・Makefile・pre-commit・CI）
 
@@ -122,12 +122,12 @@
 - 変更: `Makefile`・`.pre-commit-config.yaml`・`.github/workflows/ci.yml`・本計画書（手動実行の記録）
 
 **タスク**
-- [ ] **ステップ 4-1**: `integration_test.go` を作成する（F-008・architecture §7.2）。`missingIntegrationEnv` で `YT2COLUMN_TEST_VIDEO_URL` の未設定・空を検出し、変数名を明示して失敗し、スキップしない（AC-42）。`YT2COLUMN_TEST_VIDEO_ID` が非空なら動画 ID を照合し、空なら照合しない。キャッシュは `t.TempDir` を使う。1 つのテスト関数内のサブテストとして、取得（AC-39）、目印ファイルを書き込むラッパー実行ファイルを `YtDlpPath` に指定した 2 回目のキャッシュ再利用（AC-40）、キャッシュを目印入りの有効な内容に置き換えたうえでの強制再取得（AC-41）を検証する。AC-40 は 2 回目の `Transcript` が 1 回目と等しく（メタ情報・セグメントの並び・各開始時刻）、目印ファイルが存在しないことを検証する。AC-41 は結果に目印が現れないことを検証する。ラッパー用と強制再取得用に `YtDlpSource` を構築し直す。`yt-dlp` 不在やネットワーク失敗はスキップせず失敗させる。あわせて `ytdlp_test.go` に `TestIntegrationTestBuildTag`（AC-37）を追加し、`integration_test.go` の先頭行が `//go:build integration` であること、およびファイルが存在しない・先頭行が違う場合は明確に失敗することを検証する。
+- [ ] **ステップ 4-1**: `integration_test.go` を作成する（F-008・architecture §7.2）。テスト自身が `YT2COLUMN_TEST_VIDEO_URL` の未設定・空を検出し、変数名を明示して失敗し、スキップしない（AC-42）。`YT2COLUMN_TEST_VIDEO_ID` が非空なら動画 ID を照合し、空なら照合しない。キャッシュは `t.TempDir` を使う。1 つのテスト関数内のサブテストとして、取得（AC-39）、目印ファイルを書き込むラッパー実行ファイルを `YtDlpPath` に指定した 2 回目のキャッシュ再利用（AC-40）、キャッシュを目印入りの有効な内容に置き換えたうえでの強制再取得（AC-41）を検証する。AC-40 は 2 回目の `Transcript` が 1 回目と等しく（メタ情報・セグメントの並び・各開始時刻）、目印ファイルが存在しないことを検証する。AC-41 は結果に目印が現れないことを検証する。ラッパー用と強制再取得用に `YtDlpSource` を構築し直す。`yt-dlp` 不在やネットワーク失敗はスキップせず失敗させる。あわせて `ytdlp_test.go` に `TestIntegrationTestBuildTag`（AC-37）を追加し、`integration_test.go` の先頭行が `//go:build integration` であること、およびファイルが存在しない・先頭行が違う場合は明確に失敗することを検証する。
 - [ ] **ステップ 4-2**: `Makefile` に `test-integration` ターゲットを追加する。既定値を Make 変数（`YT2COLUMN_TEST_VIDEO_URL`・`YT2COLUMN_TEST_VIDEO_ID`、architecture §3.7 の URL・ID）として `?=` で定義し、実 `yt-dlp` とネットワークを使うことを表示し、`-tags integration`・`-count=1`・明示的な `-timeout`・`-v` を付けて `./internal/transcript` を実行する（AC-38）。テストは環境変数を `os.Getenv` で読むため、レシピは両変数をテストプロセスの環境へ明示的に渡す（Make 変数の定義だけでは子プロセスへ渡らない）。`.PHONY` に追加する。あわせて `GOLINT` のタグを `test,integration` に変更する（AC-43）。
 - [ ] **ステップ 4-3**: `.pre-commit-config.yaml:23` の golangci-lint フックのタグを `test,integration` に変更する（AC-43）。`testdata/` の除外（`:32`・`:34`・`:37`）は変更済みであることを確認し、変更しない。
 - [ ] **ステップ 4-4**: `.github/workflows/ci.yml:88` の lint 引数のタグを `test,integration` に変更し、`ytdlp_test.go` に `TestLintTagsIncludeIntegration` を追加する。この guard は `Makefile`・`.pre-commit-config.yaml`・`.github/workflows/ci.yml` の 3 箇所すべてが `test,integration` を含むことを検証し、3 箇所のタグが揃っていることを機械的に固定する（AC-43）。
 - [ ] **ステップ 4-5**: 手動実行を完了条件として実施する（AC-33）。`make test-integration` を実行し（実 `yt-dlp` とネットワークを使うため、実施前にユーザーの承認を得る）、§5.1 に使用した動画 URL・動画 ID・結果を記録する。既定の動画が利用できない場合は、要件 F-008 に従って URL と ID を差し替え、その旨も記録する。
-- [ ] **ステップ 4-6**: 環境変数を設定せずに `go test -tags integration ./internal/transcript` を実行し、スキップせず変数名を含むエラーで失敗することを確認して出力を記録する（AC-42）。
+- [ ] **ステップ 4-6**: 環境変数を設定せずにコミット済みの `integration_test.go` を `go test -tags integration ./internal/transcript` で直接実行し、スキップせず変数名を含むエラーで失敗することを確認して出力を記録する（AC-42）。
 - [ ] **ステップ 4-7**: 主要な分岐を壊して失敗を確認し、コミットメッセージに記録する。対象の例: `integration_test.go` に lint 違反（未使用の変数など）を一時的に入れると `make lint` が失敗する（AC-43）、`TestIntegrationTestBuildTag` の検証対象の先頭行を `//go:build test` に変えると同テストが失敗する（AC-37）、3 箇所のうち 1 つの lint タグを `test` に戻すと `TestLintTagsIncludeIntegration` が失敗する（AC-43）、`make test-integration` から `-count=1` を外して 2 回実行すると 2 回目が `(cached)` を表示し、付けた場合は 2 回とも実行されることを `-v` 出力で確認して記録する（AC-38）。
 - [ ] **ステップ 4-8**: `make fmt` → `make test` → `make lint` を通し、`make test-integration` も通す。
 
@@ -149,7 +149,7 @@
 |---|---|---|---|
 | M1 | フェーズ 1 | `errors.go`・`video_id.go`・`json3.go`・`info.go`、各テスト、`test_helpers.go`（フィクスチャのパス定数）、AC-52・AC-53 用の合成サンプル、`package_reference.md` の更新 | `make test` / `make lint` が通る |
 | M2 | フェーズ 2 | `exec.go`（`commandExecutor`・`cappedWriter`・allowlist 環境）と `exec_test.go`、`package_reference.md` の更新 | 同上 |
-| M3 | フェーズ 3 | `cache.go`・`ytdlp.go`・`exec.go` の伏字化・`test_helpers.go`（fake とキャッシュ状態）・`test_helpers_env.go` と `cache_test.go`・`ytdlp_test.go`、`package_reference.md` の更新 | 同上 |
+| M3 | フェーズ 3 | `cache.go`・`ytdlp.go`・`exec.go` の伏字化・`test_helpers.go`（fake とキャッシュ状態）と `cache_test.go`・`ytdlp_test.go`、`package_reference.md` の更新 | 同上 |
 | M4 | フェーズ 4 | `integration_test.go`、Makefile・pre-commit・CI のタグ変更、手動実行の記録 | 同上・`make test-integration` が通る |
 | M5 | フェーズ 5 | `requirements_process.md` の更新 | 同上・記述の整合を確認済み |
 
@@ -169,8 +169,8 @@ architecture §7.1 に従い、実 `yt-dlp` もネットワークも呼ばない
 - キャッシュヒットのテストは `testdata/` の実出力を有効なスロットに配置して実行し、`Transcript` のメタ情報とセグメントを検証する（AC-14・AC-25）。実データの日本語（タイトル・チャンネル名・本文）は期待値リテラルとして埋め込まない。
 - UTF-8・サロゲートの拒否は、フェーズ 1 で追加する `testdata/` の合成サンプルを入力にする（AC-52・AC-53）。
 - コミット段階のファイル操作には失敗を注入しない。差し替え可能な境界は `commandExecutor` だけであるため、architecture §6.3 の各状態を直接作って後始末と世代の混在を検証する（AC-69）。
-- 実プロセスの境界は `exec_test.go` で `t.TempDir` のヘルパー実行ファイルを使う（AC-08・AC-51・AC-56）。
-- パーミッションで失敗を起こすテスト（`TestRemoveCacheFailure`・`TestPruneCachePartialFailure`・`TestFetchDanglingDeleteFailure`）は、root 以外での実行を前提とする。ディレクトリのモードを変えた時点で `t.Cleanup` に復元を登録し、`t.TempDir` の後始末が別の理由で失敗しないようにする。root で実行された場合は前提が成立しないため、その旨を検出して結果を記録する（検証を黙って成功させない）。
+- 実プロセスの境界は `exec_test.go` で `t.TempDir` のヘルパー実行ファイルを使う（AC-08・AC-51・AC-56）。同じ経路で、allowlist 環境（`TestCommandExecutorEnvAllowlist`。設定された変数だけが子プロセスへ渡り、未設定時も非 nil の空環境）、シェルを経由しない引数のそのままの到達（`TestCommandExecutorNoShell`）、起動失敗が握り潰されず `Fetch` が `ErrYtDlpExec` へ対応付けること（`TestCommandExecutorStartFailure`。`Fetch` を使う検証はフェーズ 3 で完成する）を検証する（AC-07・AC-09・AC-44・AC-62・AC-66）。
+- パーミッションで失敗を起こすテスト（`TestRemoveCacheFailure`・`TestPruneCachePartialFailure`・`TestFetchDanglingDeleteFailure`）は、root 以外での実行を前提とする（CI とローカル開発は非 root）。ディレクトリのモードを変えた時点で `t.Cleanup` に復元を登録し、`t.TempDir` の後始末が別の理由で失敗しないようにする。root を検出した場合は前提が成立しないため、「unsupported test environment」と明示するメッセージで失敗させる（黙って成功・スキップしない）。
 - 各テストは、対象の仕組みを実際に壊して失敗することを確認してからコミットする（CLAUDE.md「Testing Strategy」）。壊す対象と対応するテスト名は各フェーズのタスクに示す。
 - **後方互換性:** 既存の型・interface・パイプラインを変更しないため、該当なし（§1.3）。既存テストの更新も不要である。
 
@@ -184,7 +184,7 @@ architecture §7.3 に従う。計画固有の事項として、伏字化の検�
 
 ### 4.4. テストヘルパー
 
-`internal/transcript/test_helpers.go`（`//go:build test`）に、fake `commandExecutor`、キャッシュ状態 S1〜S6 を作るヘルパー、パーミッション変更と復元のヘルパーを置く。`internal/transcript/test_helpers_env.go` は `//go:build test || integration` とし、統合テストの環境変数の確認（`missingIntegrationEnv`）を `make test` からユニットテストできる形で置く（`make test-integration` と lint の両方でもコンパイルされる）。`testutil/` は追加しない（新しい公開 interface の fake は不要。`TestFakesCarryBuildTag` の固定件数を変えない）。テストの実装詳細（アサーションの書き方、入力の構成）は実装時に決定する。
+`internal/transcript/test_helpers.go`（`//go:build test`）に、fake `commandExecutor`、キャッシュ状態 S1〜S6 を作るヘルパー、パーミッション変更と復元のヘルパーを置く。統合テストの環境変数の確認は `integration_test.go` 内で直接行い、共有ヘルパーには置かない（ユニットテストでは検証しない）。`testutil/` は追加しない（新しい公開 interface の fake は不要。`TestFakesCarryBuildTag` の固定件数を変えない）。テストの実装詳細（アサーションの書き方、入力の構成）は実装時に決定する。
 
 ## 5. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -198,9 +198,9 @@ AC ごとの検証は次のとおり。`test` は実行可能なテスト、`sta
 | AC-04 | `v` 以外のパラメータの `../` を受理し、パスは動画 ID のみから組み立てる | test | `internal/transcript/video_id_test.go::TestValidateVideoURL`・`internal/transcript/ytdlp_test.go::TestFetchCachePathUsesOnlyVideoID` |
 | AC-05 | 正規化 URL の組み立て | test | `internal/transcript/video_id_test.go::TestValidateVideoURL` |
 | AC-06 | 固定引数での起動と `-P` / `-o` / `--` | test | `internal/transcript/ytdlp_test.go::TestFetchYtDlpArgs` |
-| AC-07 | シェルを経由せず、差し替え可能で、引数と環境をテストから観測できる | test | `internal/transcript/ytdlp_test.go::TestFetchYtDlpArgs` |
+| AC-07 | シェルを経由せず、差し替え可能で、引数と環境をテストから観測できる | test | `internal/transcript/ytdlp_test.go::TestFetchYtDlpArgs`・`internal/transcript/exec_test.go::TestCommandExecutorNoShell`（シェルメタ文字を含む引数が実 executor を通ってそのまま届く） |
 | AC-08 | タイムアウト・キャンセルの判別と有界な待機 | test | `internal/transcript/exec_test.go::TestCommandExecutorWaitDelay`・`internal/transcript/ytdlp_test.go::TestFetchTimeoutAndCancel` |
-| AC-09 | 非ゼロ終了・実行ファイル不在で `ErrYtDlpExec`、標準エラー出力は 4 KiB まで | test | `internal/transcript/ytdlp_test.go::TestFetchYtDlpFailure` |
+| AC-09 | 非ゼロ終了・実行ファイル不在で `ErrYtDlpExec`、標準エラー出力は 4 KiB まで | test | `internal/transcript/ytdlp_test.go::TestFetchYtDlpFailure`・`internal/transcript/exec_test.go::TestCommandExecutorStartFailure`（存在しないパス・実行不能ファイルで実 executor がエラーを返し、`Fetch` が `ErrYtDlpExec` へ対応付ける） |
 | AC-10 | `segs[].utf8` の連結と `tStartMs` | test | `internal/transcript/json3_test.go::TestParseSubtitlesRealData` |
 | AC-11 | `segs` なし・空 `utf8` の除外 | test | `internal/transcript/json3_test.go::TestParseSubtitlesRealData`（`segs` なし・空白のみ）・`TestParseSubtitlesEmptySegs`（空 `utf8` の最小入力） |
 | AC-12 | 不正 JSON・`null`・非配列・後続データの拒否 | test | `internal/transcript/json3_test.go::TestParseSubtitlesRejectsSimple`・`TestParseSubtitlesDuplicateMembers` |
@@ -233,9 +233,9 @@ AC ごとの検証は次のとおり。`test` は実行可能なテスト、`sta
 | AC-39 | 実際の動画からの取得 | test | `internal/transcript/integration_test.go::TestIntegration`（fetch サブテスト） |
 | AC-40 | キャッシュの再利用 | test | `internal/transcript/integration_test.go::TestIntegration`（cache_reuse サブテスト） |
 | AC-41 | 強制再取得 | test | `internal/transcript/integration_test.go::TestIntegration`（force_refresh サブテスト） |
-| AC-42 | URL 未設定でスキップせず失敗 | test | `internal/transcript/ytdlp_test.go::TestMissingIntegrationEnv`（未設定・空・設定済みの各入力）・環境変数を設定しない `go test -tags integration ./internal/transcript` の実行（失敗とメッセージを記録） |
+| AC-42 | URL 未設定でスキップせず失敗 | test | コミット済みの `internal/transcript/integration_test.go::TestIntegration` を環境変数を設定せずに直接実行し（フェーズ 4 ステップ 4-6）、スキップせず変数名を示すエラーで失敗することを確認して結果を記録 |
 | AC-43 | 統合テストが lint の解析対象 | static | `internal/transcript/ytdlp_test.go::TestLintTagsIncludeIntegration`（`Makefile`・`.pre-commit-config.yaml`・`.github/workflows/ci.yml` の 3 箇所）・`make lint`（`--build-tags test,integration`） |
-| AC-44 | 環境 allowlist | test | `internal/transcript/ytdlp_test.go::TestFetchEnvAllowlist` |
+| AC-44 | 環境 allowlist | test | `internal/transcript/ytdlp_test.go::TestFetchEnvAllowlist`・`internal/transcript/exec_test.go::TestCommandExecutorEnvAllowlist`（実 executor を通して子プロセスが受け取る環境を検証） |
 | AC-45 | `tStartMs` の欠落・不正の拒否 | test | `internal/transcript/json3_test.go::TestParseSubtitlesTimestamps` |
 | AC-46 | 時間的に離れた同一本文の保持 | test | `internal/transcript/json3_test.go::TestParseSubtitlesKeepsRepeatedText` |
 | AC-47 | info.json の `id` の照合 | test | `internal/transcript/info_test.go::TestParseInfoIDMismatch` |
@@ -243,8 +243,8 @@ AC ごとの検証は次のとおり。`test` は実行可能なテスト、`sta
 | AC-49 | イベント数の上限 | test | `internal/transcript/json3_test.go::TestParseSubtitlesLimits` |
 | AC-50 | info.json のサイズの上限 | test | `internal/transcript/info_test.go::TestParseInfoLimits` |
 | AC-51 | 標準エラー出力の保持は先頭 4 KiB まで | test | `internal/transcript/exec_test.go::TestCappedWriter`・`TestCommandExecutorDrainsStderr`・`internal/transcript/ytdlp_test.go::TestFetchStderrCapAndRedaction` |
-| AC-52 | 不正 UTF-8・サロゲートの拒否（json3） | test | `internal/transcript/json3_test.go::TestParseSubtitlesUTF8`（`testdata/` の合成サンプル 2 件） |
-| AC-53 | 不正 UTF-8・サロゲートの拒否（info.json） | test | `internal/transcript/info_test.go::TestParseInfoUTF8`（`testdata/` の合成サンプル 2 件） |
+| AC-52 | 不正 UTF-8・サロゲートの拒否（json3） | test | `internal/transcript/json3_test.go::TestParseSubtitlesUTF8`（`testdata/` の合成サンプル 2 件の拒否に加え、有効な高/低サロゲートペア（非 BMP 文字）を含む入力と `\\ud800` が通常テキストとして現れる入力の受理を検証し、生バイト列の判定が正当な入力を過剰に拒否しないことを確認） |
+| AC-53 | 不正 UTF-8・サロゲートの拒否（info.json） | test | `internal/transcript/info_test.go::TestParseInfoUTF8`（`testdata/` の合成サンプル 2 件の拒否に加え、有効な高/低サロゲートペア（非 BMP 文字）を含む入力と `\\ud800` が通常テキストとして現れる入力の受理を検証し、生バイト列の判定が正当な入力を過剰に拒否しないことを確認） |
 | AC-54 | `tStartMs` の `int64` 範囲外の拒否 | test | `internal/transcript/json3_test.go::TestParseSubtitlesTimestamps` |
 | AC-55 | `events` の非オブジェクト要素の拒否 | test | `internal/transcript/json3_test.go::TestParseSubtitlesElementKinds` |
 | AC-56 | 大量の標準エラー出力の後の非ゼロ終了でタイムアウトを待たない | test | `internal/transcript/exec_test.go::TestCommandExecutorDrainsStderr`・`internal/transcript/ytdlp_test.go::TestFetchStderrCapAndRedaction` |
@@ -253,11 +253,11 @@ AC ごとの検証は次のとおり。`test` は実行可能なテスト、`sta
 | AC-59 | 別動画・無関係なファイルの不変と一時ファイルの非残存 | test | `internal/transcript/ytdlp_test.go::TestFetchUnrelatedEntriesUntouched`（成功・各失敗の後に別動画のキャッシュと無関係なファイルが不変であること）・`TestFetchEntryTypeMismatch`（固定名に置いた種別の異なるエントリに触れずファイルシステムエラーを返すこと） |
 | AC-60 | 字幕あり info.json なしで `ErrParseInfo` | test | `internal/transcript/ytdlp_test.go::TestFetchInfoMissing` |
 | AC-61 | 両方なしで `ErrNoSubtitles`（字幕優先） | test | `internal/transcript/ytdlp_test.go::TestFetchNoSubtitles` |
-| AC-62 | 起動・待機失敗の番兵 | test | `internal/transcript/ytdlp_test.go::TestFetchYtDlpFailure` |
+| AC-62 | 起動・待機失敗の番兵 | test | `internal/transcript/ytdlp_test.go::TestFetchYtDlpFailure`・`internal/transcript/exec_test.go::TestCommandExecutorStartFailure`（実 executor の起動失敗が握り潰されず `ErrYtDlpExec` へ対応付けられる） |
 | AC-63 | 読み取り不能な字幕ファイルの `*ParseError` | test | `internal/transcript/ytdlp_test.go::TestFetchUnreadableSubtitleFile`・`TestFetchSymlinkSlotOutput`（fake の出力とキャッシュの両方で、通常ファイルでない字幕・info.json が対応する番兵とパスを持つエラーになり、リンク先が不変であることを検証） |
 | AC-64 | info.json の未消費メンバーの受理 | test | `internal/transcript/info_test.go::TestParseInfoRealData`・`TestParseInfoDuplicateMembers` |
 | AC-65 | info.json の消費フィールドの型不正の拒否 | test | `internal/transcript/info_test.go::TestParseInfoTypeMismatch` |
-| AC-66 | allowlist の集合の正確さ | test | `internal/transcript/ytdlp_test.go::TestFetchEnvAllowlist` |
+| AC-66 | allowlist の集合の正確さ | test | `internal/transcript/ytdlp_test.go::TestFetchEnvAllowlist`・`internal/transcript/exec_test.go::TestCommandExecutorEnvAllowlist`（設定された変数とその値だけが子プロセスへ渡り、1 つも設定されていなければ非 nil の空環境） |
 | AC-67 | json3 の未消費メンバーの受理と破棄イベントの `tStartMs` を検証しないこと | test | `internal/transcript/json3_test.go::TestParseSubtitlesRealData`・`TestParseSubtitlesDuplicateMembers`・`TestParseSubtitlesTimestamps` |
 | AC-68 | 正常終了後の字幕優先の検証順序 | test | `internal/transcript/ytdlp_test.go::TestFetchValidationOrder`（実行後の複合失敗と、キャッシュ読み込みの複合失敗（0 件の字幕 + 不正な info.json、不正な字幕 + 不正な info.json）で字幕側の番兵が返ることを検証。design_handoff H-14） |
 | AC-69 | 中断状態の後始末と混在の検出 | test | `internal/transcript/ytdlp_test.go::TestFetchInterruptedStates`（architecture §6.3 の S1〜S6）・`TestFetchOversizedPointer`・`TestFetchDanglingDeleteFailure`（dangling の削除失敗が `Fetch` の戻り値を変えないこと） |
@@ -285,12 +285,12 @@ AC ごとの検証は次のとおり。`test` は実行可能なテスト、`sta
 |---|---|---|
 | `gosec` の G204（可変のコマンド名での実行）が `exec.go` で指摘される | `make lint` が通らない | `exec.CommandContext` の呼び出しに限定した最小の `//nolint:gosec` と理由コメントを付ける（フェーズ 2 ステップ 2-6）。テストファイルは gosec の除外対象（`.golangci.yml:103-113`）。 |
 | `gosec` の G304（変数パスでのファイル読み取り）が `cache.go`・`ytdlp.go` で指摘される | `make lint` が通らない | 指摘された場合は読み取りの呼び出しに限定した最小の `//nolint:gosec` と理由コメントを付ける。同じ形の読み取りすべてに同じ対応を適用する。指摘の有無をフェーズ 3 のゲートで確認する。 |
-| `test_helpers.go`・`test_helpers_env.go` は `_test.go` ではないため、`.golangci.yml:103-113` のテスト向け除外が効かない | `make lint` が通らない | errcheck・goconst・err113・dupl を含む lint に適合させる（未チェックのエラーを残さない、固定文字列を定数化する、静的センチネルを使う、重複を避ける）。`make lint` は `--build-tags test,integration` で解析するため、両ファイルを含む。 |
+| `test_helpers.go` は `_test.go` ではないため、`.golangci.yml:103-113` のテスト向け除外が効かない | `make lint` が通らない | errcheck・goconst・err113・dupl を含む lint に適合させる（未チェックのエラーを残さない、固定文字列を定数化する、静的センチネルを使う、重複を避ける）。`make lint` は `--build-tags test,integration` で解析する。 |
 | `mnd` が上限値・猶予の数値リテラルを指摘する | `make lint` が通らない | 8 MiB・65,536・4 KiB・5 秒・待機の余裕を名前付き定数にする。 |
 | `goconst` が `a`・`b`・`current`・`current.tmp` の繰り返しを指摘する | `make lint` が通らない | 固定名とサフィックスをパッケージ定数にする。 |
 | `dupl` が json3 と info.json のパーサの類似構造を指摘する | `make lint` が通らない | 共通の厳密デコードを 1 箇所に集約する。それでも指摘される場合は、理由付きの最小の `//nolint:dupl` を検討する。 |
 | 実プロセスを使う `WaitDelay` のテストが環境負荷で不安定になる | テストの間欠失敗 | 固定の猶予に十分な余裕を加えた上限で判定し、厳密な時間比較をしない。 |
-| パーミッションによる削除失敗の注入が root 実行時に成立しない | AC-72・AC-75・AC-69 の検証が通らない | §4.1 のとおり root 以外での実行を前提とし、モードを変えた時点で `t.Cleanup` に復元を登録する。root で実行された場合は前提が成立しないことを検出して記録する（検証を黙って成功させない）。 |
+| パーミッションによる削除失敗の注入が root 実行時に成立しない | AC-72・AC-75・AC-69 の検証が通らない | §4.1 のとおり非 root での実行を前提とする（CI とローカル開発は非 root）。モードを変えた時点で `t.Cleanup` に復元を登録する。root を検出した場合は「unsupported test environment」と明示して失敗させ、黙って成功・スキップしない。 |
 | YouTube のレート制限（HTTP 429）や動画の非公開化で統合テストが失敗する | M4 の完了が遅れる | 統合テストは `t.TempDir` を使い再実行可能にする。手動実行の記録に失敗時の URL 差し替えを残す。既定の動画が使えない場合は F-008 に従って URL と ID を差し替える。 |
 | `make test-integration` がネットワークと実 `yt-dlp` を使う | 実行にユーザーの承認が必要 | フェーズ 4 ステップ 4-5 で承認を得てから実行する（CLAUDE.md「Tool Execution Safety」）。 |
 | `testdata/` のフィクスチャが大きい（約 1.8 MB） | リポジトリの増加 | 対応不要。コミット `4bf3ffd` で追加済みで、git の圧縮により増分は小さい（architecture 付録A）。 |
@@ -305,7 +305,7 @@ AC ごとの検証は次のとおり。`test` は実行可能なテスト、`sta
 - [ ] M5 完了（フェーズ 5: `requirements_process.md` の更新）
 - [ ] 各フェーズで `make fmt` → `make test` → `make lint` が通る
 - [ ] 各テストについて、対応する分岐・対策を壊し、テストが失敗することを確認済み（コミットメッセージに記録）
-- [ ] `internal/transcript/test_helpers.go` と、これを使う全 `_test.go` に `//go:build test` がある。`test_helpers_env.go` は `//go:build test || integration` である
+- [ ] `internal/transcript/test_helpers.go` と、これを使う全 `_test.go` に `//go:build test` がある。統合テストの環境変数の確認は `integration_test.go` 内にある
 - [ ] `integration_test.go` の先頭行が `//go:build integration` である
 - [ ] `Makefile`・`.pre-commit-config.yaml`・`.github/workflows/ci.yml` の lint タグがすべて `test,integration` である（`TestLintTagsIncludeIntegration`）
 - [ ] `cmd/yt2column/main.go` と `internal/pipeline` が変更されていない
