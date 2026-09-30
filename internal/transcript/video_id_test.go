@@ -69,6 +69,8 @@ func TestValidateVideoURL(t *testing.T) {
 		{"leading space", " https://www.youtube.com/watch?v=" + id},
 		{"trailing space", "https://www.youtube.com/watch?v=" + id + " "},
 		{"trailing newline", "https://www.youtube.com/watch?v=" + id + "\n"},
+		{"trailing space after fragment", "https://www.youtube.com/watch?v=" + id + "#t=30 "},
+		{"trailing tab after fragment", "https://www.youtube.com/watch?v=" + id + "#t=30\t"},
 		{"youtu.be extra path", "https://youtu.be/" + id + "/../../etc"},
 		{"shorts extra path", "https://www.youtube.com/shorts/" + id + "/extra"},
 		{"embed extra path", "https://www.youtube.com/embed/" + id + "/extra"},

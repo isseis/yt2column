@@ -14,6 +14,9 @@ var videoIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{11}$`)
 // the normalized URL https://www.youtube.com/watch?v=<id>. It accepts only the
 // supported YouTube URL forms and never repairs a rejected input.
 func validateVideoURL(rawURL string) (videoID string, normalizedURL string, err error) {
+	if strings.TrimSpace(rawURL) != rawURL {
+		return "", "", fmt.Errorf("%w: URL must not have leading or trailing whitespace", ErrInvalidVideoURL)
+	}
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
 		return "", "", fmt.Errorf("%w: malformed URL", ErrInvalidVideoURL)
