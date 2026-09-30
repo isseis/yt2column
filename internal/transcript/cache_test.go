@@ -482,3 +482,19 @@ func assertFileContent(t *testing.T, path, want string) {
 		t.Errorf("%s = %q, want %q", path, data, want)
 	}
 }
+
+// TestReadFileBounded checks the reader's own limit with a maxBytes far below
+// the parser limits, so only readFileBounded can reject the file.
+func TestReadFileBounded(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "file")
+	const content = "0123456789"
+	writeTestFile(t, path, content)
+
+	if _, err := readFileBounded(path, int64(len(content))-1); !errors.Is(err, errInputTooLarge) {
+		t.Errorf("readFileBounded over the limit error = %v, want errInputTooLarge", err)
+	}
+	data, err := readFileBounded(path, int64(len(content)))
+	if err != nil || string(data) != content {
+		t.Errorf("readFileBounded at the limit = %q, %v, want %q, nil", data, err, content)
+	}
+}

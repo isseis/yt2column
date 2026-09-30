@@ -318,7 +318,13 @@ func TestCommandExecutorWaitDelay(t *testing.T) {
 
 func TestRedactStderr(t *testing.T) {
 	const secret = "s3cret-proxy-value"
+	// shortProxy is a prefix of longProxy and comes first in env, so redacting
+	// in env order would split longProxy and leave its token visible.
+	const shortProxy = "https://proxy.example"
+	const longProxy = shortProxy + "?token=T0KEN"
 	env := []string{
+		"HTTP_PROXY=" + shortProxy,
+		"https_proxy=" + longProxy,
 		"HTTPS_PROXY=" + secret,
 		"NO_PROXY=",
 		"LANG=en_US.UTF-8",
@@ -327,11 +333,13 @@ func TestRedactStderr(t *testing.T) {
 		input string
 		want  string
 	}{
-		"full proxy value":     {"error: " + secret + " failed", "error: " + redactedMarker + " failed"},
-		"value cut at the cap": {"error: " + secret[:7], "error: " + redactedMarker},
-		"URL userinfo":         {"https://user:pass@proxy.example/x", "https://" + redactedMarker + "@proxy.example/x"},
-		"empty proxy value":    {"nothing to redact", "nothing to redact"},
-		"non-proxy value kept": {"LANG=en_US.UTF-8", "LANG=en_US.UTF-8"},
+		"full proxy value":                {"error: " + secret + " failed", "error: " + redactedMarker + " failed"},
+		"value cut at the cap":            {"error: " + secret[:7], "error: " + redactedMarker},
+		"URL userinfo":                    {"https://user:pass@proxy.example/x", "https://" + redactedMarker + "@proxy.example/x"},
+		"empty proxy value":               {"nothing to redact", "nothing to redact"},
+		"non-proxy value kept":            {"LANG=en_US.UTF-8", "LANG=en_US.UTF-8"},
+		"value containing another value":  {"via " + longProxy + " failed", "via " + redactedMarker + " failed"},
+		"containing value cut at the cap": {"via " + longProxy[:len(shortProxy)+4], "via " + redactedMarker},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {

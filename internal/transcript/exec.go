@@ -1,10 +1,12 @@
 package transcript
 
 import (
+	"cmp"
 	"context"
 	"io"
 	"os/exec"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 )
@@ -129,8 +131,11 @@ var userinfoPattern = regexp.MustCompile(`://[^/?#\s@]*@`)
 
 // redactStderr removes credentials from captured standard error output before
 // it is added to an error: the non-empty values of the proxy variables given
-// to the child (including a value cut off at the cap) and URL userinfo.
+// to the child (including a value cut off at the cap) and URL userinfo. Every
+// span is located in the original output and merged before any replacement, so
+// a value that is a prefix of another cannot split it and leave part visible.
 func redactStderr(stderr string, env []string) string {
+	var spans [][2]int
 	for _, entry := range env {
 		name, value, ok := strings.Cut(entry, "=")
 		if !ok || value == "" {
@@ -139,21 +144,44 @@ func redactStderr(stderr string, env []string) string {
 		if _, isProxy := proxyEnvVars[name]; !isProxy {
 			continue
 		}
-		stderr = strings.ReplaceAll(stderr, value, redactedMarker)
-		stderr = redactTruncatedSuffix(stderr, value)
-	}
-	return userinfoPattern.ReplaceAllString(stderr, "://"+redactedMarker+"@")
-}
-
-// redactTruncatedSuffix replaces a trailing fragment of value, so a value cut
-// off at the stderr cap does not leave its beginning in the output.
-func redactTruncatedSuffix(output, value string) string {
-	for length := min(len(value)-1, len(output)); length > 0; length-- {
-		if strings.HasSuffix(output, value[:length]) {
-			return output[:len(output)-length] + redactedMarker
+		for offset := 0; ; offset++ {
+			index := strings.Index(stderr[offset:], value)
+			if index < 0 {
+				break
+			}
+			offset += index
+			spans = append(spans, [2]int{offset, offset + len(value)})
+		}
+		if length := truncatedPrefixLength(stderr, value); length > 0 {
+			spans = append(spans, [2]int{len(stderr) - length, len(stderr)})
 		}
 	}
-	return output
+	slices.SortFunc(spans, func(a, b [2]int) int { return cmp.Compare(a[0], b[0]) })
+	var out strings.Builder
+	written := 0
+	for i := 0; i < len(spans); {
+		start, end := spans[i][0], spans[i][1]
+		for i++; i < len(spans) && spans[i][0] <= end; i++ {
+			end = max(end, spans[i][1])
+		}
+		out.WriteString(stderr[written:start])
+		out.WriteString(redactedMarker)
+		written = end
+	}
+	out.WriteString(stderr[written:])
+	return userinfoPattern.ReplaceAllString(out.String(), "://"+redactedMarker+"@")
+}
+
+// truncatedPrefixLength returns the length of the longest proper prefix of
+// value that ends output, so a value cut off at the stderr cap does not leave
+// its beginning in the output.
+func truncatedPrefixLength(output, value string) int {
+	for length := min(len(value)-1, len(output)); length > 0; length-- {
+		if strings.HasSuffix(output, value[:length]) {
+			return length
+		}
+	}
+	return 0
 }
 
 // allowlistEnv returns the allowlisted variables set in parent, in the order

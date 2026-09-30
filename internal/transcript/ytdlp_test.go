@@ -1565,11 +1565,18 @@ func TestFetchOversizedFiles(t *testing.T) {
 
 func TestFetchSymlinkSlotOutput(t *testing.T) {
 	id := testdataRealVideoID
+	// The targets are valid documents with a mode the cache never sets, so
+	// following the link would make Fetch succeed and the commit chmod them.
+	const targetMode fs.FileMode = 0o640
 
 	t.Run("symlink subtitle in the run output", func(t *testing.T) {
 		dir := filepath.Join(t.TempDir(), "cache")
 		target := filepath.Join(dir, "target.json3")
-		writeTestFile(t, target, "target")
+		targetContent := subtitleDocument("target")
+		writeTestFile(t, target, targetContent)
+		if err := os.Chmod(target, targetMode); err != nil {
+			t.Fatalf("chmod: %v", err)
+		}
 		fake := &fakeCommandExecutor{behavior: func(call fakeCommandCall) error {
 			slotDir := slotDirFromArgs(t, call.args)
 			if err := os.Symlink(target, subtitlesPath(slotDir, id)); err != nil {
@@ -1581,8 +1588,8 @@ func TestFetchSymlinkSlotOutput(t *testing.T) {
 		source := newTestSource(t, dir, fake, nil)
 
 		_, err := source.Fetch(t.Context(), watchURL(id))
-		if !errors.Is(err, ErrParseSubtitles) {
-			t.Fatalf("Fetch error = %v, want ErrParseSubtitles", err)
+		if !errors.Is(err, ErrParseSubtitles) || !errors.Is(err, errNotRegularFile) {
+			t.Fatalf("Fetch error = %v, want ErrParseSubtitles with errNotRegularFile", err)
 		}
 		parseErr, ok := errors.AsType[*ParseError](err)
 		if !ok {
@@ -1591,7 +1598,8 @@ func TestFetchSymlinkSlotOutput(t *testing.T) {
 		if want := subtitlesPath(slotDirPath(dir, id, slotNameA), id); parseErr.Path != want {
 			t.Errorf("ParseError.Path = %q, want %q", parseErr.Path, want)
 		}
-		assertFileContent(t, target, "target")
+		assertFileContent(t, target, targetContent)
+		assertMode(t, target, targetMode)
 	})
 
 	t.Run("symlink info in the cache", func(t *testing.T) {
@@ -1599,7 +1607,11 @@ func TestFetchSymlinkSlotOutput(t *testing.T) {
 		slotDir := slotDirPath(dir, id, slotNameA)
 		writeTestFile(t, subtitlesPath(slotDir, id), subtitleDocument("old"))
 		target := filepath.Join(dir, "target.info.json")
-		writeTestFile(t, target, "target")
+		targetContent := infoDocument(id, "target")
+		writeTestFile(t, target, targetContent)
+		if err := os.Chmod(target, targetMode); err != nil {
+			t.Fatalf("chmod: %v", err)
+		}
 		if err := os.Symlink(target, infoPath(slotDir, id)); err != nil {
 			t.Fatalf("symlink: %v", err)
 		}
@@ -1607,8 +1619,8 @@ func TestFetchSymlinkSlotOutput(t *testing.T) {
 		source := newTestSource(t, dir, &fakeCommandExecutor{}, nil)
 
 		_, err := source.Fetch(t.Context(), watchURL(id))
-		if !errors.Is(err, ErrParseInfo) {
-			t.Fatalf("Fetch error = %v, want ErrParseInfo", err)
+		if !errors.Is(err, ErrParseInfo) || !errors.Is(err, errNotRegularFile) {
+			t.Fatalf("Fetch error = %v, want ErrParseInfo with errNotRegularFile", err)
 		}
 		parseErr, ok := errors.AsType[*ParseError](err)
 		if !ok {
@@ -1617,7 +1629,8 @@ func TestFetchSymlinkSlotOutput(t *testing.T) {
 		if parseErr.Path != infoPath(slotDir, id) {
 			t.Errorf("ParseError.Path = %q, want %q", parseErr.Path, infoPath(slotDir, id))
 		}
-		assertFileContent(t, target, "target")
+		assertFileContent(t, target, targetContent)
+		assertMode(t, target, targetMode)
 		assertFileContent(t, pointerPath(dir, id), slotNameA)
 	})
 }
