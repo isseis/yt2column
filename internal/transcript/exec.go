@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"os/exec"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -19,6 +20,19 @@ const (
 	execWaitDelay = 5 * time.Second
 )
 
+// Proxy environment variable names, shared by the allowlist and the stderr
+// redaction, which must treat the same names as sensitive.
+const (
+	envHTTPProxy       = "HTTP_PROXY"
+	envHTTPSProxy      = "HTTPS_PROXY"
+	envNOProxy         = "NO_PROXY"
+	envALLProxy        = "ALL_PROXY"
+	envHTTPProxyLower  = "http_proxy"
+	envHTTPSProxyLower = "https_proxy"
+	envNOProxyLower    = "no_proxy"
+	envALLProxyLower   = "all_proxy"
+)
+
 // allowedEnvVars is the fixed set of environment variables passed to yt-dlp.
 // It is an allowlist so a secret added to the parent environment cannot leak
 // into the child; it must never list an API key or the Webhook URL.
@@ -28,14 +42,14 @@ var allowedEnvVars = []string{
 	"TMPDIR",
 	"XDG_CONFIG_HOME",
 	"XDG_CACHE_HOME",
-	"HTTP_PROXY",
-	"HTTPS_PROXY",
-	"NO_PROXY",
-	"ALL_PROXY",
-	"http_proxy",
-	"https_proxy",
-	"no_proxy",
-	"all_proxy",
+	envHTTPProxy,
+	envHTTPSProxy,
+	envNOProxy,
+	envALLProxy,
+	envHTTPProxyLower,
+	envHTTPSProxyLower,
+	envNOProxyLower,
+	envALLProxyLower,
 	"LANG",
 	"LC_ALL",
 	"LC_CTYPE",
@@ -92,6 +106,54 @@ func (w *cappedWriter) Write(p []byte) (int, error) {
 // String returns the retained prefix of the output.
 func (w *cappedWriter) String() string {
 	return string(w.buf)
+}
+
+// proxyEnvVars are the allowlisted variables whose values can carry
+// credentials and must be redacted from captured output.
+var proxyEnvVars = map[string]struct{}{
+	envHTTPProxy:       {},
+	envHTTPSProxy:      {},
+	envNOProxy:         {},
+	envALLProxy:        {},
+	envHTTPProxyLower:  {},
+	envHTTPSProxyLower: {},
+	envNOProxyLower:    {},
+	envALLProxyLower:   {},
+}
+
+// redactedMarker replaces credentials in captured output.
+const redactedMarker = "[redacted]"
+
+// userinfoPattern matches the userinfo of a URL between "://" and "@".
+var userinfoPattern = regexp.MustCompile(`://[^/?#\s@]*@`)
+
+// redactStderr removes credentials from captured standard error output before
+// it is added to an error: the non-empty values of the proxy variables given
+// to the child (including a value cut off at the cap) and URL userinfo.
+func redactStderr(stderr string, env []string) string {
+	for _, entry := range env {
+		name, value, ok := strings.Cut(entry, "=")
+		if !ok || value == "" {
+			continue
+		}
+		if _, isProxy := proxyEnvVars[name]; !isProxy {
+			continue
+		}
+		stderr = strings.ReplaceAll(stderr, value, redactedMarker)
+		stderr = redactTruncatedSuffix(stderr, value)
+	}
+	return userinfoPattern.ReplaceAllString(stderr, "://"+redactedMarker+"@")
+}
+
+// redactTruncatedSuffix replaces a trailing fragment of value, so a value cut
+// off at the stderr cap does not leave its beginning in the output.
+func redactTruncatedSuffix(output, value string) string {
+	for length := min(len(value)-1, len(output)); length > 0; length-- {
+		if strings.HasSuffix(output, value[:length]) {
+			return output[:len(output)-length] + redactedMarker
+		}
+	}
+	return output
 }
 
 // allowlistEnv returns the allowlisted variables set in parent, in the order

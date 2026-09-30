@@ -154,26 +154,8 @@ func TestCommandExecutorEnvAllowlist(t *testing.T) {
 		// dropped or renamed entry fails the exact comparison below. TMPDIR
 		// must exist: under coverage the re-executed test binary creates its
 		// coverage temp files there and exits non-zero if it cannot.
-		want := map[string]string{
-			"PATH":            "/usr/bin:/bin",
-			"HOME":            "/home/example",
-			"TMPDIR":          t.TempDir(),
-			"XDG_CONFIG_HOME": "/home/example/.config",
-			"XDG_CACHE_HOME":  "/home/example/.cache",
-			"HTTP_PROXY":      "http://proxy.example:3128",
-			"HTTPS_PROXY":     "http://user:pass@proxy.example:8080",
-			"NO_PROXY":        "localhost,127.0.0.1",
-			"ALL_PROXY":       "socks5://proxy.example:1080",
-			"http_proxy":      "http://lower-proxy.example:3128",
-			"https_proxy":     "http://lower-proxy.example:8443",
-			"no_proxy":        "",
-			"all_proxy":       "socks5://lower-proxy.example:1080",
-			"LANG":            "ja_JP.UTF-8",
-			"LC_ALL":          "C.UTF-8",
-			"LC_CTYPE":        "ja_JP.UTF-8",
-			"SSL_CERT_FILE":   "/etc/ssl/cert.pem",
-			"SSL_CERT_DIR":    "/etc/ssl/certs",
-		}
+		want := sampleAllowlistEnv()
+		want["TMPDIR"] = t.TempDir()
 		parent := []string{
 			"YT2COLUMN_TEST_UNLISTED_MARKER=marker",
 			"DEEPSEEK_API_KEY=secret",
@@ -231,6 +213,28 @@ func TestCommandExecutorStartFailure(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Fetch maps the start failure to ErrYtDlpExec", func(t *testing.T) {
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				source, err := NewYtDlpSource(Options{
+					CacheDir:  filepath.Join(t.TempDir(), "cache"),
+					YtDlpPath: tc.path,
+					Timeout:   time.Minute,
+				})
+				if err != nil {
+					t.Fatalf("NewYtDlpSource error = %v", err)
+				}
+				_, err = source.Fetch(t.Context(), "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+				if !errors.Is(err, ErrYtDlpExec) {
+					t.Fatalf("Fetch error = %v, want ErrYtDlpExec", err)
+				}
+				if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+					t.Errorf("start failure also matches a context error: %v", err)
+				}
+			})
+		}
+	})
 }
 
 // TestExecutorHelperProcess is not a regular test: TestCommandExecutorEnvAllowlist

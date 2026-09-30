@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -272,15 +271,6 @@ func TestParseSubtitlesUTF8(t *testing.T) {
 			t.Errorf("segments = %+v, want %+v", segments, want)
 		}
 	})
-}
-
-func readTestdataFile(t *testing.T, path string) []byte {
-	t.Helper()
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read %s: %v", path, err)
-	}
-	return data
 }
 
 func assertSubtitlesRejected(t *testing.T, input string) {
