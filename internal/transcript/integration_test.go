@@ -25,6 +25,11 @@ const (
 	// integrationFetchTimeout bounds one real yt-dlp run.
 	integrationFetchTimeout = 3 * time.Minute
 
+	// integrationRequestInterval separates the two requests the test sends
+	// to YouTube. A second subtitle request a few seconds after the first
+	// was answered with HTTP 429 (Too Many Requests).
+	integrationRequestInterval = 2 * time.Minute
+
 	// integrationMarker is written into the replaced cache; a forced refresh
 	// must not return it.
 	integrationMarker = "yt2column-integration-cache-marker"
@@ -92,6 +97,8 @@ func TestIntegration(t *testing.T) {
 			t.Fatalf("the replaced cache is not served: %s", describeTranscript(cached))
 		}
 
+		t.Logf("waiting %v before the second request to YouTube", integrationRequestInterval)
+		time.Sleep(integrationRequestInterval)
 		source := newIntegrationSource(t, Options{CacheDir: cacheDir, ForceRefresh: true})
 		transcript, err := source.Fetch(context.Background(), videoURL)
 		if err != nil {
