@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Created | 2026-09-29 |
 | Review date | 2026-09-30 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-09-30: AC-67 で、`tStartMs` を消費するのは本文を含むイベントだけであり、破棄されるイベントの `tStartMs` は検証しないことを明記した（F-003・AC-45・AC-54 および design_handoff H-16 に合わせる）。AC-67 の文言上の受理結果が変わるため、判断の変更として `draft` に戻した。 |
 
 ## 1. 概要 (Overview)
 
@@ -144,7 +144,7 @@ json3 形式の字幕を読み、セグメントの並びに変換する。
 - **AC-55**: `events` の要素に JSON オブジェクト以外の要素（`null`、文字列、数値、配列など）が 1 つでも含まれる場合（例: `{"events":[null]}`、およびオブジェクトと `null` が混在する配列）、`errors.Is(err, ErrParseSubtitles)` が真になるエラーになり、`ErrNoSubtitles` ではなく、部分的な結果を返さない。
 - **AC-57**: `segs` が存在するのに JSON 配列でない場合、`segs` の要素に JSON オブジェクト以外の要素が 1 つでも含まれる場合（例: `{"events":[{"tStartMs":0,"segs":[{"utf8":"kept"},null]}]}`）、および `utf8` が存在するのに JSON 文字列でない場合（例: `"utf8":null`）は、`errors.Is(err, ErrParseSubtitles)` が真になるエラーになり、`ErrNoSubtitles` ではなく、部分的な結果を返さない。
 - **AC-63**: 字幕ファイルが存在しても読み取れない場合（例: ディレクトリである、読み取り権限がないファイルである）、`errors.Is(err, ErrParseSubtitles)` が真になるエラーを返し、`ErrNoSubtitles` ではなく、対象ファイルのパスを保持するパースエラー型（AC-36）を返し、キャッシュを変更しない。
-- **AC-67**: json3 が消費しない未知のメンバー（トップレベル・イベント・セグメントの各オブジェクトの、`events`・`tStartMs`・`segs`・`utf8` 以外のメンバー。実 `yt-dlp` の出力にあるフィールド）を含んでいても、それらは無視されて受理され、セグメントが組み立てられる。テストは、そのようなメンバーを含む `testdata/` の実出力で行う。一方、消費するフィールド（`events`・`tStartMs`・`segs`・`utf8`）が存在するのに期待する形でない場合は、引き続き `errors.Is(err, ErrParseSubtitles)` が真になるエラーになる。
+- **AC-67**: json3 が消費しない未知のメンバー（トップレベル・イベント・セグメントの各オブジェクトの、`events`・`tStartMs`・`segs`・`utf8` 以外のメンバー。実 `yt-dlp` の出力にあるフィールド）を含んでいても、それらは無視されて受理され、セグメントが組み立てられる。テストは、そのようなメンバーを含む `testdata/` の実出力で行う。一方、消費するフィールド（`events`・`tStartMs`・`segs`・`utf8`）が存在するのに期待する形でない場合は、引き続き `errors.Is(err, ErrParseSubtitles)` が真になるエラーになる。ただし `tStartMs` を消費するのは本文を含むイベントだけである（F-003・AC-45・AC-54）。本文を含まず破棄されるイベントの `tStartMs` は検証せず、たとえば `{"events":[{"tStartMs":null,"segs":[]}]}` はセグメントが 0 件として `ErrNoSubtitles` になる。
 
 #### F-004: info.json パーサ
 
