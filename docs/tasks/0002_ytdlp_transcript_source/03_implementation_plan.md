@@ -96,8 +96,8 @@
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: 外部コマンドの境界（`exec.go`）
 
@@ -105,12 +105,12 @@
 - 新設: `internal/transcript/exec.go`・`internal/transcript/exec_test.go`（`//go:build test`）
 
 **タスク**
-- [ ] **ステップ 2-1**: `exec.go` に `commandExecutor` interface（architecture §3.2）と `os/exec` を使う実装を追加する。実装は、引数配列での起動（シェルを経由しない）、`exec.CommandContext` によるタイムアウト・キャンセル、`WaitDelay` 相当の猶予 5 秒（architecture §3.7、定数化）、受け取った `io.Writer` の標準エラー出力への接続、allowlist 環境の組み立て（architecture §3.7 の集合、設定されている変数のみ、allowlist の変数が 1 つも設定されていなくても非 nil の空スライスを渡すこと、秘密情報を含めないこと）を含む。`Run` は生の実行結果を返し、タイムアウト・キャンセルの判別は行わない（`Fetch` の責務。architecture §3.2）。
-- [ ] **ステップ 2-2**: 同じく `exec.go` に、標準エラー出力を 4 KiB まで保持しつつ超過分も読み捨てる `cappedWriter` を追加する。標準エラー出力の伏字化（architecture §4.2）はこのフェーズでは追加しない。呼び出し元の `Fetch` と検証する `TestFetchStderrCapAndRedaction` がフェーズ 3 で揃うため、このフェーズで追加すると呼び出しもテストもない非公開関数になり、`unused` によって `make lint` のゲートが通らない（ステップ 3-3 で追加する）。
-- [ ] **ステップ 2-3**: `exec_test.go` を作成し、§5 の AC 表に挙げたテストを実装する（AC-07〜AC-09・AC-44・AC-51・AC-56・AC-62・AC-66）。`t.TempDir` に置いたヘルパー実行ファイル（標準エラー出力を 4 KiB を大きく超えて書いてから非ゼロ終了するもの、および標準エラー出力を開いたまま残る子孫を起動するもの）を使い、ドレインと `WaitDelay` による有界な待機を検証する。待機の有界性は固定の猶予 + 十分な余裕で判定し、厳密な時間比較にしない。実 executor をヘルパー実行ファイルを通して直接検証する `TestCommandExecutorEnvAllowlist`（子プロセスが受け取る環境が allowlist の設定済み変数とその値だけで、allowlist の変数が 1 つも設定されていなければ非 nil の空環境）、`TestCommandExecutorNoShell`（シェルメタ文字を含む引数がシェルに解釈されずそのまま届く）、`TestCommandExecutorStartFailure`（存在しないパスと実行不能ファイルで executor がエラーを返して握り潰さない。`Fetch` が `ErrYtDlpExec` へ対応付ける検証は `Fetch` が加わるフェーズ 3 で同テストに追加する）も実装する。
-- [ ] **ステップ 2-4**: `package_reference.md` の `internal/transcript` の行を、このフェーズで加わる外部コマンド実行の境界を含む説明に更新する。
-- [ ] **ステップ 2-5**: 主要な分岐を壊して失敗を確認し、コミットメッセージに記録する。対象の例: 4 KiB の境界（ちょうど/超過）を取り違えると `TestCappedWriter` が失敗する、`cappedWriter` のドレインを止めると `TestCommandExecutorDrainsStderr` が失敗する、`WaitDelay` を外すと `TestCommandExecutorWaitDelay` が失敗する、allowlist を組み立てず親環境をそのまま `exec.Cmd.Env` に渡すと `TestCommandExecutorEnvAllowlist` が失敗する、引数を `sh -c` 経由で渡すように変えると `TestCommandExecutorNoShell` が失敗する、実 `exec.Cmd` の起動エラーを握り潰すと `TestCommandExecutorStartFailure` が失敗する。
-- [ ] **ステップ 2-6**: `make fmt` → `make test` → `make lint` を通す。`gosec` の G204（可変のコマンド名での実行）が指摘された場合は、`exec.CommandContext` の呼び出しに限定した最小の `//nolint:gosec` を理由コメント付きで付ける（ファイル全体に広げない）。指摘の有無と対応をコミットメッセージに記録する。
+- [x] **ステップ 2-1**: `exec.go` に `commandExecutor` interface（architecture §3.2）と `os/exec` を使う実装を追加する。実装は、引数配列での起動（シェルを経由しない）、`exec.CommandContext` によるタイムアウト・キャンセル、`WaitDelay` 相当の猶予 5 秒（architecture §3.7、定数化）、受け取った `io.Writer` の標準エラー出力への接続、allowlist 環境の組み立て（architecture §3.7 の集合、設定されている変数のみ、allowlist の変数が 1 つも設定されていなくても非 nil の空スライスを渡すこと、秘密情報を含めないこと）を含む。`Run` は生の実行結果を返し、タイムアウト・キャンセルの判別は行わない（`Fetch` の責務。architecture §3.2）。
+- [x] **ステップ 2-2**: 同じく `exec.go` に、標準エラー出力を 4 KiB まで保持しつつ超過分も読み捨てる `cappedWriter` を追加する。標準エラー出力の伏字化（architecture §4.2）はこのフェーズでは追加しない。呼び出し元の `Fetch` と検証する `TestFetchStderrCapAndRedaction` がフェーズ 3 で揃うため、このフェーズで追加すると呼び出しもテストもない非公開関数になり、`unused` によって `make lint` のゲートが通らない（ステップ 3-3 で追加する）。
+- [x] **ステップ 2-3**: `exec_test.go` を作成し、§5 の AC 表に挙げたテストを実装する（AC-07〜AC-09・AC-44・AC-51・AC-56・AC-62・AC-66）。`t.TempDir` に置いたヘルパー実行ファイル（標準エラー出力を 4 KiB を大きく超えて書いてから非ゼロ終了するもの、および標準エラー出力を開いたまま残る子孫を起動するもの）を使い、ドレインと `WaitDelay` による有界な待機を検証する。`WaitDelay` の検証は標準エラー出力を `io.Writer` に接続した状態で行う（接続しないと os/exec がパイプを作らず、猶予の経路に入らない）。`TestCommandExecutorEnvAllowlist` は、シェルスクリプトのヘルパーが自身の変数（`PWD`・`SHLVL`・`_`）を子の環境に加えてしまうため、テストバイナリを `-test.run` で再実行するヘルパーに環境をそのまま報告させる（architecture §7.1 が認める「テストバイナリの再実行」）。待機の有界性は固定の猶予 + 十分な余裕で判定し、厳密な時間比較にしない。実 executor をヘルパー実行ファイルを通して直接検証する `TestCommandExecutorEnvAllowlist`（子プロセスが受け取る環境が allowlist の設定済み変数とその値だけで、allowlist の変数が 1 つも設定されていなければ非 nil の空環境）、`TestCommandExecutorNoShell`（シェルメタ文字を含む引数がシェルに解釈されずそのまま届く）、`TestCommandExecutorStartFailure`（存在しないパスと実行不能ファイルで executor がエラーを返して握り潰さない。`Fetch` が `ErrYtDlpExec` へ対応付ける検証は `Fetch` が加わるフェーズ 3 で同テストに追加する）も実装する。
+- [x] **ステップ 2-4**: `package_reference.md` の `internal/transcript` の行を、このフェーズで加わる外部コマンド実行の境界を含む説明に更新する。
+- [x] **ステップ 2-5**: 主要な分岐を壊して失敗を確認し、コミットメッセージに記録する。対象の例: 4 KiB の境界（ちょうど/超過）を取り違えると `TestCappedWriter` が失敗する、`cappedWriter` のドレインを止めると `TestCommandExecutorDrainsStderr` が失敗する、`WaitDelay` を外すと `TestCommandExecutorWaitDelay` が失敗する、allowlist を組み立てず親環境をそのまま `exec.Cmd.Env` に渡すと `TestCommandExecutorEnvAllowlist` が失敗する、引数を `sh -c` 経由で渡すように変えると `TestCommandExecutorNoShell` が失敗する、実 `exec.Cmd` の起動エラーを握り潰すと `TestCommandExecutorStartFailure` が失敗する。
+- [x] **ステップ 2-6**: `make fmt` → `make test` → `make lint` を通す。`gosec` の G204（可変のコマンド名での実行）が指摘された場合は、`exec.CommandContext` の呼び出しに限定した最小の `//nolint:gosec` を理由コメント付きで付ける（ファイル全体に広げない）。指摘の有無と対応をコミットメッセージに記録する。
 
 ### PR-2 作成ポイント: external command boundary (exec.go)
 
@@ -124,8 +124,8 @@
 
 **判定理由**: ステップ 2-1・2-3 の実プロセスを使う `WaitDelay`・ドレインの検証が、子孫プロセスのライフサイクルを扱う孤立した複雑なステップ（リスク隔離の対象）に該当するため。競合する実装方針の併記とパネルモードのトリガーには該当しない。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
