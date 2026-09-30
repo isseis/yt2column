@@ -39,7 +39,41 @@ make build   # build/yt2column
 make test    # unit tests (no network, no yt-dlp)
 make lint    # golangci-lint (pinned version)
 make fmt     # gofumpt on changed files
+make test-integration  # real yt-dlp + network; see below
 ```
+
+### Setting up yt-dlp
+
+`make test` never runs `yt-dlp`. Running the CLI and `make test-integration`
+need a `yt-dlp` that can reach YouTube reliably. Beyond `yt-dlp` itself that
+means two optional pieces; without them `yt-dlp` warns about them, and YouTube
+is more likely to answer with HTTP 429 (Too Many Requests):
+
+- a JavaScript runtime ([deno](https://deno.com/) is the one `yt-dlp` enables
+  by default), and
+- [curl_cffi](https://github.com/lexiforest/curl_cffi) for browser
+  impersonation.
+
+On macOS the Homebrew formula brings both (it depends on `deno` and bundles
+`curl_cffi`):
+
+```sh
+brew install yt-dlp
+command -v yt-dlp                   # must be the Homebrew one, not an older copy earlier on PATH
+yt-dlp --list-impersonate-targets   # lists targets whose Source is curl_cffi
+```
+
+On other platforms, see the yt-dlp
+[installation](https://github.com/yt-dlp/yt-dlp/wiki/Installation),
+[EJS (JavaScript runtime)](https://github.com/yt-dlp/yt-dlp/wiki/EJS) and
+[impersonation](https://github.com/yt-dlp/yt-dlp#impersonation) documentation.
+
+`make test-integration` fetches a real video (by default
+`https://www.youtube.com/watch?v=EQCUZyB4DqE`) and sends YouTube two requests
+two minutes apart, so a run takes a few minutes. Override the video with
+`make test-integration YT2COLUMN_TEST_VIDEO_URL=... YT2COLUMN_TEST_VIDEO_ID=...`
+(an empty `YT2COLUMN_TEST_VIDEO_ID` skips the video ID check). Leave some
+time between runs to stay clear of YouTube's rate limit.
 
 Development follows a requirements → architecture → implementation-plan process
 with explicit acceptance criteria. See [CLAUDE.md](CLAUDE.md) and
