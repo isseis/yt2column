@@ -63,6 +63,8 @@ func TestValidateVideoURL(t *testing.T) {
 		{"watch with other query", "https://www.youtube.com/watch?foo=bar"},
 		{"channel path", "https://www.youtube.com/channel/" + id},
 		{"multiple v", "https://www.youtube.com/watch?v=" + id + "&v=abcdefghijk"},
+		{"multiple v hidden by bad escape", "https://www.youtube.com/watch?v=" + id + "&v=%zz"},
+		{"multiple v hidden by semicolon", "https://www.youtube.com/watch?v=" + id + "&v=abcdefghijk;"},
 		{"bare id", id},
 		{"leading space", " https://www.youtube.com/watch?v=" + id},
 		{"trailing space", "https://www.youtube.com/watch?v=" + id + " "},

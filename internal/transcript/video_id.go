@@ -26,7 +26,13 @@ func validateVideoURL(rawURL string) (videoID string, normalizedURL string, err 
 		// in it, so reject it instead of ignoring it.
 		return "", "", fmt.Errorf("%w: URL must not carry userinfo", ErrInvalidVideoURL)
 	}
-	query := parsed.Query()
+	// url.URL.Query silently drops pairs it cannot parse (a bad percent escape
+	// or a semicolon), which would hide a second v parameter, so reject a
+	// malformed query instead.
+	query, err := url.ParseQuery(parsed.RawQuery)
+	if err != nil {
+		return "", "", fmt.Errorf("%w: malformed query", ErrInvalidVideoURL)
+	}
 	if len(query["v"]) > 1 {
 		return "", "", fmt.Errorf("%w: multiple v parameters", ErrInvalidVideoURL)
 	}
