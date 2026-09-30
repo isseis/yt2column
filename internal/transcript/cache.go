@@ -139,9 +139,10 @@ func writeSlot(state pointerState) string {
 
 // cacheFileExists reports whether the fixed-name entry exists, whatever its
 // type: a non-regular entry still counts as present and fails when read.
+// Only ErrNotExist is absent; other failures surface as a *ParseError on read.
 func cacheFileExists(path string) bool {
 	_, err := os.Lstat(path)
-	return err == nil
+	return !errors.Is(err, fs.ErrNotExist)
 }
 
 // readFileBounded reads a cache output file. A non-regular entry is refused

@@ -384,6 +384,13 @@ func TestFetchInfoMissing(t *testing.T) {
 	if errors.Is(err, ErrNoSubtitles) {
 		t.Errorf("missing info.json also matches ErrNoSubtitles")
 	}
+	parseErr, ok := errors.AsType[*ParseError](err)
+	if !ok {
+		t.Fatalf("Fetch error = %v, want *ParseError", err)
+	}
+	if want := infoPath(slotDirPath(dir, id, slotNameA), id); parseErr.Path != want {
+		t.Errorf("ParseError.Path = %q, want %q", parseErr.Path, want)
+	}
 	if _, err := os.Lstat(pointerPath(dir, id)); !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("a failed run committed a cache entry (error = %v)", err)
 	}
@@ -1466,6 +1473,33 @@ func TestFetchUnreadableSubtitleFile(t *testing.T) {
 		}
 		if parseErr.Path != path {
 			t.Errorf("ParseError.Path = %q, want %q", parseErr.Path, path)
+		}
+		assertFileContent(t, pointerPath(dir, id), slotNameA)
+	})
+
+	t.Run("unsearchable cached slot", func(t *testing.T) {
+		requireNonRoot(t)
+		dir := filepath.Join(t.TempDir(), "cache")
+		placeRealCache(t, dir, id)
+		slotDir := slotDirPath(dir, id, slotNameA)
+		// Without search permission Lstat of both outputs fails with EACCES, not ENOENT.
+		chmodForTest(t, slotDir, 0o600)
+		fake := &fakeCommandExecutor{behavior: writeGeneration(t, id, generationFor(id, "new"))}
+		source := newTestSource(t, dir, fake, nil)
+
+		_, err := source.Fetch(t.Context(), watchURL(id))
+		if !errors.Is(err, ErrParseSubtitles) {
+			t.Fatalf("Fetch error = %v, want ErrParseSubtitles", err)
+		}
+		parseErr, ok := errors.AsType[*ParseError](err)
+		if !ok {
+			t.Fatalf("Fetch error = %v, want *ParseError", err)
+		}
+		if want := subtitlesPath(slotDir, id); parseErr.Path != want {
+			t.Errorf("ParseError.Path = %q, want %q", parseErr.Path, want)
+		}
+		if fake.callCount() != 0 {
+			t.Errorf("yt-dlp ran %d times, want 0", fake.callCount())
 		}
 		assertFileContent(t, pointerPath(dir, id), slotNameA)
 	})

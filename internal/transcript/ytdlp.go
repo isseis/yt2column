@@ -244,7 +244,8 @@ func verifyRunOutput(slotDir, id string) ([]Segment, videoInfo, error) {
 
 	info, err := readInfoFile(infoPath(slotDir, id), id)
 	if errors.Is(err, errFileMissing) {
-		return nil, videoInfo{}, fmt.Errorf("%w: %s: no info.json was produced", ErrParseInfo, id)
+		// ErrParseInfo always travels in a *ParseError so the caller gets the path.
+		return nil, videoInfo{}, &ParseError{Path: infoPath(slotDir, id), Err: fmt.Errorf("%w: %s: no info.json was produced", ErrParseInfo, id)}
 	}
 	if err != nil {
 		return nil, videoInfo{}, err
