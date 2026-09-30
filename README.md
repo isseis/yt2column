@@ -42,6 +42,12 @@ make fmt     # gofumpt on changed files
 make test-integration  # real yt-dlp + network; see below
 ```
 
+Development follows a requirements → architecture → implementation-plan process
+with explicit acceptance criteria. See [CLAUDE.md](CLAUDE.md) and
+[docs/dev/developer_guide/requirements_process.md](docs/dev/developer_guide/requirements_process.md).
+Design documents are written in Japanese; start with
+[docs/dev/project_overview.md](docs/dev/project_overview.md).
+
 ### Setting up yt-dlp
 
 `make test` never runs `yt-dlp`. Running the CLI and `make test-integration`
@@ -74,9 +80,3 @@ two minutes apart, so a run takes a few minutes. Override the video with
 `make test-integration YT2COLUMN_TEST_VIDEO_URL=... YT2COLUMN_TEST_VIDEO_ID=...`
 (an empty `YT2COLUMN_TEST_VIDEO_ID` skips the video ID check). Leave some
 time between runs to stay clear of YouTube's rate limit.
-
-Development follows a requirements → architecture → implementation-plan process
-with explicit acceptance criteria. See [CLAUDE.md](CLAUDE.md) and
-[docs/dev/developer_guide/requirements_process.md](docs/dev/developer_guide/requirements_process.md).
-Design documents are written in Japanese; start with
-[docs/dev/project_overview.md](docs/dev/project_overview.md).
