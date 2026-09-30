@@ -82,6 +82,23 @@
 - [ ] **ステップ 1-12**: 主要な分岐を実装時に壊して各テストが失敗することを確認し、コミットメッセージに記録する。対象の例: EOF 確認を外すと `TestParseSubtitlesRejectsSimple`・`TestParseInfoRejectsMalformed` が失敗する、`null` をゼロ値として受理すると `TestParseSubtitlesElementKinds`・`TestParseInfoTypeMismatch` が失敗する、上限の境界（ちょうど/超過）を取り違えると `TestParseSubtitlesLimits`・`TestParseInfoLimits` が失敗する、破棄イベントの `tStartMs` も検証すると `TestParseSubtitlesTimestamps` が失敗する、動画 ID を補正すると `TestValidateVideoURL` が失敗する、生バイト列の UTF-8 検証を外すと `TestParseSubtitlesUTF8` が失敗する、サロゲートのエスケープ検出を外すと `TestParseSubtitlesUTF8`・`TestParseInfoUTF8` が失敗する。
 - [ ] **ステップ 1-13**: `make fmt` → `make test` → `make lint` を通す。`test_helpers.go` はこのフェーズの `make test`（`-tags test`）でコンパイルされることを確認する。
 
+### PR-1 作成ポイント: pure processing (errors, URL validation, parsers)
+
+**対象ステップ**: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8 / 1-9 / 1-10 / 1-11 / 1-12 / 1-13
+
+**推奨タイトル**: `feat(0002): add sentinel errors, URL validation, and transcript parsers`
+
+**レビュー観点**: 消費するフィールドだけを厳密に検証し、未知メンバーの重複は受理する境界が実装とテストで一致していること（AC-64・AC-67） / 不正 UTF-8・対になっていないサロゲート・後続データ・`null` とゼロ値の区別が標準ライブラリの補正に頼らず拒否されること（AC-12・AC-52〜AC-55・AC-57） / URL 検証が補正せず、動画 ID 以外の要素をキャッシュのパスや `yt-dlp` の引数に使わないこと（AC-02〜AC-05） / `testdata/` の合成サンプルが意図した理由で不正になっており、テストがサンプル自身の性質を先に検証していること（AC-13・AC-52・AC-53）
+
+**実装モデル要件**: standard
+
+**判定理由**: 純粋な処理とそのテストに限られ、競合する実装方針の併記・リカバリや状態機械などの高リスクな制御・パネルモードのトリガーに該当せず、Conditional checks も build-tag のコンパイル確認（`test_helpers.go`）の 1 件だけのため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ### フェーズ 2: 外部コマンドの境界（`exec.go`）
 
 **対象ファイル**
@@ -94,6 +111,23 @@
 - [ ] **ステップ 2-4**: `package_reference.md` の `internal/transcript` の行を、このフェーズで加わる外部コマンド実行の境界を含む説明に更新する。
 - [ ] **ステップ 2-5**: 主要な分岐を壊して失敗を確認し、コミットメッセージに記録する。対象の例: 4 KiB の境界（ちょうど/超過）を取り違えると `TestCappedWriter` が失敗する、`cappedWriter` のドレインを止めると `TestCommandExecutorDrainsStderr` が失敗する、`WaitDelay` を外すと `TestCommandExecutorWaitDelay` が失敗する、allowlist を組み立てず親環境をそのまま `exec.Cmd.Env` に渡すと `TestCommandExecutorEnvAllowlist` が失敗する、引数を `sh -c` 経由で渡すように変えると `TestCommandExecutorNoShell` が失敗する、実 `exec.Cmd` の起動エラーを握り潰すと `TestCommandExecutorStartFailure` が失敗する。
 - [ ] **ステップ 2-6**: `make fmt` → `make test` → `make lint` を通す。`gosec` の G204（可変のコマンド名での実行）が指摘された場合は、`exec.CommandContext` の呼び出しに限定した最小の `//nolint:gosec` を理由コメント付きで付ける（ファイル全体に広げない）。指摘の有無と対応をコミットメッセージに記録する。
+
+### PR-2 作成ポイント: external command boundary (exec.go)
+
+**対象ステップ**: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6
+
+**推奨タイトル**: `feat(0002): add the yt-dlp execution boundary with capped stderr and env allowlist`
+
+**レビュー観点**: 引数を配列で渡しシェルを経由しないこと、タイムアウト・キャンセル後に `WaitDelay` で有界に戻ること（AC-07・AC-08） / 標準エラー出力の 4 KiB 保持とドレイン（読み取りを止めない）が `cappedWriter` と実プロセスの両方で成立すること（AC-51・AC-56） / allowlist 環境が設定済みの変数だけを渡し、1 つも設定されていなくても非 nil の空環境になること（AC-44・AC-66） / 実プロセスを使うテストが固定の猶予と余裕で判定し、厳密な時間比較で不安定になっていないこと（§4.1・§6）
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: ステップ 2-1・2-3 の実プロセスを使う `WaitDelay`・ドレインの検証が、子孫プロセスのライフサイクルを扱う孤立した複雑なステップ（リスク隔離の対象）に該当するため。競合する実装方針の併記とパネルモードのトリガーには該当しない。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: キャッシュと `Fetch`（`cache.go`・`ytdlp.go`）
 
@@ -114,6 +148,23 @@
 - [ ] **ステップ 3-7**: 主要な分岐を壊して失敗を確認し、コミットメッセージに記録する。対象の例: `Fetch` 終了時の dangling の削除を外すと `TestFetchInterruptedStates` が失敗する、`RemoveCache` でポインタを最後に削除すると `TestRemoveCacheFailure` が失敗する、掃除でディレクトリを列挙せず固定名だけを見ると `TestPruneCache` が失敗する、コミット前にキャッシュを書き換えると `TestFetchForceRefreshFailureKeepsCache` が失敗する、検証順序を info.json 優先に変えると `TestFetchValidationOrder` が失敗する、allowlist を `os.Environ()` に変えると `TestFetchEnvAllowlist` が失敗する、ポインタの大きさの確認を外して先頭 1 バイトだけを見る実装にすると `TestFetchOversizedPointer` が失敗する、キャッシュ読み込みの `ParseError` に書き込み先スロットのパスを入れると `TestFetchCacheParseError` が失敗する、dangling の削除失敗で `Fetch` の戻り値を変えると `TestFetchDanglingDeleteFailure` が失敗する、字幕なしのエラーから動画 ID を外すと `TestFetchNoSubtitles` が失敗する、すべての失敗に無関係な番兵（例: `ErrInvalidVideoURL`）を `errors.Join` で混ぜると `TestFetchSentinelDistinction` が失敗する。
 - [ ] **ステップ 3-8**: `make fmt` → `make test` → `make lint` を通す。`test_helpers.go` がこのフェーズの `make test`（`-tags test`）でコンパイルされることを確認する（`Makefile:63-64`）。
 
+### PR-3 作成ポイント: cache and Fetch orchestration
+
+**対象ステップ**: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8
+
+**推奨タイトル**: `feat(0002): add the transcript cache and YtDlpSource.Fetch`
+
+**レビュー観点**: キャッシュを変更する点がポインタのリネーム 1 回だけで、コミット前の失敗・中断で既存キャッシュが変わらないこと（AC-34・AC-58・§6.3） / dangling なエントリの判定と削除が `Fetch` 時・`RemoveCache`・`PruneCache` で同じ規則を使い、削除失敗が `Fetch` の戻り値を変えないこと（AC-69・AC-70・AC-72・AC-75） / 字幕 → info.json の決定的な検証順序、番兵の相互判別、`*ParseError` のパスが成立すること（AC-24・AC-36・AC-68） / 標準エラー出力の伏字化と、固定名だけに触れてシンボリックリンクを辿らない規則が守られていること（AC-59・§4.2）
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: ステップ 3-2・3-3 のキャッシュ更新の状態機械（S1〜S6）と中断回復が、リカバリフローと状態機械を含む孤立した高リスクなステップに該当し、gosec G304 の抑制で Conditional checks にも該当するため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ### フェーズ 4: 統合テストと lint 経路（`integration_test.go`・Makefile・pre-commit・CI）
 
 **対象ファイル**
@@ -122,7 +173,7 @@
 - 変更: `Makefile`・`.pre-commit-config.yaml`・`.github/workflows/ci.yml`・本計画書（手動実行の記録）
 
 **タスク**
-- [ ] **ステップ 4-1**: `integration_test.go` を作成する（F-008・architecture §7.2）。テスト自身が `YT2COLUMN_TEST_VIDEO_URL` の未設定・空を検出し、変数名を明示して失敗し、スキップしない（AC-42）。`YT2COLUMN_TEST_VIDEO_ID` が非空なら動画 ID を照合し、空なら照合しない。キャッシュは `t.TempDir` を使う。1 つのテスト関数内のサブテストとして、取得（AC-39）、目印ファイルを書き込むラッパー実行ファイルを `YtDlpPath` に指定した 2 回目のキャッシュ再利用（AC-40）、キャッシュを目印入りの有効な内容に置き換えたうえでの強制再取得（AC-41）を検証する。AC-40 は 2 回目の `Transcript` が 1 回目と等しく（メタ情報・セグメントの並び・各開始時刻）、目印ファイルが存在しないことを検証する。AC-41 は結果に目印が現れないことを検証する。ラッパー用と強制再取得用に `YtDlpSource` を構築し直す。`yt-dlp` 不在やネットワーク失敗はスキップせず失敗させる。あわせて `ytdlp_test.go` に `TestIntegrationTestBuildTag`（AC-37）を追加し、`integration_test.go` の先頭行が `//go:build integration` であること、およびファイルが存在しない・先頭行が違う場合は明確に失敗することを検証する。
+- [ ] **ステップ 4-1**: `integration_test.go` を作成する（F-008・architecture §7.2）。テスト自身が `YT2COLUMN_TEST_VIDEO_URL` の未設定・空を検出し、変数名を明示して失敗し、スキップしない（AC-42）。`YT2COLUMN_TEST_VIDEO_ID` が非空なら動画 ID を照合し、空なら照合しない。キャッシュは `t.TempDir` を使う。1 つのテスト関数内のサブテストとして、取得（AC-39）、目印ファイルを書き込むラッパー実行ファイルを `YtDlpPath` に指定した 2 回目のキャッシュ再利用（AC-40）、キャッシュを目印入りの有効な内容に置き換えたうえでの強制再取得（AC-41）を検証する。AC-40 は 2 回目の `Transcript` が 1 回目と等しく（メタ情報・セグメントの並び・各開始時刻）、目印ファイルが存在しないことを検証する。AC-41 は結果に目印が現れないことを検証する。ラッパー用と強制再取得用に `YtDlpSource` を構築し直す。`yt-dlp` 不在やネットワーク失敗はスキップせず失敗させる。あわせて `ytdlp_test.go` に `TestIntegrationTestBuildTag`（AC-37）を追加し、`integration_test.go` の先頭行が `//go:build integration` であること、およびファイルが存在しない・先頭行が違う場合は明確に失敗することを検証する。`integration_test.go` は `test_helpers.go`（`//go:build test`）のシンボルを使わず、`-tags integration` 単独でコンパイルできるようにする（`make test-integration` は `test` タグを付けないため）。
 - [ ] **ステップ 4-2**: `Makefile` に `test-integration` ターゲットを追加する。既定値を Make 変数（`YT2COLUMN_TEST_VIDEO_URL`・`YT2COLUMN_TEST_VIDEO_ID`、architecture §3.7 の URL・ID）として `?=` で定義し、実 `yt-dlp` とネットワークを使うことを表示し、`-tags integration`・`-count=1`・明示的な `-timeout`・`-v` を付けて `./internal/transcript` を実行する（AC-38）。テストは環境変数を `os.Getenv` で読むため、レシピは両変数をテストプロセスの環境へ明示的に渡す（Make 変数の定義だけでは子プロセスへ渡らない）。`.PHONY` に追加する。あわせて `GOLINT` のタグを `test,integration` に変更する（AC-43）。
 - [ ] **ステップ 4-3**: `.pre-commit-config.yaml:23` の golangci-lint フックのタグを `test,integration` に変更する（AC-43）。`testdata/` の除外（`:32`・`:34`・`:37`）は変更済みであることを確認し、変更しない。
 - [ ] **ステップ 4-4**: `.github/workflows/ci.yml:88` の lint 引数のタグを `test,integration` に変更し、`ytdlp_test.go` に `TestLintTagsIncludeIntegration` を追加する。この guard は `Makefile`・`.pre-commit-config.yaml`・`.github/workflows/ci.yml` の 3 箇所すべてが `test,integration` を含むことを検証し、3 箇所のタグが揃っていることを機械的に固定する（AC-43）。
@@ -130,6 +181,23 @@
 - [ ] **ステップ 4-6**: 環境変数を設定せずにコミット済みの `integration_test.go` を `go test -tags integration ./internal/transcript` で直接実行し、スキップせず変数名を含むエラーで失敗することを確認して出力を記録する（AC-42）。
 - [ ] **ステップ 4-7**: 主要な分岐を壊して失敗を確認し、コミットメッセージに記録する。対象の例: `integration_test.go` に lint 違反（未使用の変数など）を一時的に入れると `make lint` が失敗する（AC-43）、`TestIntegrationTestBuildTag` の検証対象の先頭行を `//go:build test` に変えると同テストが失敗する（AC-37）、3 箇所のうち 1 つの lint タグを `test` に戻すと `TestLintTagsIncludeIntegration` が失敗する（AC-43）、`make test-integration` から `-count=1` を外して 2 回実行すると 2 回目が `(cached)` を表示し、付けた場合は 2 回とも実行されることを `-v` 出力で確認して記録する（AC-38）。
 - [ ] **ステップ 4-8**: `make fmt` → `make test` → `make lint` を通し、`make test-integration` も通す。
+
+### PR-4 作成ポイント: integration test and lint tag paths
+
+**対象ステップ**: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7 / 4-8
+
+**推奨タイトル**: `feat(0002): add the yt-dlp integration test and integration lint tags`
+
+**レビュー観点**: 統合テストが `//go:build integration` で既定の `make test` から分離されていること（AC-37） / 環境変数の未設定をスキップせず、変数名を示して失敗させていること（AC-42） / `Makefile`・`.pre-commit-config.yaml`・`.github/workflows/ci.yml` の 3 箇所の lint タグが `test,integration` に揃い、`TestLintTagsIncludeIntegration` が固定していること（AC-43） / `make test-integration` の `-count=1`・明示的なタイムアウト・`-v` と、手動実行の承認・結果の記録（AC-33・AC-38）
+
+**実装モデル要件**: frontier-required
+
+**判定理由**: ステップ 4-1〜4-5 が実 `yt-dlp` とネットワークを使う重い統合テスト、CI・pre-commit の lint 経路、手動実行にわたり、mkplan.md ステップ 8 のパネルモードトリガー（重い統合テスト / CI / 外部リソースの面）に該当するため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 5: ドキュメント（`requirements_process.md`）
 
@@ -140,6 +208,23 @@
 - [ ] **ステップ 5-1**: `requirements_process.md:97` の境界チェックの記述を、拒否の規則が「消費するフィールド」に適用されることを明示する形に修正する。要件が拡張可能と宣言する未消費メンバーは拒否理由にしないことを、同段落で分かるようにする（design_handoff H-13、requirements §3.2・AC-64・AC-67）。同ファイルの他の箇所（チェックリスト `:101-111`）に同じく対象を限定していない規則が残っていないか確認し、残っていれば同様に整合させる。
 - [ ] **ステップ 5-2**: 正の確認と残骸の確認を行う。修正後の該当箇所が「消費するフィールド」に限定されていることを requirements §3.2 と architecture §3.4 に突き合わせて確認する。`docs/` を対象に旧来の対象を限定していない言い回しが残っていないことを検索し、出力を記録する（修正前は `requirements_process.md:97` の 1 件）。
 - [ ] **ステップ 5-3**: `make fmt` → `make test` → `make lint` を通す。
+
+### PR-5 作成ポイント: requirements process guide alignment
+
+**対象ステップ**: 5-1 / 5-2 / 5-3
+
+**推奨タイトル**: `docs(0002): align the boundary-check wording with consumed fields`
+
+**レビュー観点**: 境界チェックの記述が「消費するフィールド」に限定され、未消費メンバーの受理（AC-64・AC-67）と矛盾しないこと / チェックリスト（`:101-111`）を含め、対象を限定していない規則が残っていないこと / 修正後の記述が requirements §3.2 と architecture §3.4 に一致していること
+
+**実装モデル要件**: standard
+
+**判定理由**: ドキュメントの記述の整合のみで、競合する実装方針の併記・高リスクな制御・Conditional checks のいずれにも該当しないため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
 
@@ -153,7 +238,21 @@
 | M4 | フェーズ 4 | `integration_test.go`、Makefile・pre-commit・CI のタグ変更、手動実行の記録 | 同上・`make test-integration` が通る |
 | M5 | フェーズ 5 | `requirements_process.md` の更新 | 同上・記述の整合を確認済み |
 
-### 3.2. 実装順序の根拠
+### 3.2. PR 構成
+
+PR はフェーズと 1 対 1 に対応させる。各 PR は主たる関心事（純粋な処理 / 外部コマンドの境界 / キャッシュと `Fetch` / 統合テストと lint 経路 / ドキュメント）を持ち、単独でグリーンゲートを通せる単位とする。`internal/transcript` の既存契約（`TranscriptSource`・`Transcript`・`Segment`）と `cmd/` は変更しないため、internal の変更が cmd に先行する順序の問題は生じない。実 `yt-dlp`・ネットワーク・CI に触れる PR-4 を frontier-required とする。
+
+PR-3 は、キャッシュ更新の状態機械（S1〜S6）と中断回復・`Fetch` の制御・標準エラー出力の伏字化を 1 つの PR にまとめる。ステップの粒度では分割できないためである。キャッシュの削除・掃除のテスト（ステップ 3-4）はステップ 3-3 が実装する公開メソッドを呼び、キャッシュ書き込み経路の本番の呼び出し元は `Fetch` だけであり、`Fetch` を後続の PR へ分けるとステップ 3-5 のテストを伴わない実装が先にマージされるか、書き込み経路がテストされないまま残る。`NewYtDlpSource` が設定する executor フィールドを読むのも `Fetch` だけであるため、分けると読み手のないフィールドになる。したがって高リスクな状態機械と中断回復を PR-3 の外へ出さず、レビューでは PR-3 のレビュー観点に集約して確認する。PR-4 の lint タグの 3 箇所の変更は手動実行と独立にレビュー・検証でき、手動実行（ステップ 4-5）はネットワークに依存するため、レビューでは両者を分けて評価する。
+
+| PR | 対象ステップ | 主な変更内容 | 実装モデル要件 |
+|---|---|---|---|
+| PR-1 | 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8 / 1-9 / 1-10 / 1-11 / 1-12 / 1-13 | 番兵エラーと `ParseError`、URL 検証、厳密デコードと json3・info.json パーサ、合成サンプル、`package_reference.md` の更新 | standard |
+| PR-2 | 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 | `exec.go`（`commandExecutor`・`cappedWriter`・allowlist 環境）と `exec_test.go`、`package_reference.md` の更新 | frontier-recommended |
+| PR-3 | 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8 | `cache.go`・`ytdlp.go`・`exec.go` の伏字化、fake とキャッシュ状態ヘルパー、`cache_test.go`・`ytdlp_test.go`、`package_reference.md` の更新 | frontier-recommended |
+| PR-4 | 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7 / 4-8 | 統合テスト、Makefile・pre-commit・CI の lint タグ、手動実行の記録 | frontier-required |
+| PR-5 | 5-1 / 5-2 / 5-3 | `requirements_process.md` の境界チェックの整合 | standard |
+
+### 3.3. 実装順序の根拠
 
 architecture §8 の順序（依存される側（下位）から、純粋な処理 → 外部コマンドの境界 → キャッシュと `Fetch` → 統合テストと lint 経路 → ドキュメント）に従う。`video_id.go`・`json3.go`・`info.go` は外部コマンドに依存しないため先に完成させ、`exec.go` のテストは実プロセスを起動する独立した境界として次に置く。`cache.go` と `ytdlp.go` は両者を統合する。統合テストと lint 経路は `Fetch` が完成した後に置く。ドキュメントは実装の確定後に更新する。
 
@@ -283,8 +382,8 @@ AC ごとの検証は次のとおり。`test` は実行可能なテスト、`sta
 
 | リスク | 影響 | 対策 |
 |---|---|---|
-| `gosec` の G204（可変のコマンド名での実行）が `exec.go` で指摘される | `make lint` が通らない | `exec.CommandContext` の呼び出しに限定した最小の `//nolint:gosec` と理由コメントを付ける（フェーズ 2 ステップ 2-6）。テストファイルは gosec の除外対象（`.golangci.yml:103-113`）。 |
-| `gosec` の G304（変数パスでのファイル読み取り）が `cache.go`・`ytdlp.go` で指摘される | `make lint` が通らない | 指摘された場合は読み取りの呼び出しに限定した最小の `//nolint:gosec` と理由コメントを付ける。同じ形の読み取りすべてに同じ対応を適用する。指摘の有無をフェーズ 3 のゲートで確認する。 |
+| `gosec` の G204（可変のコマンド名での実行）が `exec.go` で指摘される | `make lint` が通らない | `exec.CommandContext` の呼び出しに限定した最小の `//nolint:gosec` と理由コメントを付ける（PR-2 ステップ 2-6）。テストファイルは gosec の除外対象（`.golangci.yml:103-113`）。 |
+| `gosec` の G304（変数パスでのファイル読み取り）が `cache.go`・`ytdlp.go` で指摘される | `make lint` が通らない | 指摘された場合は読み取りの呼び出しに限定した最小の `//nolint:gosec` と理由コメントを付ける。同じ形の読み取りすべてに同じ対応を適用する。指摘の有無を PR-3 のゲートで確認する。 |
 | `test_helpers.go` は `_test.go` ではないため、`.golangci.yml:103-113` のテスト向け除外が効かない | `make lint` が通らない | errcheck・goconst・err113・dupl を含む lint に適合させる（未チェックのエラーを残さない、固定文字列を定数化する、静的センチネルを使う、重複を避ける）。`make lint` は `--build-tags test,integration` で解析する。 |
 | `mnd` が上限値・猶予の数値リテラルを指摘する | `make lint` が通らない | 8 MiB・65,536・4 KiB・5 秒・待機の余裕を名前付き定数にする。 |
 | `goconst` が `a`・`b`・`current`・`current.tmp` の繰り返しを指摘する | `make lint` が通らない | 固定名とサフィックスをパッケージ定数にする。 |
@@ -292,18 +391,19 @@ AC ごとの検証は次のとおり。`test` は実行可能なテスト、`sta
 | 実プロセスを使う `WaitDelay` のテストが環境負荷で不安定になる | テストの間欠失敗 | 固定の猶予に十分な余裕を加えた上限で判定し、厳密な時間比較をしない。 |
 | パーミッションによる削除失敗の注入が root 実行時に成立しない | AC-72・AC-75・AC-69 の検証が通らない | §4.1 のとおり非 root での実行を前提とする（CI とローカル開発は非 root）。モードを変えた時点で `t.Cleanup` に復元を登録する。root を検出した場合は「unsupported test environment」と明示して失敗させ、黙って成功・スキップしない。 |
 | YouTube のレート制限（HTTP 429）や動画の非公開化で統合テストが失敗する | M4 の完了が遅れる | 統合テストは `t.TempDir` を使い再実行可能にする。手動実行の記録に失敗時の URL 差し替えを残す。既定の動画が使えない場合は F-008 に従って URL と ID を差し替える。 |
-| `make test-integration` がネットワークと実 `yt-dlp` を使う | 実行にユーザーの承認が必要 | フェーズ 4 ステップ 4-5 で承認を得てから実行する（CLAUDE.md「Tool Execution Safety」）。 |
+| `make test-integration` がネットワークと実 `yt-dlp` を使う | 実行にユーザーの承認が必要 | PR-4 ステップ 4-5 で承認を得てから実行する（CLAUDE.md「Tool Execution Safety」）。 |
 | `testdata/` のフィクスチャが大きい（約 1.8 MB） | リポジトリの増加 | 対応不要。コミット `4bf3ffd` で追加済みで、git の圧縮により増分は小さい（architecture 付録A）。 |
 | `make deadcode` が未配線の公開メソッドを指摘する | 参考情報のみ | グリーンゲートは `make test && make lint` であり、`deadcode` は含まれない。CLI 配線は #6 が行う。指摘が出た場合はコミットメッセージに記録する。 |
 
 ## 7. 実装チェックリスト (Implementation Checklist)
 
-- [ ] M1 完了（フェーズ 1: `errors.go`・`video_id.go`・`json3.go`・`info.go` と各テスト）
-- [ ] M2 完了（フェーズ 2: `exec.go` と `exec_test.go`）
-- [ ] M3 完了（フェーズ 3: `cache.go`・`ytdlp.go`・`test_helpers.go` と `cache_test.go`・`ytdlp_test.go`）
-- [ ] M4 完了（フェーズ 4: `integration_test.go`、Makefile・pre-commit・CI の変更、手動実行の記録）
-- [ ] M5 完了（フェーズ 5: `requirements_process.md` の更新）
-- [ ] 各フェーズで `make fmt` → `make test` → `make lint` が通る
+- [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8 / 1-9 / 1-10 / 1-11 / 1-12 / 1-13）
+- [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6）
+- [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8）
+- [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7 / 4-8）
+- [ ] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3）
+- [ ] 各 PR で `make fmt` → `make test` → `make lint` が通る
+- [ ] PR-4: `make test-integration` が通り、§5.1 に使用した動画 URL・動画 ID・結果が記録されている
 - [ ] 各テストについて、対応する分岐・対策を壊し、テストが失敗することを確認済み（コミットメッセージに記録）
 - [ ] `internal/transcript/test_helpers.go` と、これを使う全 `_test.go` に `//go:build test` がある。統合テストの環境変数の確認は `integration_test.go` 内にある
 - [ ] `integration_test.go` の先頭行が `//go:build integration` である
@@ -321,6 +421,6 @@ AC ごとの検証は次のとおり。`test` は実行可能なテスト、`sta
 
 ## 9. 次のステップ (Next Steps)
 
-- 本計画は `draft` である。レビューと承認を経て `approved` になった後に実装を開始する。
-- 承認後、`/mkplan2 0002` で PR 境界を設計し、`/runplan 0002` でフェーズ順に実装する。
+- 本計画は `approved`。PR 境界は §2 の `PR-N 作成ポイント` と §3.2 に埋め込み済み。
+- `/runplan 0002` で PR の順に実装する（各 PR は独立してグリーンゲートを通す）。
 - 実装完了後、#6 が `Options` を CLI フラグと環境変数に配線し、投稿の成功後に `RemoveCache` を呼び、各実行で `PruneCache` を呼ぶ。
