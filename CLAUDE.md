@@ -61,6 +61,7 @@ Project-specific values these commands depend on are defined once in
 - `/runplan <task>` - Implement the next phase group of an approved plan
 - `/weakreview [range]` - Second-pass review of work done by a lower-capability model
 - `/fixpr [PR]` - Resolve unresolved PR review threads
+- `/mergepr [PR]` - Squash-merge a PR with a generated commit message and clean up its branch
 - `/japrose <file>` - Japanese prose-quality pass
 - `/mktrans <file>` - Japanese ⇄ English translation
 

@@ -59,9 +59,9 @@ Work in order.
 - Push the current branch with an upstream tracking reference (e.g. `git push -u origin HEAD`) so `gh pr create` does not prompt interactively for where to push.
 - Run `gh pr create --title "<推奨タイトル>" --body "<レビュー観点を含む本文>"`, using the `推奨タイトル` value from the `### PR-N 作成ポイント` section as `--title` and including the `レビュー観点` items in `--body`. Use explicit flags to avoid interactive prompts.
 - Output the PR URL, mark the second checkbox (`PR を作成した`) as `[x]`, commit, and `git push` so this update is included in the PR before it is merged.
-- Pause and ask the user: "PR-N を作成しました: <URL>。マージされたらお知らせください。"
+- Pause and ask the user: "PR-N を作成しました: <URL>。`/mergepr` でマージしたらお知らせください。" PRs are squash-merged (`_context.md`, "PR merge method").
 - Wait for the user to confirm the PR is merged. Then:
-  - Update the local base branch so it includes the merge (e.g. `git checkout main && git pull`), then create a new branch for the next group of work from it (e.g. `git checkout -b <feature-branch>-<N+1>`). Without this, especially after a squash or rebase merge, the new branch would still be based on the pre-merge commits.
+  - Update the local base branch so it includes the merge (`/mergepr` already leaves it checked out and up to date; otherwise `git checkout main && git pull --ff-only`), then create a new branch for the next group of work from it (e.g. `git checkout -b <feature-branch>-<N+1>`). Do not branch from, or keep committing to, the merged branch: after a squash merge its commits are not ancestors of `main`, so a branch based on it carries the pre-squash commits into the next PR.
   - Mark the remaining PR checkpoint checkboxes (`PR がマージされた` and `次のブランチへ切り替えた`) as `[x]` and commit.
 - Return to step 4.
 
