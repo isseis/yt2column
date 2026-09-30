@@ -122,7 +122,7 @@ func decodeEvents(raw json.RawMessage) ([]Segment, error) {
 // without segs and events whose concatenated text is whitespace only are
 // discarded; their tStartMs is not validated.
 func decodeEvent(members []jsonMember) (Segment, bool, error) {
-	consumed, err := collectMembers(members, "tStartMs", "segs")
+	consumed, err := collectMembers(members, "segs")
 	if err != nil {
 		return Segment{}, false, err
 	}
@@ -136,6 +136,10 @@ func decodeEvent(members []jsonMember) (Segment, bool, error) {
 	}
 	if strings.TrimSpace(text) == "" {
 		return Segment{}, false, nil
+	}
+	consumed, err = collectMembers(members, "tStartMs")
+	if err != nil {
+		return Segment{}, false, err
 	}
 	start, ok := consumed["tStartMs"]
 	if !ok {

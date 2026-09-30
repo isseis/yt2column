@@ -182,6 +182,17 @@ func TestParseSubtitlesDuplicateMembers(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("accept/discarded duplicate tStartMs", func(t *testing.T) {
+		input := `{"events":[{"tStartMs":0,"tStartMs":1,"segs":[]}]}`
+		segments, err := parseSubtitles("inline.json3", []byte(input))
+		if err != nil {
+			t.Fatalf("parseSubtitles(%q) error = %v", input, err)
+		}
+		if len(segments) != 0 {
+			t.Errorf("got %d segments, want 0: %+v", len(segments), segments)
+		}
+	})
 }
 
 func TestParseSubtitlesLimits(t *testing.T) {
