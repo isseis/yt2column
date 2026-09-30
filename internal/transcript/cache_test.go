@@ -284,6 +284,24 @@ func TestRemoveCache(t *testing.T) {
 	}
 }
 
+func TestRemoveCacheUnreadablePointer(t *testing.T) {
+	requireNonRoot(t)
+	dir := filepath.Join(t.TempDir(), "cache")
+	source := newTestSource(t, dir, &fakeCommandExecutor{}, nil)
+	id := testdataRealVideoID
+	placeRealCache(t, dir, id)
+	chmodForTest(t, pointerPath(dir, id), 0o000)
+
+	if err := source.RemoveCache(t.Context(), "https://www.youtube.com/watch?v="+id); err != nil {
+		t.Fatalf("RemoveCache error = %v, want the unreadable pointer removed", err)
+	}
+	for _, path := range []string{pointerPath(dir, id), slotDirPath(dir, id, slotNameA)} {
+		if _, err := os.Lstat(path); !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("%s still exists after RemoveCache (error = %v)", path, err)
+		}
+	}
+}
+
 func TestRemoveCacheNoEntries(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "cache")
 	source := newTestSource(t, dir, &fakeCommandExecutor{}, nil)

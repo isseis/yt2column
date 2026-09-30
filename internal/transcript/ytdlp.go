@@ -85,17 +85,13 @@ func (s *YtDlpSource) RemoveCache(ctx context.Context, videoURL string) error {
 	}
 
 	dir := s.options.CacheDir
-	state, err := readPointer(dir, id)
-	if err != nil {
+	// Delete the pointer first: from here on the video is a cache miss, and
+	// an interruption cannot leave a mixed generation behind. A failure here
+	// leaves the valid cache untouched. The pointer's content is not read:
+	// a regular pointer is removed whatever it holds, even when unreadable,
+	// and a pointer of another type is left untouched.
+	if err := removeCacheEntry(cacheEntry{path: pointerPath(dir, id)}); err != nil {
 		return err
-	}
-	if state == pointerSlotA || state == pointerSlotB || state == pointerInvalid {
-		// Delete the pointer first: from here on the video is a cache miss,
-		// and an interruption cannot leave a mixed generation behind. A
-		// failure here leaves the valid cache untouched.
-		if err := removeCacheEntry(cacheEntry{path: pointerPath(dir, id)}); err != nil {
-			return err
-		}
 	}
 	return removeDangling(ctx, dir, id, pointerMissing)
 }
