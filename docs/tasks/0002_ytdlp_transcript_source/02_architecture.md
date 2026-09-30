@@ -48,14 +48,12 @@ flowchart LR
         end
     end
 
-    ID[("動画 ID")]
     CF[("キャッシュファイル<br>（2 ファイルで 1 世代）")]
     TC[("Transcript")]
 
     URL --> VID
-    VID -->|"動画 ID"| ID
+    VID -->|"動画 ID（キャッシュのキー）"| CACHE
     VID -->|"正規化 URL"| RUN
-    ID --> CACHE
     CACHE -->|"ヒットしたペア"| PARSE
     CACHE -->|"ミス / 強制再取得"| RUN
     PAIR --> PARSE
@@ -64,7 +62,7 @@ flowchart LR
     ASM --> TC
     CACHE <-->|"読み書き"| CF
 
-    class URL,ID,PAIR,CF,TC data
+    class URL,PAIR,CF,TC data
     class VID,CACHE,PARSE,ASM,RUN enhanced
     class YTDLP process
 ```
