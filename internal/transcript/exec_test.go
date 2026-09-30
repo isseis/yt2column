@@ -151,11 +151,13 @@ func TestCommandExecutorEnvAllowlist(t *testing.T) {
 
 	t.Run("passes every allowlisted variable that is set", func(t *testing.T) {
 		// Every name of the fixed allowlist is set to a distinct value, so a
-		// dropped or renamed entry fails the exact comparison below.
+		// dropped or renamed entry fails the exact comparison below. TMPDIR
+		// must exist: under coverage the re-executed test binary creates its
+		// coverage temp files there and exits non-zero if it cannot.
 		want := map[string]string{
 			"PATH":            "/usr/bin:/bin",
 			"HOME":            "/home/example",
-			"TMPDIR":          "/tmp/example",
+			"TMPDIR":          t.TempDir(),
 			"XDG_CONFIG_HOME": "/home/example/.config",
 			"XDG_CACHE_HOME":  "/home/example/.cache",
 			"HTTP_PROXY":      "http://proxy.example:3128",
