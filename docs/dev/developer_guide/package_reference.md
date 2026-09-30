@@ -11,7 +11,7 @@ described in [project_overview.md](../project_overview.md) ("想定ディレク�
 | Package | Responsibility |
 |---|---|
 | `internal/secret` | Holds a secret (API key, Webhook URL) and guarantees it never appears in `fmt`, `log/slog`, or JSON output |
-| `internal/transcript` | Defines the transcript stage (`Transcript`/`Segment`, `TranscriptSource`) and provides video URL validation, strict json3 and info.json parsers, the `yt-dlp` execution boundary (a shell-free command executor with a fixed environment allowlist and a capped, drained standard error output), and the stage's sentinel errors |
+| `internal/transcript` | Defines the transcript stage (`Transcript`/`Segment`, `TranscriptSource`) and provides its `YtDlpSource` implementation: video URL validation, strict json3 and info.json parsers, the `yt-dlp` execution boundary (a shell-free command executor with a fixed environment allowlist and a capped, drained standard error output), the per-video cache (`Fetch`, `RemoveCache`, `PruneCache`), and the stage's sentinel errors |
 | `internal/llm` | Defines the provider-independent `LLMClient` interface and its `GenerateRequest`/`GenerateResponse` types |
 | `internal/writer` | Defines the article-writing stage: `Article` and the `ArticleWriter` interface |
 | `internal/publisher` | Defines the publishing stage: the `Publisher` interface |

@@ -154,26 +154,8 @@ func TestCommandExecutorEnvAllowlist(t *testing.T) {
 		// dropped or renamed entry fails the exact comparison below. TMPDIR
 		// must exist: under coverage the re-executed test binary creates its
 		// coverage temp files there and exits non-zero if it cannot.
-		want := map[string]string{
-			"PATH":            "/usr/bin:/bin",
-			"HOME":            "/home/example",
-			"TMPDIR":          t.TempDir(),
-			"XDG_CONFIG_HOME": "/home/example/.config",
-			"XDG_CACHE_HOME":  "/home/example/.cache",
-			"HTTP_PROXY":      "http://proxy.example:3128",
-			"HTTPS_PROXY":     "http://user:pass@proxy.example:8080",
-			"NO_PROXY":        "localhost,127.0.0.1",
-			"ALL_PROXY":       "socks5://proxy.example:1080",
-			"http_proxy":      "http://lower-proxy.example:3128",
-			"https_proxy":     "http://lower-proxy.example:8443",
-			"no_proxy":        "",
-			"all_proxy":       "socks5://lower-proxy.example:1080",
-			"LANG":            "ja_JP.UTF-8",
-			"LC_ALL":          "C.UTF-8",
-			"LC_CTYPE":        "ja_JP.UTF-8",
-			"SSL_CERT_FILE":   "/etc/ssl/cert.pem",
-			"SSL_CERT_DIR":    "/etc/ssl/certs",
-		}
+		want := sampleAllowlistEnv()
+		want["TMPDIR"] = t.TempDir()
 		parent := []string{
 			"YT2COLUMN_TEST_UNLISTED_MARKER=marker",
 			"DEEPSEEK_API_KEY=secret",
@@ -231,6 +213,28 @@ func TestCommandExecutorStartFailure(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Fetch maps the start failure to ErrYtDlpExec", func(t *testing.T) {
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				source, err := NewYtDlpSource(Options{
+					CacheDir:  filepath.Join(t.TempDir(), "cache"),
+					YtDlpPath: tc.path,
+					Timeout:   time.Minute,
+				})
+				if err != nil {
+					t.Fatalf("NewYtDlpSource error = %v", err)
+				}
+				_, err = source.Fetch(t.Context(), "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+				if !errors.Is(err, ErrYtDlpExec) {
+					t.Fatalf("Fetch error = %v, want ErrYtDlpExec", err)
+				}
+				if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+					t.Errorf("start failure also matches a context error: %v", err)
+				}
+			})
+		}
+	})
 }
 
 // TestExecutorHelperProcess is not a regular test: TestCommandExecutorEnvAllowlist
@@ -310,6 +314,40 @@ func TestCommandExecutorWaitDelay(t *testing.T) {
 			t.Fatal("helper did not record a descendant holding stderr")
 		}
 	})
+}
+
+func TestRedactStderr(t *testing.T) {
+	const secret = "s3cret-proxy-value"
+	// shortProxy is a prefix of longProxy and comes first in env, so redacting
+	// in env order would split longProxy and leave its token visible.
+	const shortProxy = "https://proxy.example"
+	const longProxy = shortProxy + "?token=T0KEN"
+	env := []string{
+		"HTTP_PROXY=" + shortProxy,
+		"https_proxy=" + longProxy,
+		"HTTPS_PROXY=" + secret,
+		"NO_PROXY=",
+		"LANG=en_US.UTF-8",
+	}
+	cases := map[string]struct {
+		input string
+		want  string
+	}{
+		"full proxy value":                {"error: " + secret + " failed", "error: " + redactedMarker + " failed"},
+		"value cut at the cap":            {"error: " + secret[:7], "error: " + redactedMarker},
+		"URL userinfo":                    {"https://user:pass@proxy.example/x", "https://" + redactedMarker + "@proxy.example/x"},
+		"empty proxy value":               {"nothing to redact", "nothing to redact"},
+		"non-proxy value kept":            {"LANG=en_US.UTF-8", "LANG=en_US.UTF-8"},
+		"value containing another value":  {"via " + longProxy + " failed", "via " + redactedMarker + " failed"},
+		"containing value cut at the cap": {"via " + longProxy[:len(shortProxy)+4], "via " + redactedMarker},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			if got := redactStderr(tc.input, env); got != tc.want {
+				t.Errorf("redactStderr(%q, env) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
 }
 
 // writeHelperScript writes an executable POSIX shell script and returns its path.

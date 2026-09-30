@@ -1,9 +1,12 @@
 package transcript
 
 import (
+	"cmp"
 	"context"
 	"io"
 	"os/exec"
+	"regexp"
+	"slices"
 	"strings"
 	"time"
 )
@@ -19,6 +22,19 @@ const (
 	execWaitDelay = 5 * time.Second
 )
 
+// Proxy environment variable names, shared by the allowlist and the stderr
+// redaction, which must treat the same names as sensitive.
+const (
+	envHTTPProxy       = "HTTP_PROXY"
+	envHTTPSProxy      = "HTTPS_PROXY"
+	envNOProxy         = "NO_PROXY"
+	envALLProxy        = "ALL_PROXY"
+	envHTTPProxyLower  = "http_proxy"
+	envHTTPSProxyLower = "https_proxy"
+	envNOProxyLower    = "no_proxy"
+	envALLProxyLower   = "all_proxy"
+)
+
 // allowedEnvVars is the fixed set of environment variables passed to yt-dlp.
 // It is an allowlist so a secret added to the parent environment cannot leak
 // into the child; it must never list an API key or the Webhook URL.
@@ -28,14 +44,14 @@ var allowedEnvVars = []string{
 	"TMPDIR",
 	"XDG_CONFIG_HOME",
 	"XDG_CACHE_HOME",
-	"HTTP_PROXY",
-	"HTTPS_PROXY",
-	"NO_PROXY",
-	"ALL_PROXY",
-	"http_proxy",
-	"https_proxy",
-	"no_proxy",
-	"all_proxy",
+	envHTTPProxy,
+	envHTTPSProxy,
+	envNOProxy,
+	envALLProxy,
+	envHTTPProxyLower,
+	envHTTPSProxyLower,
+	envNOProxyLower,
+	envALLProxyLower,
 	"LANG",
 	"LC_ALL",
 	"LC_CTYPE",
@@ -92,6 +108,80 @@ func (w *cappedWriter) Write(p []byte) (int, error) {
 // String returns the retained prefix of the output.
 func (w *cappedWriter) String() string {
 	return string(w.buf)
+}
+
+// proxyEnvVars are the allowlisted variables whose values can carry
+// credentials and must be redacted from captured output.
+var proxyEnvVars = map[string]struct{}{
+	envHTTPProxy:       {},
+	envHTTPSProxy:      {},
+	envNOProxy:         {},
+	envALLProxy:        {},
+	envHTTPProxyLower:  {},
+	envHTTPSProxyLower: {},
+	envNOProxyLower:    {},
+	envALLProxyLower:   {},
+}
+
+// redactedMarker replaces credentials in captured output.
+const redactedMarker = "[redacted]"
+
+// userinfoPattern matches the userinfo of a URL between "://" and "@".
+var userinfoPattern = regexp.MustCompile(`://[^/?#\s@]*@`)
+
+// redactStderr removes credentials from captured standard error output before
+// it is added to an error: the non-empty values of the proxy variables given
+// to the child (including a value cut off at the cap) and URL userinfo. Every
+// span is located in the original output and merged before any replacement, so
+// a value that is a prefix of another cannot split it and leave part visible.
+func redactStderr(stderr string, env []string) string {
+	var spans [][2]int
+	for _, entry := range env {
+		name, value, ok := strings.Cut(entry, "=")
+		if !ok || value == "" {
+			continue
+		}
+		if _, isProxy := proxyEnvVars[name]; !isProxy {
+			continue
+		}
+		for offset := 0; ; offset++ {
+			index := strings.Index(stderr[offset:], value)
+			if index < 0 {
+				break
+			}
+			offset += index
+			spans = append(spans, [2]int{offset, offset + len(value)})
+		}
+		if length := truncatedPrefixLength(stderr, value); length > 0 {
+			spans = append(spans, [2]int{len(stderr) - length, len(stderr)})
+		}
+	}
+	slices.SortFunc(spans, func(a, b [2]int) int { return cmp.Compare(a[0], b[0]) })
+	var out strings.Builder
+	written := 0
+	for i := 0; i < len(spans); {
+		start, end := spans[i][0], spans[i][1]
+		for i++; i < len(spans) && spans[i][0] <= end; i++ {
+			end = max(end, spans[i][1])
+		}
+		out.WriteString(stderr[written:start])
+		out.WriteString(redactedMarker)
+		written = end
+	}
+	out.WriteString(stderr[written:])
+	return userinfoPattern.ReplaceAllString(out.String(), "://"+redactedMarker+"@")
+}
+
+// truncatedPrefixLength returns the length of the longest proper prefix of
+// value that ends output, so a value cut off at the stderr cap does not leave
+// its beginning in the output.
+func truncatedPrefixLength(output, value string) int {
+	for length := min(len(value)-1, len(output)); length > 0; length-- {
+		if strings.HasSuffix(output, value[:length]) {
+			return length
+		}
+	}
+	return 0
 }
 
 // allowlistEnv returns the allowlisted variables set in parent, in the order
