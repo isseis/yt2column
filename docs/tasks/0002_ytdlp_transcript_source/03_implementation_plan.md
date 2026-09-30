@@ -68,19 +68,19 @@
 - 変更: `testdata/README.md`・`docs/dev/developer_guide/package_reference.md`
 
 **タスク**
-- [ ] **ステップ 1-1**: `errors.go` に architecture §3.1 の 5 つの番兵と `ParseError`（`Path`・`Err`、`Error()`・`Unwrap()`）を定義する。`Unwrap` は `ErrParseSubtitles` または `ErrParseInfo` を返す契約を英語のドキュメントコメントに書く。
-- [ ] **ステップ 1-2**: `video_id.go` に URL 検証（F-001・architecture §3.6）を実装する。スキーム・ホスト・パス形式・動画 ID の文字種・余分なパス要素を検証し、動画 ID と正規化 URL を返す。`v` 以外のクエリパラメータとフラグメントは無視し、URL 文字列は他へ渡さない。拒否は理由を付けて `ErrInvalidVideoURL` をラップする。
-- [ ] **ステップ 1-3**: `video_id_test.go` を作成し、§5 の AC 表に挙げた URL 検証のテストを実装する（AC-01〜AC-05）。
-- [ ] **ステップ 1-4**: AC-52・AC-53 が要求する `testdata/` の合成サンプルを 4 ファイル追加する。json3 と info.json のそれぞれについて、不正な UTF-8 バイト列を含むものと、対になっていないサロゲートのエスケープ（例: `"utf8":"\ud800"`・`"title":"\ud800"`）を含むものを用意する。あわせて `testdata/README.md` に、これらが実出力ではなくテスト用の合成サンプルであることと、既存の実出力の条件（CC BY・IP 置換）が適用されないことを記載し、4 ファイルの名前と内容（不正バイト列 / サロゲートエスケープ）を突き合わせて確認する。
-- [ ] **ステップ 1-5**: `test_helpers.go` を作成し、`testdata/` の実出力と合成サンプルのパスを定数として定義する。以降のテストファイルは相対パスのリテラルを書かず、この定数を使う。
-- [ ] **ステップ 1-6**: json3 と info.json の共通の厳密デコード（architecture §3.4、design_handoff H-05・H-12、implementation_handoff I-01・I-03）を `json3.go` に実装し、`info.go` から呼ぶ。生バイト列の UTF-8 検証、対になっていないサロゲートエスケープの検出、トップレベルがちょうど 1 つの値で後続データが無いこと（EOF 到達）の確認、`null` と型不一致の区別、`int64` 範囲の検証、消費するメンバーのトークン段階での重複検出を含める。消費しないメンバーの重複は無視する。新たな本番ファイルは追加しない。
-- [ ] **ステップ 1-7**: `json3.go` に json3 パーサ（F-003・architecture §3.4・§3.7）を実装する。`events[].segs[].utf8` の連結、`segs` なし・空 `utf8`・空白のみのイベントの除外、本文を持つイベントだけの `tStartMs` 検証（H-16）、重複除去を行わないこと、サイズ 8 MiB・イベント数 65,536 の上限、失敗時の `ErrParseSubtitles` を返す `*ParseError` を実装する。
-- [ ] **ステップ 1-8**: `json3_test.go` を作成し、§5 の AC 表に挙げた json3 パーサのテストを実装する（AC-10〜AC-13・AC-32・AC-45・AC-46・AC-48・AC-49・AC-52・AC-54・AC-55・AC-57・AC-67）。AC-52 はステップ 1-4 のサンプルを入力にし、パースの前にサンプル自身の性質（不正な UTF-8 バイト列を含む / `\ud800` のエスケープを含む）を検証して、サンプルが別の理由で不正な JSON と判定され、本来確かめたい検証が働いたか分からないままテストが成功するのを防ぐ。`TestParseSubtitlesUTF8` には受け入れケースも加える。有効な高/低サロゲートペア（非 BMP 文字、例: `\ud83d\ude00`）を含む正当な入力、およびエスケープされたバックスラッシュに続けて `ud800` と書いた通常テキスト（`\\ud800`）を含む正当な入力が受理されることを検証し、生バイト列の判定が正当な入力を過剰に拒否しないことを確かめる。
-- [ ] **ステップ 1-9**: `info.go` に info.json パーサ（F-004）を実装する。`id` と要求された動画 ID の照合、`title`・`channel` の必須と空の拒否、`description` の任意、消費フィールドの型検証、サイズ 8 MiB の上限、`ErrParseInfo` を返す `*ParseError` を実装する。
-- [ ] **ステップ 1-10**: `info_test.go` を作成し、§5 の AC 表に挙げた info.json パーサのテストを実装する（AC-14〜AC-16・AC-47・AC-50・AC-53・AC-64・AC-65）。AC-53 はステップ 1-4 のサンプルを入力にし、ステップ 1-8 と同じくサンプル自身の性質を先に検証する。`TestParseInfoUTF8` にもステップ 1-8 と同じ受け入れケース（有効なサロゲートペアと `\\ud800` の通常テキストの受理）を加える。
-- [ ] **ステップ 1-11**: `package_reference.md:14` の `internal/transcript` の行を、このフェーズで加わる URL 検証・json3/info.json パーサ・番兵エラーを含む説明に更新する。`testutil` の行は変更しない。
-- [ ] **ステップ 1-12**: 主要な分岐を実装時に壊して各テストが失敗することを確認し、コミットメッセージに記録する。対象の例: EOF 確認を外すと `TestParseSubtitlesRejectsSimple`・`TestParseInfoRejectsMalformed` が失敗する、`null` をゼロ値として受理すると `TestParseSubtitlesElementKinds`・`TestParseInfoTypeMismatch` が失敗する、上限の境界（ちょうど/超過）を取り違えると `TestParseSubtitlesLimits`・`TestParseInfoLimits` が失敗する、破棄イベントの `tStartMs` も検証すると `TestParseSubtitlesTimestamps` が失敗する、動画 ID を補正すると `TestValidateVideoURL` が失敗する、生バイト列の UTF-8 検証を外すと `TestParseSubtitlesUTF8` が失敗する、サロゲートのエスケープ検出を外すと `TestParseSubtitlesUTF8`・`TestParseInfoUTF8` が失敗する。
-- [ ] **ステップ 1-13**: `make fmt` → `make test` → `make lint` を通す。`test_helpers.go` はこのフェーズの `make test`（`-tags test`）でコンパイルされることを確認する。
+- [x] **ステップ 1-1**: `errors.go` に architecture §3.1 の 5 つの番兵と `ParseError`（`Path`・`Err`、`Error()`・`Unwrap()`）を定義する。`Unwrap` は `ErrParseSubtitles` または `ErrParseInfo` を返す契約を英語のドキュメントコメントに書く。
+- [x] **ステップ 1-2**: `video_id.go` に URL 検証（F-001・architecture §3.6）を実装する。スキーム・ホスト・パス形式・動画 ID の文字種・余分なパス要素を検証し、動画 ID と正規化 URL を返す。`v` 以外のクエリパラメータとフラグメントは無視し、URL 文字列は他へ渡さない。拒否は理由を付けて `ErrInvalidVideoURL` をラップする。
+- [x] **ステップ 1-3**: `video_id_test.go` を作成し、§5 の AC 表に挙げた URL 検証のテストを実装する（AC-01〜AC-05）。
+- [x] **ステップ 1-4**: AC-52・AC-53 が要求する `testdata/` の合成サンプルを 4 ファイル追加する。json3 と info.json のそれぞれについて、不正な UTF-8 バイト列を含むものと、対になっていないサロゲートのエスケープ（例: `"utf8":"\ud800"`・`"title":"\ud800"`）を含むものを用意する。あわせて `testdata/README.md` に、これらが実出力ではなくテスト用の合成サンプルであることと、既存の実出力の条件（CC BY・IP 置換）が適用されないことを記載し、4 ファイルの名前と内容（不正バイト列 / サロゲートエスケープ）を突き合わせて確認する。
+- [x] **ステップ 1-5**: `test_helpers.go` を作成し、`testdata/` の実出力と合成サンプルのパスを定数として定義する。以降のテストファイルは相対パスのリテラルを書かず、この定数を使う。
+- [x] **ステップ 1-6**: json3 と info.json の共通の厳密デコード（architecture §3.4、design_handoff H-05・H-12、implementation_handoff I-01・I-03）を `json3.go` に実装し、`info.go` から呼ぶ。生バイト列の UTF-8 検証、対になっていないサロゲートエスケープの検出、トップレベルがちょうど 1 つの値で後続データが無いこと（EOF 到達）の確認、`null` と型不一致の区別、`int64` 範囲の検証、消費するメンバーのトークン段階での重複検出を含める。消費しないメンバーの重複は無視する。新たな本番ファイルは追加しない。
+- [x] **ステップ 1-7**: `json3.go` に json3 パーサ（F-003・architecture §3.4・§3.7）を実装する。`events[].segs[].utf8` の連結、`segs` なし・空 `utf8`・空白のみのイベントの除外、本文を持つイベントだけの `tStartMs` 検証（H-16）、重複除去を行わないこと、サイズ 8 MiB・イベント数 65,536 の上限、失敗時の `ErrParseSubtitles` を返す `*ParseError` を実装する。
+- [x] **ステップ 1-8**: `json3_test.go` を作成し、§5 の AC 表に挙げた json3 パーサのテストを実装する（AC-10〜AC-13・AC-32・AC-45・AC-46・AC-48・AC-49・AC-52・AC-54・AC-55・AC-57・AC-67）。AC-52 はステップ 1-4 のサンプルを入力にし、パースの前にサンプル自身の性質（不正な UTF-8 バイト列を含む / `\ud800` のエスケープを含む）を検証して、サンプルが別の理由で不正な JSON と判定され、本来確かめたい検証が働いたか分からないままテストが成功するのを防ぐ。`TestParseSubtitlesUTF8` には受け入れケースも加える。有効な高/低サロゲートペア（非 BMP 文字、例: `\ud83d\ude00`）を含む正当な入力、およびエスケープされたバックスラッシュに続けて `ud800` と書いた通常テキスト（`\\ud800`）を含む正当な入力が受理されることを検証し、生バイト列の判定が正当な入力を過剰に拒否しないことを確かめる。
+- [x] **ステップ 1-9**: `info.go` に info.json パーサ（F-004）を実装する。`id` と要求された動画 ID の照合、`title`・`channel` の必須と空の拒否、`description` の任意、消費フィールドの型検証、サイズ 8 MiB の上限、`ErrParseInfo` を返す `*ParseError` を実装する。
+- [x] **ステップ 1-10**: `info_test.go` を作成し、§5 の AC 表に挙げた info.json パーサのテストを実装する（AC-14〜AC-16・AC-47・AC-50・AC-53・AC-64・AC-65）。AC-53 はステップ 1-4 のサンプルを入力にし、ステップ 1-8 と同じくサンプル自身の性質を先に検証する。`TestParseInfoUTF8` にもステップ 1-8 と同じ受け入れケース（有効なサロゲートペアと `\\ud800` の通常テキストの受理）を加える。
+- [x] **ステップ 1-11**: `package_reference.md:14` の `internal/transcript` の行を、このフェーズで加わる URL 検証・json3/info.json パーサ・番兵エラーを含む説明に更新する。`testutil` の行は変更しない。
+- [x] **ステップ 1-12**: 主要な分岐を実装時に壊して各テストが失敗することを確認し、コミットメッセージに記録する。対象の例: EOF 確認を外すと `TestParseSubtitlesRejectsSimple`・`TestParseInfoRejectsMalformed` が失敗する、`null` をゼロ値として受理すると `TestParseSubtitlesElementKinds`・`TestParseInfoTypeMismatch` が失敗する、上限の境界（ちょうど/超過）を取り違えると `TestParseSubtitlesLimits`・`TestParseInfoLimits` が失敗する、破棄イベントの `tStartMs` も検証すると `TestParseSubtitlesTimestamps` が失敗する、動画 ID を補正すると `TestValidateVideoURL` が失敗する、生バイト列の UTF-8 検証を外すと `TestParseSubtitlesUTF8` が失敗する、サロゲートのエスケープ検出を外すと `TestParseSubtitlesUTF8`・`TestParseInfoUTF8` が失敗する。
+- [x] **ステップ 1-13**: `make fmt` → `make test` → `make lint` を通す。`test_helpers.go` はこのフェーズの `make test`（`-tags test`）でコンパイルされることを確認する。
 
 ### PR-1 作成ポイント: pure processing (errors, URL validation, parsers)
 
@@ -94,8 +94,8 @@
 
 **判定理由**: 純粋な処理とそのテストに限られ、競合する実装方針の併記・リカバリや状態機械などの高リスクな制御・パネルモードのトリガーに該当せず、Conditional checks も build-tag のコンパイル確認（`test_helpers.go`）の 1 件だけのため。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 

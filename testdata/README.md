@@ -20,3 +20,15 @@ CC BY 3.0 の条件に従い、上記の出典（動画 URL・チャンネル名
 
 - `2tcCWM-sRBw.ja.json3`: 上記動画の自動字幕（json3）。
 - `2tcCWM-sRBw.info.json`: 同上の info.json。
+
+## テスト用の合成サンプル（実出力ではない）
+
+次の 4 ファイルは、実 `yt-dlp` の出力ではなく、パーサの拒否経路をテストするために手で作った合成サンプルである。実際の動画からの出力ではないため、上記の出典・ライセンス（CC BY）と IP 置換の条件は適用されない。
+
+- `invalid_utf8.json3`: json3 の `utf8` に不正な UTF-8 バイト列（`0xFF`）を含む。
+- `unpaired_surrogate.json3`: json3 の `utf8` に、対になっていないサロゲートのエスケープ `\ud800` を含む。
+- `invalid_utf8.info.json`: info.json の `title` に不正な UTF-8 バイト列（`0xFF`）を含む。
+- `unpaired_surrogate.info.json`: info.json の `title` に、対になっていないサロゲートのエスケープ `\ud800` を含む。
+
+`invalid_utf8` の 2 ファイルは不正な UTF-8 バイト列を含み、`unpaired_surrogate` の 2 ファイルは ASCII のまま `\ud800` のエスケープを含む。テストは、パースの前にサンプル自身がこの性質を持つことを検証する（別の理由で不正な JSON と判定されていないことを確かめる）。
+
