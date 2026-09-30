@@ -8,6 +8,10 @@ GOTEST=$(GOCMD) test
 # three pins together.
 GOLANGCI_VERSION?=v2.13.2
 GOLINT=$(GOCMD) run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_VERSION) run --build-tags test,integration
+# The integration test is built with `-tags integration` alone (without the
+# `test` helpers), a combination golangci-lint above never compiles. Vet it
+# separately so a compile error there fails every lint path.
+VET_INTEGRATION=$(GOCMD) vet -tags integration ./...
 GOFUMPTCMD=gofumpt
 
 BINARY=build/yt2column
@@ -80,15 +84,18 @@ test-ci:
 # An empty YT2COLUMN_TEST_VIDEO_ID skips the video ID check.
 YT2COLUMN_TEST_VIDEO_URL ?= https://www.youtube.com/watch?v=EQCUZyB4DqE
 YT2COLUMN_TEST_VIDEO_ID ?= EQCUZyB4DqE
+# Exported so the test process reads them from its environment; the recipe
+# never splices the values into shell text.
+export YT2COLUMN_TEST_VIDEO_URL YT2COLUMN_TEST_VIDEO_ID
 INTEGRATION_TIMEOUT ?= 10m
 
 test-integration:
-	@echo "test-integration: uses the real yt-dlp and the network (video: $(YT2COLUMN_TEST_VIDEO_URL))"
-	YT2COLUMN_TEST_VIDEO_URL='$(YT2COLUMN_TEST_VIDEO_URL)' YT2COLUMN_TEST_VIDEO_ID='$(YT2COLUMN_TEST_VIDEO_ID)' \
-		$(GOTEST) -tags integration -count=1 -timeout $(INTEGRATION_TIMEOUT) -v ./internal/transcript
+	@printf 'test-integration: uses the real yt-dlp and the network (video: %s)\n' "$$YT2COLUMN_TEST_VIDEO_URL"
+	$(GOTEST) -tags integration -count=1 -timeout $(INTEGRATION_TIMEOUT) -v ./internal/transcript
 
 lint:
 	$(GOLINT)
+	$(VET_INTEGRATION)
 
 fmt:
 	$(call check_gofumpt)

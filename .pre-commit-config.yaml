@@ -25,6 +25,15 @@ repos:
         types: [go]
         pass_filenames: false
 
+    # golangci-lint above compiles the integration test only together with
+    # the `test` helpers; vet the `-tags integration` build it actually runs in.
+    -   id: go-vet-integration
+        name: go vet (integration)
+        entry: go vet -tags integration ./...
+        language: system
+        types: [go]
+        pass_filenames: false
+
 -   repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:

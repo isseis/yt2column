@@ -1712,28 +1712,47 @@ func TestIntegrationTestBuildTag(t *testing.T) {
 var buildTagsFlag = regexp.MustCompile(`--build-tags[= ](\S+)`)
 
 // TestLintTagsIncludeIntegration pins that every lint path (make lint,
-// pre-commit, CI) analyzes the integration test: each file passes
-// --build-tags, and every occurrence names both build tags.
+// pre-commit, CI) checks the integration test twice: golangci-lint analyzes
+// it with both build tags, and go vet compiles the `-tags integration` build
+// that `make test-integration` runs, which the first never builds. The
+// golangci-lint check is tied to the line that runs it, so a comment
+// mentioning the flag does not satisfy it.
 func TestLintTagsIncludeIntegration(t *testing.T) {
-	const want = "test,integration"
+	const (
+		wantTags = "test,integration"
+		vet      = "vet -tags integration ./..."
+	)
 	root := filepath.Join("..", "..")
-	for _, name := range []string{
-		"Makefile",
-		".pre-commit-config.yaml",
-		filepath.Join(".github", "workflows", "ci.yml"),
+	for _, tc := range []struct {
+		name string
+		// lintLine marks the line that runs golangci-lint.
+		lintLine string
+	}{
+		{name: "Makefile", lintLine: "golangci-lint@"},
+		{name: ".pre-commit-config.yaml", lintLine: "golangci-lint@"},
+		{name: filepath.Join(".github", "workflows", "ci.yml"), lintLine: "args:"},
 	} {
-		content, err := os.ReadFile(filepath.Join(root, name))
+		content, err := os.ReadFile(filepath.Join(root, tc.name))
 		if err != nil {
-			t.Fatalf("read %s: %v", name, err)
+			t.Fatalf("read %s: %v", tc.name, err)
 		}
-		matches := buildTagsFlag.FindAllStringSubmatch(string(content), -1)
-		if len(matches) == 0 {
-			t.Errorf("%s: no --build-tags argument", name)
-		}
-		for _, match := range matches {
-			if match[1] != want {
-				t.Errorf("%s: --build-tags %s, want %s", name, match[1], want)
+		lintRuns := 0
+		for line := range strings.Lines(string(content)) {
+			if !strings.Contains(line, tc.lintLine) {
+				continue
 			}
+			for _, match := range buildTagsFlag.FindAllStringSubmatch(line, -1) {
+				lintRuns++
+				if match[1] != wantTags {
+					t.Errorf("%s: golangci-lint --build-tags %s, want %s", tc.name, match[1], wantTags)
+				}
+			}
+		}
+		if lintRuns == 0 {
+			t.Errorf("%s: no golangci-lint line with --build-tags", tc.name)
+		}
+		if !strings.Contains(string(content), vet) {
+			t.Errorf("%s: missing %q", tc.name, vet)
 		}
 	}
 }
