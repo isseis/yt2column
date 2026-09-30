@@ -24,7 +24,7 @@
 ### 1.2. 概念モデル
 
 ```mermaid
-flowchart LR
+flowchart TB
     classDef data fill:#e6f7ff,stroke:#1f77b4,stroke-width:1px,color:#0b3d91;
     classDef enhanced fill:#e8f5e8,stroke:#2e8b57,stroke-width:2px,color:#006400;
     classDef process fill:#fff1e6,stroke:#ff7f0e,stroke-width:1px,color:#8a3e00;
@@ -39,17 +39,22 @@ flowchart LR
         ASM["Transcript の組み立て"]
 
         subgraph MISS["キャッシュミス / 強制再取得"]
-            direction TB
+            direction LR
             RUN["コマンド実行<br>（正規化 URL・allowlist 環境）"]
             YTDLP["yt-dlp<br>（外部コマンド）"]
             PAIR[("字幕 json3 と info.json<br>（ペア）")]
-            WRITE["キャッシュ書き込み<br>（世代コミット）"]
             RUN --> YTDLP
             YTDLP -->|"ステージング領域へ出力"| PAIR
         end
     end
 
-    CF[("キャッシュファイル<br>（2 ファイルで 1 世代）")]
+    subgraph STORE["キャッシュディレクトリ（保存データ）"]
+        direction LR
+        WRITE["キャッシュ書き込み<br>（世代コミット）"]
+        CF[("キャッシュファイル<br>（2 ファイルで 1 世代）")]
+        WRITE -->|"新しい世代"| CF
+    end
+
     TC[("Transcript")]
     CALLER["呼び出し元<br>（パイプラインの次段階）"]
 
@@ -61,7 +66,6 @@ flowchart LR
     PAIR --> PARSE
     PARSE -->|"セグメントとメタ情報"| ASM
     ASM -->|"ミスの成功時だけコミット"| WRITE
-    WRITE -->|"新しい世代"| CF
     ASM --> TC
     TC -->|"戻り値"| CALLER
 
