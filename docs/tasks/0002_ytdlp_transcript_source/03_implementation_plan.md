@@ -173,12 +173,12 @@
 - 変更: `Makefile`・`.pre-commit-config.yaml`・`.github/workflows/ci.yml`・本計画書（手動実行の記録）
 
 **タスク**
-- [ ] **ステップ 4-1**: `integration_test.go` を作成する（F-008・architecture §7.2）。テスト自身が `YT2COLUMN_TEST_VIDEO_URL` の未設定・空を検出し、変数名を明示して失敗し、スキップしない（AC-42）。`YT2COLUMN_TEST_VIDEO_ID` が非空なら動画 ID を照合し、空なら照合しない。キャッシュは `t.TempDir` を使う。1 つのテスト関数内のサブテストとして、取得（AC-39）、目印ファイルを書き込むラッパー実行ファイルを `YtDlpPath` に指定した 2 回目のキャッシュ再利用（AC-40）、キャッシュを目印入りの有効な内容に置き換えたうえでの強制再取得（AC-41）を検証する。AC-40 は 2 回目の `Transcript` が 1 回目と等しく（メタ情報・セグメントの並び・各開始時刻）、目印ファイルが存在しないことを検証する。AC-41 は結果に目印が現れないことを検証する。ラッパー用と強制再取得用に `YtDlpSource` を構築し直す。`yt-dlp` 不在やネットワーク失敗はスキップせず失敗させる。あわせて `ytdlp_test.go` に `TestIntegrationTestBuildTag`（AC-37）を追加し、`integration_test.go` の先頭行が `//go:build integration` であること、およびファイルが存在しない・先頭行が違う場合は明確に失敗することを検証する。`integration_test.go` は `test_helpers.go`（`//go:build test`）のシンボルを使わず、`-tags integration` 単独でコンパイルできるようにする（`make test-integration` は `test` タグを付けないため）。
-- [ ] **ステップ 4-2**: `Makefile` に `test-integration` ターゲットを追加する。既定値を Make 変数（`YT2COLUMN_TEST_VIDEO_URL`・`YT2COLUMN_TEST_VIDEO_ID`、architecture §3.7 の URL・ID）として `?=` で定義し、実 `yt-dlp` とネットワークを使うことを表示し、`-tags integration`・`-count=1`・明示的な `-timeout`・`-v` を付けて `./internal/transcript` を実行する（AC-38）。テストは環境変数を `os.Getenv` で読むため、レシピは両変数をテストプロセスの環境へ明示的に渡す（Make 変数の定義だけでは子プロセスへ渡らない）。`.PHONY` に追加する。あわせて `GOLINT` のタグを `test,integration` に変更する（AC-43）。
-- [ ] **ステップ 4-3**: `.pre-commit-config.yaml:23` の golangci-lint フックのタグを `test,integration` に変更する（AC-43）。`testdata/` の除外（`:32`・`:34`・`:37`）は変更済みであることを確認し、変更しない。
-- [ ] **ステップ 4-4**: `.github/workflows/ci.yml:88` の lint 引数のタグを `test,integration` に変更し、`ytdlp_test.go` に `TestLintTagsIncludeIntegration` を追加する。この guard は `Makefile`・`.pre-commit-config.yaml`・`.github/workflows/ci.yml` の 3 箇所すべてが `test,integration` を含むことを検証し、3 箇所のタグが揃っていることを機械的に固定する（AC-43）。
+- [x] **ステップ 4-1**: `integration_test.go` を作成する（F-008・architecture §7.2）。テスト自身が `YT2COLUMN_TEST_VIDEO_URL` の未設定・空を検出し、変数名を明示して失敗し、スキップしない（AC-42）。`YT2COLUMN_TEST_VIDEO_ID` が非空なら動画 ID を照合し、空なら照合しない。キャッシュは `t.TempDir` を使う。1 つのテスト関数内のサブテストとして、取得（AC-39）、目印ファイルを書き込むラッパー実行ファイルを `YtDlpPath` に指定した 2 回目のキャッシュ再利用（AC-40）、キャッシュを目印入りの有効な内容に置き換えたうえでの強制再取得（AC-41）を検証する。AC-40 は 2 回目の `Transcript` が 1 回目と等しく（メタ情報・セグメントの並び・各開始時刻）、目印ファイルが存在しないことを検証する。AC-41 は結果に目印が現れないことを検証する。ラッパー用と強制再取得用に `YtDlpSource` を構築し直す。`yt-dlp` 不在やネットワーク失敗はスキップせず失敗させる。あわせて `ytdlp_test.go` に `TestIntegrationTestBuildTag`（AC-37）を追加し、`integration_test.go` の先頭行が `//go:build integration` であること、およびファイルが存在しない・先頭行が違う場合は明確に失敗することを検証する。`integration_test.go` は `test_helpers.go`（`//go:build test`）のシンボルを使わず、`-tags integration` 単独でコンパイルできるようにする（`make test-integration` は `test` タグを付けないため）。
+- [x] **ステップ 4-2**: `Makefile` に `test-integration` ターゲットを追加する。既定値を Make 変数（`YT2COLUMN_TEST_VIDEO_URL`・`YT2COLUMN_TEST_VIDEO_ID`、architecture §3.7 の URL・ID）として `?=` で定義し、実 `yt-dlp` とネットワークを使うことを表示し、`-tags integration`・`-count=1`・明示的な `-timeout`・`-v` を付けて `./internal/transcript` を実行する（AC-38）。テストは環境変数を `os.Getenv` で読むため、レシピは両変数をテストプロセスの環境へ明示的に渡す（Make 変数の定義だけでは子プロセスへ渡らない）。`.PHONY` に追加する。あわせて `GOLINT` のタグを `test,integration` に変更する（AC-43）。
+- [x] **ステップ 4-3**: `.pre-commit-config.yaml:23` の golangci-lint フックのタグを `test,integration` に変更する（AC-43）。`testdata/` の除外（`:32`・`:34`・`:37`）は変更済みであることを確認し、変更しない。
+- [x] **ステップ 4-4**: `.github/workflows/ci.yml:88` の lint 引数のタグを `test,integration` に変更し、`ytdlp_test.go` に `TestLintTagsIncludeIntegration` を追加する。この guard は `Makefile`・`.pre-commit-config.yaml`・`.github/workflows/ci.yml` の 3 箇所すべてが `test,integration` を含むことを検証し、3 箇所のタグが揃っていることを機械的に固定する（AC-43）。
 - [ ] **ステップ 4-5**: 手動実行を完了条件として実施する（AC-33）。`make test-integration` を実行し（実 `yt-dlp` とネットワークを使うため、実施前にユーザーの承認を得る）、§5.1 に使用した動画 URL・動画 ID・結果を記録する。既定の動画が利用できない場合は、要件 F-008 に従って URL と ID を差し替え、その旨も記録する。
-- [ ] **ステップ 4-6**: 環境変数を設定せずにコミット済みの `integration_test.go` を `go test -tags integration ./internal/transcript` で直接実行し、スキップせず変数名を含むエラーで失敗することを確認して出力を記録する（AC-42）。
+- [x] **ステップ 4-6**: 環境変数を設定せずにコミット済みの `integration_test.go` を `go test -tags integration ./internal/transcript` で直接実行し、スキップせず変数名を含むエラーで失敗することを確認して出力を記録する（AC-42）。
 - [ ] **ステップ 4-7**: 主要な分岐を壊して失敗を確認し、コミットメッセージに記録する。対象の例: `integration_test.go` に lint 違反（未使用の変数など）を一時的に入れると `make lint` が失敗する（AC-43）、`TestIntegrationTestBuildTag` の検証対象の先頭行を `//go:build test` に変えると同テストが失敗する（AC-37）、3 箇所のうち 1 つの lint タグを `test` に戻すと `TestLintTagsIncludeIntegration` が失敗する（AC-43）、`make test-integration` から `-count=1` を外して 2 回実行すると 2 回目が `(cached)` を表示し、付けた場合は 2 回とも実行されることを `-v` 出力で確認して記録する（AC-38）。
 - [ ] **ステップ 4-8**: `make fmt` → `make test` → `make lint` を通し、`make test-integration` も通す。
 
@@ -377,6 +377,20 @@ AC ごとの検証は次のとおり。`test` は実行可能なテスト、`sta
 - 使用した動画 URL: （未実施。既定 `https://www.youtube.com/watch?v=EQCUZyB4DqE` を予定）
 - 期待する動画 ID: （未実施。既定 `EQCUZyB4DqE` を予定）
 - 結果: （未実施。取得・キャッシュ再利用・強制再取得の各サブテストの成否を記録する）
+
+### 5.2. 環境変数を設定しない直接実行の記録 (AC-42)
+
+フェーズ 4 ステップ 4-6。コミット `2aa4f74` の `integration_test.go` を、`YT2COLUMN_TEST_VIDEO_URL`・`YT2COLUMN_TEST_VIDEO_ID` を環境から外して直接実行した（2026-10-01）。スキップせず、変数名を含むメッセージで失敗した。
+
+```
+$ env -u YT2COLUMN_TEST_VIDEO_URL -u YT2COLUMN_TEST_VIDEO_ID go test -tags integration -count=1 -v ./internal/transcript
+=== RUN   TestIntegration
+    integration_test.go:43: YT2COLUMN_TEST_VIDEO_URL is not set: set it to the URL of a video with Japanese subtitles, or run `make test-integration`
+--- FAIL: TestIntegration (0.00s)
+FAIL
+FAIL	github.com/isseis/yt2column/internal/transcript	0.375s
+FAIL
+```
 
 ## 6. リスク管理 (Risk Management)
 
