@@ -1026,45 +1026,113 @@ func readBody(path string) (string, error) {
 }
 
 // requireSupportedConfig refuses to run when the repository's local git config
-// contains a rule that could rewrite a remote URL. Global and system config are
-// disabled for every child process (see childEnv), so only the local config can
-// still redirect an operation.
+// contains a key outside the known-safe allowlist. Global and system config are
+// disabled for every child process (see childEnv), so only the local (and, when
+// enabled, worktree) config could otherwise redirect a URL or execute a
+// program. Rejecting by allowlist means an executable key added to git later is
+// rejected by default instead of being missed.
 func (t *Tool) requireSupportedConfig(ctx context.Context) error {
-	// --null uses NUL between entries and a newline between key and value, so a
-	// key that contains "=" is not truncated.
-	out, err := t.command(ctx, commandTimeout, gitCommand, "config", "--list", "--null", "--includes")
+	// --local excludes the command-scope overrides from childEnv; --null uses NUL
+	// between entries and a newline between key and value, so a key that
+	// contains "=" is not truncated.
+	out, err := t.command(ctx, commandTimeout, gitCommand, "config", "--local", "--null", "--includes", "--list")
 	if err != nil {
 		return fmt.Errorf("read git config: %w", err)
 	}
+	worktree := false
+	for entry := range strings.SplitSeq(string(out), "\x00") {
+		key, value, _ := strings.Cut(entry, "\n")
+		if key == "" {
+			continue
+		}
+		if strings.EqualFold(key, "extensions.worktreeconfig") && strings.EqualFold(value, "true") {
+			worktree = true
+		}
+		if !allowedConfig(key) {
+			return fmt.Errorf("%w: section %q", errUnsupportedConfig, configSection(key))
+		}
+	}
+	if !worktree {
+		return nil
+	}
+	out, err = t.command(ctx, commandTimeout, gitCommand, "config", "--worktree", "--null", "--list")
+	if err != nil {
+		return fmt.Errorf("read worktree config: %w", err)
+	}
 	for entry := range strings.SplitSeq(string(out), "\x00") {
 		key, _, _ := strings.Cut(entry, "\n")
-		if rule := unsupportedConfigRule(key); rule != "" {
-			return fmt.Errorf("%w: %s", errUnsupportedConfig, rule)
+		if key != "" && !allowedConfig(key) {
+			return fmt.Errorf("%w: section %q", errUnsupportedConfig, configSection(key))
 		}
 	}
 	return nil
 }
 
-// unsupportedConfigRule names a repository-local config rule that can rewrite a
-// remote URL or execute a program, or "" when the key is fine. The key is never
-// echoed, because it can embed a credential.
-func unsupportedConfigRule(key string) string {
+// allowedConfigKeys are the repository-local keys the tool tolerates in addition
+// to the prefixes in allowedConfig. They are non-executable and git may need
+// them to interpret a clone or worktree.
+var allowedConfigKeys = map[string]struct{}{
+	"core.repositoryformatversion": {},
+	"core.bare":                    {},
+	"core.worktree":                {},
+	"core.filemode":                {},
+	"core.ignorecase":              {},
+	"core.symlinks":                {},
+	"core.precomposeunicode":       {},
+	"core.logallrefupdates":        {},
+	"core.abbrev":                  {},
+	"core.quotepath":               {},
+	"core.autocrlf":                {},
+	"core.safecrlf":                {},
+	"core.eol":                     {},
+	"core.trustctime":              {},
+	"core.checkstat":               {},
+	"core.ignorestat":              {},
+	"core.commitgraph":             {},
+	"core.multipackindex":          {},
+	"core.untrackedcache":          {},
+	"core.sparsecheckout":          {},
+	"core.sparsecheckoutcone":      {},
+	"core.bigfilethreshold":        {},
+	"user.name":                    {},
+	"user.email":                   {},
+}
+
+// allowedConfig reports whether a repository-local config key is one the tool
+// tolerates: it cannot execute a program and git may need it to interpret the
+// repository. Everything else is rejected.
+func allowedConfig(key string) bool {
 	key = strings.ToLower(key)
-	switch {
-	case strings.HasPrefix(key, "includeif."):
-		return "includeIf"
-	case key == "credential.helper" || (strings.HasPrefix(key, "credential.") && strings.HasSuffix(key, ".helper")):
-		return "credential.helper"
-	case key == "core.sshcommand":
-		return "core.sshCommand"
-	case key == "diff.external" || (strings.HasPrefix(key, "diff.") && (strings.HasSuffix(key, ".textconv") || strings.HasSuffix(key, ".command"))):
-		return "diff external driver"
-	case strings.HasPrefix(key, "url.") && strings.HasSuffix(key, ".insteadof"):
-		return "url.*.insteadOf"
-	case strings.HasPrefix(key, "url.") && strings.HasSuffix(key, ".pushinsteadof"):
-		return "url.*.pushInsteadOf"
+	if _, ok := allowedConfigKeys[key]; ok {
+		return true
 	}
-	return ""
+	switch {
+	case strings.HasPrefix(key, "remote."):
+		// uploadpack/receivepack name a program git runs for the remote.
+		return !strings.HasSuffix(key, ".uploadpack") && !strings.HasSuffix(key, ".receivepack") &&
+			!strings.HasSuffix(key, ".vcs") && !strings.HasSuffix(key, ".proxy")
+	case strings.HasPrefix(key, "branch."),
+		strings.HasPrefix(key, "extensions."),
+		strings.HasPrefix(key, "index."),
+		strings.HasPrefix(key, "gc."),
+		strings.HasPrefix(key, "fetch."),
+		strings.HasPrefix(key, "pull."),
+		strings.HasPrefix(key, "push."),
+		strings.HasPrefix(key, "status."),
+		strings.HasPrefix(key, "commit."),
+		strings.HasPrefix(key, "tag."),
+		strings.HasPrefix(key, "log."),
+		strings.HasPrefix(key, "rebase."):
+		return true
+	}
+	return false
+}
+
+// configSection returns the config section (before the first "."), which cannot
+// embed a credential, for an error message.
+func configSection(key string) string {
+	section, _, _ := strings.Cut(key, ".")
+	return section
 }
 
 // sameRepo reports whether two GitHub owner/repo pairs name the same
@@ -1118,6 +1186,11 @@ func loadState(path string) (State, error) {
 func writeFile(path string, data []byte) error {
 	if err := os.WriteFile(path, data, stateFileMode); err != nil {
 		return fmt.Errorf("write %s: %w", filepath.Base(path), err)
+	}
+	// WriteFile preserves the mode of an existing file, so enforce it even when
+	// a reused work directory already held a world-readable file.
+	if err := os.Chmod(path, stateFileMode); err != nil {
+		return fmt.Errorf("set mode on %s: %w", filepath.Base(path), err)
 	}
 	return nil
 }

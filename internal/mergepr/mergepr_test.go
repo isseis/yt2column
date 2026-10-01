@@ -35,7 +35,7 @@ func headRefOut(oid string) string {
 
 func repoIdentitySteps() []commandStep {
 	return []commandStep{
-		gitStep([]string{"config", "--list", "--null", "--includes"}, ""),
+		gitStep([]string{"config", "--local", "--null", "--includes", "--list"}, ""),
 		gitStep([]string{"remote", "get-url", "origin"}, testFetchURLOut),
 		gitStep([]string{"remote", "get-url", "--push", "--all", "origin"}, testFetchURLOut),
 		ghStep([]string{"repo", "view", "--json", "nameWithOwner,url"}, testRepoViewOut),
@@ -362,28 +362,66 @@ func TestPrepareRejectsChangedCommand(t *testing.T) {
 	runner.done()
 }
 
-func TestUnsupportedConfigRule(t *testing.T) {
+func TestAllowedConfig(t *testing.T) {
 	cases := []struct {
 		key  string
 		want bool
 	}{
-		{"includeIf.onbranch:main.path", true},
-		{"url.git@github.com:.insteadOf", true},
-		{"url.https://github.com/.pushInsteadOf", true},
-		{"credential.helper", true},
-		{"credential.https://github.com.helper", true},
-		{"core.sshCommand", true},
-		{"diff.external", true},
-		{"diff.mydriver.textconv", true},
-		{"diff.mydriver.command", true},
-		{"core.pager", false},
-		{"remote.origin.url", false},
-		{"user.email", false},
+		{"remote.origin.url", true},
+		{"remote.origin.fetch", true},
+		{"branch.main.merge", true},
+		{"core.repositoryformatversion", true},
+		{"core.logallrefupdates", true},
+		{"extensions.worktreeConfig", true},
+		{"user.email", true},
+		{"remote.origin.uploadpack", false},
+		{"remote.origin.receivepack", false},
+		{"credential.helper", false},
+		{"credential.https://github.com.helper", false},
+		{"core.sshCommand", false},
+		{"core.hooksPath", false},
+		{"core.fsmonitor", false},
+		{"diff.external", false},
+		{"diff.mydriver.textconv", false},
+		{"filter.mydriver.clean", false},
+		{"alias.x", false},
+		{"url.git@github.com:.insteadOf", false},
+		{"includeIf.onbranch:main.path", false},
 	}
 	for _, tc := range cases {
-		if got := unsupportedConfigRule(tc.key) != ""; got != tc.want {
-			t.Errorf("unsupportedConfigRule(%q) rejected = %t, want %t", tc.key, got, tc.want)
+		if got := allowedConfig(tc.key); got != tc.want {
+			t.Errorf("allowedConfig(%q) = %t, want %t", tc.key, got, tc.want)
 		}
+	}
+}
+
+func TestPrepareRejectsUnsupportedWorktreeConfig(t *testing.T) {
+	steps := []commandStep{
+		gitStep([]string{"config", "--local", "--null", "--includes", "--list"}, "extensions.worktreeConfig\ntrue\x00"),
+		gitStep([]string{"config", "--worktree", "--null", "--list"}, "core.sshCommand\n!./tracked\x00"),
+	}
+	tool, runner := newTool(t, steps)
+
+	if _, err := tool.Prepare(t.Context(), strconv.Itoa(testPRNumber), t.TempDir()); !errors.Is(err, errUnsupportedConfig) {
+		t.Fatalf("Prepare error = %v, want errUnsupportedConfig", err)
+	}
+	runner.done()
+}
+
+func TestWriteFileEnforcesMode(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "file.txt")
+	if err := os.WriteFile(path, []byte("old"), 0o644); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+	if err := writeFile(path, []byte("new")); err != nil {
+		t.Fatalf("writeFile: %v", err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat: %v", err)
+	}
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Errorf("mode = %o, want 600", got)
 	}
 }
 
@@ -482,7 +520,7 @@ func TestPrepareHappyPath(t *testing.T) {
 
 func TestPrepareRejectsPushURLMismatch(t *testing.T) {
 	steps := []commandStep{
-		gitStep([]string{"config", "--list", "--null", "--includes"}, ""),
+		gitStep([]string{"config", "--local", "--null", "--includes", "--list"}, ""),
 		gitStep([]string{"remote", "get-url", "origin"}, testFetchURLOut),
 		gitStep([]string{"remote", "get-url", "--push", "--all", "origin"}, "git@github.com:fork/yt2column.git\n"),
 	}
@@ -496,7 +534,7 @@ func TestPrepareRejectsPushURLMismatch(t *testing.T) {
 
 func TestPrepareRejectsExtraPushURL(t *testing.T) {
 	steps := []commandStep{
-		gitStep([]string{"config", "--list", "--null", "--includes"}, ""),
+		gitStep([]string{"config", "--local", "--null", "--includes", "--list"}, ""),
 		gitStep([]string{"remote", "get-url", "origin"}, testFetchURLOut),
 		gitStep([]string{"remote", "get-url", "--push", "--all", "origin"}, "git@github.com:isseis/yt2column.git\ngit@github.com:fork/yt2column.git\n"),
 	}
@@ -510,7 +548,7 @@ func TestPrepareRejectsExtraPushURL(t *testing.T) {
 
 func TestPrepareRejectsUnsupportedConfig(t *testing.T) {
 	steps := []commandStep{
-		gitStep([]string{"config", "--list", "--null", "--includes"}, "url.https://ghp_secret@github.com/fork/repo.git#a=b.insteadof\nhttps://github.com/\x00"),
+		gitStep([]string{"config", "--local", "--null", "--includes", "--list"}, "url.https://ghp_secret@github.com/fork/repo.git#a=b.insteadof\nhttps://github.com/\x00"),
 	}
 	tool, runner := newTool(t, steps)
 
@@ -526,7 +564,7 @@ func TestPrepareRejectsUnsupportedConfig(t *testing.T) {
 
 func TestPrepareRejectsHTTPRemote(t *testing.T) {
 	steps := []commandStep{
-		gitStep([]string{"config", "--list", "--null", "--includes"}, ""),
+		gitStep([]string{"config", "--local", "--null", "--includes", "--list"}, ""),
 		gitStep([]string{"remote", "get-url", "origin"}, "http://github.com/isseis/yt2column.git\n"),
 	}
 	tool, runner := newTool(t, steps)
@@ -539,7 +577,7 @@ func TestPrepareRejectsHTTPRemote(t *testing.T) {
 
 func TestPrepareRejectsSelectedRepoMismatch(t *testing.T) {
 	steps := []commandStep{
-		gitStep([]string{"config", "--list", "--null", "--includes"}, ""),
+		gitStep([]string{"config", "--local", "--null", "--includes", "--list"}, ""),
 		gitStep([]string{"remote", "get-url", "origin"}, testFetchURLOut),
 		gitStep([]string{"remote", "get-url", "--push", "--all", "origin"}, testFetchURLOut),
 		ghStep([]string{"repo", "view", "--json", "nameWithOwner,url"}, `{"nameWithOwner":"other/repo","url":"https://github.com/other/repo"}`),
@@ -554,7 +592,7 @@ func TestPrepareRejectsSelectedRepoMismatch(t *testing.T) {
 
 func TestPrepareRejectsGHSelHostMismatch(t *testing.T) {
 	steps := []commandStep{
-		gitStep([]string{"config", "--list", "--null", "--includes"}, ""),
+		gitStep([]string{"config", "--local", "--null", "--includes", "--list"}, ""),
 		gitStep([]string{"remote", "get-url", "origin"}, testFetchURLOut),
 		gitStep([]string{"remote", "get-url", "--push", "--all", "origin"}, testFetchURLOut),
 		ghStep([]string{"repo", "view", "--json", "nameWithOwner,url"}, `{"nameWithOwner":"isseis/yt2column","url":"https://github.example.com/isseis/yt2column"}`),
@@ -734,7 +772,7 @@ func TestMergeRejectsRepoMismatch(t *testing.T) {
 	bodyPath := writeTempFile(t, dir, "body.txt", "body\n")
 
 	steps := []commandStep{
-		gitStep([]string{"config", "--list", "--null", "--includes"}, ""),
+		gitStep([]string{"config", "--local", "--null", "--includes", "--list"}, ""),
 		gitStep([]string{"remote", "get-url", "origin"}, "git@github.com:fork/yt2column.git\n"),
 		gitStep([]string{"remote", "get-url", "--push", "--all", "origin"}, "git@github.com:fork/yt2column.git\n"),
 		ghStep([]string{"repo", "view", "--json", "nameWithOwner,url"}, `{"nameWithOwner":"fork/yt2column","url":"https://github.com/fork/yt2column"}`),
