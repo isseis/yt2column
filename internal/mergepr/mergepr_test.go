@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strconv"
@@ -82,8 +83,8 @@ func prepareSteps(logOut, statOut, body string) []commandStep {
 		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
 		gitStep([]string{"for-each-ref", "--format=%(refname) %(objectname)", "refs/heads/feature/foo"}, headRefOut(testHeadOID)),
 		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main", "+refs/heads/feature/foo:refs/remotes/origin/feature/foo"}, ""),
-		gitStep([]string{"diff", "--quiet", "refs/remotes/origin/main", "--", ".claude/commands/mergepr.md"}, ""),
-		gitStep([]string{"diff", "--quiet", "refs/remotes/origin/main..." + testHeadOID, "--", "cmd/mergepr", "internal/mergepr", ".claude/commands/mergepr.md"}, ""),
+		gitStep([]string{"diff", "--quiet", "refs/remotes/origin/main", "--", ":(top).claude/commands/mergepr.md"}, ""),
+		gitStep([]string{"diff", "--quiet", "refs/remotes/origin/main..." + testHeadOID, "--", ":(top)cmd/mergepr", ":(top)internal/mergepr", ":(top).claude/commands/mergepr.md"}, ""),
 		gitStep([]string{"fetch", testFetchURL, testRefsWildcard}, ""),
 		ghStep(checksArgs(), ""),
 		gitStep([]string{"log", "--no-show-signature", "--format=%h %s%n%n%b", "refs/remotes/origin/main.." + testHeadOID}, logOut),
@@ -304,8 +305,8 @@ func TestPrepareRejectsChangedTool(t *testing.T) {
 		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
 		gitStep([]string{"for-each-ref", "--format=%(refname) %(objectname)", "refs/heads/feature/foo"}, headRefOut(testHeadOID)),
 		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main", "+refs/heads/feature/foo:refs/remotes/origin/feature/foo"}, ""),
-		gitStep([]string{"diff", "--quiet", "refs/remotes/origin/main", "--", ".claude/commands/mergepr.md"}, ""),
-		commandStep{name: gitCommand, args: []string{"diff", "--quiet", "refs/remotes/origin/main..." + testHeadOID, "--", "cmd/mergepr", "internal/mergepr", ".claude/commands/mergepr.md"}, err: errors.New("exit status 1")},
+		gitStep([]string{"diff", "--quiet", "refs/remotes/origin/main", "--", ":(top).claude/commands/mergepr.md"}, ""),
+		commandStep{name: gitCommand, args: []string{"diff", "--quiet", "refs/remotes/origin/main..." + testHeadOID, "--", ":(top)cmd/mergepr", ":(top)internal/mergepr", ":(top).claude/commands/mergepr.md"}, err: errors.New("exit status 1")},
 	)
 	tool, runner := newTool(t, steps)
 
@@ -352,7 +353,7 @@ func TestPrepareRejectsChangedCommand(t *testing.T) {
 		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
 		gitStep([]string{"for-each-ref", "--format=%(refname) %(objectname)", "refs/heads/feature/foo"}, headRefOut(testHeadOID)),
 		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main", "+refs/heads/feature/foo:refs/remotes/origin/feature/foo"}, ""),
-		commandStep{name: gitCommand, args: []string{"diff", "--quiet", "refs/remotes/origin/main", "--", ".claude/commands/mergepr.md"}, err: errors.New("exit status 1")},
+		commandStep{name: gitCommand, args: []string{"diff", "--quiet", "refs/remotes/origin/main", "--", ":(top).claude/commands/mergepr.md"}, err: errors.New("exit status 1")},
 	)
 	tool, runner := newTool(t, steps)
 
@@ -702,8 +703,8 @@ func TestPrepareRejectsChecksFailure(t *testing.T) {
 		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
 		gitStep([]string{"for-each-ref", "--format=%(refname) %(objectname)", "refs/heads/feature/foo"}, headRefOut(testHeadOID)),
 		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main", "+refs/heads/feature/foo:refs/remotes/origin/feature/foo"}, ""),
-		gitStep([]string{"diff", "--quiet", "refs/remotes/origin/main", "--", ".claude/commands/mergepr.md"}, ""),
-		gitStep([]string{"diff", "--quiet", "refs/remotes/origin/main..." + testHeadOID, "--", "cmd/mergepr", "internal/mergepr", ".claude/commands/mergepr.md"}, ""),
+		gitStep([]string{"diff", "--quiet", "refs/remotes/origin/main", "--", ":(top).claude/commands/mergepr.md"}, ""),
+		gitStep([]string{"diff", "--quiet", "refs/remotes/origin/main..." + testHeadOID, "--", ":(top)cmd/mergepr", ":(top)internal/mergepr", ":(top).claude/commands/mergepr.md"}, ""),
 		gitStep([]string{"fetch", testFetchURL, testRefsWildcard}, ""),
 		commandStep{name: ghCommand, args: checksArgs(), err: errors.New("exit status 1")},
 	)
@@ -1212,5 +1213,57 @@ func TestLoadStateRejectsUnsafeState(t *testing.T) {
 	}
 	if _, err := loadState(path); !errors.Is(err, errInvalidState) {
 		t.Fatalf("loadState error = %v, want errInvalidState", err)
+	}
+}
+
+// TestRequireToolUnchangedFromSubdirectory runs the tool check against a real
+// repository from a subdirectory: Git resolves an unanchored pathspec against
+// the current directory, so a PR that changes cmd/mergepr would pass there.
+func TestRequireToolUnchangedFromSubdirectory(t *testing.T) {
+	if _, err := exec.LookPath(gitCommand); err != nil {
+		t.Skip("git is not on PATH")
+	}
+	repo := t.TempDir()
+	runner := NewOSRunner()
+	git := func(args ...string) string {
+		t.Helper()
+		full := append([]string{"-C", repo, "-c", "user.name=Test", "-c", "user.email=test@example.com"}, args...)
+		out, err := runner.Run(t.Context(), gitCommand, full...)
+		if err != nil {
+			t.Fatalf("git %v: %v", args, err)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	write := func(rel, content string) {
+		t.Helper()
+		path := filepath.Join(repo, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+			t.Fatalf("mkdir %s: %v", rel, err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatalf("write %s: %v", rel, err)
+		}
+	}
+
+	git("init", "-q", "-b", trustedBranch)
+	write(commandFile, "command\n")
+	write("cmd/mergepr/main.go", "package main\n")
+	write("internal/keep.txt", "keep\n")
+	git("add", "-A")
+	git("commit", "-q", "-m", "base")
+	git("switch", "-q", "-c", "feature")
+	write("cmd/mergepr/main.go", "package main\n\n// changed\n")
+	git("commit", "-q", "-am", "change the tool")
+	headOID := git("rev-parse", "HEAD")
+	git("switch", "-q", trustedBranch)
+
+	t.Chdir(filepath.Join(repo, "internal"))
+	tool, err := New(runner)
+	if err != nil {
+		t.Fatalf("New returned error: %v", err)
+	}
+	err = tool.requireToolUnchanged(t.Context(), identity{FetchURL: repo}, trustedBranch, "feature", headOID)
+	if !errors.Is(err, errToolChanged) {
+		t.Fatalf("requireToolUnchanged error = %v, want errToolChanged", err)
 	}
 }

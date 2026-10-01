@@ -292,13 +292,24 @@ func (t *Tool) requireToolUnchanged(ctx context.Context, id identity, base, head
 	}
 	// The command definition that drives this tool must be the trusted main
 	// revision, so a checkout on a branch that edited it cannot run it.
-	if _, err := t.command(ctx, commandTimeout, gitCommand, "diff", "--quiet", originRefs+trustedBranch, "--", commandFile); err != nil {
+	if _, err := t.command(ctx, commandTimeout, gitCommand, append([]string{"diff", "--quiet", originRefs + trustedBranch, "--"}, topPathspecs(commandFile)...)...); err != nil {
 		return errCommandChanged
 	}
-	if _, err := t.command(ctx, commandTimeout, gitCommand, "diff", "--quiet", originRefs+base+"..."+headOID, "--", "cmd/mergepr", "internal/mergepr", commandFile); err != nil {
+	if _, err := t.command(ctx, commandTimeout, gitCommand, append([]string{"diff", "--quiet", originRefs + base + "..." + headOID, "--"}, topPathspecs("cmd/mergepr", "internal/mergepr", commandFile)...)...); err != nil {
 		return errToolChanged
 	}
 	return nil
+}
+
+// topPathspecs anchors repository-root-relative paths at the worktree root.
+// Git resolves a plain pathspec against the current directory, so a guard run
+// from a subdirectory would otherwise match nothing and pass.
+func topPathspecs(paths ...string) []string {
+	specs := make([]string, len(paths))
+	for i, path := range paths {
+		specs[i] = ":(top)" + path
+	}
+	return specs
 }
 
 // resolvePR verifies everything about the PR itself before any network
