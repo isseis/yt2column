@@ -362,7 +362,7 @@ func (t *Tool) resolvePR(ctx context.Context, prArg string) (identity, prInfo, e
 	}
 	// Switching branches later must not orphan a detached tip, so require HEAD
 	// to be attached before anything else is touched.
-	if err := t.requireAttachedHead(ctx); err != nil {
+	if err := t.requireBaseSwitchable(ctx, pr.BaseRefName); err != nil {
 		return identity{}, prInfo{}, err
 	}
 	localOID, err := t.localHeadOID(ctx, pr.HeadRefName)
@@ -466,7 +466,7 @@ func (t *Tool) Merge(ctx context.Context, statePath, subjectPath, bodyPath strin
 	if err := t.requireCleanWorktree(ctx); err != nil {
 		return Report{}, err
 	}
-	if err := t.requireAttachedHead(ctx); err != nil {
+	if err := t.requireBaseSwitchable(ctx, state.BaseRefName); err != nil {
 		return Report{}, err
 	}
 	live, err := t.fetchMergeView(ctx, state)
@@ -636,7 +636,7 @@ func (t *Tool) cleanupWith(ctx context.Context, state State, live *mergeView, id
 	if err := t.requireCleanWorktree(ctx); err != nil {
 		return Report{}, err
 	}
-	if err := t.requireAttachedHead(ctx); err != nil {
+	if err := t.requireBaseSwitchable(ctx, state.BaseRefName); err != nil {
 		return Report{}, err
 	}
 	if err := t.requireMergeInBase(ctx, *id, state, live.MergeCommit.OID); err != nil {
@@ -734,7 +734,7 @@ func (t *Tool) deleteLocalBranch(ctx context.Context, state State) (bool, error)
 	if localOID != state.HeadRefOID {
 		return false, fmt.Errorf("%w: %s is %s, want %s", errLocalBranchDrift, state.HeadRefName, localOID, state.HeadRefOID)
 	}
-	if err := t.requireBranchNotCheckedOut(ctx, state.HeadRefName); err != nil {
+	if err := t.requireNotCheckedOut(ctx, state.HeadRefName, errBranchCheckedOut); err != nil {
 		return false, err
 	}
 	// update-ref -d deletes only while the ref still holds the merged OID,
@@ -745,9 +745,10 @@ func (t *Tool) deleteLocalBranch(ctx context.Context, state State) (bool, error)
 	return true, nil
 }
 
-// requireBranchNotCheckedOut refuses to delete a branch another worktree has
-// checked out, which update-ref -d would not check.
-func (t *Tool) requireBranchNotCheckedOut(ctx context.Context, name string) error {
+// requireNotCheckedOut returns sentinel when any worktree has the branch checked
+// out; callers run it only when this worktree is on a different branch, so a
+// match is always another worktree. update-ref -d would not check this.
+func (t *Tool) requireNotCheckedOut(ctx context.Context, name string, sentinel error) error {
 	out, err := t.command(ctx, commandTimeout, gitCommand, "worktree", "list", "--porcelain")
 	if err != nil {
 		return fmt.Errorf("list worktrees: %w", err)
@@ -755,7 +756,7 @@ func (t *Tool) requireBranchNotCheckedOut(ctx context.Context, name string) erro
 	want := "branch " + refsHeads + name
 	for line := range strings.Lines(string(out)) {
 		if strings.TrimSpace(line) == want {
-			return fmt.Errorf("%w: %s", errBranchCheckedOut, name)
+			return fmt.Errorf("%w: %s", sentinel, name)
 		}
 	}
 	return nil
@@ -1018,13 +1019,18 @@ func (t *Tool) requireCleanWorktree(ctx context.Context) error {
 	return nil
 }
 
-// requireAttachedHead rejects a detached HEAD so a later branch switch cannot
-// leave its tip unreachable.
-func (t *Tool) requireAttachedHead(ctx context.Context) error {
-	if _, err := t.command(ctx, commandTimeout, gitCommand, "symbolic-ref", "--quiet", "HEAD"); err != nil {
-		return errDetachedHead
+// requireBaseSwitchable rejects a detached HEAD, so a later branch switch cannot
+// leave its tip unreachable, and a base branch checked out in another worktree,
+// which git switch refuses only after the irreversible merge.
+func (t *Tool) requireBaseSwitchable(ctx context.Context, base string) error {
+	current, err := t.currentBranch(ctx)
+	if err != nil {
+		return err
 	}
-	return nil
+	if current == base {
+		return nil
+	}
+	return t.requireNotCheckedOut(ctx, base, errBaseCheckedOut)
 }
 
 // localHeadOID returns the OID of the local branch, or an empty string when it

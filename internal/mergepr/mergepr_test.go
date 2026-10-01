@@ -81,6 +81,7 @@ func prepareSteps(logOut, statOut, body string) []commandStep {
 		gitStep([]string{"check-ref-format", "--branch", "main"}, "main\n"),
 		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
 		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
+		baseFreeStep(),
 		gitStep([]string{"for-each-ref", "--format=%(refname) %(objectname)", "refs/heads/feature/foo"}, headRefOut(testHeadOID)),
 		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main", "+refs/heads/feature/foo:refs/remotes/origin/feature/foo"}, ""),
 		gitStep([]string{"diff", "--quiet", "refs/remotes/origin/main", "--", ":(top).claude/commands/mergepr.md"}, ""),
@@ -98,7 +99,14 @@ func mergePreflightSteps() []commandStep {
 	return append(steps,
 		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
 		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
+		baseFreeStep(),
 	)
+}
+
+// baseFreeStep lists only this worktree, on the head branch, so no other
+// worktree holds the base branch.
+func baseFreeStep() commandStep {
+	return gitStep([]string{"worktree", "list", "--porcelain"}, "worktree /repo\nHEAD "+testHeadOID+"\nbranch refs/heads/feature/foo\n\n")
 }
 
 func mergedViewStep() commandStep {
@@ -111,6 +119,7 @@ func cleanupSteps(remoteOut, localOID string) []commandStep {
 	steps := []commandStep{}
 	steps = append(steps, gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""))
 	steps = append(steps, gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"))
+	steps = append(steps, baseFreeStep())
 	steps = append(steps, gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main"}, ""))
 	steps = append(steps, gitStep([]string{"merge-base", "--is-ancestor", testMergeOID, "refs/remotes/origin/main"}, ""))
 	steps = append(steps, gitStep([]string{"ls-remote", "--heads", testFetchURL, "refs/heads/feature/foo"}, remoteOut))
@@ -303,6 +312,7 @@ func TestPrepareRejectsChangedTool(t *testing.T) {
 		gitStep([]string{"check-ref-format", "--branch", "main"}, "main\n"),
 		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
 		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
+		baseFreeStep(),
 		gitStep([]string{"for-each-ref", "--format=%(refname) %(objectname)", "refs/heads/feature/foo"}, headRefOut(testHeadOID)),
 		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main", "+refs/heads/feature/foo:refs/remotes/origin/feature/foo"}, ""),
 		gitStep([]string{"diff", "--quiet", "refs/remotes/origin/main", "--", ":(top).claude/commands/mergepr.md"}, ""),
@@ -351,6 +361,7 @@ func TestPrepareRejectsChangedCommand(t *testing.T) {
 		gitStep([]string{"check-ref-format", "--branch", "main"}, "main\n"),
 		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
 		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
+		baseFreeStep(),
 		gitStep([]string{"for-each-ref", "--format=%(refname) %(objectname)", "refs/heads/feature/foo"}, headRefOut(testHeadOID)),
 		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main", "+refs/heads/feature/foo:refs/remotes/origin/feature/foo"}, ""),
 		commandStep{name: gitCommand, args: []string{"diff", "--quiet", "refs/remotes/origin/main", "--", ":(top).claude/commands/mergepr.md"}, err: errors.New("exit status 1")},
@@ -737,6 +748,7 @@ func TestPrepareRejectsHeadBranchMismatch(t *testing.T) {
 		gitStep([]string{"check-ref-format", "--branch", "main"}, "main\n"),
 		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
 		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
+		baseFreeStep(),
 		gitStep([]string{"for-each-ref", "--format=%(refname) %(objectname)", "refs/heads/feature/foo"}, headRefOut(testOtherOID)),
 	)
 	tool, runner := newTool(t, steps)
@@ -755,6 +767,7 @@ func TestPrepareRejectsChecksFailure(t *testing.T) {
 		gitStep([]string{"check-ref-format", "--branch", "main"}, "main\n"),
 		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
 		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
+		baseFreeStep(),
 		gitStep([]string{"for-each-ref", "--format=%(refname) %(objectname)", "refs/heads/feature/foo"}, headRefOut(testHeadOID)),
 		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main", "+refs/heads/feature/foo:refs/remotes/origin/feature/foo"}, ""),
 		gitStep([]string{"diff", "--quiet", "refs/remotes/origin/main", "--", ":(top).claude/commands/mergepr.md"}, ""),
@@ -996,6 +1009,7 @@ func TestMergeReportsCleanupFailure(t *testing.T) {
 		ghStep(mergeViewArgs(), mergeViewOut(mergedState, "feature/foo", testHeadOID, "main", false, true)),
 		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
 		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
+		baseFreeStep(),
 		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main"}, ""),
 		gitStep([]string{"merge-base", "--is-ancestor", testMergeOID, "refs/remotes/origin/main"}, ""),
 		gitStep([]string{"ls-remote", "--heads", testFetchURL, "refs/heads/feature/foo"}, testRemotePresent),
@@ -1068,6 +1082,7 @@ func TestCleanupRejectsDroppedMerge(t *testing.T) {
 	steps = append(steps,
 		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
 		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
+		baseFreeStep(),
 		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main"}, ""),
 		commandStep{name: gitCommand, args: []string{"merge-base", "--is-ancestor", testMergeOID, "refs/remotes/origin/main"}, err: errors.New("exit status 1")},
 	)
@@ -1147,6 +1162,7 @@ func TestCleanupRejectsBaseNotCurrent(t *testing.T) {
 	steps = append(steps,
 		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
 		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
+		baseFreeStep(),
 		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main"}, ""),
 		gitStep([]string{"merge-base", "--is-ancestor", testMergeOID, "refs/remotes/origin/main"}, ""),
 		gitStep([]string{"ls-remote", "--heads", testFetchURL, "refs/heads/feature/foo"}, testRemotePresent),
@@ -1174,6 +1190,7 @@ func TestCleanupRejectsCheckedOutLocalBranch(t *testing.T) {
 	steps = append(steps,
 		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
 		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
+		baseFreeStep(),
 		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main"}, ""),
 		gitStep([]string{"merge-base", "--is-ancestor", testMergeOID, "refs/remotes/origin/main"}, ""),
 		gitStep([]string{"ls-remote", "--heads", testFetchURL, "refs/heads/feature/foo"}, testRemotePresent),
@@ -1320,4 +1337,86 @@ func TestRequireToolUnchangedFromSubdirectory(t *testing.T) {
 	if !errors.Is(err, errToolChanged) {
 		t.Fatalf("requireToolUnchanged error = %v, want errToolChanged", err)
 	}
+}
+
+// baseElsewhereStep lists a second worktree that has the base branch checked
+// out, which git switch would refuse.
+func baseElsewhereStep() commandStep {
+	return gitStep([]string{"worktree", "list", "--porcelain"},
+		"worktree /repo\nHEAD "+testHeadOID+"\nbranch refs/heads/feature/foo\n\nworktree /other\nHEAD "+testBaseOID+"\nbranch refs/heads/main\n\n")
+}
+
+func TestPrepareRejectsBaseCheckedOutElsewhere(t *testing.T) {
+	steps := repoIdentitySteps()
+	steps = append(steps,
+		ghStep(prViewArgs(), prViewJSON("feature/foo", "body", false)),
+		gitStep([]string{"check-ref-format", "--branch", "feature/foo"}, "feature/foo\n"),
+		gitStep([]string{"check-ref-format", "--branch", "main"}, "main\n"),
+		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
+		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
+		baseElsewhereStep(),
+	)
+	tool, runner := newTool(t, steps)
+
+	if _, err := tool.Prepare(t.Context(), strconv.Itoa(testPRNumber), t.TempDir()); !errors.Is(err, errBaseCheckedOut) {
+		t.Fatalf("Prepare error = %v, want errBaseCheckedOut", err)
+	}
+	runner.done()
+}
+
+// Running from the worktree that holds the base is the supported way around
+// errBaseCheckedOut, so it must not list worktrees at all.
+func TestPrepareOnBaseBranch(t *testing.T) {
+	steps := prepareSteps("log\n", "stat\n", "body")
+	for i, step := range steps {
+		if step.name == gitCommand && step.args[0] == "symbolic-ref" {
+			steps[i].out = "refs/heads/main\n"
+			steps = append(steps[:i+1], steps[i+2:]...) // drop baseFreeStep
+			break
+		}
+	}
+	tool, runner := newTool(t, steps)
+
+	if _, err := tool.Prepare(t.Context(), strconv.Itoa(testPRNumber), t.TempDir()); err != nil {
+		t.Fatalf("Prepare returned error: %v", err)
+	}
+	runner.done()
+}
+
+func TestMergeRejectsBaseCheckedOutElsewhere(t *testing.T) {
+	dir := t.TempDir()
+	statePath := writeStateFile(t, dir)
+	subjectPath := writeTempFile(t, dir, "subject.txt", "subject line\n")
+	bodyPath := writeTempFile(t, dir, "body.txt", "body\n")
+
+	steps := repoIdentitySteps()
+	steps = append(steps,
+		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
+		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
+		baseElsewhereStep(),
+	)
+	tool, runner := newTool(t, steps)
+
+	if _, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath); !errors.Is(err, errBaseCheckedOut) {
+		t.Fatalf("Merge error = %v, want errBaseCheckedOut", err)
+	}
+	runner.done()
+}
+
+func TestCleanupRejectsBaseCheckedOutElsewhere(t *testing.T) {
+	dir := t.TempDir()
+	statePath := writeStateFile(t, dir)
+	steps := []commandStep{mergedViewStep()}
+	steps = append(steps, repoIdentitySteps()...)
+	steps = append(steps,
+		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
+		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
+		baseElsewhereStep(),
+	)
+	tool, runner := newTool(t, steps)
+
+	if _, err := tool.Cleanup(t.Context(), statePath); !errors.Is(err, errBaseCheckedOut) {
+		t.Fatalf("Cleanup error = %v, want errBaseCheckedOut", err)
+	}
+	runner.done()
 }

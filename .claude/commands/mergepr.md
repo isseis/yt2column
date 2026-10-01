@@ -32,7 +32,8 @@ it afterwards.
    and the repository `gh` selects name the same repository, that the PR is open
    and same-repository, that the head and base names are safe to pass to git,
    that the worktree is clean and any local head branch matches `headRefOid`,
-   fetches `origin`, waits for CI (`gh pr checks --watch --fail-fast`), and
+   that no other worktree has the base branch checked out (cleanup must switch
+   to it; run from that worktree instead, or switch it away), fetches `origin`, waits for CI (`gh pr checks --watch --fail-fast`), and
    writes `state.json`, `log.txt` (every commit message in full), `stat.txt`,
    and `body.txt` (the PR description) into a temporary directory whose paths it
    prints. It stops rather than draft from an input that does not fit.

@@ -29,6 +29,7 @@ var (
 	errMergeMissing       = errors.New("merged commit is not in the base branch")
 	errLocalBranchDrift   = errors.New("local head branch moved")
 	errBranchCheckedOut   = errors.New("local head branch is checked out in another worktree")
+	errBaseCheckedOut     = errors.New("base branch is checked out in another worktree; run from that worktree or switch it to another branch")
 	errBaseNotCurrent     = errors.New("local base branch is not at origin")
 	errToolChanged        = errors.New("the merge tool differs from the PR's base revision")
 	errCommandChanged     = errors.New("the command definition in this checkout differs from main")
