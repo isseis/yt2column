@@ -82,7 +82,7 @@ func prepareSteps(logOut, statOut, body string) []commandStep {
 		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
 		gitStep([]string{"for-each-ref", "--format=%(refname) %(objectname)", "refs/heads/feature/foo"}, headRefOut(testHeadOID)),
 		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main"}, ""),
-		gitStep([]string{"diff", "--quiet", "refs/remotes/origin/main", "--", "cmd/mergepr", "internal/mergepr"}, ""),
+		gitStep([]string{"diff", "--quiet", "refs/remotes/origin/main", "--", "cmd/mergepr", "internal/mergepr", ".claude/commands/mergepr.md"}, ""),
 		gitStep([]string{"fetch", testFetchURL, testRefsWildcard}, ""),
 		ghStep(checksArgs(), ""),
 		gitStep([]string{"log", "--no-show-signature", "--format=%h %s%n%n%b", "refs/remotes/origin/main.." + testHeadOID}, logOut),
@@ -163,6 +163,7 @@ func TestParseGitHubRemote(t *testing.T) {
 		{"https trailing slash", "https://github.com/isseis/yt2column/", "isseis", "yt2column", false},
 		{"host case", "https://GitHub.com/isseis/yt2column.git", "isseis", "yt2column", false},
 		{"ssh url", "ssh://git@github.com/isseis/yt2column.git", "isseis", "yt2column", false},
+		{"ssh with password is rejected", "ssh://git:secret@github.com/isseis/yt2column.git", "", "", true},
 		{"scp-like", "git@github.com:isseis/yt2column.git", "isseis", "yt2column", false},
 		{"scp non-git user is rejected", "ghp_secret@github.com:isseis/yt2column.git", "", "", true},
 		{"http is rejected", "http://github.com/isseis/yt2column", "", "", true},
@@ -301,7 +302,7 @@ func TestPrepareRejectsChangedTool(t *testing.T) {
 		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
 		gitStep([]string{"for-each-ref", "--format=%(refname) %(objectname)", "refs/heads/feature/foo"}, headRefOut(testHeadOID)),
 		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main"}, ""),
-		commandStep{name: gitCommand, args: []string{"diff", "--quiet", "refs/remotes/origin/main", "--", "cmd/mergepr", "internal/mergepr"}, err: errors.New("exit status 1")},
+		commandStep{name: gitCommand, args: []string{"diff", "--quiet", "refs/remotes/origin/main", "--", "cmd/mergepr", "internal/mergepr", ".claude/commands/mergepr.md"}, err: errors.New("exit status 1")},
 	)
 	tool, runner := newTool(t, steps)
 
@@ -585,7 +586,7 @@ func TestPrepareRejectsChecksFailure(t *testing.T) {
 		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
 		gitStep([]string{"for-each-ref", "--format=%(refname) %(objectname)", "refs/heads/feature/foo"}, headRefOut(testHeadOID)),
 		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main"}, ""),
-		gitStep([]string{"diff", "--quiet", "refs/remotes/origin/main", "--", "cmd/mergepr", "internal/mergepr"}, ""),
+		gitStep([]string{"diff", "--quiet", "refs/remotes/origin/main", "--", "cmd/mergepr", "internal/mergepr", ".claude/commands/mergepr.md"}, ""),
 		gitStep([]string{"fetch", testFetchURL, testRefsWildcard}, ""),
 		commandStep{name: ghCommand, args: checksArgs(), err: errors.New("exit status 1")},
 	)

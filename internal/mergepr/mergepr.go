@@ -198,15 +198,16 @@ func (t *Tool) prepare(ctx context.Context, prArg, workDir string) (Prepared, er
 	return writePrepared(workDir, id, pr, logOut, statOut, bodyOut)
 }
 
-// requireToolUnchanged refuses to run when the tool's own source differs from
-// the PR's base revision. It runs from the working tree, so a PR that edits the
-// tool would otherwise execute unreviewed code; this is a defense in depth, not
-// a sandbox, because a tool that lies about its revision bypasses it.
+// requireToolUnchanged refuses to run when the tool's own source, or the
+// command definition that drives it, differs from the PR's base revision. A PR
+// that edits either would otherwise execute unreviewed code; this is a defense
+// in depth, not a sandbox, because a tool or prompt that ignores the check
+// bypasses it.
 func (t *Tool) requireToolUnchanged(ctx context.Context, id identity, base string) error {
 	if _, err := t.command(ctx, commandTimeout, gitCommand, "fetch", id.FetchURL, "+"+refsHeads+base+":"+originRefs+base); err != nil {
 		return fmt.Errorf("fetch base for tool check: %w", err)
 	}
-	if _, err := t.command(ctx, commandTimeout, gitCommand, "diff", "--quiet", originRefs+base, "--", "cmd/mergepr", "internal/mergepr"); err != nil {
+	if _, err := t.command(ctx, commandTimeout, gitCommand, "diff", "--quiet", originRefs+base, "--", "cmd/mergepr", "internal/mergepr", ".claude/commands/mergepr.md"); err != nil {
 		return errToolChanged
 	}
 	return nil
@@ -707,8 +708,10 @@ func parseGitHubRemote(raw string) (string, string, error) {
 				return "", "", errInvalidRemote
 			}
 		case "ssh":
-			if user := parsed.User; user != nil && user.Username() != "git" {
-				return "", "", errInvalidRemote
+			if user := parsed.User; user != nil {
+				if _, hasPassword := user.Password(); hasPassword || user.Username() != "git" {
+					return "", "", errInvalidRemote
+				}
 			}
 		default:
 			return "", "", errInvalidRemote

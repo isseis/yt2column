@@ -24,13 +24,14 @@ order; do not skip a step.
    ```
    trusted="${TMPDIR:-/tmp}/mergepr-trusted"
    rm -rf "$trusted"
-   git fetch origin main
+   git fetch origin +refs/heads/main:refs/remotes/origin/main
    git worktree add --detach "$trusted" origin/main
    (cd "$trusted" && go build -o "$trusted/mergepr" ./cmd/mergepr)
    ```
    Use `"$trusted/mergepr"` in place of `go run ./cmd/mergepr` in every step
-   below; it still stops if the PR changes `cmd/mergepr` or `internal/mergepr`.
-   When the command is done, run `git worktree remove --force "$trusted"`.
+   below; it still stops if the PR changes `cmd/mergepr`, `internal/mergepr`, or
+   `.claude/commands/mergepr.md`. When the command is done, run
+   `git worktree remove --force "$trusted"`.
 1. **Prepare.** Run `"$trusted/mergepr" prepare -- "$ARGUMENTS"` (no argument
    uses the current branch's PR). It verifies that `origin`'s fetch and push URLs
    and the repository `gh` selects name the same repository, that the PR is open
