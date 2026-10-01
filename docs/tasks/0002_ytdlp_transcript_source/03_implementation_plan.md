@@ -177,7 +177,7 @@
 - [x] **ステップ 4-2**: `Makefile` に `test-integration` ターゲットを追加する。既定値を Make 変数（`YT2COLUMN_TEST_VIDEO_URL`・`YT2COLUMN_TEST_VIDEO_ID`、architecture §3.7 の URL・ID）として `?=` で定義し、実 `yt-dlp` とネットワークを使うことを表示し、`-tags integration`・`-count=1`・明示的な `-timeout`・`-v` を付けて `./internal/transcript` を実行する（AC-38）。テストは環境変数を `os.Getenv` で読むため、両変数を `export` してテストプロセスの環境へ渡す（Make 変数の定義だけでは子プロセスへ渡らない）。値をシェルの文字列に埋め込まず、上書きした値がそのまま届くようにする。`.PHONY` に追加する。あわせて `GOLINT` のタグを `test,integration` に変更する（AC-43）。
 - [x] **ステップ 4-3**: `.pre-commit-config.yaml:23` の golangci-lint フックのタグを `test,integration` に変更する（AC-43）。`testdata/` の除外（`:32`・`:34`・`:37`）は変更済みであることを確認し、変更しない。
 - [x] **ステップ 4-4**: `.github/workflows/ci.yml:88` の lint 引数のタグを `test,integration` に変更し、`ytdlp_test.go` に `TestLintTagsIncludeIntegration` を追加する。この guard は `Makefile`・`.pre-commit-config.yaml`・`.github/workflows/ci.yml` の 3 箇所すべてが `test,integration` を含むことを検証し、3 箇所のタグが揃っていることを機械的に固定する（AC-43）。あわせて、golangci-lint は `test` タグのヘルパーと一緒にしか `integration_test.go` をコンパイルせず、`make test-integration` が実際に使う `-tags integration` 単独のビルドを検査しないため、3 箇所すべてに `go vet -tags integration ./...` を追加し（`make lint` のレシピ・pre-commit の `go-vet-integration` フック・CI の lint ジョブのステップ）、同じ guard がその存在も検証する（フェーズ 4 のレビューでの追加。`2362d57`）。guard は `--build-tags` を golangci-lint を実行する行に限って照合し、コメント中の記述では満たされないようにする。
-- [ ] **ステップ 4-5**: 手動実行を完了条件として実施する（AC-33）。`make test-integration` を実行し（実 `yt-dlp` とネットワークを使うため、実施前にユーザーの承認を得る）、§5.1 に使用した動画 URL・動画 ID・結果を記録する。既定の動画が利用できない場合は、要件 F-008 に従って URL と ID を差し替え、その旨も記録する。
+- [x] **ステップ 4-5**: 手動実行を完了条件として実施する（AC-33）。`make test-integration` を実行し（実 `yt-dlp` とネットワークを使うため、実施前にユーザーの承認を得る）、§5.1 に使用した動画 URL・動画 ID・結果を記録する。既定の動画が利用できない場合は、要件 F-008 に従って URL と ID を差し替え、その旨も記録する。
 - [x] **ステップ 4-6**: 環境変数を設定せずにコミット済みの `integration_test.go` を `go test -tags integration ./internal/transcript` で直接実行し、スキップせず変数名を含むエラーで失敗することを確認して出力を記録する（AC-42）。
 - [ ] **ステップ 4-7**: 主要な分岐を壊して失敗を確認し、コミットメッセージに記録する。対象の例: `integration_test.go` に lint 違反（未使用の変数など）を一時的に入れると `make lint` が失敗する（AC-43）、`TestIntegrationTestBuildTag` の検証対象の先頭行を `//go:build test` に変えると同テストが失敗する（AC-37）、3 箇所のうち 1 つの lint タグを `test` に戻すと `TestLintTagsIncludeIntegration` が失敗する（AC-43）、`make test-integration` から `-count=1` を外して 2 回実行すると 2 回目が `(cached)` を表示し、付けた場合は 2 回とも実行されることを `-v` 出力で確認して記録する（AC-38）。
 - [ ] **ステップ 4-8**: `make fmt` → `make test` → `make lint` を通し、`make test-integration` も通す。
@@ -373,10 +373,27 @@ AC ごとの検証は次のとおり。`test` は実行可能なテスト、`sta
 
 `make test-integration` の実行結果をここに記録する（実施はフェーズ 4 ステップ 4-5）。
 
-- 実施日: （未完了。下記の試行はいずれも YouTube のレート制限で失敗した）
-- 使用した動画 URL: 既定 `https://www.youtube.com/watch?v=EQCUZyB4DqE`
-- 期待する動画 ID: 既定 `EQCUZyB4DqE`
-- 結果: （未完了。取得・キャッシュ再利用・強制再取得の各サブテストの成否を記録する）
+- 実施日: 2026-10-01 12:50
+- 使用した動画 URL: `https://www.youtube.com/watch?v=2tcCWM-sRBw`（既定の動画 `EQCUZyB4DqE` は字幕のダウンロードが HTTP 429 で拒否され続けたため、要件 F-008 に従って差し替えた。下記の試行の記録を参照。差し替え先は `testdata/` のフィクスチャの出典と同じ CC BY の動画である）
+- 期待する動画 ID: `2tcCWM-sRBw`
+- 結果: 成功。`fetch`（2.62 秒）・`cache_reuse`（0.01 秒）・`force_refresh`（123.83 秒。うち 2 分は 2 回目のリクエストの前の待機）がいずれも PASS した。yt-dlp は Homebrew の 2026.08.19（deno・curl_cffi あり）。
+
+```
+$ make test-integration YT2COLUMN_TEST_VIDEO_URL='https://www.youtube.com/watch?v=2tcCWM-sRBw' YT2COLUMN_TEST_VIDEO_ID=2tcCWM-sRBw
+test-integration: uses the real yt-dlp and the network (video: https://www.youtube.com/watch?v=2tcCWM-sRBw)
+go test -tags integration -count=1 -timeout 10m -v ./internal/transcript
+=== RUN   TestIntegration
+=== RUN   TestIntegration/fetch
+=== RUN   TestIntegration/cache_reuse
+=== RUN   TestIntegration/force_refresh
+    integration_test.go:100: waiting 2m0s before the second request to YouTube
+--- PASS: TestIntegration (126.45s)
+    --- PASS: TestIntegration/fetch (2.62s)
+    --- PASS: TestIntegration/cache_reuse (0.01s)
+    --- PASS: TestIntegration/force_refresh (123.83s)
+PASS
+ok  	github.com/isseis/yt2column/internal/transcript	126.849s
+```
 
 **試行の記録（2026-10-01）。** 3 回とも `make test-integration` を既定の動画で実行した。yt-dlp は 2026.08.19。
 
@@ -389,7 +406,7 @@ AC ごとの検証は次のとおり。`test` は実行可能なテスト、`sta
 | 12:49 | 同上。回線を再度切り替えた後 | `fetch` の最初の取得が同じ 429 で失敗 |
 | 12:49 | 08:18 と同じ単体版 yt-dlp。JavaScript ランタイムを PATH から外し、curl_cffi なし | `fetch` の最初の取得が同じ 429 で失敗 |
 
-いずれも字幕ファイルのダウンロードだけが拒否された。1 時間の間隔、回線の切り替え、08:18 に成功した yt-dlp の環境の再現のいずれでも解除されなかった。したがって、yt-dlp の環境は原因ではない。制限が送信元 IP によるものか（切り替え後の回線の送信元 IP は確認していない）、この動画またはアクセスの仕方によるものかは切り分けていない。追加のアクセスで状況を悪化させないため、試行を打ち切った。
+いずれも字幕ファイルのダウンロードだけが拒否された。1 時間の間隔、回線の切り替え、08:18 に成功した yt-dlp の環境の再現のいずれでも解除されなかった。したがって、yt-dlp の環境は原因ではない。既定の動画での試行はここで打ち切り、差し替えた動画で上記のとおり成功した。既定の動画に限って字幕が拒否されたことから、制限は送信元 IP 全体ではなく、この動画の字幕へのアクセスに対するものとみられる。
 
 ### 5.2. 環境変数を設定しない直接実行の記録 (AC-42)
 
