@@ -102,14 +102,18 @@ func cleanupSteps(remoteOut, localOID string) []commandStep {
 	}
 	steps = append(steps,
 		gitStep([]string{"switch", "main"}, ""),
-		gitStep([]string{"fetch", testFetchURL, "refs/heads/main:refs/remotes/origin/main"}, ""),
+		gitStep([]string{"ls-remote", "--get-url", testFetchURL}, testFetchURLOut),
+		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main"}, ""),
 		gitStep([]string{"merge", "--ff-only", "refs/remotes/origin/main"}, ""),
 		gitStep([]string{"rev-parse", "HEAD"}, testBaseOID+"\n"),
 		gitStep([]string{"rev-parse", "refs/remotes/origin/main"}, testBaseOID+"\n"),
 		gitStep([]string{"for-each-ref", "--format=%(objectname)", "refs/heads/feature/foo"}, localOID),
 	)
 	if localOID == testHeadOID {
-		steps = append(steps, gitStep([]string{"branch", "-D", "feature/foo"}, ""))
+		steps = append(steps,
+			gitStep([]string{"worktree", "list", "--porcelain"}, "worktree /repo\nHEAD "+testBaseOID+"\nbranch refs/heads/main\n\n"),
+			gitStep([]string{"update-ref", "-d", "refs/heads/feature/foo", testHeadOID}, ""),
+		)
 	}
 	if localOID == "" || localOID == testHeadOID {
 		steps = append(steps, gitStep([]string{"fetch", "--prune", testFetchURL, testRefsWildcard}, ""))
@@ -758,7 +762,8 @@ func TestCleanupRejectsBaseNotCurrent(t *testing.T) {
 		gitStep([]string{"ls-remote", "--heads", testFetchURL, "refs/heads/feature/foo"}, testRemotePresent),
 		gitStep([]string{"push", "--force-with-lease=refs/heads/feature/foo:" + testHeadOID, testFetchURL, "--delete", "refs/heads/feature/foo"}, ""),
 		gitStep([]string{"switch", "main"}, ""),
-		gitStep([]string{"fetch", testFetchURL, "refs/heads/main:refs/remotes/origin/main"}, ""),
+		gitStep([]string{"ls-remote", "--get-url", testFetchURL}, testFetchURLOut),
+		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main"}, ""),
 		gitStep([]string{"merge", "--ff-only", "refs/remotes/origin/main"}, ""),
 		gitStep([]string{"rev-parse", "HEAD"}, testOtherOID+"\n"),
 		gitStep([]string{"rev-parse", "refs/remotes/origin/main"}, testBaseOID+"\n"),
@@ -768,6 +773,94 @@ func TestCleanupRejectsBaseNotCurrent(t *testing.T) {
 
 	if _, err := tool.Cleanup(t.Context(), statePath); !errors.Is(err, errBaseNotCurrent) {
 		t.Fatalf("Cleanup error = %v, want errBaseNotCurrent", err)
+	}
+	runner.done()
+}
+
+func TestCleanupRejectsRewrittenFetchURL(t *testing.T) {
+	dir := t.TempDir()
+	statePath := writeStateFile(t, dir)
+	steps := []commandStep{mergedViewStep()}
+	steps = append(steps, repoIdentitySteps()...)
+	steps = append(steps,
+		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
+		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
+		gitStep([]string{"ls-remote", "--heads", testFetchURL, "refs/heads/feature/foo"}, testRemotePresent),
+		gitStep([]string{"push", "--force-with-lease=refs/heads/feature/foo:" + testHeadOID, testFetchURL, "--delete", "refs/heads/feature/foo"}, ""),
+		gitStep([]string{"switch", "main"}, ""),
+		gitStep([]string{"ls-remote", "--get-url", testFetchURL}, "git@github.com:fork/yt2column.git\n"),
+	)
+	tool, runner := newTool(t, steps)
+
+	if _, err := tool.Cleanup(t.Context(), statePath); !errors.Is(err, errRepoMismatch) {
+		t.Fatalf("Cleanup error = %v, want errRepoMismatch", err)
+	}
+	runner.done()
+}
+
+func TestCleanupRejectsCheckedOutLocalBranch(t *testing.T) {
+	dir := t.TempDir()
+	statePath := writeStateFile(t, dir)
+	steps := []commandStep{mergedViewStep()}
+	steps = append(steps, repoIdentitySteps()...)
+	steps = append(steps,
+		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
+		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
+		gitStep([]string{"ls-remote", "--heads", testFetchURL, "refs/heads/feature/foo"}, testRemotePresent),
+		gitStep([]string{"push", "--force-with-lease=refs/heads/feature/foo:" + testHeadOID, testFetchURL, "--delete", "refs/heads/feature/foo"}, ""),
+		gitStep([]string{"switch", "main"}, ""),
+		gitStep([]string{"ls-remote", "--get-url", testFetchURL}, testFetchURLOut),
+		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main"}, ""),
+		gitStep([]string{"merge", "--ff-only", "refs/remotes/origin/main"}, ""),
+		gitStep([]string{"rev-parse", "HEAD"}, testBaseOID+"\n"),
+		gitStep([]string{"rev-parse", "refs/remotes/origin/main"}, testBaseOID+"\n"),
+		gitStep([]string{"for-each-ref", "--format=%(objectname)", "refs/heads/feature/foo"}, testHeadOID+"\n"),
+		gitStep([]string{"worktree", "list", "--porcelain"}, "worktree /repo\nHEAD "+testHeadOID+"\nbranch refs/heads/feature/foo\n\n"),
+	)
+	tool, runner := newTool(t, steps)
+
+	if _, err := tool.Cleanup(t.Context(), statePath); !errors.Is(err, errBranchCheckedOut) {
+		t.Fatalf("Cleanup error = %v, want errBranchCheckedOut", err)
+	}
+	runner.done()
+}
+
+func TestDiffHappyPath(t *testing.T) {
+	dir := t.TempDir()
+	statePath := writeStateFile(t, dir)
+	const patch = "diff --git a/a.txt b/a.txt\n"
+	steps := []commandStep{gitStep([]string{"--literal-pathspecs", "diff", "refs/remotes/origin/main..." + testHeadOID, "--", "a.txt"}, patch)}
+	tool, runner := newTool(t, steps)
+
+	got, err := tool.Diff(t.Context(), statePath, "a.txt")
+	if err != nil {
+		t.Fatalf("Diff returned error: %v", err)
+	}
+	runner.done()
+	if string(got) != patch {
+		t.Errorf("Diff = %q, want %q", got, patch)
+	}
+}
+
+func TestDiffRejectsUnsafePath(t *testing.T) {
+	dir := t.TempDir()
+	statePath := writeStateFile(t, dir)
+	tool, runner := newTool(t, nil)
+
+	if _, err := tool.Diff(t.Context(), statePath, "-x"); !errors.Is(err, errInvalidPath) {
+		t.Fatalf("Diff error = %v, want errInvalidPath", err)
+	}
+	runner.done()
+}
+
+func TestDiffRejectsOversizedDiff(t *testing.T) {
+	dir := t.TempDir()
+	statePath := writeStateFile(t, dir)
+	steps := []commandStep{gitStep([]string{"--literal-pathspecs", "diff", "refs/remotes/origin/main..." + testHeadOID, "--", "a.txt"}, strings.Repeat("x", maxDiffBytes+1))}
+	tool, runner := newTool(t, steps)
+
+	if _, err := tool.Diff(t.Context(), statePath, "a.txt"); !errors.Is(err, errTooLarge) {
+		t.Fatalf("Diff error = %v, want errTooLarge", err)
 	}
 	runner.done()
 }

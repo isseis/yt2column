@@ -12,7 +12,7 @@ import (
 	"github.com/isseis/yt2column/internal/mergepr"
 )
 
-var errUsage = errors.New("usage: mergepr prepare [--work-dir DIR] [PR] | mergepr merge --state FILE --subject-file FILE --body-file FILE | mergepr cleanup --state FILE")
+var errUsage = errors.New("usage: mergepr prepare [--work-dir DIR] [PR] | mergepr merge --state FILE --subject-file FILE --body-file FILE | mergepr cleanup --state FILE | mergepr diff --state FILE -- PATH")
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -37,6 +37,8 @@ func run(args []string) error {
 		return runMerge(ctx, tool, args[1:])
 	case "cleanup":
 		return runCleanup(ctx, tool, args[1:])
+	case "diff":
+		return runDiff(ctx, tool, args[1:])
 	default:
 		return fmt.Errorf("%w: unknown subcommand %q", errUsage, args[0])
 	}
@@ -100,6 +102,25 @@ func runCleanup(ctx context.Context, tool *mergepr.Tool, args []string) error {
 		return err
 	}
 	printReport(report)
+	return nil
+}
+
+func runDiff(ctx context.Context, tool *mergepr.Tool, args []string) error {
+	flags := flag.NewFlagSet("diff", flag.ContinueOnError)
+	statePath := flags.String("state", "", "state file written by prepare")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if *statePath == "" || flags.NArg() != 1 {
+		return fmt.Errorf("%w: diff requires --state and one path after --", errUsage)
+	}
+	patch, err := tool.Diff(ctx, *statePath, flags.Arg(0))
+	if err != nil {
+		return err
+	}
+	if _, err := os.Stdout.Write(patch); err != nil {
+		return err
+	}
 	return nil
 }
 

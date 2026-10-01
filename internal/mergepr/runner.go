@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -60,9 +61,9 @@ func (osRunner) Run(ctx context.Context, name string, args ...string) ([]byte, e
 	cmd.Stderr = &stderr
 	cmd.Env = allowlistEnv(os.Environ())
 	cmd.WaitDelay = commandWaitDelay
-	command := name + " " + strings.Join(args, " ")
+	command := redactCredentials(name + " " + strings.Join(args, " "))
 	if err := cmd.Run(); err != nil {
-		message := strings.TrimSpace(stderr.buffer.String())
+		message := redactCredentials(strings.TrimSpace(stderr.buffer.String()))
 		if message != "" {
 			return nil, fmt.Errorf("%s: %w: %s", command, err, message)
 		}
@@ -72,6 +73,15 @@ func (osRunner) Run(ctx context.Context, name string, args ...string) ([]byte, e
 		return nil, fmt.Errorf("%w: %s output exceeds %d bytes", errTooLarge, name, maxCommandOutputBytes)
 	}
 	return stdout.buffer.Bytes(), nil
+}
+
+// userinfoPattern matches the userinfo of a URL between "://" and "@".
+var userinfoPattern = regexp.MustCompile(`://[^/@\s]*@`)
+
+// redactCredentials removes URL userinfo, which can carry a token, before text
+// reaches an error that main prints.
+func redactCredentials(text string) string {
+	return userinfoPattern.ReplaceAllString(text, "://[redacted]@")
 }
 
 // limitedBuffer keeps at most limit bytes and records whether more arrived.

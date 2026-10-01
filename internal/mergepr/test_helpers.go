@@ -70,7 +70,7 @@ const (
 	testFetchURL     = "git@github.com:isseis/yt2column.git"
 	testRepoViewOut  = `{"nameWithOwner":"isseis/yt2column","url":"https://github.com/isseis/yt2column"}`
 	testRepoArg      = "isseis/yt2column"
-	testRefsWildcard = "refs/heads/*:refs/remotes/origin/*"
+	testRefsWildcard = "+refs/heads/*:refs/remotes/origin/*"
 )
 
 func writeStateFile(t testing.TB, dir string) string {

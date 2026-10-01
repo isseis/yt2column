@@ -29,9 +29,10 @@ const (
 	refsRemotes  = "refs/remotes/"
 	originRefs   = refsRemotes + originRemote + "/"
 	// refsWildcard maps the remote's branches into this repository's own
-	// remote-tracking namespace, so a configured refspec cannot rewrite a local
-	// branch.
-	refsWildcard = refsHeads + "*:" + originRefs + "*"
+	// remote-tracking namespace and forces only those destinations, so a
+	// configured refspec cannot rewrite a local branch and a force-pushed
+	// branch can still update its remote-tracking ref.
+	refsWildcard = "+" + refsHeads + "*:" + originRefs + "*"
 	githubHost   = "github.com"
 
 	repoFlag = "-R"
@@ -50,6 +51,7 @@ const (
 	maxStatBytes    = 64 << 10
 	maxBodyBytes    = 64 << 10
 	maxSubjectBytes = 4 << 10
+	maxDiffBytes    = 256 << 10
 
 	// commandTimeout bounds a single git or gh call. checkTimeout is the
 	// larger budget gh pr checks --watch may legitimately need for a running CI.
@@ -390,6 +392,36 @@ func (t *Tool) Cleanup(ctx context.Context, statePath string) (Report, error) {
 	return t.cleanupWith(ctx, state, nil, nil)
 }
 
+// Diff returns the bounded patch for one changed path, resolved literally, so
+// the drafter can inspect a file without reimplementing the git plumbing.
+func (t *Tool) Diff(ctx context.Context, statePath, path string) ([]byte, error) {
+	state, err := loadState(statePath)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkDiffPath(path); err != nil {
+		return nil, err
+	}
+	baseRef := originRefs + state.BaseRefName
+	out, err := t.command(ctx, commandTimeout, gitCommand, "--literal-pathspecs", "diff", baseRef+"..."+state.HeadRefOID, "--", path)
+	if err != nil {
+		return nil, fmt.Errorf("read diff: %w", err)
+	}
+	if len(out) > maxDiffBytes {
+		return nil, fmt.Errorf("%w: diff is %d bytes, limit %d", errTooLarge, len(out), maxDiffBytes)
+	}
+	return out, nil
+}
+
+// checkDiffPath rejects a path git could read as an option before it reaches
+// the literal-pathspec diff.
+func checkDiffPath(path string) error {
+	if path == "" || strings.HasPrefix(path, "-") {
+		return fmt.Errorf("%w: %q", errInvalidPath, path)
+	}
+	return nil
+}
+
 // cleanupWith needs a fresh merge view and a pinned repository identity; the
 // resume path passes the view it already has, and Merge passes neither.
 func (t *Tool) cleanupWith(ctx context.Context, state State, live *mergeView, id *identity) (Report, error) {
@@ -473,8 +505,18 @@ func (t *Tool) updateBase(ctx context.Context, id identity, state State) (bool, 
 	if _, err := t.command(ctx, commandTimeout, gitCommand, "switch", state.BaseRefName); err != nil {
 		return false, fmt.Errorf("switch to base branch: %w", err)
 	}
+	// A conditional url.*.insteadOf can rewrite even the pinned URL once the
+	// base branch is checked out, so confirm what git would actually fetch.
+	effective, err := t.command(ctx, commandTimeout, gitCommand, "ls-remote", "--get-url", id.FetchURL)
+	if err != nil {
+		return false, fmt.Errorf("resolve effective fetch URL: %w", err)
+	}
+	effectiveOwner, effectiveRepo, err := parseGitHubRemote(strings.TrimSpace(string(effective)))
+	if err != nil || effectiveOwner != id.Owner || effectiveRepo != id.Repo {
+		return false, errRepoMismatch
+	}
 	baseRef := originRefs + state.BaseRefName
-	if _, err := t.command(ctx, commandTimeout, gitCommand, "fetch", id.FetchURL, refsHeads+state.BaseRefName+":"+baseRef); err != nil {
+	if _, err := t.command(ctx, commandTimeout, gitCommand, "fetch", id.FetchURL, "+"+refsHeads+state.BaseRefName+":"+baseRef); err != nil {
 		return false, fmt.Errorf("fetch base branch: %w", err)
 	}
 	if _, err := t.command(ctx, commandTimeout, gitCommand, "merge", "--ff-only", baseRef); err != nil {
@@ -497,10 +539,31 @@ func (t *Tool) deleteLocalBranch(ctx context.Context, state State) (bool, error)
 	if localOID != state.HeadRefOID {
 		return false, fmt.Errorf("%w: %s is %s, want %s", errLocalBranchDrift, state.HeadRefName, localOID, state.HeadRefOID)
 	}
-	if _, err := t.command(ctx, commandTimeout, gitCommand, "branch", "-D", state.HeadRefName); err != nil {
+	if err := t.requireBranchNotCheckedOut(ctx, state.HeadRefName); err != nil {
+		return false, err
+	}
+	// update-ref -d deletes only while the ref still holds the merged OID,
+	// which branch -D would not check.
+	if _, err := t.command(ctx, commandTimeout, gitCommand, "update-ref", "-d", refsHeads+state.HeadRefName, state.HeadRefOID); err != nil {
 		return false, fmt.Errorf("delete local branch: %w", err)
 	}
 	return true, nil
+}
+
+// requireBranchNotCheckedOut refuses to delete a branch another worktree has
+// checked out, which update-ref -d would not check.
+func (t *Tool) requireBranchNotCheckedOut(ctx context.Context, name string) error {
+	out, err := t.command(ctx, commandTimeout, gitCommand, "worktree", "list", "--porcelain")
+	if err != nil {
+		return fmt.Errorf("list worktrees: %w", err)
+	}
+	want := "branch " + refsHeads + name
+	for line := range strings.Lines(string(out)) {
+		if strings.TrimSpace(line) == want {
+			return fmt.Errorf("%w: %s", errBranchCheckedOut, name)
+		}
+	}
+	return nil
 }
 
 // repoIdentity resolves the repository once and pins it: origin's fetch URL,
