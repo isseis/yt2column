@@ -26,6 +26,17 @@ func ghStep(args []string, out string) commandStep {
 	return commandStep{name: ghCommand, args: args, out: out}
 }
 
+// deleteRemoteBranchArgs is the argv of the branch-deletion push. The explicit
+// --recurse-submodules=no keeps a repository-local push.recurseSubmodules from
+// turning the deletion into a no-op that still exits zero.
+func deleteRemoteBranchArgs() []string {
+	return []string{
+		"push", "--recurse-submodules=no",
+		"--force-with-lease=refs/heads/feature/foo:" + testHeadOID,
+		testFetchURL, "--delete", "refs/heads/feature/foo",
+	}
+}
+
 // fakeRunner replays a fixed command sequence and fails the test on the first
 // mismatch, extra call, or command that was not run with a deadline, so a test
 // cannot pass by skipping a step or by dropping the timeout.

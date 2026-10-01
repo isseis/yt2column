@@ -17,6 +17,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -192,6 +193,16 @@ func (t *Tool) Prepare(ctx context.Context, prArg, workDir string) (Prepared, er
 			return Prepared{}, fmt.Errorf("create work directory: %w", err)
 		}
 	}
+	// MkdirAll leaves an existing directory's permissions unchanged, so a
+	// group- or world-writable work directory could let another local user
+	// pre-create or race a predictable output name as a symlink. Require a
+	// private directory owned by this user before writing anything into it.
+	if err := requirePrivateDir(workDir); err != nil {
+		if created {
+			_ = os.RemoveAll(workDir)
+		}
+		return Prepared{}, err
+	}
 	prepared, err := t.prepare(ctx, prArg, workDir)
 	if err != nil {
 		if created {
@@ -240,6 +251,24 @@ func requireOutsideWorktree(workDir string) error {
 	}
 	if rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))) {
 		return fmt.Errorf("%w: %s", errWorkDirInWorktree, workDir)
+	}
+	return nil
+}
+
+// requirePrivateDir rejects a work directory that other local users can write
+// to, or that a previous run created under a different account, because either
+// lets them pre-create a predictable output name as a symlink.
+func requirePrivateDir(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("inspect work directory: %w", err)
+	}
+	if !info.IsDir() || info.Mode().Perm()&0o022 != 0 {
+		return fmt.Errorf("%w: %s", errInsecureWorkDir, path)
+	}
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok || int(stat.Uid) != os.Geteuid() {
+		return fmt.Errorf("%w: %s", errInsecureWorkDir, path)
 	}
 	return nil
 }
@@ -718,7 +747,10 @@ func (t *Tool) deleteRemoteBranch(ctx context.Context, id identity, state State)
 		return false, nil
 	}
 	lease := "--force-with-lease=" + headRef + ":" + state.HeadRefOID
-	if _, err := t.command(ctx, commandTimeout, gitCommand, "push", lease, id.PushURL, "--delete", headRef); err != nil {
+	// --recurse-submodules=no overrides a repository-local
+	// push.recurseSubmodules=only, which would otherwise make this push exit
+	// successfully without deleting the superproject branch.
+	if _, err := t.command(ctx, commandTimeout, gitCommand, "push", "--recurse-submodules=no", lease, id.PushURL, "--delete", headRef); err != nil {
 		return false, fmt.Errorf("delete remote branch: %w", err)
 	}
 	return true, nil
@@ -1198,9 +1230,11 @@ func allowedConfig(key string) bool {
 		// recentObjectsHook names a program git runs during maintenance.
 		return key != "gc.recentobjectshook"
 	case strings.HasPrefix(key, "push."):
-		// followTags would make the branch-deletion push also push tags, and
-		// pushOption could inject --follow-tags into the same push.
-		return key != "push.followtags" && key != "push.pushoption"
+		// followTags would make the branch-deletion push also push tags,
+		// pushOption could inject --follow-tags into the same push, and
+		// recurseSubmodules=only would make the deletion push report success
+		// without deleting the superproject branch.
+		return key != "push.followtags" && key != "push.pushoption" && key != "push.recursesubmodules"
 	case strings.HasPrefix(key, "branch."),
 		strings.HasPrefix(key, "extensions."),
 		strings.HasPrefix(key, "index."),
@@ -1282,13 +1316,25 @@ func loadState(path string) (State, error) {
 }
 
 func writeFile(path string, data []byte) error {
-	if err := os.WriteFile(path, data, stateFileMode); err != nil {
+	// O_NOFOLLOW makes the open fail when the final component is a symlink, so
+	// a race that swaps a predictable output name for a symlink cannot redirect
+	// the truncating write onto a file the invoking user can write.
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|syscall.O_NOFOLLOW, stateFileMode) //nolint:gosec // an operator-supplied path, not untrusted content
+	if err != nil {
 		return fmt.Errorf("write %s: %w", filepath.Base(path), err)
 	}
-	// WriteFile preserves the mode of an existing file, so enforce it even when
-	// a reused work directory already held a world-readable file.
-	if err := os.Chmod(path, stateFileMode); err != nil {
+	// OpenFile preserves the mode of an existing file, so enforce it on the open
+	// descriptor even when a reused work directory already held a readable file.
+	if err := f.Chmod(stateFileMode); err != nil {
+		_ = f.Close()
 		return fmt.Errorf("set mode on %s: %w", filepath.Base(path), err)
+	}
+	if _, err := f.Write(data); err != nil {
+		_ = f.Close()
+		return fmt.Errorf("write %s: %w", filepath.Base(path), err)
+	}
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("write %s: %w", filepath.Base(path), err)
 	}
 	return nil
 }

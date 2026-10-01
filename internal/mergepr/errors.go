@@ -35,5 +35,6 @@ var (
 	errCommandChanged     = errors.New("the command definition in this checkout differs from main")
 	errMergeCleanup       = errors.New("merge succeeded but cleanup failed")
 	errWorkDirInWorktree  = errors.New("work directory is inside the repository worktree")
+	errInsecureWorkDir    = errors.New("work directory must be owned by the current user and not writable by group or other")
 	errNoWorktree         = errors.New("not inside a git worktree")
 )

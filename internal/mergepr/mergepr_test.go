@@ -131,7 +131,7 @@ func cleanupSteps(remoteOut, localOID string) []commandStep {
 	steps = append(steps, gitStep([]string{"ls-remote", "--heads", testFetchURL, "refs/heads/feature/foo"}, remoteOut))
 	if remoteOut != "" {
 		steps = append(steps,
-			gitStep([]string{"push", "--force-with-lease=refs/heads/feature/foo:" + testHeadOID, testFetchURL, "--delete", "refs/heads/feature/foo"}, ""),
+			gitStep(deleteRemoteBranchArgs(), ""),
 		)
 	}
 	steps = append(steps,
@@ -397,6 +397,7 @@ func TestAllowedConfig(t *testing.T) {
 		{"gc.recentObjectsHook", false},
 		{"push.followTags", false},
 		{"push.pushOption", false},
+		{"push.recurseSubmodules", false},
 		{"remote.origin.uploadpack", false},
 		{"remote.origin.receivepack", false},
 		{"credential.helper", false},
@@ -484,6 +485,75 @@ func TestPrepareRejectsWorkDirInWorktree(t *testing.T) {
 		t.Fatalf("Prepare error = %v, want errWorkDirInWorktree", err)
 	}
 	runner.done()
+}
+
+func TestPrepareRejectsInsecureWorkDir(t *testing.T) {
+	// A group or world write bit lets another local user pre-create an output
+	// name; read/execute-only modes such as 0755 are safe.
+	for _, perm := range []os.FileMode{0o770, 0o707, 0o777, 0o772} {
+		t.Run(perm.String(), func(t *testing.T) {
+			dir := filepath.Join(t.TempDir(), "work")
+			if err := os.Mkdir(dir, perm); err != nil {
+				t.Fatalf("create work dir: %v", err)
+			}
+			if err := os.Chmod(dir, perm); err != nil {
+				t.Fatalf("chmod work dir: %v", err)
+			}
+			tool, runner := newTool(t, nil)
+
+			if _, err := tool.Prepare(t.Context(), strconv.Itoa(testPRNumber), dir); !errors.Is(err, errInsecureWorkDir) {
+				t.Fatalf("Prepare error = %v, want errInsecureWorkDir", err)
+			}
+			runner.done()
+		})
+	}
+}
+
+func TestWriteFileRejectsSymlink(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "target.txt")
+	if err := os.WriteFile(target, []byte("precious"), 0o600); err != nil {
+		t.Fatalf("seed target: %v", err)
+	}
+	link := filepath.Join(dir, logFileName)
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("cannot create symlink: %v", err)
+	}
+
+	if err := writeFile(link, []byte("attacker")); err == nil {
+		t.Fatal("writeFile on a symlink returned nil, want an error")
+	}
+	data, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatalf("read target: %v", err)
+	}
+	if string(data) != "precious" {
+		t.Errorf("target = %q, want it unchanged", data)
+	}
+}
+
+func TestPrepareRejectsSymlinkedOutput(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "target.txt")
+	if err := os.WriteFile(target, []byte("precious"), 0o600); err != nil {
+		t.Fatalf("seed target: %v", err)
+	}
+	if err := os.Symlink(target, filepath.Join(dir, logFileName)); err != nil {
+		t.Skipf("cannot create symlink: %v", err)
+	}
+	tool, runner := newTool(t, prepareSteps("log\n", "stat\n", "body"))
+
+	if _, err := tool.Prepare(t.Context(), strconv.Itoa(testPRNumber), dir); err == nil {
+		t.Fatal("Prepare with a symlinked output returned nil, want an error")
+	}
+	runner.done()
+	data, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatalf("read target: %v", err)
+	}
+	if string(data) != "precious" {
+		t.Errorf("target = %q, want it unchanged", data)
+	}
 }
 
 func TestPrepareRejectsSymlinkedWorkDir(t *testing.T) {
@@ -1058,7 +1128,7 @@ func TestMergeReportsCleanupFailure(t *testing.T) {
 		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main"}, ""),
 		gitStep([]string{"merge-base", "--is-ancestor", testMergeOID, "refs/remotes/origin/main"}, ""),
 		gitStep([]string{"ls-remote", "--heads", testFetchURL, "refs/heads/feature/foo"}, testRemotePresent),
-		commandStep{name: gitCommand, args: []string{"push", "--force-with-lease=refs/heads/feature/foo:" + testHeadOID, testFetchURL, "--delete", "refs/heads/feature/foo"}, err: errors.New("exit status 1")},
+		commandStep{name: gitCommand, args: deleteRemoteBranchArgs(), err: errors.New("exit status 1")},
 	)
 	tool, runner := newTool(t, steps)
 
@@ -1268,7 +1338,7 @@ func TestCleanupRejectsBaseNotCurrent(t *testing.T) {
 		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main"}, ""),
 		gitStep([]string{"merge-base", "--is-ancestor", testMergeOID, "refs/remotes/origin/main"}, ""),
 		gitStep([]string{"ls-remote", "--heads", testFetchURL, "refs/heads/feature/foo"}, testRemotePresent),
-		gitStep([]string{"push", "--force-with-lease=refs/heads/feature/foo:" + testHeadOID, testFetchURL, "--delete", "refs/heads/feature/foo"}, ""),
+		gitStep(deleteRemoteBranchArgs(), ""),
 		gitStep([]string{"switch", "--no-overwrite-ignore", "main"}, ""),
 		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main"}, ""),
 		gitStep([]string{"merge", "--ff-only", "--no-overwrite-ignore", "refs/remotes/origin/main"}, ""),
@@ -1296,7 +1366,7 @@ func TestCleanupRejectsCheckedOutLocalBranch(t *testing.T) {
 		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main"}, ""),
 		gitStep([]string{"merge-base", "--is-ancestor", testMergeOID, "refs/remotes/origin/main"}, ""),
 		gitStep([]string{"ls-remote", "--heads", testFetchURL, "refs/heads/feature/foo"}, testRemotePresent),
-		gitStep([]string{"push", "--force-with-lease=refs/heads/feature/foo:" + testHeadOID, testFetchURL, "--delete", "refs/heads/feature/foo"}, ""),
+		gitStep(deleteRemoteBranchArgs(), ""),
 		gitStep([]string{"switch", "--no-overwrite-ignore", "main"}, ""),
 		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main"}, ""),
 		gitStep([]string{"merge", "--ff-only", "--no-overwrite-ignore", "refs/remotes/origin/main"}, ""),
