@@ -188,7 +188,7 @@ func (t *Tool) prepare(ctx context.Context, prArg, workDir string) (Prepared, er
 	if err != nil {
 		return Prepared{}, err
 	}
-	if err := t.requireToolUnchanged(ctx, id, pr.BaseRefName); err != nil {
+	if err := t.requireToolUnchanged(ctx, id, pr.BaseRefName, pr.HeadRefName, pr.HeadRefOID); err != nil {
 		return Prepared{}, err
 	}
 	logOut, statOut, bodyOut, err := t.draftingMaterial(ctx, id, pr)
@@ -198,16 +198,18 @@ func (t *Tool) prepare(ctx context.Context, prArg, workDir string) (Prepared, er
 	return writePrepared(workDir, id, pr, logOut, statOut, bodyOut)
 }
 
-// requireToolUnchanged refuses to run when the tool's own source, or the
-// command definition that drives it, differs from the PR's base revision. A PR
-// that edits either would otherwise execute unreviewed code; this is a defense
-// in depth, not a sandbox, because a tool or prompt that ignores the check
-// bypasses it.
-func (t *Tool) requireToolUnchanged(ctx context.Context, id identity, base string) error {
-	if _, err := t.command(ctx, commandTimeout, gitCommand, "fetch", id.FetchURL, "+"+refsHeads+base+":"+originRefs+base); err != nil {
-		return fmt.Errorf("fetch base for tool check: %w", err)
+// requireToolUnchanged refuses to merge a PR that changes the merge tool or its
+// command definition, so a PR cannot smuggle a change to the code that merges
+// it. It compares the PR's pinned head commit with the base, not the working
+// tree: the tool runs from a trusted main checkout, and the PR need not be
+// checked out.
+func (t *Tool) requireToolUnchanged(ctx context.Context, id identity, base, head, headOID string) error {
+	if _, err := t.command(ctx, commandTimeout, gitCommand, "fetch", id.FetchURL,
+		"+"+refsHeads+base+":"+originRefs+base,
+		"+"+refsHeads+head+":"+originRefs+head); err != nil {
+		return fmt.Errorf("fetch refs for tool check: %w", err)
 	}
-	if _, err := t.command(ctx, commandTimeout, gitCommand, "diff", "--quiet", originRefs+base, "--", "cmd/mergepr", "internal/mergepr", ".claude/commands/mergepr.md"); err != nil {
+	if _, err := t.command(ctx, commandTimeout, gitCommand, "diff", "--quiet", originRefs+base, headOID, "--", "cmd/mergepr", "internal/mergepr", ".claude/commands/mergepr.md"); err != nil {
 		return errToolChanged
 	}
 	return nil
@@ -701,6 +703,11 @@ func parseGitHubRemote(raw string) (string, string, error) {
 		if err != nil || !strings.EqualFold(parsed.Hostname(), githubHost) {
 			return "", "", errInvalidRemote
 		}
+		// A query or fragment can carry a credential, which would be pinned and
+		// passed to git in argv.
+		if parsed.RawQuery != "" || parsed.Fragment != "" {
+			return "", "", errInvalidRemote
+		}
 		switch parsed.Scheme {
 		case "https":
 			// A credential in an https URL would be passed to git in argv.
@@ -920,12 +927,14 @@ func readBody(path string) (string, error) {
 // disabled for every child process (see childEnv), so only the local config can
 // still redirect an operation.
 func (t *Tool) requireSupportedConfig(ctx context.Context) error {
-	out, err := t.command(ctx, commandTimeout, gitCommand, "config", "--list", "--includes")
+	// --null uses NUL between entries and a newline between key and value, so a
+	// key that contains "=" is not truncated.
+	out, err := t.command(ctx, commandTimeout, gitCommand, "config", "--list", "--null", "--includes")
 	if err != nil {
 		return fmt.Errorf("read git config: %w", err)
 	}
-	for line := range strings.Lines(string(out)) {
-		key, _, _ := strings.Cut(strings.TrimSpace(line), "=")
+	for entry := range strings.SplitSeq(string(out), "\x00") {
+		key, _, _ := strings.Cut(entry, "\n")
 		if rule := unsupportedConfigRule(key); rule != "" {
 			return fmt.Errorf("%w: %s", errUnsupportedConfig, rule)
 		}

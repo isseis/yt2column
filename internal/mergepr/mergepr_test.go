@@ -35,7 +35,7 @@ func headRefOut(oid string) string {
 
 func repoIdentitySteps() []commandStep {
 	return []commandStep{
-		gitStep([]string{"config", "--list", "--includes"}, ""),
+		gitStep([]string{"config", "--list", "--null", "--includes"}, ""),
 		gitStep([]string{"remote", "get-url", "origin"}, testFetchURLOut),
 		gitStep([]string{"remote", "get-url", "--push", "--all", "origin"}, testFetchURLOut),
 		ghStep([]string{"repo", "view", "--json", "nameWithOwner,url"}, testRepoViewOut),
@@ -81,8 +81,8 @@ func prepareSteps(logOut, statOut, body string) []commandStep {
 		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
 		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
 		gitStep([]string{"for-each-ref", "--format=%(refname) %(objectname)", "refs/heads/feature/foo"}, headRefOut(testHeadOID)),
-		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main"}, ""),
-		gitStep([]string{"diff", "--quiet", "refs/remotes/origin/main", "--", "cmd/mergepr", "internal/mergepr", ".claude/commands/mergepr.md"}, ""),
+		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main", "+refs/heads/feature/foo:refs/remotes/origin/feature/foo"}, ""),
+		gitStep([]string{"diff", "--quiet", "refs/remotes/origin/main", testHeadOID, "--", "cmd/mergepr", "internal/mergepr", ".claude/commands/mergepr.md"}, ""),
 		gitStep([]string{"fetch", testFetchURL, testRefsWildcard}, ""),
 		ghStep(checksArgs(), ""),
 		gitStep([]string{"log", "--no-show-signature", "--format=%h %s%n%n%b", "refs/remotes/origin/main.." + testHeadOID}, logOut),
@@ -169,6 +169,7 @@ func TestParseGitHubRemote(t *testing.T) {
 		{"http is rejected", "http://github.com/isseis/yt2column", "", "", true},
 		{"http with credentials is rejected", "http://token@github.com/isseis/yt2column", "", "", true},
 		{"https with credentials is rejected", "https://token@github.com/isseis/yt2column.git", "", "", true},
+		{"query credentials are rejected", "https://github.com/isseis/yt2column.git?access_token=secret", "", "", true},
 		{"other host", "https://gitlab.com/isseis/yt2column.git", "", "", true},
 		{"scp other host", "git@gitlab.com:isseis/yt2column.git", "", "", true},
 		{"missing repo", "https://github.com/isseis", "", "", true},
@@ -301,8 +302,8 @@ func TestPrepareRejectsChangedTool(t *testing.T) {
 		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
 		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
 		gitStep([]string{"for-each-ref", "--format=%(refname) %(objectname)", "refs/heads/feature/foo"}, headRefOut(testHeadOID)),
-		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main"}, ""),
-		commandStep{name: gitCommand, args: []string{"diff", "--quiet", "refs/remotes/origin/main", "--", "cmd/mergepr", "internal/mergepr", ".claude/commands/mergepr.md"}, err: errors.New("exit status 1")},
+		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main", "+refs/heads/feature/foo:refs/remotes/origin/feature/foo"}, ""),
+		commandStep{name: gitCommand, args: []string{"diff", "--quiet", "refs/remotes/origin/main", testHeadOID, "--", "cmd/mergepr", "internal/mergepr", ".claude/commands/mergepr.md"}, err: errors.New("exit status 1")},
 	)
 	tool, runner := newTool(t, steps)
 
@@ -404,7 +405,7 @@ func TestPrepareHappyPath(t *testing.T) {
 
 func TestPrepareRejectsPushURLMismatch(t *testing.T) {
 	steps := []commandStep{
-		gitStep([]string{"config", "--list", "--includes"}, ""),
+		gitStep([]string{"config", "--list", "--null", "--includes"}, ""),
 		gitStep([]string{"remote", "get-url", "origin"}, testFetchURLOut),
 		gitStep([]string{"remote", "get-url", "--push", "--all", "origin"}, "git@github.com:fork/yt2column.git\n"),
 	}
@@ -418,7 +419,7 @@ func TestPrepareRejectsPushURLMismatch(t *testing.T) {
 
 func TestPrepareRejectsExtraPushURL(t *testing.T) {
 	steps := []commandStep{
-		gitStep([]string{"config", "--list", "--includes"}, ""),
+		gitStep([]string{"config", "--list", "--null", "--includes"}, ""),
 		gitStep([]string{"remote", "get-url", "origin"}, testFetchURLOut),
 		gitStep([]string{"remote", "get-url", "--push", "--all", "origin"}, "git@github.com:isseis/yt2column.git\ngit@github.com:fork/yt2column.git\n"),
 	}
@@ -432,7 +433,7 @@ func TestPrepareRejectsExtraPushURL(t *testing.T) {
 
 func TestPrepareRejectsUnsupportedConfig(t *testing.T) {
 	steps := []commandStep{
-		gitStep([]string{"config", "--list", "--includes"}, "url.https://ghp_secret@github.com/.insteadof=https://github.com/\n"),
+		gitStep([]string{"config", "--list", "--null", "--includes"}, "url.https://ghp_secret@github.com/fork/repo.git#a=b.insteadof\nhttps://github.com/\x00"),
 	}
 	tool, runner := newTool(t, steps)
 
@@ -448,7 +449,7 @@ func TestPrepareRejectsUnsupportedConfig(t *testing.T) {
 
 func TestPrepareRejectsHTTPRemote(t *testing.T) {
 	steps := []commandStep{
-		gitStep([]string{"config", "--list", "--includes"}, ""),
+		gitStep([]string{"config", "--list", "--null", "--includes"}, ""),
 		gitStep([]string{"remote", "get-url", "origin"}, "http://github.com/isseis/yt2column.git\n"),
 	}
 	tool, runner := newTool(t, steps)
@@ -461,7 +462,7 @@ func TestPrepareRejectsHTTPRemote(t *testing.T) {
 
 func TestPrepareRejectsSelectedRepoMismatch(t *testing.T) {
 	steps := []commandStep{
-		gitStep([]string{"config", "--list", "--includes"}, ""),
+		gitStep([]string{"config", "--list", "--null", "--includes"}, ""),
 		gitStep([]string{"remote", "get-url", "origin"}, testFetchURLOut),
 		gitStep([]string{"remote", "get-url", "--push", "--all", "origin"}, testFetchURLOut),
 		ghStep([]string{"repo", "view", "--json", "nameWithOwner,url"}, `{"nameWithOwner":"other/repo","url":"https://github.com/other/repo"}`),
@@ -476,7 +477,7 @@ func TestPrepareRejectsSelectedRepoMismatch(t *testing.T) {
 
 func TestPrepareRejectsGHSelHostMismatch(t *testing.T) {
 	steps := []commandStep{
-		gitStep([]string{"config", "--list", "--includes"}, ""),
+		gitStep([]string{"config", "--list", "--null", "--includes"}, ""),
 		gitStep([]string{"remote", "get-url", "origin"}, testFetchURLOut),
 		gitStep([]string{"remote", "get-url", "--push", "--all", "origin"}, testFetchURLOut),
 		ghStep([]string{"repo", "view", "--json", "nameWithOwner,url"}, `{"nameWithOwner":"isseis/yt2column","url":"https://github.example.com/isseis/yt2column"}`),
@@ -585,8 +586,8 @@ func TestPrepareRejectsChecksFailure(t *testing.T) {
 		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
 		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
 		gitStep([]string{"for-each-ref", "--format=%(refname) %(objectname)", "refs/heads/feature/foo"}, headRefOut(testHeadOID)),
-		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main"}, ""),
-		gitStep([]string{"diff", "--quiet", "refs/remotes/origin/main", "--", "cmd/mergepr", "internal/mergepr", ".claude/commands/mergepr.md"}, ""),
+		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main", "+refs/heads/feature/foo:refs/remotes/origin/feature/foo"}, ""),
+		gitStep([]string{"diff", "--quiet", "refs/remotes/origin/main", testHeadOID, "--", "cmd/mergepr", "internal/mergepr", ".claude/commands/mergepr.md"}, ""),
 		gitStep([]string{"fetch", testFetchURL, testRefsWildcard}, ""),
 		commandStep{name: ghCommand, args: checksArgs(), err: errors.New("exit status 1")},
 	)
@@ -655,7 +656,7 @@ func TestMergeRejectsRepoMismatch(t *testing.T) {
 	bodyPath := writeTempFile(t, dir, "body.txt", "body\n")
 
 	steps := []commandStep{
-		gitStep([]string{"config", "--list", "--includes"}, ""),
+		gitStep([]string{"config", "--list", "--null", "--includes"}, ""),
 		gitStep([]string{"remote", "get-url", "origin"}, "git@github.com:fork/yt2column.git\n"),
 		gitStep([]string{"remote", "get-url", "--push", "--all", "origin"}, "git@github.com:fork/yt2column.git\n"),
 		ghStep([]string{"repo", "view", "--json", "nameWithOwner,url"}, `{"nameWithOwner":"fork/yt2column","url":"https://github.com/fork/yt2column"}`),

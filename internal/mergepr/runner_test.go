@@ -81,6 +81,9 @@ func TestChildEnvScopesTokensAndDisablesHooks(t *testing.T) {
 	if !hasEnv(gitEnv, "GIT_CONFIG_KEY_0=core.hooksPath") || !hasEnv(gitEnv, "GIT_CONFIG_VALUE_0=/dev/null") {
 		t.Error("git child did not disable repository hooks")
 	}
+	if !hasEnv(gitEnv, "GIT_CONFIG_KEY_1=core.fsmonitor") || !hasEnv(gitEnv, "GIT_CONFIG_VALUE_1=false") {
+		t.Error("git child did not disable the repository fsmonitor")
+	}
 }
 
 func hasEnv(env []string, want string) bool {
