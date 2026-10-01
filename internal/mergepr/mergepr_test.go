@@ -82,18 +82,21 @@ func prepareSteps(logOut, statOut, body string) []commandStep {
 }
 
 func mergePreflightSteps() []commandStep {
-	return []commandStep{
+	steps := repoIdentitySteps()
+	return append(steps,
 		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
 		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
-	}
+	)
 }
 
 func mergedViewStep() commandStep {
 	return ghStep(mergeViewArgs(), mergeViewOut(mergedState, "feature/foo", testHeadOID, "main", false, true))
 }
 
+// cleanupSteps is the cleanup body after the merge view and repository identity
+// are already in hand; standalone Cleanup prepends those.
 func cleanupSteps(remoteOut, localOID string) []commandStep {
-	steps := repoIdentitySteps()
+	steps := []commandStep{}
 	steps = append(steps, gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""))
 	steps = append(steps, gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"))
 	steps = append(steps, gitStep([]string{"ls-remote", "--heads", testFetchURL, "refs/heads/feature/foo"}, remoteOut))
@@ -101,7 +104,7 @@ func cleanupSteps(remoteOut, localOID string) []commandStep {
 		steps = append(steps, gitStep([]string{"push", "--force-with-lease=refs/heads/feature/foo:" + testHeadOID, testFetchURL, "--delete", "refs/heads/feature/foo"}, ""))
 	}
 	steps = append(steps,
-		gitStep([]string{"switch", "main"}, ""),
+		gitStep([]string{"switch", "--no-overwrite-ignore", "main"}, ""),
 		gitStep([]string{"ls-remote", "--get-url", testFetchURL}, testFetchURLOut),
 		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main"}, ""),
 		gitStep([]string{"merge", "--ff-only", "refs/remotes/origin/main"}, ""),
@@ -119,6 +122,13 @@ func cleanupSteps(remoteOut, localOID string) []commandStep {
 		steps = append(steps, gitStep([]string{"fetch", "--prune", testFetchURL, testRefsWildcard}, ""))
 	}
 	return steps
+}
+
+// standaloneCleanupSteps is a full Cleanup run: merge view, identity, body.
+func standaloneCleanupSteps(remoteOut, localOID string) []commandStep {
+	steps := []commandStep{mergedViewStep()}
+	steps = append(steps, repoIdentitySteps()...)
+	return append(steps, cleanupSteps(remoteOut, localOID)...)
 }
 
 func TestNewRejectsNilRunner(t *testing.T) {
@@ -141,6 +151,7 @@ func TestParseGitHubRemote(t *testing.T) {
 		{"host case", "https://GitHub.com/isseis/yt2column.git", "isseis", "yt2column", false},
 		{"ssh url", "ssh://git@github.com/isseis/yt2column.git", "isseis", "yt2column", false},
 		{"scp-like", "git@github.com:isseis/yt2column.git", "isseis", "yt2column", false},
+		{"scp non-git user is rejected", "ghp_secret@github.com:isseis/yt2column.git", "", "", true},
 		{"http is rejected", "http://github.com/isseis/yt2column", "", "", true},
 		{"http with credentials is rejected", "http://token@github.com/isseis/yt2column", "", "", true},
 		{"other host", "https://gitlab.com/isseis/yt2column.git", "", "", true},
@@ -539,13 +550,33 @@ func TestMergeHappyPath(t *testing.T) {
 	}
 }
 
+func TestMergeRejectsRepoMismatch(t *testing.T) {
+	dir := t.TempDir()
+	statePath := writeStateFile(t, dir)
+	subjectPath := writeTempFile(t, dir, "subject.txt", "subject line\n")
+	bodyPath := writeTempFile(t, dir, "body.txt", "body\n")
+
+	steps := []commandStep{
+		gitStep([]string{"remote", "get-url", "origin"}, "git@github.com:fork/yt2column.git\n"),
+		gitStep([]string{"remote", "get-url", "--push", "--all", "origin"}, "git@github.com:fork/yt2column.git\n"),
+		ghStep([]string{"repo", "view", "--json", "nameWithOwner,url"}, `{"nameWithOwner":"fork/yt2column","url":"https://github.com/fork/yt2column"}`),
+	}
+	tool, runner := newTool(t, steps)
+
+	if _, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath); !errors.Is(err, errRepoMismatch) {
+		t.Fatalf("Merge error = %v, want errRepoMismatch", err)
+	}
+	runner.done()
+}
+
 func TestMergeRejectsDirtyWorktree(t *testing.T) {
 	dir := t.TempDir()
 	statePath := writeStateFile(t, dir)
 	subjectPath := writeTempFile(t, dir, "subject.txt", "subject line\n")
 	bodyPath := writeTempFile(t, dir, "body.txt", "body\n")
 
-	steps := []commandStep{gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, "?? edit.txt\n")}
+	steps := repoIdentitySteps()
+	steps = append(steps, gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, "?? edit.txt\n"))
 	tool, runner := newTool(t, steps)
 
 	if _, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath); !errors.Is(err, errDirtyWorktree) {
@@ -657,6 +688,28 @@ func TestMergeRechecksChecks(t *testing.T) {
 	runner.done()
 }
 
+func TestMergeReportsQueued(t *testing.T) {
+	dir := t.TempDir()
+	statePath := writeStateFile(t, dir)
+	subjectPath := writeTempFile(t, dir, "subject.txt", "subject line\n")
+	bodyPath := writeTempFile(t, dir, "body.txt", "body\n")
+
+	steps := mergePreflightSteps()
+	steps = append(steps,
+		ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "main", false, false)),
+		ghStep(checksArgs(), ""),
+		ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "main", false, false)),
+		ghStep(mergeArgs("subject line", bodyPath), ""),
+		ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "main", false, false)),
+	)
+	tool, runner := newTool(t, steps)
+
+	if _, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath); !errors.Is(err, errMergeQueued) {
+		t.Fatalf("Merge error = %v, want errMergeQueued", err)
+	}
+	runner.done()
+}
+
 func TestMergeResumesCleanupWhenMerged(t *testing.T) {
 	dir := t.TempDir()
 	statePath := writeStateFile(t, dir)
@@ -694,7 +747,7 @@ func TestMergeRejectsEmptySubject(t *testing.T) {
 func TestCleanupRemoteGone(t *testing.T) {
 	dir := t.TempDir()
 	statePath := writeStateFile(t, dir)
-	tool, runner := newTool(t, append([]commandStep{mergedViewStep()}, cleanupSteps("", testHeadOID)...))
+	tool, runner := newTool(t, standaloneCleanupSteps("", testHeadOID))
 
 	report, err := tool.Cleanup(t.Context(), statePath)
 	if err != nil {
@@ -712,7 +765,7 @@ func TestCleanupRemoteGone(t *testing.T) {
 func TestCleanupRejectsMovedLocalBranch(t *testing.T) {
 	dir := t.TempDir()
 	statePath := writeStateFile(t, dir)
-	tool, runner := newTool(t, append([]commandStep{mergedViewStep()}, cleanupSteps(testRemotePresent, testOtherOID)...))
+	tool, runner := newTool(t, standaloneCleanupSteps(testRemotePresent, testOtherOID))
 
 	if _, err := tool.Cleanup(t.Context(), statePath); !errors.Is(err, errLocalBranchDrift) {
 		t.Fatalf("Cleanup error = %v, want errLocalBranchDrift", err)
@@ -761,7 +814,7 @@ func TestCleanupRejectsBaseNotCurrent(t *testing.T) {
 		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
 		gitStep([]string{"ls-remote", "--heads", testFetchURL, "refs/heads/feature/foo"}, testRemotePresent),
 		gitStep([]string{"push", "--force-with-lease=refs/heads/feature/foo:" + testHeadOID, testFetchURL, "--delete", "refs/heads/feature/foo"}, ""),
-		gitStep([]string{"switch", "main"}, ""),
+		gitStep([]string{"switch", "--no-overwrite-ignore", "main"}, ""),
 		gitStep([]string{"ls-remote", "--get-url", testFetchURL}, testFetchURLOut),
 		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main"}, ""),
 		gitStep([]string{"merge", "--ff-only", "refs/remotes/origin/main"}, ""),
@@ -787,7 +840,7 @@ func TestCleanupRejectsRewrittenFetchURL(t *testing.T) {
 		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
 		gitStep([]string{"ls-remote", "--heads", testFetchURL, "refs/heads/feature/foo"}, testRemotePresent),
 		gitStep([]string{"push", "--force-with-lease=refs/heads/feature/foo:" + testHeadOID, testFetchURL, "--delete", "refs/heads/feature/foo"}, ""),
-		gitStep([]string{"switch", "main"}, ""),
+		gitStep([]string{"switch", "--no-overwrite-ignore", "main"}, ""),
 		gitStep([]string{"ls-remote", "--get-url", testFetchURL}, "git@github.com:fork/yt2column.git\n"),
 	)
 	tool, runner := newTool(t, steps)
@@ -808,7 +861,7 @@ func TestCleanupRejectsCheckedOutLocalBranch(t *testing.T) {
 		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
 		gitStep([]string{"ls-remote", "--heads", testFetchURL, "refs/heads/feature/foo"}, testRemotePresent),
 		gitStep([]string{"push", "--force-with-lease=refs/heads/feature/foo:" + testHeadOID, testFetchURL, "--delete", "refs/heads/feature/foo"}, ""),
-		gitStep([]string{"switch", "main"}, ""),
+		gitStep([]string{"switch", "--no-overwrite-ignore", "main"}, ""),
 		gitStep([]string{"ls-remote", "--get-url", testFetchURL}, testFetchURLOut),
 		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main"}, ""),
 		gitStep([]string{"merge", "--ff-only", "refs/remotes/origin/main"}, ""),

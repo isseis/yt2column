@@ -15,6 +15,7 @@ var (
 	errHeadBranchMismatch = errors.New("local head branch does not match headRefOid")
 	errPRNotOpen          = errors.New("PR is not open")
 	errPRNotMerged        = errors.New("PR is not merged")
+	errMergeQueued        = errors.New("PR is queued for merge, not merged yet")
 	errCrossRepository    = errors.New("cross-repository PRs are not supported")
 	errTooLarge           = errors.New("input is too large to draft from safely")
 	errChecksFailed       = errors.New("CI checks failed")

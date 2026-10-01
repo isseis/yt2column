@@ -59,8 +59,10 @@ report its error instead of working around it. Work in order; do not skip a step
    fast-forwards the base explicitly from `origin/<baseRefName>`, verifies that
    the local base equals `origin/<baseRefName>`, deletes the local head branch
    only while it still points at `headRefOid`, and prunes. After a merge,
-   cleanup failures leave the merge done but the cleanup unfinished: re-run
-   `go run ./cmd/mergepr cleanup --state <state-file>` to resume it.
+   cleanup failures leave the merge done but the cleanup unfinished, and a
+   merge queue can accept the PR before it merges: in both cases the tool
+   reports it, and you re-run
+   `go run ./cmd/mergepr cleanup --state <state-file>` once the PR is merged.
 5. **Report** the merged commit (`mergeCommit.oid`, which the tool prints), the
    deleted branches, and that the local base branch is up to date. When the PR
    came from `/runplan`, the next step is `/runplan`'s PR checkpoint: create the

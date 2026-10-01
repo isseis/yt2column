@@ -321,6 +321,10 @@ func (t *Tool) Merge(ctx context.Context, statePath, subjectPath, bodyPath strin
 	if _, err := os.Stat(bodyPath); err != nil {
 		return Report{}, fmt.Errorf("read body file: %w", err)
 	}
+	id, err := t.requireIdentity(ctx, state)
+	if err != nil {
+		return Report{}, err
+	}
 	// The message files are written outside the worktree, but the pause before
 	// the merge is long enough for the worktree to change; refuse to merge and
 	// then be unable to clean up.
@@ -334,15 +338,10 @@ func (t *Tool) Merge(ctx context.Context, statePath, subjectPath, bodyPath strin
 	if err != nil {
 		return Report{}, err
 	}
-	switch {
-	case live.IsCrossRepository:
-		return Report{}, errCrossRepository
-	case live.State == mergedState:
-		return t.cleanupWith(ctx, state, &live, nil)
-	case live.State != openState:
-		return Report{}, fmt.Errorf("%w: state is %s", errPRNotOpen, live.State)
+	if live.State == mergedState {
+		return t.cleanupWith(ctx, state, &live, &id)
 	}
-	if err := verifyOpen(live, state); err != nil {
+	if err := verifyMergeable(live, state); err != nil {
 		return Report{}, err
 	}
 	if _, err := t.command(ctx, checksTimeout, ghCommand, "pr", "checks", strconv.Itoa(state.Number), "--watch", "--fail-fast", repoFlag, state.repo()); err != nil {
@@ -355,19 +354,52 @@ func (t *Tool) Merge(ctx context.Context, statePath, subjectPath, bodyPath strin
 	if err != nil {
 		return Report{}, err
 	}
-	if after.IsCrossRepository {
-		return Report{}, errCrossRepository
-	}
-	if after.State != openState {
-		return Report{}, fmt.Errorf("%w: state is %s", errPRNotOpen, after.State)
-	}
-	if err := verifyOpen(after, state); err != nil {
+	if err := verifyMergeable(after, state); err != nil {
 		return Report{}, err
 	}
 	if _, err := t.command(ctx, commandTimeout, ghCommand, "pr", "merge", strconv.Itoa(state.Number), "--squash", "--subject", subject, "--body-file", bodyPath, "--match-head-commit", state.HeadRefOID, repoFlag, state.repo()); err != nil {
 		return Report{}, fmt.Errorf("merge PR: %w", err)
 	}
-	return t.cleanupWith(ctx, state, nil, nil)
+	return t.finishMerge(ctx, state, &id)
+}
+
+// requireIdentity resolves this checkout's repository and requires it to match
+// the state, so a state file carried in from another checkout cannot merge its
+// PR here.
+func (t *Tool) requireIdentity(ctx context.Context, state State) (identity, error) {
+	id, err := t.repoIdentity(ctx)
+	if err != nil {
+		return identity{}, err
+	}
+	if id.Owner != state.Owner || id.Repo != state.Repo {
+		return identity{}, errRepoMismatch
+	}
+	return id, nil
+}
+
+// verifyMergeable rejects a view that is cross-repository, not open, or drifted
+// from the pinned state.
+func verifyMergeable(live mergeView, state State) error {
+	if live.IsCrossRepository {
+		return errCrossRepository
+	}
+	if live.State != openState {
+		return fmt.Errorf("%w: state is %s", errPRNotOpen, live.State)
+	}
+	return verifyOpen(live, state)
+}
+
+// finishMerge confirms the terminal state and cleans up. A merge queue accepts
+// the PR and returns before it merges, so it reports that state instead.
+func (t *Tool) finishMerge(ctx context.Context, state State, id *identity) (Report, error) {
+	merged, err := t.fetchMergeView(ctx, state)
+	if err != nil {
+		return Report{}, err
+	}
+	if merged.State != mergedState {
+		return Report{}, fmt.Errorf("%w: state is %s; wait and re-run `mergepr cleanup --state <file>`", errMergeQueued, merged.State)
+	}
+	return t.cleanupWith(ctx, state, &merged, id)
 }
 
 // verifyOpen rejects a PR that drifted from the pinned state while the command
@@ -502,7 +534,9 @@ func (t *Tool) deleteRemoteBranch(ctx context.Context, id identity, state State)
 }
 
 func (t *Tool) updateBase(ctx context.Context, id identity, state State) (bool, error) {
-	if _, err := t.command(ctx, commandTimeout, gitCommand, "switch", state.BaseRefName); err != nil {
+	// --no-overwrite-ignore keeps a local ignored file that the base branch
+	// tracks; the default would silently replace it.
+	if _, err := t.command(ctx, commandTimeout, gitCommand, "switch", "--no-overwrite-ignore", state.BaseRefName); err != nil {
 		return false, fmt.Errorf("switch to base branch: %w", err)
 	}
 	// A conditional url.*.insteadOf can rewrite even the pinned URL once the
@@ -640,7 +674,11 @@ func parseGitHubRemote(raw string) (string, string, error) {
 			return "", "", errInvalidRemote
 		}
 		path = parsed.Path
-	} else if _, rest, found := strings.Cut(raw, "@"); found {
+	} else if user, rest, found := strings.Cut(raw, "@"); found {
+		// GitHub's SSH user is always "git"; any other user is likely a token.
+		if user != "git" {
+			return "", "", errInvalidRemote
+		}
 		host, subpath, ok := strings.Cut(rest, ":")
 		if !ok || !strings.EqualFold(host, githubHost) {
 			return "", "", errInvalidRemote
