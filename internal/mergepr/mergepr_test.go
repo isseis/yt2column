@@ -30,7 +30,7 @@ func repoIdentitySteps() []commandStep {
 	return []commandStep{
 		gitStep([]string{"remote", "get-url", "origin"}, testFetchURLOut),
 		gitStep([]string{"remote", "get-url", "--push", "origin"}, testFetchURLOut),
-		ghStep([]string{"repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"}, testRepoViewOut),
+		ghStep([]string{"repo", "view", "--json", "nameWithOwner,url"}, testRepoViewOut),
 	}
 }
 
@@ -71,6 +71,7 @@ func prepareSteps(logOut, statOut string) []commandStep {
 		gitStep([]string{"check-ref-format", "--branch", "feature/foo"}, "feature/foo\n"),
 		gitStep([]string{"check-ref-format", "--branch", "main"}, "main\n"),
 		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
+		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
 		gitStep([]string{"for-each-ref", "--format=%(objectname)", "refs/heads/feature/foo"}, testHeadOID+"\n"),
 		gitStep([]string{"fetch", "origin"}, ""),
 		ghStep(checksArgs(), ""),
@@ -87,6 +88,7 @@ func mergedViewStep() commandStep {
 func cleanupSteps(remoteOut, localOID string) []commandStep {
 	steps := repoIdentitySteps()
 	steps = append(steps, gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""))
+	steps = append(steps, gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"))
 	steps = append(steps, gitStep([]string{"ls-remote", "--heads", "origin", "refs/heads/feature/foo"}, remoteOut))
 	if remoteOut != "" {
 		steps = append(steps, gitStep([]string{"push", "--force-with-lease=refs/heads/feature/foo:" + testHeadOID, "origin", "--delete", "refs/heads/feature/foo"}, ""))
@@ -153,6 +155,21 @@ func TestParseGitHubRemote(t *testing.T) {
 				t.Errorf("parseGitHubRemote(%q) = %s/%s, want %s/%s", tc.raw, owner, repo, tc.wantOwner, tc.wantRepo)
 			}
 		})
+	}
+}
+
+func TestErrorsDoNotIncludeRemoteURL(t *testing.T) {
+	const secret = "ghp_do_not_print"
+	owner, repo, err := parseGitHubRemote("https://" + secret + "@github.com/isseis/yt2column.git")
+	if err != nil || owner != "isseis" || repo != "yt2column" {
+		t.Fatalf("parseGitHubRemote credential URL = (%q, %q, %v), want isseis/yt2column and no error", owner, repo, err)
+	}
+	_, _, err = parseGitHubRemote("https://" + secret + "@gitlab.com/isseis/yt2column.git")
+	if !errors.Is(err, errInvalidRemote) {
+		t.Fatalf("parseGitHubRemote other host error = %v, want errInvalidRemote", err)
+	}
+	if strings.Contains(err.Error(), secret) {
+		t.Errorf("error %q includes the credential", err)
 	}
 }
 
@@ -297,7 +314,21 @@ func TestPrepareRejectsSelectedRepoMismatch(t *testing.T) {
 	steps := []commandStep{
 		gitStep([]string{"remote", "get-url", "origin"}, testFetchURLOut),
 		gitStep([]string{"remote", "get-url", "--push", "origin"}, testFetchURLOut),
-		ghStep([]string{"repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"}, "other/repo\n"),
+		ghStep([]string{"repo", "view", "--json", "nameWithOwner,url"}, `{"nameWithOwner":"other/repo","url":"https://github.com/other/repo"}`),
+	}
+	tool, runner := newTool(t, steps)
+
+	if _, err := tool.Prepare(t.Context(), strconv.Itoa(testPRNumber), t.TempDir()); !errors.Is(err, errRepoMismatch) {
+		t.Fatalf("Prepare error = %v, want errRepoMismatch", err)
+	}
+	runner.done()
+}
+
+func TestPrepareRejectsGHSelHostMismatch(t *testing.T) {
+	steps := []commandStep{
+		gitStep([]string{"remote", "get-url", "origin"}, testFetchURLOut),
+		gitStep([]string{"remote", "get-url", "--push", "origin"}, testFetchURLOut),
+		ghStep([]string{"repo", "view", "--json", "nameWithOwner,url"}, `{"nameWithOwner":"isseis/yt2column","url":"https://github.example.com/isseis/yt2column"}`),
 	}
 	tool, runner := newTool(t, steps)
 
@@ -359,6 +390,23 @@ func TestPrepareRejectsDirtyWorktree(t *testing.T) {
 	runner.done()
 }
 
+func TestPrepareRejectsDetachedHead(t *testing.T) {
+	steps := repoIdentitySteps()
+	steps = append(steps,
+		ghStep(prViewArgs(), prViewJSON("feature/foo", false)),
+		gitStep([]string{"check-ref-format", "--branch", "feature/foo"}, "feature/foo\n"),
+		gitStep([]string{"check-ref-format", "--branch", "main"}, "main\n"),
+		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
+		commandStep{name: gitCommand, args: []string{"symbolic-ref", "--quiet", "HEAD"}, err: errors.New("exit status 1")},
+	)
+	tool, runner := newTool(t, steps)
+
+	if _, err := tool.Prepare(t.Context(), strconv.Itoa(testPRNumber), t.TempDir()); !errors.Is(err, errDetachedHead) {
+		t.Fatalf("Prepare error = %v, want errDetachedHead", err)
+	}
+	runner.done()
+}
+
 func TestPrepareRejectsHeadBranchMismatch(t *testing.T) {
 	steps := repoIdentitySteps()
 	steps = append(steps,
@@ -366,6 +414,7 @@ func TestPrepareRejectsHeadBranchMismatch(t *testing.T) {
 		gitStep([]string{"check-ref-format", "--branch", "feature/foo"}, "feature/foo\n"),
 		gitStep([]string{"check-ref-format", "--branch", "main"}, "main\n"),
 		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
+		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
 		gitStep([]string{"for-each-ref", "--format=%(objectname)", "refs/heads/feature/foo"}, testOtherOID+"\n"),
 	)
 	tool, runner := newTool(t, steps)
@@ -383,6 +432,7 @@ func TestPrepareRejectsChecksFailure(t *testing.T) {
 		gitStep([]string{"check-ref-format", "--branch", "feature/foo"}, "feature/foo\n"),
 		gitStep([]string{"check-ref-format", "--branch", "main"}, "main\n"),
 		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
+		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
 		gitStep([]string{"for-each-ref", "--format=%(objectname)", "refs/heads/feature/foo"}, testHeadOID+"\n"),
 		gitStep([]string{"fetch", "origin"}, ""),
 		commandStep{name: ghCommand, args: checksArgs(), err: errors.New("exit status 1")},
@@ -402,6 +452,7 @@ func TestPrepareRejectsOversizedLog(t *testing.T) {
 		gitStep([]string{"check-ref-format", "--branch", "feature/foo"}, "feature/foo\n"),
 		gitStep([]string{"check-ref-format", "--branch", "main"}, "main\n"),
 		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
+		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
 		gitStep([]string{"for-each-ref", "--format=%(objectname)", "refs/heads/feature/foo"}, testHeadOID+"\n"),
 		gitStep([]string{"fetch", "origin"}, ""),
 		ghStep(checksArgs(), ""),
@@ -582,6 +633,37 @@ func TestCleanupRejectsMovedLocalBranch(t *testing.T) {
 	runner.done()
 }
 
+func TestCleanupRejectsDirtyWorktree(t *testing.T) {
+	dir := t.TempDir()
+	statePath := writeStateFile(t, dir)
+	steps := []commandStep{mergedViewStep()}
+	steps = append(steps, repoIdentitySteps()...)
+	steps = append(steps, gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, "?? edit.txt\n"))
+	tool, runner := newTool(t, steps)
+
+	if _, err := tool.Cleanup(t.Context(), statePath); !errors.Is(err, errDirtyWorktree) {
+		t.Fatalf("Cleanup error = %v, want errDirtyWorktree", err)
+	}
+	runner.done()
+}
+
+func TestCleanupRejectsDetachedHead(t *testing.T) {
+	dir := t.TempDir()
+	statePath := writeStateFile(t, dir)
+	steps := []commandStep{mergedViewStep()}
+	steps = append(steps, repoIdentitySteps()...)
+	steps = append(steps,
+		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
+		commandStep{name: gitCommand, args: []string{"symbolic-ref", "--quiet", "HEAD"}, err: errors.New("exit status 1")},
+	)
+	tool, runner := newTool(t, steps)
+
+	if _, err := tool.Cleanup(t.Context(), statePath); !errors.Is(err, errDetachedHead) {
+		t.Fatalf("Cleanup error = %v, want errDetachedHead", err)
+	}
+	runner.done()
+}
+
 func TestCleanupRejectsBaseNotCurrent(t *testing.T) {
 	dir := t.TempDir()
 	statePath := writeStateFile(t, dir)
@@ -589,6 +671,7 @@ func TestCleanupRejectsBaseNotCurrent(t *testing.T) {
 	steps = append(steps, repoIdentitySteps()...)
 	steps = append(steps,
 		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
+		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
 		gitStep([]string{"ls-remote", "--heads", "origin", "refs/heads/feature/foo"}, testRemotePresent),
 		gitStep([]string{"push", "--force-with-lease=refs/heads/feature/foo:" + testHeadOID, "origin", "--delete", "refs/heads/feature/foo"}, ""),
 		gitStep([]string{"switch", "main"}, ""),

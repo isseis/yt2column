@@ -63,7 +63,7 @@ const (
 	testMergeOID = "3333333333333333333333333333333333333333"
 
 	testFetchURLOut = "git@github.com:isseis/yt2column.git\n"
-	testRepoViewOut = "isseis/yt2column\n"
+	testRepoViewOut = `{"nameWithOwner":"isseis/yt2column","url":"https://github.com/isseis/yt2column"}`
 	testRepoArg     = "isseis/yt2column"
 )
 

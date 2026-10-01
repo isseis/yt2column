@@ -191,6 +191,11 @@ func (t *Tool) resolvePR(ctx context.Context, prArg string) (string, string, prI
 	if err := t.requireCleanWorktree(ctx); err != nil {
 		return "", "", prInfo{}, err
 	}
+	// Switching branches later must not orphan a detached tip, so require HEAD
+	// to be attached before anything else is touched.
+	if _, err := t.run.Run(ctx, gitCommand, "symbolic-ref", "--quiet", "HEAD"); err != nil {
+		return "", "", prInfo{}, errDetachedHead
+	}
 	localOID, err := t.localHeadOID(ctx, pr.HeadRefName)
 	if err != nil {
 		return "", "", prInfo{}, err
@@ -333,6 +338,9 @@ func (t *Tool) cleanupWith(ctx context.Context, state State, live *mergeView) (R
 	if err := t.requireCleanWorktree(ctx); err != nil {
 		return Report{}, err
 	}
+	if _, err := t.run.Run(ctx, gitCommand, "symbolic-ref", "--quiet", "HEAD"); err != nil {
+		return Report{}, errDetachedHead
+	}
 	if report.RemoteDeleted, err = t.deleteRemoteBranch(ctx, state); err != nil {
 		return Report{}, err
 	}
@@ -435,12 +443,23 @@ func (t *Tool) repoIdentity(ctx context.Context) (string, string, error) {
 	if fetchOwner != pushOwner || fetchRepo != pushRepo {
 		return "", "", errRemoteMismatch
 	}
-	selected, err := t.run.Run(ctx, ghCommand, "repo", "view", jsonFlag, "nameWithOwner", "-q", ".nameWithOwner")
+	selected, err := t.run.Run(ctx, ghCommand, "repo", "view", jsonFlag, "nameWithOwner,url")
 	if err != nil {
 		return "", "", fmt.Errorf("resolve repository gh selects: %w", err)
 	}
-	if got := strings.TrimSpace(string(selected)); got != fetchOwner+"/"+fetchRepo {
-		return "", "", fmt.Errorf("%w: gh selects %q", errRepoMismatch, got)
+	var view struct {
+		NameWithOwner string `json:"nameWithOwner"`
+		URL           string `json:"url"`
+	}
+	if err := json.Unmarshal(selected, &view); err != nil {
+		return "", "", fmt.Errorf("parse repository gh selects: %w", err)
+	}
+	// The host matters: GH_REPO can select a same-named repository on another
+	// GitHub host, which parseGitHubRemote rejects because it requires
+	// github.com.
+	selectedOwner, selectedRepo, err := parseGitHubRemote(view.URL)
+	if err != nil || view.NameWithOwner != fetchOwner+"/"+fetchRepo || selectedOwner != fetchOwner || selectedRepo != fetchRepo {
+		return "", "", fmt.Errorf("%w: gh selects %q", errRepoMismatch, view.NameWithOwner)
 	}
 	return fetchOwner, fetchRepo, nil
 }
