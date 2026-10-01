@@ -37,7 +37,9 @@ PR-derived values never become shell source:
      in `git remote get-url origin`. `GH_REPO` and `gh repo set-default` can point
      `gh` at another repository, and then the PR and the refs this command touches
      could belong to different repositories; stop on mismatch.
-   - Whichever branch is checked out, `git status --porcelain` must be empty, and
+   - Whichever branch is checked out, `git status --porcelain --untracked-files=all`
+     must be empty (`--untracked-files=all` because a `status.showUntrackedFiles=no`
+     configuration would otherwise hide untracked files), and
      if `git rev-parse --verify --quiet refs/heads/<headRefName>` finds a local head
      branch, its OID must equal `headRefOid`. Uncommitted work would be lost with
      the deleted branch or carried into the next one, and unpushed work would be
@@ -59,9 +61,12 @@ PR-derived values never become shell source:
      not fit or the output is truncated, stop and report instead of drafting from
      incomplete input;
    - `git diff --stat origin/<baseRefName>...<headRefOid>`;
-   - read individual file diffs (`git diff origin/<baseRefName>...<headRefOid> -- <path>`)
-     only where the log and stat are not enough. Do not dump the whole diff: a large
-     PR does not fit in context.
+   - read individual file diffs
+     (`git --literal-pathspecs diff origin/<baseRefName>...<headRefOid> -- <path>`)
+     only where the log and stat are not enough. `--literal-pathspecs` because shell
+     quoting does not stop pathspec magic: a legal filename beginning with `:` (e.g.
+     `:(exclude)*`) would otherwise be silently excluded. Do not dump the whole diff:
+     a large PR does not fit in context.
 
    Write the message in English:
    - **Subject**: `<type>(<scope>): <summary> (#<number>)`, conventional-commit
@@ -85,7 +90,10 @@ PR-derived values never become shell source:
    subject and body, and ask whether to merge with this message. Revise it as asked.
    Do not merge without an explicit yes.
 
-5. **Merge.**
+5. **Merge.** Re-run the step 2 gate, `gh pr checks <number> --watch --fail-fast`,
+   after the user approves the message and immediately before merging, and stop if
+   any check fails: `--match-head-commit` pins only the head OID, and check results
+   can change while the message is under review.
    `gh pr merge <number> --squash --subject "$(cat <subject-file>)" --body-file <body-file> --match-head-commit <headRefOid>`.
    `--match-head-commit` makes the merge fail if the branch moved after the message
    was drafted. Do not pass `--delete-branch` here: step 6 deletes the branches
