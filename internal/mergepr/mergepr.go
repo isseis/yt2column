@@ -24,10 +24,12 @@ const (
 	gitCommand = "git"
 	ghCommand  = "gh"
 
-	originRemote = "origin"
-	refsHeads    = "refs/heads/"
-	refsRemotes  = "refs/remotes/"
-	originRefs   = refsRemotes + originRemote + "/"
+	originRemote  = "origin"
+	trustedBranch = "main"
+	commandFile   = ".claude/commands/mergepr.md"
+	refsHeads     = "refs/heads/"
+	refsRemotes   = "refs/remotes/"
+	originRefs    = refsRemotes + originRemote + "/"
 	// refsWildcard maps the remote's branches into this repository's own
 	// remote-tracking namespace and forces only those destinations, so a
 	// configured refspec cannot rewrite a local branch and a force-pushed
@@ -198,18 +200,28 @@ func (t *Tool) prepare(ctx context.Context, prArg, workDir string) (Prepared, er
 	return writePrepared(workDir, id, pr, logOut, statOut, bodyOut)
 }
 
-// requireToolUnchanged refuses to merge a PR that changes the merge tool or its
-// command definition, so a PR cannot smuggle a change to the code that merges
-// it. It compares the PR's pinned head commit with the base, not the working
-// tree: the tool runs from a trusted main checkout, and the PR need not be
-// checked out.
+// requireToolUnchanged refuses to run when the command definition in this
+// checkout is not the trusted main revision, and refuses to merge a PR that
+// changes the merge tool or its command definition. The PR check compares the
+// PR's pinned head commit with its merge base (three-dot), so it detects only
+// changes the PR introduced, not unrelated changes that landed on the base.
 func (t *Tool) requireToolUnchanged(ctx context.Context, id identity, base, head, headOID string) error {
-	if _, err := t.command(ctx, commandTimeout, gitCommand, "fetch", id.FetchURL,
-		"+"+refsHeads+base+":"+originRefs+base,
-		"+"+refsHeads+head+":"+originRefs+head); err != nil {
+	refspecs := []string{
+		"+" + refsHeads + base + ":" + originRefs + base,
+		"+" + refsHeads + head + ":" + originRefs + head,
+	}
+	if base != trustedBranch {
+		refspecs = append(refspecs, "+"+refsHeads+trustedBranch+":"+originRefs+trustedBranch)
+	}
+	if _, err := t.command(ctx, commandTimeout, gitCommand, append([]string{"fetch", id.FetchURL}, refspecs...)...); err != nil {
 		return fmt.Errorf("fetch refs for tool check: %w", err)
 	}
-	if _, err := t.command(ctx, commandTimeout, gitCommand, "diff", "--quiet", originRefs+base, headOID, "--", "cmd/mergepr", "internal/mergepr", ".claude/commands/mergepr.md"); err != nil {
+	// The command definition that drives this tool must be the trusted main
+	// revision, so a checkout on a branch that edited it cannot run it.
+	if _, err := t.command(ctx, commandTimeout, gitCommand, "diff", "--quiet", originRefs+trustedBranch, "--", commandFile); err != nil {
+		return errCommandChanged
+	}
+	if _, err := t.command(ctx, commandTimeout, gitCommand, "diff", "--quiet", originRefs+base+"..."+headOID, "--", "cmd/mergepr", "internal/mergepr", commandFile); err != nil {
 		return errToolChanged
 	}
 	return nil

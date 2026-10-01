@@ -31,4 +31,5 @@ var (
 	errBranchCheckedOut   = errors.New("local head branch is checked out in another worktree")
 	errBaseNotCurrent     = errors.New("local base branch is not at origin")
 	errToolChanged        = errors.New("the merge tool differs from the PR's base revision")
+	errCommandChanged     = errors.New("the command definition in this checkout differs from main")
 )

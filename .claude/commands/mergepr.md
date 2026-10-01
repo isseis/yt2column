@@ -10,17 +10,18 @@ Invoking this command authorizes the network operations `cmd/mergepr` performs
 (`git fetch`/`push`, `gh` queries) but **not the merge itself**: step 3 asks the
 user to approve the commit message first (CLAUDE.md, "Tool Execution Safety").
 
-The mechanics live in the `mergepr` binary (package `internal/mergepr`). Run it
-from a trusted revision, not from the PR under review: install it from `main`
-with `go install ./cmd/mergepr` in a `main` checkout, and invoke this command
-from that same `main` checkout, so the binary and this command definition are
-both the reviewed `main` revision. It resolves the repository, head, and base
-once and re-verifies them immediately before the merge and cleanup; runs git
-with global and system configuration and repository hooks disabled; refuses a
-repository-local config that can rewrite a remote URL; and stops if the PR under
-review changes `cmd/mergepr`, `internal/mergepr`, or this command definition. Do
-not reimplement its steps as shell commands; if it stops, report its error
-instead of working around it. Work in order; do not skip a step.
+The mechanics live in the `mergepr` binary (package `internal/mergepr`). Install
+it from `main` with `go install ./cmd/mergepr` in a `main` checkout, so the
+binary is the reviewed `main` revision. It runs from any checkout, but it stops
+unless this checkout's `.claude/commands/mergepr.md` is also the `main`
+revision, so do not invoke it from a branch that edited this command definition.
+It resolves the repository, head, and base once and re-verifies them immediately
+before the merge and cleanup; runs git with global and system configuration and
+repository hooks disabled; refuses a repository-local config that can rewrite a
+remote URL; and stops if the PR under review changes `cmd/mergepr`,
+`internal/mergepr`, or this command definition. Do not reimplement its steps as
+shell commands; if it stops, report its error instead of working around it. Work
+in order; do not skip a step.
 
 The PR that introduces this command must be merged by other means (for example
 `gh pr merge`), because `main` does not yet contain `mergepr`; install and use
