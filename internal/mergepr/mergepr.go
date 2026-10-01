@@ -546,16 +546,6 @@ func (t *Tool) deleteRemoteBranch(ctx context.Context, id identity, state State)
 	if strings.TrimSpace(string(out)) == "" {
 		return false, nil
 	}
-	// git rewrites explicit push URLs through url.*.insteadOf too, so confirm
-	// the effective destination immediately before the deletion.
-	effective, err := t.command(ctx, commandTimeout, gitCommand, "ls-remote", "--get-url", id.PushURL)
-	if err != nil {
-		return false, fmt.Errorf("resolve effective push URL: %w", err)
-	}
-	effectiveOwner, effectiveRepo, err := parseGitHubRemote(strings.TrimSpace(string(effective)))
-	if err != nil || !sameRepo(effectiveOwner, effectiveRepo, id.Owner, id.Repo) {
-		return false, errRepoMismatch
-	}
 	lease := "--force-with-lease=" + headRef + ":" + state.HeadRefOID
 	if _, err := t.command(ctx, commandTimeout, gitCommand, "push", lease, id.PushURL, "--delete", headRef); err != nil {
 		return false, fmt.Errorf("delete remote branch: %w", err)
@@ -568,16 +558,6 @@ func (t *Tool) updateBase(ctx context.Context, id identity, state State) (bool, 
 	// tracks; the default would silently replace it.
 	if _, err := t.command(ctx, commandTimeout, gitCommand, "switch", "--no-overwrite-ignore", state.BaseRefName); err != nil {
 		return false, fmt.Errorf("switch to base branch: %w", err)
-	}
-	// A conditional url.*.insteadOf can rewrite even the pinned URL once the
-	// base branch is checked out, so confirm what git would actually fetch.
-	effective, err := t.command(ctx, commandTimeout, gitCommand, "ls-remote", "--get-url", id.FetchURL)
-	if err != nil {
-		return false, fmt.Errorf("resolve effective fetch URL: %w", err)
-	}
-	effectiveOwner, effectiveRepo, err := parseGitHubRemote(strings.TrimSpace(string(effective)))
-	if err != nil || effectiveOwner != id.Owner || effectiveRepo != id.Repo {
-		return false, errRepoMismatch
 	}
 	baseRef := originRefs + state.BaseRefName
 	if _, err := t.command(ctx, commandTimeout, gitCommand, "fetch", id.FetchURL, "+"+refsHeads+state.BaseRefName+":"+baseRef); err != nil {
@@ -634,6 +614,9 @@ func (t *Tool) requireBranchNotCheckedOut(ctx context.Context, name string) erro
 // every push URL, and the repository gh selects must name the same GitHub
 // repository over https or ssh, so no later step can act on a different one.
 func (t *Tool) repoIdentity(ctx context.Context) (identity, error) {
+	if err := t.requireSupportedConfig(ctx); err != nil {
+		return identity{}, err
+	}
 	fetchURL, err := t.command(ctx, commandTimeout, gitCommand, "remote", "get-url", originRemote)
 	if err != nil {
 		return identity{}, fmt.Errorf("read origin fetch URL: %w", err)
@@ -893,6 +876,34 @@ func readBody(path string) (string, error) {
 		return "", fmt.Errorf("%w: body is %d bytes, limit %d", errTooLarge, len(data), maxBodyBytes)
 	}
 	return string(data), nil
+}
+
+// requireSupportedConfig refuses to run when the repository's local git config
+// contains a rule that could rewrite a remote URL. Global and system config are
+// disabled for every child process (see childEnv), so only the local config can
+// still redirect an operation.
+func (t *Tool) requireSupportedConfig(ctx context.Context) error {
+	out, err := t.command(ctx, commandTimeout, gitCommand, "config", "--local", "--list")
+	if err != nil {
+		return fmt.Errorf("read git config: %w", err)
+	}
+	for line := range strings.Lines(string(out)) {
+		key, _, _ := strings.Cut(strings.TrimSpace(line), "=")
+		if unsupportedConfigKey(key) {
+			return fmt.Errorf("%w: %s", errUnsupportedConfig, key)
+		}
+	}
+	return nil
+}
+
+// unsupportedConfigKey reports whether a git config key can rewrite a remote
+// URL (url.*.insteadOf/pushInsteadOf) or change config per branch (includeIf).
+func unsupportedConfigKey(key string) bool {
+	key = strings.ToLower(key)
+	if strings.HasPrefix(key, "includeif.") {
+		return true
+	}
+	return strings.HasPrefix(key, "url.") && (strings.HasSuffix(key, ".insteadof") || strings.HasSuffix(key, ".pushinsteadof"))
 }
 
 // sameRepo reports whether two GitHub owner/repo pairs name the same

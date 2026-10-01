@@ -12,8 +12,11 @@ user to approve the commit message first (CLAUDE.md, "Tool Execution Safety").
 
 The mechanics live in `cmd/mergepr` (package `internal/mergepr`), which resolves
 the repository, head, and base once and re-verifies them immediately before the
-merge and cleanup. Do not reimplement its steps as shell commands; if it stops,
-report its error instead of working around it. Work in order; do not skip a step.
+merge and cleanup. It runs git with global and system configuration disabled and
+refuses a repository-local config that can rewrite a remote URL, so no ambient
+configuration can redirect an operation. Do not reimplement its steps as shell
+commands; if it stops, report its error instead of working around it. Work in
+order; do not skip a step.
 
 1. **Prepare.** Run `go run ./cmd/mergepr prepare -- $ARGUMENTS` (no argument
    uses the current branch's PR). It first stops unless the tool's own source

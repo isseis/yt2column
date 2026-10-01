@@ -55,6 +55,17 @@ func TestOSRunnerRedactsCredentials(t *testing.T) {
 	}
 }
 
+func TestOSRunnerOverridesGitConfig(t *testing.T) {
+	script := writeScript(t, "#!/bin/sh\nprintf '%s|%s|%s' \"$GIT_CONFIG_GLOBAL\" \"$GIT_CONFIG_SYSTEM\" \"$GIT_CONFIG_NOSYSTEM\"\n")
+	out, err := NewOSRunner().Run(t.Context(), script)
+	if err != nil {
+		t.Fatalf("Run error = %v, want nil", err)
+	}
+	if string(out) != "/dev/null|/dev/null|1" {
+		t.Errorf("child git config env = %q, want /dev/null|/dev/null|1", out)
+	}
+}
+
 func TestOSRunnerEnvAllowlist(t *testing.T) {
 	t.Setenv("MERGE_PR_TEST_SECRET", "leaked")
 	script := writeScript(t, "#!/bin/sh\nprintf '%s|%s' \"$MERGE_PR_TEST_SECRET\" \"$PATH\"\n")

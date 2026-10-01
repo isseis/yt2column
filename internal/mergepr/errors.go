@@ -9,6 +9,7 @@ var (
 	errInvalidRemote      = errors.New("origin is not a GitHub remote")
 	errRemoteMismatch     = errors.New("origin fetch and push URLs name different repositories")
 	errRepoMismatch       = errors.New("gh selects a repository other than origin")
+	errUnsupportedConfig  = errors.New("unsupported git config can rewrite a remote URL")
 	errDetachedHead       = errors.New("HEAD is detached")
 	errInvalidBranch      = errors.New("unsafe or invalid branch name")
 	errDirtyWorktree      = errors.New("worktree is not clean")

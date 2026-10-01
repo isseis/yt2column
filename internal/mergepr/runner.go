@@ -31,8 +31,7 @@ const (
 var allowedEnvVars = []string{
 	"PATH", "HOME", "TMPDIR",
 	"SSH_AUTH_SOCK", "SSH_AGENT_PID",
-	"GIT_SSH", "GIT_SSH_COMMAND", "GIT_ASKPASS", "SSH_ASKPASS",
-	"GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM", "GIT_CONFIG_NOSYSTEM", "GIT_TERMINAL_PROMPT",
+	"GIT_SSH", "GIT_SSH_COMMAND", "GIT_ASKPASS", "SSH_ASKPASS", "GIT_TERMINAL_PROMPT",
 	"GH_TOKEN", "GITHUB_TOKEN", "GH_HOST", "GH_CONFIG_DIR",
 	"XDG_CONFIG_HOME", "XDG_CACHE_HOME",
 	"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY",
@@ -59,7 +58,7 @@ func (osRunner) Run(ctx context.Context, name string, args ...string) ([]byte, e
 	stderr.limit = maxCommandErrorBytes
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	cmd.Env = allowlistEnv(os.Environ())
+	cmd.Env = childEnv()
 	cmd.WaitDelay = commandWaitDelay
 	command := redactCredentials(name + " " + strings.Join(args, " "))
 	if err := cmd.Run(); err != nil {
@@ -107,6 +106,19 @@ func (b *limitedBuffer) Write(p []byte) (int, error) {
 	}
 	_, _ = b.buffer.Write(p)
 	return len(p), nil
+}
+
+// childEnv is the allowlisted environment plus git config overrides that
+// disable global and system configuration, so a global url.*.insteadOf or
+// includeIf cannot redirect a fetch or a push. The repository's local config is
+// still read and is audited by requireSupportedConfig.
+func childEnv() []string {
+	env := allowlistEnv(os.Environ())
+	return append(env,
+		"GIT_CONFIG_GLOBAL=/dev/null",
+		"GIT_CONFIG_SYSTEM=/dev/null",
+		"GIT_CONFIG_NOSYSTEM=1",
+	)
 }
 
 // allowlistEnv returns the allowlisted variables set in parent, in the order of
