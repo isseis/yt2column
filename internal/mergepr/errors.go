@@ -26,6 +26,7 @@ var (
 	errInvalidSubject     = errors.New("squash subject is not a non-empty single line")
 	errInvalidPath        = errors.New("invalid file path")
 	errNoMergeCommit      = errors.New("merge commit was not recorded")
+	errMergeMissing       = errors.New("merged commit is not in the base branch")
 	errLocalBranchDrift   = errors.New("local head branch moved")
 	errBranchCheckedOut   = errors.New("local head branch is checked out in another worktree")
 	errBaseNotCurrent     = errors.New("local base branch is not at origin")

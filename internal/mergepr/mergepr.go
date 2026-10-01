@@ -465,10 +465,10 @@ func (t *Tool) Diff(ctx context.Context, statePath, path string) ([]byte, error)
 	return out, nil
 }
 
-// checkDiffPath rejects a path git could read as an option before it reaches
-// the literal-pathspec diff.
+// checkDiffPath rejects an empty path. A leading dash is safe because the diff
+// passes the path after "--" with --literal-pathspecs.
 func checkDiffPath(path string) error {
-	if path == "" || strings.HasPrefix(path, "-") {
+	if path == "" {
 		return fmt.Errorf("%w: %q", errInvalidPath, path)
 	}
 	return nil
@@ -507,6 +507,9 @@ func (t *Tool) cleanupWith(ctx context.Context, state State, live *mergeView, id
 	if err := t.requireAttachedHead(ctx); err != nil {
 		return Report{}, err
 	}
+	if err := t.requireMergeInBase(ctx, *id, state, live.MergeCommit.OID); err != nil {
+		return Report{}, err
+	}
 	var err error
 	if report.RemoteDeleted, err = t.deleteRemoteBranch(ctx, *id, state); err != nil {
 		return Report{}, err
@@ -537,6 +540,20 @@ func verifyMerged(live *mergeView, state State) error {
 	return nil
 }
 
+// requireMergeInBase fetches the base and requires the recorded merge commit to
+// be an ancestor, so a force-pushed base that dropped the merge cannot let both
+// branch refs be deleted.
+func (t *Tool) requireMergeInBase(ctx context.Context, id identity, state State, mergeOID string) error {
+	baseRef := originRefs + state.BaseRefName
+	if _, err := t.command(ctx, commandTimeout, gitCommand, "fetch", id.FetchURL, "+"+refsHeads+state.BaseRefName+":"+baseRef); err != nil {
+		return fmt.Errorf("fetch base branch: %w", err)
+	}
+	if _, err := t.command(ctx, commandTimeout, gitCommand, "merge-base", "--is-ancestor", mergeOID, baseRef); err != nil {
+		return fmt.Errorf("%w: %s is not in %s", errMergeMissing, mergeOID, baseRef)
+	}
+	return nil
+}
+
 func (t *Tool) deleteRemoteBranch(ctx context.Context, id identity, state State) (bool, error) {
 	headRef := refsHeads + state.HeadRefName
 	out, err := t.command(ctx, commandTimeout, gitCommand, "ls-remote", "--heads", id.PushURL, headRef)
@@ -563,7 +580,9 @@ func (t *Tool) updateBase(ctx context.Context, id identity, state State) (bool, 
 	if _, err := t.command(ctx, commandTimeout, gitCommand, "fetch", id.FetchURL, "+"+refsHeads+state.BaseRefName+":"+baseRef); err != nil {
 		return false, fmt.Errorf("fetch base branch: %w", err)
 	}
-	if _, err := t.command(ctx, commandTimeout, gitCommand, "merge", "--ff-only", baseRef); err != nil {
+	// The fast-forward can also newly track a path that was ignored on the old
+	// base, so keep the same protection the switch uses.
+	if _, err := t.command(ctx, commandTimeout, gitCommand, "merge", "--ff-only", "--no-overwrite-ignore", baseRef); err != nil {
 		return false, fmt.Errorf("fast-forward base branch: %w", err)
 	}
 	if err := t.requireBaseCurrent(ctx, baseRef); err != nil {
@@ -835,14 +854,21 @@ func (t *Tool) requireAttachedHead(ctx context.Context) error {
 }
 
 // localHeadOID returns the OID of the local branch, or an empty string when it
-// does not exist. for-each-ref exits zero either way, so a missing branch is
-// not confused with a failing git.
+// does not exist. for-each-ref matches its argument as a prefix, so the exact
+// ref name is selected from its output instead of trusting the first match.
 func (t *Tool) localHeadOID(ctx context.Context, name string) (string, error) {
-	out, err := t.command(ctx, commandTimeout, gitCommand, "for-each-ref", "--format=%(objectname)", refsHeads+name)
+	out, err := t.command(ctx, commandTimeout, gitCommand, "for-each-ref", "--format=%(refname) %(objectname)", refsHeads+name)
 	if err != nil {
 		return "", fmt.Errorf("read local branch %q: %w", name, err)
 	}
-	return strings.TrimSpace(string(out)), nil
+	want := refsHeads + name
+	for line := range strings.Lines(string(out)) {
+		ref, oid, ok := strings.Cut(strings.TrimSpace(line), " ")
+		if ok && ref == want {
+			return oid, nil
+		}
+	}
+	return "", nil
 }
 
 func (t *Tool) requireBaseCurrent(ctx context.Context, baseRef string) error {
@@ -883,7 +909,7 @@ func readBody(path string) (string, error) {
 // disabled for every child process (see childEnv), so only the local config can
 // still redirect an operation.
 func (t *Tool) requireSupportedConfig(ctx context.Context) error {
-	out, err := t.command(ctx, commandTimeout, gitCommand, "config", "--local", "--list")
+	out, err := t.command(ctx, commandTimeout, gitCommand, "config", "--list", "--includes")
 	if err != nil {
 		return fmt.Errorf("read git config: %w", err)
 	}
