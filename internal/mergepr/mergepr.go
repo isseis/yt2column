@@ -174,6 +174,11 @@ func (t *Tool) Prepare(ctx context.Context, prArg, workDir string) (Prepared, er
 		}
 		workDir = dir
 		created = true
+	} else if err := requireOutsideWorktree(workDir); err != nil {
+		// A directory inside the checkout would make the files Prepare writes
+		// dirty the worktree, so Merge's clean-worktree recheck would reject the
+		// state Prepare just produced.
+		return Prepared{}, err
 	}
 	prepared, err := t.prepare(ctx, prArg, workDir)
 	if err != nil {
@@ -198,6 +203,46 @@ func (t *Tool) prepare(ctx context.Context, prArg, workDir string) (Prepared, er
 		return Prepared{}, err
 	}
 	return writePrepared(workDir, id, pr, logOut, statOut, bodyOut)
+}
+
+// requireOutsideWorktree rejects a work directory inside the repository
+// worktree, where the files Prepare writes would make the checkout dirty.
+func requireOutsideWorktree(workDir string) error {
+	root, err := worktreeRoot()
+	if err != nil {
+		return err
+	}
+	abs, err := filepath.Abs(workDir)
+	if err != nil {
+		return fmt.Errorf("resolve work directory: %w", err)
+	}
+	rel, err := filepath.Rel(root, abs)
+	if err != nil {
+		return nil // a different volume cannot be inside the worktree
+	}
+	if rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))) {
+		return fmt.Errorf("%w: %s", errWorkDirInWorktree, workDir)
+	}
+	return nil
+}
+
+// worktreeRoot walks up from the working directory to the nearest ancestor that
+// contains a .git entry, which is the root of this worktree.
+func worktreeRoot() (string, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("resolve working directory: %w", err)
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+			return dir, nil
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", errNoWorktree
+		}
+		dir = parent
+	}
 }
 
 // requireToolUnchanged refuses to run when the command definition in this
@@ -374,7 +419,7 @@ func (t *Tool) Merge(ctx context.Context, statePath, subjectPath, bodyPath strin
 		return Report{}, err
 	}
 	if live.State == mergedState {
-		return t.cleanupWith(ctx, state, &live, &id)
+		return t.cleanupAfterMerge(ctx, state, &live, &id)
 	}
 	if err := verifyMergeable(live, state); err != nil {
 		return Report{}, err
@@ -434,7 +479,22 @@ func (t *Tool) finishMerge(ctx context.Context, state State, id *identity) (Repo
 	if merged.State != mergedState {
 		return Report{}, fmt.Errorf("%w: state is %s; wait and re-run `mergepr cleanup --state <file>`", errMergeQueued, merged.State)
 	}
-	return t.cleanupWith(ctx, state, &merged, id)
+	return t.cleanupAfterMerge(ctx, state, &merged, id)
+}
+
+// cleanupAfterMerge runs cleanup and, when it fails, reports the confirmed merge
+// commit so an operator can tell a completed merge from a failed one and resume
+// with `mergepr cleanup`.
+func (t *Tool) cleanupAfterMerge(ctx context.Context, state State, merged *mergeView, id *identity) (Report, error) {
+	report, err := t.cleanupWith(ctx, state, merged, id)
+	if err != nil {
+		oid := ""
+		if merged != nil && merged.MergeCommit != nil {
+			oid = merged.MergeCommit.OID
+		}
+		return Report{MergeCommitOID: oid}, fmt.Errorf("%w (merge commit %s): %w", errMergeCleanup, oid, err)
+	}
+	return report, nil
 }
 
 // verifyOpen rejects a PR that drifted from the pinned state while the command

@@ -362,6 +362,19 @@ func TestPrepareRejectsChangedCommand(t *testing.T) {
 	runner.done()
 }
 
+func TestPrepareRejectsWorkDirInWorktree(t *testing.T) {
+	root, err := worktreeRoot()
+	if err != nil {
+		t.Fatalf("worktreeRoot returned error: %v", err)
+	}
+	tool, runner := newTool(t, nil)
+
+	if _, err := tool.Prepare(t.Context(), strconv.Itoa(testPRNumber), filepath.Join(root, "mergepr-work")); !errors.Is(err, errWorkDirInWorktree) {
+		t.Fatalf("Prepare error = %v, want errWorkDirInWorktree", err)
+	}
+	runner.done()
+}
+
 func TestPrepareHappyPath(t *testing.T) {
 	const (
 		logOut  = "abc123 subject\n\nbody\n"
@@ -829,6 +842,38 @@ func TestMergeReportsQueued(t *testing.T) {
 
 	if _, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath); !errors.Is(err, errMergeQueued) {
 		t.Fatalf("Merge error = %v, want errMergeQueued", err)
+	}
+	runner.done()
+}
+
+func TestMergeReportsCleanupFailure(t *testing.T) {
+	dir := t.TempDir()
+	statePath := writeStateFile(t, dir)
+	subjectPath := writeTempFile(t, dir, "subject.txt", "subject line\n")
+	bodyPath := writeTempFile(t, dir, "body.txt", "body text\n")
+
+	steps := mergePreflightSteps()
+	steps = append(steps,
+		ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "main", false, false)),
+		ghStep(checksArgs(), ""),
+		ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "main", false, false)),
+		ghStep(mergeArgs("subject line", "body text\n"), ""),
+		ghStep(mergeViewArgs(), mergeViewOut(mergedState, "feature/foo", testHeadOID, "main", false, true)),
+		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
+		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
+		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main"}, ""),
+		gitStep([]string{"merge-base", "--is-ancestor", testMergeOID, "refs/remotes/origin/main"}, ""),
+		gitStep([]string{"ls-remote", "--heads", testFetchURL, "refs/heads/feature/foo"}, testRemotePresent),
+		commandStep{name: gitCommand, args: []string{"push", "--force-with-lease=refs/heads/feature/foo:" + testHeadOID, testFetchURL, "--delete", "refs/heads/feature/foo"}, err: errors.New("exit status 1")},
+	)
+	tool, runner := newTool(t, steps)
+
+	_, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath)
+	if !errors.Is(err, errMergeCleanup) {
+		t.Fatalf("Merge error = %v, want errMergeCleanup", err)
+	}
+	if !strings.Contains(err.Error(), testMergeOID) {
+		t.Errorf("Merge error %q does not report the merge commit", err)
 	}
 	runner.done()
 }

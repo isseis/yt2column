@@ -32,4 +32,7 @@ var (
 	errBaseNotCurrent     = errors.New("local base branch is not at origin")
 	errToolChanged        = errors.New("the merge tool differs from the PR's base revision")
 	errCommandChanged     = errors.New("the command definition in this checkout differs from main")
+	errMergeCleanup       = errors.New("merge succeeded but cleanup failed")
+	errWorkDirInWorktree  = errors.New("work directory is inside the repository worktree")
+	errNoWorktree         = errors.New("not inside a git worktree")
 )
