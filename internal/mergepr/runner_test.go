@@ -69,6 +69,8 @@ func TestOSRunnerOverridesGitConfig(t *testing.T) {
 
 func TestChildEnvDisablesExecutableConfig(t *testing.T) {
 	t.Setenv("GH_TOKEN", "secret")
+	t.Setenv("GIT_SSH_COMMAND", "!./tracked-ssh")
+	t.Setenv("GIT_ASKPASS", "!./tracked-askpass")
 	env := childEnv()
 
 	if !hasEnv(env, "GH_TOKEN=secret") {
@@ -85,6 +87,14 @@ func TestChildEnvDisablesExecutableConfig(t *testing.T) {
 	}
 	if !hasEnv(env, "GIT_CONFIG_KEY_3=credential.https://github.com.helper") || !hasEnv(env, "GIT_CONFIG_VALUE_3=!gh auth git-credential") {
 		t.Error("git child did not configure gh's credential helper for HTTPS")
+	}
+	if !hasEnv(env, "GIT_CONFIG_KEY_4=maintenance.auto") || !hasEnv(env, "GIT_CONFIG_VALUE_4=false") {
+		t.Error("git child did not disable automatic maintenance")
+	}
+	for _, entry := range env {
+		if strings.HasPrefix(entry, "GIT_SSH_COMMAND=") || strings.HasPrefix(entry, "GIT_ASKPASS=") {
+			t.Errorf("child env kept the command-valued variable %q", entry)
+		}
 	}
 }
 

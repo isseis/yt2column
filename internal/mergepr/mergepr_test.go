@@ -94,13 +94,19 @@ func prepareSteps(logOut, statOut, body string) []commandStep {
 	return steps
 }
 
-func mergePreflightSteps() []commandStep {
-	steps := repoIdentitySteps()
-	return append(steps,
+// cleanupPrereqSteps are the local checks Merge runs both before the CI wait
+// and again before the irreversible merge.
+func cleanupPrereqSteps() []commandStep {
+	return []commandStep{
 		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
 		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
 		baseFreeStep(),
-	)
+	}
+}
+
+func mergePreflightSteps() []commandStep {
+	steps := repoIdentitySteps()
+	return append(steps, cleanupPrereqSteps()...)
 }
 
 // baseFreeStep lists only this worktree, on the head branch, so no other
@@ -386,6 +392,11 @@ func TestAllowedConfig(t *testing.T) {
 		{"core.logallrefupdates", true},
 		{"extensions.worktreeConfig", true},
 		{"user.email", true},
+		{"push.default", true},
+		{"gc.auto", true},
+		{"gc.recentObjectsHook", false},
+		{"push.followTags", false},
+		{"push.pushOption", false},
 		{"remote.origin.uploadpack", false},
 		{"remote.origin.receivepack", false},
 		{"credential.helper", false},
@@ -408,7 +419,8 @@ func TestAllowedConfig(t *testing.T) {
 }
 
 func TestPrepareRejectsUnsupportedWorktreeConfig(t *testing.T) {
-	for _, value := range []string{"true", "yes", "on", "1"} {
+	// The empty string is a valueless key, which git treats as true.
+	for _, value := range []string{"", "true", "yes", "on", "1"} {
 		t.Run(value, func(t *testing.T) {
 			steps := []commandStep{
 				gitStep([]string{"config", "--local", "--null", "--includes", "--list"}, "extensions.worktreeConfig\n"+value+"\x00"),
@@ -839,6 +851,9 @@ func TestMergeHappyPath(t *testing.T) {
 		ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "main", false, false)),
 		ghStep(checksArgs(), ""),
 		ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "main", false, false)),
+	)
+	steps = append(steps, cleanupPrereqSteps()...)
+	steps = append(steps,
 		ghStep(mergeArgs("subject line", "body text\n"), ""),
 		mergedViewStep(),
 	)
@@ -1007,6 +1022,9 @@ func TestMergeReportsQueued(t *testing.T) {
 		ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "main", false, false)),
 		ghStep(checksArgs(), ""),
 		ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "main", false, false)),
+	)
+	steps = append(steps, cleanupPrereqSteps()...)
+	steps = append(steps,
 		ghStep(mergeArgs("subject line", "body text\n"), ""),
 		ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "main", false, false)),
 	)
@@ -1029,6 +1047,9 @@ func TestMergeReportsCleanupFailure(t *testing.T) {
 		ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "main", false, false)),
 		ghStep(checksArgs(), ""),
 		ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "main", false, false)),
+	)
+	steps = append(steps, cleanupPrereqSteps()...)
+	steps = append(steps,
 		ghStep(mergeArgs("subject line", "body text\n"), ""),
 		ghStep(mergeViewArgs(), mergeViewOut(mergedState, "feature/foo", testHeadOID, "main", false, true)),
 		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
@@ -1047,6 +1068,63 @@ func TestMergeReportsCleanupFailure(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), testMergeOID) {
 		t.Errorf("Merge error %q does not report the merge commit", err)
+	}
+	runner.done()
+}
+
+func TestMergeReconcilesLostResponse(t *testing.T) {
+	dir := t.TempDir()
+	statePath := writeStateFile(t, dir)
+	subjectPath := writeTempFile(t, dir, "subject.txt", "reconciled subject\n")
+	bodyPath := writeTempFile(t, dir, "body.txt", "reconciled body\n")
+
+	steps := mergePreflightSteps()
+	steps = append(steps,
+		ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "main", false, false)),
+		ghStep(checksArgs(), ""),
+		ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "main", false, false)),
+	)
+	steps = append(steps, cleanupPrereqSteps()...)
+	// The merge command reports a failure but the PR is in fact merged.
+	steps = append(steps,
+		commandStep{name: ghCommand, args: mergeArgs("reconciled subject", "reconciled body\n"), err: errors.New("exit status 1")},
+		mergedViewStep(),
+	)
+	steps = append(steps, cleanupSteps(testRemotePresent, testHeadOID)...)
+	tool, runner := newTool(t, steps)
+
+	report, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath)
+	if err != nil {
+		t.Fatalf("Merge returned error: %v", err)
+	}
+	runner.done()
+	if report.MergeCommitOID != testMergeOID {
+		t.Errorf("MergeCommitOID = %q, want %q", report.MergeCommitOID, testMergeOID)
+	}
+}
+
+func TestMergeReportsGenuineFailure(t *testing.T) {
+	dir := t.TempDir()
+	statePath := writeStateFile(t, dir)
+	subjectPath := writeTempFile(t, dir, "subject.txt", "failed subject\n")
+	bodyPath := writeTempFile(t, dir, "body.txt", "failed body\n")
+
+	steps := mergePreflightSteps()
+	steps = append(steps,
+		ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "main", false, false)),
+		ghStep(checksArgs(), ""),
+		ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "main", false, false)),
+	)
+	steps = append(steps, cleanupPrereqSteps()...)
+	steps = append(steps,
+		commandStep{name: ghCommand, args: mergeArgs("failed subject", "failed body\n"), err: errors.New("exit status 1")},
+		ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "main", false, false)),
+	)
+	tool, runner := newTool(t, steps)
+
+	_, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath)
+	if err == nil || !strings.Contains(err.Error(), "merge PR") {
+		t.Fatalf("Merge error = %v, want a merge PR failure", err)
 	}
 	runner.done()
 }

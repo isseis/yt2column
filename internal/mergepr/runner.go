@@ -27,11 +27,15 @@ const (
 // gh. Following docs/dev/security.md's child-process rule, it deliberately
 // omits unrelated secrets in the developer's environment (DEEPSEEK_API_KEY,
 // SLACK_WEBHOOK_URL, ...) while keeping what git, ssh, and gh need to find
-// their configuration and authenticate.
+// their configuration and authenticate. Command-valued variables (GIT_SSH,
+// GIT_SSH_COMMAND, GIT_ASKPASS, SSH_ASKPASS) are omitted: each names a program
+// git or ssh would execute, so inheriting one from the developer's environment
+// lets it run inside this workflow. SSH_AUTH_SOCK and SSH_AGENT_PID stay,
+// because an agent socket carries no command of its own.
 var allowedEnvVars = []string{
 	"PATH", "HOME", "TMPDIR",
 	"SSH_AUTH_SOCK", "SSH_AGENT_PID",
-	"GIT_SSH", "GIT_SSH_COMMAND", "GIT_ASKPASS", "SSH_ASKPASS", "GIT_TERMINAL_PROMPT",
+	"GIT_TERMINAL_PROMPT",
 	"GH_HOST", "GH_CONFIG_DIR",
 	"XDG_CONFIG_HOME", "XDG_CACHE_HOME",
 	"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY",
@@ -122,7 +126,7 @@ func childEnv() []string {
 		"GIT_CONFIG_GLOBAL=/dev/null",
 		"GIT_CONFIG_SYSTEM=/dev/null",
 		"GIT_CONFIG_NOSYSTEM=1",
-		"GIT_CONFIG_COUNT=4",
+		"GIT_CONFIG_COUNT=5",
 		"GIT_CONFIG_KEY_0=core.hooksPath",
 		"GIT_CONFIG_VALUE_0=/dev/null",
 		"GIT_CONFIG_KEY_1=core.fsmonitor",
@@ -131,6 +135,10 @@ func childEnv() []string {
 		"GIT_CONFIG_VALUE_2=",
 		"GIT_CONFIG_KEY_3=credential.https://github.com.helper",
 		"GIT_CONFIG_VALUE_3=!gh auth git-credential",
+		// Disable automatic maintenance so a repository-local executable hook
+		// such as gc.recentObjectsHook cannot run during a fetch.
+		"GIT_CONFIG_KEY_4=maintenance.auto",
+		"GIT_CONFIG_VALUE_4=false",
 	)
 	for _, key := range []string{"GH_TOKEN", "GITHUB_TOKEN"} {
 		if value, ok := os.LookupEnv(key); ok {

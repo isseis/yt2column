@@ -499,7 +499,22 @@ func (t *Tool) Merge(ctx context.Context, statePath, subjectPath, bodyPath strin
 	if err := verifyMergeable(after, state); err != nil {
 		return Report{}, err
 	}
+	// The CI wait can be long, so re-check the local prerequisites that a
+	// concurrent change could have invalidated before the irreversible merge.
+	if err := t.requireCleanWorktree(ctx); err != nil {
+		return Report{}, err
+	}
+	if err := t.requireBaseSwitchable(ctx, state.BaseRefName); err != nil {
+		return Report{}, err
+	}
 	if _, err := t.command(ctx, commandTimeout, ghCommand, "pr", "merge", strconv.Itoa(state.Number), "--squash", "--subject", subject, "--body", body, "--match-head-commit", state.HeadRefOID, repoFlag, state.repo()); err != nil {
+		// The merge may have completed even though the response was lost, so
+		// re-read the state and run cleanup instead of reporting a failure that
+		// leaves a merged PR unrecorded.
+		merged, viewErr := t.fetchMergeView(ctx, state)
+		if viewErr == nil && merged.State == mergedState {
+			return t.cleanupAfterMerge(ctx, state, &merged, &id)
+		}
 		return Report{}, fmt.Errorf("merge PR: %w", err)
 	}
 	return t.finishMerge(ctx, state, &id)
@@ -1111,7 +1126,9 @@ func (t *Tool) requireSupportedConfig(ctx context.Context) error {
 		if key == "" {
 			continue
 		}
-		if strings.EqualFold(key, "extensions.worktreeconfig") && gitBoolTrue(value) {
+		// Git treats a valueless key as true, and accepts "true", "yes", "on",
+		// and "1"; only an explicit false-ish value disables the extension.
+		if strings.EqualFold(key, "extensions.worktreeconfig") && (value == "" || gitBoolTrue(value)) {
 			worktree = true
 		}
 		if !allowedConfig(key) {
@@ -1177,13 +1194,18 @@ func allowedConfig(key string) bool {
 		// uploadpack/receivepack name a program git runs for the remote.
 		return !strings.HasSuffix(key, ".uploadpack") && !strings.HasSuffix(key, ".receivepack") &&
 			!strings.HasSuffix(key, ".vcs") && !strings.HasSuffix(key, ".proxy")
+	case strings.HasPrefix(key, "gc."):
+		// recentObjectsHook names a program git runs during maintenance.
+		return key != "gc.recentobjectshook"
+	case strings.HasPrefix(key, "push."):
+		// followTags would make the branch-deletion push also push tags, and
+		// pushOption could inject --follow-tags into the same push.
+		return key != "push.followtags" && key != "push.pushoption"
 	case strings.HasPrefix(key, "branch."),
 		strings.HasPrefix(key, "extensions."),
 		strings.HasPrefix(key, "index."),
-		strings.HasPrefix(key, "gc."),
 		strings.HasPrefix(key, "fetch."),
 		strings.HasPrefix(key, "pull."),
-		strings.HasPrefix(key, "push."),
 		strings.HasPrefix(key, "status."),
 		strings.HasPrefix(key, "commit."),
 		strings.HasPrefix(key, "tag."),
