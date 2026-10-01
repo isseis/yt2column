@@ -536,6 +536,12 @@ func (t *Tool) Merge(ctx context.Context, statePath, subjectPath, bodyPath strin
 	if err := t.requireBaseSwitchable(ctx, state.BaseRefName); err != nil {
 		return Report{}, err
 	}
+	// A local base that is ahead of or diverged from origin/<base> would make
+	// updateBase's fast-forward fail only after the merge and remote deletion,
+	// so require it to be fast-forwardable before the irreversible merge.
+	if err := t.requireBaseFastForwardable(ctx, id, state); err != nil {
+		return Report{}, err
+	}
 	if _, err := t.command(ctx, commandTimeout, ghCommand, "pr", "merge", strconv.Itoa(state.Number), "--squash", "--subject", subject, "--body", body, "--match-head-commit", state.HeadRefOID, repoFlag, state.repo()); err != nil {
 		// The merge may have completed even though the response was lost, so
 		// re-read the state and run cleanup instead of reporting a failure that
@@ -1103,6 +1109,27 @@ func (t *Tool) localHeadOID(ctx context.Context, name string) (string, error) {
 		}
 	}
 	return "", nil
+}
+
+// requireBaseFastForwardable fetches the base and requires the local base
+// branch to be absent or an ancestor of the freshly fetched remote base, so the
+// cleanup fast-forward cannot fail after the merge and remote deletion.
+func (t *Tool) requireBaseFastForwardable(ctx context.Context, id identity, state State) error {
+	baseRef := originRefs + state.BaseRefName
+	if _, err := t.command(ctx, commandTimeout, gitCommand, "fetch", id.FetchURL, "+"+refsHeads+state.BaseRefName+":"+baseRef); err != nil {
+		return fmt.Errorf("fetch base branch: %w", err)
+	}
+	localOID, err := t.localHeadOID(ctx, state.BaseRefName)
+	if err != nil {
+		return err
+	}
+	if localOID == "" {
+		return nil
+	}
+	if _, err := t.command(ctx, commandTimeout, gitCommand, "merge-base", "--is-ancestor", localOID, baseRef); err != nil {
+		return fmt.Errorf("%w: local %s is not an ancestor of %s", errBaseNotCurrent, state.BaseRefName, baseRef)
+	}
+	return nil
 }
 
 func (t *Tool) requireBaseCurrent(ctx context.Context, baseRef string) error {

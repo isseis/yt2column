@@ -28,10 +28,28 @@ func newTool(t testing.TB, steps []commandStep) (*Tool, *fakeRunner) {
 }
 
 func headRefOut(oid string) string {
+	return refOut("feature/foo", oid)
+}
+
+func baseRefOut(oid string) string {
+	return refOut("main", oid)
+}
+
+func refOut(name, oid string) string {
 	if oid == "" {
 		return ""
 	}
-	return "refs/heads/feature/foo " + oid + "\n"
+	return "refs/heads/" + name + " " + oid + "\n"
+}
+
+// baseFastForwardSteps is the pre-merge check that the local base is an
+// ancestor of the freshly fetched remote base.
+func baseFastForwardSteps() []commandStep {
+	return []commandStep{
+		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main"}, ""),
+		gitStep([]string{"for-each-ref", "--format=%(refname) %(objectname)", "refs/heads/main"}, baseRefOut(testBaseOID)),
+		gitStep([]string{"merge-base", "--is-ancestor", testBaseOID, "refs/remotes/origin/main"}, ""),
+	}
 }
 
 func repoIdentitySteps() []commandStep {
@@ -923,6 +941,7 @@ func TestMergeHappyPath(t *testing.T) {
 		ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "main", false, false)),
 	)
 	steps = append(steps, cleanupPrereqSteps()...)
+	steps = append(steps, baseFastForwardSteps()...)
 	steps = append(steps,
 		ghStep(mergeArgs("subject line", "body text\n"), ""),
 		mergedViewStep(),
@@ -1026,6 +1045,32 @@ func TestMergeRejectsBaseDrift(t *testing.T) {
 	runner.done()
 }
 
+func TestMergeRejectsBaseAhead(t *testing.T) {
+	dir := t.TempDir()
+	statePath := writeStateFile(t, dir)
+	subjectPath := writeTempFile(t, dir, "subject.txt", "subject line\n")
+	bodyPath := writeTempFile(t, dir, "body.txt", "body\n")
+
+	steps := mergePreflightSteps()
+	steps = append(steps,
+		ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "main", false, false)),
+		ghStep(checksArgs(), ""),
+		ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "main", false, false)),
+	)
+	steps = append(steps, cleanupPrereqSteps()...)
+	steps = append(steps,
+		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main"}, ""),
+		gitStep([]string{"for-each-ref", "--format=%(refname) %(objectname)", "refs/heads/main"}, baseRefOut(testOtherOID)),
+		commandStep{name: gitCommand, args: []string{"merge-base", "--is-ancestor", testOtherOID, "refs/remotes/origin/main"}, err: errors.New("exit status 1")},
+	)
+	tool, runner := newTool(t, steps)
+
+	if _, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath); !errors.Is(err, errBaseNotCurrent) {
+		t.Fatalf("Merge error = %v, want errBaseNotCurrent", err)
+	}
+	runner.done()
+}
+
 func TestMergeRejectsDriftAfterChecks(t *testing.T) {
 	dir := t.TempDir()
 	statePath := writeStateFile(t, dir)
@@ -1094,6 +1139,7 @@ func TestMergeReportsQueued(t *testing.T) {
 		ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "main", false, false)),
 	)
 	steps = append(steps, cleanupPrereqSteps()...)
+	steps = append(steps, baseFastForwardSteps()...)
 	steps = append(steps,
 		ghStep(mergeArgs("subject line", "body text\n"), ""),
 		ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "main", false, false)),
@@ -1119,6 +1165,7 @@ func TestMergeReportsCleanupFailure(t *testing.T) {
 		ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "main", false, false)),
 	)
 	steps = append(steps, cleanupPrereqSteps()...)
+	steps = append(steps, baseFastForwardSteps()...)
 	steps = append(steps,
 		ghStep(mergeArgs("subject line", "body text\n"), ""),
 		ghStep(mergeViewArgs(), mergeViewOut(mergedState, "feature/foo", testHeadOID, "main", false, true)),
@@ -1155,6 +1202,7 @@ func TestMergeReconcilesLostResponse(t *testing.T) {
 		ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "main", false, false)),
 	)
 	steps = append(steps, cleanupPrereqSteps()...)
+	steps = append(steps, baseFastForwardSteps()...)
 	// The merge command reports a failure but the PR is in fact merged.
 	steps = append(steps,
 		commandStep{name: ghCommand, args: mergeArgs("reconciled subject", "reconciled body\n"), err: errors.New("exit status 1")},
@@ -1186,6 +1234,7 @@ func TestMergeReportsGenuineFailure(t *testing.T) {
 		ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "main", false, false)),
 	)
 	steps = append(steps, cleanupPrereqSteps()...)
+	steps = append(steps, baseFastForwardSteps()...)
 	steps = append(steps,
 		commandStep{name: ghCommand, args: mergeArgs("failed subject", "failed body\n"), err: errors.New("exit status 1")},
 		ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "main", false, false)),
