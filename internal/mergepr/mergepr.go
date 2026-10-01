@@ -175,15 +175,22 @@ func (t *Tool) Prepare(ctx context.Context, prArg, workDir string) (Prepared, er
 		}
 		workDir = dir
 		created = true
-	} else if err := requireOutsideWorktree(workDir); err != nil {
-		// A directory inside the checkout would make the files Prepare writes
-		// dirty the worktree, so Merge's clean-worktree recheck would reject the
-		// state Prepare just produced.
+	}
+	// A directory inside the checkout, including one MkdirTemp created under an
+	// in-repo TMPDIR, would make the files Prepare writes dirty the worktree, so
+	// Merge's clean-worktree recheck would reject the state Prepare produced.
+	if err := requireOutsideWorktree(workDir); err != nil {
+		if created {
+			_ = os.RemoveAll(workDir)
+		}
 		return Prepared{}, err
-	} else if err := os.MkdirAll(workDir, workDirMode); err != nil {
+	}
+	if !created {
 		// Create a named directory now, not after the CI wait, so writing the
 		// prepared files cannot be the step that fails.
-		return Prepared{}, fmt.Errorf("create work directory: %w", err)
+		if err := os.MkdirAll(workDir, workDirMode); err != nil {
+			return Prepared{}, fmt.Errorf("create work directory: %w", err)
+		}
 	}
 	prepared, err := t.prepare(ctx, prArg, workDir)
 	if err != nil {
@@ -1104,7 +1111,7 @@ func (t *Tool) requireSupportedConfig(ctx context.Context) error {
 		if key == "" {
 			continue
 		}
-		if strings.EqualFold(key, "extensions.worktreeconfig") && strings.EqualFold(value, "true") {
+		if strings.EqualFold(key, "extensions.worktreeconfig") && gitBoolTrue(value) {
 			worktree = true
 		}
 		if !allowedConfig(key) {
@@ -1192,6 +1199,16 @@ func allowedConfig(key string) bool {
 func configSection(key string) string {
 	section, _, _ := strings.Cut(key, ".")
 	return section
+}
+
+// gitBoolTrue reports whether a git boolean value is true: git accepts "true",
+// "yes", "on", and "1", case-insensitively.
+func gitBoolTrue(value string) bool {
+	switch strings.ToLower(value) {
+	case "true", "yes", "on", "1":
+		return true
+	}
+	return false
 }
 
 // sameRepo reports whether two GitHub owner/repo pairs name the same

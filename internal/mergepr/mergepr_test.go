@@ -408,14 +408,38 @@ func TestAllowedConfig(t *testing.T) {
 }
 
 func TestPrepareRejectsUnsupportedWorktreeConfig(t *testing.T) {
-	steps := []commandStep{
-		gitStep([]string{"config", "--local", "--null", "--includes", "--list"}, "extensions.worktreeConfig\ntrue\x00"),
-		gitStep([]string{"config", "--worktree", "--null", "--list"}, "core.sshCommand\n!./tracked\x00"),
-	}
-	tool, runner := newTool(t, steps)
+	for _, value := range []string{"true", "yes", "on", "1"} {
+		t.Run(value, func(t *testing.T) {
+			steps := []commandStep{
+				gitStep([]string{"config", "--local", "--null", "--includes", "--list"}, "extensions.worktreeConfig\n"+value+"\x00"),
+				gitStep([]string{"config", "--worktree", "--null", "--list"}, "core.sshCommand\n!./tracked\x00"),
+			}
+			tool, runner := newTool(t, steps)
 
-	if _, err := tool.Prepare(t.Context(), strconv.Itoa(testPRNumber), t.TempDir()); !errors.Is(err, errUnsupportedConfig) {
-		t.Fatalf("Prepare error = %v, want errUnsupportedConfig", err)
+			if _, err := tool.Prepare(t.Context(), strconv.Itoa(testPRNumber), t.TempDir()); !errors.Is(err, errUnsupportedConfig) {
+				t.Fatalf("Prepare error = %v, want errUnsupportedConfig", err)
+			}
+			runner.done()
+		})
+	}
+}
+
+func TestPrepareRejectsTempDirInsideWorktree(t *testing.T) {
+	root, err := worktreeRoot()
+	if err != nil {
+		t.Fatalf("worktreeRoot returned error: %v", err)
+	}
+	t.Setenv("TMPDIR", root)
+	t.Cleanup(func() {
+		leftovers, _ := filepath.Glob(filepath.Join(root, "mergepr-*"))
+		for _, path := range leftovers {
+			_ = os.RemoveAll(path)
+		}
+	})
+	tool, runner := newTool(t, nil)
+
+	if _, err := tool.Prepare(t.Context(), strconv.Itoa(testPRNumber), ""); !errors.Is(err, errWorkDirInWorktree) {
+		t.Fatalf("Prepare error = %v, want errWorkDirInWorktree", err)
 	}
 	runner.done()
 }
