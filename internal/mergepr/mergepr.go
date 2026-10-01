@@ -1225,6 +1225,9 @@ func (t *Tool) requireBaseFastForwardable(ctx context.Context, id identity, stat
 	if state.BaseRefOID != "" && fetched != state.BaseRefOID {
 		return fmt.Errorf("%w: base moved from %s to %s", errBaseRePin, state.BaseRefOID, fetched)
 	}
+	if err := t.requireNoIgnoredCollision(ctx, baseRef); err != nil {
+		return err
+	}
 	localOID, err := t.localHeadOID(ctx, state.BaseRefName)
 	if err != nil {
 		return err
@@ -1234,6 +1237,33 @@ func (t *Tool) requireBaseFastForwardable(ctx context.Context, id identity, stat
 	}
 	if _, err := t.command(ctx, commandTimeout, gitCommand, "merge-base", "--is-ancestor", localOID, baseRef); err != nil {
 		return fmt.Errorf("%w: local %s is not an ancestor of %s", errBaseNotCurrent, state.BaseRefName, baseRef)
+	}
+	return nil
+}
+
+// requireNoIgnoredCollision rejects a worktree whose ignored files include a
+// path the base tracks, because the cleanup switch uses --no-overwrite-ignore
+// and would abort only after the merge and remote deletion.
+func (t *Tool) requireNoIgnoredCollision(ctx context.Context, baseRef string) error {
+	ignored, err := t.command(ctx, commandTimeout, gitCommand, "ls-files", "--others", "--ignored", "--exclude-standard")
+	if err != nil {
+		return fmt.Errorf("list ignored files: %w", err)
+	}
+	tracked, err := t.command(ctx, commandTimeout, gitCommand, "ls-tree", "-r", "--name-only", baseRef)
+	if err != nil {
+		return fmt.Errorf("list base files: %w", err)
+	}
+	base := make(map[string]struct{})
+	for line := range strings.Lines(string(tracked)) {
+		if path := strings.TrimSpace(line); path != "" {
+			base[path] = struct{}{}
+		}
+	}
+	for line := range strings.Lines(string(ignored)) {
+		path := strings.TrimSpace(line)
+		if _, ok := base[path]; ok {
+			return fmt.Errorf("%w: %s", errIgnoredCollision, path)
+		}
 	}
 	return nil
 }

@@ -53,6 +53,8 @@ func baseFastForwardSteps() []commandStep {
 	return []commandStep{
 		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main"}, ""),
 		gitStep([]string{"rev-parse", "refs/remotes/origin/main"}, testBaseOID+"\n"),
+		gitStep([]string{"ls-files", "--others", "--ignored", "--exclude-standard"}, ""),
+		gitStep([]string{"ls-tree", "-r", "--name-only", "refs/remotes/origin/main"}, ""),
 		gitStep([]string{"for-each-ref", "--format=%(refname) %(objectname)", "refs/heads/main"}, baseRefOut(testBaseOID)),
 		gitStep([]string{"merge-base", "--is-ancestor", testBaseOID, "refs/remotes/origin/main"}, ""),
 	}
@@ -1134,6 +1136,8 @@ func TestMergeRejectsBaseAhead(t *testing.T) {
 	steps = append(steps,
 		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main"}, ""),
 		gitStep([]string{"rev-parse", "refs/remotes/origin/main"}, testBaseOID+"\n"),
+		gitStep([]string{"ls-files", "--others", "--ignored", "--exclude-standard"}, ""),
+		gitStep([]string{"ls-tree", "-r", "--name-only", "refs/remotes/origin/main"}, ""),
 		gitStep([]string{"for-each-ref", "--format=%(refname) %(objectname)", "refs/heads/main"}, baseRefOut(testOtherOID)),
 		commandStep{name: gitCommand, args: []string{"merge-base", "--is-ancestor", testOtherOID, "refs/remotes/origin/main"}, err: errors.New("exit status 1")},
 	)
@@ -1166,6 +1170,33 @@ func TestMergeRejectsBaseRePin(t *testing.T) {
 
 	if _, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath); !errors.Is(err, errBaseRePin) {
 		t.Fatalf("Merge error = %v, want errBaseRePin", err)
+	}
+	runner.done()
+}
+
+func TestMergeRejectsIgnoredCollision(t *testing.T) {
+	dir := t.TempDir()
+	statePath := writeStateFile(t, dir)
+	subjectPath := writeTempFile(t, dir, "subject.txt", "subject line\n")
+	bodyPath := writeTempFile(t, dir, "body.txt", "body\n")
+
+	steps := mergePreflightSteps()
+	steps = append(steps,
+		ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "main", false, false)),
+		ghStep(checksArgs(), ""),
+		ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "main", false, false)),
+	)
+	steps = append(steps, cleanupPrereqSteps()...)
+	steps = append(steps,
+		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main"}, ""),
+		gitStep([]string{"rev-parse", "refs/remotes/origin/main"}, testBaseOID+"\n"),
+		gitStep([]string{"ls-files", "--others", "--ignored", "--exclude-standard"}, "collide.txt\n"),
+		gitStep([]string{"ls-tree", "-r", "--name-only", "refs/remotes/origin/main"}, "collide.txt\n"),
+	)
+	tool, runner := newTool(t, steps)
+
+	if _, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath); !errors.Is(err, errIgnoredCollision) {
+		t.Fatalf("Merge error = %v, want errIgnoredCollision", err)
 	}
 	runner.done()
 }

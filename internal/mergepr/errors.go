@@ -39,5 +39,6 @@ var (
 	errNoWorktree         = errors.New("not inside a git worktree")
 	errToolNotFound       = errors.New("command not found on the trusted PATH")
 	errBaseRePin          = errors.New("the base branch moved since prepare; run prepare again")
+	errIgnoredCollision   = errors.New("an ignored file collides with a base-tracked path")
 	errBinaryStale        = errors.New("the mergepr binary is not the current main revision")
 )
