@@ -28,4 +28,5 @@ var (
 	errLocalBranchDrift   = errors.New("local head branch moved")
 	errBranchCheckedOut   = errors.New("local head branch is checked out in another worktree")
 	errBaseNotCurrent     = errors.New("local base branch is not at origin")
+	errToolChanged        = errors.New("the merge tool differs from the PR's base revision")
 )

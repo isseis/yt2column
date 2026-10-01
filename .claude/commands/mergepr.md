@@ -16,7 +16,9 @@ merge and cleanup. Do not reimplement its steps as shell commands; if it stops,
 report its error instead of working around it. Work in order; do not skip a step.
 
 1. **Prepare.** Run `go run ./cmd/mergepr prepare -- $ARGUMENTS` (no argument
-   uses the current branch's PR). It verifies that `origin`'s fetch and push URLs
+   uses the current branch's PR). It first stops unless the tool's own source
+   matches the PR's base revision, so a PR that edits the tool cannot merge
+   itself. It then verifies that `origin`'s fetch and push URLs
    and the repository `gh` selects name the same repository, that the PR is open
    and same-repository, that the head and base names are safe to pass to git,
    that the worktree is clean and any local head branch matches `headRefOid`,

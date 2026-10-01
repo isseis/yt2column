@@ -188,11 +188,28 @@ func (t *Tool) prepare(ctx context.Context, prArg, workDir string) (Prepared, er
 	if err != nil {
 		return Prepared{}, err
 	}
+	if err := t.requireToolUnchanged(ctx, id, pr.BaseRefName); err != nil {
+		return Prepared{}, err
+	}
 	logOut, statOut, bodyOut, err := t.draftingMaterial(ctx, id, pr)
 	if err != nil {
 		return Prepared{}, err
 	}
 	return writePrepared(workDir, id, pr, logOut, statOut, bodyOut)
+}
+
+// requireToolUnchanged refuses to run when the tool's own source differs from
+// the PR's base revision. It runs from the working tree, so a PR that edits the
+// tool would otherwise execute unreviewed code; this is a defense in depth, not
+// a sandbox, because a tool that lies about its revision bypasses it.
+func (t *Tool) requireToolUnchanged(ctx context.Context, id identity, base string) error {
+	if _, err := t.command(ctx, commandTimeout, gitCommand, "fetch", id.FetchURL, "+"+refsHeads+base+":"+originRefs+base); err != nil {
+		return fmt.Errorf("fetch base for tool check: %w", err)
+	}
+	if _, err := t.command(ctx, commandTimeout, gitCommand, "diff", "--quiet", originRefs+base, "--", "cmd/mergepr", "internal/mergepr"); err != nil {
+		return errToolChanged
+	}
+	return nil
 }
 
 // resolvePR verifies everything about the PR itself before any network
@@ -318,8 +335,11 @@ func (t *Tool) Merge(ctx context.Context, statePath, subjectPath, bodyPath strin
 	if err != nil {
 		return Report{}, err
 	}
-	if _, err := os.Stat(bodyPath); err != nil {
-		return Report{}, fmt.Errorf("read body file: %w", err)
+	// Pin the approved body now: the CI wait below is long enough for the file
+	// to change before the merge reads it.
+	body, err := readBody(bodyPath)
+	if err != nil {
+		return Report{}, err
 	}
 	id, err := t.requireIdentity(ctx, state)
 	if err != nil {
@@ -357,7 +377,7 @@ func (t *Tool) Merge(ctx context.Context, statePath, subjectPath, bodyPath strin
 	if err := verifyMergeable(after, state); err != nil {
 		return Report{}, err
 	}
-	if _, err := t.command(ctx, commandTimeout, ghCommand, "pr", "merge", strconv.Itoa(state.Number), "--squash", "--subject", subject, "--body-file", bodyPath, "--match-head-commit", state.HeadRefOID, repoFlag, state.repo()); err != nil {
+	if _, err := t.command(ctx, commandTimeout, ghCommand, "pr", "merge", strconv.Itoa(state.Number), "--squash", "--subject", subject, "--body", body, "--match-head-commit", state.HeadRefOID, repoFlag, state.repo()); err != nil {
 		return Report{}, fmt.Errorf("merge PR: %w", err)
 	}
 	return t.finishMerge(ctx, state, &id)
@@ -371,7 +391,7 @@ func (t *Tool) requireIdentity(ctx context.Context, state State) (identity, erro
 	if err != nil {
 		return identity{}, err
 	}
-	if id.Owner != state.Owner || id.Repo != state.Repo {
+	if !sameRepo(id.Owner, id.Repo, state.Owner, state.Repo) {
 		return identity{}, errRepoMismatch
 	}
 	return id, nil
@@ -478,7 +498,7 @@ func (t *Tool) cleanupWith(ctx context.Context, state State, live *mergeView, id
 		}
 		id = &resolved
 	}
-	if id.Owner != state.Owner || id.Repo != state.Repo {
+	if !sameRepo(id.Owner, id.Repo, state.Owner, state.Repo) {
 		return Report{}, errRepoMismatch
 	}
 	if err := t.requireCleanWorktree(ctx); err != nil {
@@ -525,6 +545,16 @@ func (t *Tool) deleteRemoteBranch(ctx context.Context, id identity, state State)
 	}
 	if strings.TrimSpace(string(out)) == "" {
 		return false, nil
+	}
+	// git rewrites explicit push URLs through url.*.insteadOf too, so confirm
+	// the effective destination immediately before the deletion.
+	effective, err := t.command(ctx, commandTimeout, gitCommand, "ls-remote", "--get-url", id.PushURL)
+	if err != nil {
+		return false, fmt.Errorf("resolve effective push URL: %w", err)
+	}
+	effectiveOwner, effectiveRepo, err := parseGitHubRemote(strings.TrimSpace(string(effective)))
+	if err != nil || !sameRepo(effectiveOwner, effectiveRepo, id.Owner, id.Repo) {
+		return false, errRepoMismatch
 	}
 	lease := "--force-with-lease=" + headRef + ":" + state.HeadRefOID
 	if _, err := t.command(ctx, commandTimeout, gitCommand, "push", lease, id.PushURL, "--delete", headRef); err != nil {
@@ -626,7 +656,7 @@ func (t *Tool) repoIdentity(ctx context.Context) (identity, error) {
 			continue
 		}
 		owner, repo, err := parseGitHubRemote(line)
-		if err != nil || owner != fetchOwner || repo != fetchRepo {
+		if err != nil || !sameRepo(owner, repo, fetchOwner, fetchRepo) {
 			return identity{}, errRemoteMismatch
 		}
 		if pinnedPush == "" {
@@ -648,7 +678,7 @@ func (t *Tool) repoIdentity(ctx context.Context) (identity, error) {
 		return identity{}, fmt.Errorf("parse repository gh selects: %w", err)
 	}
 	selectedOwner, selectedRepo, err := parseGitHubRemote(view.URL)
-	if err != nil || view.NameWithOwner != fetchOwner+"/"+fetchRepo || selectedOwner != fetchOwner || selectedRepo != fetchRepo {
+	if err != nil || !strings.EqualFold(view.NameWithOwner, fetchOwner+"/"+fetchRepo) || !sameRepo(selectedOwner, selectedRepo, fetchOwner, fetchRepo) {
 		return identity{}, fmt.Errorf("%w: gh selects %q", errRepoMismatch, view.NameWithOwner)
 	}
 	return identity{Owner: fetchOwner, Repo: fetchRepo, FetchURL: fetch, PushURL: pinnedPush}, nil
@@ -721,7 +751,7 @@ func parsePRArg(arg, owner, repo string) (int, bool, error) {
 	if err != nil || number <= 0 {
 		return 0, false, fmt.Errorf("%w: %q", errInvalidPRArg, arg)
 	}
-	if parts[0] != owner || parts[1] != repo {
+	if !sameRepo(parts[0], parts[1], owner, repo) {
 		return 0, false, fmt.Errorf("%w: URL names %s/%s, origin is %s/%s", errInvalidPRArg, parts[0], parts[1], owner, repo)
 	}
 	return number, false, nil
@@ -849,6 +879,26 @@ func (t *Tool) requireBaseCurrent(ctx context.Context, baseRef string) error {
 		return fmt.Errorf("%w: local base has commits origin lacks (%w)", errBaseNotCurrent, err)
 	}
 	return fmt.Errorf("%w:\n%s", errBaseNotCurrent, strings.TrimSpace(string(commits)))
+}
+
+// readBody reads and bounds the squash body. It is read before the CI wait and
+// passed to gh directly, so a file changed during the wait cannot alter the
+// approved commit message.
+func readBody(path string) (string, error) {
+	data, err := os.ReadFile(path) //nolint:gosec // an operator-supplied path, not untrusted content
+	if err != nil {
+		return "", fmt.Errorf("read body file: %w", err)
+	}
+	if len(data) > maxBodyBytes {
+		return "", fmt.Errorf("%w: body is %d bytes, limit %d", errTooLarge, len(data), maxBodyBytes)
+	}
+	return string(data), nil
+}
+
+// sameRepo reports whether two GitHub owner/repo pairs name the same
+// repository, which GitHub treats case-insensitively.
+func sameRepo(ownerA, repoA, ownerB, repoB string) bool {
+	return strings.EqualFold(ownerA, ownerB) && strings.EqualFold(repoA, repoB)
 }
 
 func readSubject(path string) (string, error) {
