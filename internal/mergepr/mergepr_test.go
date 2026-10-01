@@ -362,6 +362,31 @@ func TestPrepareRejectsChangedCommand(t *testing.T) {
 	runner.done()
 }
 
+func TestUnsupportedConfigRule(t *testing.T) {
+	cases := []struct {
+		key  string
+		want bool
+	}{
+		{"includeIf.onbranch:main.path", true},
+		{"url.git@github.com:.insteadOf", true},
+		{"url.https://github.com/.pushInsteadOf", true},
+		{"credential.helper", true},
+		{"credential.https://github.com.helper", true},
+		{"core.sshCommand", true},
+		{"diff.external", true},
+		{"diff.mydriver.textconv", true},
+		{"diff.mydriver.command", true},
+		{"core.pager", false},
+		{"remote.origin.url", false},
+		{"user.email", false},
+	}
+	for _, tc := range cases {
+		if got := unsupportedConfigRule(tc.key) != ""; got != tc.want {
+			t.Errorf("unsupportedConfigRule(%q) rejected = %t, want %t", tc.key, got, tc.want)
+		}
+	}
+}
+
 func TestPrepareRejectsWorkDirInWorktree(t *testing.T) {
 	root, err := worktreeRoot()
 	if err != nil {
@@ -370,6 +395,23 @@ func TestPrepareRejectsWorkDirInWorktree(t *testing.T) {
 	tool, runner := newTool(t, nil)
 
 	if _, err := tool.Prepare(t.Context(), strconv.Itoa(testPRNumber), filepath.Join(root, "mergepr-work")); !errors.Is(err, errWorkDirInWorktree) {
+		t.Fatalf("Prepare error = %v, want errWorkDirInWorktree", err)
+	}
+	runner.done()
+}
+
+func TestPrepareRejectsSymlinkedWorkDir(t *testing.T) {
+	root, err := worktreeRoot()
+	if err != nil {
+		t.Fatalf("worktreeRoot returned error: %v", err)
+	}
+	link := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(filepath.Join(root, "internal"), link); err != nil {
+		t.Skipf("cannot create symlink: %v", err)
+	}
+	tool, runner := newTool(t, nil)
+
+	if _, err := tool.Prepare(t.Context(), strconv.Itoa(testPRNumber), link); !errors.Is(err, errWorkDirInWorktree) {
 		t.Fatalf("Prepare error = %v, want errWorkDirInWorktree", err)
 	}
 	runner.done()
@@ -1063,7 +1105,7 @@ func TestDiffHappyPath(t *testing.T) {
 	dir := t.TempDir()
 	statePath := writeStateFile(t, dir)
 	const patch = "diff --git a/a.txt b/a.txt\n"
-	steps := []commandStep{gitStep([]string{"--literal-pathspecs", "diff", "refs/remotes/origin/main..." + testHeadOID, "--", "a.txt"}, patch)}
+	steps := []commandStep{gitStep([]string{"--literal-pathspecs", "diff", "--no-ext-diff", "--no-textconv", "refs/remotes/origin/main..." + testHeadOID, "--", "a.txt"}, patch)}
 	tool, runner := newTool(t, steps)
 
 	got, err := tool.Diff(t.Context(), statePath, "a.txt")
@@ -1091,7 +1133,7 @@ func TestDiffAllowsDashPath(t *testing.T) {
 	dir := t.TempDir()
 	statePath := writeStateFile(t, dir)
 	const patch = "diff --git a/-notes.md b/-notes.md\n"
-	steps := []commandStep{gitStep([]string{"--literal-pathspecs", "diff", "refs/remotes/origin/main..." + testHeadOID, "--", "-notes.md"}, patch)}
+	steps := []commandStep{gitStep([]string{"--literal-pathspecs", "diff", "--no-ext-diff", "--no-textconv", "refs/remotes/origin/main..." + testHeadOID, "--", "-notes.md"}, patch)}
 	tool, runner := newTool(t, steps)
 
 	got, err := tool.Diff(t.Context(), statePath, "-notes.md")
@@ -1107,7 +1149,7 @@ func TestDiffAllowsDashPath(t *testing.T) {
 func TestDiffRejectsOversizedDiff(t *testing.T) {
 	dir := t.TempDir()
 	statePath := writeStateFile(t, dir)
-	steps := []commandStep{gitStep([]string{"--literal-pathspecs", "diff", "refs/remotes/origin/main..." + testHeadOID, "--", "a.txt"}, strings.Repeat("x", maxDiffBytes+1))}
+	steps := []commandStep{gitStep([]string{"--literal-pathspecs", "diff", "--no-ext-diff", "--no-textconv", "refs/remotes/origin/main..." + testHeadOID, "--", "a.txt"}, strings.Repeat("x", maxDiffBytes+1))}
 	tool, runner := newTool(t, steps)
 
 	if _, err := tool.Diff(t.Context(), statePath, "a.txt"); !errors.Is(err, errTooLarge) {

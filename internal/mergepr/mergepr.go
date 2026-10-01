@@ -206,17 +206,23 @@ func (t *Tool) prepare(ctx context.Context, prArg, workDir string) (Prepared, er
 }
 
 // requireOutsideWorktree rejects a work directory inside the repository
-// worktree, where the files Prepare writes would make the checkout dirty.
+// worktree, where the files Prepare writes would make the checkout dirty. Both
+// paths have their symlinks resolved, so an outside symlink that points into
+// the checkout is rejected too.
 func requireOutsideWorktree(workDir string) error {
 	root, err := worktreeRoot()
 	if err != nil {
 		return err
 	}
-	abs, err := filepath.Abs(workDir)
+	resolvedRoot, err := resolveExisting(root)
 	if err != nil {
-		return fmt.Errorf("resolve work directory: %w", err)
+		return err
 	}
-	rel, err := filepath.Rel(root, abs)
+	resolvedWork, err := resolveExisting(workDir)
+	if err != nil {
+		return err
+	}
+	rel, err := filepath.Rel(resolvedRoot, resolvedWork)
 	if err != nil {
 		return nil // a different volume cannot be inside the worktree
 	}
@@ -224,6 +230,29 @@ func requireOutsideWorktree(workDir string) error {
 		return fmt.Errorf("%w: %s", errWorkDirInWorktree, workDir)
 	}
 	return nil
+}
+
+// resolveExisting resolves symlinks on the longest existing prefix of path and
+// appends the rest unchanged, so a not-yet-created work directory is still
+// checked against its real parent.
+func resolveExisting(path string) (string, error) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", fmt.Errorf("resolve path: %w", err)
+	}
+	rest := ""
+	current := abs
+	for {
+		if resolved, err := filepath.EvalSymlinks(current); err == nil {
+			return filepath.Join(resolved, rest), nil
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			return abs, nil
+		}
+		rest = filepath.Join(filepath.Base(current), rest)
+		current = parent
+	}
 }
 
 // worktreeRoot walks up from the working directory to the nearest ancestor that
@@ -530,7 +559,9 @@ func (t *Tool) Diff(ctx context.Context, statePath, path string) ([]byte, error)
 		return nil, err
 	}
 	baseRef := originRefs + state.BaseRefName
-	out, err := t.command(ctx, commandTimeout, gitCommand, "--literal-pathspecs", "diff", baseRef+"..."+state.HeadRefOID, "--", path)
+	// --no-ext-diff and --no-textconv stop a configured external diff or
+	// textconv driver from executing on this untrusted patch.
+	out, err := t.command(ctx, commandTimeout, gitCommand, "--literal-pathspecs", "diff", "--no-ext-diff", "--no-textconv", baseRef+"..."+state.HeadRefOID, "--", path)
 	if err != nil {
 		return nil, fmt.Errorf("read diff: %w", err)
 	}
@@ -1014,14 +1045,20 @@ func (t *Tool) requireSupportedConfig(ctx context.Context) error {
 	return nil
 }
 
-// unsupportedConfigRule names the config rule that can rewrite a remote URL, or
-// "" when the key is fine. The key is never echoed, because it can embed a
-// credential.
+// unsupportedConfigRule names a repository-local config rule that can rewrite a
+// remote URL or execute a program, or "" when the key is fine. The key is never
+// echoed, because it can embed a credential.
 func unsupportedConfigRule(key string) string {
 	key = strings.ToLower(key)
 	switch {
 	case strings.HasPrefix(key, "includeif."):
 		return "includeIf"
+	case key == "credential.helper" || (strings.HasPrefix(key, "credential.") && strings.HasSuffix(key, ".helper")):
+		return "credential.helper"
+	case key == "core.sshcommand":
+		return "core.sshCommand"
+	case key == "diff.external" || (strings.HasPrefix(key, "diff.") && (strings.HasSuffix(key, ".textconv") || strings.HasSuffix(key, ".command"))):
+		return "diff external driver"
 	case strings.HasPrefix(key, "url.") && strings.HasSuffix(key, ".insteadof"):
 		return "url.*.insteadOf"
 	case strings.HasPrefix(key, "url.") && strings.HasSuffix(key, ".pushinsteadof"):

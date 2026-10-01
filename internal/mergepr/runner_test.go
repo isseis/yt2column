@@ -67,24 +67,23 @@ func TestOSRunnerOverridesGitConfig(t *testing.T) {
 	}
 }
 
-func TestChildEnvScopesTokensAndDisablesHooks(t *testing.T) {
+func TestChildEnvDisablesExecutableConfig(t *testing.T) {
 	t.Setenv("GH_TOKEN", "secret")
-	gitEnv := childEnv(gitCommand)
-	ghEnv := childEnv(ghCommand)
+	env := childEnv()
 
-	if hasEnv(gitEnv, "GH_TOKEN=secret") {
-		t.Error("git child received GH_TOKEN, which its hooks could read")
+	if !hasEnv(env, "GH_TOKEN=secret") {
+		t.Error("child env did not include GH_TOKEN for gh's credential helper")
 	}
-	if !hasEnv(ghEnv, "GH_TOKEN=secret") {
-		t.Error("gh child did not receive GH_TOKEN")
-	}
-	if !hasEnv(gitEnv, "GIT_CONFIG_KEY_0=core.hooksPath") || !hasEnv(gitEnv, "GIT_CONFIG_VALUE_0=/dev/null") {
+	if !hasEnv(env, "GIT_CONFIG_KEY_0=core.hooksPath") || !hasEnv(env, "GIT_CONFIG_VALUE_0=/dev/null") {
 		t.Error("git child did not disable repository hooks")
 	}
-	if !hasEnv(gitEnv, "GIT_CONFIG_KEY_1=core.fsmonitor") || !hasEnv(gitEnv, "GIT_CONFIG_VALUE_1=false") {
+	if !hasEnv(env, "GIT_CONFIG_KEY_1=core.fsmonitor") || !hasEnv(env, "GIT_CONFIG_VALUE_1=false") {
 		t.Error("git child did not disable the repository fsmonitor")
 	}
-	if !hasEnv(gitEnv, "GIT_CONFIG_KEY_2=credential.https://github.com.helper") || !hasEnv(gitEnv, "GIT_CONFIG_VALUE_2=!gh auth git-credential") {
+	if !hasEnv(env, "GIT_CONFIG_KEY_2=credential.helper") || !hasEnv(env, "GIT_CONFIG_VALUE_2=") {
+		t.Error("git child did not reset the repository credential helper")
+	}
+	if !hasEnv(env, "GIT_CONFIG_KEY_3=credential.https://github.com.helper") || !hasEnv(env, "GIT_CONFIG_VALUE_3=!gh auth git-credential") {
 		t.Error("git child did not configure gh's credential helper for HTTPS")
 	}
 }

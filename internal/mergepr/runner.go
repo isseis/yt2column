@@ -58,7 +58,7 @@ func (osRunner) Run(ctx context.Context, name string, args ...string) ([]byte, e
 	stderr.limit = maxCommandErrorBytes
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	cmd.Env = childEnv(name)
+	cmd.Env = childEnv()
 	cmd.WaitDelay = commandWaitDelay
 	command := redactCredentials(name + " " + strings.Join(args, " "))
 	if err := cmd.Run(); err != nil {
@@ -109,34 +109,32 @@ func (b *limitedBuffer) Write(p []byte) (int, error) {
 }
 
 // childEnv is the allowlisted environment plus git config overrides that
-// disable global and system configuration, so a global url.*.insteadOf or
-// includeIf cannot redirect a fetch or a push, and disable repository hooks,
-// which a PR could otherwise place in a tracked directory and run with this
-// process's credentials. GitHub tokens are given only to gh, never to git and
-// its hooks. The repository's local config is still read and is audited by
-// requireSupportedConfig.
-func childEnv(name string) []string {
+// disable global and system configuration (so a global url.*.insteadOf or
+// includeIf cannot redirect a fetch or a push), disable repository hooks and
+// fsmonitor, and reset any repository credential helper before installing gh's
+// own helper (a fixed, trusted command) for HTTPS. GitHub tokens are passed to
+// both git and gh because gh's helper runs as a child of git; repository hooks,
+// fsmonitor, credential helpers, sshCommand, and external diff are all disabled
+// or rejected, so git cannot hand the tokens to PR-controlled code.
+func childEnv() []string {
 	env := allowlistEnv(os.Environ())
 	env = append(env,
 		"GIT_CONFIG_GLOBAL=/dev/null",
 		"GIT_CONFIG_SYSTEM=/dev/null",
 		"GIT_CONFIG_NOSYSTEM=1",
-		"GIT_CONFIG_COUNT=3",
+		"GIT_CONFIG_COUNT=4",
 		"GIT_CONFIG_KEY_0=core.hooksPath",
 		"GIT_CONFIG_VALUE_0=/dev/null",
 		"GIT_CONFIG_KEY_1=core.fsmonitor",
 		"GIT_CONFIG_VALUE_1=false",
-		// Keep HTTPS authentication working now that global config is disabled:
-		// use gh's own credential helper (a fixed, trusted command) instead of
-		// an ambient credential.helper that /dev/null would hide.
-		"GIT_CONFIG_KEY_2=credential.https://github.com.helper",
-		"GIT_CONFIG_VALUE_2=!gh auth git-credential",
+		"GIT_CONFIG_KEY_2=credential.helper",
+		"GIT_CONFIG_VALUE_2=",
+		"GIT_CONFIG_KEY_3=credential.https://github.com.helper",
+		"GIT_CONFIG_VALUE_3=!gh auth git-credential",
 	)
-	if name == ghCommand {
-		for _, key := range []string{"GH_TOKEN", "GITHUB_TOKEN"} {
-			if value, ok := os.LookupEnv(key); ok {
-				env = append(env, key+"="+value)
-			}
+	for _, key := range []string{"GH_TOKEN", "GITHUB_TOKEN"} {
+		if value, ok := os.LookupEnv(key); ok {
+			env = append(env, key+"="+value)
 		}
 	}
 	return env
