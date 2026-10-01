@@ -32,6 +32,11 @@ PR-derived values never become shell source:
    - Stop unless `state` is `OPEN` and `isCrossRepository` is `false`: only
      same-repository PRs are supported, so `origin` holds the head branch and its
      commits.
+   - The repository `gh` resolves must be `origin`'s: the owner/repo from
+     `gh repo view --json nameWithOwner -q .nameWithOwner` must equal the owner/repo
+     in `git remote get-url origin`. `GH_REPO` and `gh repo set-default` can point
+     `gh` at another repository, and then the PR and the refs this command touches
+     could belong to different repositories; stop on mismatch.
    - Whichever branch is checked out, `git status --porcelain` must be empty, and
      if `git rev-parse --verify --quiet refs/heads/<headRefName>` finds a local head
      branch, its OID must equal `headRefOid`. Uncommitted work would be lost with
@@ -47,7 +52,12 @@ PR-derived values never become shell source:
    change against the up-to-date base, not a possibly stale local `main`
    (quote refs and paths per the PR-derived-value rule above):
    - `git log --no-show-signature --format='%h %s%n%n%b' origin/<baseRefName>..<headRefOid>`
-     for every commit message in full;
+     for every commit message in full, read in bounded chunks (e.g. `-n 50` with
+     `--skip`). Do not load the whole log at once: a PR can hold thousands of commits
+     or a multi-megabyte message and does not fit in context, and truncated output
+     would hide what the carry-forward rule below requires. If the history still does
+     not fit or the output is truncated, stop and report instead of drafting from
+     incomplete input;
    - `git diff --stat origin/<baseRefName>...<headRefOid>`;
    - read individual file diffs (`git diff origin/<baseRefName>...<headRefOid> -- <path>`)
      only where the log and stat are not enough. Do not dump the whole diff: a large
