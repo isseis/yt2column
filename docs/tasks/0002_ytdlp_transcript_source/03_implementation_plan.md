@@ -373,10 +373,20 @@ AC ごとの検証は次のとおり。`test` は実行可能なテスト、`sta
 
 `make test-integration` の実行結果をここに記録する（実施はフェーズ 4 ステップ 4-5）。
 
-- 実施日: （未実施）
-- 使用した動画 URL: （未実施。既定 `https://www.youtube.com/watch?v=EQCUZyB4DqE` を予定）
-- 期待する動画 ID: （未実施。既定 `EQCUZyB4DqE` を予定）
-- 結果: （未実施。取得・キャッシュ再利用・強制再取得の各サブテストの成否を記録する）
+- 実施日: （未完了。下記の試行はいずれも YouTube のレート制限で失敗した）
+- 使用した動画 URL: 既定 `https://www.youtube.com/watch?v=EQCUZyB4DqE`
+- 期待する動画 ID: 既定 `EQCUZyB4DqE`
+- 結果: （未完了。取得・キャッシュ再利用・強制再取得の各サブテストの成否を記録する）
+
+**試行の記録（2026-10-01）。** 3 回とも `make test-integration` を既定の動画で実行した。yt-dlp は 2026.08.19。
+
+| 時刻 | 環境 | 結果 |
+|---|---|---|
+| 08:18 | `~/.local/bin` の単体版 yt-dlp（JavaScript ランタイム・impersonation なし） | `fetch` と `cache_reuse` は成功。約 2.5 秒後の `force_refresh` の取得が `ERROR: Unable to download video subtitles for 'ja': HTTP Error 429: Too Many Requests` で失敗 |
+| 08:29 | Homebrew の yt-dlp（deno・curl_cffi あり）。テストは `force_refresh` の前に 2 分待つよう変更済み（`0c30756`） | `fetch` の最初の取得が同じ 429 で失敗 |
+| 09:30 | 同上（前回から約 1 時間後） | `fetch` の最初の取得が同じ 429 で失敗 |
+
+いずれも字幕ファイルのダウンロードだけが拒否された。間隔を 1 時間空けても解除されなかったため、この IP に対する制限が続いているとみて、試行を打ち切った。
 
 ### 5.2. 環境変数を設定しない直接実行の記録 (AC-42)
 
