@@ -4,6 +4,8 @@ package mergepr
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -91,6 +93,12 @@ func TestChildEnvDisablesExecutableConfig(t *testing.T) {
 	if !hasEnv(env, "GIT_CONFIG_KEY_4=maintenance.auto") || !hasEnv(env, "GIT_CONFIG_VALUE_4=false") {
 		t.Error("git child did not disable automatic maintenance")
 	}
+	if !hasEnv(env, "GIT_CONFIG_KEY_5=core.ignoreStat") || !hasEnv(env, "GIT_CONFIG_VALUE_5=false") {
+		t.Error("git child did not force a stat-checking status")
+	}
+	if !hasEnv(env, "GIT_CONFIG_KEY_6=core.untrackedCache") || !hasEnv(env, "GIT_CONFIG_VALUE_6=false") {
+		t.Error("git child did not disable the untracked cache")
+	}
 	for _, entry := range env {
 		if strings.HasPrefix(entry, "GIT_SSH_COMMAND=") || strings.HasPrefix(entry, "GIT_ASKPASS=") {
 			t.Errorf("child env kept the command-valued variable %q", entry)
@@ -100,6 +108,44 @@ func TestChildEnvDisablesExecutableConfig(t *testing.T) {
 
 func hasEnv(env []string, want string) bool {
 	return slices.Contains(env, want)
+}
+
+func TestTrustedPathExcludesWorktree(t *testing.T) {
+	root, err := worktreeRoot()
+	if err != nil {
+		t.Fatalf("worktreeRoot: %v", err)
+	}
+	resolvedRoot, err := resolveExisting(root)
+	if err != nil {
+		t.Fatalf("resolveExisting: %v", err)
+	}
+	t.Setenv("PATH", root+string(filepath.ListSeparator)+os.Getenv("PATH"))
+	for _, dir := range filepath.SplitList(trustedPath()) {
+		if resolved, err := resolveExisting(dir); err == nil && resolved == resolvedRoot {
+			t.Errorf("trustedPath kept the worktree entry %q", dir)
+		}
+	}
+}
+
+func TestResolveCommandSkipsWorktreeExecutable(t *testing.T) {
+	root, err := worktreeRoot()
+	if err != nil {
+		t.Fatalf("worktreeRoot: %v", err)
+	}
+	dir, err := os.MkdirTemp(root, ".mergepr-trustedpath-")
+	if err != nil {
+		t.Fatalf("create planted dir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	const name = "mergepr-test-tool"
+	if err := os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/sh\n"), 0o700); err != nil { //nolint:gosec // the planted tool must be executable
+		t.Fatalf("write planted tool: %v", err)
+	}
+	t.Setenv("PATH", dir+string(filepath.ListSeparator)+os.Getenv("PATH"))
+
+	if _, err := resolveCommand(name); !errors.Is(err, errToolNotFound) {
+		t.Fatalf("resolveCommand(%q) = %v, want errToolNotFound", name, err)
+	}
 }
 
 func TestOSRunnerEnvAllowlist(t *testing.T) {

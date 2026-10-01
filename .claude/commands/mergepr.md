@@ -12,14 +12,17 @@ user to approve the commit message first (CLAUDE.md, "Tool Execution Safety").
 
 The mechanics live in the `mergepr` binary (package `internal/mergepr`). Install
 it from `main` with `go install ./cmd/mergepr` in a `main` checkout, so the
-binary is the reviewed `main` revision. It runs from any checkout, but it stops
-unless this checkout's `.claude/commands/mergepr.md` is also the `main`
-revision, so do not invoke it from a branch that edited this command definition.
-It resolves the repository, head, and base once and re-verifies them immediately
-before the merge and cleanup; runs git with global and system configuration and
-repository hooks disabled; refuses a repository-local config that can rewrite a
-remote URL; and stops if the PR under review changes `cmd/mergepr`,
-`internal/mergepr`, or this command definition. Do not reimplement its steps as
+binary is the reviewed `main` revision; it embeds that build revision and
+refuses to run unless it still matches `origin/main`, so rebuild it after `main`
+advances rather than reusing a stale installation. It runs from any checkout,
+but it stops unless this checkout's `.claude/commands/mergepr.md` is also the
+`main` revision, so do not invoke it from a branch that edited this command
+definition. It resolves `git` and `gh` through a `PATH` with the checkout
+removed; runs git with global and system configuration, repository hooks,
+fsmonitor, and stat-caching disabled; refuses a repository-local config that can
+rewrite a remote URL or trust a stale worktree status; pins the base commit the
+message is drafted from and stops if it moved; and stops if the PR under review
+changes `cmd/mergepr`, `internal/mergepr`, or this command definition. Do not reimplement its steps as
 shell commands; if it stops, report its error instead of working around it. Work
 in order; do not skip a step.
 

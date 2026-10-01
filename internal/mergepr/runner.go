@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -31,9 +32,10 @@ const (
 // GIT_SSH_COMMAND, GIT_ASKPASS, SSH_ASKPASS) are omitted: each names a program
 // git or ssh would execute, so inheriting one from the developer's environment
 // lets it run inside this workflow. SSH_AUTH_SOCK and SSH_AGENT_PID stay,
-// because an agent socket carries no command of its own.
+// because an agent socket carries no command of its own. PATH is not here; it
+// is rebuilt by trustedPath so a checkout entry cannot supply a child tool.
 var allowedEnvVars = []string{
-	"PATH", "HOME", "TMPDIR",
+	"HOME", "TMPDIR",
 	"SSH_AUTH_SOCK", "SSH_AGENT_PID",
 	"GIT_TERMINAL_PROMPT",
 	"GH_HOST", "GH_CONFIG_DIR",
@@ -56,7 +58,13 @@ var _ Runner = osRunner{}
 // allowlisted environment, and never includes more than the bounded standard
 // error in an error.
 func (osRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, name, args...) //nolint:gosec // git and gh are trusted tools and no argument passes through a shell
+	// Resolve the tool against a PATH with the checkout removed, so exec cannot
+	// pick up a program the PR added to the repository or the working directory.
+	resolved, err := resolveCommand(name)
+	if err != nil {
+		return nil, err
+	}
+	cmd := exec.CommandContext(ctx, resolved, args...) //nolint:gosec // the tool is resolved to a trusted absolute path and no argument passes through a shell
 	var stdout, stderr limitedBuffer
 	stdout.limit = maxCommandOutputBytes
 	stderr.limit = maxCommandErrorBytes
@@ -123,10 +131,11 @@ func (b *limitedBuffer) Write(p []byte) (int, error) {
 func childEnv() []string {
 	env := allowlistEnv(os.Environ())
 	env = append(env,
+		"PATH="+trustedPath(),
 		"GIT_CONFIG_GLOBAL=/dev/null",
 		"GIT_CONFIG_SYSTEM=/dev/null",
 		"GIT_CONFIG_NOSYSTEM=1",
-		"GIT_CONFIG_COUNT=5",
+		"GIT_CONFIG_COUNT=7",
 		"GIT_CONFIG_KEY_0=core.hooksPath",
 		"GIT_CONFIG_VALUE_0=/dev/null",
 		"GIT_CONFIG_KEY_1=core.fsmonitor",
@@ -139,6 +148,12 @@ func childEnv() []string {
 		// such as gc.recentObjectsHook cannot run during a fetch.
 		"GIT_CONFIG_KEY_4=maintenance.auto",
 		"GIT_CONFIG_VALUE_4=false",
+		// Force a stat-checking status, so repository-local config cannot make
+		// git status omit an edit and let a dirty worktree look clean.
+		"GIT_CONFIG_KEY_5=core.ignoreStat",
+		"GIT_CONFIG_VALUE_5=false",
+		"GIT_CONFIG_KEY_6=core.untrackedCache",
+		"GIT_CONFIG_VALUE_6=false",
 	)
 	for _, key := range []string{"GH_TOKEN", "GITHUB_TOKEN"} {
 		if value, ok := os.LookupEnv(key); ok {
@@ -165,4 +180,57 @@ func allowlistEnv(parent []string) []string {
 		}
 	}
 	return env
+}
+
+// trustedPath is PATH with entries that resolve inside this worktree, or that
+// are relative or empty (which name the working directory), removed. A
+// repository that adds an executable named git, gh, or ssh, or a direnv-managed
+// $PWD/bin entry, cannot then supply the tool a child resolves.
+func trustedPath() string {
+	entries := filepath.SplitList(os.Getenv("PATH"))
+	trusted := make([]string, 0, len(entries))
+	var resolvedRoot string
+	if root, err := worktreeRoot(); err == nil {
+		if resolved, err := resolveExisting(root); err == nil {
+			resolvedRoot = resolved
+		}
+	}
+	for _, entry := range entries {
+		if entry == "" || !filepath.IsAbs(entry) {
+			continue
+		}
+		if resolvedRoot != "" {
+			if resolved, err := resolveExisting(entry); err == nil {
+				if rel, err := filepath.Rel(resolvedRoot, resolved); err == nil && inside(rel) {
+					continue
+				}
+			}
+		}
+		trusted = append(trusted, entry)
+	}
+	return strings.Join(trusted, string(filepath.ListSeparator))
+}
+
+// resolveCommand returns the absolute path of a bare command name looked up in
+// trustedPath, so a checkout entry cannot be resolved. A name that already
+// contains a separator is returned unchanged.
+func resolveCommand(name string) (string, error) {
+	if strings.ContainsRune(name, filepath.Separator) {
+		return name, nil
+	}
+	for _, dir := range filepath.SplitList(trustedPath()) {
+		candidate := filepath.Join(dir, name)
+		info, err := os.Stat(candidate)
+		if err != nil || info.IsDir() || info.Mode().Perm()&0o111 == 0 {
+			continue
+		}
+		return candidate, nil
+	}
+	return "", fmt.Errorf("%w: %s", errToolNotFound, name)
+}
+
+// inside reports whether a filepath.Rel result names the root or a path below
+// it, as opposed to a sibling reached through "..".
+func inside(rel string) bool {
+	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
 }

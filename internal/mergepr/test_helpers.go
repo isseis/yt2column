@@ -93,6 +93,7 @@ func writeStateFile(t testing.TB, dir string) string {
 		HeadRefName: "feature/foo",
 		HeadRefOID:  testHeadOID,
 		BaseRefName: "main",
+		BaseRefOID:  testBaseOID,
 		Title:       "Test PR",
 		URL:         "https://github.com/isseis/yt2column/pull/42",
 	}

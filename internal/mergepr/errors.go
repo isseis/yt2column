@@ -37,4 +37,7 @@ var (
 	errWorkDirInWorktree  = errors.New("work directory is inside the repository worktree")
 	errInsecureWorkDir    = errors.New("work directory must be owned by the current user and not writable by group or other")
 	errNoWorktree         = errors.New("not inside a git worktree")
+	errToolNotFound       = errors.New("command not found on the trusted PATH")
+	errBaseRePin          = errors.New("the base branch moved since prepare; run prepare again")
+	errBinaryStale        = errors.New("the mergepr binary is not the current main revision")
 )

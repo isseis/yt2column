@@ -10,7 +10,9 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -83,14 +85,26 @@ type Runner interface {
 // working directory.
 type Tool struct {
 	run Runner
+	// revision is the commit the binary was built from. When non-empty the tool
+	// requires it to match origin/main before acting, so a stale installation
+	// cannot merge with superseded checks. It is empty in unit tests.
+	revision string
 }
 
-// New returns a Tool that runs external commands through runner.
+// New returns a Tool that runs external commands through runner. It does not
+// verify a build revision; the CLI uses NewWithRevision so the installed binary
+// is bound to the main revision it was built from.
 func New(runner Runner) (*Tool, error) {
+	return NewWithRevision(runner, "")
+}
+
+// NewWithRevision returns a Tool that also requires the binary's build revision
+// to match origin/main before any merge, when revision is non-empty.
+func NewWithRevision(runner Runner, revision string) (*Tool, error) {
 	if runner == nil {
 		return nil, errNoRunner
 	}
-	return &Tool{run: runner}, nil
+	return &Tool{run: runner, revision: revision}, nil
 }
 
 // command runs one external command with a deadline, so a stalled git or gh
@@ -123,6 +137,7 @@ type State struct {
 	HeadRefName string `json:"headRefName"`
 	HeadRefOID  string `json:"headRefOid"`
 	BaseRefName string `json:"baseRefName"`
+	BaseRefOID  string `json:"baseRefOid"`
 	Title       string `json:"title"`
 	URL         string `json:"url"`
 }
@@ -141,6 +156,9 @@ func (s State) validate() error {
 	}
 	if _, err := hex.DecodeString(s.HeadRefOID); err != nil || len(s.HeadRefOID) != oidLength {
 		return fmt.Errorf("%w: headRefOid", errInvalidState)
+	}
+	if _, err := hex.DecodeString(s.BaseRefOID); err != nil || len(s.BaseRefOID) != oidLength {
+		return fmt.Errorf("%w: baseRefOid", errInvalidState)
 	}
 	return nil
 }
@@ -189,9 +207,19 @@ func (t *Tool) Prepare(ctx context.Context, prArg, workDir string) (Prepared, er
 	if !created {
 		// Create a named directory now, not after the CI wait, so writing the
 		// prepared files cannot be the step that fails.
-		if err := os.MkdirAll(workDir, workDirMode); err != nil {
-			return Prepared{}, fmt.Errorf("create work directory: %w", err)
+		if err := createWorkDir(workDir); err != nil {
+			return Prepared{}, err
 		}
+	}
+	// Re-check containment now that the path exists. A component swapped for a
+	// symlink between the check above and creation is otherwise followed into
+	// the checkout; O_NOFOLLOW on the final output name does not protect a
+	// symlinked directory component.
+	if err := requireOutsideWorktree(workDir); err != nil {
+		if created {
+			_ = os.RemoveAll(workDir)
+		}
+		return Prepared{}, err
 	}
 	// MkdirAll leaves an existing directory's permissions unchanged, so a
 	// group- or world-writable work directory could let another local user
@@ -221,11 +249,27 @@ func (t *Tool) prepare(ctx context.Context, prArg, workDir string) (Prepared, er
 	if err := t.requireToolUnchanged(ctx, id, pr.BaseRefName, pr.HeadRefName, pr.HeadRefOID); err != nil {
 		return Prepared{}, err
 	}
+	// Pin the base commit the drafting material is built from, so Merge can
+	// reject a message drafted against a base that has since moved.
+	baseOID, err := t.originBaseOID(ctx, pr.BaseRefName)
+	if err != nil {
+		return Prepared{}, err
+	}
 	logOut, statOut, bodyOut, err := t.draftingMaterial(ctx, id, pr)
 	if err != nil {
 		return Prepared{}, err
 	}
-	return writePrepared(workDir, id, pr, logOut, statOut, bodyOut)
+	return writePrepared(workDir, id, pr, baseOID, logOut, statOut, bodyOut)
+}
+
+// originBaseOID reads the fetched origin/<base> commit, which the drafting
+// material and the merge are pinned to.
+func (t *Tool) originBaseOID(ctx context.Context, base string) (string, error) {
+	out, err := t.command(ctx, commandTimeout, gitCommand, "rev-parse", originRefs+base)
+	if err != nil {
+		return "", fmt.Errorf("read base commit: %w", err)
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 // requireOutsideWorktree rejects a work directory inside the repository
@@ -249,8 +293,33 @@ func requireOutsideWorktree(workDir string) error {
 	if err != nil {
 		return nil // a different volume cannot be inside the worktree
 	}
-	if rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))) {
+	if inside(rel) {
 		return fmt.Errorf("%w: %s", errWorkDirInWorktree, workDir)
+	}
+	return nil
+}
+
+// createWorkDir creates the named work directory without following a symlink at
+// its final component. MkdirAll follows a symlink to an existing directory, so
+// a path swapped for one after the containment check could redirect the writes
+// into the checkout.
+func createWorkDir(path string) error {
+	if parent := filepath.Dir(path); parent != path {
+		if err := os.MkdirAll(parent, workDirMode); err != nil {
+			return fmt.Errorf("create work directory: %w", err)
+		}
+	}
+	if err := os.Mkdir(path, workDirMode); err != nil {
+		if !errors.Is(err, fs.ErrExist) {
+			return fmt.Errorf("create work directory: %w", err)
+		}
+		info, lerr := os.Lstat(path)
+		if lerr != nil {
+			return fmt.Errorf("inspect work directory: %w", lerr)
+		}
+		if info.Mode()&fs.ModeSymlink != 0 || !info.IsDir() {
+			return fmt.Errorf("%w: %s", errInsecureWorkDir, path)
+		}
 	}
 	return nil
 }
@@ -363,6 +432,9 @@ func (t *Tool) resolvePR(ctx context.Context, prArg string) (identity, prInfo, e
 	if err != nil {
 		return identity{}, prInfo{}, err
 	}
+	if err := t.requireBinaryCurrent(ctx, id); err != nil {
+		return identity{}, prInfo{}, err
+	}
 	number, useCurrent, err := parsePRArg(prArg, id.Owner, id.Repo)
 	if err != nil {
 		return identity{}, prInfo{}, err
@@ -443,7 +515,7 @@ func (t *Tool) draftingMaterial(ctx context.Context, id identity, pr prInfo) ([]
 	return logOut, statOut, bodyOut, nil
 }
 
-func writePrepared(workDir string, id identity, pr prInfo, logOut, statOut, bodyOut []byte) (Prepared, error) {
+func writePrepared(workDir string, id identity, pr prInfo, baseOID string, logOut, statOut, bodyOut []byte) (Prepared, error) {
 	state := State{
 		Number:      pr.Number,
 		Owner:       id.Owner,
@@ -451,6 +523,7 @@ func writePrepared(workDir string, id identity, pr prInfo, logOut, statOut, body
 		HeadRefName: pr.HeadRefName,
 		HeadRefOID:  pr.HeadRefOID,
 		BaseRefName: pr.BaseRefName,
+		BaseRefOID:  baseOID,
 		Title:       pr.Title,
 		URL:         pr.URL,
 	}
@@ -494,6 +567,9 @@ func (t *Tool) Merge(ctx context.Context, statePath, subjectPath, bodyPath strin
 	}
 	id, err := t.requireIdentity(ctx, state)
 	if err != nil {
+		return Report{}, err
+	}
+	if err := t.requireBinaryCurrent(ctx, id); err != nil {
 		return Report{}, err
 	}
 	// The message files are written outside the worktree, but the pause before
@@ -567,6 +643,27 @@ func (t *Tool) requireIdentity(ctx context.Context, state State) (identity, erro
 		return identity{}, errRepoMismatch
 	}
 	return id, nil
+}
+
+// requireBinaryCurrent fetches main and requires the binary's build revision to
+// match it, so an installation that predates an internal-only fix cannot run
+// superseded credential or ref-safety checks while the command file still looks
+// current. It is a no-op when the tool has no revision (unit tests).
+func (t *Tool) requireBinaryCurrent(ctx context.Context, id identity) error {
+	if t.revision == "" {
+		return nil
+	}
+	if _, err := t.command(ctx, commandTimeout, gitCommand, "fetch", id.FetchURL, "+"+refsHeads+trustedBranch+":"+originRefs+trustedBranch); err != nil {
+		return fmt.Errorf("fetch main for binary check: %w", err)
+	}
+	out, err := t.command(ctx, commandTimeout, gitCommand, "rev-parse", originRefs+trustedBranch)
+	if err != nil {
+		return fmt.Errorf("read main for binary check: %w", err)
+	}
+	if main := strings.TrimSpace(string(out)); main != t.revision {
+		return fmt.Errorf("%w: built from %s, main is %s", errBinaryStale, t.revision, main)
+	}
+	return nil
 }
 
 // verifyMergeable rejects a view that is cross-repository, not open, or drifted
@@ -1119,6 +1216,15 @@ func (t *Tool) requireBaseFastForwardable(ctx context.Context, id identity, stat
 	if _, err := t.command(ctx, commandTimeout, gitCommand, "fetch", id.FetchURL, "+"+refsHeads+state.BaseRefName+":"+baseRef); err != nil {
 		return fmt.Errorf("fetch base branch: %w", err)
 	}
+	// The drafted message describes the base recorded at prepare time; refuse
+	// to merge it against a base that has moved since.
+	fetched, err := t.originBaseOID(ctx, state.BaseRefName)
+	if err != nil {
+		return err
+	}
+	if state.BaseRefOID != "" && fetched != state.BaseRefOID {
+		return fmt.Errorf("%w: base moved from %s to %s", errBaseRePin, state.BaseRefOID, fetched)
+	}
 	localOID, err := t.localHeadOID(ctx, state.BaseRefName)
 	if err != nil {
 		return err
@@ -1229,7 +1335,6 @@ var allowedConfigKeys = map[string]struct{}{
 	"core.eol":                     {},
 	"core.trustctime":              {},
 	"core.checkstat":               {},
-	"core.ignorestat":              {},
 	"core.commitgraph":             {},
 	"core.multipackindex":          {},
 	"core.untrackedcache":          {},
