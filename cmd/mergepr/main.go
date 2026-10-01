@@ -63,6 +63,7 @@ func runPrepare(ctx context.Context, tool *mergepr.Tool, args []string) error {
 	fmt.Printf("state: %s\n", prepared.StatePath)
 	fmt.Printf("log:   %s\n", prepared.LogPath)
 	fmt.Printf("stat:  %s\n", prepared.StatPath)
+	fmt.Printf("body:  %s\n", prepared.BodyPath)
 	return nil
 }
 

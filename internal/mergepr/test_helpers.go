@@ -27,7 +27,8 @@ func ghStep(args []string, out string) commandStep {
 }
 
 // fakeRunner replays a fixed command sequence and fails the test on the first
-// mismatch or extra call, so a test cannot pass by skipping a step.
+// mismatch, extra call, or command that was not run with a deadline, so a test
+// cannot pass by skipping a step or by dropping the timeout.
 type fakeRunner struct {
 	t     testing.TB
 	steps []commandStep
@@ -35,7 +36,10 @@ type fakeRunner struct {
 }
 
 // Run implements Runner.
-func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte, error) {
+func (f *fakeRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
+	if _, ok := ctx.Deadline(); !ok {
+		f.t.Errorf("command %s %q ran without a deadline", name, args)
+	}
 	if f.index >= len(f.steps) {
 		f.t.Fatalf("command %d: unexpected call %s %q", f.index+1, name, args)
 	}
@@ -62,9 +66,11 @@ const (
 	testOtherOID = "4444444444444444444444444444444444444444"
 	testMergeOID = "3333333333333333333333333333333333333333"
 
-	testFetchURLOut = "git@github.com:isseis/yt2column.git\n"
-	testRepoViewOut = `{"nameWithOwner":"isseis/yt2column","url":"https://github.com/isseis/yt2column"}`
-	testRepoArg     = "isseis/yt2column"
+	testFetchURLOut  = "git@github.com:isseis/yt2column.git\n"
+	testFetchURL     = "git@github.com:isseis/yt2column.git"
+	testRepoViewOut  = `{"nameWithOwner":"isseis/yt2column","url":"https://github.com/isseis/yt2column"}`
+	testRepoArg      = "isseis/yt2column"
+	testRefsWildcard = "refs/heads/*:refs/remotes/origin/*"
 )
 
 func writeStateFile(t testing.TB, dir string) string {

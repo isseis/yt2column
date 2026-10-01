@@ -29,7 +29,7 @@ func newTool(t testing.TB, steps []commandStep) (*Tool, *fakeRunner) {
 func repoIdentitySteps() []commandStep {
 	return []commandStep{
 		gitStep([]string{"remote", "get-url", "origin"}, testFetchURLOut),
-		gitStep([]string{"remote", "get-url", "--push", "origin"}, testFetchURLOut),
+		gitStep([]string{"remote", "get-url", "--push", "--all", "origin"}, testFetchURLOut),
 		ghStep([]string{"repo", "view", "--json", "nameWithOwner,url"}, testRepoViewOut),
 	}
 }
@@ -38,9 +38,9 @@ func prViewArgs() []string {
 	return []string{"pr", "view", strconv.Itoa(testPRNumber), "--json", prViewFields, "-R", testRepoArg}
 }
 
-func prViewJSON(headName string, crossRepository bool) string {
-	return fmt.Sprintf(`{"number":%d,"title":"Test PR","state":%q,"headRefName":%q,"headRefOid":%q,"baseRefName":%q,"isCrossRepository":%t,"url":"https://github.com/isseis/yt2column/pull/42"}`,
-		testPRNumber, openState, headName, testHeadOID, "main", crossRepository)
+func prViewJSON(headName, body string, crossRepository bool) string {
+	return fmt.Sprintf(`{"number":%d,"title":"Test PR","state":%q,"headRefName":%q,"headRefOid":%q,"baseRefName":"main","isCrossRepository":%t,"url":"https://github.com/isseis/yt2column/pull/42","body":%q}`,
+		testPRNumber, openState, headName, testHeadOID, crossRepository, body)
 }
 
 func mergeViewArgs() []string {
@@ -64,21 +64,28 @@ func mergeArgs(subject, bodyPath string) []string {
 	return []string{"pr", "merge", strconv.Itoa(testPRNumber), "--squash", "--subject", subject, "--body-file", bodyPath, "--match-head-commit", testHeadOID, "-R", testRepoArg}
 }
 
-func prepareSteps(logOut, statOut string) []commandStep {
+func prepareSteps(logOut, statOut, body string) []commandStep {
 	steps := repoIdentitySteps()
 	steps = append(steps,
-		ghStep(prViewArgs(), prViewJSON("feature/foo", false)),
+		ghStep(prViewArgs(), prViewJSON("feature/foo", body, false)),
 		gitStep([]string{"check-ref-format", "--branch", "feature/foo"}, "feature/foo\n"),
 		gitStep([]string{"check-ref-format", "--branch", "main"}, "main\n"),
 		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
 		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
 		gitStep([]string{"for-each-ref", "--format=%(objectname)", "refs/heads/feature/foo"}, testHeadOID+"\n"),
-		gitStep([]string{"fetch", "origin"}, ""),
+		gitStep([]string{"fetch", testFetchURL, testRefsWildcard}, ""),
 		ghStep(checksArgs(), ""),
 		gitStep([]string{"log", "--no-show-signature", "--format=%h %s%n%n%b", "refs/remotes/origin/main.." + testHeadOID}, logOut),
 		gitStep([]string{"diff", "--stat", "refs/remotes/origin/main..." + testHeadOID}, statOut),
 	)
 	return steps
+}
+
+func mergePreflightSteps() []commandStep {
+	return []commandStep{
+		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
+		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
+	}
 }
 
 func mergedViewStep() commandStep {
@@ -89,13 +96,13 @@ func cleanupSteps(remoteOut, localOID string) []commandStep {
 	steps := repoIdentitySteps()
 	steps = append(steps, gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""))
 	steps = append(steps, gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"))
-	steps = append(steps, gitStep([]string{"ls-remote", "--heads", "origin", "refs/heads/feature/foo"}, remoteOut))
+	steps = append(steps, gitStep([]string{"ls-remote", "--heads", testFetchURL, "refs/heads/feature/foo"}, remoteOut))
 	if remoteOut != "" {
-		steps = append(steps, gitStep([]string{"push", "--force-with-lease=refs/heads/feature/foo:" + testHeadOID, "origin", "--delete", "refs/heads/feature/foo"}, ""))
+		steps = append(steps, gitStep([]string{"push", "--force-with-lease=refs/heads/feature/foo:" + testHeadOID, testFetchURL, "--delete", "refs/heads/feature/foo"}, ""))
 	}
 	steps = append(steps,
 		gitStep([]string{"switch", "main"}, ""),
-		gitStep([]string{"fetch", "origin", "refs/heads/main:refs/remotes/origin/main"}, ""),
+		gitStep([]string{"fetch", testFetchURL, "refs/heads/main:refs/remotes/origin/main"}, ""),
 		gitStep([]string{"merge", "--ff-only", "refs/remotes/origin/main"}, ""),
 		gitStep([]string{"rev-parse", "HEAD"}, testBaseOID+"\n"),
 		gitStep([]string{"rev-parse", "refs/remotes/origin/main"}, testBaseOID+"\n"),
@@ -105,7 +112,7 @@ func cleanupSteps(remoteOut, localOID string) []commandStep {
 		steps = append(steps, gitStep([]string{"branch", "-D", "feature/foo"}, ""))
 	}
 	if localOID == "" || localOID == testHeadOID {
-		steps = append(steps, gitStep([]string{"fetch", "--prune", "origin"}, ""))
+		steps = append(steps, gitStep([]string{"fetch", "--prune", testFetchURL, testRefsWildcard}, ""))
 	}
 	return steps
 }
@@ -127,10 +134,11 @@ func TestParseGitHubRemote(t *testing.T) {
 		{"https", "https://github.com/isseis/yt2column.git", "isseis", "yt2column", false},
 		{"https without suffix", "https://github.com/isseis/yt2column", "isseis", "yt2column", false},
 		{"https trailing slash", "https://github.com/isseis/yt2column/", "isseis", "yt2column", false},
-		{"http", "http://github.com/isseis/yt2column", "isseis", "yt2column", false},
 		{"host case", "https://GitHub.com/isseis/yt2column.git", "isseis", "yt2column", false},
 		{"ssh url", "ssh://git@github.com/isseis/yt2column.git", "isseis", "yt2column", false},
 		{"scp-like", "git@github.com:isseis/yt2column.git", "isseis", "yt2column", false},
+		{"http is rejected", "http://github.com/isseis/yt2column", "", "", true},
+		{"http with credentials is rejected", "http://token@github.com/isseis/yt2column", "", "", true},
 		{"other host", "https://gitlab.com/isseis/yt2column.git", "", "", true},
 		{"scp other host", "git@gitlab.com:isseis/yt2column.git", "", "", true},
 		{"missing repo", "https://github.com/isseis", "", "", true},
@@ -245,9 +253,10 @@ func TestPrepareHappyPath(t *testing.T) {
 	const (
 		logOut  = "abc123 subject\n\nbody\n"
 		statOut = " a.txt | 1 +\n"
+		body    = "the PR description"
 	)
 	dir := t.TempDir()
-	tool, runner := newTool(t, prepareSteps(logOut, statOut))
+	tool, runner := newTool(t, prepareSteps(logOut, statOut, body))
 
 	prepared, err := tool.Prepare(t.Context(), strconv.Itoa(testPRNumber), dir)
 	if err != nil {
@@ -277,6 +286,9 @@ func TestPrepareHappyPath(t *testing.T) {
 	if prepared.StatPath != filepath.Join(dir, statFileName) {
 		t.Errorf("StatPath = %q, want %q", prepared.StatPath, filepath.Join(dir, statFileName))
 	}
+	if prepared.BodyPath != filepath.Join(dir, bodyFileName) {
+		t.Errorf("BodyPath = %q, want %q", prepared.BodyPath, filepath.Join(dir, bodyFileName))
+	}
 
 	data, err := os.ReadFile(prepared.StatePath)
 	if err != nil {
@@ -295,12 +307,15 @@ func TestPrepareHappyPath(t *testing.T) {
 	if data, err := os.ReadFile(prepared.StatPath); err != nil || string(data) != statOut {
 		t.Errorf("stat file = %q (err %v), want %q", data, err, statOut)
 	}
+	if data, err := os.ReadFile(prepared.BodyPath); err != nil || string(data) != body {
+		t.Errorf("body file = %q (err %v), want %q", data, err, body)
+	}
 }
 
 func TestPrepareRejectsPushURLMismatch(t *testing.T) {
 	steps := []commandStep{
 		gitStep([]string{"remote", "get-url", "origin"}, testFetchURLOut),
-		gitStep([]string{"remote", "get-url", "--push", "origin"}, "git@github.com:fork/yt2column.git\n"),
+		gitStep([]string{"remote", "get-url", "--push", "--all", "origin"}, "git@github.com:fork/yt2column.git\n"),
 	}
 	tool, runner := newTool(t, steps)
 
@@ -310,10 +325,35 @@ func TestPrepareRejectsPushURLMismatch(t *testing.T) {
 	runner.done()
 }
 
+func TestPrepareRejectsExtraPushURL(t *testing.T) {
+	steps := []commandStep{
+		gitStep([]string{"remote", "get-url", "origin"}, testFetchURLOut),
+		gitStep([]string{"remote", "get-url", "--push", "--all", "origin"}, "git@github.com:isseis/yt2column.git\ngit@github.com:fork/yt2column.git\n"),
+	}
+	tool, runner := newTool(t, steps)
+
+	if _, err := tool.Prepare(t.Context(), strconv.Itoa(testPRNumber), t.TempDir()); !errors.Is(err, errRemoteMismatch) {
+		t.Fatalf("Prepare error = %v, want errRemoteMismatch", err)
+	}
+	runner.done()
+}
+
+func TestPrepareRejectsHTTPRemote(t *testing.T) {
+	steps := []commandStep{
+		gitStep([]string{"remote", "get-url", "origin"}, "http://github.com/isseis/yt2column.git\n"),
+	}
+	tool, runner := newTool(t, steps)
+
+	if _, err := tool.Prepare(t.Context(), strconv.Itoa(testPRNumber), t.TempDir()); !errors.Is(err, errInvalidRemote) {
+		t.Fatalf("Prepare error = %v, want errInvalidRemote", err)
+	}
+	runner.done()
+}
+
 func TestPrepareRejectsSelectedRepoMismatch(t *testing.T) {
 	steps := []commandStep{
 		gitStep([]string{"remote", "get-url", "origin"}, testFetchURLOut),
-		gitStep([]string{"remote", "get-url", "--push", "origin"}, testFetchURLOut),
+		gitStep([]string{"remote", "get-url", "--push", "--all", "origin"}, testFetchURLOut),
 		ghStep([]string{"repo", "view", "--json", "nameWithOwner,url"}, `{"nameWithOwner":"other/repo","url":"https://github.com/other/repo"}`),
 	}
 	tool, runner := newTool(t, steps)
@@ -327,7 +367,7 @@ func TestPrepareRejectsSelectedRepoMismatch(t *testing.T) {
 func TestPrepareRejectsGHSelHostMismatch(t *testing.T) {
 	steps := []commandStep{
 		gitStep([]string{"remote", "get-url", "origin"}, testFetchURLOut),
-		gitStep([]string{"remote", "get-url", "--push", "origin"}, testFetchURLOut),
+		gitStep([]string{"remote", "get-url", "--push", "--all", "origin"}, testFetchURLOut),
 		ghStep([]string{"repo", "view", "--json", "nameWithOwner,url"}, `{"nameWithOwner":"isseis/yt2column","url":"https://github.example.com/isseis/yt2column"}`),
 	}
 	tool, runner := newTool(t, steps)
@@ -340,7 +380,7 @@ func TestPrepareRejectsGHSelHostMismatch(t *testing.T) {
 
 func TestPrepareRejectsUnsafeHeadName(t *testing.T) {
 	steps := repoIdentitySteps()
-	steps = append(steps, ghStep(prViewArgs(), prViewJSON("-B", false)))
+	steps = append(steps, ghStep(prViewArgs(), prViewJSON("-B", "body", false)))
 	tool, runner := newTool(t, steps)
 
 	if _, err := tool.Prepare(t.Context(), strconv.Itoa(testPRNumber), t.TempDir()); !errors.Is(err, errInvalidBranch) {
@@ -352,7 +392,7 @@ func TestPrepareRejectsUnsafeHeadName(t *testing.T) {
 func TestPrepareRejectsGitInvalidName(t *testing.T) {
 	steps := repoIdentitySteps()
 	steps = append(steps,
-		ghStep(prViewArgs(), prViewJSON("feature/foo", false)),
+		ghStep(prViewArgs(), prViewJSON("feature/foo", "body", false)),
 		commandStep{name: gitCommand, args: []string{"check-ref-format", "--branch", "feature/foo"}, err: errors.New("exit status 128")},
 	)
 	tool, runner := newTool(t, steps)
@@ -365,7 +405,7 @@ func TestPrepareRejectsGitInvalidName(t *testing.T) {
 
 func TestPrepareRejectsCrossRepository(t *testing.T) {
 	steps := repoIdentitySteps()
-	steps = append(steps, ghStep(prViewArgs(), prViewJSON("feature/foo", true)))
+	steps = append(steps, ghStep(prViewArgs(), prViewJSON("feature/foo", "body", true)))
 	tool, runner := newTool(t, steps)
 
 	if _, err := tool.Prepare(t.Context(), strconv.Itoa(testPRNumber), t.TempDir()); !errors.Is(err, errCrossRepository) {
@@ -377,7 +417,7 @@ func TestPrepareRejectsCrossRepository(t *testing.T) {
 func TestPrepareRejectsDirtyWorktree(t *testing.T) {
 	steps := repoIdentitySteps()
 	steps = append(steps,
-		ghStep(prViewArgs(), prViewJSON("feature/foo", false)),
+		ghStep(prViewArgs(), prViewJSON("feature/foo", "body", false)),
 		gitStep([]string{"check-ref-format", "--branch", "feature/foo"}, "feature/foo\n"),
 		gitStep([]string{"check-ref-format", "--branch", "main"}, "main\n"),
 		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, "?? untracked.txt\n"),
@@ -393,7 +433,7 @@ func TestPrepareRejectsDirtyWorktree(t *testing.T) {
 func TestPrepareRejectsDetachedHead(t *testing.T) {
 	steps := repoIdentitySteps()
 	steps = append(steps,
-		ghStep(prViewArgs(), prViewJSON("feature/foo", false)),
+		ghStep(prViewArgs(), prViewJSON("feature/foo", "body", false)),
 		gitStep([]string{"check-ref-format", "--branch", "feature/foo"}, "feature/foo\n"),
 		gitStep([]string{"check-ref-format", "--branch", "main"}, "main\n"),
 		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
@@ -410,7 +450,7 @@ func TestPrepareRejectsDetachedHead(t *testing.T) {
 func TestPrepareRejectsHeadBranchMismatch(t *testing.T) {
 	steps := repoIdentitySteps()
 	steps = append(steps,
-		ghStep(prViewArgs(), prViewJSON("feature/foo", false)),
+		ghStep(prViewArgs(), prViewJSON("feature/foo", "body", false)),
 		gitStep([]string{"check-ref-format", "--branch", "feature/foo"}, "feature/foo\n"),
 		gitStep([]string{"check-ref-format", "--branch", "main"}, "main\n"),
 		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
@@ -428,13 +468,13 @@ func TestPrepareRejectsHeadBranchMismatch(t *testing.T) {
 func TestPrepareRejectsChecksFailure(t *testing.T) {
 	steps := repoIdentitySteps()
 	steps = append(steps,
-		ghStep(prViewArgs(), prViewJSON("feature/foo", false)),
+		ghStep(prViewArgs(), prViewJSON("feature/foo", "body", false)),
 		gitStep([]string{"check-ref-format", "--branch", "feature/foo"}, "feature/foo\n"),
 		gitStep([]string{"check-ref-format", "--branch", "main"}, "main\n"),
 		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
 		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
 		gitStep([]string{"for-each-ref", "--format=%(objectname)", "refs/heads/feature/foo"}, testHeadOID+"\n"),
-		gitStep([]string{"fetch", "origin"}, ""),
+		gitStep([]string{"fetch", testFetchURL, testRefsWildcard}, ""),
 		commandStep{name: ghCommand, args: checksArgs(), err: errors.New("exit status 1")},
 	)
 	tool, runner := newTool(t, steps)
@@ -446,18 +486,18 @@ func TestPrepareRejectsChecksFailure(t *testing.T) {
 }
 
 func TestPrepareRejectsOversizedLog(t *testing.T) {
-	steps := repoIdentitySteps()
-	steps = append(steps,
-		ghStep(prViewArgs(), prViewJSON("feature/foo", false)),
-		gitStep([]string{"check-ref-format", "--branch", "feature/foo"}, "feature/foo\n"),
-		gitStep([]string{"check-ref-format", "--branch", "main"}, "main\n"),
-		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
-		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
-		gitStep([]string{"for-each-ref", "--format=%(objectname)", "refs/heads/feature/foo"}, testHeadOID+"\n"),
-		gitStep([]string{"fetch", "origin"}, ""),
-		ghStep(checksArgs(), ""),
-		gitStep([]string{"log", "--no-show-signature", "--format=%h %s%n%n%b", "refs/remotes/origin/main.." + testHeadOID}, strings.Repeat("x", maxLogBytes+1)),
-	)
+	steps := prepareSteps(strings.Repeat("x", maxLogBytes+1), "", "body")
+	steps = steps[:len(steps)-1] // the diff does not run once the log is too large
+	tool, runner := newTool(t, steps)
+
+	if _, err := tool.Prepare(t.Context(), strconv.Itoa(testPRNumber), t.TempDir()); !errors.Is(err, errTooLarge) {
+		t.Fatalf("Prepare error = %v, want errTooLarge", err)
+	}
+	runner.done()
+}
+
+func TestPrepareRejectsOversizedBody(t *testing.T) {
+	steps := prepareSteps("", "", strings.Repeat("x", maxBodyBytes+1))
 	tool, runner := newTool(t, steps)
 
 	if _, err := tool.Prepare(t.Context(), strconv.Itoa(testPRNumber), t.TempDir()); !errors.Is(err, errTooLarge) {
@@ -472,12 +512,14 @@ func TestMergeHappyPath(t *testing.T) {
 	subjectPath := writeTempFile(t, dir, "subject.txt", "subject line\n")
 	bodyPath := writeTempFile(t, dir, "body.txt", "body text\n")
 
-	steps := []commandStep{
+	steps := mergePreflightSteps()
+	steps = append(steps,
 		ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "main", false, false)),
 		ghStep(checksArgs(), ""),
+		ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "main", false, false)),
 		ghStep(mergeArgs("subject line", bodyPath), ""),
-		ghStep(mergeViewArgs(), mergeViewOut(mergedState, "feature/foo", testHeadOID, "main", false, true)),
-	}
+		mergedViewStep(),
+	)
 	steps = append(steps, cleanupSteps(testRemotePresent, testHeadOID)...)
 	tool, runner := newTool(t, steps)
 
@@ -493,13 +535,29 @@ func TestMergeHappyPath(t *testing.T) {
 	}
 }
 
+func TestMergeRejectsDirtyWorktree(t *testing.T) {
+	dir := t.TempDir()
+	statePath := writeStateFile(t, dir)
+	subjectPath := writeTempFile(t, dir, "subject.txt", "subject line\n")
+	bodyPath := writeTempFile(t, dir, "body.txt", "body\n")
+
+	steps := []commandStep{gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, "?? edit.txt\n")}
+	tool, runner := newTool(t, steps)
+
+	if _, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath); !errors.Is(err, errDirtyWorktree) {
+		t.Fatalf("Merge error = %v, want errDirtyWorktree", err)
+	}
+	runner.done()
+}
+
 func TestMergeRejectsHeadDrift(t *testing.T) {
 	dir := t.TempDir()
 	statePath := writeStateFile(t, dir)
 	subjectPath := writeTempFile(t, dir, "subject.txt", "subject line\n")
 	bodyPath := writeTempFile(t, dir, "body.txt", "body\n")
 
-	steps := []commandStep{ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testOtherOID, "main", false, false))}
+	steps := mergePreflightSteps()
+	steps = append(steps, ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testOtherOID, "main", false, false)))
 	tool, runner := newTool(t, steps)
 
 	if _, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath); !errors.Is(err, errHeadDrift) {
@@ -514,7 +572,8 @@ func TestMergeRejectsHeadNameDrift(t *testing.T) {
 	subjectPath := writeTempFile(t, dir, "subject.txt", "subject line\n")
 	bodyPath := writeTempFile(t, dir, "body.txt", "body\n")
 
-	steps := []commandStep{ghStep(mergeViewArgs(), mergeViewOut(openState, "other", testHeadOID, "main", false, false))}
+	steps := mergePreflightSteps()
+	steps = append(steps, ghStep(mergeViewArgs(), mergeViewOut(openState, "other", testHeadOID, "main", false, false)))
 	tool, runner := newTool(t, steps)
 
 	if _, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath); !errors.Is(err, errHeadDrift) {
@@ -529,7 +588,28 @@ func TestMergeRejectsBaseDrift(t *testing.T) {
 	subjectPath := writeTempFile(t, dir, "subject.txt", "subject line\n")
 	bodyPath := writeTempFile(t, dir, "body.txt", "body\n")
 
-	steps := []commandStep{ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "release", false, false))}
+	steps := mergePreflightSteps()
+	steps = append(steps, ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "release", false, false)))
+	tool, runner := newTool(t, steps)
+
+	if _, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath); !errors.Is(err, errBaseDrift) {
+		t.Fatalf("Merge error = %v, want errBaseDrift", err)
+	}
+	runner.done()
+}
+
+func TestMergeRejectsDriftAfterChecks(t *testing.T) {
+	dir := t.TempDir()
+	statePath := writeStateFile(t, dir)
+	subjectPath := writeTempFile(t, dir, "subject.txt", "subject line\n")
+	bodyPath := writeTempFile(t, dir, "body.txt", "body\n")
+
+	steps := mergePreflightSteps()
+	steps = append(steps,
+		ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "main", false, false)),
+		ghStep(checksArgs(), ""),
+		ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "release", false, false)),
+	)
 	tool, runner := newTool(t, steps)
 
 	if _, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath); !errors.Is(err, errBaseDrift) {
@@ -544,7 +624,8 @@ func TestMergeRejectsCrossRepository(t *testing.T) {
 	subjectPath := writeTempFile(t, dir, "subject.txt", "subject line\n")
 	bodyPath := writeTempFile(t, dir, "body.txt", "body\n")
 
-	steps := []commandStep{ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "main", true, false))}
+	steps := mergePreflightSteps()
+	steps = append(steps, ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "main", true, false)))
 	tool, runner := newTool(t, steps)
 
 	if _, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath); !errors.Is(err, errCrossRepository) {
@@ -559,10 +640,11 @@ func TestMergeRechecksChecks(t *testing.T) {
 	subjectPath := writeTempFile(t, dir, "subject.txt", "subject line\n")
 	bodyPath := writeTempFile(t, dir, "body.txt", "body\n")
 
-	steps := []commandStep{
+	steps := mergePreflightSteps()
+	steps = append(steps,
 		ghStep(mergeViewArgs(), mergeViewOut(openState, "feature/foo", testHeadOID, "main", false, false)),
-		{name: ghCommand, args: checksArgs(), err: errors.New("exit status 1")},
-	}
+		commandStep{name: ghCommand, args: checksArgs(), err: errors.New("exit status 1")},
+	)
 	tool, runner := newTool(t, steps)
 
 	if _, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath); !errors.Is(err, errChecksFailed) {
@@ -577,7 +659,8 @@ func TestMergeResumesCleanupWhenMerged(t *testing.T) {
 	subjectPath := writeTempFile(t, dir, "subject.txt", "subject line\n")
 	bodyPath := writeTempFile(t, dir, "body.txt", "body\n")
 
-	steps := []commandStep{ghStep(mergeViewArgs(), mergeViewOut(mergedState, "feature/foo", testHeadOID, "main", false, true))}
+	steps := mergePreflightSteps()
+	steps = append(steps, mergedViewStep())
 	steps = append(steps, cleanupSteps(testRemotePresent, testHeadOID)...)
 	tool, runner := newTool(t, steps)
 
@@ -672,10 +755,10 @@ func TestCleanupRejectsBaseNotCurrent(t *testing.T) {
 	steps = append(steps,
 		gitStep([]string{"status", "--porcelain", "--untracked-files=all"}, ""),
 		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
-		gitStep([]string{"ls-remote", "--heads", "origin", "refs/heads/feature/foo"}, testRemotePresent),
-		gitStep([]string{"push", "--force-with-lease=refs/heads/feature/foo:" + testHeadOID, "origin", "--delete", "refs/heads/feature/foo"}, ""),
+		gitStep([]string{"ls-remote", "--heads", testFetchURL, "refs/heads/feature/foo"}, testRemotePresent),
+		gitStep([]string{"push", "--force-with-lease=refs/heads/feature/foo:" + testHeadOID, testFetchURL, "--delete", "refs/heads/feature/foo"}, ""),
 		gitStep([]string{"switch", "main"}, ""),
-		gitStep([]string{"fetch", "origin", "refs/heads/main:refs/remotes/origin/main"}, ""),
+		gitStep([]string{"fetch", testFetchURL, "refs/heads/main:refs/remotes/origin/main"}, ""),
 		gitStep([]string{"merge", "--ff-only", "refs/remotes/origin/main"}, ""),
 		gitStep([]string{"rev-parse", "HEAD"}, testOtherOID+"\n"),
 		gitStep([]string{"rev-parse", "refs/remotes/origin/main"}, testBaseOID+"\n"),

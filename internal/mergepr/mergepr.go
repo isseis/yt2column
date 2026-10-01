@@ -1,8 +1,9 @@
 // Package mergepr implements the mechanics behind the /mergepr command:
 // resolving and verifying the repository, the PR, and its refs once, then
 // merging and cleaning up. Values never pass through a shell, refs are
-// fully-qualified, and every mutable value is re-verified immediately before
-// the irreversible operation that consumes it.
+// fully-qualified, every remote operation uses a pinned URL rather than the
+// remote name, and every mutable value is re-verified immediately before the
+// irreversible operation that consumes it.
 package mergepr
 
 import (
@@ -16,6 +17,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -26,6 +28,10 @@ const (
 	refsHeads    = "refs/heads/"
 	refsRemotes  = "refs/remotes/"
 	originRefs   = refsRemotes + originRemote + "/"
+	// refsWildcard maps the remote's branches into this repository's own
+	// remote-tracking namespace, so a configured refspec cannot rewrite a local
+	// branch.
+	refsWildcard = refsHeads + "*:" + originRefs + "*"
 	githubHost   = "github.com"
 
 	repoFlag = "-R"
@@ -38,14 +44,21 @@ const (
 	stateFileName = "state.json"
 	logFileName   = "log.txt"
 	statFileName  = "stat.txt"
+	bodyFileName  = "body.txt"
 
 	maxLogBytes     = 256 << 10
 	maxStatBytes    = 64 << 10
+	maxBodyBytes    = 64 << 10
 	maxSubjectBytes = 4 << 10
+
+	// commandTimeout bounds a single git or gh call. checkTimeout is the
+	// larger budget gh pr checks --watch may legitimately need for a running CI.
+	commandTimeout = 5 * time.Minute
+	checksTimeout  = 30 * time.Minute
 
 	stateFileMode = 0o600
 
-	prViewFields  = "number,title,state,headRefName,headRefOid,baseRefName,isCrossRepository,url"
+	prViewFields  = "number,title,state,headRefName,headRefOid,baseRefName,isCrossRepository,url,body"
 	mergeViewJSON = "state,headRefName,headRefOid,baseRefName,isCrossRepository,mergeCommit"
 )
 
@@ -73,6 +86,27 @@ func New(runner Runner) (*Tool, error) {
 	}
 	return &Tool{run: runner}, nil
 }
+
+// command runs one external command with a deadline, so a stalled git or gh
+// call cannot hang the workflow forever.
+func (t *Tool) command(ctx context.Context, timeout time.Duration, name string, args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	return t.run.Run(ctx, name, args...)
+}
+
+// identity is a repository resolved once and pinned: the owner and repo name,
+// origin's validated fetch URL, and one validated push URL. Remote operations
+// use these URLs, never the remote name, so ambient configuration cannot
+// redirect them.
+type identity struct {
+	Owner    string
+	Repo     string
+	FetchURL string
+	PushURL  string
+}
+
+func (id identity) repo() string { return id.Owner + "/" + id.Repo }
 
 // State pins the values Prepare verified so that Merge and Cleanup consume the
 // same form instead of re-resolving it from configuration or live state.
@@ -112,6 +146,7 @@ type Prepared struct {
 	StatePath string
 	LogPath   string
 	StatPath  string
+	BodyPath  string
 }
 
 // Report describes what Merge or Cleanup changed.
@@ -124,8 +159,8 @@ type Report struct {
 
 // Prepare verifies the repository, PR, refs, worktree, and CI, fetches origin,
 // and writes the pinned state and drafting material into workDir (a fresh
-// temporary directory when workDir is empty). It stops instead of truncating
-// the commit log or diff stat.
+// temporary directory when workDir is empty). It stops instead of truncating an
+// input that does not fit.
 func (t *Tool) Prepare(ctx context.Context, prArg, workDir string) (Prepared, error) {
 	created := false
 	if workDir == "" {
@@ -147,97 +182,102 @@ func (t *Tool) Prepare(ctx context.Context, prArg, workDir string) (Prepared, er
 }
 
 func (t *Tool) prepare(ctx context.Context, prArg, workDir string) (Prepared, error) {
-	owner, repo, pr, err := t.resolvePR(ctx, prArg)
+	id, pr, err := t.resolvePR(ctx, prArg)
 	if err != nil {
 		return Prepared{}, err
 	}
-	logOut, statOut, err := t.draftingMaterial(ctx, owner, repo, pr)
+	logOut, statOut, bodyOut, err := t.draftingMaterial(ctx, id, pr)
 	if err != nil {
 		return Prepared{}, err
 	}
-	return writePrepared(workDir, owner, repo, pr, logOut, statOut)
+	return writePrepared(workDir, id, pr, logOut, statOut, bodyOut)
 }
 
 // resolvePR verifies everything about the PR itself before any network
 // mutation: repository identity, PR state, ref-name safety, and the local
-// worktree and head branch.
-func (t *Tool) resolvePR(ctx context.Context, prArg string) (string, string, prInfo, error) {
-	owner, repo, err := t.repoIdentity(ctx)
+// worktree, HEAD, and head branch.
+func (t *Tool) resolvePR(ctx context.Context, prArg string) (identity, prInfo, error) {
+	id, err := t.repoIdentity(ctx)
 	if err != nil {
-		return "", "", prInfo{}, err
+		return identity{}, prInfo{}, err
 	}
-	number, useCurrent, err := parsePRArg(prArg, owner, repo)
+	number, useCurrent, err := parsePRArg(prArg, id.Owner, id.Repo)
 	if err != nil {
-		return "", "", prInfo{}, err
+		return identity{}, prInfo{}, err
 	}
-	pr, err := t.fetchPR(ctx, owner, repo, number, useCurrent)
+	pr, err := t.fetchPR(ctx, id.Owner, id.Repo, number, useCurrent)
 	if err != nil {
-		return "", "", prInfo{}, err
+		return identity{}, prInfo{}, err
 	}
 	if pr.State != openState {
-		return "", "", prInfo{}, fmt.Errorf("%w: state is %s", errPRNotOpen, pr.State)
+		return identity{}, prInfo{}, fmt.Errorf("%w: state is %s", errPRNotOpen, pr.State)
 	}
 	if pr.IsCrossRepository {
-		return "", "", prInfo{}, errCrossRepository
+		return identity{}, prInfo{}, errCrossRepository
 	}
 	for _, name := range []string{pr.HeadRefName, pr.BaseRefName} {
 		if err := checkRefNameSyntax(name); err != nil {
-			return "", "", prInfo{}, err
+			return identity{}, prInfo{}, err
 		}
 		if err := t.gitCheckRefFormat(ctx, name); err != nil {
-			return "", "", prInfo{}, err
+			return identity{}, prInfo{}, err
 		}
 	}
 	if err := t.requireCleanWorktree(ctx); err != nil {
-		return "", "", prInfo{}, err
+		return identity{}, prInfo{}, err
 	}
 	// Switching branches later must not orphan a detached tip, so require HEAD
 	// to be attached before anything else is touched.
-	if _, err := t.run.Run(ctx, gitCommand, "symbolic-ref", "--quiet", "HEAD"); err != nil {
-		return "", "", prInfo{}, errDetachedHead
+	if err := t.requireAttachedHead(ctx); err != nil {
+		return identity{}, prInfo{}, err
 	}
 	localOID, err := t.localHeadOID(ctx, pr.HeadRefName)
 	if err != nil {
-		return "", "", prInfo{}, err
+		return identity{}, prInfo{}, err
 	}
 	if localOID != "" && localOID != pr.HeadRefOID {
-		return "", "", prInfo{}, fmt.Errorf("%w: %s is %s, want %s", errHeadBranchMismatch, pr.HeadRefName, localOID, pr.HeadRefOID)
+		return identity{}, prInfo{}, fmt.Errorf("%w: %s is %s, want %s", errHeadBranchMismatch, pr.HeadRefName, localOID, pr.HeadRefOID)
 	}
-	return owner, repo, pr, nil
+	return id, pr, nil
 }
 
-// draftingMaterial fetches origin, waits for CI, and reads the bounded commit
-// log and diff stat the message is drafted from.
-func (t *Tool) draftingMaterial(ctx context.Context, owner, repo string, pr prInfo) ([]byte, []byte, error) {
-	if _, err := t.run.Run(ctx, gitCommand, "fetch", originRemote); err != nil {
-		return nil, nil, fmt.Errorf("fetch origin: %w", err)
+// draftingMaterial fetches into this repository's own remote-tracking refs,
+// waits for CI, and reads the bounded commit log, diff stat, and PR body the
+// message is drafted from.
+func (t *Tool) draftingMaterial(ctx context.Context, id identity, pr prInfo) ([]byte, []byte, []byte, error) {
+	if _, err := t.command(ctx, commandTimeout, gitCommand, "fetch", id.FetchURL, refsWildcard); err != nil {
+		return nil, nil, nil, fmt.Errorf("fetch origin: %w", err)
 	}
-	if _, err := t.run.Run(ctx, ghCommand, "pr", "checks", strconv.Itoa(pr.Number), "--watch", "--fail-fast", repoFlag, owner+"/"+repo); err != nil {
-		return nil, nil, fmt.Errorf("%w: %w", errChecksFailed, err)
+	if _, err := t.command(ctx, checksTimeout, ghCommand, "pr", "checks", strconv.Itoa(pr.Number), "--watch", "--fail-fast", repoFlag, id.repo()); err != nil {
+		return nil, nil, nil, fmt.Errorf("%w: %w", errChecksFailed, err)
 	}
 	baseRef := originRefs + pr.BaseRefName
-	logOut, err := t.run.Run(ctx, gitCommand, "log", "--no-show-signature", "--format=%h %s%n%n%b", baseRef+".."+pr.HeadRefOID)
+	logOut, err := t.command(ctx, commandTimeout, gitCommand, "log", "--no-show-signature", "--format=%h %s%n%n%b", baseRef+".."+pr.HeadRefOID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("read commit log: %w", err)
+		return nil, nil, nil, fmt.Errorf("read commit log: %w", err)
 	}
 	if len(logOut) > maxLogBytes {
-		return nil, nil, fmt.Errorf("%w: commit log is %d bytes, limit %d", errTooLarge, len(logOut), maxLogBytes)
+		return nil, nil, nil, fmt.Errorf("%w: commit log is %d bytes, limit %d", errTooLarge, len(logOut), maxLogBytes)
 	}
-	statOut, err := t.run.Run(ctx, gitCommand, "diff", "--stat", baseRef+"..."+pr.HeadRefOID)
+	statOut, err := t.command(ctx, commandTimeout, gitCommand, "diff", "--stat", baseRef+"..."+pr.HeadRefOID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("read diff stat: %w", err)
+		return nil, nil, nil, fmt.Errorf("read diff stat: %w", err)
 	}
 	if len(statOut) > maxStatBytes {
-		return nil, nil, fmt.Errorf("%w: diff stat is %d bytes, limit %d", errTooLarge, len(statOut), maxStatBytes)
+		return nil, nil, nil, fmt.Errorf("%w: diff stat is %d bytes, limit %d", errTooLarge, len(statOut), maxStatBytes)
 	}
-	return logOut, statOut, nil
+	bodyOut := []byte(pr.Body)
+	if len(bodyOut) > maxBodyBytes {
+		return nil, nil, nil, fmt.Errorf("%w: PR body is %d bytes, limit %d", errTooLarge, len(bodyOut), maxBodyBytes)
+	}
+	return logOut, statOut, bodyOut, nil
 }
 
-func writePrepared(workDir, owner, repo string, pr prInfo, logOut, statOut []byte) (Prepared, error) {
+func writePrepared(workDir string, id identity, pr prInfo, logOut, statOut, bodyOut []byte) (Prepared, error) {
 	state := State{
 		Number:      pr.Number,
-		Owner:       owner,
-		Repo:        repo,
+		Owner:       id.Owner,
+		Repo:        id.Repo,
 		HeadRefName: pr.HeadRefName,
 		HeadRefOID:  pr.HeadRefOID,
 		BaseRefName: pr.BaseRefName,
@@ -256,12 +296,17 @@ func writePrepared(workDir, owner, repo string, pr prInfo, logOut, statOut []byt
 	if err := writeFile(statPath, statOut); err != nil {
 		return Prepared{}, err
 	}
-	return Prepared{State: state, StatePath: statePath, LogPath: logPath, StatPath: statPath}, nil
+	bodyPath := filepath.Join(workDir, bodyFileName)
+	if err := writeFile(bodyPath, bodyOut); err != nil {
+		return Prepared{}, err
+	}
+	return Prepared{State: state, StatePath: statePath, LogPath: logPath, StatPath: statPath, BodyPath: bodyPath}, nil
 }
 
 // Merge re-verifies the PR against the pinned state immediately before the
-// irreversible merge, merges with --match-head-commit, and cleans up. When the
-// PR is already MERGED it skips the merge and resumes cleanup.
+// irreversible merge — including once more after the CI wait — merges with
+// --match-head-commit, and cleans up. When the PR is already MERGED it skips
+// the merge and resumes cleanup.
 func (t *Tool) Merge(ctx context.Context, statePath, subjectPath, bodyPath string) (Report, error) {
 	state, err := loadState(statePath)
 	if err != nil {
@@ -274,6 +319,15 @@ func (t *Tool) Merge(ctx context.Context, statePath, subjectPath, bodyPath strin
 	if _, err := os.Stat(bodyPath); err != nil {
 		return Report{}, fmt.Errorf("read body file: %w", err)
 	}
+	// The message files are written outside the worktree, but the pause before
+	// the merge is long enough for the worktree to change; refuse to merge and
+	// then be unable to clean up.
+	if err := t.requireCleanWorktree(ctx); err != nil {
+		return Report{}, err
+	}
+	if err := t.requireAttachedHead(ctx); err != nil {
+		return Report{}, err
+	}
 	live, err := t.fetchMergeView(ctx, state)
 	if err != nil {
 		return Report{}, err
@@ -282,23 +336,48 @@ func (t *Tool) Merge(ctx context.Context, statePath, subjectPath, bodyPath strin
 	case live.IsCrossRepository:
 		return Report{}, errCrossRepository
 	case live.State == mergedState:
-		return t.cleanupWith(ctx, state, &live)
+		return t.cleanupWith(ctx, state, &live, nil)
 	case live.State != openState:
 		return Report{}, fmt.Errorf("%w: state is %s", errPRNotOpen, live.State)
 	}
-	if live.HeadRefName != state.HeadRefName || live.HeadRefOID != state.HeadRefOID {
-		return Report{}, fmt.Errorf("%w: head is %s at %s, pinned %s at %s", errHeadDrift, live.HeadRefName, live.HeadRefOID, state.HeadRefName, state.HeadRefOID)
+	if err := verifyOpen(live, state); err != nil {
+		return Report{}, err
 	}
-	if live.BaseRefName != state.BaseRefName {
-		return Report{}, fmt.Errorf("%w: base is %s, pinned %s", errBaseDrift, live.BaseRefName, state.BaseRefName)
-	}
-	if _, err := t.run.Run(ctx, ghCommand, "pr", "checks", strconv.Itoa(state.Number), "--watch", "--fail-fast", repoFlag, state.repo()); err != nil {
+	if _, err := t.command(ctx, checksTimeout, ghCommand, "pr", "checks", strconv.Itoa(state.Number), "--watch", "--fail-fast", repoFlag, state.repo()); err != nil {
 		return Report{}, fmt.Errorf("%w: %w", errChecksFailed, err)
 	}
-	if _, err := t.run.Run(ctx, ghCommand, "pr", "merge", strconv.Itoa(state.Number), "--squash", "--subject", subject, "--body-file", bodyPath, "--match-head-commit", state.HeadRefOID, repoFlag, state.repo()); err != nil {
+	// The CI wait can be long. Re-read the PR after it and re-check everything
+	// before the irreversible merge, because --match-head-commit pins only the
+	// head OID.
+	after, err := t.fetchMergeView(ctx, state)
+	if err != nil {
+		return Report{}, err
+	}
+	if after.IsCrossRepository {
+		return Report{}, errCrossRepository
+	}
+	if after.State != openState {
+		return Report{}, fmt.Errorf("%w: state is %s", errPRNotOpen, after.State)
+	}
+	if err := verifyOpen(after, state); err != nil {
+		return Report{}, err
+	}
+	if _, err := t.command(ctx, commandTimeout, ghCommand, "pr", "merge", strconv.Itoa(state.Number), "--squash", "--subject", subject, "--body-file", bodyPath, "--match-head-commit", state.HeadRefOID, repoFlag, state.repo()); err != nil {
 		return Report{}, fmt.Errorf("merge PR: %w", err)
 	}
-	return t.cleanupWith(ctx, state, nil)
+	return t.cleanupWith(ctx, state, nil, nil)
+}
+
+// verifyOpen rejects a PR that drifted from the pinned state while the command
+// was paused.
+func verifyOpen(live mergeView, state State) error {
+	if live.HeadRefName != state.HeadRefName || live.HeadRefOID != state.HeadRefOID {
+		return fmt.Errorf("%w: head is %s at %s, pinned %s at %s", errHeadDrift, live.HeadRefName, live.HeadRefOID, state.HeadRefName, state.HeadRefOID)
+	}
+	if live.BaseRefName != state.BaseRefName {
+		return fmt.Errorf("%w: base is %s, pinned %s", errBaseDrift, live.BaseRefName, state.BaseRefName)
+	}
+	return nil
 }
 
 // Cleanup resumes the post-merge cleanup from a Prepare state file after a
@@ -308,12 +387,12 @@ func (t *Tool) Cleanup(ctx context.Context, statePath string) (Report, error) {
 	if err != nil {
 		return Report{}, err
 	}
-	return t.cleanupWith(ctx, state, nil)
+	return t.cleanupWith(ctx, state, nil, nil)
 }
 
-// cleanupWith needs a fresh merge view, so a caller that already has one (the
-// resume path) passes it instead of asking GitHub twice.
-func (t *Tool) cleanupWith(ctx context.Context, state State, live *mergeView) (Report, error) {
+// cleanupWith needs a fresh merge view and a pinned repository identity; the
+// resume path passes the view it already has, and Merge passes neither.
+func (t *Tool) cleanupWith(ctx context.Context, state State, live *mergeView, id *identity) (Report, error) {
 	if live == nil {
 		fetched, err := t.fetchMergeView(ctx, state)
 		if err != nil {
@@ -326,31 +405,35 @@ func (t *Tool) cleanupWith(ctx context.Context, state State, live *mergeView) (R
 	}
 	report := Report{MergeCommitOID: live.MergeCommit.OID}
 
-	// Re-verify origin's identity now: configuration could have changed since
-	// prepare, and the next steps act on the remote.
-	owner, repo, err := t.repoIdentity(ctx)
-	if err != nil {
-		return Report{}, err
+	// Resolve and pin origin now; the switch below cannot change which URLs the
+	// later fetch and prune use.
+	if id == nil {
+		resolved, err := t.repoIdentity(ctx)
+		if err != nil {
+			return Report{}, err
+		}
+		id = &resolved
 	}
-	if owner != state.Owner || repo != state.Repo {
+	if id.Owner != state.Owner || id.Repo != state.Repo {
 		return Report{}, errRepoMismatch
 	}
 	if err := t.requireCleanWorktree(ctx); err != nil {
 		return Report{}, err
 	}
-	if _, err := t.run.Run(ctx, gitCommand, "symbolic-ref", "--quiet", "HEAD"); err != nil {
-		return Report{}, errDetachedHead
-	}
-	if report.RemoteDeleted, err = t.deleteRemoteBranch(ctx, state); err != nil {
+	if err := t.requireAttachedHead(ctx); err != nil {
 		return Report{}, err
 	}
-	if report.BaseUpdated, err = t.updateBase(ctx, state); err != nil {
+	var err error
+	if report.RemoteDeleted, err = t.deleteRemoteBranch(ctx, *id, state); err != nil {
+		return Report{}, err
+	}
+	if report.BaseUpdated, err = t.updateBase(ctx, *id, state); err != nil {
 		return Report{}, err
 	}
 	if report.LocalDeleted, err = t.deleteLocalBranch(ctx, state); err != nil {
 		return Report{}, err
 	}
-	if _, err := t.run.Run(ctx, gitCommand, "fetch", "--prune", originRemote); err != nil {
+	if _, err := t.command(ctx, commandTimeout, gitCommand, "fetch", "--prune", id.FetchURL, refsWildcard); err != nil {
 		return Report{}, fmt.Errorf("prune origin: %w", err)
 	}
 	return report, nil
@@ -370,9 +453,9 @@ func verifyMerged(live *mergeView, state State) error {
 	return nil
 }
 
-func (t *Tool) deleteRemoteBranch(ctx context.Context, state State) (bool, error) {
+func (t *Tool) deleteRemoteBranch(ctx context.Context, id identity, state State) (bool, error) {
 	headRef := refsHeads + state.HeadRefName
-	out, err := t.run.Run(ctx, gitCommand, "ls-remote", "--heads", originRemote, headRef)
+	out, err := t.command(ctx, commandTimeout, gitCommand, "ls-remote", "--heads", id.PushURL, headRef)
 	if err != nil {
 		return false, fmt.Errorf("list remote branch: %w", err)
 	}
@@ -380,21 +463,21 @@ func (t *Tool) deleteRemoteBranch(ctx context.Context, state State) (bool, error
 		return false, nil
 	}
 	lease := "--force-with-lease=" + headRef + ":" + state.HeadRefOID
-	if _, err := t.run.Run(ctx, gitCommand, "push", lease, originRemote, "--delete", headRef); err != nil {
+	if _, err := t.command(ctx, commandTimeout, gitCommand, "push", lease, id.PushURL, "--delete", headRef); err != nil {
 		return false, fmt.Errorf("delete remote branch: %w", err)
 	}
 	return true, nil
 }
 
-func (t *Tool) updateBase(ctx context.Context, state State) (bool, error) {
-	if _, err := t.run.Run(ctx, gitCommand, "switch", state.BaseRefName); err != nil {
+func (t *Tool) updateBase(ctx context.Context, id identity, state State) (bool, error) {
+	if _, err := t.command(ctx, commandTimeout, gitCommand, "switch", state.BaseRefName); err != nil {
 		return false, fmt.Errorf("switch to base branch: %w", err)
 	}
 	baseRef := originRefs + state.BaseRefName
-	if _, err := t.run.Run(ctx, gitCommand, "fetch", originRemote, refsHeads+state.BaseRefName+":"+baseRef); err != nil {
+	if _, err := t.command(ctx, commandTimeout, gitCommand, "fetch", id.FetchURL, refsHeads+state.BaseRefName+":"+baseRef); err != nil {
 		return false, fmt.Errorf("fetch base branch: %w", err)
 	}
-	if _, err := t.run.Run(ctx, gitCommand, "merge", "--ff-only", baseRef); err != nil {
+	if _, err := t.command(ctx, commandTimeout, gitCommand, "merge", "--ff-only", baseRef); err != nil {
 		return false, fmt.Errorf("fast-forward base branch: %w", err)
 	}
 	if err := t.requireBaseCurrent(ctx, baseRef); err != nil {
@@ -414,59 +497,70 @@ func (t *Tool) deleteLocalBranch(ctx context.Context, state State) (bool, error)
 	if localOID != state.HeadRefOID {
 		return false, fmt.Errorf("%w: %s is %s, want %s", errLocalBranchDrift, state.HeadRefName, localOID, state.HeadRefOID)
 	}
-	if _, err := t.run.Run(ctx, gitCommand, "branch", "-D", state.HeadRefName); err != nil {
+	if _, err := t.command(ctx, commandTimeout, gitCommand, "branch", "-D", state.HeadRefName); err != nil {
 		return false, fmt.Errorf("delete local branch: %w", err)
 	}
 	return true, nil
 }
 
-// repoIdentity resolves the repository once and requires origin's fetch URL,
-// origin's push URL, and the repository gh selects to name the same GitHub
-// repository, so no later step can act on a different one.
-func (t *Tool) repoIdentity(ctx context.Context) (string, string, error) {
-	fetchURL, err := t.run.Run(ctx, gitCommand, "remote", "get-url", originRemote)
+// repoIdentity resolves the repository once and pins it: origin's fetch URL,
+// every push URL, and the repository gh selects must name the same GitHub
+// repository over https or ssh, so no later step can act on a different one.
+func (t *Tool) repoIdentity(ctx context.Context) (identity, error) {
+	fetchURL, err := t.command(ctx, commandTimeout, gitCommand, "remote", "get-url", originRemote)
 	if err != nil {
-		return "", "", fmt.Errorf("read origin fetch URL: %w", err)
+		return identity{}, fmt.Errorf("read origin fetch URL: %w", err)
 	}
-	pushURL, err := t.run.Run(ctx, gitCommand, "remote", "get-url", "--push", originRemote)
+	fetch := strings.TrimSpace(string(fetchURL))
+	fetchOwner, fetchRepo, err := parseGitHubRemote(fetch)
 	if err != nil {
-		return "", "", fmt.Errorf("read origin push URL: %w", err)
+		return identity{}, err
 	}
-	fetchOwner, fetchRepo, err := parseGitHubRemote(strings.TrimSpace(string(fetchURL)))
+	pushURLs, err := t.command(ctx, commandTimeout, gitCommand, "remote", "get-url", "--push", "--all", originRemote)
 	if err != nil {
-		return "", "", err
+		return identity{}, fmt.Errorf("read origin push URLs: %w", err)
 	}
-	pushOwner, pushRepo, err := parseGitHubRemote(strings.TrimSpace(string(pushURL)))
+	// git push updates every configured push URL, so one unvalidated mirror
+	// could receive the branch deletion.
+	var pinnedPush string
+	for line := range strings.Lines(string(pushURLs)) {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		owner, repo, err := parseGitHubRemote(line)
+		if err != nil || owner != fetchOwner || repo != fetchRepo {
+			return identity{}, errRemoteMismatch
+		}
+		if pinnedPush == "" {
+			pinnedPush = line
+		}
+	}
+	if pinnedPush == "" {
+		return identity{}, errRemoteMismatch
+	}
+	selected, err := t.command(ctx, commandTimeout, ghCommand, "repo", "view", jsonFlag, "nameWithOwner,url")
 	if err != nil {
-		return "", "", err
-	}
-	if fetchOwner != pushOwner || fetchRepo != pushRepo {
-		return "", "", errRemoteMismatch
-	}
-	selected, err := t.run.Run(ctx, ghCommand, "repo", "view", jsonFlag, "nameWithOwner,url")
-	if err != nil {
-		return "", "", fmt.Errorf("resolve repository gh selects: %w", err)
+		return identity{}, fmt.Errorf("resolve repository gh selects: %w", err)
 	}
 	var view struct {
 		NameWithOwner string `json:"nameWithOwner"`
 		URL           string `json:"url"`
 	}
 	if err := json.Unmarshal(selected, &view); err != nil {
-		return "", "", fmt.Errorf("parse repository gh selects: %w", err)
+		return identity{}, fmt.Errorf("parse repository gh selects: %w", err)
 	}
-	// The host matters: GH_REPO can select a same-named repository on another
-	// GitHub host, which parseGitHubRemote rejects because it requires
-	// github.com.
 	selectedOwner, selectedRepo, err := parseGitHubRemote(view.URL)
 	if err != nil || view.NameWithOwner != fetchOwner+"/"+fetchRepo || selectedOwner != fetchOwner || selectedRepo != fetchRepo {
-		return "", "", fmt.Errorf("%w: gh selects %q", errRepoMismatch, view.NameWithOwner)
+		return identity{}, fmt.Errorf("%w: gh selects %q", errRepoMismatch, view.NameWithOwner)
 	}
-	return fetchOwner, fetchRepo, nil
+	return identity{Owner: fetchOwner, Repo: fetchRepo, FetchURL: fetch, PushURL: pinnedPush}, nil
 }
 
-// parseGitHubRemote extracts owner and repo from an https, http, ssh, or
-// scp-like GitHub remote URL. It never includes the URL in an error, because a
-// remote URL can embed credentials.
+// parseGitHubRemote extracts owner and repo from an https or ssh GitHub remote
+// URL. Plain http is rejected because a credential-bearing http URL could be
+// sent in the clear, and the URL is never included in an error because a remote
+// URL can embed credentials.
 func parseGitHubRemote(raw string) (string, string, error) {
 	if raw == "" {
 		return "", "", errInvalidRemote
@@ -478,7 +572,7 @@ func parseGitHubRemote(raw string) (string, string, error) {
 			return "", "", errInvalidRemote
 		}
 		switch parsed.Scheme {
-		case "https", "http", "ssh":
+		case "https", "ssh":
 		default:
 			return "", "", errInvalidRemote
 		}
@@ -541,6 +635,7 @@ type prInfo struct {
 	BaseRefName       string `json:"baseRefName"`
 	IsCrossRepository bool   `json:"isCrossRepository"`
 	URL               string `json:"url"`
+	Body              string `json:"body"`
 }
 
 func (t *Tool) fetchPR(ctx context.Context, owner, repo string, number int, useCurrent bool) (prInfo, error) {
@@ -549,7 +644,7 @@ func (t *Tool) fetchPR(ctx context.Context, owner, repo string, number int, useC
 		args = append(args, strconv.Itoa(number))
 	}
 	args = append(args, jsonFlag, prViewFields, repoFlag, owner+"/"+repo)
-	out, err := t.run.Run(ctx, ghCommand, args...)
+	out, err := t.command(ctx, commandTimeout, ghCommand, args...)
 	if err != nil {
 		return prInfo{}, fmt.Errorf("read PR: %w", err)
 	}
@@ -577,7 +672,7 @@ type mergeView struct {
 }
 
 func (t *Tool) fetchMergeView(ctx context.Context, state State) (mergeView, error) {
-	out, err := t.run.Run(ctx, ghCommand, "pr", "view", strconv.Itoa(state.Number), jsonFlag, mergeViewJSON, repoFlag, state.repo())
+	out, err := t.command(ctx, commandTimeout, ghCommand, "pr", "view", strconv.Itoa(state.Number), jsonFlag, mergeViewJSON, repoFlag, state.repo())
 	if err != nil {
 		return mergeView{}, fmt.Errorf("read PR state: %w", err)
 	}
@@ -599,14 +694,14 @@ func checkRefNameSyntax(name string) error {
 }
 
 func (t *Tool) gitCheckRefFormat(ctx context.Context, name string) error {
-	if _, err := t.run.Run(ctx, gitCommand, "check-ref-format", "--branch", name); err != nil {
+	if _, err := t.command(ctx, commandTimeout, gitCommand, "check-ref-format", "--branch", name); err != nil {
 		return fmt.Errorf("%w: %q: %w", errInvalidBranch, name, err)
 	}
 	return nil
 }
 
 func (t *Tool) requireCleanWorktree(ctx context.Context) error {
-	out, err := t.run.Run(ctx, gitCommand, "status", "--porcelain", "--untracked-files=all")
+	out, err := t.command(ctx, commandTimeout, gitCommand, "status", "--porcelain", "--untracked-files=all")
 	if err != nil {
 		return fmt.Errorf("read worktree status: %w", err)
 	}
@@ -616,11 +711,20 @@ func (t *Tool) requireCleanWorktree(ctx context.Context) error {
 	return nil
 }
 
+// requireAttachedHead rejects a detached HEAD so a later branch switch cannot
+// leave its tip unreachable.
+func (t *Tool) requireAttachedHead(ctx context.Context) error {
+	if _, err := t.command(ctx, commandTimeout, gitCommand, "symbolic-ref", "--quiet", "HEAD"); err != nil {
+		return errDetachedHead
+	}
+	return nil
+}
+
 // localHeadOID returns the OID of the local branch, or an empty string when it
 // does not exist. for-each-ref exits zero either way, so a missing branch is
 // not confused with a failing git.
 func (t *Tool) localHeadOID(ctx context.Context, name string) (string, error) {
-	out, err := t.run.Run(ctx, gitCommand, "for-each-ref", "--format=%(objectname)", refsHeads+name)
+	out, err := t.command(ctx, commandTimeout, gitCommand, "for-each-ref", "--format=%(objectname)", refsHeads+name)
 	if err != nil {
 		return "", fmt.Errorf("read local branch %q: %w", name, err)
 	}
@@ -628,18 +732,18 @@ func (t *Tool) localHeadOID(ctx context.Context, name string) (string, error) {
 }
 
 func (t *Tool) requireBaseCurrent(ctx context.Context, baseRef string) error {
-	head, err := t.run.Run(ctx, gitCommand, "rev-parse", "HEAD")
+	head, err := t.command(ctx, commandTimeout, gitCommand, "rev-parse", "HEAD")
 	if err != nil {
 		return fmt.Errorf("read HEAD: %w", err)
 	}
-	base, err := t.run.Run(ctx, gitCommand, "rev-parse", baseRef)
+	base, err := t.command(ctx, commandTimeout, gitCommand, "rev-parse", baseRef)
 	if err != nil {
 		return fmt.Errorf("read %s: %w", baseRef, err)
 	}
 	if strings.TrimSpace(string(head)) == strings.TrimSpace(string(base)) {
 		return nil
 	}
-	commits, err := t.run.Run(ctx, gitCommand, "log", "--oneline", baseRef+"..HEAD")
+	commits, err := t.command(ctx, commandTimeout, gitCommand, "log", "--oneline", baseRef+"..HEAD")
 	if err != nil {
 		return fmt.Errorf("%w: local base has commits origin lacks (%w)", errBaseNotCurrent, err)
 	}
