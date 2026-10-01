@@ -167,6 +167,7 @@ func TestParseGitHubRemote(t *testing.T) {
 		{"scp non-git user is rejected", "ghp_secret@github.com:isseis/yt2column.git", "", "", true},
 		{"http is rejected", "http://github.com/isseis/yt2column", "", "", true},
 		{"http with credentials is rejected", "http://token@github.com/isseis/yt2column", "", "", true},
+		{"https with credentials is rejected", "https://token@github.com/isseis/yt2column.git", "", "", true},
 		{"other host", "https://gitlab.com/isseis/yt2column.git", "", "", true},
 		{"scp other host", "git@gitlab.com:isseis/yt2column.git", "", "", true},
 		{"missing repo", "https://github.com/isseis", "", "", true},
@@ -196,9 +197,12 @@ func TestParseGitHubRemote(t *testing.T) {
 
 func TestErrorsDoNotIncludeRemoteURL(t *testing.T) {
 	const secret = "ghp_do_not_print"
-	owner, repo, err := parseGitHubRemote("https://" + secret + "@github.com/isseis/yt2column.git")
-	if err != nil || owner != "isseis" || repo != "yt2column" {
-		t.Fatalf("parseGitHubRemote credential URL = (%q, %q, %v), want isseis/yt2column and no error", owner, repo, err)
+	_, _, err := parseGitHubRemote("https://" + secret + "@github.com/isseis/yt2column.git")
+	if !errors.Is(err, errInvalidRemote) {
+		t.Fatalf("parseGitHubRemote credential URL error = %v, want errInvalidRemote", err)
+	}
+	if strings.Contains(err.Error(), secret) {
+		t.Errorf("error %q includes the credential", err)
 	}
 	_, _, err = parseGitHubRemote("https://" + secret + "@gitlab.com/isseis/yt2column.git")
 	if !errors.Is(err, errInvalidRemote) {
@@ -427,12 +431,16 @@ func TestPrepareRejectsExtraPushURL(t *testing.T) {
 
 func TestPrepareRejectsUnsupportedConfig(t *testing.T) {
 	steps := []commandStep{
-		gitStep([]string{"config", "--list", "--includes"}, "url.git@github.com:.insteadof=https://github.com/\n"),
+		gitStep([]string{"config", "--list", "--includes"}, "url.https://ghp_secret@github.com/.insteadof=https://github.com/\n"),
 	}
 	tool, runner := newTool(t, steps)
 
-	if _, err := tool.Prepare(t.Context(), strconv.Itoa(testPRNumber), t.TempDir()); !errors.Is(err, errUnsupportedConfig) {
+	_, err := tool.Prepare(t.Context(), strconv.Itoa(testPRNumber), t.TempDir())
+	if !errors.Is(err, errUnsupportedConfig) {
 		t.Fatalf("Prepare error = %v, want errUnsupportedConfig", err)
+	}
+	if strings.Contains(err.Error(), "ghp_secret") {
+		t.Errorf("error %q echoes the credential in the config key", err)
 	}
 	runner.done()
 }

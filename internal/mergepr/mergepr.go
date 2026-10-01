@@ -701,7 +701,15 @@ func parseGitHubRemote(raw string) (string, string, error) {
 			return "", "", errInvalidRemote
 		}
 		switch parsed.Scheme {
-		case "https", "ssh":
+		case "https":
+			// A credential in an https URL would be passed to git in argv.
+			if parsed.User != nil {
+				return "", "", errInvalidRemote
+			}
+		case "ssh":
+			if user := parsed.User; user != nil && user.Username() != "git" {
+				return "", "", errInvalidRemote
+			}
 		default:
 			return "", "", errInvalidRemote
 		}
@@ -915,21 +923,27 @@ func (t *Tool) requireSupportedConfig(ctx context.Context) error {
 	}
 	for line := range strings.Lines(string(out)) {
 		key, _, _ := strings.Cut(strings.TrimSpace(line), "=")
-		if unsupportedConfigKey(key) {
-			return fmt.Errorf("%w: %s", errUnsupportedConfig, key)
+		if rule := unsupportedConfigRule(key); rule != "" {
+			return fmt.Errorf("%w: %s", errUnsupportedConfig, rule)
 		}
 	}
 	return nil
 }
 
-// unsupportedConfigKey reports whether a git config key can rewrite a remote
-// URL (url.*.insteadOf/pushInsteadOf) or change config per branch (includeIf).
-func unsupportedConfigKey(key string) bool {
+// unsupportedConfigRule names the config rule that can rewrite a remote URL, or
+// "" when the key is fine. The key is never echoed, because it can embed a
+// credential.
+func unsupportedConfigRule(key string) string {
 	key = strings.ToLower(key)
-	if strings.HasPrefix(key, "includeif.") {
-		return true
+	switch {
+	case strings.HasPrefix(key, "includeif."):
+		return "includeIf"
+	case strings.HasPrefix(key, "url.") && strings.HasSuffix(key, ".insteadof"):
+		return "url.*.insteadOf"
+	case strings.HasPrefix(key, "url.") && strings.HasSuffix(key, ".pushinsteadof"):
+		return "url.*.pushInsteadOf"
 	}
-	return strings.HasPrefix(key, "url.") && (strings.HasSuffix(key, ".insteadof") || strings.HasSuffix(key, ".pushinsteadof"))
+	return ""
 }
 
 // sameRepo reports whether two GitHub owner/repo pairs name the same

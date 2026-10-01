@@ -4,6 +4,7 @@ package mergepr
 
 import (
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -64,6 +65,26 @@ func TestOSRunnerOverridesGitConfig(t *testing.T) {
 	if string(out) != "/dev/null|/dev/null|1" {
 		t.Errorf("child git config env = %q, want /dev/null|/dev/null|1", out)
 	}
+}
+
+func TestChildEnvScopesTokensAndDisablesHooks(t *testing.T) {
+	t.Setenv("GH_TOKEN", "secret")
+	gitEnv := childEnv(gitCommand)
+	ghEnv := childEnv(ghCommand)
+
+	if hasEnv(gitEnv, "GH_TOKEN=secret") {
+		t.Error("git child received GH_TOKEN, which its hooks could read")
+	}
+	if !hasEnv(ghEnv, "GH_TOKEN=secret") {
+		t.Error("gh child did not receive GH_TOKEN")
+	}
+	if !hasEnv(gitEnv, "GIT_CONFIG_KEY_0=core.hooksPath") || !hasEnv(gitEnv, "GIT_CONFIG_VALUE_0=/dev/null") {
+		t.Error("git child did not disable repository hooks")
+	}
+}
+
+func hasEnv(env []string, want string) bool {
+	return slices.Contains(env, want)
 }
 
 func TestOSRunnerEnvAllowlist(t *testing.T) {

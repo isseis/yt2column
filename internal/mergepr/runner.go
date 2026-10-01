@@ -32,7 +32,7 @@ var allowedEnvVars = []string{
 	"PATH", "HOME", "TMPDIR",
 	"SSH_AUTH_SOCK", "SSH_AGENT_PID",
 	"GIT_SSH", "GIT_SSH_COMMAND", "GIT_ASKPASS", "SSH_ASKPASS", "GIT_TERMINAL_PROMPT",
-	"GH_TOKEN", "GITHUB_TOKEN", "GH_HOST", "GH_CONFIG_DIR",
+	"GH_HOST", "GH_CONFIG_DIR",
 	"XDG_CONFIG_HOME", "XDG_CACHE_HOME",
 	"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY",
 	"http_proxy", "https_proxy", "no_proxy", "all_proxy",
@@ -58,7 +58,7 @@ func (osRunner) Run(ctx context.Context, name string, args ...string) ([]byte, e
 	stderr.limit = maxCommandErrorBytes
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	cmd.Env = childEnv()
+	cmd.Env = childEnv(name)
 	cmd.WaitDelay = commandWaitDelay
 	command := redactCredentials(name + " " + strings.Join(args, " "))
 	if err := cmd.Run(); err != nil {
@@ -110,15 +110,29 @@ func (b *limitedBuffer) Write(p []byte) (int, error) {
 
 // childEnv is the allowlisted environment plus git config overrides that
 // disable global and system configuration, so a global url.*.insteadOf or
-// includeIf cannot redirect a fetch or a push. The repository's local config is
-// still read and is audited by requireSupportedConfig.
-func childEnv() []string {
+// includeIf cannot redirect a fetch or a push, and disable repository hooks,
+// which a PR could otherwise place in a tracked directory and run with this
+// process's credentials. GitHub tokens are given only to gh, never to git and
+// its hooks. The repository's local config is still read and is audited by
+// requireSupportedConfig.
+func childEnv(name string) []string {
 	env := allowlistEnv(os.Environ())
-	return append(env,
+	env = append(env,
 		"GIT_CONFIG_GLOBAL=/dev/null",
 		"GIT_CONFIG_SYSTEM=/dev/null",
 		"GIT_CONFIG_NOSYSTEM=1",
+		"GIT_CONFIG_COUNT=1",
+		"GIT_CONFIG_KEY_0=core.hooksPath",
+		"GIT_CONFIG_VALUE_0=/dev/null",
 	)
+	if name == ghCommand {
+		for _, key := range []string{"GH_TOKEN", "GITHUB_TOKEN"} {
+			if value, ok := os.LookupEnv(key); ok {
+				env = append(env, key+"="+value)
+			}
+		}
+	}
+	return env
 }
 
 // allowlistEnv returns the allowlisted variables set in parent, in the order of
