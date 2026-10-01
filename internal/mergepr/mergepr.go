@@ -61,6 +61,7 @@ const (
 	checksTimeout  = 30 * time.Minute
 
 	stateFileMode = 0o600
+	workDirMode   = 0o700
 
 	prViewFields  = "number,title,state,headRefName,headRefOid,baseRefName,isCrossRepository,url,body"
 	mergeViewJSON = "state,headRefName,headRefOid,baseRefName,isCrossRepository,mergeCommit"
@@ -179,6 +180,10 @@ func (t *Tool) Prepare(ctx context.Context, prArg, workDir string) (Prepared, er
 		// dirty the worktree, so Merge's clean-worktree recheck would reject the
 		// state Prepare just produced.
 		return Prepared{}, err
+	} else if err := os.MkdirAll(workDir, workDirMode); err != nil {
+		// Create a named directory now, not after the CI wait, so writing the
+		// prepared files cannot be the step that fails.
+		return Prepared{}, fmt.Errorf("create work directory: %w", err)
 	}
 	prepared, err := t.prepare(ctx, prArg, workDir)
 	if err != nil {
@@ -292,11 +297,13 @@ func (t *Tool) requireToolUnchanged(ctx context.Context, id identity, base, head
 	}
 	// The command definition that drives this tool must be the trusted main
 	// revision, so a checkout on a branch that edited it cannot run it.
+	// git diff --quiet exits 1 for a difference and 128 for a failure such as a
+	// missing object; keep git's error so a failure is not misread as a change.
 	if _, err := t.command(ctx, commandTimeout, gitCommand, append([]string{"diff", "--quiet", originRefs + trustedBranch, "--"}, topPathspecs(commandFile)...)...); err != nil {
-		return errCommandChanged
+		return fmt.Errorf("%w: %w", errCommandChanged, err)
 	}
 	if _, err := t.command(ctx, commandTimeout, gitCommand, append([]string{"diff", "--quiet", originRefs + base + "..." + headOID, "--"}, topPathspecs("cmd/mergepr", "internal/mergepr", commandFile)...)...); err != nil {
-		return errToolChanged
+		return fmt.Errorf("%w: %w", errToolChanged, err)
 	}
 	return nil
 }
@@ -324,7 +331,15 @@ func (t *Tool) resolvePR(ctx context.Context, prArg string) (identity, prInfo, e
 	if err != nil {
 		return identity{}, prInfo{}, err
 	}
-	pr, err := t.fetchPR(ctx, id.Owner, id.Repo, number, useCurrent)
+	// gh refuses to infer the current branch's PR when -R is given, so name the
+	// branch explicitly.
+	branch := ""
+	if useCurrent {
+		if branch, err = t.currentBranch(ctx); err != nil {
+			return identity{}, prInfo{}, err
+		}
+	}
+	pr, err := t.fetchPR(ctx, id.Owner, id.Repo, number, branch)
 	if err != nil {
 		return identity{}, prInfo{}, err
 	}
@@ -903,9 +918,13 @@ type prInfo struct {
 	Body              string `json:"body"`
 }
 
-func (t *Tool) fetchPR(ctx context.Context, owner, repo string, number int, useCurrent bool) (prInfo, error) {
+// fetchPR reads the PR selected by number, or by head branch when branch is
+// non-empty.
+func (t *Tool) fetchPR(ctx context.Context, owner, repo string, number int, branch string) (prInfo, error) {
 	args := []string{"pr", "view"}
-	if !useCurrent {
+	if branch != "" {
+		args = append(args, branch)
+	} else {
 		args = append(args, strconv.Itoa(number))
 	}
 	args = append(args, jsonFlag, prViewFields, repoFlag, owner+"/"+repo)
@@ -917,10 +936,33 @@ func (t *Tool) fetchPR(ctx context.Context, owner, repo string, number int, useC
 	if err := json.Unmarshal(out, &pr); err != nil {
 		return prInfo{}, fmt.Errorf("parse PR: %w", err)
 	}
-	if !useCurrent && pr.Number != number {
+	// gh also reads a numeric or URL-shaped selector as a PR number or URL, so
+	// require the PR it returns to be the one asked for.
+	if branch != "" && pr.HeadRefName != branch {
+		return prInfo{}, fmt.Errorf("%w: gh returned PR #%d with head %q, want head %q", errInvalidPRArg, pr.Number, pr.HeadRefName, branch)
+	}
+	if branch == "" && pr.Number != number {
 		return prInfo{}, fmt.Errorf("%w: gh returned PR #%d, want #%d", errInvalidPRArg, pr.Number, number)
 	}
 	return pr, nil
+}
+
+// currentBranch returns the short name of the branch HEAD is attached to,
+// validated so gh cannot read it as an option.
+func (t *Tool) currentBranch(ctx context.Context) (string, error) {
+	out, err := t.command(ctx, commandTimeout, gitCommand, "symbolic-ref", "--quiet", "HEAD")
+	if err != nil {
+		return "", errDetachedHead
+	}
+	ref := strings.TrimSpace(string(out))
+	name, ok := strings.CutPrefix(ref, refsHeads)
+	if !ok {
+		return "", fmt.Errorf("%w: HEAD is %q", errInvalidBranch, ref)
+	}
+	if err := checkRefNameSyntax(name); err != nil {
+		return "", err
+	}
+	return name, nil
 }
 
 type commitRef struct {

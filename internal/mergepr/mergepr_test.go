@@ -519,6 +519,60 @@ func TestPrepareHappyPath(t *testing.T) {
 	}
 }
 
+// currentBranchPrepareSteps is prepareSteps for a run without a PR argument:
+// the current branch is resolved first and passed to gh as the selector,
+// because gh refuses to infer it when -R is given.
+func currentBranchPrepareSteps(prOut string) []commandStep {
+	steps := repoIdentitySteps()
+	steps = append(steps,
+		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
+		ghStep([]string{"pr", "view", "feature/foo", "--json", prViewFields, "-R", testRepoArg}, prOut),
+	)
+	rest := prepareSteps("log\n", "stat\n", "body")
+	return append(steps, rest[len(repoIdentitySteps())+1:]...)
+}
+
+func TestPrepareCurrentBranch(t *testing.T) {
+	tool, runner := newTool(t, currentBranchPrepareSteps(prViewJSON("feature/foo", "body", false)))
+
+	prepared, err := tool.Prepare(t.Context(), "", t.TempDir())
+	if err != nil {
+		t.Fatalf("Prepare returned error: %v", err)
+	}
+	runner.done()
+	if prepared.State.Number != testPRNumber || prepared.State.HeadRefName != "feature/foo" {
+		t.Errorf("state = %+v, want PR #%d on feature/foo", prepared.State, testPRNumber)
+	}
+}
+
+func TestPrepareCurrentBranchRejectsOtherHead(t *testing.T) {
+	steps := repoIdentitySteps()
+	steps = append(steps,
+		gitStep([]string{"symbolic-ref", "--quiet", "HEAD"}, "refs/heads/feature/foo\n"),
+		ghStep([]string{"pr", "view", "feature/foo", "--json", prViewFields, "-R", testRepoArg}, prViewJSON("feature/bar", "body", false)),
+	)
+	tool, runner := newTool(t, steps)
+
+	if _, err := tool.Prepare(t.Context(), "", t.TempDir()); !errors.Is(err, errInvalidPRArg) {
+		t.Fatalf("Prepare error = %v, want errInvalidPRArg", err)
+	}
+	runner.done()
+}
+
+func TestPrepareCreatesNamedWorkDir(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "new", "work")
+	tool, runner := newTool(t, prepareSteps("log\n", "stat\n", "body"))
+
+	prepared, err := tool.Prepare(t.Context(), strconv.Itoa(testPRNumber), dir)
+	if err != nil {
+		t.Fatalf("Prepare returned error: %v", err)
+	}
+	runner.done()
+	if _, err := os.Stat(prepared.StatePath); err != nil {
+		t.Errorf("state file: %v", err)
+	}
+}
+
 func TestPrepareRejectsPushURLMismatch(t *testing.T) {
 	steps := []commandStep{
 		gitStep([]string{"config", "--local", "--null", "--includes", "--list"}, ""),
