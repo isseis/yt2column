@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approve` |
 | Created | 2026-10-02 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 2026-10-02 isseis により `approved`。2026-10-02 設計判断の変更により `draft` に戻した: 統合テストの API キーを本番の `DEEPSEEK_API_KEY` と分け、テスト専用の環境変数 `YT2COLUMN_TEST_DEEPSEEK_API_KEY` から読むことにした（2.3・F-006・AC-23・§5.1）。 |
+| Review date | 2026-10-02 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
