@@ -13,6 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Requirements and Acceptance Criteria Process: [requirements_process.md](docs/dev/developer_guide/requirements_process.md) - Process for implementing new features
 - Test Organization Guide: [test_organization.md](docs/dev/developer_guide/test_organization.md) - Test helper file organization
 - [Package Reference](docs/dev/developer_guide/package_reference.md) - Detailed package structure
+- [mergepr Guide](docs/dev/developer_guide/mergepr_guide.md) - Setup, usage, guarantees, and troubleshooting for the `/mergepr` tool
 
 ## Documents
 
@@ -41,6 +42,7 @@ structural consistency) and the glossary workflow live in
 - `make build` - Build the `yt2column` binary into `build/`
 - `make clean` - Clean build artifacts
 - `make all` - Default build target
+- `make install-mergepr` - Install the `/mergepr` developer tool (`go install ./cmd/mergepr`)
 
 ### Test Commands
 - `make test` - Run all tests with race detection
@@ -61,6 +63,7 @@ Project-specific values these commands depend on are defined once in
 - `/runplan <task>` - Implement the next phase group of an approved plan
 - `/weakreview [range]` - Second-pass review of work done by a lower-capability model
 - `/fixpr [PR]` - Resolve unresolved PR review threads
+- `/mergepr [PR]` - Squash-merge a PR with a generated commit message and clean up its branch
 - `/japrose <file>` - Japanese prose-quality pass
 - `/mktrans <file>` - Japanese ⇄ English translation
 

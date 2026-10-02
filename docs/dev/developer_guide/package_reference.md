@@ -10,6 +10,8 @@ described in [project_overview.md](../project_overview.md) ("想定ディレク�
 
 | Package | Responsibility |
 |---|---|
+| `cmd/mergepr` | Entry point of the `/mergepr` developer tool: prepares a PR for message drafting, then merges and cleans up after the user approves the message |
+| `internal/mergepr` | Implements the `/mergepr` mechanics: prepares the drafting material after CI passes, squash-merges with `--match-head-commit`, and updates the local base and deletes the local head branch only while it still points at the merged head |
 | `internal/secret` | Holds a secret (API key, Webhook URL) and guarantees it never appears in `fmt`, `log/slog`, or JSON output |
 | `internal/transcript` | Defines the transcript stage (`Transcript`/`Segment`, `TranscriptSource`) and provides its `YtDlpSource` implementation: video URL validation, strict json3 and info.json parsers, the `yt-dlp` execution boundary (a shell-free command executor with a fixed environment allowlist and a capped, drained standard error output), the per-video cache (`Fetch`, `RemoveCache`, `PruneCache`), and the stage's sentinel errors |
 | `internal/llm` | Defines the provider-independent `LLMClient` interface and its `GenerateRequest`/`GenerateResponse` types |
