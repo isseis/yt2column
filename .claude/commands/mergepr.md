@@ -61,7 +61,8 @@ around it with your own shell commands. Work in order; do not skip a step.
    `--match-head-commit <headRefOid>`, so GitHub refuses the merge if the head
    moved after `prepare` (re-run from step 1 in that case). Then it cleans up:
    it fast-forwards the local base branch from `origin/<baseRefName>` and deletes
-   the local head branch only while it still points at `headRefOid`. When
+   the local head branch only while it still points at `headRefOid` (and stops
+   without touching local branches if the merged head is not `headRefOid`). When
    another worktree has the base branch checked out, it leaves the local
    branches alone and prints a note instead. If the merge or cleanup stops after
    the PR was merged, fix the reported cause and run

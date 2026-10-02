@@ -54,14 +54,14 @@ func run(args []string) error {
 		fmt.Printf("state: %s\n", filepath.Join(prepared.Dir, "state.json"))
 		return nil
 	case "merge":
-		if *statePath == "" || *subjectPath == "" || *bodyPath == "" {
+		if flags.NArg() != 0 || *statePath == "" || *subjectPath == "" || *bodyPath == "" {
 			return errUsage
 		}
 		report, err := tool.Merge(ctx, *statePath, *subjectPath, *bodyPath)
 		printReport(report)
 		return err
 	case "cleanup":
-		if *statePath == "" {
+		if flags.NArg() != 0 || *statePath == "" {
 			return errUsage
 		}
 		report, err := tool.Cleanup(ctx, *statePath)

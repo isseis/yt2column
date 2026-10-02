@@ -203,6 +203,11 @@ func (t *Tool) cleanup(ctx context.Context, state State) (Report, error) {
 		return Report{}, fmt.Errorf("%w: state is %s; run cleanup again once it is merged", errPRNotMerged, live.State)
 	}
 	report := Report{MergeCommitOID: live.MergeCommit.OID}
+	// A head force-pushed and merged after prepare means the local branch at
+	// the prepared OID may hold commits the merge dropped, so touch nothing.
+	if live.HeadRefOID != state.HeadRefOID {
+		return report, fmt.Errorf("%w: merged %s, prepared %s; check the local branches yourself", errMergedHeadMoved, live.HeadRefOID, state.HeadRefOID)
+	}
 	if _, err := t.git(ctx, "fetch", "--prune", "origin"); err != nil {
 		return report, fmt.Errorf("fetch origin: %w", err)
 	}
@@ -270,13 +275,14 @@ func (t *Tool) checkedOutElsewhere(ctx context.Context, branch string) (bool, er
 type prView struct {
 	State       string `json:"state"`
 	BaseRefName string `json:"baseRefName"`
+	HeadRefOID  string `json:"headRefOid"`
 	MergeCommit struct {
 		OID string `json:"oid"`
 	} `json:"mergeCommit"`
 }
 
 func (t *Tool) viewPR(ctx context.Context, state State) (prView, error) {
-	out, err := t.gh(ctx, "pr", "view", state.number(), "--json", "state,baseRefName,mergeCommit")
+	out, err := t.gh(ctx, "pr", "view", state.number(), "--json", "state,baseRefName,headRefOid,mergeCommit")
 	if err != nil {
 		return prView{}, fmt.Errorf("read PR: %w", err)
 	}

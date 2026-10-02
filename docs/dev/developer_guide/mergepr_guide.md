@@ -59,7 +59,7 @@ flowchart TD
     Draft --> Approve{"Developer approves?"}
     Approve -->|"Revision request"| Draft
     Approve -->|"yes"| Merge["mergepr merge<br>Recheck OPEN and base<br>gh pr merge --squash<br>--match-head-commit"]
-    Merge --> Cleanup["cleanup<br>Check MERGED<br>Fast-forward base<br>Delete local head branch"]
+    Merge --> Cleanup["cleanup<br>Check MERGED and head<br>Fast-forward base<br>Delete local head branch"]
     Cleanup --> End(["Report the result"])
 
     class Files data
@@ -92,7 +92,7 @@ Claude runs `prepare`, drafts the message, and requests approval, showing the PR
 
 ### 5.2 Using it manually
 
-Each subcommand can also be run on its own.
+Each subcommand can also be run on its own. `merge` and `cleanup` take the PR from `state.json`, so passing a positional argument stops them with a usage error.
 
 ```sh
 mergepr prepare [PR]
@@ -146,7 +146,7 @@ The subject file must be a single non-empty line (trailing newlines are removed)
 
 Performs only the post-merge cleanup. Use it when `merge` stopped partway through the cleanup, or when `merge` returned an error even though the merge itself completed. It does the following.
 
-1. Checks that the PR is MERGED.
+1. Checks that the PR is MERGED and that the OID of the merged head is the same as `headOID`. If they differ, it stops without touching the local branches.
 2. Runs `git fetch --prune origin`.
 3. Decides how to handle the base branch.
    - If the current branch is the base, it proceeds as is.
@@ -187,7 +187,7 @@ When moving on to the next PR in a `/runplan` sequence, create a new branch from
 | Merges only a head that passed CI | `prepare` waits for CI, and `merge` specifies that head's OID with `--match-head-commit`. If anything is pushed to the head after `prepare`, GitHub refuses the merge |
 | Merges with the approved message | The subject and body are read from files and passed to `gh pr merge` as is |
 | Merges into the prepared base | Immediately before the merge, it checks that the base is the same as in `state.json` |
-| Does not delete unmerged local commits | The local head branch is deleted only when it points at `headOID` |
+| Does not delete unmerged local commits | The local head branch is deleted only when it points at `headOID`. When the merged head differs from `headOID`, the local branches are not touched |
 
 ### 6.2 What it does not guarantee
 
@@ -214,6 +214,7 @@ When `mergepr` finds a problem, it prints the reason and the remedy and stops. W
 | `switch to <base>: ...` | `cleanup` | Uncommitted changes conflicted, etc. | Tidy up the working tree and rerun `cleanup` |
 | `fast-forward <base>: ...` | `cleanup` | The local base has commits that `origin` does not | Sort out the base's commits and rerun `cleanup` |
 | `local head branch moved after prepare; not deleted` | `cleanup` | You committed to the local head branch after `prepare` | Check whether those commits are needed, and delete the branch manually if not |
+| `PR merged a different head than prepared` | `cleanup` | The head was force-pushed after `prepare`, and that head was merged | Check whether the local head branch holds commits that were not part of the PR, then update the base and delete the branch manually |
 | `invalid state` | `merge`, `cleanup` | A file other than the one `prepare` wrote was given to `--state` | Specify the path `prepare` printed |
 
 `merge` is the stage that cannot be undone. Even if the tool stops after it, the merge itself may have completed. Check the PR's state on GitHub, and if it is merged, resume the cleanup with `cleanup`. Because `state.json` is in a temporary directory, do not delete it until the cleanup is finished.

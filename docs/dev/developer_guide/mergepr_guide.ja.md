@@ -59,7 +59,7 @@ flowchart TD
     Draft --> Approve{"開発者が承認?"}
     Approve -->|"修正依頼"| Draft
     Approve -->|"yes"| Merge["mergepr merge<br>OPEN と base を再確認<br>gh pr merge --squash<br>--match-head-commit"]
-    Merge --> Cleanup["cleanup<br>MERGED を確認<br>base を fast-forward<br>ローカル head ブランチを削除"]
+    Merge --> Cleanup["cleanup<br>MERGED と head を確認<br>base を fast-forward<br>ローカル head ブランチを削除"]
     Cleanup --> End(["結果を報告"])
 
     class Files data
@@ -92,7 +92,7 @@ Claude は `prepare` を実行してメッセージを下書きし、PR の URL�
 
 ### 5.2 手動で使う
 
-各サブコマンドは単独でも実行できる。
+各サブコマンドは単独でも実行できる。`merge` と `cleanup` は PR を `state.json` から決めるため、位置引数を渡すと usage エラーで止まる。
 
 ```sh
 mergepr prepare [PR]
@@ -146,7 +146,7 @@ git diff origin/<base>...<headOID> -- <path>
 
 マージ後の片付けだけを行う。`merge` が片付けの途中で止まったときや、マージ自体は済んだのに `merge` がエラーを返したときに使う。処理内容は次のとおり。
 
-1. PR が MERGED であることを確認する。
+1. PR が MERGED であり、マージされた head の OID が `headOID` と同じであることを確認する。異なれば、ローカルのブランチには触れずに止まる。
 2. `git fetch --prune origin` を実行する。
 3. base ブランチの扱いを決める。
    - 現在のブランチが base なら、そのまま進む。
@@ -187,7 +187,7 @@ note: main is checked out in another worktree; update it there and remove this w
 | CI が通った head だけをマージする | `prepare` で CI を待ち、`merge` は `--match-head-commit` でその head の OID を指定する。`prepare` の後に head へ push があると、GitHub がマージを拒否する |
 | 承認したメッセージでマージする | 件名と本文はファイルから読み、そのまま `gh pr merge` に渡す |
 | 準備した base にマージする | マージ直前に、base が `state.json` と同じことを確認する |
-| ローカルの未マージコミットを消さない | ローカル head ブランチは、`headOID` を指しているときだけ削除する |
+| ローカルの未マージコミットを消さない | ローカル head ブランチは、`headOID` を指しているときだけ削除する。マージされた head が `headOID` と異なるときは、ローカルのブランチに触れない |
 
 ### 6.2 保証しないこと
 
@@ -214,6 +214,7 @@ note: main is checked out in another worktree; update it there and remove this w
 | `switch to <base>: ...` | `cleanup` | 未コミット変更が衝突した、など | 作業ツリーを整理して `cleanup` を再実行する |
 | `fast-forward <base>: ...` | `cleanup` | ローカルの base に `origin` に無いコミットがある | base のコミットを整理して `cleanup` を再実行する |
 | `local head branch moved after prepare; not deleted` | `cleanup` | `prepare` 後にローカル head ブランチへコミットした | そのコミットが必要か確認し、不要ならブランチを手動で削除する |
+| `PR merged a different head than prepared` | `cleanup` | `prepare` 後に head が force-push され、その head がマージされた | ローカル head ブランチに PR に含まれなかったコミットが無いか確認し、base の更新とブランチの削除を手動で行う |
 | `invalid state` | `merge`、`cleanup` | `--state` に `prepare` が書いたファイル以外を指定した | `prepare` が表示したパスを指定する |
 
 `merge` は取り消せない段階である。その後に止まっても、マージ自体は完了していることがある。GitHub で PR の状態を確認し、マージ済みなら `cleanup` で片付けを再開する。`state.json` は一時ディレクトリにあるため、片付けが終わるまで削除しない。

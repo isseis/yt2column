@@ -127,11 +127,16 @@ func writeStateFile(t *testing.T, dir string) string {
 }
 
 func viewStep(state, base string) commandStep {
-	out := `{"state":"` + state + `","baseRefName":"` + base + `","mergeCommit":null}`
+	return viewHeadStep(state, base, testHeadOID)
+}
+
+func viewHeadStep(state, base, head string) commandStep {
+	common := `{"state":"` + state + `","baseRefName":"` + base + `","headRefOid":"` + head + `",`
+	out := common + `"mergeCommit":null}`
 	if state == mergedState {
-		out = `{"state":"MERGED","baseRefName":"` + base + `","mergeCommit":{"oid":"` + testMergeOID + `"}}`
+		out = common + `"mergeCommit":{"oid":"` + testMergeOID + `"}}`
 	}
-	return ghStep(out, "pr", "view", "42", "--json", "state,baseRefName,mergeCommit")
+	return ghStep(out, "pr", "view", "42", "--json", "state,baseRefName,headRefOid,mergeCommit")
 }
 
 func mergeStep() commandStep {
@@ -252,6 +257,20 @@ func TestCleanupRejectsUnmergedPR(t *testing.T) {
 		t.Fatalf("Cleanup error = %v, want errPRNotMerged", err)
 	}
 	runner.done()
+}
+
+func TestCleanupRejectsMergedHeadMoved(t *testing.T) {
+	statePath := writeStateFile(t, t.TempDir())
+	tool, runner := newTool(t, viewHeadStep(mergedState, "main", testOtherOID))
+
+	report, err := tool.Cleanup(t.Context(), statePath)
+	if !errors.Is(err, errMergedHeadMoved) {
+		t.Fatalf("Cleanup error = %v, want errMergedHeadMoved", err)
+	}
+	runner.done()
+	if report.BaseUpdated || report.LocalDeleted {
+		t.Errorf("report = %+v, want nothing changed locally", report)
+	}
 }
 
 func TestCleanupOnBaseBranchSkipsSwitch(t *testing.T) {
