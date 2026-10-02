@@ -141,7 +141,7 @@ HEAD `00573f2`（ブランチ `task/0003-deepseek-llm-client-02`）で確認し�
 - 変更: `internal/strictjson/strictjson.go`・`internal/strictjson/strictjson_test.go`
 
 **タスク**
-- [ ] **ステップ 1-10**: `AsArray` の分割に件数の上限を加え、上限を超える配列を全要素の分割の前に拒否する。最適化は振る舞いを変えないこと（拒否される入力と返る番兵が最適化の前後で同じであること）を正しさの義務とし、それをコミットメッセージに書き、最適化を外すか変えると失敗するテストで固定する（CLAUDE.md「Performance」）。最適化だけを 1 つのコミットにする。ステップ 1-6 と同じ入力で再測定し、§5.2 に記録する。
+- [ ] **ステップ 1-10**: `AsArray` の分割に件数の上限を加え、上限を超える配列を全要素の分割の前に拒否する。最適化は振る舞いを変えないこと（拒否される入力と返る番兵が最適化の前後で同じであること）を正しさの義務とし、それをコミットメッセージに書き、最適化を外すか変えると失敗するテストで固定する（CLAUDE.md「Performance」）。最適化だけを 1 つのコミットにする。ステップ 1-6 と同じ入力で再測定し、§5.2 に記録する。上限は `internal/strictjson` の非公開の定数 `maxArrayElements` とし、値は `1 << 17`（131072）とする。`internal/transcript` の `maxSubtitleEvents`（65536）より大きいため、同パッケージの件数の判定（`errTooManyEvents`）は上限内の範囲で従来どおり働き、上限を超える配列だけが `AsArray` によって早期に拒否される。どちらの経路でも `internal/transcript` の返る番兵は `ErrParseSubtitles` のままである。境界のテスト（`maxArrayElements-1`・`maxArrayElements`・`maxArrayElements+1`）を `strictjson_test.go` に置き、上限を外すと `maxArrayElements+1` が成功して失敗するようにする。DeepSeek の `choices`（ちょうど 1 要素）は上限の影響を受けない。
 - [ ] **ステップ 1-11**: `make fmt` → `make test` → `make lint` を通す。
 
 ### PR-1a 作成ポイント: bounded array split in internal/strictjson (conditional)

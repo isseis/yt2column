@@ -119,6 +119,16 @@ func TestObjectCollect(t *testing.T) {
 		}
 	})
 
+	t.Run("no keys consumes nothing", func(t *testing.T) {
+		consumed, err := object.Collect()
+		if err != nil {
+			t.Fatalf("Collect error = %v", err)
+		}
+		if len(consumed) != 0 {
+			t.Errorf("Collect() = %v, want an empty map", consumed)
+		}
+	})
+
 	t.Run("accepts duplicate ignored keys", func(t *testing.T) {
 		consumed, err := object.Collect("b", "c")
 		if err != nil {
@@ -307,6 +317,22 @@ func TestValueAccessors(t *testing.T) {
 		}
 		if _, err := consumed["string"].AsInt64(); !errors.Is(err, errValueNotNumber) {
 			t.Errorf("AsInt64(string) error = %v, want errValueNotNumber", err)
+		}
+	})
+
+	t.Run("integer kind mismatches", func(t *testing.T) {
+		object, err := ParseObject([]byte(`{"null":null,"bool":true,"object":{},"array":[]}`))
+		if err != nil {
+			t.Fatalf("ParseObject error = %v", err)
+		}
+		consumed, err := object.Collect("null", "bool", "object", "array")
+		if err != nil {
+			t.Fatalf("Collect error = %v", err)
+		}
+		for _, key := range []string{"null", "bool", "object", "array"} {
+			if _, err := consumed[key].AsInt64(); !errors.Is(err, errValueNotNumber) {
+				t.Errorf("AsInt64(%q) error = %v, want errValueNotNumber", key, err)
+			}
 		}
 	})
 
