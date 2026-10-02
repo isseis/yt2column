@@ -38,7 +38,7 @@ gh api repos/isseis/yt2column --jq .delete_branch_on_merge
 With the latest `main` checked out, run the following.
 
 ```sh
-go install ./cmd/mergepr
+make install-mergepr
 ```
 
 Make sure `$(go env GOPATH)/bin` is on `PATH`. When a PR that changes the tool itself is merged, update `main` and then reinstall.
