@@ -8,7 +8,7 @@
 | Created | 2026-10-02 |
 | Review date | - |
 | Reviewer | - |
-| Comments | 事前調査（§1.4）は人間の承認を得て 2026-10-02 に実施し、結果を §1.4 に記録した。承認時に判断してほしい点: (1) 本設計は要件定義書に書かれていない次の 2 つを加えている。表示可能な ASCII 以外を含む API キーを構築時に拒否する（§3.1）。統合テストはオプトインの変数がなければスキップする（§7.2）。(2) 応答の `model` はエイリアス（`deepseek-flash`）のまま返り、要件定義書 §1 の「実際のモデルを追う」という目的は達成できない。`system_fingerprint` も記録するかどうかは要件の判断である（§1.4）。 |
+| Comments | 事前調査（§1.4）は人間の承認を得て 2026-10-02 に実施し、結果を §1.4 に記録した。承認時に判断してほしい点: (1) 本設計は要件定義書に書かれていない次の 2 つを加えている。表示可能な ASCII 以外を含む API キーを構築時に拒否する（§3.1）。統合テストはオプトインの変数がなければスキップする（§7.2）。(2) 応答の `model` がエイリアスのまま返ることを受け、`system_fingerprint` を `llm.GenerateResponse.ModelVersion` として返す（要件定義書の改訂。F-003・AC-33・AC-34）。これは `0001_pipeline_skeleton` の `GenerateResponse` のフィールドの組を変える（§3.2）。 |
 
 ## 1. 設計の全体像 (Design Overview)
 
@@ -102,7 +102,7 @@ flowchart LR
 
 執筆時点の HEAD `628b4ea` で次を確認した。
 
-- `internal/llm/llm.go:9-26` は `GenerateRequest`（`SystemPrompt`・`UserPrompt`・`MaxOutputTokens`）、`GenerateResponse`（`Text`・`Model`）、`LLMClient` を定義し、番兵もメソッドも持たない。`internal/llm` は標準ライブラリの `context` だけを import するリーフである（`internal/llm/llm.go:5`）。本設計は番兵と `Validate` メソッドを追加するが、import するのは標準ライブラリだけであり、リーフのままである（`0001_pipeline_skeleton/02_architecture.md` §1.1 の原則 3）。
+- `internal/llm/llm.go:9-26` は `GenerateRequest`（`SystemPrompt`・`UserPrompt`・`MaxOutputTokens`）、`GenerateResponse`（`Text`・`Model`）、`LLMClient` を定義し、番兵もメソッドも持たない。`internal/llm` は標準ライブラリの `context` だけを import するリーフである（`internal/llm/llm.go:5`）。本設計は番兵、`Validate` メソッド、`GenerateResponse.ModelVersion` を追加するが、import するのは標準ライブラリだけであり、リーフのままである（`0001_pipeline_skeleton/02_architecture.md` §1.1 の原則 3）。
 - `internal/secret/secret.go:22-45` の `Secret` は値をクロージャに閉じ込め、`fmt`・`log/slog`・`encoding/json` の出力を固定文字列にする。ゼロ値の `Reveal()` はエラーを返す（同 `:40-45`）。本設計はこれをそのまま使う。
 - `internal/llm/testutil/mocks.go:30-33` の `FakeLLMClient` は設定した結果とエラーを返すだけで、`GenerateRequest` を検証しない。本設計は fake を変更しない。fake のテスト（`internal/llm/testutil/mocks_test.go`）の振る舞いは変わらない。
 - 厳格な JSON の部品（`jsonMember`・`decodeJSONObject`・`collectMembers`・`newStrictDecoder`・`newRawDecoder`・`ensureNoTrailingJSON`・`decodeString`・`decodeInt64`・`validateJSONEncoding`・`validateSurrogates` と、その静的エラー）は `internal/transcript/json3.go:21-48,203-406` にあり、`json3.go` と `info.go` から使われている。`info.go:88-103` の `requiredString` は、必須の文字列メンバーの欠落・種類の不一致・空文字列を拒否する。`internal/transcript` のテスト（`json3_test.go`・`info_test.go`・`ytdlp_test.go`）はこれらの関数と静的エラーを直接参照せず、`parseSubtitles`・`parseInfo` と上限の定数を通じて検証し、失敗は `errors.Is`（`ErrParseSubtitles`・`ErrParseInfo`）と `errors.AsType[*ParseError]` だけで判定している（`json3_test.go:279-288`・`info_test.go:224-230`）。エラーの文言を比べるテストはない。
@@ -141,7 +141,7 @@ flowchart LR
 
 - **応答本文の形。** 1〜3 の応答本文のメンバーは、トップレベルが `id`・`object`・`created`・`model`・`choices`・`usage`・`system_fingerprint`、`choices[0]` が `index`・`message`・`logprobs`（`null`）・`finish_reason`、`message` が `role`・`content`・`reasoning_content` だった。`tool_calls` は現れなかった。`usage` は `prompt_tokens`・`completion_tokens`・`total_tokens`・`prompt_tokens_details`・`completion_tokens_details`・`prompt_cache_hit_tokens`・`prompt_cache_miss_tokens` を持つ。消費するメンバーはすべて期待する種類で、1 回ずつ現れた。
 - **`max_tokens` は推論過程を含む。** 2 では `completion_tokens` と `reasoning_tokens` がともに 16 で、上限のすべてを推論過程が使い、`content` は空のまま打ち切られた。1・3a・3b でも `completion_tokens` は `reasoning_tokens` を含む値である。
-- **`model` はエイリアスのまま返る。** 1〜3 の応答本文の `model` は、リクエストと同じ `deepseek-flash` だった。エイリアスが指す実際のモデル（project_overview.md によれば DeepSeek-V4.1-Flash）の名前は応答本文に現れない。`system_fingerprint` はバックエンドの構成を表す値として返る。
+- **`model` はエイリアスのまま返る。** 1〜3 の応答本文の `model` は、リクエストと同じ `deepseek-flash` だった。エイリアスが指す実際のモデル（project_overview.md によれば DeepSeek-V4.1-Flash）の名前は応答本文に現れない。`system_fingerprint`（DeepSeek のドキュメントの説明では、モデルを動かすバックエンドの構成を表す値）は、1〜3 のいずれでも空でない文字列として返った。
 - **HTTP のバージョンと keep-alive。** すべて HTTP/2 だった。応答本文の先頭に空行はなかった（いずれも 2 秒以内に応答した）。混雑時の空行は観測できていない。
 - **リクエスト ID。** 応答ヘッダー `x-ds-trace-id` があった。エラー応答では、本文の `message` にも `request_id` が入る。
 
@@ -156,11 +156,16 @@ flowchart LR
 | 消費しないメンバー | 上記の一覧 | AC-32 のフィクスチャは保存した実応答とする |
 | 存在しないモデル名のステータス | `400` | §4.2 の案内文に反映する |
 | `401` の応答本文 | API キーの末尾 4 文字を含む | `200` 以外の応答本文を読まない方針（§3.4・H-07）の根拠に加える |
-| `model` の値 | エイリアスのまま | 要件の前提と異なる（下記） |
+| `model` の値 | エイリアスのまま | `system_fingerprint` を `ModelVersion` として返す（下記・§3.2） |
 
-**要件の前提と異なる点（`model`）。** 要件定義書 §1 は「`deepseek-flash` は提供元が指す実際のモデルを入れ替えられるエイリアスであり、どのモデルで生成したかを追えるよう、応答に含まれるモデル名を返す」とする。観測では、応答の `model` はエイリアスのままで、実際のモデルを追う目的は応答の `model` だけでは達成できない。AC-09（`Model` は応答の `model` の値）は観測と矛盾せず、本設計はそのまま満たす。目的を達するために `system_fingerprint` も記録するかどうかは要件の変更にあたるため、本書では扱わず、人間の判断に委ねる。
+**要件の前提と異なる点（`model`）。** 要件定義書 §1 は「`deepseek-flash` は提供元が指す実際のモデルを入れ替えられるエイリアスであり、どのモデルで生成したかを追えるよう、応答に含まれるモデル名を返す」とする。観測では、応答の `model` はエイリアスのままで、実際のモデルを追う目的は応答の `model` だけでは達成できない。この結果を受けて要件定義書を改訂し、応答の `system_fingerprint`（DeepSeek の説明では「モデルを動かすバックエンドの構成」を表す値）を `GenerateResponse.ModelVersion` として返すことにした（要件定義書 F-003・3.2・AC-33・AC-34）。ドキュメントのスキーマは `system_fingerprint` を必須の文字列としているが、要件はこれを任意のメンバーとし、欠けている場合は `ModelVersion` を空文字列にする。診断のための値が欠けているだけで生成を失敗させないためである。
 
-**`stop` 以外の終了理由での `content`（残る確認事項）。** ドキュメントは `content` を nullable としている。`length` では空文字列を観測したが、`content_filter`・`insufficient_system_resource`・`aborted` は意図して起こせず、観測していない。これらの応答で `"content":null` が返ると、要件の検証順序（F-003。応答本文の形の検証が終了理由より先）と AC-27（`"content":null` は `ErrInvalidResponse`）により、その応答は `ErrUnexpectedFinishReason` ではなく `ErrInvalidResponse` になる。安全側には倒れる（記事は投稿されない）が、分類が変わる。本設計は要件どおりに実装し、`ErrInvalidResponse` のメッセージには読み取れた `finish_reason` を含めて、原因の見当がつくようにする（§4.2）。運用でこの場合を観測したら、要件定義書の F-003・AC-27 の改訂を検討する。
+**`stop` 以外の終了理由での `content`（文献調査）。** `content_filter`・`insufficient_system_resource`・`aborted` は意図して起こせないため、実 API では観測していない。代わりに、2026-10-02 に次の文献を調べた。
+
+- DeepSeek の公式のスキーマ（[Create Chat Completion](https://api-docs.deepseek.com/api/create-chat-completion)）は、`content` を「nullable かつ required」の文字列とする。`content` の説明は "The contents of the message." だけで、どの場合に `null` になるかは書かれていない。`finish_reason` の説明（以下は本書による和訳）は、`content_filter` を「コンテンツフィルタによって内容が省かれた」、`insufficient_system_resource` を「推論システムの資源不足で中断した」、`aborted` を「生成が中断された」とする。
+- 参考として、公式ではない解説 [DeepSeek finish_reason: Values, Meanings, and Fixes](https://chat-deep.ai/docs/deepseek-finish-reason/) も確認した。この解説は、これらの終了理由の応答では付随する `content` を不完全なものとして扱うよう勧めるが、`content` が `null`・空文字列・途中までの文字列のどれになるかは書いていない。公式の情報ではないため、判断の根拠にはしない。
+
+したがって、これらの応答で `content` が `null` になるかどうかは不明である。`null` が返った場合、要件の検証順序（F-003。応答本文の形の検証が終了理由より先）と AC-27（`"content":null` は `ErrInvalidResponse`）により、その応答は `ErrUnexpectedFinishReason` ではなく `ErrInvalidResponse` になる。安全側には倒れる（記事は投稿されない）が、分類が変わる。本設計は要件どおりに実装し、`ErrInvalidResponse` のメッセージには読み取れた `finish_reason` を含めて、原因の見当がつくようにする（§3.4・§4.2）。運用でこの場合を観測したら、要件定義書の F-003・AC-27 の改訂を検討する。
 
 ---
 
@@ -274,7 +279,7 @@ sequenceDiagram
     L->>H: resp.Body から上限 + 1 バイトまで読む
     H-->>L: 応答本文のバイト列
     L->>L: 応答本文の形 → 終了理由 → content の順に検証
-    L-->>C: GenerateResponse{Text, Model}
+    L-->>C: GenerateResponse{Text, Model, ModelVersion}
 ```
 
 **図3 データフロー（成功時）**。矢印 `->>` は呼び出しまたは送信、`-->>` は戻り値または受信を表す。呼び出しの `ctx` は送信から応答本文の読み取りの終了までを覆う（§3.3）。失敗時の分岐は §6.1 に示す。
@@ -336,6 +341,16 @@ type GenerateRequest struct {
     MaxOutputTokens int
 }
 
+// GenerateResponse is the generated text and the model that produced it.
+// ModelVersion is an opaque, provider-defined identifier of the model or
+// backend version that produced the text, comparable only within one
+// provider. It is empty when the provider reports none.
+type GenerateResponse struct {
+    Text         string
+    Model        string
+    ModelVersion string
+}
+
 // Validate reports whether the request can be sent: both prompts are
 // non-empty valid UTF-8 and MaxOutputTokens is not negative. The returned
 // error wraps ErrInvalidRequest.
@@ -343,6 +358,8 @@ func (r GenerateRequest) Validate() error
 ```
 
 - **番兵の配置（H-09）。** 上の 4 つは、どのプロバイダでも同じ意味を持つ概念である。`ArticleWriter`（#5）や CLI（#6）は、プロバイダのパッケージを import せずに判別できる（例: 打ち切りなら `MaxOutputTokens` を増やすよう案内する）。`ErrHTTPStatus`・`ErrInvalidResponse`・`ErrTransport` は HTTP と JSON の形に依存し、将来の SDK ベースのプロバイダでは SDK のエラーから変換する別の形になるため、`internal/llm/deepseek` に置く（§4.1）。
+- **`GenerateResponse.ModelVersion`（要件定義書 F-003・4.5・§5.1）。** プロバイダが返す、生成に使ったモデルまたはバックエンドの版の識別子で、返さないプロバイダでは空文字列とする。DeepSeek では応答の `system_fingerprint` を入れる。名前と意味をプロバイダに依存させないことで、`internal/llm` に DeepSeek 固有の項目を持ち込まない（Gemini の `modelVersion` なども同じ意味で入れられる）。
+  - **`0001_pipeline_skeleton` の方針との関係。** `0001_pipeline_skeleton/02_architecture.md` は `GenerateResponse` を `Text`・`Model` の 2 つのフィールドと定め（同書 §3.1 の型定義）、その組を `internal/pipeline/pipeline_test.go:398` の `TestCommonTypesFieldSets` が固定している。本設計はこの組に `ModelVersion` を加える。理由は、§1.4 の調査で応答の `model` がエイリアスのまま返ると分かり、`Model` だけでは生成に使ったモデルを追えないためである。`TestCommonTypesFieldSets` の `GenerateResponse` の期待値を 3 つのフィールドに更新する。`internal/llm/testutil/mocks_test.go` は `GenerateResponse` を `Text` と `Model` だけで組み立てており、そのまま通る。`writer.Article` は変更しない（記事への記録は #5 で扱う）。
 - **`Validate` を `internal/llm` に置く理由。** `MaxOutputTokens` の 0 と負の値の意味は、要件 §5.1 がプロバイダ共通の意味として定め、`GenerateRequest` の doc コメントに書くことを求めている。その意味を検査するコードも同じ型に置けば、後続のプロバイダが同じ規則を使える。不正な UTF-8 を拒否する理由（JSON への変換で U+FFFD に置き換えられる）は、JSON で送る現行と将来のプロバイダに共通である。プロンプトの長さの上限は検査しない（モデルごとに異なり、超過は API が `400` 系で報告する。§4.2）。
 - **`LLMClient` の doc コメント。** 既存の契約（空の応答や打ち切りを成功として返さない、`internal/llm/llm.go:21-23`）に加え、`Generate` が上の 4 つの番兵で報告することと、タイムアウト・キャンセルを `context.DeadlineExceeded`・`context.Canceled` で判別できることを書く（H-09）。fake（`FakeLLMClient`）はこの契約の対象外であり、設定したエラーをそのまま返す。
 
@@ -363,10 +380,10 @@ func (r GenerateRequest) Validate() error
 
 1. **HTTP ステータス。** `200` 以外なら、応答本文を読まずに閉じ、`*HTTPStatusError`（`ErrHTTPStatus` と判別できる。§4.1）を返す。応答本文を読まないため、「`200` 以外の応答本文も上限を超えて読まない」（要件 3.2）は自明に満たされ、不正な JSON が `ErrInvalidResponse` になることもない（AC-10・AC-15・H-07）。
 2. **サイズ。** 応答本文を上限 + 1 バイトまで読み、上限を超えて読めたら `ErrInvalidResponse` とする。上限ちょうどの応答本文は受理する（AC-31・H-04）。上限は **8 MiB（8 × 1024 × 1024 バイト）** とする（§3.6）。
-3. **応答本文の形。** `strictjson.ParseObject` で、次の 3 点を応答本文全体に対して検査する。正しい UTF-8 であること。対になっていないサロゲートのエスケープがないこと（消費しないメンバーも含む）。トップレベルがちょうど 1 つの JSON オブジェクトで、後続データがないこと。続いて、要件 3.2 の消費するメンバー（トップレベルの `model`・`choices`、`choices[0]` の `finish_reason`・`message`、`message` の `content`）を取り出す。取り出すときは、各オブジェクトの中で重複・欠落・`null`・種類の不一致がないことを確かめる。`choices` はちょうど 1 要素の配列で、その要素は JSON オブジェクトでなければならない。`model` は空でない文字列でなければならない。消費しないメンバーは、値の種類や重複を問わず無視する（拡張可能。AC-32）。以上の検査のどれかに反したら `ErrInvalidResponse` とする（AC-26〜AC-30）。メッセージに終了理由を含められるよう（§4.2）、`choices[0]` では `finish_reason` を `message`・`content` より先に取り出す。ただし、番兵の判定順序（F-003）は、この取り出しの順序に影響されない。
+3. **応答本文の形。** `strictjson.ParseObject` で、次の 3 点を応答本文全体に対して検査する。正しい UTF-8 であること。対になっていないサロゲートのエスケープがないこと（消費しないメンバーも含む）。トップレベルがちょうど 1 つの JSON オブジェクトで、後続データがないこと。続いて、要件 3.2 の消費するメンバー（トップレベルの `model`・`choices`、`choices[0]` の `finish_reason`・`message`、`message` の `content`）を取り出す。取り出すときは、各オブジェクトの中で重複・欠落・`null`・種類の不一致がないことを確かめる。`choices` はちょうど 1 要素の配列で、その要素は JSON オブジェクトでなければならない。`model` は空でない文字列でなければならない。任意の消費するメンバーであるトップレベルの `system_fingerprint` は、欠けていてもよいが、存在する場合は空でない文字列でなければならない（`null`・文字列以外・空文字列は `strictjson.OptionalString` が、重複は `Collect` が拒否する。AC-34）。消費しないメンバーは、値の種類や重複を問わず無視する（拡張可能。AC-32）。以上の検査のどれかに反したら `ErrInvalidResponse` とする（AC-26〜AC-30）。メッセージに終了理由を含められるよう（§4.2）、`choices[0]` では `finish_reason` を `message`・`content` より先に取り出す。ただし、番兵の判定順序（F-003）は、この取り出しの順序に影響されない。
 4. **終了理由。** `finish_reason` が `length` なら `llm.ErrTruncated`、`stop` でも `length` でもなければ `llm.ErrUnexpectedFinishReason` とする（AC-11・AC-12）。
 5. **`content`。** `content` が空文字列、または `strings.TrimSpace` で空になる（空白文字だけの）場合は `llm.ErrEmptyResponse` とする（AC-13・AC-14）。`strings.TrimSpace` は Unicode の空白（全角空白 U+3000 を含む）を空白として扱う。
-6. **組み立て。** `Text` に `content` を加工せずに入れ、`Model` に応答本文の `model` を入れる（AC-09）。`reasoning_content` は消費しないため、`Text` に混ざらない（AC-14）。
+6. **組み立て。** `Text` に `content` を加工せずに入れ、`Model` に応答本文の `model` を入れる（AC-09）。`ModelVersion` には `system_fingerprint` を加工せずに入れ、メンバーがなければ空文字列にする（AC-33）。`reasoning_content` は消費しないため、`Text` に混ざらない（AC-14）。
 
 **keep-alive の空行。** 推論の開始を待つ間に API が送る空行（§1.4）は、JSON のトップレベルの値の前の空白（改行・復帰）であり、`encoding/json` のトークナイザは読み飛ばす。したがって追加の処理なしに受理される。この受理は実装の偶然に頼らず、§7.1 のテストで固定する。空行もサイズの上限に数えるが、待ち時間は最大 10 分であり、上限に比べて無視できる。
 
@@ -417,6 +434,11 @@ func Required(members map[string]Value, key string) (Value, error)
 // missing member, null, another kind, or the empty string.
 func RequiredString(members map[string]Value, key string) (string, error)
 
+// OptionalString returns the named member as a non-empty string when it is
+// present. present is false for a missing member; null, another kind, or the
+// empty string is rejected.
+func OptionalString(members map[string]Value, key string) (value string, present bool, err error)
+
 func (v Value) AsString() (string, error)   // rejects null and other kinds
 func (v Value) AsInt64() (int64, error)     // rejects non-numbers and out-of-range numbers
 func (v Value) AsObject() (Object, error)   // rejects null and other kinds
@@ -460,7 +482,8 @@ func (v Value) AsArray() ([]Value, error)   // rejects null and other kinds
 
 | ファイル | 責務 | 状態 |
 |---|---|---|
-| `internal/llm/llm.go` | 番兵 4 つ、`GenerateRequest.Validate`、`GenerateRequest`・`LLMClient` の doc コメントの更新（要件 §5.1・H-09） | 変更 |
+| `internal/llm/llm.go` | 番兵 4 つ、`GenerateRequest.Validate`、`GenerateResponse.ModelVersion`、`GenerateRequest`・`GenerateResponse`・`LLMClient` の doc コメントの更新（要件 F-003・§5.1・H-09） | 変更 |
+| `internal/pipeline/pipeline_test.go` | `TestCommonTypesFieldSets` の `GenerateResponse` の期待値に `ModelVersion` を加える（§3.2） | 変更 |
 | `internal/llm/llm_test.go` | `Validate` のテスト（AC-07 の検証規則） | 新設 |
 | `internal/llm/deepseek/deepseek.go` | `Options`・`New`・非公開の具体型・`Generate`、送信先と上限の定数、呼び出しの `ctx`、失敗の分類（F-001・F-002・F-004） | 新設 |
 | `internal/llm/deepseek/request.go` | リクエスト本文の構造体と組み立て、ヘッダーの設定、構築時の API キーの形の検査（`Reveal()` を呼ぶのはこのファイルだけ。F-001・F-002） | 新設 |
@@ -468,7 +491,7 @@ func (v Value) AsArray() ([]Value, error)   // rejects null and other kinds
 | `internal/llm/deepseek/errors.go` | `ErrHTTPStatus`・`ErrInvalidResponse`・`ErrTransport`・`HTTPStatusError`、非公開の静的エラー（§4.1） | 新設 |
 | `internal/llm/deepseek/test_helpers.go` | `//go:build test`。ループバックの送信先に差し替えた値を作る非公開のヘルパー（H-06） | 新設 |
 | `internal/llm/deepseek/deepseek_test.go` | 構築・リクエスト・リダイレクト・ステータス・タイムアウト・キャンセル・通信の失敗・秘密情報のテスト（AC-01〜AC-08・AC-10・AC-16〜AC-21・AC-25） | 新設 |
-| `internal/llm/deepseek/response_test.go` | 応答の検証のテスト（AC-09・AC-11〜AC-15・AC-26〜AC-32） | 新設 |
+| `internal/llm/deepseek/response_test.go` | 応答の検証のテスト（AC-09・AC-11〜AC-15・AC-26〜AC-34） | 新設 |
 | `internal/llm/deepseek/integration_test.go` | `//go:build integration`。実 API を使う統合テスト（F-006・AC-23・AC-24） | 新設 |
 | `internal/strictjson/strictjson.go` | 厳格な JSON の部品（§3.5） | 新設 |
 | `internal/strictjson/strictjson_test.go` | 部品のテスト（§7.1） | 新設 |
@@ -478,7 +501,7 @@ func (v Value) AsArray() ([]Value, error)   // rejects null and other kinds
 | `testdata/README.md` | 上記フィクスチャの出典（取得日・プロンプト・モデル名） | 変更 |
 | `Makefile` | `test-integration-deepseek` ターゲットの追加（§7.2） | 変更 |
 | `docs/dev/developer_guide/package_reference.md` | `internal/llm/deepseek`・`internal/strictjson` の追加、`internal/llm`・`internal/transcript` の責務の更新 | 変更 |
-| `docs/dev/project_overview.md` | 想定ディレクトリ構成に `internal/strictjson/` を追加 | 変更 |
+| `docs/dev/project_overview.md` | 想定ディレクトリ構成に `internal/strictjson/` を追加。`GenerateResponse` の説明に `ModelVersion` を加える | 変更 |
 | `CLAUDE.md` | Architecture Overview のパッケージの説明に `internal/strictjson` を追加 | 変更 |
 | `docs/dev/security.md` | §2 に、`GODEBUG=http2debug=2` で `Authorization` ヘッダーが標準エラー出力に出ることの注意を追加（§5.4） | 変更 |
 
@@ -688,7 +711,7 @@ flowchart LR
 
 ### 5.4. 信頼できない応答と残余リスク
 
-- `GenerateResponse.Text` と `Model` は信頼できない文字列のまま呼び出し元へ渡る。アダプタは形だけを検証し、内容（プロンプトインジェクションの結果、制御文字、Markdown の構造）は検証しない。記事への埋め込みと投稿時の扱いは #5・#7 が担う（[security.md](../../dev/security.md) §6）。`Model` は空でない文字列であることだけを確かめる（§9 で申し送る）。
+- `GenerateResponse.Text`・`Model`・`ModelVersion` は信頼できない文字列のまま呼び出し元へ渡る。アダプタは形だけを検証し、内容（プロンプトインジェクションの結果、制御文字、Markdown の構造）は検証しない。記事への埋め込みと投稿時の扱いは #5・#7 が担う（[security.md](../../dev/security.md) §6）。`Model` は空でない文字列であること、`ModelVersion` は空か空でない文字列であることだけを確かめる（§9 で申し送る）。`ModelVersion` も信頼できない文字列である。
 - **`GODEBUG=http2debug=2`。** Go の HTTP/2 の実装は、この設定でリクエストヘッダーを値ごと標準エラー出力に記録する。`Authorization` ヘッダーの API キーも出力される。アダプタの外の設定であり、HTTP/2 を無効にしてまで防ぐ価値はない。security.md §2 に「この設定で調査するときは無効な API キーを使う」旨を追記する（§3.8）。
 - **proxy。** 既定の Transport は proxy の環境変数に従う。`https` の送信先では `CONNECT` のトンネルの中で TLS を張るため、`Authorization` ヘッダーは proxy から見えない。利用者が TLS を終端する proxy を設定した場合、その proxy は API キーを見られるが、これは利用者自身の構成である。
 - **HTTP/1.0 形式の応答。** `Content-Length` も chunked の終端も持たず、接続を閉じて応答本文の終わりを示す応答では、途中の切断と正常な終わりを区別できず、途中で切れた応答本文は `ErrInvalidResponse` になる。DeepSeek の API はこの形で応答しないとみて、対策しない（§1.4 で HTTP のバージョンを記録する）。
@@ -723,7 +746,7 @@ flowchart TD
     Finish -->|"stop・length 以外"| E6(["llm.ErrUnexpectedFinishReason"])
     Finish -->|"stop"| Empty{"content は空白文字以外を含むか"}
     Empty -->|"いいえ"| E7(["llm.ErrEmptyResponse"])
-    Empty -->|"はい"| OK(["GenerateResponse{Text, Model}"])
+    Empty -->|"はい"| OK(["GenerateResponse{Text, Model, ModelVersion}"])
     Classify -->|"はい"| E2
     Classify -->|"いいえ"| E8(["ErrTransport"])
 ```
@@ -738,13 +761,13 @@ flowchart TD
 
 DeepSeek の API もネットワーク上の外部ホストも呼ばない（AC-25）。`internal/llm/deepseek` のテストは同じパッケージ（`package deepseek`）に置く。送信先はループバックの `httptest` サーバーであり、すべてのテストは `test_helpers.go` の非公開のヘルパーを通して値を作る。本番の送信先のままの値で `Generate` を呼ぶテストは書かない。テストの API キーは実在しない固定の文字列を使う。
 
-- **`internal/strictjson`:** パッケージ単位の網羅率を測れるよう、公開 API ごとに受理と拒否の最小入力を検証する。`internal/transcript` のパーサのテストと同じケース（`testdata/` の不正なバイト列のサンプルなど）は繰り返さず、パーサのテストでは表せない入力に絞る。例: ゼロ値の `Value`、`AsArray` の要素の種類、`Has` が拒否しないこと、`RequiredString` の空文字列、消費しないキーの重複の受理。`internal/transcript` の既存テストは変更せずに通す（§3.5）。
+- **`internal/strictjson`:** パッケージ単位の網羅率を測れるよう、公開 API ごとに受理と拒否の最小入力を検証する。`internal/transcript` のパーサのテストと同じケース（`testdata/` の不正なバイト列のサンプルなど）は繰り返さず、パーサのテストでは表せない入力に絞る。例: ゼロ値の `Value`、`AsArray` の要素の種類、`Has` が拒否しないこと、`RequiredString` の空文字列、`OptionalString` の欠落（受理）と `null`・空文字列（拒否）、消費しないキーの重複の受理。`internal/transcript` の既存テストは変更せずに通す（§3.5）。
 - **`internal/llm`（`Validate`）:** 空の `SystemPrompt`・`UserPrompt`、不正な UTF-8 のバイト列を含むプロンプト、負の `MaxOutputTokens` が `ErrInvalidRequest` になり、空白だけのプロンプト・`MaxOutputTokens` 0 は受理されることを確認する。
 - **構築（AC-01・AC-02）:** 有効な `Options` で `llm.LLMClient` が返ること。ゼロ値の `Secret`、表示可能な ASCII 以外を含む API キー（末尾の改行・空白）、空・前後に空白（`" deepseek-flash"`・`"deepseek-flash\n"`）・不正な UTF-8 のモデル名、0 と負のタイムアウトがエラーになり、nil が返ること。
 - **リクエスト（AC-03〜AC-07）:** サーバー側で受け取ったメソッド・ヘッダー・リクエスト本文を記録する。リクエストの回数が 1 であること、デコードしたメッセージ列とプロンプトの一致（前後の空白・改行・`<`・`&` を含むプロンプトで確認）、`max_tokens` の有無、`thinking` がないこと、`stream` が `false` であること、リクエスト本文と URL に API キーが現れないこと。AC-07 は、`Generate` 経由でサーバーへのリクエストが 0 回であることも確認する。
 - **リダイレクト（AC-08）:** サーバーが `307` と `Location`（同じサーバーの別パス）を返し、別パスへのリクエストが 0 回であること、`HTTPStatusError.StatusCode` が 307 であること。
 - **ステータス（AC-10・AC-15）:** `400`・`401`・`402`・`429`・`500`・`503`・`307` で、応答本文に目印の文字列と不正な JSON を入れ、エラーに目印が現れず `ErrInvalidResponse` に該当しないこと。
-- **応答の検証（AC-09・AC-11〜AC-15・AC-26〜AC-32）:** `testdata/` の実応答（§1.4）を基に、1 か所だけを変えた入力を作る。各 AC の例に加え、次を含める。
+- **応答の検証（AC-09・AC-11〜AC-15・AC-26〜AC-34）:** `testdata/` の実応答（§1.4）を基に、1 か所だけを変えた入力を作る。各 AC の例に加え、次を含める。
   - §3.4 の各対象レベル（トップレベル・`choices` の要素・`message`）で消費するメンバーの重複（値が同じ場合も異なる場合も）と、消費しないメンバーの重複・種類の違い。
   - AC-30: `content` と `reasoning_content` のそれぞれに、不正なバイト列と `"\ud800"` を置く。
   - AC-31: 実応答の後ろに空白を足してちょうど 8 MiB にした応答本文と、8 MiB + 1 バイトの応答本文。
@@ -766,7 +789,7 @@ DeepSeek の API もネットワーク上の外部ホストも呼ばない（AC-
 - `make test-integration-deepseek` を追加する。このターゲットは、実 API を使い料金が発生することを表示してから、`go test -tags integration -count=1 -timeout 15m -v -run` で `./internal/llm/deepseek` の統合テストを実行する（AC-23）。`YT2COLUMN_MODEL` は、環境で定義されていなければ `deepseek-flash` を与え、このターゲットの実行時だけエクスポートする。定義されていればその値（空文字列を含む）を使う。テスト自身は既定値を持たない（要件 F-006）。
 - **オプトインの変数。** このターゲットは、あわせて `YT2COLUMN_DEEPSEEK_INTEGRATION=1` をエクスポートする。テストはこの変数が `1` でなければ、変数名と `make test-integration-deepseek` を示すメッセージで `t.Skip` する。`.envrc` で `DEEPSEEK_API_KEY` を常にエクスポートしている開発環境で、`go test -tags integration ./...` や IDE のテスト実行から料金が発生しないようにするためである。判定の順序は、オプトイン（スキップ）→ `DEEPSEEK_API_KEY`（未設定・空ならスキップ）→ `YT2COLUMN_MODEL`（未設定・空なら失敗）とする。要件 F-006 はスキップの条件に API キーの未設定を挙げており、本設計はそれに加えてオプトインの欠如をスキップの条件にする。`make test-integration-deepseek` では常に設定されるため、AC-23 の振る舞いは変わらない。
 - 既存の `make test-integration` は `./internal/transcript` だけを対象にしており（`Makefile` の `test-integration`）、DeepSeek の統合テストを実行しない。`make test`・`make test-ci` は `-tags test` だけでビルドするため、`integration` タグのテストを含まない（AC-22）。
-- 確認内容（AC-24）: 短い固定のプロンプトでの正常な生成（エラーなし、`Text` が空白文字以外を含む、`Model` が空でない）と、`MaxOutputTokens` 16（§3.6）での `llm.ErrTruncated`。プロンプトは字幕・API キー・パス・個人情報を含まない英語の短い文とする。
+- 確認内容（AC-24）: 短い固定のプロンプトでの正常な生成（エラーなし、`Text` が空白文字以外を含む、`Model` が空でない）と、`MaxOutputTokens` 16（§3.6）での `llm.ErrTruncated`。正常な生成では `ModelVersion` を `t.Log` で出力し、実際に返ることを手動実行の出力で確認できるようにする（実応答が持たない場合もありうるため、空でないことは検証しない）。プロンプトは字幕・API キー・パス・個人情報を含まない英語の短い文とする。
 - **結果の読み方。** API は混雑時に推論の開始まで最大 10 分待たせうる（§1.4）。統合テストの `context.DeadlineExceeded` は、それだけではアダプタの不具合を示さない。
 - **方針の差分（`0002_ytdlp_transcript_source` との違い）。** `0002_ytdlp_transcript_source/02_architecture.md` §7.2 は、統合テストの対象の指定が欠けていてもスキップせず失敗させる方針をとる（スキップは成功と見分けにくいため）。本タスクは API キーが未設定の場合と、オプトインの変数がない場合にスキップする。API キーについては要件定義書 §5.1 で定めた意図的な例外であり、理由は、API キーが秘密情報で利用者ごとに設定の有無が異なることと、issue #4 の完了条件である。オプトインについては、料金の発生を `make` のターゲットからの明示的な実行に限るためである。スキップと成功の見分けは、AC-23 の `-v` 出力（`--- SKIP` と変数名を含むメッセージ）で付ける。モデル名の未設定は `0002` と同じく失敗にする。既存の `internal/transcript/integration_test.go` は変更しないため、更新が要る既存テストはない。
 
@@ -802,6 +825,8 @@ DeepSeek の API もネットワーク上の外部ホストも呼ばない（AC-
 | AC-26〜AC-30 | `internal/strictjson` と消費するメンバーの検証（§3.4・§3.5） | 実応答を 1 か所変えた入力 |
 | AC-31 | 8 MiB の上限（§3.4・§3.6） | ちょうど上限と上限 + 1 バイト（先頭の空行を含む場合も） |
 | AC-32 | 拡張可能なオブジェクト（§3.4）と実応答のフィクスチャ（§1.4） | `testdata/` の実応答と未知のメンバーを足した応答 |
+| AC-33 | `ModelVersion` の組み立て（§3.2・§3.4） | 実応答（`system_fingerprint` あり）と、`system_fingerprint` を除いた応答 |
+| AC-34 | 任意の消費するメンバーの検証（§3.4） | `system_fingerprint` を `null`・数値・空文字列・重複にした応答 |
 
 テスト関数名とファイル内の位置は `03_implementation_plan.md` で定める。
 
@@ -823,7 +848,7 @@ DeepSeek の API もネットワーク上の外部ホストも呼ばない（AC-
 
 ## 9. 将来の拡張性 (Future Extensibility)
 
-- **#5（`ArticleWriter`）への申し送り。** §1.4 の調査で、`max_tokens` は推論過程のトークンを含むことが分かった。`MaxOutputTokens` を小さくすると、推論過程が上限を使い切り、`content` が空のまま打ち切られる（`llm.ErrTruncated`）。`MaxOutputTokens` は記事の長さだけでなく推論過程の分も見込んで決めるか、0（API の既定）にする。#5 は `llm.ErrTruncated` を判別して、利用者に `MaxOutputTokens` の見直しを案内できる。`GenerateResponse.Model` は空でないことだけが保証された信頼できない文字列であり、DeepSeek ではエイリアス（`deepseek-flash`）のまま返る（§1.4・§5.4）。
+- **#5（`ArticleWriter`）への申し送り。** §1.4 の調査で、`max_tokens` は推論過程のトークンを含むことが分かった。`MaxOutputTokens` を小さくすると、推論過程が上限を使い切り、`content` が空のまま打ち切られる（`llm.ErrTruncated`）。`MaxOutputTokens` は記事の長さだけでなく推論過程の分も見込んで決めるか、0（API の既定）にする。#5 は `llm.ErrTruncated` を判別して、利用者に `MaxOutputTokens` の見直しを案内できる。`GenerateResponse.Model` は空でないことだけが保証された信頼できない文字列であり、DeepSeek ではエイリアス（`deepseek-flash`）のまま返る（§1.4・§5.4）。生成に使ったモデルを記事に記録するには、`Model` とあわせて `ModelVersion` を `writer.Article` に引き継ぐ必要がある（`Article` のフィールドの追加は #5 で決める）。
 - **#6（設定と CLI）への申し送り。**
   - `deepseek.New` に `Options` を渡す。送信先は変えられない（§3.1）。`HTTPStatusError.StatusCode` で `401`・`402`・`429` を判別して案内できる。
   - タイムアウトの既定値は #6 が決める（要件 2.3）。API は推論の開始まで最大 10 分待たせうる（§1.4）うえに、thinking モードの `max_tokens` の既定は 64K トークンであり、生成にも時間がかかる。既定値はこの合計を目安にする。短すぎると、API 側では処理が進んで料金が発生しうるのに、アダプタがタイムアウトで打ち切ることになる。
