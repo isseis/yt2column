@@ -4,9 +4,6 @@ package mergepr
 
 import (
 	"errors"
-	"os"
-	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 )
@@ -55,114 +52,5 @@ func TestOSRunnerRedactsCredentials(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "://[redacted]@") {
 		t.Errorf("Run error = %v, want a redaction marker", err)
-	}
-}
-
-func TestOSRunnerOverridesGitConfig(t *testing.T) {
-	script := writeScript(t, "#!/bin/sh\nprintf '%s|%s|%s' \"$GIT_CONFIG_GLOBAL\" \"$GIT_CONFIG_SYSTEM\" \"$GIT_CONFIG_NOSYSTEM\"\n")
-	out, err := NewOSRunner().Run(t.Context(), script)
-	if err != nil {
-		t.Fatalf("Run error = %v, want nil", err)
-	}
-	if string(out) != "/dev/null|/dev/null|1" {
-		t.Errorf("child git config env = %q, want /dev/null|/dev/null|1", out)
-	}
-}
-
-func TestChildEnvDisablesExecutableConfig(t *testing.T) {
-	t.Setenv("GH_TOKEN", "secret")
-	t.Setenv("GIT_SSH_COMMAND", "!./tracked-ssh")
-	t.Setenv("GIT_ASKPASS", "!./tracked-askpass")
-	env := childEnv()
-
-	if !hasEnv(env, "GH_TOKEN=secret") {
-		t.Error("child env did not include GH_TOKEN for gh's credential helper")
-	}
-	if !hasEnv(env, "GIT_CONFIG_KEY_0=core.hooksPath") || !hasEnv(env, "GIT_CONFIG_VALUE_0=/dev/null") {
-		t.Error("git child did not disable repository hooks")
-	}
-	if !hasEnv(env, "GIT_CONFIG_KEY_1=core.fsmonitor") || !hasEnv(env, "GIT_CONFIG_VALUE_1=false") {
-		t.Error("git child did not disable the repository fsmonitor")
-	}
-	if !hasEnv(env, "GIT_CONFIG_KEY_2=credential.helper") || !hasEnv(env, "GIT_CONFIG_VALUE_2=") {
-		t.Error("git child did not reset the repository credential helper")
-	}
-	if !hasEnv(env, "GIT_CONFIG_KEY_3=credential.https://github.com.helper") || !hasEnv(env, "GIT_CONFIG_VALUE_3=!gh auth git-credential") {
-		t.Error("git child did not configure gh's credential helper for HTTPS")
-	}
-	if !hasEnv(env, "GIT_CONFIG_KEY_4=maintenance.auto") || !hasEnv(env, "GIT_CONFIG_VALUE_4=false") {
-		t.Error("git child did not disable automatic maintenance")
-	}
-	if !hasEnv(env, "GIT_CONFIG_KEY_5=core.ignoreStat") || !hasEnv(env, "GIT_CONFIG_VALUE_5=false") {
-		t.Error("git child did not force a stat-checking status")
-	}
-	if !hasEnv(env, "GIT_CONFIG_KEY_6=core.untrackedCache") || !hasEnv(env, "GIT_CONFIG_VALUE_6=false") {
-		t.Error("git child did not disable the untracked cache")
-	}
-	for _, entry := range env {
-		if strings.HasPrefix(entry, "GIT_SSH_COMMAND=") || strings.HasPrefix(entry, "GIT_ASKPASS=") {
-			t.Errorf("child env kept the command-valued variable %q", entry)
-		}
-	}
-}
-
-func hasEnv(env []string, want string) bool {
-	return slices.Contains(env, want)
-}
-
-func TestTrustedPathExcludesWorktree(t *testing.T) {
-	root, err := worktreeRoot()
-	if err != nil {
-		t.Fatalf("worktreeRoot: %v", err)
-	}
-	resolvedRoot, err := resolveExisting(root)
-	if err != nil {
-		t.Fatalf("resolveExisting: %v", err)
-	}
-	t.Setenv("PATH", root+string(filepath.ListSeparator)+os.Getenv("PATH"))
-	for _, dir := range filepath.SplitList(trustedPath()) {
-		if resolved, err := resolveExisting(dir); err == nil && resolved == resolvedRoot {
-			t.Errorf("trustedPath kept the worktree entry %q", dir)
-		}
-	}
-}
-
-func TestResolveCommandSkipsWorktreeExecutable(t *testing.T) {
-	root, err := worktreeRoot()
-	if err != nil {
-		t.Fatalf("worktreeRoot: %v", err)
-	}
-	dir, err := os.MkdirTemp(root, ".mergepr-trustedpath-")
-	if err != nil {
-		t.Fatalf("create planted dir: %v", err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(dir) })
-	const name = "mergepr-test-tool"
-	if err := os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/sh\n"), 0o700); err != nil { //nolint:gosec // the planted tool must be executable
-		t.Fatalf("write planted tool: %v", err)
-	}
-	t.Setenv("PATH", dir+string(filepath.ListSeparator)+os.Getenv("PATH"))
-
-	if _, err := resolveCommand(name); !errors.Is(err, errToolNotFound) {
-		t.Fatalf("resolveCommand(%q) = %v, want errToolNotFound", name, err)
-	}
-}
-
-func TestOSRunnerEnvAllowlist(t *testing.T) {
-	t.Setenv("MERGE_PR_TEST_SECRET", "leaked")
-	script := writeScript(t, "#!/bin/sh\nprintf '%s|%s' \"$MERGE_PR_TEST_SECRET\" \"$PATH\"\n")
-	out, err := NewOSRunner().Run(t.Context(), script)
-	if err != nil {
-		t.Fatalf("Run error = %v, want nil", err)
-	}
-	parts := strings.SplitN(string(out), "|", 2)
-	if len(parts) != 2 {
-		t.Fatalf("Run output = %q, want a secret|path pair", out)
-	}
-	if parts[0] != "" {
-		t.Errorf("child saw MERGE_PR_TEST_SECRET = %q, want it stripped from the environment", parts[0])
-	}
-	if parts[1] == "" {
-		t.Error("child saw an empty PATH, want it passed through")
 	}
 }

@@ -8,15 +8,11 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"runtime/debug"
 
 	"github.com/isseis/yt2column/internal/mergepr"
 )
 
-var (
-	errUsage           = errors.New("usage: mergepr prepare [--work-dir DIR] [PR] | mergepr merge --state FILE --subject-file FILE --body-file FILE | mergepr cleanup --state FILE | mergepr diff --state FILE -- PATH")
-	errNoBuildRevision = errors.New("mergepr: cannot determine the build revision; build from a git checkout of main")
-)
+var errUsage = errors.New("usage: mergepr prepare [--work-dir DIR] [PR] | mergepr merge --state FILE --subject-file FILE --body-file FILE | mergepr cleanup --state FILE | mergepr diff --state FILE -- PATH")
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -29,14 +25,7 @@ func run(args []string) error {
 	if len(args) == 0 {
 		return errUsage
 	}
-	// Bind the binary to the commit it was built from, so a stale installation
-	// stops instead of merging with superseded checks. A build without VCS
-	// metadata cannot be verified and is refused.
-	revision := buildRevision()
-	if revision == "" {
-		return errNoBuildRevision
-	}
-	tool, err := mergepr.NewWithRevision(mergepr.NewOSRunner(), revision)
+	tool, err := mergepr.New(mergepr.NewOSRunner())
 	if err != nil {
 		return err
 	}
@@ -133,36 +122,6 @@ func runDiff(ctx context.Context, tool *mergepr.Tool, args []string) error {
 		return err
 	}
 	return nil
-}
-
-// buildRevision returns the VCS revision Go embedded at build time, or an empty
-// string when the binary was built without version control metadata.
-func buildRevision() string {
-	info, ok := debug.ReadBuildInfo()
-	if !ok {
-		return ""
-	}
-	return revisionFromSettings(info.Settings)
-}
-
-// revisionFromSettings extracts the VCS revision, returning empty for a build
-// from a modified checkout: it shares main's revision but not its code, so it
-// cannot be verified against main.
-func revisionFromSettings(settings []debug.BuildSetting) string {
-	revision := ""
-	modified := false
-	for _, setting := range settings {
-		switch setting.Key {
-		case "vcs.revision":
-			revision = setting.Value
-		case "vcs.modified":
-			modified = setting.Value == "true"
-		}
-	}
-	if modified {
-		return ""
-	}
-	return revision
 }
 
 func printReport(report mergepr.Report) {

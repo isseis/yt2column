@@ -11,18 +11,22 @@ Invoking this command authorizes the network operations `cmd/mergepr` performs
 user to approve the commit message first (CLAUDE.md, "Tool Execution Safety").
 
 The mechanics live in the `mergepr` binary (package `internal/mergepr`). Install
-it from `main` with `go install ./cmd/mergepr` in a `main` checkout, so the
-binary is the reviewed `main` revision; it embeds that build revision and
-refuses to run unless it still matches `origin/main`, so rebuild it after `main`
-advances rather than reusing a stale installation. It runs from any checkout,
-but it stops unless this checkout's `.claude/commands/mergepr.md` is also the
-`main` revision, so do not invoke it from a branch that edited this command
-definition. It resolves `git` and `gh` through a `PATH` with the checkout
-removed; runs git with global and system configuration, repository hooks,
-fsmonitor, and stat-caching disabled; refuses a repository-local config that can
-rewrite a remote URL or trust a stale worktree status; pins the base commit the
-message is drafted from and stops if it moved; and stops if the PR under review
-changes `cmd/mergepr`, `internal/mergepr`, or this command definition. Do not reimplement its steps as
+it from `main` with `go install ./cmd/mergepr` in a `main` checkout. It runs from
+any checkout, but it stops unless this checkout's `.claude/commands/mergepr.md`
+is also the `main` revision, so do not invoke it from a branch that edited this
+command definition. It resolves the repository, head, and base once and
+re-verifies them immediately before the merge and cleanup, and stops if the PR
+under review changes `cmd/mergepr`, `internal/mergepr`, or this command
+definition.
+
+**Prerequisites.** This is an internal developer tool and trusts the local
+checkout, environment, and git configuration. Before running it, use a standard
+setup: a GitHub `origin` remote; a clean worktree; a local base branch that is
+current with `origin/<base>`; no ignored file that collides with a path the base
+tracks; and no repository or global git configuration (hooks, fsmonitor,
+`core.sshCommand`, filter/diff drivers, `push.*` options) that changes what
+these commands do. It does not defend against such settings; configure your
+checkout accordingly. Do not reimplement its steps as
 shell commands; if it stops, report its error instead of working around it. Work
 in order; do not skip a step.
 

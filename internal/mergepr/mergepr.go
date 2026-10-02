@@ -10,16 +10,13 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io/fs"
 	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -85,26 +82,14 @@ type Runner interface {
 // working directory.
 type Tool struct {
 	run Runner
-	// revision is the commit the binary was built from. When non-empty the tool
-	// requires it to match origin/main before acting, so a stale installation
-	// cannot merge with superseded checks. It is empty in unit tests.
-	revision string
 }
 
-// New returns a Tool that runs external commands through runner. It does not
-// verify a build revision; the CLI uses NewWithRevision so the installed binary
-// is bound to the main revision it was built from.
+// New returns a Tool that runs external commands through runner.
 func New(runner Runner) (*Tool, error) {
-	return NewWithRevision(runner, "")
-}
-
-// NewWithRevision returns a Tool that also requires the binary's build revision
-// to match origin/main before any merge, when revision is non-empty.
-func NewWithRevision(runner Runner, revision string) (*Tool, error) {
 	if runner == nil {
 		return nil, errNoRunner
 	}
-	return &Tool{run: runner, revision: revision}, nil
+	return &Tool{run: runner}, nil
 }
 
 // command runs one external command with a deadline, so a stalled git or gh
@@ -137,7 +122,6 @@ type State struct {
 	HeadRefName string `json:"headRefName"`
 	HeadRefOID  string `json:"headRefOid"`
 	BaseRefName string `json:"baseRefName"`
-	BaseRefOID  string `json:"baseRefOid"`
 	Title       string `json:"title"`
 	URL         string `json:"url"`
 }
@@ -156,9 +140,6 @@ func (s State) validate() error {
 	}
 	if _, err := hex.DecodeString(s.HeadRefOID); err != nil || len(s.HeadRefOID) != oidLength {
 		return fmt.Errorf("%w: headRefOid", errInvalidState)
-	}
-	if _, err := hex.DecodeString(s.BaseRefOID); err != nil || len(s.BaseRefOID) != oidLength {
-		return fmt.Errorf("%w: baseRefOid", errInvalidState)
 	}
 	return nil
 }
@@ -195,9 +176,9 @@ func (t *Tool) Prepare(ctx context.Context, prArg, workDir string) (Prepared, er
 		workDir = dir
 		created = true
 	}
-	// A directory inside the checkout, including one MkdirTemp created under an
-	// in-repo TMPDIR, would make the files Prepare writes dirty the worktree, so
-	// Merge's clean-worktree recheck would reject the state Prepare produced.
+	// The prepared files must sit outside the checkout: a directory inside it
+	// would make the worktree dirty and Merge's clean-worktree check would
+	// reject the state Prepare produced.
 	if err := requireOutsideWorktree(workDir); err != nil {
 		if created {
 			_ = os.RemoveAll(workDir)
@@ -205,31 +186,9 @@ func (t *Tool) Prepare(ctx context.Context, prArg, workDir string) (Prepared, er
 		return Prepared{}, err
 	}
 	if !created {
-		// Create a named directory now, not after the CI wait, so writing the
-		// prepared files cannot be the step that fails.
-		if err := createWorkDir(workDir); err != nil {
-			return Prepared{}, err
+		if err := os.MkdirAll(workDir, workDirMode); err != nil {
+			return Prepared{}, fmt.Errorf("create work directory: %w", err)
 		}
-	}
-	// Re-check containment now that the path exists. A component swapped for a
-	// symlink between the check above and creation is otherwise followed into
-	// the checkout; O_NOFOLLOW on the final output name does not protect a
-	// symlinked directory component.
-	if err := requireOutsideWorktree(workDir); err != nil {
-		if created {
-			_ = os.RemoveAll(workDir)
-		}
-		return Prepared{}, err
-	}
-	// MkdirAll leaves an existing directory's permissions unchanged, so a
-	// group- or world-writable work directory could let another local user
-	// pre-create or race a predictable output name as a symlink. Require a
-	// private directory owned by this user before writing anything into it.
-	if err := requirePrivateDir(workDir); err != nil {
-		if created {
-			_ = os.RemoveAll(workDir)
-		}
-		return Prepared{}, err
 	}
 	prepared, err := t.prepare(ctx, prArg, workDir)
 	if err != nil {
@@ -249,120 +208,36 @@ func (t *Tool) prepare(ctx context.Context, prArg, workDir string) (Prepared, er
 	if err := t.requireToolUnchanged(ctx, id, pr.BaseRefName, pr.HeadRefName, pr.HeadRefOID); err != nil {
 		return Prepared{}, err
 	}
-	// Pin the base commit the drafting material is built from, so Merge can
-	// reject a message drafted against a base that has since moved.
-	baseOID, err := t.originBaseOID(ctx, pr.BaseRefName)
-	if err != nil {
-		return Prepared{}, err
-	}
 	logOut, statOut, bodyOut, err := t.draftingMaterial(ctx, id, pr)
 	if err != nil {
 		return Prepared{}, err
 	}
-	return writePrepared(workDir, id, pr, baseOID, logOut, statOut, bodyOut)
-}
-
-// originBaseOID reads the fetched origin/<base> commit, which the drafting
-// material and the merge are pinned to.
-func (t *Tool) originBaseOID(ctx context.Context, base string) (string, error) {
-	out, err := t.command(ctx, commandTimeout, gitCommand, "rev-parse", originRefs+base)
-	if err != nil {
-		return "", fmt.Errorf("read base commit: %w", err)
-	}
-	return strings.TrimSpace(string(out)), nil
+	return writePrepared(workDir, id, pr, logOut, statOut, bodyOut)
 }
 
 // requireOutsideWorktree rejects a work directory inside the repository
-// worktree, where the files Prepare writes would make the checkout dirty. Both
-// paths have their symlinks resolved, so an outside symlink that points into
-// the checkout is rejected too.
+// worktree, where the files Prepare writes would make the checkout dirty.
 func requireOutsideWorktree(workDir string) error {
 	root, err := worktreeRoot()
 	if err != nil {
 		return err
 	}
-	resolvedRoot, err := resolveExisting(root)
+	absRoot, err := filepath.Abs(root)
 	if err != nil {
 		return err
 	}
-	resolvedWork, err := resolveExisting(workDir)
+	absWork, err := filepath.Abs(workDir)
 	if err != nil {
 		return err
 	}
-	rel, err := filepath.Rel(resolvedRoot, resolvedWork)
+	rel, err := filepath.Rel(absRoot, absWork)
 	if err != nil {
 		return nil // a different volume cannot be inside the worktree
 	}
-	if inside(rel) {
+	if rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))) {
 		return fmt.Errorf("%w: %s", errWorkDirInWorktree, workDir)
 	}
 	return nil
-}
-
-// createWorkDir creates the named work directory without following a symlink at
-// its final component. MkdirAll follows a symlink to an existing directory, so
-// a path swapped for one after the containment check could redirect the writes
-// into the checkout.
-func createWorkDir(path string) error {
-	if parent := filepath.Dir(path); parent != path {
-		if err := os.MkdirAll(parent, workDirMode); err != nil {
-			return fmt.Errorf("create work directory: %w", err)
-		}
-	}
-	if err := os.Mkdir(path, workDirMode); err != nil {
-		if !errors.Is(err, fs.ErrExist) {
-			return fmt.Errorf("create work directory: %w", err)
-		}
-		info, lerr := os.Lstat(path)
-		if lerr != nil {
-			return fmt.Errorf("inspect work directory: %w", lerr)
-		}
-		if info.Mode()&fs.ModeSymlink != 0 || !info.IsDir() {
-			return fmt.Errorf("%w: %s", errInsecureWorkDir, path)
-		}
-	}
-	return nil
-}
-
-// requirePrivateDir rejects a work directory that other local users can write
-// to, or that a previous run created under a different account, because either
-// lets them pre-create a predictable output name as a symlink.
-func requirePrivateDir(path string) error {
-	info, err := os.Stat(path)
-	if err != nil {
-		return fmt.Errorf("inspect work directory: %w", err)
-	}
-	if !info.IsDir() || info.Mode().Perm()&0o022 != 0 {
-		return fmt.Errorf("%w: %s", errInsecureWorkDir, path)
-	}
-	stat, ok := info.Sys().(*syscall.Stat_t)
-	if !ok || int(stat.Uid) != os.Geteuid() {
-		return fmt.Errorf("%w: %s", errInsecureWorkDir, path)
-	}
-	return nil
-}
-
-// resolveExisting resolves symlinks on the longest existing prefix of path and
-// appends the rest unchanged, so a not-yet-created work directory is still
-// checked against its real parent.
-func resolveExisting(path string) (string, error) {
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		return "", fmt.Errorf("resolve path: %w", err)
-	}
-	rest := ""
-	current := abs
-	for {
-		if resolved, err := filepath.EvalSymlinks(current); err == nil {
-			return filepath.Join(resolved, rest), nil
-		}
-		parent := filepath.Dir(current)
-		if parent == current {
-			return abs, nil
-		}
-		rest = filepath.Join(filepath.Base(current), rest)
-		current = parent
-	}
 }
 
 // worktreeRoot walks up from the working directory to the nearest ancestor that
@@ -512,7 +387,7 @@ func (t *Tool) draftingMaterial(ctx context.Context, id identity, pr prInfo) ([]
 	return logOut, statOut, bodyOut, nil
 }
 
-func writePrepared(workDir string, id identity, pr prInfo, baseOID string, logOut, statOut, bodyOut []byte) (Prepared, error) {
+func writePrepared(workDir string, id identity, pr prInfo, logOut, statOut, bodyOut []byte) (Prepared, error) {
 	state := State{
 		Number:      pr.Number,
 		Owner:       id.Owner,
@@ -520,7 +395,6 @@ func writePrepared(workDir string, id identity, pr prInfo, baseOID string, logOu
 		HeadRefName: pr.HeadRefName,
 		HeadRefOID:  pr.HeadRefOID,
 		BaseRefName: pr.BaseRefName,
-		BaseRefOID:  baseOID,
 		Title:       pr.Title,
 		URL:         pr.URL,
 	}
@@ -606,12 +480,6 @@ func (t *Tool) Merge(ctx context.Context, statePath, subjectPath, bodyPath strin
 	if err := t.requireBaseSwitchable(ctx, state.BaseRefName); err != nil {
 		return Report{}, err
 	}
-	// A local base that is ahead of or diverged from origin/<base> would make
-	// updateBase's fast-forward fail only after the merge and remote deletion,
-	// so require it to be fast-forwardable before the irreversible merge.
-	if err := t.requireBaseFastForwardable(ctx, id, state); err != nil {
-		return Report{}, err
-	}
 	if _, err := t.command(ctx, commandTimeout, ghCommand, "pr", "merge", strconv.Itoa(state.Number), "--squash", "--subject", subject, "--body", body, "--match-head-commit", state.HeadRefOID, repoFlag, state.repo()); err != nil {
 		// The merge may have completed even though the response was lost, so
 		// re-read the state and run cleanup instead of reporting a failure that
@@ -637,27 +505,6 @@ func (t *Tool) requireIdentity(ctx context.Context, state State) (identity, erro
 		return identity{}, errRepoMismatch
 	}
 	return id, nil
-}
-
-// requireBinaryCurrent fetches main and requires the binary's build revision to
-// match it, so an installation that predates an internal-only fix cannot run
-// superseded credential or ref-safety checks while the command file still looks
-// current. It is a no-op when the tool has no revision (unit tests).
-func (t *Tool) requireBinaryCurrent(ctx context.Context, id identity) error {
-	if t.revision == "" {
-		return nil
-	}
-	if _, err := t.command(ctx, commandTimeout, gitCommand, "fetch", id.FetchURL, "+"+refsHeads+trustedBranch+":"+originRefs+trustedBranch); err != nil {
-		return fmt.Errorf("fetch main for binary check: %w", err)
-	}
-	out, err := t.command(ctx, commandTimeout, gitCommand, "rev-parse", originRefs+trustedBranch)
-	if err != nil {
-		return fmt.Errorf("read main for binary check: %w", err)
-	}
-	if main := strings.TrimSpace(string(out)); main != t.revision {
-		return fmt.Errorf("%w: built from %s, main is %s", errBinaryStale, t.revision, main)
-	}
-	return nil
 }
 
 // verifyMergeable rejects a view that is cross-repository, not open, or drifted
@@ -740,9 +587,7 @@ func (t *Tool) Diff(ctx context.Context, statePath, path string) ([]byte, error)
 		return nil, err
 	}
 	baseRef := originRefs + state.BaseRefName
-	// --no-ext-diff and --no-textconv stop a configured external diff or
-	// textconv driver from executing on this untrusted patch.
-	out, err := t.command(ctx, commandTimeout, gitCommand, "-C", root, "--literal-pathspecs", "diff", "--no-ext-diff", "--no-textconv", baseRef+"..."+state.HeadRefOID, "--", path)
+	out, err := t.command(ctx, commandTimeout, gitCommand, "-C", root, "diff", baseRef+"..."+state.HeadRefOID, "--", path)
 	if err != nil {
 		return nil, fmt.Errorf("read diff: %w", err)
 	}
@@ -753,7 +598,7 @@ func (t *Tool) Diff(ctx context.Context, statePath, path string) ([]byte, error)
 }
 
 // checkDiffPath rejects an empty path. A leading dash is safe because the diff
-// passes the path after "--" with --literal-pathspecs.
+// passes the path after "--".
 func checkDiffPath(path string) error {
 	if path == "" {
 		return fmt.Errorf("%w: %q", errInvalidPath, path)
@@ -851,28 +696,21 @@ func (t *Tool) deleteRemoteBranch(ctx context.Context, id identity, state State)
 		return false, nil
 	}
 	lease := "--force-with-lease=" + headRef + ":" + state.HeadRefOID
-	// --recurse-submodules=no overrides a repository-local
-	// push.recurseSubmodules=only, which would otherwise make this push exit
-	// successfully without deleting the superproject branch.
-	if _, err := t.command(ctx, commandTimeout, gitCommand, "push", "--recurse-submodules=no", lease, id.PushURL, "--delete", headRef); err != nil {
+	if _, err := t.command(ctx, commandTimeout, gitCommand, "push", lease, id.PushURL, "--delete", headRef); err != nil {
 		return false, fmt.Errorf("delete remote branch: %w", err)
 	}
 	return true, nil
 }
 
 func (t *Tool) updateBase(ctx context.Context, id identity, state State) (bool, error) {
-	// --no-overwrite-ignore keeps a local ignored file that the base branch
-	// tracks; the default would silently replace it.
-	if _, err := t.command(ctx, commandTimeout, gitCommand, "switch", "--no-overwrite-ignore", state.BaseRefName); err != nil {
+	if _, err := t.command(ctx, commandTimeout, gitCommand, "switch", state.BaseRefName); err != nil {
 		return false, fmt.Errorf("switch to base branch: %w", err)
 	}
 	baseRef := originRefs + state.BaseRefName
 	if _, err := t.command(ctx, commandTimeout, gitCommand, "fetch", id.FetchURL, "+"+refsHeads+state.BaseRefName+":"+baseRef); err != nil {
 		return false, fmt.Errorf("fetch base branch: %w", err)
 	}
-	// The fast-forward can also newly track a path that was ignored on the old
-	// base, so keep the same protection the switch uses.
-	if _, err := t.command(ctx, commandTimeout, gitCommand, "merge", "--ff-only", "--no-overwrite-ignore", baseRef); err != nil {
+	if _, err := t.command(ctx, commandTimeout, gitCommand, "merge", "--ff-only", baseRef); err != nil {
 		return false, fmt.Errorf("fast-forward base branch: %w", err)
 	}
 	if err := t.requireBaseCurrent(ctx, baseRef); err != nil {
@@ -924,9 +762,6 @@ func (t *Tool) requireNotCheckedOut(ctx context.Context, name string, sentinel e
 // every push URL, and the repository gh selects must name the same GitHub
 // repository over https or ssh, so no later step can act on a different one.
 func (t *Tool) repoIdentity(ctx context.Context) (identity, error) {
-	if err := t.requireSupportedConfig(ctx); err != nil {
-		return identity{}, err
-	}
 	fetchURL, err := t.command(ctx, commandTimeout, gitCommand, "remote", "get-url", originRemote)
 	if err != nil {
 		return identity{}, fmt.Errorf("read origin fetch URL: %w", err)
@@ -974,13 +809,7 @@ func (t *Tool) repoIdentity(ctx context.Context) (identity, error) {
 	if err != nil || !strings.EqualFold(view.NameWithOwner, fetchOwner+"/"+fetchRepo) || !sameRepo(selectedOwner, selectedRepo, fetchOwner, fetchRepo) {
 		return identity{}, fmt.Errorf("%w: gh selects %q", errRepoMismatch, view.NameWithOwner)
 	}
-	id := identity{Owner: fetchOwner, Repo: fetchRepo, FetchURL: fetch, PushURL: pinnedPush}
-	// Enforce the revision guard here so every network path — prepare, merge,
-	// and standalone cleanup — refuses a stale binary.
-	if err := t.requireBinaryCurrent(ctx, id); err != nil {
-		return identity{}, err
-	}
-	return id, nil
+	return identity{Owner: fetchOwner, Repo: fetchRepo, FetchURL: fetch, PushURL: pinnedPush}, nil
 }
 
 // parseGitHubRemote extracts owner and repo from an https or ssh GitHub remote
@@ -1215,66 +1044,6 @@ func (t *Tool) localHeadOID(ctx context.Context, name string) (string, error) {
 	return "", nil
 }
 
-// requireBaseFastForwardable fetches the base and requires the local base
-// branch to be absent or an ancestor of the freshly fetched remote base, so the
-// cleanup fast-forward cannot fail after the merge and remote deletion.
-func (t *Tool) requireBaseFastForwardable(ctx context.Context, id identity, state State) error {
-	baseRef := originRefs + state.BaseRefName
-	if _, err := t.command(ctx, commandTimeout, gitCommand, "fetch", id.FetchURL, "+"+refsHeads+state.BaseRefName+":"+baseRef); err != nil {
-		return fmt.Errorf("fetch base branch: %w", err)
-	}
-	// The drafted message describes the base recorded at prepare time; refuse
-	// to merge it against a base that has moved since.
-	fetched, err := t.originBaseOID(ctx, state.BaseRefName)
-	if err != nil {
-		return err
-	}
-	if state.BaseRefOID != "" && fetched != state.BaseRefOID {
-		return fmt.Errorf("%w: base moved from %s to %s", errBaseRePin, state.BaseRefOID, fetched)
-	}
-	if err := t.requireNoIgnoredCollision(ctx, baseRef); err != nil {
-		return err
-	}
-	localOID, err := t.localHeadOID(ctx, state.BaseRefName)
-	if err != nil {
-		return err
-	}
-	if localOID == "" {
-		return nil
-	}
-	if _, err := t.command(ctx, commandTimeout, gitCommand, "merge-base", "--is-ancestor", localOID, baseRef); err != nil {
-		return fmt.Errorf("%w: local %s is not an ancestor of %s", errBaseNotCurrent, state.BaseRefName, baseRef)
-	}
-	return nil
-}
-
-// requireNoIgnoredCollision rejects a worktree whose ignored files include a
-// path the base tracks, because the cleanup switch uses --no-overwrite-ignore
-// and would abort only after the merge and remote deletion.
-func (t *Tool) requireNoIgnoredCollision(ctx context.Context, baseRef string) error {
-	ignored, err := t.command(ctx, commandTimeout, gitCommand, "ls-files", "--others", "--ignored", "--exclude-standard")
-	if err != nil {
-		return fmt.Errorf("list ignored files: %w", err)
-	}
-	tracked, err := t.command(ctx, commandTimeout, gitCommand, "ls-tree", "-r", "--name-only", baseRef)
-	if err != nil {
-		return fmt.Errorf("list base files: %w", err)
-	}
-	base := make(map[string]struct{})
-	for line := range strings.Lines(string(tracked)) {
-		if path := strings.TrimSpace(line); path != "" {
-			base[path] = struct{}{}
-		}
-	}
-	for line := range strings.Lines(string(ignored)) {
-		path := strings.TrimSpace(line)
-		if _, ok := base[path]; ok {
-			return fmt.Errorf("%w: %s", errIgnoredCollision, path)
-		}
-	}
-	return nil
-}
-
 func (t *Tool) requireBaseCurrent(ctx context.Context, baseRef string) error {
 	head, err := t.command(ctx, commandTimeout, gitCommand, "rev-parse", "HEAD")
 	if err != nil {
@@ -1306,134 +1075,6 @@ func readBody(path string) (string, error) {
 		return "", fmt.Errorf("%w: body is %d bytes, limit %d", errTooLarge, len(data), maxBodyBytes)
 	}
 	return string(data), nil
-}
-
-// requireSupportedConfig refuses to run when the repository's local git config
-// contains a key outside the known-safe allowlist. Global and system config are
-// disabled for every child process (see childEnv), so only the local (and, when
-// enabled, worktree) config could otherwise redirect a URL or execute a
-// program. Rejecting by allowlist means an executable key added to git later is
-// rejected by default instead of being missed.
-func (t *Tool) requireSupportedConfig(ctx context.Context) error {
-	// --local excludes the command-scope overrides from childEnv; --null uses NUL
-	// between entries and a newline between key and value, so a key that
-	// contains "=" is not truncated.
-	out, err := t.command(ctx, commandTimeout, gitCommand, "config", "--local", "--null", "--includes", "--list")
-	if err != nil {
-		return fmt.Errorf("read git config: %w", err)
-	}
-	worktree := false
-	for entry := range strings.SplitSeq(string(out), "\x00") {
-		key, value, _ := strings.Cut(entry, "\n")
-		if key == "" {
-			continue
-		}
-		// Git treats a valueless key as true, and accepts "true", "yes", "on",
-		// and "1"; only an explicit false-ish value disables the extension.
-		if strings.EqualFold(key, "extensions.worktreeconfig") && (value == "" || gitBoolTrue(value)) {
-			worktree = true
-		}
-		if !allowedConfig(key) {
-			return fmt.Errorf("%w: section %q", errUnsupportedConfig, configSection(key))
-		}
-	}
-	if !worktree {
-		return nil
-	}
-	out, err = t.command(ctx, commandTimeout, gitCommand, "config", "--worktree", "--null", "--list")
-	if err != nil {
-		return fmt.Errorf("read worktree config: %w", err)
-	}
-	for entry := range strings.SplitSeq(string(out), "\x00") {
-		key, _, _ := strings.Cut(entry, "\n")
-		if key != "" && !allowedConfig(key) {
-			return fmt.Errorf("%w: section %q", errUnsupportedConfig, configSection(key))
-		}
-	}
-	return nil
-}
-
-// allowedConfigKeys are the repository-local keys the tool tolerates in addition
-// to the prefixes in allowedConfig. They are non-executable and git may need
-// them to interpret a clone or worktree.
-var allowedConfigKeys = map[string]struct{}{
-	"core.repositoryformatversion": {},
-	"core.bare":                    {},
-	"core.worktree":                {},
-	"core.filemode":                {},
-	"core.ignorecase":              {},
-	"core.symlinks":                {},
-	"core.precomposeunicode":       {},
-	"core.logallrefupdates":        {},
-	"core.abbrev":                  {},
-	"core.quotepath":               {},
-	"core.autocrlf":                {},
-	"core.safecrlf":                {},
-	"core.eol":                     {},
-	"core.trustctime":              {},
-	"core.checkstat":               {},
-	"core.commitgraph":             {},
-	"core.multipackindex":          {},
-	"core.untrackedcache":          {},
-	"core.sparsecheckout":          {},
-	"core.sparsecheckoutcone":      {},
-	"core.bigfilethreshold":        {},
-	"user.name":                    {},
-	"user.email":                   {},
-}
-
-// allowedConfig reports whether a repository-local config key is one the tool
-// tolerates: it cannot execute a program and git may need it to interpret the
-// repository. Everything else is rejected.
-func allowedConfig(key string) bool {
-	key = strings.ToLower(key)
-	if _, ok := allowedConfigKeys[key]; ok {
-		return true
-	}
-	switch {
-	case strings.HasPrefix(key, "remote."):
-		// uploadpack/receivepack name a program git runs for the remote.
-		return !strings.HasSuffix(key, ".uploadpack") && !strings.HasSuffix(key, ".receivepack") &&
-			!strings.HasSuffix(key, ".vcs") && !strings.HasSuffix(key, ".proxy")
-	case strings.HasPrefix(key, "gc."):
-		// recentObjectsHook names a program git runs during maintenance.
-		return key != "gc.recentobjectshook"
-	case strings.HasPrefix(key, "push."):
-		// followTags would make the branch-deletion push also push tags,
-		// pushOption could inject --follow-tags into the same push, and
-		// recurseSubmodules=only would make the deletion push report success
-		// without deleting the superproject branch.
-		return key != "push.followtags" && key != "push.pushoption" && key != "push.recursesubmodules"
-	case strings.HasPrefix(key, "branch."),
-		strings.HasPrefix(key, "extensions."),
-		strings.HasPrefix(key, "index."),
-		strings.HasPrefix(key, "fetch."),
-		strings.HasPrefix(key, "pull."),
-		strings.HasPrefix(key, "status."),
-		strings.HasPrefix(key, "commit."),
-		strings.HasPrefix(key, "tag."),
-		strings.HasPrefix(key, "log."),
-		strings.HasPrefix(key, "rebase."):
-		return true
-	}
-	return false
-}
-
-// configSection returns the config section (before the first "."), which cannot
-// embed a credential, for an error message.
-func configSection(key string) string {
-	section, _, _ := strings.Cut(key, ".")
-	return section
-}
-
-// gitBoolTrue reports whether a git boolean value is true: git accepts "true",
-// "yes", "on", and "1", case-insensitively.
-func gitBoolTrue(value string) bool {
-	switch strings.ToLower(value) {
-	case "true", "yes", "on", "1":
-		return true
-	}
-	return false
 }
 
 // sameRepo reports whether two GitHub owner/repo pairs name the same
@@ -1485,25 +1126,13 @@ func loadState(path string) (State, error) {
 }
 
 func writeFile(path string, data []byte) error {
-	// O_NOFOLLOW makes the open fail when the final component is a symlink, so
-	// a race that swaps a predictable output name for a symlink cannot redirect
-	// the truncating write onto a file the invoking user can write.
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|syscall.O_NOFOLLOW, stateFileMode) //nolint:gosec // an operator-supplied path, not untrusted content
-	if err != nil {
+	if err := os.WriteFile(path, data, stateFileMode); err != nil {
 		return fmt.Errorf("write %s: %w", filepath.Base(path), err)
 	}
-	// OpenFile preserves the mode of an existing file, so enforce it on the open
-	// descriptor even when a reused work directory already held a readable file.
-	if err := f.Chmod(stateFileMode); err != nil {
-		_ = f.Close()
+	// WriteFile preserves the mode of an existing file, so enforce it even when
+	// a reused work directory already held a readable file.
+	if err := os.Chmod(path, stateFileMode); err != nil {
 		return fmt.Errorf("set mode on %s: %w", filepath.Base(path), err)
-	}
-	if _, err := f.Write(data); err != nil {
-		_ = f.Close()
-		return fmt.Errorf("write %s: %w", filepath.Base(path), err)
-	}
-	if err := f.Close(); err != nil {
-		return fmt.Errorf("write %s: %w", filepath.Base(path), err)
 	}
 	return nil
 }

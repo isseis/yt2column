@@ -26,12 +26,10 @@ func ghStep(args []string, out string) commandStep {
 	return commandStep{name: ghCommand, args: args, out: out}
 }
 
-// deleteRemoteBranchArgs is the argv of the branch-deletion push. The explicit
-// --recurse-submodules=no keeps a repository-local push.recurseSubmodules from
-// turning the deletion into a no-op that still exits zero.
+// deleteRemoteBranchArgs is the argv of the branch-deletion push.
 func deleteRemoteBranchArgs() []string {
 	return []string{
-		"push", "--recurse-submodules=no",
+		"push",
 		"--force-with-lease=refs/heads/feature/foo:" + testHeadOID,
 		testFetchURL, "--delete", "refs/heads/feature/foo",
 	}
@@ -93,7 +91,6 @@ func writeStateFile(t testing.TB, dir string) string {
 		HeadRefName: "feature/foo",
 		HeadRefOID:  testHeadOID,
 		BaseRefName: "main",
-		BaseRefOID:  testBaseOID,
 		Title:       "Test PR",
 		URL:         "https://github.com/isseis/yt2column/pull/42",
 	}
