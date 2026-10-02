@@ -206,7 +206,7 @@
 
 **タスク**
 - [x] **ステップ 5-1**: `requirements_process.md:97` の境界チェックの記述を、拒否の規則が「消費するフィールド」に適用されることを明示する形に修正する。要件が拡張可能と宣言する未消費メンバーは拒否理由にしないことを、同段落で分かるようにする（design_handoff H-13、requirements §3.2・AC-64・AC-67）。同ファイルの他の箇所（チェックリスト `:101-111`）に同じく対象を限定していない規則が残っていないか確認し、残っていれば同様に整合させる。
-- [x] **ステップ 5-2**: 正の確認と残骸の確認を行う。修正後の該当箇所が「消費するフィールド」に限定されていることを requirements §3.2 と architecture §3.4 に突き合わせて確認する。`docs/` を対象に旧来の対象を限定していない言い回しが残っていないことを検索し、出力を記録する（修正前は `requirements_process.md:97` の 1 件）。
+- [x] **ステップ 5-2**: 正の確認と残骸の確認を行う。修正後の該当箇所が「消費するフィールド」に限定されていることを requirements §3.2 と architecture §3.4 に突き合わせて確認する。規則を置く開発者ガイド（`docs/dev/`）を対象に旧来の対象を限定していない言い回しが残っていないことを検索し、出力を記録する（修正前は `requirements_process.md:97` の 1 件）。
 - [x] **ステップ 5-3**: `make fmt` → `make test` → `make lint` を通す。
 
 ### PR-5 作成ポイント: requirements process guide alignment
@@ -367,7 +367,7 @@ AC ごとの検証は次のとおり。`test` は実行可能なテスト、`sta
 | AC-74 | キャッシュなし・不正 URL での削除 | test | `internal/transcript/cache_test.go::TestRemoveCache` |
 | AC-75 | キャッシュの削除の途中失敗と後始末 | test | `internal/transcript/cache_test.go::TestRemoveCacheFailure` |
 
-**横断検索項目**（`make test` / `make lint` では検出できないもの）: フェーズ 5 の `requirements_process.md` の修正について、旧来の対象を限定していない言い回しが `docs/` の他の箇所に残っていないことを検索で確認する（記録: §5.3）。`package_reference.md` の `internal/transcript` の行が実装後の責務と一致することを突き合わせて確認する。本タスクは既存シンボルの削除・改名を含まないため、それ以外の横断検索は不要である。
+**横断検索項目**（`make test` / `make lint` では検出できないもの）: フェーズ 5 の `requirements_process.md` の修正について、旧来の対象を限定していない言い回しが開発者ガイド（`docs/dev/`）の他の箇所に残っていないことを検索で確認する（記録: §5.3）。`package_reference.md` の `internal/transcript` の行が実装後の責務と一致することを突き合わせて確認する。本タスクは既存シンボルの削除・改名を含まないため、それ以外の横断検索は不要である。
 
 ### 5.1. 手動実行の記録 (AC-33)
 
