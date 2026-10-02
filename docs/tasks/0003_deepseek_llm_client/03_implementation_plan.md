@@ -8,7 +8,7 @@
 | Created | 2026-10-02 |
 | Review date | 2026-10-02 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | PR の区切りの訂正（editorial）。ステップ 6-3・6-4（`security.md` §2 の実キーの例外と `http2debug` のポリシー）を PR-4 に再配置し、ステップ 1-6 の条件付きの件数上限付き分割の最適化を PR-1 とは別の独立した PR とした。何をなぜ作るかは変わらず、決定の変更はない。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -102,7 +102,7 @@ HEAD `00573f2`（ブランチ `task/0003-deepseek-llm-client-02`）で確認し�
   - 変更後: `// Static errors for the json3 and info.json parsers. The strict JSON decoding` / `// they rely on, and its errors, live in internal/strictjson.`
 - [ ] **ステップ 1-4**: `info.go` を書き換える。`title`・`channel` は `strictjson.RequiredString` を使う。`id` は従来どおり欠落を `errMissingID` で報告し、値は `AsString` で読む。`description` は存在すれば `AsString` だけを通し、空文字列を受理する（`OptionalString` は使わない。§1.3）。`requiredString`・`errMissingField`・`errEmptyField` を削除する。
 - [ ] **ステップ 1-5**: `internal/transcript` の既存テスト（`json3_test.go`・`info_test.go`・`ytdlp_test.go`・`cache_test.go` など）を変更せずに `make test` が通ることを確認する。このフェーズの差分に `internal/transcript/*_test.go` と `internal/transcript/test_helpers.go` が含まれないことを、コミット前に差分の一覧で確認する。
-- [ ] **ステップ 1-6**: architecture §3.5 の測定を行う。入力は、`{"events":[0,0,…]}` の形で 1 バイトの要素を並べて 8 MiB ちょうどにした文書（`AsArray` が作る要素の数が最大になる形。件数の上限を超えるため拒否されるが、分割は上限の判定より前に行われる）とする。これを `parseSubtitles` に渡したときの割り当ての総量（`runtime.MemStats.TotalAlloc` の差）とヒープの最大使用量（`HeapInuse` の最大値）を、移動前（HEAD `00573f2`）と移動後で測り、§5.2 に記録する。測定のコードはコミットしない。移動後のヒープの最大使用量が **256 MiB** を超える場合にだけ、件数の上限付きの分割を追加する（CLAUDE.md「Performance」）。この追加は同じ PR-1 に含める（PR-1 はスカッシュマージされるため、コミットを分けても PR の境界は変わらない）。
+- [ ] **ステップ 1-6**: architecture §3.5 の測定を行う。入力は、`{"events":[0,0,…]}` の形で 1 バイトの要素を並べて 8 MiB ちょうどにした文書（`AsArray` が作る要素の数が最大になる形。件数の上限を超えるため拒否されるが、分割は上限の判定より前に行われる）とする。これを `parseSubtitles` に渡したときの割り当ての総量（`runtime.MemStats.TotalAlloc` の差）とヒープの最大使用量（`HeapInuse` の最大値）を、移動前（HEAD `00573f2`）と移動後で測り、§5.2 に記録する。測定のコードはコミットしない。移動後のヒープの最大使用量は測定して §5.2 に記録し、それが **256 MiB** を超える場合にだけ、件数の上限付きの分割の最適化を実装する（CLAUDE.md「Performance」）。この最適化は PR-1 には含めず、独立した別の PR として実装する（PR-1 はスカッシュマージされるため、最適化を独立して revert できる必要がある）。
 - [ ] **ステップ 1-7**: `package_reference.md` に `internal/strictjson` の行を追加する（検証を通った JSON 文書から値を取り出す厳格な部品。`internal/transcript` と `internal/llm/deepseek` が使う）。`internal/transcript` の行の「strict json3 and info.json parsers」は変わらないため変更しない。
 - [ ] **ステップ 1-8**: 主要な分岐を壊して、対応するテストが失敗することを確認し、コミットメッセージに記録する。対象は次のとおり。最初の 3 つは `strictjson` のテストと `internal/transcript` の既存テスト（`TestParseSubtitlesUTF8`・`TestParseSubtitlesDuplicateMembers`・`TestParseSubtitlesRejectsSimple` など）の両方が失敗することを確かめる。
   - `validateSurrogates` を呼ばない（`TestParseObject`）。
@@ -125,6 +125,8 @@ HEAD `00573f2`（ブランチ `task/0003-deepseek-llm-client-02`）で確認し�
 **実装モデル要件**: standard
 
 **判定理由**: 純粋なリファクタリングとそのテストに限られ、競合する実装方針の併記・リカバリや状態機械などの高リスクな制御・パネルモードのトリガーに該当せず、Conditional checks も該当しないため。
+
+ステップ 1-6 の測定が **256 MiB** を超えた場合の件数の上限付きの分割の最適化は、**PR-1 には含めず、独立した別の PR** として実装する（PR-1 はスカッシュマージされるため、最適化を独立して revert できる必要がある）。
 
 - [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
@@ -281,27 +283,11 @@ HEAD `00573f2`（ブランチ `task/0003-deepseek-llm-client-02`）で確認し�
   - `integration_test.go` と `integration_env_test.go` の build tag を変える（`TestIntegrationTestBuildTag`）。
 - [ ] **ステップ 5-8**: `make fmt` → `make test` → `make lint` を通す。`make lint` の `go vet -tags integration ./...` が `integration_test.go` と `integration_env_test.go` を `test_helpers.go` なしでコンパイルすることを確認する。`-tags integration` のビルドのテスト関数が `TestIntegrationGenerate` だけであることを `go test -tags integration -list . ./internal/llm/deepseek` で確かめる（`-list` はテストを実行しない）。
 
-### PR-4 作成ポイント: integration test and Makefile target
-
-**対象ステップ**: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6 / 5-7 / 5-8
-
-**推奨タイトル**: `feat(0003): add the DeepSeek integration test and make target`
-
-**レビュー観点**: 統合テストが `//go:build integration` で既定の `make test`・`make test-ci` から分離され、`-tags integration` のビルドのテスト関数が `TestIntegrationGenerate` だけであること（AC-22、I-02、ステップ 5-1・5-5・5-8） / 環境変数の判定が純粋な関数で、オプトインの欠如・`1` 以外の値・キーの未設定・`DEEPSEEK_API_KEY` だけの設定をスキップし、`YT2COLUMN_MODEL` の未設定・空を失敗とすること（AC-23、ステップ 5-1・5-4） / `make test-integration-deepseek` の引数・表示・環境変数の渡し方と、`GODEBUG` の `http2debug=1`・`http2debug=2` を `Generate` の前に取り除くか検出して失敗させること（AC-23、architecture §5.4、ステップ 5-2・5-3・5-4） / 人間の承認を得て手動実行し、結果を §5.1 に記録していること（AC-24、ステップ 5-6）
-
-**実装モデル要件**: frontier-required
-
-**判定理由**: ステップ 5-2〜5-6 が実 DeepSeek API とネットワーク・料金・手動実行にわたる重い統合テストで、mkplan.md ステップ 8 のパネルモードトリガー（重い統合テスト / 外部リソースの面）に該当するため。
-
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
-
 ### フェーズ 6: ドキュメント
 
 **対象ファイル**
-- 変更: `docs/dev/project_overview.md`・`CLAUDE.md`・`docs/dev/security.md`・`README.md`
+- 変更（PR-5）: `docs/dev/project_overview.md`・`CLAUDE.md`・`README.md`
+- 変更（`security.md` §2 のステップ 6-3・6-4 は、実キーを使う統合テストと同じ PR-4 で更新する）: `docs/dev/security.md`
 - 確認のみ（変更しない。フェーズ 1〜3 のステップ 1-7・2-5・3-8 で更新済み）: `docs/dev/developer_guide/package_reference.md`
 
 **タスク**
@@ -309,6 +295,24 @@ HEAD `00573f2`（ブランチ `task/0003-deepseek-llm-client-02`）で確認し�
 - [ ] **ステップ 6-2**: `CLAUDE.md` の Architecture Overview のパッケージの説明に `internal/strictjson`（`internal/transcript` と `internal/llm/deepseek` が共有する厳格な JSON の部品）を加える。
 - [ ] **ステップ 6-3**: `security.md` §2 に、統合テストに限って実在の API キーを使う例外と、その範囲・安全策（`//go:build integration`、オプトインの変数、テスト専用の `YT2COLUMN_TEST_DEEPSEEK_API_KEY`、出力に API キーを書かない）を追記する（architecture §5.2）。
 - [ ] **ステップ 6-4**: `security.md` §2 に、`GODEBUG` に `http2debug=1` または `http2debug=2` を含めると `Authorization` ヘッダーが標準エラー出力に出るため、この設定で調査するときは無効な API キーを使うこと、統合テストは `Generate` の前にこれらの設定を取り除くか検出して失敗することを追記する（architecture §5.4、§1.3。ステップ 5-2）。
+
+### PR-4 作成ポイント: integration test and Makefile target
+
+**対象ステップ**: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6 / 5-7 / 5-8 / 6-3 / 6-4
+
+**推奨タイトル**: `feat(0003): add the DeepSeek integration test and make target`
+
+**レビュー観点**: 統合テストが `//go:build integration` で既定の `make test`・`make test-ci` から分離され、`-tags integration` のビルドのテスト関数が `TestIntegrationGenerate` だけであること（AC-22、I-02、ステップ 5-1・5-5・5-8） / 環境変数の判定が純粋な関数で、オプトインの欠如・`1` 以外の値・キーの未設定・`DEEPSEEK_API_KEY` だけの設定をスキップし、`YT2COLUMN_MODEL` の未設定・空を失敗とすること（AC-23、ステップ 5-1・5-4） / `make test-integration-deepseek` の引数・表示・環境変数の渡し方と、`GODEBUG` の `http2debug=1`・`http2debug=2` を `Generate` の前に取り除くか検出して失敗させること（AC-23、architecture §5.4、ステップ 5-2・5-3・5-4） / 人間の承認を得て手動実行し、結果を §5.1 に記録していること（AC-24、ステップ 5-6） / `security.md` §2 の実キーの例外と `http2debug` のポリシー更新（ステップ 6-3・6-4）が、実キーを使う統合テストと同じこの PR に含まれ、`main` がマージ直後から文書化されたポリシーと一致すること（AC-23・AC-24、architecture §5.2・§5.4）
+
+**実装モデル要件**: frontier-required
+
+**判定理由**: ステップ 5-2〜5-6 が実 DeepSeek API とネットワーク・料金・手動実行にわたる重い統合テストで、mkplan.md ステップ 8 のパネルモードトリガー（重い統合テスト / 外部リソースの面）に該当するため。`security.md` §2 の更新（ステップ 6-3・6-4）を同じ PR に置くのは、実キーを使うテストの追加と文書化されたポリシーを `main` 上で同時に一致させるためである。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 - [ ] **ステップ 6-5**: `README.md` の Development の節に `make test-integration-deepseek` を加え、既存の `make test-integration` の説明（`README.md:81-90`）と同じ形で、実 API を使い料金が発生すること、`YT2COLUMN_TEST_DEEPSEEK_API_KEY`（本番の `DEEPSEEK_API_KEY` とは別）が必要なこと、`YT2COLUMN_MODEL` の既定値、ターゲットがオプトインの変数を設定すること、オプトインがなければ統合テストがスキップされることを説明する。
 - [ ] **ステップ 6-6**: 追記した内容を根拠と突き合わせる。6-3 と 6-5 は `integration_env_test.go`・`integration_test.go`・`Makefile` の実装と、6-4 は §1.3 に記した go1.27.1 のソース（`src/net/http/internal/http2/http2.go:50-56`・`transport.go:1849-1851`）と照合する。6-1・6-2 のパッケージの説明は `package_reference.md` の行と照合する。照合した根拠をコミットメッセージに書く。
 - [ ] **ステップ 6-7**: `package_reference.md` の `internal/strictjson`・`internal/llm`・`internal/llm/deepseek` の行が、フェーズ 1〜5 の最終的な実装と一致していることを確認する。
@@ -316,11 +320,11 @@ HEAD `00573f2`（ブランチ `task/0003-deepseek-llm-client-02`）で確認し�
 
 ### PR-5 作成ポイント: documentation
 
-**対象ステップ**: 6-1 / 6-2 / 6-3 / 6-4 / 6-5 / 6-6 / 6-7 / 6-8
+**対象ステップ**: 6-1 / 6-2 / 6-5 / 6-6 / 6-7 / 6-8
 
 **推奨タイトル**: `docs(0003): update the DeepSeek adapter documentation`
 
-**レビュー観点**: `project_overview.md`・`CLAUDE.md`・`security.md`・`README.md` の記述が実装と一致し、`package_reference.md` の 3 行がフェーズ 1〜3 の更新どおりであることを確認していること（ステップ 6-6・6-7） / `security.md` §2 に、統合テストに限る実キーの例外と安全策、`GODEBUG` の `http2debug` の注意が追記されていること（AC-23・AC-24、architecture §5.2・§5.4） / 追記の根拠を go1.27.1 のソースと実装に突き合わせ、その根拠がコミットメッセージに記録されていること（ステップ 6-6）
+**レビュー観点**: `project_overview.md`・`CLAUDE.md`・`README.md` の記述が実装と一致し、`package_reference.md` の 3 行がフェーズ 1〜3 の更新どおりであることを確認していること（ステップ 6-6・6-7） / 追記の根拠を go1.27.1 のソースと実装に突き合わせ、その根拠がコミットメッセージに記録されていること（ステップ 6-6）
 
 **実装モデル要件**: standard
 
@@ -348,15 +352,15 @@ HEAD `00573f2`（ブランチ `task/0003-deepseek-llm-client-02`）で確認し�
 
 PR はフェーズを単位とするが、フェーズ 3（アダプタの構築と送信）とフェーズ 4（応答の検証）は 1 つの PR-3 にまとめる。各 PR は主たる関心事（厳格な JSON の切り出し / プロバイダ共通 API / DeepSeek アダプタ / 統合テストと Makefile / ドキュメント）を持ち、単独でグリーンゲートを通せる単位とする。本タスクは `cmd/yt2column/main.go` を変更しないため（配線は #6）、`internal/` の変更が `cmd/` に先行する順序の問題は生じない。
 
-PR-1（`internal/strictjson` の切り出し）と PR-2（`internal/llm` の追加）は、アダプタが依存する共有の部品を先に完成させる。PR-3 はアダプタの構築・送信・失敗の分類（フェーズ 3）と応答の検証（フェーズ 4）をまとめる。送信の `200` の経路は応答の検証が揃わないと成功できず、検証を別の PR に分けると、常にエラーを返す暫定の検証関数を先の PR の時点で main に入れることになる（ステップ 3-4、§6 のリスク）。そのため構築・送信・検証を 1 つの PR にまとめ、秘密情報の非開示と信頼できない応答の検証という高リスクなステップを同じ PR のレビュー観点に集約する。PR-4（統合テストと Makefile）は実 API・ネットワーク・料金・手動実行に触れるため frontier-required とする。PR-5 はドキュメントのみである。`package_reference.md` は PR-1〜PR-3 で更新し、PR-5 では実装との一致を確認するだけである。
+PR-1（`internal/strictjson` の切り出し）と PR-2（`internal/llm` の追加）は、アダプタが依存する共有の部品を先に完成させる。PR-3 はアダプタの構築・送信・失敗の分類（フェーズ 3）と応答の検証（フェーズ 4）をまとめる。送信の `200` の経路は応答の検証が揃わないと成功できず、検証を別の PR に分けると、常にエラーを返す暫定の検証関数を先の PR の時点で main に入れることになる（ステップ 3-4、§6 のリスク）。そのため構築・送信・検証を 1 つの PR にまとめ、秘密情報の非開示と信頼できない応答の検証という高リスクなステップを同じ PR のレビュー観点に集約する。PR-4（統合テストと Makefile）は実 API・ネットワーク・料金・手動実行に触れるため frontier-required とする。`security.md` §2 の実キーの例外と `http2debug` の注意（ステップ 6-3・6-4）は、実キーを使う統合テスト（ステップ 5-1〜5-8）と同じ PR-4 に置き、ポリシーの記述と `main` の状態が PR-4 のマージ直後から一致するようにする。PR-5 は残りのドキュメントのみである。また、ステップ 1-6 の測定が 256 MiB を超えた場合の件数の上限付きの分割の最適化は、PR-1 とは別の独立した PR とし、PR-1 には含めない（PR-1 はスカッシュマージされるため、最適化を独立して revert できる必要がある）。`package_reference.md` は PR-1〜PR-3 で更新し、PR-5 では実装との一致を確認するだけである。
 
 | PR | 対象ステップ | 主な変更内容 | 実装モデル要件 |
 |---|---|---|---|
 | PR-1 | 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8 / 1-9 | `internal/strictjson` の新設、`internal/transcript/json3.go`・`info.go` の書き換え、`package_reference.md` の更新 | standard |
 | PR-2 | 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 | `internal/llm` の番兵・`Validate`・`ModelVersion`・doc コメント、`llm_test.go`、`pipeline_test.go` の更新 | standard |
 | PR-3 | 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8 / 3-9 / 3-10 / 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 | `internal/llm/deepseek` の構築・送信・失敗の分類・応答の検証、`test_helpers.go`・`deepseek_test.go`・`response_test.go`、`package_reference.md` の更新 | frontier-recommended |
-| PR-4 | 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6 / 5-7 / 5-8 | 統合テスト、`integration_env_test.go`・`makefile_test.go`、`Makefile` の `test-integration-deepseek`、§5.1 の記録 | frontier-required |
-| PR-5 | 6-1 / 6-2 / 6-3 / 6-4 / 6-5 / 6-6 / 6-7 / 6-8 | `project_overview.md`・`CLAUDE.md`・`security.md`・`README.md` の更新と根拠との照合（`package_reference.md` は確認のみ） | standard |
+| PR-4 | 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6 / 5-7 / 5-8 / 6-3 / 6-4 | 統合テスト、`integration_env_test.go`・`makefile_test.go`、`Makefile` の `test-integration-deepseek`、§5.1 の記録、`security.md` §2 の実キーの例外と `http2debug` のポリシー更新 | frontier-required |
+| PR-5 | 6-1 / 6-2 / 6-5 / 6-6 / 6-7 / 6-8 | `project_overview.md`・`CLAUDE.md`・`README.md` の更新と根拠との照合（`security.md` §2 は PR-4、`package_reference.md` は確認のみ） | standard |
 
 ### 3.3. 実装順序の根拠
 
@@ -490,10 +494,11 @@ AC に対応しない、architecture が求める検証は次のとおり。
 - [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8 / 1-9）
 - [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7）
 - [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8 / 3-9 / 3-10 / 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6）
-- [ ] PR-4 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6 / 5-7 / 5-8）
-- [ ] PR-5 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3 / 6-4 / 6-5 / 6-6 / 6-7 / 6-8）
+- [ ] PR-4 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6 / 5-7 / 5-8 / 6-3 / 6-4）
+- [ ] PR-5 マージ済み（対象ステップ: 6-1 / 6-2 / 6-5 / 6-6 / 6-7 / 6-8）
 - [ ] 各 PR で `make fmt` → `make test` → `make lint` が通る
 - [ ] PR-4 で `make test-integration-deepseek` が通り、§5.1 に実行の記録が残っている
+- [ ] ステップ 1-6 の測定が 256 MiB を超える場合、件数の上限付きの分割の最適化が独立した PR で実装されている（PR-1 には含めない）
 - [ ] §5 のすべての AC の検証が通る
 - [ ] `implementation_handoff.md` の I-01〜I-04 が §1.5 のとおり反映されている
 
