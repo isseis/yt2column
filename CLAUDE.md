@@ -13,6 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Requirements and Acceptance Criteria Process: [requirements_process.md](docs/dev/developer_guide/requirements_process.md) - Process for implementing new features
 - Test Organization Guide: [test_organization.md](docs/dev/developer_guide/test_organization.md) - Test helper file organization
 - [Package Reference](docs/dev/developer_guide/package_reference.md) - Detailed package structure
+- [mergepr Guide](docs/dev/developer_guide/mergepr_guide.md) - Setup, usage, guarantees, and troubleshooting for the `/mergepr` tool (Japanese)
 
 ## Documents
 
