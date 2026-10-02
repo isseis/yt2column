@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-02 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 事前調査（§1.4）は人間の承認を得て 2026-10-02 に実施し、結果を §1.4 に記録した。設計が要件定義書に加える 2 点（表示可能な ASCII 以外を含む API キーの構築時拒否（§3.1）、オプトインの変数がない場合の統合テストのスキップ（§7.2））と、応答の `model` がエイリアスのまま返ることを受けて `system_fingerprint` を `llm.GenerateResponse.ModelVersion` として返す要件定義書の改訂（F-003・AC-33・AC-34、§3.2）を、レビュアーが 2026-10-02 に承認した。この改訂は `0001_pipeline_skeleton` の `GenerateResponse` のフィールドの組を変える。2026-10-02: 図1（§1.2）が呼び出し元との往復でループに見えるため、入力の `GenerateRequest` を起点とし、`GenerateResponse` から呼び出し元へ戻る形に修正した。描画の修正のみで、決定は変えていない。2026-10-02 に承認された後、レビューの指摘を受けて `draft` に戻した。変更は、統合テスト（F-006）が実在の API キーを使うことを [security.md](../../dev/security.md) §2 の「テストでは実在のキーや URL を使わない」の例外として定め、その安全策を記録したこと（§5.2・§3.8・§7.2）と、統合テストでの `ModelVersion` の出力の記述を、テストの手段から設計の水準に改めたこと（§7.2、手段は [implementation_handoff.md](implementation_handoff.md) の I-03 に申し送る）である。2026-10-02: 要件定義書の改訂に合わせ、統合テストの API キーを本番の `DEEPSEEK_API_KEY` からテスト専用の `YT2COLUMN_TEST_DEEPSEEK_API_KEY` に変えた（§5.2・§7.2・付録A）。 |
+| Review date | 2026-10-02 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 設計の全体像 (Design Overview)
 
