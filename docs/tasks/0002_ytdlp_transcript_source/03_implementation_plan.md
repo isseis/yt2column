@@ -8,7 +8,7 @@
 | Created | 2026-09-30 |
 | Review date | 2026-09-30 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-02: レビュー指摘への対応。残骸検索の対象を承認済みの `docs/` に戻し（フェーズ 5 で `docs/dev/` に狭めていた）、§5.3 の記録を「要件が拡張可能と宣言する未消費メンバーだけを受理する」規則（承認済みのステップ 5-1 のとおり）に合わせた。いずれも承認済みの決定を変えない訂正であり、決定変更はない。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -196,8 +196,8 @@
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 5: ドキュメント（`requirements_process.md`）
 
@@ -205,9 +205,9 @@
 - 変更: `docs/dev/developer_guide/requirements_process.md`
 
 **タスク**
-- [ ] **ステップ 5-1**: `requirements_process.md:97` の境界チェックの記述を、拒否の規則が「消費するフィールド」に適用されることを明示する形に修正する。要件が拡張可能と宣言する未消費メンバーは拒否理由にしないことを、同段落で分かるようにする（design_handoff H-13、requirements §3.2・AC-64・AC-67）。同ファイルの他の箇所（チェックリスト `:101-111`）に同じく対象を限定していない規則が残っていないか確認し、残っていれば同様に整合させる。
-- [ ] **ステップ 5-2**: 正の確認と残骸の確認を行う。修正後の該当箇所が「消費するフィールド」に限定されていることを requirements §3.2 と architecture §3.4 に突き合わせて確認する。`docs/` を対象に旧来の対象を限定していない言い回しが残っていないことを検索し、出力を記録する（修正前は `requirements_process.md:97` の 1 件）。
-- [ ] **ステップ 5-3**: `make fmt` → `make test` → `make lint` を通す。
+- [x] **ステップ 5-1**: `requirements_process.md:97` の境界チェックの記述を、拒否の規則が「消費するフィールド」に適用されることを明示する形に修正する。要件が拡張可能と宣言する未消費メンバーは拒否理由にしないことを、同段落で分かるようにする（design_handoff H-13、requirements §3.2・AC-64・AC-67）。同ファイルの他の箇所（チェックリスト `:101-111`）に同じく対象を限定していない規則が残っていないか確認し、残っていれば同様に整合させる。
+- [x] **ステップ 5-2**: 正の確認と残骸の確認を行う。修正後の該当箇所が「消費するフィールド」に限定されていることを requirements §3.2 と architecture §3.4 に突き合わせて確認する。`docs/` を対象に旧来の対象を限定していない言い回しが残っていないことを検索し、出力を記録する（修正前は `requirements_process.md:97` の 1 件）。
+- [x] **ステップ 5-3**: `make fmt` → `make test` → `make lint` を通す。
 
 ### PR-5 作成ポイント: requirements process guide alignment
 
@@ -221,8 +221,8 @@
 
 **判定理由**: ドキュメントの記述の整合のみで、競合する実装方針の併記・高リスクな制御・Conditional checks のいずれにも該当しないため。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
@@ -367,7 +367,7 @@ AC ごとの検証は次のとおり。`test` は実行可能なテスト、`sta
 | AC-74 | キャッシュなし・不正 URL での削除 | test | `internal/transcript/cache_test.go::TestRemoveCache` |
 | AC-75 | キャッシュの削除の途中失敗と後始末 | test | `internal/transcript/cache_test.go::TestRemoveCacheFailure` |
 
-**横断検索項目**（`make test` / `make lint` では検出できないもの）: フェーズ 5 の `requirements_process.md` の修正について、旧来の対象を限定していない言い回しが `docs/` の他の箇所に残っていないことを検索で確認する。`package_reference.md` の `internal/transcript` の行が実装後の責務と一致することを突き合わせて確認する。本タスクは既存シンボルの削除・改名を含まないため、それ以外の横断検索は不要である。
+**横断検索項目**（`make test` / `make lint` では検出できないもの）: フェーズ 5 の `requirements_process.md` の修正について、旧来の対象を限定していない言い回しが `docs/` の他の箇所に残っていないことを検索で確認する（記録: §5.3）。`package_reference.md` の `internal/transcript` の行が実装後の責務と一致することを突き合わせて確認する。本タスクは既存シンボルの削除・改名を含まないため、それ以外の横断検索は不要である。
 
 ### 5.1. 手動実行の記録 (AC-33)
 
@@ -420,6 +420,18 @@ $ env -u YT2COLUMN_TEST_VIDEO_URL -u YT2COLUMN_TEST_VIDEO_ID go test -tags integ
 FAIL
 FAIL	github.com/isseis/yt2column/internal/transcript	0.375s
 FAIL
+```
+
+### 5.3. 境界チェックの文言の整合の記録（フェーズ 5）
+
+フェーズ 5 ステップ 5-1・5-2。`requirements_process.md` の境界チェックを、拒否の規則が「消費するフィールド」に適用され、要件が拡張可能と宣言する未消費メンバーだけが受理される形に整合させた。
+
+- 正の確認: 修正後の記述を requirements §3.2（受理する形に合致しない入力を補正せず拒否する / 要件が拡張可能と宣言する未消費メンバーは無視して受理する / 標準ライブラリが黙って置換・切り捨て・無視しうる入力も拒否する）と architecture §3.4（消費するメンバーの重複は拒否し、要件が拡張可能と宣言する未消費メンバーは重複していても受理する）に突き合わせ、一致を確認した。チェックリストの「Consumed vs unconsumed members」の項目も、要件が拡張可能と宣言した未消費メンバーだけが拒否理由にならないこと（閉じた境界は未消費メンバーを拒否しうること）と、生バイト列・トップレベル値の whole-document チェックが引き続き適用されることを述べる形に揃えた。
+- 残骸の確認: 旧来の対象を限定していない言い回し（旧文の "silently repair or ignore"）を `docs/` 全体で検索した。修正前は `requirements_process.md:97` の 1 件、修正後は開発者ガイド（`docs/dev/`）に 0 件。`docs/` 全体で残る一致は、本記録自身の引用と、変更の根拠・要件を記録するタスク文書（`design_handoff.md` H-13、本計画、`01_requirements.md` §3.2）の言及だけであり、process ガイドの規則ではない。
+
+```
+$ rg -n "silently repair or ignore" docs/   # 修正前: requirements_process.md:97 の 1 件
+$ rg -n "silently repair or ignore" docs/   # 修正後: 本記録自身の引用のみ（開発者ガイドは 0 件）
 ```
 
 ## 6. リスク管理 (Risk Management)
