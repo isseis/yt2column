@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-02 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 2026-10-02 isseis により一度 `approved`。2026-10-02 設計判断の変更により `draft` に戻した: 事前調査（`02_architecture.md` §1.4）で、応答の `model` がエイリアス（`deepseek-flash`）のまま返ることが分かったため、応答の `system_fingerprint` を `llm.GenerateResponse` の新しいフィールド `ModelVersion` として返すことにした（F-003・3.2・AC-33・AC-34・4.5・§5.1）。 |
+| Review date | 2026-10-02 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
