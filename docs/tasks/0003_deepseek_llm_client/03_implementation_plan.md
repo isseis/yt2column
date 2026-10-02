@@ -141,8 +141,8 @@ HEAD `00573f2`（ブランチ `task/0003-deepseek-llm-client-02`）で確認し�
 - 変更: `internal/strictjson/strictjson.go`・`internal/strictjson/strictjson_test.go`
 
 **タスク**
-- [ ] **ステップ 1-10**: `AsArray` の分割に件数の上限を加え、上限を超える配列を全要素の分割の前に拒否する。最適化は振る舞いを変えないこと（拒否される入力と返る番兵が最適化の前後で同じであること）を正しさの義務とし、それをコミットメッセージに書き、最適化を外すか変えると失敗するテストで固定する（CLAUDE.md「Performance」）。最適化だけを 1 つのコミットにする。ステップ 1-6 と同じ入力で再測定し、§5.2 に記録する。上限は `internal/strictjson` の非公開の定数 `maxArrayElements` とし、値は `1 << 17`（131072）とする。`internal/transcript` の `maxSubtitleEvents`（65536）より大きいため、同パッケージの件数の判定（`errTooManyEvents`）は上限内の範囲で従来どおり働き、上限を超える配列だけが `AsArray` によって早期に拒否される。どちらの経路でも `internal/transcript` の返る番兵は `ErrParseSubtitles` のままである。境界のテスト（`maxArrayElements-1`・`maxArrayElements`・`maxArrayElements+1`）を `strictjson_test.go` に置き、上限を外すと `maxArrayElements+1` が成功して失敗するようにする。DeepSeek の `choices`（ちょうど 1 要素）は上限の影響を受けない。
-- [ ] **ステップ 1-11**: `make fmt` → `make test` → `make lint` を通す。
+- [x] **ステップ 1-10**: `AsArray` の分割に件数の上限を加え、上限を超える配列を全要素の分割の前に拒否する。最適化は振る舞いを変えないこと（拒否される入力と返る番兵が最適化の前後で同じであること）を正しさの義務とし、それをコミットメッセージに書き、最適化を外すか変えると失敗するテストで固定する（CLAUDE.md「Performance」）。最適化だけを 1 つのコミットにする。ステップ 1-6 と同じ入力で再測定し、§5.2 に記録する。上限は `internal/strictjson` の非公開の定数 `maxArrayElements` とし、値は `1 << 17`（131072）とする。`internal/transcript` の `maxSubtitleEvents`（65536）より大きいため、同パッケージの件数の判定（`errTooManyEvents`）は上限内の範囲で従来どおり働き、上限を超える配列だけが `AsArray` によって早期に拒否される。どちらの経路でも `internal/transcript` の返る番兵は `ErrParseSubtitles` のままである。境界のテスト（`maxArrayElements-1`・`maxArrayElements`・`maxArrayElements+1`）を `strictjson_test.go` に置き、上限を外すと `maxArrayElements+1` が成功して失敗するようにする。DeepSeek の `choices`（ちょうど 1 要素）は上限の影響を受けない。
+- [x] **ステップ 1-11**: `make fmt` → `make test` → `make lint` を通す。
 
 ### PR-1a 作成ポイント: bounded array split in internal/strictjson (conditional)
 
@@ -508,8 +508,9 @@ AC に対応しない、architecture が求める検証は次のとおり。
 |---|---|
 | 入力 | `{"events":[0,0,…]}` の形で 1 バイトの要素を並べ、末尾を空白で埋めて 8 MiB（8,388,608 バイト）ちょうどにした文書。要素数は 4,194,298（`AsArray` が作る要素数が最大になる形） |
 | 移動前（HEAD `00573f2`）の `TotalAlloc` の差・`HeapInuse` の最大値 | 24 MiB・32 MiB（先頭の要素がオブジェクトでないため、イベントの走査は最初の要素で失敗する） |
-| 移動後の `TotalAlloc` の差・`HeapInuse` の最大値 | 738 MiB・750 MiB（`AsArray` が全要素を先に分割するため） |
-| 判断 | 750 MiB は 256 MiB を超えるため、条件付きの PR-1a（ステップ 1-10・1-11）で `AsArray` の分割に件数の上限を加える。ステップ 1-10 で同じ入力で再測定する |
+| 移動後（最適化前）の `TotalAlloc` の差・`HeapInuse` の最大値 | 738 MiB・750 MiB（`AsArray` が全要素を先に分割するため） |
+| 上限を加えた後（ステップ 1-10）の `TotalAlloc` の差・`HeapInuse` の最大値 | 43 MiB・52 MiB（`AsArray` が `maxArrayElements`（131072）個で分割を打ち切り、残りを読まないため） |
+| 判断 | 最適化前の 750 MiB は 256 MiB を超えるため、条件付きの PR-1a（ステップ 1-10・1-11）で `AsArray` の分割に件数の上限を加えた。最適化後は 52 MiB で 256 MiB 以下である。`internal/transcript` の返る番兵は `ErrParseSubtitles` のままである |
 
 ## 6. リスク管理 (Risk Management)
 
