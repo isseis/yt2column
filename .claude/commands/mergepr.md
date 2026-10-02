@@ -11,7 +11,7 @@ Invoking this command authorizes the network operations `mergepr` performs
 approve the commit message first (CLAUDE.md, "Tool Execution Safety").
 
 The mechanics live in the `mergepr` binary (package `internal/mergepr`). Install
-it with `go install ./cmd/mergepr` from an up-to-date `main` checkout.
+it with `make install-mergepr` from an up-to-date `main` checkout.
 The developer-facing guide (setup, guarantees, troubleshooting) is
 `docs/dev/developer_guide/mergepr_guide.md`.
 

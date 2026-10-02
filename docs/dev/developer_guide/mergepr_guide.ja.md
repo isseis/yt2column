@@ -38,7 +38,7 @@ gh api repos/isseis/yt2column --jq .delete_branch_on_merge
 最新の `main` をチェックアウトした状態で、次を実行する。
 
 ```sh
-go install ./cmd/mergepr
+make install-mergepr
 ```
 
 `$(go env GOPATH)/bin` に `PATH` が通っていることを確認する。ツール自体を変更した PR がマージされたら、`main` を更新してから再インストールする。

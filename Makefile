@@ -46,13 +46,18 @@ define format_files_from_list
 	fi
 endef
 
-.PHONY: all build clean test test-ci lint fmt fmt-all deadcode tidy
+.PHONY: all build clean test test-ci lint fmt fmt-all deadcode tidy install-mergepr
 
 all: build
 
 build:
 	@mkdir -p build
 	$(GOBUILD) -trimpath -ldflags "-s -w" -o $(BINARY) $(MAIN_PKG)
+
+# Install the /mergepr developer tool into $(go env GOPATH)/bin. Run from an
+# up-to-date main checkout (docs/dev/developer_guide/mergepr_guide.md).
+install-mergepr:
+	$(GOCMD) install ./cmd/mergepr
 
 clean:
 	$(GOCLEAN)

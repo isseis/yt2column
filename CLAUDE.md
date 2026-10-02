@@ -42,6 +42,7 @@ structural consistency) and the glossary workflow live in
 - `make build` - Build the `yt2column` binary into `build/`
 - `make clean` - Clean build artifacts
 - `make all` - Default build target
+- `make install-mergepr` - Install the `/mergepr` developer tool (`go install ./cmd/mergepr`)
 
 ### Test Commands
 - `make test` - Run all tests with race detection
