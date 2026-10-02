@@ -142,12 +142,27 @@ func buildRevision() string {
 	if !ok {
 		return ""
 	}
-	for _, setting := range info.Settings {
-		if setting.Key == "vcs.revision" {
-			return setting.Value
+	return revisionFromSettings(info.Settings)
+}
+
+// revisionFromSettings extracts the VCS revision, returning empty for a build
+// from a modified checkout: it shares main's revision but not its code, so it
+// cannot be verified against main.
+func revisionFromSettings(settings []debug.BuildSetting) string {
+	revision := ""
+	modified := false
+	for _, setting := range settings {
+		switch setting.Key {
+		case "vcs.revision":
+			revision = setting.Value
+		case "vcs.modified":
+			modified = setting.Value == "true"
 		}
 	}
-	return ""
+	if modified {
+		return ""
+	}
+	return revision
 }
 
 func printReport(report mergepr.Report) {

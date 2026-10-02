@@ -432,9 +432,6 @@ func (t *Tool) resolvePR(ctx context.Context, prArg string) (identity, prInfo, e
 	if err != nil {
 		return identity{}, prInfo{}, err
 	}
-	if err := t.requireBinaryCurrent(ctx, id); err != nil {
-		return identity{}, prInfo{}, err
-	}
 	number, useCurrent, err := parsePRArg(prArg, id.Owner, id.Repo)
 	if err != nil {
 		return identity{}, prInfo{}, err
@@ -567,9 +564,6 @@ func (t *Tool) Merge(ctx context.Context, statePath, subjectPath, bodyPath strin
 	}
 	id, err := t.requireIdentity(ctx, state)
 	if err != nil {
-		return Report{}, err
-	}
-	if err := t.requireBinaryCurrent(ctx, id); err != nil {
 		return Report{}, err
 	}
 	// The message files are written outside the worktree, but the pause before
@@ -738,10 +732,17 @@ func (t *Tool) Diff(ctx context.Context, statePath, path string) ([]byte, error)
 	if err := checkDiffPath(path); err != nil {
 		return nil, err
 	}
+	// Run from the worktree root: a plain literal pathspec is otherwise
+	// resolved relative to the caller's subdirectory, so a root-relative path
+	// from stat.txt would silently match nothing.
+	root, err := worktreeRoot()
+	if err != nil {
+		return nil, err
+	}
 	baseRef := originRefs + state.BaseRefName
 	// --no-ext-diff and --no-textconv stop a configured external diff or
 	// textconv driver from executing on this untrusted patch.
-	out, err := t.command(ctx, commandTimeout, gitCommand, "--literal-pathspecs", "diff", "--no-ext-diff", "--no-textconv", baseRef+"..."+state.HeadRefOID, "--", path)
+	out, err := t.command(ctx, commandTimeout, gitCommand, "-C", root, "--literal-pathspecs", "diff", "--no-ext-diff", "--no-textconv", baseRef+"..."+state.HeadRefOID, "--", path)
 	if err != nil {
 		return nil, fmt.Errorf("read diff: %w", err)
 	}
@@ -973,7 +974,13 @@ func (t *Tool) repoIdentity(ctx context.Context) (identity, error) {
 	if err != nil || !strings.EqualFold(view.NameWithOwner, fetchOwner+"/"+fetchRepo) || !sameRepo(selectedOwner, selectedRepo, fetchOwner, fetchRepo) {
 		return identity{}, fmt.Errorf("%w: gh selects %q", errRepoMismatch, view.NameWithOwner)
 	}
-	return identity{Owner: fetchOwner, Repo: fetchRepo, FetchURL: fetch, PushURL: pinnedPush}, nil
+	id := identity{Owner: fetchOwner, Repo: fetchRepo, FetchURL: fetch, PushURL: pinnedPush}
+	// Enforce the revision guard here so every network path — prepare, merge,
+	// and standalone cleanup — refuses a stale binary.
+	if err := t.requireBinaryCurrent(ctx, id); err != nil {
+		return identity{}, err
+	}
+	return id, nil
 }
 
 // parseGitHubRemote extracts owner and repo from an https or ssh GitHub remote

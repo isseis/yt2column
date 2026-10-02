@@ -1036,6 +1036,23 @@ func TestMergeRejectsStaleBinary(t *testing.T) {
 	runner.done()
 }
 
+func TestCleanupRejectsStaleBinary(t *testing.T) {
+	dir := t.TempDir()
+	statePath := writeStateFile(t, dir)
+	steps := []commandStep{mergedViewStep()}
+	steps = append(steps, repoIdentitySteps()...)
+	steps = append(steps,
+		gitStep([]string{"fetch", testFetchURL, "+refs/heads/main:refs/remotes/origin/main"}, ""),
+		gitStep([]string{"rev-parse", "refs/remotes/origin/main"}, testOtherOID+"\n"),
+	)
+	tool, runner := newToolWithRevision(t, steps, testHeadOID)
+
+	if _, err := tool.Cleanup(t.Context(), statePath); !errors.Is(err, errBinaryStale) {
+		t.Fatalf("Cleanup error = %v, want errBinaryStale", err)
+	}
+	runner.done()
+}
+
 func TestMergeRejectsRepoMismatch(t *testing.T) {
 	dir := t.TempDir()
 	statePath := writeStateFile(t, dir)
@@ -1562,11 +1579,20 @@ func TestCleanupRejectsCheckedOutLocalBranch(t *testing.T) {
 	runner.done()
 }
 
+func diffArgs(t testing.TB, path string) []string {
+	t.Helper()
+	root, err := worktreeRoot()
+	if err != nil {
+		t.Fatalf("worktreeRoot: %v", err)
+	}
+	return []string{"-C", root, "--literal-pathspecs", "diff", "--no-ext-diff", "--no-textconv", "refs/remotes/origin/main..." + testHeadOID, "--", path}
+}
+
 func TestDiffHappyPath(t *testing.T) {
 	dir := t.TempDir()
 	statePath := writeStateFile(t, dir)
 	const patch = "diff --git a/a.txt b/a.txt\n"
-	steps := []commandStep{gitStep([]string{"--literal-pathspecs", "diff", "--no-ext-diff", "--no-textconv", "refs/remotes/origin/main..." + testHeadOID, "--", "a.txt"}, patch)}
+	steps := []commandStep{gitStep(diffArgs(t, "a.txt"), patch)}
 	tool, runner := newTool(t, steps)
 
 	got, err := tool.Diff(t.Context(), statePath, "a.txt")
@@ -1594,7 +1620,7 @@ func TestDiffAllowsDashPath(t *testing.T) {
 	dir := t.TempDir()
 	statePath := writeStateFile(t, dir)
 	const patch = "diff --git a/-notes.md b/-notes.md\n"
-	steps := []commandStep{gitStep([]string{"--literal-pathspecs", "diff", "--no-ext-diff", "--no-textconv", "refs/remotes/origin/main..." + testHeadOID, "--", "-notes.md"}, patch)}
+	steps := []commandStep{gitStep(diffArgs(t, "-notes.md"), patch)}
 	tool, runner := newTool(t, steps)
 
 	got, err := tool.Diff(t.Context(), statePath, "-notes.md")
@@ -1610,7 +1636,7 @@ func TestDiffAllowsDashPath(t *testing.T) {
 func TestDiffRejectsOversizedDiff(t *testing.T) {
 	dir := t.TempDir()
 	statePath := writeStateFile(t, dir)
-	steps := []commandStep{gitStep([]string{"--literal-pathspecs", "diff", "--no-ext-diff", "--no-textconv", "refs/remotes/origin/main..." + testHeadOID, "--", "a.txt"}, strings.Repeat("x", maxDiffBytes+1))}
+	steps := []commandStep{gitStep(diffArgs(t, "a.txt"), strings.Repeat("x", maxDiffBytes+1))}
 	tool, runner := newTool(t, steps)
 
 	if _, err := tool.Diff(t.Context(), statePath, "a.txt"); !errors.Is(err, errTooLarge) {
