@@ -20,7 +20,16 @@ repos:
         # Version pinned via `go run` (not the system-installed golangci-lint)
         # so this hook always matches the Makefile's GOLANGCI_VERSION. Keep
         # the version below in sync with GOLANGCI_VERSION in Makefile.
-        entry: go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2 run --build-tags test
+        entry: go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2 run --build-tags test,integration
+        language: system
+        types: [go]
+        pass_filenames: false
+
+    # golangci-lint above compiles the integration test only together with
+    # the `test` helpers; vet the `-tags integration` build it actually runs in.
+    -   id: go-vet-integration
+        name: go vet (integration)
+        entry: go vet -tags integration ./...
         language: system
         types: [go]
         pass_filenames: false

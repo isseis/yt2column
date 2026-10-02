@@ -7,7 +7,7 @@ GOTEST=$(GOCMD) test
 # golangci-lint is on PATH, so local `make lint` always matches CI. Bump all
 # three pins together.
 GOLANGCI_VERSION?=v2.13.2
-GOLINT=$(GOCMD) run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_VERSION) run --build-tags test
+GOLINT=$(GOCMD) run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_VERSION) run --build-tags test,integration
 GOFUMPTCMD=gofumpt
 
 BINARY=build/yt2column
@@ -46,7 +46,7 @@ define format_files_from_list
 	fi
 endef
 
-.PHONY: all build clean test test-ci lint fmt fmt-all deadcode tidy install-mergepr
+.PHONY: all build clean test test-ci test-integration lint fmt fmt-all deadcode tidy install-mergepr
 
 all: build
 
@@ -73,8 +73,28 @@ test-ci:
 	$(GOTEST) -tags test -race -coverprofile=coverage.out ./...
 	@$(GOCMD) tool cover -func=coverage.out | tail -1
 
+# Integration test. Runs the real yt-dlp against the network, so it is kept
+# out of `make test` by the `integration` build tag. The video defaults below
+# can be overridden, e.g.
+#   make test-integration YT2COLUMN_TEST_VIDEO_URL=... YT2COLUMN_TEST_VIDEO_ID=...
+# An empty YT2COLUMN_TEST_VIDEO_ID skips the video ID check.
+YT2COLUMN_TEST_VIDEO_URL ?= https://www.youtube.com/watch?v=EQCUZyB4DqE
+YT2COLUMN_TEST_VIDEO_ID ?= EQCUZyB4DqE
+# Exported so the test process reads them from its environment; the recipe
+# never splices the values into shell text.
+export YT2COLUMN_TEST_VIDEO_URL YT2COLUMN_TEST_VIDEO_ID
+INTEGRATION_TIMEOUT ?= 10m
+
+test-integration:
+	@printf 'test-integration: uses the real yt-dlp and the network (video: %s)\n' "$$YT2COLUMN_TEST_VIDEO_URL"
+	$(GOTEST) -tags integration -count=1 -timeout $(INTEGRATION_TIMEOUT) -v ./internal/transcript
+
+# golangci-lint compiles the integration test only together with the `test`
+# helpers; vet the `-tags integration` build that `make test-integration` runs,
+# so a compile error there fails lint too.
 lint:
 	$(GOLINT)
+	$(GOCMD) vet -tags integration ./...
 
 fmt:
 	$(call check_gofumpt)

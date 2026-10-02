@@ -85,7 +85,12 @@ jobs:
           # Keep in sync with GOLANGCI_VERSION in Makefile.
           version: v2.13.2
           verify: false
-          args: --build-tags test --timeout=5m
+          args: --build-tags test,integration --timeout=5m
+
+      # golangci-lint above compiles the integration test only together with
+      # the `test` helpers; vet the `-tags integration` build it actually runs in.
+      - name: Vet the integration build
+        run: go vet -tags integration ./...
 
       - name: Verify modules
         run: |
