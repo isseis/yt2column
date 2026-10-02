@@ -8,11 +8,12 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/isseis/yt2column/internal/mergepr"
 )
 
-var errUsage = errors.New("usage: mergepr prepare [--work-dir DIR] [PR] | mergepr merge --state FILE --subject-file FILE --body-file FILE | mergepr cleanup --state FILE | mergepr diff --state FILE -- PATH")
+var errUsage = errors.New("usage: mergepr prepare [PR] | mergepr merge --state FILE --subject-file FILE --body-file FILE | mergepr cleanup --state FILE")
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -25,108 +26,60 @@ func run(args []string) error {
 	if len(args) == 0 {
 		return errUsage
 	}
-	tool, err := mergepr.New(mergepr.NewOSRunner())
-	if err != nil {
-		return err
-	}
+	tool := mergepr.New(mergepr.NewOSRunner())
 	ctx := context.Background()
-	switch args[0] {
-	case "prepare":
-		return runPrepare(ctx, tool, args[1:])
-	case "merge":
-		return runMerge(ctx, tool, args[1:])
-	case "cleanup":
-		return runCleanup(ctx, tool, args[1:])
-	case "diff":
-		return runDiff(ctx, tool, args[1:])
-	default:
-		return fmt.Errorf("%w: unknown subcommand %q", errUsage, args[0])
-	}
-}
-
-func runPrepare(ctx context.Context, tool *mergepr.Tool, args []string) error {
-	flags := flag.NewFlagSet("prepare", flag.ContinueOnError)
-	workDir := flags.String("work-dir", "", "directory for state and drafting material (default: a fresh temporary directory)")
-	if err := flags.Parse(args); err != nil {
-		return err
-	}
-	if flags.NArg() > 1 {
-		return fmt.Errorf("%w: prepare takes at most one PR argument", errUsage)
-	}
-	prepared, err := tool.Prepare(ctx, flags.Arg(0), *workDir)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("PR #%d: %s\n", prepared.State.Number, prepared.State.Title)
-	fmt.Printf("url:   %s\n", prepared.State.URL)
-	fmt.Printf("head:  %s at %s\n", prepared.State.HeadRefName, prepared.State.HeadRefOID)
-	fmt.Printf("base:  %s\n", prepared.State.BaseRefName)
-	fmt.Println("CI:    all checks passed")
-	fmt.Printf("state: %s\n", prepared.StatePath)
-	fmt.Printf("log:   %s\n", prepared.LogPath)
-	fmt.Printf("stat:  %s\n", prepared.StatPath)
-	fmt.Printf("body:  %s\n", prepared.BodyPath)
-	return nil
-}
-
-func runMerge(ctx context.Context, tool *mergepr.Tool, args []string) error {
-	flags := flag.NewFlagSet("merge", flag.ContinueOnError)
+	flags := flag.NewFlagSet(args[0], flag.ContinueOnError)
 	statePath := flags.String("state", "", "state file written by prepare")
 	subjectPath := flags.String("subject-file", "", "file holding the squash subject")
 	bodyPath := flags.String("body-file", "", "file holding the squash body")
-	if err := flags.Parse(args); err != nil {
+	if err := flags.Parse(args[1:]); err != nil {
 		return err
 	}
-	if *statePath == "" || *subjectPath == "" || *bodyPath == "" {
-		return fmt.Errorf("%w: merge requires --state, --subject-file, and --body-file", errUsage)
-	}
-	report, err := tool.Merge(ctx, *statePath, *subjectPath, *bodyPath)
-	if err != nil {
+	switch args[0] {
+	case "prepare":
+		if flags.NArg() > 1 {
+			return errUsage
+		}
+		prepared, err := tool.Prepare(ctx, flags.Arg(0))
+		if err != nil {
+			return err
+		}
+		s := prepared.State
+		fmt.Printf("PR #%d: %s\n", s.Number, s.Title)
+		fmt.Printf("url:   %s\n", s.URL)
+		fmt.Printf("head:  %s at %s\n", s.HeadRefName, s.HeadRefOID)
+		fmt.Printf("base:  %s\n", s.BaseRefName)
+		fmt.Println("CI:    all checks passed")
+		fmt.Printf("dir:   %s (state.json, log.txt, stat.txt, body.txt)\n", prepared.Dir)
+		fmt.Printf("state: %s\n", filepath.Join(prepared.Dir, "state.json"))
+		return nil
+	case "merge":
+		if *statePath == "" || *subjectPath == "" || *bodyPath == "" {
+			return errUsage
+		}
+		report, err := tool.Merge(ctx, *statePath, *subjectPath, *bodyPath)
+		printReport(report)
 		return err
-	}
-	printReport(report)
-	return nil
-}
-
-func runCleanup(ctx context.Context, tool *mergepr.Tool, args []string) error {
-	flags := flag.NewFlagSet("cleanup", flag.ContinueOnError)
-	statePath := flags.String("state", "", "state file written by prepare")
-	if err := flags.Parse(args); err != nil {
+	case "cleanup":
+		if *statePath == "" {
+			return errUsage
+		}
+		report, err := tool.Cleanup(ctx, *statePath)
+		printReport(report)
 		return err
+	default:
+		return errUsage
 	}
-	if *statePath == "" {
-		return fmt.Errorf("%w: cleanup requires --state", errUsage)
-	}
-	report, err := tool.Cleanup(ctx, *statePath)
-	if err != nil {
-		return err
-	}
-	printReport(report)
-	return nil
-}
-
-func runDiff(ctx context.Context, tool *mergepr.Tool, args []string) error {
-	flags := flag.NewFlagSet("diff", flag.ContinueOnError)
-	statePath := flags.String("state", "", "state file written by prepare")
-	if err := flags.Parse(args); err != nil {
-		return err
-	}
-	if *statePath == "" || flags.NArg() != 1 {
-		return fmt.Errorf("%w: diff requires --state and one path after --", errUsage)
-	}
-	patch, err := tool.Diff(ctx, *statePath, flags.Arg(0))
-	if err != nil {
-		return err
-	}
-	if _, err := os.Stdout.Write(patch); err != nil {
-		return err
-	}
-	return nil
 }
 
 func printReport(report mergepr.Report) {
-	fmt.Printf("merge commit:          %s\n", report.MergeCommitOID)
-	fmt.Printf("remote branch deleted: %t\n", report.RemoteDeleted)
-	fmt.Printf("local branch deleted:  %t\n", report.LocalDeleted)
-	fmt.Printf("base branch updated:   %t\n", report.BaseUpdated)
+	if report.MergeCommitOID == "" {
+		return
+	}
+	fmt.Printf("merge commit:         %s\n", report.MergeCommitOID)
+	fmt.Printf("base branch updated:  %t\n", report.BaseUpdated)
+	fmt.Printf("local branch deleted: %t\n", report.LocalDeleted)
+	if report.Note != "" {
+		fmt.Printf("note: %s\n", report.Note)
+	}
 }

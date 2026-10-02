@@ -18,26 +18,16 @@ type commandStep struct {
 	err  error
 }
 
-func gitStep(args []string, out string) commandStep {
+func gitStep(out string, args ...string) commandStep {
 	return commandStep{name: gitCommand, args: args, out: out}
 }
 
-func ghStep(args []string, out string) commandStep {
+func ghStep(out string, args ...string) commandStep {
 	return commandStep{name: ghCommand, args: args, out: out}
 }
 
-// deleteRemoteBranchArgs is the argv of the branch-deletion push.
-func deleteRemoteBranchArgs() []string {
-	return []string{
-		"push",
-		"--force-with-lease=refs/heads/feature/foo:" + testHeadOID,
-		testFetchURL, "--delete", "refs/heads/feature/foo",
-	}
-}
-
 // fakeRunner replays a fixed command sequence and fails the test on the first
-// mismatch, extra call, or command that was not run with a deadline, so a test
-// cannot pass by skipping a step or by dropping the timeout.
+// mismatch or extra call, so a test cannot pass by skipping a step.
 type fakeRunner struct {
 	t     testing.TB
 	steps []commandStep
@@ -45,10 +35,7 @@ type fakeRunner struct {
 }
 
 // Run implements Runner.
-func (f *fakeRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
-	if _, ok := ctx.Deadline(); !ok {
-		f.t.Errorf("command %s %q ran without a deadline", name, args)
-	}
+func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte, error) {
 	if f.index >= len(f.steps) {
 		f.t.Fatalf("command %d: unexpected call %s %q", f.index+1, name, args)
 	}
@@ -68,37 +55,10 @@ func (f *fakeRunner) done() {
 	}
 }
 
-const (
-	testPRNumber = 42
-	testHeadOID  = "2222222222222222222222222222222222222222"
-	testBaseOID  = "1111111111111111111111111111111111111111"
-	testOtherOID = "4444444444444444444444444444444444444444"
-	testMergeOID = "3333333333333333333333333333333333333333"
-
-	testFetchURLOut  = "git@github.com:isseis/yt2column.git\n"
-	testFetchURL     = "git@github.com:isseis/yt2column.git"
-	testRepoViewOut  = `{"nameWithOwner":"isseis/yt2column","url":"https://github.com/isseis/yt2column"}`
-	testRepoArg      = "isseis/yt2column"
-	testRefsWildcard = "+refs/heads/*:refs/remotes/origin/*"
-)
-
-func writeStateFile(t testing.TB, dir string) string {
+func newTool(t testing.TB, steps ...commandStep) (*Tool, *fakeRunner) {
 	t.Helper()
-	state := State{
-		Number:      testPRNumber,
-		Owner:       "isseis",
-		Repo:        "yt2column",
-		HeadRefName: "feature/foo",
-		HeadRefOID:  testHeadOID,
-		BaseRefName: "main",
-		Title:       "Test PR",
-		URL:         "https://github.com/isseis/yt2column/pull/42",
-	}
-	path := filepath.Join(dir, stateFileName)
-	if err := writeState(path, state); err != nil {
-		t.Fatalf("write state: %v", err)
-	}
-	return path
+	runner := &fakeRunner{t: t, steps: steps}
+	return New(runner), runner
 }
 
 func writeTempFile(t testing.TB, dir, name, content string) string {
