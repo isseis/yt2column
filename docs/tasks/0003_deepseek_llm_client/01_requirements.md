@@ -70,30 +70,30 @@ LLM はエラーを返さずに、空の応答や途中で打ち切られた応�
 DeepSeek アダプタの値を、API キー・モデル名・タイムアウトから構築する。構築時の入力は補正せず、不正なら構築をエラーにする。
 
 -   API キーは `secret.Secret` 型で受け取る。ゼロ値の `Secret` は拒否する。
--   モデル名は文字列で受け取る。空文字列、および前後に空白文字を含む値は拒否する。それ以外の値は検証せずそのまま API へ送る（モデル名は頻繁に更新されるため、既知の名前の一覧と照合しない）。
+-   モデル名は文字列で受け取る。空文字列、前後に空白文字を含む値、および正しい UTF-8 でない値は拒否する。正しい UTF-8 を求める理由は、F-002 がプロンプトに求めるのと同じである。それ以外の値は検証せずそのまま API へ送る（モデル名は頻繁に更新されるため、既知の名前の一覧と照合しない）。
 -   タイムアウトは正の値でなければならない。
 -   送信先は `https://api.deepseek.com/chat/completions` とする。送信先をテストから差し替えられるようにする。差し替えの手段と、本番の送信先を利用者の設定から変えられないようにする方法は設計で決める（[design_handoff.md](design_handoff.md) H-06）。
 -   構築したアダプタは `llm.LLMClient` を実装する。
 
 **Acceptance Criteria**:
 - **AC-01**: 有効な API キー・モデル名・正のタイムアウトから構築したアダプタは、`llm.LLMClient` として使える。
-- **AC-02**: ゼロ値の `Secret`、空のモデル名、前後に空白文字を含むモデル名（例: `" deepseek-flash"`、`"deepseek-flash\n"`）、0 以下のタイムアウトのいずれかを与えた構築はエラーになり、アダプタを返さない。
+- **AC-02**: ゼロ値の `Secret`、空のモデル名、前後に空白文字を含むモデル名（例: `" deepseek-flash"`、`"deepseek-flash\n"`）、不正な UTF-8 のバイト列を含むモデル名、0 以下のタイムアウトのいずれかを与えた構築はエラーになり、アダプタを返さない。
 
 #### F-002: リクエストの送信
 
 `GenerateRequest` を検証し、Chat Completions API へ 1 回の HTTP リクエストとして送る。
 
--   `SystemPrompt` と `UserPrompt` は、どちらも空でなく、正しい UTF-8 の文字列でなければならない。`MaxOutputTokens` は 0 以上でなければならない。これらの条件に反するリクエストは、HTTP リクエストを送らずに `ErrInvalidRequest` で拒否する。不正な UTF-8 を拒否するのは、JSON への変換で置換文字（U+FFFD）に置き換えられ、送信される文字列が元と一致しなくなるためである。
--   HTTP メソッドは `POST`、本文は JSON とする。
+-   `SystemPrompt` と `UserPrompt` は、どちらも空でなく、正しい UTF-8 の文字列でなければならない。`MaxOutputTokens` は 0 以上でなければならない。これらの条件に反するリクエストは、HTTP リクエストを送らずに `ErrInvalidRequest` で拒否する。不正な UTF-8 を拒否するのは、JSON への変換で置換文字（U+FFFD）に置き換えられ、送信される文字列が元と一致しなくなるためである。リクエスト本文に入る文字列のうち、モデル名は同じ理由で構築時に拒否する（F-001）。
+-   HTTP メソッドは `POST`、本文は JSON とする。リクエストは `Content-Type: application/json` ヘッダーを持つ。
 -   本文には、構築時のモデル名、system メッセージ（`SystemPrompt`）と user メッセージ（`UserPrompt`）をこの順に並べたメッセージ列、および非ストリーミングの指定を含める。プロンプトは加工せず、そのまま送る。
 -   `MaxOutputTokens` が正の値なら、それを出力トークン数の上限（`max_tokens`）として送る。0 なら上限を送らず、API の既定に任せる。
 -   thinking モードの指定（`thinking`）は送らない。2.3 で除外した他のパラメータも送らない。
--   API キーは `Authorization` ヘッダーで `Bearer` トークンとして送る。リクエスト本文と URL には API キーを含めない。
+-   API キーは `Authorization` ヘッダーで `Bearer` トークンとして送る。アダプタは、リクエスト本文と URL に API キーを加えない。呼び出し元がプロンプトに API キーと同じ文字列を含めた場合、その文字列はプロンプトの一部として加工せずに送る（AC-04）。
 -   リダイレクトには従わない。3xx の応答は F-003 の HTTP ステータスのエラーとして扱う。API キーを別の送信先へ送らないためである。
 -   リトライしない。
 
 **Acceptance Criteria**:
-- **AC-03**: `Generate` は、送信先へ `POST` を 1 回だけ送る。リクエストの `Authorization` ヘッダーは `Bearer <API キー>` であり、リクエスト本文と URL には API キーが現れない。
+- **AC-03**: `Generate` は、送信先へ `POST` を 1 回だけ送る。送信先が受け取るリクエストの `Content-Type` ヘッダーは `application/json`、`Authorization` ヘッダーは `Bearer <API キー>` である。API キーを含まないプロンプトで呼び出したとき、リクエスト本文と URL には API キーが現れない。
 - **AC-04**: リクエスト本文の JSON は、構築時のモデル名、`SystemPrompt` を内容とする system メッセージと `UserPrompt` を内容とする user メッセージをこの順に並べた 2 件のメッセージ列、および非ストリーミングの指定を含む。各プロンプトは送信前と同一の文字列である（前後の空白や改行も含めて変更されない）。
 - **AC-05**: `MaxOutputTokens` が正の値のとき、リクエスト本文の `max_tokens` はその値である。0 のとき、リクエスト本文は `max_tokens` を含まない。
 - **AC-06**: リクエスト本文は `thinking` を含まない。
@@ -131,16 +131,16 @@ DeepSeek アダプタの値を、API キー・モデル名・タイムアウト�
 -   構築時のタイムアウトは、1 回の `Generate` の中で、HTTP リクエストの送信を始めてから応答本文の読み取りを終えるまでの全体に適用する。
 -   タイムアウト（構築時のタイムアウト、または `ctx` の期限）で失敗した場合は、`errors.Is(err, context.DeadlineExceeded)` が真になるエラーを返す。`ctx` のキャンセルで失敗した場合は、`errors.Is(err, context.Canceled)` が真になるエラーを返す。
 -   `ctx` が既にキャンセルされている場合は、HTTP リクエストを送らない。
--   接続の失敗など、タイムアウトとキャンセル以外の通信の失敗は `ErrTransport` とする。
+-   接続の失敗など、タイムアウトとキャンセル以外の通信の失敗は `ErrTransport` とする。応答のヘッダーを受け取った後、応答本文の読み取り中に接続が切れた場合も `ErrTransport` とし、`ErrInvalidResponse` としない。受け取れた本文の一部を検証に使わず、部分的な結果を返さない。
 
 **Acceptance Criteria**:
 - **AC-17**: 応答を返さずに待ち続ける送信先に対し、構築時のタイムアウトを短く設定した `Generate` は、構築時のタイムアウトが経過してから `02_architecture.md` で固定した猶予時間以内に戻り、`errors.Is(err, context.DeadlineExceeded)` が真になるエラーを返す。ヘッダーを返した後に本文の送信を止める送信先に対しても同様である。
 - **AC-18**: `Generate` の実行中に `ctx` をキャンセルすると、`Generate` は戻り、`errors.Is(err, context.Canceled)` が真になるエラーを返す。呼び出し前に `ctx` が既にキャンセルされている場合は、送信先へ HTTP リクエストを送らずに同じエラーを返す。
-- **AC-19**: 接続できない送信先（例: 閉じた `httptest` サーバーのアドレス）に対し、`errors.Is(err, ErrTransport)` が真になるエラーを返し、`context.DeadlineExceeded` でも `context.Canceled` でもない。
+- **AC-19**: 接続できない送信先（例: 閉じた `httptest` サーバーのアドレス）に対し、`errors.Is(err, ErrTransport)` が真になるエラーを返し、`context.DeadlineExceeded` でも `context.Canceled` でもない。ステータス `200` と応答本文の長さを示すヘッダーを返し、示した長さより前で本文の途中（有効な応答の JSON の一部まで）を送って接続を閉じる送信先に対しても同様であり、`ErrInvalidResponse` ではなく、返る `GenerateResponse` はゼロ値である。
 
 #### F-005: 秘密情報の保護
 
-API キーは、送信先への `Authorization` ヘッダー以外のどこにも現れない。
+アダプタは、API キーを送信先への `Authorization` ヘッダー以外のどこにも出さない（呼び出し元がプロンプトに含めた文字列は F-002 による）。
 
 -   `Generate` が返すエラー、およびアダプタの値を `fmt`・`log/slog`・`encoding/json` で出力した結果に、API キーを含めない。
 -   `*url.Error` など、標準ライブラリのエラーをラップするときも、リクエストのヘッダーや API キーを含めない。
