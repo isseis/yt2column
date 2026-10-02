@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-02 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 事前調査（§1.4）は人間の承認を得て 2026-10-02 に実施し、結果を §1.4 に記録した。承認時に判断してほしい点: (1) 本設計は要件定義書に書かれていない次の 2 つを加えている。表示可能な ASCII 以外を含む API キーを構築時に拒否する（§3.1）。統合テストはオプトインの変数がなければスキップする（§7.2）。(2) 応答の `model` がエイリアスのまま返ることを受け、`system_fingerprint` を `llm.GenerateResponse.ModelVersion` として返す（要件定義書の改訂。F-003・AC-33・AC-34）。これは `0001_pipeline_skeleton` の `GenerateResponse` のフィールドの組を変える（§3.2）。 |
+| Review date | 2026-10-02 |
+| Reviewer | isseis |
+| Comments | 事前調査（§1.4）は人間の承認を得て 2026-10-02 に実施し、結果を §1.4 に記録した。設計が要件定義書に加える 2 点（表示可能な ASCII 以外を含む API キーの構築時拒否（§3.1）、オプトインの変数がない場合の統合テストのスキップ（§7.2））と、応答の `model` がエイリアスのまま返ることを受けて `system_fingerprint` を `llm.GenerateResponse.ModelVersion` として返す要件定義書の改訂（F-003・AC-33・AC-34、§3.2）を、レビュアーが 2026-10-02 に承認した。この改訂は `0001_pipeline_skeleton` の `GenerateResponse` のフィールドの組を変える。 |
 
 ## 1. 設計の全体像 (Design Overview)
 
