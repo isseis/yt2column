@@ -8,7 +8,7 @@
 | Created | 2026-10-02 |
 | Review date | 2026-10-02 |
 | Reviewer | isseis |
-| Comments | 事前調査（§1.4）は人間の承認を得て 2026-10-02 に実施し、結果を §1.4 に記録した。設計が要件定義書に加える 2 点（表示可能な ASCII 以外を含む API キーの構築時拒否（§3.1）、オプトインの変数がない場合の統合テストのスキップ（§7.2））と、応答の `model` がエイリアスのまま返ることを受けて `system_fingerprint` を `llm.GenerateResponse.ModelVersion` として返す要件定義書の改訂（F-003・AC-33・AC-34、§3.2）を、レビュアーが 2026-10-02 に承認した。この改訂は `0001_pipeline_skeleton` の `GenerateResponse` のフィールドの組を変える。 |
+| Comments | 事前調査（§1.4）は人間の承認を得て 2026-10-02 に実施し、結果を §1.4 に記録した。設計が要件定義書に加える 2 点（表示可能な ASCII 以外を含む API キーの構築時拒否（§3.1）、オプトインの変数がない場合の統合テストのスキップ（§7.2））と、応答の `model` がエイリアスのまま返ることを受けて `system_fingerprint` を `llm.GenerateResponse.ModelVersion` として返す要件定義書の改訂（F-003・AC-33・AC-34、§3.2）を、レビュアーが 2026-10-02 に承認した。この改訂は `0001_pipeline_skeleton` の `GenerateResponse` のフィールドの組を変える。2026-10-02: 図1（§1.2）が呼び出し元との往復でループに見えるため、入力の `GenerateRequest` を起点とし、`GenerateResponse` から呼び出し元へ戻る形に修正した。描画の修正のみで、決定は変えていない。 |
 
 ## 1. 設計の全体像 (Design Overview)
 
@@ -48,7 +48,6 @@ flowchart TB
     API["DeepSeek Chat Completions API"]
     RESP[("llm.GenerateResponse")]
 
-    CALLER --> REQ
     REQ --> VAL
     VAL --> BUILD
     BUILD --> SEND
@@ -57,7 +56,7 @@ flowchart TB
     READ --> PARSE
     PARSE -.->|"利用"| SJ
     PARSE --> RESP
-    RESP --> CALLER
+    RESP -->|"戻り値"| CALLER
 
     class REQ,RESP data
     class CALLER,API process
@@ -65,7 +64,7 @@ flowchart TB
     class BUILD,SEND,READ,PARSE,SJ newpkg
 ```
 
-**図1 概念モデル**。実線の矢印 A → B は「A の結果を B が入力として使う」を表す。点線の矢印は「関数として利用する」を表す。呼び出し元は `ArticleWriter`（#5 で実装する）と統合テストである。`Generate` は、リクエストの検証 → リクエスト本文の組み立て → 送信 → 応答本文の読み取り → 応答の検証の順に進み、どこかで失敗したら以降へ進まずにエラーを返す（§6.1）。HTTP ステータスの判定は「応答本文の読み取り」に含めた（`200` 以外では応答本文を読まない。§3.4）。応答の検証は、要件 F-003 の順序（応答本文の形 → 終了理由 → `content`）で行う。
+**図1 概念モデル**。実線の矢印 A → B は「A の結果を B が入力として使う」を表す。点線の矢印は「関数として利用する」を表す。図は入力の `GenerateRequest` から始まり、戻り値の `GenerateResponse` を呼び出し元へ返すところで終わる（`RESP -->|"戻り値"| CALLER`）。呼び出し元は `ArticleWriter`（#5 で実装する）と統合テストである。`Generate` は、リクエストの検証 → リクエスト本文の組み立て → 送信 → 応答本文の読み取り → 応答の検証の順に進み、どこかで失敗したら以降へ進まずにエラーを返す（§6.1）。HTTP ステータスの判定は「応答本文の読み取り」に含めた（`200` 以外では応答本文を読まない。§3.4）。応答の検証は、要件 F-003 の順序（応答本文の形 → 終了理由 → `content`）で行う。
 
 ```mermaid
 flowchart LR
