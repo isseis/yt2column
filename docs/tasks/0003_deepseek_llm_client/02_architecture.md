@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-02 |
 | Review date | 2026-10-02 |
 | Reviewer | isseis |
-| Comments | 決定の変更。レビューで、`AsArray` の要素数の上限を `segs` にも適用するとパーサの受理の契約が変わる（上限を超える `segs` が新たに拒否される）ことが指摘された。文言の訂正ではなく決定の変更であるため、本設計書を `draft` に戻し、人の再承認を待つ。 |
+| Comments | - |
 
 ## 1. 設計の全体像 (Design Overview)
 
