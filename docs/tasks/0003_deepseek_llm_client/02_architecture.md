@@ -8,7 +8,7 @@
 | Created | 2026-10-02 |
 | Review date | - |
 | Reviewer | - |
-| Comments | 事前調査（§1.4）は人間の承認を得て 2026-10-02 に実施し、結果を §1.4 に記録した。設計が要件定義書に加える 2 点（表示可能な ASCII 以外を含む API キーの構築時拒否（§3.1）、オプトインの変数がない場合の統合テストのスキップ（§7.2））と、応答の `model` がエイリアスのまま返ることを受けて `system_fingerprint` を `llm.GenerateResponse.ModelVersion` として返す要件定義書の改訂（F-003・AC-33・AC-34、§3.2）を、レビュアーが 2026-10-02 に承認した。この改訂は `0001_pipeline_skeleton` の `GenerateResponse` のフィールドの組を変える。2026-10-02: 図1（§1.2）が呼び出し元との往復でループに見えるため、入力の `GenerateRequest` を起点とし、`GenerateResponse` から呼び出し元へ戻る形に修正した。描画の修正のみで、決定は変えていない。2026-10-02 に承認された後、レビューの指摘を受けて `draft` に戻した。変更は、統合テスト（F-006）が実在の API キーを使うことを [security.md](../../dev/security.md) §2 の「テストでは実在のキーや URL を使わない」の例外として定め、その安全策を記録したこと（§5.2・§3.8・§7.2）と、統合テストでの `ModelVersion` の出力の記述を、テストの手段から設計の水準に改めたこと（§7.2、手段は [implementation_handoff.md](implementation_handoff.md) の I-03 に申し送る）である。 |
+| Comments | 事前調査（§1.4）は人間の承認を得て 2026-10-02 に実施し、結果を §1.4 に記録した。設計が要件定義書に加える 2 点（表示可能な ASCII 以外を含む API キーの構築時拒否（§3.1）、オプトインの変数がない場合の統合テストのスキップ（§7.2））と、応答の `model` がエイリアスのまま返ることを受けて `system_fingerprint` を `llm.GenerateResponse.ModelVersion` として返す要件定義書の改訂（F-003・AC-33・AC-34、§3.2）を、レビュアーが 2026-10-02 に承認した。この改訂は `0001_pipeline_skeleton` の `GenerateResponse` のフィールドの組を変える。2026-10-02: 図1（§1.2）が呼び出し元との往復でループに見えるため、入力の `GenerateRequest` を起点とし、`GenerateResponse` から呼び出し元へ戻る形に修正した。描画の修正のみで、決定は変えていない。2026-10-02 に承認された後、レビューの指摘を受けて `draft` に戻した。変更は、統合テスト（F-006）が実在の API キーを使うことを [security.md](../../dev/security.md) §2 の「テストでは実在のキーや URL を使わない」の例外として定め、その安全策を記録したこと（§5.2・§3.8・§7.2）と、統合テストでの `ModelVersion` の出力の記述を、テストの手段から設計の水準に改めたこと（§7.2、手段は [implementation_handoff.md](implementation_handoff.md) の I-03 に申し送る）である。2026-10-02: 要件定義書の改訂に合わせ、統合テストの API キーを本番の `DEEPSEEK_API_KEY` からテスト専用の `YT2COLUMN_TEST_DEEPSEEK_API_KEY` に変えた（§5.2・§7.2・付録A）。 |
 
 ## 1. 設計の全体像 (Design Overview)
 
@@ -703,11 +703,11 @@ flowchart LR
 ### 5.2. 秘密情報
 
 - API キーは `Options.APIKey`（`secret.Secret`）で受け取り、非公開のフィールドに `Secret` のまま保持する。`Reveal()` の戻り値は、構築時の検査とヘッダーの設定の中でだけ使い、フィールドやエラーに残さない（H-03・§3.7）。
-- 統合テストは API キーを環境変数 `DEEPSEEK_API_KEY` から読み、`secret.New` で包んでから `New` に渡す。テストの出力（ログ・失敗メッセージ）に API キーもその一部も含めない（要件 F-006）。
+- 統合テストは API キーをテスト専用の環境変数 `YT2COLUMN_TEST_DEEPSEEK_API_KEY` から読み（本番の `DEEPSEEK_API_KEY` は読まない。要件 F-006）、`secret.New` で包んでから `New` に渡す。テストの出力（ログ・失敗メッセージ）に API キーもその一部も含めない（要件 F-006）。
 - **[security.md](../../dev/security.md) §2 の例外（統合テストの API キー）。** security.md §2 は「テストでは実在のキーや URL を使わない」と定める。要件 F-006 は実 API を使う統合テストを求めるため、本設計はこの方針に、統合テストに限った例外を設ける。例外の範囲と安全策は次のとおりとする。
   - ユニットテストは実在のキーも URL も使わない（AC-25）。どのテストも API キーをコードやテストデータに書かない。
   - 実在の API キーを使うのは、`//go:build integration` の統合テスト（F-006）だけである。統合テストは `make test-integration-deepseek` が設定するオプトインの変数がなければスキップし（§7.2）、料金の発生と API キーの利用をこのターゲットからの明示的な実行に限る。
-  - API キーは環境変数 `DEEPSEEK_API_KEY` からだけ読み、テストの出力に API キーもその一部も書かない。
+  - API キーは、本番の `DEEPSEEK_API_KEY` とは別の、テスト専用の環境変数 `YT2COLUMN_TEST_DEEPSEEK_API_KEY` からだけ読む。テストには本番と別のキー（利用上限を設けたものなど）を割り当てられ、本番のキーはテストに使われない。テストの出力に API キーもその一部も書かない。
 
   この例外は、実装時に security.md §2 へ追記する（§3.8）。
 
@@ -794,11 +794,11 @@ DeepSeek の API もネットワーク上の外部ホストも呼ばない（AC-
 
 - `internal/llm/deepseek/integration_test.go` に `//go:build integration` を付けて置く。`-tags test` のヘルパー（`test_helpers.go`）に依存せず、`New` で作った本番の送信先の値を使う。
 - `make test-integration-deepseek` を追加する。このターゲットは、実 API を使い料金が発生することを表示してから、`./internal/llm/deepseek` の統合テストだけを、`integration` タグでビルドし、テスト結果のキャッシュを使わず（`-count=1`）、`-v` 出力付きで、§3.6 の関係を満たす明示的な `-timeout` を付けて実行する（AC-23）。コマンドの組み立ては [implementation_handoff.md](implementation_handoff.md) の I-02 に申し送る。`YT2COLUMN_MODEL` は、環境で定義されていなければ `deepseek-flash` を与え、このターゲットの実行時だけエクスポートする。定義されていればその値（空文字列を含む）を使う。テスト自身は既定値を持たない（要件 F-006）。
-- **オプトインの変数。** このターゲットは、あわせて `YT2COLUMN_DEEPSEEK_INTEGRATION=1` をエクスポートする。テストはこの変数が `1` でなければ、変数名と `make test-integration-deepseek` を示すメッセージで `t.Skip` する。`.envrc` で `DEEPSEEK_API_KEY` を常にエクスポートしている開発環境で、`go test -tags integration ./...` や IDE のテスト実行から料金が発生しないようにするためである。判定の順序は、オプトイン（スキップ）→ `DEEPSEEK_API_KEY`（未設定・空ならスキップ）→ `YT2COLUMN_MODEL`（未設定・空なら失敗）とする。要件 F-006 はスキップの条件に API キーの未設定を挙げており、本設計はそれに加えてオプトインの欠如をスキップの条件にする。`make test-integration-deepseek` では常に設定されるため、AC-23 の振る舞いは変わらない。
+- **オプトインの変数。** このターゲットは、あわせて `YT2COLUMN_DEEPSEEK_INTEGRATION=1` をエクスポートする。テストはこの変数が `1` でなければ、変数名と `make test-integration-deepseek` を示すメッセージで `t.Skip` する。テスト用の API キー（`YT2COLUMN_TEST_DEEPSEEK_API_KEY`）も `.envrc` などで常にエクスポートされうるため、キーの有無だけでは、`go test -tags integration ./...` や IDE のテスト実行から料金が発生することを防げない。判定の順序は、オプトイン（スキップ）→ `YT2COLUMN_TEST_DEEPSEEK_API_KEY`（未設定・空ならスキップ）→ `YT2COLUMN_MODEL`（未設定・空なら失敗）とする。要件 F-006 はスキップの条件に API キーの未設定を挙げており、本設計はそれに加えてオプトインの欠如をスキップの条件にする。`make test-integration-deepseek` では常に設定されるため、AC-23 の振る舞いは変わらない。
 - 既存の `make test-integration` は `./internal/transcript` だけを対象にしており（`Makefile` の `test-integration`）、DeepSeek の統合テストを実行しない。`make test`・`make test-ci` は `-tags test` だけでビルドするため、`integration` タグのテストを含まない（AC-22）。
 - 確認内容（AC-24）: 短い固定のプロンプトでの正常な生成（エラーなし、`Text` が空白文字以外を含む、`Model` が空でない）と、`MaxOutputTokens` 16（§3.6）での `llm.ErrTruncated`。正常な生成では、`ModelVersion` が実際に返ることを手動実行の出力で確認できるよう、テストの出力に示してよい（実応答が持たない場合もありうるため、空でないことは検証しない）。示すときは、§5.4 のとおり信頼できない文字列として扱い、制御文字などで端末やログの表示を変えられない形にする。出力の手段は [implementation_handoff.md](implementation_handoff.md) の I-03 に申し送る。プロンプトは字幕・API キー・パス・個人情報を含まない英語の短い文とする。
 - **結果の読み方。** API は混雑時に推論の開始まで最大 10 分待たせうる（§1.4）。1 回の `Generate` のタイムアウトはこの待ちより長くする（§3.6）が、待ちの上限は API 側の仕様であり変わりうるため、統合テストの `context.DeadlineExceeded` は、それだけではアダプタの不具合を示さない。
-- **方針の差分（`0002_ytdlp_transcript_source` との違い）。** `0002_ytdlp_transcript_source/02_architecture.md` §7.2 は、統合テストの対象の指定が欠けていてもスキップせず失敗させる方針をとる（スキップは成功と見分けにくいため）。本タスクは API キーが未設定の場合と、オプトインの変数がない場合にスキップする。実在の API キーを使うこと自体の security.md §2 との関係は §5.2 で扱う。API キーについては要件定義書 §5.1 で定めた意図的な例外であり、理由は、API キーが秘密情報で利用者ごとに設定の有無が異なることと、issue #4 の完了条件である。オプトインについては、料金の発生を `make` のターゲットからの明示的な実行に限るためである。スキップと成功の見分けは、AC-23 の `-v` 出力（`--- SKIP` と変数名を含むメッセージ）で付ける。モデル名の未設定は `0002` と同じく失敗にする。既存の `internal/transcript/integration_test.go` は変更しないため、更新が要る既存テストはない。
+- **方針の差分（`0002_ytdlp_transcript_source` との違い）。** `0002_ytdlp_transcript_source/02_architecture.md` §7.2 は、統合テストの対象の指定が欠けていてもスキップせず失敗させる方針をとる（スキップは成功と見分けにくいため）。本タスクはテスト用の API キー（`YT2COLUMN_TEST_DEEPSEEK_API_KEY`）が未設定の場合と、オプトインの変数がない場合にスキップする。実在の API キーを使うこと自体の security.md §2 との関係は §5.2 で扱う。API キーについては要件定義書 §5.1 で定めた意図的な例外であり、理由は、API キーが秘密情報で利用者ごとに設定の有無が異なることと、issue #4 の完了条件である。オプトインについては、料金の発生を `make` のターゲットからの明示的な実行に限るためである。スキップと成功の見分けは、AC-23 の `-v` 出力（`--- SKIP` と変数名を含むメッセージ）で付ける。モデル名の未設定は `0002` と同じく失敗にする。既存の `internal/transcript/integration_test.go` は変更しないため、更新が要る既存テストはない。
 
 ### 7.3. セキュリティテスト
 
@@ -877,5 +877,6 @@ DeepSeek の API もネットワーク上の外部ホストも呼ばない（AC-
 - **`200` 以外の応答本文を読まない。** 読んでもエラーに含めないため、読む理由がない。原因の見当は、ステータスごとの固定の案内と、送ったパラメータで付ける（§3.4・§4.2）。
 - **`http.Client.Timeout` を使わない。** `context` の期限と併用すると、どちらが先に発火したかで返るエラーの型が変わる（H-01・§3.3）。
 - **`ErrTransport` に下位のエラーを `%w` でつながない。** 番兵の相互排他（AC-16）を連鎖の中身に依存させないためである。下位のエラーの型での判別は失うが、要件はそれを求めていない（§4.1）。
-- **統合テストにオプトインの変数を加えた。** ビルドタグだけでは、`DEEPSEEK_API_KEY` を常にエクスポートしている開発環境で、`go test -tags integration ./...` から料金が発生する（§7.2）。
+- **統合テストにオプトインの変数を加えた。** ビルドタグとキーの有無だけでは、API キーを常にエクスポートしている開発環境で、`go test -tags integration ./...` から料金が発生する（§7.2）。テスト用のキーを `YT2COLUMN_TEST_DEEPSEEK_API_KEY` に分けた後も、そのキーが `.envrc` に置かれうるため、オプトインを残した。
+- **統合テストの API キーを本番と別の環境変数にした。** 本番の `DEEPSEEK_API_KEY` を統合テストが読むと、テストに本番のキーが使われ、キーごとの利用上限や失効の管理を本番とテストで分けられない。テスト専用の `YT2COLUMN_TEST_DEEPSEEK_API_KEY` から読むことで、テストに別のキーを割り当てられる（要件定義書 F-006）。
 - **統合テストの実在の API キーを security.md §2 の例外として定めた。** 代案は、実 API の確認をテストの外（手動のスクリプトなど）へ移すことだった。要件 F-006 が統合テストとしてリポジトリに含めることを求めているため採らず、例外の範囲を統合テストに限り、オプトインと出力の制限を安全策として記録した（§5.2）。

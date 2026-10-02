@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Created | 2026-10-02 |
-| Review date | 2026-10-02 |
-| Reviewer | isseis |
-| Comments | - |
+| Review date | - |
+| Reviewer | - |
+| Comments | 2026-10-02 isseis により `approved`。2026-10-02 設計判断の変更により `draft` に戻した: 統合テストの API キーを本番の `DEEPSEEK_API_KEY` と分け、テスト専用の環境変数 `YT2COLUMN_TEST_DEEPSEEK_API_KEY` から読むことにした（2.3・F-006・AC-23・§5.1）。 |
 
 ## 1. 概要 (Overview)
 
@@ -50,7 +50,7 @@ LLM はエラーを返さずに、空の応答や途中で打ち切られた応�
 
 ### 2.3. スコープ外 (Out of Scope)
 
--   本番の CLI での環境変数からの設定読み込み（`DEEPSEEK_API_KEY`・`YT2COLUMN_MODEL` など）と、プロバイダの選択（#6）。本タスクのアダプタは環境変数を読まず、API キー・モデル名・タイムアウトを構築時に受け取る。ただし、統合テスト（F-006）は API キーとモデル名を環境変数から読み、アダプタの構築に渡す。
+-   本番の CLI での環境変数からの設定読み込み（`DEEPSEEK_API_KEY`・`YT2COLUMN_MODEL` など）と、プロバイダの選択（#6）。本タスクのアダプタは環境変数を読まず、API キー・モデル名・タイムアウトを構築時に受け取る。ただし、統合テスト（F-006）はテスト用の API キー（`YT2COLUMN_TEST_DEEPSEEK_API_KEY`）とモデル名を環境変数から読み、アダプタの構築に渡す。
 -   タイムアウトの既定値（#6 が設定として与える）。
 -   thinking モードの切り替え。初期は API の既定（thinking 有効）のままにし、リクエストに thinking の指定を含めない（[project_overview.md](../../dev/project_overview.md)「前提・制約」）。
 -   `temperature` などのサンプリングパラメータ（thinking モードでは `temperature` が無視される）。
@@ -158,7 +158,7 @@ DeepSeek アダプタの値を、API キー・モデル名・タイムアウト�
 -   統合テストは `//go:build integration` で分離し、`make test`・`make test-ci` には含めない。
 -   専用の Make ターゲット `make test-integration-deepseek` を追加する。このターゲットは、実 API を使うこと（料金が発生すること）を表示する。テスト結果のキャッシュを避けるため `-count=1` を付け、明示的な `-timeout` を設定する。
 -   既存の `make test-integration`（実 `yt-dlp` を使う）とは分ける。`yt-dlp` の統合テストを実行するたびに API の料金が発生しないようにするためである。
--   API キーは環境変数 `DEEPSEEK_API_KEY` から読む。未設定または空の場合は、変数名を示すメッセージで `t.Skip` する（CI では実行しないため）。統合テストは、API キーをテストの出力に含めない。
+-   API キーは、テスト専用の環境変数 `YT2COLUMN_TEST_DEEPSEEK_API_KEY` から読む。本番の CLI が読む `DEEPSEEK_API_KEY`（#6）は読まない。本番とテストでキーを分けて管理でき（例: テストには利用上限を設けた別のキーを使う）、本番のキーが意図せずテストに使われないようにするためである。`YT2COLUMN_TEST_DEEPSEEK_API_KEY` が未設定または空の場合は、変数名を示すメッセージで `t.Skip` する（CI では実行しないため）。`DEEPSEEK_API_KEY` だけが設定されている場合も同じくスキップする。統合テストは、API キーをテストの出力に含めない。
 -   モデル名は、本番の CLI と同じ環境変数 `YT2COLUMN_MODEL` から読む。設定を 1 か所で済ませるためである。`make test-integration-deepseek` は、`YT2COLUMN_MODEL` が環境で設定されていなければ既定値を与えてエクスポートし、設定されていればその値を使う。テスト自身は既定値を持たない（モデル名をコードにハードコードしないため）。未設定または空の場合は、変数名を示すメッセージで失敗する。
 -   送るプロンプトは、テストのために用意した短い固定の文字列とする。字幕・API キー・ローカルのファイルパス・利用者の個人情報を含めない（[security.md](../../dev/security.md) §4）。
 -   確認する内容は、正常な生成と、出力トークン数の上限による打ち切りの検出である。
@@ -167,7 +167,7 @@ DeepSeek アダプタの値を、API キー・モデル名・タイムアウト�
 
 **Acceptance Criteria**:
 - **AC-22**: 統合テストは既定の `make test` と `make test-ci` の対象に含まれず、これらの実行では DeepSeek の API もネットワークも呼ばれない。
-- **AC-23**: `DEEPSEEK_API_KEY` が設定された環境で `make test-integration-deepseek` を実行すると、`-count=1` と明示的な `-timeout` を付けて統合テストが走り、少なくとも 1 件のテストが実際に実行されたこと（スキップやテスト結果のキャッシュではないこと）が `-v` 出力から確認できる。ターゲットは実 API を使うことを表示する。`DEEPSEEK_API_KEY` が未設定の場合、統合テストは変数名を示すメッセージでスキップする。
+- **AC-23**: `YT2COLUMN_TEST_DEEPSEEK_API_KEY` が設定された環境で `make test-integration-deepseek` を実行すると、`-count=1` と明示的な `-timeout` を付けて統合テストが走り、少なくとも 1 件のテストが実際に実行されたこと（スキップやテスト結果のキャッシュではないこと）が `-v` 出力から確認できる。ターゲットは実 API を使うことを表示する。`YT2COLUMN_TEST_DEEPSEEK_API_KEY` が未設定の場合、統合テストは変数名を示すメッセージでスキップする。`DEEPSEEK_API_KEY` が設定されていても、`YT2COLUMN_TEST_DEEPSEEK_API_KEY` が未設定ならスキップし、`DEEPSEEK_API_KEY` の値を使わない。
 - **AC-24**: 統合テストは、短い固定のプロンプトで `Generate` を呼び、エラーがなく、`Text` が空白文字以外を含み、`Model` が空でないことを検証する。また、生成が完了しないほど小さな `MaxOutputTokens` を指定した `Generate` が、`errors.Is(err, ErrTruncated)` が真になるエラーを返すことを検証する。
 
 #### F-007: テスト可能性
@@ -263,7 +263,7 @@ HTTP ステータス以外の応答ヘッダー（`Content-Type` など）は消
 
 ### 5.1. 他の文書との差分
 
--   `0002_ytdlp_transcript_source` の統合テストは、対象の指定（環境変数）が欠けている場合にスキップせず失敗する。本タスクの統合テストは、issue #4 の完了条件に従い、API キーが未設定の場合はスキップする（F-006）。API キーは秘密情報であり、利用者ごとに設定の有無が異なるためである。モデル名の未設定は Make ターゲットが既定値を与えるため、`0002` と同じく失敗とする。
+-   `0002_ytdlp_transcript_source` の統合テストは、対象の指定（環境変数）が欠けている場合にスキップせず失敗する。本タスクの統合テストは、issue #4 の完了条件に従い、テスト用の API キー（`YT2COLUMN_TEST_DEEPSEEK_API_KEY`）が未設定の場合はスキップする（F-006）。API キーは秘密情報であり、利用者ごとに設定の有無が異なるためである。モデル名の未設定は Make ターゲットが既定値を与えるため、`0002` と同じく失敗とする。
 -   `llm.GenerateRequest` の `MaxOutputTokens` は、`0001_pipeline_skeleton` では値の意味を定めていなかった。本書では、0 を「上限を指定せず、プロバイダの既定に任せる」、負の値を不正と定める（F-002）。後続のプロバイダも同じ意味で扱えるよう、`llm.GenerateRequest` の doc コメントにこの意味を書く。
 -   `llm.GenerateResponse` のフィールドは、`0001_pipeline_skeleton` で `Text`・`Model` の 2 つと定め、`internal/pipeline/pipeline_test.go` の `TestCommonTypesFieldSets` がこの組を固定している。本書は `ModelVersion`（文字列）を追加する（F-003）。応答の `model` がエイリアスのまま返り、`Model` だけでは生成に使ったモデルを追えないためである。`TestCommonTypesFieldSets` と、[project_overview.md](../../dev/project_overview.md) の `GenerateResponse` の説明を更新する。`writer.Article` への記録は #5 で扱う。
 -   [project_overview.md](../../dev/project_overview.md) の決定済みの方針は変更しない。
