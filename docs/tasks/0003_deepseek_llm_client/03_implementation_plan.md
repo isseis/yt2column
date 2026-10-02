@@ -95,16 +95,16 @@ HEAD `00573f2`（ブランチ `task/0003-deepseek-llm-client-02`）で確認し�
 - 変更: `internal/transcript/json3.go`・`internal/transcript/info.go`・`docs/dev/developer_guide/package_reference.md`
 
 **タスク**
-- [ ] **ステップ 1-1**: `strictjson.go` を作成し、§1.4 の一覧に従って部品を移し、architecture §3.5 の公開 API（`Object`・`Value`・`ParseObject`・`Object.Collect`・`Object.Has`・`Required`・`RequiredString`・`OptionalString`・`Value.AsString`・`AsInt64`・`AsObject`・`AsArray`）を実装する。`Object`・`Value` のフィールドは非公開とし、デコーダや `json.RawMessage` を受け取る関数は公開しない。ゼロ値の `Value` の `As...` はエラーを返す。パッケージの doc コメントに、検証を通った文書の値だけを扱うことを書く。import は標準ライブラリだけとする。
-- [ ] **ステップ 1-2**: `strictjson_test.go` を作成し、§5 の表に挙げたテストを実装する。architecture §7.1 のとおり、公開 API ごとに受理と拒否の最小の入力（リテラル）を検証する。`ParseObject` は不正な UTF-8・対になっていないサロゲート・有効なサロゲートの対の受理・後続データ・オブジェクト以外のトップレベル、`Collect` は消費するキーの重複の拒否と消費しないキーの重複の受理を含める。これに加えて、パーサのテストでは表せない入力（ゼロ値の `Value`、`AsArray` の要素の種類、`Has` が拒否しないこと、`RequiredString` の空文字列、`OptionalString` の欠落の受理と `null`・空文字列・文字列以外の拒否、`AsInt64` の範囲外）を含める。`internal/transcript` のテストが使う `testdata/` のサンプルと実データのケースは繰り返さない。
-- [ ] **ステップ 1-3**: `json3.go` を `strictjson` の API で書き換え、移した部品と静的エラーを削除する。`events`・`segs` は `AsArray` と `AsObject` で読み、`AsArray` の失敗は従来どおり `errEventsNotArray`・`errSegsNotArray` で報告する。件数の上限は `AsArray` の後で判定する（architecture §3.5）。`decodeEvent` は `segs` と `tStartMs` を 2 回の `Collect` で別々に取り出す形を保つ（§1.3。1 回にまとめると、本文を持たないイベントの `tStartMs` の重複を拒否するようになる）。静的エラーの var ブロックのコメントを、次のとおり書き換える。
+- [x] **ステップ 1-1**: `strictjson.go` を作成し、§1.4 の一覧に従って部品を移し、architecture §3.5 の公開 API（`Object`・`Value`・`ParseObject`・`Object.Collect`・`Object.Has`・`Required`・`RequiredString`・`OptionalString`・`Value.AsString`・`AsInt64`・`AsObject`・`AsArray`）を実装する。`Object`・`Value` のフィールドは非公開とし、デコーダや `json.RawMessage` を受け取る関数は公開しない。ゼロ値の `Value` の `As...` はエラーを返す。パッケージの doc コメントに、検証を通った文書の値だけを扱うことを書く。import は標準ライブラリだけとする。
+- [x] **ステップ 1-2**: `strictjson_test.go` を作成し、§5 の表に挙げたテストを実装する。architecture §7.1 のとおり、公開 API ごとに受理と拒否の最小の入力（リテラル）を検証する。`ParseObject` は不正な UTF-8・対になっていないサロゲート・有効なサロゲートの対の受理・後続データ・オブジェクト以外のトップレベル、`Collect` は消費するキーの重複の拒否と消費しないキーの重複の受理を含める。これに加えて、パーサのテストでは表せない入力（ゼロ値の `Value`、`AsArray` の要素の種類、`Has` が拒否しないこと、`RequiredString` の空文字列、`OptionalString` の欠落の受理と `null`・空文字列・文字列以外の拒否、`AsInt64` の範囲外）を含める。`internal/transcript` のテストが使う `testdata/` のサンプルと実データのケースは繰り返さない。
+- [x] **ステップ 1-3**: `json3.go` を `strictjson` の API で書き換え、移した部品と静的エラーを削除する。`events`・`segs` は `AsArray` と `AsObject` で読み、`AsArray` の失敗は従来どおり `errEventsNotArray`・`errSegsNotArray` で報告する。件数の上限は `AsArray` の後で判定する（architecture §3.5）。`decodeEvent` は `segs` と `tStartMs` を 2 回の `Collect` で別々に取り出す形を保つ（§1.3。1 回にまとめると、本文を持たないイベントの `tStartMs` の重複を拒否するようになる）。静的エラーの var ブロックのコメントを、次のとおり書き換える。
   - 変更前: `// Static errors for the strict JSON decoding shared by the parsers, including` / `// the sequences encoding/json would silently repair (invalid UTF-8 and unpaired` / `// UTF-16 surrogate escapes) and the structural shapes the parsers reject.`
   - 変更後: `// Static errors for the json3 and info.json parsers. The strict JSON decoding` / `// they rely on, and its errors, live in internal/strictjson.`
-- [ ] **ステップ 1-4**: `info.go` を書き換える。`title`・`channel` は `strictjson.RequiredString` を使う。`id` は従来どおり欠落を `errMissingID` で報告し、値は `AsString` で読む。`description` は存在すれば `AsString` だけを通し、空文字列を受理する（`OptionalString` は使わない。§1.3）。`requiredString`・`errMissingField`・`errEmptyField` を削除する。
-- [ ] **ステップ 1-5**: `internal/transcript` の既存テスト（`json3_test.go`・`info_test.go`・`ytdlp_test.go`・`cache_test.go` など）を変更せずに `make test` が通ることを確認する。このフェーズの差分に `internal/transcript/*_test.go` と `internal/transcript/test_helpers.go` が含まれないことを、コミット前に差分の一覧で確認する。
-- [ ] **ステップ 1-6**: architecture §3.5 の測定を行う。入力は、`{"events":[0,0,…]}` の形で 1 バイトの要素を並べて 8 MiB ちょうどにした文書（`AsArray` が作る要素の数が最大になる形。件数の上限を超えるため拒否されるが、分割は上限の判定より前に行われる）とする。これを `parseSubtitles` に渡したときの割り当ての総量（`runtime.MemStats.TotalAlloc` の差）とヒープの最大使用量（`HeapInuse` の最大値）を、移動前（HEAD `00573f2`）と移動後で測り、§5.2 に記録する。測定のコードはコミットしない。移動後のヒープの最大使用量は測定して §5.2 に記録し、それが **256 MiB** を超える場合にだけ、件数の上限付きの分割の最適化を実装する（CLAUDE.md「Performance」）。この最適化は PR-1 には含めず、条件付きの PR-1a（ステップ 1-10・1-11）で実装する。256 MiB 以下の場合は、§3.2 の「条件付きの PR」の規則に従い、ステップ 1-10・1-11 と PR-1a 作成ポイントのチェックボックスをすべて `[-]` にし、理由（§5.2 の測定値）を添えて、このステップと同じコミットに含める。
-- [ ] **ステップ 1-7**: `package_reference.md` に `internal/strictjson` の行を追加する（検証を通った JSON 文書から値を取り出す厳格な部品。`internal/transcript` と `internal/llm/deepseek` が使う）。`internal/transcript` の行の「strict json3 and info.json parsers」は変わらないため変更しない。
-- [ ] **ステップ 1-8**: 主要な分岐を壊して、対応するテストが失敗することを確認し、コミットメッセージに記録する。対象は次のとおり。最初の 3 つは `strictjson` のテストと `internal/transcript` の既存テスト（`TestParseSubtitlesUTF8`・`TestParseSubtitlesDuplicateMembers`・`TestParseSubtitlesRejectsSimple` など）の両方が失敗することを確かめる。
+- [x] **ステップ 1-4**: `info.go` を書き換える。`title`・`channel` は `strictjson.RequiredString` を使う。`id` は従来どおり欠落を `errMissingID` で報告し、値は `AsString` で読む。`description` は存在すれば `AsString` だけを通し、空文字列を受理する（`OptionalString` は使わない。§1.3）。`requiredString`・`errMissingField`・`errEmptyField` を削除する。
+- [x] **ステップ 1-5**: `internal/transcript` の既存テスト（`json3_test.go`・`info_test.go`・`ytdlp_test.go`・`cache_test.go` など）を変更せずに `make test` が通ることを確認する。このフェーズの差分に `internal/transcript/*_test.go` と `internal/transcript/test_helpers.go` が含まれないことを、コミット前に差分の一覧で確認する。
+- [x] **ステップ 1-6**: architecture §3.5 の測定を行う。入力は、`{"events":[0,0,…]}` の形で 1 バイトの要素を並べて 8 MiB ちょうどにした文書（`AsArray` が作る要素の数が最大になる形。件数の上限を超えるため拒否されるが、分割は上限の判定より前に行われる）とする。これを `parseSubtitles` に渡したときの割り当ての総量（`runtime.MemStats.TotalAlloc` の差）とヒープの最大使用量（`HeapInuse` の最大値）を、移動前（HEAD `00573f2`）と移動後で測り、§5.2 に記録する。測定のコードはコミットしない。移動後のヒープの最大使用量は測定して §5.2 に記録し、それが **256 MiB** を超える場合にだけ、件数の上限付きの分割の最適化を実装する（CLAUDE.md「Performance」）。この最適化は PR-1 には含めず、条件付きの PR-1a（ステップ 1-10・1-11）で実装する。256 MiB 以下の場合は、§3.2 の「条件付きの PR」の規則に従い、ステップ 1-10・1-11 と PR-1a 作成ポイントのチェックボックスをすべて `[-]` にし、理由（§5.2 の測定値）を添えて、このステップと同じコミットに含める。
+- [x] **ステップ 1-7**: `package_reference.md` に `internal/strictjson` の行を追加する（検証を通った JSON 文書から値を取り出す厳格な部品。`internal/transcript` と `internal/llm/deepseek` が使う）。`internal/transcript` の行の「strict json3 and info.json parsers」は変わらないため変更しない。
+- [x] **ステップ 1-8**: 主要な分岐を壊して、対応するテストが失敗することを確認し、コミットメッセージに記録する。対象は次のとおり。最初の 3 つは `strictjson` のテストと `internal/transcript` の既存テスト（`TestParseSubtitlesUTF8`・`TestParseSubtitlesDuplicateMembers`・`TestParseSubtitlesRejectsSimple` など）の両方が失敗することを確かめる。
   - `validateSurrogates` を呼ばない（`TestParseObject`）。
   - `Collect` の重複の検出を外す（`TestObjectCollect`）。
   - `ParseObject` の後続データの確認を外す（`TestParseObject`）。
@@ -112,7 +112,7 @@ HEAD `00573f2`（ブランチ `task/0003-deepseek-llm-client-02`）で確認し�
   - `Has` が存在しないキーに真を返す（`TestObjectHas`）。
   - `RequiredString` が空文字列を受理する、`Required` が欠落を受理する（`TestRequiredAndRequiredString`）。
   - `OptionalString` が空文字列を受理する（`TestOptionalString`）。
-- [ ] **ステップ 1-9**: `make fmt` → `make test` → `make lint` を通す。このフェーズを 1 つのリファクタリングのコミットにし、DeepSeek アダプタのコミットと分ける（architecture §3.5）。
+- [x] **ステップ 1-9**: `make fmt` → `make test` → `make lint` を通す。このフェーズを 1 つのリファクタリングのコミットにし、DeepSeek アダプタのコミットと分ける（architecture §3.5）。
 
 ### PR-1 作成ポイント: strict JSON extraction (internal/strictjson)
 
@@ -128,8 +128,8 @@ HEAD `00573f2`（ブランチ `task/0003-deepseek-llm-client-02`）で確認し�
 
 ステップ 1-6 の測定が **256 MiB** を超えた場合の件数の上限付きの分割の最適化は、PR-1 には含めず、次の条件付きの PR-1a で実装する（§3.2）。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
@@ -141,7 +141,7 @@ HEAD `00573f2`（ブランチ `task/0003-deepseek-llm-client-02`）で確認し�
 - 変更: `internal/strictjson/strictjson.go`・`internal/strictjson/strictjson_test.go`
 
 **タスク**
-- [ ] **ステップ 1-10**: `AsArray` の分割に件数の上限を加え、上限を超える配列を全要素の分割の前に拒否する。最適化は振る舞いを変えないこと（拒否される入力と返る番兵が最適化の前後で同じであること）を正しさの義務とし、それをコミットメッセージに書き、最適化を外すか変えると失敗するテストで固定する（CLAUDE.md「Performance」）。最適化だけを 1 つのコミットにする。ステップ 1-6 と同じ入力で再測定し、§5.2 に記録する。
+- [ ] **ステップ 1-10**: `AsArray` の分割に件数の上限を加え、上限を超える配列を全要素の分割の前に拒否する。最適化は振る舞いを変えないこと（拒否される入力と返る番兵が最適化の前後で同じであること）を正しさの義務とし、それをコミットメッセージに書き、最適化を外すか変えると失敗するテストで固定する（CLAUDE.md「Performance」）。最適化だけを 1 つのコミットにする。ステップ 1-6 と同じ入力で再測定し、§5.2 に記録する。上限は `internal/strictjson` の非公開の定数 `maxArrayElements` とし、値は `1 << 17`（131072）とする。`internal/transcript` の `maxSubtitleEvents`（65536）より大きいため、同パッケージの件数の判定（`errTooManyEvents`）は上限内の範囲で従来どおり働き、上限を超える配列だけが `AsArray` によって早期に拒否される。どちらの経路でも `internal/transcript` の返る番兵は `ErrParseSubtitles` のままである。境界のテスト（`maxArrayElements-1`・`maxArrayElements`・`maxArrayElements+1`）を `strictjson_test.go` に置き、上限を外すと `maxArrayElements+1` が成功して失敗するようにする。DeepSeek の `choices`（ちょうど 1 要素）は上限の影響を受けない。
 - [ ] **ステップ 1-11**: `make fmt` → `make test` → `make lint` を通す。
 
 ### PR-1a 作成ポイント: bounded array split in internal/strictjson (conditional)
@@ -502,14 +502,14 @@ AC に対応しない、architecture が求める検証は次のとおり。
 
 ### 5.2. 測定の記録（`internal/strictjson` のメモリ使用量）
 
-ステップ 1-6 で記入する。
+ステップ 1-6 で記入する。GC を無効にして `parseSubtitles` を 1 回呼び、`runtime.MemStats` の `TotalAlloc` の差と、呼び出し後の `HeapInuse`（GC が動かないため呼び出し中の最大値とみなせる）を測った（`-tags test`、2026-10-02、`go1.27.1`）。
 
 | 項目 | 内容 |
 |---|---|
-| 入力 | （未実施） |
-| 移動前（HEAD `00573f2`）の `TotalAlloc` の差・`HeapInuse` の最大値 | （未実施） |
-| 移動後の `TotalAlloc` の差・`HeapInuse` の最大値 | （未実施） |
-| 判断 | （未実施） |
+| 入力 | `{"events":[0,0,…]}` の形で 1 バイトの要素を並べ、末尾を空白で埋めて 8 MiB（8,388,608 バイト）ちょうどにした文書。要素数は 4,194,298（`AsArray` が作る要素数が最大になる形） |
+| 移動前（HEAD `00573f2`）の `TotalAlloc` の差・`HeapInuse` の最大値 | 24 MiB・32 MiB（先頭の要素がオブジェクトでないため、イベントの走査は最初の要素で失敗する） |
+| 移動後の `TotalAlloc` の差・`HeapInuse` の最大値 | 738 MiB・750 MiB（`AsArray` が全要素を先に分割するため） |
+| 判断 | 750 MiB は 256 MiB を超えるため、条件付きの PR-1a（ステップ 1-10・1-11）で `AsArray` の分割に件数の上限を加える。ステップ 1-10 で同じ入力で再測定する |
 
 ## 6. リスク管理 (Risk Management)
 
