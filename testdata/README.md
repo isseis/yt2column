@@ -1,6 +1,6 @@
 # testdata
 
-このディレクトリには、パーサのテスト用に保存した `yt-dlp` の実出力がある。**リポジトリに保存してよいのは、再配布が許諾されたライセンスの動画からの出力だけ**とする（通常の YouTube 標準ライセンスの動画の全文字起こしは保存しない）。
+このディレクトリには、パーサのテスト用に保存した `yt-dlp` の実出力と、DeepSeek の API の実応答（後述）がある。`yt-dlp` の出力については、**リポジトリに保存してよいのは、再配布が許諾されたライセンスの動画からの出力だけ**とする（通常の YouTube 標準ライセンスの動画の全文字起こしは保存しない）。
 
 ## 出典とライセンス
 
@@ -32,3 +32,16 @@ CC BY 3.0 の条件に従い、上記の出典（動画 URL・チャンネル名
 
 `invalid_utf8` の 2 ファイルは不正な UTF-8 バイト列を含み、`unpaired_surrogate` の 2 ファイルは ASCII のまま `\ud800` のエスケープを含む。テストは、パースの前にサンプル自身がこの性質を持つことを検証する（別の理由で不正な JSON と判定されていないことを確かめる）。
 
+## DeepSeek の API の実応答
+
+次の 2 ファイルは、DeepSeek アダプタ（`internal/llm/deepseek`）の応答の検証のテスト用に保存した、DeepSeek の Chat Completions API の実応答の本文である。取得の経緯と観測結果は [docs/tasks/0003_deepseek_llm_client/02_architecture.md](../docs/tasks/0003_deepseek_llm_client/02_architecture.md) §1.4 に記録している。
+
+- 取得日: 2026-10-02
+- 送信先: `POST https://api.deepseek.com/chat/completions`（HTTP/2）
+- モデル名: `deepseek-flash`。thinking モードは API の既定（有効）のまま
+- プロンプト: system `You are a concise assistant.`、user `Explain in two sentences why the sky is blue.`（テストのために用意した固定の文で、字幕や個人情報を含まない）
+
+生成テキストは固定のプロンプトに対するモデルの出力であり、第三者の著作物を含まない。応答本文は受け取ったバイト列のまま無改変で保存している。応答本文に API キーは含まれず、保存前に API キーとその末尾 4 文字が含まれないことを確認した。
+
+- `deepseek_chat_completion_stop.json`: `max_tokens` を送らないリクエストへの応答。`finish_reason` は `stop`。
+- `deepseek_chat_completion_length.json`: `max_tokens` を 16 としたリクエストへの応答。`finish_reason` は `length`、`content` は空文字列。

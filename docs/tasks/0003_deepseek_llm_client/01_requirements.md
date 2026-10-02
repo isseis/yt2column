@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-02 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-02 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -21,7 +21,7 @@ LLM の初期実装には DeepSeek を使うことが決まっている。DeepSe
 
 LLM はエラーを返さずに、空の応答や途中で打ち切られた応答を返すことがある。そうした応答を記事として投稿しないよう、アダプタはこれをエラーとして報告する。また、DeepSeek の現行モデルは thinking（推論）モードが既定で有効であり、推論過程（`reasoning_content`）が `content` とは別に返る。記事には `content` だけを使う。
 
-モデル名 `deepseek-flash` は、提供元が指す実際のモデルを入れ替えられるエイリアスである。どのモデルで生成したかを追えるよう、応答に含まれるモデル名を返す。
+モデル名 `deepseek-flash` は、提供元が指す実際のモデルを入れ替えられるエイリアスである。どのモデルで生成したかを追えるよう、応答に含まれるモデル名を返す。ただし、事前調査で、応答に含まれるモデル名もエイリアスのまま返ることが分かった（`02_architecture.md` §1.4）。そこで、応答に含まれる `system_fingerprint`（DeepSeek の説明では、モデルを動かすバックエンドの構成を表す値）も、モデルの版を表す識別子として返す。
 
 **本書の記述範囲:** 本書は、観測できる振る舞い（何を送り、何を受理し、何をどの番兵エラーで拒否するか）を定める。番兵エラーとは、`errors.Is` で判別できる、あらかじめ定めたエラー値である。その振る舞いを実現する手段（標準ライブラリの API の使い方、型や関数の名前、上限値など）は設計（`02_architecture.md`）で決める。要件レビューの過程で挙がった実装上の注意点と、設計で決めるべき事項は [design_handoff.md](design_handoff.md) に申し送る。
 
@@ -31,7 +31,7 @@ LLM はエラーを返さずに、空の応答や途中で打ち切られた応�
 
 ### 2.1. 目的 (Goals)
 
--   `GenerateRequest` を DeepSeek の Chat Completions API へ送り、生成テキストとモデル名を `GenerateResponse` として返せる。
+-   `GenerateRequest` を DeepSeek の Chat Completions API へ送り、生成テキスト・モデル名・モデルの版の識別子を `GenerateResponse` として返せる。
 -   空の応答、途中で打ち切られた応答、`stop` 以外の終了理由の応答を、成功として返さずエラーとして報告する。
 -   推論過程（`reasoning_content`）を生成テキストに含めない。
 -   API キーを、送信先への `Authorization` ヘッダー以外には、エラーにもログにも、その他のどの出力にも漏らさない。
@@ -50,7 +50,7 @@ LLM はエラーを返さずに、空の応答や途中で打ち切られた応�
 
 ### 2.3. スコープ外 (Out of Scope)
 
--   本番の CLI での環境変数からの設定読み込み（`DEEPSEEK_API_KEY`・`YT2COLUMN_MODEL` など）と、プロバイダの選択（#6）。本タスクのアダプタは環境変数を読まず、API キー・モデル名・タイムアウトを構築時に受け取る。ただし、統合テスト（F-006）は API キーとモデル名を環境変数から読み、アダプタの構築に渡す。
+-   本番の CLI での環境変数からの設定読み込み（`DEEPSEEK_API_KEY`・`YT2COLUMN_MODEL` など）と、プロバイダの選択（#6）。本タスクのアダプタは環境変数を読まず、API キー・モデル名・タイムアウトを構築時に受け取る。ただし、統合テスト（F-006）はテスト用の API キー（`YT2COLUMN_TEST_DEEPSEEK_API_KEY`）とモデル名を環境変数から読み、アダプタの構築に渡す。
 -   タイムアウトの既定値（#6 が設定として与える）。
 -   thinking モードの切り替え。初期は API の既定（thinking 有効）のままにし、リクエストに thinking の指定を含めない（[project_overview.md](../../dev/project_overview.md)「前提・制約」）。
 -   `temperature` などのサンプリングパラメータ（thinking モードでは `temperature` が無視される）。
@@ -102,7 +102,7 @@ DeepSeek アダプタの値を、API キー・モデル名・タイムアウト�
 
 #### F-003: 応答の検証と変換
 
-応答を検証し、生成テキストとモデル名を `GenerateResponse` として返す。検証は次の順序で行い、最初に失敗した手順の番兵を返す。
+応答を検証し、生成テキスト・モデル名・モデルの版の識別子を `GenerateResponse` として返す。検証は次の順序で行い、最初に失敗した手順の番兵を返す。
 
 1.  HTTP ステータス: `200` 以外は `ErrHTTPStatus` とする。エラーからステータスコードを取り出せるようにする。応答本文はエラーに含めない（信頼できない入力であり、利用者の端末へそのまま出力しないため）。
 2.  応答本文の形: 3.2 の受理する形に合致しない場合、およびサイズの上限を超える場合は `ErrInvalidResponse` とする。
@@ -113,6 +113,7 @@ DeepSeek アダプタの値を、API キー・モデル名・タイムアウト�
 
 -   `Text` は `content` の文字列を加工せずそのまま入れる。`reasoning_content` は含めない。
 -   `Model` は応答の `model` の値を入れる。構築時のモデル名ではない（`deepseek-flash` のようなエイリアスが実際に指したモデルを記録するため）。
+-   `ModelVersion` は応答の `system_fingerprint` の値を加工せずに入れる。応答が `system_fingerprint` を持たない場合は空文字列とする（3.2）。
 
 いずれの拒否時も、部分的な結果（それまでに得た `content` など）を返さない。
 
@@ -124,6 +125,7 @@ DeepSeek アダプタの値を、API キー・モデル名・タイムアウト�
 - **AC-13**: `finish_reason` が `stop` で、`content` が空文字列、または空白文字（半角空白・改行・タブ）だけの応答は、`errors.Is(err, ErrEmptyResponse)` が真になるエラーになる。
 - **AC-14**: `content` と `reasoning_content` の両方を持つ応答に対し、`Text` は `content` だけであり、`reasoning_content` の文字列（テストで埋め込んだ目印）を含まない。`reasoning_content` だけがあり `content` が空の応答は `ErrEmptyResponse` になる。
 - **AC-15**: 検証は F-003 の順序で行う。`finish_reason` が `length` で `content` が空の応答は `ErrTruncated` になり、`ErrEmptyResponse` ではない。`200` 以外のステータスで本文が不正な JSON の応答は `ErrHTTPStatus` になり、`ErrInvalidResponse` ではない。
+- **AC-33**: 3.2 の受理する形の `system_fingerprint` を持ち、他の検証も通る応答に対し、`GenerateResponse.ModelVersion` は `system_fingerprint` と同一の文字列である。`system_fingerprint` を持たず、他の検証を通る応答に対し、`Generate` はエラーを返さず、`ModelVersion` は空文字列である。
 - **AC-16**: 番兵 `ErrInvalidRequest`・`ErrHTTPStatus`・`ErrInvalidResponse`・`ErrTruncated`・`ErrUnexpectedFinishReason`・`ErrEmptyResponse`・`ErrTransport`（F-004）は、`errors.Is` で相互に区別できる。タイムアウトとキャンセルは `context.DeadlineExceeded` / `context.Canceled` で判別できる（AC-17・AC-18）。
 
 #### F-004: 通信の失敗・タイムアウト・キャンセル
@@ -156,7 +158,7 @@ DeepSeek アダプタの値を、API キー・モデル名・タイムアウト�
 -   統合テストは `//go:build integration` で分離し、`make test`・`make test-ci` には含めない。
 -   専用の Make ターゲット `make test-integration-deepseek` を追加する。このターゲットは、実 API を使うこと（料金が発生すること）を表示する。テスト結果のキャッシュを避けるため `-count=1` を付け、明示的な `-timeout` を設定する。
 -   既存の `make test-integration`（実 `yt-dlp` を使う）とは分ける。`yt-dlp` の統合テストを実行するたびに API の料金が発生しないようにするためである。
--   API キーは環境変数 `DEEPSEEK_API_KEY` から読む。未設定または空の場合は、変数名を示すメッセージで `t.Skip` する（CI では実行しないため）。統合テストは、API キーをテストの出力に含めない。
+-   API キーは、テスト専用の環境変数 `YT2COLUMN_TEST_DEEPSEEK_API_KEY` から読む。本番の CLI が読む `DEEPSEEK_API_KEY`（#6）は読まない。本番とテストでキーを分けて管理でき（例: テストには利用上限を設けた別のキーを使う）、本番のキーが意図せずテストに使われないようにするためである。`YT2COLUMN_TEST_DEEPSEEK_API_KEY` が未設定または空の場合は、変数名を示すメッセージで `t.Skip` する（CI では実行しないため）。`DEEPSEEK_API_KEY` だけが設定されている場合も同じくスキップする。統合テストは、API キーをテストの出力に含めない。
 -   モデル名は、本番の CLI と同じ環境変数 `YT2COLUMN_MODEL` から読む。設定を 1 か所で済ませるためである。`make test-integration-deepseek` は、`YT2COLUMN_MODEL` が環境で設定されていなければ既定値を与えてエクスポートし、設定されていればその値を使う。テスト自身は既定値を持たない（モデル名をコードにハードコードしないため）。未設定または空の場合は、変数名を示すメッセージで失敗する。
 -   送るプロンプトは、テストのために用意した短い固定の文字列とする。字幕・API キー・ローカルのファイルパス・利用者の個人情報を含めない（[security.md](../../dev/security.md) §4）。
 -   確認する内容は、正常な生成と、出力トークン数の上限による打ち切りの検出である。
@@ -165,7 +167,7 @@ DeepSeek アダプタの値を、API キー・モデル名・タイムアウト�
 
 **Acceptance Criteria**:
 - **AC-22**: 統合テストは既定の `make test` と `make test-ci` の対象に含まれず、これらの実行では DeepSeek の API もネットワークも呼ばれない。
-- **AC-23**: `DEEPSEEK_API_KEY` が設定された環境で `make test-integration-deepseek` を実行すると、`-count=1` と明示的な `-timeout` を付けて統合テストが走り、少なくとも 1 件のテストが実際に実行されたこと（スキップやテスト結果のキャッシュではないこと）が `-v` 出力から確認できる。ターゲットは実 API を使うことを表示する。`DEEPSEEK_API_KEY` が未設定の場合、統合テストは変数名を示すメッセージでスキップする。
+- **AC-23**: `YT2COLUMN_TEST_DEEPSEEK_API_KEY` が設定された環境で `make test-integration-deepseek` を実行すると、`-count=1` と明示的な `-timeout` を付けて統合テストが走り、少なくとも 1 件のテストが実際に実行されたこと（スキップやテスト結果のキャッシュではないこと）が `-v` 出力から確認できる。ターゲットは実 API を使うことを表示する。`YT2COLUMN_TEST_DEEPSEEK_API_KEY` が未設定の場合、統合テストは変数名を示すメッセージでスキップする。`DEEPSEEK_API_KEY` が設定されていても、`YT2COLUMN_TEST_DEEPSEEK_API_KEY` が未設定ならスキップし、`DEEPSEEK_API_KEY` の値を使わない。
 - **AC-24**: 統合テストは、短い固定のプロンプトで `Generate` を呼び、エラーがなく、`Text` が空白文字以外を含み、`Model` が空でないことを検証する。また、生成が完了しないほど小さな `MaxOutputTokens` を指定した `Generate` が、`errors.Is(err, ErrTruncated)` が真になるエラーを返すことを検証する。
 
 #### F-007: テスト可能性
@@ -186,9 +188,10 @@ API の応答は信頼できない入力である。応答は次の規則に従�
     -   `choices[0].finish_reason`: JSON 文字列。値の扱いは F-003 の手順 3 による。
     -   `choices[0].message`: JSON オブジェクト。
     -   `choices[0].message.content`: JSON 文字列。空文字列は形としては受理し、F-003 の手順 4 で `ErrEmptyResponse` とする。
--   消費するメンバーが欠落している場合、`null` である場合、期待する JSON の種類でない場合は拒否する。
+    -   トップレベルの `system_fingerprint`（**任意**）: 存在する場合は空でない JSON 文字列。存在しない場合は受理し、`ModelVersion` を空文字列とする。モデルの版を記録するための値であり、これが欠けているだけで生成を失敗させないためである。一方、存在するのに `null`・文字列以外・空文字列である場合は、補正せずに拒否する（存在するのに値がない形は、欠落とは別の不正な形として扱う）。そのため、`stop` 以外の終了理由の応答でも、`system_fingerprint` が `null` なら `ErrInvalidResponse` になる。事前調査の実応答では、`system_fingerprint` は常に空でない文字列だった（`02_architecture.md` §1.4）。
+-   消費するメンバーが、`null` である場合、期待する JSON の種類でない場合は拒否する。任意と記したもの以外の消費するメンバーは、欠落している場合も拒否する。
 -   消費するメンバーが同じオブジェクト内で重複している場合は拒否する。どちらの値を採るかを推測しないためである。
--   トップレベル、`choices` の要素、`message` の各オブジェクトは、**拡張可能**と宣言する。これらが持つ消費しないメンバー（`id`・`object`・`created`・`usage`・`system_fingerprint`・`index`・`logprobs`・`reasoning_content`・`role` など、および未知のメンバー）は、値の種類や重複を問わず無視して受理する。OpenAI 互換の API は応答にメンバーを追加することがあり、それを拒否理由にしないためである。ただし、応答本文全体に対する検査（正しい UTF-8 であること、対になっていないサロゲートのエスケープを含まないこと、ちょうど 1 つのトップレベルの値であること）は、拡張可能であっても消費しないメンバーに及ぶ。
+-   トップレベル、`choices` の要素、`message` の各オブジェクトは、**拡張可能**と宣言する。これらが持つ消費しないメンバー（`id`・`object`・`created`・`usage`・`index`・`logprobs`・`reasoning_content`・`role` など、および未知のメンバー）は、値の種類や重複を問わず無視して受理する。OpenAI 互換の API は応答にメンバーを追加することがあり、それを拒否理由にしないためである。ただし、応答本文全体に対する検査（正しい UTF-8 であること、対になっていないサロゲートのエスケープを含まないこと、ちょうど 1 つのトップレベルの値であること）は、拡張可能であっても消費しないメンバーに及ぶ。
 -   文字列として正しくエンコードされていない入力（不正な UTF-8 のバイト列、対になっていない UTF-16 サロゲートのエスケープ）は、デコーダが置換文字（U+FFFD）に置き換えて受理しうるが、これも補正とみなして拒否する。
 -   応答本文のサイズには上限を設ける。上限値は `02_architecture.md` で固定する。上限を超える応答は拒否し、ちょうど上限の応答は受理する。`200` 以外の応答の本文を読む場合も、同じ上限を超えて読まない。
 
@@ -199,7 +202,7 @@ HTTP ステータス以外の応答ヘッダー（`Content-Type` など）は消
 | 境界 | 受理する形 | 拒否時の番兵 | 主な AC |
 |---|---|---|---|
 | HTTP ステータス | `200` | `ErrHTTPStatus` | AC-08・AC-10・AC-15 |
-| 応答本文（`200`） | 3.2 | `ErrInvalidResponse` | AC-26〜AC-31 |
+| 応答本文（`200`） | 3.2 | `ErrInvalidResponse` | AC-26〜AC-31・AC-34 |
 | 終了理由 | `stop` | `ErrTruncated`・`ErrUnexpectedFinishReason` | AC-11・AC-12 |
 | `content` | 空白文字以外を含む文字列 | `ErrEmptyResponse` | AC-13・AC-14 |
 
@@ -212,7 +215,8 @@ HTTP ステータス以外の応答ヘッダー（`Content-Type` など）は消
 - **AC-29**: 消費するメンバーが同じオブジェクト内で重複している本文（例: `message` に `content` が 2 回現れる、トップレベルに `model` が 2 回現れる）は、`errors.Is(err, ErrInvalidResponse)` が真になるエラーになる。
 - **AC-30**: 不正な UTF-8 のバイト列、または対になっていないサロゲートのエスケープ（例: `"content":"\ud800"`）を含む本文は、その入力が消費するメンバーにあっても消費しないメンバー（例: `reasoning_content`）にあっても、`errors.Is(err, ErrInvalidResponse)` が真になるエラーになり、部分的な結果を返さない。
 - **AC-31**: 応答本文のサイズが `02_architecture.md` で固定した上限ちょうどの応答は受理され、上限を超える応答は `errors.Is(err, ErrInvalidResponse)` が真になるエラーになる。
-- **AC-32**: 拡張可能と宣言したオブジェクトが消費しないメンバー（`id`・`usage`・`system_fingerprint`・`logprobs`・`reasoning_content`・テスト用の未知のメンバー）を含んでいても、それらは無視されて受理され、`GenerateResponse` が組み立てられる。テストは、`02_architecture.md` の作成時に記録した実 API の応答の形を元にした `testdata/` のサンプルで行う。
+- **AC-32**: 拡張可能と宣言したオブジェクトが消費しないメンバー（`id`・`usage`・`logprobs`・`reasoning_content`・テスト用の未知のメンバー）を含んでいても、それらは無視されて受理され、`GenerateResponse` が組み立てられる。テストは、`02_architecture.md` の作成時に記録した実 API の応答の形を元にした `testdata/` のサンプルで行う。
+- **AC-34**: `system_fingerprint` が `null` である、JSON 文字列でない（例: `"system_fingerprint":1`）、空文字列である、またはトップレベルで重複している本文は、`errors.Is(err, ErrInvalidResponse)` が真になるエラーになる。
 
 ## 4. 非機能要件 (Non-Functional Requirements)
 
@@ -244,7 +248,7 @@ HTTP ステータス以外の応答ヘッダー（`Content-Type` など）は消
 ### 4.5. 保守性 (Maintainability)
 
 -   標準ライブラリ以外のモジュールを追加しないこと（`.golangci.yml` の depguard `deps` ルール）。
--   DeepSeek 固有のリクエスト・応答の形（`thinking`・`reasoning_content`・`finish_reason` の値など）は `internal/llm/deepseek` の中に閉じ込め、`llm.GenerateRequest`・`llm.GenerateResponse` に DeepSeek 固有の項目を追加しない。
+-   DeepSeek 固有のリクエスト・応答の形（`thinking`・`reasoning_content`・`finish_reason` の値・`system_fingerprint` という名前など）は `internal/llm/deepseek` の中に閉じ込め、`llm.GenerateRequest`・`llm.GenerateResponse` に DeepSeek 固有の項目を追加しない。`llm.GenerateResponse` に追加する `ModelVersion` は、プロバイダ共通の意味（プロバイダが返す、生成に使ったモデルまたはバックエンドの版の識別子。返さないプロバイダでは空文字列）で定義する。
 -   統合テストは既定のテストから分離し、専用の Make ターゲットで実行できること（F-006）。
 -   Go のコメント・識別子・文字列リテラルは英語で書くこと。
 
@@ -259,8 +263,9 @@ HTTP ステータス以外の応答ヘッダー（`Content-Type` など）は消
 
 ### 5.1. 他の文書との差分
 
--   `0002_ytdlp_transcript_source` の統合テストは、対象の指定（環境変数）が欠けている場合にスキップせず失敗する。本タスクの統合テストは、issue #4 の完了条件に従い、API キーが未設定の場合はスキップする（F-006）。API キーは秘密情報であり、利用者ごとに設定の有無が異なるためである。モデル名の未設定は Make ターゲットが既定値を与えるため、`0002` と同じく失敗とする。
+-   `0002_ytdlp_transcript_source` の統合テストは、対象の指定（環境変数）が欠けている場合にスキップせず失敗する。本タスクの統合テストは、issue #4 の完了条件に従い、テスト用の API キー（`YT2COLUMN_TEST_DEEPSEEK_API_KEY`）が未設定の場合はスキップする（F-006）。API キーは秘密情報であり、利用者ごとに設定の有無が異なるためである。モデル名の未設定は Make ターゲットが既定値を与えるため、`0002` と同じく失敗とする。
 -   `llm.GenerateRequest` の `MaxOutputTokens` は、`0001_pipeline_skeleton` では値の意味を定めていなかった。本書では、0 を「上限を指定せず、プロバイダの既定に任せる」、負の値を不正と定める（F-002）。後続のプロバイダも同じ意味で扱えるよう、`llm.GenerateRequest` の doc コメントにこの意味を書く。
+-   `llm.GenerateResponse` のフィールドは、`0001_pipeline_skeleton` で `Text`・`Model` の 2 つと定め、`internal/pipeline/pipeline_test.go` の `TestCommonTypesFieldSets` がこの組を固定している。本書は `ModelVersion`（文字列）を追加する（F-003）。応答の `model` がエイリアスのまま返り、`Model` だけでは生成に使ったモデルを追えないためである。`TestCommonTypesFieldSets` と、[project_overview.md](../../dev/project_overview.md) の `GenerateResponse` の説明を更新する。`writer.Article` への記録は #5 で扱う。
 -   [project_overview.md](../../dev/project_overview.md) の決定済みの方針は変更しない。
 
 ## 6. 用語集 (Glossary)
@@ -276,4 +281,5 @@ HTTP ステータス以外の応答ヘッダー（`Content-Type` など）は消
 -   **消費するメンバー（consumed member）:** アダプタが値を読み取って検証や `GenerateResponse` の組み立てに使う、応答の JSON オブジェクトのメンバー（3.2）。
 -   **拡張可能（extensible）:** 消費しないメンバーを、値の種類や重複を問わず無視して受理すると要件で宣言したオブジェクトの性質。
 -   **`ErrInvalidRequest` / `ErrHTTPStatus` / `ErrInvalidResponse` / `ErrTruncated` / `ErrUnexpectedFinishReason` / `ErrEmptyResponse` / `ErrTransport`:** それぞれ、不正な `GenerateRequest`・`200` 以外の HTTP ステータス・受理する形に合致しない応答本文・出力トークン数の上限による打ち切り・`stop` と `length` 以外の終了理由・空の本文・タイムアウトとキャンセル以外の通信の失敗を表す番兵エラー（名前は仮称で、設計で確定する）。
+-   **モデルの版（model version）:** `GenerateResponse.ModelVersion`。プロバイダが返す、生成に使ったモデルまたはバックエンドの版の識別子。DeepSeek では応答の `system_fingerprint` の値。
 -   **統合テスト（integration test）:** 実際の外部サービスを使うテスト。本タスクでは DeepSeek の API を使い、`make test-integration-deepseek` で手動実行する。
