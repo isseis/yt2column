@@ -361,7 +361,7 @@ func (r GenerateRequest) Validate() error
 - **`GenerateResponse.ModelVersion`（要件定義書 F-003・4.5・§5.1）。** プロバイダが返す、生成に使ったモデルまたはバックエンドの版の識別子で、返さないプロバイダでは空文字列とする。DeepSeek では応答の `system_fingerprint` を入れる。名前と意味をプロバイダに依存させないことで、`internal/llm` に DeepSeek 固有の項目を持ち込まない（Gemini の `modelVersion` なども同じ意味で入れられる）。
   - **`0001_pipeline_skeleton` の方針との関係。** `0001_pipeline_skeleton/02_architecture.md` は `GenerateResponse` を `Text`・`Model` の 2 つのフィールドと定め（同書 §3.1 の型定義）、その組を `internal/pipeline/pipeline_test.go:398` の `TestCommonTypesFieldSets` が固定している。本設計はこの組に `ModelVersion` を加える。理由は、§1.4 の調査で応答の `model` がエイリアスのまま返ると分かり、`Model` だけでは生成に使ったモデルを追えないためである。`TestCommonTypesFieldSets` の `GenerateResponse` の期待値を 3 つのフィールドに更新する。`internal/llm/testutil/mocks_test.go` は `GenerateResponse` を `Text` と `Model` だけで組み立てており、そのまま通る。`writer.Article` は変更しない（記事への記録は #5 で扱う）。
 - **`Validate` を `internal/llm` に置く理由。** `MaxOutputTokens` の 0 と負の値の意味は、要件 §5.1 がプロバイダ共通の意味として定め、`GenerateRequest` の doc コメントに書くことを求めている。その意味を検査するコードも同じ型に置けば、後続のプロバイダが同じ規則を使える。不正な UTF-8 を拒否する理由（JSON への変換で U+FFFD に置き換えられる）は、JSON で送る現行と将来のプロバイダに共通である。プロンプトの長さの上限は検査しない（モデルごとに異なり、超過は API が `400` 系で報告する。§4.2）。
-- **`LLMClient` の doc コメント。** 既存の契約（空の応答や打ち切りを成功として返さない、`internal/llm/llm.go:21-23`）に加え、`Generate` が上の 4 つの番兵で報告することと、タイムアウト・キャンセルを `context.DeadlineExceeded`・`context.Canceled` で判別できることを書く（H-09）。fake（`FakeLLMClient`）はこの契約の対象外であり、設定したエラーをそのまま返す。
+- **`LLMClient` の doc コメント。** 既存の契約（空の応答や打ち切りを成功として返さない、`internal/llm/llm.go:21-23`）に加え、`Generate` が上の 4 つの番兵で報告することと、タイムアウト・キャンセルを `context.DeadlineExceeded`・`context.Canceled` で判別できることを書く（H-09）。fake（`FakeLLMClient`）はこの契約の対象外であり、設定したエラーをそのまま返す。契約の変更にあわせて、doc コメントの条項を固定する `internal/pipeline/pipeline_test.go` の `TestInterfaceDocComments` の `LLMClient` のケース（現在は空の応答を返さない条項だけを確認している）に、上の 4 つの番兵で報告する条項と、タイムアウト・キャンセルを `context.DeadlineExceeded`・`context.Canceled` で判別できる条項を加える。条項が後で doc コメントから消えたときに、このテストが失敗するようにするためである。
 
 ### 3.3. タイムアウト・キャンセル・通信の失敗
 
@@ -461,9 +461,11 @@ func (v Value) AsArray() ([]Value, error)   // rejects null and other kinds
 | AC-17 の猶予時間 | 2 秒 | §3.3 |
 | リクエスト本文に含めるメンバー | `model`・`messages`・`stream`（常に `false`）・`max_tokens`（正の値のときだけ） | 要件 F-002・§3.7 |
 | 統合テストのモデル名の既定値 | `deepseek-flash`（`make test-integration-deepseek` が与える） | 要件 F-006 |
-| 統合テストの 1 回の `Generate` のタイムアウト | 5 分 | 短い固定のプロンプトの生成には十分である |
-| 統合テストの `-timeout` | 15 分 | 2 回の `Generate`（各 5 分）の合計に余裕を足し、テストのバイナリの時間切れより先に `Generate` の期限が来るようにする |
+| 統合テストの 1 回の `Generate` のタイムアウト | API が推論の開始まで待たせうる時間の上限（10 分、§1.4）に生成の時間を足した値より長くする | 混雑による正常な待ちを、アダプタの不具合と見分けられない `context.DeadlineExceeded` にしないため（AC-24） |
+| 統合テストの `-timeout` | 各 `Generate` のタイムアウトの合計に余裕を足した値より長くする | テストのバイナリの時間切れより先に `Generate` の期限が来るようにするため（AC-23） |
 | 統合テストの「小さな `MaxOutputTokens`」 | 16 | §1.4 の調査で、16 で `length` と空の `content` を観測した |
+
+統合テストの 2 つのタイムアウトは、上の関係だけを設計で定め、具体値は実装計画で決める。実装段階で扱う具体値とコマンドの組み立ては [implementation_handoff.md](implementation_handoff.md) に申し送る（I-01・I-02）。
 
 **応答本文の上限を 8 MiB とした根拠。** 想定する記事（40 分前後の動画のコラム）は数千〜1 万字程度で、UTF-8 で 30 KB 前後である。応答本文で大きいのは `reasoning_content` である。ドキュメントによれば、thinking モードの `max_tokens` の既定は 64K トークンで、最大 128K トークンまで使える（§1.4）。日本語 1 トークンを 1.5 文字、1 文字を `\uXXXX` のエスケープ（6 バイト）で送られると仮定すると、128K トークンで約 1.2 MB になる。8 MiB はこれに対して 6 倍以上の余裕があり、字幕のパーサの上限（`internal/transcript/json3.go:16`・`info.go:10`、いずれも 8 MiB）とも揃う。メモリの使用量は、1 回の `Generate` につき応答本文の 8 MiB と、解析で保持する部分のコピーが上限である。CLI は 1 回の実行で 1 回しか呼ばない。長時間動くサーバーから同時に呼ぶ場合は、同時実行数に比例して増える（§9）。
 
@@ -483,7 +485,7 @@ func (v Value) AsArray() ([]Value, error)   // rejects null and other kinds
 | ファイル | 責務 | 状態 |
 |---|---|---|
 | `internal/llm/llm.go` | 番兵 4 つ、`GenerateRequest.Validate`、`GenerateResponse.ModelVersion`、`GenerateRequest`・`GenerateResponse`・`LLMClient` の doc コメントの更新（要件 F-003・§5.1・H-09） | 変更 |
-| `internal/pipeline/pipeline_test.go` | `TestCommonTypesFieldSets` の `GenerateResponse` の期待値に `ModelVersion` を加える（§3.2） | 変更 |
+| `internal/pipeline/pipeline_test.go` | `TestCommonTypesFieldSets` の `GenerateResponse` の期待値に `ModelVersion` を加える。`TestInterfaceDocComments` の `LLMClient` のケースに、4 つの番兵と `context` のエラーによる判別の条項を加える（§3.2） | 変更 |
 | `internal/llm/llm_test.go` | `Validate` のテスト（AC-07 の検証規則） | 新設 |
 | `internal/llm/deepseek/deepseek.go` | `Options`・`New`・非公開の具体型・`Generate`、送信先と上限の定数、呼び出しの `ctx`、失敗の分類（F-001・F-002・F-004） | 新設 |
 | `internal/llm/deepseek/request.go` | リクエスト本文の構造体と組み立て、ヘッダーの設定、構築時の API キーの形の検査（`Reveal()` を呼ぶのはこのファイルだけ。F-001・F-002） | 新設 |
@@ -505,7 +507,7 @@ func (v Value) AsArray() ([]Value, error)   // rejects null and other kinds
 | `CLAUDE.md` | Architecture Overview のパッケージの説明に `internal/strictjson` を追加 | 変更 |
 | `docs/dev/security.md` | §2 に、`GODEBUG=http2debug=2` で `Authorization` ヘッダーが標準エラー出力に出ることの注意を追加（§5.4） | 変更 |
 
-**既存テストへの影響。** 本設計が振る舞いを変える既存テストはない。`internal/transcript` の `json3_test.go`・`info_test.go`・`ytdlp_test.go` は部品の移動の後も変更せずに通らなければならない（§3.5）。`internal/llm/testutil/mocks_test.go` は fake を変えないため影響を受けない。`.golangci.yml`・`.pre-commit-config.yaml`・`.github/workflows/ci.yml` は変更しない。lint は既にビルドタグ `test,integration` で解析し（`Makefile` の `GOLINT`、`.pre-commit-config.yaml:23`）、`go vet -tags integration ./...` も実行しているため、新しい統合テストも解析対象になる（コンパイルされるだけで、実行はされない）。`internal/strictjson` は標準ライブラリだけを使うため、`depguard` の `deps` ルールも変えない。
+**既存テストへの影響。** 本設計が振る舞いを変える既存テストはない。ただし、`internal/pipeline/pipeline_test.go` の `TestCommonTypesFieldSets` と `TestInterfaceDocComments` は、`internal/llm` の型と doc コメントの契約を固定するテストであり、その変更にあわせて期待値を更新する（§3.2）。`internal/transcript` の `json3_test.go`・`info_test.go`・`ytdlp_test.go` は部品の移動の後も変更せずに通らなければならない（§3.5）。`internal/llm/testutil/mocks_test.go` は fake を変えないため影響を受けない。`.golangci.yml`・`.pre-commit-config.yaml`・`.github/workflows/ci.yml` は変更しない。lint は既にビルドタグ `test,integration` で解析し（`Makefile` の `GOLINT`、`.pre-commit-config.yaml:23`）、`go vet -tags integration ./...` も実行しているため、新しい統合テストも解析対象になる（コンパイルされるだけで、実行はされない）。`internal/strictjson` は標準ライブラリだけを使うため、`depguard` の `deps` ルールも変えない。
 
 ### 3.9. design_handoff の各項目への対応
 
@@ -786,11 +788,11 @@ DeepSeek の API もネットワーク上の外部ホストも呼ばない（AC-
 ### 7.2. 統合テスト
 
 - `internal/llm/deepseek/integration_test.go` に `//go:build integration` を付けて置く。`-tags test` のヘルパー（`test_helpers.go`）に依存せず、`New` で作った本番の送信先の値を使う。
-- `make test-integration-deepseek` を追加する。このターゲットは、実 API を使い料金が発生することを表示してから、`go test -tags integration -count=1 -timeout 15m -v -run` で `./internal/llm/deepseek` の統合テストを実行する（AC-23）。`YT2COLUMN_MODEL` は、環境で定義されていなければ `deepseek-flash` を与え、このターゲットの実行時だけエクスポートする。定義されていればその値（空文字列を含む）を使う。テスト自身は既定値を持たない（要件 F-006）。
+- `make test-integration-deepseek` を追加する。このターゲットは、実 API を使い料金が発生することを表示してから、`./internal/llm/deepseek` の統合テストだけを、`integration` タグでビルドし、テスト結果のキャッシュを使わず（`-count=1`）、`-v` 出力付きで、§3.6 の関係を満たす明示的な `-timeout` を付けて実行する（AC-23）。コマンドの組み立ては [implementation_handoff.md](implementation_handoff.md) の I-02 に申し送る。`YT2COLUMN_MODEL` は、環境で定義されていなければ `deepseek-flash` を与え、このターゲットの実行時だけエクスポートする。定義されていればその値（空文字列を含む）を使う。テスト自身は既定値を持たない（要件 F-006）。
 - **オプトインの変数。** このターゲットは、あわせて `YT2COLUMN_DEEPSEEK_INTEGRATION=1` をエクスポートする。テストはこの変数が `1` でなければ、変数名と `make test-integration-deepseek` を示すメッセージで `t.Skip` する。`.envrc` で `DEEPSEEK_API_KEY` を常にエクスポートしている開発環境で、`go test -tags integration ./...` や IDE のテスト実行から料金が発生しないようにするためである。判定の順序は、オプトイン（スキップ）→ `DEEPSEEK_API_KEY`（未設定・空ならスキップ）→ `YT2COLUMN_MODEL`（未設定・空なら失敗）とする。要件 F-006 はスキップの条件に API キーの未設定を挙げており、本設計はそれに加えてオプトインの欠如をスキップの条件にする。`make test-integration-deepseek` では常に設定されるため、AC-23 の振る舞いは変わらない。
 - 既存の `make test-integration` は `./internal/transcript` だけを対象にしており（`Makefile` の `test-integration`）、DeepSeek の統合テストを実行しない。`make test`・`make test-ci` は `-tags test` だけでビルドするため、`integration` タグのテストを含まない（AC-22）。
 - 確認内容（AC-24）: 短い固定のプロンプトでの正常な生成（エラーなし、`Text` が空白文字以外を含む、`Model` が空でない）と、`MaxOutputTokens` 16（§3.6）での `llm.ErrTruncated`。正常な生成では `ModelVersion` を `t.Log` で出力し、実際に返ることを手動実行の出力で確認できるようにする（実応答が持たない場合もありうるため、空でないことは検証しない）。プロンプトは字幕・API キー・パス・個人情報を含まない英語の短い文とする。
-- **結果の読み方。** API は混雑時に推論の開始まで最大 10 分待たせうる（§1.4）。統合テストの `context.DeadlineExceeded` は、それだけではアダプタの不具合を示さない。
+- **結果の読み方。** API は混雑時に推論の開始まで最大 10 分待たせうる（§1.4）。1 回の `Generate` のタイムアウトはこの待ちより長くする（§3.6）が、待ちの上限は API 側の仕様であり変わりうるため、統合テストの `context.DeadlineExceeded` は、それだけではアダプタの不具合を示さない。
 - **方針の差分（`0002_ytdlp_transcript_source` との違い）。** `0002_ytdlp_transcript_source/02_architecture.md` §7.2 は、統合テストの対象の指定が欠けていてもスキップせず失敗させる方針をとる（スキップは成功と見分けにくいため）。本タスクは API キーが未設定の場合と、オプトインの変数がない場合にスキップする。API キーについては要件定義書 §5.1 で定めた意図的な例外であり、理由は、API キーが秘密情報で利用者ごとに設定の有無が異なることと、issue #4 の完了条件である。オプトインについては、料金の発生を `make` のターゲットからの明示的な実行に限るためである。スキップと成功の見分けは、AC-23 の `-v` 出力（`--- SKIP` と変数名を含むメッセージ）で付ける。モデル名の未設定は `0002` と同じく失敗にする。既存の `internal/transcript/integration_test.go` は変更しないため、更新が要る既存テストはない。
 
 ### 7.3. セキュリティテスト
