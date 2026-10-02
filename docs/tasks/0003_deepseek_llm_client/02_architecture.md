@@ -8,7 +8,7 @@
 | Created | 2026-10-02 |
 | Review date | - |
 | Reviewer | - |
-| Comments | 事前調査（§1.4）は実 API を呼ぶため未実施である。承認を求める前に、人間の明示的な承認を得て実施し、結果を §1.4 に記録する（要件定義書 §5）。承認時に判断してほしい点: 本設計は要件定義書に書かれていない次の 2 つを加えている。(1) 表示可能な ASCII 以外を含む API キーを構築時に拒否する（§3.1）。(2) 統合テストはオプトインの変数がなければスキップする（§7.2）。 |
+| Comments | 事前調査（§1.4）は人間の承認を得て 2026-10-02 に実施し、結果を §1.4 に記録した。承認時に判断してほしい点: (1) 本設計は要件定義書に書かれていない次の 2 つを加えている。表示可能な ASCII 以外を含む API キーを構築時に拒否する（§3.1）。統合テストはオプトインの変数がなければスキップする（§7.2）。(2) 応答の `model` はエイリアス（`deepseek-flash`）のまま返り、要件定義書 §1 の「実際のモデルを追う」という目的は達成できない。`system_fingerprint` も記録するかどうかは要件の判断である（§1.4）。 |
 
 ## 1. 設計の全体像 (Design Overview)
 
@@ -109,7 +109,7 @@ flowchart LR
 
 ### 1.4. 事前調査（実 API）
 
-要件定義書 §5 は、本書の承認を求める前に、実 API で調査を行い、結果を本節に記録し、秘密情報を除いた実応答を `testdata/` に保存することを求める。実 API を呼ぶため、実施前に人間の明示的な承認が要る（CLAUDE.md の Tool Execution Safety）。**本版の作成時点では未実施である。** 以下は、公開ドキュメントから分かったことと、調査の手順・記録する内容である。
+要件定義書 §5 は、本書の承認を求める前に、実 API で調査を行い、結果を本節に記録し、秘密情報を除いた実応答を `testdata/` に保存することを求める。実 API を呼ぶため、人間の明示的な承認を得て（CLAUDE.md の Tool Execution Safety）、2026-10-02 16:37 JST に実施した。以下は、公開ドキュメントから分かったこと、調査の手順、観測結果である。
 
 **公開ドキュメントから分かったこと（2026-10-02 に参照）。**
 
@@ -119,41 +119,48 @@ flowchart LR
   - `finish_reason` は `stop`・`length`・`content_filter`・`tool_calls`・`insufficient_system_resource`・`aborted`。
   - `max_tokens` の既定は thinking モードで 64K トークン。`reasoning_effort` が `max` のときは 128K トークンまで使える。`max_tokens` が推論過程のトークンを含むかどうかは書かれていない。
 - [Error Codes](https://api-docs.deepseek.com/quick_start/error_codes): `400`（形式不正）・`401`（認証失敗）・`402`（残高不足）・`422`（パラメータ不正）・`429`（レート制限）・`500`・`503`（過負荷）。エラー応答の本文の形は書かれていない。
-- [Rate Limit](https://api-docs.deepseek.com/quick_start/rate_limit): 非ストリーミングのリクエストでは、推論が始まるまでの待ち時間に**空行を送り続ける**。推論が 10 分以内に始まらなければ、サーバーが接続を閉じる。空行が送られる場合、HTTP ステータス（`200`）とヘッダーは推論の開始より前に確定していると考えられる（調査で確認する）。
+- [Rate Limit](https://api-docs.deepseek.com/quick_start/rate_limit): 非ストリーミングのリクエストでは、推論が始まるまでの待ち時間に**空行を送り続ける**。推論が 10 分以内に始まらなければ、サーバーが接続を閉じる。空行が送られる場合、HTTP ステータス（`200`）とヘッダーは推論の開始より前に確定していると考えられる。
 
-**調査の手順。** リポジトリの外の一時ディレクトリで、`curl` を使って行う。
+**調査の手順。** リポジトリの外の一時ディレクトリで、`curl` を使って行った。
 
-- `umask 077` の下で、`Authorization` ヘッダーを書いたファイルを作り、`curl -H @<file>` で渡す。API キーをコマンドラインに書かない。調査の後でファイルを削除する。
-- `curl` の `-v`・`--trace`・`--trace-ascii` は使わない（`Authorization` ヘッダーを出力するため）。
-- 応答ヘッダーと応答本文を別々のファイルに保存する（`-D` と `-o`）。応答本文の先頭の空行を含め、生のバイト列のまま残す。HTTP のバージョン（`-w '%{http_version}'`）と、リクエスト ID を表す応答ヘッダー（あれば）を記録する。
-- プロンプトは短い固定の英文とし、字幕・個人情報を含めない。
+- `umask 077` の下で、`Authorization` ヘッダーを書いたファイルを作り、`curl -H @<file>` で渡した。API キーをコマンドラインに書かず、各リクエストの後でファイルを削除した。
+- `curl` の `-v`・`--trace`・`--trace-ascii` は使わなかった（`Authorization` ヘッダーを出力するため）。
+- 応答ヘッダーと応答本文を別々のファイルに、生のバイト列のまま保存した（`-D` と `-o`）。ステータスと HTTP のバージョンは `-w` で記録した。
+- リクエスト本文は `model`（`deepseek-flash`）・`messages`・`stream: false` と、リクエストごとの `max_tokens` だけとし、`thinking` は送らなかった（本番と同じ）。プロンプトは固定の英文（system `You are a concise assistant.`、user `Explain in two sentences why the sky is blue.`）で、字幕・個人情報を含めない。
 
-送るリクエストは次の 5 つである。
+**観測結果。**
 
-1. `max_tokens` なし（正常な生成）。
-2. 小さい `max_tokens`（例: 16）。`finish_reason`・`content`（空文字列か `null` か）・`reasoning_content`・`usage` を記録する。
-3. 本文を生成するのに足りるが推論には足りない `max_tokens`（例: 256・1024）。`usage` の値（推論過程のトークン数の内訳があればその値）から、`max_tokens` が推論過程を含むかを判定する。
-4. 存在しないモデル名。ステータスが `400` か `422` かを記録する（§4.2 の案内文に使う）。
-5. 不正な API キー。ステータスと応答本文の形を記録する（応答本文はエラーに含めないため、記録だけ）。
+| # | リクエスト | ステータス | 観測 |
+|---|---|---|---|
+| 1 | `max_tokens` なし | `200` | `finish_reason` `stop`。`content` は 2 文の生成テキスト、`reasoning_content` は推論過程。`usage.completion_tokens` 85、うち `completion_tokens_details.reasoning_tokens` 30。応答本文 971 バイト |
+| 2 | `max_tokens: 16` | `200` | `finish_reason` `length`、**`content` は空文字列 `""`（`null` ではない）**。`reasoning_content` は途中まで。`completion_tokens` 16、うち `reasoning_tokens` 16 |
+| 3a | `max_tokens: 256` | `200` | `finish_reason` `stop`。`completion_tokens` 87、うち `reasoning_tokens` 37 |
+| 3b | `max_tokens: 1024` | `200` | `finish_reason` `stop`。`completion_tokens` 135、うち `reasoning_tokens` 76 |
+| 4 | 存在しないモデル名 | `400` | 応答本文は `{"error":{"message":…,"type":"invalid_request_error","param":null,"code":"invalid_request_error"}}`。`message` は受け付けるモデル名の一覧と `request_id` を含む |
+| 5 | 不正な API キー | `401` | 応答本文は 4 と同じ形（`type` は `authentication_error`）。**`message` は送った API キーの末尾 4 文字を含む**（`****` に続けて末尾 4 文字） |
 
-**記録する内容。** 消費するメンバーと実際に現れた消費しないメンバーの一覧、上記 1〜5 の観測、空行（keep-alive）の有無と位置（ヘッダーの後か）、HTTP のバージョン、`model` の値（`deepseek-flash` が指す実際のモデル）。
+- **応答本文の形。** 1〜3 の応答本文のメンバーは、トップレベルが `id`・`object`・`created`・`model`・`choices`・`usage`・`system_fingerprint`、`choices[0]` が `index`・`message`・`logprobs`（`null`）・`finish_reason`、`message` が `role`・`content`・`reasoning_content` だった。`tool_calls` は現れなかった。`usage` は `prompt_tokens`・`completion_tokens`・`total_tokens`・`prompt_tokens_details`・`completion_tokens_details`・`prompt_cache_hit_tokens`・`prompt_cache_miss_tokens` を持つ。消費するメンバーはすべて期待する種類で、1 回ずつ現れた。
+- **`max_tokens` は推論過程を含む。** 2 では `completion_tokens` と `reasoning_tokens` がともに 16 で、上限のすべてを推論過程が使い、`content` は空のまま打ち切られた。1・3a・3b でも `completion_tokens` は `reasoning_tokens` を含む値である。
+- **`model` はエイリアスのまま返る。** 1〜3 の応答本文の `model` は、リクエストと同じ `deepseek-flash` だった。エイリアスが指す実際のモデル（project_overview.md によれば DeepSeek-V4.1-Flash）の名前は応答本文に現れない。`system_fingerprint` はバックエンドの構成を表す値として返る。
+- **HTTP のバージョンと keep-alive。** すべて HTTP/2 だった。応答本文の先頭に空行はなかった（いずれも 2 秒以内に応答した）。混雑時の空行は観測できていない。
+- **リクエスト ID。** 応答ヘッダー `x-ds-trace-id` があった。エラー応答では、本文の `message` にも `request_id` が入る。
 
-**保存するフィクスチャ。** 1 と 2 の生の応答本文を `testdata/deepseek_chat_completion_stop.json`・`testdata/deepseek_chat_completion_length.json` として保存する（AC-32）。応答本文に API キーは含まれないが、保存前に API キーの文字列が含まれないことを `grep` で確認する。`id` はリクエストの識別子で秘密情報ではないため、置き換えない。出典（取得日・プロンプト・モデル名）を `testdata/README.md` に記す。生成テキストは固定のプロンプトに対するモデルの出力であり、第三者の著作物を含まない。
+**保存したフィクスチャ。** 1 と 2 の応答本文を、受け取ったバイト列のまま `testdata/deepseek_chat_completion_stop.json`・`testdata/deepseek_chat_completion_length.json` として保存した（AC-32）。保存前に、API キーとその末尾 4 文字が含まれないことを `grep` で確認した。`id` はリクエストの識別子で秘密情報ではないため、置き換えていない。出典は `testdata/README.md` に記した。生成テキストは固定のプロンプトに対するモデルの出力であり、第三者の著作物を含まない。3〜5 の応答と応答ヘッダーはコミットせず、一時ディレクトリごと削除した。
 
-**調査で決まる事項。**
+**調査で決まった事項。**
 
-| 事項 | 本設計の仮の扱い | 調査結果による変更 |
+| 事項 | 結果 | 本設計への反映 |
 |---|---|---|
-| `max_tokens` が推論過程を含むか | 統合テストの「小さな `MaxOutputTokens`」を 16 とする（§7.2） | 16 で打ち切りを観測できなければ値を変える。含むかどうかは #5 に申し送る（§9） |
-| `stop` 以外の終了理由での `content` | 空文字列を想定する | **`null` が返る場合は要件の変更が要る**（下記） |
-| 消費しないメンバー | ドキュメントの一覧を想定する | 実応答に合わせて AC-32 のフィクスチャを決める |
-| 存在しないモデル名のステータス | `400` または `422` | §4.2 の案内文を確定する |
+| `max_tokens` が推論過程を含むか | 含む | 統合テストの「小さな `MaxOutputTokens`」は 16 で打ち切りを観測できたため、16 に確定する（§3.6）。#5 に申し送る（§9） |
+| 打ち切り（`length`）時の `content` | 空文字列 | 要件どおりに `llm.ErrTruncated` になる。要件の変更は要らない |
+| 消費しないメンバー | 上記の一覧 | AC-32 のフィクスチャは保存した実応答とする |
+| 存在しないモデル名のステータス | `400` | §4.2 の案内文に反映する |
+| `401` の応答本文 | API キーの末尾 4 文字を含む | `200` 以外の応答本文を読まない方針（§3.4・H-07）の根拠に加える |
+| `model` の値 | エイリアスのまま | 要件の前提と異なる（下記） |
 
-**要件と衝突しうる点（調査で確定させる）。** ドキュメントは `content` を nullable としている。`finish_reason` が `stop` 以外（`length`・`content_filter`・`insufficient_system_resource`・`aborted` など）の応答で `"content":null` が返ると、要件の検証順序（F-003。応答本文の形の検証が終了理由より先）と AC-27（`"content":null` は `ErrInvalidResponse`）により、その応答は `ErrTruncated`・`ErrUnexpectedFinishReason` ではなく `ErrInvalidResponse` になる。安全側には倒れる（記事は投稿されない）が、分類が変わる。
+**要件の前提と異なる点（`model`）。** 要件定義書 §1 は「`deepseek-flash` は提供元が指す実際のモデルを入れ替えられるエイリアスであり、どのモデルで生成したかを追えるよう、応答に含まれるモデル名を返す」とする。観測では、応答の `model` はエイリアスのままで、実際のモデルを追う目的は応答の `model` だけでは達成できない。AC-09（`Model` は応答の `model` の値）は観測と矛盾せず、本設計はそのまま満たす。目的を達するために `system_fingerprint` も記録するかどうかは要件の変更にあたるため、本書では扱わず、人間の判断に委ねる。
 
-特に `length` の場合は影響が大きい。統合テストの AC-24（小さな `MaxOutputTokens` で `ErrTruncated`）を満たせず、`ArticleWriter`（#5）も打ち切りを判別できなくなる。
-
-本設計は要件どおりに実装する前提で書いている。調査で `null` を観測した場合は、設計で要件を読み替えずに、要件定義書の F-003・AC-27 の改訂（例: `finish_reason` が `stop` 以外のときは `content` の `null` を許す）を人間に提起し、承認を得てから本書を改める。それまでの間も、`ErrInvalidResponse` のメッセージには読み取れた `finish_reason` を含め、原因の見当がつくようにする（§4.2）。
+**`stop` 以外の終了理由での `content`（残る確認事項）。** ドキュメントは `content` を nullable としている。`length` では空文字列を観測したが、`content_filter`・`insufficient_system_resource`・`aborted` は意図して起こせず、観測していない。これらの応答で `"content":null` が返ると、要件の検証順序（F-003。応答本文の形の検証が終了理由より先）と AC-27（`"content":null` は `ErrInvalidResponse`）により、その応答は `ErrUnexpectedFinishReason` ではなく `ErrInvalidResponse` になる。安全側には倒れる（記事は投稿されない）が、分類が変わる。本設計は要件どおりに実装し、`ErrInvalidResponse` のメッセージには読み取れた `finish_reason` を含めて、原因の見当がつくようにする（§4.2）。運用でこの場合を観測したら、要件定義書の F-003・AC-27 の改訂を検討する。
 
 ---
 
@@ -434,7 +441,7 @@ func (v Value) AsArray() ([]Value, error)   // rejects null and other kinds
 | 統合テストのモデル名の既定値 | `deepseek-flash`（`make test-integration-deepseek` が与える） | 要件 F-006 |
 | 統合テストの 1 回の `Generate` のタイムアウト | 5 分 | 短い固定のプロンプトの生成には十分である |
 | 統合テストの `-timeout` | 15 分 | 2 回の `Generate`（各 5 分）の合計に余裕を足し、テストのバイナリの時間切れより先に `Generate` の期限が来るようにする |
-| 統合テストの「小さな `MaxOutputTokens`」 | 16（§1.4 の調査で確定） | §1.4 |
+| 統合テストの「小さな `MaxOutputTokens`」 | 16 | §1.4 の調査で、16 で `length` と空の `content` を観測した |
 
 **応答本文の上限を 8 MiB とした根拠。** 想定する記事（40 分前後の動画のコラム）は数千〜1 万字程度で、UTF-8 で 30 KB 前後である。応答本文で大きいのは `reasoning_content` である。ドキュメントによれば、thinking モードの `max_tokens` の既定は 64K トークンで、最大 128K トークンまで使える（§1.4）。日本語 1 トークンを 1.5 文字、1 文字を `\uXXXX` のエスケープ（6 バイト）で送られると仮定すると、128K トークンで約 1.2 MB になる。8 MiB はこれに対して 6 倍以上の余裕があり、字幕のパーサの上限（`internal/transcript/json3.go:16`・`info.go:10`、いずれも 8 MiB）とも揃う。メモリの使用量は、1 回の `Generate` につき応答本文の 8 MiB と、解析で保持する部分のコピーが上限である。CLI は 1 回の実行で 1 回しか呼ばない。長時間動くサーバーから同時に呼ぶ場合は、同時実行数に比例して増える（§9）。
 
@@ -467,7 +474,7 @@ func (v Value) AsArray() ([]Value, error)   // rejects null and other kinds
 | `internal/strictjson/strictjson_test.go` | 部品のテスト（§7.1） | 新設 |
 | `internal/transcript/json3.go` | 部品と共通の静的エラーを削除し、`internal/strictjson` を使う。返る番兵とその条件は変えない | 変更 |
 | `internal/transcript/info.go` | `requiredString` と共通の静的エラーを削除し、`internal/strictjson` を使う。返る番兵とその条件は変えない | 変更 |
-| `testdata/deepseek_chat_completion_stop.json`・`testdata/deepseek_chat_completion_length.json` | 事前調査で保存する実応答（§1.4・AC-32） | 新設 |
+| `testdata/deepseek_chat_completion_stop.json`・`testdata/deepseek_chat_completion_length.json` | 事前調査で保存した実応答（§1.4・AC-32） | 新設 |
 | `testdata/README.md` | 上記フィクスチャの出典（取得日・プロンプト・モデル名） | 変更 |
 | `Makefile` | `test-integration-deepseek` ターゲットの追加（§7.2） | 変更 |
 | `docs/dev/developer_guide/package_reference.md` | `internal/llm/deepseek`・`internal/strictjson` の追加、`internal/llm`・`internal/transcript` の責務の更新 | 変更 |
@@ -487,8 +494,8 @@ func (v Value) AsArray() ([]Value, error)   // rejects null and other kinds
 | H-04 | 上限 + 1 バイトまで読み、超過を検出する。上限は 8 MiB（§3.4・§3.6）。`200` 以外の応答本文は読まずに閉じるため、その接続は再利用されない。CLI は 1 回の実行で 1 回しか呼ばないため、問題にならない（§9）。 |
 | H-05 | 列挙された 7 種の入力（不正な UTF-8・対になっていないサロゲート・後続データ・重複・`null`・欠落・配列要素の `null`）を、`internal/transcript` から移した `internal/strictjson` の部品で検出する（§3.4・§3.5）。依存の向きを守るため、共通化は新設の共通パッケージへの移動で行う。 |
 | H-06 | 候補 1（非公開のフィールド）を採る。送信先は `New` が常に本番の値に設定し、テストは同じパッケージの非公開のヘルパーだけが、ループバックの URL に限って差し替える（§3.1）。候補 2（`RoundTripper` で送信先を書き換える）は採らない。`http.Client` を差し替え可能にすると、#6 のコードからも差し替え口が見え、API キーを任意のホストへ送れる構成を作れてしまうためである。 |
-| H-07 | `200` 以外では応答本文を読まない。エラーにはステータスコードと、ステータスごとの固定の案内を含める（§3.4・§4.2）。 |
-| H-08 | 事前調査（§1.4）で確認し、結果を本書と #5 への申し送り（§9）に記録する。AC-24 の値は調査で確定する。 |
+| H-07 | `200` 以外では応答本文を読まない。エラーにはステータスコードと、ステータスごとの固定の案内を含める（§3.4・§4.2）。§1.4 の調査で、`401` の応答本文が送った API キーの末尾 4 文字を含むことを確認しており、応答本文をエラーに含めない理由はそれだけでも十分である。 |
+| H-08 | 事前調査（§1.4）で、`max_tokens` が推論過程のトークンを含むことを確認した。#5 へ申し送る（§9）。AC-24 の値は 16 とする（§3.6）。 |
 | H-09 | プロバイダ共通の 4 つを `internal/llm` に、HTTP と JSON に依存する 3 つを `internal/llm/deepseek` に置く。`LLMClient` の doc コメントに `internal/llm` の番兵で報告することを書く（§3.2・§4.1）。 |
 | H-10 | 構造体の `json.Marshal`、`max_tokens` の省略、`Validate` による UTF-8 の事前検査、デコードした文字列での比較（§3.7）。 |
 
@@ -584,7 +591,7 @@ classDiagram
 
 - **接頭辞。** `New` と `Generate` が返すすべてのエラーのメッセージは、ラップの段階で `deepseek: ` を 1 回だけ先頭に付ける。番兵（`internal/llm` と `internal/llm/deepseek` の両方）の文言には接頭辞を含めない。
 - **含めるもの。** 失敗した手順と理由。
-  - `HTTPStatusError`: ステータスコードと、ステータスごとの固定の案内。`401` は API キー、`402` は残高、`429` はレート制限、`500`・`503` はサーバー側の問題、`400`・`422` はリクエストのパラメータ（モデル名・`max_tokens`・プロンプトの長さ）を確認するよう案内する。`Generate` がラップするときに、モデル名（`%q`）と送った `max_tokens`（送らなかった場合はその旨）を添える。いずれも利用者の設定であり、秘密情報ではない。存在しないモデル名が `400` と `422` のどちらになるかは §1.4 で確認する。
+  - `HTTPStatusError`: ステータスコードと、ステータスごとの固定の案内。`401` は API キー、`402` は残高、`429` はレート制限、`500`・`503` はサーバー側の問題、`400`・`422` はリクエストのパラメータ（モデル名・`max_tokens`・プロンプトの長さ）を確認するよう案内する。`Generate` がラップするときに、モデル名（`%q`）と送った `max_tokens`（送らなかった場合はその旨）を添える。いずれも利用者の設定であり、秘密情報ではない。§1.4 の調査で、存在しないモデル名は `400` になることを確認した。
   - `ErrInvalidResponse`: どの検査に失敗したか（例: 「上限を超えた」「`choices` が 1 要素でない」「消費するメンバー `model` が重複」）。応答本文が空白だけだった場合は、そのことと応答本文のバイト数。消費するメンバーが欠けていた場合に、トップレベルに `error` メンバーがあれば、その存在（値は含めない）。`finish_reason` を読み取れた後で検査に失敗した場合は、その値（下記の制限付き）。
   - `ErrUnexpectedFinishReason`: 受け取った `finish_reason` の値。
   - タイムアウト: 構築時のタイムアウトによるもの（その値を含める）か、呼び出し元の期限・キャンセルによるものか（§3.3）。
@@ -759,7 +766,7 @@ DeepSeek の API もネットワーク上の外部ホストも呼ばない（AC-
 - `make test-integration-deepseek` を追加する。このターゲットは、実 API を使い料金が発生することを表示してから、`go test -tags integration -count=1 -timeout 15m -v -run` で `./internal/llm/deepseek` の統合テストを実行する（AC-23）。`YT2COLUMN_MODEL` は、環境で定義されていなければ `deepseek-flash` を与え、このターゲットの実行時だけエクスポートする。定義されていればその値（空文字列を含む）を使う。テスト自身は既定値を持たない（要件 F-006）。
 - **オプトインの変数。** このターゲットは、あわせて `YT2COLUMN_DEEPSEEK_INTEGRATION=1` をエクスポートする。テストはこの変数が `1` でなければ、変数名と `make test-integration-deepseek` を示すメッセージで `t.Skip` する。`.envrc` で `DEEPSEEK_API_KEY` を常にエクスポートしている開発環境で、`go test -tags integration ./...` や IDE のテスト実行から料金が発生しないようにするためである。判定の順序は、オプトイン（スキップ）→ `DEEPSEEK_API_KEY`（未設定・空ならスキップ）→ `YT2COLUMN_MODEL`（未設定・空なら失敗）とする。要件 F-006 はスキップの条件に API キーの未設定を挙げており、本設計はそれに加えてオプトインの欠如をスキップの条件にする。`make test-integration-deepseek` では常に設定されるため、AC-23 の振る舞いは変わらない。
 - 既存の `make test-integration` は `./internal/transcript` だけを対象にしており（`Makefile` の `test-integration`）、DeepSeek の統合テストを実行しない。`make test`・`make test-ci` は `-tags test` だけでビルドするため、`integration` タグのテストを含まない（AC-22）。
-- 確認内容（AC-24）: 短い固定のプロンプトでの正常な生成（エラーなし、`Text` が空白文字以外を含む、`Model` が空でない）と、`MaxOutputTokens` 16（§1.4 の調査で確定）での `llm.ErrTruncated`。プロンプトは字幕・API キー・パス・個人情報を含まない英語の短い文とする。
+- 確認内容（AC-24）: 短い固定のプロンプトでの正常な生成（エラーなし、`Text` が空白文字以外を含む、`Model` が空でない）と、`MaxOutputTokens` 16（§3.6）での `llm.ErrTruncated`。プロンプトは字幕・API キー・パス・個人情報を含まない英語の短い文とする。
 - **結果の読み方。** API は混雑時に推論の開始まで最大 10 分待たせうる（§1.4）。統合テストの `context.DeadlineExceeded` は、それだけではアダプタの不具合を示さない。
 - **方針の差分（`0002_ytdlp_transcript_source` との違い）。** `0002_ytdlp_transcript_source/02_architecture.md` §7.2 は、統合テストの対象の指定が欠けていてもスキップせず失敗させる方針をとる（スキップは成功と見分けにくいため）。本タスクは API キーが未設定の場合と、オプトインの変数がない場合にスキップする。API キーについては要件定義書 §5.1 で定めた意図的な例外であり、理由は、API キーが秘密情報で利用者ごとに設定の有無が異なることと、issue #4 の完了条件である。オプトインについては、料金の発生を `make` のターゲットからの明示的な実行に限るためである。スキップと成功の見分けは、AC-23 の `-v` 出力（`--- SKIP` と変数名を含むメッセージ）で付ける。モデル名の未設定は `0002` と同じく失敗にする。既存の `internal/transcript/integration_test.go` は変更しないため、更新が要る既存テストはない。
 
@@ -802,7 +809,7 @@ DeepSeek の API もネットワーク上の外部ホストも呼ばない（AC-
 
 ## 8. 実装優先順位 (Implementation Priorities)
 
-0. **事前調査（本書の承認前）** — §1.4 の調査を、人間の承認を得て実施する。結果を §1.4 に記録し、フィクスチャを `testdata/` に保存する。`content` の `null` を観測した場合は、要件の改訂を先に行う。
+0. **事前調査（実施済み）** — §1.4 の調査を人間の承認を得て実施し、結果を §1.4 に記録し、フィクスチャを `testdata/` に保存した（出典は `testdata/README.md`）。
 1. **フェーズ 1: 厳格な JSON の部品の移動** — `internal/strictjson` の新設と、`internal/transcript` の `json3.go`・`info.go` の書き換え。返る番兵を変えないリファクタリングとして独立したコミットにする（§3.5）。
 2. **フェーズ 2: `internal/llm` の追加** — 番兵、`Validate`、doc コメント、`llm_test.go`。
 3. **フェーズ 3: アダプタの構築と送信** — `errors.go`・`deepseek.go`・`request.go`・`test_helpers.go` と、構築・リクエスト・リダイレクト・ステータス・タイムアウト・キャンセル・通信の失敗・秘密情報のテスト。
@@ -816,7 +823,7 @@ DeepSeek の API もネットワーク上の外部ホストも呼ばない（AC-
 
 ## 9. 将来の拡張性 (Future Extensibility)
 
-- **#5（`ArticleWriter`）への申し送り。** `MaxOutputTokens` の決め方は、§1.4 の調査結果（`max_tokens` が推論過程を含むか）に依存する。含む場合、推論が長いと `content` が短く打ち切られ、`llm.ErrTruncated` が増える。#5 は `llm.ErrTruncated` を判別して、利用者に `MaxOutputTokens` の見直しを案内できる。`GenerateResponse.Model` は空でないことだけが保証された信頼できない文字列である（§5.4）。
+- **#5（`ArticleWriter`）への申し送り。** §1.4 の調査で、`max_tokens` は推論過程のトークンを含むことが分かった。`MaxOutputTokens` を小さくすると、推論過程が上限を使い切り、`content` が空のまま打ち切られる（`llm.ErrTruncated`）。`MaxOutputTokens` は記事の長さだけでなく推論過程の分も見込んで決めるか、0（API の既定）にする。#5 は `llm.ErrTruncated` を判別して、利用者に `MaxOutputTokens` の見直しを案内できる。`GenerateResponse.Model` は空でないことだけが保証された信頼できない文字列であり、DeepSeek ではエイリアス（`deepseek-flash`）のまま返る（§1.4・§5.4）。
 - **#6（設定と CLI）への申し送り。**
   - `deepseek.New` に `Options` を渡す。送信先は変えられない（§3.1）。`HTTPStatusError.StatusCode` で `401`・`402`・`429` を判別して案内できる。
   - タイムアウトの既定値は #6 が決める（要件 2.3）。API は推論の開始まで最大 10 分待たせうる（§1.4）うえに、thinking モードの `max_tokens` の既定は 64K トークンであり、生成にも時間がかかる。既定値はこの合計を目安にする。短すぎると、API 側では処理が進んで料金が発生しうるのに、アダプタがタイムアウトで打ち切ることになる。
