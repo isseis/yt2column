@@ -587,7 +587,9 @@ func (t *Tool) Diff(ctx context.Context, statePath, path string) ([]byte, error)
 		return nil, err
 	}
 	baseRef := originRefs + state.BaseRefName
-	out, err := t.command(ctx, commandTimeout, gitCommand, "-C", root, "diff", baseRef+"..."+state.HeadRefOID, "--", path)
+	// --literal-pathspecs keeps a filename that contains pathspec syntax (for
+	// example a tracked file literally named "*.txt") from matching others.
+	out, err := t.command(ctx, commandTimeout, gitCommand, "-C", root, "--literal-pathspecs", "diff", baseRef+"..."+state.HeadRefOID, "--", path)
 	if err != nil {
 		return nil, fmt.Errorf("read diff: %w", err)
 	}

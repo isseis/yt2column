@@ -1227,7 +1227,7 @@ func diffArgs(t testing.TB, path string) []string {
 	if err != nil {
 		t.Fatalf("worktreeRoot: %v", err)
 	}
-	return []string{"-C", root, "diff", "refs/remotes/origin/main..." + testHeadOID, "--", path}
+	return []string{"-C", root, "--literal-pathspecs", "diff", "refs/remotes/origin/main..." + testHeadOID, "--", path}
 }
 
 func TestDiffHappyPath(t *testing.T) {
