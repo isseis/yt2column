@@ -38,3 +38,4 @@
 | 材料 | material | `/mergepr` がコミットメッセージの下書きに使う PR 情報（log.txt・stat.txt・body.txt） |
 | 件名 | subject | コミットメッセージの 1 行目 |
 | 対処 | remedy | 問題が起きたときに開発者が取る手順。見出しでは "What to Do When ..." とする |
+| 高圧縮ファイル爆弾 | decompression bomb | 展開すると膨大なサイズになり、メモリなどを使い切らせる圧縮データ、およびそれを使った攻撃。HTTP 応答の gzip も含む。旧称: 圧縮爆弾 |
