@@ -50,7 +50,7 @@ LLM はエラーを返さずに、空の応答や途中で打ち切られた応�
 
 ### 2.3. スコープ外 (Out of Scope)
 
--   環境変数からの設定読み込み（`DEEPSEEK_API_KEY`・`YT2COLUMN_MODEL` など）と、プロバイダの選択（#6）。本タスクのアダプタは環境変数を読まず、API キー・モデル名・タイムアウトを構築時に受け取る。
+-   本番の CLI での環境変数からの設定読み込み（`DEEPSEEK_API_KEY`・`YT2COLUMN_MODEL` など）と、プロバイダの選択（#6）。本タスクのアダプタは環境変数を読まず、API キー・モデル名・タイムアウトを構築時に受け取る。ただし、統合テスト（F-006）は API キーとモデル名を環境変数から読み、アダプタの構築に渡す。
 -   タイムアウトの既定値（#6 が設定として与える）。
 -   thinking モードの切り替え。初期は API の既定（thinking 有効）のままにし、リクエストに thinking の指定を含めない（[project_overview.md](../../dev/project_overview.md)「前提・制約」）。
 -   `temperature` などのサンプリングパラメータ（thinking モードでは `temperature` が無視される）。
