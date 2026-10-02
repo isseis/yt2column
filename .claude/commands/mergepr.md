@@ -13,7 +13,7 @@ approve the commit message first (CLAUDE.md, "Tool Execution Safety").
 The mechanics live in the `mergepr` binary (package `internal/mergepr`). Install
 it with `go install ./cmd/mergepr` from an up-to-date `main` checkout.
 The developer-facing guide (setup, guarantees, troubleshooting) is
-`docs/dev/developer_guide/mergepr_guide.md`.
+`docs/dev/developer_guide/mergepr_guide.ja.md`.
 
 **Prerequisites.** This is an internal developer tool for the PR's own author. It
 assumes:
