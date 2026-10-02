@@ -367,7 +367,7 @@ AC ごとの検証は次のとおり。`test` は実行可能なテスト、`sta
 | AC-74 | キャッシュなし・不正 URL での削除 | test | `internal/transcript/cache_test.go::TestRemoveCache` |
 | AC-75 | キャッシュの削除の途中失敗と後始末 | test | `internal/transcript/cache_test.go::TestRemoveCacheFailure` |
 
-**横断検索項目**（`make test` / `make lint` では検出できないもの）: フェーズ 5 の `requirements_process.md` の修正について、旧来の対象を限定していない言い回しが `docs/` の他の箇所に残っていないことを検索で確認する。`package_reference.md` の `internal/transcript` の行が実装後の責務と一致することを突き合わせて確認する。本タスクは既存シンボルの削除・改名を含まないため、それ以外の横断検索は不要である。
+**横断検索項目**（`make test` / `make lint` では検出できないもの）: フェーズ 5 の `requirements_process.md` の修正について、旧来の対象を限定していない言い回しが `docs/` の他の箇所に残っていないことを検索で確認する（記録: §5.3）。`package_reference.md` の `internal/transcript` の行が実装後の責務と一致することを突き合わせて確認する。本タスクは既存シンボルの削除・改名を含まないため、それ以外の横断検索は不要である。
 
 ### 5.1. 手動実行の記録 (AC-33)
 
@@ -420,6 +420,19 @@ $ env -u YT2COLUMN_TEST_VIDEO_URL -u YT2COLUMN_TEST_VIDEO_ID go test -tags integ
 FAIL
 FAIL	github.com/isseis/yt2column/internal/transcript	0.375s
 FAIL
+```
+
+### 5.3. 境界チェックの文言の整合の記録（フェーズ 5）
+
+フェーズ 5 ステップ 5-1・5-2。`requirements_process.md` の境界チェックを、拒否の規則が「消費するフィールド」に適用され、未消費メンバーは受理される形に整合させた。
+
+- 正の確認: 修正後の記述を requirements §3.2（受理する形に合致しない入力を補正せず拒否する / 未消費メンバーは無視して受理する / 標準ライブラリが黙って置換・切り捨て・無視しうる入力も拒否する）と architecture §3.4（消費するメンバーの重複は拒否し、未消費メンバーは重複していても受理する）に突き合わせ、一致を確認した。チェックリストには「Consumed vs unconsumed members」の項目を追加し、未消費メンバーが拒否理由にならないことと、生バイト列・トップレベル値の whole-document チェックが引き続き適用されることを明示した。
+- 残骸の確認: 旧来の対象を限定していない言い回し（旧文の "silently repair or ignore"）を、規則を置く開発者ガイド（`docs/dev/`）で検索した。修正前は `requirements_process.md:97` の 1 件、修正後は 0 件。タスク文書（`design_handoff.md` H-13、本計画、`01_requirements.md` §3.2）の言及は変更の根拠・要件の記録であり、process ガイドの規則ではない。
+
+```
+$ rg -n "repair or ignore" docs/dev/   # 修正前: requirements_process.md:97 の 1 件
+$ rg -n "repair or ignore" docs/dev/   # 修正後
+(no matches)
 ```
 
 ## 6. リスク管理 (Risk Management)
