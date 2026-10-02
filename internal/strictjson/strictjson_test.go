@@ -5,6 +5,7 @@ package strictjson
 import (
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -431,6 +432,56 @@ func TestValueAccessors(t *testing.T) {
 		}
 		if want := []string{"first", "second"}; !reflect.DeepEqual(got, want) {
 			t.Errorf("array = %v, want %v", got, want)
+		}
+	})
+}
+
+func TestAsArrayElementLimit(t *testing.T) {
+	build := func(t *testing.T, elements int) Value {
+		t.Helper()
+		var document strings.Builder
+		document.WriteString(`{"a":[`)
+		for i := range elements {
+			if i > 0 {
+				document.WriteByte(',')
+			}
+			document.WriteByte('0')
+		}
+		document.WriteString(`]}`)
+		object, err := ParseObject([]byte(document.String()))
+		if err != nil {
+			t.Fatalf("ParseObject(%d elements) error = %v", elements, err)
+		}
+		consumed, err := object.Collect("a")
+		if err != nil {
+			t.Fatalf("Collect error = %v", err)
+		}
+		return consumed["a"]
+	}
+
+	t.Run("accepts one below the limit", func(t *testing.T) {
+		values, err := build(t, maxArrayElements-1).AsArray()
+		if err != nil {
+			t.Fatalf("AsArray error = %v", err)
+		}
+		if len(values) != maxArrayElements-1 {
+			t.Errorf("AsArray returned %d values, want %d", len(values), maxArrayElements-1)
+		}
+	})
+
+	t.Run("accepts the limit", func(t *testing.T) {
+		values, err := build(t, maxArrayElements).AsArray()
+		if err != nil {
+			t.Fatalf("AsArray error = %v", err)
+		}
+		if len(values) != maxArrayElements {
+			t.Errorf("AsArray returned %d values, want %d", len(values), maxArrayElements)
+		}
+	})
+
+	t.Run("rejects one above the limit", func(t *testing.T) {
+		if _, err := build(t, maxArrayElements+1).AsArray(); !errors.Is(err, errTooManyElements) {
+			t.Errorf("AsArray error = %v, want errTooManyElements", err)
 		}
 	})
 }

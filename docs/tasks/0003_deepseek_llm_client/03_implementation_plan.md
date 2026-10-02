@@ -8,8 +8,7 @@
 | Created | 2026-10-02 |
 | Review date | 2026-10-02 |
 | Reviewer | isseis |
-| Comments | PR の区切りの訂正（editorial）。ステップ 6-3・6-4（`security.md` §2 の実キーの例外と `http2debug` のポリシー）を PR-4 に再配置し、ステップ 1-6 の条件付きの件数上限付き分割の最適化を PR-1 とは別の独立した PR とした。何をなぜ作るかは変わらず、決定の変更はない。続く PR の区切りの訂正（editorial）。§3.2 に PR の区切りの不変条件と条件付きの PR の扱いを明記し、フェーズ 6 でステップ 6-3・6-4 を PR-4 作成ポイントの前、6-1・6-2 をその後に並べ替え（番号は維持）、決定済みの独立した最適化の PR を条件付きの PR-1a（ステップ 1-10・1-11、測定が 256 MiB 以下なら `[-]`）として作成ポイントつきで §2・§3.2・§7・§9 に加えた。最適化の条件と独立した PR とする方針は前回の訂正のままで、決定の変更はない。 |
-
+| Comments | - |
 ## 1. 実装の概要 (Implementation Overview)
 
 ### 1.1. 目的
@@ -130,8 +129,8 @@ HEAD `00573f2`（ブランチ `task/0003-deepseek-llm-client-02`）で確認し�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 1a（条件付き）: 件数の上限付きの分割の最適化
 
@@ -141,8 +140,8 @@ HEAD `00573f2`（ブランチ `task/0003-deepseek-llm-client-02`）で確認し�
 - 変更: `internal/strictjson/strictjson.go`・`internal/strictjson/strictjson_test.go`
 
 **タスク**
-- [ ] **ステップ 1-10**: `AsArray` の分割に件数の上限を加え、上限を超える配列を全要素の分割の前に拒否する。最適化は振る舞いを変えないこと（拒否される入力と返る番兵が最適化の前後で同じであること）を正しさの義務とし、それをコミットメッセージに書き、最適化を外すか変えると失敗するテストで固定する（CLAUDE.md「Performance」）。最適化だけを 1 つのコミットにする。ステップ 1-6 と同じ入力で再測定し、§5.2 に記録する。上限は `internal/strictjson` の非公開の定数 `maxArrayElements` とし、値は `1 << 17`（131072）とする。`internal/transcript` の `maxSubtitleEvents`（65536）より大きいため、同パッケージの件数の判定（`errTooManyEvents`）は上限内の範囲で従来どおり働き、上限を超える配列だけが `AsArray` によって早期に拒否される。どちらの経路でも `internal/transcript` の返る番兵は `ErrParseSubtitles` のままである。境界のテスト（`maxArrayElements-1`・`maxArrayElements`・`maxArrayElements+1`）を `strictjson_test.go` に置き、上限を外すと `maxArrayElements+1` が成功して失敗するようにする。DeepSeek の `choices`（ちょうど 1 要素）は上限の影響を受けない。
-- [ ] **ステップ 1-11**: `make fmt` → `make test` → `make lint` を通す。
+- [x] **ステップ 1-10**: `AsArray` の分割に件数の上限を加え、上限を超える配列を全要素の分割の前に拒否する。上限は `events`・`segs` を問わずすべての配列に適用される。最適化の正しさの義務は、上限内の入力の受理を変えないこと、および `internal/transcript` が既に拒否していた入力の返る番兵（`ErrParseSubtitles` と `*ParseError`）を変えないことである。`events` は `maxSubtitleEvents`（65536）が上限（131072）より小さいため、同パッケージの件数の判定（`errTooManyEvents`）は上限内で従来どおり働き、上限を超える `events` は `AsArray` が拒否する。`segs` には件数の判定がないため、上限を超える `segs` を持つ入力は新たに安全側へ拒否される。いずれの経路でも返る番兵は `ErrParseSubtitles` である。この義務をコミットメッセージに書き、最適化を外すか変えると失敗するテストで固定する（CLAUDE.md「Performance」）。最適化だけを 1 つのコミットにする。ステップ 1-6 と同じ入力で再測定し、§5.2 に記録する。上限は `internal/strictjson` の非公開の定数 `maxArrayElements` とし、値は `1 << 17`（131072）とする。境界のテスト（`maxArrayElements-1`・`maxArrayElements`・`maxArrayElements+1`）を `strictjson_test.go` に置き、上限を外すと `maxArrayElements+1` が成功して失敗するようにする。`internal/transcript` の `segs` が上限を超える入力が `ErrParseSubtitles` になることを `json3_test.go` で固定する（`events` が上限を超える入力は `maxSubtitleEvents` でも既に拒否されるため、上限の有無を判別できない）。DeepSeek の `choices`（ちょうど 1 要素）は上限の影響を受けない。
+- [x] **ステップ 1-11**: `make fmt` → `make test` → `make lint` を通す。
 
 ### PR-1a 作成ポイント: bounded array split in internal/strictjson (conditional)
 
@@ -150,14 +149,14 @@ HEAD `00573f2`（ブランチ `task/0003-deepseek-llm-client-02`）で確認し�
 
 **推奨タイトル**: `perf(0003): bound the array split in internal/strictjson`
 
-**レビュー観点**: ステップ 1-6 の測定が 256 MiB を超えたこと、および最適化後の再測定が §5.2 に記録されていること（ステップ 1-6・1-10） / 最適化の前後で拒否される入力と返る番兵が変わらず、その義務がコミットメッセージに書かれ、テストで固定されていること（ステップ 1-10） / 最適化が独立したコミットで、単独で revert できること（CLAUDE.md「Performance」）
+**レビュー観点**: ステップ 1-6 の測定が 256 MiB を超えたこと、および最適化後の再測定が §5.2 に記録されていること（ステップ 1-6・1-10） / 最適化の正しさの義務（上限内の入力の受理と、`internal/transcript` が既に拒否していた入力の返る番兵が変わらないこと。上限を超える `segs` は新たに安全側へ拒否され、その番兵も `ErrParseSubtitles` であること）がコミットメッセージに書かれ、テストで固定されていること（ステップ 1-10） / 最適化が独立したコミットで、単独で revert できること（CLAUDE.md「Performance」）
 
 **実装モデル要件**: standard
 
 **判定理由**: 1 つの部品の局所的な最適化とその固定のテストに限られ、競合する実装方針の併記・リカバリや状態機械などの高リスクな制御・パネルモードのトリガーに該当せず、Conditional checks も該当しないため。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
@@ -508,8 +507,9 @@ AC に対応しない、architecture が求める検証は次のとおり。
 |---|---|
 | 入力 | `{"events":[0,0,…]}` の形で 1 バイトの要素を並べ、末尾を空白で埋めて 8 MiB（8,388,608 バイト）ちょうどにした文書。要素数は 4,194,298（`AsArray` が作る要素数が最大になる形） |
 | 移動前（HEAD `00573f2`）の `TotalAlloc` の差・`HeapInuse` の最大値 | 24 MiB・32 MiB（先頭の要素がオブジェクトでないため、イベントの走査は最初の要素で失敗する） |
-| 移動後の `TotalAlloc` の差・`HeapInuse` の最大値 | 738 MiB・750 MiB（`AsArray` が全要素を先に分割するため） |
-| 判断 | 750 MiB は 256 MiB を超えるため、条件付きの PR-1a（ステップ 1-10・1-11）で `AsArray` の分割に件数の上限を加える。ステップ 1-10 で同じ入力で再測定する |
+| 移動後（最適化前）の `TotalAlloc` の差・`HeapInuse` の最大値 | 738 MiB・750 MiB（`AsArray` が全要素を先に分割するため） |
+| 上限を加えた後（ステップ 1-10）の `TotalAlloc` の差・`HeapInuse` の最大値 | 43 MiB・52 MiB（`AsArray` が `maxArrayElements`（131072）個で分割を打ち切り、残りを読まないため） |
+| 判断 | 最適化前の 750 MiB は 256 MiB を超えるため、条件付きの PR-1a（ステップ 1-10・1-11）で `AsArray` の分割に件数の上限を加えた。最適化後は 52 MiB で 256 MiB 以下である。`internal/transcript` の返る番兵は `ErrParseSubtitles` のままである |
 
 ## 6. リスク管理 (Risk Management)
 

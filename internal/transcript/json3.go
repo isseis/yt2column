@@ -20,11 +20,11 @@ const (
 var (
 	errInputTooLarge     = errors.New("input exceeds the size limit")
 	errMissingEvents     = errors.New("missing events member")
-	errEventsNotArray    = errors.New("events is not an array")
+	errEventsNotArray    = errors.New("events is not a valid array")
 	errTooManyEvents     = errors.New("too many events")
 	errMissingTimestamp  = errors.New("content event is missing tStartMs")
 	errNegativeTimestamp = errors.New("tStartMs is negative")
-	errSegsNotArray      = errors.New("segs is not an array")
+	errSegsNotArray      = errors.New("segs is not a valid array")
 )
 
 // parseSubtitles parses a json3 subtitle file and returns one segment per event

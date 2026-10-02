@@ -14,6 +14,14 @@ import (
 	"unicode/utf8"
 )
 
+// maxArrayElements caps the number of elements AsArray splits from one array.
+// An array with more elements is rejected before every element is split, which
+// bounds the memory the split allocates when a document packs many small
+// elements into one array. The cap is larger than the transcript parser's own
+// event limit, so that parser still reports its count check for arrays it would
+// otherwise accept.
+const maxArrayElements = 1 << 17
+
 // Static errors for the strict JSON decoding, including the sequences
 // encoding/json would silently repair (invalid UTF-8 and unpaired UTF-16
 // surrogate escapes) and the structural shapes rejected here.
@@ -23,6 +31,7 @@ var (
 	errTrailingJSON      = errors.New("unexpected data after the JSON value")
 	errNotJSONObject     = errors.New("JSON value is not an object")
 	errNotArray          = errors.New("JSON value is not an array")
+	errTooManyElements   = errors.New("array has too many elements")
 	errZeroValue         = errors.New("value is unset")
 	errNonStringKey      = errors.New("JSON object key is not a string")
 	errDuplicateMember   = errors.New("duplicate consumed member")
@@ -189,7 +198,8 @@ func (v Value) AsObject() (Object, error) {
 	return Object{members: members}, nil
 }
 
-// AsArray returns the value as an array, rejecting null and other kinds.
+// AsArray returns the value as an array, rejecting null and other kinds, and an
+// array with more than maxArrayElements elements.
 func (v Value) AsArray() ([]Value, error) {
 	if v.raw == nil {
 		return nil, errZeroValue
@@ -204,6 +214,9 @@ func (v Value) AsArray() ([]Value, error) {
 	}
 	values := []Value{}
 	for decoder.More() {
+		if len(values) >= maxArrayElements {
+			return nil, fmt.Errorf("%w: limit %d", errTooManyElements, maxArrayElements)
+		}
 		var raw json.RawMessage
 		if err := decoder.Decode(&raw); err != nil {
 			return nil, err

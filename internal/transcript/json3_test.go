@@ -226,6 +226,18 @@ func TestParseSubtitlesLimits(t *testing.T) {
 	})
 }
 
+func TestParseSubtitlesArrayElementLimit(t *testing.T) {
+	// Only the segs case can discriminate internal/strictjson's AsArray cap
+	// (maxArrayElements, 131072): an events array above the cap is already
+	// rejected by maxSubtitleEvents (65,536). Both still surface as
+	// ErrParseSubtitles.
+	const overCap = 131073
+
+	t.Run("segs over the strictjson cap", func(t *testing.T) {
+		assertSubtitlesRejected(t, string(segsDocument(overCap)))
+	})
+}
+
 func TestParseSubtitlesUTF8(t *testing.T) {
 	t.Run("invalid UTF-8 sample", func(t *testing.T) {
 		data := readTestdataFile(t, testdataInvalidUTF8Subtitles)
@@ -344,5 +356,20 @@ func eventsDocument(events int) []byte {
 		builder.WriteString(`{}`)
 	}
 	builder.WriteString(`]}`)
+	return []byte(builder.String())
+}
+
+// segsDocument builds a json3 document with one event carrying segs empty
+// segments.
+func segsDocument(segs int) []byte {
+	var builder strings.Builder
+	builder.WriteString(`{"events":[{"tStartMs":0,"segs":[`)
+	for i := range segs {
+		if i > 0 {
+			builder.WriteByte(',')
+		}
+		builder.WriteString(`{}`)
+	}
+	builder.WriteString(`]}]}`)
 	return []byte(builder.String())
 }
