@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Created | 2026-10-02 |
 | Review date | 2026-10-02 |
 | Reviewer | isseis |
-| Comments | PR の区切りの訂正（editorial）。ステップ 6-3・6-4（`security.md` §2 の実キーの例外と `http2debug` のポリシー）を PR-4 に再配置し、ステップ 1-6 の条件付きの件数上限付き分割の最適化を PR-1 とは別の独立した PR とした。何をなぜ作るかは変わらず、決定の変更はない。続く PR の区切りの訂正（editorial）。§3.2 に PR の区切りの不変条件と条件付きの PR の扱いを明記し、フェーズ 6 でステップ 6-3・6-4 を PR-4 作成ポイントの前、6-1・6-2 をその後に並べ替え（番号は維持）、決定済みの独立した最適化の PR を条件付きの PR-1a（ステップ 1-10・1-11、測定が 256 MiB 以下なら `[-]`）として作成ポイントつきで §2・§3.2・§7・§9 に加えた。最適化の条件と独立した PR とする方針は前回の訂正のままで、決定の変更はない。 |
+| Comments | PR の区切りの訂正（editorial）。ステップ 6-3・6-4（`security.md` §2 の実キーの例外と `http2debug` のポリシー）を PR-4 に再配置し、ステップ 1-6 の条件付きの件数上限付き分割の最適化を PR-1 とは別の独立した PR とした。何をなぜ作るかは変わらず、決定の変更はない。続く PR の区切りの訂正（editorial）。§3.2 に PR の区切りの不変条件と条件付きの PR の扱いを明記し、フェーズ 6 でステップ 6-3・6-4 を PR-4 作成ポイントの前、6-1・6-2 をその後に並べ替え（番号は維持）、決定済みの独立した最適化の PR を条件付きの PR-1a（ステップ 1-10・1-11、測定が 256 MiB 以下なら `[-]`）として作成ポイントつきで §2・§3.2・§7・§9 に加えた。最適化の条件と独立した PR とする方針は前回の訂正のままで、決定の変更はない。レビューで、`segs` に要素数の上限を適用する受理の契約の変更（再承認を要する決定の変更）と、`events` の上限を超える入力を固定する判別力のないサブテストの削除が指摘された。これを受けて本計画を `draft` に戻し、人の再承認を待つ。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -141,7 +141,7 @@ HEAD `00573f2`（ブランチ `task/0003-deepseek-llm-client-02`）で確認し�
 - 変更: `internal/strictjson/strictjson.go`・`internal/strictjson/strictjson_test.go`
 
 **タスク**
-- [x] **ステップ 1-10**: `AsArray` の分割に件数の上限を加え、上限を超える配列を全要素の分割の前に拒否する。上限は `events`・`segs` を問わずすべての配列に適用される。最適化の正しさの義務は、上限内の入力の受理を変えないこと、および `internal/transcript` が既に拒否していた入力の返る番兵（`ErrParseSubtitles` と `*ParseError`）を変えないことである。`events` は `maxSubtitleEvents`（65536）が上限（131072）より小さいため、同パッケージの件数の判定（`errTooManyEvents`）は上限内で従来どおり働き、上限を超える `events` は `AsArray` が拒否する。`segs` には件数の判定がないため、上限を超える `segs` を持つ入力は新たに安全側へ拒否される。いずれの経路でも返る番兵は `ErrParseSubtitles` である。この義務をコミットメッセージに書き、最適化を外すか変えると失敗するテストで固定する（CLAUDE.md「Performance」）。最適化だけを 1 つのコミットにする。ステップ 1-6 と同じ入力で再測定し、§5.2 に記録する。上限は `internal/strictjson` の非公開の定数 `maxArrayElements` とし、値は `1 << 17`（131072）とする。境界のテスト（`maxArrayElements-1`・`maxArrayElements`・`maxArrayElements+1`）を `strictjson_test.go` に置き、上限を外すと `maxArrayElements+1` が成功して失敗するようにする。`internal/transcript` の `events` が上限を超える入力と `segs` が上限を超える入力が `ErrParseSubtitles` になることを `json3_test.go` で固定する。DeepSeek の `choices`（ちょうど 1 要素）は上限の影響を受けない。
+- [x] **ステップ 1-10**: `AsArray` の分割に件数の上限を加え、上限を超える配列を全要素の分割の前に拒否する。上限は `events`・`segs` を問わずすべての配列に適用される。最適化の正しさの義務は、上限内の入力の受理を変えないこと、および `internal/transcript` が既に拒否していた入力の返る番兵（`ErrParseSubtitles` と `*ParseError`）を変えないことである。`events` は `maxSubtitleEvents`（65536）が上限（131072）より小さいため、同パッケージの件数の判定（`errTooManyEvents`）は上限内で従来どおり働き、上限を超える `events` は `AsArray` が拒否する。`segs` には件数の判定がないため、上限を超える `segs` を持つ入力は新たに安全側へ拒否される。いずれの経路でも返る番兵は `ErrParseSubtitles` である。この義務をコミットメッセージに書き、最適化を外すか変えると失敗するテストで固定する（CLAUDE.md「Performance」）。最適化だけを 1 つのコミットにする。ステップ 1-6 と同じ入力で再測定し、§5.2 に記録する。上限は `internal/strictjson` の非公開の定数 `maxArrayElements` とし、値は `1 << 17`（131072）とする。境界のテスト（`maxArrayElements-1`・`maxArrayElements`・`maxArrayElements+1`）を `strictjson_test.go` に置き、上限を外すと `maxArrayElements+1` が成功して失敗するようにする。`internal/transcript` の `segs` が上限を超える入力が `ErrParseSubtitles` になることを `json3_test.go` で固定する（`events` が上限を超える入力は `maxSubtitleEvents` でも既に拒否されるため、上限の有無を判別できない）。DeepSeek の `choices`（ちょうど 1 要素）は上限の影響を受けない。
 - [x] **ステップ 1-11**: `make fmt` → `make test` → `make lint` を通す。
 
 ### PR-1a 作成ポイント: bounded array split in internal/strictjson (conditional)

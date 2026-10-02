@@ -227,16 +227,11 @@ func TestParseSubtitlesLimits(t *testing.T) {
 }
 
 func TestParseSubtitlesArrayElementLimit(t *testing.T) {
-	// internal/strictjson's AsArray rejects an array with more than
-	// maxArrayElements (131072) elements. The cap applies to every array, so
-	// an events array above it and a segs array above it both surface as
-	// ErrParseSubtitles. The events case was already rejected by
-	// maxSubtitleEvents; the segs case is rejected only by the cap.
+	// Only the segs case can discriminate internal/strictjson's AsArray cap
+	// (maxArrayElements, 131072): an events array above the cap is already
+	// rejected by maxSubtitleEvents (65,536). Both still surface as
+	// ErrParseSubtitles.
 	const overCap = 131073
-
-	t.Run("events over the strictjson cap", func(t *testing.T) {
-		assertSubtitlesRejected(t, string(eventsDocument(overCap)))
-	})
 
 	t.Run("segs over the strictjson cap", func(t *testing.T) {
 		assertSubtitlesRejected(t, string(segsDocument(overCap)))
