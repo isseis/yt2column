@@ -212,6 +212,7 @@ HEAD `00573f2`（ブランチ `task/0003-deepseek-llm-client-02`）で確認し�
   - 正常な生成: 短い固定の英語のプロンプト（字幕・API キー・パス・個人情報を含まない）で `Generate` を呼び、エラーがなく、`Text` が空白文字以外を含み、`Model` が空でないことを確かめる。`ModelVersion` は `%+q` で `t.Logf` に出力する（I-03）。
   - 打ち切り: `MaxOutputTokens` 16（architecture §3.6）と長い出力を求めるプロンプトで `llm.ErrTruncated` を確かめる。エラーが返らなかった場合のメッセージは I-04 のとおりとする。
   - テストの出力に API キーもその一部も書かない。
+  - `Generate` を呼ぶ前に `GODEBUG` を確認し、`http2debug=1`・`http2debug=2` が含まれる場合はそれらを取り除くか、検出して失敗する。継承された設定で実キーの `Authorization` ヘッダーと API キーが標準エラー出力に漏れないようにする（architecture §5.4）。この方針は `make test-integration-deepseek` から実行した場合と、ステップ 5-6 の直接実行の両方に効かせる。
 - [ ] **ステップ 5-3**: `Makefile` に `test-integration-deepseek` を追加し、`.PHONY` に加える。レシピは、実 API を使い料金が発生することを表示してから、`$(GOTEST) -tags integration -count=1 -timeout $(DEEPSEEK_INTEGRATION_TIMEOUT) -v ./internal/llm/deepseek` を実行する（`-run` は使わない。I-02）。`DEEPSEEK_INTEGRATION_TIMEOUT ?= 40m`（I-01）、`YT2COLUMN_MODEL ?= deepseek-flash` とし、`YT2COLUMN_MODEL` と `YT2COLUMN_DEEPSEEK_INTEGRATION=1` は、ターゲット固有の `export` でこのターゲットにだけエクスポートする。値をシェルのテキストに埋め込まない（既存の `test-integration` の方針）。既存の `test-integration` は変更しない。
 - [ ] **ステップ 5-4**: `makefile_test.go` に `TestMakeTestIntegrationDeepSeek` を作成する。`t.TempDir` に、受け取った引数と関係する環境変数を書き出すだけのスタブを置き、リポジトリのルートで `make -s test-integration-deepseek GOTEST=<スタブ>` を実行して、次を確かめる。実 API もネットワークも使わない。
   - 料金の発生を示す表示があること。
@@ -238,7 +239,7 @@ HEAD `00573f2`（ブランチ `task/0003-deepseek-llm-client-02`）で確認し�
 - [ ] **ステップ 6-1**: `project_overview.md` を更新する。想定ディレクトリ構成に `internal/strictjson/` を加える（検証を通った JSON 文書から値を取り出す厳格な部品）。`:40` の `GenerateResponse` の説明に `ModelVersion`（生成に使ったモデルまたはバックエンドの版の識別子。返さないプロバイダでは空文字列）を加える。`testdata/` の行に DeepSeek の API の実応答を加える。決定済みの方針は変更しない（requirements §5.1）。
 - [ ] **ステップ 6-2**: `CLAUDE.md` の Architecture Overview のパッケージの説明に `internal/strictjson`（`internal/transcript` と `internal/llm/deepseek` が共有する厳格な JSON の部品）を加える。
 - [ ] **ステップ 6-3**: `security.md` §2 に、統合テストに限って実在の API キーを使う例外と、その範囲・安全策（`//go:build integration`、オプトインの変数、テスト専用の `YT2COLUMN_TEST_DEEPSEEK_API_KEY`、出力に API キーを書かない）を追記する（architecture §5.2）。
-- [ ] **ステップ 6-4**: `security.md` §2 に、`GODEBUG` に `http2debug=1` または `http2debug=2` を含めると `Authorization` ヘッダーが標準エラー出力に出るため、この設定で調査するときは無効な API キーを使う旨を追記する（architecture §5.4、§1.3）。
+- [ ] **ステップ 6-4**: `security.md` §2 に、`GODEBUG` に `http2debug=1` または `http2debug=2` を含めると `Authorization` ヘッダーが標準エラー出力に出るため、この設定で調査するときは無効な API キーを使うこと、統合テストは `Generate` の前にこれらの設定を取り除くか検出して失敗することを追記する（architecture §5.4、§1.3。ステップ 5-2）。
 - [ ] **ステップ 6-5**: `README.md` の Development の節に `make test-integration-deepseek` を加え、既存の `make test-integration` の説明（`README.md:81-90`）と同じ形で、実 API を使い料金が発生すること、`YT2COLUMN_TEST_DEEPSEEK_API_KEY`（本番の `DEEPSEEK_API_KEY` とは別）が必要なこと、`YT2COLUMN_MODEL` の既定値、ターゲットがオプトインの変数を設定すること、オプトインがなければ統合テストがスキップされることを説明する。
 - [ ] **ステップ 6-6**: 追記した内容を根拠と突き合わせる。6-3 と 6-5 は `integration_env_test.go`・`integration_test.go`・`Makefile` の実装と、6-4 は §1.3 に記した go1.27.1 のソース（`src/net/http/internal/http2/http2.go:50-56`・`transport.go:1849-1851`）と照合する。6-1・6-2 のパッケージの説明は `package_reference.md` の行と照合する。照合した根拠をコミットメッセージに書く。
 - [ ] **ステップ 6-7**: `package_reference.md` の `internal/strictjson`・`internal/llm`・`internal/llm/deepseek` の行が、フェーズ 1〜5 の最終的な実装と一致していることを確認する。
@@ -300,7 +301,7 @@ architecture §7.3 に従う。計画固有の事項は次のとおり。
 | AC | 内容 | 種別 | 検証の実行場所 |
 |---|---|---|---|
 | AC-01 | 有効な構築で `llm.LLMClient` が返る | test | `internal/llm/deepseek/deepseek_test.go::TestNew` |
-| AC-02 | 不正な API キー・モデル名・タイムアウトの構築を拒否 | test | `internal/llm/deepseek/deepseek_test.go::TestNew`（ゼロ値の `Secret`、末尾の改行・空白を含む API キー、空・前後に空白・不正な UTF-8 のモデル名、0 と負のタイムアウトで、エラーと nil。メッセージにモデル名も API キーも現れないこと） |
+| AC-02 | 不正な API キー・モデル名・タイムアウトの構築を拒否 | test | `internal/llm/deepseek/deepseek_test.go::TestNew`（ゼロ値の `Secret` と、API キーの文字の契約、すなわち表示可能な ASCII `0x21`〜`0x7E` の範囲外のバイトをすべて拒否すること（内部の制御文字・境界・非 ASCII を代表的な入力として含める）。空・前後に空白・不正な UTF-8 のモデル名、0 と負のタイムアウトでもエラーと nil を返す。メッセージにモデル名も API キーも現れないこと） |
 | AC-03 | `POST` 1 回、`Content-Type`・`Authorization`、本文と URL に API キーなし | test | `internal/llm/deepseek/deepseek_test.go::TestGenerateSendsRequest` |
 | AC-04 | モデル名・2 件のメッセージ列・非ストリーミング、プロンプトの同一性 | test | `internal/llm/deepseek/deepseek_test.go::TestGenerateSendsRequest`（前後の空白・改行・`<`・`&` を含むプロンプトを、デコードした文字列で比較） |
 | AC-05 | `max_tokens` の有無 | test | `internal/llm/deepseek/deepseek_test.go::TestGenerateMaxTokens` |
