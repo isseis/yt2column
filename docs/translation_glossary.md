@@ -34,3 +34,7 @@
 | 構成要素パッケージ | component package | パイプラインの構成要素（3 つの段階と、`ArticleWriter` が使う `LLMClient`）の interface とデータ型を持つパッケージ（`internal/transcript`・`internal/llm`・`internal/writer`・`internal/publisher`）。リーフとは限らない |
 | リーフパッケージ | leaf package | 依存先を持たないパッケージ（例: `internal/llm`）。旧称: 葉パッケージ |
 | 秘密情報 | secret | API キー・Webhook URL など。`Secret` 型で保持する |
+| 片付け | cleanup | `/mergepr` のマージ後処理（base の更新、ローカル head ブランチの削除） |
+| 材料 | material | `/mergepr` がコミットメッセージの下書きに使う PR 情報（log.txt・stat.txt・body.txt） |
+| 件名 | subject | コミットメッセージの 1 行目 |
+| 対処 | remedy | 問題が起きたときに開発者が取る手順。見出しでは "What to Do When ..." とする |
