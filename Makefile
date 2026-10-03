@@ -109,9 +109,9 @@ test-integration-deepseek:
 	@printf 'test-integration-deepseek: calls the real DeepSeek API, which incurs charges (model: %s)\n' "$$YT2COLUMN_MODEL"
 	$(GOTEST) -tags integration -count=1 -timeout $(DEEPSEEK_INTEGRATION_TIMEOUT) -v ./internal/llm/deepseek
 
-# golangci-lint compiles the integration test only together with the `test`
-# helpers; vet the `-tags integration` build that `make test-integration` runs,
-# so a compile error there fails lint too.
+# golangci-lint compiles the integration tests only together with the `test`
+# helpers; vet the `-tags integration` build that `make test-integration` and
+# `make test-integration-deepseek` run, so a compile error there fails lint too.
 lint:
 	$(GOLINT)
 	$(GOCMD) vet -tags integration ./...

@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 const (
@@ -51,11 +52,11 @@ type makeInvocation struct {
 	env  map[string]string
 }
 
-// runMakeTestIntegrationDeepSeek runs `make -s test-integration-deepseek` at
-// the repository root with GOTEST replaced by the stub, and returns make's
-// output and what the stub recorded. model is the YT2COLUMN_MODEL entry of
-// the child environment; nil leaves the variable undefined.
-func runMakeTestIntegrationDeepSeek(t *testing.T, model *string) (string, makeInvocation) {
+// runMakeTarget runs `make -s <target>` at the repository root with GOTEST
+// replaced by the stub, and returns make's output and what the stub recorded.
+// model is the YT2COLUMN_MODEL entry of the child environment; nil leaves the
+// variable undefined.
+func runMakeTarget(t *testing.T, target string, model *string) (string, makeInvocation) {
 	t.Helper()
 	makePath, err := exec.LookPath("make")
 	if err != nil {
@@ -76,12 +77,12 @@ func runMakeTestIntegrationDeepSeek(t *testing.T, model *string) (string, makeIn
 	if model != nil {
 		env = append(env, integrationModelEnv+"="+*model)
 	}
-	cmd := exec.Command(makePath, "-s", "test-integration-deepseek", "GOTEST="+stub)
+	cmd := exec.Command(makePath, "-s", target, "GOTEST="+stub)
 	cmd.Dir = repositoryRoot
 	cmd.Env = env
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("make test-integration-deepseek error = %v, output:\n%s", err, output)
+		t.Fatalf("make %s error = %v, output:\n%s", target, err, output)
 	}
 
 	recorded, err := os.ReadFile(filepath.Join(dir, "invocation"))
@@ -107,8 +108,11 @@ func runMakeTestIntegrationDeepSeek(t *testing.T, model *string) (string, makeIn
 
 func TestMakeTestIntegrationDeepSeek(t *testing.T) {
 	// The package path is the final, standalone argument, so go test treats
-	// it as the package and not as the value of a flag such as -run.
-	wantArgs := []string{"-tags", "integration", "-count=1", "-timeout", "40m", "-v", "./internal/llm/deepseek"}
+	// it as the package and not as the value of a flag such as -run. The
+	// -timeout value is checked separately against the Generate timeouts.
+	const timeoutPlaceholder = "<timeout>"
+	wantArgs := []string{"-tags", "integration", "-count=1", "-timeout", timeoutPlaceholder, "-v", "./internal/llm/deepseek"}
+	minTimeout := integrationGenerateCalls * integrationGenerateTimeout
 	empty := ""
 	custom := "deepseek-custom"
 	for _, tc := range []struct {
@@ -121,11 +125,20 @@ func TestMakeTestIntegrationDeepSeek(t *testing.T) {
 		{name: "model_value_is_kept", model: &custom, wantModel: custom},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			output, invocation := runMakeTestIntegrationDeepSeek(t, tc.model)
+			output, invocation := runMakeTarget(t, "test-integration-deepseek", tc.model)
 			if !strings.Contains(output, "calls the real DeepSeek API, which incurs charges") {
 				t.Errorf("make output %q does not say that the target calls the real API and incurs charges", output)
 			}
-			if !slices.Equal(invocation.args, wantArgs) {
+			args := slices.Clone(invocation.args)
+			if i := slices.Index(args, "-timeout"); i >= 0 && i+1 < len(args) {
+				timeout, err := time.ParseDuration(args[i+1])
+				if err != nil || timeout <= minTimeout {
+					t.Errorf("-timeout %q (parse error %v), want a duration above %d x %s = %s",
+						args[i+1], err, integrationGenerateCalls, integrationGenerateTimeout, minTimeout)
+				}
+				args[i+1] = timeoutPlaceholder
+			}
+			if !slices.Equal(args, wantArgs) {
 				t.Errorf("GOTEST arguments = %q, want %q", invocation.args, wantArgs)
 			}
 			if got, ok := invocation.env[integrationOptInEnv]; !ok || got != integrationOptInValue {
@@ -135,5 +148,15 @@ func TestMakeTestIntegrationDeepSeek(t *testing.T) {
 				t.Errorf("%s = %q (set %t), want %q", integrationModelEnv, got, ok, tc.wantModel)
 			}
 		})
+	}
+}
+
+// TestMakeOptInExportedToDeepSeekTargetOnly pins that the opt-in is a
+// target-specific export: another target that runs GOTEST must not see it,
+// or a global export would arm the charged test for every recipe.
+func TestMakeOptInExportedToDeepSeekTargetOnly(t *testing.T) {
+	_, invocation := runMakeTarget(t, "test-integration", nil)
+	if value, ok := invocation.env[integrationOptInEnv]; ok {
+		t.Errorf("make test-integration exported %s=%q; it must be exported to test-integration-deepseek only", integrationOptInEnv, value)
 	}
 }

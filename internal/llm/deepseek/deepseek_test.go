@@ -746,8 +746,10 @@ func TestIntegrationSettings(t *testing.T) {
 		testProductionKey    = "test-production-key-0123456789"
 		testIntegrationModel = "deepseek-custom"
 	)
-	// complete is an environment in which the integration test runs; each
-	// case changes one variable of it (an empty value deletes it).
+	// complete is an environment in which the integration test runs. Each
+	// case overrides some of its variables; an empty value stands for both
+	// unset and empty, which getenv cannot tell apart. The ordering cases
+	// override two variables to show which check wins.
 	complete := map[string]string{
 		integrationOptInEnv:  integrationOptInValue,
 		integrationAPIKeyEnv: testIntegrationKey,
@@ -767,6 +769,8 @@ func TestIntegrationSettings(t *testing.T) {
 		{name: "opt_in_checked_before_api_key", change: map[string]string{integrationOptInEnv: "", integrationAPIKeyEnv: ""}, wantAction: integrationSkip, wantReason: []string{integrationOptInEnv}},
 		{name: "api_key_missing_with_production_key_set", change: map[string]string{integrationAPIKeyEnv: ""}, wantAction: integrationSkip, wantReason: []string{integrationAPIKeyEnv}},
 		{name: "api_key_checked_before_model", change: map[string]string{integrationAPIKeyEnv: "", integrationModelEnv: ""}, wantAction: integrationSkip, wantReason: []string{integrationAPIKeyEnv}},
+		{name: "opt_in_checked_before_godebug", change: map[string]string{integrationOptInEnv: "", godebugEnv: "http2debug=1"}, wantAction: integrationSkip, wantReason: []string{integrationOptInEnv}},
+		{name: "api_key_checked_before_godebug", change: map[string]string{integrationAPIKeyEnv: "", godebugEnv: "http2debug=1"}, wantAction: integrationSkip, wantReason: []string{integrationAPIKeyEnv}},
 		{name: "model_missing", change: map[string]string{integrationModelEnv: ""}, wantAction: integrationFail, wantReason: []string{integrationModelEnv}},
 		{name: "godebug_http2debug_1", change: map[string]string{godebugEnv: "http2debug=1"}, wantAction: integrationFail, wantReason: []string{godebugEnv, "http2debug=1"}},
 		{name: "godebug_http2debug_2_among_others", change: map[string]string{godebugEnv: "gctrace=1,http2debug=2"}, wantAction: integrationFail, wantReason: []string{godebugEnv, "http2debug=2"}},

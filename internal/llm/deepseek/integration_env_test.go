@@ -4,6 +4,7 @@ package deepseek
 
 import (
 	"strings"
+	"time"
 
 	"github.com/isseis/yt2column/internal/secret"
 )
@@ -24,6 +25,21 @@ const (
 	// integrationOptInValue is the only opt-in value that runs the test.
 	// `make test-integration-deepseek` exports it.
 	integrationOptInValue = "1"
+)
+
+const (
+	// integrationGenerateTimeout bounds one real Generate call. The API can
+	// hold a request for up to 10 minutes before inference starts; 5 more
+	// minutes cover the generation itself.
+	integrationGenerateTimeout = 15 * time.Minute
+
+	// integrationGenerateCalls is how many Generate calls
+	// TestIntegrationGenerate makes. The -timeout that
+	// `make test-integration-deepseek` passes must exceed
+	// integrationGenerateCalls x integrationGenerateTimeout, so the test
+	// binary never times out before a Generate deadline does;
+	// TestMakeTestIntegrationDeepSeek checks it.
+	integrationGenerateCalls = 2
 )
 
 // http2VerboseSettings are the GODEBUG settings that make the HTTP/2 transport
@@ -92,6 +108,8 @@ func integrationSettingsFrom(getenv func(string) string) integrationSettings {
 	}
 	apiKey, err := secret.New(key)
 	if err != nil {
+		// Unreachable: secret.New rejects only the empty value, which is
+		// skipped above. Kept so an error is never dropped.
 		return integrationSettings{action: integrationFail, reason: integrationAPIKeyEnv + ": " + err.Error()}
 	}
 	return integrationSettings{action: integrationRun, apiKey: apiKey, model: model}

@@ -8,21 +8,11 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/isseis/yt2column/internal/llm"
 )
 
 const (
-	// integrationGenerateTimeout bounds one real Generate call. The API can
-	// hold a request for up to 10 minutes before inference starts; 5 more
-	// minutes cover the generation itself. The test makes two Generate
-	// calls, so `make test-integration-deepseek` passes -timeout 40m
-	// (2 x 15m plus 10m of margin). Revisit that -timeout when the number
-	// of calls or this value changes, so the test binary never times out
-	// before a Generate deadline does.
-	integrationGenerateTimeout = 15 * time.Minute
-
 	// integrationTruncationMaxTokens is small enough that the reasoning
 	// alone exhausts it, so the response ends with finish_reason "length".
 	integrationTruncationMaxTokens = 16
@@ -36,7 +26,7 @@ const (
 // generation, then one generation whose output limit forces truncation. It is
 // excluded from `make test` by its build tag and is run by
 // `make test-integration-deepseek`, which sets the opt-in variable and the
-// model name. Nothing derived from the API key is ever written to the output.
+// model name. It makes integrationGenerateCalls Generate calls. Nothing derived from the API key is ever written to the output.
 func TestIntegrationGenerate(t *testing.T) {
 	settings := integrationSettingsFrom(os.Getenv)
 	switch settings.action {
