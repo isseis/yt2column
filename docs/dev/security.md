@@ -17,7 +17,12 @@ yt2column はローカルで実行する CLI であり、利用者本人が入�
 
 - `DEEPSEEK_API_KEY` などの API キーと `SLACK_WEBHOOK_URL` は環境変数からのみ読み込む。リポジトリ内のファイルに書かない（`.envrc` / `.env` は `.gitignore` 済み）。
 - Webhook URL は URL 自体が秘密情報である。ログ・エラーメッセージ・`--dry-run` の出力に含めない。`*url.Error` など、URL を含む値をラップしたエラーをそのまま出力しない。
-- テストでは実在のキーや URL を使わない。
+- テストでは実在のキーや URL を使わない。ただし、実 API を使う統合テストに限り、次の範囲で実在の API キーを使う例外を設ける（`docs/tasks/0003_deepseek_llm_client/02_architecture.md` §5.2）。
+  - ユニットテストは実在のキーも URL も使わない。どのテストも API キーをコードやテストデータに書かない。
+  - 実在の API キーを使うのは、`//go:build integration` の統合テスト（`internal/llm/deepseek/integration_test.go`）だけである。統合テストは、`make test-integration-deepseek` だけがエクスポートするオプトインの変数 `YT2COLUMN_DEEPSEEK_INTEGRATION=1` がなければスキップする。テスト用の API キーが `.envrc` などで常にエクスポートされていても、`go test -tags integration ./...` や IDE からの実行で料金が発生しない。
+  - API キーは、本番の `DEEPSEEK_API_KEY` とは別の、テスト専用の環境変数 `YT2COLUMN_TEST_DEEPSEEK_API_KEY` からだけ読む。テストには本番と別のキー（利用上限を設けたものなど）を割り当てる。
+  - テストの出力（ログ・失敗メッセージ・スキップの理由）に API キーもその一部も書かない。
+- `GODEBUG` に `http2debug=1` または `http2debug=2` を含めると、Go の HTTP/2 の Transport は送信するリクエストヘッダーを値ごと標準エラー出力に記録する。`Authorization` ヘッダーの API キーもそのまま出力される。この設定で通信を調査するときは、無効な API キーを使う。`GODEBUG` はプロセスの開始時に一度だけ読まれ、実行中に取り除いても効かないため、統合テストは `Generate` を呼ぶ前にこれらの設定を検出して失敗する。
 
 ## 3. ネットワーク通信
 

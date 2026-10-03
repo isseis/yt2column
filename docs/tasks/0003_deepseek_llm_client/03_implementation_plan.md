@@ -50,7 +50,7 @@ HEAD `00573f2`（ブランチ `task/0003-deepseek-llm-client-02`）で確認し�
 - **外部前提の確認。**
   - `go.mod:3` は `go 1.26.5`、手元のツールチェーンは go1.27.1。`context.WithTimeoutCause`（Go 1.21）と `errors.AsType`（Go 1.26）が使える。依存の追加は不要である。
   - `http.DefaultTransport` の proxy は `httpproxy.FromEnvironment` が `HTTPS_PROXY`→`https_proxy`、`NO_PROXY`→`no_proxy` の順に最初の空でない値を採り（go1.27.1 `src/vendor/golang.org/x/net/http/httpproxy/proxy.go:90-106`）、ループバックと `localhost` は proxy を通さない（同 `:116`・`:178-185`）。環境変数はプロセス内で最初の 1 回だけ読まれる（`src/net/http/transport.go:1032-1047` の `envProxyOnce`）。ステップ 3-6 の `TestMain` はこれに依拠する。
-  - `GODEBUG` に `http2debug=1` または `http2debug=2` を含めると `VerboseLogs` が真になり（go1.27.1 `src/net/http/internal/http2/http2.go:50-56`）、HTTP/2 の Transport が送るヘッダーを値ごと `log.Printf` で出力する（同 `transport.go:1849-1851`）。architecture §5.4 は `=2` だけを挙げているが、`=1` でも同じである。ステップ 6-4 の security.md の記述はこの両方を書く（architecture の決定は変えない）。
+  - `GODEBUG` に `http2debug=1` または `http2debug=2` を含めると `VerboseLogs` が真になり（go1.27.1 `src/net/http/internal/http2/http2.go:50-58`）、HTTP/2 の Transport が送るヘッダーを値ごと `log.Printf` で出力する（同 `transport.go:1849-1851`）。architecture §5.4 は `=2` だけを挙げているが、`=1` でも同じである。ステップ 6-4 の security.md の記述はこの両方を書く（architecture の決定は変えない）。
   - GNU Make 3.81（手元の `make --version`）で、次を一時ディレクトリの Makefile で確認した（2026-10-02）。`VAR ?= default` は環境で空文字列に定義された変数を上書きしない。ターゲット固有の `export VAR := …` はそのターゲットのレシピにだけエクスポートされ、他のターゲットからは見えない。コマンドラインで与えた `GOTEST=…` は Makefile 内の代入より優先される。ステップ 5-3・5-4 はこれに依拠する。CI の `ubuntu-latest` は GNU Make 4 系である。これらの意味は GNU Make のマニュアルの "Setting Variables"（`?=` は未定義の変数にだけ代入する）・"Variables from the Environment"・"Target-specific Variable Values"（`export` 付きの指定）・"Overriding Variables"（コマンドラインの代入が優先する）に記された仕様であり、版で変わらない。なお、外側の `make` に渡したコマンドラインの変数は `MAKEFLAGS` を通じて内側の `make` に伝わる（レビュー時に 3.81 で確認した）。ステップ 5-4 は `MAKEFLAGS` などを子の環境から除く。
 - **architecture との整合。** 本計画は architecture §8 のフェーズの構成と順序をそのまま採る。調査の範囲で、architecture の修正が必要な不整合は見つかっていない。architecture の記述にない計画上の判断は、フェーズ 3 の暫定の検証関数（ステップ 3-4）、`TestMain` による proxy の固定（ステップ 3-6）、`Reveal()` の呼び出し箇所の guard（ステップ 3-7）、統合テストの環境変数の判定を純粋な関数にすること（ステップ 5-1）、Makefile のターゲットの実行テスト（ステップ 5-4）、`project_overview.md` の `testdata/` の行の更新（ステップ 6-1）、security.md に `http2debug=1` も書くこと（ステップ 6-4）、`README.md` の更新（ステップ 6-5）である。また、architecture §3.8 は `package_reference.md` で `internal/transcript` の責務を更新するとするが、同パッケージの行の記述（strict json3 and info.json parsers）は移動の後も正しいため、本計画は変更しない（ステップ 1-7）。いずれも architecture の決定を変えない。
 
@@ -277,8 +277,8 @@ HEAD `00573f2`（ブランチ `task/0003-deepseek-llm-client-02`）で確認し�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 5: 統合テスト
 
@@ -287,28 +287,29 @@ HEAD `00573f2`（ブランチ `task/0003-deepseek-llm-client-02`）で確認し�
 - 変更: `Makefile`・`internal/llm/deepseek/deepseek_test.go`（`TestIntegrationSettings`・`TestIntegrationTestBuildTag` の追加）
 
 **タスク**
-- [ ] **ステップ 5-1**: `integration_env_test.go` に、環境変数の読み取り関数（`getenv func(string) string`）を受け取る純粋な関数を作る。判定の順序は architecture §7.2 のとおり、オプトイン `YT2COLUMN_DEEPSEEK_INTEGRATION` が `1` でなければスキップ、`YT2COLUMN_TEST_DEEPSEEK_API_KEY` が未設定・空ならスキップ、`YT2COLUMN_MODEL` が未設定・空なら失敗とする。スキップと失敗の理由には変数名を含める（オプトインがないことによるスキップの理由には `make test-integration-deepseek` も含める）。すべて設定されていれば、`secret.New` で包んだ API キーとモデル名を返す。`DEEPSEEK_API_KEY` は読まない。このファイルは `test` と `integration` のどちらのビルドにも含まれ、テスト関数を持たない。この関数のテスト `TestIntegrationSettings` は `deepseek_test.go`（`//go:build test`）に置き、オプトインの欠如と `1` 以外の値（`0`・`true`・` 1`）、API キーの未設定・空（`DEEPSEEK_API_KEY` だけが設定されている場合を含む）、モデル名の未設定・空、すべて設定された場合に API キーとモデル名がそのまま返ることを確かめる。
-- [ ] **ステップ 5-2**: `integration_test.go` に `TestIntegrationGenerate` を作成する。ステップ 5-1 の関数に `os.Getenv` を渡し、スキップなら `t.Skip`、失敗なら `t.Fatal` とする。`test_helpers.go` に依存せず、`New` で作った、送信先が本番のアダプタを使う。1 回の `Generate` のタイムアウトは 15 分（§1.5 の I-01）とし、`Options.Timeout` に渡す。サブテストは 2 つとする。
+- [x] **ステップ 5-1**: `integration_env_test.go` に、環境変数の読み取り関数（`getenv func(string) string`）を受け取る純粋な関数を作る。判定の順序は architecture §7.2 のとおり、オプトイン `YT2COLUMN_DEEPSEEK_INTEGRATION` が `1` でなければスキップ、`YT2COLUMN_TEST_DEEPSEEK_API_KEY` が未設定・空ならスキップ、`YT2COLUMN_MODEL` が未設定・空なら失敗、`GODEBUG` に `http2debug=1` または `http2debug=2` が含まれるなら失敗とする（ステップ 5-2 の `GODEBUG` の方針。判定はアダプタの外の `net/http` の HTTP/2 の実装と同じ部分文字列の一致で行う）。判定の結果は、ゼロ値がスキップである列挙型（スキップ・失敗・実行）で返す。スキップと失敗の理由には変数名を含める（オプトインがないことによるスキップの理由には `make test-integration-deepseek` も含める）。すべて設定されていれば、`secret.New` で包んだ API キーとモデル名を返す。`DEEPSEEK_API_KEY` は読まない。このファイルは `test` と `integration` のどちらのビルドにも含まれ、テスト関数を持たない。この関数のテスト `TestIntegrationSettings` は `deepseek_test.go`（`//go:build test`）に置き、オプトインの欠如と `1` 以外の値（`0`・`true`・` 1`）、API キーの未設定・空（`DEEPSEEK_API_KEY` だけが設定されている場合を含む）、モデル名の未設定・空、`GODEBUG` の `http2debug=1`・`http2debug=2`（他の設定と並ぶ場合を含む）での失敗と関係のない設定での実行、判定の順序、すべて設定された場合に API キーとモデル名がそのまま返ることを確かめる。
+- [x] **ステップ 5-2**: `integration_test.go` に `TestIntegrationGenerate` を作成する。ステップ 5-1 の関数に `os.Getenv` を渡し、スキップなら `t.Skip`、失敗なら `t.Fatal` とする。`test_helpers.go` に依存せず、`New` で作った、送信先が本番のアダプタを使う。1 回の `Generate` のタイムアウトは 15 分（§1.5 の I-01）とし、`Options.Timeout` に渡す。サブテストは 2 つとする。
   - 正常な生成: 短い固定の英語のプロンプト（字幕・API キー・パス・個人情報を含まない）で `Generate` を呼び、エラーがなく、`Text` が空白文字以外を含み、`Model` が空でないことを確かめる。`ModelVersion` は `%+q` で `t.Logf` に出力する（I-03）。
   - 打ち切り: `MaxOutputTokens` 16（architecture §3.6）と長い出力を求めるプロンプトで `llm.ErrTruncated` を確かめる。エラーが返らなかった場合のメッセージは I-04 のとおりとする。
   - テストの出力に API キーもその一部も書かない。
-  - `Generate` を呼ぶ前に `GODEBUG` を確認し、`http2debug=1`・`http2debug=2` が含まれる場合はそれらを取り除くか、検出して失敗する。継承された設定で実キーの `Authorization` ヘッダーと API キーが標準エラー出力に漏れないようにする（architecture §5.4）。この方針は `make test-integration-deepseek` から実行した場合と、ステップ 5-6 の直接実行の両方に効かせる。
-- [ ] **ステップ 5-3**: `Makefile` に `test-integration-deepseek` を追加し、`.PHONY` に加える。レシピは、実 API を使い料金が発生することを表示してから、`$(GOTEST) -tags integration -count=1 -timeout $(DEEPSEEK_INTEGRATION_TIMEOUT) -v ./internal/llm/deepseek` を実行する（`-run` は使わない。I-02）。`DEEPSEEK_INTEGRATION_TIMEOUT ?= 40m`（I-01）、`YT2COLUMN_MODEL ?= deepseek-flash` とし、`YT2COLUMN_MODEL` と `YT2COLUMN_DEEPSEEK_INTEGRATION=1` は、ターゲット固有の `export` でこのターゲットにだけエクスポートする。値をシェルのテキストに埋め込まない（既存の `test-integration` の方針）。既存の `test-integration` は変更しない。
-- [ ] **ステップ 5-4**: `makefile_test.go` に `TestMakeTestIntegrationDeepSeek` を作成する。`t.TempDir` に、受け取った引数と関係する環境変数を書き出すだけのスタブを置き、リポジトリのルートで `make -s test-integration-deepseek GOTEST=<スタブ>` を実行して、次を確かめる。実 API もネットワークも使わない。
+  - `Generate` を呼ぶ前に `GODEBUG` を確認し、`http2debug=1`・`http2debug=2` が含まれる場合は検出して失敗する（ステップ 5-1 の関数で判定する）。取り除く方式は採らない。`net/http` の HTTP/2 の実装は `GODEBUG` をパッケージの初期化時に一度だけ読む（go1.27.1 `src/net/http/internal/http2/http2.go:49` の `init`。判定は `:50-58`）ため、テストの中で環境変数から取り除いても効かない。継承された設定で実キーの `Authorization` ヘッダーと API キーが標準エラー出力に漏れないようにする（architecture §5.4）。この方針は `make test-integration-deepseek` から実行した場合と、ステップ 5-6 の直接実行の両方に効かせる。
+- [x] **ステップ 5-3**: `Makefile` に `test-integration-deepseek` を追加し、`.PHONY` に加える。レシピは、実 API を使い料金が発生することを表示してから、`$(GOTEST) -tags integration -count=1 -timeout $(DEEPSEEK_INTEGRATION_TIMEOUT) -v ./internal/llm/deepseek` を実行する（`-run` は使わない。I-02）。`DEEPSEEK_INTEGRATION_TIMEOUT ?= 40m`（I-01）、`YT2COLUMN_MODEL ?= deepseek-flash` とし、`YT2COLUMN_MODEL` と `YT2COLUMN_DEEPSEEK_INTEGRATION=1` は、ターゲット固有の `export` でこのターゲットにだけエクスポートする。値をシェルのテキストに埋め込まない（既存の `test-integration` の方針）。既存の `test-integration` は変更しない。
+- [x] **ステップ 5-4**: `makefile_test.go` に `TestMakeTestIntegrationDeepSeek` を作成する。`t.TempDir` に、受け取った引数と関係する環境変数を書き出すだけのスタブを置き、リポジトリのルートで `make -s test-integration-deepseek GOTEST=<スタブ>` を実行して、次を確かめる。実 API もネットワークも使わない。
   - 料金の発生を示す表示があること。
-  - 引数に `-tags integration`・`-count=1`・`-timeout`（値つき）・`-v` があり、`./internal/llm/deepseek` がフラグの値ではなくパッケージの引数として渡ること。
-  - `YT2COLUMN_DEEPSEEK_INTEGRATION` が `1` で渡ること。
+  - 引数に `-tags integration`・`-count=1`・`-timeout`（値つき。値は `Generate` の回数 × 1 回のタイムアウトより長いこと。2 つの定数は両方のビルドに含まれる `integration_env_test.go` に置く）・`-v` があり、`./internal/llm/deepseek` がフラグの値ではなくパッケージの引数として渡ること。
+  - `YT2COLUMN_DEEPSEEK_INTEGRATION` が `1` で渡ること。別のテスト `TestMakeOptInExportedToDeepSeekTargetOnly` で、`make test-integration` のレシピには渡らないこと（ターゲット固有のエクスポート）。
   - `YT2COLUMN_MODEL` が、環境で未定義なら `deepseek-flash`、空文字列に定義されていれば空文字列、値があればその値で渡ること。
   - スタブが実際に呼ばれたこと（スタブの出力ファイルが存在すること）。レシピが `$(GOTEST)` を経由しない形に変わった場合に、この確認が失敗する。
   - `make` が `PATH` にない場合はスキップせず失敗させる（CI の `ubuntu-latest` とローカル開発には `make` がある）。
   - `make` のすべての呼び出しで、子の環境をテストが明示的に組み立てる。外側の `make test` から伝わる `MAKEFLAGS`・`MFLAGS`・`MAKELEVEL`（コマンドラインの変数が `MAKEFLAGS` を通じて伝わるため。§1.3）と、`YT2COLUMN_TEST_DEEPSEEK_API_KEY`・`DEEPSEEK_API_KEY` は子の環境から除く。ステップ 3-6 の proxy の変数は残す。`YT2COLUMN_MODEL` は各ケースの値だけを与える。
-- [ ] **ステップ 5-5**: `deepseek_test.go` に `TestIntegrationTestBuildTag` を作成する。`integration_test.go` の先頭行が `//go:build integration`、`integration_env_test.go` の先頭行が `//go:build test || integration` であることを確かめる（AC-22。`internal/transcript/ytdlp_test.go:1692` と同じ形）。
-- [ ] **ステップ 5-6**: 人間の明示的な承認を得て（CLAUDE.md の Tool Execution Safety。料金が発生する）、`YT2COLUMN_TEST_DEEPSEEK_API_KEY` を設定した環境で `make test-integration-deepseek` を実行する。実行日時・HEAD・`-v` 出力の `TestIntegrationGenerate` とその 2 つのサブテストの `=== RUN`・`--- PASS` の行（`--- SKIP` がないこと）・所要時間・`ModelVersion` のログ行を §5.1 に記録する。API キーは記録しない。あわせて、オプトインの変数を設定せずに `go test -tags integration -count=1 -v ./internal/llm/deepseek` を実行し、`--- SKIP` と変数名を含むメッセージが出て API を呼ばないことを §5.1 に記録する。
-- [ ] **ステップ 5-7**: 壊して失敗することを確認し、コミットメッセージに記録する。対象は次のとおり。
+- [x] **ステップ 5-5**: `deepseek_test.go` に `TestIntegrationTestBuildTag` を作成する。`integration_test.go` の先頭行が `//go:build integration`、`integration_env_test.go` の先頭行が `//go:build test || integration` であることを確かめる（AC-22。`internal/transcript/ytdlp_test.go:1692` と同じ形）。
+- [x] **ステップ 5-6**: 人間の明示的な承認を得て（CLAUDE.md の Tool Execution Safety。料金が発生する）、`YT2COLUMN_TEST_DEEPSEEK_API_KEY` を設定した環境で `make test-integration-deepseek` を実行する。実行日時・HEAD・`-v` 出力の `TestIntegrationGenerate` とその 2 つのサブテストの `=== RUN`・`--- PASS` の行（`--- SKIP` がないこと）・所要時間・`ModelVersion` のログ行を §5.1 に記録する。API キーは記録しない。あわせて、オプトインの変数を設定せずに `go test -tags integration -count=1 -v ./internal/llm/deepseek` を実行し、`--- SKIP` と変数名を含むメッセージが出て API を呼ばないことを §5.1 に記録する。
+- [x] **ステップ 5-7**: 壊して失敗することを確認し、コミットメッセージに記録する。対象は次のとおり。
   - レシピに `-run` を足してパッケージのパスを正規表現として渡す、`YT2COLUMN_MODEL ?=` を `:=` にする、オプトインのエクスポートを外す（`TestMakeTestIntegrationDeepSeek`）。
-  - オプトインの判定を外す、`DEEPSEEK_API_KEY` を代わりに読む（`TestIntegrationSettings`）。
+  - オプトインのエクスポートをグローバルにする（`TestMakeOptInExportedToDeepSeekTargetOnly`）、`-timeout` を 30m にする・1 回のタイムアウトを 25 分にする（`TestMakeTestIntegrationDeepSeek`）。
+  - オプトインの判定を外す、`DEEPSEEK_API_KEY` を代わりに読む、`GODEBUG` の判定を外す・先頭に移す（`TestIntegrationSettings`）。
   - `integration_test.go` と `integration_env_test.go` の build tag を変える（`TestIntegrationTestBuildTag`）。
-- [ ] **ステップ 5-8**: `make fmt` → `make test` → `make lint` を通す。`make lint` の `go vet -tags integration ./...` が `integration_test.go` と `integration_env_test.go` を `test_helpers.go` なしでコンパイルすることを確認する。`-tags integration` のビルドのテスト関数が `TestIntegrationGenerate` だけであることを `go test -tags integration -list . ./internal/llm/deepseek` で確かめる（`-list` はテストを実行しない）。
+- [x] **ステップ 5-8**: `make fmt` → `make test` → `make lint` を通す。`make lint` の `go vet -tags integration ./...` が `integration_test.go` と `integration_env_test.go` を `test_helpers.go` なしでコンパイルすることを確認する。`-tags integration` のビルドのテスト関数が `TestIntegrationGenerate` だけであることを `go test -tags integration -list . ./internal/llm/deepseek` で確かめる（`-list` はテストを実行しない）。
 
 ### フェーズ 6: ドキュメント
 
@@ -321,8 +322,8 @@ HEAD `00573f2`（ブランチ `task/0003-deepseek-llm-client-02`）で確認し�
 
 PR-4 に属するステップ 6-3・6-4 を PR-4 作成ポイントの前に、PR-5 に属する残りのステップをその後に置く（§3.2 の不変条件）。ステップの番号は他の節からの参照を保つため変えず、文書上の順序だけを入れ替えている。
 
-- [ ] **ステップ 6-3**: `security.md` §2 に、統合テストに限って実在の API キーを使う例外と、その範囲・安全策（`//go:build integration`、オプトインの変数、テスト専用の `YT2COLUMN_TEST_DEEPSEEK_API_KEY`、出力に API キーを書かない）を追記する（architecture §5.2）。
-- [ ] **ステップ 6-4**: `security.md` §2 に、`GODEBUG` に `http2debug=1` または `http2debug=2` を含めると `Authorization` ヘッダーが標準エラー出力に出るため、この設定で調査するときは無効な API キーを使うこと、統合テストは `Generate` の前にこれらの設定を取り除くか検出して失敗することを追記する（architecture §5.4、§1.3。ステップ 5-2）。
+- [x] **ステップ 6-3**: `security.md` §2 に、統合テストに限って実在の API キーを使う例外と、その範囲・安全策（`//go:build integration`、オプトインの変数、テスト専用の `YT2COLUMN_TEST_DEEPSEEK_API_KEY`、出力に API キーを書かない）を追記する（architecture §5.2）。
+- [x] **ステップ 6-4**: `security.md` §2 に、`GODEBUG` に `http2debug=1` または `http2debug=2` を含めると `Authorization` ヘッダーが標準エラー出力に出るため、この設定で調査するときは無効な API キーを使うこと、統合テストは `Generate` の前にこれらの設定を検出して失敗すること（`GODEBUG` は初期化時に読まれるため、取り除く方式は効かない。ステップ 5-2）を追記する（architecture §5.4、§1.3。ステップ 5-2）。
 
 ### PR-4 作成ポイント: integration test and Makefile target
 
@@ -330,21 +331,21 @@ PR-4 に属するステップ 6-3・6-4 を PR-4 作成ポイントの前に、P
 
 **推奨タイトル**: `feat(0003): add the DeepSeek integration test and make target`
 
-**レビュー観点**: 統合テストが `//go:build integration` で既定の `make test`・`make test-ci` から分離され、`-tags integration` のビルドのテスト関数が `TestIntegrationGenerate` だけであること（AC-22、I-02、ステップ 5-1・5-5・5-8） / 環境変数の判定が純粋な関数で、オプトインの欠如・`1` 以外の値・キーの未設定・`DEEPSEEK_API_KEY` だけの設定をスキップし、`YT2COLUMN_MODEL` の未設定・空を失敗とすること（AC-23、ステップ 5-1・5-4） / `make test-integration-deepseek` の引数・表示・環境変数の渡し方と、`GODEBUG` の `http2debug=1`・`http2debug=2` を `Generate` の前に取り除くか検出して失敗させること（AC-23、architecture §5.4、ステップ 5-2・5-3・5-4） / 人間の承認を得て手動実行し、結果を §5.1 に記録していること（AC-24、ステップ 5-6） / `security.md` §2 の実キーの例外と `http2debug` のポリシー更新（ステップ 6-3・6-4）が、実キーを使う統合テストと同じこの PR に含まれ、`main` がマージ直後から文書化されたポリシーと一致すること（AC-23・AC-24、architecture §5.2・§5.4）
+**レビュー観点**: 統合テストが `//go:build integration` で既定の `make test`・`make test-ci` から分離され、`-tags integration` のビルドのテスト関数が `TestIntegrationGenerate` だけであること（AC-22、I-02、ステップ 5-1・5-5・5-8） / 環境変数の判定が純粋な関数で、オプトインの欠如・`1` 以外の値・キーの未設定・`DEEPSEEK_API_KEY` だけの設定をスキップし、`YT2COLUMN_MODEL` の未設定・空を失敗とすること（AC-23、ステップ 5-1・5-4） / `make test-integration-deepseek` の引数・表示・環境変数の渡し方と、`GODEBUG` の `http2debug=1`・`http2debug=2` を `Generate` の前に検出して失敗させること（AC-23、architecture §5.4、ステップ 5-2・5-3・5-4） / 人間の承認を得て手動実行し、結果を §5.1 に記録していること（AC-24、ステップ 5-6） / `security.md` §2 の実キーの例外と `http2debug` のポリシー更新（ステップ 6-3・6-4）が、実キーを使う統合テストと同じこの PR に含まれ、`main` がマージ直後から文書化されたポリシーと一致すること（AC-23・AC-24、architecture §5.2・§5.4）
 
 **実装モデル要件**: frontier-required
 
 **判定理由**: ステップ 5-2〜5-6 が実 DeepSeek API とネットワーク・料金・手動実行にわたる重い統合テストで、mkplan.md ステップ 8 のパネルモードトリガー（重い統合テスト / 外部リソースの面）に該当するため。`security.md` §2 の更新（ステップ 6-3・6-4）を同じ PR に置くのは、実キーを使うテストの追加と文書化されたポリシーを `main` 上で同時に一致させるためである。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 - [ ] **ステップ 6-1**: `project_overview.md` を更新する。想定ディレクトリ構成に `internal/strictjson/` を加える（検証を通った JSON 文書から値を取り出す厳格な部品）。`:40` の `GenerateResponse` の説明に `ModelVersion`（生成に使ったモデルまたはバックエンドの版の識別子。返さないプロバイダでは空文字列）を加える。`testdata/` の行に DeepSeek の API の実応答を加える。決定済みの方針は変更しない（requirements §5.1）。
 - [ ] **ステップ 6-2**: `CLAUDE.md` の Architecture Overview のパッケージの説明に `internal/strictjson`（`internal/transcript` と `internal/llm/deepseek` が共有する厳格な JSON の部品）を加える。
 - [ ] **ステップ 6-5**: `README.md` の Development の節に `make test-integration-deepseek` を加え、既存の `make test-integration` の説明（`README.md:81-90`）と同じ形で、実 API を使い料金が発生すること、`YT2COLUMN_TEST_DEEPSEEK_API_KEY`（本番の `DEEPSEEK_API_KEY` とは別）が必要なこと、`YT2COLUMN_MODEL` の既定値、ターゲットがオプトインの変数を設定すること、オプトインがなければ統合テストがスキップされることを説明する。
-- [ ] **ステップ 6-6**: 追記した内容を根拠と突き合わせる。6-3 と 6-5 は `integration_env_test.go`・`integration_test.go`・`Makefile` の実装と、6-4 は §1.3 に記した go1.27.1 のソース（`src/net/http/internal/http2/http2.go:50-56`・`transport.go:1849-1851`）と照合する。6-1・6-2 のパッケージの説明は `package_reference.md` の行と照合する。照合した根拠をコミットメッセージに書く。
+- [ ] **ステップ 6-6**: 追記した内容を根拠と突き合わせる。6-3 と 6-5 は `integration_env_test.go`・`integration_test.go`・`Makefile` の実装と、6-4 は §1.3 に記した go1.27.1 のソース（`src/net/http/internal/http2/http2.go:50-58`・`transport.go:1849-1851`）と照合する。6-1・6-2 のパッケージの説明は `package_reference.md` の行と照合する。照合した根拠をコミットメッセージに書く。
 - [ ] **ステップ 6-7**: `package_reference.md` の `internal/strictjson`・`internal/llm`・`internal/llm/deepseek` の行が、フェーズ 1〜5 の最終的な実装と一致していることを確認する。
 - [ ] **ステップ 6-8**: `make test` → `make lint` を通す（Go の変更はない）。
 
@@ -462,7 +463,7 @@ architecture §7.3 に従う。計画固有の事項は次のとおり。
 | AC-20 | エラーの各書式に API キーが現れない | test | 失敗ケースの共有アサーション（`TestNew`・`TestGenerateInvalidRequest`・`TestGenerateNoRedirect`・`TestGenerateHTTPStatus`・`TestGenerateFinishReason`・`TestGenerateEmptyContent`・`TestGenerateTimeout`・`TestGenerateCanceled`・`TestGenerateTransportFailure` と、`response_test.go` の 3.2 の各拒否のテスト）・`internal/llm/deepseek/deepseek_test.go::TestRevealOnlyInRequestFile` |
 | AC-21 | アダプタの値の出力に API キーが現れない | test | `internal/llm/deepseek/deepseek_test.go::TestClientOutputDoesNotLeakAPIKey`（`fmt` の `%v`・`%+v`・`%#v`、`slog` の TextHandler・JSONHandler、`encoding/json`） |
 | AC-22 | 統合テストは `make test`・`make test-ci` に含まれない | static | `internal/llm/deepseek/deepseek_test.go::TestIntegrationTestBuildTag`（`integration_test.go` と `integration_env_test.go` の先頭行）・`make test`・`make test-ci`（`-tags test` だけでビルドする） |
-| AC-23 | `make test-integration-deepseek` のフラグ・表示・スキップ | test / manual | `internal/llm/deepseek/makefile_test.go::TestMakeTestIntegrationDeepSeek`（表示、`-count=1`・`-timeout`・`-v`・パッケージの引数、オプトインと `YT2COLUMN_MODEL` の渡し方）・`internal/llm/deepseek/deepseek_test.go::TestIntegrationSettings`（オプトインの欠如・`1` 以外の値と `YT2COLUMN_TEST_DEEPSEEK_API_KEY` の未設定・空でスキップし理由に変数名を含む、`DEEPSEEK_API_KEY` だけではスキップ、`YT2COLUMN_MODEL` の未設定・空で失敗、すべて設定されていれば API キーとモデル名を返す）・§5.1 の手動実行の記録（`TestIntegrationGenerate` の 2 つのサブテストの `--- PASS`） |
+| AC-23 | `make test-integration-deepseek` のフラグ・表示・スキップ | test / manual | `internal/llm/deepseek/makefile_test.go::TestMakeTestIntegrationDeepSeek`（表示、`-count=1`・`-timeout`・`-v`・パッケージの引数、オプトインと `YT2COLUMN_MODEL` の渡し方）・`internal/llm/deepseek/deepseek_test.go::TestIntegrationSettings`（オプトインの欠如・`1` 以外の値と `YT2COLUMN_TEST_DEEPSEEK_API_KEY` の未設定・空でスキップし理由に変数名を含む、`DEEPSEEK_API_KEY` だけではスキップ、`YT2COLUMN_MODEL` の未設定・空で失敗、`GODEBUG` の `http2debug=1`・`http2debug=2` で失敗（オプトイン・API キーの判定より後）、すべて設定されていれば API キーとモデル名を返す）・`internal/llm/deepseek/makefile_test.go::TestMakeOptInExportedToDeepSeekTargetOnly`（オプトインが他のターゲットにエクスポートされない）・§5.1 の手動実行の記録（`TestIntegrationGenerate` の 2 つのサブテストの `--- PASS`） |
 | AC-24 | 実 API での正常な生成と打ち切り | test / manual | `internal/llm/deepseek/integration_test.go::TestIntegrationGenerate`（`make test-integration-deepseek` で実行）・§5.1 の記録 |
 | AC-25 | ユニットテストは外部ホストを呼ばない | test | `internal/llm/deepseek/deepseek_test.go::TestUnitTestsCannotReachProductionEndpoint`（`TestMain` の proxy の固定）・`TestNewTestClientRejectsNonLoopback`（ヘルパーがループバック以外を拒否） |
 | AC-26 | 不正な JSON・空・オブジェクト以外・後続データ | test | `internal/llm/deepseek/response_test.go::TestGenerateInvalidBody` |
@@ -491,13 +492,13 @@ AC に対応しない、architecture が求める検証は次のとおり。
 
 | 項目 | 内容 |
 |---|---|
-| 実行日時 | （未実施） |
-| HEAD | （未実施） |
+| 実行日時 | 2026-10-03 16:46:02 JST（`.envrc` の `YT2COLUMN_TEST_DEEPSEEK_API_KEY` を `direnv exec .` で読み込んで実行。`YT2COLUMN_MODEL` は未定義で、既定の `deepseek-flash`） |
+| HEAD | `7552b18`（未コミットの変更なし） |
 | コマンド | `make test-integration-deepseek` |
-| `-v` 出力の `TestIntegrationGenerate` と 2 つのサブテストの `=== RUN`・`--- PASS` | （未実施） |
-| 所要時間 | （未実施） |
-| `ModelVersion` のログ行 | （未実施） |
-| オプトインなしの直接実行の `--- SKIP` とメッセージ | （未実施） |
+| `-v` 出力の `TestIntegrationGenerate` と 2 つのサブテストの `=== RUN`・`--- PASS` | 表示 `test-integration-deepseek: calls the real DeepSeek API, which incurs charges (model: deepseek-flash)`、コマンド `go test -tags integration -count=1 -timeout 40m -v ./internal/llm/deepseek`。`=== RUN   TestIntegrationGenerate`・`=== RUN   TestIntegrationGenerate/generate`・`=== RUN   TestIntegrationGenerate/truncated`・`--- PASS: TestIntegrationGenerate (2.02s)`・`--- PASS: TestIntegrationGenerate/generate (1.21s)`・`--- PASS: TestIntegrationGenerate/truncated (0.82s)`・`ok`。`--- SKIP` はない |
+| 所要時間 | テスト 2.02 秒（パッケージ 2.517 秒） |
+| `ModelVersion` のログ行 | `integration_test.go:60: Model "deepseek-flash", ModelVersion "aeb56401ca74e127821c4f9126dcb669"` |
+| オプトインなしの直接実行の `--- SKIP` とメッセージ | 2026-10-03 16:37 JST、HEAD `d0e3af4`（未コミットの変更なし）で、`YT2COLUMN_DEEPSEEK_INTEGRATION` を除いた環境から `go test -tags integration -count=1 -v ./internal/llm/deepseek` を実行した。出力は `=== RUN   TestIntegrationGenerate`、``integration_test.go:37: YT2COLUMN_DEEPSEEK_INTEGRATION is not 1: the integration test calls the real DeepSeek API and incurs charges; run it with `make test-integration-deepseek` ``、`--- SKIP: TestIntegrationGenerate (0.00s)`、`ok`（0.396s）。`New` の前にスキップするため API を呼ばない |
 
 ### 5.2. 測定の記録（`internal/strictjson` のメモリ使用量）
 
