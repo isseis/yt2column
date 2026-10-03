@@ -73,14 +73,15 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 -   プロンプトテンプレートは、system プロンプト用と user プロンプト用の 2 つとする。
 -   既定のテンプレートは、リポジトリの `prompts/` に置いたファイルを `embed` でバイナリに埋め込んだものとする。
 -   system 用と user 用のそれぞれについて、上書きファイルのパスを構築時に任意で与えられる。パスを与えたテンプレートは、既定のテンプレートの代わりにそのファイルの内容を使う。与えなかったテンプレートは既定のものを使う。上書きファイルは構築時に 1 回だけ読み、`Write` のたびには読み直さない。
--   テンプレートの構文は Go の `text/template` とする。テンプレートから参照できる値は、動画タイトル・チャンネル名・概要欄・字幕本文（F-003）の 4 つとする。参照するときの名前は設計で確定し、利用者がテンプレートを書けるよう文書に記す。`text/template` の組み込み関数以外の関数は提供しない。
+-   テンプレートの構文は Go の `text/template` とする。テンプレートから参照できる値は、動画タイトル・チャンネル名・概要欄・字幕本文（F-003）の 4 つとする。参照するときの名前は設計で確定し、利用者がテンプレートを書けるよう文書に記す。本書の例では、仮に `.Title`・`.Description` などと書く。`text/template` の組み込み関数以外の関数は提供しない。
 -   次のいずれかに当てはまるテンプレートは、構築時に `ErrInvalidTemplate` で拒否する。既定のテンプレートにも同じ規則を適用する。
     -   上書きファイルを読めない（存在しない、ディレクトリである、権限がないなど）。
     -   内容が空、または空白文字だけである。
     -   正しい UTF-8 のバイト列でない。
     -   サイズが上限を超える。上限値は `02_architecture.md` で固定する。
     -   `text/template` の構文として解析できない。
-    -   参照できる 4 つの値以外を参照している、または実行時にエラーになる。この判定は構築時に行い、`Write` の時点まで持ち越さない。テンプレートの誤りを、字幕の取得や LLM の呼び出しの後ではなく、起動時に報告するためである。
+    -   参照できる 4 つの値以外を参照している。条件分岐の中など、展開時に実行されるとは限らない位置にある参照も対象とする。この判定は構築時に行い、`Write` の時点まで持ち越さない。テンプレートの誤りを、字幕の取得や LLM の呼び出しの後ではなく、起動時に報告するためである。
+-   値によって展開時にだけ起きる失敗（展開時のエラー、展開結果が空になる場合）は構築時には判定できないので、`Write` の時点で検出する（F-003）。
 -   構築したアダプタは `writer.ArticleWriter` を実装する。
 
 **Acceptance Criteria**:
@@ -88,7 +89,7 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 - **AC-02**: nil の `LLMClient`、および typed nil の `LLMClient` を与えた構築はエラーになり、`ArticleWriter` を返さない。
 - **AC-03**: system 用の上書きファイルだけを与えて構築した場合、`LLMClient` に渡る system プロンプトは上書きファイルの内容から組み立てたものであり、user プロンプトは既定のテンプレートから組み立てたものである。user 用だけを与えた場合も同様に、user プロンプトだけが上書きファイルの内容になる。
 - **AC-04**: 上書きファイルの内容を構築後に書き換えても、構築済みの `ArticleWriter` が `Write` で使うテンプレートは変わらない。
-- **AC-05**: 存在しない上書きファイル、ディレクトリのパス、内容が空または空白文字だけのファイル、不正な UTF-8 のバイト列を含むファイル、サイズが上限を超えるファイル、`text/template` として解析できないファイル（例: `{{.Title`）、参照できない値を参照するファイル（例: `{{.APIKey}}`）を上書きファイルとして与えた構築は、`errors.Is(err, ErrInvalidTemplate)` が真になるエラーになり、`ArticleWriter` を返さない。存在しないファイルの場合は、`errors.Is(err, fs.ErrNotExist)` も真になる。サイズがちょうど上限のファイルは受理する。
+- **AC-05**: 存在しない上書きファイル、ディレクトリのパス、内容が空または空白文字だけのファイル、不正な UTF-8 のバイト列を含むファイル、サイズが上限を超えるファイル、`text/template` として解析できないファイル（例: `{{.Title`）、参照できない値を参照するファイル（例: `{{.APIKey}}`、条件分岐の中にある `{{if .Description}}{{.APIKey}}{{end}}`）を上書きファイルとして与えた構築は、`errors.Is(err, ErrInvalidTemplate)` が真になるエラーになり、`ArticleWriter` を返さない。存在しないファイルの場合は、`errors.Is(err, fs.ErrNotExist)` も真になる。サイズがちょうど上限のファイルは受理する。
 - **AC-06**: リポジトリに含まれる既定のテンプレート（system 用・user 用）は、上書きファイルと同じ規則の検証を通る。この検証は、埋め込まれた実物のテンプレートに対するテストで行い、既定のテンプレートを規則に反する形に編集するとテストが失敗する。
 
 #### F-002: `Transcript` の検証
@@ -115,17 +116,17 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 -   字幕本文は、`Segments` の各 `Text` を順序どおりに改行（`\n`）1 つで区切って連結した文字列とする。各 `Text` は加工しない。`StartMs`（タイムスタンプ）は字幕本文に含めない。
 -   テンプレートに埋め込む動画タイトル・チャンネル名・概要欄は、`Transcript` の値を加工せずに使う。
 -   埋め込む値はテンプレートとして解釈しない。字幕や概要欄が `{{` などのテンプレートの構文に見える文字列を含んでいても、その文字列はそのままプロンプトに現れる。
--   組み立てた system プロンプトまたは user プロンプトが空、または空白文字だけになった場合は、`LLMClient` を呼ばずに `ErrInvalidTemplate` で失敗する。
+-   テンプレートの展開がエラーになった場合、および組み立てた system プロンプトまたは user プロンプトが空、または空白文字だけになった場合は、`LLMClient` を呼ばずに `ErrInvalidTemplate` で失敗する。
 -   `GenerateRequest` の `MaxOutputTokens` は 0（プロバイダの既定に任せる）とする（2.3）。
 -   `LLMClient.Generate` には、`Write` が受け取った `ctx` を渡す。
 -   `Generate` の呼び出しは 1 回だけとし、リトライしない。
 
 **Acceptance Criteria**:
 - **AC-09**: `Write` が成功した場合、`LLMClient.Generate` はちょうど 1 回呼ばれ、`Write` に渡した `ctx` を受け取る。`GenerateRequest` の `MaxOutputTokens` は 0 である。
-- **AC-10**: テスト用のテンプレート（4 つの値をそれぞれ目印で囲んで埋め込むもの）で構築した `ArticleWriter` に対し、`LLMClient` に渡る user プロンプトでは、目印の間に `Title`・`ChannelName`・`Description` と同一の文字列、および各 `Segment.Text` を `\n` で連結した文字列が現れる。前後の空白や改行を含む `Text` も変更されない。
+- **AC-10**: テスト用のテンプレート（4 つの値をそれぞれ目印で囲んで埋め込むもの）を system 用・user 用の上書きファイルとして構築した `ArticleWriter` に対し、`LLMClient` に渡る system プロンプトと user プロンプトのそれぞれで、目印の間に `Title`・`ChannelName`・`Description` と同一の文字列、および各 `Segment.Text` を `\n` で連結した文字列が現れる。前後の空白や改行を含む `Text` も変更されない。
 - **AC-11**: `StartMs` に特徴的な値（例: `987654321`）を持つ `Segment` から組み立てたプロンプトには、その値の文字列が現れない（テンプレートの文面自体がその文字列を含まない場合）。
 - **AC-12**: `Title`・`Description`・`Segment.Text` に `{{.Title}}`・`{{printf "%s" "x"}}`・`{{` などのテンプレートの構文に見える文字列を含む `Transcript` に対し、`LLMClient` に渡るプロンプトにはその文字列がそのまま現れ、展開されない。
-- **AC-13**: 構築時の検証は通るが、ある `Transcript` に対しては空白文字だけに展開されるテンプレート（例: 動画タイトルだけを埋め込むテンプレートと、空白文字だけの `Title`）に対し、`Write` は `errors.Is(err, ErrInvalidTemplate)` が真になるエラーを返し、`LLMClient` を呼ばない。
+- **AC-13**: 構築時の検証は通るが、ある `Transcript` に対しては空白文字だけに展開されるテンプレート（例: 動画タイトルだけを埋め込むテンプレートと、空白文字だけの `Title`）、または展開がエラーになるテンプレート（例: `{{index .Title 100}}` と、100 バイト未満の `Title`）に対し、`Write` は `errors.Is(err, ErrInvalidTemplate)` が真になるエラーを返し、`LLMClient` を呼ばない。
 
 #### F-004: LLM の失敗の報告
 
@@ -153,7 +154,7 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 
 **Acceptance Criteria**:
 - **AC-16**: 生成テキストが `# 見出しのタイトル\n\n本文の段落\n` で、`Model` が `m-1`、`ModelVersion` が `fp-1` の応答に対し、`Write` はエラーを返さず、`Title` が `見出しのタイトル`、`Body` が `\n本文の段落\n` で始まり出典ブロックで終わる文字列、`Model` が `m-1`、`ModelVersion` が `fp-1` の `Article` を返す。`ModelVersion` が空文字列の応答も受理し、`Article.ModelVersion` は空文字列である。
-- **AC-17**: LLM が生成した本文の部分は、生成テキストの見出しの行より後と同一の文字列である。前後の空白や改行、本文中の Markdown（見出し・リスト・リンクなど）は変更されない。
+- **AC-17**: `Article.Body` は、生成テキストの先頭行の `\n` より後の文字列（LLM が生成した本文）と同一の文字列で始まる。前後の空白や改行、本文中の Markdown（見出し・リスト・リンクなど）は変更されない。`Article.Body` は、その本文と出典ブロックの間の区切り（空行を作るための改行）と出典ブロック以外の文字列を含まない。
 
 #### F-006: 出典リンクの付与
 
@@ -167,7 +168,6 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 **Acceptance Criteria**:
 - **AC-18**: `Write` が成功した場合、`Article.SourceURL` は `https://www.youtube.com/watch?v=<VideoID>` であり、`Article.Body` は `02_architecture.md` で固定した書式の出典ブロック（`SourceURL` を含む）で終わる。
 - **AC-19**: LLM が生成した本文が、改行で終わらない場合、改行が続いて終わる場合、出典らしき行や別の YouTube の URL（例: `出典: https://www.youtube.com/watch?v=XXXXXXXXXXX`）を含む場合のいずれでも、AC-18 が成り立ち、出典ブロックの直前には空行がある。出典ブロックの URL は生成テキスト中の URL ではなく、`Transcript.VideoID` から組み立てたものである。
-- **AC-20**: 生成テキストが見出しの行だけで、本文の部分が空白文字を含むだけの場合は、出典ブロックを付けて成功とせず、`ErrMalformedOutput` になる（3.2）。
 
 #### F-007: テスト可能性
 
@@ -196,7 +196,7 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 |---|---|---|---|
 | テンプレート（既定・上書きファイル） | F-001 | `ErrInvalidTemplate` | AC-05・AC-06・AC-13 |
 | `Transcript` | F-002 | `ErrInvalidTranscript` | AC-07・AC-08 |
-| `GenerateResponse` | 3.2 | `ErrMalformedOutput` | AC-20・AC-22〜AC-25 |
+| `GenerateResponse` | 3.2 | `ErrMalformedOutput` | AC-22〜AC-26 |
 
 各 AC に挙げた入力例は、要件の作成時に確認した具体例であり、拒否すべき入力の網羅ではない。網羅は上の規則が担い、その具体化は設計で行う。
 
@@ -205,7 +205,7 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 - **AC-23**: タイトルが空（例: `# \n本文`、`#  \t\n本文`）、`\r` を含む（例: `# タイトル\r\n本文`）、`#` で終わる（例: `# タイトル #\n本文`）生成テキスト、および本文の部分が空または空白文字だけの生成テキスト（例: `# タイトル`、`# タイトル\n`、`# タイトル\n \n\t\n`）は、`errors.Is(err, ErrMalformedOutput)` が真になるエラーになる。タイトルの前後の半角空白とタブは除き（例: `#  タイトル  \n本文` のタイトルは `タイトル`）、拒否しない。
 - **AC-24**: 本文の部分が閉じていないコードフェンスで終わる生成テキスト（例: `# タイトル\n本文\n` に続けて ```` ```go\nfmt.Println() ```` で終わるもの、`~~~` で開いて閉じないもの）は、`errors.Is(err, ErrMalformedOutput)` が真になるエラーになる。フェンスを閉じている生成テキストは受理する。
 - **AC-25**: `Model` が空文字列の応答は、生成テキストが正しくても、`errors.Is(err, ErrMalformedOutput)` が真になるエラーになる。
-- **AC-26**: AC-22〜AC-25 の各拒否ケースで返るエラーを `Error()` で文字列にした結果に、生成テキストの本文の部分に埋め込んだ目印の文字列が現れない。
+- **AC-26**: AC-22〜AC-25 の各拒否ケースで返るエラーを `Error()` で文字列にした結果に、生成テキストのタイトルと本文の部分にそれぞれ埋め込んだ目印の文字列が現れない。
 
 ## 4. 非機能要件 (Non-Functional Requirements)
 
@@ -261,4 +261,5 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 -   **生成テキスト（generated text）:** `LLMClient` が返す `GenerateResponse.Text`。先頭行のタイトルの見出しと、LLM が生成した本文からなる。
 -   **出典ブロック（source block）:** 記事の末尾にコードで付ける、出典リンクを示す Markdown の段落（F-006）。
 -   **番兵エラー（sentinel error）:** `errors.Is` で判別できる、あらかじめ定めたエラー値。
+-   **空白文字（whitespace）:** Unicode の White_Space プロパティを持つ文字（半角空白・タブ・改行・全角空白など）。本書の「空、または空白文字だけ」の判定はすべてこの定義による（[design_handoff.md](design_handoff.md) H-10）。
 -   **`ErrInvalidTemplate` / `ErrInvalidTranscript` / `ErrMalformedOutput`:** それぞれ、不正なプロンプトテンプレート（読めない上書きファイル、展開結果が空になる場合を含む）・不正な `Transcript`・記事に変換できない `GenerateResponse` を表す番兵エラー（名前は仮称で、設計で確定する）。
