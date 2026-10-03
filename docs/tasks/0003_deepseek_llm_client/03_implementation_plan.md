@@ -157,8 +157,8 @@ HEAD `00573f2`（ブランチ `task/0003-deepseek-llm-client-02`）で確認し�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: `internal/llm` の追加
 
@@ -167,13 +167,13 @@ HEAD `00573f2`（ブランチ `task/0003-deepseek-llm-client-02`）で確認し�
 - 新設: `internal/llm/llm_test.go`（`//go:build test`）
 
 **タスク**
-- [ ] **ステップ 2-1**: `llm.go` に architecture §3.2 の 4 つの番兵（`ErrInvalidRequest`・`ErrTruncated`・`ErrUnexpectedFinishReason`・`ErrEmptyResponse`）、`GenerateResponse.ModelVersion`、`GenerateRequest.Validate` を追加する。`Validate` は、両プロンプトが空でなく正しい UTF-8 であることと `MaxOutputTokens` が負でないことを検査し、`ErrInvalidRequest` をラップしたエラーを返す。import は標準ライブラリだけとし、`internal/llm` をリーフのままにする。
-- [ ] **ステップ 2-2**: `llm.go` の doc コメントを更新する。`GenerateRequest` に `MaxOutputTokens` の 0（プロバイダの既定）と負（不正）の意味を、`GenerateResponse` に `ModelVersion` の意味（プロバイダ共通、返さないプロバイダでは空文字列）を書く。`LLMClient` には、既存の条項（`must not return an empty response without an error`）を残したうえで、4 つの番兵で報告する条項と、タイムアウト・キャンセルを `context.DeadlineExceeded`・`context.Canceled` で判別できる条項を加える（architecture §3.2）。
-- [ ] **ステップ 2-3**: `llm_test.go` に `TestGenerateRequestValidate` を作成する（AC-07 の検証規則。空の各プロンプト・不正な UTF-8 のバイト列を含む各プロンプト・負の `MaxOutputTokens` の拒否と、空白だけのプロンプト・`MaxOutputTokens` 0・正の値の受理）。
-- [ ] **ステップ 2-4**: `pipeline_test.go` を更新する。`TestCommonTypesFieldSets` の `GenerateResponse` の期待値に `"ModelVersion": "string"` を加える。`TestInterfaceDocComments` の `LLMClient` のケースに、ステップ 2-2 で加えた 2 つの条項を、doc コメントと同じ文言で加える。
-- [ ] **ステップ 2-5**: `package_reference.md` の `internal/llm` の行に、プロバイダ共通の番兵と `GenerateRequest.Validate` を加える。
-- [ ] **ステップ 2-6**: 壊して失敗することを確認し、コミットメッセージに記録する。対象: `Validate` の負の値の検査を外す（`TestGenerateRequestValidate`）、`utf8.ValidString` の検査を外す（同）、`LLMClient` の doc コメントから加えた条項を消す（`TestInterfaceDocComments`）。
-- [ ] **ステップ 2-7**: `make fmt` → `make test` → `make lint` を通す。
+- [x] **ステップ 2-1**: `llm.go` に architecture §3.2 の 4 つの番兵（`ErrInvalidRequest`・`ErrTruncated`・`ErrUnexpectedFinishReason`・`ErrEmptyResponse`）、`GenerateResponse.ModelVersion`、`GenerateRequest.Validate` を追加する。`Validate` は、両プロンプトが空でなく正しい UTF-8 であることと `MaxOutputTokens` が負でないことを検査し、`ErrInvalidRequest` をラップしたエラーを返す。import は標準ライブラリだけとし、`internal/llm` をリーフのままにする。
+- [x] **ステップ 2-2**: `llm.go` の doc コメントを更新する。`GenerateRequest` に `MaxOutputTokens` の 0（プロバイダの既定）と負（不正）の意味を、`GenerateResponse` に `ModelVersion` の意味（プロバイダ共通、返さないプロバイダでは空文字列）を書く。`LLMClient` には、既存の条項（`must not return an empty response without an error`）を残したうえで、4 つの番兵で報告する条項と、タイムアウト・キャンセルを `context.DeadlineExceeded`・`context.Canceled` で判別できる条項を加える（architecture §3.2）。
+- [x] **ステップ 2-3**: `llm_test.go` に `TestGenerateRequestValidate` を作成する（AC-07 の検証規則。空の各プロンプト・不正な UTF-8 のバイト列を含む各プロンプト・負の `MaxOutputTokens` の拒否と、空白だけのプロンプト・`MaxOutputTokens` 0・正の値の受理）。
+- [x] **ステップ 2-4**: `pipeline_test.go` を更新する。`TestCommonTypesFieldSets` の `GenerateResponse` の期待値に `"ModelVersion": "string"` を加える。`TestInterfaceDocComments` の `LLMClient` のケースに、ステップ 2-2 で加えた 2 つの条項を、doc コメントと同じ文言で加える。
+- [x] **ステップ 2-5**: `package_reference.md` の `internal/llm` の行に、プロバイダ共通の番兵と `GenerateRequest.Validate` を加える。
+- [x] **ステップ 2-6**: 壊して失敗することを確認し、コミットメッセージに記録する。対象: `Validate` の負の値の検査を外す（`TestGenerateRequestValidate`）、`utf8.ValidString` の検査を外す（同）、`LLMClient` の doc コメントから加えた条項を消す（`TestInterfaceDocComments`）。
+- [x] **ステップ 2-7**: `make fmt` → `make test` → `make lint` を通す。
 
 ### PR-2 作成ポイント: provider-common LLM API (internal/llm)
 
@@ -187,8 +187,8 @@ HEAD `00573f2`（ブランチ `task/0003-deepseek-llm-client-02`）で確認し�
 
 **判定理由**: 番兵・検査・型の追加と guard の更新に限られ、競合する実装方針の併記・高リスクな制御・パネルモードのトリガー・Conditional checks のいずれにも該当しないため。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
