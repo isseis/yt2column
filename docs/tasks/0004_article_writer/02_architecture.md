@@ -107,7 +107,7 @@ flowchart LR
 
 執筆時点の HEAD `1d39443` で次を確認した。
 
-- `internal/writer/writer.go:11-16` の `Article` は `Title`・`Body`・`SourceURL`・`Model` の 4 つのフィールドを持つ。`:18-24` の `ArticleWriter` interface は `Write(ctx, transcript.Transcript) (Article, error)` だけを持つ。`internal/writer` は `internal/transcript` だけを import する。本設計は `Article` に `ModelVersion` を追加し（要件 5.1）、`ArticleWriter` の実装を同じパッケージに置く。`internal/writer` は新たに `internal/llm`・`internal/nilcheck`・`prompts` を import する。`0001_pipeline_skeleton/02_architecture.md` §2.1 は「#5 の時点で `internal/writer` が `internal/llm` を import する」と予告しており、本設計はその方針に沿う。
+- `internal/writer/writer.go:11-17` の `Article` は `Title`・`Body`・`SourceURL`・`Model` の 4 つのフィールドを持つ。`:19-24` の `ArticleWriter` interface は `Write(ctx, transcript.Transcript) (Article, error)` だけを持つ。`internal/writer` は `internal/transcript` だけを import する。本設計は `Article` に `ModelVersion` を追加し（要件 5.1）、`ArticleWriter` の実装を同じパッケージに置く。`internal/writer` は新たに `internal/llm`・`internal/nilcheck`・`prompts` を import する。`0001_pipeline_skeleton/02_architecture.md` §2.1 は「#5 の時点で `internal/writer` が `internal/llm` を import する」と予告しており、本設計はその方針に沿う。
 - `internal/llm/llm.go:25-29` の `GenerateRequest` は `SystemPrompt`・`UserPrompt`・`MaxOutputTokens` を持つ。`:57-61` の `GenerateResponse` は `Text`・`Model`・`ModelVersion` を持つ。`:63-71` の `LLMClient` の doc コメントは、失敗を `internal/llm` の番兵と `context` のエラーで報告することを実装に課している。本設計は `internal/llm` を変更しない。
 - `internal/llm/llm.go:33-51` の `GenerateRequest.Validate` は、空文字列のプロンプトと不正な UTF-8 を拒否するが、空白文字だけのプロンプトは受理する（`internal/llm/llm_test.go` の "accepts whitespace-only prompts"）。空白文字だけのプロンプトの拒否（AC-13）は `ArticleWriter` の側で行う（H-10）。
 - `internal/transcript/transcript.go:8-21` の `Transcript` は公開フィールドだけを持ち、検証を経ずに組み立てられる。本設計は型を変更しない（要件 2.3）。
