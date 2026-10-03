@@ -303,7 +303,7 @@ HEAD `00573f2`（ブランチ `task/0003-deepseek-llm-client-02`）で確認し�
   - `make` が `PATH` にない場合はスキップせず失敗させる（CI の `ubuntu-latest` とローカル開発には `make` がある）。
   - `make` のすべての呼び出しで、子の環境をテストが明示的に組み立てる。外側の `make test` から伝わる `MAKEFLAGS`・`MFLAGS`・`MAKELEVEL`（コマンドラインの変数が `MAKEFLAGS` を通じて伝わるため。§1.3）と、`YT2COLUMN_TEST_DEEPSEEK_API_KEY`・`DEEPSEEK_API_KEY` は子の環境から除く。ステップ 3-6 の proxy の変数は残す。`YT2COLUMN_MODEL` は各ケースの値だけを与える。
 - [x] **ステップ 5-5**: `deepseek_test.go` に `TestIntegrationTestBuildTag` を作成する。`integration_test.go` の先頭行が `//go:build integration`、`integration_env_test.go` の先頭行が `//go:build test || integration` であることを確かめる（AC-22。`internal/transcript/ytdlp_test.go:1692` と同じ形）。
-- [ ] **ステップ 5-6**: 人間の明示的な承認を得て（CLAUDE.md の Tool Execution Safety。料金が発生する）、`YT2COLUMN_TEST_DEEPSEEK_API_KEY` を設定した環境で `make test-integration-deepseek` を実行する。実行日時・HEAD・`-v` 出力の `TestIntegrationGenerate` とその 2 つのサブテストの `=== RUN`・`--- PASS` の行（`--- SKIP` がないこと）・所要時間・`ModelVersion` のログ行を §5.1 に記録する。API キーは記録しない。あわせて、オプトインの変数を設定せずに `go test -tags integration -count=1 -v ./internal/llm/deepseek` を実行し、`--- SKIP` と変数名を含むメッセージが出て API を呼ばないことを §5.1 に記録する。
+- [x] **ステップ 5-6**: 人間の明示的な承認を得て（CLAUDE.md の Tool Execution Safety。料金が発生する）、`YT2COLUMN_TEST_DEEPSEEK_API_KEY` を設定した環境で `make test-integration-deepseek` を実行する。実行日時・HEAD・`-v` 出力の `TestIntegrationGenerate` とその 2 つのサブテストの `=== RUN`・`--- PASS` の行（`--- SKIP` がないこと）・所要時間・`ModelVersion` のログ行を §5.1 に記録する。API キーは記録しない。あわせて、オプトインの変数を設定せずに `go test -tags integration -count=1 -v ./internal/llm/deepseek` を実行し、`--- SKIP` と変数名を含むメッセージが出て API を呼ばないことを §5.1 に記録する。
 - [x] **ステップ 5-7**: 壊して失敗することを確認し、コミットメッセージに記録する。対象は次のとおり。
   - レシピに `-run` を足してパッケージのパスを正規表現として渡す、`YT2COLUMN_MODEL ?=` を `:=` にする、オプトインのエクスポートを外す（`TestMakeTestIntegrationDeepSeek`）。
   - オプトインのエクスポートをグローバルにする（`TestMakeOptInExportedToDeepSeekTargetOnly`）、`-timeout` を 30m にする・1 回のタイムアウトを 25 分にする（`TestMakeTestIntegrationDeepSeek`）。
@@ -337,7 +337,7 @@ PR-4 に属するステップ 6-3・6-4 を PR-4 作成ポイントの前に、P
 
 **判定理由**: ステップ 5-2〜5-6 が実 DeepSeek API とネットワーク・料金・手動実行にわたる重い統合テストで、mkplan.md ステップ 8 のパネルモードトリガー（重い統合テスト / 外部リソースの面）に該当するため。`security.md` §2 の更新（ステップ 6-3・6-4）を同じ PR に置くのは、実キーを使うテストの追加と文書化されたポリシーを `main` 上で同時に一致させるためである。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
@@ -492,12 +492,12 @@ AC に対応しない、architecture が求める検証は次のとおり。
 
 | 項目 | 内容 |
 |---|---|
-| 実行日時 | （未実施） |
-| HEAD | （未実施） |
+| 実行日時 | 2026-10-03 16:46:02 JST（`.envrc` の `YT2COLUMN_TEST_DEEPSEEK_API_KEY` を `direnv exec .` で読み込んで実行。`YT2COLUMN_MODEL` は未定義で、既定の `deepseek-flash`） |
+| HEAD | `7552b18`（未コミットの変更なし） |
 | コマンド | `make test-integration-deepseek` |
-| `-v` 出力の `TestIntegrationGenerate` と 2 つのサブテストの `=== RUN`・`--- PASS` | （未実施） |
-| 所要時間 | （未実施） |
-| `ModelVersion` のログ行 | （未実施） |
+| `-v` 出力の `TestIntegrationGenerate` と 2 つのサブテストの `=== RUN`・`--- PASS` | 表示 `test-integration-deepseek: calls the real DeepSeek API, which incurs charges (model: deepseek-flash)`、コマンド `go test -tags integration -count=1 -timeout 40m -v ./internal/llm/deepseek`。`=== RUN   TestIntegrationGenerate`・`=== RUN   TestIntegrationGenerate/generate`・`=== RUN   TestIntegrationGenerate/truncated`・`--- PASS: TestIntegrationGenerate (2.02s)`・`--- PASS: TestIntegrationGenerate/generate (1.21s)`・`--- PASS: TestIntegrationGenerate/truncated (0.82s)`・`ok`。`--- SKIP` はない |
+| 所要時間 | テスト 2.02 秒（パッケージ 2.517 秒） |
+| `ModelVersion` のログ行 | `integration_test.go:60: Model "deepseek-flash", ModelVersion "aeb56401ca74e127821c4f9126dcb669"` |
 | オプトインなしの直接実行の `--- SKIP` とメッセージ | 2026-10-03 16:37 JST、HEAD `d0e3af4`（未コミットの変更なし）で、`YT2COLUMN_DEEPSEEK_INTEGRATION` を除いた環境から `go test -tags integration -count=1 -v ./internal/llm/deepseek` を実行した。出力は `=== RUN   TestIntegrationGenerate`、``integration_test.go:37: YT2COLUMN_DEEPSEEK_INTEGRATION is not 1: the integration test calls the real DeepSeek API and incurs charges; run it with `make test-integration-deepseek` ``、`--- SKIP: TestIntegrationGenerate (0.00s)`、`ok`（0.396s）。`New` の前にスキップするため API を呼ばない |
 
 ### 5.2. 測定の記録（`internal/strictjson` のメモリ使用量）
