@@ -123,7 +123,7 @@ func parseChoice(object, choice strictjson.Object) (string, string, error) {
 	}
 	finishReason, err := finishReasonValue.AsString()
 	if err != nil {
-		return "", "", topLevelFailure(object, err)
+		return "", "", topLevelFailure(object, fmt.Errorf("%s: %w", keyFinishReason, err))
 	}
 	messageValue, err := strictjson.Required(choiceMembers, keyMessage)
 	if err != nil {
