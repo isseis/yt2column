@@ -15,7 +15,7 @@ described in [project_overview.md](../project_overview.md) ("想定ディレク�
 | `internal/secret` | Holds a secret (API key, Webhook URL) and guarantees it never appears in `fmt`, `log/slog`, or JSON output |
 | `internal/strictjson` | Extracts values from JSON documents that passed strict checks: rejects the byte sequences and structural shapes `encoding/json` would silently repair (invalid UTF-8, unpaired surrogate escapes, trailing data, duplicate or `null` consumed members). Shared by `internal/transcript` and `internal/llm/deepseek` |
 | `internal/transcript` | Defines the transcript stage (`Transcript`/`Segment`, `TranscriptSource`) and provides its `YtDlpSource` implementation: video URL validation, strict json3 and info.json parsers, the `yt-dlp` execution boundary (a shell-free command executor with a fixed environment allowlist and a capped, drained standard error output), the per-video cache (`Fetch`, `RemoveCache`, `PruneCache`), and the stage's sentinel errors |
-| `internal/llm` | Defines the provider-independent `LLMClient` interface and its `GenerateRequest`/`GenerateResponse` types |
+| `internal/llm` | Defines the provider-independent `LLMClient` interface and its `GenerateRequest`/`GenerateResponse` types, the provider-common sentinel errors (`ErrInvalidRequest`/`ErrTruncated`/`ErrUnexpectedFinishReason`/`ErrEmptyResponse`), and `GenerateRequest.Validate` |
 | `internal/writer` | Defines the article-writing stage: `Article` and the `ArticleWriter` interface |
 | `internal/publisher` | Defines the publishing stage: the `Publisher` interface |
 | `internal/pipeline` | Runs the three stages in order: `Pipeline`, `Stage`, `StageError`, `ErrNilStage` |

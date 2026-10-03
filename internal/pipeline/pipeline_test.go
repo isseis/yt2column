@@ -396,8 +396,9 @@ func TestCommonTypesFieldSets(t *testing.T) {
 			"MaxOutputTokens": "int",
 		}},
 		{"GenerateResponse", reflect.TypeFor[llm.GenerateResponse](), map[string]string{
-			"Text":  "string",
-			"Model": "string",
+			"Text":         "string",
+			"Model":        "string",
+			"ModelVersion": "string",
 		}},
 		{"Article", reflect.TypeFor[writer.Article](), map[string]string{
 			"Title":     "string",
@@ -457,6 +458,8 @@ func TestInterfaceDocComments(t *testing.T) {
 		}},
 		{"../llm/llm.go", "LLMClient", []string{
 			"must not return an empty response without an error",
+			"report a failure with ErrInvalidRequest, ErrTruncated, ErrUnexpectedFinishReason, or ErrEmptyResponse",
+			"matches context.DeadlineExceeded or context.Canceled",
 		}},
 		{"../writer/writer.go", "ArticleWriter", []string{
 			"must return an error on failure",
