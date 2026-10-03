@@ -77,6 +77,9 @@ URL → TranscriptSource → Transcript → ArticleWriter → Article → Publis
 
 - `TranscriptSource` (`internal/transcript`): fetches subtitles and info.json by
   invoking the external `yt-dlp` command, parses json3, caches per video ID.
+- `internal/strictjson`: strict JSON extraction shared by `internal/transcript`
+  and `internal/llm/deepseek`; rejects the byte sequences and structural shapes
+  `encoding/json` would silently repair.
 - `ArticleWriter` (`internal/writer`): provider-independent prompt assembly and
   output post-processing; calls an `LLMClient`.
 - `LLMClient` (`internal/llm`, implementations in `internal/llm/<provider>`): thin

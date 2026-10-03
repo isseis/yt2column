@@ -342,12 +342,12 @@ PR-4 に属するステップ 6-3・6-4 を PR-4 作成ポイントの前に、P
 - [x] PR がマージされた
 - [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
-- [ ] **ステップ 6-1**: `project_overview.md` を更新する。想定ディレクトリ構成に `internal/strictjson/` を加える（検証を通った JSON 文書から値を取り出す厳格な部品）。`:40` の `GenerateResponse` の説明に `ModelVersion`（生成に使ったモデルまたはバックエンドの版の識別子。返さないプロバイダでは空文字列）を加える。`testdata/` の行に DeepSeek の API の実応答を加える。決定済みの方針は変更しない（requirements §5.1）。
-- [ ] **ステップ 6-2**: `CLAUDE.md` の Architecture Overview のパッケージの説明に `internal/strictjson`（`internal/transcript` と `internal/llm/deepseek` が共有する厳格な JSON の部品）を加える。
-- [ ] **ステップ 6-5**: `README.md` の Development の節に `make test-integration-deepseek` を加え、既存の `make test-integration` の説明（`README.md:81-90`）と同じ形で、実 API を使い料金が発生すること、`YT2COLUMN_TEST_DEEPSEEK_API_KEY`（本番の `DEEPSEEK_API_KEY` とは別）が必要なこと、`YT2COLUMN_MODEL` の既定値、ターゲットがオプトインの変数を設定すること、オプトインがなければ統合テストがスキップされることを説明する。
-- [ ] **ステップ 6-6**: 追記した内容を根拠と突き合わせる。6-3 と 6-5 は `integration_env_test.go`・`integration_test.go`・`Makefile` の実装と、6-4 は §1.3 に記した go1.27.1 のソース（`src/net/http/internal/http2/http2.go:50-58`・`transport.go:1849-1851`）と照合する。6-1・6-2 のパッケージの説明は `package_reference.md` の行と照合する。照合した根拠をコミットメッセージに書く。
-- [ ] **ステップ 6-7**: `package_reference.md` の `internal/strictjson`・`internal/llm`・`internal/llm/deepseek` の行が、フェーズ 1〜5 の最終的な実装と一致していることを確認する。
-- [ ] **ステップ 6-8**: `make test` → `make lint` を通す（Go の変更はない）。
+- [x] **ステップ 6-1**: `project_overview.md` を更新する。想定ディレクトリ構成に `internal/strictjson/` を加える（検証を通った JSON 文書から値を取り出す厳格な部品）。`:40` の `GenerateResponse` の説明に `ModelVersion`（生成に使ったモデルまたはバックエンドの版の識別子。返さないプロバイダでは空文字列）を加える。`testdata/` の行に DeepSeek の API の実応答を加える。決定済みの方針は変更しない（requirements §5.1）。
+- [x] **ステップ 6-2**: `CLAUDE.md` の Architecture Overview のパッケージの説明に `internal/strictjson`（`internal/transcript` と `internal/llm/deepseek` が共有する厳格な JSON の部品）を加える。
+- [x] **ステップ 6-5**: `README.md` の Development の節に `make test-integration-deepseek` を加え、既存の `make test-integration` の説明（`README.md:81-90`）と同じ形で、実 API を使い料金が発生すること、`YT2COLUMN_TEST_DEEPSEEK_API_KEY`（本番の `DEEPSEEK_API_KEY` とは別）が必要なこと、`YT2COLUMN_MODEL` の既定値、ターゲットがオプトインの変数を設定すること、オプトインがなければ統合テストがスキップされることを説明する。
+- [x] **ステップ 6-6**: 追記した内容を根拠と突き合わせる。6-3 と 6-5 は `integration_env_test.go`・`integration_test.go`・`Makefile` の実装と、6-4 は §1.3 に記した go1.27.1 のソース（`src/net/http/internal/http2/http2.go:50-58`・`transport.go:1849-1851`）と照合する。6-1・6-2 のパッケージの説明は `package_reference.md` の行と照合する。照合した根拠をコミットメッセージに書く。
+- [x] **ステップ 6-7**: `package_reference.md` の `internal/strictjson`・`internal/llm`・`internal/llm/deepseek` の行が、フェーズ 1〜5 の最終的な実装と一致していることを確認する。
+- [x] **ステップ 6-8**: `make test` → `make lint` を通す（Go の変更はない）。
 
 ### PR-5 作成ポイント: documentation
 

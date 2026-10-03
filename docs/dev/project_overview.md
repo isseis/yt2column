@@ -37,7 +37,7 @@ URL → TranscriptSource → Transcript → ArticleWriter → Article → Publis
       Generate(ctx context.Context, req GenerateRequest) (GenerateResponse, error)
   }
   // GenerateRequest: SystemPrompt, UserPrompt, MaxOutputTokens など、プロバイダ共通の最小限の項目のみ
-  // GenerateResponse: Text, Model（生成テキストと、生成に使われたモデル名）
+  // GenerateResponse: Text, Model（生成テキストと、生成に使われたモデル名）, ModelVersion（生成に使ったモデルまたはバックエンドの版の識別子。返さないプロバイダでは空文字列）
   ```
 
   - 初期実装は `internal/llm/deepseek`。Gemini・Claude は必要になったら `internal/llm/gemini`・`internal/llm/claude` として追加する。
@@ -72,6 +72,7 @@ URL → TranscriptSource → Transcript → ArticleWriter → Article → Publis
 cmd/yt2column/main.go     # CLI エントリポイント
 internal/pipeline/        # 3段階を束ねるオーケストレーション
 internal/transcript/      # TranscriptSource と yt-dlp 実装、json3 パーサ
+internal/strictjson/      # 検証を通った JSON 文書から値を取り出す厳格な部品（transcript と deepseek が共有）
 internal/writer/          # ArticleWriter（プロバイダ非依存）
 internal/llm/             # LLMClient interface と共通型
 internal/llm/deepseek/    # DeepSeek 実装（標準ライブラリで OpenAI 互換 API を呼ぶ）
@@ -81,7 +82,7 @@ internal/secret/          # 秘密情報（API キー・Webhook URL）を保持�
 internal/publisher/       # Slack / File
 internal/config/          # 環境変数からの設定読み込み
 prompts/                  # プロンプトテンプレート
-testdata/                 # json3・info.json のサンプル
+testdata/                 # json3・info.json のサンプル、DeepSeek API の実応答
 ```
 
 ## 設定（環境変数）
