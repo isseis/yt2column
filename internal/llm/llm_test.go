@@ -23,6 +23,13 @@ func TestGenerateRequestValidate(t *testing.T) {
 		}
 	})
 
+	t.Run("accepts valid multibyte UTF-8", func(t *testing.T) {
+		req := GenerateRequest{SystemPrompt: "\u65e5\u672c\u8a9e", UserPrompt: "\u00e9", MaxOutputTokens: 10}
+		if err := req.Validate(); err != nil {
+			t.Errorf("Validate() error = %v, want nil", err)
+		}
+	})
+
 	t.Run("accepts zero and positive MaxOutputTokens", func(t *testing.T) {
 		for _, n := range []int{0, 1, 4096} {
 			req := valid
