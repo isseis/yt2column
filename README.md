@@ -70,6 +70,7 @@ make test    # unit tests (no network, no yt-dlp)
 make lint    # golangci-lint (pinned version)
 make fmt     # gofumpt on changed files
 make test-integration  # real yt-dlp + network; see below
+make test-integration-deepseek  # real DeepSeek API; see below
 ```
 
 Development follows a requirements → architecture → implementation-plan process
@@ -88,3 +89,19 @@ two minutes apart, so a run takes a few minutes. Override the video with
 `make test-integration YT2COLUMN_TEST_VIDEO_URL=... YT2COLUMN_TEST_VIDEO_ID=...`
 (an empty `YT2COLUMN_TEST_VIDEO_ID` skips the video ID check). Leave some
 time between runs to stay clear of YouTube's rate limit.
+
+### DeepSeek integration test
+
+`make test-integration-deepseek` calls the real DeepSeek API, so it incurs
+charges. It needs `YT2COLUMN_TEST_DEEPSEEK_API_KEY` set to a DeepSeek API key
+for testing; this is separate from the production `DEEPSEEK_API_KEY`, which the
+test never reads. A missing or empty `YT2COLUMN_TEST_DEEPSEEK_API_KEY` skips
+the test with a message naming the variable, so setting only `DEEPSEEK_API_KEY`
+does not run it. The model comes from `YT2COLUMN_MODEL`, defaulting to
+`deepseek-flash` when that variable is undefined (an empty value is passed
+through and fails the test). The target exports the opt-in variable
+`YT2COLUMN_DEEPSEEK_INTEGRATION=1` for the integration test alone; without it
+the test skips with a message naming the variable, so a plain
+`go test -tags integration` or an IDE run does not call the API. A run makes two
+generations — an ordinary one and one truncated by `MaxOutputTokens` — each
+bounded by a 15-minute timeout, so it can take a few minutes under API load.

@@ -30,14 +30,14 @@ URL → TranscriptSource → Transcript → ArticleWriter → Article → Publis
   - 手動字幕と自動字幕が両方ある場合の挙動（どちらが優先されるか、出力ファイル名）は `02_architecture.md` の作成時に実 `yt-dlp` の出力で確認し、同書に記録すること（承認前に確定させる）。
 - `ArticleWriter`: プロバイダに依存しない。プロンプトテンプレートにタイムスタンプを除いた本文とメタ情報を埋め込み、`LLMClient` を呼び出して、結果を `Article`（タイトル・Markdown 本文・出典 URL・生成モデル名）に変換する。
   - プロンプトの組み立てと出力の後処理はここに集約し、全プロバイダで共有する。
-- `LLMClient`: プロバイダごとの薄いアダプタ。責務は「system プロンプトと user プロンプトを受け取り、生成テキストとモデル名を返す」ことだけ。
+- `LLMClient`: プロバイダごとの薄いアダプタ。責務は「system プロンプトと user プロンプトを受け取り、生成テキストとモデル名、モデルの版の識別子を返す」ことだけ。
 
   ```go
   type LLMClient interface {
       Generate(ctx context.Context, req GenerateRequest) (GenerateResponse, error)
   }
   // GenerateRequest: SystemPrompt, UserPrompt, MaxOutputTokens など、プロバイダ共通の最小限の項目のみ
-  // GenerateResponse: Text, Model（生成テキストと、生成に使われたモデル名）
+  // GenerateResponse: Text, Model（生成テキストと、生成に使われたモデル名）, ModelVersion（生成に使ったモデルまたはバックエンドの版の識別子。返さないプロバイダでは空文字列）
   ```
 
   - 初期実装は `internal/llm/deepseek`。Gemini・Claude は必要になったら `internal/llm/gemini`・`internal/llm/claude` として追加する。
@@ -58,7 +58,7 @@ URL → TranscriptSource → Transcript → ArticleWriter → Article → Publis
 - DeepSeek の現行モデルは thinking（推論）モードがデフォルトで有効で、レイテンシとコストに影響する。推論過程は `reasoning_content` として本文（`content`）とは別に返るので、記事には `content` だけを使う。thinking モードでは `temperature` が無視される。初期は API のデフォルト（thinking 有効）のままにし、必要に応じて設定可能にする（リクエストの `thinking` パラメータで切り替えられる）。
 - DeepSeek は平日のピーク時間帯（UTC 01:00–04:00 と 06:00–10:00、日本時間では 10–13 時と 15–19 時）の料金が2倍になる。
 - DeepSeek の API への入力は中国で処理・保存され、プライバシーポリシー上はデフォルトでモデルの学習に使われる（オプトアウトあり）。送るのは公開動画の字幕・メタ情報とプロンプトであり、機密情報を送らないこと（[security.md](security.md) を参照）。
-- モデル名は頻繁に更新される。コードにハードコードせず設定で与える。再現性のため、`-latest` 系のエイリアスより具体的なモデル名を推奨。ただし DeepSeek の `deepseek-flash`（2026-09 時点で DeepSeek-V4.1-Flash を指す）は提供元が指し示すモデルを切り替えるエイリアスで、バージョンを固定した ID は提供されていない。どのモデルで生成したかを追えるよう、応答に含まれる `model` の値を記録すること。
+- モデル名は頻繁に更新される。コードにハードコードせず設定で与える。再現性のため、`-latest` 系のエイリアスより具体的なモデル名を推奨。ただし DeepSeek の `deepseek-flash`（2026-09 時点で DeepSeek-V4.1-Flash を指す）は提供元が指し示すモデルを切り替えるエイリアスで、バージョンを固定した ID は提供されていない。どのモデルで生成したかを追えるよう、応答に含まれる `model` の値と、モデルの版の識別子（`ModelVersion`。DeepSeek では `system_fingerprint`）を記録すること。
 
 ## 未確定事項
 
@@ -72,6 +72,7 @@ URL → TranscriptSource → Transcript → ArticleWriter → Article → Publis
 cmd/yt2column/main.go     # CLI エントリポイント
 internal/pipeline/        # 3段階を束ねるオーケストレーション
 internal/transcript/      # TranscriptSource と yt-dlp 実装、json3 パーサ
+internal/strictjson/      # 検証を通った JSON 文書から値を取り出す厳格な部品（transcript と deepseek が共有）
 internal/writer/          # ArticleWriter（プロバイダ非依存）
 internal/llm/             # LLMClient interface と共通型
 internal/llm/deepseek/    # DeepSeek 実装（標準ライブラリで OpenAI 互換 API を呼ぶ）
@@ -81,7 +82,7 @@ internal/secret/          # 秘密情報（API キー・Webhook URL）を保持�
 internal/publisher/       # Slack / File
 internal/config/          # 環境変数からの設定読み込み
 prompts/                  # プロンプトテンプレート
-testdata/                 # json3・info.json のサンプル
+testdata/                 # json3・info.json のサンプル、DeepSeek API の実応答
 ```
 
 ## 設定（環境変数）
