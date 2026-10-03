@@ -8,7 +8,7 @@
 | Created | 2026-10-02 |
 | Review date | 2026-10-02 |
 | Reviewer | isseis |
-| Comments | 2026-10-03 エディトリアル修正（決定の変更はない）：PR-4 の実装に伴い手順 5-1・5-2・5-4・5-7・6-4、PR-4 のレビュー観点、§5 の AC-23 の行を修正した。<br>・GODEBUG の扱いは、承認済みの手順 5-2 がすでに許していた 2 案のうち「検出して失敗する」を選んだ。net/http の HTTP/2 パッケージは GODEBUG を init 時に一度だけ読むため、テスト内で取り除いても効果がないからである。<br>・追加した検証（TestMakeOptInExportedToDeepSeekTargetOnly、`-timeout` が Generate 呼び出し回数 × 呼び出しごとのタイムアウトを上回ることの確認、5-7 の追加の破壊確認、GODEBUG の順序のケース）は、計画がすでに求めていた振る舞いの検証を厳しくするだけである。<br>・http2.go の行の引用の訂正はエディトリアルである。<br>・チェックボックスと §5.1 の記録の更新は進捗の記録である。 |
+| Comments | - |
 ## 1. 実装の概要 (Implementation Overview)
 
 ### 1.1. 目的
