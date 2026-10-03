@@ -34,6 +34,9 @@ const (
 // message quotes, so it cannot flood the caller's terminal.
 const maxReasonBytes = 64
 
+// jsonWhitespace is the set of insignificant whitespace bytes of RFC 8259.
+const jsonWhitespace = " \t\r\n"
+
 // readResponseBody reads at most maxResponseBytes+1 bytes. One byte past the
 // limit is enough to detect an oversized body without buffering it all.
 func readResponseBody(body io.Reader) ([]byte, error) {
@@ -51,7 +54,9 @@ func readResponseBody(body io.Reader) ([]byte, error) {
 // The checks run in the requirement order: body shape, finish reason, content.
 // Any rejection returns the zero GenerateResponse.
 func parseResponse(data []byte) (llm.GenerateResponse, error) {
-	if len(bytes.TrimSpace(data)) == 0 {
+	// Only JSON whitespace counts: bytes.TrimSpace would also strip Unicode
+	// spaces such as U+00A0, which are not JSON whitespace.
+	if len(bytes.Trim(data, jsonWhitespace)) == 0 {
 		return llm.GenerateResponse{}, invalidResponse("response body is whitespace only (%d bytes)", len(data))
 	}
 	object, err := strictjson.ParseObject(data)

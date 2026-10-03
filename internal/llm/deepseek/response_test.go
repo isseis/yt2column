@@ -407,6 +407,17 @@ func TestGenerateKeepAliveBlankLines(t *testing.T) {
 			t.Errorf("error %q does not name the body size %d", err, len(body))
 		}
 	})
+
+	t.Run("a non-JSON Unicode space is not called whitespace", func(t *testing.T) {
+		body := []byte("\u00a0")
+		if len(bytes.TrimSpace(body)) != 0 {
+			t.Fatal("the input must be Unicode whitespace that bytes.TrimSpace strips")
+		}
+		err := assertBodyRejected(t, body, ErrInvalidResponse)
+		if strings.Contains(err.Error(), "whitespace only") {
+			t.Errorf("error %q calls a non-JSON-whitespace body whitespace only", err)
+		}
+	})
 }
 
 func TestGenerateErrorMemberDiagnostics(t *testing.T) {
