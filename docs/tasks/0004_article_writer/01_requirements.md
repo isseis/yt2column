@@ -21,7 +21,7 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 
 元動画への出典リンクは、記事の末尾に必ず付ける（[project_overview.md](../../dev/project_overview.md)「前提・制約」）。字幕・タイトル・概要欄はプロンプトに埋め込まれ、プロンプトインジェクションで生成結果が操作されうる。そこで、出典リンクは LLM に任せず、コードで付与する（[security.md](../../dev/security.md) §6）。
 
-**本書の記述範囲:** 本書は、観測できる振る舞い（何を受け取り、LLM に何を送り、何を返し、何をどの番兵エラーで拒否するか）を定める。番兵エラーとは、`errors.Is` で判別できる、あらかじめ定めたエラー値である。その振る舞いを実現する手段（型や関数の名前、テンプレートで参照できる値の名前、上限値、出典ブロック（F-006）の正確な書式など）は設計（`02_architecture.md`）で決める。要件の作成過程で挙がった実装上の注意点と、設計で決めるべき事項は [design_handoff.md](design_handoff.md) に申し送る。
+**本書の記述範囲:** 本書は、観測できる振る舞い（何を受け取り、LLM に何を送り、何を返し、何をどの番兵エラーで拒否するか）を定める。番兵エラーとは、`errors.Is` で判別できる、あらかじめ定めたエラー値である。その振る舞いを実現する手段（型や関数の名前、テンプレートで参照できる値の名前、上限値、出典ブロック（F-006）の正確な書式など）は設計（`02_architecture.md`）で決める。要件の作成過程で挙がった、設計で決めるべき事項は [design_handoff.md](design_handoff.md) に、実装計画とテストの組み立てで扱う事項は [implementation_handoff.md](implementation_handoff.md) に申し送る。
 
 対応 issue: #5
 
@@ -40,7 +40,7 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 
 -   `internal/writer` パッケージの、`writer.ArticleWriter` を実装する型
 -   構築時の入力（`LLMClient`、テンプレートの上書きファイル）の検証
--   仮のプロンプトテンプレート（system 用と user 用）と、`embed` によるバイナリへの埋め込み
+-   仮のプロンプトテンプレート（system 用と user 用）と、そのバイナリへの埋め込み
 -   外部ファイルによるテンプレートの上書き
 -   `Transcript` の検証と、プロンプトの組み立て
 -   LLM の生成テキストの検証と、`Article` への変換
@@ -71,7 +71,7 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 
 -   `LLMClient` は `llm.LLMClient` として受け取る。nil、および動的な値が nil の interface 値（typed nil）は拒否する。
 -   プロンプトテンプレートは、system プロンプト用と user プロンプト用の 2 つとする。
--   既定のテンプレートは、リポジトリの `prompts/` に置いたファイルを `embed` でバイナリに埋め込んだものとする。既定のテンプレートは、system 用と user 用を合わせて、参照できる 4 つの値（後述）をすべて埋め込み、F-005 が定める出力の形（先頭行が `# ` で始まるタイトルの見出し）を LLM に指示する（2.3）。
+-   既定のテンプレートは、リポジトリの `prompts/` に置いたファイルをバイナリに埋め込んだものとし、実行時に外部のファイルを必要としない（埋め込みの手段は [design_handoff.md](design_handoff.md) H-01）。既定のテンプレートは、system 用と user 用を合わせて、参照できる 4 つの値（後述）をすべて埋め込み、F-005 が定める出力の形（先頭行が `# ` で始まるタイトルの見出し）を LLM に指示する（2.3）。
 -   system 用と user 用のそれぞれについて、上書きファイルのパスを構築時に任意で与えることができる。パスを与えたテンプレートは、既定のものの代わりにそのファイルの内容から作る。与えなかったテンプレートは既定のものから作る。上書きファイルは構築時に 1 回だけ読み、`Write` のたびには読み直さない。
 -   テンプレートの構文は Go の `text/template` とする。テンプレートから参照できる値は、動画タイトル・チャンネル名・概要欄・字幕本文（F-003）の 4 つとする。参照するときの名前は設計で確定し、利用者がテンプレートを書けるよう文書に記す。本書の例では、仮に `.Title`・`.Description` などと書く。`text/template` の組み込み関数以外の関数は提供しない。
 -   次のいずれかに当てはまるテンプレートは、構築時に `ErrInvalidTemplate` で拒否する。既定のテンプレートにも同じ規則を適用する。
@@ -100,7 +100,7 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
     -   `text/template` として解析できないファイル（例: `{{.Title`）
     -   参照できない値を参照するファイル（例: `{{.APIKey}}`、条件分岐の中にある `{{if .Description}}{{.APIKey}}{{end}}`）
 - **AC-06**: リポジトリに含まれる既定のテンプレート（system 用・user 用）は、上書きファイルと同じ規則の検証を通る。この検証は、埋め込まれた実物のテンプレートに対するテストで行い、既定のテンプレートを規則に反する形に編集するとテストが失敗する。
-- **AC-30**: 埋め込まれた実物の既定のテンプレートで構築した `ArticleWriter` に、`Title`・`ChannelName`・`Description`・`Segment.Text` にそれぞれ特徴的な目印の文字列を持つ `Transcript` を渡すと、4 つの目印はそれぞれ、`LLMClient` に渡る system プロンプトと user プロンプトの少なくとも一方に現れる。また、既定のテンプレートの文面は、先頭行を `# ` で始まるタイトルの見出しにするという F-005 の出力の形の指示を含む（例: テンプレートの文面が `# ` の見出しの指示を文字どおり含む）。既定のテンプレートからこれらのいずれかを取り除くと、テストが失敗する。
+- **AC-30**: 埋め込まれた実物の既定のテンプレートで構築した `ArticleWriter` に、`Title`・`ChannelName`・`Description`・`Segment.Text` にそれぞれ特徴的な目印の文字列を持つ `Transcript` を渡すと、4 つの目印はそれぞれ、`LLMClient` に渡る system プロンプトと user プロンプトの少なくとも一方に現れる。また、既定のテンプレートの文面は、先頭行を `# ` で始まるタイトルの見出しにするという F-005 の出力の形の指示を含む。既定のテンプレートからこれらのいずれかを取り除くと、この AC の検証は失敗する（検証の方法は [implementation_handoff.md](implementation_handoff.md) I-01）。
 
 #### F-002: `Transcript` の検証
 
@@ -133,7 +133,7 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 -   字幕本文は、`Segments` の各 `Text` を順序どおりに改行（`\n`）1 つで区切って連結した文字列とする。各 `Text` は加工しない。`StartMs`（タイムスタンプ）は字幕本文に含めない。
 -   テンプレートに埋め込む動画タイトル・チャンネル名・概要欄は、`Transcript` の値を加工せずに使う。
 -   埋め込む値はテンプレートとして解釈しない。字幕や概要欄が `{{` などのテンプレートの構文に見える文字列を含んでいても、その文字列はそのままプロンプトに現れる。
--   展開した system プロンプトと user プロンプトのそれぞれの大きさ（バイト数）には上限を設ける（2.3）。上限値は `02_architecture.md` で固定する。展開の途中で上限を超えた時点で失敗とし（手段は [design_handoff.md](design_handoff.md) H-11）、上限を超える分のメモリを確保し続けない。`{{printf "%1000000000s" .Title}}` のように、テンプレートの小さな記述が巨大な出力に膨らむ場合も、メモリを使い切らずにエラーを返す。
+-   展開した system プロンプトと user プロンプトのそれぞれの大きさ（バイト数）には上限を設ける（2.3）。上限値は `02_architecture.md` で固定する。テンプレートの小さな記述が巨大な出力に膨らむ場合も含め、上限を超える展開は、メモリを使い切ることなくエラーになる（手段は [design_handoff.md](design_handoff.md) H-11）。
 -   テンプレートの展開がエラーになった場合、展開したプロンプトが上限を超えた場合、および組み立てた system プロンプトまたは user プロンプトが空、または空白文字だけになった場合は、`LLMClient` を呼ばずに `ErrInvalidTemplate` で失敗する。
 -   `GenerateRequest` の `MaxOutputTokens` は 0（プロバイダの既定に任せる）とする（2.3）。
 -   `LLMClient.Generate` には、`Write` が受け取った `ctx` を渡す。
@@ -196,7 +196,7 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 #### F-007: テスト可能性
 
 **Acceptance Criteria**:
-- **AC-21**: `ArticleWriter` のユニットテストは、LLM の API もネットワークも呼ばない。fake の `LLMClient`（`internal/llm/testutil`）を使い、F-001〜F-006 と 3.2 の各 AC を検証する。上書きファイルは `t.TempDir` に作る。
+- **AC-21**: `ArticleWriter` のユニットテストは、LLM の API もネットワークも呼ばず、テストの外にあるファイルにも依存しない。fake の `LLMClient` を使い、F-001〜F-006 と 3.2 の各 AC を検証する（テストの組み立て方は [implementation_handoff.md](implementation_handoff.md) I-01）。
 
 ### 3.2. 信頼できない入力の境界 (Untrusted Input Boundaries)
 
@@ -226,7 +226,7 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 
 本文の部分には、さらに次の規則を適用する。後ろに付ける出典ブロックが隠れたり、リンクとして表示されなくなったりしないようにするためである。
 
--   生の HTML を含まない。対象は、CommonMark の HTML ブロック（開始条件 1〜7 のすべて）と、インラインの生の HTML（開始タグ・終了タグ、コメント、処理命令、宣言、CDATA セクション）である。コードスパンやコードフェンスの中にある、HTML に見える文字列は生の HTML ではなく、受理する。`<https://example.com/>` のような Markdown の自動リンクも生の HTML ではない。コラム記事に生の HTML は要らず、Slack も生の HTML を表示しない。一方、閉じていない要素（`<details>` など）は、後ろに付ける出典ブロックを中に取り込んで隠しうる。
+-   生の HTML を含まない。対象は、CommonMark が生の HTML とみなすもの（ブロックとしてもインラインとしても）のすべてである。コードスパンやコードフェンスの中にある、HTML に見える文字列は生の HTML ではなく、受理する。`<https://example.com/>` のような Markdown の自動リンクも生の HTML ではない。コラム記事に生の HTML は要らず、Slack も生の HTML を表示しない。一方、閉じていない要素（`<details>` など）は、後ろに付ける出典ブロックを中に取り込んで隠しうる。
 -   閉じていないコードフェンス（行頭の ```` ``` ```` または `~~~` で開き、閉じていないもの）で終わらない。開いたままだと、出典ブロックがコードブロックの中に入る。
 
 判定の詳細（CommonMark への準拠の程度、境界の例）は設計で決める（[design_handoff.md](design_handoff.md) H-04）。
@@ -253,7 +253,7 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 - **AC-23**: タイトルが空または空白文字だけ（例: `# \n本文`、`#  \t\n本文`、全角空白（U+3000）だけの `# 　\n本文`）、`\r` を含む（例: `# タイトル\r\n本文`）、`#` で終わる（例: `# タイトル #\n本文`）生成テキスト、および本文の部分が空または空白文字だけの生成テキスト（例: `# タイトル`、`# タイトル\n`、`# タイトル\n \n\t\n`）は、`errors.Is(err, ErrMalformedOutput)` が真になるエラーになる。タイトルの前後の半角空白とタブは除き（例: `#  タイトル  \n本文` のタイトルは `タイトル`）、拒否しない。
 - **AC-24**: 本文の部分が閉じていないコードフェンスで終わる生成テキスト（例: `# タイトル\n本文\n` に続けて ```` ```go\nfmt.Println() ```` で終わるもの、`~~~` で開いて閉じないもの）は、`errors.Is(err, ErrMalformedOutput)` が真になるエラーになる。フェンスを閉じている生成テキストは受理する。
 - **AC-25**: `Model` が空文字列の応答は、生成テキストが正しくても、`errors.Is(err, ErrMalformedOutput)` が真になるエラーになる。
-- **AC-26**: AC-22〜AC-25・AC-27・AC-29・AC-31 の `ErrMalformedOutput` の各拒否ケースで、入力の形が許す限り、タイトル・本文の部分・`Model`・`ModelVersion` にそれぞれ異なる目印の文字列を置く。返るエラーを `Error()` で文字列にした結果には、どの目印も現れない。
+- **AC-26**: AC-22〜AC-25・AC-27・AC-29・AC-31 の `ErrMalformedOutput` の各拒否ケースで、返るエラーを `Error()` で文字列にした結果には、応答のタイトル・本文の部分・`Model`・`ModelVersion` のいずれの値も現れない（検証の方法は [implementation_handoff.md](implementation_handoff.md) I-01）。
 - **AC-27**: 本文の部分が生の HTML を含む生成テキストは、`errors.Is(err, ErrMalformedOutput)` が真になるエラーになり、返る `Article` はゼロ値である。例: 閉じていない `<details>`、閉じている `<details>…</details>`、`<div hidden>`、段落中のインラインの `<span hidden>`、`<!-- -->`、`<script>`。一方、コードスパンの中の `<details>`（例: `` `<details>` ``）、閉じたコードフェンスの中の `<details>`、自動リンク（例: `<https://example.com/>`）を含む生成テキストは受理する。
 - **AC-29**: 生成テキストが正しくても、次のいずれかに当てはまる応答は、`errors.Is(err, ErrMalformedOutput)` が真になるエラーになり、返る `Article` はゼロ値である。
     -   `Model` が空白文字だけ（例: 全角空白（U+3000）だけの `　`）
@@ -308,7 +308,7 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 
 ### 5.1. 他の文書との差分
 
--   `writer.Article` のフィールドは、`0001_pipeline_skeleton` で `Title`・`Body`・`SourceURL`・`Model` の 4 つと定め、`internal/pipeline/pipeline_test.go` の `TestCommonTypesFieldSets` がこの組を固定している。本書は `ModelVersion`（文字列）を追加する（F-005）。`0003_deepseek_llm_client` が `llm.GenerateResponse` に `ModelVersion` を追加し、`writer.Article` への記録を本タスク（#5）に委ねたためである。`TestCommonTypesFieldSets` と、[project_overview.md](../../dev/project_overview.md) の `ArticleWriter` の説明（`Article` の項目の列挙）を更新する。
+-   `writer.Article` のフィールドは、`0001_pipeline_skeleton` で `Title`・`Body`・`SourceURL`・`Model` の 4 つと定め、既存のテストがこの組を固定している。本書は `ModelVersion`（文字列）を追加する（F-005）。`0003_deepseek_llm_client` が `llm.GenerateResponse` に `ModelVersion` を追加し、`writer.Article` への記録を本タスク（#5）に委ねたためである。この組を固定している既存のテストと、[project_overview.md](../../dev/project_overview.md) の `ArticleWriter` の説明（`Article` の項目の列挙）を更新する（[implementation_handoff.md](implementation_handoff.md) I-02）。
 -   [project_overview.md](../../dev/project_overview.md) の決定済みの方針は変更しない。
 
 ## 6. 用語集 (Glossary)
