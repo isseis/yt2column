@@ -498,7 +498,7 @@ AC に対応しない、architecture が求める検証は次のとおり。
 | `-v` 出力の `TestIntegrationGenerate` と 2 つのサブテストの `=== RUN`・`--- PASS` | （未実施） |
 | 所要時間 | （未実施） |
 | `ModelVersion` のログ行 | （未実施） |
-| オプトインなしの直接実行の `--- SKIP` とメッセージ | 2026-10-03 16:30 JST、HEAD `ebd5349` に本 PR の変更を加えた作業ツリーで、`YT2COLUMN_DEEPSEEK_INTEGRATION` を除いた環境から `go test -tags integration -count=1 -v ./internal/llm/deepseek` を実行した。出力は `=== RUN   TestIntegrationGenerate`、``integration_test.go:47: YT2COLUMN_DEEPSEEK_INTEGRATION is not 1: the integration test calls the real DeepSeek API and incurs charges; run it with `make test-integration-deepseek` ``、`--- SKIP: TestIntegrationGenerate (0.00s)`、`ok`（0.238s）。`New` の前にスキップするため API を呼ばない |
+| オプトインなしの直接実行の `--- SKIP` とメッセージ | 2026-10-03 16:37 JST、HEAD `d0e3af4`（未コミットの変更なし）で、`YT2COLUMN_DEEPSEEK_INTEGRATION` を除いた環境から `go test -tags integration -count=1 -v ./internal/llm/deepseek` を実行した。出力は `=== RUN   TestIntegrationGenerate`、``integration_test.go:37: YT2COLUMN_DEEPSEEK_INTEGRATION is not 1: the integration test calls the real DeepSeek API and incurs charges; run it with `make test-integration-deepseek` ``、`--- SKIP: TestIntegrationGenerate (0.00s)`、`ok`（0.396s）。`New` の前にスキップするため API を呼ばない |
 
 ### 5.2. 測定の記録（`internal/strictjson` のメモリ使用量）
 
