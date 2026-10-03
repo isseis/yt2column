@@ -55,6 +55,22 @@ func TestIntegrationGenerate(t *testing.T) {
 		if response.Model == "" {
 			t.Error("Generate() Model is empty")
 		}
+		// Model and ModelVersion are provider-controlled: a faulty response or
+		// a TLS-terminating proxy could echo the bearer key into them, and
+		// logging them would then write the live key to the test output. The
+		// failure messages name the field only, never its value or the key.
+		key, err := settings.apiKey.Reveal()
+		if err != nil {
+			t.Fatal("the API key cannot be revealed")
+		}
+		for _, field := range []struct{ name, value string }{
+			{"Model", response.Model},
+			{"ModelVersion", response.ModelVersion},
+		} {
+			if strings.Contains(field.value, key) {
+				t.Fatalf("Generate() %s contains the API key; it is not logged", field.name)
+			}
+		}
 		// Model and ModelVersion are untrusted strings; %+q escapes control
 		// and non-ASCII characters so they cannot alter the terminal or log.
 		t.Logf("Model %+q, ModelVersion %+q", response.Model, response.ModelVersion)
