@@ -95,7 +95,9 @@ time between runs to stay clear of YouTube's rate limit.
 `make test-integration-deepseek` calls the real DeepSeek API, so it incurs
 charges. It needs `YT2COLUMN_TEST_DEEPSEEK_API_KEY` set to a DeepSeek API key
 for testing; this is separate from the production `DEEPSEEK_API_KEY`, which the
-test never reads. The model comes from `YT2COLUMN_MODEL`, defaulting to
+test never reads. A missing or empty `YT2COLUMN_TEST_DEEPSEEK_API_KEY` skips
+the test with a message naming the variable, so setting only `DEEPSEEK_API_KEY`
+does not run it. The model comes from `YT2COLUMN_MODEL`, defaulting to
 `deepseek-flash` when that variable is undefined (an empty value is passed
 through and fails the test). The target exports the opt-in variable
 `YT2COLUMN_DEEPSEEK_INTEGRATION=1` for the integration test alone; without it
