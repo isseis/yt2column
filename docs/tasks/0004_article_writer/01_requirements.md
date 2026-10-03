@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-03 |
-| Review date | - |
-| Reviewer | - |
-| Comments | PR #59 のレビューを受けて、受理する範囲を改訂した（決定の変更のため `draft` に戻した）。F-001: テンプレートで使える `text/template` の構文を列挙し、それ以外の構文（`with`・`range`・変数・`printf` など）を構築時に `ErrInvalidTemplate` で拒否する理由に加えた（AC-05 に例を追加し、AC-28 の `printf` の例は構築時の拒否に統一した）。設計の構文の許可リストが、承認済みの F-001 の受理する範囲を狭めていたためである。3.2: 生の HTML とコードフェンスの判定について、受理してはならない形・受理しなければならない形・拒否してよい形を定めた（AC-27 のフェンスの例を行頭のフェンスに限定した）。設計の判定が、3.2 が受理するとしていた形の一部を拒否していたためである。 |
+| Review date | 2026-10-04 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
