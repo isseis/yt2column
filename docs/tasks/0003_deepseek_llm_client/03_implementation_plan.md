@@ -200,24 +200,24 @@ HEAD `00573f2`（ブランチ `task/0003-deepseek-llm-client-02`）で確認し�
 - 変更: `docs/dev/developer_guide/package_reference.md`
 
 **タスク**
-- [ ] **ステップ 3-1**: `errors.go` に architecture §4.1 の 3 つの番兵（`ErrHTTPStatus`・`ErrInvalidResponse`・`ErrTransport`）と `HTTPStatusError`（`StatusCode` だけを持ち、`Unwrap` は `ErrHTTPStatus` を返す）を定義する。`Error()` はステータスコードと、architecture §4.2 のステータスごとの固定の案内を返す。構築のエラーとタイムアウトの cause に使う非公開の静的エラーも置く。
-- [ ] **ステップ 3-2**: `request.go` に、リクエスト本文の非公開の構造体（`model`・`messages`・`stream`、正の値のときだけの `max_tokens`。`thinking` などのフィールドは持たない）、その組み立て（`json.Marshal`）、`Content-Type` と `Authorization` ヘッダーの設定、構築時の API キーの形の検査（ゼロ値でないこと、表示可能な ASCII `0x21`〜`0x7E` だけであること）を実装する（architecture §3.7）。`Reveal()` を呼ぶのはこのファイルの 2 か所だけとし、取り出した文字列をフィールドにもエラーにも残さない。ヘッダーの設定時の `Reveal()` のエラーは無視せず、HTTP リクエストを送らずにエラーを返す。
-- [ ] **ステップ 3-3**: `deepseek.go` に `Options`・`New`・非公開の具体型・`Generate` と、送信先の定数を実装する（architecture §3.1・§3.3・§6.1）。`New` は API キー・`Model`（空・前後の空白・不正な UTF-8）・`Timeout`（0 以下）を検査し、`CheckRedirect` が `http.ErrUseLastResponse` を返す `http.Client`（`Timeout` は設定しない）を作る。`Transport` は設定せず（`http.DefaultTransport` を使い、環境変数の proxy に従う）、ステップ 3-6 の `TestMain` の proxy がアダプタの送信に効くようにする。`Generate` は `Validate` → 呼び出し元の `ctx` の終了の確認 → `context.WithTimeoutCause` で呼び出しの `ctx` を作る → 送信 → ステータスの確認（`200` 以外は応答本文を読まずに閉じる）→ 応答本文の読み取り → 応答の検証、の順に進む。送信と読み取りの失敗は、先に呼び出しの `ctx` の `Err()` を確認して `context` のエラーと `ErrTransport` に分け、`ErrTransport` には下位のエラーを `%w` でつながず文言だけを添える（architecture §4.1）。すべてのエラーのメッセージは `deepseek: ` で始め、architecture §4.2 の内容（`HTTPStatusError` にはモデル名と送った `max_tokens`、タイムアウトには期限の出所）を含める。
-- [ ] **ステップ 3-4**: `response.go` に、応答本文を上限 + 1 バイトまで読み、上限（8 MiB、定数）を超えたら `ErrInvalidResponse` とする読み取りを実装する（architecture §3.4 の手順 2）。`Generate` が読み取った応答本文を渡す検証関数は、同じ PR-3 に含まれるステップ 4-1 で実装する。PR をマージする時点で読み取りと検証の両方が揃い、常にエラーを返す実装が main に入ることはない。ステップ 4-1 より先にフェーズ 3 のコミットを作る必要がある場合に限り、検証関数を常に `ErrInvalidResponse` を返す暫定の実装にしてコンパイルを通してよいが、その実装は同じ PR-3 の中でステップ 4-1 に置き換え、PR の最終状態には残さない。暫定の実装を置く場合は引数を使わず結果も一定であるため、`unparam`・`revive` の `unused-parameter` が指摘しうる。指摘された場合は、その関数に限った `//nolint:unparam,revive` と「ステップ 4-1 で置き換える暫定の実装」である旨の英語のコメントを付ける。
-- [ ] **ステップ 3-5**: `test_helpers.go` を作成する。内容は次のとおり。
+- [x] **ステップ 3-1**: `errors.go` に architecture §4.1 の 3 つの番兵（`ErrHTTPStatus`・`ErrInvalidResponse`・`ErrTransport`）と `HTTPStatusError`（`StatusCode` だけを持ち、`Unwrap` は `ErrHTTPStatus` を返す）を定義する。`Error()` はステータスコードと、architecture §4.2 のステータスごとの固定の案内を返す。構築のエラーとタイムアウトの cause に使う非公開の静的エラーも置く。
+- [x] **ステップ 3-2**: `request.go` に、リクエスト本文の非公開の構造体（`model`・`messages`・`stream`、正の値のときだけの `max_tokens`。`thinking` などのフィールドは持たない）、その組み立て（`json.Marshal`）、`Content-Type` と `Authorization` ヘッダーの設定、構築時の API キーの形の検査（ゼロ値でないこと、表示可能な ASCII `0x21`〜`0x7E` だけであること）を実装する（architecture §3.7）。`Reveal()` を呼ぶのはこのファイルの 2 か所だけとし、取り出した文字列をフィールドにもエラーにも残さない。ヘッダーの設定時の `Reveal()` のエラーは無視せず、HTTP リクエストを送らずにエラーを返す。
+- [x] **ステップ 3-3**: `deepseek.go` に `Options`・`New`・非公開の具体型・`Generate` と、送信先の定数を実装する（architecture §3.1・§3.3・§6.1）。`New` は API キー・`Model`（空・前後の空白・不正な UTF-8）・`Timeout`（0 以下）を検査し、`CheckRedirect` が `http.ErrUseLastResponse` を返す `http.Client`（`Timeout` は設定しない）を作る。`Transport` は設定せず（`http.DefaultTransport` を使い、環境変数の proxy に従う）、ステップ 3-6 の `TestMain` の proxy がアダプタの送信に効くようにする。`Generate` は `Validate` → 呼び出し元の `ctx` の終了の確認 → `context.WithTimeoutCause` で呼び出しの `ctx` を作る → 送信 → ステータスの確認（`200` 以外は応答本文を読まずに閉じる）→ 応答本文の読み取り → 応答の検証、の順に進む。送信と読み取りの失敗は、先に呼び出しの `ctx` の `Err()` を確認して `context` のエラーと `ErrTransport` に分け、`ErrTransport` には下位のエラーを `%w` でつながず文言だけを添える（architecture §4.1）。すべてのエラーのメッセージは `deepseek: ` で始め、architecture §4.2 の内容（`HTTPStatusError` にはモデル名と送った `max_tokens`、タイムアウトには期限の出所）を含める。
+- [x] **ステップ 3-4**: `response.go` に、応答本文を上限 + 1 バイトまで読み、上限（8 MiB、定数）を超えたら `ErrInvalidResponse` とする読み取りを実装する（architecture §3.4 の手順 2）。`Generate` が読み取った応答本文を渡す検証関数は、同じ PR-3 に含まれるステップ 4-1 で実装する。PR をマージする時点で読み取りと検証の両方が揃い、常にエラーを返す実装が main に入ることはない。ステップ 4-1 より先にフェーズ 3 のコミットを作る必要がある場合に限り、検証関数を常に `ErrInvalidResponse` を返す暫定の実装にしてコンパイルを通してよいが、その実装は同じ PR-3 の中でステップ 4-1 に置き換え、PR の最終状態には残さない。暫定の実装を置く場合は引数を使わず結果も一定であるため、`unparam`・`revive` の `unused-parameter` が指摘しうる。指摘された場合は、その関数に限った `//nolint:unparam,revive` と「ステップ 4-1 で置き換える暫定の実装」である旨の英語のコメントを付ける。
+- [x] **ステップ 3-5**: `test_helpers.go` を作成する。内容は次のとおり。
   - `New` と同じ検証を通したアダプタの送信先を差し替える非公開のヘルパー（ループバックアドレス `127.0.0.1`・`::1` 以外の URL を拒否する。architecture §3.1）。
   - `testdata/` のフィクスチャのパス定数。
   - テストが共有するアサーション: 返るエラーが 7 つの番兵と 2 つの `context` のエラーのうちちょうど 1 つに該当すること、`Error()`・`%v`・`%+v`・`%#v` のどれにも API キーが現れないこと、メッセージが `deepseek: ` で始まり、`deepseek: ` が 2 回現れないこと。
-- [ ] **ステップ 3-6**: `deepseek_test.go` を作成し、§5 の表に挙げたテストを実装する（AC-01〜AC-08・AC-10・AC-15 の後半・AC-17〜AC-21・AC-25）。各失敗のケースでは、ステップ 3-5 の共有のアサーションを使う。あわせて次を置く。
+- [x] **ステップ 3-6**: `deepseek_test.go` を作成し、§5 の表に挙げたテストを実装する（AC-01〜AC-08・AC-10・AC-15 の後半・AC-17〜AC-21・AC-25）。各失敗のケースでは、ステップ 3-5 の共有のアサーションを使う。あわせて次を置く。
   - `TestMain` で、受け付けた接続をすぐ閉じるループバックのリスナーを自分で開き、`HTTPS_PROXY`・`https_proxy`・`HTTP_PROXY`・`http_proxy` をそのアドレスに設定し、`NO_PROXY`・`no_proxy` を空にしてから、テストを実行する（固定のポート番号は使わない。他のプロセスが使っている可能性があるため）。誤って本番の送信先へ送るテストを書いた場合、外部ホストへ届かずに失敗する。ループバックの `httptest` サーバーは proxy を通らない（§1.3）。開いたリスナーは `TestMain` の終了時に閉じる。
   - `TestUnitTestsCannotReachProductionEndpoint`: 本番の送信先の URL に対して `http.ProxyFromEnvironment` が上記のリスナーのアドレスを返すことを確かめる。あわせて、`New` で作った（送信先が本番の）アダプタの `http.Client` の `Transport` が nil（`http.DefaultTransport` を使う）であることを先に確かめ、そうでなければ `Generate` を呼ばずに `t.Fatal` で止める（ステップ 3-9 の破壊の確認で、本番の送信先へ実際に送らないようにするため）。そのうえで `Generate` を呼び、`ErrTransport` が返ることと、上記のリスナーが接続を受け付けたこと（受け付けた回数を数える）を確かめる。接続先はループバックのリスナーだけで、外部ホストには届かない。`http.ProxyFromEnvironment` だけの確認では、アダプタが proxy に従わない `Transport` を使っても通ってしまうためである。
   - フェーズ 3 のコミットの時点では応答の検証が暫定の実装（ステップ 3-4）でありうるため、`TestGenerateSendsRequest`・`TestGenerateMaxTokens`・`TestGenerateNoRedirect` などは、サーバーが受け取ったリクエストと、`200` 以外・`context`・通信の失敗のエラーだけを確かめる。`200` の応答に対する成功の確認は、同じ PR-3 の `response_test.go`（フェーズ 4）で行う。
   - `TestGenerateTransportFailure` は、返るエラーが下位のエラーを連鎖に含まないこと（`errors.AsType[*url.Error]` が偽、`errors.Is(err, io.ErrUnexpectedEOF)` が偽）も確かめる（architecture §4.1 の「`%w` でつながない」）。
   - タイムアウトとキャンセルのテストは、待ち続けるハンドラをテストの終了時に解放する（`t.Cleanup`）。猶予 2 秒（architecture §3.3）は名前付き定数にする。
   - `TestGenerateCanceled` の「キャンセル済みの `ctx` ではサーバーへのリクエストが 0 回」は、アダプタの事前の確認を外しても `net/http` の Transport が送信前に `ctx` を確認するため、テストが通ってしまいかねない。アダプタの事前の確認を壊す対象は、`ctx` の確認と `Validate` の順序（`TestGenerateInvalidRequest` の、終了済みの `ctx` と不正なリクエストが同時の場合に `ErrInvalidRequest` を返すケース）とする。
-- [ ] **ステップ 3-7**: `deepseek_test.go` に `TestRevealOnlyInRequestFile` を作成する。`internal/llm/deepseek` の `_test.go` 以外の Go ファイル（`test_helpers.go` を含む）を `go/parser` で解析し、名前が `Reveal` のセレクタ（呼び出しだけでなく、`f := s.Reveal` のようなメソッド値も含む）が `request.go` の中にだけ、2 か所あることを確かめる（architecture 原則 3）。
-- [ ] **ステップ 3-8**: `package_reference.md` に `internal/llm/deepseek` の行を追加する（DeepSeek の Chat Completions API を呼ぶ `llm.LLMClient` の実装。送信先は固定、リダイレクトに従わない、応答本文を厳格に検証する）。
-- [ ] **ステップ 3-9**: 壊して失敗することを確認し、コミットメッセージに記録する。対象は次のとおり。
+- [x] **ステップ 3-7**: `deepseek_test.go` に `TestRevealOnlyInRequestFile` を作成する。`internal/llm/deepseek` の `_test.go` 以外の Go ファイル（`test_helpers.go` を含む）を `go/parser` で解析し、名前が `Reveal` のセレクタ（呼び出しだけでなく、`f := s.Reveal` のようなメソッド値も含む）が `request.go` の中にだけ、2 か所あることを確かめる（architecture 原則 3）。
+- [x] **ステップ 3-8**: `package_reference.md` に `internal/llm/deepseek` の行を追加する（DeepSeek の Chat Completions API を呼ぶ `llm.LLMClient` の実装。送信先は固定、リダイレクトに従わない、応答本文を厳格に検証する）。
+- [x] **ステップ 3-9**: 壊して失敗することを確認し、コミットメッセージに記録する。対象は次のとおり。
   - `New` の API キーの形の検査を外す、`Model` の前後の空白の検査を外す（`TestNew`）。
   - `max_tokens` の省略を外す（`TestGenerateMaxTokens`）。
   - リクエスト本文に API キーを入れる、system と user のメッセージの順を入れ替える、`stream` を送らない（`TestGenerateSendsRequest`）。
@@ -231,7 +231,7 @@ HEAD `00573f2`（ブランチ `task/0003-deepseek-llm-client-02`）で確認し�
   - `deepseek.go` に `Reveal()` の呼び出しを足す（`TestRevealOnlyInRequestFile`）。
   - `TestMain` の proxy の設定を外す、`New` で `Proxy` を持たない `http.Transport` を設定する（`TestUnitTestsCannotReachProductionEndpoint`）。
   - ヘルパーのループバックの判定を外す（`TestNewTestClientRejectsNonLoopback`）。
-- [ ] **ステップ 3-10**: `make fmt` → `make test` → `make lint` を通す。`test_helpers.go` が `make test`（`-tags test`）でコンパイルされ、`go vet -tags integration ./...`（`make lint`）でビルドに含まれないことを確認する。
+- [x] **ステップ 3-10**: `make fmt` → `make test` → `make lint` を通す。`test_helpers.go` が `make test`（`-tags test`）でコンパイルされ、`go vet -tags integration ./...`（`make lint`）でビルドに含まれないことを確認する。
 
 ### フェーズ 4: 応答の検証
 
@@ -240,11 +240,11 @@ HEAD `00573f2`（ブランチ `task/0003-deepseek-llm-client-02`）で確認し�
 - 新設: `internal/llm/deepseek/response_test.go`（`//go:build test`）
 
 **タスク**
-- [ ] **ステップ 4-1**: ステップ 3-4 の検証関数を、architecture §3.4 の手順 3〜6 の実装にする（暫定の実装を置いた場合は置き換える）。`strictjson.ParseObject` で応答本文全体を検査し、トップレベル（`model`・`choices`・`system_fingerprint`）、`choices[0]`（`finish_reason` を先に、次に `message`）、`message`（`content`）の順に `Collect` で取り出す。`choices` はちょうど 1 要素で要素がオブジェクトであること、`model` は `RequiredString`、`system_fingerprint` は `OptionalString` で検査する。続いて終了理由（`length` → `llm.ErrTruncated`、`stop` でも `length` でもない値 → `llm.ErrUnexpectedFinishReason`）、`content` の空・空白だけ（`strings.TrimSpace`。→ `llm.ErrEmptyResponse`）を判定し、`Text`・`Model`・`ModelVersion` を加工せずに組み立てる。どの拒否でも `GenerateResponse` のゼロ値を返す。
-- [ ] **ステップ 4-2**: `ErrInvalidResponse` と `ErrUnexpectedFinishReason` のメッセージに、architecture §4.2 が定める情報を含める。`error` メンバーの存在の確認には `Object.Has` を使う。
-- [ ] **ステップ 4-3**: `response_test.go` を作成し、§5 の表に挙げたテストを実装する（AC-09・AC-11〜AC-14・AC-15 の前半・AC-26〜AC-34、keep-alive の空行、`error` メンバーの診断）。入力は `testdata/` の実応答（ステップ 3-5 のパス定数）を基に 1 か所だけを変えて作り、`httptest` サーバーから返す。各拒否のケースでは、ステップ 3-5 の共有のアサーション（番兵がちょうど 1 つ、API キーが現れない、接頭辞が 1 回）と、`GenerateResponse` がゼロ値であることを確かめる。AC-30 の不正なバイト列のケースは、入力自身が不正な UTF-8 を含むこと（`utf8.Valid` が偽）を先に確かめる。サロゲートのケースは、入力が `utf8.Valid` と `json.Valid` の両方で真であることを先に確かめる（サロゲートの検査だけが拒否できる入力であることを示す。`internal/transcript/json3_test.go` の `TestParseSubtitlesUTF8` と同じ）。AC-09 には、実応答の `content` の前後に空白と改行を足した応答を含め、`Text` が完全に一致することを確かめる（実応答の `content` は前後に空白を持たないため）。
-- [ ] **ステップ 4-4**: `deepseek_test.go` に `TestGenerateSentinelsDistinct` を作成する。7 つの番兵と 2 つの `context` のエラーのそれぞれを 1 回ずつ実際の `Generate` の経路で起こし、共有のアサーションで、それぞれが自分の番兵だけに該当することを確かめる（AC-16）。
-- [ ] **ステップ 4-5**: 壊して失敗することを確認し、コミットメッセージに記録する。対象は次のとおり。
+- [x] **ステップ 4-1**: ステップ 3-4 の検証関数を、architecture §3.4 の手順 3〜6 の実装にする（暫定の実装を置いた場合は置き換える）。`strictjson.ParseObject` で応答本文全体を検査し、トップレベル（`model`・`choices`・`system_fingerprint`）、`choices[0]`（`finish_reason` を先に、次に `message`）、`message`（`content`）の順に `Collect` で取り出す。`choices` はちょうど 1 要素で要素がオブジェクトであること、`model` は `RequiredString`、`system_fingerprint` は `OptionalString` で検査する。続いて終了理由（`length` → `llm.ErrTruncated`、`stop` でも `length` でもない値 → `llm.ErrUnexpectedFinishReason`）、`content` の空・空白だけ（`strings.TrimSpace`。→ `llm.ErrEmptyResponse`）を判定し、`Text`・`Model`・`ModelVersion` を加工せずに組み立てる。どの拒否でも `GenerateResponse` のゼロ値を返す。
+- [x] **ステップ 4-2**: `ErrInvalidResponse` と `ErrUnexpectedFinishReason` のメッセージに、architecture §4.2 が定める情報を含める。`error` メンバーの存在の確認には `Object.Has` を使う。
+- [x] **ステップ 4-3**: `response_test.go` を作成し、§5 の表に挙げたテストを実装する（AC-09・AC-11〜AC-14・AC-15 の前半・AC-26〜AC-34、keep-alive の空行、`error` メンバーの診断）。入力は `testdata/` の実応答（ステップ 3-5 のパス定数）を基に 1 か所だけを変えて作り、`httptest` サーバーから返す。各拒否のケースでは、ステップ 3-5 の共有のアサーション（番兵がちょうど 1 つ、API キーが現れない、接頭辞が 1 回）と、`GenerateResponse` がゼロ値であることを確かめる。AC-30 の不正なバイト列のケースは、入力自身が不正な UTF-8 を含むこと（`utf8.Valid` が偽）を先に確かめる。サロゲートのケースは、入力が `utf8.Valid` と `json.Valid` の両方で真であることを先に確かめる（サロゲートの検査だけが拒否できる入力であることを示す。`internal/transcript/json3_test.go` の `TestParseSubtitlesUTF8` と同じ）。AC-09 には、実応答の `content` の前後に空白と改行を足した応答を含め、`Text` が完全に一致することを確かめる（実応答の `content` は前後に空白を持たないため）。
+- [x] **ステップ 4-4**: `deepseek_test.go` に `TestGenerateSentinelsDistinct` を作成する。7 つの番兵と 2 つの `context` のエラーのそれぞれを 1 回ずつ実際の `Generate` の経路で起こし、共有のアサーションで、それぞれが自分の番兵だけに該当することを確かめる（AC-16）。
+- [x] **ステップ 4-5**: 壊して失敗することを確認し、コミットメッセージに記録する。対象は次のとおり。
   - `Text` に `strings.TrimSpace` を適用する（`TestGenerateResponseFixtures` の前後に空白を足したケース）。
   - 各レベルで `Collect` に挙げていないメンバーを拒否する（`TestGenerateResponseFixtures` の未知のメンバーを足したケース）。
   - `Model` に構築時のモデル名を入れる（`TestGenerateModelFromResponse`）。
@@ -261,7 +261,7 @@ HEAD `00573f2`（ブランチ `task/0003-deepseek-llm-client-02`）で確認し�
   - `error` メンバーの値をメッセージに含める、存在を示さない（`TestGenerateErrorMemberDiagnostics`）。
   - `system_fingerprint` の空文字列を受理する、欠落を拒否する（`TestGenerateSystemFingerprint`）。
   - `ErrTruncated` を `ErrUnexpectedFinishReason` にもラップする（`TestGenerateSentinelsDistinct`）。
-- [ ] **ステップ 4-6**: `make fmt` → `make test` → `make lint` を通す。
+- [x] **ステップ 4-6**: `make fmt` → `make test` → `make lint` を通す。
 
 ### PR-3 作成ポイント: DeepSeek adapter (construction, sending, and response validation)
 
