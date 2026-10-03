@@ -339,8 +339,8 @@ PR-4 に属するステップ 6-3・6-4 を PR-4 作成ポイントの前に、P
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 - [ ] **ステップ 6-1**: `project_overview.md` を更新する。想定ディレクトリ構成に `internal/strictjson/` を加える（検証を通った JSON 文書から値を取り出す厳格な部品）。`:40` の `GenerateResponse` の説明に `ModelVersion`（生成に使ったモデルまたはバックエンドの版の識別子。返さないプロバイダでは空文字列）を加える。`testdata/` の行に DeepSeek の API の実応答を加える。決定済みの方針は変更しない（requirements §5.1）。
 - [ ] **ステップ 6-2**: `CLAUDE.md` の Architecture Overview のパッケージの説明に `internal/strictjson`（`internal/transcript` と `internal/llm/deepseek` が共有する厳格な JSON の部品）を加える。
