@@ -46,7 +46,7 @@ define format_files_from_list
 	fi
 endef
 
-.PHONY: all build clean test test-ci test-integration lint fmt fmt-all deadcode tidy install-mergepr
+.PHONY: all build clean test test-ci test-integration test-integration-deepseek lint fmt fmt-all deadcode tidy install-mergepr
 
 all: build
 
@@ -88,6 +88,26 @@ INTEGRATION_TIMEOUT ?= 10m
 test-integration:
 	@printf 'test-integration: uses the real yt-dlp and the network (video: %s)\n' "$$YT2COLUMN_TEST_VIDEO_URL"
 	$(GOTEST) -tags integration -count=1 -timeout $(INTEGRATION_TIMEOUT) -v ./internal/transcript
+
+# DeepSeek integration test. Calls the real DeepSeek API, which incurs
+# charges, so it is kept out of `make test` by the `integration` build tag and
+# skips unless the opt-in variable below is set. It reads its API key from
+# YT2COLUMN_TEST_DEEPSEEK_API_KEY, never from DEEPSEEK_API_KEY. The model
+# defaults to deepseek-flash only when YT2COLUMN_MODEL is undefined; an empty
+# value is passed through, and the test fails on it.
+YT2COLUMN_MODEL ?= deepseek-flash
+# Two Generate calls of at most 15 minutes each, plus margin (see
+# internal/llm/deepseek/integration_test.go).
+DEEPSEEK_INTEGRATION_TIMEOUT ?= 40m
+
+# Exported to this target's recipe only; the recipe never splices the values
+# into shell text.
+test-integration-deepseek: export YT2COLUMN_MODEL := $(YT2COLUMN_MODEL)
+test-integration-deepseek: export YT2COLUMN_DEEPSEEK_INTEGRATION := 1
+
+test-integration-deepseek:
+	@printf 'test-integration-deepseek: calls the real DeepSeek API, which incurs charges (model: %s)\n' "$$YT2COLUMN_MODEL"
+	$(GOTEST) -tags integration -count=1 -timeout $(DEEPSEEK_INTEGRATION_TIMEOUT) -v ./internal/llm/deepseek
 
 # golangci-lint compiles the integration test only together with the `test`
 # helpers; vet the `-tags integration` build that `make test-integration` runs,
