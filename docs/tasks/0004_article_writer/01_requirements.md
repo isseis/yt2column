@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Created | 2026-10-03 |
-| Review date | 2026-10-03 |
-| Reviewer | isseis |
-| Comments | - |
+| Review date | - |
+| Reviewer | - |
+| Comments | PR #59 のレビューを受けて、受理する範囲を改訂した（決定の変更のため `draft` に戻した）。F-001: テンプレートで使える `text/template` の構文を列挙し、それ以外の構文（`with`・`range`・変数・`printf` など）を構築時に `ErrInvalidTemplate` で拒否する理由に加えた（AC-05 に例を追加し、AC-28 の `printf` の例は構築時の拒否に統一した）。設計の構文の許可リストが、承認済みの F-001 の受理する範囲を狭めていたためである。3.2: 生の HTML とコードフェンスの判定について、受理してはならない形・受理しなければならない形・拒否してよい形を定めた（AC-27 のフェンスの例を行頭のフェンスに限定した）。設計の判定が、3.2 が受理するとしていた形の一部を拒否していたためである。 |
 
 ## 1. 概要 (Overview)
 
@@ -73,7 +73,16 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 -   プロンプトテンプレートは、system プロンプト用と user プロンプト用の 2 つとする。
 -   既定のテンプレートは、リポジトリの `prompts/` に置いたファイルをバイナリに埋め込んだものとし、実行時に外部のファイルを必要としない（埋め込みの手段は [design_handoff.md](design_handoff.md) H-01）。既定のテンプレートは、system 用と user 用を合わせて、参照できる 4 つの値（後述）をすべて埋め込み、F-005 が定める出力の形（先頭行が `# ` で始まるタイトルの見出し）を LLM に指示する（2.3）。
 -   system 用と user 用のそれぞれについて、上書きファイルのパスを構築時に任意で与えることができる。パスを与えたテンプレートは、既定のものの代わりにそのファイルの内容から作る。与えなかったテンプレートは既定のものから作る。上書きファイルは構築時に 1 回だけ読み、`Write` のたびには読み直さない。
--   テンプレートの構文は Go の `text/template` とする。テンプレートから参照できる値は、動画タイトル・チャンネル名・概要欄・字幕本文（F-003）の 4 つとする。参照するときの名前は設計で確定し、利用者がテンプレートを書けるよう文書に記す。本書の例では、仮に `.Title`・`.Description` などと書く。`text/template` の組み込み関数以外の関数は提供しない。
+-   テンプレートの構文は Go の `text/template` とする。テンプレートから参照できる値は、動画タイトル・チャンネル名・概要欄・字幕本文（F-003）の 4 つとする。参照するときの名前は設計で確定し、使える構文とあわせて、利用者がテンプレートを書けるよう文書に記す。本書の例では、仮に `.Title`・`.Description` などと書く。`text/template` の組み込み関数以外の関数は提供しない。
+-   テンプレートで使える構文は、`text/template` の構文のうち次のものに限る。
+    -   テンプレートの地の文とコメント
+    -   参照できる 4 つの値の参照
+    -   `if`・`else`・`else if`
+    -   定数（文字列・数値・真偽値）。文字列の定数は、エスケープを解いた値が正しい UTF-8 であるものに限る。
+    -   括弧による入れ子とパイプライン
+    -   組み込み関数 `and`・`or`・`not`・`eq`・`ne`・`lt`・`le`・`gt`・`ge`・`len`・`index`
+
+    これ以外の構文は使えない。例: `with`・`range`・`template`・`define`・`block`、変数、`.` そのもの、上に挙げたもの以外の組み込み関数（`print`・`printf`・`println`・`slice`・`html`・`js`・`urlquery`・`call`）。使える構文を限るのは、参照できる値が 4 つに限られること、展開でメモリを使い切らないこと、展開したプロンプトが正しい UTF-8 になることを、展開せずに構築時に確かめるためである。
 -   次のいずれかに当てはまるテンプレートは、構築時に `ErrInvalidTemplate` で拒否する。既定のテンプレートにも同じ規則を適用する。
     -   上書きファイルを読めない（存在しない、権限がないなど）。
     -   上書きファイルが通常のファイルでない（ディレクトリ、名前付きパイプ（FIFO）、デバイス、ソケットなど）。この場合、構築は書き込み側や終わりのない入力を待ち続けずに、エラーを返す。
@@ -82,7 +91,8 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
     -   サイズが上限を超える。上限値は `02_architecture.md` で固定する。
     -   `text/template` の構文として解析できない。
     -   参照できる 4 つの値以外を参照している。条件分岐の中など、展開時に実行されるとは限らない位置にある参照も対象とする。この判定は構築時に行い、`Write` の時点まで持ち越さない。テンプレートの誤りを、字幕の取得や LLM の呼び出しの後ではなく、構築時に報告するためである。
--   値によって展開時にだけ起きる失敗（展開時のエラー、展開結果が空になる場合、展開結果が大きさの上限を超える場合）は、構築時には一般に判定できないので、`Write` の時点で検出する（F-003）。ただし、AC-28 の `printf` の例のように構築時に判定できるものは、構築時に拒否してもよい。
+    -   使える構文（前述）以外の構文を使っている。参照の判定と同じく、条件分岐の中など、展開時に実行されるとは限らない位置にある構文も対象とし、構築時に判定する。
+-   値によって展開時にだけ起きる失敗（展開時のエラー、展開結果が空になる場合、展開結果が大きさの上限を超える場合）は、構築時には一般に判定できないので、`Write` の時点で検出する（F-003）。AC-28 の `printf` の例は、使えない構文として構築時に拒否する。
 -   構築した値は `writer.ArticleWriter` として使える。
 
 **Acceptance Criteria**:
@@ -99,6 +109,7 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
     -   サイズが上限を超えるファイル（サイズがちょうど上限のファイルは受理する）
     -   `text/template` として解析できないファイル（例: `{{.Title`）
     -   参照できない値を参照するファイル（例: `{{.APIKey}}`、条件分岐の中にある `{{if .Description}}{{.APIKey}}{{end}}`）
+    -   使えない構文を使うファイル（例: `{{with .Title}}{{.}}{{end}}`、`{{printf "%s" .Title}}`）
 - **AC-06**: リポジトリに含まれる既定のテンプレート（system 用・user 用）は、上書きファイルと同じ規則の検証を通る。この検証は、埋め込まれた実物のテンプレートに対するテストで行い、既定のテンプレートを規則に反する形に編集するとテストが失敗する。
 - **AC-30**: 埋め込まれた実物の既定のテンプレートで構築した `ArticleWriter` に、`Title`・`ChannelName`・`Description`・`Segment.Text` にそれぞれ特徴的な目印の文字列を持つ `Transcript` を渡すと、4 つの目印はそれぞれ、`LLMClient` に渡る system プロンプトと user プロンプトの少なくとも一方に現れる。また、既定のテンプレートの文面は、先頭行を `# ` で始まるタイトルの見出しにするという F-005 の出力の形の指示を含む。既定のテンプレートからこれらのいずれかを取り除くと、この AC の検証は失敗する（検証の方法は [implementation_handoff.md](implementation_handoff.md) I-01）。
 
@@ -150,7 +161,7 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 - **AC-28**: 展開した system プロンプトまたは user プロンプトの大きさについて、次が成り立つ。
     -   ちょうど上限のバイト数になるプロンプトは受理し、`LLMClient` を呼ぶ。
     -   上限＋1 バイトになるプロンプトは、`errors.Is(err, ErrInvalidTemplate)` が真になるエラーになり、`LLMClient` を呼ばない。
-    -   `{{printf "%1000000000s" .Title}}` のように展開結果が上限を大きく超えるテンプレートは、メモリを使い切らずに `errors.Is(err, ErrInvalidTemplate)` が真になるエラーになり、`LLMClient` を呼ばない。エラーは構築時に返しても、`Write` の時点で返してもよい（どちらにするかは設計で決める。[design_handoff.md](design_handoff.md) H-11）。
+    -   `{{printf "%1000000000s" .Title}}` のように展開結果が上限を大きく超えうるテンプレートは、メモリを使い切らずに、構築時に `errors.Is(err, ErrInvalidTemplate)` が真になるエラーになる（`printf` は使えない構文である。F-001）。したがって `LLMClient` は呼ばれない。
 
 #### F-004: LLM の失敗の報告
 
@@ -226,10 +237,23 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 
 本文の部分には、さらに次の規則を適用する。後ろに付ける出典ブロックが隠れたり、リンクとして表示されなくなったりしないようにするためである。
 
--   生の HTML を含まない。対象は、CommonMark が生の HTML とみなすもの（ブロックとしてもインラインとしても）のすべてである。コードスパンやコードフェンスの中にある、HTML に見える文字列は生の HTML ではなく、受理する。`<https://example.com/>` のような Markdown の自動リンクも生の HTML ではない。コラム記事に生の HTML は要らず、Slack も生の HTML を表示しない。一方、閉じていない要素（`<details>` など）は、後ろに付ける出典ブロックを中に取り込んで隠しうる。
+-   生の HTML を含まない。対象は、CommonMark が生の HTML とみなすもの（ブロックとしてもインラインとしても）のすべてである。コラム記事に生の HTML は要らず、Slack も生の HTML を表示しない。一方、閉じていない要素（`<details>` など）は、後ろに付ける出典ブロックを中に取り込んで隠しうる。
 -   閉じていないコードフェンス（行頭の ```` ``` ```` または `~~~` で開き、閉じていないもの）で終わらない。開いたままだと、出典ブロックがコードブロックの中に入る。
 
-判定の詳細（CommonMark への準拠の程度、境界の例）は設計で決める（[design_handoff.md](design_handoff.md) H-04）。
+この 2 つの規則の判定は、CommonMark が生の HTML とみなすものを含む本文の部分も、閉じていないコードフェンスで終わる本文の部分も、受理しない。CommonMark ではどちらにも当たらない本文の部分は、次のとおり扱う。
+
+-   **受理しなければならない形:**
+    -   1 行の中で閉じるコードスパンの中にある、HTML に見える文字列（例: `` `<details>` ``）。ただし、下の「拒否してよい形」に当たる本文の部分を除く。
+    -   行頭（インデントなし）で開いて閉じたコードフェンスの中にある、HTML に見える文字列（例: `<details>`）。
+    -   URI の自動リンク（例: `<https://example.com/>`）。
+    -   生の HTML の文法に当たらない `<`（例: `a < b`、`1 <2`、`<東京>`）。
+-   **拒否してよい形:** 上の受理しなければならない形のほかで、CommonMark では生の HTML でも閉じていないコードフェンスでもないが、それらと安全に区別するのが難しい形は、`ErrMalformedOutput` で拒否してよい。例:
+    -   `<` の直後が英字である形（例: `x<y`、英字で始まるメールアドレスの自動リンク `<user@example.com>`）
+    -   インデントしたフェンス、引用やリストの中のフェンス、インデントによるコードブロックの中の HTML に見える文字列
+    -   行をまたぐコードスパンの中の HTML に見える文字列
+    -   本文の部分が `\`・`[`・`]` を含む場合、閉じないバッククォートを含む場合、または `<` と次の `>` の間にバッククォートを含む場合の、コードスパンの中の HTML に見える文字列
+
+拒否してよい形のうちどれを拒否するかと、境界の例は設計で決める（[design_handoff.md](design_handoff.md) H-04）。
 
 **拒否時:** 上記に合致しない入力は、補正・正規化・切り詰めをせずに `ErrMalformedOutput` で拒否し、部分的な結果を返さない。エラーには拒否した理由（どの規則に反したか）を含め、いずれの値（タイトル・本文の部分・`Model`・`ModelVersion`）も含めない（信頼できない入力であり、利用者の端末へそのまま出力しないため）。
 
@@ -254,7 +278,7 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 - **AC-24**: 本文の部分が閉じていないコードフェンスで終わる生成テキスト（例: `# タイトル\n本文\n` に続けて ```` ```go\nfmt.Println() ```` で終わるもの、`~~~` で開いて閉じないもの）は、`errors.Is(err, ErrMalformedOutput)` が真になるエラーになる。フェンスを閉じている生成テキストは受理する。
 - **AC-25**: `Model` が空文字列の応答は、生成テキストが正しくても、`errors.Is(err, ErrMalformedOutput)` が真になるエラーになる。
 - **AC-26**: AC-22〜AC-25・AC-27・AC-29・AC-31 の `ErrMalformedOutput` の各拒否ケースで、返るエラーを `Error()` で文字列にした結果には、応答のタイトル・本文の部分・`Model`・`ModelVersion` のいずれの値も現れない（検証の方法は [implementation_handoff.md](implementation_handoff.md) I-01）。
-- **AC-27**: 本文の部分が生の HTML を含む生成テキストは、`errors.Is(err, ErrMalformedOutput)` が真になるエラーになり、返る `Article` はゼロ値である。例: 閉じていない `<details>`、閉じている `<details>…</details>`、`<div hidden>`、段落中のインラインの `<span hidden>`、`<!-- -->`、`<script>`。一方、コードスパンの中の `<details>`（例: `` `<details>` ``）、閉じたコードフェンスの中の `<details>`、自動リンク（例: `<https://example.com/>`）を含む生成テキストは受理する。
+- **AC-27**: 本文の部分が生の HTML を含む生成テキストは、`errors.Is(err, ErrMalformedOutput)` が真になるエラーになり、返る `Article` はゼロ値である。例: 閉じていない `<details>`、閉じている `<details>…</details>`、`<div hidden>`、段落中のインラインの `<span hidden>`、`<!-- -->`、`<script>`。一方、コードスパンの中の `<details>`（例: `` `<details>` ``）、行頭で開いて閉じたコードフェンスの中の `<details>`、URI の自動リンク（例: `<https://example.com/>`）を含み、3.2 の拒否してよい形に当たらない生成テキストは受理する。
 - **AC-29**: 生成テキストが正しくても、次のいずれかに当てはまる応答は、`errors.Is(err, ErrMalformedOutput)` が真になるエラーになり、返る `Article` はゼロ値である。
     -   `Model` が空白文字だけ（例: 全角空白（U+3000）だけの `　`）
     -   `Model` が不正な UTF-8 のバイト列を含む
@@ -322,4 +346,4 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 -   **出典ブロック（source block）:** 記事の末尾にコードで付ける、出典リンクを示す Markdown の段落（F-006）。
 -   **番兵エラー（sentinel error）:** `errors.Is` で判別できる、あらかじめ定めたエラー値。
 -   **空白文字（whitespace）:** Unicode の White_Space プロパティを持つ文字（半角空白・タブ・改行・全角空白など）。本書の「空、または空白文字だけ」の判定はすべてこの定義による（[design_handoff.md](design_handoff.md) H-10）。
--   **`ErrInvalidTemplate` / `ErrInvalidTranscript` / `ErrMalformedOutput`:** それぞれ、不正なプロンプトテンプレート（読めない上書きファイル、通常のファイルでない上書きファイル、展開結果が空になる場合や上限を超える場合を含む）・不正な `Transcript`・記事に変換できない `GenerateResponse` を表す番兵エラー（名前は仮称で、設計で確定する）。
+-   **`ErrInvalidTemplate` / `ErrInvalidTranscript` / `ErrMalformedOutput`:** それぞれ、不正なプロンプトテンプレート（読めない上書きファイル、通常のファイルでない上書きファイル、使えない構文を使うテンプレート、展開結果が空になる場合や上限を超える場合を含む）・不正な `Transcript`・記事に変換できない `GenerateResponse` を表す番兵エラー（名前は仮称で、設計で確定する）。
