@@ -131,6 +131,17 @@ func TestGenerateFinishReason(t *testing.T) {
 		})
 	}
 
+	t.Run("unexpected empty string", func(t *testing.T) {
+		// An empty finish_reason is a string of the accepted kind, so its
+		// value is classified by the finish-reason check, not rejected as a
+		// shape error.
+		body := replaceOnce(t, stop, `"finish_reason":"stop"`, `"finish_reason":""`)
+		err := assertBodyRejected(t, body, llm.ErrUnexpectedFinishReason)
+		if errors.Is(err, ErrInvalidResponse) {
+			t.Errorf("error %v must not match ErrInvalidResponse", err)
+		}
+	})
+
 	t.Run("a long unexpected finish_reason is capped", func(t *testing.T) {
 		const long = "reason-longer-than-the-sixty-four-byte-cap-0123456789abcdefghijklmnopqrstuvwxyz"
 		if len(long) <= maxReasonBytes {
@@ -228,7 +239,6 @@ func TestGenerateConsumedMembers(t *testing.T) {
 		"missing finish_reason": func(t *testing.T, d map[string]any) { delete(choiceOf(t, d), keyFinishReason) },
 		"null finish_reason":    func(t *testing.T, d map[string]any) { choiceOf(t, d)[keyFinishReason] = nil },
 		"numeric finish_reason": func(t *testing.T, d map[string]any) { choiceOf(t, d)[keyFinishReason] = float64(1) },
-		"empty finish_reason":   func(t *testing.T, d map[string]any) { choiceOf(t, d)[keyFinishReason] = "" },
 		"missing message":       func(t *testing.T, d map[string]any) { delete(choiceOf(t, d), keyMessage) },
 		"null message":          func(t *testing.T, d map[string]any) { choiceOf(t, d)[keyMessage] = nil },
 		"numeric message":       func(t *testing.T, d map[string]any) { choiceOf(t, d)[keyMessage] = float64(1) },
@@ -401,14 +411,29 @@ func TestGenerateKeepAliveBlankLines(t *testing.T) {
 
 func TestGenerateErrorMemberDiagnostics(t *testing.T) {
 	const marker = "ERROR-VALUE-MARKER"
-	body := []byte(`{"error":{"message":"` + marker + `","type":"authentication_error"}}`)
-	err := assertBodyRejected(t, body, ErrInvalidResponse)
-	if !strings.Contains(err.Error(), `top-level "error"`) {
-		t.Errorf("error %q does not report the top-level error member", err)
-	}
-	if strings.Contains(err.Error(), marker) {
-		t.Errorf("error %q contains the error member value", err)
-	}
+
+	t.Run("missing consumed members at the top level", func(t *testing.T) {
+		body := []byte(`{"error":{"message":"` + marker + `","type":"authentication_error"}}`)
+		err := assertBodyRejected(t, body, ErrInvalidResponse)
+		if !strings.Contains(err.Error(), `top-level "error"`) {
+			t.Errorf("error %q does not report the top-level error member", err)
+		}
+		if strings.Contains(err.Error(), marker) {
+			t.Errorf("error %q contains the error member value", err)
+		}
+	})
+
+	t.Run("a later shape failure also reports the error member", func(t *testing.T) {
+		body := []byte(`{"error":{"message":"` + marker + `"},"model":"deepseek-flash",` +
+			`"choices":[{"finish_reason":"stop"}],"system_fingerprint":"fp"}`)
+		err := assertBodyRejected(t, body, ErrInvalidResponse)
+		if !strings.Contains(err.Error(), `top-level "error"`) {
+			t.Errorf("error %q does not report the top-level error member", err)
+		}
+		if strings.Contains(err.Error(), marker) {
+			t.Errorf("error %q contains the error member value", err)
+		}
+	})
 }
 
 func TestGenerateSystemFingerprint(t *testing.T) {

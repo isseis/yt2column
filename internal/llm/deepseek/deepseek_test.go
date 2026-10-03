@@ -109,14 +109,22 @@ func TestNew(t *testing.T) {
 			options := validOptions(t)
 			options.APIKey = mustSecret(t, key)
 			value, err := New(options)
-			// A whitespace-bearing key can coincide with the fixed prose of
-			// the message (" key" matches "the API key"), so only check the
-			// rejection for those; the other forms must not appear verbatim.
+			// " key" and "key " also occur inside the fixed message prose
+			// ("the API key ..."), so skip the verbatim check only for
+			// those two; the newline and tab forms must not appear at all.
 			forbidden := key
-			if strings.TrimSpace(key) != key {
+			if key == " key" || key == "key " {
 				forbidden = ""
 			}
 			assertConstructionFailure(t, value, err, forbidden)
+		}
+	})
+
+	t.Run("accepts the printable ASCII boundary characters", func(t *testing.T) {
+		options := validOptions(t)
+		options.APIKey = mustSecret(t, "a!~z")
+		if _, err := New(options); err != nil {
+			t.Errorf("New() error = %v, want nil", err)
 		}
 	})
 
@@ -189,8 +197,8 @@ func TestGenerateSendsRequest(t *testing.T) {
 	if recorded.method != http.MethodPost {
 		t.Errorf("method = %q, want %q", recorded.method, http.MethodPost)
 	}
-	if recorded.path != "/" {
-		t.Errorf("path = %q, want %q", recorded.path, "/")
+	if recorded.target != "/" {
+		t.Errorf("request URI = %q, want %q", recorded.target, "/")
 	}
 	if got := recorded.header.Get("Content-Type"); got != "application/json" {
 		t.Errorf("Content-Type = %q, want %q", got, "application/json")
@@ -198,7 +206,7 @@ func TestGenerateSendsRequest(t *testing.T) {
 	if got := recorded.header.Get("Authorization"); got != "Bearer "+testAPIKey {
 		t.Errorf("Authorization = %q, want the Bearer test key", got)
 	}
-	if strings.Contains(string(recorded.body), testAPIKey) || strings.Contains(recorded.path, testAPIKey) {
+	if strings.Contains(string(recorded.body), testAPIKey) || strings.Contains(recorded.target, testAPIKey) {
 		t.Error("the request body or URL contains the API key")
 	}
 
@@ -706,6 +714,9 @@ func TestGenerateSentinelsDistinct(t *testing.T) {
 				options.Timeout = 100 * time.Millisecond
 			})
 		}},
+		// A pre-canceled context already makes the transport return
+		// context.Canceled without the adapter's own pre-send check, which
+		// TestGenerateInvalidRequest's ordering case pins instead.
 		{"canceled", context.Canceled, func(t *testing.T) (llm.GenerateResponse, error) {
 			server, _ := newRecordingServer(t, stop)
 			client := newTestClient(t, server.URL, nil)

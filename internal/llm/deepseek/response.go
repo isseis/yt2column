@@ -85,35 +85,9 @@ func parseResponse(data []byte) (llm.GenerateResponse, error) {
 	if err != nil {
 		return llm.GenerateResponse{}, topLevelFailure(object, err)
 	}
-	choiceMembers, err := choice.Collect(keyFinishReason, keyMessage)
+	finishReason, content, err := parseChoice(object, choice)
 	if err != nil {
-		return llm.GenerateResponse{}, topLevelFailure(object, err)
-	}
-	// finish_reason is read before message and content so a later shape
-	// failure can name it in the diagnostic.
-	finishReason, err := strictjson.RequiredString(choiceMembers, keyFinishReason)
-	if err != nil {
-		return llm.GenerateResponse{}, topLevelFailure(object, err)
-	}
-	messageValue, err := strictjson.Required(choiceMembers, keyMessage)
-	if err != nil {
-		return llm.GenerateResponse{}, invalidResponse("%v (finish_reason %s)", err, quoteReason(finishReason))
-	}
-	message, err := messageValue.AsObject()
-	if err != nil {
-		return llm.GenerateResponse{}, invalidResponse("%v (finish_reason %s)", err, quoteReason(finishReason))
-	}
-	messageMembers, err := message.Collect(keyContent)
-	if err != nil {
-		return llm.GenerateResponse{}, invalidResponse("%v (finish_reason %s)", err, quoteReason(finishReason))
-	}
-	contentValue, err := strictjson.Required(messageMembers, keyContent)
-	if err != nil {
-		return llm.GenerateResponse{}, invalidResponse("%v (finish_reason %s)", err, quoteReason(finishReason))
-	}
-	content, err := contentValue.AsString()
-	if err != nil {
-		return llm.GenerateResponse{}, invalidResponse("%v (finish_reason %s)", err, quoteReason(finishReason))
+		return llm.GenerateResponse{}, err
 	}
 
 	switch finishReason {
@@ -133,6 +107,47 @@ func parseResponse(data []byte) (llm.GenerateResponse, error) {
 	}, nil
 }
 
+// parseChoice validates choices[0]'s consumed members and returns the finish
+// reason and the content. finish_reason is read before message and content so
+// a later shape failure can name it in the diagnostic; it is read as a plain
+// string, so its value (the empty string included) is classified by the
+// caller's finish-reason check rather than by the shape checks here.
+func parseChoice(object, choice strictjson.Object) (string, string, error) {
+	choiceMembers, err := choice.Collect(keyFinishReason, keyMessage)
+	if err != nil {
+		return "", "", topLevelFailure(object, err)
+	}
+	finishReasonValue, err := strictjson.Required(choiceMembers, keyFinishReason)
+	if err != nil {
+		return "", "", topLevelFailure(object, err)
+	}
+	finishReason, err := finishReasonValue.AsString()
+	if err != nil {
+		return "", "", topLevelFailure(object, err)
+	}
+	messageValue, err := strictjson.Required(choiceMembers, keyMessage)
+	if err != nil {
+		return "", "", shapeFailure(object, finishReason, err)
+	}
+	message, err := messageValue.AsObject()
+	if err != nil {
+		return "", "", shapeFailure(object, finishReason, err)
+	}
+	messageMembers, err := message.Collect(keyContent)
+	if err != nil {
+		return "", "", shapeFailure(object, finishReason, err)
+	}
+	contentValue, err := strictjson.Required(messageMembers, keyContent)
+	if err != nil {
+		return "", "", shapeFailure(object, finishReason, err)
+	}
+	content, err := contentValue.AsString()
+	if err != nil {
+		return "", "", shapeFailure(object, finishReason, err)
+	}
+	return finishReason, content, nil
+}
+
 // invalidResponse formats a response validation failure around the
 // ErrInvalidResponse sentinel.
 func invalidResponse(format string, args ...any) error {
@@ -144,6 +159,17 @@ func invalidResponse(format string, args ...any) error {
 // recognizable.
 func topLevelFailure(object strictjson.Object, err error) error {
 	diagnostic := err.Error()
+	if object.Has(keyError) {
+		diagnostic += fmt.Sprintf("; response has a top-level %q member", keyError)
+	}
+	return invalidResponse("%s", diagnostic)
+}
+
+// shapeFailure formats a body-shape failure that happened after finish_reason
+// was read: the diagnostic names the finish reason and, when present, the
+// top-level error member, without the error member's value.
+func shapeFailure(object strictjson.Object, finishReason string, err error) error {
+	diagnostic := fmt.Sprintf("%v (finish_reason %s)", err, quoteReason(finishReason))
 	if object.Has(keyError) {
 		diagnostic += fmt.Sprintf("; response has a top-level %q member", keyError)
 	}

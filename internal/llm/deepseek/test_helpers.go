@@ -245,10 +245,12 @@ func assertRejected(t *testing.T, response llm.GenerateResponse, err error) {
 	}
 }
 
-// recordedRequest is one request received by a requestRecorder.
+// recordedRequest is one request received by a requestRecorder. target is
+// the request URI (path and query), so tests can assert that no secret
+// appears in the URL either.
 type recordedRequest struct {
 	method string
-	path   string
+	target string
 	header http.Header
 	body   []byte
 }
@@ -282,7 +284,7 @@ func (r *requestRecorder) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	r.mu.Lock()
 	r.requests = append(r.requests, recordedRequest{
 		method: req.Method,
-		path:   req.URL.Path,
+		target: req.URL.RequestURI(),
 		header: req.Header.Clone(),
 		body:   data,
 	})
