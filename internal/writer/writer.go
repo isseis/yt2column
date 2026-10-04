@@ -10,10 +10,11 @@ import (
 
 // Article is the generated column article.
 type Article struct {
-	Title     string
-	Body      string // Markdown
-	SourceURL string
-	Model     string
+	Title        string
+	Body         string // Markdown
+	SourceURL    string
+	Model        string
+	ModelVersion string // opaque, provider-defined; empty when the provider reports none
 }
 
 // ArticleWriter generates a column article from a transcript.
