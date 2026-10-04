@@ -140,7 +140,7 @@ design_handoff.md の H-01〜H-11 は、すべて architecture §3.13 に対応�
 
 AC-01・AC-03・AC-04・AC-30（目印が `LLMClient` に渡ること）は `Write` が `LLMClient` に渡すプロンプトで確かめるので、そのテストはフェーズ 3 のステップ 3-6 で作る（architecture §8 の手順 2・3 もこの割り当てに合わせた。§1.3）。
 
-**PR の区切りへの制約。** 常にエラーを返す暫定の `Write`（ステップ 2-5）を `main` ブランチに入れないため、フェーズ 2 とステップ 3-3 は同じ PR に含める（`0003_deepseek_llm_client/03_implementation_plan.md` のステップ 3-4 と同じ扱い）。ステップ 3-3 はステップ 3-1・3-2 の検証関数に依存し、そのテスト（ステップ 3-4〜3-7）は実装と同じ PR に置く（`mkplan2.md` の「実装とテストを分割しない」）。そのためフェーズ 2 とフェーズ 3 を 1 つの PR-2 にまとめる（§3.2）。
+**PR の区切りへの制約。** 常にエラーを返す暫定の `Write`（ステップ 2-5）を `main` ブランチに入れないため、フェーズ 2 とステップ 3-3 は同じ PR に含める（`0003_deepseek_llm_client/03_implementation_plan.md` のステップ 3-4 と同じ扱い）。ステップ 3-3 はステップ 3-1・3-2 の検証関数に依存し、そのテスト（ステップ 3-4〜3-7）は実装と同じ PR に置く（`mkplan2.md` の Buildability の原則「Never split a tightly coupled unit (interface + implementation + test) across PRs」）。そのためフェーズ 2 とフェーズ 3 を 1 つの PR-2 にまとめる（§3.2）。
 
 ### フェーズ 3: 記事の生成（Markdown の判定を除く）
 
