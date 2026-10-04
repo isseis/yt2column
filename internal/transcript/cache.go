@@ -23,7 +23,7 @@ const (
 	slotNameB       = "b"
 	currentSuffix   = "current"
 	tmpSuffix       = "current.tmp"
-	subtitlesSuffix = ".ja.json3"
+	subtitlesSuffix = "." + subtitleLanguage + "." + subtitleFormat
 	infoSuffix      = ".info.json"
 )
 
