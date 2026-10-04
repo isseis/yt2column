@@ -12,7 +12,9 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"unicode"
@@ -530,6 +532,259 @@ func TestFakesCarryBuildTag(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestPromptsREADMEMatchesContract checks that prompts/README.md states the
+// template contract internal/writer enforces: the names a template may
+// reference, the builtin functions it may call, and the template and prompt
+// size limits. The contract is read from the writer source, not copied here,
+// so the README cannot drift from the code unnoticed.
+func TestPromptsREADMEMatchesContract(t *testing.T) {
+	contract := readWriterTemplateContract(t, "../writer")
+	data, err := os.ReadFile("../../prompts/README.md")
+	if err != nil {
+		t.Fatalf("read README: %v", err)
+	}
+	sections := markdownSections(string(data))
+
+	t.Run("names", func(t *testing.T) {
+		var got []string
+		for line := range strings.Lines(sections["参照できる値"]) {
+			if strings.HasPrefix(line, "| `") {
+				got = append(got, backtickTokens(line)[0])
+			}
+		}
+		want := make([]string, 0, len(contract.fields))
+		for _, field := range contract.fields {
+			want = append(want, "."+field)
+		}
+		if !slices.Equal(slices.Sorted(slices.Values(got)), slices.Sorted(slices.Values(want))) {
+			t.Errorf("README names = %v, want %v", got, want)
+		}
+	})
+	t.Run("functions", func(t *testing.T) {
+		got := backtickTokens(sections["使える関数"])
+		if !slices.Equal(slices.Sorted(slices.Values(got)), slices.Sorted(slices.Values(contract.funcs))) {
+			t.Errorf("README functions = %v, want %v", got, contract.funcs)
+		}
+	})
+	t.Run("limits", func(t *testing.T) {
+		rows := []struct {
+			prefix string
+			limit  int64
+		}{
+			{"| テンプレート", contract.maxTemplateBytes},
+			{"| 展開したプロンプト", contract.maxPromptBytes},
+		}
+		for _, row := range rows {
+			var line string
+			for l := range strings.Lines(sections["上限"]) {
+				if strings.HasPrefix(l, row.prefix) {
+					line = l
+				}
+			}
+			if want := strconv.FormatInt(row.limit, 10) + " バイト"; !strings.Contains(line, want) {
+				t.Errorf("README limit row %q = %q, want it to contain %q", row.prefix, line, want)
+			}
+		}
+	})
+}
+
+// TestWriterImports checks that the article writer stays provider
+// independent: no Go file directly in internal/writer or prompts, tests
+// included, directly imports the network packages or an LLM provider
+// package. The LLM test double package is allowed only from test-only files;
+// imported from a production file it would break the normal build.
+func TestWriterImports(t *testing.T) {
+	const (
+		module      = "github.com/isseis/yt2column/"
+		llmPrefix   = module + "internal/llm/"
+		llmTestutil = module + "internal/llm/testutil"
+	)
+	var paths []string
+	for _, pattern := range []string{"../writer/*.go", "../../prompts/*.go"} {
+		matches, err := filepath.Glob(pattern)
+		if err != nil {
+			t.Fatalf("glob %s: %v", pattern, err)
+		}
+		paths = append(paths, matches...)
+	}
+	if len(paths) == 0 {
+		t.Fatal("found no Go files in internal/writer and prompts")
+	}
+	fset := token.NewFileSet()
+	for _, path := range paths {
+		file, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly|parser.ParseComments)
+		if err != nil {
+			t.Fatalf("parse %s: %v", path, err)
+		}
+		testOnly := strings.HasSuffix(path, "_test.go") || isTestOnlyFile(file)
+		for _, imp := range file.Imports {
+			ipath, err := strconv.Unquote(imp.Path.Value)
+			if err != nil {
+				t.Fatalf("%s: unquote %s: %v", path, imp.Path.Value, err)
+			}
+			switch {
+			case ipath == "net" || strings.HasPrefix(ipath, "net/"):
+				t.Errorf("%s imports %s", path, ipath)
+			case ipath == llmTestutil && testOnly:
+			case strings.HasPrefix(ipath, llmPrefix):
+				t.Errorf("%s imports %s", path, ipath)
+			}
+		}
+	}
+}
+
+// writerTemplateContract is the template contract as declared in the
+// internal/writer source.
+type writerTemplateContract struct {
+	fields           []string // exported fields of templateData
+	funcs            []string // keys of allowedFuncs
+	maxTemplateBytes int64
+	maxPromptBytes   int64
+}
+
+// readWriterTemplateContract parses the production Go files in dir (test
+// files and files built only with the test tag are skipped) and extracts the
+// contract. A declaration that is missing or not in the expected shape fails
+// the test.
+func readWriterTemplateContract(t *testing.T, dir string) writerTemplateContract {
+	t.Helper()
+	paths, err := filepath.Glob(filepath.Join(dir, "*.go"))
+	if err != nil {
+		t.Fatalf("glob %s: %v", dir, err)
+	}
+	var contract writerTemplateContract
+	fset := token.NewFileSet()
+	for _, path := range paths {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
+		if err != nil {
+			t.Fatalf("parse %s: %v", path, err)
+		}
+		if isTestOnlyFile(file) {
+			continue
+		}
+		ast.Inspect(file, func(n ast.Node) bool {
+			switch n := n.(type) {
+			case *ast.TypeSpec:
+				if n.Name.Name == "templateData" {
+					contract.fields = structFieldNames(t, n)
+				}
+			case *ast.ValueSpec:
+				for i, name := range n.Names {
+					switch name.Name {
+					case "allowedFuncs":
+						contract.funcs = mapLiteralKeys(t, n.Values[i])
+					case "maxTemplateBytes":
+						contract.maxTemplateBytes = intLiteral(t, n.Values[i])
+					case "maxPromptBytes":
+						contract.maxPromptBytes = intLiteral(t, n.Values[i])
+					}
+				}
+			}
+			return true
+		})
+	}
+	if len(contract.fields) == 0 || len(contract.funcs) == 0 || contract.maxTemplateBytes == 0 || contract.maxPromptBytes == 0 {
+		t.Fatalf("incomplete template contract in %s: %+v", dir, contract)
+	}
+	return contract
+}
+
+func isTestOnlyFile(file *ast.File) bool {
+	for _, group := range file.Comments {
+		for _, c := range group.List {
+			if c.Text == "//go:build test" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func structFieldNames(t *testing.T, spec *ast.TypeSpec) []string {
+	t.Helper()
+	st, ok := spec.Type.(*ast.StructType)
+	if !ok {
+		t.Fatalf("%s is not a struct", spec.Name.Name)
+	}
+	var names []string
+	for _, field := range st.Fields.List {
+		for _, name := range field.Names {
+			if name.IsExported() {
+				names = append(names, name.Name)
+			}
+		}
+	}
+	return names
+}
+
+func mapLiteralKeys(t *testing.T, expr ast.Expr) []string {
+	t.Helper()
+	lit, ok := expr.(*ast.CompositeLit)
+	if !ok {
+		t.Fatalf("allowedFuncs is not a composite literal: %T", expr)
+	}
+	keys := make([]string, 0, len(lit.Elts))
+	for _, elt := range lit.Elts {
+		kv, ok := elt.(*ast.KeyValueExpr)
+		if !ok {
+			t.Fatalf("allowedFuncs element is not key: value: %T", elt)
+		}
+		key, ok := kv.Key.(*ast.BasicLit)
+		if !ok || key.Kind != token.STRING {
+			t.Fatalf("allowedFuncs key is not a string literal: %T", kv.Key)
+		}
+		s, err := strconv.Unquote(key.Value)
+		if err != nil {
+			t.Fatalf("unquote %s: %v", key.Value, err)
+		}
+		keys = append(keys, s)
+	}
+	return keys
+}
+
+func intLiteral(t *testing.T, expr ast.Expr) int64 {
+	t.Helper()
+	lit, ok := expr.(*ast.BasicLit)
+	if !ok || lit.Kind != token.INT {
+		t.Fatalf("limit is not an integer literal: %T", expr)
+	}
+	v, err := strconv.ParseInt(lit.Value, 0, 64)
+	if err != nil {
+		t.Fatalf("parse %s: %v", lit.Value, err)
+	}
+	return v
+}
+
+// markdownSections maps each "## " heading of a Markdown document to the
+// text up to the next "## " heading.
+func markdownSections(doc string) map[string]string {
+	sections := make(map[string]string)
+	var heading string
+	for line := range strings.Lines(doc) {
+		if h, ok := strings.CutPrefix(line, "## "); ok {
+			heading = strings.TrimSpace(h)
+			continue
+		}
+		if heading != "" {
+			sections[heading] += line
+		}
+	}
+	return sections
+}
+
+var backtickPattern = regexp.MustCompile("`([^`]+)`")
+
+func backtickTokens(s string) []string {
+	var tokens []string
+	for _, m := range backtickPattern.FindAllStringSubmatch(s, -1) {
+		tokens = append(tokens, m[1])
+	}
+	return tokens
 }
 
 func exportedFieldTypes(t reflect.Type) map[string]string {
