@@ -4,7 +4,7 @@ package writer
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"text/template"
 
 	"github.com/isseis/yt2column/internal/llm"
@@ -63,12 +63,35 @@ func New(client llm.LLMClient, opts Options) (ArticleWriter, error) {
 	return &templateWriter{client: client, system: system, user: user}, nil
 }
 
-// errWriteNotImplemented is returned by the provisional Write below.
-var errWriteNotImplemented = errors.New("article generation is not implemented yet")
-
-// Write is a provisional implementation that always fails, so no unchecked
-// article can be returned. It is replaced by the generation path (plan step
-// 3-3) before this change is merged.
-func (w *templateWriter) Write(_ context.Context, _ transcript.Transcript) (Article, error) {
-	return Article{}, errWriteNotImplemented
+// Write validates t, expands both templates, calls the LLM client once, and
+// validates its response before building the article. It returns the zero
+// Article on every failure. The LLM client's error is wrapped as is, never
+// with a sentinel of this package, so callers can tell it from a template or
+// output failure.
+func (w *templateWriter) Write(ctx context.Context, t transcript.Transcript) (Article, error) {
+	if err := ctx.Err(); err != nil {
+		return Article{}, fmt.Errorf("article generation not started: %w", err)
+	}
+	sourceURL, err := validateTranscript(t)
+	if err != nil {
+		return Article{}, err
+	}
+	data := newTemplateData(t)
+	system, err := expand(w.system, data)
+	if err != nil {
+		return Article{}, err
+	}
+	user, err := expand(w.user, data)
+	if err != nil {
+		return Article{}, err
+	}
+	resp, err := w.client.Generate(ctx, llm.GenerateRequest{SystemPrompt: system, UserPrompt: user, MaxOutputTokens: 0})
+	if err != nil {
+		return Article{}, fmt.Errorf("LLM generation failed: %w", err)
+	}
+	title, body, err := checkResponse(resp)
+	if err != nil {
+		return Article{}, err
+	}
+	return newArticle(title, body, sourceURL, resp), nil
 }

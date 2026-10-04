@@ -590,6 +590,51 @@ func TestPromptsREADMEMatchesContract(t *testing.T) {
 	})
 }
 
+// TestWriterImports checks that the article writer stays provider
+// independent: no Go file of internal/writer or prompts, tests included,
+// imports the network packages or an LLM provider package. The LLM test
+// double package is allowed only from test-only files; imported from a
+// production file it would break the normal build.
+func TestWriterImports(t *testing.T) {
+	const (
+		module      = "github.com/isseis/yt2column/"
+		llmPrefix   = module + "internal/llm/"
+		llmTestutil = module + "internal/llm/testutil"
+	)
+	var paths []string
+	for _, pattern := range []string{"../writer/*.go", "../../prompts/*.go"} {
+		matches, err := filepath.Glob(pattern)
+		if err != nil {
+			t.Fatalf("glob %s: %v", pattern, err)
+		}
+		paths = append(paths, matches...)
+	}
+	if len(paths) == 0 {
+		t.Fatal("found no Go files in internal/writer and prompts")
+	}
+	fset := token.NewFileSet()
+	for _, path := range paths {
+		file, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly|parser.ParseComments)
+		if err != nil {
+			t.Fatalf("parse %s: %v", path, err)
+		}
+		testOnly := strings.HasSuffix(path, "_test.go") || isTestOnlyFile(file)
+		for _, imp := range file.Imports {
+			ipath, err := strconv.Unquote(imp.Path.Value)
+			if err != nil {
+				t.Fatalf("%s: unquote %s: %v", path, imp.Path.Value, err)
+			}
+			switch {
+			case ipath == "net" || strings.HasPrefix(ipath, "net/"):
+				t.Errorf("%s imports %s", path, ipath)
+			case ipath == llmTestutil && testOnly:
+			case strings.HasPrefix(ipath, llmPrefix):
+				t.Errorf("%s imports %s", path, ipath)
+			}
+		}
+	}
+}
+
 // writerTemplateContract is the template contract as declared in the
 // internal/writer source.
 type writerTemplateContract struct {

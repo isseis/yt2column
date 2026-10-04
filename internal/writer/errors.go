@@ -24,4 +24,7 @@ var (
 	// a template.
 	errTemplateDefinition = errors.New("define and block are not allowed")
 	errDisallowedSyntax   = errors.New("disallowed syntax")
+	// errPromptTooLarge is returned by boundedWriter when a write would take
+	// a prompt past its limit, and joined with ErrInvalidTemplate.
+	errPromptTooLarge = errors.New("prompt exceeds the limit")
 )
