@@ -94,7 +94,7 @@ design_handoff.md の H-01〜H-11 は、すべて architecture §3.13 に対応�
 - 新設: `prompts/prompts.go`・`prompts/system.tmpl`・`prompts/user.tmpl`・`prompts/README.md`
 - 新設: `internal/writer/errors.go`・`internal/writer/template.go`・`internal/writer/prompt.go`（`templateData` と定数 `maxPromptBytes` の定義だけ）
 - 新設: `internal/writer/test_helpers.go`（`//go:build test`）・`internal/writer/writer_test.go`・`internal/writer/template_test.go`（いずれも `//go:build test`）
-- 変更: `internal/writer/writer.go`・`docs/dev/developer_guide/package_reference.md`
+- 変更: `internal/writer/writer.go`・`internal/pipeline/pipeline_test.go`（`TestPromptsREADMEMatchesContract` を加える）・`docs/dev/developer_guide/package_reference.md`
 
 **タスク**
 - [ ] **ステップ 2-1**: `prompts.go` に、`//go:embed` で 2 つのテンプレートを非公開の `string` 変数に埋め込み、`System`・`User` で返す実装を作る（architecture §3.2）。パッケージ変数を公開せず、検査もしない。
@@ -112,7 +112,8 @@ design_handoff.md の H-01〜H-11 は、すべて architecture §3.13 に対応�
 - [ ] **ステップ 2-7**: `test_helpers.go` を作り、ステップ 2-8 のテストが使うものだけを置く。上書きファイルを `t.TempDir` の下に書くヘルパーと `requireNonRoot`（§1.3）である（検証を通る `Transcript` と目印の定数は、最初に使うステップ 3-4 で加える。`unused` が使われていない関数を報告するため）。`errcheck`・`goconst` などのテスト向けの除外が効かないので、エラーを無視しない。ファイルの書き込みを `gosec` が指摘した場合は、`internal/transcript/test_helpers.go:154` と同じく 1 行に限った `//nolint:gosec` と理由の英語のコメントを付ける。
 - [ ] **ステップ 2-8**: テストを作る（AC-02・AC-05・AC-06・AC-30 の後半）。構築の拒否のケースでは、いずれも返る `ArticleWriter` が nil であることも確かめる。
   - `writer_test.go`: `TestNewRejectsNilClient`（nil と typed nil の `*llmtestutil.FakeLLMClient`。エラーと nil の `ArticleWriter`）。
-  - `template_test.go`: `TestNewRejectsInvalidOverrideFile`（AC-05 のファイルの各ケースと、権限のない通常のファイル。存在しないファイルでは `fs.ErrNotExist` も確かめる。シンボリックリンクの先が通常のファイルなら受理し、ディレクトリなら拒否する（architecture §3.3）。ディレクトリとシンボリックリンクの先のディレクトリでは `errNotRegularFile` も確かめる）、`TestNewOverrideFileFIFO`（書き込み側を開かない FIFO。I-01 の時間切れの扱いと、`errNotRegularFile`。時間切れのときは書き込み側を `O_WRONLY|O_NONBLOCK` で開いて閉じ、構築の goroutine を解放する）、`TestNewOverrideFileSizeLimit`（ちょうど上限の受理と上限 + 1 バイトの拒否）、`TestTemplateSyntaxAllowlist`（architecture §3.4 の表の各行の許可と拒否の例、分岐・`else`・括弧・パイプの中の拒否、`{{"\xff"}}`、別の名前の `define`（本体は許可する構文だけ）と `{{block "x" .}}{{end}}`、同じ名前の `define` のうち、解析が成功する 2 つの形（本体が空で `define` の中身が空でない形と、本体が空でなく `define` の中身が空の形）。これらの `define` を含む入力が、`define` 以外の検査を通ることも確かめる。また、拒否の例はすべて、system と user のどちらの上書きでも拒否されることを確かめる）、`TestDefaultTemplatesPassChecks`（`New(client, Options{})` が成功し、`prompts.System()`・`prompts.User()` の実物がステップ 2-4 の検査を通る）、`TestDefaultSystemTemplateHeadingInstruction`（`prompts.System()` の実物が `# ` で始まる行を含む）、`TestPromptsREADMEMatchesContract`（`prompts/README.md` が次の 3 つをすべて含むことを確かめる。(a) `.` を付けたテンプレートデータの各フィールド名（`reflect` で列挙）、(b) 許可する組み込み関数の名前（ステップ 2-4 の集合から列挙）、(c) `maxTemplateBytes`・`maxPromptBytes` の値）。
+  - `template_test.go`: `TestNewRejectsInvalidOverrideFile`（AC-05 のファイルの各ケースと、権限のない通常のファイル。存在しないファイルでは `fs.ErrNotExist` も確かめる。シンボリックリンクの先が通常のファイルなら受理し、ディレクトリなら拒否する（architecture §3.3）。ディレクトリとシンボリックリンクの先のディレクトリでは `errNotRegularFile` も確かめる）、`TestNewOverrideFileFIFO`（書き込み側を開かない FIFO。I-01 の時間切れの扱いと、`errNotRegularFile`。時間切れのときは書き込み側を `O_WRONLY|O_NONBLOCK` で開いて閉じ、構築の goroutine を解放する）、`TestNewOverrideFileSizeLimit`（ちょうど上限の受理と上限 + 1 バイトの拒否）、`TestTemplateSyntaxAllowlist`（architecture §3.4 の表の各行の許可と拒否の例、分岐・`else`・括弧・パイプの中の拒否、`{{"\xff"}}`、別の名前の `define`（本体は許可する構文だけ）と `{{block "x" .}}{{end}}`、同じ名前の `define` のうち、解析が成功する 2 つの形（本体が空で `define` の中身が空でない形と、本体が空でなく `define` の中身が空の形）。これらの `define` を含む入力が、`define` 以外の検査を通ることも確かめる。また、拒否の例はすべて、system と user のどちらの上書きでも拒否されることを確かめる）、`TestDefaultTemplatesPassChecks`（`New(client, Options{})` が成功し、`prompts.System()`・`prompts.User()` の実物がステップ 2-4 の検査を通る）、`TestDefaultSystemTemplateHeadingInstruction`（`prompts.System()` の実物が `# ` で始まる行を含む）。
+  - `internal/pipeline/pipeline_test.go`: `TestPromptsREADMEMatchesContract` を加える（クロスパッケージの静的 guard。`prompts/README.md` が次の 3 つをすべて含むことを確かめる。(a) `.` を付けたテンプレートデータの各フィールド名（`reflect` で列挙）、(b) 許可する組み込み関数の名前（ステップ 2-4 の集合から列挙）、(c) `maxTemplateBytes`・`maxPromptBytes` の値）。`internal/pipeline/pipeline_test.go` の `TestInterfaceDocComments` と同じ形の guard とし、`internal/writer` のユニットテストをテストの外のファイルに依存させない）。
 - [ ] **ステップ 2-9**: `package_reference.md` を更新する。
   - `:3-4` の 2 行にわたる文の変更前: ``This document lists the packages under `cmd/` and `internal/` and the responsibility of each.``
   - 変更後: ``This document lists the packages under `cmd/` and `internal/`, plus the `prompts` package at the repository root, with the responsibility of each.``（改行の位置は前後の段落にそろえる）
@@ -129,7 +130,7 @@ AC-01・AC-03・AC-04・AC-30（目印が `LLMClient` に渡ること）は `Wri
 **対象ファイル**
 - 新設: `internal/writer/output.go`
 - 新設: `internal/writer/prompt_test.go`・`internal/writer/output_test.go`（いずれも `//go:build test`）
-- 変更: `internal/writer/prompt.go`・`internal/writer/writer.go`・`internal/writer/errors.go`・`internal/writer/test_helpers.go`・`internal/writer/writer_test.go`・`docs/dev/developer_guide/package_reference.md`
+- 変更: `internal/writer/prompt.go`・`internal/writer/writer.go`・`internal/writer/errors.go`・`internal/writer/test_helpers.go`・`internal/writer/writer_test.go`・`internal/pipeline/pipeline_test.go`（`TestWriterImports` を加える）・`docs/dev/developer_guide/package_reference.md`
 
 **タスク**
 - [ ] **ステップ 3-1**: `prompt.go` に、`Transcript` の検証（architecture §3.5）、`Transcript` から `templateData` を作る処理と字幕本文の連結（同 §3.2・§3.5）、上限付きの書き込み先と展開（同 §3.6）、定数 `maxPromptBytes` を実装する。上限付きの書き込み先は、累計が上限を超える書き込みを受け取ったら、受け取ったバイト列を保持せずに非公開の静的エラー `errPromptTooLarge`（`errors.go` に置く）を返す。展開時のエラー・上限の超過・空白文字だけの展開結果は `ErrInvalidTemplate` とし、ラップの方法とエラーの文言は architecture §4.1・§4.2 のとおりとする。`ErrInvalidTranscript` のエラーに `Transcript` の値を含めない。
@@ -145,10 +146,10 @@ AC-01・AC-03・AC-04・AC-30（目印が `LLMClient` に渡ること）は `Wri
   - `TestWriteCallsGenerateOnce`: 成功時に `Generate` が 1 回、`Write` に渡した `ctx`（`context.WithValue` で区別できるようにしたもの）を受け取り、`MaxOutputTokens` が 0。
   - `TestWriteReportsLLMError`: AC-14 の各エラーと、空でない `Text` を伴うエラー。`errors.Is` が真、`ArticleWriter` の 3 つの番兵のどれにも当たらない、ゼロ値の `Article`、`Generate` が 1 回。
   - `TestWriteContextDone`: キャンセル済みと期限切れの `ctx`。`Generate` が 0 回、ゼロ値の `Article`。
-  - `TestWriterImports`: `internal/writer` と `prompts` の Go ファイル（テストファイルと `test_helpers.go` を含む）の import を `go/parser` で調べ、`net`・`net/http` と `internal/llm/` の下のパッケージ（`internal/llm/testutil` を除く）を import しないことを確かめる（AC-21、requirements 4.5）。あわせて、テストファイルが `os.Open`・`os.ReadFile` などでファイルを開く箇所が、`t.TempDir` の下のファイルと、この guard と `TestPromptsREADMEMatchesContract` が読むリポジトリの中のファイルだけであることを、レビューで確かめる（§5 の AC-21 の注記）。
+  - `internal/pipeline/pipeline_test.go`: `TestWriterImports` を加える（クロスパッケージの静的 guard）。`internal/writer` と `prompts` の Go ファイル（テストファイルと `test_helpers.go` を含む）の import を調べ、`net`・`net/http` と `internal/llm/` の下のパッケージを import しないことを確かめる（AC-21、requirements 4.5）。`internal/llm/testutil` のような `//go:build test` 付きのパッケージは、テストのファイル（`_test.go` または `//go:build test` のファイル）からの import だけを許し、本番のファイルからの import は拒否する（許すと、通常のビルドが壊れることをテストが検出できなくなる）。あわせて、テストファイルが `os.Open`・`os.ReadFile` などでファイルを開く箇所が `t.TempDir` の下のファイルだけであることを、レビューで確かめる（§4.1）。
 - [ ] **ステップ 3-7**: `output_test.go` を作る（AC-16〜AC-19・AC-22・AC-23・AC-25・AC-26・AC-29・AC-31）。`TestWriteArticle`（AC-16 の値と、`ModelVersion` が空の応答。見出し・リスト・リンクと前後の空白・改行を含む本文でも、`Body` が LLM が生成した本文・区切り・出典ブロックの連結と完全に一致する。`#  タイトル  \n本文` で `Title` が `タイトル` になる）、`TestWriteSourceBlock`（AC-19 の各ケースと、本文が `\r` で終わる場合。`SourceURL`・`Body` の末尾・直前の空行）、`TestWriteRejectsMalformedText`（AC-22・AC-23 の各例）、`TestWriteRejectsInvalidModel`（AC-25・AC-29 の各例）、`TestWriteOutputSizeLimits`（`Text`・`Model`・`ModelVersion` のそれぞれのちょうど上限と上限 + 1 バイト）。拒否のケースはすべてステップ 3-4 の共有のアサーションを使う。
 - [ ] **ステップ 3-8**: `package_reference.md` の `internal/writer` の行に、`Write` の責務（`Transcript` の検証、上限付きのプロンプトの展開、`LLMClient` の 1 回の呼び出し、生成テキストの検証、出典ブロックの付与）を加える。
-- [ ] **ステップ 3-9**: 壊して失敗することを確認し、コミットメッセージに記録する。対象: `VideoURL` の一致の検査を外す（`TestWriteRejectsInvalidTranscript` の `VideoURL` のケース）、`NormalizedVideoURL` を使わずに `VideoID` を連結して URL を作る（同、不正な `VideoID` のケース。ステップ 3-5 のとおり、これらのケースの `VideoURL` は連結した URL と一致するので、`VideoID` の検査がなければ受理される）、字幕本文を `StartMs` 付きで連結する（`TestWriteOmitsStartMs`）、展開に上限付きの書き込み先を使わない（`TestWritePromptSizeLimit` の上限 + 1）、上限付きの書き込み先の比較を 1 ずらす（`TestBoundedWriter`・`TestWritePromptSizeLimit`）、空白文字だけの展開結果の検査を外す（`TestWriteExpansionFailure`）、`ctx` の確認を外す（`TestWriteContextDone`）、`LLMClient` のエラーを `%v` でつなぐ（`TestWriteReportsLLMError`）、エラーとともに返った `Text` で記事を作る（同）、出典ブロックの URL を生成テキストから取る（`TestWriteSourceBlock` の別の URL を含むケース）、区切りを `\n` 1 つにする（`TestWriteSourceBlock` の改行で終わらないケース）、タイトルの前後の半角空白とタブを除かない（`TestWriteArticle` の `Title` が `タイトル` になるケース）、制御文字の検査を外す（`TestWriteRejectsMalformedText` の `\r` と `TestWriteRejectsInvalidModel`）、`ModelVersion` に制御文字の検査を適用しない（`TestWriteRejectsInvalidModel` の `ModelVersion` のケース）、`MaxOutputTokens` に 0 以外を渡す・`Generate` に別の `ctx` を渡す（`TestWriteCallsGenerateOnce`）、`maxModelBytes` の比較を 1 ずらす（`TestWriteOutputSizeLimits`）、`ErrMalformedOutput` のエラーに `Model` の値を含める（共有のアサーション）、`maxTextBytes` の比較を 1 ずらす（`TestWriteOutputSizeLimits`）、既定のテンプレートから `.Description` の参照をすべて消す（`TestDefaultTemplatesEmbedAllValues`）、上書きのパスを system と user で取り違える（`TestNewOverridesEachTemplate`）、`New` が上書きファイルを `Write` のたびに読む（`TestNewReadsOverrideOnce`）、`internal/writer` に `net/http` の import を足す（`TestWriterImports`）。
+- [ ] **ステップ 3-9**: 壊して失敗することを確認し、コミットメッセージに記録する。対象: `VideoURL` の一致の検査を外す（`TestWriteRejectsInvalidTranscript` の `VideoURL` のケース）、`NormalizedVideoURL` を使わずに `VideoID` を連結して URL を作る（同、不正な `VideoID` のケース。ステップ 3-5 のとおり、これらのケースの `VideoURL` は連結した URL と一致するので、`VideoID` の検査がなければ受理される）、字幕本文を `StartMs` 付きで連結する（`TestWriteOmitsStartMs`）、展開に上限付きの書き込み先を使わない（`TestWritePromptSizeLimit` の上限 + 1）、上限付きの書き込み先の比較を 1 ずらす（`TestBoundedWriter`・`TestWritePromptSizeLimit`）、空白文字だけの展開結果の検査を外す（`TestWriteExpansionFailure`）、`ctx` の確認を外す（`TestWriteContextDone`）、`LLMClient` のエラーを `%v` でつなぐ（`TestWriteReportsLLMError`）、エラーとともに返った `Text` で記事を作る（同）、出典ブロックの URL を生成テキストから取る（`TestWriteSourceBlock` の別の URL を含むケース）、区切りを `\n` 1 つにする（`TestWriteSourceBlock` の改行で終わらないケース）、タイトルの前後の半角空白とタブを除かない（`TestWriteArticle` の `Title` が `タイトル` になるケース）、制御文字の検査を外す（`TestWriteRejectsMalformedText` の `\r` と `TestWriteRejectsInvalidModel`）、`ModelVersion` に制御文字の検査を適用しない（`TestWriteRejectsInvalidModel` の `ModelVersion` のケース）、`MaxOutputTokens` に 0 以外を渡す・`Generate` に別の `ctx` を渡す（`TestWriteCallsGenerateOnce`）、`maxModelBytes` の比較を 1 ずらす（`TestWriteOutputSizeLimits`）、`ErrMalformedOutput` のエラーに `Model` の値を含める（共有のアサーション）、`maxTextBytes` の比較を 1 ずらす（`TestWriteOutputSizeLimits`）、既定のテンプレートから `.Description` の参照をすべて消す（`TestDefaultTemplatesEmbedAllValues`）、上書きのパスを system と user で取り違える（`TestNewOverridesEachTemplate`）、`New` が上書きファイルを `Write` のたびに読む（`TestNewReadsOverrideOnce`）、`internal/writer` に `net/http` の import を足す（`TestWriterImports`）、本番の `internal/writer` のファイルに `internal/llm/testutil` の import を足す（`TestWriterImports`。テストのファイルからだけ許す規則が効いていることを確かめる）。
 - [ ] **ステップ 3-10**: `make fmt` → `make test` → `make lint` を通す。
 
 ### フェーズ 4: Markdown の判定
@@ -161,10 +162,10 @@ AC-01・AC-03・AC-04・AC-30（目印が `LLMClient` に渡ること）は `Wri
 - [ ] **ステップ 4-1**: `markdown.go` に、本文の部分の生の HTML と閉じていないコードフェンスの判定（architecture §3.8）を非公開の関数として実装する。行の区切り、開くフェンス・フェンスに見える行・閉じるフェンス、`<` の判定と例外（エスケープ・URI の自動リンク・コードスパンの 3 条件）は architecture §3.8 のとおりとする。判定は本文の部分の長さに比例する時間で行い、同じ長さのバッククォートの列を探すたびに行の残りを読み直す方法を採らない。`gocyclo` の上限を超えないよう関数を分ける。
 - [ ] **ステップ 4-2**: `output.go` の生成テキストの検証の手順 5 と手順 7 の間で、ステップ 4-1 の判定を呼ぶ。拒否は `ErrMalformedOutput` とし、エラーには理由と本文の部分の中の行番号だけを含め、HTML と判定した文字列を含めない（architecture §4.2）。
 - [ ] **ステップ 4-3**: `markdown_test.go` に `TestCheckBodyMarkdown` を作る。architecture §3.8 の「受理する例」「拒否する例」「過剰な拒否の一覧」の各行と、§7.1 の「Markdown の判定」に挙げた境界（`\r` だけの改行、`\r\n` の閉じるフェンス、フェンスの中の HTML に見える文字列、開いたものより短い閉じるフェンス、バッククォートの対を取り違えさせる形、行をまたぐリンクのタイトルの形）を、非公開の関数に対する表のテストで確かめる。あわせて、バッククォートを含む URI の自動リンクだけを含み、コードスパンを含まない行（`` <https://e.example/`> ``、拒否）を表に加える。ステップ 4-6 で外す条件ごとに、対応する行を用意する。各行は、その条件以外の規則だけでは拒否されないことを、条件を 1 つずつ外して確かめてから表に置く（例: コードスパンの例外の 1 つ目・2 つ目の条件の行は、バッククォートの列が同じ行の中で対になり、3 つ目の条件を満たす形にする）。
-  - `TestCheckBodyMarkdownLinearTime` を作る。`maxTextBytes` に近い大きさの入力で、判定が名前付き定数の時間内に終わることを確かめる。入力の形は、入力の長さに比例しない（線形より遅い）時間がかかる実装を実際に作り（例: `<` ごとに行の先頭から読み直してコードスパンの中かを決める実装）、その実装では時間内に終わらないことを確かめてから決める。architecture §3.8 は「同じ長さの列を探すたびに行の残りを読み直す方法」を 2 乗の時間の例に挙げるが、§3.8 の 3 つ目の条件（閉じる列がなければ判定を打ち切る）のもとでは、その方法でも線形になりうる。そのため、壊す対象は実装時に時間がかかることを確かめたものとし、測った時間をコミットメッセージに書く。線形でない実装が見つからない場合は、このテストを置かず、その理由をコミットメッセージと本計画に書く。
+  - `TestCheckBodyMarkdownLinearWork` を作る（§5 の非 AC の表）。判定が本文の部分の長さに対して線形であることを、合否を壁時計の時間に依存させずに確かめる。決定的な確かめ方として、長さの異なる入力で文字の走査・比較の回数を数え、入力の長さに対して線形にしか増えないことを確かめる形を優先する。実装の構造から操作を数えられない場合に限り、線形より遅い実装（例: `<` ごとに行の先頭から読み直してコードスパンの中かを決める実装）と比べる、合否を左右しない benchmark（`BenchmarkCheckBodyMarkdown`）に時間の測定を移し、`make test` の成否を時間に依存させない。architecture §3.8 の 2 乗の例（同じ長さの列を探すたびに残りを読み直す方法）は 3 つ目の条件で線形にもなりうるので、線形より遅い実装は実装時に確かめて決める。
 - [ ] **ステップ 4-4**: `output_test.go` に `TestWriteRejectsMarkdownHazards` を加える。AC-24・AC-27 の各例を `Write` で通し、拒否するものはステップ 3-4 の共有のアサーション（AC-26）で、受理するもの（コードスパンの中・閉じたフェンスの中の `<details>`、URI の自動リンク、閉じたフェンス）は記事が返ることで確かめる。
 - [ ] **ステップ 4-5**: `package_reference.md` の `internal/writer` の行に、本文の部分の生の HTML と閉じていないコードフェンスの拒否を加える。
-- [ ] **ステップ 4-6**: 壊して失敗することを確認し、コミットメッセージに記録する。対象: `\r` を行の区切りとして扱わない（`TestCheckBodyMarkdown` の `\r` のケース）、閉じるフェンスの個数の比較を外す（同、短い閉じるフェンス）、フェンスに見える行の拒否を外す（同、インデントしたフェンス）、エスケープの判定でバックスラッシュの数の偶奇を見ない（同、`\\<div>`）、コードスパンの例外の 1 つ目の条件を外す（同、`` [a](/u "`") <details>` ``）、2 つ目の条件を外す（同、`` <1`@a.bc> <details>` ``）、自動リンクの例外でバッククォートを許す（同、`` <https://e.example/`> ``）、ステップ 4-3 で決めた線形でない実装に替える（`TestCheckBodyMarkdownLinearTime`。ステップ 4-3 でこのテストを置かなかった場合は、この項目と §5 の該当の記載を `[-]`・取り消し線にして理由を添える）、`output.go` が判定を呼ばない（`TestWriteRejectsMarkdownHazards`）。
+- [ ] **ステップ 4-6**: 壊して失敗することを確認し、コミットメッセージに記録する。対象: `\r` を行の区切りとして扱わない（`TestCheckBodyMarkdown` の `\r` のケース）、閉じるフェンスの個数の比較を外す（同、短い閉じるフェンス）、フェンスに見える行の拒否を外す（同、インデントしたフェンス）、エスケープの判定でバックスラッシュの数の偶奇を見ない（同、`\\<div>`）、コードスパンの例外の 1 つ目の条件を外す（同、`` [a](/u "`") <details>` ``）、2 つ目の条件を外す（同、`` <1`@a.bc> <details>` ``）、自動リンクの例外でバッククォートを許す（同、`` <https://e.example/`> ``）、ステップ 4-3 で決めた線形より遅い実装に替える（`TestCheckBodyMarkdownLinearWork`。benchmark に移した場合は、時間の測定が `make test` の合否には含まれないことを述べる）、`output.go` が判定を呼ばない（`TestWriteRejectsMarkdownHazards`）。
 - [ ] **ステップ 4-7**: `make fmt` → `make test` → `make lint` を通す。
 
 ### フェーズ 5: 文書
@@ -199,7 +200,7 @@ architecture §7 のテスト戦略に従う。テスト関数名と AC の対�
 
 ### 4.1. ユニットテスト
 
-- `LLMClient` には `llmtestutil.FakeLLMClient` を使い、LLM の API・ネットワークを呼ばない。上書きファイルは `t.TempDir` の下に作る（AC-21）。`TestPromptsREADMEMatchesContract` と `TestWriterImports` はリポジトリの中の文書とソースを読む guard であり、`ArticleWriter` の振る舞いのテストではない（`internal/pipeline/pipeline_test.go` の `TestInterfaceDocComments` と同じ形）。
+- `LLMClient` には `llmtestutil.FakeLLMClient` を使い、LLM の API・ネットワークを呼ばない。上書きファイルは `t.TempDir` の下に作る（AC-21）。`TestPromptsREADMEMatchesContract` と `TestWriterImports` はリポジトリの中の文書とソースを読む guard であり、`ArticleWriter` の振る舞いのテストではない。`internal/writer` のユニットテストをテストの外のファイルに依存させないため、`TestInterfaceDocComments` と同じ場所である `internal/pipeline/pipeline_test.go` のクロスパッケージの guard に置く（AC-21 は `internal/writer` のユニットテストだけに掛かる）。
 - 境界の値（テンプレート・プロンプト・`Text`・`Model`・`ModelVersion` の上限）は、ちょうど上限と上限 + 1 バイトの組で確かめる。
 - 拒否のケースは、番兵、ゼロ値の `Article`、`LLMClient` の呼び出し回数（呼ぶ前の拒否では 0 回）を確かめる。
 - 網羅率の目標は、`internal/writer`・`internal/nilcheck`・`prompts` の本番コードのうち到達できるすべての文を、それぞれのパッケージのテストが実行すること（文の網羅率）とする。`go test -tags test -coverprofile` の結果を `go tool cover -func` と `-html` で確認し、通らない文がある場合は理由をフェーズのコミットメッセージに書く。`prompts` はテストファイルを持たないので、`internal/writer` のテストから `-coverpkg` で確かめる。
@@ -246,7 +247,7 @@ architecture §7.3 に従う。計画固有の事項は次のとおり。
 | AC-17 | `Body` は本文・区切り・出典ブロックの連結 | test | `output_test.go::TestWriteArticle`・`TestWriteSourceBlock` |
 | AC-18 | `SourceURL` と出典ブロックで終わる `Body` | test | `output_test.go::TestWriteSourceBlock` |
 | AC-19 | 本文の終わり方と偽の出典によらず出典ブロックと空行 | test | `output_test.go::TestWriteSourceBlock` |
-| AC-21 | ユニットテストは API・ネットワーク・テストの外のファイルを使わない | test / static | test: `Write` を呼ぶすべてのテスト（`LLMClient` は `llmtestutil.FakeLLMClient` で、`Calls` の記録を確かめる）。static: `writer_test.go::TestWriterImports`（`net`・`net/http`・プロバイダのパッケージを import しない）。注記: `TestWriterImports` と `TestPromptsREADMEMatchesContract` は guard としてリポジトリの中のソースと文書を読む。AC-21 の「テストの外にあるファイル」の例外として、本計画のレビューで承認を受ける |
+| AC-21 | ユニットテストは API・ネットワーク・テストの外のファイルを使わない | test | `Write` を呼ぶすべての `internal/writer` のテスト（`LLMClient` は `llmtestutil.FakeLLMClient` で、`Calls` の記録を確かめる。上書きファイルは `t.TempDir` の下に作る） |
 | AC-22 | 先頭行の形の拒否 | test | `output_test.go::TestWriteRejectsMalformedText` |
 | AC-23 | タイトルと本文の部分の拒否、前後の空白の除去 | test | `output_test.go::TestWriteRejectsMalformedText` |
 | AC-24 | 閉じていないコードフェンスの拒否 | test | `output_test.go::TestWriteRejectsMarkdownHazards`・`markdown_test.go::TestCheckBodyMarkdown` |
@@ -266,17 +267,18 @@ AC に対応しない、architecture が求める検証は次のとおり。
 | `NormalizedVideoURL` の切り出しで `validateVideoURL` の振る舞いが変わらない（architecture §3.11） | `internal/transcript/video_id_test.go::TestValidateVideoURL`（無変更） |
 | `Article` のフィールドの組（architecture §3.1、I-02） | `internal/pipeline/pipeline_test.go::TestCommonTypesFieldSets` |
 | `ArticleWriter` の doc コメントの条項 | `internal/pipeline/pipeline_test.go::TestInterfaceDocComments`（無変更） |
-| `prompts/README.md` の記述がテンプレートデータ・許可する関数・上限と一致する（architecture §3.2） | `template_test.go::TestPromptsREADMEMatchesContract` |
+| `prompts/README.md` の記述がテンプレートデータ・許可する関数・上限と一致する（architecture §3.2） | `internal/pipeline/pipeline_test.go::TestPromptsREADMEMatchesContract` |
+| `internal/writer`・`prompts` がプロバイダのパッケージを import しない（requirements 4.5、AC-21） | `internal/pipeline/pipeline_test.go::TestWriterImports` |
 | シンボリックリンクを辿る（architecture §3.3） | `template_test.go::TestNewRejectsInvalidOverrideFile` |
 | 上限付きの書き込み先（architecture §3.6） | `prompt_test.go::TestBoundedWriter` |
-| Markdown の判定が長さに比例する時間で終わる（architecture §3.8） | `markdown_test.go::TestCheckBodyMarkdownLinearTime` |
+| Markdown の判定が本文の部分の長さに対して線形である（architecture §3.8） | `markdown_test.go::TestCheckBodyMarkdownLinearWork`（時間に依存しない操作の回数・構造で確認する決定的なテスト。時間の測定は合否を左右しない benchmark に限る） |
 
 ## 6. リスク管理 (Risk Management)
 
 | リスク | 影響 | 対策 |
 |---|---|---|
 | `TestNewOverrideFileFIFO` で構築が戻らない | テスト全体が止まる | 構築を別の goroutine で呼び、時間切れを失敗として報告し、書き込み側を開いて goroutine を解放する（I-01） |
-| `TestCheckBodyMarkdownLinearTime` が `-race` 付きの CI で時間を超える | CI が断続的に失敗する | 線形の実装と 2 乗の実装の差が桁で開く大きさの入力にし、時間の上限に余裕を持たせる。上限の値は実装時に `make test`（`-race`）で測って決め、コミットメッセージに測定値を書く |
+| Markdown の判定の線形性の確認が実行環境の負荷で不安定になる | CI が断続的に失敗する | 合否を壁時計の時間に依存させない。時間に依存しない操作の回数・構造で確かめ、時間の測定は合否を左右しない benchmark に限る（ステップ 4-3） |
 | `syscall.Mkfifo` が windows にない | windows で `internal/writer` のテストがビルドできない | requirements 4.4 の対象は macOS と Linux で、CI も Linux だけである（§1.3）。windows は対象外とする |
 | `test_helpers.go` はテスト向けの lint の除外が効かない | `make lint` が通らない | エラーを無視せず、固定の文字列を定数にする |
 | `gosec` が上書きファイルの `os.OpenFile` を指摘する | `make lint` が通らない | 1 行に限った `//nolint:gosec` と理由のコメント（ステップ 2-4） |
@@ -306,7 +308,7 @@ AC に対応しない、architecture が求める検証は次のとおり。
 - **品質:** `make test`・`make lint` が通る。§4.1 の網羅率の目標を満たす。各テストは対象を壊して失敗することを確認済みで、そのことがコミットメッセージに記録されている。
 - **セキュリティ:** 出典リンクを検証済みの `VideoID` から組み立てること（AC-18・AC-19）、値をテンプレートとして解釈しないこと（AC-12）、エラーに値を含めないこと（AC-26）、生の HTML と閉じていないフェンスの拒否（AC-24・AC-27）、制御文字の拒否（AC-29）、展開と上書きファイルの読み込みでメモリを使い切らず待ち続けないこと（AC-05・AC-28）を確認済みである。
 - **互換性:** `TestCommonTypesFieldSets` 以外の既存テストが無変更で通る。依存モジュールを追加していない（`.golangci.yml` を変更していない）。
-- **ドキュメント:** `prompts/README.md`・`package_reference.md`・`project_overview.md` が実装と一致する（ステップ 2-8 の guard とステップ 5-1）。
+- **ドキュメント:** `prompts/README.md`・`package_reference.md`・`project_overview.md` が実装と一致する（`internal/pipeline/pipeline_test.go::TestPromptsREADMEMatchesContract` とステップ 5-1）。
 
 ## 9. 次のステップ (Next Steps)
 
