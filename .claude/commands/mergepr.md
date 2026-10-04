@@ -52,14 +52,18 @@ around it with your own shell commands. Work in order; do not skip a step.
      summary form. Squashing drops the individual commits from `main`, so the
      body must still account for each "verified by breaking X, test Y failed"
      record, each stated optimization obligation, each new dependency's
-     justification, and any deleted test's coverage check. State that the
-     verification happened (for example, that every new check was broken and its
-     named test confirmed to fail) and point to where the detail lives (the
-     implementation plan's break-to-fail steps, or the commit log while drafting)
-     rather than pasting every mutation; likewise give a one-line justification
-     for a new dependency instead of the full reasoning. Never drop the fact
-     that the verification happened, and never lose a justification, obligation,
-     or coverage note that appears nowhere else in the repository.
+     justification, and any deleted test's coverage check. When a committed
+     implementation plan prescribes the break-to-fail steps, state that they
+     were performed and each named test confirmed to fail, and point to the
+     plan's steps rather than pasting every mutation; the plan prescribes the
+     steps but does not record their outcome, so the statement of outcome
+     belongs in the body. A verification no committed document prescribes gets
+     a one-line record (what was broken, which test failed), because the PR's
+     commits, and with them `log.txt`, are not reachable from `main` after the
+     squash. Likewise give a one-line justification for a new dependency instead
+     of the full reasoning. Never drop the fact that a verification happened,
+     and never lose a verification record, justification, obligation, or
+     coverage note that appears nowhere else in the repository.
    - End with the `Co-Authored-By:` trailer(s) that appear in the PR's commits,
      deduplicated.
    Write the subject and the body to two files in the prepared directory with
