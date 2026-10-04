@@ -327,6 +327,9 @@ func TestTemplateSyntaxAllowlist(t *testing.T) {
 		{"field as a later pipeline stage", "{{.Title | .Description}}"},
 		{"parenthesized value as a later pipeline stage", "{{.Title | (len .Title)}}"},
 		{"function as an argument", "{{eq len .Title}}"},
+		// Deliberately rejected although and/or short-circuit evaluation
+		// skips the bad call when the first argument decides the result.
+		{"bad call after a short-circuit", "{{or .Title len}}"},
 		{"in if condition", "{{if .APIKey}}a{{end}}"},
 		{"in if body", "{{if .Description}}{{.APIKey}}{{end}}"},
 		{"in else body", "{{if .Title}}a{{else}}{{.APIKey}}{{end}}"},
