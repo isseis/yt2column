@@ -92,3 +92,45 @@ func TestValidateVideoURL(t *testing.T) {
 		})
 	}
 }
+
+func TestNormalizedVideoURL(t *testing.T) {
+	accepted := []string{"dQw4w9WgXcQ", "ab-CD_ef-12", "AAAAAAAAAAA", "00000000000"}
+	for _, id := range accepted {
+		t.Run("accept/"+id, func(t *testing.T) {
+			got, ok := NormalizedVideoURL(id)
+			if !ok {
+				t.Fatalf("NormalizedVideoURL(%q) ok = false, want true", id)
+			}
+			if want := "https://www.youtube.com/watch?v=" + id; got != want {
+				t.Errorf("NormalizedVideoURL(%q) = %q, want %q", id, got, want)
+			}
+		})
+	}
+
+	rejected := []struct {
+		name string
+		id   string
+	}{
+		{"empty", ""},
+		{"10 characters", "dQw4w9WgXc"},
+		{"12 characters", "dQw4w9WgXcQx"},
+		{"slash", "dQw4w9/gXcQ"},
+		{"dot dot", "dQw4w9..XcQ"},
+		{"disallowed symbol", "dQw4w9WgXc!"},
+		{"query separator", "dQw4w9WgX&Q"},
+		{"non-ASCII", "dQw4w9WgXcé"},
+		{"trailing newline", "dQw4w9WgXcQ\n"},
+		{"leading space", " dQw4w9WgXc"},
+	}
+	for _, tc := range rejected {
+		t.Run("reject/"+tc.name, func(t *testing.T) {
+			got, ok := NormalizedVideoURL(tc.id)
+			if ok {
+				t.Fatalf("NormalizedVideoURL(%q) ok = true, want false", tc.id)
+			}
+			if got != "" {
+				t.Errorf("NormalizedVideoURL(%q) = %q, want empty", tc.id, got)
+			}
+		})
+	}
+}

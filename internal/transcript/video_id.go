@@ -52,10 +52,20 @@ func validateVideoURL(rawURL string) (videoID string, normalizedURL string, err 
 	if err != nil {
 		return "", "", err
 	}
-	if !videoIDPattern.MatchString(videoID) {
+	normalizedURL, ok := NormalizedVideoURL(videoID)
+	if !ok {
 		return "", "", fmt.Errorf("%w: video ID must be 11 characters of [A-Za-z0-9_-]", ErrInvalidVideoURL)
 	}
-	return videoID, "https://www.youtube.com/watch?v=" + videoID, nil
+	return videoID, normalizedURL, nil
+}
+
+// NormalizedVideoURL returns https://www.youtube.com/watch?v=<videoID> when
+// videoID is exactly 11 characters of [A-Za-z0-9_-], and false otherwise.
+func NormalizedVideoURL(videoID string) (string, bool) {
+	if !videoIDPattern.MatchString(videoID) {
+		return "", false
+	}
+	return "https://www.youtube.com/watch?v=" + videoID, true
 }
 
 // videoIDFromPath extracts the video ID from a youtu.be path, which must be a

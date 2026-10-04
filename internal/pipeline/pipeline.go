@@ -6,8 +6,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 
+	"github.com/isseis/yt2column/internal/nilcheck"
 	"github.com/isseis/yt2column/internal/publisher"
 	"github.com/isseis/yt2column/internal/transcript"
 	"github.com/isseis/yt2column/internal/writer"
@@ -128,19 +128,8 @@ func (p *Pipeline) validate() error {
 
 // checkStage rejects a nil interface and a typed-nil interface value.
 func checkStage(name string, stage any) error {
-	if stage == nil || isTypedNil(stage) {
+	if nilcheck.IsNil(stage) {
 		return fmt.Errorf("%w: %s", ErrNilStage, name)
 	}
 	return nil
-}
-
-// isTypedNil reports whether v is a nil value of a kind that can be nil.
-func isTypedNil(v any) bool {
-	rv := reflect.ValueOf(v)
-	switch rv.Kind() {
-	case reflect.Pointer, reflect.Func, reflect.Map, reflect.Slice, reflect.Chan:
-		return rv.IsNil()
-	default:
-		return false
-	}
 }

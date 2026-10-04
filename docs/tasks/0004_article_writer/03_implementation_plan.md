@@ -8,7 +8,7 @@
 | Created | 2026-10-04 |
 | Review date | 2026-10-04 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-04: editorial correction only, no decision changed. Step 1-8 now says `NormalizedVideoURL` validates a video ID and builds the normalized URL from it (the function validates its input itself). Progress checkboxes are ticked as work proceeds. |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -74,19 +74,19 @@ design_handoff.md の H-01〜H-11 は、すべて architecture §3.13 に対応�
 - 変更: `internal/pipeline/pipeline.go`・`internal/transcript/video_id.go`・`internal/transcript/video_id_test.go`・`internal/writer/writer.go`・`internal/pipeline/pipeline_test.go`・`docs/dev/project_overview.md`・`docs/dev/developer_guide/package_reference.md`
 
 **タスク**
-- [ ] **ステップ 1-1**: `nilcheck.go` に `IsNil`（architecture §3.11）を作る。判定は `v == nil` と、`isTypedNil` の `reflect` の判定（`Pointer`・`Func`・`Map`・`Slice`・`Chan`）を合わせたものとする。import は標準ライブラリだけとし、パッケージの doc コメントを書く。
-- [ ] **ステップ 1-2**: `nilcheck_test.go` に `TestIsNil` を作る。nil の interface 値、5 種類それぞれの nil と nil でない値、nil になりえない値（整数のゼロ値・構造体）を表のテストで確かめる。
-- [ ] **ステップ 1-3**: `pipeline.go` の `checkStage` を `nilcheck.IsNil(stage)` で判定するように変え、`isTypedNil` とその doc コメント、`reflect` の import を削除する。`ErrNilStage` と段階名のエラーは変えない。`TestPipelineNewNilStage` を変更せずに通す。
-- [ ] **ステップ 1-4**: `video_id.go` に `NormalizedVideoURL`（architecture §3.11）を追加し、`validateVideoURL` の `:55-58` をこの関数の呼び出しに置き換える。失敗時のエラーは変えない（`fmt.Errorf("%w: video ID must be 11 characters of [A-Za-z0-9_-]", ErrInvalidVideoURL)` のまま）。
-- [ ] **ステップ 1-5**: `video_id_test.go` に `TestNormalizedVideoURL` を追加する。11 文字の有効な ID の受理と返る URL、空・10 文字・12 文字・`/` や `..` を含む・許されない記号・非 ASCII・末尾の改行の拒否を確かめる。`TestValidateVideoURL` は変更しない。
-- [ ] **ステップ 1-6**: `writer.go` の `Article` に `ModelVersion string` を加え、doc コメントを architecture §3.1 のとおりにする。`pipeline_test.go` の `TestCommonTypesFieldSets` の `Article` の期待値に `"ModelVersion": "string"` を加える。
-- [ ] **ステップ 1-7**: `project_overview.md` を更新する。
+- [x] **ステップ 1-1**: `nilcheck.go` に `IsNil`（architecture §3.11）を作る。判定は `v == nil` と、`isTypedNil` の `reflect` の判定（`Pointer`・`Func`・`Map`・`Slice`・`Chan`）を合わせたものとする。import は標準ライブラリだけとし、パッケージの doc コメントを書く。
+- [x] **ステップ 1-2**: `nilcheck_test.go` に `TestIsNil` を作る。nil の interface 値、5 種類それぞれの nil と nil でない値、nil になりえない値（整数のゼロ値・構造体）を表のテストで確かめる。
+- [x] **ステップ 1-3**: `pipeline.go` の `checkStage` を `nilcheck.IsNil(stage)` で判定するように変え、`isTypedNil` とその doc コメント、`reflect` の import を削除する。`ErrNilStage` と段階名のエラーは変えない。`TestPipelineNewNilStage` を変更せずに通す。
+- [x] **ステップ 1-4**: `video_id.go` に `NormalizedVideoURL`（architecture §3.11）を追加し、`validateVideoURL` の `:55-58` をこの関数の呼び出しに置き換える。失敗時のエラーは変えない（`fmt.Errorf("%w: video ID must be 11 characters of [A-Za-z0-9_-]", ErrInvalidVideoURL)` のまま）。
+- [x] **ステップ 1-5**: `video_id_test.go` に `TestNormalizedVideoURL` を追加する。11 文字の有効な ID の受理と返る URL、空・10 文字・12 文字・`/` や `..` を含む・許されない記号・非 ASCII・末尾の改行の拒否を確かめる。`TestValidateVideoURL` は変更しない。
+- [x] **ステップ 1-6**: `writer.go` の `Article` に `ModelVersion string` を加え、doc コメントを architecture §3.1 のとおりにする。`pipeline_test.go` の `TestCommonTypesFieldSets` の `Article` の期待値に `"ModelVersion": "string"` を加える。
+- [x] **ステップ 1-7**: `project_overview.md` を更新する。
   - `:31` の変更前: `` - `ArticleWriter`: プロバイダに依存しない。プロンプトテンプレートにタイムスタンプを除いた本文とメタ情報を埋め込み、`LLMClient` を呼び出して、結果を `Article`（タイトル・Markdown 本文・出典 URL・生成モデル名）に変換する。 ``
   - 変更後: `` - `ArticleWriter`: プロバイダに依存しない。プロンプトテンプレートにタイムスタンプを除いた本文とメタ情報を埋め込み、`LLMClient` を呼び出して、結果を `Article`（タイトル・Markdown 本文・出典 URL・生成モデル名・モデルの版の識別子）に変換する。 ``
   - 想定ディレクトリ構成の `internal/strictjson/` の行の次に、`internal/nilcheck/        # typed nil を含む nil の判定` を加える（`#` の位置は前後の行にそろえる）。
-- [ ] **ステップ 1-8**: `package_reference.md` に `internal/nilcheck` の行（nil の interface 値と typed nil の判定。`internal/pipeline` が使う）を加え、`internal/transcript` の行に `NormalizedVideoURL`（検証した動画 ID から正規化した URL を組み立てる）を加える。`internal/writer` が使うことは、使い始めるステップ 2-9・3-8 で書き加える。`internal/pipeline` の行は変更しない（§1.3）。
-- [ ] **ステップ 1-9**: 壊して失敗することを確認し、コミットメッセージに記録する。対象: `IsNil` の `Pointer`・`Func`・`Map`・`Slice`・`Chan` の場合を 1 つずつ外す（`TestIsNil`）、`IsNil` の `v == nil` を外す（`TestIsNil` の nil の interface 値のケース）、`NormalizedVideoURL` の検査を外す（`TestNormalizedVideoURL` と `TestValidateVideoURL` の拒否のケース）、`checkStage` が `IsNil` を呼ばない（`TestPipelineNewNilStage`）。
-- [ ] **ステップ 1-10**: このフェーズの差分のテストファイルが `nilcheck_test.go`・`video_id_test.go`（追加だけ）・`pipeline_test.go`（`TestCommonTypesFieldSets` の 1 行だけ）であることを、コミット前に差分で確認する。`make fmt` → `make test` → `make lint` を通す。
+- [x] **ステップ 1-8**: `package_reference.md` に `internal/nilcheck` の行（nil の interface 値と typed nil の判定。`internal/pipeline` が使う）を加え、`internal/transcript` の行に `NormalizedVideoURL`（動画 ID を検証し、正規化した URL を組み立てる）を加える。`internal/writer` が使うことは、使い始めるステップ 2-9・3-8 で書き加える。`internal/pipeline` の行は変更しない（§1.3）。
+- [x] **ステップ 1-9**: 壊して失敗することを確認し、コミットメッセージに記録する。対象: `IsNil` の `Pointer`・`Func`・`Map`・`Slice`・`Chan` の場合を 1 つずつ外す（`TestIsNil`）、`IsNil` の `v == nil` を外す（`TestIsNil` の nil の interface 値のケース）、`NormalizedVideoURL` の検査を外す（`TestNormalizedVideoURL` と `TestValidateVideoURL` の拒否のケース）、`checkStage` が `IsNil` を呼ばない（`TestPipelineNewNilStage`）。
+- [x] **ステップ 1-10**: このフェーズの差分のテストファイルが `nilcheck_test.go`・`video_id_test.go`（追加だけ）・`pipeline_test.go`（`TestCommonTypesFieldSets` の 1 行だけ）であることを、コミット前に差分で確認する。`make fmt` → `make test` → `make lint` を通す。
 
 ### PR-1 作成ポイント: shared parts (nil check, normalized video URL, Article.ModelVersion)
 
@@ -100,8 +100,8 @@ design_handoff.md の H-01〜H-11 は、すべて architecture §3.13 に対応�
 
 **判定理由**: 既存テストで振る舞いの保存を確かめられる純粋なリファクタリングと型・文書の追加に限られ、競合する実装方針の併記・高リスクな制御・パネルモードのトリガー・Conditional checks のいずれにも該当しないため。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
