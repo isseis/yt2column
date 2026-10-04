@@ -276,6 +276,14 @@ func newTranscript(id, normalizedURL string, info videoInfo, segments []Segment)
 	}
 }
 
+// subtitleLanguage and subtitleFormat select the subtitle track yt-dlp writes.
+// yt-dlp names that file <id>.<language>.<format>, so the cache derives the
+// file name it reads (subtitlesSuffix) from these same constants.
+const (
+	subtitleLanguage = "ja"
+	subtitleFormat   = "json3"
+)
+
 // ytDlpArgs is the fixed argument array of one yt-dlp run. The normalized URL
 // is the last argument, after "--", so it is never interpreted as an option.
 func ytDlpArgs(slotDir, normalizedURL string) []string {
@@ -285,8 +293,8 @@ func ytDlpArgs(slotDir, normalizedURL string) []string {
 		"--skip-download",
 		"--write-subs",
 		"--write-auto-subs",
-		"--sub-langs", "ja",
-		"--sub-format", "json3",
+		"--sub-langs", subtitleLanguage,
+		"--sub-format", subtitleFormat,
 		"--write-info-json",
 		"-P", slotDir,
 		"-o", "%(id)s",
