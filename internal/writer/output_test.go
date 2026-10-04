@@ -202,3 +202,36 @@ func TestWriteOutputSizeLimits(t *testing.T) {
 		})
 	}
 }
+
+func TestWriteRejectsMarkdownHazards(t *testing.T) {
+	const body = markOutBody
+	rejected := []struct{ name, body string }{
+		{"unclosed backtick fence", body + "\n```go\nfmt.Println()"},
+		{"unclosed tilde fence", body + "\n~~~\n" + body},
+		{"unclosed details", "<details>\n" + body},
+		{"closed details", "<details>" + body + "</details>"},
+		{"div hidden", "<div hidden>" + body + "</div>"},
+		{"inline span hidden", body + " <span hidden>x</span>"},
+		{"comment", body + "\n<!-- " + body + " -->"},
+		{"script", body + "\n<script>"},
+	}
+	for _, tc := range rejected {
+		t.Run(tc.name, func(t *testing.T) {
+			a, err := writeResponse(t, responseWithText("# "+markOutTitle+"\n"+tc.body))
+			requireMalformed(t, a, err)
+		})
+	}
+	accepted := []struct{ name, body string }{
+		{"details in a code span", body + " `<details>`"},
+		{"details in a closed fence", body + "\n```\n<details>\n```\n"},
+		{"URI autolink", body + " <https://example.com/>"},
+		{"closed fence", body + "\n```go\nfmt.Println()\n```"},
+	}
+	for _, tc := range accepted {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := writeResponse(t, responseWithText("# "+markOutTitle+"\n"+tc.body)); err != nil {
+				t.Errorf("Write error = %v, want nil", err)
+			}
+		})
+	}
+}

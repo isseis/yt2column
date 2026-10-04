@@ -57,6 +57,9 @@ func checkResponse(resp llm.GenerateResponse) (title, body string, err error) {
 	if strings.TrimSpace(body) == "" {
 		return "", "", fmt.Errorf("%w: body is empty or whitespace only", ErrMalformedOutput)
 	}
+	if err := checkBodyMarkdown(body); err != nil {
+		return "", "", fmt.Errorf("%w: body %w", ErrMalformedOutput, err)
+	}
 	if err := checkModelString("Model", resp.Model); err != nil {
 		return "", "", err
 	}
