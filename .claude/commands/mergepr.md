@@ -41,13 +41,25 @@ around it with your own shell commands. Work in order; do not skip a step.
      style as in `git log origin/<baseRefName>`. When the PR title already fits,
      use it. For a plan-driven PR, `<scope>` is the task ID (`_context.md`, "PR
      marker conventions").
-   - **Body**: what changed and why, as short paragraphs or bullets, describing
-     the final state of the PR, not the history of its review rounds.
-   - **Carry forward what CLAUDE.md requires a commit message to record.**
-     Squashing drops the individual commits from `main`, so copy from them,
-     condensed but not dropped: each "verified by breaking X, test Y failed"
+   - **Body**: a sufficient summary of what changed and why, as short
+     paragraphs or bullets, describing the final state of the PR, not the
+     history of its review rounds. Keep it brief; do not reproduce every detail
+     from the commits. When a detail is already recorded in a committed
+     document — the task's `03_implementation_plan.md` for a plan-driven PR, or
+     another document the PR updates — refer to that document instead of copying
+     the detail, as long as a reader can find it there.
+   - **Carry forward what CLAUDE.md requires a commit message to record**, in
+     summary form. Squashing drops the individual commits from `main`, so the
+     body must still account for each "verified by breaking X, test Y failed"
      record, each stated optimization obligation, each new dependency's
-     justification, and any deleted test's coverage check.
+     justification, and any deleted test's coverage check. State that the
+     verification happened (for example, that every new check was broken and its
+     named test confirmed to fail) and point to where the detail lives (the
+     implementation plan's break-to-fail steps, or the commit log while drafting)
+     rather than pasting every mutation; likewise give a one-line justification
+     for a new dependency instead of the full reasoning. Never drop the fact
+     that the verification happened, and never lose a justification, obligation,
+     or coverage note that appears nowhere else in the repository.
    - End with the `Co-Authored-By:` trailer(s) that appear in the PR's commits,
      deduplicated.
    Write the subject and the body to two files in the prepared directory with
