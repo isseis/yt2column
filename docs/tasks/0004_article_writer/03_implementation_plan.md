@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-04 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-04 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 実装の概要 (Implementation Overview)
@@ -58,7 +58,7 @@ HEAD `4194276`（ブランチ `issei/0004-article-writer-02`）で確認した�
 
 | ID | 対応 |
 |---|---|
-| I-01 | 各方法を次のステップで扱う。**fake と一時ファイル**: `llmtestutil.FakeLLMClient` を使い、上書きファイルは `t.TempDir` の下に作る（ステップ 2-7・3-5〜3-7）。**目印の文字列**: 値ごとに互いに異なる目印を `test_helpers.go` の定数にし、AC-10・AC-26・AC-30 で使う。AC-26 では、各拒否ケースの入力の形が許す限りタイトル・本文の部分・`Model`・`ModelVersion` のすべてに目印を置き、共有のアサーションでエラーの文字列に現れないことを確かめる（ステップ 2-7・3-7）。**出力の形の指示**: 既定の system テンプレートに `# ` で始まる行があることを文字列で確かめる（ステップ 2-8）。**タイムスタンプを含めないこと**: 目印の数値が現れないことに加えて、`StartMs` だけが異なる 2 つの `Transcript` のプロンプトが同一であることを確かめる（ステップ 3-5）。**読めない上書きファイル**: 権限のない通常のファイルを含め、root での実行は `requireNonRoot` で失敗させる。`requireNonRoot` は `internal/writer/test_helpers.go` に同じ関数を置く（§1.3）。**名前付きパイプ**: 構築を別の goroutine で呼び、名前付き定数の時間内に戻らなければ失敗として報告し、書き込み側を開いて goroutine を解放する（ステップ 2-8）。**失敗時の呼び出し回数**: AC-14 のテストで `Generate` がちょうど 1 回であることを確かめる（ステップ 3-6）。 |
+| I-01 | 各方法を次のステップで扱う。**fake と一時ファイル**: `llmtestutil.FakeLLMClient` を使い、上書きファイルは `t.TempDir` の下に作る（ステップ 2-7・2-8・3-5〜3-7）。**目印の文字列**: 値ごとに互いに異なる目印を `test_helpers.go` の定数にし、AC-10・AC-26・AC-30 で使う。AC-26 では、各拒否ケースの入力の形が許す限りタイトル・本文の部分・`Model`・`ModelVersion` のすべてに目印を置き、共有のアサーションでエラーの文字列に現れないことを確かめる（ステップ 3-4・3-7）。**出力の形の指示**: 既定の system テンプレートに `# ` で始まる行があることを文字列で確かめる（ステップ 2-8）。**タイムスタンプを含めないこと**: 目印の数値が現れないことに加えて、`StartMs` だけが異なる 2 つの `Transcript` のプロンプトが同一であることを確かめる（ステップ 3-5）。**読めない上書きファイル**: 権限のない通常のファイルを含め、root での実行は `requireNonRoot` で失敗させる。`requireNonRoot` は `internal/writer/test_helpers.go` に同じ関数を置く（§1.3）。**名前付きパイプ**: 構築を別の goroutine で呼び、名前付き定数の時間内に戻らなければ失敗として報告し、書き込み側を開いて goroutine を解放する（ステップ 2-8）。**失敗時の呼び出し回数**: AC-14 のテストで `Generate` がちょうど 1 回であることを確かめる（ステップ 3-6）。 |
 | I-02 | `TestCommonTypesFieldSets` の `Article` の期待値に `ModelVersion`（`string`）を加え、同じコミットで `project_overview.md:31` を更新する（ステップ 1-6・1-7）。 |
 
 design_handoff.md の H-01〜H-11 は、すべて architecture §3.13 に対応が記録されている。
@@ -83,10 +83,27 @@ design_handoff.md の H-01〜H-11 は、すべて architecture §3.13 に対応�
 - [ ] **ステップ 1-7**: `project_overview.md` を更新する。
   - `:31` の変更前: `` - `ArticleWriter`: プロバイダに依存しない。プロンプトテンプレートにタイムスタンプを除いた本文とメタ情報を埋め込み、`LLMClient` を呼び出して、結果を `Article`（タイトル・Markdown 本文・出典 URL・生成モデル名）に変換する。 ``
   - 変更後: `` - `ArticleWriter`: プロバイダに依存しない。プロンプトテンプレートにタイムスタンプを除いた本文とメタ情報を埋め込み、`LLMClient` を呼び出して、結果を `Article`（タイトル・Markdown 本文・出典 URL・生成モデル名・モデルの版の識別子）に変換する。 ``
-  - 想定ディレクトリ構成の `internal/strictjson/` の行の次に、`internal/nilcheck/        # typed nil を含む nil の判定` を加える（`internal/writer` も使うことの記述はステップ 2-9 で加える）（`#` の位置は前後の行にそろえる）。
+  - 想定ディレクトリ構成の `internal/strictjson/` の行の次に、`internal/nilcheck/        # typed nil を含む nil の判定` を加える（`#` の位置は前後の行にそろえる）。
 - [ ] **ステップ 1-8**: `package_reference.md` に `internal/nilcheck` の行（nil の interface 値と typed nil の判定。`internal/pipeline` が使う）を加え、`internal/transcript` の行に `NormalizedVideoURL`（検証した動画 ID から正規化した URL を組み立てる）を加える。`internal/writer` が使うことは、使い始めるステップ 2-9・3-8 で書き加える。`internal/pipeline` の行は変更しない（§1.3）。
 - [ ] **ステップ 1-9**: 壊して失敗することを確認し、コミットメッセージに記録する。対象: `IsNil` の `Pointer`・`Func`・`Map`・`Slice`・`Chan` の場合を 1 つずつ外す（`TestIsNil`）、`IsNil` の `v == nil` を外す（`TestIsNil` の nil の interface 値のケース）、`NormalizedVideoURL` の検査を外す（`TestNormalizedVideoURL` と `TestValidateVideoURL` の拒否のケース）、`checkStage` が `IsNil` を呼ばない（`TestPipelineNewNilStage`）。
 - [ ] **ステップ 1-10**: このフェーズの差分のテストファイルが `nilcheck_test.go`・`video_id_test.go`（追加だけ）・`pipeline_test.go`（`TestCommonTypesFieldSets` の 1 行だけ）であることを、コミット前に差分で確認する。`make fmt` → `make test` → `make lint` を通す。
+
+### PR-1 作成ポイント: shared parts (nil check, normalized video URL, Article.ModelVersion)
+
+**対象ステップ**: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8 / 1-9 / 1-10
+
+**推奨タイトル**: `refactor(0004): extract the shared nil check and normalized video URL, add Article.ModelVersion`
+
+**レビュー観点**: `nilcheck.IsNil` が `isTypedNil` の振る舞い（nil の interface 値と 5 種類の typed nil）を保ち、`TestPipelineNewNilStage` が変更なしで通ること（ステップ 1-1〜1-3） / `NormalizedVideoURL` の切り出しで `validateVideoURL` の返す番兵と受理・拒否の境界が変わらず、`TestValidateVideoURL` が変更なしで通ること（ステップ 1-4・1-5） / `Article.ModelVersion` の追加に合わせて `TestCommonTypesFieldSets` と `project_overview.md` が同じコミットで更新されていること（ステップ 1-6・1-7） / `package_reference.md` の `internal/nilcheck`・`internal/transcript` の行が実装と一致し、`internal/pipeline` の行が変わっていないこと（ステップ 1-8）
+
+**実装モデル要件**: standard
+
+**判定理由**: 既存テストで振る舞いの保存を確かめられる純粋なリファクタリングと型・文書の追加に限られ、競合する実装方針の併記・高リスクな制御・パネルモードのトリガー・Conditional checks のいずれにも該当しないため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: テンプレートと構築
 
@@ -123,7 +140,7 @@ design_handoff.md の H-01〜H-11 は、すべて architecture §3.13 に対応�
 
 AC-01・AC-03・AC-04・AC-30（目印が `LLMClient` に渡ること）は `Write` が `LLMClient` に渡すプロンプトで確かめるので、そのテストはフェーズ 3 のステップ 3-6 で作る（architecture §8 の手順 2・3 もこの割り当てに合わせた。§1.3）。
 
-**PR の区切りへの制約。** 常にエラーを返す暫定の `Write`（ステップ 2-5）を `main` ブランチに入れないため、フェーズ 2 とステップ 3-3 は同じ PR に含める（`0003_deepseek_llm_client/03_implementation_plan.md` のステップ 3-4 と同じ扱い）。`/mkplan2` はこの制約に従って PR の区切りを決める。
+**PR の区切りへの制約。** 常にエラーを返す暫定の `Write`（ステップ 2-5）を `main` ブランチに入れないため、フェーズ 2 とステップ 3-3 は同じ PR に含める（`0003_deepseek_llm_client/03_implementation_plan.md` のステップ 3-4 と同じ扱い）。ステップ 3-3 はステップ 3-1・3-2 の検証関数に依存し、そのテスト（ステップ 3-4〜3-7）は実装と同じ PR に置く（`mkplan2.md` の Buildability の原則「Never split a tightly coupled unit (interface + implementation + test) across PRs」）。そのためフェーズ 2 とフェーズ 3 を 1 つの PR-2 にまとめる（§3.2）。
 
 ### フェーズ 3: 記事の生成（Markdown の判定を除く）
 
@@ -152,6 +169,23 @@ AC-01・AC-03・AC-04・AC-30（目印が `LLMClient` に渡ること）は `Wri
 - [ ] **ステップ 3-9**: 壊して失敗することを確認し、コミットメッセージに記録する。対象: `VideoURL` の一致の検査を外す（`TestWriteRejectsInvalidTranscript` の `VideoURL` のケース）、`NormalizedVideoURL` を使わずに `VideoID` を連結して URL を作る（同、不正な `VideoID` のケース。ステップ 3-5 のとおり、これらのケースの `VideoURL` は連結した URL と一致するので、`VideoID` の検査がなければ受理される）、字幕本文を `StartMs` 付きで連結する（`TestWriteOmitsStartMs`）、展開に上限付きの書き込み先を使わない（`TestWritePromptSizeLimit` の上限 + 1）、上限付きの書き込み先の比較を 1 ずらす（`TestBoundedWriter`・`TestWritePromptSizeLimit`）、空白文字だけの展開結果の検査を外す（`TestWriteExpansionFailure`）、`ctx` の確認を外す（`TestWriteContextDone`）、`LLMClient` のエラーを `%v` でつなぐ（`TestWriteReportsLLMError`）、エラーとともに返った `Text` で記事を作る（同）、出典ブロックの URL を生成テキストから取る（`TestWriteSourceBlock` の別の URL を含むケース）、区切りを `\n` 1 つにする（`TestWriteSourceBlock` の改行で終わらないケース）、タイトルの前後の半角空白とタブを除かない（`TestWriteArticle` の `Title` が `タイトル` になるケース）、制御文字の検査を外す（`TestWriteRejectsMalformedText` の `\r` と `TestWriteRejectsInvalidModel`）、`ModelVersion` に制御文字の検査を適用しない（`TestWriteRejectsInvalidModel` の `ModelVersion` のケース）、`MaxOutputTokens` に 0 以外を渡す・`Generate` に別の `ctx` を渡す（`TestWriteCallsGenerateOnce`）、`maxModelBytes` の比較を 1 ずらす（`TestWriteOutputSizeLimits`）、`ErrMalformedOutput` のエラーに `Model` の値を含める（共有のアサーション）、`maxTextBytes` の比較を 1 ずらす（`TestWriteOutputSizeLimits`）、既定のテンプレートから `.Description` の参照をすべて消す（`TestDefaultTemplatesEmbedAllValues`）、上書きのパスを system と user で取り違える（`TestNewOverridesEachTemplate`）、`New` が上書きファイルを `Write` のたびに読む（`TestNewReadsOverrideOnce`）、`internal/writer` に `net/http` の import を足す（`TestWriterImports`）、本番の `internal/writer` のファイルに `internal/llm/testutil` の import を足す（`TestWriterImports`。テストのファイルからだけ許す規則が効いていることを確かめる）。
 - [ ] **ステップ 3-10**: `make fmt` → `make test` → `make lint` を通す。
 
+### PR-2 作成ポイント: ArticleWriter templates, construction, and generation
+
+**対象ステップ**: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 / 2-8 / 2-9 / 2-10 / 2-11 / 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8 / 3-9 / 3-10
+
+**推奨タイトル**: `feat(0004): add the ArticleWriter templates, construction, and generation`
+
+**レビュー観点**: `prompts` の埋め込みテンプレートと `New` の検査（許可リストの fail-secure な分岐、上限、UTF-8、開いたファイルの種類の確認、`O_NONBLOCK`）が architecture §3.3・§3.4 のとおりで、`gosec` の抑制が 1 行に限られていること（ステップ 2-1〜2-4） / 暫定の `Write`（ステップ 2-5）が同じ PR のステップ 3-3 で置き換えられ、PR の最終状態に残っていないこと（§3.2・§6 のリスク） / `Write` が architecture §6.2 の順（`ctx` → `Transcript` の検証 → system・user の展開 → `Generate` 1 回 → 生成テキストの検証 → 出典ブロック）で進み、Markdown の判定を除く検証と出典ブロックを実装していること（ステップ 3-1〜3-3・3-7） / 判別的な拒否テスト（§4.1）、値をエラーに含めないこと（AC-26）、プロバイダ非依存の import guard、`New` が上書きファイルを構築時に 1 回だけ読みテストがテストの外のファイルを使わないこと（AC-04・AC-21）が満たされていること（ステップ 3-4〜3-7）
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: `os.OpenFile` に対する `gosec` の 1 行の抑制（Conditional check の「security-linter-flagged construct」）と、`//go:build test` の `internal/writer/test_helpers.go` という非 `_test.go` のビルドタグ下のソース（Conditional check の「build-tag compiled non-`_test.go` source」）の 2 つに該当し、加えて信頼できないテンプレートの検査と LLM 出力の検証というセキュリティの中核を含むため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ### フェーズ 4: Markdown の判定
 
 **対象ファイル**
@@ -168,6 +202,23 @@ AC-01・AC-03・AC-04・AC-30（目印が `LLMClient` に渡ること）は `Wri
 - [ ] **ステップ 4-6**: 壊して失敗することを確認し、コミットメッセージに記録する。対象: `\r` を行の区切りとして扱わない（`TestCheckBodyMarkdown` の `\r` のケース）、閉じるフェンスの個数の比較を外す（同、短い閉じるフェンス）、フェンスに見える行の拒否を外す（同、インデントしたフェンス）、エスケープの判定でバックスラッシュの数の偶奇を見ない（同、`\\<div>`）、コードスパンの例外の 1 つ目の条件を外す（同、`` [a](/u "`") <details>` ``）、2 つ目の条件を外す（同、`` <1`@a.bc> <details>` ``）、自動リンクの例外でバッククォートを許す（同、`` <https://e.example/`> ``）、ステップ 4-3 で決めた線形より遅い実装に替える（`TestCheckBodyMarkdownLinearWork`。benchmark に移した場合は、時間の測定が `make test` の合否には含まれないことを述べる）、`output.go` が判定を呼ばない（`TestWriteRejectsMarkdownHazards`）。
 - [ ] **ステップ 4-7**: `make fmt` → `make test` → `make lint` を通す。
 
+### PR-3 作成ポイント: Markdown hazard and code-fence judgment
+
+**対象ステップ**: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7
+
+**推奨タイトル**: `feat(0004): reject raw HTML and unclosed code fences in ArticleWriter output`
+
+**レビュー観点**: architecture §3.8 の判定（行の区切り、フェンスの開閉、`<` の例外 3 条件）が本文の部分の生の HTML と閉じていないコードフェンスを拒否し、受理する形（コードスパンの中・閉じたフェンスの中の HTML、URI の自動リンク、閉じたフェンス）を誤って拒否しないこと（ステップ 4-1・4-2） / `TestCheckBodyMarkdown` が §3.8 の受理・拒否・過剰な拒否の各行と §7.1 の境界を、条件を 1 つずつ外して判別的に確かめていること（ステップ 4-3） / 線形性の確認が壁時計の時間に依存せず、`make test` の合否を時間に依存させないこと（ステップ 4-3） / 拒否が `ErrMalformedOutput` で、エラーに HTML と判定した文字列を含めないこと（AC-24・AC-26・AC-27、ステップ 4-2・4-4）
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: architecture §3.8 の Markdown の判定（本文の長さに比例する時間の走査、`<` の例外の 3 条件、フェンスの開閉）は、リカバリや状態機械に類する独立した最も込み入ったステップであり、PR-3 に隔離してレビューするため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ### フェーズ 5: 文書
 
 **対象ファイル**
@@ -178,6 +229,23 @@ AC-01・AC-03・AC-04・AC-30（目印が `LLMClient` に渡ること）は `Wri
 - [ ] **ステップ 5-2**: §6.1 のクロス検索を行い、結果を本計画に記録する。
 - [ ] **ステップ 5-3**: `make fmt` → `make test` → `make lint` を通す。
 
+### PR-4 作成ポイント: documentation verification and cross-search
+
+**対象ステップ**: 5-1 / 5-2 / 5-3
+
+**推奨タイトル**: `docs(0004): verify the ArticleWriter documentation against the implementation`
+
+**レビュー観点**: `package_reference.md` の `prompts`・`internal/nilcheck`・`internal/transcript`・`internal/writer` の行と、`project_overview.md` の `Article` の項目・想定ディレクトリ構成が、PR-1〜PR-3 で実装した公開 API と `writer.Article` のフィールドに一致すること（ステップ 5-1） / クロス検索 `rg -n "isTypedNil" -g '!docs/tasks/**' .` が 0 件で、実行した HEAD と結果が §6.1 に記録されていること（ステップ 5-2） / グリーンゲートが通ること（ステップ 5-3）
+
+**実装モデル要件**: standard
+
+**判定理由**: ドキュメントと実装の照合、クロス検索の記録、グリーンゲートの確認に限られ、競合する実装方針の併記・高リスクな制御・パネルモードのトリガー・Conditional checks のいずれにも該当しないため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
 
 ### 3.1. マイルストーン
@@ -185,14 +253,35 @@ AC-01・AC-03・AC-04・AC-30（目印が `LLMClient` に渡ること）は `Wri
 | マイルストーン | 内容 | 成果物 | 完了条件 |
 |---|---|---|---|
 | M1 | フェーズ 1 | `internal/nilcheck`、`NormalizedVideoURL`、`Article.ModelVersion`、`TestCommonTypesFieldSets` と文書の更新 | `make test` / `make lint` が通り、変更したテスト以外の既存テストが無変更で通る |
-| M2 | フェーズ 2 | `prompts` パッケージと README、`internal/writer` の `New` とテンプレートの検査、暫定の `Write` | 同上 |
+| M2 | フェーズ 2 | `prompts` パッケージと README、`internal/writer` の `New` とテンプレートの検査（暫定の `Write` は PR-2 のブランチ内だけ） | 同上 |
 | M3 | フェーズ 3 | `Write` の実装、`prompt_test.go`・`output_test.go`・`writer_test.go` の追加分 | 同上。暫定の `Write` が残っていない |
 | M4 | フェーズ 4 | `markdown.go` と判定のテスト | 同上 |
 | M5 | フェーズ 5 | 文書と実装の照合、クロス検索の記録 | 同上 |
 
-### 3.2. 実装順序の根拠
+### 3.2. PR 構成
 
-architecture §8 の順序に従う。共有部品（フェーズ 1）は `internal/writer` が使うので最初に置く。`New` とテンプレートの検査（フェーズ 2）は `Write` の前提になる。`ArticleWriter` の interface を満たすため、フェーズ 2 は暫定の `Write` を置き、フェーズ 3 で置き換える。暫定の `Write` は常にエラーを返し、`main` からの配線はない（配線は issue #6 で行う）ので、利用者に影響はない。Markdown の判定（フェーズ 4）は最も込み入っているので独立させる。フェーズ 3 の時点では生の HTML を受理するが、architecture §8 のとおり利用者への影響はない。
+PR はフェーズを単位とするが、フェーズ 2（テンプレートと構築）とフェーズ 3（記事の生成）は 1 つの PR-2 にまとめる。各 PR は主たる関心事（共有部品 / テンプレート・構築・生成 / Markdown の判定 / 文書の照合）を持ち、単独でグリーンゲートを通せる単位とする。本タスクは `cmd/yt2column/main.go` を変更しないため（配線は #6）、`internal/` の変更が `cmd/` に先行する順序の問題は生じない。
+
+PR-1 は `internal/nilcheck`・`NormalizedVideoURL`・`Article.ModelVersion` という共有部品を先に完成させる。PR-2 は `New` とテンプレートの検査（フェーズ 2）と `Write` の実装（フェーズ 3）をまとめる。フェーズ 2 の暫定の `Write`（ステップ 2-5）は常にエラーを返すため単独で `main` に入れられず（§1.3 の制約）、置き換えるステップ 3-3、ステップ 3-3 が依存するステップ 3-1・3-2、その検証と同じ PR に置くテスト（ステップ 3-4〜3-7）が同じ PR に要る。この制約が強制する最小の組はフェーズ 2 とステップ 3-1〜3-7 である。残るステップ 3-8〜3-10 は、`package_reference.md` を同コミットで更新する規則（ステップ 3-8）、実装と同じ PR に置く壊し確認（ステップ 3-9）、グリーンゲート（ステップ 3-10）であり、いずれもフェーズ 3 の実装と同じ PR に置く。そのためフェーズ 2 とフェーズ 3 を 1 つの PR-2 にまとめる。PR-3 は最も込み入った Markdown の判定（architecture §3.8）を隔離し、PR-4 は実装の確定後に文書と実装を照合する。`package_reference.md` は PR-1〜PR-3 で更新し、PR-4 では実装との一致を確認するだけである。
+
+**PR-2 の大きさとレビュー方法。** PR-2 はフェーズ 2 とフェーズ 3 を合わせた 21 ステップになり、レビューする差分が大きい。`/runplan` はフェーズの区切りでコミットを分けるので、レビューは (1) テンプレートの読み込み・検査と `New`（ステップ 2-1〜2-11）、(2) `Write` の実装と生成の検証（ステップ 3-1〜3-10）の 2 つのチェックポイントに分けて行う。ステップ 3-3 で暫定の `Write` が置き換わり、PR-2 の最終状態に暫定の実装は残らない。
+
+**高リスクなステップの隔離（レビュー用チェックリストの記録）。** ステップ 2-4（テンプレートの構文の許可リストと fail-secure な分岐）とステップ 3-1・3-2（信頼できない LLM 出力の検証）はセキュリティの中核だが、暫定の `Write` の制約により独立した PR にできない。`New`（ステップ 2-5）がステップ 2-4 の検査を使い、`Write`（ステップ 3-3）がステップ 3-1・3-2 を使う依存関係から、これらを PR-2 の最後に置くこともできない。そのため PR-2 では隔離せず、上記の 2 つのチェックポイントでレビューする。
+
+**PR-3 までの順序の制約。** PR-2 のマージ直後の `main` は、Markdown の判定（PR-3）が入るまで生の HTML と閉じていないコードフェンスを受理する。`main` から `ArticleWriter` を使う配線は #6 まで無いので利用者への影響はない（architecture §8）。PR-3 は、`ArticleWriter` を `main` の経路に載せる #6 の作業より前にマージする（§6・§9）。
+
+**PR の区切りの不変条件。** `/runplan` は §2 を文書の順に走査し、`PR-N 作成ポイント` に達したときにだけ PR を作る。そのため §2 は次を満たす。(1) 文書の順で、すべてのステップは、自分の PR の 1 つ前の作成ポイント（先頭の PR では文書の先頭）と自分の PR の作成ポイントの間にあり、他の PR のステップがその間に入らない。(2) すべての PR が作成ポイントを持ち、§3.2 の表・§7 のチェックリスト・§9 の実行順に現れる。本計画はステップを並べ替えていないため、ステップの番号の順と文書の順は一致する。
+
+| PR | 対象ステップ | 主な変更内容 | 実装モデル要件 |
+|---|---|---|---|
+| PR-1 | 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8 / 1-9 / 1-10 | `internal/nilcheck` の新設、`transcript.NormalizedVideoURL`、`Article.ModelVersion`、`pipeline_test.go`・`project_overview.md`・`package_reference.md` の更新 | standard |
+| PR-2 | 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 / 2-8 / 2-9 / 2-10 / 2-11 / 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8 / 3-9 / 3-10 | `prompts` パッケージとテンプレート、`internal/writer` の `errors.go`・`template.go`・`prompt.go`・`output.go`・`New`・`Write`（Markdown の判定を除く）とそのテスト、import guard、`package_reference.md` の更新 | frontier-recommended |
+| PR-3 | 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7 | `internal/writer/markdown.go` の判定、`output.go` からの呼び出し、`markdown_test.go`・`output_test.go` の追加、`package_reference.md` の更新 | frontier-recommended |
+| PR-4 | 5-1 / 5-2 / 5-3 | 文書と実装の照合、クロス検索の記録、グリーンゲート | standard |
+
+### 3.3. 実装順序の根拠
+
+architecture §8 の順序に従う。共有部品（フェーズ 1）は `internal/writer` が使うので最初に置く。`New` とテンプレートの検査（フェーズ 2）は `Write` の前提になる。`ArticleWriter` の interface を満たすため、フェーズ 2 は暫定の `Write` を置き、フェーズ 3 で置き換える。暫定の `Write` が存在するのは PR-2 のブランチ内だけで、`main` には残らない（§3.2）。`main` からの配線はない（配線は issue #6 で行う）。Markdown の判定（フェーズ 4）は最も込み入っているので独立させ、PR-3 とする。PR-3 をマージするまでは `main` が生の HTML を受理するが、配線が #6 まで無いので利用者への影響はない（§3.2・§6）。
 
 ## 4. テスト戦略 (Test Strategy)
 
@@ -284,6 +373,7 @@ AC に対応しない、architecture が求める検証は次のとおり。
 | `test_helpers.go` はテスト向けの lint の除外が効かない | `make lint` が通らない | エラーを無視せず、固定の文字列を定数にする |
 | `gosec` が上書きファイルの `os.OpenFile` を指摘する | `make lint` が通らない | 1 行に限った `//nolint:gosec` と理由のコメント（ステップ 2-4） |
 | 暫定の `Write` がフェーズ 3 の後も残る | `Write` が常に失敗する | ステップ 3-3 で置き換え、M3 の完了条件で確かめる。暫定の実装は常にエラーを返し、検証していない記事を返さない |
+| PR-3 をマージする前に #6 の配線が `main` に入る | 生の HTML と閉じていないコードフェンスを受理する `Write` が利用者に届く | PR-3 を、`ArticleWriter` を `main` の経路に載せる #6 の作業より前にマージする（§3.2・§9） |
 | Go のバージョンの違い（CI の 1.26.5 と手元の 1.27.1）で `text/template/parse` のノードの種類が異なる | 許可リストの判定が CI と手元で変わる | 未知の種類は `default` で拒否する（fail-secure）。`TestTemplateSyntaxAllowlist` が CI で両方の判定を確かめる（architecture §1.3） |
 
 ### 6.1. クロス検索
@@ -294,12 +384,11 @@ AC に対応しない、architecture が求める検証は次のとおり。
 
 ## 7. 実装チェックリスト (Implementation Checklist)
 
-- [ ] フェーズ 1 完了（ステップ 1-1〜1-10）
-- [ ] フェーズ 2 完了（ステップ 2-1〜2-11）
-- [ ] フェーズ 3 完了（ステップ 3-1〜3-10）。暫定の `Write` が残っていない
-- [ ] フェーズ 4 完了（ステップ 4-1〜4-7）
-- [ ] フェーズ 5 完了（ステップ 5-1〜5-3）
-- [ ] 各フェーズで `make fmt` → `make test` → `make lint` が通る
+- [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8 / 1-9 / 1-10）
+- [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 / 2-8 / 2-9 / 2-10 / 2-11 / 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8 / 3-9 / 3-10）。暫定の `Write` が残っていない
+- [ ] PR-3 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7）
+- [ ] PR-4 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3）
+- [ ] 各 PR で `make fmt` → `make test` → `make lint` が通る
 - [ ] §5 のすべての AC の検証が通る
 - [ ] `implementation_handoff.md` の I-01・I-02 が §1.5 のとおり反映されている
 
@@ -313,6 +402,7 @@ AC に対応しない、architecture が求める検証は次のとおり。
 
 ## 9. 次のステップ (Next Steps)
 
-- 本計画のレビューと承認（`approved`）を受ける。
-- 承認後、`/mkplan2 0004` で PR の区切りを埋め込み、`/runplan 0004` で実装する。
+- 本計画は `approved`。PR の区切りは §2 の `PR-N 作成ポイント` と §3.2 に埋め込み済みである。
+- `/runplan 0004` で PR の順（PR-1 → PR-2 → PR-3 → PR-4）に実装する（各 PR は独立してグリーンゲートを通す。§3.2 の不変条件）。
+- PR-3（Markdown の判定）は、`ArticleWriter` を `main` の経路に載せる #6 の作業より前にマージする（§3.2・§6）。
 - 実装の完了後、architecture §9 の申し送りを #6（上書きファイルのパスの受け渡し、本文の部分の制御文字の端末への表示）、#7（出典ブロックの Slack での表示、タイトルのエスケープ、Slack の山括弧の記法）、#8（本番用のテンプレート）の作業で参照する。
