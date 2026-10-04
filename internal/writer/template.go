@@ -107,7 +107,7 @@ func readOpenedFile(src templateSource, file openedFile) ([]byte, error) {
 		return nil, fmt.Errorf("%w: %s: %w", ErrInvalidTemplate, src, err)
 	}
 	if !info.Mode().IsRegular() {
-		return nil, fmt.Errorf("%w: %s: %w (type %s)", ErrInvalidTemplate, src, errNotRegularFile, info.Mode().Type())
+		return nil, fmt.Errorf("%w: %s: %w", ErrInvalidTemplate, src, errNotRegularFile)
 	}
 	data, err := io.ReadAll(io.LimitReader(file, maxTemplateBytes+1))
 	if err != nil {
@@ -175,7 +175,9 @@ func (c syntaxChecker) check(node parse.Node) error {
 	switch n := node.(type) {
 	case *parse.ListNode:
 		return c.checkList(n)
-	case *parse.TextNode, *parse.CommentNode, *parse.NumberNode, *parse.BoolNode:
+	// Comments never reach the tree: the parser drops them unless
+	// parse.ParseComments is set, which it is not here.
+	case *parse.TextNode, *parse.NumberNode, *parse.BoolNode:
 		return nil
 	case *parse.ActionNode:
 		return c.checkPipe(n.Pipe)
@@ -190,8 +192,30 @@ func (c syntaxChecker) check(node parse.Node) error {
 	case *parse.StringNode:
 		return c.checkString(n)
 	default:
-		return c.reject(node, fmt.Sprintf("%T", node))
+		return c.reject(node, describeDisallowed(node))
 	}
+}
+
+// disallowedNames names, in the words of prompts/README.md, the rejected
+// node types a template author is likely to write. It only labels error
+// messages; the rejection itself is the default case of check.
+var disallowedNames = map[parse.NodeType]string{
+	parse.NodeWith:     "with",
+	parse.NodeRange:    "range",
+	parse.NodeTemplate: "template",
+	parse.NodeBreak:    "break",
+	parse.NodeContinue: "continue",
+	parse.NodeDot:      "the dot (.)",
+	parse.NodeVariable: "variable",
+	parse.NodeNil:      "nil",
+	parse.NodeChain:    "field of a parenthesized value",
+}
+
+func describeDisallowed(node parse.Node) string {
+	if name, ok := disallowedNames[node.Type()]; ok {
+		return name
+	}
+	return fmt.Sprintf("%T", node)
 }
 
 func (c syntaxChecker) checkList(list *parse.ListNode) error {

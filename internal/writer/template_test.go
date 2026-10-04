@@ -5,6 +5,7 @@ package writer
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -93,6 +94,8 @@ func TestNewRejectsInvalidOverrideFile(t *testing.T) {
 			return link
 		}, errNotRegularFile},
 	}
+	// The disallowed-syntax examples of the requirements are covered, with
+	// the checker's own error, by TestTemplateSyntaxAllowlist.
 	contents := []struct {
 		name    string
 		content string
@@ -101,10 +104,6 @@ func TestNewRejectsInvalidOverrideFile(t *testing.T) {
 		{"whitespace only", " \t\r\n\u3000"},
 		{"invalid UTF-8", "{{.Title}}\xff"},
 		{"parse error", "{{.Title"},
-		{"unknown field", "{{.APIKey}}"},
-		{"unknown field in branch", "{{if .Description}}{{.APIKey}}{{end}}"},
-		{"with", "{{with .Title}}{{.}}{{end}}"},
-		{"printf", `{{printf "%s" .Title}}`},
 	}
 	for _, target := range overrideTargets {
 		for _, tc := range cases {
@@ -176,10 +175,15 @@ func TestNewOverrideFileFIFO(t *testing.T) {
 			case <-time.After(fifoTimeout):
 				// Opening the write side releases a reader blocked in open,
 				// so the goroutine ends before the test does.
-				if writer, err := os.OpenFile(path, os.O_WRONLY|syscall.O_NONBLOCK, 0); err == nil {
-					_ = writer.Close()
+				writer, err := os.OpenFile(path, os.O_WRONLY|syscall.O_NONBLOCK, 0)
+				if err != nil {
+					t.Fatalf("New did not return within %v on a FIFO with no writer, and opening the write side failed: %v", fifoTimeout, err)
 				}
-				<-done
+				_ = writer.Close()
+				select {
+				case <-done:
+				case <-time.After(fifoTimeout):
+				}
 				t.Fatalf("New did not return within %v on a FIFO with no writer", fifoTimeout)
 			}
 		})
@@ -197,6 +201,44 @@ func TestNewOverrideFileSizeLimit(t *testing.T) {
 			w, err := New(&llmtestutil.FakeLLMClient{}, target.options(writeOverrideFile(t, atLimit+"a")))
 			requireRejected(t, w, err, nil)
 		})
+	}
+}
+
+// largeFile is a regular openedFile with remaining bytes of content, far
+// more than the limit; it is finite so a reader without the bound fails the
+// test instead of exhausting memory.
+type largeFile struct {
+	info      fs.FileInfo
+	remaining int
+}
+
+func (f *largeFile) Stat() (fs.FileInfo, error) { return f.info, nil }
+
+func (f *largeFile) Read(p []byte) (int, error) {
+	if f.remaining == 0 {
+		return 0, io.EOF
+	}
+	n := min(len(p), f.remaining)
+	for i := range n {
+		p[i] = 'a'
+	}
+	f.remaining -= n
+	return n, nil
+}
+
+// TestReadOpenedFileBound checks that an override file is read only one byte
+// past the limit, so a huge file is rejected without being loaded.
+func TestReadOpenedFileBound(t *testing.T) {
+	info, err := os.Stat(writeOverrideFile(t, "{{.Title}}"))
+	if err != nil {
+		t.Fatalf("stat: %v", err)
+	}
+	data, err := readOpenedFile(templateSource{name: systemTemplateName, path: "override.tmpl"}, &largeFile{info: info, remaining: 4 * maxTemplateBytes})
+	if err != nil {
+		t.Fatalf("readOpenedFile error = %v", err)
+	}
+	if len(data) != maxTemplateBytes+1 {
+		t.Errorf("readOpenedFile read %d bytes, want %d", len(data), maxTemplateBytes+1)
 	}
 }
 
@@ -237,13 +279,16 @@ func TestTemplateSyntaxAllowlist(t *testing.T) {
 		{"with", "{{with .Title}}{{.}}{{end}}"},
 		{"range", "{{range .Title}}a{{end}}"},
 		{"template", `{{template "x"}}`},
-		{"break", "{{range .Title}}{{break}}{{end}}"},
-		{"continue", "{{range .Title}}{{continue}}{{end}}"},
+		// break and continue parse only inside range, which is rejected
+		// first; these rows pin that they cannot slip through either.
+		{"break inside range", "{{range .Title}}{{break}}{{end}}"},
+		{"continue inside range", "{{range .Title}}{{continue}}{{end}}"},
 		{"invalid UTF-8 string constant", `{{"\xff"}}`},
 		{"nil", "{{eq .Title nil}}"},
 		{"field chain", "{{(.Title).Foo}}"},
 		{"func print", "{{print .Title}}"},
 		{"func printf", `{{printf "%1000000000s" .Title}}`},
+		{"func printf with %s", `{{printf "%s" .Title}}`},
 		{"func println", "{{println .Title}}"},
 		{"func slice", "{{slice .Title 0 1}}"},
 		{"func html", "{{html .Title}}"},

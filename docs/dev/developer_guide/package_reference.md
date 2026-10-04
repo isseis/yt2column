@@ -1,8 +1,9 @@
 # Package Reference
 
 This document lists the packages under `cmd/` and `internal/`, plus the
-`prompts` package at the repository root, with the responsibility of each. Update it in the same commit that adds, removes, or
-changes the responsibility of a package.
+`prompts` package at the repository root, with the responsibility of each.
+Update it in the same commit that adds, removes, or changes the responsibility
+of a package.
 
 The planned layout and the responsibility of each not-yet-created package are
 described in [project_overview.md](../project_overview.md) ("想定ディレクトリ構成" and
