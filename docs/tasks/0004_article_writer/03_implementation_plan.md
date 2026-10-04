@@ -8,7 +8,7 @@
 | Created | 2026-10-04 |
 | Review date | 2026-10-04 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-04: editorial correction only, no decision changed. Step 1-8 now says `NormalizedVideoURL` validates a video ID and builds the normalized URL from it (the function validates its input itself). Progress checkboxes are ticked as work proceeds. |
 
 ## 1. 実装の概要 (Implementation Overview)
 
