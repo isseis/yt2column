@@ -52,7 +52,7 @@ func TestWriteRejectsInvalidTranscript(t *testing.T) {
 		{"nil Segments", func(tr *transcript.Transcript) { tr.Segments = nil }},
 		{"empty Segments", func(tr *transcript.Transcript) { tr.Segments = []transcript.Segment{} }},
 		{"empty segment text", func(tr *transcript.Transcript) { tr.Segments[1].Text = "" }},
-		{"whitespace-only segment text", func(tr *transcript.Transcript) { tr.Segments[1].Text = " \t\n　" }},
+		{"whitespace-only segment text", func(tr *transcript.Transcript) { tr.Segments[1].Text = " \t\n\u3000" }},
 		{"invalid UTF-8 Title", func(tr *transcript.Transcript) { tr.Title += "\xff" }},
 		{"invalid UTF-8 ChannelName", func(tr *transcript.Transcript) { tr.ChannelName += "\xff" }},
 		{"invalid UTF-8 Description", func(tr *transcript.Transcript) { tr.Description += "\xff" }},
@@ -176,7 +176,7 @@ func TestWriteExpansionFailure(t *testing.T) {
 		template string
 		title    string
 	}{
-		{"blank expansion", "{{.Title}}", " \t\n　"},
+		{"blank expansion", "{{.Title}}", " \t\n\u3000"},
 		{"execution error", "{{index .Title 100}}", "short"},
 	}
 	for _, target := range overrideTargets {

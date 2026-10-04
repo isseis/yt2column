@@ -120,7 +120,7 @@ func TestWriteRejectsMalformedText(t *testing.T) {
 	const title, body = markOutTitle, markOutBody
 	cases := []struct{ name, text string }{
 		{"empty", ""},
-		{"whitespace only", " \n\t　"},
+		{"whitespace only", " \n\t\u3000"},
 		{"invalid UTF-8", "# " + title + "\n" + body + "\xff"},
 		{"first line not a heading", title + "\n" + body},
 		{"leading blank line", "\n# " + title + "\n" + body},
@@ -130,7 +130,7 @@ func TestWriteRejectsMalformedText(t *testing.T) {
 		{"Setext heading", title + "\n===\n" + body},
 		{"empty title", "# \n" + body},
 		{"spaces and tab only title", "#  \t\n" + body},
-		{"ideographic space only title", "# 　\n" + body},
+		{"ideographic space only title", "# \u3000\n" + body},
 		{"title with CR", "# " + title + "\r\n" + body},
 		{"title with ESC", "# " + title + "\x1b[31m\n" + body},
 		{"title ending with #", "# " + title + " #\n" + body},
@@ -152,7 +152,7 @@ func TestWriteRejectsInvalidModel(t *testing.T) {
 		model, modelVersion string
 	}{
 		{"empty Model", "", markOutModelVersion},
-		{"ideographic space Model", "　", markOutModelVersion},
+		{"ideographic space Model", "\u3000", markOutModelVersion},
 		{"invalid UTF-8 Model", markOutModel + "\xff", markOutModelVersion},
 		{"Model with ESC", markOutModel + "\x1b[31m", markOutModelVersion},
 		{"Model with newline", markOutModel + "\nfake", markOutModelVersion},
