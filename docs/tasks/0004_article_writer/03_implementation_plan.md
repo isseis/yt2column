@@ -183,7 +183,7 @@ AC-01・AC-03・AC-04・AC-30（目印が `LLMClient` に渡ること）は `Wri
 
 **判定理由**: `os.OpenFile` に対する `gosec` の 1 行の抑制（Conditional check の「security-linter-flagged construct」）と、`//go:build test` の `internal/writer/test_helpers.go` という非 `_test.go` のビルドタグ下のソース（Conditional check の「build-tag compiled non-`_test.go` source」）の 2 つに該当し、加えて信頼できないテンプレートの検査と LLM 出力の検証というセキュリティの中核を含むため。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
