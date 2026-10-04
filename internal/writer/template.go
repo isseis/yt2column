@@ -33,21 +33,32 @@ const probeNameSuffix = ".probe"
 // right after, so neither flag is relied on for anything but the open itself.
 const overrideOpenFlags = os.O_RDONLY | syscall.O_NONBLOCK | syscall.O_NOCTTY
 
+// variadic marks a function with no upper bound on its argument count.
+const variadic = -1
+
+// funcArity is the number of arguments a function accepts, counting a value
+// piped into it. max is variadic when there is no upper bound.
+type funcArity struct {
+	min, max int
+}
+
 // allowedFuncs is the set of text/template builtin functions a template may
-// call. Each returns a bool, an int, a single byte, or one of its arguments,
-// so no call can produce a string larger than its input.
-var allowedFuncs = map[string]struct{}{
-	"and":   {},
-	"or":    {},
-	"not":   {},
-	"eq":    {},
-	"ne":    {},
-	"lt":    {},
-	"le":    {},
-	"gt":    {},
-	"ge":    {},
-	"len":   {},
-	"index": {},
+// call, with the argument counts their signatures in text/template/funcs.go
+// accept (eq takes one or more there but fails at run time with only one).
+// Each returns a bool, an int, a single byte, or one of its arguments, so no
+// call can produce a string larger than its input.
+var allowedFuncs = map[string]funcArity{
+	"and":   {1, variadic},
+	"or":    {1, variadic},
+	"not":   {1, 1},
+	"eq":    {2, variadic},
+	"ne":    {2, 2},
+	"lt":    {2, 2},
+	"le":    {2, 2},
+	"gt":    {2, 2},
+	"ge":    {2, 2},
+	"len":   {1, 1},
+	"index": {1, variadic},
 }
 
 // templateSource identifies a template in error messages. An empty path
@@ -170,7 +181,9 @@ type syntaxChecker struct {
 // check dispatches on the node type. Only allowed node types have a case;
 // every other type (with, range, template, break, continue, variables, the
 // dot itself, nil, field chains, and any type a later Go release adds) falls
-// through to default and is rejected.
+// through to default and is rejected. A function name has no case here: it
+// is accepted only in the first position of a command (checkCommand), so one
+// reached anywhere else is rejected too.
 func (c syntaxChecker) check(node parse.Node) error {
 	switch n := node.(type) {
 	case *parse.ListNode:
@@ -187,8 +200,6 @@ func (c syntaxChecker) check(node parse.Node) error {
 		return c.checkPipe(n)
 	case *parse.FieldNode:
 		return c.checkField(n)
-	case *parse.IdentifierNode:
-		return c.checkFunction(n)
 	case *parse.StringNode:
 		return c.checkString(n)
 	default:
@@ -200,15 +211,16 @@ func (c syntaxChecker) check(node parse.Node) error {
 // node types a template author is likely to write. It only labels error
 // messages; the rejection itself is the default case of check.
 var disallowedNames = map[parse.NodeType]string{
-	parse.NodeWith:     "with",
-	parse.NodeRange:    "range",
-	parse.NodeTemplate: "template",
-	parse.NodeBreak:    "break",
-	parse.NodeContinue: "continue",
-	parse.NodeDot:      "the dot (.)",
-	parse.NodeVariable: "variable",
-	parse.NodeNil:      "nil",
-	parse.NodeChain:    "field of a parenthesized value",
+	parse.NodeWith:       "with",
+	parse.NodeRange:      "range",
+	parse.NodeTemplate:   "template",
+	parse.NodeBreak:      "break",
+	parse.NodeContinue:   "continue",
+	parse.NodeDot:        "the dot (.)",
+	parse.NodeVariable:   "variable",
+	parse.NodeNil:        "nil",
+	parse.NodeChain:      "field of a parenthesized value",
+	parse.NodeIdentifier: "function used as an argument (wrap the call in parentheses)",
 }
 
 func describeDisallowed(node parse.Node) string {
@@ -244,19 +256,58 @@ func (c syntaxChecker) checkPipe(pipe *parse.PipeNode) error {
 	if len(pipe.Decl) > 0 {
 		return c.reject(pipe, "variable declaration")
 	}
-	for _, cmd := range pipe.Cmds {
-		if err := c.checkCommand(cmd); err != nil {
+	for i, cmd := range pipe.Cmds {
+		if err := c.checkCommand(cmd, i > 0); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (c syntaxChecker) checkCommand(cmd *parse.CommandNode) error {
-	for _, arg := range cmd.Args {
+// checkCommand checks the shape text/template evaluates a command with, so a
+// call that fails for every input is rejected here rather than at Write. A
+// command led by a function name is a call: the function must be allowed and
+// get an accepted number of arguments, counting the value piped in when the
+// command is a later stage of a pipeline (piped). Any other command is a
+// single value (a field, a constant, a parenthesized pipeline) and takes no
+// arguments and no piped value.
+func (c syntaxChecker) checkCommand(cmd *parse.CommandNode, piped bool) error {
+	// The parser never yields an empty command; the guard keeps Args[0]
+	// below from panicking if a later Go release did.
+	if len(cmd.Args) == 0 {
+		return c.reject(cmd, "empty command")
+	}
+	fn, ok := cmd.Args[0].(*parse.IdentifierNode)
+	if !ok {
+		if len(cmd.Args) > 1 || piped {
+			return c.reject(cmd, "arguments given to a value that is not a function")
+		}
+		return c.check(cmd.Args[0])
+	}
+	count := len(cmd.Args) - 1
+	if piped {
+		count++
+	}
+	if err := c.checkCall(fn, count); err != nil {
+		return err
+	}
+	for _, arg := range cmd.Args[1:] {
 		if err := c.check(arg); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// checkCall accepts an allowed function called with count arguments within
+// its arity.
+func (c syntaxChecker) checkCall(fn *parse.IdentifierNode, count int) error {
+	arity, ok := allowedFuncs[fn.Ident]
+	if !ok {
+		return c.reject(fn, fmt.Sprintf("function %q", fn.Ident))
+	}
+	if count < arity.min || (arity.max != variadic && count > arity.max) {
+		return c.reject(fn, fmt.Sprintf("function %q called with %d arguments", fn.Ident, count))
 	}
 	return nil
 }
@@ -270,13 +321,6 @@ func (c syntaxChecker) checkField(n *parse.FieldNode) error {
 		}
 	}
 	return c.reject(n, fmt.Sprintf("field reference %q", "."+strings.Join(n.Ident, ".")))
-}
-
-func (c syntaxChecker) checkFunction(n *parse.IdentifierNode) error {
-	if _, ok := allowedFuncs[n.Ident]; ok {
-		return nil
-	}
-	return c.reject(n, fmt.Sprintf("function %q", n.Ident))
 }
 
 // checkString rejects a string constant whose unescaped value is not valid
