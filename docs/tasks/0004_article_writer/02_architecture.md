@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-03 |
-| Review date | - |
-| Reviewer | - |
-| Comments | - |
+| Review date | 2026-10-04 |
+| Reviewer | isseis |
+| Comments | 2026-10-04: §8 の手順 1〜5 の `package_reference.md` の更新時期を、同ファイルの規則（パッケージを追加・変更するコミットで更新する）に合わせて各手順へ分けた。同日、§8 の手順 2・3 の AC の割り当てを、`Write` が `LLMClient` に渡すプロンプトで確かめる AC-01・AC-03・AC-04・AC-30 を手順 3 で検証する形に直し、§3.12 の `package_reference.md` の `internal/pipeline` の行を「変わらないことを確かめる」に直した（`isTypedNil` に触れていないため）。いずれも編集上の修正であり、設計の決定は変えていない |
 
 ## 1. 設計の全体像 (Design Overview)
 
@@ -570,7 +570,7 @@ func IsNil(v any) bool
 | `internal/pipeline/pipeline.go` | `isTypedNil` を削除し、`nilcheck.IsNil` を使う（§3.11） | 変更 |
 | `internal/pipeline/pipeline_test.go` | `TestCommonTypesFieldSets` の `Article` の期待値に `ModelVersion`（`string`）を加える（I-02） | 変更 |
 | `docs/dev/project_overview.md` | `ArticleWriter` の説明の `Article` の項目に、モデルの版の識別子を加える（I-02）。想定ディレクトリ構成に `internal/nilcheck/` を加える | 変更 |
-| `docs/dev/developer_guide/package_reference.md` | `prompts`・`internal/nilcheck` の追加。`internal/writer`・`internal/transcript`・`internal/pipeline` の責務の更新 | 変更 |
+| `docs/dev/developer_guide/package_reference.md` | `prompts`・`internal/nilcheck` の追加。`internal/writer`・`internal/transcript` の責務の更新。`internal/pipeline` の行は `isTypedNil` に触れていないので、変わらないことを確かめる | 変更 |
 
 **既存テストへの影響。** 期待値を更新する既存のテストは `TestCommonTypesFieldSets` だけである。ほかの既存のテストは変更せずに通らなければならない。
 
@@ -911,11 +911,11 @@ flowchart TD
 
 ## 8. 実装優先順位 (Implementation Priorities)
 
-1. **共有部品**: `internal/nilcheck` を新設し、`internal/pipeline` の `isTypedNil` を置き換える。`transcript.NormalizedVideoURL` を追加し、`validateVideoURL` を置き換える。`writer.Article` に `ModelVersion` を加え、`TestCommonTypesFieldSets` と project_overview.md を更新する。既存のテストが変更なしで通ること（`TestCommonTypesFieldSets` を除く）を確かめる。
-2. **テンプレート**: `prompts` パッケージ、仮のテンプレート、`prompts/README.md`。`internal/writer` の上書きファイルの読み込みとテンプレートの検査、`New`。AC-01〜AC-06・AC-30。
-3. **記事の生成（Markdown の判定を除く）**: `Transcript` の検証、展開、`Generate` の呼び出し、生成テキストの検証（§3.7 の手順 6 を除く）、出典ブロック。AC-07〜AC-19・AC-22・AC-23・AC-25・AC-26・AC-28・AC-29・AC-31。
+1. **共有部品**: `internal/nilcheck` を新設し、`internal/pipeline` の `isTypedNil` を置き換える。`transcript.NormalizedVideoURL` を追加し、`validateVideoURL` を置き換える。`writer.Article` に `ModelVersion` を加え、`TestCommonTypesFieldSets` と project_overview.md を更新する。`package_reference.md` に `internal/nilcheck` の行を加え、`internal/transcript` の行を更新する。既存のテストが変更なしで通ること（`TestCommonTypesFieldSets` を除く）を確かめる。
+2. **テンプレート**: `prompts` パッケージ、仮のテンプレート、`prompts/README.md`。`internal/writer` の上書きファイルの読み込みとテンプレートの検査、`New`。`package_reference.md` に `prompts` の行を加え、`internal/writer` の行を更新する。AC-01〜AC-06・AC-30 を実装し、構築時に確かめられる AC-02・AC-05・AC-06 と AC-30 の見出しの指示を検証する（AC-01・AC-03・AC-04・AC-30 の残りは `Write` が要るので手順 3 で検証する）。
+3. **記事の生成（Markdown の判定を除く）**: `Transcript` の検証、展開、`Generate` の呼び出し、生成テキストの検証（§3.7 の手順 6 を除く）、出典ブロック。AC-01・AC-03・AC-04・AC-30 の検証と、AC-07〜AC-19・AC-22・AC-23・AC-25・AC-26・AC-28・AC-29・AC-31。
 4. **Markdown の判定**: §3.8 の判定と、その境界の例のテスト。AC-24・AC-27。判定が最も込み入っているので、独立した手順にしてレビューしやすくする。
-5. **文書**: package_reference.md の更新。
+5. **文書**: 手順 1〜4 で更新した package_reference.md の行が、実装と一致することの確認。手順 3・4 も、`internal/writer` の責務を変えるときは同じコミットで同ファイルの行を更新する。
 
 手順 3 の時点で手順 4 の判定がないと、生の HTML を含む生成テキストを受理してしまう。手順 3 と手順 4 の間で `main` から `ArticleWriter` を使う配線はない（#6）ので、利用者に影響はない。
 
