@@ -4,6 +4,8 @@
 
 This repository squash-merges every PR (`.claude/commands/_context.md`, "PR merge method"). Only the squash commit remains on `main`, so its commit message must carry forward what CLAUDE.md requires a commit message to record (such as the record of confirming that a test fails when the code it covers is broken). `/mergepr` drafts that message from the PR's material and merges after obtaining approval.
 
+The body is a brief summary of the PR's final state. For detail already recorded in a committed document (such as the task's `03_implementation_plan.md`), it refers to that document and states that the steps prescribed there (such as the steps that confirm a test fails when the code it covers is broken) were performed and that each named test was confirmed to fail. A verification record, justification, obligation, or coverage note that is recorded nowhere else in the repository is kept in the body as a record of about one line, because after the squash merge neither the PR's commits nor `log.txt` is reachable from `main`. The detailed drafting rules are in step 2 of `.claude/commands/mergepr.md`.
+
 ## 1. Role of the Tool
 
 `mergepr` is an internal tool for the author of a PR to merge their own PR. It does not defend against malicious users, configuration, or PR contents. It assumes use in a standard environment, and those assumptions are listed in Section 2.
