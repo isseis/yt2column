@@ -98,7 +98,7 @@ func TestNewRejectsInvalidOverrideFile(t *testing.T) {
 		content string
 	}{
 		{"empty", ""},
-		{"whitespace only", " \t\r\n　"},
+		{"whitespace only", " \t\r\n\u3000"},
 		{"invalid UTF-8", "{{.Title}}\xff"},
 		{"parse error", "{{.Title"},
 		{"unknown field", "{{.APIKey}}"},
