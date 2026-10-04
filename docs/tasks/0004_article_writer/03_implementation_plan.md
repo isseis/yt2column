@@ -84,7 +84,7 @@ design_handoff.md の H-01〜H-11 は、すべて architecture §3.13 に対応�
   - `:31` の変更前: `` - `ArticleWriter`: プロバイダに依存しない。プロンプトテンプレートにタイムスタンプを除いた本文とメタ情報を埋め込み、`LLMClient` を呼び出して、結果を `Article`（タイトル・Markdown 本文・出典 URL・生成モデル名）に変換する。 ``
   - 変更後: `` - `ArticleWriter`: プロバイダに依存しない。プロンプトテンプレートにタイムスタンプを除いた本文とメタ情報を埋め込み、`LLMClient` を呼び出して、結果を `Article`（タイトル・Markdown 本文・出典 URL・生成モデル名・モデルの版の識別子）に変換する。 ``
   - 想定ディレクトリ構成の `internal/strictjson/` の行の次に、`internal/nilcheck/        # typed nil を含む nil の判定` を加える（`#` の位置は前後の行にそろえる）。
-- [x] **ステップ 1-8**: `package_reference.md` に `internal/nilcheck` の行（nil の interface 値と typed nil の判定。`internal/pipeline` が使う）を加え、`internal/transcript` の行に `NormalizedVideoURL`（検証した動画 ID から正規化した URL を組み立てる）を加える。`internal/writer` が使うことは、使い始めるステップ 2-9・3-8 で書き加える。`internal/pipeline` の行は変更しない（§1.3）。
+- [x] **ステップ 1-8**: `package_reference.md` に `internal/nilcheck` の行（nil の interface 値と typed nil の判定。`internal/pipeline` が使う）を加え、`internal/transcript` の行に `NormalizedVideoURL`（動画 ID を検証し、正規化した URL を組み立てる）を加える。`internal/writer` が使うことは、使い始めるステップ 2-9・3-8 で書き加える。`internal/pipeline` の行は変更しない（§1.3）。
 - [x] **ステップ 1-9**: 壊して失敗することを確認し、コミットメッセージに記録する。対象: `IsNil` の `Pointer`・`Func`・`Map`・`Slice`・`Chan` の場合を 1 つずつ外す（`TestIsNil`）、`IsNil` の `v == nil` を外す（`TestIsNil` の nil の interface 値のケース）、`NormalizedVideoURL` の検査を外す（`TestNormalizedVideoURL` と `TestValidateVideoURL` の拒否のケース）、`checkStage` が `IsNil` を呼ばない（`TestPipelineNewNilStage`）。
 - [x] **ステップ 1-10**: このフェーズの差分のテストファイルが `nilcheck_test.go`・`video_id_test.go`（追加だけ）・`pipeline_test.go`（`TestCommonTypesFieldSets` の 1 行だけ）であることを、コミット前に差分で確認する。`make fmt` → `make test` → `make lint` を通す。
 
@@ -100,7 +100,7 @@ design_handoff.md の H-01〜H-11 は、すべて architecture §3.13 に対応�
 
 **判定理由**: 既存テストで振る舞いの保存を確かめられる純粋なリファクタリングと型・文書の追加に限られ、競合する実装方針の併記・高リスクな制御・パネルモードのトリガー・Conditional checks のいずれにも該当しないため。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
