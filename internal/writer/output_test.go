@@ -51,8 +51,8 @@ func TestWriteArticle(t *testing.T) {
 		},
 		{
 			"Markdown and surrounding whitespace kept",
-			responseWithText("# T\n  \n## 小見出し\n\n- 項目\n- [リンク](https://example.com/)\n\n\t末尾  \n\n"),
-			"T", "  \n## 小見出し\n\n- 項目\n- [リンク](https://example.com/)\n\n\t末尾  \n\n",
+			responseWithText("# T\n  \n## Sub\n\n- item\n- [link](https://example.com/)\n\n\tend  \n\n"),
+			"T", "  \n## Sub\n\n- item\n- [link](https://example.com/)\n\n\tend  \n\n",
 		},
 		{
 			"spaces and tabs trimmed from title",
@@ -104,13 +104,10 @@ func TestWriteSourceBlock(t *testing.T) {
 			if a.SourceURL != testSourceURL {
 				t.Errorf("SourceURL = %q, want %q", a.SourceURL, testSourceURL)
 			}
+			// The separator puts a blank line before the block however the
+			// body ends.
 			if want := tc.body + "\n\n" + testSourceBlock; a.Body != want {
 				t.Errorf("Body = %q, want %q", a.Body, want)
-			}
-			// A blank line precedes the block however the body ends.
-			before, ok := strings.CutSuffix(a.Body, testSourceBlock)
-			if !ok || !strings.HasSuffix(before, "\n\n") {
-				t.Errorf("Body = %q, want the source block after a blank line", a.Body)
 			}
 		})
 	}
@@ -134,6 +131,8 @@ func TestWriteRejectsMalformedText(t *testing.T) {
 		{"title with CR", "# " + title + "\r\n" + body},
 		{"title with ESC", "# " + title + "\x1b[31m\n" + body},
 		{"title ending with #", "# " + title + " #\n" + body},
+		{"title ending with # before spaces", "# " + title + " # \n" + body},
+		{"title ending with # before a tab", "# " + title + " #\t\n" + body},
 		{"no body", "# " + title},
 		{"empty body", "# " + title + "\n"},
 		{"whitespace-only body", "# " + title + "\n \n\t\n"},

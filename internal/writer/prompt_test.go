@@ -7,6 +7,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"text/template"
 
 	"github.com/isseis/yt2column/internal/transcript"
 )
@@ -74,8 +75,8 @@ func TestWriteRejectsInvalidTranscript(t *testing.T) {
 			if len(client.Calls) != 0 {
 				t.Errorf("Generate called %d times, want 0", len(client.Calls))
 			}
-			for _, mark := range []string{markTitle, markChannel, markDescription, markSegment} {
-				if strings.Contains(err.Error(), mark) {
+			for _, mark := range []string{markTitle, markChannel, markDescription, markSegment, tr.VideoID, tr.VideoURL} {
+				if mark != "" && strings.Contains(err.Error(), mark) {
 					t.Errorf("Write error %q contains the transcript value marked %q", err, mark)
 				}
 			}
@@ -165,8 +166,12 @@ func TestWriteDoesNotInterpretValues(t *testing.T) {
 		t.Fatalf("Write error = %v", err)
 	}
 	want := markerPrompt(tr)
-	if got := client.Calls[0].Request.UserPrompt; got != want {
-		t.Errorf("user prompt = %q, want %q", got, want)
+	req := client.Calls[0].Request
+	if req.SystemPrompt != want {
+		t.Errorf("system prompt = %q, want %q", req.SystemPrompt, want)
+	}
+	if req.UserPrompt != want {
+		t.Errorf("user prompt = %q, want %q", req.UserPrompt, want)
 	}
 }
 
@@ -192,6 +197,14 @@ func TestWriteExpansionFailure(t *testing.T) {
 				}
 				if errors.Is(err, errPromptTooLarge) {
 					t.Errorf("Write error = %v, want a failure other than the size limit", err)
+				}
+				// The text/template error is quoted into the message, not
+				// chained, so its unescaped text cannot be reached.
+				if _, ok := errors.AsType[template.ExecError](err); ok {
+					t.Errorf("Write error = %v, want the template execution error not chained", err)
+				}
+				if !strings.Contains(err.Error(), target.name) {
+					t.Errorf("Write error = %v, want it to name the %s template", err, target.name)
 				}
 				if a != (Article{}) {
 					t.Errorf("Write article = %+v, want the zero value", a)
@@ -234,11 +247,40 @@ func TestWritePromptSizeLimit(t *testing.T) {
 				if tc.wantCalls == 0 && (!errors.Is(err, ErrInvalidTemplate) || !errors.Is(err, errPromptTooLarge)) {
 					t.Fatalf("Write error = %v, want ErrInvalidTemplate for the size limit", err)
 				}
+				if tc.wantCalls == 0 && !strings.Contains(err.Error(), target.name) {
+					t.Errorf("Write error = %v, want it to name the %s template", err, target.name)
+				}
 				if len(client.Calls) != tc.wantCalls {
 					t.Errorf("Generate called %d times, want %d", len(client.Calls), tc.wantCalls)
 				}
 			})
 		}
+	}
+}
+
+// TestWritePromptSizeLimitStopsExpansion checks that the limit stops
+// expansion at the write that crosses it, rather than being checked on the
+// finished prompt: the action after the oversized title would fail with an
+// execution error if expansion went on.
+func TestWritePromptSizeLimitStopsExpansion(t *testing.T) {
+	for _, target := range overrideTargets {
+		t.Run(target.name, func(t *testing.T) {
+			opts := Options{
+				SystemTemplatePath: writeOverrideFile(t, "x"),
+				UserTemplatePath:   writeOverrideFile(t, "x"),
+			}
+			opts = mergeOptions(opts, target.options(writeOverrideFile(t, "{{.Title}}{{index .Title 2000000}}")))
+			client := newFakeClient()
+			w := mustNew(t, client, opts)
+			tr := validTranscript()
+			tr.Title = strings.Repeat("a", maxPromptBytes+1)
+			if _, err := w.Write(context.Background(), tr); !errors.Is(err, errPromptTooLarge) {
+				t.Errorf("Write error = %v, want errPromptTooLarge", err)
+			}
+			if len(client.Calls) != 0 {
+				t.Errorf("Generate called %d times, want 0", len(client.Calls))
+			}
+		})
 	}
 }
 

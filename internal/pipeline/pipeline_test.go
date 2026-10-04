@@ -591,8 +591,8 @@ func TestPromptsREADMEMatchesContract(t *testing.T) {
 }
 
 // TestWriterImports checks that the article writer stays provider
-// independent: no Go file of internal/writer or prompts, tests included,
-// imports the network packages or an LLM provider package. The LLM test
+// independent: no Go file directly in internal/writer or prompts, tests
+// included, directly imports the network packages or an LLM provider package. The LLM test
 // double package is allowed only from test-only files; imported from a
 // production file it would break the normal build.
 func TestWriterImports(t *testing.T) {
