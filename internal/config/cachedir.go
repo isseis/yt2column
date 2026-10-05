@@ -3,7 +3,7 @@ package config
 import "path/filepath"
 
 // defaultCacheDir returns the default YT2COLUMN_CACHE_DIR for goos, derived
-// from the environment lookup gives, and whether one could be derived. It
+// from the values lookup returns, and whether one could be derived. It
 // follows the same rules as os.UserCacheDir for the supported operating
 // systems, but also rejects a relative result: a relative cache directory would
 // change what the cache pruning and removal act on with the current directory.

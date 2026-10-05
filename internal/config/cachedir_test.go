@@ -66,6 +66,7 @@ func TestDefaultCacheDir(t *testing.T) {
 			env:    map[string]string{"XDG_CACHE_HOME": "rel", "HOME": "/home/u"},
 			wantOK: false,
 		},
+		{name: "linux empty home", goos: "linux", env: map[string]string{"HOME": ""}, wantOK: false},
 		{name: "linux relative home", goos: "linux", env: map[string]string{"HOME": "rel"}, wantOK: false},
 		{name: "linux no home", goos: "linux", env: map[string]string{}, wantOK: false},
 		{name: "windows", goos: "windows", env: map[string]string{"HOME": "/u"}, wantOK: false},

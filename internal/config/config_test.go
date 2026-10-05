@@ -221,6 +221,7 @@ func TestLoadErrorsOmitValues(t *testing.T) {
 		{"API key empty", with(base, apiKeyEnv, "")},
 		{"slack webhook invalid", with(base, slackEnv, "http://"+markSlack)},
 		{"cache dir relative", with(base, cacheDirEnv, markCache)},
+		{"cache dir absent", without(base, cacheDirEnv)},
 		{"yt-dlp path empty", with(base, ytDlpEnv, "")},
 	}
 	for _, tc := range cases {

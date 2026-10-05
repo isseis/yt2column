@@ -52,7 +52,7 @@ const (
 	reasonProvider       = `must be exactly "deepseek"`
 	reasonSlackWebhook   = `must start with "https://hooks.slack.com/" and contain no whitespace`
 	reasonCacheDir       = "must be an absolute path"
-	reasonCacheDirAbsent = "cannot be derived because HOME and XDG_CACHE_HOME are unset, empty, or relative"
+	reasonCacheDirAbsent = "no absolute default could be derived from HOME or XDG_CACHE_HOME"
 )
 
 // LookupFunc has the signature of os.LookupEnv. Load reads every variable

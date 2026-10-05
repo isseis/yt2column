@@ -40,6 +40,20 @@ var envFunctions = map[string]map[string]bool{
 	},
 }
 
+// envMethodNames is every name in envFunctions. A selector with one of these
+// names on a receiver that is not a known os/syscall import is rejected rather
+// than allowed, because the reference cannot be resolved (for example
+// (*exec.Cmd).Environ, which returns os.Environ when the command has no Env).
+var envMethodNames = func() map[string]bool {
+	names := map[string]bool{}
+	for _, funcs := range envFunctions {
+		for name := range funcs {
+			names[name] = true
+		}
+	}
+	return names
+}()
+
 // secretEnvNames are the secret variable names that may appear only in
 // internal/config.
 var secretEnvNames = []string{"DEEPSEEK_API_KEY", "SLACK_WEBHOOK_URL"}
@@ -80,7 +94,12 @@ func scanEnvAccess(root string) (envAccessReport, error) {
 				return nil
 			}
 			name := d.Name()
-			if strings.HasPrefix(name, ".") || name == "vendor" || name == "build" {
+			if strings.HasPrefix(name, ".") || name == "vendor" {
+				return filepath.SkipDir
+			}
+			// Skip only the repository's top-level build output directory, not
+			// a package that happens to be named build at some other depth.
+			if path == filepath.Join(root, "build") {
 				return filepath.SkipDir
 			}
 			return nil
@@ -122,7 +141,9 @@ func envRefsInFile(path, name string) ([]envRef, bool, error) {
 }
 
 // collectEnvRefs resolves the imports of file and returns every reference to an
-// environment-reading function and every secret variable name literal.
+// environment-reading function and every secret variable name literal. A secret
+// name assembled from more than one literal is not detected; the check targets
+// the contiguous literal a developer would write.
 func collectEnvRefs(file *ast.File) []envRef {
 	aliases := map[string]string{}
 	var refs []envRef
@@ -165,6 +186,8 @@ func collectEnvRefs(file *ast.File) []envRef {
 			}
 			if qualified, ok := envSelector(v, aliases); ok {
 				refs = append(refs, envRef{kind: "value", qualified: qualified})
+			} else if method, ok := methodEnvRef(v, aliases); ok {
+				refs = append(refs, envRef{kind: "method", qualified: method})
 			}
 		case *ast.BasicLit:
 			if v.Kind != token.STRING {
@@ -183,6 +206,22 @@ func collectEnvRefs(file *ast.File) []envRef {
 		return true
 	})
 	return refs
+}
+
+// methodEnvRef reports sel's method name when it selects an environment-reader
+// name on a receiver that is not a known os/syscall import alias. The reference
+// cannot be resolved to a standard library function, so the scan rejects it
+// rather than assuming it is safe.
+func methodEnvRef(sel *ast.SelectorExpr, aliases map[string]string) (string, bool) {
+	if ident, ok := sel.X.(*ast.Ident); ok {
+		if _, isImport := aliases[ident.Name]; isImport {
+			return "", false
+		}
+	}
+	if !envMethodNames[sel.Sel.Name] {
+		return "", false
+	}
+	return sel.Sel.Name, true
 }
 
 // envSelector resolves sel against the import aliases and reports the
@@ -417,6 +456,15 @@ func f() {
 	_, _ = os.UserCacheDir()
 }
 `,
+		"internal/other/methodreader.go": `package other
+
+import "os/exec"
+
+func f() {
+	c := exec.Command("x")
+	_ = c.Environ()
+}
+`,
 		"internal/other/others.go": `package other
 
 import (
@@ -517,6 +565,7 @@ const key = "SLACK_WEBHOOK_URL"
 		"internal/other/dot.go import:os",
 		"internal/other/envvalue.go value:os.Getenv",
 		"internal/other/internalreader.go call:os.UserCacheDir",
+		"internal/other/methodreader.go method:Environ",
 		"internal/other/others.go call:os.ExpandEnv",
 		"internal/other/others.go call:os.UserConfigDir",
 		"internal/other/others.go call:os.UserHomeDir",
