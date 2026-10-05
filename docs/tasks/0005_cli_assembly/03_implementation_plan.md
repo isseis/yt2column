@@ -200,8 +200,8 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: `internal/config`
 
@@ -210,25 +210,25 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 -   変更: `docs/dev/developer_guide/package_reference.md`
 
 **タスク**
--   [ ] **ステップ 2-1**: `config.go` に `Provider`・`Config` とその公開メソッド・`LookupFunc`・`Load`・`ErrMissing`・`ErrInvalid`・`VarError` を作る（設計書 3.1）。検証の規則は要件書 F-001 の表と箇条書きのとおりとし、値を補正しない。`VarError.Reason` は固定の文字列の定数から選び、値から組み立てない。拒否した変数ごとの `*VarError` を `errors.Join` で返す。
--   [ ] **ステップ 2-2**: `cachedir.go` に、OS の名前と `LookupFunc` を引数で受け取る非公開の関数で、キャッシュディレクトリの既定値の規則（設計書 3.1 の表と箇条書き）を作る。`Load` は `runtime.GOOS` を渡す。既定値を決められない場合は、`YT2COLUMN_CACHE_DIR` の `ErrMissing` として、`HOME` または `XDG_CACHE_HOME` から決められなかったことを固定の文言で報告する。
--   [ ] **ステップ 2-3**: `Load` に `GODEBUG` の HTTP/2 の記録の判定を加え、`HTTP2DebugEnabled` で返す（設計書 3.1）。拒否はしない。
--   [ ] **ステップ 2-4**: `config_test.go`・`cachedir_test.go` に次を作る。入力は要件書の AC の例をそのまま使う。
+-   [x] **ステップ 2-1**: `config.go` に `Provider`・`Config` とその公開メソッド・`LookupFunc`・`Load`・`ErrMissing`・`ErrInvalid`・`VarError` を作る（設計書 3.1）。検証の規則は要件書 F-001 の表と箇条書きのとおりとし、値を補正しない。`VarError.Reason` は固定の文字列の定数から選び、値から組み立てない。拒否した変数ごとの `*VarError` を `errors.Join` で返す。
+-   [x] **ステップ 2-2**: `cachedir.go` に、OS の名前と `LookupFunc` を引数で受け取る非公開の関数で、キャッシュディレクトリの既定値の規則（設計書 3.1 の表と箇条書き）を作る。`Load` は `runtime.GOOS` を渡す。既定値を決められない場合は、`YT2COLUMN_CACHE_DIR` の `ErrMissing` として、`HOME` または `XDG_CACHE_HOME` から決められなかったことを固定の文言で報告する。
+-   [x] **ステップ 2-3**: `Load` に `GODEBUG` の HTTP/2 の記録の判定を加え、`HTTP2DebugEnabled` で返す（設計書 3.1）。拒否はしない。
+-   [x] **ステップ 2-4**: `config_test.go`・`cachedir_test.go` に次を作る。入力は要件書の AC の例をそのまま使う。
     -   `TestLoadValid`（AC-01）、`TestLoadDefaults`（AC-02）、`TestLoadMissing`（AC-03）、`TestLoadEmpty`（AC-04。表の 6 つの変数のそれぞれ）、`TestLoadInvalid`（AC-05）。
     -   `TestLoadErrorsOmitValues`（AC-06）: 各変数に互いに異なる目印を含む値を設定し、どの拒否のエラーの `Error()` にもどの目印も現れないこと。
     -   `TestLoadReportsAllInvalid`（AC-07）: `ErrMissing` と `ErrInvalid` の両方が `errors.Is` で真になり、拒否した変数の名前がすべて現れること。
     -   `TestConfigOutputRedactsSecrets`（AC-08）: `%v`・`%+v`・`%#v`・`log/slog`（テキストと JSON）・`encoding/json` に、秘密情報の値が現れないこと。JSON の行は、フィールドが非公開であることによって成り立つ構造上の確認である。
     -   `TestLoadHTTP2Debug`（AC-51 の設定の部分）: `http2debug=1`・`http2debug=2`・他の設定と並んだ `http2debug=1` で真、未設定・`http2debug=0` で偽であること。
     -   `TestDefaultCacheDir`: `darwin`・`linux` のそれぞれで、`HOME`・`XDG_CACHE_HOME` の有無・空・相対パスの組み合わせ、およびそれ以外の OS で既定値がないこと。
--   [ ] **ステップ 2-5**: `envaccess_test.go` に、環境変数を読む場所の検査（設計書 3.1、I-01）を作る。
+-   [x] **ステップ 2-5**: `envaccess_test.go` に、環境変数を読む場所の検査（設計書 3.1、I-01）を作る。
     -   **走査の対象:** リポジトリのテスト以外の `.go` ファイル。次のファイルをテストのコードとして除く: `_test.go` と、`//go:build` の制約を `go/build/constraint` で評価して次の両方を満たすファイルである。(1) `test`・`integration` がともに偽のとき、制約に現れるそれ以外のタグをどう真偽に割り当てても、制約が偽になる。(2) `test` または `integration` が真のとき、制約が真になる割り当てがある。どちらにも当たらないファイル（`//go:build unix`・`//go:build linux`・`//go:build windows` など）と、`//go:build` の行がなくファイル名の接尾辞（`_linux.go` など）だけで制約されるファイルは、本番のコードとして走査する。
     -   **失敗にする参照:** プロセスの環境変数を読む標準ライブラリの関数への参照（呼び出しに限らず、関数の値としての参照を含む）を、許可した場所以外では失敗にする。対象を固定の一覧に限定せず、内部で環境変数を読む関数（`os.UserCacheDir` のように呼び出し元に値を返さず内部で読むものを含む）も含める。`os`・`syscall` のドットインポートも失敗にする。`import` の別名を解決して判定し、型を解決できない参照は拒否の側に倒す。
     -   **許可する場所:** ファイルと参照の種類と回数の組で許可する。`internal/config` のすべてのファイルの参照、`cmd/yt2column/main.go` の `os.LookupEnv` の関数の値としての参照 1 か所（設計書 3.1）、`internal/transcript/ytdlp.go` の `os.Environ` 1 か所。
     -   **秘密情報の変数名:** 文字列リテラルが `DEEPSEEK_API_KEY` または `SLACK_WEBHOOK_URL` を含めば、`internal/config` 以外では失敗にする。
     -   **空振りの防止:** `TestEnvAccessConfined` は、走査したファイルの数が 0 でないことと、許可した参照を実際に観測したこと（`ytdlp.go` の `os.Environ`。フェーズ 7 以降は `main.go` の `os.LookupEnv` も）を確かめる。
     -   **自己テスト `TestEnvAccessScannerDetects`:** 走査の関数を、一時ディレクトリに置いた小さなソース（許可の判定のため、リポジトリと同じ相対パスに置く）に当てる。直接読む関数と、内部で環境変数を読む関数（間接に読むもの。少なくとも 1 つ）、別名の import、関数の値としての参照、ドットインポート、秘密情報の変数名の文字列、`//go:build unix`・`//go:build linux`・`//go:build windows` の本番のファイルの参照を、1 つずつ検出すること。許可した場所と同じファイルの別の関数（`ytdlp.go` の `os.Getenv`、`main.go` の `os.Getenv` と `os.LookupEnv` の呼び出し）、同じパッケージの別のファイル（`cmd/yt2column/run.go` の `os.LookupEnv`）を検出すること。`_test.go` と `//go:build test` のファイルの同じ参照、許可した場所の参照を検出しないこと。
--   [ ] **ステップ 2-6**: `package_reference.md` に `internal/config` の行を加える。
--   [ ] **ステップ 2-7**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: 空の値を未設定と同じに扱う、`YT2COLUMN_LLM_PROVIDER` の比較を大文字と小文字を区別しないものにする、`SLACK_WEBHOOK_URL` の空白の検査を外す、相対パスの検査を外す、最初の誤りで止める、`Reason` に値を含める、API キーを `secret.Secret` でなく `string` のフィールドで持つ（`TestConfigOutputRedactsSecrets` の `%+v`・`%#v`）、`XDG_CACHE_HOME` の空を値ありとして扱う、`GODEBUG` の判定を外す、走査の対象の関数を 1 つずつ外す、テストのコードの判定を (1) だけにする（`//go:build windows` の自己テスト）、許可を `cmd/yt2column` のパッケージ全体に広げる（`run.go` の自己テスト）。`make fmt` → `make test` → `make lint` を通す。
+-   [x] **ステップ 2-6**: `package_reference.md` に `internal/config` の行を加える。
+-   [x] **ステップ 2-7**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: 空の値を未設定と同じに扱う、`YT2COLUMN_LLM_PROVIDER` の比較を大文字と小文字を区別しないものにする、`SLACK_WEBHOOK_URL` の空白の検査を外す、相対パスの検査を外す、最初の誤りで止める、`Reason` に値を含める、API キーを `secret.Secret` でなく `string` のフィールドで持つ（`TestConfigOutputRedactsSecrets` の `%+v`・`%#v`）、`XDG_CACHE_HOME` の空を値ありとして扱う、`GODEBUG` の判定を外す、走査の対象の関数を 1 つずつ外す、テストのコードの判定を (1) だけにする（`//go:build windows` の自己テスト）、許可を `cmd/yt2column` のパッケージ全体に広げる（`run.go` の自己テスト）。`make fmt` → `make test` → `make lint` を通す。
 
 ### PR-4 作成ポイント: internal/config
 
@@ -242,8 +242,8 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 
 **判定理由**: 環境変数の読み込み・検証と、環境変数を読む場所の静的な走査のテストに限られ、競合する実装方針の併記・高リスクな制御・パネルモードのトリガー・2 つ以上の Conditional check のいずれにも該当しないため。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
