@@ -210,6 +210,7 @@ func (c Config) DeepSeekAPIKey() secret.Secret
 func (c Config) SlackWebhookURL() (secret.Secret, bool) // false when unset
 func (c Config) CacheDir() string                        // absolute
 func (c Config) YtDlpPath() string                       // empty means "yt-dlp" on PATH
+func (c Config) HTTP2DebugEnabled() bool                 // GODEBUG has http2debug=1 or 2
 
 // LookupFunc has the signature of os.LookupEnv.
 type LookupFunc func(name string) (value string, ok bool)
@@ -238,7 +239,7 @@ func (e *VarError) Unwrap() error // Err
 -   `Config` のフィールドは非公開とし、ゼロ値のほかは `Load` の検証を通った値しか作れないようにする（[CLAUDE.md](../../../CLAUDE.md)「Enforce invariants with the type」）。Webhook URL の有無は `SlackWebhookURL` の 2 つ目の戻り値で表し、別のフィールドで持たない。`Config` を `fmt`・`slog`・JSON で出力しても、`secret.Secret` が伏せ字になる（`internal/secret/secret.go:22-27`）ので秘密情報は現れない（AC-08）。
 -   `YT2COLUMN_LLM_PROVIDER` は `deepseek` とのバイト列の完全一致だけを受理する。
 -   `DeepSeekAPIKey` は、プロバイダが `deepseek` のとき必ず値を持つ。
--   **`GODEBUG` の検査（要件書に追加する拒否）。** `GODEBUG` が `http2debug=1` または `http2debug=2` を含む場合は、`GODEBUG` の `ErrInvalid` として拒否する。Go の HTTP/2 の Transport は、この設定で `Authorization` ヘッダー（API キー）を値ごと標準エラー出力に記録する（[security.md](../../dev/security.md) §2）。この出力は 3.8 の関数を通らないので、実行の開始時に止めるしかない。要件書 F-001 の表にない拒否であり、要件書への反映を承認時に確認する（AC-38「すべての経路」を満たすための追加）。
+-   **`GODEBUG` の HTTP/2 の記録（F-001・F-008）。** `Load` は `GODEBUG` が `http2debug=1` または `http2debug=2` を含むかどうかを、`Config.HTTP2DebugEnabled() bool` として返す。拒否はしない。Go の HTTP/2 の Transport は、この設定で `Authorization` ヘッダー（API キー）を値ごと標準エラー出力に書く（[security.md](../../dev/security.md) §2）。この出力は 3.8 の関数を通らない。要件書は、利用者がこの設定を明示的に指定した場合はデバッグを優先したものとみなし、この出力を AC-38 の対象外とする。`cmd/yt2column` は、真の場合に LLM API を呼ぶ前（手順 A3 の直後）に警告を書く（AC-51）。
 
 #### `YT2COLUMN_CACHE_DIR` の既定値
 
@@ -257,7 +258,7 @@ func (e *VarError) Unwrap() error // Err
 #### 環境変数を読む場所の検査（F-002・AC-09）
 
 -   **対象の関数:** 呼び出し元が名前を選んだ環境変数の値を、呼び出し元に返す標準ライブラリの関数（`os.Getenv`・`os.LookupEnv`・`os.Environ`・`os.ExpandEnv`・`syscall.Getenv`・`syscall.Environ` など）とする。`os.ExpandEnv` のように、展開の結果として値を返すものを含む（要件書 F-002「内部で環境変数を読むものを含む」）。具体的な一覧は [implementation_handoff.md](implementation_handoff.md) I-01。
--   **対象にしない関数:** 標準ライブラリが自身の動作のために、決まった名前の変数（秘密情報ではない）を内部で読むもの（`exec.LookPath` の `PATH`、`os.TempDir`・`os.CreateTemp` の `TMPDIR`、`os.Getwd` の `PWD`、`net/http` の既定の Transport の proxy の変数など）は対象にしない。これらは呼び出し元に変数の値を返さず、秘密情報の変数を読むことがないためである。要件書 F-002 の目的（秘密情報を読む場所を限る）はこの区別で満たせる。この解釈は承認時に確認する。
+-   **対象にしない関数:** 標準ライブラリが自身の動作のために、決まった名前の変数（秘密情報ではない）を内部で読むもの（`exec.LookPath` の `PATH`、`os.TempDir`・`os.CreateTemp` の `TMPDIR`、`os.Getwd` の `PWD`、`net/http` の既定の Transport の proxy の変数など）は対象にしない。これらは呼び出し元に変数の値を返さず、秘密情報の変数を読むことがないためである。要件書 F-002 の目的（秘密情報を読む場所を限る）はこの区別で満たせる。
 -   **テストのコード:** 名前が `_test.go` で終わるファイルと、ビルドの制約（`//go:build` の行）が `test` または `integration` のタグなしでは満たされないファイルを「テストのコード」とし、検査の対象外にする（制約は `go/build/constraint` で評価する）（要件書 F-002「テスト以外の Go のコード」）。`internal/transcript/test_helpers.go:291-306` の `os.LookupEnv`、`internal/llm/deepseek/testutil` の変数名の文字列はこれに当たる。
 -   **既存のコード:** 上の基準で、コミット `274b18b` の本番のコードが対象の関数を参照するのは `internal/transcript/ytdlp.go:205`（`os.Environ`。許可した場所）だけである。`internal/mergepr` は `exec.CommandContext` で親の環境を子プロセスに引き継ぐ（`runner.go:19`）が、Go のコードが値を読むわけではないので対象外である。
 -   `cmd/yt2column` での参照は、`main.go` が `os.LookupEnv` を `run` に渡す 1 か所だけにする。
@@ -437,7 +438,7 @@ func (e *KeptFileError) Unwrap() error
 | `--out` に `os.Lstat`（シンボリックリンクをたどらない） | 成功（何かが存在する） | `publisher.ErrOutputExists` を包んだ `pipeline.StageError`（段階は投稿）で失敗（AC-50） |
 | | `fs.ErrNotExist` | 次の確認へ |
 | | その他のエラー | 存在すると決めつけず、次の確認へ（best effort） |
-| `--out` の親に `os.Stat` | ディレクトリでない、または存在しない | 投稿の段階の失敗（`FilePublisher` が必ず失敗する条件を、費用のかかる処理の前に報告する。要件書 F-006 の事前確認（パスの存在）に追加する確認であり、承認時に確認する） |
+| `--out` の親に `os.Stat` | ディレクトリでない、または存在しない | 投稿の段階の失敗（`FilePublisher` が必ず失敗する条件を、費用のかかる処理の前に報告する。要件書 F-006・AC-52） |
 | | その他のエラー | 先へ進む |
 
 上書きしないことの保証は、`FilePublisher` の `link(2)` が担う。事前確認とはコードを共有しない。事前確認は `Lstat`・`Stat` による判定であり、`FilePublisher` は `link(2)` の結果で決めるので、共有できる部分がないためである。
@@ -509,7 +510,7 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc,
 |---|---|---|
 | A1 | 引数の解析（`flag.FlagSet`、`ContinueOnError`）。`-h`・`--help` は使い方を標準出力に書いて `0` | `2` |
 | A2 | 位置引数がちょうど 1 つか。動画 URL を `transcript.ValidateVideoURL` で検証 | `2` |
-| A3 | `config.Load` | `2` |
+| A3 | `config.Load`。`HTTP2DebugEnabled` が真なら警告を書く | `2` |
 | A4 | `--out` がキャッシュディレクトリの中か（3.6） | `2` |
 | A5 | `d.newLLMClient`、`d.newWriter`、`d.newPublisher` | `2` |
 | B | `job.Run`。`Warnings` は警告として書く | エラーなら `1` |
@@ -524,7 +525,7 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc,
 | 成功 | C | `0` |
 | `-h`・`--help` | A1 | `0` |
 | 引数の誤り | A1・A2・A4 | `2` |
-| 環境変数の誤り（3.1 の `GODEBUG` を含む） | A3 | `2` |
+| 環境変数の誤り | A3 | `2` |
 | `LLMClient` の構築の失敗 | A5 | `2` |
 | テンプレートの構築の失敗 | A5 | `2` |
 | 字幕の取得・記事の生成・投稿の失敗 | B（B5） | `1` |
@@ -544,7 +545,7 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc,
 -   伏せ字化をエスケープより先に行うのは、エスケープで値の見た目が変わると、伏せ字化で見つけられなくなるためである。
 -   改行を含む文字列（`config.Load` の `errors.Join`、`yt-dlp` の複数行の標準エラー出力）は、行に分けて、各行を同じ前置きを付けた 1 行として書く。改行をエスケープして 1 行に潰すと読みにくいためである。偽の行を始める改行（AC-39）も、前置きが付くので本物の行と見分けられる。
 -   `Model`・`ModelVersion`・出力先のパス・エラーのメッセージは、いずれも同じ関数を通す。
--   **この関数を通らない書き込み:** Go のランタイムのパニックの出力、SIGQUIT によるゴルーチンの一覧、`GODEBUG` による標準ライブラリの記録は、標準エラー出力に直接書かれる。パニックとゴルーチンの一覧はスタックトレースであり、秘密情報は `secret.Secret`（クロージャに閉じ込めた値）として持つので値は表示されない。`GODEBUG` の HTTP/2 の記録は 3.1 で実行を止める。
+-   **この関数を通らない書き込み:** Go のランタイムのパニックの出力、SIGQUIT によるゴルーチンの一覧、`GODEBUG` による標準ライブラリの記録は、標準エラー出力に直接書かれる。パニックとゴルーチンの一覧はスタックトレースであり、秘密情報は `secret.Secret`（クロージャに閉じ込めた値）として持つので値は表示されない。`GODEBUG` の HTTP/2 の記録は API キーを含みうるが、要件書 F-008 の例外であり、手順 A3 の直後に警告する（3.1・AC-51）。
 -   **`--out` のファイルに秘密情報が入らない理由:** ファイルの内容は `Article` から作る。`Article` は LLM の生成テキストと検証済みの動画 ID から作られ（[0004 の 02_architecture.md](../0004_article_writer/02_architecture.md) §3.7・§3.9）、API キーと Webhook URL は LLM に送らない（[security.md](../../dev/security.md) §4。API キーは `Authorization` ヘッダーだけに入る）。
 -   **書き込めない標準エラー出力:** 標準エラー出力が閉じたパイプの場合、書き込みで SIGPIPE を受けてプロセスが終了しうる。要約（手順 C）の書き込みで起きると、投稿は完了しているのに終了状態が `0` でなくなる。利用者の環境の問題として受け入れる。
 
@@ -763,7 +764,7 @@ flowchart LR
 
 | ID | 脅威 | 対策 | AC |
 |---|---|---|---|
-| T1 | 秘密情報がエラー・警告・要約に出る | 秘密情報を読むのは `internal/config` だけ。標準エラー出力は伏せ字化の関数を必ず通す。`GODEBUG` の HTTP/2 の記録は実行の前に止める（3.1・3.8） | AC-06・AC-08・AC-09・AC-38 |
+| T1 | 秘密情報がエラー・警告・要約に出る | 秘密情報を読むのは `internal/config` だけ。標準エラー出力は伏せ字化の関数を必ず通す。利用者が `GODEBUG` で HTTP/2 の記録を指定した場合は警告する（要件書 F-008 の例外。3.1・3.8） | AC-06・AC-08・AC-09・AC-38 |
 | T2 | 信頼できない文字列の制御文字で端末が操作される | エスケープ（3.8）。`--out` のファイルは制御文字を含む `Article` を書き出さない（3.5） | AC-16・AC-39 |
 | T3 | 既存のファイルの上書き、途中まで書いたファイルの残留 | `link(2)` による作成（3.5）、事前確認（3.6） | AC-14・AC-46・AC-50 |
 | T4 | 掃除による利用者のファイルの削除 | `--out` がキャッシュディレクトリの中なら終了コード `2`。判定は安全側に倒す（3.6） | AC-20 |
@@ -920,12 +921,12 @@ sequenceDiagram
 | AC-24〜AC-31 | 3.4 |
 | AC-32・AC-33 | 実装計画の手動確認 |
 | AC-34〜AC-37・AC-47・AC-49 | 3.7 |
-| AC-38・AC-39 | 3.8 |
+| AC-38・AC-39・AC-51 | 3.1・3.8 |
 | AC-40〜AC-42 | 3.11 |
 | AC-43 | 3.12 の文書の更新 |
 | AC-45 | 3.8（シグナル）・3.10（プロセスグループ） |
 | AC-48 | 3.4・3.8（`--refresh` の案内） |
-| AC-50 | 3.6 |
+| AC-50・AC-52 | 3.6 |
 
 移動・削除するテスト（`deepseek_test.go` の判定のテスト）は、移動の前後で `go tool cover -func` の結果が関数ごとに変わらないことを確かめる（[CLAUDE.md](../../../CLAUDE.md)「Deleting a test is a claim that must be checked」）。
 
