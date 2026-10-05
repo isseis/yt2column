@@ -43,8 +43,9 @@ type fence struct {
 type span struct{ start, end int }
 
 // checkBodyMarkdown rejects a body part that contains raw HTML or ends inside
-// an unclosed code fence. A returned error names the reason and the line
-// number within the body part, never the text, which is untrusted.
+// an unclosed code fence. A returned error names the reason and, where one
+// line is at fault, its number within the body part, never the text, which
+// is untrusted.
 func checkBodyMarkdown(body string) error {
 	if hasBareCR(body) {
 		return errBareCR
