@@ -534,6 +534,43 @@ func waitProcessGone(pid int, limit time.Duration) bool {
 	}
 }
 
+func TestProcessExistsTreatsZombieAsGone(t *testing.T) {
+	// The parent never waits, so the exited child stays a zombie. Only the
+	// state check can tell it from a live process: kill(pid, 0) succeeds for both.
+	zombie := exec.Command("sh", "-c", "exit 0")
+	if err := zombie.Start(); err != nil {
+		t.Fatalf("start zombie child: %v", err)
+	}
+	t.Cleanup(func() { _ = zombie.Wait() })
+	zombiePID := zombie.Process.Pid
+
+	deadline := time.Now().Add(processGoneBound)
+	for processState(zombiePID) != 'Z' {
+		if time.Now().After(deadline) {
+			t.Fatalf("child %d did not become a zombie, state %q", zombiePID, processState(zombiePID))
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if err := syscall.Kill(zombiePID, 0); err != nil {
+		t.Fatalf("kill(pid, 0) on the zombie = %v, want nil: the test no longer isolates the state check", err)
+	}
+	if processExists(zombiePID) {
+		t.Errorf("processExists(%d) = true for a zombie, want false", zombiePID)
+	}
+
+	live := exec.Command("sleep", "30")
+	if err := live.Start(); err != nil {
+		t.Fatalf("start live child: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = live.Process.Kill()
+		_ = live.Wait()
+	})
+	if !processExists(live.Process.Pid) {
+		t.Errorf("processExists(%d) = false for a running process, want true", live.Process.Pid)
+	}
+}
+
 func TestRedactStderr(t *testing.T) {
 	const secret = "s3cret-proxy-value"
 	// shortProxy is a prefix of longProxy and comes first in env, so redacting
