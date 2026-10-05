@@ -152,8 +152,8 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 -   [ ] **ステップ 1-4**: `Options` に `InheritedFiles` を足し、`commandExecutor.Run` の引数に加えて `osExecutor` が `exec.Cmd.ExtraFiles` に渡す（設計書 3.10）。§1.3 の 6 か所のテストの呼び出しと `fakeCommandExecutor`（渡されたファイルを記録する）を追従させる。テストを 2 つ足す: `TestFetchPassesInheritedFiles`（`Fetch` が `Options` のファイルをそのまま実行に渡す。fake で確かめる）、`TestCommandExecutorInheritedFiles`（子プロセスが記述子 3 で渡したファイルを読める。スクリプトで確かめる）。
 -   [ ] **ステップ 1-5**: `osExecutor.Run` で、子プロセスを新しいプロセスグループで起動し、`context` の終了時にグループ全体へ SIGKILL を送る（`exec.Cmd.SysProcAttr` と `exec.Cmd.Cancel`。設計書 3.10）。
