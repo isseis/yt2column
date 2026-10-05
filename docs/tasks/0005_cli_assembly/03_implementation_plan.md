@@ -155,8 +155,8 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 - [x] PR がマージされた
 - [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
--   [ ] **ステップ 1-4**: `Options` に `InheritedFiles` を足し、`commandExecutor.Run` の引数に加えて `osExecutor` が `exec.Cmd.ExtraFiles` に渡す（設計書 3.10）。§1.3 の 6 か所のテストの呼び出しと `fakeCommandExecutor`（渡されたファイルを記録する）を追従させる。テストを 2 つ足す: `TestFetchPassesInheritedFiles`（`Fetch` が `Options` のファイルをそのまま実行に渡す。fake で確かめる）、`TestCommandExecutorInheritedFiles`（子プロセスが記述子 3 で渡したファイルを読める。スクリプトで確かめる）。
--   [ ] **ステップ 1-5**: `osExecutor.Run` で、子プロセスを新しいプロセスグループで起動し、`context` の終了時にグループ全体へ SIGKILL を送る（`exec.Cmd.SysProcAttr` と `exec.Cmd.Cancel`。設計書 3.10）。
+-   [x] **ステップ 1-4**: `Options` に `InheritedFiles` を足し、`commandExecutor.Run` の引数に加えて `osExecutor` が `exec.Cmd.ExtraFiles` に渡す（設計書 3.10）。§1.3 の 6 か所のテストの呼び出しと `fakeCommandExecutor`（渡されたファイルを記録する）を追従させる。テストを 2 つ足す: `TestFetchPassesInheritedFiles`（`Fetch` が `Options` のファイルをそのまま実行に渡す。fake で確かめる）、`TestCommandExecutorInheritedFiles`（子プロセスが記述子 3 で渡したファイルを読める。スクリプトで確かめる）。
+-   [x] **ステップ 1-5**: `osExecutor.Run` で、子プロセスを新しいプロセスグループで起動し、`context` の終了時にグループ全体へ SIGKILL を送る（`exec.Cmd.SysProcAttr` と `exec.Cmd.Cancel`。設計書 3.10）。
     -   `TestCommandExecutorKillsProcessGroup` を足す: 子が孫を起動して両方の PID を記録し、取り消しの後、両方のプロセスがなくなることを上限付きで確かめる。孫は、テストが後始末で作る解放の印のファイルが現れるか、数分の上限に達したら自分で終了するものにする（失敗時やタイムアウトでも残り続けない）。
     -   `TestCommandExecutorWaitDelay` の「timeout while a descendant holds stderr」は前提が変わる（§1.3）。`osExecutor` が起動する子をテストのバイナリ自身の補助のモード（既存の `TestExecutorHelperProcess` と同じ仕組み）にし、その子が子孫を `SysProcAttr.Setpgid` で起動して、子孫がグループの外で標準エラー出力のパイプを保持する形にする（シェルのスクリプトではプロセスグループを変えられないため）。この子孫も、解放の印か数分の上限で自分で終了するものにする。`WaitDelay` の上限の確認は変えない。
     -   PR-2 のテスト（`TestFetchPassesInheritedFiles`・`TestCommandExecutorInheritedFiles`・`TestCommandExecutorKillsProcessGroup`・`TestCommandExecutorWaitDelay` の改めた部分テスト）を 1 つずつ壊して失敗することを確かめ、コミットメッセージに記録し、`make fmt` → `make test` → `make lint` を通す。

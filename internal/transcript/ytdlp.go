@@ -15,6 +15,10 @@ type Options struct {
 	YtDlpPath    string // empty means "yt-dlp" on PATH
 	Timeout      time.Duration
 	ForceRefresh bool
+	// InheritedFiles are handed to every yt-dlp child as file descriptors 3, 4,
+	// ... in order. The source never closes them and attaches no meaning to
+	// them; the caller owns their lifetime.
+	InheritedFiles []*os.File
 }
 
 // errInvalidOptions reports a missing or non-positive required option.
@@ -203,7 +207,7 @@ func (s *YtDlpSource) runYtDlp(ctx context.Context, id, normalizedURL string) (T
 	defer cancel()
 	stderr := &cappedWriter{}
 	env := allowlistEnv(os.Environ())
-	if err := s.exec.Run(runCtx, s.options.YtDlpPath, ytDlpArgs(slotDir, normalizedURL), env, stderr); err != nil {
+	if err := s.exec.Run(runCtx, s.options.YtDlpPath, ytDlpArgs(slotDir, normalizedURL), env, s.options.InheritedFiles, stderr); err != nil {
 		// Run returns raw results; a timeout or a cancellation is recognized
 		// through the context that was used for the run.
 		if ctxErr := runCtx.Err(); ctxErr != nil {

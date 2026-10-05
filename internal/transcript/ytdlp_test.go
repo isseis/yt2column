@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -262,6 +263,31 @@ func TestFetchYtDlpArgs(t *testing.T) {
 	}
 	if !reflect.DeepEqual(call.args, want) {
 		t.Errorf("args = %q, want %q", call.args, want)
+	}
+}
+
+func TestFetchPassesInheritedFiles(t *testing.T) {
+	id := testdataRealVideoID
+	first, err := os.CreateTemp(t.TempDir(), "inherited-*")
+	if err != nil {
+		t.Fatalf("create inherited file: %v", err)
+	}
+	t.Cleanup(func() { _ = first.Close() })
+	second, err := os.CreateTemp(t.TempDir(), "inherited-*")
+	if err != nil {
+		t.Fatalf("create inherited file: %v", err)
+	}
+	t.Cleanup(func() { _ = second.Close() })
+	fake := &fakeCommandExecutor{behavior: writeGeneration(t, id, runGeneration(id))}
+	source := newTestSource(t, filepath.Join(t.TempDir(), "cache"), fake, func(o *Options) {
+		o.InheritedFiles = []*os.File{first, second}
+	})
+
+	if _, err := source.Fetch(t.Context(), watchURL(id)); err != nil {
+		t.Fatalf("Fetch error = %v", err)
+	}
+	if got := fake.lastCall(t).files; !slices.Equal(got, []*os.File{first, second}) {
+		t.Errorf("inherited files = %v, want the Options files in order", got)
 	}
 }
 

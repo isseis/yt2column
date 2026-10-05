@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -66,7 +67,7 @@ func TestCommandExecutorDrainsStderr(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), timeout)
 	defer cancel()
 	var stderr cappedWriter
-	err := osExecutor{}.Run(ctx, script, nil, allowlistEnv(os.Environ()), &stderr)
+	err := osExecutor{}.Run(ctx, script, nil, allowlistEnv(os.Environ()), nil, &stderr)
 	if err == nil {
 		t.Fatal("Run error = nil, want a non-zero exit error")
 	}
@@ -100,7 +101,7 @@ printf '%s\n' "$@" > "$out"
 		">redirect",
 	}
 
-	if err := (osExecutor{}).Run(t.Context(), script, args, allowlistEnv(nil), nil); err != nil {
+	if err := (osExecutor{}).Run(t.Context(), script, args, allowlistEnv(nil), nil, nil); err != nil {
 		t.Fatalf("Run error = %v, want nil", err)
 	}
 	data, err := os.ReadFile(outPath)
@@ -127,7 +128,7 @@ func TestCommandExecutorEnvAllowlist(t *testing.T) {
 			t.Fatalf("resolve test binary: %v", err)
 		}
 		args := []string{"-test.run=TestExecutorHelperProcess", "--", outPath}
-		if err := (osExecutor{}).Run(t.Context(), executable, args, env, nil); err != nil {
+		if err := (osExecutor{}).Run(t.Context(), executable, args, env, nil, nil); err != nil {
 			t.Fatalf("Run error = %v, want nil", err)
 		}
 		data, err := os.ReadFile(outPath)
@@ -191,6 +192,32 @@ func TestCommandExecutorEnvAllowlist(t *testing.T) {
 	})
 }
 
+func TestCommandExecutorInheritedFiles(t *testing.T) {
+	dir := t.TempDir()
+	inputPath := filepath.Join(dir, "input.txt")
+	if err := os.WriteFile(inputPath, []byte("inherited-content"), 0o600); err != nil {
+		t.Fatalf("write input: %v", err)
+	}
+	input, err := os.Open(inputPath)
+	if err != nil {
+		t.Fatalf("open input: %v", err)
+	}
+	t.Cleanup(func() { _ = input.Close() })
+	outPath := filepath.Join(dir, "out.txt")
+	script := writeHelperScript(t, "#!/bin/sh\ncat <&3 > \"$1\"\n")
+
+	if err := (osExecutor{}).Run(t.Context(), script, []string{outPath}, allowlistEnv(os.Environ()), []*os.File{input}, nil); err != nil {
+		t.Fatalf("Run error = %v, want nil", err)
+	}
+	data, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatalf("read helper output: %v", err)
+	}
+	if string(data) != "inherited-content" {
+		t.Fatalf("child read %q from descriptor 3, want %q", data, "inherited-content")
+	}
+}
+
 func TestCommandExecutorStartFailure(t *testing.T) {
 	dir := t.TempDir()
 	nonExecutable := filepath.Join(dir, "not-executable")
@@ -207,7 +234,7 @@ func TestCommandExecutorStartFailure(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Run must surface a start failure instead of swallowing it.
-			err := osExecutor{}.Run(t.Context(), tc.path, nil, nil, nil)
+			err := osExecutor{}.Run(t.Context(), tc.path, nil, nil, nil, nil)
 			if err == nil {
 				t.Fatalf("Run(%q) error = nil, want a start error", tc.path)
 			}
@@ -283,7 +310,7 @@ func TestCommandExecutorWaitDelay(t *testing.T) {
 		script, pidPath := newHelper(t, true)
 		var stderr cappedWriter
 		start := time.Now()
-		err := osExecutor{}.Run(t.Context(), script, []string{pidPath}, allowlistEnv(os.Environ()), &stderr)
+		err := osExecutor{}.Run(t.Context(), script, []string{pidPath}, allowlistEnv(os.Environ()), nil, &stderr)
 		elapsed := time.Since(start)
 		if !errors.Is(err, exec.ErrWaitDelay) {
 			t.Fatalf("Run error = %v, want exec.ErrWaitDelay", err)
@@ -293,13 +320,26 @@ func TestCommandExecutorWaitDelay(t *testing.T) {
 		}
 	})
 
-	t.Run("timeout while a descendant holds stderr", func(t *testing.T) {
-		script, pidPath := newHelper(t, false)
+	t.Run("timeout while a descendant outside the group holds stderr", func(t *testing.T) {
+		// The group kill cannot reach a descendant that left the group, so only
+		// WaitDelay bounds this run.
+		executable, err := os.Executable()
+		if err != nil {
+			t.Fatalf("resolve test binary: %v", err)
+		}
+		dir := t.TempDir()
+		pidPath := filepath.Join(dir, "descendant.pid")
+		releasePath := filepath.Join(dir, "release")
+		t.Cleanup(func() {
+			releaseHelper(releasePath)
+			killRecordedProcess(pidPath)
+		})
+		args := []string{"-test.run=TestDetachedDescendantHelperProcess", "--", detachedParentMode, pidPath, releasePath}
 		ctx, cancel := context.WithTimeout(t.Context(), timeout)
 		defer cancel()
 		var stderr cappedWriter
 		start := time.Now()
-		err := osExecutor{}.Run(ctx, script, []string{pidPath}, allowlistEnv(os.Environ()), &stderr)
+		err = osExecutor{}.Run(ctx, executable, args, allowlistEnv(os.Environ()), nil, &stderr)
 		elapsed := time.Since(start)
 		if err == nil {
 			t.Fatal("Run error = nil, want a failure after the timeout")
@@ -310,10 +350,136 @@ func TestCommandExecutorWaitDelay(t *testing.T) {
 		if !errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			t.Fatalf("ctx error = %v, want context.DeadlineExceeded", ctx.Err())
 		}
-		if _, ok := readRecordedPID(pidPath); !ok {
+		pid, ok := readRecordedPID(pidPath)
+		if !ok {
 			t.Fatal("helper did not record a descendant holding stderr")
 		}
+		if !processExists(pid) {
+			t.Fatal("descendant outside the group is gone, want it left running: the test no longer exercises WaitDelay")
+		}
 	})
+}
+
+func TestCommandExecutorKillsProcessGroup(t *testing.T) {
+	const timeout = 500 * time.Millisecond
+	dir := t.TempDir()
+	childPIDPath := filepath.Join(dir, "child.pid")
+	grandchildPIDPath := filepath.Join(dir, "grandchild.pid")
+	releasePath := filepath.Join(dir, "release")
+	// The grandchild leaves on the release file or after about five minutes, so
+	// a failing test cannot leave it running.
+	script := writeHelperScript(t, `#!/bin/sh
+echo $$ > "$1"
+sh -c 'n=0; while [ ! -e "$0" ] && [ $n -lt 600 ]; do sleep 0.5; n=$((n+1)); done' "$3" &
+echo $! > "$2"
+wait
+`)
+	t.Cleanup(func() {
+		releaseHelper(releasePath)
+		killRecordedProcess(childPIDPath)
+		killRecordedProcess(grandchildPIDPath)
+	})
+
+	ctx, cancel := context.WithTimeout(t.Context(), timeout)
+	defer cancel()
+	var stderr cappedWriter
+	args := []string{childPIDPath, grandchildPIDPath, releasePath}
+	if err := (osExecutor{}).Run(ctx, script, args, allowlistEnv(os.Environ()), nil, &stderr); err == nil {
+		t.Fatal("Run error = nil, want a failure after the timeout")
+	}
+
+	for name, path := range map[string]string{"child": childPIDPath, "grandchild": grandchildPIDPath} {
+		pid, ok := readRecordedPID(path)
+		if !ok {
+			t.Fatalf("helper did not record the %s PID", name)
+		}
+		if !waitProcessGone(pid, processGoneBound) {
+			t.Errorf("%s (pid %d) is still running after the context ended, want the whole process group killed", name, pid)
+		}
+	}
+}
+
+const (
+	// processGoneBound bounds how long a test waits for a killed process to
+	// disappear from the process table.
+	processGoneBound = 5 * time.Second
+	// detachedParentMode and detachedDescendantMode select the role of the
+	// re-executed test binary in TestDetachedDescendantHelperProcess.
+	detachedParentMode     = "parent"
+	detachedDescendantMode = "descendant"
+	// detachedHelperLifetime caps how long a helper process lives when nothing
+	// releases or kills it.
+	detachedHelperLifetime = 3 * time.Minute
+)
+
+// TestDetachedDescendantHelperProcess is not a regular test: it is re-executed
+// by TestCommandExecutorWaitDelay. In parent mode it starts itself in
+// descendant mode in a new process group, with the standard error pipe
+// inherited, records the descendant's PID, and then blocks. In descendant mode
+// it waits for the release file or the lifetime cap. A normal test pass has no
+// positional arguments and skips it.
+func TestDetachedDescendantHelperProcess(t *testing.T) {
+	args := flag.Args()
+	if len(args) != 3 {
+		t.Skip("helper process for TestCommandExecutorWaitDelay")
+	}
+	mode, pidPath, releasePath := args[0], args[1], args[2]
+	switch mode {
+	case detachedDescendantMode:
+		waitForFile(releasePath, detachedHelperLifetime)
+	case detachedParentMode:
+		executable, err := os.Executable()
+		if err != nil {
+			t.Fatalf("resolve test binary: %v", err)
+		}
+		descendant := exec.Command(executable, "-test.run=TestDetachedDescendantHelperProcess", "--", detachedDescendantMode, pidPath, releasePath) //nolint:gosec // re-executes the running test binary
+		descendant.Stderr = os.Stderr
+		descendant.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+		if err := descendant.Start(); err != nil {
+			t.Fatalf("start descendant: %v", err)
+		}
+		if err := os.WriteFile(pidPath, []byte(strconv.Itoa(descendant.Process.Pid)), 0o600); err != nil {
+			t.Fatalf("record descendant PID: %v", err)
+		}
+		waitForFile(releasePath, detachedHelperLifetime)
+	default:
+		t.Fatalf("unknown helper mode %q", mode)
+	}
+}
+
+// waitForFile blocks until path exists or limit has passed.
+func waitForFile(path string, limit time.Duration) {
+	deadline := time.Now().Add(limit)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(path); err == nil {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+// releaseHelper creates the release file that lets helper processes exit.
+func releaseHelper(path string) {
+	_ = os.WriteFile(path, nil, 0o600)
+}
+
+// processExists reports whether a process with pid is in the process table.
+func processExists(pid int) bool {
+	return syscall.Kill(pid, 0) == nil
+}
+
+// waitProcessGone polls until pid is gone or limit has passed.
+func waitProcessGone(pid int, limit time.Duration) bool {
+	deadline := time.Now().Add(limit)
+	for {
+		if !processExists(pid) {
+			return true
+		}
+		if time.Now().After(deadline) {
+			return false
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 }
 
 func TestRedactStderr(t *testing.T) {
