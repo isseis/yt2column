@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-03 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 2026-10-05 決定の変更（再承認が必要。2026-10-05 に isseis が承認した版からの変更）: 3.2 の本文の部分の表記の統一に、統一の後もなお U+FEFF で始まる本文の部分を `ErrMalformedOutput` で拒否する規則を加え、AC-32 に例（`\uFEFF\uFEFF~~~\nx`）を加えた。先頭の BOM を 1 つだけ除いて残りを受理すると、BOM をもう 1 つ取り除いてから解釈する実装で、判定が文章とみなした行がフェンスとして開き、出典ブロックがコードとして表示されうるためである（PR #71 のレビュー指摘）。CommonMark が無視する BOM は 1 つだけなので、2 つ目以降を取り除く補正はせず拒否する。 |
+| Review date | 2026-10-05 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
