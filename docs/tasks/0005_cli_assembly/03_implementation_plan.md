@@ -8,7 +8,7 @@
 | Created | 2026-10-05 |
 | Review date | 2026-10-05 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-06 編集上の修正（決定の変更なし）: ステップ 3-1 の文言を、非公開の `newClient` の説明（プロバイダを直接受け取り、アダプタの構築関数を引数で受け取る）に直した。作るものは変わっていない。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 

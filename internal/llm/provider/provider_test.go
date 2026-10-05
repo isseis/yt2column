@@ -133,11 +133,8 @@ func TestNewDeepSeekSendsConfiguredRequest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newClient() error = %v", err)
 	}
-	if receivedTimeout != LLMTimeout {
-		t.Errorf("build received Timeout = %v, want %v", receivedTimeout, LLMTimeout)
-	}
-	if LLMTimeout != 15*time.Minute {
-		t.Errorf("LLMTimeout = %v, want 15m", LLMTimeout)
+	if receivedTimeout != 15*time.Minute {
+		t.Errorf("build received Timeout = %v, want 15m", receivedTimeout)
 	}
 	if _, err := client.Generate(context.Background(), llm.GenerateRequest{SystemPrompt: "system", UserPrompt: "user"}); err != nil {
 		t.Fatalf("Generate() error = %v", err)
