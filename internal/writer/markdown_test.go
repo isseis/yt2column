@@ -30,7 +30,7 @@ func TestCheckBodyMarkdown(t *testing.T) {
 		{"fence closed by a longer run", "```\nx\n`````", nil},
 		{"fence closed with three-space indent and trailing blanks", "```\nx\n   ``` \t", nil},
 		{"tilde line inside a backtick fence", "```\n~~~\n<div>\n```", nil},
-		{"CR-only line endings", "```\r<div>\r```\r", nil},
+		{"closing fence ending with the body's last CR", "```\nx\n```\r", nil},
 		{"CRLF closing fence", "```\r\n<div>\r\n```\r\n", nil},
 		{"fence lines left out of the code-span conditions", "~~~ [x]\ny\n~~~\n```go\nz\n```\n`<details>`", nil},
 		{"URI autolink", "<https://example.com/>", nil},
@@ -69,6 +69,7 @@ func TestCheckBodyMarkdown(t *testing.T) {
 		{"URI autolink with a one-letter scheme", "<a:b>", errRawHTML},
 		{"URI autolink with a 33-character scheme", "<" + strings.Repeat("a", 33) + ":x>", errRawHTML},
 		{"URI autolink with a space", "<https://a b>", errRawHTML},
+		{"URI autolink holding a less-than", "<ab:<script>", errRawHTML},
 		{"URI autolink without greater-than", "<https://example.com/", errRawHTML},
 		{"scheme running to the end of the line", "<https", errRawHTML},
 
@@ -85,6 +86,10 @@ func TestCheckBodyMarkdown(t *testing.T) {
 		{"email autolink holding a backtick", "<1`@a.bc> <details>`", errRawHTML},
 		{"email autolink starting with a backtick", "<`@a.bc> <script>`", errRawHTML},
 
+		// Bare CR: renderers disagree on whether it ends a line.
+		{"CR-only line endings", "```\r<div>\r```\r", errBareCR},
+		{"bare CR in mid-body", "a\rb", errBareCR},
+
 		// Unclosed fences.
 		{"unclosed fence with info string", "本文\n```go\nfmt.Println()", errUnclosedFence},
 		{"unclosed tilde fence", "~~~\nx", errUnclosedFence},
@@ -92,10 +97,13 @@ func TestCheckBodyMarkdown(t *testing.T) {
 		{"closing run shorter than the opening run", "````\nx\n```", errUnclosedFence},
 		{"closing fence of the other character", "```\nx\n~~~", errUnclosedFence},
 		{"closing fence indented by four spaces", "```\nx\n    ```", errUnclosedFence},
+		{"closing fence indented by a tab", "```\nx\n\t```", errUnclosedFence},
 		{"closing fence followed by text", "```\nx\n``` a", errUnclosedFence},
 		{"HTML in an unclosed fence", "```\n<details>", errUnclosedFence},
 
 		// Lines that look like a fence but do not open one at the top level.
+		{"fence indented by one space", " ```\nx\n ```", errFenceLikeLine},
+		{"fence indented by three spaces before an HTML block", "   ~~~\n~~~\n<div hidden>\n~~~", errFenceLikeLine},
 		{"indented fence", "    ```\nx\n    ```", errFenceLikeLine},
 		{"tab-indented tilde fence", "\t~~~\nx\n\t~~~", errFenceLikeLine},
 		{"fence in a block quote", "> ```\n> x\n> ```", errFenceLikeLine},
@@ -125,8 +133,8 @@ func TestCheckBodyMarkdown(t *testing.T) {
 // instead of about a second.
 const linearWorkSize = 8 * maxTextBytes
 
-// linearWorkInputs are units repeated into one long line, each built so that
-// one way of making the judgment slower than linear rereads the line.
+// linearWorkInputs are units repeated into a body, each built so that one way
+// of making the judgment slower than linear rereads the line or the body.
 var linearWorkInputs = []struct {
 	name string
 	unit string
@@ -140,6 +148,9 @@ var linearWorkInputs = []struct {
 	// Backslashes before each '<': counting them from the start of the line
 	// rereads it.
 	{"escaped less-than", `\<a`},
+	// One code span per line: rechecking the body-wide code-span conditions
+	// for every line rereads the body.
+	{"code spans on many lines", "`<b>`\n"},
 }
 
 // TestCheckBodyMarkdownLinearWork checks that the judgment is linear without

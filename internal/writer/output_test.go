@@ -4,6 +4,7 @@ package writer
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -205,20 +206,26 @@ func TestWriteOutputSizeLimits(t *testing.T) {
 
 func TestWriteRejectsMarkdownHazards(t *testing.T) {
 	const body = markOutBody
-	rejected := []struct{ name, body string }{
-		{"unclosed backtick fence", body + "\n```go\nfmt.Println()"},
-		{"unclosed tilde fence", body + "\n~~~\n" + body},
-		{"unclosed details", "<details>\n" + body},
-		{"closed details", "<details>" + body + "</details>"},
-		{"div hidden", "<div hidden>" + body + "</div>"},
-		{"inline span hidden", body + " <span hidden>x</span>"},
-		{"comment", body + "\n<!-- " + body + " -->"},
-		{"script", body + "\n<script>"},
+	rejected := []struct {
+		name, body string
+		reason     error
+	}{
+		{"unclosed backtick fence", body + "\n```go\nfmt.Println()", errUnclosedFence},
+		{"unclosed tilde fence", body + "\n~~~\n" + body, errUnclosedFence},
+		{"unclosed details", "<details>\n" + body, errRawHTML},
+		{"closed details", "<details>" + body + "</details>", errRawHTML},
+		{"div hidden", "<div hidden>" + body + "</div>", errRawHTML},
+		{"inline span hidden", body + " <span hidden>x</span>", errRawHTML},
+		{"comment", body + "\n<!-- " + body + " -->", errRawHTML},
+		{"script", body + "\n<script>", errRawHTML},
 	}
 	for _, tc := range rejected {
 		t.Run(tc.name, func(t *testing.T) {
 			a, err := writeResponse(t, responseWithText("# "+markOutTitle+"\n"+tc.body))
 			requireMalformed(t, a, err)
+			if !errors.Is(err, tc.reason) {
+				t.Errorf("Write error = %v, want %v", err, tc.reason)
+			}
 		})
 	}
 	accepted := []struct{ name, body string }{
