@@ -8,7 +8,7 @@
 | Created | 2026-10-04 |
 | Review date | - |
 | Reviewer | - |
-| Comments | 2026-10-05 設計判断の変更（再承認が必要。2026-10-04 に isseis が承認した版からの変更）: (1) 前段の `02_architecture.md` が設計判断の変更（§3.8 で `\n` が続かない `\r` を拒否する、ほか）で `draft` に戻ったため、後段のこの計画も `draft` に戻す。(2) ステップ 4-3 に「実装時の決定」を加え、線形性の確かめ方を、承認した版が優先していた操作の回数を数える形から、8 MiB の入力で判定の結果だけを確かめ、線形より遅い実装は `go test` の時間切れで失敗させる形に変えた。操作を数えるには本番コードにテストのためだけの計数が要るためである。§5 の非 AC の表と §6 のリスクの表の該当行もこれに合わせた。フェーズ 3・PR-3 のチェックボックスの更新は進捗の記録であり、決定の変更ではない。PR-3（#71）は、`02_architecture.md` とこの計画の承認を得てからマージする。 |
+| Comments | 2026-10-05 設計判断の変更（再承認が必要。2026-10-04 に isseis が承認した版からの変更）: (1) 前段の `01_requirements.md`（3.2 に本文の部分の表記の統一と AC-32 を追加）と `02_architecture.md`（§3.7 に表記の統一、§3.8 ほか）が `draft` に戻ったため、後段のこの計画も `draft` に戻す。ステップ 4-2・4-3・4-4・4-6 と §5 に、表記の統一の実装と AC-32 の検証を加えた。(2) ステップ 4-3 に「実装時の決定」を加え、線形性の確かめ方を、承認した版が優先していた操作の回数を数える形から、8 MiB の入力で判定の結果だけを確かめ、線形より遅い実装は `go test` の時間切れで失敗させる形に変えた。操作を数えるには本番コードにテストのためだけの計数が要るためである。§5 の非 AC の表と §6 のリスクの表の該当行もこれに合わせた。フェーズ 3・PR-3 のチェックボックスの更新は進捗の記録であり、決定の変更ではない。PR-3（#71）は、3 つの文書の承認を得てからマージする。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -196,13 +196,13 @@ AC-01・AC-03・AC-04・AC-30（目印が `LLMClient` に渡ること）は `Wri
 
 **タスク**
 - [x] **ステップ 4-1**: `markdown.go` に、本文の部分の生の HTML と閉じていないコードフェンスの判定（architecture §3.8）を非公開の関数として実装する。行の区切り、開くフェンス・フェンスに見える行・閉じるフェンス、`<` の判定と例外（エスケープ・URI の自動リンク・コードスパンの 3 条件）は architecture §3.8 のとおりとする。判定は本文の部分の長さに比例する時間で行い、同じ長さのバッククォートの列を探すたびに行の残りを読み直す方法を採らない。`gocyclo` の上限を超えないよう関数を分ける。
-- [x] **ステップ 4-2**: `output.go` の生成テキストの検証の手順 5 と手順 7 の間で、ステップ 4-1 の判定を呼ぶ。拒否は `ErrMalformedOutput` とし、エラーには理由と本文の部分の中の行番号だけを含め、HTML と判定した文字列を含めない（architecture §4.2）。
-- [x] **ステップ 4-3**: `markdown_test.go` に `TestCheckBodyMarkdown` を作る。architecture §3.8 の「受理する例」「拒否する例」「過剰な拒否の一覧」の各行と、§7.1 の「Markdown の判定」に挙げた境界（`\r` だけの改行、`\r\n` の閉じるフェンス、フェンスの中の HTML に見える文字列、開いたものより短い閉じるフェンス、バッククォートの対を取り違えさせる形、行をまたぐリンクのタイトルの形）を、非公開の関数に対する表のテストで確かめる。あわせて、バッククォートを含む URI の自動リンクだけを含み、コードスパンを含まない行（`` <https://e.example/`> ``、拒否）を表に加える。ステップ 4-6 で外す条件ごとに、対応する行を用意する。各行は、その条件以外の規則だけでは拒否されないことを、条件を 1 つずつ外して確かめてから表に置く（例: コードスパンの例外の 1 つ目・2 つ目の条件の行は、バッククォートの列が同じ行の中で対になり、3 つ目の条件を満たす形にする）。
+- [x] **ステップ 4-2**: `output.go` の生成テキストの検証の手順 5 と手順 7 の間で、ステップ 4-1 の判定を呼ぶ。拒否は `ErrMalformedOutput` とし、エラーには理由と本文の部分の中の行番号だけを含め、HTML と判定した文字列を含めない（architecture §4.2）。あわせて、手順 5 の前に本文の部分の表記の統一（architecture §3.7。先頭の U+FEFF を除き、`\r\n` と単独の `\r` を `\n` にする）を行い、手順 5・6 と `Article.Body` に統一した後の同じ文字列を使う。判定は統一した後の本文の部分を `\n` だけで行に分ける。
+- [x] **ステップ 4-3**: `markdown_test.go` に `TestCheckBodyMarkdown` を作る。architecture §3.8 の「受理する例」「拒否する例」「過剰な拒否の一覧」の各行と、§7.1 の「Markdown の判定」に挙げた境界（フェンスの中の HTML に見える文字列、開いたものより短い閉じるフェンス、バッククォートの対を取り違えさせる形、行をまたぐリンクのタイトルの形）を、非公開の関数に対する表のテストで確かめる。あわせて、バッククォートを含む URI の自動リンクだけを含み、コードスパンを含まない行（`` <https://e.example/`> ``、拒否）を表に加える。ステップ 4-6 で外す条件ごとに、対応する行を用意する。各行は、その条件以外の規則だけでは拒否されないことを、条件を 1 つずつ外して確かめてから表に置く（例: コードスパンの例外の 1 つ目・2 つ目の条件の行は、バッククォートの列が同じ行の中で対になり、3 つ目の条件を満たす形にする）。
   - `TestCheckBodyMarkdownLinearWork` を作る（§5 の非 AC の表）。判定が本文の部分の長さに対して線形であることを、合否を壁時計の時間に依存させずに確かめる。決定的な確かめ方として、長さの異なる入力で文字の走査・比較の回数を数え、入力の長さに対して線形にしか増えないことを確かめる形を優先する。実装の構造から操作を数えられない場合に限り、線形より遅い実装（例: `<` ごとに行の先頭から読み直してコードスパンの中かを決める実装）と比べる、合否を左右しない benchmark（`BenchmarkCheckBodyMarkdown`）に時間の測定を移し、`make test` の成否を時間に依存させない。architecture §3.8 の 2 乗の例（同じ長さの列を探すたびに残りを読み直す方法）は 3 つ目の条件で線形にもなりうるので、線形より遅い実装は実装時に確かめて決める。
   - **実装時の決定。** 操作の回数を数えるには本番コードにテストのためだけの計数を入れる必要があり、`.claude/commands/runplan.md` のステップ 5 の自己確認（テストのための振る舞いを本番コードに置かない）に反するので、数える形は採らなかった。代わりに `TestCheckBodyMarkdownLinearWork` は、`Write` が受理する上限の 8 倍（8 MiB）の入力 4 種類（1 行の `>` のない `<` の列、1 行のコードスパンの中の `<b>` の列、1 行のエスケープした `<` の列、コードスパンを 1 つずつ含む多数の行）で判定の結果だけを確かめ、時間を測らない。線形より遅い実装（`<` ごとに次の `>` まで読む、`<` ごとに行の先頭からコードスパンを求め直す、`<` ごとに行の先頭からバックスラッシュを数える、行ごとにコードスパンの例外の条件を本文の部分の全体で判定し直す）は数十分以上かかり、`go test` の時間切れ（既定 10 分）で失敗する。線形の実装は `-race` でも 1 秒未満で終わる。時間の測定は `BenchmarkCheckBodyMarkdown`（`make test` では実行せず、合否を左右しない）に置く。同じ長さの列を探すたびに残りを読み直す方法は、閉じる列が見つからなければその時点で条件を満たさないと判定して止まり、見つかれば閉じる列の後から読み続けるので線形になる。そのため入力に含めない。
-- [x] **ステップ 4-4**: `output_test.go` に `TestWriteRejectsMarkdownHazards` を加える。AC-24・AC-27 の各例を `Write` で通し、拒否するものはステップ 3-4 の共有のアサーション（AC-26）で、受理するもの（コードスパンの中・閉じたフェンスの中の `<details>`、URI の自動リンク、閉じたフェンス）は記事が返ることで確かめる。
+- [x] **ステップ 4-4**: `output_test.go` に `TestWriteRejectsMarkdownHazards` を加える。AC-24・AC-27 の各例を `Write` で通し、拒否するものはステップ 3-4 の共有のアサーション（AC-26）で、受理するもの（コードスパンの中・閉じたフェンスの中の `<details>`、URI の自動リンク、閉じたフェンス）は記事が返ることで確かめる。また、`TestWriteNormalizesBody`（AC-32。`\r\n`・単独の `\r`・`\r` の後の `\r\n`・末尾の `\r`・先頭の U+FEFF の統一と、先頭以外の U+FEFF が残ることを、`Body` の完全一致で確かめる。`\r` だけの改行で閉じたフェンスは、統一の後でだけ受理される入力にする）と `TestWriteChecksNormalizedBody`（AC-32。先頭の U+FEFF の後のフェンスが閉じていないフェンスとして、U+FEFF だけの本文の部分が空として拒否されること。どちらも統一をしなければ受理される入力にする）を加える。
 - [x] **ステップ 4-5**: `package_reference.md` の `internal/writer` の行に、本文の部分の生の HTML と閉じていないコードフェンスの拒否を加える。
-- [x] **ステップ 4-6**: 壊して失敗することを確認し、コミットメッセージに記録する。対象: `\r` を行の区切りとして扱わない（`TestCheckBodyMarkdown` の `\r` のケース）、閉じるフェンスの個数の比較を外す（同、短い閉じるフェンス）、フェンスに見える行の拒否を外す（同、インデントしたフェンス）、エスケープの判定でバックスラッシュの数の偶奇を見ない（同、`\\<div>`）、コードスパンの例外の 1 つ目の条件を外す（同、`` [a](/u "`") <details>` ``）、2 つ目の条件を外す（同、`` <1`@a.bc> <details>` ``）、自動リンクの例外でバッククォートを許す（同、`` <https://e.example/`> ``）、ステップ 4-3 で決めた線形より遅い実装に替える（`TestCheckBodyMarkdownLinearWork`。benchmark に移した場合は、時間の測定が `make test` の合否には含まれないことを述べる）、`output.go` が判定を呼ばない（`TestWriteRejectsMarkdownHazards`）。
+- [x] **ステップ 4-6**: 壊して失敗することを確認し、コミットメッセージに記録する。対象: 表記の統一をしない・`\r\n` より先に `\r` を置き換える・先頭の U+FEFF を除かない・すべての U+FEFF を除く・判定に統一する前の本文の部分を渡す（`TestWriteNormalizesBody`・`TestWriteChecksNormalizedBody` の対応するケース）、閉じるフェンスの個数の比較を外す（同、短い閉じるフェンス）、フェンスに見える行の拒否を外す（同、インデントしたフェンス）、エスケープの判定でバックスラッシュの数の偶奇を見ない（同、`\\<div>`）、コードスパンの例外の 1 つ目の条件を外す（同、`` [a](/u "`") <details>` ``）、2 つ目の条件を外す（同、`` <1`@a.bc> <details>` ``）、自動リンクの例外でバッククォートを許す（同、`` <https://e.example/`> ``）、ステップ 4-3 で決めた線形より遅い実装に替える（`TestCheckBodyMarkdownLinearWork`。benchmark に移した場合は、時間の測定が `make test` の合否には含まれないことを述べる）、先頭の U+FEFF の拒否を外す（`TestCheckBodyMarkdown` の BOM のケース）、`output.go` が判定を呼ばない（`TestWriteRejectsMarkdownHazards`）。
 - [x] **ステップ 4-7**: `make fmt` → `make test` → `make lint` を通す。
 
 ### PR-3 作成ポイント: Markdown hazard and code-fence judgment
@@ -345,12 +345,13 @@ architecture §7.3 に従う。計画固有の事項は次のとおり。
 | AC-23 | タイトルと本文の部分の拒否、前後の空白の除去 | test | `output_test.go::TestWriteRejectsMalformedText` |
 | AC-24 | 閉じていないコードフェンスの拒否 | test | `output_test.go::TestWriteRejectsMarkdownHazards`・`markdown_test.go::TestCheckBodyMarkdown` |
 | AC-25 | 空の `Model` の拒否 | test | `output_test.go::TestWriteRejectsInvalidModel` |
-| AC-26 | エラーに値が現れない | test | ステップ 3-4 の共有のアサーション（`TestWriteRejectsMalformedText`・`TestWriteRejectsInvalidModel`・`TestWriteOutputSizeLimits`・`TestWriteRejectsMarkdownHazards` の全拒否ケース） |
+| AC-26 | エラーに値が現れない | test | ステップ 3-4 の共有のアサーション（`TestWriteRejectsMalformedText`・`TestWriteRejectsInvalidModel`・`TestWriteOutputSizeLimits`・`TestWriteRejectsMarkdownHazards`・`TestWriteChecksNormalizedBody` の全拒否ケース） |
 | AC-27 | 生の HTML の拒否と受理する形 | test | `output_test.go::TestWriteRejectsMarkdownHazards`・`markdown_test.go::TestCheckBodyMarkdown` |
 | AC-28 | プロンプトの上限の境界と `printf` の構築時の拒否 | test | `prompt_test.go::TestWritePromptSizeLimit`・`TestBoundedWriter`・`template_test.go::TestTemplateSyntaxAllowlist`（`{{printf "%1000000000s" .Title}}`） |
 | AC-29 | `Model`・`ModelVersion` の拒否 | test | `output_test.go::TestWriteRejectsInvalidModel` |
 | AC-30 | 既定のテンプレートが 4 つの値と見出しの指示を含む | test | `writer_test.go::TestDefaultTemplatesEmbedAllValues`・`template_test.go::TestDefaultSystemTemplateHeadingInstruction` |
 | AC-31 | `Text`・`Model`・`ModelVersion` の上限の境界 | test | `output_test.go::TestWriteOutputSizeLimits` |
+| AC-32 | 本文の部分の表記の統一と、統一の後の判定 | test | `output_test.go::TestWriteNormalizesBody`・`TestWriteChecksNormalizedBody` |
 
 AC に対応しない、architecture が求める検証は次のとおり。
 
@@ -399,7 +400,7 @@ AC に対応しない、architecture が求める検証は次のとおり。
 
 ## 8. 成功基準 (Success Criteria)
 
-- **機能:** AC-01〜AC-19・AC-21〜AC-31 のすべてが §5 の検証で確認されている。
+- **機能:** AC-01〜AC-19・AC-21〜AC-32 のすべてが §5 の検証で確認されている。
 - **品質:** `make test`・`make lint` が通る。§4.1 の網羅率の目標を満たす。各テストは対象を壊して失敗することを確認済みで、そのことがコミットメッセージに記録されている。
 - **セキュリティ:** 出典リンクを検証済みの `VideoID` から組み立てること（AC-18・AC-19）、値をテンプレートとして解釈しないこと（AC-12）、エラーに値を含めないこと（AC-26）、生の HTML と閉じていないフェンスの拒否（AC-24・AC-27）、制御文字の拒否（AC-29）、展開と上書きファイルの読み込みでメモリを使い切らず待ち続けないこと（AC-05・AC-28）を確認済みである。
 - **互換性:** `TestCommonTypesFieldSets` 以外の既存テストが無変更で通る。依存モジュールを追加していない（`.golangci.yml` を変更していない）。

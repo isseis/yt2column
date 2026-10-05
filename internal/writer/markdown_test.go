@@ -30,8 +30,6 @@ func TestCheckBodyMarkdown(t *testing.T) {
 		{"fence closed by a longer run", "```\nx\n`````", nil},
 		{"fence closed with three-space indent and trailing blanks", "```\nx\n   ``` \t", nil},
 		{"tilde line inside a backtick fence", "```\n~~~\n<div>\n```", nil},
-		{"closing fence ending with the body's last CR", "```\nx\n```\r", nil},
-		{"CRLF closing fence", "```\r\n<div>\r\n```\r\n", nil},
 		{"fence lines left out of the code-span conditions", "~~~ [x]\ny\n~~~\n```go\nz\n```\n`<details>`", nil},
 		{"URI autolink", "<https://example.com/>", nil},
 		{"URI autolink with an upper-case scheme", "<HTTPS://E.EXAMPLE/>", nil},
@@ -85,10 +83,6 @@ func TestCheckBodyMarkdown(t *testing.T) {
 		{"image title across lines", "![a](/u \"\n`\") <details>`", errRawHTML},
 		{"email autolink holding a backtick", "<1`@a.bc> <details>`", errRawHTML},
 		{"email autolink starting with a backtick", "<`@a.bc> <script>`", errRawHTML},
-
-		// Bare CR: renderers disagree on whether it ends a line.
-		{"CR-only line endings", "```\r<div>\r```\r", errBareCR},
-		{"bare CR in mid-body", "a\rb", errBareCR},
 
 		// Unclosed fences.
 		{"unclosed fence with info string", "本文\n```go\nfmt.Println()", errUnclosedFence},

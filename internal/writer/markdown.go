@@ -43,14 +43,12 @@ type fence struct {
 type span struct{ start, end int }
 
 // checkBodyMarkdown rejects a body part that contains raw HTML or ends inside
-// an unclosed code fence. A returned error names the reason and, where one
-// line is at fault, its number within the body part, never the text, which
-// is untrusted.
+// an unclosed code fence. It takes the output of normalizeBody, whose only
+// line ending is "\n". A returned error names the reason and, where one line
+// is at fault, its number within the body part, never the text, which is
+// untrusted.
 func checkBodyMarkdown(body string) error {
-	if hasBareCR(body) {
-		return errBareCR
-	}
-	prose, err := proseLines(splitLines(body))
+	prose, err := proseLines(strings.Split(body, "\n"))
 	if err != nil {
 		return err
 	}
@@ -65,41 +63,6 @@ func checkBodyMarkdown(body string) error {
 		}
 	}
 	return nil
-}
-
-// hasBareCR reports whether s has a '\r' that is neither followed by '\n'
-// nor the last byte of s. CommonMark ends a line at a lone '\r', but not every
-// renderer does, and one that does not can leave a fence open over the source
-// block. A '\r' that ends s is followed by the separator's '\n' in the
-// article.
-func hasBareCR(s string) bool {
-	for i := range len(s) - 1 {
-		if s[i] == '\r' && s[i+1] != '\n' {
-			return true
-		}
-	}
-	return false
-}
-
-// splitLines splits s at "\n", "\r\n", and "\r", the line endings of
-// CommonMark.
-func splitLines(s string) []string {
-	var lines []string
-	start := 0
-	for i := 0; i < len(s); i++ {
-		switch s[i] {
-		case '\n':
-			lines = append(lines, s[start:i])
-			start = i + 1
-		case '\r':
-			lines = append(lines, s[start:i])
-			if i+1 < len(s) && s[i+1] == '\n' {
-				i++
-			}
-			start = i + 1
-		}
-	}
-	return append(lines, s[start:])
 }
 
 // proseLines tracks code fences from the first line and returns the lines

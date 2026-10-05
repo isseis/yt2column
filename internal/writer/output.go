@@ -27,12 +27,19 @@ const (
 	// blank line, so the source block is its own paragraph however the body
 	// ends.
 	bodySeparator = "\n\n"
+	// byteOrderMark is U+FEFF, which normalizeBody removes from the start of
+	// the body part.
+	byteOrderMark = "\uFEFF"
 )
+
+// bodyLineEndings rewrites the CommonMark line endings "\r\n" and "\r" to
+// "\n". "\r\n" is listed first so it is replaced as one line ending.
+var bodyLineEndings = strings.NewReplacer("\r\n", "\n", "\r", "\n")
 
 // checkResponse validates the generated text, Model, and ModelVersion in a
 // fixed order and returns the title and the body part (everything after the
-// first line's "\n"). Nothing is repaired: a value that breaks a rule is
-// rejected. Errors wrap ErrMalformedOutput and name the broken rule only,
+// first line's "\n", passed through normalizeBody before its checks). Nothing
+// else is repaired: a value that breaks a rule is rejected. Errors wrap ErrMalformedOutput and name the broken rule only,
 // never a value, because the response is untrusted.
 func checkResponse(resp llm.GenerateResponse) (title, body string, err error) {
 	if len(resp.Text) > maxTextBytes {
@@ -54,6 +61,7 @@ func checkResponse(resp llm.GenerateResponse) (title, body string, err error) {
 	if strings.HasSuffix(title, "#") {
 		return "", "", fmt.Errorf("%w: title ends with \"#\"", ErrMalformedOutput)
 	}
+	body = normalizeBody(body)
 	if strings.TrimSpace(body) == "" {
 		return "", "", fmt.Errorf("%w: body is empty or whitespace only", ErrMalformedOutput)
 	}
@@ -69,6 +77,17 @@ func checkResponse(resp llm.GenerateResponse) (title, body string, err error) {
 		}
 	}
 	return title, body, nil
+}
+
+// normalizeBody is the only change made to the LLM output: it removes a
+// leading U+FEFF and turns every line ending into "\n". CommonMark ignores a
+// byte order mark at the start of a document and ends a line at all three
+// endings, so the meaning is unchanged, but renderers differ on both (some
+// keep a lone "\r" inside a line, some strip a leading BOM), which could open
+// or close a fence differently from the check. The result is both what the
+// checks read and what the article carries.
+func normalizeBody(body string) string {
+	return bodyLineEndings.Replace(strings.TrimPrefix(body, byteOrderMark))
 }
 
 // checkModelString applies the size and UTF-8 rules of Model and
@@ -97,9 +116,9 @@ func checkDisplayString(name, value string) error {
 	return nil
 }
 
-// newArticle builds the article from validated values. Body is the generated
-// body unmodified, bodySeparator, then the source block, whose URL comes from
-// the validated VideoID, never from the generated text.
+// newArticle builds the article from validated values. Body is the body part
+// as checkResponse returned it, bodySeparator, then the source block, whose
+// URL comes from the validated VideoID, never from the generated text.
 func newArticle(title, body, sourceURL string, resp llm.GenerateResponse) Article {
 	return Article{
 		Title:        title,
