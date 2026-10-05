@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestCheckBodyMarkdown(t *testing.T) {
@@ -121,11 +122,11 @@ func TestCheckBodyMarkdown(t *testing.T) {
 	}
 }
 
-// linearWorkSize is the size of the TestCheckBodyMarkdownLinearWork bodies:
-// eight times what Write accepts, so that a judgment that rereads the line
-// for every character does about linearWorkSize^2/2 steps and runs for hours
-// instead of about a second.
-const linearWorkSize = 8 * maxTextBytes
+// linearWorkDeadline bounds each TestCheckBodyMarkdownLinearWork input. A
+// linear judgment takes well under a second on a body of maxTextBytes, even
+// with -race; one that rereads the line or the body for every character or
+// line takes more than a minute there.
+const linearWorkDeadline = 20 * time.Second
 
 // linearWorkInputs are units repeated into a body, each built so that one way
 // of making the judgment slower than linear rereads the line or the body.
@@ -147,17 +148,25 @@ var linearWorkInputs = []struct {
 	{"code spans on many lines", "`<b>`\n"},
 }
 
-// TestCheckBodyMarkdownLinearWork checks that the judgment is linear without
-// measuring time. It asserts only the result; an implementation slower than
-// linear fails it by exceeding the go test timeout by orders of magnitude,
-// so machine load cannot change the outcome. BenchmarkCheckBodyMarkdown
-// measures the same inputs for inspection.
+// TestCheckBodyMarkdownLinearWork checks that the judgment stays linear on
+// the largest body Write accepts. It is a time bound with a wide margin, not
+// a measurement: linear and slower-than-linear implementations differ by more
+// than linearWorkDeadline by a factor of tens, so machine load does not decide
+// the outcome. BenchmarkCheckBodyMarkdown measures the same inputs.
 func TestCheckBodyMarkdownLinearWork(t *testing.T) {
 	for _, in := range linearWorkInputs {
 		t.Run(in.name, func(t *testing.T) {
-			body := strings.Repeat(in.unit, linearWorkSize/len(in.unit))
-			if err := checkBodyMarkdown(body); err != nil {
-				t.Errorf("checkBodyMarkdown error = %v, want nil", err)
+			body := strings.Repeat(in.unit, maxTextBytes/len(in.unit))
+			done := make(chan error, 1)
+			go func() { done <- checkBodyMarkdown(body) }()
+			select {
+			case err := <-done:
+				if err != nil {
+					t.Errorf("checkBodyMarkdown error = %v, want nil", err)
+				}
+			case <-time.After(linearWorkDeadline):
+				// The goroutine keeps running; the test has failed already.
+				t.Fatalf("checkBodyMarkdown did not finish within %v", linearWorkDeadline)
 			}
 		})
 	}

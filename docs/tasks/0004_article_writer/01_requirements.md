@@ -6,8 +6,8 @@
 |---|---|
 | Status | `approved` |
 | Created | 2026-10-03 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-05 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
