@@ -17,10 +17,12 @@ func NewForLoopbackTest(t testing.TB, opts Options, endpoint string) llm.LLMClie
 	t.Helper()
 	if err := validateLoopbackEndpoint(endpoint); err != nil {
 		t.Fatalf("NewForLoopbackTest endpoint: %v", err)
+		return nil
 	}
 	value, err := New(opts)
 	if err != nil {
 		t.Fatalf("New(Options{Model: %q, Timeout: %v}) error = %v", opts.Model, opts.Timeout, err)
+		return nil
 	}
 	client, ok := value.(*client)
 	if !ok {

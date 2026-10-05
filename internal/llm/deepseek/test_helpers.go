@@ -72,9 +72,9 @@ func validateLoopbackEndpoint(endpoint string) error {
 	return nil
 }
 
-// newTestClient builds a client with the test defaults, then replaces its
-// endpoint with the given address. The address must be a loopback URL; every
-// other address fails the test without building a client.
+// newTestClient builds a client for the given loopback endpoint by delegating
+// to NewForLoopbackTest with the test defaults. The address must be a loopback
+// URL; every other address fails the test without building a client.
 func newTestClient(t *testing.T, endpoint string, modify func(*Options)) *client {
 	t.Helper()
 	options := Options{APIKey: mustSecret(t, testAPIKey), Model: testModel, Timeout: testClientTimeout}
