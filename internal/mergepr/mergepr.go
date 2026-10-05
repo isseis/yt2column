@@ -29,6 +29,8 @@ const (
 	statFileName  = "stat.txt"
 	bodyFileName  = "body.txt"
 
+	workDirPrefix = "mergepr-"
+
 	fileMode = 0o600
 
 	prViewFields = "number,title,state,headRefName,headRefOid,baseRefName,url,body"
@@ -89,9 +91,9 @@ type Report struct {
 }
 
 // Prepare resolves the PR (the current branch's when prArg is empty), waits for
-// CI, and writes the state and drafting material into a fresh directory under
-// the repository's git directory, so the material stays inside the checkout
-// rather than in a shared temporary directory.
+// CI, and writes the state and drafting material into a fresh directory inside
+// the active worktree, so the material stays within the checkout rather than in
+// a shared temporary directory.
 func (t *Tool) Prepare(ctx context.Context, prArg string) (Prepared, error) {
 	args := []string{"pr", "view"}
 	if prArg != "" {
@@ -132,7 +134,11 @@ func (t *Tool) Prepare(ctx context.Context, prArg string) (Prepared, error) {
 	if err != nil {
 		return Prepared{}, fmt.Errorf("find the git directory: %w", err)
 	}
-	dir, err := os.MkdirTemp(strings.TrimSpace(string(gitDir)), "mergepr-")
+	workRoot, err := t.git(ctx, "rev-parse", "--show-toplevel")
+	if err != nil {
+		return Prepared{}, fmt.Errorf("find the worktree root: %w", err)
+	}
+	dir, err := os.MkdirTemp(workDirBase(strings.TrimSpace(string(workRoot)), strings.TrimSpace(string(gitDir))), workDirPrefix)
 	if err != nil {
 		return Prepared{}, fmt.Errorf("create work directory: %w", err)
 	}
@@ -152,6 +158,19 @@ func (t *Tool) Prepare(ctx context.Context, prArg string) (Prepared, error) {
 		}
 	}
 	return Prepared{State: state, Dir: dir}, nil
+}
+
+// workDirBase returns a directory inside the active worktree in which to create
+// the drafting directory. In the primary checkout the git directory is itself
+// inside the worktree, so use it and keep the material out of git's view. A
+// linked worktree's git directory lives in the primary checkout, so fall back
+// to the worktree root to stay inside the active checkout.
+func workDirBase(workRoot, gitDir string) string {
+	rel, err := filepath.Rel(workRoot, gitDir)
+	if err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return gitDir
+	}
+	return workRoot
 }
 
 // Merge squash-merges the prepared head into the prepared base with the
@@ -185,7 +204,12 @@ func (t *Tool) Merge(ctx context.Context, statePath, subjectPath, bodyPath strin
 	if _, err := t.gh(ctx, "pr", "merge", state.number(), "--squash", "--subject", subject, "--body", string(body), "--match-head-commit", state.HeadRefOID); err != nil {
 		return Report{}, fmt.Errorf("merge PR: %w\ncheck the PR; if it was merged anyway, run `mergepr cleanup --state %s`", err, statePath)
 	}
-	return t.cleanup(ctx, state)
+	report, err := t.cleanup(ctx, state)
+	if err != nil {
+		return report, err
+	}
+	removeWorkDir(statePath)
+	return report, nil
 }
 
 // Cleanup updates the local base branch and deletes the local head branch after
@@ -196,7 +220,24 @@ func (t *Tool) Cleanup(ctx context.Context, statePath string) (Report, error) {
 	if err != nil {
 		return Report{}, err
 	}
-	return t.cleanup(ctx, state)
+	report, err := t.cleanup(ctx, state)
+	if err != nil {
+		return report, err
+	}
+	removeWorkDir(statePath)
+	return report, nil
+}
+
+// removeWorkDir deletes the drafting directory after cleanup has finished. It
+// only removes a directory that Prepare created, so an operator-supplied
+// --state path cannot cause an unrelated directory to be deleted. A failure to
+// remove is ignored: cleanup itself already succeeded.
+func removeWorkDir(statePath string) {
+	dir := filepath.Dir(statePath)
+	if !strings.HasPrefix(filepath.Base(dir), workDirPrefix) {
+		return
+	}
+	_ = os.RemoveAll(dir)
 }
 
 func (t *Tool) cleanup(ctx context.Context, state State) (Report, error) {

@@ -56,7 +56,7 @@ flowchart TD
     classDef enhanced fill:#e8f5e8,stroke:#2e8b57,stroke-width:2px,color:#006400;
 
     Start(["/mergepr [PR]"]) --> Prepare["mergepr prepare<br>PR が OPEN か確認<br>git fetch origin<br>CI 完了を待つ"]
-    Prepare --> Files[("一時ディレクトリ<br>state.json / log.txt<br>stat.txt / body.txt")]
+    Prepare --> Files[("作業ディレクトリ<br>state.json / log.txt<br>stat.txt / body.txt")]
     Files --> Draft["メッセージの下書き<br>（Claude）"]
     Draft --> Approve{"開発者が承認?"}
     Approve -->|"修正依頼"| Draft
@@ -109,7 +109,7 @@ PR を引数なし（現在のブランチ）、番号、URL のいずれかで�
 1. PR が OPEN であることを確認する。
 2. `git fetch origin` を実行する。
 3. `gh pr checks --watch --fail-fast` で CI の完了を待つ。失敗したチェックがあれば止まる。
-4. 一時ディレクトリを作成し、次のファイルを書き出す。
+4. 作業中のチェックアウト内に新しい作業ディレクトリを作成し、次のファイルを書き出す。本体のチェックアウトではリポジトリの git ディレクトリ配下（`.git/mergepr-*`）に、git ディレクトリが本体側にある worktree では worktree のルートに `mergepr-*` ディレクトリを作る。材料をチェックアウト内に保つことで、作業ツリーの外に触れずに済む。
 
 | ファイル | 内容 |
 |---|---|
@@ -126,8 +126,8 @@ url:   https://github.com/isseis/yt2column/pull/42
 head:  feature/foo at 2222222222222222222222222222222222222222
 base:  main
 CI:    all checks passed
-dir:   /var/folders/.../mergepr-123456 (state.json, log.txt, stat.txt, body.txt)
-state: /var/folders/.../mergepr-123456/state.json
+dir:   /repo/.git/mergepr-123456 (state.json, log.txt, stat.txt, body.txt)
+state: /repo/.git/mergepr-123456/state.json
 ```
 
 材料で足りないときは、リポジトリのルートで次を実行して個別ファイルの差分を見る。
@@ -156,6 +156,7 @@ git diff origin/<base>...<headOID> -- <path>
    - それ以外なら、`git switch <base>` で切り替える。
 4. `git merge --ff-only origin/<base>` で base を最新にする。
 5. ローカルの head ブランチが `headOID` を指しているときだけ `git branch -D` で削除する。ブランチが無ければ何もしない。
+6. 片付けが終わったら、準備した作業ディレクトリを削除する。エラーで止まった場合は、`cleanup` を再実行できるようディレクトリを残す。
 
 結果の出力例:
 
@@ -219,7 +220,7 @@ note: main is checked out in another worktree; update it there and remove this w
 | `PR merged a different head than prepared` | `cleanup` | `prepare` 後に head が force-push され、その head がマージされた | ローカル head ブランチに PR に含まれなかったコミットが無いか確認し、base の更新とブランチの削除を手動で行う |
 | `invalid state` | `merge`、`cleanup` | `--state` に `prepare` が書いたファイル以外を指定した | `prepare` が表示したパスを指定する |
 
-`merge` は取り消せない段階である。その後に止まっても、マージ自体は完了していることがある。GitHub で PR の状態を確認し、マージ済みなら `cleanup` で片付けを再開する。`state.json` は一時ディレクトリにあるため、片付けが終わるまで削除しない。
+`merge` は取り消せない段階である。その後に止まっても、マージ自体は完了していることがある。GitHub で PR の状態を確認し、マージ済みなら `cleanup` で片付けを再開する。`state.json` はチェックアウト内の作業ディレクトリ（本体のチェックアウトでは `.git/mergepr-*`、worktree では `mergepr-*`）にあるため、片付けが終わるまで削除しない。片付けが成功すると、ツールがディレクトリを削除する。
 
 ## 8. ツールを変更する場合
 

@@ -28,13 +28,14 @@ var testState = State{
 
 const testPRJSON = `{"number":42,"title":"Test PR","state":"OPEN","headRefName":"feature/foo","headRefOid":"` + testHeadOID + `","baseRefName":"main","url":"https://github.com/isseis/yt2column/pull/42","body":"the PR description"}`
 
-func prepareTailSteps(gitDir string) []commandStep {
+func prepareTailSteps(workRoot, gitDir string) []commandStep {
 	return []commandStep{
 		gitStep("", "fetch", "origin"),
 		ghStep("", "pr", "checks", "42", "--watch", "--fail-fast"),
 		gitStep("abc subject\n\nbody\n", "log", "--format=%h %s%n%n%b", "origin/main.."+testHeadOID),
 		gitStep(" a.txt | 1 +\n", "diff", "--stat", "origin/main..."+testHeadOID),
 		gitStep(gitDir+"\n", "rev-parse", "--absolute-git-dir"),
+		gitStep(workRoot+"\n", "rev-parse", "--show-toplevel"),
 	}
 }
 
@@ -48,10 +49,14 @@ func readFile(t *testing.T, path string) string {
 }
 
 func TestPrepare(t *testing.T) {
-	gitDir := t.TempDir()
+	workRoot := t.TempDir()
+	gitDir := filepath.Join(workRoot, ".git")
+	if err := os.Mkdir(gitDir, 0o700); err != nil {
+		t.Fatalf("create git dir: %v", err)
+	}
 	tool, runner := newTool(t, append([]commandStep{
 		ghStep(testPRJSON, "pr", "view", "42", "--json", prViewFields),
-	}, prepareTailSteps(gitDir)...)...)
+	}, prepareTailSteps(workRoot, gitDir)...)...)
 
 	prepared, err := tool.Prepare(t.Context(), "42")
 	if err != nil {
@@ -85,10 +90,14 @@ func TestPrepare(t *testing.T) {
 }
 
 func TestPrepareCurrentBranch(t *testing.T) {
-	gitDir := t.TempDir()
+	workRoot := t.TempDir()
+	gitDir := filepath.Join(workRoot, ".git")
+	if err := os.Mkdir(gitDir, 0o700); err != nil {
+		t.Fatalf("create git dir: %v", err)
+	}
 	tool, runner := newTool(t, append([]commandStep{
 		ghStep(testPRJSON, "pr", "view", "--json", prViewFields),
-	}, prepareTailSteps(gitDir)...)...)
+	}, prepareTailSteps(workRoot, gitDir)...)...)
 
 	prepared, err := tool.Prepare(t.Context(), "")
 	if err != nil {
@@ -96,6 +105,31 @@ func TestPrepareCurrentBranch(t *testing.T) {
 	}
 	runner.done()
 	t.Cleanup(func() { _ = os.RemoveAll(prepared.Dir) })
+}
+
+// TestPrepareInLinkedWorktree verifies that the drafting material is created
+// inside the active worktree even when the git directory lives in the primary
+// checkout, as `git rev-parse --absolute-git-dir` reports for a linked worktree.
+func TestPrepareInLinkedWorktree(t *testing.T) {
+	workRoot := t.TempDir()
+	gitDir := filepath.Join(t.TempDir(), "primary", ".git", "worktrees", "wt")
+	if err := os.MkdirAll(gitDir, 0o700); err != nil {
+		t.Fatalf("create git dir: %v", err)
+	}
+	tool, runner := newTool(t, append([]commandStep{
+		ghStep(testPRJSON, "pr", "view", "42", "--json", prViewFields),
+	}, prepareTailSteps(workRoot, gitDir)...)...)
+
+	prepared, err := tool.Prepare(t.Context(), "42")
+	if err != nil {
+		t.Fatalf("Prepare returned error: %v", err)
+	}
+	runner.done()
+	t.Cleanup(func() { _ = os.RemoveAll(prepared.Dir) })
+
+	if filepath.Dir(prepared.Dir) != workRoot {
+		t.Errorf("prepared.Dir = %s, want a directory inside the worktree %s", prepared.Dir, workRoot)
+	}
 }
 
 func TestPrepareRejectsClosedPR(t *testing.T) {
@@ -312,6 +346,40 @@ func TestCleanupLeavesBaseInAnotherWorktree(t *testing.T) {
 	runner.done()
 	if report.BaseUpdated || report.LocalDeleted || report.Note == "" {
 		t.Errorf("report = %+v, want nothing changed locally and a note", report)
+	}
+}
+
+func TestCleanupRemovesWorkDirectory(t *testing.T) {
+	workDir, err := os.MkdirTemp(t.TempDir(), workDirPrefix)
+	if err != nil {
+		t.Fatalf("create work directory: %v", err)
+	}
+	statePath := writeStateFile(t, workDir)
+	tool, runner := newTool(t, cleanupSteps(testHeadOID)...)
+
+	if _, err := tool.Cleanup(t.Context(), statePath); err != nil {
+		t.Fatalf("Cleanup returned error: %v", err)
+	}
+	runner.done()
+	if _, err := os.Stat(workDir); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("work directory %s still exists after cleanup, want removed", workDir)
+	}
+}
+
+func TestCleanupKeepsWorkDirectoryOnError(t *testing.T) {
+	workDir, err := os.MkdirTemp(t.TempDir(), workDirPrefix)
+	if err != nil {
+		t.Fatalf("create work directory: %v", err)
+	}
+	statePath := writeStateFile(t, workDir)
+	tool, runner := newTool(t, cleanupSteps(testOtherOID)...)
+
+	if _, err := tool.Cleanup(t.Context(), statePath); !errors.Is(err, errLocalBranchMoved) {
+		t.Fatalf("Cleanup error = %v, want errLocalBranchMoved", err)
+	}
+	runner.done()
+	if _, err := os.Stat(workDir); err != nil {
+		t.Errorf("work directory %s removed on a failed cleanup: %v", workDir, err)
 	}
 }
 

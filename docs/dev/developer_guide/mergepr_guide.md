@@ -56,7 +56,7 @@ flowchart TD
     classDef enhanced fill:#e8f5e8,stroke:#2e8b57,stroke-width:2px,color:#006400;
 
     Start(["/mergepr [PR]"]) --> Prepare["mergepr prepare<br>Check that the PR is OPEN<br>git fetch origin<br>Wait for CI to finish"]
-    Prepare --> Files[("Temporary directory<br>state.json / log.txt<br>stat.txt / body.txt")]
+    Prepare --> Files[("Work directory<br>state.json / log.txt<br>stat.txt / body.txt")]
     Files --> Draft["Draft the message<br>(Claude)"]
     Draft --> Approve{"Developer approves?"}
     Approve -->|"Revision request"| Draft
@@ -109,7 +109,7 @@ Specify the PR with no argument (the current branch), a number, or a URL. The ar
 1. Checks that the PR is OPEN.
 2. Runs `git fetch origin`.
 3. Waits for CI to finish with `gh pr checks --watch --fail-fast`. It stops if any check failed.
-4. Creates a fresh directory under the repository's git directory (`.git/mergepr-*`) and writes the following files. Keeping the material inside the checkout avoids reaching outside the working tree.
+4. Creates a fresh work directory inside the active checkout and writes the following files. In the primary checkout it is under the repository's git directory (`.git/mergepr-*`); in a linked worktree, whose git directory lives in the primary checkout, it is a `mergepr-*` directory at the worktree root. Keeping the material inside the checkout avoids reaching outside the working tree.
 
 | File | Contents |
 |---|---|
@@ -156,6 +156,7 @@ Performs only the post-merge cleanup. Use it when `merge` stopped partway throug
    - Otherwise, it switches to the base with `git switch <base>`.
 4. Brings the base up to date with `git merge --ff-only origin/<base>`.
 5. Deletes the local head branch with `git branch -D` only when it points at `headOID`. If the branch does not exist, it does nothing.
+6. Removes the prepared work directory once the cleanup has finished. If the cleanup stops with an error, it keeps the directory so `cleanup` can be rerun.
 
 Example result output:
 
@@ -219,7 +220,7 @@ When `mergepr` finds a problem, it prints the reason and the remedy and stops. W
 | `PR merged a different head than prepared` | `cleanup` | The head was force-pushed after `prepare`, and that head was merged | Check whether the local head branch holds commits that were not part of the PR, then update the base and delete the branch manually |
 | `invalid state` | `merge`, `cleanup` | A file other than the one `prepare` wrote was given to `--state` | Specify the path `prepare` printed |
 
-`merge` is the stage that cannot be undone. Even if the tool stops after it, the merge itself may have completed. Check the PR's state on GitHub, and if it is merged, resume the cleanup with `cleanup`. Because `state.json` lives under `.git/mergepr-*`, do not delete it until the cleanup is finished.
+`merge` is the stage that cannot be undone. Even if the tool stops after it, the merge itself may have completed. Check the PR's state on GitHub, and if it is merged, resume the cleanup with `cleanup`. Because `state.json` lives in the work directory inside the checkout (`.git/mergepr-*` in the primary checkout, `mergepr-*` in a linked worktree), do not delete it until the cleanup is finished; the tool removes the directory after a successful cleanup.
 
 ## 8. Changing the Tool
 
