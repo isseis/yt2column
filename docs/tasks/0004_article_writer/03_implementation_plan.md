@@ -219,8 +219,8 @@ AC-01・AC-03・AC-04・AC-30（目印が `LLMClient` に渡ること）は `Wri
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 5: 文書
 
@@ -228,9 +228,9 @@ AC-01・AC-03・AC-04・AC-30（目印が `LLMClient` に渡ること）は `Wri
 - 変更（必要な場合だけ）: `docs/dev/developer_guide/package_reference.md`・`docs/dev/project_overview.md`
 
 **タスク**
-- [ ] **ステップ 5-1**: `package_reference.md` の `prompts`・`internal/nilcheck`・`internal/transcript`・`internal/writer` の行と、`project_overview.md` の `:31` と想定ディレクトリ構成を、実装（各パッケージの公開 API と `writer.Article` のフィールド）と照らし合わせ、食い違いがあれば直す。
-- [ ] **ステップ 5-2**: §6.1 のクロス検索を行い、結果を本計画に記録する。
-- [ ] **ステップ 5-3**: `make fmt` → `make test` → `make lint` を通す。
+- [x] **ステップ 5-1**: `package_reference.md` の `prompts`・`internal/nilcheck`・`internal/transcript`・`internal/writer` の行と、`project_overview.md` の `:31` と想定ディレクトリ構成を、実装（各パッケージの公開 API と `writer.Article` のフィールド）と照らし合わせ、食い違いがあれば直す。確認の結果、食い違いはなかった（`go doc` の公開 API が各パッケージの行と一致し、`writer.Article` は `Title`・`Body`・`SourceURL`・`Model`・`ModelVersion` の 5 フィールドで、`project_overview.md:31` の列挙と一致する）。文書の変更はなし。
+- [x] **ステップ 5-2**: §6.1 のクロス検索を行い、結果を本計画に記録する。
+- [x] **ステップ 5-3**: `make fmt` → `make test` → `make lint` を通す。
 
 ### PR-4 作成ポイント: documentation verification and cross-search
 
@@ -244,8 +244,8 @@ AC-01・AC-03・AC-04・AC-30（目印が `LLMClient` に渡ること）は `Wri
 
 **判定理由**: ドキュメントと実装の照合、クロス検索の記録、グリーンゲートの確認に限られ、競合する実装方針の併記・高リスクな制御・パネルモードのトリガー・Conditional checks のいずれにも該当しないため。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した（https://github.com/isseis/yt2column/pull/72）
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
@@ -386,13 +386,13 @@ AC に対応しない、architecture が求める検証は次のとおり。
 
 `make lint` と `make test` では見つからない、削除した識別子の残りを確かめる。ステップ 5-2 で実行し、結果をここに記録する。
 
-- [ ] `isTypedNil` が、`docs/tasks/` を除くリポジトリのどこにも残っていない（Go のコメントと文書を含む）。コマンドは `rg -n "isTypedNil" -g '!docs/tasks/**' .` とし、期待する結果は 0 件である。計画の作成時（HEAD `4194276`）の結果は §1.3 の 3 件である。実行した HEAD と結果をここに書く。
+- [x] `isTypedNil` が、`docs/tasks/` を除くリポジトリのどこにも残っていない（Go のコメントと文書を含む）。コマンドは `rg -n "isTypedNil" -g '!docs/tasks/**' .` とし、期待する結果は 0 件である。計画の作成時（HEAD `4194276`）の結果は §1.3 の 3 件である。実行した HEAD と結果をここに書く。**実行結果:** HEAD `9fda423` で 0 件（`rg` の終了コードは 1、マッチなし）。
 
 ## 7. 実装チェックリスト (Implementation Checklist)
 
-- [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8 / 1-9 / 1-10）
-- [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 / 2-8 / 2-9 / 2-10 / 2-11 / 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8 / 3-9 / 3-10）。暫定の `Write` が残っていない
-- [ ] PR-3 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7）
+- [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8 / 1-9 / 1-10）
+- [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 / 2-8 / 2-9 / 2-10 / 2-11 / 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8 / 3-9 / 3-10）。暫定の `Write` が残っていない
+- [x] PR-3 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7）
 - [ ] PR-4 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3）
 - [ ] 各 PR で `make fmt` → `make test` → `make lint` が通る
 - [ ] §5 のすべての AC の検証が通る
