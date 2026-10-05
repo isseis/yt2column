@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Created | 2026-10-05 |
-| Review date | 2026-10-05 |
-| Reviewer | isseis |
-| Comments | `mkplan2` で PR の境界（§2 の `PR-N 作成ポイント` と §3.1〜§3.3・§7）を埋め込んだ。実装の手順と AC の内容は変えておらず、決定の変更はない（編集上の追加）。 |
+| Review date | - |
+| Reviewer | - |
+| Comments | 2026-10-05 決定の変更: §1.5 (I-01)・ステップ 2-5・PR-4 のレビュー観点で、AC-09 の走査の範囲を固定の 7 関数の一覧から、プロセスの環境変数を直接または間接に読む標準ライブラリの関数を許可した場所以外で拒否する義務に改め、自己テストに間接に読む関数を少なくとも 1 つ含めることを明記した。設計書 3.1・要件書 F-002/AC-09 の内容は変えておらず、`mkplan2` で埋め込んだ PR の境界も変えていない。再承認が必要。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -112,7 +112,7 @@ HEAD `386f6e2`（ブランチ `issei/0005-cli-assembly-02`）で確認した。�
 
 | ID | 対応 |
 |---|---|
-| I-01 | 対象の関数は、設計書 3.1 の定義（呼び出し元に環境変数の値を返す標準ライブラリの関数）に当たる `os.Getenv`・`os.LookupEnv`・`os.Environ`・`os.ExpandEnv`・`syscall.Getenv`・`syscall.Environ`・`(*exec.Cmd).Environ` とする。`(*exec.Cmd).Environ` は、`Env` が nil のとき親の環境をそのまま返すので `os.Environ` と同じ種類である。検査は lint の規則ではなく、`internal/config/envaccess_test.go` のテストとする（`depguard`・`forbidigo` は import や識別子の単位の規則で、許可する場所を「ファイルと参照の種類と回数の組」で表せないため）。対象の関数ごとの理由をテストのコメントに書く。対象を 1 つ外すと失敗することは、走査の関数を一時ディレクトリの小さなソースに当てる自己テストで、関数ごとに確かめる（ステップ 2-5）。 |
+| I-01 | 走査は、設計書 3.1 の定義に従い、プロセスの環境変数を読む標準ライブラリの関数への参照を、許可した場所以外ではすべて失敗にする。対象を固定の一覧に限定せず、呼び出し元に値を返すものに限らず、内部で環境変数を読むもの（`os.UserCacheDir` のように呼び出し元に値を返さず内部で読むものを含む）も対象にする（限定すると、一覧にない内部で読む関数が検査をすり抜ける）。検査は lint の規則ではなく、`internal/config/envaccess_test.go` のテストとする（`depguard`・`forbidigo` は import や識別子の単位の規則で、許可する場所を「ファイルと参照の種類と回数の組」で表せないため）。対象を外すと失敗することは、走査の関数を一時ディレクトリの小さなソースに当てる自己テストで確かめ、内部で環境変数を読む関数（間接に読むもの）を少なくとも 1 つ含める（ステップ 2-5）。 |
 | I-02 | `cmd/yt2column` のテストのバイナリ自身を、環境変数で CLI のモードに切り替えて子プロセスとして起動する。子プロセスは `main` と同じシグナルの購読の関数を、fake の `LLMClient` を返す `deps` で実行する。偽の `yt-dlp` と fake の `LLMClient` は、準備ができた時点で印のファイルを原子的に（一時ファイルへ書いてから改名して）作り、テストはその印を上限付きで待ってからシグナルを送る。終了後、記録した PID のプロセスがないことを上限付きで確かめる（ステップ 7-8）。シグナルの購読を外すと失敗することを、実装を壊して確かめる（ステップ 7-10）。 |
 | I-03 | `FilePublisher` の非公開のフィールドに、一時ファイルへの書き込み先を包む関数と、`link` を行う関数を置く。本番の値は `NewFilePublisher` が設定し、テストはパッケージの中の補助で「一定のバイト数を書いた後にエラーを返す書き込み先」と「指定の errno を返す `link`」に差し替える（ステップ 4-1・4-2）。後始末（一時ファイルの削除）を外すと失敗することを確かめる（ステップ 4-5）。 |
 | I-04 | 統合テストは `run` を 1 回だけ呼び、部分テストやリトライの中で呼ばない。`productionDeps()` の `newLLMClient` が返す実物のクライアントを、`Generate` の呼び出しを数えるだけの薄い型で包み、`run` の後に回数が 1 であることを確かめる。組み立ては `productionDeps()` のままで、包むのは LLM のクライアントの外側だけである（ステップ 8-7）。`Generate` の内側（アダプタや Transport）のリトライはこの方法では数えられないが、LLM の呼び出しのリトライはスコープ外（#48）であり、現在のアダプタにはない。 |
@@ -222,11 +222,11 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
     -   `TestDefaultCacheDir`: `darwin`・`linux` のそれぞれで、`HOME`・`XDG_CACHE_HOME` の有無・空・相対パスの組み合わせ、およびそれ以外の OS で既定値がないこと。
 -   [ ] **ステップ 2-5**: `envaccess_test.go` に、環境変数を読む場所の検査（設計書 3.1、I-01）を作る。
     -   **走査の対象:** リポジトリのテスト以外の `.go` ファイル。次のファイルをテストのコードとして除く: `_test.go` と、`//go:build` の制約を `go/build/constraint` で評価して次の両方を満たすファイルである。(1) `test`・`integration` がともに偽のとき、制約に現れるそれ以外のタグをどう真偽に割り当てても、制約が偽になる。(2) `test` または `integration` が真のとき、制約が真になる割り当てがある。どちらにも当たらないファイル（`//go:build unix`・`//go:build linux`・`//go:build windows` など）と、`//go:build` の行がなくファイル名の接尾辞（`_linux.go` など）だけで制約されるファイルは、本番のコードとして走査する。
-    -   **失敗にする参照:** §1.5 の I-01 の 7 つの関数への参照（呼び出しに限らず、関数の値としての参照を含む）、`os`・`syscall` のドットインポート。`import` の別名を解決して判定する。`(*exec.Cmd).Environ` は型を解決しないので、`Environ` という名前のセレクタを、許可した場所以外ではすべて失敗にする（拒否の側に倒す）。
+    -   **失敗にする参照:** プロセスの環境変数を読む標準ライブラリの関数への参照（呼び出しに限らず、関数の値としての参照を含む）を、許可した場所以外では失敗にする。対象を固定の一覧に限定せず、内部で環境変数を読む関数（`os.UserCacheDir` のように呼び出し元に値を返さず内部で読むものを含む）も含める。`os`・`syscall` のドットインポートも失敗にする。`import` の別名を解決して判定し、型を解決できない参照は拒否の側に倒す。
     -   **許可する場所:** ファイルと参照の種類と回数の組で許可する。`internal/config` のすべてのファイルの参照、`cmd/yt2column/main.go` の `os.LookupEnv` の関数の値としての参照 1 か所（設計書 3.1）、`internal/transcript/ytdlp.go` の `os.Environ` 1 か所。
     -   **秘密情報の変数名:** 文字列リテラルが `DEEPSEEK_API_KEY` または `SLACK_WEBHOOK_URL` を含めば、`internal/config` 以外では失敗にする。
     -   **空振りの防止:** `TestEnvAccessConfined` は、走査したファイルの数が 0 でないことと、許可した参照を実際に観測したこと（`ytdlp.go` の `os.Environ`。フェーズ 7 以降は `main.go` の `os.LookupEnv` も）を確かめる。
-    -   **自己テスト `TestEnvAccessScannerDetects`:** 走査の関数を、一時ディレクトリに置いた小さなソース（許可の判定のため、リポジトリと同じ相対パスに置く）に当てる。7 つの関数のそれぞれ、別名の import、関数の値としての参照、ドットインポート、秘密情報の変数名の文字列、`//go:build unix`・`//go:build linux`・`//go:build windows` の本番のファイルの参照を、1 つずつ検出すること。許可した場所と同じファイルの別の関数（`ytdlp.go` の `os.Getenv`、`main.go` の `os.Getenv` と `os.LookupEnv` の呼び出し）、同じパッケージの別のファイル（`cmd/yt2column/run.go` の `os.LookupEnv`）を検出すること。`_test.go` と `//go:build test` のファイルの同じ参照、許可した場所の参照を検出しないこと。
+    -   **自己テスト `TestEnvAccessScannerDetects`:** 走査の関数を、一時ディレクトリに置いた小さなソース（許可の判定のため、リポジトリと同じ相対パスに置く）に当てる。直接読む関数と、内部で環境変数を読む関数（間接に読むもの。少なくとも 1 つ）、別名の import、関数の値としての参照、ドットインポート、秘密情報の変数名の文字列、`//go:build unix`・`//go:build linux`・`//go:build windows` の本番のファイルの参照を、1 つずつ検出すること。許可した場所と同じファイルの別の関数（`ytdlp.go` の `os.Getenv`、`main.go` の `os.Getenv` と `os.LookupEnv` の呼び出し）、同じパッケージの別のファイル（`cmd/yt2column/run.go` の `os.LookupEnv`）を検出すること。`_test.go` と `//go:build test` のファイルの同じ参照、許可した場所の参照を検出しないこと。
 -   [ ] **ステップ 2-6**: `package_reference.md` に `internal/config` の行を加える。
 -   [ ] **ステップ 2-7**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: 空の値を未設定と同じに扱う、`YT2COLUMN_LLM_PROVIDER` の比較を大文字と小文字を区別しないものにする、`SLACK_WEBHOOK_URL` の空白の検査を外す、相対パスの検査を外す、最初の誤りで止める、`Reason` に値を含める、API キーを `secret.Secret` でなく `string` のフィールドで持つ（`TestConfigOutputRedactsSecrets` の `%+v`・`%#v`）、`XDG_CACHE_HOME` の空を値ありとして扱う、`GODEBUG` の判定を外す、走査の対象の関数を 1 つずつ外す、テストのコードの判定を (1) だけにする（`//go:build windows` の自己テスト）、許可を `cmd/yt2column` のパッケージ全体に広げる（`run.go` の自己テスト）。`make fmt` → `make test` → `make lint` を通す。
 
@@ -236,7 +236,7 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 
 **推奨タイトル**: `feat(0005): add internal/config for environment loading and cache directory defaults`
 
-**レビュー観点**: F-001 の検証の規則が表と箇条書きのとおりで、値を補正せず、拒否を `errors.Join` でまとめ、エラーに値を含めないこと（ステップ 2-1〜2-4） / `GODEBUG` の `http2debug` を拒否せず `HTTP2DebugEnabled` で返し、キャッシュディレクトリの既定値を OS と `LookupFunc` から決めること（ステップ 2-2・2-3） / `envaccess_test.go` の走査がテストのコードを正しく除外し、7 つの関数を検出し、許可した参照を観測して空振りしないこと（ステップ 2-5） / `package_reference.md` の行が公開 API と一致すること（ステップ 2-6）
+**レビュー観点**: F-001 の検証の規則が表と箇条書きのとおりで、値を補正せず、拒否を `errors.Join` でまとめ、エラーに値を含めないこと（ステップ 2-1〜2-4） / `GODEBUG` の `http2debug` を拒否せず `HTTP2DebugEnabled` で返し、キャッシュディレクトリの既定値を OS と `LookupFunc` から決めること（ステップ 2-2・2-3） / `envaccess_test.go` の走査がテストのコードを正しく除外し、対象の関数（内部で読むものを含む）を検出し、許可した参照を観測して空振りしないこと（ステップ 2-5） / `package_reference.md` の行が公開 API と一致すること（ステップ 2-6）
 
 **実装モデル要件**: standard
 
