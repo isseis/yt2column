@@ -3,11 +3,14 @@ package transcript
 import (
 	"cmp"
 	"context"
+	"errors"
 	"io"
+	"os"
 	"os/exec"
 	"regexp"
 	"slices"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -63,10 +66,11 @@ var allowedEnvVars = []string{
 // arguments, the environment, and the standard error output.
 type commandExecutor interface {
 	// Run executes name with args and env. A nil env means an empty
-	// environment, never the parent's. It returns the raw result and does not
-	// classify a timeout or a cancellation, so Fetch inspects ctx after a
+	// environment, never the parent's. inherited are passed to the child as
+	// file descriptors 3, 4, ... in order. It returns the raw result and does
+	// not classify a timeout or a cancellation, so Fetch inspects ctx after a
 	// failed Run.
-	Run(ctx context.Context, name string, args, env []string, stderr io.Writer) error
+	Run(ctx context.Context, name string, args, env []string, inherited []*os.File, stderr io.Writer) error
 }
 
 // osExecutor is the production commandExecutor. It runs commands without a
@@ -76,7 +80,7 @@ type osExecutor struct{}
 var _ commandExecutor = osExecutor{}
 
 // Run implements commandExecutor.
-func (osExecutor) Run(ctx context.Context, name string, args, env []string, stderr io.Writer) error {
+func (osExecutor) Run(ctx context.Context, name string, args, env []string, inherited []*os.File, stderr io.Writer) error {
 	cmd := exec.CommandContext(ctx, name, args...) //nolint:gosec // the executable is a trusted setting and the arguments never pass through a shell
 	if env == nil {
 		// os/exec would make the child inherit the parent environment, which
@@ -84,9 +88,32 @@ func (osExecutor) Run(ctx context.Context, name string, args, env []string, stde
 		env = []string{}
 	}
 	cmd.Env = env
+	cmd.ExtraFiles = inherited
 	cmd.Stderr = stderr
 	cmd.WaitDelay = execWaitDelay
+	// Contract: the child leads a new process group, and a finished context
+	// kills the whole group, never only the direct child. A wrapper script or a
+	// single-file launcher would otherwise leave the real yt-dlp running after
+	// Run returns, still holding every inherited file. This covers cancellation
+	// only; a child that exits on its own is not followed by a group kill.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error { return killProcessGroup(cmd.Process) }
 	return cmd.Run()
+}
+
+// killProcessGroup sends SIGKILL to the process group led by process. A group
+// that is already gone is reported as os.ErrProcessDone, as exec.Cmd expects.
+func killProcessGroup(process *os.Process) error {
+	err := syscall.Kill(-process.Pid, syscall.SIGKILL)
+	if errors.Is(err, syscall.ESRCH) {
+		return os.ErrProcessDone
+	}
+	if err != nil {
+		// The group could not be signaled (for example only zombies remain);
+		// still stop the direct child.
+		return process.Kill()
+	}
+	return nil
 }
 
 // cappedWriter keeps at most maxStderrBytes of what is written to it and

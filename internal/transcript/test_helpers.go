@@ -29,6 +29,7 @@ type fakeCommandCall struct {
 	name   string
 	args   []string
 	env    []string
+	files  []*os.File
 	stderr io.Writer
 }
 
@@ -43,8 +44,8 @@ type fakeCommandExecutor struct {
 }
 
 // Run implements commandExecutor.
-func (f *fakeCommandExecutor) Run(ctx context.Context, name string, args, env []string, stderr io.Writer) error {
-	call := fakeCommandCall{ctx: ctx, name: name, args: args, env: env, stderr: stderr}
+func (f *fakeCommandExecutor) Run(ctx context.Context, name string, args, env []string, inherited []*os.File, stderr io.Writer) error {
+	call := fakeCommandCall{ctx: ctx, name: name, args: args, env: env, files: inherited, stderr: stderr}
 	f.calls = append(f.calls, call)
 	if f.behavior == nil {
 		return nil
