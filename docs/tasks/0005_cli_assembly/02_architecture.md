@@ -274,9 +274,9 @@ func New(cfg config.Config) (llm.LLMClient, error)
 ```
 
 -   `New` は `cfg.Provider()` の `switch` で分岐する。`ProviderDeepSeek` なら `deepseek.Options{APIKey, Model, Timeout: LLMTimeout}` で DeepSeek のアダプタを構築する。`default`（`ProviderUnset` と範囲外の値）は非公開の番兵 `errUnknownProvider` を返し、`LLMClient` を返さない（AC-11）。
--   アダプタの構築関数は、パッケージの非公開の変数に置く。本番の値は `deepseek.New` である。パッケージの中のテストだけが差し替える。
+-   `New` は、アダプタの構築関数を引数で受け取る非公開の関数 `newClient` に、本番の構築関数 `deepseek.New` を渡すだけにする。差し替えられるパッケージの変数は置かない。パッケージの中のテストは `newClient` に別の構築関数を渡す。
 -   アダプタの構築のエラーは `%w` で包み、`deepseek.ErrPaddedModel`（3.10）を `errors.Is` で判別できる（AC-12）。
--   **AC-10 の確かめ方:** テストは構築関数を、`deepseek` が `test` のタグで公開する `NewForLoopbackTest`（3.10）を呼ぶものに差し替える。`httptest` のサーバが受け取った要求のモデル名と `Authorization` ヘッダーが、設定の値であることを確かめる。これは 3.10 の「方針の例外 E1」に当たる。
+-   **AC-10 の確かめ方:** テストは `newClient` に、`deepseek` が `test` のタグで公開する `NewForLoopbackTest`（3.10）を呼ぶ構築関数を渡す。`httptest` のサーバが受け取った要求のモデル名と `Authorization` ヘッダーが、設定の値であることを確かめる。これは 3.10 の「方針の例外 E1」に当たる。
 -   `ProviderUnset` と範囲外の値は、`config.Load` が返す `Config` には現れない。`Config` のフィールドが非公開なので、テストは `provider` パッケージの中で、プロバイダを直接与える非公開の関数を通して AC-11 を確かめる。
 -   プロバイダを追加するときは、`Provider` の列挙値、`config.Load` の検証、`New` の分岐、アダプタのパッケージを足す（要件書 4.5）。`cmd/yt2column` と `internal/job` は変わらない。
 
@@ -428,6 +428,7 @@ func (e *KeptFileError) Unwrap() error
 -   存在しない部分（キャッシュディレクトリがまだない場合を含む）は、名前を大文字と小文字を区別せずに比べる。区別するファイルシステムでは、綴りの大小だけが違う別のディレクトリを「中」と誤判定しうるが、利用者が `--out` を変えれば済み、安全側に倒れる。
 -   キャッシュディレクトリの側も同じ規則で解決する（途中にシンボリックリンクがある場合、まだ存在しない場合を含む）。
 -   存在しない部分の後の `..` のように、カーネルなら `ENOENT` になる位置まで解決できない場合も、判定の途中の `Lstat` などがエラーになった場合（権限の不足など）も、「中」とみなす。
+-   **安全側に倒すことによる誤判定:** キャッシュディレクトリがまだ存在しないときに、`<キャッシュディレクトリ>/../article.md` のように、キャッシュディレクトリを経由して外へ出るパスを指定すると、実際には外を指していても「中」と判定して拒否する。存在しない部分の後の `..` は解決できないためである。キャッシュディレクトリが存在すれば、シンボリックリンクを解決してから `..` を適用するので、正しく「外」と判定する。利用者は `..` を含まないパスを指定すれば避けられる。
 
 > **残る制約:** 判定の後で、`--out` の途中のディレクトリをキャッシュディレクトリへのシンボリックリンクに置き換えると、判定をすり抜ける。キャッシュディレクトリは利用者だけが書き込める前提であり（[cache_consistency.md](../../dev/cache_consistency.md) P2）、利用者自身がこの置き換えを行う場合は対象外とする。
 
@@ -543,7 +544,8 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc,
 2.  **エスケープ:** 印字できない文字（`strconv.IsPrint` が偽の文字。制御文字、`U+202E` などの書式文字を含む）、不正な UTF-8 のバイト、バックスラッシュを、`strconv.Quote` と同じ形式でエスケープする（AC-39）。バックスラッシュもエスケープするのは、もとの文字列にある `\x1b` という 4 文字と、エスケープした ESC を見分けるためである。
 
 -   伏せ字化をエスケープより先に行うのは、エスケープで値の見た目が変わると、伏せ字化で見つけられなくなるためである。
--   改行を含む文字列（`config.Load` の `errors.Join`、`yt-dlp` の複数行の標準エラー出力）は、行に分けて、各行を同じ前置きを付けた 1 行として書く。改行をエスケープして 1 行に潰すと読みにくいためである。偽の行を始める改行（AC-39）も、前置きが付くので本物の行と見分けられる。
+-   信頼できない文字列（`yt-dlp` の標準エラー出力、LLM のエラーのメッセージ、`Model`・`ModelVersion` など）の改行は、他の制御文字と同じくエスケープし（`\n` と書く）、1 つのメッセージを 1 行で書く。要件書 AC-39 は、改行がそのままの形で現れないことを求める。偽の行を始める改行も、エスケープされるので本物の行と見分けられる。複数行の `yt-dlp` の出力は 1 行に潰れて読みにくくなるが、AC-39 を優先する。
+-   CLI 自身が組み立てる複数の項目（`config.Load` が `errors.Join` で返す各 `VarError`、複数の警告）は、`errors.Join` などで連結した文字列のまま無害化せず、項目ごとに別の行として書く。各項目の文字列は CLI の固定の文言と変数名だけからなり、改行を含まない。
 -   `Model`・`ModelVersion`・出力先のパス・エラーのメッセージは、いずれも同じ関数を通す。
 -   **この関数を通らない書き込み:** Go のランタイムのパニックの出力、SIGQUIT によるゴルーチンの一覧、`GODEBUG` による標準ライブラリの記録は、標準エラー出力に直接書かれる。パニックとゴルーチンの一覧はスタックトレースであり、秘密情報は `secret.Secret`（クロージャに閉じ込めた値）として持つので値は表示されない。`GODEBUG` の HTTP/2 の記録は API キーを含みうるが、要件書 F-008 の例外であり、手順 A3 の直後に警告する（3.1・AC-51）。
 -   **`--out` のファイルに秘密情報が入らない理由:** ファイルの内容は `Article` から作る。`Article` は LLM の生成テキストと検証済みの動画 ID から作られ（[0004 の 02_architecture.md](../0004_article_writer/02_architecture.md) §3.7・§3.9）、API キーと Webhook URL は LLM に送らない（[security.md](../../dev/security.md) §4。API キーは `Authorization` ヘッダーだけに入る）。
@@ -642,6 +644,9 @@ func SettingsFrom(getenv func(string) string, opts IntegrationOptions) Integrati
 -   ゼロ値は、`IntegrationAction` が「スキップ」、`MissingKeyAction` が「失敗」である。前者は「実行するかどうか」で、実行しないのが料金の発生しない側である。後者は「キーがないときにどう報告するか」で、スキップは成功と見分けにくいので、失敗が安全側である。どちらの場合も料金の発生する呼び出しはしない。
 -   `getenv` を `config.LookupFunc` にしないのは、統合テストの判定がプロセスの環境変数を読む（`os.Getenv`）ことを前提とし、空と未設定を区別しないという既存の判定の振る舞いを変えないためである。
 -   ビルドタグは、テスト用パッケージの規則（[test_organization.md](../../dev/developer_guide/test_organization.md) の `//go:build test`）と異なり `test || integration` とする。統合テストは `-tags integration` だけでビルドされる（`Makefile` の `test-integration-deepseek`）ため、`test` のタグだけでは統合テストから使えない。既存の `integration_env_test.go` と同じ理由である。
+-   この例外は、規則と、規則を確かめるテストを同じ変更で更新して明文化する。
+    -   `test_organization.md` に、「統合テストからも使う補助（`testutil/` のファイルと `test_helpers_*.go`）は `//go:build test || integration` とする」という例外を足す。
+    -   既存の `TestFakesCarryBuildTag`（`internal/pipeline/pipeline_test.go:514-534`）は、`../*/testutil/*.go` だけを数え、件数を 8 に固定している。`internal/llm/deepseek/testutil` のように 1 段深い `testutil/` は対象にならず、例外の行も黙って通り抜ける。このテストを、`internal` の下のすべての `testutil/` を数え、1 行目が `//go:build test` か `//go:build test || integration` のどちらかであることを確かめる形に改める。件数の固定は新しい件数に合わせる。
 -   オプトインの変数は、本タスク専用の `YT2COLUMN_CLI_INTEGRATION` とする。`make` のターゲットと 1 対 1 に対応させるためである。
 
 **テストの組み立て。** `cmd/yt2column/integration_test.go`（`integration` のタグ）に置く。
@@ -678,6 +683,7 @@ func SettingsFrom(getenv func(string) string, opts IntegrationOptions) Integrati
 | `internal/llm/deepseek/integration_env_test.go`・`integration_test.go`・`deepseek_test.go`・`makefile_test.go` | 変更 | 実行条件の判定と `make` の実行の補助の移動への追従 | F-009 |
 | `cmd/yt2column/makefile_test.go` | 新規 | `test-integration-cli` のターゲットのテスト | F-009 |
 | `internal/llm/deepseek/testutil/integration.go`・`make.go` | 新規 | 統合テストの実行条件、`make` を偽のコマンドで実行する補助 | F-009 |
+| `internal/pipeline/pipeline_test.go`・`docs/dev/developer_guide/test_organization.md` | 変更 | `testutil/` のビルドタグの規則の例外と、それを確かめるテスト（入れ子の `testutil/` も数える） | F-009 |
 | `Makefile` | 変更 | `test-integration-cli`、`.PHONY`、`go vet -tags integration` の行のコメント | F-009 |
 | `README.md`・`docs/dev/project_overview.md`・`docs/dev/developer_guide/package_reference.md`・`docs/dev/security.md` | 変更 | 文書（README には、出力先のディレクトリにハードリンクを作れる必要があることも書く） | F-010 |
 
