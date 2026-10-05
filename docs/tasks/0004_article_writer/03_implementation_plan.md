@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-04 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 2026-10-05 決定の変更（再承認が必要。2026-10-05 に isseis が承認した版からの変更）: 要件 3.2・AC-32 と architecture §3.7・§7.1 の改訂（表記の統一の後もなお U+FEFF で始まる本文の部分を `ErrMalformedOutput` で拒否する）に合わせ、ステップ 4-2（拒否の実装）・4-4（`TestWriteChecksNormalizedBody` に先頭の BOM が 2 つのケースを追加）・4-6（拒否を外したときに失敗することの確認）を改めた。先頭の BOM を 1 つだけ除いて残りを受理すると、BOM をもう 1 つ取り除いてから解釈する実装で、判定が文章とみなした行がフェンスとして開き、出典ブロックが隠れるためである。PR 構成は承認した版のまま（PR-3 がフェーズ 4 の実装と文書の改訂を含む）。 |
+| Review date | 2026-10-05 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 実装の概要 (Implementation Overview)
 
