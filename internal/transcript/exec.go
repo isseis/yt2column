@@ -94,7 +94,8 @@ func (osExecutor) Run(ctx context.Context, name string, args, env []string, inhe
 	// Contract: the child leads a new process group, and a finished context
 	// kills the whole group, never only the direct child. A wrapper script or a
 	// single-file launcher would otherwise leave the real yt-dlp running after
-	// Run returns, still holding every inherited file.
+	// Run returns, still holding every inherited file. This covers cancellation
+	// only; a child that exits on its own is not followed by a group kill.
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Cancel = func() error { return killProcessGroup(cmd.Process) }
 	return cmd.Run()
@@ -107,7 +108,12 @@ func killProcessGroup(process *os.Process) error {
 	if errors.Is(err, syscall.ESRCH) {
 		return os.ErrProcessDone
 	}
-	return err
+	if err != nil {
+		// The group could not be signaled (for example only zombies remain);
+		// still stop the direct child.
+		return process.Kill()
+	}
+	return nil
 }
 
 // cappedWriter keeps at most maxStderrBytes of what is written to it and

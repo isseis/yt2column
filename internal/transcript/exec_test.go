@@ -7,6 +7,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/fs"
 	"maps"
 	"os"
@@ -287,7 +288,6 @@ func TestExecutorHelperProcess(t *testing.T) {
 func TestCommandExecutorWaitDelay(t *testing.T) {
 	const (
 		descendantSleep = 20 * time.Second
-		timeout         = 500 * time.Millisecond
 	)
 
 	newHelper := func(t *testing.T, exitImmediately bool) (script, pidPath string) {
@@ -335,20 +335,16 @@ func TestCommandExecutorWaitDelay(t *testing.T) {
 			killRecordedProcess(pidPath)
 		})
 		args := []string{"-test.run=TestDetachedDescendantHelperProcess", "--", detachedParentMode, pidPath, releasePath}
-		ctx, cancel := context.WithTimeout(t.Context(), timeout)
-		defer cancel()
 		var stderr cappedWriter
-		start := time.Now()
-		err = osExecutor{}.Run(ctx, executable, args, allowlistEnv(os.Environ()), nil, &stderr)
-		elapsed := time.Since(start)
+		ctx, elapsed, err := runCanceledOnceRecorded(t, executable, args, &stderr, pidPath)
 		if err == nil {
-			t.Fatal("Run error = nil, want a failure after the timeout")
+			t.Fatal("Run error = nil, want a failure after the cancellation")
 		}
-		if elapsed > timeout+execWaitDelay+waitBoundMargin {
-			t.Fatalf("Run took %v, want at most %v", elapsed, timeout+execWaitDelay+waitBoundMargin)
+		if elapsed > execWaitDelay+waitBoundMargin {
+			t.Fatalf("Run took %v after the cancellation, want at most %v", elapsed, execWaitDelay+waitBoundMargin)
 		}
-		if !errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			t.Fatalf("ctx error = %v, want context.DeadlineExceeded", ctx.Err())
+		if !errors.Is(ctx.Err(), context.Canceled) {
+			t.Fatalf("ctx error = %v, want context.Canceled", ctx.Err())
 		}
 		pid, ok := readRecordedPID(pidPath)
 		if !ok {
@@ -361,7 +357,6 @@ func TestCommandExecutorWaitDelay(t *testing.T) {
 }
 
 func TestCommandExecutorKillsProcessGroup(t *testing.T) {
-	const timeout = 500 * time.Millisecond
 	dir := t.TempDir()
 	childPIDPath := filepath.Join(dir, "child.pid")
 	grandchildPIDPath := filepath.Join(dir, "grandchild.pid")
@@ -380,12 +375,10 @@ wait
 		killRecordedProcess(grandchildPIDPath)
 	})
 
-	ctx, cancel := context.WithTimeout(t.Context(), timeout)
-	defer cancel()
 	var stderr cappedWriter
 	args := []string{childPIDPath, grandchildPIDPath, releasePath}
-	if err := (osExecutor{}).Run(ctx, script, args, allowlistEnv(os.Environ()), nil, &stderr); err == nil {
-		t.Fatal("Run error = nil, want a failure after the timeout")
+	if _, _, err := runCanceledOnceRecorded(t, script, args, &stderr, childPIDPath, grandchildPIDPath); err == nil {
+		t.Fatal("Run error = nil, want a failure after the cancellation")
 	}
 
 	for name, path := range map[string]string{"child": childPIDPath, "grandchild": grandchildPIDPath} {
@@ -399,7 +392,45 @@ wait
 	}
 }
 
+// runCanceledOnceRecorded starts osExecutor.Run and cancels its context only
+// after every file in pidPaths holds a PID, so the cancellation never races
+// with helper startup. It returns the context, how long Run
+// took after the cancellation, and Run's error.
+func runCanceledOnceRecorded(t *testing.T, name string, args []string, stderr io.Writer, pidPaths ...string) (context.Context, time.Duration, error) {
+	t.Helper()
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		done <- osExecutor{}.Run(ctx, name, args, allowlistEnv(os.Environ()), nil, stderr)
+	}()
+	deadline := time.After(helperStartBound)
+	for _, path := range pidPaths {
+		for {
+			if _, ok := readRecordedPID(path); ok {
+				break
+			}
+			select {
+			case err := <-done:
+				t.Fatalf("Run returned before the helper recorded %s: %v", path, err)
+			case <-deadline:
+				cancel()
+				<-done
+				t.Fatalf("helper did not record %s within %v", path, helperStartBound)
+			case <-time.After(20 * time.Millisecond):
+			}
+		}
+	}
+	start := time.Now()
+	cancel()
+	err := <-done
+	return ctx, time.Since(start), err
+}
+
 const (
+	// helperStartBound bounds how long a test waits for a helper to record its
+	// PIDs.
+	helperStartBound = 30 * time.Second
 	// processGoneBound bounds how long a test waits for a killed process to
 	// disappear from the process table.
 	processGoneBound = 5 * time.Second
@@ -543,7 +574,7 @@ func readRecordedPID(path string) (int, bool) {
 // is safe when the file is missing or the process already exited.
 func killRecordedProcess(path string) {
 	pid, ok := readRecordedPID(path)
-	if !ok {
+	if !ok || !processExists(pid) {
 		return
 	}
 	if proc, err := os.FindProcess(pid); err == nil {
