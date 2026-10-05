@@ -283,14 +283,14 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
     -   `test_helpers_integration.go`（`test || integration`）: 環境の対応表から `config.LookupFunc` を作る関数、CLI の統合テストの `deepseektestutil.IntegrationOptions`（`CLIOptInEnv`・`test-integration-cli`・`MissingKeyFail`）を 1 か所で定義した変数、`Generate` の回数を数える型（包む対象のクライアントが nil なら nil の interface を返す）。このファイルはステップ 7-6 で、`IntegrationOptions` の変数を除いて作り、変数はステップ 8-6 で足す（`deepseektestutil` がフェーズ 8 でできるため）。
     -   `test_helpers.go`（`test`）: fake を返す `deps` を作る補助、子プロセスを起動する補助、`requireNonRoot`・`chmodForTest`。子プロセスの環境は、`PATH`・`HOME`・`TMPDIR` と `TestMain` が設定した proxy の変数だけを親から引き継ぐ allowlist（既存の `makeChildEnvAllowlist` と同じ考え方）で作り、`YT2COLUMN_*`・秘密情報・モードの変数はテストが明示して足す。
 -   [ ] **ステップ 7-7**: `run_test.go` に次を作る。同じテストで `run` を 2 回以上呼ぶ場合は §4.1 の規則に従う。
-    -   `TestRunExecutionPaths`（AC-44・AC-38・AC-20・AC-23・AC-19・AC-28・AC-29・AC-31・AC-34・AC-47・AC-48・AC-50・AC-52 の CLI の部分）: 実行経路の一覧のうち、シグナルを除くすべての経路を 1 つの表で実行する。行ごとに、終了コード、標準出力が空であること、標準エラー出力に含むべき文字列（段階の名前、`yt2column -h` の案内、`--refresh` の案内、排他のファイルのパスと `yt-dlp` が残っている可能性、一時ファイルのパス、タイムアウトの種類と分）、AC-44 (e)・(f) の副作用（排他のファイル・キャッシュディレクトリの内容の一覧・トリップワイヤ・fake の `LLMClient` の呼び出しの回数・`--out`・その動画のキャッシュ）を表の項目として持つ。
+    -   `TestRunExecutionPaths`（AC-44・AC-38・AC-20・AC-23・AC-19・AC-28・AC-29・AC-31・AC-34・AC-47・AC-48・AC-50・AC-52 の CLI の部分）: 実行経路の一覧のうち、シグナルを除くすべての経路を 1 つの表で実行する。行ごとに、終了コード、標準出力の期待（`-h`・`--help` の行は使い方が書かれること、それ以外の行は空であること（AC-44 (b)））、標準エラー出力に含むべき文字列（段階の名前、`yt2column -h` の案内、`--refresh` の案内、排他のファイルのパスと `yt-dlp` が残っている可能性、一時ファイルのパス、タイムアウトの種類と分）、AC-44 (e)・(f) の副作用（排他のファイル・キャッシュディレクトリの内容の一覧・トリップワイヤ・fake の `LLMClient` の呼び出しの回数・`--out`・その動画のキャッシュ）を表の項目として持つ。
         -   AC-20 の入力はすべて「引数の誤り」「環境変数の誤り」「`LLMClient` の構築の失敗」「テンプレートの構築の失敗」の行にする。環境変数の誤りの行は、標準エラー出力に変数の名前が現れ、どの変数の値に置いた目印も現れないことを確かめる。`YT2COLUMN_MODEL` の前後の空白の行だけは `productionDeps()` の `newLLMClient` を使う。
         -   すべての行で `DEEPSEEK_API_KEY` と `SLACK_WEBHOOK_URL` に特徴的な値を設定し、標準出力・標準エラー出力・`--out` のファイルに、値も末尾 8 文字も現れないことを確かめる（AC-38）。記事の生成の失敗の行には、fake の `LLMClient` のエラーのメッセージに API キーを含むものを入れる。
         -   中断の行（AC-31 の CLI の部分）: 記事の生成と投稿のそれぞれの途中で、テストが `run` に渡した `ctx` を取り消し、終了コード `1` になること。
         -   警告の行（AC-28・AC-29）: 掃除の失敗（`requireNonRoot`・`chmodForTest`）と、投稿の後の `ctx` の取り消しによる削除の失敗で、終了コード `0`、警告が標準エラー出力にあり、`--out` が残ること。
         -   同時実行の行（AC-34）: 別の goroutine で `run` を実行し、途中で止まる `yt-dlp` が排他を保持している間（準備完了の印を待つ）に、同じキャッシュディレクトリでトリップワイヤを指定した `run` を呼ぶ。この `run` が終了コード `1` で終わり、排他のファイルのパスを含むメッセージを書くこと。最初の `run` は後始末で取り消して終了を待つ。
         -   一時ファイルの行: fake の `LLMClient` が `Generate` の中で `--out` を作り、`link` が `EEXIST` で失敗する。タイムアウトの行: 途中で止まる `yt-dlp` の実行中に、短い期限の `ctx` で期限を切らす。
-    -   `TestRunHelp`（AC-21）: 要件書 F-005 の表の 6 つのフラグが使い方に現れること、環境変数が空でも同じであること、使い方が標準出力にだけ書かれること。
+    -   `TestRunHelp`（AC-21・AC-44 のヘルプの経路）: `TestRunExecutionPaths` のヘルプの行より詳しく、使い方の内容を確かめる。要件書 F-005 の表の 6 つのフラグが使い方に現れること、環境変数が空でも同じであること、使い方が標準出力にだけ書かれること。
     -   `TestRunPromptOverrides`（AC-22）。
     -   `TestRunEscapesUntrustedText`（AC-39）: 要件書 AC-39 の 3 つの経路で、`\x1b[2J` と偽の行を始める改行がそのままの形で現れないこと。成功の経路は fake の `Publisher` を使う（`FilePublisher` は制御文字を含む `Model` を拒否するため）。
     -   `TestRunGODEBUGWarning`（AC-51）: 警告の有無、警告が LLM の呼び出しより前に書かれること（fake の `LLMClient` が呼ばれた時点の標準エラー出力の内容で確かめる）、警告が API キーの値も末尾 8 文字も含まないこと、終了コードが設定しない場合と同じであること。
@@ -341,14 +341,15 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 -   [ ] **ステップ 9-1**: `README.md` に、要件書 F-010 の README の項目すべてと、記事のファイルのパーミッション `0o644`、出力先のディレクトリにハードリンクを作れる必要があること（設計書 3.5・3.12）を書く。終了コードは見出し付きの表にする。`Configuration` の表に未設定のときの値の列を加える。`Development` の一覧と統合テストの節に `make test-integration-cli` を加える。
 -   [ ] **ステップ 9-2**: `project_overview.md` の「設定（環境変数）」の表に、F-001 の未設定のときの値を反映する。
 -   [ ] **ステップ 9-3**: `security.md` §2 の、実在の API キーを使う統合テストの例外に `cmd/yt2column/integration_test.go` と `make test-integration-cli`・`YT2COLUMN_CLI_INTEGRATION` を加え、CLI は `GODEBUG` の `http2debug` を拒否せず警告にとどめることを書く。
--   [ ] **ステップ 9-4**: 文書の記載を確かめるテストを作る（AC-43 の `static`）。
-    -   `cmd/yt2column/docs_test.go::TestREADMEDocumentsCLI`: `run` の `flag.FlagSet` のすべてのフラグ、終了コードの表の `0`・`1`・`2` の行、`Configuration` の表の要件書 F-001 の 6 つの変数の行（未設定のときの値の列が空でないこと）、`make test-integration-cli` が README に現れること。
-    -   `cmd/yt2column/docs_test.go::TestProjectOverviewDocumentsConfig`: `project_overview.md` の「設定（環境変数）」の表に、6 つの変数の行があること。
+-   [ ] **ステップ 9-4**: 文書の記載を確かめるテストを作る（AC-43・AC-32・AC-33 の `static`）。期待する値は要件書（F-001 の表の未設定のときの値など）から取り、テストの対象のコードから導かない。
+    -   `cmd/yt2column/docs_test.go::TestREADMEDocumentsCLI`: 要件書 F-010 の README の項目すべてが README に現れること。対象は、呼び出し形式（`yt2column [flags] <動画 URL>` の形）、`run` の `flag.FlagSet` のすべてのフラグ、終了コードの表の `0`・`1`・`2` の行、`Configuration` の表の要件書 F-001 の 6 つの変数の行と、各行の未設定のときの値が F-001 の表の値と一致すること、同時実行は排他され後発が失敗することの案内、SIGKILL で終了させた場合に `yt-dlp` が残りうり、その終了まで次の実行が同時実行として失敗することの案内、キャッシュの内容が不正な場合に `--refresh` で回復できることの案内、統合テストの実行方法（`make test-integration-cli`）である。
+    -   `cmd/yt2column/docs_test.go::TestProjectOverviewDocumentsConfig`: `project_overview.md` の「設定（環境変数）」の表に 6 つの変数の行があり、各行の未設定のときの値が F-001 の表の値と一致すること。
     -   `cmd/yt2column/docs_test.go::TestSecurityDocumentsCLIIntegration`: `security.md` §2 が `test-integration-cli`・`YT2COLUMN_CLI_INTEGRATION`・`http2debug` の警告を含むこと。
+    -   `cmd/yt2column/docs_test.go::TestPlanRecordsManualRuns`（AC-32・AC-33）: 本計画にステップ 9-5・9-6 が完了条件として存在し、チェック済み（`[x]`）のステップには、使用した動画 URL と結果の記録があること。実際の実行が行われたことそのものは確かめられないので、ステップ 9-5・9-6 の `manual` で補う。
     -   `internal/pipeline/pipeline_test.go::TestPackageReferenceListsPackages`: `cmd/`・`internal/` の下の、本番のコード（`_test.go` でなく、テスト用のタグだけでビルドされるのでもない `.go`。`//go:build unix` の `internal/cachelock` を含む）を持つディレクトリ、`testutil/` のディレクトリ、`prompts` が、`package_reference.md` の表の行になっていること（リポジトリ全体のガードなので、既存のガードと同じファイルに置く）。
 -   [ ] **ステップ 9-5**（AC-32、手動、利用者の承認が必要）: 日本語字幕のある実際の動画 1 本で CLI を実行し、記事が `--out` のファイルに書き出されることを確かめる。使用した動画 URL と結果（終了コード、出力のファイルの見出し、`Model`）を本ステップの下に記録する。
 -   [ ] **ステップ 9-6**（AC-33、手動、利用者の承認が必要）: ステップ 9-5 と同じ動画に `--keep-cache` を付けて 1 回実行してキャッシュを残した後、`--refresh` を付けて実行し、`yt-dlp` が再実行されたことを、キャッシュのポインタが指すスロットの切り替わり（`a` ↔ `b`）で確かめる。各実行の `--out` には、まだ存在しない別のパスを指定する。使用した動画 URL と結果を本ステップの下に記録する。
--   [ ] **ステップ 9-7**: 文書の内容を実装と突き合わせて読む。突き合わせる先: フラグの定義（`run.go`）、未設定のときの値（`internal/config` の `cachedir.go` と `Load`）、終了コード（設計書 3.8 の実行経路の一覧）、同時実行・SIGKILL・`--refresh` の説明（`internal/cachelock`・`internal/job` の振る舞いとステップ 7-8 のテスト）、`Makefile` のターゲット。壊して失敗することを確かめ（README からフラグを 1 つ消す、終了コードの表の行を消す、`package_reference.md` から行を 1 つ消す）、コミットメッセージに記録する。`make fmt` → `make test` → `make lint` を通す。
+-   [ ] **ステップ 9-7**: 文書の内容を実装と突き合わせて読む。突き合わせる先: フラグの定義（`run.go`）、未設定のときの値（`internal/config` の `cachedir.go` と `Load`）、終了コード（設計書 3.8 の実行経路の一覧）、同時実行・SIGKILL・`--refresh` の説明（`internal/cachelock`・`internal/job` の振る舞いとステップ 7-8 のテスト）、`Makefile` のターゲット。壊して失敗することを確かめ（README からフラグを 1 つ消す、終了コードの表の行を消す、README から同時実行・SIGKILL・`--refresh` の案内を 1 つずつ消す、README と `project_overview.md` の未設定のときの値を 1 つ書き換える、`package_reference.md` から行を 1 つ消す、チェック済みにしたステップ 9-5 の記録を消す）、コミットメッセージに記録する。`make fmt` → `make test` → `make lint` を通す。
 
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
 
@@ -426,8 +427,8 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 | AC-29 | `internal/job/job_test.go::TestRunRemoveCacheFailureWarns`、`cmd/yt2column/run_test.go::TestRunExecutionPaths`（警告の行） | test | 6-2・7-3 | 6-3・7-7 |
 | AC-30 | `internal/job/job_test.go::TestRunRefresh` | test | 6-2 | 6-3 |
 | AC-31 | `internal/job/job_test.go::TestRunCanceled`、`cmd/yt2column/run_test.go::TestRunExecutionPaths`（中断の行） | test | 4-1・6-2・7-3 | 6-3・7-7 |
-| AC-32 | ステップ 9-5 の記録 | manual | 7-3 | 9-5 |
-| AC-33 | ステップ 9-6 の記録 | manual | 7-3 | 9-6 |
+| AC-32 | `cmd/yt2column/docs_test.go::TestPlanRecordsManualRuns`、ステップ 9-5 の記録 | static・manual | 7-3 | 9-4・9-5 |
+| AC-33 | `cmd/yt2column/docs_test.go::TestPlanRecordsManualRuns`、ステップ 9-6 の記録 | static・manual | 7-3 | 9-4・9-6 |
 | AC-34 | `internal/cachelock/cachelock_test.go::TestAcquireLocked`、`internal/job/job_test.go::TestRunLocked`、`cmd/yt2column/run_test.go::TestRunExecutionPaths`（同時実行の行） | test | 5-1・6-2・7-3 | 5-2・6-3・7-7 |
 | AC-35 | `internal/cachelock/cachelock_test.go::TestAcquireOtherDirectory`、`internal/job/job_test.go::TestRunOtherCacheDir` | test | 5-1・6-2 | 5-2・6-3 |
 | AC-36 | `internal/cachelock/cachelock_test.go::TestAcquireAfterHolderGone`、`cmd/yt2column/signal_test.go::TestSIGKILLWithoutYtDlp` | test | 5-1・6-2 | 5-2・7-8 |
@@ -438,7 +439,7 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 | AC-41 | `cmd/yt2column/integration_test.go::TestIntegrationCLI`（`make test-integration-cli`）、ステップ 8-11 の記録 | test・manual | 1-6・8-5・8-7 | 8-7・8-11 |
 | AC-42 | `cmd/yt2column/makefile_test.go::TestCLIIntegrationTestBuildTag`、`internal/transcript/ytdlp_test.go::TestLintTagsIncludeIntegration`（`go vet -tags integration` の行）、`make lint` | static | 8-5・8-7 | 8-6 |
 | AC-43 | `cmd/yt2column/docs_test.go::TestREADMEDocumentsCLI`・`::TestProjectOverviewDocumentsConfig`・`::TestSecurityDocumentsCLIIntegration`、`internal/pipeline/pipeline_test.go::TestPackageReferenceListsPackages`、ステップ 9-7 の突き合わせ | static・manual | 1-9・2-6・3-3・4-4・5-3・6-5・7-9・8-8・9-1〜9-3 | 9-4・9-7 |
-| AC-44 | `cmd/yt2column/run_test.go::TestRunExecutionPaths`、`cmd/yt2column/signal_test.go::TestSignalDuringYtDlp`・`::TestSignalDuringGenerate` | test | 6-2・7-1・7-3・7-4 | 7-7・7-8 |
+| AC-44 | `cmd/yt2column/run_test.go::TestRunExecutionPaths`・`::TestRunHelp`、`cmd/yt2column/signal_test.go::TestSignalDuringYtDlp`・`::TestSignalDuringGenerate` | test | 6-2・7-1・7-3・7-4 | 7-7・7-8 |
 | AC-45 | `cmd/yt2column/signal_test.go::TestSignalDuringYtDlp`、`internal/transcript/exec_test.go::TestCommandExecutorKillsProcessGroup` | test | 1-5・6-2・7-4 | 1-5・7-8 |
 | AC-46 | `internal/publisher/file_test.go::TestFilePublisherWriteFailure` | test | 4-1 | 4-2 |
 | AC-47 | `internal/cachelock/cachelock_test.go::TestAcquireOtherFailures`、`internal/job/job_test.go::TestRunLockFailure`、`cmd/yt2column/run_test.go::TestRunExecutionPaths`（排他の取得の失敗の行） | test | 5-1・6-2・7-3 | 5-2・6-3・7-7 |
@@ -448,9 +449,9 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 | AC-51 | `cmd/yt2column/run_test.go::TestRunGODEBUGWarning`、`internal/config/config_test.go::TestLoadHTTP2Debug` | test | 2-3・7-3 | 2-4・7-7 |
 | AC-52 | `internal/job/job_test.go::TestRunOutputParentInvalid`、`cmd/yt2column/run_test.go::TestRunExecutionPaths`（親ディレクトリの行） | test | 6-2・7-3 | 6-3・7-7 |
 
--   **AC-32・AC-33 が `manual` だけである理由:** 両 AC は、実際の動画に対する手動の実行を本計画の完了条件に含め、その結果を本計画に記録することを求める。実 `yt-dlp` と実 LLM API を使う実行は利用者の承認が要る（§1.2）ので、自動の検証には置き換えられない。
+-   **AC-32・AC-33 の `static` と `manual` の分担:** 両 AC は、実際の動画に対する手動の実行を本計画の完了条件に含め、その結果を本計画に記録することを求める。完了条件のステップがあることと、チェック済みのステップに動画 URL と結果の記録があることは、`TestPlanRecordsManualRuns` が `static` で確かめる。実際の実行そのものは、実 `yt-dlp` と実 LLM API を使い利用者の承認が要る（§1.2）ので、自動の検証には置き換えられず、ステップ 9-5・9-6 の `manual` で行う。
 -   **AC-41 の「テストの出力」:** テストが標準出力・標準エラー出力・`--out` のファイルを確かめる部分は `test` である。テスト自身のログに API キーが出ないことは、ステップ 8-7 の書き方（確かめるまで書かない）と、ステップ 8-11 で実際の出力を確かめる `manual` で補う。
--   **AC-43 の `manual`:** 文書のテストは、項目があることと表の形を確かめる。記載の内容が実装と一致することは、ステップ 9-7 で突き合わせる先を挙げて確かめる。
+-   **AC-43 の `static` と `manual` の分担:** 文書のテストは、要件書 F-010 の各項目が各文書に現れること、表の形、未設定のときの値が要件書 F-001 の表と一致することを確かめる。説明の文面が実装の振る舞いと正しく一致することは、ステップ 9-7 で突き合わせる先を挙げて確かめる。
 
 ## 6. リスク管理 (Risk Management)
 
