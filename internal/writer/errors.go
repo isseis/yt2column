@@ -27,10 +27,4 @@ var (
 	// errPromptTooLarge is returned by boundedWriter when a write would take
 	// a prompt past its limit, and joined with ErrInvalidTemplate.
 	errPromptTooLarge = errors.New("prompt exceeds the limit")
-	// errRawHTML, errUnclosedFence, and errFenceLikeLine are wrapped together
-	// with ErrMalformedOutput when the body part breaks a Markdown rule, so
-	// tests can tell which rule rejected it.
-	errRawHTML       = errors.New("contains raw HTML")
-	errUnclosedFence = errors.New("ends inside an unclosed code fence")
-	errFenceLikeLine = errors.New("has a line that looks like a code fence but does not open one at the top level")
 )
