@@ -32,10 +32,12 @@ func TestArticleCheckPublishable(t *testing.T) {
 		{"title whitespace only", func(a *Article) { a.Title = " 　 " }, true},
 		{"title newline", func(a *Article) { a.Title = "a\nb" }, true},
 		{"title tab", func(a *Article) { a.Title = "a\tb" }, true},
+		{"title carriage return", func(a *Article) { a.Title = "a\rb" }, true},
 		{"title escape", func(a *Article) { a.Title = "a\x1bb" }, true},
 		{"model empty", func(a *Article) { a.Model = "" }, true},
 		{"model whitespace only", func(a *Article) { a.Model = "  " }, true},
 		{"model control", func(a *Article) { a.Model = "m\rx" }, true},
+		{"model version whitespace only", func(a *Article) { a.ModelVersion = " " }, true},
 		{"model version control", func(a *Article) { a.ModelVersion = "v\x00" }, true},
 		{"body empty", func(a *Article) { a.Body = "" }, true},
 		{"body whitespace only", func(a *Article) { a.Body = "\n\t \n" }, true},
@@ -69,12 +71,13 @@ func TestArticleCheckPublishableOmitsValues(t *testing.T) {
 	const mark = "mark-secret-Q4wd"
 	cases := []struct {
 		name   string
+		label  string
 		mutate func(a *Article)
 	}{
-		{"title", func(a *Article) { a.Title = mark + "\n" }},
-		{"model", func(a *Article) { a.Model = mark + "\n" }},
-		{"model version", func(a *Article) { a.ModelVersion = mark + "\n" }},
-		{"body", func(a *Article) { a.Body = mark + "\x1b" }},
+		{"title", "title", func(a *Article) { a.Title = mark + "\n" }},
+		{"model", "model", func(a *Article) { a.Model = mark + "\n" }},
+		{"model version", "model version", func(a *Article) { a.ModelVersion = mark + "\n" }},
+		{"body", "body", func(a *Article) { a.Body = mark + "\x1b" }},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -86,6 +89,9 @@ func TestArticleCheckPublishableOmitsValues(t *testing.T) {
 			}
 			if strings.Contains(err.Error(), mark) {
 				t.Errorf("error %q contains the field value", err)
+			}
+			if !strings.Contains(err.Error(), tc.label+" contains a control character") {
+				t.Errorf("error %q does not name the %s and the broken rule", err, tc.label)
 			}
 		})
 	}

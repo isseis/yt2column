@@ -18,11 +18,14 @@ func SeedCacheForTest(dir, videoID string, subtitles, info []byte) error {
 	if err != nil {
 		return fmt.Errorf("prepare cache slot: %w", err)
 	}
-	for path, content := range map[string][]byte{
-		subtitlesPath(slotDir, videoID): subtitles,
-		infoPath(slotDir, videoID):      info,
+	for _, f := range []struct {
+		path    string
+		content []byte
+	}{
+		{subtitlesPath(slotDir, videoID), subtitles},
+		{infoPath(slotDir, videoID), info},
 	} {
-		if err := os.WriteFile(path, content, 0o600); err != nil {
+		if err := os.WriteFile(f.path, f.content, 0o600); err != nil {
 			return fmt.Errorf("write cache file: %w", err)
 		}
 	}

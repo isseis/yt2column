@@ -3,6 +3,7 @@
 package transcript
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io/fs"
@@ -496,5 +497,31 @@ func TestReadFileBounded(t *testing.T) {
 	data, err := readFileBounded(path, int64(len(content)))
 	if err != nil || string(data) != content {
 		t.Errorf("readFileBounded at the limit = %q, %v, want %q, nil", data, err, content)
+	}
+}
+
+// TestSeedCacheForTestLayout pins the layout the seeder produces: the bytes it
+// is given, unvalidated, in slot a, and a pointer naming slot a.
+func TestSeedCacheForTestLayout(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "cache")
+	id := testdataRealVideoID
+	// Not valid json3: the seeder must not check the content.
+	subtitles, info := []byte("truncated"), []byte("{}")
+	if err := SeedCacheForTest(dir, id, subtitles, info); err != nil {
+		t.Fatalf("SeedCacheForTest error = %v", err)
+	}
+	slotDir := slotDirPath(dir, id, slotNameA)
+	for path, want := range map[string][]byte{
+		subtitlesPath(slotDir, id): subtitles,
+		infoPath(slotDir, id):      info,
+		pointerPath(dir, id):       []byte(slotNameA),
+	} {
+		got, err := os.ReadFile(path) //nolint:gosec // the path is inside a test temp directory
+		if err != nil || !bytes.Equal(got, want) {
+			t.Errorf("%s = %q, %v; want %q", path, got, err, want)
+		}
+	}
+	if _, err := os.Lstat(slotDirPath(dir, id, slotNameB)); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("slot b exists or failed: %v", err)
 	}
 }
