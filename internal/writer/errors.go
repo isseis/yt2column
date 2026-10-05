@@ -8,6 +8,8 @@ var (
 	ErrInvalidTemplate   = errors.New("invalid prompt template")
 	ErrInvalidTranscript = errors.New("invalid transcript")
 	ErrMalformedOutput   = errors.New("malformed LLM output")
+	// ErrInvalidArticle is returned by Article.CheckPublishable.
+	ErrInvalidArticle = errors.New("invalid article")
 )
 
 var (

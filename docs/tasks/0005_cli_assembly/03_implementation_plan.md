@@ -175,16 +175,16 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
--   [ ] **ステップ 1-6**: `test_helpers_cache_seed.go` に `SeedCacheForTest`（設計書 3.10）を作る。`prepareWriteSlot`・`persistSlot`・`commitCache` で、空のキャッシュに対してスロット `a`・ポインタ `a` の配置を作る。内容は検証しない（AC-48 のテストが途中で切れた字幕を置くため）。`placeRealCache` の中身をこの関数の呼び出しに置き換え、§1.3 の 13 か所の呼び出しを変えずに通す。
--   [ ] **ステップ 1-7**: `checkDisplayString` を、番兵を包まずに理由だけを返す内部の関数に分け、既存の 2 か所の呼び出しは `ErrMalformedOutput` で包む。`article.go` に `ErrInvalidArticle` と `Article.CheckPublishable`（設計書 3.5 の表）を作る。`article_test.go` に `TestArticleCheckPublishable` を作る: 表の各フィールドと各条件の拒否、受理する境界（`ModelVersion` が空、`Body` の `\n`・`\t`）、エラーが `ErrInvalidArticle` を包み `ErrMalformedOutput` を包まないこと、エラーの文字列に値（目印の文字列）が現れないこと。`output_test.go` の既存のテストは変更せずに通し、`ErrMalformedOutput` の拒否が `ErrInvalidArticle` を包まないことを 1 件加える。
--   [ ] **ステップ 1-8**: `test_organization.md` に、統合テストからも使う補助（`testutil/` のファイルと `test_helpers_*.go`）は `//go:build test || integration` とする例外を足す。同じコミットで `TestFakesCarryBuildTag` を改める（§1.4、設計書 3.11）: `internal` の下のすべての `testutil/` の `.go` を数え（件数はこの時点では 8 のまま）、それらと `cmd/`・`internal/` の `test_helpers*.go` の 1 行目が `//go:build test` か `//go:build test || integration` のどちらかであることを確かめる。
--   [ ] **ステップ 1-9**: `package_reference.md` を更新する。`internal/transcript` の行: `ValidateVideoURL`・子プロセスへ引き継ぐファイル・プロセスグループの停止・`SeedCacheForTest`（`test` または `integration` のビルドだけ）。`internal/llm/deepseek` の行: `ErrPaddedModel`、`test` のビルドでは他のパッケージも `NewForLoopbackTest` でループバックの送信先に向けられること（現在の「only the test helper replaces」の記述を改める）。`internal/writer` の行: `CheckPublishable`。
--   [ ] **ステップ 1-10**: [cache_consistency.md](../../dev/cache_consistency.md) §7 のチェックリストを、本フェーズの `ytdlp.go`・`exec.go` の変更（中断された `yt-dlp` の止め方を含む）に当てはめて確かめ、結果をコミットメッセージに記録する。
--   [ ] **ステップ 1-11**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `CheckPublishable` の各条件を 1 つずつ外す、`TestFakesCarryBuildTag` の走査を 1 段に戻す・`test_helpers*.go` を対象から外す（誤ったタグの入れ子の `testutil/` のファイルと `test_helpers_x.go` を一時的に置いて、それぞれ失敗すること）。
--   [ ] **ステップ 1-12**: 次の名前が `docs/tasks/` 以外に残っていないことを検索で確かめる: `validateVideoURL`・`errPaddedModel`（コメントと文書を含む）。`make fmt` → `make test` → `make lint` を通す。
+-   [x] **ステップ 1-6**: `test_helpers_cache_seed.go` に `SeedCacheForTest`（設計書 3.10）を作る。`prepareWriteSlot`・`persistSlot`・`commitCache` で、空のキャッシュに対してスロット `a`・ポインタ `a` の配置を作る。内容は検証しない（AC-48 のテストが途中で切れた字幕を置くため）。`placeRealCache` の中身をこの関数の呼び出しに置き換え、§1.3 の 13 か所の呼び出しを変えずに通す。
+-   [x] **ステップ 1-7**: `checkDisplayString` を、番兵を包まずに理由だけを返す内部の関数に分け、既存の 2 か所の呼び出しは `ErrMalformedOutput` で包む。`article.go` に `ErrInvalidArticle` と `Article.CheckPublishable`（設計書 3.5 の表）を作る。`article_test.go` に `TestArticleCheckPublishable` を作る: 表の各フィールドと各条件の拒否、受理する境界（`ModelVersion` が空、`Body` の `\n`・`\t`）、エラーが `ErrInvalidArticle` を包み `ErrMalformedOutput` を包まないこと、エラーの文字列に値（目印の文字列）が現れないこと。`output_test.go` の既存のテストは変更せずに通し、`ErrMalformedOutput` の拒否が `ErrInvalidArticle` を包まないことを 1 件加える。
+-   [x] **ステップ 1-8**: `test_organization.md` に、統合テストからも使う補助（`testutil/` のファイルと `test_helpers_*.go`）は `//go:build test || integration` とする例外を足す。同じコミットで `TestFakesCarryBuildTag` を改める（§1.4、設計書 3.11）: `internal` の下のすべての `testutil/` の `.go` を数え（件数はこの時点では 8 のまま）、それらと `cmd/`・`internal/` の `test_helpers*.go` の 1 行目が `//go:build test` か `//go:build test || integration` のどちらかであることを確かめる。
+-   [x] **ステップ 1-9**: `package_reference.md` を更新する。`internal/transcript` の行: `ValidateVideoURL`・子プロセスへ引き継ぐファイル・プロセスグループの停止・`SeedCacheForTest`（`test` または `integration` のビルドだけ）。`internal/llm/deepseek` の行: `ErrPaddedModel`、`test` のビルドでは他のパッケージも `NewForLoopbackTest` でループバックの送信先に向けられること（現在の「only the test helper replaces」の記述を改める）。`internal/writer` の行: `CheckPublishable`。
+-   [x] **ステップ 1-10**: [cache_consistency.md](../../dev/cache_consistency.md) §7 のチェックリストを、本フェーズの `ytdlp.go`・`exec.go` の変更（中断された `yt-dlp` の止め方を含む）に当てはめて確かめ、結果をコミットメッセージに記録する。
+-   [x] **ステップ 1-11**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `CheckPublishable` の各条件を 1 つずつ外す、`TestFakesCarryBuildTag` の走査を 1 段に戻す・`test_helpers*.go` を対象から外す（誤ったタグの入れ子の `testutil/` のファイルと `test_helpers_x.go` を一時的に置いて、それぞれ失敗すること）。
+-   [x] **ステップ 1-12**: 次の名前が `docs/tasks/` 以外に残っていないことを検索で確かめる: `validateVideoURL`・`errPaddedModel`（コメントと文書を含む）。`make fmt` → `make test` → `make lint` を通す。
 
 ### PR-3 作成ポイント: shared cache seeding, article validation, and build-tag guard
 
@@ -198,8 +198,8 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 
 **判定理由**: `gosec` の抑止（ステップ 1-6 の非 `_test.go` の補助）とビルドタグ下の非 `_test.go` のソース（同）の 2 つの Conditional check に該当し、加えて制御文字を拒否する `CheckPublishable` というセキュリティの検査を含むため。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
