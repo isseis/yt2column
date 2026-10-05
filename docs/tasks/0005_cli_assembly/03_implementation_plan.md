@@ -254,14 +254,14 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 -   変更: `docs/dev/developer_guide/package_reference.md`
 
 **タスク**
--   [ ] **ステップ 3-1**: `provider.go` に `LLMTimeout`・`New`・非公開の `newClient`・プロバイダを直接受け取る非公開の関数・`errUnknownProvider` を作る（設計書 3.2）。構築のエラーは `%w` で包む。
--   [ ] **ステップ 3-2**: `provider_test.go` に次を作る。
+-   [x] **ステップ 3-1**: `provider.go` に `LLMTimeout`・`New`・非公開の `newClient`（プロバイダを直接受け取り、アダプタの構築関数を引数で受け取る）・`errUnknownProvider` を作る（設計書 3.2）。構築のエラーは `%w` で包む。
+-   [x] **ステップ 3-2**: `provider_test.go` に次を作る。
     -   `TestNewDeepSeekSendsConfiguredRequest`（AC-10）: `config.Load` で読み込んだ設定と、`deepseek.NewForLoopbackTest` を呼ぶ構築関数で `newClient` を呼ぶ。`httptest` のサーバが受け取った要求のモデル名と `Authorization` ヘッダーが設定の値であること、構築関数が受け取った `Timeout` が `LLMTimeout` であることを確かめる。応答の本文は既存の `testdata/deepseek_chat_completion_stop.json` を使う。
     -   `TestNewUsesDeepSeekAdapter`: 有効な設定で `New` を呼ぶと、エラーがなく、返ったクライアントの動的な型が `internal/llm/deepseek` のものであること（`reflect` の `PkgPath`）。`New` が本番の `deepseek.New` を `newClient` に渡していることを確かめる。要求は送らない。
     -   `TestNewUnknownProvider`（AC-11）: ゼロ値と範囲外の値で、エラーが `errUnknownProvider` を包み、`LLMClient` が nil で、構築関数が呼ばれないこと。
     -   `TestNewPaddedModel`（AC-12）: 前後に空白のある `YT2COLUMN_MODEL` を `config.Load` で読み込み、`New` のエラーが `deepseek.ErrPaddedModel` を包み、`LLMClient` が nil であること。
--   [ ] **ステップ 3-3**: `package_reference.md` に `internal/llm/provider` の行を加える。
--   [ ] **ステップ 3-4**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `default` で DeepSeek を構築する、`%w` を `%v` にする、モデル名か API キーを別の値にして渡す、`New` が別の構築関数を渡す（`TestNewUsesDeepSeekAdapter`）。`make fmt` → `make test` → `make lint` を通す。
+-   [x] **ステップ 3-3**: `package_reference.md` に `internal/llm/provider` の行を加える。
+-   [x] **ステップ 3-4**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `default` で DeepSeek を構築する、`%w` を `%v` にする、モデル名か API キーを別の値にして渡す、`New` が別の構築関数を渡す（`TestNewUsesDeepSeekAdapter`）。`make fmt` → `make test` → `make lint` を通す。
 
 ### PR-5 作成ポイント: internal/llm/provider
 
