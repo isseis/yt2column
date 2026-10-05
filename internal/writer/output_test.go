@@ -4,6 +4,7 @@ package writer
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -91,7 +92,6 @@ func TestWriteSourceBlock(t *testing.T) {
 		{"no trailing newline", "本文"},
 		{"one trailing newline", "本文\n"},
 		{"several trailing newlines", "本文\n\n\n"},
-		{"trailing CR", "本文\r"},
 		{"fake source line", "本文\n\n出典: " + otherURL},
 		{"fake source autolink", "本文\n\n出典: <" + otherURL + ">\n"},
 	}
@@ -108,6 +108,60 @@ func TestWriteSourceBlock(t *testing.T) {
 			// body ends.
 			if want := tc.body + "\n\n" + testSourceBlock; a.Body != want {
 				t.Errorf("Body = %q, want %q", a.Body, want)
+			}
+		})
+	}
+}
+
+func TestWriteNormalizesBody(t *testing.T) {
+	cases := []struct {
+		name, body string
+		wantBody   string // the body part in Article.Body, before the separator
+	}{
+		{"CRLF", "a\r\nb\r\n", "a\nb\n"},
+		{"lone CR", "a\rb\rc", "a\nb\nc"},
+		{"CR before CRLF", "a\r\r\nb", "a\n\nb"},
+		{"trailing CR", "本文\r", "本文\n"},
+		{"leading BOM", "\uFEFFa", "a"},
+		{"BOM after the start kept", "a\n\uFEFFb", "a\n\uFEFFb"},
+		// Read as one line, this is a fence-like line and is rejected; only
+		// after normalization is it a closed fence.
+		{"fence closed with CR line endings", "```\r<details>\r```", "```\n<details>\n```"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a, err := writeResponse(t, responseWithText("# T\n"+tc.body))
+			if err != nil {
+				t.Fatalf("Write error = %v", err)
+			}
+			if want := tc.wantBody + "\n\n" + testSourceBlock; a.Body != want {
+				t.Errorf("Body = %q, want %q", a.Body, want)
+			}
+		})
+	}
+}
+
+func TestWriteChecksNormalizedBody(t *testing.T) {
+	cases := []struct {
+		name, body string
+		reason     error // nil when only the body-presence check rejects it
+	}{
+		// Without the BOM removed, the first line is prose and nothing is
+		// left open.
+		{"fence after a leading BOM", "\uFEFF~~~\n" + markOutBody, errUnclosedFence},
+		// U+FEFF is not white space, so only its removal leaves the body empty.
+		{"BOM-only body", "\uFEFF", nil},
+		// After one BOM is removed, the second one makes the first line prose
+		// to the check; a renderer stripping it would open the fence.
+		{"two leading BOMs before a fence", "\uFEFF\uFEFF~~~\n" + markOutBody, errLeadingBOM},
+		{"two leading BOMs before prose", "\uFEFF\uFEFF" + markOutBody, errLeadingBOM},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a, err := writeResponse(t, responseWithText("# "+markOutTitle+"\n"+tc.body))
+			requireMalformed(t, a, err)
+			if tc.reason != nil && !errors.Is(err, tc.reason) {
+				t.Errorf("Write error = %v, want %v", err, tc.reason)
 			}
 		})
 	}
@@ -199,6 +253,45 @@ func TestWriteOutputSizeLimits(t *testing.T) {
 			tc.modify(&resp, tc.limit+1)
 			a, err := writeResponse(t, resp)
 			requireMalformed(t, a, err)
+		})
+	}
+}
+
+func TestWriteRejectsMarkdownHazards(t *testing.T) {
+	const body = markOutBody
+	rejected := []struct {
+		name, body string
+		reason     error
+	}{
+		{"unclosed backtick fence", body + "\n```go\nfmt.Println()", errUnclosedFence},
+		{"unclosed tilde fence", body + "\n~~~\n" + body, errUnclosedFence},
+		{"unclosed details", "<details>\n" + body, errRawHTML},
+		{"closed details", "<details>" + body + "</details>", errRawHTML},
+		{"div hidden", "<div hidden>" + body + "</div>", errRawHTML},
+		{"inline span hidden", body + " <span hidden>x</span>", errRawHTML},
+		{"comment", body + "\n<!-- " + body + " -->", errRawHTML},
+		{"script", body + "\n<script>", errRawHTML},
+	}
+	for _, tc := range rejected {
+		t.Run(tc.name, func(t *testing.T) {
+			a, err := writeResponse(t, responseWithText("# "+markOutTitle+"\n"+tc.body))
+			requireMalformed(t, a, err)
+			if !errors.Is(err, tc.reason) {
+				t.Errorf("Write error = %v, want %v", err, tc.reason)
+			}
+		})
+	}
+	accepted := []struct{ name, body string }{
+		{"details in a code span", body + " `<details>`"},
+		{"details in a closed fence", body + "\n```\n<details>\n```\n"},
+		{"URI autolink", body + " <https://example.com/>"},
+		{"closed fence", body + "\n```go\nfmt.Println()\n```"},
+	}
+	for _, tc := range accepted {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := writeResponse(t, responseWithText("# "+markOutTitle+"\n"+tc.body)); err != nil {
+				t.Errorf("Write error = %v, want nil", err)
+			}
 		})
 	}
 }
