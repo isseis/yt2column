@@ -51,7 +51,7 @@ func (s *YtDlpSource) Fetch(ctx context.Context, videoURL string) (Transcript, e
 	if err := ctx.Err(); err != nil {
 		return Transcript{}, err
 	}
-	id, normalizedURL, err := validateVideoURL(videoURL)
+	id, normalizedURL, err := ValidateVideoURL(videoURL)
 	if err != nil {
 		return Transcript{}, err
 	}
@@ -79,7 +79,7 @@ func (s *YtDlpSource) RemoveCache(ctx context.Context, videoURL string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	id, _, err := validateVideoURL(videoURL)
+	id, _, err := ValidateVideoURL(videoURL)
 	if err != nil {
 		return err
 	}

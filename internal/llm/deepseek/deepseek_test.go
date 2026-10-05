@@ -133,18 +133,24 @@ func TestNew(t *testing.T) {
 	})
 
 	t.Run("rejects invalid model names", func(t *testing.T) {
-		models := []string{
-			"",
-			" deepseek-flash",
-			"deepseek-flash ",
-			"deepseek-flash\n",
-			"\xff",
+		models := []struct {
+			model  string
+			padded bool
+		}{
+			{"", false},
+			{" deepseek-flash", true},
+			{"deepseek-flash ", true},
+			{"deepseek-flash\n", true},
+			{"\xff", false},
 		}
-		for _, model := range models {
+		for _, tc := range models {
 			options := validOptions(t)
-			options.Model = model
+			options.Model = tc.model
 			value, err := New(options)
-			assertConstructionFailure(t, value, err, model)
+			assertConstructionFailure(t, value, err, tc.model)
+			if got := errors.Is(err, ErrPaddedModel); got != tc.padded {
+				t.Errorf("New(Model: %q) errors.Is(err, ErrPaddedModel) = %v, want %v", tc.model, got, tc.padded)
+			}
 		}
 	})
 
@@ -179,6 +185,56 @@ func TestNewTestClientRejectsNonLoopback(t *testing.T) {
 		if err := validateLoopbackEndpoint(endpoint); err == nil {
 			t.Errorf("validateLoopbackEndpoint(%q) error = nil, want a rejection", endpoint)
 		}
+	}
+}
+
+// fatalRecorder is a testing.TB that records a Fatal message instead of
+// failing the test. Fatalf deliberately does not end the calling goroutine,
+// so the helper under test keeps running and the caller can observe that it
+// returned no client.
+type fatalRecorder struct {
+	testing.TB
+	message string
+}
+
+// Fatalf records the formatted message instead of failing.
+func (r *fatalRecorder) Fatalf(format string, args ...any) {
+	r.message = fmt.Sprintf(format, args...)
+}
+
+func TestNewForLoopbackTest(t *testing.T) {
+	server, recorder := newRecordingServer(t, readFixture(t, testdataStopFixture))
+	options := Options{APIKey: mustSecret(t, testAPIKey), Model: testModel, Timeout: testClientTimeout}
+	value := NewForLoopbackTest(t, options, server.URL)
+	if _, err := value.Generate(context.Background(), validRequest()); err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	if got := recorder.count(); got != 1 {
+		t.Errorf("server received %d requests, want 1", got)
+	}
+}
+
+func TestNewForLoopbackTestRejectsNonLoopback(t *testing.T) {
+	recorder := &fatalRecorder{TB: t}
+	options := Options{APIKey: mustSecret(t, testAPIKey), Model: testModel, Timeout: testClientTimeout}
+	value := NewForLoopbackTest(recorder, options, "https://api.deepseek.com/chat/completions")
+	if recorder.message == "" {
+		t.Error("NewForLoopbackTest did not record a Fatal for a non-loopback endpoint")
+	}
+	if value != nil {
+		t.Errorf("NewForLoopbackTest returned %v, want nil", value)
+	}
+}
+
+func TestNewForLoopbackTestRejectsInvalidOptions(t *testing.T) {
+	recorder := &fatalRecorder{TB: t}
+	options := Options{APIKey: mustSecret(t, testAPIKey), Model: " deepseek-flash", Timeout: testClientTimeout}
+	value := NewForLoopbackTest(recorder, options, "http://127.0.0.1:8080/chat")
+	if recorder.message == "" {
+		t.Error("NewForLoopbackTest did not record a Fatal for an invalid Options value")
+	}
+	if value != nil {
+		t.Errorf("NewForLoopbackTest returned %v, want nil", value)
 	}
 }
 

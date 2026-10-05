@@ -30,9 +30,9 @@ func TestValidateVideoURL(t *testing.T) {
 	}
 	for _, tc := range accepted {
 		t.Run("accept/"+tc.name, func(t *testing.T) {
-			gotID, gotURL, err := validateVideoURL(tc.url)
+			gotID, gotURL, err := ValidateVideoURL(tc.url)
 			if err != nil {
-				t.Fatalf("validateVideoURL(%q) error = %v", tc.url, err)
+				t.Fatalf("ValidateVideoURL(%q) error = %v", tc.url, err)
 			}
 			if gotID != tc.wantID {
 				t.Errorf("video ID = %q, want %q", gotID, tc.wantID)
@@ -80,13 +80,13 @@ func TestValidateVideoURL(t *testing.T) {
 	}
 	for _, tc := range rejected {
 		t.Run("reject/"+tc.name, func(t *testing.T) {
-			_, _, err := validateVideoURL(tc.url)
+			_, _, err := ValidateVideoURL(tc.url)
 			if !errors.Is(err, ErrInvalidVideoURL) {
-				t.Fatalf("validateVideoURL(%q) error = %v, want ErrInvalidVideoURL", tc.url, err)
+				t.Fatalf("ValidateVideoURL(%q) error = %v, want ErrInvalidVideoURL", tc.url, err)
 			}
 			for _, other := range []error{ErrYtDlpExec, ErrParseSubtitles, ErrParseInfo, ErrNoSubtitles} {
 				if errors.Is(err, other) {
-					t.Errorf("validateVideoURL(%q) error %v also matches %v", tc.url, err, other)
+					t.Errorf("ValidateVideoURL(%q) error %v also matches %v", tc.url, err, other)
 				}
 			}
 		})

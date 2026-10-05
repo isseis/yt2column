@@ -58,7 +58,7 @@ func New(opts Options) (llm.LLMClient, error) {
 		return nil, wrapError(errEmptyModel)
 	}
 	if strings.TrimSpace(opts.Model) != opts.Model {
-		return nil, wrapError(errPaddedModel)
+		return nil, wrapError(ErrPaddedModel)
 	}
 	if !utf8.ValidString(opts.Model) {
 		return nil, wrapError(errInvalidModel)

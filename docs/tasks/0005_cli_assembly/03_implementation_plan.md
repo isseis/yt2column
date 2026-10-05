@@ -134,9 +134,9 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 -   変更: `internal/pipeline/pipeline_test.go`・`docs/dev/developer_guide/test_organization.md`・`docs/dev/developer_guide/package_reference.md`
 
 **タスク**
--   [ ] **ステップ 1-1**: `validateVideoURL` を `ValidateVideoURL` に改名する（§1.4）。§1.3 に挙げた参照をすべて追従させ、doc コメントの先頭の名前と、`video_id_test.go` の失敗メッセージの関数名も改める。検証の内容は変えない。
--   [ ] **ステップ 1-2**: `errPaddedModel` を `ErrPaddedModel` として公開し（§1.4）、公開の番兵の宣言に移して doc コメントを書く（構築のエラーで公開する番兵はこれだけである。設計書 3.10 の例外 E2）。`TestNew` の「rejects invalid model names」で、前後に空白のあるモデル名では `errors.Is(err, ErrPaddedModel)` が真、それ以外の不正なモデル名では偽であることを確かめる。
--   [ ] **ステップ 1-3**: `test_helpers_endpoint.go` に `NewForLoopbackTest`（設計書 3.10）を作る。送信先は既存の `validateLoopbackEndpoint` で検査し、ループバック以外なら `t.Fatal` する。`newTestClient` は、同じ構築の手順を重複させずにこの関数を使う形に改める。`TestNewForLoopbackTest` を足す: ループバックの送信先へ要求が届くこと（既存の `newRecordingServer`）と、ループバック以外の送信先では `Fatal` を記録して戻らず、クライアントを返さないこと（`Fatal` 系を記録する `testing.TB` の包みで確かめる）。PR-1 のテスト（`ValidateVideoURL` の改名の参照、`TestNew` の `ErrPaddedModel`、`TestNewForLoopbackTest`）を 1 つずつ壊して失敗することを確かめ、コミットメッセージに記録し、`make fmt` → `make test` → `make lint` を通す。
+-   [x] **ステップ 1-1**: `validateVideoURL` を `ValidateVideoURL` に改名する（§1.4）。§1.3 に挙げた参照をすべて追従させ、doc コメントの先頭の名前と、`video_id_test.go` の失敗メッセージの関数名も改める。検証の内容は変えない。
+-   [x] **ステップ 1-2**: `errPaddedModel` を `ErrPaddedModel` として公開し（§1.4）、公開の番兵の宣言に移して doc コメントを書く（構築のエラーで公開する番兵はこれだけである。設計書 3.10 の例外 E2）。`TestNew` の「rejects invalid model names」で、前後に空白のあるモデル名では `errors.Is(err, ErrPaddedModel)` が真、それ以外の不正なモデル名では偽であることを確かめる。
+-   [x] **ステップ 1-3**: `test_helpers_endpoint.go` に `NewForLoopbackTest`（設計書 3.10）を作る。送信先は既存の `validateLoopbackEndpoint` で検査し、ループバック以外なら `t.Fatal` する。`newTestClient` は、同じ構築の手順を重複させずにこの関数を使う形に改める。`TestNewForLoopbackTest` を足す: ループバックの送信先へ要求が届くこと（既存の `newRecordingServer`）と、ループバック以外の送信先では `Fatal` を記録して戻らず、クライアントを返さないこと（`Fatal` 系を記録する `testing.TB` の包みで確かめる）。PR-1 のテスト（`ValidateVideoURL` の改名の参照、`TestNew` の `ErrPaddedModel`、`TestNewForLoopbackTest`）を 1 つずつ壊して失敗することを確かめ、コミットメッセージに記録し、`make fmt` → `make test` → `make lint` を通す。
 
 ### PR-1 作成ポイント: existing internal symbol exposure
 
@@ -150,8 +150,8 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 
 **判定理由**: 既存の識別子の改名・公開とテスト用コンストラクタの追加に限られ、競合する実装方針の併記・高リスクな制御・パネルモードのトリガー・2 つ以上の Conditional check のいずれにも該当しないため（該当する Conditional check はビルドタグ下の非 `_test.go` のソースの 1 つだけである）。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
