@@ -6,7 +6,7 @@
 |---|---|
 | Status | `approved` |
 | Created | 2026-10-03 |
-| Review date | 2026-10-04 |
+| Review date | 2026-10-05 |
 | Reviewer | isseis |
 | Comments | - |
 
@@ -33,7 +33,7 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 -   LLM の生成テキストを、タイトルと Markdown 本文からなる `Article` に変換できる。
 -   記事の末尾に、LLM の出力に依存せず、元動画への出典リンクを必ず付ける。
 -   プロンプトテンプレートをバイナリに埋め込み、外部ファイルで上書きできる。
--   LLM の出力という信頼できない入力を、補正せずに検証する。記事に変換できない出力は番兵エラーで拒否し、不完全な記事を返さない。
+-   LLM の出力という信頼できない入力を検証し、意味を変えない表記の統一（本文の部分の改行と先頭の BOM。3.2）のほかは補正しない。記事に変換できない出力は番兵エラーで拒否し、不完全な記事を返さない。
 -   LLM の API を使わずに（fake の `LLMClient` で）、`ArticleWriter` の振る舞いをテストできる。
 
 ### 2.2. スコープ (In Scope)
@@ -189,7 +189,7 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 
 **Acceptance Criteria**:
 - **AC-16**: 生成テキストが `# 見出しのタイトル\n\n本文の段落\n` で、`Model` が `m-1`、`ModelVersion` が `fp-1` の応答に対し、`Write` はエラーを返さず、`Title` が `見出しのタイトル`、`Body` が `\n本文の段落\n` で始まり出典ブロックで終わる文字列、`Model` が `m-1`、`ModelVersion` が `fp-1` の `Article` を返す。`ModelVersion` が空文字列の応答も受理し、`Article.ModelVersion` は空文字列である。
-- **AC-17**: `Article.Body` は、生成テキストの先頭行の `\n` より後の文字列（LLM が生成した本文）と同一の文字列で始まる。前後の空白や改行、本文中の Markdown（見出し・リスト・リンクなど）は変更されない。`Article.Body` は、LLM が生成した本文、区切り（空行を作るための改行）、出典ブロックをこの順に連結した文字列であり、これ以外の文字列を含まない。
+- **AC-17**: `Article.Body` は、生成テキストの先頭行の `\n` より後の文字列（LLM が生成した本文）に 3.2 の表記の統一をした文字列で始まる。表記の統一のほかに、前後の空白や改行、本文中の Markdown（見出し・リスト・リンクなど）は変更されない。`Article.Body` は、LLM が生成した本文、区切り（空行を作るための改行）、出典ブロックをこの順に連結した文字列であり、これ以外の文字列を含まない。
 
 #### F-006: 出典リンクの付与
 
@@ -220,6 +220,7 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 -   `Text` の先頭行（最初の `\n` の前まで。`\n` を含まない場合は全体）は、`# `（`#` 1 個と半角空白 1 個）で始まる。先頭行の前に空行や空白を置いた形、`#` が 2 個以上の見出し、`#` の直後が半角空白でない形（例: `#タイトル`）、コードフェンスで囲んだ形（例: 先頭行が ```` ```markdown ````）、Setext 形式の見出し（`===` の下線）は受理しない。
 -   タイトルは、先頭行の `# ` を取り除き、さらに前後の半角空白とタブを取り除いた文字列とする。これ以外の正規化はしない。タイトルは `#` で終わらない（閉じの `#` 列を解釈も除去もしないため、`# タイトル #` の形は拒否する）。
 -   本文の部分は、先頭行の `\n` より後とする。生成テキストが `\n` を含まない場合、本文の部分は空である。
+-   **本文の部分の表記の統一:** 本文の部分の `\r\n` と単独の `\r` を `\n` に置き換え、先頭の U+FEFF（BOM）を 1 つ取り除く。CommonMark はどれも改行とみなし、文書の先頭の BOM を無視するので、意味は変わらない。一方、表示する実装によって扱いが異なりうる（単独の `\r` を改行とみなさない実装、文書の先頭の BOM を取り除いてから解釈する実装がある）ため、統一して食い違いをなくす。統一の後もなお U+FEFF で始まる本文の部分（先頭に U+FEFF が 2 つ以上続くもの）は `ErrMalformedOutput` で拒否する。CommonMark が無視するのは文書の先頭の BOM 1 つだけで 2 つ目以降は内容なので、取り除けば意味が変わり、残して受理すれば BOM をもう 1 つ取り除いてから解釈する実装でフェンスが開きうるためである。本文の部分の規則（下の表の規則と、生の HTML・コードフェンスの規則）は統一した後の本文の部分に適用し、`Article.Body` も統一した後の本文の部分から作る。タイトルには適用しない（`\r` を含むタイトルはメタ情報の文字列の規則で拒否する）。これ以外の補正はしない。
 
 各値は次の規則をすべて満たす。
 
@@ -255,13 +256,13 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 
 拒否してよい形のうちどれを拒否するかと、境界の例は設計で決める（[design_handoff.md](design_handoff.md) H-04）。
 
-**拒否時:** 上記に合致しない入力は、補正・正規化・切り詰めをせずに `ErrMalformedOutput` で拒否し、部分的な結果を返さない。エラーには拒否した理由（どの規則に反したか）を含め、いずれの値（タイトル・本文の部分・`Model`・`ModelVersion`）も含めない（信頼できない入力であり、利用者の端末へそのまま出力しないため）。
+**拒否時:** 上記に合致しない入力は、本文の部分の表記の統一のほかは補正・正規化・切り詰めをせずに `ErrMalformedOutput` で拒否し、部分的な結果を返さない。エラーには拒否した理由（どの規則に反したか）を含め、いずれの値（タイトル・本文の部分・`Model`・`ModelVersion`）も含めない（信頼できない入力であり、利用者の端末へそのまま出力しないため）。
 
 | 境界 | 受理する形 | 拒否時の番兵 | 主な AC |
 |---|---|---|---|
 | テンプレート（既定・上書きファイル） | F-001・F-003 | `ErrInvalidTemplate` | AC-05・AC-06・AC-13・AC-28・AC-30 |
 | `Transcript` | F-002 | `ErrInvalidTranscript` | AC-07・AC-08 |
-| `GenerateResponse` | 3.2 | `ErrMalformedOutput` | AC-22〜AC-27・AC-29・AC-31 |
+| `GenerateResponse` | 3.2 | `ErrMalformedOutput` | AC-22〜AC-27・AC-29・AC-31・AC-32 |
 
 各 AC に挙げた入力例は、要件の作成時に確認した具体例であり、拒否すべき入力をすべて挙げたものではない。拒否すべき入力の範囲は上の規則が定め、その具体化は設計で行う。
 
@@ -277,7 +278,7 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 - **AC-23**: タイトルが空または空白文字だけ（例: `# \n本文`、`#  \t\n本文`、全角空白（U+3000）だけの `# 　\n本文`）、`\r` を含む（例: `# タイトル\r\n本文`）、`#` で終わる（例: `# タイトル #\n本文`）生成テキスト、および本文の部分が空または空白文字だけの生成テキスト（例: `# タイトル`、`# タイトル\n`、`# タイトル\n \n\t\n`）は、`errors.Is(err, ErrMalformedOutput)` が真になるエラーになる。タイトルの前後の半角空白とタブは除き（例: `#  タイトル  \n本文` のタイトルは `タイトル`）、拒否しない。
 - **AC-24**: 本文の部分が閉じていないコードフェンスで終わる生成テキスト（例: `# タイトル\n本文\n` に続けて ```` ```go\nfmt.Println() ```` で終わるもの、`~~~` で開いて閉じないもの）は、`errors.Is(err, ErrMalformedOutput)` が真になるエラーになる。フェンスを閉じている生成テキストは受理する。
 - **AC-25**: `Model` が空文字列の応答は、生成テキストが正しくても、`errors.Is(err, ErrMalformedOutput)` が真になるエラーになる。
-- **AC-26**: AC-22〜AC-25・AC-27・AC-29・AC-31 の `ErrMalformedOutput` の各拒否ケースで、返るエラーを `Error()` で文字列にした結果には、応答のタイトル・本文の部分・`Model`・`ModelVersion` のいずれの値も現れない（検証の方法は [implementation_handoff.md](implementation_handoff.md) I-01）。
+- **AC-26**: AC-22〜AC-25・AC-27・AC-29・AC-31・AC-32 の `ErrMalformedOutput` の各拒否ケースで、返るエラーを `Error()` で文字列にした結果には、応答のタイトル・本文の部分・`Model`・`ModelVersion` のいずれの値も現れない（検証の方法は [implementation_handoff.md](implementation_handoff.md) I-01）。
 - **AC-27**: 本文の部分が生の HTML を含む生成テキストは、`errors.Is(err, ErrMalformedOutput)` が真になるエラーになり、返る `Article` はゼロ値である。例: 閉じていない `<details>`、閉じている `<details>…</details>`、`<div hidden>`、段落中のインラインの `<span hidden>`、`<!-- -->`、`<script>`。一方、コードスパンの中の `<details>`（例: `` `<details>` ``）、行頭で開いて閉じたコードフェンスの中の `<details>`、URI の自動リンク（例: `<https://example.com/>`）を含み、3.2 の拒否してよい形に当たらない生成テキストは受理する。
 - **AC-29**: 生成テキストが正しくても、次のいずれかに当てはまる応答は、`errors.Is(err, ErrMalformedOutput)` が真になるエラーになり、返る `Article` はゼロ値である。
     -   `Model` が空白文字だけ（例: 全角空白（U+3000）だけの `　`）
@@ -289,6 +290,7 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 
     エラーに値が現れないことは AC-26 で確かめる。
 - **AC-31**: `Text`・`Model`・`ModelVersion` のそれぞれについて、ほかの規則を満たし、大きさがちょうど上限のバイト数の値は受理する。上限＋1 バイトの値は `errors.Is(err, ErrMalformedOutput)` が真になるエラーになり、返る `Article` はゼロ値である。
+- **AC-32**: 本文の部分の `\r\n` と単独の `\r` は `\n` に、先頭の U+FEFF は除かれて `Article.Body` に入る（例: 本文の部分が `a\r\nb\rc` なら `Article.Body` は `a\nb\nc` で始まる。`\uFEFFa` なら `a` で始まる。先頭以外の U+FEFF は残る）。本文の部分の規則は統一した後の本文の部分で判定する（例: `` ```\r<details>\r``` `` は閉じたフェンスとして受理する。`\uFEFF~~~\nx` は閉じていないコードフェンスとして、`\uFEFF` だけの本文の部分は空として、`errors.Is(err, ErrMalformedOutput)` が真になるエラーになる）。統一の後もなお U+FEFF で始まる本文の部分は拒否する（例: `\uFEFF\uFEFF~~~\nx` は `errors.Is(err, ErrMalformedOutput)` が真になるエラーになる）。タイトルの `\r` は統一せず、AC-23 のとおり拒否する。
 
 ## 4. 非機能要件 (Non-Functional Requirements)
 
@@ -301,7 +303,7 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 -   [security.md](../../dev/security.md) §4（LLM プロバイダへ送るデータ）・§6（信頼できないテキスト）に従う。
 -   プロンプトに入るのは、テンプレートの文面と、`Transcript` の動画タイトル・チャンネル名・概要欄・字幕本文だけである。`ArticleWriter` は、上書きファイルのパスなどのローカルの情報をプロンプトに加えない（F-001・F-003）。
 -   出典リンクは LLM の出力に依存せず、検証済みの動画 ID からコードで組み立てる（F-006・AC-19）。
--   LLM の出力は 3.2 の規則で検証し、補正せずに拒否する。拒否のエラーに生成テキストの内容や `Model`・`ModelVersion` の値を含めない（AC-26）。
+-   LLM の出力は 3.2 の規則で検証し、本文の部分の表記の統一のほかは補正せずに拒否する。拒否のエラーに生成テキストの内容や `Model`・`ModelVersion` の値を含めない（AC-26）。
 -   字幕・概要欄などの値をテンプレートとして解釈しない（AC-12）。
 -   生成テキストをコマンドやコードとして実行しない。`ArticleWriter` は生成テキストを文字列として `Article` に入れるだけである。
 
