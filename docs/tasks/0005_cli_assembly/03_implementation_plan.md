@@ -278,7 +278,8 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
     -   `os.LookupEnv` と `productionDeps()` を渡して上の関数を呼び、その戻り値で `os.Exit` する `main`。環境変数の参照は、この `os.LookupEnv` の 1 か所だけにする。
 -   [ ] **ステップ 7-5**: `main_test.go` に `TestMain` を作る。
     -   proxy の環境変数を、開いてすぐ閉じたループバックのリスナーのアドレスに向け、`http.ProxyFromEnvironment` が本番の送信先についてそのアドレスを返すことを確かめてから `m.Run` を呼ぶ（設計書 7.1）。
-    -   I-02 の子プロセスのモードは、`m.Run` より前に判定する。子プロセスは、ステップ 7-4 のシグナルを購読する関数を、fake の `LLMClient` を返す `deps` で実行し、標準出力にはそれ以外を書かずに `os.Exit` する。fake の動作は環境変数で選ぶ（成功する、`ctx` の終了まで止まる、`ctx` を無視して止まり続ける）。止まる fake は、`Generate` に入った時点で準備完了の印のファイルを作る。`ctx` を無視する fake は、`ctx` が終わった時点で別の印を作る。
+    -   I-02 の子プロセスのモードは、`m.Run` より前に判定する。子プロセスは、テストで確かめるシグナルの購読の経路を、fake の `LLMClient` を返す `deps` で実行し、標準出力にはそれ以外を書かずに `os.Exit` する。fake の動作（成功する、`ctx` の終了まで止まる、`ctx` を無視して止まり続ける）と準備完了の印は、テストの補助（ステップ 7-6）が担う。
+    -   **検証事項（AC-44・AC-45）:** 本番の `main` が、テストしたシグナルの購読の関数を介して `run` を呼ぶことを確かめる。`main` から購読を外すと対応するテストが失敗すること。
 -   [ ] **ステップ 7-6**: 補助を置く。
     -   `test_helpers_integration.go`（`test || integration`）: 環境の対応表から `config.LookupFunc` を作る関数、CLI の統合テストの `deepseektestutil.IntegrationOptions`（`CLIOptInEnv`・`test-integration-cli`・`MissingKeyFail`）を 1 か所で定義した変数、`Generate` の回数を数える型（包む対象のクライアントが nil なら nil の interface を返す）。このファイルはステップ 7-6 で、`IntegrationOptions` の変数を除いて作り、変数はステップ 8-6 で足す（`deepseektestutil` がフェーズ 8 でできるため）。
     -   `test_helpers.go`（`test`）: fake を返す `deps` を作る補助、子プロセスを起動する補助、`requireNonRoot`・`chmodForTest`。子プロセスの環境は、`PATH`・`HOME`・`TMPDIR` と `TestMain` が設定した proxy の変数だけを親から引き継ぐ allowlist（既存の `makeChildEnvAllowlist` と同じ考え方）で作り、`YT2COLUMN_*`・秘密情報・モードの変数はテストが明示して足す。
@@ -322,7 +323,8 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 -   [ ] **ステップ 8-6**: `cmd/yt2column/test_helpers_integration.go` に、ステップ 7-6 の CLI の統合テストの `IntegrationOptions` の変数を足す。`cmd/yt2column/makefile_test.go` に次を作る。
     -   `TestMakeTestIntegrationCLI`: 引数、`-timeout` が `provider.LLMTimeout` より長いこと、オプトインの値、モデル名の 3 つの場合（既存の `TestMakeTestIntegrationDeepSeek` と同じ）。
     -   `TestMakeOptInsAreTargetSpecific`: `test-integration-cli` が DeepSeek のオプトインを、`test-integration-deepseek` が CLI のオプトインをエクスポートしないこと。
-    -   `TestCLIIntegrationSettings`（AC-40）: CLI の統合テストの `IntegrationOptions` の変数を `SettingsFrom` に渡し、AC-40 の 3 つの箇条（オプトインが未設定・空・`0`・`true`・` 1` でスキップ、テスト用のキーがなく本番の `DEEPSEEK_API_KEY` だけがある場合に失敗、`GODEBUG` の `http2debug=1`・`http2debug=2`（他の設定と並ぶ場合を含む）で失敗）と、理由に API キーもその末尾 8 文字も現れないことを確かめる。
+    -   `TestCLIIntegrationSettings`（AC-40）: CLI の統合テストの `IntegrationOptions` の変数についての AC-40 の環境ごとの判定（スキップ・失敗）と、理由に API キーもその末尾 8 文字も現れないことを確かめる。入力の詳細は実装で決める。
+    -   **検証事項（AC-40）:** CLI の統合テストが `SettingsFrom` の結果に従って動くこと。スキップと失敗のときは `run` も LLM のクライアントも呼ばないこと。`SettingsFrom` のユニットテストだけではこの経路を満たさない。
     -   `TestCLIIntegrationTestBuildTag`（AC-42）: `integration_test.go` の 1 行目が `//go:build integration` であること。
 -   [ ] **ステップ 8-7**: `cmd/yt2column/integration_test.go` に `TestIntegrationCLI` を作る（設計書 3.11 のテストの組み立て）。`SettingsFrom(os.Getenv, <ステップ 8-6 の変数>)` を呼ぶ。I-04（§1.5）のとおり LLM のクライアントを包み、`run` を 1 回だけ呼ぶ。AC-41 の各項目を確かめる。API キーとその末尾 8 文字が標準出力・標準エラー出力・`--out` のファイルに現れないことを確かめるまでは、それらをテストの出力に書かない。失敗のメッセージは場所の名前だけを示し、内容を含めない。
 -   [ ] **ステップ 8-8**: `TestFakesCarryBuildTag` の件数を、`internal/llm/deepseek/testutil/` の 3 件を加えた 12 にする。`package_reference.md` に `internal/llm/deepseek/testutil` の行を加える。
@@ -379,7 +381,7 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 
 ### 4.3. 統合テスト
 
--   `cmd/yt2column/integration_test.go`（ステップ 8-7）。`make test-integration-cli` だけが実行する。実行条件の判定は、`SettingsFrom` のユニットテスト（ステップ 8-3）と、CLI の統合テストが渡す設定のユニットテスト（ステップ 8-6 の `TestCLIIntegrationSettings`）で確かめる。
+-   `cmd/yt2column/integration_test.go`（ステップ 8-7）。`make test-integration-cli` だけが実行する。実行条件の判定は、`SettingsFrom` のユニットテスト（ステップ 8-3）と、CLI の統合テストが渡す設定のユニットテスト（ステップ 8-6 の `TestCLIIntegrationSettings`）で確かめる。統合テストが判定の結果に従って動くこと（スキップ・失敗では `run` も LLM のクライアントも呼ばないこと）は、ステップ 8-6 の検証事項で確かめる。
 
 ### 4.4. 後方互換性
 
@@ -435,12 +437,12 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 | AC-37 | `internal/cachelock/cachelock_test.go::TestLockFileSurvivesPrune` | test | 5-1 | 5-2 |
 | AC-38 | `cmd/yt2column/run_test.go::TestRunExecutionPaths`、`cmd/yt2column/signal_test.go::TestSignalDuringYtDlp`、`cmd/yt2column/output_test.go::TestSanitize` | test | 7-1・7-3・7-4 | 7-1・7-7・7-8 |
 | AC-39 | `cmd/yt2column/run_test.go::TestRunEscapesUntrustedText`、`cmd/yt2column/output_test.go::TestSanitize` | test | 7-1・7-3 | 7-1・7-7 |
-| AC-40 | `cmd/yt2column/makefile_test.go::TestCLIIntegrationSettings`、`internal/llm/deepseek/testutil/integration_settings_test.go::TestSettingsFrom` | test | 8-1・8-6・8-7 | 8-3・8-6 |
+| AC-40 | `cmd/yt2column/makefile_test.go::TestCLIIntegrationSettings`、`internal/llm/deepseek/testutil/integration_settings_test.go::TestSettingsFrom`、統合テストが判定に従うこと（ステップ 8-6 の検証事項） | test | 8-1・8-6・8-7 | 8-3・8-6 |
 | AC-41 | `cmd/yt2column/integration_test.go::TestIntegrationCLI`（`make test-integration-cli`）、ステップ 8-11 の記録 | test・manual | 1-6・8-5・8-7 | 8-7・8-11 |
 | AC-42 | `cmd/yt2column/makefile_test.go::TestCLIIntegrationTestBuildTag`、`internal/transcript/ytdlp_test.go::TestLintTagsIncludeIntegration`（`go vet -tags integration` の行）、`make lint` | static | 8-5・8-7 | 8-6 |
 | AC-43 | `cmd/yt2column/docs_test.go::TestREADMEDocumentsCLI`・`::TestProjectOverviewDocumentsConfig`・`::TestSecurityDocumentsCLIIntegration`、`internal/pipeline/pipeline_test.go::TestPackageReferenceListsPackages`、ステップ 9-7 の突き合わせ | static・manual | 1-9・2-6・3-3・4-4・5-3・6-5・7-9・8-8・9-1〜9-3 | 9-4・9-7 |
 | AC-44 | `cmd/yt2column/run_test.go::TestRunExecutionPaths`・`::TestRunHelp`、`cmd/yt2column/signal_test.go::TestSignalDuringYtDlp`・`::TestSignalDuringGenerate` | test | 6-2・7-1・7-3・7-4 | 7-7・7-8 |
-| AC-45 | `cmd/yt2column/signal_test.go::TestSignalDuringYtDlp`、`internal/transcript/exec_test.go::TestCommandExecutorKillsProcessGroup` | test | 1-5・6-2・7-4 | 1-5・7-8 |
+| AC-45 | `cmd/yt2column/signal_test.go::TestSignalDuringYtDlp`、`internal/transcript/exec_test.go::TestCommandExecutorKillsProcessGroup`、`main` の購読の経路（ステップ 7-5 の検証事項） | test | 1-5・6-2・7-4 | 1-5・7-8 |
 | AC-46 | `internal/publisher/file_test.go::TestFilePublisherWriteFailure` | test | 4-1 | 4-2 |
 | AC-47 | `internal/cachelock/cachelock_test.go::TestAcquireOtherFailures`、`internal/job/job_test.go::TestRunLockFailure`、`cmd/yt2column/run_test.go::TestRunExecutionPaths`（排他の取得の失敗の行） | test | 5-1・6-2・7-3 | 5-2・6-3・7-7 |
 | AC-48 | `internal/job/job_test.go::TestRunInvalidCache`、`cmd/yt2column/run_test.go::TestRunExecutionPaths`（キャッシュの内容が不正な行） | test | 6-2・7-3 | 6-3・7-7 |
