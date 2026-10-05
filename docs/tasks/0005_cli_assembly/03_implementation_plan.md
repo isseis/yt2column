@@ -8,7 +8,7 @@
 | Created | 2026-10-05 |
 | Review date | 2026-10-05 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | `mkplan2` で PR の境界（§2 の `PR-N 作成ポイント` と §3.1〜§3.3・§7）を埋め込んだ。実装の手順と AC の内容は変えておらず、決定の変更はない（編集上の追加）。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -26,7 +26,7 @@
 -   Go のコメント・識別子・文字列リテラルは英語で書く。`AC-NN`・`F-NNN`・`H-NN`・`I-NN` は Go のソースに書かず、本計画にだけ記録する（`requirements_process.md` §4）。
 -   **テスト用の補助の lint。** `test_helpers*.go` と `testutil/` の `.go` には `_test.go` の lint の除外が効かない（§1.3）。以下は、これらのファイルを作るか変えるすべてのステップに適用する。これらで `gosec` に当たる呼び出し（変数の実行ファイルの起動、変数のパスの読み書き、`0o600` より広いパーミッション）には、その行だけに `//nolint:gosec // <テストの一時ディレクトリの中であるなどの理由>` を付ける（既存の `internal/transcript/test_helpers.go:154` と同じ形）。テストが注入するエラーはパッケージの静的なエラーとして宣言し（`err113`）、後始末で無視する戻り値は `_ =` で受ける（`errcheck`）。対象のステップは 1-3・1-4・1-5・1-6・4-3・5-2・6-1・6-4・7-6・8-1・8-2 である。
 -   テストの名前は計画上の名前である。実装で変える場合は、§5 を同じコミットで更新する。
--   各テストは、対象の分岐を実際に壊して失敗することを確かめ、そのことをコミットメッセージに書く（[CLAUDE.md](../../../CLAUDE.md)「Testing Strategy」）。各フェーズの最後のステップに、壊す対象を挙げる。
+-   各テストは、対象の分岐を実際に壊して失敗することを確かめ、そのことをコミットメッセージに書く（[CLAUDE.md](../../../CLAUDE.md)「Testing Strategy」）。壊す対象を挙げるステップは、そのテストを導入する PR の中に置く（フェーズ 1 は PR-1 のステップ 1-3、PR-2 のステップ 1-5、PR-3 のステップ 1-11。フェーズ 7 は PR-9 のステップ 7-2、PR-10 のステップ 7-10。それ以外のフェーズは最後のステップ）。
 -   各フェーズの完了条件は、`make fmt` → `make test` → `make lint` が通ることである。`make lint` は `--build-tags test,integration` と `go vet -tags integration ./...` でコンパイルするので、そのフェーズで加えたタグ付きのファイルは、最終的に使うタグでコンパイルされる。
 -   CI は、変更が `*.md` と `docs/` だけの PR ではテストを実行しない（`.github/workflows/ci.yml` の `check-changes`）。文書だけを変えるコミットでも、`make test` を手元で実行する（ステップ 9-4 の文書のテストのため）。
 -   実 `yt-dlp`・実 LLM API を使う確認（ステップ 5-4・8-11・9-5・9-6）は、利用者の承認を得てから行う（[CLAUDE.md](../../../CLAUDE.md)「Tool Execution Safety」）。
@@ -136,18 +136,72 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 **タスク**
 -   [ ] **ステップ 1-1**: `validateVideoURL` を `ValidateVideoURL` に改名する（§1.4）。§1.3 に挙げた参照をすべて追従させ、doc コメントの先頭の名前と、`video_id_test.go` の失敗メッセージの関数名も改める。検証の内容は変えない。
 -   [ ] **ステップ 1-2**: `errPaddedModel` を `ErrPaddedModel` として公開し（§1.4）、公開の番兵の宣言に移して doc コメントを書く（構築のエラーで公開する番兵はこれだけである。設計書 3.10 の例外 E2）。`TestNew` の「rejects invalid model names」で、前後に空白のあるモデル名では `errors.Is(err, ErrPaddedModel)` が真、それ以外の不正なモデル名では偽であることを確かめる。
--   [ ] **ステップ 1-3**: `test_helpers_endpoint.go` に `NewForLoopbackTest`（設計書 3.10）を作る。送信先は既存の `validateLoopbackEndpoint` で検査し、ループバック以外なら `t.Fatal` する。`newTestClient` は、同じ構築の手順を重複させずにこの関数を使う形に改める。`TestNewForLoopbackTest` を足す: ループバックの送信先へ要求が届くこと（既存の `newRecordingServer`）と、ループバック以外の送信先では `Fatal` を記録して戻らず、クライアントを返さないこと（`Fatal` 系を記録する `testing.TB` の包みで確かめる）。
+-   [ ] **ステップ 1-3**: `test_helpers_endpoint.go` に `NewForLoopbackTest`（設計書 3.10）を作る。送信先は既存の `validateLoopbackEndpoint` で検査し、ループバック以外なら `t.Fatal` する。`newTestClient` は、同じ構築の手順を重複させずにこの関数を使う形に改める。`TestNewForLoopbackTest` を足す: ループバックの送信先へ要求が届くこと（既存の `newRecordingServer`）と、ループバック以外の送信先では `Fatal` を記録して戻らず、クライアントを返さないこと（`Fatal` 系を記録する `testing.TB` の包みで確かめる）。PR-1 のテスト（`ValidateVideoURL` の改名の参照、`TestNew` の `ErrPaddedModel`、`TestNewForLoopbackTest`）を 1 つずつ壊して失敗することを確かめ、コミットメッセージに記録し、`make fmt` → `make test` → `make lint` を通す。
+
+### PR-1 作成ポイント: existing internal symbol exposure
+
+**対象ステップ**: 1-1 / 1-2 / 1-3
+
+**推奨タイトル**: `feat(0005): publish the video URL validator, padded-model sentinel, and loopback constructor`
+
+**レビュー観点**: `ValidateVideoURL` の改名で検証の内容と番兵が変わらず、§1.3 の参照がすべて追従していること（ステップ 1-1） / `ErrPaddedModel` の公開で前後の空白の拒否だけがこの番兵になり、ほかの不正なモデル名は包まないこと（ステップ 1-2） / `NewForLoopbackTest` がループバック以外を `Fatal` で拒否し、`newTestClient` と同じ構築の手順を重複させないこと（ステップ 1-3） / `//go:build test` の非 `_test.go` の補助がそのタグでコンパイルされ、`gosec` の抑止が対象の行だけであること（ステップ 1-3）
+
+**実装モデル要件**: standard
+
+**判定理由**: 既存の識別子の改名・公開とテスト用コンストラクタの追加に限られ、競合する実装方針の併記・高リスクな制御・パネルモードのトリガー・2 つ以上の Conditional check のいずれにも該当しないため（該当する Conditional check はビルドタグ下の非 `_test.go` のソースの 1 つだけである）。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 -   [ ] **ステップ 1-4**: `Options` に `InheritedFiles` を足し、`commandExecutor.Run` の引数に加えて `osExecutor` が `exec.Cmd.ExtraFiles` に渡す（設計書 3.10）。§1.3 の 6 か所のテストの呼び出しと `fakeCommandExecutor`（渡されたファイルを記録する）を追従させる。テストを 2 つ足す: `TestFetchPassesInheritedFiles`（`Fetch` が `Options` のファイルをそのまま実行に渡す。fake で確かめる）、`TestCommandExecutorInheritedFiles`（子プロセスが記述子 3 で渡したファイルを読める。スクリプトで確かめる）。
 -   [ ] **ステップ 1-5**: `osExecutor.Run` で、子プロセスを新しいプロセスグループで起動し、`context` の終了時にグループ全体へ SIGKILL を送る（`exec.Cmd.SysProcAttr` と `exec.Cmd.Cancel`。設計書 3.10）。
     -   `TestCommandExecutorKillsProcessGroup` を足す: 子が孫を起動して両方の PID を記録し、取り消しの後、両方のプロセスがなくなることを上限付きで確かめる。孫は、テストが後始末で作る解放の印のファイルが現れるか、数分の上限に達したら自分で終了するものにする（失敗時やタイムアウトでも残り続けない）。
     -   `TestCommandExecutorWaitDelay` の「timeout while a descendant holds stderr」は前提が変わる（§1.3）。`osExecutor` が起動する子をテストのバイナリ自身の補助のモード（既存の `TestExecutorHelperProcess` と同じ仕組み）にし、その子が子孫を `SysProcAttr.Setpgid` で起動して、子孫がグループの外で標準エラー出力のパイプを保持する形にする（シェルのスクリプトではプロセスグループを変えられないため）。この子孫も、解放の印か数分の上限で自分で終了するものにする。`WaitDelay` の上限の確認は変えない。
+    -   PR-2 のテスト（`TestFetchPassesInheritedFiles`・`TestCommandExecutorInheritedFiles`・`TestCommandExecutorKillsProcessGroup`・`TestCommandExecutorWaitDelay` の改めた部分テスト）を 1 つずつ壊して失敗することを確かめ、コミットメッセージに記録し、`make fmt` → `make test` → `make lint` を通す。
+
+### PR-2 作成ポイント: yt-dlp child-process management
+
+**対象ステップ**: 1-4 / 1-5
+
+**推奨タイトル**: `feat(0005): pass inherited files to yt-dlp and terminate its process group`
+
+**レビュー観点**: `InheritedFiles` が `Fetch` から `osExecutor` までそのまま渡り、記述子 3 で子がファイルを読めること（ステップ 1-4） / 子を新しいプロセスグループで起動し、`context` の終了でグループ全体を SIGKILL して、子孫が標準エラー出力のパイプを保持しても `WaitDelay` で戻ること（ステップ 1-5） / 止まらないテストの子孫が解放の印か上限で自分から終了し、終了済みの PID へシグナルを送らないこと（ステップ 1-5） / 高リスクな子プロセスの制御をこの PR に隔離してレビューすること
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: プロセスグループの停止（ステップ 1-5）は復旧・シグナル制御に類する独立した高リスクなステップであり、この PR に隔離してレビューするため。加えてビルドタグ下の非 `_test.go` のソースという Conditional check に該当するため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 -   [ ] **ステップ 1-6**: `test_helpers_cache_seed.go` に `SeedCacheForTest`（設計書 3.10）を作る。`prepareWriteSlot`・`persistSlot`・`commitCache` で、空のキャッシュに対してスロット `a`・ポインタ `a` の配置を作る。内容は検証しない（AC-48 のテストが途中で切れた字幕を置くため）。`placeRealCache` の中身をこの関数の呼び出しに置き換え、§1.3 の 13 か所の呼び出しを変えずに通す。
 -   [ ] **ステップ 1-7**: `checkDisplayString` を、番兵を包まずに理由だけを返す内部の関数に分け、既存の 2 か所の呼び出しは `ErrMalformedOutput` で包む。`article.go` に `ErrInvalidArticle` と `Article.CheckPublishable`（設計書 3.5 の表）を作る。`article_test.go` に `TestArticleCheckPublishable` を作る: 表の各フィールドと各条件の拒否、受理する境界（`ModelVersion` が空、`Body` の `\n`・`\t`）、エラーが `ErrInvalidArticle` を包み `ErrMalformedOutput` を包まないこと、エラーの文字列に値（目印の文字列）が現れないこと。`output_test.go` の既存のテストは変更せずに通し、`ErrMalformedOutput` の拒否が `ErrInvalidArticle` を包まないことを 1 件加える。
 -   [ ] **ステップ 1-8**: `test_organization.md` に、統合テストからも使う補助（`testutil/` のファイルと `test_helpers_*.go`）は `//go:build test || integration` とする例外を足す。同じコミットで `TestFakesCarryBuildTag` を改める（§1.4、設計書 3.11）: `internal` の下のすべての `testutil/` の `.go` を数え（件数はこの時点では 8 のまま）、それらと `cmd/`・`internal/` の `test_helpers*.go` の 1 行目が `//go:build test` か `//go:build test || integration` のどちらかであることを確かめる。
 -   [ ] **ステップ 1-9**: `package_reference.md` を更新する。`internal/transcript` の行: `ValidateVideoURL`・子プロセスへ引き継ぐファイル・プロセスグループの停止・`SeedCacheForTest`（`test` または `integration` のビルドだけ）。`internal/llm/deepseek` の行: `ErrPaddedModel`、`test` のビルドでは他のパッケージも `NewForLoopbackTest` でループバックの送信先に向けられること（現在の「only the test helper replaces」の記述を改める）。`internal/writer` の行: `CheckPublishable`。
 -   [ ] **ステップ 1-10**: [cache_consistency.md](../../dev/cache_consistency.md) §7 のチェックリストを、本フェーズの `ytdlp.go`・`exec.go` の変更（中断された `yt-dlp` の止め方を含む）に当てはめて確かめ、結果をコミットメッセージに記録する。
--   [ ] **ステップ 1-11**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `ExtraFiles` を設定しない（`TestCommandExecutorInheritedFiles`）、`Fetch` が `InheritedFiles` を渡さない（`TestFetchPassesInheritedFiles`）、`Setpgid` か `Cancel` を外す（`TestCommandExecutorKillsProcessGroup`）、`WaitDelay` を外す（`TestCommandExecutorWaitDelay` の改めた部分テスト）、`CheckPublishable` の各条件を 1 つずつ外す、`ErrPaddedModel` を包まない（`TestNew`）、`NewForLoopbackTest` の送信先の検査を外す（`TestNewForLoopbackTest`）、`TestFakesCarryBuildTag` の走査を 1 段に戻す・`test_helpers*.go` を対象から外す（誤ったタグの入れ子の `testutil/` のファイルと `test_helpers_x.go` を一時的に置いて、それぞれ失敗すること）。
+-   [ ] **ステップ 1-11**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `CheckPublishable` の各条件を 1 つずつ外す、`TestFakesCarryBuildTag` の走査を 1 段に戻す・`test_helpers*.go` を対象から外す（誤ったタグの入れ子の `testutil/` のファイルと `test_helpers_x.go` を一時的に置いて、それぞれ失敗すること）。
 -   [ ] **ステップ 1-12**: 次の名前が `docs/tasks/` 以外に残っていないことを検索で確かめる: `validateVideoURL`・`errPaddedModel`（コメントと文書を含む）。`make fmt` → `make test` → `make lint` を通す。
+
+### PR-3 作成ポイント: shared cache seeding, article validation, and build-tag guard
+
+**対象ステップ**: 1-6 / 1-7 / 1-8 / 1-9 / 1-10 / 1-11 / 1-12
+
+**推奨タイトル**: `feat(0005): add the shared cache seeder, article validation, and build-tag guard`
+
+**レビュー観点**: `SeedCacheForTest` が空のキャッシュにスロット `a`・ポインタ `a` を置き、`placeRealCache` の 13 か所の呼び出しを変えずに通すこと（ステップ 1-6） / `Article.CheckPublishable` が設計書 3.5 の表のとおりに必須の値と制御文字を拒否し、エラーが値を含まず `ErrMalformedOutput` を包まないこと（ステップ 1-7） / `TestFakesCarryBuildTag` が `internal` の下のすべての `testutil/` と `cmd/`・`internal/` の `test_helpers*.go` を数え、`test || integration` の 1 行目を許すこと（ステップ 1-8） / `package_reference.md` が PR-1〜PR-3 の公開 API と一致すること（ステップ 1-9） / フェーズ 1 の締め（`cache_consistency.md` の確認・`CheckPublishable` とガードの壊し確認・改名した名前の検索）がステップ 1-10〜1-12 で行われ、`validateVideoURL`・`errPaddedModel` が `docs/tasks/` 以外に残らないこと
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: `gosec` の抑止（ステップ 1-6 の非 `_test.go` の補助）とビルドタグ下の非 `_test.go` のソース（同）の 2 つの Conditional check に該当し、加えて制御文字を拒否する `CheckPublishable` というセキュリティの検査を含むため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: `internal/config`
 
@@ -176,6 +230,23 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 -   [ ] **ステップ 2-6**: `package_reference.md` に `internal/config` の行を加える。
 -   [ ] **ステップ 2-7**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: 空の値を未設定と同じに扱う、`YT2COLUMN_LLM_PROVIDER` の比較を大文字と小文字を区別しないものにする、`SLACK_WEBHOOK_URL` の空白の検査を外す、相対パスの検査を外す、最初の誤りで止める、`Reason` に値を含める、API キーを `secret.Secret` でなく `string` のフィールドで持つ（`TestConfigOutputRedactsSecrets` の `%+v`・`%#v`）、`XDG_CACHE_HOME` の空を値ありとして扱う、`GODEBUG` の判定を外す、走査の対象の関数を 1 つずつ外す、テストのコードの判定を (1) だけにする（`//go:build windows` の自己テスト）、許可を `cmd/yt2column` のパッケージ全体に広げる（`run.go` の自己テスト）。`make fmt` → `make test` → `make lint` を通す。
 
+### PR-4 作成ポイント: internal/config
+
+**対象ステップ**: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7
+
+**推奨タイトル**: `feat(0005): add internal/config for environment loading and cache directory defaults`
+
+**レビュー観点**: F-001 の検証の規則が表と箇条書きのとおりで、値を補正せず、拒否を `errors.Join` でまとめ、エラーに値を含めないこと（ステップ 2-1〜2-4） / `GODEBUG` の `http2debug` を拒否せず `HTTP2DebugEnabled` で返し、キャッシュディレクトリの既定値を OS と `LookupFunc` から決めること（ステップ 2-2・2-3） / `envaccess_test.go` の走査がテストのコードを正しく除外し、7 つの関数を検出し、許可した参照を観測して空振りしないこと（ステップ 2-5） / `package_reference.md` の行が公開 API と一致すること（ステップ 2-6）
+
+**実装モデル要件**: standard
+
+**判定理由**: 環境変数の読み込み・検証と、環境変数を読む場所の静的な走査のテストに限られ、競合する実装方針の併記・高リスクな制御・パネルモードのトリガー・2 つ以上の Conditional check のいずれにも該当しないため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ### フェーズ 3: `internal/llm/provider`
 
 **対象ファイル**
@@ -191,6 +262,23 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
     -   `TestNewPaddedModel`（AC-12）: 前後に空白のある `YT2COLUMN_MODEL` を `config.Load` で読み込み、`New` のエラーが `deepseek.ErrPaddedModel` を包み、`LLMClient` が nil であること。
 -   [ ] **ステップ 3-3**: `package_reference.md` に `internal/llm/provider` の行を加える。
 -   [ ] **ステップ 3-4**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `default` で DeepSeek を構築する、`%w` を `%v` にする、モデル名か API キーを別の値にして渡す、`New` が別の構築関数を渡す（`TestNewUsesDeepSeekAdapter`）。`make fmt` → `make test` → `make lint` を通す。
+
+### PR-5 作成ポイント: internal/llm/provider
+
+**対象ステップ**: 3-1 / 3-2 / 3-3 / 3-4
+
+**推奨タイトル**: `feat(0005): add internal/llm/provider for provider selection`
+
+**レビュー観点**: `New` が `default` で本番の `deepseek.New` を渡し、構築のエラーを `%w` で包み、未知のプロバイダで構築関数を呼ばずに nil を返すこと（ステップ 3-1・3-2） / `TestNewDeepSeekSendsConfiguredRequest` が設定のモデル名・API キー・タイムアウトをループバックの送信先で確かめ、本番の送信先へ要求を送らないこと（ステップ 3-2） / 前後に空白のあるモデル名で `deepseek.ErrPaddedModel` を包み、`LLMClient` が nil であること（ステップ 3-2） / 構築関数の継ぎ目が非公開で本番の `New` だけが本番の値を使うこと（ステップ 3-1・3-2）
+
+**実装モデル要件**: standard
+
+**判定理由**: 設定に応じた構築関数の選択に限られ、競合する実装方針の併記・高リスクな制御・パネルモードのトリガー・2 つ以上の Conditional check のいずれにも該当しないため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 4: `FilePublisher`
 
@@ -212,6 +300,23 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 -   [ ] **ステップ 4-4**: `package_reference.md` の `internal/publisher` の行に `FilePublisher` を加える。
 -   [ ] **ステップ 4-5**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `link` の代わりに `O_CREATE` だけで出力先を直接作る（`TestFilePublisherExistingPath` の存在しない先へのリンク）、書き込みの失敗時に一時ファイルを削除しない（`TestFilePublisherWriteFailure`）、errno の分類から 1 つずつ外す、`CheckPublishable` を呼ばない、`ctx` の確認を外す、パーミッションを変えない。`make fmt` → `make test` → `make lint` を通す。
 
+### PR-6 作成ポイント: FilePublisher
+
+**対象ステップ**: 4-1 / 4-2 / 4-3 / 4-4 / 4-5
+
+**推奨タイトル**: `feat(0005): add FilePublisher with hard-link no-overwrite publishing`
+
+**レビュー観点**: 上書きを `link(2)` で拒否し、errno の分類で `ErrOutputExists`・`ErrNoHardLink`・どちらも包まない `*KeptFileError` を分け、既存の内容とリンク先を変えないこと（ステップ 4-1・4-2） / 記事の書式とパーミッション `0o644` が設計書 3.5 のとおりで、`gosec` の抑止が対象の行だけであること（ステップ 4-1・4-2） / 記事の拒否・`ctx` の確認・失敗時の一時ファイルの削除が行われること（ステップ 4-2） / 継ぎ目が非公開のフィールドでテストから差し替えられること（ステップ 4-1・4-3）
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: `gosec` の抑止（ステップ 4-1 の `0o644` の一時ファイル）とビルドタグ下の非 `_test.go` のソース（ステップ 4-3）の 2 つの Conditional check に該当し、加えて上書きを防ぐセキュリティの中核を含むため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ### フェーズ 5: `internal/cachelock`
 
 **対象ファイル**
@@ -231,6 +336,23 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 -   [ ] **ステップ 5-3**: `package_reference.md` に `internal/cachelock` の行を加える。
 -   [ ] **ステップ 5-4**（手動、利用者の承認が必要）: 実際の `yt-dlp` が起動する子プロセスが記述子 3 を引き継ぐかを確かめる（設計書 §8 の 5、3.7）。排他のファイルを記述子 3 で開いた状態で実 `yt-dlp` に字幕を取得させ、実行中に `lsof <排他のファイル>` で保持しているプロセスを記録する。結果（`yt-dlp` の版、保持していたプロセス）を本ステップの下に追記する。
 -   [ ] **ステップ 5-5**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `LOCK_NB` を外す（`TestAcquireLocked` が上限で失敗すること）、`flock` を `fcntl` のロックに替える（`TestAcquireLocked`・`TestLockInheritedByChild`）、`EWOULDBLOCK` 以外も `ErrLocked` で包む（`TestAcquireOtherFailures`）、通常のファイルの確認を外す、`O_NONBLOCK` を外す、ディレクトリのパーミッションを変える。`make fmt` → `make test` → `make lint` を通す。
+
+### PR-7 作成ポイント: internal/cachelock
+
+**対象ステップ**: 5-1 / 5-2 / 5-3 / 5-4 / 5-5
+
+**推奨タイトル**: `feat(0005): add internal/cachelock for flock-based exclusion`
+
+**レビュー観点**: `flock` の `LOCK_EX`・`LOCK_NB` で待たずに `ErrLocked` を返し、シンボリックリンク・名前付きパイプ・通常でないファイルを開く前に拒否すること（ステップ 5-1・5-2） / 排他のファイルが `0o600`、作るディレクトリが `0o700` で、既存のディレクトリのパーミッションを変えないこと（ステップ 5-1・5-2） / 記述子 3 の引き継ぎと、`PruneCache` に対して排他のファイルが残ること、保持者の終了後に再取得できることを確かめること（ステップ 5-2） / 実際の `yt-dlp` が記述子 3 を引き継ぐことの手動確認を記録すること（ステップ 5-4）
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: `flock` による同時実行の排他（ステップ 5-1・5-2）は独立した高リスクな並行性の制御であり、この PR に隔離してレビューするため。加えて `gosec` の抑止とビルドタグ下の非 `_test.go` のソースという Conditional check に該当するため。ステップ 5-4 の実 `yt-dlp` の確認は設計を決める探索ではなく、設計書 3.7 が安全側に倒れることの確認であるので、`frontier-required` の探索には当たらない。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 6: `internal/job`
 
@@ -261,6 +383,23 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 -   [ ] **ステップ 6-5**: `package_reference.md` に `internal/job` の行を加える。`internal/transcript/testutil` の行に偽の `yt-dlp` とディレクトリの一覧の補助を加え、「`-tags test` だけでビルドされる」という記述を、`helpers.go` は `integration` のビルドにも含まれる旨に改める。
 -   [ ] **ステップ 6-6**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: C1 を `KeepCache` によらず行う・行わない、失敗時にもキャッシュを削除する、B4 の失敗をエラーとして返す、C1 の失敗をエラーとして返す、事前確認を外す（`TestRunOutputExists` のトリップワイヤとキャッシュディレクトリ）、親ディレクトリの確認を外す、排他の取得を外す（`TestRunLocked`）、排他を閉じない（`TestRunReleasesLock`）、`InheritedFiles` を渡さない（`TestRunPassesLockToYtDlp`）、`ForceRefresh` を渡さない（`TestRunRefresh`）。`make fmt` → `make test` → `make lint` を通す。
 
+### PR-8 作成ポイント: internal/job
+
+**対象ステップ**: 6-1 / 6-2 / 6-3 / 6-4 / 6-5 / 6-6
+
+**推奨タイトル**: `feat(0005): add internal/job to orchestrate one run`
+
+**レビュー観点**: 手順 B0〜C1 の順（事前確認・排他の取得・掃除・パイプライン・キャッシュの削除）と、各失敗の扱いが設計書 3.4 のとおりであること（ステップ 6-2・6-3） / 事前確認で `ErrOutputExists` を包み、親ディレクトリの確認の失敗は包まず、どちらも投稿の段階の `pipeline.StageError` で返すこと（ステップ 6-2・6-3） / 掃除と削除の失敗が警告にとどまり、`--out` とキャッシュの状態が期待どおりであること（ステップ 6-3） / 偽の `yt-dlp` を起動するテストが `t.Parallel` を使わず、`t.Cleanup` を取得時に登録し、複数回の `Run` を §4.1 の規則で扱うこと（ステップ 6-1・6-3）
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: 事前確認・排他・掃除・パイプライン・削除の順を守る実行の進め方（ステップ 6-2・6-3）は状態機械に類する独立した最も込み入ったステップであり、この PR に隔離してレビューするため。加えてビルドタグ下の非 `_test.go` のソース、`gosec` の抑止、取得時の `t.Cleanup`、`run`・`Run` の複数回起動という複数の Conditional check に該当するため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ### フェーズ 7: `cmd/yt2column`
 
 **対象ファイル**
@@ -270,7 +409,25 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 
 **タスク**
 -   [ ] **ステップ 7-1**: `output.go` に、伏せ字化 → エスケープの順に処理する関数を作る（設計書 3.8「標準エラー出力の無害化」）。`output_test.go` の `TestSanitize` で、値と末尾 8 文字の伏せ字化（8 文字以下の値を含む）、制御文字・`U+202E`・不正な UTF-8・バックスラッシュのエスケープ、制御文字を含む秘密情報の値も伏せ字になることを確かめる。
--   [ ] **ステップ 7-2**: `outpath.go` に、`--out` がキャッシュディレクトリの中かの判定を作る（設計書 3.6 の性質の箇条書き）。`outpath_test.go` の `TestOutPathInsideCacheDir` で、要件書 AC-20 の `--out` の例すべて（カレントディレクトリをキャッシュディレクトリにする例は `t.Chdir`）、途中のシンボリックリンクの後の `..`、存在しない部分の綴りの大小だけが違うパス、キャッシュディレクトリがない場合、キャッシュディレクトリへのシンボリックリンク、`Lstat` が権限で失敗する場合（`requireNonRoot`・`chmodForTest`）を「中」と、外を指すパスを「外」と判定することを確かめる。設計書 3.6 の「安全側に倒すことによる誤判定」の例も「中」と判定されることを確かめる。
+-   [ ] **ステップ 7-2**: `outpath.go` に、`--out` がキャッシュディレクトリの中かの判定を作る（設計書 3.6 の性質の箇条書き）。`outpath_test.go` の `TestOutPathInsideCacheDir` で、要件書 AC-20 の `--out` の例すべて（カレントディレクトリをキャッシュディレクトリにする例は `t.Chdir`）、途中のシンボリックリンクの後の `..`、存在しない部分の綴りの大小だけが違うパス、キャッシュディレクトリがない場合、キャッシュディレクトリへのシンボリックリンク、`Lstat` が権限で失敗する場合（`requireNonRoot`・`chmodForTest`）を「中」と、外を指すパスを「外」と判定することを確かめる。設計書 3.6 の「安全側に倒すことによる誤判定」の例も「中」と判定されることを確かめる。PR-9 のテスト（`TestSanitize`・`TestOutPathInsideCacheDir`）を 1 つずつ壊して失敗することを確かめ、コミットメッセージに記録し、`make fmt` → `make test` → `make lint` を通す。
+
+### PR-9 作成ポイント: CLI pre-side-effect validation (stderr sanitization and --out path check)
+
+**対象ステップ**: 7-1 / 7-2
+
+**推奨タイトル**: `feat(0005): sanitize stderr and validate the --out path for the CLI`
+
+**レビュー観点**: 伏せ字化 → エスケープの順で、値と末尾 8 文字・制御文字・`U+202E`・不正な UTF-8・バックスラッシュを無害化し、制御文字を含む秘密情報の値も伏せ字にすること（ステップ 7-1） / `--out` の判定がキャッシュディレクトリの中を安全側に倒して「中」とし、外を指すパスを「外」とし、途中のシンボリックリンクの後の `..` や綴りの大小の違いを誤って「外」としないこと（ステップ 7-2） / `TestOutPathInsideCacheDir` が AC-20 の例すべてと権限の失敗・誤判定の例を網羅すること（ステップ 7-2） / 無害化と判定が `run`・`main` から独立し、この PR だけでグリーンゲートを通すこと（ステップ 7-1・7-2）
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: 秘密情報と制御文字の無害化（ステップ 7-1）はセキュリティの中核であり、`run`・`main`（ステップ 7-3 以降）から独立してこの PR に隔離してレビューするため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 -   [ ] **ステップ 7-3**: `run.go` に `deps`・`productionDeps`・`run` を作る（設計書 3.8 の手順 A1〜C、実行経路の一覧、メッセージの形、3.3 のタイムアウトの文言）。フラグの定義は、`run` と文書のテスト（ステップ 9-4）が同じものを使えるよう、`flag.FlagSet` を作る非公開の関数にまとめる。`productionDeps` の `newPublisher` は、構築の失敗時に typed nil ではなく nil の interface を返す。
 -   [ ] **ステップ 7-4**: `main.go` を次の 3 つに分ける。
     -   起動時の `signal.Ignored` の結果から購読するシグナルを選ぶ非公開の関数（SIGINT・SIGTERM と、無視されていなければ SIGHUP。設計書 3.8 の SIGHUP の項）。
@@ -304,7 +461,24 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
     -   `TestSecondSignal`: `ctx` を無視する fake で止め、1 回目のシグナルの後に「`ctx` が終わった」印を待ち、2 回目のシグナルを、子がシグナルで終了するまで上限付きで繰り返し送る。終了状態がシグナルによる終了であることを確かめる。
     -   子プロセスの標準エラー出力は、網羅率の計測（`make test-ci`）で警告が加わりうるので、空であることは確かめず、含む・含まない文字列で確かめる。
 -   [ ] **ステップ 7-9**: `package_reference.md` に `cmd/yt2column` の行を加える。`TestEnvAccessConfined`（ステップ 2-5）に、`cmd/yt2column/main.go` の `os.LookupEnv` の参照を観測したことの確認を加える（ファイルの有無で確認を切り替えない）。
--   [ ] **ステップ 7-10**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: シグナルの購読を外す・SIGTERM だけ外す（`TestSignalDuringYtDlp`）、プロセスグループの停止を外す（同、孫の PID）、`InheritedFiles` を渡さない（`TestSIGKILLWhileYtDlpRuns`）、伏せ字化かエスケープを外す・順序を逆にする、末尾 8 文字の伏せ字化を外す、`--out` の判定の各性質を 1 つずつ外す、A5 を `job.Run` の後に移す（`TestRunExecutionPaths` のトリップワイヤ）、`GODEBUG` の警告を外す・LLM の呼び出しの後に移す（`TestRunGODEBUGWarning`）、使い方を標準エラー出力に書く（`TestRunHelp`）、SIGHUP を `signal.Ignored` によらず購読する（`TestSubscribedSignals`）、2 回目のシグナルで購読を止めない（`TestSecondSignal`）。`make fmt` → `make test` → `make lint` を通す。
+-   [ ] **ステップ 7-10**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: シグナルの購読を外す・SIGTERM だけ外す（`TestSignalDuringYtDlp`）、プロセスグループの停止を外す（同、孫の PID）、`InheritedFiles` を渡さない（`TestSIGKILLWhileYtDlpRuns`）、A5 を `job.Run` の後に移す（`TestRunExecutionPaths` のトリップワイヤ）、`GODEBUG` の警告を外す・LLM の呼び出しの後に移す（`TestRunGODEBUGWarning`）、使い方を標準エラー出力に書く（`TestRunHelp`）、SIGHUP を `signal.Ignored` によらず購読する（`TestSubscribedSignals`）、2 回目のシグナルで購読を止めない（`TestSecondSignal`）。`make fmt` → `make test` → `make lint` を通す。
+
+### PR-10 作成ポイント: cmd/yt2column CLI wiring and run
+
+**対象ステップ**: 7-3 / 7-4 / 7-5 / 7-6 / 7-7 / 7-8 / 7-9 / 7-10
+
+**推奨タイトル**: `feat(0005): assemble the cmd/yt2column CLI`
+
+**レビュー観点**: 実行経路の一覧の終了コードと、段階の名前・`yt2column -h` と `--refresh` の案内・一時ファイルのパス・タイムアウトの文言が設計書 3.8 のとおりであること（ステップ 7-3・7-7） / `main` がテストしたシグナルの購読の関数を介して `run` を呼び、子プロセスの停止と SIGKILL 後の残存が AC-45・AC-49 のとおりであること（ステップ 7-4・7-5・7-8） / 子プロセスの環境が allowlist で作られ、偽の `yt-dlp` と PID の後始末が取得時に登録されること（ステップ 7-6・7-8） / 別プロセスのシグナルのテストが準備完了の印を待ち、上限付きで PID の消滅を確かめること（ステップ 7-8）
+
+**実装モデル要件**: frontier-required
+
+**判定理由**: 本番の CLI を別プロセスで起動し実シグナルを送る重い統合テストの面（ステップ 7-5・7-8）というパネルモードのトリガーに該当するため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 8: 統合テストの実行条件の移動と統合テスト
 
@@ -332,6 +506,23 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 -   [ ] **ステップ 8-10**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `MissingKey` を無視して常にスキップする（`TestSettingsFrom`）、CLI の `IntegrationOptions` の変数を `MissingKeySkip` か DeepSeek のオプトインにする（`TestCLIIntegrationSettings`）、オプトインをグローバルにエクスポートする（`TestMakeOptInsAreTargetSpecific`・`TestMakeOptInExportedToDeepSeekTargetOnly`）、`-timeout` を 15 分以下にする（`TestMakeTestIntegrationCLI`）、統合テストのビルドタグを外す（`TestCLIIntegrationTestBuildTag`）。次の名前が `docs/tasks/` 以外に残っていないことを検索で確かめる: `integrationSettingsFrom`・`integrationSkip`・`integrationFail`・`integrationRun`・`runMakeTarget`・`makeChildEnvAllowlist`。`make fmt` → `make test` → `make lint` を通す。
 -   [ ] **ステップ 8-11**（利用者の承認が必要）: `make test-integration-cli` を実行し、成功することと、出力に API キーとその末尾 8 文字が現れないことを確かめる。結果（日付、モデル、成否）を本ステップの下に追記する。
 
+### PR-11 作成ポイント: integration test move and CLI integration test
+
+**対象ステップ**: 8-1 / 8-2 / 8-3 / 8-4 / 8-5 / 8-6 / 8-7 / 8-8 / 8-9 / 8-10 / 8-11
+
+**推奨タイトル**: `feat(0005): move the DeepSeek integration settings and add the CLI integration test`
+
+**レビュー観点**: `SettingsFrom` が既存の判定と同じ順序と内容で、キーがない場合だけ `MissingKey` に従い、理由に API キーの値も末尾 8 文字も含めないこと（ステップ 8-1・8-3） / 移動の前後で `go tool cover -func` の本番の関数の結果が変わらず、移した確認がすべて残っていること（ステップ 8-9） / `make test-integration-cli` が CLI のオプトインとモデルだけをエクスポートし、`-timeout` を 20 分にして料金の発生を表示すること（ステップ 8-5） / 統合テストのビルドタグと `TestFakesCarryBuildTag` の件数が正しいこと（ステップ 8-7・8-8）
+
+**実装モデル要件**: frontier-required
+
+**判定理由**: 実 DeepSeek API を呼び料金が発生する外部リソースの面と、`make test-integration-cli` による CI の面（ステップ 8-5・8-7・8-11）というパネルモードのトリガーに該当し、加えて環境変数によるスキップの判定（ステップ 8-1）という Conditional check に該当するため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ### フェーズ 9: 文書と手動確認
 
 **対象ファイル**
@@ -353,7 +544,26 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 -   [ ] **ステップ 9-6**（AC-33、手動、利用者の承認が必要）: ステップ 9-5 と同じ動画に `--keep-cache` を付けて 1 回実行してキャッシュを残した後、`--refresh` を付けて実行し、`yt-dlp` が再実行されたことを、キャッシュのポインタが指すスロットの切り替わり（`a` ↔ `b`）で確かめる。各実行の `--out` には、まだ存在しない別のパスを指定する。使用した動画 URL と結果を本ステップの下に記録する。
 -   [ ] **ステップ 9-7**: 文書の内容を実装と突き合わせて読む。突き合わせる先: フラグの定義（`run.go`）、未設定のときの値（`internal/config` の `cachedir.go` と `Load`）、終了コード（設計書 3.8 の実行経路の一覧）、同時実行・SIGKILL・`--refresh` の説明（`internal/cachelock`・`internal/job` の振る舞いとステップ 7-8 のテスト）、`Makefile` のターゲット。壊して失敗することを確かめ（README からフラグを 1 つ消す、終了コードの表の行を消す、README から同時実行・SIGKILL・`--refresh` の案内を 1 つずつ消す、README と `project_overview.md` の未設定のときの値を 1 つ書き換える、`package_reference.md` から行を 1 つ消す、チェック済みにしたステップ 9-5 の記録を消す）、コミットメッセージに記録する。`make fmt` → `make test` → `make lint` を通す。
 
+### PR-12 作成ポイント: documentation and manual verification
+
+**対象ステップ**: 9-1 / 9-2 / 9-3 / 9-4 / 9-5 / 9-6 / 9-7
+
+**推奨タイトル**: `docs(0005): document the CLI and verify it against the implementation`
+
+**レビュー観点**: README・`project_overview.md`・`security.md` が F-010 の項目と F-001 の未設定のときの値を反映し、文書のテストが要件書の値を期待値にして実装から導かないこと（ステップ 9-1〜9-4） / `package_reference.md` が `cmd/`・`internal/` の本番のコードを持つすべてのパッケージと `testutil/`・`prompts` の行を持ち、`TestPackageReferenceListsPackages` がそれを固定すること（ステップ 9-4） / 手動の実行（ステップ 9-5・9-6）の URL と結果、文書の突き合わせ（ステップ 9-7）の記録が本計画にあること（AC-32・AC-33）
+
+**実装モデル要件**: standard
+
+**判定理由**: 文書の更新・文書のテスト・手動確認に限られ、競合する実装方針の併記・高リスクな制御・パネルモードのトリガー・2 つ以上の Conditional check のいずれにも該当しないため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
+
+### 3.1. マイルストーン
 
 | マイルストーン | フェーズ | 成果物 | 完了の判定 |
 |---|---|---|---|
@@ -363,6 +573,37 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 | M4: 実行の進め方と CLI | 6・7 | `internal/job`・`cmd/yt2column` | AC-19〜AC-31・AC-34〜AC-36・AC-38・AC-39・AC-44・AC-45・AC-47〜AC-52 のテストが通る |
 | M5: 統合テスト | 8 | `deepseektestutil`・`make test-integration-cli`・統合テスト | AC-40〜AC-42 のテストが通り、ステップ 8-11 が成功する |
 | M6: 文書と手動確認 | 9 | 文書、ステップ 9-5・9-6 の記録 | AC-43 のテストが通り、AC-32・AC-33 の記録がある |
+
+### 3.2. PR 構成
+
+PR はフェーズを基本の単位とし、高リスクなステップを含むフェーズ 1 とフェーズ 7 だけを分ける。フェーズ 1 は、子プロセスの管理（PR-2）とその他の共有部品（PR-1・PR-3）に分ける。フェーズ 7 は、副作用の前の検証（標準エラー出力の無害化と `--out` の判定、PR-9）と、CLI の配線と `run`（PR-10）に分ける。各 PR は主たる関心事（既存の識別子の公開 / 子プロセスの管理 / 共有の補助と記事の検査 / 設定 / プロバイダの選択 / 投稿 / 排他 / 実行の進め方 / CLI の前処理 / CLI の配線 / 統合テスト / 文書）を持ち、単独でグリーンゲートを通せる単位とする。
+
+**PR の区切りの不変条件。** `/runplan` は §2 を文書の順に走査し、`PR-N 作成ポイント` に達したときにだけ PR を作る。そのため §2 は次を満たす。(1) 文書の順で、すべてのステップは、自分の PR の 1 つ前の作成ポイント（先頭の PR では文書の先頭）と自分の PR の作成ポイントの間にあり、他の PR のステップがその間に入らない。(2) すべての PR が作成ポイントを持ち、§3.2 の表・§7 のチェックリスト・§9 の実行順に現れる。本計画はステップを並べ替えていないため、ステップの番号の順と文書の順は一致する。
+
+| PR | 対象ステップ | 主な変更内容 | 実装モデル要件 |
+|---|---|---|---|
+| PR-1 | 1-1 / 1-2 / 1-3 | `transcript.ValidateVideoURL`・`deepseek.ErrPaddedModel`・`NewForLoopbackTest` の公開 | standard |
+| PR-2 | 1-4 / 1-5 | `InheritedFiles` の引き継ぎとプロセスグループの停止 | frontier-recommended |
+| PR-3 | 1-6 / 1-7 / 1-8 / 1-9 / 1-10 / 1-11 / 1-12 | `SeedCacheForTest`、`Article.CheckPublishable`、ビルドタグの規則の例外と `TestFakesCarryBuildTag`、`package_reference.md`、フェーズ 1 の壊し確認と検索 | frontier-recommended |
+| PR-4 | 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 | `internal/config`（環境変数の読み込み・検証、キャッシュディレクトリの既定値、環境変数を読む場所の検査） | standard |
+| PR-5 | 3-1 / 3-2 / 3-3 / 3-4 | `internal/llm/provider`（プロバイダの選択） | standard |
+| PR-6 | 4-1 / 4-2 / 4-3 / 4-4 / 4-5 | `internal/publisher` の `FilePublisher` | frontier-recommended |
+| PR-7 | 5-1 / 5-2 / 5-3 / 5-4 / 5-5 | `internal/cachelock` と `yt-dlp` への引き継ぎの手動確認 | frontier-recommended |
+| PR-8 | 6-1 / 6-2 / 6-3 / 6-4 / 6-5 / 6-6 | `internal/job` と偽の `yt-dlp` の共有の補助 | frontier-recommended |
+| PR-9 | 7-1 / 7-2 | `cmd/yt2column` の `output.go`・`outpath.go`（標準エラー出力の無害化と `--out` の判定） | frontier-recommended |
+| PR-10 | 7-3 / 7-4 / 7-5 / 7-6 / 7-7 / 7-8 / 7-9 / 7-10 | `cmd/yt2column` の `run.go`・`main.go` の配線、テストの補助、同一プロセスと別プロセスのテスト | frontier-required |
+| PR-11 | 8-1 / 8-2 / 8-3 / 8-4 / 8-5 / 8-6 / 8-7 / 8-8 / 8-9 / 8-10 / 8-11 | `internal/llm/deepseek/testutil` への移動、`cmd/yt2column` の統合テスト、`make test-integration-cli` | frontier-required |
+| PR-12 | 9-1 / 9-2 / 9-3 / 9-4 / 9-5 / 9-6 / 9-7 | 文書、文書のテスト、手動確認 | standard |
+
+フェーズ 1 を 3 つの PR に分けるのは、子プロセスの管理（`InheritedFiles` とプロセスグループの停止、ステップ 1-4・1-5）を高リスクな変更として隔離するためである。PR-1 は先に公開する識別子（`ValidateVideoURL`・`ErrPaddedModel`・`NewForLoopbackTest`）を提供し、PR-3 は残りの共有部品（`SeedCacheForTest`・`CheckPublishable`）とビルドタグの規則の例外・ガード、`package_reference.md` の更新、フェーズ 1 の壊し確認と検索を担う。`SeedCacheForTest` が `//go:build test || integration` を初めて使うので、規則の例外とガードの改修（ステップ 1-8）は同じ PR-3 に置く。
+
+フェーズ 7 を 2 つの PR に分けるのは、秘密情報と制御文字の無害化（`output.go`、ステップ 7-1）というセキュリティの中核を、`run`・`main` の配線から隔離してレビューするためである。`output.go` は `run.go`（ステップ 7-3）が使うので先に置く必要があり、`outpath.go`（ステップ 7-2）も副作用の前に `--out` を検証する同じ関心事なので PR-9 に置く。`main` のシグナルの購読（ステップ 7-4）は、別プロセスのテスト（ステップ 7-8）と同じテストの補助（ステップ 7-5・7-6）を共有するので、実装とテストを分けないために同じ PR-10 に置く。そのため PR-10 では、CLI の配線（ステップ 7-3〜7-5）、テストの補助（ステップ 7-6）、同一プロセスのテスト（ステップ 7-7）、別プロセスのシグナルのテスト（ステップ 7-8）の 4 つのチェックポイントでレビューする。
+
+`internal/` の変更は `cmd/` に先行する。PR-1〜PR-8 が本番の `internal/` のパッケージ（既存パッケージの変更と、`internal/config`・`internal/llm/provider`・`internal/publisher`・`internal/cachelock`・`internal/job`）を完成させ、PR-9・PR-10 がそれらを使う `cmd/yt2column` を組み立てる。依存の向きは次のとおり。PR-5 は PR-1 の `ErrPaddedModel`・`NewForLoopbackTest` を使う。PR-6 は PR-3 の `Article.CheckPublishable` を使う。PR-8 は PR-2 の `InheritedFiles`・プロセスグループの停止、PR-6 の `FilePublisher`、PR-7 の `cachelock` を使う。PR-10 は PR-9 の無害化と `--out` の判定を使う。PR-11 は PR-3 の `SeedCacheForTest` と PR-10 の CLI を使う。`package_reference.md` はパッケージを追加・変更するコミットで更新する規則に従い、各パッケージの PR（ステップ 1-9・2-6・3-3・4-4・5-3・6-5・7-9・8-8）で更新する。
+
+**利用者の承認が要るステップ。** ステップ 5-4・8-11・9-5・9-6 は、実 `yt-dlp`・実 LLM API・手動の実行を伴うので、それぞれの PR（PR-7・PR-11・PR-12）の中で利用者の承認を得てから行う。
+
+### 3.3. 実装順序の根拠
 
 フェーズの順序は設計書 §8 のとおりである。後のフェーズが前のフェーズの成果物を使う関係は次のとおり: フェーズ 3 はフェーズ 1 の `ErrPaddedModel`・`NewForLoopbackTest` とフェーズ 2 を、フェーズ 6 はフェーズ 1・4・5 を、フェーズ 7 はフェーズ 2〜6 を、フェーズ 8 はフェーズ 1 の `SeedCacheForTest` とフェーズ 6・7 を使う。
 
@@ -481,15 +722,19 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 
 ## 7. 実装チェックリスト (Implementation Checklist)
 
--   [ ] フェーズ 1: 既存パッケージの変更（ステップ 1-1〜1-12）
--   [ ] フェーズ 2: `internal/config`（ステップ 2-1〜2-7）
--   [ ] フェーズ 3: `internal/llm/provider`（ステップ 3-1〜3-4）
--   [ ] フェーズ 4: `FilePublisher`（ステップ 4-1〜4-5）
--   [ ] フェーズ 5: `internal/cachelock`（ステップ 5-1〜5-5）
--   [ ] フェーズ 6: `internal/job`（ステップ 6-1〜6-6）
--   [ ] フェーズ 7: `cmd/yt2column`（ステップ 7-1〜7-10）
--   [ ] フェーズ 8: 統合テストの実行条件の移動と統合テスト（ステップ 8-1〜8-11）
--   [ ] フェーズ 9: 文書と手動確認（ステップ 9-1〜9-7）
+-   [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3）
+-   [ ] PR-2 マージ済み（対象ステップ: 1-4 / 1-5）
+-   [ ] PR-3 マージ済み（対象ステップ: 1-6 / 1-7 / 1-8 / 1-9 / 1-10 / 1-11 / 1-12）
+-   [ ] PR-4 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7）
+-   [ ] PR-5 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4）
+-   [ ] PR-6 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5）
+-   [ ] PR-7 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5）
+-   [ ] PR-8 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3 / 6-4 / 6-5 / 6-6）
+-   [ ] PR-9 マージ済み（対象ステップ: 7-1 / 7-2）
+-   [ ] PR-10 マージ済み（対象ステップ: 7-3 / 7-4 / 7-5 / 7-6 / 7-7 / 7-8 / 7-9 / 7-10）
+-   [ ] PR-11 マージ済み（対象ステップ: 8-1 / 8-2 / 8-3 / 8-4 / 8-5 / 8-6 / 8-7 / 8-8 / 8-9 / 8-10 / 8-11）
+-   [ ] PR-12 マージ済み（対象ステップ: 9-1 / 9-2 / 9-3 / 9-4 / 9-5 / 9-6 / 9-7）
+-   [ ] 各 PR で `make fmt` → `make test` → `make lint` が通る
 -   [ ] §5 のすべての AC の検証が通り、`manual` の記録がそろっている
 -   [ ] §1.4 の変更前の名前が、`docs/tasks/` 以外に残っていない（ステップ 1-12・8-10）
 
@@ -502,5 +747,6 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 
 ## 9. 次のステップ (Next Steps)
 
--   本計画のレビューを受け、`approved` になった後に、`/mkplan2` で PR の境界を埋め込み、`/runplan` でフェーズ 1 から実装する。
+-   本計画は `approved`。PR の区切りは §2 の `PR-N 作成ポイント` と §3.2 に埋め込み済みである。
+-   `/runplan 0005` で PR の順（PR-1 → PR-2 → … → PR-12）に実装する（各 PR は独立してグリーンゲートを通す。§3.2 の不変条件）。
 -   実装の完了後、Slack の投稿先（#7）の要件の作成に進む。設計書 §9 の `Article.CheckPublishable` と `config.Config.SlackWebhookURL` を使う。
