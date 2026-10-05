@@ -136,6 +136,9 @@ func TestNewDeepSeekSendsConfiguredRequest(t *testing.T) {
 	if receivedTimeout != LLMTimeout {
 		t.Errorf("build received Timeout = %v, want %v", receivedTimeout, LLMTimeout)
 	}
+	if LLMTimeout != 15*time.Minute {
+		t.Errorf("LLMTimeout = %v, want 15m", LLMTimeout)
+	}
 	if _, err := client.Generate(context.Background(), llm.GenerateRequest{SystemPrompt: "system", UserPrompt: "user"}); err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
@@ -143,8 +146,8 @@ func TestNewDeepSeekSendsConfiguredRequest(t *testing.T) {
 	if recorded.model != testModel {
 		t.Errorf("request model = %q, want %q", recorded.model, testModel)
 	}
-	if got, want := recorded.header.Get("Authorization"), "Bearer "+testAPIKey; got != want {
-		t.Errorf("Authorization = %q, want %q", got, want)
+	if got := recorded.header.Get("Authorization"); got != "Bearer "+testAPIKey {
+		t.Errorf("Authorization = %q, want the Bearer test key", got)
 	}
 }
 

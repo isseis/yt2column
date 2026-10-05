@@ -140,6 +140,7 @@ flowchart LR
     PROV --> CFG
     PROV --> DS
     PROV --> LLM
+    PROV --> SEC
     JOB --> LOCK
     JOB --> TR
     JOB --> PIPE
