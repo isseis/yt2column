@@ -228,9 +228,9 @@ AC-01・AC-03・AC-04・AC-30（目印が `LLMClient` に渡ること）は `Wri
 - 変更（必要な場合だけ）: `docs/dev/developer_guide/package_reference.md`・`docs/dev/project_overview.md`
 
 **タスク**
-- [ ] **ステップ 5-1**: `package_reference.md` の `prompts`・`internal/nilcheck`・`internal/transcript`・`internal/writer` の行と、`project_overview.md` の `:31` と想定ディレクトリ構成を、実装（各パッケージの公開 API と `writer.Article` のフィールド）と照らし合わせ、食い違いがあれば直す。
-- [ ] **ステップ 5-2**: §6.1 のクロス検索を行い、結果を本計画に記録する。
-- [ ] **ステップ 5-3**: `make fmt` → `make test` → `make lint` を通す。
+- [x] **ステップ 5-1**: `package_reference.md` の `prompts`・`internal/nilcheck`・`internal/transcript`・`internal/writer` の行と、`project_overview.md` の `:31` と想定ディレクトリ構成を、実装（各パッケージの公開 API と `writer.Article` のフィールド）と照らし合わせ、食い違いがあれば直す。確認の結果、食い違いはなかった（`go doc` の公開 API が各パッケージの行と一致し、`writer.Article` は `Title`・`Body`・`SourceURL`・`Model`・`ModelVersion` の 5 フィールドで、`project_overview.md:31` の列挙と一致する）。文書の変更はなし。
+- [x] **ステップ 5-2**: §6.1 のクロス検索を行い、結果を本計画に記録する。
+- [x] **ステップ 5-3**: `make fmt` → `make test` → `make lint` を通す。
 
 ### PR-4 作成ポイント: documentation verification and cross-search
 
@@ -386,7 +386,7 @@ AC に対応しない、architecture が求める検証は次のとおり。
 
 `make lint` と `make test` では見つからない、削除した識別子の残りを確かめる。ステップ 5-2 で実行し、結果をここに記録する。
 
-- [ ] `isTypedNil` が、`docs/tasks/` を除くリポジトリのどこにも残っていない（Go のコメントと文書を含む）。コマンドは `rg -n "isTypedNil" -g '!docs/tasks/**' .` とし、期待する結果は 0 件である。計画の作成時（HEAD `4194276`）の結果は §1.3 の 3 件である。実行した HEAD と結果をここに書く。
+- [x] `isTypedNil` が、`docs/tasks/` を除くリポジトリのどこにも残っていない（Go のコメントと文書を含む）。コマンドは `rg -n "isTypedNil" -g '!docs/tasks/**' .` とし、期待する結果は 0 件である。計画の作成時（HEAD `4194276`）の結果は §1.3 の 3 件である。実行した HEAD と結果をここに書く。**実行結果:** HEAD `9fda423` で 0 件（`rg` の終了コードは 1、マッチなし）。
 
 ## 7. 実装チェックリスト (Implementation Checklist)
 
