@@ -175,8 +175,8 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 -   [ ] **ステップ 1-6**: `test_helpers_cache_seed.go` に `SeedCacheForTest`（設計書 3.10）を作る。`prepareWriteSlot`・`persistSlot`・`commitCache` で、空のキャッシュに対してスロット `a`・ポインタ `a` の配置を作る。内容は検証しない（AC-48 のテストが途中で切れた字幕を置くため）。`placeRealCache` の中身をこの関数の呼び出しに置き換え、§1.3 の 13 か所の呼び出しを変えずに通す。
 -   [ ] **ステップ 1-7**: `checkDisplayString` を、番兵を包まずに理由だけを返す内部の関数に分け、既存の 2 か所の呼び出しは `ErrMalformedOutput` で包む。`article.go` に `ErrInvalidArticle` と `Article.CheckPublishable`（設計書 3.5 の表）を作る。`article_test.go` に `TestArticleCheckPublishable` を作る: 表の各フィールドと各条件の拒否、受理する境界（`ModelVersion` が空、`Body` の `\n`・`\t`）、エラーが `ErrInvalidArticle` を包み `ErrMalformedOutput` を包まないこと、エラーの文字列に値（目印の文字列）が現れないこと。`output_test.go` の既存のテストは変更せずに通し、`ErrMalformedOutput` の拒否が `ErrInvalidArticle` を包まないことを 1 件加える。
