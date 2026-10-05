@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-05 |
-| Review date | - |
-| Reviewer | - |
-| Comments | - |
+| Review date | 2026-10-05 |
+| Reviewer | isseis |
+| Comments | 2026-10-05 編集上の修正（決定の変更なし）: §8 の 1 に `test_organization.md` の例外と `TestFakesCarryBuildTag` の改修を、§8 の 9 に `package_reference.md` を各手順で更新することを書き加えた。3.11・3.12 の内容は変わらず、行う手順の位置だけを明記した（実装計画の作成時の指摘による）。 |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）の設計である。既存のコードに関する記述は、コミット `274b18b` のソースで確かめた。`file:line` はこのコミットの行番号を指す。
 
@@ -938,7 +938,7 @@ sequenceDiagram
 
 ## 8. 実装優先順位 (Implementation Priorities)
 
-1.  既存パッケージの変更（3.10）：`ValidateVideoURL`、`ErrPaddedModel`、`NewForLoopbackTest`、`InheritedFiles` とプロセスグループの停止、`SeedCacheForTest`、`CheckPublishable`。
+1.  既存パッケージの変更（3.10）：`ValidateVideoURL`、`ErrPaddedModel`、`NewForLoopbackTest`、`InheritedFiles` とプロセスグループの停止、`SeedCacheForTest`、`CheckPublishable`。`SeedCacheForTest` が `//go:build test || integration` を初めて使うので、3.11 の `test_organization.md` の例外と `TestFakesCarryBuildTag` の改修もここで行う。
 2.  `internal/config`。
 3.  `internal/llm/provider`。
 4.  `internal/publisher` の `FilePublisher`。
@@ -946,7 +946,7 @@ sequenceDiagram
 6.  `internal/job`。
 7.  `cmd/yt2column`。
 8.  `internal/llm/deepseek/testutil` への移動と統合テスト、`make test-integration-cli`。
-9.  文書（F-010）と手動確認（AC-32・AC-33）。
+9.  文書（F-010）と手動確認（AC-32・AC-33）。`package_reference.md` の各パッケージの行は、同書の規則（パッケージを追加・変更するコミットで更新する）に従い、1〜8 の各手順で更新する。
 
 ## 9. 将来の拡張性 (Future Extensibility)
 
