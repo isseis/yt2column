@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-05 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 2026-10-05 承認後に判断を変更したため `draft` に戻した。(1) `GODEBUG` に `http2debug=1`・`http2debug=2` を含む場合は警告を出して続行し、標準ライブラリが書く API キーを AC-38 の対象外とする（F-001・F-008・AC-38・AC-51）。(2) `--out` の事前確認に親ディレクトリの確認を加える（F-006・AC-52）。 |
+| Review date | 2026-10-05 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
