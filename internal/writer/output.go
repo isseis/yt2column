@@ -54,8 +54,8 @@ func checkResponse(resp llm.GenerateResponse) (title, body string, err error) {
 		return "", "", fmt.Errorf("%w: the first line is not a level-1 heading starting with %q", ErrMalformedOutput, titlePrefix)
 	}
 	title = strings.Trim(heading, titleTrimChars)
-	if err := checkDisplayString("title", title); err != nil {
-		return "", "", err
+	if reason := displayStringProblem("title", title); reason != "" {
+		return "", "", fmt.Errorf("%w: %s", ErrMalformedOutput, reason)
 	}
 	// A closing "#" sequence is neither interpreted nor removed.
 	if strings.HasSuffix(title, "#") {
@@ -105,21 +105,26 @@ func checkModelString(name, value string) error {
 	if !utf8.ValidString(value) {
 		return fmt.Errorf("%w: %s is not valid UTF-8", ErrMalformedOutput, name)
 	}
-	return checkDisplayString(name, value)
-}
-
-// checkDisplayString applies the rules shared by the title, Model, and
-// ModelVersion, which are shown as-is on terminals and destinations: it has
-// a non-whitespace character, and no control character (Unicode Cc, which
-// includes tab, CR, LF, and ESC).
-func checkDisplayString(name, value string) error {
-	if strings.TrimSpace(value) == "" {
-		return fmt.Errorf("%w: %s is empty or whitespace only", ErrMalformedOutput, name)
-	}
-	if strings.ContainsFunc(value, unicode.IsControl) {
-		return fmt.Errorf("%w: %s contains a control character", ErrMalformedOutput, name)
+	if reason := displayStringProblem(name, value); reason != "" {
+		return fmt.Errorf("%w: %s", ErrMalformedOutput, reason)
 	}
 	return nil
+}
+
+// displayStringProblem applies the rules shared by the title, Model, and
+// ModelVersion, which are shown as-is on terminals and destinations: it has
+// a non-whitespace character, and no control character (Unicode Cc, which
+// includes tab, CR, LF, and ESC). It returns the broken rule, or "" when the
+// value is acceptable, and wraps no sentinel: the caller chooses whether the
+// rejection is a malformed LLM output or an unpublishable article.
+func displayStringProblem(name, value string) string {
+	if strings.TrimSpace(value) == "" {
+		return name + " is empty or whitespace only"
+	}
+	if strings.ContainsFunc(value, unicode.IsControl) {
+		return name + " contains a control character"
+	}
+	return ""
 }
 
 // newArticle builds the article from validated values. Body is the body part

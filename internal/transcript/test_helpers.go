@@ -171,8 +171,9 @@ func placeRealCache(t *testing.T, dir, id string) (subtitles, info []byte) {
 	t.Helper()
 	subtitles = readTestdataFile(t, testdataRealSubtitles)
 	info = readTestdataFile(t, testdataRealInfo)
-	placeSlot(t, dir, id, slotNameA, generation{subtitles: string(subtitles), info: string(info)})
-	placePointer(t, dir, id, slotNameA)
+	if err := SeedCacheForTest(dir, id, subtitles, info); err != nil {
+		t.Fatalf("seed cache: %v", err)
+	}
 	return subtitles, info
 }
 

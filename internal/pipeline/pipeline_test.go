@@ -8,6 +8,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
@@ -511,24 +512,47 @@ func TestSecretRevealExclusive(t *testing.T) {
 	}
 }
 
-// TestFakesCarryBuildTag checks that every testutil file is test-only.
+// TestFakesCarryBuildTag checks that every testutil file under internal, at
+// any depth, and every test_helpers*.go file under cmd and internal is
+// test-only. A helper that integration tests also use carries
+// "test || integration" instead of "test"; no other constraint is accepted.
 func TestFakesCarryBuildTag(t *testing.T) {
-	files, err := filepath.Glob("../*/testutil/*.go")
-	if err != nil {
-		t.Fatalf("glob testutil files: %v", err)
+	var testutilFiles, helperFiles []string
+	for _, root := range []string{"../../cmd", ".."} {
+		err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() || !strings.HasSuffix(path, ".go") {
+				return nil
+			}
+			switch {
+			case slices.Contains(strings.Split(filepath.ToSlash(filepath.Dir(path)), "/"), "testutil"):
+				testutilFiles = append(testutilFiles, path)
+			case strings.HasPrefix(d.Name(), "test_helpers"):
+				helperFiles = append(helperFiles, path)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("walk %s: %v", root, err)
+		}
 	}
-	if len(files) != 8 {
-		t.Fatalf("found %d testutil files, want 8: %v", len(files), files)
+	if len(testutilFiles) != 8 {
+		t.Fatalf("found %d testutil files, want 8: %v", len(testutilFiles), testutilFiles)
 	}
-	for _, path := range files {
+	if len(helperFiles) == 0 {
+		t.Fatal("found no test_helpers*.go files")
+	}
+	for _, path := range slices.Concat(testutilFiles, helperFiles) {
 		t.Run(path, func(t *testing.T) {
 			data, err := os.ReadFile(path)
 			if err != nil {
 				t.Fatalf("read %s: %v", path, err)
 			}
 			first, _, _ := strings.Cut(string(data), "\n")
-			if first != "//go:build test" {
-				t.Errorf("%s first line = %q, want %q", path, first, "//go:build test")
+			if first != "//go:build test" && first != "//go:build test || integration" {
+				t.Errorf("%s first line = %q, want %q or %q", path, first, "//go:build test", "//go:build test || integration")
 			}
 		})
 	}

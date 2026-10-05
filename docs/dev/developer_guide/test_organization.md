@@ -91,6 +91,12 @@ When adding new test helper code, follow this decision tree:
 **Build Tags:**
 - All test helper files must include `//go:build test` at the top
 - This ensures they are only compiled during test builds, not in production binaries
+- **Exception:** a helper that integration tests (built with `-tags integration`
+  alone) also use — a `testutil/` file or a `test_helpers_*.go` file — carries
+  `//go:build test || integration` instead. It is still excluded from the
+  production binary. `TestFakesCarryBuildTag` (`internal/pipeline`) accepts
+  exactly these two first lines for every `testutil/` file under `internal/` and
+  every `test_helpers*.go` file under `cmd/` and `internal/`.
 
 **Examples:**
 - Mock interface implementation → `testutil/mocks.go` or `testutil/testify_mocks.go`

@@ -199,6 +199,33 @@ func TestWriteRejectsMalformedText(t *testing.T) {
 	}
 }
 
+// TestWriteMalformedOutputIsNotInvalidArticle pins that the shared display
+// string check leaves the choice of sentinel to its caller: a rejected LLM
+// output is ErrMalformedOutput only, whether the title or the model broke the
+// rule.
+func TestWriteMalformedOutputIsNotInvalidArticle(t *testing.T) {
+	badModel := validResponse()
+	badModel.Model = ""
+	cases := []struct {
+		name string
+		resp llm.GenerateResponse
+	}{
+		{"title", responseWithText("# \n" + markOutBody)},
+		{"model", badModel},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := writeResponse(t, tc.resp)
+			if !errors.Is(err, ErrMalformedOutput) {
+				t.Fatalf("Write() error = %v, want ErrMalformedOutput", err)
+			}
+			if errors.Is(err, ErrInvalidArticle) {
+				t.Errorf("Write() error wraps ErrInvalidArticle: %v", err)
+			}
+		})
+	}
+}
+
 func TestWriteRejectsInvalidModel(t *testing.T) {
 	cases := []struct {
 		name                string
