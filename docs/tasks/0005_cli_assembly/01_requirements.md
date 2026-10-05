@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-05 |
-| Review date | - |
-| Reviewer | - |
-| Comments | レビュー指摘への対応: 既存の `--out` を早期に拒否する best effort の事前確認を F-006 に追加（AC-50、[design_handoff.md](design_handoff.md) H-03）。終了コードの分類は「投稿の失敗」（`1`）のまま。 |
+| Review date | 2026-10-05 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
