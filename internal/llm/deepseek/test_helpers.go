@@ -72,27 +72,20 @@ func validateLoopbackEndpoint(endpoint string) error {
 	return nil
 }
 
-// newTestClient builds a client with the same validation as New, then
-// replaces its endpoint with the given address. The address must be a
-// loopback URL; every other address fails the test without building a client.
+// newTestClient builds a client with the test defaults, then replaces its
+// endpoint with the given address. The address must be a loopback URL; every
+// other address fails the test without building a client.
 func newTestClient(t *testing.T, endpoint string, modify func(*Options)) *client {
 	t.Helper()
-	if err := validateLoopbackEndpoint(endpoint); err != nil {
-		t.Fatalf("newTestClient endpoint: %v", err)
-	}
 	options := Options{APIKey: mustSecret(t, testAPIKey), Model: testModel, Timeout: testClientTimeout}
 	if modify != nil {
 		modify(&options)
 	}
-	value, err := New(options)
-	if err != nil {
-		t.Fatalf("New(Options{Model: %q, Timeout: %v}) error = %v", options.Model, options.Timeout, err)
-	}
+	value := NewForLoopbackTest(t, options, endpoint)
 	client, ok := value.(*client)
 	if !ok {
-		t.Fatalf("New returned %T, want *client", value)
+		t.Fatalf("NewForLoopbackTest returned %T, want *client", value)
 	}
-	client.endpoint = endpoint
 	return client
 }
 
