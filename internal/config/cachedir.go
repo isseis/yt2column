@@ -2,6 +2,10 @@ package config
 
 import "path/filepath"
 
+// cacheDirName is the directory the application's cache lives in under the
+// operating system's cache root.
+const cacheDirName = "yt2column"
+
 // defaultCacheDir returns the default YT2COLUMN_CACHE_DIR for goos, derived
 // from the values lookup returns, and whether one could be derived. It
 // follows the same rules as os.UserCacheDir for the supported operating
@@ -14,7 +18,7 @@ func defaultCacheDir(goos string, lookup LookupFunc) (string, bool) {
 		if !ok {
 			return "", false
 		}
-		return filepath.Join(home, "Library", "Caches", "yt2column"), true
+		return filepath.Join(home, "Library", "Caches", cacheDirName), true
 	case "windows", "plan9", "js", "wasip1":
 		return "", false
 	default:
@@ -22,13 +26,13 @@ func defaultCacheDir(goos string, lookup LookupFunc) (string, bool) {
 			if !filepath.IsAbs(xdg) {
 				return "", false
 			}
-			return filepath.Join(xdg, "yt2column"), true
+			return filepath.Join(xdg, cacheDirName), true
 		}
 		home, ok := absoluteEnv(lookup, "HOME")
 		if !ok {
 			return "", false
 		}
-		return filepath.Join(home, ".cache", "yt2column"), true
+		return filepath.Join(home, ".cache", cacheDirName), true
 	}
 }
 
