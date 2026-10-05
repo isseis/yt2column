@@ -73,10 +73,11 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 | `YT2COLUMN_MODEL` | エラー | 空でない値 |
 | `DEEPSEEK_API_KEY` | プロバイダが `deepseek` ならエラー | 空でない値 |
 | `SLACK_WEBHOOK_URL` | 受理する（値なし） | `https://hooks.slack.com/` で始まり、その後に 1 文字以上続き、空白文字（§6）を含まない値 |
-| `YT2COLUMN_CACHE_DIR` | 利用者のキャッシュディレクトリ（Go の `os.UserCacheDir` が返すディレクトリ）の下の `yt2column` | 絶対パス |
+| `YT2COLUMN_CACHE_DIR` | 利用者のキャッシュディレクトリ（Go の `os.UserCacheDir` と同じ規則で決まるディレクトリ）の下の `yt2column` | 絶対パス |
 | `YT2COLUMN_YTDLP_PATH` | `PATH` 上の `yt-dlp` | 空でない値 |
 
 -   「未設定」は、変数が環境に存在しないことを指す。変数が存在して値が空の場合は「未設定」として扱わず、いずれの変数でもエラーにする。既定値のある変数を空にして既定値を選ぶことはできない。
+-   `YT2COLUMN_CACHE_DIR` の既定値も、引数として受け取った環境から決める（プロセスの環境変数を直接読む `os.UserCacheDir` をそのまま呼ばない）。利用者のキャッシュディレクトリを決められない場合（`HOME` が未設定、`XDG_CACHE_HOME` が相対パスなど）は、既定値を補わずに `YT2COLUMN_CACHE_DIR` の「未設定または空」としてエラーにする。
 -   `YT2COLUMN_MODEL` の値の中身（前後の空白など）は、ここでは空かどうかだけを確かめ、それ以上の検証はプロバイダのアダプタ（`deepseek.New`）に任せる。
 -   `DEEPSEEK_API_KEY` と `SLACK_WEBHOOK_URL` の値は `secret.Secret` 型で保持する。設定の値をどの形式で出力しても（`fmt`・`log/slog`・JSON）、秘密情報の値は現れない。
 -   `SLACK_WEBHOOK_URL` は、本タスクでは使う投稿先がない（2.3）。それでも、設定されていれば起動時に検証し、形式の違う値は拒否する。使うときになって初めて誤りが分かることを避けるためである。
@@ -93,7 +94,7 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 - **AC-04**: 表のいずれかの変数が、存在して値が空の場合、読み込みは「未設定または空」の番兵エラーになり、エラーのメッセージはその変数の名前を含む。
 - **AC-05**: 次の値は、それぞれ「値が不正」の番兵エラーになり、エラーのメッセージは該当する変数の名前を含む。
     -   `YT2COLUMN_LLM_PROVIDER`: `DeepSeek`、` deepseek`、`deepseek `、`gemini`、`claude`
-    -   `SLACK_WEBHOOK_URL`: `http://hooks.slack.com/services/x`、`https://hooks.slack.com.example/services/x`、`https://HOOKS.SLACK.COM/services/x`、`https://hooks.slack.com/`（接頭辞だけ）、` https://hooks.slack.com/services/x`、`https://hooks.slack.com/services/x\n`
+    -   `SLACK_WEBHOOK_URL`: `http://hooks.slack.com/services/x`、`https://hooks.slack.com.example/services/x`、`https://HOOKS.SLACK.COM/services/x`、`https://hooks.slack.com/`（接頭辞だけ）、` https://hooks.slack.com/services/x`、`https://hooks.slack.com/services/x` の末尾に改行（U+000A）を付けた値
     -   `YT2COLUMN_CACHE_DIR`: `cache`、`./cache`、`~/cache`（相対パス）
 - **AC-06**: AC-03〜AC-05 のすべての拒否について、エラーのメッセージ（`Error()` の値）は、拒否した変数の値も、他の変数の値も含まない。この確認は、各変数に互いに異なる特徴的な文字列を含む値を設定して行う。
 - **AC-07**: 2 つ以上の変数が不正な環境から読み込むと、エラーは不正な変数の名前をすべて含み、「未設定または空」と「値が不正」が混在する場合は両方の番兵に対して `errors.Is` が真になる。
@@ -118,12 +119,12 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 
 -   プロバイダが `deepseek` のとき、`deepseek.New` に、設定の API キーとモデル名、および固定のタイムアウト（2.3）を渡して構築する。
 -   プロバイダの型の値のうち、構築の仕方を定めていない値（ゼロ値や範囲外の値）は、構築をエラーにする。既定のプロバイダに読み替えない。
--   `deepseek.New` が返したエラー（モデル名の前後に空白がある場合など）は、そのまま判別できる形で報告する。
+-   `deepseek.New` が返したエラー（モデル名の前後に空白がある場合など）は、包む場合も連鎖を保ち（`%w`）、そのまま判別できる形で報告する。`deepseek.New` の番兵エラーは現在エクスポートされていないため、判別の手段（番兵のエクスポートなど）は `02_architecture.md` で決める（5 章）。
 
 **Acceptance Criteria**:
 - **AC-10**: プロバイダが `deepseek` の設定から構築した `LLMClient` は、DeepSeek アダプタである（テストでは、構築したクライアントがテスト用の送信先へ設定のモデル名と API キーで要求を送ることで確認する）。
 - **AC-11**: プロバイダの型のゼロ値、および列挙した値の範囲外の値を与えると、構築はエラーになり、`LLMClient` を返さない。
-- **AC-12**: モデル名の前後に空白がある設定から構築すると、構築はエラーになり、`deepseek.New` の番兵エラーに対して `errors.Is` が真になる。
+- **AC-12**: モデル名の前後に空白がある設定から構築すると、構築はエラーになり、`LLMClient` を返さない。エラーは、`deepseek.New` が前後の空白を理由に拒否したことを `errors.Is` で判別できる（判別に使う番兵は設計で決める）。
 
 #### F-004: FilePublisher
 
@@ -171,7 +172,7 @@ CLI の呼び出し形式は `yt2column [フラグ] <動画 URL>` とする。
     -   `0`: 投稿（ファイルへの書き出し）に成功した。キャッシュの掃除や削除の失敗による警告（F-006）があっても `0` とする。`-h`・`--help` も `0` とする。
     -   `1`: 実行中の失敗（字幕の取得・記事の生成・投稿の失敗、同時実行の検出（F-007）、中断）。
     -   `2`: 使い方の誤りまたは設定の誤り（引数の誤り、動画 URL の形式の誤り、環境変数の誤り、各段階の構築の失敗（テンプレートの上書きファイルの誤りを含む））。
--   終了コード `2` になる誤りは、同時実行の排他の取得、キャッシュの掃除、`yt-dlp` の起動、LLM API の呼び出しのいずれよりも前に検出する。動画 URL の形式も、この時点で `transcript.NormalizedVideoURL` と同じ規則で検証する。
+-   終了コード `2` になる誤りは、同時実行の排他の取得、キャッシュの掃除、`yt-dlp` の起動、LLM API の呼び出しのいずれよりも前に検出する。動画 URL の形式も、この時点で `YtDlpSource` が受理するのと同じ規則（`transcript` パッケージの動画 URL の検証。現在は非公開の `validateVideoURL`）で検証する。規則を CLI 側で複製せずに共有する手段は `02_architecture.md` で決める。
 -   エラーと警告は標準エラー出力に書く。標準出力には、`-h`・`--help` の使い方のほかは何も書かない。
 
 **Acceptance Criteria**:
@@ -180,7 +181,7 @@ CLI の呼び出し形式は `yt2column [フラグ] <動画 URL>` とする。
     -   動画 URL がない、動画 URL が 2 つある、動画 URL の後にフラグがある
     -   未定義のフラグ
     -   `--out` がない
-    -   動画 URL の形式が不正（例: `https://example.com/watch?v=dQw4w9WgXcQ`、`https://www.youtube.com/watch?v=short`、`-rf`）
+    -   動画 URL の形式が不正（例: `https://example.com/watch?v=dQw4w9WgXcQ`、`https://www.youtube.com/watch?v=short`、`--` の後に置いた `-rf`）。`--` を付けない `-rf` は未定義のフラグとして拒否されるため、URL の形式の検証を確かめる入力にはならない。
     -   環境変数の誤り（F-001 の拒否のいずれか）。このとき、標準エラー出力には変数の名前が現れ、値は現れない。
     -   存在しない `--system-prompt` または `--user-prompt` のパス、`ArticleWriter` の構築で拒否されるテンプレート
 - **AC-21**: `-h` または `--help` で実行すると、終了コード `0` で、標準出力に使い方を書く。使い方は F-005 の表のすべてのフラグを含む。環境変数が未設定でも同じである。
@@ -191,7 +192,7 @@ CLI の呼び出し形式は `yt2column [フラグ] <動画 URL>` とする。
 
 使い方と設定の検証（F-005）を通った後、CLI は次の順に処理する。
 
-1.  同じキャッシュディレクトリに対する排他を取得する（F-007）。キャッシュディレクトリが存在しなければ、パーミッション `0o700` で作成する（既存のディレクトリのパーミッションは変更しない）。
+1.  キャッシュディレクトリが存在しなければ、パーミッション `0o700` で作成する（既存のディレクトリのパーミッションは変更しない）。そのうえで、同じキャッシュディレクトリに対する排他を取得する（F-007）。
 2.  キャッシュの掃除（`PruneCache`）を呼ぶ。掃除の失敗は標準エラー出力への警告にとどめ、処理を続ける。掃除は残った不要なエントリを削除するだけで、有効なキャッシュには触れないため、失敗しても後続の処理の正しさに影響しない（[cache_consistency.md](../../dev/cache_consistency.md) §5.2）。
 3.  パイプラインを実行する（字幕の取得 → 記事の生成 → 投稿）。`--refresh` を指定した場合は、`YtDlpSource` を強制再取得の指定で構築する。
 4.  投稿に成功し、`--keep-cache` を指定していない場合は、その動画のキャッシュを削除する（`RemoveCache`）。削除の失敗は標準エラー出力への警告にとどめ、終了コードは `0` とする。投稿は既に完了しており、残ったキャッシュは次の同じ動画の実行で再利用されるだけだからである。
@@ -199,7 +200,7 @@ CLI の呼び出し形式は `yt2column [フラグ] <動画 URL>` とする。
 
 -   掃除を実行の開始時に呼ぶのは、前の実行が中断で残したエントリを、今回の実行の成否によらず回収するためである。
 -   いずれかの段階が失敗した場合は、キャッシュを削除しない。記事の生成や投稿の失敗後の再実行で、`yt-dlp` を再び起動せずに済むようにするためである（[project_overview.md](../../dev/project_overview.md)「前提・制約」）。
--   SIGINT または SIGTERM を受けた場合は、実行中の段階に渡した `context` をキャンセルし、キャッシュを削除せずに終了コード `1` で終了する。
+-   投稿の完了前に SIGINT または SIGTERM を受けた場合は、実行中の段階に渡した `context` をキャンセルし、キャッシュを削除せずに終了コード `1` で終了する。投稿の完了後（手順 4・5）に受けた場合は、キャッシュの削除を行わないか中断してよいが、投稿は完了しているため終了コードは `0` とする（F-005）。
 
 **Acceptance Criteria**:
 - **AC-24**: 字幕のキャッシュが揃った動画を、`--keep-cache` を付けずに実行して成功すると、終了コード `0` で、その動画のキャッシュのエントリはキャッシュディレクトリに残らない。キャッシュディレクトリの他の動画の有効なキャッシュは残る。
@@ -235,7 +236,7 @@ CLI の呼び出し形式は `yt2column [フラグ] <動画 URL>` とする。
 
 **Acceptance Criteria**:
 - **AC-38**: `DEEPSEEK_API_KEY` と `SLACK_WEBHOOK_URL` に特徴的な値を設定し、次の各経路で実行すると、標準出力・標準エラー出力・`--out` のファイルのいずれにも、どちらの値も、その末尾 8 文字も現れない: 成功、`-h`、引数の誤り、他の環境変数の誤り、字幕の取得の失敗、記事の生成の失敗（fake の `LLMClient` が返すエラーのメッセージに API キーを含む場合を含む）、投稿の失敗、掃除と削除の失敗による警告、同時実行の検出。
-- **AC-39**: `Model` と `ModelVersion` にエスケープシーケンス（`\x1b[2J` など）と改行を含む応答で成功した場合、標準エラー出力にはそれらの制御文字がそのままの形では現れない。
+- **AC-39**: `ArticleWriter` は制御文字を含む `Model`・`ModelVersion` を拒否する（#5）ため、この確認は fake の `ArticleWriter` で行う。`Model` と `ModelVersion` にエスケープシーケンス（`\x1b[2J` など）と改行を含む `Article` を返して成功した場合、標準エラー出力にはそれらの制御文字がそのままの形では現れない。
 
 #### F-009: testdata からファイル出力までの統合テスト
 
