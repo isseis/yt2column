@@ -3,6 +3,7 @@
 package transcript
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"flag"
@@ -301,8 +302,8 @@ func TestCommandExecutorWaitDelay(t *testing.T) {
 			// descendant behind instead of a second orphaned sleep.
 			body += "wait\n"
 		}
+		// The descendant sleeps for a bounded time, so it needs no kill at cleanup.
 		pidPath = filepath.Join(t.TempDir(), "descendant.pid")
-		t.Cleanup(func() { killRecordedProcess(pidPath) })
 		return writeHelperScript(t, body), pidPath
 	}
 
@@ -330,10 +331,7 @@ func TestCommandExecutorWaitDelay(t *testing.T) {
 		dir := t.TempDir()
 		pidPath := filepath.Join(dir, "descendant.pid")
 		releasePath := filepath.Join(dir, "release")
-		t.Cleanup(func() {
-			releaseHelper(releasePath)
-			killRecordedProcess(pidPath)
-		})
+		t.Cleanup(func() { releaseHelper(releasePath) })
 		args := []string{"-test.run=TestDetachedDescendantHelperProcess", "--", detachedParentMode, pidPath, releasePath}
 		var stderr cappedWriter
 		ctx, elapsed, err := runCanceledOnceRecorded(t, executable, args, &stderr, pidPath)
@@ -369,11 +367,9 @@ sh -c 'n=0; while [ ! -e "$0" ] && [ $n -lt 600 ]; do sleep 0.5; n=$((n+1)); don
 echo $! > "$2"
 wait
 `)
-	t.Cleanup(func() {
-		releaseHelper(releasePath)
-		killRecordedProcess(childPIDPath)
-		killRecordedProcess(grandchildPIDPath)
-	})
+	// A recorded PID may be recycled by cleanup time, so release the helpers
+	// instead of signaling it.
+	t.Cleanup(func() { releaseHelper(releasePath) })
 
 	var stderr cappedWriter
 	args := []string{childPIDPath, grandchildPIDPath, releasePath}
@@ -494,9 +490,34 @@ func releaseHelper(path string) {
 	_ = os.WriteFile(path, nil, 0o600)
 }
 
-// processExists reports whether a process with pid is in the process table.
+// processExists reports whether a live process with pid exists. A zombie counts
+// as gone: kill(pid, 0) succeeds for it, and a container whose PID 1 does not
+// reap orphans would otherwise leave every killed descendant looking alive.
 func processExists(pid int) bool {
-	return syscall.Kill(pid, 0) == nil
+	if syscall.Kill(pid, 0) != nil {
+		return false
+	}
+	return processState(pid) != 'Z'
+}
+
+// processState returns the one-letter state of pid, or 0 when it cannot be read.
+func processState(pid int) byte {
+	if data, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat"); err == nil {
+		// The command name may contain spaces and parentheses, so the state is
+		// the first field after the last closing parenthesis.
+		if i := bytes.LastIndex(data, []byte(") ")); i >= 0 && i+2 < len(data) {
+			return data[i+2]
+		}
+		return 0
+	}
+	out, err := exec.Command("ps", "-o", "stat=", "-p", strconv.Itoa(pid)).Output() //nolint:gosec // fixed arguments, pid is an integer
+	if err != nil {
+		return 0
+	}
+	if s := strings.TrimSpace(string(out)); s != "" {
+		return s[0]
+	}
+	return 0
 }
 
 // waitProcessGone polls until pid is gone or limit has passed.
@@ -568,16 +589,4 @@ func readRecordedPID(path string) (int, bool) {
 		return 0, false
 	}
 	return pid, true
-}
-
-// killRecordedProcess kills the descendant whose PID is recorded in path. It
-// is safe when the file is missing or the process already exited.
-func killRecordedProcess(path string) {
-	pid, ok := readRecordedPID(path)
-	if !ok || !processExists(pid) {
-		return
-	}
-	if proc, err := os.FindProcess(pid); err == nil {
-		_ = proc.Kill()
-	}
 }
