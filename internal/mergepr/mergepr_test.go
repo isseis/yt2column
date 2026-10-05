@@ -132,6 +132,34 @@ func TestPrepareInLinkedWorktree(t *testing.T) {
 	}
 }
 
+// TestPreparePreservesTrailingWhitespaceInWorktreePath verifies that a worktree
+// path whose last component ends in a space is used as git reports it. Trimming
+// the reported path would name a sibling directory that does not exist.
+func TestPreparePreservesTrailingWhitespaceInWorktreePath(t *testing.T) {
+	workRoot := filepath.Join(t.TempDir(), "repo ")
+	if err := os.Mkdir(workRoot, 0o700); err != nil {
+		t.Fatalf("create worktree root: %v", err)
+	}
+	gitDir := filepath.Join(workRoot, ".git")
+	if err := os.Mkdir(gitDir, 0o700); err != nil {
+		t.Fatalf("create git dir: %v", err)
+	}
+	tool, runner := newTool(t, append([]commandStep{
+		ghStep(testPRJSON, "pr", "view", "42", "--json", prViewFields),
+	}, prepareTailSteps(workRoot, gitDir)...)...)
+
+	prepared, err := tool.Prepare(t.Context(), "42")
+	if err != nil {
+		t.Fatalf("Prepare returned error: %v", err)
+	}
+	runner.done()
+	t.Cleanup(func() { _ = os.RemoveAll(prepared.Dir) })
+
+	if filepath.Dir(prepared.Dir) != gitDir {
+		t.Errorf("prepared.Dir = %s, want a directory directly under the git directory %s", prepared.Dir, gitDir)
+	}
+}
+
 func TestPrepareRejectsClosedPR(t *testing.T) {
 	closed := `{"number":42,"state":"CLOSED","headRefName":"feature/foo","headRefOid":"` + testHeadOID + `","baseRefName":"main"}`
 	tool, runner := newTool(t, ghStep(closed, "pr", "view", "42", "--json", prViewFields))
@@ -363,6 +391,31 @@ func TestCleanupRemovesWorkDirectory(t *testing.T) {
 	runner.done()
 	if _, err := os.Stat(workDir); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("work directory %s still exists after cleanup, want removed", workDir)
+	}
+}
+
+// TestCleanupKeepsUnrelatedFilesInWorkDirectory verifies that a successful
+// cleanup removes only the files it generated. An operator could point --state
+// at a state file inside a directory that merely happens to share the work-dir
+// prefix; unrelated files and the directory that holds them must survive.
+func TestCleanupKeepsUnrelatedFilesInWorkDirectory(t *testing.T) {
+	workDir, err := os.MkdirTemp(t.TempDir(), workDirPrefix)
+	if err != nil {
+		t.Fatalf("create work directory: %v", err)
+	}
+	statePath := writeStateFile(t, workDir)
+	unrelated := writeTempFile(t, workDir, "notes.md", "keep me")
+	tool, runner := newTool(t, cleanupSteps(testHeadOID)...)
+
+	if _, err := tool.Cleanup(t.Context(), statePath); err != nil {
+		t.Fatalf("Cleanup returned error: %v", err)
+	}
+	runner.done()
+	if got := readFile(t, unrelated); got != "keep me" {
+		t.Errorf("unrelated file = %q, want it left untouched", got)
+	}
+	if _, err := os.Stat(workDir); err != nil {
+		t.Errorf("work directory %s removed while it held unrelated files: %v", workDir, err)
 	}
 }
 

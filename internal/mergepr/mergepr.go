@@ -138,7 +138,7 @@ func (t *Tool) Prepare(ctx context.Context, prArg string) (Prepared, error) {
 	if err != nil {
 		return Prepared{}, fmt.Errorf("find the worktree root: %w", err)
 	}
-	dir, err := os.MkdirTemp(workDirBase(strings.TrimSpace(string(workRoot)), strings.TrimSpace(string(gitDir))), workDirPrefix)
+	dir, err := os.MkdirTemp(workDirBase(outputLine(workRoot), outputLine(gitDir)), workDirPrefix)
 	if err != nil {
 		return Prepared{}, fmt.Errorf("create work directory: %w", err)
 	}
@@ -171,6 +171,14 @@ func workDirBase(workRoot, gitDir string) string {
 		return gitDir
 	}
 	return workRoot
+}
+
+// outputLine returns a command's output with only its trailing line terminator
+// removed. Unlike strings.TrimSpace it keeps leading and trailing spaces and
+// tabs, so a worktree path that legitimately ends in whitespace is preserved;
+// git terminates its output with a newline.
+func outputLine(out []byte) string {
+	return strings.TrimRight(string(out), "\r\n")
 }
 
 // Merge squash-merges the prepared head into the prepared base with the
@@ -228,16 +236,22 @@ func (t *Tool) Cleanup(ctx context.Context, statePath string) (Report, error) {
 	return report, nil
 }
 
-// removeWorkDir deletes the drafting directory after cleanup has finished. It
-// only removes a directory that Prepare created, so an operator-supplied
-// --state path cannot cause an unrelated directory to be deleted. A failure to
-// remove is ignored: cleanup itself already succeeded.
+// removeWorkDir deletes the drafting files after cleanup has finished and then
+// the directory that held them. It removes only the file names Prepare writes
+// and only when the parent directory carries the prefix Prepare's os.MkdirTemp
+// used, so an operator-supplied --state path cannot cause unrelated files or an
+// unrelated directory to be deleted: os.Remove removes the directory only once
+// it is empty. A leftover file or directory is ignored, since cleanup itself
+// already succeeded.
 func removeWorkDir(statePath string) {
 	dir := filepath.Dir(statePath)
 	if !strings.HasPrefix(filepath.Base(dir), workDirPrefix) {
 		return
 	}
-	_ = os.RemoveAll(dir)
+	for _, name := range []string{stateFileName, logFileName, statFileName, bodyFileName} {
+		_ = os.Remove(filepath.Join(dir, name))
+	}
+	_ = os.Remove(dir)
 }
 
 func (t *Tool) cleanup(ctx context.Context, state State) (Report, error) {
@@ -261,7 +275,7 @@ func (t *Tool) cleanup(ctx context.Context, state State) (Report, error) {
 	if err != nil {
 		return report, fmt.Errorf("read current branch: %w", err)
 	}
-	if strings.TrimSpace(string(current)) != state.BaseRefName {
+	if outputLine(current) != state.BaseRefName {
 		elsewhere, err := t.checkedOutElsewhere(ctx, state.BaseRefName)
 		if err != nil {
 			return report, err
@@ -289,7 +303,7 @@ func (t *Tool) deleteLocalBranch(ctx context.Context, state State) (bool, error)
 	if err != nil {
 		return false, fmt.Errorf("read local branch %s: %w", state.HeadRefName, err)
 	}
-	local := strings.TrimSpace(string(out))
+	local := outputLine(out)
 	if local == "" {
 		return false, nil
 	}
