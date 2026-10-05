@@ -30,7 +30,9 @@ around it with your own shell commands. Work in order; do not skip a step.
    branch's PR). It requires the PR to be open, fetches `origin`, waits for CI
    (`gh pr checks --watch --fail-fast`), and writes `state.json`, `log.txt`
    (every commit message in full), `stat.txt`, and `body.txt` (the PR
-   description) into a temporary directory it prints.
+   description) into a fresh directory under the repository's git directory
+   (`.git/mergepr-*`), which it prints. The material stays inside the checkout,
+   so no access outside the working tree is needed.
 2. **Draft the squash commit message.** Read `log.txt`, `stat.txt`, and
    `body.txt`. When those are not enough to determine a file's final change, read
    its patch with `git diff origin/<baseRefName>...<headRefOid> -- <path>` from

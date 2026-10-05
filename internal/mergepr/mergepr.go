@@ -89,8 +89,9 @@ type Report struct {
 }
 
 // Prepare resolves the PR (the current branch's when prArg is empty), waits for
-// CI, and writes the state and drafting material into a fresh temporary
-// directory.
+// CI, and writes the state and drafting material into a fresh directory under
+// the repository's git directory, so the material stays inside the checkout
+// rather than in a shared temporary directory.
 func (t *Tool) Prepare(ctx context.Context, prArg string) (Prepared, error) {
 	args := []string{"pr", "view"}
 	if prArg != "" {
@@ -127,7 +128,11 @@ func (t *Tool) Prepare(ctx context.Context, prArg string) (Prepared, error) {
 	if err != nil {
 		return Prepared{}, fmt.Errorf("read diff stat: %w", err)
 	}
-	dir, err := os.MkdirTemp("", "mergepr-")
+	gitDir, err := t.git(ctx, "rev-parse", "--absolute-git-dir")
+	if err != nil {
+		return Prepared{}, fmt.Errorf("find the git directory: %w", err)
+	}
+	dir, err := os.MkdirTemp(strings.TrimSpace(string(gitDir)), "mergepr-")
 	if err != nil {
 		return Prepared{}, fmt.Errorf("create work directory: %w", err)
 	}

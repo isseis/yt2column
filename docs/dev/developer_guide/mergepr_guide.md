@@ -109,7 +109,7 @@ Specify the PR with no argument (the current branch), a number, or a URL. The ar
 1. Checks that the PR is OPEN.
 2. Runs `git fetch origin`.
 3. Waits for CI to finish with `gh pr checks --watch --fail-fast`. It stops if any check failed.
-4. Creates a temporary directory and writes the following files.
+4. Creates a fresh directory under the repository's git directory (`.git/mergepr-*`) and writes the following files. Keeping the material inside the checkout avoids reaching outside the working tree.
 
 | File | Contents |
 |---|---|
@@ -126,8 +126,8 @@ url:   https://github.com/isseis/yt2column/pull/42
 head:  feature/foo at 2222222222222222222222222222222222222222
 base:  main
 CI:    all checks passed
-dir:   /var/folders/.../mergepr-123456 (state.json, log.txt, stat.txt, body.txt)
-state: /var/folders/.../mergepr-123456/state.json
+dir:   /repo/.git/mergepr-123456 (state.json, log.txt, stat.txt, body.txt)
+state: /repo/.git/mergepr-123456/state.json
 ```
 
 When the material is insufficient, run the following at the repository root to see the diff of an individual file.
@@ -219,7 +219,7 @@ When `mergepr` finds a problem, it prints the reason and the remedy and stops. W
 | `PR merged a different head than prepared` | `cleanup` | The head was force-pushed after `prepare`, and that head was merged | Check whether the local head branch holds commits that were not part of the PR, then update the base and delete the branch manually |
 | `invalid state` | `merge`, `cleanup` | A file other than the one `prepare` wrote was given to `--state` | Specify the path `prepare` printed |
 
-`merge` is the stage that cannot be undone. Even if the tool stops after it, the merge itself may have completed. Check the PR's state on GitHub, and if it is merged, resume the cleanup with `cleanup`. Because `state.json` is in a temporary directory, do not delete it until the cleanup is finished.
+`merge` is the stage that cannot be undone. Even if the tool stops after it, the merge itself may have completed. Check the PR's state on GitHub, and if it is merged, resume the cleanup with `cleanup`. Because `state.json` lives under `.git/mergepr-*`, do not delete it until the cleanup is finished.
 
 ## 8. Changing the Tool
 

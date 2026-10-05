@@ -28,12 +28,13 @@ var testState = State{
 
 const testPRJSON = `{"number":42,"title":"Test PR","state":"OPEN","headRefName":"feature/foo","headRefOid":"` + testHeadOID + `","baseRefName":"main","url":"https://github.com/isseis/yt2column/pull/42","body":"the PR description"}`
 
-func prepareTailSteps() []commandStep {
+func prepareTailSteps(gitDir string) []commandStep {
 	return []commandStep{
 		gitStep("", "fetch", "origin"),
 		ghStep("", "pr", "checks", "42", "--watch", "--fail-fast"),
 		gitStep("abc subject\n\nbody\n", "log", "--format=%h %s%n%n%b", "origin/main.."+testHeadOID),
 		gitStep(" a.txt | 1 +\n", "diff", "--stat", "origin/main..."+testHeadOID),
+		gitStep(gitDir+"\n", "rev-parse", "--absolute-git-dir"),
 	}
 }
 
@@ -47,9 +48,10 @@ func readFile(t *testing.T, path string) string {
 }
 
 func TestPrepare(t *testing.T) {
+	gitDir := t.TempDir()
 	tool, runner := newTool(t, append([]commandStep{
 		ghStep(testPRJSON, "pr", "view", "42", "--json", prViewFields),
-	}, prepareTailSteps()...)...)
+	}, prepareTailSteps(gitDir)...)...)
 
 	prepared, err := tool.Prepare(t.Context(), "42")
 	if err != nil {
@@ -58,6 +60,9 @@ func TestPrepare(t *testing.T) {
 	runner.done()
 	t.Cleanup(func() { _ = os.RemoveAll(prepared.Dir) })
 
+	if filepath.Dir(prepared.Dir) != gitDir {
+		t.Errorf("prepared.Dir = %s, want a directory directly under the git directory %s", prepared.Dir, gitDir)
+	}
 	if !reflect.DeepEqual(prepared.State, testState) {
 		t.Errorf("state = %+v, want %+v", prepared.State, testState)
 	}
@@ -80,9 +85,10 @@ func TestPrepare(t *testing.T) {
 }
 
 func TestPrepareCurrentBranch(t *testing.T) {
+	gitDir := t.TempDir()
 	tool, runner := newTool(t, append([]commandStep{
 		ghStep(testPRJSON, "pr", "view", "--json", prViewFields),
-	}, prepareTailSteps()...)...)
+	}, prepareTailSteps(gitDir)...)...)
 
 	prepared, err := tool.Prepare(t.Context(), "")
 	if err != nil {
