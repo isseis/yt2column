@@ -12,5 +12,6 @@ var (
 	errInvalidSubject   = errors.New("squash subject is not a non-empty single line")
 	errLocalBranchMoved = errors.New("local head branch moved after prepare; not deleted")
 	errMergedHeadMoved  = errors.New("PR merged a different head than prepared; local branches left untouched")
-	errWorkDirMismatch  = errors.New("state file does not name the directory it lives in; not removing anything")
+	errUnprintablePath  = errors.New("work directory path contains a line break and cannot be reported on a line-oriented output")
+	errWorkDirMismatch  = errors.New("state file does not name a generated work directory it lives in; not removing anything")
 )

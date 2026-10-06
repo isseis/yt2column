@@ -150,11 +150,11 @@ func TestPreparePreservesTrailingWhitespaceInWorktreePath(t *testing.T) {
 	}
 }
 
-// TestPreparePreservesTrailingNewlineInWorktreePath verifies that only the
-// command's own terminator is stripped from git's output. A worktree path whose
-// last component ends in a newline is a valid Unix path; trimming every
-// trailing newline would name a different, usually nonexistent root.
-func TestPreparePreservesTrailingNewlineInWorktreePath(t *testing.T) {
+// TestPrepareRejectsTrailingNewlineInWorktreePath verifies that a worktree path
+// ending in a line break is rejected, because the line-oriented dir: and state:
+// output records could not report it unambiguously. Git's single LF terminator
+// is still stripped first, so the break is part of the value.
+func TestPrepareRejectsTrailingNewlineInWorktreePath(t *testing.T) {
 	workRoot := filepath.Join(t.TempDir(), "repo\n")
 	if err := os.Mkdir(workRoot, 0o700); err != nil {
 		t.Fatalf("create worktree root: %v", err)
@@ -167,24 +167,24 @@ func TestPreparePreservesTrailingNewlineInWorktreePath(t *testing.T) {
 		ghStep(testPRJSON, "pr", "view", "42", "--json", prViewFields),
 	}, prepareTailSteps(workRoot, gitDir)...)...)
 
-	prepared, err := tool.Prepare(t.Context(), "42")
-	if err != nil {
-		t.Fatalf("Prepare returned error: %v", err)
+	if _, err := tool.Prepare(t.Context(), "42"); !errors.Is(err, errUnprintablePath) {
+		t.Fatalf("Prepare error = %v, want errUnprintablePath", err)
 	}
 	runner.done()
-	t.Cleanup(func() { _ = os.RemoveAll(prepared.Dir) })
-
-	if filepath.Dir(prepared.Dir) != gitDir {
-		t.Errorf("prepared.Dir = %s, want a directory directly under the git directory %s", prepared.Dir, gitDir)
+	entries, err := os.ReadDir(gitDir)
+	if err != nil {
+		t.Fatalf("read git dir: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("git dir holds %d entries after a rejected prepare, want none", len(entries))
 	}
 }
 
-// TestPreparePreservesTrailingCarriageReturnInWorktreePath verifies that a
-// worktree path whose last component ends in a carriage return is used as git
-// reports it. Git terminates the record with a single LF, so the carriage return
-// is value data; stripping it would name a different, usually nonexistent root
-// and make MkdirTemp fail.
-func TestPreparePreservesTrailingCarriageReturnInWorktreePath(t *testing.T) {
+// TestPrepareRejectsTrailingCarriageReturnInWorktreePath verifies that a worktree path
+// ending in a line break is rejected, because the line-oriented dir: and state:
+// output records could not report it unambiguously. Git's single LF terminator
+// is still stripped first, so the break is part of the value.
+func TestPrepareRejectsTrailingCarriageReturnInWorktreePath(t *testing.T) {
 	workRoot := filepath.Join(t.TempDir(), "repo\r")
 	if err := os.Mkdir(workRoot, 0o700); err != nil {
 		t.Fatalf("create worktree root: %v", err)
@@ -197,15 +197,16 @@ func TestPreparePreservesTrailingCarriageReturnInWorktreePath(t *testing.T) {
 		ghStep(testPRJSON, "pr", "view", "42", "--json", prViewFields),
 	}, prepareTailSteps(workRoot, gitDir)...)...)
 
-	prepared, err := tool.Prepare(t.Context(), "42")
-	if err != nil {
-		t.Fatalf("Prepare returned error: %v", err)
+	if _, err := tool.Prepare(t.Context(), "42"); !errors.Is(err, errUnprintablePath) {
+		t.Fatalf("Prepare error = %v, want errUnprintablePath", err)
 	}
 	runner.done()
-	t.Cleanup(func() { _ = os.RemoveAll(prepared.Dir) })
-
-	if filepath.Dir(prepared.Dir) != gitDir {
-		t.Errorf("prepared.Dir = %s, want a directory directly under the git directory %s", prepared.Dir, gitDir)
+	entries, err := os.ReadDir(gitDir)
+	if err != nil {
+		t.Fatalf("read git dir: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("git dir holds %d entries after a rejected prepare, want none", len(entries))
 	}
 }
 
@@ -553,6 +554,25 @@ func TestDiscardKeepsUnrelatedDirectory(t *testing.T) {
 	}
 	if _, err := os.Stat(workDir); err != nil {
 		t.Errorf("work directory %s removed while it held unrelated files: %v", workDir, err)
+	}
+}
+
+// TestDiscardKeepsForgedParentDirectory verifies that a state file whose
+// workDir equals its own directory is still refused when that directory is not
+// of the generated mergepr- shape, so a forged state cannot delete a checkout.
+func TestDiscardKeepsForgedParentDirectory(t *testing.T) {
+	repo := filepath.Join(t.TempDir(), "repo")
+	if err := os.Mkdir(repo, 0o700); err != nil {
+		t.Fatalf("create repo: %v", err)
+	}
+	statePath := writeStateFileRecording(t, repo, repo)
+	keep := writeTempFile(t, repo, "main.go", "keep me")
+
+	if err := Discard(statePath); !errors.Is(err, errWorkDirMismatch) {
+		t.Fatalf("Discard error = %v, want errWorkDirMismatch", err)
+	}
+	if got := readFile(t, keep); got != "keep me" {
+		t.Errorf("repo file = %q, want it left untouched", got)
 	}
 }
 

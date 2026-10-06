@@ -145,7 +145,12 @@ func (t *Tool) Prepare(ctx context.Context, prArg string) (prepared Prepared, er
 	if err != nil {
 		return Prepared{}, fmt.Errorf("find the worktree root: %w", err)
 	}
-	dir, err := os.MkdirTemp(workDirBase(outputLine(workRoot), outputLine(gitDir)), workDirPrefix)
+	base := workDirBase(outputLine(workRoot), outputLine(gitDir))
+	// The dir: and state: output records are line-oriented, so a path holding a line break cannot be reported unambiguously.
+	if strings.ContainsAny(base, "\r\n") {
+		return Prepared{}, fmt.Errorf("%w: %q", errUnprintablePath, base)
+	}
+	dir, err := os.MkdirTemp(base, workDirPrefix)
 	if err != nil {
 		return Prepared{}, fmt.Errorf("create work directory: %w", err)
 	}
@@ -275,6 +280,10 @@ func removeWorkDir(state State, statePath string) error {
 	}
 	dir, err := filepath.Abs(filepath.Dir(statePath))
 	if err != nil || dir != state.WorkDir {
+		return errWorkDirMismatch
+	}
+	// A forged state file can name any directory it lives in, so only a directory of the shape Prepare generates may be removed.
+	if !strings.HasPrefix(filepath.Base(dir), workDirPrefix) {
 		return errWorkDirMismatch
 	}
 	return os.RemoveAll(dir)

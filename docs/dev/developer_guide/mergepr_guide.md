@@ -111,7 +111,9 @@ Specify the PR with no argument (the current branch), a number, or a URL. The ar
 2. Runs `git fetch origin`.
 3. Waits for CI to finish with `gh pr checks --watch --fail-fast`. It stops if any check failed.
 4. Creates a fresh work directory inside the active checkout and writes the following files. In the primary checkout it is under the repository's git directory (`.git/mergepr-*`); in a linked worktree, whose git directory lives in the primary checkout, it is a `mergepr-*` directory at the worktree root. Keeping the material inside the checkout avoids reaching outside the working tree.
+If the path where the work directory would be created contains a line break (LF or CR), `prepare` stops with an error without creating it, because the line-oriented `dir:` and `state:` output could not report it unambiguously.
 If writing any of the files fails, `prepare` removes the work directory again, so no partial directory is left behind.
+`merge`, `cleanup`, and `discard` remove only a directory that holds the `state.json` itself and carries the generated `mergepr-` prefix. A forged state file that points at the checkout itself removes nothing.
 
 | File | Contents |
 |---|---|
