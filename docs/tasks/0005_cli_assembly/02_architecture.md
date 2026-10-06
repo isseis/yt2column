@@ -462,11 +462,21 @@ func (l *Lock) File() *os.File
 func (l *Lock) Close() error
 
 var ErrLocked = errors.New("another run holds the cache directory lock")
+
+// LockedError reports that another run holds the lock and carries the lock
+// file path.
+type LockedError struct {
+	Path string
+	Err  error // ErrLocked
+}
+
+func (e *LockedError) Error() string
+func (e *LockedError) Unwrap() error
 ```
 
 -   `Acquire` は、キャッシュディレクトリを `0o700` で作り（既存のディレクトリのパーミッションは変えない）、その中の固定の名前 `.yt2column.lock` を開いて、待たずに `flock` の排他を取る。
 -   排他のファイルは、シンボリックリンクをたどらず、通常のファイルでなければ拒否し、新しく作る場合は `0o600` とする（[security.md](../../dev/security.md) §5）。読み取り専用で開く（`flock` は読み取り専用の記述子でも排他を取れる）。名前付きパイプなどが置かれていても、開くときに待ち続けないようにする。
--   `flock` が `EWOULDBLOCK` で失敗したら、`ErrLocked` を包んで返す（AC-34・AC-49）。メッセージは、排他のファイルのパス、前の実行が起動した `yt-dlp` が残っている可能性とその確かめ方（`lsof <パス>` など）、終了を待つか止めてから再実行すればよいことを示す（F-007）。それ以外の失敗は `ErrLocked` を包まずに返す（AC-47）。
+-   `flock` が `EWOULDBLOCK` で失敗したら、`ErrLocked` を包んだ `*LockedError` を返す（AC-34・AC-49）。`*LockedError` は排他のファイルのパスを `Path` として保持し（`errors.AsType` で取得できる）、メッセージでは、そのパス、前の実行が起動した `yt-dlp` が残っている可能性とその確かめ方（`lsof <パス>` など）、終了を待つか止めてから再実行すればよいことを示す（F-007）。それ以外の失敗は `ErrLocked` を包まずに返す（AC-47）。
 -   排他のファイルは削除しない。残っていても、`flock` を保持するプロセスがなければ次の `Acquire` は成功する（AC-36）。削除すると、削除と作成の間に別のプロセスが別の inode に排他を取る競合が生じる。
 -   **掃除と削除の対象にならないこと（AC-37）:** 掃除の候補は、名前が `<11 文字の動画 ID>.<a|b|current|current.tmp>` に完全に一致するものだけである（`internal/transcript/cache.go:403-415` の `pruneCandidateID`）。`.yt2column.lock` は `.` の前が空なので動画 ID の検証に通らず、候補にならない。`RemoveCache` は、検証済みの動画 ID から組み立てた名前だけを扱う（`ytdlp.go:78-98`）。この性質は、`internal/cachelock` のテストが、排他のファイルを置いたキャッシュディレクトリで `PruneCache` を呼んで確かめる（2.1 の点線）。
 -   **`internal/transcript` に置かない理由:** 排他は 1 回の実行全体（掃除・字幕の取得・記事の生成・投稿・キャッシュの削除）にかかる。`transcript` は、同じキャッシュディレクトリに対する操作を直列にすることを呼び出し元に求めている（[cache_consistency.md](../../dev/cache_consistency.md) P1、`ytdlp.go:100-102`）ので、排他は呼び出し元の部品とする。
@@ -707,7 +717,7 @@ func SettingsFrom(getenv func(string) string, opts IntegrationOptions) Integrati
 | `internal/publisher` | `ErrOutputExists` | 出力先に既に何かがある | `errors.Is`（事前確認も同じ番兵を包む） |
 | | `ErrNoHardLink` | ハードリンクを作れない | `errors.Is` |
 | | `*KeptFileError` | 記事を一時ファイルに残した | `errors.AsType` |
-| `internal/cachelock` | `ErrLocked` | 別の実行が排他を保持している | `errors.Is`。その他の失敗はこれを包まない（AC-47） |
+| `internal/cachelock` | `ErrLocked` | 別の実行が排他を保持している | `errors.Is`。`*LockedError` が排他のファイルのパスを `Path` として保持する（`errors.AsType`）。その他の失敗はこれを包まない（AC-47） |
 | `internal/llm/deepseek` | `ErrPaddedModel`（公開する） | モデル名の前後に空白がある | `errors.Is`（AC-12） |
 | `internal/llm/provider` | `errUnknownProvider`（非公開） | 構築の仕方を定めていないプロバイダの値 | パッケージの中のテスト（AC-11） |
 

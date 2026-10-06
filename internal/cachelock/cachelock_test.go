@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -127,8 +126,12 @@ func TestAcquireLocked(t *testing.T) {
 	if !errors.Is(err, ErrLocked) {
 		t.Fatalf("second Acquire = %v, want ErrLocked", err)
 	}
-	if !strings.Contains(err.Error(), lockPath(dir)) {
-		t.Fatalf("error %q does not name the lock file %s", err, lockPath(dir))
+	locked, ok := errors.AsType[*LockedError](err)
+	if !ok {
+		t.Fatalf("second Acquire = %T, want *LockedError", err)
+	}
+	if want := lockPath(dir); locked.Path != want {
+		t.Fatalf("LockedError.Path = %q, want %q", locked.Path, want)
 	}
 
 	if err := first.Close(); err != nil {
@@ -220,13 +223,20 @@ func TestLockError(t *testing.T) {
 	if !errors.Is(held, ErrLocked) {
 		t.Fatalf("EWOULDBLOCK error = %v, want ErrLocked", held)
 	}
-	if !strings.Contains(held.Error(), path) {
-		t.Fatalf("error %q does not name the lock file %s", held, path)
+	locked, ok := errors.AsType[*LockedError](held)
+	if !ok {
+		t.Fatalf("EWOULDBLOCK error = %T, want *LockedError", held)
+	}
+	if locked.Path != path {
+		t.Fatalf("LockedError.Path = %q, want %q", locked.Path, path)
 	}
 
 	other := lockError(path, syscall.ENOLCK)
 	if errors.Is(other, ErrLocked) {
 		t.Fatalf("ENOLCK error = %v, must not wrap ErrLocked", other)
+	}
+	if _, ok := errors.AsType[*LockedError](other); ok {
+		t.Fatalf("ENOLCK error = %T, must not be *LockedError", other)
 	}
 	if !errors.Is(other, syscall.ENOLCK) {
 		t.Fatalf("ENOLCK error = %v, the cause is lost", other)

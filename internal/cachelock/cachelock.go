@@ -28,11 +28,25 @@ const fileMode = 0o600
 
 // ErrLocked reports that another run holds the cache directory lock. A failure
 // for any other reason does not wrap it, so a caller can tell a concurrent run
-// from an I/O or permission problem.
+// from an I/O or permission problem. The path of the lock file is carried by
+// *LockedError, not only by the message.
 var ErrLocked = errors.New("another run holds the cache directory lock")
 
 // errNotRegularFile reports a lock name that is not a regular file.
 var errNotRegularFile = errors.New("the lock file is not a regular file")
+
+// LockedError reports that another run holds the cache directory lock. Path is
+// the lock file. It wraps ErrLocked, so errors.Is(err, ErrLocked) is true.
+type LockedError struct {
+	Path string
+	Err  error // ErrLocked
+}
+
+func (e *LockedError) Error() string {
+	return fmt.Sprintf("%v: %s is held; if a previous run was killed while yt-dlp was running, check for it with lsof %s and wait for it or stop it before retrying", e.Err, e.Path, e.Path)
+}
+
+func (e *LockedError) Unwrap() error { return e.Err }
 
 // Lock is an exclusive flock(2) lock on a file in the cache directory.
 //
@@ -89,7 +103,7 @@ func Acquire(dir string) (*Lock, error) {
 // failure for a concurrent run.
 func lockError(path string, err error) error {
 	if errors.Is(err, syscall.EWOULDBLOCK) {
-		return fmt.Errorf("%w: %s is held; if a previous run was killed while yt-dlp was running, check for it with lsof %s and wait for it or stop it before retrying", ErrLocked, path, path)
+		return &LockedError{Path: path, Err: ErrLocked}
 	}
 	return fmt.Errorf("lock %s: %w", path, err)
 }

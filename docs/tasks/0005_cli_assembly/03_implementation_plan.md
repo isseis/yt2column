@@ -324,10 +324,10 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 -   変更: `docs/dev/developer_guide/package_reference.md`、本計画（ステップ 5-4 の記録）
 
 **タスク**
--   [x] **ステップ 5-1**: `cachelock.go` に `Lock`・`Acquire`・`File`・`Close`・`ErrLocked` を作る（設計書 3.7）。排他のファイルは、シンボリックリンクをたどらず、名前付きパイプで待たずに読み取り専用で開き、開いた記述子で通常のファイルであることを確かめる。`gosec` が指摘する変数のパスでの `OpenFile` と、記述子の整数への変換には、その行だけに理由付きの `//nolint:gosec` を付ける。
+-   [x] **ステップ 5-1**: `cachelock.go` に `Lock`・`Acquire`・`File`・`Close`・`ErrLocked`・`LockedError` を作る（設計書 3.7）。排他のファイルは、シンボリックリンクをたどらず、名前付きパイプで待たずに読み取り専用で開き、開いた記述子で通常のファイルであることを確かめる。`gosec` が指摘する変数のパスでの `OpenFile` と、記述子の整数への変換には、その行だけに理由付きの `//nolint:gosec` を付ける。
 -   [x] **ステップ 5-2**: `cachelock_test.go` と `test_helpers.go`（`requireNonRoot`・`chmodForTest`）に次を作る。取得を待ちうる呼び出しは、別の goroutine で上限付きで待ち、上限を超えたら失敗として報告する（壊した実装が待ち続けても、`go test` のタイムアウトまで止まらない）。
     -   `TestAcquireCreatesDirectory`: ないディレクトリを `0o700` で作り、既存のディレクトリのパーミッションを変えず、排他のファイルが `0o600` であること。
-    -   `TestAcquireLocked`（AC-34）: 同じディレクトリへの 2 つ目の `Acquire` が待たずに `ErrLocked` を包むこと、メッセージが排他のファイルのパスを含むこと。`Close` の後は取得できること。
+    -   `TestAcquireLocked`（AC-34）: 同じディレクトリへの 2 つ目の `Acquire` が待たずに `ErrLocked` を包むこと、エラーが `*LockedError` として排他のファイルのパスを `Path` に保持すること（`errors.AsType` で取り出して確かめる。メッセージの文字列一致はしない）。`Close` の後は取得できること。
     -   `TestAcquireOtherDirectory`（AC-35）、`TestAcquireAfterHolderGone`（AC-36。排他のファイルを残したまま、保持者が閉じた後に取得できること）。
     -   `TestAcquireOtherFailures`（AC-47）: 親が通常のファイル、書き込めないディレクトリ（`requireNonRoot`・`chmodForTest`）で、エラーが `ErrLocked` を包まないこと。
     -   `TestAcquireRejectsNonRegularLockFile`: 排他のファイルの名前に、シンボリックリンク・ディレクトリ・名前付きパイプがある場合に拒否すること。名前付きパイプの後始末では書き込み側を開き、壊した実装で止まった呼び出しを解放する。
