@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Created | 2026-10-05 |
 | Review date | 2026-10-05 |
 | Reviewer | isseis |
-| Comments | 2026-10-06 編集上の修正（決定の変更なし）: ステップ 3-1 の文言を、非公開の `newClient` の説明（プロバイダを直接受け取り、アダプタの構築関数を引数で受け取る）に直した。作るものは変わっていない。 |
+| Comments | 2026-10-06 決定の変更: ステップ 5-1・5-2 が、`ErrLocked` だけの契約に代えて公開の `*LockedError` を作るようになった（02_architecture.md からの決定変更の反映）。再承認を求めるため、ステータスを `draft` に戻す。 2026-10-06 編集上の修正（決定の変更なし）: ステップ 3-1 の文言を、非公開の `newClient` の説明（プロバイダを直接受け取り、アダプタの構築関数を引数で受け取る）に直した。作るものは変わっていない。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -337,7 +337,7 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 -   [x] **ステップ 5-4**（手動、利用者の承認が必要）: 実際の `yt-dlp` が起動する子プロセスが記述子 3 を引き継ぐかを確かめる（設計書 §8 の 5、3.7）。排他のファイルを記述子 3 で開いた状態で実 `yt-dlp` に字幕を取得させ、実行中に `lsof <排他のファイル>` で保持しているプロセスを記録する。結果（`yt-dlp` の版、保持していたプロセス）を本ステップの下に追記する。
     -   実施: 2026-10-06。`yt-dlp` の版: 2026.08.19。検証用の一時プログラムが `cachelock.Acquire` の `Lock.File()` を `transcript.Options.InheritedFiles` に渡し、`https://www.youtube.com/watch?v=2tcCWM-sRBw` の字幕を取得させた。
     -   結果: 実行中に `lsof <排他のファイル>` で、検証用プログラム（`3r`）と `yt-dlp`（COMMAND は `Python`）が排他のファイルを記述子 3 で開いていることを観測した。字幕のみの取得では `yt-dlp` の子プロセス（`deno`・`ffmpeg` など）は現れず、記述子 3 を保持したのは `yt-dlp` 本体だけであった。親の終了後の `lsof` は空で、排他が解放されることを確認した。別の動画（`EQCUZyB4DqE`）でも同じく `Python` が記述子 3 を保持した（この回は HTTP 429 で取得に失敗したが、記述子の引き継ぎは同じ）。
--   [x] **ステップ 5-5**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `LOCK_NB` を外す（`TestAcquireLocked` が上限で失敗すること）、`flock` を `fcntl` のロックに替える（`TestAcquireLocked`・`TestLockInheritedByChild`）、`EWOULDBLOCK` 以外も `ErrLocked` で包む（`TestAcquireOtherFailures`）、通常のファイルの確認を外す、`O_NONBLOCK` を外す、ディレクトリのパーミッションを変える。`make fmt` → `make test` → `make lint` を通す。
+-   [x] **ステップ 5-5**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `LOCK_NB` を外す（`TestAcquireLocked` が上限で失敗すること）、`flock` を `fcntl` のロックに替える（`TestAcquireLocked`・`TestLockInheritedByChild`）、`EWOULDBLOCK` 以外も `ErrLocked` で包む（`TestLockError`）、通常のファイルの確認を外す、`O_NONBLOCK` を外す、ディレクトリのパーミッションを変える。`make fmt` → `make test` → `make lint` を通す。
 
 ### PR-7 作成ポイント: internal/cachelock
 

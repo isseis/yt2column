@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Created | 2026-10-05 |
 | Review date | 2026-10-05 |
 | Reviewer | isseis |
-| Comments | 2026-10-05 編集上の修正（決定の変更なし）: §8 の 1 に `test_organization.md` の例外と `TestFakesCarryBuildTag` の改修を、§8 の 9 に `package_reference.md` を各手順で更新することを書き加えた。3.11・3.12 の内容は変わらず、行う手順の位置だけを明記した（実装計画の作成時の指摘による）。 2026-10-06 編集上の修正（決定の変更なし）: 依存関係の図に、すでに存在していた `internal/llm/provider` から `secret` への依存の辺を書き加えた。設計の内容は変わっていない。 |
+| Comments | 2026-10-06 決定の変更: `internal/cachelock` に、`ErrLocked` だけの契約（排他のファイルのパスはメッセージにのみ記載）に代えて、`Path` を保持する公開の `*LockedError` を加えた。公開インターフェースの変更のため、ステータスを `draft` に戻し再承認を求める。要件レベルの決定は変更していない。 2026-10-05 編集上の修正（決定の変更なし）: §8 の 1 に `test_organization.md` の例外と `TestFakesCarryBuildTag` の改修を、§8 の 9 に `package_reference.md` を各手順で更新することを書き加えた。3.11・3.12 の内容は変わらず、行う手順の位置だけを明記した（実装計画の作成時の指摘による）。 2026-10-06 編集上の修正（決定の変更なし）: 依存関係の図に、すでに存在していた `internal/llm/provider` から `secret` への依存の辺を書き加えた。設計の内容は変わっていない。 |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）の設計である。既存のコードに関する記述は、コミット `274b18b` のソースで確かめた。`file:line` はこのコミットの行番号を指す。
 
