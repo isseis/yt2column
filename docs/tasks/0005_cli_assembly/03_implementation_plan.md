@@ -8,7 +8,7 @@
 | Created | 2026-10-05 |
 | Review date | 2026-10-05 |
 | Reviewer | isseis |
-| Comments | 2026-10-06 決定の変更: ステップ 5-1・5-2 が、`ErrLocked` だけの契約に代えて公開の `*LockedError` を作るようになった（02_architecture.md からの決定変更の反映）。ステータスを `draft` に戻して再承認を受けた。 2026-10-06 編集上の修正（決定の変更なし）: ステップ 3-1 の文言を、非公開の `newClient` の説明（プロバイダを直接受け取り、アダプタの構築関数を引数で受け取る）に直した。作るものは変わっていない。 |
+| Comments | - |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -353,8 +353,8 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 6: `internal/job`
 
@@ -364,26 +364,26 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 -   変更: `internal/pipeline/pipeline_test.go`（`TestFakesCarryBuildTag` の件数）・`docs/dev/developer_guide/package_reference.md`
 
 **タスク**
--   [ ] **ステップ 6-1**: `internal/transcript/testutil/helpers.go` に、偽の `yt-dlp` のスクリプトを一時ディレクトリに作る公開関数と、ディレクトリの内容の一覧を取る公開関数を置く。
+-   [x] **ステップ 6-1**: `internal/transcript/testutil/helpers.go` に、偽の `yt-dlp` のスクリプトを一時ディレクトリに作る公開関数と、ディレクトリの内容の一覧を取る公開関数を置く。
     -   スクリプトの種類: トリップワイヤ（起動されたら印のファイルを作って失敗する）、途中で止まるもの（自身と子の PID と、記述子 3 が開いているかを記録し、準備完了の印を作って止まる）、指定の内容を標準エラー出力に書いて失敗するもの、`-P` のディレクトリに指定の字幕と info.json を書き出して成功するもの。
     -   印と PID のファイルは、一時ファイルへ書いてから改名して作る。
     -   止まるものは無期限には待たない: 解放の印のファイルが現れるか、数分の上限に達したら、子とともに自分で終了する。作った時点で、解放の印を作る処理を `t.Cleanup` に登録する（PID を指定してシグナルを送る後始末はしない。終了済みの PID が再利用されて無関係のプロセスを止めるのを避けるため）。
     -   `TestFakesCarryBuildTag` の件数を 9 にする。
--   [ ] **ステップ 6-2**: `job.go` に `Request`・`Result`・`YtDlpTimeout`・`Run` を作る（設計書 3.4 の手順 B0〜C1、3.6 の事前確認の表）。事前確認で出力先に何かがある場合は `publisher.ErrOutputExists` を包み、親ディレクトリの確認の失敗はそれを包まない。どちらも段階を投稿とする `pipeline.StageError` で返す。
--   [ ] **ステップ 6-3**: `job_test.go` に次を作る。`Writer` は `FakeArticleWriter`、`Publisher` は `FilePublisher` を基本とし、キャッシュは `transcript.SeedCacheForTest` で置く。同じテストで `Run` を 2 回以上呼ぶ場合は §4.1 の規則に従う。偽の `yt-dlp` のスクリプトを起動するテストは `t.Parallel` にしない（Linux で書いた直後の実行ファイルの起動が `ETXTBSY` で失敗しうるため）。
+-   [x] **ステップ 6-2**: `job.go` に `Request`・`Result`・`YtDlpTimeout`・`Run` を作る（設計書 3.4 の手順 B0〜C1、3.6 の事前確認の表）。事前確認で出力先に何かがある場合は `publisher.ErrOutputExists` を包み、親ディレクトリの確認の失敗はそれを包まない。どちらも段階を投稿とする `pipeline.StageError` で返す。
+-   [x] **ステップ 6-3**: `job_test.go` に次を作る。`Writer` は `FakeArticleWriter`、`Publisher` は `FilePublisher` を基本とし、キャッシュは `transcript.SeedCacheForTest` で置く。同じテストで `Run` を 2 回以上呼ぶ場合は §4.1 の規則に従う。偽の `yt-dlp` のスクリプトを起動するテストは `t.Parallel` にしない（Linux で書いた直後の実行ファイルの起動が `ETXTBSY` で失敗しうるため）。
     -   `TestRunRemovesCache`（AC-24。別の動画の有効なキャッシュが残ること）、`TestRunKeepCache`（AC-25）、`TestRunFailureKeepsCache`（AC-26。記事の生成の失敗と投稿の失敗）、`TestRunPrunesDangling`（AC-27。後続が失敗する場合を含む）、`TestRunPruneFailureWarns`（AC-28、`requireNonRoot`・`chmodForTest`）、`TestRunRemoveCacheFailureWarns`（AC-29。投稿の成功の後に `ctx` を取り消して `RemoveCache` を失敗させ、`Run` がエラーを返さず `Warnings` を持ち、`--out` が残ること）、`TestRunRefresh`（AC-30。キャッシュと異なる字幕を書き出す偽の `yt-dlp` と、`FakeArticleWriter` が受け取った `Transcript`）。
     -   `TestRunCanceled`（AC-31）: 字幕の取得（途中で止まる `yt-dlp` の準備完了の印を待ってから）・記事の生成・投稿のそれぞれの途中で `ctx` を取り消す。生成と投稿の途中の取り消しは、テストのファイルの中で fake と `FilePublisher` を包む型で起こす。キャッシュが残り、`--out` が作られないこと。
     -   `TestRunInvalidCache`（AC-48）: 途中で切れた字幕と途中で切れた info.json のそれぞれで、`transcript.ErrParseSubtitles`・`ErrParseInfo` を包むエラーになり、続けて `Refresh` と字幕を書き出す偽の `yt-dlp` で成功すること。
     -   `TestRunOutputExists`（AC-50）: 4 種類の既存のパスのそれぞれで、`publisher.ErrOutputExists` を包む投稿の段階の `pipeline.StageError` になり、既存の内容とリンク先が変わらず、存在しない先が作られず、トリップワイヤが起動されず、`Writer` が呼ばれず、キャッシュディレクトリ（ない場合は作られないこと、ある場合は内容の一覧が変わらないこと）が変わらないこと。
-    -   `TestRunOutputParentInvalid`（AC-52）: 親がない場合と親が通常のファイルの場合で、`ErrOutputExists` を包まない投稿の段階の `pipeline.StageError` になり、トリップワイヤ・`Writer`・キャッシュディレクトリについて AC-50 と同じことを確かめる。
+    -   `TestRunOutputParentInvalid`（AC-52）: 親がない場合、親が通常のファイルの場合、親の途中の要素が通常ファイルの場合（`ENOTDIR`）、親を探索できない場合（`EACCES`）で、`ErrOutputExists` を包まない投稿の段階の `pipeline.StageError` になり、トリップワイヤ・`Writer`・キャッシュディレクトリについて AC-50 と同じことを確かめる。
     -   `TestRunLocked`（AC-34）: 1 つ目の `Run` が途中で止まる `yt-dlp` で保持している間（準備完了の印を待つ）に、トリップワイヤを指定した 2 つ目の `Run` が待たずに `cachelock.ErrLocked` を包むエラーで戻り、キャッシュディレクトリの内容（2 つ目の開始前の一覧との比較）を変えず、`Writer` を呼ばず、`--out` を作らないこと。1 つ目の `Run` の goroutine は、後始末で取り消して終了を待つ。
     -   `TestRunOtherCacheDir`（AC-35）、`TestRunLockFailure`（AC-47。書き込めない場合は `requireNonRoot`・`chmodForTest`）。
     -   `TestRunPassesLockToYtDlp`: 途中で止まる `yt-dlp` が、記述子 3 が開いていたことを記録すること。
     -   `TestRunValidatesRequest`: B0 の各条件（空の文字列、nil、typed nil）で、キャッシュディレクトリを作らずにエラーになること。
     -   `TestRunReleasesLock`: 成功と失敗のそれぞれの後に、`cachelock.Acquire` が成功すること。
--   [ ] **ステップ 6-4**: `test_helpers.go` に `requireNonRoot`・`chmodForTest`（§1.3）と、`Request.OutPath` と `FilePublisher` を同じパスから作る補助を置く。
--   [ ] **ステップ 6-5**: `package_reference.md` に `internal/job` の行を加える。`internal/transcript/testutil` の行に偽の `yt-dlp` とディレクトリの一覧の補助を加え、「`-tags test` だけでビルドされる」という記述を、`helpers.go` は `integration` のビルドにも含まれる旨に改める。
--   [ ] **ステップ 6-6**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: C1 を `KeepCache` によらず行う・行わない、失敗時にもキャッシュを削除する、B4 の失敗をエラーとして返す、C1 の失敗をエラーとして返す、事前確認を外す（`TestRunOutputExists` のトリップワイヤとキャッシュディレクトリ）、親ディレクトリの確認を外す、排他の取得を外す（`TestRunLocked`）、排他を閉じない（`TestRunReleasesLock`）、`InheritedFiles` を渡さない（`TestRunPassesLockToYtDlp`）、`ForceRefresh` を渡さない（`TestRunRefresh`）。`make fmt` → `make test` → `make lint` を通す。
+-   [x] **ステップ 6-4**: `test_helpers.go` に `requireNonRoot`・`chmodForTest`（§1.3）と、`Request.OutPath` と `FilePublisher` を同じパスから作る補助を置く。
+-   [x] **ステップ 6-5**: `package_reference.md` に `internal/job` の行を加える。`internal/transcript/testutil` の行に偽の `yt-dlp` とディレクトリの一覧の補助を加え、「`-tags test` だけでビルドされる」という記述を、`helpers.go` は `integration` のビルドにも含まれる旨に改める。
+-   [x] **ステップ 6-6**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: C1 を `KeepCache` によらず行う・行わない、失敗時にもキャッシュを削除する、B4 の失敗をエラーとして返す、C1 の失敗をエラーとして返す、事前確認を外す（`TestRunOutputExists` のトリップワイヤとキャッシュディレクトリ）、親ディレクトリの確認を外す、排他の取得を外す（`TestRunLocked`）、排他を閉じない（`TestRunReleasesLock`）、`InheritedFiles` を渡さない（`TestRunPassesLockToYtDlp`）、`ForceRefresh` を渡さない（`TestRunRefresh`）。`make fmt` → `make test` → `make lint` を通す。
 
 ### PR-8 作成ポイント: internal/job
 
@@ -397,8 +397,8 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 
 **判定理由**: 事前確認・排他・掃除・パイプライン・削除の順を守る実行の進め方（ステップ 6-2・6-3）は状態機械に類する独立した最も込み入ったステップであり、この PR に隔離してレビューするため。加えてビルドタグ下の非 `_test.go` のソース、`gosec` の抑止、取得時の `t.Cleanup`、`run`・`Run` の複数回起動という複数の Conditional check に該当するため。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
