@@ -34,17 +34,16 @@ func newFilePublisherWithSeams(
 }
 
 // failAfter returns a writer wrapper that passes through the first n bytes and
-// then fails; onFail, if not nil, runs when the failure is first produced.
-func failAfter(n int, onFail func()) func(io.Writer) io.Writer {
+// then fails.
+func failAfter(n int) func(io.Writer) io.Writer {
 	return func(w io.Writer) io.Writer {
-		return &failingWriter{w: w, left: n, onFail: onFail}
+		return &failingWriter{w: w, left: n}
 	}
 }
 
 type failingWriter struct {
-	w      io.Writer
-	left   int
-	onFail func()
+	w    io.Writer
+	left int
 }
 
 func (f *failingWriter) Write(b []byte) (int, error) {
@@ -56,9 +55,6 @@ func (f *failingWriter) Write(b []byte) (int, error) {
 	f.left = 0
 	if err != nil {
 		return n, err
-	}
-	if f.onFail != nil {
-		f.onFail()
 	}
 	return n, errInjectedWrite
 }

@@ -65,9 +65,6 @@ func TestFilePublisherWritesArticle(t *testing.T) {
 	if string(got) != want {
 		t.Fatalf("content = %q, want %q", got, want)
 	}
-	if !strings.HasSuffix(string(got), article.Body) {
-		t.Fatal("file must end with the body")
-	}
 	info, err := os.Stat(out)
 	if err != nil {
 		t.Fatal(err)
@@ -166,6 +163,9 @@ func TestFilePublisherExistingPath(t *testing.T) {
 			kept, ok := errors.AsType[*KeptFileError](err)
 			if !ok {
 				t.Fatalf("err = %T, want *KeptFileError", err)
+			}
+			if !strings.Contains(err.Error(), kept.TempPath) {
+				t.Fatalf("error text %q does not name the kept file", err.Error())
 			}
 			got, readErr := os.ReadFile(kept.TempPath)
 			if readErr != nil {
@@ -266,8 +266,8 @@ func TestFilePublisherCanceled(t *testing.T) {
 
 func TestNewFilePublisherEmptyPath(t *testing.T) {
 	p, err := NewFilePublisher("")
-	if err == nil || p != nil {
-		t.Fatalf("NewFilePublisher(\"\") = %v, %v; want nil and an error", p, err)
+	if !errors.Is(err, errEmptyPath) || p != nil {
+		t.Fatalf("NewFilePublisher(\"\") = %v, %v; want nil and errEmptyPath", p, err)
 	}
 }
 
@@ -279,7 +279,7 @@ func TestFilePublisherWriteFailure(t *testing.T) {
 
 	t.Run("write error after some bytes", func(t *testing.T) {
 		dir := t.TempDir()
-		p := newFilePublisherWithSeams(t, filepath.Join(dir, "a.md"), failAfter(100, nil), nil)
+		p := newFilePublisherWithSeams(t, filepath.Join(dir, "a.md"), failAfter(100), nil)
 		err := p.Publish(context.Background(), big)
 		if !errors.Is(err, errInjectedWrite) {
 			t.Fatalf("err = %v, want the injected write error", err)
@@ -347,6 +347,9 @@ func TestFilePublisherLinkFailure(t *testing.T) {
 			if !errors.Is(err, tc.errno) {
 				t.Fatalf("cause %v is lost", tc.errno)
 			}
+			if !strings.Contains(err.Error(), kept.TempPath) {
+				t.Fatalf("error text %q does not name the kept file", err.Error())
+			}
 			if _, statErr := os.Stat(kept.TempPath); statErr != nil {
 				t.Fatalf("temp file not kept: %v", statErr)
 			}
@@ -354,5 +357,38 @@ func TestFilePublisherLinkFailure(t *testing.T) {
 				t.Fatalf("output exists: %v", statErr)
 			}
 		})
+	}
+}
+
+func TestFilePublisherSucceedsAfterLink(t *testing.T) {
+	// A context that ends right after the output is linked must not turn the
+	// publish into a failure: the article is already at the output path.
+	dir := t.TempDir()
+	out := filepath.Join(dir, "a.md")
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	link := func(oldname, newname string) error {
+		err := os.Link(oldname, newname)
+		cancel()
+		return err
+	}
+	p := newFilePublisherWithSeams(t, out, nil, link)
+	if err := p.Publish(ctx, validArticle()); err != nil {
+		t.Fatalf("Publish: %v", err)
+	}
+	if names := dirEntries(t, dir); len(names) != 1 || names[0] != "a.md" {
+		t.Fatalf("directory entries = %v, want only a.md", names)
+	}
+}
+
+func TestFilePublisherBareFilename(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	p, _ := NewFilePublisher("a.md")
+	if err := p.Publish(context.Background(), validArticle()); err != nil {
+		t.Fatalf("Publish: %v", err)
+	}
+	if names := dirEntries(t, dir); len(names) != 1 || names[0] != "a.md" {
+		t.Fatalf("directory entries = %v, want only a.md", names)
 	}
 }
