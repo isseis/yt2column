@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 	"syscall"
+
+	"github.com/isseis/yt2column/internal/transcript"
 )
 
 // outPathInsideCacheDir reports whether outPath names the cache directory or
@@ -23,7 +25,8 @@ import (
 // are compared by file identity, walking the hierarchy rather than the text of
 // the path, so a descendant reached through a bind mount of an ancestor is
 // recognized. A bind mount of a cache subdirectory at an unrelated path cannot
-// be reached by walking up; the cache's own descendants are scanned for it.
+// be reached by walking up; the cache's own fixed-name slot directories are
+// compared by identity for it.
 func outPathInsideCacheDir(outPath, cacheDir string) bool {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -174,23 +177,25 @@ func insideResolved(dir string, rest []string, cacheDir string, cacheRest []stri
 		// Neither directory contains the other by walking up the paths. The
 		// output may still sit on a cache descendant reached through an alias
 		// such as a bind mount of a cache subdirectory at an unrelated path,
-		// which the walk cannot see; compare the cache's own descendants too.
+		// which the walk cannot see; compare the cache's own slot directories.
 		return aliasesCacheDescendant(dir, cacheDir)
 	}
 }
 
-// maxCacheDescendantDepth bounds the cache-descendant scan. The cache layout is
-// shallow (a slot directory per video), and the bound also stops a bind mount
-// that makes the tree cyclic; reaching it makes the answer unknown, and the
-// caller then stays fail-closed.
-const maxCacheDescendantDepth = 4
+// cacheSlotNames are the slot directory suffixes of the cache layout, mirroring
+// internal/transcript/cache.go. Only an entry named <video ID>.<slot> can be a
+// cache slot an alias may point at.
+var cacheSlotNames = map[string]struct{}{"a": {}, "b": {}}
 
-// aliasesCacheDescendant reports whether dir is an existing descendant of
+// aliasesCacheDescendant reports whether dir is an existing slot directory of
 // cacheDir, or lies below one, reached through an alias such as a bind mount of
-// a cache subdirectory placed at an unrelated path. Walking up from dir cannot
-// see such an alias, so the cache's own entries are compared by file identity
-// instead. The walk is bounded in depth; when it cannot finish safely it reports
-// true so the caller stays fail-closed.
+// a cache slot placed at an unrelated path. Walking up from dir cannot see such
+// an alias, so the cache's own fixed-name slot entries are compared by file
+// identity instead. Only regular slot directories are considered: an entry
+// whose name is not a valid <video ID>.<a|b>, a symbolic link, or a
+// non-directory is skipped, so the scan is one directory read and never
+// follows a link. When the directory cannot be read safely it reports true so
+// the caller stays fail-closed.
 func aliasesCacheDescendant(dir, cacheDir string) bool {
 	info, err := os.Stat(cacheDir)
 	if err != nil {
@@ -199,33 +204,29 @@ func aliasesCacheDescendant(dir, cacheDir string) bool {
 	if !info.IsDir() {
 		return false
 	}
-	var walk func(current string, depth int) (bool, bool)
-	walk = func(current string, depth int) (bool, bool) {
-		if depth > maxCacheDescendantDepth {
-			return false, false
-		}
-		entries, err := os.ReadDir(current)
-		if err != nil {
-			return false, false
-		}
-		for _, entry := range entries {
-			child := filepath.Join(current, entry.Name())
-			if isAncestor(child, dir) {
-				return true, true
-			}
-			if entry.IsDir() {
-				if found, ok := walk(child, depth+1); found || !ok {
-					return found, ok
-				}
-			}
-		}
-		return false, true
-	}
-	found, ok := walk(cacheDir, 0)
-	if !ok {
+	entries, err := os.ReadDir(cacheDir)
+	if err != nil {
 		return true
 	}
-	return found
+	for _, entry := range entries {
+		if entry.Type()&os.ModeSymlink != 0 || !entry.IsDir() {
+			continue
+		}
+		id, slot, ok := strings.Cut(entry.Name(), ".")
+		if !ok {
+			continue
+		}
+		if _, ok := cacheSlotNames[slot]; !ok {
+			continue
+		}
+		if _, valid := transcript.NormalizedVideoURL(id); !valid {
+			continue
+		}
+		if isAncestor(filepath.Join(cacheDir, entry.Name()), dir) {
+			return true
+		}
+	}
+	return false
 }
 
 // sameDir reports whether a and b name the same directory. os.SameFile

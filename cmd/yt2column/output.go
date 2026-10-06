@@ -28,8 +28,9 @@ const exposedTail = 8
 // value that was absent from the original line: a secret whose literal value
 // is "\x1b" is still found when the input holds an actual ESC byte, because
 // escaping turns that byte into "\x1b". The replacements are made through an
-// opaque placeholder and the marker is chosen so that no protected value is a
-// substring of it, so the marker cannot reintroduce a secret.
+// opaque placeholder and the marker is chosen so that no protected value can
+// be reconstructed inside it or across its boundaries, so the marker cannot
+// reintroduce a secret.
 func sanitize(line string, secretValues ...string) string {
 	rendered := escapeNonPrintable(line)
 	replacements := secretReplacements(secretValues)
@@ -100,26 +101,49 @@ func choosePlaceholder(rendered string, replacements []string) string {
 	return "\x00\x01\x02"
 }
 
-// chooseMarker returns redactedMarker unless a protected string is a substring
-// of it, in which case a secret equal to the marker (or a part of it) would
-// survive redaction. The alternative is built from a printable byte that
-// occurs in no protected string, so no protected value can be a substring of
-// the marker. Bytes are tried in order so the choice is deterministic.
+// chooseMarker returns redactedMarker unless it is not safe against the
+// protected strings, in which case a marker built from a single repeated byte
+// is chosen instead. Bytes are tried in order so the choice is deterministic.
 func chooseMarker(replacements []string) string {
-	if !containsAnySubstring(redactedMarker, replacements) {
+	if markerSafe(redactedMarker, replacements) {
 		return redactedMarker
 	}
 	for b := byte('!'); b <= '~'; b++ {
-		if marker := strings.Repeat(string([]byte{b}), len(redactedMarker)); !containsAnySubstring(marker, replacements) {
+		if marker := strings.Repeat(string([]byte{b}), len(redactedMarker)); markerSafe(marker, replacements) {
 			return marker
 		}
 	}
 	for b := range 256 {
-		if marker := strings.Repeat(string([]byte{byte(b)}), len(redactedMarker)); !containsAnySubstring(marker, replacements) {
+		if marker := strings.Repeat(string([]byte{byte(b)}), len(redactedMarker)); markerSafe(marker, replacements) {
 			return marker
 		}
 	}
 	return redactedMarker
+}
+
+// markerSafe reports whether no protected string can be reconstructed across
+// the boundary between the marker and the text it touches. A protected string
+// could otherwise survive either inside the marker (condition 1) or as a
+// match that spans the boundary and so includes the marker's first or last
+// byte (condition 2).
+func markerSafe(marker string, replacements []string) bool {
+	if marker == "" {
+		return false
+	}
+	if containsAnySubstring(marker, replacements) {
+		return false
+	}
+	first := marker[0]
+	last := marker[len(marker)-1]
+	for _, replacement := range replacements {
+		if replacement == "" {
+			continue
+		}
+		if strings.IndexByte(replacement, first) >= 0 || strings.IndexByte(replacement, last) >= 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // containsAnySubstring reports whether any of substrings occurs in s.

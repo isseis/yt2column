@@ -51,7 +51,7 @@ func TestSanitize(t *testing.T) {
 			name:    "redacts a secret that holds control characters before escaping",
 			line:    "x\x1b[2Jy",
 			secrets: []string{"x\x1b[2Jy"},
-			want:    "[REDACTED]",
+			want:    "!!!!!!!!!!",
 		},
 		{
 			name:    "redacts several distinct secrets",
@@ -118,6 +118,18 @@ func TestSanitize(t *testing.T) {
 			line:    string([]byte{'k', 'e', 'y', '=', '1', '2', '3', '4', '5', 0xff, 0xfe, 0xfd}),
 			secrets: []string{string([]byte{'0', '1', '2', '3', '4', '5', 0xff, 0xfe, 0xfd})},
 			want:    "key=[REDACTED]",
+		},
+		{
+			name:    "a secret spanning the text before the marker does not survive",
+			line:    "aa[",
+			secrets: []string{"a["},
+			want:    "a!!!!!!!!!!",
+		},
+		{
+			name:    "a secret spanning the text after the marker does not survive",
+			line:    "]xx",
+			secrets: []string{"]x"},
+			want:    "!!!!!!!!!!x",
 		},
 	}
 	for _, tc := range cases {

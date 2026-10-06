@@ -198,6 +198,30 @@ func TestAliasesCacheDescendant(t *testing.T) {
 	if aliasesCacheDescendant(otherAlias, cache) {
 		t.Fatal("an unrelated directory was reported as a cache descendant")
 	}
+
+	// A symbolic link at a fixed-name slot must not be followed: otherwise a
+	// single entry such as <id>.a -> the outside would make every --out fail.
+	linkSlot := filepath.Join(cache, "aaaaaaaaaaa.a")
+	if err := os.Symlink(base, linkSlot); err != nil {
+		t.Fatal(err)
+	}
+	if aliasesCacheDescendant(base, cache) {
+		t.Fatal("a symlink cache entry made an outside path a cache descendant")
+	}
+
+	// A directory whose name is not a fixed-name slot is ignored, even when
+	// its identity would otherwise compare as the directory being checked.
+	plainDir := filepath.Join(cache, "not-a-slot")
+	if err := os.Mkdir(plainDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	plainAlias := filepath.Join(base, "plain-alias")
+	if err := os.Symlink(plainDir, plainAlias); err != nil {
+		t.Fatal(err)
+	}
+	if aliasesCacheDescendant(plainAlias, cache) {
+		t.Fatal("a non-cache-named directory was reported as a cache descendant")
+	}
 }
 
 func TestIsAncestorFollowsAliases(t *testing.T) {
