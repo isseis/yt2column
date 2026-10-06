@@ -24,10 +24,15 @@ const (
 	openState   = "OPEN"
 	mergedState = "MERGED"
 
-	stateFileName = "state.json"
-	logFileName   = "log.txt"
-	statFileName  = "stat.txt"
-	bodyFileName  = "body.txt"
+	stateFileName  = "state.json"
+	logFileName    = "log.txt"
+	statFileName   = "stat.txt"
+	bodyFileName   = "body.txt"
+	markerFileName = "marker"
+
+	// markerContent is written to markerFileName so removal can tell a directory
+	// Prepare created from one that merely shares its name prefix.
+	markerContent = "mergepr work directory\n"
 
 	workDirPrefix = "mergepr-"
 
@@ -97,6 +102,10 @@ type Report struct {
 // work directory exists; production always uses os.WriteFile.
 var writeFile = os.WriteFile
 
+// removeAllDir is a variable only so a test can force a removal failure after
+// the work directory exists; production always uses os.RemoveAll.
+var removeAllDir = os.RemoveAll
+
 // Prepare resolves the PR (the current branch's when prArg is empty), waits for
 // CI, and writes the state and drafting material into a fresh directory inside
 // the active worktree, so the material stays within the checkout rather than in
@@ -158,7 +167,11 @@ func (t *Tool) Prepare(ctx context.Context, prArg string) (prepared Prepared, er
 	// and without a complete state.json the operator could not run discard on it.
 	defer func() {
 		if err != nil {
-			_ = os.RemoveAll(dir)
+			if rmErr := removeAllDir(dir); rmErr != nil {
+				// Name the directory Prepare is returning an error with, so the
+				// operator can find and discard the partial preparation.
+				err = fmt.Errorf("%w; remove work directory %s: %w", err, dir, rmErr)
+			}
 		}
 	}()
 	state.WorkDir = dir
@@ -167,10 +180,11 @@ func (t *Tool) Prepare(ctx context.Context, prArg string) (prepared Prepared, er
 		return Prepared{}, fmt.Errorf("encode state: %w", err)
 	}
 	files := map[string][]byte{
-		stateFileName: append(stateOut, '\n'),
-		logFileName:   logOut,
-		statFileName:  statOut,
-		bodyFileName:  []byte(pr.Body),
+		stateFileName:  append(stateOut, '\n'),
+		logFileName:    logOut,
+		statFileName:   statOut,
+		bodyFileName:   []byte(pr.Body),
+		markerFileName: []byte(markerContent),
 	}
 	for name, data := range files {
 		if err := writeFile(filepath.Join(dir, name), data, fileMode); err != nil {
@@ -265,15 +279,16 @@ func (t *Tool) Cleanup(ctx context.Context, statePath string) (Report, error) {
 }
 
 // removeWorkDir deletes the prepared work directory. The directory is the unit
-// the workflow owns: Prepare creates it, writes the material into it, and the
-// operator drafts the subject and body files there, so it is removed whole
-// rather than file by file. To keep an operator-supplied --state path from
-// deleting an unrelated directory, it removes only the directory Prepare
-// recorded in the state file, which is also the directory that still holds the
-// state file; a state file that was moved or copied elsewhere therefore removes
-// nothing. It returns errWorkDirMismatch in that case, so an explicit Discard
-// can report it while Merge and Cleanup ignore a leftover directory after a
-// cleanup that already succeeded.
+// the workflow owns: Prepare creates it, writes the material and a marker file
+// into it, and the operator drafts the subject and body files there, so it is
+// removed whole rather than file by file. To keep an operator-supplied --state
+// path from deleting an unrelated directory, it removes only the directory
+// Prepare recorded in the state file, which is also the directory that still
+// holds the state file and the marker file Prepare wrote; a state file that was
+// moved or copied elsewhere therefore removes nothing. It returns
+// errWorkDirMismatch in that case, so an explicit Discard can report it while
+// Merge and Cleanup ignore a leftover directory after a cleanup that already
+// succeeded.
 func removeWorkDir(state State, statePath string) error {
 	if state.WorkDir == "" {
 		return errWorkDirMismatch
@@ -284,6 +299,12 @@ func removeWorkDir(state State, statePath string) error {
 	}
 	// A forged state file can name any directory it lives in, so only a directory of the shape Prepare generates may be removed.
 	if !strings.HasPrefix(filepath.Base(dir), workDirPrefix) {
+		return errWorkDirMismatch
+	}
+	// A forged state file can also live in a directory that merely shares the
+	// prefix, so require the marker file Prepare writes and nothing else does.
+	marker, err := os.ReadFile(filepath.Join(dir, markerFileName)) //nolint:gosec // dir is the work directory this state file records
+	if err != nil || string(marker) != markerContent {
 		return errWorkDirMismatch
 	}
 	return os.RemoveAll(dir)

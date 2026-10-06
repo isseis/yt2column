@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -69,9 +70,10 @@ func TestPrepare(t *testing.T) {
 		t.Errorf("state file = %+v, want %+v", saved, wantState)
 	}
 	for name, want := range map[string]string{
-		logFileName:  "abc subject\n\nbody\n",
-		statFileName: " a.txt | 1 +\n",
-		bodyFileName: "the PR description",
+		logFileName:    "abc subject\n\nbody\n",
+		statFileName:   " a.txt | 1 +\n",
+		bodyFileName:   "the PR description",
+		markerFileName: markerContent,
 	} {
 		if got := readFile(t, filepath.Join(prepared.Dir, name)); got != want {
 			t.Errorf("%s = %q, want %q", name, got, want)
@@ -576,6 +578,50 @@ func TestDiscardKeepsForgedParentDirectory(t *testing.T) {
 	}
 }
 
+// TestDiscardKeepsForgedWorkDirectoryWithoutMarker verifies that a directory
+// that shares the generated mergepr- shape is still refused when the marker
+// file Prepare writes is missing or holds different content, so a forged state
+// file cannot delete a same-shaped checkout or another valuable directory.
+func TestDiscardKeepsForgedWorkDirectoryWithoutMarker(t *testing.T) {
+	tests := []struct {
+		name      string
+		marker    string
+		hasMarker bool
+	}{
+		{"missing marker", "", false},
+		{"wrong marker", "not a mergepr work directory\n", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			workDir, err := os.MkdirTemp(t.TempDir(), workDirPrefix)
+			if err != nil {
+				t.Fatalf("create work directory: %v", err)
+			}
+			state := testState
+			state.WorkDir = workDir
+			data, err := json.Marshal(state)
+			if err != nil {
+				t.Fatalf("encode state: %v", err)
+			}
+			statePath := writeTempFile(t, workDir, stateFileName, string(data))
+			keep := writeTempFile(t, workDir, "notes.md", "keep me")
+			if tt.hasMarker {
+				writeTempFile(t, workDir, markerFileName, tt.marker)
+			}
+
+			if err := Discard(statePath); !errors.Is(err, errWorkDirMismatch) {
+				t.Fatalf("Discard error = %v, want errWorkDirMismatch", err)
+			}
+			if got := readFile(t, keep); got != "keep me" {
+				t.Errorf("file = %q, want it left untouched", got)
+			}
+			if _, err := os.Stat(workDir); err != nil {
+				t.Errorf("work directory %s removed without a valid marker: %v", workDir, err)
+			}
+		})
+	}
+}
+
 func TestDiscardRejectsInvalidState(t *testing.T) {
 	path := writeTempFile(t, t.TempDir(), "state.json", `{"number":42}`)
 	if err := Discard(path); !errors.Is(err, errInvalidState) {
@@ -617,5 +663,48 @@ func TestPrepareRemovesWorkDirOnWriteFailure(t *testing.T) {
 	}
 	if len(entries) != 0 {
 		t.Errorf("git dir still holds %d entries after a failed Prepare, want none", len(entries))
+	}
+}
+
+// TestPrepareReportsFailedRemovalOfPartialWorkDir verifies that when a write
+// fails and the removal of the partial work directory also fails, the returned
+// error joins both failures and names the directory left behind, so the
+// operator can locate and discard the partial preparation.
+func TestPrepareReportsFailedRemovalOfPartialWorkDir(t *testing.T) {
+	workRoot := t.TempDir()
+	gitDir := filepath.Join(workRoot, ".git")
+	if err := os.Mkdir(gitDir, 0o700); err != nil {
+		t.Fatalf("create git dir: %v", err)
+	}
+	errDisk := errors.New("disk full")
+	errRemove := errors.New("permission denied")
+	origWrite, origRemove := writeFile, removeAllDir
+	t.Cleanup(func() {
+		writeFile = origWrite
+		removeAllDir = origRemove
+	})
+	writeFile = func(string, []byte, os.FileMode) error { return errDisk }
+	removeAllDir = func(string) error { return errRemove }
+	tool, runner := newTool(t, append([]commandStep{
+		ghStep(testPRJSON, "pr", "view", "42", "--json", prViewFields),
+	}, prepareTailSteps(workRoot, gitDir)...)...)
+
+	_, prepareErr := tool.Prepare(t.Context(), "42")
+	if !errors.Is(prepareErr, errDisk) {
+		t.Fatalf("Prepare error = %v, want it to wrap %v", prepareErr, errDisk)
+	}
+	if !errors.Is(prepareErr, errRemove) {
+		t.Fatalf("Prepare error = %v, want it to wrap %v", prepareErr, errRemove)
+	}
+	runner.done()
+	entries, err := os.ReadDir(gitDir)
+	if err != nil {
+		t.Fatalf("read git dir: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("git dir holds %d entries, want the one partial work directory left behind", len(entries))
+	}
+	if dir := filepath.Join(gitDir, entries[0].Name()); !strings.Contains(prepareErr.Error(), dir) {
+		t.Errorf("Prepare error = %q, want it to name the left-behind directory %s", prepareErr, dir)
 	}
 }

@@ -89,7 +89,8 @@ func writeTempFile(t testing.TB, dir, name, content string) string {
 
 // writeStateFileRecording writes a state file that records workDir as the
 // directory Prepare created, so a test can exercise work-directory removal and
-// its provenance check.
+// its provenance check. It also writes the marker file Prepare puts in that
+// directory, so removal accepts the directory.
 func writeStateFileRecording(t *testing.T, dir, workDir string) string {
 	t.Helper()
 	state := testState
@@ -98,6 +99,7 @@ func writeStateFileRecording(t *testing.T, dir, workDir string) string {
 	if err != nil {
 		t.Fatalf("encode state: %v", err)
 	}
+	writeTempFile(t, dir, markerFileName, markerContent)
 	return writeTempFile(t, dir, stateFileName, string(data))
 }
 
