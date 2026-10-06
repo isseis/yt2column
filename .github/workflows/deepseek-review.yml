@@ -31,7 +31,11 @@ jobs:
             echo
             for f in CLAUDE.md AGENTS.md docs/dev/security.md; do
               echo "----- $f -----"
-              curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${BASE_SHA}/${f}" || echo "(unavailable)"
+              curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 \
+                "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${BASE_SHA}/${f}" || {
+                  echo "error: could not fetch ${f} at ${BASE_SHA}" >&2
+                  exit 1
+                }
               echo
             done
             echo "Please review the following code changes"
