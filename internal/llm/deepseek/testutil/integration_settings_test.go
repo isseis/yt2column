@@ -140,6 +140,9 @@ func TestSettingsFrom(t *testing.T) {
 		checkSettings(t, opts, completeEnv(testOptInEnv), missingKey(ActionFail))
 	})
 
+	// Another test's opt-in, even with everything else in place, must not run
+	// this one: an implementation that accepts either opt-in would arm a
+	// charged test the user did not ask for.
 	t.Run("other_opt_in_does_not_run", func(t *testing.T) {
 		opts := IntegrationOptions{OptInEnv: testOptInEnv, MakeTarget: testMakeTarget}
 		checkSettings(t, opts, completeEnv(DeepSeekOptInEnv), []settingsCase{

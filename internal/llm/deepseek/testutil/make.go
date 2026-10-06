@@ -13,9 +13,13 @@ import (
 	"testing"
 )
 
-// ErrFirstLineMismatch reports that a file's first line is not the expected
-// one.
-var ErrFirstLineMismatch = errors.New("first line mismatch")
+var (
+	// ErrFirstLineMismatch reports that a file's first line is not the
+	// expected one.
+	ErrFirstLineMismatch = errors.New("first line mismatch")
+	// errEnvName reports a variable name the stub script cannot embed.
+	errEnvName = errors.New("variable name is not a plain shell name")
+)
 
 // childEnvAllowlist is the environment the make child receives. It is an
 // allowlist, so nothing from the outer `make test` leaks in: MAKEFLAGS,
@@ -55,6 +59,17 @@ type MakeInvocation struct {
 	Env  map[string]string
 }
 
+// validateEnvNames rejects any name that is not a plain shell variable name,
+// since makeStubScript embeds the names in shell text.
+func validateEnvNames(names []string) error {
+	for _, name := range names {
+		if !envNamePattern.MatchString(name) {
+			return fmt.Errorf("%w: %q", errEnvName, name)
+		}
+	}
+	return nil
+}
+
 // makeStubScript returns a script that records its arguments and the named
 // variables, one per line, to a file named invocation next to itself. It
 // never runs go test, so a target is exercised without the API or the network.
@@ -73,10 +88,8 @@ func makeStubScript(names []string) string {
 // and returns make's output and what the stub recorded.
 func RunMakeTarget(t *testing.T, r MakeRun) (string, MakeInvocation) {
 	t.Helper()
-	for _, name := range append([]string{r.ModelEnv}, r.RecordEnv...) {
-		if !envNamePattern.MatchString(name) {
-			t.Fatalf("variable name %q is not a plain shell name", name)
-		}
+	if err := validateEnvNames(append([]string{r.ModelEnv}, r.RecordEnv...)); err != nil {
+		t.Fatal(err)
 	}
 	makePath, err := exec.LookPath("make")
 	if err != nil {

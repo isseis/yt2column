@@ -18,9 +18,8 @@ const (
 	// repositoryRoot is where the Makefile lives, relative to this package.
 	repositoryRoot = "../.."
 
-	// cliIntegrationTarget and deepSeekIntegrationTarget are the make targets
-	// that run the charged integration tests.
-	cliIntegrationTarget      = "test-integration-cli"
+	// deepSeekIntegrationTarget is the make target that runs the DeepSeek
+	// adapter's charged integration test.
 	deepSeekIntegrationTarget = "test-integration-deepseek"
 )
 
@@ -64,7 +63,7 @@ func TestMakeTestIntegrationCLI(t *testing.T) {
 		{name: "model_value_is_kept", model: &custom, wantModel: custom},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			output, invocation := runMake(t, cliIntegrationTarget, tc.model)
+			output, invocation := runMake(t, cliIntegrationOptions.MakeTarget, tc.model)
 			if !strings.Contains(output, "calls the real DeepSeek API, which incurs charges") {
 				t.Errorf("make output %q does not say that the target calls the real API and incurs charges", output)
 			}
@@ -97,7 +96,7 @@ func TestMakeOptInsAreTargetSpecific(t *testing.T) {
 		target    string
 		wantUnset string
 	}{
-		{target: cliIntegrationTarget, wantUnset: deepseektestutil.DeepSeekOptInEnv},
+		{target: cliIntegrationOptions.MakeTarget, wantUnset: deepseektestutil.DeepSeekOptInEnv},
 		{target: deepSeekIntegrationTarget, wantUnset: deepseektestutil.CLIOptInEnv},
 	} {
 		t.Run(tc.target, func(t *testing.T) {
@@ -111,12 +110,17 @@ func TestMakeOptInsAreTargetSpecific(t *testing.T) {
 
 // gateRecorder is a testing.TB that records Skip and Fatal instead of ending
 // the test, so a test can observe what gateCLIIntegration decided and that it
-// did not go on to call the body.
+// did not go on to call the body. It embeds a nil testing.TB, so any other
+// method the gate might call (Skipf, Fatalf, SkipNow, ...) panics instead of
+// reaching the real test and letting a case pass unchecked.
 type gateRecorder struct {
 	testing.TB
 	skipped []string
 	failed  []string
 }
+
+// Helper is a no-op; the gate calls it first.
+func (r *gateRecorder) Helper() {}
 
 // Skip records the reason instead of skipping.
 func (r *gateRecorder) Skip(args ...any) {
@@ -175,7 +179,7 @@ func TestCLIIntegrationSettings(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			env := maps.Clone(complete)
 			maps.Copy(env, tc.change)
-			recorder := &gateRecorder{TB: t}
+			recorder := &gateRecorder{}
 			var bodySettings []deepseektestutil.IntegrationSettings
 			gateCLIIntegration(recorder, func(name string) string { return env[name] }, func(s deepseektestutil.IntegrationSettings) {
 				bodySettings = append(bodySettings, s)
@@ -184,6 +188,15 @@ func TestCLIIntegrationSettings(t *testing.T) {
 			got := outcomes{ran: len(bodySettings), skipped: len(recorder.skipped), failed: len(recorder.failed)}
 			if got != tc.want {
 				t.Fatalf("gate outcomes = %+v, want %+v", got, tc.want)
+			}
+			for _, reason := range recorder.skipped {
+				// A skip must point at the CLI's own opt-in and target, never
+				// at the other charged target.
+				for _, want := range []string{deepseektestutil.CLIOptInEnv, "make test-integration-cli`"} {
+					if !strings.Contains(reason, want) {
+						t.Errorf("skip reason %q does not mention %q", reason, want)
+					}
+				}
 			}
 			for _, reason := range slices.Concat(recorder.skipped, recorder.failed) {
 				for _, key := range keys {

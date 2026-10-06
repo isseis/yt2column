@@ -64,6 +64,9 @@ func runIntegrationCLI(t *testing.T, settings deepseektestutil.IntegrationSettin
 	if err := transcript.SeedCacheForTest(cacheDir, integrationVideoID, subtitles, info); err != nil {
 		t.Fatalf("SeedCacheForTest: %v", err)
 	}
+	if len(videoCacheEntries(t, cacheDir)) == 0 {
+		t.Fatal("the seeded cache has no entry for the video, so its removal cannot be checked")
+	}
 	binDir := filepath.Join(base, "bin")
 	if err := os.Mkdir(binDir, 0o700); err != nil {
 		t.Fatalf("create bin dir: %v", err)
@@ -120,11 +123,21 @@ func runIntegrationCLI(t *testing.T, settings deepseektestutil.IntegrationSettin
 		t.Errorf("Generate was called %d times, want 1", got)
 	}
 	checkIntegrationArticle(t, article)
+	for _, name := range videoCacheEntries(t, cacheDir) {
+		t.Errorf("the cache directory still holds the entry %s; without --keep-cache it is removed", name)
+	}
+}
+
+// videoCacheEntries returns the cache directory's entries for the video.
+func videoCacheEntries(t *testing.T, cacheDir string) []string {
+	t.Helper()
+	var entries []string
 	for _, name := range transcripttestutil.ListDir(t, cacheDir) {
 		if strings.HasPrefix(name, integrationVideoID+".") {
-			t.Errorf("the cache directory still holds the entry %s; without --keep-cache it is removed", name)
+			entries = append(entries, name)
 		}
 	}
+	return entries
 }
 
 // checkIntegrationArticle checks the --out file: a non-empty title heading, a
@@ -145,11 +158,13 @@ func checkIntegrationArticle(t *testing.T, article string) {
 	if model, ok := strings.CutPrefix(modelLine, "- Model: "); !ok || strings.TrimSpace(model) == "" {
 		t.Error("the --out file has no non-empty model name")
 	}
-	// The body ends with the source line, an autolink to the video, which
+	// The article ends with the source line, an autolink to the video, which
 	// the writer appends itself; the generated text is what precedes it.
-	beforeLink, _, found := strings.Cut(body, "<"+integrationVideoURL+">")
+	// Anchoring at the end keeps a link the generated text repeats from
+	// standing in for the writer's own.
+	beforeLink, found := strings.CutSuffix(body, "<"+integrationVideoURL+">\n")
 	if !found {
-		t.Error("the --out file body does not hold the source link")
+		t.Error("the --out file does not end with the source link")
 		return
 	}
 	sourceLine := strings.LastIndex(beforeLink, "\n") + 1
