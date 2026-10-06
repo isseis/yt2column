@@ -18,13 +18,17 @@ func main() {
 	os.Exit(runWithSignals(os.Args[1:], os.LookupEnv, os.Stdout, os.Stderr, productionDeps()))
 }
 
-// subscribedSignals returns the signals that interrupt a run: SIGINT and
-// SIGTERM always, and SIGHUP unless it was ignored when the process started.
-// Subscribing to an ignored SIGHUP would undo nohup, so it is left alone.
+// subscribedSignals returns the signals that interrupt a run: SIGTERM always,
+// and SIGINT and SIGHUP unless they were ignored when the process started.
+// Subscribing replaces an inherited ignore, which would undo nohup (SIGHUP) or
+// let a terminal Ctrl-C reach a job a shell started in the background
+// (SIGINT), so an ignored signal is left alone.
 func subscribedSignals(ignored func(os.Signal) bool) []os.Signal {
-	signals := []os.Signal{os.Interrupt, syscall.SIGTERM}
-	if !ignored(syscall.SIGHUP) {
-		signals = append(signals, syscall.SIGHUP)
+	signals := []os.Signal{syscall.SIGTERM}
+	for _, sig := range []os.Signal{os.Interrupt, syscall.SIGHUP} {
+		if !ignored(sig) {
+			signals = append(signals, sig)
+		}
 	}
 	return signals
 }
@@ -33,9 +37,9 @@ func subscribedSignals(ignored func(os.Signal) bool) []os.Signal {
 // subscribed signal cancels, and returns the exit code.
 //
 // Contract: the subscription is dropped as soon as the context ends, which
-// restores the disposition the process started with, so a second signal
-// terminates the process even if run is stuck (unless the signal was ignored
-// at startup).
+// restores the default disposition (only signals not ignored at startup are
+// subscribed), so a second signal terminates the process even if run is
+// stuck.
 func runWithSignals(args []string, lookup config.LookupFunc, stdout, stderr io.Writer, d deps) int {
 	ctx, stop := signal.NotifyContext(context.Background(), subscribedSignals(signal.Ignored)...)
 	defer stop()

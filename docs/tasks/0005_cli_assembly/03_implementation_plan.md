@@ -432,7 +432,7 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 
 -   [x] **ステップ 7-3**: `run.go` に `deps`・`productionDeps`・`run` を作る（設計書 3.8 の手順 A1〜C、実行経路の一覧、メッセージの形、3.3 のタイムアウトの文言）。フラグの定義は、`run` と文書のテスト（ステップ 9-4）が同じものを使えるよう、`flag.FlagSet` を作る非公開の関数にまとめる。`productionDeps` の `newPublisher` は、構築の失敗時に typed nil ではなく nil の interface を返す。
 -   [x] **ステップ 7-4**: `main.go` を次の 3 つに分ける。
-    -   起動時の `signal.Ignored` の結果から購読するシグナルを選ぶ非公開の関数（SIGINT・SIGTERM と、無視されていなければ SIGHUP。設計書 3.8 の SIGHUP の項）。
+    -   起動時の `signal.Ignored` の結果から購読するシグナルを選ぶ非公開の関数（SIGTERM と、それぞれ無視されていなければ SIGINT・SIGHUP。設計書 3.8 の SIGHUP・SIGINT の項）。
     -   その結果でシグナルを購読し、`context` が終わったら購読を止め、`run` を呼んで終了コードを返す関数。引数は、コマンドラインの引数・`config.LookupFunc`・標準出力・標準エラー出力・`deps` とする。
     -   `os.LookupEnv` と `productionDeps()` を渡して上の関数を呼び、その戻り値で `os.Exit` する `main`。環境変数の参照は、この `os.LookupEnv` の 1 か所だけにする。
 -   [x] **ステップ 7-5**: `main_test.go` に `TestMain` を作る。
@@ -459,11 +459,12 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
     -   `TestSignalDuringGenerate`（AC-44 の SIGINT・SIGTERM の経路）: キャッシュを置いて fake の `LLMClient` で止めた状態でシグナルを送り、終了コード `1`、その動画のキャッシュが残り、`--out` が作られないことを確かめる。
     -   `TestSIGKILLWhileYtDlpRuns`（AC-49）: CLI の子プロセスを SIGKILL で止めた後も、偽の `yt-dlp` は動き続けている。この間に同じキャッシュディレクトリで `run` を実行し、終了コード `1` で終わること、トリップワイヤを起動せず、fake の `LLMClient` を呼ばず、`--out` を作らず、キャッシュディレクトリの内容を変えないこと、`yt-dlp` が残っている可能性と対処の方法を書くことを確かめる。続けて偽の `yt-dlp` を解放の印で終了させ（`yt-dlp` の子を含めて記述子 3 が閉じる）、`cachelock.Acquire` が成功するまで上限付きで待ってから、成功する実行を確かめる。
     -   `TestSIGKILLWithoutYtDlp`（AC-36）: キャッシュがあり、fake の `LLMClient` で止まっている子プロセスを SIGKILL で止めた後、同じキャッシュディレクトリでの実行が成功することを確かめる。
-    -   `TestSubscribedSignals`（同じプロセスの中のテスト）: 購読するシグナルを選ぶ関数が、SIGHUP が無視されていなければ SIGHUP を含み、無視されていれば含まないこと。この関数は無視されているかの判定を引数で受け取り（本番は `signal.Ignored`）、テストは両方の結果を与える（テストのプロセスのシグナルの扱いを変えないため）。`TestSIGHUP`（子プロセス）: 無視されていない状態で起動した子に SIGHUP を送ると終了コード `1` になること。テストのプロセス自身が SIGHUP を無視した状態で起動された場合（`nohup` の下など）は子も無視を引き継ぐので、その旨を示してスキップする。
-    -   `TestSecondSignal`: `ctx` を無視する fake で止め、1 回目のシグナルの後に「`ctx` が終わった」印を待ち、2 回目のシグナルを、子がシグナルで終了するまで上限付きで繰り返し送る。終了状態がシグナルによる終了であることを確かめる。
+    -   `TestSubscribedSignals`（同じプロセスの中のテスト）: 購読するシグナルを選ぶ関数が、SIGINT・SIGHUP のそれぞれについて、無視されていなければ含み、無視されていれば含まないこと、SIGTERM を常に含むこと。この関数は無視されているかの判定を引数で受け取り（本番は `signal.Ignored`）、テストは両方の結果を与える（テストのプロセスのシグナルの扱いを変えないため）。`TestSIGHUP`（子プロセス）: 無視されていない状態で起動した子に SIGHUP を送ると終了コード `1` になること。テストのプロセス自身が SIGHUP を無視した状態で起動された場合（`nohup` の下など）は子も無視を引き継ぐので、その旨を示してスキップする。
+    -   `TestIgnoredSignalNotSubscribed`（子プロセス）: SIGINT・SIGHUP のそれぞれを無視させた状態で（`/bin/sh` の `trap '' <名前>` の後に `exec` して）起動した子に、そのシグナルを送っても、一定の時間のうちに子が終了しないこと。誤って購読した場合だけがこの時間のうちに子を終了させるので、遅い環境でも誤って失敗しない。
+    -   `TestSecondSignal`: SIGTERM で確かめる（テストのプロセスが SIGINT を無視した状態で起動されても実行できるように）。`ctx` を無視する fake で止め、1 回目のシグナルの後に「`ctx` が終わった」印を待ち、2 回目のシグナルを、子がシグナルで終了するまで上限付きで繰り返し送る。終了状態がシグナルによる終了であることを確かめる。
     -   子プロセスの標準エラー出力は、網羅率の計測（`make test-ci`）で警告が加わりうるので、空であることは確かめず、含む・含まない文字列で確かめる。
 -   [x] **ステップ 7-9**: `package_reference.md` に `cmd/yt2column` の行を加える。`TestEnvAccessConfined`（ステップ 2-5）に、`cmd/yt2column/main.go` の `os.LookupEnv` の参照を観測したことの確認を加える（ファイルの有無で確認を切り替えない）。
--   [x] **ステップ 7-10**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: シグナルの購読を外す・SIGTERM だけ外す（`TestSignalDuringYtDlp`）、プロセスグループの停止を外す（同、孫の PID）、`InheritedFiles` を渡さない（`TestSIGKILLWhileYtDlpRuns`）、A5 を `job.Run` の後に移す（`TestRunExecutionPaths` のトリップワイヤ）、`GODEBUG` の警告を外す・LLM の呼び出しの後に移す（`TestRunGODEBUGWarning`）、使い方を標準エラー出力に書く（`TestRunHelp`）、SIGHUP を `signal.Ignored` によらず購読する（`TestSubscribedSignals`）、2 回目のシグナルで購読を止めない（`TestSecondSignal`）。`make fmt` → `make test` → `make lint` を通す。
+-   [x] **ステップ 7-10**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: シグナルの購読を外す・SIGTERM だけ外す（`TestSignalDuringYtDlp`）、プロセスグループの停止を外す（同、孫の PID）、`InheritedFiles` を渡さない（`TestSIGKILLWhileYtDlpRuns`）、A5 を `job.Run` の後に移す（`TestRunExecutionPaths` のトリップワイヤ）、`GODEBUG` の警告を外す・LLM の呼び出しの後に移す（`TestRunGODEBUGWarning`）、使い方を標準エラー出力に書く（`TestRunHelp`）、SIGHUP・SIGINT を `signal.Ignored` によらず購読する（`TestSubscribedSignals`・`TestIgnoredSignalNotSubscribed`）、2 回目のシグナルで購読を止めない（`TestSecondSignal`）。`make fmt` → `make test` → `make lint` を通す。
 
 ### PR-10 作成ポイント: cmd/yt2column CLI wiring and run
 

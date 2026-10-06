@@ -8,7 +8,7 @@
 | Created | 2026-10-05 |
 | Review date | 2026-10-05 |
 | Reviewer | isseis |
-| Comments | 2026-10-06: 1.1 の処理順の記述を 3.8 に合わせた編集上の訂正。決定事項の変更はなし。 2026-10-06: 5.2 の残るリスクに、利用者が作る別名（bind mount など）を追加する編集上の拡張。決定事項の変更はなし。 |
+| Comments | 2026-10-06: 1.1 の処理順の記述を 3.8 に合わせた編集上の訂正。決定事項の変更はなし。 2026-10-06: 5.2 の残るリスクに、利用者が作る別名（bind mount など）を追加する編集上の拡張。決定事項の変更はなし。 2026-10-06: 3.8 の決定の変更（利用者の承認による）。起動時に無視されていた SIGINT を、SIGHUP と同じく購読しないことにした。購読すると Go が無視の設定を上書きし、シェルがバックグラウンドで起動したジョブにも端末の Ctrl-C が届くためである。 |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）の設計である。既存のコードに関する記述は、コミット `274b18b` のソースで確かめた。`file:line` はこのコミットの行番号を指す。
 
@@ -511,8 +511,8 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc,
 	stdout, stderr io.Writer, d deps) int
 ```
 
--   **`main`:** `signal.NotifyContext` で SIGINT・SIGTERM を購読した `context` を作り、`run` に渡して、戻り値で `os.Exit` する。`context` が終わったら購読を止めて既定の扱いに戻す。2 回目のシグナルはプロセスを既定の扱いで終了させ（終了状態はシグナルによる終了になり、`1` ではない）、`run` が止まったままでも利用者が止められる。
--   **SIGHUP:** 起動時に SIGHUP が無視されていない場合（`signal.Ignored` が偽）に限り、SIGHUP も同じく購読する。端末や ssh の接続が切れたときも `yt-dlp` を止めてから終了するためである。`nohup` などで無視された状態で起動した場合は購読しない。購読すると Go は無視の設定を上書きし、`nohup` の意味がなくなるためである。
+-   **`main`:** `signal.NotifyContext` で SIGTERM と、起動時に無視されていない SIGINT・SIGHUP を購読した `context` を作り、`run` に渡して、戻り値で `os.Exit` する。`context` が終わったら購読を止めて既定の扱いに戻す（無視されていたシグナルは購読しないので、戻る先は常に既定の扱いである）。2 回目のシグナルはプロセスを既定の扱いで終了させ（終了状態はシグナルによる終了になり、`1` ではない）、`run` が止まったままでも利用者が止められる。
+-   **SIGHUP・SIGINT:** 起動時に無視されていない場合（`signal.Ignored` が偽）に限り、それぞれを購読する。SIGHUP を購読するのは、端末や ssh の接続が切れたときも `yt-dlp` を止めてから終了するためである。無視された状態で起動した場合は購読しない。購読すると Go は無視の設定を上書きするので、SIGHUP では `nohup` の意味がなくなり、SIGINT では、シェルが SIGINT を無視させてバックグラウンドで起動したジョブにも端末の Ctrl-C が届いて中断される。SIGTERM は常に購読する。
 -   **`deps`:** 本番の値は `provider.New`・`writer.New`・`publisher.NewFilePublisher` である。ユニットテストは、fake の `LLMClient`（AC-22・AC-38）、fake の `ArticleWriter`（AC-39 の成功の経路）、fake の `Publisher`（AC-31 の投稿中の中断、AC-39 の成功の経路）を返すものに差し替える。`productionDeps` はビルドタグのない `run.go` に置くので、統合テストからも使える。
 -   **出力:** 標準出力には `-h`・`--help` の使い方だけを書く（AC-44 (b)）。`flag.FlagSet` の出力先は `io.Discard` にし、解析の誤りは `run` が標準エラー出力に書く。
 

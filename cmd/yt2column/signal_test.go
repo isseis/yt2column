@@ -24,6 +24,9 @@ const (
 	// unlockBound bounds a wait for the lock to be released after the
 	// stopping yt-dlp is told to exit.
 	unlockBound = 30 * time.Second
+	// ignoredSignalWindow is how long TestIgnoredSignalNotSubscribed waits for
+	// a wrongly subscribed signal to end the child.
+	ignoredSignalWindow = 2 * time.Second
 	// resendInterval paces repeated signals in TestSecondSignal.
 	resendInterval = 100 * time.Millisecond
 )
@@ -107,6 +110,7 @@ func requireInterruptedChildOutput(t *testing.T, child *cliChild, outPath string
 func TestSignalDuringYtDlp(t *testing.T) {
 	for _, sig := range []syscall.Signal{syscall.SIGINT, syscall.SIGTERM} {
 		t.Run(sig.String(), func(t *testing.T) {
+			skipIfIgnored(t, sig)
 			stopping := transcripttestutil.NewStopping(t, t.TempDir())
 			// A seeded cache and --refresh: yt-dlp still runs, and the
 			// cache must survive the interruption.
@@ -140,6 +144,7 @@ func TestSignalDuringYtDlp(t *testing.T) {
 func TestSignalDuringGenerate(t *testing.T) {
 	for _, sig := range []syscall.Signal{syscall.SIGINT, syscall.SIGTERM} {
 		t.Run(sig.String(), func(t *testing.T) {
+			skipIfIgnored(t, sig)
 			tripwire, marker := transcripttestutil.NewTripwire(t, t.TempDir())
 			setup := newChildSetup(t, tripwire, true)
 			before := videoEntries(t, setup.cacheDir)
@@ -249,26 +254,68 @@ func TestSIGKILLWithoutYtDlp(t *testing.T) {
 	}
 }
 
-// TestSubscribedSignals checks that SIGHUP is subscribed only when it was not
-// ignored at startup, and SIGINT and SIGTERM always.
+// TestSubscribedSignals checks that SIGINT and SIGHUP are each subscribed
+// only when not ignored at startup, and SIGTERM always.
 func TestSubscribedSignals(t *testing.T) {
-	for _, hupIgnored := range []bool{false, true} {
-		ignored := func(sig os.Signal) bool { return sig == syscall.SIGHUP && hupIgnored }
-		got := subscribedSignals(ignored)
-		if !slices.Contains(got, os.Interrupt) || !slices.Contains(got, os.Signal(syscall.SIGTERM)) {
-			t.Errorf("SIGHUP ignored = %v: subscribed %v, want SIGINT and SIGTERM", hupIgnored, got)
+	for _, intIgnored := range []bool{false, true} {
+		for _, hupIgnored := range []bool{false, true} {
+			ignored := func(sig os.Signal) bool {
+				return (sig == os.Interrupt && intIgnored) || (sig == syscall.SIGHUP && hupIgnored)
+			}
+			got := subscribedSignals(ignored)
+			if !slices.Contains(got, os.Signal(syscall.SIGTERM)) {
+				t.Errorf("SIGINT ignored = %v, SIGHUP ignored = %v: subscribed %v, want SIGTERM", intIgnored, hupIgnored, got)
+			}
+			if slices.Contains(got, os.Interrupt) == intIgnored {
+				t.Errorf("SIGINT ignored = %v: subscribed %v", intIgnored, got)
+			}
+			if slices.Contains(got, os.Signal(syscall.SIGHUP)) == hupIgnored {
+				t.Errorf("SIGHUP ignored = %v: subscribed %v", hupIgnored, got)
+			}
 		}
-		if slices.Contains(got, os.Signal(syscall.SIGHUP)) == hupIgnored {
-			t.Errorf("SIGHUP ignored = %v: subscribed %v", hupIgnored, got)
-		}
+	}
+}
+
+// TestIgnoredSignalNotSubscribed starts the CLI (through runWithSignals) with
+// SIGINT or SIGHUP ignored, as a shell's background job or nohup does, and checks that
+// the signal does not interrupt the run: the child must still be generating
+// after the signal. Only a wrongly subscribed signal could end it within the
+// window, so a slow machine cannot make the test fail.
+func TestIgnoredSignalNotSubscribed(t *testing.T) {
+	for _, tc := range []struct {
+		trapName string
+		sig      syscall.Signal
+	}{
+		{"INT", syscall.SIGINT},
+		{"HUP", syscall.SIGHUP},
+	} {
+		t.Run(tc.sig.String(), func(t *testing.T) {
+			tripwire, _ := transcripttestutil.NewTripwire(t, t.TempDir())
+			setup := newChildSetup(t, tripwire, true)
+			child := startCLIChildIgnoring(t, tc.trapName, childModeStall, setup.env, setup.args()...)
+			waitForFile(t, setup.llmReady)
+			child.signal(t, tc.sig)
+
+			time.Sleep(ignoredSignalWindow)
+			if child.exited() {
+				t.Fatalf("the child exited after an ignored %v; stderr:\n%s", tc.sig, child.stderr.String())
+			}
+		})
+	}
+}
+
+// skipIfIgnored skips the test when this process was started with sig
+// ignored: a child inherits that, so the CLI rightly does not subscribe to it.
+func skipIfIgnored(t *testing.T, sig syscall.Signal) {
+	t.Helper()
+	if signal.Ignored(sig) {
+		t.Skipf("this test process ignores %v (for example as a background job or under nohup), so a child inherits that and does not subscribe to it", sig)
 	}
 }
 
 // TestSIGHUP sends SIGHUP to a child started with SIGHUP not ignored.
 func TestSIGHUP(t *testing.T) {
-	if signal.Ignored(syscall.SIGHUP) {
-		t.Skip("this test process ignores SIGHUP (for example under nohup), so a child inherits that and does not subscribe to it")
-	}
+	skipIfIgnored(t, syscall.SIGHUP)
 	tripwire, _ := transcripttestutil.NewTripwire(t, t.TempDir())
 	setup := newChildSetup(t, tripwire, true)
 	child := startCLIChild(t, childModeStall, setup.env, setup.args()...)
@@ -282,13 +329,10 @@ func TestSIGHUP(t *testing.T) {
 
 // TestSecondSignal stops the CLI in an LLM client that ignores its context.
 // After the first SIGTERM ends the context, a later SIGTERM must terminate the
-// process by the default disposition. SIGTERM is used because a shell starts
-// background jobs with SIGINT ignored, and dropping the subscription restores
-// that inherited disposition, not the default one.
+// process by the default disposition. SIGTERM is used because it is
+// subscribed even when this test process was started with SIGINT ignored.
 func TestSecondSignal(t *testing.T) {
-	if signal.Ignored(syscall.SIGTERM) {
-		t.Skip("this test process ignores SIGTERM, so a child inherits that and a second SIGTERM cannot terminate it")
-	}
+	skipIfIgnored(t, syscall.SIGTERM)
 	tripwire, _ := transcripttestutil.NewTripwire(t, t.TempDir())
 	setup := newChildSetup(t, tripwire, true)
 	child := startCLIChild(t, childModeIgnoreCtx, setup.env, setup.args()...)

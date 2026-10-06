@@ -167,7 +167,21 @@ type cliChild struct {
 // cleanup that kills and reaps the child is registered as soon as it starts.
 func startCLIChild(t *testing.T, mode string, env map[string]string, args ...string) *cliChild {
 	t.Helper()
-	cmd := exec.Command(os.Args[0], args...) //nolint:gosec // the test binary itself, re-run as the CLI
+	return startChildCommand(t, mode, env, exec.Command(os.Args[0], args...)) //nolint:gosec // the test binary itself, re-run as the CLI
+}
+
+// startCLIChildIgnoring is startCLIChild with signalName (a shell trap name
+// such as INT) ignored when the child starts, as a shell does for a
+// background job or nohup does for HUP. An ignored disposition survives exec.
+func startCLIChildIgnoring(t *testing.T, signalName, mode string, env map[string]string, args ...string) *cliChild {
+	t.Helper()
+	script := "trap '' " + signalName + `; exec "$0" "$@"`
+	return startChildCommand(t, mode, env, exec.Command("/bin/sh", append([]string{"-c", script, os.Args[0]}, args...)...)) //nolint:gosec // the test binary itself, re-run as the CLI
+}
+
+// startChildCommand starts cmd as a CLI child; see startCLIChild.
+func startChildCommand(t *testing.T, mode string, env map[string]string, cmd *exec.Cmd) *cliChild {
+	t.Helper()
 	cmd.Env = childEnv(mode, env)
 	cmd.WaitDelay = childWaitDelay
 	c := &cliChild{cmd: cmd, done: make(chan struct{})}
