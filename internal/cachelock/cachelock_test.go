@@ -193,6 +193,28 @@ func TestAcquireOtherFailures(t *testing.T) {
 	})
 }
 
+// TestLockError covers the flock(2) failure classification, whose non-held
+// branch a real file cannot reach on demand.
+func TestLockError(t *testing.T) {
+	path := lockPath("/cache")
+
+	held := lockError(path, syscall.EWOULDBLOCK)
+	if !errors.Is(held, ErrLocked) {
+		t.Fatalf("EWOULDBLOCK error = %v, want ErrLocked", held)
+	}
+	if !strings.Contains(held.Error(), path) {
+		t.Fatalf("error %q does not name the lock file %s", held, path)
+	}
+
+	other := lockError(path, syscall.ENOLCK)
+	if errors.Is(other, ErrLocked) {
+		t.Fatalf("ENOLCK error = %v, must not wrap ErrLocked", other)
+	}
+	if !errors.Is(other, syscall.ENOLCK) {
+		t.Fatalf("ENOLCK error = %v, the cause is lost", other)
+	}
+}
+
 func TestAcquireRejectsNonRegularLockFile(t *testing.T) {
 	t.Run("symbolic link", func(t *testing.T) {
 		dir := t.TempDir()
@@ -249,6 +271,9 @@ func TestAcquireRejectsNonRegularLockFile(t *testing.T) {
 			if r.err == nil {
 				t.Fatal("Acquire accepted a named pipe at the lock name")
 			}
+			if errors.Is(r.err, ErrLocked) {
+				t.Fatalf("err = %v, must not wrap ErrLocked", r.err)
+			}
 		case <-time.After(acquireBound):
 			// Opening the write side releases a reader blocked in open, so
 			// the goroutine ends before the test does.
@@ -304,9 +329,12 @@ func TestLockInheritedByChild(t *testing.T) {
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("start helper: %v", err)
 	}
+	waited := false
 	t.Cleanup(func() {
 		_ = cmd.Process.Kill()
-		_ = cmd.Wait()
+		if !waited {
+			_ = cmd.Wait()
+		}
 	})
 
 	// The child inherited the descriptor for the same open file description,
@@ -327,6 +355,7 @@ func TestLockInheritedByChild(t *testing.T) {
 	}
 	// Wait returns the kill signal for a process this test killed on purpose.
 	_ = cmd.Wait()
+	waited = true
 
 	acquired, err := Acquire(dir)
 	if err != nil {

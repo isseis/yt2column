@@ -78,12 +78,20 @@ func Acquire(dir string) (*Lock, error) {
 	}
 	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil { //nolint:gosec // the file descriptor is a non-negative integer within int range
 		_ = file.Close()
-		if errors.Is(err, syscall.EWOULDBLOCK) {
-			return nil, fmt.Errorf("%w: %s is held; if a previous run was killed while yt-dlp was running, check for it with lsof %s and wait for it or stop it before retrying", ErrLocked, path, path)
-		}
-		return nil, fmt.Errorf("lock %s: %w", path, err)
+		return nil, lockError(path, err)
 	}
 	return &Lock{file: file}, nil
+}
+
+// lockError classifies a flock(2) failure for path. EWOULDBLOCK means another
+// run holds the lock. Any other cause (no locks available, an invalid
+// descriptor) is reported as it is, so a caller does not mistake an I/O
+// failure for a concurrent run.
+func lockError(path string, err error) error {
+	if errors.Is(err, syscall.EWOULDBLOCK) {
+		return fmt.Errorf("%w: %s is held; if a previous run was killed while yt-dlp was running, check for it with lsof %s and wait for it or stop it before retrying", ErrLocked, path, path)
+	}
+	return fmt.Errorf("lock %s: %w", path, err)
 }
 
 // File returns the locked file so a child process can inherit the lock.
