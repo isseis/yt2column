@@ -4,6 +4,7 @@ package main
 
 import (
 	"errors"
+	"maps"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -107,8 +108,11 @@ func TestSignalDuringYtDlp(t *testing.T) {
 	for _, sig := range []syscall.Signal{syscall.SIGINT, syscall.SIGTERM} {
 		t.Run(sig.String(), func(t *testing.T) {
 			stopping := transcripttestutil.NewStopping(t, t.TempDir())
-			setup := newChildSetup(t, stopping.Script, false)
-			child := startCLIChild(t, childModeMain, setup.env, setup.args()...)
+			// A seeded cache and --refresh: yt-dlp still runs, and the
+			// cache must survive the interruption.
+			setup := newChildSetup(t, stopping.Script, true)
+			before := videoEntries(t, setup.cacheDir)
+			child := startCLIChild(t, childModeMain, setup.env, append([]string{"--refresh"}, setup.args()...)...)
 
 			waitForFile(t, stopping.Ready)
 			pids := []int{readPID(t, stopping.PID), readPID(t, stopping.ChildPID)}
@@ -122,6 +126,9 @@ func TestSignalDuringYtDlp(t *testing.T) {
 			}
 			for _, pid := range pids {
 				waitForProcessGone(t, pid, goneBound)
+			}
+			if after := videoEntries(t, setup.cacheDir); !slices.Equal(before, after) {
+				t.Errorf("the video's cache changed: before %v, after %v", before, after)
 			}
 		})
 	}
@@ -178,7 +185,7 @@ func TestSIGKILLWhileYtDlpRuns(t *testing.T) {
 			t.Errorf("stderr does not contain %q:\n%s", want, stderr)
 		}
 	}
-	if after := snapshotTree(t, setup.cacheDir); !equalSnapshots(cacheBefore, after) {
+	if after := snapshotTree(t, setup.cacheDir); !maps.Equal(cacheBefore, after) {
 		t.Errorf("the cache directory changed:\nbefore %v\nafter  %v", cacheBefore, after)
 	}
 	requireNoFile(t, e.tripwireMarker)
@@ -225,6 +232,12 @@ func TestSIGKILLWithoutYtDlp(t *testing.T) {
 	setup := newChildSetup(t, tripwire, true)
 	child := startCLIChild(t, childModeStall, setup.env, setup.args()...)
 	waitForFile(t, setup.llmReady)
+	if lock, err := cachelock.Acquire(setup.cacheDir); !errors.Is(err, cachelock.ErrLocked) {
+		if err == nil {
+			_ = lock.Close()
+		}
+		t.Fatalf("Acquire while the child generates = %v, want ErrLocked: the child must hold the lock when it is killed", err)
+	}
 	child.signal(t, syscall.SIGKILL)
 	child.wait(t)
 
@@ -268,26 +281,31 @@ func TestSIGHUP(t *testing.T) {
 }
 
 // TestSecondSignal stops the CLI in an LLM client that ignores its context.
-// After the first SIGINT ends the context, a later SIGINT must terminate the
-// process by the default disposition.
+// After the first SIGTERM ends the context, a later SIGTERM must terminate the
+// process by the default disposition. SIGTERM is used because a shell starts
+// background jobs with SIGINT ignored, and dropping the subscription restores
+// that inherited disposition, not the default one.
 func TestSecondSignal(t *testing.T) {
+	if signal.Ignored(syscall.SIGTERM) {
+		t.Skip("this test process ignores SIGTERM, so a child inherits that and a second SIGTERM cannot terminate it")
+	}
 	tripwire, _ := transcripttestutil.NewTripwire(t, t.TempDir())
 	setup := newChildSetup(t, tripwire, true)
 	child := startCLIChild(t, childModeIgnoreCtx, setup.env, setup.args()...)
 	waitForFile(t, setup.llmReady)
-	child.signal(t, syscall.SIGINT)
+	child.signal(t, syscall.SIGTERM)
 	waitForFile(t, setup.ctxDone)
 
 	// The subscription is dropped just after the context ends, so repeat the
 	// signal until the default disposition applies.
 	deadline := time.Now().Add(exitBound)
 	for !child.exited() && time.Now().Before(deadline) {
-		_ = child.cmd.Process.Signal(syscall.SIGINT)
+		_ = child.cmd.Process.Signal(syscall.SIGTERM)
 		time.Sleep(resendInterval)
 	}
 	state := child.wait(t)
 	status, ok := state.Sys().(syscall.WaitStatus)
-	if !ok || !status.Signaled() || status.Signal() != syscall.SIGINT {
-		t.Fatalf("exit status = %v, want termination by SIGINT\nstderr:\n%s", state, child.stderr.String())
+	if !ok || !status.Signaled() || status.Signal() != syscall.SIGTERM {
+		t.Fatalf("exit status = %v, want termination by SIGTERM\nstderr:\n%s", state, child.stderr.String())
 	}
 }

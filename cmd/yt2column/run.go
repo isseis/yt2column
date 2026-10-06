@@ -226,7 +226,9 @@ func usageError(errOut *stderrWriter, format string, args ...any) int {
 }
 
 // reportRunError reports a job.Run failure, naming the pipeline stage when
-// there is one, and adds the hint that matches the failure.
+// there is one, and adds the hint that matches the failure. A deadline is
+// attributed to the yt-dlp or LLM timeout by the failed stage; this holds
+// because the context run receives has no deadline of its own.
 func reportRunError(errOut *stderrWriter, err error) {
 	stageErr, isStage := errors.AsType[*pipeline.StageError](err)
 	if isStage {
@@ -241,7 +243,7 @@ func reportRunError(errOut *stderrWriter, err error) {
 	case errors.Is(err, context.DeadlineExceeded) && isStage && stageErr.Stage == pipeline.StageWrite:
 		errOut.line("%s: the LLM call timed out after the %s limit", programName, minutes(provider.LLMTimeout))
 	case errors.Is(err, context.Canceled):
-		errOut.line("%s: the run was interrupted; the cached transcript was kept", programName)
+		errOut.line("%s: the run was interrupted; the video's cache was not removed", programName)
 	}
 	if errors.Is(err, transcript.ErrParseSubtitles) || errors.Is(err, transcript.ErrParseInfo) {
 		errOut.line("%s: the cached transcript is invalid; run again with --refresh to fetch it again", programName)

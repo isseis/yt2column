@@ -156,10 +156,21 @@ func videoEntries(t *testing.T, cacheDir string) []string {
 	return entries
 }
 
+// removeVideoCache removes every cache entry of runVideoID.
+func removeVideoCache(t *testing.T, cacheDir string) {
+	t.Helper()
+	for _, entry := range videoEntries(t, cacheDir) {
+		if err := os.RemoveAll(filepath.Join(cacheDir, entry)); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 // requireSafeOutput checks what every path must satisfy: no secret or its
 // tail in standard output, standard error, or the --out file, and standard
-// error made only of the CLI's own lines with no raw escape character, so an
-// untrusted string cannot start a line or drive the terminal.
+// error made only of the CLI's own lines with no raw escape character. Rows
+// that inject no control character only exercise the CLI's own lines here;
+// TestRunEscapesUntrustedText injects them into each untrusted string.
 func requireSafeOutput(t *testing.T, stdout, stderr, outPath string) {
 	t.Helper()
 	outContent := ""
@@ -322,6 +333,17 @@ func executionPathRows() []pathRow {
 				}
 				if !strings.Contains(e.stderr.String(), e.outPath) {
 					t.Errorf("stderr does not name the --out path:\n%s", e.stderr.String())
+				}
+			},
+		},
+		{
+			name:       "success with --keep-cache",
+			setup:      func(_ *testing.T, e *runEnv) { e.args = []string{"--keep-cache", "--out", e.outPath, runVideoURL} },
+			wantCode:   exitOK,
+			wantStderr: []string{"wrote the article to"},
+			check: func(t *testing.T, e *runEnv) {
+				if len(videoEntries(t, e.cacheDir)) == 0 {
+					t.Error("the video's cache was removed despite --keep-cache")
 				}
 			},
 		},
@@ -554,9 +576,10 @@ func executionPathRows() []pathRow {
 				e.cacheDir = filepath.Join(parent, "cache")
 				e.env["YT2COLUMN_CACHE_DIR"] = e.cacheDir
 			},
-			wantCode:  exitFailure,
-			untouched: true,
-			check:     requireNotLocked,
+			wantCode:   exitFailure,
+			untouched:  true,
+			wantStderr: []string{"the run failed: create the cache directory"},
+			check:      requireNotLocked,
 		},
 		{
 			name: "lock file cannot be created",
@@ -564,9 +587,10 @@ func executionPathRows() []pathRow {
 				requireNonRoot(t)
 				chmodForTest(t, e.cacheDir, 0o500)
 			},
-			wantCode:  exitFailure,
-			untouched: true,
-			check:     requireNotLocked,
+			wantCode:   exitFailure,
+			untouched:  true,
+			wantStderr: []string{"the run failed: open the lock file"},
+			check:      requireNotLocked,
 		},
 		{
 			name:       "another run holds the lock",
@@ -587,6 +611,17 @@ func executionPathRows() []pathRow {
 					t.Fatal(err)
 				}
 				seedCache(t, e.cacheDir, runVideoID, `{"events":[`, infoFor(runVideoID))
+			},
+			wantCode:   exitFailure,
+			wantStderr: []string{"the transcript stage failed", "run again with --refresh"},
+		},
+		{
+			name: "invalid cached info.json",
+			setup: func(t *testing.T, e *runEnv) {
+				if err := os.RemoveAll(e.cacheDir); err != nil {
+					t.Fatal(err)
+				}
+				seedCache(t, e.cacheDir, runVideoID, validSubtitles, `{"id":`)
 			},
 			wantCode:   exitFailure,
 			wantStderr: []string{"the transcript stage failed", "run again with --refresh"},
@@ -655,16 +690,23 @@ func executionPathRows() []pathRow {
 				e.args = []string{"--refresh", "--out", e.outPath, runVideoURL}
 				ctx := newExpiringContext()
 				e.ctx = ctx
+				stop := make(chan struct{})
+				t.Cleanup(func() { close(stop) })
 				go func() {
 					// Expire once yt-dlp runs; expire anyway at the bound so
 					// the run cannot hang, and the row then fails on its
 					// expectations.
 					deadline := time.Now().Add(readyBound)
+				poll:
 					for time.Now().Before(deadline) {
 						if _, err := os.Stat(stopping.Ready); err == nil {
 							break
 						}
-						time.Sleep(pollInterval)
+						select {
+						case <-stop:
+							break poll
+						case <-time.After(pollInterval):
+						}
 					}
 					ctx.expire()
 				}()
@@ -695,10 +737,16 @@ func TestRunExecutionPaths(t *testing.T) {
 	for _, row := range executionPathRows() {
 		t.Run(row.name, func(t *testing.T) {
 			e := newRunEnv(t)
+			untouched := row.untouched || row.help || row.wantCode == exitUsage
+			if untouched {
+				// Without the video's cache, a run that wrongly reached the
+				// transcript stage would start the tripwire, so the "yt-dlp
+				// not started" check below can fail.
+				removeVideoCache(t, e.cacheDir)
+			}
 			if row.setup != nil {
 				row.setup(t, e)
 			}
-			untouched := row.untouched || row.help || row.wantCode == exitUsage
 			cacheBefore := snapshotTree(t, e.cacheDir)
 			outDirBefore := snapshotTree(t, filepath.Dir(e.outPath))
 			videoBefore := videoEntries(t, e.cacheDir)
@@ -707,7 +755,9 @@ func TestRunExecutionPaths(t *testing.T) {
 
 			stdout, stderr := e.stdout.String(), e.stderr.String()
 			if code != row.wantCode {
-				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, row.wantCode, stderr)
+				// Not fatal: the side-effect checks below show what a wrong
+				// path did.
+				t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, row.wantCode, stderr)
 			}
 			if row.help {
 				if !strings.Contains(stdout, "Usage: yt2column") {
@@ -724,7 +774,7 @@ func TestRunExecutionPaths(t *testing.T) {
 			requireSafeOutput(t, stdout, stderr, e.outPath)
 
 			if untouched {
-				if diff := snapshotTree(t, e.cacheDir); !equalSnapshots(cacheBefore, diff) {
+				if diff := snapshotTree(t, e.cacheDir); !maps.Equal(cacheBefore, diff) {
 					t.Errorf("the cache directory changed:\nbefore %v\nafter  %v", cacheBefore, diff)
 				}
 				if _, err := os.Lstat(e.tripwireMarker); err == nil {
@@ -737,7 +787,7 @@ func TestRunExecutionPaths(t *testing.T) {
 			switch {
 			case row.wantCode == exitFailure || untouched:
 				if !row.keepsTempFile {
-					if after := snapshotTree(t, filepath.Dir(e.outPath)); !equalSnapshots(outDirBefore, after) {
+					if after := snapshotTree(t, filepath.Dir(e.outPath)); !maps.Equal(outDirBefore, after) {
 						t.Errorf("the --out directory changed:\nbefore %v\nafter  %v", outDirBefore, after)
 					}
 				}
@@ -757,19 +807,6 @@ func TestRunExecutionPaths(t *testing.T) {
 			}
 		})
 	}
-}
-
-// equalSnapshots reports whether two snapshotTree results are equal.
-func equalSnapshots(a, b map[string]string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for name, value := range a {
-		if other, ok := b[name]; !ok || other != value {
-			return false
-		}
-	}
-	return true
 }
 
 // TestRunHelp checks the usage in detail: every flag of the CLI is listed,
@@ -917,5 +954,18 @@ func TestRunGODEBUGWarning(t *testing.T) {
 			}
 			requireSafeOutput(t, e.stdout.String(), e.stderr.String(), e.outPath)
 		})
+	}
+}
+
+// TestNewFilePublisherNilOnFailure checks that the production publisher
+// constructor returns a nil interface, not a typed nil, when construction
+// fails, so a caller comparing the result with nil is not misled.
+func TestNewFilePublisherNilOnFailure(t *testing.T) {
+	p, err := newFilePublisher("")
+	if err == nil {
+		t.Fatal("newFilePublisher(\"\") succeeded, want an error")
+	}
+	if p != nil {
+		t.Fatalf("newFilePublisher(\"\") = %#v, want a nil interface", p)
 	}
 }
