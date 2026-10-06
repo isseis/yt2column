@@ -535,18 +535,20 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 -   変更: 本計画（ステップ 9-5・9-6 の記録）
 
 **タスク**
--   [ ] **ステップ 9-1**: `README.md` に、要件書 F-010 の README の項目すべてと、記事のファイルのパーミッション `0o644`、出力先のディレクトリにハードリンクを作れる必要があること（設計書 3.5・3.12）を書く。終了コードは見出し付きの表にする。`Configuration` の表に未設定のときの値の列を加える。`Development` の一覧と統合テストの節に `make test-integration-cli` を加える。
--   [ ] **ステップ 9-2**: `project_overview.md` の「設定（環境変数）」の表に、F-001 の未設定のときの値を反映する。
--   [ ] **ステップ 9-3**: `security.md` §2 に、CLI は `GODEBUG` の `http2debug` を拒否せず警告にとどめることを書く。実在の API キーを使う統合テストの例外に `cmd/yt2column/integration_test.go` と `make test-integration-cli`・`YT2COLUMN_CLI_INTEGRATION` を加えることは、課金の経路を加える PR-11 で行った（PR-11 のレビューで、§2 が課金の経路を 1 つとする記述のままでは事実と食い違うと指摘されたため）。
--   [ ] **ステップ 9-4**: 文書の記載を確かめるテストを作る（AC-43・AC-32・AC-33 の `static`）。期待する値は要件書（F-001 の表の未設定のときの値など）から取り、テストの対象のコードから導かない。
+-   [x] **ステップ 9-1**: `README.md` に、要件書 F-010 の README の項目すべてと、記事のファイルのパーミッション `0o644`、出力先のディレクトリにハードリンクを作れる必要があること（設計書 3.5・3.12）を書く。終了コードは見出し付きの表にする。`Configuration` の表に未設定のときの値の列を加える。`Development` の一覧と統合テストの節に `make test-integration-cli` を加える。
+-   [x] **ステップ 9-2**: `project_overview.md` の「設定（環境変数）」の表に、F-001 の未設定のときの値を反映する。
+-   [x] **ステップ 9-3**: `security.md` §2 に、CLI は `GODEBUG` の `http2debug` を拒否せず警告にとどめることを書く。実在の API キーを使う統合テストの例外に `cmd/yt2column/integration_test.go` と `make test-integration-cli`・`YT2COLUMN_CLI_INTEGRATION` を加えることは、課金の経路を加える PR-11 で行った（PR-11 のレビューで、§2 が課金の経路を 1 つとする記述のままでは事実と食い違うと指摘されたため）。
+-   [x] **ステップ 9-4**: 文書の記載を確かめるテストを作る（AC-43・AC-32・AC-33 の `static`）。期待する値は要件書（F-001 の表の未設定のときの値など）から取り、テストの対象のコードから導かない。
     -   `cmd/yt2column/docs_test.go::TestREADMEDocumentsCLI`: 要件書 F-010 の README の項目すべてが README に現れること。対象は、呼び出し形式（`yt2column [flags] <動画 URL>` の形）、`run` の `flag.FlagSet` のすべてのフラグ、終了コードの表の `0`・`1`・`2` の行、`Configuration` の表の要件書 F-001 の 6 つの変数の行と、各行の未設定のときの値が F-001 の表の値と一致すること、同時実行は排他され後発が失敗することの案内、SIGKILL で終了させた場合に `yt-dlp` が残りうり、その終了まで次の実行が同時実行として失敗することの案内、キャッシュの内容が不正な場合に `--refresh` で回復できることの案内、統合テストの実行方法（`make test-integration-cli`）である。
     -   `cmd/yt2column/docs_test.go::TestProjectOverviewDocumentsConfig`: `project_overview.md` の「設定（環境変数）」の表に 6 つの変数の行があり、各行の未設定のときの値が F-001 の表の値と一致すること。
     -   `cmd/yt2column/docs_test.go::TestSecurityDocumentsCLIIntegration`: `security.md` §2 が `test-integration-cli`・`YT2COLUMN_CLI_INTEGRATION`・`http2debug` の警告を含むこと。
     -   `cmd/yt2column/docs_test.go::TestPlanRecordsManualRuns`（AC-32・AC-33）: 本計画にステップ 9-5・9-6 が完了条件として存在し、チェック済み（`[x]`）のステップには、使用した動画 URL と結果の記録があること。実際の実行が行われたことそのものは確かめられないので、ステップ 9-5・9-6 の `manual` で補う。
     -   `internal/pipeline/pipeline_test.go::TestPackageReferenceListsPackages`: `cmd/`・`internal/` の下の、本番のコード（`_test.go` でなく、テスト用のタグだけでビルドされるのでもない `.go`。`//go:build unix` の `internal/cachelock` を含む）を持つディレクトリ、`testutil/` のディレクトリ、`prompts` が、`package_reference.md` の表の行になっていること（リポジトリ全体のガードなので、既存のガードと同じファイルに置く）。
--   [ ] **ステップ 9-5**（AC-32、手動、利用者の承認が必要）: 日本語字幕のある実際の動画 1 本で CLI を実行し、記事が `--out` のファイルに書き出されることを確かめる。使用した動画 URL と結果（終了コード、出力のファイルの見出し、`Model`）を本ステップの下に記録する。
--   [ ] **ステップ 9-6**（AC-33、手動、利用者の承認が必要）: ステップ 9-5 と同じ動画に `--keep-cache` を付けて 1 回実行してキャッシュを残した後、`--refresh` を付けて実行し、`yt-dlp` が再実行されたことを、キャッシュのポインタが指すスロットの切り替わり（`a` ↔ `b`）で確かめる。各実行の `--out` には、まだ存在しない別のパスを指定する。使用した動画 URL と結果を本ステップの下に記録する。
--   [ ] **ステップ 9-7**: 文書の内容を実装と突き合わせて読む。突き合わせる先: フラグの定義（`run.go`）、未設定のときの値（`internal/config` の `cachedir.go` と `Load`）、終了コード（設計書 3.8 の実行経路の一覧）、同時実行・SIGKILL・`--refresh` の説明（`internal/cachelock`・`internal/job` の振る舞いとステップ 7-8 のテスト）、`Makefile` のターゲット。壊して失敗することを確かめ（README からフラグを 1 つ消す、終了コードの表の行を消す、README から同時実行・SIGKILL・`--refresh` の案内を 1 つずつ消す、README と `project_overview.md` の未設定のときの値を 1 つ書き換える、`package_reference.md` から行を 1 つ消す、チェック済みにしたステップ 9-5 の記録を消す）、コミットメッセージに記録する。`make fmt` → `make test` → `make lint` を通す。
+-   [x] **ステップ 9-5**（AC-32、手動、利用者の承認が必要）: 日本語字幕のある実際の動画 1 本で CLI を実行し、記事が `--out` のファイルに書き出されることを確かめる。使用した動画 URL と結果（終了コード、出力のファイルの見出し、`Model`）を本ステップの下に記録する。
+    -   実施: 2026-10-07。動画 URL: `https://www.youtube.com/watch?v=2tcCWM-sRBw`。結果: 終了コード `0`。`--out` のファイル（パーミッション `0o644`）の見出しは「ことばを越えて届くもの——ネパール人留学生たちの日本語スピーチコンテスト」、`Model` は `deepseek-flash`、`ModelVersion` は `aeb56401ca74e127821c4f9126dcb669`。標準出力・標準エラー出力・記事のいずれにも API キーの値と末尾 8 文字は現れなかった。
+-   [x] **ステップ 9-6**（AC-33、手動、利用者の承認が必要）: ステップ 9-5 と同じ動画に `--keep-cache` を付けて 1 回実行してキャッシュを残した後、`--refresh` を付けて実行し、`yt-dlp` が再実行されたことを、キャッシュのポインタが指すスロットの切り替わり（`a` ↔ `b`）で確かめる。各実行の `--out` には、まだ存在しない別のパスを指定する。使用した動画 URL と結果を本ステップの下に記録する。
+    -   実施: 2026-10-07。動画 URL: `https://www.youtube.com/watch?v=2tcCWM-sRBw`。1 回目（`--keep-cache`、`--out` は未存在パス）の終了コードは `0` で、ポインタ（`2tcCWM-sRBw.current`）は `a`。2 回目（`--refresh --keep-cache`、別の未存在パス）の終了コードも `0` で、ポインタは `b` に切り替わり、`yt-dlp` が再実行されたことを確認した。結果の記事の見出し・`Model` は 1 回目と同じ。
+-   [x] **ステップ 9-7**: 文書の内容を実装と突き合わせて読む。突き合わせる先: フラグの定義（`run.go`）、未設定のときの値（`internal/config` の `cachedir.go` と `Load`）、終了コード（設計書 3.8 の実行経路の一覧）、同時実行・SIGKILL・`--refresh` の説明（`internal/cachelock`・`internal/job` の振る舞いとステップ 7-8 のテスト）、`Makefile` のターゲット。壊して失敗することを確かめ（README からフラグを 1 つ消す、終了コードの表の行を消す、README から同時実行・SIGKILL・`--refresh` の案内を 1 つずつ消す、README と `project_overview.md` の未設定のときの値を 1 つ書き換える、`package_reference.md` から行を 1 つ消す、チェック済みにしたステップ 9-5 の記録を消す）、コミットメッセージに記録する。`make fmt` → `make test` → `make lint` を通す。
 
 ### PR-12 作成ポイント: documentation and manual verification
 

@@ -22,6 +22,54 @@ URL → TranscriptSource → Transcript → ArticleWriter → Article → Publis
   [Setting up yt-dlp](#setting-up-yt-dlp)
 - A DeepSeek API key and a Slack Incoming Webhook URL
 
+## Usage
+
+```
+yt2column [flags] <video URL>
+```
+
+Flags must come before the video URL. `--out` is required and must be a path
+outside the cache directory.
+
+| Flag | Meaning |
+|---|---|
+| `--out <path>` | File to write the article to. Required. It must not exist, its parent directory must exist, and it must be outside the cache directory. |
+| `--refresh` | Ignore the cached transcript, run `yt-dlp` again, and replace the cache. |
+| `--keep-cache` | Keep this video's cache after a successful run. |
+| `--system-prompt <path>` | Read the system prompt template from this file instead of the built-in one. |
+| `--user-prompt <path>` | Read the user prompt template from this file instead of the built-in one. |
+| `-h`, `--help` | Show this usage and exit. |
+
+The article is written with file mode `0o644`. The output directory must allow
+creating a hard link: publishing uses `link(2)`, so an output path on a
+filesystem without hard-link support cannot be used, and a failed link leaves
+the finished article in a temporary file next to the output path (the path is
+printed to standard error).
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | The article was written. Warnings about cache cleanup do not change this. `-h`/`--help` also exits `0`. |
+| `1` | A run failure: fetching the transcript, generating the article, or publishing failed; another run held the cache directory; or the run was interrupted. |
+| `2` | A usage or configuration error: bad arguments or video URL, a rejected environment variable, or a stage that could not be built. |
+
+## Cache and concurrency
+
+Every run takes an exclusive lock on the cache directory, so runs that share a
+cache directory are serialized: a second run fails immediately, without waiting,
+while the first holds the lock. Different cache directories do not affect each
+other.
+
+If the CLI is killed with SIGKILL, `yt-dlp` may keep running. The lock stays held
+until that `yt-dlp` exits, so until then the next run fails as a concurrent run
+(the message names the lock file and suggests `lsof` on it); it succeeds once
+the leftover `yt-dlp` has exited.
+
+If the cache is corrupt (for example a truncated transcript or `info.json`), the
+run fails with a message saying so. Run again with `--refresh` to fetch the
+transcript again and replace the cache.
+
 ## Setting up yt-dlp
 
 yt2column fetches subtitles by running `yt-dlp`, which needs to reach YouTube
@@ -53,14 +101,17 @@ On other platforms, see the yt-dlp
 
 ## Configuration
 
-| Variable | Description |
-|---|---|
-| `YT2COLUMN_LLM_PROVIDER` | `deepseek` (default) |
-| `YT2COLUMN_MODEL` | LLM model name (e.g. `deepseek-flash`) |
-| `DEEPSEEK_API_KEY` | DeepSeek API key |
-| `SLACK_WEBHOOK_URL` | Slack Incoming Webhook URL |
-| `YT2COLUMN_CACHE_DIR` | Cache directory for subtitles and video metadata |
-| `YT2COLUMN_YTDLP_PATH` | Path to `yt-dlp` (defaults to the one on `PATH`) |
+| Variable | Description | When unset |
+|---|---|---|
+| `YT2COLUMN_LLM_PROVIDER` | LLM provider; only `deepseek` is accepted | `deepseek` |
+| `YT2COLUMN_MODEL` | LLM model name (e.g. `deepseek-flash`) | Required (an error) |
+| `DEEPSEEK_API_KEY` | DeepSeek API key | Required when the provider is `deepseek` (an error) |
+| `SLACK_WEBHOOK_URL` | Slack Incoming Webhook URL | Optional (no value) |
+| `YT2COLUMN_CACHE_DIR` | Cache directory for subtitles and video metadata | `$HOME/Library/Caches/yt2column` on macOS; `$XDG_CACHE_HOME/yt2column` or `$HOME/.cache/yt2column` on other Unix |
+| `YT2COLUMN_YTDLP_PATH` | Path to `yt-dlp` | `yt-dlp` on `PATH` |
+
+The value of an environment variable is never trimmed or otherwise corrected;
+an empty value is treated as set and rejected, not as unset.
 
 ## Development
 
@@ -71,6 +122,7 @@ make lint    # golangci-lint (pinned version)
 make fmt     # gofumpt on changed files
 make test-integration  # real yt-dlp + network; see below
 make test-integration-deepseek  # real DeepSeek API; see below
+make test-integration-cli  # the CLI with the real DeepSeek API; see below
 ```
 
 Development follows a requirements → architecture → implementation-plan process
@@ -105,3 +157,13 @@ the test skips with a message naming the variable, so a plain
 `go test -tags integration` or an IDE run does not call the API. A run makes two
 generations — an ordinary one and one truncated by `MaxOutputTokens` — each
 bounded by a 15-minute timeout, so it can take a few minutes under API load.
+
+### CLI integration test
+
+`make test-integration-cli` runs the CLI's own assembly from a seeded transcript
+cache to the `--out` file, calling the real DeepSeek API (so it incurs charges)
+and never starting `yt-dlp`. Like the DeepSeek integration test it reads
+`YT2COLUMN_TEST_DEEPSEEK_API_KEY`, defaults `YT2COLUMN_MODEL` to `deepseek-flash`
+when undefined, and exports its opt-in variable `YT2COLUMN_CLI_INTEGRATION=1`
+for its target alone; unlike it, a missing test API key fails the test rather
+than skipping it, so an opted-in run cannot pass without calling the API.

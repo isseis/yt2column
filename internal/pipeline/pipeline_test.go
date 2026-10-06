@@ -558,6 +558,95 @@ func TestFakesCarryBuildTag(t *testing.T) {
 	}
 }
 
+// TestPackageReferenceListsPackages checks that package_reference.md lists every
+// package with production code under cmd/ and internal/ (a file that is neither
+// a _test.go file nor built only with the test tags, so an OS-constrained file
+// such as internal/cachelock's counts), every testutil package, and prompts.
+func TestPackageReferenceListsPackages(t *testing.T) {
+	const root = "../.."
+	found := map[string]bool{}
+	add := func(dir string) {
+		rel, err := filepath.Rel(root, dir)
+		if err != nil {
+			t.Fatalf("relative path of %s: %v", dir, err)
+		}
+		found[filepath.ToSlash(rel)] = true
+	}
+	for _, base := range []string{"cmd", "internal"} {
+		err := filepath.WalkDir(filepath.Join(root, base), func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() {
+				if slices.Contains(strings.Split(filepath.ToSlash(path), "/"), "testutil") {
+					add(path)
+				}
+				return nil
+			}
+			if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+				return nil
+			}
+			if isTestOnlySource(t, path) {
+				return nil
+			}
+			add(filepath.Dir(path))
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("walk %s: %v", base, err)
+		}
+	}
+	add(filepath.Join(root, "prompts"))
+	if len(found) == 0 {
+		t.Fatal("found no packages with production code")
+	}
+
+	doc, err := os.ReadFile("../../docs/dev/developer_guide/package_reference.md")
+	if err != nil {
+		t.Fatalf("read package_reference.md: %v", err)
+	}
+	listed := packageReferenceRows(string(doc))
+	var missing []string
+	for pkg := range found {
+		if !listed[pkg] {
+			missing = append(missing, pkg)
+		}
+	}
+	if len(missing) > 0 {
+		slices.Sort(missing)
+		t.Errorf("package_reference.md has no row for: %v", missing)
+	}
+}
+
+// isTestOnlySource reports whether a Go file is built only with the test tags,
+// so it is a test helper rather than production code. An OS constraint such as
+// //go:build unix is production code.
+func isTestOnlySource(t *testing.T, path string) bool {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	first, _, _ := strings.Cut(string(data), "\n")
+	return first == "//go:build test" || first == "//go:build test || integration"
+}
+
+// packageReferenceRows returns the package name (the first code span) of every
+// table row in package_reference.md.
+func packageReferenceRows(doc string) map[string]bool {
+	rows := map[string]bool{}
+	for line := range strings.Lines(doc) {
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmed, "|") {
+			continue
+		}
+		if m := backtickPattern.FindStringSubmatch(trimmed); m != nil {
+			rows[m[1]] = true
+		}
+	}
+	return rows
+}
+
 // TestPromptsREADMEMatchesContract checks that prompts/README.md states the
 // template contract internal/writer enforces: the names a template may
 // reference, the builtin functions it may call, and the template and prompt
