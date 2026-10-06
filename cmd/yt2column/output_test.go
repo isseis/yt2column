@@ -7,6 +7,9 @@ import (
 	"testing"
 )
 
+// TestSanitize verifies that sanitize redacts secret values, their exposed
+// tails, and the escaped spelling of both, and escapes non-printable input,
+// including cases where the marker itself would collide with a secret.
 func TestSanitize(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -144,6 +147,9 @@ func TestSanitize(t *testing.T) {
 	}
 }
 
+// TestSanitizeSecretOfEveryPrintableByte verifies that, for a secret holding
+// every printable ASCII byte, the chosen marker is printable and no protected
+// value survives in the output.
 func TestSanitizeSecretOfEveryPrintableByte(t *testing.T) {
 	var secret []byte
 	for b := byte(0x20); b <= 0x7e; b++ {

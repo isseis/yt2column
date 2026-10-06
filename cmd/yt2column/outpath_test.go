@@ -16,6 +16,9 @@ func joinRaw(base string, parts ...string) string {
 	return strings.Join(append([]string{base}, parts...), string(os.PathSeparator))
 }
 
+// TestOutPathInsideCacheDir verifies the containment check across an existing
+// and a missing cache directory, symbolic links and aliases, ".." components,
+// non-directory components, and an unsearchable directory on the way to --out.
 func TestOutPathInsideCacheDir(t *testing.T) {
 	t.Run("existing cache directory", func(t *testing.T) {
 		base := t.TempDir()
@@ -153,6 +156,8 @@ func TestOutPathInsideCacheDir(t *testing.T) {
 	})
 }
 
+// TestOutPathInsideCacheDirCaseVariant verifies that an existing case variant
+// of the missing cache tail is recognized on a case-sensitive filesystem.
 func TestOutPathInsideCacheDirCaseVariant(t *testing.T) {
 	base := t.TempDir()
 	cache := filepath.Join(base, "cache")
@@ -170,6 +175,9 @@ func TestOutPathInsideCacheDirCaseVariant(t *testing.T) {
 	}
 }
 
+// TestIsAncestorFollowsAliases verifies that isAncestor and pathFrom compare
+// directories by file identity, so a descendant reached through an alias such
+// as a symbolic link is still recognized.
 func TestIsAncestorFollowsAliases(t *testing.T) {
 	base := t.TempDir()
 	cache := filepath.Join(base, "cache")
