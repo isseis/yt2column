@@ -30,7 +30,11 @@ around it with your own shell commands. Work in order; do not skip a step.
    branch's PR). It requires the PR to be open, fetches `origin`, waits for CI
    (`gh pr checks --watch --fail-fast`), and writes `state.json`, `log.txt`
    (every commit message in full), `stat.txt`, and `body.txt` (the PR
-   description) into a temporary directory it prints.
+   description) into a fresh work directory inside the active checkout, which it
+   prints: `.git/mergepr-*` under the repository's git directory in the primary
+   checkout, or `mergepr-*` at the worktree root in a linked worktree. The
+   material stays inside the checkout, so no access outside the working tree is
+   needed.
 2. **Draft the squash commit message.** Read `log.txt`, `stat.txt`, and
    `body.txt`. When those are not enough to determine a file's final change, read
    its patch with `git diff origin/<baseRefName>...<headRefOid> -- <path>` from
@@ -75,13 +79,16 @@ around it with your own shell commands. Work in order; do not skip a step.
    `mergepr merge --state <state-file> --subject-file <subject-file> --body-file <body-file>`.
    It requires the PR to be still open on the prepared base, then merges with
    `--match-head-commit <headRefOid>`, so GitHub refuses the merge if the head
-   moved after `prepare` (re-run from step 1 in that case). Then it cleans up:
+   moved after `prepare`. In that case the preparation can no longer be used:
+   discard it with `mergepr discard --state <state-file>` so its material does
+   not linger inside the checkout, then re-run from step 1. Then it cleans up:
    it fast-forwards the local base branch from `origin/<baseRefName>` and deletes
    the local head branch only while it still points at `headRefOid` (and stops
    without touching local branches if the merged head is not `headRefOid`). When
    another worktree has the base branch checked out, it leaves the local
-   branches alone and prints a note instead. If the merge or cleanup stops after
-   the PR was merged, fix the reported cause and run
+   branches alone and prints a note instead. A successful cleanup removes the
+   prepared work directory. If the merge or cleanup stops after the PR was
+   merged, fix the reported cause and run
    `mergepr cleanup --state <state-file>`.
 5. **Report** the merge commit, what the cleanup did (including any note), and,
    when the PR came from `/runplan`, that the next step is `/runplan`'s PR

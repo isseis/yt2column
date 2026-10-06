@@ -56,7 +56,7 @@ flowchart TD
     classDef enhanced fill:#e8f5e8,stroke:#2e8b57,stroke-width:2px,color:#006400;
 
     Start(["/mergepr [PR]"]) --> Prepare["mergepr prepare<br>PR が OPEN か確認<br>git fetch origin<br>CI 完了を待つ"]
-    Prepare --> Files[("一時ディレクトリ<br>state.json / log.txt<br>stat.txt / body.txt")]
+    Prepare --> Files[("作業ディレクトリ<br>state.json / log.txt<br>stat.txt / body.txt")]
     Files --> Draft["メッセージの下書き<br>（Claude）"]
     Draft --> Approve{"開発者が承認?"}
     Approve -->|"修正依頼"| Draft
@@ -94,12 +94,13 @@ Claude は `prepare` を実行してメッセージを下書きし、PR の URL�
 
 ### 5.2 手動で使う
 
-各サブコマンドは単独でも実行できる。`merge` と `cleanup` は PR を `state.json` から決めるため、位置引数を渡すと usage エラーで止まる。
+各サブコマンドは単独でも実行できる。`merge`、`cleanup`、`discard` は `state.json` を入力に取るため、位置引数を渡すと usage エラーで止まる。
 
 ```sh
 mergepr prepare [PR]
 mergepr merge --state FILE --subject-file FILE --body-file FILE
 mergepr cleanup --state FILE
+mergepr discard --state FILE
 ```
 
 #### `prepare [PR]`
@@ -109,11 +110,13 @@ PR を引数なし（現在のブランチ）、番号、URL のいずれかで�
 1. PR が OPEN であることを確認する。
 2. `git fetch origin` を実行する。
 3. `gh pr checks --watch --fail-fast` で CI の完了を待つ。失敗したチェックがあれば止まる。
-4. 一時ディレクトリを作成し、次のファイルを書き出す。
+4. 作業中のチェックアウト内に新しい作業ディレクトリを作成し、次のファイルを書き出す。本体のチェックアウトではリポジトリの git ディレクトリ配下（`.git/mergepr-*`）に、git ディレクトリが本体側にある worktree では worktree のルートに `mergepr-*` ディレクトリを作る。材料をチェックアウト内に保つことで、作業ツリーの外に触れずに済む。作業ディレクトリを作る場所のパスに改行（LF または CR）が含まれる場合、`dir:` と `state:` の行出力で曖昧さなく表せないため、`prepare` はディレクトリを作らずにエラーで止まる。
+   ファイルの書き出しに失敗した場合、`prepare` は作業ディレクトリを削除し直すため、書きかけのディレクトリは残らない。
+   `merge`、`cleanup`、`discard` が削除するのは、`state.json` 自身のあるディレクトリで、かつ `prepare` が生成した `mergepr-` 接頭辞の名前を持つものだけである。改ざんされた状態ファイルがチェックアウト本体を指していても何も削除しない。
 
 | ファイル | 内容 |
 |---|---|
-| `state.json` | PR 番号、head ブランチ名と OID、base ブランチ名、タイトル、URL。後続の `merge` と `cleanup` はこの値を使う |
+| `state.json` | PR 番号、head ブランチ名と OID、base ブランチ名、タイトル、URL、準備した作業ディレクトリのパス。後続の `merge` と `cleanup` はこの値を使う |
 | `log.txt` | `origin/<base>..<headOID>` の全コミットメッセージ |
 | `stat.txt` | `origin/<base>...<headOID>` の diff stat |
 | `body.txt` | PR の説明文 |
@@ -126,8 +129,8 @@ url:   https://github.com/isseis/yt2column/pull/42
 head:  feature/foo at 2222222222222222222222222222222222222222
 base:  main
 CI:    all checks passed
-dir:   /var/folders/.../mergepr-123456 (state.json, log.txt, stat.txt, body.txt)
-state: /var/folders/.../mergepr-123456/state.json
+dir:   /repo/.git/mergepr-123456 (state.json, log.txt, stat.txt, body.txt)
+state: /repo/.git/mergepr-123456/state.json
 ```
 
 材料で足りないときは、リポジトリのルートで次を実行して個別ファイルの差分を見る。
@@ -156,6 +159,7 @@ git diff origin/<base>...<headOID> -- <path>
    - それ以外なら、`git switch <base>` で切り替える。
 4. `git merge --ff-only origin/<base>` で base を最新にする。
 5. ローカルの head ブランチが `headOID` を指しているときだけ `git branch -D` で削除する。ブランチが無ければ何もしない。
+6. 片付けが終わったら、準備した作業ディレクトリを削除する。エラーで止まった場合は、`cleanup` を再実行できるようディレクトリを残す。
 
 結果の出力例:
 
@@ -164,6 +168,10 @@ merge commit:         3333333333333333333333333333333333333333
 base branch updated:  true
 local branch deleted: true
 ```
+
+#### `discard --state FILE`
+
+PR のマージを必要とせず、PR やローカルのブランチにも触れずに、準備した作業ディレクトリを削除する。head がマージ前に動いた場合など、準備を使えなくなったときに使う。材料をチェックアウト内に残さないためのコマンドである。`merge` と `cleanup` と同様に、削除するのは `state.json` が記録しているディレクトリだけであり、それは state ファイルを収めているディレクトリでもある。state ファイルを別の場所へ移動・コピーしていると別のディレクトリを指すため、`discard` は何も削除せずエラーで止まる。片付けが未完了の準備の削除には使わない。PR がマージ済みで `cleanup` が途中で止まった場合、base と head の片付けに state ファイルが要るため、表示された `cleanup` を先に実行する。
 
 ### 5.3 worktree で使う場合
 
@@ -211,15 +219,16 @@ note: main is checked out in another worktree; update it there and remove this w
 | `squash subject is not a non-empty single line` | `merge` | 件名ファイルが空、または複数行 | 件名ファイルを直して `merge` を再実行する |
 | `PR is not open: ... run mergepr cleanup` | `merge` | 前回の実行で既にマージされている | 表示された `mergepr cleanup --state ...` を実行する |
 | `PR base changed after prepare` | `merge` | PR の base が変更された | `prepare` からやり直す |
-| `merge PR: ...` | `merge` | head が `prepare` 後に動いた、ブランチ保護に引っかかった、など | head が動いたなら `prepare` からやり直す。PR がマージ済みなら表示された `cleanup` を実行する |
+| `merge PR: ...` | `merge` | head が `prepare` 後に動いた、ブランチ保護に引っかかった、など | head が動いたなら、使えなくなった準備を `mergepr discard --state ...` で破棄してから `prepare` からやり直す。PR がマージ済みなら表示された `cleanup` を実行する |
 | `PR is not merged` | `cleanup` | まだマージされていない | マージを確認してから再実行する |
 | `switch to <base>: ...` | `cleanup` | 未コミット変更が衝突した、など | 作業ツリーを整理して `cleanup` を再実行する |
 | `fast-forward <base>: ...` | `cleanup` | ローカルの base に `origin` に無いコミットがある | base のコミットを整理して `cleanup` を再実行する |
 | `local head branch moved after prepare; not deleted` | `cleanup` | `prepare` 後にローカル head ブランチへコミットした | そのコミットが必要か確認し、不要ならブランチを手動で削除する |
 | `PR merged a different head than prepared` | `cleanup` | `prepare` 後に head が force-push され、その head がマージされた | ローカル head ブランチに PR に含まれなかったコミットが無いか確認し、base の更新とブランチの削除を手動で行う |
-| `invalid state` | `merge`、`cleanup` | `--state` に `prepare` が書いたファイル以外を指定した | `prepare` が表示したパスを指定する |
+| `invalid state` | `merge`、`cleanup`、`discard` | `--state` に `prepare` が書いたファイル以外を指定した | `prepare` が表示したパスを指定する |
+| `state file does not name a generated work directory it lives in` | `discard` | `--state` が、`prepare` が作ったディレクトリの外へ移動・コピーされた state ファイルを指している、またはそのディレクトリ名が `mergepr-` 接頭辞を持たない | `prepare` が表示したパスを指定する。安全と分かっているなら準備したディレクトリを自分で削除する |
 
-`merge` は取り消せない段階である。その後に止まっても、マージ自体は完了していることがある。GitHub で PR の状態を確認し、マージ済みなら `cleanup` で片付けを再開する。`state.json` は一時ディレクトリにあるため、片付けが終わるまで削除しない。
+`merge` は取り消せない段階である。その後に止まっても、マージ自体は完了していることがある。GitHub で PR の状態を確認し、マージ済みなら `cleanup` で片付けを再開する。`state.json` はチェックアウト内の作業ディレクトリ（本体のチェックアウトでは `.git/mergepr-*`、worktree では `mergepr-*`）にあるため、片付けが終わるまで削除しない。片付けが成功すると、ツールがディレクトリを削除する。使えなくなった準備（head がマージ前に動いた場合など）は、チェックアウト内に残さず `discard` で削除する。
 
 ## 8. ツールを変更する場合
 

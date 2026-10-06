@@ -24,10 +24,17 @@ const (
 	openState   = "OPEN"
 	mergedState = "MERGED"
 
-	stateFileName = "state.json"
-	logFileName   = "log.txt"
-	statFileName  = "stat.txt"
-	bodyFileName  = "body.txt"
+	stateFileName  = "state.json"
+	logFileName    = "log.txt"
+	statFileName   = "stat.txt"
+	bodyFileName   = "body.txt"
+	markerFileName = "marker"
+
+	// markerContent is written to markerFileName so removal can tell a directory
+	// Prepare created from one that merely shares its name prefix.
+	markerContent = "mergepr work directory\n"
+
+	workDirPrefix = "mergepr-"
 
 	fileMode = 0o600
 
@@ -60,7 +67,9 @@ func (t *Tool) gh(ctx context.Context, args ...string) ([]byte, error) {
 }
 
 // State pins the values Prepare saw, so Merge and Cleanup act on the same PR,
-// head, and base.
+// head, and base. WorkDir is the absolute path of the directory Prepare
+// created; Merge and Cleanup use it to confirm that the directory holding the
+// state file is the one Prepare made before removing it.
 type State struct {
 	Number      int    `json:"number"`
 	HeadRefName string `json:"headRefName"`
@@ -68,6 +77,7 @@ type State struct {
 	BaseRefName string `json:"baseRefName"`
 	Title       string `json:"title"`
 	URL         string `json:"url"`
+	WorkDir     string `json:"workDir"`
 }
 
 func (s State) number() string { return strconv.Itoa(s.Number) }
@@ -88,10 +98,19 @@ type Report struct {
 	Note string
 }
 
+// writeFile is a variable only so a test can force a write failure after the
+// work directory exists; production always uses os.WriteFile.
+var writeFile = os.WriteFile
+
+// removeAllDir is a variable only so a test can force a removal failure after
+// the work directory exists; production always uses os.RemoveAll.
+var removeAllDir = os.RemoveAll
+
 // Prepare resolves the PR (the current branch's when prArg is empty), waits for
-// CI, and writes the state and drafting material into a fresh temporary
-// directory.
-func (t *Tool) Prepare(ctx context.Context, prArg string) (Prepared, error) {
+// CI, and writes the state and drafting material into a fresh directory inside
+// the active worktree, so the material stays within the checkout rather than in
+// a shared temporary directory.
+func (t *Tool) Prepare(ctx context.Context, prArg string) (prepared Prepared, err error) {
 	args := []string{"pr", "view"}
 	if prArg != "" {
 		args = append(args, prArg)
@@ -127,26 +146,81 @@ func (t *Tool) Prepare(ctx context.Context, prArg string) (Prepared, error) {
 	if err != nil {
 		return Prepared{}, fmt.Errorf("read diff stat: %w", err)
 	}
-	dir, err := os.MkdirTemp("", "mergepr-")
+	gitDir, err := t.git(ctx, "rev-parse", "--absolute-git-dir")
+	if err != nil {
+		return Prepared{}, fmt.Errorf("find the git directory: %w", err)
+	}
+	workRoot, err := t.git(ctx, "rev-parse", "--show-toplevel")
+	if err != nil {
+		return Prepared{}, fmt.Errorf("find the worktree root: %w", err)
+	}
+	base := workDirBase(outputLine(workRoot), outputLine(gitDir))
+	// The dir: and state: output records are line-oriented, so a path holding a line break cannot be reported unambiguously.
+	if strings.ContainsAny(base, "\r\n") {
+		return Prepared{}, fmt.Errorf("%w: %q", errUnprintablePath, base)
+	}
+	dir, err := os.MkdirTemp(base, workDirPrefix)
 	if err != nil {
 		return Prepared{}, fmt.Errorf("create work directory: %w", err)
 	}
+	// A failed write must not leave a persistent directory inside the checkout,
+	// and without a complete state.json the operator could not run discard on it.
+	defer func() {
+		if err != nil {
+			if rmErr := removeAllDir(dir); rmErr != nil {
+				// Name the directory Prepare is returning an error with, so the
+				// operator can find and discard the partial preparation.
+				err = fmt.Errorf("%w; remove work directory %s: %w", err, dir, rmErr)
+			}
+		}
+	}()
+	state.WorkDir = dir
 	stateOut, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
 		return Prepared{}, fmt.Errorf("encode state: %w", err)
 	}
 	files := map[string][]byte{
-		stateFileName: append(stateOut, '\n'),
-		logFileName:   logOut,
-		statFileName:  statOut,
-		bodyFileName:  []byte(pr.Body),
+		stateFileName:  append(stateOut, '\n'),
+		logFileName:    logOut,
+		statFileName:   statOut,
+		bodyFileName:   []byte(pr.Body),
+		markerFileName: []byte(markerContent),
 	}
 	for name, data := range files {
-		if err := os.WriteFile(filepath.Join(dir, name), data, fileMode); err != nil {
+		if err := writeFile(filepath.Join(dir, name), data, fileMode); err != nil {
 			return Prepared{}, fmt.Errorf("write %s: %w", name, err)
 		}
 	}
 	return Prepared{State: state, Dir: dir}, nil
+}
+
+// workDirBase returns a directory inside the active worktree in which to create
+// the drafting directory. In the primary checkout the git directory is itself
+// inside the worktree, so use it and keep the material out of git's view. A
+// linked worktree's git directory lives in the primary checkout, so fall back
+// to the worktree root to stay inside the active checkout.
+func workDirBase(workRoot, gitDir string) string {
+	rel, err := filepath.Rel(workRoot, gitDir)
+	if err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return gitDir
+	}
+	return workRoot
+}
+
+// outputLine returns a command's output with exactly one trailing newline
+// removed. Git terminates each record with a single LF, so any carriage return
+// before that LF is part of the value: a worktree path whose final byte is a
+// carriage return is emitted as "<path>\r\n", and stripping the carriage return
+// too would name a different, usually nonexistent root. Unlike strings.TrimSpace
+// it keeps leading and trailing spaces, tabs, and any newline that is part of
+// the value, so a worktree path that legitimately ends in whitespace is
+// preserved.
+func outputLine(out []byte) string {
+	s := string(out)
+	if trimmed, ok := strings.CutSuffix(s, "\n"); ok {
+		return trimmed
+	}
+	return s
 }
 
 // Merge squash-merges the prepared head into the prepared base with the
@@ -180,7 +254,12 @@ func (t *Tool) Merge(ctx context.Context, statePath, subjectPath, bodyPath strin
 	if _, err := t.gh(ctx, "pr", "merge", state.number(), "--squash", "--subject", subject, "--body", string(body), "--match-head-commit", state.HeadRefOID); err != nil {
 		return Report{}, fmt.Errorf("merge PR: %w\ncheck the PR; if it was merged anyway, run `mergepr cleanup --state %s`", err, statePath)
 	}
-	return t.cleanup(ctx, state)
+	report, err := t.cleanup(ctx, state)
+	if err != nil {
+		return report, err
+	}
+	_ = removeWorkDir(state, statePath)
+	return report, nil
 }
 
 // Cleanup updates the local base branch and deletes the local head branch after
@@ -191,7 +270,58 @@ func (t *Tool) Cleanup(ctx context.Context, statePath string) (Report, error) {
 	if err != nil {
 		return Report{}, err
 	}
-	return t.cleanup(ctx, state)
+	report, err := t.cleanup(ctx, state)
+	if err != nil {
+		return report, err
+	}
+	_ = removeWorkDir(state, statePath)
+	return report, nil
+}
+
+// removeWorkDir deletes the prepared work directory. The directory is the unit
+// the workflow owns: Prepare creates it, writes the material and a marker file
+// into it, and the operator drafts the subject and body files there, so it is
+// removed whole rather than file by file. To keep an operator-supplied --state
+// path from deleting an unrelated directory, it removes only the directory
+// Prepare recorded in the state file, which is also the directory that still
+// holds the state file and the marker file Prepare wrote; a state file that was
+// moved or copied elsewhere therefore removes nothing. It returns
+// errWorkDirMismatch in that case, so an explicit Discard can report it while
+// Merge and Cleanup ignore a leftover directory after a cleanup that already
+// succeeded.
+func removeWorkDir(state State, statePath string) error {
+	if state.WorkDir == "" {
+		return errWorkDirMismatch
+	}
+	dir, err := filepath.Abs(filepath.Dir(statePath))
+	if err != nil || dir != state.WorkDir {
+		return errWorkDirMismatch
+	}
+	// A forged state file can name any directory it lives in, so only a directory of the shape Prepare generates may be removed.
+	if !strings.HasPrefix(filepath.Base(dir), workDirPrefix) {
+		return errWorkDirMismatch
+	}
+	// A forged state file can also live in a directory that merely shares the
+	// prefix, so require the marker file Prepare writes and nothing else does.
+	marker, err := os.ReadFile(filepath.Join(dir, markerFileName)) //nolint:gosec // dir is the work directory this state file records
+	if err != nil || string(marker) != markerContent {
+		return errWorkDirMismatch
+	}
+	return os.RemoveAll(dir)
+}
+
+// Discard removes the prepared work directory without requiring the PR to be
+// merged and without touching the PR or the local branches. Use it when a
+// preparation can no longer be used, for example when the head moved before the
+// merge, so its material does not linger inside the checkout. It applies the
+// same provenance check as Merge and Cleanup: a state file that was moved or
+// copied elsewhere names a different directory and removes nothing.
+func Discard(statePath string) error {
+	state, err := loadState(statePath)
+	if err != nil {
+		return err
+	}
+	return removeWorkDir(state, statePath)
 }
 
 func (t *Tool) cleanup(ctx context.Context, state State) (Report, error) {
@@ -215,7 +345,7 @@ func (t *Tool) cleanup(ctx context.Context, state State) (Report, error) {
 	if err != nil {
 		return report, fmt.Errorf("read current branch: %w", err)
 	}
-	if strings.TrimSpace(string(current)) != state.BaseRefName {
+	if outputLine(current) != state.BaseRefName {
 		elsewhere, err := t.checkedOutElsewhere(ctx, state.BaseRefName)
 		if err != nil {
 			return report, err
@@ -243,7 +373,7 @@ func (t *Tool) deleteLocalBranch(ctx context.Context, state State) (bool, error)
 	if err != nil {
 		return false, fmt.Errorf("read local branch %s: %w", state.HeadRefName, err)
 	}
-	local := strings.TrimSpace(string(out))
+	local := outputLine(out)
 	if local == "" {
 		return false, nil
 	}

@@ -56,7 +56,7 @@ flowchart TD
     classDef enhanced fill:#e8f5e8,stroke:#2e8b57,stroke-width:2px,color:#006400;
 
     Start(["/mergepr [PR]"]) --> Prepare["mergepr prepare<br>Check that the PR is OPEN<br>git fetch origin<br>Wait for CI to finish"]
-    Prepare --> Files[("Temporary directory<br>state.json / log.txt<br>stat.txt / body.txt")]
+    Prepare --> Files[("Work directory<br>state.json / log.txt<br>stat.txt / body.txt")]
     Files --> Draft["Draft the message<br>(Claude)"]
     Draft --> Approve{"Developer approves?"}
     Approve -->|"Revision request"| Draft
@@ -94,12 +94,13 @@ Claude runs `prepare`, drafts the message, and requests approval, showing the PR
 
 ### 5.2 Using it manually
 
-Each subcommand can also be run on its own. `merge` and `cleanup` take the PR from `state.json`, so passing a positional argument stops them with a usage error.
+Each subcommand can also be run on its own. `merge`, `cleanup`, and `discard` take `state.json` as input, so passing a positional argument stops them with a usage error.
 
 ```sh
 mergepr prepare [PR]
 mergepr merge --state FILE --subject-file FILE --body-file FILE
 mergepr cleanup --state FILE
+mergepr discard --state FILE
 ```
 
 #### `prepare [PR]`
@@ -109,11 +110,14 @@ Specify the PR with no argument (the current branch), a number, or a URL. The ar
 1. Checks that the PR is OPEN.
 2. Runs `git fetch origin`.
 3. Waits for CI to finish with `gh pr checks --watch --fail-fast`. It stops if any check failed.
-4. Creates a temporary directory and writes the following files.
+4. Creates a fresh work directory inside the active checkout and writes the following files. In the primary checkout it is under the repository's git directory (`.git/mergepr-*`); in a linked worktree, whose git directory lives in the primary checkout, it is a `mergepr-*` directory at the worktree root. Keeping the material inside the checkout avoids reaching outside the working tree.
+If the path where the work directory would be created contains a line break (LF or CR), `prepare` stops with an error without creating it, because the line-oriented `dir:` and `state:` output could not report it unambiguously.
+If writing any of the files fails, `prepare` removes the work directory again, so no partial directory is left behind.
+`merge`, `cleanup`, and `discard` remove only a directory that holds the `state.json` itself and carries the generated `mergepr-` prefix. A forged state file that points at the checkout itself removes nothing.
 
 | File | Contents |
 |---|---|
-| `state.json` | PR number, head branch name and OID, base branch name, title, URL. The subsequent `merge` and `cleanup` use these values |
+| `state.json` | PR number, head branch name and OID, base branch name, title, URL, and the prepared work directory path. The subsequent `merge` and `cleanup` use these values |
 | `log.txt` | Every commit message in `origin/<base>..<headOID>` |
 | `stat.txt` | The diff stat of `origin/<base>...<headOID>` |
 | `body.txt` | The PR description |
@@ -126,8 +130,8 @@ url:   https://github.com/isseis/yt2column/pull/42
 head:  feature/foo at 2222222222222222222222222222222222222222
 base:  main
 CI:    all checks passed
-dir:   /var/folders/.../mergepr-123456 (state.json, log.txt, stat.txt, body.txt)
-state: /var/folders/.../mergepr-123456/state.json
+dir:   /repo/.git/mergepr-123456 (state.json, log.txt, stat.txt, body.txt)
+state: /repo/.git/mergepr-123456/state.json
 ```
 
 When the material is insufficient, run the following at the repository root to see the diff of an individual file.
@@ -156,6 +160,7 @@ Performs only the post-merge cleanup. Use it when `merge` stopped partway throug
    - Otherwise, it switches to the base with `git switch <base>`.
 4. Brings the base up to date with `git merge --ff-only origin/<base>`.
 5. Deletes the local head branch with `git branch -D` only when it points at `headOID`. If the branch does not exist, it does nothing.
+6. Removes the prepared work directory once the cleanup has finished. If the cleanup stops with an error, it keeps the directory so `cleanup` can be rerun.
 
 Example result output:
 
@@ -164,6 +169,10 @@ merge commit:         3333333333333333333333333333333333333333
 base branch updated:  true
 local branch deleted: true
 ```
+
+#### `discard --state FILE`
+
+Removes the prepared work directory without requiring the PR to be merged and without touching the PR or the local branches. Use it when a preparation can no longer be used, such as after the head moved before the merge, so its material does not linger inside the checkout. Like `merge` and `cleanup`, it removes only the directory `state.json` records, which is also the directory holding that state file; a state file that was moved or copied elsewhere names a different directory, so `discard` removes nothing and stops with an error. Do not use it while a cleanup is still pending: if the PR was already merged and `cleanup` stopped, the base and head cleanup needs the state file, so run the displayed `cleanup` instead.
 
 ### 5.3 Using it in a worktree
 
@@ -211,15 +220,16 @@ When `mergepr` finds a problem, it prints the reason and the remedy and stops. W
 | `squash subject is not a non-empty single line` | `merge` | The subject file is empty or has multiple lines | Fix the subject file and rerun `merge` |
 | `PR is not open: ... run mergepr cleanup` | `merge` | It was already merged by a previous run | Run the displayed `mergepr cleanup --state ...` |
 | `PR base changed after prepare` | `merge` | The PR's base was changed | Start over from `prepare` |
-| `merge PR: ...` | `merge` | The head moved after `prepare`, branch protection blocked it, etc. | If the head moved, start over from `prepare`. If the PR is merged, run the displayed `cleanup` |
+| `merge PR: ...` | `merge` | The head moved after `prepare`, branch protection blocked it, etc. | If the head moved, discard the stale preparation with `mergepr discard --state ...` and start over from `prepare`. If the PR is merged, run the displayed `cleanup` |
 | `PR is not merged` | `cleanup` | It is not merged yet | Check that the PR has been merged, then rerun |
 | `switch to <base>: ...` | `cleanup` | Uncommitted changes conflicted, etc. | Tidy up the working tree and rerun `cleanup` |
 | `fast-forward <base>: ...` | `cleanup` | The local base has commits that `origin` does not | Sort out the base's commits and rerun `cleanup` |
 | `local head branch moved after prepare; not deleted` | `cleanup` | You committed to the local head branch after `prepare` | Check whether those commits are needed, and delete the branch manually if not |
 | `PR merged a different head than prepared` | `cleanup` | The head was force-pushed after `prepare`, and that head was merged | Check whether the local head branch holds commits that were not part of the PR, then update the base and delete the branch manually |
-| `invalid state` | `merge`, `cleanup` | A file other than the one `prepare` wrote was given to `--state` | Specify the path `prepare` printed |
+| `invalid state` | `merge`, `cleanup`, `discard` | A file other than the one `prepare` wrote was given to `--state` | Specify the path `prepare` printed |
+| `state file does not name a generated work directory it lives in` | `discard` | `--state` points at a state file that was moved or copied out of the directory `prepare` created, or the directory does not carry the `mergepr-` prefix | Specify the path `prepare` printed, or delete the prepared directory yourself if you know it is safe |
 
-`merge` is the stage that cannot be undone. Even if the tool stops after it, the merge itself may have completed. Check the PR's state on GitHub, and if it is merged, resume the cleanup with `cleanup`. Because `state.json` is in a temporary directory, do not delete it until the cleanup is finished.
+`merge` is the stage that cannot be undone. Even if the tool stops after it, the merge itself may have completed. Check the PR's state on GitHub, and if it is merged, resume the cleanup with `cleanup`. Because `state.json` lives in the work directory inside the checkout (`.git/mergepr-*` in the primary checkout, `mergepr-*` in a linked worktree), do not delete it until the cleanup is finished; the tool removes the directory after a successful cleanup. A preparation that can no longer be used — for example after the head moved before the merge — is removed with `discard` instead of being left behind in the checkout.
 
 ## 8. Changing the Tool
 
