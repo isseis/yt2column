@@ -16,11 +16,11 @@ import (
 	"github.com/isseis/yt2column/internal/cachelock"
 	"github.com/isseis/yt2column/internal/pipeline"
 	"github.com/isseis/yt2column/internal/publisher"
-	publishertestutil "github.com/isseis/yt2column/internal/publisher/testutil"
+	"github.com/isseis/yt2column/internal/publisher/testutil"
 	"github.com/isseis/yt2column/internal/transcript"
-	transcripttestutil "github.com/isseis/yt2column/internal/transcript/testutil"
+	"github.com/isseis/yt2column/internal/transcript/testutil"
 	"github.com/isseis/yt2column/internal/writer"
-	writertestutil "github.com/isseis/yt2column/internal/writer/testutil"
+	"github.com/isseis/yt2column/internal/writer/testutil"
 )
 
 const (
@@ -309,36 +309,58 @@ func TestRunPrunesDangling(t *testing.T) {
 
 func TestRunPruneFailureWarns(t *testing.T) {
 	requireNonRoot(t)
-	cacheDir := t.TempDir()
-	seedCache(t, cacheDir, jobVideoID, validSubtitles, infoFor(jobVideoID))
 
-	// A dangling slot whose contents cannot be removed: the directory is not
-	// writable, so removing the file inside it fails.
-	dangling := filepath.Join(cacheDir, otherVideoID+".b")
-	if err := os.MkdirAll(dangling, 0o700); err != nil {
-		t.Fatalf("create dangling slot: %v", err)
+	// setup returns a cache directory holding a dangling slot whose contents
+	// cannot be removed (the directory is not writable), so pruning fails.
+	setup := func(t *testing.T) string {
+		t.Helper()
+		cacheDir := t.TempDir()
+		seedCache(t, cacheDir, jobVideoID, validSubtitles, infoFor(jobVideoID))
+		dangling := filepath.Join(cacheDir, otherVideoID+".b")
+		if err := os.MkdirAll(dangling, 0o700); err != nil {
+			t.Fatalf("create dangling slot: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(dangling, "file"), []byte("x"), 0o600); err != nil {
+			t.Fatalf("write dangling file: %v", err)
+		}
+		chmodForTest(t, dangling, 0o500)
+		return cacheDir
 	}
-	if err := os.WriteFile(filepath.Join(dangling, "file"), []byte("x"), 0o600); err != nil {
-		t.Fatalf("write dangling file: %v", err)
-	}
-	chmodForTest(t, dangling, 0o500)
 
-	tripwire, marker := transcripttestutil.NewTripwire(t, t.TempDir())
-	outPath, pub := newOutput(t, t.TempDir())
-	result, err := Run(context.Background(), Request{
-		VideoURL: jobVideoURL, OutPath: outPath, CacheDir: cacheDir, YtDlpPath: tripwire,
-		Writer: &writertestutil.FakeArticleWriter{Result: validArticle()}, Publisher: pub,
+	t.Run("pipeline succeeds", func(t *testing.T) {
+		cacheDir := setup(t)
+		tripwire, marker := transcripttestutil.NewTripwire(t, t.TempDir())
+		outPath, pub := newOutput(t, t.TempDir())
+		result, err := Run(context.Background(), Request{
+			VideoURL: jobVideoURL, OutPath: outPath, CacheDir: cacheDir, YtDlpPath: tripwire,
+			Writer: &writertestutil.FakeArticleWriter{Result: validArticle()}, Publisher: pub,
+		})
+		if err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+		if len(result.Warnings) == 0 {
+			t.Fatal("no warning for the prune failure")
+		}
+		requireTripwireNotRun(t, marker)
+		if _, err := os.Stat(outPath); err != nil {
+			t.Fatalf("output not created: %v", err)
+		}
 	})
-	if err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-	if len(result.Warnings) == 0 {
-		t.Fatal("no warning for the prune failure")
-	}
-	requireTripwireNotRun(t, marker)
-	if _, err := os.Stat(outPath); err != nil {
-		t.Fatalf("output not created: %v", err)
-	}
+	t.Run("pipeline fails", func(t *testing.T) {
+		cacheDir := setup(t)
+		tripwire, _ := transcripttestutil.NewTripwire(t, t.TempDir())
+		outPath, pub := newOutput(t, t.TempDir())
+		result, err := Run(context.Background(), Request{
+			VideoURL: jobVideoURL, OutPath: outPath, CacheDir: cacheDir, YtDlpPath: tripwire,
+			Writer: &writertestutil.FakeArticleWriter{Err: errInjectedWrite}, Publisher: pub,
+		})
+		if !errors.Is(err, errInjectedWrite) {
+			t.Fatalf("Run error = %v, want the injected write error", err)
+		}
+		if len(result.Warnings) == 0 {
+			t.Fatal("the prune warning was discarded when the pipeline failed")
+		}
+	})
 }
 
 func TestRunRemoveCacheFailureWarns(t *testing.T) {

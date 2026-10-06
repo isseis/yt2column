@@ -94,7 +94,9 @@ func Run(ctx context.Context, req Request) (Result, error) {
 
 	article, err := pipe.Run(ctx, req.VideoURL)
 	if err != nil {
-		return Result{}, err
+		// Return the warnings gathered so far (a prune failure) so the caller
+		// can still report them when the pipeline fails.
+		return result, err
 	}
 	result.Article = article
 
