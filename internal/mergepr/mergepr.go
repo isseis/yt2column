@@ -177,15 +177,18 @@ func workDirBase(workRoot, gitDir string) string {
 	return workRoot
 }
 
-// outputLine returns a command's output with exactly one trailing record
-// terminator removed: the final newline, and the carriage return that precedes
-// it when the terminator is CRLF. Unlike strings.TrimSpace it keeps leading and
-// trailing spaces, tabs, and any newline that is part of the value, so a
-// worktree path that legitimately ends in whitespace is preserved.
+// outputLine returns a command's output with exactly one trailing newline
+// removed. Git terminates each record with a single LF, so any carriage return
+// before that LF is part of the value: a worktree path whose final byte is a
+// carriage return is emitted as "<path>\r\n", and stripping the carriage return
+// too would name a different, usually nonexistent root. Unlike strings.TrimSpace
+// it keeps leading and trailing spaces, tabs, and any newline that is part of
+// the value, so a worktree path that legitimately ends in whitespace is
+// preserved.
 func outputLine(out []byte) string {
 	s := string(out)
 	if trimmed, ok := strings.CutSuffix(s, "\n"); ok {
-		s = strings.TrimSuffix(trimmed, "\r")
+		return trimmed
 	}
 	return s
 }

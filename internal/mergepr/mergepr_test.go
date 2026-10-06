@@ -194,8 +194,39 @@ func TestPreparePreservesTrailingNewlineInWorktreePath(t *testing.T) {
 	}
 }
 
+// TestPreparePreservesTrailingCarriageReturnInWorktreePath verifies that a
+// worktree path whose last component ends in a carriage return is used as git
+// reports it. Git terminates the record with a single LF, so the carriage return
+// is value data; stripping it would name a different, usually nonexistent root
+// and make MkdirTemp fail.
+func TestPreparePreservesTrailingCarriageReturnInWorktreePath(t *testing.T) {
+	workRoot := filepath.Join(t.TempDir(), "repo\r")
+	if err := os.Mkdir(workRoot, 0o700); err != nil {
+		t.Fatalf("create worktree root: %v", err)
+	}
+	gitDir := filepath.Join(workRoot, ".git")
+	if err := os.Mkdir(gitDir, 0o700); err != nil {
+		t.Fatalf("create git dir: %v", err)
+	}
+	tool, runner := newTool(t, append([]commandStep{
+		ghStep(testPRJSON, "pr", "view", "42", "--json", prViewFields),
+	}, prepareTailSteps(workRoot, gitDir)...)...)
+
+	prepared, err := tool.Prepare(t.Context(), "42")
+	if err != nil {
+		t.Fatalf("Prepare returned error: %v", err)
+	}
+	runner.done()
+	t.Cleanup(func() { _ = os.RemoveAll(prepared.Dir) })
+
+	if filepath.Dir(prepared.Dir) != gitDir {
+		t.Errorf("prepared.Dir = %s, want a directory directly under the git directory %s", prepared.Dir, gitDir)
+	}
+}
+
 // TestOutputLineStripsOneTerminator verifies that outputLine removes only the
-// command's own record terminator, so a value that ends in whitespace survives.
+// command's own record terminator, so a value that ends in whitespace or a
+// carriage return survives.
 func TestOutputLineStripsOneTerminator(t *testing.T) {
 	tests := []struct {
 		name string
@@ -203,11 +234,11 @@ func TestOutputLineStripsOneTerminator(t *testing.T) {
 		want string
 	}{
 		{"lf", "main\n", "main"},
-		{"crlf", "main\r\n", "main"},
 		{"no terminator", "main", "main"},
 		{"trailing space", "repo \n", "repo "},
 		{"value ends in newline", "repo\n\n", "repo\n"},
-		{"value ends in crlf", "repo\r\n\r\n", "repo\r\n"},
+		{"carriage return is value data", "repo\r\n", "repo\r"},
+		{"value ends in crlf", "repo\r\n\n", "repo\r\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -504,7 +535,7 @@ func TestCleanupKeepsWorkDirectoryOnError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create work directory: %v", err)
 	}
-	statePath := writeStateFile(t, workDir)
+	statePath := writeStateFileRecording(t, workDir, workDir)
 	tool, runner := newTool(t, cleanupSteps(testOtherOID)...)
 
 	if _, err := tool.Cleanup(t.Context(), statePath); !errors.Is(err, errLocalBranchMoved) {
