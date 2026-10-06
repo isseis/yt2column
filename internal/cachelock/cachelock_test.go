@@ -23,9 +23,27 @@ const (
 	acquireBound = 5 * time.Second
 	// lockHelperMarker selects the child mode of TestLockInheritedHelperProcess.
 	lockHelperMarker = "YT2COLUMN_TEST_LOCK_HELPER"
+	// lockHelperLifetime caps how long the helper process lives when nothing
+	// kills it. It stays below the go test timeout, so a test that fails before
+	// its cleanup can kill the child does not leave it running past the test
+	// run.
+	lockHelperLifetime = time.Minute
 )
 
 var errAcquireBound = errors.New("Acquire did not return within the bound")
+
+// lockHelperEnv returns the minimal environment for the re-executed test
+// binary: only the variables it needs, so the parent's secrets are not handed
+// to a child process. extra entries are appended unchanged.
+func lockHelperEnv(extra ...string) []string {
+	env := make([]string, 0, 4)
+	for _, name := range []string{"PATH", "HOME", "TMPDIR"} {
+		if value, ok := os.LookupEnv(name); ok {
+			env = append(env, name+"="+value)
+		}
+	}
+	return append(env, extra...)
+}
 
 // lockPath returns the lock file path inside dir.
 func lockPath(dir string) string { return filepath.Join(dir, lockFileName) }
@@ -324,7 +342,7 @@ func TestLockInheritedByChild(t *testing.T) {
 		t.Fatalf("resolve test binary: %v", err)
 	}
 	cmd := exec.Command(executable, "-test.run=TestLockInheritedHelperProcess") //nolint:gosec // re-executes the running test binary
-	cmd.Env = append(os.Environ(), lockHelperMarker+"=1")
+	cmd.Env = lockHelperEnv(lockHelperMarker + "=1")
 	cmd.ExtraFiles = []*os.File{lock.File()}
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("start helper: %v", err)
@@ -374,9 +392,11 @@ func TestLockInheritedHelperProcess(t *testing.T) {
 	if os.Getenv(lockHelperMarker) != "1" {
 		t.Skip("helper process for TestLockInheritedByChild")
 	}
-	// A bounded loop keeps a timer pending, so the runtime does not report a
-	// deadlock in this single-goroutine child.
-	for range 36_000 {
+	// A timer keeps the runtime from reporting a deadlock in this
+	// single-goroutine child; the cap keeps a leaked child from outliving the
+	// test run.
+	deadline := time.Now().Add(lockHelperLifetime)
+	for time.Now().Before(deadline) {
 		time.Sleep(100 * time.Millisecond)
 	}
 }
