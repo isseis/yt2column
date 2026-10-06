@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/isseis/yt2column/internal/llm"
+	deepseektestutil "github.com/isseis/yt2column/internal/llm/deepseek/testutil"
 )
 
 const (
@@ -28,15 +29,15 @@ const (
 // `make test-integration-deepseek`, which sets the opt-in variable and the
 // model name. It makes integrationGenerateCalls Generate calls. Nothing derived from the API key is ever written to the output.
 func TestIntegrationGenerate(t *testing.T) {
-	settings := integrationSettingsFrom(os.Getenv)
-	switch settings.action {
-	case integrationRun:
-	case integrationFail:
-		t.Fatal(settings.reason)
+	settings := deepseektestutil.SettingsFrom(os.Getenv, integrationOptions)
+	switch settings.Action {
+	case deepseektestutil.ActionRun:
+	case deepseektestutil.ActionFail:
+		t.Fatal(settings.Reason)
 	default:
-		t.Skip(settings.reason)
+		t.Skip(settings.Reason)
 	}
-	value, err := New(Options{APIKey: settings.apiKey, Model: settings.model, Timeout: integrationGenerateTimeout})
+	value, err := New(Options{APIKey: settings.APIKey, Model: settings.Model, Timeout: integrationGenerateTimeout})
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -59,7 +60,7 @@ func TestIntegrationGenerate(t *testing.T) {
 		// a TLS-terminating proxy could echo the bearer key into them, and
 		// logging them would then write the live key to the test output. The
 		// failure messages name the field only, never its value or the key.
-		key, err := settings.apiKey.Reveal()
+		key, err := settings.APIKey.Reveal()
 		if err != nil {
 			t.Fatal("the API key cannot be revealed")
 		}

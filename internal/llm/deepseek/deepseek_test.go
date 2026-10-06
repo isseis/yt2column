@@ -14,13 +14,11 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
-	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -28,6 +26,7 @@ import (
 	"time"
 
 	"github.com/isseis/yt2column/internal/llm"
+	deepseektestutil "github.com/isseis/yt2column/internal/llm/deepseek/testutil"
 	"github.com/isseis/yt2column/internal/secret"
 )
 
@@ -796,99 +795,18 @@ func TestGenerateSentinelsDistinct(t *testing.T) {
 	}
 }
 
-func TestIntegrationSettings(t *testing.T) {
-	const (
-		testIntegrationKey   = "test-integration-key-0123456789"
-		testProductionKey    = "test-production-key-0123456789"
-		testIntegrationModel = "deepseek-custom"
-	)
-	// complete is an environment in which the integration test runs. Each
-	// case overrides some of its variables; an empty value stands for both
-	// unset and empty, which getenv cannot tell apart. The ordering cases
-	// override two variables to show which check wins.
-	complete := map[string]string{
-		integrationOptInEnv:  integrationOptInValue,
-		integrationAPIKeyEnv: testIntegrationKey,
-		integrationModelEnv:  testIntegrationModel,
-		"DEEPSEEK_API_KEY":   testProductionKey,
+// TestIntegrationOptionsSkipMissingKey pins that the adapter's integration
+// test still skips, rather than fails, when opted in without the test API
+// key, as it did before the decision moved to deepseektestutil.
+func TestIntegrationOptionsSkipMissingKey(t *testing.T) {
+	env := map[string]string{
+		integrationOptions.OptInEnv: deepseektestutil.OptInValue,
+		deepseektestutil.ModelEnv:   testModel,
 	}
-	for _, tc := range []struct {
-		name       string
-		change     map[string]string
-		wantAction integrationAction
-		wantReason []string
-	}{
-		{name: "opt_in_missing", change: map[string]string{integrationOptInEnv: ""}, wantAction: integrationSkip, wantReason: []string{integrationOptInEnv, "make test-integration-deepseek"}},
-		{name: "opt_in_zero", change: map[string]string{integrationOptInEnv: "0"}, wantAction: integrationSkip, wantReason: []string{integrationOptInEnv, "make test-integration-deepseek"}},
-		{name: "opt_in_true", change: map[string]string{integrationOptInEnv: "true"}, wantAction: integrationSkip, wantReason: []string{integrationOptInEnv, "make test-integration-deepseek"}},
-		{name: "opt_in_padded", change: map[string]string{integrationOptInEnv: " 1"}, wantAction: integrationSkip, wantReason: []string{integrationOptInEnv, "make test-integration-deepseek"}},
-		{name: "opt_in_checked_before_api_key", change: map[string]string{integrationOptInEnv: "", integrationAPIKeyEnv: ""}, wantAction: integrationSkip, wantReason: []string{integrationOptInEnv}},
-		{name: "api_key_missing_with_production_key_set", change: map[string]string{integrationAPIKeyEnv: ""}, wantAction: integrationSkip, wantReason: []string{integrationAPIKeyEnv}},
-		{name: "api_key_checked_before_model", change: map[string]string{integrationAPIKeyEnv: "", integrationModelEnv: ""}, wantAction: integrationSkip, wantReason: []string{integrationAPIKeyEnv}},
-		{name: "opt_in_checked_before_godebug", change: map[string]string{integrationOptInEnv: "", godebugEnv: "http2debug=1"}, wantAction: integrationSkip, wantReason: []string{integrationOptInEnv}},
-		{name: "api_key_checked_before_godebug", change: map[string]string{integrationAPIKeyEnv: "", godebugEnv: "http2debug=1"}, wantAction: integrationSkip, wantReason: []string{integrationAPIKeyEnv}},
-		{name: "model_missing", change: map[string]string{integrationModelEnv: ""}, wantAction: integrationFail, wantReason: []string{integrationModelEnv}},
-		{name: "godebug_http2debug_1", change: map[string]string{godebugEnv: "http2debug=1"}, wantAction: integrationFail, wantReason: []string{godebugEnv, "http2debug=1"}},
-		{name: "godebug_http2debug_2_among_others", change: map[string]string{godebugEnv: "gctrace=1,http2debug=2"}, wantAction: integrationFail, wantReason: []string{godebugEnv, "http2debug=2"}},
-		{name: "godebug_unrelated", change: map[string]string{godebugEnv: "http2client=0"}, wantAction: integrationRun},
-		{name: "complete", wantAction: integrationRun},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			env := maps.Clone(complete)
-			maps.Copy(env, tc.change)
-			read := []string{}
-			settings := integrationSettingsFrom(func(name string) string {
-				read = append(read, name)
-				return env[name]
-			})
-			if slices.Contains(read, "DEEPSEEK_API_KEY") {
-				t.Errorf("integrationSettingsFrom read DEEPSEEK_API_KEY; it must use only %s", integrationAPIKeyEnv)
-			}
-			if settings.action != tc.wantAction {
-				t.Fatalf("action = %d, want %d (reason %q)", settings.action, tc.wantAction, settings.reason)
-			}
-			for _, want := range tc.wantReason {
-				if !strings.Contains(settings.reason, want) {
-					t.Errorf("reason %q does not mention %q", settings.reason, want)
-				}
-			}
-			for _, key := range []string{testIntegrationKey, testProductionKey} {
-				if strings.Contains(settings.reason, key) {
-					t.Errorf("reason %q contains an API key", settings.reason)
-				}
-			}
-			if tc.wantAction != integrationRun {
-				if settings.model != "" {
-					t.Errorf("settings for %d carry the model %q", settings.action, settings.model)
-				}
-				if _, err := settings.apiKey.Reveal(); err == nil {
-					t.Errorf("settings for %d carry an API key", settings.action)
-				}
-				return
-			}
-			if settings.model != testIntegrationModel {
-				t.Errorf("model = %q, want %q", settings.model, testIntegrationModel)
-			}
-			key, err := settings.apiKey.Reveal()
-			if err != nil || key != testIntegrationKey {
-				t.Errorf("apiKey is not the value of %s (Reveal error = %v)", integrationAPIKeyEnv, err)
-			}
-		})
+	settings := deepseektestutil.SettingsFrom(func(name string) string { return env[name] }, integrationOptions)
+	if settings.Action != deepseektestutil.ActionSkip {
+		t.Errorf("Action = %d, want ActionSkip (reason %q)", settings.Action, settings.Reason)
 	}
-}
-
-// firstLineIs reports an error unless the file at path exists and its first
-// line is exactly want.
-func firstLineIs(path, want string) error {
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-	line, _, _ := strings.Cut(string(content), "\n")
-	if line != want {
-		return fmt.Errorf("%s: first line is %q, want %q", path, line, want)
-	}
-	return nil
 }
 
 // TestIntegrationTestBuildTag pins the build tags that keep the integration
@@ -904,20 +822,20 @@ func TestIntegrationTestBuildTag(t *testing.T) {
 		{path: "integration_test.go", want: "//go:build integration"},
 		{path: "integration_env_test.go", want: "//go:build test || integration"},
 	} {
-		if err := firstLineIs(tc.path, tc.want); err != nil {
+		if err := deepseektestutil.FirstLineIs(tc.path, tc.want); err != nil {
 			t.Errorf("%s must start with %q: %v", tc.path, tc.want, err)
 		}
 	}
 
 	dir := t.TempDir()
-	if err := firstLineIs(filepath.Join(dir, "missing_test.go"), "//go:build integration"); !errors.Is(err, fs.ErrNotExist) {
+	if err := deepseektestutil.FirstLineIs(filepath.Join(dir, "missing_test.go"), "//go:build integration"); !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("missing file: error = %v, want fs.ErrNotExist", err)
 	}
 	wrong := filepath.Join(dir, "wrong_test.go")
 	if err := os.WriteFile(wrong, []byte("//go:build test\n\npackage deepseek\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := firstLineIs(wrong, "//go:build integration"); err == nil {
-		t.Error("wrong first line: error = nil, want a mismatch")
+	if err := deepseektestutil.FirstLineIs(wrong, "//go:build integration"); !errors.Is(err, deepseektestutil.ErrFirstLineMismatch) {
+		t.Errorf("wrong first line: error = %v, want ErrFirstLineMismatch", err)
 	}
 }
