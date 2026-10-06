@@ -11,21 +11,6 @@ import (
 	"testing"
 )
 
-const (
-	testHeadOID  = "2222222222222222222222222222222222222222"
-	testOtherOID = "4444444444444444444444444444444444444444"
-	testMergeOID = "3333333333333333333333333333333333333333"
-)
-
-var testState = State{
-	Number:      42,
-	HeadRefName: "feature/foo",
-	HeadRefOID:  testHeadOID,
-	BaseRefName: "main",
-	Title:       "Test PR",
-	URL:         "https://github.com/isseis/yt2column/pull/42",
-}
-
 const testPRJSON = `{"number":42,"title":"Test PR","state":"OPEN","headRefName":"feature/foo","headRefOid":"` + testHeadOID + `","baseRefName":"main","url":"https://github.com/isseis/yt2column/pull/42","body":"the PR description"}`
 
 func prepareTailSteps(workRoot, gitDir string) []commandStep {
@@ -277,20 +262,6 @@ func TestPrepareRejectsFailedChecks(t *testing.T) {
 func writeStateFile(t *testing.T, dir string) string {
 	t.Helper()
 	return writeStateFileRecording(t, dir, "")
-}
-
-// writeStateFileRecording writes a state file that records workDir as the
-// directory Prepare created, so a test can exercise work-directory removal and
-// its provenance check.
-func writeStateFileRecording(t *testing.T, dir, workDir string) string {
-	t.Helper()
-	state := testState
-	state.WorkDir = workDir
-	data, err := json.Marshal(state)
-	if err != nil {
-		t.Fatalf("encode state: %v", err)
-	}
-	return writeTempFile(t, dir, stateFileName, string(data))
 }
 
 func viewStep(state, base string) commandStep {

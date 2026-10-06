@@ -4,11 +4,28 @@ package mergepr
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"slices"
 	"testing"
 )
+
+const (
+	testPRNumber = 42
+	testHeadOID  = "2222222222222222222222222222222222222222"
+	testOtherOID = "4444444444444444444444444444444444444444"
+	testMergeOID = "3333333333333333333333333333333333333333"
+)
+
+var testState = State{
+	Number:      testPRNumber,
+	HeadRefName: "feature/foo",
+	HeadRefOID:  testHeadOID,
+	BaseRefName: "main",
+	Title:       "Test PR",
+	URL:         "https://github.com/isseis/yt2column/pull/42",
+}
 
 // commandStep scripts one expected command and its result.
 type commandStep struct {
@@ -68,6 +85,20 @@ func writeTempFile(t testing.TB, dir, name, content string) string {
 		t.Fatalf("write %s: %v", name, err)
 	}
 	return path
+}
+
+// writeStateFileRecording writes a state file that records workDir as the
+// directory Prepare created, so a test can exercise work-directory removal and
+// its provenance check.
+func writeStateFileRecording(t *testing.T, dir, workDir string) string {
+	t.Helper()
+	state := testState
+	state.WorkDir = workDir
+	data, err := json.Marshal(state)
+	if err != nil {
+		t.Fatalf("encode state: %v", err)
+	}
+	return writeTempFile(t, dir, stateFileName, string(data))
 }
 
 func writeScript(t testing.TB, body string) string {
