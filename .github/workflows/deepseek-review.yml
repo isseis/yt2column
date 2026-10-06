@@ -1,24 +1,38 @@
 name: Code Review
 
 on:
+  # Automatic review is temporarily disabled: the pull_request and issue_comment
+  # triggers below are commented out, so the workflow no longer runs on PRs or
+  # PR comments. It can still be run by hand from the Actions tab
+  # (workflow_dispatch) with an explicit command. Uncomment the two trigger
+  # blocks to restore automatic reviews.
+  workflow_dispatch:
+    inputs:
+      command:
+        description: Which PR-Agent flow to run
+        type: choice
+        options:
+          - review
+          - improve
+        default: review
   # pull_request rather than pull_request_target: GitHub blocks the latter by
   # default on public repositories, and this workflow does not need it. It never
   # checks out or runs PR code (PR-Agent reads the PR through the GitHub API), so a
   # pull_request run with secrets is safe as long as only same-repo branches run
   # (the jobs' conditions below skip forks, which get no secrets anyway).
-  pull_request:
-    types:
-      - opened
-      - reopened
-      - synchronize
-      - ready_for_review
+  # pull_request:
+  #   types:
+  #     - opened
+  #     - reopened
+  #     - synchronize
+  #     - ready_for_review
   # Re-run on demand with an exact "/review" or "/improve" PR comment. This event
   # runs from the default branch with secrets, so it is how a fork PR is reviewed.
   # Each job's condition below restricts who can trigger it and which command it
   # accepts.
-  issue_comment:
-    types:
-      - created
+  # issue_comment:
+  #   types:
+  #     - created
 
 # Settings come only from this file: use_repo_settings_file is off so a PR cannot
 # override the model, the API base, or the prompts.
@@ -42,6 +56,7 @@ jobs:
     # do not cancel a review in progress.
     if: >-
       ${{ github.event.sender.type != 'Bot' && (
+      (github.event_name == 'workflow_dispatch' && inputs.command == 'review') ||
       (github.event_name == 'pull_request' &&
       github.event.pull_request.head.repo.full_name == github.repository) ||
       (github.event_name == 'issue_comment' &&
@@ -131,6 +146,7 @@ jobs:
     # Same gating as the review job, but only for an exact "/improve" comment.
     if: >-
       ${{ github.event.sender.type != 'Bot' && (
+      (github.event_name == 'workflow_dispatch' && inputs.command == 'improve') ||
       (github.event_name == 'pull_request' &&
       github.event.pull_request.head.repo.full_name == github.repository) ||
       (github.event_name == 'issue_comment' &&
