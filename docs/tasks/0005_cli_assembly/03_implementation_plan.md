@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-05 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 設計書 3.8 の決定変更（標準エラー出力の無害化の順をエスケープ → 伏せ字化に変更）に伴い、ステップ 7-1 の記述を更新した。PR #94 のレビューで判明したもので、再承認を要する。 |
+| Review date | 2026-10-05 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 実装の概要 (Implementation Overview)
 

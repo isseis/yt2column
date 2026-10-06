@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-05 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 3.8「標準エラー出力の無害化」の処理順を、伏せ字化 → エスケープから、エスケープ → 伏せ字化（値・末尾・そのエスケープ形を置換）に変更した。エスケープが秘密情報の値を合成しうるためである。PR #94 のレビューで判明した決定変更であり、再承認を要する。 |
+| Review date | 2026-10-05 |
+| Reviewer | isseis |
+| Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）の設計である。既存のコードに関する記述は、コミット `274b18b` のソースで確かめた。`file:line` はこのコミットの行番号を指す。
 
