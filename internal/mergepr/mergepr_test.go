@@ -569,3 +569,33 @@ func TestLoadStateRejectsIncompleteState(t *testing.T) {
 		t.Fatalf("loadState error = %v, want errInvalidState", err)
 	}
 }
+
+// TestPrepareRemovesWorkDirOnWriteFailure verifies that a failed write after the
+// work directory was allocated does not leave the directory behind.
+func TestPrepareRemovesWorkDirOnWriteFailure(t *testing.T) {
+	workRoot := t.TempDir()
+	gitDir := filepath.Join(workRoot, ".git")
+	if err := os.Mkdir(gitDir, 0o700); err != nil {
+		t.Fatalf("create git dir: %v", err)
+	}
+	errDisk := errors.New("disk full")
+	orig := writeFile
+	t.Cleanup(func() { writeFile = orig })
+	writeFile = func(string, []byte, os.FileMode) error { return errDisk }
+	tool, runner := newTool(t, append([]commandStep{
+		ghStep(testPRJSON, "pr", "view", "42", "--json", prViewFields),
+	}, prepareTailSteps(workRoot, gitDir)...)...)
+
+	_, err := tool.Prepare(t.Context(), "42")
+	if !errors.Is(err, errDisk) {
+		t.Fatalf("Prepare error = %v, want it to wrap %v", err, errDisk)
+	}
+	runner.done()
+	entries, err := os.ReadDir(gitDir)
+	if err != nil {
+		t.Fatalf("read git dir: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("git dir still holds %d entries after a failed Prepare, want none", len(entries))
+	}
+}

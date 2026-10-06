@@ -93,11 +93,15 @@ type Report struct {
 	Note string
 }
 
+// writeFile is a variable only so a test can force a write failure after the
+// work directory exists; production always uses os.WriteFile.
+var writeFile = os.WriteFile
+
 // Prepare resolves the PR (the current branch's when prArg is empty), waits for
 // CI, and writes the state and drafting material into a fresh directory inside
 // the active worktree, so the material stays within the checkout rather than in
 // a shared temporary directory.
-func (t *Tool) Prepare(ctx context.Context, prArg string) (Prepared, error) {
+func (t *Tool) Prepare(ctx context.Context, prArg string) (prepared Prepared, err error) {
 	args := []string{"pr", "view"}
 	if prArg != "" {
 		args = append(args, prArg)
@@ -145,6 +149,13 @@ func (t *Tool) Prepare(ctx context.Context, prArg string) (Prepared, error) {
 	if err != nil {
 		return Prepared{}, fmt.Errorf("create work directory: %w", err)
 	}
+	// A failed write must not leave a persistent directory inside the checkout,
+	// and without a complete state.json the operator could not run discard on it.
+	defer func() {
+		if err != nil {
+			_ = os.RemoveAll(dir)
+		}
+	}()
 	state.WorkDir = dir
 	stateOut, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
@@ -157,7 +168,7 @@ func (t *Tool) Prepare(ctx context.Context, prArg string) (Prepared, error) {
 		bodyFileName:  []byte(pr.Body),
 	}
 	for name, data := range files {
-		if err := os.WriteFile(filepath.Join(dir, name), data, fileMode); err != nil {
+		if err := writeFile(filepath.Join(dir, name), data, fileMode); err != nil {
 			return Prepared{}, fmt.Errorf("write %s: %w", name, err)
 		}
 	}
