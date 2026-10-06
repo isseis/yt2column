@@ -430,19 +430,19 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 - [x] PR がマージされた
 - [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
--   [ ] **ステップ 7-3**: `run.go` に `deps`・`productionDeps`・`run` を作る（設計書 3.8 の手順 A1〜C、実行経路の一覧、メッセージの形、3.3 のタイムアウトの文言）。フラグの定義は、`run` と文書のテスト（ステップ 9-4）が同じものを使えるよう、`flag.FlagSet` を作る非公開の関数にまとめる。`productionDeps` の `newPublisher` は、構築の失敗時に typed nil ではなく nil の interface を返す。
--   [ ] **ステップ 7-4**: `main.go` を次の 3 つに分ける。
+-   [x] **ステップ 7-3**: `run.go` に `deps`・`productionDeps`・`run` を作る（設計書 3.8 の手順 A1〜C、実行経路の一覧、メッセージの形、3.3 のタイムアウトの文言）。フラグの定義は、`run` と文書のテスト（ステップ 9-4）が同じものを使えるよう、`flag.FlagSet` を作る非公開の関数にまとめる。`productionDeps` の `newPublisher` は、構築の失敗時に typed nil ではなく nil の interface を返す。
+-   [x] **ステップ 7-4**: `main.go` を次の 3 つに分ける。
     -   起動時の `signal.Ignored` の結果から購読するシグナルを選ぶ非公開の関数（SIGINT・SIGTERM と、無視されていなければ SIGHUP。設計書 3.8 の SIGHUP の項）。
     -   その結果でシグナルを購読し、`context` が終わったら購読を止め、`run` を呼んで終了コードを返す関数。引数は、コマンドラインの引数・`config.LookupFunc`・標準出力・標準エラー出力・`deps` とする。
     -   `os.LookupEnv` と `productionDeps()` を渡して上の関数を呼び、その戻り値で `os.Exit` する `main`。環境変数の参照は、この `os.LookupEnv` の 1 か所だけにする。
--   [ ] **ステップ 7-5**: `main_test.go` に `TestMain` を作る。
+-   [x] **ステップ 7-5**: `main_test.go` に `TestMain` を作る。
     -   proxy の環境変数を、開いてすぐ閉じたループバックのリスナーのアドレスに向け、`http.ProxyFromEnvironment` が本番の送信先についてそのアドレスを返すことを確かめてから `m.Run` を呼ぶ（設計書 7.1）。
-    -   I-02 の子プロセスのモードは、`m.Run` より前に判定する。子プロセスは、テストで確かめるシグナルの購読の経路を、fake の `LLMClient` を返す `deps` で実行し、標準出力にはそれ以外を書かずに `os.Exit` する。fake の動作（成功する、`ctx` の終了まで止まる、`ctx` を無視して止まり続ける）と準備完了の印は、テストの補助（ステップ 7-6）が担う。
-    -   **検証事項（AC-44・AC-45）:** 本番の `main` が、テストしたシグナルの購読の関数を介して `run` を呼ぶことを確かめる。`main` から購読を外すと対応するテストが失敗すること。
--   [ ] **ステップ 7-6**: 補助を置く。
+    -   I-02 の子プロセスのモードは、`m.Run` より前に判定する。子プロセスは、テストで確かめるシグナルの購読の経路を、fake の `LLMClient` を返す `deps` で実行し、標準出力にはそれ以外を書かずに `os.Exit` する。fake の動作（`ctx` の終了まで止まる、`ctx` を無視して止まり続ける）と準備完了の印は、テストの補助（ステップ 7-6）が担う。加えて、本番の `main` をそのまま呼ぶモードを設ける。LLM を呼ぶ前に止まる `yt-dlp` の実行中のテスト（`TestSignalDuringYtDlp`・`TestSIGKILLWhileYtDlpRuns`）はこのモードで実行する（本番の `deepseek.New` は構築するが、要求は送らない）。成功する fake は、子プロセスのテストで使う経路がないので設けない。
+    -   **検証事項（AC-44・AC-45）:** 本番の `main` が、テストしたシグナルの購読の関数を介して `run` を呼ぶことを確かめる。`main` から購読を外すと対応するテストが失敗すること。`TestSignalDuringYtDlp` が上の `main` のモードで子プロセスを起動するので、`main` の購読を外すと同テストが失敗する（ステップ 7-10 で確かめた）。
+-   [x] **ステップ 7-6**: 補助を置く。
     -   `test_helpers_integration.go`（`test || integration`）: 環境の対応表から `config.LookupFunc` を作る関数、CLI の統合テストの `deepseektestutil.IntegrationOptions`（`CLIOptInEnv`・`test-integration-cli`・`MissingKeyFail`）を 1 か所で定義した変数、`Generate` の回数を数える型（包む対象のクライアントが nil なら nil の interface を返す）。このファイルはステップ 7-6 で、`IntegrationOptions` の変数を除いて作り、変数はステップ 8-6 で足す（`deepseektestutil` がフェーズ 8 でできるため）。
     -   `test_helpers.go`（`test`）: fake を返す `deps` を作る補助、子プロセスを起動する補助、`requireNonRoot`・`chmodForTest`。子プロセスの環境は、`PATH`・`HOME`・`TMPDIR` と `TestMain` が設定した proxy の変数だけを親から引き継ぐ allowlist（既存の `makeChildEnvAllowlist` と同じ考え方）で作り、`YT2COLUMN_*`・秘密情報・モードの変数はテストが明示して足す。
--   [ ] **ステップ 7-7**: `run_test.go` に次を作る。同じテストで `run` を 2 回以上呼ぶ場合は §4.1 の規則に従う。
+-   [x] **ステップ 7-7**: `run_test.go` に次を作る。同じテストで `run` を 2 回以上呼ぶ場合は §4.1 の規則に従う。
     -   `TestRunExecutionPaths`（AC-44・AC-38・AC-20・AC-23・AC-19・AC-28・AC-29・AC-31・AC-34・AC-47・AC-48・AC-50・AC-52 の CLI の部分）: 実行経路の一覧のうち、シグナルを除くすべての経路を 1 つの表で実行する。行ごとに、終了コード、標準出力の期待（`-h`・`--help` の行は使い方が書かれること、それ以外の行は空であること（AC-44 (b)））、標準エラー出力に含むべき文字列（段階の名前、`yt2column -h` の案内、`--refresh` の案内、排他のファイルのパスと `yt-dlp` が残っている可能性、一時ファイルのパス、タイムアウトの種類と分）、AC-44 (e)・(f) の副作用（排他のファイル・キャッシュディレクトリの内容の一覧・トリップワイヤ・fake の `LLMClient` の呼び出しの回数・`--out`・その動画のキャッシュ）を表の項目として持つ。
         -   AC-20 の入力はすべて「引数の誤り」「環境変数の誤り」「`LLMClient` の構築の失敗」「テンプレートの構築の失敗」の行にする。環境変数の誤りの行は、標準エラー出力に変数の名前が現れ、どの変数の値に置いた目印も現れないことを確かめる。`YT2COLUMN_MODEL` の前後の空白の行だけは `productionDeps()` の `newLLMClient` を使う。
         -   すべての行で `DEEPSEEK_API_KEY` と `SLACK_WEBHOOK_URL` に特徴的な値を設定し、標準出力・標準エラー出力・`--out` のファイルに、値も末尾 8 文字も現れないことを確かめる（AC-38）。記事の生成の失敗の行には、fake の `LLMClient` のエラーのメッセージに API キーを含むものを入れる。
@@ -454,16 +454,16 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
     -   `TestRunPromptOverrides`（AC-22）。
     -   `TestRunEscapesUntrustedText`（AC-39）: 要件書 AC-39 の 3 つの経路で、`\x1b[2J` と偽の行を始める改行がそのままの形で現れないこと。成功の経路は fake の `Publisher` を使う（`FilePublisher` は制御文字を含む `Model` を拒否するため）。
     -   `TestRunGODEBUGWarning`（AC-51）: 警告の有無、警告が LLM の呼び出しより前に書かれること（fake の `LLMClient` が呼ばれた時点の標準エラー出力の内容で確かめる）、警告が API キーの値も末尾 8 文字も含まないこと、終了コードが設定しない場合と同じであること。
--   [ ] **ステップ 7-8**: `signal_test.go` に、子プロセスを使うテストを作る（I-02）。シグナルは、準備完了の印を上限付きで待ってから送る。起動した子プロセスは、起動した時点で止めて `Wait` する処理を `t.Cleanup` に登録する。偽の `yt-dlp` は、ステップ 6-1 の解放の印で後始末する。PID のプロセスがないことの確認は、`kill(pid, 0)` が `ESRCH` を返すまで上限付きで待つ（親が終了した孤児は init が回収するまで少し残るため）。
+-   [x] **ステップ 7-8**: `signal_test.go` に、子プロセスを使うテストを作る（I-02）。シグナルは、準備完了の印を上限付きで待ってから送る。起動した子プロセスは、起動した時点で止めて `Wait` する処理を `t.Cleanup` に登録する。偽の `yt-dlp` は、ステップ 6-1 の解放の印で後始末する。PID のプロセスがないことの確認は、`kill(pid, 0)` が `ESRCH` を返すまで上限付きで待つ（親が終了した孤児は init が回収するまで少し残るため）。
     -   `TestSignalDuringYtDlp`（AC-45・AC-44 の SIGINT・SIGTERM の経路）: 途中で止まる `yt-dlp` の実行中に SIGINT・SIGTERM を送り、終了コード `1`、AC-44 (b)〜(d)・(f)、記録したすべての PID のプロセスがないことを確かめる。
     -   `TestSignalDuringGenerate`（AC-44 の SIGINT・SIGTERM の経路）: キャッシュを置いて fake の `LLMClient` で止めた状態でシグナルを送り、終了コード `1`、その動画のキャッシュが残り、`--out` が作られないことを確かめる。
     -   `TestSIGKILLWhileYtDlpRuns`（AC-49）: CLI の子プロセスを SIGKILL で止めた後も、偽の `yt-dlp` は動き続けている。この間に同じキャッシュディレクトリで `run` を実行し、終了コード `1` で終わること、トリップワイヤを起動せず、fake の `LLMClient` を呼ばず、`--out` を作らず、キャッシュディレクトリの内容を変えないこと、`yt-dlp` が残っている可能性と対処の方法を書くことを確かめる。続けて偽の `yt-dlp` を解放の印で終了させ（`yt-dlp` の子を含めて記述子 3 が閉じる）、`cachelock.Acquire` が成功するまで上限付きで待ってから、成功する実行を確かめる。
     -   `TestSIGKILLWithoutYtDlp`（AC-36）: キャッシュがあり、fake の `LLMClient` で止まっている子プロセスを SIGKILL で止めた後、同じキャッシュディレクトリでの実行が成功することを確かめる。
-    -   `TestSubscribedSignals`（同じプロセスの中のテスト）: 購読するシグナルを選ぶ関数が、SIGHUP が無視されていなければ SIGHUP を含み、無視されていれば含まないこと。`TestSIGHUP`（子プロセス）: 無視されていない状態で起動した子に SIGHUP を送ると終了コード `1` になること。テストのプロセス自身が SIGHUP を無視した状態で起動された場合（`nohup` の下など）は子も無視を引き継ぐので、その旨を示してスキップする。
+    -   `TestSubscribedSignals`（同じプロセスの中のテスト）: 購読するシグナルを選ぶ関数が、SIGHUP が無視されていなければ SIGHUP を含み、無視されていれば含まないこと。この関数は無視されているかの判定を引数で受け取り（本番は `signal.Ignored`）、テストは両方の結果を与える（テストのプロセスのシグナルの扱いを変えないため）。`TestSIGHUP`（子プロセス）: 無視されていない状態で起動した子に SIGHUP を送ると終了コード `1` になること。テストのプロセス自身が SIGHUP を無視した状態で起動された場合（`nohup` の下など）は子も無視を引き継ぐので、その旨を示してスキップする。
     -   `TestSecondSignal`: `ctx` を無視する fake で止め、1 回目のシグナルの後に「`ctx` が終わった」印を待ち、2 回目のシグナルを、子がシグナルで終了するまで上限付きで繰り返し送る。終了状態がシグナルによる終了であることを確かめる。
     -   子プロセスの標準エラー出力は、網羅率の計測（`make test-ci`）で警告が加わりうるので、空であることは確かめず、含む・含まない文字列で確かめる。
--   [ ] **ステップ 7-9**: `package_reference.md` に `cmd/yt2column` の行を加える。`TestEnvAccessConfined`（ステップ 2-5）に、`cmd/yt2column/main.go` の `os.LookupEnv` の参照を観測したことの確認を加える（ファイルの有無で確認を切り替えない）。
--   [ ] **ステップ 7-10**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: シグナルの購読を外す・SIGTERM だけ外す（`TestSignalDuringYtDlp`）、プロセスグループの停止を外す（同、孫の PID）、`InheritedFiles` を渡さない（`TestSIGKILLWhileYtDlpRuns`）、A5 を `job.Run` の後に移す（`TestRunExecutionPaths` のトリップワイヤ）、`GODEBUG` の警告を外す・LLM の呼び出しの後に移す（`TestRunGODEBUGWarning`）、使い方を標準エラー出力に書く（`TestRunHelp`）、SIGHUP を `signal.Ignored` によらず購読する（`TestSubscribedSignals`）、2 回目のシグナルで購読を止めない（`TestSecondSignal`）。`make fmt` → `make test` → `make lint` を通す。
+-   [x] **ステップ 7-9**: `package_reference.md` に `cmd/yt2column` の行を加える。`TestEnvAccessConfined`（ステップ 2-5）に、`cmd/yt2column/main.go` の `os.LookupEnv` の参照を観測したことの確認を加える（ファイルの有無で確認を切り替えない）。
+-   [x] **ステップ 7-10**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: シグナルの購読を外す・SIGTERM だけ外す（`TestSignalDuringYtDlp`）、プロセスグループの停止を外す（同、孫の PID）、`InheritedFiles` を渡さない（`TestSIGKILLWhileYtDlpRuns`）、A5 を `job.Run` の後に移す（`TestRunExecutionPaths` のトリップワイヤ）、`GODEBUG` の警告を外す・LLM の呼び出しの後に移す（`TestRunGODEBUGWarning`）、使い方を標準エラー出力に書く（`TestRunHelp`）、SIGHUP を `signal.Ignored` によらず購読する（`TestSubscribedSignals`）、2 回目のシグナルで購読を止めない（`TestSecondSignal`）。`make fmt` → `make test` → `make lint` を通す。
 
 ### PR-10 作成ポイント: cmd/yt2column CLI wiring and run
 
