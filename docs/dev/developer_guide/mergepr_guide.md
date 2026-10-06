@@ -113,7 +113,7 @@ Specify the PR with no argument (the current branch), a number, or a URL. The ar
 
 | File | Contents |
 |---|---|
-| `state.json` | PR number, head branch name and OID, base branch name, title, URL. The subsequent `merge` and `cleanup` use these values |
+| `state.json` | PR number, head branch name and OID, base branch name, title, URL, and the prepared work directory path. The subsequent `merge` and `cleanup` use these values |
 | `log.txt` | Every commit message in `origin/<base>..<headOID>` |
 | `stat.txt` | The diff stat of `origin/<base>...<headOID>` |
 | `body.txt` | The PR description |

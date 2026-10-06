@@ -62,7 +62,9 @@ func (t *Tool) gh(ctx context.Context, args ...string) ([]byte, error) {
 }
 
 // State pins the values Prepare saw, so Merge and Cleanup act on the same PR,
-// head, and base.
+// head, and base. WorkDir is the absolute path of the directory Prepare
+// created; Merge and Cleanup use it to confirm that the directory holding the
+// state file is the one Prepare made before removing it.
 type State struct {
 	Number      int    `json:"number"`
 	HeadRefName string `json:"headRefName"`
@@ -70,6 +72,7 @@ type State struct {
 	BaseRefName string `json:"baseRefName"`
 	Title       string `json:"title"`
 	URL         string `json:"url"`
+	WorkDir     string `json:"workDir"`
 }
 
 func (s State) number() string { return strconv.Itoa(s.Number) }
@@ -142,6 +145,7 @@ func (t *Tool) Prepare(ctx context.Context, prArg string) (Prepared, error) {
 	if err != nil {
 		return Prepared{}, fmt.Errorf("create work directory: %w", err)
 	}
+	state.WorkDir = dir
 	stateOut, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
 		return Prepared{}, fmt.Errorf("encode state: %w", err)
@@ -173,12 +177,17 @@ func workDirBase(workRoot, gitDir string) string {
 	return workRoot
 }
 
-// outputLine returns a command's output with only its trailing line terminator
-// removed. Unlike strings.TrimSpace it keeps leading and trailing spaces and
-// tabs, so a worktree path that legitimately ends in whitespace is preserved;
-// git terminates its output with a newline.
+// outputLine returns a command's output with exactly one trailing record
+// terminator removed: the final newline, and the carriage return that precedes
+// it when the terminator is CRLF. Unlike strings.TrimSpace it keeps leading and
+// trailing spaces, tabs, and any newline that is part of the value, so a
+// worktree path that legitimately ends in whitespace is preserved.
 func outputLine(out []byte) string {
-	return strings.TrimRight(string(out), "\r\n")
+	s := string(out)
+	if trimmed, ok := strings.CutSuffix(s, "\n"); ok {
+		s = strings.TrimSuffix(trimmed, "\r")
+	}
+	return s
 }
 
 // Merge squash-merges the prepared head into the prepared base with the
@@ -216,7 +225,7 @@ func (t *Tool) Merge(ctx context.Context, statePath, subjectPath, bodyPath strin
 	if err != nil {
 		return report, err
 	}
-	removeWorkDir(statePath)
+	removeWorkDir(state, statePath)
 	return report, nil
 }
 
@@ -232,26 +241,28 @@ func (t *Tool) Cleanup(ctx context.Context, statePath string) (Report, error) {
 	if err != nil {
 		return report, err
 	}
-	removeWorkDir(statePath)
+	removeWorkDir(state, statePath)
 	return report, nil
 }
 
-// removeWorkDir deletes the drafting files after cleanup has finished and then
-// the directory that held them. It removes only the file names Prepare writes
-// and only when the parent directory carries the prefix Prepare's os.MkdirTemp
-// used, so an operator-supplied --state path cannot cause unrelated files or an
-// unrelated directory to be deleted: os.Remove removes the directory only once
-// it is empty. A leftover file or directory is ignored, since cleanup itself
-// already succeeded.
-func removeWorkDir(statePath string) {
-	dir := filepath.Dir(statePath)
-	if !strings.HasPrefix(filepath.Base(dir), workDirPrefix) {
+// removeWorkDir deletes the prepared work directory after cleanup has
+// finished. The directory is the unit the workflow owns: Prepare creates it,
+// writes the material into it, and the operator drafts the subject and body
+// files there, so it is removed whole rather than file by file. To keep an
+// operator-supplied --state path from deleting an unrelated directory, it
+// removes only the directory Prepare recorded in the state file, which is also
+// the directory that still holds the state file; a state file that was moved or
+// copied elsewhere therefore removes nothing. A leftover directory is ignored,
+// since cleanup itself already succeeded.
+func removeWorkDir(state State, statePath string) {
+	if state.WorkDir == "" {
 		return
 	}
-	for _, name := range []string{stateFileName, logFileName, statFileName, bodyFileName} {
-		_ = os.Remove(filepath.Join(dir, name))
+	dir, err := filepath.Abs(filepath.Dir(statePath))
+	if err != nil || dir != state.WorkDir {
+		return
 	}
-	_ = os.Remove(dir)
+	_ = os.RemoveAll(dir)
 }
 
 func (t *Tool) cleanup(ctx context.Context, state State) (Report, error) {

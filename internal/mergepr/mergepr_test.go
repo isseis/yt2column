@@ -68,15 +68,20 @@ func TestPrepare(t *testing.T) {
 	if filepath.Dir(prepared.Dir) != gitDir {
 		t.Errorf("prepared.Dir = %s, want a directory directly under the git directory %s", prepared.Dir, gitDir)
 	}
-	if !reflect.DeepEqual(prepared.State, testState) {
-		t.Errorf("state = %+v, want %+v", prepared.State, testState)
+	if prepared.State.WorkDir != prepared.Dir {
+		t.Errorf("state.WorkDir = %q, want the prepared directory %q", prepared.State.WorkDir, prepared.Dir)
+	}
+	wantState := testState
+	wantState.WorkDir = prepared.Dir
+	if !reflect.DeepEqual(prepared.State, wantState) {
+		t.Errorf("state = %+v, want %+v", prepared.State, wantState)
 	}
 	var saved State
 	if err := json.Unmarshal([]byte(readFile(t, filepath.Join(prepared.Dir, stateFileName))), &saved); err != nil {
 		t.Fatalf("parse state file: %v", err)
 	}
-	if !reflect.DeepEqual(saved, testState) {
-		t.Errorf("state file = %+v, want %+v", saved, testState)
+	if !reflect.DeepEqual(saved, wantState) {
+		t.Errorf("state file = %+v, want %+v", saved, wantState)
 	}
 	for name, want := range map[string]string{
 		logFileName:  "abc subject\n\nbody\n",
@@ -160,6 +165,59 @@ func TestPreparePreservesTrailingWhitespaceInWorktreePath(t *testing.T) {
 	}
 }
 
+// TestPreparePreservesTrailingNewlineInWorktreePath verifies that only the
+// command's own terminator is stripped from git's output. A worktree path whose
+// last component ends in a newline is a valid Unix path; trimming every
+// trailing newline would name a different, usually nonexistent root.
+func TestPreparePreservesTrailingNewlineInWorktreePath(t *testing.T) {
+	workRoot := filepath.Join(t.TempDir(), "repo\n")
+	if err := os.Mkdir(workRoot, 0o700); err != nil {
+		t.Fatalf("create worktree root: %v", err)
+	}
+	gitDir := filepath.Join(workRoot, ".git")
+	if err := os.Mkdir(gitDir, 0o700); err != nil {
+		t.Fatalf("create git dir: %v", err)
+	}
+	tool, runner := newTool(t, append([]commandStep{
+		ghStep(testPRJSON, "pr", "view", "42", "--json", prViewFields),
+	}, prepareTailSteps(workRoot, gitDir)...)...)
+
+	prepared, err := tool.Prepare(t.Context(), "42")
+	if err != nil {
+		t.Fatalf("Prepare returned error: %v", err)
+	}
+	runner.done()
+	t.Cleanup(func() { _ = os.RemoveAll(prepared.Dir) })
+
+	if filepath.Dir(prepared.Dir) != gitDir {
+		t.Errorf("prepared.Dir = %s, want a directory directly under the git directory %s", prepared.Dir, gitDir)
+	}
+}
+
+// TestOutputLineStripsOneTerminator verifies that outputLine removes only the
+// command's own record terminator, so a value that ends in whitespace survives.
+func TestOutputLineStripsOneTerminator(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"lf", "main\n", "main"},
+		{"crlf", "main\r\n", "main"},
+		{"no terminator", "main", "main"},
+		{"trailing space", "repo \n", "repo "},
+		{"value ends in newline", "repo\n\n", "repo\n"},
+		{"value ends in crlf", "repo\r\n\r\n", "repo\r\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := outputLine([]byte(tt.in)); got != tt.want {
+				t.Errorf("outputLine(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestPrepareRejectsClosedPR(t *testing.T) {
 	closed := `{"number":42,"state":"CLOSED","headRefName":"feature/foo","headRefOid":"` + testHeadOID + `","baseRefName":"main"}`
 	tool, runner := newTool(t, ghStep(closed, "pr", "view", "42", "--json", prViewFields))
@@ -187,7 +245,17 @@ func TestPrepareRejectsFailedChecks(t *testing.T) {
 
 func writeStateFile(t *testing.T, dir string) string {
 	t.Helper()
-	data, err := json.Marshal(testState)
+	return writeStateFileRecording(t, dir, "")
+}
+
+// writeStateFileRecording writes a state file that records workDir as the
+// directory Prepare created, so a test can exercise work-directory removal and
+// its provenance check.
+func writeStateFileRecording(t *testing.T, dir, workDir string) string {
+	t.Helper()
+	state := testState
+	state.WorkDir = workDir
+	data, err := json.Marshal(state)
 	if err != nil {
 		t.Fatalf("encode state: %v", err)
 	}
@@ -229,16 +297,22 @@ func cleanupSteps(localOID string) []commandStep {
 	return steps
 }
 
-func mergeFiles(t *testing.T) (string, string, string) {
+// mergeFiles prepares a real work directory, as Prepare does, holding the
+// state file and the subject and body files the operator drafts there.
+func mergeFiles(t *testing.T) (dir, statePath, subjectPath, bodyPath string) {
 	t.Helper()
-	dir := t.TempDir()
-	return writeStateFile(t, dir),
+	dir, err := os.MkdirTemp(t.TempDir(), workDirPrefix)
+	if err != nil {
+		t.Fatalf("create work directory: %v", err)
+	}
+	return dir,
+		writeStateFileRecording(t, dir, dir),
 		writeTempFile(t, dir, "subject.txt", "feat: subject (#42)\n"),
 		writeTempFile(t, dir, "body.txt", "body text\n")
 }
 
 func TestMerge(t *testing.T) {
-	statePath, subjectPath, bodyPath := mergeFiles(t)
+	dir, statePath, subjectPath, bodyPath := mergeFiles(t)
 	steps := []commandStep{viewStep(openState, "main"), mergeStep()}
 	tool, runner := newTool(t, append(steps, cleanupSteps(testHeadOID)...)...)
 
@@ -250,6 +324,9 @@ func TestMerge(t *testing.T) {
 	want := Report{MergeCommitOID: testMergeOID, BaseUpdated: true, LocalDeleted: true}
 	if !reflect.DeepEqual(report, want) {
 		t.Errorf("report = %+v, want %+v", report, want)
+	}
+	if _, err := os.Stat(dir); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("work directory %s still exists after merge, want it removed with the subject file it held", dir)
 	}
 }
 
@@ -264,7 +341,7 @@ func TestMergeRejectsLivePR(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			statePath, subjectPath, bodyPath := mergeFiles(t)
+			_, statePath, subjectPath, bodyPath := mergeFiles(t)
 			tool, runner := newTool(t, tt.view)
 
 			if _, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath); !errors.Is(err, tt.want) {
@@ -277,7 +354,7 @@ func TestMergeRejectsLivePR(t *testing.T) {
 
 func TestMergeRejectsInvalidSubject(t *testing.T) {
 	for _, subject := range []string{"", "\n", "line one\nline two\n"} {
-		statePath, _, bodyPath := mergeFiles(t)
+		_, statePath, _, bodyPath := mergeFiles(t)
 		subjectPath := writeTempFile(t, t.TempDir(), "subject.txt", subject)
 		tool, runner := newTool(t)
 
@@ -382,7 +459,10 @@ func TestCleanupRemovesWorkDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create work directory: %v", err)
 	}
-	statePath := writeStateFile(t, workDir)
+	statePath := writeStateFileRecording(t, workDir, workDir)
+	// The operator drafts the subject and body into the prepared directory, so
+	// the directory holds files Prepare did not write and must still go.
+	writeTempFile(t, workDir, "subject.txt", "feat: subject (#42)\n")
 	tool, runner := newTool(t, cleanupSteps(testHeadOID)...)
 
 	if _, err := tool.Cleanup(t.Context(), statePath); err != nil {
@@ -394,16 +474,16 @@ func TestCleanupRemovesWorkDirectory(t *testing.T) {
 	}
 }
 
-// TestCleanupKeepsUnrelatedFilesInWorkDirectory verifies that a successful
-// cleanup removes only the files it generated. An operator could point --state
-// at a state file inside a directory that merely happens to share the work-dir
-// prefix; unrelated files and the directory that holds them must survive.
+// TestCleanupKeepsUnrelatedFilesInWorkDirectory verifies that cleanup removes
+// only the directory Prepare recorded for itself. A state file that was moved
+// or copied into an unrelated directory that merely shares the work-dir prefix
+// records a different work directory, so that directory and its files survive.
 func TestCleanupKeepsUnrelatedFilesInWorkDirectory(t *testing.T) {
 	workDir, err := os.MkdirTemp(t.TempDir(), workDirPrefix)
 	if err != nil {
 		t.Fatalf("create work directory: %v", err)
 	}
-	statePath := writeStateFile(t, workDir)
+	statePath := writeStateFileRecording(t, workDir, filepath.Join(t.TempDir(), workDirPrefix+"original"))
 	unrelated := writeTempFile(t, workDir, "notes.md", "keep me")
 	tool, runner := newTool(t, cleanupSteps(testHeadOID)...)
 

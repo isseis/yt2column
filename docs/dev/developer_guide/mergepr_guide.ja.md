@@ -113,7 +113,7 @@ PR を引数なし（現在のブランチ）、番号、URL のいずれかで�
 
 | ファイル | 内容 |
 |---|---|
-| `state.json` | PR 番号、head ブランチ名と OID、base ブランチ名、タイトル、URL。後続の `merge` と `cleanup` はこの値を使う |
+| `state.json` | PR 番号、head ブランチ名と OID、base ブランチ名、タイトル、URL、準備した作業ディレクトリのパス。後続の `merge` と `cleanup` はこの値を使う |
 | `log.txt` | `origin/<base>..<headOID>` の全コミットメッセージ |
 | `stat.txt` | `origin/<base>...<headOID>` の diff stat |
 | `body.txt` | PR の説明文 |
