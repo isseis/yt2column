@@ -25,8 +25,8 @@ import (
 // are compared by file identity, walking the hierarchy rather than the text of
 // the path, so a descendant reached through a bind mount of an ancestor is
 // recognized. A bind mount of a cache subdirectory at an unrelated path cannot
-// be reached by walking up; the cache's own fixed-name slot directories are
-// compared by identity for it.
+// be reached by walking up; the cache's own fixed-name slot directories, and
+// the directories nested below them, are compared by identity for it.
 func outPathInsideCacheDir(outPath, cacheDir string) bool {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -178,6 +178,12 @@ func insideResolved(dir string, rest []string, cacheDir string, cacheRest []stri
 		// output may still sit on a cache descendant reached through an alias
 		// such as a bind mount of a cache subdirectory at an unrelated path,
 		// which the walk cannot see; compare the cache's own slot directories.
+		// A cache path with a missing tail does not exist yet, so it cannot
+		// contain slots: scanning its existing prefix would only compare
+		// unrelated entries and report false positives.
+		if len(cacheRest) != 0 {
+			return false
+		}
 		return aliasesCacheDescendant(dir, cacheDir)
 	}
 }
@@ -187,15 +193,24 @@ func insideResolved(dir string, rest []string, cacheDir string, cacheRest []stri
 // cache slot an alias may point at.
 var cacheSlotNames = map[string]struct{}{"a": {}, "b": {}}
 
-// aliasesCacheDescendant reports whether dir is an existing slot directory of
-// cacheDir, or lies below one, reached through an alias such as a bind mount of
-// a cache slot placed at an unrelated path. Walking up from dir cannot see such
-// an alias, so the cache's own fixed-name slot entries are compared by file
-// identity instead. Only regular slot directories are considered: an entry
-// whose name is not a valid <video ID>.<a|b>, a symbolic link, or a
-// non-directory is skipped, so the scan is one directory read and never
-// follows a link. When the directory cannot be read safely it reports true so
-// the caller stays fail-closed.
+// maxSlotAliasDepth bounds how far the identity walk descends into a slot
+// directory while looking for an alias of a nested cache descendant. The cache
+// layout nests only a fixed number of levels below a slot, so a small bound
+// keeps the walk finite when the tree is deep or self-referential through
+// hard-linked directories.
+const maxSlotAliasDepth = 3
+
+// aliasesCacheDescendant reports whether dir is an existing directory inside a
+// slot directory of cacheDir, reached through an alias such as a bind mount of
+// a cache subtree placed at an unrelated path. Walking up from dir cannot see
+// such an alias, so the cache's own fixed-name slot entries are compared by
+// file identity instead. Only regular slot directories are considered: an
+// entry whose name is not a valid <video ID>.<a|b>, a symbolic link, or a
+// non-directory is skipped, so the scan never follows a link at the top level.
+// A matched slot's subtree is then walked by identity up to maxSlotAliasDepth,
+// so an alias of a directory nested inside a slot is recognized; that walk
+// also skips symbolic-link entries. When a directory cannot be read safely it
+// reports true so the caller stays fail-closed.
 func aliasesCacheDescendant(dir, cacheDir string) bool {
 	info, err := os.Stat(cacheDir)
 	if err != nil {
@@ -222,7 +237,34 @@ func aliasesCacheDescendant(dir, cacheDir string) bool {
 		if _, valid := transcript.NormalizedVideoURL(id); !valid {
 			continue
 		}
-		if isAncestor(filepath.Join(cacheDir, entry.Name()), dir) {
+		if slotContains(dir, filepath.Join(cacheDir, entry.Name()), 0) {
+			return true
+		}
+	}
+	return false
+}
+
+// slotContains reports whether current is dir or a directory above dir, or
+// whether any directory below current (within maxSlotAliasDepth levels) is. The
+// comparison is by file identity, so an alias of a nested descendant is
+// recognized. Symbolic-link entries are not followed. A ReadDir failure reports
+// true so the caller stays fail-closed.
+func slotContains(dir, current string, depth int) bool {
+	if isAncestor(current, dir) {
+		return true
+	}
+	if depth >= maxSlotAliasDepth {
+		return false
+	}
+	entries, err := os.ReadDir(current)
+	if err != nil {
+		return true
+	}
+	for _, entry := range entries {
+		if entry.Type()&os.ModeSymlink != 0 || !entry.IsDir() {
+			continue
+		}
+		if slotContains(dir, filepath.Join(current, entry.Name()), depth+1) {
 			return true
 		}
 	}

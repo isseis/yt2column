@@ -199,6 +199,22 @@ func TestAliasesCacheDescendant(t *testing.T) {
 		t.Fatal("an unrelated directory was reported as a cache descendant")
 	}
 
+	// A directory nested inside a slot, reached through an alias at an
+	// unrelated path, is a cache descendant too: RemoveCache's recursive
+	// removal would delete it through the slot, so the identity walk must
+	// descend into a matched slot.
+	nested := filepath.Join(slot, "nested")
+	if err := os.Mkdir(nested, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	nestedAlias := filepath.Join(base, "nested-alias")
+	if err := os.Symlink(nested, nestedAlias); err != nil {
+		t.Fatal(err)
+	}
+	if !aliasesCacheDescendant(nestedAlias, cache) {
+		t.Fatal("an alias of a directory nested inside a slot was not recognized")
+	}
+
 	// A symbolic link at a fixed-name slot must not be followed: otherwise a
 	// single entry such as <id>.a -> the outside would make every --out fail.
 	linkSlot := filepath.Join(cache, "aaaaaaaaaaa.a")
@@ -221,6 +237,31 @@ func TestAliasesCacheDescendant(t *testing.T) {
 	}
 	if aliasesCacheDescendant(plainAlias, cache) {
 		t.Fatal("a non-cache-named directory was reported as a cache descendant")
+	}
+}
+
+func TestInsideResolvedMissingCacheTailIgnoresSlotAlias(t *testing.T) {
+	base := t.TempDir()
+	cache := filepath.Join(base, "cache")
+	slot := filepath.Join(cache, "dQw4w9WgXcQ.a")
+	if err := os.MkdirAll(slot, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	// A slot-shaped entry that is an existing sibling under the cache's
+	// existing prefix. An alias of it must not make an unrelated path look
+	// inside when the full cache path (cache plus a missing tail) does not
+	// exist yet, because no slot can exist below a missing component.
+	alias := filepath.Join(base, "slot-alias")
+	if err := os.Symlink(slot, alias); err != nil {
+		t.Fatal(err)
+	}
+	if insideResolved(alias, nil, cache, []string{"new"}) {
+		t.Fatal("a slot alias made a path look inside a cache with a missing tail")
+	}
+	// Without a missing tail the same alias is inside, so the test would
+	// catch a change that stopped reporting slot aliases at all.
+	if !insideResolved(alias, nil, cache, nil) {
+		t.Fatal("a slot alias was not recognized when the cache path resolves completely")
 	}
 }
 

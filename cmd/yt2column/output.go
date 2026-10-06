@@ -8,9 +8,9 @@ import (
 )
 
 // redactedMarker replaces every occurrence of a secret value and its trailing
-// characters in a line the CLI writes to standard error. It is used unless a
-// protected string would appear inside it, in which case a collision-free
-// marker is chosen instead (see chooseMarker).
+// characters in a line the CLI writes to standard error. It is used unless it
+// would make a protected string appear in the result, in which case a
+// collision-free marker is chosen instead (see chooseMarker).
 const redactedMarker = "[REDACTED]"
 
 // exposedTail is how many trailing characters of a secret are redacted on
@@ -41,7 +41,7 @@ func sanitize(line string, secretValues ...string) string {
 	for _, replacement := range replacements {
 		rendered = strings.ReplaceAll(rendered, replacement, placeholder)
 	}
-	return strings.ReplaceAll(rendered, placeholder, chooseMarker(replacements))
+	return strings.ReplaceAll(rendered, placeholder, chooseMarker(rendered, placeholder, replacements))
 }
 
 // secretReplacements returns the distinct strings to redact, longest first:
@@ -101,49 +101,24 @@ func choosePlaceholder(rendered string, replacements []string) string {
 	return "\x00\x01\x02"
 }
 
-// chooseMarker returns redactedMarker unless it is not safe against the
-// protected strings, in which case a marker built from a single repeated byte
-// is chosen instead. Bytes are tried in order so the choice is deterministic.
-func chooseMarker(replacements []string) string {
-	if markerSafe(redactedMarker, replacements) {
-		return redactedMarker
-	}
+// chooseMarker returns a marker to put in place of placeholder in rendered
+// (which already holds placeholder where each protected string occurred), such
+// that the final result contains none of the protected strings. redactedMarker
+// is preferred, then each printable ASCII byte (0x21..0x7e) repeated to the
+// length of redactedMarker; bytes are tried in order so the choice is
+// deterministic and the chosen marker is always printable. As an unreachable
+// last resort it returns redactedMarker.
+func chooseMarker(rendered, placeholder string, replacements []string) string {
+	candidates := []string{redactedMarker}
 	for b := byte('!'); b <= '~'; b++ {
-		if marker := strings.Repeat(string([]byte{b}), len(redactedMarker)); markerSafe(marker, replacements) {
-			return marker
-		}
+		candidates = append(candidates, strings.Repeat(string([]byte{b}), len(redactedMarker)))
 	}
-	for b := range 256 {
-		if marker := strings.Repeat(string([]byte{byte(b)}), len(redactedMarker)); markerSafe(marker, replacements) {
-			return marker
+	for _, candidate := range candidates {
+		if !containsAnySubstring(strings.ReplaceAll(rendered, placeholder, candidate), replacements) {
+			return candidate
 		}
 	}
 	return redactedMarker
-}
-
-// markerSafe reports whether no protected string can be reconstructed across
-// the boundary between the marker and the text it touches. A protected string
-// could otherwise survive either inside the marker (condition 1) or as a
-// match that spans the boundary and so includes the marker's first or last
-// byte (condition 2).
-func markerSafe(marker string, replacements []string) bool {
-	if marker == "" {
-		return false
-	}
-	if containsAnySubstring(marker, replacements) {
-		return false
-	}
-	first := marker[0]
-	last := marker[len(marker)-1]
-	for _, replacement := range replacements {
-		if replacement == "" {
-			continue
-		}
-		if strings.IndexByte(replacement, first) >= 0 || strings.IndexByte(replacement, last) >= 0 {
-			return false
-		}
-	}
-	return true
 }
 
 // containsAnySubstring reports whether any of substrings occurs in s.

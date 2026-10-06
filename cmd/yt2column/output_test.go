@@ -2,7 +2,10 @@
 
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestSanitize(t *testing.T) {
 	cases := []struct {
@@ -51,7 +54,7 @@ func TestSanitize(t *testing.T) {
 			name:    "redacts a secret that holds control characters before escaping",
 			line:    "x\x1b[2Jy",
 			secrets: []string{"x\x1b[2Jy"},
-			want:    "!!!!!!!!!!",
+			want:    "[REDACTED]",
 		},
 		{
 			name:    "redacts several distinct secrets",
@@ -138,5 +141,25 @@ func TestSanitize(t *testing.T) {
 				t.Fatalf("sanitize(%q) = %q, want %q", tc.line, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestSanitizeSecretOfEveryPrintableByte(t *testing.T) {
+	var secret []byte
+	for b := byte(0x20); b <= 0x7e; b++ {
+		secret = append(secret, b)
+	}
+	value := string(secret)
+	line := "key=" + value
+	got := sanitize(line, value)
+	for i := range len(got) {
+		if got[i] < 0x20 || got[i] > 0x7e {
+			t.Fatalf("sanitize(%q) = %q: byte %#x is outside 0x20..0x7e", line, got, got[i])
+		}
+	}
+	for _, protected := range append([]string{value}, value[len(value)-exposedTail:]) {
+		if strings.Contains(got, protected) {
+			t.Fatalf("sanitize(%q) = %q: protected value %q survived", line, got, protected)
+		}
 	}
 }
