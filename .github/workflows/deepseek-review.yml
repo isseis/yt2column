@@ -64,6 +64,19 @@ jobs:
           CONFIG.USE_REPO_SETTINGS_FILE: "false"
           CONFIG.USE_GLOBAL_SETTINGS_FILE: "false"
           CONFIG.REPO_CONTEXT_FILES: '["CLAUDE.md", "docs/dev/security.md"]'
+          # Headroom over the default 500 so a growing CLAUDE.md cannot silently
+          # evict docs/dev/security.md from the context (249 + 50 lines today).
+          CONFIG.REPO_CONTEXT_MAX_LINES: "800"
+          # testdata holds captured yt-dlp/DeepSeek fixtures (info.json is ~1.4 MB):
+          # data, not reviewable code, and large enough to blow the 32k-token budget
+          # and starve the real diff. testdata/README.md is kept because it documents
+          # the IP-redaction rule for those fixtures. The lock/sum patterns cover
+          # files a later dependency bump would add. vendor/** repeats the built-in
+          # default because this value replaces it, not appends to it. Globs are
+          # anchored at the path start (fnmatch via re.match) and only a leading **/
+          # gets a root-level fallback, so list both the root testdata/ and the nested
+          # **/testdata/ forms instead of depending on that fallback.
+          IGNORE.GLOB: '["testdata/*.json", "testdata/*.json3", "**/testdata/*.json", "**/testdata/*.json3", "vendor/**", "*.sum", "*.lock.hcl", "*.sops.yaml"]'
           GITHUB_ACTION_CONFIG.PR_ACTIONS: '["opened", "reopened", "ready_for_review"]'
           # synchronize is handled apart from pr_actions: it runs push_commands.
           GITHUB_ACTION_CONFIG.HANDLE_PUSH_TRIGGER: "true"
@@ -78,10 +91,15 @@ jobs:
           PR_REVIEWER.REQUIRE_ESTIMATE_EFFORT_TO_REVIEW: "false"
           PR_REVIEWER.REQUIRE_TESTS_REVIEW: "false"
           PR_REVIEWER.ENABLE_HELP_TEXT: "false"
+          # Default 3 truncates a bug-dense diff; this repo reports only real
+          # defects (P0/P1), so allow a few more findings.
+          PR_REVIEWER.NUM_MAX_FINDINGS: "5"
           PR_CODE_SUGGESTIONS.COMMITTABLE_CODE_SUGGESTIONS: "true"
           PR_CODE_SUGGESTIONS.FOCUS_ONLY_ON_PROBLEMS: "true"
           PR_CODE_SUGGESTIONS.PUBLISH_OUTPUT_NO_SUGGESTIONS: "false"
           PR_CODE_SUGGESTIONS.SUGGESTIONS_SCORE_THRESHOLD: "7"
+          # Bound per-file suggestion noise (0 = uncapped).
+          PR_CODE_SUGGESTIONS.MAX_SUGGESTIONS_PER_FILE: "3"
           PR_REVIEWER.EXTRA_INSTRUCTIONS: |
             '''
             あなたはこの Go リポジトリの上級コードレビュアーです。指摘は日本語で書き、コード識別子・パス・引用コードは原文のままにします。
