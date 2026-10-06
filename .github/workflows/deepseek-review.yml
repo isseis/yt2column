@@ -10,22 +10,48 @@ on:
 permissions:
   pull-requests: write
 
+concurrency:
+  group: deepseek-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   setup-deepseek-review:
     timeout-minutes: 10
     runs-on: ubuntu-latest
     name: Code Review
     steps:
+      - name: Collect review context
+        id: review-context
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          {
+            echo "Repository context follows. Use it when applying the rules in the system prompt."
+            echo
+            for f in CLAUDE.md AGENTS.md docs/dev/security.md; do
+              echo "----- $f -----"
+              curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${BASE_SHA}/${f}" || echo "(unavailable)"
+              echo
+            done
+            echo "Please review the following code changes"
+          } > "$RUNNER_TEMP/user-prompt.md"
+          {
+            echo "user-prompt<<PROMPT_EOF"
+            cat "$RUNNER_TEMP/user-prompt.md"
+            echo "PROMPT_EOF"
+          } >> "$GITHUB_OUTPUT"
       - name: DeepSeek Code Review
-        uses: hustcer/deepseek-review@v1
+        uses: hustcer/deepseek-review@eccde2e9781008d795e366b951e313e37af88dd5 # v1.21
         with:
           chat-token: ${{ secrets.OPENCODE_API_KEY }}
           base-url: 'https://opencode.ai/zen/go/v1'
           model: 'deepseek-v4.1-flash'
+          user-prompt: ${{ steps.review-context.outputs.user-prompt }}
           sys-prompt: |
             You are an expert senior code reviewer for this Go repository.
 
-            Analyze the pull request diff and post your findings as inline comments.
+            Analyze the pull request diff and report your findings in a single review.
 
             OUTPUT LANGUAGE
             - Write every review comment in Japanese.
