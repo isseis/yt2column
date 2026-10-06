@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Created | 2026-10-05 |
 | Review date | 2026-10-05 |
 | Reviewer | isseis |
-| Comments | 2026-10-06 決定の変更: ステップ 5-1・5-2 が、`ErrLocked` だけの契約に代えて公開の `*LockedError` を作るようになった（02_architecture.md からの決定変更の反映）。ステータスを `draft` に戻して再承認を受けた。 2026-10-06 編集上の修正（決定の変更なし）: ステップ 3-1 の文言を、非公開の `newClient` の説明（プロバイダを直接受け取り、アダプタの構築関数を引数で受け取る）に直した。作るものは変わっていない。 |
+| Comments | 2026-10-06 決定の変更: 02_architecture.md §3.6 の事前確認が、親ディレクトリの探索不能（`EACCES`）・途中の要素が通常ファイル（`ENOTDIR`）も投稿の段階の失敗として拒否するようになった。ステップ 6-3 の `TestRunOutputParentInvalid` にこの 2 ケースを加え、再承認を求めるためステータスを `draft` に戻す。 2026-10-06 決定の変更: ステップ 5-1・5-2 が、`ErrLocked` だけの契約に代えて公開の `*LockedError` を作るようになった（02_architecture.md からの決定変更の反映）。ステータスを `draft` に戻して再承認を受けた。 2026-10-06 編集上の修正（決定の変更なし）: ステップ 3-1 の文言を、非公開の `newClient` の説明（プロバイダを直接受け取り、アダプタの構築関数を引数で受け取る）に直した。作るものは変わっていない。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -375,7 +375,7 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
     -   `TestRunCanceled`（AC-31）: 字幕の取得（途中で止まる `yt-dlp` の準備完了の印を待ってから）・記事の生成・投稿のそれぞれの途中で `ctx` を取り消す。生成と投稿の途中の取り消しは、テストのファイルの中で fake と `FilePublisher` を包む型で起こす。キャッシュが残り、`--out` が作られないこと。
     -   `TestRunInvalidCache`（AC-48）: 途中で切れた字幕と途中で切れた info.json のそれぞれで、`transcript.ErrParseSubtitles`・`ErrParseInfo` を包むエラーになり、続けて `Refresh` と字幕を書き出す偽の `yt-dlp` で成功すること。
     -   `TestRunOutputExists`（AC-50）: 4 種類の既存のパスのそれぞれで、`publisher.ErrOutputExists` を包む投稿の段階の `pipeline.StageError` になり、既存の内容とリンク先が変わらず、存在しない先が作られず、トリップワイヤが起動されず、`Writer` が呼ばれず、キャッシュディレクトリ（ない場合は作られないこと、ある場合は内容の一覧が変わらないこと）が変わらないこと。
-    -   `TestRunOutputParentInvalid`（AC-52）: 親がない場合と親が通常のファイルの場合で、`ErrOutputExists` を包まない投稿の段階の `pipeline.StageError` になり、トリップワイヤ・`Writer`・キャッシュディレクトリについて AC-50 と同じことを確かめる。
+    -   `TestRunOutputParentInvalid`（AC-52）: 親がない場合、親が通常のファイルの場合、親の途中の要素が通常ファイルの場合（`ENOTDIR`）、親を探索できない場合（`EACCES`）で、`ErrOutputExists` を包まない投稿の段階の `pipeline.StageError` になり、トリップワイヤ・`Writer`・キャッシュディレクトリについて AC-50 と同じことを確かめる。
     -   `TestRunLocked`（AC-34）: 1 つ目の `Run` が途中で止まる `yt-dlp` で保持している間（準備完了の印を待つ）に、トリップワイヤを指定した 2 つ目の `Run` が待たずに `cachelock.ErrLocked` を包むエラーで戻り、キャッシュディレクトリの内容（2 つ目の開始前の一覧との比較）を変えず、`Writer` を呼ばず、`--out` を作らないこと。1 つ目の `Run` の goroutine は、後始末で取り消して終了を待つ。
     -   `TestRunOtherCacheDir`（AC-35）、`TestRunLockFailure`（AC-47。書き込めない場合は `requireNonRoot`・`chmodForTest`）。
     -   `TestRunPassesLockToYtDlp`: 途中で止まる `yt-dlp` が、記述子 3 が開いていたことを記録すること。

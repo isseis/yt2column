@@ -666,6 +666,19 @@ func TestRunOutputParentInvalid(t *testing.T) {
 			}
 			return filepath.Join(file, "article.md")
 		}},
+		{"ancestor is a regular file", func(t *testing.T) string {
+			file := filepath.Join(t.TempDir(), "file")
+			if err := os.WriteFile(file, []byte("x"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			return filepath.Join(file, "sub", "article.md")
+		}},
+		{"unsearchable ancestor", func(t *testing.T) string {
+			requireNonRoot(t)
+			dir := t.TempDir()
+			chmodForTest(t, dir, 0o000)
+			return filepath.Join(dir, "sub", "article.md")
+		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

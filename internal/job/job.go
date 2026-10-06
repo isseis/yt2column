@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/isseis/yt2column/internal/cachelock"
@@ -143,8 +144,14 @@ func precheckOutput(outPath string) error {
 
 	info, err := os.Stat(filepath.Dir(outPath))
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return &pipeline.StageError{Stage: pipeline.StagePublish, Err: fmt.Errorf("%w: the directory does not exist", errOutputParent)}
+		// A parent that is missing, unsearchable, or has a non-directory
+		// component can never receive the file, so reject it now instead of
+		// running yt-dlp and the LLM first. Any other lookup failure is
+		// indeterminate, so it proceeds (best effort).
+		if errors.Is(err, fs.ErrNotExist) ||
+			errors.Is(err, syscall.ENOTDIR) ||
+			errors.Is(err, fs.ErrPermission) {
+			return &pipeline.StageError{Stage: pipeline.StagePublish, Err: fmt.Errorf("%w: the directory cannot be used", errOutputParent)}
 		}
 		return nil
 	}
