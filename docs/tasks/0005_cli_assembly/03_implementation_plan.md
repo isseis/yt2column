@@ -8,7 +8,7 @@
 | Created | 2026-10-05 |
 | Review date | 2026-10-05 |
 | Reviewer | isseis |
-| Comments | 編集上の修正（2026-10-06）: PR-9 作成ポイントのレビュー観点で、ステップ 7-1 の処理順（エスケープ → 伏せ字化）に合わせて「伏せ字化 → エスケープ」を「エスケープ → 伏せ字化」に直した。決定の変更はない。 編集上の修正（2026-10-06）: PR #96 のレビューで、最初のシグナルの直後に届いた 2 回目のシグナルが捨てられうることが分かり、ステップ 7-4 の手段の記述（購読を止める時点）を実装に合わせて直した。決定の変更はない（2 回目のシグナルで終了する、という設計書 3.8 の決定は同じ）。 実装に伴う追記（2026-10-06）: フェーズ 8 で、ステップ 8-2 に `TestValidateEnvNames`、8-4 に `integrationOptions` の変数と `TestIntegrationOptionsSkipMissingKey`、8-6・8-7 に `gateCLIIntegration` とその確かめ方を書き加え、8-8 の件数を 13 に改めた。いずれも既存の決定を具体化するもので、決定の変更はない。 実装に伴う修正（2026-10-07）: `/code-review` の指摘で、ステップ 8-2 の `make` の補助の引数（記録する変数の一覧とモデル名の変数を `make.go` の定義へ移す）と、共通の確認 `CheckChargedTarget` を書き改めた。決定の変更はない。 |
+| Comments | 編集上の修正（2026-10-06）: PR-9 作成ポイントのレビュー観点で、ステップ 7-1 の処理順（エスケープ → 伏せ字化）に合わせて「伏せ字化 → エスケープ」を「エスケープ → 伏せ字化」に直した。決定の変更はない。 編集上の修正（2026-10-06）: PR #96 のレビューで、最初のシグナルの直後に届いた 2 回目のシグナルが捨てられうることが分かり、ステップ 7-4 の手段の記述（購読を止める時点）を実装に合わせて直した。決定の変更はない（2 回目のシグナルで終了する、という設計書 3.8 の決定は同じ）。 実装に伴う追記（2026-10-06）: フェーズ 8 で、ステップ 8-2 に `TestValidateEnvNames`、8-4 に `integrationOptions` の変数と `TestIntegrationOptionsSkipMissingKey`、8-6・8-7 に `gateCLIIntegration` とその確かめ方を書き加え、8-8 の件数を 13 に改めた。いずれも既存の決定を具体化するもので、決定の変更はない。 実装に伴う修正（2026-10-07）: `/code-review` の指摘で、ステップ 8-2 の `make` の補助の引数（記録する変数の一覧とモデル名の変数を `make.go` の定義へ移す）と、共通の確認 `CheckChargedTarget` を書き改めた。決定の変更はない。 実装に伴う修正（2026-10-07）: PR-11 のレビューの指摘で、`security.md` §2 の統合テストの例外の更新をステップ 9-3（PR-12）から PR-11 へ前倒しした。ステップ 9-3 には `http2debug` の警告の記述が残る。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -537,7 +537,7 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 **タスク**
 -   [ ] **ステップ 9-1**: `README.md` に、要件書 F-010 の README の項目すべてと、記事のファイルのパーミッション `0o644`、出力先のディレクトリにハードリンクを作れる必要があること（設計書 3.5・3.12）を書く。終了コードは見出し付きの表にする。`Configuration` の表に未設定のときの値の列を加える。`Development` の一覧と統合テストの節に `make test-integration-cli` を加える。
 -   [ ] **ステップ 9-2**: `project_overview.md` の「設定（環境変数）」の表に、F-001 の未設定のときの値を反映する。
--   [ ] **ステップ 9-3**: `security.md` §2 の、実在の API キーを使う統合テストの例外に `cmd/yt2column/integration_test.go` と `make test-integration-cli`・`YT2COLUMN_CLI_INTEGRATION` を加え、CLI は `GODEBUG` の `http2debug` を拒否せず警告にとどめることを書く。
+-   [ ] **ステップ 9-3**: `security.md` §2 に、CLI は `GODEBUG` の `http2debug` を拒否せず警告にとどめることを書く。実在の API キーを使う統合テストの例外に `cmd/yt2column/integration_test.go` と `make test-integration-cli`・`YT2COLUMN_CLI_INTEGRATION` を加えることは、課金の経路を加える PR-11 で行った（PR-11 のレビューで、§2 が課金の経路を 1 つとする記述のままでは事実と食い違うと指摘されたため）。
 -   [ ] **ステップ 9-4**: 文書の記載を確かめるテストを作る（AC-43・AC-32・AC-33 の `static`）。期待する値は要件書（F-001 の表の未設定のときの値など）から取り、テストの対象のコードから導かない。
     -   `cmd/yt2column/docs_test.go::TestREADMEDocumentsCLI`: 要件書 F-010 の README の項目すべてが README に現れること。対象は、呼び出し形式（`yt2column [flags] <動画 URL>` の形）、`run` の `flag.FlagSet` のすべてのフラグ、終了コードの表の `0`・`1`・`2` の行、`Configuration` の表の要件書 F-001 の 6 つの変数の行と、各行の未設定のときの値が F-001 の表の値と一致すること、同時実行は排他され後発が失敗することの案内、SIGKILL で終了させた場合に `yt-dlp` が残りうり、その終了まで次の実行が同時実行として失敗することの案内、キャッシュの内容が不正な場合に `--refresh` で回復できることの案内、統合テストの実行方法（`make test-integration-cli`）である。
     -   `cmd/yt2column/docs_test.go::TestProjectOverviewDocumentsConfig`: `project_overview.md` の「設定（環境変数）」の表に 6 つの変数の行があり、各行の未設定のときの値が F-001 の表の値と一致すること。

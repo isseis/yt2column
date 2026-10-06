@@ -19,10 +19,17 @@ yt2column はローカルで実行する CLI であり、利用者本人が入�
 - Webhook URL は URL 自体が秘密情報である。ログ・エラーメッセージ・`--dry-run` の出力に含めない。`*url.Error` など、URL を含む値をラップしたエラーをそのまま出力しない。
 - テストでは実在のキーや URL を使わない。ただし、実 API を使う統合テストに限り、次の範囲で実在の API キーを使う例外を設ける（`docs/tasks/0003_deepseek_llm_client/02_architecture.md` §5.2）。
   - ユニットテストは実在のキーも URL も使わない。どのテストも API キーをコードやテストデータに書かない。
-  - 実在の API キーを使うのは、`//go:build integration` の統合テスト（`internal/llm/deepseek/integration_test.go`）だけである。統合テストは、`make test-integration-deepseek` だけがエクスポートするオプトインの変数 `YT2COLUMN_DEEPSEEK_INTEGRATION=1` がなければスキップする。テスト用の API キーが `.envrc` などで常にエクスポートされていても、`go test -tags integration ./...` や IDE からの実行で料金が発生しない。
+  - 実在の API キーを使うのは、`//go:build integration` の次の 2 つの統合テストだけである。どちらも、対応する make のターゲットだけがエクスポートするオプトインの変数の値がちょうど `1` でなければスキップする。各ターゲットは自分のオプトインだけをエクスポートし、他方のオプトインはエクスポートしない。テスト用の API キーが `.envrc` などで常にエクスポートされていても、`go test -tags integration ./...` や IDE からの実行で料金が発生しない。
+
+    | 統合テスト | make のターゲット | オプトインの変数 | テスト用の API キーがない場合 |
+    |---|---|---|---|
+    | `internal/llm/deepseek/integration_test.go`（DeepSeek のアダプタ） | `make test-integration-deepseek` | `YT2COLUMN_DEEPSEEK_INTEGRATION=1` | スキップする |
+    | `cmd/yt2column/integration_test.go`（CLI の組み立てで testdata の字幕からファイル出力まで） | `make test-integration-cli` | `YT2COLUMN_CLI_INTEGRATION=1` | 失敗する |
+
+  - 実行するかどうかの判定は、両方のテストが `internal/llm/deepseek/testutil` の `SettingsFrom` で行う。CLI の統合テストは、テスト用の API キーを、プロセスの環境変数を変えずに、CLI に与える環境の `DEEPSEEK_API_KEY` として渡す。
   - API キーは、本番の `DEEPSEEK_API_KEY` とは別の、テスト専用の環境変数 `YT2COLUMN_TEST_DEEPSEEK_API_KEY` からだけ読む。テストには本番と別のキー（利用上限を設けたものなど）を割り当てる。
   - テストの出力（ログ・失敗メッセージ・スキップの理由）に API キーもその一部も書かない。
-- `GODEBUG` に `http2debug=1` または `http2debug=2` を含めると、Go の HTTP/2 の Transport は送信するリクエストヘッダーを値ごと標準エラー出力に記録する。`Authorization` ヘッダーの API キーもそのまま出力される。この設定で通信を調査するときは、無効な API キーを使う。`GODEBUG` はプロセスの開始時に一度だけ読まれ、実行中に取り除いても効かないため、統合テストは `Generate` を呼ぶ前にこれらの設定を検出して失敗する。
+- `GODEBUG` に `http2debug=1` または `http2debug=2` を含めると、Go の HTTP/2 の Transport は送信するリクエストヘッダーを値ごと標準エラー出力に記録する。`Authorization` ヘッダーの API キーもそのまま出力される。この設定で通信を調査するときは、無効な API キーを使う。`GODEBUG` はプロセスの開始時に一度だけ読まれ、実行中に取り除いても効かないため、どちらの統合テストも API を呼ぶ前にこれらの設定を検出して失敗する。
 
 ## 3. ネットワーク通信
 
