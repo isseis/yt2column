@@ -277,8 +277,8 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 4: `FilePublisher`
 
@@ -287,8 +287,8 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 -   変更: `docs/dev/developer_guide/package_reference.md`
 
 **タスク**
--   [ ] **ステップ 4-1**: `file.go` に `FilePublisher`・`NewFilePublisher`・`Publish`・`ErrOutputExists`・`ErrNoHardLink`・`KeptFileError` を作る（設計書 3.5 の検査・書式・作成の手段 1〜6）。I-03 の継ぎ目（§1.5）を非公開のフィールドに置き、本番の値は `NewFilePublisher` が設定する。`link` の失敗の分類は `errors.Is` で errno を判定する。一時ファイルを `0o644` にする呼び出しには、その行だけに `//nolint:gosec // the article is a non-secret document built from a public video` の形で理由を付ける（設計書 3.5 の 3）。
--   [ ] **ステップ 4-2**: `file_test.go` に次を作る。いずれも、出力先のパスと、出力先のディレクトリに残った一時ファイルの有無を確かめる。
+-   [x] **ステップ 4-1**: `file.go` に `FilePublisher`・`NewFilePublisher`・`Publish`・`ErrOutputExists`・`ErrNoHardLink`・`KeptFileError` を作る（設計書 3.5 の検査・書式・作成の手段 1〜6）。I-03 の継ぎ目（§1.5）を非公開のフィールドに置き、本番の値は `NewFilePublisher` が設定する。`link` の失敗の分類は `errors.Is` で errno を判定する。一時ファイルを `0o644` にする呼び出しには、その行だけに `//nolint:gosec // the article is a non-secret document built from a public video` の形で理由を付ける（設計書 3.5 の 3）。
+-   [x] **ステップ 4-2**: `file_test.go` に次を作る。いずれも、出力先のパスと、出力先のディレクトリに残った一時ファイルの有無を確かめる。
     -   `TestFilePublisherWritesArticle`（AC-13）: 内容が設計書 3.5 の書式に一致し、`Body` で終わること。`ModelVersion` が空なら `(none)` を書くこと。パーミッションが `0o644` であること。成功の後に一時ファイルが残らないこと。
     -   `TestFilePublisherExistingPath`（AC-14）: 通常のファイル・ディレクトリ・存在するファイルへのリンク・存在しない先へのリンクの 4 種類で、`ErrOutputExists` を包んだ `*KeptFileError` になり、既存の内容とリンク先が変わらず、存在しない先が作られないこと。`TempPath` のファイルが完成した記事を持つこと。
     -   `TestFilePublisherDirectoryFailure`（AC-15）: ディレクトリがない場合と、書き込めない場合（`requireNonRoot`・`chmodForTest`）。
@@ -296,9 +296,9 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
     -   `TestFilePublisherCanceled`（AC-17）、`TestNewFilePublisherEmptyPath`（AC-18）。
     -   `TestFilePublisherWriteFailure`（AC-46）: 継ぎ目で一定のバイト数の後に書き込みを失敗させる場合と、書き込みの途中で `ctx` を取り消す場合。一時ファイルが削除されること。
     -   `TestFilePublisherLinkFailure`: 継ぎ目の `link` が `EPERM`・`ENOTSUP`・`EOPNOTSUPP`・`EXDEV`・`EMLINK` を返すと `ErrNoHardLink` を、`EACCES` を返すとどちらの番兵も包まない `*KeptFileError` になり、一時ファイルが残ること。
--   [ ] **ステップ 4-3**: `test_helpers.go` に、継ぎ目を差し替えて `FilePublisher` を作る補助と、`requireNonRoot`・`chmodForTest`（§1.3）を置く。
--   [ ] **ステップ 4-4**: `package_reference.md` の `internal/publisher` の行に `FilePublisher` を加える。
--   [ ] **ステップ 4-5**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `link` の代わりに `O_CREATE` だけで出力先を直接作る（`TestFilePublisherExistingPath` の存在しない先へのリンク）、書き込みの失敗時に一時ファイルを削除しない（`TestFilePublisherWriteFailure`）、errno の分類から 1 つずつ外す、`CheckPublishable` を呼ばない、`ctx` の確認を外す、パーミッションを変えない。`make fmt` → `make test` → `make lint` を通す。
+-   [x] **ステップ 4-3**: `test_helpers.go` に、継ぎ目を差し替えて `FilePublisher` を作る補助と、`requireNonRoot`・`chmodForTest`（§1.3）を置く。
+-   [x] **ステップ 4-4**: `package_reference.md` の `internal/publisher` の行に `FilePublisher` を加える。
+-   [x] **ステップ 4-5**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `link` の代わりに `O_CREATE` だけで出力先を直接作る（`TestFilePublisherExistingPath` の存在しない先へのリンク）、書き込みの失敗時に一時ファイルを削除しない（`TestFilePublisherWriteFailure`）、errno の分類から 1 つずつ外す、`CheckPublishable` を呼ばない、`ctx` の確認を外す、パーミッションを変えない。`make fmt` → `make test` → `make lint` を通す。
 
 ### PR-6 作成ポイント: FilePublisher
 
@@ -312,8 +312,8 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 
 **判定理由**: `gosec` の抑止（ステップ 4-1 の `0o644` の一時ファイル）とビルドタグ下の非 `_test.go` のソース（ステップ 4-3）の 2 つの Conditional check に該当し、加えて上書きを防ぐセキュリティの中核を含むため。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
