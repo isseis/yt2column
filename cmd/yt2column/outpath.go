@@ -77,6 +77,16 @@ func resolveExisting(path, base string) (string, []string, bool) {
 				}
 				return restComponents(current, components[i:])
 			}
+			resolvedInfo, err := os.Stat(resolved)
+			if err != nil {
+				if !pathCannotExist(err) {
+					return "", nil, false
+				}
+				return restComponents(current, components[i:])
+			}
+			if !resolvedInfo.IsDir() {
+				return restComponents(current, components[i:])
+			}
 			current = resolved
 			continue
 		}

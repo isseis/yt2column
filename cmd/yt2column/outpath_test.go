@@ -49,6 +49,10 @@ func TestOutPathInsideCacheDir(t *testing.T) {
 		if err := os.Symlink(filepath.Join(base, "missing"), dangling); err != nil {
 			t.Fatal(err)
 		}
+		linkFile := filepath.Join(base, "linkfile")
+		if err := os.Symlink(afile, linkFile); err != nil {
+			t.Fatal(err)
+		}
 
 		cases := []struct {
 			name  string
@@ -70,6 +74,7 @@ func TestOutPathInsideCacheDir(t *testing.T) {
 			{"the parent of the cache", base, cache, false},
 			{"a non-directory in the middle", filepath.Join(afile, "article.md"), cache, false},
 			{"dot dot after a non-directory", joinRaw(afile, "..", "other", "article.md"), cache, true},
+			{"dot dot after a symlink to a non-directory", joinRaw(linkFile, "..", "other", "article.md"), cache, true},
 			{"an existing sibling under a cache with a missing tail", filepath.Join(other, "article.md"), filepath.Join(cache, "new"), false},
 		}
 		for _, tc := range cases {

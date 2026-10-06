@@ -8,7 +8,7 @@ import (
 )
 
 // redactedMarker replaces every occurrence of a secret value and its trailing
-// bytes in a line the CLI writes to standard error.
+// characters in a line the CLI writes to standard error.
 const redactedMarker = "[REDACTED]"
 
 // exposedTail is how many trailing characters of a secret are redacted on
@@ -16,7 +16,7 @@ const redactedMarker = "[REDACTED]"
 const exposedTail = 8
 
 // sanitize prepares one line for standard error: it first redacts the secret
-// values and their trailing bytes, then escapes the characters that would let
+// values and their trailing characters, then escapes the characters that would let
 // untrusted text move the terminal cursor or forge a line. Redaction runs first
 // because escaping changes how a value looks, so a secret would no longer be
 // found in the output.
@@ -24,7 +24,7 @@ func sanitize(line string, secretValues ...string) string {
 	return escapeNonPrintable(redactSecrets(line, secretValues))
 }
 
-// redactSecrets replaces every secret and its trailing bytes with the marker.
+// redactSecrets replaces every secret and its trailing characters with the marker.
 // Longer strings are replaced first, so a secret that contains another one as a
 // substring is not broken apart before it is matched.
 func redactSecrets(line string, secretValues []string) string {
@@ -35,8 +35,8 @@ func redactSecrets(line string, secretValues []string) string {
 }
 
 // secretReplacements returns the distinct strings to redact, longest first: the
-// value of each secret, and its trailing exposedTail bytes when it is longer
-// than that.
+// value of each secret, and its trailing exposedTail characters when it is
+// longer than that.
 func secretReplacements(secretValues []string) []string {
 	seen := make(map[string]bool)
 	var replacements []string
