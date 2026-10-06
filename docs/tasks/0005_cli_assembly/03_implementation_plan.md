@@ -364,13 +364,13 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 -   変更: `internal/pipeline/pipeline_test.go`（`TestFakesCarryBuildTag` の件数）・`docs/dev/developer_guide/package_reference.md`
 
 **タスク**
--   [ ] **ステップ 6-1**: `internal/transcript/testutil/helpers.go` に、偽の `yt-dlp` のスクリプトを一時ディレクトリに作る公開関数と、ディレクトリの内容の一覧を取る公開関数を置く。
+-   [x] **ステップ 6-1**: `internal/transcript/testutil/helpers.go` に、偽の `yt-dlp` のスクリプトを一時ディレクトリに作る公開関数と、ディレクトリの内容の一覧を取る公開関数を置く。
     -   スクリプトの種類: トリップワイヤ（起動されたら印のファイルを作って失敗する）、途中で止まるもの（自身と子の PID と、記述子 3 が開いているかを記録し、準備完了の印を作って止まる）、指定の内容を標準エラー出力に書いて失敗するもの、`-P` のディレクトリに指定の字幕と info.json を書き出して成功するもの。
     -   印と PID のファイルは、一時ファイルへ書いてから改名して作る。
     -   止まるものは無期限には待たない: 解放の印のファイルが現れるか、数分の上限に達したら、子とともに自分で終了する。作った時点で、解放の印を作る処理を `t.Cleanup` に登録する（PID を指定してシグナルを送る後始末はしない。終了済みの PID が再利用されて無関係のプロセスを止めるのを避けるため）。
     -   `TestFakesCarryBuildTag` の件数を 9 にする。
--   [ ] **ステップ 6-2**: `job.go` に `Request`・`Result`・`YtDlpTimeout`・`Run` を作る（設計書 3.4 の手順 B0〜C1、3.6 の事前確認の表）。事前確認で出力先に何かがある場合は `publisher.ErrOutputExists` を包み、親ディレクトリの確認の失敗はそれを包まない。どちらも段階を投稿とする `pipeline.StageError` で返す。
--   [ ] **ステップ 6-3**: `job_test.go` に次を作る。`Writer` は `FakeArticleWriter`、`Publisher` は `FilePublisher` を基本とし、キャッシュは `transcript.SeedCacheForTest` で置く。同じテストで `Run` を 2 回以上呼ぶ場合は §4.1 の規則に従う。偽の `yt-dlp` のスクリプトを起動するテストは `t.Parallel` にしない（Linux で書いた直後の実行ファイルの起動が `ETXTBSY` で失敗しうるため）。
+-   [x] **ステップ 6-2**: `job.go` に `Request`・`Result`・`YtDlpTimeout`・`Run` を作る（設計書 3.4 の手順 B0〜C1、3.6 の事前確認の表）。事前確認で出力先に何かがある場合は `publisher.ErrOutputExists` を包み、親ディレクトリの確認の失敗はそれを包まない。どちらも段階を投稿とする `pipeline.StageError` で返す。
+-   [x] **ステップ 6-3**: `job_test.go` に次を作る。`Writer` は `FakeArticleWriter`、`Publisher` は `FilePublisher` を基本とし、キャッシュは `transcript.SeedCacheForTest` で置く。同じテストで `Run` を 2 回以上呼ぶ場合は §4.1 の規則に従う。偽の `yt-dlp` のスクリプトを起動するテストは `t.Parallel` にしない（Linux で書いた直後の実行ファイルの起動が `ETXTBSY` で失敗しうるため）。
     -   `TestRunRemovesCache`（AC-24。別の動画の有効なキャッシュが残ること）、`TestRunKeepCache`（AC-25）、`TestRunFailureKeepsCache`（AC-26。記事の生成の失敗と投稿の失敗）、`TestRunPrunesDangling`（AC-27。後続が失敗する場合を含む）、`TestRunPruneFailureWarns`（AC-28、`requireNonRoot`・`chmodForTest`）、`TestRunRemoveCacheFailureWarns`（AC-29。投稿の成功の後に `ctx` を取り消して `RemoveCache` を失敗させ、`Run` がエラーを返さず `Warnings` を持ち、`--out` が残ること）、`TestRunRefresh`（AC-30。キャッシュと異なる字幕を書き出す偽の `yt-dlp` と、`FakeArticleWriter` が受け取った `Transcript`）。
     -   `TestRunCanceled`（AC-31）: 字幕の取得（途中で止まる `yt-dlp` の準備完了の印を待ってから）・記事の生成・投稿のそれぞれの途中で `ctx` を取り消す。生成と投稿の途中の取り消しは、テストのファイルの中で fake と `FilePublisher` を包む型で起こす。キャッシュが残り、`--out` が作られないこと。
     -   `TestRunInvalidCache`（AC-48）: 途中で切れた字幕と途中で切れた info.json のそれぞれで、`transcript.ErrParseSubtitles`・`ErrParseInfo` を包むエラーになり、続けて `Refresh` と字幕を書き出す偽の `yt-dlp` で成功すること。
@@ -381,9 +381,9 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
     -   `TestRunPassesLockToYtDlp`: 途中で止まる `yt-dlp` が、記述子 3 が開いていたことを記録すること。
     -   `TestRunValidatesRequest`: B0 の各条件（空の文字列、nil、typed nil）で、キャッシュディレクトリを作らずにエラーになること。
     -   `TestRunReleasesLock`: 成功と失敗のそれぞれの後に、`cachelock.Acquire` が成功すること。
--   [ ] **ステップ 6-4**: `test_helpers.go` に `requireNonRoot`・`chmodForTest`（§1.3）と、`Request.OutPath` と `FilePublisher` を同じパスから作る補助を置く。
--   [ ] **ステップ 6-5**: `package_reference.md` に `internal/job` の行を加える。`internal/transcript/testutil` の行に偽の `yt-dlp` とディレクトリの一覧の補助を加え、「`-tags test` だけでビルドされる」という記述を、`helpers.go` は `integration` のビルドにも含まれる旨に改める。
--   [ ] **ステップ 6-6**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: C1 を `KeepCache` によらず行う・行わない、失敗時にもキャッシュを削除する、B4 の失敗をエラーとして返す、C1 の失敗をエラーとして返す、事前確認を外す（`TestRunOutputExists` のトリップワイヤとキャッシュディレクトリ）、親ディレクトリの確認を外す、排他の取得を外す（`TestRunLocked`）、排他を閉じない（`TestRunReleasesLock`）、`InheritedFiles` を渡さない（`TestRunPassesLockToYtDlp`）、`ForceRefresh` を渡さない（`TestRunRefresh`）。`make fmt` → `make test` → `make lint` を通す。
+-   [x] **ステップ 6-4**: `test_helpers.go` に `requireNonRoot`・`chmodForTest`（§1.3）と、`Request.OutPath` と `FilePublisher` を同じパスから作る補助を置く。
+-   [x] **ステップ 6-5**: `package_reference.md` に `internal/job` の行を加える。`internal/transcript/testutil` の行に偽の `yt-dlp` とディレクトリの一覧の補助を加え、「`-tags test` だけでビルドされる」という記述を、`helpers.go` は `integration` のビルドにも含まれる旨に改める。
+-   [x] **ステップ 6-6**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: C1 を `KeepCache` によらず行う・行わない、失敗時にもキャッシュを削除する、B4 の失敗をエラーとして返す、C1 の失敗をエラーとして返す、事前確認を外す（`TestRunOutputExists` のトリップワイヤとキャッシュディレクトリ）、親ディレクトリの確認を外す、排他の取得を外す（`TestRunLocked`）、排他を閉じない（`TestRunReleasesLock`）、`InheritedFiles` を渡さない（`TestRunPassesLockToYtDlp`）、`ForceRefresh` を渡さない（`TestRunRefresh`）。`make fmt` → `make test` → `make lint` を通す。
 
 ### PR-8 作成ポイント: internal/job
 
