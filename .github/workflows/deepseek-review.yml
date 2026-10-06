@@ -20,9 +20,9 @@ jobs:
         uses: hustcer/deepseek-review@v1
         with:
           chat-token: ${{ secrets.OPENCODE_API_KEY }}
-          chat-completion-endpoint: 'https://opencode.ai/zen/go/v1/chat/completions'
+          base-url: 'https://opencode.ai/zen/go/v1'
           model: 'deepseek-v4.1-flash'
-          prompt: |
+          sys-prompt: |
             You are an expert senior code reviewer for this Go repository.
 
             Analyze the pull request diff and post your findings as inline comments.
