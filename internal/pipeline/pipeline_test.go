@@ -616,11 +616,23 @@ func TestPackageReferenceListsPackages(t *testing.T) {
 		slices.Sort(missing)
 		t.Errorf("package_reference.md has no row for: %v", missing)
 	}
+	var stale []string
+	for pkg := range listed {
+		if !found[pkg] {
+			stale = append(stale, pkg)
+		}
+	}
+	if len(stale) > 0 {
+		slices.Sort(stale)
+		t.Errorf("package_reference.md lists packages that have no production code: %v", stale)
+	}
 }
 
 // isTestOnlySource reports whether a Go file is built only with the test tags,
 // so it is a test helper rather than production code. An OS constraint such as
-// //go:build unix is production code.
+// //go:build unix is production code. The two exact first lines it accepts are
+// the only test-only forms this repository uses; TestFakesCarryBuildTag rejects
+// any other first line, so a new combined constraint cannot slip through here.
 func isTestOnlySource(t *testing.T, path string) bool {
 	t.Helper()
 	data, err := os.ReadFile(path)

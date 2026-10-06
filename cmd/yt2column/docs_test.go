@@ -27,12 +27,12 @@ type configDocRow struct {
 }
 
 var configDocRows = []configDocRow{
-	{"YT2COLUMN_LLM_PROVIDER", "deepseek", "deepseek"},
-	{"YT2COLUMN_MODEL", "Required", "エラー"},
-	{"DEEPSEEK_API_KEY", "Required", "エラー"},
-	{"SLACK_WEBHOOK_URL", "Optional", "値なし"},
-	{"YT2COLUMN_CACHE_DIR", "yt2column", "yt2column"},
-	{"YT2COLUMN_YTDLP_PATH", "yt-dlp", "yt-dlp"},
+	{"YT2COLUMN_LLM_PROVIDER", "`deepseek`", "`deepseek`"},
+	{"YT2COLUMN_MODEL", "Required (an error)", "エラー（必須）"},
+	{"DEEPSEEK_API_KEY", "Required when the provider is `deepseek`", "プロバイダが `deepseek` ならエラー"},
+	{"SLACK_WEBHOOK_URL", "Optional (no value)", "値なし"},
+	{"YT2COLUMN_CACHE_DIR", "Library/Caches/yt2column", "yt2column"},
+	{"YT2COLUMN_YTDLP_PATH", "on `PATH`", "`PATH` 上の `yt-dlp`"},
 }
 
 // TestREADMEDocumentsCLI checks that README.md documents the CLI: the calling
@@ -69,9 +69,20 @@ func TestREADMEDocumentsCLI(t *testing.T) {
 		if table == nil {
 			t.Fatal("README has no exit-code table")
 		}
-		for _, code := range []string{"0", "1", "2"} {
-			if tableRow(table, code) == nil {
-				t.Errorf("exit-code table has no row for %s", code)
+		for _, want := range []struct {
+			code, meaning string
+		}{
+			{"0", "written"},
+			{"1", "run failure"},
+			{"2", "usage or configuration"},
+		} {
+			row := tableRow(table, want.code)
+			if row == nil {
+				t.Errorf("exit-code table has no row for %s", want.code)
+				continue
+			}
+			if len(row) < 2 || !strings.Contains(row[1], want.meaning) {
+				t.Errorf("exit code %s meaning = %q, want it to contain %q", want.code, row, want.meaning)
 			}
 		}
 	})
@@ -99,12 +110,15 @@ func TestREADMEDocumentsCLI(t *testing.T) {
 
 	t.Run("guidance", func(t *testing.T) {
 		// Collapse line wrapping so a phrase that spans two source lines is
-		// still found.
+		// still found. Each phrase carries the consequence, not just the
+		// topic, so a rewrite that negates the behavior fails.
 		flat := strings.Join(strings.Fields(doc), " ")
 		for _, phrase := range []string{
-			"serialized",
+			"runs that share a cache directory are serialized",
+			"a second run fails immediately",
 			"killed with SIGKILL",
-			"`--refresh` to fetch the transcript again",
+			"lock stays held until that `yt-dlp` exits",
+			"Run again with `--refresh` to fetch the transcript again",
 			"0o644",
 			"hard link",
 			"make test-integration-cli",
@@ -134,11 +148,11 @@ func TestProjectOverviewDocumentsConfig(t *testing.T) {
 			continue
 		}
 		if len(row) < 3 {
-			t.Errorf("%s row has %d cells, want a 未設定のとき cell", want.name, len(row))
+			t.Errorf("%s row has %d cells, want a when-unset cell", want.name, len(row))
 			continue
 		}
 		if !strings.Contains(row[2], want.overview) {
-			t.Errorf("%s 未設定のとき cell = %q, want it to contain %q", want.name, row[2], want.overview)
+			t.Errorf("%s when-unset cell = %q, want it to contain %q", want.name, row[2], want.overview)
 		}
 	}
 }
@@ -151,7 +165,9 @@ func TestSecurityDocumentsCLIIntegration(t *testing.T) {
 	if section == "" {
 		t.Fatal("security.md has no section 2")
 	}
-	for _, phrase := range []string{"test-integration-cli", "YT2COLUMN_CLI_INTEGRATION", "http2debug", "警告"} {
+	// The clause, not just the topic: a negated rewrite ("rejects it and does
+	// not warn") must fail.
+	for _, phrase := range []string{"test-integration-cli", "YT2COLUMN_CLI_INTEGRATION", "http2debug", "拒否せず", "警告する"} {
 		if !strings.Contains(section, phrase) {
 			t.Errorf("security.md section 2 is missing %q", phrase)
 		}
@@ -163,21 +179,26 @@ func TestSecurityDocumentsCLIIntegration(t *testing.T) {
 // video URL and the result under it.
 func TestPlanRecordsManualRuns(t *testing.T) {
 	doc := readDoc(t, planPath)
+	checked := map[string]bool{}
 	for _, step := range []string{"9-5", "9-6"} {
-		block, checked, found := stepBlock(doc, "**ステップ "+step+"**")
+		block, done, found := stepBlock(doc, "**ステップ "+step+"**")
 		if !found {
 			t.Errorf("the plan has no step %s", step)
 			continue
 		}
-		if !checked {
+		checked[step] = done
+		if !done {
 			continue
 		}
-		if !strings.Contains(block, "https://") {
+		if !strings.Contains(block, "https://www.youtube.com/watch?v=") {
 			t.Errorf("checked step %s has no video URL record", step)
 		}
-		if !strings.Contains(block, "結果") {
+		if !strings.Contains(block, "結果") || !strings.Contains(block, "終了コード") {
 			t.Errorf("checked step %s has no result record", step)
 		}
+	}
+	if checked["9-5"] != checked["9-6"] {
+		t.Error("steps 9-5 and 9-6 must be completed together")
 	}
 }
 
