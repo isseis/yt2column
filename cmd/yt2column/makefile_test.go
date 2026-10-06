@@ -8,7 +8,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	deepseektestutil "github.com/isseis/yt2column/internal/llm/deepseek/testutil"
 	"github.com/isseis/yt2column/internal/llm/provider"
@@ -23,70 +22,17 @@ const (
 	deepSeekIntegrationTarget = "test-integration-deepseek"
 )
 
-// makeRecordedEnv names the variables the stub GOTEST records: both opt-ins,
-// so a target that exports the wrong one is visible, and the model name.
-var makeRecordedEnv = []string{
-	deepseektestutil.DeepSeekOptInEnv,
-	deepseektestutil.CLIOptInEnv,
-	deepseektestutil.ModelEnv,
-}
-
-// runMake runs target under the stub GOTEST with the model variable set to
-// model, or undefined when model is nil.
-func runMake(t *testing.T, target string, model *string) (string, deepseektestutil.MakeInvocation) {
-	t.Helper()
-	return deepseektestutil.RunMakeTarget(t, deepseektestutil.MakeRun{
-		Root:      repositoryRoot,
-		Target:    target,
-		RecordEnv: makeRecordedEnv,
-		ModelEnv:  deepseektestutil.ModelEnv,
-		Model:     model,
-	})
-}
-
+// TestMakeTestIntegrationCLI checks the target that runs the CLI integration
+// test. It makes one Generate call, so the -timeout value must exceed
+// provider.LLMTimeout.
 func TestMakeTestIntegrationCLI(t *testing.T) {
-	// The package path is the final, standalone argument, so go test treats
-	// it as the package and not as the value of a flag such as -run. The
-	// -timeout value is checked separately against the LLM timeout: the test
-	// makes one Generate call, so the test binary must not time out first.
-	const timeoutPlaceholder = "<timeout>"
-	wantArgs := []string{"-tags", "integration", "-count=1", "-timeout", timeoutPlaceholder, "-v", "./cmd/yt2column"}
-	empty := ""
-	custom := "deepseek-custom"
-	for _, tc := range []struct {
-		name      string
-		model     *string
-		wantModel string
-	}{
-		{name: "model_undefined_uses_default", model: nil, wantModel: "deepseek-flash"},
-		{name: "model_empty_is_kept", model: &empty, wantModel: ""},
-		{name: "model_value_is_kept", model: &custom, wantModel: custom},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			output, invocation := runMake(t, cliIntegrationOptions.MakeTarget, tc.model)
-			if !strings.Contains(output, "calls the real DeepSeek API, which incurs charges") {
-				t.Errorf("make output %q does not say that the target calls the real API and incurs charges", output)
-			}
-			args := slices.Clone(invocation.Args)
-			if i := slices.Index(args, "-timeout"); i >= 0 && i+1 < len(args) {
-				timeout, err := time.ParseDuration(args[i+1])
-				if err != nil || timeout <= provider.LLMTimeout {
-					t.Errorf("-timeout %q (parse error %v), want a duration above provider.LLMTimeout %s", args[i+1], err, provider.LLMTimeout)
-				}
-				args[i+1] = timeoutPlaceholder
-			}
-			if !slices.Equal(args, wantArgs) {
-				t.Errorf("GOTEST arguments = %q, want %q", invocation.Args, wantArgs)
-			}
-			optIn := cliIntegrationOptions.OptInEnv
-			if got, ok := invocation.Env[optIn]; !ok || got != deepseektestutil.OptInValue {
-				t.Errorf("%s = %q (set %t), want %q", optIn, got, ok, deepseektestutil.OptInValue)
-			}
-			if got, ok := invocation.Env[deepseektestutil.ModelEnv]; !ok || got != tc.wantModel {
-				t.Errorf("%s = %q (set %t), want %q", deepseektestutil.ModelEnv, got, ok, tc.wantModel)
-			}
-		})
-	}
+	deepseektestutil.CheckChargedTarget(t, deepseektestutil.ChargedTarget{
+		Root:       repositoryRoot,
+		Target:     cliIntegrationOptions.MakeTarget,
+		OptInEnv:   cliIntegrationOptions.OptInEnv,
+		Package:    "./cmd/yt2column",
+		MinTimeout: provider.LLMTimeout,
+	})
 }
 
 // TestMakeOptInsAreTargetSpecific pins that each charged target exports only
@@ -100,7 +46,7 @@ func TestMakeOptInsAreTargetSpecific(t *testing.T) {
 		{target: deepSeekIntegrationTarget, wantUnset: deepseektestutil.CLIOptInEnv},
 	} {
 		t.Run(tc.target, func(t *testing.T) {
-			_, invocation := runMake(t, tc.target, nil)
+			_, invocation := deepseektestutil.RunMakeTarget(t, repositoryRoot, tc.target, nil)
 			if value, ok := invocation.Env[tc.wantUnset]; ok {
 				t.Errorf("make %s exported %s=%q", tc.target, tc.wantUnset, value)
 			}

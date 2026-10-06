@@ -9,8 +9,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 var (
@@ -36,20 +38,9 @@ var childEnvAllowlist = []string{
 // than quoted.
 var envNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
-// MakeRun describes one `make` invocation under a stub GOTEST.
-type MakeRun struct {
-	// Root is the directory holding the Makefile.
-	Root string
-	// Target is the make target to run.
-	Target string
-	// RecordEnv names the variables the stub records when they are set.
-	RecordEnv []string
-	// ModelEnv names the model variable that Model sets.
-	ModelEnv string
-	// Model is the ModelEnv entry of the child environment; nil leaves the
-	// variable undefined.
-	Model *string
-}
+// recordedEnv names the variables the stub GOTEST records: both opt-ins, so
+// a target that exports the wrong one is visible, and the model name.
+var recordedEnv = []string{DeepSeekOptInEnv, CLIOptInEnv, ModelEnv}
 
 // MakeInvocation is what the stub GOTEST recorded: its arguments, and the
 // recorded variables that were set, by name. An unset variable has no entry,
@@ -84,11 +75,12 @@ func makeStubScript(names []string) string {
 	return b.String()
 }
 
-// RunMakeTarget runs `make -s <Target>` in Root with GOTEST replaced by a stub,
-// and returns make's output and what the stub recorded.
-func RunMakeTarget(t *testing.T, r MakeRun) (string, MakeInvocation) {
+// RunMakeTarget runs `make -s <target>` in root with GOTEST replaced by a stub,
+// and returns make's output and what the stub recorded. model is the ModelEnv
+// entry of the child environment; nil leaves the variable undefined.
+func RunMakeTarget(t *testing.T, root, target string, model *string) (string, MakeInvocation) {
 	t.Helper()
-	if err := validateEnvNames(append([]string{r.ModelEnv}, r.RecordEnv...)); err != nil {
+	if err := validateEnvNames(recordedEnv); err != nil {
 		t.Fatal(err)
 	}
 	makePath, err := exec.LookPath("make")
@@ -97,7 +89,7 @@ func RunMakeTarget(t *testing.T, r MakeRun) (string, MakeInvocation) {
 	}
 	dir := t.TempDir()
 	stub := filepath.Join(dir, "gotest-stub")
-	if err := os.WriteFile(stub, []byte(makeStubScript(r.RecordEnv)), 0o700); err != nil { //nolint:gosec // an executable stub inside the test's temporary directory
+	if err := os.WriteFile(stub, []byte(makeStubScript(recordedEnv)), 0o700); err != nil { //nolint:gosec // an executable stub inside the test's temporary directory
 		t.Fatalf("write stub: %v", err)
 	}
 
@@ -107,15 +99,15 @@ func RunMakeTarget(t *testing.T, r MakeRun) (string, MakeInvocation) {
 			env = append(env, name+"="+value)
 		}
 	}
-	if r.Model != nil {
-		env = append(env, r.ModelEnv+"="+*r.Model)
+	if model != nil {
+		env = append(env, ModelEnv+"="+*model)
 	}
-	cmd := exec.Command(makePath, "-s", r.Target, "GOTEST="+stub) //nolint:gosec // make from PATH with a test-chosen target
-	cmd.Dir = r.Root
+	cmd := exec.Command(makePath, "-s", target, "GOTEST="+stub) //nolint:gosec // make from PATH with a test-chosen target
+	cmd.Dir = root
 	cmd.Env = env
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("make %s error = %v, output:\n%s", r.Target, err, output)
+		t.Fatalf("make %s error = %v, output:\n%s", target, err, output)
 	}
 
 	recorded, err := os.ReadFile(filepath.Join(dir, "invocation")) //nolint:gosec // a path inside the test's temporary directory
@@ -137,6 +129,67 @@ func RunMakeTarget(t *testing.T, r MakeRun) (string, MakeInvocation) {
 		t.Fatalf("unexpected stub output line %q", line)
 	}
 	return string(output), invocation
+}
+
+// ChargedTarget describes a make target that runs a charged integration test.
+type ChargedTarget struct {
+	// Root is the directory holding the Makefile.
+	Root string
+	// Target is the make target.
+	Target string
+	// OptInEnv is the opt-in variable the target must export.
+	OptInEnv string
+	// Package is the package path the target passes to go test.
+	Package string
+	// MinTimeout is what the go test -timeout value must exceed, so the test
+	// binary does not time out before the calls it makes can.
+	MinTimeout time.Duration
+}
+
+// CheckChargedTarget runs c.Target under the stub GOTEST with the model
+// variable undefined, empty, and set, and checks the charge notice, the go
+// test arguments, the -timeout bound, the opt-in, and the model name. The
+// package path must be the final, standalone argument, so go test treats it
+// as the package and not as the value of a flag such as -run.
+func CheckChargedTarget(t *testing.T, c ChargedTarget) {
+	t.Helper()
+	const timeoutPlaceholder = "<timeout>"
+	wantArgs := []string{"-tags", "integration", "-count=1", "-timeout", timeoutPlaceholder, "-v", c.Package}
+	empty := ""
+	custom := "deepseek-custom"
+	for _, tc := range []struct {
+		name      string
+		model     *string
+		wantModel string
+	}{
+		{name: "model_undefined_uses_default", model: nil, wantModel: "deepseek-flash"},
+		{name: "model_empty_is_kept", model: &empty, wantModel: ""},
+		{name: "model_value_is_kept", model: &custom, wantModel: custom},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			output, invocation := RunMakeTarget(t, c.Root, c.Target, tc.model)
+			if !strings.Contains(output, "calls the real DeepSeek API, which incurs charges") {
+				t.Errorf("make output %q does not say that the target calls the real API and incurs charges", output)
+			}
+			args := slices.Clone(invocation.Args)
+			if i := slices.Index(args, "-timeout"); i >= 0 && i+1 < len(args) {
+				timeout, err := time.ParseDuration(args[i+1])
+				if err != nil || timeout <= c.MinTimeout {
+					t.Errorf("-timeout %q (parse error %v), want a duration above %s", args[i+1], err, c.MinTimeout)
+				}
+				args[i+1] = timeoutPlaceholder
+			}
+			if !slices.Equal(args, wantArgs) {
+				t.Errorf("GOTEST arguments = %q, want %q", invocation.Args, wantArgs)
+			}
+			if got, ok := invocation.Env[c.OptInEnv]; !ok || got != OptInValue {
+				t.Errorf("%s = %q (set %t), want %q", c.OptInEnv, got, ok, OptInValue)
+			}
+			if got, ok := invocation.Env[ModelEnv]; !ok || got != tc.wantModel {
+				t.Errorf("%s = %q (set %t), want %q", ModelEnv, got, ok, tc.wantModel)
+			}
+		})
+	}
 }
 
 // FirstLineIs reports an error unless the file at path exists and its first
