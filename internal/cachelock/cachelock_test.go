@@ -370,11 +370,11 @@ func TestLockInheritedByChild(t *testing.T) {
 	if err := lock.Close(); err != nil {
 		t.Fatalf("Close: %v", err)
 	}
-	second, err := Acquire(dir)
+	second, err := acquireWithin(dir, acquireBound)
+	if second != nil {
+		_ = second.Close()
+	}
 	if !errors.Is(err, ErrLocked) {
-		if second != nil {
-			_ = second.Close()
-		}
 		t.Fatalf("Acquire while the child holds the lock = %v, want ErrLocked", err)
 	}
 
