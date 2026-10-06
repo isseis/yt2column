@@ -1,22 +1,27 @@
 name: Code Review
 
 on:
-  pull_request_target:
+  # pull_request rather than pull_request_target: GitHub blocks the latter by
+  # default on public repositories, and this workflow does not need it. It never
+  # checks out or runs PR code (PR-Agent reads the PR through the GitHub API), so a
+  # pull_request run with secrets is safe as long as only same-repo branches run
+  # (the job condition below skips forks, which get no secrets anyway).
+  pull_request:
     types:
       - opened
       - reopened
       - synchronize
       - ready_for_review
-  # Re-run on demand with an exact "/review" or "/improve" PR comment. The job
-  # condition below restricts who can trigger it and which commands are accepted.
+  # Re-run on demand with an exact "/review" or "/improve" PR comment. This event
+  # runs from the default branch with secrets, so it is how a fork PR is reviewed.
+  # The job condition below restricts who can trigger it and which commands are
+  # accepted.
   issue_comment:
     types:
       - created
 
-# PR-Agent reads the PR through the GitHub API and never checks out PR code, so a
-# pull_request_target run with secrets is safe as long as nothing here executes PR
-# content. Settings come only from this file: use_repo_settings_file is off so a PR
-# cannot override the model, the API base, or the prompts.
+# Settings come only from this file: use_repo_settings_file is off so a PR cannot
+# override the model, the API base, or the prompts.
 permissions:
   contents: read
   issues: write
@@ -24,14 +29,18 @@ permissions:
 
 jobs:
   pr-agent:
-    # PR-Agent has no command allowlist, so gate here: only trusted commenters, only
-    # PR comments, and only the two commands matched exactly (no arguments, so a
-    # comment cannot override settings). Concurrency lives on the job, not the
-    # workflow, so skipped comment events do not cancel a review in progress.
+    # PR-Agent has no command allowlist, so gate here: on pull_request only for
+    # same-repo branches (fork PRs have no secrets to call the model), and on a
+    # comment only for trusted commenters, only PR comments, and only the two
+    # commands matched exactly (no arguments, so a comment cannot override
+    # settings). Concurrency lives on the job, not the workflow, so skipped
+    # comment events do not cancel a review in progress.
     if: >-
       ${{ github.event.sender.type != 'Bot' && (
-      github.event_name == 'pull_request_target' ||
-      (github.event.issue.pull_request &&
+      (github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request &&
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
       contains(fromJSON('["/review","/improve"]'), github.event.comment.body))) }}
     concurrency:
