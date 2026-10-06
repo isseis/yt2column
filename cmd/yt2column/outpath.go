@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 )
@@ -18,7 +19,11 @@ import (
 // permission error, a symbolic-link loop, or ".." below a component that does
 // not exist), it reports true so the caller refuses the path. A path that
 // cannot exist because a component is not a directory has the part below that
-// component compared by name, like a non-existent part.
+// component compared by name, like a non-existent part. Existing directories
+// are compared by file identity, walking the hierarchy rather than the text of
+// the path, so a descendant reached through a bind mount of an ancestor is
+// recognized; a bind mount of a cache subdirectory at an unrelated path cannot
+// be reached by walking up and is not recognized.
 func outPathInsideCacheDir(outPath, cacheDir string) bool {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -125,22 +130,25 @@ func pathCannotExist(err error) bool {
 
 // insideResolved reports whether the path (dir plus rest) is inside the cache
 // directory (cacheDir plus cacheRest). The existing parts are compared by file
-// identity and by path, and the non-existent parts by name, without case.
+// identity, walking the directory hierarchy rather than the text of the path,
+// so a descendant reached through an alias such as a bind mount is still
+// recognized; the non-existent parts are compared by name, without case.
 func insideResolved(dir string, rest []string, cacheDir string, cacheRest []string) bool {
 	switch {
 	case sameDir(dir, cacheDir):
 		return isComponentPrefix(cacheRest, rest)
-	case isWithin(dir, cacheDir):
+	case isAncestor(cacheDir, dir):
 		// dir is a real directory inside cacheDir. The full cache path is
 		// cacheDir plus its missing tail, and nothing can exist under a
 		// missing component, so dir is inside it only when the tail is empty.
 		return len(cacheRest) == 0
-	case isWithin(cacheDir, dir):
-		rel, err := filepath.Rel(dir, cacheDir)
-		if err != nil {
+	case isAncestor(dir, cacheDir):
+		// cacheDir is inside dir; the path from dir to cacheDir is compared by
+		// name, then the cache's missing tail.
+		relComponents, ok := pathFrom(dir, cacheDir)
+		if !ok {
 			return true
 		}
-		relComponents := splitComponents(rel)
 		if !isComponentPrefix(relComponents, rest) {
 			return false
 		}
@@ -150,8 +158,8 @@ func insideResolved(dir string, rest []string, cacheDir string, cacheRest []stri
 	}
 }
 
-// sameDir reports whether a and b name the same directory. The paths are
-// already resolved, so os.SameFile also catches an alias like a bind mount.
+// sameDir reports whether a and b name the same directory. os.SameFile
+// recognizes an alias such as a bind mount or a case-insensitive spelling.
 func sameDir(a, b string) bool {
 	if a == b {
 		return true
@@ -167,13 +175,39 @@ func sameDir(a, b string) bool {
 	return os.SameFile(aInfo, bInfo)
 }
 
-// isWithin reports whether path is strictly inside dir.
-func isWithin(path, dir string) bool {
-	rel, err := filepath.Rel(dir, path)
-	if err != nil {
-		return false
+// isAncestor reports whether ancestor is dir or a directory above dir. It walks
+// up by file identity, so a directory reached through an alias is recognized
+// even though its path does not have ancestor as a textual prefix.
+func isAncestor(ancestor, dir string) bool {
+	for d := dir; ; {
+		if sameDir(d, ancestor) {
+			return true
+		}
+		parent := filepath.Dir(d)
+		if parent == d {
+			return false
+		}
+		d = parent
 	}
-	return rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
+}
+
+// pathFrom returns the components from ancestor down to descendant when
+// ancestor is a directory above descendant, walking up by file identity so an
+// alias is recognized. The names are taken from descendant's path.
+func pathFrom(ancestor, descendant string) ([]string, bool) {
+	var reversed []string
+	for d := descendant; ; {
+		if sameDir(d, ancestor) {
+			slices.Reverse(reversed)
+			return reversed, true
+		}
+		parent := filepath.Dir(d)
+		if parent == d {
+			return nil, false
+		}
+		reversed = append(reversed, filepath.Base(d))
+		d = parent
+	}
 }
 
 // isComponentPrefix reports whether prefix is a prefix of components, comparing

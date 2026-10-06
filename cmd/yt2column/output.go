@@ -38,13 +38,17 @@ func redactSecrets(line string, secretValues []string) string {
 // value of each secret, and its trailing exposedTail characters when it is
 // longer than that.
 func secretReplacements(secretValues []string) []string {
-	seen := make(map[string]bool)
+	seen := make(map[string]struct{})
 	var replacements []string
 	add := func(value string) {
-		if value != "" && !seen[value] {
-			seen[value] = true
-			replacements = append(replacements, value)
+		if value == "" {
+			return
 		}
+		if _, ok := seen[value]; ok {
+			return
+		}
+		seen[value] = struct{}{}
+		replacements = append(replacements, value)
 	}
 	for _, value := range secretValues {
 		add(value)

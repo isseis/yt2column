@@ -5,6 +5,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -145,4 +146,29 @@ func TestOutPathInsideCacheDir(t *testing.T) {
 			t.Fatal("a permission failure must be treated as inside")
 		}
 	})
+}
+
+func TestIsAncestorFollowsAliases(t *testing.T) {
+	base := t.TempDir()
+	cache := filepath.Join(base, "cache")
+	if err := os.MkdirAll(filepath.Join(cache, "sub"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(base, "link")
+	if err := os.Symlink(base, link); err != nil {
+		t.Fatal(err)
+	}
+
+	// The same directories reached by another path spelling: the identity walk
+	// must still see the ancestor.
+	if !isAncestor(cache, filepath.Join(link, "cache", "sub")) {
+		t.Fatal("a descendant reached through an alias was not recognized")
+	}
+	if isAncestor(cache, filepath.Join(base, "other")) {
+		t.Fatal("an unrelated directory was reported as a descendant")
+	}
+	got, ok := pathFrom(link, cache)
+	if !ok || !slices.Equal(got, []string{"cache"}) {
+		t.Fatalf("pathFrom(link, cache) = %v, %v; want [cache], true", got, ok)
+	}
 }
