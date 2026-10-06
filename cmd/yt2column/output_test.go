@@ -18,10 +18,16 @@ func TestSanitize(t *testing.T) {
 			want:    "request failed with key [REDACTED]",
 		},
 		{
-			name:    "redacts the trailing eight bytes of a long secret",
+			name:    "redacts the trailing eight characters of a long secret",
 			line:    "Authorization: Bearer IJKLMNOP",
 			secrets: []string{"ABCDEFGHIJKLMNOP"},
 			want:    "Authorization: Bearer [REDACTED]",
+		},
+		{
+			name:    "redacts the trailing eight characters of a multibyte secret",
+			line:    "tail: bcdefghé",
+			secrets: []string{"abcdefghé"},
+			want:    "tail: [REDACTED]",
 		},
 		{
 			name:    "redacts a secret of exactly eight bytes",
@@ -48,10 +54,16 @@ func TestSanitize(t *testing.T) {
 			want:    "[REDACTED]",
 		},
 		{
-			name:    "redacts several secrets and picks the longer match first",
+			name:    "redacts several distinct secrets",
 			line:    "k1=SECRETAAAA k2=SECRETBBBB",
 			secrets: []string{"SECRETAAAA", "SECRETBBBB"},
 			want:    "k1=[REDACTED] k2=[REDACTED]",
+		},
+		{
+			name:    "redacts the longer secret before a shorter one that is its prefix",
+			line:    "token=ABCDEFGH",
+			secrets: []string{"ABCD", "ABCDEFGH"},
+			want:    "token=[REDACTED]",
 		},
 		{
 			name: "escapes an escape sequence",

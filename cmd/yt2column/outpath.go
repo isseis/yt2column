@@ -17,8 +17,8 @@ import (
 // The check is fail-closed: whenever the two paths cannot be compared safely (a
 // permission error, a symbolic-link loop, or ".." below a component that does
 // not exist), it reports true so the caller refuses the path. A path that
-// cannot exist because a component is not a directory is compared by name and
-// is normally outside, matching what the kernel would resolve.
+// cannot exist because a component is not a directory has the part below that
+// component compared by name, like a non-existent part.
 func outPathInsideCacheDir(outPath, cacheDir string) bool {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -43,8 +43,10 @@ func outPathInsideCacheDir(outPath, cacheDir string) bool {
 // components below it. The prefix is made absolute and symbolic links in it are
 // resolved in the kernel's order (a link is resolved before a following ".."
 // applies), starting at base for a relative path and at the root for an
-// absolute one. It reports ok=false when the prefix cannot be resolved safely,
-// so the caller treats the path as inside the cache directory.
+// absolute one. A component that is not a directory ends the prefix: nothing
+// can exist below it, so the rest is treated as non-existent. It reports
+// ok=false when the prefix cannot be resolved safely, so the caller treats the
+// path as inside the cache directory.
 func resolveExisting(path, base string) (string, []string, bool) {
 	current := base
 	components := splitComponents(path)
@@ -77,6 +79,9 @@ func resolveExisting(path, base string) (string, []string, bool) {
 			}
 			current = resolved
 			continue
+		}
+		if !info.IsDir() {
+			return restComponents(current, components[i:])
 		}
 		current = next
 	}
@@ -116,13 +121,20 @@ func insideResolved(dir string, rest []string, cacheDir string, cacheRest []stri
 	case sameDir(dir, cacheDir):
 		return isComponentPrefix(cacheRest, rest)
 	case isWithin(dir, cacheDir):
-		return true
+		// dir is a real directory inside cacheDir. The full cache path is
+		// cacheDir plus its missing tail, and nothing can exist under a
+		// missing component, so dir is inside it only when the tail is empty.
+		return len(cacheRest) == 0
 	case isWithin(cacheDir, dir):
 		rel, err := filepath.Rel(dir, cacheDir)
 		if err != nil {
 			return true
 		}
-		return isComponentPrefix(splitComponents(rel), rest)
+		relComponents := splitComponents(rel)
+		if !isComponentPrefix(relComponents, rest) {
+			return false
+		}
+		return isComponentPrefix(cacheRest, rest[len(relComponents):])
 	default:
 		return false
 	}

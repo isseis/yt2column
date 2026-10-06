@@ -11,8 +11,8 @@ import (
 // bytes in a line the CLI writes to standard error.
 const redactedMarker = "[REDACTED]"
 
-// exposedTail is how many trailing bytes of a secret are redacted on their
-// own, so a truncated key printed by an error is still hidden.
+// exposedTail is how many trailing characters of a secret are redacted on
+// their own, so a truncated key printed by an error is still hidden.
 const exposedTail = 8
 
 // sanitize prepares one line for standard error: it first redacts the secret
@@ -48,8 +48,8 @@ func secretReplacements(secretValues []string) []string {
 	}
 	for _, value := range secretValues {
 		add(value)
-		if len(value) > exposedTail {
-			add(value[len(value)-exposedTail:])
+		if runes := []rune(value); len(runes) > exposedTail {
+			add(string(runes[len(runes)-exposedTail:]))
 		}
 	}
 	slices.SortFunc(replacements, func(a, b string) int {

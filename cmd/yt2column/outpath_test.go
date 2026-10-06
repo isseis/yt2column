@@ -33,6 +33,22 @@ func TestOutPathInsideCacheDir(t *testing.T) {
 		if err := os.WriteFile(afile, []byte("x"), 0o600); err != nil {
 			t.Fatal(err)
 		}
+		other := filepath.Join(cache, "other")
+		if err := os.Mkdir(other, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		realCache := filepath.Join(base, "real", "cache")
+		if err := os.MkdirAll(realCache, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		linkDir := filepath.Join(base, "linkdir")
+		if err := os.Symlink(filepath.Join(base, "real"), linkDir); err != nil {
+			t.Fatal(err)
+		}
+		dangling := filepath.Join(base, "dangling")
+		if err := os.Symlink(filepath.Join(base, "missing"), dangling); err != nil {
+			t.Fatal(err)
+		}
 
 		cases := []struct {
 			name  string
@@ -47,9 +63,14 @@ func TestOutPathInsideCacheDir(t *testing.T) {
 			{"through a symbolic link to the cache", filepath.Join(link, "article.md"), cache, true},
 			{"the symbolic link itself", link, cache, true},
 			{"a symbolic link before dot dot", joinRaw(cache, "up", "..", "cache", "article.md"), cache, false},
+			{"a cache path through a symbolic link", filepath.Join(linkDir, "cache", "article.md"), filepath.Join(linkDir, "cache"), true},
+			{"a real path against a symlinked cache", filepath.Join(realCache, "article.md"), filepath.Join(linkDir, "cache"), true},
+			{"a dangling symbolic link component", filepath.Join(dangling, "article.md"), cache, false},
 			{"an outside sibling", filepath.Join(base, "article.md"), cache, false},
 			{"the parent of the cache", base, cache, false},
 			{"a non-directory in the middle", filepath.Join(afile, "article.md"), cache, false},
+			{"dot dot after a non-directory", joinRaw(afile, "..", "other", "article.md"), cache, true},
+			{"an existing sibling under a cache with a missing tail", filepath.Join(other, "article.md"), filepath.Join(cache, "new"), false},
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
@@ -100,16 +121,22 @@ func TestOutPathInsideCacheDir(t *testing.T) {
 		}
 	})
 
-	t.Run("unreadable cache directory", func(t *testing.T) {
+	t.Run("unreadable directory on the way to --out", func(t *testing.T) {
 		requireNonRoot(t)
 		base := t.TempDir()
 		cache := filepath.Join(base, "cache")
 		if err := os.Mkdir(cache, 0o700); err != nil {
 			t.Fatal(err)
 		}
-		chmodForTest(t, cache, 0o000)
+		blocked := filepath.Join(base, "blocked")
+		if err := os.Mkdir(blocked, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		chmodForTest(t, blocked, 0o000)
 
-		if !outPathInsideCacheDir(filepath.Join(cache, "article.md"), cache) {
+		// Name comparison alone would report "outside"; only treating the
+		// permission failure as unresolvable yields "inside".
+		if !outPathInsideCacheDir(filepath.Join(blocked, "article.md"), cache) {
 			t.Fatal("a permission failure must be treated as inside")
 		}
 	})
