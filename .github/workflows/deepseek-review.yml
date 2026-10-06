@@ -5,7 +5,7 @@ on:
   # default on public repositories, and this workflow does not need it. It never
   # checks out or runs PR code (PR-Agent reads the PR through the GitHub API), so a
   # pull_request run with secrets is safe as long as only same-repo branches run
-  # (the job condition below skips forks, which get no secrets anyway).
+  # (the jobs' conditions below skip forks, which get no secrets anyway).
   pull_request:
     types:
       - opened
@@ -14,8 +14,8 @@ on:
       - ready_for_review
   # Re-run on demand with an exact "/review" or "/improve" PR comment. This event
   # runs from the default branch with secrets, so it is how a fork PR is reviewed.
-  # The job condition below restricts who can trigger it and which commands are
-  # accepted.
+  # Each job's condition below restricts who can trigger it and which command it
+  # accepts.
   issue_comment:
     types:
       - created
@@ -27,14 +27,19 @@ permissions:
   issues: write
   pull-requests: write
 
+# The review and the code suggestions run as separate jobs so each gets its own
+# 10-minute timeout: the full PR-Agent flow (/review then /improve) exceeds a
+# single 10-minute job on a large diff, and a job that hits its timeout is
+# cancelled. Each job keeps a distinct concurrency group so one does not cancel
+# the other.
 jobs:
-  pr-agent:
+  review:
     # PR-Agent has no command allowlist, so gate here: on pull_request only for
     # same-repo branches (fork PRs have no secrets to call the model), and on a
-    # comment only for trusted commenters, only PR comments, and only the two
-    # commands matched exactly (no arguments, so a comment cannot override
-    # settings). Concurrency lives on the job, not the workflow, so skipped
-    # comment events do not cancel a review in progress.
+    # comment only for trusted commenters, only PR comments, and only "/review"
+    # matched exactly (no arguments, so a comment cannot override settings).
+    # Concurrency lives on the job, not the workflow, so skipped comment events
+    # do not cancel a review in progress.
     if: >-
       ${{ github.event.sender.type != 'Bot' && (
       (github.event_name == 'pull_request' &&
@@ -42,7 +47,7 @@ jobs:
       (github.event_name == 'issue_comment' &&
       github.event.issue.pull_request &&
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
-      contains(fromJSON('["/review","/improve"]'), github.event.comment.body))) }}
+      github.event.comment.body == '/review')) }}
     concurrency:
       group: deepseek-review-${{ github.event.pull_request.number || github.event.issue.number }}
       cancel-in-progress: true
@@ -52,14 +57,14 @@ jobs:
     steps:
       # The action's Dockerfile builds FROM the mutable tag pragent/pr-agent:github_action,
       # so pin the v0.47.0 image by digest instead of using the-pr-agent/pr-agent@<sha>.
-      - name: PR-Agent review and inline suggestions
+      - name: PR-Agent review
         uses: docker://pragent/pr-agent@sha256:31b9aac6ab067bada9a0c1b001d30ebc500ea4487e00a93c18c59b9ef5fa66db # 0.47.0-github_action
         env:
           GITHUB_TOKEN: ${{ github.token }}
           DEEPSEEK.KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           CONFIG.MODEL: deepseek/deepseek-flash
           CONFIG.FALLBACK_MODELS: '["deepseek/deepseek-v4-pro"]'
-          CONFIG.REASONING_EFFORT: high
+          CONFIG.REASONING_EFFORT: medium
           CONFIG.RESPONSE_LANGUAGE: ja-JP
           CONFIG.USE_REPO_SETTINGS_FILE: "false"
           CONFIG.USE_GLOBAL_SETTINGS_FILE: "false"
@@ -80,9 +85,9 @@ jobs:
           GITHUB_ACTION_CONFIG.PR_ACTIONS: '["opened", "reopened", "ready_for_review"]'
           # synchronize is handled apart from pr_actions: it runs push_commands.
           GITHUB_ACTION_CONFIG.HANDLE_PUSH_TRIGGER: "true"
-          GITHUB_ACTION_CONFIG.PUSH_COMMANDS: '["/review", "/improve"]'
+          GITHUB_ACTION_CONFIG.PUSH_COMMANDS: '["/review"]'
           GITHUB_ACTION_CONFIG.AUTO_REVIEW: "true"
-          GITHUB_ACTION_CONFIG.AUTO_IMPROVE: "true"
+          GITHUB_ACTION_CONFIG.AUTO_IMPROVE: "false"
           GITHUB_ACTION_CONFIG.AUTO_DESCRIBE: "false"
           # One summary comment (updated in place) plus line-anchored suggestions.
           PR_REVIEWER.PERSISTENT_COMMENT: "true"
@@ -94,12 +99,6 @@ jobs:
           # Default 3 truncates a bug-dense diff; this repo reports only real
           # defects (P0/P1), so allow a few more findings.
           PR_REVIEWER.NUM_MAX_FINDINGS: "5"
-          PR_CODE_SUGGESTIONS.COMMITTABLE_CODE_SUGGESTIONS: "true"
-          PR_CODE_SUGGESTIONS.FOCUS_ONLY_ON_PROBLEMS: "true"
-          PR_CODE_SUGGESTIONS.PUBLISH_OUTPUT_NO_SUGGESTIONS: "false"
-          PR_CODE_SUGGESTIONS.SUGGESTIONS_SCORE_THRESHOLD: "7"
-          # Bound per-file suggestion noise (0 = uncapped).
-          PR_CODE_SUGGESTIONS.MAX_SUGGESTIONS_PER_FILE: "3"
           PR_REVIEWER.EXTRA_INSTRUCTIONS: |
             '''
             あなたはこの Go リポジトリの上級コードレビュアーです。指摘は日本語で書き、コード識別子・パス・引用コードは原文のままにします。
@@ -127,6 +126,55 @@ jobs:
             - 02_architecture.md §7 のテスト戦略が意図的に _test.go を省いているパッケージの未テスト。
             - 絶対的な時間予算による根拠が無いベンチマークの退行。
             '''
+
+  improve:
+    # Same gating as the review job, but only for an exact "/improve" comment.
+    if: >-
+      ${{ github.event.sender.type != 'Bot' && (
+      (github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
+      github.event.comment.body == '/improve')) }}
+    concurrency:
+      group: deepseek-improve-${{ github.event.pull_request.number || github.event.issue.number }}
+      cancel-in-progress: true
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    name: Code Suggestions
+    steps:
+      # Same pinned image as the review job.
+      - name: PR-Agent code suggestions
+        uses: docker://pragent/pr-agent@sha256:31b9aac6ab067bada9a0c1b001d30ebc500ea4487e00a93c18c59b9ef5fa66db # 0.47.0-github_action
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DEEPSEEK.KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          CONFIG.MODEL: deepseek/deepseek-flash
+          CONFIG.FALLBACK_MODELS: '["deepseek/deepseek-v4-pro"]'
+          CONFIG.REASONING_EFFORT: medium
+          CONFIG.RESPONSE_LANGUAGE: ja-JP
+          CONFIG.USE_REPO_SETTINGS_FILE: "false"
+          CONFIG.USE_GLOBAL_SETTINGS_FILE: "false"
+          CONFIG.REPO_CONTEXT_FILES: '["CLAUDE.md", "docs/dev/security.md"]'
+          # Headroom over the default 500 so a growing CLAUDE.md cannot silently
+          # evict docs/dev/security.md from the context (249 + 50 lines today).
+          CONFIG.REPO_CONTEXT_MAX_LINES: "800"
+          # Same ignore list as the review job (see the comment there).
+          IGNORE.GLOB: '["testdata/*.json", "testdata/*.json3", "**/testdata/*.json", "**/testdata/*.json3", "vendor/**", "*.sum", "*.lock.hcl", "*.sops.yaml"]'
+          GITHUB_ACTION_CONFIG.PR_ACTIONS: '["opened", "reopened", "ready_for_review"]'
+          # synchronize is handled apart from pr_actions: it runs push_commands.
+          GITHUB_ACTION_CONFIG.HANDLE_PUSH_TRIGGER: "true"
+          GITHUB_ACTION_CONFIG.PUSH_COMMANDS: '["/improve"]'
+          GITHUB_ACTION_CONFIG.AUTO_REVIEW: "false"
+          GITHUB_ACTION_CONFIG.AUTO_IMPROVE: "true"
+          GITHUB_ACTION_CONFIG.AUTO_DESCRIBE: "false"
+          PR_CODE_SUGGESTIONS.COMMITTABLE_CODE_SUGGESTIONS: "true"
+          PR_CODE_SUGGESTIONS.FOCUS_ONLY_ON_PROBLEMS: "true"
+          PR_CODE_SUGGESTIONS.PUBLISH_OUTPUT_NO_SUGGESTIONS: "false"
+          PR_CODE_SUGGESTIONS.SUGGESTIONS_SCORE_THRESHOLD: "7"
+          # Bound per-file suggestion noise (0 = uncapped).
+          PR_CODE_SUGGESTIONS.MAX_SUGGESTIONS_PER_FILE: "3"
           PR_CODE_SUGGESTIONS.EXTRA_INSTRUCTIONS: |
             '''
             提案は日本語で書き、コード識別子・パス・引用コードは原文のままにします。
