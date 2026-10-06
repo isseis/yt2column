@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-05 |
 | Review date | 2026-10-05 |
 | Reviewer | isseis |
-| Comments | 2026-10-06 決定の変更: 02_architecture.md §3.6 の事前確認が、親ディレクトリの探索不能（`EACCES`）・途中の要素が通常ファイル（`ENOTDIR`）も投稿の段階の失敗として拒否するようになった。ステップ 6-3 の `TestRunOutputParentInvalid` にこの 2 ケースを加え、再承認を求めるためステータスを `draft` に戻す。 2026-10-06 決定の変更: ステップ 5-1・5-2 が、`ErrLocked` だけの契約に代えて公開の `*LockedError` を作るようになった（02_architecture.md からの決定変更の反映）。ステータスを `draft` に戻して再承認を受けた。 2026-10-06 編集上の修正（決定の変更なし）: ステップ 3-1 の文言を、非公開の `newClient` の説明（プロバイダを直接受け取り、アダプタの構築関数を引数で受け取る）に直した。作るものは変わっていない。 |
+| Comments | - |
 
 ## 1. 実装の概要 (Implementation Overview)
 
