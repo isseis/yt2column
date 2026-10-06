@@ -94,12 +94,13 @@ Claude は `prepare` を実行してメッセージを下書きし、PR の URL�
 
 ### 5.2 手動で使う
 
-各サブコマンドは単独でも実行できる。`merge` と `cleanup` は PR を `state.json` から決めるため、位置引数を渡すと usage エラーで止まる。
+各サブコマンドは単独でも実行できる。`merge`、`cleanup`、`discard` は `state.json` を入力に取るため、位置引数を渡すと usage エラーで止まる。
 
 ```sh
 mergepr prepare [PR]
 mergepr merge --state FILE --subject-file FILE --body-file FILE
 mergepr cleanup --state FILE
+mergepr discard --state FILE
 ```
 
 #### `prepare [PR]`
@@ -166,6 +167,10 @@ base branch updated:  true
 local branch deleted: true
 ```
 
+#### `discard --state FILE`
+
+PR のマージを必要とせず、PR やローカルのブランチにも触れずに、準備した作業ディレクトリを削除する。head がマージ前に動いた場合など、準備を使えなくなったときに使う。材料をチェックアウト内に残さないためのコマンドである。`merge` と `cleanup` と同様に、削除するのは `state.json` が記録しているディレクトリだけであり、それは state ファイルを収めているディレクトリでもある。state ファイルを別の場所へ移動・コピーしていると別のディレクトリを指すため、`discard` は何も削除せずエラーで止まる。
+
 ### 5.3 worktree で使う場合
 
 `main` を本体のチェックアウトで開いたまま、別の worktree で作業していることがある。この場合、作業中の worktree では `main` に切り替えられない。`mergepr` はマージを行ったうえで、ローカルのブランチには触れずに次の note を表示する。
@@ -212,15 +217,16 @@ note: main is checked out in another worktree; update it there and remove this w
 | `squash subject is not a non-empty single line` | `merge` | 件名ファイルが空、または複数行 | 件名ファイルを直して `merge` を再実行する |
 | `PR is not open: ... run mergepr cleanup` | `merge` | 前回の実行で既にマージされている | 表示された `mergepr cleanup --state ...` を実行する |
 | `PR base changed after prepare` | `merge` | PR の base が変更された | `prepare` からやり直す |
-| `merge PR: ...` | `merge` | head が `prepare` 後に動いた、ブランチ保護に引っかかった、など | head が動いたなら `prepare` からやり直す。PR がマージ済みなら表示された `cleanup` を実行する |
+| `merge PR: ...` | `merge` | head が `prepare` 後に動いた、ブランチ保護に引っかかった、など | head が動いたなら、使えなくなった準備を `mergepr discard --state ...` で破棄してから `prepare` からやり直す。PR がマージ済みなら表示された `cleanup` を実行する |
 | `PR is not merged` | `cleanup` | まだマージされていない | マージを確認してから再実行する |
 | `switch to <base>: ...` | `cleanup` | 未コミット変更が衝突した、など | 作業ツリーを整理して `cleanup` を再実行する |
 | `fast-forward <base>: ...` | `cleanup` | ローカルの base に `origin` に無いコミットがある | base のコミットを整理して `cleanup` を再実行する |
 | `local head branch moved after prepare; not deleted` | `cleanup` | `prepare` 後にローカル head ブランチへコミットした | そのコミットが必要か確認し、不要ならブランチを手動で削除する |
 | `PR merged a different head than prepared` | `cleanup` | `prepare` 後に head が force-push され、その head がマージされた | ローカル head ブランチに PR に含まれなかったコミットが無いか確認し、base の更新とブランチの削除を手動で行う |
-| `invalid state` | `merge`、`cleanup` | `--state` に `prepare` が書いたファイル以外を指定した | `prepare` が表示したパスを指定する |
+| `invalid state` | `merge`、`cleanup`、`discard` | `--state` に `prepare` が書いたファイル以外を指定した | `prepare` が表示したパスを指定する |
+| `state file does not name the directory it lives in` | `discard` | `--state` が、`prepare` が作ったディレクトリの外へ移動・コピーされた state ファイルを指している | `prepare` が表示したパスを指定する。安全と分かっているなら準備したディレクトリを自分で削除する |
 
-`merge` は取り消せない段階である。その後に止まっても、マージ自体は完了していることがある。GitHub で PR の状態を確認し、マージ済みなら `cleanup` で片付けを再開する。`state.json` はチェックアウト内の作業ディレクトリ（本体のチェックアウトでは `.git/mergepr-*`、worktree では `mergepr-*`）にあるため、片付けが終わるまで削除しない。片付けが成功すると、ツールがディレクトリを削除する。
+`merge` は取り消せない段階である。その後に止まっても、マージ自体は完了していることがある。GitHub で PR の状態を確認し、マージ済みなら `cleanup` で片付けを再開する。`state.json` はチェックアウト内の作業ディレクトリ（本体のチェックアウトでは `.git/mergepr-*`、worktree では `mergepr-*`）にあるため、片付けが終わるまで削除しない。片付けが成功すると、ツールがディレクトリを削除する。使えなくなった準備（head がマージ前に動いた場合など）は、チェックアウト内に残さず `discard` で削除する。
 
 ## 8. ツールを変更する場合
 

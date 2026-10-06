@@ -13,7 +13,7 @@ import (
 	"github.com/isseis/yt2column/internal/mergepr"
 )
 
-var errUsage = errors.New("usage: mergepr prepare [PR] | mergepr merge --state FILE --subject-file FILE --body-file FILE | mergepr cleanup --state FILE")
+var errUsage = errors.New("usage: mergepr prepare [PR] | mergepr merge --state FILE --subject-file FILE --body-file FILE | mergepr cleanup --state FILE | mergepr discard --state FILE")
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -67,6 +67,15 @@ func run(args []string) error {
 		report, err := tool.Cleanup(ctx, *statePath)
 		printReport(report)
 		return err
+	case "discard":
+		if flags.NArg() != 0 || *statePath == "" {
+			return errUsage
+		}
+		if err := mergepr.Discard(*statePath); err != nil {
+			return err
+		}
+		fmt.Println("discarded the prepared work directory")
+		return nil
 	default:
 		return errUsage
 	}

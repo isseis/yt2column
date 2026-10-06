@@ -518,6 +518,51 @@ func TestCleanupKeepsWorkDirectoryOnError(t *testing.T) {
 	}
 }
 
+func TestDiscardRemovesWorkDirectory(t *testing.T) {
+	workDir, err := os.MkdirTemp(t.TempDir(), workDirPrefix)
+	if err != nil {
+		t.Fatalf("create work directory: %v", err)
+	}
+	statePath := writeStateFileRecording(t, workDir, workDir)
+
+	if err := Discard(statePath); err != nil {
+		t.Fatalf("Discard returned error: %v", err)
+	}
+	if _, err := os.Stat(workDir); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("work directory %s still exists after discard, want removed", workDir)
+	}
+}
+
+// TestDiscardKeepsUnrelatedDirectory verifies that Discard applies the same
+// provenance check as cleanup: a state file that was moved or copied into an
+// unrelated directory that merely shares the work-dir prefix records a
+// different directory, so Discard refuses and that directory survives.
+func TestDiscardKeepsUnrelatedDirectory(t *testing.T) {
+	workDir, err := os.MkdirTemp(t.TempDir(), workDirPrefix)
+	if err != nil {
+		t.Fatalf("create work directory: %v", err)
+	}
+	statePath := writeStateFileRecording(t, workDir, filepath.Join(t.TempDir(), workDirPrefix+"original"))
+	unrelated := writeTempFile(t, workDir, "notes.md", "keep me")
+
+	if err := Discard(statePath); !errors.Is(err, errWorkDirMismatch) {
+		t.Fatalf("Discard error = %v, want errWorkDirMismatch", err)
+	}
+	if got := readFile(t, unrelated); got != "keep me" {
+		t.Errorf("unrelated file = %q, want it left untouched", got)
+	}
+	if _, err := os.Stat(workDir); err != nil {
+		t.Errorf("work directory %s removed while it held unrelated files: %v", workDir, err)
+	}
+}
+
+func TestDiscardRejectsInvalidState(t *testing.T) {
+	path := writeTempFile(t, t.TempDir(), "state.json", `{"number":42}`)
+	if err := Discard(path); !errors.Is(err, errInvalidState) {
+		t.Fatalf("Discard error = %v, want errInvalidState", err)
+	}
+}
+
 func TestLoadStateRejectsIncompleteState(t *testing.T) {
 	path := writeTempFile(t, t.TempDir(), "state.json", `{"number":42}`)
 	if _, err := loadState(path); !errors.Is(err, errInvalidState) {

@@ -94,12 +94,13 @@ Claude runs `prepare`, drafts the message, and requests approval, showing the PR
 
 ### 5.2 Using it manually
 
-Each subcommand can also be run on its own. `merge` and `cleanup` take the PR from `state.json`, so passing a positional argument stops them with a usage error.
+Each subcommand can also be run on its own. `merge`, `cleanup`, and `discard` take `state.json` as input, so passing a positional argument stops them with a usage error.
 
 ```sh
 mergepr prepare [PR]
 mergepr merge --state FILE --subject-file FILE --body-file FILE
 mergepr cleanup --state FILE
+mergepr discard --state FILE
 ```
 
 #### `prepare [PR]`
@@ -166,6 +167,10 @@ base branch updated:  true
 local branch deleted: true
 ```
 
+#### `discard --state FILE`
+
+Removes the prepared work directory without requiring the PR to be merged and without touching the PR or the local branches. Use it when a preparation can no longer be used, such as after the head moved before the merge, so its material does not linger inside the checkout. Like `merge` and `cleanup`, it removes only the directory `state.json` records, which is also the directory holding that state file; a state file that was moved or copied elsewhere names a different directory, so `discard` removes nothing and stops with an error.
+
 ### 5.3 Using it in a worktree
 
 You may be working in a separate worktree while `main` stays checked out in the primary checkout. In that case, the worktree you are working in cannot switch to `main`. `mergepr` performs the merge and then, without touching the local branches, prints the following note.
@@ -212,15 +217,16 @@ When `mergepr` finds a problem, it prints the reason and the remedy and stops. W
 | `squash subject is not a non-empty single line` | `merge` | The subject file is empty or has multiple lines | Fix the subject file and rerun `merge` |
 | `PR is not open: ... run mergepr cleanup` | `merge` | It was already merged by a previous run | Run the displayed `mergepr cleanup --state ...` |
 | `PR base changed after prepare` | `merge` | The PR's base was changed | Start over from `prepare` |
-| `merge PR: ...` | `merge` | The head moved after `prepare`, branch protection blocked it, etc. | If the head moved, start over from `prepare`. If the PR is merged, run the displayed `cleanup` |
+| `merge PR: ...` | `merge` | The head moved after `prepare`, branch protection blocked it, etc. | If the head moved, discard the stale preparation with `mergepr discard --state ...` and start over from `prepare`. If the PR is merged, run the displayed `cleanup` |
 | `PR is not merged` | `cleanup` | It is not merged yet | Check that the PR has been merged, then rerun |
 | `switch to <base>: ...` | `cleanup` | Uncommitted changes conflicted, etc. | Tidy up the working tree and rerun `cleanup` |
 | `fast-forward <base>: ...` | `cleanup` | The local base has commits that `origin` does not | Sort out the base's commits and rerun `cleanup` |
 | `local head branch moved after prepare; not deleted` | `cleanup` | You committed to the local head branch after `prepare` | Check whether those commits are needed, and delete the branch manually if not |
 | `PR merged a different head than prepared` | `cleanup` | The head was force-pushed after `prepare`, and that head was merged | Check whether the local head branch holds commits that were not part of the PR, then update the base and delete the branch manually |
-| `invalid state` | `merge`, `cleanup` | A file other than the one `prepare` wrote was given to `--state` | Specify the path `prepare` printed |
+| `invalid state` | `merge`, `cleanup`, `discard` | A file other than the one `prepare` wrote was given to `--state` | Specify the path `prepare` printed |
+| `state file does not name the directory it lives in` | `discard` | `--state` points at a state file that was moved or copied out of the directory `prepare` created | Specify the path `prepare` printed, or delete the prepared directory yourself if you know it is safe |
 
-`merge` is the stage that cannot be undone. Even if the tool stops after it, the merge itself may have completed. Check the PR's state on GitHub, and if it is merged, resume the cleanup with `cleanup`. Because `state.json` lives in the work directory inside the checkout (`.git/mergepr-*` in the primary checkout, `mergepr-*` in a linked worktree), do not delete it until the cleanup is finished; the tool removes the directory after a successful cleanup.
+`merge` is the stage that cannot be undone. Even if the tool stops after it, the merge itself may have completed. Check the PR's state on GitHub, and if it is merged, resume the cleanup with `cleanup`. Because `state.json` lives in the work directory inside the checkout (`.git/mergepr-*` in the primary checkout, `mergepr-*` in a linked worktree), do not delete it until the cleanup is finished; the tool removes the directory after a successful cleanup. A preparation that can no longer be used — for example after the head moved before the merge — is removed with `discard` instead of being left behind in the checkout.
 
 ## 8. Changing the Tool
 

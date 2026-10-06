@@ -228,7 +228,7 @@ func (t *Tool) Merge(ctx context.Context, statePath, subjectPath, bodyPath strin
 	if err != nil {
 		return report, err
 	}
-	removeWorkDir(state, statePath)
+	_ = removeWorkDir(state, statePath)
 	return report, nil
 }
 
@@ -244,28 +244,43 @@ func (t *Tool) Cleanup(ctx context.Context, statePath string) (Report, error) {
 	if err != nil {
 		return report, err
 	}
-	removeWorkDir(state, statePath)
+	_ = removeWorkDir(state, statePath)
 	return report, nil
 }
 
-// removeWorkDir deletes the prepared work directory after cleanup has
-// finished. The directory is the unit the workflow owns: Prepare creates it,
-// writes the material into it, and the operator drafts the subject and body
-// files there, so it is removed whole rather than file by file. To keep an
-// operator-supplied --state path from deleting an unrelated directory, it
-// removes only the directory Prepare recorded in the state file, which is also
-// the directory that still holds the state file; a state file that was moved or
-// copied elsewhere therefore removes nothing. A leftover directory is ignored,
-// since cleanup itself already succeeded.
-func removeWorkDir(state State, statePath string) {
+// removeWorkDir deletes the prepared work directory. The directory is the unit
+// the workflow owns: Prepare creates it, writes the material into it, and the
+// operator drafts the subject and body files there, so it is removed whole
+// rather than file by file. To keep an operator-supplied --state path from
+// deleting an unrelated directory, it removes only the directory Prepare
+// recorded in the state file, which is also the directory that still holds the
+// state file; a state file that was moved or copied elsewhere therefore removes
+// nothing. It returns errWorkDirMismatch in that case, so an explicit Discard
+// can report it while Merge and Cleanup ignore a leftover directory after a
+// cleanup that already succeeded.
+func removeWorkDir(state State, statePath string) error {
 	if state.WorkDir == "" {
-		return
+		return errWorkDirMismatch
 	}
 	dir, err := filepath.Abs(filepath.Dir(statePath))
 	if err != nil || dir != state.WorkDir {
-		return
+		return errWorkDirMismatch
 	}
-	_ = os.RemoveAll(dir)
+	return os.RemoveAll(dir)
+}
+
+// Discard removes the prepared work directory without requiring the PR to be
+// merged and without touching the PR or the local branches. Use it when a
+// preparation can no longer be used, for example when the head moved before the
+// merge, so its material does not linger inside the checkout. It applies the
+// same provenance check as Merge and Cleanup: a state file that was moved or
+// copied elsewhere names a different directory and removes nothing.
+func Discard(statePath string) error {
+	state, err := loadState(statePath)
+	if err != nil {
+		return err
+	}
+	return removeWorkDir(state, statePath)
 }
 
 func (t *Tool) cleanup(ctx context.Context, state State) (Report, error) {

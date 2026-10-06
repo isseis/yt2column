@@ -79,7 +79,9 @@ around it with your own shell commands. Work in order; do not skip a step.
    `mergepr merge --state <state-file> --subject-file <subject-file> --body-file <body-file>`.
    It requires the PR to be still open on the prepared base, then merges with
    `--match-head-commit <headRefOid>`, so GitHub refuses the merge if the head
-   moved after `prepare` (re-run from step 1 in that case). Then it cleans up:
+   moved after `prepare`. In that case the preparation can no longer be used:
+   discard it with `mergepr discard --state <state-file>` so its material does
+   not linger inside the checkout, then re-run from step 1. Then it cleans up:
    it fast-forwards the local base branch from `origin/<baseRefName>` and deletes
    the local head branch only while it still points at `headRefOid` (and stops
    without touching local branches if the merged head is not `headRefOid`). When
