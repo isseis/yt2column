@@ -334,7 +334,9 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
     -   `TestLockFileSurvivesPrune`（AC-37）: 排他のファイルを置いたディレクトリで `transcript.YtDlpSource.PruneCache` を呼び、エラーがなく、ファイルが残ること。
     -   `TestLockInheritedByChild`（H-02 の仕組み）: `File()` を `ExtraFiles` で渡した子プロセス（`exec.Cmd` で起動する）を起動し、`Close` の後も 2 つ目の `Acquire` が `ErrLocked` になること、子を `Process.Kill` で止めて `Wait` した後に取得できること。起動した時点で、止めて `Wait` する処理を `t.Cleanup` に登録する。
 -   [x] **ステップ 5-3**: `package_reference.md` に `internal/cachelock` の行を加える。
--   [ ] **ステップ 5-4**（手動、利用者の承認が必要）: 実際の `yt-dlp` が起動する子プロセスが記述子 3 を引き継ぐかを確かめる（設計書 §8 の 5、3.7）。排他のファイルを記述子 3 で開いた状態で実 `yt-dlp` に字幕を取得させ、実行中に `lsof <排他のファイル>` で保持しているプロセスを記録する。結果（`yt-dlp` の版、保持していたプロセス）を本ステップの下に追記する。
+-   [x] **ステップ 5-4**（手動、利用者の承認が必要）: 実際の `yt-dlp` が起動する子プロセスが記述子 3 を引き継ぐかを確かめる（設計書 §8 の 5、3.7）。排他のファイルを記述子 3 で開いた状態で実 `yt-dlp` に字幕を取得させ、実行中に `lsof <排他のファイル>` で保持しているプロセスを記録する。結果（`yt-dlp` の版、保持していたプロセス）を本ステップの下に追記する。
+    -   実施: 2026-10-06。`yt-dlp` の版: 2026.08.19。検証用の一時プログラムが `cachelock.Acquire` の `Lock.File()` を `transcript.Options.InheritedFiles` に渡し、`https://www.youtube.com/watch?v=2tcCWM-sRBw` の字幕を取得させた。
+    -   結果: 実行中に `lsof <排他のファイル>` で、検証用プログラム（`3r`）と `yt-dlp`（COMMAND は `Python`）が排他のファイルを記述子 3 で開いていることを観測した。字幕のみの取得では `yt-dlp` の子プロセス（`deno`・`ffmpeg` など）は現れず、記述子 3 を保持したのは `yt-dlp` 本体だけであった。親の終了後の `lsof` は空で、排他が解放されることを確認した。別の動画（`EQCUZyB4DqE`）でも同じく `Python` が記述子 3 を保持した（この回は HTTP 429 で取得に失敗したが、記述子の引き継ぎは同じ）。
 -   [x] **ステップ 5-5**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `LOCK_NB` を外す（`TestAcquireLocked` が上限で失敗すること）、`flock` を `fcntl` のロックに替える（`TestAcquireLocked`・`TestLockInheritedByChild`）、`EWOULDBLOCK` 以外も `ErrLocked` で包む（`TestAcquireOtherFailures`）、通常のファイルの確認を外す、`O_NONBLOCK` を外す、ディレクトリのパーミッションを変える。`make fmt` → `make test` → `make lint` を通す。
 
 ### PR-7 作成ポイント: internal/cachelock
