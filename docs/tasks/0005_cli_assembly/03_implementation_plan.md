@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Created | 2026-10-05 |
-| Review date | 2026-10-05 |
-| Reviewer | isseis |
-| Comments | - |
+| Review date | - |
+| Reviewer | - |
+| Comments | 設計書 3.8 の決定変更（標準エラー出力の無害化の順をエスケープ → 伏せ字化に変更）に伴い、ステップ 7-1 の記述を更新した。PR #94 のレビューで判明したもので、再承認を要する。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -410,7 +410,7 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 -   変更: `docs/dev/developer_guide/package_reference.md`
 
 **タスク**
--   [x] **ステップ 7-1**: `output.go` に、伏せ字化 → エスケープの順に処理する関数を作る（設計書 3.8「標準エラー出力の無害化」）。`output_test.go` の `TestSanitize` で、値と末尾 8 文字の伏せ字化（8 文字以下の値を含む）、制御文字・`U+202E`・不正な UTF-8・バックスラッシュのエスケープ、制御文字を含む秘密情報の値も伏せ字になることを確かめる。
+-   [x] **ステップ 7-1**: `output.go` に、エスケープ → 伏せ字化の順に処理する関数を作る（設計書 3.8「標準エラー出力の無害化」）。`output_test.go` の `TestSanitize` で、値と末尾 8 文字（文字単位とバイト単位）の伏せ字化（8 文字以下の値を含む）、制御文字・`U+202E`・不正な UTF-8・バックスラッシュのエスケープ、制御文字を含む秘密情報の値も伏せ字になること、エスケープが合成した値と印に含まれる値を伏せ字にすることを確かめる。
 -   [x] **ステップ 7-2**: `outpath.go` に、`--out` がキャッシュディレクトリの中かの判定を作る（設計書 3.6 の性質の箇条書き）。`outpath_test.go` の `TestOutPathInsideCacheDir` で、要件書 AC-20 の `--out` の例すべて（カレントディレクトリをキャッシュディレクトリにする例は `t.Chdir`）、途中のシンボリックリンクの後の `..`、存在しない部分の綴りの大小だけが違うパス、キャッシュディレクトリがない場合、キャッシュディレクトリへのシンボリックリンク、`Lstat` が権限で失敗する場合（`requireNonRoot`・`chmodForTest`）を「中」と、外を指すパスを「外」と判定することを確かめる。設計書 3.6 の「安全側に倒すことによる誤判定」の例も「中」と判定されることを確かめる。PR-9 のテスト（`TestSanitize`・`TestOutPathInsideCacheDir`）を 1 つずつ壊して失敗することを確かめ、コミットメッセージに記録し、`make fmt` → `make test` → `make lint` を通す。
 
 ### PR-9 作成ポイント: CLI pre-side-effect validation (stderr sanitization and --out path check)
