@@ -145,7 +145,59 @@ func TestOutPathInsideCacheDir(t *testing.T) {
 		if !outPathInsideCacheDir(filepath.Join(blocked, "article.md"), cache) {
 			t.Fatal("a permission failure must be treated as inside")
 		}
+		// The kernel cannot resolve ".." below an unsearchable directory, so
+		// collapsing it lexically would wrongly report "outside".
+		if !outPathInsideCacheDir(joinRaw(blocked, "..", "article.md"), cache) {
+			t.Fatal("a permission failure before dot dot must be treated as inside")
+		}
 	})
+}
+
+func TestOutPathInsideCacheDirCaseVariant(t *testing.T) {
+	base := t.TempDir()
+	cache := filepath.Join(base, "cache")
+	variant := filepath.Join(base, "Cache")
+	if err := os.Mkdir(variant, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	// On a case-insensitive filesystem the two spellings are the same
+	// directory, so the distinction under test cannot exist.
+	if _, err := os.Stat(cache); err == nil {
+		t.Skip("filesystem is case-insensitive")
+	}
+	if !outPathInsideCacheDir(filepath.Join(variant, "article.md"), cache) {
+		t.Fatal("an existing case variant of the missing cache tail must be inside")
+	}
+}
+
+func TestAliasesCacheDescendant(t *testing.T) {
+	base := t.TempDir()
+	cache := filepath.Join(base, "cache")
+	slot := filepath.Join(cache, "dQw4w9WgXcQ.a")
+	if err := os.MkdirAll(slot, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	other := filepath.Join(base, "other")
+	if err := os.Mkdir(other, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	slotAlias := filepath.Join(base, "slot-alias")
+	if err := os.Symlink(slot, slotAlias); err != nil {
+		t.Fatal(err)
+	}
+	otherAlias := filepath.Join(base, "other-alias")
+	if err := os.Symlink(other, otherAlias); err != nil {
+		t.Fatal(err)
+	}
+
+	// The alias names the cache slot through an unrelated path; the identity
+	// comparison must still see the descendant.
+	if !aliasesCacheDescendant(slotAlias, cache) {
+		t.Fatal("an alias of a cache descendant was not recognized")
+	}
+	if aliasesCacheDescendant(otherAlias, cache) {
+		t.Fatal("an unrelated directory was reported as a cache descendant")
+	}
 }
 
 func TestIsAncestorFollowsAliases(t *testing.T) {

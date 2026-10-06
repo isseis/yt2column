@@ -22,8 +22,8 @@ import (
 // component compared by name, like a non-existent part. Existing directories
 // are compared by file identity, walking the hierarchy rather than the text of
 // the path, so a descendant reached through a bind mount of an ancestor is
-// recognized; a bind mount of a cache subdirectory at an unrelated path cannot
-// be reached by walking up and is not recognized.
+// recognized. A bind mount of a cache subdirectory at an unrelated path cannot
+// be reached by walking up; the cache's own descendants are scanned for it.
 func outPathInsideCacheDir(outPath, cacheDir string) bool {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -63,6 +63,9 @@ func resolveExisting(path, base string) (string, []string, bool) {
 		case "", ".":
 			continue
 		case "..":
+			if err := confirmSearchable(current); err != nil {
+				return "", nil, false
+			}
 			current = filepath.Dir(current)
 			continue
 		}
@@ -128,6 +131,15 @@ func pathCannotExist(err error) bool {
 	return errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR)
 }
 
+// confirmSearchable reports whether dir can be searched by the caller.
+// Resolving "dir/." needs the search permission on dir, just as the kernel
+// needs it to apply a following "..", so a failure means the path cannot be
+// resolved the way the kernel would and the caller must fail closed.
+func confirmSearchable(dir string) error {
+	_, err := os.Stat(dir + string(os.PathSeparator) + ".")
+	return err
+}
+
 // insideResolved reports whether the path (dir plus rest) is inside the cache
 // directory (cacheDir plus cacheRest). The existing parts are compared by file
 // identity, walking the directory hierarchy rather than the text of the path,
@@ -139,9 +151,14 @@ func insideResolved(dir string, rest []string, cacheDir string, cacheRest []stri
 		return isComponentPrefix(cacheRest, rest)
 	case isAncestor(cacheDir, dir):
 		// dir is a real directory inside cacheDir. The full cache path is
-		// cacheDir plus its missing tail, and nothing can exist under a
-		// missing component, so dir is inside it only when the tail is empty.
-		return len(cacheRest) == 0
+		// cacheDir plus its missing tail, so dir is inside it when that tail is
+		// a prefix of the path from cacheDir down to dir. The prefix is
+		// compared without case, like the non-existent parts.
+		relComponents, ok := pathFrom(cacheDir, dir)
+		if !ok {
+			return true
+		}
+		return isComponentPrefix(cacheRest, relComponents)
 	case isAncestor(dir, cacheDir):
 		// cacheDir is inside dir; the path from dir to cacheDir is compared by
 		// name, then the cache's missing tail.
@@ -154,8 +171,61 @@ func insideResolved(dir string, rest []string, cacheDir string, cacheRest []stri
 		}
 		return isComponentPrefix(cacheRest, rest[len(relComponents):])
 	default:
+		// Neither directory contains the other by walking up the paths. The
+		// output may still sit on a cache descendant reached through an alias
+		// such as a bind mount of a cache subdirectory at an unrelated path,
+		// which the walk cannot see; compare the cache's own descendants too.
+		return aliasesCacheDescendant(dir, cacheDir)
+	}
+}
+
+// maxCacheDescendantDepth bounds the cache-descendant scan. The cache layout is
+// shallow (a slot directory per video), and the bound also stops a bind mount
+// that makes the tree cyclic; reaching it makes the answer unknown, and the
+// caller then stays fail-closed.
+const maxCacheDescendantDepth = 4
+
+// aliasesCacheDescendant reports whether dir is an existing descendant of
+// cacheDir, or lies below one, reached through an alias such as a bind mount of
+// a cache subdirectory placed at an unrelated path. Walking up from dir cannot
+// see such an alias, so the cache's own entries are compared by file identity
+// instead. The walk is bounded in depth; when it cannot finish safely it reports
+// true so the caller stays fail-closed.
+func aliasesCacheDescendant(dir, cacheDir string) bool {
+	info, err := os.Stat(cacheDir)
+	if err != nil {
+		return true
+	}
+	if !info.IsDir() {
 		return false
 	}
+	var walk func(current string, depth int) (bool, bool)
+	walk = func(current string, depth int) (bool, bool) {
+		if depth > maxCacheDescendantDepth {
+			return false, false
+		}
+		entries, err := os.ReadDir(current)
+		if err != nil {
+			return false, false
+		}
+		for _, entry := range entries {
+			child := filepath.Join(current, entry.Name())
+			if isAncestor(child, dir) {
+				return true, true
+			}
+			if entry.IsDir() {
+				if found, ok := walk(child, depth+1); found || !ok {
+					return found, ok
+				}
+			}
+		}
+		return false, true
+	}
+	found, ok := walk(cacheDir, 0)
+	if !ok {
+		return true
+	}
+	return found
 }
 
 // sameDir reports whether a and b name the same directory. os.SameFile

@@ -95,6 +95,30 @@ func TestSanitize(t *testing.T) {
 			line: "hello, 世界",
 			want: "hello, 世界",
 		},
+		{
+			name:    "a secret equal to the marker does not survive in it",
+			line:    "model=REDACTED",
+			secrets: []string{"REDACTED"},
+			want:    "model=!!!!!!!!!!",
+		},
+		{
+			name:    "a secret equal to the whole marker does not survive in it",
+			line:    "model=[REDACTED]",
+			secrets: []string{"[REDACTED]"},
+			want:    "model=!!!!!!!!!!",
+		},
+		{
+			name:    "redacts a secret that escaping would otherwise synthesize",
+			line:    "key=\x1b",
+			secrets: []string{`\x1b`},
+			want:    "key=[REDACTED]",
+		},
+		{
+			name:    "redacts an invalid UTF-8 tail without lossy decoding",
+			line:    string([]byte{'k', 'e', 'y', '=', '1', '2', '3', '4', '5', 0xff, 0xfe, 0xfd}),
+			secrets: []string{string([]byte{'0', '1', '2', '3', '4', '5', 0xff, 0xfe, 0xfd})},
+			want:    "key=[REDACTED]",
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
