@@ -507,7 +507,8 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 -   [x] **ステップ 8-8**: `TestFakesCarryBuildTag` の件数を、`internal/llm/deepseek/testutil/` の 4 件（`integration.go`・`make.go`・`integration_settings_test.go`・`make_test.go`）を加えた 13 にする。`package_reference.md` に `internal/llm/deepseek/testutil` の行を加える。
 -   [x] **ステップ 8-9**: テストの削除の確認（[CLAUDE.md](../../../CLAUDE.md)「Deleting a test」）。移動の前後で `go test -tags test -coverprofile` を `./internal/llm/deepseek/...` に対して取り、`go tool cover -func` の結果を関数ごとに比べる。`integrationSettingsFrom` は `_test.go` にあったので移動の前の結果に現れない。`internal/llm/deepseek` の本番の関数の行が変わらないこと、`SettingsFrom` の網羅率（到達しない `secret.New` の失敗の分岐を除いてすべての文）、ステップ 8-3 で移した確認がすべて残っていることを、コミットメッセージに記録する。
 -   [x] **ステップ 8-10**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `MissingKey` を無視して常にスキップする（`TestSettingsFrom`）、CLI の `IntegrationOptions` の変数を `MissingKeySkip` か DeepSeek のオプトインにする（`TestCLIIntegrationSettings`）、オプトインをグローバルにエクスポートする（`TestMakeOptInsAreTargetSpecific`・`TestMakeOptInExportedToDeepSeekTargetOnly`）、`-timeout` を 15 分以下にする（`TestMakeTestIntegrationCLI`）、統合テストのビルドタグを外す（`TestCLIIntegrationTestBuildTag`）。次の名前が `docs/tasks/` 以外に残っていないことを検索で確かめる: `integrationSettingsFrom`・`integrationSkip`・`integrationFail`・`integrationRun`・`runMakeTarget`・`makeChildEnvAllowlist`。`make fmt` → `make test` → `make lint` を通す。
--   [ ] **ステップ 8-11**（利用者の承認が必要）: `make test-integration-cli` を実行し、成功することと、出力に API キーとその末尾 8 文字が現れないことを確かめる。結果（日付、モデル、成否）を本ステップの下に追記する。
+-   [x] **ステップ 8-11**（利用者の承認が必要）: `make test-integration-cli` を実行し、成功することと、出力に API キーとその末尾 8 文字が現れないことを確かめる。結果（日付、モデル、成否）を本ステップの下に追記する。
+    -   実行の記録（2026-10-07、モデル `deepseek-flash`）: 1 回目（2026-10-06）は DeepSeek のアカウントのクレジットが尽きていたため、`run` が終了コード `1` で失敗した（テストの出力に API キーとその末尾 8 文字は現れなかった）。クレジットを補充した後の 2 回目は成功した（`TestIntegrationCLI` PASS、16.88 秒）。両方の出力に API キーとその末尾 8 文字が現れないことを、出力の全文を検索して確かめた。
 
 ### PR-11 作成ポイント: integration test move and CLI integration test
 
