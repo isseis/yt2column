@@ -48,8 +48,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           DEEPSEEK.KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          CONFIG.MODEL: deepseek/deepseek-v4-flash
+          CONFIG.MODEL: deepseek/deepseek-flash
           CONFIG.FALLBACK_MODELS: '["deepseek/deepseek-v4-pro"]'
+          CONFIG.REASONING_EFFORT: high
           CONFIG.RESPONSE_LANGUAGE: ja-JP
           CONFIG.USE_REPO_SETTINGS_FILE: "false"
           CONFIG.USE_GLOBAL_SETTINGS_FILE: "false"
