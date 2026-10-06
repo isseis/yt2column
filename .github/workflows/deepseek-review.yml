@@ -72,8 +72,10 @@ jobs:
           # and starve the real diff. testdata/README.md is kept because it documents
           # the IP-redaction rule for those fixtures. The lock/sum patterns cover
           # files a later dependency bump would add. vendor/** repeats the built-in
-          # default because this value replaces it, not appends to it.
-          IGNORE.GLOB: '["testdata/*.json", "testdata/*.json3", "vendor/**", "*.sum", "*.lock.hcl", "*.sops.yaml"]'
+          # default because this value replaces it, not appends to it. PR-Agent
+          # anchors globs at the path start (fnmatch via re.match), so **/ is needed
+          # to match both the root testdata/ and package-local testdata/ dirs.
+          IGNORE.GLOB: '["**/testdata/*.json", "**/testdata/*.json3", "vendor/**", "*.sum", "*.lock.hcl", "*.sops.yaml"]'
           GITHUB_ACTION_CONFIG.PR_ACTIONS: '["opened", "reopened", "ready_for_review"]'
           # synchronize is handled apart from pr_actions: it runs push_commands.
           GITHUB_ACTION_CONFIG.HANDLE_PUSH_TRIGGER: "true"
