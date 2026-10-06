@@ -8,7 +8,13 @@ on:
       - synchronize
       - ready_for_review
 
+# PR-Agent reads the PR through the GitHub API and never checks out PR code, so a
+# pull_request_target run with secrets is safe as long as nothing here executes PR
+# content. Settings come only from this file: use_repo_settings_file is off so a PR
+# cannot override the model, the API base, or the prompts.
 permissions:
+  contents: read
+  issues: write
   pull-requests: write
 
 concurrency:
@@ -16,108 +22,70 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  setup-deepseek-review:
+  pr-agent:
+    if: ${{ github.event.sender.type != 'Bot' }}
     timeout-minutes: 10
     runs-on: ubuntu-latest
     name: Code Review
     steps:
-      - name: Collect review context
-        id: review-context
-        shell: bash
+      # The action's Dockerfile builds FROM the mutable tag pragent/pr-agent:github_action,
+      # so pin the v0.47.0 image by digest instead of using the-pr-agent/pr-agent@<sha>.
+      - name: PR-Agent review and inline suggestions
+        uses: docker://pragent/pr-agent@sha256:31b9aac6ab067bada9a0c1b001d30ebc500ea4487e00a93c18c59b9ef5fa66db # 0.47.0-github_action
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          {
-            echo "Repository context follows. Use it when applying the rules in the system prompt."
-            echo
-            for f in CLAUDE.md AGENTS.md docs/dev/security.md; do
-              echo "----- $f -----"
-              curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 \
-                "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${BASE_SHA}/${f}" || {
-                  echo "error: could not fetch ${f} at ${BASE_SHA}" >&2
-                  exit 1
-                }
-              echo
-            done
-            echo "Please review the following code changes"
-          } > "$RUNNER_TEMP/user-prompt.md"
-          {
-            echo "user-prompt<<PROMPT_EOF"
-            cat "$RUNNER_TEMP/user-prompt.md"
-            echo "PROMPT_EOF"
-          } >> "$GITHUB_OUTPUT"
-      # The wrapper action's own setup step uses the mutable tag hustcer/setup-nu@v3.25, which
-      # would run with the API key and a write token. Pin both pieces by full SHA and run the
-      # wrapper's review module directly, so the privileged chain is immutable.
-      - name: Setup Nu
-        uses: hustcer/setup-nu@ccd5bb5426b05a32009c2ba967946231f3919c97 # v3.25
-        with:
-          version: 0.114.1
-      - name: Fetch pinned review module
-        shell: bash
-        env:
-          REVIEW_SHA: eccde2e9781008d795e366b951e313e37af88dd5 # hustcer/deepseek-review v1.21
-        run: |
-          git init -q "$RUNNER_TEMP/deepseek-review"
-          git -C "$RUNNER_TEMP/deepseek-review" fetch -q --depth 1 \
-            https://github.com/hustcer/deepseek-review.git "$REVIEW_SHA"
-          git -C "$RUNNER_TEMP/deepseek-review" checkout -q FETCH_HEAD
-      - name: DeepSeek Code Review
-        shell: nu {0}
-        env:
-          CHAT_TOKEN: ${{ secrets.DEEPSEEK_API_KEY }}
-          GH_TOKEN_INPUT: ${{ github.token }}
-          REPO_INPUT: ${{ github.repository }}
-          PR_NUMBER_INPUT: ${{ github.event.pull_request.number }}
-          USER_PROMPT_INPUT: ${{ steps.review-context.outputs.user-prompt }}
-          SYS_PROMPT_INPUT: |
-            You are an expert senior code reviewer for this Go repository.
+          GITHUB_TOKEN: ${{ github.token }}
+          DEEPSEEK.KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          CONFIG.MODEL: deepseek/deepseek-v4-flash
+          CONFIG.FALLBACK_MODELS: '["deepseek/deepseek-v4-pro"]'
+          CONFIG.RESPONSE_LANGUAGE: ja-JP
+          CONFIG.USE_REPO_SETTINGS_FILE: "false"
+          CONFIG.USE_GLOBAL_SETTINGS_FILE: "false"
+          CONFIG.REPO_CONTEXT_FILES: '["CLAUDE.md", "docs/dev/security.md"]'
+          GITHUB_ACTION_CONFIG.PR_ACTIONS: '["opened", "reopened", "synchronize", "ready_for_review"]'
+          GITHUB_ACTION_CONFIG.AUTO_REVIEW: "true"
+          GITHUB_ACTION_CONFIG.AUTO_IMPROVE: "true"
+          GITHUB_ACTION_CONFIG.AUTO_DESCRIBE: "false"
+          # One summary comment (updated in place) plus line-anchored suggestions.
+          PR_REVIEWER.PERSISTENT_COMMENT: "true"
+          PR_REVIEWER.PUBLISH_OUTPUT_NO_SUGGESTIONS: "false"
+          PR_REVIEWER.REQUIRE_SCORE_REVIEW: "false"
+          PR_REVIEWER.REQUIRE_ESTIMATE_EFFORT_TO_REVIEW: "false"
+          PR_REVIEWER.REQUIRE_TESTS_REVIEW: "false"
+          PR_REVIEWER.ENABLE_HELP_TEXT: "false"
+          PR_CODE_SUGGESTIONS.COMMITTABLE_CODE_SUGGESTIONS: "true"
+          PR_CODE_SUGGESTIONS.FOCUS_ONLY_ON_PROBLEMS: "true"
+          PR_CODE_SUGGESTIONS.PUBLISH_OUTPUT_NO_SUGGESTIONS: "false"
+          PR_CODE_SUGGESTIONS.SUGGESTIONS_SCORE_THRESHOLD: "7"
+          PR_REVIEWER.EXTRA_INSTRUCTIONS: |
+            '''
+            あなたはこの Go リポジトリの上級コードレビュアーです。指摘は日本語で書き、コード識別子・パス・引用コードは原文のままにします。
+            不具合・セキュリティ・規約違反だけを報告し、問題が無い箇所への肯定コメントや確認コメント、そのままで良いという趣旨のコメントは書きません。
 
-            Analyze the pull request diff and report your findings in a single review.
+            報告するもの (影響が最悪になる場合で判断する):
+            - 重大なバグ (P0/P1) と壊れた動作。
+            - セキュリティ上の問題。外部コマンド (yt-dlp) の実行、シークレット (DEEPSEEK_API_KEY, SLACK_WEBHOOK_URL) の扱い、キャッシュの読み書き、ネットワーク送信、プロンプトや公開記事への信頼できないテキストの埋め込みを含む差分は docs/dev/security.md の攻撃ベクタ一覧に照らして確認する。受け入れ基準に書かれていなくても有効な指摘とする。
+            - 握りつぶされたエラー、欠けたエラー経路、境界値の誤り。
+            - 述べられた理由で失敗し得ないテスト (定数が自身のリテラルと等しいことの検証、呼び出し元のテーブルと同じ行を繰り返すだけのテストなど)。
+            - ビルドの失敗、リポジトリ規約 (CLAUDE.md) の違反。
+            - 対応する文書 (01_requirements.md, 02_architecture.md, 03_implementation_plan.md) が approved になる前の実装コミット。
+            - 共通型の公開フィールド集合、context.Context を先頭に取るインターフェースメソッド、secret.Secret の公開メソッド集合、testutil の //go:build test 行などの契約変更で、internal/pipeline/pipeline_test.go の静的ガードが古いまま残るもの。
 
-            OUTPUT LANGUAGE
-            - Write every review comment in Japanese.
-            - Keep code identifiers, file paths, and quoted code in their original form.
+            設計規約 (CLAUDE.md):
+            - Reject, don't normalize: 不正な入力は黙って修復せず拒否する。
+            - Empty is an error: 空の LLM 応答、yt-dlp 成功後の字幕ファイル欠落、途中で切れた生成は、公開せずエラーにする。
+            - Declare, don't infer: 呼び出し元の文字列の内容を見て挙動を選ばない。
+            - 不変条件は規約ではなく型で守る。
 
-            WHAT TO REPORT (report a defect by its worst outcome when the code runs)
-            - Serious bugs (P0/P1) and broken behavior.
-            - Security holes. For a diff that invokes an external command (yt-dlp), handles a secret (DEEPSEEK_API_KEY, SLACK_WEBHOOK_URL), reads or writes the cache, sends data over the network, or embeds untrusted text in a prompt or a published article, review it against docs/dev/security.md's attack-vector list; a finding there is valid even when no acceptance criterion mentions it.
-            - A missing error path, an ignored error, or a boundary-value error.
-            - A test that cannot fail for its stated reason (e.g. it asserts a constant equals its own literal, or repeats a caller's table without adding coverage).
-            - A failing build or a violated repository contract.
-            - An implementation commit that predates the `approved` status of its governing document (01_requirements.md, 02_architecture.md, or 03_implementation_plan.md).
-            - A contract change (exported field sets of the common types, the context.Context-first interface methods, the English interface contract clauses, secret.Secret's exported method set, or the //go:build test first line of testutil files) that leaves its static guard in internal/pipeline/pipeline_test.go stale.
-
-            REPOSITORY DESIGN RULES TO CHECK (see CLAUDE.md)
-            - Reject, don't normalize: malformed caller input must be rejected, not silently repaired.
-            - Empty is an error: an empty LLM response, a missing subtitle file after a successful yt-dlp exit, or a truncated generation must be an error, never published.
-            - Declare, don't infer: do not choose behavior by inspecting caller string content.
-            - Enforce invariants with the type, not with convention.
-
-            WHAT NOT TO REPORT
-            - Formatting, indentation, variable naming, or minor style preferences.
-            - A finding already answered in its review thread, unless the code it concerns has changed since the answer.
-            - Static-guard bypasses that would need deliberately contrived code (a type alias declared only to route around a rule, reflect, or unsafe).
-            - A package left untested when the task's 02_architecture.md §7 test strategy intentionally omits its _test.go files.
-            - A benchmark regression with no absolute-budget justification for the claimed harm.
-
-            WHEN THERE ARE NO FINDINGS
-            - Do not post unnecessary comments. Reply only with "問題なし".
-        run: |
-          ^nu -I ($env.RUNNER_TEMP | path join deepseek-review nu) -c "
-            use review.nu *
-            (deepseek-review $env.CHAT_TOKEN
-              --model 'deepseek-flash'
-              --repo $env.REPO_INPUT
-              --pr-number $env.PR_NUMBER_INPUT
-              --gh-token $env.GH_TOKEN_INPUT
-              --base-url 'https://api.deepseek.com'
-              --max-length 0
-              --sys-prompt $env.SYS_PROMPT_INPUT
-              --user-prompt $env.USER_PROMPT_INPUT
-              --temperature 0.3
-              --include ''
-              --exclude 'pnpm-lock.yaml,package-lock.json,*.lock'
-              --comment ''
-            )
-          "
+            報告しないもの:
+            - 書式、インデント、変数名、軽微なスタイルの好み。
+            - レビュースレッドで回答済みの指摘 (対象コードがその後変わった場合を除く)。
+            - reflect や unsafe、ガードを迂回するためだけの型エイリアスなど、意図的に作り込んだコードが必要な静的ガード回避。
+            - 02_architecture.md §7 のテスト戦略が意図的に _test.go を省いているパッケージの未テスト。
+            - 絶対的な時間予算による根拠が無いベンチマークの退行。
+            '''
+          PR_CODE_SUGGESTIONS.EXTRA_INSTRUCTIONS: |
+            '''
+            提案は日本語で書き、コード識別子・パス・引用コードは原文のままにします。
+            実際の不具合・セキュリティ問題・CLAUDE.md の設計規約 (Reject don't normalize, Empty is an error, Declare don't infer, 不変条件は型で守る) の違反を直す提案だけを出します。
+            書式、命名、軽微なスタイルの提案は出しません。直すべき点が無い場合は何も提案しません。
+            '''
