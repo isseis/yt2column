@@ -17,19 +17,20 @@ yt2column はローカルで実行する CLI であり、利用者本人が入�
 
 - `DEEPSEEK_API_KEY` などの API キーと `SLACK_WEBHOOK_URL` は環境変数からのみ読み込む。リポジトリ内のファイルに書かない（`.envrc` / `.env` は `.gitignore` 済み）。
 - Webhook URL は URL 自体が秘密情報である。ログ・エラーメッセージ・`--dry-run` の出力に含めない。`*url.Error` など、URL を含む値をラップしたエラーをそのまま出力しない。
-- テストでは実在のキーや URL を使わない。ただし、実 API を使う統合テストに限り、次の範囲で実在の API キーを使う例外を設ける（`docs/tasks/0003_deepseek_llm_client/02_architecture.md` §5.2）。
-  - ユニットテストは実在のキーも URL も使わない。どのテストも API キーをコードやテストデータに書かない。
-  - 実在の API キーを使うのは、`//go:build integration` の次の 2 つの統合テストだけである。どちらも、対応する make のターゲットだけがエクスポートするオプトインの変数の値がちょうど `1` でなければスキップする。各ターゲットは自分のオプトインだけをエクスポートし、他方のオプトインはエクスポートしない。テスト用の API キーが `.envrc` などで常にエクスポートされていても、`go test -tags integration ./...` や IDE からの実行で料金が発生しない。
+- テストでは、本番の API キー（`DEEPSEEK_API_KEY` に設定するもの）と本番の Webhook URL を使わない。ただし、実 API を呼ぶ統合テストに限り、本番とは別に用意した**テスト用の API キー**を使う例外を設ける（`docs/tasks/0003_deepseek_llm_client/02_architecture.md` §5.2）。テスト用の API キーは、DeepSeek API に実際に通る有効なキーであり、使えば料金が発生する。
+  - ユニットテストは、本番のキーもテスト用の API キーも使わない。偽の値だけを使い、Webhook URL も偽の値だけを使う。どのテストも API キーをコードやテストデータに書かない。
+  - テスト用の API キーは、テスト専用の環境変数 `YT2COLUMN_TEST_DEEPSEEK_API_KEY` からだけ読む。統合テストは、本番の `DEEPSEEK_API_KEY` を、設定されていても読まない。テスト用の API キーには、本番と別のキー（利用上限を設けたものなど）を割り当てる。
+  - テスト用の API キーを使うのは、`//go:build integration` の次の 2 つの統合テストだけである。どちらも、対応する make のターゲットだけがエクスポートするオプトインの変数の値がちょうど `1` でなければスキップする。各ターゲットは自分のオプトインだけをエクスポートし、他方のオプトインはエクスポートしない。テスト用の API キーが `.envrc` などで常にエクスポートされていても、`go test -tags integration ./...` や IDE からの実行で料金が発生しない。
 
     | 統合テスト | make のターゲット | オプトインの変数 | テスト用の API キーがない場合 |
     |---|---|---|---|
     | `internal/llm/deepseek/integration_test.go`（DeepSeek のアダプタ） | `make test-integration-deepseek` | `YT2COLUMN_DEEPSEEK_INTEGRATION=1` | スキップする |
-    | `cmd/yt2column/integration_test.go`（CLI の組み立てで testdata の字幕からファイル出力まで） | `make test-integration-cli` | `YT2COLUMN_CLI_INTEGRATION=1` | 失敗する |
+    | `cmd/yt2column/integration_test.go`（CLI の組み立てで testdata の字幕からファイル出力まで） | `make test-integration-cli` | `YT2COLUMN_CLI_INTEGRATION=1` | 失敗する（本番の `DEEPSEEK_API_KEY` だけがある場合も、それを代わりに使わない） |
 
-  - 実行するかどうかの判定は、両方のテストが `internal/llm/deepseek/testutil` の `SettingsFrom` で行う。CLI の統合テストは、テスト用の API キーを、プロセスの環境変数を変えずに、CLI に与える環境の `DEEPSEEK_API_KEY` として渡す。
-  - API キーは、本番の `DEEPSEEK_API_KEY` とは別の、テスト専用の環境変数 `YT2COLUMN_TEST_DEEPSEEK_API_KEY` からだけ読む。テストには本番と別のキー（利用上限を設けたものなど）を割り当てる。
+  - 実行するかどうかの判定とテスト用の API キーの読み込みは、両方のテストが `internal/llm/deepseek/testutil` の `SettingsFrom` で行う。
+  - CLI は API キーを `DEEPSEEK_API_KEY` という名前で受け取るので、CLI の統合テストは、読み込んだテスト用の API キーを、テストが組み立てて CLI に与える環境の中で `DEEPSEEK_API_KEY` という名前で渡す。プロセスの環境変数は変えない。名前は本番と同じだが、値はテスト用の API キーである。
   - テストの出力（ログ・失敗メッセージ・スキップの理由）に API キーもその一部も書かない。
-- `GODEBUG` に `http2debug=1` または `http2debug=2` を含めると、Go の HTTP/2 の Transport は送信するリクエストヘッダーを値ごと標準エラー出力に記録する。`Authorization` ヘッダーの API キーもそのまま出力される。この設定で通信を調査するときは、無効な API キーを使う。`GODEBUG` はプロセスの開始時に一度だけ読まれ、実行中に取り除いても効かないため、どちらの統合テストも API を呼ぶ前にこれらの設定を検出して失敗する。
+- `GODEBUG` に `http2debug=1` または `http2debug=2` を含めると、Go の HTTP/2 の Transport は送信するリクエストヘッダーを値ごと標準エラー出力に記録する。`Authorization` ヘッダーの API キーもそのまま出力される。この設定で通信を調査するときは、無効な API キー（本番のキーでもテスト用の API キーでもないもの）を使う。`GODEBUG` はプロセスの開始時に一度だけ読まれ、実行中に取り除いても効かないため、どちらの統合テストも API を呼ぶ前にこれらの設定を検出して失敗する。
 
 ## 3. ネットワーク通信
 
