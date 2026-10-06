@@ -323,6 +323,9 @@ func TestLoadHTTP2Debug(t *testing.T) {
 		{"http2debug=2", with(validEnv(), godebugEnv, "http2debug=2"), true},
 		{"http2debug combined", with(validEnv(), godebugEnv, "madvdontneed=1,http2debug=1"), true},
 		{"http2debug=0", with(validEnv(), godebugEnv, "http2debug=0"), false},
+		{"http2debug=10 enables the log in net/http", with(validEnv(), godebugEnv, "http2debug=10"), true},
+		{"space after the comma", with(validEnv(), godebugEnv, "madvdontneed=1, http2debug=1"), true},
+		{"a longer setting name ending in http2debug", with(validEnv(), godebugEnv, "xhttp2debug=2"), true},
 		{"other setting", with(validEnv(), godebugEnv, "madvdontneed=1"), false},
 	}
 	for _, tc := range cases {

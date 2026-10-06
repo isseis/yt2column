@@ -277,17 +277,16 @@ func validSlackWebhook(value string) bool {
 	return found && rest != "" && !strings.ContainsFunc(rest, unicode.IsSpace)
 }
 
-// hasHTTP2Debug reports whether GODEBUG has an http2debug=1 or http2debug=2
-// entry. The setting is read, never rejected.
+// hasHTTP2Debug reports whether GODEBUG may turn on the HTTP/2 transport's
+// log. net/http enables it when GODEBUG merely contains "http2debug=1" or
+// "http2debug=2" as a substring, so this uses the same test rather than
+// parsing entries: a stricter parse would miss forms such as "http2debug=10"
+// or a space after a comma, and the key would be logged without a warning.
+// The setting is read, never rejected.
 func hasHTTP2Debug(lookup LookupFunc) bool {
 	godebug, _ := lookup(godebugEnv)
-	for entry := range strings.SplitSeq(godebug, ",") {
-		name, value, ok := strings.Cut(entry, "=")
-		if ok && name == "http2debug" && (value == http2DebugInfo || value == http2DebugVerbose) {
-			return true
-		}
-	}
-	return false
+	return strings.Contains(godebug, "http2debug="+http2DebugInfo) ||
+		strings.Contains(godebug, "http2debug="+http2DebugVerbose)
 }
 
 // missingVar reports name as unset or empty.
