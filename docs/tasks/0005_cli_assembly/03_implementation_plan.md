@@ -8,7 +8,7 @@
 | Created | 2026-10-05 |
 | Review date | 2026-10-05 |
 | Reviewer | isseis |
-| Comments | 2026-10-06 編集上の修正（決定の変更なし）: ステップ 3-1 の文言を、非公開の `newClient` の説明（プロバイダを直接受け取り、アダプタの構築関数を引数で受け取る）に直した。作るものは変わっていない。 |
+| Comments | 2026-10-06 決定の変更: ステップ 5-1・5-2 が、`ErrLocked` だけの契約に代えて公開の `*LockedError` を作るようになった（02_architecture.md からの決定変更の反映）。ステータスを `draft` に戻して再承認を受けた。 2026-10-06 編集上の修正（決定の変更なし）: ステップ 3-1 の文言を、非公開の `newClient` の説明（プロバイダを直接受け取り、アダプタの構築関数を引数で受け取る）に直した。作るものは変わっていない。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -314,8 +314,8 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 5: `internal/cachelock`
 
@@ -324,18 +324,20 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 -   変更: `docs/dev/developer_guide/package_reference.md`、本計画（ステップ 5-4 の記録）
 
 **タスク**
--   [ ] **ステップ 5-1**: `cachelock.go` に `Lock`・`Acquire`・`File`・`Close`・`ErrLocked` を作る（設計書 3.7）。排他のファイルは、シンボリックリンクをたどらず、名前付きパイプで待たずに読み取り専用で開き、開いた記述子で通常のファイルであることを確かめる。`gosec` が指摘する変数のパスでの `OpenFile` と、記述子の整数への変換には、その行だけに理由付きの `//nolint:gosec` を付ける。
--   [ ] **ステップ 5-2**: `cachelock_test.go` と `test_helpers.go`（`requireNonRoot`・`chmodForTest`）に次を作る。取得を待ちうる呼び出しは、別の goroutine で上限付きで待ち、上限を超えたら失敗として報告する（壊した実装が待ち続けても、`go test` のタイムアウトまで止まらない）。
+-   [x] **ステップ 5-1**: `cachelock.go` に `Lock`・`Acquire`・`File`・`Close`・`ErrLocked`・`LockedError` を作る（設計書 3.7）。排他のファイルは、シンボリックリンクをたどらず、名前付きパイプで待たずに読み取り専用で開き、開いた記述子で通常のファイルであることを確かめる。`gosec` が指摘する変数のパスでの `OpenFile` と、記述子の整数への変換には、その行だけに理由付きの `//nolint:gosec` を付ける。
+-   [x] **ステップ 5-2**: `cachelock_test.go` と `test_helpers.go`（`requireNonRoot`・`chmodForTest`）に次を作る。取得を待ちうる呼び出しは、別の goroutine で上限付きで待ち、上限を超えたら失敗として報告する（壊した実装が待ち続けても、`go test` のタイムアウトまで止まらない）。
     -   `TestAcquireCreatesDirectory`: ないディレクトリを `0o700` で作り、既存のディレクトリのパーミッションを変えず、排他のファイルが `0o600` であること。
-    -   `TestAcquireLocked`（AC-34）: 同じディレクトリへの 2 つ目の `Acquire` が待たずに `ErrLocked` を包むこと、メッセージが排他のファイルのパスを含むこと。`Close` の後は取得できること。
+    -   `TestAcquireLocked`（AC-34）: 同じディレクトリへの 2 つ目の `Acquire` が待たずに `ErrLocked` を包むこと、エラーが `*LockedError` として排他のファイルのパスを `Path` に保持すること（`errors.AsType` で取り出して確かめる。メッセージの文字列一致はしない）。`Close` の後は取得できること。
     -   `TestAcquireOtherDirectory`（AC-35）、`TestAcquireAfterHolderGone`（AC-36。排他のファイルを残したまま、保持者が閉じた後に取得できること）。
     -   `TestAcquireOtherFailures`（AC-47）: 親が通常のファイル、書き込めないディレクトリ（`requireNonRoot`・`chmodForTest`）で、エラーが `ErrLocked` を包まないこと。
     -   `TestAcquireRejectsNonRegularLockFile`: 排他のファイルの名前に、シンボリックリンク・ディレクトリ・名前付きパイプがある場合に拒否すること。名前付きパイプの後始末では書き込み側を開き、壊した実装で止まった呼び出しを解放する。
     -   `TestLockFileSurvivesPrune`（AC-37）: 排他のファイルを置いたディレクトリで `transcript.YtDlpSource.PruneCache` を呼び、エラーがなく、ファイルが残ること。
     -   `TestLockInheritedByChild`（H-02 の仕組み）: `File()` を `ExtraFiles` で渡した子プロセス（`exec.Cmd` で起動する）を起動し、`Close` の後も 2 つ目の `Acquire` が `ErrLocked` になること、子を `Process.Kill` で止めて `Wait` した後に取得できること。起動した時点で、止めて `Wait` する処理を `t.Cleanup` に登録する。
--   [ ] **ステップ 5-3**: `package_reference.md` に `internal/cachelock` の行を加える。
--   [ ] **ステップ 5-4**（手動、利用者の承認が必要）: 実際の `yt-dlp` が起動する子プロセスが記述子 3 を引き継ぐかを確かめる（設計書 §8 の 5、3.7）。排他のファイルを記述子 3 で開いた状態で実 `yt-dlp` に字幕を取得させ、実行中に `lsof <排他のファイル>` で保持しているプロセスを記録する。結果（`yt-dlp` の版、保持していたプロセス）を本ステップの下に追記する。
--   [ ] **ステップ 5-5**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `LOCK_NB` を外す（`TestAcquireLocked` が上限で失敗すること）、`flock` を `fcntl` のロックに替える（`TestAcquireLocked`・`TestLockInheritedByChild`）、`EWOULDBLOCK` 以外も `ErrLocked` で包む（`TestAcquireOtherFailures`）、通常のファイルの確認を外す、`O_NONBLOCK` を外す、ディレクトリのパーミッションを変える。`make fmt` → `make test` → `make lint` を通す。
+-   [x] **ステップ 5-3**: `package_reference.md` に `internal/cachelock` の行を加える。
+-   [x] **ステップ 5-4**（手動、利用者の承認が必要）: 実際の `yt-dlp` が起動する子プロセスが記述子 3 を引き継ぐかを確かめる（設計書 §8 の 5、3.7）。排他のファイルを記述子 3 で開いた状態で実 `yt-dlp` に字幕を取得させ、実行中に `lsof <排他のファイル>` で保持しているプロセスを記録する。結果（`yt-dlp` の版、保持していたプロセス）を本ステップの下に追記する。
+    -   実施: 2026-10-06。`yt-dlp` の版: 2026.08.19。検証用の一時プログラムが `cachelock.Acquire` の `Lock.File()` を `transcript.Options.InheritedFiles` に渡し、`https://www.youtube.com/watch?v=2tcCWM-sRBw` の字幕を取得させた。
+    -   結果: 実行中に `lsof <排他のファイル>` で、検証用プログラム（`3r`）と `yt-dlp`（COMMAND は `Python`）が排他のファイルを記述子 3 で開いていることを観測した。字幕のみの取得では `yt-dlp` の子プロセス（`deno`・`ffmpeg` など）は現れず、記述子 3 を保持したのは `yt-dlp` 本体だけであった。親の終了後の `lsof` は空で、排他が解放されることを確認した。別の動画（`EQCUZyB4DqE`）でも同じく `Python` が記述子 3 を保持した（この回は HTTP 429 で取得に失敗したが、記述子の引き継ぎは同じ）。
+-   [x] **ステップ 5-5**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `LOCK_NB` を外す（`TestAcquireLocked` が上限で失敗すること）、`flock` を `fcntl` のロックに替える（`TestAcquireLocked`・`TestLockInheritedByChild`）、`EWOULDBLOCK` 以外も `ErrLocked` で包む（`TestLockError`）、通常のファイルの確認を外す、`O_NONBLOCK` を外す、ディレクトリのパーミッションを変える。`make fmt` → `make test` → `make lint` を通す。
 
 ### PR-7 作成ポイント: internal/cachelock
 
@@ -349,8 +351,8 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 
 **判定理由**: `flock` による同時実行の排他（ステップ 5-1・5-2）は独立した高リスクな並行性の制御であり、この PR に隔離してレビューするため。加えて `gosec` の抑止とビルドタグ下の非 `_test.go` のソースという Conditional check に該当するため。ステップ 5-4 の実 `yt-dlp` の確認は設計を決める探索ではなく、設計書 3.7 が安全側に倒れることの確認であるので、`frontier-required` の探索には当たらない。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
