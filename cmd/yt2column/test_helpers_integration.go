@@ -5,11 +5,40 @@ package main
 import (
 	"context"
 	"sync/atomic"
+	"testing"
 
 	"github.com/isseis/yt2column/internal/config"
 	"github.com/isseis/yt2column/internal/llm"
+	deepseektestutil "github.com/isseis/yt2column/internal/llm/deepseek/testutil"
 	"github.com/isseis/yt2column/internal/nilcheck"
 )
+
+// cliIntegrationOptions is how TestIntegrationCLI decides whether it runs. It
+// has its own opt-in, matching its own make target, and a missing test API
+// key fails it instead of skipping, so an opted-in run cannot pass without
+// calling the API.
+var cliIntegrationOptions = deepseektestutil.IntegrationOptions{
+	OptInEnv:   deepseektestutil.CLIOptInEnv,
+	MakeTarget: "test-integration-cli",
+	MissingKey: deepseektestutil.MissingKeyFail,
+}
+
+// gateCLIIntegration reads the environment through getenv and calls body only
+// when the CLI integration test runs. Otherwise it skips or fails t with the
+// reason, which never contains the API key, and body, which calls run and the
+// real LLM client, is never reached.
+func gateCLIIntegration(t testing.TB, getenv func(string) string, body func(deepseektestutil.IntegrationSettings)) {
+	t.Helper()
+	settings := deepseektestutil.SettingsFrom(getenv, cliIntegrationOptions)
+	switch settings.Action {
+	case deepseektestutil.ActionRun:
+		body(settings)
+	case deepseektestutil.ActionFail:
+		t.Fatal(settings.Reason)
+	default:
+		t.Skip(settings.Reason)
+	}
+}
 
 // lookupFrom returns a config.LookupFunc over env, so a test supplies the
 // whole environment run sees without changing the process environment. A

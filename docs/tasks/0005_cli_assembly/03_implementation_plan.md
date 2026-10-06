@@ -8,7 +8,7 @@
 | Created | 2026-10-05 |
 | Review date | 2026-10-05 |
 | Reviewer | isseis |
-| Comments | 編集上の修正（2026-10-06）: PR-9 作成ポイントのレビュー観点で、ステップ 7-1 の処理順（エスケープ → 伏せ字化）に合わせて「伏せ字化 → エスケープ」を「エスケープ → 伏せ字化」に直した。決定の変更はない。 編集上の修正（2026-10-06）: PR #96 のレビューで、最初のシグナルの直後に届いた 2 回目のシグナルが捨てられうることが分かり、ステップ 7-4 の手段の記述（購読を止める時点）を実装に合わせて直した。決定の変更はない（2 回目のシグナルで終了する、という設計書 3.8 の決定は同じ）。 |
+| Comments | 編集上の修正（2026-10-06）: PR-9 作成ポイントのレビュー観点で、ステップ 7-1 の処理順（エスケープ → 伏せ字化）に合わせて「伏せ字化 → エスケープ」を「エスケープ → 伏せ字化」に直した。決定の変更はない。 編集上の修正（2026-10-06）: PR #96 のレビューで、最初のシグナルの直後に届いた 2 回目のシグナルが捨てられうることが分かり、ステップ 7-4 の手段の記述（購読を止める時点）を実装に合わせて直した。決定の変更はない（2 回目のシグナルで終了する、という設計書 3.8 の決定は同じ）。 実装に伴う追記（2026-10-06）: フェーズ 8 で、ステップ 8-2 に `TestValidateEnvNames`、8-4 に `integrationOptions` の変数と `TestIntegrationOptionsSkipMissingKey`、8-6・8-7 に `gateCLIIntegration` とその確かめ方を書き加え、8-8 の件数を 13 に改めた。いずれも既存の決定を具体化するもので、決定の変更はない。 実装に伴う修正（2026-10-07）: `/code-review` の指摘で、ステップ 8-2 の `make` の補助の引数（記録する変数の一覧とモデル名の変数を `make.go` の定義へ移す）と、共通の確認 `CheckChargedTarget` を書き改めた。決定の変更はない。 実装に伴う修正（2026-10-07）: PR-11 のレビューの指摘で、`security.md` §2 の統合テストの例外の更新をステップ 9-3（PR-12）から PR-11 へ前倒しした。ステップ 9-3 には `http2debug` の警告の記述が残る。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -480,8 +480,8 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 8: 統合テストの実行条件の移動と統合テスト
 
@@ -492,22 +492,23 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 -   変更: `Makefile`・`internal/pipeline/pipeline_test.go`（件数）・`docs/dev/developer_guide/package_reference.md`
 
 **タスク**
--   [ ] **ステップ 8-1**: `integration.go` に、設計書 3.11 の型と `SettingsFrom`、§1.4 の公開の定数を作る（`package deepseektestutil`）。判定の順序と内容は既存の `integrationSettingsFrom` と同じとし、キーがない場合だけ `MissingKey` に従う。スキップと失敗の理由は `IntegrationOptions` のオプトインの変数名と make のターゲットを示す。
--   [ ] **ステップ 8-2**: `make.go` に、`makefile_test.go` の `make` の実行の補助と `deepseek_test.go` の `firstLineIs` を移す（§1.4）。移した補助は、リポジトリの根のパス、記録する環境変数の名前の一覧、モデル名の変数の名前を引数で受け取る（設計書 3.11）。`make.go` を使うのは `test` のタグのテストだけなので、ビルドタグは `test` とする。`FirstLineIs` の不一致のエラーは静的なエラーを `%w` で包む。
--   [ ] **ステップ 8-3**: `TestIntegrationSettings` のケースを、すべての確認（`DEEPSEEK_API_KEY` を読まないこと、理由に API キーが現れないこと、実行しない場合にモデル名とキーを持たないこと）とともに `integration_settings_test.go` の `TestSettingsFrom` に移し、`MissingKeySkip` で同じ結果になることを確かめる。`MissingKeyFail` でキーがない場合に失敗になること、`IntegrationOptions` のゼロ値の `MissingKey` が失敗であること、理由にオプトインの変数名と make のターゲットが現れること、理由に API キーの末尾 8 文字も現れないことを加える。`deepseek_test.go` から `TestIntegrationSettings` を削除する。
--   [ ] **ステップ 8-4**: `internal/llm/deepseek` を追従させる。`integration_env_test.go` は判定の部分を削除してタイムアウトの定数だけを残す。`integration_test.go` は `SettingsFrom` を `MissingKeySkip` で呼ぶ。`makefile_test.go` は移した補助を使い、`TestMakeOptInExportedToDeepSeekTargetOnly` は `make test-integration` が 2 つのオプトインのどちらもエクスポートしないことを確かめる。`TestIntegrationTestBuildTag` は `FirstLineIs` を使う。
--   [ ] **ステップ 8-5**: `Makefile` に `test-integration-cli` を足す（設計書 3.11）。`YT2COLUMN_CLI_INTEGRATION=1` と、未定義のときだけ `deepseek-flash` にする `YT2COLUMN_MODEL` をこのターゲットのレシピにだけエクスポートし、`-timeout` は 20 分、実行前に料金が発生することを表示する。`.PHONY` と、`go vet -tags integration` の行の上のコメントにターゲットを加える。
--   [ ] **ステップ 8-6**: `cmd/yt2column/test_helpers_integration.go` に、ステップ 7-6 の CLI の統合テストの `IntegrationOptions` の変数を足す。`cmd/yt2column/makefile_test.go` に次を作る。
+-   [x] **ステップ 8-1**: `integration.go` に、設計書 3.11 の型と `SettingsFrom`、§1.4 の公開の定数を作る（`package deepseektestutil`）。判定の順序と内容は既存の `integrationSettingsFrom` と同じとし、キーがない場合だけ `MissingKey` に従う。スキップと失敗の理由は `IntegrationOptions` のオプトインの変数名と make のターゲットを示す。
+-   [x] **ステップ 8-2**: `make.go` に、`makefile_test.go` の `make` の実行の補助と `deepseek_test.go` の `firstLineIs` を移す（§1.4）。移した補助（`RunMakeTarget`）は、リポジトリの根のパスとターゲットを引数で受け取り、記録する環境変数（2 つのオプトインとモデル名）は `make.go` の 1 か所で定める（設計書 3.11）。2 つのターゲットに共通する確認は `CheckChargedTarget` にまとめ、`TestMakeTestIntegrationDeepSeek` と `TestMakeTestIntegrationCLI` が使う。`make.go` を使うのは `test` のタグのテストだけなので、ビルドタグは `test` とする。`FirstLineIs` の不一致のエラーは静的なエラーを `%w` で包む。偽の `GOTEST` のスクリプトは記録する変数の名前を埋め込むので、名前がシェルの変数名の形でなければ拒否し、その判定を `make_test.go` の `TestValidateEnvNames` で確かめる。
+-   [x] **ステップ 8-3**: `TestIntegrationSettings` のケースを、すべての確認（`DEEPSEEK_API_KEY` を読まないこと、理由に API キーが現れないこと、実行しない場合にモデル名とキーを持たないこと）とともに `integration_settings_test.go` の `TestSettingsFrom` に移し、`MissingKeySkip` で同じ結果になることを確かめる。`MissingKeyFail` でキーがない場合に失敗になること、`IntegrationOptions` のゼロ値の `MissingKey` が失敗であること、理由にオプトインの変数名と make のターゲットが現れること、理由に API キーの末尾 8 文字も現れないことを加える。`deepseek_test.go` から `TestIntegrationSettings` を削除する。
+-   [x] **ステップ 8-4**: `internal/llm/deepseek` を追従させる。`integration_env_test.go` は判定の部分を削除してタイムアウトの定数だけを残す。`integration_test.go` は `SettingsFrom` を `MissingKeySkip` で呼ぶ。`makefile_test.go` は移した補助を使い、`TestMakeOptInExportedToDeepSeekTargetOnly` は `make test-integration` が 2 つのオプトインのどちらもエクスポートしないことを確かめる。`TestIntegrationTestBuildTag` は `FirstLineIs` を使う。DeepSeek の統合テストが渡す `IntegrationOptions` は `integration_env_test.go` に変数として置き（`makefile_test.go` と `integration_test.go` が共有する）、`TestIntegrationOptionsSkipMissingKey` で、この変数がキーのない場合にスキップすること（移動の前と同じ振る舞い）を固定する。
+-   [x] **ステップ 8-5**: `Makefile` に `test-integration-cli` を足す（設計書 3.11）。`YT2COLUMN_CLI_INTEGRATION=1` と、未定義のときだけ `deepseek-flash` にする `YT2COLUMN_MODEL` をこのターゲットのレシピにだけエクスポートし、`-timeout` は 20 分、実行前に料金が発生することを表示する。`.PHONY` と、`go vet -tags integration` の行の上のコメントにターゲットを加える。
+-   [x] **ステップ 8-6**: `cmd/yt2column/test_helpers_integration.go` に、ステップ 7-6 の CLI の統合テストの `IntegrationOptions` の変数と、その変数で `SettingsFrom` を呼び、実行の場合だけ本体の関数を呼び、それ以外は理由で `Skip`・`Fatal` する関数 `gateCLIIntegration` を足す（統合テストはこの関数を通して判定に従う）。`cmd/yt2column/makefile_test.go` に次を作る。
     -   `TestMakeTestIntegrationCLI`: 引数、`-timeout` が `provider.LLMTimeout` より長いこと、オプトインの値、モデル名の 3 つの場合（既存の `TestMakeTestIntegrationDeepSeek` と同じ）。
     -   `TestMakeOptInsAreTargetSpecific`: `test-integration-cli` が DeepSeek のオプトインを、`test-integration-deepseek` が CLI のオプトインをエクスポートしないこと。
     -   `TestCLIIntegrationSettings`（AC-40）: CLI の統合テストの `IntegrationOptions` の変数についての AC-40 の環境ごとの判定（スキップ・失敗）と、理由に API キーもその末尾 8 文字も現れないことを確かめる。入力の詳細は実装で決める。
-    -   **検証事項（AC-40）:** CLI の統合テストが `SettingsFrom` の結果に従って動くこと。スキップと失敗のときは `run` も LLM のクライアントも呼ばないこと。`SettingsFrom` のユニットテストだけではこの経路を満たさない。
+    -   **検証事項（AC-40）:** CLI の統合テストが `SettingsFrom` の結果に従って動くこと。スキップと失敗のときは `run` も LLM のクライアントも呼ばないこと。`SettingsFrom` のユニットテストだけではこの経路を満たさない。`TestCLIIntegrationSettings` は、`Skip`・`Fatal` を記録して終了しない `testing.TB` の包みで `gateCLIIntegration` を呼び、スキップと失敗の環境で本体（`run` と LLM のクライアントを呼ぶ部分）が呼ばれないことを確かめる。`TestIntegrationCLI` が `gateCLIIntegration` を通ることは `integration` のタグのビルドにだけあるので自動では確かめず、オプトインなし・キーなしで実行してスキップ・失敗することを手元で確かめる（コミットメッセージに記録）。
     -   `TestCLIIntegrationTestBuildTag`（AC-42）: `integration_test.go` の 1 行目が `//go:build integration` であること。
--   [ ] **ステップ 8-7**: `cmd/yt2column/integration_test.go` に `TestIntegrationCLI` を作る（設計書 3.11 のテストの組み立て）。`SettingsFrom(os.Getenv, <ステップ 8-6 の変数>)` を呼ぶ。I-04（§1.5）のとおり LLM のクライアントを包み、`run` を 1 回だけ呼ぶ。AC-41 の各項目を確かめる。API キーとその末尾 8 文字が標準出力・標準エラー出力・`--out` のファイルに現れないことを確かめるまでは、それらをテストの出力に書かない。失敗のメッセージは場所の名前だけを示し、内容を含めない。
--   [ ] **ステップ 8-8**: `TestFakesCarryBuildTag` の件数を、`internal/llm/deepseek/testutil/` の 3 件を加えた 12 にする。`package_reference.md` に `internal/llm/deepseek/testutil` の行を加える。
--   [ ] **ステップ 8-9**: テストの削除の確認（[CLAUDE.md](../../../CLAUDE.md)「Deleting a test」）。移動の前後で `go test -tags test -coverprofile` を `./internal/llm/deepseek/...` に対して取り、`go tool cover -func` の結果を関数ごとに比べる。`integrationSettingsFrom` は `_test.go` にあったので移動の前の結果に現れない。`internal/llm/deepseek` の本番の関数の行が変わらないこと、`SettingsFrom` の網羅率（到達しない `secret.New` の失敗の分岐を除いてすべての文）、ステップ 8-3 で移した確認がすべて残っていることを、コミットメッセージに記録する。
--   [ ] **ステップ 8-10**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `MissingKey` を無視して常にスキップする（`TestSettingsFrom`）、CLI の `IntegrationOptions` の変数を `MissingKeySkip` か DeepSeek のオプトインにする（`TestCLIIntegrationSettings`）、オプトインをグローバルにエクスポートする（`TestMakeOptInsAreTargetSpecific`・`TestMakeOptInExportedToDeepSeekTargetOnly`）、`-timeout` を 15 分以下にする（`TestMakeTestIntegrationCLI`）、統合テストのビルドタグを外す（`TestCLIIntegrationTestBuildTag`）。次の名前が `docs/tasks/` 以外に残っていないことを検索で確かめる: `integrationSettingsFrom`・`integrationSkip`・`integrationFail`・`integrationRun`・`runMakeTarget`・`makeChildEnvAllowlist`。`make fmt` → `make test` → `make lint` を通す。
--   [ ] **ステップ 8-11**（利用者の承認が必要）: `make test-integration-cli` を実行し、成功することと、出力に API キーとその末尾 8 文字が現れないことを確かめる。結果（日付、モデル、成否）を本ステップの下に追記する。
+-   [x] **ステップ 8-7**: `cmd/yt2column/integration_test.go` に `TestIntegrationCLI` を作る（設計書 3.11 のテストの組み立て）。`gateCLIIntegration(t, os.Getenv, <本体>)` を通して `SettingsFrom(os.Getenv, <ステップ 8-6 の変数>)` を呼ぶ。I-04（§1.5）のとおり LLM のクライアントを包み、`run` を 1 回だけ呼ぶ。AC-41 の各項目を確かめる。API キーとその末尾 8 文字が標準出力・標準エラー出力・`--out` のファイルに現れないことを確かめるまでは、それらをテストの出力に書かない。失敗のメッセージは場所の名前だけを示し、内容を含めない。
+-   [x] **ステップ 8-8**: `TestFakesCarryBuildTag` の件数を、`internal/llm/deepseek/testutil/` の 4 件（`integration.go`・`make.go`・`integration_settings_test.go`・`make_test.go`）を加えた 13 にする。`package_reference.md` に `internal/llm/deepseek/testutil` の行を加える。
+-   [x] **ステップ 8-9**: テストの削除の確認（[CLAUDE.md](../../../CLAUDE.md)「Deleting a test」）。移動の前後で `go test -tags test -coverprofile` を `./internal/llm/deepseek/...` に対して取り、`go tool cover -func` の結果を関数ごとに比べる。`integrationSettingsFrom` は `_test.go` にあったので移動の前の結果に現れない。`internal/llm/deepseek` の本番の関数の行が変わらないこと、`SettingsFrom` の網羅率（到達しない `secret.New` の失敗の分岐を除いてすべての文）、ステップ 8-3 で移した確認がすべて残っていることを、コミットメッセージに記録する。
+-   [x] **ステップ 8-10**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `MissingKey` を無視して常にスキップする（`TestSettingsFrom`）、CLI の `IntegrationOptions` の変数を `MissingKeySkip` か DeepSeek のオプトインにする（`TestCLIIntegrationSettings`）、オプトインをグローバルにエクスポートする（`TestMakeOptInsAreTargetSpecific`・`TestMakeOptInExportedToDeepSeekTargetOnly`）、`-timeout` を 15 分以下にする（`TestMakeTestIntegrationCLI`）、統合テストのビルドタグを外す（`TestCLIIntegrationTestBuildTag`）。次の名前が `docs/tasks/` 以外に残っていないことを検索で確かめる: `integrationSettingsFrom`・`integrationSkip`・`integrationFail`・`integrationRun`・`runMakeTarget`・`makeChildEnvAllowlist`。`make fmt` → `make test` → `make lint` を通す。
+-   [x] **ステップ 8-11**（利用者の承認が必要）: `make test-integration-cli` を実行し、成功することと、出力に API キーとその末尾 8 文字が現れないことを確かめる。結果（日付、モデル、成否）を本ステップの下に追記する。
+    -   実行の記録（2026-10-07、モデル `deepseek-flash`）: 1 回目（2026-10-06）は DeepSeek のアカウントのクレジットが尽きていたため、`run` が終了コード `1` で失敗した（テストの出力に API キーとその末尾 8 文字は現れなかった）。クレジットを補充した後の 2 回目は成功した（`TestIntegrationCLI` PASS、16.88 秒）。両方の出力に API キーとその末尾 8 文字が現れないことを、出力の全文を検索して確かめた。
 
 ### PR-11 作成ポイント: integration test move and CLI integration test
 
@@ -521,8 +522,8 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 
 **判定理由**: 実 DeepSeek API を呼び料金が発生する外部リソースの面と、`make test-integration-cli` による CI の面（ステップ 8-5・8-7・8-11）というパネルモードのトリガーに該当し、加えて環境変数によるスキップの判定（ステップ 8-1）という Conditional check に該当するため。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
@@ -536,7 +537,7 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 **タスク**
 -   [ ] **ステップ 9-1**: `README.md` に、要件書 F-010 の README の項目すべてと、記事のファイルのパーミッション `0o644`、出力先のディレクトリにハードリンクを作れる必要があること（設計書 3.5・3.12）を書く。終了コードは見出し付きの表にする。`Configuration` の表に未設定のときの値の列を加える。`Development` の一覧と統合テストの節に `make test-integration-cli` を加える。
 -   [ ] **ステップ 9-2**: `project_overview.md` の「設定（環境変数）」の表に、F-001 の未設定のときの値を反映する。
--   [ ] **ステップ 9-3**: `security.md` §2 の、実在の API キーを使う統合テストの例外に `cmd/yt2column/integration_test.go` と `make test-integration-cli`・`YT2COLUMN_CLI_INTEGRATION` を加え、CLI は `GODEBUG` の `http2debug` を拒否せず警告にとどめることを書く。
+-   [ ] **ステップ 9-3**: `security.md` §2 に、CLI は `GODEBUG` の `http2debug` を拒否せず警告にとどめることを書く。実在の API キーを使う統合テストの例外に `cmd/yt2column/integration_test.go` と `make test-integration-cli`・`YT2COLUMN_CLI_INTEGRATION` を加えることは、課金の経路を加える PR-11 で行った（PR-11 のレビューで、§2 が課金の経路を 1 つとする記述のままでは事実と食い違うと指摘されたため）。
 -   [ ] **ステップ 9-4**: 文書の記載を確かめるテストを作る（AC-43・AC-32・AC-33 の `static`）。期待する値は要件書（F-001 の表の未設定のときの値など）から取り、テストの対象のコードから導かない。
     -   `cmd/yt2column/docs_test.go::TestREADMEDocumentsCLI`: 要件書 F-010 の README の項目すべてが README に現れること。対象は、呼び出し形式（`yt2column [flags] <動画 URL>` の形）、`run` の `flag.FlagSet` のすべてのフラグ、終了コードの表の `0`・`1`・`2` の行、`Configuration` の表の要件書 F-001 の 6 つの変数の行と、各行の未設定のときの値が F-001 の表の値と一致すること、同時実行は排他され後発が失敗することの案内、SIGKILL で終了させた場合に `yt-dlp` が残りうり、その終了まで次の実行が同時実行として失敗することの案内、キャッシュの内容が不正な場合に `--refresh` で回復できることの案内、統合テストの実行方法（`make test-integration-cli`）である。
     -   `cmd/yt2column/docs_test.go::TestProjectOverviewDocumentsConfig`: `project_overview.md` の「設定（環境変数）」の表に 6 つの変数の行があり、各行の未設定のときの値が F-001 の表の値と一致すること。

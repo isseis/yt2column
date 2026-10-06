@@ -46,7 +46,7 @@ define format_files_from_list
 	fi
 endef
 
-.PHONY: all build clean test test-ci test-integration test-integration-deepseek lint fmt fmt-all deadcode tidy install-mergepr
+.PHONY: all build clean test test-ci test-integration test-integration-deepseek test-integration-cli lint fmt fmt-all deadcode tidy install-mergepr
 
 all: build
 
@@ -109,9 +109,28 @@ test-integration-deepseek:
 	@printf 'test-integration-deepseek: calls the real DeepSeek API, which incurs charges (model: %s)\n' "$$YT2COLUMN_MODEL"
 	$(GOTEST) -tags integration -count=1 -timeout $(DEEPSEEK_INTEGRATION_TIMEOUT) -v ./internal/llm/deepseek
 
+# CLI integration test. Runs cmd/yt2column from a seeded transcript cache to
+# the --out file with the real DeepSeek API, which incurs charges; yt-dlp is
+# never started. Like the DeepSeek integration test it is kept out of
+# `make test` by the `integration` build tag, reads its API key from
+# YT2COLUMN_TEST_DEEPSEEK_API_KEY, and uses the YT2COLUMN_MODEL default above;
+# unlike it, the test fails rather than skips when that key is missing.
+# One Generate call of at most 15 minutes (provider.LLMTimeout), plus margin.
+CLI_INTEGRATION_TIMEOUT ?= 20m
+
+# Exported to this target's recipe only; the recipe never splices the values
+# into shell text.
+test-integration-cli: export YT2COLUMN_MODEL := $(YT2COLUMN_MODEL)
+test-integration-cli: export YT2COLUMN_CLI_INTEGRATION := 1
+
+test-integration-cli:
+	@printf 'test-integration-cli: calls the real DeepSeek API, which incurs charges (model: %s)\n' "$$YT2COLUMN_MODEL"
+	$(GOTEST) -tags integration -count=1 -timeout $(CLI_INTEGRATION_TIMEOUT) -v ./cmd/yt2column
+
 # golangci-lint compiles the integration tests only together with the `test`
-# helpers; vet the `-tags integration` build that `make test-integration` and
-# `make test-integration-deepseek` run, so a compile error there fails lint too.
+# helpers; vet the `-tags integration` build that `make test-integration`,
+# `make test-integration-deepseek`, and `make test-integration-cli` run, so a
+# compile error there fails lint too.
 lint:
 	$(GOLINT)
 	$(GOCMD) vet -tags integration ./...
