@@ -29,7 +29,7 @@
 ### 1.2. 実装原則
 
 -   設計書 §1.1 の設計原則に従う。特に、Webhook に固有のことを `internal/publisher` の Webhook 用のファイルに閉じ込めること、送る前に準備（記事の検査・分割・記法の検査）を終えること、Webhook URL をエラーにも構造体の表示にも入れないこと、投稿先を型で表すこと、URL の規則を 1 か所に置くことを守る。
--   本番コードで新設・変更するファイルは、設計書 §3.14 の表に挙げたものに限る。
+-   本番コードで新設・変更するファイルは、設計書 §3.14 の表に挙げたものに限る。`test` のタグのファイルに加える、設計書にない補助（ステップ 4-2 の準備の結果を返す関数と、`Transport` を受け取る構築の補助）は本計画で定め、`package_reference.md` に記す（ステップ 4-4）。
 -   ユニットテストのファイルの先頭には `//go:build test` を付ける。統合テストは `//go:build integration` とし、統合テストからも使う補助だけを `//go:build test || integration` とする（`docs/dev/developer_guide/test_organization.md` の例外）。
 -   Go のコメント・識別子・文字列リテラルは英語で書く。`AC-NN`・`F-NNN`・`H-NN` は Go のソースに書かず、本計画にだけ記録する（`requirements_process.md` §4）。
 -   **テスト用の補助の lint。** `_test.go` でないテスト用のビルドのファイル（`test_helpers*.go`、`testutil/` の `.go`、`internal/loopbacktest/loopbacktest.go`）には、`.golangci.yml` の `_test.go` 向けの除外（`gosec`・`err113`・`errcheck`・`goconst`・`gocyclo`・`dupl`）が効かない。これらのファイルを作るか変えるステップ（2-1・2-3・4-2・6-6・7-1・7-2・7-6）では、テストが注入するエラーをパッケージの静的なエラーとして宣言し（`err113`）、後始末で無視する戻り値を `_ =` で受け（`errcheck`）、`gosec` に当たる行にだけ理由を付けた `//nolint:gosec // <理由>` を付ける（既存の `internal/llm/deepseek/testutil/make.go:92` と同じ形）。
@@ -99,7 +99,7 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 
 **文書**
 
--   `--dry-run` は、要件書 2.3 で設けないことにした。`security.md:19` に「`--dry-run` の出力」の記述が残っている（`rg -n "dry-run" --glob '!docs/tasks/**' .` の結果はこの 1 件。`.claude/` を除く。HEAD `44bc4df`）。フェーズ 8 で直す（ステップ 8-4）。
+-   `--dry-run` は、要件書 2.3 で設けないことにした。`security.md:19` に「`--dry-run` の出力」の記述が残っている（`rg -n "dry-run" --glob '!docs/tasks/**' .` の結果はこの 1 件。`.claude/` を除く。HEAD `44bc4df`）。フェーズ 8 で直す（ステップ 8-3）。
 -   README の「Webhook への投稿は未実装」の記述は `README.md:5-6` と `:24` の 2 か所にある。どちらもステップ 8-1 で直す。
 -   `hooks.slack.com` は、`docs/tasks/` を除くと、`internal/config/config.go`（規則と doc コメント）と、`internal/config/config_test.go`・`cmd/yt2column/run_test.go` のテストの値にだけ現れる。テストの値は Slack の URL の形として残してよい（新しい規則でも受理・拒否は変わらない）。
 
@@ -235,7 +235,7 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
     -   本文は 8,193 バイトまで読み、`200` は 8,192 バイト以内でちょうど `ok` のときだけ成功とする。`200` 以外の本文からの識別子の取り出しは `strictjson.ParseObject` を使い、設計書 4.2 の形と `slackwebhook.SensitiveParts` による除外に従う。
     -   通信のエラーは `*url.Error` の内側のエラーの文言だけを `%w` で包まずに使い、`SensitiveParts` のいずれかを含めば固定の文言（設計書 4.2）に替える。タイムアウト・キャンセルは、その `context` の `Err()` を `%w` で包む。
     -   2 つ目以降のメッセージの前に 1 秒待ち、各メッセージの直前に `ctx` を確かめ、最後のメッセージの成功の後は `ctx` を確かめない。準備の後の失敗はすべて `*SlackPostError` で包む。
--   [ ] **ステップ 4-2**: `test_helpers_slack.go` に `SlackTestOptions` と `NewSlackWebhookPublisherForLoopbackTest` を作る（設計書 3.3）。送信先は `loopbacktest.ValidateURL` で確かめ、ループバックでない送信先と正でない `Timeout` は `t` を失敗させる。同じファイルに、次の 2 つを置く。
+-   [ ] **ステップ 4-2**: `test_helpers_slack.go` に `SlackTestOptions` と `NewSlackWebhookPublisherForLoopbackTest` を作る（設計書 3.3）。送信先は `loopbacktest.ValidateURL` で確かめ、ループバックでない送信先と正でない `Timeout` は `t` を失敗させる。`ValidateURL` のエラーは送信先の URL を含む（`deepseek` から振る舞いを変えずに移すため）。送信先は Webhook URL のパス（ステップ 6-6）を含みうるので、失敗のメッセージにはエラーの文言を含めず、固定の文言にする。同じファイルに、次の 2 つを置く。
     -   `http.RoundTripper` を引数に取り、その `Transport` を持つ値を構築する非公開の補助（ステップ 4-3 の通信のエラーの文言の差し替えのテストが使う）。送信先は同じくループバックに限る。構築した後の値は書き換えない。
     -   準備の結果のメッセージのテキストの列を返す、`test` のタグだけの公開の関数（ステップ 7-4 の記事の長さを、外部のテストのパッケージから確かめるため）。
 -   [ ] **ステップ 4-3**: `slack_test.go` に次を作る（`package publisher`、`httptest` のサーバ。サーバは受け取ったリクエストを記録し、テストごとに応答を決める）。
@@ -243,7 +243,7 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
     -   **キャンセルの順序。** キャンセルの時点は、サーバが応答を返したことや待機に入ったことを印（チャネル）で知らせ、テストがそれを待ってからキャンセルする形で決め、固定の `sleep` を使わない。応答の読み取りと競合させずに「送信の直前の確認」でだけ中断させる行は、`cmd/yt2column/run_test.go` の `expiringContext` と同じく、`Done` を閉じずに `Err()` だけを変える `context` を使う。待機中のキャンセルの行は、`SlackTestOptions.Interval` を長くする。
     -   `TestNewSlackWebhookPublisher`（AC-01）: AC-01 の 2 つの URL で構築できること。テスト用の構築で作っただけでは、サーバがリクエストを受け取らないこと。
     -   `TestNewSlackWebhookPublisherRejects`（AC-02・AC-03）: ゼロ値の `secret.Secret` と AC-03 の 4 つの値の拒否。エラーの文言に、値もその末尾 8 文字も現れないこと。
-    -   `TestNewSlackWebhookPublisherForLoopbackTestRejects`: ループバックでない送信先と、正でない `Timeout` で `t` が失敗すること（`Fatalf` を記録する `testing.TB` をこのテストのファイルに作る）。
+    -   `TestNewSlackWebhookPublisherForLoopbackTestRejects`: ループバックでない送信先と、正でない `Timeout` で `t` が失敗し、記録した失敗のメッセージに送信先のパスの目印が現れないこと（`Fatalf` を記録する `testing.TB` をこのテストのファイルに作る）。
     -   `TestSlackPublishPayload`（AC-04・AC-06・AC-07・AC-21a）: メソッド、`Content-Type`、JSON のメンバーが `text` と `silent` だけであること（`blocks`・`attachments` がない）、すべてのペイロードで `silent` が `true` であること、AC-06 の文字を含む記事と `ModelVersion` が空の記事で `text` が投稿する文字列と一致すること、1 つのメッセージの場合に分割の位置の表示がないこと。
     -   `TestSlackPublishSplit`（AC-08・AC-09・AC-10）: 上限の 2 倍を超える複数行の記事で 3 つ以上のリクエストが順に届くこと、改行のない長い行の記事、ちょうど上限と上限 + 1 の記事。各リクエストの `text` が 16,383 コードポイント以内で正しい UTF-8 であり、分割の位置の表示を含み、表示を除いて連結すると投稿する文字列と一致すること。受け取ったリクエストの数が `SlackMessageCount` と一致すること。
     -   `TestSlackPublishPrepareSendsNothing`（AC-05・AC-11・AC-21）: 準備の段階の各拒否で、サーバがリクエストを受け取らず、エラーが `*SlackPostError` を包まないこと。
@@ -256,8 +256,8 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
     -   `TestSlackPublishTransportErrorWithheld`: ステップ 4-2 の補助で、URL のパスを文言に含むエラーを返す `Transport` を持つ値を構築すると、エラーの文言が固定の文言になり、パスが現れないこと。
     -   `TestSlackPublishZeroValue`: ゼロ値の構造体の `Publish` がリクエストを送らずに失敗すること。
     -   `TestSlackPublishErrorClasses`（AC-35）: HTTP ステータスの失敗・不正な応答・通信の失敗・分割の拒否・記法の拒否・`writer.ErrInvalidArticle` のそれぞれが、6 つの分類のうち自分の分類だけに `errors.Is`／`errors.AsType` で当たること。
--   [ ] **ステップ 4-4**: `package_reference.md` の `internal/publisher` の行に `SlackWebhookPublisher`・`SlackMessageCount`・テスト用の構築を加える。
--   [ ] **ステップ 4-5**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `CheckRedirect` を外す、本文の読み取りを上限ちょうどにする（8,193 でなく 8,192）、`ok` の比較を前後の空白を除いたものにする、`*url.Error` をそのまま包む、通信のエラーの文言の差し替えを外す、識別子の `SensitiveParts` による除外を外す、`http.Client.Timeout` に替える、送信の前の `ctx` の確認を外す、最後のメッセージの後に `ctx` を確かめる、`silent` を外す、`Posted` を数え違える（失敗したメッセージを含める）、通信の失敗の原因を `%w` で包む（`TestSlackPublishErrorClasses`）。`make fmt` → `make test` → `make lint` を通す。
+-   [ ] **ステップ 4-4**: `package_reference.md` の `internal/publisher` の行に `SlackWebhookPublisher`・`SlackMessageCount`・テスト用の構築と、ステップ 4-2 の準備の結果を返す関数（`test` のタグだけ）を加える。
+-   [ ] **ステップ 4-5**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `CheckRedirect` を外す、本文の読み取りを上限ちょうどにする（8,193 でなく 8,192）、`ok` の比較を前後の空白を除いたものにする、`*url.Error` をそのまま包む、通信のエラーの文言の差し替えを外す、識別子の `SensitiveParts` による除外を外す、`http.Client.Timeout` に替える、テスト用の構築の失敗のメッセージに `ValidateURL` のエラーの文言を含める、送信の前の `ctx` の確認を外す、最後のメッセージの後に `ctx` を確かめる、`silent` を外す、`Posted` を数え違える（失敗したメッセージを含める）、通信の失敗の原因を `%w` で包む（`TestSlackPublishErrorClasses`）。`make fmt` → `make test` → `make lint` を通す。
 
 ### フェーズ 5: `internal/job` の `Output`
 
@@ -330,7 +330,7 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 -   [ ] **ステップ 7-4**: `internal/publisher/slack_integration_test.go` に `TestIntegrationSlackWebhookPublisher`（AC-30）を作る（設計書 3.12）。`publishertestutil.SettingsFrom` と `SlackIntegrationOptions` で判定し、`NewSlackWebhookPublisher` で構築した値に、ステップ 7-2 の 2 つの記事を順に投稿してエラーがないことを確かめる。投稿の前に、`SlackMessageCount` が分割しない記事で 1、分割する記事で 2 以上であることを確かめる。テストの出力に URL を書かない。
 -   [ ] **ステップ 7-5**: `internal/publisher/slack_articles_test.go` と `makefile_test.go` に次を作る。
     -   `TestIntegrationArticles`（`slack_articles_test.go`）: ステップ 4-2 の準備の結果を返す関数で、ステップ 7-2 の分割しない記事がちょうど 16,383 コードポイントの 1 つのメッセージになり、分割する記事が 2 つ以上のメッセージになり、どちらも準備で拒否されないこと（統合テストを実行しなくても `make test` で記事の形を確かめる）。
-    -   `TestMakeTestIntegrationSlack`（AC-32、`makefile_test.go`）: `RunMakeTarget` に Webhook の 2 つのオプトインを追加の名前として渡し、`make test-integration-slack` が `go test -tags integration -count=1 -timeout <値> -v ./internal/publisher` を実行し、`SlackIntegrationOptions.OptInEnv` を `1` でエクスポートし、`CLISlackOptInEnv` をエクスポートしないこと。出力が実際の Webhook に投稿することを示すこと。`-timeout` が、2 つの記事のメッセージを `SlackPostTimeout` と間隔で送る最大の時間を超えること。ターゲットの名前は `SlackIntegrationOptions.MakeTarget` から取る。
+    -   `TestMakeTestIntegrationSlack`（AC-32、`makefile_test.go`）: `RunMakeTarget` に、モデル名の引数として nil を、Webhook の 2 つのオプトインを追加の名前として渡し、`make test-integration-slack` が `go test -tags integration -count=1 -timeout <値> -v ./internal/publisher` を実行し、`SlackIntegrationOptions.OptInEnv` を `1` でエクスポートし、`CLISlackOptInEnv` をエクスポートしないこと。`YT2COLUMN_MODEL`（`deepseektestutil.ModelEnv`）をエクスポートしないこと。出力が実際の Webhook に投稿することを示し、DeepSeek の課金の注意を含まないこと（`CheckChargedTarget` は使わない）。`-timeout` が、2 つの記事のメッセージを `SlackPostTimeout` と間隔で送る最大の時間を超えること。ターゲットの名前は `SlackIntegrationOptions.MakeTarget` から取る。
     -   `TestSlackIntegrationTestBuildTag`（AC-32、`makefile_test.go`）: `slack_integration_test.go` の 1 行目が `//go:build integration` であること（`deepseektestutil.FirstLineIs`）。
 -   [ ] **ステップ 7-6**: `cmd/yt2column/test_helpers_integration.go` に、CLI の Webhook の統合テストの判定の補助（`deepseektestutil.SettingsFrom` を `OptInEnv: publishertestutil.CLISlackOptInEnv`・欠けたキーは失敗で呼び、`publishertestutil.SettingsFrom` も `CLISlackIntegrationOptions` で実行と判定した場合だけ本体を呼ぶ）を、`gateCLIIntegration` と同じ形で作る（設計書 3.12）。
 -   [ ] **ステップ 7-7**: CLI の Webhook の統合テストを作る（AC-31）。
