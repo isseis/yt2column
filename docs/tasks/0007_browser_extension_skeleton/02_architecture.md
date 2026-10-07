@@ -10,7 +10,7 @@
 | Reviewer | - |
 | Comments | - |
 
-本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `426eb2e` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指す。本タスクには `design_handoff.md` がない。
+本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `426eb2e` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指す。本タスクには `design_handoff.md` がない。実装レベルの懸念は [implementation_handoff.md](implementation_handoff.md) に置き、`03_implementation_plan.md` が扱う。
 
 **承認の条件:** 3.12 の調査には、本書の作成時の環境では確かめられなかった項目（拡張 ID の値、macOS の Chrome・Brave での観測、YouTube の動画ページの DOM）がある。AC-24 は調査の結果を本書に記録することを求めるので、3.12.4 の表の項目をすべて記録するまで、本書を `approved` にしない。
 
@@ -588,7 +588,7 @@ sequenceDiagram
             RW->>SS: take(要約の鍵)
             RW->>RW: parseSummary → renderSummary
         else windows.create が失敗
-            SW->>SS: remove(要約の鍵)
+            SW->>SS: remove(要約の鍵)（失敗しても続行）
             SW->>B: action.setBadgeText（"!"）
         end
     end
@@ -599,7 +599,7 @@ sequenceDiagram
 -   `storage.session` に置くのは表示用の要約だけで、選択範囲の全体は置かない。要約の大きさは、短くしたタイトル・URL（各 1,000 コードポイント）とプレビュー（200 コードポイント）で上限が決まり、収集した値の大きさによらない。最も小さい `storage.session` の容量（Chrome 111 以前の 1 MB）に対しても十分に小さい。
 -   結果のウィンドウは要約を読んだら消す（`take`）。`windows.create` が失敗したら、同じ鍵の要約を `remove` で消す。失敗が続いても `storage.session` の容量（最も小さい場合で Chrome 111 以前の 1 MB）を消費し続けず、以後の `put` を妨げないためである。`storage.session` はメモリの中だけにあり、これ以外に残った要約もブラウザの終了で消える。`remove` に失敗した場合も、`storage.session` はブラウザの終了で消えるので、要約が残り続けることはない。
 -   結果のウィンドウは、要約が見つからない場合（ハッシュがない、鍵がない）と、`parseSummary` が形の違いで拒否した場合に、そのことを示す固定の文言を表示する。
--   `put` または `windows.create` が失敗したときは、`log.error` に記録し、ツールバーのアイコンのバッジに `!` を表示する（`signalDisplayFailure`）。`windows.create` が失敗した場合は、あわせて同じ鍵の要約を `remove` で消す（`put` が失敗した場合は要約が置かれていないので消さない）。バッジは次のメニューの経路の起動の開始時に消す（`clearDisplayFailure`）。利用者が何も表示されずに終わることを避けるためである。
+-   `put` または `windows.create` が失敗したときは、`log.error` に記録し、ツールバーのアイコンのバッジに `!` を表示する（`signalDisplayFailure`）。`windows.create` が失敗した場合は、あわせて同じ鍵の要約を `remove` で消す（`put` が失敗した場合は要約が置かれていないので消さない）。要約の削除に失敗した場合は、そのことを `log.error` に記録するが、バッジの表示は行う（削除の成否はバッジの表示を妨げない）。バッジは次のメニューの経路の起動の開始時に消す（`clearDisplayFailure`）。利用者が何も表示されずに終わることを避けるためである。
 -   `runMenuLaunch` は例外を投げない。すべての失敗を捕まえて記録する。service worker のイベントの処理は例外で終わらず、次の起動に影響しない（要件書 4.3）。
 
 ウィンドウを開く代わりに、通知（`notifications` の権限）やバッジだけを使う案は採らない。通知は OS の設定で表示されないことがあり（macOS は Chrome の通知の許可を別に求める）、バッジは数文字しか表示できず、どちらも要件書 F-006 のタイトル・URL・プレビューを示せない。`chrome.action.openPopup()` でポップアップを開く案は、Brave で動作するか確かめていないので採らない。
