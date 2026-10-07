@@ -17,7 +17,7 @@
 **背景:**
 yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Article → Publisher` というパイプラインで動作する（[project_overview.md](../../dev/project_overview.md)）。CLI の組み立て（#6、タスク `0005_cli_assembly`）までで、動画 URL から記事を生成し、`FilePublisher` でローカルのファイルに書き出せるようになった。`SLACK_WEBHOOK_URL` の読み込みと検証も #6 で実装済みだが、それを使う投稿先はまだない（0005 の要件定義書 2.3）。
 
-本プロジェクトで記事を実際に投稿する先は Mattermost である。Mattermost の Incoming Webhook は、Slack の Incoming Webhook とおおむね互換に作られている（完全な互換ではない）。そこで、投稿の仕組みは「Slack 互換の Incoming Webhook」として作り、両者に共通の部分だけを使う。検証の対象は Mattermost だけとし、Slack へは当面 best effort で送る（2.3 の「対応の範囲」）。将来 Slack を正式に対応する可能性があるので、フラグ・環境変数・型の名前は Slack のままとする。
+本プロジェクトで記事を実際に投稿する先は Mattermost である。Mattermost の Incoming Webhook は、Slack の Incoming Webhook とおおむね互換に作られている（完全な互換ではない）。そこで、投稿の仕組みは「Slack 互換の Incoming Webhook」として作り、両者に共通の部分だけを使う。検証の対象は Mattermost だけとし、Slack へは当面 best effort で送る（2.2 の「対応の範囲」）。将来 Slack に正式に対応する可能性があるので、フラグ・環境変数・型の名前は Slack のままとする。
 
 Mattermost は利用者が自分で運用するサーバであり、Webhook URL のホストは利用者ごとに異なる。#6 で実装した `SLACK_WEBHOOK_URL` の規則（`https://hooks.slack.com/` で始まる）は Mattermost の URL を受理しないので、本タスクで改める。
 
@@ -100,7 +100,7 @@ Webhook URL は、それ自体が秘密情報である（[security.md](../../dev
 
 -   Webhook URL は `secret.Secret` 型として構築時に受け取る。環境変数は読まない。
 -   値のない `secret.Secret`（ゼロ値）は、構築をエラーにする。
--   本番で使う構築の手段は、`SLACK_WEBHOOK_URL` を `internal/config` が受理するのと同じ規則に合わない URL を拒否する。規則は `internal/config` と共有し、複製しない（共有の手段は [design_handoff.md](design_handoff.md) H-03）。`internal/config` で検証済みの値しか渡らない場合でも、他の呼び出し元が `http://` などの URL を渡して Webhook URL を平文で送ることを防ぐためである。
+-   本番で使う構築の手段は、`internal/config` が `SLACK_WEBHOOK_URL` に課すのと同じ規則に合わない URL を拒否する。規則は `internal/config` と共有し、複製しない（共有の手段は [design_handoff.md](design_handoff.md) H-03）。現状は `internal/config` で検証済みの値しか渡らないが、他の呼び出し元が `http://` などの URL を渡して Webhook URL を平文で送ってしまうことを防ぐためである。
 -   構築の拒否のエラーは、渡された URL の値もその一部も含まない。
 -   テストでは、ループバックアドレスの送信先（`httptest` のサーバ）へ `http` で送る `SlackWebhookPublisher` を構築できる。この手段はテスト用のビルドでだけ使える（既存の `deepseek.NewForLoopbackTest` と同じ考え方）。
 -   構築は、ネットワークにアクセスしない。
@@ -133,7 +133,7 @@ Webhook URL は、それ自体が秘密情報である（[security.md](../../dev
 
 #### F-003: 分割
 
--   Mattermost の 1 つの投稿の `text` には、文字数の上限がある。上限の値と文字数の数え方の単位は、`02_architecture.md` で Mattermost の公式文書（必要ならサーバのソース）を確認して決め、出典を記す（[design_handoff.md](design_handoff.md) H-01）。数え方は、Mattermost の数え方より小さい値を返さないもの（安全側）にする。上限を超える `text` を Mattermost が自動で分割する場合も、本ツールは自分で分割し、Mattermost の自動の分割に頼らない（分割の位置の表示を付けるため）。Slack の上限は検証しない（2.2 の「対応の範囲」）。
+-   Mattermost の 1 つの投稿の `text` には、文字数の上限がある。上限の値と文字数の数え方の単位は、`02_architecture.md` で Mattermost の公式文書（必要ならサーバのソース）を確認して決め、出典を記す（[design_handoff.md](design_handoff.md) H-01）。文字数の数え方は、Mattermost が数える値以上になるもの（安全側）にする。上限を超える `text` を Mattermost が自動で分割する場合も、本ツールは自分で分割し、Mattermost の自動の分割に頼らない（分割の位置の表示を付けるため）。Slack の上限は検証しない（2.2 の「対応の範囲」）。
 -   記事が 1 つのメッセージに収まる場合は、1 つのメッセージで投稿する。このメッセージには、分割の位置の表示を付けない。
 -   収まらない場合は、複数のメッセージに分割し、記事の順に投稿する。
     -   各メッセージには、全体の何番目かを示す表示（例: `(2/3)`。書式は設計で決める）を付ける。分割投稿が途中で止まった場合に、読み手が続きのメッセージが届いていないことに気づけるようにするためである。各メッセージの文字数は、この表示を含めて上限以内とする。
@@ -172,7 +172,7 @@ Webhook URL は、それ自体が秘密情報である（[security.md](../../dev
 
 #### F-005: 失敗の報告
 
--   投稿の失敗のエラーから、分割の数（N）、投稿の成功を確認したメッセージの数（k）を、`errors.AsType` で取り出せる。分割しない場合も、N を 1 として同じ形で報告する。最初のメッセージを送る前の拒否（記事の拒否（F-002）、分割の数の上限の超過と空白文字だけのメッセージ（F-003）、F-006 の拒否）は、投稿を始めていないので、この形では報告しない。
+-   投稿の失敗のエラーから、分割の数（N）と、投稿の成功を確認したメッセージの数（k）を、`errors.AsType` で取り出せる。分割しない場合も、N を 1 として同じ形で報告する。最初のメッセージを送る前の拒否（記事の拒否（F-002）、分割の数の上限の超過と空白文字だけのメッセージ（F-003）、F-006 の拒否）は、投稿を始めていないので、この形では報告しない。
 -   エラーのメッセージは、N のうち k 個のメッセージを投稿したこと、k+1 番目のメッセージの投稿に失敗したこと、それより後のメッセージは送っていないことを示す。k+1 番目のメッセージは、失敗の理由によっては投稿された可能性がある（応答を受け取る前のタイムアウトなど）。そのため、エラーのメッセージは k+1 番目が投稿されていないとは断定しない。
 -   失敗の原因は、3.2 で定めるエラーの分類として、`errors.Is` または `errors.AsType` で判別できる。`context.Canceled` と `context.DeadlineExceeded` は、元のエラーとして判別できる。
 -   HTTP ステータスによる失敗のエラーは、ステータスコードと、応答の本文から読み取ったエラーの理由（Mattermost のエラーの応答の識別子など。何をどう読み取るかは設計で決める。[design_handoff.md](design_handoff.md) H-07）を含む。応答の本文は信頼できない値であり、CLI は既存の仕組みで制御文字をエスケープして表示する（0005 の F-008）。
@@ -213,7 +213,7 @@ CLI の呼び出し形式は `yt2column [フラグ] <動画 URL>` のままと�
 | `--out <パス>` | 記事をファイルに書き出す（0005 の F-004〜F-006。振る舞いは変えない） |
 | `--slack` | 記事を `SLACK_WEBHOOK_URL` の Slack 互換の Incoming Webhook（Mattermost など）に投稿する |
 
--   `--out` と `--slack` のどちらか一方をちょうど 1 つ指定する。どちらもない場合と、両方がある場合は、使い方の誤りとして終了コード `2` で拒否する。
+-   `--out` と `--slack` のうち、ちょうど 1 つを指定する。どちらもない場合と、両方がある場合は、使い方の誤りとして終了コード `2` で拒否する。
 -   `--slack` を指定し、`SLACK_WEBHOOK_URL` が未設定の場合は、設定の誤りとして終了コード `2` で拒否する。標準エラー出力には変数の名前が現れ、値は現れない。`--out` を指定した場合は、従来どおり `SLACK_WEBHOOK_URL` を必須としない（設定されていれば検証する）。
 -   終了コード `2` になるこれらの誤りは、0005 の F-005 と同じく、排他の取得、キャッシュの掃除、`yt-dlp` の起動、LLM API の呼び出しのいずれよりも前に検出する。
 -   `--out` に固有の確認（キャッシュディレクトリの中を指すパスの拒否、事前確認。0005 の F-005・F-006）は、`--out` を指定した場合だけ行う。
@@ -274,7 +274,15 @@ CLI の呼び出し形式は `yt2column [フラグ] <動画 URL>` のままと�
 
 #### F-010: 文書
 
--   README に、冒頭の説明（Slack への投稿は未実装という記述）の更新、`--slack` の使い方、`--out` と `--slack` のどちらか一方が必須であること、`SLACK_WEBHOOK_URL` の用途と形式（Mattermost の Webhook URL を設定できること）、対応の範囲（Mattermost は検証済み、Slack は best effort）、長い記事は分割して投稿されること、投稿は通知なしで行われること（Mattermost の場合）、メンションの記法を含む記事は投稿されないこと、分割投稿の途中で失敗した場合に再実行すると最初から投稿し直されること（重複が起こりうること）、統合テストの実行方法を記す。
+-   README に、次を記す。
+    -   冒頭の説明（Slack への投稿は未実装という記述）の更新
+    -   `--slack` の使い方。`--out` と `--slack` のどちらか一方が必須であること
+    -   `SLACK_WEBHOOK_URL` の用途と形式（Mattermost の Webhook URL を設定できること）
+    -   対応の範囲（Mattermost は検証済み、Slack は best effort）
+    -   長い記事は分割して投稿されること
+    -   投稿は通知なしで行われること（Mattermost の場合）。メンションの記法を含む記事は投稿されないこと
+    -   分割投稿の途中で失敗した場合に、再実行すると最初から投稿し直されること（重複が起こりうること）
+    -   統合テストの実行方法
 -   [project_overview.md](../../dev/project_overview.md) の、投稿先を Slack とする記述（概要、`Publisher` の初期実装、「前提・制約」の `markdown` ブロックと上限値の記述、「設定（環境変数）」の表の `SLACK_WEBHOOK_URL`）を、Slack 互換の Incoming Webhook（検証の対象は Mattermost）と、設計で確認した上限値と出典に改める。`SLACK_WEBHOOK_URL` には、`--slack` を指定した場合は必須であることと、Mattermost の URL を受理することを加える。
 -   [package_reference.md](../../dev/developer_guide/package_reference.md) の `internal/publisher` の責務に `SlackWebhookPublisher` を加え、`internal/config` の Webhook URL の規則の記述を改める。
 -   [security.md](../../dev/security.md) に、次を加える。
@@ -327,7 +335,7 @@ CLI の呼び出し形式は `yt2column [フラグ] <動画 URL>` のままと�
 ### 4.5. 保守性 (Maintainability)
 -   投稿先を追加するときに、`ArticleWriter`・パイプラインを変更せずに済むこと。
 -   投稿先の選択は、文字列の内容（`--out` が空かどうかなど）から推し量らず、型で表す（[CLAUDE.md](../../../CLAUDE.md)「Declare, don't infer」。[design_handoff.md](design_handoff.md) H-04）。
--   Slack を正式に対応するときに、フラグと環境変数の名前を変えずに済むこと。
+-   Slack に正式に対応するときに、フラグと環境変数の名前を変えずに済むこと。
 
 ## 5. 制約条件 (Constraints)
 
