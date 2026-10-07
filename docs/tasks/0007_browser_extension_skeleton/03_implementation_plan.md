@@ -73,7 +73,7 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 
 **秘密鍵の検出（AC-09）**
 
--   設計書 7.4 は、`git grep -n "PRIVATE KEY"` が何も見つけないことを確かめるとしている。しかし HEAD `35b7829` でこのコマンドを実行すると、要件書（`01_requirements.md:120`）と設計書（`02_architecture.md:296`・`:1092`）にある説明の文が 3 件見つかる。一方、PEM の見出しの形 `git grep -n -E -e "-----BEGIN [A-Z0-9 ]*PRIVATE KEY"` では何も見つからなかった（終了コード 1。2026-10-07、HEAD `35b7829`）。そこで本計画は、設計書 7.4 の `git grep` による確認を、PEM の見出しの形（`-----BEGIN [A-Z0-9 ]*PRIVATE KEY`。行のどこに現れても一致する）で追跡中のファイルを検査するテストに置き換える。このテストはステップ 1-5 の `repository.test.ts` に置く。この置き換えは、要件書 AC-09 の「PEM の `PRIVATE KEY` ブロック」と同じ対象を確かめる編集上の修正である。そのため、設計書 7.4 の記述を本計画と同じコミットで改め、設計書の `Comments` に記録した（`requirements_process.md`「Editing an approved document」。設計書の状態は `approved` のまま。判断の変更と見なす場合は、レビューで `draft` に戻す）。
+-   設計書 7.4 は、`git grep -n "PRIVATE KEY"` が何も見つけないことを確かめるとしている。しかし HEAD `35b7829` でこのコマンドを実行すると、要件書（`01_requirements.md:120`）と設計書（`02_architecture.md:296`・`:1092`）にある説明の文が 3 件見つかる。一方、PEM の見出しの形 `git grep -n -E -e "-----BEGIN [A-Z0-9 ]*PRIVATE KEY"` では何も見つからなかった（終了コード 1。2026-10-07、HEAD `35b7829`）。そこで本計画は、設計書 7.4 の `git grep` による確認を、PEM の見出しの形（`-----BEGIN [A-Z0-9 ]*PRIVATE KEY`。行のどこに現れても一致する）で追跡中のファイルを検査するテストに置き換える。このテストはステップ 1-5 の `repository.test.ts` に置く。この置き換えは、要件書 AC-09 の「PEM の `PRIVATE KEY` ブロック」と同じ対象を確かめる編集上の修正である。そのため、設計書 7.4 の記述を本計画と同じコミットで改め、設計書の `Comments` に記録した（`requirements_process.md`「Editing an approved document」。設計書の状態は `approved` のまま。レビューで編集上の修正として受理された）。
 
 **拡張 ID**
 
@@ -108,8 +108,8 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
     -   `checkDist.test.ts`: 一時ディレクトリの `src/`・`static/`・`dist/` で、余分なファイル、欠けたファイル、相対パスでないモジュールの指定、`dist/` にない相対パスの指定、動的な `import()` のそれぞれを拒否し、正しい組を受理する。
     -   `typecheck.test.ts`（AC-02）: 一時ディレクトリに、`tsconfig.json` と `tsconfig.build.json` をそれぞれ `extends` する設定と、型の合わない代入を 1 つ含むファイルを作り、`tsc` が失敗し、ビルドの設定では出力のファイルを作らないことを確かめる。`strict` のときだけ誤りになる入力（`null` を `string` に代入する、暗黙の `any` の引数）の行も置き、`strict` を外す変更はこの行で失敗させる。同じ設定で型の合うファイルが成功すること（対照）も確かめ、設定の誤り（`rootDir` の外など）で失敗しているのではないことを示す。
     -   `lintRules.test.ts`（AC-23 の 2 つ目の防御・AC-27）: ESLint の Node.js の API で `eslint.config.js` を読み、`eval`・`new Function`・文字列を渡す `setTimeout`・設計書 3.7 の HTML を解釈する API の各々・動的な `import()` を含むコードがそれぞれ違反になり、`textContent` への代入が違反にならないことを確かめる。
-    -   `repository.test.ts`: (1) `git check-ignore` で `extension/node_modules/` と `extension/dist/` の下のパスが無視されること（AC-06）。(2) `git ls-files` の追跡中のファイルのどの行にも PEM の秘密鍵の見出し（§1.3 の形）がないこと（AC-09。このテストのソース自身が検索の対象に一致しない書き方にする）。(3) `Makefile` の `ext-install` のレシピが `npm ci` を `--ignore-scripts` 付きで呼び、`Makefile` と `ci.yml` が `npm install` を呼ばないこと、`package-lock.json` が追跡されていること（AC-03）。(4) `ci.yml` の拡張のジョブが 6 つの `make ext-*` を別々のステップで実行し、ジョブの `if:` が `check-changes` の出力 `has-extension-changes` を参照し、`check-changes` がその出力を宣言していること（AC-07）。(5) Node.js と npm を含まない `PATH`（`make`・`sh` などへのシンボリックリンクだけを置いた一時ディレクトリ）で `make -n build test lint deadcode` が成功し、標準エラーに何も出ないこと。ステップ 1-3 で定めた「Go のターゲットが Node.js を必要としない」ことを確かめる。
--   [ ] **ステップ 1-6**: CI を変更する（設計書 3.10）。`has-extension-changes.sh` を作り、`check-changes` のジョブで `has-code-changes` と同じ変更の一覧を標準入力に渡して出力 `has-extension-changes` を決める。ジョブ `extension` を加え、設計書 3.10 の 6 つのステップ、`actions/setup-go`（既存のジョブと同じく `go-version-file: go.mod`）、`go list ./...` に `github.com/isseis/yt2column/extension/` で始まるパッケージがないことの確認を置く。`ciChanges.test.ts` は、スクリプトを `bash` で実行して次を確かめる。4 つのパターンごとに、そのパターンにだけ一致する 1 ファイルの一覧（`extension/` の下のファイル、`Makefile`、`.github/workflows/ci.yml`、`go.mod`）を作り、それぞれ `true` になる。`extension/` の例には `extension/scripts/has-extension-changes.sh` 自身も含める。一方、Go のファイルだけ、`docs/` の下のファイルだけ、`README.md` だけ、`extension` を部分文字列として含むだけのパス（例: `notes/myextension.txt`）だけの一覧と、空の一覧では、それぞれ `false` になる。
+    -   `repository.test.ts`: (1) `git check-ignore` で `extension/node_modules/` と `extension/dist/` の下のパス、`*.pem` に一致するパス（`key.pem`・`extension/key.pem`）が無視されること（AC-06。`*.pem` は AC-09 の補助）。(2) `git ls-files` の追跡中のファイルのどの行にも PEM の秘密鍵の見出し（§1.3 の形）がないこと（AC-09。このテストのソース自身が検索の対象に一致しない書き方にする）。(3) `Makefile` の `ext-install` のレシピが `npm ci` を `--ignore-scripts` 付きで呼び、`Makefile` と `ci.yml` が `npm install` を呼ばないこと、`package-lock.json` が追跡されていること（AC-03）。(4) `ci.yml` の拡張のジョブが 6 つの `make ext-*` を別々のステップで実行し、ジョブの `if:` が `check-changes` の出力 `has-extension-changes` を参照し、`check-changes` がその出力を宣言していること（AC-07）。(5) Node.js と npm を含まない `PATH`（`make`・`sh` などへのシンボリックリンクだけを置いた一時ディレクトリ）で `make -n build test lint deadcode` が成功し、標準エラーに何も出ないこと。ステップ 1-3 で定めた「Go のターゲットが Node.js を必要としない」ことを確かめる。
+-   [ ] **ステップ 1-6**: CI を変更する（設計書 3.10）。`has-extension-changes.sh` を作り、`check-changes` のジョブで `has-code-changes` と同じ変更の一覧を標準入力に渡して出力 `has-extension-changes` を決める。ジョブ `extension` を加え、設計書 3.10 の 6 つのステップ、`actions/setup-go`（既存のジョブと同じく `go-version-file: go.mod`）、`go list ./...` に `github.com/isseis/yt2column/extension/` で始まるパッケージがないことの確認を置く。`ciChanges.test.ts` は、スクリプトを `bash` で実行して次を確かめる。4 つのパターンごとに、そのパターンにだけ一致する 1 ファイルの一覧（`extension/` の下のファイル、`Makefile`、`.github/workflows/` の下のファイル、`go.mod`）を作り、それぞれ `true` になる。workflow のパターン（設計書 3.10 の `^\.github/workflows/`）が `ci.yml` だけに狭まっていないことを確かめるため、workflow については、`.github/workflows/ci.yml` だけの一覧と `.github/workflows/release.yml` だけの一覧を別々に置く（どちらも `true` になる。両方を 1 つの一覧に入れると、`ci.yml` に狭めたパターンでも `true` になり、狭めたことを検出できない）。`extension/` の例には `extension/scripts/has-extension-changes.sh` 自身も含める。一方、Go のファイルだけ、`docs/` の下のファイルだけ、`README.md` だけ、`extension` を部分文字列として含むだけのパス（例: `notes/myextension.txt`）だけの一覧、各パターンの文字列を先頭以外に含むか後ろに続きを持つパスだけの一覧（`notes/extension/x.txt`・`tools/Makefile`・`Makefile.local`・`tools/go.mod`・`tools/.github/workflows/ci.yml`。パターンの `^`・`$` を外した変更を検出する）と、空の一覧では、それぞれ `false` になる。
 -   [ ] **ステップ 1-7**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象は次のとおりである。
     -   `isAcceptedWatchUrl` の各条件を 1 つずつ外す。
     -   `check-lockfile` のレジストリの判定を外す。
@@ -118,7 +118,7 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
     -   `strict` を定義する設定のファイルから `strict` を外す（`strict` のときだけ誤りになる行が失敗する）。
     -   `eslint.config.js` の各規則を 1 つずつ外す。
     -   `.gitignore` の拡張の行を外す。
-    -   `has-extension-changes.sh` のパターンを 1 つずつ外す。
+    -   `has-extension-changes.sh` のパターンを 1 つずつ外す。各パターンの `^`・`$` を 1 つずつ外す。workflow のパターンは `^\.github/workflows/ci\.yml$` に狭める（`release.yml` の行で失敗する）。
     -   PEM の見出しを含むファイルを一時的にステージする（コミットしない）。
     -   `ext-install` のレシピから `--ignore-scripts` を外す。
     -   `npm ci` を `npm install` に替える。
@@ -229,6 +229,7 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 -   設計書 3.11・7.1 のとおり、`node --test` で、fake の依存と jsdom を使う。実際のブラウザを起動しない。テストの文字列は合成したものだけを使い、YouTube のページの実データを加えない（要件書 5.）。
 -   判定の網羅は `core/` のテスト（`acceptedUrl`・`collect`・`summary`）で行う。`launch.test.ts` は経路の配線（同じ `collect` を通ること、表示の失敗の扱い、表示の手段）を確かめ、`core/` のテストの行の表を繰り返さない。
 -   設定と文書のガード（`typecheck`・`lintRules`・`repository`・`ciChanges`・`docs`）は、子プロセス（`tsc`・`git`・`bash`）やファイルの読み取りを使う。どれもネットワークにアクセスしない。
+-   AC-03 は実際のインストール（レジストリへのアクセスを伴い、`npm ci` が lockfile と `package.json` の食い違いで失敗する）に依存するため、ユニットテストにしない。`repository.test.ts` が、Makefile と CI が `npm ci` を `--ignore-scripts` 付きで呼び、`npm install` を呼ばないこと、lockfile が追跡されていることを静的に確かめ、実際の失敗はステップ 1-8 の CI のコミットで確かめる。AC-05 も Go の手順全体の結果の比較でありユニットテストになじまないため、CI の `go list ./...` の確認とステップ 1-7 の比較で確かめる。どちらも `static`・`manual` の検証である。`requirements_process.md` §4 は `static` だけの検証を文書の記述の有無に限っているので、これはその例外であり、本計画のレビューで判断する。
 
 ### 4.2. 統合テスト
 
@@ -251,9 +252,9 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 |---|---|---|---|
 | AC-01 | test | `make ext-check`（CI のジョブ `extension` の 6 つのステップ） | ステップ 1-1〜1-3・1-6 |
 | AC-02 | test・manual | `extension/test/typecheck.test.ts::type errors fail typecheck and build`、ステップ 1-8 の型検査の変更での CI の失敗 | ステップ 1-1・1-5 |
-| AC-03 | static・manual | `extension/test/repository.test.ts::install uses npm ci`、ステップ 1-8 の版の範囲の変更での CI の失敗 | ステップ 1-3・1-5 |
+| AC-03 | static・manual（理由は §4.1） | `extension/test/repository.test.ts::install uses npm ci`、ステップ 1-8 の版の範囲の変更での CI の失敗 | ステップ 1-3・1-5 |
 | AC-04 | test | `extension/test/checkDist.test.ts::checkDist`、`make ext-build`（`check-dist` を毎回実行する） | ステップ 1-2・1-5・4-5 |
-| AC-05 | static・manual | CI のジョブ `extension` の `go list ./...` のステップ、ステップ 1-7 の比較の記録（§5.1） | ステップ 1-3・1-6・1-7 |
+| AC-05 | static・manual（理由は §4.1） | CI のジョブ `extension` の `go list ./...` のステップ、ステップ 1-7 の比較の記録（§5.1） | ステップ 1-3・1-6・1-7 |
 | AC-06 | test | `extension/test/repository.test.ts::build outputs are ignored` | ステップ 1-3・1-5 |
 | AC-07 | test・static・manual | `extension/test/ciChanges.test.ts::has-extension-changes`、`extension/test/repository.test.ts::ci runs every extension step`、ステップ 1-8 の CI の記録（§5.1） | ステップ 1-6・1-8 |
 | AC-08 | test・manual | `extension/test/manifest.test.ts::key`（拡張 ID の計算）、ステップ 5-1（§5.1） | ステップ 2-1・2-2 |
