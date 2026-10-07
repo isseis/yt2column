@@ -314,14 +314,16 @@ Agent prompt (inline `clusters` from Phase 2, the `valid` threads, and the
 > Reply with only this JSON: `{"fixes": [{"threadId": "...", "applied": bool,
 > "replyBody": "..."}]}`
 
-## Phase 4 — Build (model: haiku)
+## Phase 4 — Build + push (model: haiku)
 
-Skip this phase (treat as `{success: true, commitSha: ""}`) if both `valid`
-and `off-level` were empty in Phase 2.
+Skip this phase (treat as `{success: true, commitSha: "", pushed: false}`) if
+both `valid` and `off-level` were empty in Phase 2.
 
 Agent prompt:
 
-> Run the build checks, then commit if they pass.
+> Run the build checks, then commit and push if they pass. Push here, before
+> the reply phase, so a reviewer asked to re-check sees the fix on the remote
+> branch (not the pre-fix revision).
 >
 > 1. `make fmt && make test && make lint`
 > 2. If all pass:
@@ -331,10 +333,15 @@ Agent prompt:
 >    if [ "$COMMITTED" = "1" ]; then git commit -m "fix: address PR #NUMBER review comments" || { COMMITTED=0; false; }; fi
 >    ```
 > 3. Only if a commit was actually created (`COMMITTED=1`), get the commit SHA
->    via `git log -1 --format=%H`. Otherwise use empty string.
-> 4. Reply with only this JSON: `{"success": true, "commitSha": "...", "error":
->    ""}`. If any check fails, `{"success": false, "commitSha": "", "error":
->    "..."}` with the failing output in `error`. Do NOT commit on failure.
+>    via `git log -1 --format=%H`, then push it with `git push`. If the push
+>    fails, treat the phase as failed (`success=false`) so the reply phase does
+>    not run against an unpushed fix. If no commit was created, use the empty
+>    string and do not push.
+> 4. Reply with only this JSON: `{"success": true, "commitSha": "...",
+>    "pushed": bool, "error": ""}`. If any check or the push fails,
+>    `{"success": false, "commitSha": "", "pushed": false, "error": "..."}`
+>    with the failing output in `error`. Do NOT commit or push on a build
+>    failure.
 
 If `success=false`: report the build failure and its error output, and stop —
 do not run Phase 5 or 6.
@@ -391,11 +398,12 @@ Agent prompt:
 >
 > `<inline the shell blocks built above>`
 
-## Phase 6 — Wrap: PR description + push (model: haiku)
+## Phase 6 — Wrap: PR description (model: haiku)
 
 Agent prompt:
 
-> Verify the PR description is still accurate and push.
+> Verify the PR description is still accurate. The fix commit was already
+> pushed in Phase 4, so do not push again.
 >
 > 1. `gh pr view NUMBER --json title,body`
 > 2. `git log --oneline -10`
@@ -410,7 +418,6 @@ Agent prompt:
 >    Never pass placeholder text — if you have not drafted concrete
 >    replacement text, skip the edit entirely so the real PR description is
 >    preserved.
-> 4. `git push`
 
 ---
 
