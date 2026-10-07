@@ -8,7 +8,7 @@
 | Created | 2026-10-07 |
 | Review date | 2026-10-07 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | フェーズ 2 の実装中に、ステップ 2-2・2-5・PR-2 のレビュー観点を編集上の修正として更新した（拒否の一覧が `errors.Is` で静的エラーを確かめ、`https:///chat` を足す形にした。決定の変更はない。2026-10-08） |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -195,7 +195,7 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 
 **タスク**
 -   [x] **ステップ 2-1**: `internal/loopbacktest/loopbacktest.go` に `ValidateURL` を作る（設計書 3.3）。本体と 2 つの静的エラーは、`deepseek` の `validateLoopbackEndpoint`・`errTestEndpointNoHost`・`errTestEndpointNotLoopback`（`test_helpers.go:42-73`）を、振る舞いを変えずに移したものとする。
--   [x] **ステップ 2-2**: `loopbacktest_test.go` に `TestValidateURL` を作る。受理と拒否の値は、移す前の `TestNewTestClientRejectsNonLoopback`（`deepseek_test.go:166-187`）の 2 つの一覧をそのまま使い、拒否の一覧にホストが空の値 `https:///chat` を足す（元の一覧はホストの検査の行を実行しておらず、外しても失敗するテストがなかったため。ステップ 2-6 の「ホストの検査を外す」を失敗させる）。移した後、`deepseek_test.go` の `TestNewTestClientRejectsNonLoopback` を削除する。
+-   [x] **ステップ 2-2**: `loopbacktest_test.go` に `TestValidateURL` を作る。受理の値は、移す前の `TestNewTestClientRejectsNonLoopback`（`deepseek_test.go:166-187`）の一覧をそのまま使う。拒否の値は同じ一覧にホストが空の値 `https:///chat` を足し、各行が期待する静的エラー（`errTestEndpointNoHost` か `errTestEndpointNotLoopback`）を `errors.Is` で確かめる（移す前のテストは `err != nil` だけを見ており、ホストが空の値も無かったので、ホストの検査の行を外しても入れ替えても失敗しなかった）。移した後、`deepseek_test.go` の `TestNewTestClientRejectsNonLoopback` を削除する。
 -   [x] **ステップ 2-3**: `internal/llm/deepseek` のテスト用の補助を変える。
     -   [x] `test_helpers.go` の `validateLoopbackEndpoint` を削除する。
     -   [x] `test_helpers.go` の `errTestEndpointNoHost` を削除する。
@@ -204,7 +204,7 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 -   [x] **ステップ 2-4**: `internal/pipeline/pipeline_test.go` の `TestPackageReferenceListsPackages` を、`_test.go` 以外の `.go` を持つすべてのパッケージ（テスト用のビルドのファイルだけを持つものを含む）に行を求めるように改め、doc コメントも同じ内容に直す。
     -   使われなくなる `isTestOnlySource` を削除する。
     -   `TestFakesCarryBuildTag` の対象に、`internal/loopbacktest` の `_test.go` 以外の `.go` を加え、1 行目が `//go:build test` であることを確かめる（`isTestOnlySource` を消すと、`loopbacktest.go` のビルドタグを確かめるものがなくなるため）。doc コメントも直す。
-    -   `package_reference.md` に `internal/loopbacktest` の行（テスト用のビルドだけで使える、ループバックの URL の判定。`deepseek` と `publisher` のテスト用の構築が使う）を加える。
+    -   `package_reference.md` に `internal/loopbacktest` の行（テスト用のビルドだけで使える、ループバックの URL の判定。`deepseek` のテスト用の構築が使う。`publisher` の分はフェーズ 4 で足す）を加える。
 -   [x] **ステップ 2-5**: テストの移動と削除の確認。移動の前後で `go test -tags test -coverprofile` と `go tool cover -func` を `internal/llm/deepseek` と `internal/loopbacktest` に対して実行し、移した関数の既存の行の網羅率が移動の前後で同じであること（`https:///chat` を足した分だけ `ValidateURL` は上がる）、`deepseek` の他の関数の網羅率が変わらないことを確かめ、コミットメッセージに書く（[CLAUDE.md](../../../CLAUDE.md)「Deleting a test is a claim that must be checked」）。
 -   [x] **ステップ 2-6**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `ValidateURL` がループバックでない IP を受理する（`TestValidateURL` と `TestNewForLoopbackTestRejectsNonLoopback`）、ホストの検査を外す、`TestPackageReferenceListsPackages` の確認を、`package_reference.md` から `internal/loopbacktest` の行を消して失敗させる、`loopbacktest.go` の 1 行目を消す（`TestFakesCarryBuildTag`）。`make fmt` → `make test` → `make lint` を通す。
 
