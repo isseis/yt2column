@@ -68,5 +68,6 @@
     -   `CheckRedirect` が返したエラーは、`*url.Error` の内側に入る。リダイレクトを止めるために返すエラーは、URL を含まない固定の値にする。
     -   `net.OpError` などは接続先のアドレス（ホストとポート）を含む。ホスト（`hooks.slack.com`）は秘密ではないが、パスを含まないことを確かめる。
     -   `http.ErrUseLastResponse` を使ってリダイレクトの応答をそのまま受け取る方法もある。この場合、3xx は通常の応答として扱える。
+    -   `http.Client.Timeout` による打ち切りのエラーが `context.DeadlineExceeded` に対して `errors.Is` で真になるかは、Go の版によって異なりうる。AC-16 を満たすために、タイムアウトを `context.WithTimeout` で与えるか、`http.Client.Timeout` を使うかを決める。
 -   **理由:** 内側のエラーまで URL を除かないと、呼び出し元が `errors.AsType` で内側のエラーを取り出して出力したときに、Webhook URL が漏れる。CLI は既存の仕組みで秘密の値を伏せる（0005 の F-008）が、`SlackWebhookPublisher` は CLI 以外からも使われうる。
 -   **関連:** F-005・AC-19
