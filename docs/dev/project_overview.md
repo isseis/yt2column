@@ -83,7 +83,7 @@ internal/secret/          # 秘密情報（API キー・Webhook URL）を保持�
 internal/publisher/       # Slack / File
 internal/config/          # 環境変数からの設定読み込み
 prompts/                  # プロンプトテンプレート
-testdata/                 # json3・info.json のサンプル、DeepSeek API の実応答
+testdata/                 # json3・info.json のサンプル、文字起こしパネルの HTML の抜粋、DeepSeek API の実応答
 ```
 
 ## 設定（環境変数）

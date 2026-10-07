@@ -1,6 +1,6 @@
 # testdata
 
-このディレクトリには、パーサのテスト用に保存した `yt-dlp` の実出力と、DeepSeek の API の実応答（後述）がある。`yt-dlp` の出力については、**リポジトリに保存してよいのは、再配布が許諾されたライセンスの動画からの出力だけ**とする（通常の YouTube 標準ライセンスの動画の全文字起こしは保存しない）。
+このディレクトリには、パーサのテスト用に保存した `yt-dlp` の実出力、YouTube の動画ページの文字起こしパネルの HTML の抜粋、DeepSeek の API の実応答（後述）がある。`yt-dlp` の出力と HTML の抜粋については、**リポジトリに保存してよいのは、再配布が許諾されたライセンスの動画からの出力だけ**とする（通常の YouTube 標準ライセンスの動画の全文字起こしは保存しない）。
 
 ## 出典とライセンス
 
@@ -20,6 +20,23 @@ CC BY 3.0 の条件に従い、上記の出典（動画 URL・チャンネル名
 
 - `2tcCWM-sRBw.ja.json3`: 上記動画の自動字幕（json3）。
 - `2tcCWM-sRBw.info.json`: 同上の info.json。
+
+## 文字起こしパネルの HTML の抜粋
+
+ブラウザ拡張から文字起こしを取得する方法（[issue #43](https://github.com/isseis/yt2column/issues/43)）を検討するために保存した、上記と同じ動画のページの HTML の抜粋である。出典とライセンスは前節と同じ。
+
+- 取得日: 2026-10-07
+- 取得方法: ブラウザで動画ページを開き、DevTools の Elements からページ全体の HTML を保存した。YouTube の表示言語は日本語で、ログインしていない状態で取得した（ページの設定値は `"LOGGED_IN": false` で、ヘッダーには「ログイン」ボタンがある）。
+- 抜粋の範囲: `ytd-engagement-panel-section-list-renderer[target-id="PAmodern_transcript_view"]` の要素 1 つ（開始タグから対応する終了タグまで）を、保存したページから切り出した。末尾に改行を 1 つ加えた以外は無改変である。DevTools でその要素を選び「Copy outerHTML」を実行した結果と同じものである。
+
+ページ全体の HTML は**コミットしない**。YouTube 自身のマークアップ・スクリプト・CSS と、他チャンネルの動画のタイトルやサムネイル（おすすめ欄）を含むためである。ログインした状態で保存した場合は、さらにアカウントの情報（アバター、登録チャンネルの一覧、視聴履歴に基づくおすすめなど）も含む。抜粋には文字起こし本文、パネルの UI のラベル（「文字起こし」「閉じる」など）、アイコン 1 つの SVG パスだけが含まれ、URL・画像・アカウントの情報を含まないことを確認した。
+
+ページ全体の HTML は、どの worktree からも参照できるように、リポジトリの外の `${YT2COLUMN_SNAPSHOT_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/yt2column/snapshots}` に `<動画 ID>.<連番>.html` という名前で置く。環境変数は任意で、設定しなければ既定のパスを使う。テストはこのディレクトリを参照しない。抜粋を作り直すときは、ここに置いたファイルから上記の要素を切り出すか、DevTools で直接その要素の outerHTML をコピーする。
+
+- `2tcCWM-sRBw.transcript_panel.html`: 「文字起こしを表示」をクリックした直後のパネル（`visibility="ENGAGEMENT_PANEL_VISIBILITY_EXPANDED"`）。`transcript-segment-view-model` が 153 個あり、最後のタイムスタンプは 24:13（動画の長さは 24:22）。
+- `2tcCWM-sRBw.transcript_panel_hidden.html`: ページの読み込みが終わった直後の、まだ開いていないパネル（`visibility="ENGAGEMENT_PANEL_VISIBILITY_HIDDEN"`）。中身は読み込み中の表示（`yt-content-loading-renderer`）だけである。
+
+パネルの文字起こしは `2tcCWM-sRBw.ja.json3` とは別のデータで、区切りが粗く、句読点や「…」を含む。
 
 ## テスト用の合成サンプル（実出力ではない）
 
