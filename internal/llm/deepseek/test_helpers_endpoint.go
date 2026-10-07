@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/isseis/yt2column/internal/llm"
+	"github.com/isseis/yt2column/internal/loopbacktest"
 )
 
 // NewForLoopbackTest builds an llm.LLMClient that sends to endpoint, so a test
@@ -15,7 +16,7 @@ import (
 // Options value also fails the test. It is built only with the test tag.
 func NewForLoopbackTest(t testing.TB, opts Options, endpoint string) llm.LLMClient {
 	t.Helper()
-	if err := validateLoopbackEndpoint(endpoint); err != nil {
+	if err := loopbacktest.ValidateURL(endpoint); err != nil {
 		t.Fatalf("NewForLoopbackTest endpoint: %v", err)
 		return nil
 	}

@@ -512,13 +512,24 @@ func TestSecretRevealExclusive(t *testing.T) {
 	}
 }
 
+// testOnlyPackageDirs are packages that hold only test-only code but are not
+// in a testutil/ directory, so the testutil rule does not reach them. The
+// values are repository-relative, since the guard walks from two roots. Every
+// non-_test.go file in such a directory must carry the "test" build
+// constraint; TestPackageReferenceListsPackages requires a row for the
+// package.
+var testOnlyPackageDirs = []string{
+	"internal/loopbacktest",
+}
+
 // TestFakesCarryBuildTag checks that every testutil file under internal, at
-// any depth, and every test_helpers*.go file under cmd and internal is
-// test-only. A helper that integration tests also use carries
-// "test || integration" instead of "test"; no other constraint is accepted.
+// any depth, every test_helpers*.go file under cmd and internal, and every
+// source in a test-only package is test-only. A helper that integration tests
+// also use carries "test || integration" instead of "test"; a test-only
+// package source carries "test" alone. No other constraint is accepted.
 func TestFakesCarryBuildTag(t *testing.T) {
-	var testutilFiles, helperFiles []string
-	for _, root := range []string{"../../cmd", ".."} {
+	var testutilFiles, helperFiles, testOnlyFiles []string
+	for _, root := range []string{"../../cmd", "../../internal"} {
 		err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
@@ -531,6 +542,8 @@ func TestFakesCarryBuildTag(t *testing.T) {
 				testutilFiles = append(testutilFiles, path)
 			case strings.HasPrefix(d.Name(), "test_helpers"):
 				helperFiles = append(helperFiles, path)
+			case isTestOnlyPackageSource(t, path) && !strings.HasSuffix(d.Name(), "_test.go"):
+				testOnlyFiles = append(testOnlyFiles, path)
 			}
 			return nil
 		})
@@ -544,24 +557,52 @@ func TestFakesCarryBuildTag(t *testing.T) {
 	if len(helperFiles) == 0 {
 		t.Fatal("found no test_helpers*.go files")
 	}
+	if len(testOnlyFiles) == 0 {
+		t.Fatal("found no test-only package sources")
+	}
 	for _, path := range slices.Concat(testutilFiles, helperFiles) {
 		t.Run(path, func(t *testing.T) {
-			data, err := os.ReadFile(path)
-			if err != nil {
-				t.Fatalf("read %s: %v", path, err)
-			}
-			first, _, _ := strings.Cut(string(data), "\n")
+			first := firstLineOf(t, path)
 			if first != "//go:build test" && first != "//go:build test || integration" {
 				t.Errorf("%s first line = %q, want %q or %q", path, first, "//go:build test", "//go:build test || integration")
 			}
 		})
 	}
+	for _, path := range testOnlyFiles {
+		t.Run(path, func(t *testing.T) {
+			if first := firstLineOf(t, path); first != "//go:build test" {
+				t.Errorf("%s first line = %q, want %q", path, first, "//go:build test")
+			}
+		})
+	}
+}
+
+// isTestOnlyPackageSource reports whether the package of the file at path is
+// one of testOnlyPackageDirs.
+func isTestOnlyPackageSource(t *testing.T, path string) bool {
+	t.Helper()
+	rel, err := filepath.Rel(filepath.Join("..", ".."), filepath.Dir(path))
+	if err != nil {
+		t.Fatalf("relative path of %s: %v", path, err)
+	}
+	return slices.Contains(testOnlyPackageDirs, filepath.ToSlash(rel))
+}
+
+// firstLineOf returns the first line of the file at path.
+func firstLineOf(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	first, _, _ := strings.Cut(string(data), "\n")
+	return first
 }
 
 // TestPackageReferenceListsPackages checks that package_reference.md lists every
-// package with production code under cmd/ and internal/ (a file that is neither
-// a _test.go file nor built only with the test tags, so an OS-constrained file
-// such as internal/cachelock's counts), every testutil package, and prompts.
+// package with any non-test source under cmd/ and internal/ (including a
+// package that holds only test-only sources, such as internal/loopbacktest),
+// every testutil package, and prompts.
 func TestPackageReferenceListsPackages(t *testing.T) {
 	const root = "../.."
 	found := map[string]bool{}
@@ -584,9 +625,6 @@ func TestPackageReferenceListsPackages(t *testing.T) {
 				return nil
 			}
 			if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-				return nil
-			}
-			if isTestOnlySource(t, path) {
 				return nil
 			}
 			add(filepath.Dir(path))
@@ -626,21 +664,6 @@ func TestPackageReferenceListsPackages(t *testing.T) {
 		slices.Sort(stale)
 		t.Errorf("package_reference.md lists packages that have no production code: %v", stale)
 	}
-}
-
-// isTestOnlySource reports whether a Go file is built only with the test tags,
-// so it is a test helper rather than production code. An OS constraint such as
-// //go:build unix is production code. The two exact first lines it accepts are
-// the only test-only forms this repository uses; TestFakesCarryBuildTag rejects
-// any other first line, so a new combined constraint cannot slip through here.
-func isTestOnlySource(t *testing.T, path string) bool {
-	t.Helper()
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read %s: %v", path, err)
-	}
-	first, _, _ := strings.Cut(string(data), "\n")
-	return first == "//go:build test" || first == "//go:build test || integration"
 }
 
 // packageReferenceRows returns the package name (the first code span) of every

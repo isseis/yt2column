@@ -163,30 +163,6 @@ func TestNew(t *testing.T) {
 	})
 }
 
-func TestNewTestClientRejectsNonLoopback(t *testing.T) {
-	accepted := []string{
-		"http://127.0.0.1:8080/chat",
-		"http://[::1]:8080/chat",
-	}
-	for _, endpoint := range accepted {
-		if err := validateLoopbackEndpoint(endpoint); err != nil {
-			t.Errorf("validateLoopbackEndpoint(%q) error = %v, want nil", endpoint, err)
-		}
-	}
-	rejected := []string{
-		"https://api.deepseek.com/chat/completions",
-		"http://192.168.1.10:8080/chat",
-		"http://localhost:8080/chat",
-		"http://[2001:db8::1]:8080/chat",
-		"127.0.0.1:8080/chat",
-	}
-	for _, endpoint := range rejected {
-		if err := validateLoopbackEndpoint(endpoint); err == nil {
-			t.Errorf("validateLoopbackEndpoint(%q) error = nil, want a rejection", endpoint)
-		}
-	}
-}
-
 // fatalRecorder is a testing.TB that records a Fatal message instead of
 // failing the test. Fatalf deliberately does not end the calling goroutine,
 // so the helper under test keeps running and the caller can observe that it

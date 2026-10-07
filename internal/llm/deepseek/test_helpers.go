@@ -12,7 +12,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -39,12 +38,6 @@ const (
 	testdataLengthFixture = "../../../testdata/deepseek_chat_completion_length.json"
 )
 
-// Static errors of the test helpers themselves.
-var (
-	errTestEndpointNoHost      = errors.New("test endpoint has no host")
-	errTestEndpointNotLoopback = errors.New("test endpoint is not a loopback address")
-)
-
 // mustSecret wraps value in a secret.Secret or fails the test.
 func mustSecret(t *testing.T, value string) secret.Secret {
 	t.Helper()
@@ -53,23 +46,6 @@ func mustSecret(t *testing.T, value string) secret.Secret {
 		t.Fatalf("secret.New(%q) error = %v", value, err)
 	}
 	return apiKey
-}
-
-// validateLoopbackEndpoint rejects any endpoint that is not a loopback URL, so
-// the test helper cannot be pointed at an external host.
-func validateLoopbackEndpoint(endpoint string) error {
-	parsed, err := url.Parse(endpoint)
-	if err != nil {
-		return err
-	}
-	if parsed.Host == "" {
-		return fmt.Errorf("%w: %q", errTestEndpointNoHost, endpoint)
-	}
-	ip := net.ParseIP(parsed.Hostname())
-	if ip == nil || !ip.IsLoopback() {
-		return fmt.Errorf("%w: %q", errTestEndpointNotLoopback, endpoint)
-	}
-	return nil
 }
 
 // newTestClient builds a client for the given loopback endpoint by delegating
