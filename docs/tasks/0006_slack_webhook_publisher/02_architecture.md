@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-07 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 2026-10-07: 要件書の改訂（検証の対象を Mattermost の Slack 互換の Incoming Webhook とし、Slack を best effort とする）に合わせて全体を書き直した。 |
+| Review date | 2026-10-07 |
+| Reviewer | isseis |
+| Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）の設計である。既存のコードに関する記述は、コミット `1457754` のソースで確かめた。`file:line` はこのコミットの行番号を指す。Mattermost の振る舞いに関する記述は、3.1 に挙げた公式文書とサーバのソース（GitHub の `mattermost/mattermost` の `master` ブランチ、2026-10-07 に確認）で確かめた。
 
