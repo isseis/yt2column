@@ -335,16 +335,25 @@ Agent prompt:
 > 3. Only if a commit was actually created (`COMMITTED=1`), get the commit SHA
 >    via `git log -1 --format=%H`, then push it with `git push`. If the push
 >    fails, treat the phase as failed (`success=false`) so the reply phase does
->    not run against an unpushed fix. If no commit was created, use the empty
->    string and do not push.
+>    not run against an unpushed fix. If no commit was created (`COMMITTED=0`),
+>    use the empty string and do not push, but first run `git fetch --prune`,
+>    then `git rev-list --count '@{upstream}..HEAD'` to check for commits in HEAD
+>    missing from the remote branch. If the count is nonzero, return
+>    `success=false` with an error identifying the unpushed commits. If either
+>    command fails (including a missing upstream), return `success=false` with
+>    that command's error output. Continue to Phase 5 and Phase 6 only when
+>    the count is zero.
 > 4. Reply with only this JSON: `{"success": true, "commitSha": "...",
->    "pushed": bool, "error": ""}`. If any check or the push fails,
+>    "pushed": bool, "error": ""}`. If any build check, commit, remote check,
+>    or push fails,
 >    `{"success": false, "commitSha": "", "pushed": false, "error": "..."}`
->    with the failing output in `error`. Do NOT commit or push on a build
->    failure.
+>    with the failed step (including the command) and its error output in
+>    `error`; distinguish build-check failures from push failures. Do NOT
+>    commit or push on a build failure.
 
-If `success=false`: report the build failure and its error output, and stop —
-do not run Phase 5 or 6.
+If `success=false`: report the actual failed step and its error output
+(distinguishing build-check failures from push failures), and stop — do not
+run Phase 5 or 6.
 
 ## Phase 5 — Reply + resolve (model: haiku)
 
