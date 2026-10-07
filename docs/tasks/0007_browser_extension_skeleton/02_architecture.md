@@ -8,7 +8,7 @@
 | Created | 2026-10-07 |
 | Review date | 2026-10-07 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-07: 7.4 の AC-09 の確認を、`git grep -n "PRIVATE KEY"`（本書と要件書の説明の文に一致する）から、PEM の見出しの検査に改めた。確かめる対象（要件書 AC-09 の PEM の `PRIVATE KEY` ブロック）は変わらないので、編集上の修正として扱い、判断の変更はないと判断した。テストのファイルの名前は実装計画（`03_implementation_plan.md` §5）に記す。レビューで判断の変更と見なす場合は `draft` に戻す。 |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `426eb2e` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指す。本タスクには `design_handoff.md` がない。実装レベルの懸念は [implementation_handoff.md](implementation_handoff.md) に置き、`03_implementation_plan.md` が扱う。
 
@@ -1089,7 +1089,7 @@ sequenceDiagram
 
 -   AC-23: 3.11 の `render.test.ts` と `launch.test.ts`（表示）。
 -   AC-26・AC-27・AC-12: `manifest.test.ts` と lint。
--   AC-09: `manifest.test.ts` の公開鍵の解析、pre-commit の `detect-private-key`、`git grep -n "PRIVATE KEY"` が何も見つけないこと（静的な確認）。
+-   AC-09: `manifest.test.ts` の公開鍵の解析、pre-commit の `detect-private-key`、追跡中のファイルのどの行にも PEM の秘密鍵の見出し（正規表現 `-----BEGIN [A-Z0-9 ]*PRIVATE KEY` に一致する文字列。JSON の文字列の中などに埋め込まれたものを含む）が現れないことを確かめるテスト（静的な確認）。
 -   AC-04: `check-dist`（ビルドの一部として毎回実行する）。
 
 ### 7.5. 受け入れ基準と設計の対応
