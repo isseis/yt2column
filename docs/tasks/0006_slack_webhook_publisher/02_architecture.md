@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-07 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 2026-10-07: 要件書の改訂（検証の対象を Mattermost の Slack 互換の Incoming Webhook とし、Slack を best effort とする）に合わせて全体を書き直した。 |
+| Review date | 2026-10-07 |
+| Reviewer | isseis |
+| Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）の設計である。既存のコードに関する記述は、コミット `1457754` のソースで確かめた。`file:line` はこのコミットの行番号を指す。Mattermost の振る舞いに関する記述は、3.1 に挙げた公式文書とサーバのソース（GitHub の `mattermost/mattermost` の `master` ブランチ、2026-10-07 に確認）で確かめた。
 
@@ -686,7 +686,7 @@ func SettingsFrom(getenv func(string) string, opts IntegrationOptions) Integrati
 -   **統合テストを外部テストのパッケージに置く理由。** `internal/publisher/testutil` は `internal/publisher` を import する（`mocks.go`）。`make lint` は `test` と `integration` の両方のタグでビルドする（`Makefile` の `GOLINT`）ので、`package publisher` の統合テストがそれを import すると循環になる。統合テストは公開の `NewSlackWebhookPublisher` だけを使うので、`package publisher_test` に置ける。
 -   **CLI の Webhook の統合テスト。** `deepseektestutil.SettingsFrom`（`OptInEnv` は `publishertestutil.CLISlackOptInEnv`、欠けたキーは失敗）と `publishertestutil.SettingsFrom` の両方が実行と判定した場合だけ実行する。判定の補助は既存の `gateCLIIntegration`（`cmd/yt2column/test_helpers_integration.go:30-41`）と同じ形で同じファイルに置く。既存の `TestIntegrationCLI`（`cmd/yt2column/integration_test.go:37-129`）と同じく、testdata の字幕でキャッシュを置き、`yt-dlp` の代わりにトリップワイヤ（起動されたことを記録する実行ファイル。0005 の用語集）を指定し、`productionDeps()` で `run` を呼ぶ。`run` に与える環境（`lookupFrom` の map）に、テスト用の Webhook URL を `SLACK_WEBHOOK_URL` という名前で入れる。プロセスの環境変数は変えない。テストのファイルは `integration` のタグを持つので、`envaccess_test.go` の秘密の変数の名前の検査の対象外である（`envaccess_test.go:279-299` の `isTestCode`）。
 -   出力の検査は既存の `TestIntegrationCLI` と同じ考え方で、標準出力・標準エラー出力・テストの出力のどれにも、テスト用の Webhook URL とテスト用の API キー、およびそれぞれの末尾 8 文字（文字単位とバイト単位）が現れないことを、何かを出力する前に確かめる（AC-31）。
--   `SlackWebhookPublisher` の統合テストは、固定の `Article`（LLM を呼ばない。M1〜M4 に当たらない）を `NewSlackWebhookPublisher` で構築したものに投稿し、エラーがないことを確かめる。記事は 2 つ以上に分割される長さとし、1 つ目のメッセージを上限ちょうど（分割の位置の表示を含めて 16,383 コードポイント）にする。日本語と U+10000 以上の文字を含めて、サーバがコードポイントで数えることもここで確かめる。テスト用のチャンネルでの表示（メッセージの数が分割の数と一致し、サーバによる追加の分割が起きていないこと）は手動確認（F-009）で見る。
+-   `SlackWebhookPublisher` の統合テストは、固定の `Article`（LLM を呼ばない。M1〜M4 に当たらない）を `NewSlackWebhookPublisher` で構築したものに投稿し、エラーがないことを確かめる。記事は 2 つとする。1 つは、投稿する文字列がちょうど 16,383 コードポイントで、分割されない記事である（上限ちょうどのメッセージの受理を確かめる）。もう 1 つは、2 つ以上に分割される記事である。分割する場合、各断片は分割の位置の表示の最大の長さを差し引いた長さ以内に収まり（3.5）、1 つ目のメッセージは上限ちょうどにならないので、上限ちょうどの確認には分割しない記事を使う。日本語と U+10000 以上の文字を含めて、サーバがコードポイントで数えることもここで確かめる。テスト用のチャンネルでの表示（メッセージの数が分割の数と一致し、サーバによる追加の分割が起きていないこと）は手動確認（F-009）で見る。
 -   **`make` のターゲットのテスト。** 既存の `cmd/yt2column/makefile_test.go` と `internal/llm/deepseek/makefile_test.go` と同じく `deepseektestutil.RunMakeTarget` で行う。`RunMakeTarget`（`make.go:81`）に、記録する変数の名前を呼び出し元が追加する可変長の引数を足す。既存の呼び出し（`deepseek/makefile_test.go:31`・`cmd/yt2column/makefile_test.go:49`・`make.go:170`）は変えずに済む。Webhook のターゲットのテスト（`internal/publisher/makefile_test.go`）と、各ターゲットが自分のオプトインだけをエクスポートすることのテストには、`publishertestutil` の 2 つのオプトインの変数の名前を渡す（AC-29・AC-32）。`internal/publisher/makefile_test.go` は `publishertestutil` を import するので、統合テストと同じく `package publisher_test` に置く。`deepseektestutil` は Webhook のテストのパッケージに依存しない。
 
 ### 3.13. 文書（F-010）
@@ -716,7 +716,7 @@ func SettingsFrom(getenv func(string) string, opts IntegrationOptions) Integrati
 | `internal/llm/deepseek/test_helpers.go`・`test_helpers_endpoint.go` | `validateLoopbackEndpoint`・`errTestEndpointNoHost`・`errTestEndpointNotLoopback` を削除し、`loopbacktest.ValidateURL` を呼ぶ | 同上 | `deepseek_test.go:172-185`（`validateLoopbackEndpoint` を直接呼ぶテスト。`internal/loopbacktest` のテストに移す） |
 | `internal/llm/deepseek/testutil/make.go` | `RunMakeTarget` に、記録する変数の名前を追加する可変長の引数を足す | 3.12 | なし（既存の呼び出しは変えない） |
 | `internal/job/job.go` | `Output`・`FileOutput`・`RemoteOutput`。`Request` の `OutPath`・`Publisher` を `Output` に置き換え、`validateRequest`・事前確認を `switch` にする | 3.8 | `job_test.go` の `Request` を組み立てるすべての箇所（`job_test.go:176` ほか 30 か所程度）を `Output: FileOutput(outPath, pub)` に書き換える。`job_test.go:856` の `empty out path` の行は `FileOutput("", pub)` の拒否として残し、ゼロ値の `Output` と `RemoteOutput(nil)` の行を足す。`internal/job/test_helpers.go:40-49` の `newOutput` は `Output` を返す形に変えてよい |
-| `cmd/yt2column/run.go` | `--slack`、投稿先の決定、`deps` の分割、手順の分岐、表示の追加、`configuredSecrets` の追加 | 3.10 | `run_test.go:357` の `no --out` の行（期待する文言が `one of --out or --slack is required` に変わる）、`run_test.go:474`・`:547`・`:647`・`:881` の `e.d.newPublisher` の差し替え（`newFilePublisher` への改名）、`internal/config/envaccess_test.go` の `TestEnvAccessConfined`（`run.go` に秘密の変数の名前を書かないことの確認。3.10 のとおり書かないので通る） |
+| `cmd/yt2column/run.go` | `--slack`、投稿先の決定、`deps` の分割、手順の分岐、表示の追加、`configuredSecrets` の追加 | 3.10 | `run_test.go:357` の `no --out` の行（期待する文言が `one of --out or --slack is required` に変わる）、`run_test.go:474`・`:547`・`:647`・`:881` の `e.d.newPublisher` の差し替え（`newFilePublisher` への改名）、`internal/config/envaccess_test.go` の `TestEnvAccessConfined`（`run.go` に秘密の変数の名前を書かないことの確認。3.10 のとおり書かないので通る）。`run_test.go` の `newRunEnv`（`run_test.go:95-129`）も `productionDeps()` から始まり、環境に `SLACK_WEBHOOK_URL` を持つので、`testDeps` と同じく `newSlackPublisher` の既定を送らない代用品にする（3.10） |
 | `cmd/yt2column/test_helpers.go` | `testDeps` の `newSlackPublisher` の既定を送らない代用品にする。偽の LLM と止まる偽の `Publisher` を使う子プロセスのモードを足す | 3.10 | 子プロセスのモードを使う既存のテスト（`signal_test.go`）は変わらない |
 | `cmd/yt2column/signal_test.go` | `--slack` での投稿中の SIGINT・SIGTERM のテストを足す | 3.10（AC-26） | なし |
 | `cmd/yt2column/integration_slack_test.go`（新規、`integration` のタグ） | CLI の Webhook の統合テスト | 3.12 | なし |
@@ -724,13 +724,14 @@ func SettingsFrom(getenv func(string) string, opts IntegrationOptions) Integrati
 | `cmd/yt2column/makefile_test.go` | `make test-integration-cli-slack` のテストを足し、オプトインがターゲットごとであることのテストに Webhook の変数を加える | 3.12 | `TestMakeOptInsAreTargetSpecific`（確認する変数が増える） |
 | `cmd/yt2column/docs_test.go` | `configDocRows`（`docs_test.go:28-35`）の `SLACK_WEBHOOK_URL` の行を新しい記述に合わせる | 3.13 | 同ファイル |
 | `Makefile` | `test-integration-slack`・`test-integration-cli-slack` と、それぞれのタイムアウトの変数。`.PHONY` と `lint` のコメントの更新 | 3.12 | なし（新しいターゲットのテストを足す） |
+| `internal/pipeline/pipeline_test.go` | 変更しない本番のコードに対するガードのテストの追従 | 3.12・3.13 | `TestFakesCarryBuildTag`（`pipeline_test.go:541-542` が `testutil/` の `.go` の数を 13 に固定している。`internal/publisher/testutil` に加わるファイルの分だけ増やす）。`TestPackageReferenceListsPackages`（`pipeline_test.go:565-629`。`test` のタグだけでビルドされるファイルしかないパッケージを数えず、表にある行を「本番のコードがない」として失敗にする。3.13 で `internal/loopbacktest` の行を加えるので、`testutil/` 以外のテスト用のビルドだけのパッケージも行を求めるように改める） |
 
 #### 既存の設計書の方針・要件書の記述との違い
 
 -   **E1（`job.Request.OutPath` をなくす）。** [0005 の 02_architecture.md](../0005_cli_assembly/02_architecture.md) の 3.4 の手順 B0 は、「`CacheDir`・`VideoURL`・`OutPath` が空でない」ことを `Request` の検証とし、`Request` が `OutPath` と `Publisher` を別のフィールドとして持つ。本設計は、両者を `job.Output` にまとめ、出力のパスはファイルの投稿先だけが持つ。理由は 3 つある。`--slack` には出力のファイルがないこと、要件書 F-007 が投稿先を 1 つだけ選ぶと定めていること、`OutPath` が空かどうかで振る舞いを推し量るのを避けること（H-04）である。この方針を確かめる既存のテストは `job_test.go:856` の `empty out path` の行と、`run_test.go:357` の `no --out` の行であり、上の表のとおり更新する。
 -   **E2（`200` 以外の応答の本文を読む）。** 3.6 の末尾に示した。DeepSeek アダプタの方針は変えない。
 -   **E3（`--out ""` の文言）。** 現在、`--out ""` は `--out is required` で終了コード `2` になる（`run.go:150-152`）。本設計では `--out needs a path` になる。終了コードは変わらない。要件書 5 章の「`--out` を指定した場合の CLI の振る舞いは変更しない」に対し、誤りの文言だけを変える例外である。これを確かめる既存のテストはない（`run_test.go:357` は `--out` を指定しない行である）。
--   **E4（従来受理していた URL の一部を拒否する）。** 要件書 4.4 は「拒否していた値を受理するだけなので、これまで動いていた設定が動かなくなることはない」とする。しかし、要件書 F-001 の規則（URL として解析できる）は、従来の規則が受理していた値のうち `net/url` が解析できない値（`https://hooks.slack.com/services/%zz`、`https://hooks.slack.com/%`、DEL（U+007F）を含む値）を拒否する。そのような `SLACK_WEBHOOK_URL` を設定したまま `--out` で実行すると、終了コード `2` になる。これらの値は従来も投稿に使えない値であり、F-001 の規則に従う。README に記す（3.13）。要件書 4.4 の記述はこの点で事実と異なるので、編集上の訂正が要る。
+-   **E4（従来受理していた URL の一部を拒否する）。** 要件書 4.4 は「拒否していた値を受理するだけなので、これまで動いていた設定が動かなくなることはない」とする。しかし、要件書 F-001 の規則（URL として解析できる）は、従来の規則が受理していた値のうち `net/url` が解析できない値（`https://hooks.slack.com/services/%zz`、`https://hooks.slack.com/%`、DEL（U+007F）を含む値）を拒否する。そのような `SLACK_WEBHOOK_URL` を設定したまま `--out` で実行すると、終了コード `2` になる。これらの値は従来も投稿に使えない値であり、F-001 の規則に従う。README に記す（3.13）。要件書 4.4 は、この点を編集上の訂正で改めた（コミット `49c0605`）。
 -   **0005 の `SLACK_WEBHOOK_URL` の規則の置き換え。** 0005 の要件定義書と設計書が定めた `https://hooks.slack.com/` の規則は、要件書 F-001 が置き換えを定めている。設計上の例外ではないが、上の表のとおり `config_test.go` の更新が要る。
 -   **要件書 3.2 の「通信の失敗」の記述との関係。** 要件書 3.2 は通信の失敗を「元の原因の内容を含むが、Webhook URL を含まない」と書く。本設計は、原因のエラーの文言をエラーの文言に含めるが、原因を `%w` で包まない（4.1）。原因は `context` のエラーを含みうるので、`%w` で包むと 1 つの失敗が 2 つの分類に当たり、AC-35 の「相互に区別できる」を満たせないためである。
 
@@ -1045,7 +1046,7 @@ flowchart TD
 | AC-27 | `--slack` のフラグ（3.10） | `-h` の出力、Mattermost の記載 |
 | AC-28 | Webhook URL の警告（3.10） | `GODEBUG` の値ごと、`--out` では出ない |
 | AC-29 | `publishertestutil.SettingsFrom`（3.12） | スキップと失敗の条件 |
-| AC-30 | `SlackWebhookPublisher` の統合テスト（3.12） | 2 つ以上のメッセージ、上限ちょうどの 1 つ目 |
+| AC-30 | `SlackWebhookPublisher` の統合テスト（3.12） | 2 つ以上のメッセージ、上限ちょうどの分割しない記事 |
 | AC-31 | CLI の Webhook の統合テスト（3.12） | トリップワイヤ、キャッシュ、出力の検査 |
 | AC-32 | ビルドタグと `make` のターゲット（3.12） | `RunMakeTarget` |
 | AC-33 | 手動確認（3.1） | 実装計画書に記録 |
