@@ -78,8 +78,8 @@ PR boundary markers embedded in the implementation plan use these labels:
 |---|---|
 | Project overview | `docs/dev/project_overview.md` |
 | Conditional security guide | `docs/dev/security.md` |
-| Conditional-guide trigger | the feature invokes an external command (`yt-dlp`), handles API keys or the Slack Webhook URL, reads or writes the cache directory, sends data over the network (LLM API, Webhook), or embeds untrusted text (transcript, video metadata) into a prompt or a published article |
-| Target client environments | Slack (`markdown` block via Incoming Webhook) |
+| Conditional-guide trigger | the feature invokes an external command (`yt-dlp`), handles API keys or the Webhook URL (`SLACK_WEBHOOK_URL`), reads or writes the cache directory, sends data over the network (LLM API, Webhook), or embeds untrusted text (transcript, video metadata) into a prompt or a published article |
+| Target client environments | Mattermost (Slack-compatible Incoming Webhook, Markdown `text` posted with `silent`). Slack is best effort and not a verification target |
 
 ### Domain examples referenced by commands
 
