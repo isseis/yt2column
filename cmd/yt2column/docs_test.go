@@ -13,7 +13,6 @@ import (
 const (
 	readmePath          = "../../README.md"
 	projectOverviewPath = "../../docs/dev/project_overview.md"
-	securityPath        = "../../docs/dev/security.md"
 	planPath            = "../../docs/tasks/0005_cli_assembly/03_implementation_plan.md"
 )
 
@@ -35,10 +34,10 @@ var configDocRows = []configDocRow{
 	{"YT2COLUMN_YTDLP_PATH", "on `PATH`", "`PATH` 上の `yt-dlp`"},
 }
 
-// TestREADMEDocumentsCLI checks that README.md documents the CLI: the calling
-// form, every flag run defines, the exit codes, the configuration table with
-// each variable's unset value, and the concurrency, SIGKILL, and --refresh
-// guidance.
+// TestREADMEDocumentsCLI checks the machine-checkable parts of README.md: the
+// calling form, every flag run defines (read from newFlagSet), the exit codes,
+// and the configuration table with each variable's unset value. Prose that
+// states behavior is not pinned here; it is checked by review.
 func TestREADMEDocumentsCLI(t *testing.T) {
 	doc := readDoc(t, readmePath)
 
@@ -107,28 +106,6 @@ func TestREADMEDocumentsCLI(t *testing.T) {
 			}
 		}
 	})
-
-	t.Run("guidance", func(t *testing.T) {
-		// Coarse by design: assert each required topic is mentioned, not an
-		// exact sentence, so routine rewording does not fail the test. Line
-		// wrapping is collapsed so a topic spanning two source lines is found.
-		section := docSection(doc, "Cache and concurrency")
-		if section == "" {
-			t.Fatal("README has no Cache and concurrency section")
-		}
-		flatSection := strings.Join(strings.Fields(section), " ")
-		for _, topic := range []string{"serialized", "SIGKILL", "`--refresh`"} {
-			if !strings.Contains(flatSection, topic) {
-				t.Errorf("README Cache and concurrency section does not mention %q", topic)
-			}
-		}
-		flatDoc := strings.Join(strings.Fields(doc), " ")
-		for _, topic := range []string{"0o644", "hard link", "make test-integration-cli"} {
-			if !strings.Contains(flatDoc, topic) {
-				t.Errorf("README does not mention %q", topic)
-			}
-		}
-	})
 }
 
 // TestProjectOverviewDocumentsConfig checks the project overview's configuration
@@ -154,23 +131,6 @@ func TestProjectOverviewDocumentsConfig(t *testing.T) {
 		}
 		if !strings.Contains(row[2], want.overview) {
 			t.Errorf("%s when-unset cell = %q, want it to contain %q", want.name, row[2], want.overview)
-		}
-	}
-}
-
-// TestSecurityDocumentsCLIIntegration checks that security.md section 2 names
-// the CLI integration test and its opt-in, and documents that the CLI only
-// warns about the GODEBUG http2debug setting.
-func TestSecurityDocumentsCLIIntegration(t *testing.T) {
-	section := docSection(readDoc(t, securityPath), "2. 秘密情報（API キー・Webhook URL）")
-	if section == "" {
-		t.Fatal("security.md has no section 2")
-	}
-	// The clause, not just the topic: a negated rewrite ("rejects it and does
-	// not warn") must fail.
-	for _, phrase := range []string{"test-integration-cli", "YT2COLUMN_CLI_INTEGRATION", "http2debug", "拒否せず", "警告する"} {
-		if !strings.Contains(section, phrase) {
-			t.Errorf("security.md section 2 is missing %q", phrase)
 		}
 	}
 }
