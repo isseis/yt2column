@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-07 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 2026-10-07: AC-22 の手動確認に、`@channel` とユーザー名へのメンションの `silent` の投稿それぞれで、未読数・メンション数が増えないことと「New Messages」の表示が付かないことの確認と記録を加えた（PR #106 のレビュー）。検証の義務が増えるので、決定の変更として `draft` に戻した。F-009 の AC-22 への参照も合わせた。 |
+| Review date | 2026-10-07 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
