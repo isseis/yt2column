@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Created | 2026-10-07 |
 | Review date | 2026-10-07 |
 | Reviewer | isseis |
-| Comments | 2026-10-07: 7.4 の AC-09 の確認を、`git grep -n "PRIVATE KEY"`（本書と要件書の説明の文に一致する）から、PEM の見出しの検査に改めた。確かめる対象（要件書 AC-09 の PEM の `PRIVATE KEY` ブロック）は変わらないので、編集上の修正として扱い、判断の変更はないと判断した。テストのファイルの名前は実装計画（`03_implementation_plan.md` §5）に記す。2026-10-07（レビュー）: 確かめる対象が要件書 AC-09 の PEM の `PRIVATE KEY` ブロックと一致し、元の `git grep -n "PRIVATE KEY"` は本書と要件書の説明の文に一致して成立しなかったことから、この編集上の修正としての扱いをレビューで受理した。判断の変更はなく、状態は `approved` のままでよい。 |
+| Comments | 2026-10-07: 7.4 の AC-09 の確認を、`git grep -n "PRIVATE KEY"`（本書と要件書の説明の文に一致する）から、PEM の見出しの検査に改めた。確かめる対象（要件書 AC-09 の PEM の `PRIVATE KEY` ブロック）は変わらないので、編集上の修正として扱い、判断の変更はないと判断した。テストのファイルの名前は実装計画（`03_implementation_plan.md` §5）に記す。2026-10-07（レビュー）: 確かめる対象が要件書 AC-09 の PEM の `PRIVATE KEY` ブロックと一致し、元の `git grep -n "PRIVATE KEY"` は本書と要件書の説明の文に一致して成立しなかったことから、この編集上の修正としての扱いをレビューで受理した。判断の変更はなく、状態は `approved` のままでよい。 2026-10-07（レビュー対応）: AC-09 の秘密鍵の検査を、`extension/` に依存せず常時実行する CI のジョブ `secret-scan` に移すため、3.10 に新しいジョブを加えた。判断の変更なので `draft` に戻す。 |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `426eb2e` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指す。本タスクには `design_handoff.md` がない。実装レベルの懸念は [implementation_handoff.md](implementation_handoff.md) に置き、`03_implementation_plan.md` が扱う。
 
@@ -747,6 +747,7 @@ flowchart TD
     T["test（Go）"]
     L["lint（Go）"]
     E["extension"]
+    S["secret-scan"]
 
     CC --> GO
     CC --> EX
@@ -757,6 +758,7 @@ flowchart TD
     class CC enhanced
     class GO,T,L process
     class EX,E newpkg
+    class S newpkg
 
     subgraph Legend["Legend"]
         L1["既存（変更しない）"]
@@ -774,6 +776,7 @@ flowchart TD
 -   ジョブ `extension` は、ワークフローの最上位の `permissions: contents: read`（`ci.yml:7`）を引き継ぎ、秘密情報を使わない。`pull_request` で実行する。
 -   拡張のディレクトリの下だけを変更する PR でも、`has-code-changes` は `true` になり（`.md` でも `docs/` の下でもないため。`ci.yml:35`）、Go のジョブも実行される。Go のジョブの判定を変えないことを優先した。
 -   Go のファイルだけを変更する PR では、ジョブ `extension` は実行されない。
+-   ジョブ `secret-scan` は `has-extension-changes` に依存せず、すべての PR で実行する。チェックアウトの後に、追跡中のファイルに PEM の秘密鍵の見出しが現れないことを確かめる。`extension/` の外のファイルに秘密鍵が混入した場合も CI で検出するためである。
 
 ### 3.11. テストの構成（AC-14〜AC-19・AC-22・AC-23・AC-26・AC-27・AC-30・AC-31）
 
@@ -1089,7 +1092,7 @@ sequenceDiagram
 
 -   AC-23: 3.11 の `render.test.ts` と `launch.test.ts`（表示）。
 -   AC-26・AC-27・AC-12: `manifest.test.ts` と lint。
--   AC-09: `manifest.test.ts` の公開鍵の解析、pre-commit の `detect-private-key`、追跡中のファイルのどの行にも PEM の秘密鍵の見出し（正規表現 `-----BEGIN [A-Z0-9 ]*PRIVATE KEY` に一致する文字列。JSON の文字列の中などに埋め込まれたものを含む）が現れないことを確かめるテスト（静的な確認）。
+-   AC-09: `manifest.test.ts` の公開鍵の解析、pre-commit の `detect-private-key`、追跡中のファイルのどの行にも PEM の秘密鍵の見出しが現れないことの確認。後者は `extension/` に依存せず常時実行する CI のジョブ（3.10）でも確かめる（静的な確認）。検出の正規表現とテストの配置は実装計画に記す。
 -   AC-04: `check-dist`（ビルドの一部として毎回実行する）。
 
 ### 7.5. 受け入れ基準と設計の対応

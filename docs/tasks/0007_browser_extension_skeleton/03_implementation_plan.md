@@ -92,6 +92,8 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 
 ## 2. 実装ステップ (Implementation Steps)
 
+本節の各ステップは、末尾に **対象:**（そのステップが触るファイルの集合で、フェーズの「対象ファイル」の部分集合）と **完了:**（そのステップの検証。確認だけのステップは「なし（確認のみ）」）を記す。フェーズの「完了条件」は、そのフェーズのすべてのステップの後に確かめる。
+
 ### フェーズ 1: 開発環境
 
 **対象ファイル**
@@ -100,16 +102,22 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 
 **タスク**
 -   [ ] **ステップ 1-1**: `extension/` の設定のファイルを、設計書 2.1・3.8 のとおりに作る。依存パッケージは設計書 3.8 の表のものに限り、すべて `devDependencies` にする。lockfile は承認を得てから `npm install --ignore-scripts` で作る（§1.2）。`eslint.config.js` には、次の 3 種類を禁止する規則を入れる: `eval` 系（`no-eval`・`no-implied-eval`・`no-new-func`）、HTML を解釈する API（設計書 3.7 の一覧）、動的な `import()`。`CollectedInput` への型の表明の禁止はフェーズ 3 で加える。
+    -   **対象:** `extension/.node-version`・`.npmrc`・`package.json`・`package-lock.json`・`tsconfig.json`・`tsconfig.core.json`・`tsconfig.build.json`・`eslint.config.js`・`.prettierrc.json`・`.prettierignore`。**完了:** `make ext-install` が通り、TypeScript・ESLint・Prettier の各設定が読み込める。
 -   [ ] **ステップ 1-2**: `extension/scripts/` の 3 つのスクリプトを作る（設計書 3.8・3.9・5.2）。`check-lockfile` と `check-dist` は、判定を関数として export し、テストから一時ディレクトリを渡して呼べる形にする。`check-dist` は、このフェーズではファイルの集合とモジュールの指定を確かめる。manifest と HTML の参照の検査は、参照先のファイルがそろうステップ 4-5 で加える。`static/` はフェーズ 2 まで存在しないので、`copy-static` と `check-dist` は `static/` がない場合を空として扱う。
+    -   **対象:** `extension/scripts/check-lockfile.ts`・`copy-static.ts`・`check-dist.ts`。**完了:** 3 つのスクリプトがそれぞれ実行でき、`static/` がない状態を空として扱う。
 -   [ ] **ステップ 1-3**: `Makefile` に設計書 3.8 の `ext-` のターゲットを加え、`.PHONY`（`Makefile:49`）に足す。版の確認（Node.js と npm）はすべての `ext-` のターゲット（`ext-install` を含む）で、`node_modules` の有無の確認は `ext-install` 以外の `ext-` のターゲットで行う。どちらもレシピの中だけで行い、解析時の `$(shell ...)`、`:=` による Node.js の呼び出し、全体の `export` を使わない。Go のターゲットが Node.js を必要としないためである（要件書 F-001）。`fmt-all` の `find` に `-not -path './extension/*'` を加える。`go.mod` に `ignore ./extension` を、`.gitignore` に設計書 3.8 の 3 行を、`.pre-commit-config.yaml` の `pre-commit-hooks` に `detect-private-key` を加える。
+    -   **対象:** `Makefile`・`go.mod`・`.gitignore`・`.pre-commit-config.yaml`。**完了:** `make ext-install` が通り、`go list ./...` に `extension/` で始まるパッケージが現れない。
 -   [ ] **ステップ 1-4**: `src/core/acceptedUrl.ts` に `isAcceptedWatchUrl`（設計書 3.4）を作り、`test/acceptedUrl.test.ts` で要件書 3.2 の受理しない URL の例のすべてと、受理する URL（`t`・`list`・フラグメント付き、`:443` 付き）を確かめる。設計書 8 章の「`core/` の 1 ファイルとテスト 1 つ」はこのファイルとする。
+    -   **対象:** `extension/src/core/acceptedUrl.ts`・`extension/test/acceptedUrl.test.ts`。**完了:** `extension/test/acceptedUrl.test.ts::isAcceptedWatchUrl` が通る。
 -   [ ] **ステップ 1-5**: 開発環境のテストを作る。
     -   `checkLockfile.test.ts`: レジストリ以外の `resolved` を持つ lockfile を拒否し、レジストリだけの lockfile を受理する。
     -   `checkDist.test.ts`: 一時ディレクトリの `src/`・`static/`・`dist/` で、余分なファイル、欠けたファイル、相対パスでないモジュールの指定、`dist/` にない相対パスの指定、動的な `import()` のそれぞれを拒否し、正しい組を受理する。
     -   `typecheck.test.ts`（AC-02）: 一時ディレクトリに、`tsconfig.json` と `tsconfig.build.json` をそれぞれ `extends` する設定と、型の合わない代入を 1 つ含むファイルを作り、`tsc` が失敗し、ビルドの設定では出力のファイルを作らないことを確かめる。`strict` のときだけ誤りになる入力（`null` を `string` に代入する、暗黙の `any` の引数）の行も置き、`strict` を外す変更はこの行で失敗させる。同じ設定で型の合うファイルが成功すること（対照）も確かめ、設定の誤り（`rootDir` の外など）で失敗しているのではないことを示す。
     -   `lintRules.test.ts`（AC-23 の 2 つ目の防御・AC-27）: ESLint の Node.js の API で `eslint.config.js` を読み、`eval`・`new Function`・文字列を渡す `setTimeout`・設計書 3.7 の HTML を解釈する API の各々・動的な `import()` を含むコードがそれぞれ違反になり、`textContent` への代入が違反にならないことを確かめる。
-    -   `repository.test.ts`: (1) `git check-ignore` で `extension/node_modules/` と `extension/dist/` の下のパス、`*.pem` に一致するパス（`key.pem`・`extension/key.pem`）が無視されること（AC-06。`*.pem` は AC-09 の補助）。(2) `git ls-files` の追跡中のファイルのどの行にも PEM の秘密鍵の見出し（§1.3 の形）がないこと（AC-09。このテストのソース自身が検索の対象に一致しない書き方にする）。(3) `Makefile` の `ext-install` のレシピが `npm ci` を `--ignore-scripts` 付きで呼び、`Makefile` と `ci.yml` が `npm install` を呼ばないこと、`package-lock.json` が追跡されていること（AC-03）。(4) `ci.yml` の拡張のジョブが 6 つの `make ext-*` を別々のステップで実行し、ジョブの `if:` が `check-changes` の出力 `has-extension-changes` を参照し、`check-changes` がその出力を宣言していること（AC-07）。(5) Node.js と npm を含まない `PATH`（`make`・`sh` などへのシンボリックリンクだけを置いた一時ディレクトリ）で `make -n build test lint deadcode` が成功し、標準エラーに何も出ないこと。ステップ 1-3 で定めた「Go のターゲットが Node.js を必要としない」ことを確かめる。
--   [ ] **ステップ 1-6**: CI を変更する（設計書 3.10）。`has-extension-changes.sh` を作り、`check-changes` のジョブで `has-code-changes` と同じ変更の一覧を標準入力に渡して出力 `has-extension-changes` を決める。ジョブ `extension` を加え、設計書 3.10 の 6 つのステップ、`actions/setup-go`（既存のジョブと同じく `go-version-file: go.mod`）、`go list ./...` に `github.com/isseis/yt2column/extension/` で始まるパッケージがないことの確認を置く。`ciChanges.test.ts` は、スクリプトを `bash` で実行して次を確かめる。4 つのパターンごとに、そのパターンにだけ一致する 1 ファイルの一覧（`extension/` の下のファイル、`Makefile`、`.github/workflows/` の下のファイル、`go.mod`）を作り、それぞれ `true` になる。workflow のパターン（設計書 3.10 の `^\.github/workflows/`）が `ci.yml` だけに狭まっていないことを確かめるため、workflow については、`.github/workflows/ci.yml` だけの一覧と `.github/workflows/release.yml` だけの一覧を別々に置く（どちらも `true` になる。両方を 1 つの一覧に入れると、`ci.yml` に狭めたパターンでも `true` になり、狭めたことを検出できない）。`extension/` の例には `extension/scripts/has-extension-changes.sh` 自身も含める。一方、Go のファイルだけ、`docs/` の下のファイルだけ、`README.md` だけ、`extension` を部分文字列として含むだけのパス（例: `notes/myextension.txt`）だけの一覧、各パターンの文字列を先頭以外に含むか後ろに続きを持つパスだけの一覧（`notes/extension/x.txt`・`tools/Makefile`・`Makefile.local`・`tools/go.mod`・`tools/.github/workflows/ci.yml`。パターンの `^`・`$` を外した変更を検出する）と、空の一覧では、それぞれ `false` になる。
+    -   `repository.test.ts`: (1) `git check-ignore` で `extension/node_modules/` と `extension/dist/` の下のパス、`*.pem` に一致するパス（`key.pem`・`extension/key.pem`）が無視されること（AC-06。`*.pem` は AC-09 の補助）。(2) `git ls-files` の追跡中のファイルのどの行にも PEM の秘密鍵の見出し（§1.3 の形）がないこと（AC-09。このテストのソース自身が検索の対象に一致しない書き方にする）。(3) `Makefile` の `ext-install` のレシピが `npm ci` を `--ignore-scripts` 付きで呼び、`Makefile` と `ci.yml` が `npm install` を呼ばないこと、`package-lock.json` が追跡されていること（AC-03）。(4) `ci.yml` の拡張のジョブが 6 つの `make ext-*` を別々のステップで実行し、ジョブの `if:` が `check-changes` の出力 `has-extension-changes` を参照し、`check-changes` がその出力を宣言していること（AC-07）。(5) Node.js と npm を含まない `PATH`（`make`・`sh` などへのシンボリックリンクだけを置いた一時ディレクトリ）で `make -n build test lint deadcode` が成功し、標準エラーに何も出ないこと。ステップ 1-3 で定めた「Go のターゲットが Node.js を必要としない」ことを確かめる。(6) `ci.yml` に、`has-extension-changes` に依存しない常時実行のジョブ `secret-scan` があり（`if:` を持たない）、追跡中のファイルの秘密鍵を検査すること（AC-09）。
+    -   **対象:** `extension/test/checkLockfile.test.ts`・`checkDist.test.ts`・`typecheck.test.ts`・`lintRules.test.ts`・`repository.test.ts`。**完了:** これらのテストが `make ext-test` で通る。
+-   [ ] **ステップ 1-6**: CI を変更する（設計書 3.10）。`has-extension-changes.sh` を作り、`check-changes` のジョブで `has-code-changes` と同じ変更の一覧を標準入力に渡して出力 `has-extension-changes` を決める。ジョブ `extension` を加え、設計書 3.10 の 6 つのステップ、`actions/setup-go`（既存のジョブと同じく `go-version-file: go.mod`）、`go list ./...` に `github.com/isseis/yt2column/extension/` で始まるパッケージがないことの確認を置く。`ciChanges.test.ts` は、スクリプトを `bash` で実行して次を確かめる。4 つのパターンごとに、そのパターンにだけ一致する 1 ファイルの一覧（`extension/` の下のファイル、`Makefile`、`.github/workflows/` の下のファイル、`go.mod`）を作り、それぞれ `true` になる。workflow のパターン（設計書 3.10 の `^\.github/workflows/`）が `ci.yml` だけに狭まっていないことを確かめるため、workflow については、`.github/workflows/ci.yml` だけの一覧と `.github/workflows/release.yml` だけの一覧を別々に置く（どちらも `true` になる。両方を 1 つの一覧に入れると、`ci.yml` に狭めたパターンでも `true` になり、狭めたことを検出できない）。`extension/` の例には `extension/scripts/has-extension-changes.sh` 自身も含める。一方、Go のファイルだけ、`docs/` の下のファイルだけ、`README.md` だけ、`extension` を部分文字列として含むだけのパス（例: `notes/myextension.txt`）だけの一覧、各パターンの文字列を先頭以外に含むか後ろに続きを持つパスだけの一覧（`notes/extension/x.txt`・`tools/Makefile`・`Makefile.local`・`tools/go.mod`・`tools/.github/workflows/ci.yml`。パターンの `^`・`$` を外した変更を検出する）と、空の一覧では、それぞれ `false` になる。あわせて、`has-extension-changes` に依存せず常に実行するジョブ `secret-scan` を加える。このジョブは、チェックアウトの後に、追跡中のファイルに PEM の秘密鍵の見出し（§1.3 の形）がないことを `git grep` で確かめる（AC-09）。
+    -   **対象:** `.github/workflows/ci.yml`・`extension/scripts/has-extension-changes.sh`・`extension/test/ciChanges.test.ts`。**完了:** `extension/test/ciChanges.test.ts::has-extension-changes` と `extension/test/repository.test.ts::ci runs every extension step` が通る。
 -   [ ] **ステップ 1-7**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象は次のとおりである。
     -   `isAcceptedWatchUrl` の各条件を 1 つずつ外す。
     -   `check-lockfile` のレジストリの判定を外す。
@@ -130,7 +138,9 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
     -   テストのファイルの 1 つに失敗するアサーションを入れる（`make ext-test` が失敗すれば、テストが 0 件で成功していないことが分かる）。
 
     CI の `go list ./...` のステップは、`go.mod` から `ignore ./extension` を外したときに失敗することを、手元で同じコマンドを実行して確かめる。依存パッケージが Go のファイルを含まなくなっていて失敗しない場合は、そのことを記録する。続けて、`make ext-install` → `make ext-check`、`make test`・`make lint`・`make deadcode`・`make build` を通す。最後に AC-05 の比較を行い、§5.1 に記録する。比較の内容は、`extension/node_modules` と `extension/dist` がある状態と、`extension/` を一時的に退避した状態とで、4 つの Go の手順の成否と `go list ./...` の出力を比べることである。
+    -   **対象:** なし（確認のみ）。**完了:** 各対象を壊して失敗することを確認し、コミットメッセージに記録する。
 -   [ ] **ステップ 1-8**: PR の CI で、拡張のジョブの 6 つのステップと Go の確認が通ることを確かめる。続けて、設計書 7.3 の AC-07 の 6 つの変更を 1 つずつ別のコミットとして push し、それぞれで対応するステップが失敗して CI が失敗することを確かめてから、その変更を戻す。結果（コミット、失敗したステップ）を §5.1 に記録する。
+    -   **対象:** なし（確認のみ）。**完了:** PR の CI が通り、AC-07 の 6 つの変更のコミットで対応するステップが失敗することを確かめ、§5.1 に記録する。
 
 **完了条件:** `make ext-check`・`make test`・`make lint`・`make deadcode`・`make build` が通り、§5.1 の AC-02・AC-03・AC-05・AC-07 の行が記録されている。
 
@@ -141,8 +151,11 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 
 **タスク**
 -   [ ] **ステップ 2-1**: `static/manifest.json` を設計書 3.1 の表のとおりに作る。`key` は設計書 3.12.1 の値をそのまま使い、鍵を生成し直さない。`background`・`action` が指すファイル（`background.js`・`popup.html`）はフェーズ 4 で作る。
+    -   **対象:** `extension/static/manifest.json`。**完了:** `make ext-build` が通り、`manifest.json` が JSON として妥当である。
 -   [ ] **ステップ 2-2**: `test/manifest.test.ts` を作る（設計書 3.11）。`permissions` が設計書 3.1 の 4 つとちょうど一致すること、宣言しない項目（設計書 3.1 の表の `host_permissions`・`optional_permissions`・`optional_host_permissions`・`content_scripts`・`content_security_policy`・`web_accessible_resources`・`externally_connectable`・`options_ui`・`commands`）がないこと、`manifest_version`・`minimum_chrome_version`・`background`（`type: "module"`）・`action.default_popup` が設計書 3.1 の値であること、`key` が RSA 2048 ビットの SubjectPublicKeyInfo として解析でき、そこから計算した拡張 ID が `clfmbbcdpnjcefbdihdoahomaifbabkk` であることを確かめる。拡張 ID を計算する関数は `test/helpers/` に置き、ステップ 5-6 でも使う。
+    -   **対象:** `extension/test/manifest.test.ts`。**完了:** `extension/test/manifest.test.ts` が通る。
 -   [ ] **ステップ 2-3**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `permissions` に `tabs` を足す、宣言しない項目のそれぞれを 1 つずつ足す、`manifest_version`・`minimum_chrome_version`・`background.type`・`action.default_popup` をそれぞれ変える、`key` の 1 文字を変える、`key` を PKCS#8 の秘密鍵の base64 に置き換える（一時的に生成し、コミットせず削除する）。`make ext-check` → `make test` → `make lint` を通す。
+    -   **対象:** なし（確認のみ）。**完了:** 各対象を壊して失敗することを確認し、コミットメッセージに記録する。
 
 **完了条件:** `make ext-check` → `make test` → `make lint` が通り、`manifest.test.ts` が通る。
 
@@ -156,14 +169,20 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 
 **タスク**
 -   [ ] **ステップ 3-1**: `core/types.ts` に設計書 3.2 の型を作る。
+    -   **対象:** `extension/src/core/types.ts`。**完了:** `make ext-typecheck` が通る。
 -   [ ] **ステップ 3-2**: `core/collect.ts` に `collect`・`CollectedInput`・`CollectOutcome`・`PageSelection`・`SelectionReader` を作る（設計書 3.2・3.3）。判定の順序、`documentUrl` の照合、`\p{White_Space}` による空白文字の判定、例外を投げないことは設計書 3.3 のとおりとする。`eslint.config.js` に、`core/collect.ts` とテスト以外での `CollectedInput` への型の表明の禁止を加え、`lintRules.test.ts` に、ほかのファイルの名前での `as CollectedInput` が違反になり、`core/collect.ts` の名前では違反にならない行を加える。
+    -   **対象:** `extension/src/core/collect.ts`・`extension/eslint.config.js`・`extension/test/lintRules.test.ts`。**完了:** `make ext-typecheck` が通り、`extension/test/lintRules.test.ts` の `CollectedInput` の規則が通る。
 -   [ ] **ステップ 3-3**: `core/messages.ts` に `rejectionMessage` を作る（設計書 3.5）。`switch` の `default` で `never` を受ける。
+    -   **対象:** `extension/src/core/messages.ts`。**完了:** `make ext-typecheck` が通る。
 -   [ ] **ステップ 3-4**: `core/summary.ts` に `summarize`・`parseSummary` を作る（設計書 3.5）。
+    -   **対象:** `extension/src/core/summary.ts`。**完了:** `make ext-typecheck` が通る。
 -   [ ] **ステップ 3-5**: テストを作る（設計書 3.11）。
     -   `collect.test.ts`: 判定の順序、`launch` が `undefined`、空白文字の各種（AC-16・AC-17 の各値、U+0085 を拒否し U+FEFF だけを受理する）、`read` の失敗、`documentUrl` の不一致、`title` が `undefined`、対象外のページで `read` が呼ばれないこと、前後の空白・空行が `CollectedInput` に残ること。
     -   `messages.test.ts`: 4 つの理由の `text` が互いに異なること、`steps` が `not-watch-page`・`empty-selection` にだけあること。
     -   `summary.test.ts`: `characterCount`（サロゲートペアを 1 と数える）、`lineCount`（`\r\n`・`\r`・`\n`、前後の空行）、各値の切り詰めの境界（上限ちょうどと 1 超え）とサロゲートペアを分けないこと、`*Truncated` の値。`parseSummary` が `summarize` の出力を受理し、項目の欠け・余分な項目・型の違い・未知の `kind`・未知の `reason` を拒否すること。
+    -   **対象:** `extension/test/collect.test.ts`・`messages.test.ts`・`summary.test.ts`。**完了:** これらのテストが通る。
 -   [ ] **ステップ 3-6**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `collect` の判定の順序を入れ替える、`documentUrl` の照合を外す、空白文字の判定を `\s` や `trim` に替える、`CollectedInput` に `trim` した値を入れる、`rejectionMessage` の 2 つの文言を同じにする、`summarize` の数え方を `length` に替える、`parseSummary` の項目の集合の検査を外す、`core/` のファイルから `document` を参照する（`tsconfig.core.json` の型検査で失敗すること）、`CollectedInput` の lint の規則を外す。`make ext-check` → `make test` → `make lint` を通す。
+    -   **対象:** なし（確認のみ）。**完了:** 各対象を壊して失敗することを確認し、コミットメッセージに記録する。
 
 **完了条件:** `make ext-check` → `make test` → `make lint` が通り、`collect`・`messages`・`summary` のテストが通る。
 
@@ -175,16 +194,23 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 
 **タスク**
 -   [ ] **ステップ 4-1**: `ui/render.ts` の `renderSummary` と、`static/` の HTML・CSS を作る（設計書 3.7・3.13）。HTML はスクリプトを `<script type="module" src>` で読み、インラインのスクリプトを書かない。
+    -   **対象:** `extension/src/ui/render.ts`・`extension/static/popup.html`・`extension/static/result.html`・`extension/static/style.css`。**完了:** `make ext-build` が通る。
 -   [ ] **ステップ 4-2**: `launch.ts` に、依存の interface、`launchContextFromTab`、`runMenuLaunch`・`runPopupLaunch`・`runResultWindow` を作る（設計書 3.6）。`runMenuLaunch` の表示の失敗の扱いは設計書 3.6 と §1.4 の I-01 の対応のとおりとする。`Logger` には、最初の引数に固定のラベルだけを渡す。
+    -   **対象:** `extension/src/launch.ts`。**完了:** `make ext-typecheck` が通る。
 -   [ ] **ステップ 4-3**: `browser/chromeDeps.ts` に、依存の interface と `SelectionReader` の実装を作る（設計書 3.6）。注入する関数は、外の名前を参照しない 1 つの関数とする。`read` は、`executeScript` が失敗した場合、または戻り値の形が想定と違う場合に reject する。`SummaryStore.remove` は、削除の失敗で reject する（§1.4）。この契約を `launch.ts` の `SummaryStore.remove` の doc コメントに書く。
+    -   **対象:** `extension/src/browser/chromeDeps.ts`。**完了:** `make ext-typecheck` が通る。
 -   [ ] **ステップ 4-4**: エントリポイントを作る（設計書 2.1・3.1・6 章）。`background.ts` は、`onInstalled` で `contextMenus.removeAll()` の完了を待ってから項目を作り、`onClicked` のリスナーをモジュールの最上位で登録する。
+    -   **対象:** `extension/src/background.ts`・`popup.ts`・`result.ts`。**完了:** `make ext-build` が通る。
 -   [ ] **ステップ 4-5**: `check-dist` に manifest と HTML の参照の検査を加え（設計書 3.9）、`checkDist.test.ts` に、`background.service_worker`・`action.default_popup`・`<script src>`・`<link href>` のそれぞれが `dist/` にないファイルを指す場合を拒否する行を加える。
+    -   **対象:** `extension/scripts/check-dist.ts`・`extension/test/checkDist.test.ts`。**完了:** `extension/test/checkDist.test.ts` が通る。
 -   [ ] **ステップ 4-6**: テストを作る（設計書 3.11）。
     -   `render.test.ts`: jsdom の要素で、タイトルと選択範囲に `<img src=x onerror=alert(1)>` を含む要約を表示し、`img` 要素がなく、`textContent` に元の文字列があること。成功の場合にタイトル・URL・文字数・行数・プレビューのラベルと値があること。拒否の場合に `text` と、`steps` があるときだけ番号付きのリストがあること。
     -   `launch.test.ts`（収集）: 同じ fake のタブと `SelectionReader` で、2 つの経路が同じ収集の結果（ログに出す値）と同じ要約になること。収集に成功する入力と、拒否になる入力の両方で確かめる（AC-30）。`launchContextFromTab` がタブなし・`id` なしのタブで `undefined` を返し、どちらの経路も「収集の失敗」になること。`Logger` の最初の引数が、信頼できない文字列を含む入力でも固定のラベルであること。`info.selectionText` を使わないこと。前後の空白・空行が経路を通っても残ること。`put` の失敗でウィンドウを開かずバッジを表示すること。`windows.create` の失敗でバッジを表示し同じ鍵を `remove` すること。`windows.create` と `remove` が同時に失敗しても reject せず、バッジを表示し `log.error` に記録すること（I-01）。どの失敗でも reject しないこと。起動の開始でバッジを消すこと。
     -   `launch.test.ts`（表示）: `runPopupLaunch` と `runResultWindow` を jsdom の要素で実行し、`<img src=x onerror=alert(1)>` が要素にならないこと（AC-23）。`runPopupLaunch` が、動画ページでは収集した内容を、対象外のページでは理由と手順を表示すること（AC-28・AC-29 のユニットテストの部分）。`runResultWindow` が要約を読んだ後に消すこと、ハッシュがない・要約がない・形が違うときに固定の文言を表示すること。
     -   `chromeDeps.test.ts`: fake の `executeScript` が形の違う結果（`null`・`undefined`・文字列だけ・項目の欠け・項目の型の違い・空の配列）を返すか例外を投げると `read` が reject すること。注入する関数のソースを、外の名前を持たない環境（`node:vm` など。lint が禁止する `eval`・`new Function` は使わない）で評価し、fake の `window.getSelection` と `location` だけで期待する値を返すこと。
+    -   **対象:** `extension/test/render.test.ts`・`launch.test.ts`・`chromeDeps.test.ts`。**完了:** これらのテストが通る。
 -   [ ] **ステップ 4-7**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `renderSummary` の 1 か所を `textContent` から HTML を解釈する API に替える（lint を一時的に無効にして）、`runMenuLaunch` で `info.selectionText` を使う、`put` の失敗の後にウィンドウを開く、`remove` の失敗を `signalDisplayFailure` と同じ `try` に入れる、`runResultWindow` で `take` の代わりに読むだけにする、`parseSummary` を通さずに表示する、注入する関数から外の定数を参照する、`read` の結果の形の検査を外す、`check-dist` の参照の検査を外す。`make ext-check` → `make test` → `make lint` を通し、`dist/` を Chrome に読み込んでエラーがないことを確かめる。
+    -   **対象:** なし（確認のみ）。**完了:** 各対象を壊して失敗することを確認し、コミットメッセージに記録し、`make ext-check` を通す。
 
 **完了条件:** `make ext-check` → `make test` → `make lint` が通る。`make ext-build` の成果物を Chrome の「パッケージ化されていない拡張機能を読み込む」で読み込み、エラーなく読み込まれることを確かめる（ステップ 4-7 で行う）。
 
@@ -196,13 +222,21 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 
 **タスク**
 -   [ ] **ステップ 5-1**: 設計書 7.2 の手動の確認を、macOS の Chrome と Brave（作業時点の安定版）で行い、ブラウザの版・日付・結果を §5.1 に記録する。AC-10・AC-11 では、拡張の無効化と再有効化、ブラウザの再起動の後に項目が残ることも確かめる。残らない場合は、設計書 3.1 のとおり service worker のモジュールの最上位でも登録し、確認をやり直す。
+    -   **対象:** なし（確認のみ）。**完了:** 設計書 7.2 の手動の確認の結果を §5.1 の該当行に記録する。
 -   [ ] **ステップ 5-2**: `README.md` の `## Development` の下に、要件書 F-008 と設計書 3.13 の `README.md` の行に挙げた内容（Node.js の版の用意、`make ext-install`、ビルド、Chrome と Brave への読み込み、2 つの起動の手段、送信しないこと、コンソールの開き方、拡張 ID）を書く。
--   [ ] **ステップ 5-3**: `CLAUDE.md` に、設計書 3.13 の `CLAUDE.md` の行の内容を書く。`ext-` のターゲットは `### Build Commands` などのコマンドの一覧に、変更後の確認（`make ext-check`）は `## Development Notes` に、依存パッケージの方針は `### Dependencies` に置く。あわせて、文書（README・CLAUDE.md・`docs/`）や `.gitignore` だけを変えるときも `make ext-test` を手元で実行することを書く（§6.1）。
+    -   **対象:** `README.md`。**完了:** `extension/test/docs.test.ts::documents` が通る。
+-   [ ] **ステップ 5-3**: `CLAUDE.md` に、設計書 3.13 の `CLAUDE.md` の行の内容を書く。`ext-` のターゲットは `### Build Commands` などのコマンドの一覧に、変更後の確認（`make ext-check`）は `## Development Notes` に、依存パッケージの方針は `### Dependencies` に置く。あわせて、文書（README・CLAUDE.md・`docs/`）や `.gitignore` だけを変えるときも `make ext-test` を手元で実行することを書く（§6.1。AC-09 の秘密鍵の検査は常時実行の CI のジョブ `secret-scan` が担うので、ここには含めない）。
+    -   **対象:** `CLAUDE.md`。**完了:** `extension/test/docs.test.ts::documents` が通る。
 -   [ ] **ステップ 5-4**: `docs/dev/project_overview.md` の「言語: Go」（`:9`）に、ブラウザ拡張を TypeScript で書くことを加え、「想定ディレクトリ構成」（`:69`）に `extension/` を加える。
+    -   **対象:** `docs/dev/project_overview.md`。**完了:** `extension/test/docs.test.ts::documents` が通る。
 -   [ ] **ステップ 5-5**: `docs/dev/security.md` の §8 に、拡張の小節を見出し付きで加え（`docs.test.ts` が見出しでこの小節を見つける）、設計書 3.13 の `security.md` の行の (1)〜(5) と拡張 ID を書く。
+    -   **対象:** `docs/dev/security.md`。**完了:** `extension/test/docs.test.ts::documents` が通る。
 -   [ ] **ステップ 5-6**: `test/docs.test.ts` を作る。(1) `README.md` と `security.md` に、`manifest.json` の `key` から計算した拡張 ID が現れること（AC-25）。(2) `CLAUDE.md` に、`Makefile` が定義するすべての `ext-` のターゲットの名前が現れること。(3) `security.md` の拡張の節に、`manifest.json` の `permissions` の各値が現れること。(4) `project_overview.md` の「想定ディレクトリ構成」に `extension/` が現れ、「決定済みの方針」に `TypeScript` が現れること。(5) 設計書に 3.12.1〜3.12.3 の節があり、3.12.1 に拡張 ID が現れること（AC-24）。(6) 本計画の §5.1 の表で、手動の確認を伴う各 AC の行の結果の欄が空でないこと。
+    -   **対象:** `extension/test/docs.test.ts`。**完了:** `extension/test/docs.test.ts` が通る。
 -   [ ] **ステップ 5-7**: 文書の内容を実物と照合する。README の手順をまっさらな作業ディレクトリ（`git worktree` など）で上から実行してビルドと読み込みまで進むこと、README・CLAUDE.md のターゲットの説明が `Makefile` のレシピと一致すること、security.md の権限の理由が設計書 3.1 の表と一致することを確かめ、§5.1 に記録する。
+    -   **対象:** なし（確認のみ）。**完了:** README の手順を空の作業ディレクトリで実行してビルドと読み込みまで進み、結果を §5.1 に記録する。
 -   [ ] **ステップ 5-8**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: README の拡張 ID の 1 文字を変える、CLAUDE.md から `ext-` のターゲットを 1 つ消す、security.md から権限の名前を 1 つ消す、§5.1 の結果の欄を 1 つ空にする、`project_overview.md` から `extension/` を消す、`project_overview.md` の「決定済みの方針」から `TypeScript` を消す、設計書の 3.12.2 の見出しを消す、設計書 3.12.1 の拡張 ID の 1 文字を変える（いずれも確認の後に戻す）。`make ext-check` → `make test` → `make lint` を通す。
+    -   **対象:** なし（確認のみ）。**完了:** 各対象を壊して失敗することを確認し、コミットメッセージに記録する。
 
 **完了条件:** `make ext-check` → `make test` → `make lint` が通り、§5.1 のすべての行が記録され、`docs.test.ts` が通る。
 
@@ -258,7 +292,7 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 | AC-06 | test | `extension/test/repository.test.ts::build outputs are ignored` | ステップ 1-3・1-5 |
 | AC-07 | test・static・manual | `extension/test/ciChanges.test.ts::has-extension-changes`、`extension/test/repository.test.ts::ci runs every extension step`、ステップ 1-8 の CI の記録（§5.1） | ステップ 1-6・1-8 |
 | AC-08 | test・manual | `extension/test/manifest.test.ts::key`（拡張 ID の計算）、ステップ 5-1（§5.1） | ステップ 2-1・2-2 |
-| AC-09 | test | `extension/test/manifest.test.ts::key`（公開鍵としての解析）、`extension/test/repository.test.ts::no private key is tracked`。pre-commit の `detect-private-key` は補助 | ステップ 1-3・1-5・2-2 |
+| AC-09 | test | `extension/test/manifest.test.ts::key`（公開鍵としての解析）、`extension/test/repository.test.ts::no private key is tracked`、CI の常時実行のジョブ `secret-scan`。pre-commit の `detect-private-key` は補助 | ステップ 1-3・1-5・1-6・2-2 |
 | AC-10 | static・manual | `extension/test/docs.test.ts::manual checks are recorded`、ステップ 5-1（§5.1） | ステップ 2-1・4-4 |
 | AC-11 | static・manual | `extension/test/docs.test.ts::manual checks are recorded`、ステップ 5-1（§5.1） | ステップ 2-1・4-4 |
 | AC-12 | test | `extension/test/manifest.test.ts::undeclared keys` | ステップ 2-1・2-2 |
@@ -310,7 +344,7 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 | 実装の時点の TypeScript の最新の版が、設計書 3.8 の設定（`rewriteRelativeImportExtensions`・`erasableSyntaxOnly` など）を持たないか、意味を変えている | 型検査やビルドが設計どおりに動かない | ステップ 1-1 で、選んだ版の公式の文書でこれらの設定を確かめてから固定する。合わない場合は、設定を持つ版を選ぶ |
 | `node --test` が既定で `.ts` のテストのファイルを見つけない版がある | テストが 0 件で成功する | npm のスクリプトでテストのファイルのパターンを明示し、ステップ 1-7 で、テストのファイルの 1 つを失敗させて `make ext-test` が失敗することを確かめる |
 | golangci-lint が `go.mod` の `ignore` の指示を扱えない | `make lint` が失敗するか、`extension/` を解析する | ステップ 1-7 の `make lint` と CI の `lint` のジョブで確かめる。失敗した場合は作業を止め、設計書 3.10 の見直しを利用者に相談する |
-| `extension/test/` のガードは拡張のジョブでだけ実行される。そのため、`has-extension-changes` の条件（設計書 3.10）に該当しない PR では、`docs.test.ts`（AC-24・AC-25・§5.1）と `repository.test.ts` の AC-06・AC-09 の検査が CI で実行されない。該当しない PR の例は、`README.md`・`CLAUDE.md`・`docs/`・`.gitignore` だけを変える PR と、`extension/` の外に秘密鍵のファイルを加える PR である | 文書と拡張 ID の食い違い、`.gitignore` の拡張の行の削除、`extension/` の外の秘密鍵を CI が見逃す | 残るリスクとして受け入れる。秘密鍵は pre-commit の `detect-private-key` が手元で検出する。文書・`.gitignore` を変えるときは `make ext-test` を手元で実行することを CLAUDE.md に書く（ステップ 5-3）。CI の条件は設計書のとおりとし、変えない。CI の条件を広げる場合は設計書 3.10 の判断の変更になるので、レビューで判断する |
+| `extension/test/` のガードは拡張のジョブでだけ実行される。そのため、`has-extension-changes` の条件（設計書 3.10）に該当しない PR では、`docs.test.ts`（AC-24・AC-25・§5.1）と `repository.test.ts` の AC-06 の検査が CI で実行されない。該当しない PR の例は、`README.md`・`CLAUDE.md`・`docs/`・`.gitignore` だけを変える PR である | 文書と拡張 ID の食い違い、`.gitignore` の拡張の行の削除 | 残るリスクとして受け入れる。文書・`.gitignore` を変えるときは `make ext-test` を手元で実行することを CLAUDE.md に書く（ステップ 5-3）。AC-09 の秘密鍵の検査は常時実行のジョブ `secret-scan`（ステップ 1-6）が担うので、このリスクに含めない。CI の条件は設計書のとおりとし、変えない |
 | Brave の安定版が手元にない、または Chrome と振る舞いが違う | 手動の確認が終わらない | 違いを §5.1 に記録し、利用者に報告する。設計書 3.12 の調査で Brave 1.96 の動作は確かめている |
 
 ### 6.2. スケジュールのリスク
