@@ -37,15 +37,6 @@ func SensitiveParts(value string) []string {
 	}
 	seen := map[string]bool{}
 	var parts []string
-	// addTail keeps any non-empty part, so the last 8 characters survive even
-	// when they are shorter than 8 bytes.
-	addTail := func(part string) {
-		if part == "" || seen[part] {
-			return
-		}
-		seen[part] = true
-		parts = append(parts, part)
-	}
 	// addPart drops a part shorter than 8 bytes, so "a" and "/" from
 	// "https://host/a" never redact every occurrence of those characters.
 	addPart := func(part string) {
@@ -57,7 +48,7 @@ func SensitiveParts(value string) []string {
 	}
 
 	for _, tail := range tails(value) {
-		addTail(tail)
+		addPart(tail)
 	}
 	addPart(value)
 	if parsed, err := url.Parse(value); err == nil {

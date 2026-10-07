@@ -271,8 +271,11 @@ func TestLoadErrorsOmitValues(t *testing.T) {
 		markModel    = "MARK-MODEL-B2"
 		markAPIKey   = "MARK-APIKEY-C3"
 		markSlack    = "MARK-SLACK-D4"
-		markCache    = "MARK-CACHE-E5"
-		markYtDlp    = "MARK-YTDLP-F6"
+		// markSlackTail is exactly the last 8 bytes of "x"+markSlackTail, so a
+		// rejection that leaked only the value's tail would still be caught.
+		markSlackTail = "TAILVAL8"
+		markCache     = "MARK-CACHE-E5"
+		markYtDlp     = "MARK-YTDLP-F6"
 	)
 	marks := []string{markProvider, markModel, markAPIKey, markSlack, markCache, markYtDlp}
 	base := map[string]string{
@@ -284,20 +287,22 @@ func TestLoadErrorsOmitValues(t *testing.T) {
 		ytDlpEnv:    "/bin/" + markYtDlp,
 	}
 	cases := []struct {
-		name string
-		env  map[string]string
+		name  string
+		env   map[string]string
+		tails []string
 	}{
-		{"provider invalid", with(base, providerEnv, "gemini-"+markProvider)},
-		{"model empty", with(base, modelEnv, "")},
-		{"API key empty", with(base, apiKeyEnv, "")},
-		{"slack webhook invalid", with(base, slackEnv, "http://"+markSlack)},
-		{"slack webhook no scheme", with(base, slackEnv, markSlack+"/hooks/x")},
-		{"slack webhook empty host", with(base, slackEnv, "https:///"+markSlack)},
-		{"slack webhook control character", with(base, slackEnv, "https://host/"+markSlack+"\n")},
-		{"slack webhook bad escape", with(base, slackEnv, "https://host/%zz"+markSlack)},
-		{"cache dir relative", with(base, cacheDirEnv, markCache)},
-		{"cache dir absent", without(base, cacheDirEnv)},
-		{"yt-dlp path empty", with(base, ytDlpEnv, "")},
+		{"provider invalid", with(base, providerEnv, "gemini-"+markProvider), nil},
+		{"model empty", with(base, modelEnv, ""), nil},
+		{"API key empty", with(base, apiKeyEnv, ""), nil},
+		{"slack webhook invalid", with(base, slackEnv, "http://"+markSlack), nil},
+		{"slack webhook no scheme", with(base, slackEnv, markSlack+"/hooks/x"), nil},
+		{"slack webhook empty host", with(base, slackEnv, "https:///"+markSlack), nil},
+		{"slack webhook control character", with(base, slackEnv, "https://host/"+markSlack+"\n"), nil},
+		{"slack webhook bad escape", with(base, slackEnv, "https://host/%zz"+markSlack), nil},
+		{"slack webhook tail", with(base, slackEnv, "x"+markSlackTail), []string{markSlackTail}},
+		{"cache dir relative", with(base, cacheDirEnv, markCache), nil},
+		{"cache dir absent", without(base, cacheDirEnv), nil},
+		{"yt-dlp path empty", with(base, ytDlpEnv, ""), nil},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -308,6 +313,11 @@ func TestLoadErrorsOmitValues(t *testing.T) {
 			for _, mark := range marks {
 				if strings.Contains(err.Error(), mark) {
 					t.Errorf("Load() error = %q, contains the value mark %q", err, mark)
+				}
+			}
+			for _, tail := range tc.tails {
+				if strings.Contains(err.Error(), tail) {
+					t.Errorf("Load() error = %q, contains the value tail %q", err, tail)
 				}
 			}
 		})

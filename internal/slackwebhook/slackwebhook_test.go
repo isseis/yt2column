@@ -1,3 +1,5 @@
+//go:build test
+
 package slackwebhook
 
 import (
@@ -118,6 +120,17 @@ func TestSensitiveParts(t *testing.T) {
 					t.Errorf("SensitiveParts(%q) = %q, has a part shorter than %d bytes", value, parts, exposedTail)
 				}
 			}
+		}
+	})
+
+	t.Run("eight byte threshold", func(t *testing.T) {
+		const seven = "https://host/1234567"
+		if parts := SensitiveParts(seven); slices.Contains(parts, "1234567") {
+			t.Errorf("SensitiveParts(%q) = %q, must omit the 7-byte last path segment", seven, parts)
+		}
+		const eight = "https://host/12345678"
+		if parts := SensitiveParts(eight); !slices.Contains(parts, "12345678") {
+			t.Errorf("SensitiveParts(%q) = %q, want the 8-byte last path segment", eight, parts)
 		}
 	})
 
