@@ -8,7 +8,7 @@
 | Created | 2026-10-07 |
 | Review date | 2026-10-07 |
 | Reviewer | isseis |
-| Comments | 2026-10-07: 決定の変更（利用者の決定による）のため `draft` に戻した。実際に投稿する先を Mattermost とし、Mattermost の Slack 互換の Incoming Webhook を検証の対象とする。Slack は当面 best effort とし、将来の正式な対応に備えて、フラグ（`--slack`）・環境変数（`SLACK_WEBHOOK_URL`）・型の名前は Slack のままとする。これに伴い、Webhook URL の規則（`https` の URL）、ペイロード（`markdown` ブロックではなく `text`）、メンションの記法と抑止の手段（`silent` の指定と送信前の拒否の併用）を改めた。 |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
