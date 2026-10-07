@@ -504,6 +504,8 @@ export interface SummaryStore {
   put(key: string, summary: OutcomeSummary): Promise<void>;
   /** Returns the stored value and removes it; undefined when absent. */
   take(key: string): Promise<unknown>;
+  /** Discards the stored value for key; used when the result window cannot be opened. */
+  remove(key: string): Promise<void>;
 }
 
 export interface MenuLaunchDeps {
@@ -578,21 +580,26 @@ sequenceDiagram
     end
     SW->>SW: log.info（収集の結果の全体）
     SW->>SS: put(要約の鍵, summarize(outcome))
-    alt put と windows.create が成功
-        SW->>RW: windows.create（result.html、ハッシュに要約の鍵、type: popup）
-        RW->>SS: take(要約の鍵)
-        RW->>RW: parseSummary → renderSummary
-    else put が失敗（windows.create を呼ばない）、または windows.create が失敗
+    alt put が失敗（windows.create を呼ばない）
         SW->>B: action.setBadgeText（"!"）
+    else put が成功
+        SW->>RW: windows.create（result.html、ハッシュに要約の鍵、type: popup）
+        alt windows.create が成功
+            RW->>SS: take(要約の鍵)
+            RW->>RW: parseSummary → renderSummary
+        else windows.create が失敗
+            SW->>SS: remove(要約の鍵)
+            SW->>B: action.setBadgeText（"!"）
+        end
     end
 ```
 
 -   要約の鍵は起動ごとに `crypto.randomUUID()` で作る。続けて 2 回起動しても、それぞれのウィンドウが自分の要約を読む。
 -   `put` の完了を待ってから `windows.create` を呼ぶ。`put` が失敗したらウィンドウを開かない。
 -   `storage.session` に置くのは表示用の要約だけで、選択範囲の全体は置かない。要約の大きさは、短くしたタイトル・URL（各 1,000 コードポイント）とプレビュー（200 コードポイント）で上限が決まり、収集した値の大きさによらない。最も小さい `storage.session` の容量（Chrome 111 以前の 1 MB）に対しても十分に小さい。
--   結果のウィンドウは要約を読んだら消す（`take`）。`storage.session` はメモリの中だけにあるので、ウィンドウが開かなかった場合などに残った要約は、ブラウザの終了で消える。残る大きさは 1 回の起動につき上記の上限までである。
+-   結果のウィンドウは要約を読んだら消す（`take`）。`windows.create` が失敗したら、同じ鍵の要約を `remove` で消す。失敗が続いても `storage.session` の容量（最も小さい場合で Chrome 111 以前の 1 MB）を消費し続けず、以後の `put` を妨げないためである。`storage.session` はメモリの中だけにあり、これ以外に残った要約もブラウザの終了で消える。`remove` に失敗した場合も、`storage.session` はブラウザの終了で消えるので、要約が残り続けることはない。
 -   結果のウィンドウは、要約が見つからない場合（ハッシュがない、鍵がない）と、`parseSummary` が形の違いで拒否した場合に、そのことを示す固定の文言を表示する。
--   `put` または `windows.create` が失敗したときは、`log.error` に記録し、ツールバーのアイコンのバッジに `!` を表示する（`signalDisplayFailure`）。バッジは次のメニューの経路の起動の開始時に消す（`clearDisplayFailure`）。利用者が何も表示されずに終わることを避けるためである。
+-   `put` または `windows.create` が失敗したときは、`log.error` に記録し、ツールバーのアイコンのバッジに `!` を表示する（`signalDisplayFailure`）。`windows.create` が失敗した場合は、あわせて同じ鍵の要約を `remove` で消す（`put` が失敗した場合は要約が置かれていないので消さない）。バッジは次のメニューの経路の起動の開始時に消す（`clearDisplayFailure`）。利用者が何も表示されずに終わることを避けるためである。
 -   `runMenuLaunch` は例外を投げない。すべての失敗を捕まえて記録する。service worker のイベントの処理は例外で終わらず、次の起動に影響しない（要件書 4.3）。
 
 ウィンドウを開く代わりに、通知（`notifications` の権限）やバッジだけを使う案は採らない。通知は OS の設定で表示されないことがあり（macOS は Chrome の通知の許可を別に求める）、バッジは数文字しか表示できず、どちらも要件書 F-006 のタイトル・URL・プレビューを示せない。`chrome.action.openPopup()` でポップアップを開く案は、Brave で動作するか確かめていないので採らない。
@@ -776,7 +783,7 @@ flowchart TD
 |---|---|---|
 | `test/acceptedUrl.test.ts` | `isAcceptedWatchUrl`。要件書 3.2 の受理しない URL の例のすべてと、受理する URL（`t`・`list`・フラグメント付きを含む） | AC-15 |
 | `test/collect.test.ts` | `collect`。判定の順序、`launch` が `undefined`、空白文字の各種（U+0085 を含む。U+FEFF だけの選択範囲は受理する）、`read` の失敗、`documentUrl` の不一致、`title` が `undefined`、対象外のページで `read` が呼ばれないこと、前後の空白・空行が残ること | AC-14・AC-16〜AC-19 |
-| `test/launch.test.ts`（収集） | `runMenuLaunch`・`runPopupLaunch`。同じ fake のタブと同じ fake の `SelectionReader` で、2 つの経路が同じ収集の結果（ログに出す値）と同じ表示用の要約になること。`runMenuLaunch` に、fake の選択範囲と異なる `info.selectionText` を渡しても、収集した値が fake の選択範囲になること。前後の空白・空行が経路を通っても残ること。`put` の失敗でウィンドウを開かずバッジを表示すること、`windows.create` の失敗でバッジを表示すること、どちらでも例外を投げないこと | AC-14・AC-30 |
+| `test/launch.test.ts`（収集） | `runMenuLaunch`・`runPopupLaunch`。同じ fake のタブと同じ fake の `SelectionReader` で、2 つの経路が同じ収集の結果（ログに出す値）と同じ表示用の要約になること。`runMenuLaunch` に、fake の選択範囲と異なる `info.selectionText` を渡しても、収集した値が fake の選択範囲になること。前後の空白・空行が経路を通っても残ること。`put` の失敗でウィンドウを開かずバッジを表示すること、`windows.create` の失敗でバッジを表示し同じ鍵の要約を `remove` で消すこと、どちらでも例外を投げないこと | AC-14・AC-30 |
 | `test/launch.test.ts`（表示） | `runPopupLaunch` と `runResultWindow` を jsdom の要素で実行し、タイトルと選択範囲の `<img src=x onerror=alert(1)>` が要素にならないこと。`runResultWindow` が要約を読んだ後に消すこと、ハッシュがないとき・要約がないとき・形が違うときに固定の文言を表示すること | AC-23 |
 | `test/chromeDeps.test.ts` | `SelectionReader` の実装。fake の `executeScript` が、形の違う結果（`null`・文字列だけ・項目の欠け）を返すか例外を投げると、`read` が失敗すること。注入する関数のソースが外の名前を参照しないこと | AC-18 |
 | `test/messages.test.ts` | `rejectionMessage`。4 つの理由の文言が互いに異なること、手順が `not-watch-page`・`empty-selection` にだけあること | AC-22・AC-31 |
