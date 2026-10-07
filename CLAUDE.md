@@ -189,6 +189,10 @@ See [Test Organization Guide](docs/dev/developer_guide/test_organization.md) for
   not needed for `make test`.
 - Secrets (`DEEPSEEK_API_KEY`, `SLACK_WEBHOOK_URL`, ...) go in `.envrc` / `.env`,
   which are git-ignored. Never commit them and never print them.
+- Real captured data committed under `testdata/` must come from a video licensed
+  for redistribution and must not identify whoever captured it; full-page browser
+  snapshots are never committed and live outside the repository. See
+  [Security Considerations §7](docs/dev/security.md) before adding any.
 
 ### Dependencies
 
