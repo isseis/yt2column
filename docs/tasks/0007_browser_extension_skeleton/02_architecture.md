@@ -12,7 +12,7 @@
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `426eb2e` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指す。本タスクには `design_handoff.md` がない。実装レベルの懸念は [implementation_handoff.md](implementation_handoff.md) に置き、`03_implementation_plan.md` が扱う。
 
-**承認の条件:** 3.12 の調査には、本書の作成時の環境では確かめられなかった項目（拡張 ID の値、macOS の Chrome・Brave での観測、YouTube の動画ページの DOM）がある。AC-24 は調査の結果を本書に記録することを求めるので、3.12.4 の表の項目をすべて記録するまで、本書を `approved` にしない。
+**3.12 の調査:** 3.12 の調査は完了している。拡張 ID の値、macOS の Chrome・Brave での観測、YouTube の動画ページの DOM を含む必要な項目を 3.12.4 に記録した。AC-24 が求める記録はこれで満たされている。
 
 本書では次の用語を使う。
 
@@ -297,7 +297,7 @@ flowchart TB
 
 拡張 ID は秘密ではない。`key` はリポジトリで公開するので、誰でも同じ `key` で拡張を読み込めば同じ拡張 ID になり、同じ `Origin` を名乗れる。ブラウザの外のプロセスは任意の `Origin` を付けて送れる。したがって `Origin` は送り元の認証にならない（#109 への含意は 3.12.1）。
 
-鍵の生成と拡張 ID の記録は、本書の承認の前に行う（承認の条件）。値は 3.12.1・README・security.md に記す。
+生成した鍵と拡張 ID の値は 3.12.1 に示す。同じ値を README・security.md に記す。
 
 **右クリックメニューの項目（F-004）:** service worker の `chrome.runtime.onInstalled` で、`contextMenus.removeAll()` の完了を待ってから、固定の `id` で `contexts: ["selection"]`・`documentUrlPatterns: ["https://www.youtube.com/watch*"]` の項目を 1 つ作る。`create` の失敗（`runtime.lastError`）は `console.error` に記録する。項目の文言は英語で、実装で決める（例: `Use selection with yt2column`）。`documentUrlPatterns` は要件書 F-004 のとおり、要件書 3.2 の受理する URL より緩く、`/watch` で始まるパスのページ（`/watchlater` など）でも項目が表示される。収集の可否は `collect` が決める。
 
@@ -555,7 +555,7 @@ export function runResultWindow(container: HTMLElement, hash: string, deps: Resu
 
 右クリックメニューの `onClicked` が渡す `info.selectionText` は使わない。Chrome はこの値の改行を空白に置き換えることがあり（要件書 F-005）、行の区切りが失われるためである。`runMenuLaunch` は `info` を開発者向けのログ（`info.pageUrl`・`info.frameId`）にだけ使う。文字起こしパネルはトップのフレームの DOM にあると想定する。根拠は、`testdata/2tcCWM-sRBw.transcript_panel.html:1` のパネルの要素の `class` が `style-scope ytd-watch-flexy` であり、パネルが動画ページの本体の要素（`ytd-watch-flexy`）の中にあることを示している点である。この想定は AC-13 の手動の確認で確かめる。iframe の中の選択範囲は読まず、トップのフレームの選択範囲が空なら「選択範囲が空」になる。
 
-Chromium 141（Linux、本書の作成時に確認）で、複数の `div` に分かれた要素を選択して、注入した関数で `getSelection().toString()` を読むと、要素の区切りが `\n` になった文字列が返った。
+Chromium 141（Linux）で、複数の `div` に分かれた要素を選択して、注入した関数で `getSelection().toString()` を読むと、要素の区切りが `\n` になった文字列が返った。
 
 **シーケンス図の表記:** 本書のシーケンス図は、ノードを色で分類しないので Legend を置かない。実線の矢印 A → B は「A が B を呼び出す、または B へデータを渡す」を、点線は戻り値を表す。
 
@@ -722,7 +722,7 @@ export function renderSummary(container: HTMLElement, summary: OutcomeSummary): 
 -   CI の `lint` のジョブ（`ci.yml:66` 以降）の `golangci-lint-action`・`go vet`・`go mod tidy`。
 -   `.pre-commit-config.yaml` の `go test`・`golangci-lint`・`go vet` の hook。
 
-そこで、`go.mod` に `ignore ./extension` を加える。`ignore` の指示は Go 1.25 で加わり、本リポジトリは `go 1.26.5`（`go.mod:3`）である。本書の作成時に、リポジトリを複製した作業ディレクトリの `extension/node_modules/flatted/golang/pkg/flatted/` に Go のファイルを置いて確かめた。指示がないと `go list ./...` がそのパッケージを列挙し、指示を加えると列挙しなかった。`go vet ./...` は成功し、`go mod tidy` は指示を残した。
+そこで、`go.mod` に `ignore ./extension` を加える。`ignore` の指示は Go 1.25 で加わり、本リポジトリは `go 1.26.5`（`go.mod:3`）である。リポジトリを複製した作業ディレクトリの `extension/node_modules/flatted/golang/pkg/flatted/` に Go のファイルを置いて確かめた。指示がないと `go list ./...` がそのパッケージを列挙し、指示を加えると列挙しなかった。`go vet ./...` は成功し、`go mod tidy` は指示を残した。
 
 -   `make deadcode`（`Makefile:154`）と `make build`（`Makefile:53`）は `./cmd/yt2column` から辿れるパッケージだけを見るので、もともと拡張のディレクトリの影響を受けない。
 -   `make fmt`（`Makefile:138`）は `git` の管理対象のファイルと、無視の対象でない未追跡のファイルだけを見るので、`.gitignore` の対象の `node_modules` を見ない。
@@ -798,11 +798,16 @@ AC-23 の「表示の手段のそれぞれで確かめる」は、ポップア�
 
 ### 3.12. #109 への入力の調査（F-007・AC-24）
 
-本節の観測は、本書の作成時に Chromium 141.0.7390.37（Playwright 同梱、Linux、headless）で、パッケージ化されていない一時的な拡張と、`127.0.0.1` で待ち受ける一時的なサーバで行った。一時的な拡張とサーバはリポジトリに含めていない（要件書 F-007）。macOS の Chrome・Brave と YouTube の動画ページでの確認は、本書の作成時の環境ではできなかった（YouTube へのアクセスはネットワークの設定で拒否された）。残る項目は 3.12.4 にまとめ、承認の前に記録する。
+本節の観測は、Chromium 141.0.7390.37（Playwright 同梱、Linux、headless）と macOS の Chrome 154.0.8037.98・Brave 1.96.61 で、パッケージ化されていない一時的な拡張と、`127.0.0.1` で待ち受ける一時的なサーバで行った。一時的な拡張とサーバはリポジトリに含めていない（要件書 F-007）。macOS の Chrome・Brave での観測は各節（3.12.1・3.12.2・3.12.3）に記す。
 
 #### 3.12.1. 拡張 ID と `Origin` ヘッダ
 
-**拡張 ID:** 3.1 の手順で生成する。値は未記録（3.12.4）。`Origin` ヘッダの値は `chrome-extension://<拡張 ID>` になる（下記の観測で、拡張 ID の部分は読み込んだ拡張の ID と一致した）。
+**拡張 ID:** 2026-10-07 に 3.1 の手順で生成した（OpenSSL で RSA 2048 ビットの鍵の組を生成し、公開鍵を DER の SubjectPublicKeyInfo にした後、秘密鍵を削除した）。値は次のとおりである。
+
+-   拡張 ID: `clfmbbcdpnjcefbdihdoahomaifbabkk`
+-   `key`: `MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnU2b5FZCPsoONgwnZlFVL01Q4KeHUyrvB/8eTHAd5gPu4pGTjok+w4TkAOa8GVswtrSHZBivGzYiTHPlzO+9IfVS7EkFiPOJJo5cQoXc8KODqW2LXawvdIqUe7n5gUfM8xuNtkRW/ipQEkKY3t0SyEPZjTVECWxokr8ViY5rSFQ7GHgjGIf/QAPwvklr9QzovW8ZWOghnv2GLUbIu71ONgJ3UZOfwm5/qCbehMGG1kUBqdUuXPoz4BzEE8rf/LPfQF368xtnOF4tC6qrZbtdBXM8w7shVqRx77y/QZbrDBwpPdS2QCeSYGk3/5u3zmTwWrOfrctYXC712/EMoc88zQIDAQAB`
+
+拡張 ID は、`key` を base64 から戻した DER の SHA-256 から 3.1 の計算で求めた。`Origin` ヘッダの値は `chrome-extension://clfmbbcdpnjcefbdihdoahomaifbabkk` になる（下記の観測で、拡張 ID の部分は読み込んだ拡張の ID と一致した）。
 
 **`Origin` ヘッダの観測（Chromium 141）:** service worker と拡張のページ（ポップアップと同じ `chrome-extension://` のオリジンのページをタブで開いたもの）のそれぞれから、`fetch` で `http://127.0.0.1:<port>/` へ送った。
 
@@ -814,16 +819,47 @@ AC-23 の「表示の手段のそれぞれで確かめる」は、ポップア�
 | なし | `POST`（`text/plain`） | `chrome-extension://<ID>` | `cross-site` | 読めない。リクエストはサーバに届く |
 | なし | `POST`（`application/json`） | `chrome-extension://<ID>` | `cross-site` | preflight（`OPTIONS`）だけが届き、本体は送られない |
 
-service worker と拡張のページで結果は同じだった。#109 への含意は次のとおりである。
+service worker と拡張のページで結果は同じだった。
+
+**macOS の Chrome・Brave での観測（Chrome 154.0.8037.98・Brave 1.96.61、2026-10-07）:** 3.1 の `key` を持ち `host_permissions` に `http://127.0.0.1/*` を宣言した一時的な拡張と、`key` も `host_permissions` も持たない一時的な拡張を読み込み、実際のポップアップと service worker から同じリクエストを送った。結果は上の表と同じだった。`key` を持つ拡張の `Origin` は `chrome-extension://clfmbbcdpnjcefbdihdoahomaifbabkk` で、3.1 の計算で求めた拡張 ID と一致した。拡張からのリクエストには許可の確認が出ず、確認を待たずにサーバに届いた。Brave でも、`key` を持つ拡張の `Origin` を含め、すべて Chrome と同じ結果だった。
+
+**Local Network Access（macOS の Chrome 154・Brave 1.96）:** 公開のページ（`https://example.com`）の DevTools のコンソールから、`127.0.0.1` へ `POST`（`text/plain`、`mode: "no-cors"`）を送った。
+
+-   Chrome は「このデバイス上の他のアプリやサービスにアクセスする」の許可の確認を表示し、利用者が答えるまでリクエストを送らなかった（サーバに届かなかった）。
+-   「許可する」を選ぶと、リクエストはサーバに届いた。`Origin` は `https://example.com`、`Sec-Fetch-Site` は `cross-site` だった。ページが受け取った応答は `type: "opaque"`・`status: 0` で、ページは応答の中身を読めなかった。
+-   Brave も許可の確認を表示し、許可の後にリクエストがサーバに届いた。届いたリクエストのヘッダは Chrome と同じだった。
+
+#109 への含意は次のとおりである。
 
 -   `Origin` で送り元を確かめるなら、`POST` に限る。`host_permissions` を持つ拡張の `GET` には `Origin` が付かない。
 -   `Origin` がないリクエストを受理しない。
--   `host_permissions` がなくても、preflight が不要な `POST`（`text/plain` など）はサーバに届く。応答を読めないだけなので、サーバはリクエストを確かめる前に副作用を起こしてはならない。ウェブページからの同じ形のリクエストも届きうる（Chrome の Local Network Access の制限が及ぶかは未確認。3.12.4）。
+-   `host_permissions` がなくても、preflight が不要な `POST`（`text/plain` など）はサーバに届く。応答を読めないだけなので、サーバはリクエストを確かめる前に副作用を起こしてはならない。ウェブページからの同じ形のリクエストも届きうる。macOS の Chrome 154 と Brave 1.96 では、Local Network Access の許可の確認が、ウェブページからのリクエストを止める。利用者がそのサイトに許可を与えると、リクエストは届く。したがって、この確認だけに頼ってはならない。
 -   `Origin` は送り元の認証にならない。拡張 ID は公開の `key` から決まり、同じ `key` を使えば誰でも同じ拡張 ID の拡張を読み込める。ブラウザの外のプロセスは任意の `Origin` を付けられる。`Origin` の確認で防げるのは、ブラウザが送るウェブページからのリクエストだけである。共有トークンは省略できない。
 
 #### 3.12.2. チャンネル名・概要欄
 
-リポジトリの `testdata/` の HTML の抜粋は文字起こしパネルの要素だけで、チャンネル名と概要欄を含まない（testdata/README.md「文字起こしパネルの HTML の抜粋」）。動画ページの DOM は、リポジトリの外のスナップショット（security.md §7 の `${YT2COLUMN_SNAPSHOT_DIR:-...}`）か、ブラウザの DevTools で確かめる（3.12.4）。
+リポジトリの `testdata/` の HTML の抜粋は文字起こしパネルの要素だけで、チャンネル名と概要欄を含まない（testdata/README.md「文字起こしパネルの HTML の抜粋」）。動画ページの DOM は、リポジトリの外のスナップショット（security.md §7 の `${YT2COLUMN_SNAPSHOT_DIR:-...}`）か、ブラウザの DevTools で確かめる（下記）。
+
+**macOS の Chrome・Brave での観測（2026-10-07）:** 動画ページを DevTools のコンソールから調べた。どちらのブラウザでも、1 本目の動画は直接開き、2 本目へは関連動画のリンクからページ内で移動した。セレクタはいずれも `ytd-watch-metadata` の下の要素を指す。
+
+-   Chrome 154.0.8037.98: YouTube にログインした状態で調べた。2 本目は、再読み込みの後にも調べた。
+-   Brave 1.96.61: ログインしていない状態で調べた。2 本目は 1 本目と同じチャンネルの動画だった。
+
+下表は両方のブラウザで共通の観測である。違いがあった項目は、ブラウザごとに書く。
+
+| 項目 | 観測 |
+|---|---|
+| チャンネル名 | `ytd-channel-name a` と `#owner #channel-name #text` が、それぞれ 1 つの要素に一致し、どちらもチャンネル名の文字列だけを含んでいた。ページ内の移動の後は、移動先の動画のチャンネル名に変わった（Chrome で確認した。Brave では、移動先が同じチャンネルだったので確かめられていない） |
+| 概要欄（折りたたまれた状態） | 表示されているのは先頭の一部（`#attributed-snippet-text`。2 本の動画で 36 文字と 144 文字）だけで、全文は DOM になかった。全文を入れる `#expanded yt-attributed-string` は空だった。概要欄の要素（`ytd-text-inline-expander`）には、ほかに表示されていない構造化された情報（言及された人物、文字起こしの節、チャンネルの情報カードなど）があり、その `textContent` は概要欄の文字列ではない |
+| 概要欄（開いた後） | 「…もっと見る」で開くと、`#expanded yt-attributed-string` に全文（Chrome の 1 本目で 1049 文字、Brave の 1 本目で 402 文字）が入った。先頭の一部の要素はそのまま残った |
+| 概要欄（ページ内の移動の後） | 移動先の動画の値に変わり、概要欄は折りたたまれた状態に戻った（`#expanded` は再び空になった） |
+| `window.ytInitialPlayerResponse` | Chrome では、直接開いた直後でも `undefined` だった。Brave では値があった（`videoDetails.author` と `shortDescription`）。しかしページ内で移動した後、概要欄の要素の文字数が変わったのに、`shortDescription` の文字数は変わらなかった。移動の前の動画の値が残っていると考えられる。どちらのブラウザでも、チャンネル名・概要欄の取得には使えない |
+
+#109 への含意は次のとおりである。
+
+-   チャンネル名は、利用者が起動したときの DOM から読める。
+-   概要欄の全文は、利用者が概要欄を開いていなければ DOM にない。読めるのは、開いていればその全文、開いていなければ先頭の一部である。拡張が全文を得るには、「…もっと見る」を押してページを操作する必要がある。ページを読むだけの本タスクの拡張とは異なる振る舞いになるので、行うかは #109 で決める。
+-   どちらも本タスクの観測の時点の構造である。
 
 どちらの値も、YouTube が独自に定義した要素（カスタム要素）の構造に依存する。この構造は公開の仕様ではなく、YouTube が予告なく変えうる。#109 は、チャンネル名と概要欄を必須の項目にしないことを前提に API を定義するのが安全である。本タスクは実装しない（要件書 F-007）。
 
@@ -831,7 +867,7 @@ service worker と拡張のページで結果は同じだった。#109 への含
 
 受け渡しの方法は、利用者がサーバの起動時に表示されたトークンを、拡張のオプションページ（`options_ui`）に貼り付ける方法を候補とする。オプションページは拡張のページなので、ほかの拡張とウェブページは、その入力欄にも、拡張が保存した値にも触れられない。
 
-保存先の候補を比べる。「注入した関数から」の欄は、Chromium 141 で、`scripting.executeScript` で注入した関数（isolated world）から読めるかを試した結果である。
+保存先の候補を比べる。「注入した関数から」の欄は、Chromium 141 で、`scripting.executeScript` で注入した関数（isolated world）から読めるかを試した結果である。`local` と `session` の行は、macOS の Chrome 154.0.8037.98 と Brave 1.96.61 でも同じ結果だった（ポップアップから `https://example.com` のタブに注入した）。
 
 | 保存先 | 永続性 | ほかの拡張・ウェブページ | 注入した関数から | 備考 |
 |---|---|---|---|---|
@@ -843,16 +879,16 @@ service worker と拡張のページで結果は同じだった。#109 への含
 -   `chrome.storage.local` のファイルは、同じ OS の利用者として動くほかのプロセスから読める。これは `.envrc` に置く秘密情報と同じ信頼の範囲である。
 -   どちらを選ぶかは #109・#111 で決める。
 
-#### 3.12.4. 承認の前に記録する項目
+#### 3.12.4. 調査の記録
 
-| 項目 | 記録する内容 |
+| 項目 | 内容 |
 |---|---|
-| 拡張 ID | 3.1 の手順で生成した `key` と拡張 ID の値（3.12.1・README・security.md） |
-| `Origin` の観測（macOS） | 3.12.1 の表を、macOS の Chrome と Brave（作業時点の安定版）で、実際のポップアップと service worker から送って確かめた結果 |
-| Local Network Access | macOS の Chrome・Brave で、ウェブページ（`https://` の公開のページ）から `127.0.0.1` への `POST`（`text/plain`）が届くか。拡張からのリクエストに許可の確認が出るか |
-| `storage` の観測（macOS） | 3.12.3 の表の「注入した関数から」を、macOS の Chrome と Brave で確かめた結果 |
-| チャンネル名 | チャンネル名を含む要素とそれを特定するセレクタ、ページ内の移動の後に移った先の値に更新されるか |
-| 概要欄 | 概要欄の全文を含む要素（折りたたまれた状態でも DOM に全文があるか）、ページ内の移動の後に更新されるか |
+| 拡張 ID | 3.12.1。README・security.md への記載は実装で行う（3.13） |
+| `Origin` の観測（macOS） | 3.12.1 |
+| Local Network Access | 3.12.1 |
+| `storage` の観測（macOS） | 3.12.3 |
+| チャンネル名 | 3.12.2 |
+| 概要欄 | 3.12.2 |
 
 ### 3.13. コンポーネント責務表
 
@@ -995,7 +1031,7 @@ flowchart LR
 
 ### 5.4. 対象クライアント環境の検証
 
-`_context.md` の対象クライアント環境（Slack の `markdown` ブロック）は、本タスクの拡張が Slack に送らないので該当しない。拡張が使うブラウザの API（`contextMenus`・`activeTab`・`scripting`・`storage.session`・`windows.create`・`action.setBadgeText`）は Chrome の拡張の API で、Brave は Chromium の拡張の API を提供する。Brave での動作は、AC-08・AC-10・AC-13・AC-28 などの手動の確認（7.2）で確かめる。3.12 の調査の Brave での確認は、本書の承認の前に行う（3.12.4）。
+`_context.md` の対象クライアント環境（Slack の `markdown` ブロック）は、本タスクの拡張が Slack に送らないので該当しない。拡張が使うブラウザの API（`contextMenus`・`activeTab`・`scripting`・`storage.session`・`windows.create`・`action.setBadgeText`）は Chrome の拡張の API で、Brave は Chromium の拡張の API を提供する。Brave での動作は、AC-08・AC-10・AC-13・AC-28 などの手動の確認（7.2）で確かめる。3.12 の調査は macOS の Brave でも行い、3.12.1〜3.12.3 に記した。
 
 ## 6. 処理フロー詳細 (Processing Flow Details)
 
@@ -1080,7 +1116,7 @@ sequenceDiagram
 | AC-21 | 3.5・3.7 | `summary.test.ts`・手動（7.2） |
 | AC-22 | 3.5 | `messages.test.ts`・手動（7.2） |
 | AC-23 | 3.7 | `render.test.ts`・`launch.test.ts`（表示） |
-| AC-24 | 3.12 | 本書（静的な確認。3.12.4 の項目の記録が承認の条件） |
+| AC-24 | 3.12 | 本書（静的な確認。3.12.4 に記録） |
 | AC-25 | 3.13 | 文書（静的な確認） |
 | AC-26 | 3.1 | `manifest.test.ts` |
 | AC-27 | 3.1・3.7 | `manifest.test.ts`・lint |
@@ -1090,10 +1126,10 @@ sequenceDiagram
 
 ## 8. 実装優先順位 (Implementation Priorities)
 
-本書の承認の前に、3.12.4 の項目（拡張 ID の生成を含む）を記録しておく。実装は次の順に進める。
+実装は次の順に進める。
 
 1.  **開発環境:** `extension/` の設定のファイル、依存パッケージと lockfile、`scripts/`、Makefile の `ext-` のターゲット、`go.mod` の `ignore`、`fmt-all` の除外、`.gitignore`、`.pre-commit-config.yaml`、CI のジョブ。`core/` の 1 ファイルとテスト 1 つで、6 つのステップと Go の確認が通ることを確かめる（AC-01〜AC-07）。
-2.  **manifest:** 承認の前に生成した `key` を書いた `manifest.json` と `manifest.test.ts`（AC-08 の静的な部分・AC-09・AC-12・AC-26・AC-27）。
+2.  **manifest:** 3.12.1 に示した `key` を書いた `manifest.json` と `manifest.test.ts`（AC-08 の静的な部分・AC-09・AC-12・AC-26・AC-27）。
 3.  **core:** `acceptedUrl.ts`・`collect.ts`・`messages.ts`・`summary.ts` とそのテスト（AC-14〜AC-19・AC-22・AC-31）。
 4.  **表示と経路の処理:** `render.ts`・`launch.ts`・`chromeDeps.ts`・エントリポイント・HTML とそのテスト（AC-14・AC-18・AC-23・AC-30）。
 5.  **手動の確認と文書:** Chrome と Brave での 7.2 の確認、README・CLAUDE.md・project_overview.md・security.md の更新（AC-25）。
