@@ -8,7 +8,7 @@
 | Created | 2026-10-07 |
 | Review date | 2026-10-07 |
 | Reviewer | isseis |
-| Comments | PR の境界の設計（2026-10-07）: `/mkplan2` でフェーズ 1〜8 に対応する PR-1〜PR-8 の境界を埋め込み、§3.2 の PR 構成と §7 のチェックリストを PR 単位に改めた。あわせて、`newFlagSet` に `--slack` を加えるフェーズ 6 で README のフラグの表の `--slack` の行も加えるようにした（`TestREADMEDocumentsCLI` がフラグの表を要求するため、PR-6 単独でグリーンゲートを通す）。ステップの並べ替えはなく、実装の決定に変更はない。 |
+| Comments | PR の境界の設計（2026-10-07）: `/mkplan2` でフェーズ 1〜8 に対応する PR-1〜PR-8 の境界を埋め込み、§3.2 の PR 構成と §7 のチェックリストを PR 単位に改めた。あわせて、`newFlagSet` に `--slack` を加えるフェーズ 6 で README のフラグの表の `--slack` の行も加え、`--out` を必須とする README の記述も改めるようにした（`TestREADMEDocumentsCLI` がフラグの表を要求するため、PR-6 単独でグリーンゲートを通す）。ステップの並べ替えはなく、実装の決定に変更はない。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -32,7 +32,7 @@
 -   本番コードで新設・変更するファイルは、設計書 §3.14 の表に挙げたものに限る。`test` のタグのファイルに加える、設計書にない補助（ステップ 4-2 の準備の結果を返す関数と、`Transport` を受け取る構築の補助）は本計画で定め、`package_reference.md` に記す（ステップ 4-4）。
 -   ユニットテストのファイルの先頭には `//go:build test` を付ける。統合テストは `//go:build integration` とし、統合テストからも使う補助だけを `//go:build test || integration` とする（`docs/dev/developer_guide/test_organization.md` の例外）。
 -   Go のコメント・識別子・文字列リテラルは英語で書く。`AC-NN`・`F-NNN`・`H-NN` は Go のソースに書かず、本計画にだけ記録する（`requirements_process.md` §4）。
--   **テスト用の補助の lint。** `_test.go` でないテスト用のビルドのファイル（`test_helpers*.go`、`testutil/` の `.go`、`internal/loopbacktest/loopbacktest.go`）には、`.golangci.yml` の `_test.go` 向けの除外（`gosec`・`err113`・`errcheck`・`goconst`・`gocyclo`・`dupl`）が効かない。これらのファイルを作るか変えるステップ（2-1・2-3・4-2・6-6・7-1・7-2・7-6）では、テストが注入するエラーをパッケージの静的なエラーとして宣言し（`err113`）、後始末で無視する戻り値を `_ =` で受け（`errcheck`）、`gosec` に当たる行にだけ理由を付けた `//nolint:gosec // <理由>` を付ける（既存の `internal/llm/deepseek/testutil/make.go:92` と同じ形）。
+-   **テスト用の補助の lint。** `_test.go` でないテスト用のビルドのファイル（`test_helpers*.go`、`testutil/` の `.go`、`internal/loopbacktest/loopbacktest.go`）には、`.golangci.yml` の `_test.go` 向けの除外（`gosec`・`err113`・`errcheck`・`goconst`・`gocyclo`・`dupl`）が効かない。これらのファイルを作るか変えるステップ（2-1・2-3・4-2・5-3・6-6・7-1・7-2・7-6）では、テストが注入するエラーをパッケージの静的なエラーとして宣言し（`err113`）、後始末で無視する戻り値を `_ =` で受け（`errcheck`）、`gosec` に当たる行にだけ理由を付けた `//nolint:gosec // <理由>` を付ける（既存の `internal/llm/deepseek/testutil/make.go:92` と同じ形）。
 -   テストの名前は計画上の名前である。実装で変える場合は、§5 を同じコミットで更新する。
 -   各テストは、対象の処理を実際に壊して失敗することを確かめ、そのことをコミットメッセージに書く（[CLAUDE.md](../../../CLAUDE.md)「Testing Strategy」）。壊す対象は各フェーズの壊し確認のステップに挙げる。
 -   各フェーズの完了条件は、`make fmt` → `make test` → `make lint` が通ることである。`make lint` は `--build-tags test,integration` で解析し、続けて `go vet -tags integration ./...` を実行する（`Makefile` の `GOLINT` と `lint`）。このため、そのフェーズで加えたタグ付きのファイルは、実際に使うタグでコンパイルされる。
@@ -352,7 +352,7 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 
 **実装モデル要件**: standard
 
-**判定理由**: 投稿先の型付けと `switch` による検証に限られ、競合する実装方針の併記・高リスクな制御・パネルモードのトリガー・2 つ以上の Conditional check のいずれにも該当しないため（ビルドタグ下の非 `_test.go` のソースも含まない）。
+**判定理由**: 投稿先の型付けと `switch` による検証に限られ、競合する実装方針の併記・高リスクな制御・パネルモードのトリガー・2 つ以上の Conditional check のいずれにも該当しないため（ビルドタグ下の非 `_test.go` のソースは、ステップ 5-3 で変えうる既存の `internal/job/test_helpers.go` だけで、新設はない）。
 
 - [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
@@ -362,7 +362,7 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 ### フェーズ 6: `cmd/yt2column`
 
 **対象ファイル**
--   変更: `cmd/yt2column/run.go`・`run_test.go`・`test_helpers.go`・`signal_test.go`、`README.md`（フラグの表だけ）、`docs/dev/developer_guide/package_reference.md`
+-   変更: `cmd/yt2column/run.go`・`run_test.go`・`test_helpers.go`・`signal_test.go`、`README.md`（フラグの表とその直前の文だけ）、`docs/dev/developer_guide/package_reference.md`
 
 **タスク**
 -   [ ] **ステップ 6-1**: `deps` の `newPublisher` を `newFilePublisher` と `newSlackPublisher` に分け、`productionDeps` の `newSlackPublisher` に、`publisher.NewSlackWebhookPublisher` を包み構築の失敗で nil のインターフェースを返す関数を設定する（設計書 3.10）。`run_test.go` の `e.d.newPublisher` のすべての差し替え（`run_test.go:474`・`:547`・`:647`・`:881`）を `e.d.newFilePublisher` に改める。
@@ -370,7 +370,7 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
     -   `cliOptions` に `slack bool` を足し、`newFlagSet` に `--slack` を加える。説明の文は設計書 3.10 のとおりとする。
     -   `--out` の説明を `` "write the article to this `path` (required); it must not exist, its directory must exist, and it must be outside the cache directory" `` から `` "write the article to this `path`; it must not exist, its directory must exist, and it must be outside the cache directory" `` に改める。
     -   `writeUsage` の `"Generates a column article from a YouTube video's subtitles and writes it to the --out file.\n"` を、`--out` のファイルに書くか `--slack` で Webhook に投稿するかのどちらか一方を指定することを示す文に改める（文言は実装で決める）。
-    -   `README.md` のフラグの表に `--slack` の行を加える。`TestREADMEDocumentsCLI` の `flags` が `newFlagSet` のすべてのフラグを README の表に求めるので、この行はフラグを加えるこのフェーズで必要である（説明の文の推敲と他の文書はフェーズ 8）。
+    -   `README.md` のフラグの表に `--slack` の行を加える。`TestREADMEDocumentsCLI` の `flags` が `newFlagSet` のすべてのフラグを README の表に求めるので、この行はフラグを加えるこのフェーズで必要である。同じ変更で、`--out` が必須でなくなったことに合わせ、フラグの表の `--out` の行の「Required.」と、表の直前の文（`README.md:32`）の「`--out` is required」を、`--out` と `--slack` のどちらか一方を指定する記述に改める（PR-6 の時点で README がフラグの説明と矛盾しないようにするため。説明の文の推敲と他の文書はフェーズ 8）。
 -   [ ] **ステップ 6-3**: 手順 A2〜C を設計書 3.10 の「投稿先の決定」と「手順の変更」の表のとおりに変える。
     -   投稿先の決定は、`flag.FlagSet.Visit` でフラグが現れたかを調べる別の関数にし、設計書 3.10 の表の拒否の順と文言に従う。`run.go:150-152` の `opts.out == ""` の判定を置き換える。
     -   A3 の `RequireSlackWebhookURL`、A3 の Webhook URL の警告（文言は設計書 3.10）、A4 をファイルの場合だけ行うこと、A5 の `newSlackPublisher`、B の `job.RemoteOutput`、C の要約（`SlackMessageCount` がエラーなら `unknown`）を加える。要約は別の関数にする（`run` の循環的複雑度を 20 以下に保つため。§1.3）。
@@ -407,7 +407,7 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 
 **推奨タイトル**: `feat(0006): add the --slack output path to the CLI`
 
-**レビュー観点**: 投稿先の決定が `flag.FlagSet.Visit` による「フラグが現れたか」で行われ、設計書 3.10 の表の拒否の順と文言のとおりで、README のフラグの表に `--slack` の行が加わって `TestREADMEDocumentsCLI` が通ること（ステップ 6-2・6-3・6-7） / `SLACK_WEBHOOK_URL` の未設定・`http2debug` の警告・`configuredSecrets` の `SensitiveParts` の追加が、副作用より前の正しい位置にあること（ステップ 6-3〜6-5） / `testDeps` と `newRunEnv` の既定の `newSlackPublisher` が送らずに失敗し、ループバックの送信先を使う差し替えと子プロセスのモードが正しく動くこと（ステップ 6-6・6-7） / 投稿中の SIGINT・SIGTERM が別プロセスで終了コード `1` と AC-44 の各項目を満たし、投稿の成功後に受けたシグナルが終了コード `0` になること（ステップ 6-8）
+**レビュー観点**: 投稿先の決定が `flag.FlagSet.Visit` による「フラグが現れたか」で行われ、設計書 3.10 の表の拒否の順と文言のとおりで、README のフラグの表に `--slack` の行が加わって `TestREADMEDocumentsCLI` が通り、`--out` を必須とする記述が残らないこと（ステップ 6-2・6-3） / `SLACK_WEBHOOK_URL` の未設定・`http2debug` の警告・`configuredSecrets` の `SensitiveParts` の追加が、副作用より前の正しい位置にあること（ステップ 6-3〜6-5） / `testDeps` と `newRunEnv` の既定の `newSlackPublisher` が送らずに失敗し、ループバックの送信先を使う差し替えと子プロセスのモードが正しく動くこと（ステップ 6-6・6-7） / 投稿中の SIGINT・SIGTERM が別プロセスで終了コード `1` と AC-44 の各項目を満たし、投稿の成功後に受けたシグナルが終了コード `0` になること（ステップ 6-8）
 
 **実装モデル要件**: frontier-required
 
