@@ -798,11 +798,16 @@ AC-23 の「表示の手段のそれぞれで確かめる」は、ポップア�
 
 ### 3.12. #109 への入力の調査（F-007・AC-24）
 
-本節の観測は、本書の作成時に Chromium 141.0.7390.37（Playwright 同梱、Linux、headless）で、パッケージ化されていない一時的な拡張と、`127.0.0.1` で待ち受ける一時的なサーバで行った。一時的な拡張とサーバはリポジトリに含めていない（要件書 F-007）。macOS の Chrome・Brave と YouTube の動画ページでの確認は、本書の作成時の環境ではできなかった（YouTube へのアクセスはネットワークの設定で拒否された）。残る項目は 3.12.4 にまとめ、承認の前に記録する。
+本節の観測は、本書の作成時に Chromium 141.0.7390.37（Playwright 同梱、Linux、headless）で、パッケージ化されていない一時的な拡張と、`127.0.0.1` で待ち受ける一時的なサーバで行った。一時的な拡張とサーバはリポジトリに含めていない（要件書 F-007）。macOS の Chrome・Brave と YouTube の動画ページでの確認は、本書の作成時の環境ではできなかった（YouTube へのアクセスはネットワークの設定で拒否された）。これらの項目は 3.12.4 にまとめ、後から macOS の Chrome・Brave で確かめて各節に記録した。
 
 #### 3.12.1. 拡張 ID と `Origin` ヘッダ
 
-**拡張 ID:** 3.1 の手順で生成する。値は未記録（3.12.4）。`Origin` ヘッダの値は `chrome-extension://<拡張 ID>` になる（下記の観測で、拡張 ID の部分は読み込んだ拡張の ID と一致した）。
+**拡張 ID:** 2026-10-07 に 3.1 の手順で生成した（OpenSSL で RSA 2048 ビットの鍵の組を生成し、公開鍵を DER の SubjectPublicKeyInfo にした後、秘密鍵を削除した）。値は次のとおりである。
+
+-   拡張 ID: `clfmbbcdpnjcefbdihdoahomaifbabkk`
+-   `key`: `MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnU2b5FZCPsoONgwnZlFVL01Q4KeHUyrvB/8eTHAd5gPu4pGTjok+w4TkAOa8GVswtrSHZBivGzYiTHPlzO+9IfVS7EkFiPOJJo5cQoXc8KODqW2LXawvdIqUe7n5gUfM8xuNtkRW/ipQEkKY3t0SyEPZjTVECWxokr8ViY5rSFQ7GHgjGIf/QAPwvklr9QzovW8ZWOghnv2GLUbIu71ONgJ3UZOfwm5/qCbehMGG1kUBqdUuXPoz4BzEE8rf/LPfQF368xtnOF4tC6qrZbtdBXM8w7shVqRx77y/QZbrDBwpPdS2QCeSYGk3/5u3zmTwWrOfrctYXC712/EMoc88zQIDAQAB`
+
+拡張 ID は、`key` を base64 から戻した DER の SHA-256 から 3.1 の計算で求めた。`Origin` ヘッダの値は `chrome-extension://clfmbbcdpnjcefbdihdoahomaifbabkk` になる（下記の観測で、拡張 ID の部分は読み込んだ拡張の ID と一致した）。
 
 **`Origin` ヘッダの観測（Chromium 141）:** service worker と拡張のページ（ポップアップと同じ `chrome-extension://` のオリジンのページをタブで開いたもの）のそれぞれから、`fetch` で `http://127.0.0.1:<port>/` へ送った。
 
@@ -814,16 +819,42 @@ AC-23 の「表示の手段のそれぞれで確かめる」は、ポップア�
 | なし | `POST`（`text/plain`） | `chrome-extension://<ID>` | `cross-site` | 読めない。リクエストはサーバに届く |
 | なし | `POST`（`application/json`） | `chrome-extension://<ID>` | `cross-site` | preflight（`OPTIONS`）だけが届き、本体は送られない |
 
-service worker と拡張のページで結果は同じだった。#109 への含意は次のとおりである。
+service worker と拡張のページで結果は同じだった。
+
+**macOS の Chrome・Brave での観測（Chrome 154.0.8037.98・Brave 1.96.61、2026-10-07）:** 3.1 の `key` を持ち `host_permissions` に `http://127.0.0.1/*` を宣言した一時的な拡張と、`key` も `host_permissions` も持たない一時的な拡張を読み込み、実際のポップアップと service worker から同じリクエストを送った。結果は上の表と同じだった。`key` を持つ拡張の `Origin` は `chrome-extension://clfmbbcdpnjcefbdihdoahomaifbabkk` で、3.1 の計算で求めた拡張 ID と一致した。拡張からのリクエストには許可の確認が出ず、確認を待たずにサーバに届いた。Brave でも、`key` を持つ拡張の `Origin` を含め、すべて Chrome と同じ結果だった。
+
+**Local Network Access（macOS の Chrome 154・Brave 1.96）:** 公開のページ（`https://example.com`）の DevTools のコンソールから、`127.0.0.1` へ `POST`（`text/plain`、`mode: "no-cors"`）を送った。
+
+-   Chrome は「このデバイス上の他のアプリやサービスにアクセスする」の許可の確認を表示し、利用者が答えるまでリクエストを送らなかった（サーバに届かなかった）。
+-   「許可する」を選ぶと、リクエストはサーバに届いた。`Origin` は `https://example.com`、`Sec-Fetch-Site` は `cross-site` だった。ページが受け取った応答は `type: "opaque"`・`status: 0` で、ページは応答の中身を読めなかった。
+-   Brave も許可の確認を表示し、許可の後にリクエストがサーバに届いた。届いたリクエストのヘッダは Chrome と同じだった。
+
+#109 への含意は次のとおりである。
 
 -   `Origin` で送り元を確かめるなら、`POST` に限る。`host_permissions` を持つ拡張の `GET` には `Origin` が付かない。
 -   `Origin` がないリクエストを受理しない。
--   `host_permissions` がなくても、preflight が不要な `POST`（`text/plain` など）はサーバに届く。応答を読めないだけなので、サーバはリクエストを確かめる前に副作用を起こしてはならない。ウェブページからの同じ形のリクエストも届きうる（Chrome の Local Network Access の制限が及ぶかは未確認。3.12.4）。
+-   `host_permissions` がなくても、preflight が不要な `POST`（`text/plain` など）はサーバに届く。応答を読めないだけなので、サーバはリクエストを確かめる前に副作用を起こしてはならない。ウェブページからの同じ形のリクエストも届きうる。macOS の Chrome 154 と Brave 1.96 では、Local Network Access の許可の確認が、ウェブページからのリクエストを止める。利用者がそのサイトに許可を与えると、リクエストは届く。したがって、この確認だけに頼ってはならない。
 -   `Origin` は送り元の認証にならない。拡張 ID は公開の `key` から決まり、同じ `key` を使えば誰でも同じ拡張 ID の拡張を読み込める。ブラウザの外のプロセスは任意の `Origin` を付けられる。`Origin` の確認で防げるのは、ブラウザが送るウェブページからのリクエストだけである。共有トークンは省略できない。
 
 #### 3.12.2. チャンネル名・概要欄
 
 リポジトリの `testdata/` の HTML の抜粋は文字起こしパネルの要素だけで、チャンネル名と概要欄を含まない（testdata/README.md「文字起こしパネルの HTML の抜粋」）。動画ページの DOM は、リポジトリの外のスナップショット（security.md §7 の `${YT2COLUMN_SNAPSHOT_DIR:-...}`）か、ブラウザの DevTools で確かめる（3.12.4）。
+
+**macOS の Chrome での観測（Chrome 154.0.8037.98、2026-10-07）:** 2 本の動画の動画ページを DevTools のコンソールから調べた。1 本目は直接開き、2 本目へは関連動画のリンクからページ内で移動した。2 本目は再読み込みの後にも調べた。セレクタはいずれも `ytd-watch-metadata` の下の要素を指す。
+
+| 項目 | 観測 |
+|---|---|
+| チャンネル名 | `ytd-channel-name a` と `#owner #channel-name #text` が、それぞれ 1 つの要素に一致し、どちらもチャンネル名の文字列だけを含んでいた。ページ内の移動の後は、移動先の動画のチャンネル名に変わった |
+| 概要欄（折りたたまれた状態） | 表示されているのは先頭の一部（`#attributed-snippet-text`。2 本の動画で 36 文字と 144 文字）だけで、全文は DOM になかった。全文を入れる `#expanded yt-attributed-string` は空だった。概要欄の要素（`ytd-text-inline-expander`）には、ほかに表示されていない構造化された情報（言及された人物、文字起こしの節、チャンネルの情報カードなど）があり、その `textContent` は概要欄の文字列ではない |
+| 概要欄（開いた後） | 「…もっと見る」で開くと、`#expanded yt-attributed-string` に全文（1 本目で 1049 文字）が入った。先頭の一部の要素はそのまま残った |
+| 概要欄（ページ内の移動の後） | 移動先の動画の値に変わり、概要欄は折りたたまれた状態に戻った（`#expanded` は再び空になった） |
+| `window.ytInitialPlayerResponse` | 直接開いた直後でも `undefined` で、チャンネル名・概要欄の取得には使えなかった |
+
+#109 への含意は次のとおりである。
+
+-   チャンネル名は、利用者が起動したときの DOM から読める。
+-   概要欄の全文は、利用者が概要欄を開いていなければ DOM にない。読めるのは、開いていればその全文、開いていなければ先頭の一部である。拡張が全文を得るには、「…もっと見る」を押してページを操作する必要がある。ページを読むだけの本タスクの拡張とは異なる振る舞いになるので、行うかは #109 で決める。
+-   どちらも本タスクの観測の時点の構造である。
 
 どちらの値も、YouTube が独自に定義した要素（カスタム要素）の構造に依存する。この構造は公開の仕様ではなく、YouTube が予告なく変えうる。#109 は、チャンネル名と概要欄を必須の項目にしないことを前提に API を定義するのが安全である。本タスクは実装しない（要件書 F-007）。
 
@@ -831,7 +862,7 @@ service worker と拡張のページで結果は同じだった。#109 への含
 
 受け渡しの方法は、利用者がサーバの起動時に表示されたトークンを、拡張のオプションページ（`options_ui`）に貼り付ける方法を候補とする。オプションページは拡張のページなので、ほかの拡張とウェブページは、その入力欄にも、拡張が保存した値にも触れられない。
 
-保存先の候補を比べる。「注入した関数から」の欄は、Chromium 141 で、`scripting.executeScript` で注入した関数（isolated world）から読めるかを試した結果である。
+保存先の候補を比べる。「注入した関数から」の欄は、Chromium 141 で、`scripting.executeScript` で注入した関数（isolated world）から読めるかを試した結果である。`local` と `session` の行は、macOS の Chrome 154.0.8037.98 と Brave 1.96.61 でも同じ結果だった（ポップアップから `https://example.com` のタブに注入した）。
 
 | 保存先 | 永続性 | ほかの拡張・ウェブページ | 注入した関数から | 備考 |
 |---|---|---|---|---|
@@ -847,12 +878,12 @@ service worker と拡張のページで結果は同じだった。#109 への含
 
 | 項目 | 記録する内容 |
 |---|---|
-| 拡張 ID | 3.1 の手順で生成した `key` と拡張 ID の値（3.12.1・README・security.md） |
-| `Origin` の観測（macOS） | 3.12.1 の表を、macOS の Chrome と Brave（作業時点の安定版）で、実際のポップアップと service worker から送って確かめた結果 |
-| Local Network Access | macOS の Chrome・Brave で、ウェブページ（`https://` の公開のページ）から `127.0.0.1` への `POST`（`text/plain`）が届くか。拡張からのリクエストに許可の確認が出るか |
-| `storage` の観測（macOS） | 3.12.3 の表の「注入した関数から」を、macOS の Chrome と Brave で確かめた結果 |
-| チャンネル名 | チャンネル名を含む要素とそれを特定するセレクタ、ページ内の移動の後に移った先の値に更新されるか |
-| 概要欄 | 概要欄の全文を含む要素（折りたたまれた状態でも DOM に全文があるか）、ページ内の移動の後に更新されるか |
+| 拡張 ID | 記録済み（3.12.1）。README・security.md への記載は実装で行う（3.13） |
+| `Origin` の観測（macOS） | 記録済み（3.12.1） |
+| Local Network Access | 記録済み（3.12.1） |
+| `storage` の観測（macOS） | 記録済み（3.12.3） |
+| チャンネル名 | 記録済み（3.12.2） |
+| 概要欄 | 記録済み（3.12.2） |
 
 ### 3.13. コンポーネント責務表
 
