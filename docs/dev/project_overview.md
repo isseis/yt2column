@@ -88,16 +88,18 @@ testdata/                 # json3・info.json のサンプル、文字起こし�
 
 ## 設定（環境変数）
 
-| 変数 | 説明 |
-|---|---|
-| `YT2COLUMN_LLM_PROVIDER` | `deepseek`（デフォルト）。将来 `gemini` \| `claude` を追加 |
-| `YT2COLUMN_MODEL` | LLM のモデル名。プロバイダに合ったものを指定（例: `deepseek-flash`） |
-| `DEEPSEEK_API_KEY` | DeepSeek 用 |
-| `GEMINI_API_KEY` | Gemini 実装を追加したとき用 |
-| `ANTHROPIC_API_KEY` | Claude 実装を追加したとき用 |
-| `SLACK_WEBHOOK_URL` | 投稿先の Slack Incoming Webhook URL |
-| `YT2COLUMN_CACHE_DIR` | 字幕・info.json のキャッシュディレクトリ |
-| `YT2COLUMN_YTDLP_PATH` | 省略時は PATH 上の `yt-dlp` を使う |
+| 変数 | 説明 | 未設定のとき |
+|---|---|---|
+| `YT2COLUMN_LLM_PROVIDER` | `deepseek` のみ受理。将来 `gemini`／`claude` を追加 | `deepseek` |
+| `YT2COLUMN_MODEL` | LLM のモデル名。プロバイダに合ったものを指定（例: `deepseek-flash`） | エラー（必須） |
+| `DEEPSEEK_API_KEY` | DeepSeek 用 | プロバイダが `deepseek` ならエラー |
+| `GEMINI_API_KEY` | Gemini 実装を追加したとき用 | （未実装） |
+| `ANTHROPIC_API_KEY` | Claude 実装を追加したとき用 | （未実装） |
+| `SLACK_WEBHOOK_URL` | 投稿先の Slack Incoming Webhook URL | 値なし |
+| `YT2COLUMN_CACHE_DIR` | 字幕・info.json のキャッシュディレクトリ | 利用者のキャッシュディレクトリの下の `yt2column`（macOS は `$HOME/Library/Caches/yt2column`） |
+| `YT2COLUMN_YTDLP_PATH` | `PATH` 上の `yt-dlp` を使う | `PATH` 上の `yt-dlp` |
+
+値は前後の空白を取り除くなどの補正をせず、空の値は「未設定」ではなくエラーとして扱う。
 
 ## 開発ルール
 

@@ -8,7 +8,7 @@
 | Created | 2026-10-05 |
 | Review date | 2026-10-05 |
 | Reviewer | isseis |
-| Comments | 編集上の修正（2026-10-06）: PR-9 作成ポイントのレビュー観点で、ステップ 7-1 の処理順（エスケープ → 伏せ字化）に合わせて「伏せ字化 → エスケープ」を「エスケープ → 伏せ字化」に直した。決定の変更はない。 編集上の修正（2026-10-06）: PR #96 のレビューで、最初のシグナルの直後に届いた 2 回目のシグナルが捨てられうることが分かり、ステップ 7-4 の手段の記述（購読を止める時点）を実装に合わせて直した。決定の変更はない（2 回目のシグナルで終了する、という設計書 3.8 の決定は同じ）。 実装に伴う追記（2026-10-06）: フェーズ 8 で、ステップ 8-2 に `TestValidateEnvNames`、8-4 に `integrationOptions` の変数と `TestIntegrationOptionsSkipMissingKey`、8-6・8-7 に `gateCLIIntegration` とその確かめ方を書き加え、8-8 の件数を 13 に改めた。いずれも既存の決定を具体化するもので、決定の変更はない。 実装に伴う修正（2026-10-07）: `/code-review` の指摘で、ステップ 8-2 の `make` の補助の引数（記録する変数の一覧とモデル名の変数を `make.go` の定義へ移す）と、共通の確認 `CheckChargedTarget` を書き改めた。決定の変更はない。 実装に伴う修正（2026-10-07）: PR-11 のレビューの指摘で、`security.md` §2 の統合テストの例外の更新をステップ 9-3（PR-12）から PR-11 へ前倒しした。ステップ 9-3 には `http2debug` の警告の記述が残る。 |
+| Comments | 編集上の修正（2026-10-06）: PR-9 作成ポイントのレビュー観点で、ステップ 7-1 の処理順（エスケープ → 伏せ字化）に合わせて「伏せ字化 → エスケープ」を「エスケープ → 伏せ字化」に直した。決定の変更はない。 編集上の修正（2026-10-06）: PR #96 のレビューで、最初のシグナルの直後に届いた 2 回目のシグナルが捨てられうることが分かり、ステップ 7-4 の手段の記述（購読を止める時点）を実装に合わせて直した。決定の変更はない（2 回目のシグナルで終了する、という設計書 3.8 の決定は同じ）。 実装に伴う追記（2026-10-06）: フェーズ 8 で、ステップ 8-2 に `TestValidateEnvNames`、8-4 に `integrationOptions` の変数と `TestIntegrationOptionsSkipMissingKey`、8-6・8-7 に `gateCLIIntegration` とその確かめ方を書き加え、8-8 の件数を 13 に改めた。いずれも既存の決定を具体化するもので、決定の変更はない。 実装に伴う修正（2026-10-07）: `/code-review` の指摘で、ステップ 8-2 の `make` の補助の引数（記録する変数の一覧とモデル名の変数を `make.go` の定義へ移す）と、共通の確認 `CheckChargedTarget` を書き改めた。決定の変更はない。 実装に伴う修正（2026-10-07）: PR-11 のレビューの指摘で、`security.md` §2 の統合テストの例外の更新をステップ 9-3（PR-12）から PR-11 へ前倒しした。ステップ 9-3 には `http2debug` の警告の記述が残る。 編集上の修正（2026-10-07）: 散文の意味は文字列一致では保証できないため、ステップ 9-4 から `TestREADMEDocumentsCLI` の案内の確認と `TestSecurityDocumentsCLIIntegration` を外し、機械的に確かめられる構造と契約値だけを固定するようにした（ガイドの「計画が再割り当てしたテスト」に当たる編集上の修正）。AC-43 の散文の部分（同時実行・SIGKILL・`--refresh` の案内、パーミッション `0o644` とハードリンク、統合テストの実行方法、`security.md` §2 の `http2debug` の警告と統合テストの例外）は、ステップ 9-7 の照合対象に挙げて突き合わせる。決定の変更はない。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -524,8 +524,8 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 9: 文書と手動確認
 
@@ -535,18 +535,20 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 -   変更: 本計画（ステップ 9-5・9-6 の記録）
 
 **タスク**
--   [ ] **ステップ 9-1**: `README.md` に、要件書 F-010 の README の項目すべてと、記事のファイルのパーミッション `0o644`、出力先のディレクトリにハードリンクを作れる必要があること（設計書 3.5・3.12）を書く。終了コードは見出し付きの表にする。`Configuration` の表に未設定のときの値の列を加える。`Development` の一覧と統合テストの節に `make test-integration-cli` を加える。
--   [ ] **ステップ 9-2**: `project_overview.md` の「設定（環境変数）」の表に、F-001 の未設定のときの値を反映する。
--   [ ] **ステップ 9-3**: `security.md` §2 に、CLI は `GODEBUG` の `http2debug` を拒否せず警告にとどめることを書く。実在の API キーを使う統合テストの例外に `cmd/yt2column/integration_test.go` と `make test-integration-cli`・`YT2COLUMN_CLI_INTEGRATION` を加えることは、課金の経路を加える PR-11 で行った（PR-11 のレビューで、§2 が課金の経路を 1 つとする記述のままでは事実と食い違うと指摘されたため）。
--   [ ] **ステップ 9-4**: 文書の記載を確かめるテストを作る（AC-43・AC-32・AC-33 の `static`）。期待する値は要件書（F-001 の表の未設定のときの値など）から取り、テストの対象のコードから導かない。
-    -   `cmd/yt2column/docs_test.go::TestREADMEDocumentsCLI`: 要件書 F-010 の README の項目すべてが README に現れること。対象は、呼び出し形式（`yt2column [flags] <動画 URL>` の形）、`run` の `flag.FlagSet` のすべてのフラグ、終了コードの表の `0`・`1`・`2` の行、`Configuration` の表の要件書 F-001 の 6 つの変数の行と、各行の未設定のときの値が F-001 の表の値と一致すること、同時実行は排他され後発が失敗することの案内、SIGKILL で終了させた場合に `yt-dlp` が残りうり、その終了まで次の実行が同時実行として失敗することの案内、キャッシュの内容が不正な場合に `--refresh` で回復できることの案内、統合テストの実行方法（`make test-integration-cli`）である。
+-   [x] **ステップ 9-1**: `README.md` に、要件書 F-010 の README の項目すべてと、記事のファイルのパーミッション `0o644`、出力先のディレクトリにハードリンクを作れる必要があること（設計書 3.5・3.12）を書く。終了コードは見出し付きの表にする。`Configuration` の表に未設定のときの値の列を加える。`Development` の一覧と統合テストの節に `make test-integration-cli` を加える。
+-   [x] **ステップ 9-2**: `project_overview.md` の「設定（環境変数）」の表に、F-001 の未設定のときの値を反映する。
+-   [x] **ステップ 9-3**: `security.md` §2 に、CLI は `GODEBUG` の `http2debug` を拒否せず警告にとどめることを書く。実在の API キーを使う統合テストの例外に `cmd/yt2column/integration_test.go` と `make test-integration-cli`・`YT2COLUMN_CLI_INTEGRATION` を加えることは、課金の経路を加える PR-11 で行った（PR-11 のレビューで、§2 が課金の経路を 1 つとする記述のままでは事実と食い違うと指摘されたため）。
+-   [x] **ステップ 9-4**: 文書の記載を確かめるテストを作る（AC-43・AC-32・AC-33 の `static`）。期待する値は要件書（F-001 の表の未設定のときの値など）から取り、テストの対象のコードから導かない。
+    -   `cmd/yt2column/docs_test.go::TestREADMEDocumentsCLI`: README の機械的に確かめられる部分。対象は、呼び出し形式（`yt2column [flags] <動画 URL>` の形）、`run` の `flag.FlagSet` のすべてのフラグ、終了コードの表の `0`・`1`・`2` の行、`Configuration` の表の要件書 F-001 の 6 つの変数の行と、各行の未設定のときの値が F-001 の表の値と一致することである。振る舞いを述べる散文（同時実行・SIGKILL・`--refresh` の案内、パーミッション `0o644`、ハードリンク、統合テストの実行方法）は、文字列一致では意味を保証できないので固定しない（ステップ 9-7 で実装と突き合わせる）。
     -   `cmd/yt2column/docs_test.go::TestProjectOverviewDocumentsConfig`: `project_overview.md` の「設定（環境変数）」の表に 6 つの変数の行があり、各行の未設定のときの値が F-001 の表の値と一致すること。
-    -   `cmd/yt2column/docs_test.go::TestSecurityDocumentsCLIIntegration`: `security.md` §2 が `test-integration-cli`・`YT2COLUMN_CLI_INTEGRATION`・`http2debug` の警告を含むこと。
+    -   `security.md` §2 の記載（`http2debug` の警告、統合テストの例外）は、文字列一致では意味を保証できないのでテストで固定せず、ステップ 9-7 で実装と突き合わせる。
     -   `cmd/yt2column/docs_test.go::TestPlanRecordsManualRuns`（AC-32・AC-33）: 本計画にステップ 9-5・9-6 が完了条件として存在し、チェック済み（`[x]`）のステップには、使用した動画 URL と結果の記録があること。実際の実行が行われたことそのものは確かめられないので、ステップ 9-5・9-6 の `manual` で補う。
     -   `internal/pipeline/pipeline_test.go::TestPackageReferenceListsPackages`: `cmd/`・`internal/` の下の、本番のコード（`_test.go` でなく、テスト用のタグだけでビルドされるのでもない `.go`。`//go:build unix` の `internal/cachelock` を含む）を持つディレクトリ、`testutil/` のディレクトリ、`prompts` が、`package_reference.md` の表の行になっていること（リポジトリ全体のガードなので、既存のガードと同じファイルに置く）。
--   [ ] **ステップ 9-5**（AC-32、手動、利用者の承認が必要）: 日本語字幕のある実際の動画 1 本で CLI を実行し、記事が `--out` のファイルに書き出されることを確かめる。使用した動画 URL と結果（終了コード、出力のファイルの見出し、`Model`）を本ステップの下に記録する。
--   [ ] **ステップ 9-6**（AC-33、手動、利用者の承認が必要）: ステップ 9-5 と同じ動画に `--keep-cache` を付けて 1 回実行してキャッシュを残した後、`--refresh` を付けて実行し、`yt-dlp` が再実行されたことを、キャッシュのポインタが指すスロットの切り替わり（`a` ↔ `b`）で確かめる。各実行の `--out` には、まだ存在しない別のパスを指定する。使用した動画 URL と結果を本ステップの下に記録する。
--   [ ] **ステップ 9-7**: 文書の内容を実装と突き合わせて読む。突き合わせる先: フラグの定義（`run.go`）、未設定のときの値（`internal/config` の `cachedir.go` と `Load`）、終了コード（設計書 3.8 の実行経路の一覧）、同時実行・SIGKILL・`--refresh` の説明（`internal/cachelock`・`internal/job` の振る舞いとステップ 7-8 のテスト）、`Makefile` のターゲット。壊して失敗することを確かめ（README からフラグを 1 つ消す、終了コードの表の行を消す、README から同時実行・SIGKILL・`--refresh` の案内を 1 つずつ消す、README と `project_overview.md` の未設定のときの値を 1 つ書き換える、`package_reference.md` から行を 1 つ消す、チェック済みにしたステップ 9-5 の記録を消す）、コミットメッセージに記録する。`make fmt` → `make test` → `make lint` を通す。
+-   [x] **ステップ 9-5**（AC-32、手動、利用者の承認が必要）: 日本語字幕のある実際の動画 1 本で CLI を実行し、記事が `--out` のファイルに書き出されることを確かめる。使用した動画 URL と結果（終了コード、出力のファイルの見出し、`Model`）を本ステップの下に記録する。
+    -   実施: 2026-10-07。動画 URL: `https://www.youtube.com/watch?v=2tcCWM-sRBw`。結果: 終了コード `0`。`--out` のファイル（パーミッション `0o644`）の見出しは「ことばを越えて届くもの——ネパール人留学生たちの日本語スピーチコンテスト」、`Model` は `deepseek-flash`、`ModelVersion` は `aeb56401ca74e127821c4f9126dcb669`。標準出力・標準エラー出力・記事のいずれにも API キーの値と末尾 8 文字は現れなかった。
+-   [x] **ステップ 9-6**（AC-33、手動、利用者の承認が必要）: ステップ 9-5 と同じ動画に `--keep-cache` を付けて 1 回実行してキャッシュを残した後、`--refresh` を付けて実行し、`yt-dlp` が再実行されたことを、キャッシュのポインタが指すスロットの切り替わり（`a` ↔ `b`）で確かめる。各実行の `--out` には、まだ存在しない別のパスを指定する。使用した動画 URL と結果を本ステップの下に記録する。
+    -   実施: 2026-10-07。動画 URL: `https://www.youtube.com/watch?v=2tcCWM-sRBw`。1 回目（`--keep-cache`、`--out` は未存在パス）の終了コードは `0` で、ポインタ（`2tcCWM-sRBw.current`）は `a`。2 回目（`--refresh --keep-cache`、別の未存在パス）の終了コードも `0` で、ポインタは `b` に切り替わり、`yt-dlp` が再実行されたことを確認した。結果の記事の見出し・`Model` は 1 回目と同じ。
+-   [x] **ステップ 9-7**: 文書の内容を実装と突き合わせて読む。突き合わせる先: フラグの定義（`run.go`）、未設定のときの値（`internal/config` の `cachedir.go` と `Load`）、終了コード（設計書 3.8 の実行経路の一覧）、同時実行・SIGKILL・`--refresh` の説明（`internal/cachelock`・`internal/job` の振る舞いとステップ 7-8 のテスト）、README のパーミッション `0o644` とハードリンク要件（`internal/publisher/file.go`）、README の統合テストの実行方法（`Makefile` の `make test-integration-cli`）、`security.md` §2 の `http2debug` の警告（`cmd/yt2column/run.go` の警告）と統合テストの例外（`cmd/yt2column/integration_test.go`・`make test-integration-cli`・`YT2COLUMN_CLI_INTEGRATION`）、`Makefile` のターゲット。自動のテストで固定している項目（README のフラグ・終了コード・未設定のときの値、`package_reference.md` の行、チェック済みのステップ 9-5 の記録）は壊して失敗することを確かめ（README からフラグを 1 つ消す、終了コードの表の行を消す、README と `project_overview.md` の未設定のときの値を 1 つ書き換える、`package_reference.md` から行を 1 つ消す、チェック済みにしたステップ 9-5 の記録を消す）、散文の項目は突き合わせて読むことで確かめる。結果をコミットメッセージに記録する。`make fmt` → `make test` → `make lint` を通す。
 
 ### PR-12 作成ポイント: documentation and manual verification
 
@@ -560,8 +562,8 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 
 **判定理由**: 文書の更新・文書のテスト・手動確認に限られ、競合する実装方針の併記・高リスクな制御・パネルモードのトリガー・2 つ以上の Conditional check のいずれにも該当しないため。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
@@ -685,7 +687,7 @@ PR はフェーズを基本の単位とし、高リスクなステップを含�
 | AC-40 | `cmd/yt2column/makefile_test.go::TestCLIIntegrationSettings`、`internal/llm/deepseek/testutil/integration_settings_test.go::TestSettingsFrom`、統合テストが判定に従うこと（ステップ 8-6 の検証事項） | test | 8-1・8-6・8-7 | 8-3・8-6 |
 | AC-41 | `cmd/yt2column/integration_test.go::TestIntegrationCLI`（`make test-integration-cli`）、ステップ 8-11 の記録 | test・manual | 1-6・8-5・8-7 | 8-7・8-11 |
 | AC-42 | `cmd/yt2column/makefile_test.go::TestCLIIntegrationTestBuildTag`、`internal/transcript/ytdlp_test.go::TestLintTagsIncludeIntegration`（`go vet -tags integration` の行）、`make lint` | static | 8-5・8-7 | 8-6 |
-| AC-43 | `cmd/yt2column/docs_test.go::TestREADMEDocumentsCLI`・`::TestProjectOverviewDocumentsConfig`・`::TestSecurityDocumentsCLIIntegration`、`internal/pipeline/pipeline_test.go::TestPackageReferenceListsPackages`、ステップ 9-7 の突き合わせ | static・manual | 1-9・2-6・3-3・4-4・5-3・6-5・7-9・8-8・9-1〜9-3 | 9-4・9-7 |
+| AC-43 | `cmd/yt2column/docs_test.go::TestREADMEDocumentsCLI`・`::TestProjectOverviewDocumentsConfig`、`internal/pipeline/pipeline_test.go::TestPackageReferenceListsPackages`、ステップ 9-7 の突き合わせ（散文の確認を含む） | static・manual | 1-9・2-6・3-3・4-4・5-3・6-5・7-9・8-8・9-1〜9-3 | 9-4・9-7 |
 | AC-44 | `cmd/yt2column/run_test.go::TestRunExecutionPaths`・`::TestRunHelp`、`cmd/yt2column/signal_test.go::TestSignalDuringYtDlp`・`::TestSignalDuringGenerate` | test | 6-2・7-1・7-3・7-4 | 7-7・7-8 |
 | AC-45 | `cmd/yt2column/signal_test.go::TestSignalDuringYtDlp`、`internal/transcript/exec_test.go::TestCommandExecutorKillsProcessGroup`、`main` の購読の経路（ステップ 7-5 の検証事項） | test | 1-5・6-2・7-4 | 1-5・7-8 |
 | AC-46 | `internal/publisher/file_test.go::TestFilePublisherWriteFailure` | test | 4-1 | 4-2 |
@@ -698,7 +700,7 @@ PR はフェーズを基本の単位とし、高リスクなステップを含�
 
 -   **AC-32・AC-33 の `static` と `manual` の分担:** 両 AC は、実際の動画に対する手動の実行を本計画の完了条件に含め、その結果を本計画に記録することを求める。完了条件のステップがあることと、チェック済みのステップに動画 URL と結果の記録があることは、`TestPlanRecordsManualRuns` が `static` で確かめる。実際の実行そのものは、実 `yt-dlp` と実 LLM API を使い利用者の承認が要る（§1.2）ので、自動の検証には置き換えられず、ステップ 9-5・9-6 の `manual` で行う。
 -   **AC-41 の「テストの出力」:** テストが標準出力・標準エラー出力・`--out` のファイルを確かめる部分は `test` である。テスト自身のログに API キーが出ないことは、ステップ 8-7 の書き方（確かめるまで書かない）と、ステップ 8-11 で実際の出力を確かめる `manual` で補う。
--   **AC-43 の `static` と `manual` の分担:** 文書のテストは、要件書 F-010 の各項目が各文書に現れること、表の形、未設定のときの値が要件書 F-001 の表と一致することを確かめる。説明の文面が実装の振る舞いと正しく一致することは、ステップ 9-7 で突き合わせる先を挙げて確かめる。
+-   **AC-43 の `static` と `manual` の分担:** 文書のテストは、機械的に確かめられる構造と契約値（README の呼び出し形式・フラグ・終了コード・設定の既定値、`project_overview.md` の設定表、`package_reference.md` のパッケージ一覧）を確かめる。散文の意味（同時実行・SIGKILL・`--refresh` の案内、パーミッション `0o644` とハードリンク、統合テストの実行方法、`security.md` §2 の `http2debug` の警告と統合テストの例外）は文字列一致では保証できないので文書のテストでは固定せず、ステップ 9-7 で実装と突き合わせて確かめる。
 
 ## 6. リスク管理 (Risk Management)
 
