@@ -104,7 +104,9 @@ flowchart LR
 
 ### 2.1. パッケージ構成
 
-**図2 パッケージの依存。** 矢印 A → B は「A が B を import する」を表す。本タスクで加わる import だけを示す。実線は本番のビルド、点線はテスト用のビルド（`test` または `integration` のタグ）だけの import である。
+パッケージの依存は、本番のビルドの import（図2-1）と、テスト用のビルド（`test` または `integration` のタグ）だけの import（図2-2）に分けて示す。どちらの図も、矢印 A → B は「A が B を import する」を表し、本タスクで加わる import だけを示す。
+
+**図2-1 本番のビルドの依存。**
 
 ```mermaid
 flowchart LR
@@ -116,29 +118,58 @@ flowchart LR
     CFG["internal/config"]
     PUB["internal/publisher"]
     SW["internal/slackwebhook"]
-    SWTU["internal/slackwebhook/testutil"]
     SEC["internal/secret"]
-    LB["internal/loopbacktest"]
-    DS["internal/llm/deepseek"]
-    DSTU["internal/llm/deepseek/testutil"]
 
     MAIN --> SEC
     MAIN --> SW
     CFG --> SW
     PUB --> SW
     PUB --> SEC
-    PUB -.-> LB
-    PUB -.-> SWTU
-    DS -.-> LB
-    MAIN -.-> SWTU
-    DSTU -.-> SWTU
-    SWTU -.-> SW
-    SWTU -.-> CFG
-    SWTU -.-> SEC
 
     class SEC process
-    class MAIN,CFG,PUB,DS,DSTU enhanced
-    class SW,SWTU,LB newpkg
+    class MAIN,CFG,PUB enhanced
+    class SW newpkg
+
+    subgraph Legend["Legend"]
+        L2["既存（変更なし）"]
+        L3["既存の変更"]
+        L4["新規"]
+    end
+    class L2 process
+    class L3 enhanced
+    class L4 newpkg
+```
+
+**図2-2 テスト用のビルドだけの依存。** 本番のビルドの依存（図2-1）は省く。
+
+```mermaid
+flowchart LR
+    classDef process fill:#fff1e6,stroke:#ff7f0e,stroke-width:1px,color:#8a3e00;
+    classDef enhanced fill:#e8f5e8,stroke:#2e8b57,stroke-width:2px,color:#006400;
+    classDef newpkg fill:#ffe8f5,stroke:#d946ef,stroke-width:2px,color:#701a75;
+
+    MAIN["cmd/yt2column"]
+    PUB["internal/publisher"]
+    DS["internal/llm/deepseek"]
+    DSTU["internal/llm/deepseek/testutil"]
+    SWTU["internal/slackwebhook/testutil"]
+    LB["internal/loopbacktest"]
+    SW["internal/slackwebhook"]
+    CFG["internal/config"]
+    SEC["internal/secret"]
+
+    PUB --> LB
+    DS --> LB
+    PUB --> SWTU
+    MAIN --> SWTU
+    DSTU --> SWTU
+    SWTU --> SW
+    SWTU --> CFG
+    SWTU --> SEC
+
+    class SEC process
+    class MAIN,PUB,DS,DSTU,CFG enhanced
+    class SWTU,LB,SW newpkg
 
     subgraph Legend["Legend"]
         L2["既存（変更なし）"]
@@ -639,7 +670,7 @@ func SettingsFrom(getenv func(string) string, opts Options) Settings
 -   **CLI の Slack の統合テスト。** `deepseektestutil.SettingsFrom`（`OptInEnv` は `CLISlackOptInEnv`、欠けたキーは失敗）と `slackwebhooktestutil.SettingsFrom` の両方が実行と判定した場合だけ実行する。判定の補助は既存の `gateCLIIntegration`（`cmd/yt2column/test_helpers_integration.go:30-41`）と同じ形で同じファイルに置く。既存の `TestIntegrationCLI`（`cmd/yt2column/integration_test.go:37-129`）と同じく、testdata の字幕でキャッシュを置き、`yt-dlp` の代わりにトリップワイヤ（起動されたことを記録する実行ファイル。0005 の用語集）を指定し、`productionDeps()` で `run` を呼ぶ。`run` に与える環境（`lookupFrom` の map）に、テスト用の Webhook URL を `SLACK_WEBHOOK_URL` という名前で入れる。プロセスの環境変数は変えない。テストのファイルは `integration` のタグを持つので、`envaccess_test.go` の秘密の変数の名前の検査の対象外である（`envaccess_test.go:279-299` の `isTestCode`）。
 -   出力の検査は既存の `TestIntegrationCLI` と同じ考え方で、標準出力・標準エラー出力・テストの出力のどれにも、テスト用の Webhook URL とテスト用の API キー、およびそれぞれの末尾 8 文字（文字単位とバイト単位）が現れないことを、何かを出力する前に確かめる（AC-31）。
 -   `SlackWebhookPublisher` の統合テストは、固定の `Article`（LLM を呼ばない。メンションの記法を含まない）を `NewSlackWebhookPublisher` で構築したものに投稿し、エラーがないことを確かめる。記事は 2 つ以上に分割される長さとし、1 つ目のメッセージを ASCII の文字だけで上限ちょうど（分割の位置の表示を含めて 12,000 単位）にする。ASCII の文字では単位と文字数が一致するので、Slack が上限ちょうどのメッセージを受理することをここで確かめられる。テスト用のチャンネルでの表示は手動確認（F-009）で見る。
--   `make` のターゲットのテストは、既存の `cmd/yt2column/makefile_test.go` と `internal/llm/deepseek/makefile_test.go` と同じく `deepseektestutil.RunMakeTarget` で行う。`deepseektestutil.recordedEnv`（`make.go:43`）に `slackwebhooktestutil` の 2 つのオプトインの変数の定数を加え、各ターゲットが自分のオプトインだけをエクスポートすることを確かめる（AC-29・AC-32）。`RunMakeTarget` を中立なパッケージに移す案は、既存の 2 つの `makefile_test.go` の変更が要るので採らず、`deepseektestutil` から `slackwebhooktestutil` への import（図2）で済ませる。
+-   `make` のターゲットのテストは、既存の `cmd/yt2column/makefile_test.go` と `internal/llm/deepseek/makefile_test.go` と同じく `deepseektestutil.RunMakeTarget` で行う。`deepseektestutil.recordedEnv`（`make.go:43`）に `slackwebhooktestutil` の 2 つのオプトインの変数の定数を加え、各ターゲットが自分のオプトインだけをエクスポートすることを確かめる（AC-29・AC-32）。`RunMakeTarget` を中立なパッケージに移す案は、既存の 2 つの `makefile_test.go` の変更が要るので採らず、`deepseektestutil` から `slackwebhooktestutil` への import（図2-2）で済ませる。
 
 ### 3.13. 文書（F-010）
 
