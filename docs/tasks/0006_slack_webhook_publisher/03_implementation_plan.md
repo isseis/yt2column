@@ -154,21 +154,21 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 -   変更: `internal/config/config.go`・`config_test.go`、`docs/dev/developer_guide/package_reference.md`
 
 **タスク**
--   [ ] **ステップ 1-1**: `internal/slackwebhook/slackwebhook.go` に `ValidURL` と `SensitiveParts` を作る（設計書 3.2）。標準ライブラリだけに依存する。ホストが空でないことは `url.URL.Hostname()` で判定する（§1.3）。
--   [ ] **ステップ 1-2**: `slackwebhook_test.go` に次を作る。
+-   [x] **ステップ 1-1**: `internal/slackwebhook/slackwebhook.go` に `ValidURL` と `SensitiveParts` を作る（設計書 3.2）。標準ライブラリだけに依存する。ホストが空でないことは `url.URL.Hostname()` で判定する（§1.3）。
+-   [x] **ステップ 1-2**: `slackwebhook_test.go` に次を作る。
     -   `TestValidURL`: 受理する値（AC-01 の 2 つの URL、0005 で拒否していた `https://hooks.slack.com.example/services/x`・`https://HOOKS.SLACK.COM/services/x`・`https://hooks.slack.com/`）と、拒否する値（AC-03 の 4 つの値、E4 の 3 つの値、`https://:443/x`）。
     -   `TestSensitiveParts`: 返す部分（URL、パス、query、userinfo のそれぞれの元の形と `net/url` が書き出す形、最後のパスの要素、末尾 8 文字の文字単位とバイト単位）を、ASCII 以外の文字を含む URL と userinfo・query を持つ URL で確かめる。8 バイトに満たない部分（`https://host/a` の `a`、パス `/`）を返さないこと。
--   [ ] **ステップ 1-3**: `internal/config/config.go` を次のとおり変える（設計書 3.2・3.9）。
+-   [x] **ステップ 1-3**: `internal/config/config.go` を次のとおり変える（設計書 3.2・3.9）。
     -   `validSlackWebhook`（doc コメントを含む）を削除し、`loadSlackWebhook` は `slackwebhook.ValidURL` を呼ぶ。
     -   `reasonSlackWebhook` の値を `` `must start with "https://hooks.slack.com/" and contain no whitespace` `` から `"must be an https URL with a host"` に改める。
     -   `loadSlackWebhook` の doc コメントを `// loadSlackWebhook validates SLACK_WEBHOOK_URL. Unset is accepted; a present` / `// value must be a hooks.slack.com URL.` から `// loadSlackWebhook validates SLACK_WEBHOOK_URL. Unset is accepted; a present` / `// value must satisfy slackwebhook.ValidURL.` に改める。
     -   `RequireSlackWebhookURL` と `HTTP2DebugEnabledIn` を足し、`hasHTTP2Debug` は `HTTP2DebugEnabledIn` を呼ぶ。
--   [ ] **ステップ 1-4**: `internal/config/config_test.go` を更新する。
+-   [x] **ステップ 1-4**: `internal/config/config_test.go` を更新する。
     -   `TestLoadInvalid` の `slack webhook` の行（`config_test.go:172-178`）から、新しい規則で受理される 3 つの値を除き、AC-03 の 4 つの値、E4 の 3 つの値、`https://:443/x` を足す。除いた 3 つの値と AC-01 の Mattermost の URL は、受理を確かめるテスト `TestLoadSlackWebhookAccepted`（AC-03a。`Reveal` で元の値が得られること）に置く。
     -   AC-03 の 4 つの値の拒否のエラーの文言に、値もその末尾 8 文字も現れないことを確かめる。`TestLoadInvalid` には値の検査がないので、`TestLoadErrorsOmitValues`（`config_test.go` の目印の値を使うテスト）に、AC-03 の 4 つの形で目印を含む `SLACK_WEBHOOK_URL` の行を足す。
     -   `TestRequireSlackWebhookURL`: 未設定なら `SLACK_WEBHOOK_URL` を名前に持ち `ErrMissing` を包む `*VarError`、設定されていれば同じ値の `secret.Secret` を返すこと。
--   [ ] **ステップ 1-5**: `package_reference.md` に `internal/slackwebhook` の行を加え、`internal/config` の行の Webhook URL の規則の記述と公開の関数（`RequireSlackWebhookURL`・`HTTP2DebugEnabledIn`）を改める。
--   [ ] **ステップ 1-6**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `ValidURL` のスキームの検査を外す、ホストの検査を外す、ホストの検査を `Hostname()` から `Host` に替える（`https://:443/x` の行）、`url.Parse` の代わりに接頭辞の比較にする（AC-03 の改行の行）、`SensitiveParts` から `net/url` が書き出す形を外す、8 バイトの下限を外す、`RequireSlackWebhookURL` が未設定で nil のエラーを返す。`make fmt` → `make test` → `make lint` を通す。
+-   [x] **ステップ 1-5**: `package_reference.md` に `internal/slackwebhook` の行を加え、`internal/config` の行の Webhook URL の規則の記述と公開の関数（`RequireSlackWebhookURL`・`HTTP2DebugEnabledIn`）を改める。
+-   [x] **ステップ 1-6**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `ValidURL` のスキームの検査を外す、ホストの検査を外す、ホストの検査を `Hostname()` から `Host` に替える（`https://:443/x` の行）、`url.Parse` の代わりに接頭辞の比較にする（AC-03 の改行の行）、`SensitiveParts` から `net/url` が書き出す形を外す、8 バイトの下限を外す、`RequireSlackWebhookURL` が未設定で nil のエラーを返す。`make fmt` → `make test` → `make lint` を通す。
 
 ### PR-1 作成ポイント: shared webhook URL rule and config accessors
 

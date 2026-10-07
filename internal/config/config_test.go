@@ -170,12 +170,15 @@ func TestLoadInvalid(t *testing.T) {
 	}{
 		{"provider", providerEnv, []string{"DeepSeek", " deepseek", "deepseek ", "gemini", "claude"}},
 		{"slack webhook", slackEnv, []string{
-			"http://hooks.slack.com/services/x",
-			"https://hooks.slack.com.example/services/x",
-			"https://HOOKS.SLACK.COM/services/x",
-			"https://hooks.slack.com/",
+			"http://mattermost.example.com/hooks/x",
+			"mattermost.example.com/hooks/x",
+			"https:///hooks/x",
+			"https://mattermost.example.com/hooks/x\n",
+			"https://hooks.slack.com/services/%zz",
+			"https://hooks.slack.com/%",
+			"https://hooks.slack.com/services/x\x7f",
+			"https://:443/x",
 			" https://hooks.slack.com/services/x",
-			"https://hooks.slack.com/services/x\n",
 		}},
 		{"cache dir", cacheDirEnv, []string{"cache", "./cache", "~/cache"}},
 	}
@@ -192,6 +195,74 @@ func TestLoadInvalid(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestLoadSlackWebhookAccepted(t *testing.T) {
+	accepted := []string{
+		"https://mattermost.example.com/hooks/xxxxxxxxxxxxxxxxxxxxxxxxxx",
+		"https://hooks.slack.com/services/T000/B000/XXXX",
+		"https://hooks.slack.com.example/services/x",
+		"https://HOOKS.SLACK.COM/services/x",
+		"https://hooks.slack.com/",
+	}
+	for i, value := range accepted {
+		t.Run(fmt.Sprintf("case %d", i), func(t *testing.T) {
+			cfg, err := Load(envLookup(with(validEnv(), slackEnv, value)))
+			if err != nil {
+				t.Fatalf("Load() error = %v, want nil", err)
+			}
+			webhook, ok := cfg.SlackWebhookURL()
+			if !ok {
+				t.Fatal("SlackWebhookURL() reports unset, want set")
+			}
+			revealed, err := webhook.Reveal()
+			if err != nil {
+				t.Fatalf("SlackWebhookURL().Reveal() error = %v", err)
+			}
+			if revealed != value {
+				t.Errorf("SlackWebhookURL() = %q, want %q", revealed, value)
+			}
+		})
+	}
+}
+
+func TestRequireSlackWebhookURL(t *testing.T) {
+	t.Run("unset", func(t *testing.T) {
+		cfg, err := Load(envLookup(without(validEnv(), slackEnv)))
+		if err != nil {
+			t.Fatalf("Load() error = %v, want nil", err)
+		}
+		_, err = cfg.RequireSlackWebhookURL()
+		varErr, ok := errors.AsType[*VarError](err)
+		if !ok {
+			t.Fatalf("RequireSlackWebhookURL() error = %v, want *VarError", err)
+		}
+		if varErr.Name != slackEnv {
+			t.Errorf("VarError.Name = %q, want %q", varErr.Name, slackEnv)
+		}
+		if !errors.Is(err, ErrMissing) {
+			t.Errorf("RequireSlackWebhookURL() error = %v, want it to wrap ErrMissing", err)
+		}
+	})
+
+	t.Run("set", func(t *testing.T) {
+		const value = "https://mattermost.example.com/hooks/xxxxxxxxxxxxxxxxxxxxxxxxxx"
+		cfg, err := Load(envLookup(with(validEnv(), slackEnv, value)))
+		if err != nil {
+			t.Fatalf("Load() error = %v, want nil", err)
+		}
+		webhook, err := cfg.RequireSlackWebhookURL()
+		if err != nil {
+			t.Fatalf("RequireSlackWebhookURL() error = %v, want nil", err)
+		}
+		revealed, err := webhook.Reveal()
+		if err != nil {
+			t.Fatalf("Reveal() error = %v", err)
+		}
+		if revealed != value {
+			t.Errorf("Reveal() = %q, want %q", revealed, value)
+		}
+	})
 }
 
 func TestLoadErrorsOmitValues(t *testing.T) {
@@ -220,6 +291,10 @@ func TestLoadErrorsOmitValues(t *testing.T) {
 		{"model empty", with(base, modelEnv, "")},
 		{"API key empty", with(base, apiKeyEnv, "")},
 		{"slack webhook invalid", with(base, slackEnv, "http://"+markSlack)},
+		{"slack webhook no scheme", with(base, slackEnv, markSlack+"/hooks/x")},
+		{"slack webhook empty host", with(base, slackEnv, "https:///"+markSlack)},
+		{"slack webhook control character", with(base, slackEnv, "https://host/"+markSlack+"\n")},
+		{"slack webhook bad escape", with(base, slackEnv, "https://host/%zz"+markSlack)},
 		{"cache dir relative", with(base, cacheDirEnv, markCache)},
 		{"cache dir absent", without(base, cacheDirEnv)},
 		{"yt-dlp path empty", with(base, ytDlpEnv, "")},

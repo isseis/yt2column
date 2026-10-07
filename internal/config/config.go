@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"unicode"
 
 	"github.com/isseis/yt2column/internal/secret"
+	"github.com/isseis/yt2column/internal/slackwebhook"
 )
 
 // Provider is the LLM provider. Its zero value is ProviderUnset.
@@ -50,7 +50,7 @@ const (
 const (
 	reasonUnset          = "is unset or empty"
 	reasonProvider       = `must be exactly "deepseek"`
-	reasonSlackWebhook   = `must start with "https://hooks.slack.com/" and contain no whitespace`
+	reasonSlackWebhook   = "must be an https URL with a host"
 	reasonCacheDir       = "must be an absolute path"
 	reasonCacheDirAbsent = "no absolute default could be derived from HOME or XDG_CACHE_HOME"
 )
@@ -120,6 +120,16 @@ func (c Config) SlackWebhookURL() (secret.Secret, bool) {
 		return secret.Secret{}, false
 	}
 	return c.slackWebhookURL, true
+}
+
+// RequireSlackWebhookURL returns the Webhook URL, or a *VarError naming
+// SLACK_WEBHOOK_URL and wrapping ErrMissing when none is configured. The error
+// never holds a value.
+func (c Config) RequireSlackWebhookURL() (secret.Secret, error) {
+	if _, err := c.slackWebhookURL.Reveal(); err != nil {
+		return secret.Secret{}, missingVar(slackEnv)
+	}
+	return c.slackWebhookURL, nil
 }
 
 // CacheDir returns the absolute cache directory.
@@ -212,7 +222,7 @@ func loadAPIKey(lookup LookupFunc, cfg *Config) error {
 }
 
 // loadSlackWebhook validates SLACK_WEBHOOK_URL. Unset is accepted; a present
-// value must be a hooks.slack.com URL.
+// value must satisfy slackwebhook.ValidURL.
 func loadSlackWebhook(lookup LookupFunc, cfg *Config) error {
 	value, ok := lookup(slackEnv)
 	switch {
@@ -220,7 +230,7 @@ func loadSlackWebhook(lookup LookupFunc, cfg *Config) error {
 		return nil
 	case value == "":
 		return missingVar(slackEnv)
-	case !validSlackWebhook(value):
+	case !slackwebhook.ValidURL(value):
 		return invalidVar(slackEnv, reasonSlackWebhook)
 	default:
 		url, err := secret.New(value)
@@ -270,23 +280,23 @@ func loadYtDlpPath(lookup LookupFunc, cfg *Config) error {
 	}
 }
 
-// validSlackWebhook reports whether value is a Slack Incoming Webhook URL: the
-// fixed prefix, at least one more character, and no whitespace anywhere.
-func validSlackWebhook(value string) bool {
-	rest, found := strings.CutPrefix(value, "https://hooks.slack.com/")
-	return found && rest != "" && !strings.ContainsFunc(rest, unicode.IsSpace)
+// HTTP2DebugEnabledIn reports whether a GODEBUG value turns on the Go HTTP/2
+// transport's log ("http2debug=1" or "http2debug=2" as a substring). net/http
+// enables it when GODEBUG merely contains either substring, so this uses the
+// same test rather than parsing entries: a stricter parse would miss forms
+// such as "http2debug=10" or a space after a comma, and the key would be
+// logged without a warning.
+func HTTP2DebugEnabledIn(godebug string) bool {
+	return strings.Contains(godebug, "http2debug="+http2DebugInfo) ||
+		strings.Contains(godebug, "http2debug="+http2DebugVerbose)
 }
 
 // hasHTTP2Debug reports whether GODEBUG may turn on the HTTP/2 transport's
-// log. net/http enables it when GODEBUG merely contains "http2debug=1" or
-// "http2debug=2" as a substring, so this uses the same test rather than
-// parsing entries: a stricter parse would miss forms such as "http2debug=10"
-// or a space after a comma, and the key would be logged without a warning.
-// The setting is read, never rejected.
+// log, reading the variable through lookup. The setting is read, never
+// rejected.
 func hasHTTP2Debug(lookup LookupFunc) bool {
 	godebug, _ := lookup(godebugEnv)
-	return strings.Contains(godebug, "http2debug="+http2DebugInfo) ||
-		strings.Contains(godebug, "http2debug="+http2DebugVerbose)
+	return HTTP2DebugEnabledIn(godebug)
 }
 
 // missingVar reports name as unset or empty.
