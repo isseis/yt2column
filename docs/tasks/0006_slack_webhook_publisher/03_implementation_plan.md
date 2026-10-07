@@ -8,7 +8,7 @@
 | Created | 2026-10-07 |
 | Review date | 2026-10-07 |
 | Reviewer | isseis |
-| Comments | PR の境界の設計（2026-10-07）: `/mkplan2` でフェーズ 1〜8 に対応する PR-1〜PR-8 の境界を埋め込み、§3.2 の PR 構成と §7 のチェックリストを PR 単位に改めた。あわせて、`newFlagSet` に `--slack` を加えるフェーズ 6 で README のフラグの表の `--slack` の行も加え、`--out` を必須とする README の記述も改めるようにした（`TestREADMEDocumentsCLI` がフラグの表を要求するため、PR-6 単独でグリーンゲートを通す）。ステップの並べ替えはなく、実装の決定に変更はない。 |
+| Comments | - |
 
 ## 1. 実装の概要 (Implementation Overview)
 
