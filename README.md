@@ -20,7 +20,7 @@ URL → TranscriptSource → Transcript → ArticleWriter → Article → Publis
 - Go (see `go.mod`)
 - `yt-dlp` on `PATH` (or set `YT2COLUMN_YTDLP_PATH`); see
   [Setting up yt-dlp](#setting-up-yt-dlp)
-- A DeepSeek API key and a Slack Incoming Webhook URL
+- A DeepSeek API key (a Slack Incoming Webhook URL is optional; Slack publishing is not implemented yet)
 
 ## Usage
 
