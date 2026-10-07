@@ -1,8 +1,9 @@
 # yt2column
 
 A CLI tool that takes a YouTube video URL, generates a magazine-column-style
-article from the video's transcript with an LLM, and posts it as Markdown to
-Slack (or other destinations) via a Webhook.
+article from the video's transcript with an LLM, and writes it as Markdown to
+the `--out` path. Posting to Slack or other destinations via a Webhook is
+planned but not yet implemented.
 
 ```
 URL → TranscriptSource → Transcript → ArticleWriter → Article → Publisher
