@@ -162,6 +162,8 @@ func TestLoadEmpty(t *testing.T) {
 	}
 }
 
+// TestLoadInvalid checks that Load rejects each invalid variable with
+// ErrInvalid and names it.
 func TestLoadInvalid(t *testing.T) {
 	cases := []struct {
 		name string
@@ -197,6 +199,8 @@ func TestLoadInvalid(t *testing.T) {
 	}
 }
 
+// TestLoadSlackWebhookAccepted checks that Load accepts the Webhook URL shapes
+// the new rule allows and keeps the original value.
 func TestLoadSlackWebhookAccepted(t *testing.T) {
 	accepted := []string{
 		"https://mattermost.example.com/hooks/xxxxxxxxxxxxxxxxxxxxxxxxxx",
@@ -226,6 +230,8 @@ func TestLoadSlackWebhookAccepted(t *testing.T) {
 	}
 }
 
+// TestRequireSlackWebhookURL checks the missing and configured cases of
+// RequireSlackWebhookURL.
 func TestRequireSlackWebhookURL(t *testing.T) {
 	t.Run("unset", func(t *testing.T) {
 		cfg, err := Load(envLookup(without(validEnv(), slackEnv)))
@@ -265,6 +271,8 @@ func TestRequireSlackWebhookURL(t *testing.T) {
 	})
 }
 
+// TestLoadErrorsOmitValues checks that a rejection names the variable but never
+// the value, its mark, or its tail.
 func TestLoadErrorsOmitValues(t *testing.T) {
 	const (
 		markProvider = "MARK-PROVIDER-A1"

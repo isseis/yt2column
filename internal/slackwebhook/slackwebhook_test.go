@@ -8,6 +8,7 @@ import (
 	"testing"
 )
 
+// TestValidURL checks the accepted and rejected Webhook URL shapes.
 func TestValidURL(t *testing.T) {
 	accepted := []string{
 		"https://mattermost.example.com/hooks/xxxxxxxxxxxxxxxxxxxxxxxxxx",
@@ -45,6 +46,8 @@ func TestValidURL(t *testing.T) {
 	}
 }
 
+// TestSensitiveParts checks the parts SensitiveParts derives, including the
+// encoded forms, the last path segment, the tails, and the eight-byte threshold.
 func TestSensitiveParts(t *testing.T) {
 	t.Run("non-ascii path and query", func(t *testing.T) {
 		const value = "https://mattermost.example.com/hooks/p\u00e4th/segment-\u00e5bc?q=\u00fc&x=1"
