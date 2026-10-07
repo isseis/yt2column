@@ -51,7 +51,7 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 -   `SLACK_WEBHOOK_URL` の拒否の表は `config_test.go:172-178`（`TestLoadInvalid` の `slack webhook` の行）にある。`https://hooks.slack.com.example/services/x`（`:174`）・`https://HOOKS.SLACK.COM/services/x`・`https://hooks.slack.com/`（`:176`）は新しい規則で受理される。`config_test.go:211`・`:222`・`:246`・`:265` の値（`https://hooks.slack.com/services/…` と `http://…`）は、新しい規則でも受理・拒否が変わらない。
 -   新しい規則（`net/url` が解析でき、スキームが `https`、ホストが空でない）の判定を、作業用の一時ディレクトリ（リポジトリの外）に置いた小さな Go のプログラムで確かめた（`go1.27.1`、2026-10-07）。AC-01 の 2 つの URL、`https://hooks.slack.com.example/services/x`・`https://HOOKS.SLACK.COM/services/x`・`https://hooks.slack.com/` は受理し、AC-03 の 4 つの値、E4 の `https://hooks.slack.com/services/%zz`・`https://hooks.slack.com/%`・末尾に DEL を付けた値、先頭に空白を付けた値は拒否した。`HTTPS://example.com/x` は `net/url` がスキームを小文字にするので受理した（要件書 F-001 の「スキームが `https`」に反しない）。
 -   同じ確認で、`https://:443/x` は `url.URL.Host` が `":443"`、`Hostname()` が空になることを確かめた。「ホストが空でない」は `Hostname()` で判定する（ポートだけの値を受理すると、自分のマシンへ接続する。ステップ 1-1）。
--   従来の規則は空白文字を含む値を拒否していた（`config.go:277`）。新しい規則では、末尾に空白を付けた `https://hooks.slack.com/services/x ` やパスの途中の空白を含む値を `net/url` が解析でき、受理する（同じ確認で、`Host` が `hooks.slack.com` になることを確かめた）。要件書 F-001 の規則どおりの振る舞いだが、要件書 4.4 と設計書 3.14 の E4 には書かれていない。本計画は F-001 の規則に従い、空白を拒否する検査を加えない（§6.1 のリスクと、§9 の利用者への確認事項に挙げる）。
+-   従来の規則は空白文字を含む値を拒否していた（`config.go:277`）。新しい規則では、末尾に空白を付けた `https://hooks.slack.com/services/x ` やパスの途中の空白を含む値を `net/url` が解析でき、受理する（同じ確認で、`Host` が `hooks.slack.com` になることを確かめた）。要件書 F-001 の規則どおりの振る舞いだが、要件書 4.4 と設計書 3.14 の E4 には書かれていない。本計画は F-001 の規則に従い、空白を拒否する検査を加えない。利用者が、この振る舞いをリスクとして受け入れることを決めた（2026-10-07。§6.1）。
 -   秘密の変数の名前を本番のコードに書けるのは `internal/config` だけである（`envaccess_test.go:57-68` の `secretEnvNames`・`allowedEnvRefs`）。`isTestCode`（`envaccess_test.go:279-299`）は、`_test.go` のファイルと、ビルド制約が `test` か `integration` のタグなしでは満たされないファイルを、テストのコードとして除外する。`YT2COLUMN_TEST_SLACK_WEBHOOK_URL` は `SLACK_WEBHOOK_URL` を部分文字列として含むが、置き場所（`internal/publisher/testutil/integration.go`、`//go:build test || integration`）はこの除外に当たる。
 
 **`internal/llm/deepseek`（ループバックの判定の移動）**
@@ -459,7 +459,7 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 | 本番の Mattermost のサーバが `silent` に対応しない版である | 通知の抑止が拒否の層だけになる | ステップ 8-6 で版と効果を記録し、結果を利用者に報告する（設計書 5.2） |
 | テスト用のサーバの `MaxPostSize()` が 16,383 より小さい | サーバが追加の分割をし、分割の位置の表示と食い違う | ステップ 7-13・8-7 で投稿の数を記録して確かめる |
 | `run`・`reportRunError` の循環的複雑度が `gocyclo` の上限を超える | `make lint` が失敗する | ステップ 6-3・6-4 で投稿先の決定、要約、Webhook の案内を関数に分ける |
-| 末尾の空白などを含む `SLACK_WEBHOOK_URL` を、新しい規則が受理する（§1.3） | 誤って貼り付けた値が、LLM の呼び出しの後の投稿で初めて失敗する | 要件書 F-001 の規則に従い、本計画では変えない。§9 で利用者に確認する。拒否する場合は要件書の変更として扱う |
+| 末尾の空白などを含む `SLACK_WEBHOOK_URL` を、新しい規則が受理する（§1.3） | 誤って貼り付けた値が、LLM の呼び出しの後の投稿で初めて失敗する | 利用者がリスクとして受け入れた（2026-10-07）。要件書 F-001 の規則のとおり、空白を拒否する検査は加えない |
 | タイミングに依存するテスト（タイムアウト、待機中のキャンセル、子プロセスのシグナル）が遅い CI で不安定になる | テストが時々失敗する | 既存のテストと同じく、短いタイムアウトと準備完了の印を使い、固定の `sleep` で順序を作らない。メッセージの間隔は、待機中のキャンセルの行を除き `SlackTestOptions.Interval` で 0 にする。キャンセルの時点は印で決める（ステップ 4-3） |
 
 ### 6.2. スケジュールのリスク
@@ -491,5 +491,4 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 ## 9. 次のステップ (Next Steps)
 
 -   本計画のレビューと承認の後、`/mkplan2 0006` で PR の境界を埋め込み、`/runplan 0006` でフェーズ 1 から実装する。
--   本計画のレビューで、§1.3 の空白を含む `SLACK_WEBHOOK_URL` の受理を、要件書 F-001 のまま受け入れるか（`Reject, don't normalize` に従って拒否するなら要件書の変更になる）を利用者に確認する。
 -   実装の完了の後、ステップ 8-6 の結果（`silent` に対応する版か）と、ステップ 7-13・8-7 で記法の拒否が起きたかを利用者に報告し、設計書 9 章の「メンションの拒否の緩和」を検討するかを決める。
