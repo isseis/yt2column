@@ -11,6 +11,7 @@ import (
 	"github.com/isseis/yt2column/internal/llm"
 	deepseektestutil "github.com/isseis/yt2column/internal/llm/deepseek/testutil"
 	"github.com/isseis/yt2column/internal/nilcheck"
+	publishertestutil "github.com/isseis/yt2column/internal/publisher/testutil"
 )
 
 // cliIntegrationOptions is how TestIntegrationCLI decides whether it runs. It
@@ -37,6 +38,44 @@ func gateCLIIntegration(t testing.TB, getenv func(string) string, body func(deep
 		t.Fatal(settings.Reason)
 	default:
 		t.Skip(settings.Reason)
+	}
+}
+
+// cliSlackDeepSeekOptions is how TestIntegrationCLISlack decides whether its
+// DeepSeek part runs. It shares the webhook test's opt-in and target, and a
+// missing test API key fails it, as for TestIntegrationCLI.
+var cliSlackDeepSeekOptions = deepseektestutil.IntegrationOptions{
+	OptInEnv:   publishertestutil.CLISlackIntegrationOptions.OptInEnv,
+	MakeTarget: publishertestutil.CLISlackIntegrationOptions.MakeTarget,
+	MissingKey: deepseektestutil.MissingKeyFail,
+}
+
+// gateCLISlackIntegration reads the environment through getenv and calls body
+// only when both the DeepSeek decision and the webhook decision say the CLI
+// webhook integration test runs. Otherwise it skips or fails t with the first
+// reason, which never contains the API key or the Webhook URL, and body,
+// which calls run, the real LLM client, and the real Webhook, is never
+// reached.
+func gateCLISlackIntegration(t testing.TB, getenv func(string) string, body func(deepseektestutil.IntegrationSettings, publishertestutil.IntegrationSettings)) {
+	t.Helper()
+	llmSettings := deepseektestutil.SettingsFrom(getenv, cliSlackDeepSeekOptions)
+	switch llmSettings.Action {
+	case deepseektestutil.ActionRun:
+	case deepseektestutil.ActionFail:
+		t.Fatal(llmSettings.Reason)
+		return
+	default:
+		t.Skip(llmSettings.Reason)
+		return
+	}
+	webhookSettings := publishertestutil.SettingsFrom(getenv, publishertestutil.CLISlackIntegrationOptions)
+	switch webhookSettings.Action {
+	case publishertestutil.ActionRun:
+		body(llmSettings, webhookSettings)
+	case publishertestutil.ActionFail:
+		t.Fatal(webhookSettings.Reason)
+	default:
+		t.Skip(webhookSettings.Reason)
 	}
 }
 
