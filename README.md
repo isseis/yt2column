@@ -1,9 +1,9 @@
 # yt2column
 
 A CLI tool that takes a YouTube video URL, generates a magazine-column-style
-article from the video's transcript with an LLM, and writes it as Markdown to
-the `--out` path. Posting to Slack or other destinations via a Webhook is
-planned but not yet implemented.
+article from the video's transcript with an LLM, and either writes it as
+Markdown to the `--out` path or posts it to the configured webhook with
+`--slack`.
 
 ```
 URL → TranscriptSource → Transcript → ArticleWriter → Article → Publisher
@@ -21,7 +21,7 @@ URL → TranscriptSource → Transcript → ArticleWriter → Article → Publis
 - Go (see `go.mod`)
 - `yt-dlp` on `PATH` (or set `YT2COLUMN_YTDLP_PATH`); see
   [Setting up yt-dlp](#setting-up-yt-dlp)
-- A DeepSeek API key (a Slack Incoming Webhook URL is optional; Slack publishing is not implemented yet)
+- A DeepSeek API key. `SLACK_WEBHOOK_URL` is required when `--slack` is used.
 
 ## Usage
 
@@ -53,7 +53,7 @@ printed to standard error).
 
 | Code | Meaning |
 |---|---|
-| `0` | The article was written. Warnings about cache cleanup do not change this. `-h`/`--help` also exits `0`. |
+| `0` | The article was written to `--out` or posted to the configured webhook. Warnings about cache cleanup do not change this. `-h`/`--help` also exits `0`. |
 | `1` | A run failure: fetching the transcript, generating the article, or publishing failed; another run held the cache directory; or the run was interrupted. |
 | `2` | A usage or configuration error: bad arguments or video URL, a rejected environment variable, or a stage that could not be built. |
 
@@ -109,7 +109,7 @@ On other platforms, see the yt-dlp
 | `YT2COLUMN_LLM_PROVIDER` | LLM provider; only `deepseek` is accepted | `deepseek` |
 | `YT2COLUMN_MODEL` | LLM model name (e.g. `deepseek-flash`) | Required (an error) |
 | `DEEPSEEK_API_KEY` | DeepSeek API key | Required when the provider is `deepseek` (an error) |
-| `SLACK_WEBHOOK_URL` | Slack Incoming Webhook URL | Optional (no value) |
+| `SLACK_WEBHOOK_URL` | Slack Incoming Webhook URL | Required with `--slack`; optional with `--out` (no value) |
 | `YT2COLUMN_CACHE_DIR` | Cache directory for subtitles and video metadata | `$HOME/Library/Caches/yt2column` on macOS; `$XDG_CACHE_HOME/yt2column` or `$HOME/.cache/yt2column` on other Unix |
 | `YT2COLUMN_YTDLP_PATH` | Path to `yt-dlp` | `yt-dlp` on `PATH` |
 

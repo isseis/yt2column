@@ -29,7 +29,7 @@ var configDocRows = []configDocRow{
 	{"YT2COLUMN_LLM_PROVIDER", "`deepseek`", "`deepseek`"},
 	{"YT2COLUMN_MODEL", "Required (an error)", "エラー（必須）"},
 	{"DEEPSEEK_API_KEY", "Required when the provider is `deepseek`", "プロバイダが `deepseek` ならエラー"},
-	{"SLACK_WEBHOOK_URL", "Optional (no value)", "値なし"},
+	{"SLACK_WEBHOOK_URL", "Required with `--slack`", "値なし"},
 	{"YT2COLUMN_CACHE_DIR", "Library/Caches/yt2column", "yt2column"},
 	{"YT2COLUMN_YTDLP_PATH", "on `PATH`", "`PATH` 上の `yt-dlp`"},
 }
