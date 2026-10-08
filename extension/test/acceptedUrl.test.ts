@@ -49,8 +49,4 @@ describe("isAcceptedWatchUrl", () => {
       assert.equal(isAcceptedWatchUrl(url), false);
     });
   }
-
-  it("fails on purpose", () => {
-    assert.equal(1, 2);
-  });
 });
