@@ -4,7 +4,9 @@ import vm from "node:vm";
 
 import {
   createSelectionReader,
+  createSummaryStore,
   type ScriptingApi,
+  type StorageArea,
 } from "../src/browser/chromeDeps.ts";
 import type { PageSelection } from "../src/core/collect.ts";
 
@@ -89,5 +91,29 @@ describe("selection reader", () => {
     ) as PageSelection;
     assert.equal(result.text, "hello\nworld");
     assert.equal(result.documentUrl, "https://www.youtube.com/watch?v=abc");
+  });
+});
+
+/** An in-memory StorageArea backed by entries. */
+function memoryStorage(entries: Map<string, unknown>): StorageArea {
+  return {
+    get: async (key) => (entries.has(key) ? { [key]: entries.get(key) } : {}),
+    set: async (items) => {
+      for (const [key, value] of Object.entries(items)) {
+        entries.set(key, value);
+      }
+    },
+    remove: async (key) => {
+      entries.delete(key);
+    },
+  };
+}
+
+describe("summary store", () => {
+  it("returns the stored value from take and removes it", async () => {
+    const entries = new Map<string, unknown>([["key-1", "summary"]]);
+    const store = createSummaryStore(memoryStorage(entries));
+    assert.equal(await store.take("key-1"), "summary");
+    assert.equal(entries.has("key-1"), false);
   });
 });

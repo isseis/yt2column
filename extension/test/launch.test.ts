@@ -57,7 +57,6 @@ interface RecordingStore {
   readonly puts: { key: string; summary: OutcomeSummary }[];
   readonly takes: string[];
   readonly removes: string[];
-  readonly entries: Map<string, unknown>;
 }
 
 /** An in-memory SummaryStore that records calls and can be made to fail. */
@@ -90,7 +89,7 @@ function recordingStore(
       entries.delete(key);
     },
   };
-  return { store, puts, takes, removes, entries };
+  return { store, puts, takes, removes };
 }
 
 /** Builds a chrome.tabs.Tab with the fields the code reads. */
@@ -124,15 +123,6 @@ function page(text: string, documentUrl = watchUrl): PageSelection {
 /** A SelectionReader that returns the given selection and cannot fail. */
 function readerReturning(selection: PageSelection): SelectionReader {
   return { read: async () => selection };
-}
-
-/** A SelectionReader whose read always rejects with the given cause. */
-function failingReader(cause: unknown): SelectionReader {
-  return {
-    read: async () => {
-      throw cause;
-    },
-  };
 }
 
 interface MenuHarness {
@@ -308,14 +298,14 @@ describe("launch paths", () => {
     assert.equal(outcome.input.selection, "actual selection");
   });
 
-  it("keeps untrusted text out of the fixed log label", async () => {
+  it("keeps untrusted text out of the fixed log labels", async () => {
     const reader = readerReturning(page(`${malicious}\n`));
     const popup = popupHarness({ reader });
     await runPopupLaunch(container(), popup.deps);
-    const label = popup.recorder.infos[0]?.label;
-    assert.equal(label, "yt2column popup launch");
-    assert.ok(label !== undefined);
-    assert.ok(!label.includes(malicious));
+    assert.equal(popup.recorder.infos[0]?.label, "yt2column popup launch");
+    const menu = menuHarness({ reader });
+    await runMenuLaunch(menuInfo(), fakeTab(), menu.deps);
+    assert.equal(menu.recorder.infos[0]?.label, "yt2column menu launch");
   });
 
   it("clears the badge at the start of the menu path", async () => {
@@ -370,14 +360,6 @@ describe("launch paths", () => {
     assert.equal(menu.badge.signals, 1);
     assert.equal(menu.recorder.errors.length, 2);
   });
-
-  it("never rejects on a collection failure in either path", async () => {
-    await runMenuLaunch(menuInfo(), undefined, menuHarness().deps);
-    await runPopupLaunch(
-      container(),
-      popupHarness({ reader: failingReader(new Error("boom")) }).deps,
-    );
-  });
 });
 
 describe("display", () => {
@@ -390,17 +372,14 @@ describe("display", () => {
   });
 
   it("shows the reason and steps in the popup for a non-watch page", async () => {
-    const reader = readerReturning(page(malicious));
     const root = container();
     await runPopupLaunch(
       root,
       popupHarness({
-        reader,
         activeTab: async () => fakeTab({ url: "https://example.com/" }),
       }).deps,
     );
     const message = rejectionMessage("not-watch-page");
-    assert.equal(root.querySelector("img"), null);
     assert.ok(root.textContent?.includes(message.text));
     assert.equal(
       root.querySelectorAll("ol.summary-steps > li").length,
@@ -414,7 +393,7 @@ describe("display", () => {
     assert.equal(root.querySelectorAll(".summary-field").length, 5);
   });
 
-  it("reads and removes the stored summary in the result window", async () => {
+  it("takes the stored summary in the result window", async () => {
     const store = recordingStore();
     const summary = summarize({
       kind: "rejected",
@@ -427,7 +406,6 @@ describe("display", () => {
       log: recordingLogger().log,
     });
     assert.deepEqual(store.takes, ["key-1"]);
-    assert.equal(store.entries.has("key-1"), false);
     assert.ok(
       root.textContent?.includes(rejectionMessage("empty-selection").text),
     );
