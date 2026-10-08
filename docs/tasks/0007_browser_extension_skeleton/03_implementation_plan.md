@@ -206,20 +206,20 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 `acceptedUrl.ts` はステップ 1-4 で作成済みである。
 
 **タスク**
--   [ ] **ステップ 3-1**: `core/types.ts` に設計書 3.2 の型を作る。
+-   [x] **ステップ 3-1**: `core/types.ts` に設計書 3.2 の型を作る。
     -   **対象:** `extension/src/core/types.ts`。**完了:** `make ext-typecheck` が通る。
--   [ ] **ステップ 3-2**: `core/collect.ts` に `collect`・`CollectedInput`・`CollectOutcome`・`PageSelection`・`SelectionReader` を作る（設計書 3.2・3.3）。判定の順序、`documentUrl` の照合、`\p{White_Space}` による空白文字の判定、例外を投げないことは設計書 3.3 のとおりとする。`eslint.config.js` に、`core/collect.ts` とテスト以外での `CollectedInput` への型の表明の禁止を加え、`lintRules.test.ts` に、ほかのファイルの名前での `as CollectedInput` が違反になり、`core/collect.ts` の名前では違反にならない行を加える。
+-   [x] **ステップ 3-2**: `core/collect.ts` に `collect`・`CollectedInput`・`CollectOutcome`・`PageSelection`・`SelectionReader` を作る（設計書 3.2・3.3）。判定の順序、`documentUrl` の照合、`\p{White_Space}` による空白文字の判定、例外を投げないことは設計書 3.3 のとおりとする。`eslint.config.js` に、`core/collect.ts` とテスト以外での `CollectedInput` への型の表明の禁止を加え、`lintRules.test.ts` に、ほかのファイルの名前での `as CollectedInput` が違反になり、`core/collect.ts` の名前では違反にならない行を加える。
     -   **対象:** `extension/src/core/collect.ts`・`extension/eslint.config.js`・`extension/test/lintRules.test.ts`。**完了:** `make ext-typecheck` が通り、`extension/test/lintRules.test.ts` の `CollectedInput` の規則が通る。
--   [ ] **ステップ 3-3**: `core/messages.ts` に `rejectionMessage` を作る（設計書 3.5）。`switch` の `default` で `never` を受ける。
+-   [x] **ステップ 3-3**: `core/messages.ts` に `rejectionMessage` を作る（設計書 3.5）。`switch` の `default` で `never` を受ける。
     -   **対象:** `extension/src/core/messages.ts`。**完了:** `make ext-typecheck` が通る。
--   [ ] **ステップ 3-4**: `core/summary.ts` に `summarize`・`parseSummary` を作る（設計書 3.5）。
+-   [x] **ステップ 3-4**: `core/summary.ts` に `summarize`・`parseSummary` を作る（設計書 3.5）。
     -   **対象:** `extension/src/core/summary.ts`。**完了:** `make ext-typecheck` が通る。
--   [ ] **ステップ 3-5**: テストを作る（設計書 3.11）。
+-   [x] **ステップ 3-5**: テストを作る（設計書 3.11）。
     -   `collect.test.ts`: 判定の順序、`launch` が `undefined`、空白文字の各種（AC-16・AC-17 の各値、U+0085 を拒否し U+FEFF だけを受理する）、`read` の失敗、`documentUrl` の不一致、`title` が `undefined`、対象外のページで `read` が呼ばれないこと、前後の空白・空行が `CollectedInput` に残ること。
     -   `messages.test.ts`: 4 つの理由の `text` が互いに異なること、`steps` が `not-watch-page`・`empty-selection` にだけあること。
     -   `summary.test.ts`: `characterCount`（サロゲートペアを 1 と数える）、`lineCount`（`\r\n`・`\r`・`\n`、前後の空行）、各値の切り詰めの境界（上限ちょうどと 1 超え）とサロゲートペアを分けないこと、`*Truncated` の値。`parseSummary` が `summarize` の出力を受理し、項目の欠け・余分な項目・型の違い・未知の `kind`・未知の `reason` を拒否すること。
     -   **対象:** `extension/test/collect.test.ts`・`messages.test.ts`・`summary.test.ts`。**完了:** これらのテストが通る。
--   [ ] **ステップ 3-6**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `collect` の判定の順序を入れ替える、`documentUrl` の照合を外す、空白文字の判定を `\s` や `trim` に替える、`CollectedInput` に `trim` した値を入れる、`rejectionMessage` の 2 つの文言を同じにする、`summarize` の数え方を `length` に替える、`parseSummary` の項目の集合の検査を外す、`core/` のファイルから `document` を参照する（`tsconfig.core.json` の型検査で失敗すること）、`CollectedInput` の lint の規則を外す。`make ext-check` → `make test` → `make lint` を通す。
+-   [x] **ステップ 3-6**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `collect` の判定の順序を入れ替える、`documentUrl` の照合を外す、空白文字の判定を `\s` や `trim` に替える、`CollectedInput` に `trim` した値を入れる、`rejectionMessage` の 2 つの文言を同じにする、`summarize` の数え方を `length` に替える、`parseSummary` の項目の集合の検査を外す、`core/` のファイルから `document` を参照する（`tsconfig.core.json` の型検査で失敗すること）、`CollectedInput` の lint の規則を外す。`make ext-check` → `make test` → `make lint` を通す。
     -   **対象:** なし（確認のみ）。**完了:** 各対象を壊して失敗することを確認し、コミットメッセージに記録する。
 
 **完了条件:** `make ext-check` → `make test` → `make lint` が通り、`collect`・`messages`・`summary` のテストが通る。
