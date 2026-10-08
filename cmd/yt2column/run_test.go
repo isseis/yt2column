@@ -818,7 +818,7 @@ func executionPathRows() []pathRow {
 			name:       "--slack success",
 			setup:      func(t *testing.T, e *runEnv) { e.useWebhook(t, nil) },
 			wantCode:   exitOK,
-			wantStderr: []string{"posted the article to the webhook in 1 messages", "fake-model", "v1"},
+			wantStderr: []string{"posted the article to the webhook in 1 message", "fake-model", "v1"},
 			check: func(t *testing.T, e *runEnv) {
 				if got := e.counter.count(); got != 1 {
 					t.Errorf("Generate calls = %d, want 1", got)
@@ -838,7 +838,7 @@ func executionPathRows() []pathRow {
 				e.args = []string{"--keep-cache", "--slack", runVideoURL}
 			},
 			wantCode:   exitOK,
-			wantStderr: []string{"posted the article to the webhook in 1 messages"},
+			wantStderr: []string{"posted the article to the webhook in 1 message"},
 			check: func(t *testing.T, e *runEnv) {
 				if len(videoEntries(t, e.cacheDir)) == 0 {
 					t.Error("the video's cache was removed despite --keep-cache")
@@ -869,7 +869,7 @@ func executionPathRows() []pathRow {
 				t.Chdir(e.cacheDir)
 			},
 			wantCode:   exitOK,
-			wantStderr: []string{"posted the article to the webhook in 1 messages"},
+			wantStderr: []string{"posted the article to the webhook in 1 message"},
 		},
 		slackUsageRow("--out and --slack", func(e *runEnv) []string {
 			return []string{"--out", e.outPath, "--slack", runVideoURL}
@@ -1380,7 +1380,7 @@ func TestRunSlackSignalAfterPosting(t *testing.T) {
 	if code := e.run(); code != exitOK {
 		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
 	}
-	for _, want := range []string{"warning: remove the cache", "posted the article to the webhook in 1 messages"} {
+	for _, want := range []string{"warning: remove the cache", "posted the article to the webhook in 1 message"} {
 		if !strings.Contains(e.stderr.String(), want) {
 			t.Errorf("stderr does not contain %q:\n%s", want, e.stderr.String())
 		}

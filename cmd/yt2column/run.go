@@ -342,16 +342,25 @@ func reportSuccess(errOut *stderrWriter, dest destination, outPath string, artic
 	case destinationFile:
 		errOut.line("%s: wrote the article to %s (model: %s, model version: %s)", programName, outPath, article.Model, modelVersion)
 	case destinationWebhook:
-		count := "unknown"
+		count := "unknown messages"
 		if n, err := publisher.SlackMessageCount(article); err == nil {
-			count = strconv.Itoa(n)
+			count = messageCount(n)
 		}
-		errOut.line("%s: posted the article to the webhook in %s messages (model: %s, model version: %s)", programName, count, article.Model, modelVersion)
+		errOut.line("%s: posted the article to the webhook in %s (model: %s, model version: %s)", programName, count, article.Model, modelVersion)
 	default:
 		// Unreachable: buildOutput rejects an invalid destination before
 		// anything is published. Claim no destination rather than guess one.
 		errOut.line("%s: published the article (model: %s, model version: %s)", programName, article.Model, modelVersion)
 	}
+}
+
+// messageCount renders n as a count of posted messages, using the singular
+// noun for one.
+func messageCount(n int) string {
+	if n == 1 {
+		return "1 message"
+	}
+	return strconv.Itoa(n) + " messages"
 }
 
 // usageError reports a usage or configuration error and returns exitUsage.
