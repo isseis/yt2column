@@ -4,7 +4,7 @@
  * collect the original string. The value of v is not checked against the
  * video ID format: the server does that.
  */
-export function isAcceptedWatchUrl(url: string): boolean {
+export function isAcceptedWatchUrl( url: string ): boolean {
   let parsed: URL;
   try {
     parsed = new URL(url);
