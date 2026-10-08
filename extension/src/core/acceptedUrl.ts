@@ -23,5 +23,3 @@ export function isAcceptedWatchUrl(url: string): boolean {
     videoIds[0] !== ""
   );
 }
-
-export const typecheckBreak: string = 0;
