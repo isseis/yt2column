@@ -165,6 +165,8 @@ func (w cancelWriter) Write(ctx context.Context, tr transcript.Transcript) (writ
 	return w.inner.Write(ctx, tr)
 }
 
+// TestRunRemovesCache runs a cached video, writes the output, and removes only
+// that video's cache.
 func TestRunRemovesCache(t *testing.T) {
 	cacheDir := t.TempDir()
 	seedCache(t, cacheDir, jobVideoID, validSubtitles, infoFor(jobVideoID))
@@ -203,6 +205,8 @@ func TestRunRemovesCache(t *testing.T) {
 	}
 }
 
+// TestRunRemoteOutput runs with a remote output, which has no path to
+// pre-check, publishes once, and removes the video's cache.
 func TestRunRemoteOutput(t *testing.T) {
 	cacheDir := t.TempDir()
 	seedCache(t, cacheDir, jobVideoID, validSubtitles, infoFor(jobVideoID))
@@ -231,6 +235,8 @@ func TestRunRemoteOutput(t *testing.T) {
 	}
 }
 
+// TestRunKeepCache checks --keep-cache keeps the cache so a second run reuses
+// it without starting yt-dlp.
 func TestRunKeepCache(t *testing.T) {
 	cacheDir := t.TempDir()
 	seedCache(t, cacheDir, jobVideoID, validSubtitles, infoFor(jobVideoID))
@@ -256,6 +262,8 @@ func TestRunKeepCache(t *testing.T) {
 	requireTripwireNotRun(t, marker)
 }
 
+// TestRunFailureKeepsCache checks a write or publish failure leaves the video's
+// cache in place so a later run can reuse it.
 func TestRunFailureKeepsCache(t *testing.T) {
 	cacheDir := t.TempDir()
 	seedCache(t, cacheDir, jobVideoID, validSubtitles, infoFor(jobVideoID))
@@ -297,6 +305,8 @@ func TestRunFailureKeepsCache(t *testing.T) {
 	requireTripwireNotRun(t, marker)
 }
 
+// TestRunPrunesDangling checks dangling cache slots are removed whether the
+// later stages succeed or fail.
 func TestRunPrunesDangling(t *testing.T) {
 	t.Run("later stage succeeds", func(t *testing.T) {
 		cacheDir := t.TempDir()
@@ -335,6 +345,8 @@ func TestRunPrunesDangling(t *testing.T) {
 	})
 }
 
+// TestRunPruneFailureWarns checks a prune failure is reported as a warning and
+// does not fail the run.
 func TestRunPruneFailureWarns(t *testing.T) {
 	requireNonRoot(t)
 
@@ -391,6 +403,8 @@ func TestRunPruneFailureWarns(t *testing.T) {
 	})
 }
 
+// TestRunRemoveCacheFailureWarns checks a cache-removal failure is a warning
+// and keeps the published output.
 func TestRunRemoveCacheFailureWarns(t *testing.T) {
 	cacheDir := t.TempDir()
 	seedCache(t, cacheDir, jobVideoID, validSubtitles, infoFor(jobVideoID))
@@ -421,6 +435,8 @@ func TestRunRemoveCacheFailureWarns(t *testing.T) {
 	}
 }
 
+// TestRunRefresh checks --refresh replaces the cached transcript with a fresh
+// fetch and the writer receives it.
 func TestRunRefresh(t *testing.T) {
 	cacheDir := t.TempDir()
 	seedCache(t, cacheDir, jobVideoID, `{"events":[{"tStartMs":0,"segs":[{"utf8":"cached text"}]}]}`, infoFor(jobVideoID))
@@ -447,6 +463,8 @@ func TestRunRefresh(t *testing.T) {
 	}
 }
 
+// TestRunCanceled checks cancellation at the fetch, lock, write, and publish
+// steps leaves no output and keeps the cache.
 func TestRunCanceled(t *testing.T) {
 	t.Run("during the fetch", func(t *testing.T) {
 		cacheDir := t.TempDir()
@@ -535,6 +553,8 @@ func requireCacheIntact(t *testing.T, cacheDir string) {
 	}
 }
 
+// TestRunInvalidCache checks a truncated cached transcript fails and --refresh
+// recovers it.
 func TestRunInvalidCache(t *testing.T) {
 	cases := []struct {
 		name      string
@@ -576,6 +596,8 @@ func TestRunInvalidCache(t *testing.T) {
 	}
 }
 
+// TestRunOutputExists checks an existing output (a file, a directory, or a
+// symlink) is refused before any side effect.
 func TestRunOutputExists(t *testing.T) {
 	cases := []struct {
 		name  string
@@ -679,6 +701,8 @@ func TestRunOutputExists(t *testing.T) {
 	}
 }
 
+// TestRunOutputParentInvalid checks an unusable output parent is refused before
+// any side effect.
 func TestRunOutputParentInvalid(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -737,6 +761,8 @@ func TestRunOutputParentInvalid(t *testing.T) {
 	}
 }
 
+// TestRunLocked checks a second run on a locked cache directory fails without
+// side effects.
 func TestRunLocked(t *testing.T) {
 	cacheDir := t.TempDir()
 	fake := transcripttestutil.NewStopping(t, t.TempDir())
@@ -773,6 +799,8 @@ func TestRunLocked(t *testing.T) {
 	awaitRun(t, done)
 }
 
+// TestRunOtherCacheDir checks runs on different cache directories do not block
+// each other.
 func TestRunOtherCacheDir(t *testing.T) {
 	cacheDirA := t.TempDir()
 	fake := transcripttestutil.NewStopping(t, t.TempDir())
@@ -842,6 +870,8 @@ func requireLockFailure(t *testing.T, cacheDir string) {
 	requireNoFile(t, outPath)
 }
 
+// TestRunPassesLockToYtDlp checks the cache lock file is passed to yt-dlp on
+// descriptor 3.
 func TestRunPassesLockToYtDlp(t *testing.T) {
 	cacheDir := t.TempDir()
 	fake := transcripttestutil.NewStopping(t, t.TempDir())
@@ -866,6 +896,8 @@ func TestRunPassesLockToYtDlp(t *testing.T) {
 	awaitRun(t, done)
 }
 
+// TestRunValidatesRequest checks Run rejects an invalid request before creating
+// anything.
 func TestRunValidatesRequest(t *testing.T) {
 	valid := func(t *testing.T) Request {
 		t.Helper()
@@ -916,6 +948,8 @@ func TestRunValidatesRequest(t *testing.T) {
 	}
 }
 
+// TestRunReleasesLock checks the cache lock is released after both success and
+// failure.
 func TestRunReleasesLock(t *testing.T) {
 	t.Run("after success", func(t *testing.T) {
 		cacheDir := t.TempDir()
