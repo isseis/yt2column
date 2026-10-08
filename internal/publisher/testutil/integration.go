@@ -1,5 +1,10 @@
 //go:build test || integration
 
+// Package publishertestutil provides the test double for the publishing
+// stage and what the webhook integration tests share: the decision whether
+// such a test runs, and the fixed articles it posts. This file is built both
+// by the unit tests (`-tags test`), which test the decision, and by the
+// integration tests (`-tags integration`), which use it.
 package publishertestutil
 
 import (

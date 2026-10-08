@@ -32,8 +32,9 @@ func TestSlackSettingsFrom(t *testing.T) {
 		productionWebhookEnv: testProductionURL,
 	}
 	invalidURL := "http://mattermost.example.com/hooks/invalidkeyINVTAIL8"
+	noHostURL := "https:///hooks/nohostkeyNOHOST88"
 	forbidden := []string{}
-	for _, url := range []string{testWebhookURL, testProductionURL, invalidURL} {
+	for _, url := range []string{testWebhookURL, testProductionURL, invalidURL, noHostURL} {
 		forbidden = append(forbidden, url, url[len(url)-8:])
 	}
 	optInReason := []string{testOptInEnv, "make " + testMakeTarget}
@@ -53,7 +54,7 @@ func TestSlackSettingsFrom(t *testing.T) {
 		{name: "url_missing_with_production_url_set", change: map[string]string{WebhookURLEnv: ""}, wantAction: ActionFail, wantReason: []string{WebhookURLEnv, productionWebhookEnv + " is not used"}},
 		{name: "url_checked_before_godebug", change: map[string]string{WebhookURLEnv: "", godebugEnv: "http2debug=1"}, wantAction: ActionFail, wantReason: []string{WebhookURLEnv + " is not set"}},
 		{name: "url_not_https", change: map[string]string{WebhookURLEnv: invalidURL}, wantAction: ActionFail, wantReason: []string{WebhookURLEnv, "https"}},
-		{name: "url_without_host", change: map[string]string{WebhookURLEnv: "https:///hooks/nohostkeyNOHOST88"}, wantAction: ActionFail, wantReason: []string{WebhookURLEnv, "host"}},
+		{name: "url_without_host", change: map[string]string{WebhookURLEnv: noHostURL}, wantAction: ActionFail, wantReason: []string{WebhookURLEnv, "host"}},
 		{name: "url_checked_before_godebug_invalid", change: map[string]string{WebhookURLEnv: invalidURL, godebugEnv: "http2debug=1"}, wantAction: ActionFail, wantReason: []string{WebhookURLEnv, "https"}},
 		{name: "godebug_http2debug_1", change: map[string]string{godebugEnv: "http2debug=1"}, wantAction: ActionFail, wantReason: []string{godebugEnv}},
 		{name: "godebug_http2debug_2_among_others", change: map[string]string{godebugEnv: "gctrace=1,http2debug=2"}, wantAction: ActionFail, wantReason: []string{godebugEnv}},

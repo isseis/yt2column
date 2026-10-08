@@ -3,6 +3,7 @@
 package publisher_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 	"unicode/utf8"
@@ -37,8 +38,8 @@ func TestIntegrationArticles(t *testing.T) {
 			if got := utf8.RuneCountInString(messages[0]); got != publisher.SlackMaxMessageRunesForTest {
 				t.Errorf("single: message has %d code points, want exactly %d", got, publisher.SlackMaxMessageRunesForTest)
 			}
-			if utf8.RuneCountInString(messages[0]) == len(messages[0]) {
-				t.Error("single: message is ASCII only; it must exercise counting in code points")
+			if !hasAstral(messages[0]) {
+				t.Error("single: message has no character above U+FFFF; it must tell code points from UTF-16 units")
 			}
 
 			messages, err = publisher.SlackMessagesForTest(split)
@@ -48,6 +49,17 @@ func TestIntegrationArticles(t *testing.T) {
 			if len(messages) < 2 {
 				t.Errorf("split: %d messages, want 2 or more", len(messages))
 			}
+			for i, message := range messages {
+				if !hasAstral(message) {
+					t.Errorf("split: message %d has no character above U+FFFF", i+1)
+				}
+			}
 		})
 	}
+}
+
+// hasAstral reports whether s holds a character above U+FFFF, which counts as
+// one code point but two UTF-16 units.
+func hasAstral(s string) bool {
+	return strings.ContainsFunc(s, func(r rune) bool { return r > 0xFFFF })
 }

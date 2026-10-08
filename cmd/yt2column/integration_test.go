@@ -53,7 +53,7 @@ func runIntegrationCLI(t *testing.T, settings deepseektestutil.IntegrationSettin
 	if data, err := os.ReadFile(outPath); err == nil { //nolint:gosec // a path inside the test's temporary directory
 		article = string(data)
 	}
-	requireNoSecrets(t, []string{r.apiKey}, []outputPlace{
+	requireNoSecrets(t, secretTails(r.apiKey), []outputPlace{
 		{"standard output", stdout.String()},
 		{"standard error", stderr.String()},
 		{"the --out file", article},
@@ -162,16 +162,18 @@ type outputPlace struct {
 	name, text string
 }
 
-// requireNoSecrets fails t unless no place holds any of secrets or the last
-// eight characters of one, taken by character and by byte. It runs before
-// anything the run wrote is printed, and its failure names the place only.
-func requireNoSecrets(t *testing.T, secrets []string, places []outputPlace) {
+// secretTails returns s and its last eight characters, taken by character
+// and by byte.
+func secretTails(s string) []string {
+	runes := []rune(s)
+	return []string{s, string(runes[max(0, len(runes)-8):]), s[max(0, len(s)-8):]}
+}
+
+// requireNoSecrets fails t unless no place holds any of the forbidden
+// strings. It runs before anything the run wrote is printed, and its failure
+// names the place only.
+func requireNoSecrets(t *testing.T, forbidden []string, places []outputPlace) {
 	t.Helper()
-	var forbidden []string
-	for _, s := range secrets {
-		runes := []rune(s)
-		forbidden = append(forbidden, s, string(runes[max(0, len(runes)-8):]), s[max(0, len(s)-8):])
-	}
 	for _, place := range places {
 		for _, s := range forbidden {
 			if strings.Contains(place.text, s) {

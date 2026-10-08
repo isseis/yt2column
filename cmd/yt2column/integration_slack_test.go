@@ -6,10 +6,13 @@ import (
 	"bytes"
 	"context"
 	"os"
+	"regexp"
+	"slices"
 	"testing"
 
 	deepseektestutil "github.com/isseis/yt2column/internal/llm/deepseek/testutil"
 	publishertestutil "github.com/isseis/yt2column/internal/publisher/testutil"
+	"github.com/isseis/yt2column/internal/slackwebhook"
 )
 
 // TestIntegrationCLISlack runs the CLI, assembled exactly as main assembles
@@ -42,14 +45,27 @@ func runIntegrationCLISlack(t *testing.T, llmSettings deepseektestutil.Integrati
 	var stdout, stderr bytes.Buffer
 	code := run(context.Background(), []string{"--slack", integrationVideoURL}, lookupFrom(r.env), &stdout, &stderr, r.deps)
 
-	requireNoSecrets(t, []string{r.apiKey, webhookURL}, []outputPlace{
+	// Every part of the URL the CLI itself redacts is forbidden, not only
+	// the whole URL and its tail.
+	requireNoSecrets(t, slices.Concat(secretTails(r.apiKey), slackwebhook.SensitiveParts(webhookURL)), []outputPlace{
 		{"standard output", stdout.String()},
 		{"standard error", stderr.String()},
 	})
 	r.checkRun(t, code)
-	if code != 0 {
-		// The output is shown to be free of the secrets above, and run
-		// escapes the untrusted text it writes, so it can explain the failure.
-		t.Logf("standard error:\n%s", stderr.String())
+	// The output is shown to be free of the secrets above, and run escapes
+	// the untrusted text it writes, so it can be logged: on failure to
+	// explain it, on success to record the message count.
+	summary := webhookSummaryPattern.FindString(stderr.String())
+	if summary == "" {
+		t.Errorf("standard error does not report a post to the webhook with a message count")
 	}
+	if code != 0 || summary == "" {
+		t.Logf("standard error:\n%s", stderr.String())
+		return
+	}
+	t.Log(summary)
 }
+
+// webhookSummaryPattern matches the line run writes after posting to the
+// webhook, which the --out path never writes.
+var webhookSummaryPattern = regexp.MustCompile(`posted the article to the webhook in [0-9]+ messages?`)

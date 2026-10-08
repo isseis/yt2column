@@ -1,6 +1,5 @@
 //go:build test
 
-// Package publishertestutil provides test doubles for the publishing stage.
 package publishertestutil
 
 import (
