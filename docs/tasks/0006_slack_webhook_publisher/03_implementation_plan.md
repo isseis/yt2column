@@ -325,8 +325,8 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 5: `internal/job` の `Output`
 
@@ -334,14 +334,14 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 -   変更: `internal/job/job.go`・`job_test.go`・`test_helpers.go`、`cmd/yt2column/run.go`（`job.Request` の組み立てだけ）、`docs/dev/developer_guide/package_reference.md`
 
 **タスク**
--   [ ] **ステップ 5-1**: `job.go` に `Output`・`FileOutput`・`RemoteOutput` を作り、`Request` の `OutPath`・`Publisher` を `Output` に置き換える（設計書 3.8）。`validateRequest` と事前確認を `Output` の種類の `switch` にし、`default`（ゼロ値）は `errInvalidRequest` で拒否する。`Run` と `Request` の doc コメントの `OutPath` への言及を、`Output` に合わせて直す。
--   [ ] **ステップ 5-2**: `cmd/yt2column/run.go:192-201` の `job.Request` の組み立てを `Output: job.FileOutput(opts.out, pub)` にする（`--slack` はフェーズ 6）。
--   [ ] **ステップ 5-3**: `job_test.go` を更新する。
+-   [x] **ステップ 5-1**: `job.go` に `Output`・`FileOutput`・`RemoteOutput` を作り、`Request` の `OutPath`・`Publisher` を `Output` に置き換える（設計書 3.8）。`validateRequest` と事前確認を `Output` の種類の `switch` にし、`default`（ゼロ値）は `errInvalidRequest` で拒否する。`Run` と `Request` の doc コメントの `OutPath` への言及を、`Output` に合わせて直す。
+-   [x] **ステップ 5-2**: `cmd/yt2column/run.go:192-201` の `job.Request` の組み立てを `Output: job.FileOutput(opts.out, pub)` にする（`--slack` はフェーズ 6）。
+-   [x] **ステップ 5-3**: `job_test.go` を更新する。
     -   複合リテラルの `OutPath: <x>, … Publisher: <p>` の形のすべての箇所を `Output: FileOutput(<x>, <p>)` に、`req.OutPath, req.Publisher = <x>, <p>` の形（`job_test.go:216`・`:224`）を `req.Output = FileOutput(<x>, <p>)` に書き換える。`internal/job/test_helpers.go` の `newOutput` は、呼び出し側が書きやすい形に変えてよい（設計書 3.14）。書き換えの後、`rg -n "OutPath" internal/job cmd/yt2column/run.go` が 0 件であることを確かめる。
-    -   `TestRunValidatesRequest` の `empty out path` の行を `FileOutput("", pub)` に、`nil publisher`・`typed-nil publisher` の行を `FileOutput` の `Publisher` が nil の行にする。ゼロ値の `Output`、`RemoteOutput(nil)`、型付きの nil を渡した `RemoteOutput` の行を足す。
+    -   `TestRunValidatesRequest` の `empty out path` の行を `empty file path` とし `FileOutput("", pub)` に、`nil publisher`・`typed-nil publisher` の行を `FileOutput` の `Publisher` が nil の行にする。ゼロ値の `Output`、`RemoteOutput(nil)`、型付きの nil を渡した `RemoteOutput` の行を足す。
     -   `TestRunRemoteOutput`: `RemoteOutput` で、出力のパスなしに `Run` が成功し、`Publisher` が 1 回呼ばれ、キャッシュの削除までの手順が `FileOutput` と同じく行われること。
--   [ ] **ステップ 5-4**: `package_reference.md` の `internal/job` の行の `--out` の事前確認の記述を、`Output`（ファイルの場合だけ事前確認する）に改める。
--   [ ] **ステップ 5-5**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `validateRequest` の `default` を受理にする（ゼロ値の行）、リモートでも出力のパスを必須にする（`TestRunRemoteOutput`）、ファイルの事前確認を外す（既存の事前確認のテスト）。`make fmt` → `make test` → `make lint` を通す。
+-   [x] **ステップ 5-4**: `package_reference.md` の `internal/job` の行の `--out` の事前確認の記述を、`Output`（ファイルの場合だけ事前確認する）に改める。
+-   [x] **ステップ 5-5**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `validateRequest` の `default` を受理にする（ゼロ値の行）、リモートでも出力のパスを必須にする（`TestRunRemoteOutput`）、ファイルの事前確認を外す（既存の事前確認のテスト）。`make fmt` → `make test` → `make lint` を通す。
 
 ### PR-5 作成ポイント: job.Output typing
 
@@ -355,8 +355,8 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 
 **判定理由**: 投稿先の型付けと `switch` による検証に限られ、競合する実装方針の併記・高リスクな制御・パネルモードのトリガー・2 つ以上の Conditional check のいずれにも該当しないため（ビルドタグ下の非 `_test.go` のソースは、ステップ 5-3 で変えうる既存の `internal/job/test_helpers.go` だけで、新設はない）。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 

@@ -38,7 +38,7 @@ func chmodForTest(t *testing.T, path string, mode os.FileMode) {
 }
 
 // newOutput returns an --out path inside dir and a FilePublisher for that same
-// path, so a Request's OutPath and its Publisher always agree.
+// path, so a caller can build a FileOutput whose path and Publisher agree.
 func newOutput(t *testing.T, dir string) (outPath string, pub publisher.Publisher) {
 	t.Helper()
 	outPath = filepath.Join(dir, "article.md")
