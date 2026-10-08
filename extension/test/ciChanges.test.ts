@@ -41,6 +41,12 @@ describe("has-extension-changes", () => {
     });
   }
 
+  // A newline before "extension/" must not split one non-extension path into a
+  // fragment that matches: NUL delimiting keeps each path whole.
+  it("skips a non-extension path containing a newline", () => {
+    assert.equal(classify(["notes/x\nextension/y.ts"]), "false\n");
+  });
+
   const quiet = [
     ["internal/transcript/ytdlp.go"],
     ["docs/dev/security.md"],
