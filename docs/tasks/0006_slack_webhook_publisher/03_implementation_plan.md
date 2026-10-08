@@ -450,7 +450,12 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 -   [x] **ステップ 7-10**: `internal/pipeline/pipeline_test.go` の `TestFakesCarryBuildTag` の `testutil/` のファイルの数を 13 から 15 に改める（ステップ 7-2・7-3 の 2 件）。
 -   [x] **ステップ 7-11**: `package_reference.md` の `internal/publisher/testutil` の行に `SettingsFrom`・統合テストの `IntegrationOptions`・固定の記事と `integration.go` のビルドタグを、`internal/llm/deepseek/testutil` の行に `RunMakeTarget` の追加の名前を加える。
 -   [x] **ステップ 7-12**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `SettingsFrom` の判定の 1〜4 のそれぞれを外す、オプトインの比較を空でないかどうかにする、本番の `SLACK_WEBHOOK_URL` を読む、`Makefile` の各ターゲットで他方のオプトインもエクスポートする、`test-integration-slack` の `-tags integration` を外す、統合テストのファイルの 1 行目を `//go:build test` にする、CLI の判定の補助で一方の判定だけを見る、`SlackIntegrationOptions` のオプトインを `CLISlackOptInEnv` にする（`TestMakeTestIntegrationSlack`）、分割しない記事を 1 コードポイント短くする（`TestIntegrationArticles`）、`RunMakeTarget` で追加の名前の検査を外す。`make fmt` → `make test` → `make lint` を通す。
--   [ ] **ステップ 7-13**: 利用者の承認を得て、`make test-integration-slack` と `make test-integration-cli-slack` を Mattermost のテスト用のチャンネルの Webhook で実行し（AC-30・AC-31）、次を本ステップの下に記録する。実行日、HEAD のコミット、サーバの版、各ターゲットの結果（`PASS`／`FAIL` と終了コード）、テスト用のチャンネルに投稿されたメッセージの数と分割の位置の表示（記事の `Title` の目印で見分ける）。
+-   [x] **ステップ 7-13**: 利用者の承認を得て、`make test-integration-slack` と `make test-integration-cli-slack` を Mattermost のテスト用のチャンネルの Webhook で実行し（AC-30・AC-31）、次を本ステップの下に記録する。実行日、HEAD のコミット、サーバの版、各ターゲットの結果（`PASS`／`FAIL` と終了コード）、テスト用のチャンネルに投稿されたメッセージの数と分割の位置の表示（記事の `Title` の目印で見分ける）。
+    -   実行日: 2026-10-08。HEAD: `ef7b2b1`（ブランチ `issei/0006-slack-webhook-publisher-10`）。
+    -   サーバの版: Mattermost 11.9.0（テスト用のチャンネルの Incoming Webhook）。
+    -   結果（`make test-integration-slack`）: `PASS`。`TestIntegrationSlackWebhookPublisher` が成功し、`go test` は `ok` を返した（終了コード 0。zsh で実行したため `make` の終了コードは直接取得しておらず、`go test` の `ok` から判断した）。目印 `20261008T063713.014Z` の 2 つの記事を投稿した。分割しない記事は 1 つのメッセージ（分割の位置の表示なし、`Line 0001`〜`Line 0507`）、分割する記事は 3 つのメッセージで、`(1/3)`（`Line 0001`〜`Line 0506`）・`(2/3)`（`Line 0507`〜`Line 1017`）・`(3/3)`（`Line 1018`〜`Line 1180`。本文は長さの調整のため `Line 1180:` で終わる）の順に表示され、行の欠落・重複と、サーバによる追加の分割はなかった。日本語・U+1F600・U+20BB7 は正しく表示された。
+    -   結果（`make test-integration-cli-slack`）: `PASS`、終了コード 0。`TestIntegrationCLISlack` が成功し（`TestIntegrationCLI` はオプトインがないのでスキップ）、モデル `deepseek-flash` で生成した記事が 1 つのメッセージとして投稿された（標準エラー出力: `posted the article to the webhook in 1 message`）。記法の拒否は起きなかった。見出し・段落・出典の行が表示された。
+    -   テスト用のチャンネルに投稿されたメッセージは、合わせて 5 つである。
 
 ### PR-7 作成ポイント: webhook integration tests and make targets
 
