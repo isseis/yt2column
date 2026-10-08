@@ -89,6 +89,7 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 | 項目 | 対応 |
 |---|---|
 | I-01（要約の削除の失敗時の契約とテスト） | `SummaryStore.remove` の契約を「削除に失敗したら reject する」とする（`chrome.storage.session.remove` の失敗をそのまま伝える）。`runMenuLaunch` は、`windows.create` の失敗の後の `remove` と `signalDisplayFailure` を、それぞれ独立に捕捉する。`remove` の失敗は `log.error` に記録し、成否にかかわらずバッジを表示する。実装はステップ 4-2・4-3、テストはステップ 4-6 の `launch.test.ts`（`windows.create` と `remove` を同時に失敗させる行） |
+| I-02（AC-09 の秘密鍵の検査の実装（検出の正規表現とテストの配置）） | 検出の正規表現（PEM の見出し `-----BEGIN [A-Z0-9 ]*PRIVATE KEY`）とテストの配置（`repository.test.ts` の行と、常時実行の CI のジョブ `secret-scan`）を、本計画 §1.3 とステップ 1-5・1-6 に記す。設計書 7.4 は検証する性質だけを述べる（本計画と同じコミットで改めた） |
 
 ## 2. 実装ステップ (Implementation Steps)
 
@@ -144,6 +145,23 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 
 **完了条件:** `make ext-check`・`make test`・`make lint`・`make deadcode`・`make build` が通り、§5.1 の AC-02・AC-03・AC-05・AC-07 の行が記録されている。
 
+### PR-1 作成ポイント: extension toolchain, guard tests, and CI
+
+**対象ステップ**: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8
+
+**推奨タイトル**: `feat(0007): bootstrap the browser extension toolchain and CI`
+
+**レビュー観点**: `ext-` のターゲットが Node.js を必要とせず、Go の手順（`make test`・`make lint`・`make deadcode`・`make build`）の結果を変えないこと（ステップ 1-3・1-7、AC-05） / `has-extension-changes.sh` が 4 つのパターンと `^`・`$` を正しく判定し、拡張のジョブが `has-extension-changes` で起動すること（ステップ 1-6、AC-07） / 追跡中のファイルに PEM の秘密鍵がなく、その検査が常時実行のジョブ `secret-scan` と `repository.test.ts` で担われること（ステップ 1-5・1-6、AC-09） / lockfile が追跡され、インストールが `npm ci --ignore-scripts` に限られること（ステップ 1-3・1-5、AC-03）
+
+**実装モデル要件**: frontier-required
+
+**判定理由**: ステップ 1-6 の CI のジョブの追加がパネルモードの引き金「CI・外部資源の面」に当たり、ステップ 1-8 の 6 つのコミットで CI を段階的に失敗させる確認が段階的なロールアウトに、秘密鍵の常時チェック（AC-09）がセキュリティゲートに当たり、さらにステップ 1-1 が `.node-version`（Node.js 24）と作業環境（`v26.4.0`）の差および設計書 3.8 の設定を持つ TypeScript の版の選定という未確定の判断を含むため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ### フェーズ 2: manifest
 
 **対象ファイル**
@@ -158,6 +176,23 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
     -   **対象:** なし（確認のみ）。**完了:** 各対象を壊して失敗することを確認し、コミットメッセージに記録する。
 
 **完了条件:** `make ext-check` → `make test` → `make lint` が通り、`manifest.test.ts` が通る。
+
+### PR-2 作成ポイント: extension manifest and fixed ID
+
+**対象ステップ**: 2-1 / 2-2 / 2-3
+
+**推奨タイトル**: `feat(0007): add the extension manifest with a fixed ID`
+
+**レビュー観点**: `key` を設計書 3.12.1 の値から生成し直さず、そこから計算した拡張 ID が `clfmbbcdpnjcefbdihdoahomaifbabkk` になること（ステップ 2-1・2-2、AC-08・AC-09） / `permissions` が設計書 3.1 の 4 つとちょうど一致し、宣言しない項目がなく、CSP を変更しないこと（ステップ 2-2、AC-12・AC-26・AC-27） / `background`（`type: "module"`）・`action.default_popup`・`manifest_version`・`minimum_chrome_version` が設計書 3.1 の値であること（ステップ 2-2）
+
+**実装モデル要件**: standard
+
+**判定理由**: manifest の各値は設計書 3.1 と 3.12.1 で確定しており、`既存コード調査結果` に競合する実装方針の併記がなく、パネルモードの引き金・2 つ以上の Conditional check・隔離すべき高リスクなステップのいずれにも該当しないため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: core
 
@@ -185,6 +220,23 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
     -   **対象:** なし（確認のみ）。**完了:** 各対象を壊して失敗することを確認し、コミットメッセージに記録する。
 
 **完了条件:** `make ext-check` → `make test` → `make lint` が通り、`collect`・`messages`・`summary` のテストが通る。
+
+### PR-3 作成ポイント: browser-free core for collection and display
+
+**対象ステップ**: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6
+
+**推奨タイトル**: `feat(0007): add the browser-free core for collection and display`
+
+**レビュー観点**: 判定の順序（対象外のページ → 収集の失敗 → 選択範囲が空 → タイトルが空）と、対象外のページで選択範囲を読み取らないこと（ステップ 3-2、AC-15・AC-18・AC-19） / 収集した値を補正せず、前後の空白・空行を残すこと（ステップ 3-2、AC-14） / 空白文字の判定（`\p{White_Space}`。U+0085 を拒否し U+FEFF を受理する）と、サロゲートペアを 1 と数える文字数・行数（ステップ 3-2・3-4、AC-16・AC-17・AC-21） / 拒否の理由を型で表し、`rejectionMessage` の 4 つの文言が互いに異なること（ステップ 3-3、AC-22・AC-31）
+
+**実装モデル要件**: standard
+
+**判定理由**: `既存コード調査結果` に競合する実装方針の併記がなく、Conditional checks・パネルモードの引き金・隔離すべき高リスクなステップのいずれにも該当しないため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 4: 表示と経路の処理
 
@@ -214,15 +266,32 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 
 **完了条件:** `make ext-check` → `make test` → `make lint` が通る。`make ext-build` の成果物を Chrome の「パッケージ化されていない拡張機能を読み込む」で読み込み、エラーなく読み込まれることを確かめる（ステップ 4-7 で行う）。
 
+### PR-4 作成ポイント: rendering and launch paths
+
+**対象ステップ**: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7
+
+**推奨タイトル**: `feat(0007): render results and wire the launch paths`
+
+**レビュー観点**: 収集した文字列を `textContent` だけで表示し、`<img src=x onerror=alert(1)>` が要素として解釈されないこと（ステップ 4-1・4-6、AC-23） / 2 つの起動の経路が同じ `collect` と `renderSummary` を使い、同じ収集の結果と要約になること（ステップ 4-2、AC-30） / 表示の失敗の扱い（I-01）: `windows.create` と `SummaryStore.remove` の失敗を独立に捕まえ、`runMenuLaunch` が reject せずバッジを表示すること（ステップ 4-2・4-3、AC-13） / `check-dist` が manifest と HTML の参照先を検査し、注入する関数が外の名前を参照しないこと（ステップ 4-3・4-5、AC-04）
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: ステップ 4-2・4-3 が、`windows.create` と `SummaryStore.remove` の同時失敗をそれぞれ独立に捕まえて `runMenuLaunch` を reject させない表示の失敗の流れ（I-01）という、回復の流れ（高リスクなステップ）を含むため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ### フェーズ 5: 手動の確認と文書
 
 **対象ファイル**
 -   新設: `extension/test/docs.test.ts`
--   変更: `README.md`、`CLAUDE.md`、`docs/dev/project_overview.md`、`docs/dev/security.md`、本計画（§5.1）
+-   変更: `README.md`、`CLAUDE.md`、`docs/dev/project_overview.md`、`docs/dev/security.md`、本計画（§5.1）。加えて、ステップ 5-1 の手動の確認でメニューの項目が残らない場合だけ `extension/src/background.ts`（設計書 3.1 の代替の登録）
 
 **タスク**
 -   [ ] **ステップ 5-1**: 設計書 7.2 の手動の確認を、macOS の Chrome と Brave（作業時点の安定版）で行い、ブラウザの版・日付・結果を §5.1 に記録する。AC-10・AC-11 では、拡張の無効化と再有効化、ブラウザの再起動の後に項目が残ることも確かめる。残らない場合は、設計書 3.1 のとおり service worker のモジュールの最上位でも登録し、確認をやり直す。
-    -   **対象:** なし（確認のみ）。**完了:** 設計書 7.2 の手動の確認の結果を §5.1 の該当行に記録する。
+    -   **対象:** `extension/src/background.ts`（代替の登録が必要な場合だけ。通常はなし）。**完了:** 設計書 7.2 の手動の確認の結果を §5.1 の該当行に記録する。
 -   [ ] **ステップ 5-2**: `README.md` の `## Development` の下に、要件書 F-008 と設計書 3.13 の `README.md` の行に挙げた内容（Node.js の版の用意、`make ext-install`、ビルド、Chrome と Brave への読み込み、2 つの起動の手段、送信しないこと、コンソールの開き方、拡張 ID）を書く。
     -   **対象:** `README.md`。**完了:** `extension/test/docs.test.ts::documents` が通る。
 -   [ ] **ステップ 5-3**: `CLAUDE.md` に、設計書 3.13 の `CLAUDE.md` の行の内容を書く。`ext-` のターゲットは `### Build Commands` などのコマンドの一覧に、変更後の確認（`make ext-check`）は `## Development Notes` に、依存パッケージの方針は `### Dependencies` に置く。あわせて、文書（README・CLAUDE.md・`docs/`）や `.gitignore` だけを変えるときも `make ext-test` を手元で実行することを書く（§6.1。AC-09 の秘密鍵の検査は常時実行の CI のジョブ `secret-scan` が担うので、ここには含めない）。
@@ -240,6 +309,23 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 
 **完了条件:** `make ext-check` → `make test` → `make lint` が通り、§5.1 のすべての行が記録され、`docs.test.ts` が通る。
 
+### PR-5 作成ポイント: manual verification and documentation
+
+**対象ステップ**: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6 / 5-7 / 5-8
+
+**推奨タイトル**: `docs(0007): record the manual checks and document the extension`
+
+**レビュー観点**: README・CLAUDE.md・`project_overview.md`・`security.md` が要件書 F-008 と設計書 3.13 のとおりで、固定した拡張 ID と権限の理由を含むこと（ステップ 5-2〜5-5、AC-25） / `docs.test.ts` が機械的に確かめられる契約値だけを固定し、§5.1 の手動の確認の記録の有無を確かめること（ステップ 5-6、AC-24・AC-25） / §5.1 の手動の確認（Chrome・Brave）のブラウザの版・日付・結果が記録されていること（ステップ 5-1・5-7） / README の手順が実物（`Makefile` のレシピ、設計書 3.1 の権限の表）と一致すること（ステップ 5-7） / ステップ 5-1 の代替の登録で `background.ts` を変えた場合、設計書 3.1 の登録（`onInstalled` とモジュールの最上位）にとどまり、ほかの振る舞いを変えないこと
+
+**実装モデル要件**: standard
+
+**判定理由**: 文書の作成・文書のガードのテスト・手動の確認に限られ、`既存コード調査結果` に競合する実装方針の併記がなく、Conditional checks・パネルモードの引き金・隔離すべき高リスクなステップのいずれにも該当しないため。ステップ 5-1 の service worker のモジュールの最上位での再登録は、設計書 3.1 が定めた手順で、新しい設計の判断を伴わないので、回復の流れの引き金には当たらない。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
 
 ### 3.1. マイルストーン
@@ -252,7 +338,21 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 | M4: 経路の処理 | フェーズ 4 | `make ext-build` の成果物を Chrome に読み込める。`render`・`launch`・`chromeDeps` のテストが通る |
 | M5: 確認と文書 | フェーズ 5 | §5.1 の手動の確認の記録がそろい、`docs.test.ts` が通る |
 
-### 3.2. 実装順序の根拠
+### 3.2. PR 構成
+
+PR はフェーズと 1 対 1 に対応させる（PR-1〜PR-5）。各 PR は主たる関心事（拡張の開発環境と CI / manifest と拡張 ID / `core/` の判定と要約 / 表示と経路の処理 / 手動の確認と文書）を持ち、単独でグリーンゲートを通せる単位とする。本タスクの各 PR のグリーンゲートは、`_context.md` の "Green gate"（`make test && make lint`）に `make ext-check` を加えた `make ext-check` → `make test` → `make lint`（各フェーズの完了条件と同じ）とする。`make test`・`make lint` は Go のソースだけを対象にし、拡張の成果物を確かめないためである。フェーズ 1 のテスト（`typecheck.test.ts`・`checkDist.test.ts`・`checkLockfile.test.ts`・`repository.test.ts`・`ciChanges.test.ts`・`acceptedUrl.test.ts`）は、ステップ 1-1〜1-3 の設定・スクリプト・`Makefile`・Go の設定と、ステップ 1-6 の CI と `has-extension-changes.sh` を確かめ、`acceptedUrl` は 6 つのステップを通す対象になる。そのため、これらの実装とテストを 1 つの PR にまとめる。分けると、`repository.test.ts`・`ciChanges.test.ts` が相手の PR で足す `ci.yml` を参照し、6 つのステップを実行する `acceptedUrl` のテストも相手の PR の成果に依存して、片方のグリーンゲートが通らなくなる。
+
+ステップは並べ替えていないので、ステップ番号の順と文書の順は一致し、各 `### PR-N 作成ポイント` は直前のフェーズの完了条件の後にある。フェーズ 4 の表示の失敗の流れ（I-01）は `launch.ts` と `chromeDeps.ts` の中だけにあり、専用の PR には分けない。`launch.ts` を使うエントリポイント（ステップ 4-4）と `check-dist` の参照の検査（ステップ 4-5）が `launch.ts` より後に来るため、この流れをフェーズ 4 の最後のステップには置けないからである。同じ PR の中で、単純なレンダリング（ステップ 4-1）の直後に置く。`core/` の判定（PR-3）は、それを使う表示と経路の処理（PR-4）に先行する。
+
+| PR | 対象ステップ | 主な変更内容 | 実装モデル要件 |
+|---|---|---|---|
+| PR-1 | 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8 | 拡張の設定・スクリプト・`Makefile` の `ext-` ターゲット・`go.mod`/`.gitignore`/`.pre-commit-config.yaml`・`acceptedUrl` と、ガードのテスト・CI のジョブ | frontier-required |
+| PR-2 | 2-1 / 2-2 / 2-3 | `manifest.json`（固定した `key` と権限）と `manifest.test.ts` | standard |
+| PR-3 | 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 | `core/` の型・`collect`・`messages`・`summary` とそのテスト | standard |
+| PR-4 | 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7 | `render`・`launch`・`chromeDeps`・エントリポイント・HTML と CSS、経路の表示の失敗の扱い | frontier-recommended |
+| PR-5 | 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6 / 5-7 / 5-8 | 手動の確認の記録と文書（README・CLAUDE.md・`project_overview.md`・`security.md`）と `docs.test.ts`、必要なら `background.ts` の代替の登録 | standard |
+
+### 3.3. 実装順序の根拠
 
 設計書 8 章の順序に従う。フェーズ 1 で、CI と成果物の検査を最初に用意し、以後のフェーズの変更がすべて同じ検査を通るようにする。フェーズ 2 の manifest が参照する `background.js`・`popup.html` はフェーズ 4 で作るので、`check-dist` の参照の検査はフェーズ 4（ステップ 4-5）で加える。手動の確認は、すべての経路がそろうフェーズ 5 で行う。
 
@@ -356,11 +456,11 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 
 ## 7. 実装チェックリスト (Implementation Checklist)
 
--   [ ] フェーズ 1 完了（ステップ 1-1〜1-8）
--   [ ] フェーズ 2 完了（ステップ 2-1〜2-3）
--   [ ] フェーズ 3 完了（ステップ 3-1〜3-6）
--   [ ] フェーズ 4 完了（ステップ 4-1〜4-7）
--   [ ] フェーズ 5 完了（ステップ 5-1〜5-8）
+-   [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8）
+-   [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3）
+-   [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6）
+-   [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7）
+-   [ ] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6 / 5-7 / 5-8）
 -   [ ] §5 のすべての AC の検証が通り、§5.1 の記録がそろっている
 
 ## 8. 成功基準 (Success Criteria)
@@ -372,5 +472,5 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 
 ## 9. 次のステップ (Next Steps)
 
--   本計画の承認の後、`/mkplan2 0007` で PR の境界を埋め込み、`/runplan 0007` で実装する。
+-   PR の境界は §2・§3.2・§7 に埋め込み済みである（2026-10-08）。`/runplan 0007` で PR-1 から実装する。
 -   実装の完了の後、設計書 3.12 の調査の結果（拡張 ID、`Origin` の観測、共有トークンの保存先）を #109 の API の定義の入力として渡す。
