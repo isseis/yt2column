@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "yt2column",
+  "version": "0.1.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnU2b5FZCPsoONgwnZlFVL01Q4KeHUyrvB/8eTHAd5gPu4pGTjok+w4TkAOa8GVswtrSHZBivGzYiTHPlzO+9IfVS7EkFiPOJJo5cQoXc8KODqW2LXawvdIqUe7n5gUfM8xuNtkRW/ipQEkKY3t0SyEPZjTVECWxokr8ViY5rSFQ7GHgjGIf/QAPwvklr9QzovW8ZWOghnv2GLUbIu71ONgJ3UZOfwm5/qCbehMGG1kUBqdUuXPoz4BzEE8rf/LPfQF368xtnOF4tC6qrZbtdBXM8w7shVqRx77y/QZbrDBwpPdS2QCeSYGk3/5u3zmTwWrOfrctYXC712/EMoc88zQIDAQAB",
+  "minimum_chrome_version": "102",
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "permissions": ["activeTab", "contextMenus", "scripting", "storage"]
+}

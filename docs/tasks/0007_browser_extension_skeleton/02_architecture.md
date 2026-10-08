@@ -8,7 +8,7 @@
 | Created | 2026-10-07 |
 | Review date | 2026-10-07 |
 | Reviewer | isseis |
-| Comments | 2026-10-08: 実装のレビューの指摘で、3.8・5.2（`npm ci` のレジストリの固定、`check-lockfile` のパッケージ名と `npm-shrinkwrap.json` の確認）、3.9（シンボリックリンクの拒否）、3.10（`has-extension-changes` の一覧に名前の変更の元の側と ASCII でないパスを含める）を補った。いずれも同じ節が述べる目的（レジストリ以外から取得しない、依存パッケージのコードを成果物に入れない、拡張の変更で拡張のジョブを起動する）を果たすための手段の不足を補う編集上の修正で、決定の変更はない。2026-10-08: 2.1・3.8・3.13 に `types/core-url.d.ts` を加えた（実装で、`lib: ["ES2022"]` の `tsconfig.core.json` では `core/acceptedUrl.ts` の `URL` を型検査できないと分かったため）。`core/` から DOM と `chrome` の型を除くという決定は変えておらず、そのための手段の不足を補う編集上の修正として扱う（決定の変更はない）。2026-10-08: 3.10 の `has-extension-changes` の一覧を `git diff -z` の NUL 区切りに変えた（`core.quotePath=false` でもタブ・改行を含むパスは引用符で囲まれ、`^extension/` に一致しないため）。同じ節が述べる目的（拡張の変更で拡張のジョブを起動する）を果たすための手段の不足を補う編集上の修正で、決定の変更はない |
+| Comments | 2026-10-08: 実装のレビューの指摘で、3.8・5.2（`npm ci` のレジストリの固定、`check-lockfile` のパッケージ名と `npm-shrinkwrap.json` の確認）、3.9（シンボリックリンクの拒否）、3.10（`has-extension-changes` の一覧に名前の変更の元の側と ASCII でないパスを含める）を補った。いずれも同じ節が述べる目的（レジストリ以外から取得しない、依存パッケージのコードを成果物に入れない、拡張の変更で拡張のジョブを起動する）を果たすための手段の不足を補う編集上の修正で、決定の変更はない。2026-10-08: 2.1・3.8・3.13 に `types/core-url.d.ts` を加えた（実装で、`lib: ["ES2022"]` の `tsconfig.core.json` では `core/acceptedUrl.ts` の `URL` を型検査できないと分かったため）。`core/` から DOM と `chrome` の型を除くという決定は変えておらず、そのための手段の不足を補う編集上の修正として扱う（決定の変更はない）。2026-10-08: 3.10 の `has-extension-changes` の一覧を `git diff -z` の NUL 区切りに変えた（`core.quotePath=false` でもタブ・改行を含むパスは引用符で囲まれ、`^extension/` に一致しないため）。同じ節が述べる目的（拡張の変更で拡張のジョブを起動する）を果たすための手段の不足を補う編集上の修正で、決定の変更はない。2026-10-08: 3.1 の manifest の表に Chrome が必須とする `name`・`version` を加えた。表は「主な項目」だけを挙げており、この 2 項目を落としていた。値は実装で確定する編集上の追加で、決定の変更はない |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `426eb2e` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指す。本タスクには `design_handoff.md` がない。実装レベルの懸念は [implementation_handoff.md](implementation_handoff.md) に置き、`03_implementation_plan.md` が扱う。
 
@@ -267,6 +267,8 @@ flowchart TB
 | 項目 | 値 | 理由 |
 |---|---|---|
 | `manifest_version` | `3` | F-003 |
+| `name` | `"yt2column"` | Chrome が必須とする項目（表は主な項目だけを挙げていた）。拡張の管理ページに表示される名前 |
+| `version` | `"0.1.0"` | Chrome が必須とする項目。拡張の版 |
 | `key` | 公開鍵（DER の SubjectPublicKeyInfo を base64 にしたもの） | 拡張 ID の固定（下記） |
 | `minimum_chrome_version` | `"102"` | 使う API のうち最も新しい `chrome.storage.session` が Chrome 102 で加わったため（要件書 4.4） |
 | `background` | `{"service_worker": "background.js", "type": "module"}` | service worker から `core/` のモジュールを静的な `import` で読むため |
