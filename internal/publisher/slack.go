@@ -232,8 +232,7 @@ func (p *SlackWebhookPublisher) postFailure(callCtx context.Context, cause error
 // the whole message when it may hold part of the Webhook URL.
 func slackTransportError(cause error, parts []string) error {
 	inner := cause
-	var urlErr *url.Error
-	if errors.As(cause, &urlErr) && urlErr.Err != nil {
+	if urlErr, ok := errors.AsType[*url.Error](cause); ok && urlErr.Err != nil {
 		inner = urlErr.Err
 	}
 	details := inner.Error()
