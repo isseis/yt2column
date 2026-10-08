@@ -1,4 +1,4 @@
-// Package job runs one end-to-end job: the output pre-checks, the cache
+// Package job runs one end-to-end job: the file-output pre-checks, the cache
 // directory lock, a prune, the pipeline, and the cache cleanup. It holds no
 // terminal or flag handling, so a caller other than the CLI can use it.
 package job
@@ -80,10 +80,10 @@ var (
 	errOutputParent   = errors.New("output parent directory is not usable")
 )
 
-// Run executes one run: it validates the request, pre-checks the output path,
-// takes the cache directory lock, prunes dangling entries, runs the pipeline,
-// and removes the video's cache unless KeepCache is set. A nil error means the
-// article was published.
+// Run executes one run: it validates the request, pre-checks a file output's
+// path, takes the cache directory lock, prunes dangling entries, runs the
+// pipeline, and removes the video's cache unless KeepCache is set. A nil error
+// means the article was published.
 func Run(ctx context.Context, req Request) (Result, error) {
 	if err := validateRequest(req); err != nil {
 		return Result{}, err
