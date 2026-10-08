@@ -164,8 +164,8 @@ func (s *stderrWriter) line(format string, args ...any) {
 // to A5 have no side effect: they parse and validate the arguments and the
 // configuration and build the stages, so a usage or configuration error exits
 // with exitUsage before the cache directory, yt-dlp, the LLM API, or the
-// webhook is touched. Only job.Run (step B) acts, and its failure exits with exitFailure. Standard
-// output only ever receives the -h/--help usage.
+// webhook is touched. Only job.Run (step B) acts, and its failure exits with
+// exitFailure. Standard output only ever receives the -h/--help usage.
 func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, stderr io.Writer, d deps) int {
 	errOut := &stderrWriter{w: stderr}
 
@@ -338,15 +338,20 @@ func reportSuccess(errOut *stderrWriter, dest destination, outPath string, artic
 	if modelVersion == "" {
 		modelVersion = "(none)"
 	}
-	if dest == destinationWebhook {
+	switch dest {
+	case destinationFile:
+		errOut.line("%s: wrote the article to %s (model: %s, model version: %s)", programName, outPath, article.Model, modelVersion)
+	case destinationWebhook:
 		count := "unknown"
 		if n, err := publisher.SlackMessageCount(article); err == nil {
 			count = strconv.Itoa(n)
 		}
 		errOut.line("%s: posted the article to the webhook in %s messages (model: %s, model version: %s)", programName, count, article.Model, modelVersion)
-		return
+	default:
+		// Unreachable: buildOutput rejects an invalid destination before
+		// anything is published. Claim no destination rather than guess one.
+		errOut.line("%s: published the article (model: %s, model version: %s)", programName, article.Model, modelVersion)
 	}
-	errOut.line("%s: wrote the article to %s (model: %s, model version: %s)", programName, outPath, article.Model, modelVersion)
 }
 
 // usageError reports a usage or configuration error and returns exitUsage.
@@ -358,8 +363,8 @@ func usageError(errOut *stderrWriter, format string, args ...any) int {
 
 // reportRunError reports a job.Run failure, naming the pipeline stage when
 // there is one, and adds the hint that matches the failure. A deadline is
-// attributed to the yt-dlp or LLM timeout by the failed stage; this holds
-// because the context run receives has no deadline of its own.
+// attributed to the yt-dlp, LLM, or webhook post timeout by the failed stage;
+// this holds because the context run receives has no deadline of its own.
 func reportRunError(errOut *stderrWriter, err error) {
 	stageErr, isStage := errors.AsType[*pipeline.StageError](err)
 	if isStage {

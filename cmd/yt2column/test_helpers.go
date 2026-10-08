@@ -54,8 +54,8 @@ const (
 // childExitUnknownMode is the child's exit code for an unknown mode.
 const childExitUnknownMode = 99
 
-// stallLifetime caps how long a stalling fake LLM client waits, so a leaked
-// child exits by itself. It is far longer than any bound a test waits for.
+// stallLifetime caps how long a stalling fake LLM client or publisher waits,
+// so a leaked child exits by itself. It is far longer than any bound a test waits for.
 const stallLifetime = 3 * time.Minute
 
 // childWaitDelay bounds how long Wait drains a child's output after it exits.

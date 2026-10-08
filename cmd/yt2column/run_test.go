@@ -328,7 +328,9 @@ type pathRow struct {
 	// --out; otherwise a failed run leaves the --out directory as it was.
 	keepsTempFile bool
 	wantStderr    []string
-	check         func(t *testing.T, e *runEnv)
+	// notStderr lists hints standard error must not hold.
+	notStderr []string
+	check     func(t *testing.T, e *runEnv)
 }
 
 // envRow returns a row for a rejected environment: exitUsage, the variable
@@ -563,6 +565,7 @@ func executionPathRows() []pathRow {
 			},
 			wantCode:   exitFailure,
 			wantStderr: []string{"the write stage failed", "the LLM call timed out after the 15-minute limit"},
+			notStderr:  []string{"the webhook post timed out"},
 		},
 		{
 			name: "publish failure",
@@ -809,6 +812,7 @@ func executionPathRows() []pathRow {
 			},
 			wantCode:   exitFailure,
 			wantStderr: []string{"the transcript stage failed", "yt-dlp timed out after the 5-minute limit"},
+			notStderr:  []string{"the webhook post timed out"},
 		},
 		{
 			name:       "--slack success",
@@ -840,6 +844,32 @@ func executionPathRows() []pathRow {
 					t.Error("the video's cache was removed despite --keep-cache")
 				}
 			},
+		},
+		{
+			name: "--slack success in three messages",
+			setup: func(t *testing.T, e *runEnv) {
+				e.useWebhook(t, nil)
+				e.respondWith(threeMessageArticle())
+			},
+			wantCode:   exitOK,
+			wantStderr: []string{"posted the article to the webhook in 3 messages"},
+			check: func(t *testing.T, e *runEnv) {
+				if got := len(e.webhook.messages()); got != 3 {
+					t.Errorf("the webhook received %d messages, want 3", got)
+				}
+			},
+		},
+		{
+			// A --slack run has no --out, so the cache-directory check for it
+			// must not run: with the working directory inside the cache
+			// directory, an empty --out would resolve inside it.
+			name: "--slack success with the cache directory as working directory",
+			setup: func(t *testing.T, e *runEnv) {
+				e.useWebhook(t, nil)
+				t.Chdir(e.cacheDir)
+			},
+			wantCode:   exitOK,
+			wantStderr: []string{"posted the article to the webhook in 1 messages"},
 		},
 		slackUsageRow("--out and --slack", func(e *runEnv) []string {
 			return []string{"--out", e.outPath, "--slack", runVideoURL}
@@ -977,6 +1007,11 @@ func TestRunExecutionPaths(t *testing.T) {
 			for _, want := range row.wantStderr {
 				if !strings.Contains(stderr, want) {
 					t.Errorf("stderr does not contain %q:\n%s", want, stderr)
+				}
+			}
+			for _, unwanted := range row.notStderr {
+				if strings.Contains(stderr, unwanted) {
+					t.Errorf("stderr contains %q:\n%s", unwanted, stderr)
 				}
 			}
 			requireSafeOutput(t, stdout, stderr, e.outPath)
@@ -1357,38 +1392,18 @@ func TestRunSlackSignalAfterPosting(t *testing.T) {
 }
 
 // TestConfiguredSecretsIncludesWebhookParts checks that a line holding only
-// part of the Webhook URL, its path, is redacted, and that a part shorter than
-// eight bytes is not made a secret, so it is not redacted everywhere.
+// part of the Webhook URL, its path, is redacted. Which parts are produced
+// (and that short ones are omitted) is slackwebhook.SensitiveParts' contract,
+// tested there.
 func TestConfiguredSecretsIncludesWebhookParts(t *testing.T) {
-	secretsFor := func(t *testing.T, webhook string) []string {
-		t.Helper()
-		env := newRunEnv(t).env
-		env["SLACK_WEBHOOK_URL"] = webhook
-		cfg, err := config.Load(lookupFrom(env))
-		if err != nil {
-			t.Fatalf("config.Load: %v", err)
-		}
-		return configuredSecrets(cfg)
+	cfg, err := config.Load(lookupFrom(newRunEnv(t).env))
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
 	}
-
-	t.Run("path only", func(t *testing.T) {
-		got := sanitize("POST "+testWebhookPath+" failed", secretsFor(t, testWebhook)...)
-		if strings.Contains(got, webhookPathMarker) {
-			t.Errorf("sanitize left part of the webhook path: %q", got)
-		}
-	})
-	t.Run("short parts", func(t *testing.T) {
-		// The last path segment "k1" is shorter than eight bytes.
-		secrets := secretsFor(t, "https://mattermost.example.com/hooks/k1")
-		for _, s := range secrets {
-			if len(s) < 8 {
-				t.Errorf("secret %q is shorter than eight bytes", s)
-			}
-		}
-		if got := sanitize("k1 at /", secrets...); got != "k1 at /" {
-			t.Errorf("sanitize(%q) = %q, want it unchanged", "k1 at /", got)
-		}
-	})
+	got := sanitize("POST "+testWebhookPath+" failed", configuredSecrets(cfg)...)
+	if strings.Contains(got, webhookPathMarker) {
+		t.Errorf("sanitize left part of the webhook path: %q", got)
+	}
 }
 
 // TestTestDepsSlackPublisherDoesNotSend checks that the default

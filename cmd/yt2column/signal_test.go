@@ -49,7 +49,7 @@ func newChildSetup(t *testing.T, ytDlpPath string, seed bool) *childSetup {
 	c := &childSetup{
 		cacheDir: filepath.Join(base, "cache"),
 		outPath:  filepath.Join(base, "article.md"),
-		ready:    filepath.Join(base, "llm-ready"),
+		ready:    filepath.Join(base, "ready"),
 		ctxDone:  filepath.Join(base, "llm-ctx-done"),
 	}
 	if seed {
