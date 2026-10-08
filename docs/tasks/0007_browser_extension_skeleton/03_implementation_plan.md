@@ -277,14 +277,14 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
 - [x] PR を作成した（#134）
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
--   [ ] **ステップ 4-6**: `static/` の HTML・CSS（設計書 3.7・3.13）と、エントリポイント（設計書 2.1・3.1・6 章）を作る。HTML はスクリプトを `<script type="module" src>` で読み、インラインのスクリプトを書かない。`background.ts` は、`onInstalled` で `contextMenus.removeAll()` の完了を待ってから項目を作り、`onClicked` のリスナーをモジュールの最上位で登録する。
+-   [x] **ステップ 4-6**: `static/` の HTML・CSS（設計書 3.7・3.13）と、エントリポイント（設計書 2.1・3.1・6 章）を作る。HTML はスクリプトを `<script type="module" src>` で読み、インラインのスクリプトを書かない。`background.ts` は、`onInstalled` で `contextMenus.removeAll()` の完了を待ってから項目を作り、`onClicked` のリスナーをモジュールの最上位で登録する。
     -   **対象:** `extension/static/popup.html`・`extension/static/result.html`・`extension/static/style.css`・`extension/src/background.ts`・`popup.ts`・`result.ts`。**完了:** `make ext-build` が通る。
--   [ ] **ステップ 4-7**: `check-dist` に manifest と HTML の参照の検査を加え（設計書 3.9）、`checkDist.test.ts` に、`background.service_worker`・`action.default_popup`・`<script src>`・`<link href>` のそれぞれが `dist/` にないファイルを指す場合を拒否する行を加える。
+-   [x] **ステップ 4-7**: `check-dist` に manifest と HTML の参照の検査を加え（設計書 3.9）、`checkDist.test.ts` に、`background.service_worker`・`action.default_popup`・`<script src>`・`<link href>` のそれぞれが `dist/` にないファイルを指す場合を拒否する行を加える。
     -   **対象:** `extension/scripts/check-dist.ts`・`extension/test/checkDist.test.ts`。**完了:** `extension/test/checkDist.test.ts` が通る。
--   [ ] **ステップ 4-8**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `check-dist` の参照の検査を外す。`make ext-check` → `make test` → `make lint` を通し、`dist/` を Chrome に読み込んでエラーがないことを確かめる。
+-   [-] **ステップ 4-8**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `check-dist` の参照の検査を外す。`make ext-check` → `make test` → `make lint` を通し、`dist/` を Chrome に読み込んでエラーがないことを確かめる。（Chrome へのパッケージ化されていない拡張機能の読み込み確認は未実施であり、ステップ 5-1 で手動確認する。）
     -   **対象:** なし（確認のみ）。**完了:** 対象を壊して失敗することを確認し、コミットメッセージに記録し、`make ext-check` を通す。
 
 **完了条件:** `make ext-check` → `make test` → `make lint` が通る。`make ext-build` の成果物を Chrome の「パッケージ化されていない拡張機能を読み込む」で読み込み、エラーなく読み込まれることを確かめる（ステップ 4-8 で行う）。
@@ -301,8 +301,8 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 
 **判定理由**: PR-4 で作った経路の処理の配線、静的なファイル、`check-dist` の検査の追加に限られ、`既存コード調査結果` に競合する実装方針の併記がなく、Conditional checks・パネルモードの引き金・隔離すべき高リスクなステップのいずれにも該当しないため。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
+- [x] PR を作成した（#138）
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
