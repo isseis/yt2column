@@ -271,8 +271,8 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 4: `SlackWebhookPublisher` の送信とテスト用の構築
 
@@ -281,16 +281,16 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 -   変更: `docs/dev/developer_guide/package_reference.md`
 
 **タスク**
--   [ ] **ステップ 4-1**: `slack.go` に、`SlackPostTimeout`、`SlackWebhookPublisher`、`NewSlackWebhookPublisher`、`Publish` を作る（設計書 3.3・3.6・3.7・4.2）。
+-   [x] **ステップ 4-1**: `slack.go` に、`SlackPostTimeout`、`SlackWebhookPublisher`、`NewSlackWebhookPublisher`、`Publish` を作る（設計書 3.3・3.6・3.7・4.2）。
     -   構築の拒否、ゼロ値の構造体の `Publish`、URL を取り出せない場合、`http.NewRequestWithContext` の失敗は、値を含まない非公開の固定のエラーにする。
     -   `http.Client` の `CheckRedirect` は `http.ErrUseLastResponse` を返す。タイムアウトは `context.WithTimeoutCause` で与え、`http.Client.Timeout` は使わない。
     -   本文は 8,193 バイトまで読み、`200` は 8,192 バイト以内でちょうど `ok` のときだけ成功とする。`200` 以外の本文からの識別子の取り出しは `strictjson.ParseObject` を使い、設計書 4.2 の形と `slackwebhook.SensitiveParts` による除外に従う。
     -   通信のエラーは `*url.Error` の内側のエラーの文言だけを `%w` で包まずに使い、`SensitiveParts` のいずれかを含めば固定の文言（設計書 4.2）に替える。タイムアウト・キャンセルは、その `context` の `Err()` を `%w` で包む。
     -   2 つ目以降のメッセージの前に 1 秒待ち、各メッセージの直前に `ctx` を確かめ、最後のメッセージの成功の後は `ctx` を確かめない。準備の後の失敗はすべて `*SlackPostError` で包む。
--   [ ] **ステップ 4-2**: `test_helpers_slack.go` に `SlackTestOptions` と `NewSlackWebhookPublisherForLoopbackTest` を作る（設計書 3.3）。送信先は `loopbacktest.ValidateURL` で確かめ、ループバックでない送信先と正でない `Timeout` は `t` を失敗させる。`ValidateURL` のエラーは送信先の URL を含む（`deepseek` から振る舞いを変えずに移すため）。送信先は Webhook URL のパス（ステップ 6-6）を含みうるので、失敗のメッセージにはエラーの文言を含めず、固定の文言にする。同じファイルに、次の 2 つを置く。
+-   [x] **ステップ 4-2**: `test_helpers_slack.go` に `SlackTestOptions` と `NewSlackWebhookPublisherForLoopbackTest` を作る（設計書 3.3）。送信先は `loopbacktest.ValidateURL` で確かめ、ループバックでない送信先と正でない `Timeout` は `t` を失敗させる。`ValidateURL` のエラーは送信先の URL を含む（`deepseek` から振る舞いを変えずに移すため）。送信先は Webhook URL のパス（ステップ 6-6）を含みうるので、失敗のメッセージにはエラーの文言を含めず、固定の文言にする。同じファイルに、次の 2 つを置く。
     -   `http.RoundTripper` を引数に取り、その `Transport` を持つ値を構築する非公開の補助（ステップ 4-3 の通信のエラーの文言の差し替えのテストが使う）。送信先は同じくループバックに限る。構築した後の値は書き換えない。
     -   準備の結果のメッセージのテキストの列を返す、`test` のタグだけの公開の関数（ステップ 7-5 の記事の長さを、外部のテストのパッケージから確かめるため）。
--   [ ] **ステップ 4-3**: `slack_test.go` に次を作る（`package publisher`、`httptest` のサーバ。サーバは受け取ったリクエストを記録し、テストごとに応答を決める）。
+-   [x] **ステップ 4-3**: `slack_test.go` に次を作る（`package publisher`、`httptest` のサーバ。サーバは受け取ったリクエストを記録し、テストごとに応答を決める）。
     -   **サーバの後始末。** サーバ（リダイレクト先のサーバを含む）を作った時点で `t.Cleanup(server.Close)` を登録する。応答しないハンドラは `r.Context().Done()` か、`server.Close` より後に登録した `t.Cleanup` で閉じるチャネルを待って戻る（`httptest.Server.Close` はハンドラが戻るまで待つので、戻らないハンドラは後始末を止める）。
     -   **キャンセルの順序。** キャンセルの時点は、サーバが応答を返したことや待機に入ったことを印（チャネル）で知らせ、テストがそれを待ってからキャンセルする形で決め、固定の `sleep` を使わない。応答の読み取りと競合させずに「送信の直前の確認」でだけ中断させる行は、`cmd/yt2column/run_test.go` の `expiringContext` と同じく、`Done` を閉じずに `Err()` だけを変える `context` を使う。待機中のキャンセルの行は、`SlackTestOptions.Interval` を長くする。
     -   `TestNewSlackWebhookPublisher`（AC-01）: AC-01 の 2 つの URL で構築できること。テスト用の構築で作っただけでは、サーバがリクエストを受け取らないこと。
@@ -308,8 +308,8 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
     -   `TestSlackPublishTransportErrorWithheld`: ステップ 4-2 の補助で、URL のパスを文言に含むエラーを返す `Transport` を持つ値を構築すると、エラーの文言が固定の文言になり、パスが現れないこと。
     -   `TestSlackPublishZeroValue`: ゼロ値の構造体の `Publish` がリクエストを送らずに失敗すること。
     -   `TestSlackPublishErrorClasses`（AC-35）: HTTP ステータスの失敗・不正な応答・通信の失敗・分割の拒否・記法の拒否・`writer.ErrInvalidArticle` のそれぞれが、6 つの分類のうち自分の分類だけに `errors.Is`／`errors.AsType` で当たること。
--   [ ] **ステップ 4-4**: `package_reference.md` の `internal/publisher` の行に `SlackWebhookPublisher`・`SlackMessageCount`・テスト用の構築と、ステップ 4-2 の準備の結果を返す関数（`test` のタグだけ）を加える。
--   [ ] **ステップ 4-5**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `CheckRedirect` を外す、本文の読み取りを上限ちょうどにする（8,193 でなく 8,192）、`ok` の比較を前後の空白を除いたものにする、`*url.Error` をそのまま包む、通信のエラーの文言の差し替えを外す、識別子の `SensitiveParts` による除外を外す、`http.Client.Timeout` に替える、テスト用の構築の失敗のメッセージに `ValidateURL` のエラーの文言を含める、送信の前の `ctx` の確認を外す、最後のメッセージの後に `ctx` を確かめる、`silent` を外す、`Posted` を数え違える（失敗したメッセージを含める）、通信の失敗の原因を `%w` で包む（`TestSlackPublishErrorClasses`）。`make fmt` → `make test` → `make lint` を通す。
+-   [x] **ステップ 4-4**: `package_reference.md` の `internal/publisher` の行に `SlackWebhookPublisher`・`SlackMessageCount`・テスト用の構築と、ステップ 4-2 の準備の結果を返す関数（`test` のタグだけ）を加える。
+-   [x] **ステップ 4-5**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `CheckRedirect` を外す、本文の読み取りを上限ちょうどにする（8,193 でなく 8,192）、`ok` の比較を前後の空白を除いたものにする、`*url.Error` をそのまま包む、通信のエラーの文言の差し替えを外す、識別子の `SensitiveParts` による除外を外す、`http.Client.Timeout` に替える、テスト用の構築の失敗のメッセージに `ValidateURL` のエラーの文言を含める、送信の前の `ctx` の確認を外す、最後のメッセージの後に `ctx` を確かめる、`silent` を外す、`Posted` を数え違える（失敗したメッセージを含める）、通信の失敗の原因を `%w` で包む（`TestSlackPublishErrorClasses`）。`make fmt` → `make test` → `make lint` を通す。
 
 ### PR-4 作成ポイント: publisher send path and loopback test construction
 
@@ -323,8 +323,8 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 
 **判定理由**: ステップ 4-1 の送信と応答の検証は、Webhook URL を出力に漏らさないこと・リダイレクトに従わないことを含むセキュリティの中核であり、ステップ 4-2 はビルドタグ下の非 `_test.go` のソースという Conditional check にも該当するため。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
