@@ -7,6 +7,7 @@
 // browser loads the extension.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { JSDOM } from "jsdom";
 import ts from "typescript";
 
 interface Listing {
@@ -92,30 +93,20 @@ function moduleReferences(
   return { specifiers, dynamicImport };
 }
 
-/** The value of a quoted attribute in a tag's text, or undefined when absent. */
-function attributeValue(tag: string, name: string): string | undefined {
-  const pattern = new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, "i");
-  const match = pattern.exec(tag);
-  if (match === null) {
-    return undefined;
-  }
-  return match[1] ?? match[2];
-}
-
-/** The script src and link href values of an HTML document's text. */
+/**
+ * The script src and link href values of an HTML document's real elements.
+ * Parsing with a DOM keeps commented-out tags out and reads attributes with
+ * the browser's own quoting rules, so a regex cannot miss or invent a
+ * reference.
+ */
 function htmlReferences(html: string): string[] {
+  const document = new JSDOM(html).window.document;
   const references: string[] = [];
-  const tags: [string, string][] = [
-    ["script", "src"],
-    ["link", "href"],
-  ];
-  for (const [name, attribute] of tags) {
-    const tag = new RegExp(`<${name}\\b(?:[^>"']|"[^"]*"|'[^']*')*>`, "gi");
-    for (const match of html.matchAll(tag)) {
-      const value = attributeValue(match[0], attribute);
-      if (value !== undefined) {
-        references.push(value);
-      }
+  for (const element of document.querySelectorAll("script[src], link[href]")) {
+    const reference =
+      element.getAttribute("src") ?? element.getAttribute("href");
+    if (reference !== null) {
+      references.push(reference);
     }
   }
   return references;

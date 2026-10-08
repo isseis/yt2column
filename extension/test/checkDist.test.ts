@@ -228,6 +228,15 @@ describe("checkDist", () => {
     ]);
   });
 
+  it("ignores a reference inside an HTML comment", () => {
+    write(
+      root,
+      "dist/page.html",
+      '<!-- <script src="missing.js"></script> -->',
+    );
+    assert.deepEqual(checkDist(root), []);
+  });
+
   it("accepts a root-absolute script reference from a subdirectory page", () => {
     write(root, "static/sub/page.html");
     write(
