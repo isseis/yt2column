@@ -8,7 +8,7 @@
 | Created | 2026-10-07 |
 | Review date | 2026-10-07 |
 | Reviewer | isseis |
-| Comments | フェーズ 2 の実装中に、ステップ 2-2・2-5・PR-2 のレビュー観点を編集上の修正として更新した（拒否の一覧が `errors.Is` で静的エラーを確かめ、`https:///chat` を足す形にした。決定の変更はない。2026-10-08） |
+| Comments | - |
 
 ## 1. 実装の概要 (Implementation Overview)
 
