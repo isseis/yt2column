@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/isseis/yt2column/internal/publisher"
 	publishertestutil "github.com/isseis/yt2column/internal/publisher/testutil"
 )
 
@@ -171,6 +172,12 @@ func TestPlanRecordsManualRuns(t *testing.T) {
 // publishing: the test environment variables, the make targets, and the
 // per-message limit. Prose meaning is not pinned here; it is checked by review.
 func TestSlackDocsContract(t *testing.T) {
+	// The documents state the limit with a thousands separator, so the
+	// literal below is pinned to the publisher's own exported test constant:
+	// a changed limit fails this test, not only the integration size check.
+	if publisher.SlackMaxMessageRunesForTest != 16383 {
+		t.Fatalf("the publisher per-message limit is %d, not 16,383; update the documents and this test", publisher.SlackMaxMessageRunesForTest)
+	}
 	readme := readDoc(t, readmePath)
 	values := []string{
 		publishertestutil.SlackOptInEnv,

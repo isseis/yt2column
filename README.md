@@ -86,7 +86,10 @@ stops an `--out` run.
 
 The article is posted as Markdown. A post longer than 16,383 code points — the
 limit Mattermost counts — is split into several messages, each at most 16,383
-code points and beginning with a `(k/N)` marker. Each message is sent with
+code points and beginning with a `(k/N)` marker. An article that cannot be
+split — because a fragment would be only whitespace, or because it would need
+more than ten messages — is rejected before anything is sent. Each message is
+sent with
 `silent` set, so Mattermost shows it without a notification, an unread marker,
 or a `New Messages` line; on a Mattermost version that predates `silent`,
 notifications can still appear.
@@ -213,8 +216,11 @@ The target exports the opt-in variable `YT2COLUMN_SLACK_INTEGRATION=1` for the
 integration test alone; without it the test skips with a message naming the
 variable, so a plain `go test -tags integration` or an IDE run does not post. A
 missing or invalid test Webhook URL, or a `GODEBUG` that enables `http2debug`,
-fails the test rather than skipping it and posts nothing. Message text and
-failure messages never include the URL or any part of it.
+fails the test rather than skipping it and posts nothing. Message text never
+includes the URL, and failure messages redact the URL, its path, query, and
+userinfo, and the last eight characters of the URL and the API key; a transport
+failure can still name the destination host and port, which are not treated as
+secret.
 
 ### CLI webhook integration test
 

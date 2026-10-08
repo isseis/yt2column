@@ -43,7 +43,7 @@ yt2column はローカルで実行する CLI であり、利用者本人が入�
 ## 3. ネットワーク通信
 
 - HTTP クライアントにはタイムアウトを設定する（`http.DefaultClient` をそのまま使わない）。Webhook への送信では、メッセージごとに 30 秒のタイムアウトを `context.WithTimeoutCause` で与え、`http.Client.Timeout` は使わない。
-- **レスポンスサイズの上限**: 外部サーバーのレスポンスを読むときは `io.LimitReader` などで上限を設ける。上限なしの `io.ReadAll` / `json.Decoder.Decode` は指摘対象とする。Webhook の応答の本文は 8,192 バイトまでしか読まない。
+- **レスポンスサイズの上限**: 外部サーバーのレスポンスを読むときは `io.LimitReader` などで上限を設ける。上限なしの `io.ReadAll` / `json.Decoder.Decode` は指摘対象とする。Webhook の応答の本文は 8,193 バイトまで読む（8,192 バイトを超える本文を検出するため、上限より 1 バイト多く読む）。
 - リトライする場合は回数または経過時間の上限を設ける。Webhook への送信は自動でリトライしない（分割投稿の途中で失敗しても、続きからの再開もしない）。
 - **リダイレクトに従わない**: Webhook への送信では `http.Client.CheckRedirect` が `http.ErrUseLastResponse` を返し、3xx の応答に従わない。リダイレクト先が Webhook URL を別のホストへ送ることを防ぐ。
 - **応答から取り出すものを限定する**: `200` 以外の応答からは、エラーの識別子（`id`・`request_id`）だけを取り出し、`message` などの自由文は読まない・表示しない。`200` の応答は、本文がちょうど `ok` のときだけ成功とする。
