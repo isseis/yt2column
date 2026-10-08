@@ -1,10 +1,8 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import { describe, it } from "node:test";
 
 import { extensionIdFromManifestKey } from "./helpers/extensionId.ts";
-import { repoRoot } from "./helpers/paths.ts";
+import { readRepoFile } from "./helpers/repoFile.ts";
 
 /** Repository-relative paths of the documents this guard checks. */
 const readme = "README.md";
@@ -15,11 +13,6 @@ const plan =
   "docs/tasks/0007_browser_extension_skeleton/03_implementation_plan.md";
 const architecture =
   "docs/tasks/0007_browser_extension_skeleton/02_architecture.md";
-
-/** Reads a repository-relative file as UTF-8. */
-function readDoc(file: string): string {
-  return readFileSync(path.join(repoRoot, file), "utf8");
-}
 
 /**
  * The text under the first heading whose trimmed line equals heading, up to the
@@ -73,7 +66,7 @@ function tableRows(text: string): string[][] {
   return rows;
 }
 
-const manifest = JSON.parse(readDoc("extension/static/manifest.json")) as {
+const manifest = JSON.parse(readRepoFile("extension/static/manifest.json")) as {
   key: string;
   permissions: string[];
 };
@@ -83,39 +76,50 @@ describe("documents", () => {
   it("records the fixed extension ID in README and security.md", () => {
     for (const file of [readme, security]) {
       assert.ok(
-        readDoc(file).includes(extensionId),
+        readRepoFile(file).includes(extensionId),
         `${file} does not record ${extensionId}`,
       );
     }
   });
 
-  it("documents every ext- target the Makefile defines", () => {
-    const targets = [...readDoc("Makefile").matchAll(/^(ext-[a-z0-9-]+):/gm)]
+  it("lists every ext- target the Makefile defines, and no others", () => {
+    const targets = [
+      ...readRepoFile("Makefile").matchAll(/^(ext-[a-z0-9-]+):/gm),
+    ]
       .map((match) => match[1])
       .filter((target): target is string => target !== undefined);
     assert.ok(targets.length > 0, "the Makefile defines no ext- targets");
-    const text = readDoc(claude);
-    for (const target of new Set(targets)) {
-      assert.ok(text.includes(target), `CLAUDE.md does not mention ${target}`);
-    }
+    // The command list is the only place a `- `make ext-...`` bullet appears.
+    const listed = [
+      ...readRepoFile(claude).matchAll(/^- `make (ext-[a-z0-9-]+)`/gm),
+    ]
+      .map((match) => match[1])
+      .filter((target): target is string => target !== undefined);
+    assert.deepEqual(
+      [...new Set(listed)].sort(),
+      [...new Set(targets)].sort(),
+      "CLAUDE.md's extension command list does not match the Makefile",
+    );
   });
 
   it("lists every manifest permission in the extension section of security.md", () => {
     const section = sectionByHeading(
-      readDoc(security),
+      readRepoFile(security),
       "### 8.1. ブラウザ拡張（#110）",
     );
     assert.notEqual(section, "", "security.md has no 8.1 extension section");
     for (const permission of manifest.permissions) {
+      // Backticks distinguish the named permission from the same word inside
+      // another identifier such as chrome.storage.session.
       assert.ok(
-        section.includes(permission),
-        `security.md 8.1 does not mention ${permission}`,
+        section.includes(`\`${permission}\``),
+        `security.md 8.1 does not list \`${permission}\``,
       );
     }
   });
 
   it("adds TypeScript and extension/ to the project overview", () => {
-    const overview = readDoc(projectOverview);
+    const overview = readRepoFile(projectOverview);
     const policies = sectionByHeading(overview, "## 決定済みの方針");
     assert.ok(
       policies.includes("TypeScript"),
@@ -131,7 +135,7 @@ describe("documents", () => {
 
 describe("investigation is recorded", () => {
   it("records sections 3.12.1 to 3.12.3 with the extension ID in 3.12.1", () => {
-    const doc = readDoc(architecture);
+    const doc = readRepoFile(architecture);
     for (const section of ["3.12.1", "3.12.2", "3.12.3"]) {
       assert.ok(
         doc.includes(`#### ${section}.`),
@@ -143,21 +147,61 @@ describe("investigation is recorded", () => {
       first.includes(extensionId),
       "architecture 3.12.1 does not record the extension ID",
     );
+    for (const [section, end] of [
+      ["3.12.2.", "#### 3.12.3."],
+      ["3.12.3.", "#### 3.12.4."],
+    ] as const) {
+      const body = sliceBetween(doc, `#### ${section}`, end);
+      assert.notEqual(
+        body.replace(`#### ${section}`, "").trim(),
+        "",
+        `architecture ${section} has no investigation result`,
+      );
+    }
   });
 });
 
 describe("manual checks are recorded", () => {
-  it("fills the result of every row in the plan's manual-check table", () => {
+  it("fills every cell of the plan's manual-check table", () => {
     const section = sectionByHeading(
-      readDoc(plan),
+      readRepoFile(plan),
       "### 5.1. 手動の確認と記録",
     );
     assert.notEqual(section, "", "the plan has no section 5.1");
     const rows = tableRows(section).slice(1);
-    assert.ok(rows.length > 0, "section 5.1 has no table rows");
+    // Every AC with a manual or recorded check must keep its own row.
+    const expectedLabels = [
+      "AC-02",
+      "AC-03",
+      "AC-05",
+      "AC-07",
+      "AC-08",
+      "AC-10・AC-11",
+      "AC-13",
+      "AC-20",
+      "AC-21・AC-22・AC-31",
+      "AC-28・AC-29",
+      "AC-25",
+    ];
+    assert.deepEqual(
+      rows.map((row) => row[0] ?? ""),
+      expectedLabels,
+      "section 5.1 rows do not match the recorded checks",
+    );
+    // Columns: AC, check, browser/environment, date, result.
     for (const row of rows) {
-      const result = row.at(-1) ?? "";
-      assert.notEqual(result, "", `section 5.1 row ${row[0] ?? ""} is empty`);
+      assert.equal(
+        row.length,
+        5,
+        `section 5.1 row ${row[0] ?? ""} is malformed`,
+      );
+      for (const column of [2, 3, 4]) {
+        assert.notEqual(
+          row[column] ?? "",
+          "",
+          `section 5.1 row ${row[0] ?? ""} has an empty column ${column}`,
+        );
+      }
     }
   });
 });

@@ -309,8 +309,8 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 ### フェーズ 5: 手動の確認と文書
 
 **対象ファイル**
--   新設: `extension/test/docs.test.ts`
--   変更: `README.md`、`CLAUDE.md`、`docs/dev/project_overview.md`、`docs/dev/security.md`、本計画（§5.1）。加えて、ステップ 5-1 の手動の確認でメニューの項目が残らない場合だけ `extension/src/background.ts`（設計書 3.1 の代替の登録）
+-   新設: `extension/test/docs.test.ts`、`extension/test/helpers/repoFile.ts`（`docs.test.ts` と `repository.test.ts` が共有するファイル読み込み。§1.2 の補助の重複の禁止に従う）
+-   変更: `README.md`、`CLAUDE.md`、`docs/dev/project_overview.md`、`docs/dev/security.md`、`extension/test/repository.test.ts`（重複した補助を `helpers/repoFile.ts` に移す）、本計画（§5.1）。加えて、ステップ 5-1 の手動の確認でメニューの項目が残らない場合だけ `extension/src/background.ts`（設計書 3.1 の代替の登録）
 
 **タスク**
 -   [x] **ステップ 5-1**: 設計書 7.2 の手動の確認を、macOS の Chrome と Brave（作業時点の安定版）で行い、ブラウザの版・日付・結果を §5.1 に記録する。AC-10・AC-11 では、拡張の無効化と再有効化、ブラウザの再起動の後に項目が残ることも確かめる。残らない場合は、設計書 3.1 のとおり service worker のモジュールの最上位でも登録し、確認をやり直す。代替の登録を加えた場合は、加える前の確認で項目が残らなかった結果と、加えた後の確認の結果を、§5.1 の AC-10・AC-11 の行とコミットメッセージに記録する。

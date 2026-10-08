@@ -11,6 +11,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
 
+import { readRepoFile } from "./helpers/repoFile.ts";
 import { repoRoot } from "./helpers/paths.ts";
 
 /** Runs command in the repository root; fails the test if it cannot start. */
@@ -22,11 +23,6 @@ function run(command: string, args: string[], env?: NodeJS.ProcessEnv) {
   });
   assert.equal(result.error, undefined, `${command}: ${String(result.error)}`);
   return result;
-}
-
-/** Reads a repository-relative file as UTF-8. */
-function readRepoFile(file: string): string {
-  return readFileSync(path.join(repoRoot, file), "utf8");
 }
 
 const ciPath = ".github/workflows/ci.yml";

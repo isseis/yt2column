@@ -75,10 +75,11 @@ refuses to run when `node --version` does not match.
 - `make ext-install` - Install the pinned dev dependencies with `npm ci` (needs the network)
 - `make ext-typecheck` - Type-check with `tsc`
 - `make ext-lint` - Lint with ESLint
-- `make ext-fmt-check` - Check formatting with Prettier (`make ext-fmt` rewrites files)
+- `make ext-fmt-check` - Check formatting with Prettier
+- `make ext-fmt` - Rewrite files with Prettier (CI runs `ext-fmt-check` instead)
 - `make ext-test` - Run the extension unit tests (`node --test`)
 - `make ext-build` - Build into `extension/dist/`
-- `make ext-check` - Run what CI runs: typecheck, lint, fmt-check, test, build
+- `make ext-check` - Run the checks CI runs after `ext-install`: typecheck, lint, fmt-check, test, build
 
 ## Architecture Overview
 
@@ -256,7 +257,9 @@ Only the conventions a linter does not check are worth stating:
   `os.MkdirTemp` + `defer os.RemoveAll`.
 - Go comments, identifiers, and string literals are English.
 - The same rule applies to the browser extension: its comments, identifiers,
-  and string literals are English, including the strings shown to the user.
+  and string literals are English, including the strings shown to the user. The
+  exception is a guard test's literal that must match a Japanese document
+  heading or table cell.
 
 ## Requirements and Acceptance Criteria
 
