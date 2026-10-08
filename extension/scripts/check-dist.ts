@@ -153,7 +153,11 @@ function referenceViolations(root: string, actual: Set<string>): string[] {
     }
     const html = readFileSync(path.join(root, "dist", file), "utf8");
     for (const reference of htmlReferences(html)) {
-      if (!actual.has(reference)) {
+      // A browser resolves src/href relative to the document, not to dist/.
+      const target = path.posix.normalize(
+        path.posix.join(path.posix.dirname(file), reference),
+      );
+      if (!actual.has(target)) {
         violations.push(`dist/${file}: "${reference}" is not in dist/`);
       }
     }

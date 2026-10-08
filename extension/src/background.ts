@@ -37,11 +37,29 @@ function menuDeps(): MenuLaunchDeps {
 }
 
 /**
+ * Resolves once contextMenus.removeAll reports completion. The Promise form
+ * of removeAll arrived in Chrome 123, but the manifest supports Chrome 102 for
+ * chrome.storage.session, so the callback form is wrapped by hand.
+ */
+function removeAllMenuItems(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    chrome.contextMenus.removeAll(() => {
+      const error = chrome.runtime.lastError;
+      if (error !== undefined) {
+        reject(error);
+      } else {
+        resolve();
+      }
+    });
+  });
+}
+
+/**
  * Rebuilds the single context-menu item. removeAll is awaited so a reload
  * does not leave duplicates; a failed create is recorded, not thrown.
  */
 async function registerMenuItem(): Promise<void> {
-  await chrome.contextMenus.removeAll();
+  await removeAllMenuItems();
   chrome.contextMenus.create(
     {
       id: menuItemId,
@@ -58,7 +76,9 @@ async function registerMenuItem(): Promise<void> {
 }
 
 chrome.runtime.onInstalled.addListener(() => {
-  void registerMenuItem();
+  registerMenuItem().catch((error) => {
+    console.error(registrationLabel, error);
+  });
 });
 
 // Registered at the module top level so each service-worker startup adds it.

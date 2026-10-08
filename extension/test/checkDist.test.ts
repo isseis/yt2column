@@ -168,6 +168,37 @@ describe("checkDist", () => {
     assert.deepEqual(checkDist(root), []);
   });
 
+  it("accepts single-quoted HTML references", () => {
+    write(root, "static/style.css");
+    write(root, "dist/style.css");
+    write(root, "dist/page.html", "<link rel='stylesheet' href='style.css'>");
+    assert.deepEqual(checkDist(root), []);
+  });
+
+  it("resolves references relative to the HTML file's directory", () => {
+    write(root, "static/sub/page.html");
+    write(
+      root,
+      "dist/sub/page.html",
+      '<link rel="stylesheet" href="style.css">',
+    );
+    write(root, "static/sub/style.css");
+    write(root, "dist/sub/style.css");
+    assert.deepEqual(checkDist(root), []);
+  });
+
+  it("rejects a subdirectory page reference that is missing", () => {
+    write(root, "static/sub/page.html");
+    write(
+      root,
+      "dist/sub/page.html",
+      '<script type="module" src="script.js"></script>',
+    );
+    assert.deepEqual(checkDist(root), [
+      'dist/sub/page.html: "script.js" is not in dist/',
+    ]);
+  });
+
   it("rejects an HTML script that is not in dist/", () => {
     write(
       root,
