@@ -8,7 +8,7 @@
 | Created | 2026-10-07 |
 | Review date | 2026-10-07 |
 | Reviewer | isseis |
-| Comments | 2026-10-08: 2.1・3.8・3.13 に `types/core-url.d.ts` を加えた（実装で、`lib: ["ES2022"]` の `tsconfig.core.json` では `core/acceptedUrl.ts` の `URL` を型検査できないと分かったため）。`core/` から DOM と `chrome` の型を除くという決定は変えておらず、そのための手段の不足を補う編集上の修正として扱う（決定の変更はない） |
+| Comments | 2026-10-08: 実装のレビューの指摘で、3.8・5.2（`npm ci` のレジストリの固定、`check-lockfile` のパッケージ名と `npm-shrinkwrap.json` の確認）、3.9（シンボリックリンクの拒否）、3.10（`has-extension-changes` の一覧に名前の変更の元の側と ASCII でないパスを含める）を補った。いずれも同じ節が述べる目的（レジストリ以外から取得しない、依存パッケージのコードを成果物に入れない、拡張の変更で拡張のジョブを起動する）を果たすための手段の不足を補う編集上の修正で、決定の変更はない。2026-10-08: 2.1・3.8・3.13 に `types/core-url.d.ts` を加えた（実装で、`lib: ["ES2022"]` の `tsconfig.core.json` では `core/acceptedUrl.ts` の `URL` を型検査できないと分かったため）。`core/` から DOM と `chrome` の型を除くという決定は変えておらず、そのための手段の不足を補う編集上の修正として扱う（決定の変更はない） |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `426eb2e` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指す。本タスクには `design_handoff.md` がない。実装レベルの懸念は [implementation_handoff.md](implementation_handoff.md) に置き、`03_implementation_plan.md` が扱う。
 
@@ -654,7 +654,7 @@ export function renderSummary(container: HTMLElement, summary: OutcomeSummary): 
 
 **Node.js と npm の版:** `extension/.node-version` に Node.js の版をちょうど 1 つ書く（実装の時点の Node.js 24 の LTS の最新の版。例: `24.x.y`）。npm の版は `package.json` の `packageManager`（例: `npm@11.x.y`）に、その Node.js に同梱の版を書く。Makefile の拡張のターゲットは、実行の前に、`node --version` の先頭の `v` を除いた値が `.node-version` と一致すること、`npm --version` が `packageManager` の版と一致することを確かめ、一致しなければ失敗する。CI は `actions/setup-node` の `node-version-file` に `.node-version` を渡す。
 
-**インストール:** `make ext-install` は、`scripts/check-lockfile.ts`（5.2）を実行してから `npm ci --ignore-scripts --no-audit --no-fund` を実行する。`npm ci` は `package-lock.json` に従ってインストールし、`package.json` と食い違う場合は失敗する（AC-03）。`npm install` は lockfile を書き換えうるので、Makefile と CI から呼ばない。依存パッケージを加える・更新するときは、開発者が `npm install --ignore-scripts <pkg>` を手で実行し、更新した lockfile をコミットする（CLAUDE.md に書く）。`git pull` などで lockfile が変わった後は、`make ext-install` を実行し直す。CI は毎回まっさらな状態からインストールする。
+**インストール:** `make ext-install` は、`scripts/check-lockfile.ts`（5.2）を実行してから `npm ci --ignore-scripts --registry=https://registry.npmjs.org/ --replace-registry-host=never --no-audit --no-fund` を実行する（`--registry` と `--replace-registry-host` は 5.2）。`npm ci` は `package-lock.json` に従ってインストールし、`package.json` と食い違う場合は失敗する（AC-03）。`npm install` は lockfile を書き換えうるので、Makefile と CI から呼ばない。依存パッケージを加える・更新するときは、開発者が `npm install --ignore-scripts <pkg>` を手で実行し、更新した lockfile をコミットする（CLAUDE.md に書く）。`git pull` などで lockfile が変わった後は、`make ext-install` を実行し直す。CI は毎回まっさらな状態からインストールする。
 
 **TypeScript の設定:** TypeScript は 5.8 以上とする（`erasableSyntaxOnly` が 5.8、`rewriteRelativeImportExtensions` が 5.7 で加わったため）。正確な版は lockfile で固定する。共通の設定を次のとおりとする。
 
@@ -683,7 +683,7 @@ export function renderSummary(container: HTMLElement, summary: OutcomeSummary): 
 
 | ターゲット | 内容（`npm run` で呼ぶスクリプトの中身） |
 |---|---|
-| `ext-install` | 版の確認 → `check-lockfile` → `npm ci --ignore-scripts --no-audit --no-fund` |
+| `ext-install` | 版の確認 → `check-lockfile` → `npm ci --ignore-scripts --registry=https://registry.npmjs.org/ --replace-registry-host=never --no-audit --no-fund` |
 | `ext-typecheck` | `tsc --noEmit -p tsconfig.json` と `tsc --noEmit -p tsconfig.core.json` |
 | `ext-lint` | `eslint .` |
 | `ext-fmt-check` | `prettier --check .` |
@@ -702,7 +702,7 @@ export function renderSummary(container: HTMLElement, summary: OutcomeSummary): 
 
 `scripts/check-dist.ts` は、ビルドの後に `dist/` が次をすべて満たすことを確かめ、満たさなければ違反を表示して失敗する。検出の手段は実装で決める。
 
--   **ファイルの集合:** `dist/` のファイルの集合が、`src/` の下の各 `.ts` に対応する同じ相対パスの `.js` と、`static/` の下の各ファイルの和にちょうど一致する。
+-   **ファイルの集合:** `dist/` のファイルの集合が、`src/` の下の各 `.ts` に対応する同じ相対パスの `.js` と、`static/` の下の各ファイルの和にちょうど一致する。`static/` と `dist/` に、通常のファイルとディレクトリ以外のもの（シンボリックリンクなど）がない。シンボリックリンクは `node_modules` の下のファイルを指せ、ブラウザはそれを辿って読み込むためである。
 -   **モジュールの指定:** `dist/` の `.js` のすべてのモジュールの指定（`import ... from`・`import "..."`・`export ... from` を含む）が相対パスで、指す先のファイルが `dist/` にある。動的な `import()` がない（拡張の service worker は動的な `import()` を受け付けないため。ソースでも lint で禁止する）。
 -   **manifest と HTML の参照:** `manifest.json` の `background.service_worker`・`action.default_popup` と、`static/` の HTML の `<script src>`・`<link href>` が指すファイルが `dist/` にある。
 
@@ -772,7 +772,7 @@ flowchart TD
     class L3 newpkg
 ```
 
--   `has-extension-changes` は、変更されたファイルに `^extension/`・`^Makefile$`・`^\.github/workflows/`・`^go\.mod$` のいずれかに一致するものがあるとき `true` とする。`go.mod` を加えるのは、`ignore` の指示の変更を拡張のジョブの Go の確認（下記）で確かめるためである。`has-code-changes` と同じ `git diff --name-only origin/main...HEAD` の結果を使う。
+-   `has-extension-changes` は、変更されたファイルに `^extension/`・`^Makefile$`・`^\.github/workflows/`・`^go\.mod$` のいずれかに一致するものがあるとき `true` とする。`go.mod` を加えるのは、`ignore` の指示の変更を拡張のジョブの Go の確認（下記）で確かめるためである。一覧は `git -c core.quotePath=false diff --no-renames --name-only origin/main...HEAD` で作る。`has-code-changes` の一覧（`git diff --name-only origin/main...HEAD`）と違い、名前の変更の元の側（`extension/` の外へ移したファイル）も含み、ASCII でないパスを引用符で囲まない。`has-code-changes` の一覧と判定は変えない。
 -   ジョブ `extension` は、チェックアウト → `actions/setup-node`（`node-version-file: extension/.node-version`、`cache: npm`、`cache-dependency-path: extension/package-lock.json`）の後に、`make ext-install`・`make ext-typecheck`・`make ext-lint`・`make ext-fmt-check`・`make ext-test`・`make ext-build` を別々のステップとして実行する。どのステップが失敗してもジョブが失敗する（AC-07）。npm のキャッシュは `~/.npm` のダウンロードの再利用だけで、`npm ci` は lockfile の integrity で検証するので、キャッシュが版を変えることはない。
 -   ジョブ `extension` は、続けて `actions/setup-go` を行い、`go list ./...` の結果に `github.com/isseis/yt2column/extension/` で始まるパッケージがないことを確かめる。Go のジョブ（`test`・`lint`）は `npm ci` を実行しないので `node_modules` がなく、拡張の依存パッケージが Go の手順に入り込む事態を見られない。依存パッケージをインストールした状態で確かめられるのは、このジョブだけである。
 -   ジョブ `extension` は、ワークフローの最上位の `permissions: contents: read`（`ci.yml:7`）を引き継ぎ、秘密情報を使わない。`pull_request` で実行する。
@@ -1026,7 +1026,7 @@ flowchart LR
 
 `ignore-scripts=true` でも、`npm run <script>` で明示したスクリプト（`package.json` の `scripts`）は実行される。npm の仕様では、`ignore-scripts` が止めるのは依存パッケージのライフサイクルのスクリプトと、`pre`・`post` の付くスクリプトである。3.8 の Makefile のターゲットはこれを前提とし、`pre`・`post` の付くスクリプトを使わない。
 
-**lockfile の取得元:** `npm ci` は lockfile の `resolved` が指す場所からパッケージを取得し、`integrity` で検証する。lockfile の `resolved` と `integrity` をともに書き換えれば、レジストリ以外のパッケージがインストールされる。`scripts/check-lockfile.ts`（依存パッケージを使わず、Node.js だけで動く）は、`npm ci` の前に、lockfile のすべての `resolved` が `https://registry.npmjs.org/` で始まることを確かめる。
+**lockfile の取得元:** `npm ci` は lockfile の `resolved` が指す場所からパッケージを取得し、`integrity` で検証する。lockfile の `resolved` と `integrity` をともに書き換えれば、レジストリ以外のパッケージがインストールされる。`scripts/check-lockfile.ts`（依存パッケージを使わず、Node.js だけで動く）は、`npm ci` の前に、lockfile のすべての `resolved` が `https://registry.npmjs.org/<パッケージ名>/-/`（パッケージ名は lockfile の鍵の最後の `node_modules/` の後）で始まることを確かめる。`npm ci` は `package-lock.json` より `npm-shrinkwrap.json` を優先して読むので、`npm-shrinkwrap.json` があれば失敗する。npm は既定で `resolved` の `registry.npmjs.org` を設定のレジストリに置き換える（`replace-registry-host`）ので、`.npmrc` や環境変数でレジストリを変えると、この確認を通った lockfile でもほかの場所から取得しうる。そこで Makefile の `npm ci` に `--registry=https://registry.npmjs.org/` と `--replace-registry-host=never` を明示する。
 
 ### 5.3. 残るリスク
 

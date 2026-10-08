@@ -1,4 +1,3 @@
-// @ts-check
 import js from "@eslint/js";
 import { defineConfig } from "eslint/config";
 import tseslint from "typescript-eslint";
@@ -49,11 +48,22 @@ export default defineConfig(
           message: htmlParsingMessage,
         },
         {
-          selector: `MemberExpression[property.name=${documentWritePattern}][object.name="document"]`,
+          selector: `MemberExpression[computed=true][property.type="TemplateLiteral"][property.quasis.0.value.cooked=${htmlParsingPattern}]`,
           message: htmlParsingMessage,
         },
         {
-          selector: `MemberExpression[property.name=${documentWritePattern}][object.property.name="ownerDocument"]`,
+          // Object keys: Object.assign(el, { innerHTML }) and destructuring.
+          selector: `Property[key.name=${htmlParsingPattern}], Property[key.value=${htmlParsingPattern}]`,
+          message: htmlParsingMessage,
+        },
+        {
+          selector: `CallExpression[callee.property.name="setAttribute"][arguments.0.value=/^(srcdoc|on)/i]`,
+          message: htmlParsingMessage,
+        },
+        {
+          // document.write, window.document.write, el.ownerDocument.write,
+          // dotted or computed.
+          selector: `MemberExpression:matches([property.name=${documentWritePattern}], [property.value=${documentWritePattern}]):matches([object.name="document"], [object.property.name=/^(document|ownerDocument)$/])`,
           message: htmlParsingMessage,
         },
         {

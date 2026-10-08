@@ -77,6 +77,25 @@ describe("html parsing APIs", () => {
       { name: "setHTMLUnsafe", code: "el.setHTMLUnsafe(s);\n" },
       { name: "parseHTMLUnsafe", code: "Document.parseHTMLUnsafe(s);\n" },
       { name: "srcdoc", code: "frame.srcdoc = s;\n" },
+      { name: "template-literal innerHTML", code: "el[`innerHTML`] = s;\n" },
+      {
+        name: "Object.assign innerHTML",
+        code: "Object.assign(el, { innerHTML: s });\n",
+      },
+      {
+        name: "destructured innerHTML",
+        code: "export const { innerHTML } = el;\n",
+      },
+      {
+        name: "setAttribute srcdoc",
+        code: 'frame.setAttribute("srcdoc", s);\n',
+      },
+      {
+        name: "setAttribute onerror",
+        code: 'el.setAttribute("onerror", s);\n',
+      },
+      { name: "computed document.write", code: 'document["write"](s);\n' },
+      { name: "window.document.write", code: "window.document.write(s);\n" },
     ].map(({ name, code }) => ({
       name,
       code: declarations + code,

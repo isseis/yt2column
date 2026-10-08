@@ -1,13 +1,14 @@
 // Runs before `npm ci`, so it must use nothing but Node.js built-ins.
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 export const registryPrefix = "https://registry.npmjs.org/";
 
 /**
  * Returns one message per lockfile entry that npm would fetch from anywhere
- * other than the public registry. An entry without a "resolved" URL is also
- * reported: npm would pick its source from configuration, not from the
- * lockfile. An empty result means every package comes from the registry.
+ * other than the public registry, or from the registry under another
+ * package's name. An entry without a "resolved" URL is also reported: npm
+ * would pick its source from configuration, not from the lockfile. An empty
+ * result means every package comes from the registry under its own name.
  */
 export function checkLockfile(lockfile: unknown): string[] {
   if (typeof lockfile !== "object" || lockfile === null) {
@@ -38,12 +39,31 @@ export function checkLockfile(lockfile: unknown): string[] {
       violations.push(
         `${path}: resolved outside ${registryPrefix}: ${resolved}`,
       );
+    } else {
+      // "node_modules/a/node_modules/@s/b" installs the package "@s/b".
+      const marker = "node_modules/";
+      const at = path.lastIndexOf(marker);
+      const name = at < 0 ? undefined : path.slice(at + marker.length);
+      if (
+        name === undefined ||
+        !resolved.startsWith(`${registryPrefix}${name}/-/`)
+      ) {
+        violations.push(`${path}: resolved to another package: ${resolved}`);
+      }
     }
   }
   return violations;
 }
 
 if (import.meta.main) {
+  // npm ci reads npm-shrinkwrap.json in preference to package-lock.json, so
+  // its presence would bypass this check.
+  if (existsSync("npm-shrinkwrap.json")) {
+    console.error(
+      "check-lockfile: npm-shrinkwrap.json is not allowed; use package-lock.json",
+    );
+    process.exit(1);
+  }
   const violations = checkLockfile(
     JSON.parse(readFileSync("package-lock.json", "utf8")),
   );

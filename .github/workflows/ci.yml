@@ -43,7 +43,12 @@ jobs:
             echo "Code changes detected, running tests"
           fi
 
-          has_extension_changes=$(bash extension/scripts/has-extension-changes.sh <<< "$changed_files")
+          # A separate list for the extension job: --no-renames lists both
+          # sides of a rename (a file moved out of extension/ still counts),
+          # and core.quotePath=false keeps non-ASCII paths unquoted so the
+          # patterns' ^ anchors match them.
+          extension_candidates=$(git -c core.quotePath=false diff --no-renames --name-only origin/main...HEAD)
+          has_extension_changes=$(bash extension/scripts/has-extension-changes.sh <<< "$extension_candidates")
           echo "has-extension-changes=$has_extension_changes" >> "$GITHUB_OUTPUT"
           echo "Extension job needed: $has_extension_changes"
 

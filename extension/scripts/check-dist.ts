@@ -1,25 +1,45 @@
 // Verifies that dist/ holds only what the build is meant to produce: one .js
 // per src/ .ts file plus the static/ files, linked by relative static
 // imports. Without a bundler, dependency code can reach dist/ only as an
-// extra file or through a non-relative module specifier, and both fail here.
+// extra file, a symbolic link, or a non-relative module specifier, and all
+// three fail here.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
 
-/** Lists the files under dir as sorted "/"-separated relative paths; [] when dir is absent. */
-function listFiles(dir: string): string[] {
+interface Listing {
+  /** Regular files as sorted "/"-separated paths relative to the directory. */
+  readonly files: string[];
+  /** Entries that are neither regular files nor directories (symbolic links and the like). */
+  readonly others: string[];
+}
+
+/** Lists the entries under dir; both lists are empty when dir is absent. */
+function listEntries(dir: string): Listing {
+  const files: string[] = [];
+  const others: string[] = [];
   if (!existsSync(dir)) {
-    return [];
+    return { files, others };
   }
-  return readdirSync(dir, { recursive: true, withFileTypes: true })
-    .filter((entry) => entry.isFile())
-    .map((entry) =>
-      path
-        .relative(dir, path.join(entry.parentPath, entry.name))
-        .split(path.sep)
-        .join("/"),
-    )
-    .sort();
+  for (const entry of readdirSync(dir, {
+    recursive: true,
+    withFileTypes: true,
+  })) {
+    const relative = path
+      .relative(dir, path.join(entry.parentPath, entry.name))
+      .split(path.sep)
+      .join("/");
+    if (entry.isFile()) {
+      files.push(relative);
+    } else if (!entry.isDirectory()) {
+      others.push(relative);
+    }
+  }
+  return { files: files.sort(), others: others.sort() };
+}
+
+function listFiles(dir: string): string[] {
+  return listEntries(dir).files;
 }
 
 function expectedFiles(root: string): Set<string> {
@@ -75,6 +95,13 @@ export function checkDist(root: string): string[] {
     return ["dist/ does not exist"];
   }
   const violations: string[] = [];
+  // A symbolic link can point anywhere, node_modules included, and a
+  // browser loading dist/ follows it; only regular files are accepted.
+  for (const dir of ["static", "dist"]) {
+    for (const other of listEntries(path.join(root, dir)).others) {
+      violations.push(`${dir}/${other}: not a regular file`);
+    }
+  }
   const actual = new Set(listFiles(dist));
   const expected = expectedFiles(root);
   for (const file of actual) {

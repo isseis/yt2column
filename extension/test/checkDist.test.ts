@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import {
   mkdirSync,
   mkdtempSync,
   rmSync,
+  symlinkSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -11,6 +13,7 @@ import path from "node:path";
 import { after, beforeEach, describe, it } from "node:test";
 
 import { checkDist } from "../scripts/check-dist.ts";
+import { extensionDir } from "./helpers/paths.ts";
 
 function write(root: string, file: string, content = ""): void {
   const full = path.join(root, file);
@@ -68,6 +71,39 @@ describe("checkDist", () => {
     assert.deepEqual(checkDist(root), [
       "dist/node_modules/pkg/index.js: not built from src/ or static/",
     ]);
+  });
+
+  it("rejects a symbolic link in dist/", () => {
+    write(root, "node_modules/pkg/index.js");
+    symlinkSync("../node_modules/pkg/index.js", path.join(root, "dist/lib.js"));
+    assert.deepEqual(checkDist(root), ["dist/lib.js: not a regular file"]);
+  });
+
+  it("rejects a symbolic link in static/ and its copy in dist/", () => {
+    write(root, "node_modules/pkg/index.js");
+    for (const dir of ["static", "dist"]) {
+      symlinkSync(
+        "../node_modules/pkg/index.js",
+        path.join(root, dir, "lib.js"),
+      );
+    }
+    assert.deepEqual(checkDist(root), [
+      "static/lib.js: not a regular file",
+      "dist/lib.js: not a regular file",
+    ]);
+  });
+
+  it("exits 1 from the command line when dist/ has a violation", () => {
+    const script = path.join(extensionDir, "scripts", "check-dist.ts");
+    assert.equal(
+      spawnSync(process.execPath, [script], { cwd: root }).status,
+      0,
+    );
+    write(root, "dist/extra.js");
+    assert.equal(
+      spawnSync(process.execPath, [script], { cwd: root }).status,
+      1,
+    );
   });
 
   it("rejects a missing compiled file", () => {

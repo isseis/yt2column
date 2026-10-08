@@ -166,13 +166,13 @@ EXT_DIR=extension
 define ext_check_versions
 	@want_node=$$(cat $(EXT_DIR)/.node-version); \
 	have_node=$$(node --version 2>/dev/null); have_node=$${have_node#v}; \
-	if [ "$$have_node" != "$$want_node" ]; then \
+	if [ -z "$$want_node" ] || [ "$$have_node" != "$$want_node" ]; then \
 		echo "Error: Node.js $$want_node is required (extension/.node-version), found '$$have_node'"; \
 		exit 1; \
 	fi; \
 	want_npm=$$(cd $(EXT_DIR) && npm pkg get packageManager | tr -d '"'); want_npm=$${want_npm#npm@}; \
 	have_npm=$$(npm --version 2>/dev/null); \
-	if [ "$$have_npm" != "$$want_npm" ]; then \
+	if [ -z "$$want_npm" ] || [ "$$have_npm" != "$$want_npm" ]; then \
 		echo "Error: npm $$want_npm is required (packageManager in extension/package.json), found '$$have_npm'"; \
 		exit 1; \
 	fi
@@ -190,11 +190,13 @@ endef
 
 # Installs exactly the lockfile. npm ci fails when package.json and the
 # lockfile disagree, and --ignore-scripts keeps dependency install scripts
-# from running even if .npmrc is overridden.
+# from running even if .npmrc is overridden. check-lockfile accepts only
+# registry.npmjs.org URLs; --registry and --replace-registry-host=never keep
+# a registry set in .npmrc or the environment from redirecting them.
 ext-install:
 	$(call ext_check_versions)
 	cd $(EXT_DIR) && npm run --silent check-lockfile
-	cd $(EXT_DIR) && npm ci --ignore-scripts --no-audit --no-fund
+	cd $(EXT_DIR) && npm ci --ignore-scripts --registry=https://registry.npmjs.org/ --replace-registry-host=never --no-audit --no-fund
 
 ext-typecheck:
 	$(call ext_preflight)

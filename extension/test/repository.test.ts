@@ -97,19 +97,37 @@ describe("no private key is tracked", () => {
 });
 
 describe("install uses npm ci", () => {
-  it("ext-install runs npm ci with --ignore-scripts", () => {
+  it("ext-install runs npm ci without scripts, from the public registry only", () => {
     const result = run("make", ["-n", "ext-install"]);
     assert.equal(result.status, 0, result.stderr);
     const npmCi = result.stdout
       .split("\n")
       .filter((line) => /\bnpm ci\b/.test(line));
     assert.equal(npmCi.length, 1, result.stdout);
-    assert.match(npmCi[0] ?? "", / --ignore-scripts\b/);
+    for (const flag of [
+      "--ignore-scripts",
+      "--registry=https://registry.npmjs.org/",
+      "--replace-registry-host=never",
+    ]) {
+      assert.ok(npmCi[0]?.split(" ").includes(flag), `${flag}: ${npmCi[0]}`);
+    }
   });
 
+  // npm install, update and the like may rewrite the lockfile; only ci (the
+  // install), run (the scripts), pkg (reading packageManager) and --version
+  // are allowed, and npx not at all.
   for (const file of ["Makefile", ciPath]) {
-    it(`${file} never runs npm install`, () => {
-      assert.doesNotMatch(readRepoFile(file), /\bnpm\s+(install|i|add)\b/);
+    it(`${file} runs npm only as ci, run, pkg or --version`, () => {
+      // Comments are prose, not commands.
+      const text = readRepoFile(file)
+        .split("\n")
+        .filter((line) => !/^\s*#/.test(line))
+        .join("\n");
+      assert.doesNotMatch(
+        text,
+        /\bnpm[ \t]+(?!(ci|run|pkg)\b|--version\b)[\w-]+/,
+      );
+      assert.doesNotMatch(text, /\bnpx\b/);
     });
   }
 
@@ -157,6 +175,25 @@ describe("ci runs every extension step", () => {
     assert.deepEqual(runs, targets);
   });
 
+  it("lists renamed and non-ASCII paths for has-extension-changes", () => {
+    assert.ok(
+      jobLines("check-changes").some((line) =>
+        line.includes(
+          "git -c core.quotePath=false diff --no-renames --name-only origin/main...HEAD",
+        ),
+      ),
+    );
+  });
+
+  // A step that cannot fail the job does not count as running the check.
+  for (const name of ["extension", "secret-scan"]) {
+    it(`no step of ${name} is conditional or allowed to fail`, () => {
+      for (const step of jobSteps(jobLines(name))) {
+        assert.doesNotMatch(step, /^ {6}[- ] (if|continue-on-error):/m);
+      }
+    });
+  }
+
   it("checks go list ./... after setting up Go", () => {
     const steps = jobSteps(jobLines("extension"));
     const setupGo = steps.findIndex((step) =>
@@ -185,6 +222,9 @@ describe("secret scan always runs", () => {
         line.includes("git grep -n -E -e '-----BEGIN [A-Z0-9 ]*PRIVATE KEY'"),
       ),
     );
+    // A match (git grep status 0) and an error (above 1) both fail the job.
+    assert.ok(job.some((line) => /^ +0\) .*; exit 1 ;;$/.test(line)));
+    assert.ok(job.some((line) => /^ +\*\) .*; exit 1 ;;$/.test(line)));
   });
 });
 
@@ -212,6 +252,8 @@ describe("go targets do not need node", () => {
       );
       assert.equal(result.status, 0, result.stderr);
       assert.equal(result.stderr, "");
+      // Nor would the recipes call them when run.
+      assert.doesNotMatch(result.stdout, /\b(node|npm|npx)\b/);
     } finally {
       rmSync(bin, { recursive: true, force: true });
     }

@@ -10,6 +10,10 @@ describe("isAcceptedWatchUrl", () => {
     "https://www.youtube.com/watch?v=abc&list=PL123",
     "https://www.youtube.com/watch?v=abc#comments",
     "https://www.youtube.com:443/watch?v=abc",
+    // The parser lowercases the host and resolves dot segments; the
+    // decision uses the parsed URL.
+    "https://WWW.YouTube.com/watch?v=abc",
+    "https://www.youtube.com/a/../watch?v=abc",
   ];
   for (const url of accepted) {
     it(`accepts ${url}`, () => {
@@ -33,6 +37,7 @@ describe("isAcceptedWatchUrl", () => {
     "https://www.youtube.com/watch?v=abc&v=def",
     "https://www.youtube.com/watch/?v=abc",
     "https://www.youtube.com/watchlater?v=abc",
+    "https://www.youtube.com/WATCH?v=abc",
     "https://www.youtube.com/shorts/abc",
     "https://youtu.be/abc",
     "chrome://extensions/",

@@ -18,6 +18,11 @@ const sources = {
   // Errors only under strict (strictNullChecks, noImplicitAny).
   nullToString: "export const s: string = null;\n",
   implicitAny: "export function f(x) {\n  return x;\n}\n",
+  // What src/core/ may use (types/core-url.d.ts) and what it may not.
+  usesUrl:
+    'export const ids: string[] = new URL("https://a/?v=1").searchParams.getAll("v");\n',
+  usesDocument: "export const t: string = document.title;\n",
+  usesChrome: "export const id: string = chrome.runtime.id;\n",
 };
 
 type Source = keyof typeof sources;
@@ -39,9 +44,10 @@ describe("type errors fail typecheck and build", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  // Runs tsc with a configuration that extends base and checks only file.
-  // typeRoots points at the extension's node_modules because the temporary
-  // directory has none; rootDir and outDir keep the file inside the project.
+  // Runs tsc with a configuration that extends base and checks only file
+  // (plus the URL declarations tsconfig.core.json reads). typeRoots points at
+  // the extension's node_modules because the temporary directory has none;
+  // rootDir and outDir keep the file inside the project.
   function runTsc(
     base: string,
     file: Source,
@@ -57,7 +63,12 @@ describe("type errors fail typecheck and build", () => {
           outDir,
         },
         include: [],
-        files: [path.join(dir, `${file}.ts`)],
+        files: [
+          path.join(dir, `${file}.ts`),
+          ...(base === "tsconfig.core.json"
+            ? [path.join(extensionDir, "types", "core-url.d.ts")]
+            : []),
+        ],
       }),
     );
     const result = spawnSync(process.execPath, [tsc, "-p", config], {
@@ -88,6 +99,35 @@ describe("type errors fail typecheck and build", () => {
       });
     }
   }
+
+  describe("core is checked without browser types", () => {
+    for (const file of ["good", "usesUrl"] as const) {
+      it(`tsconfig.core.json accepts ${file}`, () => {
+        const { status, output } = runTsc("tsconfig.core.json", file);
+        assert.equal(status, 0, output);
+      });
+    }
+
+    const browserOnly: { file: Source; code: string }[] = [
+      { file: "usesDocument", code: "TS2584" },
+      { file: "usesChrome", code: "TS2304" },
+    ];
+    for (const { file, code } of browserOnly) {
+      // The premise: the same file is well typed where browser types exist.
+      it(`tsconfig.json accepts ${file}`, () => {
+        const { status, output } = runTsc("tsconfig.json", file);
+        assert.equal(status, 0, output);
+      });
+      it(`tsconfig.core.json rejects ${file} with ${code}`, () => {
+        const { status, output } = runTsc("tsconfig.core.json", file);
+        assert.notEqual(status, 0, output);
+        assert.match(
+          output,
+          new RegExp(`${file}\\.ts\\(\\d+,\\d+\\): error ${code}:`),
+        );
+      });
+    }
+  });
 
   it("tsconfig.build.json emits only when there is no error", () => {
     rmSync(outDir, { recursive: true, force: true });
