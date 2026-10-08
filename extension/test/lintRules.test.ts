@@ -122,3 +122,43 @@ describe("dynamic import", () => {
     },
   ]);
 });
+
+describe("CollectedInput assertions", () => {
+  const code =
+    "declare const value: unknown;\nexport const input = value as CollectedInput;\n";
+
+  it("allows the assertion in the collector", async () => {
+    assert.deepEqual(await ruleIds(code, "src/core/collect.ts"), []);
+  });
+
+  it("allows the assertion in a test", async () => {
+    assert.deepEqual(await ruleIds(code, "test/sample.test.ts"), []);
+  });
+
+  it("forbids the assertion in another source file", async () => {
+    assert.ok(
+      (await ruleIds(code, "src/sample.ts")).includes("no-restricted-syntax"),
+      code,
+    );
+  });
+
+  it("forbids the assertion in a script", async () => {
+    assert.ok(
+      (await ruleIds(code, "scripts/sample.ts")).includes(
+        "no-restricted-syntax",
+      ),
+      code,
+    );
+  });
+
+  it("forbids the angle-bracket assertion in another source file", async () => {
+    const angleCode =
+      "declare const value: unknown;\nexport const input = <CollectedInput>value;\n";
+    assert.ok(
+      (await ruleIds(angleCode, "src/sample.ts")).includes(
+        "no-restricted-syntax",
+      ),
+      angleCode,
+    );
+  });
+});
