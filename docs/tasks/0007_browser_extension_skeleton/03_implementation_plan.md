@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-07 |
-| Review date | - |
-| Reviewer | - |
-| Comments | - |
+| Review date | 2026-10-07 |
+| Reviewer | isseis |
+| Comments | 2026-10-08: 承認の後、`/mkplan2` で PR の境界（§2 の `PR-N 作成ポイント`・§3.2・§7）を埋め込んだ。あわせて、§1.4 に I-02 の行を加え（§1.3 とステップ 1-5・1-6 にすでにある対応を表に載せた）、フェーズ 5 とステップ 5-1 の対象に、設計書 3.1 と承認時のステップ 5-1 の本文がすでに定める代替の登録の `background.ts` を加えた。いずれも既存の記述に表と対象を合わせた編集上の修正で、判断の変更はない。2026-10-08（レビュー対応）: 高リスクな I-01 の流れを PR の最後に置くため、フェーズ 4 を PR-4（ステップ 4-1〜4-5）と PR-5（ステップ 4-6〜4-8）に分け、旧 PR-5 を PR-6 とした。旧ステップ 4-1 の HTML・CSS をエントリポイントのステップ 4-6 に移し、旧ステップ 4-7 の確認を 4-5 と 4-8 に分け、ステップの番号を振り直した（§2・§3.2・§4.4・§5・§7）。PR の分け方の判断の変更だが、各ステップで作るもの・テスト・確認の内容は変わらないので、`approved` のままとする（レビュアーの判断）。2026-10-08（レビュー対応）: §3.2 の PR-1 を分けない理由の文で、`acceptedUrl` とガードのテストの役割を分けて書き直した（依存の向きが逆だった）。PR-1 の判定理由から、引き金に当たらない「段階的なロールアウト」の節を削った（区分は変わらない）。ステップ 5-1 に代替の登録を加えた場合の記録を明記し、§5 の AC-10・AC-11 の Implementation に 5-1 を加えた。いずれも編集上の修正で、判断の変更はない。 2026-10-08（レビュー対応）: ステップ 1-8 が PR の CI を必要とするため、ステップ 1-8 の本文を PR-1 の作成後の作業と明記し、PR-1 のチェックリストにステップ 1-8 の検証の行を加えた。順序を明記しただけで、判断の変更はない。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -88,7 +88,8 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 
 | 項目 | 対応 |
 |---|---|
-| I-01（要約の削除の失敗時の契約とテスト） | `SummaryStore.remove` の契約を「削除に失敗したら reject する」とする（`chrome.storage.session.remove` の失敗をそのまま伝える）。`runMenuLaunch` は、`windows.create` の失敗の後の `remove` と `signalDisplayFailure` を、それぞれ独立に捕捉する。`remove` の失敗は `log.error` に記録し、成否にかかわらずバッジを表示する。実装はステップ 4-2・4-3、テストはステップ 4-6 の `launch.test.ts`（`windows.create` と `remove` を同時に失敗させる行） |
+| I-01（要約の削除の失敗時の契約とテスト） | `SummaryStore.remove` の契約を「削除に失敗したら reject する」とする（`chrome.storage.session.remove` の失敗をそのまま伝える）。`runMenuLaunch` は、`windows.create` の失敗の後の `remove` と `signalDisplayFailure` を、それぞれ独立に捕捉する。`remove` の失敗は `log.error` に記録し、成否にかかわらずバッジを表示する。実装はステップ 4-2・4-3、テストはステップ 4-4 の `launch.test.ts`（`windows.create` と `remove` を同時に失敗させる行） |
+| I-02（AC-09 の秘密鍵の検査の実装（検出の正規表現とテストの配置）） | 検出の正規表現（PEM の見出し `-----BEGIN [A-Z0-9 ]*PRIVATE KEY`）とテストの配置（`repository.test.ts` の行と、常時実行の CI のジョブ `secret-scan`）を、本計画 §1.3 とステップ 1-5・1-6 に記す。設計書 7.4 は検証する性質だけを述べる（本計画と同じコミットで改めた） |
 
 ## 2. 実装ステップ (Implementation Steps)
 
@@ -103,7 +104,7 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 **タスク**
 -   [ ] **ステップ 1-1**: `extension/` の設定のファイルを、設計書 2.1・3.8 のとおりに作る。依存パッケージは設計書 3.8 の表のものに限り、すべて `devDependencies` にする。lockfile は承認を得てから `npm install --ignore-scripts` で作る（§1.2）。`eslint.config.js` には、次の 3 種類を禁止する規則を入れる: `eval` 系（`no-eval`・`no-implied-eval`・`no-new-func`）、HTML を解釈する API（設計書 3.7 の一覧）、動的な `import()`。`CollectedInput` への型の表明の禁止はフェーズ 3 で加える。
     -   **対象:** `extension/.node-version`・`.npmrc`・`package.json`・`package-lock.json`・`tsconfig.json`・`tsconfig.core.json`・`tsconfig.build.json`・`eslint.config.js`・`.prettierrc.json`・`.prettierignore`。**完了:** `make ext-install` が通り、TypeScript・ESLint・Prettier の各設定が読み込める。
--   [ ] **ステップ 1-2**: `extension/scripts/` の 3 つのスクリプトを作る（設計書 3.8・3.9・5.2）。`check-lockfile` と `check-dist` は、判定を関数として export し、テストから一時ディレクトリを渡して呼べる形にする。`check-dist` は、このフェーズではファイルの集合とモジュールの指定を確かめる。manifest と HTML の参照の検査は、参照先のファイルがそろうステップ 4-5 で加える。`static/` はフェーズ 2 まで存在しないので、`copy-static` と `check-dist` は `static/` がない場合を空として扱う。
+-   [ ] **ステップ 1-2**: `extension/scripts/` の 3 つのスクリプトを作る（設計書 3.8・3.9・5.2）。`check-lockfile` と `check-dist` は、判定を関数として export し、テストから一時ディレクトリを渡して呼べる形にする。`check-dist` は、このフェーズではファイルの集合とモジュールの指定を確かめる。manifest と HTML の参照の検査は、参照先のファイルがそろうステップ 4-7 で加える。`static/` はフェーズ 2 まで存在しないので、`copy-static` と `check-dist` は `static/` がない場合を空として扱う。
     -   **対象:** `extension/scripts/check-lockfile.ts`・`copy-static.ts`・`check-dist.ts`。**完了:** 3 つのスクリプトがそれぞれ実行でき、`static/` がない状態を空として扱う。
 -   [ ] **ステップ 1-3**: `Makefile` に設計書 3.8 の `ext-` のターゲットを加え、`.PHONY`（`Makefile:49`）に足す。版の確認（Node.js と npm）はすべての `ext-` のターゲット（`ext-install` を含む）で、`node_modules` の有無の確認は `ext-install` 以外の `ext-` のターゲットで行う。どちらもレシピの中だけで行い、解析時の `$(shell ...)`、`:=` による Node.js の呼び出し、全体の `export` を使わない。Go のターゲットが Node.js を必要としないためである（要件書 F-001）。`fmt-all` の `find` に `-not -path './extension/*'` を加える。`go.mod` に `ignore ./extension` を、`.gitignore` に設計書 3.8 の 3 行を、`.pre-commit-config.yaml` の `pre-commit-hooks` に `detect-private-key` を加える。
     -   **対象:** `Makefile`・`go.mod`・`.gitignore`・`.pre-commit-config.yaml`。**完了:** `make ext-install` が通り、`go list ./...` に `extension/` で始まるパッケージが現れない。
@@ -139,10 +140,28 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 
     CI の `go list ./...` のステップは、`go.mod` から `ignore ./extension` を外したときに失敗することを、手元で同じコマンドを実行して確かめる。依存パッケージが Go のファイルを含まなくなっていて失敗しない場合は、そのことを記録する。続けて、`make ext-install` → `make ext-check`、`make test`・`make lint`・`make deadcode`・`make build` を通す。最後に AC-05 の比較を行い、§5.1 に記録する。比較の内容は、`extension/node_modules` と `extension/dist` がある状態と、`extension/` を一時的に退避した状態とで、4 つの Go の手順の成否と `go list ./...` の出力を比べることである。
     -   **対象:** なし（確認のみ）。**完了:** 各対象を壊して失敗することを確認し、コミットメッセージに記録する。
--   [ ] **ステップ 1-8**: PR の CI で、拡張のジョブの 6 つのステップと Go の確認が通ることを確かめる。続けて、設計書 7.3 の AC-07 の 6 つの変更を 1 つずつ別のコミットとして push し、それぞれで対応するステップが失敗して CI が失敗することを確かめてから、その変更を戻す。結果（コミット、失敗したステップ）を §5.1 に記録する。
-    -   **対象:** なし（確認のみ）。**完了:** PR の CI が通り、AC-07 の 6 つの変更のコミットで対応するステップが失敗することを確かめ、§5.1 に記録する。
+-   [ ] **ステップ 1-8**: PR-1 を作成した後に、PR の CI で、拡張のジョブの 6 つのステップと Go の確認が通ることを確かめる。続けて、設計書 7.3 の AC-07 の 6 つの変更を 1 つずつ別のコミットとして push し、それぞれで対応するステップが失敗して CI が失敗することを確かめてから、その変更を戻す。結果（コミット、失敗したステップ）を §5.1 に記録する。
+    -   **対象:** なし（確認のみ）。**完了:** PR-1 の作成後、PR の CI が通り、AC-07 の 6 つの変更のコミットで対応するステップが失敗することを確かめ、§5.1 に記録する。
 
 **完了条件:** `make ext-check`・`make test`・`make lint`・`make deadcode`・`make build` が通り、§5.1 の AC-02・AC-03・AC-05・AC-07 の行が記録されている。
+
+### PR-1 作成ポイント: extension toolchain, guard tests, and CI
+
+**対象ステップ**: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8
+
+**推奨タイトル**: `feat(0007): bootstrap the browser extension toolchain and CI`
+
+**レビュー観点**: Go のターゲットが Node.js を必要とせず、Go の手順（`make test`・`make lint`・`make deadcode`・`make build`）の結果を変えないこと（ステップ 1-3・1-7、AC-05） / `has-extension-changes.sh` が 4 つのパターンと `^`・`$` を正しく判定し、拡張のジョブが `has-extension-changes` で起動すること（ステップ 1-6、AC-07） / 追跡中のファイルに PEM の秘密鍵がなく、その検査が常時実行のジョブ `secret-scan` と `repository.test.ts` で担われること（ステップ 1-5・1-6、AC-09） / lockfile が追跡され、インストールが `npm ci --ignore-scripts` に限られること（ステップ 1-3・1-5、AC-03）
+
+**実装モデル要件**: frontier-required
+
+**判定理由**: ステップ 1-6 の CI のジョブの追加がパネルモードの引き金「CI・外部資源の面」に、秘密鍵の常時チェック（AC-09）がセキュリティゲートに当たり、さらにステップ 1-1 が `.node-version`（Node.js 24）と作業環境（`v26.4.0`）の差および設計書 3.8 の設定を持つ TypeScript の版の選定という未確定の判断を含むため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] ステップ 1-8 の PR の CI の検証を行い、結果を §5.1 に記録した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: manifest
 
@@ -158,6 +177,23 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
     -   **対象:** なし（確認のみ）。**完了:** 各対象を壊して失敗することを確認し、コミットメッセージに記録する。
 
 **完了条件:** `make ext-check` → `make test` → `make lint` が通り、`manifest.test.ts` が通る。
+
+### PR-2 作成ポイント: extension manifest and fixed ID
+
+**対象ステップ**: 2-1 / 2-2 / 2-3
+
+**推奨タイトル**: `feat(0007): add the extension manifest with a fixed ID`
+
+**レビュー観点**: `key` を設計書 3.12.1 の値から生成し直さず、そこから計算した拡張 ID が `clfmbbcdpnjcefbdihdoahomaifbabkk` になること（ステップ 2-1・2-2、AC-08・AC-09） / `permissions` が設計書 3.1 の 4 つとちょうど一致し、宣言しない項目がなく、CSP を変更しないこと（ステップ 2-2、AC-12・AC-26・AC-27） / `background`（`type: "module"`）・`action.default_popup`・`manifest_version`・`minimum_chrome_version` が設計書 3.1 の値であること（ステップ 2-2）
+
+**実装モデル要件**: standard
+
+**判定理由**: manifest の各値は設計書 3.1 と 3.12.1 で確定しており、`既存コード調査結果` に競合する実装方針の併記がなく、パネルモードの引き金・2 つ以上の Conditional check・隔離すべき高リスクなステップのいずれにも該当しないため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: core
 
@@ -186,6 +222,23 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 
 **完了条件:** `make ext-check` → `make test` → `make lint` が通り、`collect`・`messages`・`summary` のテストが通る。
 
+### PR-3 作成ポイント: browser-free core for collection and display
+
+**対象ステップ**: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6
+
+**推奨タイトル**: `feat(0007): add the browser-free core for collection and display`
+
+**レビュー観点**: 判定の順序（対象外のページ → 収集の失敗 → 選択範囲が空 → タイトルが空）と、対象外のページで選択範囲を読み取らないこと（ステップ 3-2、AC-15・AC-18・AC-19） / 収集した値を補正せず、前後の空白・空行を残すこと（ステップ 3-2、AC-14） / 空白文字の判定（`\p{White_Space}`。U+0085 を拒否し U+FEFF を受理する）と、サロゲートペアを 1 と数える文字数・行数（ステップ 3-2・3-4、AC-16・AC-17・AC-21） / 拒否の理由を型で表し、`rejectionMessage` の 4 つの文言が互いに異なること（ステップ 3-3、AC-22・AC-31）
+
+**実装モデル要件**: standard
+
+**判定理由**: `既存コード調査結果` に競合する実装方針の併記がなく、Conditional checks・パネルモードの引き金・隔離すべき高リスクなステップのいずれにも該当しないため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ### フェーズ 4: 表示と経路の処理
 
 **対象ファイル**
@@ -193,36 +246,73 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 -   変更: `extension/scripts/check-dist.ts`、`extension/test/checkDist.test.ts`
 
 **タスク**
--   [ ] **ステップ 4-1**: `ui/render.ts` の `renderSummary` と、`static/` の HTML・CSS を作る（設計書 3.7・3.13）。HTML はスクリプトを `<script type="module" src>` で読み、インラインのスクリプトを書かない。
-    -   **対象:** `extension/src/ui/render.ts`・`extension/static/popup.html`・`extension/static/result.html`・`extension/static/style.css`。**完了:** `make ext-build` が通る。
+-   [ ] **ステップ 4-1**: `ui/render.ts` の `renderSummary` を作る（設計書 3.7）。
+    -   **対象:** `extension/src/ui/render.ts`。**完了:** `make ext-typecheck` が通る。
 -   [ ] **ステップ 4-2**: `launch.ts` に、依存の interface、`launchContextFromTab`、`runMenuLaunch`・`runPopupLaunch`・`runResultWindow` を作る（設計書 3.6）。`runMenuLaunch` の表示の失敗の扱いは設計書 3.6 と §1.4 の I-01 の対応のとおりとする。`Logger` には、最初の引数に固定のラベルだけを渡す。
     -   **対象:** `extension/src/launch.ts`。**完了:** `make ext-typecheck` が通る。
 -   [ ] **ステップ 4-3**: `browser/chromeDeps.ts` に、依存の interface と `SelectionReader` の実装を作る（設計書 3.6）。注入する関数は、外の名前を参照しない 1 つの関数とする。`read` は、`executeScript` が失敗した場合、または戻り値の形が想定と違う場合に reject する。`SummaryStore.remove` は、削除の失敗で reject する（§1.4）。この契約を `launch.ts` の `SummaryStore.remove` の doc コメントに書く。
     -   **対象:** `extension/src/browser/chromeDeps.ts`。**完了:** `make ext-typecheck` が通る。
--   [ ] **ステップ 4-4**: エントリポイントを作る（設計書 2.1・3.1・6 章）。`background.ts` は、`onInstalled` で `contextMenus.removeAll()` の完了を待ってから項目を作り、`onClicked` のリスナーをモジュールの最上位で登録する。
-    -   **対象:** `extension/src/background.ts`・`popup.ts`・`result.ts`。**完了:** `make ext-build` が通る。
--   [ ] **ステップ 4-5**: `check-dist` に manifest と HTML の参照の検査を加え（設計書 3.9）、`checkDist.test.ts` に、`background.service_worker`・`action.default_popup`・`<script src>`・`<link href>` のそれぞれが `dist/` にないファイルを指す場合を拒否する行を加える。
-    -   **対象:** `extension/scripts/check-dist.ts`・`extension/test/checkDist.test.ts`。**完了:** `extension/test/checkDist.test.ts` が通る。
--   [ ] **ステップ 4-6**: テストを作る（設計書 3.11）。
+-   [ ] **ステップ 4-4**: `render`・`launch`・`chromeDeps` のテストを作る（設計書 3.11）。
     -   `render.test.ts`: jsdom の要素で、タイトルと選択範囲に `<img src=x onerror=alert(1)>` を含む要約を表示し、`img` 要素がなく、`textContent` に元の文字列があること。成功の場合にタイトル・URL・文字数・行数・プレビューのラベルと値があること。拒否の場合に `text` と、`steps` があるときだけ番号付きのリストがあること。
     -   `launch.test.ts`（収集）: 同じ fake のタブと `SelectionReader` で、2 つの経路が同じ収集の結果（ログに出す値）と同じ要約になること。収集に成功する入力と、拒否になる入力の両方で確かめる（AC-30）。`launchContextFromTab` がタブなし・`id` なしのタブで `undefined` を返し、どちらの経路も「収集の失敗」になること。`Logger` の最初の引数が、信頼できない文字列を含む入力でも固定のラベルであること。`info.selectionText` を使わないこと。前後の空白・空行が経路を通っても残ること。`put` の失敗でウィンドウを開かずバッジを表示すること。`windows.create` の失敗でバッジを表示し同じ鍵を `remove` すること。`windows.create` と `remove` が同時に失敗しても reject せず、バッジを表示し `log.error` に記録すること（I-01）。どの失敗でも reject しないこと。起動の開始でバッジを消すこと。
     -   `launch.test.ts`（表示）: `runPopupLaunch` と `runResultWindow` を jsdom の要素で実行し、`<img src=x onerror=alert(1)>` が要素にならないこと（AC-23）。`runPopupLaunch` が、動画ページでは収集した内容を、対象外のページでは理由と手順を表示すること（AC-28・AC-29 のユニットテストの部分）。`runResultWindow` が要約を読んだ後に消すこと、ハッシュがない・要約がない・形が違うときに固定の文言を表示すること。
     -   `chromeDeps.test.ts`: fake の `executeScript` が形の違う結果（`null`・`undefined`・文字列だけ・項目の欠け・項目の型の違い・空の配列）を返すか例外を投げると `read` が reject すること。注入する関数のソースを、外の名前を持たない環境（`node:vm` など。lint が禁止する `eval`・`new Function` は使わない）で評価し、fake の `window.getSelection` と `location` だけで期待する値を返すこと。
     -   **対象:** `extension/test/render.test.ts`・`launch.test.ts`・`chromeDeps.test.ts`。**完了:** これらのテストが通る。
--   [ ] **ステップ 4-7**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `renderSummary` の 1 か所を `textContent` から HTML を解釈する API に替える（lint を一時的に無効にして）、`runMenuLaunch` で `info.selectionText` を使う、`put` の失敗の後にウィンドウを開く、`remove` の失敗を `signalDisplayFailure` と同じ `try` に入れる、`runResultWindow` で `take` の代わりに読むだけにする、`parseSummary` を通さずに表示する、注入する関数から外の定数を参照する、`read` の結果の形の検査を外す、`check-dist` の参照の検査を外す。`make ext-check` → `make test` → `make lint` を通し、`dist/` を Chrome に読み込んでエラーがないことを確かめる。
+-   [ ] **ステップ 4-5**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `renderSummary` の 1 か所を `textContent` から HTML を解釈する API に替える（lint を一時的に無効にして）、`runMenuLaunch` で `info.selectionText` を使う、`put` の失敗の後にウィンドウを開く、`remove` の失敗を `signalDisplayFailure` と同じ `try` に入れる、`runResultWindow` で `take` の代わりに読むだけにする、`parseSummary` を通さずに表示する、注入する関数から外の定数を参照する、`read` の結果の形の検査を外す。あわせて、§4.4 の網羅率を確かめる。`make ext-check` → `make test` → `make lint` を通す。
     -   **対象:** なし（確認のみ）。**完了:** 各対象を壊して失敗することを確認し、コミットメッセージに記録し、`make ext-check` を通す。
 
-**完了条件:** `make ext-check` → `make test` → `make lint` が通る。`make ext-build` の成果物を Chrome の「パッケージ化されていない拡張機能を読み込む」で読み込み、エラーなく読み込まれることを確かめる（ステップ 4-7 で行う）。
+### PR-4 作成ポイント: rendering and launch paths
+
+**対象ステップ**: 4-1 / 4-2 / 4-3 / 4-4 / 4-5
+
+**推奨タイトル**: `feat(0007): render summaries and implement the launch paths`
+
+**レビュー観点**: 収集した文字列を `textContent` だけで表示し、`<img src=x onerror=alert(1)>` が要素として解釈されないこと（ステップ 4-1・4-4、AC-23） / 2 つの起動の経路が同じ `collect` と `renderSummary` を使い、同じ収集の結果と要約になること（ステップ 4-2、AC-30） / 表示の失敗の扱い（I-01）: `windows.create` と `SummaryStore.remove` の失敗を独立に捕まえ、`runMenuLaunch` が reject せずバッジを表示すること（ステップ 4-2・4-3、AC-13） / 注入する関数が外の名前を参照せず、`read` が形の違う結果で reject すること（ステップ 4-3・4-4、AC-18）
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: ステップ 4-2・4-3 が、`windows.create` と `SummaryStore.remove` の同時失敗をそれぞれ独立に捕まえて `runMenuLaunch` を reject させない表示の失敗の流れ（I-01）という、回復の流れ（高リスクなステップ）を含むため。この流れは本 PR の最後の実装のステップに置き、後に続くのはそのテスト（ステップ 4-4）と確認（ステップ 4-5）だけにした。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
+-   [ ] **ステップ 4-6**: `static/` の HTML・CSS（設計書 3.7・3.13）と、エントリポイント（設計書 2.1・3.1・6 章）を作る。HTML はスクリプトを `<script type="module" src>` で読み、インラインのスクリプトを書かない。`background.ts` は、`onInstalled` で `contextMenus.removeAll()` の完了を待ってから項目を作り、`onClicked` のリスナーをモジュールの最上位で登録する。
+    -   **対象:** `extension/static/popup.html`・`extension/static/result.html`・`extension/static/style.css`・`extension/src/background.ts`・`popup.ts`・`result.ts`。**完了:** `make ext-build` が通る。
+-   [ ] **ステップ 4-7**: `check-dist` に manifest と HTML の参照の検査を加え（設計書 3.9）、`checkDist.test.ts` に、`background.service_worker`・`action.default_popup`・`<script src>`・`<link href>` のそれぞれが `dist/` にないファイルを指す場合を拒否する行を加える。
+    -   **対象:** `extension/scripts/check-dist.ts`・`extension/test/checkDist.test.ts`。**完了:** `extension/test/checkDist.test.ts` が通る。
+-   [ ] **ステップ 4-8**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `check-dist` の参照の検査を外す。`make ext-check` → `make test` → `make lint` を通し、`dist/` を Chrome に読み込んでエラーがないことを確かめる。
+    -   **対象:** なし（確認のみ）。**完了:** 対象を壊して失敗することを確認し、コミットメッセージに記録し、`make ext-check` を通す。
+
+**完了条件:** `make ext-check` → `make test` → `make lint` が通る。`make ext-build` の成果物を Chrome の「パッケージ化されていない拡張機能を読み込む」で読み込み、エラーなく読み込まれることを確かめる（ステップ 4-8 で行う）。
+
+### PR-5 作成ポイント: extension entry points and page assets
+
+**対象ステップ**: 4-6 / 4-7 / 4-8
+
+**推奨タイトル**: `feat(0007): add the extension entry points and page assets`
+
+**レビュー観点**: エントリポイントが分岐を持たず、`chromeDeps.ts` で依存を作って経路の処理を呼ぶだけであること（ステップ 4-6、設計書 3.6） / `background.ts` が `onInstalled` で `contextMenus.removeAll()` の完了を待ってから項目を作り、`onClicked` のリスナーをモジュールの最上位で登録すること（ステップ 4-6、AC-10・AC-11） / HTML がスクリプトを `<script type="module" src>` だけで読み、インラインのスクリプトを持たないこと（ステップ 4-6） / `check-dist` が manifest と HTML の参照先を検査し、成果物を Chrome にエラーなく読み込めること（ステップ 4-7・4-8、AC-04）
+
+**実装モデル要件**: standard
+
+**判定理由**: PR-4 で作った経路の処理の配線、静的なファイル、`check-dist` の検査の追加に限られ、`既存コード調査結果` に競合する実装方針の併記がなく、Conditional checks・パネルモードの引き金・隔離すべき高リスクなステップのいずれにも該当しないため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 5: 手動の確認と文書
 
 **対象ファイル**
 -   新設: `extension/test/docs.test.ts`
--   変更: `README.md`、`CLAUDE.md`、`docs/dev/project_overview.md`、`docs/dev/security.md`、本計画（§5.1）
+-   変更: `README.md`、`CLAUDE.md`、`docs/dev/project_overview.md`、`docs/dev/security.md`、本計画（§5.1）。加えて、ステップ 5-1 の手動の確認でメニューの項目が残らない場合だけ `extension/src/background.ts`（設計書 3.1 の代替の登録）
 
 **タスク**
--   [ ] **ステップ 5-1**: 設計書 7.2 の手動の確認を、macOS の Chrome と Brave（作業時点の安定版）で行い、ブラウザの版・日付・結果を §5.1 に記録する。AC-10・AC-11 では、拡張の無効化と再有効化、ブラウザの再起動の後に項目が残ることも確かめる。残らない場合は、設計書 3.1 のとおり service worker のモジュールの最上位でも登録し、確認をやり直す。
-    -   **対象:** なし（確認のみ）。**完了:** 設計書 7.2 の手動の確認の結果を §5.1 の該当行に記録する。
+-   [ ] **ステップ 5-1**: 設計書 7.2 の手動の確認を、macOS の Chrome と Brave（作業時点の安定版）で行い、ブラウザの版・日付・結果を §5.1 に記録する。AC-10・AC-11 では、拡張の無効化と再有効化、ブラウザの再起動の後に項目が残ることも確かめる。残らない場合は、設計書 3.1 のとおり service worker のモジュールの最上位でも登録し、確認をやり直す。代替の登録を加えた場合は、加える前の確認で項目が残らなかった結果と、加えた後の確認の結果を、§5.1 の AC-10・AC-11 の行とコミットメッセージに記録する。
+    -   **対象:** `extension/src/background.ts`（代替の登録が必要な場合だけ。通常はなし）。**完了:** 設計書 7.2 の手動の確認の結果を §5.1 の該当行に記録する。
 -   [ ] **ステップ 5-2**: `README.md` の `## Development` の下に、要件書 F-008 と設計書 3.13 の `README.md` の行に挙げた内容（Node.js の版の用意、`make ext-install`、ビルド、Chrome と Brave への読み込み、2 つの起動の手段、送信しないこと、コンソールの開き方、拡張 ID）を書く。
     -   **対象:** `README.md`。**完了:** `extension/test/docs.test.ts::documents` が通る。
 -   [ ] **ステップ 5-3**: `CLAUDE.md` に、設計書 3.13 の `CLAUDE.md` の行の内容を書く。`ext-` のターゲットは `### Build Commands` などのコマンドの一覧に、変更後の確認（`make ext-check`）は `## Development Notes` に、依存パッケージの方針は `### Dependencies` に置く。あわせて、文書（README・CLAUDE.md・`docs/`）や `.gitignore` だけを変えるときも `make ext-test` を手元で実行することを書く（§6.1。AC-09 の秘密鍵の検査は常時実行の CI のジョブ `secret-scan` が担うので、ここには含めない）。
@@ -240,6 +330,23 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 
 **完了条件:** `make ext-check` → `make test` → `make lint` が通り、§5.1 のすべての行が記録され、`docs.test.ts` が通る。
 
+### PR-6 作成ポイント: manual verification and documentation
+
+**対象ステップ**: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6 / 5-7 / 5-8
+
+**推奨タイトル**: `docs(0007): record the manual checks and document the extension`
+
+**レビュー観点**: README・CLAUDE.md・`project_overview.md`・`security.md` が要件書 F-008 と設計書 3.13 のとおりで、固定した拡張 ID と権限の理由を含むこと（ステップ 5-2〜5-5、AC-25） / `docs.test.ts` が機械的に確かめられる契約値だけを固定し、§5.1 の手動の確認の記録の有無を確かめること（ステップ 5-6、AC-24・AC-25） / §5.1 の手動の確認（Chrome・Brave）のブラウザの版・日付・結果が記録され、README の手順が実物（`Makefile` のレシピ、設計書 3.1 の権限の表）と一致すること（ステップ 5-1・5-7） / ステップ 5-1 の代替の登録で `background.ts` を変えた場合、設計書 3.1 の登録（`onInstalled` とモジュールの最上位）にとどまり、ほかの振る舞いを変えないこと
+
+**実装モデル要件**: standard
+
+**判定理由**: 文書の作成・文書のガードのテスト・手動の確認に限られ、`既存コード調査結果` に競合する実装方針の併記がなく、Conditional checks・パネルモードの引き金・隔離すべき高リスクなステップのいずれにも該当しないため。ステップ 5-1 の service worker のモジュールの最上位での再登録は、設計書 3.1 が定めた手順で、新しい設計の判断を伴わないので、回復の流れの引き金には当たらない。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
 
 ### 3.1. マイルストーン
@@ -252,9 +359,24 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 | M4: 経路の処理 | フェーズ 4 | `make ext-build` の成果物を Chrome に読み込める。`render`・`launch`・`chromeDeps` のテストが通る |
 | M5: 確認と文書 | フェーズ 5 | §5.1 の手動の確認の記録がそろい、`docs.test.ts` が通る |
 
-### 3.2. 実装順序の根拠
+### 3.2. PR 構成
 
-設計書 8 章の順序に従う。フェーズ 1 で、CI と成果物の検査を最初に用意し、以後のフェーズの変更がすべて同じ検査を通るようにする。フェーズ 2 の manifest が参照する `background.js`・`popup.html` はフェーズ 4 で作るので、`check-dist` の参照の検査はフェーズ 4（ステップ 4-5）で加える。手動の確認は、すべての経路がそろうフェーズ 5 で行う。
+PR は、フェーズ 4 を 2 つに分け、そのほかはフェーズと 1 対 1 に対応させる（PR-1〜PR-6）。各 PR は主たる関心事（拡張の開発環境と CI / manifest と拡張 ID / `core/` の判定と要約 / 表示と経路の処理 / エントリポイントと静的なファイル / 手動の確認と文書）を持ち、単独でグリーンゲートを通せる単位とする。本タスクの各 PR のグリーンゲートは、`_context.md` の "Green gate"（`make test && make lint`）に `make ext-check` を加えた `make ext-check` → `make test` → `make lint`（各フェーズの完了条件と同じ）とする。`make test`・`make lint` は Go のソースだけを対象にし、拡張の成果物を確かめないためである。フェーズ 1 のガードのテスト（`typecheck.test.ts`・`lintRules.test.ts`・`checkDist.test.ts`・`checkLockfile.test.ts`・`repository.test.ts`・`ciChanges.test.ts`）は、ステップ 1-1〜1-3 の設定・スクリプト・`Makefile`・Go の設定と、ステップ 1-6 の CI と `has-extension-changes.sh` を確かめる。`acceptedUrl`（ステップ 1-4）は、CI の 6 つのステップが型検査・lint・テストする対象になる（設計書 8 章の「`core/` の 1 ファイルとテスト 1 つ」）。そのため、これらの実装とテストを 1 つの PR にまとめる。分けると、`repository.test.ts`・`ciChanges.test.ts` が相手の PR で足す `ci.yml` を参照して片方のグリーンゲートが通らなくなり、`acceptedUrl` のない側では 6 つのステップが確かめる対象を持たない。
+
+フェーズ 4 では、ステップを並べ替えて番号を振り直した。フェーズ 4 の表示の失敗の流れ（I-01）は高リスクなステップなので、PR の最後の実装のステップに置くために、フェーズ 4 を PR-4 と PR-5 に分ける。依存の向きは、`renderSummary` → `launch.ts`・`chromeDeps.ts` → エントリポイント → `check-dist` の参照の検査である。そのため、PR-4 は `renderSummary`（ステップ 4-1）、`launch.ts`・`chromeDeps.ts`（ステップ 4-2・4-3）と、そのテストと確認（ステップ 4-4・4-5）とし、I-01 の後には同じコードのテストと確認だけを置く。HTML・CSS は、それを読むエントリポイントと同じ PR-5（ステップ 4-6）に移した。PR-4 の時点では manifest が指す `background.js`・`popup.html` がまだないが、`check-dist` の参照の検査は PR-5（ステップ 4-7）で加えるので、PR-4 は単独でグリーンゲートを通せる。ステップ番号の順と文書の順は一致し、各 `### PR-N 作成ポイント` は対象のステップのすべての後にある。`core/` の判定（PR-3）は、それを使う表示と経路の処理（PR-4）に先行する。
+
+| PR | 対象ステップ | 主な変更内容 | 実装モデル要件 |
+|---|---|---|---|
+| PR-1 | 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8 | 拡張の設定・スクリプト・`Makefile` の `ext-` ターゲット・`go.mod`/`.gitignore`/`.pre-commit-config.yaml`・`acceptedUrl` と、ガードのテスト・CI のジョブ | frontier-required |
+| PR-2 | 2-1 / 2-2 / 2-3 | `manifest.json`（固定した `key` と権限）と `manifest.test.ts` | standard |
+| PR-3 | 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 | `core/` の型・`collect`・`messages`・`summary` とそのテスト | standard |
+| PR-4 | 4-1 / 4-2 / 4-3 / 4-4 / 4-5 | `render`・`launch`・`chromeDeps` とそのテスト、経路の表示の失敗の扱い（I-01） | frontier-recommended |
+| PR-5 | 4-6 / 4-7 / 4-8 | エントリポイント・HTML と CSS・`check-dist` の参照の検査 | standard |
+| PR-6 | 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6 / 5-7 / 5-8 | 手動の確認の記録と文書（README・CLAUDE.md・`project_overview.md`・`security.md`）と `docs.test.ts`、必要なら `background.ts` の代替の登録 | standard |
+
+### 3.3. 実装順序の根拠
+
+設計書 8 章の順序に従う。フェーズ 1 で、CI と成果物の検査を最初に用意し、以後のフェーズの変更がすべて同じ検査を通るようにする。フェーズ 2 の manifest が参照する `background.js`・`popup.html` はフェーズ 4 で作るので、`check-dist` の参照の検査はフェーズ 4（ステップ 4-7）で加える。手動の確認は、すべての経路がそろうフェーズ 5 で行う。
 
 ## 4. テスト戦略 (Test Strategy)
 
@@ -276,7 +398,7 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 
 ### 4.4. 網羅率
 
-`core/`・`launch.ts`・`ui/render.ts`・`browser/chromeDeps.ts` の `SelectionReader` の実装は、ユニットテストで実行する。`chromeDeps.ts` のそのほかの実装とエントリポイントは、設計書 3.11 のとおりユニットテストせず、手動の確認で確かめる。フェーズ 4 の完了時に `node --test --experimental-test-coverage` の出力で、ユニットテストの対象のファイルに実行されない分岐が残っていないかを確かめ、残る分岐をコミットメッセージに挙げる。
+`core/`・`launch.ts`・`ui/render.ts`・`browser/chromeDeps.ts` の `SelectionReader` の実装は、ユニットテストで実行する。`chromeDeps.ts` のそのほかの実装とエントリポイントは、設計書 3.11 のとおりユニットテストせず、手動の確認で確かめる。ステップ 4-5 で `node --test --experimental-test-coverage` の出力で、ユニットテストの対象のファイルに実行されない分岐が残っていないかを確かめ、残る分岐をコミットメッセージに挙げる。
 
 ## 5. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -287,14 +409,14 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 | AC-01 | test | `make ext-check`（CI のジョブ `extension` の 6 つのステップ） | ステップ 1-1〜1-3・1-6 |
 | AC-02 | test・manual | `extension/test/typecheck.test.ts::type errors fail typecheck and build`、ステップ 1-8 の型検査の変更での CI の失敗 | ステップ 1-1・1-5 |
 | AC-03 | static・manual（理由は §4.1） | `extension/test/repository.test.ts::install uses npm ci`、ステップ 1-8 の版の範囲の変更での CI の失敗 | ステップ 1-3・1-5 |
-| AC-04 | test | `extension/test/checkDist.test.ts::checkDist`、`make ext-build`（`check-dist` を毎回実行する） | ステップ 1-2・1-5・4-5 |
+| AC-04 | test | `extension/test/checkDist.test.ts::checkDist`、`make ext-build`（`check-dist` を毎回実行する） | ステップ 1-2・1-5・4-7 |
 | AC-05 | static・manual（理由は §4.1） | CI のジョブ `extension` の `go list ./...` のステップ、ステップ 1-7 の比較の記録（§5.1） | ステップ 1-3・1-6・1-7 |
 | AC-06 | test | `extension/test/repository.test.ts::build outputs are ignored` | ステップ 1-3・1-5 |
 | AC-07 | test・static・manual | `extension/test/ciChanges.test.ts::has-extension-changes`、`extension/test/repository.test.ts::ci runs every extension step`、ステップ 1-8 の CI の記録（§5.1） | ステップ 1-6・1-8 |
 | AC-08 | test・manual | `extension/test/manifest.test.ts::key`（拡張 ID の計算）、ステップ 5-1（§5.1） | ステップ 2-1・2-2 |
 | AC-09 | test | `extension/test/manifest.test.ts::key`（公開鍵としての解析）、`extension/test/repository.test.ts::no private key is tracked`、CI の常時実行のジョブ `secret-scan`。pre-commit の `detect-private-key` は補助 | ステップ 1-3・1-5・1-6・2-2 |
-| AC-10 | static・manual | `extension/test/docs.test.ts::manual checks are recorded`、ステップ 5-1（§5.1） | ステップ 2-1・4-4 |
-| AC-11 | static・manual | `extension/test/docs.test.ts::manual checks are recorded`、ステップ 5-1（§5.1） | ステップ 2-1・4-4 |
+| AC-10 | static・manual | `extension/test/docs.test.ts::manual checks are recorded`、ステップ 5-1（§5.1） | ステップ 2-1・4-6・5-1（代替の登録が必要な場合） |
+| AC-11 | static・manual | `extension/test/docs.test.ts::manual checks are recorded`、ステップ 5-1（§5.1） | ステップ 2-1・4-6・5-1（代替の登録が必要な場合） |
 | AC-12 | test | `extension/test/manifest.test.ts::undeclared keys` | ステップ 2-1・2-2 |
 | AC-13 | static・manual | `extension/test/docs.test.ts::manual checks are recorded`、ステップ 5-1（§5.1）。値を補正しない経路は AC-14 のテストが確かめる | ステップ 3-2・4-2・4-3 |
 | AC-14 | test | `extension/test/collect.test.ts::collect`（前後の空白・空行）、`extension/test/launch.test.ts::launch paths`（経路を通った値） | ステップ 3-2・4-2 |
@@ -356,11 +478,12 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 
 ## 7. 実装チェックリスト (Implementation Checklist)
 
--   [ ] フェーズ 1 完了（ステップ 1-1〜1-8）
--   [ ] フェーズ 2 完了（ステップ 2-1〜2-3）
--   [ ] フェーズ 3 完了（ステップ 3-1〜3-6）
--   [ ] フェーズ 4 完了（ステップ 4-1〜4-7）
--   [ ] フェーズ 5 完了（ステップ 5-1〜5-8）
+-   [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8）
+-   [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3）
+-   [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6）
+-   [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5）
+-   [ ] PR-5 マージ済み（対象ステップ: 4-6 / 4-7 / 4-8）
+-   [ ] PR-6 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6 / 5-7 / 5-8）
 -   [ ] §5 のすべての AC の検証が通り、§5.1 の記録がそろっている
 
 ## 8. 成功基準 (Success Criteria)
@@ -372,5 +495,5 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 
 ## 9. 次のステップ (Next Steps)
 
--   本計画の承認の後、`/mkplan2 0007` で PR の境界を埋め込み、`/runplan 0007` で実装する。
+-   PR の境界は §2・§3.2・§7 に埋め込み済みである（2026-10-08）。`/runplan 0007` で PR-1 から実装する。
 -   実装の完了の後、設計書 3.12 の調査の結果（拡張 ID、`Origin` の観測、共有トークンの保存先）を #109 の API の定義の入力として渡す。
