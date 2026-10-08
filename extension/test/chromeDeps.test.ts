@@ -15,6 +15,7 @@ interface ScriptingRecorder {
   readonly injections: Injection[];
 }
 
+/** A ScriptingApi whose executeScript records injections and delegates to respond. */
 function recordingScripting(
   respond: (injection: Injection) => Promise<Array<{ result?: unknown }>>,
 ): ScriptingRecorder {

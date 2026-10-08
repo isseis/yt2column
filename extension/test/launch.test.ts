@@ -38,6 +38,7 @@ interface RecordingLogger {
   readonly errors: Recorded[];
 }
 
+/** A Logger that records every call instead of printing. */
 function recordingLogger(): RecordingLogger {
   const infos: Recorded[] = [];
   const errors: Recorded[] = [];
@@ -59,6 +60,7 @@ interface RecordingStore {
   readonly entries: Map<string, unknown>;
 }
 
+/** An in-memory SummaryStore that records calls and can be made to fail. */
 function recordingStore(
   options: { putFails?: boolean; removeFails?: boolean } = {},
 ): RecordingStore {
@@ -101,6 +103,7 @@ function fakeTab(overrides: Partial<chrome.tabs.Tab> = {}): chrome.tabs.Tab {
   } as chrome.tabs.Tab;
 }
 
+/** Builds context-menu click data with the fields the code reads. */
 function menuInfo(
   overrides: Partial<chrome.contextMenus.OnClickData> = {},
 ): chrome.contextMenus.OnClickData {
@@ -113,14 +116,17 @@ function menuInfo(
   } as chrome.contextMenus.OnClickData;
 }
 
+/** Builds a page selection; the document URL defaults to the watch URL. */
 function page(text: string, documentUrl = watchUrl): PageSelection {
   return { text, documentUrl };
 }
 
+/** A SelectionReader that returns the given selection and cannot fail. */
 function readerReturning(selection: PageSelection): SelectionReader {
   return { read: async () => selection };
 }
 
+/** A SelectionReader whose read always rejects with the given cause. */
 function failingReader(cause: unknown): SelectionReader {
   return {
     read: async () => {
@@ -146,6 +152,7 @@ interface MenuOptions {
   readonly clearDisplayFailure?: () => Promise<void>;
 }
 
+/** Builds menu-path dependencies with recording fakes and visible counters. */
 function menuHarness(options: MenuOptions = {}): MenuHarness {
   const recorder = recordingLogger();
   const store = options.store ?? recordingStore();
@@ -180,6 +187,7 @@ interface PopupHarness {
   readonly recorder: RecordingLogger;
 }
 
+/** Builds popup-path dependencies with a recording logger and fake tab. */
 function popupHarness(overrides: Partial<PopupLaunchDeps> = {}): PopupHarness {
   const recorder = recordingLogger();
   const deps: PopupLaunchDeps = {
