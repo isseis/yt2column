@@ -8,7 +8,7 @@
 | Created | 2026-10-07 |
 | Review date | 2026-10-07 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-08: 2.1・3.8・3.13 に `types/core-url.d.ts` を加えた（実装で、`lib: ["ES2022"]` の `tsconfig.core.json` では `core/acceptedUrl.ts` の `URL` を型検査できないと分かったため）。`core/` から DOM と `chrome` の型を除くという決定は変えておらず、そのための手段の不足を補う編集上の修正として扱う（決定の変更はない） |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `426eb2e` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指す。本タスクには `design_handoff.md` がない。実装レベルの懸念は [implementation_handoff.md](implementation_handoff.md) に置き、`03_implementation_plan.md` が扱う。
 
@@ -110,6 +110,8 @@ extension/
   eslint.config.js
   .prettierrc.json
   .prettierignore
+  types/
+    core-url.d.ts        # core が使う URL の宣言（tsconfig.core.json だけが読む。3.8）
   static/
     manifest.json
     popup.html
@@ -661,7 +663,7 @@ export function renderSummary(container: HTMLElement, summary: OutcomeSummary): 
 -   `allowImportingTsExtensions: true` と `rewriteRelativeImportExtensions: true`。ソースの import は `./x.ts` と書き、出力では `./x.js` にする。テストを Node.js で直接実行するとき（下記）も同じ import がそのまま解決できる。
 -   `erasableSyntaxOnly: true`（`enum`・`namespace`・コンストラクタの引数のプロパティなど、型の除去で消せない構文を禁止する）と `verbatimModuleSyntax: true`（型だけの import を `import type` と書かせる）。Node.js の型の除去は import をそのまま残すので、型だけを通常の import で読むと実行時に失敗する。これを型検査で防ぐ。
 -   `target: "ES2022"`。ソースマップと型定義は出力しない。`importHelpers` は使わない（`tslib` を実行時に読み込まないため）。
--   `types` を明示する。`tsconfig.json`（src・test・scripts）は `lib: ["ES2022", "DOM"]`・`types: ["chrome", "node"]`、`tsconfig.build.json`（src）は `lib: ["ES2022", "DOM"]`・`types: ["chrome"]`、`tsconfig.core.json`（src/core）は `lib: ["ES2022"]`・`types: []` とする。`core/` の下のファイルが `chrome` や `document` を参照すると、`tsconfig.core.json` の型検査で失敗する（2.2）。
+-   `types` を明示する。`tsconfig.json`（src・test・scripts）は `lib: ["ES2022", "DOM"]`・`types: ["chrome", "node"]`、`tsconfig.build.json`（src）は `lib: ["ES2022", "DOM"]`・`types: ["chrome"]`、`tsconfig.core.json`（src/core）は `lib: ["ES2022"]`・`types: []` とする。`core/` の下のファイルが `chrome` や `document` を参照すると、`tsconfig.core.json` の型検査で失敗する（2.2）。ただし、`core/acceptedUrl.ts` が使う WHATWG URL（`URL`・`URLSearchParams`）は ES の lib になく、DOM の lib と `@types/node` にだけ宣言がある。そこで、`core/` が使うメンバーだけを宣言した `types/core-url.d.ts` を置き、`tsconfig.core.json` だけがこれを読む。ほかの設定は DOM の lib の宣言を使う。
 -   `tsconfig.build.json` は `noEmitOnError: true` とし、型検査のエラーがあればビルドが失敗する（AC-02）。
 
 **依存パッケージ（すべて `devDependencies`）:** CLAUDE.md「Dependencies」（`CLAUDE.md:203`）は、Go のモジュールについて「標準ライブラリ以外のモジュールを許可しない」と定めている。要件書 F-001 はこの考え方を拡張にも適用し、npm の依存パッケージを開発用に限ったうえで、加えるものごとに理由を書くことを求めている。次の表がその理由である。Go のモジュールの方針は変えない。
@@ -903,6 +905,7 @@ service worker と拡張のページで結果は同じだった。
 | `extension/tsconfig.json`・`tsconfig.core.json`・`tsconfig.build.json` | 新規 | 型検査の設定・`core/` の分離の型検査・ビルドの設定（3.8） |
 | `extension/eslint.config.js` | 新規 | lint の規則（`eval` 系、HTML を解釈する API、動的な `import()`、`core/collect.ts` とテスト以外での `CollectedInput` への型の表明の禁止） |
 | `extension/.prettierrc.json`・`.prettierignore` | 新規 | フォーマットの設定（`dist/`・`node_modules/`・`package-lock.json` を対象外にする） |
+| `extension/types/core-url.d.ts` | 新規 | `core/` が使う `URL`・`URLSearchParams` のメンバーの宣言。`tsconfig.core.json` だけが読む（3.8） |
 | `extension/static/manifest.json` | 新規 | 3.1 |
 | `extension/static/popup.html`・`result.html`・`style.css` | 新規 | 拡張のページの骨格。スクリプトは `<script type="module" src>` で読み、インラインのスクリプトを書かない |
 | `extension/src/core/types.ts` | 新規 | 3.2 の型 |

@@ -1,0 +1,26 @@
+{
+  "name": "yt2column-extension",
+  "private": true,
+  "type": "module",
+  "packageManager": "npm@11.19.0",
+  "scripts": {
+    "check-lockfile": "node scripts/check-lockfile.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.core.json",
+    "lint": "eslint .",
+    "fmt-check": "prettier --check .",
+    "fmt": "prettier --write .",
+    "test": "node --test \"test/**/*.test.ts\"",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && node scripts/copy-static.ts && node scripts/check-dist.ts"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/chrome": "^0.3.4",
+    "@types/jsdom": "^30.0.0",
+    "@types/node": "^24.19.1",
+    "eslint": "^10.12.0",
+    "jsdom": "^30.1.2",
+    "prettier": "^3.9.9",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.71.1"
+  }
+}

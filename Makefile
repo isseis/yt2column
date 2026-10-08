@@ -46,7 +46,7 @@ define format_files_from_list
 	fi
 endef
 
-.PHONY: all build clean test test-ci test-integration test-integration-deepseek test-integration-cli lint fmt fmt-all deadcode tidy install-mergepr
+.PHONY: all build clean test test-ci test-integration test-integration-deepseek test-integration-cli lint fmt fmt-all deadcode tidy install-mergepr ext-install ext-typecheck ext-lint ext-fmt-check ext-fmt ext-test ext-build ext-check
 
 all: build
 
@@ -149,10 +149,83 @@ fmt:
 
 fmt-all:
 	$(call check_gofumpt)
-	@$(call format_files_from_list,find . -name '*.go' -not -path './vendor/*')
+	@$(call format_files_from_list,find . -name '*.go' -not -path './vendor/*' -not -path './extension/*')
 
 deadcode:
 	deadcode -test -tags test $(MAIN_PKG)
 
 tidy:
 	$(GOCMD) mod tidy
+
+# Browser extension (extension/). Node.js is invoked only inside these
+# recipes, never at parse time, so the Go targets above do not need Node.js.
+EXT_DIR=extension
+
+# Fails unless node and npm are exactly the versions pinned in
+# extension/.node-version and the packageManager field of package.json.
+define ext_check_versions
+	@want_node=$$(cat $(EXT_DIR)/.node-version); \
+	have_node=$$(node --version 2>/dev/null); have_node=$${have_node#v}; \
+	if [ "$$have_node" != "$$want_node" ]; then \
+		echo "Error: Node.js $$want_node is required (extension/.node-version), found '$$have_node'"; \
+		exit 1; \
+	fi; \
+	want_npm=$$(cd $(EXT_DIR) && npm pkg get packageManager | tr -d '"'); want_npm=$${want_npm#npm@}; \
+	have_npm=$$(npm --version 2>/dev/null); \
+	if [ "$$have_npm" != "$$want_npm" ]; then \
+		echo "Error: npm $$want_npm is required (packageManager in extension/package.json), found '$$have_npm'"; \
+		exit 1; \
+	fi
+endef
+
+# Version check plus installed dependencies. Never installs them: reaching
+# the registry is left to an explicit `make ext-install`.
+define ext_preflight
+	$(call ext_check_versions)
+	@if [ ! -d $(EXT_DIR)/node_modules ]; then \
+		echo "Error: $(EXT_DIR)/node_modules is missing; run 'make ext-install' first"; \
+		exit 1; \
+	fi
+endef
+
+# Installs exactly the lockfile. npm ci fails when package.json and the
+# lockfile disagree, and --ignore-scripts keeps dependency install scripts
+# from running even if .npmrc is overridden.
+ext-install:
+	$(call ext_check_versions)
+	cd $(EXT_DIR) && npm run --silent check-lockfile
+	cd $(EXT_DIR) && npm ci --ignore-scripts --no-audit --no-fund
+
+ext-typecheck:
+	$(call ext_preflight)
+	cd $(EXT_DIR) && npm run --silent typecheck
+
+ext-lint:
+	$(call ext_preflight)
+	cd $(EXT_DIR) && npm run --silent lint
+
+ext-fmt-check:
+	$(call ext_preflight)
+	cd $(EXT_DIR) && npm run --silent fmt-check
+
+# Rewrites files; CI runs ext-fmt-check instead.
+ext-fmt:
+	$(call ext_preflight)
+	cd $(EXT_DIR) && npm run --silent fmt
+
+ext-test:
+	$(call ext_preflight)
+	cd $(EXT_DIR) && npm run --silent test
+
+# Rebuilds dist/ from scratch and checks it (scripts/check-dist.ts).
+ext-build:
+	$(call ext_preflight)
+	cd $(EXT_DIR) && npm run --silent build
+
+# Everything CI runs after ext-install, in the same order.
+ext-check:
+	@$(MAKE) --no-print-directory ext-typecheck
+	@$(MAKE) --no-print-directory ext-lint
+	@$(MAKE) --no-print-directory ext-fmt-check
+	@$(MAKE) --no-print-directory ext-test
+	@$(MAKE) --no-print-directory ext-build

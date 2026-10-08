@@ -7,3 +7,7 @@ coverage*.out
 coverage*.html
 
 .vscode/
+
+extension/node_modules/
+extension/dist/
+*.pem
