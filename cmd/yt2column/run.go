@@ -193,13 +193,12 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 	// B: run the job. Warnings are reported whether or not it succeeded.
 	result, err := job.Run(ctx, job.Request{
 		VideoURL:  videoURL,
-		OutPath:   opts.out,
 		CacheDir:  cfg.CacheDir(),
 		YtDlpPath: cfg.YtDlpPath(),
 		Refresh:   opts.refresh,
 		KeepCache: opts.keepCache,
 		Writer:    articleWriter,
-		Publisher: pub,
+		Output:    job.FileOutput(opts.out, pub),
 	})
 	for _, warning := range result.Warnings {
 		errOut.line("%s: warning: %v", programName, warning)

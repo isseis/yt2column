@@ -24,17 +24,48 @@ import (
 // YtDlpTimeout bounds one yt-dlp run.
 const YtDlpTimeout = 5 * time.Minute
 
-// Request is one run. Writer and Publisher are built by the caller. VideoURL
-// is validated by transcript.ValidateVideoURL before Run.
+// outputKind distinguishes the two output kinds. The zero value is invalid, so
+// an Output that was never built cannot run.
+type outputKind int
+
+const (
+	outputKindInvalid outputKind = iota
+	outputKindFile
+	outputKindRemote
+)
+
+// Output is where Run sends the article: the Publisher together with what Run
+// needs to know about it. The zero value is rejected by Run, so an output that
+// was never chosen cannot run.
+type Output struct {
+	kind outputKind
+	// path is the file output's target; it is empty for a remote output.
+	path string
+	pub  publisher.Publisher
+}
+
+// FileOutput is an output to a local file. Run pre-checks path before any side
+// effect; p must write to path (the caller builds both from the same value).
+func FileOutput(path string, p publisher.Publisher) Output {
+	return Output{kind: outputKindFile, path: path, pub: p}
+}
+
+// RemoteOutput is an output that needs no local pre-check, such as a Webhook.
+// The kind is defined by that property, not by where the article goes.
+func RemoteOutput(p publisher.Publisher) Output {
+	return Output{kind: outputKindRemote, pub: p}
+}
+
+// Request is one run. Writer and the Output's Publisher are built by the
+// caller. VideoURL is validated by transcript.ValidateVideoURL before Run.
 type Request struct {
 	VideoURL  string
-	OutPath   string // checked before the lock; never written by Run
 	CacheDir  string
 	YtDlpPath string
 	Refresh   bool
 	KeepCache bool
 	Writer    writer.ArticleWriter
-	Publisher publisher.Publisher
+	Output    Output
 }
 
 // Result describes a published run. Warnings holds the prune and cache-removal
@@ -57,7 +88,7 @@ func Run(ctx context.Context, req Request) (Result, error) {
 	if err := validateRequest(req); err != nil {
 		return Result{}, err
 	}
-	if err := precheckOutput(req.OutPath); err != nil {
+	if err := precheckOutput(req.Output); err != nil {
 		return Result{}, err
 	}
 	if err := ctx.Err(); err != nil {
@@ -80,7 +111,7 @@ func Run(ctx context.Context, req Request) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	pipe, err := pipeline.New(source, req.Writer, req.Publisher)
+	pipe, err := pipeline.New(source, req.Writer, req.Output.pub)
 	if err != nil {
 		return Result{}, err
 	}
@@ -117,15 +148,26 @@ func validateRequest(req Request) error {
 		return fmt.Errorf("%w: CacheDir is empty", errInvalidRequest)
 	case req.VideoURL == "":
 		return fmt.Errorf("%w: VideoURL is empty", errInvalidRequest)
-	case req.OutPath == "":
-		return fmt.Errorf("%w: OutPath is empty", errInvalidRequest)
 	case nilcheck.IsNil(req.Writer):
 		return fmt.Errorf("%w: Writer is nil", errInvalidRequest)
-	case nilcheck.IsNil(req.Publisher):
-		return fmt.Errorf("%w: Publisher is nil", errInvalidRequest)
-	default:
-		return nil
 	}
+
+	switch req.Output.kind {
+	case outputKindFile:
+		switch {
+		case req.Output.path == "":
+			return fmt.Errorf("%w: the file output needs a path", errInvalidRequest)
+		case nilcheck.IsNil(req.Output.pub):
+			return fmt.Errorf("%w: the output needs a Publisher", errInvalidRequest)
+		}
+	case outputKindRemote:
+		if nilcheck.IsNil(req.Output.pub) {
+			return fmt.Errorf("%w: the output needs a Publisher", errInvalidRequest)
+		}
+	default:
+		return fmt.Errorf("%w: the output was not chosen", errInvalidRequest)
+	}
+	return nil
 }
 
 // precheckOutput reports an output problem before any expensive work. It is
@@ -133,8 +175,21 @@ func validateRequest(req Request) error {
 // guarantee: it only decides between failing early and proceeding. An existing
 // output path wraps publisher.ErrOutputExists (a plain path or a symlink,
 // dangling or not); an unusable parent wraps errOutputParent and not
-// ErrOutputExists.
-func precheckOutput(outPath string) error {
+// ErrOutputExists. A remote output has nothing local to check.
+func precheckOutput(output Output) error {
+	switch output.kind {
+	case outputKindFile:
+		return precheckFileOutput(output.path)
+	case outputKindRemote:
+		return nil
+	default:
+		// validateRequest already rejected the zero value.
+		return nil
+	}
+}
+
+// precheckFileOutput is the file-output pre-check.
+func precheckFileOutput(outPath string) error {
 	if _, err := os.Lstat(outPath); err == nil {
 		return &pipeline.StageError{
 			Stage: pipeline.StagePublish,

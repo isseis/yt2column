@@ -173,8 +173,8 @@ func TestRunRemovesCache(t *testing.T) {
 	tripwire, marker := transcripttestutil.NewTripwire(t, t.TempDir())
 
 	result, err := Run(context.Background(), Request{
-		VideoURL: jobVideoURL, OutPath: outPath, CacheDir: cacheDir, YtDlpPath: tripwire,
-		Writer: &writertestutil.FakeArticleWriter{Result: validArticle()}, Publisher: pub,
+		VideoURL: jobVideoURL, CacheDir: cacheDir, YtDlpPath: tripwire,
+		Writer: &writertestutil.FakeArticleWriter{Result: validArticle()}, Output: FileOutput(outPath, pub),
 	})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -203,6 +203,34 @@ func TestRunRemovesCache(t *testing.T) {
 	}
 }
 
+func TestRunRemoteOutput(t *testing.T) {
+	cacheDir := t.TempDir()
+	seedCache(t, cacheDir, jobVideoID, validSubtitles, infoFor(jobVideoID))
+	tripwire, marker := transcripttestutil.NewTripwire(t, t.TempDir())
+	pub := &publishertestutil.FakePublisher{}
+
+	result, err := Run(context.Background(), Request{
+		VideoURL: jobVideoURL, CacheDir: cacheDir, YtDlpPath: tripwire,
+		Writer: &writertestutil.FakeArticleWriter{Result: validArticle()}, Output: RemoteOutput(pub),
+	})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if result.Article != validArticle() {
+		t.Fatalf("Article = %+v, want %+v", result.Article, validArticle())
+	}
+	if len(pub.Calls) != 1 {
+		t.Fatalf("Publish called %d times, want 1", len(pub.Calls))
+	}
+	requireTripwireNotRun(t, marker)
+
+	for _, name := range transcripttestutil.ListDir(t, cacheDir) {
+		if strings.HasPrefix(name, jobVideoID+".") {
+			t.Errorf("cache entry %q remains after a successful run", name)
+		}
+	}
+}
+
 func TestRunKeepCache(t *testing.T) {
 	cacheDir := t.TempDir()
 	seedCache(t, cacheDir, jobVideoID, validSubtitles, infoFor(jobVideoID))
@@ -213,7 +241,7 @@ func TestRunKeepCache(t *testing.T) {
 	}
 
 	outPath, pub := newOutput(t, t.TempDir())
-	req.OutPath, req.Publisher = outPath, pub
+	req.Output = FileOutput(outPath, pub)
 	if _, err := Run(context.Background(), req); err != nil {
 		t.Fatalf("first Run: %v", err)
 	}
@@ -221,7 +249,7 @@ func TestRunKeepCache(t *testing.T) {
 
 	// The cache is reused, so a second run does not start yt-dlp.
 	outPath2, pub2 := newOutput(t, t.TempDir())
-	req.OutPath, req.Publisher = outPath2, pub2
+	req.Output = FileOutput(outPath2, pub2)
 	if _, err := Run(context.Background(), req); err != nil {
 		t.Fatalf("second Run: %v", err)
 	}
@@ -237,8 +265,8 @@ func TestRunFailureKeepsCache(t *testing.T) {
 		outPath, pub := newOutput(t, t.TempDir())
 		writer := &writertestutil.FakeArticleWriter{Err: errInjectedWrite}
 		_, err := Run(context.Background(), Request{
-			VideoURL: jobVideoURL, OutPath: outPath, CacheDir: cacheDir, YtDlpPath: tripwire,
-			Writer: writer, Publisher: pub,
+			VideoURL: jobVideoURL, CacheDir: cacheDir, YtDlpPath: tripwire,
+			Writer: writer, Output: FileOutput(outPath, pub),
 		})
 		if !errors.Is(err, errInjectedWrite) {
 			t.Fatalf("Run error = %v, want the injected write error", err)
@@ -248,9 +276,9 @@ func TestRunFailureKeepsCache(t *testing.T) {
 	t.Run("publish failure", func(t *testing.T) {
 		outPath, _ := newOutput(t, t.TempDir())
 		_, err := Run(context.Background(), Request{
-			VideoURL: jobVideoURL, OutPath: outPath, CacheDir: cacheDir, YtDlpPath: tripwire,
-			Writer:    &writertestutil.FakeArticleWriter{Result: validArticle()},
-			Publisher: failPublisher{err: errInjectedPublish},
+			VideoURL: jobVideoURL, CacheDir: cacheDir, YtDlpPath: tripwire,
+			Writer: &writertestutil.FakeArticleWriter{Result: validArticle()},
+			Output: FileOutput(outPath, failPublisher{err: errInjectedPublish}),
 		})
 		if !errors.Is(err, errInjectedPublish) {
 			t.Fatalf("Run error = %v, want the injected publish error", err)
@@ -261,8 +289,8 @@ func TestRunFailureKeepsCache(t *testing.T) {
 	// The cache survived both failures, so a later run does not start yt-dlp.
 	outPath, pub := newOutput(t, t.TempDir())
 	if _, err := Run(context.Background(), Request{
-		VideoURL: jobVideoURL, OutPath: outPath, CacheDir: cacheDir, YtDlpPath: tripwire,
-		Writer: &writertestutil.FakeArticleWriter{Result: validArticle()}, Publisher: pub,
+		VideoURL: jobVideoURL, CacheDir: cacheDir, YtDlpPath: tripwire,
+		Writer: &writertestutil.FakeArticleWriter{Result: validArticle()}, Output: FileOutput(outPath, pub),
 	}); err != nil {
 		t.Fatalf("Run after the failures: %v", err)
 	}
@@ -280,8 +308,8 @@ func TestRunPrunesDangling(t *testing.T) {
 		outPath, pub := newOutput(t, t.TempDir())
 		tripwire, _ := transcripttestutil.NewTripwire(t, t.TempDir())
 		if _, err := Run(context.Background(), Request{
-			VideoURL: jobVideoURL, OutPath: outPath, CacheDir: cacheDir, YtDlpPath: tripwire,
-			Writer: &writertestutil.FakeArticleWriter{Result: validArticle()}, Publisher: pub,
+			VideoURL: jobVideoURL, CacheDir: cacheDir, YtDlpPath: tripwire,
+			Writer: &writertestutil.FakeArticleWriter{Result: validArticle()}, Output: FileOutput(outPath, pub),
 		}); err != nil {
 			t.Fatalf("Run: %v", err)
 		}
@@ -297,8 +325,8 @@ func TestRunPrunesDangling(t *testing.T) {
 		outPath, pub := newOutput(t, t.TempDir())
 		tripwire, _ := transcripttestutil.NewTripwire(t, t.TempDir())
 		_, err := Run(context.Background(), Request{
-			VideoURL: jobVideoURL, OutPath: outPath, CacheDir: cacheDir, YtDlpPath: tripwire,
-			Writer: &writertestutil.FakeArticleWriter{Err: errInjectedWrite}, Publisher: pub,
+			VideoURL: jobVideoURL, CacheDir: cacheDir, YtDlpPath: tripwire,
+			Writer: &writertestutil.FakeArticleWriter{Err: errInjectedWrite}, Output: FileOutput(outPath, pub),
 		})
 		if !errors.Is(err, errInjectedWrite) {
 			t.Fatalf("Run error = %v, want the injected write error", err)
@@ -332,8 +360,8 @@ func TestRunPruneFailureWarns(t *testing.T) {
 		tripwire, marker := transcripttestutil.NewTripwire(t, t.TempDir())
 		outPath, pub := newOutput(t, t.TempDir())
 		result, err := Run(context.Background(), Request{
-			VideoURL: jobVideoURL, OutPath: outPath, CacheDir: cacheDir, YtDlpPath: tripwire,
-			Writer: &writertestutil.FakeArticleWriter{Result: validArticle()}, Publisher: pub,
+			VideoURL: jobVideoURL, CacheDir: cacheDir, YtDlpPath: tripwire,
+			Writer: &writertestutil.FakeArticleWriter{Result: validArticle()}, Output: FileOutput(outPath, pub),
 		})
 		if err != nil {
 			t.Fatalf("Run: %v", err)
@@ -351,8 +379,8 @@ func TestRunPruneFailureWarns(t *testing.T) {
 		tripwire, _ := transcripttestutil.NewTripwire(t, t.TempDir())
 		outPath, pub := newOutput(t, t.TempDir())
 		result, err := Run(context.Background(), Request{
-			VideoURL: jobVideoURL, OutPath: outPath, CacheDir: cacheDir, YtDlpPath: tripwire,
-			Writer: &writertestutil.FakeArticleWriter{Err: errInjectedWrite}, Publisher: pub,
+			VideoURL: jobVideoURL, CacheDir: cacheDir, YtDlpPath: tripwire,
+			Writer: &writertestutil.FakeArticleWriter{Err: errInjectedWrite}, Output: FileOutput(outPath, pub),
 		})
 		if !errors.Is(err, errInjectedWrite) {
 			t.Fatalf("Run error = %v, want the injected write error", err)
@@ -372,9 +400,9 @@ func TestRunRemoveCacheFailureWarns(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	result, err := Run(ctx, Request{
-		VideoURL: jobVideoURL, OutPath: outPath, CacheDir: cacheDir, YtDlpPath: tripwire,
-		Writer:    &writertestutil.FakeArticleWriter{Result: validArticle()},
-		Publisher: publishThenCancel{inner: pub, cancel: cancel},
+		VideoURL: jobVideoURL, CacheDir: cacheDir, YtDlpPath: tripwire,
+		Writer: &writertestutil.FakeArticleWriter{Result: validArticle()},
+		Output: FileOutput(outPath, publishThenCancel{inner: pub, cancel: cancel}),
 	})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -402,8 +430,8 @@ func TestRunRefresh(t *testing.T) {
 	writer := &writertestutil.FakeArticleWriter{Result: validArticle()}
 	outPath, pub := newOutput(t, t.TempDir())
 	if _, err := Run(context.Background(), Request{
-		VideoURL: jobVideoURL, OutPath: outPath, CacheDir: cacheDir, YtDlpPath: fake, Refresh: true,
-		Writer: writer, Publisher: pub,
+		VideoURL: jobVideoURL, CacheDir: cacheDir, YtDlpPath: fake, Refresh: true,
+		Writer: writer, Output: FileOutput(outPath, pub),
 	}); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -428,8 +456,8 @@ func TestRunCanceled(t *testing.T) {
 		t.Cleanup(cancel)
 
 		done := startRun(ctx, Request{
-			VideoURL: jobVideoURL, OutPath: outPath, CacheDir: cacheDir, YtDlpPath: fake.Script,
-			Writer: &writertestutil.FakeArticleWriter{Result: validArticle()}, Publisher: pub,
+			VideoURL: jobVideoURL, CacheDir: cacheDir, YtDlpPath: fake.Script,
+			Writer: &writertestutil.FakeArticleWriter{Result: validArticle()}, Output: FileOutput(outPath, pub),
 		})
 		waitForFile(t, fake.Ready)
 		cancel()
@@ -448,8 +476,8 @@ func TestRunCanceled(t *testing.T) {
 		cancel()
 
 		_, err := Run(ctx, Request{
-			VideoURL: jobVideoURL, OutPath: outPath, CacheDir: cacheDir,
-			Writer: &writertestutil.FakeArticleWriter{Result: validArticle()}, Publisher: pub,
+			VideoURL: jobVideoURL, CacheDir: cacheDir,
+			Writer: &writertestutil.FakeArticleWriter{Result: validArticle()}, Output: FileOutput(outPath, pub),
 		})
 		if !errors.Is(err, context.Canceled) {
 			t.Fatalf("Run error = %v, want context.Canceled", err)
@@ -468,9 +496,9 @@ func TestRunCanceled(t *testing.T) {
 		tripwire, _ := transcripttestutil.NewTripwire(t, t.TempDir())
 
 		_, err := Run(ctx, Request{
-			VideoURL: jobVideoURL, OutPath: outPath, CacheDir: cacheDir, YtDlpPath: tripwire,
-			Writer:    cancelWriter{inner: &writertestutil.FakeArticleWriter{Result: validArticle()}, cancel: cancel},
-			Publisher: pub,
+			VideoURL: jobVideoURL, CacheDir: cacheDir, YtDlpPath: tripwire,
+			Writer: cancelWriter{inner: &writertestutil.FakeArticleWriter{Result: validArticle()}, cancel: cancel},
+			Output: FileOutput(outPath, pub),
 		})
 		if !errors.Is(err, context.Canceled) {
 			t.Fatalf("Run error = %v, want context.Canceled", err)
@@ -487,9 +515,9 @@ func TestRunCanceled(t *testing.T) {
 		tripwire, _ := transcripttestutil.NewTripwire(t, t.TempDir())
 
 		_, err := Run(ctx, Request{
-			VideoURL: jobVideoURL, OutPath: outPath, CacheDir: cacheDir, YtDlpPath: tripwire,
-			Writer:    &writertestutil.FakeArticleWriter{Result: validArticle()},
-			Publisher: cancelPublisher{cancel: cancel},
+			VideoURL: jobVideoURL, CacheDir: cacheDir, YtDlpPath: tripwire,
+			Writer: &writertestutil.FakeArticleWriter{Result: validArticle()},
+			Output: FileOutput(outPath, cancelPublisher{cancel: cancel}),
 		})
 		if !errors.Is(err, context.Canceled) {
 			t.Fatalf("Run error = %v, want context.Canceled", err)
@@ -524,8 +552,8 @@ func TestRunInvalidCache(t *testing.T) {
 			outPath, pub := newOutput(t, t.TempDir())
 
 			_, err := Run(context.Background(), Request{
-				VideoURL: jobVideoURL, OutPath: outPath, CacheDir: cacheDir,
-				Writer: &writertestutil.FakeArticleWriter{Result: validArticle()}, Publisher: pub,
+				VideoURL: jobVideoURL, CacheDir: cacheDir,
+				Writer: &writertestutil.FakeArticleWriter{Result: validArticle()}, Output: FileOutput(outPath, pub),
 			})
 			if !errors.Is(err, tc.want) {
 				t.Fatalf("Run error = %v, want %v", err, tc.want)
@@ -536,8 +564,8 @@ func TestRunInvalidCache(t *testing.T) {
 			fresh := transcripttestutil.NewSuccess(t, t.TempDir(), jobVideoID, validSubtitles, infoFor(jobVideoID))
 			outPath2, pub2 := newOutput(t, t.TempDir())
 			if _, err := Run(context.Background(), Request{
-				VideoURL: jobVideoURL, OutPath: outPath2, CacheDir: cacheDir, YtDlpPath: fresh,
-				Refresh: true, Writer: &writertestutil.FakeArticleWriter{Result: validArticle()}, Publisher: pub2,
+				VideoURL: jobVideoURL, CacheDir: cacheDir, YtDlpPath: fresh,
+				Refresh: true, Writer: &writertestutil.FakeArticleWriter{Result: validArticle()}, Output: FileOutput(outPath2, pub2),
 			}); err != nil {
 				t.Fatalf("Run with --refresh: %v", err)
 			}
@@ -628,8 +656,8 @@ func TestRunOutputExists(t *testing.T) {
 				tripwire, marker := transcripttestutil.NewTripwire(t, t.TempDir())
 
 				_, err := Run(context.Background(), Request{
-					VideoURL: jobVideoURL, OutPath: outPath, CacheDir: cacheDir, YtDlpPath: tripwire,
-					Writer: writer, Publisher: &publishertestutil.FakePublisher{},
+					VideoURL: jobVideoURL, CacheDir: cacheDir, YtDlpPath: tripwire,
+					Writer: writer, Output: FileOutput(outPath, &publishertestutil.FakePublisher{}),
 				})
 				stageErr, ok := errors.AsType[*pipeline.StageError](err)
 				if !ok || stageErr.Stage != pipeline.StagePublish {
@@ -688,8 +716,8 @@ func TestRunOutputParentInvalid(t *testing.T) {
 			tripwire, marker := transcripttestutil.NewTripwire(t, t.TempDir())
 
 			_, err := Run(context.Background(), Request{
-				VideoURL: jobVideoURL, OutPath: outPath, CacheDir: cacheDir, YtDlpPath: tripwire,
-				Writer: writer, Publisher: &publishertestutil.FakePublisher{},
+				VideoURL: jobVideoURL, CacheDir: cacheDir, YtDlpPath: tripwire,
+				Writer: writer, Output: FileOutput(outPath, &publishertestutil.FakePublisher{}),
 			})
 			stageErr, ok := errors.AsType[*pipeline.StageError](err)
 			if !ok || stageErr.Stage != pipeline.StagePublish {
@@ -716,8 +744,8 @@ func TestRunLocked(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	done := startRun(ctx, Request{
-		VideoURL: jobVideoURL, OutPath: outPath1, CacheDir: cacheDir, YtDlpPath: fake.Script,
-		Writer: &writertestutil.FakeArticleWriter{Result: validArticle()}, Publisher: pub1,
+		VideoURL: jobVideoURL, CacheDir: cacheDir, YtDlpPath: fake.Script,
+		Writer: &writertestutil.FakeArticleWriter{Result: validArticle()}, Output: FileOutput(outPath1, pub1),
 	})
 	waitForFile(t, fake.Ready)
 	before := transcripttestutil.ListDir(t, cacheDir)
@@ -726,8 +754,8 @@ func TestRunLocked(t *testing.T) {
 	writer2 := &writertestutil.FakeArticleWriter{Result: validArticle()}
 	tripwire2, marker2 := transcripttestutil.NewTripwire(t, t.TempDir())
 	_, err := Run(context.Background(), Request{
-		VideoURL: jobVideoURL, OutPath: outPath2, CacheDir: cacheDir, YtDlpPath: tripwire2,
-		Writer: writer2, Publisher: pub2,
+		VideoURL: jobVideoURL, CacheDir: cacheDir, YtDlpPath: tripwire2,
+		Writer: writer2, Output: FileOutput(outPath2, pub2),
 	})
 	if !errors.Is(err, cachelock.ErrLocked) {
 		t.Fatalf("second Run error = %v, want ErrLocked", err)
@@ -752,8 +780,8 @@ func TestRunOtherCacheDir(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	done := startRun(ctx, Request{
-		VideoURL: jobVideoURL, OutPath: outPathA, CacheDir: cacheDirA, YtDlpPath: fake.Script,
-		Writer: &writertestutil.FakeArticleWriter{Result: validArticle()}, Publisher: pubA,
+		VideoURL: jobVideoURL, CacheDir: cacheDirA, YtDlpPath: fake.Script,
+		Writer: &writertestutil.FakeArticleWriter{Result: validArticle()}, Output: FileOutput(outPathA, pubA),
 	})
 	waitForFile(t, fake.Ready)
 
@@ -762,8 +790,8 @@ func TestRunOtherCacheDir(t *testing.T) {
 	outPathB, pubB := newOutput(t, t.TempDir())
 	tripwireB, markerB := transcripttestutil.NewTripwire(t, t.TempDir())
 	if _, err := Run(context.Background(), Request{
-		VideoURL: jobVideoURL, OutPath: outPathB, CacheDir: cacheDirB, YtDlpPath: tripwireB,
-		Writer: &writertestutil.FakeArticleWriter{Result: validArticle()}, Publisher: pubB,
+		VideoURL: jobVideoURL, CacheDir: cacheDirB, YtDlpPath: tripwireB,
+		Writer: &writertestutil.FakeArticleWriter{Result: validArticle()}, Output: FileOutput(outPathB, pubB),
 	}); err != nil {
 		t.Fatalf("Run on another cache directory: %v", err)
 	}
@@ -798,8 +826,8 @@ func requireLockFailure(t *testing.T, cacheDir string) {
 	tripwire, marker := transcripttestutil.NewTripwire(t, t.TempDir())
 
 	_, err := Run(context.Background(), Request{
-		VideoURL: jobVideoURL, OutPath: outPath, CacheDir: cacheDir, YtDlpPath: tripwire,
-		Writer: writer, Publisher: pub,
+		VideoURL: jobVideoURL, CacheDir: cacheDir, YtDlpPath: tripwire,
+		Writer: writer, Output: FileOutput(outPath, pub),
 	})
 	if err == nil {
 		t.Fatal("Run succeeded")
@@ -821,8 +849,8 @@ func TestRunPassesLockToYtDlp(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	done := startRun(ctx, Request{
-		VideoURL: jobVideoURL, OutPath: outPath, CacheDir: cacheDir, YtDlpPath: fake.Script,
-		Writer: &writertestutil.FakeArticleWriter{Result: validArticle()}, Publisher: pub,
+		VideoURL: jobVideoURL, CacheDir: cacheDir, YtDlpPath: fake.Script,
+		Writer: &writertestutil.FakeArticleWriter{Result: validArticle()}, Output: FileOutput(outPath, pub),
 	})
 	waitForFile(t, fake.Ready)
 
@@ -843,8 +871,8 @@ func TestRunValidatesRequest(t *testing.T) {
 		t.Helper()
 		outPath, pub := newOutput(t, t.TempDir())
 		return Request{
-			VideoURL: jobVideoURL, OutPath: outPath, CacheDir: filepath.Join(t.TempDir(), "cache"),
-			Writer: &writertestutil.FakeArticleWriter{Result: validArticle()}, Publisher: pub,
+			VideoURL: jobVideoURL, CacheDir: filepath.Join(t.TempDir(), "cache"),
+			Writer: &writertestutil.FakeArticleWriter{Result: validArticle()}, Output: FileOutput(outPath, pub),
 		}
 	}
 	cases := []struct {
@@ -853,16 +881,22 @@ func TestRunValidatesRequest(t *testing.T) {
 	}{
 		{"empty cache dir", func(_ *testing.T, req *Request) { req.CacheDir = "" }},
 		{"empty video URL", func(_ *testing.T, req *Request) { req.VideoURL = "" }},
-		{"empty out path", func(_ *testing.T, req *Request) { req.OutPath = "" }},
+		{"empty file path", func(_ *testing.T, req *Request) { req.Output = FileOutput("", req.Output.pub) }},
 		{"nil writer", func(_ *testing.T, req *Request) { req.Writer = nil }},
 		{"typed-nil writer", func(_ *testing.T, req *Request) {
 			var w *writertestutil.FakeArticleWriter
 			req.Writer = w
 		}},
-		{"nil publisher", func(_ *testing.T, req *Request) { req.Publisher = nil }},
+		{"nil publisher", func(_ *testing.T, req *Request) { req.Output = FileOutput(req.Output.path, nil) }},
 		{"typed-nil publisher", func(_ *testing.T, req *Request) {
 			var p *publishertestutil.FakePublisher
-			req.Publisher = p
+			req.Output = FileOutput(req.Output.path, p)
+		}},
+		{"zero-value output", func(_ *testing.T, req *Request) { req.Output = Output{} }},
+		{"remote output with a nil publisher", func(_ *testing.T, req *Request) { req.Output = RemoteOutput(nil) }},
+		{"remote output with a typed-nil publisher", func(_ *testing.T, req *Request) {
+			var p *publishertestutil.FakePublisher
+			req.Output = RemoteOutput(p)
 		}},
 	}
 	for _, tc := range cases {
@@ -889,8 +923,8 @@ func TestRunReleasesLock(t *testing.T) {
 		outPath, pub := newOutput(t, t.TempDir())
 		tripwire, _ := transcripttestutil.NewTripwire(t, t.TempDir())
 		if _, err := Run(context.Background(), Request{
-			VideoURL: jobVideoURL, OutPath: outPath, CacheDir: cacheDir, YtDlpPath: tripwire,
-			Writer: &writertestutil.FakeArticleWriter{Result: validArticle()}, Publisher: pub,
+			VideoURL: jobVideoURL, CacheDir: cacheDir, YtDlpPath: tripwire,
+			Writer: &writertestutil.FakeArticleWriter{Result: validArticle()}, Output: FileOutput(outPath, pub),
 		}); err != nil {
 			t.Fatalf("Run: %v", err)
 		}
@@ -902,8 +936,8 @@ func TestRunReleasesLock(t *testing.T) {
 		outPath, pub := newOutput(t, t.TempDir())
 		tripwire, _ := transcripttestutil.NewTripwire(t, t.TempDir())
 		if _, err := Run(context.Background(), Request{
-			VideoURL: jobVideoURL, OutPath: outPath, CacheDir: cacheDir, YtDlpPath: tripwire,
-			Writer: &writertestutil.FakeArticleWriter{Err: errInjectedWrite}, Publisher: pub,
+			VideoURL: jobVideoURL, CacheDir: cacheDir, YtDlpPath: tripwire,
+			Writer: &writertestutil.FakeArticleWriter{Err: errInjectedWrite}, Output: FileOutput(outPath, pub),
 		}); err == nil {
 			t.Fatal("Run succeeded")
 		}
