@@ -43,15 +43,37 @@ def load_info(cache_dir: Path, video_id: str) -> dict:
     return json.loads(info_path.read_text(encoding="utf-8"))
 
 
+# A CommonMark fenced code block opens with three or more backticks or tildes,
+# indented by at most three spaces; a backtick fence's info string must not
+# contain a backtick. It closes on a line of the same character, at least as
+# long as the opening run, followed only by spaces or tabs, or at the end of
+# the body.
+FENCE_OPEN_RE = re.compile(r"^ {0,3}(?P<run>`{3,}|~{3,})(?P<info>.*)$")
+# An ATX heading: one to six "#", indented by at most three spaces, followed by
+# a space, a tab, or the end of the line ("#tag" is not a heading).
+HEADING_RE = re.compile(r"^ {0,3}(?P<marks>#{1,6})(?:[ \t]|$)")
+
+
 def outside_fences(body: str) -> list[str]:
-    lines, in_fence = [], False
+    lines, close_re = [], None
     for line in body.split("\n"):
-        if line.startswith("```"):
-            in_fence = not in_fence
+        if close_re is not None:
+            if close_re.match(line):
+                close_re = None
             continue
-        if not in_fence:
-            lines.append(line)
+        opening = FENCE_OPEN_RE.match(line)
+        if opening and not (opening["run"][0] == "`" and "`" in opening["info"]):
+            run = opening["run"]
+            close_re = re.compile(
+                rf"^ {{0,3}}{re.escape(run[0])}{{{len(run)},}}[ \t]*$")
+            continue
+        lines.append(line)
     return lines
+
+
+def heading_level(line: str) -> int:
+    heading = HEADING_RE.match(line)
+    return len(heading["marks"]) if heading else 0
 
 
 def check(path: Path, video_title: str, duration: float) -> list[str]:
@@ -70,14 +92,14 @@ def check(path: Path, video_title: str, duration: float) -> list[str]:
     if title == video_title:
         problems.append("title equals the video title (AC-07)")
 
-    first_heading = next(
-        (i for i, l in enumerate(lines) if l.startswith("#")), None)
+    levels = [heading_level(l) for l in lines]
+    first_heading = next((i for i, lv in enumerate(levels) if lv), None)
     if first_heading is None or not any(l.strip() for l in lines[:first_heading]):
         problems.append("no lead before the first heading (AC-06)")
-    sections = sum(1 for l in lines if l.startswith("## "))
+    sections = levels.count(2)
     if not SECTIONS_MIN <= sections <= SECTIONS_MAX:
         problems.append(f"{sections} level-2 sections (AC-06)")
-    if any(re.match(r"#(?!# )", l) for l in lines if l.startswith("#")):
+    if any(lv not in (0, 2) for lv in levels):
         problems.append("a heading other than level 2 in the body (AC-06)")
 
     length = len(body.replace("\r", "").replace("\n", ""))
