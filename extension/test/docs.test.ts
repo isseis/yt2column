@@ -46,6 +46,26 @@ function sliceBetween(doc: string, start: string, end: string): string {
   return to < 0 ? doc.slice(from) : doc.slice(from, to);
 }
 
+/**
+ * The body under the first heading line that starts with prefix, up to the
+ * next heading line. Empty when the body is missing or the heading is absent.
+ */
+function bodyAfterHeadingLine(doc: string, prefix: string): string {
+  const lines = doc.split("\n");
+  const start = lines.findIndex((line) => line.startsWith(prefix));
+  if (start < 0) {
+    return "";
+  }
+  const body: string[] = [];
+  for (const line of lines.slice(start + 1)) {
+    if (/^#+\s/.test(line)) {
+      break;
+    }
+    body.push(line);
+  }
+  return body.join("\n").trim();
+}
+
 /** Every Markdown table row in text, as trimmed cells; separators dropped. */
 function tableRows(text: string): string[][] {
   const rows: string[][] = [];
@@ -147,15 +167,11 @@ describe("investigation is recorded", () => {
       first.includes(extensionId),
       "architecture 3.12.1 does not record the extension ID",
     );
-    for (const [section, end] of [
-      ["3.12.2.", "#### 3.12.3."],
-      ["3.12.3.", "#### 3.12.4."],
-    ] as const) {
-      const body = sliceBetween(doc, `#### ${section}`, end);
+    for (const heading of ["#### 3.12.2.", "#### 3.12.3."]) {
       assert.notEqual(
-        body.replace(`#### ${section}`, "").trim(),
+        bodyAfterHeadingLine(doc, heading),
         "",
-        `architecture ${section} has no investigation result`,
+        `architecture ${heading} has no investigation result`,
       );
     }
   });
