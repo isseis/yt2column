@@ -29,7 +29,7 @@
 ### 1.2. 実装原則
 
 -   設計書 §1.1 の設計原則に従う。特に、Webhook に固有のことを `internal/publisher` の Webhook 用のファイルに閉じ込めること、送る前に準備（記事の検査・分割・記法の検査）を終えること、Webhook URL をエラーにも構造体の表示にも入れないこと、投稿先を型で表すこと、URL の規則を 1 か所に置くことを守る。
--   本番コードで新設・変更するファイルは、設計書 §3.14 の表に挙げたものに限る。`test` のタグのファイルに加える、設計書にない補助（ステップ 4-2 の準備の結果を返す関数と、`Transport` を受け取る構築の補助）は本計画で定め、`package_reference.md` に記す（ステップ 4-4）。
+-   本番コードで新設・変更するファイルは、設計書 §3.14 の表に挙げたものに限る。`test` のタグのファイルに加える、設計書にない補助（ステップ 4-2 の準備の結果を返す関数と、`Transport` を受け取る構築の補助、ステップ 7-5 の上限値と最大の時間を返す補助）は本計画で定め、`package_reference.md` に記す（ステップ 4-4・7-11）。
 -   ユニットテストのファイルの先頭には `//go:build test` を付ける。統合テストは `//go:build integration` とし、統合テストからも使う補助だけを `//go:build test || integration` とする（`docs/dev/developer_guide/test_organization.md` の例外）。
 -   Go のコメント・識別子・文字列リテラルは英語で書く。`AC-NN`・`F-NNN`・`H-NN` は Go のソースに書かず、本計画にだけ記録する（`requirements_process.md` §4）。
 -   **テスト用の補助の lint。** `_test.go` でないテスト用のビルドのファイル（`test_helpers*.go`、`testutil/` の `.go`、`internal/loopbacktest/loopbacktest.go`）には、`.golangci.yml` の `_test.go` 向けの除外（`gosec`・`err113`・`errcheck`・`goconst`・`gocyclo`・`dupl`）が効かない。これらのファイルを作るか変えるステップ（2-1・2-3・4-2・5-3・6-6・7-1・7-2・7-6）では、テストが注入するエラーをパッケージの静的なエラーとして宣言し（`err113`）、後始末で無視する戻り値を `_ =` で受け（`errcheck`）、`gosec` に当たる行にだけ理由を付けた `//nolint:gosec // <理由>` を付ける（既存の `internal/llm/deepseek/testutil/make.go:92` と同じ形）。
@@ -417,8 +417,8 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 7: 統合テストと `make` のターゲット
 
@@ -427,30 +427,35 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 -   変更: `internal/llm/deepseek/testutil/make.go`・`make_test.go`、`cmd/yt2column/integration_test.go`・`test_helpers_integration.go`・`makefile_test.go`、`internal/pipeline/pipeline_test.go`、`Makefile`、`docs/dev/developer_guide/package_reference.md`
 
 **タスク**
--   [ ] **ステップ 7-1**: `RunMakeTarget` に、記録する変数の名前を呼び出し元が追加する可変長の引数を足す（設計書 3.12）。追加の名前も `validateEnvNames` で確かめ、`recordedEnv` と重なる名前は 1 回だけ記録する。`CheckChargedTarget` は `c.OptInEnv` を追加の名前として渡す（§1.3）。既存の 3 つの呼び出しは引数を変えない。`make_test.go` に、追加の名前が記録されることと、シェルの変数名でない追加の名前が拒否されることの行を足す。
--   [ ] **ステップ 7-2**: `internal/publisher/testutil/integration.go` に、設計書 3.12 の定数・型・`SettingsFrom` を作る。判定は設計書 3.12 の表の順とし、理由の文言は URL を含まず、スキップの理由はオプトインの変数と `make` のターゲットを示す。同じファイルに次も置く。
+-   [x] **ステップ 7-1**: `RunMakeTarget` に、記録する変数の名前を呼び出し元が追加する可変長の引数を足す（設計書 3.12）。追加の名前も `validateEnvNames` で確かめ、`recordedEnv` と重なる名前は 1 回だけ記録する。`CheckChargedTarget` は `c.OptInEnv` を追加の名前として渡す（§1.3）。既存の 3 つの呼び出しは引数を変えない。`make_test.go` に、追加の名前が記録されることと、シェルの変数名でない追加の名前が拒否されることの行を足す。（実装: 名前の結合と検査を `recordedNames` に分け、`TestRecordedNames` で重複の除去と拒否を確かめた。追加の名前が記録されることは、それに依存する `TestMakeTestIntegrationSlack`・`TestMakeTestIntegrationCLISlack` が確かめる。拒否の規則そのものは既存の `TestValidateEnvNames` が確かめるので、追加の名前の拒否は 1 行だけとした。）
+-   [x] **ステップ 7-2**: `internal/publisher/testutil/integration.go` に、設計書 3.12 の定数・型・`SettingsFrom` を作る。判定は設計書 3.12 の表の順とし、理由の文言は URL を含まず、スキップの理由はオプトインの変数と `make` のターゲットを示す。同じファイルに次も置く。
     -   2 つの統合テストの `IntegrationOptions` の変数（`SlackIntegrationOptions`・`CLISlackIntegrationOptions`）。統合テストと `make` のターゲットのテストの両方がこれを使い、オプトインの変数とターゲットの名前を 1 か所で決める。
-    -   ステップ 7-4 の 2 つの固定の記事を組み立てる関数。分割しない記事は、投稿する文字列がちょうど 16,383 コードポイントになるように組み立てる。どちらの記事も、日本語と U+10000 以上の文字を含み、M1〜M4 に当たらず、`Title` に実行ごとの固定長の目印（実行の日時など）を含めて、テスト用のチャンネルで自分の投稿を見分けられるようにする。
--   [ ] **ステップ 7-3**: `internal/publisher/testutil/integration_settings_test.go` に `TestSlackSettingsFrom`（AC-29）を作る。オプトインが未設定・空・`0`・`true`・` 1` でスキップ、`1` で `YT2COLUMN_TEST_SLACK_WEBHOOK_URL` がない（本番の `SLACK_WEBHOOK_URL` だけがある場合を含む）と失敗、`ValidURL` に合わないと失敗、`GODEBUG` が `http2debug=1`・`http2debug=2` を含むと失敗、それ以外で実行し `WebhookURL` が値を返すこと。実行でない場合は `WebhookURL` がゼロ値であること。どの理由にも URL とその末尾 8 文字が現れないこと。
--   [ ] **ステップ 7-4**: `internal/publisher/slack_integration_test.go` に `TestIntegrationSlackWebhookPublisher`（AC-30）を作る（設計書 3.12）。`publishertestutil.SettingsFrom` と `SlackIntegrationOptions` で判定し、`NewSlackWebhookPublisher` で構築した値に、ステップ 7-2 の 2 つの記事を順に投稿してエラーがないことを確かめる。投稿の前に、`SlackMessageCount` が分割しない記事で 1、分割する記事で 2 以上であることを確かめる。テストの出力に URL を書かない。
--   [ ] **ステップ 7-5**: `internal/publisher/slack_articles_test.go` と `makefile_test.go` に次を作る。
+    -   ステップ 7-4 の 2 つの固定の記事を組み立てる関数。分割しない記事は、投稿する文字列がちょうど 16,383 コードポイントになるように組み立てる。どちらの記事も、日本語と U+10000 以上の文字を含み、M1〜M4 に当たらず、`Title` に実行ごとの固定長の目印（実行の日時など）を含めて、テスト用のチャンネルで自分の投稿を見分けられるようにする。（実装: `IntegrationArticles(at time.Time)` が 2 つの記事を返す。目印は `at` の UTC の固定長の書式。`integration.go` は `-tags integration` でもビルドされ、`test` のタグだけの補助を使えないので、本文の長さを決めるための見出しの部分は `renderArticle` の書式を写して作る。写しがずれれば `TestIntegrationArticles` が失敗する。）
+-   [x] **ステップ 7-3**: `internal/publisher/testutil/integration_settings_test.go` に `TestSlackSettingsFrom`（AC-29）を作る。オプトインが未設定・空・`0`・`true`・` 1` でスキップ、`1` で `YT2COLUMN_TEST_SLACK_WEBHOOK_URL` がない（本番の `SLACK_WEBHOOK_URL` だけがある場合を含む）と失敗、`ValidURL` に合わないと失敗、`GODEBUG` が `http2debug=1` を含むと失敗、それ以外で実行し `WebhookURL` が値を返すこと（URL の形と `GODEBUG` の判定の規則そのものは `slackwebhook.ValidURL`・`config.HTTP2DebugEnabledIn` のテストが確かめるので、それぞれ適用されることを示す 1 行とする）。実行でない場合は `WebhookURL` がゼロ値であること。どの理由にも URL とその末尾 8 文字が現れないこと。
+-   [x] **ステップ 7-4**: `internal/publisher/slack_integration_test.go` に `TestIntegrationSlackWebhookPublisher`（AC-30）を作る（設計書 3.12）。`publishertestutil.SettingsFrom` と `SlackIntegrationOptions` で判定し、`NewSlackWebhookPublisher` で構築した値に、ステップ 7-2 の 2 つの記事を順に投稿してエラーがないことを確かめる。投稿の前に、`SlackMessageCount` が分割しない記事で 1、分割する記事で 2 以上であることを確かめる。テストの出力に URL を書かない。
+-   [x] **ステップ 7-5**: `internal/publisher/slack_articles_test.go` と `makefile_test.go` に次を作る。
     -   `TestIntegrationArticles`（`slack_articles_test.go`）: ステップ 4-2 の準備の結果を返す関数で、ステップ 7-2 の分割しない記事がちょうど 16,383 コードポイントの 1 つのメッセージになり、分割する記事が 2 つ以上のメッセージになり、どちらも準備で拒否されないこと（統合テストを実行しなくても `make test` で記事の形を確かめる）。
-    -   `TestMakeTestIntegrationSlack`（AC-32、`makefile_test.go`）: `RunMakeTarget` に、モデル名の引数として nil を、Webhook の 2 つのオプトインを追加の名前として渡し、`make test-integration-slack` が `go test -tags integration -count=1 -timeout <値> -v ./internal/publisher` を実行し、`SlackIntegrationOptions.OptInEnv` を `1` でエクスポートし、`CLISlackOptInEnv` をエクスポートしないこと。`YT2COLUMN_MODEL`（`deepseektestutil.ModelEnv`）をエクスポートしないこと。出力が実際の Webhook に投稿することを示し、DeepSeek の課金の注意を含まないこと（`CheckChargedTarget` は使わない）。`-timeout` が、2 つの記事のメッセージを `SlackPostTimeout` と間隔で送る最大の時間を超えること。ターゲットの名前は `SlackIntegrationOptions.MakeTarget` から取る。
+    -   `TestMakeTestIntegrationSlack`（AC-32、`makefile_test.go`）: `RunMakeTarget` に、モデル名の引数として nil を、Webhook の 2 つのオプトインを追加の名前として渡し、`make test-integration-slack` が `go test -tags integration -count=1 -timeout <値> -v ./internal/publisher` を実行し、`SlackIntegrationOptions.OptInEnv` を `1` でエクスポートすること（他のオプトインをエクスポートしないことは `TestMakeOptInsAreTargetSpecific` が確かめる）。`YT2COLUMN_MODEL`（`deepseektestutil.ModelEnv`）をエクスポートしないこと。出力が実際の Webhook に投稿することを示し、DeepSeek の課金の注意を含まないこと（`CheckChargedTarget` は使わない）。`-timeout` が、2 つの記事のメッセージを `SlackPostTimeout` と間隔で送る最大の時間を超えること。ターゲットの名前は `SlackIntegrationOptions.MakeTarget` から取る。（実装: 外部のテストのパッケージから上限値と最大の時間を得るため、`test_helpers_slack.go` に `test` のタグだけの `SlackMaxMessageRunesForTest`・`SlackMaxMessagesForTest`・`SlackPublishMaxDurationForTest` を加えた。`TestIntegrationArticles` は 16,383 をこの定数と比べ、`TestMakeTestIntegrationSlack` は 2 つの記事のメッセージの数から最大の時間を求める。）
     -   `TestSlackIntegrationTestBuildTag`（AC-32、`makefile_test.go`）: `slack_integration_test.go` の 1 行目が `//go:build integration` であること（`deepseektestutil.FirstLineIs`）。
--   [ ] **ステップ 7-6**: `cmd/yt2column/test_helpers_integration.go` に、CLI の Webhook の統合テストの判定の補助（`deepseektestutil.SettingsFrom` を `OptInEnv: publishertestutil.CLISlackOptInEnv`・欠けたキーは失敗で呼び、`publishertestutil.SettingsFrom` も `CLISlackIntegrationOptions` で実行と判定した場合だけ本体を呼ぶ）を、`gateCLIIntegration` と同じ形で作る（設計書 3.12）。
--   [ ] **ステップ 7-7**: CLI の Webhook の統合テストを作る（AC-31）。
+-   [x] **ステップ 7-6**: `cmd/yt2column/test_helpers_integration.go` に、CLI の Webhook の統合テストの判定の補助（`deepseektestutil.SettingsFrom` を `OptInEnv: publishertestutil.CLISlackOptInEnv`・欠けたキーは失敗で呼び、`publishertestutil.SettingsFrom` も `CLISlackIntegrationOptions` で実行と判定した場合だけ本体を呼ぶ）を、`gateCLIIntegration` と同じ形で作る（設計書 3.12）。
+-   [x] **ステップ 7-7**: CLI の Webhook の統合テストを作る（AC-31）。
     -   `cmd/yt2column/integration_test.go` の `runIntegrationCLI`（`:45-129`）から、キャッシュの用意・トリップワイヤ・`productionDeps()` と `generateCounter` の包み・秘密の値の検査を、両方の統合テストが呼ぶ補助として取り出す。`TestIntegrationCLI` の振る舞いは変えない。
-    -   `cmd/yt2column/integration_slack_test.go` に `TestIntegrationCLISlack` を作る。取り出した補助で組み立て、`lookupFrom` の環境に `SLACK_WEBHOOK_URL` としてテスト用の Webhook URL を入れ、`--slack` で `run` を 1 回呼ぶ。何かを出力する前に、標準出力・標準エラー出力に、テスト用の Webhook URL・テスト用の API キー・それぞれの末尾 8 文字（文字単位とバイト単位）が現れないことを確かめる。終了コード `0`、トリップワイヤが起動されないこと、`Generate` が 1 回であること、キャッシュのエントリが残らないことを確かめる。
--   [ ] **ステップ 7-8**: `cmd/yt2column/makefile_test.go` を更新する。
-    -   `TestMakeTestIntegrationCLISlack`（AC-32）: `CheckChargedTarget` で `CLISlackIntegrationOptions.MakeTarget`（`OptInEnv` は `CLISlackIntegrationOptions.OptInEnv`、`Package` は `./cmd/yt2column`、`MinTimeout` は `provider.LLMTimeout` に Webhook の投稿の最大の時間を足したもの）を確かめる。
-    -   `TestMakeOptInsAreTargetSpecific`: 対象のターゲットを `test-integration`・`test-integration-deepseek`・`test-integration-cli`・`test-integration-slack`・`test-integration-cli-slack` の 5 つにし、Webhook の 2 つのオプトインを追加の名前として渡し、各ターゲットが自分以外のオプトインをエクスポートしないことを確かめる。
-    -   `TestCLISlackIntegrationSettings`（AC-29）: `TestCLIIntegrationSettings` と同じく `gateRecorder` で、どちらかの判定がスキップか失敗なら本体を呼ばないこと、両方が実行なら呼ぶこと、理由に URL と API キーが現れないこと。
+    -   `cmd/yt2column/integration_slack_test.go` に `TestIntegrationCLISlack` を作る。取り出した補助で組み立て、`lookupFrom` の環境に `SLACK_WEBHOOK_URL` としてテスト用の Webhook URL を入れ、`--slack` で `run` を 1 回呼ぶ。何かを出力する前に、標準出力・標準エラー出力に、テスト用の Webhook URL・テスト用の API キー・それぞれの末尾 8 文字（文字単位とバイト単位）が現れないことを確かめる。終了コード `0`、トリップワイヤが起動されないこと、`Generate` が 1 回であること、キャッシュのエントリが残らないことを確かめる。（実装: 取り出した補助は `integration_test.go` の `newIntegrationRun`・`integrationRun.checkRun`・`requireNoSecrets` である。`TestIntegrationCLISlack` は、終了コードが `0` でない場合に限り、秘密の値を含まないことを確かめた後の標準エラー出力をテストの出力に書く（記法の拒否などの原因を §6.1 のとおり記録するため）。秘密の値の検査は、Webhook URL について `slackwebhook.SensitiveParts` のすべての部分を禁じる。成功の場合は、標準エラー出力に Webhook への投稿の要約（メッセージの数）があることを確かめ、その行をテストの出力に書く（ステップ 7-13 の記録のため）。通信の失敗のエラーは、設計書 3.6・H-06 のとおり送信先のホストとポートを含みうるので、両方の統合テストの失敗の出力にもホストは現れうる。ホストは F-008 が禁じる Webhook URL の部分（`SensitiveParts`）に含まれない。）
+-   [x] **ステップ 7-8**: `cmd/yt2column/makefile_test.go` を更新する。
+    -   `TestMakeTestIntegrationCLISlack`（AC-32）: `CheckChargedTarget` で `CLISlackIntegrationOptions.MakeTarget`（`OptInEnv` は `CLISlackIntegrationOptions.OptInEnv`、`Package` は `./cmd/yt2column`、`MinTimeout` は `provider.LLMTimeout` に Webhook の投稿の最大の時間を足したもの。実装では `publisher.SlackPublishMaxDurationForTest(publisher.SlackMaxMessagesForTest)`）を確かめる。
+    -   `TestMakeOptInsAreTargetSpecific`: 対象のターゲットを `test-integration`・`test-integration-deepseek`・`test-integration-cli`・`test-integration-slack`・`test-integration-cli-slack` の 5 つにし、Webhook の 2 つのオプトインを追加の名前として渡し、各ターゲットが自分以外のオプトインをエクスポートしないことを確かめる。（実装: `test-integration` の行が 4 つのオプトインのすべてを確かめるので、それに包含される `internal/llm/deepseek/makefile_test.go` の `TestMakeOptInExportedToDeepSeekTargetOnly` を削除した。）
+    -   `TestCLISlackIntegrationSettings`（AC-29）: `TestCLIIntegrationSettings` と同じく `gateRecorder` で、どちらかの判定がスキップか失敗なら本体を呼ばないこと、両方が実行なら呼ぶこと、理由に URL と API キーが現れないこと。（実装: 2 つの判定の組み合わせだけを確かめる。行は、オプトインの未設定と他のオプトインだけの場合のスキップ、各層の失敗を 1 行ずつ（テスト用の API キーがない、テスト用の Webhook URL がない）、実行である。オプトインの値や `GODEBUG` の行は各判定のテストが持ち、`GODEBUG` の行は DeepSeek の層が先に失敗して組み合わせを確かめないので置かない。）
     -   `TestCLISlackIntegrationTestBuildTag`（AC-32）: `integration_slack_test.go` の 1 行目が `//go:build integration` であること。
--   [ ] **ステップ 7-9**: `Makefile` に `test-integration-slack` と `test-integration-cli-slack`、それぞれのタイムアウトの変数を加え、`.PHONY` と `lint` のコメント（`go vet -tags integration` で確かめるターゲットの一覧）を更新する。各ターゲットは自分のオプトインだけを `1` でエクスポートする。`test-integration-cli-slack` は `YT2COLUMN_MODEL` もエクスポートし、`CheckChargedTarget` が求める課金の注意を出力する。`test-integration-slack` は、実際の Webhook に投稿することを出力する。
--   [ ] **ステップ 7-10**: `internal/pipeline/pipeline_test.go` の `TestFakesCarryBuildTag` の `testutil/` のファイルの数を 13 から 15 に改める（ステップ 7-2・7-3 の 2 件）。
--   [ ] **ステップ 7-11**: `package_reference.md` の `internal/publisher/testutil` の行に `SettingsFrom`・統合テストの `IntegrationOptions`・固定の記事と `integration.go` のビルドタグを、`internal/llm/deepseek/testutil` の行に `RunMakeTarget` の追加の名前を加える。
--   [ ] **ステップ 7-12**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `SettingsFrom` の判定の 1〜4 のそれぞれを外す、オプトインの比較を空でないかどうかにする、本番の `SLACK_WEBHOOK_URL` を読む、`Makefile` の各ターゲットで他方のオプトインもエクスポートする、`test-integration-slack` の `-tags integration` を外す、統合テストのファイルの 1 行目を `//go:build test` にする、CLI の判定の補助で一方の判定だけを見る、`SlackIntegrationOptions` のオプトインを `CLISlackOptInEnv` にする（`TestMakeTestIntegrationSlack`）、分割しない記事を 1 コードポイント短くする（`TestIntegrationArticles`）、`RunMakeTarget` で追加の名前の検査を外す。`make fmt` → `make test` → `make lint` を通す。
--   [ ] **ステップ 7-13**: 利用者の承認を得て、`make test-integration-slack` と `make test-integration-cli-slack` を Mattermost のテスト用のチャンネルの Webhook で実行し（AC-30・AC-31）、次を本ステップの下に記録する。実行日、HEAD のコミット、サーバの版、各ターゲットの結果（`PASS`／`FAIL` と終了コード）、テスト用のチャンネルに投稿されたメッセージの数と分割の位置の表示（記事の `Title` の目印で見分ける）。
+-   [x] **ステップ 7-9**: `Makefile` に `test-integration-slack` と `test-integration-cli-slack`、それぞれのタイムアウトの変数を加え、`.PHONY` と `lint` のコメント（`go vet -tags integration` で確かめるターゲットの一覧）を更新する。各ターゲットは自分のオプトインだけを `1` でエクスポートする。`test-integration-cli-slack` は `YT2COLUMN_MODEL` もエクスポートし、`CheckChargedTarget` が求める課金の注意を出力する。`test-integration-slack` は、実際の Webhook に投稿することを出力する。（前提: 各ターゲットは他のターゲットのオプトインを `unexport` しない。利用者の環境（`.envrc` など）が他のオプトインを `1` でエクスポートしていると、同じパッケージの他方の統合テストも実行される。オプトインは `make` のターゲットだけが設定する前提とし、`TestMakeOptInsAreTargetSpecific` は空の環境で確かめる。）
+-   [x] **ステップ 7-10**: `internal/pipeline/pipeline_test.go` の `TestFakesCarryBuildTag` の `testutil/` のファイルの数を 13 から 15 に改める（ステップ 7-2・7-3 の 2 件）。
+-   [x] **ステップ 7-11**: `package_reference.md` の `internal/publisher/testutil` の行に `SettingsFrom`・統合テストの `IntegrationOptions`・固定の記事と `integration.go` のビルドタグを、`internal/llm/deepseek/testutil` の行に `RunMakeTarget` の追加の名前を加える。
+-   [x] **ステップ 7-12**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `SettingsFrom` の判定の 1〜4 のそれぞれを外す、オプトインの比較を空でないかどうかにする、本番の `SLACK_WEBHOOK_URL` を読む、`Makefile` の各ターゲットで他方のオプトインもエクスポートする、`test-integration-slack` の `-tags integration` を外す、統合テストのファイルの 1 行目を `//go:build test` にする、CLI の判定の補助で一方の判定だけを見る、`SlackIntegrationOptions` のオプトインを `CLISlackOptInEnv` にする（`TestMakeTestIntegrationSlack`）、分割しない記事を 1 コードポイント短くする（`TestIntegrationArticles`）、`RunMakeTarget` で追加の名前の検査を外す。`make fmt` → `make test` → `make lint` を通す。
+-   [x] **ステップ 7-13**: 利用者の承認を得て、`make test-integration-slack` と `make test-integration-cli-slack` を Mattermost のテスト用のチャンネルの Webhook で実行し（AC-30・AC-31）、次を本ステップの下に記録する。実行日、HEAD のコミット、サーバの版、各ターゲットの結果（`PASS`／`FAIL` と終了コード）、テスト用のチャンネルに投稿されたメッセージの数と分割の位置の表示（記事の `Title` の目印で見分ける）。
+    -   実行日: 2026-10-08。HEAD: `ef7b2b1`（ブランチ `issei/0006-slack-webhook-publisher-10`）。
+    -   サーバの版: Mattermost 11.9.0（テスト用のチャンネルの Incoming Webhook）。
+    -   結果（`make test-integration-slack`）: `PASS`。`TestIntegrationSlackWebhookPublisher` が成功し、`go test` は `ok` を返した（終了コード 0。zsh で実行したため `make` の終了コードは直接取得しておらず、`go test` の `ok` から判断した）。目印 `20261008T063713.014Z` の 2 つの記事を投稿した。分割しない記事は 1 つのメッセージ（分割の位置の表示なし、`Line 0001`〜`Line 0507`）、分割する記事は 3 つのメッセージで、`(1/3)`（`Line 0001`〜`Line 0506`）・`(2/3)`（`Line 0507`〜`Line 1017`）・`(3/3)`（`Line 1018`〜`Line 1180`。本文は長さの調整のため `Line 1180:` で終わる）の順に表示され、行の欠落・重複と、サーバによる追加の分割はなかった。日本語・U+1F600・U+20BB7 は正しく表示された。
+    -   結果（`make test-integration-cli-slack`）: `PASS`、終了コード 0。`TestIntegrationCLISlack` が成功し（`TestIntegrationCLI` はオプトインがないのでスキップ）、モデル `deepseek-flash` で生成した記事が 1 つのメッセージとして投稿された（標準エラー出力: `posted the article to the webhook in 1 message`）。記法の拒否は起きなかった。見出し・段落・出典の行が表示された。
+    -   テスト用のチャンネルに投稿されたメッセージは、合わせて 5 つである。
 
 ### PR-7 作成ポイント: webhook integration tests and make targets
 
@@ -464,8 +469,8 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 
 **判定理由**: ステップ 7-4・7-13 は実 Mattermost の Webhook に投稿する外部リソースの面、ステップ 7-9 は `make` のターゲットによる CI の面という `mkplan.md` のパネルモードのトリガーに該当し、加えてステップ 7-2・7-3 の環境変数によるスキップの判定と、実行ごとの目印による再実行の隔離という複数の Conditional check に該当するため。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
@@ -630,7 +635,7 @@ PR はフェーズと 1 対 1 に対応させる。各 PR は主たる関心事�
 -   [x] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6）
 -   [x] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5）
 -   [x] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5）
--   [ ] PR-6 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3 / 6-4 / 6-5 / 6-6 / 6-7 / 6-8 / 6-9 / 6-10）
+-   [x] PR-6 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3 / 6-4 / 6-5 / 6-6 / 6-7 / 6-8 / 6-9 / 6-10）
 -   [ ] PR-7 マージ済み（対象ステップ: 7-1 / 7-2 / 7-3 / 7-4 / 7-5 / 7-6 / 7-7 / 7-8 / 7-9 / 7-10 / 7-11 / 7-12 / 7-13）
 -   [ ] PR-8 マージ済み（対象ステップ: 8-1 / 8-2 / 8-3 / 8-4 / 8-5 / 8-6 / 8-7 / 8-8）
 -   [ ] §5 のすべての AC の検証が通り、手動確認の結果が記録されている

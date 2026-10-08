@@ -43,6 +43,45 @@ func TestIntegrationCLI(t *testing.T) {
 // runIntegrationCLI is the body of TestIntegrationCLI once the environment
 // says it runs.
 func runIntegrationCLI(t *testing.T, settings deepseektestutil.IntegrationSettings) {
+	r := newIntegrationRun(t, settings)
+	outPath := filepath.Join(r.base, "article.md")
+
+	var stdout, stderr bytes.Buffer
+	code := run(context.Background(), []string{"--out", outPath, integrationVideoURL}, lookupFrom(r.env), &stdout, &stderr, r.deps)
+
+	article := ""
+	if data, err := os.ReadFile(outPath); err == nil { //nolint:gosec // a path inside the test's temporary directory
+		article = string(data)
+	}
+	requireNoSecrets(t, secretTails(r.apiKey), []outputPlace{
+		{"standard output", stdout.String()},
+		{"standard error", stderr.String()},
+		{"the --out file", article},
+	})
+
+	r.checkRun(t, code)
+	checkIntegrationArticle(t, article)
+}
+
+// integrationRun is one CLI run assembled for an integration test: a seeded
+// transcript cache, a yt-dlp tripwire, the environment run sees, and
+// productionDeps() with the Generate calls counted.
+type integrationRun struct {
+	base           string
+	cacheDir       string
+	tripwireMarker string
+	apiKey         string
+	env            map[string]string
+	deps           deps
+	counter        *generateCounter
+}
+
+// newIntegrationRun seeds the cache with the video's testdata, installs the
+// tripwire, and builds the environment and the deps. The environment is built
+// here and the process environment is not changed; the test API key is given
+// to run as DEEPSEEK_API_KEY. A caller adds the variables its run needs.
+func newIntegrationRun(t *testing.T, settings deepseektestutil.IntegrationSettings) integrationRun {
+	t.Helper()
 	key, err := settings.APIKey.Reveal()
 	if err != nil {
 		t.Fatal("the test API key cannot be revealed")
@@ -72,10 +111,7 @@ func runIntegrationCLI(t *testing.T, settings deepseektestutil.IntegrationSettin
 		t.Fatalf("create bin dir: %v", err)
 	}
 	tripwire, tripwireMarker := transcripttestutil.NewTripwire(t, binDir)
-	outPath := filepath.Join(base, "article.md")
 
-	// The environment run sees is built here; the process environment is not
-	// changed. The test API key is given to run as DEEPSEEK_API_KEY.
 	env := map[string]string{
 		"YT2COLUMN_MODEL":      settings.Model,
 		"DEEPSEEK_API_KEY":     key,
@@ -91,40 +127,59 @@ func runIntegrationCLI(t *testing.T, settings deepseektestutil.IntegrationSettin
 		client, err := newLLMClient(cfg)
 		return counter.wrap(client), err
 	}
-
-	var stdout, stderr bytes.Buffer
-	code := run(context.Background(), []string{"--out", outPath, integrationVideoURL}, lookupFrom(env), &stdout, &stderr, d)
-
-	article := ""
-	if data, err := os.ReadFile(outPath); err == nil { //nolint:gosec // a path inside the test's temporary directory
-		article = string(data)
+	return integrationRun{
+		base:           base,
+		cacheDir:       cacheDir,
+		tripwireMarker: tripwireMarker,
+		apiKey:         key,
+		env:            env,
+		deps:           d,
+		counter:        counter,
 	}
-	keyRunes := []rune(key)
-	forbidden := []string{key, string(keyRunes[max(0, len(keyRunes)-8):]), key[max(0, len(key)-8):]}
-	for _, place := range []struct{ name, text string }{
-		{"standard output", stdout.String()},
-		{"standard error", stderr.String()},
-		{"the --out file", article},
-	} {
-		for _, s := range forbidden {
-			if strings.Contains(place.text, s) {
-				t.Fatalf("%s holds the test API key or its last eight characters", place.name)
-			}
-		}
-	}
+}
 
+// checkRun checks what every successful integration run leaves: exit code 0,
+// the tripwire never started, one Generate call, and no cache entry for the
+// video, since --keep-cache is not given.
+func (r integrationRun) checkRun(t *testing.T, code int) {
+	t.Helper()
 	if code != 0 {
 		t.Errorf("run exit code = %d, want 0", code)
 	}
-	if _, err := os.Lstat(tripwireMarker); err == nil {
+	if _, err := os.Lstat(r.tripwireMarker); err == nil {
 		t.Error("the yt-dlp tripwire was started")
 	}
-	if got := counter.count(); got != 1 {
+	if got := r.counter.count(); got != 1 {
 		t.Errorf("Generate was called %d times, want 1", got)
 	}
-	checkIntegrationArticle(t, article)
-	for _, name := range videoCacheEntries(t, cacheDir) {
+	for _, name := range videoCacheEntries(t, r.cacheDir) {
 		t.Errorf("the cache directory still holds the entry %s; without --keep-cache it is removed", name)
+	}
+}
+
+// outputPlace is a named piece of output an integration run produced.
+type outputPlace struct {
+	name, text string
+}
+
+// secretTails returns s and its last eight characters, taken by character
+// and by byte.
+func secretTails(s string) []string {
+	runes := []rune(s)
+	return []string{s, string(runes[max(0, len(runes)-8):]), s[max(0, len(s)-8):]}
+}
+
+// requireNoSecrets fails t unless no place holds any of the forbidden
+// strings. It runs before anything the run wrote is printed, and its failure
+// names the place only.
+func requireNoSecrets(t *testing.T, forbidden []string, places []outputPlace) {
+	t.Helper()
+	for _, place := range places {
+		for _, s := range forbidden {
+			if strings.Contains(place.text, s) {
+				t.Fatalf("%s holds a test secret or its last eight characters", place.name)
+			}
+		}
 	}
 }
 

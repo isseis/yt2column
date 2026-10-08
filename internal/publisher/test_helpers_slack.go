@@ -57,3 +57,18 @@ func newSlackWebhookPublisherForLoopbackTest(t testing.TB, opts SlackTestOptions
 func SlackMessagesForTest(article writer.Article) ([]string, error) {
 	return prepareSlackMessages(article)
 }
+
+// Limits of the preparation stage, for tests in other packages that size an
+// article or a timeout. Built only with the test tag.
+const (
+	SlackMaxMessageRunesForTest = slackMaxMessageRunes
+	SlackMaxMessagesForTest     = slackMaxMessages
+)
+
+// SlackPublishMaxDurationForTest returns the longest a production publisher
+// can take to post messages messages (at least one): each send is bounded by
+// SlackPostTimeout, and the production interval separates consecutive sends.
+// Built only with the test tag.
+func SlackPublishMaxDurationForTest(messages int) time.Duration {
+	return time.Duration(messages)*SlackPostTimeout + time.Duration(messages-1)*slackMessageInterval
+}

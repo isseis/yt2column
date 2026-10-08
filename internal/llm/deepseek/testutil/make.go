@@ -75,12 +75,31 @@ func makeStubScript(names []string) string {
 	return b.String()
 }
 
+// recordedNames returns recordedEnv followed by the names in extra that it
+// does not already hold, each once. Every name must be a plain shell variable
+// name, since makeStubScript embeds the names in shell text.
+func recordedNames(extra []string) ([]string, error) {
+	names := slices.Clone(recordedEnv)
+	for _, name := range extra {
+		if !slices.Contains(names, name) {
+			names = append(names, name)
+		}
+	}
+	if err := validateEnvNames(names); err != nil {
+		return nil, err
+	}
+	return names, nil
+}
+
 // RunMakeTarget runs `make -s <target>` in root with GOTEST replaced by a stub,
 // and returns make's output and what the stub recorded. model is the ModelEnv
-// entry of the child environment; nil leaves the variable undefined.
-func RunMakeTarget(t *testing.T, root, target string, model *string) (string, MakeInvocation) {
+// entry of the child environment; nil leaves the variable undefined. The stub
+// records recordedEnv and, in addition, every variable named in extraEnv, so a
+// caller can check opt-ins this package does not define.
+func RunMakeTarget(t *testing.T, root, target string, model *string, extraEnv ...string) (string, MakeInvocation) {
 	t.Helper()
-	if err := validateEnvNames(recordedEnv); err != nil {
+	names, err := recordedNames(extraEnv)
+	if err != nil {
 		t.Fatal(err)
 	}
 	makePath, err := exec.LookPath("make")
@@ -89,7 +108,7 @@ func RunMakeTarget(t *testing.T, root, target string, model *string) (string, Ma
 	}
 	dir := t.TempDir()
 	stub := filepath.Join(dir, "gotest-stub")
-	if err := os.WriteFile(stub, []byte(makeStubScript(recordedEnv)), 0o700); err != nil { //nolint:gosec // an executable stub inside the test's temporary directory
+	if err := os.WriteFile(stub, []byte(makeStubScript(names)), 0o700); err != nil { //nolint:gosec // an executable stub inside the test's temporary directory
 		t.Fatalf("write stub: %v", err)
 	}
 
@@ -167,7 +186,7 @@ func CheckChargedTarget(t *testing.T, c ChargedTarget) {
 		{name: "model_value_is_kept", model: &custom, wantModel: custom},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			output, invocation := RunMakeTarget(t, c.Root, c.Target, tc.model)
+			output, invocation := RunMakeTarget(t, c.Root, c.Target, tc.model, c.OptInEnv)
 			if !strings.Contains(output, "calls the real DeepSeek API, which incurs charges") {
 				t.Errorf("make output %q does not say that the target calls the real API and incurs charges", output)
 			}

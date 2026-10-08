@@ -46,7 +46,7 @@ define format_files_from_list
 	fi
 endef
 
-.PHONY: all build clean test test-ci test-integration test-integration-deepseek test-integration-cli lint fmt fmt-all deadcode tidy install-mergepr ext-install ext-typecheck ext-lint ext-fmt-check ext-fmt ext-test ext-build ext-check
+.PHONY: all build clean test test-ci test-integration test-integration-deepseek test-integration-cli test-integration-slack test-integration-cli-slack lint fmt fmt-all deadcode tidy install-mergepr ext-install ext-typecheck ext-lint ext-fmt-check ext-fmt ext-test ext-build ext-check
 
 all: build
 
@@ -127,10 +127,44 @@ test-integration-cli:
 	@printf 'test-integration-cli: calls the real DeepSeek API, which incurs charges (model: %s)\n' "$$YT2COLUMN_MODEL"
 	$(GOTEST) -tags integration -count=1 -timeout $(CLI_INTEGRATION_TIMEOUT) -v ./cmd/yt2column
 
+# Webhook integration test. Posts two fixed articles (no LLM call) to the real
+# Incoming Webhook of a Mattermost test channel, so it is kept out of
+# `make test` by the `integration` build tag and skips unless the opt-in
+# variable below is set. It reads the Webhook URL from
+# YT2COLUMN_TEST_SLACK_WEBHOOK_URL, never from SLACK_WEBHOOK_URL, and fails
+# when that variable is missing. Four messages of at most 30 seconds each
+# (publisher.SlackPostTimeout) one second apart, plus margin.
+SLACK_INTEGRATION_TIMEOUT ?= 5m
+
+# Exported to this target's recipe only.
+test-integration-slack: export YT2COLUMN_SLACK_INTEGRATION := 1
+
+test-integration-slack:
+	@printf 'test-integration-slack: posts to the real test Webhook (YT2COLUMN_TEST_SLACK_WEBHOOK_URL)\n'
+	$(GOTEST) -tags integration -count=1 -timeout $(SLACK_INTEGRATION_TIMEOUT) -v ./internal/publisher
+
+# CLI webhook integration test. Like test-integration-cli, but runs the CLI
+# with --slack and posts the generated article to the real test Webhook. It
+# needs both YT2COLUMN_TEST_DEEPSEEK_API_KEY and
+# YT2COLUMN_TEST_SLACK_WEBHOOK_URL and fails when either is missing. One
+# Generate call of at most 15 minutes (provider.LLMTimeout) and up to ten
+# messages of at most 30 seconds each one second apart, plus margin.
+CLI_SLACK_INTEGRATION_TIMEOUT ?= 30m
+
+# Exported to this target's recipe only; the recipe never splices the values
+# into shell text.
+test-integration-cli-slack: export YT2COLUMN_MODEL := $(YT2COLUMN_MODEL)
+test-integration-cli-slack: export YT2COLUMN_CLI_SLACK_INTEGRATION := 1
+
+test-integration-cli-slack:
+	@printf 'test-integration-cli-slack: calls the real DeepSeek API, which incurs charges, and posts to the real test Webhook (model: %s)\n' "$$YT2COLUMN_MODEL"
+	$(GOTEST) -tags integration -count=1 -timeout $(CLI_SLACK_INTEGRATION_TIMEOUT) -v ./cmd/yt2column
+
 # golangci-lint compiles the integration tests only together with the `test`
 # helpers; vet the `-tags integration` build that `make test-integration`,
-# `make test-integration-deepseek`, and `make test-integration-cli` run, so a
-# compile error there fails lint too.
+# `make test-integration-deepseek`, `make test-integration-cli`,
+# `make test-integration-slack`, and `make test-integration-cli-slack` run, so
+# a compile error there fails lint too.
 lint:
 	$(GOLINT)
 	$(GOCMD) vet -tags integration ./...
