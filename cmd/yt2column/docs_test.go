@@ -7,13 +7,17 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	publishertestutil "github.com/isseis/yt2column/internal/publisher/testutil"
 )
 
 // Paths from cmd/yt2column to the documents these tests check.
 const (
 	readmePath          = "../../README.md"
 	projectOverviewPath = "../../docs/dev/project_overview.md"
+	securityPath        = "../../docs/dev/security.md"
 	planPath            = "../../docs/tasks/0005_cli_assembly/03_implementation_plan.md"
+	slackPlanPath       = "../../docs/tasks/0006_slack_webhook_publisher/03_implementation_plan.md"
 )
 
 // configDocRow pairs a configuration variable with the "when unset" text each
@@ -29,7 +33,7 @@ var configDocRows = []configDocRow{
 	{"YT2COLUMN_LLM_PROVIDER", "`deepseek`", "`deepseek`"},
 	{"YT2COLUMN_MODEL", "Required (an error)", "エラー（必須）"},
 	{"DEEPSEEK_API_KEY", "Required when the provider is `deepseek`", "プロバイダが `deepseek` ならエラー"},
-	{"SLACK_WEBHOOK_URL", "Required with `--slack`", "値なし"},
+	{"SLACK_WEBHOOK_URL", "Required with `--slack`; optional with `--out`", "`--slack` では必須"},
 	{"YT2COLUMN_CACHE_DIR", "Library/Caches/yt2column", "yt2column"},
 	{"YT2COLUMN_YTDLP_PATH", "on `PATH`", "`PATH` 上の `yt-dlp`"},
 }
@@ -160,6 +164,62 @@ func TestPlanRecordsManualRuns(t *testing.T) {
 	}
 	if checked["9-5"] != checked["9-6"] {
 		t.Error("steps 9-5 and 9-6 must be completed together")
+	}
+}
+
+// TestSlackDocsContract pins the machine-checkable contract values of webhook
+// publishing: the test environment variables, the make targets, and the
+// per-message limit. Prose meaning is not pinned here; it is checked by review.
+func TestSlackDocsContract(t *testing.T) {
+	readme := readDoc(t, readmePath)
+	values := []string{
+		publishertestutil.SlackOptInEnv,
+		publishertestutil.CLISlackOptInEnv,
+		publishertestutil.WebhookURLEnv,
+		publishertestutil.SlackIntegrationOptions.MakeTarget,
+		publishertestutil.CLISlackIntegrationOptions.MakeTarget,
+	}
+	for _, doc := range []struct {
+		name, text string
+	}{
+		{"README.md", readme},
+		{"security.md", readDoc(t, securityPath)},
+	} {
+		for _, value := range values {
+			if !strings.Contains(doc.text, value) {
+				t.Errorf("%s does not mention %q", doc.name, value)
+			}
+		}
+	}
+	for _, doc := range []struct {
+		name, text string
+	}{
+		{"README.md", readme},
+		{"project_overview.md", readDoc(t, projectOverviewPath)},
+	} {
+		if !strings.Contains(doc.text, "16,383") {
+			t.Errorf("%s does not state the per-message limit 16,383", doc.name)
+		}
+	}
+}
+
+// TestSlackPlanRecordsManualChecks checks that the webhook task's plan carries
+// its manual runs and integration run as completion conditions and, once a
+// step is checked, records the server version and the result under it.
+func TestSlackPlanRecordsManualChecks(t *testing.T) {
+	doc := readDoc(t, slackPlanPath)
+	for _, step := range []string{"7-13", "8-6", "8-7"} {
+		block, done, found := stepBlock(doc, "**ステップ "+step+"**")
+		if !found {
+			t.Errorf("the plan has no step %s", step)
+			continue
+		}
+		if !done {
+			continue
+		}
+		if !strings.Contains(block, "サーバの版") || !strings.Contains(block, "結果") {
+			t.Errorf("checked step %s has no server version and result record", step)
+		}
 	}
 }
 

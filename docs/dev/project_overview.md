@@ -1,6 +1,6 @@
 # yt2column プロジェクト概要
 
-YouTube 動画の URL を受け取り、その文字起こしを元に LLM で「雑誌コラム記事風」の文章を生成し、Markdown として Slack などへ Webhook 経由で投稿する CLI ツール。
+YouTube 動画の URL を受け取り、その文字起こしを元に LLM で「雑誌コラム記事風」の文章を生成し、`--out` で Markdown ファイルに書き出すか、`--slack` で Slack 互換の Incoming Webhook（Mattermost など）に投稿する CLI ツール。
 
 本書はプロジェクト全体の決定済み方針をまとめたもの。個々の機能は `docs/tasks/` 以下のタスクで要件 → 設計 → 実装計画の順に具体化する（[requirements_process.md](developer_guide/requirements_process.md)）。本書の方針を変更する場合は、タスクの要件定義書でその旨を明記し、本書も更新する。
 
@@ -44,6 +44,7 @@ URL → TranscriptSource → Transcript → ArticleWriter → Article → Publis
   - プロバイダ SDK の import は各実装パッケージの中に閉じ込める。他のパッケージから SDK の型を参照しないこと。
   - プロバイダの選択は `internal/config` の値を見て、`main.go`（または小さなファクトリ関数）で行う。
 - `Publisher`: 初期実装は `SlackWebhookPublisher` と `FilePublisher`（ローカル保存。デバッグ用）。
+  - `SlackWebhookPublisher` は、Slack 互換の Incoming Webhook（Mattermost など）へ記事を Markdown の `text` として投稿する。検証済みの対象は Mattermost とし、Slack は best effort とする。通知を抑止するため全メッセージに `silent` を付け、1 メッセージ 16,383 コードポイントを超える記事は `(k/N)` の表示を付けて分割する。
 
 ## 前提・制約
 
@@ -51,7 +52,7 @@ URL → TranscriptSource → Transcript → ArticleWriter → Article → Publis
 - 日本語の自動字幕には句読点が付いており、品質は実用レベル。
 - 動画の長さは 40 分前後を想定（1 万数千字）。**チャンク分割はせず一括で処理する**。数時間級の動画への対応は将来拡張。
 - クラウドの IP からは YouTube にブロックされやすい。ローカル実行を前提とする。
-- Slack の従来の mrkdwn は標準 Markdown ではない。`markdown` ブロックを使い、文字数上限を超える場合は分割して投稿する。上限値は実装時に Slack の公式ドキュメントで確認すること。
+- 投稿先の Markdown の扱い: Slack の従来の mrkdwn は標準 Markdown ではない。Mattermost の Incoming Webhook はメッセージの `text` を Markdown として表示する。検証済みの対象は Mattermost とし、Slack は best effort とする。1 つのメッセージの上限は 16,383 コードポイント（Mattermost の公式文書の 16,383 文字に対応。設計で Mattermost の `MaxPostSize()` とコードポイントの数え方を確認した。現在の `MaxPostSize()` はこれより大きい）とし、超える場合は `(k/N)` の表示を付けて分割して投稿する。
 - 記事の末尾には必ず元動画へのリンク（出典）を付ける。
 - 字幕と info.json は動画 ID ごとにキャッシュする。同じ動画の処理をやり直すとき（記事生成・投稿の失敗後の再実行、プロンプトの調整）に再取得しないようにするため。処理を終えた動画の文字起こしをローカルに残し続けないよう、投稿の成功後は既定でその動画のキャッシュを削除し、残すオプションを設ける。中断などで残った不要なエントリは、CLI の各実行で掃除する。
 - LLM はエラーを返さずに空の応答や途中で打ち切られた応答を返すことがある。`finish_reason` を確認し（`stop` 以外、特に `length` は打ち切り）、空の応答とともにエラーとして扱うこと。
@@ -80,7 +81,7 @@ internal/llm/deepseek/    # DeepSeek 実装（標準ライブラリで OpenAI �
 internal/llm/gemini/      # Gemini 実装（将来追加。google.golang.org/genai）
 internal/llm/claude/      # Claude 実装（将来追加）
 internal/secret/          # 秘密情報（API キー・Webhook URL）を保持する型
-internal/publisher/       # Slack / File
+internal/publisher/       # Slack 互換 Incoming Webhook / File
 internal/config/          # 環境変数からの設定読み込み
 prompts/                  # プロンプトテンプレート
 testdata/                 # json3・info.json のサンプル、文字起こしパネルの HTML の抜粋、DeepSeek API の実応答
@@ -95,7 +96,7 @@ testdata/                 # json3・info.json のサンプル、文字起こし�
 | `DEEPSEEK_API_KEY` | DeepSeek 用 | プロバイダが `deepseek` ならエラー |
 | `GEMINI_API_KEY` | Gemini 実装を追加したとき用 | （未実装） |
 | `ANTHROPIC_API_KEY` | Claude 実装を追加したとき用 | （未実装） |
-| `SLACK_WEBHOOK_URL` | 投稿先の Slack Incoming Webhook URL | 値なし |
+| `SLACK_WEBHOOK_URL` | 投稿先の Slack 互換 Incoming Webhook URL（Mattermost を検証済み）。`--out` の場合も、設定されていれば `https` の URL として検証する | `--slack` では必須。`--out` では値なし |
 | `YT2COLUMN_CACHE_DIR` | 字幕・info.json のキャッシュディレクトリ | 利用者のキャッシュディレクトリの下の `yt2column`（macOS は `$HOME/Library/Caches/yt2column`） |
 | `YT2COLUMN_YTDLP_PATH` | `PATH` 上の `yt-dlp` を使う | `PATH` 上の `yt-dlp` |
 

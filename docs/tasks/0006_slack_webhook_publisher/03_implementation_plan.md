@@ -480,18 +480,18 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 -   変更: `README.md`、`docs/dev/project_overview.md`、`docs/dev/security.md`、`docs/dev/developer_guide/package_reference.md`（最終確認）、`cmd/yt2column/docs_test.go`
 
 **タスク**
--   [ ] **ステップ 8-1**: `README.md` を、設計書 3.13 の表と要件書 F-010 の各項目のとおりに更新する。フラグの表の `--slack` の行（ステップ 6-2 で加えたもの）の説明を確かめ、設定の表の `SLACK_WEBHOOK_URL` の行を改め、`make test-integration-slack`・`make test-integration-cli-slack` の実行方法を加える。冒頭（`README.md:5-6`）と前提（`:24`）の未実装の記述も直す。
--   [ ] **ステップ 8-2**: `docs/dev/project_overview.md` を、設計書 3.13 の表のとおりに更新する（概要、`Publisher` の初期実装、「前提・制約」の上限値と出典、想定ディレクトリ構成のコメント、「設定（環境変数）」の表）。
--   [ ] **ステップ 8-3**: `docs/dev/security.md` を、設計書 3.13 の表のとおりに更新する（§2・§3・§6）。§2 の統合テストの表に Webhook の 2 つのテストを加える。§2 の `--dry-run` の記述（§1.3）は、`security.md:19` の文「Webhook URL は URL 自体が秘密情報である。ログ・エラーメッセージ・`--dry-run` の出力に含めない。」を「Webhook URL は URL 自体が秘密情報である。ログ・エラーメッセージに含めない。」に改める（同じ行の続きの文は変えない）。
--   [ ] **ステップ 8-4**: `package_reference.md` の各行が、フェーズ 1〜7 で変えた公開の API と一致することを確かめる（`TestPackageReferenceListsPackages` は行の有無だけを確かめる）。
--   [ ] **ステップ 8-5**: `cmd/yt2column/docs_test.go` を更新する（AC-34・AC-22・AC-33）。
+-   [x] **ステップ 8-1**: `README.md` を、設計書 3.13 の表と要件書 F-010 の各項目のとおりに更新する。フラグの表の `--slack` の行（ステップ 6-2 で加えたもの）の説明を確かめ、設定の表の `SLACK_WEBHOOK_URL` の行を改め、`make test-integration-slack`・`make test-integration-cli-slack` の実行方法を加える。冒頭（`README.md:5-6`）と前提（`:24`）の未実装の記述も直す。
+-   [x] **ステップ 8-2**: `docs/dev/project_overview.md` を、設計書 3.13 の表のとおりに更新する（概要、`Publisher` の初期実装、「前提・制約」の上限値と出典、想定ディレクトリ構成のコメント、「設定（環境変数）」の表）。
+-   [x] **ステップ 8-3**: `docs/dev/security.md` を、設計書 3.13 の表のとおりに更新する（§2・§3・§6）。§2 の統合テストの表に Webhook の 2 つのテストを加える。§2 の `--dry-run` の記述（§1.3）は、`security.md:19` の文「Webhook URL は URL 自体が秘密情報である。ログ・エラーメッセージ・`--dry-run` の出力に含めない。」を「Webhook URL は URL 自体が秘密情報である。ログ・エラーメッセージに含めない。」に改める（同じ行の続きの文は変えない）。
+-   [x] **ステップ 8-4**: `package_reference.md` の各行が、フェーズ 1〜7 で変えた公開の API と一致することを確かめる（`TestPackageReferenceListsPackages` は行の有無だけを確かめる）。
+-   [x] **ステップ 8-5**: `cmd/yt2column/docs_test.go` を更新する（AC-34・AC-22・AC-33）。
     -   `configDocRows` の `SLACK_WEBHOOK_URL` の行（`docs_test.go:32`）の README と概要の「未設定のとき」の期待する文言を、ステップ 8-1・8-2 の表の新しい記述に合わせる。期待する文言は要件書 F-007 の「`--slack` では必須」から決める。
     -   `TestSlackDocsContract`: 機械的に確かめられる契約値だけを固定する。README と `security.md` が、`publishertestutil` の 2 つのオプトインの変数と `WebhookURLEnv` の名前、2 つの `make` のターゲットの名前を含むこと。README と概要が上限値 16,383 を含むこと。散文の意味は固定しない（0005 の計画書のステップ 9-4 の判断と同じ）。
     -   `TestSlackPlanRecordsManualChecks`: 本計画のステップ 7-13・8-6・8-7 が存在し、チェックされている場合は、その下に結果の記録（サーバの版、`結果`）があること。既存の `stepBlock` を使い、計画書のパスは新しい定数にする。
     -   日本語の文書の文字列と照合するリテラル（`結果` など）は、既存の `docs_test.go`（`値なし`・`結果`）と同じく日本語で書く。照合する文書の内容そのものであり、それ以外のコメントと識別子は英語で書く。
 -   [ ] **ステップ 8-6**: 手動確認（AC-22。利用者の承認を得て、本番で使う Mattermost のサーバで行う）。`silent: true` を付けた 2 つのメッセージ（`@channel` を含むもの、確認する人のユーザー名へのメンションを含むもの）を Webhook に直接送り、それぞれについて、通知（デスクトップ・プッシュ・メール）が発生しないこと、確認する人のチャンネルの未読数とメンション数が増えないこと、「New Messages」の表示が付かないことを確かめる。本ステップの下に、確認日、サーバの版、各項目の結果を記録する。
 -   [ ] **ステップ 8-7**: 手動確認（AC-33・F-009。利用者の承認を得て、Mattermost のテスト用のチャンネルの Webhook で行う）。1 つのメッセージに収まる記事と、分割される記事を `--slack` で投稿し、見出し・段落・リスト・リンク・日本語が Markdown として表示されること、分割した場合は分割の位置の表示とともに記事の順に並び、サーバによる追加の分割が起きていないことを確かめる。本ステップの下に、確認日、使った記事（動画 URL または固定の記事）、サーバの版、結果を記録する。
--   [ ] **ステップ 8-8**: 文書の内容の照合。要件書 F-010 の各項目と設計書 3.13 の表の各項目を、ステップ 8-1〜8-3 で書いた本文と 1 つずつ突き合わせ、記述の根拠（README の上限値と拒否される記事の種類は `internal/publisher` の定数と M1〜M4、統合テストの実行方法は `Makefile` のターゲット）を確かめる。照合した項目の一覧をコミットメッセージに書く。`make fmt` → `make test` → `make lint` を通す。`TestSlackDocsContract`・`configDocRows` は、README の該当の記述を一時的に消して失敗することを確かめる。
+-   [x] **ステップ 8-8**: 文書の内容の照合。要件書 F-010 の各項目と設計書 3.13 の表の各項目を、ステップ 8-1〜8-3 で書いた本文と 1 つずつ突き合わせ、記述の根拠（README の上限値と拒否される記事の種類は `internal/publisher` の定数と M1〜M4、統合テストの実行方法は `Makefile` のターゲット）を確かめる。照合した項目の一覧をコミットメッセージに書く。`make fmt` → `make test` → `make lint` を通す。`TestSlackDocsContract`・`configDocRows` は、README の該当の記述を一時的に消して失敗することを確かめる。
 
 ### PR-8 作成ポイント: documentation and manual verification
 
