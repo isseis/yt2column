@@ -62,18 +62,21 @@ type slackRecorder struct {
 	requests []slackRequest
 }
 
+// record appends one received request.
 func (r *slackRecorder) record(req slackRequest) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.requests = append(r.requests, req)
 }
 
+// all returns a copy of the recorded requests.
 func (r *slackRecorder) all() []slackRequest {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return append([]slackRequest(nil), r.requests...)
 }
 
+// count returns how many requests were recorded.
 func (r *slackRecorder) count() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -150,6 +153,7 @@ func threeMessageArticle(t *testing.T) writer.Article {
 	return articleWithPostedRunes(t, 2*(slackMaxMessageRunes-slackDisplayMaxRunes)+1, 'a')
 }
 
+// slackPayloadText decodes the text member of a recorded payload.
 func slackPayloadText(t *testing.T, req slackRequest) string {
 	t.Helper()
 	raw, ok := req.members["text"]
@@ -163,6 +167,7 @@ func slackPayloadText(t *testing.T, req slackRequest) string {
 	return text
 }
 
+// slackMessageTexts returns the text of every recorded request in order.
 func slackMessageTexts(t *testing.T, server *slackServer) []string {
 	t.Helper()
 	requests := server.recorder.all()
@@ -226,12 +231,14 @@ type cancelableContext struct {
 	err error
 }
 
+// Err returns the error set by cancel, or nil.
 func (c *cancelableContext) Err() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.err
 }
 
+// cancel records err; Done is never closed.
 func (c *cancelableContext) cancel(err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -243,6 +250,7 @@ type failingTransport struct {
 	err error
 }
 
+// RoundTrip returns the fixed error.
 func (f failingTransport) RoundTrip(*http.Request) (*http.Response, error) {
 	return nil, f.err
 }
@@ -257,6 +265,7 @@ type cancelOnEOFTransport struct {
 	once   sync.Once
 }
 
+// RoundTrip wraps the response body so cancel fires at EOF.
 func (t *cancelOnEOFTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	response, err := t.base.RoundTrip(req)
 	if err != nil {
@@ -273,6 +282,7 @@ type cancelOnEOFBody struct {
 	fired  bool
 }
 
+// Read calls cancel when the underlying body reaches EOF.
 func (b *cancelOnEOFBody) Read(p []byte) (int, error) {
 	n, err := b.ReadCloser.Read(p)
 	if err == io.EOF && !b.fired {
@@ -290,6 +300,7 @@ type staticResponseTransport struct {
 	body   func(req *http.Request) io.ReadCloser
 }
 
+// RoundTrip answers with the fixed status and the built body.
 func (t staticResponseTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return &http.Response{
 		StatusCode: t.status,
@@ -302,8 +313,11 @@ func (t staticResponseTransport) RoundTrip(req *http.Request) (*http.Response, e
 // failingReadBody fails every Read.
 type failingReadBody struct{}
 
+// Read always fails.
 func (failingReadBody) Read([]byte) (int, error) { return 0, errors.New("read failed") }
-func (failingReadBody) Close() error             { return nil }
+
+// Close does nothing.
+func (failingReadBody) Close() error { return nil }
 
 // blockingTransport signals when RoundTrip starts, blocks until the request
 // context ends, and then returns a non-context error.
@@ -312,6 +326,7 @@ type blockingTransport struct {
 	once    sync.Once
 }
 
+// RoundTrip signals started, waits for the context, then fails.
 func (t *blockingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	t.once.Do(func() { close(t.started) })
 	<-req.Context().Done()
@@ -324,12 +339,17 @@ type contextErrorBody struct {
 	ctx context.Context
 }
 
+// Read blocks until the context ends and returns its error.
 func (b *contextErrorBody) Read([]byte) (int, error) {
 	<-b.ctx.Done()
 	return 0, b.ctx.Err()
 }
+
+// Close does nothing.
 func (b *contextErrorBody) Close() error { return nil }
 
+// TestNewSlackWebhookPublisher covers AC-01: the accepted URL shapes and
+// that construction sends nothing.
 func TestNewSlackWebhookPublisher(t *testing.T) {
 	for _, raw := range []string{
 		"https://mattermost.example.com/hooks/xxxxxxxxxxxxxxxxxxxxxxxxxx",
@@ -359,6 +379,8 @@ func TestNewSlackWebhookPublisher(t *testing.T) {
 	})
 }
 
+// TestNewSlackWebhookPublisherRejects covers AC-02 and AC-03: the zero value
+// and the rejected URL shapes, each error free of the URL.
 func TestNewSlackWebhookPublisherRejects(t *testing.T) {
 	t.Run("zero value", func(t *testing.T) {
 		if _, err := NewSlackWebhookPublisher(secret.Secret{}); err == nil {
@@ -387,6 +409,8 @@ func TestNewSlackWebhookPublisherRejects(t *testing.T) {
 	}
 }
 
+// TestNewSlackWebhookPublisherForLoopbackTestRejects checks that a non-loopback
+// endpoint and a non-positive Timeout fail the test without echoing the endpoint.
 func TestNewSlackWebhookPublisherForLoopbackTestRejects(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -413,6 +437,8 @@ func TestNewSlackWebhookPublisherForLoopbackTestRejects(t *testing.T) {
 	}
 }
 
+// TestSlackPublishPayload covers AC-04, AC-06, AC-07, and AC-21a: the POST
+// shape, the exact payload members, silent, and the posted text.
 func TestSlackPublishPayload(t *testing.T) {
 	t.Run("valid article", func(t *testing.T) {
 		server := newSlackOKServer(t)
@@ -467,6 +493,8 @@ func TestSlackPublishPayload(t *testing.T) {
 	})
 }
 
+// TestSlackPublishSplit covers AC-08, AC-09, and AC-10: the split messages,
+// the boundary lengths, and that the request count matches SlackMessageCount.
 func TestSlackPublishSplit(t *testing.T) {
 	t.Run("many lines", func(t *testing.T) {
 		server := newSlackOKServer(t)
@@ -534,6 +562,8 @@ func TestSlackPublishSplit(t *testing.T) {
 	})
 }
 
+// TestSlackPublishWaitsBetweenMessages exercises the inter-message wait and
+// checks that every message still arrives.
 func TestSlackPublishWaitsBetweenMessages(t *testing.T) {
 	server := newSlackOKServer(t)
 	p := newTestSlackPublisher(t, server, SlackTestOptions{Timeout: time.Second, Interval: 20 * time.Millisecond})
@@ -547,6 +577,7 @@ func TestSlackPublishWaitsBetweenMessages(t *testing.T) {
 	checkSlackMessages(t, slackMessageTexts(t, server), renderArticle(article))
 }
 
+// TestSlackMessagesForTest exercises the test-tag messages helper.
 func TestSlackMessagesForTest(t *testing.T) {
 	article := validArticle()
 	messages, err := SlackMessagesForTest(article)
@@ -558,6 +589,8 @@ func TestSlackMessagesForTest(t *testing.T) {
 	}
 }
 
+// TestSlackPublishPrepareSendsNothing covers AC-05, AC-11, and AC-21: every
+// preparation rejection sends no request and is not a *SlackPostError.
 func TestSlackPublishPrepareSendsNothing(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -593,6 +626,8 @@ func TestSlackPublishPrepareSendsNothing(t *testing.T) {
 	}
 }
 
+// TestSlackPublishResponses covers AC-12 to AC-14 and AC-20: the non-200
+// statuses, the invalid 200 bodies, and the identifier extraction.
 func TestSlackPublishResponses(t *testing.T) {
 	t.Run("non-200 statuses", func(t *testing.T) {
 		for _, status := range []int{400, 403, 404, 410, 429, 500} {
@@ -746,6 +781,8 @@ func TestSlackPublishResponses(t *testing.T) {
 	})
 }
 
+// TestSlackPublishRedirect covers AC-15: a 3xx is a status failure and the
+// Location target receives nothing.
 func TestSlackPublishRedirect(t *testing.T) {
 	target := newSlackOKServer(t)
 	for _, status := range []int{301, 302, 307, 308} {
@@ -770,6 +807,8 @@ func TestSlackPublishRedirect(t *testing.T) {
 	}
 }
 
+// TestSlackPublishTimeout covers AC-16: an unanswered request ends with a
+// context.DeadlineExceeded wrapped in a *SlackPostError.
 func TestSlackPublishTimeout(t *testing.T) {
 	release := make(chan struct{})
 	server := newSlackServer(t, func(http.ResponseWriter, *http.Request, int) {
@@ -788,6 +827,9 @@ func TestSlackPublishTimeout(t *testing.T) {
 	}
 }
 
+// TestSlackPublishBodyFailures checks the body-read outcomes the design names:
+// a 200 read failure is a transport failure, a read outliving the deadline wraps
+// the context error, and a non-200 read failure keeps the status without identifiers.
 func TestSlackPublishBodyFailures(t *testing.T) {
 	endpoint := "http://127.0.0.1:1" + slackWebhookPath
 
@@ -830,6 +872,8 @@ func TestSlackPublishBodyFailures(t *testing.T) {
 	})
 }
 
+// TestSlackPublishCanceled covers AC-17: a canceled context before sending, in
+// flight, and between messages, and a successful last message after a cancel.
 func TestSlackPublishCanceled(t *testing.T) {
 	t.Run("before the first message", func(t *testing.T) {
 		server := newSlackOKServer(t)
@@ -931,6 +975,8 @@ func TestSlackPublishCanceled(t *testing.T) {
 	})
 }
 
+// TestSlackPublishPartialFailure covers AC-18: the second of three messages
+// fails and the reported counts name the partial post.
 func TestSlackPublishPartialFailure(t *testing.T) {
 	server := newSlackServer(t, func(w http.ResponseWriter, _ *http.Request, n int) {
 		if n == 2 {
@@ -956,6 +1002,8 @@ func TestSlackPublishPartialFailure(t *testing.T) {
 	}
 }
 
+// TestSlackPublishErrorsOmitWebhookURL covers AC-19: no failure and no
+// unwrapped error shows the URL, its path, or a part, and neither does %+v or %#v.
 func TestSlackPublishErrorsOmitWebhookURL(t *testing.T) {
 	article := validArticle()
 
@@ -1021,6 +1069,8 @@ func TestSlackPublishErrorsOmitWebhookURL(t *testing.T) {
 	})
 }
 
+// TestSlackPublishTransportErrorWithheld checks that a transport error naming
+// the URL path is replaced by the fixed withheld message.
 func TestSlackPublishTransportErrorWithheld(t *testing.T) {
 	server := newSlackOKServer(t)
 	endpoint := server.url()
@@ -1038,6 +1088,8 @@ func TestSlackPublishTransportErrorWithheld(t *testing.T) {
 	}
 }
 
+// TestSlackPublishZeroValue checks that Publish on the zero value fails without
+// sending and is not a *SlackPostError.
 func TestSlackPublishZeroValue(t *testing.T) {
 	var p SlackWebhookPublisher
 	err := p.Publish(context.Background(), validArticle())
@@ -1049,6 +1101,8 @@ func TestSlackPublishZeroValue(t *testing.T) {
 	}
 }
 
+// TestSlackPublishErrorClasses covers AC-35: each failure matches exactly one
+// of the six classifications.
 func TestSlackPublishErrorClasses(t *testing.T) {
 	cases := []struct {
 		name string
