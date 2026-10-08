@@ -37,7 +37,7 @@ type childSetup struct {
 	env      map[string]string
 	cacheDir string
 	outPath  string
-	llmReady string
+	ready    string // created by the child's fake LLM client or publisher when it waits
 	ctxDone  string
 }
 
@@ -49,7 +49,7 @@ func newChildSetup(t *testing.T, ytDlpPath string, seed bool) *childSetup {
 	c := &childSetup{
 		cacheDir: filepath.Join(base, "cache"),
 		outPath:  filepath.Join(base, "article.md"),
-		llmReady: filepath.Join(base, "llm-ready"),
+		ready:    filepath.Join(base, "ready"),
 		ctxDone:  filepath.Join(base, "llm-ctx-done"),
 	}
 	if seed {
@@ -61,7 +61,7 @@ func newChildSetup(t *testing.T, ytDlpPath string, seed bool) *childSetup {
 		"SLACK_WEBHOOK_URL":    testWebhook,
 		"YT2COLUMN_CACHE_DIR":  c.cacheDir,
 		"YT2COLUMN_YTDLP_PATH": ytDlpPath,
-		childReadyEnv:          c.llmReady,
+		childReadyEnv:          c.ready,
 		childCtxDoneEnv:        c.ctxDone,
 	}
 	return c
@@ -72,19 +72,20 @@ func (c *childSetup) args() []string {
 	return []string{"--out", c.outPath, runVideoURL}
 }
 
-// requireExitCode asserts the child exited normally with want.
-func requireExitCode(t *testing.T, state *os.ProcessState, want int, child *cliChild) {
+// requireExitFailure asserts the child exited normally with exitFailure.
+func requireExitFailure(t *testing.T, state *os.ProcessState, child *cliChild) {
 	t.Helper()
-	if state.ExitCode() != want {
-		t.Fatalf("exit status = %v, want exit code %d\nstderr:\n%s", state, want, child.stderr.String())
+	if state.ExitCode() != exitFailure {
+		t.Fatalf("exit status = %v, want exit code %d\nstderr:\n%s", state, exitFailure, child.stderr.String())
 	}
 }
 
 // requireInterruptedChildOutput checks the output of a child stopped by a
 // signal: an empty standard output, the interruption reported, and no secret
 // or raw escape character. Standard error is checked by content only: a
-// coverage run can add the runtime's own warnings to it.
-func requireInterruptedChildOutput(t *testing.T, child *cliChild, outPath string) {
+// coverage run can add the runtime's own warnings to it. A caller running with
+// --out also checks that the file was not created.
+func requireInterruptedChildOutput(t *testing.T, child *cliChild) {
 	t.Helper()
 	if child.stdout.Len() != 0 {
 		t.Errorf("stdout = %q, want empty", child.stdout.String())
@@ -101,7 +102,6 @@ func requireInterruptedChildOutput(t *testing.T, child *cliChild, outPath string
 	if strings.Contains(stderr, "\x1b") {
 		t.Errorf("stderr holds a raw escape character:\n%q", stderr)
 	}
-	requireNoFile(t, outPath)
 }
 
 // TestSignalDuringYtDlp sends SIGINT and SIGTERM to the production main while
@@ -123,8 +123,9 @@ func TestSignalDuringYtDlp(t *testing.T) {
 			child.signal(t, sig)
 			state := child.wait(t)
 
-			requireExitCode(t, state, exitFailure, child)
-			requireInterruptedChildOutput(t, child, setup.outPath)
+			requireExitFailure(t, state, child)
+			requireInterruptedChildOutput(t, child)
+			requireNoFile(t, setup.outPath)
 			if !strings.Contains(child.stderr.String(), "the transcript stage failed") {
 				t.Errorf("stderr does not name the transcript stage:\n%s", child.stderr.String())
 			}
@@ -150,12 +151,45 @@ func TestSignalDuringGenerate(t *testing.T) {
 			before := videoEntries(t, setup.cacheDir)
 			child := startCLIChild(t, childModeStall, setup.env, setup.args()...)
 
-			waitForFile(t, setup.llmReady)
+			waitForFile(t, setup.ready)
 			child.signal(t, sig)
 			state := child.wait(t)
 
-			requireExitCode(t, state, exitFailure, child)
-			requireInterruptedChildOutput(t, child, setup.outPath)
+			requireExitFailure(t, state, child)
+			requireInterruptedChildOutput(t, child)
+			requireNoFile(t, setup.outPath)
+			requireNoFile(t, marker)
+			if after := videoEntries(t, setup.cacheDir); !slices.Equal(before, after) {
+				t.Errorf("the video's cache changed: before %v, after %v", before, after)
+			}
+		})
+	}
+}
+
+// TestSignalDuringSlackPost sends SIGINT and SIGTERM while a --slack post is
+// in flight, and checks the exit code, the output, that yt-dlp is not
+// started, and that the video's cache is kept. The child's publisher returns
+// what SlackWebhookPublisher returns for a canceled first message.
+func TestSignalDuringSlackPost(t *testing.T) {
+	for _, sig := range []syscall.Signal{syscall.SIGINT, syscall.SIGTERM} {
+		t.Run(sig.String(), func(t *testing.T) {
+			skipIfIgnored(t, sig)
+			tripwire, marker := transcripttestutil.NewTripwire(t, t.TempDir())
+			setup := newChildSetup(t, tripwire, true)
+			before := videoEntries(t, setup.cacheDir)
+			child := startCLIChild(t, childModeSlackStall, setup.env, "--slack", runVideoURL)
+
+			waitForFile(t, setup.ready)
+			child.signal(t, sig)
+			state := child.wait(t)
+
+			requireExitFailure(t, state, child)
+			requireInterruptedChildOutput(t, child)
+			for _, want := range []string{"the publish stage failed", "posted 0 of 1 messages"} {
+				if !strings.Contains(child.stderr.String(), want) {
+					t.Errorf("stderr does not contain %q:\n%s", want, child.stderr.String())
+				}
+			}
 			requireNoFile(t, marker)
 			if after := videoEntries(t, setup.cacheDir); !slices.Equal(before, after) {
 				t.Errorf("the video's cache changed: before %v, after %v", before, after)
@@ -236,7 +270,7 @@ func TestSIGKILLWithoutYtDlp(t *testing.T) {
 	tripwire, _ := transcripttestutil.NewTripwire(t, t.TempDir())
 	setup := newChildSetup(t, tripwire, true)
 	child := startCLIChild(t, childModeStall, setup.env, setup.args()...)
-	waitForFile(t, setup.llmReady)
+	waitForFile(t, setup.ready)
 	if lock, err := cachelock.Acquire(setup.cacheDir); !errors.Is(err, cachelock.ErrLocked) {
 		if err == nil {
 			_ = lock.Close()
@@ -293,7 +327,7 @@ func TestIgnoredSignalNotSubscribed(t *testing.T) {
 			tripwire, _ := transcripttestutil.NewTripwire(t, t.TempDir())
 			setup := newChildSetup(t, tripwire, true)
 			child := startCLIChildIgnoring(t, tc.trapName, childModeStall, setup.env, setup.args()...)
-			waitForFile(t, setup.llmReady)
+			waitForFile(t, setup.ready)
 			child.signal(t, tc.sig)
 
 			time.Sleep(ignoredSignalWindow)
@@ -319,12 +353,13 @@ func TestSIGHUP(t *testing.T) {
 	tripwire, _ := transcripttestutil.NewTripwire(t, t.TempDir())
 	setup := newChildSetup(t, tripwire, true)
 	child := startCLIChild(t, childModeStall, setup.env, setup.args()...)
-	waitForFile(t, setup.llmReady)
+	waitForFile(t, setup.ready)
 	child.signal(t, syscall.SIGHUP)
 	state := child.wait(t)
 
-	requireExitCode(t, state, exitFailure, child)
-	requireInterruptedChildOutput(t, child, setup.outPath)
+	requireExitFailure(t, state, child)
+	requireInterruptedChildOutput(t, child)
+	requireNoFile(t, setup.outPath)
 }
 
 // TestSecondSignal stops the CLI in an LLM client that ignores its context.
@@ -336,7 +371,7 @@ func TestSecondSignal(t *testing.T) {
 	tripwire, _ := transcripttestutil.NewTripwire(t, t.TempDir())
 	setup := newChildSetup(t, tripwire, true)
 	child := startCLIChild(t, childModeIgnoreCtx, setup.env, setup.args()...)
-	waitForFile(t, setup.llmReady)
+	waitForFile(t, setup.ready)
 	child.signal(t, syscall.SIGTERM)
 	waitForFile(t, setup.ctxDone)
 
