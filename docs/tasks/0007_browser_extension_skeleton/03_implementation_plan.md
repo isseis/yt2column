@@ -142,7 +142,7 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 
     CI の `go list ./...` のステップは、`go.mod` から `ignore ./extension` を外したときに失敗することを、手元で同じコマンドを実行して確かめる。依存パッケージが Go のファイルを含まなくなっていて失敗しない場合は、そのことを記録する。続けて、`make ext-install` → `make ext-check`、`make test`・`make lint`・`make deadcode`・`make build` を通す。最後に AC-05 の比較を行い、§5.1 に記録する。比較の内容は、`extension/node_modules` と `extension/dist` がある状態と、`extension/` を一時的に退避した状態とで、4 つの Go の手順の成否と `go list ./...` の出力を比べることである。
     -   **対象:** なし（確認のみ）。**完了:** 各対象を壊して失敗することを確認し、コミットメッセージに記録する。
--   [x] **ステップ 1-8**: PR-1 を作成した後に、PR の CI で、拡張のジョブの 6 つのステップと Go の確認が通ることを確かめる。続けて、設計書 7.3 の AC-07 の 6 つの変更を 1 つずつ別のコミットとして push し、それぞれで対応するステップが失敗して CI が失敗することを確かめてから、その変更を戻す。結果（コミット、失敗したステップ）を §5.1 に記録する。
+-   [ ] **ステップ 1-8**: PR-1 を作成した後に、PR の CI で、拡張のジョブの 6 つのステップと Go の確認が通ることを確かめる。続けて、設計書 7.3 の AC-07 の 6 つの変更を 1 つずつ別のコミットとして push し、それぞれで対応するステップが失敗して CI が失敗することを確かめてから、その変更を戻す。結果（コミット、失敗したステップ）を §5.1 に記録する。
     -   **対象:** なし（確認のみ）。**完了:** PR-1 の作成後、PR の CI が通り、AC-07 の 6 つの変更のコミットで対応するステップが失敗することを確かめ、§5.1 に記録する。
 
 **完了条件:** `make ext-check`・`make test`・`make lint`・`make deadcode`・`make build` が通り、§5.1 の AC-02・AC-03・AC-05・AC-07 の行が記録されている。
@@ -161,7 +161,7 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
 - [x] PR を作成した（#126）
-- [x] ステップ 1-8 の PR の CI の検証を行い、結果を §5.1 に記録した
+- [ ] ステップ 1-8 の PR の CI の検証を行い、結果を §5.1 に記録した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
@@ -446,10 +446,10 @@ PR は、フェーズ 4 を 2 つに分け、そのほかはフェーズと 1 �
 
 | AC | 確認の内容（設計書 7.2・7.3） | ブラウザ・環境 | 日付 | 結果 |
 |---|---|---|---|---|
-| AC-02 | 型の合わない代入のコミットで CI の型検査のステップが失敗する | CI（ubuntu-latest、#126） | 2026-10-08 | `24b974a`（`core/acceptedUrl.ts` に `export const mismatch: number = "one";`）で、ジョブ `extension` の Typecheck のステップが失敗した（run 37724485962） |
-| AC-03 | 版の範囲の変更のコミットで CI のインストールのステップが失敗する | CI（ubuntu-latest、#126） | 2026-10-08 | `9c72421`（`package.json` の `typescript` を `^6.0.3` から `^7.0.0` に。lockfile は 6.0.3）で、Install dependencies (npm ci) のステップが失敗した（run 37723776287） |
+| AC-02 | 型の合わない代入のコミットで CI の型検査のステップが失敗する | CI | | |
+| AC-03 | 版の範囲の変更のコミットで CI のインストールのステップが失敗する | CI | | |
 | AC-05 | 拡張がある状態とない状態で、`make test`・`make lint`・`make deadcode`・`make build` の成否と `go list ./...` の出力が同じ | macOS（Go 1.27.1、Node.js 24.21.0） | 2026-10-08 | 一致した。`extension/node_modules` と `extension/dist` がある状態と、`extension/` を退避した状態とで、4 つの手順はどちらも成功し、`go list ./...` の出力（18 パッケージ）と `make deadcode` の出力は同じだった。`go.mod` から `ignore ./extension` を外すと、`go list ./...` に `github.com/isseis/yt2column/extension/node_modules/flatted/golang/pkg/flatted` が現れ、CI の確認のステップの判定が失敗した |
-| AC-07 | 本タスクの PR の CI が通る。6 つの変更のコミットで、それぞれ対応するステップが失敗する | CI（ubuntu-latest、#126） | 2026-10-08 | #126 の CI（run 37722942370）で、ジョブ `extension`（6 つのステップと `go list ./...` の確認）・`secret-scan`・`test`・`lint` が通った。6 つの変更は、それぞれ対応するステップだけで失敗した: インストール `9c72421`（run 37723776287）、型検査 `24b974a`（run 37724485962）、lint `6b2068b`（`eval` の追加。run 37724640062）、フォーマット `88dc5bc`（run 37724780272）、ユニットテスト `76958e2`（失敗するアサーション。run 37724981581）、ビルド `96a07e5`（`src/dependency.ts` の `import "jsdom"` で check-dist が失敗。run 37725344358）。各変更は直後のコミットで戻した。ビルドの変更は、最初に `core/acceptedUrl.ts` に置いた `18a0dfb` では `tsconfig.core.json` の型検査が先に失敗したので、`core/` の外のファイルで行い直した |
+| AC-07 | 本タスクの PR の CI が通る。6 つの変更のコミットで、それぞれ対応するステップが失敗する | CI | | |
 | AC-08 | 2 つのディレクトリから読み込んだ拡張 ID が記録した値と一致する | Chrome・Brave | | |
 | AC-10・AC-11 | 動画ページで項目が現れ、`https://example.com/` で現れない。無効化と再有効化、再起動の後も現れる | Chrome・Brave | | |
 | AC-13 | コンソールの選択範囲の文字列が `window.getSelection().toString()` と一致し、時刻の行と本文の行が改行で区切られている | Chrome・Brave | | |
