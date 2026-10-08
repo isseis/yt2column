@@ -53,6 +53,7 @@ const openWindowLabel = "yt2column open result window";
 const removeLabel = "yt2column remove summary";
 const badgeLabel = "yt2column signal display failure";
 const activeTabLabel = "yt2column active tab";
+const keyLabel = "yt2column create summary key";
 
 /** The message shown when the result window finds no usable summary. */
 export const missingResultText =
@@ -99,7 +100,14 @@ export async function runMenuLaunch(
     frameId: info.frameId,
     outcome,
   });
-  const key = deps.newKey();
+  let key: string;
+  try {
+    key = deps.newKey();
+  } catch (error) {
+    deps.log.error(keyLabel, error);
+    await attempt(deps.signalDisplayFailure, deps.log, badgeLabel);
+    return;
+  }
   try {
     await deps.store.put(key, summarize(outcome));
   } catch (error) {
@@ -154,7 +162,7 @@ export async function runResultWindow(
   hash: string,
   deps: ResultWindowDeps,
 ): Promise<void> {
-  const key = hash.startsWith("#") ? hash.slice(1) : hash;
+  const key = hash.replace(/^#/, "");
   if (key === "") {
     renderNotice(container, missingResultText);
     return;

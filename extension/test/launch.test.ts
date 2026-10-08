@@ -137,26 +137,40 @@ interface MenuHarness {
   readonly badge: { signals: number; clears: number };
 }
 
-function menuHarness(overrides: Partial<MenuLaunchDeps> = {}): MenuHarness {
+interface MenuOptions {
+  readonly reader?: SelectionReader;
+  readonly store?: RecordingStore;
+  readonly newKey?: () => string;
+  readonly openResultWindow?: (key: string) => Promise<void>;
+  readonly signalDisplayFailure?: () => Promise<void>;
+  readonly clearDisplayFailure?: () => Promise<void>;
+}
+
+function menuHarness(options: MenuOptions = {}): MenuHarness {
   const recorder = recordingLogger();
-  const store = recordingStore();
+  const store = options.store ?? recordingStore();
   const windows: string[] = [];
   const badge = { signals: 0, clears: 0 };
   const deps: MenuLaunchDeps = {
-    reader: readerReturning(page("selection")),
+    reader: options.reader ?? readerReturning(page("selection")),
     store: store.store,
-    newKey: () => "key-1",
-    openResultWindow: async (key) => {
-      windows.push(key);
-    },
-    signalDisplayFailure: async () => {
-      badge.signals += 1;
-    },
-    clearDisplayFailure: async () => {
-      badge.clears += 1;
-    },
+    newKey: options.newKey ?? (() => "key-1"),
+    openResultWindow:
+      options.openResultWindow ??
+      (async (key) => {
+        windows.push(key);
+      }),
+    signalDisplayFailure:
+      options.signalDisplayFailure ??
+      (async () => {
+        badge.signals += 1;
+      }),
+    clearDisplayFailure:
+      options.clearDisplayFailure ??
+      (async () => {
+        badge.clears += 1;
+      }),
     log: recorder.log,
-    ...overrides,
   };
   return { deps, recorder, store, windows, badge };
 }
@@ -291,6 +305,7 @@ describe("launch paths", () => {
     const popup = popupHarness({ reader });
     await runPopupLaunch(container(), popup.deps);
     const label = popup.recorder.infos[0]?.label;
+    assert.equal(label, "yt2column popup launch");
     assert.ok(label !== undefined);
     assert.ok(!label.includes(malicious));
   });
@@ -301,11 +316,24 @@ describe("launch paths", () => {
     assert.equal(menu.badge.clears, 1);
   });
 
-  it("does not open a window and signals the badge when put fails", async () => {
-    const store = recordingStore({ putFails: true });
-    const menu = menuHarness({ store: store.store });
+  it("signals the badge and does not throw when the key cannot be created", async () => {
+    const menu = menuHarness({
+      newKey: () => {
+        throw new Error("no key");
+      },
+    });
     await runMenuLaunch(menuInfo(), fakeTab(), menu.deps);
     assert.deepEqual(menu.windows, []);
+    assert.equal(menu.badge.signals, 1);
+    assert.equal(menu.recorder.errors.length, 1);
+  });
+
+  it("does not open a window and signals the badge when put fails", async () => {
+    const store = recordingStore({ putFails: true });
+    const menu = menuHarness({ store });
+    await runMenuLaunch(menuInfo(), fakeTab(), menu.deps);
+    assert.deepEqual(menu.windows, []);
+    assert.deepEqual(store.removes, []);
     assert.equal(menu.badge.signals, 1);
     assert.equal(menu.recorder.errors.length, 1);
   });
@@ -324,7 +352,7 @@ describe("launch paths", () => {
   it("does not reject when the window and the removal both fail", async () => {
     const store = recordingStore({ removeFails: true });
     const menu = menuHarness({
-      store: store.store,
+      store,
       openResultWindow: async () => {
         throw new Error("window failed");
       },
