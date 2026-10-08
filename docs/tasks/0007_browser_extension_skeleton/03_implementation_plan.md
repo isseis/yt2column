@@ -8,7 +8,7 @@
 | Created | 2026-10-07 |
 | Review date | 2026-10-07 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-08: ステップ 1-6 の `has-extension-changes` の一覧を `git diff -z` の NUL 区切りに変えた（設計書 3.10 の同じ編集）。`core.quotePath=false` でもタブ・改行を含むパスは引用符で囲まれ、`^extension/` に一致しないためである。設計書 3.10 が述べる目的（拡張の変更で拡張のジョブを起動する）を果たすための手段の不足を補う編集上の修正で、決定の変更はない |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -104,7 +104,7 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 
 **タスク**
 -   [x] **ステップ 1-1**: `extension/` の設定のファイルを、設計書 2.1・3.8 のとおりに作る。依存パッケージは設計書 3.8 の表のものに限り、すべて `devDependencies` にする。lockfile は承認を得てから `npm install --ignore-scripts` で作る（§1.2）。`eslint.config.js` には、次の 3 種類を禁止する規則を入れる: `eval` 系（`no-eval`・`no-implied-eval`・`no-new-func`）、HTML を解釈する API（設計書 3.7 の一覧）、動的な `import()`。`CollectedInput` への型の表明の禁止はフェーズ 3 で加える。
-    -   **実装の記録:** TypeScript は `6.0.3` に固定した。実装の時点の最新は `7.0.2` だが、`typescript-eslint` `8.71.1` の peer の範囲が `>=4.8.4 <6.1.0` で、7 系を含まないためである。6.0.3 は設計書 3.8 の設定（`erasableSyntaxOnly`・`rewriteRelativeImportExtensions` など）を持つ（`make ext-typecheck`・`make ext-build` で確かめた）。`lib: ["ES2022"]` の `tsconfig.core.json` では `URL` の宣言がなく `core/acceptedUrl.ts` を型検査できないので、`core/` が使うメンバーだけを宣言した `types/core-url.d.ts` を加え、`tsconfig.core.json` だけが読む（設計書 3.8 に追記した）。`no-implied-eval` は宣言された大域の名前だけを対象にするので、`eslint.config.js` に `setTimeout`・`setInterval`・`window`・`self` を大域の名前として宣言した。実装のレビューの指摘で、`check-dist` のシンボリックリンクの拒否、`check-lockfile` のパッケージ名と `npm-shrinkwrap.json` の確認、`npm ci` のレジストリの固定（`--registry`・`--replace-registry-host=never`）、CI の `has-extension-changes` の一覧（`--no-renames`・`core.quotePath=false`）を加え、設計書 3.8〜3.10・5.2 を同じコミットで補った。
+    -   **実装の記録:** TypeScript は `6.0.3` に固定した。実装の時点の最新は `7.0.2` だが、`typescript-eslint` `8.71.1` の peer の範囲が `>=4.8.4 <6.1.0` で、7 系を含まないためである。6.0.3 は設計書 3.8 の設定（`erasableSyntaxOnly`・`rewriteRelativeImportExtensions` など）を持つ（`make ext-typecheck`・`make ext-build` で確かめた）。`lib: ["ES2022"]` の `tsconfig.core.json` では `URL` の宣言がなく `core/acceptedUrl.ts` を型検査できないので、`core/` が使うメンバーだけを宣言した `types/core-url.d.ts` を加え、`tsconfig.core.json` だけが読む（設計書 3.8 に追記した）。`no-implied-eval` は宣言された大域の名前だけを対象にするので、`eslint.config.js` に `setTimeout`・`setInterval`・`window`・`self` を大域の名前として宣言した。実装のレビューの指摘で、`check-dist` のシンボリックリンクの拒否、`check-lockfile` のパッケージ名と `npm-shrinkwrap.json` の確認、`npm ci` のレジストリの固定（`--registry`・`--replace-registry-host=never`）、CI の `has-extension-changes` の一覧（`--no-renames`・`core.quotePath=false`・`-z`）を加え、設計書 3.8〜3.10・5.2 を同じコミットで補った。
     -   **対象:** `extension/.node-version`・`.npmrc`・`package.json`・`package-lock.json`・`tsconfig.json`・`tsconfig.core.json`・`tsconfig.build.json`・`eslint.config.js`・`.prettierrc.json`・`.prettierignore`・`types/core-url.d.ts`。**完了:** `make ext-install` が通り、TypeScript・ESLint・Prettier の各設定が読み込める。
 -   [x] **ステップ 1-2**: `extension/scripts/` の 3 つのスクリプトを作る（設計書 3.8・3.9・5.2）。`check-lockfile` と `check-dist` は、判定を関数として export し、テストから一時ディレクトリを渡して呼べる形にする。`check-dist` は、このフェーズではファイルの集合とモジュールの指定を確かめる。manifest と HTML の参照の検査は、参照先のファイルがそろうステップ 4-7 で加える。`static/` はフェーズ 2 まで存在しないので、`copy-static` と `check-dist` は `static/` がない場合を空として扱う。
     -   **対象:** `extension/scripts/check-lockfile.ts`・`copy-static.ts`・`check-dist.ts`。**完了:** 3 つのスクリプトがそれぞれ実行でき、`static/` がない状態を空として扱う。

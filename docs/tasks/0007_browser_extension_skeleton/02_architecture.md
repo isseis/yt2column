@@ -8,7 +8,7 @@
 | Created | 2026-10-07 |
 | Review date | 2026-10-07 |
 | Reviewer | isseis |
-| Comments | 2026-10-08: 実装のレビューの指摘で、3.8・5.2（`npm ci` のレジストリの固定、`check-lockfile` のパッケージ名と `npm-shrinkwrap.json` の確認）、3.9（シンボリックリンクの拒否）、3.10（`has-extension-changes` の一覧に名前の変更の元の側と ASCII でないパスを含める）を補った。いずれも同じ節が述べる目的（レジストリ以外から取得しない、依存パッケージのコードを成果物に入れない、拡張の変更で拡張のジョブを起動する）を果たすための手段の不足を補う編集上の修正で、決定の変更はない。2026-10-08: 2.1・3.8・3.13 に `types/core-url.d.ts` を加えた（実装で、`lib: ["ES2022"]` の `tsconfig.core.json` では `core/acceptedUrl.ts` の `URL` を型検査できないと分かったため）。`core/` から DOM と `chrome` の型を除くという決定は変えておらず、そのための手段の不足を補う編集上の修正として扱う（決定の変更はない） |
+| Comments | 2026-10-08: 実装のレビューの指摘で、3.8・5.2（`npm ci` のレジストリの固定、`check-lockfile` のパッケージ名と `npm-shrinkwrap.json` の確認）、3.9（シンボリックリンクの拒否）、3.10（`has-extension-changes` の一覧に名前の変更の元の側と ASCII でないパスを含める）を補った。いずれも同じ節が述べる目的（レジストリ以外から取得しない、依存パッケージのコードを成果物に入れない、拡張の変更で拡張のジョブを起動する）を果たすための手段の不足を補う編集上の修正で、決定の変更はない。2026-10-08: 2.1・3.8・3.13 に `types/core-url.d.ts` を加えた（実装で、`lib: ["ES2022"]` の `tsconfig.core.json` では `core/acceptedUrl.ts` の `URL` を型検査できないと分かったため）。`core/` から DOM と `chrome` の型を除くという決定は変えておらず、そのための手段の不足を補う編集上の修正として扱う（決定の変更はない）。2026-10-08: 3.10 の `has-extension-changes` の一覧を `git diff -z` の NUL 区切りに変えた（`core.quotePath=false` でもタブ・改行を含むパスは引用符で囲まれ、`^extension/` に一致しないため）。同じ節が述べる目的（拡張の変更で拡張のジョブを起動する）を果たすための手段の不足を補う編集上の修正で、決定の変更はない |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `426eb2e` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指す。本タスクには `design_handoff.md` がない。実装レベルの懸念は [implementation_handoff.md](implementation_handoff.md) に置き、`03_implementation_plan.md` が扱う。
 
@@ -772,7 +772,7 @@ flowchart TD
     class L3 newpkg
 ```
 
--   `has-extension-changes` は、変更されたファイルに `^extension/`・`^Makefile$`・`^\.github/workflows/`・`^go\.mod$` のいずれかに一致するものがあるとき `true` とする。`go.mod` を加えるのは、`ignore` の指示の変更を拡張のジョブの Go の確認（下記）で確かめるためである。一覧は `git -c core.quotePath=false diff --no-renames --name-only origin/main...HEAD` で作る。`has-code-changes` の一覧（`git diff --name-only origin/main...HEAD`）と違い、名前の変更の元の側（`extension/` の外へ移したファイル）も含み、ASCII でないパスを引用符で囲まない。`has-code-changes` の一覧と判定は変えない。
+-   `has-extension-changes` は、変更されたファイルに `^extension/`・`^Makefile$`・`^\.github/workflows/`・`^go\.mod$` のいずれかに一致するものがあるとき `true` とする。`go.mod` を加えるのは、`ignore` の指示の変更を拡張のジョブの Go の確認（下記）で確かめるためである。一覧は `git -c core.quotePath=false diff -z --no-renames --name-only origin/main...HEAD` で作り、NUL 区切り（`-z`）のまま `has-extension-changes.sh` に渡す。`has-code-changes` の一覧（`git diff --name-only origin/main...HEAD`）と違い、名前の変更の元の側（`extension/` の外へ移したファイル）も含み、ASCII でないパスと、タブ・改行などの制御文字を含むパスを引用符で囲まずに扱う。`has-code-changes` の一覧と判定は変えない。
 -   ジョブ `extension` は、チェックアウト → `actions/setup-node`（`node-version-file: extension/.node-version`、`cache: npm`、`cache-dependency-path: extension/package-lock.json`）の後に、`make ext-install`・`make ext-typecheck`・`make ext-lint`・`make ext-fmt-check`・`make ext-test`・`make ext-build` を別々のステップとして実行する。どのステップが失敗してもジョブが失敗する（AC-07）。npm のキャッシュは `~/.npm` のダウンロードの再利用だけで、`npm ci` は lockfile の integrity で検証するので、キャッシュが版を変えることはない。
 -   ジョブ `extension` は、続けて `actions/setup-go` を行い、`go list ./...` の結果に `github.com/isseis/yt2column/extension/` で始まるパッケージがないことを確かめる。Go のジョブ（`test`・`lint`）は `npm ci` を実行しないので `node_modules` がなく、拡張の依存パッケージが Go の手順に入り込む事態を見られない。依存パッケージをインストールした状態で確かめられるのは、このジョブだけである。
 -   ジョブ `extension` は、ワークフローの最上位の `permissions: contents: read`（`ci.yml:7`）を引き継ぎ、秘密情報を使わない。`pull_request` で実行する。

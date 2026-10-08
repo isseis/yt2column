@@ -13,6 +13,7 @@ import { describe, it } from "node:test";
 
 import { repoRoot } from "./helpers/paths.ts";
 
+/** Runs command in the repository root; fails the test if it cannot start. */
 function run(command: string, args: string[], env?: NodeJS.ProcessEnv) {
   const result = spawnSync(command, args, {
     cwd: repoRoot,
@@ -23,6 +24,7 @@ function run(command: string, args: string[], env?: NodeJS.ProcessEnv) {
   return result;
 }
 
+/** Reads a repository-relative file as UTF-8. */
 function readRepoFile(file: string): string {
   return readFileSync(path.join(repoRoot, file), "utf8");
 }
@@ -175,11 +177,11 @@ describe("ci runs every extension step", () => {
     assert.deepEqual(runs, targets);
   });
 
-  it("lists renamed and non-ASCII paths for has-extension-changes", () => {
+  it("lists renamed, non-ASCII, and control-character paths for has-extension-changes", () => {
     assert.ok(
       jobLines("check-changes").some((line) =>
         line.includes(
-          "git -c core.quotePath=false diff --no-renames --name-only origin/main...HEAD",
+          "git -c core.quotePath=false diff -z --no-renames --name-only origin/main...HEAD",
         ),
       ),
     );

@@ -23,6 +23,7 @@ async function ruleIds(
 // cover the whole extension, tests included.
 const paths = ["src/sample.ts", "test/sample.test.ts"];
 
+/** Declares one test per case and file, asserting the rule is reported. */
 function expectViolation(
   cases: { name: string; code: string; rule: string }[],
 ): void {

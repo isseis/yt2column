@@ -8,6 +8,7 @@ import { describe, it } from "node:test";
 import { checkLockfile } from "../scripts/check-lockfile.ts";
 import { extensionDir } from "./helpers/paths.ts";
 
+/** Builds a minimal version-3 lockfile wrapping the given packages. */
 function lockfile(packages: Record<string, unknown>): unknown {
   return { name: "x", lockfileVersion: 3, requires: true, packages };
 }

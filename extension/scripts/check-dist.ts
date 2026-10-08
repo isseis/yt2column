@@ -38,10 +38,12 @@ function listEntries(dir: string): Listing {
   return { files: files.sort(), others: others.sort() };
 }
 
+/** The regular files under dir, as "/"-separated paths; empty when dir is absent. */
 function listFiles(dir: string): string[] {
   return listEntries(dir).files;
 }
 
+/** The dist/ paths the build should produce from src/ and static/. */
 function expectedFiles(root: string): Set<string> {
   const expected = new Set<string>();
   for (const file of listFiles(path.join(root, "src"))) {

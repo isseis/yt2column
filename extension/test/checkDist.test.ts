@@ -15,6 +15,7 @@ import { after, beforeEach, describe, it } from "node:test";
 import { checkDist } from "../scripts/check-dist.ts";
 import { extensionDir } from "./helpers/paths.ts";
 
+/** Writes content to file under root, creating parent directories. */
 function write(root: string, file: string, content = ""): void {
   const full = path.join(root, file);
   mkdirSync(path.dirname(full), { recursive: true });

@@ -7,8 +7,9 @@ import { extensionDir } from "./helpers/paths.ts";
 
 const script = path.join(extensionDir, "scripts", "has-extension-changes.sh");
 
+/** Runs the script on files (NUL-separated) and returns its stdout. */
 function classify(files: string[]): string {
-  const input = files.map((file) => `${file}\n`).join("");
+  const input = files.map((file) => `${file}\0`).join("");
   const result = spawnSync("bash", [script], { input, encoding: "utf8" });
   assert.equal(result.status, 0, result.stderr);
   return result.stdout;
@@ -29,6 +30,14 @@ describe("has-extension-changes", () => {
   for (const files of triggering) {
     it(`runs the extension job for ${files.join(", ")}`, () => {
       assert.equal(classify(files), "true\n");
+    });
+  }
+
+  // NUL-delimited input keeps a control character in the path, which git would
+  // otherwise quote, from hiding an extension path from the ^ anchor.
+  for (const file of ["extension/a\tb.ts", "extension/a\nb.ts"]) {
+    it(`runs the extension job for ${JSON.stringify(file)}`, () => {
+      assert.equal(classify([file]), "true\n");
     });
   }
 
