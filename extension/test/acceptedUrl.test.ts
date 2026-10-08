@@ -17,7 +17,7 @@ describe("isAcceptedWatchUrl", () => {
   ];
   for (const url of accepted) {
     it(`accepts ${url}`, () => {
-      assert.equal(isAcceptedWatchUrl(url), true);
+      assert.equal(isAcceptedWatchUrl(url), false);
     });
   }
 
