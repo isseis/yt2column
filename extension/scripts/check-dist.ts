@@ -1,8 +1,10 @@
 // Verifies that dist/ holds only what the build is meant to produce: one .js
 // per src/ .ts file plus the static/ files, linked by relative static
-// imports. Without a bundler, dependency code can reach dist/ only as an
-// extra file, a symbolic link, or a non-relative module specifier, and all
-// three fail here.
+// imports, with the manifest and HTML references resolving inside dist/.
+// Without a bundler, dependency code can reach dist/ only as an extra file, a
+// symbolic link, or a non-relative module specifier, and all three fail here.
+// The reference check catches a mistyped manifest or HTML path before the
+// browser loads the extension.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
@@ -90,6 +92,75 @@ function moduleReferences(
   return { specifiers, dynamicImport };
 }
 
+/** The value of a quoted attribute in a tag's text, or undefined when absent. */
+function attributeValue(tag: string, name: string): string | undefined {
+  const pattern = new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, "i");
+  const match = pattern.exec(tag);
+  if (match === null) {
+    return undefined;
+  }
+  return match[1] ?? match[2];
+}
+
+/** The script src and link href values of an HTML document's text. */
+function htmlReferences(html: string): string[] {
+  const references: string[] = [];
+  const tags: [string, string][] = [
+    ["script", "src"],
+    ["link", "href"],
+  ];
+  for (const [name, attribute] of tags) {
+    const tag = new RegExp(`<${name}\\b[^>]*>`, "gi");
+    for (const match of html.matchAll(tag)) {
+      const value = attributeValue(match[0], attribute);
+      if (value !== undefined) {
+        references.push(value);
+      }
+    }
+  }
+  return references;
+}
+
+/**
+ * References the manifest and HTML files make that must resolve inside dist/.
+ * The manifest points at the service worker and the popup page; an HTML page
+ * points at its scripts and stylesheets.
+ */
+function referenceViolations(root: string, actual: Set<string>): string[] {
+  const violations: string[] = [];
+  if (actual.has("manifest.json")) {
+    const manifest = JSON.parse(
+      readFileSync(path.join(root, "dist", "manifest.json"), "utf8"),
+    ) as {
+      background?: { service_worker?: unknown };
+      action?: { default_popup?: unknown };
+    };
+    const entries: [string, unknown][] = [
+      ["background.service_worker", manifest.background?.service_worker],
+      ["action.default_popup", manifest.action?.default_popup],
+    ];
+    for (const [label, reference] of entries) {
+      if (typeof reference === "string" && !actual.has(reference)) {
+        violations.push(
+          `manifest.json: ${label} "${reference}" is not in dist/`,
+        );
+      }
+    }
+  }
+  for (const file of actual) {
+    if (!file.endsWith(".html")) {
+      continue;
+    }
+    const html = readFileSync(path.join(root, "dist", file), "utf8");
+    for (const reference of htmlReferences(html)) {
+      if (!actual.has(reference)) {
+        violations.push(`dist/${file}: "${reference}" is not in dist/`);
+      }
+    }
+  }
+  return violations;
+}
+
 /** Returns one message per problem found in root/dist; empty when dist/ is as expected. */
 export function checkDist(root: string): string[] {
   const dist = path.join(root, "dist");
@@ -144,6 +215,7 @@ export function checkDist(root: string): string[] {
       }
     }
   }
+  violations.push(...referenceViolations(root, actual));
   return violations;
 }
 

@@ -22,6 +22,21 @@ function write(root: string, file: string, content = ""): void {
   writeFileSync(full, content);
 }
 
+/** Writes a manifest into static/ and its copy in dist/, pointing at files. */
+function writeManifest(
+  root: string,
+  serviceWorker: string,
+  defaultPopup: string,
+): void {
+  const content = JSON.stringify({
+    manifest_version: 3,
+    background: { service_worker: serviceWorker, type: "module" },
+    action: { default_popup: defaultPopup },
+  });
+  write(root, "static/manifest.json", content);
+  write(root, "dist/manifest.json", content);
+}
+
 describe("checkDist", () => {
   const roots: string[] = [];
   let root = "";
@@ -115,6 +130,60 @@ describe("checkDist", () => {
   it("rejects a missing static file", () => {
     write(root, "static/style.css");
     assert.deepEqual(checkDist(root), ["dist/style.css: missing"]);
+  });
+
+  it("accepts a manifest whose references exist", () => {
+    write(root, "src/background.ts");
+    write(root, "dist/background.js");
+    write(root, "static/popup.html");
+    write(root, "dist/popup.html");
+    writeManifest(root, "background.js", "popup.html");
+    assert.deepEqual(checkDist(root), []);
+  });
+
+  it("rejects a manifest service worker that is not in dist/", () => {
+    writeManifest(root, "background.js", "page.html");
+    assert.deepEqual(checkDist(root), [
+      'manifest.json: background.service_worker "background.js" is not in dist/',
+    ]);
+  });
+
+  it("rejects a manifest popup that is not in dist/", () => {
+    writeManifest(root, "main.js", "popup.html");
+    assert.deepEqual(checkDist(root), [
+      'manifest.json: action.default_popup "popup.html" is not in dist/',
+    ]);
+  });
+
+  it("accepts an HTML page whose references exist", () => {
+    write(root, "static/style.css");
+    write(root, "dist/style.css");
+    write(root, "static/script.js");
+    write(root, "dist/script.js");
+    write(
+      root,
+      "dist/page.html",
+      '<link rel="stylesheet" href="style.css"><script type="module" src="script.js"></script>',
+    );
+    assert.deepEqual(checkDist(root), []);
+  });
+
+  it("rejects an HTML script that is not in dist/", () => {
+    write(
+      root,
+      "dist/page.html",
+      '<script type="module" src="missing.js"></script>',
+    );
+    assert.deepEqual(checkDist(root), [
+      'dist/page.html: "missing.js" is not in dist/',
+    ]);
+  });
+
+  it("rejects an HTML stylesheet that is not in dist/", () => {
+    write(root, "dist/page.html", '<link rel="stylesheet" href="missing.css">');
+    assert.deepEqual(checkDist(root), [
+      'dist/page.html: "missing.css" is not in dist/',
+    ]);
   });
 
   const imports: { name: string; code: string; violation: string }[] = [
