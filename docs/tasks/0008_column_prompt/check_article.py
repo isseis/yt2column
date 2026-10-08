@@ -27,7 +27,10 @@ HEADER_RE = re.compile(
     r"\A# (?P<title>[^\n]*)\n\n- Model: (?P<model>[^\n]*)\n- Model version: (?P<version>[^\n]*)\n\n"
 )
 SOURCE_RE = re.compile(r"\n\n出典: <[^>\n]+>\n\Z")
-URL_RE = re.compile(r"https?://|www\.|youtube\.com|youtu\.be", re.IGNORECASE)
+# URL-like text in the body (AC-13): any http, https, or ftp URL, a bare www.
+# host, or a YouTube domain, which is how a source or video link would appear.
+URL_RE = re.compile(
+    r"https?://|ftp://|www\.|youtube\.com|youtu\.be", re.IGNORECASE)
 # Pictographic emoji blocks. Kaomoji are left to the LLM.
 EMOJI_RE = re.compile("[\U0001F000-\U0001FAFF☀-➿⬀-⯿️]")
 
@@ -58,7 +61,7 @@ def check(path: Path, video_title: str, duration: float) -> list[str]:
     if header is None or source is None:
         return [path.name, "unrecognized --out format"]
     title = header["title"]
-    body = text[header.end() : source.start()]
+    body = text[header.end(): source.start()]
     lines = outside_fences(body)
 
     problems = []
@@ -67,7 +70,8 @@ def check(path: Path, video_title: str, duration: float) -> list[str]:
     if title == video_title:
         problems.append("title equals the video title (AC-07)")
 
-    first_heading = next((i for i, l in enumerate(lines) if l.startswith("#")), None)
+    first_heading = next(
+        (i for i, l in enumerate(lines) if l.startswith("#")), None)
     if first_heading is None or not any(l.strip() for l in lines[:first_heading]):
         problems.append("no lead before the first heading (AC-06)")
     sections = sum(1 for l in lines if l.startswith("## "))
@@ -78,7 +82,8 @@ def check(path: Path, video_title: str, duration: float) -> list[str]:
 
     length = len(body.replace("\r", "").replace("\n", ""))
     if duration >= LONG_VIDEO_SECONDS and not LONG_MIN <= length <= BODY_MAX:
-        problems.append(f"body is {length} chars, outside {LONG_MIN}-{BODY_MAX} (AC-10)")
+        problems.append(
+            f"body is {length} chars, outside {LONG_MIN}-{BODY_MAX} (AC-10)")
     if duration < LONG_VIDEO_SECONDS and length > BODY_MAX:
         problems.append(f"body is {length} chars, over {BODY_MAX} (AC-11)")
 
