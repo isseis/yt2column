@@ -8,7 +8,7 @@
 | Created | 2026-10-07 |
 | Review date | 2026-10-07 |
 | Reviewer | isseis |
-| Comments | 2026-10-08: 承認の後、`/mkplan2` で PR の境界（§2 の `PR-N 作成ポイント`・§3.2・§7）を埋め込んだ。あわせて、§1.4 に I-02 の行を加え（§1.3 とステップ 1-5・1-6 にすでにある対応を表に載せた）、フェーズ 5 とステップ 5-1 の対象に、設計書 3.1 と承認時のステップ 5-1 の本文がすでに定める代替の登録の `background.ts` を加えた。いずれも既存の記述に表と対象を合わせた編集上の修正で、判断の変更はない。2026-10-08（レビュー対応）: 高リスクな I-01 の流れを PR の最後に置くため、フェーズ 4 を PR-4（ステップ 4-1〜4-5）と PR-5（ステップ 4-6〜4-8）に分け、旧 PR-5 を PR-6 とした。旧ステップ 4-1 の HTML・CSS をエントリポイントのステップ 4-6 に移し、旧ステップ 4-7 の確認を 4-5 と 4-8 に分け、ステップの番号を振り直した（§2・§3.2・§4.4・§5・§7）。PR の分け方の判断の変更だが、各ステップで作るもの・テスト・確認の内容は変わらないので、`approved` のままとする（レビュアーの判断）。 |
+| Comments | 2026-10-08: 承認の後、`/mkplan2` で PR の境界（§2 の `PR-N 作成ポイント`・§3.2・§7）を埋め込んだ。あわせて、§1.4 に I-02 の行を加え（§1.3 とステップ 1-5・1-6 にすでにある対応を表に載せた）、フェーズ 5 とステップ 5-1 の対象に、設計書 3.1 と承認時のステップ 5-1 の本文がすでに定める代替の登録の `background.ts` を加えた。いずれも既存の記述に表と対象を合わせた編集上の修正で、判断の変更はない。2026-10-08（レビュー対応）: 高リスクな I-01 の流れを PR の最後に置くため、フェーズ 4 を PR-4（ステップ 4-1〜4-5）と PR-5（ステップ 4-6〜4-8）に分け、旧 PR-5 を PR-6 とした。旧ステップ 4-1 の HTML・CSS をエントリポイントのステップ 4-6 に移し、旧ステップ 4-7 の確認を 4-5 と 4-8 に分け、ステップの番号を振り直した（§2・§3.2・§4.4・§5・§7）。PR の分け方の判断の変更だが、各ステップで作るもの・テスト・確認の内容は変わらないので、`approved` のままとする（レビュアーの判断）。2026-10-08（レビュー対応）: §3.2 の PR-1 を分けない理由の文で、`acceptedUrl` とガードのテストの役割を分けて書き直した（依存の向きが逆だった）。PR-1 の判定理由から、引き金に当たらない「段階的なロールアウト」の節を削った（区分は変わらない）。ステップ 5-1 に代替の登録を加えた場合の記録を明記し、§5 の AC-10・AC-11 の Implementation に 5-1 を加えた。いずれも編集上の修正で、判断の変更はない。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -155,7 +155,7 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 
 **実装モデル要件**: frontier-required
 
-**判定理由**: ステップ 1-6 の CI のジョブの追加がパネルモードの引き金「CI・外部資源の面」に当たり、ステップ 1-8 の 6 つのコミットで CI を段階的に失敗させる確認が段階的なロールアウトに、秘密鍵の常時チェック（AC-09）がセキュリティゲートに当たり、さらにステップ 1-1 が `.node-version`（Node.js 24）と作業環境（`v26.4.0`）の差および設計書 3.8 の設定を持つ TypeScript の版の選定という未確定の判断を含むため。
+**判定理由**: ステップ 1-6 の CI のジョブの追加がパネルモードの引き金「CI・外部資源の面」に、秘密鍵の常時チェック（AC-09）がセキュリティゲートに当たり、さらにステップ 1-1 が `.node-version`（Node.js 24）と作業環境（`v26.4.0`）の差および設計書 3.8 の設定を持つ TypeScript の版の選定という未確定の判断を含むため。
 
 - [ ] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
 - [ ] PR を作成した
@@ -310,7 +310,7 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 -   変更: `README.md`、`CLAUDE.md`、`docs/dev/project_overview.md`、`docs/dev/security.md`、本計画（§5.1）。加えて、ステップ 5-1 の手動の確認でメニューの項目が残らない場合だけ `extension/src/background.ts`（設計書 3.1 の代替の登録）
 
 **タスク**
--   [ ] **ステップ 5-1**: 設計書 7.2 の手動の確認を、macOS の Chrome と Brave（作業時点の安定版）で行い、ブラウザの版・日付・結果を §5.1 に記録する。AC-10・AC-11 では、拡張の無効化と再有効化、ブラウザの再起動の後に項目が残ることも確かめる。残らない場合は、設計書 3.1 のとおり service worker のモジュールの最上位でも登録し、確認をやり直す。
+-   [ ] **ステップ 5-1**: 設計書 7.2 の手動の確認を、macOS の Chrome と Brave（作業時点の安定版）で行い、ブラウザの版・日付・結果を §5.1 に記録する。AC-10・AC-11 では、拡張の無効化と再有効化、ブラウザの再起動の後に項目が残ることも確かめる。残らない場合は、設計書 3.1 のとおり service worker のモジュールの最上位でも登録し、確認をやり直す。代替の登録を加えた場合は、加える前の確認で項目が残らなかった結果と、加えた後の確認の結果を、§5.1 の AC-10・AC-11 の行とコミットメッセージに記録する。
     -   **対象:** `extension/src/background.ts`（代替の登録が必要な場合だけ。通常はなし）。**完了:** 設計書 7.2 の手動の確認の結果を §5.1 の該当行に記録する。
 -   [ ] **ステップ 5-2**: `README.md` の `## Development` の下に、要件書 F-008 と設計書 3.13 の `README.md` の行に挙げた内容（Node.js の版の用意、`make ext-install`、ビルド、Chrome と Brave への読み込み、2 つの起動の手段、送信しないこと、コンソールの開き方、拡張 ID）を書く。
     -   **対象:** `README.md`。**完了:** `extension/test/docs.test.ts::documents` が通る。
@@ -360,7 +360,7 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 
 ### 3.2. PR 構成
 
-PR は、フェーズ 4 を 2 つに分け、そのほかはフェーズと 1 対 1 に対応させる（PR-1〜PR-6）。各 PR は主たる関心事（拡張の開発環境と CI / manifest と拡張 ID / `core/` の判定と要約 / 表示と経路の処理 / エントリポイントと静的なファイル / 手動の確認と文書）を持ち、単独でグリーンゲートを通せる単位とする。本タスクの各 PR のグリーンゲートは、`_context.md` の "Green gate"（`make test && make lint`）に `make ext-check` を加えた `make ext-check` → `make test` → `make lint`（各フェーズの完了条件と同じ）とする。`make test`・`make lint` は Go のソースだけを対象にし、拡張の成果物を確かめないためである。フェーズ 1 のテスト（`typecheck.test.ts`・`lintRules.test.ts`・`checkDist.test.ts`・`checkLockfile.test.ts`・`repository.test.ts`・`ciChanges.test.ts`・`acceptedUrl.test.ts`）は、ステップ 1-1〜1-3 の設定・スクリプト・`Makefile`・Go の設定と、ステップ 1-6 の CI と `has-extension-changes.sh` を確かめ、`acceptedUrl` は 6 つのステップを通す対象になる。そのため、これらの実装とテストを 1 つの PR にまとめる。分けると、`repository.test.ts`・`ciChanges.test.ts` が相手の PR で足す `ci.yml` を参照し、6 つのステップを実行する `acceptedUrl` のテストも相手の PR の成果に依存して、片方のグリーンゲートが通らなくなる。
+PR は、フェーズ 4 を 2 つに分け、そのほかはフェーズと 1 対 1 に対応させる（PR-1〜PR-6）。各 PR は主たる関心事（拡張の開発環境と CI / manifest と拡張 ID / `core/` の判定と要約 / 表示と経路の処理 / エントリポイントと静的なファイル / 手動の確認と文書）を持ち、単独でグリーンゲートを通せる単位とする。本タスクの各 PR のグリーンゲートは、`_context.md` の "Green gate"（`make test && make lint`）に `make ext-check` を加えた `make ext-check` → `make test` → `make lint`（各フェーズの完了条件と同じ）とする。`make test`・`make lint` は Go のソースだけを対象にし、拡張の成果物を確かめないためである。フェーズ 1 のガードのテスト（`typecheck.test.ts`・`lintRules.test.ts`・`checkDist.test.ts`・`checkLockfile.test.ts`・`repository.test.ts`・`ciChanges.test.ts`）は、ステップ 1-1〜1-3 の設定・スクリプト・`Makefile`・Go の設定と、ステップ 1-6 の CI と `has-extension-changes.sh` を確かめる。`acceptedUrl`（ステップ 1-4）は、CI の 6 つのステップが型検査・lint・テストする対象になる（設計書 8 章の「`core/` の 1 ファイルとテスト 1 つ」）。そのため、これらの実装とテストを 1 つの PR にまとめる。分けると、`repository.test.ts`・`ciChanges.test.ts` が相手の PR で足す `ci.yml` を参照して片方のグリーンゲートが通らなくなり、`acceptedUrl` のない側では 6 つのステップが確かめる対象を持たない。
 
 フェーズ 4 では、ステップを並べ替えて番号を振り直した。フェーズ 4 の表示の失敗の流れ（I-01）は高リスクなステップなので、PR の最後の実装のステップに置くために、フェーズ 4 を PR-4 と PR-5 に分ける。依存の向きは、`renderSummary` → `launch.ts`・`chromeDeps.ts` → エントリポイント → `check-dist` の参照の検査である。そのため、PR-4 は `renderSummary`（ステップ 4-1）、`launch.ts`・`chromeDeps.ts`（ステップ 4-2・4-3）と、そのテストと確認（ステップ 4-4・4-5）とし、I-01 の後には同じコードのテストと確認だけを置く。HTML・CSS は、それを読むエントリポイントと同じ PR-5（ステップ 4-6）に移した。PR-4 の時点では manifest が指す `background.js`・`popup.html` がまだないが、`check-dist` の参照の検査は PR-5（ステップ 4-7）で加えるので、PR-4 は単独でグリーンゲートを通せる。ステップ番号の順と文書の順は一致し、各 `### PR-N 作成ポイント` は対象のステップのすべての後にある。`core/` の判定（PR-3）は、それを使う表示と経路の処理（PR-4）に先行する。
 
@@ -414,8 +414,8 @@ PR は、フェーズ 4 を 2 つに分け、そのほかはフェーズと 1 �
 | AC-07 | test・static・manual | `extension/test/ciChanges.test.ts::has-extension-changes`、`extension/test/repository.test.ts::ci runs every extension step`、ステップ 1-8 の CI の記録（§5.1） | ステップ 1-6・1-8 |
 | AC-08 | test・manual | `extension/test/manifest.test.ts::key`（拡張 ID の計算）、ステップ 5-1（§5.1） | ステップ 2-1・2-2 |
 | AC-09 | test | `extension/test/manifest.test.ts::key`（公開鍵としての解析）、`extension/test/repository.test.ts::no private key is tracked`、CI の常時実行のジョブ `secret-scan`。pre-commit の `detect-private-key` は補助 | ステップ 1-3・1-5・1-6・2-2 |
-| AC-10 | static・manual | `extension/test/docs.test.ts::manual checks are recorded`、ステップ 5-1（§5.1） | ステップ 2-1・4-6 |
-| AC-11 | static・manual | `extension/test/docs.test.ts::manual checks are recorded`、ステップ 5-1（§5.1） | ステップ 2-1・4-6 |
+| AC-10 | static・manual | `extension/test/docs.test.ts::manual checks are recorded`、ステップ 5-1（§5.1） | ステップ 2-1・4-6・5-1（代替の登録が必要な場合） |
+| AC-11 | static・manual | `extension/test/docs.test.ts::manual checks are recorded`、ステップ 5-1（§5.1） | ステップ 2-1・4-6・5-1（代替の登録が必要な場合） |
 | AC-12 | test | `extension/test/manifest.test.ts::undeclared keys` | ステップ 2-1・2-2 |
 | AC-13 | static・manual | `extension/test/docs.test.ts::manual checks are recorded`、ステップ 5-1（§5.1）。値を補正しない経路は AC-14 のテストが確かめる | ステップ 3-2・4-2・4-3 |
 | AC-14 | test | `extension/test/collect.test.ts::collect`（前後の空白・空行）、`extension/test/launch.test.ts::launch paths`（経路を通った値） | ステップ 3-2・4-2 |
