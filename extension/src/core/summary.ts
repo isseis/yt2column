@@ -66,6 +66,7 @@ export function summarize(outcome: CollectOutcome): OutcomeSummary {
   };
 }
 
+/** True when record has exactly the given keys, with no extras and none missing. */
 function hasExactKeys(
   record: Record<string, unknown>,
   keys: readonly string[],
@@ -77,6 +78,7 @@ function hasExactKeys(
   );
 }
 
+/** True when value is one of the declared rejection reasons. */
 function isRejectionReason(value: unknown): value is RejectionReason {
   return (
     typeof value === "string" &&

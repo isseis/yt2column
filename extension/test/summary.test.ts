@@ -8,6 +8,7 @@ import type { OutcomeSummary, RejectionReason } from "../src/core/types.ts";
 
 const watchUrl = "https://www.youtube.com/watch?v=abc";
 
+/** Builds a collected outcome from a selection and optional title and URL. */
 function collected(
   selection: string,
   title = "a title",
@@ -17,6 +18,7 @@ function collected(
   return { kind: "collected", input };
 }
 
+/** Summarizes a collected selection and asserts the summary is collected. */
 function collectedSummary(
   selection: string,
 ): Extract<OutcomeSummary, { kind: "collected" }> {

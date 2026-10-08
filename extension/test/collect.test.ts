@@ -12,10 +12,12 @@ import type { LaunchContext, RejectionReason } from "../src/core/types.ts";
 const watchUrl = "https://www.youtube.com/watch?v=abc";
 const context: LaunchContext = { tabId: 7, url: watchUrl, title: "A video" };
 
+/** Builds a page selection; the document URL defaults to the launched URL. */
 function page(text: string, documentUrl = watchUrl): PageSelection {
   return { text, documentUrl };
 }
 
+/** A reader that returns the given selection and cannot fail. */
 function readerReturning(selection: PageSelection): SelectionReader {
   return { read: async () => selection };
 }
@@ -37,6 +39,7 @@ function readingReader(selection: PageSelection): {
   };
 }
 
+/** Asserts that the outcome is a rejection with the given reason. */
 function assertRejected(
   outcome: CollectOutcome,
   reason: RejectionReason,
