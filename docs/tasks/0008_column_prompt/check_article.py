@@ -36,6 +36,7 @@ EMOJI_RE = re.compile("[\U0001F000-\U0001FAFF☀-➿⬀-⯿️]")
 
 
 def load_info(cache_dir: Path, video_id: str) -> dict:
+    """Return the info.json from the cache slot <video_id>.current names."""
     slot = (cache_dir / f"{video_id}.current").read_text(encoding="utf-8")
     if slot not in ("a", "b"):
         sys.exit(f"{video_id}.current holds {slot!r}, not a or b")
@@ -55,6 +56,7 @@ HEADING_RE = re.compile(r"^ {0,3}(?P<marks>#{1,6})(?:[ \t]|$)")
 
 
 def outside_fences(body: str) -> list[str]:
+    """Return the body lines that are outside CommonMark fenced code blocks."""
     lines, close_re = [], None
     for line in body.split("\n"):
         if close_re is not None:
@@ -72,11 +74,15 @@ def outside_fences(body: str) -> list[str]:
 
 
 def heading_level(line: str) -> int:
+    """Return the ATX heading level of line, or 0 if it is not a heading."""
     heading = HEADING_RE.match(line)
     return len(heading["marks"]) if heading else 0
 
 
 def check(path: Path, video_title: str, duration: float) -> list[str]:
+    """Return the table cells (file, model, version, title, sections, length,
+    verdict) for one article, listing every mechanical check it fails.
+    """
     text = path.read_text(encoding="utf-8")
     header = HEADER_RE.match(text)
     source = SOURCE_RE.search(text)
@@ -119,6 +125,7 @@ def check(path: Path, video_title: str, duration: float) -> list[str]:
 
 
 def main() -> None:
+    """Print the mechanical-check table for the article files on the command line."""
     if len(sys.argv) < 4:
         sys.exit(__doc__.split("\n\n")[1])
     cache_dir, video_id = Path(sys.argv[1]), sys.argv[2]
