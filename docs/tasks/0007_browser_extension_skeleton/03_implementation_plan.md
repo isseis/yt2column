@@ -238,8 +238,8 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
 - [x] PR を作成した（#132）
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 4: 表示と経路の処理
 
@@ -248,19 +248,19 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 -   変更: `extension/scripts/check-dist.ts`、`extension/test/checkDist.test.ts`
 
 **タスク**
--   [ ] **ステップ 4-1**: `ui/render.ts` の `renderSummary` を作る（設計書 3.7）。
+-   [x] **ステップ 4-1**: `ui/render.ts` の `renderSummary` を作る（設計書 3.7）。
     -   **対象:** `extension/src/ui/render.ts`。**完了:** `make ext-typecheck` が通る。
--   [ ] **ステップ 4-2**: `launch.ts` に、依存の interface、`launchContextFromTab`、`runMenuLaunch`・`runPopupLaunch`・`runResultWindow` を作る（設計書 3.6）。`runMenuLaunch` の表示の失敗の扱いは設計書 3.6 と §1.4 の I-01 の対応のとおりとする。`Logger` には、最初の引数に固定のラベルだけを渡す。
+-   [x] **ステップ 4-2**: `launch.ts` に、依存の interface、`launchContextFromTab`、`runMenuLaunch`・`runPopupLaunch`・`runResultWindow` を作る（設計書 3.6）。`runMenuLaunch` の表示の失敗の扱いは設計書 3.6 と §1.4 の I-01 の対応のとおりとする。`Logger` には、最初の引数に固定のラベルだけを渡す。
     -   **対象:** `extension/src/launch.ts`。**完了:** `make ext-typecheck` が通る。
--   [ ] **ステップ 4-3**: `browser/chromeDeps.ts` に、依存の interface と `SelectionReader` の実装を作る（設計書 3.6）。注入する関数は、外の名前を参照しない 1 つの関数とする。`read` は、`executeScript` が失敗した場合、または戻り値の形が想定と違う場合に reject する。`SummaryStore.remove` は、削除の失敗で reject する（§1.4）。この契約を `launch.ts` の `SummaryStore.remove` の doc コメントに書く。
+-   [x] **ステップ 4-3**: `browser/chromeDeps.ts` に、依存の interface と `SelectionReader` の実装を作る（設計書 3.6）。注入する関数は、外の名前を参照しない 1 つの関数とする。`read` は、`executeScript` が失敗した場合、または戻り値の形が想定と違う場合に reject する。`SummaryStore.remove` は、削除の失敗で reject する（§1.4）。この契約を `launch.ts` の `SummaryStore.remove` の doc コメントに書く。
     -   **対象:** `extension/src/browser/chromeDeps.ts`。**完了:** `make ext-typecheck` が通る。
--   [ ] **ステップ 4-4**: `render`・`launch`・`chromeDeps` のテストを作る（設計書 3.11）。
+-   [x] **ステップ 4-4**: `render`・`launch`・`chromeDeps` のテストを作る（設計書 3.11）。
     -   `render.test.ts`: jsdom の要素で、タイトルと選択範囲に `<img src=x onerror=alert(1)>` を含む要約を表示し、`img` 要素がなく、`textContent` に元の文字列があること。成功の場合にタイトル・URL・文字数・行数・プレビューのラベルと値があること。拒否の場合に `text` と、`steps` があるときだけ番号付きのリストがあること。
     -   `launch.test.ts`（収集）: 同じ fake のタブと `SelectionReader` で、2 つの経路が同じ収集の結果（ログに出す値）と同じ要約になること。収集に成功する入力と、拒否になる入力の両方で確かめる（AC-30）。`launchContextFromTab` がタブなし・`id` なしのタブで `undefined` を返し、どちらの経路も「収集の失敗」になること。`Logger` の最初の引数が、信頼できない文字列を含む入力でも固定のラベルであること。`info.selectionText` を使わないこと。前後の空白・空行が経路を通っても残ること。`put` の失敗でウィンドウを開かずバッジを表示すること。`windows.create` の失敗でバッジを表示し同じ鍵を `remove` すること。`windows.create` と `remove` が同時に失敗しても reject せず、バッジを表示し `log.error` に記録すること（I-01）。どの失敗でも reject しないこと。起動の開始でバッジを消すこと。
     -   `launch.test.ts`（表示）: `runPopupLaunch` と `runResultWindow` を jsdom の要素で実行し、`<img src=x onerror=alert(1)>` が要素にならないこと（AC-23）。`runPopupLaunch` が、動画ページでは収集した内容を、対象外のページでは理由と手順を表示すること（AC-28・AC-29 のユニットテストの部分）。`runResultWindow` が要約を読んだ後に消すこと、ハッシュがない・要約がない・形が違うときに固定の文言を表示すること。
     -   `chromeDeps.test.ts`: fake の `executeScript` が形の違う結果（`null`・`undefined`・文字列だけ・項目の欠け・項目の型の違い・空の配列）を返すか例外を投げると `read` が reject すること。注入する関数のソースを、外の名前を持たない環境（`node:vm` など。lint が禁止する `eval`・`new Function` は使わない）で評価し、fake の `window.getSelection` と `location` だけで期待する値を返すこと。
     -   **対象:** `extension/test/render.test.ts`・`launch.test.ts`・`chromeDeps.test.ts`。**完了:** これらのテストが通る。
--   [ ] **ステップ 4-5**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `renderSummary` の 1 か所を `textContent` から HTML を解釈する API に替える（lint を一時的に無効にして）、`runMenuLaunch` で `info.selectionText` を使う、`put` の失敗の後にウィンドウを開く、`remove` の失敗を `signalDisplayFailure` と同じ `try` に入れる、`runResultWindow` で `take` の代わりに読むだけにする、`parseSummary` を通さずに表示する、注入する関数から外の定数を参照する、`read` の結果の形の検査を外す。あわせて、§4.4 の網羅率を確かめる。`make ext-check` → `make test` → `make lint` を通す。
+-   [x] **ステップ 4-5**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `renderSummary` の 1 か所を `textContent` から HTML を解釈する API に替える（lint を一時的に無効にして）、`runMenuLaunch` で `info.selectionText` を使う、`put` の失敗の後にウィンドウを開く、`remove` の失敗を `signalDisplayFailure` と同じ `try` に入れる、`runResultWindow` で `take` の代わりに読むだけにする、`parseSummary` を通さずに表示する、注入する関数から外の定数を参照する、`read` の結果の形の検査を外す。あわせて、§4.4 の網羅率を確かめる。`make ext-check` → `make test` → `make lint` を通す。
     -   **対象:** なし（確認のみ）。**完了:** 各対象を壊して失敗することを確認し、コミットメッセージに記録し、`make ext-check` を通す。
 
 ### PR-4 作成ポイント: rendering and launch paths
@@ -275,8 +275,8 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 
 **判定理由**: ステップ 4-2・4-3 が、`windows.create` と `SummaryStore.remove` の同時失敗をそれぞれ独立に捕まえて `runMenuLaunch` を reject させない表示の失敗の流れ（I-01）という、回復の流れ（高リスクなステップ）を含むため。この流れは本 PR の最後の実装のステップに置き、後に続くのはそのテスト（ステップ 4-4）と確認（ステップ 4-5）だけにした。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
+- [x] PR を作成した（#134）
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
