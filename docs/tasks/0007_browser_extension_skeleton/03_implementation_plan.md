@@ -277,8 +277,8 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
 - [x] PR を作成した（#134）
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 -   [ ] **ステップ 4-6**: `static/` の HTML・CSS（設計書 3.7・3.13）と、エントリポイント（設計書 2.1・3.1・6 章）を作る。HTML はスクリプトを `<script type="module" src>` で読み、インラインのスクリプトを書かない。`background.ts` は、`onInstalled` で `contextMenus.removeAll()` の完了を待ってから項目を作り、`onClicked` のリスナーをモジュールの最上位で登録する。
     -   **対象:** `extension/static/popup.html`・`extension/static/result.html`・`extension/static/style.css`・`extension/src/background.ts`・`popup.ts`・`result.ts`。**完了:** `make ext-build` が通る。
