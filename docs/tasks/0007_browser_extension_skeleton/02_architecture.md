@@ -8,7 +8,7 @@
 | Created | 2026-10-07 |
 | Review date | 2026-10-07 |
 | Reviewer | isseis |
-| Comments | 2026-10-08: 実装のレビューの指摘で、3.8・5.2（`npm ci` のレジストリの固定、`check-lockfile` のパッケージ名と `npm-shrinkwrap.json` の確認）、3.9（シンボリックリンクの拒否）、3.10（`has-extension-changes` の一覧に名前の変更の元の側と ASCII でないパスを含める）を補った。いずれも同じ節が述べる目的（レジストリ以外から取得しない、依存パッケージのコードを成果物に入れない、拡張の変更で拡張のジョブを起動する）を果たすための手段の不足を補う編集上の修正で、決定の変更はない。2026-10-08: 2.1・3.8・3.13 に `types/core-url.d.ts` を加えた（実装で、`lib: ["ES2022"]` の `tsconfig.core.json` では `core/acceptedUrl.ts` の `URL` を型検査できないと分かったため）。`core/` から DOM と `chrome` の型を除くという決定は変えておらず、そのための手段の不足を補う編集上の修正として扱う（決定の変更はない）。2026-10-08: 3.10 の `has-extension-changes` の一覧を `git diff -z` の NUL 区切りに変えた（`core.quotePath=false` でもタブ・改行を含むパスは引用符で囲まれ、`^extension/` に一致しないため）。同じ節が述べる目的（拡張の変更で拡張のジョブを起動する）を果たすための手段の不足を補う編集上の修正で、決定の変更はない |
+| Comments | 2026-10-08: 実装のレビューの指摘で、3.8・5.2（`npm ci` のレジストリの固定、`check-lockfile` のパッケージ名と `npm-shrinkwrap.json` の確認）、3.9（シンボリックリンクの拒否）、3.10（`has-extension-changes` の一覧に名前の変更の元の側と ASCII でないパスを含める）を補った。いずれも同じ節が述べる目的（レジストリ以外から取得しない、依存パッケージのコードを成果物に入れない、拡張の変更で拡張のジョブを起動する）を果たすための手段の不足を補う編集上の修正で、決定の変更はない。2026-10-08: 2.1・3.8・3.13 に `types/core-url.d.ts` を加えた（実装で、`lib: ["ES2022"]` の `tsconfig.core.json` では `core/acceptedUrl.ts` の `URL` を型検査できないと分かったため）。`core/` から DOM と `chrome` の型を除くという決定は変えておらず、そのための手段の不足を補う編集上の修正として扱う（決定の変更はない）。2026-10-08: 3.10 の `has-extension-changes` の一覧を `git diff -z` の NUL 区切りに変えた（`core.quotePath=false` でもタブ・改行を含むパスは引用符で囲まれ、`^extension/` に一致しないため）。同じ節が述べる目的（拡張の変更で拡張のジョブを起動する）を果たすための手段の不足を補う編集上の修正で、決定の変更はない。2026-10-08: 3.1 の manifest の表に Chrome が必須とする `name`・`version` を加えた。表は「主な項目」だけを挙げており、この 2 項目を落としていた。値は実装で確定する編集上の追加で、決定の変更はない |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `426eb2e` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指す。本タスクには `design_handoff.md` がない。実装レベルの懸念は [implementation_handoff.md](implementation_handoff.md) に置き、`03_implementation_plan.md` が扱う。
 
@@ -267,6 +267,8 @@ flowchart TB
 | 項目 | 値 | 理由 |
 |---|---|---|
 | `manifest_version` | `3` | F-003 |
+| `name` | `"yt2column"` | Chrome が必須とする項目（表は主な項目だけを挙げていた）。拡張の管理ページに表示される名前 |
+| `version` | `"0.1.0"` | Chrome が必須とする項目。拡張の版 |
 | `key` | 公開鍵（DER の SubjectPublicKeyInfo を base64 にしたもの） | 拡張 ID の固定（下記） |
 | `minimum_chrome_version` | `"102"` | 使う API のうち最も新しい `chrome.storage.session` が Chrome 102 で加わったため（要件書 4.4） |
 | `background` | `{"service_worker": "background.js", "type": "module"}` | service worker から `core/` のモジュールを静的な `import` で読むため |
@@ -795,7 +797,7 @@ flowchart TD
 | `test/summary.test.ts` | `summarize`（文字数・行数、前後の空行、`\r\n`、各値の切り詰めとサロゲートペア）と `parseSummary`（形の違う値を拒否すること） | AC-21 の表示の内容 |
 | `test/render.test.ts` | `renderSummary` を jsdom の要素で実行する。タイトルと選択範囲に `<img src=x onerror=alert(1)>` を含む要約で、`querySelector("img")` が `null` で、`textContent` に元の文字列が含まれること。拒否の場合に手順のリストが表示されること | AC-23・AC-31 |
 | `test/checkLockfile.test.ts` | `scripts/check-lockfile.ts` の判定。`resolved` がレジストリ以外を指す lockfile を拒否し、レジストリだけの lockfile を受理すること | -（5.2） |
-| `test/manifest.test.ts` | `static/manifest.json`。`permissions` が 3.1 の 4 つとちょうど一致すること。`host_permissions`・`optional_permissions`・`optional_host_permissions`・`content_scripts`・`content_security_policy`・`web_accessible_resources`・`externally_connectable` がないこと。`key` が RSA 2048 ビットの公開鍵として解析でき、そこから計算した拡張 ID が記録した値と一致すること | AC-08 の静的な部分・AC-09・AC-12・AC-26・AC-27 |
+| `test/manifest.test.ts` | `static/manifest.json`。`permissions` が 3.1 の 4 つとちょうど一致すること。最上位のキーが 3.1 の表の集合とちょうど一致すること（`host_permissions` などの宣言しない項目がないことを含む）。`manifest_version`・`minimum_chrome_version`・`background`（`type: "module"`）・`action.default_popup`・`name`・`version` が 3.1 の値であること。`key` が RSA 2048 ビットの公開鍵として解析でき、そこから計算した拡張 ID が記録した値と一致すること | AC-08 の静的な部分・AC-09・AC-12・AC-26・AC-27 |
 
 `chromeDeps.ts` のうち `SelectionReader` 以外の実装（`SummaryStore`・ウィンドウ・バッジ・アクティブなタブ）と、`background.ts` のメニューの項目の登録は、`chrome.*` を 1 回呼ぶだけの薄い部分なのでユニットテストせず、7.2 の手動の確認（AC-10・AC-11・AC-21）で確かめる。
 

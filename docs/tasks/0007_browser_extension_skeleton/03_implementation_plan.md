@@ -8,7 +8,7 @@
 | Created | 2026-10-07 |
 | Review date | 2026-10-07 |
 | Reviewer | isseis |
-| Comments | 2026-10-08: ステップ 1-6 の `has-extension-changes` の一覧を `git diff -z` の NUL 区切りに変えた（設計書 3.10 の同じ編集）。`core.quotePath=false` でもタブ・改行を含むパスは引用符で囲まれ、`^extension/` に一致しないためである。設計書 3.10 が述べる目的（拡張の変更で拡張のジョブを起動する）を果たすための手段の不足を補う編集上の修正で、決定の変更はない |
+| Comments | 2026-10-08: ステップ 1-6 の `has-extension-changes` の一覧を `git diff -z` の NUL 区切りに変えた（設計書 3.10 の同じ編集）。`core.quotePath=false` でもタブ・改行を含むパスは引用符で囲まれ、`^extension/` に一致しないためである。設計書 3.10 が述べる目的（拡張の変更で拡張のジョブを起動する）を果たすための手段の不足を補う編集上の修正で、決定の変更はない。2026-10-08: ステップ 2-1・2-2 と PR-2 のレビュー観点に、Chrome が必須とする `name`・`version` を加えた（設計書 3.1 の表の同じ追加）。2026-10-08: ステップ 2-2 の `undeclared keys` を、9 項目の不在の確認から、最上位のキーが設計書 3.1 の表の集合とちょうど一致することの確認に強めた（レビューの指摘。設計書 3.11 の同じ更新）。いずれも決定の変更はない |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -142,7 +142,7 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 
     CI の `go list ./...` のステップは、`go.mod` から `ignore ./extension` を外したときに失敗することを、手元で同じコマンドを実行して確かめる。依存パッケージが Go のファイルを含まなくなっていて失敗しない場合は、そのことを記録する。続けて、`make ext-install` → `make ext-check`、`make test`・`make lint`・`make deadcode`・`make build` を通す。最後に AC-05 の比較を行い、§5.1 に記録する。比較の内容は、`extension/node_modules` と `extension/dist` がある状態と、`extension/` を一時的に退避した状態とで、4 つの Go の手順の成否と `go list ./...` の出力を比べることである。
     -   **対象:** なし（確認のみ）。**完了:** 各対象を壊して失敗することを確認し、コミットメッセージに記録する。
--   [ ] **ステップ 1-8**: PR-1 を作成した後に、PR の CI で、拡張のジョブの 6 つのステップと Go の確認が通ることを確かめる。続けて、設計書 7.3 の AC-07 の 6 つの変更を 1 つずつ別のコミットとして push し、それぞれで対応するステップが失敗して CI が失敗することを確かめてから、その変更を戻す。結果（コミット、失敗したステップ）を §5.1 に記録する。
+-   [x] **ステップ 1-8**: PR-1 を作成した後に、PR の CI で、拡張のジョブの 6 つのステップと Go の確認が通ることを確かめる。続けて、設計書 7.3 の AC-07 の 6 つの変更を 1 つずつ別のコミットとして push し、それぞれで対応するステップが失敗して CI が失敗することを確かめてから、その変更を戻す。結果（コミット、失敗したステップ）を §5.1 に記録する。
     -   **対象:** なし（確認のみ）。**完了:** PR-1 の作成後、PR の CI が通り、AC-07 の 6 つの変更のコミットで対応するステップが失敗することを確かめ、§5.1 に記録する。
 
 **完了条件:** `make ext-check`・`make test`・`make lint`・`make deadcode`・`make build` が通り、§5.1 の AC-02・AC-03・AC-05・AC-07 の行が記録されている。
@@ -161,9 +161,9 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
 - [x] PR を作成した（#126）
-- [ ] ステップ 1-8 の PR の CI の検証を行い、結果を §5.1 に記録した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] ステップ 1-8 の PR の CI の検証を行い、結果を §5.1 に記録した（#126 のマージの前に CI の判定を変えたので、マージ後の CI で、PR-2 の PR #130 で行った）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: manifest
 
@@ -171,11 +171,11 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 -   新設: `extension/static/manifest.json`、`extension/test/manifest.test.ts`
 
 **タスク**
--   [ ] **ステップ 2-1**: `static/manifest.json` を設計書 3.1 の表のとおりに作る。`key` は設計書 3.12.1 の値をそのまま使い、鍵を生成し直さない。`background`・`action` が指すファイル（`background.js`・`popup.html`）はフェーズ 4 で作る。
+-   [x] **ステップ 2-1**: `static/manifest.json` を設計書 3.1 の表のとおりに作る。`name`・`version` は Chrome が必須とする項目で、設計書 3.1 の表の値（`"yt2column"`・`"0.1.0"`）とする。`key` は設計書 3.12.1 の値をそのまま使い、鍵を生成し直さない。`background`・`action` が指すファイル（`background.js`・`popup.html`）はフェーズ 4 で作る。
     -   **対象:** `extension/static/manifest.json`。**完了:** `make ext-build` が通り、`manifest.json` が JSON として妥当である。
--   [ ] **ステップ 2-2**: `test/manifest.test.ts` を作る（設計書 3.11）。`permissions` が設計書 3.1 の 4 つとちょうど一致すること、宣言しない項目（設計書 3.1 の表の `host_permissions`・`optional_permissions`・`optional_host_permissions`・`content_scripts`・`content_security_policy`・`web_accessible_resources`・`externally_connectable`・`options_ui`・`commands`）がないこと、`manifest_version`・`minimum_chrome_version`・`background`（`type: "module"`）・`action.default_popup` が設計書 3.1 の値であること、`key` が RSA 2048 ビットの SubjectPublicKeyInfo として解析でき、そこから計算した拡張 ID が `clfmbbcdpnjcefbdihdoahomaifbabkk` であることを確かめる。拡張 ID を計算する関数は `test/helpers/` に置き、ステップ 5-6 でも使う。
+-   [x] **ステップ 2-2**: `test/manifest.test.ts` を作る（設計書 3.11）。`permissions` が設計書 3.1 の 4 つとちょうど一致すること、最上位のキーが設計書 3.1 の表の集合とちょうど一致すること（これにより、宣言しない項目の `host_permissions`・`optional_permissions`・`optional_host_permissions`・`content_scripts`・`content_security_policy`・`web_accessible_resources`・`externally_connectable`・`options_ui`・`commands` がないことも確かめる）、`manifest_version`・`minimum_chrome_version`・`background`（`type: "module"`）・`action.default_popup`・`name`・`version` が設計書 3.1 の値であること、`key` が RSA 2048 ビットの SubjectPublicKeyInfo として解析でき、そこから計算した拡張 ID が `clfmbbcdpnjcefbdihdoahomaifbabkk` であることを確かめる。拡張 ID を計算する関数は `test/helpers/` に置き、ステップ 5-6 でも使う。
     -   **対象:** `extension/test/manifest.test.ts`。**完了:** `extension/test/manifest.test.ts` が通る。
--   [ ] **ステップ 2-3**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `permissions` に `tabs` を足す、宣言しない項目のそれぞれを 1 つずつ足す、`manifest_version`・`minimum_chrome_version`・`background.type`・`action.default_popup` をそれぞれ変える、`key` の 1 文字を変える、`key` を PKCS#8 の秘密鍵の base64 に置き換える（一時的に生成し、コミットせず削除する）。`make ext-check` → `make test` → `make lint` を通す。
+-   [x] **ステップ 2-3**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `permissions` に `tabs` を足す、宣言しない項目のそれぞれを 1 つずつ足す、`manifest_version`・`minimum_chrome_version`・`background.type`・`action.default_popup` をそれぞれ変える、`key` の 1 文字を変える、`key` を PKCS#8 の秘密鍵の base64 に置き換える（一時的に生成し、コミットせず削除する）。`make ext-check` → `make test` → `make lint` を通す。
     -   **対象:** なし（確認のみ）。**完了:** 各対象を壊して失敗することを確認し、コミットメッセージに記録する。
 
 **完了条件:** `make ext-check` → `make test` → `make lint` が通り、`manifest.test.ts` が通る。
@@ -186,14 +186,14 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 
 **推奨タイトル**: `feat(0007): add the extension manifest with a fixed ID`
 
-**レビュー観点**: `key` を設計書 3.12.1 の値から生成し直さず、そこから計算した拡張 ID が `clfmbbcdpnjcefbdihdoahomaifbabkk` になること（ステップ 2-1・2-2、AC-08・AC-09） / `permissions` が設計書 3.1 の 4 つとちょうど一致し、宣言しない項目がなく、CSP を変更しないこと（ステップ 2-2、AC-12・AC-26・AC-27） / `background`（`type: "module"`）・`action.default_popup`・`manifest_version`・`minimum_chrome_version` が設計書 3.1 の値であること（ステップ 2-2）
+**レビュー観点**: `key` を設計書 3.12.1 の値から生成し直さず、そこから計算した拡張 ID が `clfmbbcdpnjcefbdihdoahomaifbabkk` になること（ステップ 2-1・2-2、AC-08・AC-09） / `permissions` が設計書 3.1 の 4 つとちょうど一致し、宣言しない項目がなく、CSP を変更しないこと（ステップ 2-2、AC-12・AC-26・AC-27） / `background`（`type: "module"`）・`action.default_popup`・`manifest_version`・`minimum_chrome_version`・`name`・`version` が設計書 3.1 の値であること（ステップ 2-2）
 
 **実装モデル要件**: standard
 
 **判定理由**: manifest の各値は設計書 3.1 と 3.12.1 で確定しており、`既存コード調査結果` に競合する実装方針の併記がなく、パネルモードの引き金・2 つ以上の Conditional check・隔離すべき高リスクなステップのいずれにも該当しないため。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
+- [x] PR を作成した（#130）
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
@@ -446,10 +446,10 @@ PR は、フェーズ 4 を 2 つに分け、そのほかはフェーズと 1 �
 
 | AC | 確認の内容（設計書 7.2・7.3） | ブラウザ・環境 | 日付 | 結果 |
 |---|---|---|---|---|
-| AC-02 | 型の合わない代入のコミットで CI の型検査のステップが失敗する | CI | | |
-| AC-03 | 版の範囲の変更のコミットで CI のインストールのステップが失敗する | CI | | |
+| AC-02 | 型の合わない代入のコミットで CI の型検査のステップが失敗する | CI | 2026-10-08 | PR #130 の CI は成功した。型の合わない代入（`src/core/acceptedUrl.ts` に `export const typecheckBreak: string = 0;` を加えたコミット 998667e）で、拡張のジョブの型検査のステップだけが失敗し、それより前のステップは成功、後はスキップされた |
+| AC-03 | 版の範囲の変更のコミットで CI のインストールのステップが失敗する | CI | 2026-10-08 | lockfile の版を含まない版の範囲（`typescript` を `^5.0.0` に変えたコミット 192d8bc）で、インストール（`npm ci`）のステップだけが失敗した（`EUSAGE`）。`typescript` を `^6.1.0` にすると `typescript-eslint` の peer の範囲 `<6.1.0` と衝突し、`npm ci` が解決を繰り返して終わらなかったため使わなかった |
 | AC-05 | 拡張がある状態とない状態で、`make test`・`make lint`・`make deadcode`・`make build` の成否と `go list ./...` の出力が同じ | macOS（Go 1.27.1、Node.js 24.21.0） | 2026-10-08 | 一致した。`extension/node_modules` と `extension/dist` がある状態と、`extension/` を退避した状態とで、4 つの手順はどちらも成功し、`go list ./...` の出力（18 パッケージ）と `make deadcode` の出力は同じだった。`go.mod` から `ignore ./extension` を外すと、`go list ./...` に `github.com/isseis/yt2column/extension/node_modules/flatted/golang/pkg/flatted` が現れ、CI の確認のステップの判定が失敗した |
-| AC-07 | 本タスクの PR の CI が通る。6 つの変更のコミットで、それぞれ対応するステップが失敗する | CI | | |
+| AC-07 | 本タスクの PR の CI が通る。6 つの変更のコミットで、それぞれ対応するステップが失敗する | CI | 2026-10-08 | PR #130 の CI（拡張のジョブの 6 ステップ、Go の Test・lint、`secret-scan`）は成功した。6 つの変更のコミット（インストール 192d8bc・型検査 998667e・lint f5e799e・フォーマット 170e2ab・ユニットテスト a7697f7・ビルド 488149c）で、それぞれ対応するステップだけが失敗し、それより前のステップは成功、後はスキップされた。確認の後に各変更を revert した |
 | AC-08 | 2 つのディレクトリから読み込んだ拡張 ID が記録した値と一致する | Chrome・Brave | | |
 | AC-10・AC-11 | 動画ページで項目が現れ、`https://example.com/` で現れない。無効化と再有効化、再起動の後も現れる | Chrome・Brave | | |
 | AC-13 | コンソールの選択範囲の文字列が `window.getSelection().toString()` と一致し、時刻の行と本文の行が改行で区切られている | Chrome・Brave | | |
