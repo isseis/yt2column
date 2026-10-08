@@ -210,6 +210,19 @@ func findEntityMention(raw []rune) (int, bool) {
 
 // findLinkMention returns the first M4 (link-like sequence) match.
 func findLinkMention(raw []rune) (int, bool) {
+	// nextStop[i] is the first index at or after i whose rune ends the second
+	// part of M4 (a newline or '>'), or len(raw) if there is none. Building it
+	// once keeps the scan linear when many '<' are each followed by '|'.
+	nextStop := make([]int, len(raw)+1)
+	nextStop[len(raw)] = len(raw)
+	for i := len(raw) - 1; i >= 0; i-- {
+		if raw[i] == '\n' || raw[i] == '>' {
+			nextStop[i] = i
+			continue
+		}
+		nextStop[i] = nextStop[i+1]
+	}
+
 	for i := range raw {
 		if raw[i] != '<' {
 			continue
@@ -221,11 +234,8 @@ func findLinkMention(raw []rune) (int, bool) {
 		if j == i+1 || j >= len(raw) || raw[j] != '|' {
 			continue
 		}
-		k := j + 1
-		for k < len(raw) && raw[k] != '\n' && raw[k] != '>' {
-			k++
-		}
-		if k > j+1 && k < len(raw) && raw[k] == '>' {
+		stop := nextStop[j+1]
+		if stop > j+1 && stop < len(raw) && raw[stop] == '>' {
 			return i, true
 		}
 	}
