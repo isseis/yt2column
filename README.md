@@ -169,6 +169,49 @@ with explicit acceptance criteria. See [CLAUDE.md](CLAUDE.md) and
 Design documents are written in Japanese; start with
 [docs/dev/project_overview.md](docs/dev/project_overview.md).
 
+### Browser extension
+
+A Chrome/Brave extension (Manifest V3) lives in `extension/`; it is written in
+TypeScript and built with Node.js. It is not published to a store — you build it
+and load the build as an unpacked extension. At this point it never sends
+anything: it only collects a selection, the tab URL, and the tab title, and
+shows them.
+
+Node.js 24 is required, and every `ext-*` target refuses to run when
+`node --version` does not match `extension/.node-version`. The version file sits
+inside `extension/`, so a version manager that reads the current directory (such
+as [fnm](https://github.com/Schniz/fnm)) must be activated from there; run the
+targets from the repository root with that version still active:
+
+```sh
+cd extension && fnm use && cd ..
+make ext-install   # install the pinned dev dependencies (npm ci; needs network)
+make ext-build     # build extension/dist/
+make ext-check     # typecheck, lint, format check, tests, then build
+```
+
+Load the build in Chrome or Brave:
+
+1. Open `chrome://extensions/` (Brave: `brave://extensions/`).
+2. Turn on **Developer mode**.
+3. Click **Load unpacked** and select the `extension/dist` directory.
+
+The extension ID is fixed to `clfmbbcdpnjcefbdihdoahomaifbabkk`, so it is the
+same on every machine and from every directory.
+
+There are two ways to launch the extension, and both collect the same three
+values:
+
+- **Context menu:** on a video page, select the transcript text, right-click,
+  and choose the extension's item. The result opens in a window.
+- **Toolbar icon:** click the icon to open the popup, which shows what would be
+  collected and why nothing would be collected when the page or selection does
+  not qualify. The popup closes when you click elsewhere.
+
+To see what was collected, open the console before launching: the service
+worker's console via the **service worker** link on `chrome://extensions/`, and
+the popup's console via right-click → **Inspect**.
+
 ### Integration test
 
 `make test-integration` runs the real `yt-dlp` against the network, so it needs

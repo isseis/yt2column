@@ -67,6 +67,20 @@ Project-specific values these commands depend on are defined once in
 - `/japrose <file>` - Japanese prose-quality pass
 - `/mktrans <file>` - Japanese ⇄ English translation
 
+### Extension Commands
+
+The Chrome/Brave extension lives in `extension/` (TypeScript). Its Node.js
+version is pinned in `extension/.node-version`; every `ext-*` target below
+refuses to run when `node --version` does not match.
+- `make ext-install` - Install the pinned dev dependencies with `npm ci` (needs the network)
+- `make ext-typecheck` - Type-check with `tsc`
+- `make ext-lint` - Lint with ESLint
+- `make ext-fmt-check` - Check formatting with Prettier
+- `make ext-fmt` - Rewrite files with Prettier (CI runs `ext-fmt-check` instead)
+- `make ext-test` - Run the extension unit tests (`node --test`)
+- `make ext-build` - Build into `extension/dist/`
+- `make ext-check` - Run the checks CI runs after `ext-install`: typecheck, lint, fmt-check, test, build
+
 ## Architecture Overview
 
 A Go CLI that turns a YouTube video into a magazine-column-style article:
@@ -185,6 +199,12 @@ See [Test Organization Guide](docs/dev/developer_guide/test_organization.md) for
 - Go version: see `go.mod`.
 - After editing go files, make sure to run `make fmt` to format the files.
 - After editing files, make sure to run `make test` and `make lint` and fix errors.
+- After changing the browser extension under `extension/`, run `make ext-check`.
+- A change that touches only documents (`README.md`, `CLAUDE.md`, `docs/`) or
+  `.gitignore` never runs the extension's CI job, but it can still break the
+  extension's guard tests (the extension ID in the docs, the `ext-` targets in
+  this file, the ignore rules). Run `make ext-test` locally before committing
+  such a change.
 - `yt-dlp` must be on `PATH` (or set `YT2COLUMN_YTDLP_PATH`) to run the CLI; it is
   not needed for `make test`.
 - Secrets (`DEEPSEEK_API_KEY`, `SLACK_WEBHOOK_URL`, ...) go in `.envrc` / `.env`,
@@ -203,6 +223,14 @@ the task's architecture document, when there is one) must state why the standard
 library is not enough. Currently no module outside the standard library is
 allowed: the initial LLM provider (DeepSeek) exposes an OpenAI-compatible HTTP API
 that is called with `net/http` and `encoding/json`.
+
+The browser extension's npm packages are development-only (build, type-check,
+lint, test); the code that ships is only what this repository writes. They are
+pinned by `extension/package-lock.json` and installed with
+`npm ci --ignore-scripts`, so an install script never runs. To add or update one,
+run `npm install --ignore-scripts <pkg>` by hand and commit the updated lockfile;
+the Makefile and CI never call `npm install`. Each package's purpose is recorded
+in the extension task's architecture document.
 
 ## Go Idioms
 
@@ -228,6 +256,10 @@ Only the conventions a linter does not check are worth stating:
 - In tests, prefer `t.Cleanup` over manual `defer` chains and `t.TempDir` over
   `os.MkdirTemp` + `defer os.RemoveAll`.
 - Go comments, identifiers, and string literals are English.
+- The same rule applies to the browser extension: its comments, identifiers,
+  and string literals are English, including the strings shown to the user. The
+  exception is a guard test's literal that must match a Japanese document
+  heading or table cell.
 
 ## Requirements and Acceptance Criteria
 
