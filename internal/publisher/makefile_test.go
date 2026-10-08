@@ -19,8 +19,8 @@ const repositoryRoot = "../.."
 
 // TestMakeTestIntegrationSlack checks the target that runs the
 // SlackWebhookPublisher integration test: the go test arguments, a -timeout
-// above the longest the two fixed articles can take to post, its own opt-in
-// and not the CLI's, no model name, and a notice that it posts to the real
+// above the longest the two fixed articles can take to post, its own opt-in,
+// no model name, and a notice that it posts to the real
 // Webhook without the DeepSeek charge notice, since it calls no LLM.
 func TestMakeTestIntegrationSlack(t *testing.T) {
 	const timeoutPlaceholder = "<timeout>"
@@ -37,7 +37,7 @@ func TestMakeTestIntegrationSlack(t *testing.T) {
 	}
 
 	output, invocation := deepseektestutil.RunMakeTarget(t, repositoryRoot, publishertestutil.SlackIntegrationOptions.MakeTarget, nil,
-		publishertestutil.SlackOptInEnv, publishertestutil.CLISlackOptInEnv)
+		publishertestutil.SlackOptInEnv)
 	if !strings.Contains(output, "posts to the real test Webhook") {
 		t.Errorf("make output %q does not say that the target posts to the real test Webhook", output)
 	}
@@ -59,10 +59,8 @@ func TestMakeTestIntegrationSlack(t *testing.T) {
 	if got, ok := invocation.Env[optIn]; !ok || got != publishertestutil.OptInValue {
 		t.Errorf("%s = %q (set %t), want %q", optIn, got, ok, publishertestutil.OptInValue)
 	}
-	for _, unset := range []string{publishertestutil.CLISlackOptInEnv, deepseektestutil.ModelEnv} {
-		if value, ok := invocation.Env[unset]; ok {
-			t.Errorf("make %s exported %s=%q", publishertestutil.SlackIntegrationOptions.MakeTarget, unset, value)
-		}
+	if value, ok := invocation.Env[deepseektestutil.ModelEnv]; ok {
+		t.Errorf("make %s exported %s=%q", publishertestutil.SlackIntegrationOptions.MakeTarget, deepseektestutil.ModelEnv, value)
 	}
 }
 

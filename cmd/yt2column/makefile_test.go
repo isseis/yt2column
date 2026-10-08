@@ -56,9 +56,8 @@ func TestMakeTestIntegrationCLISlack(t *testing.T) {
 }
 
 // TestMakeOptInsAreTargetSpecific pins that each integration target exports
-// only its own opt-in, so running one never arms another's test. The opt-ins
-// are named directly, not through the tests' options, so a wrong opt-in in
-// the options is caught.
+// no opt-in but its own, so running one never arms another's test. That the
+// own opt-in is exported is checked by each target's own test.
 func TestMakeOptInsAreTargetSpecific(t *testing.T) {
 	optIns := []string{
 		deepseektestutil.DeepSeekOptInEnv,
@@ -80,11 +79,7 @@ func TestMakeOptInsAreTargetSpecific(t *testing.T) {
 			_, invocation := deepseektestutil.RunMakeTarget(t, repositoryRoot, tc.target, nil,
 				publishertestutil.SlackOptInEnv, publishertestutil.CLISlackOptInEnv)
 			for _, optIn := range optIns {
-				value, ok := invocation.Env[optIn]
-				switch {
-				case optIn == tc.own && (!ok || value != deepseektestutil.OptInValue):
-					t.Errorf("make %s: %s = %q (set %t), want %q", tc.target, optIn, value, ok, deepseektestutil.OptInValue)
-				case optIn != tc.own && ok:
+				if value, ok := invocation.Env[optIn]; ok && optIn != tc.own {
 					t.Errorf("make %s exported %s=%q", tc.target, optIn, value)
 				}
 			}
@@ -211,14 +206,15 @@ func TestCLIIntegrationTestBuildTag(t *testing.T) {
 	}
 }
 
-// TestCLISlackIntegrationSettings checks the decision the CLI webhook
-// integration test makes in each environment: it runs only with its own
-// opt-in set to exactly 1 and both the DeepSeek and the webhook settings
-// complete; a missing test API key or test Webhook URL fails it even when the
-// production value is set, and so does an invalid URL or an HTTP/2 debug
-// setting. When it does not run, the body that calls run, the LLM client, and
-// the Webhook is never reached, and the reason holds neither key nor URL nor
-// the last eight characters of any.
+// TestCLISlackIntegrationSettings checks how the CLI webhook integration test
+// combines its two decisions: it runs only with its own opt-in and when both
+// the DeepSeek and the webhook decisions run, and a failure of either layer
+// (here the missing test API key and the missing test Webhook URL, each with
+// the production value set) fails it. Each decision's own rules (opt-in
+// values, GODEBUG, URL shape) are tested with that decision. When it does not
+// run, the body that calls run, the LLM client, and the Webhook is never
+// reached, and the reason holds neither key nor URL nor the last eight
+// characters of any.
 func TestCLISlackIntegrationSettings(t *testing.T) {
 	const (
 		testKey           = "sk-integration-TESTKEYVALUE-0123456789-TAIL8TST"
@@ -226,7 +222,6 @@ func TestCLISlackIntegrationSettings(t *testing.T) {
 		model             = "deepseek-custom"
 		testWebhook       = "https://mattermost.example.com/hooks/clislackhookkeyHOOKTAIL"
 		productionWebhook = "https://hooks.slack.com/services/T000/B000/prodhookkeyPRODTAIL"
-		invalidWebhook    = "http://mattermost.example.com/hooks/invalidhookINVTAIL8"
 	)
 	// The environment names the opt-in directly, not through the options, so
 	// a wrong opt-in in the options is caught.
@@ -239,7 +234,7 @@ func TestCLISlackIntegrationSettings(t *testing.T) {
 		"SLACK_WEBHOOK_URL":                productionWebhook,
 	}
 	var forbidden []string
-	for _, s := range []string{testKey, productionKey, testWebhook, productionWebhook, invalidWebhook} {
+	for _, s := range []string{testKey, productionKey, testWebhook, productionWebhook} {
 		forbidden = append(forbidden, s, s[len(s)-8:])
 	}
 
@@ -255,17 +250,10 @@ func TestCLISlackIntegrationSettings(t *testing.T) {
 		want   outcomes
 	}{
 		{name: "opt_in_unset", change: map[string]string{publishertestutil.CLISlackOptInEnv: ""}, want: skipped},
-		{name: "opt_in_zero", change: map[string]string{publishertestutil.CLISlackOptInEnv: "0"}, want: skipped},
-		{name: "opt_in_true", change: map[string]string{publishertestutil.CLISlackOptInEnv: "true"}, want: skipped},
-		{name: "opt_in_padded", change: map[string]string{publishertestutil.CLISlackOptInEnv: " 1"}, want: skipped},
 		{name: "cli_opt_in_only", change: map[string]string{publishertestutil.CLISlackOptInEnv: "", deepseektestutil.CLIOptInEnv: deepseektestutil.OptInValue}, want: skipped},
 		{name: "slack_opt_in_only", change: map[string]string{publishertestutil.CLISlackOptInEnv: "", publishertestutil.SlackOptInEnv: publishertestutil.OptInValue}, want: skipped},
 		{name: "test_key_missing_with_production_key_set", change: map[string]string{deepseektestutil.APIKeyEnv: ""}, want: failed},
-		{name: "model_missing", change: map[string]string{deepseektestutil.ModelEnv: ""}, want: failed},
 		{name: "test_webhook_missing_with_production_webhook_set", change: map[string]string{publishertestutil.WebhookURLEnv: ""}, want: failed},
-		{name: "test_webhook_invalid", change: map[string]string{publishertestutil.WebhookURLEnv: invalidWebhook}, want: failed},
-		{name: "godebug_http2debug_1", change: map[string]string{deepseektestutil.GODEBUGEnv: "http2debug=1"}, want: failed},
-		{name: "godebug_http2debug_2_among_others", change: map[string]string{deepseektestutil.GODEBUGEnv: "gctrace=1,http2debug=2"}, want: failed},
 		{name: "complete", want: ran},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

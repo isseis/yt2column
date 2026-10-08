@@ -20,9 +20,11 @@ const (
 // TestSlackSettingsFrom checks the decision a webhook integration test makes
 // in each environment: it runs only with its own opt-in set to exactly 1,
 // fails rather than skips without a valid test Webhook URL even when the
-// production one is set, and fails on an HTTP/2 debug setting. The reason
-// never holds a URL or its last eight characters, and only a run carries the
-// URL.
+// production one is set, and fails on an HTTP/2 debug setting. The URL and
+// GODEBUG rules themselves belong to slackwebhook.ValidURL and
+// config.HTTP2DebugEnabledIn and are tested there; one row each shows they
+// are applied. The reason never holds a URL or its last eight characters, and
+// only a run carries the URL.
 func TestSlackSettingsFrom(t *testing.T) {
 	opts := IntegrationOptions{OptInEnv: testOptInEnv, MakeTarget: testMakeTarget}
 	// The production URL is set so a read of it would be visible.
@@ -32,9 +34,8 @@ func TestSlackSettingsFrom(t *testing.T) {
 		productionWebhookEnv: testProductionURL,
 	}
 	invalidURL := "http://mattermost.example.com/hooks/invalidkeyINVTAIL8"
-	noHostURL := "https:///hooks/nohostkeyNOHOST88"
 	forbidden := []string{}
-	for _, url := range []string{testWebhookURL, testProductionURL, invalidURL, noHostURL} {
+	for _, url := range []string{testWebhookURL, testProductionURL, invalidURL} {
 		forbidden = append(forbidden, url, url[len(url)-8:])
 	}
 	optInReason := []string{testOptInEnv, "make " + testMakeTarget}
@@ -54,11 +55,7 @@ func TestSlackSettingsFrom(t *testing.T) {
 		{name: "url_missing_with_production_url_set", change: map[string]string{WebhookURLEnv: ""}, wantAction: ActionFail, wantReason: []string{WebhookURLEnv, productionWebhookEnv + " is not used"}},
 		{name: "url_checked_before_godebug", change: map[string]string{WebhookURLEnv: "", godebugEnv: "http2debug=1"}, wantAction: ActionFail, wantReason: []string{WebhookURLEnv + " is not set"}},
 		{name: "url_not_https", change: map[string]string{WebhookURLEnv: invalidURL}, wantAction: ActionFail, wantReason: []string{WebhookURLEnv, "https"}},
-		{name: "url_without_host", change: map[string]string{WebhookURLEnv: noHostURL}, wantAction: ActionFail, wantReason: []string{WebhookURLEnv, "host"}},
-		{name: "url_checked_before_godebug_invalid", change: map[string]string{WebhookURLEnv: invalidURL, godebugEnv: "http2debug=1"}, wantAction: ActionFail, wantReason: []string{WebhookURLEnv, "https"}},
 		{name: "godebug_http2debug_1", change: map[string]string{godebugEnv: "http2debug=1"}, wantAction: ActionFail, wantReason: []string{godebugEnv}},
-		{name: "godebug_http2debug_2_among_others", change: map[string]string{godebugEnv: "gctrace=1,http2debug=2"}, wantAction: ActionFail, wantReason: []string{godebugEnv}},
-		{name: "godebug_unrelated", change: map[string]string{godebugEnv: "http2client=0"}, wantAction: ActionRun},
 		{name: "complete", wantAction: ActionRun},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
