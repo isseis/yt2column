@@ -218,9 +218,8 @@ variable, so a plain `go test -tags integration` or an IDE run does not post. A
 missing or invalid test Webhook URL, or a `GODEBUG` that enables `http2debug`,
 fails the test rather than skipping it and posts nothing. Message text never
 includes the URL, and failure messages redact the URL, its path, query, and
-userinfo, and the last eight characters of the URL and the API key; a transport
-failure can still name the destination host and port, which are not treated as
-secret.
+userinfo, and the last eight characters of the URL; a transport failure can
+still name the destination host and port, which are not treated as secret.
 
 ### CLI webhook integration test
 
