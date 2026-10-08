@@ -313,21 +313,21 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 -   変更: `README.md`、`CLAUDE.md`、`docs/dev/project_overview.md`、`docs/dev/security.md`、本計画（§5.1）。加えて、ステップ 5-1 の手動の確認でメニューの項目が残らない場合だけ `extension/src/background.ts`（設計書 3.1 の代替の登録）
 
 **タスク**
--   [ ] **ステップ 5-1**: 設計書 7.2 の手動の確認を、macOS の Chrome と Brave（作業時点の安定版）で行い、ブラウザの版・日付・結果を §5.1 に記録する。AC-10・AC-11 では、拡張の無効化と再有効化、ブラウザの再起動の後に項目が残ることも確かめる。残らない場合は、設計書 3.1 のとおり service worker のモジュールの最上位でも登録し、確認をやり直す。代替の登録を加えた場合は、加える前の確認で項目が残らなかった結果と、加えた後の確認の結果を、§5.1 の AC-10・AC-11 の行とコミットメッセージに記録する。
+-   [x] **ステップ 5-1**: 設計書 7.2 の手動の確認を、macOS の Chrome と Brave（作業時点の安定版）で行い、ブラウザの版・日付・結果を §5.1 に記録する。AC-10・AC-11 では、拡張の無効化と再有効化、ブラウザの再起動の後に項目が残ることも確かめる。残らない場合は、設計書 3.1 のとおり service worker のモジュールの最上位でも登録し、確認をやり直す。代替の登録を加えた場合は、加える前の確認で項目が残らなかった結果と、加えた後の確認の結果を、§5.1 の AC-10・AC-11 の行とコミットメッセージに記録する。
     -   **対象:** `extension/src/background.ts`（代替の登録が必要な場合だけ。通常はなし）。**完了:** 設計書 7.2 の手動の確認の結果を §5.1 の該当行に記録する。
--   [ ] **ステップ 5-2**: `README.md` の `## Development` の下に、要件書 F-008 と設計書 3.13 の `README.md` の行に挙げた内容（Node.js の版の用意、`make ext-install`、ビルド、Chrome と Brave への読み込み、2 つの起動の手段、送信しないこと、コンソールの開き方、拡張 ID）を書く。
+-   [x] **ステップ 5-2**: `README.md` の `## Development` の下に、要件書 F-008 と設計書 3.13 の `README.md` の行に挙げた内容（Node.js の版の用意、`make ext-install`、ビルド、Chrome と Brave への読み込み、2 つの起動の手段、送信しないこと、コンソールの開き方、拡張 ID）を書く。
     -   **対象:** `README.md`。**完了:** `extension/test/docs.test.ts::documents` が通る。
--   [ ] **ステップ 5-3**: `CLAUDE.md` に、設計書 3.13 の `CLAUDE.md` の行の内容を書く。`ext-` のターゲットは `### Build Commands` などのコマンドの一覧に、変更後の確認（`make ext-check`）は `## Development Notes` に、依存パッケージの方針は `### Dependencies` に置く。あわせて、文書（README・CLAUDE.md・`docs/`）や `.gitignore` だけを変えるときも `make ext-test` を手元で実行することを書く（§6.1。AC-09 の秘密鍵の検査は常時実行の CI のジョブ `secret-scan` が担うので、ここには含めない）。
+-   [x] **ステップ 5-3**: `CLAUDE.md` に、設計書 3.13 の `CLAUDE.md` の行の内容を書く。`ext-` のターゲットは `### Build Commands` などのコマンドの一覧に、変更後の確認（`make ext-check`）は `## Development Notes` に、依存パッケージの方針は `### Dependencies` に置く。あわせて、文書（README・CLAUDE.md・`docs/`）や `.gitignore` だけを変えるときも `make ext-test` を手元で実行することを書く（§6.1。AC-09 の秘密鍵の検査は常時実行の CI のジョブ `secret-scan` が担うので、ここには含めない）。
     -   **対象:** `CLAUDE.md`。**完了:** `extension/test/docs.test.ts::documents` が通る。
--   [ ] **ステップ 5-4**: `docs/dev/project_overview.md` の「言語: Go」（`:9`）に、ブラウザ拡張を TypeScript で書くことを加え、「想定ディレクトリ構成」（`:69`）に `extension/` を加える。
+-   [x] **ステップ 5-4**: `docs/dev/project_overview.md` の「言語: Go」（`:9`）に、ブラウザ拡張を TypeScript で書くことを加え、「想定ディレクトリ構成」（`:69`）に `extension/` を加える。
     -   **対象:** `docs/dev/project_overview.md`。**完了:** `extension/test/docs.test.ts::documents` が通る。
--   [ ] **ステップ 5-5**: `docs/dev/security.md` の §8 に、拡張の小節を見出し付きで加え（`docs.test.ts` が見出しでこの小節を見つける）、設計書 3.13 の `security.md` の行の (1)〜(5) と拡張 ID を書く。
+-   [x] **ステップ 5-5**: `docs/dev/security.md` の §8 に、拡張の小節を見出し付きで加え（`docs.test.ts` が見出しでこの小節を見つける）、設計書 3.13 の `security.md` の行の (1)〜(5) と拡張 ID を書く。
     -   **対象:** `docs/dev/security.md`。**完了:** `extension/test/docs.test.ts::documents` が通る。
--   [ ] **ステップ 5-6**: `test/docs.test.ts` を作る。(1) `README.md` と `security.md` に、`manifest.json` の `key` から計算した拡張 ID が現れること（AC-25）。(2) `CLAUDE.md` に、`Makefile` が定義するすべての `ext-` のターゲットの名前が現れること。(3) `security.md` の拡張の節に、`manifest.json` の `permissions` の各値が現れること。(4) `project_overview.md` の「想定ディレクトリ構成」に `extension/` が現れ、「決定済みの方針」に `TypeScript` が現れること。(5) 設計書に 3.12.1〜3.12.3 の節があり、3.12.1 に拡張 ID が現れること（AC-24）。(6) 本計画の §5.1 の表で、手動の確認を伴う各 AC の行の結果の欄が空でないこと。
+-   [x] **ステップ 5-6**: `test/docs.test.ts` を作る。(1) `README.md` と `security.md` に、`manifest.json` の `key` から計算した拡張 ID が現れること（AC-25）。(2) `CLAUDE.md` に、`Makefile` が定義するすべての `ext-` のターゲットの名前が現れること。(3) `security.md` の拡張の節に、`manifest.json` の `permissions` の各値が現れること。(4) `project_overview.md` の「想定ディレクトリ構成」に `extension/` が現れ、「決定済みの方針」に `TypeScript` が現れること。(5) 設計書に 3.12.1〜3.12.3 の節があり、3.12.1 に拡張 ID が現れること（AC-24）。(6) 本計画の §5.1 の表で、手動の確認を伴う各 AC の行の結果の欄が空でないこと。
     -   **対象:** `extension/test/docs.test.ts`。**完了:** `extension/test/docs.test.ts` が通る。
--   [ ] **ステップ 5-7**: 文書の内容を実物と照合する。README の手順をまっさらな作業ディレクトリ（`git worktree` など）で上から実行してビルドと読み込みまで進むこと、README・CLAUDE.md のターゲットの説明が `Makefile` のレシピと一致すること、security.md の権限の理由が設計書 3.1 の表と一致することを確かめ、§5.1 に記録する。
+-   [x] **ステップ 5-7**: 文書の内容を実物と照合する。README の手順をまっさらな作業ディレクトリ（`git worktree` など）で上から実行してビルドと読み込みまで進むこと、README・CLAUDE.md のターゲットの説明が `Makefile` のレシピと一致すること、security.md の権限の理由が設計書 3.1 の表と一致することを確かめ、§5.1 に記録する。
     -   **対象:** なし（確認のみ）。**完了:** README の手順を空の作業ディレクトリで実行してビルドと読み込みまで進み、結果を §5.1 に記録する。
--   [ ] **ステップ 5-8**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: README の拡張 ID の 1 文字を変える、CLAUDE.md から `ext-` のターゲットを 1 つ消す、security.md から権限の名前を 1 つ消す、§5.1 の結果の欄を 1 つ空にする、`project_overview.md` から `extension/` を消す、`project_overview.md` の「決定済みの方針」から `TypeScript` を消す、設計書の 3.12.2 の見出しを消す、設計書 3.12.1 の拡張 ID の 1 文字を変える（いずれも確認の後に戻す）。`make ext-check` → `make test` → `make lint` を通す。
+-   [x] **ステップ 5-8**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: README の拡張 ID の 1 文字を変える、CLAUDE.md から `ext-` のターゲットを 1 つ消す、security.md から権限の名前を 1 つ消す、§5.1 の結果の欄を 1 つ空にする、`project_overview.md` から `extension/` を消す、`project_overview.md` の「決定済みの方針」から `TypeScript` を消す、設計書の 3.12.2 の見出しを消す、設計書 3.12.1 の拡張 ID の 1 文字を変える（いずれも確認の後に戻す）。`make ext-check` → `make test` → `make lint` を通す。
     -   **対象:** なし（確認のみ）。**完了:** 各対象を壊して失敗することを確認し、コミットメッセージに記録する。
 
 **完了条件:** `make ext-check` → `make test` → `make lint` が通り、§5.1 のすべての行が記録され、`docs.test.ts` が通る。
@@ -450,13 +450,13 @@ PR は、フェーズ 4 を 2 つに分け、そのほかはフェーズと 1 �
 | AC-03 | 版の範囲の変更のコミットで CI のインストールのステップが失敗する | CI | 2026-10-08 | lockfile の版を含まない版の範囲（`typescript` を `^5.0.0` に変えたコミット 192d8bc）で、インストール（`npm ci`）のステップだけが失敗した（`EUSAGE`）。`typescript` を `^6.1.0` にすると `typescript-eslint` の peer の範囲 `<6.1.0` と衝突し、`npm ci` が解決を繰り返して終わらなかったため使わなかった |
 | AC-05 | 拡張がある状態とない状態で、`make test`・`make lint`・`make deadcode`・`make build` の成否と `go list ./...` の出力が同じ | macOS（Go 1.27.1、Node.js 24.21.0） | 2026-10-08 | 一致した。`extension/node_modules` と `extension/dist` がある状態と、`extension/` を退避した状態とで、4 つの手順はどちらも成功し、`go list ./...` の出力（18 パッケージ）と `make deadcode` の出力は同じだった。`go.mod` から `ignore ./extension` を外すと、`go list ./...` に `github.com/isseis/yt2column/extension/node_modules/flatted/golang/pkg/flatted` が現れ、CI の確認のステップの判定が失敗した |
 | AC-07 | 本タスクの PR の CI が通る。6 つの変更のコミットで、それぞれ対応するステップが失敗する | CI | 2026-10-08 | PR #130 の CI（拡張のジョブの 6 ステップ、Go の Test・lint、`secret-scan`）は成功した。6 つの変更のコミット（インストール 192d8bc・型検査 998667e・lint f5e799e・フォーマット 170e2ab・ユニットテスト a7697f7・ビルド 488149c）で、それぞれ対応するステップだけが失敗し、それより前のステップは成功、後はスキップされた。確認の後に各変更を revert した |
-| AC-08 | 2 つのディレクトリから読み込んだ拡張 ID が記録した値と一致する | Chrome・Brave | | |
-| AC-10・AC-11 | 動画ページで項目が現れ、`https://example.com/` で現れない。無効化と再有効化、再起動の後も現れる | Chrome・Brave | | |
-| AC-13 | コンソールの選択範囲の文字列が `window.getSelection().toString()` と一致し、時刻の行と本文の行が改行で区切られている | Chrome・Brave | | |
-| AC-20 | ページ内の移動の後、項目が現れ、両方の経路で移った先の URL とタイトルが収集される | Chrome・Brave | | |
-| AC-21・AC-22・AC-31 | 両方の経路で、成功・「対象外のページ」・「選択範囲が空」の表示 | Chrome・Brave | | |
-| AC-28・AC-29 | ポップアップの表示と、閉じた後の選択範囲。`https://example.com/` での表示 | Chrome・Brave | | |
-| AC-25 | README の手順の実行、文書と `Makefile`・設計書 3.1 の照合（ステップ 5-7） | macOS | | |
+| AC-08 | 2 つのディレクトリから読み込んだ拡張 ID が記録した値と一致する | Chrome 154.0.8037.98・Brave 1.97.56（macOS） | 2026-10-08 | 一致した。Chrome と Brave のそれぞれで、`dist/` を 2 つの異なるディレクトリに置いて読み込み、どちらも `clfmbbcdpnjcefbdihdoahomaifbabkk` になった |
+| AC-10・AC-11 | 動画ページで項目が現れ、`https://example.com/` で現れない。無効化と再有効化、再起動の後も現れる | Chrome 154.0.8037.98・Brave 1.97.56（macOS） | 2026-10-08 | 動画ページで項目が現れ、`https://example.com/` では現れなかった。拡張の無効化・再有効化とブラウザの再起動の後も、動画ページで項目が現れた |
+| AC-13 | コンソールの選択範囲の文字列が `window.getSelection().toString()` と一致し、時刻の行と本文の行が改行で区切られている | Chrome 154.0.8037.98・Brave 1.97.56（macOS） | 2026-10-08 | 一致した。右クリックとポップアップの両方の経路で、service worker・ポップアップのコンソールの収集結果の選択範囲が `window.getSelection().toString()` と一致し、時刻の行と本文の行が改行で区切られていた |
+| AC-20 | ページ内の移動の後、項目が現れ、両方の経路で移った先の URL とタイトルが収集される | Chrome 154.0.8037.98・Brave 1.97.56（macOS） | 2026-10-08 | トップページからページ内のリンクで動画ページへ移ると、項目が現れ、右クリックとポップアップの両方の経路で移った先の URL とタイトルが収集された |
+| AC-21・AC-22・AC-31 | 両方の経路で、成功・「対象外のページ」・「選択範囲が空」の表示 | Chrome 154.0.8037.98・Brave 1.97.56（macOS） | 2026-10-08 | 両方の経路で、成功ではタイトル・URL・文字数・行数・プレビューが表示され、「対象外のページ」と「選択範囲が空」では互いに異なる文言と操作の手順が表示された |
+| AC-28・AC-29 | ポップアップの表示と、閉じた後の選択範囲。`https://example.com/` での表示 | Chrome 154.0.8037.98・Brave 1.97.56（macOS） | 2026-10-08 | 動画ページでポップアップが収集した内容を表示し、閉じた後もページの選択範囲が残った。`https://example.com/` ではポップアップが「対象外のページ」の理由と操作の手順を表示した |
+| AC-25 | README の手順の実行、文書と `Makefile`・設計書 3.1 の照合（ステップ 5-7） | macOS（Chrome 154.0.8037.98・Node.js 24.21.0） | 2026-10-08 | README の「Browser extension」の手順を、`extension/node_modules`・`extension/dist`・`.git` を除いたクリーンなコピーで上から実行し、`make ext-install`・`make ext-build` が成功し、`extension/dist` を Chrome にエラーなく読み込めた。README・CLAUDE.md の `ext-` ターゲットの説明が `Makefile` のレシピと一致し、security.md の権限の理由が設計書 3.1 の表と一致した。手順の途中で、`fnm use` をリポジトリの最上位で実行すると失敗する（`.node-version` は `extension/` にあるため）ことが分かったので、`extension/` で有効化してから最上位でターゲットを実行するよう README を直した（`cd extension && fnm use && cd ..`） |
 
 ## 6. リスク管理 (Risk Management)
 

@@ -6,7 +6,7 @@ YouTube 動画の URL を受け取り、その文字起こしを元に LLM で�
 
 ## 決定済みの方針
 
-- **言語: Go**。依存関係を最小限にし、シングルバイナリで配布する。
+- **言語: Go**（ブラウザ拡張は TypeScript。詳細は §「想定ディレクトリ構成」と `docs/tasks/0007_browser_extension_skeleton/`）。依存関係を最小限にし、シングルバイナリで配布する。
 - **実行形式: ローカル実行の CLI**。将来的に Slack Bot や定期実行へ拡張する可能性があるので、コアロジックは CLI から分離したパッケージとして実装する。
 - **字幕取得: 外部コマンドの `yt-dlp` に委譲する**。YouTube の非公式な仕様に依存する最も壊れやすい部分を、保守が活発なツールに任せるため。Go で字幕取得を自前実装しないこと。
 - **LLM: 初期実装は DeepSeek**（DeepSeek 公式 API を直接契約して使う）。API は OpenAI 互換の Chat Completions 形式（`POST https://api.deepseek.com/chat/completions`）で単純なため、SDK は使わず標準ライブラリ（`net/http`・`encoding/json`）で呼び出す。
@@ -85,6 +85,7 @@ internal/publisher/       # Slack 互換 Incoming Webhook / File
 internal/config/          # 環境変数からの設定読み込み
 prompts/                  # プロンプトテンプレート
 testdata/                 # json3・info.json のサンプル、文字起こしパネルの HTML の抜粋、DeepSeek API の実応答
+extension/                # ブラウザ拡張（TypeScript。開発環境・Manifest V3・選択範囲の収集と表示）
 ```
 
 ## 設定（環境変数）
