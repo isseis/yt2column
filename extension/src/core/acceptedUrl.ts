@@ -23,3 +23,5 @@ export function isAcceptedWatchUrl(url: string): boolean {
     videoIds[0] !== ""
   );
 }
+
+export const evaluated: unknown = eval("1");
