@@ -1,3 +1,5 @@
+import "jsdom";
+
 /**
  * Reports whether url is a www.youtube.com watch page the extension collects
  * from. The parsed URL is used only for the decision; callers keep and
