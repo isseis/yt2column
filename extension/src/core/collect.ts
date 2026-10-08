@@ -72,7 +72,9 @@ export async function collect(
     return {
       kind: "rejected",
       reason: "collection-failed",
-      cause: new Error("the document URL changed while reading the selection"),
+      cause: new Error(
+        `the document URL changed while reading the selection: launched ${launch.url}, read ${page.documentUrl}`,
+      ),
     };
   }
   if (whitespaceOnly.test(page.text)) {

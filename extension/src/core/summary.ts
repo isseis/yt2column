@@ -1,4 +1,5 @@
 import type { CollectOutcome } from "./collect.ts";
+import { rejectionReasons } from "./types.ts";
 import type { OutcomeSummary, RejectionReason } from "./types.ts";
 
 const titleLimit = 1000;
@@ -78,10 +79,8 @@ function hasExactKeys(
 
 function isRejectionReason(value: unknown): value is RejectionReason {
   return (
-    value === "not-watch-page" ||
-    value === "collection-failed" ||
-    value === "empty-selection" ||
-    value === "empty-title"
+    typeof value === "string" &&
+    Object.prototype.hasOwnProperty.call(rejectionReasons, value)
   );
 }
 

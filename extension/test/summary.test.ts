@@ -3,7 +3,8 @@ import { describe, it } from "node:test";
 
 import type { CollectedInput, CollectOutcome } from "../src/core/collect.ts";
 import { parseSummary, summarize } from "../src/core/summary.ts";
-import type { OutcomeSummary } from "../src/core/types.ts";
+import { rejectionReasons } from "../src/core/types.ts";
+import type { OutcomeSummary, RejectionReason } from "../src/core/types.ts";
 
 const watchUrl = "https://www.youtube.com/watch?v=abc";
 
@@ -77,6 +78,16 @@ describe("summarize", () => {
     assert.equal(summary.urlTruncated, true);
   });
 
+  it("does not split a surrogate pair when truncating the title or URL", () => {
+    const long = "\u{1F600}".repeat(1001);
+    const summary = summarize(collected("body", long, long));
+    assert.ok(summary.kind === "collected");
+    assert.equal(summary.title, "\u{1F600}".repeat(1000));
+    assert.equal(summary.titleTruncated, true);
+    assert.equal(summary.url, "\u{1F600}".repeat(1000));
+    assert.equal(summary.urlTruncated, true);
+  });
+
   it("passes a rejection reason through unchanged", () => {
     const outcome: CollectOutcome = {
       kind: "rejected",
@@ -95,14 +106,16 @@ describe("parseSummary", () => {
     assert.deepEqual(parseSummary(summary), summary);
   });
 
-  it("accepts summarize output for a rejection", () => {
-    const summary = summarize(collected("x"));
-    const rejected = summarize({
-      kind: "rejected",
-      reason: "empty-title",
-    });
-    assert.deepEqual(parseSummary(summary), summary);
-    assert.deepEqual(parseSummary(rejected), rejected);
+  it("accepts summarize output for every rejection reason", () => {
+    const reasons = Object.keys(rejectionReasons) as RejectionReason[];
+    for (const reason of reasons) {
+      const outcome: CollectOutcome =
+        reason === "collection-failed"
+          ? { kind: "rejected", reason, cause: new Error("test") }
+          : { kind: "rejected", reason };
+      const summary = summarize(outcome);
+      assert.deepEqual(parseSummary(summary), summary);
+    }
   });
 
   it("rejects a non-object value", () => {
@@ -128,11 +141,22 @@ describe("parseSummary", () => {
     assert.equal(parseSummary({ ...summary, extra: 1 }), undefined);
   });
 
-  it("rejects a field of the wrong type", () => {
-    const summary = summarize(collected("x"));
-    assert.ok(summary.kind === "collected");
-    assert.equal(parseSummary({ ...summary, characterCount: "5" }), undefined);
-  });
+  const wrongTypes: { field: string; value: unknown }[] = [
+    { field: "title", value: 1 },
+    { field: "titleTruncated", value: "no" },
+    { field: "url", value: 1 },
+    { field: "urlTruncated", value: "no" },
+    { field: "characterCount", value: "5" },
+    { field: "lineCount", value: "5" },
+    { field: "preview", value: 1 },
+    { field: "previewTruncated", value: "no" },
+  ];
+  for (const { field, value } of wrongTypes) {
+    it(`rejects a collected summary whose ${field} has the wrong type`, () => {
+      const summary = summarize(collected("x"));
+      assert.equal(parseSummary({ ...summary, [field]: value }), undefined);
+    });
+  }
 
   it("rejects an unknown reason", () => {
     assert.equal(

@@ -141,4 +141,24 @@ describe("CollectedInput assertions", () => {
       code,
     );
   });
+
+  it("forbids the assertion in a script", async () => {
+    assert.ok(
+      (await ruleIds(code, "scripts/sample.ts")).includes(
+        "no-restricted-syntax",
+      ),
+      code,
+    );
+  });
+
+  it("forbids the angle-bracket assertion in another source file", async () => {
+    const angleCode =
+      "declare const value: unknown;\nexport const input = <CollectedInput>value;\n";
+    assert.ok(
+      (await ruleIds(angleCode, "src/sample.ts")).includes(
+        "no-restricted-syntax",
+      ),
+      angleCode,
+    );
+  });
 });

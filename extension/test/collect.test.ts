@@ -94,6 +94,9 @@ describe("collect", () => {
     );
     const outcome = await collect(context, reader);
     assertRejected(outcome, "collection-failed");
+    assert.ok("cause" in outcome && outcome.cause instanceof Error);
+    assert.ok(outcome.cause.message.includes(watchUrl));
+    assert.ok(outcome.cause.message.includes("v=other"));
   });
 
   const blankSelections = ["", " ", "\n", "\t", "\u3000", " \n\u3000 \r"];
@@ -131,6 +134,14 @@ describe("collect", () => {
     assertRejected(outcome, "empty-title");
   });
 
+  it("rejects a U+3000-only title as empty-title", async () => {
+    const outcome = await collect(
+      { tabId: 7, url: watchUrl, title: "\u3000" },
+      readerReturning(page("text")),
+    );
+    assertRejected(outcome, "empty-title");
+  });
+
   it("rejects an undefined title as empty-title", async () => {
     const outcome = await collect(
       { tabId: 7, url: watchUrl, title: undefined },
@@ -148,11 +159,13 @@ describe("collect", () => {
   });
 
   it("checks the URL before reading the selection", async () => {
+    const { reader, calls } = readingReader(page(""));
     const outcome = await collect(
       { tabId: 7, url: "https://example.com/", title: "" },
-      readerReturning(page("")),
+      reader,
     );
     assertRejected(outcome, "not-watch-page");
+    assert.deepEqual(calls, []);
   });
 
   it("reports a read failure before inspecting the selection", async () => {

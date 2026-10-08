@@ -2,14 +2,10 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { rejectionMessage } from "../src/core/messages.ts";
+import { rejectionReasons } from "../src/core/types.ts";
 import type { RejectionReason } from "../src/core/types.ts";
 
-const reasons: readonly RejectionReason[] = [
-  "not-watch-page",
-  "collection-failed",
-  "empty-selection",
-  "empty-title",
-];
+const reasons = Object.keys(rejectionReasons) as RejectionReason[];
 
 describe("rejectionMessage", () => {
   it("gives every reason a distinct non-empty text", () => {
