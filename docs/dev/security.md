@@ -16,7 +16,7 @@ yt2column はローカルで実行する CLI であり、利用者本人が入�
 ## 2. 秘密情報（API キー・Webhook URL）
 
 - `DEEPSEEK_API_KEY` などの API キーと `SLACK_WEBHOOK_URL` は環境変数からのみ読み込む。リポジトリ内のファイルに書かない（`.envrc` / `.env` は `.gitignore` 済み）。
-- Webhook URL は URL 自体が秘密情報である。ログ・エラーメッセージ・`--dry-run` の出力に含めない。`*url.Error` など、URL を含む値をラップしたエラーをそのまま出力しない。
+- Webhook URL は URL 自体が秘密情報である。ログ・エラーメッセージに含めない。`*url.Error` など、URL を含む値をラップしたエラーをそのまま出力しない。
 - テストでは、本番の API キー（`DEEPSEEK_API_KEY` に設定するもの）と本番の Webhook URL を使わない。ただし、実 API を呼ぶ統合テストに限り、本番とは別に用意した**テスト用の API キー**を使う例外を設ける（`docs/tasks/0003_deepseek_llm_client/02_architecture.md` §5.2）。テスト用の API キーは、DeepSeek API に実際に通る有効なキーであり、使えば料金が発生する。
   - ユニットテストは、本番のキーもテスト用の API キーも使わない。偽の値だけを使い、Webhook URL も偽の値だけを使う。どのテストも API キーをコードやテストデータに書かない。
   - テスト用の API キーは、テスト専用の環境変数 `YT2COLUMN_TEST_DEEPSEEK_API_KEY` からだけ読む。統合テストは、本番の `DEEPSEEK_API_KEY` を、設定されていても読まない。テスト用の API キーには、本番と別のキー（利用上限を設けたものなど）を割り当てる。
@@ -30,14 +30,23 @@ yt2column はローカルで実行する CLI であり、利用者本人が入�
   - 実行するかどうかの判定とテスト用の API キーの読み込みは、両方のテストが `internal/llm/deepseek/testutil` の `SettingsFrom` で行う。
   - CLI は API キーを `DEEPSEEK_API_KEY` という名前で受け取るので、CLI の統合テストは、読み込んだテスト用の API キーを、テストが組み立てて CLI に与える環境の中で `DEEPSEEK_API_KEY` という名前で渡す。プロセスの環境変数は変えない。名前は本番と同じだが、値はテスト用の API キーである。
   - テストの出力（ログ・失敗メッセージ・スキップの理由）に API キーもその一部も書かない。
-- `GODEBUG` に `http2debug=1` または `http2debug=2` を含めると、Go の HTTP/2 の Transport は送信するリクエストヘッダーを値ごと標準エラー出力に記録する。`Authorization` ヘッダーの API キーもそのまま出力される。この設定で通信を調査するときは、無効な API キー（本番のキーでもテスト用の API キーでもないもの）を使う。`GODEBUG` はプロセスの開始時に一度だけ読まれ、実行中に取り除いても効かないため、どちらの統合テストも API を呼ぶ前にこれらの設定を検出して失敗する。
-- 本番の CLI は `GODEBUG` の `http2debug` を拒否せずに読み込み、利用者が明示的に指定したものとしてデバッグを優先する。その代わり、LLM API を呼ぶ前に、`http2debug` により API キーが標準エラー出力に書かれうることを警告する（F-001・F-008）。
+- 本番の `SLACK_WEBHOOK_URL` は、本番の API キーと同様、テストでは使わない。統合テストは、テスト専用の環境変数 `YT2COLUMN_TEST_SLACK_WEBHOOK_URL` からだけ Webhook URL を読む。本番の `SLACK_WEBHOOK_URL` は、設定されていても読まない。テスト用の Webhook は、本番とは別の Mattermost のテスト用チャンネルに投稿するものを用意する。テスト用の Webhook URL を使うのは `//go:build integration` の次の 2 つのテストであり、対応するオプトインの変数の値がちょうど `1` でなければスキップする。値 `1` は、対応する make のターゲットからでも、IDE や `go test -tags integration` を起動した環境からでも、どこから渡されてもテストを実行する。各ターゲットは自分のオプトインだけをエクスポートし、他方のオプトインはエクスポートしない。テスト用の Webhook URL がない場合と、HTTP/2 のデバッグ（下記の `GODEBUG`）が有効な場合は、スキップせずに失敗し、Webhook に送らない。
+
+    | 統合テスト | make のターゲット | オプトインの変数 | テスト用の Webhook URL がない場合 |
+    |---|---|---|---|
+    | `internal/publisher/slack_integration_test.go`（`SlackWebhookPublisher` が固定の記事を投稿） | `make test-integration-slack` | `YT2COLUMN_SLACK_INTEGRATION=1` | 失敗する（本番の `SLACK_WEBHOOK_URL` だけがある場合も、それを代わりに使わない） |
+    | `cmd/yt2column/integration_slack_test.go`（CLI の組み立てで生成した記事を投稿） | `make test-integration-cli-slack` | `YT2COLUMN_CLI_SLACK_INTEGRATION=1` | 失敗する（テスト用の API キーも要る） |
+
+- `GODEBUG` に `http2debug=1` または `http2debug=2` を含めると、Go の HTTP/2 の Transport は送信するリクエストヘッダーを値ごと標準エラー出力に記録する。`Authorization` ヘッダーの API キーもそのまま出力される。`--slack` の Webhook への送信では、リクエストのパス、すなわち Webhook URL のパスも書かれうる。この設定で通信を調査するときは、無効な API キー（本番のキーでもテスト用のキーでもないもの）を使う。`GODEBUG` はプロセスの開始時に一度だけ読まれ、実行中に取り除いても効かないため、統合テストは、API を呼ぶものも Webhook に投稿するものも、送信の前にこれらの設定を検出して失敗する。
+- 本番の CLI は `GODEBUG` の `http2debug` を拒否せずに読み込み、利用者が明示的に指定したものとしてデバッグを優先する。その代わり、LLM API を呼ぶ前に、`http2debug` により API キーが標準エラー出力に書かれうることを警告する（`--slack` の場合は Webhook URL のパスも書かれうることも警告する）（F-001・F-007・F-008）。
 
 ## 3. ネットワーク通信
 
-- HTTP クライアントにはタイムアウトを設定する（`http.DefaultClient` をそのまま使わない）。
-- **レスポンスサイズの上限**: 外部サーバーのレスポンスを読むときは `io.LimitReader` などで上限を設ける。上限なしの `io.ReadAll` / `json.Decoder.Decode` は指摘対象とする。
-- リトライする場合は回数または経過時間の上限を設ける。
+- HTTP クライアントにはタイムアウトを設定する（`http.DefaultClient` をそのまま使わない）。Webhook への送信では、メッセージごとに 30 秒のタイムアウトを `context.WithTimeoutCause` で与え、`http.Client.Timeout` は使わない。
+- **レスポンスサイズの上限**: 外部サーバーのレスポンスを読むときは `io.LimitReader` などで上限を設ける。上限なしの `io.ReadAll` / `json.Decoder.Decode` は指摘対象とする。Webhook の応答の本文は 8,193 バイトまで読む（8,192 バイトを超える本文を検出するため、上限より 1 バイト多く読む）。
+- リトライする場合は回数または経過時間の上限を設ける。Webhook への送信は自動でリトライしない（分割投稿の途中で失敗しても、続きからの再開もしない）。
+- **リダイレクトに従わない**: Webhook への送信では `http.Client.CheckRedirect` が `http.ErrUseLastResponse` を返し、3xx の応答に従わない。リダイレクト先が Webhook URL を別のホストへ送ることを防ぐ。
+- **応答から取り出すものを限定する**: `200` 以外の応答からは、エラーの識別子（`id`・`request_id`）だけを取り出し、`message` などの自由文は読まない・表示しない。`200` の応答は、本文がちょうど `ok` のときだけ成功とする。
 - Webhook 送信の失敗は、分割投稿の途中で失敗した場合も含め、どこまで投稿済みかが分かるエラーにする。
 
 ## 4. LLM プロバイダへ送るデータ
@@ -57,6 +66,7 @@ yt2column はローカルで実行する CLI であり、利用者本人が入�
 - 生成記事を Slack に投稿する前に、出典リンクがコード側で付与されていること（LLM の出力に依存しないこと）を確認する。
 - LLM の空応答・途中打ち切り（`finish_reason` が `stop` 以外）はエラーとして扱い、不完全な記事を投稿しない。
 - 推論モデルの推論過程（DeepSeek の `reasoning_content`）は記事に含めない。
+- **Webhook への投稿で、記事によるメンションの通知を抑止する。** 2 つの層を併用する（F-006）。全メッセージに `silent`（真）を付けて通知・未読の表示を抑止し、`silent` に対応しない版のサーバにも備えて、メンションとして解釈されうる記法（`@` の後に名前の文字が続く語、`<!`・`<@`、文字参照、`<a|b>` の形）を含む記事は、1 つのメッセージも送らずに拒否する。`silent` に対応しない版では、拒否の層だけが通知を防ぐ。
 
 ## 7. リポジトリに保存する実データ
 

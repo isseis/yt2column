@@ -73,6 +73,39 @@ If the cache is corrupt (for example a truncated transcript or `info.json`), the
 run fails with a message saying so. Run again with `--refresh` to fetch the
 transcript again and replace the cache.
 
+## Webhook publishing
+
+With `--slack`, the article is posted to the Slack-compatible Incoming Webhook
+in `SLACK_WEBHOOK_URL` instead of a file. Mattermost is the verified target; a
+Slack Incoming Webhook is accepted but is best effort. The URL must parse as an
+`https` URL with a host. A value that does not — for example
+`https://hooks.slack.com/services/%zz`, `https://hooks.slack.com/%`, or a value
+ending in a control character — is rejected as a configuration error with exit
+code `2`, and because the variable is validated whenever it is set, this also
+stops an `--out` run.
+
+The article is posted as Markdown. A post longer than 16,383 code points — the
+limit Mattermost counts — is split into several messages, each at most 16,383
+code points and beginning with a `(k/N)` marker. An article that cannot be
+split — because a fragment would be only whitespace, or because it would need
+more than ten messages — is rejected before anything is sent. Each message is
+sent with
+`silent` set, so Mattermost shows it without a notification, an unread marker,
+or a `New Messages` line; on a Mattermost version that predates `silent`,
+notifications can still appear.
+
+Before anything is sent, the article is rejected if it contains syntax a server
+would turn into a mention or rewrite: an `@` followed by a name character
+(which also rejects YouTube handles, email addresses, and words such as
+`@Override`), a `<!` or `<@` sequence, an HTML character reference such as
+`&#64;`, or a `<a|b>` link. Such an article is not posted at all; run with
+`--out` to inspect what the model generated.
+
+If a post fails partway through a split article, the messages already sent stay
+in the channel. There is no retry or resume: running again generates a new
+article and posts it from the first message, so the channel can end up with part
+of the old article and all of the new one.
+
 ## Setting up yt-dlp
 
 yt2column fetches subtitles by running `yt-dlp`, which needs to reach YouTube
@@ -109,7 +142,7 @@ On other platforms, see the yt-dlp
 | `YT2COLUMN_LLM_PROVIDER` | LLM provider; only `deepseek` is accepted | `deepseek` |
 | `YT2COLUMN_MODEL` | LLM model name (e.g. `deepseek-flash`) | Required (an error) |
 | `DEEPSEEK_API_KEY` | DeepSeek API key | Required when the provider is `deepseek` (an error) |
-| `SLACK_WEBHOOK_URL` | Slack Incoming Webhook URL | Required with `--slack`; optional with `--out` (no value) |
+| `SLACK_WEBHOOK_URL` | Slack-compatible Incoming Webhook URL (Mattermost is the verified target) | Required with `--slack`; optional with `--out` (no value) |
 | `YT2COLUMN_CACHE_DIR` | Cache directory for subtitles and video metadata | `$HOME/Library/Caches/yt2column` on macOS; `$XDG_CACHE_HOME/yt2column` or `$HOME/.cache/yt2column` on other Unix |
 | `YT2COLUMN_YTDLP_PATH` | Path to `yt-dlp` | `yt-dlp` on `PATH` |
 
@@ -126,6 +159,8 @@ make fmt     # gofumpt on changed files
 make test-integration  # real yt-dlp + network; see below
 make test-integration-deepseek  # real DeepSeek API; see below
 make test-integration-cli  # the CLI with the real DeepSeek API; see below
+make test-integration-slack  # posts fixed articles to a real Mattermost test Webhook; see below
+make test-integration-cli-slack  # the CLI with the real DeepSeek API and a real Webhook; see below
 ```
 
 Development follows a requirements → architecture → implementation-plan process
@@ -170,3 +205,28 @@ and never starting `yt-dlp`. Like the DeepSeek integration test it reads
 when undefined, and exports its opt-in variable `YT2COLUMN_CLI_INTEGRATION=1`
 for its target alone; unlike it, a missing test API key fails the test rather
 than skipping it, so an opted-in run cannot pass without calling the API.
+
+### Webhook integration test
+
+`make test-integration-slack` posts two fixed articles (no LLM call) to the real
+Incoming Webhook of a Mattermost test channel, so it needs
+`YT2COLUMN_TEST_SLACK_WEBHOOK_URL` set to that channel's Webhook URL. This is
+separate from the production `SLACK_WEBHOOK_URL`, which the test never reads.
+The target exports the opt-in variable `YT2COLUMN_SLACK_INTEGRATION=1` for the
+integration test alone; without it the test skips with a message naming the
+variable, so a plain `go test -tags integration` or an IDE run does not post. A
+missing or invalid test Webhook URL, or a `GODEBUG` that enables `http2debug`,
+fails the test rather than skipping it and posts nothing. Message text never
+includes the URL, and failure messages redact the URL, its path, query, and
+userinfo, and the last eight characters of the URL; a transport failure can
+still name the destination host and port, which are not treated as secret.
+
+### CLI webhook integration test
+
+`make test-integration-cli-slack` runs the CLI's own assembly with `--slack`,
+generating the article with the real DeepSeek API (so it incurs charges) and
+posting it to the real test Webhook; it never starts `yt-dlp`. It needs both
+`YT2COLUMN_TEST_DEEPSEEK_API_KEY` and `YT2COLUMN_TEST_SLACK_WEBHOOK_URL` and
+fails when either is missing. Like the other CLI targets it defaults
+`YT2COLUMN_MODEL` to `deepseek-flash` when undefined, and it exports
+`YT2COLUMN_CLI_SLACK_INTEGRATION=1` for its target alone.
