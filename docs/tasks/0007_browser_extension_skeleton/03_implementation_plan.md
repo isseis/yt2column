@@ -284,7 +284,7 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
     -   **対象:** `extension/static/popup.html`・`extension/static/result.html`・`extension/static/style.css`・`extension/src/background.ts`・`popup.ts`・`result.ts`。**完了:** `make ext-build` が通る。
 -   [x] **ステップ 4-7**: `check-dist` に manifest と HTML の参照の検査を加え（設計書 3.9）、`checkDist.test.ts` に、`background.service_worker`・`action.default_popup`・`<script src>`・`<link href>` のそれぞれが `dist/` にないファイルを指す場合を拒否する行を加える。
     -   **対象:** `extension/scripts/check-dist.ts`・`extension/test/checkDist.test.ts`。**完了:** `extension/test/checkDist.test.ts` が通る。
--   [x] **ステップ 4-8**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `check-dist` の参照の検査を外す。`make ext-check` → `make test` → `make lint` を通し、`dist/` を Chrome に読み込んでエラーがないことを確かめる。
+-   [-] **ステップ 4-8**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `check-dist` の参照の検査を外す。`make ext-check` → `make test` → `make lint` を通し、`dist/` を Chrome に読み込んでエラーがないことを確かめる。（Chrome へのパッケージ化されていない拡張機能の読み込み確認は未実施であり、ステップ 5-1 で手動確認する。）
     -   **対象:** なし（確認のみ）。**完了:** 対象を壊して失敗することを確認し、コミットメッセージに記録し、`make ext-check` を通す。
 
 **完了条件:** `make ext-check` → `make test` → `make lint` が通る。`make ext-build` の成果物を Chrome の「パッケージ化されていない拡張機能を読み込む」で読み込み、エラーなく読み込まれることを確かめる（ステップ 4-8 で行う）。

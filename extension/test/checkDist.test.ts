@@ -217,6 +217,40 @@ describe("checkDist", () => {
     ]);
   });
 
+  it("rejects a missing script after a > inside a quoted attribute", () => {
+    write(
+      root,
+      "dist/page.html",
+      '<script data-note=">" src="missing.js"></script>',
+    );
+    assert.deepEqual(checkDist(root), [
+      'dist/page.html: "missing.js" is not in dist/',
+    ]);
+  });
+
+  it("accepts a root-absolute script reference from a subdirectory page", () => {
+    write(root, "static/sub/page.html");
+    write(
+      root,
+      "dist/sub/page.html",
+      '<script type="module" src="/script.js"></script>',
+    );
+    write(root, "static/script.js");
+    write(root, "dist/script.js");
+    assert.deepEqual(checkDist(root), []);
+  });
+
+  it("accepts a query-suffixed stylesheet reference", () => {
+    write(root, "static/style.css");
+    write(root, "dist/style.css");
+    write(
+      root,
+      "dist/page.html",
+      '<link rel="stylesheet" href="style.css?v=1">',
+    );
+    assert.deepEqual(checkDist(root), []);
+  });
+
   const imports: { name: string; code: string; violation: string }[] = [
     {
       name: "a bare import",

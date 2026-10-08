@@ -110,7 +110,7 @@ function htmlReferences(html: string): string[] {
     ["link", "href"],
   ];
   for (const [name, attribute] of tags) {
-    const tag = new RegExp(`<${name}\\b[^>]*>`, "gi");
+    const tag = new RegExp(`<${name}\\b(?:[^>"']|"[^"]*"|'[^']*')*>`, "gi");
     for (const match of html.matchAll(tag)) {
       const value = attributeValue(match[0], attribute);
       if (value !== undefined) {
@@ -153,10 +153,13 @@ function referenceViolations(root: string, actual: Set<string>): string[] {
     }
     const html = readFileSync(path.join(root, "dist", file), "utf8");
     for (const reference of htmlReferences(html)) {
-      // A browser resolves src/href relative to the document, not to dist/.
-      const target = path.posix.normalize(
-        path.posix.join(path.posix.dirname(file), reference),
-      );
+      // A browser resolves src/href against the document URL.
+      const baseOrigin = "https://extension.invalid";
+      const resolved = new URL(reference, `${baseOrigin}/${file}`);
+      if (resolved.origin !== baseOrigin) {
+        continue;
+      }
+      const target = resolved.pathname.slice(1);
       if (!actual.has(target)) {
         violations.push(`dist/${file}: "${reference}" is not in dist/`);
       }
