@@ -175,7 +175,8 @@ func syncDir(dir string) {
 	_ = d.Close()
 }
 
-// renderArticle returns the file content; it ends with the article body.
+// renderArticle returns the text FilePublisher and SlackWebhookPublisher both
+// output for a; it ends with the article body.
 func renderArticle(a writer.Article) string {
 	version := a.ModelVersion
 	if version == "" {

@@ -232,14 +232,14 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 -   変更: `internal/publisher/file.go`（コメントだけ）
 
 **タスク**
--   [ ] **ステップ 3-1**: `slack_errors.go` に、番兵（`ErrSlackHTTPStatus`・`ErrSlackInvalidResponse`・`ErrSlackTransport`・`ErrSlackUnsplittable`・`ErrSlackMention`）、`SlackHTTPStatusError`、`SlackPostError` と、それぞれの `Error()`・`Unwrap()` を作る（設計書 4.1・4.2）。`SlackPostError.Error()` の 2 つの形と、識別子がない場合の固定の文言は、設計書 4.2 に従う。
--   [ ] **ステップ 3-2**: `slack_message.go` に、準備の段階を作る（設計書 3.4・3.5）。
+-   [x] **ステップ 3-1**: `slack_errors.go` に、番兵（`ErrSlackHTTPStatus`・`ErrSlackInvalidResponse`・`ErrSlackTransport`・`ErrSlackUnsplittable`・`ErrSlackMention`）、`SlackHTTPStatusError`、`SlackPostError` と、それぞれの `Error()`・`Unwrap()` を作る（設計書 4.1・4.2）。`SlackPostError.Error()` の 2 つの形と、識別子がない場合の固定の文言は、設計書 4.2 に従う。
+-   [x] **ステップ 3-2**: `slack_message.go` に、準備の段階を作る（設計書 3.4・3.5）。
     -   上限値（1 つのメッセージの 16,383 コードポイント、分割の数の上限 10）をパッケージの非公開の定数にする。
-    -   非公開の準備の関数: `CheckPublishable` → 4 つのフィールドの UTF-8 の確認（`writer.ErrInvalidArticle` を包む）→ `renderArticle` → 分割 → 全体と各メッセージへの M1〜M4 の判定、の順に行い、送るメッセージのテキストの列を返す。
+    -   非公開の準備の関数: `CheckPublishable` → 4 つのフィールドの UTF-8 の確認（`writer.ErrInvalidArticle` を包む）→ `renderArticle` → 分割 → 投稿する文字列の全体への M1〜M4 の判定、の順に行い、送るメッセージのテキストの列を返す。
     -   V1〜V3 の変換は V2 → V3 → V1 の順に行い、判定のためだけに使う。拒否のエラーは、当たった規則と、投稿する文字列での行と列の番号だけを含める。
     -   `SlackMessageCount` は準備の関数を呼び、メッセージの数を返す。
--   [ ] **ステップ 3-3**: `file.go` の `renderArticle` の doc コメントを `// renderArticle returns the file content; it ends with the article body.` から `// renderArticle returns the text FilePublisher and SlackWebhookPublisher both output for a; it ends with the article body.` に改める。関数の内容は変えない。
--   [ ] **ステップ 3-4**: `slack_message_test.go` に次を作る（`package publisher`）。準備の関数を直接呼ぶ。
+-   [x] **ステップ 3-3**: `file.go` の `renderArticle` の doc コメントを `// renderArticle returns the file content; it ends with the article body.` から `// renderArticle returns the text FilePublisher and SlackWebhookPublisher both output for a; it ends with the article body.` に改める。関数の内容は変えない。
+-   [x] **ステップ 3-4**: `slack_message_test.go` に次を作る（`package publisher`）。準備の関数を直接呼ぶ。
     -   `TestSlackSplit`: ちょうど 16,383 コードポイントで 1 つ、16,384 で 2 つ（日本語・U+10000 以上の文字を含む組み合わせ）。空白文字だけの断片を避ける改行の選択、改行のない行のコードポイントの境界での分割、各メッセージが 16,383 コードポイント以内で正しい UTF-8 であること、分割の位置の表示を除いて連結すると投稿する文字列と一致すること、分割しない場合に表示がないこと。
     -   `TestSlackSplitRejects`: 分割の数が 10 を超える記事と、上限を超える空白文字の連なりを含む記事が `ErrSlackUnsplittable` を包むこと。
     -   `TestSlackMentionRejected`: 次の記事のエラーが `ErrSlackMention` を包み、`writer.ErrInvalidArticle` を包まないこと。
@@ -247,14 +247,15 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
         -   設計書 7.1 の「記法」の項に挙げた形: コードスパンの中、`Model` の中、Mattermost の語の分け方で通知になる形、V1〜V3 と M3・M4 の各例、V2 → V3 → V1 の順でなければ見逃す並び、`<a|b|c>`。
         -   コードポイントの境界での分割で、`@` が断片の先頭に来る記事。
     -   `TestSlackMentionAccepted`: 拒否しない並び（自動リンク、`writer` が付ける出典のリンクの形、`~town-square`）を含む記事が拒否されないこと。
+    -   `TestSlackMentionMessagesFollowPosted`: 記法に近い並び（`\!channel>`・`here`・`#64;here`・`lt;x`・`x|y>`・U+200B の後の `!channel>`）が断片の先頭に来る記事を分割し、境界がその位置にあることを確かめたうえで、全体の判定を通った記事のどのメッセージにも M1〜M4 が見つからないこと（設計書 3.4 の、各メッセージを判定しない前提）。
     -   `TestSlackPrepareRejectsInvalidArticle`: AC-05 の例（`Title` が空、`Body` が空白文字だけ、`Body` が ESC を含む、`SourceURL` が空）と、`Title`・`Body`・`Model`・`ModelVersion` のそれぞれに不正な UTF-8 を含む記事が `writer.ErrInvalidArticle` を包むこと。不正な UTF-8 の行では、まず `CheckPublishable` がその記事を受理することを確かめ、UTF-8 の確認だけが拒否していることを示す（[CLAUDE.md](../../../CLAUDE.md)「A layered path needs inputs only one layer can handle」）。
     -   日本語などの ASCII 以外の文字を Go のテストのソースに書くときは、`\u`・`\U` のエスケープで書く（既存の `cmd/yt2column/output_test.go`・`internal/strictjson/strictjson_test.go` と同じ）。フェーズ 4・7 のテストも同じ。
     -   `TestSlackPrepareErrorsOmitContent`: 準備の段階の各拒否のエラーの文言に、記事に置いた目印の文字列が現れないこと。
     -   `TestSlackMessageCount`: 準備の関数が返すメッセージの数と一致し、準備の拒否と同じエラーを返すこと。
--   [ ] **ステップ 3-5**: `slack_errors_test.go` に次を作る。
+-   [x] **ステップ 3-5**: `slack_errors_test.go` に次を作る。
     -   `TestSlackPostErrorMessage`: `Attempted` の真偽ごとの文言が、N と k、k+1 番目を示し、偽のときだけ「送っていない」と言うこと。`errors.AsType[*SlackPostError]` で `Total`・`Posted` を取り出せること。
     -   `TestSlackHTTPStatusErrorMessage`: ステータスコード、`Reason`・`RequestID` があるときはそれら、ないときは固定の文言を含むこと。`errors.Is(err, ErrSlackHTTPStatus)` が真であること。
--   [ ] **ステップ 3-6**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: 上限の比較を `<` と `<=` で入れ替える、コードポイントでなくバイトで数える、改行の候補から「前側の断片が空白文字だけにならない」条件を外す、分割の数の上限の検査を外す、V1〜V3 の順を V1 → V2 → V3 にする、V1〜V3 のそれぞれを外す、M1〜M4 のそれぞれを外す、各メッセージの判定を外す、UTF-8 の確認を外す、`SlackPostError` の文言の `Attempted` の分岐を入れ替える。`make fmt` → `make test` → `make lint` を通す。
+-   [x] **ステップ 3-6**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: 上限の比較を `<` と `<=` で入れ替える、コードポイントでなくバイトで数える、改行の候補から「前側の断片が空白文字だけにならない」条件を外す、分割の数の上限の検査を外す、V1〜V3 の順を V1 → V2 → V3 にする、V1〜V3 のそれぞれを外す、M1〜M4 のそれぞれを外す、分割の位置の表示に `<`・`@`・`&` のいずれかを加える、UTF-8 の確認を外す、`SlackPostError` の文言の `Attempted` の分岐を入れ替える。`make fmt` → `make test` → `make lint` を通す。
 
 ### PR-3 作成ポイント: publisher preparation (splitting and mention rejection) and error types
 
@@ -262,7 +263,7 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 
 **推奨タイトル**: `feat(0006): add the SlackWebhookPublisher preparation and error types`
 
-**レビュー観点**: V1〜V3 を V2 → V3 → V1 の順に当てた検査用の文字列で M1・M2 を、投稿する文字列で M3・M4 を判定し、全体と各メッセージの両方で拒否すること（ステップ 3-2・3-4） / 分割がコードポイントで数え、16,383 以内で改行を優先し、空白文字だけの断片を生じさせず、分割の数の上限を守ること（ステップ 3-2・3-4） / 拒否と分割のエラーが `ErrSlackMention`・`ErrSlackUnsplittable`・`writer.ErrInvalidArticle` を正しく分け、記事の内容を含めないこと（ステップ 3-1・3-2） / 不正な UTF-8 の拒否が `writer` ではなく `SlackWebhookPublisher` 側にあり、`FilePublisher` の振る舞いを変えないこと（ステップ 3-2）
+**レビュー観点**: V1〜V3 を V2 → V3 → V1 の順に当てた検査用の文字列で M1・M2 を、投稿する文字列で M3・M4 を判定し、投稿する文字列の全体で拒否すること。各メッセージを判定しない前提（各メッセージで見つかる並びは全体でも見つかる）がテストで固定されていること（ステップ 3-2・3-4） / 分割がコードポイントで数え、16,383 以内で改行を優先し、空白文字だけの断片を生じさせず、分割の数の上限を守ること（ステップ 3-2・3-4） / 拒否と分割のエラーが `ErrSlackMention`・`ErrSlackUnsplittable`・`writer.ErrInvalidArticle` を正しく分け、記事の内容を含めないこと（ステップ 3-1・3-2） / 不正な UTF-8 の拒否が `writer` ではなく `SlackWebhookPublisher` 側にあり、`FilePublisher` の振る舞いを変えないこと（ステップ 3-2）
 
 **実装モデル要件**: frontier-recommended
 
