@@ -30,7 +30,7 @@ yt2column はローカルで実行する CLI であり、利用者本人が入�
   - 実行するかどうかの判定とテスト用の API キーの読み込みは、両方のテストが `internal/llm/deepseek/testutil` の `SettingsFrom` で行う。
   - CLI は API キーを `DEEPSEEK_API_KEY` という名前で受け取るので、CLI の統合テストは、読み込んだテスト用の API キーを、テストが組み立てて CLI に与える環境の中で `DEEPSEEK_API_KEY` という名前で渡す。プロセスの環境変数は変えない。名前は本番と同じだが、値はテスト用の API キーである。
   - テストの出力（ログ・失敗メッセージ・スキップの理由）に API キーもその一部も書かない。
-- テスト用の Webhook URL も、本番の `SLACK_WEBHOOK_URL` と同様、テストでは使わない。統合テストは、テスト専用の環境変数 `YT2COLUMN_TEST_SLACK_WEBHOOK_URL` からだけ Webhook URL を読む。本番の `SLACK_WEBHOOK_URL` は、設定されていても読まない。テスト用の Webhook は、本番とは別の Mattermost のテスト用チャンネルに投稿するものを用意する。テスト用の Webhook URL を使うのは `//go:build integration` の次の 2 つのテストであり、対応する make のターゲットだけがエクスポートするオプトインの変数の値がちょうど `1` でなければスキップする。各ターゲットは自分のオプトインだけをエクスポートし、他方のオプトインはエクスポートしない。テスト用の Webhook URL がない場合と、HTTP/2 のデバッグ（下記の `GODEBUG`）が有効な場合は、スキップせずに失敗し、Webhook に送らない。
+- 本番の `SLACK_WEBHOOK_URL` は、本番の API キーと同様、テストでは使わない。統合テストは、テスト専用の環境変数 `YT2COLUMN_TEST_SLACK_WEBHOOK_URL` からだけ Webhook URL を読む。本番の `SLACK_WEBHOOK_URL` は、設定されていても読まない。テスト用の Webhook は、本番とは別の Mattermost のテスト用チャンネルに投稿するものを用意する。テスト用の Webhook URL を使うのは `//go:build integration` の次の 2 つのテストであり、対応するオプトインの変数の値がちょうど `1` でなければスキップする。値 `1` は、対応する make のターゲットからでも、IDE や `go test -tags integration` を起動した環境からでも、どこから渡されてもテストを実行する。各ターゲットは自分のオプトインだけをエクスポートし、他方のオプトインはエクスポートしない。テスト用の Webhook URL がない場合と、HTTP/2 のデバッグ（下記の `GODEBUG`）が有効な場合は、スキップせずに失敗し、Webhook に送らない。
 
     | 統合テスト | make のターゲット | オプトインの変数 | テスト用の Webhook URL がない場合 |
     |---|---|---|---|
