@@ -366,29 +366,30 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 -   変更: `cmd/yt2column/run.go`・`run_test.go`・`test_helpers.go`・`signal_test.go`、`README.md`（フラグの表とその直前の文だけ）、`docs/dev/developer_guide/package_reference.md`
 
 **タスク**
--   [ ] **ステップ 6-1**: `deps` の `newPublisher` を `newFilePublisher` と `newSlackPublisher` に分け、`productionDeps` の `newSlackPublisher` に、`publisher.NewSlackWebhookPublisher` を包み構築の失敗で nil のインターフェースを返す関数を設定する（設計書 3.10）。`run_test.go` の `e.d.newPublisher` のすべての差し替え（`run_test.go:474`・`:547`・`:647`・`:881`）を `e.d.newFilePublisher` に改める。
--   [ ] **ステップ 6-2**: フラグと使い方を変える（設計書 3.10）。
+-   [x] **ステップ 6-1**: `deps` の `newPublisher` を `newFilePublisher` と `newSlackPublisher` に分け、`productionDeps` の `newSlackPublisher` に、`publisher.NewSlackWebhookPublisher` を包み構築の失敗で nil のインターフェースを返す関数を設定する（設計書 3.10）。`run_test.go` の `e.d.newPublisher` のすべての差し替え（`run_test.go:474`・`:547`・`:647`・`:881`）を `e.d.newFilePublisher` に改める。
+-   [x] **ステップ 6-2**: フラグと使い方を変える（設計書 3.10）。
     -   `cliOptions` に `slack bool` を足し、`newFlagSet` に `--slack` を加える。説明の文は設計書 3.10 のとおりとする。
     -   `--out` の説明を `` "write the article to this `path` (required); it must not exist, its directory must exist, and it must be outside the cache directory" `` から `` "write the article to this `path`; it must not exist, its directory must exist, and it must be outside the cache directory" `` に改める。
     -   `writeUsage` の `"Generates a column article from a YouTube video's subtitles and writes it to the --out file.\n"` を、`--out` のファイルに書くか `--slack` で Webhook に投稿するかのどちらか一方を指定することを示す文に改める（文言は実装で決める）。
     -   `README.md` のフラグの表に `--slack` の行を加える。`TestREADMEDocumentsCLI` の `flags` が `newFlagSet` のすべてのフラグを README の表に求めるので、この行はフラグを加えるこのフェーズで必要である。同じ変更で、`--out` が必須でなくなったことに合わせ、フラグの表の `--out` の行の「Required.」と、表の直前の文（`README.md:32`）の「`--out` is required」を、`--out` と `--slack` のどちらか一方を指定する記述に改める（PR-6 の時点で README がフラグの説明と矛盾しないようにするため。説明の文の推敲と他の文書はフェーズ 8）。
--   [ ] **ステップ 6-3**: 手順 A2〜C を設計書 3.10 の「投稿先の決定」と「手順の変更」の表のとおりに変える。
+-   [x] **ステップ 6-3**: 手順 A2〜C を設計書 3.10 の「投稿先の決定」と「手順の変更」の表のとおりに変える。
     -   投稿先の決定は、`flag.FlagSet.Visit` でフラグが現れたかを調べる別の関数にし、設計書 3.10 の表の拒否の順と文言に従う。`run.go:150-152` の `opts.out == ""` の判定を置き換える。
     -   A3 の `RequireSlackWebhookURL`、A3 の Webhook URL の警告（文言は設計書 3.10）、A4 をファイルの場合だけ行うこと、A5 の `newSlackPublisher`、B の `job.RemoteOutput`、C の要約（`SlackMessageCount` がエラーなら `unknown`）を加える。要約は別の関数にする（`run` の循環的複雑度を 20 以下に保つため。§1.3）。
--   [ ] **ステップ 6-4**: `reportRunError` に、設計書 3.10 の「失敗の表示に足すもの」の 4 つの案内を加える。Webhook のタイムアウトの案内は `minutes` を使わず、`SlackPostTimeout` を秒で書く（§1.3）。
--   [ ] **ステップ 6-5**: `configuredSecrets` が、`SLACK_WEBHOOK_URL` が設定されていれば `slackwebhook.SensitiveParts` の各文字列も返すようにする（設計書 3.10）。
--   [ ] **ステップ 6-6**: テストの組み立てを変える（設計書 3.10）。
+-   [x] **ステップ 6-4**: `reportRunError` に、設計書 3.10 の「失敗の表示に足すもの」の 4 つの案内を加える。Webhook のタイムアウトの案内は `minutes` を使わず、`SlackPostTimeout` を秒で書く（§1.3）。
+-   [x] **ステップ 6-5**: `configuredSecrets` が、`SLACK_WEBHOOK_URL` が設定されていれば `slackwebhook.SensitiveParts` の各文字列も返すようにする（設計書 3.10）。
+-   [x] **ステップ 6-6**: テストの組み立てを変える（設計書 3.10）。
     -   `test_helpers.go` に、何も送らずに固有の静的エラーを返す `newSlackPublisher` の代用品を作り、`testDeps` と `newRunEnv`（`run_test.go:95-129`）の両方の既定にする。代用品が使われたことは、そのエラーの文言が標準エラー出力の `build the publisher` の行に現れることで見分けられるようにする。
     -   `test_helpers.go` に、ループバックの `httptest` のサーバへ送る `newSlackPublisher` を返す補助を作る（`NewSlackWebhookPublisherForLoopbackTest` を使う）。送信先は、`server.URL` に、`run` が受け取る `SLACK_WEBHOOK_URL` のパス（`testWebhook` の目印を含むパス）を付けたものにする。こうすると、投稿の失敗が送信先の URL の一部を出力した場合に、CLI の伏せ字化（`configuredSecrets`）と `secretStrings` の検査の対象になる。プロセス内の Webhook の経路のテストはこれに差し替える。
     -   子プロセスのモードに、すぐに記事を返す偽の LLM と、待機の状態になったことを `childReadyEnv` の印で知らせ、`ctx` が終わると `&publisher.SlackPostError{Total: 1, Posted: 0, Attempted: true, Err: ctx.Err()}` を返す偽の `Publisher` を使うモードを足す。
--   [ ] **ステップ 6-7**: `run_test.go` を更新し、テストを足す。
-    -   `no --out` の行（`run_test.go:357`）の期待する文言を `--out is required` から `one of --out or --slack is required` に改める。
+-   [x] **ステップ 6-7**: `run_test.go` を更新し、テストを足す。
+    -   `no --out` の行（`run_test.go:357`）の期待する文言を `--out is required` から `one of --out or --slack is required` に改める。（実装: この行は `neither --out nor --slack` と名前を改め、ループバックのサーバへのリクエストがないことも確かめる `slackUsageRow` の行にした。）
     -   **`executionPathRows` への行の追加（AC-23・AC-24・AC-25・AC-26）。** 次の `--slack` の経路を行として足し、`TestRunExecutionPaths` の 0005 の AC-44 の各項目の検査を適用する。成功の行の既定の検査（`--out` のファイルの存在）は、Webhook の行ではループバックのサーバが受け取ったメッセージの検査に替える（行の `check` か、投稿先で分ける形。実装で決める）。
         -   成功（終了コード `0`、標準出力が空、標準エラー出力に投稿したこととメッセージの数、キャッシュの削除）と、`--keep-cache` での成功（キャッシュが残る）。
-        -   設計書 3.10 の表の拒否の 4 つの行と、拒否の順の例（`--out "" --slack`、`--out x --slack=false`）、`--slack` で `SLACK_WEBHOOK_URL` が未設定の行（標準エラー出力に名前が現れる）。いずれも終了コード `2` で、排他のファイル・キャッシュ・トリップワイヤ・LLM の呼び出し・ループバックのサーバへのリクエストがないこと。
+        -   設計書 3.10 の表の拒否の 4 つの行と、拒否の順の例（`--out "" --slack`、`--out x --slack=false`、`--out "" --slack=false`）、`--slack` で `SLACK_WEBHOOK_URL` が未設定の行（標準エラー出力に名前が現れる）。（実装: `--out "" --slack=false` の行は、空の `--out` と `--slack=false` の判定の順を入れ替えても他の行が失敗しなかったため加えた。）いずれも終了コード `2` で、排他のファイル・キャッシュ・トリップワイヤ・LLM の呼び出し・ループバックのサーバへのリクエストがないこと。
         -   最初のメッセージの失敗（500。終了コード `1`、キャッシュが残る、残るメッセージの案内がない）。
         -   分割投稿の途中の失敗（3 つに分割される記事の 2 つ目に失敗を返す。終了コード `1`、投稿の段階の失敗・3 つのうち 1 つ・再実行の案内、キャッシュが残る）。
         -   準備の段階の拒否（記法を含む記事。終了コード `1`、記法の拒否の案内、リクエストがない、キャッシュが残る）。
+        -   （実装で追加）偽の `Publisher` のエラーの文言が Webhook URL のパスを含む行。パスが伏せ字になること。`requireSafeOutput` が使う `secretStrings` には、`testWebhook` のパスの目印（`webhookPathMarker`）を加えた。末尾 8 文字は常に伏せられるので、`SensitiveParts` の各文字列をそのまま加えても、末尾を伏せた後に残るパスの断片は検出できないためである。
     -   `TestRunSlackFailureHints`（AC-25）: 偽の `Publisher` が返すエラーごとに、`Attempted` の真偽ごとの文言、400・403・404・501 の案内と request ID の有無、500 で案内が出ないこと、タイムアウトの案内。
     -   `TestRunSlackSummaryUnknownCount`: 成功する `FakePublisher` と記法を含む記事で、要約の数が `unknown` で終了コード `0` であること。
     -   `TestRunSlackSignalAfterPosting`: 投稿が成功した後に `ctx` を取り消す偽の `Publisher` で、終了コード `0` であること（設計書 3.10 の実行経路の一覧の最後の行）。
@@ -398,9 +399,9 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
     -   `TestRunHelp`（`run_test.go:814`、AC-27）で、`-h`・`--help` の出力が `--slack` と `Mattermost` を含むことを確かめる。
     -   `TestTestDepsSlackPublisherDoesNotSend`: `testDeps` と `newRunEnv` の既定の `newSlackPublisher` で `--slack` を実行すると、終了コード `2` で、標準エラー出力の `build the publisher` の行に代用品のエラーの文言が現れること。
     -   `TestNewSlackPublisherNilOnFailure`: `productionDeps` の `newSlackPublisher` が、ゼロ値の `secret.Secret` で nil のインターフェース（型付きの nil でない）とエラーを返すこと（`TestNewFilePublisherNilOnFailure` と同じ形）。
--   [ ] **ステップ 6-8**: `signal_test.go` に `TestSignalDuringSlackPost`（AC-26）を足す。ステップ 6-6 の子プロセスのモードで `--slack` で実行し、待機の印を待って SIGINT と SIGTERM のそれぞれを送ると、終了コード `1` で、0005 の AC-44 の各項目が成り立つこと。(f) のうち `--out` のパスの条件は適用しないが、動画のキャッシュが削除されないことは確かめる。`requireInterruptedChildOutput` が `--out` のパスを前提にする部分は、`--slack` の経路では外せる形に変える。
--   [ ] **ステップ 6-9**: `package_reference.md` の `cmd/yt2column` の行に、`--out` と `--slack` のどちらか一方を選ぶこと、`SLACK_WEBHOOK_URL` の部分も伏せることを加える。
--   [ ] **ステップ 6-10**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: 投稿先の決定を値で判定する（`--slack=false` の行）、拒否の順を入れ替える、`RequireSlackWebhookURL` の呼び出しを外す、Webhook の警告を LLM の呼び出しの後に移す、`--out` でも Webhook の警告を出す、`configuredSecrets` から `SensitiveParts` を外し、偽の `Publisher` のエラーの文言に送信先の URL のパスを含める（`executionPathRows` の失敗の行と `requireSafeOutput`）、`Posted` が 0 でも残るメッセージの案内を出す、`testDeps` と `newRunEnv` のそれぞれの既定を `productionDeps` の値に戻す（`TestTestDepsSlackPublisherDoesNotSend`）、`newSlackPublisher` の包みが型付きの nil を返す、子プロセスで `ctx` の終了を待たない、取り消しでキャッシュを削除する（`TestSignalDuringSlackPost`）。`make fmt` → `make test` → `make lint` を通す。
+-   [x] **ステップ 6-8**: `signal_test.go` に `TestSignalDuringSlackPost`（AC-26）を足す。ステップ 6-6 の子プロセスのモードで `--slack` で実行し、待機の印を待って SIGINT と SIGTERM のそれぞれを送ると、終了コード `1` で、0005 の AC-44 の各項目が成り立つこと。(f) のうち `--out` のパスの条件は適用しないが、動画のキャッシュが削除されないことは確かめる。`requireInterruptedChildOutput` が `--out` のパスを前提にする部分は、`--slack` の経路では外せる形に変える。（実装: `--out` のファイルがないことの確認を `requireInterruptedChildOutput` から外し、`--out` を使う呼び出し元が `requireNoFile` を呼ぶ形にした。また、`requireExitCode` は呼び出しがすべて `exitFailure` を渡し `unparam` に当たるので、`requireExitFailure` にした。）
+-   [x] **ステップ 6-9**: `package_reference.md` の `cmd/yt2column` の行に、`--out` と `--slack` のどちらか一方を選ぶこと、`SLACK_WEBHOOK_URL` の部分も伏せることを加える。
+-   [x] **ステップ 6-10**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: 投稿先の決定を値で判定する（`--slack=false` の行）、拒否の順を入れ替える、`RequireSlackWebhookURL` の呼び出しを外す、Webhook の警告を LLM の呼び出しの後に移す、`--out` でも Webhook の警告を出す、`configuredSecrets` から `SensitiveParts` を外し、偽の `Publisher` のエラーの文言に送信先の URL のパスを含める（`executionPathRows` の失敗の行と `requireSafeOutput`）、`Posted` が 0 でも残るメッセージの案内を出す、`testDeps` と `newRunEnv` のそれぞれの既定を `productionDeps` の値に戻す（`TestTestDepsSlackPublisherDoesNotSend`）、`newSlackPublisher` の包みが型付きの nil を返す、子プロセスで `ctx` の終了を待たない、取り消しでキャッシュを削除する（`TestSignalDuringSlackPost`）。`make fmt` → `make test` → `make lint` を通す。
 
 ### PR-6 作成ポイント: cmd/yt2column --slack wiring
 
@@ -626,9 +627,9 @@ PR はフェーズと 1 対 1 に対応させる。各 PR は主たる関心事�
 
 -   [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6）
 -   [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6）
--   [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6）
--   [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5）
--   [ ] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5）
+-   [x] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6）
+-   [x] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5）
+-   [x] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5）
 -   [ ] PR-6 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3 / 6-4 / 6-5 / 6-6 / 6-7 / 6-8 / 6-9 / 6-10）
 -   [ ] PR-7 マージ済み（対象ステップ: 7-1 / 7-2 / 7-3 / 7-4 / 7-5 / 7-6 / 7-7 / 7-8 / 7-9 / 7-10 / 7-11 / 7-12 / 7-13）
 -   [ ] PR-8 マージ済み（対象ステップ: 8-1 / 8-2 / 8-3 / 8-4 / 8-5 / 8-6 / 8-7 / 8-8）

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -19,6 +20,9 @@ import (
 
 	"github.com/isseis/yt2column/internal/config"
 	"github.com/isseis/yt2column/internal/llm"
+	"github.com/isseis/yt2column/internal/publisher"
+	"github.com/isseis/yt2column/internal/secret"
+	"github.com/isseis/yt2column/internal/writer"
 )
 
 // Environment variables that switch the test binary into a CLI child process
@@ -41,6 +45,10 @@ const (
 	// childModeIgnoreCtx runs runWithSignals with an LLM client that keeps
 	// stopping after its context ends.
 	childModeIgnoreCtx = "ignore-ctx"
+	// childModeSlackStall runs runWithSignals with an LLM client that
+	// succeeds at once and a webhook publisher that stops until its context
+	// ends; the publisher, not the LLM client, creates the ready marker.
+	childModeSlackStall = "slack-stall"
 )
 
 // childExitUnknownMode is the child's exit code for an unknown mode.
@@ -72,11 +80,29 @@ var childEnvAllowlist = []string{
 	"HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy",
 }
 
-var errStallExpired = errors.New("the stalling fake LLM client reached its lifetime")
+var (
+	errStallExpired = errors.New("the stalling fake reached its lifetime")
+	// errSlackPublisherNotSubstituted is what the default newSlackPublisher of
+	// testDeps and newRunEnv returns: a test that posts must substitute one
+	// that sends to a loopback server.
+	errSlackPublisherNotSubstituted = errors.New("the test deps send nothing to a webhook; substitute newSlackPublisher")
+	errLoopbackWebhookURL           = errors.New("the configured webhook URL does not parse")
+)
+
+// loopbackPostTimeout is the per-message timeout of a loopback test
+// publisher; a loopback server answers far sooner.
+const loopbackPostTimeout = 10 * time.Second
 
 // validResponse is a generated text the real ArticleWriter accepts.
 func validResponse() llm.GenerateResponse {
 	return llm.GenerateResponse{Text: "# A title\n\nThe body.\n", Model: "fake-model", ModelVersion: "v1"}
+}
+
+// validResponseLLM returns a client that always succeeds.
+func validResponseLLM() llm.LLMClient {
+	return funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
+		return validResponse(), nil
+	})
 }
 
 // funcLLM is an llm.LLMClient that runs the function.
@@ -126,12 +152,63 @@ func writeMarker(path string) {
 	_ = os.Rename(tmp, path)
 }
 
+// stallingPublisher creates ready and then waits for its context to end, as a
+// webhook post in flight does. It then returns the error SlackWebhookPublisher
+// returns for a canceled first message, so the CLI reports it as it would a
+// real one. It gives up after stallLifetime.
+type stallingPublisher struct {
+	ready string
+}
+
+// Publish implements publisher.Publisher.
+func (s stallingPublisher) Publish(ctx context.Context, _ writer.Article) error {
+	writeMarker(s.ready)
+	timer := time.NewTimer(stallLifetime)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return &publisher.SlackPostError{Total: 1, Posted: 0, Attempted: true, Err: ctx.Err()}
+	case <-timer.C:
+		return errStallExpired
+	}
+}
+
 // testDeps returns the production deps with the LLM client replaced by
-// client, so the real ArticleWriter and FilePublisher run.
+// client, so the real ArticleWriter and FilePublisher run. newSlackPublisher
+// sends nothing and fails (refusingSlackPublisher), so a --slack run can never
+// reach the Webhook named by the environment.
 func testDeps(client llm.LLMClient) deps {
 	d := productionDeps()
 	d.newLLMClient = func(config.Config) (llm.LLMClient, error) { return client, nil }
+	d.newSlackPublisher = refusingSlackPublisher
 	return d
+}
+
+// refusingSlackPublisher is the default newSlackPublisher of the test deps: it
+// builds nothing and returns errSlackPublisherNotSubstituted, which run
+// reports on its "build the publisher" line.
+func refusingSlackPublisher(secret.Secret) (publisher.Publisher, error) {
+	return nil, errSlackPublisherNotSubstituted
+}
+
+// loopbackSlackPublisher returns a newSlackPublisher that builds a real
+// SlackWebhookPublisher posting to serverURL, a loopback test server, with no
+// wait between messages. The path of the configured Webhook URL is kept, so
+// the endpoint carries the same secret path run redacts: a failure that
+// leaked part of the endpoint would show up in the redaction checks.
+func loopbackSlackPublisher(t testing.TB, serverURL string) func(secret.Secret) (publisher.Publisher, error) {
+	return func(webhookURL secret.Secret) (publisher.Publisher, error) {
+		value, err := webhookURL.Reveal()
+		if err != nil {
+			return nil, err
+		}
+		parsed, err := url.Parse(value)
+		if err != nil {
+			return nil, errLoopbackWebhookURL
+		}
+		opts := publisher.SlackTestOptions{Timeout: loopbackPostTimeout}
+		return publisher.NewSlackWebhookPublisherForLoopbackTest(t, opts, serverURL+parsed.EscapedPath()), nil
+	}
 }
 
 // runChildMode runs the CLI in a child process started by startCLIChild and
@@ -139,6 +216,7 @@ func testDeps(client llm.LLMClient) deps {
 // arguments; the configuration comes from the child's environment.
 func runChildMode(mode string) int {
 	var client llm.LLMClient
+	var newSlack func(secret.Secret) (publisher.Publisher, error)
 	switch mode {
 	case childModeMain:
 		main()
@@ -147,11 +225,20 @@ func runChildMode(mode string) int {
 		client = stallingLLM{ready: os.Getenv(childReadyEnv)}
 	case childModeIgnoreCtx:
 		client = stallingLLM{ready: os.Getenv(childReadyEnv), ctxDone: os.Getenv(childCtxDoneEnv), ignoreCtx: true}
+	case childModeSlackStall:
+		client = validResponseLLM()
+		newSlack = func(secret.Secret) (publisher.Publisher, error) {
+			return stallingPublisher{ready: os.Getenv(childReadyEnv)}, nil
+		}
 	default:
 		_, _ = fmt.Fprintf(os.Stderr, "unknown child mode %q\n", mode)
 		return childExitUnknownMode
 	}
-	return runWithSignals(os.Args[1:], os.LookupEnv, os.Stdout, os.Stderr, testDeps(client))
+	d := testDeps(client)
+	if newSlack != nil {
+		d.newSlackPublisher = newSlack
+	}
+	return runWithSignals(os.Args[1:], os.LookupEnv, os.Stdout, os.Stderr, d)
 }
 
 // cliChild is a CLI child process started by startCLIChild.

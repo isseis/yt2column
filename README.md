@@ -29,12 +29,14 @@ URL → TranscriptSource → Transcript → ArticleWriter → Article → Publis
 yt2column [flags] <video URL>
 ```
 
-Flags must come before the video URL. `--out` is required and must be a path
-outside the cache directory.
+Flags must come before the video URL. Exactly one of `--out` (write the
+article to a file outside the cache directory) and `--slack` (post it to the
+configured webhook) is required.
 
 | Flag | Meaning |
 |---|---|
-| `--out <path>` | File to write the article to. Required. It must not exist, its parent directory must exist, and it must be outside the cache directory. |
+| `--out <path>` | File to write the article to. Use either this or `--slack`. It must not exist, its parent directory must exist, and it must be outside the cache directory. |
+| `--slack` | Post the article to the Slack-compatible Incoming Webhook (e.g. Mattermost) set in `SLACK_WEBHOOK_URL`. Use either this or `--out`. |
 | `--refresh` | Ignore the cached transcript, run `yt-dlp` again, and replace the cache. |
 | `--keep-cache` | Keep this video's cache after a successful run. |
 | `--system-prompt <path>` | Read the system prompt template from this file instead of the built-in one. |
