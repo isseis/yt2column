@@ -282,6 +282,54 @@ func (b *cancelOnEOFBody) Read(p []byte) (int, error) {
 	return n, err
 }
 
+// staticResponseTransport answers every request with a fixed status and a body
+// built from the request, so a test can fail a body read or block it on the
+// request context.
+type staticResponseTransport struct {
+	status int
+	body   func(req *http.Request) io.ReadCloser
+}
+
+func (t staticResponseTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	return &http.Response{
+		StatusCode: t.status,
+		Header:     http.Header{},
+		Body:       t.body(req),
+		Request:    req,
+	}, nil
+}
+
+// failingReadBody fails every Read.
+type failingReadBody struct{}
+
+func (failingReadBody) Read([]byte) (int, error) { return 0, errors.New("read failed") }
+func (failingReadBody) Close() error             { return nil }
+
+// blockingTransport signals when RoundTrip starts, blocks until the request
+// context ends, and then returns a non-context error.
+type blockingTransport struct {
+	started chan struct{}
+	once    sync.Once
+}
+
+func (t *blockingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	t.once.Do(func() { close(t.started) })
+	<-req.Context().Done()
+	return nil, errors.New("transport stopped")
+}
+
+// contextErrorBody blocks until the request context ends and then returns its
+// error.
+type contextErrorBody struct {
+	ctx context.Context
+}
+
+func (b *contextErrorBody) Read([]byte) (int, error) {
+	<-b.ctx.Done()
+	return 0, b.ctx.Err()
+}
+func (b *contextErrorBody) Close() error { return nil }
+
 func TestNewSlackWebhookPublisher(t *testing.T) {
 	for _, raw := range []string{
 		"https://mattermost.example.com/hooks/xxxxxxxxxxxxxxxxxxxxxxxxxx",
@@ -292,8 +340,12 @@ func TestNewSlackWebhookPublisher(t *testing.T) {
 			if err != nil {
 				t.Fatalf("secret.New: %v", err)
 			}
-			if _, err := NewSlackWebhookPublisher(value); err != nil {
+			got, err := NewSlackWebhookPublisher(value)
+			if err != nil {
 				t.Fatalf("NewSlackWebhookPublisher(%q): %v", raw, err)
+			}
+			if got == nil {
+				t.Fatalf("NewSlackWebhookPublisher(%q) returned a nil publisher", raw)
 			}
 		})
 	}
@@ -480,6 +532,30 @@ func TestSlackPublishSplit(t *testing.T) {
 			checkSlackMessages(t, messages, renderArticle(article))
 		}
 	})
+}
+
+func TestSlackPublishWaitsBetweenMessages(t *testing.T) {
+	server := newSlackOKServer(t)
+	p := newTestSlackPublisher(t, server, SlackTestOptions{Timeout: time.Second, Interval: 20 * time.Millisecond})
+	article := threeMessageArticle(t)
+	if err := p.Publish(context.Background(), article); err != nil {
+		t.Fatalf("Publish: %v", err)
+	}
+	if got := server.recorder.count(); got != 3 {
+		t.Fatalf("server received %d requests, want 3", got)
+	}
+	checkSlackMessages(t, slackMessageTexts(t, server), renderArticle(article))
+}
+
+func TestSlackMessagesForTest(t *testing.T) {
+	article := validArticle()
+	messages, err := SlackMessagesForTest(article)
+	if err != nil {
+		t.Fatalf("SlackMessagesForTest: %v", err)
+	}
+	if len(messages) != 1 || messages[0] != renderArticle(article) {
+		t.Fatalf("SlackMessagesForTest = %q, want the posted article", messages)
+	}
 }
 
 func TestSlackPublishPrepareSendsNothing(t *testing.T) {
@@ -712,6 +788,48 @@ func TestSlackPublishTimeout(t *testing.T) {
 	}
 }
 
+func TestSlackPublishBodyFailures(t *testing.T) {
+	endpoint := "http://127.0.0.1:1" + slackWebhookPath
+
+	t.Run("200 body read failure is a transport failure", func(t *testing.T) {
+		transport := staticResponseTransport{status: http.StatusOK, body: func(*http.Request) io.ReadCloser {
+			return failingReadBody{}
+		}}
+		p := newSlackWebhookPublisherForLoopbackTest(t, SlackTestOptions{Timeout: time.Second}, endpoint, transport)
+		err := p.Publish(context.Background(), validArticle())
+		if !errors.Is(err, ErrSlackTransport) {
+			t.Fatalf("err = %v, want ErrSlackTransport", err)
+		}
+		requireErrorOmitsEndpoint(t, err, endpoint)
+	})
+
+	t.Run("200 body read timeout wraps the context error", func(t *testing.T) {
+		transport := staticResponseTransport{status: http.StatusOK, body: func(req *http.Request) io.ReadCloser {
+			return &contextErrorBody{ctx: req.Context()}
+		}}
+		p := newSlackWebhookPublisherForLoopbackTest(t, SlackTestOptions{Timeout: 100 * time.Millisecond}, endpoint, transport)
+		err := p.Publish(context.Background(), validArticle())
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("err = %v, want context.DeadlineExceeded", err)
+		}
+	})
+
+	t.Run("non-200 body read failure drops identifiers", func(t *testing.T) {
+		transport := staticResponseTransport{status: http.StatusBadRequest, body: func(*http.Request) io.ReadCloser {
+			return failingReadBody{}
+		}}
+		p := newSlackWebhookPublisherForLoopbackTest(t, SlackTestOptions{Timeout: time.Second}, endpoint, transport)
+		err := p.Publish(context.Background(), validArticle())
+		statusErr, ok := errors.AsType[*SlackHTTPStatusError](err)
+		if !ok {
+			t.Fatalf("err = %v, want *SlackHTTPStatusError", err)
+		}
+		if statusErr.StatusCode != http.StatusBadRequest || statusErr.Reason != "" || statusErr.RequestID != "" {
+			t.Fatalf("status error = %+v, want 400 with no identifiers", statusErr)
+		}
+	})
+}
+
 func TestSlackPublishCanceled(t *testing.T) {
 	t.Run("before the first message", func(t *testing.T) {
 		server := newSlackOKServer(t)
@@ -778,6 +896,26 @@ func TestSlackPublishCanceled(t *testing.T) {
 		if got := server.recorder.count(); got != 1 {
 			t.Fatalf("server received %d requests, want 1", got)
 		}
+	})
+
+	t.Run("while a request is in flight", func(t *testing.T) {
+		endpoint := "http://127.0.0.1:1" + slackWebhookPath
+		transport := &blockingTransport{started: make(chan struct{})}
+		p := newSlackWebhookPublisherForLoopbackTest(t, SlackTestOptions{Timeout: time.Hour}, endpoint, transport)
+		ctx, cancel := context.WithCancel(context.Background())
+		errCh := make(chan error, 1)
+		go func() { errCh <- p.Publish(ctx, validArticle()) }()
+		<-transport.started
+		cancel()
+		err := <-errCh
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("err = %v, want context.Canceled", err)
+		}
+		postErr, ok := errors.AsType[*SlackPostError](err)
+		if !ok || !postErr.Attempted || postErr.Posted != 0 {
+			t.Fatalf("SlackPostError = %+v, want Attempted true, Posted 0", postErr)
+		}
+		requireErrorOmitsEndpoint(t, err, endpoint)
 	})
 
 	t.Run("after the last message", func(t *testing.T) {
