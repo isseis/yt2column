@@ -184,8 +184,8 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: `internal/loopbacktest` への移動
 
@@ -194,19 +194,19 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 -   変更: `internal/llm/deepseek/test_helpers.go`・`test_helpers_endpoint.go`・`deepseek_test.go`、`internal/pipeline/pipeline_test.go`、`docs/dev/developer_guide/package_reference.md`
 
 **タスク**
--   [ ] **ステップ 2-1**: `internal/loopbacktest/loopbacktest.go` に `ValidateURL` を作る（設計書 3.3）。本体と 2 つの静的エラーは、`deepseek` の `validateLoopbackEndpoint`・`errTestEndpointNoHost`・`errTestEndpointNotLoopback`（`test_helpers.go:42-73`）を、振る舞いを変えずに移したものとする。
--   [ ] **ステップ 2-2**: `loopbacktest_test.go` に `TestValidateURL` を作る。受理と拒否の値は、移す前の `TestNewTestClientRejectsNonLoopback`（`deepseek_test.go:166-187`）の 2 つの一覧をそのまま使う。移した後、`deepseek_test.go` の `TestNewTestClientRejectsNonLoopback` を削除する。
--   [ ] **ステップ 2-3**: `internal/llm/deepseek` のテスト用の補助を変える。
-    -   [ ] `test_helpers.go` の `validateLoopbackEndpoint` を削除する。
-    -   [ ] `test_helpers.go` の `errTestEndpointNoHost` を削除する。
-    -   [ ] `test_helpers.go` の `errTestEndpointNotLoopback` を削除する（`var` のブロックが空になれば、ブロックと「Static errors of the test helpers themselves.」のコメントも消す）。
-    -   [ ] `test_helpers_endpoint.go:18` の呼び出しを `loopbacktest.ValidateURL(endpoint)` に替える。使われなくなった import を消す。
--   [ ] **ステップ 2-4**: `internal/pipeline/pipeline_test.go` の `TestPackageReferenceListsPackages` を、`_test.go` 以外の `.go` を持つすべてのパッケージ（テスト用のビルドのファイルだけを持つものを含む）に行を求めるように改め、doc コメントも同じ内容に直す。
+-   [x] **ステップ 2-1**: `internal/loopbacktest/loopbacktest.go` に `ValidateURL` を作る（設計書 3.3）。本体と 2 つの静的エラーは、`deepseek` の `validateLoopbackEndpoint`・`errTestEndpointNoHost`・`errTestEndpointNotLoopback`（`test_helpers.go:42-73`）を、振る舞いを変えずに移したものとする。
+-   [x] **ステップ 2-2**: `loopbacktest_test.go` に `TestValidateURL` を作る。受理の値は、移す前の `TestNewTestClientRejectsNonLoopback`（`deepseek_test.go:166-187`）の一覧をそのまま使う。拒否の値は同じ一覧にホストが空の値 `https:///chat` を足し、各行が期待する静的エラー（`errTestEndpointNoHost` か `errTestEndpointNotLoopback`）を `errors.Is` で確かめる（移す前のテストは `err != nil` だけを見ており、ホストが空の値も無かったので、ホストの検査の行を外しても入れ替えても失敗しなかった）。移した後、`deepseek_test.go` の `TestNewTestClientRejectsNonLoopback` を削除する。
+-   [x] **ステップ 2-3**: `internal/llm/deepseek` のテスト用の補助を変える。
+    -   [x] `test_helpers.go` の `validateLoopbackEndpoint` を削除する。
+    -   [x] `test_helpers.go` の `errTestEndpointNoHost` を削除する。
+    -   [x] `test_helpers.go` の `errTestEndpointNotLoopback` を削除する（`var` のブロックが空になれば、ブロックと「Static errors of the test helpers themselves.」のコメントも消す）。
+    -   [x] `test_helpers_endpoint.go:18` の呼び出しを `loopbacktest.ValidateURL(endpoint)` に替える。使われなくなった import を消す。
+-   [x] **ステップ 2-4**: `internal/pipeline/pipeline_test.go` の `TestPackageReferenceListsPackages` を、`_test.go` 以外の `.go` を持つすべてのパッケージ（テスト用のビルドのファイルだけを持つものを含む）に行を求めるように改め、doc コメントも同じ内容に直す。
     -   使われなくなる `isTestOnlySource` を削除する。
     -   `TestFakesCarryBuildTag` の対象に、`internal/loopbacktest` の `_test.go` 以外の `.go` を加え、1 行目が `//go:build test` であることを確かめる（`isTestOnlySource` を消すと、`loopbacktest.go` のビルドタグを確かめるものがなくなるため）。doc コメントも直す。
-    -   `package_reference.md` に `internal/loopbacktest` の行（テスト用のビルドだけで使える、ループバックの URL の判定。`deepseek` と `publisher` のテスト用の構築が使う）を加える。
--   [ ] **ステップ 2-5**: テストの移動と削除の確認。移動の前後で `go test -tags test -coverprofile` と `go tool cover -func` を `internal/llm/deepseek` と `internal/loopbacktest` に対して実行し、移した関数の網羅率（移動前の `validateLoopbackEndpoint` と移動後の `ValidateURL`）が同じであること、`deepseek` の他の関数の網羅率が変わらないことを確かめ、コミットメッセージに書く（[CLAUDE.md](../../../CLAUDE.md)「Deleting a test is a claim that must be checked」）。
--   [ ] **ステップ 2-6**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `ValidateURL` がループバックでない IP を受理する（`TestValidateURL` と `TestNewForLoopbackTestRejectsNonLoopback`）、ホストの検査を外す、`TestPackageReferenceListsPackages` の確認を、`package_reference.md` から `internal/loopbacktest` の行を消して失敗させる、`loopbacktest.go` の 1 行目を消す（`TestFakesCarryBuildTag`）。`make fmt` → `make test` → `make lint` を通す。
+    -   `package_reference.md` に `internal/loopbacktest` の行（テスト用のビルドだけで使える、ループバックの URL の判定。`deepseek` のテスト用の構築が使う。`publisher` の分はフェーズ 4 で足す）を加える。
+-   [x] **ステップ 2-5**: テストの移動と削除の確認。移動の前後で `go test -tags test -coverprofile` と `go tool cover -func` を `internal/llm/deepseek` と `internal/loopbacktest` に対して実行し、移した関数の既存の行の網羅率が移動の前後で同じであること（`https:///chat` を足した分だけ `ValidateURL` は上がる）、`deepseek` の他の関数の網羅率が変わらないことを確かめ、コミットメッセージに書く（[CLAUDE.md](../../../CLAUDE.md)「Deleting a test is a claim that must be checked」）。
+-   [x] **ステップ 2-6**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `ValidateURL` がループバックでない IP を受理する（`TestValidateURL` と `TestNewForLoopbackTestRejectsNonLoopback`）、ホストの検査を外す、`TestPackageReferenceListsPackages` の確認を、`package_reference.md` から `internal/loopbacktest` の行を消して失敗させる、`loopbacktest.go` の 1 行目を消す（`TestFakesCarryBuildTag`）。`make fmt` → `make test` → `make lint` を通す。
 
 ### PR-2 作成ポイント: loopback URL check extraction
 
@@ -214,14 +214,14 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 
 **推奨タイトル**: `refactor(0006): extract the loopback URL check into internal/loopbacktest`
 
-**レビュー観点**: `ValidateURL` が `deepseek` の `validateLoopbackEndpoint` とその静的エラーを振る舞いを変えずに移したもので、ループバック以外を拒否すること（ステップ 2-1〜2-3） / `deepseek` の既存のテスト（`TestNewForLoopbackTestRejectsNonLoopback`）を変えずに通し、移したテストの網羅率が移動の前後で同じであること（ステップ 2-2・2-5） / `TestPackageReferenceListsPackages` と `TestFakesCarryBuildTag` がテスト用のビルドだけのパッケージも数え、`internal/loopbacktest` の行と 1 行目を固定すること（ステップ 2-4） / 移動で `deepseek` の本番の振る舞いが変わらないこと（ステップ 2-3・2-5）
+**レビュー観点**: `ValidateURL` が `deepseek` の `validateLoopbackEndpoint` とその静的エラーを振る舞いを変えずに移したもので、ループバック以外を拒否すること（ステップ 2-1〜2-3） / `deepseek` の既存のテスト（`TestNewForLoopbackTestRejectsNonLoopback`）を変えずに通し、移した関数の既存の行の網羅率が移動の前後で同じであること（ステップ 2-2・2-5） / `TestPackageReferenceListsPackages` と `TestFakesCarryBuildTag` がテスト用のビルドだけのパッケージも数え、`internal/loopbacktest` の行と 1 行目を固定すること（ステップ 2-4） / 移動で `deepseek` の本番の振る舞いが変わらないこと（ステップ 2-3・2-5）
 
 **実装モデル要件**: standard
 
 **判定理由**: 既存のテスト用補助の移動と `pipeline_test.go` のガードの追従に限られ、競合する実装方針の併記・高リスクな制御・パネルモードのトリガー・2 つ以上の Conditional check のいずれにも該当しないため（該当する Conditional check はビルドタグ下の非 `_test.go` のソースの 1 つだけである）。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
@@ -623,7 +623,7 @@ PR はフェーズと 1 対 1 に対応させる。各 PR は主たる関心事�
 
 ## 7. 実装チェックリスト (Implementation Checklist)
 
--   [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6）
+-   [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6）
 -   [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6）
 -   [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6）
 -   [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5）
