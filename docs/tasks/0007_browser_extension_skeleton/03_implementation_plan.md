@@ -8,7 +8,7 @@
 | Created | 2026-10-07 |
 | Review date | 2026-10-07 |
 | Reviewer | isseis |
-| Comments | 2026-10-08: ステップ 1-6 の `has-extension-changes` の一覧を `git diff -z` の NUL 区切りに変えた（設計書 3.10 の同じ編集）。`core.quotePath=false` でもタブ・改行を含むパスは引用符で囲まれ、`^extension/` に一致しないためである。設計書 3.10 が述べる目的（拡張の変更で拡張のジョブを起動する）を果たすための手段の不足を補う編集上の修正で、決定の変更はない。2026-10-08: ステップ 2-1・2-2 と PR-2 のレビュー観点に、Chrome が必須とする `name`・`version` を加えた（設計書 3.1 の表の同じ追加）。決定の変更はない |
+| Comments | 2026-10-08: ステップ 1-6 の `has-extension-changes` の一覧を `git diff -z` の NUL 区切りに変えた（設計書 3.10 の同じ編集）。`core.quotePath=false` でもタブ・改行を含むパスは引用符で囲まれ、`^extension/` に一致しないためである。設計書 3.10 が述べる目的（拡張の変更で拡張のジョブを起動する）を果たすための手段の不足を補う編集上の修正で、決定の変更はない。2026-10-08: ステップ 2-1・2-2 と PR-2 のレビュー観点に、Chrome が必須とする `name`・`version` を加えた（設計書 3.1 の表の同じ追加）。2026-10-08: ステップ 2-2 の `undeclared keys` を、9 項目の不在の確認から、最上位のキーが設計書 3.1 の表の集合とちょうど一致することの確認に強めた（レビューの指摘。設計書 3.11 の同じ更新）。いずれも決定の変更はない |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -173,7 +173,7 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 **タスク**
 -   [x] **ステップ 2-1**: `static/manifest.json` を設計書 3.1 の表のとおりに作る。`name`・`version` は Chrome が必須とする項目で、設計書 3.1 の表の値（`"yt2column"`・`"0.1.0"`）とする。`key` は設計書 3.12.1 の値をそのまま使い、鍵を生成し直さない。`background`・`action` が指すファイル（`background.js`・`popup.html`）はフェーズ 4 で作る。
     -   **対象:** `extension/static/manifest.json`。**完了:** `make ext-build` が通り、`manifest.json` が JSON として妥当である。
--   [x] **ステップ 2-2**: `test/manifest.test.ts` を作る（設計書 3.11）。`permissions` が設計書 3.1 の 4 つとちょうど一致すること、宣言しない項目（設計書 3.1 の表の `host_permissions`・`optional_permissions`・`optional_host_permissions`・`content_scripts`・`content_security_policy`・`web_accessible_resources`・`externally_connectable`・`options_ui`・`commands`）がないこと、`manifest_version`・`minimum_chrome_version`・`background`（`type: "module"`）・`action.default_popup`・`name`・`version` が設計書 3.1 の値であること、`key` が RSA 2048 ビットの SubjectPublicKeyInfo として解析でき、そこから計算した拡張 ID が `clfmbbcdpnjcefbdihdoahomaifbabkk` であることを確かめる。拡張 ID を計算する関数は `test/helpers/` に置き、ステップ 5-6 でも使う。
+-   [x] **ステップ 2-2**: `test/manifest.test.ts` を作る（設計書 3.11）。`permissions` が設計書 3.1 の 4 つとちょうど一致すること、最上位のキーが設計書 3.1 の表の集合とちょうど一致すること（これにより、宣言しない項目の `host_permissions`・`optional_permissions`・`optional_host_permissions`・`content_scripts`・`content_security_policy`・`web_accessible_resources`・`externally_connectable`・`options_ui`・`commands` がないことも確かめる）、`manifest_version`・`minimum_chrome_version`・`background`（`type: "module"`）・`action.default_popup`・`name`・`version` が設計書 3.1 の値であること、`key` が RSA 2048 ビットの SubjectPublicKeyInfo として解析でき、そこから計算した拡張 ID が `clfmbbcdpnjcefbdihdoahomaifbabkk` であることを確かめる。拡張 ID を計算する関数は `test/helpers/` に置き、ステップ 5-6 でも使う。
     -   **対象:** `extension/test/manifest.test.ts`。**完了:** `extension/test/manifest.test.ts` が通る。
 -   [x] **ステップ 2-3**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象: `permissions` に `tabs` を足す、宣言しない項目のそれぞれを 1 つずつ足す、`manifest_version`・`minimum_chrome_version`・`background.type`・`action.default_popup` をそれぞれ変える、`key` の 1 文字を変える、`key` を PKCS#8 の秘密鍵の base64 に置き換える（一時的に生成し、コミットせず削除する）。`make ext-check` → `make test` → `make lint` を通す。
     -   **対象:** なし（確認のみ）。**完了:** 各対象を壊して失敗することを確認し、コミットメッセージに記録する。

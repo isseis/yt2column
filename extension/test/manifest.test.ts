@@ -26,22 +26,18 @@ describe("permissions", () => {
 });
 
 describe("undeclared keys", () => {
-  const undeclared = [
-    "host_permissions",
-    "optional_permissions",
-    "optional_host_permissions",
-    "content_scripts",
-    "content_security_policy",
-    "web_accessible_resources",
-    "externally_connectable",
-    "options_ui",
-    "commands",
-  ];
-  for (const key of undeclared) {
-    it(`does not declare ${key}`, () => {
-      assert.equal(Object.hasOwn(manifest, key), false);
-    });
-  }
+  it("declares exactly the keys the design lists", () => {
+    assert.deepEqual(Object.keys(manifest).sort(), [
+      "action",
+      "background",
+      "key",
+      "manifest_version",
+      "minimum_chrome_version",
+      "name",
+      "permissions",
+      "version",
+    ]);
+  });
 });
 
 describe("fixed fields", () => {
@@ -87,5 +83,9 @@ describe("key", () => {
   it("derives the recorded extension ID", () => {
     assert.ok(typeof key === "string");
     assert.equal(extensionIdFromManifestKey(key), recordedExtensionId);
+  });
+
+  it("rejects a value that is not a public key", () => {
+    assert.throws(() => extensionIdFromManifestKey("AAAA"));
   });
 });
