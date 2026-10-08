@@ -14,6 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       has-code-changes: ${{ steps.check.outputs.has-code-changes }}
+      has-extension-changes: ${{ steps.check.outputs.has-extension-changes }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -41,6 +42,15 @@ jobs:
             echo "has-code-changes=true" >> "$GITHUB_OUTPUT"
             echo "Code changes detected, running tests"
           fi
+
+          # A separate list for the extension job: --no-renames lists both
+          # sides of a rename (a file moved out of extension/ still counts),
+          # and -z keeps paths with control characters (tabs, newlines)
+          # unquoted and intact so the patterns' ^ anchors match them.
+          has_extension_changes=$(git -c core.quotePath=false diff -z --no-renames --name-only origin/main...HEAD \
+            | bash extension/scripts/has-extension-changes.sh)
+          echo "has-extension-changes=$has_extension_changes" >> "$GITHUB_OUTPUT"
+          echo "Extension job needed: $has_extension_changes"
 
   test:
     name: Test
@@ -101,3 +111,74 @@ jobs:
             exit 1
           fi
           echo "PASS: go mod tidy check completed"
+
+  extension:
+    name: Browser extension
+    runs-on: ubuntu-latest
+    needs: check-changes
+    if: needs.check-changes.outputs.has-extension-changes == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: extension/.node-version
+          cache: npm
+          cache-dependency-path: extension/package-lock.json
+
+      # One step per target, so the failing step names the failing check.
+      - name: Install dependencies (npm ci)
+        run: make ext-install
+
+      - name: Typecheck
+        run: make ext-typecheck
+
+      - name: Lint
+        run: make ext-lint
+
+      - name: Check formatting
+        run: make ext-fmt-check
+
+      - name: Unit tests
+        run: make ext-test
+
+      - name: Build and check dist
+        run: make ext-build
+
+      # Only this job has extension/node_modules installed, so only here can
+      # a dependency's Go files be seen leaking into the Go tools' ./...
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Verify go list excludes the extension
+        run: |
+          packages=$(go list ./...)
+          if grep '^github.com/isseis/yt2column/extension/' <<< "$packages"; then
+            echo "ERROR: go list ./... includes packages under extension/; check the ignore directive in go.mod"
+            exit 1
+          fi
+          echo "PASS: no extension packages in go list ./..."
+
+  # Runs on every pull request, independent of the change classification, so a
+  # private key committed anywhere in the repository fails CI.
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Reject tracked private keys
+        run: |
+          status=0
+          git grep -n -E -e '-----BEGIN [A-Z0-9 ]*PRIVATE KEY' || status=$?
+          case "$status" in
+            0) echo "ERROR: a tracked file contains a PEM private key"; exit 1 ;;
+            1) echo "PASS: no PEM private key in tracked files" ;;
+            *) echo "ERROR: git grep failed with status $status"; exit 1 ;;
+          esac

@@ -8,7 +8,7 @@
 | Created | 2026-10-07 |
 | Review date | 2026-10-07 |
 | Reviewer | isseis |
-| Comments | 2026-10-08: 承認の後、`/mkplan2` で PR の境界（§2 の `PR-N 作成ポイント`・§3.2・§7）を埋め込んだ。あわせて、§1.4 に I-02 の行を加え（§1.3 とステップ 1-5・1-6 にすでにある対応を表に載せた）、フェーズ 5 とステップ 5-1 の対象に、設計書 3.1 と承認時のステップ 5-1 の本文がすでに定める代替の登録の `background.ts` を加えた。いずれも既存の記述に表と対象を合わせた編集上の修正で、判断の変更はない。2026-10-08（レビュー対応）: 高リスクな I-01 の流れを PR の最後に置くため、フェーズ 4 を PR-4（ステップ 4-1〜4-5）と PR-5（ステップ 4-6〜4-8）に分け、旧 PR-5 を PR-6 とした。旧ステップ 4-1 の HTML・CSS をエントリポイントのステップ 4-6 に移し、旧ステップ 4-7 の確認を 4-5 と 4-8 に分け、ステップの番号を振り直した（§2・§3.2・§4.4・§5・§7）。PR の分け方の判断の変更だが、各ステップで作るもの・テスト・確認の内容は変わらないので、`approved` のままとする（レビュアーの判断）。2026-10-08（レビュー対応）: §3.2 の PR-1 を分けない理由の文で、`acceptedUrl` とガードのテストの役割を分けて書き直した（依存の向きが逆だった）。PR-1 の判定理由から、引き金に当たらない「段階的なロールアウト」の節を削った（区分は変わらない）。ステップ 5-1 に代替の登録を加えた場合の記録を明記し、§5 の AC-10・AC-11 の Implementation に 5-1 を加えた。いずれも編集上の修正で、判断の変更はない。 2026-10-08（レビュー対応）: ステップ 1-8 が PR の CI を必要とするため、ステップ 1-8 の本文を PR-1 の作成後の作業と明記し、PR-1 のチェックリストにステップ 1-8 の検証の行を加えた。順序を明記しただけで、判断の変更はない。 |
+| Comments | 2026-10-08: ステップ 1-6 の `has-extension-changes` の一覧を `git diff -z` の NUL 区切りに変えた（設計書 3.10 の同じ編集）。`core.quotePath=false` でもタブ・改行を含むパスは引用符で囲まれ、`^extension/` に一致しないためである。設計書 3.10 が述べる目的（拡張の変更で拡張のジョブを起動する）を果たすための手段の不足を補う編集上の修正で、決定の変更はない |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -30,6 +30,7 @@
 -   設計書 1.1 の設計原則に従う。特に、判定をブラウザの API から切り離すこと（`core/`）、ブラウザの API を依存の interface の向こうに置くこと、収集と確認を `collect` の 1 か所に集めること、拒否の理由を型で表すこと、収集した値を補正しないこと、読み取った文字列を `textContent` だけで表示することを守る。
 -   新設するファイルは設計書 2.1・3.13 に挙げたものと、本計画が加える次のファイルに限る。
     -   `extension/scripts/has-extension-changes.sh`（CI の変更の判定。ステップ 1-6）
+    -   `extension/types/core-url.d.ts`（`tsconfig.core.json` だけが読む `URL` の宣言。ステップ 1-1。設計書 3.8 に追記した）
     -   設計書 3.11 にないテストのファイル: `typecheck.test.ts`・`lintRules.test.ts`・`checkDist.test.ts`・`repository.test.ts`・`ciChanges.test.ts`（フェーズ 1）、`docs.test.ts`（フェーズ 5）
 -   Go のソースとテスト（`*.go`）を変更しない。そのため、文書と設定を確かめるガードのテストも、Go ではなく `extension/test/` の `node --test` のテストとして書く（要件書 5.・AC-05）。
 -   拡張のソースのコメント・識別子・文字列リテラル・利用者に表示する文言は英語で書く（要件書 F-001）。例外は、日本語の文書の見出しや表の列名と照合するためにテストが持つ文字列リテラル（`docs.test.ts` の「想定ディレクトリ構成」など）だけとする。既存の `cmd/yt2column/docs_test.go` の「設定（環境変数）」と同じ扱いである。`AC-NN`・`F-NNN`・`I-NN` はソースに書かず、本計画にだけ記録する（`requirements_process.md` §4 と同じ扱い）。
@@ -38,7 +39,7 @@
 -   各テストと lint の規則は、対象の処理を実際に壊して失敗することを確かめ、そのことをコミットメッセージに書く（[CLAUDE.md](../../../CLAUDE.md)「Testing Strategy」、設計書 7.1）。壊す対象は、各フェーズの最後のステップに挙げる。
 -   各フェーズの完了条件は、`make ext-check` → `make test` → `make lint` が通ることである。フェーズ 1 では、加えて `make deadcode`・`make build` を実行する（AC-05）。
 -   **ネットワークへのアクセス:** `npm install`・`make ext-install`（`npm ci`）はレジストリへアクセスする。実装者は、初回の実行の前に利用者の承認を得る（[CLAUDE.md](../../../CLAUDE.md)「Tool Execution Safety」）。依存パッケージの追加・更新は `npm install --ignore-scripts <pkg>` で行い、更新した lockfile をコミットする（設計書 3.8）。
--   **Node.js の版:** Makefile の拡張のターゲットは、`node --version` が `extension/.node-version` と一致しないと失敗する（設計書 3.8）。調査の時点の作業環境は、Node.js が `v26.4.0`、npm が `11.17.0` で、設計書が定める Node.js 24 の LTS と異なる（2026-10-07 に `node --version`・`npm --version` で確認）。この作業環境には、版の管理のツール（`fnm`・`mise`・`nvm`・`volta`）もない。実装者は、利用者の承認を得てから（ツールと Node.js の取得はネットワークにアクセスする）、`.node-version` の版を用意して作業する（§6.1）。
+-   **Node.js の版:** Makefile の拡張のターゲットは、`node --version` が `extension/.node-version` と一致しないと失敗する（設計書 3.8）。調査の時点の作業環境は、Node.js が `v26.4.0`、npm が `11.17.0` で、設計書が定める Node.js 24 の LTS と異なる（2026-10-07 に `node --version`・`npm --version` で確認）。この作業環境には、版の管理のツール（`fnm`・`mise`・`nvm`・`volta`）もない。実装者は、利用者の承認を得てから（ツールと Node.js の取得はネットワークにアクセスする）、`.node-version` の版を用意して作業する（§6.1）。実装では、利用者の承認を得て Homebrew で `fnm` を入れ、Node.js `24.21.0`（同梱の npm は `11.19.0`）を用意した（2026-10-08）。
 
 ### 1.3. 既存コード調査結果
 
@@ -98,33 +99,34 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 ### フェーズ 1: 開発環境
 
 **対象ファイル**
--   新設: `extension/` の設定のファイル（`.node-version`・`.npmrc`・`package.json`・`package-lock.json`・`tsconfig.json`・`tsconfig.core.json`・`tsconfig.build.json`・`eslint.config.js`・`.prettierrc.json`・`.prettierignore`）、`extension/scripts/`（`check-lockfile.ts`・`copy-static.ts`・`check-dist.ts`・`has-extension-changes.sh`）、`extension/src/core/acceptedUrl.ts`、`extension/test/`（`acceptedUrl`・`checkLockfile`・`checkDist`・`typecheck`・`lintRules`・`repository`・`ciChanges` の `*.test.ts`）
+-   新設: `extension/` の設定のファイル（`.node-version`・`.npmrc`・`package.json`・`package-lock.json`・`tsconfig.json`・`tsconfig.core.json`・`tsconfig.build.json`・`eslint.config.js`・`.prettierrc.json`・`.prettierignore`・`types/core-url.d.ts`）、`extension/scripts/`（`check-lockfile.ts`・`copy-static.ts`・`check-dist.ts`・`has-extension-changes.sh`）、`extension/src/core/acceptedUrl.ts`、`extension/test/`（`acceptedUrl`・`checkLockfile`・`checkDist`・`typecheck`・`lintRules`・`repository`・`ciChanges` の `*.test.ts`）
 -   変更: `Makefile`、`go.mod`、`.gitignore`、`.pre-commit-config.yaml`、`.github/workflows/ci.yml`
 
 **タスク**
--   [ ] **ステップ 1-1**: `extension/` の設定のファイルを、設計書 2.1・3.8 のとおりに作る。依存パッケージは設計書 3.8 の表のものに限り、すべて `devDependencies` にする。lockfile は承認を得てから `npm install --ignore-scripts` で作る（§1.2）。`eslint.config.js` には、次の 3 種類を禁止する規則を入れる: `eval` 系（`no-eval`・`no-implied-eval`・`no-new-func`）、HTML を解釈する API（設計書 3.7 の一覧）、動的な `import()`。`CollectedInput` への型の表明の禁止はフェーズ 3 で加える。
-    -   **対象:** `extension/.node-version`・`.npmrc`・`package.json`・`package-lock.json`・`tsconfig.json`・`tsconfig.core.json`・`tsconfig.build.json`・`eslint.config.js`・`.prettierrc.json`・`.prettierignore`。**完了:** `make ext-install` が通り、TypeScript・ESLint・Prettier の各設定が読み込める。
--   [ ] **ステップ 1-2**: `extension/scripts/` の 3 つのスクリプトを作る（設計書 3.8・3.9・5.2）。`check-lockfile` と `check-dist` は、判定を関数として export し、テストから一時ディレクトリを渡して呼べる形にする。`check-dist` は、このフェーズではファイルの集合とモジュールの指定を確かめる。manifest と HTML の参照の検査は、参照先のファイルがそろうステップ 4-7 で加える。`static/` はフェーズ 2 まで存在しないので、`copy-static` と `check-dist` は `static/` がない場合を空として扱う。
+-   [x] **ステップ 1-1**: `extension/` の設定のファイルを、設計書 2.1・3.8 のとおりに作る。依存パッケージは設計書 3.8 の表のものに限り、すべて `devDependencies` にする。lockfile は承認を得てから `npm install --ignore-scripts` で作る（§1.2）。`eslint.config.js` には、次の 3 種類を禁止する規則を入れる: `eval` 系（`no-eval`・`no-implied-eval`・`no-new-func`）、HTML を解釈する API（設計書 3.7 の一覧）、動的な `import()`。`CollectedInput` への型の表明の禁止はフェーズ 3 で加える。
+    -   **実装の記録:** TypeScript は `6.0.3` に固定した。実装の時点の最新は `7.0.2` だが、`typescript-eslint` `8.71.1` の peer の範囲が `>=4.8.4 <6.1.0` で、7 系を含まないためである。6.0.3 は設計書 3.8 の設定（`erasableSyntaxOnly`・`rewriteRelativeImportExtensions` など）を持つ（`make ext-typecheck`・`make ext-build` で確かめた）。`lib: ["ES2022"]` の `tsconfig.core.json` では `URL` の宣言がなく `core/acceptedUrl.ts` を型検査できないので、`core/` が使うメンバーだけを宣言した `types/core-url.d.ts` を加え、`tsconfig.core.json` だけが読む（設計書 3.8 に追記した）。`no-implied-eval` は宣言された大域の名前だけを対象にするので、`eslint.config.js` に `setTimeout`・`setInterval`・`window`・`self` を大域の名前として宣言した。実装のレビューの指摘で、`check-dist` のシンボリックリンクの拒否、`check-lockfile` のパッケージ名と `npm-shrinkwrap.json` の確認、`npm ci` のレジストリの固定（`--registry`・`--replace-registry-host=never`）、CI の `has-extension-changes` の一覧（`--no-renames`・`core.quotePath=false`・`-z`）を加え、設計書 3.8〜3.10・5.2 を同じコミットで補った。
+    -   **対象:** `extension/.node-version`・`.npmrc`・`package.json`・`package-lock.json`・`tsconfig.json`・`tsconfig.core.json`・`tsconfig.build.json`・`eslint.config.js`・`.prettierrc.json`・`.prettierignore`・`types/core-url.d.ts`。**完了:** `make ext-install` が通り、TypeScript・ESLint・Prettier の各設定が読み込める。
+-   [x] **ステップ 1-2**: `extension/scripts/` の 3 つのスクリプトを作る（設計書 3.8・3.9・5.2）。`check-lockfile` と `check-dist` は、判定を関数として export し、テストから一時ディレクトリを渡して呼べる形にする。`check-dist` は、このフェーズではファイルの集合とモジュールの指定を確かめる。manifest と HTML の参照の検査は、参照先のファイルがそろうステップ 4-7 で加える。`static/` はフェーズ 2 まで存在しないので、`copy-static` と `check-dist` は `static/` がない場合を空として扱う。
     -   **対象:** `extension/scripts/check-lockfile.ts`・`copy-static.ts`・`check-dist.ts`。**完了:** 3 つのスクリプトがそれぞれ実行でき、`static/` がない状態を空として扱う。
--   [ ] **ステップ 1-3**: `Makefile` に設計書 3.8 の `ext-` のターゲットを加え、`.PHONY`（`Makefile:49`）に足す。版の確認（Node.js と npm）はすべての `ext-` のターゲット（`ext-install` を含む）で、`node_modules` の有無の確認は `ext-install` 以外の `ext-` のターゲットで行う。どちらもレシピの中だけで行い、解析時の `$(shell ...)`、`:=` による Node.js の呼び出し、全体の `export` を使わない。Go のターゲットが Node.js を必要としないためである（要件書 F-001）。`fmt-all` の `find` に `-not -path './extension/*'` を加える。`go.mod` に `ignore ./extension` を、`.gitignore` に設計書 3.8 の 3 行を、`.pre-commit-config.yaml` の `pre-commit-hooks` に `detect-private-key` を加える。
+-   [x] **ステップ 1-3**: `Makefile` に設計書 3.8 の `ext-` のターゲットを加え、`.PHONY`（`Makefile:49`）に足す。版の確認（Node.js と npm）はすべての `ext-` のターゲット（`ext-install` を含む）で、`node_modules` の有無の確認は `ext-install` 以外の `ext-` のターゲットで行う。どちらもレシピの中だけで行い、解析時の `$(shell ...)`、`:=` による Node.js の呼び出し、全体の `export` を使わない。Go のターゲットが Node.js を必要としないためである（要件書 F-001）。`fmt-all` の `find` に `-not -path './extension/*'` を加える。`go.mod` に `ignore ./extension` を、`.gitignore` に設計書 3.8 の 3 行を、`.pre-commit-config.yaml` の `pre-commit-hooks` に `detect-private-key` を加える。
     -   **対象:** `Makefile`・`go.mod`・`.gitignore`・`.pre-commit-config.yaml`。**完了:** `make ext-install` が通り、`go list ./...` に `extension/` で始まるパッケージが現れない。
--   [ ] **ステップ 1-4**: `src/core/acceptedUrl.ts` に `isAcceptedWatchUrl`（設計書 3.4）を作り、`test/acceptedUrl.test.ts` で要件書 3.2 の受理しない URL の例のすべてと、受理する URL（`t`・`list`・フラグメント付き、`:443` 付き）を確かめる。設計書 8 章の「`core/` の 1 ファイルとテスト 1 つ」はこのファイルとする。
+-   [x] **ステップ 1-4**: `src/core/acceptedUrl.ts` に `isAcceptedWatchUrl`（設計書 3.4）を作り、`test/acceptedUrl.test.ts` で要件書 3.2 の受理しない URL の例のすべてと、受理する URL（`t`・`list`・フラグメント付き、`:443` 付き）を確かめる。設計書 8 章の「`core/` の 1 ファイルとテスト 1 つ」はこのファイルとする。
     -   **対象:** `extension/src/core/acceptedUrl.ts`・`extension/test/acceptedUrl.test.ts`。**完了:** `extension/test/acceptedUrl.test.ts::isAcceptedWatchUrl` が通る。
--   [ ] **ステップ 1-5**: 開発環境のテストを作る。
+-   [x] **ステップ 1-5**: 開発環境のテストを作る。
     -   `checkLockfile.test.ts`: レジストリ以外の `resolved` を持つ lockfile を拒否し、レジストリだけの lockfile を受理する。
     -   `checkDist.test.ts`: 一時ディレクトリの `src/`・`static/`・`dist/` で、余分なファイル、欠けたファイル、相対パスでないモジュールの指定、`dist/` にない相対パスの指定、動的な `import()` のそれぞれを拒否し、正しい組を受理する。
     -   `typecheck.test.ts`（AC-02）: 一時ディレクトリに、`tsconfig.json` と `tsconfig.build.json` をそれぞれ `extends` する設定と、型の合わない代入を 1 つ含むファイルを作り、`tsc` が失敗し、ビルドの設定では出力のファイルを作らないことを確かめる。`strict` のときだけ誤りになる入力（`null` を `string` に代入する、暗黙の `any` の引数）の行も置き、`strict` を外す変更はこの行で失敗させる。同じ設定で型の合うファイルが成功すること（対照）も確かめ、設定の誤り（`rootDir` の外など）で失敗しているのではないことを示す。
     -   `lintRules.test.ts`（AC-23 の 2 つ目の防御・AC-27）: ESLint の Node.js の API で `eslint.config.js` を読み、`eval`・`new Function`・文字列を渡す `setTimeout`・設計書 3.7 の HTML を解釈する API の各々・動的な `import()` を含むコードがそれぞれ違反になり、`textContent` への代入が違反にならないことを確かめる。
     -   `repository.test.ts`: (1) `git check-ignore` で `extension/node_modules/` と `extension/dist/` の下のパス、`*.pem` に一致するパス（`key.pem`・`extension/key.pem`）が無視されること（AC-06。`*.pem` は AC-09 の補助）。(2) `git ls-files` の追跡中のファイルのどの行にも PEM の秘密鍵の見出し（§1.3 の形）がないこと（AC-09。このテストのソース自身が検索の対象に一致しない書き方にする）。(3) `Makefile` の `ext-install` のレシピが `npm ci` を `--ignore-scripts` 付きで呼び、`Makefile` と `ci.yml` が `npm install` を呼ばないこと、`package-lock.json` が追跡されていること（AC-03）。(4) `ci.yml` の拡張のジョブが 6 つの `make ext-*` を別々のステップで実行し、ジョブの `if:` が `check-changes` の出力 `has-extension-changes` を参照し、`check-changes` がその出力を宣言していること（AC-07）。(5) Node.js と npm を含まない `PATH`（`make`・`sh` などへのシンボリックリンクだけを置いた一時ディレクトリ）で `make -n build test lint deadcode` が成功し、標準エラーに何も出ないこと。ステップ 1-3 で定めた「Go のターゲットが Node.js を必要としない」ことを確かめる。(6) `ci.yml` に、`has-extension-changes` に依存しない常時実行のジョブ `secret-scan` があり（`if:` を持たない）、追跡中のファイルの秘密鍵を検査すること（AC-09）。
     -   **対象:** `extension/test/checkLockfile.test.ts`・`checkDist.test.ts`・`typecheck.test.ts`・`lintRules.test.ts`・`repository.test.ts`。**完了:** これらのテストが `make ext-test` で通る。
--   [ ] **ステップ 1-6**: CI を変更する（設計書 3.10）。`has-extension-changes.sh` を作り、`check-changes` のジョブで `has-code-changes` と同じ変更の一覧を標準入力に渡して出力 `has-extension-changes` を決める。ジョブ `extension` を加え、設計書 3.10 の 6 つのステップ、`actions/setup-go`（既存のジョブと同じく `go-version-file: go.mod`）、`go list ./...` に `github.com/isseis/yt2column/extension/` で始まるパッケージがないことの確認を置く。`ciChanges.test.ts` は、スクリプトを `bash` で実行して次を確かめる。4 つのパターンごとに、そのパターンにだけ一致する 1 ファイルの一覧（`extension/` の下のファイル、`Makefile`、`.github/workflows/` の下のファイル、`go.mod`）を作り、それぞれ `true` になる。workflow のパターン（設計書 3.10 の `^\.github/workflows/`）が `ci.yml` だけに狭まっていないことを確かめるため、workflow については、`.github/workflows/ci.yml` だけの一覧と `.github/workflows/release.yml` だけの一覧を別々に置く（どちらも `true` になる。両方を 1 つの一覧に入れると、`ci.yml` に狭めたパターンでも `true` になり、狭めたことを検出できない）。`extension/` の例には `extension/scripts/has-extension-changes.sh` 自身も含める。一方、Go のファイルだけ、`docs/` の下のファイルだけ、`README.md` だけ、`extension` を部分文字列として含むだけのパス（例: `notes/myextension.txt`）だけの一覧、各パターンの文字列を先頭以外に含むか後ろに続きを持つパスだけの一覧（`notes/extension/x.txt`・`tools/Makefile`・`Makefile.local`・`tools/go.mod`・`tools/.github/workflows/ci.yml`。パターンの `^`・`$` を外した変更を検出する）と、空の一覧では、それぞれ `false` になる。あわせて、`has-extension-changes` に依存せず常に実行するジョブ `secret-scan` を加える。このジョブは、チェックアウトの後に、追跡中のファイルに PEM の秘密鍵の見出し（§1.3 の形）がないことを `git grep` で確かめる（AC-09）。
+-   [x] **ステップ 1-6**: CI を変更する（設計書 3.10）。`has-extension-changes.sh` を作り、`check-changes` のジョブで `has-code-changes` と同じ変更の一覧を標準入力に渡して出力 `has-extension-changes` を決める。ジョブ `extension` を加え、設計書 3.10 の 6 つのステップ、`actions/setup-go`（既存のジョブと同じく `go-version-file: go.mod`）、`go list ./...` に `github.com/isseis/yt2column/extension/` で始まるパッケージがないことの確認を置く。`ciChanges.test.ts` は、スクリプトを `bash` で実行して次を確かめる。4 つのパターンごとに、そのパターンにだけ一致する 1 ファイルの一覧（`extension/` の下のファイル、`Makefile`、`.github/workflows/` の下のファイル、`go.mod`）を作り、それぞれ `true` になる。workflow のパターン（設計書 3.10 の `^\.github/workflows/`）が `ci.yml` だけに狭まっていないことを確かめるため、workflow については、`.github/workflows/ci.yml` だけの一覧と `.github/workflows/release.yml` だけの一覧を別々に置く（どちらも `true` になる。両方を 1 つの一覧に入れると、`ci.yml` に狭めたパターンでも `true` になり、狭めたことを検出できない）。`extension/` の例には `extension/scripts/has-extension-changes.sh` 自身も含める。一方、Go のファイルだけ、`docs/` の下のファイルだけ、`README.md` だけ、`extension` を部分文字列として含むだけのパス（例: `notes/myextension.txt`）だけの一覧、各パターンの文字列を先頭以外に含むか後ろに続きを持つパスだけの一覧（`notes/extension/x.txt`・`tools/Makefile`・`Makefile.local`・`tools/go.mod`・`tools/.github/workflows/ci.yml`。パターンの `^`・`$` を外した変更を検出する）と、空の一覧では、それぞれ `false` になる。あわせて、`has-extension-changes` に依存せず常に実行するジョブ `secret-scan` を加える。このジョブは、チェックアウトの後に、追跡中のファイルに PEM の秘密鍵の見出し（§1.3 の形）がないことを `git grep` で確かめる（AC-09）。
     -   **対象:** `.github/workflows/ci.yml`・`extension/scripts/has-extension-changes.sh`・`extension/test/ciChanges.test.ts`。**完了:** `extension/test/ciChanges.test.ts::has-extension-changes` と `extension/test/repository.test.ts::ci runs every extension step` が通る。
--   [ ] **ステップ 1-7**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象は次のとおりである。
+-   [x] **ステップ 1-7**: 壊して失敗することを確かめ、コミットメッセージに記録する。対象は次のとおりである。
     -   `isAcceptedWatchUrl` の各条件を 1 つずつ外す。
     -   `check-lockfile` のレジストリの判定を外す。
     -   `check-dist` の各検査を 1 つずつ外す。
     -   `tsconfig.build.json` の `noEmitOnError` を外す。
-    -   `strict` を定義する設定のファイルから `strict` を外す（`strict` のときだけ誤りになる行が失敗する）。
+    -   `strict` を定義する設定のファイルから `strict` を外す（`strict` のときだけ誤りになる行が失敗する）。TypeScript 6 は `strict` を既定で有効にするので、行を消しても振る舞いは変わらずテストは通る。そのため `"strict": false` にして確かめる（実装で確認した）。
     -   `eslint.config.js` の各規則を 1 つずつ外す。
     -   `.gitignore` の拡張の行を外す。
     -   `has-extension-changes.sh` のパターンを 1 つずつ外す。各パターンの `^`・`$` を 1 つずつ外す。workflow のパターンは `^\.github/workflows/ci\.yml$` に狭める（`release.yml` の行で失敗する）。
@@ -157,8 +159,8 @@ HEAD `35b7829`（ブランチ `issei/browser-extension-04`）で確認した。�
 
 **判定理由**: ステップ 1-6 の CI のジョブの追加がパネルモードの引き金「CI・外部資源の面」に、秘密鍵の常時チェック（AC-09）がセキュリティゲートに当たり、さらにステップ 1-1 が `.node-version`（Node.js 24）と作業環境（`v26.4.0`）の差および設計書 3.8 の設定を持つ TypeScript の版の選定という未確定の判断を含むため。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
+- [x] PR を作成した（#126）
 - [ ] ステップ 1-8 の PR の CI の検証を行い、結果を §5.1 に記録した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
@@ -446,7 +448,7 @@ PR は、フェーズ 4 を 2 つに分け、そのほかはフェーズと 1 �
 |---|---|---|---|---|
 | AC-02 | 型の合わない代入のコミットで CI の型検査のステップが失敗する | CI | | |
 | AC-03 | 版の範囲の変更のコミットで CI のインストールのステップが失敗する | CI | | |
-| AC-05 | 拡張がある状態とない状態で、`make test`・`make lint`・`make deadcode`・`make build` の成否と `go list ./...` の出力が同じ | macOS | | |
+| AC-05 | 拡張がある状態とない状態で、`make test`・`make lint`・`make deadcode`・`make build` の成否と `go list ./...` の出力が同じ | macOS（Go 1.27.1、Node.js 24.21.0） | 2026-10-08 | 一致した。`extension/node_modules` と `extension/dist` がある状態と、`extension/` を退避した状態とで、4 つの手順はどちらも成功し、`go list ./...` の出力（18 パッケージ）と `make deadcode` の出力は同じだった。`go.mod` から `ignore ./extension` を外すと、`go list ./...` に `github.com/isseis/yt2column/extension/node_modules/flatted/golang/pkg/flatted` が現れ、CI の確認のステップの判定が失敗した |
 | AC-07 | 本タスクの PR の CI が通る。6 つの変更のコミットで、それぞれ対応するステップが失敗する | CI | | |
 | AC-08 | 2 つのディレクトリから読み込んだ拡張 ID が記録した値と一致する | Chrome・Brave | | |
 | AC-10・AC-11 | 動画ページで項目が現れ、`https://example.com/` で現れない。無効化と再有効化、再起動の後も現れる | Chrome・Brave | | |
