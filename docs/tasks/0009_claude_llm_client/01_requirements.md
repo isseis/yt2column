@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Created | 2026-10-09 |
-| Review date | 2026-10-09 |
-| Reviewer | isseis |
-| Comments | - |
+| Review date | - |
+| Reviewer | - |
+| Comments | 2026-10-09 に承認（isseis）。2026-10-10、選択したプロバイダに関係しない環境変数は検査しないことにした（決定変更。F-006 に原則を加え、`ANTHROPIC_API_KEY`・`YT2COLUMN_CLAUDE_EFFORT`・`ANTHROPIC_WORKSPACE_ID`・`DEEPSEEK_API_KEY` の扱い、AC-24・AC-25・AC-26・AC-42、§5.1 を改め、AC-45 を追加）。再承認が必要。 |
 
 ## 1. 概要 (Overview)
 
@@ -176,15 +176,19 @@ Claude アダプタの値を、API キー・モデル名・effort・ワークス
 
 CLI が環境変数から Claude アダプタを選べるようにする。環境変数の読み込みは `internal/config` だけが行い、アダプタは環境変数を読まない。
 
+**選択したプロバイダに関係しない環境変数は検査しない。** プロバイダ固有の環境変数（API キー、effort、ワークスペース ID など）は、`YT2COLUMN_LLM_PROVIDER` で選んだプロバイダのものだけを読み、検査する。他のプロバイダの変数は、未設定・空・形の不正な値のいずれでも拒否せず、値を使わない。利用者が使っていないプロバイダの設定（他のツールのためにエクスポートした `ANTHROPIC_API_KEY=` など）で、CLI が止まらないようにするためである。`YT2COLUMN_LLM_PROVIDER` 自体が不正な場合は、どのプロバイダ固有の変数も検査しない（プロバイダの不正だけを報告する）。
+
+
 -   `YT2COLUMN_LLM_PROVIDER` は `deepseek` に加えて `claude` を受理する。値は補正しない（大文字・前後の空白を含む値は拒否する）。未設定のときの既定は `deepseek` のままとする。
--   `ANTHROPIC_API_KEY` は、プロバイダが `claude` のとき必須とする。扱いは `DEEPSEEK_API_KEY` と対称にする。空の値はプロバイダによらず拒否し、空でない値はプロバイダが `claude` のときだけ保持する。
+-   `ANTHROPIC_API_KEY` は、プロバイダが `claude` のとき必須とし、空の値を拒否する。プロバイダが `claude` 以外のときは検査しない。
+-   `DEEPSEEK_API_KEY` は、プロバイダが `claude` のとき検査しない。プロバイダが `deepseek` のときの扱いは変えない（必須で、空の値を拒否する）。
 -   effort は新しい環境変数 `YT2COLUMN_CLAUDE_EFFORT` で指定する。プロバイダ固有の値であることを名前で示すため、`CLAUDE` を含める。
     -   受理する値は `low`・`medium`・`high`・`xhigh`・`max` の 5 つだけとする。それ以外の値（大文字、前後の空白、`none`・`min` など）は、補正・丸めをせずに拒否する（CLAUDE.md「Reject, don't normalize」）。
     -   プロバイダが `claude` のとき必須とし、既定値を持たない。どの effort で生成したかを、設定から常に読み取れるようにするためである。
-    -   空の値と、5 つの値以外の値は、プロバイダによらず拒否する。5 つの値のいずれかである値は、プロバイダが `claude` のときだけ保持する（`ANTHROPIC_API_KEY` と同じく、プロバイダの切り替えを `YT2COLUMN_LLM_PROVIDER` だけで行えるようにするため）。
+    -   プロバイダが `claude` のとき、空の値と 5 つの値以外の値を拒否する。プロバイダが `claude` 以外のときは検査しない。
 -   ワークスペース ID は新しい環境変数 `ANTHROPIC_WORKSPACE_ID` で指定する。Anthropic の公式 SDK が読む変数と同じ名前にし、利用者が既存の設定をそのまま使えるようにする。
     -   任意とする。未設定ならワークスペース ID を指定しない（`anthropic-workspace-id` ヘッダーを送らない）。
-    -   空の値と、F-001 の形に合わない値は、補正せずにプロバイダによらず拒否する。F-001 の形に合う値は、プロバイダが `claude` のときだけ保持する（effort と同じ理由）。
+    -   プロバイダが `claude` のとき、空の値と F-001 の形に合わない値を、補正せずに拒否する。プロバイダが `claude` 以外のときは検査しない。
 -   モデル名は既存の `YT2COLUMN_MODEL` で指定する（既定値なし）。プロバイダごとの変数は設けない。
 -   拒否時のエラーは、既存の変数の拒否と同じく、変数名と固定の理由だけを持ち、変数の値を含めない。
 -   プロバイダが `claude` のとき、設定の API キー・モデル名・effort と LLM のタイムアウトから Claude アダプタを構築する。タイムアウトの値は設計で決める（[design_handoff.md](design_handoff.md) H-04）。
@@ -192,10 +196,11 @@ CLI が環境変数から Claude アダプタを選べるようにする。環�
 **Acceptance Criteria**:
 - **AC-23**: `YT2COLUMN_LLM_PROVIDER=claude`、`YT2COLUMN_MODEL`、`ANTHROPIC_API_KEY`、および 5 つの値のいずれかの `YT2COLUMN_CLAUDE_EFFORT` を設定した環境から読み込んだ設定は、プロバイダが Claude、effort がその値であり、`provider` パッケージはそこから Claude アダプタを構築する。5 つの値のそれぞれについて確かめる。構築したアダプタが送るリクエストの `model`・`output_config.effort`・`x-api-key` は、それぞれ環境変数の値である。
 - **AC-24**: プロバイダが `claude` で、`ANTHROPIC_API_KEY` または `YT2COLUMN_CLAUDE_EFFORT` が未設定か空の場合、読み込みは `errors.Is(err, config.ErrMissing)` が真になるエラーになり、エラーから変数名を取り出せる。`DEEPSEEK_API_KEY` だけが設定されていても同じである。
-- **AC-25**: `YT2COLUMN_CLAUDE_EFFORT` が 5 つの値以外（例: `High`、` high`、`high\n`、`none`、`min`、`medium-high`）の場合、プロバイダによらず読み込みは `errors.Is(err, config.ErrInvalid)` が真になるエラーになる。`YT2COLUMN_LLM_PROVIDER` が `claude` 以外の未知の値（例: `Claude`、`anthropic`）の場合も、`config.ErrInvalid` になる。どのエラーのメッセージにも、拒否した値（テストで埋め込んだ目印）は現れない。
-- **AC-26**: プロバイダが `deepseek` のとき、5 つの値のいずれかの `YT2COLUMN_CLAUDE_EFFORT` と空でない `ANTHROPIC_API_KEY` が設定されていても、読み込みは成功し、`ANTHROPIC_API_KEY` が未設定のときと同じ DeepSeek アダプタが構築される。
+- **AC-25**: プロバイダが `claude` で、`YT2COLUMN_CLAUDE_EFFORT` が 5 つの値以外（例: `High`、` high`、`high\n`、`none`、`min`、`medium-high`）の場合、読み込みは `errors.Is(err, config.ErrInvalid)` が真になるエラーになる。`YT2COLUMN_LLM_PROVIDER` が `claude` 以外の未知の値（例: `Claude`、`anthropic`）の場合も、`config.ErrInvalid` になる。どのエラーのメッセージにも、拒否した値（テストで埋め込んだ目印）は現れない。
+- **AC-26**: プロバイダが `deepseek` のとき、`ANTHROPIC_API_KEY`・`YT2COLUMN_CLAUDE_EFFORT`・`ANTHROPIC_WORKSPACE_ID` のそれぞれが、未設定・空・形の不正な値（例: effort の `High`、ワークスペース ID の ` wrkspc_x`）・正しい値のいずれであっても、読み込みは成功し、これらがすべて未設定のときと同じ DeepSeek アダプタが構築される。`YT2COLUMN_LLM_PROVIDER` が不正な場合のエラーは、プロバイダの不正だけを報告し、これらの変数の値によって増えない。
 - **AC-41**: プロバイダが `claude` で、F-001 の形に合う `ANTHROPIC_WORKSPACE_ID` を設定した環境から構築したアダプタが送るリクエストの `anthropic-workspace-id` ヘッダーは、その値である。`ANTHROPIC_WORKSPACE_ID` が未設定の環境では、読み込みは成功し、構築したアダプタはこのヘッダーを送らない。
-- **AC-42**: `ANTHROPIC_WORKSPACE_ID` が空の場合はプロバイダによらず `errors.Is(err, config.ErrMissing)`、F-001 の形に合わない値（例: ` wrkspc_x`、`wrkspc_x\n`、`wrkspc é`）の場合はプロバイダによらず `errors.Is(err, config.ErrInvalid)` が真になるエラーになり、エラーから変数名を取り出せる。エラーのメッセージに拒否した値は現れない。プロバイダが `deepseek` のとき、F-001 の形に合う値が設定されていても、読み込みは成功し、DeepSeek アダプタの構築は変わらない。
+- **AC-42**: プロバイダが `claude` で、`ANTHROPIC_WORKSPACE_ID` が空の場合は `errors.Is(err, config.ErrMissing)`、F-001 の形に合わない値（例: ` wrkspc_x`、`wrkspc_x\n`、`wrkspc é`）の場合は `errors.Is(err, config.ErrInvalid)` が真になるエラーになり、エラーから変数名を取り出せる。エラーのメッセージに拒否した値は現れない。
+- **AC-45**: プロバイダが `claude` のとき、`DEEPSEEK_API_KEY` が未設定・空・空でない値のいずれであっても、読み込みの結果（成功か、どの変数のエラーか）は変わらない。
 - **AC-27**: 既存の DeepSeek の設定（`YT2COLUMN_LLM_PROVIDER` が未設定または `deepseek`）での読み込みとアダプタの構築の振る舞いは、本タスクの前と変わらない（既存のテストがそのまま通る）。
 
 #### F-007: 実 API を使う統合テスト
@@ -317,7 +322,9 @@ HTTP ステータス以外の応答ヘッダー（`Content-Type`・`request-id` 
 -   `0003_deepseek_llm_client` の統合テストは、モデル名を本番の CLI と同じ `YT2COLUMN_MODEL` から読む。本タスクの統合テストは、テスト専用の `YT2COLUMN_TEST_CLAUDE_MODEL` から読む（F-007）。`YT2COLUMN_MODEL` はプロバイダ間で共有する変数であり、`.envrc` に DeepSeek のモデル名が設定されたまま `make test-integration-claude` を実行すると、Claude の API に DeepSeek のモデル名を送ってしまうためである。DeepSeek の統合テストの読み方は変更しない。
 -   `0003_deepseek_llm_client` では、`MaxOutputTokens` が 0 のとき `max_tokens` を送らず API の既定に任せる。Messages API は `max_tokens` を必須とするため、本タスクでは 0 のときアダプタの定数を送る（F-002）。`MaxOutputTokens` の「0 は上限をプロバイダの既定に任せる」という意味は変えず、Claude ではアダプタの定数がその「既定」にあたる（[design_handoff.md](design_handoff.md) H-03）。
 -   `llm.GenerateResponse.ModelVersion` は、Claude では常に空文字列とする（F-003）。既存の「プロバイダが返さない場合は空」の規則に従う。
--   [project_overview.md](../../dev/project_overview.md) の設定の表を更新する（`YT2COLUMN_LLM_PROVIDER` の受理する値に `claude`、`ANTHROPIC_API_KEY` の説明、`YT2COLUMN_CLAUDE_EFFORT`・`ANTHROPIC_WORKSPACE_ID` の追加）。決定済みの方針は変更しない。
+-   [project_overview.md](../../dev/project_overview.md) の設定の表を更新する（`YT2COLUMN_LLM_PROVIDER` の受理する値に `claude`、`ANTHROPIC_API_KEY` の説明、`YT2COLUMN_CLAUDE_EFFORT`・`ANTHROPIC_WORKSPACE_ID` の追加）。
+-   [project_overview.md](../../dev/project_overview.md) の設定の節は「空の値は「未設定」ではなくエラーとして扱う」と定める。本タスクはこれに「選択したプロバイダに関係しない変数は読まず、検査しない」という原則を加える（F-006）。空の値をエラーとする規則は、読む変数に対してはそのまま適用する。project_overview.md の設定の節にこの原則を書く。
+-   `0005_cli_assembly` では、`DEEPSEEK_API_KEY` の空の値はプロバイダによらず拒否する。当時の受理するプロバイダは `deepseek` だけだったため、プロバイダが `deepseek` のときの振る舞いは変わらない（AC-27）。本タスクで加える `claude` のときだけ、`DEEPSEEK_API_KEY` を検査しない（AC-45）。
 
 ## 6. 用語集 (Glossary)
 
