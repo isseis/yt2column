@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Created | 2026-10-09 |
-| Review date | 2026-10-09 |
-| Reviewer | isseis |
-| Comments | - |
+| Review date | - |
+| Reviewer | - |
+| Comments | 2026-10-09 に一度承認（isseis）。同日、設計の事前調査で、ワークスペースに紐付かない API キーは `anthropic-workspace-id` ヘッダーがないと `400` で拒否されると分かったため、ワークスペース ID を任意で指定してヘッダーとして送れるようにした（決定変更。F-001・F-002・F-005・F-006・F-007・§4.2・§6、AC-39〜AC-44 を追加。§6 にワークスペースを追加）。再承認が必要。 |
 
 ## 1. 概要 (Overview)
 
@@ -42,11 +42,11 @@ DeepSeek アダプタと共通する規則（秘密情報の保護、通信の�
 ### 2.2. スコープ (In Scope)
 
 -   `internal/llm/claude` パッケージと、`llm.LLMClient` を実装する型
--   構築時の入力（API キー・モデル名・effort・タイムアウト）の検証
+-   構築時の入力（API キー・モデル名・effort・ワークスペース ID・タイムアウト）の検証
 -   `GenerateRequest` の検証と、Messages API へのリクエストの組み立て
 -   応答の検証（HTTP ステータス、JSON の形、終了理由、空の本文）と `GenerateResponse` への変換
 -   タイムアウト・キャンセル・通信失敗の報告
--   `internal/config` での `YT2COLUMN_LLM_PROVIDER=claude`・`ANTHROPIC_API_KEY`・effort の環境変数の読み込みと検証
+-   `internal/config` での `YT2COLUMN_LLM_PROVIDER=claude`・`ANTHROPIC_API_KEY`・effort・ワークスペース ID の環境変数の読み込みと検証
 -   `internal/llm/provider` での Claude アダプタの構築
 -   Claude の API とネットワークを使わないユニットテスト
 -   実 API を使う手動実行の統合テスト（既定のテストからは除外）
@@ -74,19 +74,21 @@ DeepSeek アダプタと共通する規則（秘密情報の保護、通信の�
 
 #### F-001: 構築
 
-Claude アダプタの値を、API キー・モデル名・effort・タイムアウトから構築する。構築時の入力は補正せず、不正なら構築をエラーにする。
+Claude アダプタの値を、API キー・モデル名・effort・ワークスペース ID（任意）・タイムアウトから構築する。構築時の入力は補正せず、不正なら構築をエラーにする。
 
 -   API キーは `secret.Secret` 型で受け取る。ゼロ値の `Secret` は拒否する。
 -   モデル名は文字列で受け取る。空文字列、前後に空白文字を含む値、および正しい UTF-8 でない値は拒否する。それ以外の値は検証せずそのまま API へ送る（モデルは頻繁に追加されるため、既知の名前の一覧と照合しない）。
 -   effort は、`low`・`medium`・`high`・`xhigh`・`max` の 5 つの値のいずれかを受け取る。effort を指定しない構築は拒否する。effort の既定値はモデルによって異なるため、モデルの既定に任せず、必ず明示する（値の表し方は設計で決める。[design_handoff.md](design_handoff.md) H-02）。
 -   アダプタは、モデル名から effort の可否や thinking の扱いを推測しない（CLAUDE.md「Declare, don't infer」）。モデルが受け付けない effort の値を API が拒否した場合は、F-003 の HTTP ステータスのエラーとして報告される。
+-   ワークスペース ID は任意とする。ワークスペースに紐付かない API キー（組織に属するキー）は、リクエストにワークスペース ID がないと API に拒否されるためである。ワークスペースに紐付いたキーでは指定しなくてよい。指定する場合、値は空でなく、印字可能な ASCII 文字（空白と制御文字を含まない）だけからなる文字列でなければならず、それ以外は拒否する。HTTP ヘッダーの値として補正なしに送れる形に限るためである。それ以外の形式（接頭辞など）は検証しない。
 -   タイムアウトは正の値でなければならない。
 -   送信先は `https://api.anthropic.com/v1/messages` とし、利用者の設定からは変えられない。ユニットテスト（F-008）のため、テストからは送信先を差し替えられるようにする（[design_handoff.md](design_handoff.md) H-08）。
 -   構築したアダプタは `llm.LLMClient` を実装する。
 
 **Acceptance Criteria**:
-- **AC-01**: 有効な API キー・モデル名・5 つの effort のいずれか・正のタイムアウトから構築したアダプタは、`llm.LLMClient` として使える。
+- **AC-01**: 有効な API キー・モデル名・5 つの effort のいずれか・正のタイムアウトから構築したアダプタは、ワークスペース ID を指定してもしなくても、`llm.LLMClient` として使える。
 - **AC-02**: ゼロ値の `Secret`、空のモデル名、前後に空白文字を含むモデル名（例: `" claude-opus-5-5"`、`"claude-opus-5-5\n"`）、不正な UTF-8 のバイト列を含むモデル名、指定のない effort、5 つの値のどれでもない effort、0 以下のタイムアウトのいずれかを与えた構築はエラーになり、アダプタを返さない。
+- **AC-39**: 指定したワークスペース ID が空文字列である、または空白・制御文字・ASCII 以外の文字を含む（例: `" wrkspc_x"`、`"wrkspc_x\n"`、`"wrkspc_é"`）構築はエラーになり、アダプタを返さない。
 
 #### F-002: リクエストの送信
 
@@ -97,6 +99,7 @@ Claude アダプタの値を、API キー・モデル名・effort・タイムア
     -   `Content-Type: application/json`
     -   `x-api-key: <API キー>`
     -   `anthropic-version`: 設計で固定する API のバージョン（[design_handoff.md](design_handoff.md) H-06）。
+    -   `anthropic-workspace-id: <ワークスペース ID>`: 構築時にワークスペース ID を指定した場合だけ送る。指定しない場合は、このヘッダーを送らない。
 -   `anthropic-beta` ヘッダーは送らない。
 -   本文には、次のメンバーを含める。プロンプトは加工せず、そのまま送る。
     -   `model`: 構築時のモデル名
@@ -111,6 +114,8 @@ Claude アダプタの値を、API キー・モデル名・effort・タイムア
 
 **Acceptance Criteria**:
 - **AC-03**: `Generate` は、送信先へ `POST` を 1 回だけ送る。送信先が受け取るリクエストの `Content-Type` ヘッダーは `application/json`、`x-api-key` ヘッダーは API キー、`anthropic-version` ヘッダーは設計で固定した値であり、`anthropic-beta` ヘッダーと `Authorization` ヘッダーを含まない。API キーを含まないプロンプトで呼び出したとき、リクエスト本文と URL には API キーが現れない。
+- **AC-40**: ワークスペース ID を指定して構築したアダプタが送るリクエストの `anthropic-workspace-id` ヘッダーは、その値と同一である。指定せずに構築したアダプタが送るリクエストは、`anthropic-workspace-id` ヘッダーを含まない。
+- **AC-44**: ワークスペース ID の値は、`anthropic-workspace-id` ヘッダー以外のリクエストの部分（本文・URL）に現れない。
 - **AC-04**: リクエスト本文の JSON は、構築時のモデル名の `model`、`SystemPrompt` と同一の文字列の `system`、`UserPrompt` と同一の文字列を内容とする `user` のメッセージ 1 件だけの `messages` を含む。各プロンプトは送信前と同一の文字列である（前後の空白や改行も含めて変更されない）。
 - **AC-05**: `MaxOutputTokens` が正の値のとき、リクエスト本文の `max_tokens` はその値である。0 のとき、`max_tokens` は設計で固定したアダプタの定数である。
 - **AC-06**: リクエスト本文の `output_config.effort` は、構築時の effort を表す文字列である。5 つの effort のそれぞれについて確かめる。
@@ -177,6 +182,9 @@ CLI が環境変数から Claude アダプタを選べるようにする。環�
     -   受理する値は `low`・`medium`・`high`・`xhigh`・`max` の 5 つだけとする。それ以外の値（大文字、前後の空白、`none`・`min` など）は、補正・丸めをせずに拒否する（CLAUDE.md「Reject, don't normalize」）。
     -   プロバイダが `claude` のとき必須とし、既定値を持たない。どの effort で生成したかを、設定から常に読み取れるようにするためである。
     -   空の値と、5 つの値以外の値は、プロバイダによらず拒否する。5 つの値のいずれかである値は、プロバイダが `claude` のときだけ保持する（`ANTHROPIC_API_KEY` と同じく、プロバイダの切り替えを `YT2COLUMN_LLM_PROVIDER` だけで行えるようにするため）。
+-   ワークスペース ID は新しい環境変数 `ANTHROPIC_WORKSPACE_ID` で指定する。Anthropic の公式 SDK が読む変数と同じ名前にし、利用者が既存の設定をそのまま使えるようにする。
+    -   任意とする。未設定ならワークスペース ID を指定しない（`anthropic-workspace-id` ヘッダーを送らない）。
+    -   空の値と、F-001 の形に合わない値は、補正せずにプロバイダによらず拒否する。F-001 の形に合う値は、プロバイダが `claude` のときだけ保持する（effort と同じ理由）。
 -   モデル名は既存の `YT2COLUMN_MODEL` で指定する（既定値なし）。プロバイダごとの変数は設けない。
 -   拒否時のエラーは、既存の変数の拒否と同じく、変数名と固定の理由だけを持ち、変数の値を含めない。
 -   プロバイダが `claude` のとき、設定の API キー・モデル名・effort と LLM のタイムアウトから Claude アダプタを構築する。タイムアウトの値は設計で決める（[design_handoff.md](design_handoff.md) H-04）。
@@ -186,6 +194,8 @@ CLI が環境変数から Claude アダプタを選べるようにする。環�
 - **AC-24**: プロバイダが `claude` で、`ANTHROPIC_API_KEY` または `YT2COLUMN_CLAUDE_EFFORT` が未設定か空の場合、読み込みは `errors.Is(err, config.ErrMissing)` が真になるエラーになり、エラーから変数名を取り出せる。`DEEPSEEK_API_KEY` だけが設定されていても同じである。
 - **AC-25**: `YT2COLUMN_CLAUDE_EFFORT` が 5 つの値以外（例: `High`、` high`、`high\n`、`none`、`min`、`medium-high`）の場合、プロバイダによらず読み込みは `errors.Is(err, config.ErrInvalid)` が真になるエラーになる。`YT2COLUMN_LLM_PROVIDER` が `claude` 以外の未知の値（例: `Claude`、`anthropic`）の場合も、`config.ErrInvalid` になる。どのエラーのメッセージにも、拒否した値（テストで埋め込んだ目印）は現れない。
 - **AC-26**: プロバイダが `deepseek` のとき、5 つの値のいずれかの `YT2COLUMN_CLAUDE_EFFORT` と空でない `ANTHROPIC_API_KEY` が設定されていても、読み込みは成功し、`ANTHROPIC_API_KEY` が未設定のときと同じ DeepSeek アダプタが構築される。
+- **AC-41**: プロバイダが `claude` で、F-001 の形に合う `ANTHROPIC_WORKSPACE_ID` を設定した環境から構築したアダプタが送るリクエストの `anthropic-workspace-id` ヘッダーは、その値である。`ANTHROPIC_WORKSPACE_ID` が未設定の環境では、読み込みは成功し、構築したアダプタはこのヘッダーを送らない。
+- **AC-42**: `ANTHROPIC_WORKSPACE_ID` が空の場合はプロバイダによらず `errors.Is(err, config.ErrMissing)`、F-001 の形に合わない値（例: ` wrkspc_x`、`wrkspc_x\n`、`wrkspc é`）の場合はプロバイダによらず `errors.Is(err, config.ErrInvalid)` が真になるエラーになり、エラーから変数名を取り出せる。エラーのメッセージに拒否した値は現れない。プロバイダが `deepseek` のとき、F-001 の形に合う値が設定されていても、読み込みは成功し、DeepSeek アダプタの構築は変わらない。
 - **AC-27**: 既存の DeepSeek の設定（`YT2COLUMN_LLM_PROVIDER` が未設定または `deepseek`）での読み込みとアダプタの構築の振る舞いは、本タスクの前と変わらない（既存のテストがそのまま通る）。
 
 #### F-007: 実 API を使う統合テスト
@@ -196,12 +206,14 @@ CLI が環境変数から Claude アダプタを選べるようにする。環�
 -   専用の Make ターゲット `make test-integration-claude` を追加する。このターゲットは、実 API を使うこと（料金が発生すること）を表示する。テスト結果のキャッシュを使わず、実行時間に上限を設けて実行する（手段は [implementation_handoff.md](implementation_handoff.md) I-03）。既存の `test-integration`・`test-integration-deepseek` とは分ける。
 -   API キーは、テスト専用の環境変数 `YT2COLUMN_TEST_ANTHROPIC_API_KEY` から読む。本番の CLI が読む `ANTHROPIC_API_KEY` は読まない。`YT2COLUMN_TEST_ANTHROPIC_API_KEY` が未設定または空の場合は、変数名を示すメッセージでテストをスキップする。統合テストは、API キーをテストの出力に含めない。
 -   モデル名と effort は、テスト専用の環境変数 `YT2COLUMN_TEST_CLAUDE_MODEL`・`YT2COLUMN_TEST_CLAUDE_EFFORT` から読む。`make test-integration-claude` は、これらが環境で設定されていなければ既定値（料金を抑える組み合わせ。値は設計で決める）を与えてエクスポートし、設定されていればその値を使う。テスト自身は既定値を持たない。未設定・空・effort が 5 つの値以外の場合は、変数名を示すメッセージで失敗する（5.1）。
+-   ワークスペース ID は、テスト専用の環境変数 `YT2COLUMN_TEST_ANTHROPIC_WORKSPACE_ID` から読む（本番の `ANTHROPIC_WORKSPACE_ID` は読まない。API キーと同じく、本番とテストの設定を分けるため）。任意とし、未設定ならワークスペース ID を指定せずにアダプタを構築する。空の値、または F-001 の形に合わない値の場合は、変数名を示すメッセージで失敗する。
 -   送るプロンプトは、テストのために用意した短い固定の文字列とする。字幕・API キー・ローカルのファイルパス・利用者の個人情報を含めない（[security.md](../../dev/security.md) §4）。
 -   確認する内容は、正常な生成と、出力トークン数の上限による打ち切りの検出である。
 
 **Acceptance Criteria**:
 - **AC-28**: 統合テストは既定の `make test` と `make test-ci` の対象に含まれず、これらの実行では Claude の API もネットワークも呼ばれない。
 - **AC-29**: `YT2COLUMN_TEST_ANTHROPIC_API_KEY` が設定された環境で `make test-integration-claude` を実行すると、テスト結果のキャッシュを使わず、実行時間の上限を設けて統合テストが走り、少なくとも 1 件のテストが実際に実行されたこと（スキップやテスト結果のキャッシュではないこと）がテストの出力から確認できる。ターゲットは実 API を使うことを表示する。`YT2COLUMN_TEST_ANTHROPIC_API_KEY` が未設定の場合、統合テストは変数名を示すメッセージでスキップする。`ANTHROPIC_API_KEY` が設定されていても、`YT2COLUMN_TEST_ANTHROPIC_API_KEY` が未設定ならスキップし、`ANTHROPIC_API_KEY` の値を使わない。
+- **AC-43**: 統合テストは、`YT2COLUMN_TEST_ANTHROPIC_WORKSPACE_ID` が設定されていればその値をワークスペース ID としてアダプタを構築し、未設定ならワークスペース ID を指定せずに構築する。`ANTHROPIC_WORKSPACE_ID` の値は使わない。`YT2COLUMN_TEST_ANTHROPIC_WORKSPACE_ID` が空、または F-001 の形に合わない場合は、API を呼ばずに、変数名を示すメッセージで失敗する。
 - **AC-30**: 統合テストは、短い固定のプロンプトで `Generate` を呼び、エラーがなく、`Text` が空白文字以外を含み、`Model` が空でないことを検証する。また、生成が完了しないほど小さな `MaxOutputTokens` を指定した `Generate` が、`errors.Is(err, llm.ErrTruncated)` が真になるエラーを返すことを検証する。
 
 #### F-008: テスト可能性
@@ -267,9 +279,10 @@ HTTP ステータス以外の応答ヘッダー（`Content-Type`・`request-id` 
 -   HTTP 通信にはタイムアウトを設定する（F-004・AC-18）。
 -   応答本文の読み取りに上限を設ける（3.2・AC-37）。
 -   リダイレクトに従わず、API キーを別の送信先へ送らない（F-002・AC-09）。
--   送るのは呼び出し元が与えたプロンプトと、構築時のモデル名・effort・出力トークン数の上限だけである。アダプタ自身はプロンプトに情報を付け加えない（AC-04・AC-07）。
+-   送るのは呼び出し元が与えたプロンプトと、構築時のモデル名・effort・ワークスペース ID（指定した場合）・出力トークン数の上限だけである。アダプタ自身はプロンプトに情報を付け加えない（AC-04・AC-07）。
 -   応答は信頼できない入力として 3.2 の規則で検証する。`200` 以外の応答の本文はエラーに含めない（F-003・AC-11）。
 -   推論過程（`thinking` ブロック）を生成テキストに含めない（AC-15）。
+-   ワークスペース ID は認証情報ではないため、API キーと異なり秘密情報として扱わない。ただし、環境変数の拒否時のエラーには、他の変数と同じく値を含めない（AC-42）。リクエストでは `anthropic-workspace-id` ヘッダーだけに入れる（AC-44）。
 -   [security.md](../../dev/security.md) §4 に、Anthropic の API へ送るデータの扱い（保存期間、モデルの学習への利用の有無）を、Anthropic の公開文書を確認したうえで追記する。
 
 ### 4.3. 信頼性・可用性 (Reliability/Availability)
@@ -304,7 +317,7 @@ HTTP ステータス以外の応答ヘッダー（`Content-Type`・`request-id` 
 -   `0003_deepseek_llm_client` の統合テストは、モデル名を本番の CLI と同じ `YT2COLUMN_MODEL` から読む。本タスクの統合テストは、テスト専用の `YT2COLUMN_TEST_CLAUDE_MODEL` から読む（F-007）。`YT2COLUMN_MODEL` はプロバイダ間で共有する変数であり、`.envrc` に DeepSeek のモデル名が設定されたまま `make test-integration-claude` を実行すると、Claude の API に DeepSeek のモデル名を送ってしまうためである。DeepSeek の統合テストの読み方は変更しない。
 -   `0003_deepseek_llm_client` では、`MaxOutputTokens` が 0 のとき `max_tokens` を送らず API の既定に任せる。Messages API は `max_tokens` を必須とするため、本タスクでは 0 のときアダプタの定数を送る（F-002）。`MaxOutputTokens` の「0 は上限をプロバイダの既定に任せる」という意味は変えず、Claude ではアダプタの定数がその「既定」にあたる（[design_handoff.md](design_handoff.md) H-03）。
 -   `llm.GenerateResponse.ModelVersion` は、Claude では常に空文字列とする（F-003）。既存の「プロバイダが返さない場合は空」の規則に従う。
--   [project_overview.md](../../dev/project_overview.md) の設定の表を更新する（`YT2COLUMN_LLM_PROVIDER` の受理する値に `claude`、`ANTHROPIC_API_KEY` の説明、`YT2COLUMN_CLAUDE_EFFORT` の追加）。決定済みの方針は変更しない。
+-   [project_overview.md](../../dev/project_overview.md) の設定の表を更新する（`YT2COLUMN_LLM_PROVIDER` の受理する値に `claude`、`ANTHROPIC_API_KEY` の説明、`YT2COLUMN_CLAUDE_EFFORT`・`ANTHROPIC_WORKSPACE_ID` の追加）。決定済みの方針は変更しない。
 
 ## 6. 用語集 (Glossary)
 
@@ -313,6 +326,7 @@ HTTP ステータス以外の応答ヘッダー（`Content-Type`・`request-id` 
 -   **Claude アダプタ:** `internal/llm/claude` が提供する `llm.LLMClient` の実装。Anthropic の Messages API を呼ぶ。
 -   **Messages API:** Anthropic の、system プロンプトとメッセージ列を受け取って生成結果を返す HTTP API。
 -   **effort:** Messages API の `output_config.effort`。推論の深さと出力トークンの量を調整する値で、`low`・`medium`・`high`・`xhigh`・`max` の 5 段階がある。省略時の既定値はモデルによって異なる。
+-   **ワークスペース（workspace）:** Anthropic の組織の中で、API キー・利用上限・データを分ける単位。ワークスペース ID で識別する。ワークスペースに紐付かない API キーでは、リクエストごとに `anthropic-workspace-id` ヘッダーでワークスペースを指定する。
 -   **終了理由（stop reason）:** 応答の `stop_reason`。`end_turn` は自然な終了、`max_tokens` は出力トークン数の上限による打ち切り、`refusal` は安全性の判定による拒否である。
 -   **コンテンツブロック（content block）:** 応答の `content` 配列の要素。`type` で種類を表す。生成テキストは `text` ブロック、推論過程は `thinking` ブロック（または `redacted_thinking` ブロック）として返る。
 -   **番兵エラー（sentinel error）・消費するメンバー（consumed member）・拡張可能（extensible）・統合テスト（integration test）:** `0003_deepseek_llm_client` の [01_requirements.md](../0003_deepseek_llm_client/01_requirements.md) §6 と同じ意味。
