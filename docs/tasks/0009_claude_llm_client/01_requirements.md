@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-09 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 2026-10-09 レビュー対応。F-008 に要件本文（目的・対象範囲）を追加した（決定変更。未承認の `draft` のため再承認は不要）。AC-11 から取得手段 `errors.AsType` を削り観測できる振る舞いだけにした（実装への申し送り [implementation_handoff.md](implementation_handoff.md) I-01）。3.2 の応答本文のサイズ上限は、数値を要件に置かず設計で固定することを明確にして `02_architecture.md` の名指しを外した（設計への申し送り [design_handoff.md](design_handoff.md) H-09）。後続の `02_architecture.md`・`03_implementation_plan.md` は未作成。同日、要件の抽象度を見直し、手段にあたる記述を申し送りへ移した（effort の列挙型とゼロ値・モデルごとの既定値・`anthropic-version` の値・`max_tokens` の根拠 → H-02・H-03・H-06、標準ライブラリのエラーのラップ → H-10、事前調査の項目 → H-11、テストの送信先の作り方・Make のフラグ・`testdata/` のサンプル → I-02〜I-04）。送る値・受理する形・拒否の番兵は変えていない。 |
+| Review date | 2026-10-09 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
