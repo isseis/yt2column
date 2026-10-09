@@ -8,7 +8,7 @@
 | Created | 2026-10-09 |
 | Review date | - |
 | Reviewer | - |
-| Comments | 2026-10-09 レビュー対応。F-008 に要件本文（目的・対象範囲）を追加した（決定変更。未承認の `draft` のため再承認は不要）。AC-11 から取得手段 `errors.AsType` を削り観測できる振る舞いだけにした（実装への申し送り [implementation_handoff.md](implementation_handoff.md) I-01）。3.2 の応答本文のサイズ上限は、数値を要件に置かず設計で固定することを明確にして `02_architecture.md` の名指しを外した（設計への申し送り [design_handoff.md](design_handoff.md) H-09）。後続の `02_architecture.md`・`03_implementation_plan.md` は未作成。 |
+| Comments | 2026-10-09 レビュー対応。F-008 に要件本文（目的・対象範囲）を追加した（決定変更。未承認の `draft` のため再承認は不要）。AC-11 から取得手段 `errors.AsType` を削り観測できる振る舞いだけにした（実装への申し送り [implementation_handoff.md](implementation_handoff.md) I-01）。3.2 の応答本文のサイズ上限は、数値を要件に置かず設計で固定することを明確にして `02_architecture.md` の名指しを外した（設計への申し送り [design_handoff.md](design_handoff.md) H-09）。後続の `02_architecture.md`・`03_implementation_plan.md` は未作成。同日、要件の抽象度を見直し、手段にあたる記述を申し送りへ移した（effort の列挙型とゼロ値・モデルごとの既定値・`anthropic-version` の値・`max_tokens` の根拠 → H-02・H-03・H-06、標準ライブラリのエラーのラップ → H-10、事前調査の項目 → H-11、テストの送信先の作り方・Make のフラグ・`testdata/` のサンプル → I-02〜I-04）。送る値・受理する形・拒否の番兵は変えていない。 |
 
 ## 1. 概要 (Overview)
 
@@ -48,7 +48,7 @@ DeepSeek アダプタと共通する規則（秘密情報の保護、通信の�
 -   タイムアウト・キャンセル・通信失敗の報告
 -   `internal/config` での `YT2COLUMN_LLM_PROVIDER=claude`・`ANTHROPIC_API_KEY`・effort の環境変数の読み込みと検証
 -   `internal/llm/provider` での Claude アダプタの構築
--   `httptest` を使うユニットテスト
+-   Claude の API とネットワークを使わないユニットテスト
 -   実 API を使う手動実行の統合テスト（既定のテストからは除外）
 -   文書の更新（[project_overview.md](../../dev/project_overview.md) の設定の表とパッケージ構成、[security.md](../../dev/security.md) §4、[package_reference.md](../../dev/developer_guide/package_reference.md)、`README.md` の設定の説明）
 
@@ -78,33 +78,33 @@ Claude アダプタの値を、API キー・モデル名・effort・タイムア
 
 -   API キーは `secret.Secret` 型で受け取る。ゼロ値の `Secret` は拒否する。
 -   モデル名は文字列で受け取る。空文字列、前後に空白文字を含む値、および正しい UTF-8 でない値は拒否する。それ以外の値は検証せずそのまま API へ送る（モデルは頻繁に追加されるため、既知の名前の一覧と照合しない）。
--   effort は、`low`・`medium`・`high`・`xhigh`・`max` の 5 つの値を表す列挙型で受け取る。列挙型のゼロ値は「未指定」を表し、構築はこれを拒否する。effort をモデルの既定に任せず、必ず明示するためである（Opus 5.5 の既定は `medium`、Sonnet 5.5 の既定は `high` のように、モデルによって既定値が異なる）。
--   アダプタは、モデル名から effort の可否や thinking の扱いを推測しない（CLAUDE.md「Declare, don't infer」）。モデルが受け付けない effort の値は、API が `400` で拒否し、F-003 の HTTP ステータスのエラーとして報告される。
+-   effort は、`low`・`medium`・`high`・`xhigh`・`max` の 5 つの値のいずれかを受け取る。effort を指定しない構築は拒否する。effort の既定値はモデルによって異なるため、モデルの既定に任せず、必ず明示する（値の表し方は設計で決める。[design_handoff.md](design_handoff.md) H-02）。
+-   アダプタは、モデル名から effort の可否や thinking の扱いを推測しない（CLAUDE.md「Declare, don't infer」）。モデルが受け付けない effort の値を API が拒否した場合は、F-003 の HTTP ステータスのエラーとして報告される。
 -   タイムアウトは正の値でなければならない。
--   送信先は `https://api.anthropic.com/v1/messages` とする。送信先をテストから差し替えられるようにする。差し替えの手段と、本番の送信先を利用者の設定から変えられないようにする方法は設計で決める（DeepSeek アダプタと同じ手段を使ってよい）。
+-   送信先は `https://api.anthropic.com/v1/messages` とし、利用者の設定からは変えられない。ユニットテスト（F-008）のため、テストからは送信先を差し替えられるようにする（[design_handoff.md](design_handoff.md) H-08）。
 -   構築したアダプタは `llm.LLMClient` を実装する。
 
 **Acceptance Criteria**:
 - **AC-01**: 有効な API キー・モデル名・5 つの effort のいずれか・正のタイムアウトから構築したアダプタは、`llm.LLMClient` として使える。
-- **AC-02**: ゼロ値の `Secret`、空のモデル名、前後に空白文字を含むモデル名（例: `" claude-opus-5-5"`、`"claude-opus-5-5\n"`）、不正な UTF-8 のバイト列を含むモデル名、未指定（ゼロ値）の effort、5 つの値のどれでもない effort、0 以下のタイムアウトのいずれかを与えた構築はエラーになり、アダプタを返さない。
+- **AC-02**: ゼロ値の `Secret`、空のモデル名、前後に空白文字を含むモデル名（例: `" claude-opus-5-5"`、`"claude-opus-5-5\n"`）、不正な UTF-8 のバイト列を含むモデル名、指定のない effort、5 つの値のどれでもない effort、0 以下のタイムアウトのいずれかを与えた構築はエラーになり、アダプタを返さない。
 
 #### F-002: リクエストの送信
 
 `GenerateRequest` を検証し、Messages API へ 1 回の HTTP リクエストとして送る。
 
--   `GenerateRequest` の検証は `llm.GenerateRequest.Validate` の規則に従う。条件に反するリクエストは、HTTP リクエストを送らずに `llm.ErrInvalidRequest` で拒否する。
+-   `GenerateRequest` は、プロバイダ共通の規則（プロンプトが空でない正しい UTF-8 の文字列であり、`MaxOutputTokens` が 0 以上であること）で検証する。条件に反するリクエストは、HTTP リクエストを送らずに `llm.ErrInvalidRequest` で拒否する。
 -   HTTP メソッドは `POST`、本文は JSON とする。リクエストは次のヘッダーを持つ。
     -   `Content-Type: application/json`
     -   `x-api-key: <API キー>`
-    -   `anthropic-version`: 設計で固定する API のバージョン（例: `2023-06-01`）。
+    -   `anthropic-version`: 設計で固定する API のバージョン（[design_handoff.md](design_handoff.md) H-06）。
 -   `anthropic-beta` ヘッダーは送らない。
 -   本文には、次のメンバーを含める。プロンプトは加工せず、そのまま送る。
     -   `model`: 構築時のモデル名
     -   `system`: `SystemPrompt` の文字列
     -   `messages`: `UserPrompt` を内容とする `user` のメッセージ 1 件だけの配列
-    -   `max_tokens`: `MaxOutputTokens` が正の値ならその値、0 ならアダプタの定数（値は設計で、実測をもとに決める。effort を上げると推論過程の分だけ出力トークンが増えるため、記事の生成に十分な余裕を持たせる）
+    -   `max_tokens`: `MaxOutputTokens` が正の値ならその値、0 ならアダプタの定数（値は設計で決める。[design_handoff.md](design_handoff.md) H-03）
     -   `output_config.effort`: 構築時の effort を表す文字列（`low`・`medium`・`high`・`xhigh`・`max`）
--   `thinking`・`stream`・`temperature`・`top_p`・`top_k`・`tools`・`tool_choice`・`fallbacks` など、上に挙げた以外のメンバーは送らない。
+-   上に挙げた以外のメンバー（`thinking`・`stream` など）は送らない。
 -   API キーは `x-api-key` ヘッダーだけで送る。アダプタは、リクエスト本文と URL に API キーを加えない。呼び出し元がプロンプトに API キーと同じ文字列を含めた場合、その文字列はプロンプトの一部として加工せずに送る。
 -   リダイレクトには従わない。3xx の応答は F-003 の HTTP ステータスのエラーとして扱う。API キーを別の送信先へ送らないためである。
 -   リトライしない。
@@ -124,7 +124,7 @@ Claude アダプタの値を、API キー・モデル名・effort・タイムア
 
 1.  HTTP ステータス: `200` 以外は `ErrHTTPStatus` とする。エラーからステータスコードを取り出せるようにする。応答本文はエラーに含めない（信頼できない入力であり、利用者の端末へそのまま出力しないため）。
 2.  応答本文の形: 3.2 の受理する形に合致しない場合、およびサイズの上限を超える場合は `ErrInvalidResponse` とする。
-3.  終了理由: `stop_reason` が `max_tokens` の場合は `llm.ErrTruncated`、`end_turn` と `max_tokens` 以外の値（例: `refusal`・`stop_sequence`・`tool_use`・`pause_turn`・`model_context_window_exceeded`・未知の値）の場合は `llm.ErrUnexpectedFinishReason` とする。
+3.  終了理由: `stop_reason` が `max_tokens` の場合は `llm.ErrTruncated`、`end_turn` と `max_tokens` 以外の値（拒否を表す `refusal` と未知の値を含む）の場合は `llm.ErrUnexpectedFinishReason` とする。
 4.  生成テキスト: `text` ブロックがない場合、または `text` ブロックの `text` が空文字列か空白文字だけの場合は `llm.ErrEmptyResponse` とする。
 
 すべての手順を通過した場合に限り、次の `GenerateResponse` を返す。
@@ -153,16 +153,15 @@ Claude アダプタの値を、API キー・モデル名・effort・タイムア
 -   接続の失敗など、タイムアウトとキャンセル以外の通信の失敗は `ErrTransport` とする。応答のヘッダーを受け取った後、応答本文の読み取り中に接続が切れた場合も `ErrTransport` とし、`ErrInvalidResponse` としない。受け取れた本文の一部を検証に使わず、部分的な結果を返さない。
 
 **Acceptance Criteria**:
-- **AC-18**: 応答を返さずに待ち続ける送信先に対し、構築時のタイムアウトを短く設定した `Generate` は、構築時のタイムアウトが経過してから `02_architecture.md` で固定した猶予時間以内に戻り、`errors.Is(err, context.DeadlineExceeded)` が真になるエラーを返す。ヘッダーを返した後に本文の送信を止める送信先に対しても同様である。
+- **AC-18**: 応答を返さずに待ち続ける送信先に対し、構築時のタイムアウトを短く設定した `Generate` は、構築時のタイムアウトが経過してから設計で固定した猶予時間以内に戻り、`errors.Is(err, context.DeadlineExceeded)` が真になるエラーを返す。ヘッダーを返した後に本文の送信を止める送信先に対しても同様である。
 - **AC-19**: `Generate` の実行中に `ctx` をキャンセルすると、`Generate` は戻り、`errors.Is(err, context.Canceled)` が真になるエラーを返す。呼び出し前に `ctx` が既にキャンセルされている場合は、送信先へ HTTP リクエストを送らずに同じエラーを返す。
-- **AC-20**: 接続できない送信先（例: 閉じた `httptest` サーバーのアドレス）に対し、`errors.Is(err, ErrTransport)` が真になるエラーを返し、`context.DeadlineExceeded` でも `context.Canceled` でもない。ステータス `200` と応答本文の長さを示すヘッダーを返し、示した長さより前で本文の途中（有効な応答の JSON の一部まで）を送って接続を閉じる送信先に対しても同様であり、`ErrInvalidResponse` ではなく、返る `GenerateResponse` はゼロ値である。
+- **AC-20**: 接続できない送信先に対し、`errors.Is(err, ErrTransport)` が真になるエラーを返し、`context.DeadlineExceeded` でも `context.Canceled` でもない。ステータス `200` を返した後、応答本文の途中（有効な応答の JSON の一部まで）で接続を閉じる送信先に対しても同様であり、`ErrInvalidResponse` ではなく、返る `GenerateResponse` はゼロ値である（送信先の作り方は [implementation_handoff.md](implementation_handoff.md) I-02）。
 
 #### F-005: 秘密情報の保護
 
 アダプタは、API キーを送信先への `x-api-key` ヘッダー以外のどこにも出さない（呼び出し元がプロンプトに含めた文字列は F-002 による）。
 
--   構築と `Generate` が返すエラー、およびアダプタの値を `fmt`・`log/slog`・`encoding/json` で出力した結果に、API キーを含めない。
--   `*url.Error` など、標準ライブラリのエラーをラップするときも、リクエストのヘッダーや API キーを含めない。
+-   構築と `Generate` が返すエラー、およびアダプタの値を `fmt`・`log/slog`・`encoding/json` で出力した結果に、API キーを含めない。通信の失敗を報告するエラーも同様である（[design_handoff.md](design_handoff.md) H-10）。
 
 **Acceptance Criteria**:
 - **AC-21**: AC-02（有効な API キーと不正なモデル名・effort・タイムアウトの組み合わせ）・AC-08・AC-09・AC-11・AC-12・AC-13・AC-14・AC-18・AC-19・AC-20 の各エラーケース、および 3.2 の各拒否ケースについて、返るエラーを `Error()`、`%v`、`%+v`、`%#v` で文字列にした結果に、テストで使った API キーの文字列が現れない。
@@ -179,8 +178,8 @@ CLI が環境変数から Claude アダプタを選べるようにする。環�
     -   プロバイダが `claude` のとき必須とし、既定値を持たない。どの effort で生成したかを、設定から常に読み取れるようにするためである。
     -   空の値と、5 つの値以外の値は、プロバイダによらず拒否する。5 つの値のいずれかである値は、プロバイダが `claude` のときだけ保持する（`ANTHROPIC_API_KEY` と同じく、プロバイダの切り替えを `YT2COLUMN_LLM_PROVIDER` だけで行えるようにするため）。
 -   モデル名は既存の `YT2COLUMN_MODEL` で指定する（既定値なし）。プロバイダごとの変数は設けない。
--   拒否時のエラーは、既存の `config.VarError` と同じく、変数名と固定の理由だけを持ち、変数の値を含めない。
--   `internal/llm/provider` は、プロバイダが `claude` のとき、設定の API キー・モデル名・effort と、既存の LLM のタイムアウトから Claude アダプタを構築する。タイムアウトの値を DeepSeek と共有するか分けるかは設計で決める。
+-   拒否時のエラーは、既存の変数の拒否と同じく、変数名と固定の理由だけを持ち、変数の値を含めない。
+-   プロバイダが `claude` のとき、設定の API キー・モデル名・effort と LLM のタイムアウトから Claude アダプタを構築する。タイムアウトの値は設計で決める（[design_handoff.md](design_handoff.md) H-04）。
 
 **Acceptance Criteria**:
 - **AC-23**: `YT2COLUMN_LLM_PROVIDER=claude`、`YT2COLUMN_MODEL`、`ANTHROPIC_API_KEY`、および 5 つの値のいずれかの `YT2COLUMN_CLAUDE_EFFORT` を設定した環境から読み込んだ設定は、プロバイダが Claude、effort がその値であり、`provider` パッケージはそこから Claude アダプタを構築する。5 つの値のそれぞれについて確かめる。構築したアダプタが送るリクエストの `model`・`output_config.effort`・`x-api-key` は、それぞれ環境変数の値である。
@@ -193,16 +192,16 @@ CLI が環境変数から Claude アダプタを選べるようにする。環�
 
 実際の Claude の API を使ってアダプタの動作を確認する統合テストをリポジトリに含める。既定のテスト（`make test`）では実行せず、専用の Make ターゲットで手動実行する。
 
--   統合テストは `//go:build integration` で分離し、`make test`・`make test-ci` には含めない。
--   専用の Make ターゲット `make test-integration-claude` を追加する。このターゲットは、実 API を使うこと（料金が発生すること）を表示する。テスト結果のキャッシュを避けるため `-count=1` を付け、明示的な `-timeout` を設定する。既存の `test-integration`・`test-integration-deepseek` とは分ける。
--   API キーは、テスト専用の環境変数 `YT2COLUMN_TEST_ANTHROPIC_API_KEY` から読む。本番の CLI が読む `ANTHROPIC_API_KEY` は読まない。`YT2COLUMN_TEST_ANTHROPIC_API_KEY` が未設定または空の場合は、変数名を示すメッセージで `t.Skip` する。統合テストは、API キーをテストの出力に含めない。
+-   統合テストは、既定のテスト（`make test`・`make test-ci`）から分離する。
+-   専用の Make ターゲット `make test-integration-claude` を追加する。このターゲットは、実 API を使うこと（料金が発生すること）を表示する。テスト結果のキャッシュを使わず、実行時間に上限を設けて実行する（手段は [implementation_handoff.md](implementation_handoff.md) I-03）。既存の `test-integration`・`test-integration-deepseek` とは分ける。
+-   API キーは、テスト専用の環境変数 `YT2COLUMN_TEST_ANTHROPIC_API_KEY` から読む。本番の CLI が読む `ANTHROPIC_API_KEY` は読まない。`YT2COLUMN_TEST_ANTHROPIC_API_KEY` が未設定または空の場合は、変数名を示すメッセージでテストをスキップする。統合テストは、API キーをテストの出力に含めない。
 -   モデル名と effort は、テスト専用の環境変数 `YT2COLUMN_TEST_CLAUDE_MODEL`・`YT2COLUMN_TEST_CLAUDE_EFFORT` から読む。`make test-integration-claude` は、これらが環境で設定されていなければ既定値（料金を抑える組み合わせ。値は設計で決める）を与えてエクスポートし、設定されていればその値を使う。テスト自身は既定値を持たない。未設定・空・effort が 5 つの値以外の場合は、変数名を示すメッセージで失敗する（5.1）。
 -   送るプロンプトは、テストのために用意した短い固定の文字列とする。字幕・API キー・ローカルのファイルパス・利用者の個人情報を含めない（[security.md](../../dev/security.md) §4）。
 -   確認する内容は、正常な生成と、出力トークン数の上限による打ち切りの検出である。
 
 **Acceptance Criteria**:
 - **AC-28**: 統合テストは既定の `make test` と `make test-ci` の対象に含まれず、これらの実行では Claude の API もネットワークも呼ばれない。
-- **AC-29**: `YT2COLUMN_TEST_ANTHROPIC_API_KEY` が設定された環境で `make test-integration-claude` を実行すると、`-count=1` と明示的な `-timeout` を付けて統合テストが走り、少なくとも 1 件のテストが実際に実行されたこと（スキップやテスト結果のキャッシュではないこと）が `-v` 出力から確認できる。ターゲットは実 API を使うことを表示する。`YT2COLUMN_TEST_ANTHROPIC_API_KEY` が未設定の場合、統合テストは変数名を示すメッセージでスキップする。`ANTHROPIC_API_KEY` が設定されていても、`YT2COLUMN_TEST_ANTHROPIC_API_KEY` が未設定ならスキップし、`ANTHROPIC_API_KEY` の値を使わない。
+- **AC-29**: `YT2COLUMN_TEST_ANTHROPIC_API_KEY` が設定された環境で `make test-integration-claude` を実行すると、テスト結果のキャッシュを使わず、実行時間の上限を設けて統合テストが走り、少なくとも 1 件のテストが実際に実行されたこと（スキップやテスト結果のキャッシュではないこと）がテストの出力から確認できる。ターゲットは実 API を使うことを表示する。`YT2COLUMN_TEST_ANTHROPIC_API_KEY` が未設定の場合、統合テストは変数名を示すメッセージでスキップする。`ANTHROPIC_API_KEY` が設定されていても、`YT2COLUMN_TEST_ANTHROPIC_API_KEY` が未設定ならスキップし、`ANTHROPIC_API_KEY` の値を使わない。
 - **AC-30**: 統合テストは、短い固定のプロンプトで `Generate` を呼び、エラーがなく、`Text` が空白文字以外を含み、`Model` が空でないことを検証する。また、生成が完了しないほど小さな `MaxOutputTokens` を指定した `Generate` が、`errors.Is(err, llm.ErrTruncated)` が真になるエラーを返すことを検証する。
 
 #### F-008: テスト可能性
@@ -253,7 +252,7 @@ HTTP ステータス以外の応答ヘッダー（`Content-Type`・`request-id` 
 - **AC-35**: 消費するメンバーが同じオブジェクト内で重複している本文（例: トップレベルに `model` が 2 回現れる、`text` ブロックに `text` が 2 回現れる）は、`errors.Is(err, ErrInvalidResponse)` が真になるエラーになる。
 - **AC-36**: 不正な UTF-8 のバイト列、または対になっていないサロゲートのエスケープ（例: `"text":"\ud800"`）を含む本文は、その入力が消費するメンバーにあっても消費しないメンバー（例: `thinking` ブロックの `thinking`）にあっても、`errors.Is(err, ErrInvalidResponse)` が真になるエラーになり、部分的な結果を返さない。
 - **AC-37**: 応答本文のサイズが設計で固定した上限ちょうどの応答は受理され、上限を超える応答は `errors.Is(err, ErrInvalidResponse)` が真になるエラーになる。
-- **AC-38**: 拡張可能と宣言したオブジェクトが消費しないメンバー（`id`・`usage`・`stop_details`・`thinking` ブロックの `signature`・テスト用の未知のメンバー）を含んでいても、それらは無視されて受理され、`GenerateResponse` が組み立てられる。テストは、`02_architecture.md` の作成時に記録した実 API の応答の形を元にした `testdata/` のサンプルで行う。
+- **AC-38**: 拡張可能と宣言したオブジェクトが消費しないメンバー（`id`・`usage`・`stop_details`・`thinking` ブロックの `signature`・テスト用の未知のメンバー）を含んでいても、それらは無視されて受理され、`GenerateResponse` が組み立てられる。実 API が実際に返す形の応答でも同様である（テストの入力は [implementation_handoff.md](implementation_handoff.md) I-04）。
 
 ## 4. 非機能要件 (Non-Functional Requirements)
 
@@ -265,7 +264,7 @@ HTTP ステータス以外の応答ヘッダー（`Content-Type`・`request-id` 
 
 -   [security.md](../../dev/security.md) §2（秘密情報）・§3（ネットワーク通信）・§4（LLM プロバイダへ送るデータ）・§6（信頼できないテキスト）に従う。
 -   API キーは `Secret` 型で受け取り、`x-api-key` ヘッダー以外に出さない（F-002・F-005・AC-03・AC-21・AC-22）。
--   `http.DefaultClient` を使わず、タイムアウトを設定する（F-004・AC-18）。
+-   HTTP 通信にはタイムアウトを設定する（F-004・AC-18）。
 -   応答本文の読み取りに上限を設ける（3.2・AC-37）。
 -   リダイレクトに従わず、API キーを別の送信先へ送らない（F-002・AC-09）。
 -   送るのは呼び出し元が与えたプロンプトと、構築時のモデル名・effort・出力トークン数の上限だけである。アダプタ自身はプロンプトに情報を付け加えない（AC-04・AC-07）。
@@ -297,14 +296,14 @@ HTTP ステータス以外の応答ヘッダー（`Content-Type`・`request-id` 
 -   [project_overview.md](../../dev/project_overview.md) の「決定済みの方針」「前提・制約」に従う。
 -   ユニットテストは Claude の API・ネットワーク上の外部ホストを呼ばない（AC-31）。統合テスト（F-007）は実 API を使うが、既定のテストには含めず、専用の Make ターゲットで実行する。
 -   番兵 `ErrHTTPStatus`・`ErrInvalidResponse`・`ErrTransport` を `internal/llm/claude` に置くか、DeepSeek アダプタと共有するかは設計で決める（[design_handoff.md](design_handoff.md) H-01）。`ErrInvalidRequest`・`ErrTruncated`・`ErrUnexpectedFinishReason`・`ErrEmptyResponse` は `internal/llm` の既存の番兵を使う。
--   事前調査は `02_architecture.md` の作成時（承認を求める前）に行う。調査項目は、実 API の応答の形（消費するメンバー、実際に現れる消費しないメンバー、`thinking` ブロックの有無と位置、`text` ブロックの数）、記事の生成に要する出力トークン数（`max_tokens` の定数を決めるため。effort の値ごと）、`200` 以外の応答の形、および非ストリーミングで高い effort の生成が既存のタイムアウト内に終わるかどうかである。調査は実 API を呼び料金が発生するため、実施前に人間の明示的な承認を得る（CLAUDE.md の Tool Execution Safety）。調査結果は `02_architecture.md` に記録し、API キーなどの秘密情報を除いた実応答を `testdata/` に保存する（実応答に含まれる生成テキストは、調査用の固定のプロンプトから生成したものに限る）。
+-   実 API の応答の形と、記事の生成に要する出力トークン数・所要時間を、設計の作成時（承認を求める前）に事前調査で確かめる。調査項目は [design_handoff.md](design_handoff.md) H-11 に挙げる。調査は実 API を呼び料金が発生するため、実施前に人間の明示的な承認を得る（CLAUDE.md の Tool Execution Safety）。調査結果は設計に記録し、API キーなどの秘密情報を除いた実応答をリポジトリに保存する（実応答に含まれる生成テキストは、調査用の固定のプロンプトから生成したものに限る）。
 -   `02_architecture.md` は、[design_handoff.md](design_handoff.md) の各項目について、採用した手段または扱わない理由を記録する。
 
 ### 5.1. 他の文書との差分
 
 -   `0003_deepseek_llm_client` の統合テストは、モデル名を本番の CLI と同じ `YT2COLUMN_MODEL` から読む。本タスクの統合テストは、テスト専用の `YT2COLUMN_TEST_CLAUDE_MODEL` から読む（F-007）。`YT2COLUMN_MODEL` はプロバイダ間で共有する変数であり、`.envrc` に DeepSeek のモデル名が設定されたまま `make test-integration-claude` を実行すると、Claude の API に DeepSeek のモデル名を送ってしまうためである。DeepSeek の統合テストの読み方は変更しない。
--   `0003_deepseek_llm_client` では、`MaxOutputTokens` が 0 のとき `max_tokens` を送らず API の既定に任せる。Messages API は `max_tokens` を必須とするため、本タスクでは 0 のときアダプタの定数を送る（F-002）。`llm.GenerateRequest` の「0 は上限をプロバイダの既定に任せる」という意味は変えず、Claude ではアダプタの定数がその「既定」にあたる。`llm.GenerateRequest` の doc コメントにこの解釈が読み取れない場合は、設計で doc コメントを補う。
--   `llm.GenerateResponse.ModelVersion` は、Claude では常に空文字列とする（F-003）。`ModelVersion` の doc コメントの「プロバイダが返さない場合は空」の規則に従う。
+-   `0003_deepseek_llm_client` では、`MaxOutputTokens` が 0 のとき `max_tokens` を送らず API の既定に任せる。Messages API は `max_tokens` を必須とするため、本タスクでは 0 のときアダプタの定数を送る（F-002）。`MaxOutputTokens` の「0 は上限をプロバイダの既定に任せる」という意味は変えず、Claude ではアダプタの定数がその「既定」にあたる（[design_handoff.md](design_handoff.md) H-03）。
+-   `llm.GenerateResponse.ModelVersion` は、Claude では常に空文字列とする（F-003）。既存の「プロバイダが返さない場合は空」の規則に従う。
 -   [project_overview.md](../../dev/project_overview.md) の設定の表を更新する（`YT2COLUMN_LLM_PROVIDER` の受理する値に `claude`、`ANTHROPIC_API_KEY` の説明、`YT2COLUMN_CLAUDE_EFFORT` の追加）。決定済みの方針は変更しない。
 
 ## 6. 用語集 (Glossary)
@@ -312,7 +311,7 @@ HTTP ステータス以外の応答ヘッダー（`Content-Type`・`request-id` 
 用語は [translation_glossary.md](../../translation_glossary.md) と統一する。本タスクで新たに使う用語は次のとおり。
 
 -   **Claude アダプタ:** `internal/llm/claude` が提供する `llm.LLMClient` の実装。Anthropic の Messages API を呼ぶ。
--   **Messages API:** Anthropic の、system プロンプトとメッセージ列を受け取って生成結果を返す HTTP API。`POST https://api.anthropic.com/v1/messages`。
+-   **Messages API:** Anthropic の、system プロンプトとメッセージ列を受け取って生成結果を返す HTTP API。
 -   **effort:** Messages API の `output_config.effort`。推論の深さと出力トークンの量を調整する値で、`low`・`medium`・`high`・`xhigh`・`max` の 5 段階がある。省略時の既定値はモデルによって異なる。
 -   **終了理由（stop reason）:** 応答の `stop_reason`。`end_turn` は自然な終了、`max_tokens` は出力トークン数の上限による打ち切り、`refusal` は安全性の判定による拒否である。
 -   **コンテンツブロック（content block）:** 応答の `content` 配列の要素。`type` で種類を表す。生成テキストは `text` ブロック、推論過程は `thinking` ブロック（または `redacted_thinking` ブロック）として返る。
