@@ -1,6 +1,6 @@
 # testdata
 
-このディレクトリには、パーサのテスト用に保存した `yt-dlp` の実出力、YouTube の動画ページの文字起こしパネルの HTML の抜粋、DeepSeek の API の実応答（後述）がある。`yt-dlp` の出力と HTML の抜粋については、**リポジトリに保存してよいのは、再配布が許諾されたライセンスの動画からの出力だけ**とする（通常の YouTube 標準ライセンスの動画の全文字起こしは保存しない）。
+このディレクトリには、パーサのテスト用に保存した `yt-dlp` の実出力、YouTube の動画ページの文字起こしパネルの HTML の抜粋、DeepSeek と Claude の API の実応答（後述）がある。`yt-dlp` の出力と HTML の抜粋については、**リポジトリに保存してよいのは、再配布が許諾されたライセンスの動画からの出力だけ**とする（通常の YouTube 標準ライセンスの動画の全文字起こしは保存しない）。
 
 ## 出典とライセンス
 
@@ -62,3 +62,19 @@ CC BY 3.0 の条件に従い、上記の出典（動画 URL・チャンネル名
 
 - `deepseek_chat_completion_stop.json`: `max_tokens` を送らないリクエストへの応答。`finish_reason` は `stop`。
 - `deepseek_chat_completion_length.json`: `max_tokens` を 16 としたリクエストへの応答。`finish_reason` は `length`、`content` は空文字列。
+
+## Claude の API の実応答
+
+次の 2 ファイルは、Claude アダプタ（`internal/llm/claude`）の応答の検証のテスト用に保存した、Anthropic の Messages API の実応答の本文である。取得の経緯と観測結果は [docs/tasks/0009_claude_llm_client/02_architecture.md](../docs/tasks/0009_claude_llm_client/02_architecture.md) §1.4 に記録している。
+
+- 取得日: 2026-10-09
+- 送信先: `POST https://api.anthropic.com/v1/messages`（HTTP/2、`anthropic-version: 2023-06-01`）
+- プロンプト: system は `You are a concise assistant.`。user はテストのために用意した固定の英文で、字幕や個人情報を含まない（各ファイルの説明を参照）
+
+生成テキストは固定のプロンプトに対するモデルの出力であり、第三者の著作物を含まない。保存前に、API キー（全体と末尾 8 文字）とワークスペース ID が含まれないことを確認した。応答本文は受け取ったバイト列のまま保存し、次の 2 つの値だけを、同じ長さ・同じ文字種の合成の値に置き換えた。どちらも Anthropic の側で取得者の組織と結び付けられうる値で、アダプタは読まない（消費しないメンバー）ためである。
+
+- トップレベルの `id`（メッセージの識別子）: `msg_` に続く部分を `0` に置き換えた。
+- `thinking` ブロックの `signature`（thinking ブロックの検証用の不透明な値）: 0 のバイト列の Base64（`AAAA…`）に置き換えた。
+
+- `claude_messages_end_turn.json`: モデル `claude-opus-5-5`、effort `high`、`max_tokens` 4096、user `A bat and a ball cost 1.10 dollars in total. The bat costs 1.00 dollar more than the ball. How much does the ball cost? Answer in one sentence.` への応答。`stop_reason` は `end_turn`。`content` は `thinking` ブロック（`thinking` は空文字列）と `text` ブロックの 2 つ。
+- `claude_messages_max_tokens.json`: モデル `claude-haiku-5-5`、effort `low`、`max_tokens` 16、user `Explain in several detailed paragraphs how a compiler turns source code into machine code.` への応答。`stop_reason` は `max_tokens`、`content` は途中までの `text` ブロック 1 つ。
