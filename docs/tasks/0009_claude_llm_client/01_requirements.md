@@ -8,7 +8,7 @@
 | Created | 2026-10-09 |
 | Review date | - |
 | Reviewer | - |
-| Comments | - |
+| Comments | 2026-10-09 レビュー対応。F-008 に要件本文（目的・対象範囲）を追加した（決定変更。未承認の `draft` のため再承認は不要）。AC-11 から取得手段 `errors.AsType` を削り観測できる振る舞いだけにした（実装への申し送り [implementation_handoff.md](implementation_handoff.md) I-01）。3.2 の応答本文のサイズ上限は、数値を要件に置かず設計で固定することを明確にして `02_architecture.md` の名指しを外した（設計への申し送り [design_handoff.md](design_handoff.md) H-09）。後続の `02_architecture.md`・`03_implementation_plan.md` は未作成。 |
 
 ## 1. 概要 (Overview)
 
@@ -21,7 +21,7 @@ Claude のモデルは、Opus・Sonnet・Haiku などの系列がある。また
 
 現行の Claude のモデルでは、thinking（推論）が常に有効、または既定で有効である。推論過程は `thinking` ブロックとして、生成テキストの `text` ブロックとは別に返る。記事には `text` ブロックだけを使う。
 
-**本書の記述範囲:** 本書は、観測できる振る舞い（何を送り、何を受理し、何をどの番兵エラーで拒否するか）と、設定として受け付ける値を定める。その振る舞いを実現する手段（型や関数の名前、標準ライブラリの API の使い方、上限値など）は設計（`02_architecture.md`）で決める。要件レビューの過程で挙がった実装上の注意点と、設計で決める事項は [design_handoff.md](design_handoff.md) に申し送る。
+**本書の記述範囲:** 本書は、観測できる振る舞い（何を送り、何を受理し、何をどの番兵エラーで拒否するか）と、設定として受け付ける値を定める。その振る舞いを実現する手段（型や関数の名前、標準ライブラリの API の使い方、上限値など）は設計（`02_architecture.md`）で決める。要件レビューの過程で挙がった実装上の注意点と、設計で決める事項は [design_handoff.md](design_handoff.md) に、実装計画で決める事項は [implementation_handoff.md](implementation_handoff.md) に申し送る。
 
 DeepSeek アダプタと共通する規則（秘密情報の保護、通信の失敗の報告、信頼できない入力の検証など）は、本書でも AC として改めて定める。アダプタごとに独立して検証できるようにするためである。
 
@@ -137,7 +137,7 @@ Claude アダプタの値を、API キー・モデル名・effort・タイムア
 
 **Acceptance Criteria**:
 - **AC-10**: `stop_reason` が `end_turn` で、空白文字以外を含む `text` ブロックを 1 つ持つ応答に対し、`Generate` はエラーを返さず、`Text` が `text` と同一の文字列（前後の空白や改行も含めて変更されない）、`Model` が応答の `model` の値、`ModelVersion` が空文字列である `GenerateResponse` を返す。応答の `model` が構築時のモデル名と異なる場合も、`Model` は応答の値である。
-- **AC-11**: HTTP ステータスが `200` 以外の応答（少なくとも `400`・`401`・`403`・`404`・`413`・`429`・`500`・`529`、および AC-09 の `307`）に対し、`errors.Is(err, ErrHTTPStatus)` が真になるエラーを返す。エラーからステータスコードを `errors.AsType` で取り出せ、その値は応答のステータスコードと一致する。エラーメッセージに応答本文に含まれていた文字列（テストで本文に埋め込んだ目印）は現れない。
+- **AC-11**: HTTP ステータスが `200` 以外の応答（少なくとも `400`・`401`・`403`・`404`・`413`・`429`・`500`・`529`、および AC-09 の `307`）に対し、`errors.Is(err, ErrHTTPStatus)` が真になるエラーを返す。エラーからステータスコードを取り出せ、その値は応答のステータスコードと一致する。エラーメッセージに応答本文に含まれていた文字列（テストで本文に埋め込んだ目印）は現れない。
 - **AC-12**: `stop_reason` が `max_tokens` の応答は、空でない `text` ブロックを持っていても `errors.Is(err, llm.ErrTruncated)` が真になるエラーになり、打ち切られた `text` を返さない（返る `GenerateResponse` はゼロ値である）。
 - **AC-13**: `stop_reason` が `end_turn`・`max_tokens` 以外の文字列（`refusal`・`stop_sequence`・`tool_use`・`pause_turn`・`model_context_window_exceeded`・テスト用の未知の値）の応答は、`errors.Is(err, llm.ErrUnexpectedFinishReason)` が真になるエラーになり、`llm.ErrTruncated` ではない。
 - **AC-14**: `stop_reason` が `end_turn` で、`text` ブロックがない応答（`content` が空の配列、または `thinking` ブロックだけ）、および `text` が空文字列か空白文字（半角空白・改行・タブ）だけの応答は、`errors.Is(err, llm.ErrEmptyResponse)` が真になるエラーになる。
@@ -207,6 +207,8 @@ CLI が環境変数から Claude アダプタを選べるようにする。環�
 
 #### F-008: テスト可能性
 
+アダプタ（`internal/llm/claude`）と設定（`internal/config`）のユニットテストを、Claude の API とネットワーク上の外部ホストを使わずに実行できるようにする。実 API を使う統合テスト（F-007）とは別に、API キー・料金・実 API の可用性やレート制限に依存せず、既定のテスト（`make test`・`make test-ci`）と CI で常に実行できるようにするためである。
+
 **Acceptance Criteria**:
 - **AC-31**: アダプタと設定のユニットテストは、Claude の API もネットワーク上の外部ホストも呼ばない。
 
@@ -229,7 +231,7 @@ API の応答は信頼できない入力である。応答は次の規則に従�
 -   消費するメンバーが同じオブジェクト内で重複している場合は拒否する。どちらの値を採るかを推測しないためである。
 -   トップレベルと `content` の各要素のオブジェクトは、**拡張可能**と宣言する。これらが持つ消費しないメンバー（`id`・`type`・`role`・`stop_sequence`・`stop_details`・`usage`・`thinking`・`signature`・`data`・`citations` など、および未知のメンバー）は、値の種類や重複を問わず無視して受理する。API は応答にメンバーを追加することがあり、それを拒否理由にしないためである。ただし、応答本文全体に対する検査（正しい UTF-8 であること、対になっていないサロゲートのエスケープを含まないこと、ちょうど 1 つのトップレベルの値であること）は、拡張可能であっても消費しないメンバーに及ぶ。
 -   文字列として正しくエンコードされていない入力（不正な UTF-8 のバイト列、対になっていない UTF-16 サロゲートのエスケープ）は、デコーダが置換文字（U+FFFD）に置き換えて受理しうるが、これも補正とみなして拒否する。
--   応答本文のサイズには上限を設ける。上限値は `02_architecture.md` で固定する。上限を超える応答は拒否し、ちょうど上限の応答は受理する。`200` 以外の応答の本文を読む場合も、同じ上限を超えて読まない。
+-   応答本文のサイズには上限を設ける。上限値は設計で固定する。上限を超える応答は拒否し、ちょうど上限の応答は受理する。`200` 以外の応答の本文を読む場合も、同じ上限を超えて読まない。
 
 HTTP ステータス以外の応答ヘッダー（`Content-Type`・`request-id` など）は消費せず、検証しない。
 
@@ -250,7 +252,7 @@ HTTP ステータス以外の応答ヘッダー（`Content-Type`・`request-id` 
 - **AC-34**: `content` が JSON オブジェクト以外の要素（例: `[null]`、`["x"]`）を含む本文、`type` が `text`・`thinking`・`redacted_thinking` 以外の要素（`tool_use`・テスト用の未知の値）を含む本文、および `type` が `text` の要素を 2 つ以上含む本文は、`errors.Is(err, ErrInvalidResponse)` が真になるエラーになる。
 - **AC-35**: 消費するメンバーが同じオブジェクト内で重複している本文（例: トップレベルに `model` が 2 回現れる、`text` ブロックに `text` が 2 回現れる）は、`errors.Is(err, ErrInvalidResponse)` が真になるエラーになる。
 - **AC-36**: 不正な UTF-8 のバイト列、または対になっていないサロゲートのエスケープ（例: `"text":"\ud800"`）を含む本文は、その入力が消費するメンバーにあっても消費しないメンバー（例: `thinking` ブロックの `thinking`）にあっても、`errors.Is(err, ErrInvalidResponse)` が真になるエラーになり、部分的な結果を返さない。
-- **AC-37**: 応答本文のサイズが `02_architecture.md` で固定した上限ちょうどの応答は受理され、上限を超える応答は `errors.Is(err, ErrInvalidResponse)` が真になるエラーになる。
+- **AC-37**: 応答本文のサイズが設計で固定した上限ちょうどの応答は受理され、上限を超える応答は `errors.Is(err, ErrInvalidResponse)` が真になるエラーになる。
 - **AC-38**: 拡張可能と宣言したオブジェクトが消費しないメンバー（`id`・`usage`・`stop_details`・`thinking` ブロックの `signature`・テスト用の未知のメンバー）を含んでいても、それらは無視されて受理され、`GenerateResponse` が組み立てられる。テストは、`02_architecture.md` の作成時に記録した実 API の応答の形を元にした `testdata/` のサンプルで行う。
 
 ## 4. 非機能要件 (Non-Functional Requirements)
