@@ -8,7 +8,7 @@
 | Created | 2026-10-09 |
 | Review date | 2026-10-10 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-10、AC-44 の文言を、既承認の AC-03・AC-04 と同じ「ワークスペース ID を含まないプロンプトで呼び出したとき」の限定に合わせ、アダプタ自身が本文・URL に加えないことを定める形に直した（F-002 にも同じ規則を明記）。プロンプトに同じ文字列を含めた場合の送信は AC-04 のままで、アダプタの振る舞いは変わらないため、決定変更ではない（編集上の修正）。 |
 
 ## 1. 概要 (Overview)
 
@@ -109,13 +109,14 @@ Claude アダプタの値を、API キー・モデル名・effort・ワークス
     -   `output_config.effort`: 構築時の effort を表す文字列（`low`・`medium`・`high`・`xhigh`・`max`）
 -   上に挙げた以外のメンバー（`thinking`・`stream` など）は送らない。
 -   API キーは `x-api-key` ヘッダーだけで送る。アダプタは、リクエスト本文と URL に API キーを加えない。呼び出し元がプロンプトに API キーと同じ文字列を含めた場合、その文字列はプロンプトの一部として加工せずに送る。
+-   ワークスペース ID を指定した場合、アダプタはこれを `anthropic-workspace-id` ヘッダーだけで送る。アダプタは、リクエスト本文と URL にワークスペース ID を加えない。呼び出し元がプロンプトにワークスペース ID と同じ文字列を含めた場合、その文字列はプロンプトの一部として加工せずに送る。
 -   リダイレクトには従わない。3xx の応答は F-003 の HTTP ステータスのエラーとして扱う。API キーを別の送信先へ送らないためである。
 -   リトライしない。
 
 **Acceptance Criteria**:
 - **AC-03**: `Generate` は、送信先へ `POST` を 1 回だけ送る。送信先が受け取るリクエストの `Content-Type` ヘッダーは `application/json`、`x-api-key` ヘッダーは API キー、`anthropic-version` ヘッダーは設計で固定した値であり、`anthropic-beta` ヘッダーと `Authorization` ヘッダーを含まない。API キーを含まないプロンプトで呼び出したとき、リクエスト本文と URL には API キーが現れない。
 - **AC-40**: ワークスペース ID を指定して構築したアダプタが送るリクエストの `anthropic-workspace-id` ヘッダーは、その値と同一である。指定せずに構築したアダプタが送るリクエストは、`anthropic-workspace-id` ヘッダーを含まない。
-- **AC-44**: ワークスペース ID の値は、`anthropic-workspace-id` ヘッダー以外のリクエストの部分（本文・URL）に現れない。
+- **AC-44**: アダプタは、ワークスペース ID を `anthropic-workspace-id` ヘッダー以外のリクエストの部分（本文・URL）に加えない。ワークスペース ID を含まないプロンプトで呼び出したとき、リクエスト本文と URL にはワークスペース ID が現れない。
 - **AC-04**: リクエスト本文の JSON は、構築時のモデル名の `model`、`SystemPrompt` と同一の文字列の `system`、`UserPrompt` と同一の文字列を内容とする `user` のメッセージ 1 件だけの `messages` を含む。各プロンプトは送信前と同一の文字列である（前後の空白や改行も含めて変更されない）。
 - **AC-05**: `MaxOutputTokens` が正の値のとき、リクエスト本文の `max_tokens` はその値である。0 のとき、`max_tokens` は設計で固定したアダプタの定数である。
 - **AC-06**: リクエスト本文の `output_config.effort` は、構築時の effort を表す文字列である。5 つの effort のそれぞれについて確かめる。
