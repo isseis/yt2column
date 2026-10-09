@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-09 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 2026-10-09 に一度承認（isseis）。同日、設計の事前調査で、ワークスペースに紐付かない API キーは `anthropic-workspace-id` ヘッダーがないと `400` で拒否されると分かったため、ワークスペース ID を任意で指定してヘッダーとして送れるようにした（決定変更。F-001・F-002・F-005・F-006・F-007・§4.2・§6、AC-39〜AC-44 を追加。§6 にワークスペースを追加）。再承認が必要。 |
+| Review date | 2026-10-09 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
