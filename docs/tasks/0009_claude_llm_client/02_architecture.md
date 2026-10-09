@@ -8,7 +8,7 @@
 | Created | 2026-10-09 |
 | Review date | 2026-10-10 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-10、実装計画の作成時に §8 を編集上の修正として直した。(1) テストサーバーの部品（`llmhttptest`）は、§3.8・§7.1 のとおり `llmhttp` のテストが使うため、3 から 1 へ移した。(2) パッケージを新設する段で `package_reference.md` の行を加えることを明記した（既存の guard テストが求める）。何を作るか・なぜかの決定は変えていない。 |
 
 本書の既存コードへの言及は、HEAD `c45b750` で確認した。
 
@@ -762,12 +762,14 @@ flowchart TD
 
 ## 8. 実装優先順位 (Implementation Priorities)
 
-1. `internal/llm/llmhttp` の切り出し（DeepSeek アダプタのテストが変更なしに通ること）。続けて、経過時間をメッセージに加える変更を別のコミットにする。
+1. `internal/llm/llmhttp` の切り出し（DeepSeek アダプタのテストが変更なしに通ること）と、`llmhttp` のテストが使うテストサーバーの部品（`internal/llm/llmhttp/llmhttptest`）。続けて、経過時間をメッセージに加える変更を別のコミットにする。
 2. `internal/llm/claudeparam`。
-3. `internal/llm/claude`（構築・リクエスト・応答の検証）とユニットテスト、テストサーバーの部品。
+3. `internal/llm/claude`（構築・リクエスト・応答の検証）とユニットテスト。
 4. `internal/config`・`internal/llm/provider`・`cmd/yt2column` の変更。
 5. `internal/maketestutil` への部品の移動、統合テストと Make ターゲット。
 6. 文書（README・project_overview・security・package_reference・CLAUDE.md・testdata の README）。
+
+パッケージを新設・変更する段では、その段で `package_reference.md` の行も更新する。`internal/pipeline` の `TestPackageReferenceListsPackages` が、パッケージと表の行の一致を求めるためである。6 の `package_reference.md` は、実装との一致の確認になる。
 
 ## 9. 将来の拡張性 (Future Extensibility)
 
