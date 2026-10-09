@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-09 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 2026-10-09 に承認（isseis）。2026-10-10、選択したプロバイダに関係しない環境変数は検査しないことにした（決定変更。F-006 に原則を加え、`ANTHROPIC_API_KEY`・`YT2COLUMN_CLAUDE_EFFORT`・`ANTHROPIC_WORKSPACE_ID`・`DEEPSEEK_API_KEY` の扱い、AC-24・AC-25・AC-26・AC-42、§5.1 を改め、AC-45 を追加）。再承認が必要。 |
+| Review date | 2026-10-10 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
