@@ -19,6 +19,7 @@
 | H-05 | 3.2 | `content` の要素の、`type` による検証の分岐 | AC-33〜AC-36 |
 | H-06 | F-002 | `anthropic-version` の固定値 | AC-03 |
 | H-07 | F-007 | 統合テストの既定のモデルと effort | AC-29・AC-30 |
+| H-08 | F-008 | ユニットテストの送信先の差し替え（`httptest`） | AC-31 |
 
 ## H-01: DeepSeek アダプタとの共通部分の切り出し
 
@@ -63,3 +64,9 @@
 -   `make test-integration-claude` の既定値は、料金を抑える組み合わせにする。候補は、現行の Haiku（`claude-haiku-5-5`）と `low` である。
 -   打ち切りの検出（AC-30）は、小さな `MaxOutputTokens` を指定する。thinking が有効なモデルでは、推論過程の途中で打ち切られ、`text` ブロックがない応答になりうる。この場合も `stop_reason` が `max_tokens` なら `llm.ErrTruncated` になることを、検証の順序（要件書 F-003・AC-16）で保証している。
 -   Messages API が受け付ける `max_tokens` の最小値を確認し、それ以上の値を使う。
+
+## H-08: ユニットテストの送信先の差し替え
+
+-   アダプタのユニットテストは、`net/http/httptest` のサーバーを送信先にして、F-001〜F-005 と 3.2 の各 AC を検証する（AC-31 のテストの振る舞いを満たす手段）。テストは Claude の API もネットワーク上の外部ホストも呼ばない。
+-   送信先をテストから差し替える手段（テスト用の構築、`http.Client` または `http.RoundTripper` の差し替えなど）と、本番の送信先（`https://api.anthropic.com/v1/messages`）を利用者の設定から変えられないようにする方法は、DeepSeek アダプタの申し送り（[0003 の design_handoff.md](../0003_deepseek_llm_client/design_handoff.md) H-06）で採った手段を再利用できるかを最初に確認して決める（要件書 F-001）。
+-   設定（`internal/config`）のユニットテストも Claude の API と外部ホストを呼ばない（AC-31）。
