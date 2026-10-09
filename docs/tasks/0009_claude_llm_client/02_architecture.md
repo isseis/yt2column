@@ -8,7 +8,7 @@
 | Created | 2026-10-09 |
 | Review date | - |
 | Reviewer | - |
-| Comments | - |
+| Comments | 2026-10-10、要件定義書の改訂（選択したプロバイダに関係しない変数は検査しない。AC-45 の追加）に合わせ、§1.3・§3.2・§3.8・§7.1・§7.4 を改めた。 |
 
 本書の既存コードへの言及は、HEAD `c45b750` で確認した。
 
@@ -96,7 +96,7 @@ flowchart LR
 | `internal/transcript`（yt-dlp の子プロセスの環境） | 変更しない。子に渡す環境変数は allowlist（`internal/transcript/exec.go:44`）で決まるため、`ANTHROPIC_API_KEY` は渡らない |
 | `internal/llm/deepseek/testutil` の Make の検査の部品 | プロバイダによらない部分を `internal/maketestutil` に移す（§7.2）|
 
-**既存の DeepSeek の利用者への影響。** 要件定義書 F-006 は、`ANTHROPIC_API_KEY`・`ANTHROPIC_WORKSPACE_ID` の空の値を、プロバイダによらず拒否すると定める（`DEEPSEEK_API_KEY` と対称）。そのため、DeepSeek を使っていて、シェルが `ANTHROPIC_API_KEY=`（空）をエクスポートしている環境では、更新後に設定のエラーで止まる。Claude Code などのツールのために空の値を設定している環境はありうる。これは要件が定めた振る舞いであり、本設計はそのまま実装する。更新時に気付けるよう、エラーは変数名と「空の値」という理由を示し（既存の `*config.VarError`）、README の設定の節と、変更を含むリリースの説明に書く。この振る舞いを固定するテストとして、「プロバイダが `deepseek` で `ANTHROPIC_API_KEY` が空」の行を `internal/config` のテストに加える。
+**選択したプロバイダに関係しない変数は検査しない。** 要件定義書 F-006 は、`YT2COLUMN_LLM_PROVIDER` で選んだプロバイダの変数だけを読んで検査し、他のプロバイダの変数は未設定・空・不正な値のいずれでも拒否しないと定める。そのため、DeepSeek を使っていて、他のツールのために `ANTHROPIC_API_KEY=`（空）などをエクスポートしている環境でも、更新後に止まらない（AC-26）。既存の `DEEPSEEK_API_KEY` の読み込みは、空の値をプロバイダによらず拒否している（`internal/config/config.go:199-221`）。この判定を「プロバイダが `deepseek` のときだけ」に改める（§3.2）。プロバイダが `deepseek` のときの振る舞いは変わらない（AC-27）。プロバイダが不正なときに `DEEPSEEK_API_KEY` の空の値を報告しなくなるが、この組み合わせを検査している既存のテストはない（`internal/config/config_test.go` の `TestLoadMissing`・`TestLoadEmpty`・`TestLoadInvalid` の行は、いずれもプロバイダが `deepseek` か、`DEEPSEEK_API_KEY` が空でない）。
 
 ### 1.4. 事前調査（実 API）
 
@@ -362,12 +362,15 @@ func (c Config) AnthropicWorkspaceID() claudeparam.WorkspaceID
 | 変数 | 未設定 | 空 | 不正な値 | 正しい値 |
 |---|---|---|---|---|
 | `YT2COLUMN_LLM_PROVIDER` | `deepseek` | `ErrMissing` | `ErrInvalid`（`deepseek`・`claude` 以外）| そのプロバイダ |
-| `ANTHROPIC_API_KEY` | プロバイダが `claude` なら `ErrMissing` | `ErrMissing`（プロバイダによらず）| なし | プロバイダが `claude` のときだけ保持 |
-| `YT2COLUMN_CLAUDE_EFFORT` | プロバイダが `claude` なら `ErrMissing` | `ErrMissing`（プロバイダによらず）| `ErrInvalid`（`ParseEffort` が拒否する値、プロバイダによらず）| プロバイダが `claude` のときだけ保持 |
-| `ANTHROPIC_WORKSPACE_ID` | 指定なし | `ErrMissing`（プロバイダによらず）| `ErrInvalid`（`ParseWorkspaceID` が拒否する値、プロバイダによらず）| プロバイダが `claude` のときだけ保持 |
+| `DEEPSEEK_API_KEY`（`deepseek`）| `ErrMissing` | `ErrMissing` | なし | 保持 |
+| `ANTHROPIC_API_KEY`（`claude`）| `ErrMissing` | `ErrMissing` | なし | 保持 |
+| `YT2COLUMN_CLAUDE_EFFORT`（`claude`）| `ErrMissing` | `ErrMissing` | `ErrInvalid`（`ParseEffort` が拒否する値）| 保持 |
+| `ANTHROPIC_WORKSPACE_ID`（`claude`）| 指定なし | `ErrMissing` | `ErrInvalid`（`ParseWorkspaceID` が拒否する値）| 保持 |
+
+プロバイダ固有の変数の行は、括弧内のプロバイダが選ばれたときの扱いである。それ以外のプロバイダが選ばれたとき、およびプロバイダが不正なときは、その変数を読まない（どの値でも拒否せず、保持もしない。AC-26・AC-45）。
 
 - 拒否は既存の `*VarError`（変数名と固定の理由だけを持つ）で返す。理由の文字列は定数で、拒否した値を含まない（AC-25・AC-42）。effort の理由は「対応する effort の値ではない」とだけ書き、5 つの値を並べない。値の一覧を `claudeparam` の外に持たないためである（要件定義書 §4.5）。
-- 読み込みは既存の `Load` と同じく、すべての拒否を `errors.Join` でまとめて返す。プロバイダが不正な場合、`cfg.provider` は `ProviderUnset` のままなので、プロバイダに依存する必須の判定は行わない。既存の `DEEPSEEK_API_KEY` の読み込み（`internal/config/config.go:199-221`）と同じ扱いである。
+- 読み込みは既存の `Load` と同じく、すべての拒否を `errors.Join` でまとめて返す。プロバイダ固有の変数の読み込みは、`cfg.provider` が自分のプロバイダのときだけ変数を読む。`switch cfg.provider` で分け、`default`（他のプロバイダと、プロバイダが不正で `ProviderUnset` のままの場合）は何も読まない。
 - `YT2COLUMN_LLM_PROVIDER` の理由の文字列（`internal/config/config.go:52`）は `must be exactly "deepseek" or "claude"` にする。
 - 既存の `apiKeyEnv`・`loadAPIKey`（`internal/config/config.go:30`・`:199`）は DeepSeek 専用だが名前が一般的なため、`deepSeekAPIKeyEnv`・`loadDeepSeekAPIKey` に改め、Anthropic 用の `anthropicAPIKeyEnv`・`loadAnthropicAPIKey` と区別する。`internal/config/config_test.go` の該当箇所（`apiKeyEnv` の参照）も改名に合わせる。
 
@@ -502,7 +505,7 @@ func Post(ctx context.Context, call Call) ([]byte, error)
 | `internal/maketestutil/make.go`・`make_test.go` | 新設（移動）| スタブの `GOTEST` で Make を実行する部品（§7.2）| `internal/llm/deepseek/testutil/make_test.go` の非公開の名前のテストを移す |
 | `internal/llm/deepseek/testutil/make.go` | 変更 | `RunMakeTarget` などを `internal/maketestutil` の部品を呼ぶだけの薄いラッパーにする | なし（公開の形を変えない）|
 | `cmd/yt2column/makefile_test.go` | 変更 | `TestMakeOptInsAreTargetSpecific`（`:61-90`）に `test-integration-claude` と `YT2COLUMN_CLAUDE_INTEGRATION` を加える。`YT2COLUMN_CLAUDE_INTEGRATION` は記録する変数にも加える（記録しなければ、他のターゲットがエクスポートしても検査が失敗しない）| 同ファイル |
-| `internal/config/config.go` | 変更 | §3.2。http2debug のコメント（`:40-41`）の「`Authorization` ヘッダー」を、送るすべての API キーのヘッダーを指す表現に改める | `internal/config/config_test.go:173`（`claude` を不正な値として挙げている。`Claude`・`anthropic` に置き換える）、`apiKeyEnv` の参照（改名）|
+| `internal/config/config.go` | 変更 | §3.2。`DEEPSEEK_API_KEY` の読み込みを、プロバイダが `deepseek` のときだけ変数を読む形に改める（§1.3）。http2debug のコメント（`:40-41`）の「`Authorization` ヘッダー」を、送るすべての API キーのヘッダーを指す表現に改める | `internal/config/config_test.go:173`（`claude` を不正な値として挙げている。`Claude`・`anthropic` に置き換える）、`apiKeyEnv` の参照（改名）|
 | `internal/config/envaccess_test.go` | 変更 | 秘密情報の変数名の一覧（`:59`）に `ANTHROPIC_API_KEY` を加える | 同ファイル |
 | `internal/llm/provider/provider.go` | 変更 | §3.3 | `internal/llm/provider/provider_test.go:132`・`:178` |
 | `internal/llm/provider/provider_test.go` | 変更 | 本番の送信先に届かないことの検査（§7.1）を加える | 同ファイル |
@@ -510,8 +513,8 @@ func Post(ctx context.Context, call Call) ([]byte, error)
 | `cmd/yt2column/docs_test.go` | 変更 | 設定の表の行（`:33-40`）に `ANTHROPIC_API_KEY`・`YT2COLUMN_CLAUDE_EFFORT`・`ANTHROPIC_WORKSPACE_ID` を加える | 同ファイル |
 | `Makefile` | 変更 | `test-integration-claude` を加える | - |
 | `testdata/claude_messages_end_turn.json`・`claude_messages_max_tokens.json`・`README.md` | 新設・変更 | §1.4 のフィクスチャと出典 | - |
-| `README.md` | 変更 | 設定の表、`max` の注意、`ANTHROPIC_API_KEY` を空でエクスポートしている環境への注意（§1.3）、統合テスト | - |
-| `docs/dev/project_overview.md` | 変更 | 設定の表、パッケージ構成 | - |
+| `README.md` | 変更 | 設定の表（プロバイダ固有の変数は選んだプロバイダのときだけ検査すること）、`max` の注意、統合テスト | - |
+| `docs/dev/project_overview.md` | 変更 | 設定の表、パッケージ構成。設定の節に「選択したプロバイダに関係しない変数は読まず、検査しない」原則を加える（要件定義書 §5.1）| - |
 | `docs/dev/security.md` | 変更 | §2 の統合テストの例外の表とキーの説明（テスト用のキーは利用上限を設けたワークスペースのものにする）、http2debug の説明（`x-api-key`）、§4 の送るデータ | - |
 | `docs/dev/developer_guide/package_reference.md` | 変更 | 新設のパッケージ | - |
 | `CLAUDE.md` | 変更 | Architecture Overview に `internal/llm/llmhttp`・`internal/llm/claude` を、秘密情報の変数名の例に `ANTHROPIC_API_KEY` を加える | - |
@@ -717,7 +720,7 @@ flowchart TD
 - 応答本文の検証は、§1.4 のフィクスチャを元に、メンバーを書き換えた入力で行う（AC-32〜AC-38、I-04）。上限のテストは `llmhttp.MaxResponseBytes` を参照する（AC-37）。
 - `internal/llm/llmhttp` は、`Post` の分類（`200` 以外、期限、キャンセル、送信前に終わっている `ctx`、接続の失敗、本文の途中の切断、上限ちょうどと上限超え）、リダイレクト（リダイレクトに従う設定の `Client` を渡しても従わないこと）、不完全な `Call` で送らないことを検証する。
 - `internal/llm/claudeparam` は、`ParseEffort` と `ParseWorkspaceID` の受理・拒否を検証する（AC-02・AC-25・AC-39・AC-42 の値の例）。
-- `internal/config` は、§3.2 の表の各行を、`LookupFunc` で与えた環境で検証する（AC-23〜AC-27・AC-41・AC-42）。「プロバイダが `deepseek` で `ANTHROPIC_API_KEY` が空」の行を含める（§1.3）。
+- `internal/config` は、§3.2 の表の各行を、`LookupFunc` で与えた環境で検証する（AC-23〜AC-27・AC-41・AC-42）。プロバイダが `deepseek` のときは Claude の 3 つの変数の未設定・空・不正・正しい値の各組み合わせで読み込みが成功し、構築が変わらないこと（AC-26）、プロバイダが不正なときはプロバイダのエラーだけが返ること（AC-26）、プロバイダが `claude` のときは `DEEPSEEK_API_KEY` の値で結果が変わらないこと（AC-45）を含める。
 - `internal/llm/provider` は、Claude の分岐で、送られるリクエストのヘッダーと本文に設定の値が反映されることを、ループバックの構築で検証する（AC-23・AC-41）。
 - `cmd/yt2column` は、`ANTHROPIC_API_KEY` の値と末尾 8 文字が出力に現れないことを検証する（§5.2）。
 
@@ -751,7 +754,7 @@ flowchart TD
 | AC-10・AC-12〜AC-16・AC-32〜AC-38 | §3.5 |
 | AC-17 | §4.1 |
 | AC-21・AC-22 | §5.2、§4.2 |
-| AC-23〜AC-27・AC-41・AC-42 | §3.2・§3.3 |
+| AC-23〜AC-27・AC-41・AC-42・AC-45 | §1.3・§3.2・§3.3 |
 | AC-28〜AC-30・AC-43 | §7.2 |
 | AC-31 | §7.1 |
 
