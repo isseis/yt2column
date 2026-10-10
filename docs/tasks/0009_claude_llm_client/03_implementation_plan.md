@@ -290,7 +290,7 @@ HEAD `7864eec`（ブランチ `issei/llm-claude-02`）で確認した。architec
   - 変更後: `// http2VerboseSettings are the GODEBUG settings that make the HTTP/2 transport` / `// log every request header, the API key header included, to standard error. The`
   - 続く 3 行（`// transport reads GODEBUG once ...` 以降）は変えない。
 - [x] **ステップ 5-11**: 壊して失敗することを確認し、コミットメッセージに記録する。対象: 判定で API キーの未設定を失敗にする（`TestIntegrationSettings` のスキップの行と `TestIntegrationOptionsSkipMissingKey`）、ワークスペース ID の空を指定なしにする（`TestIntegrationSettings`）、`http2debug` の判定を外す（同）、Makefile の `-count=1` を外す・オプトインのエクスポートを外す（`TestMakeTestIntegrationClaude`）、オプトインを全体にエクスポートする（`TestMakeOptInsAreTargetSpecific`）、`integration_test.go` の先頭行を変える（`TestIntegrationTestBuildTag`）。`make fmt` → `make test` → `make lint` を通す（`make lint` は `go vet -tags integration ./...` で統合テストもビルドする）。
-- [ ] **ステップ 5-12**: 料金の発生しない確認として、`YT2COLUMN_TEST_ANTHROPIC_API_KEY` を設定せずに `make test-integration-claude` を実行し、スキップの行が変数名を示すことを §5.1 に記録する。続けて、人間の承認を得てから、`YT2COLUMN_TEST_ANTHROPIC_API_KEY` を設定して実行し、結果を §5.1 に記録する（AC-29・AC-30・AC-43。実 API を呼び料金が発生する）。
+- [x] **ステップ 5-12**: 料金の発生しない確認として、`YT2COLUMN_TEST_ANTHROPIC_API_KEY` を設定せずに `make test-integration-claude` を実行し、スキップの行が変数名を示すことを §5.1 に記録する。続けて、人間の承認を得てから、`YT2COLUMN_TEST_ANTHROPIC_API_KEY` を設定して実行し、結果を §5.1 に記録する（AC-29・AC-30・AC-43。実 API を呼び料金が発生する）。
 
 ### PR-6 作成ポイント: claude integration test and make target
 
@@ -476,7 +476,22 @@ PASS
 ok  	github.com/isseis/yt2column/internal/llm/claude	0.005s
 ```
 
-**API キーありでの実行（実 API・料金が発生する）。** （未実施。人間の承認と、テスト用のキーを設定した環境での実行を待つ）
+**API キーありでの実行（実 API・料金が発生する）。** 2026-10-11、HEAD `73d6a76` で、人間の承認を得てから、`YT2COLUMN_TEST_ANTHROPIC_API_KEY` と `YT2COLUMN_TEST_ANTHROPIC_WORKSPACE_ID` を設定して `make test-integration-claude` を実行した。モデル名は `claude-haiku-5-5`、effort は `low`、ワークスペース ID は指定あり（値は書かない）。出力は次のとおりで、`TestIntegrationGenerate` の 2 つのサブテストが `--- PASS` した。
+
+```
+test-integration-claude: calls the real Anthropic API, which incurs charges (model: claude-haiku-5-5, effort: low)
+go test -tags integration -count=1 -timeout 15m -v ./internal/llm/claude
+=== RUN   TestIntegrationGenerate
+    integration_test.go:39: model "claude-haiku-5-5", effort low, workspace id specified true
+=== RUN   TestIntegrationGenerate/generate
+    integration_test.go:77: Model "claude-haiku-5-5"
+=== RUN   TestIntegrationGenerate/truncated
+--- PASS: TestIntegrationGenerate (2.48s)
+    --- PASS: TestIntegrationGenerate/generate (1.53s)
+    --- PASS: TestIntegrationGenerate/truncated (0.95s)
+PASS
+ok  	github.com/isseis/yt2column/internal/llm/claude	2.762s
+```
 
 ## 6. リスク管理 (Risk Management)
 
