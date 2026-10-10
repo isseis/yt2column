@@ -165,8 +165,8 @@ HEAD `7864eec`（ブランチ `issei/llm-claude-02`）で確認した。architec
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: Claude アダプタ（`internal/llm/claude`）
 
@@ -176,15 +176,15 @@ HEAD `7864eec`（ブランチ `issei/llm-claude-02`）で確認した。architec
 - 変更: `docs/dev/developer_guide/package_reference.md`
 
 **タスク**
-- [ ] **ステップ 3-1**: `errors.go` に architecture §4.1 の番兵・`HTTPStatusError`（`Error` は §4.2 の表の案内文をステータスコードから決める）と、構築時の非公開の静的エラーを作る。
-- [ ] **ステップ 3-2**: `request.go` に、API キーの形の検査（`Reveal()` の 1 か所目）、リクエスト本文の非公開の構造体と組み立て（architecture §3.7）、ヘッダーの設定（`Reveal()` の 2 か所目。`anthropic-workspace-id` は `WorkspaceID.Value()` が指定ありを返すときだけ）を作る。送信先、`anthropic-version`、`MaxOutputTokens` が 0 のときの `max_tokens` は、architecture §3.6 の値を名前付きの非公開の定数にする。リクエストの作成には、DeepSeek の `request.go:82` と同じく、その 1 行に限った `//nolint:gosec` と理由のコメントを付ける（gosec が指摘した場合）。
-- [ ] **ステップ 3-3**: `claude.go` に `Options`・`New`・非公開の `client`・`Generate` を作る。`New` は architecture §3.1 の検査を行い、effort は `Valid` で検査する。`client` は `httpClient`（`llmhttp.NewClient()` の値）と `endpoint` を持つ。`Generate` は `req.Validate()` → 本文の組み立て → `llmhttp.Post` → 応答の検証の順に呼び、すべてのエラーの先頭に `claude: ` を 1 回だけ付ける。`Errors.Status` に渡す関数は、architecture §4.2 のとおり、`HTTPStatusError` を `%w` で包んだエラーを返す。そのメッセージには、モデル名・送った `max_tokens`・effort・ワークスペース ID を指定したかどうかを加える。`HTTPStatusError` 自体は `StatusCode` だけを持つ。この形は DeepSeek の `statusError`（`deepseek.go:179-185`）と同じである。
-- [ ] **ステップ 3-4**: `response.go` に、architecture §3.5 の応答本文の検証と `GenerateResponse` の組み立てを作る。検証の順序は requirements F-003 のとおりとし、`ModelVersion` は空文字列にする。`llm.ErrTruncated`・`llm.ErrUnexpectedFinishReason`・`ErrInvalidResponse` のメッセージは architecture §4.2 に従う（`stop_reason` は 64 バイトで切って引用し、`text` ブロックのないまま `max_tokens` で打ち切られた場合は effort を下げる案内を加える）。
-- [ ] **ステップ 3-5**: `test_helpers_endpoint.go` に、DeepSeek の `NewForLoopbackTest`（`internal/llm/deepseek/test_helpers_endpoint.go`）と同じ形の、ループバックの送信先だけを受け付けるテスト用の構築を作る（H-08）。`test_helpers.go` に、テスト用の構築の呼び出し、フィクスチャのパス、共有のアサーション（返るエラーに一致する番兵が 1 つだけ、`claude: ` が 1 回だけ、`Error()`・`%v`・`%+v`・`%#v` に API キーが現れない、拒否時の `GenerateResponse` がゼロ値）を置く。テストサーバーは `llmhttptest` の部品を使う。フィクスチャの読み込みには、DeepSeek の `test_helpers.go:79` と同じ 1 行に限った `//nolint:gosec` を付ける（`test_helpers*.go` は `_test.go` ではないため、テスト向けの lint の除外が効かない）。
-- [ ] **ステップ 3-6**: `claude_test.go` に、DeepSeek の `deepseek_test.go:36` と同じ `TestMain`（プロキシの環境変数を `llmhttptest` のすぐ閉じるリスナーに向け、`NO_PROXY` を消す）と、§5 の `claude_test.go` のテストを作る。対象は構築（AC-01・AC-02）、送信するリクエスト（AC-03〜AC-07・AC-40・AC-44）、不正なリクエスト（AC-08）、リダイレクト（AC-09）、ステータス（AC-11・AC-16 の後半）、タイムアウト・キャンセル・通信の失敗（AC-18〜AC-20）、値の出力（AC-22）、番兵の区別（AC-17）、`Reveal()` の呼び出し箇所、本番の送信先に届かないこと（AC-31）、ステータスごとの案内文である。`Reveal()` の呼び出し箇所の guard は、DeepSeek の `TestRevealOnlyInRequestFile`（`deepseek_test.go:634`）と同じ形にする。送信するリクエストのテストでは、`messages` が要素 1 つで、その `role` が `user`、`content` が（ブロックの配列でなく）JSON 文字列であり、それ以外のメンバーを持たないことも確かめる（AC-04）。ステータスのテストでは、`200` 以外の応答の本文に目印を埋め込み、`Generate` のエラーに現れないことを確かめる（AC-11）。
-- [ ] **ステップ 3-7**: `response_test.go` に、§5 の `response_test.go` のテストを作る（AC-10・AC-12〜AC-16・AC-32〜AC-38）。入力はフィクスチャを基に 1 か所だけを書き換えたものとし、上限のテストは `llmhttp.MaxResponseBytes` を参照する（H-09）。拒否のケースはすべて共有のアサーションを使う（AC-21）。
-- [ ] **ステップ 3-8**: `package_reference.md` に `internal/llm/claude` の行を加える。
-- [ ] **ステップ 3-9**: 壊して失敗することを確認し、コミットメッセージに記録する。対象: `New` の effort の検査を外す（`TestNew`）、`anthropic-workspace-id` を常に送る・送らない（`TestGenerateWorkspaceHeader`）、本文に `thinking` のフィールドを加える（`TestGenerateSendsRequest` のトップレベルのメンバーの検査）、`content` の要素の `switch` の `default` を受理にする（`TestGenerateContentShape`）、2 つ目の `text` ブロックを受理する（同）、`stop_reason` の判定を生成テキストの判定の後にする（`TestGenerateValidationOrder`）、`thinking` ブロックの `thinking` を `Text` に連結する（`TestGenerateThinkingBlocks`）、`Reveal()` を `claude.go` から呼ぶ（`TestRevealOnlyInRequestFile`）。`make fmt` → `make test` → `make lint` を通す。
+- [x] **ステップ 3-1**: `errors.go` に architecture §4.1 の番兵・`HTTPStatusError`（`Error` は §4.2 の表の案内文をステータスコードから決める）と、構築時の非公開の静的エラーを作る。
+- [x] **ステップ 3-2**: `request.go` に、API キーの形の検査（`Reveal()` の 1 か所目）、リクエスト本文の非公開の構造体と組み立て（architecture §3.7）、ヘッダーの設定（`Reveal()` の 2 か所目。`anthropic-workspace-id` は `WorkspaceID.Value()` が指定ありを返すときだけ）を作る。送信先、`anthropic-version`、`MaxOutputTokens` が 0 のときの `max_tokens` は、architecture §3.6 の値を名前付きの非公開の定数にする。リクエストの作成には、DeepSeek の `request.go:82` と同じく、その 1 行に限った `//nolint:gosec` と理由のコメントを付ける（gosec が指摘した場合）。
+- [x] **ステップ 3-3**: `claude.go` に `Options`・`New`・非公開の `client`・`Generate` を作る。`New` は architecture §3.1 の検査を行い、effort は `Valid` で検査する。`client` は `httpClient`（`llmhttp.NewClient()` の値）と `endpoint` を持つ。`Generate` は `req.Validate()` → 本文の組み立て → `llmhttp.Post` → 応答の検証の順に呼び、すべてのエラーの先頭に `claude: ` を 1 回だけ付ける。`Errors.Status` に渡す関数は、architecture §4.2 のとおり、`HTTPStatusError` を `%w` で包んだエラーを返す。そのメッセージには、モデル名・送った `max_tokens`・effort・ワークスペース ID を指定したかどうかを加える。`HTTPStatusError` 自体は `StatusCode` だけを持つ。この形は DeepSeek の `statusError`（`deepseek.go:179-185`）と同じである。
+- [x] **ステップ 3-4**: `response.go` に、architecture §3.5 の応答本文の検証と `GenerateResponse` の組み立てを作る。検証の順序は requirements F-003 のとおりとし、`ModelVersion` は空文字列にする。`llm.ErrTruncated`・`llm.ErrUnexpectedFinishReason`・`ErrInvalidResponse` のメッセージは architecture §4.2 に従う（`stop_reason` は 64 バイトで切って引用し、`text` ブロックのないまま `max_tokens` で打ち切られた場合は effort を下げる案内を加える）。
+- [x] **ステップ 3-5**: `test_helpers_endpoint.go` に、DeepSeek の `NewForLoopbackTest`（`internal/llm/deepseek/test_helpers_endpoint.go`）と同じ形の、ループバックの送信先だけを受け付けるテスト用の構築を作る（H-08）。`test_helpers.go` に、テスト用の構築の呼び出し、フィクスチャのパス、共有のアサーション（返るエラーに一致する番兵が 1 つだけ、`claude: ` が 1 回だけ、`Error()`・`%v`・`%+v`・`%#v` に API キーが現れない、拒否時の `GenerateResponse` がゼロ値）を置く。テストサーバーは `llmhttptest` の部品を使う。フィクスチャの読み込みには、DeepSeek の `test_helpers.go:79` と同じ 1 行に限った `//nolint:gosec` を付ける（`test_helpers*.go` は `_test.go` ではないため、テスト向けの lint の除外が効かない）。
+- [x] **ステップ 3-6**: `claude_test.go` に、DeepSeek の `deepseek_test.go:36` と同じ `TestMain`（プロキシの環境変数を `llmhttptest` のすぐ閉じるリスナーに向け、`NO_PROXY` を消す）と、§5 の `claude_test.go` のテストを作る。対象は構築（AC-01・AC-02）、送信するリクエスト（AC-03〜AC-07・AC-40・AC-44）、不正なリクエスト（AC-08）、リダイレクト（AC-09）、ステータス（AC-11・AC-16 の後半）、タイムアウト・キャンセル・通信の失敗（AC-18〜AC-20）、値の出力（AC-22）、番兵の区別（AC-17）、`Reveal()` の呼び出し箇所、本番の送信先に届かないこと（AC-31）、ステータスごとの案内文である。`Reveal()` の呼び出し箇所の guard は、DeepSeek の `TestRevealOnlyInRequestFile`（`deepseek_test.go:634`）と同じ形にする。送信するリクエストのテストでは、`messages` が要素 1 つで、その `role` が `user`、`content` が（ブロックの配列でなく）JSON 文字列であり、それ以外のメンバーを持たないことも確かめる（AC-04）。ステータスのテストでは、`200` 以外の応答の本文に目印を埋め込み、`Generate` のエラーに現れないことを確かめる（AC-11）。
+- [x] **ステップ 3-7**: `response_test.go` に、§5 の `response_test.go` のテストを作る（AC-10・AC-12〜AC-16・AC-32〜AC-38）。入力はフィクスチャを基に 1 か所だけを書き換えたものとし、上限のテストは `llmhttp.MaxResponseBytes` を参照する（H-09）。拒否のケースはすべて共有のアサーションを使う（AC-21）。
+- [x] **ステップ 3-8**: `package_reference.md` に `internal/llm/claude` の行を加える。
+- [x] **ステップ 3-9**: 壊して失敗することを確認し、コミットメッセージに記録する。対象: `New` の effort の検査を外す（`TestNew`）、`anthropic-workspace-id` を常に送る・送らない（`TestGenerateWorkspaceHeader`）、本文に `thinking` のフィールドを加える（`TestGenerateSendsRequest` のトップレベルのメンバーの検査）、`content` の要素の `switch` の `default` を受理にする（`TestGenerateContentShape`）、2 つ目の `text` ブロックを受理する（同）、`stop_reason` の判定を生成テキストの判定の後にする（`TestGenerateValidationOrder`）、`thinking` ブロックの `thinking` を `Text` に連結する（`TestGenerateThinkingBlocks`）、`Reveal()` を `claude.go` から呼ぶ（`TestRevealOnlyInRequestFile`）。`make fmt` → `make test` → `make lint` を通す。
 
 ### PR-3 作成ポイント: claude llm client adapter (internal/llm/claude)
 
@@ -198,8 +198,8 @@ HEAD `7864eec`（ブランチ `issei/llm-claude-02`）で確認した。architec
 
 **判定理由**: ステップ 3-4 の応答の検証と 3-2・3-3 の秘密情報の扱いが、複数の番兵と境界を持つ孤立した高リスクで複雑な手順であり、`//nolint:gosec` の抑制と build-tag のコンパイル確認（`test_helpers*.go`）が Conditional checks に該当するため。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
