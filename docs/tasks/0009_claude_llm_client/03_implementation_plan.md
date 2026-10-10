@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-10 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-10 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 実装の概要 (Implementation Overview)
@@ -25,7 +25,7 @@
 - `test_helpers*.go` を使う `_test.go` の先頭には `//go:build test` を付ける（`internal/llm/deepseek/deepseek_test.go:1` と同じ）。
 - Go のコメント・識別子・文字列リテラルは英語で書く。`AC-NN`・`F-NNN`・`H-NN`・`I-NN` は Go ソースに書かず、本計画にだけ記録する（`requirements_process.md` §4）。
 - 上限値・猶予・送信先・`anthropic-version`・既定の `max_tokens` などは名前付き定数にする（`mnd`・`goconst`）。
-- 各フェーズの完了条件は `make fmt` → `make test` → `make lint` が通ること。各テストは、対象の分岐を実際に壊して失敗することを確認し、そのことをコミットメッセージに書く（CLAUDE.md「Testing Strategy」）。
+- 各 PR の完了条件は `make fmt` → `make test` → `make lint` が通ること。各テストは、対象の分岐を実際に壊して失敗することを確認し、そのことをコミットメッセージに書く（CLAUDE.md「Testing Strategy」）。PR の区切りは §3.2 に定義する。
 
 ### 1.3. 既存コード調査結果
 
@@ -92,7 +92,7 @@ HEAD `7864eec`（ブランチ `issei/llm-claude-02`）で確認した。architec
 
 ## 2. 実装ステップ (Implementation Steps)
 
-ステップは `X-Y` 形式で表す（X: フェーズ番号、Y: フェーズ内の連番）。テスト関数名と AC の対応は §5 にまとめ、各ステップでは対象の AC だけを示す。各フェーズの完了条件は、最後のステップ（壊して失敗することの確認と `make fmt` → `make test` → `make lint`）が通ることである。新設のパッケージの `package_reference.md` の行と、`internal/pipeline/pipeline_test.go` の guard の更新は、そのパッケージを作るステップと同じコミットに入れる（§1.3）。
+ステップは `X-Y` 形式で表す（X: フェーズ番号、Y: フェーズ内の連番）。テスト関数名と AC の対応は §5 にまとめ、各ステップでは対象の AC だけを示す。各 PR の完了条件は、その PR の最後のステップで、対象の分岐を壊して失敗することを確認し、`make fmt` の後にグリーンゲート（`_context.md` の "Green gate"。`make test`・`make lint`）が通ることである（PR の区切りは §3.2）。新設のパッケージの `package_reference.md` の行と、`internal/pipeline/pipeline_test.go` の guard の更新は、そのパッケージを作るステップと同じコミットに入れる（§1.3）。
 
 ### フェーズ 1: HTTP 通信の手順の切り出し（`internal/llm/llmhttp`）
 
@@ -122,6 +122,23 @@ HEAD `7864eec`（ブランチ `issei/llm-claude-02`）で確認した。architec
 - [ ] **ステップ 1-7**: 壊して失敗することを確認し、コミットメッセージに記録する。対象: `Post` が `Client` の写しにリダイレクトを追わない設定を加えない（`TestPostNoRedirect` の、リダイレクトに従う `Client` のケース）、`Call` の検査をそれぞれ外す（`TestPostIncompleteCall` の該当行。返るエラーの判定と `RoundTripper` の呼び出し回数）、上限 + 1 バイトの判定を外す（`TestPostSizeLimit`）、送信前の `ctx` の確認を外す（`TestPostCanceled` の送信前に終わっている `ctx` のケース。`NewRequest` の呼び出し回数）、`200` 以外でも本文を読んでから `Errors.Status` を呼ぶ（`TestPostNon200` の本文を送らないサーバーのケース）、分類で呼び出しの `ctx` を先に確かめない（`TestPostTimeout` の本文の途中で待つサーバーのケース）。`make fmt` → `make test` → `make lint` を通し、ここまでを 1 つのリファクタリングのコミットにする（H-01）。
 - [ ] **ステップ 1-8**: 別のコミットで、`Post` の構築時のタイムアウトと `Errors.Transport` のエラーのメッセージに、送信を始めてからの経過時間を加える（architecture §3.4「経過時間の記録」）。呼び出し元の期限とキャンセルのメッセージには加えない（architecture §3.4 の対象外）。経過時間は整数のミリ秒で表し、`Duration.String()` の秒の表記（例 `1.2s`）を使わない。表記が `2s` を含むと、DeepSeek の `deepseek_test.go:514` の検査（メッセージがアダプタのタイムアウトの値 `2s` を含まない）が失敗するためである（§6）。経過時間がメッセージに含まれることを検査するテストを `llmhttp_test.go` に加え、経過時間の追加を外すと失敗することを確認する。DeepSeek のテストを変更せずに `make test` が通ることを確かめ、`make fmt` → `make test` → `make lint` を通す。
 
+### PR-1 作成ポイント: HTTP send path extraction (internal/llm/llmhttp)
+
+**対象ステップ**: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8
+
+**推奨タイトル**: `feat(0009): extract the HTTP send path and record elapsed time in transport errors`
+
+**レビュー観点**: `Post` の契約（リダイレクト防止・本文の上限・タイムアウト/キャンセル/通信失敗の分類・不完全な `Call` では送らない）が DeepSeek アダプタの既存の振る舞いを変えないこと / 切り出しのコミットで `internal/llm/deepseek/*_test.go`・`test_helpers*.go` を変更していないこと（H-01） / 経過時間の追加が PR の最後のステップの独立したコミットで、`deepseek_test.go:514` の `2s` の部分文字列検査を壊さない表記であること（§6。squash マージ後も両方の変更を説明するタイトルにする） / `llmhttptest` が `//go:build test` で、`testOnlyPackageDirs` と `package_reference.md` に行が加わっていること
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: ステップ 1-1 の `Post` の契約（リダイレクト防止・本文の上限・分類）がセキュリティ境界を成す孤立した高リスクな手順であり（リリースを止めるセキュリティゲートや移行ではなく、パネルモードのトリガーには該当しない）、ステップ 1-8 の経過時間の追加も既存テストの部分文字列検査と衝突しうるため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ### フェーズ 2: effort とワークスペース ID の型（`internal/llm/claudeparam`）
 
 **対象ファイル**
@@ -133,6 +150,23 @@ HEAD `7864eec`（ブランチ `issei/llm-claude-02`）で確認した。architec
 - [ ] **ステップ 2-2**: `claudeparam_test.go` に `TestParseEffort`（5 つの値の受理と `String` との往復、requirements AC-25 の例を含む拒否、空文字列の拒否）、`TestEffortStringAndValid`（`EffortUnset` と範囲外の値の `String` は `ParseEffort` が受理しない値であり、`Valid` が偽であること）、`TestParseWorkspaceID`（境界の `0x21`・`0x7E` の受理、requirements AC-39・AC-42 の例と空文字列・`0x7F` の拒否）、`TestWorkspaceIDZeroValue`（ゼロ値の `Value` が「指定なし」を返すこと）、`TestWorkspaceIDHasNoExportedFields`（`reflect` で `WorkspaceID` が公開のフィールドを持たないこと。AC-39 は、不正な値を `ParseWorkspaceID` 以外では作れないことに依拠するため）を作る。
 - [ ] **ステップ 2-3**: `package_reference.md` に `internal/llm/claudeparam` の行を加える。
 - [ ] **ステップ 2-4**: 壊して失敗することを確認し、コミットメッセージに記録する。対象: `ParseEffort` が大文字を受理する（`TestParseEffort`）、`Valid` が `EffortUnset` に真を返す（`TestEffortStringAndValid`）、`ParseWorkspaceID` が空白を受理する・空文字列を受理する（`TestParseWorkspaceID`）、`WorkspaceID` のフィールドを公開にする（`TestWorkspaceIDHasNoExportedFields`）。`make fmt` → `make test` → `make lint` を通す。
+
+### PR-2 作成ポイント: effort and workspace id types (internal/llm/claudeparam)
+
+**対象ステップ**: 2-1 / 2-2 / 2-3 / 2-4
+
+**推奨タイトル**: `feat(0009): add effort and workspace id types in internal/llm/claudeparam`
+
+**レビュー観点**: 5 つの effort の値の一覧がこのパッケージだけにあり、`ParseEffort`・`String`・`Valid` が往復して一致すること（AC-02・AC-25） / ワークスペース ID の受理の境界（印字可能な ASCII の 0x21〜0x7E）と、空・制御文字・ASCII 外の拒否（AC-39・AC-42） / `WorkspaceID` のゼロ値が「指定なし」を表し、公開フィールドを持たないこと（AC-39）
+
+**実装モデル要件**: standard
+
+**判定理由**: 標準ライブラリだけを使う純粋な型と文字列変換に限られ、リカバリや状態機械などの高リスクな制御・パネルモードのトリガー・Conditional checks のいずれにも該当せず、§1.3 で `Valid` メソッドを採用する方式を確定済みで未確定の実装方針もないため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: Claude アダプタ（`internal/llm/claude`）
 
@@ -151,6 +185,23 @@ HEAD `7864eec`（ブランチ `issei/llm-claude-02`）で確認した。architec
 - [ ] **ステップ 3-7**: `response_test.go` に、§5 の `response_test.go` のテストを作る（AC-10・AC-12〜AC-16・AC-32〜AC-38）。入力はフィクスチャを基に 1 か所だけを書き換えたものとし、上限のテストは `llmhttp.MaxResponseBytes` を参照する（H-09）。拒否のケースはすべて共有のアサーションを使う（AC-21）。
 - [ ] **ステップ 3-8**: `package_reference.md` に `internal/llm/claude` の行を加える。
 - [ ] **ステップ 3-9**: 壊して失敗することを確認し、コミットメッセージに記録する。対象: `New` の effort の検査を外す（`TestNew`）、`anthropic-workspace-id` を常に送る・送らない（`TestGenerateWorkspaceHeader`）、本文に `thinking` のフィールドを加える（`TestGenerateSendsRequest` のトップレベルのメンバーの検査）、`content` の要素の `switch` の `default` を受理にする（`TestGenerateContentShape`）、2 つ目の `text` ブロックを受理する（同）、`stop_reason` の判定を生成テキストの判定の後にする（`TestGenerateValidationOrder`）、`thinking` ブロックの `thinking` を `Text` に連結する（`TestGenerateThinkingBlocks`）、`Reveal()` を `claude.go` から呼ぶ（`TestRevealOnlyInRequestFile`）。`make fmt` → `make test` → `make lint` を通す。
+
+### PR-3 作成ポイント: claude llm client adapter (internal/llm/claude)
+
+**対象ステップ**: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8 / 3-9
+
+**推奨タイトル**: `feat(0009): add the claude llm client adapter`
+
+**レビュー観点**: 応答本文の検証（消費するメンバー・`content` のブロックの種類・`stop_reason`・検証順序・上限）が要件 3.2 と一致し、`strictjson` で補正せず拒否していること（AC-10・AC-12〜AC-16・AC-32〜AC-38） / `Reveal()` が `request.go` の 2 か所だけで、エラーとアダプタの値のどの書式にも API キーが現れないこと（AC-21・AC-22。§1.1 原則 6） / `New` の検査と、リクエスト本文・ヘッダーが AC-03〜AC-07・AC-40・AC-44 に一致すること / テストが本番の送信先に届かないこと（`TestMain` のプロキシと `Transport` が `nil`。AC-31）
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: ステップ 3-4 の応答の検証と 3-2・3-3 の秘密情報の扱いが、複数の番兵と境界を持つ孤立した高リスクで複雑な手順であり、`//nolint:gosec` の抑制と build-tag のコンパイル確認（`test_helpers*.go`）が Conditional checks に該当するため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 4: 設定・プロバイダの選択・CLI
 
@@ -180,6 +231,23 @@ HEAD `7864eec`（ブランチ `issei/llm-claude-02`）で確認した。architec
 - [ ] **ステップ 4-8**: `package_reference.md` の `internal/config`・`internal/llm/provider` の行を、`claude` プロバイダと `builders` に合わせて更新する。
 - [ ] **ステップ 4-9**: 壊して失敗することを確認し、コミットメッセージに記録する。対象: `loadDeepSeekAPIKey` をプロバイダによらず読む形に戻す（`TestLoadIgnoresOtherProviderVars`・`TestLoadClaudeIgnoresDeepSeekKey`）、Claude の変数をプロバイダが不正なときにも読む（`TestLoadIgnoresOtherProviderVars` のプロバイダが不正な行）、ワークスペース ID の空を受理する（`TestLoadClaudeInvalid`）、`provider` の Claude の分岐でワークスペース ID を渡さない（`TestNewClaudeSendsConfiguredRequest`）、`configuredSecrets` から Anthropic のキーを外す（`TestConfiguredSecretsIncludesAnthropicAPIKey`）、`secretEnvNames` の `ANTHROPIC_API_KEY` を残したまま `cmd/yt2column` の本番のファイルに文字列 `"ANTHROPIC_API_KEY"` を書く（`TestEnvAccessConfined`）、`internal/config` に `internal/llm/claude` の import を加える（`TestConfigImports`）。`make fmt` → `make test` → `make lint` を通す。
 
+### PR-4 作成ポイント: config, provider selection, and CLI wiring
+
+**対象ステップ**: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7 / 4-8 / 4-9
+
+**推奨タイトル**: `feat(0009): wire the claude provider into config, provider, and the cli`
+
+**レビュー観点**: プロバイダ固有の変数を選んだプロバイダのときだけ読み、他のプロバイダとプロバイダが不正なときは読まないこと（AC-26・AC-45） / DeepSeek の設定の振る舞いが改名だけのコミットで変わらず、既存テストの期待値がそのコミットで変わっていないこと（AC-27） / `configuredSecrets` が Anthropic の API キーとその末尾 8 文字を伏せ字化の対象にしていること（§5.2） / `TestConfigImports` が `internal/config`・`internal/llm/claudeparam` の直接の import を固定していること（AC-31）
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: ステップ 4-2・4-4・4-7 が、設定の秘密情報の読み込みの規則（どのプロバイダの変数を読むか）と CLI の伏せ字化というセキュリティに関わる孤立した高リスクな手順で、`//nolint:gosec` の抑制が Conditional checks に該当するため。パネルモードのトリガーには該当しない。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ### フェーズ 5: Make の部品の移動・統合テスト・Make ターゲット
 
 **対象ファイル**
@@ -191,7 +259,25 @@ HEAD `7864eec`（ブランチ `issei/llm-claude-02`）で確認した。architec
 
 **タスク**
 - [ ] **ステップ 5-1**: `internal/maketestutil/make.go` に、§1.4 の表の部品を移す。子プロセスの環境に渡す変数、記録する変数、表示の文言、モデル名などの変数と既定値は、呼び出し側が指定する。`CheckChargedTarget` の引数・`-timeout`・オプトインの検査も、DeepSeek と Claude の両方が使える形でここに置く。`make_test.go` に `TestValidateEnvNames`・`TestRecordedNames` を汎用の形で移す。`FirstLineIs` のエラーの経路は `deepseek_test.go:801-814` が既に検査しているため、`maketestutil` には同じテストを加えない。同じコミットで、`internal/pipeline/pipeline_test.go` の `testOnlyPackageDirs` に `internal/maketestutil` を加え、`package_reference.md` に行を加える。
-- [ ] **ステップ 5-2**: 同じコミットで、`deepseektestutil` の `make.go` を、公開の形（§1.4）を変えずに `maketestutil` を呼ぶだけのラッパーにする。`deepseektestutil/make_test.go` の中身を、ラッパーが記録する変数（`DeepSeekOptInEnv`・`CLIOptInEnv`・`ModelEnv` の後に呼び出し側の変数が重複なく続くこと）を固定するテストに入れ替える。`TestMakeOptInsAreTargetSpecific` が他のターゲットのオプトインを検出できるのは、この記録に依存するためである。移す前に `deepseektestutil` の `go tool cover -func` を取り、移した後に `maketestutil` と `deepseektestutil` の同じ出力を取る。移した関数とラッパーの関数の網羅率が下がっていないことを確認し、コミットメッセージに書く（CLAUDE.md「Deleting a test」）。`cmd/yt2column`・`internal/publisher`・`internal/llm/deepseek` のテストを変更せずに通ることを確かめる。`package_reference.md` の `internal/llm/deepseek/testutil` の行を、`RunMakeTarget`・`FirstLineIs` が `maketestutil` のラッパーであることに合わせて更新する。
+- [ ] **ステップ 5-2**: 同じコミットで、`deepseektestutil` の `make.go` を、公開の形（§1.4）を変えずに `maketestutil` を呼ぶだけのラッパーにする。`deepseektestutil/make_test.go` の中身を、ラッパーが記録する変数（`DeepSeekOptInEnv`・`CLIOptInEnv`・`ModelEnv` の後に呼び出し側の変数が重複なく続くこと）を固定するテストに入れ替える。`TestMakeOptInsAreTargetSpecific` が他のターゲットのオプトインを検出できるのは、この記録に依存するためである。移す前に `deepseektestutil` の `go tool cover -func` を取り、移した後に `maketestutil` と `deepseektestutil` の同じ出力を取る。移した関数とラッパーの関数の網羅率が下がっていないことを確認し、コミットメッセージに書く（CLAUDE.md「Deleting a test」）。`cmd/yt2column`・`internal/publisher`・`internal/llm/deepseek` のテストを変更せずに通ることを確かめる。`package_reference.md` の `internal/llm/deepseek/testutil` の行を、`RunMakeTarget`・`FirstLineIs` が `maketestutil` のラッパーであることに合わせて更新する。このステップの最後に、ラッパーが記録する変数を壊す（`DeepSeekOptInEnv` を記録しない）と `deepseektestutil/make_test.go` のテストが失敗することを確認し、`make fmt` → `make test` → `make lint` を通す（PR-5 の完了条件）。
+
+### PR-5 作成ポイント: make test helper extraction (internal/maketestutil)
+
+**対象ステップ**: 5-1 / 5-2
+
+**推奨タイトル**: `refactor(0009): extract the make test helpers into internal/maketestutil`
+
+**レビュー観点**: 移動した部品がプロバイダによらず、記録する変数・子の環境に渡す変数・表示の文言・既定値を呼び出し側が指定できる形になっていること / `deepseektestutil` の公開の形（`RunMakeTarget`・`CheckChargedTarget`・`FirstLineIs` など）が変わらず、`cmd/yt2column`・`internal/publisher`・DeepSeek のテストが無変更で通ること / 移した関数とラッパーの網羅率が下がっていないこと（CLAUDE.md「Deleting a test」）
+
+**実装モデル要件**: standard
+
+**判定理由**: Make の検査の部品の移動と薄いラッパー化で、競合する実装方針の併記・高リスクな制御・パネルモードのトリガーに該当せず、Conditional checks も build-tag のコンパイル確認（`internal/maketestutil`）1 件のみのため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 - [ ] **ステップ 5-3**: `claudetestutil` の `integration.go` に、統合テストの環境変数の名前と、実行するかどうかを決める純粋な関数を作る。関数は `getenv func(string) string` を受け取り、architecture §7.2 の判定の順序（オプトイン → API キー → モデル名・effort → ワークスペース ID → `http2debug`）で、スキップ・失敗・実行と理由、および実行時の API キー・モデル名・effort・ワークスペース ID を返す。effort とワークスペース ID は `claudeparam`、`http2debug` は `config.HTTP2DebugEnabledIn` で判定する。理由の文字列は変数名を含み、API キーを含まない。API キーの変数名の定数には、`internal/llm/deepseek/testutil/integration.go:25` と同じ 1 行に限った `//nolint:gosec` を付ける。`integration_settings_test.go` に `TestIntegrationSettings` を作り、判定の各分岐（オプトインの欠如と `1` 以外の値、API キーの未設定・空でのスキップ、`ANTHROPIC_API_KEY` だけではスキップ、モデル名・effort の未設定・空・不正な effort での失敗、ワークスペース ID の空・不正での失敗と未設定での指定なし、`ANTHROPIC_WORKSPACE_ID` だけでは指定なし、`http2debug=1`・`=2` での失敗、すべてそろったときの値）を検証する。同じコミットで `TestFakesCarryBuildTag` の件数を 17 にし、`package_reference.md` に `internal/llm/claude/testutil` の行を加える。
 - [ ] **ステップ 5-4**: `integration_env_test.go` に、統合テストの判定の設定と、architecture §3.6 の値（1 回の `Generate` のタイムアウト、正常な生成と打ち切りの `MaxOutputTokens`）と `Generate` の回数（2）を定数として置く。テスト関数は置かない。`claude_test.go` に、DeepSeek の `TestIntegrationOptionsSkipMissingKey`（`deepseek_test.go:777`）と同じ形の `TestIntegrationOptionsSkipMissingKey` を加え、この設定でオプトインがあり API キーがないときにスキップになることを確かめる。
 - [ ] **ステップ 5-5**: `integration_test.go` に、正常な生成と打ち切りの 2 つのサブテストを持つ `TestIntegrationGenerate` を作る（AC-30）。判定はステップ 5-3 の関数で行い、ワークスペース ID を指定したときは構築に渡す（AC-43）。プロンプトは短い固定の英文とする。`Model` に API キーが含まれないことを確かめてから、`Model` をエスケープしてログに出す（architecture §7.2）。打ち切りのサブテストがエラーなしで終わった場合は、前提が崩れたことを示すメッセージで失敗させる。
@@ -203,8 +289,25 @@ HEAD `7864eec`（ブランチ `issei/llm-claude-02`）で確認した。architec
   - 変更前: `// http2VerboseSettings are the GODEBUG settings that make the HTTP/2 transport` / `// log every request header, Authorization included, to standard error. The`
   - 変更後: `// http2VerboseSettings are the GODEBUG settings that make the HTTP/2 transport` / `// log every request header, the API key header included, to standard error. The`
   - 続く 3 行（`// transport reads GODEBUG once ...` 以降）は変えない。
-- [ ] **ステップ 5-11**: 壊して失敗することを確認し、コミットメッセージに記録する。対象: 判定で API キーの未設定を失敗にする（`TestIntegrationSettings` のスキップの行と `TestIntegrationOptionsSkipMissingKey`）、ワークスペース ID の空を指定なしにする（`TestIntegrationSettings`）、`http2debug` の判定を外す（同）、Makefile の `-count=1` を外す・オプトインのエクスポートを外す（`TestMakeTestIntegrationClaude`）、オプトインを全体にエクスポートする（`TestMakeOptInsAreTargetSpecific`）、`deepseektestutil` のラッパーが `DeepSeekOptInEnv` を記録しない（`deepseektestutil/make_test.go` のテスト）、`integration_test.go` の先頭行を変える（`TestIntegrationTestBuildTag`）。`make fmt` → `make test` → `make lint` を通す（`make lint` は `go vet -tags integration ./...` で統合テストもビルドする）。
+- [ ] **ステップ 5-11**: 壊して失敗することを確認し、コミットメッセージに記録する。対象: 判定で API キーの未設定を失敗にする（`TestIntegrationSettings` のスキップの行と `TestIntegrationOptionsSkipMissingKey`）、ワークスペース ID の空を指定なしにする（`TestIntegrationSettings`）、`http2debug` の判定を外す（同）、Makefile の `-count=1` を外す・オプトインのエクスポートを外す（`TestMakeTestIntegrationClaude`）、オプトインを全体にエクスポートする（`TestMakeOptInsAreTargetSpecific`）、`integration_test.go` の先頭行を変える（`TestIntegrationTestBuildTag`）。`make fmt` → `make test` → `make lint` を通す（`make lint` は `go vet -tags integration ./...` で統合テストもビルドする）。
 - [ ] **ステップ 5-12**: 料金の発生しない確認として、`YT2COLUMN_TEST_ANTHROPIC_API_KEY` を設定せずに `make test-integration-claude` を実行し、スキップの行が変数名を示すことを §5.1 に記録する。続けて、人間の承認を得てから、`YT2COLUMN_TEST_ANTHROPIC_API_KEY` を設定して実行し、結果を §5.1 に記録する（AC-29・AC-30・AC-43。実 API を呼び料金が発生する）。
+
+### PR-6 作成ポイント: claude integration test and make target
+
+**対象ステップ**: 5-3 / 5-4 / 5-5 / 5-6 / 5-7 / 5-8 / 5-9 / 5-10 / 5-11 / 5-12
+
+**推奨タイトル**: `test(0009): add the claude integration test and make target`
+
+**レビュー観点**: 統合テストが `//go:build integration` で既定の `make test` から分離され、`make test-integration-claude` が `-count=1`・`-timeout`・`-v` とオプトイン `YT2COLUMN_CLAUDE_INTEGRATION := 1` を設定していること（AC-28・AC-29） / 判定が `claudetestutil` の純粋な関数で、API キーの未設定はスキップ・モデル名や effort・ワークスペース ID の不正は失敗になること（AC-29・AC-43） / 実 API の実行が人間の承認を得てからで、`Model` に API キーが含まれないことを確かめてからログに出し、結果を §5.1 に記録していること（AC-30・§7.2） / `TestFakesCarryBuildTag` の件数が 17 に、`TestMakeOptInsAreTargetSpecific` が `YT2COLUMN_CLAUDE_INTEGRATION` を記録する形になっていること
+
+**実装モデル要件**: frontier-required
+
+**判定理由**: ステップ 5-5・5-6・5-12 が実 Anthropic の API・料金・Make ターゲット・手動実行にわたる重い統合テスト／外部リソースの面を持ち、mkplan.md ステップ 8 のパネルモードトリガーに該当するため（5-7・5-8・5-9・5-10 は外部リソースに触れない Make ターゲットとビルドタグの検査、コメントの修正である）。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 6: ドキュメント
 
@@ -222,6 +325,23 @@ HEAD `7864eec`（ブランチ `issei/llm-claude-02`）で確認した。architec
 - [ ] **ステップ 6-8**: フェーズ 6 で書いた各記述を根拠と照合し、照合した根拠（コードの場所、`make -n test-integration-claude` の出力、§5.1 の記録、Anthropic の文書の URL）をコミットメッセージに書く。
 - [ ] **ステップ 6-9**: `make fmt` → `make test` → `make lint` を通す。CLAUDE.md を変えるため、`make ext-test` も通す（CLAUDE.md「Development Notes」）。
 
+### PR-7 作成ポイント: documentation
+
+**対象ステップ**: 6-1 / 6-2 / 6-3 / 6-4 / 6-5 / 6-6 / 6-7 / 6-8 / 6-9
+
+**推奨タイトル**: `docs(0009): document the claude provider and integration test`
+
+**レビュー観点**: README と project_overview の設定の表が、プロバイダ固有の変数を選んだプロバイダのときだけ検査する規則（F-006）と一致し、`docs_test.go` の guard が同じコミットで更新されていること（AC-26・AC-45） / security.md の §2・§4 の記述が Anthropic の公開文書を確認したうえで書かれ、根拠を照合していること（§5.3・§7.2） / CLAUDE.md・AGENTS.md・package_reference.md が実装と一致し、`make ext-test` が通ること（§8）
+
+**実装モデル要件**: standard
+
+**判定理由**: 実装済みの内容の記述の更新に限られ、競合する実装方針の併記・リカバリや状態機械などの高リスクな制御・パネルモードのトリガー・Conditional checks のいずれにも該当しないため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
 
 ### 3.1. マイルストーン
@@ -235,9 +355,25 @@ HEAD `7864eec`（ブランチ `issei/llm-claude-02`）で確認した。architec
 | M5 | フェーズ 5 | `maketestutil`、`claudetestutil`、統合テスト、Make ターゲット、§5.1 の記録 | 同上・`make test-integration-claude` が通る |
 | M6 | フェーズ 6 | README・project_overview・security・CLAUDE.md の更新、`docs_test.go` の行 | 同上・`make ext-test` が通り、根拠との照合を済ませた |
 
-### 3.2. 実装順序の根拠
+### 3.2. PR 構成
 
-architecture §8 の順序に従う。`llmhttp` は Claude アダプタが使うため最初に置き、DeepSeek アダプタの無変更のテストで振る舞いの保存を確かめられる独立したリファクタリングとする（H-01）。`claudeparam` はアダプタと `internal/config` の両方が使うため、アダプタより前に置く。アダプタが揃ってから `config`・`provider`・CLI で選べるようにし、その後で統合テストと Make ターゲット、最後に実装の確定した内容で文書を更新する。PR の区切りは、本計画の承認後に `/mkplan2` で決める。
+PR はフェーズにおおむね 1 対 1 に対応させ、主たる関心事（HTTP 通信の切り出し / 型 / Claude アダプタ / プロバイダの配線 / Make の部品の移動 / 統合テスト / ドキュメント）ごとに、単独でグリーンゲートを通せる単位とする。フェーズ 5 は、プロバイダによらない Make の部品の移動（PR-5）と、実 API・Make ターゲット・手動実行を伴う統合テストの面（PR-6）に分ける。移動は既存テストを変えずにレビューできる独立したリファクタリングであり、統合テストの面は外部リソースに触れるため、リスクを隔離して別々にレビューする。
+
+internal の変更が cmd に先行する順序は、`internal/config`・`internal/llm/provider` の変更（PR-4）が `cmd/yt2column` の `configuredSecrets` の変更（同じ PR-4 の後続のコミット）に先行することで満たす。`llmhttp`（PR-1）・`claudeparam`（PR-2）・`claude`（PR-3）は、それを使う `internal/config`・`internal/llm/provider`（PR-4）と統合テスト（PR-6）に先行する。
+
+| PR | 対象ステップ | 主な変更内容 | 実装モデル要件 |
+|---|---|---|---|
+| PR-1 | 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8 | `internal/llm/llmhttp` と `llmhttptest` の新設、DeepSeek アダプタの送信の置き換え、経過時間の追加 | frontier-recommended |
+| PR-2 | 2-1 / 2-2 / 2-3 / 2-4 | `internal/llm/claudeparam` の effort・ワークスペース ID の型と変換、テスト | standard |
+| PR-3 | 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8 / 3-9 | `internal/llm/claude` のアダプタ（構築・リクエスト・応答の検証）とユニットテスト | frontier-recommended |
+| PR-4 | 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7 / 4-8 / 4-9 | `internal/config`・`internal/llm/provider`・`cmd/yt2column` の claude プロバイダの配線 | frontier-recommended |
+| PR-5 | 5-1 / 5-2 | `internal/maketestutil` への部品の移動と `deepseektestutil` のラッパー化 | standard |
+| PR-6 | 5-3 / 5-4 / 5-5 / 5-6 / 5-7 / 5-8 / 5-9 / 5-10 / 5-11 / 5-12 | `claudetestutil`、統合テスト、`make test-integration-claude`、Make ターゲットの検査、手動実行の記録 | frontier-required |
+| PR-7 | 6-1 / 6-2 / 6-3 / 6-4 / 6-5 / 6-6 / 6-7 / 6-8 / 6-9 | README・project_overview・security・CLAUDE.md・AGENTS.md・package_reference の更新、`docs_test.go` の guard | standard |
+
+### 3.3. 実装順序の根拠
+
+architecture §8 の順序に従う。`llmhttp` は Claude アダプタが使うため最初に置き、DeepSeek アダプタの無変更のテストで振る舞いの保存を確かめられる独立したリファクタリングとする（H-01）。`claudeparam` はアダプタと `internal/config` の両方が使うため、アダプタより前に置く。アダプタが揃ってから `config`・`provider`・CLI で選べるようにし、その後で統合テストと Make ターゲット、最後に実装の確定した内容で文書を更新する。PR の区切りは §3.2 に定義する。
 
 ## 4. テスト戦略 (Test Strategy)
 
@@ -347,13 +483,14 @@ architecture §7.3 に従う。計画固有の事項は次のとおり。
 
 ## 7. 実装チェックリスト (Implementation Checklist)
 
-- [ ] フェーズ 1 完了（ステップ 1-1〜1-8。リファクタリングと経過時間の追加が別のコミット）
-- [ ] フェーズ 2 完了（ステップ 2-1〜2-4）
-- [ ] フェーズ 3 完了（ステップ 3-1〜3-9）
-- [ ] フェーズ 4 完了（ステップ 4-1〜4-9。改名だけのコミットが独立している）
-- [ ] フェーズ 5 完了（ステップ 5-1〜5-12）
-- [ ] フェーズ 6 完了（ステップ 6-1〜6-9）
-- [ ] 各フェーズで `make fmt` → `make test` → `make lint` が通る
+- [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8。リファクタリングと経過時間の追加が別のコミット）
+- [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4）
+- [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8 / 3-9）
+- [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7 / 4-8 / 4-9。改名だけのコミットが独立している）
+- [ ] PR-5 マージ済み（対象ステップ: 5-1 / 5-2）
+- [ ] PR-6 マージ済み（対象ステップ: 5-3 / 5-4 / 5-5 / 5-6 / 5-7 / 5-8 / 5-9 / 5-10 / 5-11 / 5-12）
+- [ ] PR-7 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3 / 6-4 / 6-5 / 6-6 / 6-7 / 6-8 / 6-9）
+- [ ] 各 PR で `make fmt` → `make test` → `make lint` が通る
 - [ ] `make test-integration-claude` が通り、§5.1 に実行の記録が残っている
 - [ ] §5 のすべての AC の検証が通る
 - [ ] `implementation_handoff.md` の I-01〜I-04 が §1.5 のとおり反映されている
@@ -368,6 +505,6 @@ architecture §7.3 に従う。計画固有の事項は次のとおり。
 
 ## 9. 次のステップ (Next Steps)
 
-- 本計画のレビューと承認（`approved`）。
-- 承認後、`/mkplan2 0009` で PR の区切りを本計画に埋め込み、`/runplan 0009` で実装する。
+- 本計画は `approved`。PR の区切りは §2 の `PR-N 作成ポイント` と §3.2 に埋め込み済み。
+- `/runplan 0009` で実装する。
 - 実装の完了後、architecture §9 の申し送り（DeepSeek アダプタのテストの `llmhttptest` への移行、effort の記事のメタ情報への記録、`request-id` の扱い）を、必要に応じて別の issue にする。
