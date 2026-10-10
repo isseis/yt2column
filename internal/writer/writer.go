@@ -21,6 +21,12 @@ type Article struct {
 	ModelVersion string // opaque, provider-defined; empty when the provider reports none
 }
 
+// StepModel is the model one post-generation step's LLM call reported.
+type StepModel struct {
+	Model        string
+	ModelVersion string // empty when the provider reports none
+}
+
 // ArticleWriter generates a column article from a transcript.
 // Implementations must return an error on failure and must not
 // return an empty Article as a successful result.
