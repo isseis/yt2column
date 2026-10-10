@@ -325,6 +325,26 @@ func TestLoadClaudeInvalid(t *testing.T) {
 	})
 }
 
+// TestLoadClaudeReportsAllInvalid checks that a claude environment with several
+// rejected provider variables reports every one, not only the first.
+func TestLoadClaudeReportsAllInvalid(t *testing.T) {
+	env := with(validClaudeEnv(), claudeEffortEnv, "High")
+	env = with(env, anthropicWorkspaceIDEnv, " wrkspc_x")
+	env = without(env, anthropicAPIKeyEnv)
+	_, err := Load(envLookup(env))
+	if !errors.Is(err, ErrMissing) {
+		t.Errorf("Load() error = %v, want it to wrap ErrMissing", err)
+	}
+	if !errors.Is(err, ErrInvalid) {
+		t.Errorf("Load() error = %v, want it to wrap ErrInvalid", err)
+	}
+	for _, name := range []string{anthropicAPIKeyEnv, claudeEffortEnv, anthropicWorkspaceIDEnv} {
+		if !strings.Contains(err.Error(), name) {
+			t.Errorf("Load() error = %q, want it to name %q", err, name)
+		}
+	}
+}
+
 // TestLoadClaudeIgnoresDeepSeekKey checks that DEEPSEEK_API_KEY's value never
 // changes a claude load, in both the success and the error case.
 func TestLoadClaudeIgnoresDeepSeekKey(t *testing.T) {

@@ -188,11 +188,13 @@ func Load(lookup LookupFunc) (Config, error) {
 	errs := []error{
 		loadProvider(lookup, &cfg),
 		loadModel(lookup, &cfg),
-		loadProviderVars(lookup, &cfg),
+	}
+	errs = append(errs, loadProviderVars(lookup, &cfg)...)
+	errs = append(errs,
 		loadSlackWebhook(lookup, &cfg),
 		loadCacheDir(lookup, &cfg),
 		loadYtDlpPath(lookup, &cfg),
-	}
+	)
 	if err := errors.Join(errs...); err != nil {
 		return Config{}, err
 	}
@@ -220,21 +222,23 @@ func loadProvider(lookup LookupFunc, cfg *Config) error {
 	}
 }
 
-// loadProviderVars reads the variables of the selected provider and no others.
-// It reads nothing when the provider is unset, which happens only when
-// YT2COLUMN_LLM_PROVIDER was rejected, so an invalid provider is reported
-// alone and no provider variable rejects a value the user did not intend to
-// use.
-func loadProviderVars(lookup LookupFunc, cfg *Config) error {
+// loadProviderVars returns the rejections of the selected provider's variables
+// and reads no others. It returns nothing when the provider is unset, which
+// happens only when YT2COLUMN_LLM_PROVIDER was rejected, so an invalid provider
+// is reported alone and no provider variable rejects a value the user did not
+// intend to use. Each rejection is a separate element so Load joins them flat;
+// a nested join would reach a caller that prints one error per line as a single
+// line.
+func loadProviderVars(lookup LookupFunc, cfg *Config) []error {
 	switch cfg.provider {
 	case ProviderDeepSeek:
-		return loadDeepSeekAPIKey(lookup, cfg)
+		return []error{loadDeepSeekAPIKey(lookup, cfg)}
 	case ProviderClaude:
-		return errors.Join(
+		return []error{
 			loadAnthropicAPIKey(lookup, cfg),
 			loadClaudeEffort(lookup, cfg),
 			loadAnthropicWorkspaceID(lookup, cfg),
-		)
+		}
 	default:
 		return nil
 	}

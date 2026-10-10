@@ -1406,6 +1406,29 @@ func TestConfiguredSecretsIncludesWebhookParts(t *testing.T) {
 	}
 }
 
+// TestRunClaudeConfigurationErrorsOneLineEach checks that when the CLI loads a
+// claude environment with more than one rejected provider variable, it writes
+// each rejection on its own line. A nested errors.Join would otherwise render
+// them as one line with an escaped newline.
+func TestRunClaudeConfigurationErrorsOneLineEach(t *testing.T) {
+	e := newRunEnv(t)
+	e.env["YT2COLUMN_LLM_PROVIDER"] = "claude"
+	delete(e.env, "DEEPSEEK_API_KEY")
+	delete(e.env, "ANTHROPIC_API_KEY")
+	e.env["YT2COLUMN_CLAUDE_EFFORT"] = "High"
+	if code := e.run(); code != exitUsage {
+		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, e.stderr.String())
+	}
+	stderr := e.stderr.String()
+	lines := strings.Split(stderr, "\n")
+	for _, name := range []string{"ANTHROPIC_API_KEY", "YT2COLUMN_CLAUDE_EFFORT"} {
+		prefix := programName + ": configuration: " + name
+		if !slices.ContainsFunc(lines, func(line string) bool { return strings.HasPrefix(line, prefix) }) {
+			t.Errorf("stderr has no line starting with %q:\n%s", prefix, stderr)
+		}
+	}
+}
+
 // TestConfiguredSecretsIncludesAnthropicAPIKey checks that a claude
 // configuration's Anthropic API key, and a line holding only its last eight
 // characters, are both redacted.
