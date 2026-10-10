@@ -275,8 +275,8 @@ HEAD `7864eec`（ブランチ `issei/llm-claude-02`）で確認した。architec
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 - [ ] **ステップ 5-3**: `claudetestutil` の `integration.go` に、統合テストの環境変数の名前と、実行するかどうかを決める純粋な関数を作る。関数は `getenv func(string) string` を受け取り、architecture §7.2 の判定の順序（オプトイン → API キー → モデル名・effort → ワークスペース ID → `http2debug`）で、スキップ・失敗・実行と理由、および実行時の API キー・モデル名・effort・ワークスペース ID を返す。effort とワークスペース ID は `claudeparam`、`http2debug` は `config.HTTP2DebugEnabledIn` で判定する。理由の文字列は変数名を含み、API キーを含まない。API キーの変数名の定数には、`internal/llm/deepseek/testutil/integration.go:25` と同じ 1 行に限った `//nolint:gosec` を付ける。`integration_settings_test.go` に `TestIntegrationSettings` を作り、判定の各分岐（オプトインの欠如と `1` 以外の値、API キーの未設定・空でのスキップ、`ANTHROPIC_API_KEY` だけではスキップ、モデル名・effort の未設定・空・不正な effort での失敗、ワークスペース ID の空・不正での失敗と未設定での指定なし、`ANTHROPIC_WORKSPACE_ID` だけでは指定なし、`http2debug=1`・`=2` での失敗、すべてそろったときの値）を検証する。同じコミットで `TestFakesCarryBuildTag` の件数を 17 にし、`package_reference.md` に `internal/llm/claude/testutil` の行を加える。
 - [ ] **ステップ 5-4**: `integration_env_test.go` に、統合テストの判定の設定と、architecture §3.6 の値（1 回の `Generate` のタイムアウト、正常な生成と打ち切りの `MaxOutputTokens`）と `Generate` の回数（2）を定数として置く。テスト関数は置かない。`claude_test.go` に、DeepSeek の `TestIntegrationOptionsSkipMissingKey`（`deepseek_test.go:777`）と同じ形の `TestIntegrationOptionsSkipMissingKey` を加え、この設定でオプトインがあり API キーがないときにスキップになることを確かめる。
