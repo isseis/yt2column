@@ -63,22 +63,27 @@ type outputConfig struct {
 	Effort string `json:"effort"`
 }
 
+// effectiveMaxTokens returns the max_tokens a request sends: the request's
+// positive MaxOutputTokens, or the adapter default when the request leaves the
+// output limit to the provider. The response error messages name the same
+// value, so both callers share this rule.
+func effectiveMaxTokens(req llm.GenerateRequest) int {
+	if req.MaxOutputTokens > 0 {
+		return req.MaxOutputTokens
+	}
+	return defaultMaxOutputTokens
+}
+
 // newRequestBody builds the JSON request body. It never assembles the prompts
 // by string concatenation and never includes the API key or the workspace ID.
-// max_tokens is the request's positive MaxOutputTokens, or the adapter default
-// when the request leaves the limit to the provider.
 func newRequestBody(model string, effort claudeparam.Effort, req llm.GenerateRequest) ([]byte, error) {
-	maxTokens := req.MaxOutputTokens
-	if maxTokens == 0 {
-		maxTokens = defaultMaxOutputTokens
-	}
 	body := messagesRequest{
 		Model:  model,
 		System: req.SystemPrompt,
 		Messages: []messagesRequestMsg{
 			{Role: messageRoleUser, Content: req.UserPrompt},
 		},
-		MaxTokens:    maxTokens,
+		MaxTokens:    effectiveMaxTokens(req),
 		OutputConfig: outputConfig{Effort: effort.String()},
 	}
 	data, err := json.Marshal(body)

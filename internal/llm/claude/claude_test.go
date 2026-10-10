@@ -190,6 +190,22 @@ func TestNew(t *testing.T) {
 	})
 }
 
+// TestFixedRequestValues pins the wire values that the architecture fixes
+// against their literals, so a wrong constant cannot keep every other test
+// green.
+func TestFixedRequestValues(t *testing.T) {
+	if endpoint != "https://api.anthropic.com/v1/messages" {
+		t.Errorf("endpoint = %q, want the fixed production endpoint", endpoint)
+	}
+	if anthropicVersion != "2023-06-01" {
+		t.Errorf("anthropicVersion = %q, want %q", anthropicVersion, "2023-06-01")
+	}
+	const wantDefaultMaxOutputTokens = 16000
+	if defaultMaxOutputTokens != wantDefaultMaxOutputTokens {
+		t.Errorf("defaultMaxOutputTokens = %d, want %d", defaultMaxOutputTokens, wantDefaultMaxOutputTokens)
+	}
+}
+
 // fatalRecorder is a testing.TB that records a Fatal message instead of
 // failing the test. Fatalf deliberately does not end the calling goroutine,
 // so the helper under test keeps running and the caller can observe that it
@@ -603,17 +619,31 @@ func TestGenerateHTTPStatus(t *testing.T) {
 }
 
 func TestHTTPStatusErrorGuidance(t *testing.T) {
-	// A configuration error must read differently from an account or
-	// server-side problem.
-	guidance := map[int]string{}
-	for _, status := range []int{http.StatusBadRequest, http.StatusUnauthorized, http.StatusNotFound, http.StatusTooManyRequests, statusOverloaded} {
-		guidance[status] = statusGuidance(status)
+	// Every handled status must name fixed guidance.
+	handled := []int{
+		http.StatusBadRequest,
+		http.StatusUnauthorized,
+		http.StatusPaymentRequired,
+		http.StatusForbidden,
+		http.StatusNotFound,
+		http.StatusRequestEntityTooLarge,
+		http.StatusTooManyRequests,
+		http.StatusInternalServerError,
+		http.StatusServiceUnavailable,
+		statusOverloaded,
+		http.StatusTemporaryRedirect,
 	}
-	seen := map[string]int{}
-	for status, text := range guidance {
-		if text == "" {
+	for _, status := range handled {
+		if statusGuidance(status) == "" {
 			t.Errorf("statusGuidance(%d) is empty", status)
 		}
+	}
+	// A configuration error must read differently from an account or
+	// server-side problem.
+	distinct := []int{http.StatusBadRequest, http.StatusUnauthorized, http.StatusNotFound, http.StatusTooManyRequests, statusOverloaded}
+	seen := map[string]int{}
+	for _, status := range distinct {
+		text := statusGuidance(status)
 		if other, ok := seen[text]; ok {
 			t.Errorf("statusGuidance(%d) and statusGuidance(%d) share the guidance %q", status, other, text)
 		}

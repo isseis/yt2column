@@ -108,10 +108,7 @@ func (c *client) generate(ctx context.Context, req llm.GenerateRequest) (llm.Gen
 	if err != nil {
 		return llm.GenerateResponse{}, err
 	}
-	maxTokens := req.MaxOutputTokens
-	if maxTokens == 0 {
-		maxTokens = defaultMaxOutputTokens
-	}
+	maxTokens := effectiveMaxTokens(req)
 	data, err := llmhttp.Post(ctx, llmhttp.Call{
 		Client:  c.httpClient,
 		Timeout: c.timeout,

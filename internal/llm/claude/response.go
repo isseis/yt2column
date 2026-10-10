@@ -145,11 +145,11 @@ func parseContent(object strictjson.Object, members map[string]strictjson.Value)
 			if hasText {
 				return "", false, topLevelFailure(object, errTextBlockCount)
 			}
-			blockText, err := textBlockText(object, blockObject)
+			blockTextValue, err := textBlockText(object, blockObject)
 			if err != nil {
 				return "", false, err
 			}
-			text = blockText
+			text = blockTextValue
 			hasText = true
 		default:
 			return "", false, topLevelFailure(object, errUnknownBlockType)
