@@ -27,12 +27,12 @@ func envLookup(env map[string]string) LookupFunc {
 // validEnv is an environment every rule accepts.
 func validEnv() map[string]string {
 	return map[string]string{
-		providerEnv: "deepseek",
-		modelEnv:    "deepseek-chat",
-		apiKeyEnv:   "sk-test-key",
-		slackEnv:    "https://hooks.slack.com/services/T000/B000/XXXX",
-		cacheDirEnv: "/tmp/yt2column-test-cache",
-		ytDlpEnv:    "/usr/local/bin/yt-dlp",
+		providerEnv:       "deepseek",
+		modelEnv:          "deepseek-chat",
+		deepSeekAPIKeyEnv: "sk-test-key",
+		slackEnv:          "https://hooks.slack.com/services/T000/B000/XXXX",
+		cacheDirEnv:       "/tmp/yt2column-test-cache",
+		ytDlpEnv:          "/usr/local/bin/yt-dlp",
 	}
 }
 
@@ -68,8 +68,8 @@ func TestLoadValid(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DeepSeekAPIKey().Reveal() error = %v", err)
 	}
-	if key != env[apiKeyEnv] {
-		t.Errorf("DeepSeekAPIKey() = %q, want %q", key, env[apiKeyEnv])
+	if key != env[deepSeekAPIKeyEnv] {
+		t.Errorf("DeepSeekAPIKey() = %q, want %q", key, env[deepSeekAPIKeyEnv])
 	}
 	webhook, ok := cfg.SlackWebhookURL()
 	if !ok {
@@ -93,9 +93,9 @@ func TestLoadValid(t *testing.T) {
 func TestLoadDefaults(t *testing.T) {
 	home := "/home/user"
 	env := map[string]string{
-		modelEnv:  "deepseek-chat",
-		apiKeyEnv: "sk-test-key",
-		"HOME":    home,
+		modelEnv:          "deepseek-chat",
+		deepSeekAPIKeyEnv: "sk-test-key",
+		"HOME":            home,
 		// XDG_CACHE_HOME is set so the test exercises the default on both
 		// darwin and the other Unix systems without reading the process
 		// environment.
@@ -131,8 +131,8 @@ func TestLoadMissing(t *testing.T) {
 		wantVar string
 	}{
 		{"model unset", without(base, modelEnv), modelEnv},
-		{"provider unset and API key unset", without(base, providerEnv, apiKeyEnv), apiKeyEnv},
-		{"API key unset with deepseek", without(base, apiKeyEnv), apiKeyEnv},
+		{"provider unset and API key unset", without(base, providerEnv, deepSeekAPIKeyEnv), deepSeekAPIKeyEnv},
+		{"API key unset with deepseek", without(base, deepSeekAPIKeyEnv), deepSeekAPIKeyEnv},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -148,7 +148,7 @@ func TestLoadMissing(t *testing.T) {
 }
 
 func TestLoadEmpty(t *testing.T) {
-	vars := []string{providerEnv, modelEnv, apiKeyEnv, slackEnv, cacheDirEnv, ytDlpEnv}
+	vars := []string{providerEnv, modelEnv, deepSeekAPIKeyEnv, slackEnv, cacheDirEnv, ytDlpEnv}
 	for _, name := range vars {
 		t.Run(name, func(t *testing.T) {
 			_, err := Load(envLookup(with(validEnv(), name, "")))
@@ -284,12 +284,12 @@ func TestLoadErrorsOmitValues(t *testing.T) {
 	)
 	marks := []string{markProvider, markModel, markAPIKey, markSlack, markCache, markYtDlp}
 	base := map[string]string{
-		providerEnv: "deepseek",
-		modelEnv:    markModel,
-		apiKeyEnv:   markAPIKey,
-		slackEnv:    "https://hooks.slack.com/services/" + markSlack,
-		cacheDirEnv: "/tmp/" + markCache,
-		ytDlpEnv:    "/bin/" + markYtDlp,
+		providerEnv:       "deepseek",
+		modelEnv:          markModel,
+		deepSeekAPIKeyEnv: markAPIKey,
+		slackEnv:          "https://hooks.slack.com/services/" + markSlack,
+		cacheDirEnv:       "/tmp/" + markCache,
+		ytDlpEnv:          "/bin/" + markYtDlp,
 	}
 	cases := []struct {
 		name  string
@@ -298,7 +298,7 @@ func TestLoadErrorsOmitValues(t *testing.T) {
 	}{
 		{"provider invalid", with(base, providerEnv, "gemini-"+markProvider), nil},
 		{"model empty", with(base, modelEnv, ""), nil},
-		{"API key empty", with(base, apiKeyEnv, ""), nil},
+		{"API key empty", with(base, deepSeekAPIKeyEnv, ""), nil},
 		// Each slack webhook row also names the last 8 bytes of its value, so a
 		// rejection that leaked only the tail would still be caught.
 		{"slack webhook invalid", with(base, slackEnv, "http://"+markSlack), []string{"SLACK-D4"}},
@@ -356,7 +356,7 @@ func TestConfigOutputRedactsSecrets(t *testing.T) {
 		webhook = "https://hooks.slack.com/services/distinctive-webhook-7Lwz"
 	)
 	env := validEnv()
-	env[apiKeyEnv] = key
+	env[deepSeekAPIKeyEnv] = key
 	env[slackEnv] = webhook
 	cfg, err := Load(envLookup(env))
 	if err != nil {

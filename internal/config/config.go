@@ -25,13 +25,13 @@ const (
 
 // Names of the environment variables Load reads.
 const (
-	providerEnv = "YT2COLUMN_LLM_PROVIDER"
-	modelEnv    = "YT2COLUMN_MODEL"
-	apiKeyEnv   = "DEEPSEEK_API_KEY" //nolint:gosec // the variable's name, not a credential value
-	slackEnv    = "SLACK_WEBHOOK_URL"
-	cacheDirEnv = "YT2COLUMN_CACHE_DIR"
-	ytDlpEnv    = "YT2COLUMN_YTDLP_PATH"
-	godebugEnv  = "GODEBUG"
+	providerEnv       = "YT2COLUMN_LLM_PROVIDER"
+	modelEnv          = "YT2COLUMN_MODEL"
+	deepSeekAPIKeyEnv = "DEEPSEEK_API_KEY" //nolint:gosec // the variable's name, not a credential value
+	slackEnv          = "SLACK_WEBHOOK_URL"
+	cacheDirEnv       = "YT2COLUMN_CACHE_DIR"
+	ytDlpEnv          = "YT2COLUMN_YTDLP_PATH"
+	godebugEnv        = "GODEBUG"
 )
 
 // providerDeepSeek is the only accepted value of providerEnv.
@@ -157,7 +157,7 @@ func Load(lookup LookupFunc) (Config, error) {
 	errs := []error{
 		loadProvider(lookup, &cfg),
 		loadModel(lookup, &cfg),
-		loadAPIKey(lookup, &cfg),
+		loadDeepSeekAPIKey(lookup, &cfg),
 		loadSlackWebhook(lookup, &cfg),
 		loadCacheDir(lookup, &cfg),
 		loadYtDlpPath(lookup, &cfg),
@@ -196,25 +196,25 @@ func loadModel(lookup LookupFunc, cfg *Config) error {
 	return nil
 }
 
-// loadAPIKey validates DEEPSEEK_API_KEY, which is required when the provider is
+// loadDeepSeekAPIKey validates DEEPSEEK_API_KEY, which is required when the provider is
 // deepseek. An empty value is rejected however the provider is set; a non-empty
 // value is kept only for deepseek.
-func loadAPIKey(lookup LookupFunc, cfg *Config) error {
-	value, ok := lookup(apiKeyEnv)
+func loadDeepSeekAPIKey(lookup LookupFunc, cfg *Config) error {
+	value, ok := lookup(deepSeekAPIKeyEnv)
 	switch {
 	case !ok:
 		if cfg.provider == ProviderDeepSeek {
-			return missingVar(apiKeyEnv)
+			return missingVar(deepSeekAPIKeyEnv)
 		}
 		return nil
 	case value == "":
-		return missingVar(apiKeyEnv)
+		return missingVar(deepSeekAPIKeyEnv)
 	case cfg.provider != ProviderDeepSeek:
 		return nil
 	default:
 		key, err := secret.New(value)
 		if err != nil {
-			return missingVar(apiKeyEnv)
+			return missingVar(deepSeekAPIKeyEnv)
 		}
 		cfg.deepSeekAPIKey = key
 		return nil
