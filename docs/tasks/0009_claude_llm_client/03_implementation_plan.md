@@ -146,10 +146,10 @@ HEAD `7864eec`（ブランチ `issei/llm-claude-02`）で確認した。architec
 - 変更: `docs/dev/developer_guide/package_reference.md`
 
 **タスク**
-- [ ] **ステップ 2-1**: `claudeparam.go` に architecture §3.2 の `Effort`・定数・`ParseEffort`・`String`・`WorkspaceID`・`ParseWorkspaceID`・`Value` と、§1.3 の `Valid` を実装する。`ParseEffort` と `String` は `switch` で書き、`default` を、`ParseEffort` では拒否、`String` では固定の文字列にする。5 つの値の一覧はこのファイルの外に持たない。import は標準ライブラリだけとする。
-- [ ] **ステップ 2-2**: `claudeparam_test.go` に `TestParseEffort`（5 つの値の受理と `String` との往復、requirements AC-25 の例を含む拒否、空文字列の拒否）、`TestEffortStringAndValid`（`EffortUnset` と範囲外の値の `String` は `ParseEffort` が受理しない値であり、`Valid` が偽であること）、`TestParseWorkspaceID`（境界の `0x21`・`0x7E` の受理、requirements AC-39・AC-42 の例と空文字列・`0x7F` の拒否）、`TestWorkspaceIDZeroValue`（ゼロ値の `Value` が「指定なし」を返すこと）、`TestWorkspaceIDHasNoExportedFields`（`reflect` で `WorkspaceID` が公開のフィールドを持たないこと。AC-39 は、不正な値を `ParseWorkspaceID` 以外では作れないことに依拠するため）を作る。
-- [ ] **ステップ 2-3**: `package_reference.md` に `internal/llm/claudeparam` の行を加える。
-- [ ] **ステップ 2-4**: 壊して失敗することを確認し、コミットメッセージに記録する。対象: `ParseEffort` が大文字を受理する（`TestParseEffort`）、`Valid` が `EffortUnset` に真を返す（`TestEffortStringAndValid`）、`ParseWorkspaceID` が空白を受理する・空文字列を受理する（`TestParseWorkspaceID`）、`WorkspaceID` のフィールドを公開にする（`TestWorkspaceIDHasNoExportedFields`）。`make fmt` → `make test` → `make lint` を通す。
+- [x] **ステップ 2-1**: `claudeparam.go` に architecture §3.2 の `Effort`・定数・`ParseEffort`・`String`・`WorkspaceID`・`ParseWorkspaceID`・`Value` と、§1.3 の `Valid` を実装する。`ParseEffort` と `String` は `switch` で書き、`default` を、`ParseEffort` では拒否、`String` では固定の文字列にする。5 つの値の一覧はこのファイルの外に持たない。import は標準ライブラリだけとする。
+- [x] **ステップ 2-2**: `claudeparam_test.go` に `TestParseEffort`（5 つの値の受理と `String` との往復、requirements AC-25 の例を含む拒否、空文字列の拒否）、`TestEffortStringAndValid`（`EffortUnset` と範囲外の値の `String` は `ParseEffort` が受理しない値であり、`Valid` が偽であること）、`TestParseWorkspaceID`（境界の `0x21`・`0x7E` の受理、requirements AC-39・AC-42 の例と空文字列・`0x7F` の拒否）、`TestWorkspaceIDZeroValue`（ゼロ値の `Value` が「指定なし」を返すこと）、`TestWorkspaceIDHasNoExportedFields`（`reflect` で `WorkspaceID` が公開のフィールドを持たないこと。AC-39 は、不正な値を `ParseWorkspaceID` 以外では作れないことに依拠するため）を作る。
+- [x] **ステップ 2-3**: `package_reference.md` に `internal/llm/claudeparam` の行を加える。
+- [x] **ステップ 2-4**: 壊して失敗することを確認し、コミットメッセージに記録する。対象: `ParseEffort` が大文字を受理する（`TestParseEffort`）、`Valid` が `EffortUnset` に真を返す（`TestEffortStringAndValid`）、`ParseWorkspaceID` が空白を受理する・空文字列を受理する（`TestParseWorkspaceID`）、`WorkspaceID` のフィールドを公開にする（`TestWorkspaceIDHasNoExportedFields`）。`make fmt` → `make test` → `make lint` を通す。
 
 ### PR-2 作成ポイント: effort and workspace id types (internal/llm/claudeparam)
 
