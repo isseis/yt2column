@@ -46,7 +46,7 @@ define format_files_from_list
 	fi
 endef
 
-.PHONY: all build clean test test-ci test-integration test-integration-deepseek test-integration-cli test-integration-slack test-integration-cli-slack lint fmt fmt-all deadcode tidy install-mergepr ext-install ext-typecheck ext-lint ext-fmt-check ext-fmt ext-test ext-build ext-check
+.PHONY: all build clean test test-ci test-integration test-integration-deepseek test-integration-claude test-integration-cli test-integration-slack test-integration-cli-slack lint fmt fmt-all deadcode tidy install-mergepr ext-install ext-typecheck ext-lint ext-fmt-check ext-fmt ext-test ext-build ext-check
 
 all: build
 
@@ -109,6 +109,30 @@ test-integration-deepseek:
 	@printf 'test-integration-deepseek: calls the real DeepSeek API, which incurs charges (model: %s)\n' "$$YT2COLUMN_MODEL"
 	$(GOTEST) -tags integration -count=1 -timeout $(DEEPSEEK_INTEGRATION_TIMEOUT) -v ./internal/llm/deepseek
 
+# Claude integration test. Calls the real Anthropic API, which incurs
+# charges, so it is kept out of `make test` by the `integration` build tag and
+# skips unless the opt-in variable below is set. It reads its API key from
+# YT2COLUMN_TEST_ANTHROPIC_API_KEY, never from ANTHROPIC_API_KEY, and an
+# optional workspace ID from YT2COLUMN_TEST_ANTHROPIC_WORKSPACE_ID, never from
+# ANTHROPIC_WORKSPACE_ID. The model and effort default to claude-haiku-5-5 and
+# low only when undefined; an empty value is passed through, and the test
+# fails on it.
+YT2COLUMN_TEST_CLAUDE_MODEL ?= claude-haiku-5-5
+YT2COLUMN_TEST_CLAUDE_EFFORT ?= low
+# Two Generate calls of at most 5 minutes each, plus margin (see
+# internal/llm/claude/integration_env_test.go).
+CLAUDE_INTEGRATION_TIMEOUT ?= 15m
+
+# Exported to this target's recipe only; the recipe never splices the values
+# into shell text.
+test-integration-claude: export YT2COLUMN_TEST_CLAUDE_MODEL := $(YT2COLUMN_TEST_CLAUDE_MODEL)
+test-integration-claude: export YT2COLUMN_TEST_CLAUDE_EFFORT := $(YT2COLUMN_TEST_CLAUDE_EFFORT)
+test-integration-claude: export YT2COLUMN_CLAUDE_INTEGRATION := 1
+
+test-integration-claude:
+	@printf 'test-integration-claude: calls the real Anthropic API, which incurs charges (model: %s, effort: %s)\n' "$$YT2COLUMN_TEST_CLAUDE_MODEL" "$$YT2COLUMN_TEST_CLAUDE_EFFORT"
+	$(GOTEST) -tags integration -count=1 -timeout $(CLAUDE_INTEGRATION_TIMEOUT) -v ./internal/llm/claude
+
 # CLI integration test. Runs cmd/yt2column from a seeded transcript cache to
 # the --out file with the real DeepSeek API, which incurs charges; yt-dlp is
 # never started. Like the DeepSeek integration test it is kept out of
@@ -162,9 +186,10 @@ test-integration-cli-slack:
 
 # golangci-lint compiles the integration tests only together with the `test`
 # helpers; vet the `-tags integration` build that `make test-integration`,
-# `make test-integration-deepseek`, `make test-integration-cli`,
-# `make test-integration-slack`, and `make test-integration-cli-slack` run, so
-# a compile error there fails lint too.
+# `make test-integration-deepseek`, `make test-integration-claude`,
+# `make test-integration-cli`, `make test-integration-slack`, and
+# `make test-integration-cli-slack` run, so a compile error there fails lint
+# too.
 lint:
 	$(GOLINT)
 	$(GOCMD) vet -tags integration ./...

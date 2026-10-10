@@ -13,6 +13,7 @@ import (
 	"go/token"
 	"io"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -25,8 +26,10 @@ import (
 	"time"
 
 	"github.com/isseis/yt2column/internal/llm"
+	claudetestutil "github.com/isseis/yt2column/internal/llm/claude/testutil"
 	"github.com/isseis/yt2column/internal/llm/claudeparam"
 	"github.com/isseis/yt2column/internal/llm/llmhttp/llmhttptest"
+	"github.com/isseis/yt2column/internal/maketestutil"
 	"github.com/isseis/yt2column/internal/secret"
 )
 
@@ -854,5 +857,57 @@ func TestGenerateSentinelsDistinct(t *testing.T) {
 			}
 			assertRejected(t, response, err)
 		})
+	}
+}
+
+// TestIntegrationOptionsSkipMissingKey pins how integrationOptions behaves
+// with the opt-in set: a missing test API key skips, so a run without a key
+// incurs no charge and does not fail, and a complete environment runs. The
+// environment names the opt-in directly, not through integrationOptions, so a
+// wrong opt-in in the options is caught by the run case.
+func TestIntegrationOptionsSkipMissingKey(t *testing.T) {
+	complete := map[string]string{
+		claudetestutil.OptInEnv:  claudetestutil.OptInValue,
+		claudetestutil.APIKeyEnv: testAPIKey,
+		claudetestutil.ModelEnv:  testModel,
+		claudetestutil.EffortEnv: claudeparam.EffortLow.String(),
+	}
+	for _, tc := range []struct {
+		name  string
+		unset string
+		want  claudetestutil.IntegrationAction
+	}{
+		{name: "api_key_missing", unset: claudetestutil.APIKeyEnv, want: claudetestutil.ActionSkip},
+		{name: "complete", want: claudetestutil.ActionRun},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			env := maps.Clone(complete)
+			delete(env, tc.unset)
+			settings := claudetestutil.SettingsFrom(func(name string) (string, bool) {
+				value, ok := env[name]
+				return value, ok
+			}, integrationOptions)
+			if settings.Action != tc.want {
+				t.Errorf("Action = %d, want %d (reason %q)", settings.Action, tc.want, settings.Reason)
+			}
+		})
+	}
+}
+
+// TestIntegrationTestBuildTag pins the build tags that keep the integration
+// test, which calls the real Anthropic API, out of `make test` and
+// `make test-ci`, while its settings build under both tags. The guard's own
+// error paths are tested with the DeepSeek adapter's identical guard.
+func TestIntegrationTestBuildTag(t *testing.T) {
+	for _, tc := range []struct {
+		path string
+		want string
+	}{
+		{path: "integration_test.go", want: "//go:build integration"},
+		{path: "integration_env_test.go", want: "//go:build test || integration"},
+	} {
+		if err := maketestutil.FirstLineIs(tc.path, tc.want); err != nil {
+			t.Errorf("%s must start with %q: %v", tc.path, tc.want, err)
+		}
 	}
 }
