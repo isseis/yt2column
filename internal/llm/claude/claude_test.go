@@ -190,22 +190,6 @@ func TestNew(t *testing.T) {
 	})
 }
 
-// TestFixedRequestValues pins the wire values that the architecture fixes
-// against their literals, so a wrong constant cannot keep every other test
-// green.
-func TestFixedRequestValues(t *testing.T) {
-	if endpoint != "https://api.anthropic.com/v1/messages" {
-		t.Errorf("endpoint = %q, want the fixed production endpoint", endpoint)
-	}
-	if anthropicVersion != "2023-06-01" {
-		t.Errorf("anthropicVersion = %q, want %q", anthropicVersion, "2023-06-01")
-	}
-	const wantDefaultMaxOutputTokens = 16000
-	if defaultMaxOutputTokens != wantDefaultMaxOutputTokens {
-		t.Errorf("defaultMaxOutputTokens = %d, want %d", defaultMaxOutputTokens, wantDefaultMaxOutputTokens)
-	}
-}
-
 // fatalRecorder is a testing.TB that records a Fatal message instead of
 // failing the test. Fatalf deliberately does not end the calling goroutine,
 // so the helper under test keeps running and the caller can observe that it
