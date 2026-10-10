@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-10 |
-| Review date | - |
-| Reviewer | - |
-| Comments | - |
+| Review date | 2026-10-10 |
+| Reviewer | isseis |
+| Comments | 承認の後、`/mkplan2` で PR の区切り（§2 の `PR-N 作成ポイント`・§3.2・§7、旧 §3.2 は §3.3 へ。§1.2・§2 の冒頭・§9 も合わせた）を埋め込み、フェーズ 5 の壊して確かめる対象をステップ 5-11 から 5-4・5-8 に分けた。編集上の変更で、何を作るかは変えていない。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -24,7 +24,7 @@
 - 新設・変更するファイルは architecture §3.12 の責務表を基本とする。表にないファイルの変更（guard テストの更新、古くなるコメントや文書の修正）は、各ステップに対象ファイルとして明記する。
 - Go のコメント・識別子・文字列リテラルは英語で書く。`AC-NN`・`F-NNN`・`H-NN` は Go ソースに書かず、本計画にだけ記録する（`requirements_process.md` §4）。
 - 振る舞いを変えない取り出し・一般化（ステップ 2-1・2-2・5-2）は、それぞれ独立したコミットにし、そのコミットで既存テストの期待値を変えない。差分に含まれるテストの変更が呼び出しの形の機械的な置き換えだけであることを、コミット前に差分で確かめ、コミットメッセージに書く。
-- 各テストは、対象の分岐を実際に壊して失敗することを確かめ、そのことをコミットメッセージに書く（CLAUDE.md「Testing Strategy」）。各フェーズの最後のステップに、壊す対象を挙げる。
+- 各テストは、対象の分岐を実際に壊して失敗することを確かめ、そのことをコミットメッセージに書く（CLAUDE.md「Testing Strategy」）。各フェーズの最後のステップに、壊す対象を挙げる。フェーズ 5 は 3 つの PR に分かれるので、各 PR の最後のステップ（5-4・5-8・5-11）に、その PR の壊す対象を挙げる。
 - 各フェーズの完了条件は、`make fmt` の後にグリーンゲート（`_context.md` の "Green gate"。`make test`・`make lint`）が通ることである。文書だけを変えるコミットでも `make ext-test` を通す（CLAUDE.md「Development Notes」）。
 
 ### 1.3. 既存コード調査結果
@@ -89,7 +89,7 @@ HEAD `4dd797d`（ブランチ `claude/mkplan-0010-xnazts`）で確認した。�
 
 ## 2. 実装ステップ (Implementation Steps)
 
-ステップは `X-Y` 形式で表す（X: フェーズ番号、Y: フェーズ内の連番）。テスト関数名と AC の対応は §5 にまとめ、各ステップでは対象の AC だけを示す。テスト関数名は計画上の名前であり、実装で変えた場合は §5 を同じコミットで直す。各フェーズの完了条件は、最後のステップで壊して失敗することを確かめ、`make fmt` の後にグリーンゲートが通ることである。
+ステップは `X-Y` 形式で表す（X: フェーズ番号、Y: フェーズ内の連番）。テスト関数名と AC の対応は §5 にまとめ、各ステップでは対象の AC だけを示す。テスト関数名は計画上の名前であり、実装で変えた場合は §5 を同じコミットで直す。各フェーズの完了条件は、最後のステップで壊して失敗することを確かめ、`make fmt` の後にグリーンゲートが通ることである。各 PR の区切りは `PR-N 作成ポイント` に示し、各 PR はその最後のステップまでで単独でグリーンゲートを通す（§3.2）。
 
 ### フェーズ 1: `internal/strictjson`
 
@@ -100,6 +100,23 @@ HEAD `4dd797d`（ブランチ `claude/mkplan-0010-xnazts`）で確認した。�
 - [ ] **ステップ 1-1**: `strictjson.go` に architecture §3.5.3 の `Object.CollectOnly(keys ...string) (map[string]Value, error)` と `Value.AsBool() (bool, error)` を加える（H-01）。`CollectOnly` は、指定しなかったキー（その重複を含む）が 1 つでもあれば拒否し、指定したキーの重複も拒否する。指定したキーが揃うことは求めない。エラーには、未知のキー用と重複したキー用に 1 つずつ非公開の静的エラーを設け、破られた規則だけを示す。キーの文字列は含めない。`AsBool` は `true`・`false` 以外（`null`・文字列・数、ゼロ値の `Value`）を拒否する。`Collect` は変えない。
 - [ ] **ステップ 1-2**: `strictjson_test.go` に `TestObjectCollectOnly`（未知のキー、未知のキーの重複、指定したキーの重複、指定したキーの一部の欠落は受理、拒否のエラーにキーに埋め込んだ目印が現れない）と `TestValueAsBool`（`true`・`false` の受理、`null`・`"true"`・`1`・ゼロ値の `Value` の拒否）を加える。既存の `TestObjectCollect` は変えない。
 - [ ] **ステップ 1-3**: 壊して失敗することを確かめ、コミットメッセージに書く。対象: `CollectOnly` が未知のキーを無視する（`TestObjectCollectOnly` の未知のキーの行）、指定したキーの重複を受理する（同、重複の行）、エラーにキーを `%q` で入れる（同、目印の検査）、`AsBool` が `null` を `false` として受理する（`TestValueAsBool`）。`make fmt` → `make test` → `make lint` を通す。
+
+### PR-1 作成ポイント: strict key collection in internal/strictjson
+
+**対象ステップ**: 1-1 / 1-2 / 1-3
+
+**推奨タイトル**: `feat(0010): add CollectOnly and AsBool to internal/strictjson`
+
+**レビュー観点**: `CollectOnly` が未知のキーとその重複・指定したキーの重複を拒否し、指定したキーの欠落は受理すること（H-01） / 拒否のエラーにキーの文字列を含めず、破られた規則だけを非公開の静的エラーで示すこと / `AsBool` がゼロ値の `Value` と `null` を拒否すること / 既存の `Collect` と呼び出し元 4 か所の振る舞いを変えていないこと
+
+**実装モデル要件**: standard
+
+**判定理由**: 2 つの関数の追加で、規則と拒否の形は architecture §3.5.3 で決まっており、パネルモードのトリガー・競合する実装案・高リスクの手順のどれにも該当しないため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: `internal/writer` の部品
 
@@ -115,6 +132,23 @@ HEAD `4dd797d`（ブランチ `claude/mkplan-0010-xnazts`）で確認した。�
   - `templateData`（`prompt.go:17-19`）: 変更前 `// templateData is the only value passed to a prompt template. Its fields are` / `// the four values a template may reference; the template checks derive the` / `// allowed field names from this type.` → 変更後 `// templateData is the only value passed to a generation template. Its fields` / `// are the four values such a template may reference; the template checks` / `// derive the allowed field names from this type.`
 
   既存テストを変えずに通し（呼び出しの形の置き換えだけ）、1 つのリファクタリングのコミットにする。`internal/pipeline` の `TestPromptsREADMEMatchesContract` もこの時点では変えずに通る（`templateData` は残る）。
+
+### PR-2 作成ポイント: writer refactors for post-generation steps
+
+**対象ステップ**: 2-1 / 2-2
+
+**推奨タイトル**: `refactor(0010): extract checkGeneratedText and type-parameterize writer templates`
+
+**レビュー観点**: 2 つのコミットがそれぞれ独立したリファクタリングで、既存テストの期待値を変えず、テストの差分が呼び出しの形の機械的な置き換えだけであること / `checkField` が参照できるフィールドを型引数 `T` から引くようになっても、構文・関数の allowlist・サイズ・UTF-8 などの検査の規則が変わっていないこと / `checkedTemplate[T]` の `expand` が `T` 以外のデータ型を受け取れないこと（埋め込んだ構造体のフィールドの昇格の受理と `.templateData` の拒否は、データ型が揃う PR-4 の `TestTemplateDataFields` で確かめるので、本 PR では `reflect` の `FieldByName`・`IsExported` の使い方をコードで確かめる） / §1.4 の名前の変更と doc コメントの変更前後が計画どおりであること
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: ステップ 2-2 が、上書きテンプレートという信頼しない入力に対する検査（`checkField` のフィールドの allowlist）を型引数と `reflect` で作り直す孤立した高リスクの手順であり、振る舞いを保ったまま一般化する判断を要するため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 - [ ] **ステップ 2-3**: `length.go` に、本文の部分の字数を数える関数と、定数 `maxBodyChars = 4000`・`targetBodyChars = 3600` を置く（architecture §3.3）。`length_test.go` に `TestBodyChars` を置く。4,000 字と 4,001 字、改行を数えると 4,001 字以上になり、数えなければ 4,000 字になる入力（architecture §7.1）、Markdown の記号（`## `・`**`）と空白を数えること、サロゲートペアになる文字を 1 字と数えることを確かめる（AC-04 の数え方）。
 - [ ] **ステップ 2-4**: `revision.go` に architecture §3.5.2 の `ReviewResult`・`Revision`・`RevisionAction`・`RevisionReason`・`WireValue`・`ReviewResult.Check` を、`errors.go` に `ErrInvalidReview` を置く。応答の値から `RevisionReason` への変換と `WireValue` は 1 つの対応表を使う。`Check` は、解析が受理した一覧なら必ず通る条件だけを確かめ、値をエラーに含めない。`revision_test.go` に `TestRevisionReasonWireValue`（5 つの値の往復、`ReasonUnknown` と範囲外の値が偽）と `TestReviewResultCheck`（列挙の外の `Action`・`Reason`、空の `Before`、`Action` と `After` の食い違いの両向き、空白だけの `Evidence`、各文字列の制御文字（`Evidence` の `\n` は受理）、`maxRevisions` を超える件数、モデル名の規則、エラーに値の目印が現れない）を置く。
 - [ ] **ステップ 2-5**: `review.go` に、検証・推敲の応答の文字列から一覧を作る非公開の関数を置く（architecture §3.5.3、H-01）。手順は、`maxTextBytes` 以下であることの確認、`strictjson.ParseObject`、トップレベルの `CollectOnly("revisions")`、`AsArray`、`maxRevisions = 256` 以下であることの確認、各要素の `AsObject` と `CollectOnly`、architecture §3.5.3 の表の各規則の確認である。必須のキーと空でない文字列には既存の `strictjson.Required`・`RequiredString`・`OptionalString` を使う。どの拒否も `ErrMalformedOutput` を包み、規則と項目の番号だけを示す。部分的な一覧を返さない。`review_test.go` に `TestParseReviewResponse` を置き、architecture §3.5.3 の各規則について、その規則だけに反する応答の行を並べる（AC-12 の例、architecture §7.1 の追加の行、§7.3 の不正な UTF-8・対になっていないサロゲート・重複したキー）。境界は、項目 256 と 1 MiB ちょうどを受理し、257 と 1 MiB + 1 バイトを拒否する。拒否のエラーに応答の値の目印が現れないことも確かめる。
@@ -124,6 +158,23 @@ HEAD `4dd797d`（ブランチ `claude/mkplan-0010-xnazts`）で確認した。�
   - 範囲が接する 2 項目の受理と、1 文字重なる 2 項目・同じ `before` の 2 項目の拒否。出現 0 回の拒否。
   - タイトルの行の中の項目の受理、見出しの中の項目・見出しの行を作る項目・コードフェンスの中の `## ` の行を変える項目の拒否。
 - [ ] **ステップ 2-7**: 壊して失敗することを確かめ、コミットメッセージに書く。対象: 改行を数える（`TestBodyChars`）、重なり合う出現を `strings.Count` で数える（`TestApplyRevisions` の `あああ` の行）、置き換えを前の項目の結果の上で行う（`甲乙` の行）、接する範囲を重なりとする（接する行）、見出しの比較を外す（見出しの行）、項目の数の上限の確認を外す（`TestParseReviewResponse` の 257 の行）、`delete: false` を受理する（同）、`WireValue` の対応表に既定の値を足す（`TestRevisionReasonWireValue`）。`make fmt` → `make test` → `make lint` を通す。
+
+### PR-3 作成ポイント: review response parsing and revision application
+
+**対象ステップ**: 2-3 / 2-4 / 2-5 / 2-6 / 2-7
+
+**推奨タイトル**: `feat(0010): parse and apply review revisions in internal/writer`
+
+**レビュー観点**: 検証・推敲の応答の解析が architecture §3.5.3 の各規則（1 MiB・256 項目の境界、未知と重複のキー、`delete` と `after` の組み合わせ、制御文字）を補正せずに拒否し、部分的な一覧を返さず、エラーに応答の値を含めないこと / 当てはめが重なり合う出現も数え（`ああ`/`あああ` の行が `strings.Count` との差を先に示していること）、範囲の重なりと見出しの列の変化を拒否し、元の文面の文字列に対して置き換えること / 本文の字数の数え方（改行・Markdown の記号・サロゲートペア）と 4,000／4,001 の境界 / `RevisionReason` の綴りが 1 つの対応表にだけあること
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: ステップ 2-5・2-6 が、LLM の応答という信頼しない入力の境界の検査と、重なりと見出しの判定を伴う当てはめを担う孤立した高リスクの手順であるため（セキュリティゲートや移行ではなく、パネルモードのトリガーには該当しない）。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: `internal/writer` の段階と `prompts`
 
@@ -153,6 +204,23 @@ HEAD `4dd797d`（ブランチ `claude/mkplan-0010-xnazts`）で確認した。�
 - [ ] **ステップ 3-10**: `prompts/README.md` に、2 つの段階のテンプレートと、それぞれで参照できる値の表を加える（architecture §3.4。`.Title` と `.ArticleTitle` を並べて書く）。同じコミットで、`internal/pipeline/pipeline_test.go` の `readWriterTemplateContract` と `TestPromptsREADMEMatchesContract` を、3 つのデータ型のそれぞれのフィールド（埋め込んだ構造体のフィールドを含む）と README の 3 つの表を比べる形に広げる。README の表の行を 1 つ消すと guard が失敗することを確かめる。
 - [ ] **ステップ 3-11**: 壊して失敗することを確かめ、コミットメッセージに書く。対象: 本文が上限以内でも字数の調整を呼ぶ（`TestWriteStepOrder` の AC-01 の行）、検証・推敲に字数の調整の前の文面を渡す（同、AC-02 の行）、字数の調整のテンプレートのデータに `Transcript` を加えて既定のテンプレートで参照する（`TestShortenPrompt`）、検証・推敲の段階のエラーを `StepError` で包まない（`TestWriteStepFailures`）、段階の前の `ctx` の確認を外す（`TestWriteStepContextDone`）、最終の字数の確認を外す（`TestWriteTooLong` の AC-07 の行）、最終の字数の確認を字数の調整が無効でも行う（同、無効の行）、失敗時に前の段階の文面の記事を返す（`TestWriteStepFailures` のゼロ値の検査）、`New` が `Review.Enabled` が偽で `Client` があるのを受理する（`TestNewStepOptions`）、`checkField` を `templateData` に戻す（`TestTemplateDataFields`）、既定の検証・推敲のテンプレートから理由の値を 1 つ消す（`TestDefaultReviewTemplateNamesWireValues`）、`review_system.tmpl` に `{{printf}}` を書く（`TestDefaultTemplatesPassChecks`）、字数の調整の後の `ErrTooLong` を `StepReview` で包む（`TestWriteTooLong` の `Step` の検査）、段階のテンプレートの展開の失敗を `StepError` で包まない（`TestWriteStepExpansionFailure`）、段階に生成のモデル名を記録する（`TestWriteStepOrder` のモデルの検査）。`make fmt` → `make test` → `make lint` を通す。
 
+### PR-4 作成ポイント: shorten and review steps in ArticleWriter
+
+**対象ステップ**: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8 / 3-9 / 3-10 / 3-11
+
+**推奨タイトル**: `feat(0010): add the shorten and review steps to ArticleWriter`
+
+**レビュー観点**: `Write` の順序（生成・字数の調整・検証・推敲・最終の字数の確認）と、各段階の前の `ctx.Err()`、段階の失敗の `*StepError` での包み方（最終の `ErrTooLong` は `StepReview`）、失敗時にゼロ値の記事を返すことが architecture §3.2・図6 と一致すること / `Options` のゼロ値で段階を行わず、`overrideTargets` と既存のテストを変えずに通ること（AC-27） / 4 つの既定のテンプレートが素材の区画の中の文章を指示として扱わないよう書かれ、検証・推敲のテンプレートが理由の値と応答のキーを `TestDefaultReviewTemplateNamesWireValues` で固定されていること / `TestCommonTypesFieldSets` と `TestPromptsREADMEMatchesContract` の guard の拡張が、変更と同じコミットにあること
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: ステップ 3-7 が、段階の順序・取り消し・失敗の伝播を持つ状態遷移を `Write` に組み込む孤立した複雑な手順であるため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ### フェーズ 4: 設定と構築
 
 **対象ファイル**
@@ -179,6 +247,23 @@ HEAD `4dd797d`（ブランチ `claude/mkplan-0010-xnazts`）で確認した。�
   - **未マージの場合:** 0009 の `03_implementation_plan.md` を architecture §3.7 の形に合わせる。対象は、ステップ 4-1（改名の対象の doc）、4-2（読み込みの条件と doc の文面）、4-3（AC-16 の後半の `TestLoadReviewProviderRequiresItsKey` を加える）、4-5・4-6（`newClient` がモデルを引数で受け取る形）、4-8（`package_reference.md` の行。本タスクのステップ 5-9 と同じ行）、4-9（「選んだプロバイダのときだけ読む」の壊し方）、§1.3 の `config.go` の行番号と古くなるコメントの一覧である。何を作るかが変わる編集なので、0009 の計画の Status を `draft` に戻し、レビューアに再承認を依頼する（`requirements_process.md`「Editing an approved document」）。§5 の AC-16 の行に、引き継いだ先を書く。
 - [ ] **ステップ 4-6**: 壊して失敗することを確かめ、コミットメッセージに書く。対象: `YT2COLUMN_REVIEW_PROVIDER` を設定したとき `YT2COLUMN_REVIEW_MODEL` を省略できる（`TestLoadReview` の AC-17 の行）、検証・推敲のモデルの既定を `YT2COLUMN_REVIEW_MODEL` だけの場合も `YT2COLUMN_MODEL` にする（AC-18 の行）、拒否の理由に値を入れる（`TestLoadErrorsOmitValues` の追加の行）、`NewReview` が `cfg.Model()` を渡す（`TestNewReviewUsesReviewModel`）。`make fmt` → `make test` → `make lint` を通す。
 
+### PR-5 作成ポイント: review provider and model configuration
+
+**対象ステップ**: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6
+
+**推奨タイトル**: `feat(0010): configure the review provider and model`
+
+**レビュー観点**: ステップ 4-1 で確かめた 0009 の PR-4 の状態と、ステップ 4-5 で選んだ分岐が本ステップの下に記録され、未マージなら 0009 の計画が `draft` に戻されていること / 検証・推敲の変数の 7 つの組み合わせ（architecture §3.7）と、API キーをどちらかの段が使うときだけ必須にする条件 / `newClient` がモデルを引数で受け取り、`New` と `NewReview` がそれぞれ生成と検証・推敲のモデルを渡すこと / 拒否のエラーに変数の値が現れないこと / ステップ 4-5 で 0009 の計画を `draft` に戻した場合、本 PR は 0009 の再承認を待たずにマージし、再承認は 0009 の計画の Document Status で追うこと
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: §1.3「タスク 0009 との順序」のとおり、ステップ 4-1・4-5 が 0009 の PR-4 の状態に応じて 2 つの実装の形（0009 の形にそろえるか、0009 の計画を改めるか）から選ぶ手順であり、実装の形が着手時まで決まらないため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ### フェーズ 5: 出力と CLI
 
 **対象ファイル**
@@ -197,6 +282,25 @@ HEAD `4dd797d`（ブランチ `claude/mkplan-0010-xnazts`）で確認した。�
   - `Run`（`job.go:83-86`）: 変更前 `// Run executes one run: it validates the request, pre-checks a file output's` / `// path, takes the cache directory lock, prunes dangling entries, runs the` / `// pipeline, and removes the video's cache unless KeepCache is set. A nil error` / `// means the article was published.` → 変更後 `// Run executes one run: it validates the request, pre-checks a file output's` / `// path and the review log path, takes the cache directory lock, prunes` / `// dangling entries, runs the pipeline, removes the video's cache unless` / `// KeepCache is set, and writes the review log when ReviewLog is set. A nil` / `// error means the article was published and the review log, when requested,` / `// was written; a *ReviewLogError means the article was published and only` / `// writing the review log failed.`
 
   `job_test.go` に `TestRunReviewLogWritten`、`TestRunReviewLogPrecheck`（既存のパスと、親がディレクトリでないパスで、パイプラインを動かさず、エラーが `pipeline.StageError` でない）、`TestRunReviewLogNotWrittenOnFailure`（記事の生成の失敗と、`Review` を持つ記事の投稿の失敗の 2 行。後者は、投稿の前に書き出す誤りを区別するため）、`TestRunReviewLogWriteFailure`（§1.3 の fake で起こし、`*ReviewLogError`・`Result.Article`・キャッシュが削除されたこと・`Result.Warnings` を確かめる）を加える（AC-20）。
+
+  このステップの最後に、ステップ 5-1〜5-4 のテストについて、壊して失敗することを確かめ、コミットメッセージに書く（PR-6 の完了条件）。対象: 呼ばなかった段階の行を書く（`TestRenderArticleSteps`）、段階のモデル名の UTF-8 の確認を外す（`TestSlackPrepareRejectsInvalidArticle` の追加の行）、`ReviewLogWriter` が `link(2)` の失敗で一時ファイルを残す（`TestReviewLogWriterLinkFailure`）、一覧のファイルを投稿の前に書き出す（`TestRunReviewLogNotWrittenOnFailure` の投稿の失敗の行）、`job` が書き出しをキャッシュの削除の前にし、書き出しの失敗で削除せずに戻る（`TestRunReviewLogWriteFailure` のキャッシュの検査）。`make fmt` → `make test` → `make lint` を通す。
+
+### PR-6 作成ポイント: model lines and review log output in publisher and job
+
+**対象ステップ**: 5-1 / 5-2 / 5-3 / 5-4
+
+**推奨タイトル**: `feat(0010): render step model lines and write the review log`
+
+**レビュー観点**: ステップ 5-2 の `atomicFile` の取り出しが独立したリファクタリングのコミットで、`file_test.go` を変えずに通り、`KeptFileError` と接頭辞 `.yt2column-` を保つこと / `ReviewLogWriter` が上書きせず（`ErrOutputExists`）、`link(2)` の失敗で一時ファイルを残さないこと / `job.Run` が一覧のファイルを投稿の後・キャッシュの削除の後に書き出し、その失敗を `*ReviewLogError` で返し、事前確認の失敗を `pipeline.StageError` で包まないこと / 段階のない記事の `--out` の書式が変わらないこと（AC-19）
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: ステップ 5-4 が、投稿・キャッシュの削除・一覧のファイルの書き出しの順序と、記事を出した後の部分的な失敗（`ReviewLogError`）の扱いを決める孤立した失敗処理の手順であり、ステップ 5-3 も `link(2)` の失敗時の後始末を伴うため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 - [ ] **ステップ 5-5**: `cmd/yt2column/run.go` に architecture §3.9 のフラグ、手順 A2・A4 の検査、手順 A5 の構築（`deps` の `newReviewLLMClient`・`newReviewLogWriter`）を加える。同じコミットで次を行う。
   - README のフラグの表に 7 つのフラグの行を加える（`TestREADMEDocumentsCLI` が求める）。
   - `newRunEnv` と `testDeps` の `newReviewLLMClient` を、`refusingSlackPublisher` と同じ形の、何も作らずにエラーを返す関数にする。段階を無効にする引数（`--no-shorten`・`--no-review`）を `test_helpers_integration.go` に 1 つの値として置く。
@@ -213,6 +317,25 @@ HEAD `4dd797d`（ブランチ `claude/mkplan-0010-xnazts`）で確認した。�
 
   セキュリティ（architecture §7.3）として、検証・推敲の fake が DeepSeek の API キーを含むエラーを返したとき、標準エラー出力にキーとその末尾 8 文字が現れないことを、既存の `requireSafeOutput`・`secretStrings` で確かめる（`TestRunReviewDoesNotLeakAPIKey`）。新しい実行の経路（一覧のファイルの書き出しの失敗、`--review-log` と `--no-review` の同時指定、段階の失敗とその案内）は、`run_test.go:419` の `executionPathRows` にも行を加え、既存の経路ごとの保証（秘密情報が出ないこと、エスケープ、使い方の誤りでの副作用のなさ）を当てる。
 - [ ] **ステップ 5-8**: `TestRunHelp`（`run_test.go:1063`）の一覧に 7 つのフラグを加える。ステップ 5-5 のコミットで `make lint` の `go vet -tags integration` が通り、`integration` タグのビルドで段階を無効にする値が使えることを確かめる。
+
+  このステップの最後に、ステップ 5-5〜5-8 のテストについて、壊して失敗することを確かめ、コミットメッセージに書く（PR-7 の完了条件）。対象: CLI が検証・推敲に生成の `LLMClient` を渡す（`TestRunDefaultSteps`）、`--review-log` のキャッシュディレクトリの検査を外す（`insideCacheRow` の追加の行）、`--review-log` と `--no-review` の検査を外す（`TestRunReviewLogWithNoReview`）、`ReviewLogError` を判定せず「the run failed:」の分岐に落とす（`TestRunReviewLogFailure` の、その文言が出ないことの検査）、`--no-review` の案内を `StepShorten` でも出す（`TestRunReviewMalformedHint`）。`make fmt` → `make test` → `make lint` を通す。ステップ 5-5 で README を変えるので、`make ext-test` も通す。
+
+### PR-7 作成ポイント: CLI flags and default-on steps
+
+**対象ステップ**: 5-5 / 5-6 / 5-7 / 5-8
+
+**推奨タイトル**: `feat(0010): enable the shorten and review steps in the CLI by default`
+
+**レビュー観点**: 既定で段階を有効にする変更と同じコミットで、手順 A5 まで進む既存のすべての CLI のテスト（直書きの `run_test.go:404`・`signal_test.go:180`・`integration_*` を含む）が段階を無効にする値を使い、期待を変えていないこと（AC-27） / `newRunEnv`・`testDeps` の `newReviewLLMClient` が何も作らず、`generateCounter` が検証・推敲の `LLMClient` も数えること / 手順 A2・A4 の使い方の誤り（空の `--review-log`、`--out` と同じパス、無効にした段階のテンプレートの上書き、`--review-log` と `--no-review`）が LLM を呼ばずに `exitUsage` になること / `ReviewLogError` の報告（要約が先、`reportRunError` が `StageError` より先に判定）と、`executionPathRows` の新しい経路で秘密情報が出ないこと / 0009 の PR-4（CLI の配線）がマージ済みなら、その後に加わった CLI のテストの起動箇所も段階を無効にする値を使い、`TestRunReviewDoesNotLeakAPIKey` の対象の秘密情報に 0009 が加えたキーも入っていること
+
+**実装モデル要件**: frontier-required
+
+**判定理由**: ステップ 5-5 が CLI の既定の振る舞いを変える（2 つの段階を既定で有効にする）のと同時に、既存の CLI のテストの多数（約 40 か所の引数と子プロセスの起動）を段階を無効にする形へ移す移行の手順であり、`mkplan.md` ステップ 8 のパネルモードのトリガー（多数のテストの更新を伴う移行）に該当するため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 - [ ] **ステップ 5-9**: architecture §3.10 の文書を更新する（§1.3 の「文書の更新対象」のすべての箇所）。
   - `README.md`: 2 つの段階の説明、設定の表の 2 行と `DEEPSEEK_API_KEY` の行（検証・推敲のプロバイダが `deepseek` の場合も必須）、終了コード 1 の意味（記事の書き出し・投稿の後に一覧のファイルの書き出しだけが失敗した場合）、更新時の注意 5 項目（architecture §3.10）、`--no-review` でも検証・推敲の設定を検査すること。
   - `project_overview.md`: パイプラインの 2 つの段階と `:31` の `Article` のフィールド、設定の表の 2 行と `:97` の `DEEPSEEK_API_KEY` の行、`:76` の `internal/strictjson` の利用者（§1.3 の 4 つ）。
@@ -221,7 +344,24 @@ HEAD `4dd797d`（ブランチ `claude/mkplan-0010-xnazts`）で確認した。�
 
   設定の表の行を変えるコミットで、`docs_test.go` の `configDocRows` に 2 つの変数を加え、`DEEPSEEK_API_KEY` の行の文言を表の新しい文言に合わせる（当てる文言は requirements F-004 の表現から実装で決める）。各記述を実装と照らし、照らした箇所をコミットメッセージに書く。`make ext-test` を通す。
 - [ ] **ステップ 5-10**: `check_article.py` の `HEADER_RE` を、生成の 2 行の後に段階のモデルの行（`- Shorten model:`・`- Shorten model version:`・`- Review model:`・`- Review model version:`）を任意で受け付ける形にする。0008 の記事と評価のキャッシュはリポジトリにない（`docs/tasks/0008_column_prompt/v5/` はテンプレートだけで、キャッシュは 0008 §2.4 のとおりリポジトリの外）。そのため、一時ディレクトリに、短い合成した記事（段階の行がないものと、段階の行を加えたもの）と、スクリプトが読む最小のキャッシュ（`<video ID>.current` に `a` か `b` を書き、そのスロットのディレクトリ `<video ID>.a` などに、数の `duration` を持つ `<video ID>.info.json` を置く。`check_article.py:36-42`・`:133`）を作る。段階の行がある記事とない記事の両方でスクリプトを実行し、同じ字数と判定が出ることを確かめる。実行したコマンドと出力をコミットメッセージに書く。
-- [ ] **ステップ 5-11**: 壊して失敗することを確かめ、コミットメッセージに書く。対象: 呼ばなかった段階の行を書く（`TestRenderArticleSteps`）、段階のモデル名の UTF-8 の確認を外す（`TestSlackPrepareRejectsInvalidArticle` の追加の行）、一覧のファイルを投稿の前に書き出す（`TestRunReviewLogNotWrittenOnFailure` の投稿の失敗の行）、CLI が検証・推敲に生成の `LLMClient` を渡す（`TestRunDefaultSteps`）、`--review-log` のキャッシュディレクトリの検査を外す（`insideCacheRow` の追加の行）、`ReviewLogWriter` が `link(2)` の失敗で一時ファイルを残す（`TestReviewLogWriterLinkFailure`）、`job` が書き出しをキャッシュの削除の前にし、書き出しの失敗で削除せずに戻る（`TestRunReviewLogWriteFailure` のキャッシュの検査）、`--review-log` と `--no-review` の検査を外す（`TestRunReviewLogWithNoReview`）、`ReviewLogError` を判定せず「the run failed:」の分岐に落とす（`TestRunReviewLogFailure` の、その文言が出ないことの検査）、`--no-review` の案内を `StepShorten` でも出す（`TestRunReviewMalformedHint`）、`configDocRows` の行に対応する README の行を消す（`TestREADMEDocumentsCLI`）。`make fmt` → `make test` → `make lint` → `make ext-test` を通す。
+- [ ] **ステップ 5-11**: ステップ 5-9 のテストについて、壊して失敗することを確かめ、コミットメッセージに書く（ステップ 5-1〜5-8 の壊す対象は、ステップ 5-4・5-8 で確かめた）。対象: `configDocRows` の行に対応する README の行を消す（`TestREADMEDocumentsCLI`）。`make fmt` → `make test` → `make lint` → `make ext-test` を通す。
+
+### PR-8 作成ポイント: documentation and the evaluation script
+
+**対象ステップ**: 5-9 / 5-10 / 5-11
+
+**推奨タイトル**: `feat(0010): document post-generation steps and update check_article.py`
+
+**レビュー観点**: 0009 の PR-7（文書）がマージ済みなら、README・`project_overview.md`・`security.md`・`CLAUDE.md`・`configDocRows` の重なる行（`DEEPSEEK_API_KEY` の行など）で、先の変更を残して書き足していること / `README.md`・`project_overview.md`・`security.md`・`package_reference.md`・`CLAUDE.md` の各記述が実装と照らされ、照らした箇所がコミットメッセージにあること（§1.3「文書の更新対象」のすべての行） / `DEEPSEEK_API_KEY` の行と `configDocRows` が、検証・推敲のプロバイダが `deepseek` の場合も必須であることを表すこと / `check_article.py` の `HEADER_RE` が段階の行のある記事とない記事で同じ字数と判定を出すことを、合成した記事と最小のキャッシュで実行して示していること / 0009 の計画のステップ 4-8 と同じ `package_reference.md` の行を、先の変更を残して書き足していること
+
+**実装モデル要件**: standard
+
+**判定理由**: 文書と評価用スクリプトの正規表現の更新だけで、パネルモードのトリガー・競合する実装案・高リスクの手順のどれにも該当しないため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 6: 評価
 
@@ -232,9 +372,43 @@ HEAD `4dd797d`（ブランチ `claude/mkplan-0010-xnazts`）で確認した。�
 **タスク**
 - [ ] **ステップ 6-1**: `02_evaluation.md` に評価の手順を書く（requirements F-008、architecture §8 のフェーズ 6）。0008 の [02_evaluation.md](../0008_column_prompt/02_evaluation.md) の §2（手順）・§3.2（動画）・§4（判定者と校正）を参照し、同じ部分は写さない。本書に書くのは次のことである。v5 のテンプレートの指定、段階なし（`--no-shorten --no-review`）と段階ありの記事の生成、`--review-log` の指定、記録の表（AC-28〜AC-30 の項目と、architecture §5.4 の失敗の種類）、料金が 2 倍になる時間帯を避けること（requirements §5）。
 - [ ] **ステップ 6-2**: `cmd/yt2column/docs_test.go` に `TestReviewEvaluationRecords` を加える。ステップ 6-3 にチェックが入った後は、`02_evaluation.md` の記録が、0008 の §3.2 の 5 本の動画のそれぞれについて、v5 のテンプレートを使ったこと、F-006 の観点ごとの判定、一覧の各項目の判定と段階が入れた新しい根拠のずれの有無、検証・推敲のプロバイダとモデル、呼び出しの回数、所要時間を持つことを求める。動画の ID は 0008 の文書から読み、テストに写さない。ステップの区画と節は、既存の `stepBlock`・`docSection`（`docs_test.go:365`・`:342`）で取り出す。比べる文言は実装で決める。ステップ 6-3 にチェックが入る前は何も求めないことと、記録を 1 行消すと失敗することを確かめる。
+
+### PR-9 作成ポイント: evaluation procedure and record guard
+
+**対象ステップ**: 6-1 / 6-2
+
+**推奨タイトル**: `feat(0010): add the post-generation review evaluation procedure and its record guard`
+
+**レビュー観点**: `02_evaluation.md` が 0008 の §2・§3.2・§4 を参照し、同じ部分を写していないこと / 記録の表が AC-28〜AC-30 の項目と architecture §5.4 の失敗の種類を持つこと / `TestReviewEvaluationRecords` が動画の ID を 0008 の文書から読み、ステップ 6-3 にチェックが入る前は何も求めず、入った後に記録の 1 行の欠落で失敗すること
+
+**実装モデル要件**: standard
+
+**判定理由**: 手順の文書と、既存の `stepBlock`・`docSection` を使う guard テストの追加だけで、パネルモードのトリガー・競合する実装案・高リスクの手順のどれにも該当しないため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 - [ ] **ステップ 6-3**: 検証・推敲のモデルを生成と同じ deepseek-flash にして、5 本の動画で評価し、`02_evaluation.md` に記録する（AC-28〜AC-30）。実 API の実行は、実行のたびに人の承認を得る（requirements §5、CLAUDE.md「Tool Execution Safety」）。
 - [ ] **ステップ 6-4**: 0009 の Claude アダプタが使えるようになっていれば、検証・推敲を Claude にして同じ評価をし、比べる。使えなければ、そのことと理由を `02_evaluation.md` に書く。
 - [ ] **ステップ 6-5**: 評価の結論（2 つの段階を含めた構成で 0008 の合格条件を満たせる見込みか、0008 の評価を再開するか）と、失敗の種類ごとの件数を `02_evaluation.md` に書く。テンプレートの文言や `targetBodyChars` を評価の結果で変える場合は、別のコミットにし、変えた後の評価も記録する。誤認識の写しが段階の後も残る場合は、別の issue にすることを書く（requirements §2.3）。
+
+### PR-10 作成ポイント: evaluation records with real APIs
+
+**対象ステップ**: 6-3 / 6-4 / 6-5
+
+**推奨タイトル**: `feat(0010): record the post-generation review evaluation on five videos`
+
+**レビュー観点**: 5 本の動画のそれぞれに、v5 のテンプレート・F-006 の観点ごとの判定・一覧の各項目の判定と新しい根拠のずれの有無・プロバイダとモデル・呼び出しの回数・所要時間が記録され、`TestReviewEvaluationRecords` が通ること（本 PR が `docs/` だけを変える場合（ステップ 6-5 でテンプレートや `targetBodyChars` を変えない場合）は、CI が Go のテストを省く。ステップ 6-3 にチェックを入れた後に手元で `make test` を実行し、その結果を PR の説明に書く） / 実 API の実行ごとに人の承認を得て、料金が 2 倍になる時間帯を避けたこと / テンプレートの文言や `targetBodyChars` を変えた場合は別のコミットで、変えた後の評価も記録されていること / 結論と失敗の種類ごとの件数、0008 の評価を再開するかの判断が根拠とともに書かれていること
+
+**実装モデル要件**: frontier-required
+
+**判定理由**: ステップ 6-3・6-4 が実 API（DeepSeek と、使えれば Claude）という外部リソースに触れる評価の実行であり、ステップ 6-5 がその結果からテンプレートの文言と `targetBodyChars` を調整する前例のない判断を含むため（`mkplan.md` ステップ 8 のパネルモードのトリガーの、外部リソースの面に該当）。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
 
@@ -249,7 +423,26 @@ HEAD `4dd797d`（ブランチ `claude/mkplan-0010-xnazts`）で確認した。�
 | M5 | フェーズ 5 | モデルの行、`ReviewLogWriter`、`job`、CLI、文書、`check_article.py` | 同上・`make ext-test` が通る |
 | M6 | フェーズ 6 | `02_evaluation.md` の手順と記録、guard | 同上・評価の記録と結論がある |
 
-### 3.2. 実装順序の根拠
+### 3.2. PR 構成
+
+PR は、フェーズをおおむね関心事ごとに分け、それぞれが単独でグリーンゲートを通せる単位とする。フェーズ 2 は、既存の振る舞いを変えないリファクタリング（PR-2）と、検証・推敲の応答の検査と当てはめ（PR-3）に分ける。前者は既存テストを変えないことだけを、後者は信頼しない入力の境界を、それぞれ集中してレビューできる。フェーズ 5 は、`internal/publisher`・`internal/job` の出力（PR-6）、CLI の既定の変更と既存のテストの移行（PR-7）、文書と評価用スクリプト（PR-8）に分ける。PR-7 の既定の変更は多数のテストに触れるため、出力の層の変更と混ぜずに隔離する。フェーズ 5 の壊して確かめる手順は、各 PR の最後のステップ（5-4・5-8・5-11）に分けて置き、ステップの番号は変えない。フェーズ 6 は、実 API を使わない手順と guard（PR-9）と、実 API の評価の記録（PR-10）に分け、承認を待つ評価の実行が手順のマージを止めないようにする。PR-4 と PR-7 は大きいが分けない。PR-4 の段階のテンプレートの検査（ステップ 3-9）は、ステップ 3-5・3-6 が置くデータ型を使う。PR-7 の各ステップは、段階の既定の有効化と `--review-log` の両方を扱う。どちらも、分けるにはステップの内容を組み替える必要がある。代わりに、判定理由で高リスクの手順（ステップ 3-7・5-5）を名指し、レビュー観点でその内容を挙げる。
+
+`internal/` の変更が `cmd/` に先行する順序は、`internal/writer`（PR-2〜PR-4）・`internal/config`・`internal/llm/provider`（PR-5）・`internal/publisher`・`internal/job`（PR-6）が、それらを使う `cmd/yt2column` の変更（PR-7）に先行することで満たす。PR-4 までは `Options` のゼロ値で段階を行わず、PR-6 の追加は CLI から使われない。PR-5 の後は、`config.Load` が検証・推敲の 2 つの変数を検査する（AC-17）が、2 つの変数が未設定なら CLI の振る舞いは変わらない。README のフラグの表は PR-7 で更新する（`TestREADMEDocumentsCLI` が求める）。それ以外の文書の更新（設定の表、段階の説明、`DEEPSEEK_API_KEY` の行など）は PR-8 にまとめるので、PR-5〜PR-7 のマージから PR-8 のマージまでは、それらが新しい変数と既定の段階を説明しない。
+
+| PR | 対象ステップ | 主な変更内容 | 実装モデル要件 |
+|---|---|---|---|
+| PR-1 | 1-1 / 1-2 / 1-3 | `strictjson` の `CollectOnly`・`AsBool` とテスト | standard |
+| PR-2 | 2-1 / 2-2 | `checkGeneratedText` の取り出しと、型引数によるテンプレートの検査と展開の一般化（2 つのリファクタリングのコミット） | frontier-recommended |
+| PR-3 | 2-3 / 2-4 / 2-5 / 2-6 / 2-7 | 本文の字数、一覧の型と `Check`、検証・推敲の応答の解析、一覧の当てはめとテスト | frontier-recommended |
+| PR-4 | 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8 / 3-9 / 3-10 / 3-11 | `StepError`、順序どおりに応答を返す fake、4 つの既定のテンプレート、`Options`・`Article` の拡張、2 つの段階と `Write` の順序、`CheckPublishable`、`prompts/README.md` と guard | frontier-recommended |
+| PR-5 | 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 | 検証・推敲のプロバイダとモデルの設定、`provider.NewReview`、0009 との整合 | frontier-recommended |
+| PR-6 | 5-1 / 5-2 / 5-3 / 5-4 | `--out`・Webhook の段階のモデルの行、`atomicFile` の取り出し、`ReviewLogWriter`、`job` の一覧のファイルの事前確認と書き出し | frontier-recommended |
+| PR-7 | 5-5 / 5-6 / 5-7 / 5-8 | CLI のフラグと検査、段階の既定の有効化、既存の CLI のテストの移行、要約と案内 | frontier-required |
+| PR-8 | 5-9 / 5-10 / 5-11 | README・`project_overview.md`・`security.md`・`package_reference.md`・`CLAUDE.md` の更新、`check_article.py` | standard |
+| PR-9 | 6-1 / 6-2 | `02_evaluation.md` の評価の手順と `TestReviewEvaluationRecords` | standard |
+| PR-10 | 6-3 / 6-4 / 6-5 | 5 本の動画の実 API での評価の記録と結論 | frontier-required |
+
+### 3.3. 実装順序の根拠
 
 architecture §8 の順序に従う。`strictjson` は他に依存せず、応答の検査（フェーズ 2）が使うので最初に置く。フェーズ 2 は、段階が使う部品を、既存の `Write` の振る舞いを変えずに先に揃える（取り出しと一般化は独立したリファクタリングのコミット）。フェーズ 3 で段階を `Write` につなぐが、`Options` のゼロ値では段階を行わないので、CLI はまだ段階を使わず、既存の CLI のテストは変わらない。フェーズ 4 で検証・推敲の `LLMClient` を構築できるようにし、フェーズ 5 で CLI から段階を既定で有効にする。既存の CLI のテストに段階を無効にする引数を加えるのは、既定を変えるステップ 5-5 と同じコミットである。評価は、実装が揃ってから行う。
 
@@ -339,13 +532,17 @@ architecture §7.3 に従う。計画固有の事項は次のとおり。
 
 ## 7. 実装チェックリスト (Implementation Checklist)
 
-- [ ] フェーズ 1 完了（ステップ 1-1 / 1-2 / 1-3）
-- [ ] フェーズ 2 完了（ステップ 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7。2-1・2-2 が独立したリファクタリングのコミット）
-- [ ] フェーズ 3 完了（ステップ 3-1 〜 3-11）
-- [ ] フェーズ 4 完了（ステップ 4-1 〜 4-6。ステップ 4-1・4-5 の結果を記録済み）
-- [ ] フェーズ 5 完了（ステップ 5-1 〜 5-11。5-2 が独立したリファクタリングのコミット）
-- [ ] フェーズ 6 完了（ステップ 6-1 〜 6-5）
-- [ ] 各フェーズで `make fmt` → `make test` → `make lint` が通る。文書を変えたコミットで `make ext-test` が通る
+- [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3）
+- [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2。2-1・2-2 がそれぞれ独立したリファクタリングのコミット）
+- [ ] PR-3 マージ済み（対象ステップ: 2-3 / 2-4 / 2-5 / 2-6 / 2-7）
+- [ ] PR-4 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8 / 3-9 / 3-10 / 3-11）
+- [ ] PR-5 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6。ステップ 4-1・4-5 の結果を記録済み）
+- [ ] PR-6 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4。5-2 が独立したリファクタリングのコミット）
+- [ ] PR-7 マージ済み（対象ステップ: 5-5 / 5-6 / 5-7 / 5-8）
+- [ ] PR-8 マージ済み（対象ステップ: 5-9 / 5-10 / 5-11）
+- [ ] PR-9 マージ済み（対象ステップ: 6-1 / 6-2）
+- [ ] PR-10 マージ済み（対象ステップ: 6-3 / 6-4 / 6-5）
+- [ ] 各 PR で `make fmt` → `make test` → `make lint` が通る。文書を変えたコミットで `make ext-test` が通る
 - [ ] §5 のすべての AC の検証が通る
 - [ ] AC-16 の後半の検証（`TestLoadReviewProviderRequiresItsKey`）が、本タスクか 0009 のどちらかで実装されている（ステップ 4-5 の記録で追う）
 
@@ -360,6 +557,6 @@ architecture §7.3 に従う。計画固有の事項は次のとおり。
 
 ## 9. 次のステップ (Next Steps)
 
-- 本計画のレビューと承認の後、`/mkplan2 0010` で PR の区切りを埋め込み、`/runplan 0010` で実装する。
+- 本計画は `approved`。PR の区切りは §2 の `PR-N 作成ポイント` と §3.2 に埋め込み済み。`/runplan 0010` で PR-1 から実装する。
 - 評価の結論に従い、0008 の評価を再開するか、誤認識の写しが残る場合は生成の前の字幕の整形を別の issue にする（requirements §2.3、architecture §9）。
 - JSON の形に従わない応答が多い場合は、architecture §9 のプロバイダの JSON モードを検討する。
