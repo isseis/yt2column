@@ -37,13 +37,7 @@ func TestIntegrationGenerate(t *testing.T) {
 	}
 	_, workspaceSpecified := settings.WorkspaceID.Value()
 	t.Logf("model %+q, effort %s, workspace id specified %t", settings.Model, settings.Effort, workspaceSpecified)
-	value, err := New(Options{
-		APIKey:      settings.APIKey,
-		Model:       settings.Model,
-		Effort:      settings.Effort,
-		WorkspaceID: settings.WorkspaceID,
-		Timeout:     integrationGenerateTimeout,
-	})
+	value, err := New(integrationClientOptions(settings))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -54,6 +48,10 @@ func TestIntegrationGenerate(t *testing.T) {
 			UserPrompt:      integrationGeneratePrompt,
 			MaxOutputTokens: integrationGenerateMaxTokens,
 		})
+		if errors.Is(err, llm.ErrTruncated) {
+			t.Fatalf("Generate() with MaxOutputTokens %d error = %v: the reasoning used the whole output budget; "+
+				"an effort above the default may not finish within it", integrationGenerateMaxTokens, err)
+		}
 		if err != nil {
 			t.Fatalf("Generate() error = %v", err)
 		}

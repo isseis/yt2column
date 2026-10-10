@@ -41,3 +41,17 @@ const (
 	// cannot finish, so the response ends with stop_reason "max_tokens".
 	integrationTruncationMaxTokens = 16
 )
+
+// integrationClientOptions builds the adapter options from the settings of a
+// run, so the workspace ID the decision read reaches the client the
+// integration test calls. It is built under both tags so a unit test can pin
+// every field the integration build depends on.
+func integrationClientOptions(settings claudetestutil.IntegrationSettings) Options {
+	return Options{
+		APIKey:      settings.APIKey,
+		Model:       settings.Model,
+		Effort:      settings.Effort,
+		WorkspaceID: settings.WorkspaceID,
+		Timeout:     integrationGenerateTimeout,
+	}
+}

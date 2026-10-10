@@ -95,13 +95,15 @@ func SettingsFrom(lookup func(string) (string, bool), opts IntegrationOptions) I
 	if model == "" {
 		return fail(ModelEnv + " is not set: set it to the model name, or run `make " + opts.MakeTarget + "`")
 	}
+	// The empty checks precede the parsers, which also reject an empty value,
+	// so an empty variable gets its own reason.
 	effortValue := getenv(EffortEnv)
 	if effortValue == "" {
 		return fail(EffortEnv + " is not set: set it to the effort, or run `make " + opts.MakeTarget + "`")
 	}
 	effort, err := claudeparam.ParseEffort(effortValue)
 	if err != nil {
-		return fail(EffortEnv + " is not one of low, medium, high, xhigh, max")
+		return fail(EffortEnv + " is not a supported effort value")
 	}
 	var workspaceID claudeparam.WorkspaceID
 	if value, ok := lookup(WorkspaceIDEnv); ok {
@@ -110,7 +112,7 @@ func SettingsFrom(lookup func(string) (string, bool), opts IntegrationOptions) I
 		}
 		workspaceID, err = claudeparam.ParseWorkspaceID(value)
 		if err != nil {
-			return fail(WorkspaceIDEnv + " contains a character outside the printable ASCII range 0x21-0x7E")
+			return fail(WorkspaceIDEnv + " is not a valid workspace ID")
 		}
 	}
 	if config.HTTP2DebugEnabledIn(getenv(GODEBUGEnv)) {

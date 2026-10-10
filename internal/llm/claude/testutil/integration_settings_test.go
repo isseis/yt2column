@@ -13,13 +13,16 @@ import (
 
 const (
 	testIntegrationKey       = "test-integration-key-0123456789"
-	testProductionKey        = "test-production-key-0123456789"
+	testProductionKey        = "test-production-key-PRODTAIL"
 	testIntegrationModel     = "claude-custom"
 	testIntegrationEffort    = "medium"
 	testIntegrationWorkspace = "wrkspc_integrationTESTWS01"
 	testProductionWorkspace  = "wrkspc_productionPRODWS01"
 	testOptInEnv             = "YT2COLUMN_EXAMPLE_INTEGRATION"
 	testMakeTarget           = "test-integration-example"
+
+	invalidEffort    = "maximum"
+	invalidWorkspace = "wrkspc bad"
 
 	productionKeyEnv       = "ANTHROPIC_API_KEY" //nolint:gosec // the name of the production key variable, not a key
 	productionWorkspaceEnv = "ANTHROPIC_WORKSPACE_ID"
@@ -71,11 +74,11 @@ func TestIntegrationSettings(t *testing.T) {
 		{name: "model_checked_before_effort", unset: []string{ModelEnv, EffortEnv}, wantAction: ActionFail, wantReason: []string{ModelEnv}},
 		{name: "effort_unset", unset: []string{EffortEnv}, wantAction: ActionFail, wantReason: []string{EffortEnv, "make " + testMakeTarget}},
 		{name: "effort_empty", change: map[string]string{EffortEnv: ""}, wantAction: ActionFail, wantReason: []string{EffortEnv}},
-		{name: "effort_unknown", change: map[string]string{EffortEnv: "maximum"}, wantAction: ActionFail, wantReason: []string{EffortEnv}},
+		{name: "effort_unknown", change: map[string]string{EffortEnv: invalidEffort}, wantAction: ActionFail, wantReason: []string{EffortEnv}},
 		{name: "effort_upper_case", change: map[string]string{EffortEnv: "LOW"}, wantAction: ActionFail, wantReason: []string{EffortEnv}},
-		{name: "effort_checked_before_workspace", change: map[string]string{EffortEnv: "maximum", WorkspaceIDEnv: ""}, wantAction: ActionFail, wantReason: []string{EffortEnv}},
+		{name: "effort_checked_before_workspace", change: map[string]string{EffortEnv: invalidEffort, WorkspaceIDEnv: ""}, wantAction: ActionFail, wantReason: []string{EffortEnv}},
 		{name: "workspace_empty", change: map[string]string{WorkspaceIDEnv: ""}, wantAction: ActionFail, wantReason: []string{WorkspaceIDEnv}},
-		{name: "workspace_with_space", change: map[string]string{WorkspaceIDEnv: "wrkspc bad"}, wantAction: ActionFail, wantReason: []string{WorkspaceIDEnv}},
+		{name: "workspace_with_space", change: map[string]string{WorkspaceIDEnv: invalidWorkspace}, wantAction: ActionFail, wantReason: []string{WorkspaceIDEnv}},
 		{name: "workspace_non_ascii", change: map[string]string{WorkspaceIDEnv: "wrkspc_\u00e9"}, wantAction: ActionFail, wantReason: []string{WorkspaceIDEnv}},
 		{name: "workspace_checked_before_godebug", change: map[string]string{WorkspaceIDEnv: "", GODEBUGEnv: "http2debug=1"}, wantAction: ActionFail, wantReason: []string{WorkspaceIDEnv}},
 		{name: "workspace_unset_specifies_none_with_production_set", unset: []string{WorkspaceIDEnv}, wantAction: ActionRun},
@@ -110,9 +113,14 @@ func TestIntegrationSettings(t *testing.T) {
 					t.Errorf("Reason %q does not mention %q", settings.Reason, want)
 				}
 			}
-			for _, key := range []string{testIntegrationKey, testIntegrationKey[len(testIntegrationKey)-8:], testProductionKey, testProductionKey[len(testProductionKey)-8:]} {
-				if strings.Contains(settings.Reason, key) {
-					t.Errorf("Reason %q contains an API key or its last eight characters", settings.Reason)
+			forbidden := []string{
+				testIntegrationKey, testIntegrationKey[len(testIntegrationKey)-8:],
+				testProductionKey, testProductionKey[len(testProductionKey)-8:],
+				testIntegrationWorkspace, testProductionWorkspace, invalidEffort, invalidWorkspace,
+			}
+			for _, value := range forbidden {
+				if strings.Contains(settings.Reason, value) {
+					t.Errorf("Reason %q contains %q, a key, its last eight characters, an effort, or a workspace ID", settings.Reason, value)
 				}
 			}
 			if tc.wantAction != ActionRun {
