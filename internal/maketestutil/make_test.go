@@ -19,6 +19,18 @@ func TestValidateEnvNames(t *testing.T) {
 	}
 }
 
+// TestValidateChargedTarget checks that a target naming at least one variable
+// passes and one naming none fails, so CheckChargedTarget cannot pass by
+// running no subtest.
+func TestValidateChargedTarget(t *testing.T) {
+	if err := validateChargedTarget(ChargedTarget{Vars: []TargetVar{{Env: "A"}}}); err != nil {
+		t.Errorf("with one variable: error = %v, want nil", err)
+	}
+	if err := validateChargedTarget(ChargedTarget{}); !errors.Is(err, errNoVars) {
+		t.Errorf("with no variable: error = %v, want errNoVars", err)
+	}
+}
+
 // TestRecordedNames checks that extra names follow base once each, with no
 // duplicate, and pass the same name check as the base ones, since both are
 // embedded in the stub script.

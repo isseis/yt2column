@@ -22,12 +22,6 @@ var recordedEnv = []string{DeepSeekOptInEnv, CLIOptInEnv, ModelEnv}
 // so unset and empty differ.
 type MakeInvocation = maketestutil.MakeInvocation
 
-// recordedNames returns recordedEnv followed by the names in extra that it
-// does not already hold, each once.
-func recordedNames(extra []string) ([]string, error) {
-	return maketestutil.RecordedNames(recordedEnv, extra)
-}
-
 // RunMakeTarget runs `make -s <target>` in root with GOTEST replaced by a stub,
 // and returns make's output and what the stub recorded. model is the ModelEnv
 // entry of the child environment; nil leaves the variable undefined. The stub

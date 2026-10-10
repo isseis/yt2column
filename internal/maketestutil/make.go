@@ -27,6 +27,8 @@ var (
 	ErrFirstLineMismatch = errors.New("first line mismatch")
 	// errEnvName reports a variable name the stub script cannot embed.
 	errEnvName = errors.New("variable name is not a plain shell name")
+	// errNoVars reports a ChargedTarget that names no variable.
+	errNoVars = errors.New("ChargedTarget.Vars must name at least one variable")
 )
 
 // childEnvAllowlist is the environment the make child receives. It is an
@@ -185,9 +187,20 @@ type ChargedTarget struct {
 	ChargeNotice string
 	// Vars are the variables the target gives default values to.
 	Vars []TargetVar
-	// Record names further variables the stub records, so a target that
-	// exports the wrong variable is visible.
+	// Record is the base list of variable names the stub records, before
+	// OptInEnv and Vars are added, so a target that exports the wrong
+	// variable is visible.
 	Record []string
+}
+
+// validateChargedTarget rejects a ChargedTarget that names no variable. Every
+// check runs inside the Vars loop, so without this a target with no Vars would
+// be checked by running nothing and passing vacuously.
+func validateChargedTarget(c ChargedTarget) error {
+	if len(c.Vars) == 0 {
+		return errNoVars
+	}
+	return nil
 }
 
 // CheckChargedTarget runs c.Target under the stub GOTEST with each of c.Vars
@@ -197,6 +210,9 @@ type ChargedTarget struct {
 // as the package and not as the value of a flag such as -run.
 func CheckChargedTarget(t *testing.T, c ChargedTarget) {
 	t.Helper()
+	if err := validateChargedTarget(c); err != nil {
+		t.Fatal(err)
+	}
 	const timeoutPlaceholder = "<timeout>"
 	wantArgs := []string{"-tags", "integration", "-count=1", "-timeout", timeoutPlaceholder, "-v", c.Package}
 	extra := []string{c.OptInEnv}
