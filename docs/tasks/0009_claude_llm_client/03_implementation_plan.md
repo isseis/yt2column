@@ -476,21 +476,21 @@ PASS
 ok  	github.com/isseis/yt2column/internal/llm/claude	0.005s
 ```
 
-**API キーありでの実行（実 API・料金が発生する）。** 2026-10-11、HEAD `73d6a76` で、人間の承認を得てから、`YT2COLUMN_TEST_ANTHROPIC_API_KEY` と `YT2COLUMN_TEST_ANTHROPIC_WORKSPACE_ID` を設定して `make test-integration-claude` を実行した。モデル名は `claude-haiku-5-5`、effort は `low`、ワークスペース ID は指定あり（値は書かない）。出力は次のとおりで、`TestIntegrationGenerate` の 2 つのサブテストが `--- PASS` した。
+**API キーありでの実行（実 API・料金が発生する）。** 2026-10-11、HEAD `e310846` で、人間の承認を得てから、`YT2COLUMN_TEST_ANTHROPIC_API_KEY` と `YT2COLUMN_TEST_ANTHROPIC_WORKSPACE_ID` を設定して `make test-integration-claude` を実行した。モデル名は `claude-haiku-5-5`、effort は `low`、ワークスペース ID は指定あり（値は書かない）。出力は次のとおりで、`TestIntegrationGenerate` の 2 つのサブテストが `--- PASS` した。
 
 ```
 test-integration-claude: calls the real Anthropic API, which incurs charges (model: claude-haiku-5-5, effort: low)
 go test -tags integration -count=1 -timeout 15m -v ./internal/llm/claude
 === RUN   TestIntegrationGenerate
-    integration_test.go:39: model "claude-haiku-5-5", effort low, workspace id specified true
+    integration_test.go:53: model "claude-haiku-5-5", effort low, workspace id specified true
 === RUN   TestIntegrationGenerate/generate
-    integration_test.go:77: Model "claude-haiku-5-5"
+    integration_test.go:87: Model "claude-haiku-5-5"
 === RUN   TestIntegrationGenerate/truncated
---- PASS: TestIntegrationGenerate (2.48s)
-    --- PASS: TestIntegrationGenerate/generate (1.53s)
-    --- PASS: TestIntegrationGenerate/truncated (0.95s)
+--- PASS: TestIntegrationGenerate (2.55s)
+    --- PASS: TestIntegrationGenerate/generate (1.48s)
+    --- PASS: TestIntegrationGenerate/truncated (1.07s)
 PASS
-ok  	github.com/isseis/yt2column/internal/llm/claude	2.762s
+ok  	github.com/isseis/yt2column/internal/llm/claude	2.970s
 ```
 
 ## 6. リスク管理 (Risk Management)
