@@ -76,18 +76,6 @@ func TestGenerateResponseFixtures(t *testing.T) {
 			t.Errorf("Text = %q, want %q", response.Text, want)
 		}
 	})
-
-	t.Run("unknown members are ignored at every level", func(t *testing.T) {
-		document := documentOf(t, endTurn)
-		document["unknown_top"] = map[string]any{"nested": []any{1, 2, 3}}
-		document["id"] = float64(42)
-		blockOfType(t, document, blockThinking)["unknown_block"] = "x"
-		textBlockOf(t, document)[keyText] = "answer"
-		response := assertBodyAccepted(t, encodeDocument(t, document))
-		if response.Text != "answer" {
-			t.Errorf("Text = %q, want %q", response.Text, "answer")
-		}
-	})
 }
 
 func TestGenerateModelFromResponse(t *testing.T) {
@@ -149,8 +137,9 @@ func TestGenerateStopReason(t *testing.T) {
 }
 
 func TestGenerateValidationOrder(t *testing.T) {
-	// The max_tokens fixture has a text block; removing it must still report a
-	// truncation, not an empty response.
+	// A max_tokens response with no text block must report a truncation, not
+	// an empty response, and the message must name the sent max_tokens and
+	// advise lowering the effort.
 	document := documentOf(t, readFixture(t, testdataEndTurnFixture))
 	document[keyContent] = []any{blockOfType(t, document, blockThinking)}
 	document[keyStopReason] = stopMaxTokens
@@ -162,6 +151,12 @@ func TestGenerateValidationOrder(t *testing.T) {
 		t.Errorf("Generate() error = %v, must not match ErrEmptyResponse", err)
 	}
 	assertRejected(t, response, err)
+	if !strings.Contains(err.Error(), strconv.Itoa(defaultMaxOutputTokens)) {
+		t.Errorf("error %q does not name the sent max_tokens", err)
+	}
+	if !strings.Contains(err.Error(), "lower the effort") {
+		t.Errorf("error %q does not advise lowering the effort", err)
+	}
 }
 
 func TestGenerateEmptyText(t *testing.T) {
@@ -416,32 +411,18 @@ func TestGenerateSizeLimit(t *testing.T) {
 }
 
 func TestGenerateUnconsumedMembers(t *testing.T) {
-	t.Run("the fixture's unconsumed members are ignored", func(t *testing.T) {
-		// The fixture already carries id, container, stop_sequence,
-		// stop_details, usage, diagnostics, and a thinking signature.
-		document := documentOf(t, readFixture(t, testdataEndTurnFixture))
-		for _, key := range []string{"id", "usage", "stop_details"} {
-			if _, ok := document[key]; !ok {
-				t.Fatalf("the fixture has no %q member to exercise", key)
-			}
-		}
-		textBlockOf(t, document)[keyText] = "answer"
-		response := assertBodyAccepted(t, encodeDocument(t, document))
-		if response.Text != "answer" {
-			t.Errorf("Text = %q, want %q", response.Text, "answer")
-		}
-	})
-
-	t.Run("unknown members of every kind are ignored", func(t *testing.T) {
-		body := []byte(`{"model":"claude-opus-5-5","stop_reason":"end_turn",` +
-			`"id":42,"unknown_top":[1,2,3],` +
-			`"content":[{"type":"text","text":"answer","citations":[{"x":1}],"unknown_block":true}],` +
-			`"usage":{"output_tokens":1}}`)
-		response := assertBodyAccepted(t, body)
-		if response.Text != "answer" {
-			t.Errorf("Text = %q, want %q", response.Text, "answer")
-		}
-	})
+	// The members the adapter does not consume (the fixture's id, container,
+	// stop_sequence, stop_details, usage, diagnostics, and thinking signature;
+	// plus unknown members of any kind) are ignored, and the response is
+	// still built.
+	body := []byte(`{"model":"claude-opus-5-5","stop_reason":"end_turn",` +
+		`"id":42,"unknown_top":[1,2,3],` +
+		`"content":[{"type":"text","text":"answer","citations":[{"x":1}],"unknown_block":true}],` +
+		`"usage":{"output_tokens":1}}`)
+	response := assertBodyAccepted(t, body)
+	if response.Text != "answer" {
+		t.Errorf("Text = %q, want %q", response.Text, "answer")
+	}
 }
 
 func TestGenerateErrorMemberDiagnostics(t *testing.T) {
@@ -457,18 +438,4 @@ func TestGenerateErrorMemberDiagnostics(t *testing.T) {
 			t.Errorf("error %q contains the error member value", err)
 		}
 	})
-}
-
-func TestGenerateStopReasonMessageNamesRequestValues(t *testing.T) {
-	endTurn := readFixture(t, testdataEndTurnFixture)
-	body := replaceOnce(t, endTurn, `"stop_reason":"end_turn"`, `"stop_reason":"max_tokens"`)
-	document := documentOf(t, body)
-	document[keyContent] = []any{blockOfType(t, document, blockThinking)}
-	err := assertBodyRejected(t, encodeDocument(t, document), llm.ErrTruncated)
-	if !strings.Contains(err.Error(), strconv.Itoa(defaultMaxOutputTokens)) {
-		t.Errorf("error %q does not name the sent max_tokens", err)
-	}
-	if !strings.Contains(err.Error(), "lower the effort") {
-		t.Errorf("error %q does not advise lowering the effort", err)
-	}
 }

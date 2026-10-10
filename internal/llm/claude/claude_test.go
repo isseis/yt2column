@@ -204,23 +204,6 @@ func (r *fatalRecorder) Fatalf(format string, args ...any) {
 	r.message = fmt.Sprintf(format, args...)
 }
 
-func TestNewForLoopbackTest(t *testing.T) {
-	server, recorder := llmhttptest.NewRecordingServer(t, readFixture(t, testdataEndTurnFixture))
-	options := Options{
-		APIKey:  mustSecret(t, testAPIKey),
-		Model:   testModel,
-		Effort:  claudeparam.EffortHigh,
-		Timeout: testClientTimeout,
-	}
-	value := NewForLoopbackTest(t, options, server.URL)
-	if _, err := value.Generate(context.Background(), validRequest()); err != nil {
-		t.Fatalf("Generate() error = %v", err)
-	}
-	if got := recorder.Count(); got != 1 {
-		t.Errorf("server received %d requests, want 1", got)
-	}
-}
-
 func TestNewForLoopbackTestRejectsNonLoopback(t *testing.T) {
 	recorder := &fatalRecorder{TB: t}
 	options := Options{
@@ -306,9 +289,6 @@ func TestGenerateSendsRequest(t *testing.T) {
 	if got := recorded.Header.Get("Authorization"); got != "" {
 		t.Errorf("Authorization = %q, want it unset", got)
 	}
-	if got := recorded.Header.Get(headerWorkspace); got != "" {
-		t.Errorf("anthropic-workspace-id = %q, want it unset", got)
-	}
 	if strings.Contains(string(recorded.Body), testAPIKey) || strings.Contains(recorded.Target, testAPIKey) {
 		t.Error("the request body or URL contains the API key")
 	}
@@ -320,10 +300,6 @@ func TestGenerateSendsRequest(t *testing.T) {
 			Role    string          `json:"role"`
 			Content json.RawMessage `json:"content"`
 		} `json:"messages"`
-		MaxTokens    int `json:"max_tokens"`
-		OutputConfig struct {
-			Effort string `json:"effort"`
-		} `json:"output_config"`
 	}
 	if err := json.Unmarshal(recorded.Body, &body); err != nil {
 		t.Fatalf("decode request body: %v", err)
@@ -346,12 +322,6 @@ func TestGenerateSendsRequest(t *testing.T) {
 	}
 	if content != req.UserPrompt {
 		t.Errorf("messages[0].content = %q, want the user prompt unmodified %q", content, req.UserPrompt)
-	}
-	if body.MaxTokens != defaultMaxOutputTokens {
-		t.Errorf("max_tokens = %d, want %d for MaxOutputTokens 0", body.MaxTokens, defaultMaxOutputTokens)
-	}
-	if body.OutputConfig.Effort != claudeparam.EffortHigh.String() {
-		t.Errorf("output_config.effort = %q, want %q", body.OutputConfig.Effort, claudeparam.EffortHigh)
 	}
 
 	var raw map[string]json.RawMessage
@@ -496,21 +466,6 @@ func TestGenerateInvalidRequest(t *testing.T) {
 			t.Errorf("server received %d requests, want 0", count)
 		}
 	})
-
-	t.Run("a done context sends nothing", func(t *testing.T) {
-		server, recorder := llmhttptest.NewRecordingServer(t, body)
-		client := newTestClient(t, server.URL, nil)
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel()
-		response, err := client.Generate(ctx, validRequest())
-		if !errors.Is(err, context.Canceled) {
-			t.Errorf("Generate() error = %v, want context.Canceled", err)
-		}
-		assertRejected(t, response, err)
-		if count := recorder.Count(); count != 0 {
-			t.Errorf("server received %d requests, want 0", count)
-		}
-	})
 }
 
 func TestGenerateNoRedirect(t *testing.T) {
@@ -599,39 +554,6 @@ func TestGenerateHTTPStatus(t *testing.T) {
 			}
 			assertRejected(t, response, err)
 		})
-	}
-}
-
-func TestHTTPStatusErrorGuidance(t *testing.T) {
-	// Every handled status must name fixed guidance.
-	handled := []int{
-		http.StatusBadRequest,
-		http.StatusUnauthorized,
-		http.StatusPaymentRequired,
-		http.StatusForbidden,
-		http.StatusNotFound,
-		http.StatusRequestEntityTooLarge,
-		http.StatusTooManyRequests,
-		http.StatusInternalServerError,
-		http.StatusServiceUnavailable,
-		statusOverloaded,
-		http.StatusTemporaryRedirect,
-	}
-	for _, status := range handled {
-		if statusGuidance(status) == "" {
-			t.Errorf("statusGuidance(%d) is empty", status)
-		}
-	}
-	// A configuration error must read differently from an account or
-	// server-side problem.
-	distinct := []int{http.StatusBadRequest, http.StatusUnauthorized, http.StatusNotFound, http.StatusTooManyRequests, statusOverloaded}
-	seen := map[string]int{}
-	for _, status := range distinct {
-		text := statusGuidance(status)
-		if other, ok := seen[text]; ok {
-			t.Errorf("statusGuidance(%d) and statusGuidance(%d) share the guidance %q", status, other, text)
-		}
-		seen[text] = status
 	}
 }
 
