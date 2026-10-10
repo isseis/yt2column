@@ -521,6 +521,7 @@ func TestSecretRevealExclusive(t *testing.T) {
 var testOnlyPackageDirs = []string{
 	"internal/loopbacktest",
 	"internal/llm/llmhttp/llmhttptest",
+	"internal/maketestutil",
 }
 
 // TestFakesCarryBuildTag checks that every testutil file under internal, at
