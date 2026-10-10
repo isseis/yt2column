@@ -102,25 +102,25 @@ HEAD `7864eec`（ブランチ `issei/llm-claude-02`）で確認した。architec
 - 変更: `internal/llm/deepseek/deepseek.go`・`response.go`・`errors.go`、`internal/pipeline/pipeline_test.go`、`docs/dev/developer_guide/package_reference.md`
 
 **タスク**
-- [ ] **ステップ 1-1**: `llmhttp.go` に architecture §3.4 の `MaxResponseBytes`・`NewClient`・`Errors`・`Call`・`Post` を実装する。手順は §1.3 に挙げた DeepSeek アダプタの処理を、振る舞いを変えずに移す。エラーメッセージの文言も変えない。これに加えて、architecture §3.4 の「リダイレクトの防止を呼び出し側に頼らない」と「不完全な `Call` では送らない」の 2 つを実装する。import は標準ライブラリだけとし、`internal/secret` を import しない。
-- [ ] **ステップ 1-2**: `llmhttptest.go` に、`llmhttp` と `claude` のテストが使うテストサーバーの部品を作る（I-02）。`llmhttptest` は `llmhttp` を import しない（`llmhttp_test.go` が同じパッケージのテストとして `llmhttptest` を使うため）。部品は次のとおり。
+- [x] **ステップ 1-1**: `llmhttp.go` に architecture §3.4 の `MaxResponseBytes`・`NewClient`・`Errors`・`Call`・`Post` を実装する。手順は §1.3 に挙げた DeepSeek アダプタの処理を、振る舞いを変えずに移す。エラーメッセージの文言も変えない。これに加えて、architecture §3.4 の「リダイレクトの防止を呼び出し側に頼らない」と「不完全な `Call` では送らない」の 2 つを実装する。import は標準ライブラリだけとし、`internal/secret` を import しない。
+- [x] **ステップ 1-2**: `llmhttptest.go` に、`llmhttp` と `claude` のテストが使うテストサーバーの部品を作る（I-02）。`llmhttptest` は `llmhttp` を import しない（`llmhttp_test.go` が同じパッケージのテストとして `llmhttptest` を使うため）。部品は次のとおり。
   - `*testing.T` を受け取る部品: リクエストを記録するサーバー（件数と、メソッド・URL・ヘッダー・本文）、固定のステータスと本文を返すサーバー、ヘッダーを返さずに待つサーバー、ヘッダーと本文の一部を返して待つサーバー、`200` 以外のステータスとヘッダーを返して本文を送らずに待つサーバー、最初のリクエストを知らせて待つサーバー、本文の途中で閉じるリスナー、接続を受けてすぐ閉じるリスナー。作った時点で `t.Cleanup` に後始末を登録し、待つ部品はハンドラを解放してからサーバーを閉じる。
   - `TestMain` から使う部品: 接続を受けてすぐ閉じるリスナーを、`*testing.T` を取らずに作る関数（エラーを返す）と、閉じるメソッド・受け付けた件数を返すメソッド。DeepSeek の `startBlackholeProxy`・`stop`（`internal/llm/deepseek/test_helpers.go:395-427`）と同じ形で、`TestMain` は `m.Run()` の後に閉じる。
   - `internal/pipeline/pipeline_test.go` の `testOnlyPackageDirs` に `internal/llm/llmhttp/llmhttptest` を加え、`package_reference.md` に `internal/llm/llmhttp/llmhttptest` の行を加える。
-- [ ] **ステップ 1-3**: `llmhttp_test.go` に architecture §7.1 の `llmhttp` のテストを作る。
+- [x] **ステップ 1-3**: `llmhttp_test.go` に architecture §7.1 の `llmhttp` のテストを作る。
   - `Post` の分類: `200` 以外、構築時のタイムアウト、呼び出し元の期限、実行中のキャンセル、送信前に終わっている `ctx`、接続の失敗、本文の途中の切断、上限ちょうどと上限 + 1 バイト。分類は、`Errors` に渡したテスト用の番兵と `context` のエラーに対して `errors.Is` で判定し、該当するものが 1 つだけであることを確かめる。
   - `200` 以外: 本文に埋め込んだ目印がエラーに現れないこと、`Errors.Status` が受け取ったステータスコード。本文を送らずに待つサーバーに対して、`Post` が構築時のタイムアウトより十分前に戻ることで、本文を読まないことを確かめる。
   - 送らないことの検査: 送信前に終わっている `ctx` と不完全な `Call` は、記録するサーバーの件数だけでは判定できない（`http.Transport` は終わった `ctx` では接続しない）。`NewRequest` の呼び出し回数と、`Client` に差し込んだ記録する `RoundTripper` の呼び出し回数が 0 であることで確かめる。
   - 不完全な `Call`: `Timeout` 0 以下、`NewRequest` が `nil`、`Errors` の各フィールドが `nil`、`NewRequest` が別の `ctx` でリクエストを作った場合のそれぞれで、送らないことと、返るエラーが不完全な `Call` を表すエラーであり `context.DeadlineExceeded` ではないことを確かめる。
   - リダイレクト: リダイレクトに従う設定の `Client` と `nil` の `Client` のどちらでも、`307` の `Location` 先へ送らないこと。
   - `NewClient` の `Transport` が `nil` であること。
-- [ ] **ステップ 1-4**: DeepSeek アダプタの送信を `llmhttp.Post` の呼び出しに置き換える。`client.httpClient` は `llmhttp.NewClient()` の値にし、`maxResponseBytes` は `llmhttp.MaxResponseBytes` を指す定数として残す。§1.4 の表の 4 つの非公開の要素を削除する。`Errors.Status` には、既存の `statusError` を呼ぶ関数を渡す。architecture §3.4 の表の非公開の名前（`client`・`client.httpClient`・`client.endpoint`・`errorPrefix`・`maxResponseBytes`・`keyModel`・`keyChoices`・`maxReasonBytes`）を残す。古くなるコメントを次のとおり直す。
+- [x] **ステップ 1-4**: DeepSeek アダプタの送信を `llmhttp.Post` の呼び出しに置き換える。`client.httpClient` は `llmhttp.NewClient()` の値にし、`maxResponseBytes` は `llmhttp.MaxResponseBytes` を指す定数として残す。§1.4 の表の 4 つの非公開の要素を削除する。`Errors.Status` には、既存の `statusError` を呼ぶ関数を渡す。architecture §3.4 の表の非公開の名前（`client`・`client.httpClient`・`client.endpoint`・`errorPrefix`・`maxResponseBytes`・`keyModel`・`keyChoices`・`maxReasonBytes`）を残す。古くなるコメントを次のとおり直す。
   - `deepseek.go:25-26`: 変更前 `// maxResponseBytes caps the response body. The adapter reads one byte` / `// past the limit to detect an oversized body without buffering it all.` → 変更後 `// maxResponseBytes is the response body cap that llmhttp.Post enforces;` / `// the tests refer to it by this name.`
   - `errors.go:23-25`: 変更前 `// Static errors for constructing a client and for failure paths that have no` / `// public sentinel. errAdapterTimeout is the cause of the deadline the adapter` / `// adds to the caller's context.` → 変更後 `// Static errors for constructing a client and for failure paths that have no` / `// public sentinel.`
-- [ ] **ステップ 1-5**: DeepSeek アダプタの既存のテストを変更せずに `make test` が通ることを確認する。このコミットの差分に `internal/llm/deepseek/*_test.go`・`test_helpers*.go` が含まれないことを、コミット前に差分の一覧で確認する（H-01）。
-- [ ] **ステップ 1-6**: `package_reference.md` に `internal/llm/llmhttp` の行を加え、`internal/llm/deepseek` の行に、HTTP の送信を `llmhttp` で行うことを加える。
-- [ ] **ステップ 1-7**: 壊して失敗することを確認し、コミットメッセージに記録する。対象: `Post` が `Client` の写しにリダイレクトを追わない設定を加えない（`TestPostNoRedirect` の、リダイレクトに従う `Client` のケース）、`Call` の検査をそれぞれ外す（`TestPostIncompleteCall` の該当行。返るエラーの判定と `RoundTripper` の呼び出し回数）、上限 + 1 バイトの判定を外す（`TestPostSizeLimit`）、送信前の `ctx` の確認を外す（`TestPostCanceled` の送信前に終わっている `ctx` のケース。`NewRequest` の呼び出し回数）、`200` 以外でも本文を読んでから `Errors.Status` を呼ぶ（`TestPostNon200` の本文を送らないサーバーのケース）、分類で呼び出しの `ctx` を先に確かめない（`TestPostTimeout` の本文の途中で待つサーバーのケース）。`make fmt` → `make test` → `make lint` を通し、ここまでを 1 つのリファクタリングのコミットにする（H-01）。
-- [ ] **ステップ 1-8**: 別のコミットで、`Post` の構築時のタイムアウトと `Errors.Transport` のエラーのメッセージに、送信を始めてからの経過時間を加える（architecture §3.4「経過時間の記録」）。呼び出し元の期限とキャンセルのメッセージには加えない（architecture §3.4 の対象外）。経過時間は整数のミリ秒で表し、`Duration.String()` の秒の表記（例 `1.2s`）を使わない。表記が `2s` を含むと、DeepSeek の `deepseek_test.go:514` の検査（メッセージがアダプタのタイムアウトの値 `2s` を含まない）が失敗するためである（§6）。経過時間がメッセージに含まれることを検査するテストを `llmhttp_test.go` に加え、経過時間の追加を外すと失敗することを確認する。DeepSeek のテストを変更せずに `make test` が通ることを確かめ、`make fmt` → `make test` → `make lint` を通す。
+- [x] **ステップ 1-5**: DeepSeek アダプタの既存のテストを変更せずに `make test` が通ることを確認する。このコミットの差分に `internal/llm/deepseek/*_test.go`・`test_helpers*.go` が含まれないことを、コミット前に差分の一覧で確認する（H-01）。
+- [x] **ステップ 1-6**: `package_reference.md` に `internal/llm/llmhttp` の行を加え、`internal/llm/deepseek` の行に、HTTP の送信を `llmhttp` で行うことを加える。
+- [x] **ステップ 1-7**: 壊して失敗することを確認し、コミットメッセージに記録する。対象: `Post` が `Client` の写しにリダイレクトを追わない設定を加えない（`TestPostNoRedirect` の、リダイレクトに従う `Client` のケース）、`Call` の検査をそれぞれ外す（`TestPostIncompleteCall` の該当行。返るエラーの判定と `RoundTripper` の呼び出し回数）、上限 + 1 バイトの判定を外す（`TestPostSizeLimit`）、送信前の `ctx` の確認を外す（`TestPostCanceled` の送信前に終わっている `ctx` のケース。`NewRequest` の呼び出し回数）、`200` 以外でも本文を読んでから `Errors.Status` を呼ぶ（`TestPostNon200` の本文を送らないサーバーのケース）、分類で呼び出しの `ctx` を先に確かめない（`TestPostTimeout` の本文の途中で待つサーバーのケース）。`make fmt` → `make test` → `make lint` を通し、ここまでを 1 つのリファクタリングのコミットにする（H-01）。
+- [x] **ステップ 1-8**: 別のコミットで、`Post` の構築時のタイムアウトと `Errors.Transport` のエラーのメッセージに、送信を始めてからの経過時間を加える（architecture §3.4「経過時間の記録」）。呼び出し元の期限とキャンセルのメッセージには加えない（architecture §3.4 の対象外）。経過時間は整数のミリ秒で表し、`Duration.String()` の秒の表記（例 `1.2s`）を使わない。表記が `2s` を含むと、DeepSeek の `deepseek_test.go:514` の検査（メッセージがアダプタのタイムアウトの値 `2s` を含まない）が失敗するためである（§6）。経過時間がメッセージに含まれることを検査するテストを `llmhttp_test.go` に加え、経過時間の追加を外すと失敗することを確認する。DeepSeek のテストを変更せずに `make test` が通ることを確かめ、`make fmt` → `make test` → `make lint` を通す。
 
 ### PR-1 作成ポイント: HTTP send path extraction (internal/llm/llmhttp)
 
@@ -134,8 +134,8 @@ HEAD `7864eec`（ブランチ `issei/llm-claude-02`）で確認した。architec
 
 **判定理由**: ステップ 1-1 の `Post` の契約（リダイレクト防止・本文の上限・分類）がセキュリティ境界を成す孤立した高リスクな手順であり（リリースを止めるセキュリティゲートや移行ではなく、パネルモードのトリガーには該当しない）、ステップ 1-8 の経過時間の追加も既存テストの部分文字列検査と衝突しうるため。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
