@@ -245,8 +245,8 @@ HEAD `7864eec`（ブランチ `issei/llm-claude-02`）で確認した。architec
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 5: Make の部品の移動・統合テスト・Make ターゲット
 
@@ -258,8 +258,8 @@ HEAD `7864eec`（ブランチ `issei/llm-claude-02`）で確認した。architec
 - 変更: `internal/llm/claude/claude_test.go`、`Makefile`、`cmd/yt2column/makefile_test.go`、`internal/pipeline/pipeline_test.go`、`docs/dev/developer_guide/package_reference.md`
 
 **タスク**
-- [ ] **ステップ 5-1**: `internal/maketestutil/make.go` に、§1.4 の表の部品を移す。子プロセスの環境に渡す変数、記録する変数、表示の文言、モデル名などの変数と既定値は、呼び出し側が指定する。`CheckChargedTarget` の引数・`-timeout`・オプトインの検査も、DeepSeek と Claude の両方が使える形でここに置く。`make_test.go` に `TestValidateEnvNames`・`TestRecordedNames` を汎用の形で移す。`FirstLineIs` のエラーの経路は `deepseek_test.go:801-814` が既に検査しているため、`maketestutil` には同じテストを加えない。同じコミットで、`internal/pipeline/pipeline_test.go` の `testOnlyPackageDirs` に `internal/maketestutil` を加え、`package_reference.md` に行を加える。
-- [ ] **ステップ 5-2**: 同じコミットで、`deepseektestutil` の `make.go` を、公開の形（§1.4）を変えずに `maketestutil` を呼ぶだけのラッパーにする。`deepseektestutil/make_test.go` の中身を、ラッパーが記録する変数（`DeepSeekOptInEnv`・`CLIOptInEnv`・`ModelEnv` の後に呼び出し側の変数が重複なく続くこと）を固定するテストに入れ替える。`TestMakeOptInsAreTargetSpecific` が他のターゲットのオプトインを検出できるのは、この記録に依存するためである。移す前に `deepseektestutil` の `go tool cover -func` を取り、移した後に `maketestutil` と `deepseektestutil` の同じ出力を取る。移した関数とラッパーの関数の網羅率が下がっていないことを確認し、コミットメッセージに書く（CLAUDE.md「Deleting a test」）。`cmd/yt2column`・`internal/publisher`・`internal/llm/deepseek` のテストを変更せずに通ることを確かめる。`package_reference.md` の `internal/llm/deepseek/testutil` の行を、`RunMakeTarget`・`FirstLineIs` が `maketestutil` のラッパーであることに合わせて更新する。このステップの最後に、ラッパーが記録する変数を壊す（`DeepSeekOptInEnv` を記録しない）と `deepseektestutil/make_test.go` のテストが失敗することを確認し、`make fmt` → `make test` → `make lint` を通す（PR-5 の完了条件）。
+- [x] **ステップ 5-1**: `internal/maketestutil/make.go` に、§1.4 の表の部品を移す。子プロセスの環境に渡す変数、記録する変数、表示の文言、モデル名などの変数と既定値は、呼び出し側が指定する。`CheckChargedTarget` の引数・`-timeout`・オプトインの検査も、DeepSeek と Claude の両方が使える形でここに置く。`make_test.go` に `TestValidateEnvNames`・`TestRecordedNames` を汎用の形で移す。`FirstLineIs` のエラーの経路は `deepseek_test.go:801-814` が既に検査しているため、`maketestutil` には同じテストを加えない。同じコミットで、`internal/pipeline/pipeline_test.go` の `testOnlyPackageDirs` に `internal/maketestutil` を加え、`package_reference.md` に行を加える。
+- [x] **ステップ 5-2**: 同じコミットで、`deepseektestutil` の `make.go` を、公開の形（§1.4）を変えずに `maketestutil` を呼ぶだけのラッパーにする。`deepseektestutil/make_test.go` の中身を、ラッパーが記録する変数（`DeepSeekOptInEnv`・`CLIOptInEnv`・`ModelEnv` の後に呼び出し側の変数が重複なく続くこと）を固定するテストに入れ替える。`TestMakeOptInsAreTargetSpecific` が他のターゲットのオプトインを検出できるのは、この記録に依存するためである。移す前に `deepseektestutil` の `go tool cover -func` を取り、移した後に `maketestutil` と `deepseektestutil` の同じ出力を取る。移した関数とラッパーの関数の網羅率が下がっていないことを確認し、コミットメッセージに書く（CLAUDE.md「Deleting a test」）。`cmd/yt2column`・`internal/publisher`・`internal/llm/deepseek` のテストを変更せずに通ることを確かめる。`package_reference.md` の `internal/llm/deepseek/testutil` の行を、`RunMakeTarget`・`FirstLineIs` が `maketestutil` のラッパーであることに合わせて更新する。このステップの最後に、ラッパーが記録する変数を壊す（`DeepSeekOptInEnv` を記録しない）と `deepseektestutil/make_test.go` のテストが失敗することを確認し、`make fmt` → `make test` → `make lint` を通す（PR-5 の完了条件）。
 
 ### PR-5 作成ポイント: make test helper extraction (internal/maketestutil)
 
@@ -273,8 +273,8 @@ HEAD `7864eec`（ブランチ `issei/llm-claude-02`）で確認した。architec
 
 **判定理由**: Make の検査の部品の移動と薄いラッパー化で、競合する実装方針の併記・高リスクな制御・パネルモードのトリガーに該当せず、Conditional checks も build-tag のコンパイル確認（`internal/maketestutil`）1 件のみのため。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
