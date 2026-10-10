@@ -115,8 +115,8 @@ HEAD `4dd797d`（ブランチ `claude/mkplan-0010-xnazts`）で確認した。�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: `internal/writer` の部品
 
@@ -125,8 +125,8 @@ HEAD `4dd797d`（ブランチ `claude/mkplan-0010-xnazts`）で確認した。�
 - 新設: `internal/writer/length.go`・`length_test.go`、`revision.go`・`revision_test.go`、`review.go`・`review_test.go`（`//go:build test` の `_test.go`）
 
 **タスク**
-- [ ] **ステップ 2-1**: §1.4 のとおり `checkGeneratedText` を取り出す（architecture §3.6）。規則と検査の順序は変えない。`checkResponse` の doc コメントを、変更前 `// checkResponse validates the generated text, Model, and ModelVersion in a` / `// fixed order and returns the title and the body part (everything after the` / `// first line's "\n", passed through normalizeBody before its checks). Nothing` / `// else is repaired: a value that breaks a rule is rejected. Errors wrap ErrMalformedOutput and name the broken rule only,` / `// never a value, because the response is untrusted.` → 変更後 `// checkResponse validates a generation or shorten response: the generated text` / `// with checkGeneratedText, then Model and ModelVersion. It returns the title and` / `// the body part. Errors wrap ErrMalformedOutput and name the broken rule only,` / `// never a value, because the response is untrusted.` に変える。`checkGeneratedText` の doc コメントは、旧 doc の前半（タイトルと本文の部分の定義、補正しないこと）を引き継いで書く。`output_test.go` を変えずに通し、ここまでを 1 つのリファクタリングのコミットにする。
-- [ ] **ステップ 2-2**: §1.4 のとおりテンプレートの検査と展開をデータ型の型引数で一般化する（architecture §3.4）。`checkedTemplate[T]` は `parseTemplate[T]` だけが作り、`expand` は `T` だけを受け取る。`internal/writer` の中では `checkedTemplate[T]{}` の複合リテラルも書けるので、「`parseTemplate[T]` だけが作る」はパッケージの中の約束であり、コンパイラは確かめない。コンパイラが確かめるのは、別のデータ型での展開ができないことである。検査の規則（サイズ・UTF-8・空白・`define`/`block`・構文と関数の allowlist）は変えず、参照できるフィールドの集合だけを `T` から引く。`templateWriter` は `checkedTemplate[templateData]` を持つ。`template_test.go:381`・`:404`・`:426` は型引数を付けるか、フィールドの型を渡す形に機械的に改め、期待は変えない。コメントを次のとおり変える。
+- [x] **ステップ 2-1**: §1.4 のとおり `checkGeneratedText` を取り出す（architecture §3.6）。規則と検査の順序は変えない。`checkResponse` の doc コメントを、変更前 `// checkResponse validates the generated text, Model, and ModelVersion in a` / `// fixed order and returns the title and the body part (everything after the` / `// first line's "\n", passed through normalizeBody before its checks). Nothing` / `// else is repaired: a value that breaks a rule is rejected. Errors wrap ErrMalformedOutput and name the broken rule only,` / `// never a value, because the response is untrusted.` → 変更後 `// checkResponse validates a generation or shorten response: the generated text` / `// with checkGeneratedText, then Model and ModelVersion. It returns the title and` / `// the body part. Errors wrap ErrMalformedOutput and name the broken rule only,` / `// never a value, because the response is untrusted.` に変える。`checkGeneratedText` の doc コメントは、旧 doc の前半（タイトルと本文の部分の定義、補正しないこと）を引き継いで書く。`output_test.go` を変えずに通し、ここまでを 1 つのリファクタリングのコミットにする。
+- [x] **ステップ 2-2**: §1.4 のとおりテンプレートの検査と展開をデータ型の型引数で一般化する（architecture §3.4）。`checkedTemplate[T]` は `parseTemplate[T]` だけが作り、`expand` は `T` だけを受け取る。`internal/writer` の中では `checkedTemplate[T]{}` の複合リテラルも書けるので、「`parseTemplate[T]` だけが作る」はパッケージの中の約束であり、コンパイラは確かめない。コンパイラが確かめるのは、別のデータ型での展開ができないことである。検査の規則（サイズ・UTF-8・空白・`define`/`block`・構文と関数の allowlist）は変えず、参照できるフィールドの集合だけを `T` から引く。`templateWriter` は `checkedTemplate[templateData]` を持つ。`template_test.go:381`・`:404`・`:426` は型引数を付けるか、フィールドの型を渡す形に機械的に改め、期待は変えない。コメントを次のとおり変える。
   - `checkField`（`template.go:315-316`）: 変更前 `// checkField accepts a reference to one exported field of templateData and` / `// nothing deeper (.Title.Foo is rejected).` → 変更後 `// checkField accepts a reference to one exported field of the template's data` / `// type, promoted fields of an embedded struct included, and nothing deeper` / `// (.Title.Foo is rejected).`
   - `expand`（`prompt.go:96-99`）: 変更前 `// expand executes tmpl with data into a buffer capped at maxPromptBytes. An` → 変更後 `// expand executes the template with data into a buffer capped at maxPromptBytes. An`（後続の 3 行は変えない）
   - `templateData`（`prompt.go:17-19`）: 変更前 `// templateData is the only value passed to a prompt template. Its fields are` / `// the four values a template may reference; the template checks derive the` / `// allowed field names from this type.` → 変更後 `// templateData is the only value passed to a generation template. Its fields` / `// are the four values such a template may reference; the template checks` / `// derive the allowed field names from this type.`
@@ -145,8 +145,8 @@ HEAD `4dd797d`（ブランチ `claude/mkplan-0010-xnazts`）で確認した。�
 
 **判定理由**: ステップ 2-2 が、上書きテンプレートという信頼しない入力に対する検査（`checkField` のフィールドの allowlist）を型引数と `reflect` で作り直す孤立した高リスクの手順であり、振る舞いを保ったまま一般化する判断を要するため。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 - [ ] **ステップ 2-3**: `length.go` に、本文の部分の字数を数える関数と、定数 `maxBodyChars = 4000`・`targetBodyChars = 3600` を置く（architecture §3.3）。`length_test.go` に `TestBodyChars` を置く。4,000 字と 4,001 字、改行を数えると 4,001 字以上になり、数えなければ 4,000 字になる入力（architecture §7.1）、Markdown の記号（`## `・`**`）と空白を数えること、サロゲートペアになる文字を 1 字と数えることを確かめる（AC-04 の数え方）。
