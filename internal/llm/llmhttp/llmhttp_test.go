@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -208,6 +209,9 @@ func TestPostTimeout(t *testing.T) {
 				t.Errorf("Post() error = %v, want context.DeadlineExceeded", err)
 			}
 			assertSingleSentinel(t, err)
+			if !strings.Contains(err.Error(), "ms elapsed") {
+				t.Errorf("error %q does not name the elapsed time", err)
+			}
 			if elapsed > testShortTimeout+testGrace {
 				t.Errorf("Post() took %v, want at most %v", elapsed, testShortTimeout+testGrace)
 			}
@@ -231,6 +235,9 @@ func TestPostCallerDeadline(t *testing.T) {
 		t.Errorf("Post() error = %v, want context.DeadlineExceeded", err)
 	}
 	assertSingleSentinel(t, err)
+	if strings.Contains(err.Error(), "ms elapsed") {
+		t.Errorf("error %q must not include the adapter's elapsed time", err)
+	}
 	if elapsed > testShortTimeout+testGrace {
 		t.Errorf("Post() took %v, want at most %v", elapsed, testShortTimeout+testGrace)
 	}
@@ -263,6 +270,9 @@ func TestPostCanceled(t *testing.T) {
 			t.Errorf("Post() error = %v, want context.Canceled", err)
 		}
 		assertSingleSentinel(t, err)
+		if strings.Contains(err.Error(), "ms elapsed") {
+			t.Errorf("error %q must not include the adapter's elapsed time", err)
+		}
 	})
 
 	t.Run("pre-canceled context sends nothing", func(t *testing.T) {
@@ -326,6 +336,9 @@ func assertTransportFailure(t *testing.T, err error) {
 		t.Errorf("Post() error = %v, must not match the invalid-response sentinel", err)
 	}
 	assertSingleSentinel(t, err)
+	if !strings.Contains(err.Error(), "ms elapsed") {
+		t.Errorf("error %q does not name the elapsed time", err)
+	}
 }
 
 func TestPostSizeLimit(t *testing.T) {

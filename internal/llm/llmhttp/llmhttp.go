@@ -84,9 +84,12 @@ func Post(ctx context.Context, call Call) ([]byte, error) {
 	if request.Context() != callCtx {
 		return nil, errIncompleteCall
 	}
+	// start marks when the send begins, so a timeout or transport failure
+	// can report how long the attempt lasted.
+	start := time.Now()
 	response, err := newNoRedirectClient(call.Client).Do(request)
 	if err != nil {
-		return nil, classifyFailure(callCtx, call, err)
+		return nil, classifyFailure(callCtx, call, start, err)
 	}
 	defer func() { _ = response.Body.Close() }()
 
@@ -97,7 +100,7 @@ func Post(ctx context.Context, call Call) ([]byte, error) {
 	}
 	data, err := readResponseBody(response.Body, call.Errors.InvalidResponse)
 	if err != nil {
-		return nil, classifyFailure(callCtx, call, err)
+		return nil, classifyFailure(callCtx, call, start, err)
 	}
 	return data, nil
 }
@@ -133,26 +136,28 @@ func newNoRedirectClient(client *http.Client) *http.Client {
 // context is checked first, so a timeout or cancellation is reported as such
 // even when the transport returns another error. A transport cause is never
 // %w-chained: the returned error must match exactly one sentinel, and the
-// cause could itself contain a context error.
-func classifyFailure(callCtx context.Context, call Call, cause error) error {
+// cause could itself contain a context error. The elapsed time tells a
+// connection that never opened apart from one that dropped long into the read.
+func classifyFailure(callCtx context.Context, call Call, start time.Time, cause error) error {
 	if err := callCtx.Err(); err != nil {
-		return contextFailure(callCtx, call.Timeout)
+		return contextFailure(callCtx, call.Timeout, start)
 	}
 	if errors.Is(cause, call.Errors.InvalidResponse) {
 		return cause
 	}
-	return fmt.Errorf("%w: %v", call.Errors.Transport, cause)
+	return fmt.Errorf("%w: %v (%d ms elapsed)", call.Errors.Transport, cause, time.Since(start).Milliseconds())
 }
 
 // contextFailure describes where the deadline or cancellation came from. The
-// adapter's own timeout includes its value; the caller's deadline or
-// cancellation is named as such. The wrapped error is the call context's
-// error, so errors.Is matches context.DeadlineExceeded or context.Canceled.
-// The caller must have checked that callCtx.Err() is non-nil.
-func contextFailure(callCtx context.Context, timeout time.Duration) error {
+// adapter's own timeout includes its value and the elapsed time; the caller's
+// deadline or cancellation is named as such, without either. The wrapped error
+// is the call context's error, so errors.Is matches context.DeadlineExceeded
+// or context.Canceled. The caller must have checked that callCtx.Err() is
+// non-nil.
+func contextFailure(callCtx context.Context, timeout time.Duration, start time.Time) error {
 	err := callCtx.Err()
 	if errors.Is(context.Cause(callCtx), errAdapterTimeout) {
-		return fmt.Errorf("timed out after %s: %w", timeout, err)
+		return fmt.Errorf("timed out after %s (%d ms elapsed): %w", timeout, time.Since(start).Milliseconds(), err)
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
 		return fmt.Errorf("caller context deadline exceeded: %w", err)
