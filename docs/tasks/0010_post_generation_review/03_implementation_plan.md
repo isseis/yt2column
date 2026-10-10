@@ -147,8 +147,8 @@ HEAD `4dd797d`（ブランチ `claude/mkplan-0010-xnazts`）で確認した。�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 - [ ] **ステップ 2-3**: `length.go` に、本文の部分の字数を数える関数と、定数 `maxBodyChars = 4000`・`targetBodyChars = 3600` を置く（architecture §3.3）。`length_test.go` に `TestBodyChars` を置く。4,000 字と 4,001 字、改行を数えると 4,001 字以上になり、数えなければ 4,000 字になる入力（architecture §7.1）、Markdown の記号（`## `・`**`）と空白を数えること、サロゲートペアになる文字を 1 字と数えることを確かめる（AC-04 の数え方）。
 - [ ] **ステップ 2-4**: `revision.go` に architecture §3.5.2 の `ReviewResult`・`Revision`・`RevisionAction`・`RevisionReason`・`WireValue`・`ReviewResult.Check` を、`errors.go` に `ErrInvalidReview` を置く。応答の値から `RevisionReason` への変換と `WireValue` は 1 つの対応表を使う。`Check` は、解析が受理した一覧なら必ず通る条件だけを確かめ、値をエラーに含めない。`revision_test.go` に `TestRevisionReasonWireValue`（5 つの値の往復、`ReasonUnknown` と範囲外の値が偽）と `TestReviewResultCheck`（列挙の外の `Action`・`Reason`、空の `Before`、`Action` と `After` の食い違いの両向き、空白だけの `Evidence`、各文字列の制御文字（`Evidence` の `\n` は受理）、`maxRevisions` を超える件数、モデル名の規則、エラーに値の目印が現れない）を置く。
 - [ ] **ステップ 2-5**: `review.go` に、検証・推敲の応答の文字列から一覧を作る非公開の関数を置く（architecture §3.5.3、H-01）。手順は、`maxTextBytes` 以下であることの確認、`strictjson.ParseObject`、トップレベルの `CollectOnly("revisions")`、`AsArray`、`maxRevisions = 256` 以下であることの確認、各要素の `AsObject` と `CollectOnly`、architecture §3.5.3 の表の各規則の確認である。必須のキーと空でない文字列には既存の `strictjson.Required`・`RequiredString`・`OptionalString` を使う。どの拒否も `ErrMalformedOutput` を包み、規則と項目の番号だけを示す。部分的な一覧を返さない。`review_test.go` に `TestParseReviewResponse` を置き、architecture §3.5.3 の各規則について、その規則だけに反する応答の行を並べる（AC-12 の例、architecture §7.1 の追加の行、§7.3 の不正な UTF-8・対になっていないサロゲート・重複したキー）。境界は、項目 256 と 1 MiB ちょうどを受理し、257 と 1 MiB + 1 バイトを拒否する。拒否のエラーに応答の値の目印が現れないことも確かめる。
