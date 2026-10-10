@@ -83,6 +83,18 @@ func TestEffortStringAndValid(t *testing.T) {
 			}
 		})
 	}
+
+	// Valid and ParseEffort must agree over the whole domain, not only at the
+	// values listed above: a value Valid accepts must be one String renders as
+	// a wire value ParseEffort accepts, and the reverse.
+	t.Run("agrees with ParseEffort", func(t *testing.T) {
+		for e := Effort(-2); e <= EffortMax+3; e++ {
+			_, err := ParseEffort(e.String())
+			if got, want := e.Valid(), err == nil; got != want {
+				t.Errorf("Effort(%d): Valid() = %v, ParseEffort(String()=%q) error = %v", e, got, e.String(), err)
+			}
+		}
+	})
 }
 
 // TestParseWorkspaceID checks the printable ASCII boundaries are accepted and
@@ -95,8 +107,8 @@ func TestParseWorkspaceID(t *testing.T) {
 		"wrkspc_x",
 		"wrkspc-123",
 	}
-	for i, value := range accepted {
-		t.Run(fmt.Sprintf("accepts %d", i), func(t *testing.T) {
+	for _, value := range accepted {
+		t.Run(fmt.Sprintf("accepts %q", value), func(t *testing.T) {
 			w, err := ParseWorkspaceID(value)
 			if err != nil {
 				t.Fatalf("ParseWorkspaceID(%q) error = %v, want nil", value, err)
@@ -122,8 +134,8 @@ func TestParseWorkspaceID(t *testing.T) {
 		"\u00e9",
 		"wrk spc",
 	}
-	for i, value := range rejected {
-		t.Run(fmt.Sprintf("rejects %d", i), func(t *testing.T) {
+	for _, value := range rejected {
+		t.Run(fmt.Sprintf("rejects %q", value), func(t *testing.T) {
 			w, err := ParseWorkspaceID(value)
 			if err == nil {
 				t.Fatalf("ParseWorkspaceID(%q) error = nil, want an error", value)
