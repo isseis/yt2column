@@ -36,19 +36,19 @@ const (
 // "\n". "\r\n" is listed first so it is replaced as one line ending.
 var bodyLineEndings = strings.NewReplacer("\r\n", "\n", "\r", "\n")
 
-// checkResponse validates the generated text, Model, and ModelVersion in a
-// fixed order and returns the title and the body part (everything after the
-// first line's "\n", passed through normalizeBody before its checks). Nothing
-// else is repaired: a value that breaks a rule is rejected. Errors wrap ErrMalformedOutput and name the broken rule only,
-// never a value, because the response is untrusted.
-func checkResponse(resp llm.GenerateResponse) (title, body string, err error) {
-	if len(resp.Text) > maxTextBytes {
+// checkGeneratedText validates the generated text and returns the title and
+// the body part (everything after the first line's "\n", passed through
+// normalizeBody before its checks). Nothing else is repaired: a value that
+// breaks a rule is rejected. Errors wrap ErrMalformedOutput and name the broken
+// rule only, never a value, because the response is untrusted.
+func checkGeneratedText(text string) (title, body string, err error) {
+	if len(text) > maxTextBytes {
 		return "", "", fmt.Errorf("%w: generated text exceeds the limit of %d bytes", ErrMalformedOutput, maxTextBytes)
 	}
-	if !utf8.ValidString(resp.Text) {
+	if !utf8.ValidString(text) {
 		return "", "", fmt.Errorf("%w: generated text is not valid UTF-8", ErrMalformedOutput)
 	}
-	firstLine, body, _ := strings.Cut(resp.Text, "\n")
+	firstLine, body, _ := strings.Cut(text, "\n")
 	heading, ok := strings.CutPrefix(firstLine, titlePrefix)
 	if !ok {
 		return "", "", fmt.Errorf("%w: the first line is not a level-1 heading starting with %q", ErrMalformedOutput, titlePrefix)
@@ -73,6 +73,18 @@ func checkResponse(resp llm.GenerateResponse) (title, body string, err error) {
 	}
 	if err := checkBodyMarkdown(body); err != nil {
 		return "", "", fmt.Errorf("%w: body %w", ErrMalformedOutput, err)
+	}
+	return title, body, nil
+}
+
+// checkResponse validates a generation or shorten response: the generated text
+// with checkGeneratedText, then Model and ModelVersion. It returns the title and
+// the body part. Errors wrap ErrMalformedOutput and name the broken rule only,
+// never a value, because the response is untrusted.
+func checkResponse(resp llm.GenerateResponse) (title, body string, err error) {
+	title, body, err = checkGeneratedText(resp.Text)
+	if err != nil {
+		return "", "", err
 	}
 	if err := checkModelString("Model", resp.Model); err != nil {
 		return "", "", err
