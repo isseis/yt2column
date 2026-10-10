@@ -97,9 +97,9 @@ HEAD `4dd797d`（ブランチ `claude/mkplan-0010-xnazts`）で確認した。�
 - 変更: `internal/strictjson/strictjson.go`・`strictjson_test.go`
 
 **タスク**
-- [ ] **ステップ 1-1**: `strictjson.go` に architecture §3.5.3 の `Object.CollectOnly(keys ...string) (map[string]Value, error)` と `Value.AsBool() (bool, error)` を加える（H-01）。`CollectOnly` は、指定しなかったキー（その重複を含む）が 1 つでもあれば拒否し、指定したキーの重複も拒否する。指定したキーが揃うことは求めない。エラーには、未知のキー用と重複したキー用に 1 つずつ非公開の静的エラーを設け、破られた規則だけを示す。キーの文字列は含めない。`AsBool` は `true`・`false` 以外（`null`・文字列・数、ゼロ値の `Value`）を拒否する。`Collect` は変えない。
-- [ ] **ステップ 1-2**: `strictjson_test.go` に `TestObjectCollectOnly`（未知のキー、未知のキーの重複、指定したキーの重複、指定したキーの一部の欠落は受理、拒否のエラーにキーに埋め込んだ目印が現れない）と `TestValueAsBool`（`true`・`false` の受理、`null`・`"true"`・`1`・ゼロ値の `Value` の拒否）を加える。既存の `TestObjectCollect` は変えない。
-- [ ] **ステップ 1-3**: 壊して失敗することを確かめ、コミットメッセージに書く。対象: `CollectOnly` が未知のキーを無視する（`TestObjectCollectOnly` の未知のキーの行）、指定したキーの重複を受理する（同、重複の行）、エラーにキーを `%q` で入れる（同、目印の検査）、`AsBool` が `null` を `false` として受理する（`TestValueAsBool`）。`make fmt` → `make test` → `make lint` を通す。
+- [x] **ステップ 1-1**: `strictjson.go` に architecture §3.5.3 の `Object.CollectOnly(keys ...string) (map[string]Value, error)` と `Value.AsBool() (bool, error)` を加える（H-01）。`CollectOnly` は、指定しなかったキー（その重複を含む）が 1 つでもあれば拒否し、指定したキーの重複も拒否する。指定したキーが揃うことは求めない。エラーには、未知のキー用と重複したキー用に 1 つずつ非公開の静的エラーを設け、破られた規則だけを示す。キーの文字列は含めない。`AsBool` は `true`・`false` 以外（`null`・文字列・数、ゼロ値の `Value`）を拒否する。`Collect` は変えない。
+- [x] **ステップ 1-2**: `strictjson_test.go` に `TestObjectCollectOnly`（未知のキー、未知のキーの重複、指定したキーの重複、指定したキーの一部の欠落は受理、拒否のエラーにキーに埋め込んだ目印が現れない）と `TestValueAsBool`（`true`・`false` の受理、`null`・`"true"`・`1`・ゼロ値の `Value` の拒否）を加える。既存の `TestObjectCollect` は変えない。
+- [x] **ステップ 1-3**: 壊して失敗することを確かめ、コミットメッセージに書く。対象: `CollectOnly` が未知のキーを無視する（`TestObjectCollectOnly` の未知のキーの行）、指定したキーの重複を受理する（同、重複の行）、エラーにキーを `%q` で入れる（同、目印の検査）、`AsBool` が `null` を `false` として受理する（`TestValueAsBool`）。`make fmt` → `make test` → `make lint` を通す。
 
 ### PR-1 作成ポイント: strict key collection in internal/strictjson
 
