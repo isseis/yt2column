@@ -5,7 +5,6 @@ package deepseek
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -14,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/isseis/yt2column/internal/llm"
+	"github.com/isseis/yt2column/internal/llm/llmhttp"
 	"github.com/isseis/yt2column/internal/secret"
 )
 
@@ -22,9 +22,9 @@ const (
 	// only the test helper (built with the test tag) replaces it, and only
 	// with a loopback URL.
 	endpoint = "https://api.deepseek.com/chat/completions"
-	// maxResponseBytes caps the response body. The adapter reads one byte
-	// past the limit to detect an oversized body without buffering it all.
-	maxResponseBytes = 8 << 20
+	// maxResponseBytes is the response body cap that llmhttp.Post enforces;
+	// the tests refer to it by this name.
+	maxResponseBytes = llmhttp.MaxResponseBytes
 	// errorPrefix is added once by New and Generate to every error message.
 	errorPrefix = "deepseek: "
 )
@@ -67,17 +67,11 @@ func New(opts Options) (llm.LLMClient, error) {
 		return nil, wrapError(errNonPositiveTimeout)
 	}
 	return &client{
-		apiKey:   opts.APIKey,
-		model:    opts.Model,
-		timeout:  opts.Timeout,
-		endpoint: endpoint,
-		httpClient: &http.Client{
-			// A 3xx response is returned as the response instead of being
-			// followed, so the API key is never sent to a redirect target.
-			CheckRedirect: func(*http.Request, []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		},
+		apiKey:     opts.APIKey,
+		model:      opts.Model,
+		timeout:    opts.Timeout,
+		endpoint:   endpoint,
+		httpClient: llmhttp.NewClient(),
 	}, nil
 }
 
@@ -105,72 +99,28 @@ func (c *client) generate(ctx context.Context, req llm.GenerateRequest) (llm.Gen
 	if err := req.Validate(); err != nil {
 		return llm.GenerateResponse{}, err
 	}
-	if err := ctx.Err(); err != nil {
-		return llm.GenerateResponse{}, err
-	}
-
-	// The single deadline set by the adapter covers the send and the whole
-	// response body read. http.Client.Timeout is deliberately not used:
-	// it would make a timeout indistinguishable from other transport
-	// failures.
-	callCtx, cancel := context.WithTimeoutCause(ctx, c.timeout, errAdapterTimeout)
-	defer cancel()
-
 	body, err := newChatRequestBody(c.model, req)
 	if err != nil {
 		return llm.GenerateResponse{}, err
 	}
-	request, err := c.newRequest(callCtx, body)
+	data, err := llmhttp.Post(ctx, llmhttp.Call{
+		Client:  c.httpClient,
+		Timeout: c.timeout,
+		NewRequest: func(callCtx context.Context) (*http.Request, error) {
+			return c.newRequest(callCtx, body)
+		},
+		Errors: llmhttp.Errors{
+			Transport:       ErrTransport,
+			InvalidResponse: ErrInvalidResponse,
+			Status: func(status int) error {
+				return c.statusError(status, req.MaxOutputTokens)
+			},
+		},
+	})
 	if err != nil {
 		return llm.GenerateResponse{}, err
 	}
-	response, err := c.httpClient.Do(request)
-	if err != nil {
-		return llm.GenerateResponse{}, c.classifyFailure(callCtx, err)
-	}
-	defer func() { _ = response.Body.Close() }()
-
-	if response.StatusCode != http.StatusOK {
-		// The body of a non-200 response is never read: it is untrusted
-		// text that can even contain a fragment of the API key.
-		return llm.GenerateResponse{}, c.statusError(response.StatusCode, req.MaxOutputTokens)
-	}
-	data, err := readResponseBody(response.Body)
-	if err != nil {
-		return llm.GenerateResponse{}, c.classifyFailure(callCtx, err)
-	}
 	return parseResponse(data)
-}
-
-// classifyFailure maps a send or body-read failure to its sentinel. The call
-// context is checked first, so a timeout or cancellation is reported as such
-// even when the transport returns another error. A transport cause is never
-// %w-chained: the returned error must match exactly one sentinel, and the
-// cause could itself contain a context error.
-func (c *client) classifyFailure(callCtx context.Context, cause error) error {
-	if err := callCtx.Err(); err != nil {
-		return contextFailure(callCtx, c.timeout)
-	}
-	if errors.Is(cause, ErrInvalidResponse) {
-		return cause
-	}
-	return fmt.Errorf("%w: %v", ErrTransport, cause)
-}
-
-// contextFailure describes where the deadline or cancellation came from. The
-// adapter's own timeout includes its value; the caller's deadline or
-// cancellation is named as such. The wrapped error is the call context's
-// error, so errors.Is matches context.DeadlineExceeded or context.Canceled.
-// The caller must have checked that callCtx.Err() is non-nil.
-func contextFailure(callCtx context.Context, timeout time.Duration) error {
-	err := callCtx.Err()
-	if errors.Is(context.Cause(callCtx), errAdapterTimeout) {
-		return fmt.Errorf("timed out after %s: %w", timeout, err)
-	}
-	if errors.Is(err, context.DeadlineExceeded) {
-		return fmt.Errorf("caller context deadline exceeded: %w", err)
-	}
-	return fmt.Errorf("caller context canceled: %w", err)
 }
 
 // statusError builds the HTTP status failure. The model name and the

@@ -3,7 +3,6 @@ package deepseek
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"strconv"
 	"strings"
 
@@ -36,19 +35,6 @@ const maxReasonBytes = 64
 
 // jsonWhitespace is the set of insignificant whitespace bytes of RFC 8259.
 const jsonWhitespace = " \t\r\n"
-
-// readResponseBody reads at most maxResponseBytes+1 bytes. One byte past the
-// limit is enough to detect an oversized body without buffering it all.
-func readResponseBody(body io.Reader) ([]byte, error) {
-	data, err := io.ReadAll(io.LimitReader(body, maxResponseBytes+1))
-	if err != nil {
-		return nil, err
-	}
-	if len(data) > maxResponseBytes {
-		return nil, fmt.Errorf("%w: response body exceeds the %d-byte limit", ErrInvalidResponse, maxResponseBytes)
-	}
-	return data, nil
-}
 
 // parseResponse validates one response body and builds the GenerateResponse.
 // The checks run in the requirement order: body shape, finish reason, content.

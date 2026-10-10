@@ -21,15 +21,13 @@ var (
 var ErrPaddedModel = errors.New("the model has leading or trailing whitespace")
 
 // Static errors for constructing a client and for failure paths that have no
-// public sentinel. errAdapterTimeout is the cause of the deadline the adapter
-// adds to the caller's context.
+// public sentinel.
 var (
 	errZeroAPIKey         = errors.New("the API key is the zero value")
 	errInvalidAPIKey      = errors.New("the API key contains a character outside printable ASCII (0x21-0x7E)")
 	errEmptyModel         = errors.New("the model is empty")
 	errInvalidModel       = errors.New("the model is not valid UTF-8")
 	errNonPositiveTimeout = errors.New("the timeout must be positive")
-	errAdapterTimeout     = errors.New("adapter timeout")
 	errRevealAPIKey       = errors.New("the API key cannot be revealed")
 	errChoiceCount        = errors.New("choices must have exactly one element")
 )
