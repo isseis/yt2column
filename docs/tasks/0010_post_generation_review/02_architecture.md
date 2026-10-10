@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-10 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-10 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md) の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §3.11）を指す。既存のコードの行番号は、コミット `ce9ee27`（要件の承認のコミット。コードは `ef603fd` と同じ）で確かめたものである。
