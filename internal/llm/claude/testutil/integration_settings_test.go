@@ -76,7 +76,7 @@ func TestIntegrationSettings(t *testing.T) {
 		{name: "effort_checked_before_workspace", change: map[string]string{EffortEnv: "maximum", WorkspaceIDEnv: ""}, wantAction: ActionFail, wantReason: []string{EffortEnv}},
 		{name: "workspace_empty", change: map[string]string{WorkspaceIDEnv: ""}, wantAction: ActionFail, wantReason: []string{WorkspaceIDEnv}},
 		{name: "workspace_with_space", change: map[string]string{WorkspaceIDEnv: "wrkspc bad"}, wantAction: ActionFail, wantReason: []string{WorkspaceIDEnv}},
-		{name: "workspace_non_ascii", change: map[string]string{WorkspaceIDEnv: "wrkspc_é"}, wantAction: ActionFail, wantReason: []string{WorkspaceIDEnv}},
+		{name: "workspace_non_ascii", change: map[string]string{WorkspaceIDEnv: "wrkspc_\u00e9"}, wantAction: ActionFail, wantReason: []string{WorkspaceIDEnv}},
 		{name: "workspace_checked_before_godebug", change: map[string]string{WorkspaceIDEnv: "", GODEBUGEnv: "http2debug=1"}, wantAction: ActionFail, wantReason: []string{WorkspaceIDEnv}},
 		{name: "workspace_unset_specifies_none_with_production_set", unset: []string{WorkspaceIDEnv}, wantAction: ActionRun},
 		{name: "godebug_http2debug_1", change: map[string]string{GODEBUGEnv: "http2debug=1"}, wantAction: ActionFail, wantReason: []string{GODEBUGEnv, "http2debug"}},
