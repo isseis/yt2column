@@ -274,7 +274,7 @@ HEAD `7864eec`（ブランチ `issei/llm-claude-02`）で確認した。architec
 **判定理由**: Make の検査の部品の移動と薄いラッパー化で、競合する実装方針の併記・高リスクな制御・パネルモードのトリガーに該当せず、Conditional checks も build-tag のコンパイル確認（`internal/maketestutil`）1 件のみのため。
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
