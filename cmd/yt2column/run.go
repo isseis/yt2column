@@ -476,6 +476,9 @@ func configuredSecrets(cfg config.Config) []string {
 	if key, err := cfg.DeepSeekAPIKey().Reveal(); err == nil {
 		secrets = append(secrets, key)
 	}
+	if key, err := cfg.AnthropicAPIKey().Reveal(); err == nil {
+		secrets = append(secrets, key)
+	}
 	if url, ok := cfg.SlackWebhookURL(); ok {
 		if value, err := url.Reveal(); err == nil {
 			secrets = append(secrets, value)

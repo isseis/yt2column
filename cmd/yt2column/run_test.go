@@ -1406,6 +1406,57 @@ func TestConfiguredSecretsIncludesWebhookParts(t *testing.T) {
 	}
 }
 
+// TestRunClaudeConfigurationErrorsOneLineEach checks that when the CLI loads a
+// claude environment with more than one rejected provider variable, it writes
+// each rejection on its own line. A nested errors.Join would otherwise render
+// them as one line with an escaped newline.
+func TestRunClaudeConfigurationErrorsOneLineEach(t *testing.T) {
+	e := newRunEnv(t)
+	e.env["YT2COLUMN_LLM_PROVIDER"] = "claude"
+	delete(e.env, "DEEPSEEK_API_KEY")
+	delete(e.env, "ANTHROPIC_API_KEY")
+	e.env["YT2COLUMN_CLAUDE_EFFORT"] = "High"
+	if code := e.run(); code != exitUsage {
+		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, e.stderr.String())
+	}
+	stderr := e.stderr.String()
+	lines := strings.Split(stderr, "\n")
+	for _, name := range []string{"ANTHROPIC_API_KEY", "YT2COLUMN_CLAUDE_EFFORT"} {
+		prefix := programName + ": configuration: " + name
+		if !slices.ContainsFunc(lines, func(line string) bool { return strings.HasPrefix(line, prefix) }) {
+			t.Errorf("stderr has no line starting with %q:\n%s", prefix, stderr)
+		}
+	}
+}
+
+// TestConfiguredSecretsIncludesAnthropicAPIKey checks that a claude
+// configuration's Anthropic API key, and a line holding only its last eight
+// characters, are both redacted.
+func TestConfiguredSecretsIncludesAnthropicAPIKey(t *testing.T) {
+	const key = "sk-ant-APIKEYVALUE-0123456789-TAIL8ANT"
+	env := map[string]string{
+		"YT2COLUMN_LLM_PROVIDER":  "claude",
+		"YT2COLUMN_MODEL":         "claude-opus-5-5",
+		"ANTHROPIC_API_KEY":       key,
+		"YT2COLUMN_CLAUDE_EFFORT": "high",
+		"YT2COLUMN_CACHE_DIR":     t.TempDir(),
+	}
+	cfg, err := config.Load(lookupFrom(env))
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
+	}
+	if _, err := cfg.AnthropicAPIKey().Reveal(); err != nil {
+		t.Fatalf("AnthropicAPIKey().Reveal() error = %v", err)
+	}
+	tail := key[len(key)-8:]
+	if got := sanitize("POST with "+key+" failed", configuredSecrets(cfg)...); strings.Contains(got, key) {
+		t.Errorf("sanitize left the Anthropic API key: %q", got)
+	}
+	if got := sanitize("short tail "+tail+" seen", configuredSecrets(cfg)...); strings.Contains(got, tail) {
+		t.Errorf("sanitize left the Anthropic API key tail: %q", got)
+	}
+}
+
 // TestTestDepsSlackPublisherDoesNotSend checks that the default
 // newSlackPublisher of testDeps and of newRunEnv sends nothing: a --slack run
 // stops at building the publisher with the stub's error.
