@@ -5,7 +5,6 @@ package writer
 import (
 	"context"
 	"fmt"
-	"text/template"
 
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/nilcheck"
@@ -41,8 +40,8 @@ type Options struct {
 // once by New and never mutated afterwards.
 type templateWriter struct {
 	client llm.LLMClient
-	system *template.Template
-	user   *template.Template
+	system checkedTemplate[templateData]
+	user   checkedTemplate[templateData]
 }
 
 // New validates client and the templates and returns an ArticleWriter.
@@ -52,11 +51,11 @@ func New(client llm.LLMClient, opts Options) (ArticleWriter, error) {
 	if nilcheck.IsNil(client) {
 		return nil, errNilLLMClient
 	}
-	system, err := loadTemplate(templateSource{name: systemTemplateName, path: opts.SystemTemplatePath}, prompts.System())
+	system, err := loadTemplate[templateData](templateSource{name: systemTemplateName, path: opts.SystemTemplatePath}, prompts.System())
 	if err != nil {
 		return nil, err
 	}
-	user, err := loadTemplate(templateSource{name: userTemplateName, path: opts.UserTemplatePath}, prompts.User())
+	user, err := loadTemplate[templateData](templateSource{name: userTemplateName, path: opts.UserTemplatePath}, prompts.User())
 	if err != nil {
 		return nil, err
 	}
@@ -77,11 +76,11 @@ func (w *templateWriter) Write(ctx context.Context, t transcript.Transcript) (Ar
 		return Article{}, err
 	}
 	data := newTemplateData(t)
-	system, err := expand(w.system, data)
+	system, err := w.system.expand(data)
 	if err != nil {
 		return Article{}, err
 	}
-	user, err := expand(w.user, data)
+	user, err := w.user.expand(data)
 	if err != nil {
 		return Article{}, err
 	}

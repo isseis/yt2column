@@ -378,7 +378,7 @@ func TestTemplateSyntaxAllowlist(t *testing.T) {
 					if err != nil {
 						t.Fatalf("parse %q: %v", text, err)
 					}
-					if err := (syntaxChecker{tree: tmpl.Tree}).check(tmpl.Root); err != nil {
+					if err := (syntaxChecker[templateData]{tree: tmpl.Tree}).check(tmpl.Root); err != nil {
 						t.Fatalf("syntax check of %q = %v, want nil", text, err)
 					}
 				}
@@ -401,7 +401,7 @@ func TestDefaultTemplatesPassChecks(t *testing.T) {
 	}
 	for _, d := range defaults {
 		t.Run(d.name, func(t *testing.T) {
-			if _, err := parseTemplate(templateSource{name: d.name}, d.text); err != nil {
+			if _, err := parseTemplate[templateData](templateSource{name: d.name}, d.text); err != nil {
 				t.Errorf("default %s template fails the checks: %v", d.name, err)
 			}
 		})
@@ -423,7 +423,7 @@ func TestDefaultSystemTemplateHeadingInstruction(t *testing.T) {
 func TestInvalidTemplateErrorNamesSource(t *testing.T) {
 	for _, target := range overrideTargets {
 		t.Run(target.name+"/embedded default", func(t *testing.T) {
-			_, err := parseTemplate(templateSource{name: target.name}, "")
+			_, err := parseTemplate[templateData](templateSource{name: target.name}, "")
 			if want := target.name + " template (embedded default)"; err == nil || !strings.Contains(err.Error(), want) {
 				t.Errorf("parseTemplate error = %v, want it to contain %q", err, want)
 			}

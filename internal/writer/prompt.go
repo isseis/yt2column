@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"text/template"
 	"unicode/utf8"
 
 	"github.com/isseis/yt2column/internal/transcript"
@@ -14,9 +13,9 @@ import (
 // maxPromptBytes caps each expanded prompt (system and user separately).
 const maxPromptBytes = 1048576 // 1 MiB
 
-// templateData is the only value passed to a prompt template. Its fields are
-// the four values a template may reference; the template checks derive the
-// allowed field names from this type.
+// templateData is the only value passed to a generation template. Its fields
+// are the four values such a template may reference; the template checks
+// derive the allowed field names from this type.
 type templateData struct {
 	Title       string
 	ChannelName string
@@ -93,22 +92,22 @@ func (w *boundedWriter) Write(p []byte) (int, error) {
 	return w.buf.Write(p)
 }
 
-// expand executes tmpl with data into a buffer capped at maxPromptBytes. An
+// expand executes the template with data into a buffer capped at maxPromptBytes. An
 // execution error, an oversized prompt, and a blank prompt all wrap
 // ErrInvalidTemplate. The execution error text is quoted, so control
 // characters in it cannot reach a terminal unescaped.
-func expand(tmpl *template.Template, data templateData) (string, error) {
+func (c checkedTemplate[T]) expand(data T) (string, error) {
 	w := &boundedWriter{limit: maxPromptBytes}
-	if err := tmpl.Execute(w, data); err != nil {
+	if err := c.tmpl.Execute(w, data); err != nil {
 		if errors.Is(err, errPromptTooLarge) {
 			return "", fmt.Errorf("%w: %s prompt: %w of %d bytes; the template or the transcript values it embeds are too large",
-				ErrInvalidTemplate, tmpl.Name(), errPromptTooLarge, maxPromptBytes)
+				ErrInvalidTemplate, c.tmpl.Name(), errPromptTooLarge, maxPromptBytes)
 		}
-		return "", fmt.Errorf("%w: %s template failed to expand: %q", ErrInvalidTemplate, tmpl.Name(), err.Error())
+		return "", fmt.Errorf("%w: %s template failed to expand: %q", ErrInvalidTemplate, c.tmpl.Name(), err.Error())
 	}
 	prompt := w.buf.String()
 	if strings.TrimSpace(prompt) == "" {
-		return "", fmt.Errorf("%w: %s prompt is empty or whitespace only", ErrInvalidTemplate, tmpl.Name())
+		return "", fmt.Errorf("%w: %s prompt is empty or whitespace only", ErrInvalidTemplate, c.tmpl.Name())
 	}
 	return prompt, nil
 }
