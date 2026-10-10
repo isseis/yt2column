@@ -31,7 +31,7 @@ const (
 )
 
 // http2VerboseSettings are the GODEBUG settings that make the HTTP/2 transport
-// log every request header, Authorization included, to standard error. The
+// log every request header, the API key header included, to standard error. The
 // transport reads GODEBUG once at program start and matches these substrings,
 // so removing them from the environment inside the test would come too late;
 // the test fails instead.

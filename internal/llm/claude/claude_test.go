@@ -13,6 +13,7 @@ import (
 	"go/token"
 	"io"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -25,8 +26,10 @@ import (
 	"time"
 
 	"github.com/isseis/yt2column/internal/llm"
+	claudetestutil "github.com/isseis/yt2column/internal/llm/claude/testutil"
 	"github.com/isseis/yt2column/internal/llm/claudeparam"
 	"github.com/isseis/yt2column/internal/llm/llmhttp/llmhttptest"
+	"github.com/isseis/yt2column/internal/maketestutil"
 	"github.com/isseis/yt2column/internal/secret"
 )
 
@@ -853,6 +856,107 @@ func TestGenerateSentinelsDistinct(t *testing.T) {
 				t.Errorf("error = %v, want %v", err, tc.want)
 			}
 			assertRejected(t, response, err)
+		})
+	}
+}
+
+// TestIntegrationOptionsSkipMissingKey pins how integrationOptions behaves
+// with the opt-in set: a missing test API key skips, so a run without a key
+// incurs no charge and does not fail, and a complete environment runs. The
+// skip row mirrors the DeepSeek adapter's test of the same name; the run row
+// is what catches a wrong opt-in in integrationOptions, since the environment
+// names the opt-in directly.
+func TestIntegrationOptionsSkipMissingKey(t *testing.T) {
+	complete := map[string]string{
+		claudetestutil.OptInEnv:  claudetestutil.OptInValue,
+		claudetestutil.APIKeyEnv: testAPIKey,
+		claudetestutil.ModelEnv:  testModel,
+		claudetestutil.EffortEnv: claudeparam.EffortLow.String(),
+	}
+	for _, tc := range []struct {
+		name  string
+		unset string
+		want  claudetestutil.IntegrationAction
+	}{
+		{name: "api_key_missing", unset: claudetestutil.APIKeyEnv, want: claudetestutil.ActionSkip},
+		{name: "complete", want: claudetestutil.ActionRun},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			env := maps.Clone(complete)
+			delete(env, tc.unset)
+			settings := claudetestutil.SettingsFrom(func(name string) (string, bool) {
+				value, ok := env[name]
+				return value, ok
+			}, integrationOptions)
+			if settings.Action != tc.want {
+				t.Errorf("Action = %d, want %d (reason %q)", settings.Action, tc.want, settings.Reason)
+			}
+		})
+	}
+}
+
+// TestIntegrationTestBuildTag pins the build tags that keep the integration
+// test, which calls the real Anthropic API, out of `make test` and
+// `make test-ci`, while its settings build under both tags. The guard's own
+// error paths are tested with the DeepSeek adapter's identical guard.
+func TestIntegrationTestBuildTag(t *testing.T) {
+	for _, tc := range []struct {
+		path string
+		want string
+	}{
+		{path: "integration_test.go", want: "//go:build integration"},
+		{path: "integration_env_test.go", want: "//go:build test || integration"},
+	} {
+		if err := maketestutil.FirstLineIs(tc.path, tc.want); err != nil {
+			t.Errorf("%s must start with %q: %v", tc.path, tc.want, err)
+		}
+	}
+}
+
+// TestIntegrationClientOptions pins that the client the integration test
+// builds carries every setting the decision read, the workspace ID included,
+// and the per-call integration timeout.
+func TestIntegrationClientOptions(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		workspace string // empty means none is specified
+	}{
+		{name: "with_workspace", workspace: "wrkspc_integrationTEST01"},
+		{name: "without_workspace"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			env := map[string]string{
+				claudetestutil.OptInEnv:  claudetestutil.OptInValue,
+				claudetestutil.APIKeyEnv: testAPIKey,
+				claudetestutil.ModelEnv:  testModel,
+				claudetestutil.EffortEnv: claudeparam.EffortHigh.String(),
+			}
+			if tc.workspace != "" {
+				env[claudetestutil.WorkspaceIDEnv] = tc.workspace
+			}
+			settings := claudetestutil.SettingsFrom(func(name string) (string, bool) {
+				value, ok := env[name]
+				return value, ok
+			}, integrationOptions)
+			if settings.Action != claudetestutil.ActionRun {
+				t.Fatalf("Action = %d, want ActionRun (reason %q)", settings.Action, settings.Reason)
+			}
+			options := integrationClientOptions(settings)
+			if key, err := options.APIKey.Reveal(); err != nil || key != testAPIKey {
+				t.Errorf("APIKey is not the test key (Reveal error = %v)", err)
+			}
+			if options.Model != testModel {
+				t.Errorf("Model = %q, want %q", options.Model, testModel)
+			}
+			if options.Effort != claudeparam.EffortHigh {
+				t.Errorf("Effort = %s, want %s", options.Effort, claudeparam.EffortHigh)
+			}
+			if got, ok := options.WorkspaceID.Value(); got != tc.workspace || ok != (tc.workspace != "") {
+				t.Errorf("WorkspaceID = %q (specified %t), want %q", got, ok, tc.workspace)
+			}
+			if options.Timeout != integrationGenerateTimeout {
+				t.Errorf("Timeout = %s, want %s", options.Timeout, integrationGenerateTimeout)
+			}
 		})
 	}
 }

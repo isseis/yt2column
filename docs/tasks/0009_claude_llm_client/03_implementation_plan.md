@@ -275,22 +275,22 @@ HEAD `7864eec`（ブランチ `issei/llm-claude-02`）で確認した。architec
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
-- [ ] **ステップ 5-3**: `claudetestutil` の `integration.go` に、統合テストの環境変数の名前と、実行するかどうかを決める純粋な関数を作る。関数は `getenv func(string) string` を受け取り、architecture §7.2 の判定の順序（オプトイン → API キー → モデル名・effort → ワークスペース ID → `http2debug`）で、スキップ・失敗・実行と理由、および実行時の API キー・モデル名・effort・ワークスペース ID を返す。effort とワークスペース ID は `claudeparam`、`http2debug` は `config.HTTP2DebugEnabledIn` で判定する。理由の文字列は変数名を含み、API キーを含まない。API キーの変数名の定数には、`internal/llm/deepseek/testutil/integration.go:25` と同じ 1 行に限った `//nolint:gosec` を付ける。`integration_settings_test.go` に `TestIntegrationSettings` を作り、判定の各分岐（オプトインの欠如と `1` 以外の値、API キーの未設定・空でのスキップ、`ANTHROPIC_API_KEY` だけではスキップ、モデル名・effort の未設定・空・不正な effort での失敗、ワークスペース ID の空・不正での失敗と未設定での指定なし、`ANTHROPIC_WORKSPACE_ID` だけでは指定なし、`http2debug=1`・`=2` での失敗、すべてそろったときの値）を検証する。同じコミットで `TestFakesCarryBuildTag` の件数を 17 にし、`package_reference.md` に `internal/llm/claude/testutil` の行を加える。
-- [ ] **ステップ 5-4**: `integration_env_test.go` に、統合テストの判定の設定と、architecture §3.6 の値（1 回の `Generate` のタイムアウト、正常な生成と打ち切りの `MaxOutputTokens`）と `Generate` の回数（2）を定数として置く。テスト関数は置かない。`claude_test.go` に、DeepSeek の `TestIntegrationOptionsSkipMissingKey`（`deepseek_test.go:777`）と同じ形の `TestIntegrationOptionsSkipMissingKey` を加え、この設定でオプトインがあり API キーがないときにスキップになることを確かめる。
-- [ ] **ステップ 5-5**: `integration_test.go` に、正常な生成と打ち切りの 2 つのサブテストを持つ `TestIntegrationGenerate` を作る（AC-30）。判定はステップ 5-3 の関数で行い、ワークスペース ID を指定したときは構築に渡す（AC-43）。プロンプトは短い固定の英文とする。`Model` に API キーが含まれないことを確かめてから、`Model` をエスケープしてログに出す（architecture §7.2）。打ち切りのサブテストがエラーなしで終わった場合は、前提が崩れたことを示すメッセージで失敗させる。
-- [ ] **ステップ 5-6**: `Makefile` に `test-integration-claude` を加える。`test-integration-deepseek`（`Makefile:92-110`）と同じ形で、architecture §7.2 の既定のモデル・effort を `?=` で定義し、このターゲットにだけ、この 2 つとオプトイン `YT2COLUMN_CLAUDE_INTEGRATION := 1` をエクスポートする。実 API を使い料金が発生することと、モデル名・effort を表示する。レシピは `-tags integration -count=1 -timeout $(CLAUDE_INTEGRATION_TIMEOUT) -v ./internal/llm/claude` で `$(GOTEST)` を呼び、`CLAUDE_INTEGRATION_TIMEOUT ?= 15m` とする（I-03）。`.PHONY` と `lint` の前のコメントの一覧に加える。
-- [ ] **ステップ 5-7**: `internal/llm/claude/makefile_test.go` に `TestMakeTestIntegrationClaude` を作る。ステップ 5-1 の検査でターゲットを実行し、表示、`go test` の引数（`-tags integration`・`-count=1`・`-timeout`・`-v`、パッケージのパスが最後の単独の引数であること）、`-timeout` がステップ 5-4 の回数 × タイムアウトより長いこと、オプトイン、モデル名・effort の変数が未定義なら既定値・空ならそのまま・値があればその値になることを検証する（AC-29）。
-- [ ] **ステップ 5-8**: `claude_test.go` に `TestIntegrationTestBuildTag` を加え、`integration_test.go` の先頭行が `//go:build integration`、`integration_env_test.go` の先頭行が `//go:build test || integration` であることを `maketestutil.FirstLineIs` で固定する（AC-28）。
-- [ ] **ステップ 5-9**: `cmd/yt2column/makefile_test.go` の `TestMakeOptInsAreTargetSpecific`（`:61-90`）に、`test-integration-claude` のターゲットと `YT2COLUMN_CLAUDE_INTEGRATION` を加える。`YT2COLUMN_CLAUDE_INTEGRATION` は記録する変数にも加える（architecture §3.8）。
-- [ ] **ステップ 5-10**: `internal/llm/deepseek/testutil/integration.go` の http2debug のコメント（`:33-37`）を次のとおり変える。
+- [x] **ステップ 5-3**: `claudetestutil` の `integration.go` に、統合テストの環境変数の名前と、実行するかどうかを決める純粋な関数を作る。関数は `os.LookupEnv` と同じ形の `lookup func(string) (string, bool)` を受け取り（ワークスペース ID の未設定と空を区別するため。`getenv func(string) string` では区別できない）、architecture §7.2 の判定の順序（オプトイン → API キー → モデル名・effort → ワークスペース ID → `http2debug`）で、スキップ・失敗・実行と理由、および実行時の API キー・モデル名・effort・ワークスペース ID を返す。effort とワークスペース ID は `claudeparam`、`http2debug` は `config.HTTP2DebugEnabledIn` で判定する。理由の文字列は変数名を含み、API キーを含まない。API キーの変数名の定数には、`internal/llm/deepseek/testutil/integration.go:25` と同じ 1 行に限った `//nolint:gosec` を付ける。`integration_settings_test.go` に `TestIntegrationSettings` を作り、判定の各分岐（オプトインの欠如と `1` 以外の値、API キーの未設定・空でのスキップ、`ANTHROPIC_API_KEY` だけではスキップ、モデル名・effort の未設定・空・不正な effort での失敗、ワークスペース ID の空・不正での失敗と未設定での指定なし、`ANTHROPIC_WORKSPACE_ID` だけでは指定なし、`http2debug=1`・`=2` での失敗、すべてそろったときの値）を検証する。同じコミットで `TestFakesCarryBuildTag` の件数を 17 にし、`package_reference.md` に `internal/llm/claude/testutil` の行を加える。
+- [x] **ステップ 5-4**: `integration_env_test.go` に、統合テストの判定の設定と、architecture §3.6 の値（1 回の `Generate` のタイムアウト、正常な生成と打ち切りの `MaxOutputTokens`）と `Generate` の回数（2）を定数として置く。テスト関数は置かない。`claude_test.go` に、DeepSeek の `TestIntegrationOptionsSkipMissingKey`（`deepseek_test.go:777`）と同じ形の `TestIntegrationOptionsSkipMissingKey` を加え、この設定でオプトインがあり API キーがないときにスキップになることを確かめる。
+- [x] **ステップ 5-5**: `integration_test.go` に、正常な生成と打ち切りの 2 つのサブテストを持つ `TestIntegrationGenerate` を作る（AC-30）。判定はステップ 5-3 の関数で行い、ワークスペース ID を指定したときは構築に渡す（AC-43）。プロンプトは短い固定の英文とする。`Model` に API キーが含まれないことを確かめてから、`Model` をエスケープしてログに出す（architecture §7.2）。打ち切りのサブテストがエラーなしで終わった場合は、前提が崩れたことを示すメッセージで失敗させる。
+- [x] **ステップ 5-6**: `Makefile` に `test-integration-claude` を加える。`test-integration-deepseek`（`Makefile:92-110`）と同じ形で、architecture §7.2 の既定のモデル・effort を `?=` で定義し、このターゲットにだけ、この 2 つとオプトイン `YT2COLUMN_CLAUDE_INTEGRATION := 1` をエクスポートする。実 API を使い料金が発生することと、モデル名・effort を表示する。レシピは `-tags integration -count=1 -timeout $(CLAUDE_INTEGRATION_TIMEOUT) -v ./internal/llm/claude` で `$(GOTEST)` を呼び、`CLAUDE_INTEGRATION_TIMEOUT ?= 15m` とする（I-03）。`.PHONY` と `lint` の前のコメントの一覧に加える。
+- [x] **ステップ 5-7**: `internal/llm/claude/makefile_test.go` に `TestMakeTestIntegrationClaude` を作る。ステップ 5-1 の検査でターゲットを実行し、表示、`go test` の引数（`-tags integration`・`-count=1`・`-timeout`・`-v`、パッケージのパスが最後の単独の引数であること）、`-timeout` がステップ 5-4 の回数 × タイムアウトより長いこと、オプトイン、モデル名・effort の変数が未定義なら既定値・空ならそのまま・値があればその値になることを検証する（AC-29）。
+- [x] **ステップ 5-8**: `claude_test.go` に `TestIntegrationTestBuildTag` を加え、`integration_test.go` の先頭行が `//go:build integration`、`integration_env_test.go` の先頭行が `//go:build test || integration` であることを `maketestutil.FirstLineIs` で固定する（AC-28）。
+- [x] **ステップ 5-9**: `cmd/yt2column/makefile_test.go` の `TestMakeOptInsAreTargetSpecific`（`:61-90`）に、`test-integration-claude` のターゲットと `YT2COLUMN_CLAUDE_INTEGRATION` を加える。`YT2COLUMN_CLAUDE_INTEGRATION` は記録する変数にも加える（architecture §3.8）。
+- [x] **ステップ 5-10**: `internal/llm/deepseek/testutil/integration.go` の http2debug のコメント（`:33-37`）を次のとおり変える。
   - 変更前: `// http2VerboseSettings are the GODEBUG settings that make the HTTP/2 transport` / `// log every request header, Authorization included, to standard error. The`
   - 変更後: `// http2VerboseSettings are the GODEBUG settings that make the HTTP/2 transport` / `// log every request header, the API key header included, to standard error. The`
   - 続く 3 行（`// transport reads GODEBUG once ...` 以降）は変えない。
-- [ ] **ステップ 5-11**: 壊して失敗することを確認し、コミットメッセージに記録する。対象: 判定で API キーの未設定を失敗にする（`TestIntegrationSettings` のスキップの行と `TestIntegrationOptionsSkipMissingKey`）、ワークスペース ID の空を指定なしにする（`TestIntegrationSettings`）、`http2debug` の判定を外す（同）、Makefile の `-count=1` を外す・オプトインのエクスポートを外す（`TestMakeTestIntegrationClaude`）、オプトインを全体にエクスポートする（`TestMakeOptInsAreTargetSpecific`）、`integration_test.go` の先頭行を変える（`TestIntegrationTestBuildTag`）。`make fmt` → `make test` → `make lint` を通す（`make lint` は `go vet -tags integration ./...` で統合テストもビルドする）。
-- [ ] **ステップ 5-12**: 料金の発生しない確認として、`YT2COLUMN_TEST_ANTHROPIC_API_KEY` を設定せずに `make test-integration-claude` を実行し、スキップの行が変数名を示すことを §5.1 に記録する。続けて、人間の承認を得てから、`YT2COLUMN_TEST_ANTHROPIC_API_KEY` を設定して実行し、結果を §5.1 に記録する（AC-29・AC-30・AC-43。実 API を呼び料金が発生する）。
+- [x] **ステップ 5-11**: 壊して失敗することを確認し、コミットメッセージに記録する。対象: 判定で API キーの未設定を失敗にする（`TestIntegrationSettings` のスキップの行と `TestIntegrationOptionsSkipMissingKey`）、ワークスペース ID の空を指定なしにする（`TestIntegrationSettings`）、`http2debug` の判定を外す（同）、Makefile の `-count=1` を外す・オプトインのエクスポートを外す（`TestMakeTestIntegrationClaude`）、オプトインを全体にエクスポートする（`TestMakeOptInsAreTargetSpecific`）、`integration_test.go` の先頭行を変える（`TestIntegrationTestBuildTag`）。`make fmt` → `make test` → `make lint` を通す（`make lint` は `go vet -tags integration ./...` で統合テストもビルドする）。
+- [x] **ステップ 5-12**: 料金の発生しない確認として、`YT2COLUMN_TEST_ANTHROPIC_API_KEY` を設定せずに `make test-integration-claude` を実行し、スキップの行が変数名を示すことを §5.1 に記録する。続けて、人間の承認を得てから、`YT2COLUMN_TEST_ANTHROPIC_API_KEY` を設定して実行し、結果を §5.1 に記録する（AC-29・AC-30・AC-43。実 API を呼び料金が発生する）。
 
 ### PR-6 作成ポイント: claude integration test and make target
 
@@ -304,8 +304,8 @@ HEAD `7864eec`（ブランチ `issei/llm-claude-02`）で確認した。architec
 
 **判定理由**: ステップ 5-5・5-6・5-12 が実 Anthropic の API・料金・Make ターゲット・手動実行にわたる重い統合テスト／外部リソースの面を持ち、mkplan.md ステップ 8 のパネルモードトリガーに該当するため（5-7・5-8・5-9・5-10 は外部リソースに触れない Make ターゲットとビルドタグの検査、コメントの修正である）。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した（#162）
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
@@ -464,7 +464,34 @@ architecture §7.3 に従う。計画固有の事項は次のとおり。
 
 ステップ 5-12 で記入する。記録する項目は、API キーなしでの実行のスキップの行と、API キーありでの実行日、HEAD、モデル名・effort、ワークスペース ID の指定の有無（値は書かない）、`TestIntegrationGenerate` の 2 つのサブテストの `--- PASS` と所要時間である。チェックが入った後の記録の有無は `cmd/yt2column/docs_test.go::TestClaudePlanRecordsManualRun` が固定する。
 
-（未実施）
+**API キーなしでの実行（料金は発生しない）。** 2026-10-10、HEAD `4466478` に本ステップの変更を加えた作業ツリーで、`YT2COLUMN_TEST_ANTHROPIC_API_KEY` と `ANTHROPIC_API_KEY` を設定せずに `make test-integration-claude` を実行した。出力は次のとおりで、スキップの行は変数名を示し、`make` は成功した。
+
+```
+test-integration-claude: calls the real Anthropic API, which incurs charges (model: claude-haiku-5-5, effort: low)
+go test -tags integration -count=1 -timeout 15m -v ./internal/llm/claude
+=== RUN   TestIntegrationGenerate
+    integration_test.go:36: YT2COLUMN_TEST_ANTHROPIC_API_KEY is not set: set it to an Anthropic API key for testing (ANTHROPIC_API_KEY is not used)
+--- SKIP: TestIntegrationGenerate (0.00s)
+PASS
+ok  	github.com/isseis/yt2column/internal/llm/claude	0.005s
+```
+
+**API キーありでの実行（実 API・料金が発生する）。** 2026-10-11、HEAD `e310846` で、人間の承認を得てから、`YT2COLUMN_TEST_ANTHROPIC_API_KEY` と `YT2COLUMN_TEST_ANTHROPIC_WORKSPACE_ID` を設定して `make test-integration-claude` を実行した。モデル名は `claude-haiku-5-5`、effort は `low`、ワークスペース ID は指定あり（値は書かない）。出力は次のとおりで、`TestIntegrationGenerate` の 2 つのサブテストが `--- PASS` した。
+
+```
+test-integration-claude: calls the real Anthropic API, which incurs charges (model: claude-haiku-5-5, effort: low)
+go test -tags integration -count=1 -timeout 15m -v ./internal/llm/claude
+=== RUN   TestIntegrationGenerate
+    integration_test.go:53: model "claude-haiku-5-5", effort low, workspace id specified true
+=== RUN   TestIntegrationGenerate/generate
+    integration_test.go:87: Model "claude-haiku-5-5"
+=== RUN   TestIntegrationGenerate/truncated
+--- PASS: TestIntegrationGenerate (2.55s)
+    --- PASS: TestIntegrationGenerate/generate (1.48s)
+    --- PASS: TestIntegrationGenerate/truncated (1.07s)
+PASS
+ok  	github.com/isseis/yt2column/internal/llm/claude	2.970s
+```
 
 ## 6. リスク管理 (Risk Management)
 
