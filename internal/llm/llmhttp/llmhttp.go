@@ -80,8 +80,9 @@ func Post(ctx context.Context, call Call) ([]byte, error) {
 		return nil, err
 	}
 	// The deadline must be on the request itself, so NewRequest has to use
-	// the context Post passes rather than one of its own.
-	if request.Context() != callCtx {
+	// the context Post passes rather than one of its own. A nil request or a
+	// different context is treated as an incomplete Call.
+	if request == nil || request.Context() != callCtx {
 		return nil, errIncompleteCall
 	}
 	// start marks when the send begins, so a timeout or transport failure

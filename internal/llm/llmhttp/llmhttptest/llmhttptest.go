@@ -84,13 +84,6 @@ func (r *Recorder) Count() int {
 	return len(r.requests)
 }
 
-// All returns a copy of every recorded request.
-func (r *Recorder) All() []Recorded {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return append([]Recorded(nil), r.requests...)
-}
-
 // Only returns the single recorded request or fails the test.
 func (r *Recorder) Only(t *testing.T) Recorded {
 	t.Helper()

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -38,6 +39,20 @@ var (
 	errTestInvalidResponse = errors.New("test invalid response")
 	errTestHTTPStatus      = errors.New("test http status")
 )
+
+// elapsedPattern matches the " (N ms elapsed)" suffix Post adds to its
+// adapter-timeout and transport messages. It rejects a Duration.String()
+// rendering such as "100ms" or "1.2s".
+var elapsedPattern = regexp.MustCompile(` \(\d+ ms elapsed\)`)
+
+// assertNamesElapsed checks that err names the elapsed time as an integer
+// count of milliseconds.
+func assertNamesElapsed(t *testing.T, err error) {
+	t.Helper()
+	if !elapsedPattern.MatchString(err.Error()) {
+		t.Errorf("error %q does not name the elapsed time as an integer count of milliseconds", err)
+	}
+}
 
 // httpStatusError is the stand-in for an adapter's HTTP status error. It
 // carries the status code so a test can check that Post passed it through.
@@ -109,7 +124,7 @@ func (c *countingTransport) RoundTrip(*http.Request) (*http.Response, error) {
 }
 
 func TestPostSuccess(t *testing.T) {
-	server, _ := llmhttptest.NewRecordingServer(t, []byte(`{"ok":true}`))
+	server, recorder := llmhttptest.NewRecordingServer(t, []byte(`{"ok":true}`))
 	data, err := Post(context.Background(), Call{
 		Client:     NewClient(),
 		Timeout:    testTimeout,
@@ -121,6 +136,19 @@ func TestPostSuccess(t *testing.T) {
 	}
 	if string(data) != `{"ok":true}` {
 		t.Errorf("Post() body = %q, want the server body", data)
+	}
+	if got := recorder.Count(); got != 1 {
+		t.Errorf("server received %d requests, want 1", got)
+	}
+	recorded := recorder.Only(t)
+	if recorded.Method != http.MethodPost {
+		t.Errorf("method = %q, want %q", recorded.Method, http.MethodPost)
+	}
+	if recorded.Target != "/" {
+		t.Errorf("request URI = %q, want %q", recorded.Target, "/")
+	}
+	if string(recorded.Body) != "{}" {
+		t.Errorf("body = %q, want %q", recorded.Body, "{}")
 	}
 }
 
@@ -209,9 +237,7 @@ func TestPostTimeout(t *testing.T) {
 				t.Errorf("Post() error = %v, want context.DeadlineExceeded", err)
 			}
 			assertSingleSentinel(t, err)
-			if !strings.Contains(err.Error(), "ms elapsed") {
-				t.Errorf("error %q does not name the elapsed time", err)
-			}
+			assertNamesElapsed(t, err)
 			if elapsed > testShortTimeout+testGrace {
 				t.Errorf("Post() took %v, want at most %v", elapsed, testShortTimeout+testGrace)
 			}
@@ -336,9 +362,7 @@ func assertTransportFailure(t *testing.T, err error) {
 		t.Errorf("Post() error = %v, must not match the invalid-response sentinel", err)
 	}
 	assertSingleSentinel(t, err)
-	if !strings.Contains(err.Error(), "ms elapsed") {
-		t.Errorf("error %q does not name the elapsed time", err)
-	}
+	assertNamesElapsed(t, err)
 }
 
 func TestPostSizeLimit(t *testing.T) {
@@ -412,7 +436,6 @@ func TestPostIncompleteCall(t *testing.T) {
 			}
 		})
 	}
-
 	t.Run("NewRequest uses a different context", func(t *testing.T) {
 		transport := &countingTransport{}
 		var newRequestCalls atomic.Int64
@@ -438,6 +461,43 @@ func TestPostIncompleteCall(t *testing.T) {
 			t.Errorf("RoundTrip calls = %d, want 0", got)
 		}
 	})
+
+	t.Run("NewRequest returns a nil request", func(t *testing.T) {
+		transport := &countingTransport{}
+		_, err := Post(context.Background(), Call{
+			Client:  &http.Client{Transport: transport},
+			Timeout: testTimeout,
+			NewRequest: func(context.Context) (*http.Request, error) {
+				return nil, nil
+			},
+			Errors: testErrors(),
+		})
+		if !errors.Is(err, errIncompleteCall) {
+			t.Errorf("Post() error = %v, want errIncompleteCall", err)
+		}
+		if got := transport.calls.Load(); got != 0 {
+			t.Errorf("RoundTrip calls = %d, want 0", got)
+		}
+	})
+}
+
+func TestPostRequestBuildError(t *testing.T) {
+	transport := &countingTransport{}
+	buildErr := errors.New("build request failed")
+	_, err := Post(context.Background(), Call{
+		Client:  &http.Client{Transport: transport},
+		Timeout: testTimeout,
+		NewRequest: func(context.Context) (*http.Request, error) {
+			return nil, buildErr
+		},
+		Errors: testErrors(),
+	})
+	if !errors.Is(err, buildErr) {
+		t.Errorf("Post() error = %v, want the NewRequest error", err)
+	}
+	if got := transport.calls.Load(); got != 0 {
+		t.Errorf("RoundTrip calls = %d, want 0", got)
+	}
 }
 
 func TestPostNoRedirect(t *testing.T) {
