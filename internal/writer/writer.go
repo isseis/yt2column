@@ -21,7 +21,7 @@ type Article struct {
 	ModelVersion string // opaque, provider-defined; empty when the provider reports none
 }
 
-// StepModel is the model one post-generation step's LLM call reported.
+// StepModel is the model one step's LLM call reported.
 type StepModel struct {
 	Model        string
 	ModelVersion string // empty when the provider reports none
