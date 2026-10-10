@@ -784,6 +784,57 @@ func TestWriterImports(t *testing.T) {
 	}
 }
 
+// TestConfigImports checks that the configuration loader and the Claude
+// parameter types stay independent of the network and of the LLM adapters: no
+// non-test Go file directly in internal/config or internal/llm/claudeparam
+// directly imports the network packages or an internal/llm package other than
+// claudeparam. A direct import of an adapter would pull net/http into the CLI's
+// startup path.
+func TestConfigImports(t *testing.T) {
+	const (
+		module          = "github.com/isseis/yt2column/"
+		llmPrefix       = module + "internal/llm/"
+		claudeparamPath = module + "internal/llm/claudeparam"
+	)
+	var paths []string
+	for _, pattern := range []string{"../config/*.go", "../llm/claudeparam/*.go"} {
+		matches, err := filepath.Glob(pattern)
+		if err != nil {
+			t.Fatalf("glob %s: %v", pattern, err)
+		}
+		paths = append(paths, matches...)
+	}
+	if len(paths) == 0 {
+		t.Fatal("found no Go files in internal/config and internal/llm/claudeparam")
+	}
+	fset := token.NewFileSet()
+	for _, path := range paths {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly|parser.ParseComments)
+		if err != nil {
+			t.Fatalf("parse %s: %v", path, err)
+		}
+		if isTestOnlyFile(file) {
+			continue
+		}
+		for _, imp := range file.Imports {
+			ipath, err := strconv.Unquote(imp.Path.Value)
+			if err != nil {
+				t.Fatalf("%s: unquote %s: %v", path, imp.Path.Value, err)
+			}
+			switch {
+			case ipath == "net" || strings.HasPrefix(ipath, "net/"):
+				t.Errorf("%s imports %s", path, ipath)
+			case ipath == claudeparamPath:
+			case strings.HasPrefix(ipath, llmPrefix):
+				t.Errorf("%s imports %s", path, ipath)
+			}
+		}
+	}
+}
+
 // writerTemplateContract is the template contract as declared in the
 // internal/writer source.
 type writerTemplateContract struct {

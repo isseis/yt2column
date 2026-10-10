@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/isseis/yt2column/internal/llm/claudeparam"
 	"github.com/isseis/yt2column/internal/secret"
 	"github.com/isseis/yt2column/internal/slackwebhook"
 )
@@ -21,24 +22,31 @@ type Provider int
 const (
 	ProviderUnset Provider = iota
 	ProviderDeepSeek
+	ProviderClaude
 )
 
 // Names of the environment variables Load reads.
 const (
-	providerEnv       = "YT2COLUMN_LLM_PROVIDER"
-	modelEnv          = "YT2COLUMN_MODEL"
-	deepSeekAPIKeyEnv = "DEEPSEEK_API_KEY" //nolint:gosec // the variable's name, not a credential value
-	slackEnv          = "SLACK_WEBHOOK_URL"
-	cacheDirEnv       = "YT2COLUMN_CACHE_DIR"
-	ytDlpEnv          = "YT2COLUMN_YTDLP_PATH"
-	godebugEnv        = "GODEBUG"
+	providerEnv             = "YT2COLUMN_LLM_PROVIDER"
+	modelEnv                = "YT2COLUMN_MODEL"
+	deepSeekAPIKeyEnv       = "DEEPSEEK_API_KEY"  //nolint:gosec // the variable's name, not a credential value
+	anthropicAPIKeyEnv      = "ANTHROPIC_API_KEY" //nolint:gosec // the variable's name, not a credential value
+	claudeEffortEnv         = "YT2COLUMN_CLAUDE_EFFORT"
+	anthropicWorkspaceIDEnv = "ANTHROPIC_WORKSPACE_ID"
+	slackEnv                = "SLACK_WEBHOOK_URL"
+	cacheDirEnv             = "YT2COLUMN_CACHE_DIR"
+	ytDlpEnv                = "YT2COLUMN_YTDLP_PATH"
+	godebugEnv              = "GODEBUG"
 )
 
-// providerDeepSeek is the only accepted value of providerEnv.
-const providerDeepSeek = "deepseek"
+// The accepted values of providerEnv.
+const (
+	providerDeepSeek = "deepseek"
+	providerClaude   = "claude"
+)
 
 // The GODEBUG values that turn on the Go HTTP/2 transport's verbose log, which
-// writes the Authorization header to standard error.
+// writes every request header, the API key headers included, to standard error.
 const (
 	http2DebugInfo    = "1"
 	http2DebugVerbose = "2"
@@ -48,11 +56,13 @@ const (
 // constants and built from nothing else, so a rejected value cannot reach an
 // error message.
 const (
-	reasonUnset          = "is unset or empty"
-	reasonProvider       = `must be exactly "deepseek"`
-	reasonSlackWebhook   = "must be an https URL with a host"
-	reasonCacheDir       = "must be an absolute path"
-	reasonCacheDirAbsent = "no absolute default could be derived from HOME or XDG_CACHE_HOME"
+	reasonUnset                = "is unset or empty"
+	reasonProvider             = `must be exactly "deepseek" or "claude"`
+	reasonClaudeEffort         = "must be a supported effort value"
+	reasonAnthropicWorkspaceID = "must be a non-empty string of printable ASCII characters other than space"
+	reasonSlackWebhook         = "must be an https URL with a host"
+	reasonCacheDir             = "must be an absolute path"
+	reasonCacheDirAbsent       = "no absolute default could be derived from HOME or XDG_CACHE_HOME"
 )
 
 // LookupFunc has the signature of os.LookupEnv. Load reads every variable
@@ -89,13 +99,16 @@ func (e *VarError) Unwrap() error {
 // Config is the validated configuration. Its fields are unexported, so a
 // non-zero Config can only come from Load.
 type Config struct {
-	provider          Provider
-	model             string
-	deepSeekAPIKey    secret.Secret
-	slackWebhookURL   secret.Secret
-	cacheDir          string
-	ytDlpPath         string
-	http2DebugEnabled bool
+	provider             Provider
+	model                string
+	deepSeekAPIKey       secret.Secret
+	anthropicAPIKey      secret.Secret
+	claudeEffort         claudeparam.Effort
+	anthropicWorkspaceID claudeparam.WorkspaceID
+	slackWebhookURL      secret.Secret
+	cacheDir             string
+	ytDlpPath            string
+	http2DebugEnabled    bool
 }
 
 // Provider returns the LLM provider.
@@ -112,6 +125,24 @@ func (c Config) Model() string {
 // ProviderDeepSeek.
 func (c Config) DeepSeekAPIKey() secret.Secret {
 	return c.deepSeekAPIKey
+}
+
+// AnthropicAPIKey returns the Anthropic API key. It is non-zero when the
+// provider is ProviderClaude.
+func (c Config) AnthropicAPIKey() secret.Secret {
+	return c.anthropicAPIKey
+}
+
+// ClaudeEffort returns the effort. It is not claudeparam.EffortUnset when
+// the provider is ProviderClaude.
+func (c Config) ClaudeEffort() claudeparam.Effort {
+	return c.claudeEffort
+}
+
+// AnthropicWorkspaceID returns the workspace ID. It is the zero value when
+// ANTHROPIC_WORKSPACE_ID is unset or the provider is not ProviderClaude.
+func (c Config) AnthropicWorkspaceID() claudeparam.WorkspaceID {
+	return c.anthropicWorkspaceID
 }
 
 // SlackWebhookURL returns the Webhook URL and whether one is configured.
@@ -157,7 +188,7 @@ func Load(lookup LookupFunc) (Config, error) {
 	errs := []error{
 		loadProvider(lookup, &cfg),
 		loadModel(lookup, &cfg),
-		loadDeepSeekAPIKey(lookup, &cfg),
+		loadProviderVars(lookup, &cfg),
 		loadSlackWebhook(lookup, &cfg),
 		loadCacheDir(lookup, &cfg),
 		loadYtDlpPath(lookup, &cfg),
@@ -181,8 +212,31 @@ func loadProvider(lookup LookupFunc, cfg *Config) error {
 	case value == providerDeepSeek:
 		cfg.provider = ProviderDeepSeek
 		return nil
+	case value == providerClaude:
+		cfg.provider = ProviderClaude
+		return nil
 	default:
 		return invalidVar(providerEnv, reasonProvider)
+	}
+}
+
+// loadProviderVars reads the variables of the selected provider and no others.
+// It reads nothing when the provider is unset, which happens only when
+// YT2COLUMN_LLM_PROVIDER was rejected, so an invalid provider is reported
+// alone and no provider variable rejects a value the user did not intend to
+// use.
+func loadProviderVars(lookup LookupFunc, cfg *Config) error {
+	switch cfg.provider {
+	case ProviderDeepSeek:
+		return loadDeepSeekAPIKey(lookup, cfg)
+	case ProviderClaude:
+		return errors.Join(
+			loadAnthropicAPIKey(lookup, cfg),
+			loadClaudeEffort(lookup, cfg),
+			loadAnthropicWorkspaceID(lookup, cfg),
+		)
+	default:
+		return nil
 	}
 }
 
@@ -196,27 +250,70 @@ func loadModel(lookup LookupFunc, cfg *Config) error {
 	return nil
 }
 
-// loadDeepSeekAPIKey validates DEEPSEEK_API_KEY, which is required when the provider is
-// deepseek. An empty value is rejected however the provider is set; a non-empty
-// value is kept only for deepseek.
+// loadDeepSeekAPIKey validates DEEPSEEK_API_KEY, which is required when the
+// provider is deepseek. It is called only for that provider, so the variable is
+// never read, and never rejected, for another provider.
 func loadDeepSeekAPIKey(lookup LookupFunc, cfg *Config) error {
 	value, ok := lookup(deepSeekAPIKeyEnv)
+	if !ok || value == "" {
+		return missingVar(deepSeekAPIKeyEnv)
+	}
+	key, err := secret.New(value)
+	if err != nil {
+		return missingVar(deepSeekAPIKeyEnv)
+	}
+	cfg.deepSeekAPIKey = key
+	return nil
+}
+
+// loadAnthropicAPIKey validates ANTHROPIC_API_KEY, which is required when the
+// provider is claude. It is called only for that provider, so the variable is
+// never read, and never rejected, for another provider.
+func loadAnthropicAPIKey(lookup LookupFunc, cfg *Config) error {
+	value, ok := lookup(anthropicAPIKeyEnv)
+	if !ok || value == "" {
+		return missingVar(anthropicAPIKeyEnv)
+	}
+	key, err := secret.New(value)
+	if err != nil {
+		return missingVar(anthropicAPIKeyEnv)
+	}
+	cfg.anthropicAPIKey = key
+	return nil
+}
+
+// loadClaudeEffort validates YT2COLUMN_CLAUDE_EFFORT, which is required when
+// the provider is claude. It is called only for that provider. The accepted
+// values live in claudeparam and are not repeated here.
+func loadClaudeEffort(lookup LookupFunc, cfg *Config) error {
+	value, ok := lookup(claudeEffortEnv)
+	if !ok || value == "" {
+		return missingVar(claudeEffortEnv)
+	}
+	effort, err := claudeparam.ParseEffort(value)
+	if err != nil {
+		return invalidVar(claudeEffortEnv, reasonClaudeEffort)
+	}
+	cfg.claudeEffort = effort
+	return nil
+}
+
+// loadAnthropicWorkspaceID validates ANTHROPIC_WORKSPACE_ID, which is optional
+// when the provider is claude. It is called only for that provider: unset is
+// accepted, and a present value must satisfy claudeparam.ParseWorkspaceID.
+func loadAnthropicWorkspaceID(lookup LookupFunc, cfg *Config) error {
+	value, ok := lookup(anthropicWorkspaceIDEnv)
 	switch {
 	case !ok:
-		if cfg.provider == ProviderDeepSeek {
-			return missingVar(deepSeekAPIKeyEnv)
-		}
 		return nil
 	case value == "":
-		return missingVar(deepSeekAPIKeyEnv)
-	case cfg.provider != ProviderDeepSeek:
-		return nil
+		return missingVar(anthropicWorkspaceIDEnv)
 	default:
-		key, err := secret.New(value)
+		workspaceID, err := claudeparam.ParseWorkspaceID(value)
 		if err != nil {
-			return missingVar(deepSeekAPIKeyEnv)
+			return invalidVar(anthropicWorkspaceIDEnv, reasonAnthropicWorkspaceID)
 		}
-		cfg.deepSeekAPIKey = key
+		cfg.anthropicWorkspaceID = workspaceID
 		return nil
 	}
 }

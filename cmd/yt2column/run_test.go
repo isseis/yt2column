@@ -1406,6 +1406,34 @@ func TestConfiguredSecretsIncludesWebhookParts(t *testing.T) {
 	}
 }
 
+// TestConfiguredSecretsIncludesAnthropicAPIKey checks that a claude
+// configuration's Anthropic API key, and a line holding only its last eight
+// characters, are both redacted.
+func TestConfiguredSecretsIncludesAnthropicAPIKey(t *testing.T) {
+	const key = "sk-ant-APIKEYVALUE-0123456789-TAIL8ANT"
+	env := map[string]string{
+		"YT2COLUMN_LLM_PROVIDER":  "claude",
+		"YT2COLUMN_MODEL":         "claude-opus-5-5",
+		"ANTHROPIC_API_KEY":       key,
+		"YT2COLUMN_CLAUDE_EFFORT": "high",
+		"YT2COLUMN_CACHE_DIR":     t.TempDir(),
+	}
+	cfg, err := config.Load(lookupFrom(env))
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
+	}
+	if _, err := cfg.AnthropicAPIKey().Reveal(); err != nil {
+		t.Fatalf("AnthropicAPIKey().Reveal() error = %v", err)
+	}
+	tail := key[len(key)-8:]
+	if got := sanitize("POST with "+key+" failed", configuredSecrets(cfg)...); strings.Contains(got, key) {
+		t.Errorf("sanitize left the Anthropic API key: %q", got)
+	}
+	if got := sanitize("short tail "+tail+" seen", configuredSecrets(cfg)...); strings.Contains(got, tail) {
+		t.Errorf("sanitize left the Anthropic API key tail: %q", got)
+	}
+}
+
 // TestTestDepsSlackPublisherDoesNotSend checks that the default
 // newSlackPublisher of testDeps and of newRunEnv sends nothing: a --slack run
 // stops at building the publisher with the stub's error.

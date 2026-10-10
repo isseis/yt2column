@@ -56,7 +56,7 @@ var envMethodNames = func() map[string]bool {
 
 // secretEnvNames are the secret variable names that may appear only in
 // internal/config.
-var secretEnvNames = []string{"DEEPSEEK_API_KEY", "SLACK_WEBHOOK_URL"}
+var secretEnvNames = []string{"DEEPSEEK_API_KEY", "ANTHROPIC_API_KEY", "SLACK_WEBHOOK_URL"}
 
 // allowedEnvRefs lists the only production references allowed outside
 // internal/config, by repo-relative slash path and by reference key with the
