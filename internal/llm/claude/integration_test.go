@@ -35,7 +35,21 @@ func TestIntegrationGenerate(t *testing.T) {
 	default:
 		t.Skip(settings.Reason)
 	}
+	// The configured model is operator-supplied and is logged as a
+	// diagnostic, so guard it the same way as the response's Model below: a
+	// value that embeds the API key (for example a shell mishap when setting
+	// the model variable) must fail rather than appear in the output. The
+	// failure message names the field only, never its value or the key.
+	key, err := settings.APIKey.Reveal()
+	if err != nil {
+		t.Fatal("the API key cannot be revealed")
+	}
 	_, workspaceSpecified := settings.WorkspaceID.Value()
+	if strings.Contains(settings.Model, key) {
+		t.Fatal("the configured model contains the API key; it is not logged")
+	}
+	// The model name is an untrusted string; %+q escapes control and non-ASCII
+	// characters so it cannot alter the terminal or log.
 	t.Logf("model %+q, effort %s, workspace id specified %t", settings.Model, settings.Effort, workspaceSpecified)
 	value, err := New(integrationClientOptions(settings))
 	if err != nil {
@@ -65,10 +79,6 @@ func TestIntegrationGenerate(t *testing.T) {
 		// TLS-terminating proxy could echo the API key into it, and logging
 		// it would then write the live key to the test output. The failure
 		// message names the field only, never its value or the key.
-		key, err := settings.APIKey.Reveal()
-		if err != nil {
-			t.Fatal("the API key cannot be revealed")
-		}
 		if strings.Contains(response.Model, key) {
 			t.Fatal("Generate() Model contains the API key; it is not logged")
 		}
