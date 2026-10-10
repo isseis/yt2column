@@ -160,6 +160,50 @@ func TestObjectCollect(t *testing.T) {
 	})
 }
 
+func TestObjectCollectOnly(t *testing.T) {
+	t.Run("accepts listed keys with one missing", func(t *testing.T) {
+		object, err := ParseObject([]byte(`{"a":1}`))
+		if err != nil {
+			t.Fatalf("ParseObject error = %v", err)
+		}
+		consumed, err := object.CollectOnly("a", "b")
+		if err != nil {
+			t.Fatalf("CollectOnly error = %v", err)
+		}
+		if len(consumed) != 1 {
+			t.Fatalf("CollectOnly returned %d members, want 1", len(consumed))
+		}
+		if value, err := consumed["a"].AsInt64(); err != nil || value != 1 {
+			t.Errorf("a = %d, %v; want 1, nil", value, err)
+		}
+	})
+
+	rejected := map[string]struct {
+		document string
+		keys     []string
+		target   error
+	}{
+		"unlisted key":           {`{"a":1,"marker-leak":2}`, []string{"a"}, errUnlistedMember},
+		"duplicate unlisted key": {`{"marker-leak":1,"marker-leak":2}`, []string{"a"}, errUnlistedMember},
+		"duplicate listed key":   {`{"marker-leak":1,"marker-leak":2}`, []string{"marker-leak"}, errDuplicateMember},
+	}
+	for name, tc := range rejected {
+		t.Run("rejects "+name, func(t *testing.T) {
+			object, err := ParseObject([]byte(tc.document))
+			if err != nil {
+				t.Fatalf("ParseObject error = %v", err)
+			}
+			_, err = object.CollectOnly(tc.keys...)
+			if !errors.Is(err, tc.target) {
+				t.Errorf("CollectOnly error = %v, want %v", err, tc.target)
+			}
+			if err != nil && strings.Contains(err.Error(), "marker-leak") {
+				t.Errorf("CollectOnly error = %q, must not contain the key", err.Error())
+			}
+		})
+	}
+}
+
 func TestObjectHas(t *testing.T) {
 	object, err := ParseObject([]byte(`{"a":null,"b":{}}`))
 	if err != nil {
@@ -432,6 +476,48 @@ func TestValueAccessors(t *testing.T) {
 		}
 		if want := []string{"first", "second"}; !reflect.DeepEqual(got, want) {
 			t.Errorf("array = %v, want %v", got, want)
+		}
+	})
+}
+
+func TestValueAsBool(t *testing.T) {
+	t.Run("accepts true and false", func(t *testing.T) {
+		object, err := ParseObject([]byte(`{"true":true,"false":false}`))
+		if err != nil {
+			t.Fatalf("ParseObject error = %v", err)
+		}
+		consumed, err := object.Collect("true", "false")
+		if err != nil {
+			t.Fatalf("Collect error = %v", err)
+		}
+		if value, err := consumed["true"].AsBool(); err != nil || !value {
+			t.Errorf("AsBool(true) = %v, %v; want true, nil", value, err)
+		}
+		if value, err := consumed["false"].AsBool(); err != nil || value {
+			t.Errorf("AsBool(false) = %v, %v; want false, nil", value, err)
+		}
+	})
+
+	t.Run("rejects other kinds", func(t *testing.T) {
+		object, err := ParseObject([]byte(`{"null":null,"string":"true","number":1}`))
+		if err != nil {
+			t.Fatalf("ParseObject error = %v", err)
+		}
+		consumed, err := object.Collect("null", "string", "number")
+		if err != nil {
+			t.Fatalf("Collect error = %v", err)
+		}
+		for _, key := range []string{"null", "string", "number"} {
+			if _, err := consumed[key].AsBool(); !errors.Is(err, errValueNotBool) {
+				t.Errorf("AsBool(%q) error = %v, want errValueNotBool", key, err)
+			}
+		}
+	})
+
+	t.Run("rejects the zero value", func(t *testing.T) {
+		var zero Value
+		if _, err := zero.AsBool(); !errors.Is(err, errZeroValue) {
+			t.Errorf("AsBool error = %v, want errZeroValue", err)
 		}
 	})
 }

@@ -35,8 +35,10 @@ var (
 	errZeroValue         = errors.New("value is unset")
 	errNonStringKey      = errors.New("JSON object key is not a string")
 	errDuplicateMember   = errors.New("duplicate consumed member")
+	errUnlistedMember    = errors.New("unlisted member")
 	errValueNotString    = errors.New("value is not a string")
 	errValueNotNumber    = errors.New("value is not a number")
+	errValueNotBool      = errors.New("value is not a boolean")
 	errMissingField      = errors.New("missing required member")
 	errEmptyField        = errors.New("required member is empty")
 )
@@ -88,6 +90,25 @@ func (o Object) Collect(keys ...string) (map[string]Value, error) {
 		}
 		if _, ok := consumed[member.key]; ok {
 			return nil, fmt.Errorf("%w: %q", errDuplicateMember, member.key)
+		}
+		consumed[member.key] = Value{raw: member.raw}
+	}
+	return consumed, nil
+}
+
+// CollectOnly returns the consumed members by key. Unlike Collect, it rejects
+// any member whose key is not listed (a duplicate of an unlisted key included)
+// as well as a listed key that appears more than once. A listed key need not be
+// present. The errors name the broken rule only, never a key, because keys are
+// untrusted and unbounded in length.
+func (o Object) CollectOnly(keys ...string) (map[string]Value, error) {
+	consumed := make(map[string]Value, len(keys))
+	for _, member := range o.members {
+		if !slices.Contains(keys, member.key) {
+			return nil, errUnlistedMember
+		}
+		if _, ok := consumed[member.key]; ok {
+			return nil, errDuplicateMember
 		}
 		consumed[member.key] = Value{raw: member.raw}
 	}
@@ -163,6 +184,22 @@ func (v Value) AsString() (string, error) {
 		return "", errValueNotString
 	}
 	return text, nil
+}
+
+// AsBool returns the value as a boolean, rejecting null and other kinds.
+func (v Value) AsBool() (bool, error) {
+	if v.raw == nil {
+		return false, errZeroValue
+	}
+	token, err := newRawDecoder(v.raw).Token()
+	if err != nil {
+		return false, err
+	}
+	value, ok := token.(bool)
+	if !ok {
+		return false, errValueNotBool
+	}
+	return value, nil
 }
 
 // AsInt64 returns the value as an integer, rejecting non-numbers and
