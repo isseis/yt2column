@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-10 |
-| Review date | - |
-| Reviewer | - |
-| Comments | - |
+| Review date | 2026-10-10 |
+| Reviewer | isseis |
+| Comments | 2026-10-10 編集上の修正（決定の変更なし）: 実装計画の作成時に、§3.12 の「更新が要る既存のテスト」に、`writer.Article` のフィールドを固定する `TestCommonTypesFieldSets` と、`prompts/README.md` を検査する `TestPromptsREADMEMatchesContract` の更新を加えた。 |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md) の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §3.11）を指す。既存のコードの行番号は、コミット `ce9ee27`（要件の承認のコミット。コードは `ef603fd` と同じ）で確かめたものである。
 
@@ -768,7 +768,7 @@ func (e *ReviewLogError) Unwrap() error
 
 | ファイル | 変更 | 責務 | 更新が要る既存のテスト |
 |---|---|---|---|
-| `internal/writer/writer.go` | 変更 | `Options`・`Article`・`StepModel` の拡張、`New` の検査と段階のテンプレートの読み込み、`Write` の段階の順序 | なし（`Options{}` では段階を行わず、`Article` は比較できるまま）|
+| `internal/writer/writer.go` | 変更 | `Options`・`Article`・`StepModel` の拡張、`New` の検査と段階のテンプレートの読み込み、`Write` の段階の順序 | `internal/pipeline/pipeline_test.go` の `TestCommonTypesFieldSets`: `Article` の行に `Shorten`・`Review` を加える。ほかはなし（`Options{}` では段階を行わず、`Article` は比較できるまま）|
 | `internal/writer/length.go` | 新設 | 本文の字数、`maxBodyChars`・`targetBodyChars` | — |
 | `internal/writer/shorten.go` | 新設 | 字数の調整の段階 | — |
 | `internal/writer/review.go` | 新設 | 検証・推敲の段階、応答の検査、当てはめ | — |
@@ -782,7 +782,7 @@ func (e *ReviewLogError) Unwrap() error
 | `internal/llm/testutil/mocks.go` | 変更 | 呼び出しの順に別の応答を返す fake の追加（生成と字数の調整が同じ `LLMClient` を使うため）| なし |
 | `prompts/prompts.go` | 変更 | 4 つのテンプレートの埋め込みと取り出し | なし |
 | `prompts/shorten_system.tmpl`・`shorten_user.tmpl`・`review_system.tmpl`・`review_user.tmpl` | 新設 | 既定の文言 | — |
-| `prompts/README.md` | 変更 | 段階のテンプレートと参照できる値 | — |
+| `prompts/README.md` | 変更 | 段階のテンプレートと参照できる値 | `internal/pipeline/pipeline_test.go` の `TestPromptsREADMEMatchesContract`: 3 つのデータ型（埋め込みのフィールドを含む）と README の表を比べる形に広げる |
 | `internal/strictjson/strictjson.go` | 変更 | `Object.CollectOnly`・`Value.AsBool` | なし |
 | `internal/config/config.go` | 変更 | 検証・推敲の設定、プロバイダ固有の変数を読む条件 | `config_test.go`: 行を加える（既存の行の期待は変わらない）|
 | `internal/llm/provider/provider.go` | 変更 | `NewReview`、`newClient` の引数の変更（§3.7）| `provider_test.go`: `newClient` の呼び出し（132 行目・178 行目）を、モデルと `cfg` を渡す形に改める（期待は変えない）|
