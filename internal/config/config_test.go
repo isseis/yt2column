@@ -290,16 +290,7 @@ func TestLoadClaudeMissing(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := Load(envLookup(tc.env))
-			if !errors.Is(err, ErrMissing) {
-				t.Fatalf("Load() error = %v, want ErrMissing", err)
-			}
-			varErr, ok := errors.AsType[*VarError](err)
-			if !ok {
-				t.Fatalf("Load() error = %v, want *VarError", err)
-			}
-			if varErr.Name != tc.wantVar {
-				t.Errorf("VarError.Name = %q, want %q", varErr.Name, tc.wantVar)
-			}
+			assertVarError(t, err, ErrMissing, tc.wantVar)
 		})
 	}
 }

@@ -20,7 +20,6 @@ import (
 	"github.com/isseis/yt2column/internal/config"
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/llm/claude"
-	"github.com/isseis/yt2column/internal/llm/claudeparam"
 	"github.com/isseis/yt2column/internal/llm/deepseek"
 	"github.com/isseis/yt2column/internal/llm/llmhttp/llmhttptest"
 	llmtestutil "github.com/isseis/yt2column/internal/llm/testutil"
@@ -253,24 +252,40 @@ func TestNewUnknownProvider(t *testing.T) {
 }
 
 // TestNewClaudeSendsConfiguredRequest verifies that newClient builds the Claude
-// adapter with the configured API key, model, effort, workspace ID, and
-// LLMTimeout, and that the built client sends those values to the loopback
-// destination.
+// adapter with the configured API key, model, effort, and workspace ID, and
+// that the built client sends those values to the loopback destination.
 func TestNewClaudeSendsConfiguredRequest(t *testing.T) {
 	body, err := os.ReadFile(claudeEndTurnFixture) //nolint:gosec // the path names a committed testdata fixture
 	if err != nil {
 		t.Fatalf("read fixture: %v", err)
 	}
-	efforts := []struct {
-		value string
-		want  claudeparam.Effort
-	}{
-		{"low", claudeparam.EffortLow},
-		{"medium", claudeparam.EffortMedium},
-		{"high", claudeparam.EffortHigh},
-		{"xhigh", claudeparam.EffortXHigh},
-		{"max", claudeparam.EffortMax},
+	efforts := []string{"low", "medium", "high", "xhigh", "max"}
+	for _, effort := range efforts {
+		t.Run(effort, func(t *testing.T) {
+			env := claudeValidEnv()
+			env["YT2COLUMN_CLAUDE_EFFORT"] = effort
+			recorded := claudeRequestFor(t, env, body)
+			if got := recorded.Header.Get("x-api-key"); got != testAPIKey {
+				t.Errorf("x-api-key = %q, want the test key", got)
+			}
+			var decoded struct {
+				Model        string `json:"model"`
+				OutputConfig struct {
+					Effort string `json:"effort"`
+				} `json:"output_config"`
+			}
+			if err := json.Unmarshal(recorded.Body, &decoded); err != nil {
+				t.Fatalf("decode request body: %v", err)
+			}
+			if decoded.Model != testClaudeModel {
+				t.Errorf("request model = %q, want %q", decoded.Model, testClaudeModel)
+			}
+			if decoded.OutputConfig.Effort != effort {
+				t.Errorf("output_config.effort = %q, want %q", decoded.OutputConfig.Effort, effort)
+			}
+		})
 	}
+
 	workspaces := []struct {
 		name  string
 		value string
@@ -278,60 +293,42 @@ func TestNewClaudeSendsConfiguredRequest(t *testing.T) {
 		{"with workspace", testClaudeWorkspaceID},
 		{"without workspace", ""},
 	}
-	for _, effort := range efforts {
-		for _, workspace := range workspaces {
-			t.Run(effort.value+"/"+workspace.name, func(t *testing.T) {
-				env := claudeValidEnv()
-				env["YT2COLUMN_CLAUDE_EFFORT"] = effort.value
-				if workspace.value != "" {
-					env["ANTHROPIC_WORKSPACE_ID"] = workspace.value
-				}
-				cfg := loadConfig(t, env)
-				server, recorder := llmhttptest.NewRecordingServer(t, body)
-
-				var received claude.Options
-				build := func(opts claude.Options) (llm.LLMClient, error) {
-					received = opts
-					return claude.NewForLoopbackTest(t, opts, server.URL), nil
-				}
-				client, err := newClient(cfg.Provider(), cfg, builders{claude: build})
-				if err != nil {
-					t.Fatalf("newClient() error = %v", err)
-				}
-				if received.Timeout != 15*time.Minute {
-					t.Errorf("build received Timeout = %v, want 15m", received.Timeout)
-				}
-				if received.Effort != effort.want {
-					t.Errorf("build received Effort = %v, want %v", received.Effort, effort.want)
-				}
-				if _, err := client.Generate(context.Background(), llm.GenerateRequest{SystemPrompt: "system", UserPrompt: "user"}); err != nil {
-					t.Fatalf("Generate() error = %v", err)
-				}
-				recorded := recorder.Only(t)
-				if got := recorded.Header.Get("x-api-key"); got != testAPIKey {
-					t.Errorf("x-api-key = %q, want the test key", got)
-				}
-				if got := recorded.Header.Get("anthropic-workspace-id"); got != workspace.value {
-					t.Errorf("anthropic-workspace-id = %q, want %q", got, workspace.value)
-				}
-				var decoded struct {
-					Model        string `json:"model"`
-					OutputConfig struct {
-						Effort string `json:"effort"`
-					} `json:"output_config"`
-				}
-				if err := json.Unmarshal(recorded.Body, &decoded); err != nil {
-					t.Fatalf("decode request body: %v", err)
-				}
-				if decoded.Model != testClaudeModel {
-					t.Errorf("request model = %q, want %q", decoded.Model, testClaudeModel)
-				}
-				if decoded.OutputConfig.Effort != effort.value {
-					t.Errorf("output_config.effort = %q, want %q", decoded.OutputConfig.Effort, effort.value)
-				}
-			})
-		}
+	for _, workspace := range workspaces {
+		t.Run(workspace.name, func(t *testing.T) {
+			env := claudeValidEnv()
+			if workspace.value != "" {
+				env["ANTHROPIC_WORKSPACE_ID"] = workspace.value
+			}
+			recorded := claudeRequestFor(t, env, body)
+			if got := recorded.Header.Get("anthropic-workspace-id"); got != workspace.value {
+				t.Errorf("anthropic-workspace-id = %q, want %q", got, workspace.value)
+			}
+		})
 	}
+}
+
+// claudeRequestFor builds the Claude adapter for env through newClient against a
+// recording loopback server that answers with body, sends one Generate, and
+// returns the recorded request. It checks the LLMTimeout the constructor
+// received, which no request field exposes.
+func claudeRequestFor(t *testing.T, env map[string]string, body []byte) llmhttptest.Recorded {
+	t.Helper()
+	cfg := loadConfig(t, env)
+	server, recorder := llmhttptest.NewRecordingServer(t, body)
+	build := func(opts claude.Options) (llm.LLMClient, error) {
+		if opts.Timeout != 15*time.Minute {
+			t.Errorf("build received Timeout = %v, want 15m", opts.Timeout)
+		}
+		return claude.NewForLoopbackTest(t, opts, server.URL), nil
+	}
+	client, err := newClient(cfg.Provider(), cfg, builders{claude: build})
+	if err != nil {
+		t.Fatalf("newClient() error = %v", err)
+	}
+	if _, err := client.Generate(context.Background(), llm.GenerateRequest{SystemPrompt: "system", UserPrompt: "user"}); err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	return recorder.Only(t)
 }
 
 // TestNewUsesClaudeAdapter verifies that New passes the production Claude
