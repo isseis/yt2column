@@ -10,6 +10,8 @@ var (
 	ErrMalformedOutput   = errors.New("malformed LLM output")
 	// ErrInvalidArticle is returned by Article.CheckPublishable.
 	ErrInvalidArticle = errors.New("invalid article")
+	// ErrInvalidReview is returned by ReviewResult.Check.
+	ErrInvalidReview = errors.New("invalid review result")
 )
 
 var (
@@ -38,4 +40,23 @@ var (
 	// errLeadingBOM is wrapped together with ErrMalformedOutput when the body
 	// part still starts with U+FEFF after normalizeBody removed one.
 	errLeadingBOM = errors.New("starts with a byte order mark after normalization")
+)
+
+// Review response rule errors. parseReviewResponse wraps one with
+// ErrMalformedOutput and ReviewResult.Check wraps one with ErrInvalidReview, so
+// a caller can tell which rule rejected a response without seeing a value.
+var (
+	errTooManyRevisions        = errors.New("too many revisions")
+	errRevisionAfterDelete     = errors.New("revision has neither after nor delete, or both")
+	errRevisionDeleteFalse     = errors.New("revision delete is false")
+	errUnknownRevisionAction   = errors.New("revision action is not known")
+	errUnknownRevisionReason   = errors.New("revision reason is not known")
+	errEmptyRevisionBefore     = errors.New("revision before is empty")
+	errRevisionAfterMissing    = errors.New("replacement revision has no after")
+	errRevisionAfterUnexpected = errors.New("deletion revision has an after")
+	errEmptyRevisionEvidence   = errors.New("revision evidence is empty or whitespace only")
+	errRevisionControlChar     = errors.New("revision value contains a control character")
+	errRevisionBeforeNotFound  = errors.New("revision before does not appear in the reviewed text")
+	errRevisionBeforeAmbiguous = errors.New("revision before appears in the reviewed text more than once")
+	errRevisionOverlap         = errors.New("revision ranges overlap")
 )
