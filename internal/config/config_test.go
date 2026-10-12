@@ -456,6 +456,123 @@ func TestLoadIgnoresOtherProviderVars(t *testing.T) {
 	})
 }
 
+// TestLoadReview checks the review provider and model selection rules: both
+// variables unset inherit the generation settings, a model alone reuses the
+// generation provider, and a provider of its own requires a model.
+func TestLoadReview(t *testing.T) {
+	t.Run("both unset inherit the generation settings", func(t *testing.T) {
+		cfg, err := Load(envLookup(validEnv()))
+		if err != nil {
+			t.Fatalf("Load() error = %v, want nil", err)
+		}
+		if cfg.ReviewProvider() != cfg.Provider() {
+			t.Errorf("ReviewProvider() = %v, want Provider() = %v", cfg.ReviewProvider(), cfg.Provider())
+		}
+		if cfg.ReviewModel() != cfg.Model() {
+			t.Errorf("ReviewModel() = %q, want Model() = %q", cfg.ReviewModel(), cfg.Model())
+		}
+	})
+
+	t.Run("model only reuses the generation provider", func(t *testing.T) {
+		const reviewModel = "deepseek-review"
+		env := with(validEnv(), reviewModelEnv, reviewModel)
+		cfg, err := Load(envLookup(env))
+		if err != nil {
+			t.Fatalf("Load() error = %v, want nil", err)
+		}
+		if cfg.ReviewProvider() != ProviderDeepSeek {
+			t.Errorf("ReviewProvider() = %v, want ProviderDeepSeek", cfg.ReviewProvider())
+		}
+		if cfg.ReviewModel() != reviewModel {
+			t.Errorf("ReviewModel() = %q, want %q", cfg.ReviewModel(), reviewModel)
+		}
+	})
+
+	t.Run("provider and model set to a different provider", func(t *testing.T) {
+		const reviewModel = "claude-review"
+		env := validEnv()
+		env = with(env, reviewProviderEnv, "claude")
+		env = with(env, reviewModelEnv, reviewModel)
+		env = with(env, anthropicAPIKeyEnv, "sk-ant-review-key")
+		env = with(env, claudeEffortEnv, "high")
+		cfg, err := Load(envLookup(env))
+		if err != nil {
+			t.Fatalf("Load() error = %v, want nil", err)
+		}
+		if cfg.Provider() != ProviderDeepSeek {
+			t.Errorf("Provider() = %v, want ProviderDeepSeek", cfg.Provider())
+		}
+		if cfg.Model() != env[modelEnv] {
+			t.Errorf("Model() = %q, want %q", cfg.Model(), env[modelEnv])
+		}
+		if cfg.ReviewProvider() != ProviderClaude {
+			t.Errorf("ReviewProvider() = %v, want ProviderClaude", cfg.ReviewProvider())
+		}
+		if cfg.ReviewModel() != reviewModel {
+			t.Errorf("ReviewModel() = %q, want %q", cfg.ReviewModel(), reviewModel)
+		}
+	})
+
+	t.Run("provider without model", func(t *testing.T) {
+		env := with(validEnv(), reviewProviderEnv, "deepseek")
+		_, err := Load(envLookup(env))
+		assertVarError(t, err, ErrMissing, reviewModelEnv)
+	})
+
+	t.Run("invalid provider", func(t *testing.T) {
+		env := with(validEnv(), reviewProviderEnv, "gemini")
+		_, err := Load(envLookup(env))
+		assertVarError(t, err, ErrInvalid, reviewProviderEnv)
+	})
+
+	t.Run("empty provider", func(t *testing.T) {
+		env := with(validEnv(), reviewProviderEnv, "")
+		_, err := Load(envLookup(env))
+		assertVarError(t, err, ErrMissing, reviewProviderEnv)
+	})
+
+	t.Run("empty model", func(t *testing.T) {
+		env := with(validEnv(), reviewModelEnv, "")
+		_, err := Load(envLookup(env))
+		assertVarError(t, err, ErrMissing, reviewModelEnv)
+	})
+}
+
+// TestLoadReviewProviderRequiresItsKey checks that when the review provider
+// differs from the generation provider, the review provider's API key variable
+// is required even though the generation provider's key is present.
+func TestLoadReviewProviderRequiresItsKey(t *testing.T) {
+	claudeReview := func() map[string]string {
+		env := validEnv()
+		env = with(env, reviewProviderEnv, "claude")
+		env = with(env, reviewModelEnv, "claude-review")
+		env = with(env, claudeEffortEnv, "high")
+		return env
+	}
+	deepseekReview := func() map[string]string {
+		env := validClaudeEnv()
+		env = with(env, reviewProviderEnv, "deepseek")
+		env = with(env, reviewModelEnv, "deepseek-review")
+		return env
+	}
+	cases := []struct {
+		name    string
+		env     map[string]string
+		wantVar string
+	}{
+		{"claude review key unset", claudeReview(), anthropicAPIKeyEnv},
+		{"claude review key empty", with(claudeReview(), anthropicAPIKeyEnv, ""), anthropicAPIKeyEnv},
+		{"deepseek review key unset", deepseekReview(), deepSeekAPIKeyEnv},
+		{"deepseek review key empty", with(deepseekReview(), deepSeekAPIKeyEnv, ""), deepSeekAPIKeyEnv},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := Load(envLookup(tc.env))
+			assertVarError(t, err, ErrMissing, tc.wantVar)
+		})
+	}
+}
+
 // assertVarError checks that err wraps sentinel and names exactly one variable,
 // wantVar.
 func assertVarError(t *testing.T, err error, sentinel error, wantVar string) {
@@ -550,6 +667,7 @@ func TestLoadErrorsOmitValues(t *testing.T) {
 	const (
 		markProvider        = "MARK-PROVIDER-A1"
 		markModel           = "MARK-MODEL-B2"
+		markReviewProvider  = "MARK-REVIEW-PROVIDER-I9"
 		markAPIKey          = "MARK-APIKEY-C3"
 		markSlack           = "MARK-SLACK-D4"
 		markCache           = "MARK-CACHE-E5"
@@ -558,8 +676,8 @@ func TestLoadErrorsOmitValues(t *testing.T) {
 		markClaudeWorkspace = "MARK-CLAUDE-WKS-C8"
 	)
 	marks := []string{
-		markProvider, markModel, markAPIKey, markSlack, markCache, markYtDlp,
-		markClaudeEffort, markClaudeWorkspace,
+		markProvider, markModel, markReviewProvider, markAPIKey, markSlack,
+		markCache, markYtDlp, markClaudeEffort, markClaudeWorkspace,
 	}
 	base := map[string]string{
 		providerEnv:       "deepseek",
@@ -586,6 +704,7 @@ func TestLoadErrorsOmitValues(t *testing.T) {
 		tails []string
 	}{
 		{"provider invalid", with(base, providerEnv, "gemini-"+markProvider), nil},
+		{"review provider invalid", with(base, reviewProviderEnv, "gemini-"+markReviewProvider), nil},
 		{"model empty", with(base, modelEnv, ""), nil},
 		{"API key empty", with(base, deepSeekAPIKeyEnv, ""), nil},
 		// Each slack webhook row also names the last 8 bytes of its value, so a
