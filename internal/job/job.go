@@ -1,6 +1,7 @@
 // Package job runs one end-to-end job: the file-output pre-checks, the cache
-// directory lock, a prune, the pipeline, and the cache cleanup. It holds no
-// terminal or flag handling, so a caller other than the CLI can use it.
+// directory lock, a prune, the pipeline, the cache cleanup, and the review
+// log. It holds no terminal or flag handling, so a caller other than the CLI
+// can use it.
 package job
 
 import (
@@ -66,7 +67,25 @@ type Request struct {
 	KeepCache bool
 	Writer    writer.ArticleWriter
 	Output    Output
+	// ReviewLog writes the review log after a successful publish. Nil writes
+	// none. When it is set, Writer must run the review step; otherwise the
+	// write fails after the publish.
+	ReviewLog *publisher.ReviewLogWriter
 }
+
+// ReviewLogError reports that writing the review log failed after the
+// article was published. The article at the output is complete; only the
+// review log is missing.
+type ReviewLogError struct {
+	Path string
+	Err  error
+}
+
+func (e *ReviewLogError) Error() string {
+	return fmt.Sprintf("writing the review log to %s failed: %v", e.Path, e.Err)
+}
+
+func (e *ReviewLogError) Unwrap() error { return e.Err }
 
 // Result describes a published run. Warnings holds the prune and cache-removal
 // failures that do not fail the run.
@@ -81,14 +100,20 @@ var (
 )
 
 // Run executes one run: it validates the request, pre-checks a file output's
-// path, takes the cache directory lock, prunes dangling entries, runs the
-// pipeline, and removes the video's cache unless KeepCache is set. A nil error
-// means the article was published.
+// path and the review log path, takes the cache directory lock, prunes
+// dangling entries, runs the pipeline, removes the video's cache unless
+// KeepCache is set, and writes the review log when ReviewLog is set. A nil
+// error means the article was published and the review log, when requested,
+// was written; a *ReviewLogError means the article was published and only
+// writing the review log failed.
 func Run(ctx context.Context, req Request) (Result, error) {
 	if err := validateRequest(req); err != nil {
 		return Result{}, err
 	}
 	if err := precheckOutput(req.Output); err != nil {
+		return Result{}, err
+	}
+	if err := precheckReviewLog(req.ReviewLog); err != nil {
 		return Result{}, err
 	}
 	if err := ctx.Err(); err != nil {
@@ -137,6 +162,11 @@ func Run(ctx context.Context, req Request) (Result, error) {
 			result.Warnings = append(result.Warnings, fmt.Errorf("remove the cache: %w", err))
 		}
 	}
+	if req.ReviewLog != nil {
+		if err := req.ReviewLog.Write(ctx, article); err != nil {
+			return result, &ReviewLogError{Path: req.ReviewLog.Path(), Err: err}
+		}
+	}
 	return result, nil
 }
 
@@ -179,7 +209,10 @@ func validateRequest(req Request) error {
 func precheckOutput(output Output) error {
 	switch output.kind {
 	case outputKindFile:
-		return precheckFileOutput(output.path)
+		if err := precheckPath(output.path); err != nil {
+			return &pipeline.StageError{Stage: pipeline.StagePublish, Err: err}
+		}
+		return nil
 	case outputKindRemote:
 		return nil
 	default:
@@ -188,16 +221,28 @@ func precheckOutput(output Output) error {
 	}
 }
 
-// precheckFileOutput is the file-output pre-check.
-func precheckFileOutput(outPath string) error {
-	if _, err := os.Lstat(outPath); err == nil {
-		return &pipeline.StageError{
-			Stage: pipeline.StagePublish,
-			Err:   fmt.Errorf("%w: %s", publisher.ErrOutputExists, outPath),
-		}
+// precheckReviewLog reports a review log path problem before any expensive
+// work, with the same rules as a file output. It names no pipeline stage: the
+// review log is written after the publish, so it does not belong to one.
+func precheckReviewLog(w *publisher.ReviewLogWriter) error {
+	if w == nil {
+		return nil
+	}
+	if err := precheckPath(w.Path()); err != nil {
+		return fmt.Errorf("the review log path cannot be used: %w", err)
+	}
+	return nil
+}
+
+// precheckPath decides between failing early and proceeding for a path an
+// output will create. The rules are shared by the --out path and the review log
+// path.
+func precheckPath(path string) error {
+	if _, err := os.Lstat(path); err == nil {
+		return fmt.Errorf("%w: %s", publisher.ErrOutputExists, path)
 	}
 
-	info, err := os.Stat(filepath.Dir(outPath))
+	info, err := os.Stat(filepath.Dir(path))
 	if err != nil {
 		// A parent that is missing, unsearchable, or has a non-directory
 		// component can never receive the file, so reject it now instead of
@@ -206,12 +251,12 @@ func precheckFileOutput(outPath string) error {
 		if errors.Is(err, fs.ErrNotExist) ||
 			errors.Is(err, syscall.ENOTDIR) ||
 			errors.Is(err, fs.ErrPermission) {
-			return &pipeline.StageError{Stage: pipeline.StagePublish, Err: fmt.Errorf("%w: the directory cannot be used", errOutputParent)}
+			return fmt.Errorf("%w: the directory cannot be used", errOutputParent)
 		}
 		return nil
 	}
 	if !info.IsDir() {
-		return &pipeline.StageError{Stage: pipeline.StagePublish, Err: fmt.Errorf("%w: it is not a directory", errOutputParent)}
+		return fmt.Errorf("%w: it is not a directory", errOutputParent)
 	}
 	return nil
 }

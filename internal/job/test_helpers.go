@@ -48,3 +48,13 @@ func newOutput(t *testing.T, dir string) (outPath string, pub publisher.Publishe
 	}
 	return outPath, pub
 }
+
+// newReviewLogWriter returns a review log writer for path.
+func newReviewLogWriter(t *testing.T, path string) *publisher.ReviewLogWriter {
+	t.Helper()
+	w, err := publisher.NewReviewLogWriter(path)
+	if err != nil {
+		t.Fatalf("NewReviewLogWriter(%q): %v", path, err)
+	}
+	return w
+}

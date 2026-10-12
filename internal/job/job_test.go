@@ -990,3 +990,215 @@ func requireLockAcquirable(t *testing.T, cacheDir string) {
 		t.Fatalf("Close: %v", err)
 	}
 }
+
+// reviewedArticle is validArticle with a review result, so a run with a
+// ReviewLog request can write the log.
+func reviewedArticle() writer.Article {
+	a := validArticle()
+	a.Review = &writer.ReviewResult{Model: writer.StepModel{Model: "review-x", ModelVersion: "r1"}}
+	return a
+}
+
+// publishCreatingLog publishes with inner, then creates logPath, so the later
+// review log link(2) fails because the file already exists.
+type publishCreatingLog struct {
+	inner   publisher.Publisher
+	logPath string
+}
+
+func (p publishCreatingLog) Publish(ctx context.Context, a writer.Article) error {
+	if err := p.inner.Publish(ctx, a); err != nil {
+		return err
+	}
+	return os.WriteFile(p.logPath, []byte("taken"), 0o600)
+}
+
+// TestRunReviewLogWritten runs with a review log path and checks the log is
+// written after the publish and the cache is removed.
+func TestRunReviewLogWritten(t *testing.T) {
+	cacheDir := t.TempDir()
+	seedCache(t, cacheDir, jobVideoID, validSubtitles, infoFor(jobVideoID))
+	outPath, pub := newOutput(t, t.TempDir())
+	tripwire, marker := transcripttestutil.NewTripwire(t, t.TempDir())
+	logPath := filepath.Join(t.TempDir(), "review.log")
+	article := reviewedArticle()
+
+	result, err := Run(context.Background(), Request{
+		VideoURL: jobVideoURL, CacheDir: cacheDir, YtDlpPath: tripwire,
+		Writer:    &writertestutil.FakeArticleWriter{Result: article},
+		Output:    FileOutput(outPath, pub),
+		ReviewLog: newReviewLogWriter(t, logPath),
+	})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if result.Article != article {
+		t.Fatalf("Article = %+v, want %+v", result.Article, article)
+	}
+	data, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("the review log was not written: %v", err)
+	}
+	if !strings.HasPrefix(string(data), "# Review log\n") {
+		t.Fatalf("review log = %q", data)
+	}
+	requireTripwireNotRun(t, marker)
+	for _, name := range transcripttestutil.ListDir(t, cacheDir) {
+		if strings.HasPrefix(name, jobVideoID+".") {
+			t.Errorf("cache entry %q remains after a successful run", name)
+		}
+	}
+}
+
+// TestRunReviewLogPrecheck checks an unusable review log path is refused before
+// any side effect and without a pipeline stage error.
+func TestRunReviewLogPrecheck(t *testing.T) {
+	cases := []struct {
+		name string
+		path func(t *testing.T) string
+	}{
+		{"existing path", func(t *testing.T) string {
+			path := filepath.Join(t.TempDir(), "review.log")
+			if err := os.WriteFile(path, []byte("precious"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			return path
+		}},
+		{"parent is a regular file", func(t *testing.T) string {
+			file := filepath.Join(t.TempDir(), "file")
+			if err := os.WriteFile(file, []byte("x"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			return filepath.Join(file, "review.log")
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			logPath := tc.path(t)
+			cacheDir := filepath.Join(t.TempDir(), "cache")
+			outPath, pub := newOutput(t, t.TempDir())
+			writer := &writertestutil.FakeArticleWriter{Result: reviewedArticle()}
+			tripwire, marker := transcripttestutil.NewTripwire(t, t.TempDir())
+
+			_, err := Run(context.Background(), Request{
+				VideoURL: jobVideoURL, CacheDir: cacheDir, YtDlpPath: tripwire,
+				Writer: writer, Output: FileOutput(outPath, pub),
+				ReviewLog: newReviewLogWriter(t, logPath),
+			})
+			if err == nil {
+				t.Fatal("Run succeeded")
+			}
+			if _, ok := errors.AsType[*pipeline.StageError](err); ok {
+				t.Fatalf("Run error = %v, must not be a pipeline StageError", err)
+			}
+			if len(writer.Calls) != 0 {
+				t.Error("the writer was called")
+			}
+			requireTripwireNotRun(t, marker)
+			requireNoFile(t, outPath)
+			if got := transcripttestutil.ListDir(t, cacheDir); got != nil {
+				t.Errorf("cache directory was created: %v", got)
+			}
+		})
+	}
+}
+
+// TestRunReviewLogNotWrittenOnFailure checks a failed pipeline writes no review
+// log, including a publish failure with a review-bearing article (which would
+// catch writing the log before the publish).
+func TestRunReviewLogNotWrittenOnFailure(t *testing.T) {
+	t.Run("the write step fails", func(t *testing.T) {
+		cacheDir := t.TempDir()
+		seedCache(t, cacheDir, jobVideoID, validSubtitles, infoFor(jobVideoID))
+		outPath, pub := newOutput(t, t.TempDir())
+		tripwire, _ := transcripttestutil.NewTripwire(t, t.TempDir())
+		logPath := filepath.Join(t.TempDir(), "review.log")
+
+		_, err := Run(context.Background(), Request{
+			VideoURL: jobVideoURL, CacheDir: cacheDir, YtDlpPath: tripwire,
+			Writer:    &writertestutil.FakeArticleWriter{Err: errInjectedWrite},
+			Output:    FileOutput(outPath, pub),
+			ReviewLog: newReviewLogWriter(t, logPath),
+		})
+		if !errors.Is(err, errInjectedWrite) {
+			t.Fatalf("Run error = %v, want the injected write error", err)
+		}
+		requireNoFile(t, logPath)
+	})
+	t.Run("the publish step fails", func(t *testing.T) {
+		cacheDir := t.TempDir()
+		seedCache(t, cacheDir, jobVideoID, validSubtitles, infoFor(jobVideoID))
+		outPath, _ := newOutput(t, t.TempDir())
+		tripwire, _ := transcripttestutil.NewTripwire(t, t.TempDir())
+		logPath := filepath.Join(t.TempDir(), "review.log")
+
+		_, err := Run(context.Background(), Request{
+			VideoURL: jobVideoURL, CacheDir: cacheDir, YtDlpPath: tripwire,
+			Writer:    &writertestutil.FakeArticleWriter{Result: reviewedArticle()},
+			Output:    FileOutput(outPath, failPublisher{err: errInjectedPublish}),
+			ReviewLog: newReviewLogWriter(t, logPath),
+		})
+		if !errors.Is(err, errInjectedPublish) {
+			t.Fatalf("Run error = %v, want the injected publish error", err)
+		}
+		requireNoFile(t, logPath)
+		requireNoFile(t, outPath)
+	})
+}
+
+// TestRunReviewLogWriteFailure checks a review log write that fails after the
+// publish returns a *ReviewLogError carrying the published article, the cache
+// removal is already done, and the gathered warnings survive.
+func TestRunReviewLogWriteFailure(t *testing.T) {
+	requireNonRoot(t)
+
+	// A dangling slot that cannot be pruned produces a warning the run must
+	// still return after the review log write fails.
+	cacheDir := t.TempDir()
+	seedCache(t, cacheDir, jobVideoID, validSubtitles, infoFor(jobVideoID))
+	dangling := filepath.Join(cacheDir, otherVideoID+".b")
+	if err := os.MkdirAll(dangling, 0o700); err != nil {
+		t.Fatalf("create dangling slot: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dangling, "file"), []byte("x"), 0o600); err != nil {
+		t.Fatalf("write dangling file: %v", err)
+	}
+	chmodForTest(t, dangling, 0o500)
+
+	outPath, pub := newOutput(t, t.TempDir())
+	tripwire, _ := transcripttestutil.NewTripwire(t, t.TempDir())
+	logPath := filepath.Join(t.TempDir(), "review.log")
+	article := reviewedArticle()
+
+	result, err := Run(context.Background(), Request{
+		VideoURL: jobVideoURL, CacheDir: cacheDir, YtDlpPath: tripwire,
+		Writer:    &writertestutil.FakeArticleWriter{Result: article},
+		Output:    FileOutput(outPath, publishCreatingLog{inner: pub, logPath: logPath}),
+		ReviewLog: newReviewLogWriter(t, logPath),
+	})
+	logErr, ok := errors.AsType[*ReviewLogError](err)
+	if !ok {
+		t.Fatalf("Run error = %v (%T), want *ReviewLogError", err, err)
+	}
+	if logErr.Path != logPath {
+		t.Fatalf("ReviewLogError.Path = %q, want %q", logErr.Path, logPath)
+	}
+	if !errors.Is(err, publisher.ErrOutputExists) {
+		t.Fatalf("Run error = %v, want ErrOutputExists", err)
+	}
+	if result.Article != article {
+		t.Fatalf("Article = %+v, want %+v", result.Article, article)
+	}
+	if len(result.Warnings) == 0 {
+		t.Fatal("the prune warning was discarded when the review log write failed")
+	}
+	if _, statErr := os.Lstat(filepath.Join(cacheDir, jobVideoID+".current")); !errors.Is(statErr, fs.ErrNotExist) {
+		t.Fatalf("the cache was not removed before the review log write: %v", statErr)
+	}
+	if _, statErr := os.Stat(outPath); statErr != nil {
+		t.Fatalf("the article was not published: %v", statErr)
+	}
+	if got, readErr := os.ReadFile(logPath); readErr != nil || string(got) != "taken" {
+		t.Fatalf("the existing review log changed: %q, %v", got, readErr)
+	}
+}

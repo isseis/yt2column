@@ -91,6 +91,40 @@ func TestFilePublisherEmptyModelVersion(t *testing.T) {
 	}
 }
 
+func TestRenderArticleSteps(t *testing.T) {
+	header := "# A title\n\n- Model: model-x\n- Model version: 2026-01-01\n"
+
+	t.Run("shorten then review", func(t *testing.T) {
+		article := validArticle()
+		article.Shorten = &writer.StepModel{Model: "shorten-x", ModelVersion: "s1"}
+		article.Review = &writer.ReviewResult{Model: writer.StepModel{Model: "review-x", ModelVersion: ""}}
+		want := header +
+			"- Shorten model: shorten-x\n- Shorten model version: s1\n" +
+			"- Review model: review-x\n- Review model version: (none)\n\n" + article.Body
+		if got := renderArticle(article); got != want {
+			t.Fatalf("renderArticle = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("only shorten", func(t *testing.T) {
+		article := validArticle()
+		article.Shorten = &writer.StepModel{Model: "shorten-x", ModelVersion: ""}
+		want := header + "- Shorten model: shorten-x\n- Shorten model version: (none)\n\n" + article.Body
+		if got := renderArticle(article); got != want {
+			t.Fatalf("renderArticle = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("only review", func(t *testing.T) {
+		article := validArticle()
+		article.Review = &writer.ReviewResult{Model: writer.StepModel{Model: "review-x", ModelVersion: "r1"}}
+		want := header + "- Review model: review-x\n- Review model version: r1\n\n" + article.Body
+		if got := renderArticle(article); got != want {
+			t.Fatalf("renderArticle = %q, want %q", got, want)
+		}
+	})
+}
+
 func TestFilePublisherExistingPath(t *testing.T) {
 	cases := []struct {
 		name  string

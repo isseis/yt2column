@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/isseis/yt2column/internal/writer"
@@ -31,35 +32,55 @@ const tempPrefix = ".yt2column-"
 // writeChunkSize bounds how many bytes are written between two checks of ctx.
 const writeChunkSize = 32 * 1024
 
-// articleFileMode is the permission of the published file. An article is a
-// non-secret document built from a public video, and the process umask is not
-// applied because the standard library cannot read it without changing it.
+// articleFileMode is the permission of the published file and the review log.
+// Both are non-secret documents built from a public video, and the process
+// umask is not applied because the standard library cannot read it without
+// changing it.
 const articleFileMode = 0o644
 
 // FilePublisher writes an article to one local file and never overwrites.
-//
-// Contract: the output path only ever names a complete, synced file. The
-// article is written to a temporary file in the same directory and given its
-// final name with link(2), which fails with EEXIST when anything already has
-// that name and does not follow symbolic links, so a file created between a
-// check and the creation is never replaced.
 type FilePublisher struct {
-	path string
-
-	// Seams for tests; NewFilePublisher sets the production values.
-	wrapWriter func(io.Writer) io.Writer
-	link       func(oldname, newname string) error
+	file *atomicFile
 }
 
 var _ Publisher = (*FilePublisher)(nil)
 
 // NewFilePublisher returns a publisher for path. An empty path is an error.
 func NewFilePublisher(path string) (*FilePublisher, error) {
+	file, err := newAtomicFile(path, tempPrefix)
+	if err != nil {
+		return nil, err
+	}
+	return &FilePublisher{file: file}, nil
+}
+
+// atomicFile writes content to one new file and never overwrites.
+//
+// Contract: the output path only ever names a complete, synced file. The
+// content is written to a temporary file in the same directory and given its
+// final name with link(2), which fails with EEXIST when anything already has
+// that name and does not follow symbolic links, so a file created between a
+// check and the creation is never replaced.
+type atomicFile struct {
+	path string
+	// prefix starts the temporary file's name. Each output kind passes its
+	// own, so a kept temporary file on disk shows which kind wrote it.
+	prefix string
+
+	// Seams for tests; newAtomicFile sets the production values.
+	wrapWriter func(io.Writer) io.Writer
+	link       func(oldname, newname string) error
+}
+
+// newAtomicFile returns an atomicFile for path whose temporary files start
+// with prefix. An empty path is an error.
+func newAtomicFile(path, prefix string) (*atomicFile, error) {
 	if path == "" {
 		return nil, errEmptyPath
 	}
-	return &FilePublisher{
+	return &atomicFile{
 		path:       path,
+		prefix:     prefix,
 		wrapWriter: func(w io.Writer) io.Writer { return w },
 		link:       os.Link,
 	}, nil
@@ -87,12 +108,12 @@ func (p *FilePublisher) Publish(ctx context.Context, article writer.Article) err
 		return err
 	}
 
-	tempPath, err := p.writeTemp(ctx, renderArticle(article))
+	tempPath, err := p.file.writeTemp(ctx, renderArticle(article))
 	if err != nil {
 		return err
 	}
 
-	if err := p.link(tempPath, p.path); err != nil {
+	if err := p.file.link(tempPath, p.file.path); err != nil {
 		// The article cost an LLM call, so it is kept and its path reported.
 		return &KeptFileError{TempPath: tempPath, Err: classifyLinkError(err)}
 	}
@@ -100,15 +121,15 @@ func (p *FilePublisher) Publish(ctx context.Context, article writer.Article) err
 	// The output path is complete from here on, so nothing below may turn the
 	// publish into a failure: the cleanup errors are ignored and ctx is not
 	// consulted again.
-	syncDir(filepath.Dir(p.path))
+	syncDir(filepath.Dir(p.file.path))
 	_ = os.Remove(tempPath)
 	return nil
 }
 
 // writeTemp writes content to a synced temporary file next to the output path
 // and returns its path. On any failure the temporary file is removed.
-func (p *FilePublisher) writeTemp(ctx context.Context, content string) (string, error) {
-	f, err := os.CreateTemp(filepath.Dir(p.path), tempPrefix+"*.tmp")
+func (a *atomicFile) writeTemp(ctx context.Context, content string) (string, error) {
+	f, err := os.CreateTemp(filepath.Dir(a.path), a.prefix+"*.tmp")
 	if err != nil {
 		return "", fmt.Errorf("create a temporary file: %w", err)
 	}
@@ -119,11 +140,11 @@ func (p *FilePublisher) writeTemp(ctx context.Context, content string) (string, 
 		return "", err
 	}
 
-	//nolint:gosec // the article is a non-secret document built from a public video
+	//nolint:gosec // the article and the review log are non-secret documents built from a public video
 	if err := f.Chmod(articleFileMode); err != nil {
 		return fail(fmt.Errorf("set the temporary file mode: %w", err))
 	}
-	w := p.wrapWriter(f)
+	w := a.wrapWriter(f)
 	for rest := []byte(content); len(rest) > 0; {
 		if err := ctx.Err(); err != nil {
 			return fail(err)
@@ -176,11 +197,28 @@ func syncDir(dir string) {
 }
 
 // renderArticle returns the text FilePublisher and SlackWebhookPublisher both
-// output for a; it ends with the article body.
+// output for a; it ends with the article body. It adds one model line pair per
+// step that ran, in order (shorten, then review); a nil step result contributes
+// no lines, so an article with no step output is rendered as before.
 func renderArticle(a writer.Article) string {
-	version := a.ModelVersion
-	if version == "" {
-		version = "(none)"
+	var b strings.Builder
+	fmt.Fprintf(&b, "# %s\n\n- Model: %s\n- Model version: %s\n", a.Title, a.Model, modelVersionOrNone(a.ModelVersion))
+	if a.Shorten != nil {
+		fmt.Fprintf(&b, "- Shorten model: %s\n- Shorten model version: %s\n", a.Shorten.Model, modelVersionOrNone(a.Shorten.ModelVersion))
 	}
-	return fmt.Sprintf("# %s\n\n- Model: %s\n- Model version: %s\n\n%s", a.Title, a.Model, version, a.Body)
+	if a.Review != nil {
+		fmt.Fprintf(&b, "- Review model: %s\n- Review model version: %s\n", a.Review.Model.Model, modelVersionOrNone(a.Review.Model.ModelVersion))
+	}
+	fmt.Fprintf(&b, "\n%s", a.Body)
+	return b.String()
+}
+
+// modelVersionOrNone returns version, or the "(none)" placeholder shown when a
+// provider reports no version, for the model lines of the output and the
+// review log.
+func modelVersionOrNone(version string) string {
+	if version == "" {
+		return "(none)"
+	}
+	return version
 }

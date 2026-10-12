@@ -307,6 +307,16 @@ func TestSlackPrepareRejectsInvalidArticle(t *testing.T) {
 		{"body invalid utf-8", func(a *writer.Article) { a.Body = "x\xffy" }, true},
 		{"model invalid utf-8", func(a *writer.Article) { a.Model = "m\xff" }, true},
 		{"model version invalid utf-8", func(a *writer.Article) { a.ModelVersion = "v\xff" }, true},
+		{"shorten model invalid utf-8", func(a *writer.Article) { a.Shorten = &writer.StepModel{Model: "m\xff"} }, true},
+		{"shorten model version invalid utf-8", func(a *writer.Article) {
+			a.Shorten = &writer.StepModel{Model: "shorten-x", ModelVersion: "v\xff"}
+		}, true},
+		{"review model invalid utf-8", func(a *writer.Article) {
+			a.Review = &writer.ReviewResult{Model: writer.StepModel{Model: "m\xff"}}
+		}, true},
+		{"review model version invalid utf-8", func(a *writer.Article) {
+			a.Review = &writer.ReviewResult{Model: writer.StepModel{Model: "review-x", ModelVersion: "v\xff"}}
+		}, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
