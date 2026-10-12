@@ -157,8 +157,9 @@ an empty value is treated as set and rejected, not as unset.
 Only the variables of the selected provider are read and checked. The other
 provider's variables are ignored whatever their value, so exporting
 `ANTHROPIC_API_KEY=` for another tool does not stop a `deepseek` run; when
-`YT2COLUMN_LLM_PROVIDER` itself is invalid, no provider variable is checked and
-only that variable's error is reported.
+`YT2COLUMN_LLM_PROVIDER` itself is invalid, no provider-specific variable is
+checked, but errors for common variables such as `YT2COLUMN_MODEL` are still
+reported.
 
 With `claude`, `max` is accepted but in this use case it spends the whole output
 budget on reasoning and returns no article text, so the run fails as truncated.
