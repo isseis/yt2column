@@ -257,7 +257,8 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 	}
 
 	// A5: build the stages. writer.New only reads the template files, and
-	// neither publisher constructor touches its destination.
+	// neither the publisher constructors nor the review log writer touches its
+	// destination.
 	articleWriter, reviewLog, err := buildWriter(d, cfg, opts, reviewLogGiven)
 	if err != nil {
 		return usageError(errOut, "%v", err)
@@ -282,12 +283,18 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 		errOut.line("%s: warning: %v", programName, warning)
 	}
 	if err != nil {
-		reportRunError(errOut, err)
+		// A review-log failure happens after the article was published, so the
+		// summary is written first and reportRunError reports the failure on
+		// its own, without the "the run failed:" line.
+		if _, isReviewLog := errors.AsType[*job.ReviewLogError](err); isReviewLog {
+			reportSuccess(errOut, dest, opts.out, "", result.Article)
+		}
+		reportRunError(errOut, dest, opts.out, err)
 		return exitFailure
 	}
 
 	// C: the summary.
-	reportSuccess(errOut, dest, opts.out, result.Article)
+	reportSuccess(errOut, dest, opts.out, opts.reviewLog, result.Article)
 	return exitOK
 }
 
@@ -430,12 +437,11 @@ func buildOutput(d deps, dest destination, outPath string, webhookURL secret.Sec
 
 // reportSuccess writes the summary of a published run. The message count of a
 // webhook post is recomputed from the article; it is "unknown" when that
-// fails, which only a fake publisher that accepts any article can cause.
-func reportSuccess(errOut *stderrWriter, dest destination, outPath string, article writer.Article) {
-	modelVersion := article.ModelVersion
-	if modelVersion == "" {
-		modelVersion = "(none)"
-	}
+// fails, which only a fake publisher that accepts any article can cause. It
+// adds one line per post-generation step that ran, and the review log path
+// when one was written. A reviewLogPath that is empty writes nothing.
+func reportSuccess(errOut *stderrWriter, dest destination, outPath, reviewLogPath string, article writer.Article) {
+	modelVersion := orNone(article.ModelVersion)
 	switch dest {
 	case destinationFile:
 		errOut.line("%s: wrote the article to %s (model: %s, model version: %s)", programName, outPath, article.Model, modelVersion)
@@ -450,6 +456,62 @@ func reportSuccess(errOut *stderrWriter, dest destination, outPath string, artic
 		// anything is published. Claim no destination rather than guess one.
 		errOut.line("%s: published the article (model: %s, model version: %s)", programName, article.Model, modelVersion)
 	}
+	reportStepSummary(errOut, article)
+	if reviewLogPath != "" {
+		errOut.line("%s: wrote the review log to %s", programName, reviewLogPath)
+	}
+}
+
+// reportStepSummary writes one line per post-generation step that ran. The
+// shorten line names its model; the review line gives the revision count and
+// the count of each reason kind.
+func reportStepSummary(errOut *stderrWriter, article writer.Article) {
+	if article.Shorten != nil {
+		errOut.line("%s: the shorten step ran (model: %s, model version: %s)",
+			programName, article.Shorten.Model, orNone(article.Shorten.ModelVersion))
+	}
+	if article.Review != nil {
+		errOut.line("%s: the review step returned %s", programName, revisionCounts(article.Review.Revisions))
+	}
+}
+
+// revisionCounts renders the revision count and the count of each reason kind
+// in one line, listing only the kinds with a count, in enum order.
+func revisionCounts(revisions []writer.Revision) string {
+	if len(revisions) == 0 {
+		return "no revisions"
+	}
+	counts := make(map[writer.RevisionReason]int)
+	for _, revision := range revisions {
+		counts[revision.Reason]++
+	}
+	parts := make([]string, 0, len(counts))
+	for _, reason := range []writer.RevisionReason{
+		writer.ReasonUnsupported,
+		writer.ReasonMeaningChange,
+		writer.ReasonSpeaker,
+		writer.ReasonMisrecognition,
+		writer.ReasonUnintelligible,
+	} {
+		if n := counts[reason]; n > 0 {
+			value, _ := reason.WireValue()
+			parts = append(parts, fmt.Sprintf("%s %d", value, n))
+		}
+	}
+	noun := "revisions"
+	if len(revisions) == 1 {
+		noun = "revision"
+	}
+	return fmt.Sprintf("%d %s (%s)", len(revisions), noun, strings.Join(parts, ", "))
+}
+
+// orNone renders an empty model version as (none), as the published output
+// does.
+func orNone(version string) string {
+	if version == "" {
+		return "(none)"
+	}
+	return version
 }
 
 // messageCount renders n as a count of posted messages, using the singular
@@ -469,10 +531,15 @@ func usageError(errOut *stderrWriter, format string, args ...any) int {
 }
 
 // reportRunError reports a job.Run failure, naming the pipeline stage when
-// there is one, and adds the hint that matches the failure. A deadline is
+// there is one (a review log failure after the publish is reported first, on
+// its own), and adds the hint that matches the failure. A deadline is
 // attributed to the yt-dlp, LLM, or webhook post timeout by the failed stage;
 // this holds because the context run receives has no deadline of its own.
-func reportRunError(errOut *stderrWriter, err error) {
+func reportRunError(errOut *stderrWriter, dest destination, outPath string, err error) {
+	if reviewLogErr, ok := errors.AsType[*job.ReviewLogError](err); ok {
+		reportReviewLogFailure(errOut, dest, outPath, reviewLogErr)
+		return
+	}
 	stageErr, isStage := errors.AsType[*pipeline.StageError](err)
 	if isStage {
 		errOut.line("%s: the %s stage failed: %v", programName, stageErr.Stage, stageErr.Err)
@@ -494,7 +561,34 @@ func reportRunError(errOut *stderrWriter, err error) {
 	if kept, ok := errors.AsType[*publisher.KeptFileError](err); ok {
 		errOut.line("%s: the finished article was kept in %s", programName, kept.TempPath)
 	}
+	reportStepHints(errOut, err)
 	reportWebhookHints(errOut, err)
+}
+
+// reportReviewLogFailure reports a review-log write failure that happened
+// after the article was published. It never says the run failed: the article
+// is complete, and running again would publish a new one.
+func reportReviewLogFailure(errOut *stderrWriter, dest destination, outPath string, reviewLogErr *job.ReviewLogError) {
+	article := "written to " + outPath
+	if dest == destinationWebhook {
+		article = "posted to the webhook"
+	}
+	errOut.line("%s: the article was %s, but writing the review log to %s failed: %v",
+		programName, article, reviewLogErr.Path, reviewLogErr.Err)
+	errOut.line("%s: do not run again: the article is already published", programName)
+}
+
+// reportStepHints adds the hints for the post-generation step failures: an
+// over-long body suggests --no-shorten, and a rejected review response
+// suggests --no-review. The step is read from the error's type, never from its
+// message.
+func reportStepHints(errOut *stderrWriter, err error) {
+	if errors.Is(err, writer.ErrTooLong) {
+		errOut.line("%s: --no-shorten skips the shorten step and the final length check, so the article is published even if it is over the limit", programName)
+	}
+	if stepErr, ok := errors.AsType[*writer.StepError](err); ok && stepErr.Step == writer.StepReview && errors.Is(err, writer.ErrMalformedOutput) {
+		errOut.line("%s: --no-review skips the review step, so the article is published as generated", programName)
+	}
 }
 
 // reportWebhookHints adds the hints for a failed webhook post: which messages
