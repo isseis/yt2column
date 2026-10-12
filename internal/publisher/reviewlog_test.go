@@ -164,7 +164,7 @@ func TestReviewLogWriterRejects(t *testing.T) {
 		{
 			name: "review failing its check",
 			article: reviewArticle(writer.Revision{
-				Before: "bad", Action: writer.ActionReplace,
+				Before: "bad", Action: writer.ActionReplace, After: "good",
 				Reason: writer.ReasonUnknown, Evidence: "e1",
 			}),
 			wantIs: writer.ErrInvalidReview,

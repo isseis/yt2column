@@ -1198,4 +1198,7 @@ func TestRunReviewLogWriteFailure(t *testing.T) {
 	if _, statErr := os.Stat(outPath); statErr != nil {
 		t.Fatalf("the article was not published: %v", statErr)
 	}
+	if got, readErr := os.ReadFile(logPath); readErr != nil || string(got) != "taken" {
+		t.Fatalf("the existing review log changed: %q, %v", got, readErr)
+	}
 }

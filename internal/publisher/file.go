@@ -67,7 +67,7 @@ type atomicFile struct {
 	// own, so a kept temporary file on disk shows which kind wrote it.
 	prefix string
 
-	// Seams for tests; NewFilePublisher sets the production values.
+	// Seams for tests; newAtomicFile sets the production values.
 	wrapWriter func(io.Writer) io.Writer
 	link       func(oldname, newname string) error
 }
