@@ -76,5 +76,5 @@ CC BY 3.0 の条件に従い、上記の出典（動画 URL・チャンネル名
 - トップレベルの `id`（メッセージの識別子）: `msg_` に続く部分を `0` に置き換えた。
 - `thinking` ブロックの `signature`（thinking ブロックの検証用の不透明な値）: 0 のバイト列の Base64（`AAAA…`）に置き換えた。
 
-- `claude_messages_end_turn.json`: モデル `claude-opus-5-5`、effort `high`、`max_tokens` 4096、user `A bat and a ball cost 1.10 dollars in total. The bat costs 1.00 dollar more than the ball. How much does the ball cost? Answer in one sentence.` への応答。`stop_reason` は `end_turn`。`content` は `thinking` ブロック（`thinking` は空文字列）と `text` ブロックの 2 つ。
+- `claude_messages_end_turn.json`: モデル `claude-opus-5-5`、effort `high`、短い固定の英文（[02_architecture.md](../docs/tasks/0009_claude_llm_client/02_architecture.md) §1.4 の短いプロンプト）への応答。`stop_reason` は `end_turn`。`content` は `thinking` ブロック（`thinking` は空文字列）と `text` ブロックの 2 つ。
 - `claude_messages_max_tokens.json`: モデル `claude-haiku-5-5`、effort `low`、`max_tokens` 16、user `Explain in several detailed paragraphs how a compiler turns source code into machine code.` への応答。`stop_reason` は `max_tokens`、`content` は途中までの `text` ブロック 1 つ。

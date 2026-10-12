@@ -11,7 +11,7 @@ YouTube 動画の URL を受け取り、その文字起こしを元に LLM で�
 - **字幕取得: 外部コマンドの `yt-dlp` に委譲する**。YouTube の非公式な仕様に依存する最も壊れやすい部分を、保守が活発なツールに任せるため。Go で字幕取得を自前実装しないこと。
 - **LLM: 初期実装は DeepSeek**（DeepSeek 公式 API を直接契約して使う）。API は OpenAI 互換の Chat Completions 形式（`POST https://api.deepseek.com/chat/completions`）で単純なため、SDK は使わず標準ライブラリ（`net/http`・`encoding/json`）で呼び出す。
   - OpenCode Go 経由の利用は採用しない。利用条件が「コーディングエージェントのトラフィック」を前提としており、本ツールの用途に合わないため。
-- **LLM プロバイダは差し替え可能にする**。将来 Gemini（`google.golang.org/genai`）や Claude（`github.com/anthropics/anthropic-sdk-go`）などを追加する前提。プロバイダとモデル名は設定で切り替える。Gemini を追加する場合、旧 SDK の `github.com/google/generative-ai-go` はレガシーなので使わないこと。
+- **LLM プロバイダは差し替え可能にする**。DeepSeek と Claude を実装済みで、Claude は公式 SDK を使わず標準ライブラリで Anthropic Messages API を呼ぶ（タスク `0009_claude_llm_client` の要件定義書 §2.3）。将来 Gemini（`google.golang.org/genai`）などを追加する前提。プロバイダとモデル名は設定で切り替える。Gemini を追加する場合、旧 SDK の `github.com/google/generative-ai-go` はレガシーなので使わないこと。
 - **LangChain 相当のフレームワークや、複数プロバイダを束ねる抽象化ライブラリは使わない**。自前の薄い interface で十分。
 - **外部ライブラリは必要最小限にする**。HTTP・JSON・CLI 引数・設定は標準ライブラリで書く。追加する場合は理由を明示すること。
 
@@ -40,7 +40,7 @@ URL → TranscriptSource → Transcript → ArticleWriter → Article → Publis
   // GenerateResponse: Text, Model（生成テキストと、生成に使われたモデル名）, ModelVersion（生成に使ったモデルまたはバックエンドの版の識別子。返さないプロバイダでは空文字列）
   ```
 
-  - 初期実装は `internal/llm/deepseek`。Gemini・Claude は必要になったら `internal/llm/gemini`・`internal/llm/claude` として追加する。
+  - 初期実装は `internal/llm/deepseek`。Claude は `internal/llm/claude` として追加済み。Gemini は必要になったら `internal/llm/gemini` として追加する。
   - プロバイダ SDK の import は各実装パッケージの中に閉じ込める。他のパッケージから SDK の型を参照しないこと。
   - プロバイダの選択は `internal/config` の値を見て、`main.go`（または小さなファクトリ関数）で行う。
 - `Publisher`: 初期実装は `SlackWebhookPublisher` と `FilePublisher`（ローカル保存。デバッグ用）。
@@ -78,13 +78,15 @@ internal/nilcheck/        # typed nil を含む nil の判定
 internal/writer/          # ArticleWriter（プロバイダ非依存）
 internal/llm/             # LLMClient interface と共通型
 internal/llm/deepseek/    # DeepSeek 実装（標準ライブラリで OpenAI 互換 API を呼ぶ）
+internal/llm/claude/      # Claude 実装（標準ライブラリで Anthropic Messages API を呼ぶ）
+internal/llm/claudeparam/ # Claude の effort・ワークスペース ID の型（config と claude が共有）
+internal/llm/llmhttp/     # LLM アダプタ共通の HTTP 送信（リダイレクト防止・本文の上限・失敗の分類）
 internal/llm/gemini/      # Gemini 実装（将来追加。google.golang.org/genai）
-internal/llm/claude/      # Claude 実装（将来追加）
 internal/secret/          # 秘密情報（API キー・Webhook URL）を保持する型
 internal/publisher/       # Slack 互換 Incoming Webhook / File
 internal/config/          # 環境変数からの設定読み込み
 prompts/                  # プロンプトテンプレート
-testdata/                 # json3・info.json のサンプル、文字起こしパネルの HTML の抜粋、DeepSeek API の実応答
+testdata/                 # json3・info.json のサンプル、文字起こしパネルの HTML の抜粋、DeepSeek・Claude API の実応答
 extension/                # ブラウザ拡張（TypeScript。開発環境・Manifest V3・選択範囲の収集と表示）
 ```
 
@@ -92,16 +94,20 @@ extension/                # ブラウザ拡張（TypeScript。開発環境・Man
 
 | 変数 | 説明 | 未設定のとき |
 |---|---|---|
-| `YT2COLUMN_LLM_PROVIDER` | `deepseek` のみ受理。将来 `gemini`／`claude` を追加 | `deepseek` |
-| `YT2COLUMN_MODEL` | LLM のモデル名。プロバイダに合ったものを指定（例: `deepseek-flash`） | エラー（必須） |
+| `YT2COLUMN_LLM_PROVIDER` | `deepseek`／`claude` を受理。将来 `gemini` を追加 | `deepseek` |
+| `YT2COLUMN_MODEL` | LLM のモデル名。プロバイダに合ったものを指定（例: `deepseek-flash`・`claude-opus-5-5`） | エラー（必須） |
 | `DEEPSEEK_API_KEY` | DeepSeek 用 | プロバイダが `deepseek` ならエラー |
+| `ANTHROPIC_API_KEY` | Anthropic（Claude）用 | プロバイダが `claude` ならエラー |
+| `YT2COLUMN_CLAUDE_EFFORT` | Claude の effort。`low`・`medium`・`high`・`xhigh`・`max` | プロバイダが `claude` ならエラー |
+| `ANTHROPIC_WORKSPACE_ID` | ワークスペースに紐付かない Anthropic の API キー用のワークスペース ID（任意） | ワークスペース ID を送らない |
 | `GEMINI_API_KEY` | Gemini 実装を追加したとき用 | （未実装） |
-| `ANTHROPIC_API_KEY` | Claude 実装を追加したとき用 | （未実装） |
 | `SLACK_WEBHOOK_URL` | 投稿先の Slack 互換 Incoming Webhook URL（Mattermost を検証済み）。`--out` の場合も、設定されていれば `https` の URL として検証する | `--slack` では必須。`--out` では値なし |
 | `YT2COLUMN_CACHE_DIR` | 字幕・info.json のキャッシュディレクトリ | 利用者のキャッシュディレクトリの下の `yt2column`（macOS は `$HOME/Library/Caches/yt2column`） |
 | `YT2COLUMN_YTDLP_PATH` | `PATH` 上の `yt-dlp` を使う | `PATH` 上の `yt-dlp` |
 
 値は前後の空白を取り除くなどの補正をせず、空の値は「未設定」ではなくエラーとして扱う。
+
+プロバイダ固有の変数は、`YT2COLUMN_LLM_PROVIDER` で選んだプロバイダのものだけを読んで検査する。他のプロバイダの変数は、未設定・空・不正な値のいずれでも拒否しない。`YT2COLUMN_LLM_PROVIDER` 自体が不正な場合は、どのプロバイダ固有の変数も検査しない。
 
 ## 開発ルール
 

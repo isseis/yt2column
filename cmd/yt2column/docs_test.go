@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	claudetestutil "github.com/isseis/yt2column/internal/llm/claude/testutil"
 	"github.com/isseis/yt2column/internal/publisher"
 	publishertestutil "github.com/isseis/yt2column/internal/publisher/testutil"
 )
@@ -19,6 +20,7 @@ const (
 	securityPath        = "../../docs/dev/security.md"
 	planPath            = "../../docs/tasks/0005_cli_assembly/03_implementation_plan.md"
 	slackPlanPath       = "../../docs/tasks/0006_slack_webhook_publisher/03_implementation_plan.md"
+	claudePlanPath      = "../../docs/tasks/0009_claude_llm_client/03_implementation_plan.md"
 )
 
 // configDocRow pairs a configuration variable with the "when unset" text each
@@ -34,6 +36,9 @@ var configDocRows = []configDocRow{
 	{"YT2COLUMN_LLM_PROVIDER", "`deepseek`", "`deepseek`"},
 	{"YT2COLUMN_MODEL", "Required (an error)", "エラー（必須）"},
 	{"DEEPSEEK_API_KEY", "Required when the provider is `deepseek`", "プロバイダが `deepseek` ならエラー"},
+	{"ANTHROPIC_API_KEY", "Required when the provider is `claude`", "プロバイダが `claude` ならエラー"},
+	{"YT2COLUMN_CLAUDE_EFFORT", "Required when the provider is `claude`", "プロバイダが `claude` ならエラー"},
+	{"ANTHROPIC_WORKSPACE_ID", "No workspace ID is sent", "ワークスペース ID を送らない"},
 	{"SLACK_WEBHOOK_URL", "Required with `--slack`; optional with `--out`", "`--slack` では必須"},
 	{"YT2COLUMN_CACHE_DIR", "Library/Caches/yt2column", "yt2column"},
 	{"YT2COLUMN_YTDLP_PATH", "on `PATH`", "`PATH` 上の `yt-dlp`"},
@@ -226,6 +231,54 @@ func TestSlackPlanRecordsManualChecks(t *testing.T) {
 		}
 		if !strings.Contains(block, "サーバの版") || !strings.Contains(block, "結果") {
 			t.Errorf("checked step %s has no server version and result record", step)
+		}
+	}
+}
+
+// TestClaudeDocsContract pins the machine-checkable contract values of the
+// Claude provider: the integration test's environment variables and make target.
+// Prose meaning is not pinned here; it is checked by review.
+func TestClaudeDocsContract(t *testing.T) {
+	values := []string{
+		claudetestutil.APIKeyEnv,
+		claudetestutil.WorkspaceIDEnv,
+		claudetestutil.OptInEnv,
+		"test-integration-claude",
+	}
+	for _, doc := range []struct {
+		name, text string
+	}{
+		{"README.md", readDoc(t, readmePath)},
+		{"security.md", readDoc(t, securityPath)},
+	} {
+		for _, value := range values {
+			if !strings.Contains(doc.text, value) {
+				t.Errorf("%s does not mention %q", doc.name, value)
+			}
+		}
+	}
+}
+
+// TestClaudePlanRecordsManualRun checks that the Claude task's plan carries its
+// integration run as a completion condition and, once step 5-12 is checked,
+// records the execution date, the HEAD commit, the model name, and a passing
+// subtest under §5.1.
+func TestClaudePlanRecordsManualRun(t *testing.T) {
+	doc := readDoc(t, claudePlanPath)
+	_, done, found := stepBlock(doc, "**ステップ 5-12**")
+	if !found {
+		t.Fatal("the plan has no step 5-12")
+	}
+	if !done {
+		return
+	}
+	section := docSection(doc, "5. 受け入れ基準の検証 (Acceptance Criteria Verification)")
+	// These strings appear only in the run records, not in §5.1's instruction
+	// sentence (which writes "モデル名" and "`--- PASS`" without the record's
+	// surrounding text).
+	for _, want := range []string{"2026-", "HEAD `", "モデル名は `", "--- PASS: TestIntegrationGenerate"} {
+		if !strings.Contains(section, want) {
+			t.Errorf("§5.1 has no %q record", want)
 		}
 	}
 }

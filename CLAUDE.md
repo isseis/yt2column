@@ -91,13 +91,17 @@ URL → TranscriptSource → Transcript → ArticleWriter → Article → Publis
 
 - `TranscriptSource` (`internal/transcript`): fetches subtitles and info.json by
   invoking the external `yt-dlp` command, parses json3, caches per video ID.
-- `internal/strictjson`: strict JSON extraction shared by `internal/transcript`
-  and `internal/llm/deepseek`; rejects the byte sequences and structural shapes
-  `encoding/json` would silently repair.
+- `internal/strictjson`: strict JSON extraction shared by `internal/transcript`,
+  `internal/llm/deepseek`, and `internal/llm/claude`; rejects the byte sequences
+  and structural shapes `encoding/json` would silently repair.
 - `ArticleWriter` (`internal/writer`): provider-independent prompt assembly and
   output post-processing; calls an `LLMClient`.
-- `LLMClient` (`internal/llm`, implementations in `internal/llm/<provider>`): thin
-  per-provider adapter — system + user prompt in, text out.
+- `LLMClient` (`internal/llm`, implementations in `internal/llm/<provider>`):
+  thin per-provider adapter — system + user prompt in, text out. `deepseek` and
+  `claude` exist today; `internal/llm/llmhttp` holds the HTTP send path they
+  share (redirect refusal, body cap, failure classification), and
+  `internal/llm/claudeparam` holds the Claude effort and workspace-ID types that
+  `internal/config` and `internal/llm/claude` share.
 - `Publisher` (`internal/publisher`): Slack Incoming Webhook and local file.
 - `internal/pipeline` orchestrates the stages; `internal/config` reads environment
   variables; `cmd/yt2column` wires everything together.
@@ -114,9 +118,8 @@ for the packages that exist today.
 - **Provider details stay in their adapter package**: request/response shapes of
   a provider API (e.g. DeepSeek's `thinking` parameter and `reasoning_content`)
   live only under `internal/llm/<provider>`. If a provider SDK is added later
-  (`google.golang.org/genai` for `internal/llm/gemini`, the Anthropic SDK for
-  `internal/llm/claude`), it is imported only there; `depguard` in
-  `.golangci.yml` already enforces that.
+  (for example `google.golang.org/genai` for `internal/llm/gemini`), it is
+  imported only there; `depguard` in `.golangci.yml` already enforces that.
 - **Delegate the fragile part**: subtitle retrieval is delegated to `yt-dlp`. Do
   not reimplement YouTube scraping in Go.
 - **YAGNI**: Use simple and clear approach to satisfy the requirement. Don't take complex approach for not-yet-planned features. No LangChain-style frameworks or multi-provider abstraction libraries.
@@ -207,7 +210,7 @@ See [Test Organization Guide](docs/dev/developer_guide/test_organization.md) for
   such a change.
 - `yt-dlp` must be on `PATH` (or set `YT2COLUMN_YTDLP_PATH`) to run the CLI; it is
   not needed for `make test`.
-- Secrets (`DEEPSEEK_API_KEY`, `SLACK_WEBHOOK_URL`, ...) go in `.envrc` / `.env`,
+- Secrets (`DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`, `SLACK_WEBHOOK_URL`, ...) go in `.envrc` / `.env`,
   which are git-ignored. Never commit them and never print them.
 - Real captured data committed under `testdata/` must come from a video licensed
   for redistribution and must not identify whoever captured it; full-page browser
