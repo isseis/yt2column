@@ -753,6 +753,14 @@ func TestPromptsREADMEMatchesContract(t *testing.T) {
 			}
 		}
 	})
+	t.Run("body lengths", func(t *testing.T) {
+		section := sections["字数の調整のテンプレートで参照できる値"]
+		for _, want := range []int64{contract.targetBodyChars, contract.maxBodyChars} {
+			if !strings.Contains(section, strconv.FormatInt(want, 10)) {
+				t.Errorf("README shorten value table does not state the body length %d", want)
+			}
+		}
+	})
 }
 
 // TestWriterImports checks that the article writer stays provider
@@ -862,6 +870,8 @@ type writerTemplateContract struct {
 	funcs            []string            // keys of allowedFuncs
 	maxTemplateBytes int64
 	maxPromptBytes   int64
+	targetBodyChars  int64
+	maxBodyChars     int64
 }
 
 // readWriterTemplateContract parses the production Go files in dir (test
@@ -908,6 +918,10 @@ func readWriterTemplateContract(t *testing.T, dir string) writerTemplateContract
 						contract.maxTemplateBytes = intLiteral(t, n.Values[i])
 					case "maxPromptBytes":
 						contract.maxPromptBytes = intLiteral(t, n.Values[i])
+					case "targetBodyChars":
+						contract.targetBodyChars = intLiteral(t, n.Values[i])
+					case "maxBodyChars":
+						contract.maxBodyChars = intLiteral(t, n.Values[i])
 					}
 				}
 			}
@@ -921,7 +935,8 @@ func readWriterTemplateContract(t *testing.T, dir string) writerTemplateContract
 		}
 		contract.fields[name] = structFieldNames(t, spec, typeSpecs)
 	}
-	if len(contract.funcs) == 0 || contract.maxTemplateBytes == 0 || contract.maxPromptBytes == 0 {
+	if len(contract.funcs) == 0 || contract.maxTemplateBytes == 0 || contract.maxPromptBytes == 0 ||
+		contract.targetBodyChars == 0 || contract.maxBodyChars == 0 {
 		t.Fatalf("incomplete template contract in %s: %+v", dir, contract)
 	}
 	return contract

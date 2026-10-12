@@ -369,6 +369,14 @@ func TestTemplateSyntaxAllowlist(t *testing.T) {
 	}
 
 	for _, target := range targets {
+		// The substitution maps a generation field reference to one of the
+		// target data type's own fields. Prove each substituted field is
+		// accepted, so a reject row cannot pass for the wrong reason (an
+		// unknown field) after the substitution.
+		for _, field := range target.fields {
+			w, err := New(&llmtestutil.FakeLLMClient{}, target.options(writeOverrideFile(t, "{{"+field+"}}")))
+			requireAccepted(t, w, err)
+		}
 		for _, tc := range accepted {
 			t.Run(target.name+"/accept/"+tc.name, func(t *testing.T) {
 				w, err := New(&llmtestutil.FakeLLMClient{}, target.options(writeOverrideFile(t, substituteFields(tc.text, target.fields))))

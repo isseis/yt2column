@@ -248,13 +248,8 @@ func (w *templateWriter) runReview(ctx context.Context, material templateData, t
 	if err != nil {
 		return "", "", nil, stepError(StepReview, err)
 	}
-	if err := checkModelString("Model", resp.Model); err != nil {
+	if err := checkModelPair(resp.Model, resp.ModelVersion); err != nil {
 		return "", "", nil, stepError(StepReview, err)
-	}
-	if resp.ModelVersion != "" {
-		if err := checkModelString("ModelVersion", resp.ModelVersion); err != nil {
-			return "", "", nil, stepError(StepReview, err)
-		}
 	}
 	revised, err := applyRevisions(textString(title, body), revisions)
 	if err != nil {

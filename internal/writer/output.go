@@ -86,13 +86,8 @@ func checkResponse(resp llm.GenerateResponse) (title, body string, err error) {
 	if err != nil {
 		return "", "", err
 	}
-	if err := checkModelString("Model", resp.Model); err != nil {
+	if err := checkModelPair(resp.Model, resp.ModelVersion); err != nil {
 		return "", "", err
-	}
-	if resp.ModelVersion != "" {
-		if err := checkModelString("ModelVersion", resp.ModelVersion); err != nil {
-			return "", "", err
-		}
 	}
 	return title, body, nil
 }
@@ -106,6 +101,18 @@ func checkResponse(resp llm.GenerateResponse) (title, body string, err error) {
 // checks read and what the article carries.
 func normalizeBody(body string) string {
 	return bodyLineEndings.Replace(strings.TrimPrefix(body, byteOrderMark))
+}
+
+// checkModelPair applies the Model and optional ModelVersion rules. An empty
+// ModelVersion is allowed; a non-empty one is checked like Model.
+func checkModelPair(model, version string) error {
+	if err := checkModelString("Model", model); err != nil {
+		return err
+	}
+	if version == "" {
+		return nil
+	}
+	return checkModelString("ModelVersion", version)
 }
 
 // checkModelString applies the size and UTF-8 rules of Model and

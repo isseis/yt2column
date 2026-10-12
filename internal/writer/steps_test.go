@@ -406,6 +406,32 @@ func TestWriteReviewRejects(t *testing.T) {
 	}
 }
 
+// TestWriteReviewModelString checks that the review step validates the model
+// name and the model version of its response, not only its parsed list.
+func TestWriteReviewModelString(t *testing.T) {
+	cases := []struct {
+		name    string
+		model   string
+		version string
+	}{
+		{"empty model", "", ""},
+		{"whitespace model", " \t", ""},
+		{"control character in model", "review\x1b[31m", ""},
+		{"control character in model version", markReviewModel, "v\x00"},
+		{"newline in model version", markReviewModel, "v\n"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			gen := newStepClient(t, stepResult(llm.GenerateResponse{Text: stepResponseText(markGenTitle, markGenBody), Model: markOutModel}))
+			review := &llmtestutil.FakeLLMClient{Result: llm.GenerateResponse{Text: reviewResponse(), Model: tc.model, ModelVersion: tc.version}}
+			w := mustNew(t, gen, withStepsEnabled(review))
+
+			a, err := w.Write(context.Background(), validTranscript())
+			requireStepError(t, err, ErrMalformedOutput, StepReview, a)
+		})
+	}
+}
+
 func TestWriteStepFailures(t *testing.T) {
 	stepSentinel := errors.New("step-specific failure")
 	targets := []struct {

@@ -119,8 +119,8 @@ func New(client llm.LLMClient, opts Options) (ArticleWriter, error) {
 	}
 	if opts.Shorten.Enabled {
 		shorten, err := loadStepTemplates[shortenTemplateData](
-			shortenSystemTemplateName, opts.Shorten.SystemTemplatePath, prompts.ShortenSystem(),
-			shortenUserTemplateName, opts.Shorten.UserTemplatePath, prompts.ShortenUser(),
+			templateSpec{shortenSystemTemplateName, opts.Shorten.SystemTemplatePath, prompts.ShortenSystem()},
+			templateSpec{shortenUserTemplateName, opts.Shorten.UserTemplatePath, prompts.ShortenUser()},
 		)
 		if err != nil {
 			return nil, err
@@ -129,8 +129,8 @@ func New(client llm.LLMClient, opts Options) (ArticleWriter, error) {
 	}
 	if opts.Review.Enabled {
 		review, err := loadStepTemplates[reviewTemplateData](
-			reviewSystemTemplateName, opts.Review.SystemTemplatePath, prompts.ReviewSystem(),
-			reviewUserTemplateName, opts.Review.UserTemplatePath, prompts.ReviewUser(),
+			templateSpec{reviewSystemTemplateName, opts.Review.SystemTemplatePath, prompts.ReviewSystem()},
+			templateSpec{reviewUserTemplateName, opts.Review.UserTemplatePath, prompts.ReviewUser()},
 		)
 		if err != nil {
 			return nil, err
@@ -162,17 +162,25 @@ func validateStepOptions(opts Options) error {
 	return nil
 }
 
+// templateSpec names one template source: its name, its override path (empty
+// for the embedded default), and the embedded default itself.
+type templateSpec struct {
+	name     string
+	path     string
+	embedded string
+}
+
 // loadStepTemplates loads and checks the system and user template of one step.
-func loadStepTemplates[T any](systemName, systemPath, systemEmbedded, userName, userPath, userEmbedded string) (stepTemplates[T], error) {
-	system, err := loadTemplate[T](templateSource{name: systemName, path: systemPath}, systemEmbedded)
+func loadStepTemplates[T any](system, user templateSpec) (stepTemplates[T], error) {
+	systemTmpl, err := loadTemplate[T](templateSource{name: system.name, path: system.path}, system.embedded)
 	if err != nil {
 		return stepTemplates[T]{}, err
 	}
-	user, err := loadTemplate[T](templateSource{name: userName, path: userPath}, userEmbedded)
+	userTmpl, err := loadTemplate[T](templateSource{name: user.name, path: user.path}, user.embedded)
 	if err != nil {
 		return stepTemplates[T]{}, err
 	}
-	return stepTemplates[T]{system: system, user: user}, nil
+	return stepTemplates[T]{system: systemTmpl, user: userTmpl}, nil
 }
 
 // Write validates t, expands the generation templates, calls the generation
