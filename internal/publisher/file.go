@@ -38,13 +38,29 @@ const writeChunkSize = 32 * 1024
 const articleFileMode = 0o644
 
 // FilePublisher writes an article to one local file and never overwrites.
+type FilePublisher struct {
+	file *atomicFile
+}
+
+var _ Publisher = (*FilePublisher)(nil)
+
+// NewFilePublisher returns a publisher for path. An empty path is an error.
+func NewFilePublisher(path string) (*FilePublisher, error) {
+	file, err := newAtomicFile(path)
+	if err != nil {
+		return nil, err
+	}
+	return &FilePublisher{file: file}, nil
+}
+
+// atomicFile writes content to one new file and never overwrites.
 //
 // Contract: the output path only ever names a complete, synced file. The
-// article is written to a temporary file in the same directory and given its
+// content is written to a temporary file in the same directory and given its
 // final name with link(2), which fails with EEXIST when anything already has
 // that name and does not follow symbolic links, so a file created between a
 // check and the creation is never replaced.
-type FilePublisher struct {
+type atomicFile struct {
 	path string
 
 	// Seams for tests; NewFilePublisher sets the production values.
@@ -52,14 +68,12 @@ type FilePublisher struct {
 	link       func(oldname, newname string) error
 }
 
-var _ Publisher = (*FilePublisher)(nil)
-
-// NewFilePublisher returns a publisher for path. An empty path is an error.
-func NewFilePublisher(path string) (*FilePublisher, error) {
+// newAtomicFile returns an atomicFile for path. An empty path is an error.
+func newAtomicFile(path string) (*atomicFile, error) {
 	if path == "" {
 		return nil, errEmptyPath
 	}
-	return &FilePublisher{
+	return &atomicFile{
 		path:       path,
 		wrapWriter: func(w io.Writer) io.Writer { return w },
 		link:       os.Link,
@@ -88,12 +102,12 @@ func (p *FilePublisher) Publish(ctx context.Context, article writer.Article) err
 		return err
 	}
 
-	tempPath, err := p.writeTemp(ctx, renderArticle(article))
+	tempPath, err := p.file.writeTemp(ctx, renderArticle(article))
 	if err != nil {
 		return err
 	}
 
-	if err := p.link(tempPath, p.path); err != nil {
+	if err := p.file.link(tempPath, p.file.path); err != nil {
 		// The article cost an LLM call, so it is kept and its path reported.
 		return &KeptFileError{TempPath: tempPath, Err: classifyLinkError(err)}
 	}
@@ -101,15 +115,15 @@ func (p *FilePublisher) Publish(ctx context.Context, article writer.Article) err
 	// The output path is complete from here on, so nothing below may turn the
 	// publish into a failure: the cleanup errors are ignored and ctx is not
 	// consulted again.
-	syncDir(filepath.Dir(p.path))
+	syncDir(filepath.Dir(p.file.path))
 	_ = os.Remove(tempPath)
 	return nil
 }
 
 // writeTemp writes content to a synced temporary file next to the output path
 // and returns its path. On any failure the temporary file is removed.
-func (p *FilePublisher) writeTemp(ctx context.Context, content string) (string, error) {
-	f, err := os.CreateTemp(filepath.Dir(p.path), tempPrefix+"*.tmp")
+func (a *atomicFile) writeTemp(ctx context.Context, content string) (string, error) {
+	f, err := os.CreateTemp(filepath.Dir(a.path), tempPrefix+"*.tmp")
 	if err != nil {
 		return "", fmt.Errorf("create a temporary file: %w", err)
 	}
@@ -124,7 +138,7 @@ func (p *FilePublisher) writeTemp(ctx context.Context, content string) (string, 
 	if err := f.Chmod(articleFileMode); err != nil {
 		return fail(fmt.Errorf("set the temporary file mode: %w", err))
 	}
-	w := p.wrapWriter(f)
+	w := a.wrapWriter(f)
 	for rest := []byte(content); len(rest) > 0; {
 		if err := ctx.Err(); err != nil {
 			return fail(err)

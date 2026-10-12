@@ -25,10 +25,10 @@ func newFilePublisherWithSeams(
 		t.Fatalf("NewFilePublisher: %v", err)
 	}
 	if wrapWriter != nil {
-		p.wrapWriter = wrapWriter
+		p.file.wrapWriter = wrapWriter
 	}
 	if link != nil {
-		p.link = link
+		p.file.link = link
 	}
 	return p
 }
