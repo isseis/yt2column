@@ -2,10 +2,12 @@ package writer
 
 import (
 	"cmp"
+	"context"
 	"fmt"
 	"slices"
 	"strings"
 
+	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/strictjson"
 )
 
@@ -226,4 +228,42 @@ func firstHeadingDifference(before, after []string) (int, bool) {
 		return limit, true
 	}
 	return 0, false
+}
+
+// runReview runs the review step: it expands the review templates with the
+// reviewed text and the material, calls the review LLM client once, parses the
+// response, checks its model, applies the revisions to the text, and checks
+// the revised text. Every failure is a *StepError.
+func (w *templateWriter) runReview(ctx context.Context, material templateData, title, body string) (string, string, *ReviewResult, error) {
+	data := reviewTemplateData{templateData: material, ArticleTitle: title, ArticleBody: body}
+	system, user, err := w.review.expand(data)
+	if err != nil {
+		return "", "", nil, stepError(StepReview, err)
+	}
+	resp, err := w.reviewClient.Generate(ctx, llm.GenerateRequest{SystemPrompt: system, UserPrompt: user, MaxOutputTokens: 0})
+	if err != nil {
+		return "", "", nil, stepError(StepReview, err)
+	}
+	revisions, err := parseReviewResponse(resp.Text)
+	if err != nil {
+		return "", "", nil, stepError(StepReview, err)
+	}
+	if err := checkModelString("Model", resp.Model); err != nil {
+		return "", "", nil, stepError(StepReview, err)
+	}
+	if resp.ModelVersion != "" {
+		if err := checkModelString("ModelVersion", resp.ModelVersion); err != nil {
+			return "", "", nil, stepError(StepReview, err)
+		}
+	}
+	revised, err := applyRevisions(textString(title, body), revisions)
+	if err != nil {
+		return "", "", nil, stepError(StepReview, err)
+	}
+	newTitle, newBody, err := checkGeneratedText(revised)
+	if err != nil {
+		return "", "", nil, stepError(StepReview, err)
+	}
+	result := ReviewResult{Model: StepModel{Model: resp.Model, ModelVersion: resp.ModelVersion}, Revisions: revisions}
+	return newTitle, newBody, &result, nil
 }

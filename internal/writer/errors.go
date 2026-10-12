@@ -1,6 +1,9 @@
 package writer
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 // Sentinel errors returned by New and Write. They are wrapped with context;
 // callers identify a failure with errors.Is.
@@ -12,6 +15,9 @@ var (
 	ErrInvalidArticle = errors.New("invalid article")
 	// ErrInvalidReview is returned by ReviewResult.Check.
 	ErrInvalidReview = errors.New("invalid review result")
+	// ErrTooLong reports that the body is over the length limit after the
+	// shorten step or after the review step.
+	ErrTooLong = errors.New("article body exceeds the length limit")
 )
 
 var (
@@ -19,6 +25,14 @@ var (
 	// exported: a missing dependency is a programming error, not a condition
 	// callers branch on.
 	errNilLLMClient = errors.New("LLM client is nil")
+	// errReviewClientNil, errReviewClientSet, and errDisabledStepTemplate
+	// reject the step combinations New must not accept (an enabled review
+	// step without a client, a client set while the step is disabled, and a
+	// template path for a disabled step). They are not exported: each is a
+	// caller mistake, not a condition to branch on.
+	errReviewClientNil      = errors.New("review step is enabled but its LLM client is nil")
+	errReviewClientSet      = errors.New("review step is disabled but its LLM client is set")
+	errDisabledStepTemplate = errors.New("a disabled step has a template path")
 	// errNotRegularFile is joined with ErrInvalidTemplate when an override
 	// path names a directory, FIFO, device, or socket.
 	errNotRegularFile = errors.New("not a regular file")
@@ -60,3 +74,47 @@ var (
 	errRevisionBeforeAmbiguous = errors.New("revision before appears in the reviewed text more than once")
 	errRevisionOverlap         = errors.New("revision ranges overlap")
 )
+
+// Step identifies a post-generation step in a StepError. The zero value is
+// StepUnknown.
+type Step int
+
+// StepUnknown is the zero value of Step, which no step uses.
+const (
+	StepUnknown Step = iota
+	StepShorten
+	StepReview
+)
+
+// String returns "shorten" or "review"; StepUnknown and values outside the
+// enumeration return "unknown".
+func (s Step) String() string {
+	switch s {
+	case StepShorten:
+		return "shorten"
+	case StepReview:
+		return "review"
+	default:
+		return "unknown"
+	}
+}
+
+// StepError wraps every failure of a post-generation step. Error returns
+// "<step> step: <original error>"; Unwrap returns the original error.
+type StepError struct {
+	Step Step
+	Err  error
+}
+
+func (e *StepError) Error() string {
+	return fmt.Sprintf("%s step: %s", e.Step, e.Err)
+}
+
+func (e *StepError) Unwrap() error { return e.Err }
+
+// stepError wraps err as the failure of step. Every failure a step can report
+// goes through it, so a caller reads the failing step from the type instead of
+// from the message text.
+func stepError(step Step, err error) error {
+	return &StepError{Step: step, Err: err}
+}

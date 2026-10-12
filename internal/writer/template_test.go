@@ -355,21 +355,34 @@ func TestTemplateSyntaxAllowlist(t *testing.T) {
 		{"empty define with probe name", `a{{define "NAME` + probeNameSuffix + `"}}{{end}}`, true},
 	}
 
-	for _, target := range overrideTargets {
+	type target struct {
+		name    string
+		fields  map[string]string
+		options func(path string) Options
+	}
+	var targets []target
+	for _, t := range overrideTargets {
+		targets = append(targets, target{t.name, nil, t.options})
+	}
+	for _, t := range stepTemplateTargets {
+		targets = append(targets, target{t.name, t.fields, t.options})
+	}
+
+	for _, target := range targets {
 		for _, tc := range accepted {
 			t.Run(target.name+"/accept/"+tc.name, func(t *testing.T) {
-				w, err := New(&llmtestutil.FakeLLMClient{}, target.options(writeOverrideFile(t, tc.text)))
+				w, err := New(&llmtestutil.FakeLLMClient{}, target.options(writeOverrideFile(t, substituteFields(tc.text, target.fields))))
 				requireAccepted(t, w, err)
 			})
 		}
 		for _, tc := range syntaxRejected {
 			t.Run(target.name+"/reject/"+tc.name, func(t *testing.T) {
-				w, err := New(&llmtestutil.FakeLLMClient{}, target.options(writeOverrideFile(t, tc.text)))
+				w, err := New(&llmtestutil.FakeLLMClient{}, target.options(writeOverrideFile(t, substituteFields(tc.text, target.fields))))
 				requireRejected(t, w, err, errDisallowedSyntax)
 			})
 		}
 		for _, tc := range definitionRejected {
-			text := strings.ReplaceAll(tc.text, "NAME", target.name)
+			text := substituteFields(strings.ReplaceAll(tc.text, "NAME", target.name), target.fields)
 			t.Run(target.name+"/reject/"+tc.name, func(t *testing.T) {
 				if tc.checkSyntax {
 					// Without the definition check, the syntax walk alone
@@ -389,22 +402,112 @@ func TestTemplateSyntaxAllowlist(t *testing.T) {
 	}
 }
 
+// checkDefaultTemplate checks, on its own, that a default template passes the
+// construction checks for T and expands with data.
+func checkDefaultTemplate[T any](t *testing.T, name, text string, data T) {
+	t.Helper()
+	tmpl, err := parseTemplate[T](templateSource{name: name}, text)
+	if err != nil {
+		t.Errorf("default %s template fails the checks: %v", name, err)
+		return
+	}
+	if _, err := tmpl.expand(data); err != nil {
+		t.Errorf("default %s template fails to expand: %v", name, err)
+	}
+}
+
 func TestDefaultTemplatesPassChecks(t *testing.T) {
-	w, err := New(&llmtestutil.FakeLLMClient{}, Options{})
+	// New loads all six defaults when both steps are enabled.
+	w, err := New(newFakeClient(), Options{
+		Shorten: ShortenOptions{Enabled: true},
+		Review:  ReviewOptions{Enabled: true, Client: newFakeClient()},
+	})
 	requireAccepted(t, w, err)
 
-	// Each default is checked on its own, so breaking either one fails here
-	// even if New were to skip one of them.
-	defaults := []struct{ name, text string }{
-		{systemTemplateName, prompts.System()},
-		{userTemplateName, prompts.User()},
+	gen := newTemplateData(validTranscript())
+	shorten := shortenTemplateData{
+		ArticleTitle:    markOutTitle,
+		ArticleBody:     markOutBody,
+		BodyChars:       1,
+		TargetBodyChars: targetBodyChars,
+		MaxBodyChars:    maxBodyChars,
 	}
-	for _, d := range defaults {
-		t.Run(d.name, func(t *testing.T) {
-			if _, err := parseTemplate[templateData](templateSource{name: d.name}, d.text); err != nil {
-				t.Errorf("default %s template fails the checks: %v", d.name, err)
-			}
+	review := reviewTemplateData{templateData: gen, ArticleTitle: markOutTitle, ArticleBody: markOutBody}
+
+	// Each default is checked on its own, so breaking any one fails here even
+	// if New were to skip it.
+	checkDefaultTemplate[templateData](t, systemTemplateName, prompts.System(), gen)
+	checkDefaultTemplate[templateData](t, userTemplateName, prompts.User(), gen)
+	checkDefaultTemplate[shortenTemplateData](t, shortenSystemTemplateName, prompts.ShortenSystem(), shorten)
+	checkDefaultTemplate[shortenTemplateData](t, shortenUserTemplateName, prompts.ShortenUser(), shorten)
+	checkDefaultTemplate[reviewTemplateData](t, reviewSystemTemplateName, prompts.ReviewSystem(), review)
+	checkDefaultTemplate[reviewTemplateData](t, reviewUserTemplateName, prompts.ReviewUser(), review)
+}
+
+// TestTemplateDataFields checks that the field allowlist is taken from each
+// template's own data type: a field of another type, and the unexported
+// embedded field itself, are rejected at construction.
+func TestTemplateDataFields(t *testing.T) {
+	accepted := []struct {
+		name    string
+		options func(path string) Options
+		text    string
+	}{
+		{"review Title", func(path string) Options {
+			return Options{Review: ReviewOptions{Enabled: true, Client: &llmtestutil.FakeLLMClient{}, UserTemplatePath: path}}
+		}, "{{.Title}}"},
+		{"review ArticleBody", func(path string) Options {
+			return Options{Review: ReviewOptions{Enabled: true, Client: &llmtestutil.FakeLLMClient{}, UserTemplatePath: path}}
+		}, "{{.ArticleBody}}"},
+	}
+	for _, tc := range accepted {
+		t.Run("accepts/"+tc.name, func(t *testing.T) {
+			w, err := New(&llmtestutil.FakeLLMClient{}, tc.options(writeOverrideFile(t, tc.text)))
+			requireAccepted(t, w, err)
 		})
+	}
+
+	rejected := []struct {
+		name    string
+		options func(path string) Options
+		text    string
+	}{
+		{"shorten Transcript", func(path string) Options {
+			return Options{Shorten: ShortenOptions{Enabled: true, UserTemplatePath: path}}
+		}, "{{.Transcript}}"},
+		{"shorten Title", func(path string) Options {
+			return Options{Shorten: ShortenOptions{Enabled: true, UserTemplatePath: path}}
+		}, "{{.Title}}"},
+		{"generation ArticleBody", func(path string) Options {
+			return Options{UserTemplatePath: path}
+		}, "{{.ArticleBody}}"},
+		{"review embedded field", func(path string) Options {
+			return Options{Review: ReviewOptions{Enabled: true, Client: &llmtestutil.FakeLLMClient{}, UserTemplatePath: path}}
+		}, "{{.templateData}}"},
+	}
+	for _, tc := range rejected {
+		t.Run("rejects/"+tc.name, func(t *testing.T) {
+			w, err := New(&llmtestutil.FakeLLMClient{}, tc.options(writeOverrideFile(t, tc.text)))
+			requireRejected(t, w, err, errDisallowedSyntax)
+		})
+	}
+}
+
+// TestDefaultReviewTemplateNamesWireValues pins the default review system
+// template to the response contract: every reason spelling and every response
+// key must appear, so the template cannot drift from the parser's rules.
+func TestDefaultReviewTemplateNamesWireValues(t *testing.T) {
+	text := prompts.ReviewSystem()
+	for _, entry := range revisionReasons {
+		if !strings.Contains(text, entry.wire) {
+			t.Errorf("default review system template does not name the reason value %q", entry.wire)
+		}
+	}
+	keys := []string{reviewKeyRevisions, reviewKeyBefore, reviewKeyAfter, reviewKeyDelete, reviewKeyReason, reviewKeyEvidence}
+	for _, key := range keys {
+		if !strings.Contains(text, key) {
+			t.Errorf("default review system template does not name the response key %q", key)
+		}
 	}
 }
 
@@ -417,6 +520,15 @@ func TestDefaultSystemTemplateHeadingInstruction(t *testing.T) {
 	t.Error("default system template has no line starting with \"# \" to show the title heading")
 }
 
+func TestDefaultShortenTemplateHeadingInstruction(t *testing.T) {
+	for line := range strings.Lines(prompts.ShortenSystem()) {
+		if strings.HasPrefix(line, "# ") {
+			return
+		}
+	}
+	t.Error("default shorten system template has no line starting with \"# \" to show the title heading")
+}
+
 // TestInvalidTemplateErrorNamesSource checks that a rejection says which
 // template failed and whether it was the embedded default or an override
 // file, naming the file.
@@ -426,6 +538,21 @@ func TestInvalidTemplateErrorNamesSource(t *testing.T) {
 			_, err := parseTemplate[templateData](templateSource{name: target.name}, "")
 			if want := target.name + " template (embedded default)"; err == nil || !strings.Contains(err.Error(), want) {
 				t.Errorf("parseTemplate error = %v, want it to contain %q", err, want)
+			}
+		})
+		t.Run(target.name+"/override file", func(t *testing.T) {
+			path := writeOverrideFile(t, "")
+			_, err := New(&llmtestutil.FakeLLMClient{}, target.options(path))
+			if want := fmt.Sprintf("%s template (override file %q)", target.name, path); err == nil || !strings.Contains(err.Error(), want) {
+				t.Errorf("New error = %v, want it to contain %q", err, want)
+			}
+		})
+	}
+	for _, target := range stepTemplateTargets {
+		t.Run(target.name+"/embedded default", func(t *testing.T) {
+			err := target.parse(templateSource{name: target.name}, "")
+			if want := target.name + " template (embedded default)"; err == nil || !strings.Contains(err.Error(), want) {
+				t.Errorf("parse error = %v, want it to contain %q", err, want)
 			}
 		})
 		t.Run(target.name+"/override file", func(t *testing.T) {

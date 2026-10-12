@@ -23,6 +23,26 @@ type templateData struct {
 	Transcript  string
 }
 
+// shortenTemplateData is the only value passed to a shorten template. It
+// carries no transcript and no other material: the shorten step must not add
+// new content, so it never sees the source.
+type shortenTemplateData struct {
+	ArticleTitle    string // the title of the text to shorten
+	ArticleBody     string // its body part, without the source block
+	BodyChars       int    // the body length counted as in bodyChars
+	TargetBodyChars int    // targetBodyChars, the length to aim for
+	MaxBodyChars    int    // maxBodyChars, the hard limit
+}
+
+// reviewTemplateData is the only value passed to a review template. The
+// material is the generation's templateData itself, so the review prompt
+// embeds the same transcript string as the generation prompt.
+type reviewTemplateData struct {
+	templateData        // Title, ChannelName, Description, Transcript
+	ArticleTitle string // the title of the text to review
+	ArticleBody  string // its body part, without the source block
+}
+
 // validateTranscript checks t in a fixed order and returns the normalized
 // video URL, which is built from the validated VideoID, never taken from
 // VideoURL. Errors wrap ErrInvalidTranscript and name the failed field only;
@@ -100,7 +120,7 @@ func (c checkedTemplate[T]) expand(data T) (string, error) {
 	w := &boundedWriter{limit: maxPromptBytes}
 	if err := c.tmpl.Execute(w, data); err != nil {
 		if errors.Is(err, errPromptTooLarge) {
-			return "", fmt.Errorf("%w: %s prompt: %w of %d bytes; the template or the transcript values it embeds are too large",
+			return "", fmt.Errorf("%w: %s prompt: %w of %d bytes; the template or the values it embeds are too large",
 				ErrInvalidTemplate, c.tmpl.Name(), errPromptTooLarge, maxPromptBytes)
 		}
 		return "", fmt.Errorf("%w: %s template failed to expand: %q", ErrInvalidTemplate, c.tmpl.Name(), err.Error())

@@ -67,6 +67,81 @@ func TestArticleCheckPublishable(t *testing.T) {
 	}
 }
 
+func TestArticleCheckPublishableSteps(t *testing.T) {
+	withSteps := func() Article {
+		a := validPublishableArticle()
+		a.Shorten = &StepModel{Model: "shorten-model"}
+		a.Review = &ReviewResult{Model: StepModel{Model: "review-model", ModelVersion: "v1"}}
+		return a
+	}
+
+	accepted := []struct {
+		name   string
+		mutate func(a *Article)
+	}{
+		{"no steps", func(*Article) {}},
+		{"both steps", func(a *Article) { *a = withSteps() }},
+		{"review with no revisions", func(a *Article) {
+			*a = withSteps()
+			a.Review.Revisions = nil
+		}},
+		{"step model versions empty", func(a *Article) {
+			*a = withSteps()
+			a.Shorten.ModelVersion = ""
+			a.Review.Model.ModelVersion = ""
+		}},
+	}
+	for _, tc := range accepted {
+		t.Run("accepts/"+tc.name, func(t *testing.T) {
+			a := validPublishableArticle()
+			tc.mutate(&a)
+			if err := a.CheckPublishable(); err != nil {
+				t.Errorf("CheckPublishable() = %v, want nil", err)
+			}
+		})
+	}
+
+	rejected := []struct {
+		name       string
+		mutate     func(a *Article)
+		wantReview bool
+	}{
+		{"shorten model control character", func(a *Article) {
+			*a = withSteps()
+			a.Shorten.Model = "shorten\rx"
+		}, false},
+		{"shorten model version control character", func(a *Article) {
+			*a = withSteps()
+			a.Shorten.ModelVersion = "v\x00"
+		}, false},
+		{"review model control character", func(a *Article) {
+			*a = withSteps()
+			a.Review.Model.Model = "review\x1b[31m"
+		}, false},
+		{"review model version control character", func(a *Article) {
+			*a = withSteps()
+			a.Review.Model.ModelVersion = "v\n"
+		}, false},
+		{"review result check fails", func(a *Article) {
+			*a = withSteps()
+			a.Review.Revisions = []Revision{{Before: "b", Action: ActionUnknown, Reason: ReasonMeaningChange, Evidence: "e"}}
+		}, true},
+	}
+	for _, tc := range rejected {
+		t.Run("rejects/"+tc.name, func(t *testing.T) {
+			a := validPublishableArticle()
+			tc.mutate(&a)
+			err := a.CheckPublishable()
+			if !errors.Is(err, ErrInvalidArticle) {
+				t.Fatalf("CheckPublishable() = %v, want ErrInvalidArticle", err)
+			}
+			if got := errors.Is(err, ErrInvalidReview); got != tc.wantReview {
+				t.Errorf("CheckPublishable() matches ErrInvalidReview = %v, want %v", got, tc.wantReview)
+			}
+		})
+	}
+}
+
 func TestArticleCheckPublishableOmitsValues(t *testing.T) {
 	const mark = "mark-secret-Q4wd"
 	cases := []struct {
