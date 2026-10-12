@@ -223,6 +223,37 @@ func threeMessageArticle() string {
 	return "# A long title\n\n" + paragraph + "\n" + paragraph + "\n" + paragraph
 }
 
+// longGeneratedText is generated text whose body is over maxBodyChars, so the
+// shorten step runs.
+func longGeneratedText() string {
+	return "# A long title\n\n" + strings.Repeat("word ", 900) + "\n"
+}
+
+// shortGeneratedText is generated text whose body is within maxBodyChars.
+func shortGeneratedText() string {
+	return "# A long title\n\nA short body.\n"
+}
+
+// emptyReviewJSON is a valid review response that revises nothing.
+const emptyReviewJSON = `{"revisions":[]}`
+
+// reviewJSON returns a valid review response with one replacement revision.
+func reviewJSON(before, after string) string {
+	return fmt.Sprintf(`{"revisions":[{"before":%q,"after":%q,"reason":"meaning_change","evidence":"the source says so"}]}`, before, after)
+}
+
+// reviewLLM returns a client that returns text as the review response.
+func reviewLLM(text string) llm.LLMClient {
+	return funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
+		return llm.GenerateResponse{Text: text, Model: "review-model", ModelVersion: "rv1"}, nil
+	})
+}
+
+// useReviewClient makes the run build reviewClient for the review step.
+func (e *runEnv) useReviewClient(client llm.LLMClient) {
+	e.d.newReviewLLMClient = func(config.Config) (llm.LLMClient, error) { return client, nil }
+}
+
 // cliArgs returns the arguments run receives. Unless the test enabled the
 // steps, the arguments that disable both come first, so the default (both on)
 // does not change what a test of something else observes.
@@ -338,7 +369,11 @@ type pathRow struct {
 	// keepsTempFile allows the run to leave its kept temporary file next to
 	// --out; otherwise a failed run leaves the --out directory as it was.
 	keepsTempFile bool
-	wantStderr    []string
+	// articlePublished marks a run that published the article and then failed,
+	// as a review-log write failure does: --out is created and the video's
+	// cache is removed, so the failure-only checks do not apply.
+	articlePublished bool
+	wantStderr       []string
 	// notStderr lists hints standard error must not hold.
 	notStderr []string
 	check     func(t *testing.T, e *runEnv)
@@ -963,6 +998,60 @@ func executionPathRows() []pathRow {
 				}
 			},
 		},
+		{
+			name: "--review-log with --no-review",
+			setup: func(_ *testing.T, e *runEnv) {
+				e.withSteps = true
+				e.args = []string{"--review-log", filepath.Join(e.base, "review.md"), "--no-review", "--out", e.outPath, runVideoURL}
+			},
+			wantCode:   exitUsage,
+			wantStderr: []string{"--review-log cannot be used with --no-review", "yt2column -h"},
+		},
+		{
+			name: "review-log inside the cache directory",
+			setup: func(_ *testing.T, e *runEnv) {
+				e.withSteps = true
+				e.args = []string{"--review-log", filepath.Join(e.cacheDir, "review.md"), "--out", e.outPath, runVideoURL}
+			},
+			wantCode:   exitUsage,
+			wantStderr: []string{"inside the cache directory", "yt2column -h"},
+		},
+		{
+			name: "review step fails",
+			setup: func(_ *testing.T, e *runEnv) {
+				e.withSteps = true
+				e.useReviewClient(reviewLLM("not json"))
+			},
+			wantCode:   exitFailure,
+			wantStderr: []string{"the write stage failed", "review step", "--no-review"},
+		},
+		{
+			name: "review-log write failure after the publish",
+			setup: func(_ *testing.T, e *runEnv) {
+				e.withSteps = true
+				logPath := filepath.Join(e.base, "review.md")
+				e.args = []string{"--review-log", logPath, "--out", e.outPath, runVideoURL}
+				e.useReviewClient(reviewLLM(emptyReviewJSON))
+				// The publisher creates the review log file after the article is
+				// written, so the review log's link(2) fails with EEXIST.
+				e.d.newFilePublisher = func(path string) (publisher.Publisher, error) {
+					inner, err := newFilePublisher(path)
+					if err != nil {
+						return nil, err
+					}
+					return publisherFunc(func(ctx context.Context, a writer.Article) error {
+						if err := inner.Publish(ctx, a); err != nil {
+							return err
+						}
+						return os.WriteFile(logPath, []byte("raced"), 0o600)
+					}), nil
+				}
+			},
+			wantCode:         exitFailure,
+			articlePublished: true,
+			wantStderr:       []string{"the article was written to", "writing the review log to"},
+			notStderr:        []string{"the run failed:", "the finished article was kept in"},
+		},
 	}
 }
 
@@ -1042,6 +1131,10 @@ func TestRunExecutionPaths(t *testing.T) {
 				}
 			}
 			switch {
+			case row.articlePublished:
+				if _, err := os.Stat(e.outPath); err != nil {
+					t.Errorf("--out was not created: %v", err)
+				}
 			case row.wantCode == exitFailure || untouched:
 				if !row.keepsTempFile {
 					if after := snapshotTree(t, filepath.Dir(e.outPath)); !maps.Equal(outDirBefore, after) {
@@ -1400,6 +1493,393 @@ func TestRunSlackSignalAfterPosting(t *testing.T) {
 		t.Error("the video's cache was removed although the removal was canceled")
 	}
 	requireSafeOutput(t, e.stdout.String(), e.stderr.String(), e.outPath)
+}
+
+// TestRunStepFlags checks --no-review, --no-shorten, and their combination:
+// each disables exactly its step, and disabling both restores the pre-step
+// output.
+func TestRunStepFlags(t *testing.T) {
+	t.Run("--no-review does not build or call the review client", func(t *testing.T) {
+		e := newRunEnv(t)
+		e.withSteps = true
+		e.args = []string{"--no-review", "--out", e.outPath, runVideoURL}
+		reviewCalls := 0
+		e.d.newReviewLLMClient = func(config.Config) (llm.LLMClient, error) {
+			reviewCalls++
+			return reviewLLM(emptyReviewJSON), nil
+		}
+		if code := e.run(); code != exitOK {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
+		}
+		if reviewCalls != 0 {
+			t.Errorf("newReviewLLMClient calls = %d, want 0", reviewCalls)
+		}
+		if strings.Contains(e.stderr.String(), "the review step returned") {
+			t.Errorf("stderr reports a review step although --no-review was given:\n%s", e.stderr.String())
+		}
+	})
+
+	t.Run("--no-shorten keeps an over-long body", func(t *testing.T) {
+		e := newRunEnv(t)
+		e.withSteps = true
+		e.args = []string{"--no-shorten", "--out", e.outPath, runVideoURL}
+		e.respondWith(longGeneratedText())
+		e.useReviewClient(reviewLLM(emptyReviewJSON))
+		if code := e.run(); code != exitOK {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
+		}
+		// The generation client is also the shorten client, so one call proves
+		// the shorten step did not run.
+		if got := e.counter.count(); got != 1 {
+			t.Errorf("Generate calls = %d, want 1", got)
+		}
+		if strings.Contains(e.stderr.String(), "the shorten step ran") {
+			t.Errorf("stderr reports a shorten step although --no-shorten was given:\n%s", e.stderr.String())
+		}
+	})
+
+	t.Run("both disabled restore the pre-step output", func(t *testing.T) {
+		e := newRunEnv(t)
+		e.withSteps = true
+		e.args = []string{"--no-shorten", "--no-review", "--out", e.outPath, runVideoURL}
+		if code := e.run(); code != exitOK {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
+		}
+		data, err := os.ReadFile(e.outPath) //nolint:gosec // a path inside the test's temporary directory
+		if err != nil {
+			t.Fatalf("read --out: %v", err)
+		}
+		if !strings.Contains(string(data), "# A title\n\n- Model: fake-model\n- Model version: v1\n") {
+			t.Errorf("--out does not have the pre-step model lines:\n%s", data)
+		}
+		if !strings.Contains(string(data), "The body.") {
+			t.Errorf("--out does not hold the generated body:\n%s", data)
+		}
+		for _, line := range []string{"- Shorten model:", "- Review model:"} {
+			if strings.Contains(string(data), line) {
+				t.Errorf("--out holds the step line %q:\n%s", line, data)
+			}
+		}
+	})
+}
+
+// TestRunDefaultSteps checks that the default run calls both steps and builds
+// the review client once, with the review step receiving the shortened text.
+func TestRunDefaultSteps(t *testing.T) {
+	e := newRunEnv(t)
+	e.withSteps = true
+	generation := 0
+	e.client = funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
+		generation++
+		if generation == 1 {
+			return llm.GenerateResponse{Text: longGeneratedText(), Model: "fake-model", ModelVersion: "v1"}, nil
+		}
+		return llm.GenerateResponse{Text: shortGeneratedText(), Model: "fake-model", ModelVersion: "v1"}, nil
+	})
+	reviewCalls := 0
+	e.d.newReviewLLMClient = func(config.Config) (llm.LLMClient, error) {
+		reviewCalls++
+		return reviewLLM(emptyReviewJSON), nil
+	}
+	if code := e.run(); code != exitOK {
+		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
+	}
+	if generation != 2 {
+		t.Errorf("generation client calls = %d, want 2 (generation, shorten)", generation)
+	}
+	if reviewCalls != 1 {
+		t.Errorf("newReviewLLMClient calls = %d, want 1", reviewCalls)
+	}
+	for _, want := range []string{"the shorten step ran", "the review step returned no revisions"} {
+		if !strings.Contains(e.stderr.String(), want) {
+			t.Errorf("stderr does not contain %q:\n%s", want, e.stderr.String())
+		}
+	}
+}
+
+// TestRunStepModelLines checks the --out model lines: a line per step that
+// ran, and no line for a step that did not.
+func TestRunStepModelLines(t *testing.T) {
+	t.Run("shorten and review lines", func(t *testing.T) {
+		e := newRunEnv(t)
+		e.withSteps = true
+		generation := 0
+		e.client = funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
+			generation++
+			if generation == 1 {
+				return llm.GenerateResponse{Text: longGeneratedText(), Model: "fake-model", ModelVersion: "v1"}, nil
+			}
+			return llm.GenerateResponse{Text: shortGeneratedText(), Model: "fake-model", ModelVersion: "v1"}, nil
+		})
+		e.useReviewClient(reviewLLM(emptyReviewJSON))
+		if code := e.run(); code != exitOK {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
+		}
+		data, err := os.ReadFile(e.outPath) //nolint:gosec // a path inside the test's temporary directory
+		if err != nil {
+			t.Fatalf("read --out: %v", err)
+		}
+		for _, want := range []string{
+			"- Shorten model: fake-model",
+			"- Shorten model version: v1",
+			"- Review model: review-model",
+			"- Review model version: rv1",
+		} {
+			if !strings.Contains(string(data), want) {
+				t.Errorf("--out does not contain %q:\n%s", want, data)
+			}
+		}
+	})
+
+	t.Run("no shorten line when the shorten step did not run", func(t *testing.T) {
+		e := newRunEnv(t)
+		e.withSteps = true
+		e.useReviewClient(reviewLLM(emptyReviewJSON))
+		if code := e.run(); code != exitOK {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
+		}
+		data, err := os.ReadFile(e.outPath) //nolint:gosec // a path inside the test's temporary directory
+		if err != nil {
+			t.Fatalf("read --out: %v", err)
+		}
+		if strings.Contains(string(data), "- Shorten model:") {
+			t.Errorf("--out holds a shorten line although the shorten step did not run:\n%s", data)
+		}
+		if !strings.Contains(string(data), "- Review model: review-model") {
+			t.Errorf("--out does not hold the review line:\n%s", data)
+		}
+	})
+}
+
+// TestRunReviewLog checks --review-log: the list is written after a successful
+// publish, and the summary names it, with --out and with --slack.
+func TestRunReviewLog(t *testing.T) {
+	t.Run("--out", func(t *testing.T) {
+		e := newRunEnv(t)
+		e.withSteps = true
+		logPath := filepath.Join(e.base, "review.md")
+		e.args = []string{"--review-log", logPath, "--out", e.outPath, runVideoURL}
+		e.useReviewClient(reviewLLM(reviewJSON("The body.", "A revised body.")))
+		if code := e.run(); code != exitOK {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
+		}
+		data, err := os.ReadFile(logPath) //nolint:gosec // a path inside the test's temporary directory
+		if err != nil {
+			t.Fatalf("read the review log: %v", err)
+		}
+		for _, want := range []string{"# Review log", "meaning_change", "> The body.", "> A revised body.", "> the source says so"} {
+			if !strings.Contains(string(data), want) {
+				t.Errorf("the review log does not contain %q:\n%s", want, data)
+			}
+		}
+		for _, want := range []string{"wrote the article to", "wrote the review log to " + logPath} {
+			if !strings.Contains(e.stderr.String(), want) {
+				t.Errorf("stderr does not contain %q:\n%s", want, e.stderr.String())
+			}
+		}
+		requireSafeOutput(t, e.stdout.String(), e.stderr.String(), e.outPath)
+	})
+
+	t.Run("--slack", func(t *testing.T) {
+		e := newRunEnv(t)
+		e.withSteps = true
+		e.useWebhook(t, nil)
+		logPath := filepath.Join(e.base, "review.md")
+		e.args = []string{"--review-log", logPath, "--slack", runVideoURL}
+		e.useReviewClient(reviewLLM(reviewJSON("The body.", "A revised body.")))
+		if code := e.run(); code != exitOK {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
+		}
+		if _, err := os.Stat(logPath); err != nil {
+			t.Errorf("the review log was not written: %v", err)
+		}
+		for _, want := range []string{"posted the article to the webhook", "wrote the review log to " + logPath} {
+			if !strings.Contains(e.stderr.String(), want) {
+				t.Errorf("stderr does not contain %q:\n%s", want, e.stderr.String())
+			}
+		}
+	})
+}
+
+// TestRunReviewLogFailure checks that a review-log write failure after the
+// publish reports that the article is already published, never as "the run
+// failed:".
+func TestRunReviewLogFailure(t *testing.T) {
+	e := newRunEnv(t)
+	e.withSteps = true
+	logPath := filepath.Join(e.base, "review.md")
+	e.args = []string{"--review-log", logPath, "--out", e.outPath, runVideoURL}
+	e.useReviewClient(reviewLLM(emptyReviewJSON))
+	e.d.newFilePublisher = func(path string) (publisher.Publisher, error) {
+		inner, err := newFilePublisher(path)
+		if err != nil {
+			return nil, err
+		}
+		return publisherFunc(func(ctx context.Context, a writer.Article) error {
+			if err := inner.Publish(ctx, a); err != nil {
+				return err
+			}
+			// The review log file appears after the article is written, so the
+			// review log's link(2) fails with EEXIST.
+			return os.WriteFile(logPath, []byte("raced"), 0o600)
+		}), nil
+	}
+	if code := e.run(); code != exitFailure {
+		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitFailure, e.stderr.String())
+	}
+	stderr := e.stderr.String()
+	for _, want := range []string{"the article was written to " + e.outPath, "writing the review log to " + logPath, "do not run again"} {
+		if !strings.Contains(stderr, want) {
+			t.Errorf("stderr does not contain %q:\n%s", want, stderr)
+		}
+	}
+	if strings.Contains(stderr, "the run failed:") {
+		t.Errorf("stderr reports the review-log failure as a run failure:\n%s", stderr)
+	}
+	if strings.Contains(stderr, "the finished article was kept in") {
+		t.Errorf("stderr reports a kept file for a published article:\n%s", stderr)
+	}
+	requireSafeOutput(t, e.stdout.String(), stderr, e.outPath)
+}
+
+// TestRunReviewLogWithNoReview checks that --review-log with --no-review is a
+// usage error before any LLM call.
+func TestRunReviewLogWithNoReview(t *testing.T) {
+	e := newRunEnv(t)
+	e.withSteps = true
+	e.args = []string{"--review-log", filepath.Join(e.base, "review.md"), "--no-review", "--out", e.outPath, runVideoURL}
+	if code := e.run(); code != exitUsage {
+		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, e.stderr.String())
+	}
+	if !strings.Contains(e.stderr.String(), "--review-log cannot be used with --no-review") {
+		t.Errorf("stderr does not name the rejected combination:\n%s", e.stderr.String())
+	}
+	if got := e.counter.count(); got != 0 {
+		t.Errorf("Generate calls = %d, want 0", got)
+	}
+}
+
+// TestRunTooLongHint checks that ErrTooLong suggests --no-shorten.
+func TestRunTooLongHint(t *testing.T) {
+	e := newRunEnv(t)
+	e.withSteps = true
+	e.respondWith(longGeneratedText())
+	e.useReviewClient(reviewLLM(emptyReviewJSON))
+	if code := e.run(); code != exitFailure {
+		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitFailure, e.stderr.String())
+	}
+	stderr := e.stderr.String()
+	for _, want := range []string{"the write stage failed", "shorten step", "exceeds the length limit", "--no-shorten"} {
+		if !strings.Contains(stderr, want) {
+			t.Errorf("stderr does not contain %q:\n%s", want, stderr)
+		}
+	}
+}
+
+// TestRunReviewMalformedHint checks that the --no-review hint appears only for
+// a rejected review response, not for a generation or shorten rejection.
+func TestRunReviewMalformedHint(t *testing.T) {
+	t.Run("review step", func(t *testing.T) {
+		e := newRunEnv(t)
+		e.withSteps = true
+		e.useReviewClient(reviewLLM("not json"))
+		if code := e.run(); code != exitFailure {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitFailure, e.stderr.String())
+		}
+		stderr := e.stderr.String()
+		for _, want := range []string{"review step", "--no-review"} {
+			if !strings.Contains(stderr, want) {
+				t.Errorf("stderr does not contain %q:\n%s", want, stderr)
+			}
+		}
+	})
+
+	t.Run("generation", func(t *testing.T) {
+		e := newRunEnv(t)
+		e.withSteps = true
+		e.respondWith("not a heading")
+		e.useReviewClient(reviewLLM(emptyReviewJSON))
+		if code := e.run(); code != exitFailure {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitFailure, e.stderr.String())
+		}
+		if strings.Contains(e.stderr.String(), "--no-review") {
+			t.Errorf("stderr suggests --no-review for a generation rejection:\n%s", e.stderr.String())
+		}
+	})
+
+	t.Run("shorten step", func(t *testing.T) {
+		e := newRunEnv(t)
+		e.withSteps = true
+		generation := 0
+		e.client = funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
+			generation++
+			if generation == 1 {
+				return llm.GenerateResponse{Text: longGeneratedText(), Model: "fake-model", ModelVersion: "v1"}, nil
+			}
+			return llm.GenerateResponse{Text: "not a heading", Model: "fake-model", ModelVersion: "v1"}, nil
+		})
+		e.useReviewClient(reviewLLM(emptyReviewJSON))
+		if code := e.run(); code != exitFailure {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitFailure, e.stderr.String())
+		}
+		stderr := e.stderr.String()
+		if !strings.Contains(stderr, "shorten step") {
+			t.Errorf("stderr does not name the shorten step:\n%s", stderr)
+		}
+		if strings.Contains(stderr, "--no-review") {
+			t.Errorf("stderr suggests --no-review for a shorten rejection:\n%s", stderr)
+		}
+	})
+}
+
+// TestRunReviewDoesNotLeakAPIKey checks that a review failure whose message
+// holds the API key does not write the key or its tail anywhere.
+func TestRunReviewDoesNotLeakAPIKey(t *testing.T) {
+	e := newRunEnv(t)
+	e.withSteps = true
+	e.d.newReviewLLMClient = func(config.Config) (llm.LLMClient, error) {
+		return funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
+			return llm.GenerateResponse{}, fmt.Errorf("review call failed with %s", testAPIKey)
+		}), nil
+	}
+	if code := e.run(); code != exitFailure {
+		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitFailure, e.stderr.String())
+	}
+	if !strings.Contains(e.stderr.String(), "review step") {
+		t.Errorf("stderr does not name the review step:\n%s", e.stderr.String())
+	}
+	requireSafeOutput(t, e.stdout.String(), e.stderr.String(), e.outPath)
+}
+
+// TestRunInvalidStepTemplate checks that a rejected step template override is
+// a usage error before any LLM call, for each of the four flags.
+func TestRunInvalidStepTemplate(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "bad.tmpl")
+	if err := os.WriteFile(path, []byte(`{{define "x"}}{{end}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, flag := range []string{
+		"--shorten-system-prompt",
+		"--shorten-user-prompt",
+		"--review-system-prompt",
+		"--review-user-prompt",
+	} {
+		t.Run(flag, func(t *testing.T) {
+			e := newRunEnv(t)
+			e.withSteps = true
+			e.args = []string{flag, path, "--out", e.outPath, runVideoURL}
+			e.useReviewClient(reviewLLM(emptyReviewJSON))
+			if code := e.run(); code != exitUsage {
+				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, e.stderr.String())
+			}
+			if !strings.Contains(e.stderr.String(), "build the article writer") {
+				t.Errorf("stderr does not report building the article writer:\n%s", e.stderr.String())
+			}
+			if got := e.counter.count(); got != 0 {
+				t.Errorf("Generate calls = %d, want 0", got)
+			}
+		})
+	}
 }
 
 // TestConfiguredSecretsIncludesWebhookParts checks that a line holding only
