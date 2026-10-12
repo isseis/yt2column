@@ -96,9 +96,13 @@ type runEnv struct {
 	client         llm.LLMClient // the fake LLM client, counted by counter
 	counter        *generateCounter
 	webhook        *webhookServer // the loopback Webhook, when useWebhook set one up
-	d              deps
-	stdout         bytes.Buffer
-	stderr         bytes.Buffer
+	// withSteps keeps the post-generation steps enabled. By default the run
+	// disables both, so the tests of this package keep their pre-step
+	// behavior; only a test of the steps sets it.
+	withSteps bool
+	d         deps
+	stdout    bytes.Buffer
+	stderr    bytes.Buffer
 }
 
 // newRunEnv returns an environment where a run succeeds without yt-dlp: the
@@ -140,6 +144,7 @@ func newRunEnv(t *testing.T) *runEnv {
 	e.d.newLLMClient = func(config.Config) (llm.LLMClient, error) {
 		return e.counter.wrap(e.client), nil
 	}
+	e.d.newReviewLLMClient = refusingReviewLLMClient
 	e.d.newSlackPublisher = refusingSlackPublisher
 	return e
 }
@@ -218,12 +223,18 @@ func threeMessageArticle() string {
 	return "# A long title\n\n" + paragraph + "\n" + paragraph + "\n" + paragraph
 }
 
-// cliArgs returns the arguments run receives.
+// cliArgs returns the arguments run receives. Unless the test enabled the
+// steps, the arguments that disable both come first, so the default (both on)
+// does not change what a test of something else observes.
 func (e *runEnv) cliArgs() []string {
-	if e.args != nil {
-		return e.args
+	args := e.args
+	if args == nil {
+		args = []string{"--out", e.outPath, runVideoURL}
 	}
-	return []string{"--out", e.outPath, runVideoURL}
+	if e.withSteps {
+		return args
+	}
+	return append(slices.Clone(noStepsArgs), args...)
 }
 
 // run calls run once and returns its exit code.
@@ -401,7 +412,7 @@ func startHolder(t *testing.T, e *runEnv) {
 	go func() {
 		defer close(done)
 		var stdout, stderr bytes.Buffer
-		run(ctx, []string{"--refresh", "--out", holderOut, runVideoURL}, lookupFrom(env), &stdout, &stderr, testDeps(validResponseLLM()))
+		run(ctx, append(slices.Clone(noStepsArgs), "--refresh", "--out", holderOut, runVideoURL), lookupFrom(env), &stdout, &stderr, testDeps(validResponseLLM()))
 	}()
 	t.Cleanup(func() {
 		cancel()
@@ -1473,6 +1484,29 @@ func TestTestDepsSlackPublisherDoesNotSend(t *testing.T) {
 				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, e.stderr.String())
 			}
 			if want := "build the publisher: " + errSlackPublisherNotSubstituted.Error(); !strings.Contains(e.stderr.String(), want) {
+				t.Errorf("stderr does not contain %q:\n%s", want, e.stderr.String())
+			}
+		})
+	}
+}
+
+// TestTestDepsReviewClientBuildsNothing checks that the default
+// newReviewLLMClient of testDeps and of newRunEnv builds nothing: with the
+// steps enabled, a run stops at building the review client with the stub's
+// error.
+func TestTestDepsReviewClientBuildsNothing(t *testing.T) {
+	for name, depsFor := range map[string]func(e *runEnv) deps{
+		"testDeps":  func(*runEnv) deps { return testDeps(validResponseLLM()) },
+		"newRunEnv": func(e *runEnv) deps { return e.d },
+	} {
+		t.Run(name, func(t *testing.T) {
+			e := newRunEnv(t)
+			e.d = depsFor(e)
+			e.withSteps = true
+			if code := e.run(); code != exitUsage {
+				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, e.stderr.String())
+			}
+			if want := "build the review LLM client: " + errReviewClientNotSubstituted.Error(); !strings.Contains(e.stderr.String(), want) {
 				t.Errorf("stderr does not contain %q:\n%s", want, e.stderr.String())
 			}
 		})

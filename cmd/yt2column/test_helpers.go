@@ -87,6 +87,10 @@ var (
 	// that sends to a loopback server.
 	errSlackPublisherNotSubstituted = errors.New("the test deps send nothing to a webhook; substitute newSlackPublisher")
 	errLoopbackWebhookURL           = errors.New("the configured webhook URL does not parse")
+	// errReviewClientNotSubstituted is what the default newReviewLLMClient of
+	// testDeps and newRunEnv returns: a test that enables the steps must
+	// substitute a review LLMClient.
+	errReviewClientNotSubstituted = errors.New("the test deps build no review client; disable the steps or substitute newReviewLLMClient")
 )
 
 // loopbackPostTimeout is the per-message timeout of a loopback test
@@ -180,6 +184,7 @@ func (s stallingPublisher) Publish(ctx context.Context, _ writer.Article) error 
 func testDeps(client llm.LLMClient) deps {
 	d := productionDeps()
 	d.newLLMClient = func(config.Config) (llm.LLMClient, error) { return client, nil }
+	d.newReviewLLMClient = refusingReviewLLMClient
 	d.newSlackPublisher = refusingSlackPublisher
 	return d
 }
@@ -189,6 +194,14 @@ func testDeps(client llm.LLMClient) deps {
 // reports on its "build the publisher" line.
 func refusingSlackPublisher(secret.Secret) (publisher.Publisher, error) {
 	return nil, errSlackPublisherNotSubstituted
+}
+
+// refusingReviewLLMClient is the default newReviewLLMClient of the test deps:
+// it builds nothing and returns errReviewClientNotSubstituted, which run
+// reports on its "build the review LLM client" line. A test that enables the
+// review step must substitute one.
+func refusingReviewLLMClient(config.Config) (llm.LLMClient, error) {
+	return nil, errReviewClientNotSubstituted
 }
 
 // loopbackSlackPublisher returns a newSlackPublisher that builds a real

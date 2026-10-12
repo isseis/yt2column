@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -41,20 +42,24 @@ const usageHint = programName + ": run '" + programName + " -h' for usage"
 // deps are the constructors run uses. main passes productionDeps(); a unit test
 // substitutes fakes.
 type deps struct {
-	newLLMClient      func(config.Config) (llm.LLMClient, error)
-	newWriter         func(llm.LLMClient, writer.Options) (writer.ArticleWriter, error)
-	newFilePublisher  func(path string) (publisher.Publisher, error)
-	newSlackPublisher func(webhookURL secret.Secret) (publisher.Publisher, error)
+	newLLMClient       func(config.Config) (llm.LLMClient, error)
+	newReviewLLMClient func(config.Config) (llm.LLMClient, error)
+	newWriter          func(llm.LLMClient, writer.Options) (writer.ArticleWriter, error)
+	newFilePublisher   func(path string) (publisher.Publisher, error)
+	newSlackPublisher  func(webhookURL secret.Secret) (publisher.Publisher, error)
+	newReviewLogWriter func(path string) (*publisher.ReviewLogWriter, error)
 }
 
 // productionDeps returns the real constructors. main and the integration test
 // both use it, so the test runs the same assembly as the CLI.
 func productionDeps() deps {
 	return deps{
-		newLLMClient:      provider.New,
-		newWriter:         writer.New,
-		newFilePublisher:  newFilePublisher,
-		newSlackPublisher: newSlackPublisher,
+		newLLMClient:       provider.New,
+		newReviewLLMClient: provider.NewReview,
+		newWriter:          writer.New,
+		newFilePublisher:   newFilePublisher,
+		newSlackPublisher:  newSlackPublisher,
+		newReviewLogWriter: publisher.NewReviewLogWriter,
 	}
 }
 
@@ -98,16 +103,27 @@ var (
 	errOutAndSlack        = errors.New("--out and --slack cannot be used together")
 	errNoDestination      = errors.New("one of --out or --slack is required")
 	errInvalidDestination = errors.New("no output destination was chosen")
+	// Review-log rejections, in the order they are checked.
+	errReviewLogNoReview = errors.New("--review-log cannot be used with --no-review")
+	errReviewLogEmpty    = errors.New("--review-log needs a path")
+	errReviewLogSameFile = errors.New("--out and --review-log cannot name the same file")
 )
 
 // cliOptions holds the parsed flags.
 type cliOptions struct {
-	out          string
-	slack        bool
-	refresh      bool
-	keepCache    bool
-	systemPrompt string
-	userPrompt   string
+	out                 string
+	slack               bool
+	refresh             bool
+	keepCache           bool
+	systemPrompt        string
+	userPrompt          string
+	noShorten           bool
+	noReview            bool
+	reviewLog           string
+	shortenSystemPrompt string
+	shortenUserPrompt   string
+	reviewSystemPrompt  string
+	reviewUserPrompt    string
 }
 
 // newFlagSet defines every flag in one place, so run and the documentation
@@ -123,7 +139,25 @@ func newFlagSet() (*flag.FlagSet, *cliOptions) {
 	fs.BoolVar(&opts.keepCache, "keep-cache", false, "keep this video's cache after a successful run")
 	fs.StringVar(&opts.systemPrompt, "system-prompt", "", "read the system prompt template from this `path` instead of the built-in one")
 	fs.StringVar(&opts.userPrompt, "user-prompt", "", "read the user prompt template from this `path` instead of the built-in one")
+	fs.BoolVar(&opts.noShorten, "no-shorten", false, "do not shorten an over-long body, and do not check the final length")
+	fs.BoolVar(&opts.noReview, "no-review", false, "do not review the article against the source material")
+	fs.StringVar(&opts.reviewLog, "review-log", "", "write the review step's list of changes to this `path`; requires the review step")
+	fs.StringVar(&opts.shortenSystemPrompt, "shorten-system-prompt", "", "read the shorten system prompt template from this `path` instead of the built-in one")
+	fs.StringVar(&opts.shortenUserPrompt, "shorten-user-prompt", "", "read the shorten user prompt template from this `path` instead of the built-in one")
+	fs.StringVar(&opts.reviewSystemPrompt, "review-system-prompt", "", "read the review system prompt template from this `path` instead of the built-in one")
+	fs.StringVar(&opts.reviewUserPrompt, "review-user-prompt", "", "read the review user prompt template from this `path` instead of the built-in one")
 	return fs, opts
+}
+
+// flagGiven reports whether name was set on the command line.
+func flagGiven(fs *flag.FlagSet, name string) bool {
+	given := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			given = true
+		}
+	})
+	return given
 }
 
 // writeUsage writes the usage text for fs to w.
@@ -192,6 +226,10 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 	if err != nil {
 		return usageError(errOut, "%v", err)
 	}
+	if err := checkReviewLog(fs, opts, dest); err != nil {
+		return usageError(errOut, "%v", err)
+	}
+	reviewLogGiven := flagGiven(fs, "review-log")
 
 	// A3: the configuration. Each rejected variable is reported on its own
 	// line; a VarError never carries a value.
@@ -209,23 +247,20 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 	warnHTTP2Debug(errOut, cfg, dest)
 
 	// A4: a file output must not be inside the cache directory, where pruning
-	// or removing the cache could delete it.
+	// or removing the cache could delete it. The review log is checked the same
+	// way.
 	if dest == destinationFile && outPathInsideCacheDir(opts.out, cfg.CacheDir()) {
 		return usageError(errOut, "--out %s is inside the cache directory %s; choose a path outside it", opts.out, cfg.CacheDir())
+	}
+	if reviewLogGiven && outPathInsideCacheDir(opts.reviewLog, cfg.CacheDir()) {
+		return usageError(errOut, "--review-log %s is inside the cache directory %s; choose a path outside it", opts.reviewLog, cfg.CacheDir())
 	}
 
 	// A5: build the stages. writer.New only reads the template files, and
 	// neither publisher constructor touches its destination.
-	client, err := d.newLLMClient(cfg)
+	articleWriter, reviewLog, err := buildWriter(d, cfg, opts, reviewLogGiven)
 	if err != nil {
-		return usageError(errOut, "build the LLM client: %v", err)
-	}
-	articleWriter, err := d.newWriter(client, writer.Options{
-		SystemTemplatePath: opts.systemPrompt,
-		UserTemplatePath:   opts.userPrompt,
-	})
-	if err != nil {
-		return usageError(errOut, "build the article writer: %v", err)
+		return usageError(errOut, "%v", err)
 	}
 	output, err := buildOutput(d, dest, opts.out, webhookURL)
 	if err != nil {
@@ -241,6 +276,7 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 		KeepCache: opts.keepCache,
 		Writer:    articleWriter,
 		Output:    output,
+		ReviewLog: reviewLog,
 	})
 	for _, warning := range result.Warnings {
 		errOut.line("%s: warning: %v", programName, warning)
@@ -284,6 +320,68 @@ func chooseDestination(fs *flag.FlagSet, opts *cliOptions) (destination, error) 
 	default:
 		return destinationInvalid, errNoDestination
 	}
+}
+
+// checkReviewLog rejects the --review-log combinations that cannot be used:
+// with --no-review, with an empty path, and naming the same file as --out. It
+// reads which flags were set, never their values, so the choice cannot depend
+// on what a value happens to hold. The same-file rule is textual: a different
+// alias of the same file is caught only when link(2) fails after the publish.
+func checkReviewLog(fs *flag.FlagSet, opts *cliOptions, dest destination) error {
+	if !flagGiven(fs, "review-log") {
+		return nil
+	}
+	switch {
+	case opts.noReview:
+		return errReviewLogNoReview
+	case opts.reviewLog == "":
+		return errReviewLogEmpty
+	case dest == destinationFile && filepath.Clean(opts.reviewLog) == filepath.Clean(opts.out):
+		return errReviewLogSameFile
+	default:
+		return nil
+	}
+}
+
+// buildWriter builds the ArticleWriter for the requested steps and, when
+// reviewLogGiven is set, the review log writer. The review LLM client is built
+// only when the review step runs, so --no-review never builds one.
+func buildWriter(d deps, cfg config.Config, opts *cliOptions, reviewLogGiven bool) (writer.ArticleWriter, *publisher.ReviewLogWriter, error) {
+	client, err := d.newLLMClient(cfg)
+	if err != nil {
+		return nil, nil, fmt.Errorf("build the LLM client: %w", err)
+	}
+	var reviewClient llm.LLMClient
+	if !opts.noReview {
+		if reviewClient, err = d.newReviewLLMClient(cfg); err != nil {
+			return nil, nil, fmt.Errorf("build the review LLM client: %w", err)
+		}
+	}
+	articleWriter, err := d.newWriter(client, writer.Options{
+		SystemTemplatePath: opts.systemPrompt,
+		UserTemplatePath:   opts.userPrompt,
+		Shorten: writer.ShortenOptions{
+			Enabled:            !opts.noShorten,
+			SystemTemplatePath: opts.shortenSystemPrompt,
+			UserTemplatePath:   opts.shortenUserPrompt,
+		},
+		Review: writer.ReviewOptions{
+			Enabled:            !opts.noReview,
+			Client:             reviewClient,
+			SystemTemplatePath: opts.reviewSystemPrompt,
+			UserTemplatePath:   opts.reviewUserPrompt,
+		},
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("build the article writer: %w", err)
+	}
+	var reviewLog *publisher.ReviewLogWriter
+	if reviewLogGiven {
+		if reviewLog, err = d.newReviewLogWriter(opts.reviewLog); err != nil {
+			return nil, nil, fmt.Errorf("build the review log writer: %w", err)
+		}
+	}
+	return articleWriter, reviewLog, nil
 }
 
 // configurationError reports each configuration error joined in err on its

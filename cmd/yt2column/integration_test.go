@@ -7,6 +7,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -47,7 +48,7 @@ func runIntegrationCLI(t *testing.T, settings deepseektestutil.IntegrationSettin
 	outPath := filepath.Join(r.base, "article.md")
 
 	var stdout, stderr bytes.Buffer
-	code := run(context.Background(), []string{"--out", outPath, integrationVideoURL}, lookupFrom(r.env), &stdout, &stderr, r.deps)
+	code := run(context.Background(), append(slices.Clone(noStepsArgs), "--out", outPath, integrationVideoURL), lookupFrom(r.env), &stdout, &stderr, r.deps)
 
 	article := ""
 	if data, err := os.ReadFile(outPath); err == nil { //nolint:gosec // a path inside the test's temporary directory
@@ -125,6 +126,13 @@ func newIntegrationRun(t *testing.T, settings deepseektestutil.IntegrationSettin
 	newLLMClient := d.newLLMClient
 	d.newLLMClient = func(cfg config.Config) (llm.LLMClient, error) {
 		client, err := newLLMClient(cfg)
+		return counter.wrap(client), err
+	}
+	// The review client is counted too, so the Generate count proves the steps
+	// did not run: with them disabled only the generation client is built.
+	newReviewLLMClient := d.newReviewLLMClient
+	d.newReviewLLMClient = func(cfg config.Config) (llm.LLMClient, error) {
+		client, err := newReviewLLMClient(cfg)
 		return counter.wrap(client), err
 	}
 	return integrationRun{

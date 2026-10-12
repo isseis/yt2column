@@ -43,6 +43,13 @@ configured webhook) is required.
 | `--keep-cache` | Keep this video's cache after a successful run. |
 | `--system-prompt <path>` | Read the system prompt template from this file instead of the built-in one. |
 | `--user-prompt <path>` | Read the user prompt template from this file instead of the built-in one. |
+| `--no-shorten` | Do not shorten an over-long body, and do not check the final length. |
+| `--no-review` | Do not review the article against the source material. |
+| `--review-log <path>` | Write the review step's list of changes to this file. Requires the review step; with `--out`, the path must differ from it. |
+| `--shorten-system-prompt <path>` | Read the shorten system prompt template from this file instead of the built-in one. |
+| `--shorten-user-prompt <path>` | Read the shorten user prompt template from this file instead of the built-in one. |
+| `--review-system-prompt <path>` | Read the review system prompt template from this file instead of the built-in one. |
+| `--review-user-prompt <path>` | Read the review user prompt template from this file instead of the built-in one. |
 | `-h`, `--help` | Show this usage and exit. |
 
 The article is written with file mode `0o644`. The output directory must allow

@@ -14,6 +14,11 @@ import (
 	publishertestutil "github.com/isseis/yt2column/internal/publisher/testutil"
 )
 
+// noStepsArgs disables both post-generation steps. A test that does not
+// exercise the steps puts these first, so enabling the steps by default does
+// not change what the run does. Shared by the test and integration builds.
+var noStepsArgs = []string{"--no-shorten", "--no-review"}
+
 // cliIntegrationOptions is how TestIntegrationCLI decides whether it runs. It
 // has its own opt-in, matching its own make target, and a missing test API
 // key fails it instead of skipping, so an opted-in run cannot pass without
