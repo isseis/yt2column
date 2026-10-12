@@ -1008,6 +1008,24 @@ func executionPathRows() []pathRow {
 			wantStderr: []string{"--review-log cannot be used with --no-review", "yt2column -h"},
 		},
 		{
+			name: "--review-log with an empty path",
+			setup: func(_ *testing.T, e *runEnv) {
+				e.withSteps = true
+				e.args = []string{"--review-log", "", "--out", e.outPath, runVideoURL}
+			},
+			wantCode:   exitUsage,
+			wantStderr: []string{"--review-log needs a path", "yt2column -h"},
+		},
+		{
+			name: "--review-log names the same file as --out",
+			setup: func(_ *testing.T, e *runEnv) {
+				e.withSteps = true
+				e.args = []string{"--review-log", e.outPath, "--out", e.outPath, runVideoURL}
+			},
+			wantCode:   exitUsage,
+			wantStderr: []string{"--out and --review-log cannot name the same file", "yt2column -h"},
+		},
+		{
 			name: "review-log inside the cache directory",
 			setup: func(_ *testing.T, e *runEnv) {
 				e.withSteps = true
@@ -1543,6 +1561,9 @@ func TestRunStepFlags(t *testing.T) {
 		if strings.Contains(e.stderr.String(), "the shorten step ran") {
 			t.Errorf("stderr reports a shorten step although --no-shorten was given:\n%s", e.stderr.String())
 		}
+		if !strings.Contains(e.stderr.String(), "the review step returned") {
+			t.Errorf("--no-shorten disabled the review step too:\n%s", e.stderr.String())
+		}
 	})
 
 	t.Run("both disabled restore the pre-step output", func(t *testing.T) {
@@ -1565,6 +1586,11 @@ func TestRunStepFlags(t *testing.T) {
 		for _, line := range []string{"- Shorten model:", "- Review model:"} {
 			if strings.Contains(string(data), line) {
 				t.Errorf("--out holds the step line %q:\n%s", line, data)
+			}
+		}
+		for _, line := range []string{"the shorten step ran", "the review step returned", "wrote the review log to"} {
+			if strings.Contains(e.stderr.String(), line) {
+				t.Errorf("stderr reports %q although both steps were disabled:\n%s", line, e.stderr.String())
 			}
 		}
 	})
@@ -1679,7 +1705,7 @@ func TestRunReviewLog(t *testing.T) {
 				t.Errorf("the review log does not contain %q:\n%s", want, data)
 			}
 		}
-		for _, want := range []string{"wrote the article to", "wrote the review log to " + logPath} {
+		for _, want := range []string{"wrote the article to", "wrote the review log to " + logPath, "the review step returned 1 revision (meaning_change 1)"} {
 			if !strings.Contains(e.stderr.String(), want) {
 				t.Errorf("stderr does not contain %q:\n%s", want, e.stderr.String())
 			}
@@ -1712,41 +1738,71 @@ func TestRunReviewLog(t *testing.T) {
 // publish reports that the article is already published, never as "the run
 // failed:".
 func TestRunReviewLogFailure(t *testing.T) {
-	e := newRunEnv(t)
-	e.withSteps = true
-	logPath := filepath.Join(e.base, "review.md")
-	e.args = []string{"--review-log", logPath, "--out", e.outPath, runVideoURL}
-	e.useReviewClient(reviewLLM(emptyReviewJSON))
-	e.d.newFilePublisher = func(path string) (publisher.Publisher, error) {
-		inner, err := newFilePublisher(path)
-		if err != nil {
-			return nil, err
+	assertFailure := func(t *testing.T, e *runEnv, logPath, articlePhrase string) {
+		t.Helper()
+		if code := e.run(); code != exitFailure {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitFailure, e.stderr.String())
 		}
-		return publisherFunc(func(ctx context.Context, a writer.Article) error {
-			if err := inner.Publish(ctx, a); err != nil {
-				return err
+		stderr := e.stderr.String()
+		for _, want := range []string{articlePhrase, "writing the review log to " + logPath, "do not run again"} {
+			if !strings.Contains(stderr, want) {
+				t.Errorf("stderr does not contain %q:\n%s", want, stderr)
 			}
-			// The review log file appears after the article is written, so the
-			// review log's link(2) fails with EEXIST.
-			return os.WriteFile(logPath, []byte("raced"), 0o600)
-		}), nil
-	}
-	if code := e.run(); code != exitFailure {
-		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitFailure, e.stderr.String())
-	}
-	stderr := e.stderr.String()
-	for _, want := range []string{"the article was written to " + e.outPath, "writing the review log to " + logPath, "do not run again"} {
-		if !strings.Contains(stderr, want) {
-			t.Errorf("stderr does not contain %q:\n%s", want, stderr)
 		}
+		if strings.Contains(stderr, "the run failed:") {
+			t.Errorf("stderr reports the review-log failure as a run failure:\n%s", stderr)
+		}
+		if strings.Contains(stderr, "the finished article was kept in") {
+			t.Errorf("stderr reports a kept file for a published article:\n%s", stderr)
+		}
+		requireSafeOutput(t, e.stdout.String(), stderr, e.outPath)
 	}
-	if strings.Contains(stderr, "the run failed:") {
-		t.Errorf("stderr reports the review-log failure as a run failure:\n%s", stderr)
-	}
-	if strings.Contains(stderr, "the finished article was kept in") {
-		t.Errorf("stderr reports a kept file for a published article:\n%s", stderr)
-	}
-	requireSafeOutput(t, e.stdout.String(), stderr, e.outPath)
+
+	t.Run("--out", func(t *testing.T) {
+		e := newRunEnv(t)
+		e.withSteps = true
+		logPath := filepath.Join(e.base, "review.md")
+		e.args = []string{"--review-log", logPath, "--out", e.outPath, runVideoURL}
+		e.useReviewClient(reviewLLM(emptyReviewJSON))
+		e.d.newFilePublisher = func(path string) (publisher.Publisher, error) {
+			inner, err := newFilePublisher(path)
+			if err != nil {
+				return nil, err
+			}
+			return publisherFunc(func(ctx context.Context, a writer.Article) error {
+				if err := inner.Publish(ctx, a); err != nil {
+					return err
+				}
+				// The review log file appears after the article is written, so
+				// the review log's link(2) fails with EEXIST.
+				return os.WriteFile(logPath, []byte("raced"), 0o600)
+			}), nil
+		}
+		assertFailure(t, e, logPath, "the article was written to "+e.outPath)
+	})
+
+	t.Run("--slack", func(t *testing.T) {
+		e := newRunEnv(t)
+		e.withSteps = true
+		e.useWebhook(t, nil)
+		logPath := filepath.Join(e.base, "review.md")
+		e.args = []string{"--review-log", logPath, "--slack", runVideoURL}
+		e.useReviewClient(reviewLLM(emptyReviewJSON))
+		inner := e.d.newSlackPublisher
+		e.d.newSlackPublisher = func(url secret.Secret) (publisher.Publisher, error) {
+			pub, err := inner(url)
+			if err != nil {
+				return nil, err
+			}
+			return publisherFunc(func(ctx context.Context, a writer.Article) error {
+				if err := pub.Publish(ctx, a); err != nil {
+					return err
+				}
+				return os.WriteFile(logPath, []byte("raced"), 0o600)
+			}), nil
+		}
+		assertFailure(t, e, logPath, "the article was posted to the webhook")
+	})
 }
 
 // TestRunReviewLogWithNoReview checks that --review-log with --no-review is a
@@ -1875,6 +1931,34 @@ func TestRunInvalidStepTemplate(t *testing.T) {
 			e := newRunEnv(t)
 			e.withSteps = true
 			e.args = []string{flag, path, "--out", e.outPath, runVideoURL}
+			e.useReviewClient(reviewLLM(emptyReviewJSON))
+			if code := e.run(); code != exitUsage {
+				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, e.stderr.String())
+			}
+			if !strings.Contains(e.stderr.String(), "build the article writer") {
+				t.Errorf("stderr does not report building the article writer:\n%s", e.stderr.String())
+			}
+			if got := e.counter.count(); got != 0 {
+				t.Errorf("Generate calls = %d, want 0", got)
+			}
+		})
+	}
+
+	validPath := filepath.Join(t.TempDir(), "valid.tmpl")
+	if err := os.WriteFile(validPath, []byte("ok"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name string
+		args []string
+	}{
+		{"disabled review step with a template override", []string{"--no-review", "--review-system-prompt", validPath}},
+		{"disabled shorten step with a template override", []string{"--no-shorten", "--shorten-user-prompt", validPath}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newRunEnv(t)
+			e.withSteps = true
+			e.args = append(slices.Clone(tc.args), "--out", e.outPath, runVideoURL)
 			e.useReviewClient(reviewLLM(emptyReviewJSON))
 			if code := e.run(); code != exitUsage {
 				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, e.stderr.String())
