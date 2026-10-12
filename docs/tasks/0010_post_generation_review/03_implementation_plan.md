@@ -301,8 +301,8 @@ HEAD `4dd797d`（ブランチ `claude/mkplan-0010-xnazts`）で確認した。�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 - [ ] **ステップ 5-5**: `cmd/yt2column/run.go` に architecture §3.9 のフラグ、手順 A2・A4 の検査、手順 A5 の構築（`deps` の `newReviewLLMClient`・`newReviewLogWriter`）を加える。同じコミットで次を行う。
   - README のフラグの表に 7 つのフラグの行を加える（`TestREADMEDocumentsCLI` が求める）。
   - `newRunEnv` と `testDeps` の `newReviewLLMClient` を、`refusingSlackPublisher` と同じ形の、何も作らずにエラーを返す関数にする。段階を無効にする引数（`--no-shorten`・`--no-review`）を `test_helpers_integration.go` に 1 つの値として置く。
