@@ -563,6 +563,7 @@ func TestLoadReviewProviderRequiresItsKey(t *testing.T) {
 		{"claude review key unset", claudeReview(), anthropicAPIKeyEnv},
 		{"claude review key empty", with(claudeReview(), anthropicAPIKeyEnv, ""), anthropicAPIKeyEnv},
 		{"deepseek review key unset", deepseekReview(), deepSeekAPIKeyEnv},
+		{"deepseek review key empty", with(deepseekReview(), deepSeekAPIKeyEnv, ""), deepSeekAPIKeyEnv},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

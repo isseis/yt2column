@@ -234,11 +234,12 @@ func loadProvider(lookup LookupFunc, cfg *Config) error {
 }
 
 // parseProvider converts a provider variable's value into a Provider. present
-// reports whether the variable is set, so unset can default to deepseek while a
-// present empty value is rejected. name is the variable being read, so a
-// rejection names it. The accepted values are shared by every provider
-// variable, so YT2COLUMN_REVIEW_PROVIDER accepts exactly what
-// YT2COLUMN_LLM_PROVIDER accepts.
+// reports whether the variable is set: an unset value defaults to deepseek,
+// which is the rule for YT2COLUMN_LLM_PROVIDER alone, so a caller with its own
+// default (YT2COLUMN_REVIEW_PROVIDER inherits the generation provider) handles
+// the unset case itself. A present empty value is rejected. name is the
+// variable being read, so a rejection names it. The accepted values are shared
+// by every provider variable.
 func parseProvider(name, value string, present bool) (Provider, error) {
 	switch {
 	case !present:
