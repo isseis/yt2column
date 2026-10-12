@@ -273,7 +273,10 @@ func TestClaudePlanRecordsManualRun(t *testing.T) {
 		return
 	}
 	section := docSection(doc, "5. 受け入れ基準の検証 (Acceptance Criteria Verification)")
-	for _, want := range []string{"2026-", "HEAD `", "モデル名", "--- PASS"} {
+	// These strings appear only in the run records, not in §5.1's instruction
+	// sentence (which writes "モデル名" and "`--- PASS`" without the record's
+	// surrounding text).
+	for _, want := range []string{"2026-", "HEAD `", "モデル名は `", "--- PASS: TestIntegrationGenerate"} {
 		if !strings.Contains(section, want) {
 			t.Errorf("§5.1 has no %q record", want)
 		}

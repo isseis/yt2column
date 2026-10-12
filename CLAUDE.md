@@ -118,9 +118,8 @@ for the packages that exist today.
 - **Provider details stay in their adapter package**: request/response shapes of
   a provider API (e.g. DeepSeek's `thinking` parameter and `reasoning_content`)
   live only under `internal/llm/<provider>`. If a provider SDK is added later
-  (`google.golang.org/genai` for `internal/llm/gemini`, the Anthropic SDK for
-  `internal/llm/claude`), it is imported only there; `depguard` in
-  `.golangci.yml` already enforces that.
+  (for example `google.golang.org/genai` for `internal/llm/gemini`), it is
+  imported only there; `depguard` in `.golangci.yml` already enforces that.
 - **Delegate the fragile part**: subtitle retrieval is delegated to `yt-dlp`. Do
   not reimplement YouTube scraping in Go.
 - **YAGNI**: Use simple and clear approach to satisfy the requirement. Don't take complex approach for not-yet-planned features. No LangChain-style frameworks or multi-provider abstraction libraries.

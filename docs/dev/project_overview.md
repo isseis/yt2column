@@ -11,7 +11,7 @@ YouTube 動画の URL を受け取り、その文字起こしを元に LLM で�
 - **字幕取得: 外部コマンドの `yt-dlp` に委譲する**。YouTube の非公式な仕様に依存する最も壊れやすい部分を、保守が活発なツールに任せるため。Go で字幕取得を自前実装しないこと。
 - **LLM: 初期実装は DeepSeek**（DeepSeek 公式 API を直接契約して使う）。API は OpenAI 互換の Chat Completions 形式（`POST https://api.deepseek.com/chat/completions`）で単純なため、SDK は使わず標準ライブラリ（`net/http`・`encoding/json`）で呼び出す。
   - OpenCode Go 経由の利用は採用しない。利用条件が「コーディングエージェントのトラフィック」を前提としており、本ツールの用途に合わないため。
-- **LLM プロバイダは差し替え可能にする**。将来 Gemini（`google.golang.org/genai`）や Claude（`github.com/anthropics/anthropic-sdk-go`）などを追加する前提。プロバイダとモデル名は設定で切り替える。Gemini を追加する場合、旧 SDK の `github.com/google/generative-ai-go` はレガシーなので使わないこと。
+- **LLM プロバイダは差し替え可能にする**。DeepSeek と Claude を実装済みで、Claude は公式 SDK を使わず標準ライブラリで Anthropic Messages API を呼ぶ（タスク `0009_claude_llm_client` の要件定義書 §2.3）。将来 Gemini（`google.golang.org/genai`）などを追加する前提。プロバイダとモデル名は設定で切り替える。Gemini を追加する場合、旧 SDK の `github.com/google/generative-ai-go` はレガシーなので使わないこと。
 - **LangChain 相当のフレームワークや、複数プロバイダを束ねる抽象化ライブラリは使わない**。自前の薄い interface で十分。
 - **外部ライブラリは必要最小限にする**。HTTP・JSON・CLI 引数・設定は標準ライブラリで書く。追加する場合は理由を明示すること。
 
@@ -86,7 +86,7 @@ internal/secret/          # 秘密情報（API キー・Webhook URL）を保持�
 internal/publisher/       # Slack 互換 Incoming Webhook / File
 internal/config/          # 環境変数からの設定読み込み
 prompts/                  # プロンプトテンプレート
-testdata/                 # json3・info.json のサンプル、文字起こしパネルの HTML の抜粋、DeepSeek API の実応答
+testdata/                 # json3・info.json のサンプル、文字起こしパネルの HTML の抜粋、DeepSeek・Claude API の実応答
 extension/                # ブラウザ拡張（TypeScript。開発環境・Manifest V3・選択範囲の収集と表示）
 ```
 

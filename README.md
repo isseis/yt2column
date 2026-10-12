@@ -21,7 +21,9 @@ URL → TranscriptSource → Transcript → ArticleWriter → Article → Publis
 - Go (see `go.mod`)
 - `yt-dlp` on `PATH` (or set `YT2COLUMN_YTDLP_PATH`); see
   [Setting up yt-dlp](#setting-up-yt-dlp)
-- A DeepSeek API key. `SLACK_WEBHOOK_URL` is required when `--slack` is used.
+- An API key for the selected provider: `DEEPSEEK_API_KEY` for `deepseek`,
+  `ANTHROPIC_API_KEY` for `claude`. `SLACK_WEBHOOK_URL` is required when
+  `--slack` is used.
 
 ## Usage
 
