@@ -32,9 +32,10 @@ const tempPrefix = ".yt2column-"
 // writeChunkSize bounds how many bytes are written between two checks of ctx.
 const writeChunkSize = 32 * 1024
 
-// articleFileMode is the permission of the published file. An article is a
-// non-secret document built from a public video, and the process umask is not
-// applied because the standard library cannot read it without changing it.
+// articleFileMode is the permission of the published file and the review log.
+// Both are non-secret documents built from a public video, and the process
+// umask is not applied because the standard library cannot read it without
+// changing it.
 const articleFileMode = 0o644
 
 // FilePublisher writes an article to one local file and never overwrites.
@@ -46,7 +47,7 @@ var _ Publisher = (*FilePublisher)(nil)
 
 // NewFilePublisher returns a publisher for path. An empty path is an error.
 func NewFilePublisher(path string) (*FilePublisher, error) {
-	file, err := newAtomicFile(path)
+	file, err := newAtomicFile(path, tempPrefix)
 	if err != nil {
 		return nil, err
 	}
@@ -62,19 +63,24 @@ func NewFilePublisher(path string) (*FilePublisher, error) {
 // check and the creation is never replaced.
 type atomicFile struct {
 	path string
+	// prefix starts the temporary file's name. Each output kind passes its
+	// own, so a kept temporary file on disk shows which kind wrote it.
+	prefix string
 
 	// Seams for tests; NewFilePublisher sets the production values.
 	wrapWriter func(io.Writer) io.Writer
 	link       func(oldname, newname string) error
 }
 
-// newAtomicFile returns an atomicFile for path. An empty path is an error.
-func newAtomicFile(path string) (*atomicFile, error) {
+// newAtomicFile returns an atomicFile for path whose temporary files start
+// with prefix. An empty path is an error.
+func newAtomicFile(path, prefix string) (*atomicFile, error) {
 	if path == "" {
 		return nil, errEmptyPath
 	}
 	return &atomicFile{
 		path:       path,
+		prefix:     prefix,
 		wrapWriter: func(w io.Writer) io.Writer { return w },
 		link:       os.Link,
 	}, nil
@@ -123,7 +129,7 @@ func (p *FilePublisher) Publish(ctx context.Context, article writer.Article) err
 // writeTemp writes content to a synced temporary file next to the output path
 // and returns its path. On any failure the temporary file is removed.
 func (a *atomicFile) writeTemp(ctx context.Context, content string) (string, error) {
-	f, err := os.CreateTemp(filepath.Dir(a.path), tempPrefix+"*.tmp")
+	f, err := os.CreateTemp(filepath.Dir(a.path), a.prefix+"*.tmp")
 	if err != nil {
 		return "", fmt.Errorf("create a temporary file: %w", err)
 	}
@@ -134,7 +140,7 @@ func (a *atomicFile) writeTemp(ctx context.Context, content string) (string, err
 		return "", err
 	}
 
-	//nolint:gosec // the article is a non-secret document built from a public video
+	//nolint:gosec // the article and the review log are non-secret documents built from a public video
 	if err := f.Chmod(articleFileMode); err != nil {
 		return fail(fmt.Errorf("set the temporary file mode: %w", err))
 	}

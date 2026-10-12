@@ -33,6 +33,24 @@ func newFilePublisherWithSeams(
 	return p
 }
 
+// newReviewLogWriterWithSeams returns a review log writer for path whose link
+// function is replaced; a nil seam keeps the production value.
+func newReviewLogWriterWithSeams(
+	t *testing.T,
+	path string,
+	link func(oldname, newname string) error,
+) *ReviewLogWriter {
+	t.Helper()
+	w, err := NewReviewLogWriter(path)
+	if err != nil {
+		t.Fatalf("NewReviewLogWriter: %v", err)
+	}
+	if link != nil {
+		w.file.link = link
+	}
+	return w
+}
+
 // failAfter returns a writer wrapper that passes through the first n bytes and
 // then fails.
 func failAfter(n int) func(io.Writer) io.Writer {
