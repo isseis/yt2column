@@ -26,7 +26,14 @@ func prepareSlackMessages(article writer.Article) ([]string, error) {
 	if err := article.CheckPublishable(); err != nil {
 		return nil, err
 	}
-	for _, value := range []string{article.Title, article.Body, article.Model, article.ModelVersion} {
+	values := []string{article.Title, article.Body, article.Model, article.ModelVersion}
+	if article.Shorten != nil {
+		values = append(values, article.Shorten.Model, article.Shorten.ModelVersion)
+	}
+	if article.Review != nil {
+		values = append(values, article.Review.Model.Model, article.Review.Model.ModelVersion)
+	}
+	for _, value := range values {
 		if !utf8.ValidString(value) {
 			return nil, fmt.Errorf("%w: a field is not valid UTF-8", writer.ErrInvalidArticle)
 		}

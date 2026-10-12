@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/isseis/yt2column/internal/writer"
@@ -176,11 +177,28 @@ func syncDir(dir string) {
 }
 
 // renderArticle returns the text FilePublisher and SlackWebhookPublisher both
-// output for a; it ends with the article body.
+// output for a; it ends with the article body. It adds one model line pair per
+// step that ran, in order (shorten, then review); a nil step result contributes
+// no lines, so an article with no step output is rendered as before.
 func renderArticle(a writer.Article) string {
-	version := a.ModelVersion
-	if version == "" {
-		version = "(none)"
+	var b strings.Builder
+	fmt.Fprintf(&b, "# %s\n\n- Model: %s\n- Model version: %s\n", a.Title, a.Model, modelVersionOrNone(a.ModelVersion))
+	if a.Shorten != nil {
+		fmt.Fprintf(&b, "- Shorten model: %s\n- Shorten model version: %s\n", a.Shorten.Model, modelVersionOrNone(a.Shorten.ModelVersion))
 	}
-	return fmt.Sprintf("# %s\n\n- Model: %s\n- Model version: %s\n\n%s", a.Title, a.Model, version, a.Body)
+	if a.Review != nil {
+		fmt.Fprintf(&b, "- Review model: %s\n- Review model version: %s\n", a.Review.Model.Model, modelVersionOrNone(a.Review.Model.ModelVersion))
+	}
+	fmt.Fprintf(&b, "\n%s", a.Body)
+	return b.String()
+}
+
+// modelVersionOrNone returns version, or the "(none)" placeholder shown when a
+// provider reports no version, for the model lines of the output and the
+// review log.
+func modelVersionOrNone(version string) string {
+	if version == "" {
+		return "(none)"
+	}
+	return version
 }
