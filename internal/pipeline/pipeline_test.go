@@ -409,6 +409,8 @@ func TestCommonTypesFieldSets(t *testing.T) {
 			"SourceURL":    "string",
 			"Model":        "string",
 			"ModelVersion": "string",
+			"Shorten":      "*writer.StepModel",
+			"Review":       "*writer.ReviewResult",
 		}},
 	}
 	for _, tc := range cases {
@@ -698,18 +700,31 @@ func TestPromptsREADMEMatchesContract(t *testing.T) {
 	sections := markdownSections(string(data))
 
 	t.Run("names", func(t *testing.T) {
-		var got []string
-		for line := range strings.Lines(sections["参照できる値"]) {
-			if strings.HasPrefix(line, "| `") {
-				got = append(got, backtickTokens(line)[0])
-			}
+		tables := []struct{ dataType, section string }{
+			{"templateData", "生成のテンプレートで参照できる値"},
+			{"shortenTemplateData", "字数の調整のテンプレートで参照できる値"},
+			{"reviewTemplateData", "検証・推敲のテンプレートで参照できる値"},
 		}
-		want := make([]string, 0, len(contract.fields))
-		for _, field := range contract.fields {
-			want = append(want, "."+field)
-		}
-		if !slices.Equal(slices.Sorted(slices.Values(got)), slices.Sorted(slices.Values(want))) {
-			t.Errorf("README names = %v, want %v", got, want)
+		for _, table := range tables {
+			t.Run(table.dataType, func(t *testing.T) {
+				var got []string
+				for line := range strings.Lines(sections[table.section]) {
+					if strings.HasPrefix(line, "| `") {
+						got = append(got, backtickTokens(line)[0])
+					}
+				}
+				fields, ok := contract.fields[table.dataType]
+				if !ok || len(fields) == 0 {
+					t.Fatalf("no fields read for %s", table.dataType)
+				}
+				want := make([]string, 0, len(fields))
+				for _, field := range fields {
+					want = append(want, "."+field)
+				}
+				if !slices.Equal(slices.Sorted(slices.Values(got)), slices.Sorted(slices.Values(want))) {
+					t.Errorf("README names in %q = %v, want %v", table.section, got, want)
+				}
+			})
 		}
 	})
 	t.Run("functions", func(t *testing.T) {
@@ -735,6 +750,14 @@ func TestPromptsREADMEMatchesContract(t *testing.T) {
 			}
 			if want := strconv.FormatInt(row.limit, 10) + " バイト"; !strings.Contains(line, want) {
 				t.Errorf("README limit row %q = %q, want it to contain %q", row.prefix, line, want)
+			}
+		}
+	})
+	t.Run("body lengths", func(t *testing.T) {
+		section := sections["字数の調整のテンプレートで参照できる値"]
+		for _, want := range []int64{contract.targetBodyChars, contract.maxBodyChars} {
+			if !strings.Contains(section, strconv.FormatInt(want, 10)) {
+				t.Errorf("README shorten value table does not state the body length %d", want)
 			}
 		}
 	})
@@ -836,27 +859,36 @@ func TestConfigImports(t *testing.T) {
 	}
 }
 
+// templateDataTypes are the data types whose field allowlist the contract
+// pins, one per template group.
+var templateDataTypes = []string{"templateData", "shortenTemplateData", "reviewTemplateData"}
+
 // writerTemplateContract is the template contract as declared in the
 // internal/writer source.
 type writerTemplateContract struct {
-	fields           []string // exported fields of templateData
-	funcs            []string // keys of allowedFuncs
+	fields           map[string][]string // data type name -> exported field names, embedded fields promoted
+	funcs            []string            // keys of allowedFuncs
 	maxTemplateBytes int64
 	maxPromptBytes   int64
+	targetBodyChars  int64
+	maxBodyChars     int64
 }
 
 // readWriterTemplateContract parses the production Go files in dir (test
 // files and files built only with the test tag are skipped) and extracts the
-// contract. A declaration that is missing or not in the expected shape fails
-// the test.
+// contract. It resolves each data type's fields from the parsed struct types,
+// promoting the fields of an embedded struct. A declaration that is missing or
+// not in the expected shape fails the test.
 func readWriterTemplateContract(t *testing.T, dir string) writerTemplateContract {
 	t.Helper()
 	paths, err := filepath.Glob(filepath.Join(dir, "*.go"))
 	if err != nil {
 		t.Fatalf("glob %s: %v", dir, err)
 	}
-	var contract writerTemplateContract
+	contract := writerTemplateContract{fields: make(map[string][]string)}
+	typeSpecs := make(map[string]*ast.TypeSpec)
 	fset := token.NewFileSet()
+	var files []*ast.File
 	for _, path := range paths {
 		if strings.HasSuffix(path, "_test.go") {
 			continue
@@ -868,11 +900,14 @@ func readWriterTemplateContract(t *testing.T, dir string) writerTemplateContract
 		if isTestOnlyFile(file) {
 			continue
 		}
+		files = append(files, file)
+	}
+	for _, file := range files {
 		ast.Inspect(file, func(n ast.Node) bool {
 			switch n := n.(type) {
 			case *ast.TypeSpec:
-				if n.Name.Name == "templateData" {
-					contract.fields = structFieldNames(t, n)
+				if _, ok := n.Type.(*ast.StructType); ok {
+					typeSpecs[n.Name.Name] = n
 				}
 			case *ast.ValueSpec:
 				for i, name := range n.Names {
@@ -883,13 +918,25 @@ func readWriterTemplateContract(t *testing.T, dir string) writerTemplateContract
 						contract.maxTemplateBytes = intLiteral(t, n.Values[i])
 					case "maxPromptBytes":
 						contract.maxPromptBytes = intLiteral(t, n.Values[i])
+					case "targetBodyChars":
+						contract.targetBodyChars = intLiteral(t, n.Values[i])
+					case "maxBodyChars":
+						contract.maxBodyChars = intLiteral(t, n.Values[i])
 					}
 				}
 			}
 			return true
 		})
 	}
-	if len(contract.fields) == 0 || len(contract.funcs) == 0 || contract.maxTemplateBytes == 0 || contract.maxPromptBytes == 0 {
+	for _, name := range templateDataTypes {
+		spec, ok := typeSpecs[name]
+		if !ok {
+			t.Fatalf("template data type %s not found in %s", name, dir)
+		}
+		contract.fields[name] = structFieldNames(t, spec, typeSpecs)
+	}
+	if len(contract.funcs) == 0 || contract.maxTemplateBytes == 0 || contract.maxPromptBytes == 0 ||
+		contract.targetBodyChars == 0 || contract.maxBodyChars == 0 {
 		t.Fatalf("incomplete template contract in %s: %+v", dir, contract)
 	}
 	return contract
@@ -906,7 +953,10 @@ func isTestOnlyFile(file *ast.File) bool {
 	return false
 }
 
-func structFieldNames(t *testing.T, spec *ast.TypeSpec) []string {
+// structFieldNames returns the field names a template of this data type may
+// reference: the named exported fields, and, for an embedded struct, its own
+// fields in place of the embedding field.
+func structFieldNames(t *testing.T, spec *ast.TypeSpec, typeSpecs map[string]*ast.TypeSpec) []string {
 	t.Helper()
 	st, ok := spec.Type.(*ast.StructType)
 	if !ok {
@@ -914,11 +964,25 @@ func structFieldNames(t *testing.T, spec *ast.TypeSpec) []string {
 	}
 	var names []string
 	for _, field := range st.Fields.List {
-		for _, name := range field.Names {
-			if name.IsExported() {
-				names = append(names, name.Name)
+		if len(field.Names) > 0 {
+			for _, name := range field.Names {
+				if name.IsExported() {
+					names = append(names, name.Name)
+				}
 			}
+			continue
 		}
+		// An embedded struct: its fields are promoted and referenced
+		// directly by a template.
+		ident, ok := field.Type.(*ast.Ident)
+		if !ok {
+			t.Fatalf("%s has an embedded field that is not a named struct: %T", spec.Name.Name, field.Type)
+		}
+		embedded, ok := typeSpecs[ident.Name]
+		if !ok {
+			t.Fatalf("%s embeds the unknown type %s", spec.Name.Name, ident.Name)
+		}
+		names = append(names, structFieldNames(t, embedded, typeSpecs)...)
 	}
 	return names
 }

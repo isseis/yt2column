@@ -26,6 +26,16 @@ const (
 	markOutBody         = "mark-out-body-K3sd"
 	markOutModel        = "mark-out-model-Z5gh"
 	markOutModelVersion = "mark-out-version-P6yl"
+
+	// Step markers, distinct from the generation markers above, so a test
+	// can tell which step produced or carried a value.
+	markGenTitle         = "mark-gen-title-A1b2"
+	markGenBody          = "mark-gen-body-C3d4"
+	markShortTitle       = "mark-short-title-E5f6"
+	markShortBody        = "mark-short-body-G7h8"
+	markShortenModel     = "mark-shorten-model-I9j0"
+	markReviewModel      = "mark-review-model-K1l2"
+	markStepModelVersion = "mark-step-version-M3n4"
 )
 
 const (
@@ -67,6 +77,44 @@ func newFakeClient() *llmtestutil.FakeLLMClient {
 	return &llmtestutil.FakeLLMClient{Result: validResponse()}
 }
 
+// stepResponseText builds the generated text of the generation or shorten step
+// from a title and a body part.
+func stepResponseText(title, body string) string {
+	return "# " + title + "\n" + body
+}
+
+// overLimitBody returns a body part one character over maxBodyChars, starting
+// with the generation body marker.
+func overLimitBody() string {
+	return markGenBody + strings.Repeat("a", maxBodyChars+1-len(markGenBody))
+}
+
+// overLimitShortenBody returns a body part still over maxBodyChars after the
+// shorten step, starting with the shorten body marker.
+func overLimitShortenBody() string {
+	return markShortBody + strings.Repeat("a", maxBodyChars+1-len(markShortBody))
+}
+
+// withStepsEnabled returns Options with both post-generation steps enabled.
+func withStepsEnabled(review llm.LLMClient) Options {
+	return Options{
+		Shorten: ShortenOptions{Enabled: true},
+		Review:  ReviewOptions{Enabled: true, Client: review},
+	}
+}
+
+// newStepClient returns a fake sequence with TB set to t, so an unexpected
+// extra call is reported instead of being silently absorbed.
+func newStepClient(t *testing.T, steps ...llmtestutil.FakeLLMSequenceStep) *llmtestutil.FakeLLMSequence {
+	t.Helper()
+	return &llmtestutil.FakeLLMSequence{TB: t, Steps: steps}
+}
+
+// stepResult builds one fake sequence step from a response.
+func stepResult(resp llm.GenerateResponse) llmtestutil.FakeLLMSequenceStep {
+	return llmtestutil.FakeLLMSequenceStep{Result: resp}
+}
+
 // mustNew builds an ArticleWriter or fails the test.
 func mustNew(t *testing.T, client llm.LLMClient, opts Options) ArticleWriter {
 	t.Helper()
@@ -103,6 +151,100 @@ var overrideTargets = []struct {
 }{
 	{systemTemplateName, func(path string) Options { return Options{SystemTemplatePath: path} }},
 	{userTemplateName, func(path string) Options { return Options{UserTemplatePath: path} }},
+}
+
+// Generation-data field references, used to build the field substitution
+// tables below.
+const (
+	fieldRefTitle       = ".Title"
+	fieldRefChannelName = ".ChannelName"
+	fieldRefDescription = ".Description"
+	fieldRefTranscript  = ".Transcript"
+)
+
+// shortenFieldSubstitutions maps a generation-data field reference to a field
+// the shorten data type also has, so the shared syntax tables apply to a
+// shorten template.
+var shortenFieldSubstitutions = map[string]string{
+	fieldRefTitle:       ".ArticleTitle",
+	fieldRefChannelName: ".ArticleBody",
+	fieldRefDescription: ".TargetBodyChars",
+	fieldRefTranscript:  ".MaxBodyChars",
+}
+
+// reviewFieldSubstitutions leaves the four generation field references as they
+// are: reviewTemplateData embeds templateData, so it has all four.
+var reviewFieldSubstitutions = map[string]string{
+	fieldRefTitle:       fieldRefTitle,
+	fieldRefChannelName: fieldRefChannelName,
+	fieldRefDescription: fieldRefDescription,
+	fieldRefTranscript:  fieldRefTranscript,
+}
+
+// stepTemplateTargets describes the four step templates the shared syntax and
+// source-name tests exercise. fields substitutes a generation field reference
+// for a field of the step's data type; options builds Options that enable the
+// step with one template overridden; parse runs the construction check with the
+// step's data type for an embedded default.
+var stepTemplateTargets = []struct {
+	name    string
+	fields  map[string]string
+	options func(path string) Options
+	parse   func(src templateSource, text string) error
+}{
+	{
+		shortenSystemTemplateName,
+		shortenFieldSubstitutions,
+		func(path string) Options {
+			return Options{Shorten: ShortenOptions{Enabled: true, SystemTemplatePath: path}}
+		},
+		func(src templateSource, text string) error {
+			_, err := parseTemplate[shortenTemplateData](src, text)
+			return err
+		},
+	},
+	{
+		shortenUserTemplateName,
+		shortenFieldSubstitutions,
+		func(path string) Options {
+			return Options{Shorten: ShortenOptions{Enabled: true, UserTemplatePath: path}}
+		},
+		func(src templateSource, text string) error {
+			_, err := parseTemplate[shortenTemplateData](src, text)
+			return err
+		},
+	},
+	{
+		reviewSystemTemplateName,
+		reviewFieldSubstitutions,
+		func(path string) Options {
+			return Options{Review: ReviewOptions{Enabled: true, Client: &llmtestutil.FakeLLMClient{}, SystemTemplatePath: path}}
+		},
+		func(src templateSource, text string) error {
+			_, err := parseTemplate[reviewTemplateData](src, text)
+			return err
+		},
+	},
+	{
+		reviewUserTemplateName,
+		reviewFieldSubstitutions,
+		func(path string) Options {
+			return Options{Review: ReviewOptions{Enabled: true, Client: &llmtestutil.FakeLLMClient{}, UserTemplatePath: path}}
+		},
+		func(src templateSource, text string) error {
+			_, err := parseTemplate[reviewTemplateData](src, text)
+			return err
+		},
+	},
+}
+
+// substituteFields replaces every generation field reference in text with the
+// field the target's data type has. A nil map leaves text unchanged.
+func substituteFields(text string, fields map[string]string) string {
+	for from, to := range fields {
+		text = strings.ReplaceAll(text, from, to)
+	}
+	return text
 }
 
 // writeOverrideFile writes content to a file in a fresh test temp directory

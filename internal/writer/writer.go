@@ -12,13 +12,16 @@ import (
 	"github.com/isseis/yt2column/prompts"
 )
 
-// Article is the generated column article.
+// Article is the generated column article. It stays comparable with ==:
+// the step results are pointers, nil when the step called no LLM.
 type Article struct {
 	Title        string
 	Body         string // Markdown
 	SourceURL    string
-	Model        string
-	ModelVersion string // opaque, provider-defined; empty when the provider reports none
+	Model        string        // the generation model
+	ModelVersion string        // opaque, provider-defined; empty when the provider reports none
+	Shorten      *StepModel    // nil when the shorten step called no LLM
+	Review       *ReviewResult // nil when the review step did not run
 }
 
 // StepModel is the model one step's LLM call reported.
@@ -34,28 +37,73 @@ type ArticleWriter interface {
 	Write(ctx context.Context, t transcript.Transcript) (Article, error)
 }
 
-// Options configures the templates of the ArticleWriter returned by New.
-// An empty path selects the embedded default template; a non-empty path
-// names an override file that New reads once.
+// Options configures the ArticleWriter returned by New. An empty template path
+// selects the embedded default template; a non-empty path names an override
+// file that New reads once. The zero value generates the article only:
+// neither post-generation step runs.
 type Options struct {
+	SystemTemplatePath string
+	UserTemplatePath   string
+	Shorten            ShortenOptions
+	Review             ReviewOptions
+}
+
+// ShortenOptions configures the shorten step, which uses the generation
+// LLMClient passed to New. Template paths follow the rule of
+// Options.SystemTemplatePath: empty selects the embedded default.
+type ShortenOptions struct {
+	Enabled            bool
 	SystemTemplatePath string
 	UserTemplatePath   string
 }
 
-// templateWriter is the ArticleWriter returned by New. Its fields are set
-// once by New and never mutated afterwards.
-type templateWriter struct {
-	client llm.LLMClient
-	system checkedTemplate[templateData]
-	user   checkedTemplate[templateData]
+// ReviewOptions configures the review step. Client is required when Enabled is
+// true and must be nil when it is false.
+type ReviewOptions struct {
+	Enabled            bool
+	Client             llm.LLMClient
+	SystemTemplatePath string
+	UserTemplatePath   string
 }
 
-// New validates client and the templates and returns an ArticleWriter.
-// It never reads environment variables. The concrete type is unexported,
-// so an ArticleWriter can only be obtained through New.
+// stepTemplates is the checked system and user template pair of one step. Only
+// New builds one, and it expands the pair with the step's own data type.
+type stepTemplates[T any] struct {
+	system checkedTemplate[T]
+	user   checkedTemplate[T]
+}
+
+// expand expands both templates of the pair with data.
+func (p stepTemplates[T]) expand(data T) (system, user string, err error) {
+	system, err = p.system.expand(data)
+	if err != nil {
+		return "", "", err
+	}
+	user, err = p.user.expand(data)
+	return system, user, err
+}
+
+// templateWriter is the ArticleWriter returned by New. Its fields are set once
+// by New and never mutated afterwards. A nil shorten or review means the step
+// is disabled.
+type templateWriter struct {
+	client       llm.LLMClient
+	generation   stepTemplates[templateData]
+	shorten      *stepTemplates[shortenTemplateData]
+	review       *stepTemplates[reviewTemplateData]
+	reviewClient llm.LLMClient
+}
+
+// New validates client, the options, and the templates of the enabled steps,
+// and returns an ArticleWriter. It never reads environment variables. The
+// concrete type is unexported, so an ArticleWriter can only be obtained
+// through New.
 func New(client llm.LLMClient, opts Options) (ArticleWriter, error) {
 	if nilcheck.IsNil(client) {
 		return nil, errNilLLMClient
+	}
+	if err := validateStepOptions(opts); err != nil {
+		return nil, err
 	}
 	system, err := loadTemplate[templateData](templateSource{name: systemTemplateName, path: opts.SystemTemplatePath}, prompts.System())
 	if err != nil {
@@ -65,14 +113,83 @@ func New(client llm.LLMClient, opts Options) (ArticleWriter, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &templateWriter{client: client, system: system, user: user}, nil
+	w := &templateWriter{
+		client:     client,
+		generation: stepTemplates[templateData]{system: system, user: user},
+	}
+	if opts.Shorten.Enabled {
+		shorten, err := loadStepTemplates[shortenTemplateData](
+			templateSpec{shortenSystemTemplateName, opts.Shorten.SystemTemplatePath, prompts.ShortenSystem()},
+			templateSpec{shortenUserTemplateName, opts.Shorten.UserTemplatePath, prompts.ShortenUser()},
+		)
+		if err != nil {
+			return nil, err
+		}
+		w.shorten = &shorten
+	}
+	if opts.Review.Enabled {
+		review, err := loadStepTemplates[reviewTemplateData](
+			templateSpec{reviewSystemTemplateName, opts.Review.SystemTemplatePath, prompts.ReviewSystem()},
+			templateSpec{reviewUserTemplateName, opts.Review.UserTemplatePath, prompts.ReviewUser()},
+		)
+		if err != nil {
+			return nil, err
+		}
+		w.review = &review
+		w.reviewClient = opts.Review.Client
+	}
+	return w, nil
 }
 
-// Write validates t, expands both templates, calls the LLM client once, and
-// validates its response before building the article. It returns the zero
-// Article on every failure. The LLM client's error is wrapped as is, never
-// with a sentinel of this package, so callers can tell it from a template or
-// output failure.
+// validateStepOptions rejects the step combinations New must not accept: a
+// review step whose client is missing, a review client set while the step is
+// disabled, and a template path for a disabled step. Silently ignoring such a
+// setting would hide the caller's mistake.
+func validateStepOptions(opts Options) error {
+	if opts.Review.Enabled {
+		if nilcheck.IsNil(opts.Review.Client) {
+			return errReviewClientNil
+		}
+	} else if !nilcheck.IsNil(opts.Review.Client) {
+		return errReviewClientSet
+	}
+	if !opts.Shorten.Enabled && (opts.Shorten.SystemTemplatePath != "" || opts.Shorten.UserTemplatePath != "") {
+		return errDisabledStepTemplate
+	}
+	if !opts.Review.Enabled && (opts.Review.SystemTemplatePath != "" || opts.Review.UserTemplatePath != "") {
+		return errDisabledStepTemplate
+	}
+	return nil
+}
+
+// templateSpec names one template source: its name, its override path (empty
+// for the embedded default), and the embedded default itself.
+type templateSpec struct {
+	name     string
+	path     string
+	embedded string
+}
+
+// loadStepTemplates loads and checks the system and user template of one step.
+func loadStepTemplates[T any](system, user templateSpec) (stepTemplates[T], error) {
+	systemTmpl, err := loadTemplate[T](templateSource{name: system.name, path: system.path}, system.embedded)
+	if err != nil {
+		return stepTemplates[T]{}, err
+	}
+	userTmpl, err := loadTemplate[T](templateSource{name: user.name, path: user.path}, user.embedded)
+	if err != nil {
+		return stepTemplates[T]{}, err
+	}
+	return stepTemplates[T]{system: systemTmpl, user: userTmpl}, nil
+}
+
+// Write validates t, expands the generation templates, calls the generation
+// LLM client once, and validates its response; then it runs the steps Options
+// enabled, in order (shorten, review, the final length check), and builds the
+// article. It returns the zero Article on every failure. An LLM client's error
+// is wrapped as is, never with a sentinel of this package, so callers can tell
+// it from a template or output failure; every failure of a step is a
+// *StepError.
 func (w *templateWriter) Write(ctx context.Context, t transcript.Transcript) (Article, error) {
 	if err := ctx.Err(); err != nil {
 		return Article{}, fmt.Errorf("article generation not started: %w", err)
@@ -82,11 +199,7 @@ func (w *templateWriter) Write(ctx context.Context, t transcript.Transcript) (Ar
 		return Article{}, err
 	}
 	data := newTemplateData(t)
-	system, err := w.system.expand(data)
-	if err != nil {
-		return Article{}, err
-	}
-	user, err := w.user.expand(data)
+	system, user, err := w.generation.expand(data)
 	if err != nil {
 		return Article{}, err
 	}
@@ -98,5 +211,30 @@ func (w *templateWriter) Write(ctx context.Context, t transcript.Transcript) (Ar
 	if err != nil {
 		return Article{}, err
 	}
-	return newArticle(title, body, sourceURL, resp), nil
+	var shortenModel *StepModel
+	if w.shorten != nil && bodyChars(body) > maxBodyChars {
+		if err := ctx.Err(); err != nil {
+			return Article{}, stepError(StepShorten, err)
+		}
+		title, body, shortenModel, err = w.runShorten(ctx, title, body)
+		if err != nil {
+			return Article{}, err
+		}
+	}
+	var reviewResult *ReviewResult
+	if w.review != nil {
+		if err := ctx.Err(); err != nil {
+			return Article{}, stepError(StepReview, err)
+		}
+		title, body, reviewResult, err = w.runReview(ctx, data, title, body)
+		if err != nil {
+			return Article{}, err
+		}
+	}
+	if w.shorten != nil {
+		if chars := bodyChars(body); chars > maxBodyChars {
+			return Article{}, stepError(StepReview, tooLongError(chars))
+		}
+	}
+	return newArticle(title, body, sourceURL, resp, shortenModel, reviewResult), nil
 }

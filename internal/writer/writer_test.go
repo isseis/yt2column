@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -187,6 +188,75 @@ func TestWriteReportsLLMError(t *testing.T) {
 				t.Errorf("Generate called %d times, want 1", len(client.Calls))
 			}
 		})
+	}
+}
+
+func TestNewStepOptions(t *testing.T) {
+	client := newFakeClient()
+	rejected := []struct {
+		name string
+		want error
+		opts Options
+	}{
+		{"review enabled without a client", errReviewClientNil, Options{Review: ReviewOptions{Enabled: true}}},
+		{"review enabled with a typed nil client", errReviewClientNil, Options{Review: ReviewOptions{Enabled: true, Client: (*llmtestutil.FakeLLMClient)(nil)}}},
+		{"review disabled with a client", errReviewClientSet, Options{Review: ReviewOptions{Client: client}}},
+		{"shorten disabled with a template path", errDisabledStepTemplate, Options{Shorten: ShortenOptions{SystemTemplatePath: writeOverrideFile(t, "x")}}},
+		{"review disabled with a template path", errDisabledStepTemplate, Options{Review: ReviewOptions{UserTemplatePath: writeOverrideFile(t, "x")}}},
+	}
+	for _, tc := range rejected {
+		t.Run("rejects/"+tc.name, func(t *testing.T) {
+			w, err := New(client, tc.opts)
+			if !errors.Is(err, tc.want) {
+				t.Errorf("New error = %v, want %v", err, tc.want)
+			}
+			if w != nil {
+				t.Errorf("New returned a writer %v, want nil", w)
+			}
+		})
+	}
+
+	t.Run("accepts enabled steps with overrides", func(t *testing.T) {
+		opts := Options{
+			Shorten: ShortenOptions{
+				Enabled:            true,
+				SystemTemplatePath: writeOverrideFile(t, "shorten {{.ArticleTitle}}"),
+				UserTemplatePath:   writeOverrideFile(t, "shorten {{.ArticleBody}}"),
+			},
+			Review: ReviewOptions{
+				Enabled:            true,
+				Client:             client,
+				SystemTemplatePath: writeOverrideFile(t, "review"),
+				UserTemplatePath:   writeOverrideFile(t, "review {{.ArticleTitle}} {{.ArticleBody}}"),
+			},
+		}
+		w, err := New(client, opts)
+		requireAccepted(t, w, err)
+	})
+}
+
+func TestDefaultStepTemplatesEmbedAllValues(t *testing.T) {
+	gen := newStepClient(t,
+		stepResult(llm.GenerateResponse{Text: stepResponseText(markGenTitle, overLimitBody()), Model: markOutModel}),
+		stepResult(llm.GenerateResponse{Text: stepResponseText(markShortTitle, markShortBody), Model: markShortenModel}),
+	)
+	review := &llmtestutil.FakeLLMClient{Result: llm.GenerateResponse{Text: reviewResponse(), Model: markReviewModel}}
+	w := mustNew(t, gen, withStepsEnabled(review))
+	if _, err := w.Write(context.Background(), validTranscript()); err != nil {
+		t.Fatalf("Write error = %v, want nil", err)
+	}
+
+	shortenPrompt := gen.Calls[1].Request.SystemPrompt + gen.Calls[1].Request.UserPrompt
+	for _, want := range []string{markGenTitle, markGenBody, strconv.Itoa(targetBodyChars), strconv.Itoa(maxBodyChars)} {
+		if !strings.Contains(shortenPrompt, want) {
+			t.Errorf("default shorten prompt does not embed %q", want)
+		}
+	}
+	reviewPrompt := review.Calls[0].Request.SystemPrompt + review.Calls[0].Request.UserPrompt
+	for _, want := range []string{markTitle, markChannel, markDescription, markSegment, markShortTitle, markShortBody} {
+		if !strings.Contains(reviewPrompt, want) {
+			t.Errorf("default review prompt does not embed the value marked %q", want)
+		}
 	}
 }
 

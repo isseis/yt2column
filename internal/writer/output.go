@@ -86,13 +86,8 @@ func checkResponse(resp llm.GenerateResponse) (title, body string, err error) {
 	if err != nil {
 		return "", "", err
 	}
-	if err := checkModelString("Model", resp.Model); err != nil {
+	if err := checkModelPair(resp.Model, resp.ModelVersion); err != nil {
 		return "", "", err
-	}
-	if resp.ModelVersion != "" {
-		if err := checkModelString("ModelVersion", resp.ModelVersion); err != nil {
-			return "", "", err
-		}
 	}
 	return title, body, nil
 }
@@ -106,6 +101,18 @@ func checkResponse(resp llm.GenerateResponse) (title, body string, err error) {
 // checks read and what the article carries.
 func normalizeBody(body string) string {
 	return bodyLineEndings.Replace(strings.TrimPrefix(body, byteOrderMark))
+}
+
+// checkModelPair applies the Model and optional ModelVersion rules. An empty
+// ModelVersion is allowed; a non-empty one is checked like Model.
+func checkModelPair(model, version string) error {
+	if err := checkModelString("Model", model); err != nil {
+		return err
+	}
+	if version == "" {
+		return nil
+	}
+	return checkModelString("ModelVersion", version)
 }
 
 // checkModelString applies the size and UTF-8 rules of Model and
@@ -140,16 +147,25 @@ func displayStringProblem(name, value string) string {
 }
 
 // newArticle builds the article from validated values. Body is the body part
-// as checkResponse returned it, bodySeparator, then the source block, whose
-// URL comes from the validated VideoID, never from the generated text.
-func newArticle(title, body, sourceURL string, resp llm.GenerateResponse) Article {
+// of the last checked text (from checkResponse or checkGeneratedText),
+// bodySeparator, then the source block, whose URL comes from the validated
+// VideoID, never from the generated text.
+func newArticle(title, body, sourceURL string, resp llm.GenerateResponse, shorten *StepModel, review *ReviewResult) Article {
 	return Article{
 		Title:        title,
 		Body:         body + bodySeparator + sourceBlock(sourceURL),
 		SourceURL:    sourceURL,
 		Model:        resp.Model,
 		ModelVersion: resp.ModelVersion,
+		Shorten:      shorten,
+		Review:       review,
 	}
+}
+
+// textString joins a title and a body part into the text form that
+// checkGeneratedText reads. The review step applies its revisions to it.
+func textString(title, body string) string {
+	return titlePrefix + title + "\n" + body
 }
 
 // sourceBlock is the fixed-format source line, an autolink to sourceURL,

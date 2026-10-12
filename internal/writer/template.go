@@ -19,8 +19,12 @@ const maxTemplateBytes = 65536 // 64 KiB
 // Template names. text/template reports them in its own error messages, so a
 // failure names the template it came from.
 const (
-	systemTemplateName = "system"
-	userTemplateName   = "user"
+	systemTemplateName        = "system"
+	userTemplateName          = "user"
+	shortenSystemTemplateName = "shorten-system"
+	shortenUserTemplateName   = "shorten-user"
+	reviewSystemTemplateName  = "review-system"
+	reviewUserTemplateName    = "review-user"
 )
 
 // probeNameSuffix names the second parse that detects a define with the
