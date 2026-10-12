@@ -139,15 +139,28 @@ On other platforms, see the yt-dlp
 
 | Variable | Description | When unset |
 |---|---|---|
-| `YT2COLUMN_LLM_PROVIDER` | LLM provider; only `deepseek` is accepted | `deepseek` |
-| `YT2COLUMN_MODEL` | LLM model name (e.g. `deepseek-flash`) | Required (an error) |
+| `YT2COLUMN_LLM_PROVIDER` | LLM provider; `deepseek` or `claude` | `deepseek` |
+| `YT2COLUMN_MODEL` | LLM model name (e.g. `deepseek-flash`, `claude-opus-5-5`) | Required (an error) |
 | `DEEPSEEK_API_KEY` | DeepSeek API key | Required when the provider is `deepseek` (an error) |
+| `ANTHROPIC_API_KEY` | Anthropic API key | Required when the provider is `claude` (an error) |
+| `YT2COLUMN_CLAUDE_EFFORT` | Claude effort; `low`, `medium`, `high`, `xhigh`, or `max` | Required when the provider is `claude` (an error) |
+| `ANTHROPIC_WORKSPACE_ID` | Anthropic workspace ID, for an API key not bound to a workspace | No workspace ID is sent |
 | `SLACK_WEBHOOK_URL` | Slack-compatible Incoming Webhook URL (Mattermost is the verified target) | Required with `--slack`; optional with `--out` (no value) |
 | `YT2COLUMN_CACHE_DIR` | Cache directory for subtitles and video metadata | `$HOME/Library/Caches/yt2column` on macOS; `$XDG_CACHE_HOME/yt2column` or `$HOME/.cache/yt2column` on other Unix |
 | `YT2COLUMN_YTDLP_PATH` | Path to `yt-dlp` | `yt-dlp` on `PATH` |
 
 The value of an environment variable is never trimmed or otherwise corrected;
 an empty value is treated as set and rejected, not as unset.
+
+Only the variables of the selected provider are read and checked. The other
+provider's variables are ignored whatever their value, so exporting
+`ANTHROPIC_API_KEY=` for another tool does not stop a `deepseek` run; when
+`YT2COLUMN_LLM_PROVIDER` itself is invalid, no provider variable is checked and
+only that variable's error is reported.
+
+With `claude`, `max` is accepted but in this use case it spends the whole output
+budget on reasoning and returns no article text, so the run fails as truncated.
+Use `low` through `xhigh` for column generation.
 
 ## Development
 
@@ -158,6 +171,7 @@ make lint    # golangci-lint (pinned version)
 make fmt     # gofumpt on changed files
 make test-integration  # real yt-dlp + network; see below
 make test-integration-deepseek  # real DeepSeek API; see below
+make test-integration-claude  # real Anthropic API; see below
 make test-integration-cli  # the CLI with the real DeepSeek API; see below
 make test-integration-slack  # posts fixed articles to a real Mattermost test Webhook; see below
 make test-integration-cli-slack  # the CLI with the real DeepSeek API and a real Webhook; see below
@@ -238,6 +252,26 @@ the test skips with a message naming the variable, so a plain
 `go test -tags integration` or an IDE run does not call the API. A run makes two
 generations — an ordinary one and one truncated by `MaxOutputTokens` — each
 bounded by a 15-minute timeout, so it can take a few minutes under API load.
+
+### Claude integration test
+
+`make test-integration-claude` calls the real Anthropic Messages API, so it
+incurs charges. It needs `YT2COLUMN_TEST_ANTHROPIC_API_KEY` set to an Anthropic
+API key for testing; this is separate from the production `ANTHROPIC_API_KEY`,
+which the test never reads. A missing or empty `YT2COLUMN_TEST_ANTHROPIC_API_KEY`
+skips the test with a message naming the variable, so setting only
+`ANTHROPIC_API_KEY` does not run it. The model and effort come from
+`YT2COLUMN_TEST_CLAUDE_MODEL` and `YT2COLUMN_TEST_CLAUDE_EFFORT`, defaulting to
+`claude-haiku-5-5` and `low` when undefined (an empty value is passed through
+and fails the test). A workspace ID is read from
+`YT2COLUMN_TEST_ANTHROPIC_WORKSPACE_ID` when set, never from the production
+`ANTHROPIC_WORKSPACE_ID`; unset means no workspace ID is sent, while an empty or
+malformed value fails the test. The target exports the opt-in variable
+`YT2COLUMN_CLAUDE_INTEGRATION=1` for the integration test alone; without it the
+test skips with a message naming the variable, so a plain
+`go test -tags integration` or an IDE run does not call the API. A run makes two
+generations — an ordinary one and one truncated by `MaxOutputTokens` — each
+bounded by a 5-minute timeout, so the target's `-timeout` is 15 minutes.
 
 ### CLI integration test
 

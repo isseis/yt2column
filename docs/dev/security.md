@@ -17,17 +17,19 @@ yt2column はローカルで実行する CLI であり、利用者本人が入�
 
 - `DEEPSEEK_API_KEY` などの API キーと `SLACK_WEBHOOK_URL` は環境変数からのみ読み込む。リポジトリ内のファイルに書かない（`.envrc` / `.env` は `.gitignore` 済み）。
 - Webhook URL は URL 自体が秘密情報である。ログ・エラーメッセージに含めない。`*url.Error` など、URL を含む値をラップしたエラーをそのまま出力しない。
-- テストでは、本番の API キー（`DEEPSEEK_API_KEY` に設定するもの）と本番の Webhook URL を使わない。ただし、実 API を呼ぶ統合テストに限り、本番とは別に用意した**テスト用の API キー**を使う例外を設ける（`docs/tasks/0003_deepseek_llm_client/02_architecture.md` §5.2）。テスト用の API キーは、DeepSeek API に実際に通る有効なキーであり、使えば料金が発生する。
+- テストでは、本番の API キー（`DEEPSEEK_API_KEY`・`ANTHROPIC_API_KEY` に設定するもの）と本番の Webhook URL を使わない。ただし、実 API を呼ぶ統合テストに限り、本番とは別に用意した**テスト用の API キー**を使う例外を設ける（`docs/tasks/0003_deepseek_llm_client/02_architecture.md` §5.2）。テスト用の API キーは、DeepSeek API・Anthropic API に実際に通る有効なキーであり、使えば料金が発生する。
   - ユニットテストは、本番のキーもテスト用の API キーも使わない。偽の値だけを使い、Webhook URL も偽の値だけを使う。どのテストも API キーをコードやテストデータに書かない。
   - テスト用の API キーは、テスト専用の環境変数 `YT2COLUMN_TEST_DEEPSEEK_API_KEY` からだけ読む。統合テストは、本番の `DEEPSEEK_API_KEY` を、設定されていても読まない。テスト用の API キーには、本番と別のキー（利用上限を設けたものなど）を割り当てる。
-  - テスト用の API キーを使うのは、`//go:build integration` の次の 2 つの統合テストだけである。どちらも、対応する make のターゲットだけがエクスポートするオプトインの変数の値がちょうど `1` でなければスキップする。各ターゲットは自分のオプトインだけをエクスポートし、他方のオプトインはエクスポートしない。テスト用の API キーが `.envrc` などで常にエクスポートされていても、`go test -tags integration ./...` や IDE からの実行で料金が発生しない。
+  - Claude の統合テストも同じ方針で、テスト専用の `YT2COLUMN_TEST_ANTHROPIC_API_KEY` からだけ API キーを読み、本番の `ANTHROPIC_API_KEY` は設定されていても読まない。ワークスペース ID もテスト専用の `YT2COLUMN_TEST_ANTHROPIC_WORKSPACE_ID` からだけ読み、本番の `ANTHROPIC_WORKSPACE_ID` は読まない。テスト用の API キーには、利用上限を設けたワークスペースのものを割り当てる。
+  - テスト用の API キーを使うのは、`//go:build integration` の次の 3 つの統合テストだけである。どれも、対応する make のターゲットだけがエクスポートするオプトインの変数の値がちょうど `1` でなければスキップする。各ターゲットは自分のオプトインだけをエクスポートし、他のオプトインはエクスポートしない。テスト用の API キーが `.envrc` などで常にエクスポートされていても、`go test -tags integration ./...` や IDE からの実行で料金が発生しない。
 
     | 統合テスト | make のターゲット | オプトインの変数 | テスト用の API キーがない場合 |
     |---|---|---|---|
     | `internal/llm/deepseek/integration_test.go`（DeepSeek のアダプタ） | `make test-integration-deepseek` | `YT2COLUMN_DEEPSEEK_INTEGRATION=1` | スキップする |
+    | `internal/llm/claude/integration_test.go`（Claude のアダプタ） | `make test-integration-claude` | `YT2COLUMN_CLAUDE_INTEGRATION=1` | スキップする |
     | `cmd/yt2column/integration_test.go`（CLI の組み立てで testdata の字幕からファイル出力まで） | `make test-integration-cli` | `YT2COLUMN_CLI_INTEGRATION=1` | 失敗する（本番の `DEEPSEEK_API_KEY` だけがある場合も、それを代わりに使わない） |
 
-  - 実行するかどうかの判定とテスト用の API キーの読み込みは、両方のテストが `internal/llm/deepseek/testutil` の `SettingsFrom` で行う。
+  - 実行するかどうかの判定とテスト用の API キーの読み込みは、DeepSeek の 2 つのテストが `internal/llm/deepseek/testutil` の `SettingsFrom` で、Claude のテストが `internal/llm/claude/testutil` の `SettingsFrom` で行う。
   - CLI は API キーを `DEEPSEEK_API_KEY` という名前で受け取るので、CLI の統合テストは、読み込んだテスト用の API キーを、テストが組み立てて CLI に与える環境の中で `DEEPSEEK_API_KEY` という名前で渡す。プロセスの環境変数は変えない。名前は本番と同じだが、値はテスト用の API キーである。
   - テストの出力（ログ・失敗メッセージ・スキップの理由）に API キーもその一部も書かない。
 - 本番の `SLACK_WEBHOOK_URL` は、本番の API キーと同様、テストでは使わない。統合テストは、テスト専用の環境変数 `YT2COLUMN_TEST_SLACK_WEBHOOK_URL` からだけ Webhook URL を読む。本番の `SLACK_WEBHOOK_URL` は、設定されていても読まない。テスト用の Webhook は、本番とは別の Mattermost のテスト用チャンネルに投稿するものを用意する。テスト用の Webhook URL を使うのは `//go:build integration` の次の 2 つのテストであり、対応するオプトインの変数の値がちょうど `1` でなければスキップする。値 `1` は、対応する make のターゲットからでも、IDE や `go test -tags integration` を起動した環境からでも、どこから渡されてもテストを実行する。各ターゲットは自分のオプトインだけをエクスポートし、他方のオプトインはエクスポートしない。テスト用の Webhook URL がない場合と、HTTP/2 のデバッグ（下記の `GODEBUG`）が有効な場合は、スキップせずに失敗し、Webhook に送らない。
@@ -37,7 +39,7 @@ yt2column はローカルで実行する CLI であり、利用者本人が入�
     | `internal/publisher/slack_integration_test.go`（`SlackWebhookPublisher` が固定の記事を投稿） | `make test-integration-slack` | `YT2COLUMN_SLACK_INTEGRATION=1` | 失敗する（本番の `SLACK_WEBHOOK_URL` だけがある場合も、それを代わりに使わない） |
     | `cmd/yt2column/integration_slack_test.go`（CLI の組み立てで生成した記事を投稿） | `make test-integration-cli-slack` | `YT2COLUMN_CLI_SLACK_INTEGRATION=1` | 失敗する（テスト用の API キーも要る） |
 
-- `GODEBUG` に `http2debug=1` または `http2debug=2` を含めると、Go の HTTP/2 の Transport は送信するリクエストヘッダーを値ごと標準エラー出力に記録する。`Authorization` ヘッダーの API キーもそのまま出力される。`--slack` の Webhook への送信では、リクエストのパス、すなわち Webhook URL のパスも書かれうる。この設定で通信を調査するときは、無効な API キー（本番のキーでもテスト用のキーでもないもの）を使う。`GODEBUG` はプロセスの開始時に一度だけ読まれ、実行中に取り除いても効かないため、統合テストは、API を呼ぶものも Webhook に投稿するものも、送信の前にこれらの設定を検出して失敗する。
+- `GODEBUG` に `http2debug=1` または `http2debug=2` を含めると、Go の HTTP/2 の Transport は送信するリクエストヘッダーを値ごと標準エラー出力に記録する。`Authorization`・`x-api-key` などの API キーのヘッダーもそのまま出力される。`--slack` の Webhook への送信では、リクエストのパス、すなわち Webhook URL のパスも書かれうる。この設定で通信を調査するときは、無効な API キー（本番のキーでもテスト用のキーでもないもの）を使う。`GODEBUG` はプロセスの開始時に一度だけ読まれ、実行中に取り除いても効かないため、統合テストは、API を呼ぶものも Webhook に投稿するものも、送信の前にこれらの設定を検出して失敗する。
 - 本番の CLI は `GODEBUG` の `http2debug` を拒否せずに読み込み、利用者が明示的に指定したものとしてデバッグを優先する。その代わり、LLM API を呼ぶ前に、`http2debug` により API キーが標準エラー出力に書かれうることを警告する（`--slack` の場合は Webhook URL のパスも書かれうることも警告する）（F-001・F-007・F-008）。
 
 ## 3. ネットワーク通信
@@ -52,6 +54,7 @@ yt2column はローカルで実行する CLI であり、利用者本人が入�
 ## 4. LLM プロバイダへ送るデータ
 
 - DeepSeek の API への入力は中国で処理・保存され、プライバシーポリシー上はデフォルトでモデルの学習に使われる（オプトアウトあり）。運用開始前にオプトアウトの設定を確認する。
+- Anthropic の Messages API へ送る入力と出力は、商用製品の既定では Anthropic のモデルの学習に使われない（利用者がフィードバックを明示的に送った場合や、利用者が許可した場合を除く）。Anthropic API の入力と出力は、受け取りまたは生成から 30 日以内にバックエンドから自動的に削除される。利用者側で保持期間を延ばす機能を使う場合、別途合意した場合（ゼロデータ保持など）、利用ポリシー違反の調査、法令上の保持は例外である。出典: Anthropic Privacy Center [「Is my data used for model training?」](https://privacy.claude.com/en/articles/7996868-is-my-data-used-for-model-training)・[「How long do you store my organization's data?」](https://privacy.claude.com/en/articles/7996866-how-long-do-you-store-my-organization-s-data)（2026-10-12 確認）。
 - LLM に送るのは、公開動画の字幕・メタ情報とプロンプトテンプレートだけにする。API キー、Webhook URL、ローカルのファイルパス、利用者の個人情報をプロンプトに含めない。
 
 ## 5. キャッシュディレクトリ
