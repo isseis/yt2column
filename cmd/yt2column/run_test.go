@@ -1178,7 +1178,14 @@ func TestRunHelp(t *testing.T) {
 			if stderr.Len() != 0 {
 				t.Errorf("stderr = %q, want empty", stderr.String())
 			}
-			for _, flag := range []string{"--out <path>", "--slack", "Mattermost", "--refresh", "--keep-cache", "--system-prompt <path>", "--user-prompt <path>", "-h, --help"} {
+			for _, flag := range []string{
+				"--out <path>", "--slack", "Mattermost", "--refresh", "--keep-cache",
+				"--system-prompt <path>", "--user-prompt <path>",
+				"--no-shorten", "--no-review", "--review-log <path>",
+				"--shorten-system-prompt <path>", "--shorten-user-prompt <path>",
+				"--review-system-prompt <path>", "--review-user-prompt <path>",
+				"-h, --help",
+			} {
 				if !strings.Contains(stdout.String(), flag) {
 					t.Errorf("usage does not list %q:\n%s", flag, stdout.String())
 				}
