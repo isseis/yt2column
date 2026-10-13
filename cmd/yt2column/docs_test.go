@@ -5,7 +5,6 @@ package main
 import (
 	"flag"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -13,6 +12,7 @@ import (
 	claudetestutil "github.com/isseis/yt2column/internal/llm/claude/testutil"
 	"github.com/isseis/yt2column/internal/publisher"
 	publishertestutil "github.com/isseis/yt2column/internal/publisher/testutil"
+	"github.com/isseis/yt2column/internal/transcript"
 )
 
 // Paths from cmd/yt2column to the documents these tests check.
@@ -346,8 +346,12 @@ func TestReviewEvaluationRecords(t *testing.T) {
 			}
 		}
 
-		if tableRow(items, id) == nil {
+		itemRows := tableRowsWithFirstCell(items, id)
+		if len(itemRows) == 0 {
 			t.Errorf("3. 記録 has no review-log item row for video %s", id)
+		}
+		for _, row := range itemRows {
+			requireFilledRow(t, id, "review-log item", row, 6)
 		}
 	}
 }
@@ -361,7 +365,6 @@ func columnEvaluationVideoIDs(t *testing.T) []string {
 	if table == nil {
 		t.Fatal("0008's evaluation has no video table with a URL column")
 	}
-	re := regexp.MustCompile(`[?&]v=([A-Za-z0-9_-]+)`)
 	var ids []string
 	for _, row := range table[1:] {
 		if len(row) < 2 {
@@ -370,12 +373,12 @@ func columnEvaluationVideoIDs(t *testing.T) []string {
 		if _, err := strconv.Atoi(row[0]); err != nil {
 			continue
 		}
-		m := re.FindStringSubmatch(row[1])
-		if m == nil {
-			t.Errorf("video row %q has no video ID in %q", row[0], row[1])
+		id, _, err := transcript.ValidateVideoURL(row[1])
+		if err != nil {
+			t.Errorf("video row %q has an invalid video URL %q: %v", row[0], row[1], err)
 			continue
 		}
-		ids = append(ids, m[1])
+		ids = append(ids, id)
 	}
 	if len(ids) == 0 {
 		t.Fatal("0008's video table has no numbered rows")
@@ -486,6 +489,19 @@ func tableRow(table [][]string, first string) []string {
 		}
 	}
 	return nil
+}
+
+// tableRowsWithFirstCell returns every body row whose first cell equals first,
+// ignoring backticks. It is tableRow for a table that can hold more than one row
+// per key, such as the review-log item table.
+func tableRowsWithFirstCell(table [][]string, first string) [][]string {
+	var rows [][]string
+	for _, row := range table[1:] {
+		if len(row) > 0 && stripBackticks(row[0]) == first {
+			rows = append(rows, row)
+		}
+	}
+	return rows
 }
 
 // tableContains reports whether any cell of table contains want.

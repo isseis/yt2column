@@ -25,6 +25,7 @@
 |---|---|
 | 評価用ディレクトリとキャッシュの準備 | 0008 評価記録 §2.1 |
 | 字幕の取得（テザリングで 1 本ずつ、バックアップ） | 0008 評価記録 §2.2 |
+| 評価用の記事の生成（`--out` の書式、実 API の承認、料金の時間帯） | 0008 評価記録 §2.3 |
 | キャッシュが使えない場合 | 0008 評価記録 §2.6 |
 | 機械的な判定（`check_article.py`） | 0008 評価記録 §2.4 |
 | LLM による採点の素材・物差し・出力の表 | 0008 評価記録 §2.5 |
@@ -42,12 +43,12 @@
 
 ### 2.2. 段階なしの記事（比較の基準）
 
-まず、2 つの段階を無効にした記事を生成する。これは、段階が直したこと・壊したことを比べる基準になる。0008 評価記録 §2.3 のコマンドに `--no-shorten --no-review` を加え、出力先を段階なし用のディレクトリにする。
+まず、2 つの段階を無効にした記事を生成する。これは、段階が直したこと・壊したことを比べる基準になる。0008 評価記録 §2.3 のコマンドに `--no-shorten --no-review` を加え、出力先を段階なし用のディレクトリにする。所要時間の基準を測るため、`time` で実行する。
 
 ```sh
 V=v5; RUN=1
 mkdir -p ~/yt2column-eval/out/$V-nosteps
-YT2COLUMN_YTDLP_PATH=/usr/bin/false yt2column --keep-cache \
+time YT2COLUMN_YTDLP_PATH=/usr/bin/false yt2column --keep-cache \
   --no-shorten --no-review \
   --system-prompt docs/tasks/0008_column_prompt/$V/system.tmpl \
   --user-prompt docs/tasks/0008_column_prompt/$V/user.tmpl \
@@ -66,14 +67,14 @@ mkdir -p ~/yt2column-eval/out/$V ~/yt2column-eval/review
 time YT2COLUMN_YTDLP_PATH=/usr/bin/false yt2column --keep-cache \
   --system-prompt docs/tasks/0008_column_prompt/$V/system.tmpl \
   --user-prompt docs/tasks/0008_column_prompt/$V/user.tmpl \
-  --review-log ~/yt2column-eval/review/<動画 ID>.md \
+  --review-log ~/yt2column-eval/review/<動画 ID>-$RUN.md \
   --out ~/yt2column-eval/out/$V/<動画 ID>-$RUN.md <URL>
 ```
 
--   `time` の `real` を、生成から出力までの所要時間として記録する（AC-30）。段階なしと段階ありの両方を測り、段階が増やした時間も見る。
--   `--review-log` は検証・推敲の段階を必要とする。`--no-review` とは同時に指定できない。`--out` に同じパスを指定することもできない（要件定義書 AC-20・AC-21）。
+-   `time` の `real` を、生成から出力までの所要時間として記録する（AC-30）。段階なしと段階ありの両方を測る。§3.2 には段階ありの所要時間を記録し、段階が増やした時間は §4 の結論で比べる。
+-   `--review-log` は検証・推敲の段階を必要とする。`--no-review` とは同時に指定できない（要件定義書 AC-21）。`--out` に同じパスを指定することもできない（[02_architecture.md](02_architecture.md) §3.9）。
 -   検証・推敲のプロバイダとモデル（AC-30）は、まず生成と同じ `deepseek-flash`（`YT2COLUMN_MODEL=deepseek-flash`）とする（要件定義書 F-008）。0008 評価記録 §2.3 のとおり、DeepSeek の料金が 2 倍になる時間帯（日本時間の平日 10–13 時と 15–19 時）を避ける。
--   1 本の記事につき、生成 1 回・字数の調整 0〜1 回・検証・推敲 1 回の LLM 呼び出しが発生する（要件定義書 §4.1）。回数は、CLI の出力と `time` で測った時間から記録する（AC-30）。
+-   1 本の記事につき、LLM の呼び出しは生成 1 回・字数の調整 0〜1 回・検証・推敲 1 回が上限である（要件定義書 §4.1）。実際の回数は、CLI の要約（字数の調整を行ったかどうか）と `time` の値から確定し、§3.2 に記録する（AC-30）。
 -   記事を生成する DeepSeek の呼び出しは実 API の呼び出しなので、実行のたびに人が承認する（要件定義書 §5）。
 
 ### 2.4. 判定の方法
@@ -90,7 +91,7 @@ time YT2COLUMN_YTDLP_PATH=/usr/bin/false yt2column --keep-cache \
 
 ## 3. 記録
 
-5 本の動画のそれぞれについて、次の 4 つの表に記入する。動画の ID は 0008 評価記録 §3.2 の表の URL から取る。
+5 本の動画のそれぞれについて、次の 4 つの表に記入する。動画の ID は 0008 評価記録 §3.2 の表の URL から取る。記事の生成または段階が失敗して評価に使える記事が得られなかった動画も、表から省かず、その旨（失敗の種類）を各欄に書いて 1 行を残す（欄を空にしない）。
 
 ### 3.1. F-006 の観点ごとの判定（AC-28）
 
@@ -108,7 +109,7 @@ time YT2COLUMN_YTDLP_PATH=/usr/bin/false yt2column --keep-cache \
 
 ### 3.3. 一覧の項目の判定（AC-29）
 
-検証・推敲の一覧（`--review-log`）の各項目について、直したことが正しかったか（素材に照らして直す必要があり、直した後の記述が素材どおりか）と、段階が入れた新しいずれの有無を判定する。1 つの項目を 1 行にする。一覧が空の記事は、その旨を 1 行で書く。
+検証・推敲の一覧（`--review-log`）の各項目について、直したことが正しかったか（素材に照らして直す必要があり、直した後の記述が素材どおりか）と、段階が入れた新しいずれの有無を判定する。1 つの項目を 1 行にする。一覧が空の記事は、`項目` に `（一覧なし）`、他の欄に `—` を入れて 1 行にする。
 
 | 動画 | 項目 | 直す前の記述 | 判定 | 素材どおりか | 新しいずれ |
 |---|---|---|---|---|---|
