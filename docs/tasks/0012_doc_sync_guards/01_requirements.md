@@ -8,7 +8,7 @@
 | Created | 2026-10-13 |
 | Review date | 2026-10-13 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-13 編集上の修正（決定の変更なし）: 背景と F-003 が参照する `CLAUDE.md` の行番号を、現在の位置（`CLAUDE.md:211-215`・`CLAUDE.md:209`）に直した。 |
 
 ## 1. 概要 (Overview)
 
@@ -16,7 +16,7 @@
 
 **背景:**
 
-- `CLAUDE.md:206-210` は、文書だけでなく `.gitignore` だけを変えた変更でも、コミットの前に `make ext-test` をローカルで実行するよう求めている。理由は、文書のみの変更は拡張の CI のジョブを走らせないが、拡張の guard テストが文書を読んでいて壊れ得るためである。
+- `CLAUDE.md:211-215` は、文書だけでなく `.gitignore` だけを変えた変更でも、コミットの前に `make ext-test` をローカルで実行するよう求めている。理由は、文書のみの変更は拡張の CI のジョブを走らせないが、拡張の guard テストが文書を読んでいて壊れ得るためである。
 - `make ext-test` は `extension/.node-version` に固定した node と `make ext-install`（`npm ci`、ネットワークが必要）を前提とする（`Makefile` の `ext_preflight`）。文書しか変えていない変更で node のインストールを要求するのは費用対効果が悪い。
 - `extension/test/docs.test.ts` が検査しているのは、いずれもテキストの同期であり node を必要としない（拡張 ID、`ext-` ターゲットの一覧、`security.md` の permission、`project_overview.md` の記述、タスク `0007` の記録）。
 - 同じ種類の guard は既に Go 側にもある。`cmd/yt2column/docs_test.go` が README の設定表・終了コード表・`project_overview.md` の設定表などを `make test` で検査しており、Go のテストは node を要求しない。
@@ -88,9 +88,9 @@
 
 #### F-003: 文書のみの変更で node を要求しない
 
--   `CLAUDE.md:206-210` の規則を、文書（`README.md`・`CLAUDE.md`・`docs/`）だけを変える変更で `make ext-test` を要求しない形に見直す。移した検査は Go のテストとして `make test` に含まれ、node を必要としない。
+-   `CLAUDE.md:211-215` の規則を、文書（`README.md`・`CLAUDE.md`・`docs/`）だけを変える変更で `make ext-test` を要求しない形に見直す。移した検査は Go のテストとして `make test` に含まれ、node を必要としない。
 -   `.gitignore` のみの変更は、文書のテキスト同期 guard では守られない。現行の ignore 規則の guard（`extension/test/repository.test.ts` の `git check-ignore`）は node 側にあり、`.gitignore` を変えると落ち得る。`.gitignore` のみの変更で node を要求するかは、ignore 規則の guard を Go へ移すかで決まる。どちらに寄せるかは設計で決める（[design_handoff.md](design_handoff.md) H-07）。決めた方針は `CLAUDE.md` の規則に明記する。
--   `CLAUDE.md:204` の「編集の後に `make test` と `make lint` を実行する」規則は維持する。
+-   `CLAUDE.md:209` の「編集の後に `make test` と `make lint` を実行する」規則は維持する。
 
 **Acceptance Criteria**:
 - **AC-10**: `CLAUDE.md` の「Development Notes」の規則が、文書（`README.md`・`CLAUDE.md`・`docs/`）だけの変更で `make ext-test` を要求しない。移した検査が `make test`（node 不要）で実行されることが分かる。`.gitignore` のみの変更の扱い（`make ext-test` を要求するか、ignore 規則の guard も `make test` に含めるか）が明記されている（静的確認）。

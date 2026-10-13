@@ -18,8 +18,8 @@
 
 ## H-03: 文書のみの変更を CI で保護するか
 
--   **事項:** 移した検査は `make test` に含まれるが、`ci.yml` の `check-changes` は `*.md`・`docs/`・`.claude/`・`LICENSE` だけの変更をコードの変更とみなさないため、Go のテストのジョブ（`test`）は文書のみの変更で走らない。この現状を本タスクで変えるか、ローカルの `make test`（`CLAUDE.md:204`）に委ねるかを決める。
--   **理由:** `CLAUDE.md:206-210` の規則が存在したのは、文書のみの変更が拡張の CI のジョブを走らせず、拡張の文書 guard が壊れ得るためである。移設だけでは、文書のみの変更で CI が文書 guard を走らせるようにはならない（移設前から、拡張の guard も Go の `docs_test.go` も文書のみの変更では CI で走っていない）。したがって移設は CI の穴を広げも狭めもしないが、ローカルの規則を外す以上、その穴を明示的に決める必要がある。
+-   **事項:** 移した検査は `make test` に含まれるが、`ci.yml` の `check-changes` は `*.md`・`docs/`・`.claude/`・`LICENSE` だけの変更をコードの変更とみなさないため、Go のテストのジョブ（`test`）は文書のみの変更で走らない。この現状を本タスクで変えるか、ローカルの `make test`（`CLAUDE.md:209`）に委ねるかを決める。
+-   **理由:** `CLAUDE.md:211-215` の規則が存在したのは、文書のみの変更が拡張の CI のジョブを走らせず、拡張の文書 guard が壊れ得るためである。移設だけでは、文書のみの変更で CI が文書 guard を走らせるようにはならない（移設前から、拡張の guard も Go の `docs_test.go` も文書のみの変更では CI で走っていない）。したがって移設は CI の穴を広げも狭めもしないが、ローカルの規則を外す以上、その穴を明示的に決める必要がある。
 -   **候補の方針:** 本タスクでは CI のトリガを変えず、文書のみの変更はローカルの `make test`（node 不要）に委ねる。`CLAUDE.md` には「文書のみの変更でも `make test` を実行する」ことを残す。「文書のみの変更でも `test` のジョブを走らせる」案（`check-changes` の分類に、文書 guard が読むファイルを加える、または常に走る小さなジョブを足す）は、実行時間の増加と `check-changes` の設計の変更を伴うので、必要なら別の issue とする。
 -   **関連:** F-003、AC-10、AC-11、スコープ外（CI の変更）
 
@@ -47,7 +47,7 @@
 ## H-07: `.gitignore` の ignore 規則の guard の扱い
 
 -   **事項:** `.gitignore` を守る guard（`extension/test/repository.test.ts` の `git check-ignore` で `extension/node_modules`・`extension/dist`・`*.pem` を検査する部分）を node 側に残すか、Go へ移すかを決める。
--   **理由:** `CLAUDE.md:206-210` の規則は、文書だけでなく `.gitignore` の変更も「拡張の guard テストを壊し得る」対象として `make ext-test` を求めている。parenthesis の「the ignore rules」がこの検査を指す。移す 6 種類の検査（`docs.test.ts`）には含まれない。`.gitignore` のみの変更で node を要求しないようにするには、この検査も Go（`make test`）へ移す必要がある。Go のテストから `git` を起動することになる点は、既存の Go のテスト（`docs_test.go` はファイルを読むだけ）にない要素であり、トレードオフがある。
+-   **理由:** `CLAUDE.md:211-215` の規則は、文書だけでなく `.gitignore` の変更も「拡張の guard テストを壊し得る」対象として `make ext-test` を求めている。parenthesis の「the ignore rules」がこの検査を指す。移す 6 種類の検査（`docs.test.ts`）には含まれない。`.gitignore` のみの変更で node を要求しないようにするには、この検査も Go（`make test`）へ移す必要がある。Go のテストから `git` を起動することになる点は、既存の Go のテスト（`docs_test.go` はファイルを読むだけ）にない要素であり、トレードオフがある。
 -   **候補の方針:**
     -   **案 A（node に残す）:** ignore 規則の検査は node の `repository.test.ts` に残し、`.gitignore` のみの変更では引き続き `make ext-test` を要求する。`CLAUDE.md` にその旨を明記する。変更は最小で、挙動のテストは node に残すという方針（F-002）と整合する。
     -   **案 B（Go へ移す）:** ignore 規則の検査も Go へ移し、`make test` で行う。Go のテストが `git check-ignore`（または Go での glob の評価）を使う。`.gitignore` のみの変更でも node が不要になり、issue の意図（docs-only で node を要求しない）に完全に一致するが、Go のテストに外部コマンド（`git`）への依存を持ち込む。
