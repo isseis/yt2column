@@ -176,16 +176,16 @@ requirements が定める 4 つの機能要件（F-001〜F-004）を、architect
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した（[#191](https://github.com/isseis/yt2column/pull/191)）
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 4: 壊し確認と記録（F-004）
 
 **対象ファイル:** `docs/tasks/0012_doc_sync_guards/03_implementation_plan.md`（本計画の §5.1）
 
-- [ ] **ステップ 4-1**: 移した 6 種の各検査について、architecture §7.2 が挙げる対象を壊し、その検査のサブテストだけを実行して、それが落ちることを確かめる。主な対象は、拡張 ID の 1 文字、manifest の `key` を別の有効な値に変える（検査 1・5 の導出元）、`Makefile` の `ext-` ターゲット 1 つ、`security.md` §8.1 の `要求する権限` から permission 1 つを削除する操作、manifest の `permissions` の permission 1 つ（manifest から消す場合に落ちることも確かめる。検査 3 の集合の比較が両方向であることの確認）、`project_overview.md` の `TypeScript` と `extension/`、`0007` の `3.12.x` の見出しと `3.12.2`・`3.12.3` の本文、`0007` の §5.1 のセルである。壊した変更は、対象ファイルのほかの変更を巻き込まずに戻し（壊し確認の前に、対象ファイルに無関係な未ステージ変更がないことを確かめる）、戻した後に `make test` が通ることを確かめてから次の検査に進む。
-- [ ] **ステップ 4-2**: ステップ 4-1 の手順と結果を §5.1 の表に記録する（形式はタスク `0007` の §5.1 に倣う）。
-- [ ] **ステップ 4-3**: フェーズ 4 の完了条件として、`make fmt` → `make test` → `make lint` を通す。
+- [x] **ステップ 4-1**: 移した 6 種の各検査について、architecture §7.2 が挙げる対象を壊し、その検査のサブテストだけを実行して、それが落ちることを確かめる。主な対象は、拡張 ID の 1 文字、manifest の `key` を別の有効な値に変える（検査 1・5 の導出元）、`Makefile` の `ext-` ターゲット 1 つ、`security.md` §8.1 の `要求する権限` から permission 1 つを削除する操作、manifest の `permissions` の permission 1 つ（manifest から消す場合に落ちることも確かめる。検査 3 の集合の比較が両方向であることの確認）、`project_overview.md` の `TypeScript` と `extension/`、`0007` の `3.12.x` の見出しと `3.12.2`・`3.12.3` の本文、`0007` の §5.1 のセルである。壊した変更は、対象ファイルのほかの変更を巻き込まずに戻し（壊し確認の前に、対象ファイルに無関係な未ステージ変更がないことを確かめる）、戻した後に `make test` が通ることを確かめてから次の検査に進む。
+- [x] **ステップ 4-2**: ステップ 4-1 の手順と結果を §5.1 の表に記録する（形式はタスク `0007` の §5.1 に倣う）。
+- [x] **ステップ 4-3**: フェーズ 4 の完了条件として、`make fmt` → `make test` → `make lint` を通す。
 
 **完了条件:** 6 種の各検査の壊し確認の手順と結果が §5.1 に記録されている（AC-13）。
 
@@ -201,8 +201,8 @@ requirements が定める 4 つの機能要件（F-001〜F-004）を、architect
 
 **判定理由**: 既に実装した guard の壊し確認と、その結果を本計画の §5.1 に記録する作業に限られ、`既存コード調査結果` に競合する実装方針の併記がなく、パネルモードの引き金・隔離すべき高リスクなステップのいずれにも該当しないため。複数の成果物に固定された対象を一時的に壊す手順（ステップ 4-1）という Conditional check に 1 つだけ該当するが、ステップ 4-1 が 1 件ごとに `git restore` で戻し、ステップ 4-3 がグリーンゲートを通すので、2 つ以上の基準には当たらない。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した（[#192](https://github.com/isseis/yt2column/pull/192)）
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
@@ -275,16 +275,16 @@ Go の guard は macOS と Linux（CI）のどちらでも `make test` で動く
 
 ### 5.1. 壊し確認の記録
 
-実装のときに埋める。記録の欄（壊す対象・実行したテスト・日付・結果）は空にしない。
+ステップ 4-1 の壊し確認の手順と結果である。各確認で対象を壊し、該当のサブテストだけを実行して落ちることを確かめ、`git restore -- <対象ファイル>` で戻し、`make test` が通ることを確かめてから次の確認に進んだ。壊す前に対象ファイルへ無関係な未ステージ変更がないことは `git status` で確かめた。記録の欄（壊す対象・実行したテスト・日付・結果）は空にしない。
 
 | 検査 | 壊す対象 | 実行したテスト | 日付 | 結果 |
 |---|---|---|---|---|
-| 検査 1（拡張 ID の記載） | | | | |
-| 検査 2（`ext-` ターゲットの一覧） | | | | |
-| 検査 3（manifest の permission） | | | | |
-| 検査 4（project overview の記述） | | | | |
-| 検査 5（`0007` の調査の記録） | | | | |
-| 検査 6（`0007` の手動確認の記録） | | | | |
+| 検査 1（拡張 ID の記載） | `README.md` の拡張 ID の末尾 1 文字を変更（`…babkk`→`…babka`）。加えて、拡張 ID の導出元である `extension/static/manifest.json` の `key` を、新規に生成した別の有効な公開鍵（RSA 2048 ビットの DER SubjectPublicKeyInfo を base64 にしたもの）に差し替え | `go test -tags test -run 'TestExtensionDocumentation/records_the_fixed_extension_ID_in_README_and_security.md' ./cmd/yt2column/`（`key` の差し替えでは同じコマンドに `TestExtensionDocumentation/records_sections_3.12.1_to_3.12.3_with_the_extension_ID_in_3.12.1` を加えて実行） | 2026-10-14 | どちらも失敗した。README の 1 文字では `README.md does not record the extension ID clfmbbcdpnjcefbdihdoahomaifbabkk`。`key` の差し替えでは導出値が別の ID になり、README・security.md の 2 つと `0007` の 3.12.1 の照合が落ちた。戻した後に `make test` が通った |
+| 検査 2（`ext-` ターゲットの一覧） | `Makefile` の `ext-test:` を `ext-testing:` に変更（`ext-` ターゲットを 1 つ偽名にして、`Makefile` が定義する集合から外す） | `go test -tags test -run 'TestExtensionDocumentation/lists_every_ext-_target_the_Makefile_defines,_and_no_others' ./cmd/yt2column/` | 2026-10-14 | 失敗した。`CLAUDE.md` の一覧 `[ext-build ext-check ext-fmt ext-fmt-check ext-install ext-lint ext-test ext-typecheck]` と `Makefile` の `[ext-build ext-check ext-fmt ext-fmt-check ext-install ext-lint ext-testing ext-typecheck]` を並べたメッセージで落ちた。戻した後に `make test` が通った |
+| 検査 3（manifest の permission） | (1) `extension/static/manifest.json` の `permissions` から `storage` を削除、(2) `docs/dev/security.md` §8.1 の `要求する権限` から `storage` の項目を削除（集合の比較が両方向であることを確かめる） | `go test -tags test -run 'TestExtensionDocumentation/lists_every_manifest_permission_in_the_extension_section_of_security.md' ./cmd/yt2column/` | 2026-10-14 | どちらも失敗した。(1) は `security.md 8.1 lists "storage", which the manifest does not request`、(2) は `security.md 8.1 does not list the manifest permission "storage"`。戻した後に `make test` が通った |
+| 検査 4（project overview の記述） | (1) `docs/dev/project_overview.md` の `## 決定済みの方針` の `TypeScript` を別文字列に変更、(2) `## 想定ディレクトリ構成` の `extension/` を別文字列に変更 | `go test -tags test -run 'TestExtensionDocumentation/adds_TypeScript_and_extension/_to_the_project_overview' ./cmd/yt2column/` | 2026-10-14 | どちらも失敗した。(1) は `決定済みの方針 does not mention TypeScript`、(2) は `想定ディレクトリ構成 does not list extension/`。戻した後に `make test` が通った |
+| 検査 5（`0007` の調査の記録） | `docs/tasks/0007_browser_extension_skeleton/02_architecture.md` で、(1) `#### 3.12.1.` の見出しを `#### 3.12X1.` に変更（見出しを消す）、(2) `#### 3.12.2.` の見出しは残したまま本文を空にする、(3) `#### 3.12.3.` の見出しは残したまま本文を空にする | `go test -tags test -run 'TestExtensionDocumentation/records_sections_3.12.1_to_3.12.3_with_the_extension_ID_in_3.12.1' ./cmd/yt2column/` | 2026-10-14 | すべて失敗した。(1) は `the architecture has no section #### 3.12.1.` と `architecture 3.12.1 does not record the extension ID`、(2) は `architecture #### 3.12.2. has no investigation result`、(3) は `architecture #### 3.12.3. has no investigation result`（本文だけを空にしても落ちる）。戻した後に `make test` が通った |
+| 検査 6（`0007` の手動確認の記録） | `docs/tasks/0007_browser_extension_skeleton/03_implementation_plan.md` §5.1 の表で、(1) `AC-02` の行を削除、(2) `AC-05` の行の確認の内容セル（2 列目）を空にする、(3) `AC-13` の行の結果セル（5 列目）を空にする | `go test -tags test -run "TestExtensionDocumentation/fills_every_cell_of_the_plan's_manual-check_table" ./cmd/yt2column/` | 2026-10-14 | すべて失敗した。(1) は `section 5.1 has 10 rows, want 11`、(2) は `section 5.1 row AC-05 has an empty column 2`、(3) は `section 5.1 row AC-13 has an empty column 5`。戻した後に `make test` が通った |
 
 ## 6. リスク管理 (Risk Management)
 
