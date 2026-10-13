@@ -97,15 +97,15 @@ requirements が定める 4 つの機能要件（F-001〜F-004）を、architect
 - [x] PR がマージされた
 - [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
-- [ ] **ステップ 1-3**: `extension_docs_test.go` を新設する（`package main`、先頭行は `//go:build test`）。`readDoc`・`markdownTables`・`findTable`・`tableRow`・`repositoryRoot` を再利用する。`manifest.json`（`key`・`permissions`）を `encoding/json` で読む。manifest と各文書はテスト関数の冒頭で 1 回だけ読み、サブテストで共有する（requirements §4.1）。
-- [ ] **ステップ 1-4**: `sectionByHeadingPrefix(doc, prefix string) string` を実装する（契約は architecture §3.2。前後の空白を除いて `prefix` で始まる最初の見出し行を探し、その行を含めず、次の見出し行の手前までを返す。見出しがなければ空文字列）。`extensionIDFromManifestKey(key string) (string, error)` を実装する（`encoding/base64`・`crypto/x509`・`crypto/sha256`。解析できない値はエラーを返す。契約は architecture §3.4）。解析できない `key` でエラーを返すことを確かめる小さな単体テストを加える（固定値によらない）。
-- [ ] **ステップ 1-5**: 検査 1（拡張 ID の記載。`README.md`・`docs/dev/security.md`）のサブテストを実装する。導出値が両文書の本文に含まれることを確かめる（architecture §3.3）。
-- [ ] **ステップ 1-6**: 検査 2（`ext-` ターゲットの一覧。`Makefile`・`CLAUDE.md`）のサブテストを実装する（抽出規則は architecture §3.3 の契約）。両者から集めた名前の集合が一致することを確かめ、`Makefile` から 1 件も集まらなければ失敗させる。
-- [ ] **ステップ 1-7**: 検査 3（manifest の permission。`docs/dev/security.md` §8.1）のサブテストを実装する。§8.1 の `要求する権限` の列挙と manifest の `permissions` を集合として両方向に比較し、どちらか片方だけにある権限（manifest にあって文書にない権限、文書にあって manifest にない権限）を落とす（architecture §3.3）。
-- [ ] **ステップ 1-8**: 検査 4（`docs/dev/project_overview.md` の記述）のサブテストを実装する（architecture §3.3）。
-- [ ] **ステップ 1-9**: 検査 5（`0007` の `02_architecture.md` の調査の記録）のサブテストを実装する（architecture §3.3）。
-- [ ] **ステップ 1-10**: 検査 6（`0007` の `03_implementation_plan.md` §5.1）のサブテストを実装する（照合の内容は architecture §3.3）。表の本文の行の数が期待する行の数と一致することも確かめ、余分な行・欠けた行のどちらでも落ちるようにする（現行 `docs.test.ts` の `deepEqual` と同じ）。期待する行ラベルは §1.2 のとおりヘルパで番号から組み立て、Go ソースに `AC-<数字>` のリテラルを書かない。
-- [ ] **ステップ 1-11**: フェーズ 1 の完了条件として、`make fmt` → `make test` → `make lint` を通す。既存の doc guard（`TestReviewEvaluationRecords`）と README の guard（`TestREADMEDocumentsFlags`）が引き続き通ることを確かめる。
+- [x] **ステップ 1-3**: `extension_docs_test.go` を新設する（`package main`、先頭行は `//go:build test`）。`readDoc`・`markdownTables`・`findTable`・`tableRow`・`repositoryRoot` を再利用する。`manifest.json`（`key`・`permissions`）を `encoding/json` で読む。manifest と各文書はテスト関数の冒頭で 1 回だけ読み、サブテストで共有する（requirements §4.1）。
+- [x] **ステップ 1-4**: `sectionByHeadingPrefix(doc, prefix string) string` を実装する（契約は architecture §3.2。前後の空白を除いて `prefix` で始まる最初の見出し行を探し、その行を含めず、次の見出し行の手前までを返す。見出しがなければ空文字列）。`extensionIDFromManifestKey(key string) (string, error)` を実装する（`encoding/base64`・`crypto/x509`・`crypto/sha256`。解析できない値はエラーを返す。契約は architecture §3.4）。解析できない `key` でエラーを返すことを確かめる小さな単体テストを加える（固定値によらない）。
+- [x] **ステップ 1-5**: 検査 1（拡張 ID の記載。`README.md`・`docs/dev/security.md`）のサブテストを実装する。導出値が両文書の本文に含まれることを確かめる（architecture §3.3）。
+- [x] **ステップ 1-6**: 検査 2（`ext-` ターゲットの一覧。`Makefile`・`CLAUDE.md`）のサブテストを実装する（抽出規則は architecture §3.3 の契約）。両者から集めた名前の集合が一致することを確かめ、`Makefile` から 1 件も集まらなければ失敗させる。
+- [x] **ステップ 1-7**: 検査 3（manifest の permission。`docs/dev/security.md` §8.1）のサブテストを実装する。§8.1 の `要求する権限` の列挙と manifest の `permissions` を集合として両方向に比較し、どちらか片方だけにある権限（manifest にあって文書にない権限、文書にあって manifest にない権限）を落とす（architecture §3.3）。
+- [x] **ステップ 1-8**: 検査 4（`docs/dev/project_overview.md` の記述）のサブテストを実装する（architecture §3.3）。
+- [x] **ステップ 1-9**: 検査 5（`0007` の `02_architecture.md` の調査の記録）のサブテストを実装する（architecture §3.3）。
+- [x] **ステップ 1-10**: 検査 6（`0007` の `03_implementation_plan.md` §5.1）のサブテストを実装する（照合の内容は architecture §3.3）。表の本文の行の数が期待する行の数と一致することも確かめ、余分な行・欠けた行のどちらでも落ちるようにする（現行 `docs.test.ts` の `deepEqual` と同じ）。期待する行ラベルは §1.2 のとおりヘルパで番号から組み立て、Go ソースに `AC-<数字>` のリテラルを書かない。
+- [x] **ステップ 1-11**: フェーズ 1 の完了条件として、`make fmt` → `make test` → `make lint` を通す。既存の doc guard（`TestReviewEvaluationRecords`）と README の guard（`TestREADMEDocumentsFlags`）が引き続き通ることを確かめる。
 
 **完了条件:** 6 種の検査が `make test` で通り、node も npm も起動しない。既存の doc guard の期待値が変わっていない。
 
