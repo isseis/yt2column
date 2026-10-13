@@ -157,8 +157,8 @@ requirements が定める 4 つの機能要件（F-001〜F-004）を、architect
 
 **対象ファイル:** `CLAUDE.md`（変更）
 
-- [ ] **ステップ 3-1**: `CLAUDE.md:211-215` の規則を、architecture §3.7 の内容 (a)〜(c) を満たす形に直す。(a) 文書（`README.md`・`CLAUDE.md`・`docs/`）だけの変更では `make ext-test` を要求しない。(b) 文書のテキスト同期の guard は `make test`（`:209` が求める）に含まれ、node を必要としない。(c) `.gitignore` だけの変更では、ignore 規則の検査が node 側に残るので `make ext-test` を要求する。文言は実装で決める。`CLAUDE.md:209` の規則は維持する。
-- [ ] **ステップ 3-2**: フェーズ 3 の完了条件として、`make fmt` → `make test` → `make lint` を通す。移した検査 2 が `CLAUDE.md` の `ext-` ターゲットの一覧を読むので、`make test` がこの変更を守る。
+- [x] **ステップ 3-1**: `CLAUDE.md:211-215` の規則を、architecture §3.7 の内容 (a)〜(c) を満たす形に直す。(a) 文書（`README.md`・`CLAUDE.md`・`docs/`）だけの変更では `make ext-test` を要求しない。(b) 文書のテキスト同期の guard は `make test`（`:209` が求める）に含まれ、node を必要としない。(c) `.gitignore` だけの変更では、ignore 規則の検査が node 側に残るので `make ext-test` を要求する。文言は実装で決める。`CLAUDE.md:209` の規則は維持する。
+- [x] **ステップ 3-2**: フェーズ 3 の完了条件として、`make fmt` → `make test` → `make lint` を通す。移した検査 2 が `CLAUDE.md` の `ext-` ターゲットの一覧を読むので、`make test` がこの変更を守る。
 
 **完了条件:** `CLAUDE.md` の規則が文書だけの変更で `make ext-test` を要求せず、`.gitignore` だけの変更の扱いを明記している（AC-10）。
 
