@@ -92,7 +92,7 @@ requirements が定める 4 つの機能要件（F-001〜F-004）を、architect
 
 **判定理由**: ステップ 1-1 が、既存の doc guard（`TestReviewEvaluationRecords`）の切り出す範囲を変えないまま `docSection` を汎用の `sectionByHeading` に一般化する、振る舞いを保つ一般化の判断を要する隔離したステップであり、この PR に隔離してレビューするため（architecture §3.5、§6.1 のリスク）。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
