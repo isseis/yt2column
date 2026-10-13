@@ -28,8 +28,9 @@ URL → TranscriptSource → Transcript → ArticleWriter → Article → Publis
   - json3 の `events[].segs[].utf8` を連結して本文にする。`tStartMs` も保持する（将来、見出しごとに動画の該当時刻へのリンクを付けるため）。
   - info.json からタイトル・チャンネル名・概要欄を取り出し、メタ情報として `Transcript` に含める。
   - 手動字幕と自動字幕が両方ある場合の挙動（どちらが優先されるか、出力ファイル名）は `02_architecture.md` の作成時に実 `yt-dlp` の出力で確認し、同書に記録すること（承認前に確定させる）。
-- `ArticleWriter`: プロバイダに依存しない。プロンプトテンプレートにタイムスタンプを除いた本文とメタ情報を埋め込み、`LLMClient` を呼び出して、結果を `Article`（タイトル・Markdown 本文・出典 URL・生成モデル名・モデルの版の識別子）に変換する。
+- `ArticleWriter`: プロバイダに依存しない。プロンプトテンプレートにタイムスタンプを除いた本文とメタ情報を埋め込み、`LLMClient` を呼び出して、結果を `Article`（タイトル・Markdown 本文・出典 URL・生成モデル名・モデルの版の識別子。段階ごとのモデル名も持つ）に変換する。
   - プロンプトの組み立てと出力の後処理はここに集約し、全プロバイダで共有する。
+  - 生成の後に 2 つの段階を既定で行う。字数の調整は本文が 4,000 字を超えるときだけ、生成と同じ `LLMClient` で上限以内（目標 3,600 字）に縮める。検証・推敲は、別に設定できるプロバイダとモデル（`YT2COLUMN_REVIEW_PROVIDER`・`YT2COLUMN_REVIEW_MODEL`。既定は生成と同じ）で記事を素材と突き合わせ、直す箇所の一覧を返させ、`ArticleWriter` がその一覧を記事に当てはめる。いずれかの段階で失敗した記事は成功として返さない。
 - `LLMClient`: プロバイダごとの薄いアダプタ。責務は「system プロンプトと user プロンプトを受け取り、生成テキストとモデル名、モデルの版の識別子を返す」ことだけ。
 
   ```go
@@ -73,7 +74,7 @@ URL → TranscriptSource → Transcript → ArticleWriter → Article → Publis
 cmd/yt2column/main.go     # CLI エントリポイント
 internal/pipeline/        # 3段階を束ねるオーケストレーション
 internal/transcript/      # TranscriptSource と yt-dlp 実装、json3 パーサ
-internal/strictjson/      # 検証を通った JSON 文書から値を取り出す厳格な部品（transcript と deepseek が共有）
+internal/strictjson/      # 検証を通った JSON 文書から値を取り出す厳格な部品（transcript・deepseek・claude・writer・publisher が共有）
 internal/nilcheck/        # typed nil を含む nil の判定
 internal/writer/          # ArticleWriter（プロバイダ非依存）
 internal/llm/             # LLMClient interface と共通型
@@ -96,9 +97,11 @@ extension/                # ブラウザ拡張（TypeScript。開発環境・Man
 |---|---|---|
 | `YT2COLUMN_LLM_PROVIDER` | `deepseek`／`claude` を受理。将来 `gemini` を追加 | `deepseek` |
 | `YT2COLUMN_MODEL` | LLM のモデル名。プロバイダに合ったものを指定（例: `deepseek-flash`・`claude-opus-5-5`） | エラー（必須） |
-| `DEEPSEEK_API_KEY` | DeepSeek 用 | プロバイダが `deepseek` ならエラー |
-| `ANTHROPIC_API_KEY` | Anthropic（Claude）用 | プロバイダが `claude` ならエラー |
-| `YT2COLUMN_CLAUDE_EFFORT` | Claude の effort。`low`・`medium`・`high`・`xhigh`・`max` | プロバイダが `claude` ならエラー |
+| `YT2COLUMN_REVIEW_PROVIDER` | 検証・推敲のプロバイダ。受理する値は `YT2COLUMN_LLM_PROVIDER` と同じ | 生成と同じ |
+| `YT2COLUMN_REVIEW_MODEL` | 検証・推敲のモデル名。`YT2COLUMN_REVIEW_PROVIDER` を設定した場合は必須 | 生成と同じ |
+| `DEEPSEEK_API_KEY` | DeepSeek 用 | 生成または検証・推敲のプロバイダが `deepseek` ならエラー |
+| `ANTHROPIC_API_KEY` | Anthropic（Claude）用 | 生成または検証・推敲のプロバイダが `claude` ならエラー |
+| `YT2COLUMN_CLAUDE_EFFORT` | Claude の effort。`low`・`medium`・`high`・`xhigh`・`max` | 生成または検証・推敲のプロバイダが `claude` ならエラー |
 | `ANTHROPIC_WORKSPACE_ID` | ワークスペースに紐付かない Anthropic の API キー用のワークスペース ID（任意） | ワークスペース ID を送らない |
 | `GEMINI_API_KEY` | Gemini 実装を追加したとき用 | （未実装） |
 | `SLACK_WEBHOOK_URL` | 投稿先の Slack 互換 Incoming Webhook URL（Mattermost を検証済み）。`--out` の場合も、設定されていれば `https` の URL として検証する | `--slack` では必須。`--out` では値なし |
@@ -107,7 +110,7 @@ extension/                # ブラウザ拡張（TypeScript。開発環境・Man
 
 値は前後の空白を取り除くなどの補正をせず、空の値は「未設定」ではなくエラーとして扱う。
 
-プロバイダ固有の変数は、`YT2COLUMN_LLM_PROVIDER` で選んだプロバイダのものだけを読んで検査する。他のプロバイダの変数は、未設定・空・不正な値のいずれでも拒否しない。`YT2COLUMN_LLM_PROVIDER` 自体が不正な場合は、どのプロバイダ固有の変数も検査しない。
+プロバイダ固有の変数は、生成と検証・推敲のどちらかが選んだプロバイダのものを読んで検査する。他のプロバイダの変数は、未設定・空・不正な値のいずれでも拒否しない。`YT2COLUMN_LLM_PROVIDER` 自体が不正な場合は、どのプロバイダ固有の変数も検査しない。`YT2COLUMN_REVIEW_PROVIDER` を設定した場合は `YT2COLUMN_REVIEW_MODEL` が必須で、どちらも未設定なら検証・推敲は生成と同じプロバイダとモデルを使う。`--no-review` を指定しても検証・推敲の設定は検査する。
 
 ## 開発ルール
 
