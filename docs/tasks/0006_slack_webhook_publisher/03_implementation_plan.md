@@ -8,7 +8,7 @@
 | Created | 2026-10-07 |
 | Review date | 2026-10-07 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 編集上の修正（2026-10-13）: 散文を固定する文書のテストを `cmd/yt2column/docs_test.go` から外した（README の設定の表の `configDocRows`、計画書の手動確認の記録の `TestSlackPlanRecordsManualChecks`、README のフラグの表以外の `TestREADMEDocumentsCLI` の部分テスト）。本計画のフラグの表の確認は残る `TestREADMEDocumentsFlags` が担い、上限値と統合テストの契約値は `TestSlackDocsContract` が担う。AC-22・AC-33 はステップ 8-6・8-7 の手動の記録で確かめ、AC-30・AC-31 は統合テストと `makefile_test.go` の `static` が残る（ガイドの「計画が再割り当てしたテスト」に当たる編集上の修正）。決定の変更はない。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -89,7 +89,7 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
     -   構築の失敗で nil のインターフェースを返すこと: `TestNewFilePublisherNilOnFailure`（`:963`）
     -   `Done` を閉じずに `Err()` だけを変える `context`: `expiringContext`（`:197-220`）
 -   子プロセスのモードは `runChildMode`（`test_helpers.go:140-156`）にあり、`stallingLLM` と `writeMarker`・`childReadyEnv` で準備完了を知らせる。`signal_test.go` の `requireInterruptedChildOutput`（`:87`）は `--out` のパスを引数に取る。
--   `cmd/yt2column/docs_test.go` の `configDocRows`（`:28-35`）が README と概要の設定の表の「未設定のとき」の欄を固定し、`TestREADMEDocumentsCLI` の `flags` の部分テストが `newFlagSet` のすべてのフラグを README のフラグの表に求める。`--slack` を足すと、README の表に `--slack` の行がなければ失敗する。`TestPlanRecordsManualRuns`（`:141`）は 0005 の計画書の手動確認の記録を確かめる仕組みであり、本計画の手動確認の記録にも同じ形を使う（ステップ 8-5）。
+-   `cmd/yt2column/docs_test.go` の `TestREADMEDocumentsFlags` が `newFlagSet` のすべてのフラグを README のフラグの表に求める。`--slack` を足すと、README の表に `--slack` の行がなければ失敗する。設定の表を固定していた `configDocRows` と、計画書の手動確認の記録を確かめていた `TestPlanRecordsManualRuns`（本計画では `TestSlackPlanRecordsManualChecks`）は、散文を固定する文書のテストを外すのに合わせて削除した（2026-10-13。上部 Comments を参照）。
 -   既存の統合テストの判定の補助 `gateCLIIntegration`・`lookupFrom`・`generateCounter` は `cmd/yt2column/test_helpers_integration.go`（`//go:build test || integration`）にある。`TestCLIIntegrationSettings`（`makefile_test.go:87`）は `gateRecorder`（`makefile_test.go:62-81`）で判定を確かめる。
 
 **`internal/pipeline` のガードのテスト**
@@ -371,7 +371,7 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
     -   `cliOptions` に `slack bool` を足し、`newFlagSet` に `--slack` を加える。説明の文は設計書 3.10 のとおりとする。
     -   `--out` の説明を `` "write the article to this `path` (required); it must not exist, its directory must exist, and it must be outside the cache directory" `` から `` "write the article to this `path`; it must not exist, its directory must exist, and it must be outside the cache directory" `` に改める。
     -   `writeUsage` の `"Generates a column article from a YouTube video's subtitles and writes it to the --out file.\n"` を、`--out` のファイルに書くか `--slack` で Webhook に投稿するかのどちらか一方を指定することを示す文に改める（文言は実装で決める）。
-    -   `README.md` のフラグの表に `--slack` の行を加える。`TestREADMEDocumentsCLI` の `flags` が `newFlagSet` のすべてのフラグを README の表に求めるので、この行はフラグを加えるこのフェーズで必要である。同じ変更で、`--out` が必須でなくなったことに合わせ、フラグの表の `--out` の行の「Required.」と、表の直前の文（`README.md:32`）の「`--out` is required」を、`--out` と `--slack` のどちらか一方を指定する記述に改める（PR-6 の時点で README がフラグの説明と矛盾しないようにするため。説明の文の推敲と他の文書はフェーズ 8）。
+    -   `README.md` のフラグの表に `--slack` の行を加える。`TestREADMEDocumentsFlags` が `newFlagSet` のすべてのフラグを README の表に求めるので、この行はフラグを加えるこのフェーズで必要である。同じ変更で、`--out` が必須でなくなったことに合わせ、フラグの表の `--out` の行の「Required.」と、表の直前の文（`README.md:32`）の「`--out` is required」を、`--out` と `--slack` のどちらか一方を指定する記述に改める（PR-6 の時点で README がフラグの説明と矛盾しないようにするため。説明の文の推敲と他の文書はフェーズ 8）。
 -   [x] **ステップ 6-3**: 手順 A2〜C を設計書 3.10 の「投稿先の決定」と「手順の変更」の表のとおりに変える。
     -   投稿先の決定は、`flag.FlagSet.Visit` でフラグが現れたかを調べる別の関数にし、設計書 3.10 の表の拒否の順と文言に従う。`run.go:150-152` の `opts.out == ""` の判定を置き換える。
     -   A3 の `RequireSlackWebhookURL`、A3 の Webhook URL の警告（文言は設計書 3.10）、A4 をファイルの場合だけ行うこと、A5 の `newSlackPublisher`、B の `job.RemoteOutput`、C の要約（`SlackMessageCount` がエラーなら `unknown`）を加える。要約は別の関数にする（`run` の循環的複雑度を 20 以下に保つため。§1.3）。
@@ -409,7 +409,7 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 
 **推奨タイトル**: `feat(0006): add the --slack output path to the CLI`
 
-**レビュー観点**: 投稿先の決定が `flag.FlagSet.Visit` による「フラグが現れたか」で行われ、設計書 3.10 の表の拒否の順と文言のとおりで、README のフラグの表に `--slack` の行が加わって `TestREADMEDocumentsCLI` が通り、`--out` を必須とする記述が残らないこと（ステップ 6-2・6-3） / `SLACK_WEBHOOK_URL` の未設定・`http2debug` の警告・`configuredSecrets` の `SensitiveParts` の追加が、副作用より前の正しい位置にあること（ステップ 6-3〜6-5） / `testDeps` と `newRunEnv` の既定の `newSlackPublisher` が送らずに失敗し、ループバックの送信先を使う差し替えと子プロセスのモードが正しく動くこと（ステップ 6-6・6-7） / 投稿中の SIGINT・SIGTERM が別プロセスで終了コード `1` と AC-44 の各項目を満たし、投稿の成功後に受けたシグナルが終了コード `0` になること（ステップ 6-8）
+**レビュー観点**: 投稿先の決定が `flag.FlagSet.Visit` による「フラグが現れたか」で行われ、設計書 3.10 の表の拒否の順と文言のとおりで、README のフラグの表に `--slack` の行が加わって `TestREADMEDocumentsFlags` が通り、`--out` を必須とする記述が残らないこと（ステップ 6-2・6-3） / `SLACK_WEBHOOK_URL` の未設定・`http2debug` の警告・`configuredSecrets` の `SensitiveParts` の追加が、副作用より前の正しい位置にあること（ステップ 6-3〜6-5） / `testDeps` と `newRunEnv` の既定の `newSlackPublisher` が送らずに失敗し、ループバックの送信先を使う差し替えと子プロセスのモードが正しく動くこと（ステップ 6-6・6-7） / 投稿中の SIGINT・SIGTERM が別プロセスで終了コード `1` と AC-44 の各項目を満たし、投稿の成功後に受けたシグナルが終了コード `0` になること（ステップ 6-8）
 
 **実装モデル要件**: frontier-required
 
@@ -484,18 +484,18 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 -   [x] **ステップ 8-2**: `docs/dev/project_overview.md` を、設計書 3.13 の表のとおりに更新する（概要、`Publisher` の初期実装、「前提・制約」の上限値と出典、想定ディレクトリ構成のコメント、「設定（環境変数）」の表）。
 -   [x] **ステップ 8-3**: `docs/dev/security.md` を、設計書 3.13 の表のとおりに更新する（§2・§3・§6）。§2 の統合テストの表に Webhook の 2 つのテストを加える。§2 の `--dry-run` の記述（§1.3）は、`security.md:19` の文「Webhook URL は URL 自体が秘密情報である。ログ・エラーメッセージ・`--dry-run` の出力に含めない。」を「Webhook URL は URL 自体が秘密情報である。ログ・エラーメッセージに含めない。」に改める（同じ行の続きの文は変えない）。
 -   [x] **ステップ 8-4**: `package_reference.md` の各行が、フェーズ 1〜7 で変えた公開の API と一致することを確かめる（`TestPackageReferenceListsPackages` は行の有無だけを確かめる）。
--   [x] **ステップ 8-5**: `cmd/yt2column/docs_test.go` を更新する（AC-34・AC-22・AC-33）。
-    -   `configDocRows` の `SLACK_WEBHOOK_URL` の行（`docs_test.go:32`）の README と概要の「未設定のとき」の期待する文言を、ステップ 8-1・8-2 の表の新しい記述に合わせる。期待する文言は要件書 F-007 の「`--slack` では必須」から決める。
+-   [x] **ステップ 8-5**: `cmd/yt2column/docs_test.go` を更新する（AC-34）。
+    -   `configDocRows` の `SLACK_WEBHOOK_URL` の行の README と概要の「未設定のとき」の期待する文言を、ステップ 8-1・8-2 の表の新しい記述に合わせる。期待する文言は要件書 F-007 の「`--slack` では必須」から決める。（2026-10-13: 散文を固定する文書のテストを外すのに合わせて、この行を削除した。上部 Comments を参照。）
     -   `TestSlackDocsContract`: 機械的に確かめられる契約値だけを固定する。README と `security.md` が、`publishertestutil` の 2 つのオプトインの変数と `WebhookURLEnv` の名前、2 つの `make` のターゲットの名前を含むこと。README と概要が上限値 16,383 を含むこと。散文の意味は固定しない（0005 の計画書のステップ 9-4 の判断と同じ）。
-    -   `TestSlackPlanRecordsManualChecks`: 本計画のステップ 7-13・8-6・8-7 が存在し、チェックされている場合は、その下に結果の記録（サーバの版、`結果`）があること。既存の `stepBlock` を使い、計画書のパスは新しい定数にする。
-    -   日本語の文書の文字列と照合するリテラル（`結果` など）は、既存の `docs_test.go`（`値なし`・`結果`）と同じく日本語で書く。照合する文書の内容そのものであり、それ以外のコメントと識別子は英語で書く。
+    -   `TestSlackPlanRecordsManualChecks`: 本計画のステップ 7-13・8-6・8-7 が存在し、チェックされている場合は、その下に結果の記録（サーバの版、`結果`）があること。既存の `stepBlock` を使い、計画書のパスは新しい定数にする。（2026-10-13: 散文を固定する文書のテストを外すのに合わせて、このテストを削除した。ステップ 8-6・8-7 の手動の記録と AC-30・AC-31 の統合テストの `static` が残る。上部 Comments を参照。）
+    -   日本語の文書の文字列と照合するリテラル（`結果` など）は、日本語で書く。照合する文書の内容そのものであり、それ以外のコメントと識別子は英語で書く。
 -   [x] **ステップ 8-6**: 手動確認（AC-22。利用者の承認を得て、本番で使う Mattermost のサーバで行う）。`silent: true` を付けた 2 つのメッセージ（`@channel` を含むもの、確認する人のユーザー名へのメンションを含むもの）を Webhook に直接送り、それぞれについて、通知（デスクトップ・プッシュ・メール）が発生しないこと、確認する人のチャンネルの未読数とメンション数が増えないこと、「New Messages」の表示が付かないことを確かめる。本ステップの下に、確認日、サーバの版、各項目の結果を記録する。
     -   確認日: 2026-10-08。サーバの版: Mattermost 11.9.0（本番で使うサーバの Incoming Webhook）。
     -   結果: 2 つのメッセージを `silent: true` で Webhook に直接送ると、どちらも HTTP 200 で投稿された。送った最初のメッセージは `@channel yt2column 0006 AC-22 silent check 2026-10-08`、次は確認する人のユーザー名へのメンションを含む同じ形である。どちらについても、デスクトップ・プッシュ・メールの通知は発生せず、確認する人のチャンネルの未読数とメンション数は増えず、「New Messages」の表示は付かなかった。
 -   [x] **ステップ 8-7**: 手動確認（AC-33・F-009。利用者の承認を得て、Mattermost のテスト用のチャンネルの Webhook で行う）。1 つのメッセージに収まる記事と、分割される記事を投稿し（投稿の方法は結果に記録する）、見出し・段落・リスト・リンク・日本語が Markdown として表示されること、分割した場合は分割の位置の表示とともに記事の順に並び、サーバによる追加の分割が起きていないことを確かめる。本ステップの下に、確認日、使った記事（動画 URL または固定の記事）、サーバの版、結果を記録する。
     -   確認日: 2026-10-08。使った記事: `make test-integration-slack` が投稿する固定の 2 つの記事（1 つは 1 つのメッセージに収まる記事、もう 1 つは 3 つに分割される記事）。記事の `Title` の目印は `20261008T081202.181Z`。サーバの版: Mattermost 11.9.0（テスト用のチャンネルの Incoming Webhook）。
     -   結果: 1 つのメッセージの記事は `Line 0507` まで 1 つのメッセージとして表示され、見出し・`Model`・`Model version` の行・段落・日本語（U+1F600・U+20BB7 を含む行）が Markdown として表示された。分割される記事は `(1/3)`（`Line 0001`〜`Line 0506`）・`(2/3)`（`Line 0507`〜`Line 1017`）・`(3/3)`（`Line 1018`〜`Line 1180`。本文は長さの調整のため `Line 1180:` で終わる）の順に表示され、行の欠落・重複はなく、サーバによる追加の分割もなかった。
--   [x] **ステップ 8-8**: 文書の内容の照合。要件書 F-010 の各項目と設計書 3.13 の表の各項目を、ステップ 8-1〜8-3 で書いた本文と 1 つずつ突き合わせ、記述の根拠（README の上限値と拒否される記事の種類は `internal/publisher` の定数と M1〜M4、統合テストの実行方法は `Makefile` のターゲット）を確かめる。照合した項目の一覧をコミットメッセージに書く。`make fmt` → `make test` → `make lint` を通す。`TestSlackDocsContract`・`configDocRows` は、README の該当の記述を一時的に消して失敗することを確かめる。
+-   [x] **ステップ 8-8**: 文書の内容の照合。要件書 F-010 の各項目と設計書 3.13 の表の各項目を、ステップ 8-1〜8-3 で書いた本文と 1 つずつ突き合わせ、記述の根拠（README の上限値と拒否される記事の種類は `internal/publisher` の定数と M1〜M4、統合テストの実行方法は `Makefile` のターゲット）を確かめる。照合した項目の一覧をコミットメッセージに書く。`make fmt` → `make test` → `make lint` を通す。`TestSlackDocsContract` は、README の該当の記述を一時的に消して失敗することを確かめる。
 
 ### PR-8 作成ポイント: documentation and manual verification
 
@@ -503,7 +503,7 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 
 **推奨タイトル**: `docs(0006): document webhook publishing and verify it manually`
 
-**レビュー観点**: README・`project_overview.md`・`security.md` が要件書 F-010 の各項目と設計書 3.13 の表のとおりで、`--slack` の使い方・上限値・拒否される記事・統合テストの実行方法を含むこと（ステップ 8-1〜8-3） / `docs_test.go` の `TestSlackDocsContract` が機械的に確かめられる契約値だけを固定し、散文の意味を固定しないこと（ステップ 8-5） / `TestSlackPlanRecordsManualChecks` がステップ 7-13・8-6・8-7 の存在と、チェック済みの場合の結果の記録を確かめること（ステップ 8-5） / 手動確認（ステップ 8-6・8-7）の確認日・サーバの版・結果が本計画に記録されていること（ステップ 8-6・8-7）
+**レビュー観点**: README・`project_overview.md`・`security.md` が要件書 F-010 の各項目と設計書 3.13 の表のとおりで、`--slack` の使い方・上限値・拒否される記事・統合テストの実行方法を含むこと（ステップ 8-1〜8-3） / `docs_test.go` の `TestSlackDocsContract` が機械的に確かめられる契約値だけを固定し、散文の意味を固定しないこと（ステップ 8-5） / 手動確認（ステップ 8-6・8-7）の確認日・サーバの版・結果が本計画に記録されていること（ステップ 8-6・8-7）
 
 **実装モデル要件**: standard
 
@@ -596,7 +596,7 @@ PR はフェーズと 1 対 1 に対応させる。各 PR は主たる関心事�
 | AC-20 | test | `internal/publisher/slack_test.go::TestSlackPublishResponses`、`internal/publisher/slack_errors_test.go::TestSlackHTTPStatusErrorMessage` | ステップ 3-1・4-1 |
 | AC-21 | test | `internal/publisher/slack_message_test.go::TestSlackMentionRejected`、`internal/publisher/slack_test.go::TestSlackPublishPrepareSendsNothing` | ステップ 3-2・4-1 |
 | AC-21a | test | `internal/publisher/slack_test.go::TestSlackPublishPayload` | ステップ 4-1 |
-| AC-22 | static・manual | `cmd/yt2column/docs_test.go::TestSlackPlanRecordsManualChecks`（ステップ 8-6 の記録の有無）、ステップ 8-6 の手動確認 | ステップ 8-5・8-6 |
+| AC-22 | manual | ステップ 8-6 の手動確認（確認日・サーバの版・結果） | ステップ 8-5・8-6 |
 | AC-23 | test | `cmd/yt2column/run_test.go::TestRunExecutionPaths`（`--slack` の成功と `--keep-cache` の行） | ステップ 5-1・6-1・6-3・6-6 |
 | AC-24 | test | `cmd/yt2column/run_test.go::TestRunExecutionPaths`（投稿先の拒否と `SLACK_WEBHOOK_URL` の未設定の行）、`internal/config/config_test.go::TestRequireSlackWebhookURL` | ステップ 1-3・6-3 |
 | AC-25 | test | `cmd/yt2column/run_test.go::TestRunExecutionPaths`（分割投稿の途中の失敗の行）、`cmd/yt2column/run_test.go::TestRunSlackFailureHints` | ステップ 3-1・6-4 |
@@ -604,11 +604,11 @@ PR はフェーズと 1 対 1 に対応させる。各 PR は主たる関心事�
 | AC-27 | test | `cmd/yt2column/run_test.go::TestRunHelp` | ステップ 6-2 |
 | AC-28 | test | `cmd/yt2column/run_test.go::TestRunGODEBUGWarning` | ステップ 6-3 |
 | AC-29 | test | `internal/publisher/testutil/integration_settings_test.go::TestSlackSettingsFrom`、`cmd/yt2column/makefile_test.go::TestCLISlackIntegrationSettings` | ステップ 7-2・7-3・7-6・7-8 |
-| AC-30 | test・static・manual | `internal/publisher/slack_integration_test.go::TestIntegrationSlackWebhookPublisher`（`make test-integration-slack` で実行）、`internal/publisher/slack_articles_test.go::TestIntegrationArticles`、`internal/publisher/makefile_test.go::TestMakeTestIntegrationSlack`、`cmd/yt2column/docs_test.go::TestSlackPlanRecordsManualChecks`（ステップ 7-13 の記録の有無） | ステップ 7-2・7-4・7-5・7-9・7-13 |
-| AC-31 | test・static・manual | `cmd/yt2column/integration_slack_test.go::TestIntegrationCLISlack`（`make test-integration-cli-slack` で実行）、`cmd/yt2column/makefile_test.go::TestMakeTestIntegrationCLISlack`、`cmd/yt2column/docs_test.go::TestSlackPlanRecordsManualChecks`（ステップ 7-13 の記録の有無） | ステップ 7-7・7-8・7-9・7-13 |
+| AC-30 | test・static・manual | `internal/publisher/slack_integration_test.go::TestIntegrationSlackWebhookPublisher`（`make test-integration-slack` で実行）、`internal/publisher/slack_articles_test.go::TestIntegrationArticles`、`internal/publisher/makefile_test.go::TestMakeTestIntegrationSlack`、ステップ 7-13 の手動の記録 | ステップ 7-2・7-4・7-5・7-9・7-13 |
+| AC-31 | test・static・manual | `cmd/yt2column/integration_slack_test.go::TestIntegrationCLISlack`（`make test-integration-cli-slack` で実行）、`cmd/yt2column/makefile_test.go::TestMakeTestIntegrationCLISlack`、ステップ 7-13 の手動の記録 | ステップ 7-7・7-8・7-9・7-13 |
 | AC-32 | static | `internal/publisher/makefile_test.go::TestMakeTestIntegrationSlack`・`TestSlackIntegrationTestBuildTag`、`cmd/yt2column/makefile_test.go::TestMakeTestIntegrationCLISlack`・`TestCLISlackIntegrationTestBuildTag`・`TestMakeOptInsAreTargetSpecific`、`make lint`（`go vet -tags integration ./...`） | ステップ 7-5・7-8・7-9 |
-| AC-33 | static・manual | `cmd/yt2column/docs_test.go::TestSlackPlanRecordsManualChecks`（ステップ 8-7 の記録の有無）、ステップ 8-7 の手動確認 | ステップ 8-5・8-7 |
-| AC-34 | static・manual | `cmd/yt2column/docs_test.go::TestREADMEDocumentsCLI`（`--slack` の行）・`TestProjectOverviewDocumentsConfig`（`configDocRows`）・`TestSlackDocsContract`、`internal/pipeline/pipeline_test.go::TestPackageReferenceListsPackages`、ステップ 8-8 の照合 | ステップ 1-5・2-4・4-4・5-4・6-2・6-9・7-11・8-1〜8-5・8-8 |
+| AC-33 | manual | ステップ 8-7 の手動確認（確認日・使った記事・サーバの版・結果） | ステップ 8-5・8-7 |
+| AC-34 | static・manual | `cmd/yt2column/docs_test.go::TestREADMEDocumentsFlags`（`--slack` の行）・`TestSlackDocsContract`、`internal/pipeline/pipeline_test.go::TestPackageReferenceListsPackages`、ステップ 8-8 の照合 | ステップ 1-5・2-4・4-4・5-4・6-2・6-9・7-11・8-1〜8-5・8-8 |
 | AC-35 | test | `internal/publisher/slack_test.go::TestSlackPublishErrorClasses` | ステップ 3-1・4-1 |
 
 ## 6. リスク管理 (Risk Management)

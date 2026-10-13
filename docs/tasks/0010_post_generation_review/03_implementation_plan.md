@@ -8,7 +8,7 @@
 | Created | 2026-10-10 |
 | Review date | 2026-10-10 |
 | Reviewer | isseis |
-| Comments | 承認の後、`/mkplan2` で PR の区切り（§2 の `PR-N 作成ポイント`・§3.2・§7、旧 §3.2 は §3.3 へ。§1.2・§2 の冒頭・§9 も合わせた）を埋め込み、フェーズ 5 の壊して確かめる対象をステップ 5-11 から 5-4・5-8 に分けた。編集上の変更で、何を作るかは変えていない。 |
+| Comments | 承認の後、`/mkplan2` で PR の区切り（§2 の `PR-N 作成ポイント`・§3.2・§7、旧 §3.2 は §3.3 へ。§1.2・§2 の冒頭・§9 も合わせた）を埋め込み、フェーズ 5 の壊して確かめる対象をステップ 5-11 から 5-4・5-8 に分けた。編集上の変更で、何を作るかは変えていない。 編集上の修正（2026-10-13、PR-9）: 散文を固定する文書のテスト（`configDocRows`、`TestProjectOverviewDocumentsConfig`、計画書の記録 guard、README の呼び出し形式・終了コードの確認）を `cmd/yt2column/docs_test.go` から外し、コードから導ける契約値（`newFlagSet` のフラグの表、`TestSlackDocsContract`・`TestClaudeDocsContract`）と本タスクの `TestReviewEvaluationRecords` だけを残した。§1.3・ステップ 5-5・5-9・5-11・§3.3 と design/architecture の該当箇所を合わせて直した。何を作るかは変えていない。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -52,7 +52,7 @@ HEAD `4dd797d`（ブランチ `claude/mkplan-0010-xnazts`）で確認した。�
   - CLI のテストの `deps` は 3 通りに作られる。`run_test.go:139` の `newRunEnv` は `productionDeps()` を直接使い（大半のテスト）、`test_helpers.go` の `testDeps` も `productionDeps()` を基にする（`run_test.go:404` の `startHolder`、`:1414`、`signal_test.go` の `runChildMode` の子プロセス）。子プロセスの `childModeMain`（`signal_test.go:119`・`:207`）は本番の `main` をそのまま動かす。どのテストでも本番の `writer.New` が動く。既定で段階を行うと、`newReviewLLMClient` を差し替えない限り、本番の DeepSeek アダプタが構築される。`Write` まで進むテストでは、検証・推敲の `Generate` が閉じたプロキシ（`main_test.go` の `TestMain`）に向かって失敗する。ステップ 5-5 で、`newRunEnv` と `testDeps` の `newReviewLLMClient` を、何も作らずにエラーを返す関数にする。形は既存の `refusingSlackPublisher`（`test_helpers.go:187-192`）と同じにする。`childModeMain` には差し替え口がないので、引数で段階を無効にする。手順 A5 はパイプラインより前に実行される。そのため、段階を無効にする引数のないテストは、`Write` まで進まないものでも `exitUsage` になる。対象には、字幕の取得の失敗やキャッシュの排他の失敗（`run_test.go:419` の `executionPathRows` の `exitFailure` の行）と、`signal_test.go:213-217` の 2 回目の実行も含まれる。
   - CLI のテストの引数は次の箇所で組み立てる。`run_test.go` の `runEnv.cliArgs`（`:222-227`。既定で `--out <path> <URL>`）と、それを上書きする各テストの `e.args`。`run_test.go:404` の直書き。`signal_test.go:71-73` の `childSetup.args` と、`signal_test.go:180` の `"--slack", runVideoURL` の直書き。`integration_test.go`・`integration_slack_test.go:46`。`integration_*` は `//go:build integration` で、`test_helpers.go`（`//go:build test`）の値を使えないので、共有の値は `test_helpers_integration.go`（`//go:build test || integration`）に置く。`integration_test.go:122-128` の `generateCounter` は `newLLMClient` だけを包む。
   - `run_test.go:1063` の `TestRunHelp` は、使い方に載るべきフラグを手で並べた一覧で確かめている。
-  - `docs_test.go:46` の `TestREADMEDocumentsCLI` は、`newFlagSet` のすべてのフラグが README のフラグの表にあること、`configDocRows`（`:33-40`）の変数が README の設定の表にあることを求める。`:118` の `TestProjectOverviewDocumentsConfig` は同じ行を `project_overview.md` に求める。フラグと変数を加えるコミットで、文書の行も加える必要がある。
+  - `docs_test.go` の `TestREADMEDocumentsFlags` は、`newFlagSet` のすべてのフラグが README のフラグの表にあることを求める。散文を固定する文書のテスト（`configDocRows`、`TestProjectOverviewDocumentsConfig`、計画書の記録 guard）は PR-9 で削除した（2026-10-13。Document Status の Comments を参照）。フラグを加えるコミットで、README の表の行も加える必要がある。
   - `integration_test.go:152` は `Generate` の回数が 1 であることを確かめる。
 - **`internal/pipeline/pipeline_test.go` の他の guard。** `TestCommonTypesFieldSets`（`:378`）は `writer.Article` のフィールドを 5 つの名前と型に固定している（`NumField` と各フィールドの型を比べる）。`Shorten`・`Review` を加えるステップ 3-4 の同じコミットで、この表に 2 行を加える。architecture §3.12 の責務表はこの更新を挙げていなかったので、編集上の修正として同表に加えた（同書の Comments）。`TestFakesCarryBuildTag`（`:531`）は `testutil` のファイルを 15 件に固定している。本計画は `testutil` に新しいファイルを加えない（`internal/llm/testutil/mocks.go`・`mocks_test.go` の変更だけ）ので、件数は変わらない。`TestWriterImports`（`:747`）は `internal/writer` が `net`・`net/*`・`internal/llm/*`（`internal/llm/testutil` をテスト専用のファイルから使う場合を除く）を import しないことを固定する。`internal/writer` → `internal/strictjson` の新しい import はこれに掛からない。新しいパッケージは作らないので、`TestPackageReferenceListsPackages`（`:607`）の行の追加は要らない。
 - **文書の更新対象。** `README.md:26-50`（Usage のフラグの表）・`:57`（終了コード 1 の意味）・`:138-150`（Configuration。`:144` の `DEEPSEEK_API_KEY` の行を含む）、`docs/dev/project_overview.md:18-47`（パイプライン。`:31` の `Article` のフィールド）・`:76`（`internal/strictjson` の利用者）・`:91-104`（設定の表。`:97` の `DEEPSEEK_API_KEY` の行を含む）、`docs/dev/security.md` §4（`:52`）・§6（`:63`）、`docs/dev/developer_guide/package_reference.md:15`（`cmd/yt2column`）・`:18`（`internal/strictjson`）・`:21`（`internal/config`）・`:27`（`internal/llm/provider`）・`:28`（`internal/writer`）・`:29`（`prompts`）・`:30`（`internal/publisher`）・`:32`（`internal/job`）・`:36`（`internal/llm/testutil`）、`CLAUDE.md:94-95`（`internal/strictjson` の利用者）。`AGENTS.md` は `internal/strictjson` に触れない（`rg -n strictjson AGENTS.md` は一致なし）。英語版の文書（`*.en.md`）はない。
@@ -304,7 +304,7 @@ HEAD `4dd797d`（ブランチ `claude/mkplan-0010-xnazts`）で確認した。�
 - [x] PR がマージされた
 - [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 - [x] **ステップ 5-5**: `cmd/yt2column/run.go` に architecture §3.9 のフラグ、手順 A2・A4 の検査、手順 A5 の構築（`deps` の `newReviewLLMClient`・`newReviewLogWriter`）を加える。同じコミットで次を行う。
-  - README のフラグの表に 7 つのフラグの行を加える（`TestREADMEDocumentsCLI` が求める）。
+  - README のフラグの表に 7 つのフラグの行を加える（`TestREADMEDocumentsFlags` が求める）。
   - `newRunEnv` と `testDeps` の `newReviewLLMClient` を、`refusingSlackPublisher` と同じ形の、何も作らずにエラーを返す関数にする。段階を無効にする引数（`--no-shorten`・`--no-review`）を `test_helpers_integration.go` に 1 つの値として置く。
   - 手順 A5 まで進む既存のすべてのテストで段階を無効にする（AC-27。§1.3）。`runEnv.cliArgs` と `childSetup.args` は、テストが段階を使うと宣言しない限りその値を先頭に置く。直書きの `run_test.go:404`・`signal_test.go:180`・`integration_test.go`・`integration_slack_test.go:46` には値を加える。`Write` まで進まないテスト（`executionPathRows` の `exitFailure` の行など）も対象である。テストの期待は変えない。
   - `integration_test.go` の `generateCounter` が `newReviewLLMClient` で作った `LLMClient` も数えるようにし、`Generate` が 1 回であることの確認（`:152`）が段階を行わなかったことを示すようにする。
@@ -344,9 +344,9 @@ HEAD `4dd797d`（ブランチ `claude/mkplan-0010-xnazts`）で確認した。�
   - `security.md` §4・§6。`CLAUDE.md:94-95`（`internal/strictjson` の利用者を、0009 の `internal/llm/claude` を残した 5 つにする）。
   - `package_reference.md` の `:15`・`:18`・`:21`・`:27`・`:28`・`:29`・`:30`・`:32`・`:36` の行。0009 の計画のステップ 4-8 も同じ行を変えるので、後に実装する側が先の変更を残して書き足す。
 
-  設定の表の行を変えるコミットで、`docs_test.go` の `configDocRows` に 2 つの変数を加え、`DEEPSEEK_API_KEY` の行の文言を表の新しい文言に合わせる（当てる文言は requirements F-004 の表現から実装で決める）。各記述を実装と照らし、照らした箇所をコミットメッセージに書く。`make ext-test` を通す。
+  設定の表の行を変えるコミットで、`DEEPSEEK_API_KEY` の行の文言を表の新しい文言に合わせる（当てる文言は requirements F-004 の表現から実装で決める）。`docs_test.go` の `configDocRows` は、散文を固定する文書のテストを外すのに合わせて PR-9 で削除した（2026-10-13。Document Status の Comments を参照）。各記述を実装と照らし、照らした箇所をコミットメッセージに書く。`make ext-test` を通す。
 - [x] **ステップ 5-10**: `check_article.py` の `HEADER_RE` を、生成の 2 行の後に段階のモデルの行（`- Shorten model:`・`- Shorten model version:`・`- Review model:`・`- Review model version:`）を任意で受け付ける形にする。0008 の記事と評価のキャッシュはリポジトリにない（`docs/tasks/0008_column_prompt/v5/` はテンプレートだけで、キャッシュは 0008 §2.4 のとおりリポジトリの外）。そのため、一時ディレクトリに、短い合成した記事（段階の行がないものと、段階の行を加えたもの）と、スクリプトが読む最小のキャッシュ（`<video ID>.current` に `a` か `b` を書き、そのスロットのディレクトリ `<video ID>.a` などに、数の `duration` を持つ `<video ID>.info.json` を置く。`check_article.py:36-42`・`:133`）を作る。段階の行がある記事とない記事の両方でスクリプトを実行し、同じ字数と判定が出ることを確かめる。実行したコマンドと出力をコミットメッセージに書く。
-- [x] **ステップ 5-11**: ステップ 5-9 のテストについて、壊して失敗することを確かめ、コミットメッセージに書く（ステップ 5-1〜5-8 の壊す対象は、ステップ 5-4・5-8 で確かめた）。対象: `configDocRows` の行に対応する README の行を消す（`TestREADMEDocumentsCLI`）。`make fmt` → `make test` → `make lint` → `make ext-test` を通す。
+- [x] **ステップ 5-11**: ステップ 5-9 のテストについて、壊して失敗することを確かめ、コミットメッセージに書く（ステップ 5-1〜5-8 の壊す対象は、ステップ 5-4・5-8 で確かめた）。対象: `configDocRows` の行に対応する README の行を消す（`TestREADMEDocumentsCLI`）。これは PR-8 の時点のファイルについての記録であり、`configDocRows` は PR-9 で削除した（2026-10-13。Document Status の Comments を参照）。`make fmt` → `make test` → `make lint` → `make ext-test` を通す。
 
 ### PR-8 作成ポイント: documentation and the evaluation script
 
@@ -354,7 +354,7 @@ HEAD `4dd797d`（ブランチ `claude/mkplan-0010-xnazts`）で確認した。�
 
 **推奨タイトル**: `feat(0010): document post-generation steps and update check_article.py`
 
-**レビュー観点**: 0009 の PR-7（文書）がマージ済みなら、README・`project_overview.md`・`security.md`・`CLAUDE.md`・`configDocRows` の重なる行（`DEEPSEEK_API_KEY` の行など）で、先の変更を残して書き足していること / `README.md`・`project_overview.md`・`security.md`・`package_reference.md`・`CLAUDE.md` の各記述が実装と照らされ、照らした箇所がコミットメッセージにあること（§1.3「文書の更新対象」のすべての行） / `DEEPSEEK_API_KEY` の行と `configDocRows` が、検証・推敲のプロバイダが `deepseek` の場合も必須であることを表すこと / `check_article.py` の `HEADER_RE` が段階の行のある記事とない記事で同じ字数と判定を出すことを、合成した記事と最小のキャッシュで実行して示していること / 0009 の計画のステップ 4-8 と同じ `package_reference.md` の行を、先の変更を残して書き足していること
+**レビュー観点**: 0009 の PR-7（文書）がマージ済みなら、README・`project_overview.md`・`security.md`・`CLAUDE.md` の重なる行（`DEEPSEEK_API_KEY` の行など）で、先の変更を残して書き足していること / `README.md`・`project_overview.md`・`security.md`・`package_reference.md`・`CLAUDE.md` の各記述が実装と照らされ、照らした箇所がコミットメッセージにあること（§1.3「文書の更新対象」のすべての行） / `DEEPSEEK_API_KEY` の行が、検証・推敲のプロバイダが `deepseek` の場合も必須であることを表すこと / `check_article.py` の `HEADER_RE` が段階の行のある記事とない記事で同じ字数と判定を出すことを、合成した記事と最小のキャッシュで実行して示していること / 0009 の計画のステップ 4-8 と同じ `package_reference.md` の行を、先の変更を残して書き足していること
 
 **実装モデル要件**: standard
 
@@ -362,8 +362,8 @@ HEAD `4dd797d`（ブランチ `claude/mkplan-0010-xnazts`）で確認した。�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 6: 評価
 
@@ -372,8 +372,8 @@ HEAD `4dd797d`（ブランチ `claude/mkplan-0010-xnazts`）で確認した。�
 - 変更: `cmd/yt2column/docs_test.go`
 
 **タスク**
-- [ ] **ステップ 6-1**: `02_evaluation.md` に評価の手順を書く（requirements F-008、architecture §8 のフェーズ 6）。0008 の [02_evaluation.md](../0008_column_prompt/02_evaluation.md) の §2（手順）・§3.2（動画）・§4（判定者と校正）を参照し、同じ部分は写さない。本書に書くのは次のことである。v5 のテンプレートの指定、段階なし（`--no-shorten --no-review`）と段階ありの記事の生成、`--review-log` の指定、記録の表（AC-28〜AC-30 の項目と、architecture §5.4 の失敗の種類）、料金が 2 倍になる時間帯を避けること（requirements §5）。
-- [ ] **ステップ 6-2**: `cmd/yt2column/docs_test.go` に `TestReviewEvaluationRecords` を加える。ステップ 6-3 にチェックが入った後は、`02_evaluation.md` の記録が、0008 の §3.2 の 5 本の動画のそれぞれについて、v5 のテンプレートを使ったこと、F-006 の観点ごとの判定、一覧の各項目の判定と段階が入れた新しい根拠のずれの有無、検証・推敲のプロバイダとモデル、呼び出しの回数、所要時間を持つことを求める。動画の ID は 0008 の文書から読み、テストに写さない。ステップの区画と節は、既存の `stepBlock`・`docSection`（`docs_test.go:365`・`:342`）で取り出す。比べる文言は実装で決める。ステップ 6-3 にチェックが入る前は何も求めないことと、記録を 1 行消すと失敗することを確かめる。
+- [x] **ステップ 6-1**: `02_evaluation.md` に評価の手順を書く（requirements F-008、architecture §8 のフェーズ 6）。0008 の [02_evaluation.md](../0008_column_prompt/02_evaluation.md) の §2（手順）・§3.2（動画）・§4（判定者と校正）を参照し、同じ部分は写さない。本書に書くのは次のことである。v5 のテンプレートの指定、段階なし（`--no-shorten --no-review`）と段階ありの記事の生成、`--review-log` の指定、記録の表（AC-28〜AC-30 の項目と、architecture §5.4 の失敗の種類）、料金が 2 倍になる時間帯を避けること（requirements §5）。
+- [x] **ステップ 6-2**: `cmd/yt2column/docs_test.go` に `TestReviewEvaluationRecords` を加える。ステップ 6-3 にチェックが入った後は、`02_evaluation.md` の記録が、0008 の §3.2 の 5 本の動画のそれぞれについて、v5 のテンプレートを使ったこと、F-006 の観点ごとの判定、一覧の各項目の判定と段階が入れた新しい根拠のずれの有無、検証・推敲のプロバイダとモデル、呼び出しの回数、所要時間を持つことを求める。動画の ID は 0008 の文書から読み、テストに写さない。ステップの区画と節は、既存の `stepBlock`・`docSection`（`docs_test.go:365`・`:342`）で取り出す。比べる文言は実装で決める。ステップ 6-3 にチェックが入る前は何も求めないことと、記録を 1 行消すと失敗することを確かめる。
 
 ### PR-9 作成ポイント: evaluation procedure and record guard
 
@@ -387,8 +387,8 @@ HEAD `4dd797d`（ブランチ `claude/mkplan-0010-xnazts`）で確認した。�
 
 **判定理由**: 手順の文書と、既存の `stepBlock`・`docSection` を使う guard テストの追加だけで、パネルモードのトリガー・競合する実装案・高リスクの手順のどれにも該当しないため。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 - [ ] **ステップ 6-3**: 検証・推敲のモデルを生成と同じ deepseek-flash にして、5 本の動画で評価し、`02_evaluation.md` に記録する（AC-28〜AC-30）。実 API の実行は、実行のたびに人の承認を得る（requirements §5、CLAUDE.md「Tool Execution Safety」）。
@@ -429,7 +429,7 @@ HEAD `4dd797d`（ブランチ `claude/mkplan-0010-xnazts`）で確認した。�
 
 PR は、フェーズをおおむね関心事ごとに分け、それぞれが単独でグリーンゲートを通せる単位とする。フェーズ 2 は、既存の振る舞いを変えないリファクタリング（PR-2）と、検証・推敲の応答の検査と当てはめ（PR-3）に分ける。前者は既存テストを変えないことだけを、後者は信頼しない入力の境界を、それぞれ集中してレビューできる。フェーズ 5 は、`internal/publisher`・`internal/job` の出力（PR-6）、CLI の既定の変更と既存のテストの移行（PR-7）、文書と評価用スクリプト（PR-8）に分ける。PR-7 の既定の変更は多数のテストに触れるため、出力の層の変更と混ぜずに隔離する。フェーズ 5 の壊して確かめる手順は、各 PR の最後のステップ（5-4・5-8・5-11）に分けて置き、ステップの番号は変えない。フェーズ 6 は、実 API を使わない手順と guard（PR-9）と、実 API の評価の記録（PR-10）に分け、承認を待つ評価の実行が手順のマージを止めないようにする。PR-4 と PR-7 は大きいが分けない。PR-4 の段階のテンプレートの検査（ステップ 3-9）は、ステップ 3-5・3-6 が置くデータ型を使う。PR-7 の各ステップは、段階の既定の有効化と `--review-log` の両方を扱う。どちらも、分けるにはステップの内容を組み替える必要がある。代わりに、判定理由で高リスクの手順（ステップ 3-7・5-5）を名指し、レビュー観点でその内容を挙げる。
 
-`internal/` の変更が `cmd/` に先行する順序は、`internal/writer`（PR-2〜PR-4）・`internal/config`・`internal/llm/provider`（PR-5）・`internal/publisher`・`internal/job`（PR-6）が、それらを使う `cmd/yt2column` の変更（PR-7）に先行することで満たす。PR-4 までは `Options` のゼロ値で段階を行わず、PR-6 の追加は CLI から使われない。PR-5 の後は、`config.Load` が検証・推敲の 2 つの変数を検査する（AC-17）が、2 つの変数が未設定なら CLI の振る舞いは変わらない。README のフラグの表は PR-7 で更新する（`TestREADMEDocumentsCLI` が求める）。それ以外の文書の更新（設定の表、段階の説明、`DEEPSEEK_API_KEY` の行など）は PR-8 にまとめるので、PR-5〜PR-7 のマージから PR-8 のマージまでは、それらが新しい変数と既定の段階を説明しない。
+`internal/` の変更が `cmd/` に先行する順序は、`internal/writer`（PR-2〜PR-4）・`internal/config`・`internal/llm/provider`（PR-5）・`internal/publisher`・`internal/job`（PR-6）が、それらを使う `cmd/yt2column` の変更（PR-7）に先行することで満たす。PR-4 までは `Options` のゼロ値で段階を行わず、PR-6 の追加は CLI から使われない。PR-5 の後は、`config.Load` が検証・推敲の 2 つの変数を検査する（AC-17）が、2 つの変数が未設定なら CLI の振る舞いは変わらない。README のフラグの表は PR-7 で更新する（`TestREADMEDocumentsFlags` が求める）。それ以外の文書の更新（設定の表、段階の説明、`DEEPSEEK_API_KEY` の行など）は PR-8 にまとめるので、PR-5〜PR-7 のマージから PR-8 のマージまでは、それらが新しい変数と既定の段階を説明しない。
 
 | PR | 対象ステップ | 主な変更内容 | 実装モデル要件 |
 |---|---|---|---|

@@ -793,7 +793,7 @@ func (e *ReviewLogError) Unwrap() error
 | `cmd/yt2column/run.go` | 変更 | フラグ、組み合わせの検査、構築、要約、案内 | `run_test.go`・`signal_test.go`・`main_test.go`: `Write` まで進むテストの引数に `--no-shorten --no-review` を加える（既定で段階を行うため。AC-27）|
 | `cmd/yt2column/test_helpers.go` | 変更 | `deps` の追加の fake | — |
 | `cmd/yt2column/integration_test.go`・`integration_slack_test.go` | 変更 | 引数に `--no-shorten --no-review` を加える（`Generate` の回数 1 の確認を保つ）| 同左 |
-| `cmd/yt2column/docs_test.go` | 変更 | `configDocRows` に 2 つの変数を加える | 同左 |
+| `cmd/yt2column/docs_test.go` | 変更 | 散文を固定する文書のテストを PR-9 で外した（設定の表の `configDocRows` など）。残るのはフラグの表の `TestREADMEDocumentsFlags`、`TestSlackDocsContract`・`TestClaudeDocsContract`、評価の記録の `TestReviewEvaluationRecords` | 同左 |
 | `README.md`・`docs/dev/project_overview.md`・`docs/dev/security.md`・`docs/dev/developer_guide/package_reference.md` | 変更 | §3.10 | — |
 | `docs/tasks/0008_column_prompt/check_article.py` | 変更 | §3.10 | — |
 | `docs/tasks/0010_post_generation_review/02_evaluation.md` | 新設 | 評価の手順と記録（F-008）| — |
