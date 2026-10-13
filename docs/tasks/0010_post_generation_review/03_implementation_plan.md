@@ -372,8 +372,8 @@ HEAD `4dd797d`（ブランチ `claude/mkplan-0010-xnazts`）で確認した。�
 - 変更: `cmd/yt2column/docs_test.go`
 
 **タスク**
-- [ ] **ステップ 6-1**: `02_evaluation.md` に評価の手順を書く（requirements F-008、architecture §8 のフェーズ 6）。0008 の [02_evaluation.md](../0008_column_prompt/02_evaluation.md) の §2（手順）・§3.2（動画）・§4（判定者と校正）を参照し、同じ部分は写さない。本書に書くのは次のことである。v5 のテンプレートの指定、段階なし（`--no-shorten --no-review`）と段階ありの記事の生成、`--review-log` の指定、記録の表（AC-28〜AC-30 の項目と、architecture §5.4 の失敗の種類）、料金が 2 倍になる時間帯を避けること（requirements §5）。
-- [ ] **ステップ 6-2**: `cmd/yt2column/docs_test.go` に `TestReviewEvaluationRecords` を加える。ステップ 6-3 にチェックが入った後は、`02_evaluation.md` の記録が、0008 の §3.2 の 5 本の動画のそれぞれについて、v5 のテンプレートを使ったこと、F-006 の観点ごとの判定、一覧の各項目の判定と段階が入れた新しい根拠のずれの有無、検証・推敲のプロバイダとモデル、呼び出しの回数、所要時間を持つことを求める。動画の ID は 0008 の文書から読み、テストに写さない。ステップの区画と節は、既存の `stepBlock`・`docSection`（`docs_test.go:365`・`:342`）で取り出す。比べる文言は実装で決める。ステップ 6-3 にチェックが入る前は何も求めないことと、記録を 1 行消すと失敗することを確かめる。
+- [x] **ステップ 6-1**: `02_evaluation.md` に評価の手順を書く（requirements F-008、architecture §8 のフェーズ 6）。0008 の [02_evaluation.md](../0008_column_prompt/02_evaluation.md) の §2（手順）・§3.2（動画）・§4（判定者と校正）を参照し、同じ部分は写さない。本書に書くのは次のことである。v5 のテンプレートの指定、段階なし（`--no-shorten --no-review`）と段階ありの記事の生成、`--review-log` の指定、記録の表（AC-28〜AC-30 の項目と、architecture §5.4 の失敗の種類）、料金が 2 倍になる時間帯を避けること（requirements §5）。
+- [x] **ステップ 6-2**: `cmd/yt2column/docs_test.go` に `TestReviewEvaluationRecords` を加える。ステップ 6-3 にチェックが入った後は、`02_evaluation.md` の記録が、0008 の §3.2 の 5 本の動画のそれぞれについて、v5 のテンプレートを使ったこと、F-006 の観点ごとの判定、一覧の各項目の判定と段階が入れた新しい根拠のずれの有無、検証・推敲のプロバイダとモデル、呼び出しの回数、所要時間を持つことを求める。動画の ID は 0008 の文書から読み、テストに写さない。ステップの区画と節は、既存の `stepBlock`・`docSection`（`docs_test.go:365`・`:342`）で取り出す。比べる文言は実装で決める。ステップ 6-3 にチェックが入る前は何も求めないことと、記録を 1 行消すと失敗することを確かめる。
 
 ### PR-9 作成ポイント: evaluation procedure and record guard
 

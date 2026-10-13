@@ -5,6 +5,8 @@ package main
 import (
 	"flag"
 	"os"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -15,12 +17,15 @@ import (
 
 // Paths from cmd/yt2column to the documents these tests check.
 const (
-	readmePath          = "../../README.md"
-	projectOverviewPath = "../../docs/dev/project_overview.md"
-	securityPath        = "../../docs/dev/security.md"
-	planPath            = "../../docs/tasks/0005_cli_assembly/03_implementation_plan.md"
-	slackPlanPath       = "../../docs/tasks/0006_slack_webhook_publisher/03_implementation_plan.md"
-	claudePlanPath      = "../../docs/tasks/0009_claude_llm_client/03_implementation_plan.md"
+	readmePath           = "../../README.md"
+	projectOverviewPath  = "../../docs/dev/project_overview.md"
+	securityPath         = "../../docs/dev/security.md"
+	planPath             = "../../docs/tasks/0005_cli_assembly/03_implementation_plan.md"
+	slackPlanPath        = "../../docs/tasks/0006_slack_webhook_publisher/03_implementation_plan.md"
+	claudePlanPath       = "../../docs/tasks/0009_claude_llm_client/03_implementation_plan.md"
+	reviewPlanPath       = "../../docs/tasks/0010_post_generation_review/03_implementation_plan.md"
+	reviewEvaluationPath = "../../docs/tasks/0010_post_generation_review/02_evaluation.md"
+	columnArticlesPath   = "../../docs/tasks/0008_column_prompt/02_evaluation.md"
 )
 
 // configDocRow pairs a configuration variable with the "when unset" text each
@@ -281,6 +286,114 @@ func TestClaudePlanRecordsManualRun(t *testing.T) {
 	for _, want := range []string{"2026-", "HEAD `", "モデル名は `", "--- PASS: TestIntegrationGenerate"} {
 		if !strings.Contains(section, want) {
 			t.Errorf("§5.1 has no %q record", want)
+		}
+	}
+}
+
+// TestReviewEvaluationRecords checks the post-generation review evaluation
+// record. Until the real-API evaluation (step 6-3) is checked, the record is
+// not required. Once it is checked, each of the videos the column-prompt task
+// evaluated must have a row in the per-perspective judgment table, the run
+// conditions table, and the review-log item table. The video IDs are read from
+// the column-prompt task's document, never copied here, so this guard follows
+// that task's video list.
+func TestReviewEvaluationRecords(t *testing.T) {
+	_, done, found := stepBlock(readDoc(t, reviewPlanPath), "**ステップ 6-3**")
+	if !found {
+		t.Fatal("the plan has no step 6-3")
+	}
+	if !done {
+		return
+	}
+
+	records := docSection(readDoc(t, reviewEvaluationPath), "3. 記録")
+	if records == "" {
+		t.Fatal("02_evaluation.md has no 3. 記録 section")
+	}
+	judgments := findTable(records, "形式の選択")
+	conditions := findTable(records, "所要時間")
+	items := findTable(records, "新しいずれ")
+	for _, table := range []struct {
+		name string
+		rows [][]string
+	}{
+		{"per-perspective judgments", judgments},
+		{"run conditions", conditions},
+		{"review-log items", items},
+	} {
+		if table.rows == nil {
+			t.Errorf("3. 記録 has no %s table", table.name)
+		}
+	}
+	if judgments == nil || conditions == nil || items == nil {
+		return
+	}
+
+	for _, id := range columnEvaluationVideoIDs(t) {
+		if row := tableRow(judgments, id); row == nil {
+			t.Errorf("3. 記録 has no per-perspective row for video %s", id)
+		} else {
+			requireFilledRow(t, id, "per-perspective", row, 14)
+		}
+
+		row := tableRow(conditions, id)
+		if row == nil {
+			t.Errorf("3. 記録 has no run-conditions row for video %s", id)
+		} else {
+			requireFilledRow(t, id, "run-conditions", row, 8)
+			if !strings.Contains(row[1], "v5") {
+				t.Errorf("video %s does not record the v5 template: %q", id, row[1])
+			}
+		}
+
+		if tableRow(items, id) == nil {
+			t.Errorf("3. 記録 has no review-log item row for video %s", id)
+		}
+	}
+}
+
+// columnEvaluationVideoIDs reads the evaluated video IDs from the column-prompt
+// task's §3.2 video table. Only the numbered rows are evaluated videos; the
+// reserve row is not, so its first cell does not parse as an integer.
+func columnEvaluationVideoIDs(t *testing.T) []string {
+	t.Helper()
+	table := findTable(docSection(readDoc(t, columnArticlesPath), "3. 対象の動画"), "URL")
+	if table == nil {
+		t.Fatal("0008's evaluation has no video table with a URL column")
+	}
+	re := regexp.MustCompile(`[?&]v=([A-Za-z0-9_-]+)`)
+	var ids []string
+	for _, row := range table[1:] {
+		if len(row) < 2 {
+			continue
+		}
+		if _, err := strconv.Atoi(row[0]); err != nil {
+			continue
+		}
+		m := re.FindStringSubmatch(row[1])
+		if m == nil {
+			t.Errorf("video row %q has no video ID in %q", row[0], row[1])
+			continue
+		}
+		ids = append(ids, m[1])
+	}
+	if len(ids) == 0 {
+		t.Fatal("0008's video table has no numbered rows")
+	}
+	return ids
+}
+
+// requireFilledRow fails when row is shorter than want or has an empty cell
+// after its first, which is the video ID.
+func requireFilledRow(t *testing.T, id, what string, row []string, want int) {
+	t.Helper()
+	if len(row) < want {
+		t.Errorf("video %s %s row has %d cells, want at least %d", id, what, len(row), want)
+		return
+	}
+	for i := 1; i < len(row); i++ {
+		if strings.TrimSpace(row[i]) == "" {
+			t.Errorf("video %s %s row cell %d is empty", id, what, i+1)
 		}
 	}
 }
