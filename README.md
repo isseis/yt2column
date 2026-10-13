@@ -188,7 +188,7 @@ On other platforms, see the yt-dlp
 | `YT2COLUMN_LLM_PROVIDER` | LLM provider; `deepseek` or `claude` | `deepseek` |
 | `YT2COLUMN_MODEL` | LLM model name (e.g. `deepseek-flash`, `claude-opus-5-5`) | Required (an error) |
 | `YT2COLUMN_REVIEW_PROVIDER` | Review step's LLM provider; same values as `YT2COLUMN_LLM_PROVIDER` | The generation provider |
-| `YT2COLUMN_REVIEW_MODEL` | Review step's LLM model name | The generation model |
+| `YT2COLUMN_REVIEW_MODEL` | Review step's LLM model name (required when `YT2COLUMN_REVIEW_PROVIDER` is set) | The generation model |
 | `DEEPSEEK_API_KEY` | DeepSeek API key | Required when the generation or review provider is `deepseek` (an error) |
 | `ANTHROPIC_API_KEY` | Anthropic API key | Required when the generation or review provider is `claude` (an error) |
 | `YT2COLUMN_CLAUDE_EFFORT` | Claude effort; `low`, `medium`, `high`, `xhigh`, or `max` | Required when the generation or review provider is `claude` (an error) |
@@ -208,9 +208,9 @@ Only the variables of the selected providers are read and checked: a provider's
 variables are read when the generation or the review provider is that provider.
 The other provider's variables are ignored whatever their value, so exporting
 `ANTHROPIC_API_KEY=` for another tool does not stop a run that uses only
-`deepseek`; when `YT2COLUMN_LLM_PROVIDER` itself is invalid, no
-provider-specific variable is checked, but errors for common variables such as
-`YT2COLUMN_MODEL` are still reported.
+`deepseek`; when `YT2COLUMN_LLM_PROVIDER` itself is invalid and
+`YT2COLUMN_REVIEW_PROVIDER` is unset, no provider-specific variable is checked,
+but errors for common variables such as `YT2COLUMN_MODEL` are still reported.
 
 With `claude`, `max` is accepted but in this use case it spends the whole output
 budget on reasoning and returns no article text, so the run fails as truncated.
