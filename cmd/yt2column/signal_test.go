@@ -67,9 +67,10 @@ func newChildSetup(t *testing.T, ytDlpPath string, seed bool) *childSetup {
 	return c
 }
 
-// args returns the CLI arguments of a child.
+// args returns the CLI arguments of a child. The steps are disabled, so a
+// child does not build a review LLM client it has no fake for.
 func (c *childSetup) args() []string {
-	return []string{"--out", c.outPath, runVideoURL}
+	return append(slices.Clone(noStepsArgs), "--out", c.outPath, runVideoURL)
 }
 
 // requireExitFailure asserts the child exited normally with exitFailure.
@@ -177,7 +178,7 @@ func TestSignalDuringSlackPost(t *testing.T) {
 			tripwire, marker := transcripttestutil.NewTripwire(t, t.TempDir())
 			setup := newChildSetup(t, tripwire, true)
 			before := videoEntries(t, setup.cacheDir)
-			child := startCLIChild(t, childModeSlackStall, setup.env, "--slack", runVideoURL)
+			child := startCLIChild(t, childModeSlackStall, setup.env, append(slices.Clone(noStepsArgs), "--slack", runVideoURL)...)
 
 			waitForFile(t, setup.ready)
 			child.signal(t, sig)

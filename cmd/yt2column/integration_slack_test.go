@@ -43,7 +43,7 @@ func runIntegrationCLISlack(t *testing.T, llmSettings deepseektestutil.Integrati
 	r.env["SLACK_WEBHOOK_URL"] = webhookURL
 
 	var stdout, stderr bytes.Buffer
-	code := run(context.Background(), []string{"--slack", integrationVideoURL}, lookupFrom(r.env), &stdout, &stderr, r.deps)
+	code := run(context.Background(), append(slices.Clone(noStepsArgs), "--slack", integrationVideoURL), lookupFrom(r.env), &stdout, &stderr, r.deps)
 
 	// Every part of the URL the CLI itself redacts is forbidden, not only
 	// the whole URL and its tail.

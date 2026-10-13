@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -41,20 +42,24 @@ const usageHint = programName + ": run '" + programName + " -h' for usage"
 // deps are the constructors run uses. main passes productionDeps(); a unit test
 // substitutes fakes.
 type deps struct {
-	newLLMClient      func(config.Config) (llm.LLMClient, error)
-	newWriter         func(llm.LLMClient, writer.Options) (writer.ArticleWriter, error)
-	newFilePublisher  func(path string) (publisher.Publisher, error)
-	newSlackPublisher func(webhookURL secret.Secret) (publisher.Publisher, error)
+	newLLMClient       func(config.Config) (llm.LLMClient, error)
+	newReviewLLMClient func(config.Config) (llm.LLMClient, error)
+	newWriter          func(llm.LLMClient, writer.Options) (writer.ArticleWriter, error)
+	newFilePublisher   func(path string) (publisher.Publisher, error)
+	newSlackPublisher  func(webhookURL secret.Secret) (publisher.Publisher, error)
+	newReviewLogWriter func(path string) (*publisher.ReviewLogWriter, error)
 }
 
 // productionDeps returns the real constructors. main and the integration test
 // both use it, so the test runs the same assembly as the CLI.
 func productionDeps() deps {
 	return deps{
-		newLLMClient:      provider.New,
-		newWriter:         writer.New,
-		newFilePublisher:  newFilePublisher,
-		newSlackPublisher: newSlackPublisher,
+		newLLMClient:       provider.New,
+		newReviewLLMClient: provider.NewReview,
+		newWriter:          writer.New,
+		newFilePublisher:   newFilePublisher,
+		newSlackPublisher:  newSlackPublisher,
+		newReviewLogWriter: publisher.NewReviewLogWriter,
 	}
 }
 
@@ -98,16 +103,27 @@ var (
 	errOutAndSlack        = errors.New("--out and --slack cannot be used together")
 	errNoDestination      = errors.New("one of --out or --slack is required")
 	errInvalidDestination = errors.New("no output destination was chosen")
+	// Review-log rejections, in the order they are checked.
+	errReviewLogNoReview = errors.New("--review-log cannot be used with --no-review")
+	errReviewLogEmpty    = errors.New("--review-log needs a path")
+	errReviewLogSameFile = errors.New("--out and --review-log cannot name the same file")
 )
 
 // cliOptions holds the parsed flags.
 type cliOptions struct {
-	out          string
-	slack        bool
-	refresh      bool
-	keepCache    bool
-	systemPrompt string
-	userPrompt   string
+	out                 string
+	slack               bool
+	refresh             bool
+	keepCache           bool
+	systemPrompt        string
+	userPrompt          string
+	noShorten           bool
+	noReview            bool
+	reviewLog           string
+	shortenSystemPrompt string
+	shortenUserPrompt   string
+	reviewSystemPrompt  string
+	reviewUserPrompt    string
 }
 
 // newFlagSet defines every flag in one place, so run and the documentation
@@ -123,7 +139,25 @@ func newFlagSet() (*flag.FlagSet, *cliOptions) {
 	fs.BoolVar(&opts.keepCache, "keep-cache", false, "keep this video's cache after a successful run")
 	fs.StringVar(&opts.systemPrompt, "system-prompt", "", "read the system prompt template from this `path` instead of the built-in one")
 	fs.StringVar(&opts.userPrompt, "user-prompt", "", "read the user prompt template from this `path` instead of the built-in one")
+	fs.BoolVar(&opts.noShorten, "no-shorten", false, "do not shorten an over-long body, and do not check the final length")
+	fs.BoolVar(&opts.noReview, "no-review", false, "do not review the article against the source material")
+	fs.StringVar(&opts.reviewLog, "review-log", "", "write the review step's list of changes to this `path`; requires the review step")
+	fs.StringVar(&opts.shortenSystemPrompt, "shorten-system-prompt", "", "read the shorten system prompt template from this `path` instead of the built-in one")
+	fs.StringVar(&opts.shortenUserPrompt, "shorten-user-prompt", "", "read the shorten user prompt template from this `path` instead of the built-in one")
+	fs.StringVar(&opts.reviewSystemPrompt, "review-system-prompt", "", "read the review system prompt template from this `path` instead of the built-in one")
+	fs.StringVar(&opts.reviewUserPrompt, "review-user-prompt", "", "read the review user prompt template from this `path` instead of the built-in one")
 	return fs, opts
+}
+
+// flagGiven reports whether name was set on the command line.
+func flagGiven(fs *flag.FlagSet, name string) bool {
+	given := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			given = true
+		}
+	})
+	return given
 }
 
 // writeUsage writes the usage text for fs to w.
@@ -192,6 +226,10 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 	if err != nil {
 		return usageError(errOut, "%v", err)
 	}
+	reviewLogGiven := flagGiven(fs, "review-log")
+	if err := checkReviewLog(reviewLogGiven, opts, dest); err != nil {
+		return usageError(errOut, "%v", err)
+	}
 
 	// A3: the configuration. Each rejected variable is reported on its own
 	// line; a VarError never carries a value.
@@ -209,23 +247,21 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 	warnHTTP2Debug(errOut, cfg, dest)
 
 	// A4: a file output must not be inside the cache directory, where pruning
-	// or removing the cache could delete it.
+	// or removing the cache could delete it. The review log is checked the same
+	// way.
 	if dest == destinationFile && outPathInsideCacheDir(opts.out, cfg.CacheDir()) {
 		return usageError(errOut, "--out %s is inside the cache directory %s; choose a path outside it", opts.out, cfg.CacheDir())
 	}
+	if reviewLogGiven && outPathInsideCacheDir(opts.reviewLog, cfg.CacheDir()) {
+		return usageError(errOut, "--review-log %s is inside the cache directory %s; choose a path outside it", opts.reviewLog, cfg.CacheDir())
+	}
 
 	// A5: build the stages. writer.New only reads the template files, and
-	// neither publisher constructor touches its destination.
-	client, err := d.newLLMClient(cfg)
+	// neither the publisher constructors nor the review log writer touches its
+	// destination.
+	articleWriter, reviewLog, err := buildWriter(d, cfg, opts, reviewLogGiven)
 	if err != nil {
-		return usageError(errOut, "build the LLM client: %v", err)
-	}
-	articleWriter, err := d.newWriter(client, writer.Options{
-		SystemTemplatePath: opts.systemPrompt,
-		UserTemplatePath:   opts.userPrompt,
-	})
-	if err != nil {
-		return usageError(errOut, "build the article writer: %v", err)
+		return usageError(errOut, "%v", err)
 	}
 	output, err := buildOutput(d, dest, opts.out, webhookURL)
 	if err != nil {
@@ -241,17 +277,24 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 		KeepCache: opts.keepCache,
 		Writer:    articleWriter,
 		Output:    output,
+		ReviewLog: reviewLog,
 	})
 	for _, warning := range result.Warnings {
 		errOut.line("%s: warning: %v", programName, warning)
 	}
 	if err != nil {
-		reportRunError(errOut, err)
+		// A review-log failure happens after the article was published, so the
+		// summary is written first and reportRunError reports the failure on
+		// its own, without the "the run failed:" line.
+		if _, isReviewLog := errors.AsType[*job.ReviewLogError](err); isReviewLog {
+			reportSuccess(errOut, dest, opts.out, "", result.Article)
+		}
+		reportRunError(errOut, dest, opts.out, err)
 		return exitFailure
 	}
 
 	// C: the summary.
-	reportSuccess(errOut, dest, opts.out, result.Article)
+	reportSuccess(errOut, dest, opts.out, opts.reviewLog, result.Article)
 	return exitOK
 }
 
@@ -284,6 +327,69 @@ func chooseDestination(fs *flag.FlagSet, opts *cliOptions) (destination, error) 
 	default:
 		return destinationInvalid, errNoDestination
 	}
+}
+
+// checkReviewLog rejects the --review-log combinations that cannot be used:
+// with --no-review, with an empty path, and naming the same file as --out.
+// reviewLogGiven is whether --review-log was set on the command line, never
+// read from its value, so the choice cannot depend on what a value happens to
+// hold. The same-file rule is textual: a different alias of the same file is
+// caught only when link(2) fails after the publish.
+func checkReviewLog(reviewLogGiven bool, opts *cliOptions, dest destination) error {
+	if !reviewLogGiven {
+		return nil
+	}
+	switch {
+	case opts.noReview:
+		return errReviewLogNoReview
+	case opts.reviewLog == "":
+		return errReviewLogEmpty
+	case dest == destinationFile && filepath.Clean(opts.reviewLog) == filepath.Clean(opts.out):
+		return errReviewLogSameFile
+	default:
+		return nil
+	}
+}
+
+// buildWriter builds the ArticleWriter for the requested steps and, when
+// reviewLogGiven is set, the review log writer. The review LLM client is built
+// only when the review step runs, so --no-review never builds one.
+func buildWriter(d deps, cfg config.Config, opts *cliOptions, reviewLogGiven bool) (writer.ArticleWriter, *publisher.ReviewLogWriter, error) {
+	client, err := d.newLLMClient(cfg)
+	if err != nil {
+		return nil, nil, fmt.Errorf("build the LLM client: %w", err)
+	}
+	var reviewClient llm.LLMClient
+	if !opts.noReview {
+		if reviewClient, err = d.newReviewLLMClient(cfg); err != nil {
+			return nil, nil, fmt.Errorf("build the review LLM client: %w", err)
+		}
+	}
+	articleWriter, err := d.newWriter(client, writer.Options{
+		SystemTemplatePath: opts.systemPrompt,
+		UserTemplatePath:   opts.userPrompt,
+		Shorten: writer.ShortenOptions{
+			Enabled:            !opts.noShorten,
+			SystemTemplatePath: opts.shortenSystemPrompt,
+			UserTemplatePath:   opts.shortenUserPrompt,
+		},
+		Review: writer.ReviewOptions{
+			Enabled:            !opts.noReview,
+			Client:             reviewClient,
+			SystemTemplatePath: opts.reviewSystemPrompt,
+			UserTemplatePath:   opts.reviewUserPrompt,
+		},
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("build the article writer: %w", err)
+	}
+	var reviewLog *publisher.ReviewLogWriter
+	if reviewLogGiven {
+		if reviewLog, err = d.newReviewLogWriter(opts.reviewLog); err != nil {
+			return nil, nil, fmt.Errorf("build the review log writer: %w", err)
+		}
+	}
+	return articleWriter, reviewLog, nil
 }
 
 // configurationError reports each configuration error joined in err on its
@@ -332,12 +438,11 @@ func buildOutput(d deps, dest destination, outPath string, webhookURL secret.Sec
 
 // reportSuccess writes the summary of a published run. The message count of a
 // webhook post is recomputed from the article; it is "unknown" when that
-// fails, which only a fake publisher that accepts any article can cause.
-func reportSuccess(errOut *stderrWriter, dest destination, outPath string, article writer.Article) {
-	modelVersion := article.ModelVersion
-	if modelVersion == "" {
-		modelVersion = "(none)"
-	}
+// fails, which only a fake publisher that accepts any article can cause. It
+// adds one line per post-generation step that ran, and the review log path
+// when one was written. A reviewLogPath that is empty writes nothing.
+func reportSuccess(errOut *stderrWriter, dest destination, outPath, reviewLogPath string, article writer.Article) {
+	modelVersion := orNone(article.ModelVersion)
 	switch dest {
 	case destinationFile:
 		errOut.line("%s: wrote the article to %s (model: %s, model version: %s)", programName, outPath, article.Model, modelVersion)
@@ -352,6 +457,62 @@ func reportSuccess(errOut *stderrWriter, dest destination, outPath string, artic
 		// anything is published. Claim no destination rather than guess one.
 		errOut.line("%s: published the article (model: %s, model version: %s)", programName, article.Model, modelVersion)
 	}
+	reportStepSummary(errOut, article)
+	if reviewLogPath != "" {
+		errOut.line("%s: wrote the review log to %s", programName, reviewLogPath)
+	}
+}
+
+// reportStepSummary writes one line per post-generation step that ran. The
+// shorten line names its model; the review line gives the revision count and
+// the count of each reason kind.
+func reportStepSummary(errOut *stderrWriter, article writer.Article) {
+	if article.Shorten != nil {
+		errOut.line("%s: the shorten step ran (model: %s, model version: %s)",
+			programName, article.Shorten.Model, orNone(article.Shorten.ModelVersion))
+	}
+	if article.Review != nil {
+		errOut.line("%s: the review step returned %s", programName, revisionCounts(article.Review.Revisions))
+	}
+}
+
+// revisionCounts renders the revision count and the count of each reason kind
+// in one line, listing only the kinds with a count, in enum order.
+func revisionCounts(revisions []writer.Revision) string {
+	if len(revisions) == 0 {
+		return "no revisions"
+	}
+	counts := make(map[writer.RevisionReason]int)
+	for _, revision := range revisions {
+		counts[revision.Reason]++
+	}
+	parts := make([]string, 0, len(counts))
+	for _, reason := range []writer.RevisionReason{
+		writer.ReasonUnsupported,
+		writer.ReasonMeaningChange,
+		writer.ReasonSpeaker,
+		writer.ReasonMisrecognition,
+		writer.ReasonUnintelligible,
+	} {
+		if n := counts[reason]; n > 0 {
+			value, _ := reason.WireValue()
+			parts = append(parts, fmt.Sprintf("%s %d", value, n))
+		}
+	}
+	noun := "revisions"
+	if len(revisions) == 1 {
+		noun = "revision"
+	}
+	return fmt.Sprintf("%d %s (%s)", len(revisions), noun, strings.Join(parts, ", "))
+}
+
+// orNone renders an empty model version as (none), as the published output
+// does.
+func orNone(version string) string {
+	if version == "" {
+		return "(none)"
+	}
+	return version
 }
 
 // messageCount renders n as a count of posted messages, using the singular
@@ -371,10 +532,15 @@ func usageError(errOut *stderrWriter, format string, args ...any) int {
 }
 
 // reportRunError reports a job.Run failure, naming the pipeline stage when
-// there is one, and adds the hint that matches the failure. A deadline is
+// there is one (a review log failure after the publish is reported first, on
+// its own), and adds the hint that matches the failure. A deadline is
 // attributed to the yt-dlp, LLM, or webhook post timeout by the failed stage;
 // this holds because the context run receives has no deadline of its own.
-func reportRunError(errOut *stderrWriter, err error) {
+func reportRunError(errOut *stderrWriter, dest destination, outPath string, err error) {
+	if reviewLogErr, ok := errors.AsType[*job.ReviewLogError](err); ok {
+		reportReviewLogFailure(errOut, dest, outPath, reviewLogErr)
+		return
+	}
 	stageErr, isStage := errors.AsType[*pipeline.StageError](err)
 	if isStage {
 		errOut.line("%s: the %s stage failed: %v", programName, stageErr.Stage, stageErr.Err)
@@ -396,7 +562,34 @@ func reportRunError(errOut *stderrWriter, err error) {
 	if kept, ok := errors.AsType[*publisher.KeptFileError](err); ok {
 		errOut.line("%s: the finished article was kept in %s", programName, kept.TempPath)
 	}
+	reportStepHints(errOut, err)
 	reportWebhookHints(errOut, err)
+}
+
+// reportReviewLogFailure reports a review-log write failure that happened
+// after the article was published. It never says the run failed: the article
+// is complete, and running again would publish a new one.
+func reportReviewLogFailure(errOut *stderrWriter, dest destination, outPath string, reviewLogErr *job.ReviewLogError) {
+	article := "written to " + outPath
+	if dest == destinationWebhook {
+		article = "posted to the webhook"
+	}
+	errOut.line("%s: the article was %s, but writing the review log to %s failed: %v",
+		programName, article, reviewLogErr.Path, reviewLogErr.Err)
+	errOut.line("%s: do not run again: the article is already published", programName)
+}
+
+// reportStepHints adds the hints for the post-generation step failures: an
+// over-long body suggests --no-shorten, and a rejected review response
+// suggests --no-review. The step is read from the error's type, never from its
+// message.
+func reportStepHints(errOut *stderrWriter, err error) {
+	if errors.Is(err, writer.ErrTooLong) {
+		errOut.line("%s: --no-shorten skips the shorten step and the final length check, so the article is published even if it is over the limit", programName)
+	}
+	if stepErr, ok := errors.AsType[*writer.StepError](err); ok && stepErr.Step == writer.StepReview && errors.Is(err, writer.ErrMalformedOutput) {
+		errOut.line("%s: --no-review skips the review step, so the article is published as generated", programName)
+	}
 }
 
 // reportWebhookHints adds the hints for a failed webhook post: which messages
