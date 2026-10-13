@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Created | 2026-10-13 |
-| Review date | 2026-10-13 |
-| Reviewer | isseis |
-| Comments | 2026-10-13 編集上の修正（決定の変更なし）: §3.5 の確認手順の参照先を §3.9 から §3.8 に直した。 |
+| Review date | - |
+| Reviewer | - |
+| Comments | 2026-10-13 レビュー往復 1（決定の変更）: 検査 3（manifest の permission）を、`security.md` §8.1 の `要求する権限` の列挙と manifest の `permissions` を集合として両方向に一致させる設計に変更し（§3.1・§3.3）、壊し確認の対象に manifest からの permission の削除を加えた（§7.2）。再承認を求める。2026-10-13 編集上の修正（決定の変更なし）: §3.5 の確認手順の参照先を §3.9 から §3.8 に直した。 |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md) の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §10）を指す。既存のコードと文書の行番号は、コミット `38885ab` で確かめたものである。
 
@@ -146,7 +146,7 @@ sequenceDiagram
 |---|---|---|
 | 拡張 ID の記載 | `README.md`・`docs/dev/security.md` | manifest の `key` から導出した拡張 ID を含む |
 | `ext-` ターゲットの一覧 | `Makefile`・`CLAUDE.md` | 両者が列挙する `ext-` ターゲットの集合が一致する |
-| manifest の permission | `docs/dev/security.md` §8.1 | `permissions` の各値をバッククォート付きで列挙する |
+| manifest の permission | `docs/dev/security.md` §8.1 | §8.1 の `要求する権限` の列挙と `permissions` が集合として両方向に一致する |
 | project overview の記述 | `docs/dev/project_overview.md` | `## 決定済みの方針` に `TypeScript`、`## 想定ディレクトリ構成` に `extension/` |
 | タスク 0007 の調査の記録 | `docs/tasks/0007_browser_extension_skeleton/02_architecture.md` | `3.12.1`〜`3.12.3` の見出しと、各節の本文 |
 | タスク 0007 の手動確認の記録 | `docs/tasks/0007_browser_extension_skeleton/03_implementation_plan.md` §5.1 | 定められた行の表と、結果などの列のセル |
@@ -169,7 +169,7 @@ sequenceDiagram
 
 - **拡張 ID の記載:** manifest の `key`（`extension/static/manifest.json`）を読み、`extensionIDFromManifestKey` で導出した値が `README.md` と `docs/dev/security.md` の本文に含まれることを確かめる。文書に拡張 ID の固定値を書く必要はない。
 - **`ext-` ターゲットの一覧（抽出規則は契約）:** `Makefile` からは行頭の `ext-<名前>:` を、`CLAUDE.md` からは行頭の `` - `make ext-<名前>` `` を、それぞれ `ext-` ターゲットの名前として集める（この 2 つの形が契約であり、文書の書き方を変えるときは guard も同じ変更で直す）。両者を重複なしの集合にして比較する。`Makefile` から 1 件も集まらない場合は失敗させる（正規表現が一致しなくなったときに空同士で通さないため、現行 `extension/test/docs.test.ts:111` と同じ）。不一致のときは両方の集合を並べたメッセージで失敗させる。`Makefile` の `.PHONY` の行は行頭が `.PHONY` なので一致しない。
-- **manifest の permission:** `### 8.1. ブラウザ拡張（#110）` の節を `sectionByHeading` で切り出し、`permissions` の各値について `` `value` `` の形の文字列を含むことを確かめる。`permissions` が空または欠落の場合は失敗させる（何も検査しないまま通さないため）。
+- **manifest の permission:** `### 8.1. ブラウザ拡張（#110）` の節を `sectionByHeading` で切り出し、その節の `要求する権限`（設計書 3.1 の manifest）の箇条書きが列挙する権限の集合と、manifest の `permissions` の集合が両方向に一致することを確かめる（manifest にあって文書にない権限も、文書にあって manifest にない権限も落ちる。AC-04 の双方向の要件）。節には要求しない権限（`tabs`・`history` など）も現れるので、比較の対象は `要求する権限` の列挙に限る。`permissions` が空または欠落の場合、または `要求する権限` の列挙が見つからない場合は失敗させる（何も検査しないまま通さないため）。
 - **project overview の記述:** `## 決定済みの方針` の節に `TypeScript`、`## 想定ディレクトリ構成` の節に `extension/` を含むことを確かめる。
 - **タスク 0007 の調査の記録:** `#### 3.12.1.`・`#### 3.12.2.`・`#### 3.12.3.` の見出しがそれぞれ存在することを確かめる。`sectionByHeadingPrefix(doc, "#### 3.12.1.")` が拡張 ID を含むことを確かめる。`sectionByHeadingPrefix(doc, "#### 3.12.2.")` と `sectionByHeadingPrefix(doc, "#### 3.12.3.")` をそれぞれ前後の空白を除いて空でないことを確かめる。節の本文（見出し行を含まない）について確かめるので、見出しを残したまま本文を空にすると落ちる（AC-06）。
 - **タスク 0007 の手動確認の記録:** `### 5.1. 手動の確認と記録` の節を `sectionByHeading` で切り出し、`findTable(section, "AC")` で表を得る。表の本文の行の第 1 セルが、定められた AC の行（`AC-02`・`AC-03`・`AC-05`・`AC-07`・`AC-08`・`AC-10・AC-11`・`AC-13`・`AC-20`・`AC-21・AC-22・AC-31`・`AC-28・AC-29`・`AC-25`）とこの順で一致し、各行が 5 セル（0 起点で 0〜4）で、1〜4 番目のセル（確認の内容／ブラウザ・環境／日付／結果）が空でないことを確かめる。
@@ -281,7 +281,7 @@ flowchart TD
 
 ### 7.2. 壊し確認
 
-`CLAUDE.md` の testing strategy に従い、移した 6 種の各検査について、対象を無効にして落ちることを確認する。確認は、対象を壊す、Go のテストを実行してそのサブテストだけが落ちることを見る、壊した変更を戻す、の順で行う。確認の手順と結果を `03_implementation_plan.md` の手動確認の節に記録する（AC-13。タスク `0007` の §5.1 と同じ形式）。対象は、拡張 ID の 1 文字、`Makefile` の `ext-` ターゲット 1 つ、`security.md` の permission 1 つ、`project_overview.md` の `TypeScript` と `extension/`、`0007` の `3.12.x` の見出し、`0007` の §5.1 のセル、`0007` の `3.12.2`・`3.12.3` の本文（本文だけを空にしても落ちることを確かめる。AC-06）。
+`CLAUDE.md` の testing strategy に従い、移した 6 種の各検査について、対象を無効にして落ちることを確認する。確認は、対象を壊す、Go のテストを実行してそのサブテストだけが落ちることを見る、壊した変更を戻す、の順で行う。確認の手順と結果を `03_implementation_plan.md` の手動確認の節に記録する（AC-13。タスク `0007` の §5.1 と同じ形式）。対象は、拡張 ID の 1 文字、`Makefile` の `ext-` ターゲット 1 つ、`security.md` の `要求する権限` の permission 1 つ、manifest の `permissions` の permission 1 つ（manifest から permission を消した場合に落ちることも確かめる。集合の比較が両方向であることの確認。AC-04）、`project_overview.md` の `TypeScript` と `extension/`、`0007` の `3.12.x` の見出し、`0007` の §5.1 のセル、`0007` の `3.12.2`・`3.12.3` の本文（本文だけを空にしても落ちることを確かめる。AC-06）。
 
 ### 7.3. 実行環境
 

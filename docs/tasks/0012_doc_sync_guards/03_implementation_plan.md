@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Created | 2026-10-13 |
-| Review date | 2026-10-13 |
-| Reviewer | isseis |
-| Comments | - |
+| Review date | - |
+| Reviewer | - |
+| Comments | 2026-10-13 レビュー往復 1（決定の変更）: 検査 3（manifest の permission）を、`security.md` §8.1 の `要求する権限` の列挙と manifest の `permissions` を集合として両方向に一致させる実装に変更し（ステップ 1-7・§5 の AC-04）、壊し確認の対象に manifest からの permission の削除を加えた（ステップ 4-1）。あわせて編集上の修正（決定の変更なし）: §8 の node 側の削除の AC 参照を `AC-02〜AC-09` から `AC-08〜AC-09` に直した。再承認を求める。 |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「requirements」）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目、節番号は [02_architecture.md](02_architecture.md)（以下「architecture」）の節を指す。既存のコードと文書の行番号は、断りがない限り HEAD `f94ae62`（ブランチ `doc-guard-refactor`）で確かめた。
 
@@ -101,7 +101,7 @@ requirements が定める 4 つの機能要件（F-001〜F-004）を、architect
 - [ ] **ステップ 1-4**: `sectionByHeadingPrefix(doc, prefix string) string` を実装する（契約は architecture §3.2。前後の空白を除いて `prefix` で始まる最初の見出し行を探し、その行を含めず、次の見出し行の手前までを返す。見出しがなければ空文字列）。`extensionIDFromManifestKey(key string) (string, error)` を実装する（`encoding/base64`・`crypto/x509`・`crypto/sha256`。解析できない値はエラーを返す。契約は architecture §3.4）。解析できない `key` でエラーを返すことを確かめる小さな単体テストを加える（固定値によらない）。
 - [ ] **ステップ 1-5**: 検査 1（拡張 ID の記載。`README.md`・`docs/dev/security.md`）のサブテストを実装する。導出値が両文書の本文に含まれることを確かめる（architecture §3.3）。
 - [ ] **ステップ 1-6**: 検査 2（`ext-` ターゲットの一覧。`Makefile`・`CLAUDE.md`）のサブテストを実装する（抽出規則は architecture §3.3 の契約）。両者から集めた名前の集合が一致することを確かめ、`Makefile` から 1 件も集まらなければ失敗させる。
-- [ ] **ステップ 1-7**: 検査 3（manifest の permission。`docs/dev/security.md` §8.1）のサブテストを実装する（architecture §3.3）。
+- [ ] **ステップ 1-7**: 検査 3（manifest の permission。`docs/dev/security.md` §8.1）のサブテストを実装する。§8.1 の `要求する権限` の列挙と manifest の `permissions` を集合として両方向に比較し、どちらか片方だけにある権限（manifest にあって文書にない権限、文書にあって manifest にない権限）を落とす（architecture §3.3）。
 - [ ] **ステップ 1-8**: 検査 4（`docs/dev/project_overview.md` の記述）のサブテストを実装する（architecture §3.3）。
 - [ ] **ステップ 1-9**: 検査 5（`0007` の `02_architecture.md` の調査の記録）のサブテストを実装する（architecture §3.3）。
 - [ ] **ステップ 1-10**: 検査 6（`0007` の `03_implementation_plan.md` §5.1）のサブテストを実装する（照合の内容は architecture §3.3）。表の本文の行の数が期待する行の数と一致することも確かめ、余分な行・欠けた行のどちらでも落ちるようにする（現行 `docs.test.ts` の `deepEqual` と同じ）。期待する行ラベルは §1.2 のとおりヘルパで番号から組み立て、Go ソースに `AC-<数字>` のリテラルを書かない。
@@ -183,7 +183,7 @@ requirements が定める 4 つの機能要件（F-001〜F-004）を、architect
 
 **対象ファイル:** `docs/tasks/0012_doc_sync_guards/03_implementation_plan.md`（本計画の §5.1）
 
-- [ ] **ステップ 4-1**: 移した 6 種の各検査について、architecture §7.2 が挙げる対象を壊し、`go test -tags test -run <サブテスト> ./cmd/yt2column` でそのサブテストだけが落ちることを確かめる。主な対象は、拡張 ID の 1 文字、`Makefile` の `ext-` ターゲット 1 つ、`security.md` の permission 1 つ、`project_overview.md` の `TypeScript` と `extension/`、`0007` の `3.12.x` の見出しと `3.12.2`・`3.12.3` の本文、`0007` の §5.1 のセルである。壊した変更は `git restore -- <対象ファイル>`（または `git checkout -- <対象ファイル>`）で戻し、戻した後に `make test` が通ることを確かめてから次の検査に進む。
+- [ ] **ステップ 4-1**: 移した 6 種の各検査について、architecture §7.2 が挙げる対象を壊し、`go test -tags test -run <サブテスト> ./cmd/yt2column` でそのサブテストだけが落ちることを確かめる。主な対象は、拡張 ID の 1 文字、`Makefile` の `ext-` ターゲット 1 つ、`security.md` の `要求する権限` の permission 1 つ、manifest の `permissions` の permission 1 つ（manifest から消す場合に落ちることも確かめる。検査 3 の集合の比較が両方向であることの確認）、`project_overview.md` の `TypeScript` と `extension/`、`0007` の `3.12.x` の見出しと `3.12.2`・`3.12.3` の本文、`0007` の §5.1 のセルである。壊した変更は `git restore -- <対象ファイル>`（または `git checkout -- <対象ファイル>`）で戻し、戻した後に `make test` が通ることを確かめてから次の検査に進む。
 - [ ] **ステップ 4-2**: ステップ 4-1 の手順と結果を §5.1 の表に記録する（形式はタスク `0007` の §5.1 に倣う）。
 - [ ] **ステップ 4-3**: フェーズ 4 の完了条件として、`make fmt` → `make test` → `make lint` を通す。
 
@@ -262,7 +262,7 @@ Go の guard は macOS と Linux（CI）のどちらでも `make test` で動く
 | AC-01 | test | `cmd/yt2column/extension_docs_test.go` の 6 種のサブテスト。`make test`（`Makefile:68-69`）で実行され、node・npm を起動しない |
 | AC-02 | test | 検査 1・5 のサブテスト（導出値で照合）。ステップ 4-1 の壊し確認（文書の拡張 ID の 1 文字、manifest の `key`） |
 | AC-03 | test | 検査 2 のサブテスト。ステップ 4-1 の壊し確認（`Makefile` の `ext-` ターゲット 1 つ、`CLAUDE.md` の一覧） |
-| AC-04 | test | 検査 3 のサブテスト。ステップ 4-1 の壊し確認（`manifest.json` の permission、`security.md` §8.1 の記載） |
+| AC-04 | test | 検査 3 のサブテスト。ステップ 4-1 の壊し確認（`manifest.json` の permission の追加と削除、`security.md` §8.1 の `要求する権限` の記載の削除） |
 | AC-05 | test | 検査 4 のサブテスト。ステップ 4-1 の壊し確認（`project_overview.md` の `TypeScript`・`extension/`） |
 | AC-06 | test | 検査 5 のサブテスト。ステップ 4-1 の壊し確認（`3.12.x` の見出しの削除、`3.12.2`・`3.12.3` の本文を空にする） |
 | AC-07 | test | 検査 6 のサブテスト。ステップ 4-1 の壊し確認（§5.1 の行の削除、セルを空にする） |
@@ -312,7 +312,7 @@ Go の guard は macOS と Linux（CI）のどちらでも `make test` で動く
 
 ## 8. 成功基準 (Success Criteria)
 
-- **機能:** 移した 6 種の検査が Go のテストとして `make test` で通り（AC-01）、node 側から同じ検査が消え（AC-02〜AC-09）、`CLAUDE.md` の規則が文書だけの変更で `make ext-test` を要求しない（AC-10〜AC-12）。
+- **機能:** 移した 6 種の検査が Go のテストとして `make test` で通り（AC-01）、node 側から同じ検査が消え（AC-08〜AC-09）、`CLAUDE.md` の規則が文書だけの変更で `make ext-test` を要求しない（AC-10〜AC-12）。
 - **品質:** `make test`・`make lint`・`make ext-check` が通り、既存の doc guard と拡張の挙動のテストが変わらず通る。各検査が対象を壊すと落ちることが確認され、§5.1 に記録されている（AC-13）。
 - **セキュリティ:** 新しい外部モジュールを追加しない。guard はコミットされたファイルだけを読み、秘密情報を扱わない。拡張 ID は manifest の `key`（公開情報）から導出する。
 - **文書:** `CLAUDE.md` の「Development Notes」の規則が architecture §3.7 の内容 (a)〜(c) を満たす。他の文書（`README.md`・`docs/dev/security.md`・`docs/dev/project_overview.md`・タスク `0007` の文書）は現行の記載を維持する。

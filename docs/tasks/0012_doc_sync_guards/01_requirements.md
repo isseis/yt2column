@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Created | 2026-10-13 |
-| Review date | 2026-10-13 |
-| Reviewer | isseis |
-| Comments | 2026-10-13 編集上の修正（決定の変更なし）: 背景と F-003 が参照する `CLAUDE.md` の行番号を、現在の位置（`CLAUDE.md:211-215`・`CLAUDE.md:209`）に直した。2026-10-13 編集上の修正（決定の変更なし）: 用語集の「docs-only の変更」が `.gitignore` も `check-changes` のコードの変更から外れるとしていた誤りを直し、F-001 の検査 6 の列番号を、列挙した 4 列（2〜5 列目）に揃えた。 |
+| Review date | - |
+| Reviewer | - |
+| Comments | 2026-10-13 レビュー往復 1（決定の変更）: 検査 3（manifest の permission）を、`security.md` §8.1 の `要求する権限` の列挙と manifest の `permissions` を集合として両方向に一致させる検査に変更し、AC-04 の双方向の要件（manifest から permission を消した場合を含む）に揃えた。再承認を求める。2026-10-13 編集上の修正（決定の変更なし）: 背景と F-003 が参照する `CLAUDE.md` の行番号を、現在の位置（`CLAUDE.md:211-215`・`CLAUDE.md:209`）に直した。2026-10-13 編集上の修正（決定の変更なし）: 用語集の「docs-only の変更」が `.gitignore` も `check-changes` のコードの変更から外れるとしていた誤りを直し、F-001 の検査 6 の列番号を、列挙した 4 列（2〜5 列目）に揃えた。 |
 
 ## 1. 概要 (Overview)
 
@@ -62,7 +62,7 @@
 
 1.  **拡張 ID の記載:** `README.md` と `docs/dev/security.md` に、`extension/static/manifest.json` の `key` から導出した固定の拡張 ID が含まれる。拡張 ID は文書側に固定値として書かず、manifest の `key` から導出する（現行 `docs.test.ts` の `extensionIdFromManifestKey` と同じ計算）。
 2.  **`ext-` ターゲットの一覧:** `Makefile` が `ext-<名前>:` の形で定義する `ext-` ターゲットの集合と、`CLAUDE.md` が `- \`make ext-<名前>\`` の形で列挙する `ext-` ターゲットの集合が一致する（重複を除いて比較する。どちらか片方だけにあるターゲットがあれば落ちる）。
-3.  **manifest の permission:** `docs/dev/security.md` の `### 8.1. ブラウザ拡張（#110）` の節が、`extension/static/manifest.json` の `permissions` の各値を、バッククォートで囲んだ形で列挙する。
+3.  **manifest の permission:** `docs/dev/security.md` の `### 8.1. ブラウザ拡張（#110）` の節の `要求する権限` の列挙と、`extension/static/manifest.json` の `permissions` が、バッククォートで囲んだ権限の集合として両方向に一致する（manifest の permission を増減すると落ち、文書の `要求する権限` から permission の記載を消しても落ちる）。
 4.  **project overview の記述:** `docs/dev/project_overview.md` の `## 決定済みの方針` の節に `TypeScript` があり、`## 想定ディレクトリ構成` の節に `extension/` がある。
 5.  **タスク 0007 の調査の記録:** `docs/tasks/0007_browser_extension_skeleton/02_architecture.md` に `#### 3.12.1.`・`#### 3.12.2.`・`#### 3.12.3.` の見出しがあり、`3.12.1` の本文に拡張 ID があり、`3.12.2`・`3.12.3` の見出しの直後の本文が空でない。
 6.  **タスク 0007 の手動確認の記録:** `docs/tasks/0007_browser_extension_skeleton/03_implementation_plan.md` の `### 5.1. 手動の確認と記録` の表が、定められた AC の行（`AC-02`・`AC-03`・`AC-05`・`AC-07`・`AC-08`・`AC-10・AC-11`・`AC-13`・`AC-20`・`AC-21・AC-22・AC-31`・`AC-28・AC-29`・`AC-25`）をこの順で持ち、各行が 5 列で、確認内容・ブラウザか環境・日付・結果の列（2〜5 列目）が空でない。
