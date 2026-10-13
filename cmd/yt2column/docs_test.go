@@ -41,11 +41,11 @@ func TestREADMEDocumentsFlags(t *testing.T) {
 	}
 	fs, _ := newFlagSet()
 	fs.VisitAll(func(f *flag.Flag) {
-		if !tableContains(table, "--"+f.Name) {
+		if !tableFlagContains(table, "--"+f.Name) {
 			t.Errorf("flags table does not document --%s", f.Name)
 		}
 	})
-	if !tableContains(table, "--help") {
+	if !tableFlagContains(table, "--help") {
 		t.Error("flags table does not document --help")
 	}
 }
@@ -332,13 +332,13 @@ func tableRowsWithFirstCell(table [][]string, first string) [][]string {
 	return rows
 }
 
-// tableContains reports whether any cell of table contains want.
-func tableContains(table [][]string, want string) bool {
-	for _, row := range table {
-		for _, cell := range row {
-			if strings.Contains(cell, want) {
-				return true
-			}
+// tableFlagContains reports whether the flags table documents want, a flag name
+// such as --out. It looks only at the first cell (the flag column), so a flag
+// named in another row's description does not count as documented.
+func tableFlagContains(table [][]string, want string) bool {
+	for _, row := range table[1:] {
+		if len(row) > 0 && strings.Contains(stripBackticks(row[0]), want) {
+			return true
 		}
 	}
 	return false
