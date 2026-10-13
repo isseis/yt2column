@@ -329,10 +329,10 @@ time YT2COLUMN_YTDLP_PATH=/usr/bin/false yt2column --keep-cache \
 
 [02_architecture.md](02_architecture.md) §5.4 の種類の失敗は、どちらの構成でも 0 件だった（§3.4）。多い種類がないので、テンプレートの文言と `targetBodyChars` で対処することはない。テンプレートの文言と `targetBodyChars` は変えていない。
 
-§5.4 の種類に当たらないものとして、直す前と直した後が同じ項目（§3.5 の `zW1RBacSqjk` の 4）があった。`ArticleWriter` はこれを受理し、文面は変わらない。害はないが、一覧に何も変えない項目が残る。拒否するかどうかは、別の issue で検討する。
+§5.4 の種類に当たらないものとして、直す前と直した後が同じ項目（§3.5 の `zW1RBacSqjk` の 4）があった。`ArticleWriter` はこれを受理し、文面は変わらない。害はないが、一覧に何も変えない項目が残る。拒否するかどうかは、別の issue（#186）で検討する。
 
 また、§5.4 の種類に当たらない失敗として、生成の応答の打ち切り（`finish_reason` が `length`）が 1 回あった（§3.5）。段階の失敗ではないが、この構成では記事が得られない実行がありうる。
 
 ### 4.4. 誤認識の写し
 
-動画 1（`roNZ-rLxhUE`）の「プレゼンスが交代する」（字幕の「後退」の誤認識）は、deepseek-flash による生成では、0008 の v1〜v5 と本タスクの 3 つの構成（段階なし、検証・推敲が deepseek-flash、検証・推敲が Claude）の 8 回すべてに現れ、どちらの検証・推敲の後も残った。0008 の deepseek-v4-pro と claude-sonnet-5-5（effort medium）による生成にも現れ、claude-opus-5-5（effort medium）による生成（0008 評価記録 §5.9）には現れなかった。要件定義書 §2.3 に従い、別の issue にする。
+動画 1（`roNZ-rLxhUE`）の「プレゼンスが交代する」（字幕の「後退」の誤認識）は、deepseek-flash による生成では、0008 の v1〜v5 と本タスクの 3 つの構成（段階なし、検証・推敲が deepseek-flash、検証・推敲が Claude）の 8 回すべてに現れ、どちらの検証・推敲の後も残った。0008 の deepseek-v4-pro と claude-sonnet-5-5（effort medium）による生成にも現れ、claude-opus-5-5（effort medium）による生成（0008 評価記録 §5.9）には現れなかった。要件定義書 §2.3 に従い、別の issue（#185）にした。
