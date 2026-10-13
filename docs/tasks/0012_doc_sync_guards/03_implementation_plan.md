@@ -123,16 +123,16 @@ requirements が定める 4 つの機能要件（F-001〜F-004）を、architect
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した（[#189](https://github.com/isseis/yt2column/pull/189)）
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: node 側の削除（F-002）
 
 **対象ファイル:** `extension/test/docs.test.ts`（削除）
 
-- [ ] **ステップ 2-1**: `extension/test/docs.test.ts` を削除する。移した 6 種の検査と同じ内容を node 側に残さない。
-- [ ] **ステップ 2-2**: `extension/test/helpers/` の利用状況を確かめ、`docs.test.ts` だけが使っていた import・文字列リテラルが残っていないこと、他のテストが使うヘルパ（`extensionId.ts`・`repoFile.ts`・`paths.ts`）が残っていることを確認する。不要なヘルパ・import があれば削除する。
-- [ ] **ステップ 2-3**: フェーズ 2 の完了条件として、`make ext-check`（typecheck・lint・fmt-check・test・build。`Makefile:287-292`）を通す。未使用の import・文字列リテラルで `make ext-lint`・`make ext-typecheck` が落ちないことを確かめる。
+- [x] **ステップ 2-1**: `extension/test/docs.test.ts` を削除する。移した 6 種の検査と同じ内容を node 側に残さない。
+- [x] **ステップ 2-2**: `extension/test/helpers/` の利用状況を確かめ、`docs.test.ts` だけが使っていた import・文字列リテラルが残っていないこと、他のテストが使うヘルパ（`extensionId.ts`・`repoFile.ts`・`paths.ts`）が残っていることを確認する。不要なヘルパ・import があれば削除する。
+- [x] **ステップ 2-3**: フェーズ 2 の完了条件として、`make ext-check`（typecheck・lint・fmt-check・test・build。`Makefile:287-292`）を通す。未使用の import・文字列リテラルで `make ext-lint`・`make ext-typecheck` が落ちないことを確かめる。
 
 **完了条件:** `extension/test/docs.test.ts` がなく、移した 6 種の検査が `make ext-test` に含まれない。拡張に残る挙動のテストが `make ext-check` で通る（AC-08・AC-09）。
 
@@ -148,8 +148,8 @@ requirements が定める 4 つの機能要件（F-001〜F-004）を、architect
 
 **判定理由**: 移した検査の node 側の複製の削除と未使用のヘルパの始末に限られ、`既存コード調査結果` に競合する実装方針の併記がなく、パネルモードの引き金・2 つ以上の Conditional check・隔離すべき高リスクなステップのいずれにも該当しないため。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
+- [x] PR を作成した（[#190](https://github.com/isseis/yt2column/pull/190)）
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
