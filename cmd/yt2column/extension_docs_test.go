@@ -286,6 +286,18 @@ func TestDeclaredPermissions(t *testing.T) {
 			ok:      true,
 		},
 		{
+			name:    "keeps permissions after a period inside a reason",
+			section: "**要求する権限**: `a`（理由。続き）、`b`（別の理由）。",
+			want:    []string{"a", "b"},
+			ok:      true,
+		},
+		{
+			name:    "a top-level period ends the list",
+			section: "**要求する権限**: `a`（理由）。この後 `b`（別）は要求しない。",
+			want:    []string{"a"},
+			ok:      true,
+		},
+		{
 			name:    "stops before a later bullet's code span",
 			section: "**要求する権限**: `activeTab`（タブを読む）。\n- **秘密鍵**: `key`（公開鍵）だけを使う。",
 			want:    []string{"activeTab"},
@@ -383,10 +395,11 @@ func extensionIDFromManifestKey(key string) (string, error) {
 // declaredPermissions returns the permissions listed on the requested-permissions
 // bullet of a security.md extension section. A listed permission is a code span
 // at the top level of the list, directly followed by its parenthesised reason;
-// code spans inside a reason, including nested ones, are not permissions. It
-// reads only up to the first sentence end, so the permissions the section names
-// as not requested are excluded. The second result is false when the bullet is
-// missing or lists nothing.
+// code spans inside a reason, including nested ones, are not permissions. The
+// list ends at the first top-level sentence end, so a period inside a reason
+// (at a parenthesis depth greater than zero) does not end it, and the
+// permissions the section names as not requested are excluded. The second
+// result is false when the bullet is missing or lists nothing.
 func declaredPermissions(section string) ([]string, bool) {
 	const marker = "**要求する権限**"
 	start := strings.Index(section, marker)
@@ -394,14 +407,17 @@ func declaredPermissions(section string) ([]string, bool) {
 		return nil, false
 	}
 	rest := section[start:]
-	if end := strings.Index(rest, "。"); end >= 0 {
-		rest = rest[:end]
-	}
 	var permissions []string
 	depth := 0
+loop:
 	for i := 0; i < len(rest); {
 		r, size := utf8.DecodeRuneInString(rest[i:])
 		switch r {
+		case '。':
+			if depth == 0 {
+				break loop
+			}
+			i += size
 		case '（':
 			depth++
 			i += size
