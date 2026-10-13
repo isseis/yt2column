@@ -315,12 +315,12 @@ HEAD `4dd797d`（ブランチ `claude/mkplan-0010-xnazts`）で確認した。�
   - 使い方の誤り（空の `--review-log`、`filepath.Clean` で `--out` と同じ `--review-log`、無効にした段階のテンプレートの上書き。既存の `usageRow` の形）。
   - キャッシュディレクトリの中の `--review-log`（既存の `insideCacheRow` の形）。
   - `ErrTooLong` のときに `--no-shorten` の案内が出ること（`TestRunTooLongHint`）。
-  - 検証・推敲の段階の `ErrMalformedOutput` のときだけ `--no-review` の案内が出ること（`TestRunReviewMalformedHint`。生成と字数の調整の `ErrMalformedOutput` では出ない）。
+  - 検証・推敲の段階の `ErrMalformedOutput` のときだけ `--no-review` の案内が出ること（`executionPathRows` の `review step fails` の行で出ること、`TestRunReviewMalformedHint` で生成と字数の調整の `ErrMalformedOutput` では出ないこと）。
 
-  セキュリティ（architecture §7.3）として、検証・推敲の fake が DeepSeek の API キーを含むエラーを返したとき、標準エラー出力にキーとその末尾 8 文字が現れないことを、既存の `requireSafeOutput`・`secretStrings` で確かめる（`TestRunReviewDoesNotLeakAPIKey`）。新しい実行の経路（一覧のファイルの書き出しの失敗、`--review-log` と `--no-review` の同時指定、段階の失敗とその案内）は、`run_test.go:419` の `executionPathRows` にも行を加え、既存の経路ごとの保証（秘密情報が出ないこと、エスケープ、使い方の誤りでの副作用のなさ）を当てる。
+  セキュリティ（architecture §7.3）として、検証・推敲の fake が DeepSeek の API キーを含むエラーを返したとき、標準エラー出力にキーとその末尾 8 文字が現れないことを、既存の `requireSafeOutput`・`secretStrings` で確かめる（`executionPathRows` の `review failure whose message holds the API key` の行）。新しい実行の経路（一覧のファイルの書き出しの失敗、`--review-log` と `--no-review` の同時指定、段階の失敗とその案内）は、`run_test.go:419` の `executionPathRows` にも行を加え、既存の経路ごとの保証（秘密情報が出ないこと、エスケープ、使い方の誤りでの副作用のなさ）を当てる。
 - [x] **ステップ 5-8**: `TestRunHelp`（`run_test.go:1063`）の一覧に 7 つのフラグを加える。ステップ 5-5 のコミットで `make lint` の `go vet -tags integration` が通り、`integration` タグのビルドで段階を無効にする値が使えることを確かめる。
 
-  このステップの最後に、ステップ 5-5〜5-8 のテストについて、壊して失敗することを確かめ、コミットメッセージに書く（PR-7 の完了条件）。対象: CLI が検証・推敲に生成の `LLMClient` を渡す（`TestRunDefaultSteps`）、`--review-log` のキャッシュディレクトリの検査を外す（`insideCacheRow` の追加の行）、`--review-log` と `--no-review` の検査を外す（`TestRunReviewLogWithNoReview`）、`ReviewLogError` を判定せず「the run failed:」の分岐に落とす（`TestRunReviewLogFailure` の、その文言が出ないことの検査）、`--no-review` の案内を `StepShorten` でも出す（`TestRunReviewMalformedHint`）。`make fmt` → `make test` → `make lint` を通す。ステップ 5-5 で README を変えるので、`make ext-test` も通す。
+  このステップの最後に、ステップ 5-5〜5-8 のテストについて、壊して失敗することを確かめ、コミットメッセージに書く（PR-7 の完了条件）。対象: CLI が検証・推敲に生成の `LLMClient` を渡す（`TestRunDefaultSteps`）、`--review-log` のキャッシュディレクトリの検査を外す（`insideCacheRow` の追加の行）、`--review-log` と `--no-review` の検査を外す（`executionPathRows` の `--review-log with --no-review` の行）、`ReviewLogError` を判定せず「the run failed:」の分岐に落とす（`executionPathRows` の `review-log write failure after the publish` の行の、その文言が出ないことの検査）、`--no-review` の案内を `StepShorten` でも出す（`TestRunReviewMalformedHint`）。`make fmt` → `make test` → `make lint` を通す。ステップ 5-5 で README を変えるので、`make ext-test` も通す。
 
 ### PR-7 作成ポイント: CLI flags and default-on steps
 
@@ -328,7 +328,7 @@ HEAD `4dd797d`（ブランチ `claude/mkplan-0010-xnazts`）で確認した。�
 
 **推奨タイトル**: `feat(0010): enable the shorten and review steps in the CLI by default`
 
-**レビュー観点**: 既定で段階を有効にする変更と同じコミットで、手順 A5 まで進む既存のすべての CLI のテスト（直書きの `run_test.go:404`・`signal_test.go:180`・`integration_*` を含む）が段階を無効にする値を使い、期待を変えていないこと（AC-27） / `newRunEnv`・`testDeps` の `newReviewLLMClient` が何も作らず、`generateCounter` が検証・推敲の `LLMClient` も数えること / 手順 A2・A4 の使い方の誤り（空の `--review-log`、`--out` と同じパス、無効にした段階のテンプレートの上書き、`--review-log` と `--no-review`）が LLM を呼ばずに `exitUsage` になること / `ReviewLogError` の報告（要約が先、`reportRunError` が `StageError` より先に判定）と、`executionPathRows` の新しい経路で秘密情報が出ないこと / 0009 の PR-4（CLI の配線）がマージ済みなら、その後に加わった CLI のテストの起動箇所も段階を無効にする値を使い、`TestRunReviewDoesNotLeakAPIKey` の対象の秘密情報に 0009 が加えたキーも入っていること
+**レビュー観点**: 既定で段階を有効にする変更と同じコミットで、手順 A5 まで進む既存のすべての CLI のテスト（直書きの `run_test.go:404`・`signal_test.go:180`・`integration_*` を含む）が段階を無効にする値を使い、期待を変えていないこと（AC-27） / `newRunEnv`・`testDeps` の `newReviewLLMClient` が何も作らず、`generateCounter` が検証・推敲の `LLMClient` も数えること / 手順 A2・A4 の使い方の誤り（空の `--review-log`、`--out` と同じパス、無効にした段階のテンプレートの上書き、`--review-log` と `--no-review`）が LLM を呼ばずに `exitUsage` になること / `ReviewLogError` の報告（要約が先、`reportRunError` が `StageError` より先に判定）と、`executionPathRows` の新しい経路で秘密情報が出ないこと / 0009 の PR-4（CLI の配線）がマージ済みなら、その後に加わった CLI のテストの起動箇所も段階を無効にする値を使い、`executionPathRows` の `review failure whose message holds the API key` の行の対象の秘密情報に 0009 が加えたキーも入っていること
 
 **実装モデル要件**: frontier-required
 
@@ -471,7 +471,7 @@ architecture §7.3 に従う。計画固有の事項は次のとおり。
 
 - §5.1 の各脅威に対応する入力（巨大な応答、項目の数の超過、重複したキー、不正な UTF-8、対になっていないサロゲート、制御文字、あいまいな「直す前の記述」）は、`TestParseReviewResponse` と `TestApplyRevisions` の行に含める。
 - 応答の拒否のエラーに応答の値が現れないことを、目印で確かめる（`TestParseReviewResponse`・`TestApplyRevisions`・`TestReviewResultCheck`）。
-- 検証・推敲の失敗のエラーに API キーが含まれても、標準エラー出力に出ないことを、生成と検証・推敲が同じ DeepSeek のキーを使う構成で確かめる（`TestRunReviewDoesNotLeakAPIKey`）。一覧のファイルは記事の値と応答の値だけから作り、設定の値を受け取らないので（architecture §5.1）、ファイルにキーが出ないことを確かめるテストは置かない（失敗しうる形を作れないため）。新しい実行の経路（一覧のファイルの書き出しの失敗、`--review-log` と `--no-review` の同時指定、段階の失敗とその案内）は、`run_test.go:419` の `executionPathRows` にも行を加え、既存の経路ごとの保証（秘密情報が出ないこと、エスケープ、使い方の誤りでの副作用のなさ）を当てる。
+- 検証・推敲の失敗のエラーに API キーが含まれても、標準エラー出力に出ないことを、生成と検証・推敲が同じ DeepSeek のキーを使う構成で確かめる（`executionPathRows` の `review failure whose message holds the API key` の行）。一覧のファイルは記事の値と応答の値だけから作り、設定の値を受け取らないので（architecture §5.1）、ファイルにキーが出ないことを確かめるテストは置かない（失敗しうる形を作れないため）。新しい実行の経路（一覧のファイルの書き出しの失敗、`--review-log` と `--no-review` の同時指定、段階の失敗とその案内）は、`run_test.go:419` の `executionPathRows` にも行を加え、既存の経路ごとの保証（秘密情報が出ないこと、エスケープ、使い方の誤りでの副作用のなさ）を当てる。
 
 ### 4.4. テストヘルパー
 
@@ -506,9 +506,9 @@ architecture §7.3 に従う。計画固有の事項は次のとおり。
 | AC-17 | プロバイダだけ設定は `ErrMissing`、不正な値は `ErrInvalid` で値が現れない | test | `internal/config/config_test.go::TestLoadReview`・`TestLoadErrorsOmitValues`（追加の行） |
 | AC-18 | モデルだけ設定なら生成のプロバイダとそのモデル | test | `internal/config/config_test.go::TestLoadReview`・`internal/llm/provider/provider_test.go::TestNewReviewUsesReviewModel` |
 | AC-19 | `--no-review`・`--no-shorten`・両方の指定 | test | `cmd/run_test.go::TestRunStepFlags`（`--no-review` で検証・推敲の fake が呼ばれない。`--no-shorten` は検証・推敲を有効にしたまま上限を超える本文で、字数の調整を呼ばず成功する。両方の指定で `--out` のファイルと標準エラー出力が文字列のリテラルで書いた従来の書式と一致）・`internal/publisher/file_test.go` の既存の `TestFilePublisherWritesArticle`・`TestFilePublisherEmptyModelVersion`（段階のない記事の書式） |
-| AC-20 | `--review-log` の書き出し、失敗時の扱い | test | `internal/publisher/reviewlog_test.go` の 5 つのテスト・`internal/job/job_test.go::TestRunReviewLogWritten`・`TestRunReviewLogNotWrittenOnFailure`・`TestRunReviewLogWriteFailure`・`cmd/run_test.go::TestRunReviewLog`・`TestRunReviewLogFailure`（`--out` と `--slack` のそれぞれで、メッセージが記事を書き出した（投稿した）ことを示し、`article was kept` と `the run failed:` を含まず、要約が先、終了コード 1） |
-| AC-21 | `--review-log` と `--no-review` の同時指定は LLM を呼ばずに使い方の誤り | test | `cmd/run_test.go::TestRunReviewLogWithNoReview`（`exitUsage`、生成の fake の呼び出し 0 回） |
-| AC-22 | `--out` のモデルの行に呼んだ段階の行だけ | test | `internal/publisher/file_test.go::TestRenderArticleSteps`・`cmd/run_test.go::TestRunStepModelLines`（字数の調整を有効にして呼ばなかった場合に字数の調整の行がない行を含む）・`writer/steps_test.go::TestWriteStepOrder`（`Shorten` が nil） |
+| AC-20 | `--review-log` の書き出し、失敗時の扱い | test | `internal/publisher/reviewlog_test.go` の 5 つのテスト・`internal/job/job_test.go::TestRunReviewLogWritten`・`TestRunReviewLogNotWrittenOnFailure`・`TestRunReviewLogWriteFailure`・`cmd/run_test.go::TestRunReviewLog`（`--out` と `--slack` の成功）・`TestRunReviewLogFailure`（`--slack` の失敗）・`TestRunExecutionPaths` の `review-log write failure after the publish` の行（`--out` の失敗。`--out` と `--slack` のそれぞれで、メッセージが記事を書き出した（投稿した）ことを示し、`article was kept` と `the run failed:` を含まず、要約が先、終了コード 1） |
+| AC-21 | `--review-log` と `--no-review` の同時指定は LLM を呼ばずに使い方の誤り | test | `cmd/run_test.go::TestRunExecutionPaths` の `--review-log with --no-review` の行（`exitUsage`、生成の fake の呼び出し 0 回） |
+| AC-22 | `--out` のモデルの行に呼んだ段階の行だけ | test | `internal/publisher/file_test.go::TestRenderArticleSteps`・`cmd/run_test.go::TestRunDefaultSteps`（両方の段階の行）・`TestRunReviewLog`（字数の調整を呼ばなかった場合に字数の調整の行がない）・`writer/steps_test.go::TestWriteStepOrder`（`Shorten` が nil） |
 | AC-23 | 上書きテンプレートの検査と既定のテンプレートの検査 | test | `writer/template_test.go::TestTemplateSyntaxAllowlist`（生成の 2 つと段階の 4 つのテンプレート）・`TestDefaultTemplatesPassChecks`・`TestInvalidTemplateErrorNamesSource`・`cmd/run_test.go::TestRunInvalidStepTemplate`（4 つの上書きのフラグのそれぞれで、LLM を呼ばずに `exitUsage`） |
 | AC-24 | 段階の LLM の失敗で元の番兵を判定でき、段階がメッセージで分かる | test | `writer/steps_test.go::TestWriteStepFailures`（2 つの段階 × `llm.ErrTruncated`・`llm.ErrEmptyResponse`・`context.DeadlineExceeded`・テスト用の番兵。`errors.AsType[*StepError]` の `Step`、メッセージの段階の名前、ゼロ値） |
 | AC-25 | 段階の前のキャンセルでその段階の LLM を呼ばない | test | `writer/steps_test.go::TestWriteStepContextDone`（2 つの段階の前の取り消しの 3 行。その段階の fake が呼ばれず、`context.Canceled`） |
