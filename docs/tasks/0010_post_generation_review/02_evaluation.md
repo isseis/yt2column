@@ -63,12 +63,12 @@ time YT2COLUMN_YTDLP_PATH=/usr/bin/false yt2column --keep-cache \
 
 ```sh
 V=v5; RUN=1
-mkdir -p ~/yt2column-eval/out/$V ~/yt2column-eval/review
+mkdir -p ~/yt2column-eval/out/$V-steps ~/yt2column-eval/review
 time YT2COLUMN_YTDLP_PATH=/usr/bin/false yt2column --keep-cache \
   --system-prompt docs/tasks/0008_column_prompt/$V/system.tmpl \
   --user-prompt docs/tasks/0008_column_prompt/$V/user.tmpl \
   --review-log ~/yt2column-eval/review/<動画 ID>-$RUN.md \
-  --out ~/yt2column-eval/out/$V/<動画 ID>-$RUN.md <URL>
+  --out ~/yt2column-eval/out/$V-steps/<動画 ID>-$RUN.md <URL>
 ```
 
 -   `time` の `real` を、生成から出力までの所要時間として記録する（AC-30）。段階なしと段階ありの両方を測る。§3.2 には段階ありの所要時間を記録し、段階が増やした時間は §4 の結論で比べる。
