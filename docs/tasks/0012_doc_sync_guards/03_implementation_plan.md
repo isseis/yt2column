@@ -97,7 +97,7 @@ requirements が定める 4 つの機能要件（F-001〜F-004）を、architect
 - [x] PR がマージされた
 - [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
-- [x] **ステップ 1-3**: `extension_docs_test.go` を新設する（`package main`、先頭行は `//go:build test`）。`readDoc`・`markdownTables`・`findTable`・`tableRow`・`repositoryRoot` を再利用する。`manifest.json`（`key`・`permissions`）を `encoding/json` で読む。manifest と各文書はテスト関数の冒頭で 1 回だけ読み、サブテストで共有する（requirements §4.1）。
+- [x] **ステップ 1-3**: `extension_docs_test.go` を新設する（`package main`、先頭行は `//go:build test`）。`readDoc`・`findTable`・`sectionByHeading`・`repositoryRoot` を再利用する（表の分解 `markdownTables` は `findTable` の内部で使う）。`manifest.json`（`key`・`permissions`）を `encoding/json` で読む。manifest と各文書はテスト関数の冒頭で 1 回だけ読み、サブテストで共有する（requirements §4.1）。
 - [x] **ステップ 1-4**: `sectionByHeadingPrefix(doc, prefix string) string` を実装する（契約は architecture §3.2。前後の空白を除いて `prefix` で始まる最初の見出し行を探し、その行を含めず、次の見出し行の手前までを返す。見出しがなければ空文字列）。`extensionIDFromManifestKey(key string) (string, error)` を実装する（`encoding/base64`・`crypto/x509`・`crypto/sha256`。解析できない値はエラーを返す。契約は architecture §3.4）。解析できない `key` でエラーを返すことを確かめる小さな単体テストを加える（固定値によらない）。
 - [x] **ステップ 1-5**: 検査 1（拡張 ID の記載。`README.md`・`docs/dev/security.md`）のサブテストを実装する。導出値が両文書の本文に含まれることを確かめる（architecture §3.3）。
 - [x] **ステップ 1-6**: 検査 2（`ext-` ターゲットの一覧。`Makefile`・`CLAUDE.md`）のサブテストを実装する（抽出規則は architecture §3.3 の契約）。両者から集めた名前の集合が一致することを確かめ、`Makefile` から 1 件も集まらなければ失敗させる。

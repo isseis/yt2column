@@ -34,9 +34,9 @@ var extTargetRE = regexp.MustCompile(`(?m)^(ext-[a-z0-9-]+):`)
 var claudeExtTargetRE = regexp.MustCompile("(?m)^- `make (ext-[a-z0-9-]+)`")
 
 // requestedPermissionRE captures a requested permission: a code span that is
-// the item name of the 要求する権限 list, directly followed by its parenthesised
-// reason. Incidental code spans inside a reason are not followed by "（", so
-// they are not captured.
+// the item name of the requested-permissions list, directly followed by its
+// parenthesised reason. Incidental code spans inside a reason are not followed
+// by "（", so they are not captured.
 var requestedPermissionRE = regexp.MustCompile("`([^`]+)`（")
 
 // extensionManifest is the subset of extension/static/manifest.json these
@@ -99,21 +99,21 @@ func TestExtensionDocumentation(t *testing.T) {
 		if !ok {
 			t.Fatal("security.md 8.1 has no 要求する権限 list")
 		}
-		inManifest := map[string]bool{}
+		inManifest := map[string]struct{}{}
 		for _, permission := range manifest.Permissions {
-			inManifest[permission] = true
+			inManifest[permission] = struct{}{}
 		}
-		inDoc := map[string]bool{}
+		inDoc := map[string]struct{}{}
 		for _, permission := range declared {
-			inDoc[permission] = true
+			inDoc[permission] = struct{}{}
 		}
 		for _, permission := range manifest.Permissions {
-			if !inDoc[permission] {
+			if _, ok := inDoc[permission]; !ok {
 				t.Errorf("security.md 8.1 does not list the manifest permission %q", permission)
 			}
 		}
 		for _, permission := range declared {
-			if !inManifest[permission] {
+			if _, ok := inManifest[permission]; !ok {
 				t.Errorf("security.md 8.1 lists %q, which the manifest does not request", permission)
 			}
 		}
@@ -260,6 +260,61 @@ func TestExtensionIDFromManifestKeyRejectsUnparseableKey(t *testing.T) {
 	}
 }
 
+// TestDeclaredPermissions pins declaredPermissions's parsing: it captures each
+// requested permission, ignores a code span inside a reason (which is not
+// followed by a parenthesised reason itself), stops at the first sentence end
+// so a later bullet's code span is not captured, and reports not-ok when the
+// bullet or its list is missing.
+func TestDeclaredPermissions(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		section string
+		want    []string
+		ok      bool
+	}{
+		{
+			name:    "captures each requested permission",
+			section: "**要求する権限**（設計書 3.1 の manifest）: `activeTab`（タブを読む）、`storage`（保存する）。要求しない権限はない。",
+			want:    []string{"activeTab", "storage"},
+			ok:      true,
+		},
+		{
+			name:    "ignores a code span inside a reason",
+			section: "**要求する権限**: `storage`（`chrome.storage.session` で渡す）。",
+			want:    []string{"storage"},
+			ok:      true,
+		},
+		{
+			name:    "stops before a later bullet's code span",
+			section: "**要求する権限**: `activeTab`（タブを読む）。\n- **秘密鍵**: `key`（公開鍵）だけを使う。",
+			want:    []string{"activeTab"},
+			ok:      true,
+		},
+		{
+			name:    "missing marker yields not ok",
+			section: "### 8.1. ブラウザ拡張\n\n要求する権限はない。",
+			want:    nil,
+			ok:      false,
+		},
+		{
+			name:    "marker without an item yields not ok",
+			section: "**要求する権限**: なし。",
+			want:    nil,
+			ok:      false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := declaredPermissions(tc.section)
+			if ok != tc.ok {
+				t.Fatalf("declaredPermissions(...) ok = %v, want %v", ok, tc.ok)
+			}
+			if !slices.Equal(got, tc.want) {
+				t.Errorf("declaredPermissions(...) = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 // readExtensionManifest reads and parses the extension manifest, failing the
 // test on error.
 func readExtensionManifest(t *testing.T) extensionManifest {
@@ -324,8 +379,8 @@ func extensionIDFromManifestKey(key string) (string, error) {
 	return id.String(), nil
 }
 
-// declaredPermissions returns the permissions listed on the 要求する権限 bullet
-// of a security.md extension section. A listed permission is a code span
+// declaredPermissions returns the permissions listed on the requested-permissions
+// bullet of a security.md extension section. A listed permission is a code span
 // followed by its parenthesised reason; incidental code spans inside a reason
 // are not permissions. It reads only up to the first sentence end, so the
 // permissions the section names as not requested are excluded. The second
@@ -361,11 +416,11 @@ func submatchAll(re *regexp.Regexp, doc string, group int) []string {
 
 // sortedUnique returns the distinct values of values in ascending order.
 func sortedUnique(values []string) []string {
-	seen := map[string]bool{}
+	seen := map[string]struct{}{}
 	var unique []string
 	for _, value := range values {
-		if !seen[value] {
-			seen[value] = true
+		if _, ok := seen[value]; !ok {
+			seen[value] = struct{}{}
 			unique = append(unique, value)
 		}
 	}
