@@ -8,7 +8,7 @@
 | Created | 2026-10-13 |
 | Review date | 2026-10-13 |
 | Reviewer | isseis |
-| Comments | PR-1 の実装時、本計画が基準とした `f94ae62` より後に `cmd/yt2column/docs_test.go` が変わっており（`TestProjectOverviewDocumentsConfig`・`TestClaudePlanRecordsManualRun` は削除、`TestReviewEvaluationRecords` ほかに置き換え、`tableContains` は `tableFlagContains` に改名）、§1.3・§1.4・ステップ 1-1・1-11・PR-1 のレビュー観点の参照が古くなっていた。これらを現在のコードに合わせて編集上訂正した。決定は変えていない。 |
+| Comments | PR-1 の実装時、本計画が基準とした `f94ae62` より後に `cmd/yt2column/docs_test.go` が変わっており（`TestProjectOverviewDocumentsConfig`・`TestClaudePlanRecordsManualRun` は削除、`TestReviewEvaluationRecords` ほかに置き換え、`tableContains` は `tableFlagContains` に改名）、§1.3・§1.4・ステップ 1-1・1-11・PR-1 のレビュー観点・PR-1 の判定理由・§6.1 の参照が古くなっていた。これらを現在のコードに合わせて編集上訂正した。決定は変えていない。 |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「requirements」）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目、節番号は [02_architecture.md](02_architecture.md)（以下「architecture」）の節を指す。既存のコードと文書の行番号は、断りがない限り HEAD `f94ae62`（ブランチ `doc-guard-refactor`）で確かめた。ただし `cmd/yt2column/docs_test.go` の行番号と既存の doc guard の名前は、PR-1 の実装時に現在の HEAD で確かめ直した。
 

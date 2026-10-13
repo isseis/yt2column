@@ -241,9 +241,14 @@ top body
 middle body
 ### Deep
 deep body
+#### Deeper
+deeper body
 ## Middle two
 middle two body
 #109 note
+note body
+###
+hash body
 # Top two
 top two body`
 	for _, tc := range []struct {
@@ -254,17 +259,22 @@ top two body`
 		{
 			name:    "level two ends before the next level two",
 			heading: "## Middle",
-			want:    "middle body\n### Deep\ndeep body\n",
+			want:    "middle body\n### Deep\ndeep body\n#### Deeper\ndeeper body\n",
 		},
 		{
-			name:    "level three keeps only its own body",
+			name:    "level three includes a lower level four",
 			heading: "### Deep",
-			want:    "deep body\n",
+			want:    "deep body\n#### Deeper\ndeeper body\n",
+		},
+		{
+			name:    "level four keeps only its own body",
+			heading: "#### Deeper",
+			want:    "deeper body\n",
 		},
 		{
 			name:    "level one ends before the next level one",
 			heading: "# Top",
-			want:    "top body\n## Middle\nmiddle body\n### Deep\ndeep body\n## Middle two\nmiddle two body\n#109 note\n",
+			want:    "top body\n## Middle\nmiddle body\n### Deep\ndeep body\n#### Deeper\ndeeper body\n## Middle two\nmiddle two body\n#109 note\nnote body\n###\nhash body\n",
 		},
 		{
 			name:    "missing heading yields the empty string",
@@ -274,6 +284,11 @@ top two body`
 		{
 			name:    "hash without following whitespace is not a heading",
 			heading: "#109 note",
+			want:    "",
+		},
+		{
+			name:    "bare hashes are not a heading",
+			heading: "###",
 			want:    "",
 		},
 	} {
@@ -414,7 +429,7 @@ func stripBackticks(s string) string {
 
 // headingLevel reports the level of a Markdown heading line: the number of
 // leading '#' characters when the line starts with one or more '#' followed by
-// a whitespace character. It returns 0 for any other line, so a line such as
+// a space or tab. It returns 0 for any other line, so a line such as
 // "#109 note" (no whitespace after '#') is not a heading.
 func headingLevel(line string) int {
 	line = strings.TrimRight(line, "\n")
@@ -426,7 +441,7 @@ func headingLevel(line string) int {
 		return 0
 	}
 	switch line[n] {
-	case ' ', '\t', '\r', '\f':
+	case ' ', '\t':
 		return n
 	}
 	return 0
