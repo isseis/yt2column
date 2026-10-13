@@ -130,9 +130,9 @@ requirements が定める 4 つの機能要件（F-001〜F-004）を、architect
 
 **対象ファイル:** `extension/test/docs.test.ts`（削除）
 
-- [ ] **ステップ 2-1**: `extension/test/docs.test.ts` を削除する。移した 6 種の検査と同じ内容を node 側に残さない。
-- [ ] **ステップ 2-2**: `extension/test/helpers/` の利用状況を確かめ、`docs.test.ts` だけが使っていた import・文字列リテラルが残っていないこと、他のテストが使うヘルパ（`extensionId.ts`・`repoFile.ts`・`paths.ts`）が残っていることを確認する。不要なヘルパ・import があれば削除する。
-- [ ] **ステップ 2-3**: フェーズ 2 の完了条件として、`make ext-check`（typecheck・lint・fmt-check・test・build。`Makefile:287-292`）を通す。未使用の import・文字列リテラルで `make ext-lint`・`make ext-typecheck` が落ちないことを確かめる。
+- [x] **ステップ 2-1**: `extension/test/docs.test.ts` を削除する。移した 6 種の検査と同じ内容を node 側に残さない。
+- [x] **ステップ 2-2**: `extension/test/helpers/` の利用状況を確かめ、`docs.test.ts` だけが使っていた import・文字列リテラルが残っていないこと、他のテストが使うヘルパ（`extensionId.ts`・`repoFile.ts`・`paths.ts`）が残っていることを確認する。不要なヘルパ・import があれば削除する。
+- [x] **ステップ 2-3**: フェーズ 2 の完了条件として、`make ext-check`（typecheck・lint・fmt-check・test・build。`Makefile:287-292`）を通す。未使用の import・文字列リテラルで `make ext-lint`・`make ext-typecheck` が落ちないことを確かめる。
 
 **完了条件:** `extension/test/docs.test.ts` がなく、移した 6 種の検査が `make ext-test` に含まれない。拡張に残る挙動のテストが `make ext-check` で通る（AC-08・AC-09）。
 
