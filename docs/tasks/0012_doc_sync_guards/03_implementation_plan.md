@@ -150,15 +150,15 @@ requirements が定める 4 つの機能要件（F-001〜F-004）を、architect
 
 - [x] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
 - [x] PR を作成した（[#190](https://github.com/isseis/yt2column/pull/190)）
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: 規則の見直し（F-003）
 
 **対象ファイル:** `CLAUDE.md`（変更）
 
-- [ ] **ステップ 3-1**: `CLAUDE.md:211-215` の規則を、architecture §3.7 の内容 (a)〜(c) を満たす形に直す。(a) 文書（`README.md`・`CLAUDE.md`・`docs/`）だけの変更では `make ext-test` を要求しない。(b) 文書のテキスト同期の guard は `make test`（`:209` が求める）に含まれ、node を必要としない。(c) `.gitignore` だけの変更では、ignore 規則の検査が node 側に残るので `make ext-test` を要求する。文言は実装で決める。`CLAUDE.md:209` の規則は維持する。
-- [ ] **ステップ 3-2**: フェーズ 3 の完了条件として、`make fmt` → `make test` → `make lint` を通す。移した検査 2 が `CLAUDE.md` の `ext-` ターゲットの一覧を読むので、`make test` がこの変更を守る。
+- [x] **ステップ 3-1**: `CLAUDE.md:211-215` の規則を、architecture §3.7 の内容 (a)〜(c) を満たす形に直す。(a) 文書（`README.md`・`CLAUDE.md`・`docs/`）だけの変更では `make ext-test` を要求しない。(b) 文書のテキスト同期の guard は `make test`（`:209` が求める）に含まれ、node を必要としない。(c) `.gitignore` だけの変更では、ignore 規則の検査が node 側に残るので `make ext-test` を要求する。文言は実装で決める。`CLAUDE.md:209` の規則は維持する。
+- [x] **ステップ 3-2**: フェーズ 3 の完了条件として、`make fmt` → `make test` → `make lint` を通す。移した検査 2 が `CLAUDE.md` の `ext-` ターゲットの一覧を読むので、`make test` がこの変更を守る。
 
 **完了条件:** `CLAUDE.md` の規則が文書だけの変更で `make ext-test` を要求せず、`.gitignore` だけの変更の扱いを明記している（AC-10）。
 
@@ -174,8 +174,8 @@ requirements が定める 4 つの機能要件（F-001〜F-004）を、architect
 
 **判定理由**: `CLAUDE.md` の文言の変更だけで、満たす内容 (a)〜(c) は architecture §3.7 で確定しており、`既存コード調査結果` に競合する実装方針の併記がなく、パネルモードの引き金・2 つ以上の Conditional check・隔離すべき高リスクなステップのいずれにも該当しないため。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した（[#191](https://github.com/isseis/yt2column/pull/191)）
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 

@@ -208,11 +208,14 @@ See [Test Organization Guide](docs/dev/developer_guide/test_organization.md) for
 - After editing go files, make sure to run `make fmt` to format the files.
 - After editing files, make sure to run `make test` and `make lint` and fix errors.
 - After changing the browser extension under `extension/`, run `make ext-check`.
-- A change that touches only documents (`README.md`, `CLAUDE.md`, `docs/`) or
-  `.gitignore` never runs the extension's CI job, but it can still break the
-  extension's guard tests (the extension ID in the docs, the `ext-` targets in
-  this file, the ignore rules). Run `make ext-test` locally before committing
-  such a change.
+- A change that touches only documents (`README.md`, `CLAUDE.md`, `docs/`) does
+  not need `make ext-test`. The text-sync guards that read them (the extension
+  ID, the `ext-` targets in this file, the manifest permissions, the
+  `project_overview.md` notes, the task records) are Go tests included in
+  `make test` and need no node.
+- A change that touches only `.gitignore` can still break the extension's
+  ignore-rule check, which stays in its node tests. Run `make ext-test` locally
+  before committing such a change.
 - `yt-dlp` must be on `PATH` (or set `YT2COLUMN_YTDLP_PATH`) to run the CLI; it is
   not needed for `make test`.
 - Secrets (`DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`, `SLACK_WEBHOOK_URL`, ...) go in `.envrc` / `.env`,
