@@ -281,7 +281,7 @@ flowchart TD
 
 ### 7.2. 壊し確認
 
-`CLAUDE.md` の testing strategy に従い、移した 6 種の各検査について、対象を無効にして落ちることを確認する。確認は、対象を壊す、Go のテストを実行してそのサブテストだけが落ちることを見る、壊した変更を戻す、の順で行う。確認の手順と結果を `03_implementation_plan.md` の手動確認の節に記録する（AC-13。タスク `0007` の §5.1 と同じ形式）。対象は、拡張 ID の 1 文字、`Makefile` の `ext-` ターゲット 1 つ、`security.md` の `要求する権限` の permission 1 つ、manifest の `permissions` の permission 1 つ（manifest から permission を消した場合に落ちることも確かめる。集合の比較が両方向であることの確認。AC-04）、`project_overview.md` の `TypeScript` と `extension/`、`0007` の `3.12.x` の見出し、`0007` の §5.1 のセル、`0007` の `3.12.2`・`3.12.3` の本文（本文だけを空にしても落ちることを確かめる。AC-06）。
+`CLAUDE.md` の testing strategy に従い、移した 6 種の各検査について、対象を無効にして落ちることを確認する。確認は、対象を壊す、Go のテストを実行してそのサブテストだけが落ちることを見る、壊した変更を戻す、の順で行う。確認の手順と結果を `03_implementation_plan.md` の手動確認の節に記録する（AC-13。タスク `0007` の §5.1 と同じ形式）。対象は、拡張 ID の 1 文字、manifest の `key` を別の有効な値に変える（検査 1・5 の導出元。AC-02）、`Makefile` の `ext-` ターゲット 1 つ、`security.md` の `要求する権限` の permission 1 つ、manifest の `permissions` の permission 1 つ（manifest から permission を消した場合に落ちることも確かめる。集合の比較が両方向であることの確認。AC-04）、`project_overview.md` の `TypeScript` と `extension/`、`0007` の `3.12.x` の見出し、`0007` の §5.1 のセル、`0007` の `3.12.2`・`3.12.3` の本文（本文だけを空にしても落ちることを確かめる。AC-06）。
 
 ### 7.3. 実行環境
 
