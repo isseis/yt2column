@@ -135,7 +135,7 @@ func TestReviewEvaluationRecords(t *testing.T) {
 		return
 	}
 
-	records := docSection(readDoc(t, reviewEvaluationPath), "3. 記録")
+	records := sectionByHeading(readDoc(t, reviewEvaluationPath), "## 3. 記録")
 	if records == "" {
 		t.Fatal("02_evaluation.md has no 3. 記録 section")
 	}
@@ -190,7 +190,7 @@ func TestReviewEvaluationRecords(t *testing.T) {
 // reserve row is not, so its first cell does not parse as an integer.
 func columnEvaluationVideoIDs(t *testing.T) []string {
 	t.Helper()
-	table := findTable(docSection(readDoc(t, columnArticlesPath), "3. 対象の動画"), "URL")
+	table := findTable(sectionByHeading(readDoc(t, columnArticlesPath), "## 3. 対象の動画"), "URL")
 	if table == nil {
 		t.Fatal("0008's evaluation has no video table with a URL column")
 	}
@@ -227,6 +227,76 @@ func requireFilledRow(t *testing.T, id, what string, row []string, want int) {
 		if strings.TrimSpace(row[i]) == "" {
 			t.Errorf("video %s %s row cell %d is empty", id, what, i+1)
 		}
+	}
+}
+
+// TestSectionByHeading pins sectionByHeading's boundaries: the heading line is
+// excluded, the section ends before the next heading of the same or a higher
+// level, a missing heading returns the empty string, and a '#' not followed by
+// whitespace is not a heading.
+func TestSectionByHeading(t *testing.T) {
+	const doc = `# Top
+top body
+## Middle
+middle body
+### Deep
+deep body
+#### Deeper
+deeper body
+## Middle two
+middle two body
+#109 note
+note body
+###
+hash body
+# Top two
+top two body`
+	for _, tc := range []struct {
+		name    string
+		heading string
+		want    string
+	}{
+		{
+			name:    "level two ends before the next level two",
+			heading: "## Middle",
+			want:    "middle body\n### Deep\ndeep body\n#### Deeper\ndeeper body\n",
+		},
+		{
+			name:    "level three includes a lower level four",
+			heading: "### Deep",
+			want:    "deep body\n#### Deeper\ndeeper body\n",
+		},
+		{
+			name:    "level four keeps only its own body",
+			heading: "#### Deeper",
+			want:    "deeper body\n",
+		},
+		{
+			name:    "level one ends before the next level one",
+			heading: "# Top",
+			want:    "top body\n## Middle\nmiddle body\n### Deep\ndeep body\n#### Deeper\ndeeper body\n## Middle two\nmiddle two body\n#109 note\nnote body\n###\nhash body\n",
+		},
+		{
+			name:    "missing heading yields the empty string",
+			heading: "## Absent",
+			want:    "",
+		},
+		{
+			name:    "hash without following whitespace is not a heading",
+			heading: "#109 note",
+			want:    "",
+		},
+		{
+			name:    "bare hashes are not a heading",
+			heading: "###",
+			want:    "",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := sectionByHeading(doc, tc.heading); got != tc.want {
+				t.Errorf("sectionByHeading(doc, %q) = %q, want %q", tc.heading, got, tc.want)
+			}
+		})
 	}
 }
 
@@ -357,20 +427,47 @@ func stripBackticks(s string) string {
 	return strings.Trim(s, "`")
 }
 
-// docSection returns the text under the "## <heading>" section, up to the next
-// "## " heading.
-func docSection(doc, heading string) string {
-	var b strings.Builder
+// headingLevel reports the level of a Markdown heading line: the number of
+// leading '#' characters when the line starts with one or more '#' followed by
+// a space or tab. It returns 0 for any other line, so a line such as
+// "#109 note" (no whitespace after '#') is not a heading.
+func headingLevel(line string) int {
+	line = strings.TrimRight(line, "\n")
+	n := 0
+	for n < len(line) && line[n] == '#' {
+		n++
+	}
+	if n == 0 || n == len(line) {
+		return 0
+	}
+	switch line[n] {
+	case ' ', '\t':
+		return n
+	}
+	return 0
+}
+
+// sectionByHeading returns the text under the first heading line whose trimmed
+// text equals heading, up to the next heading line of the same or a higher
+// level. The matching heading line is not included; it returns the empty string
+// when no line matches. The caller passes the whole heading line (for example
+// "## Heading"), so the helper works for any level.
+func sectionByHeading(doc, heading string) string {
+	want := strings.TrimSpace(heading)
+	level := 0
 	inSection := false
+	var b strings.Builder
 	for line := range strings.Lines(doc) {
-		trimmed := strings.TrimRight(line, "\n")
-		if strings.HasPrefix(trimmed, "## ") {
-			if inSection {
-				break
-			}
-			if strings.TrimSpace(strings.TrimPrefix(trimmed, "## ")) == heading {
-				inSection = true
+		if l := headingLevel(line); l > 0 {
+			if !inSection {
+				if strings.TrimSpace(line) == want {
+					inSection = true
+					level = l
+				}
 				continue
+			}
+			if l <= level {
+				break
 			}
 		}
 		if inSection {

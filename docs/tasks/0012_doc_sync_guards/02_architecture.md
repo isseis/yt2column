@@ -8,9 +8,9 @@
 | Created | 2026-10-13 |
 | Review date | 2026-10-13 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | PR-1 の実装時、本書が基準とした `38885ab` より後に `cmd/yt2column/docs_test.go` が変わっており（`TestProjectOverviewDocumentsConfig`・`TestClaudePlanRecordsManualRun` は削除、`TestReviewEvaluationRecords` ほかに置き換え）、§3.5・§3.8 の既存の呼び出しと doc guard の名前、および `docSection` の行番号が古くなっていた。これらを現在のコードに合わせて編集上訂正した。あわせて §3.2 の見出し行の定義を、`/^(#+)\s/` との一致という記述から、実装が受け取る空白（スペースまたはタブ）と本文が空の見出しの扱いを明記する形に編集上明確化した。いずれも決定は変えていない。 |
 
-本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md) の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §10）を指す。既存のコードと文書の行番号は、コミット `38885ab` で確かめたものである。
+本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md) の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §10）を指す。既存のコードと文書の行番号は、コミット `38885ab` で確かめたものである。ただし `cmd/yt2column/docs_test.go` の行番号と既存の doc guard の名前は、PR-1 の実装時に現在の HEAD で確かめ直した。
 
 **用語。** 本書では、リポジトリの文書・`Makefile`・manifest（`extension/static/manifest.json`）の間で一致すべきテキストを照合するテストを「文書の同期 guard」（以下「guard」）と呼ぶ。guard はブラウザも npm もネットワークも使わず、リポジトリのファイルを読むだけである。拡張の実際の振る舞い（manifest の妥当性、`dist/` の内容、型検査、lint、build）を検査する node のテストを「挙動のテスト」と呼ぶ。`Makefile` の `ext-` で始まるターゲットを「`ext-` ターゲット」と呼ぶ。
 
@@ -157,11 +157,11 @@ sequenceDiagram
 
 | ヘルパ | 契約 |
 |---|---|
-| `sectionByHeading(doc, heading string) string` | 前後の空白を除いて `heading` に完全一致する最初の見出し行を探し、**その行を含めず**、同じか高いレベルの次の見出し行の手前までを返す。見出しがなければ空文字列を返す。呼び出し側は `#` を含む見出し行全体（例 `## 決定済みの方針`、`### 8.1. ブラウザ拡張（#110）`）を渡す。`## `・`### `・`#### ` のいずれにも使える。 |
+| `sectionByHeading(doc, heading string) string` | 前後の空白を除いて `heading` に完全一致する最初の見出し行を探し、**その行を含めず**、同じか高いレベルの次の見出し行の手前までを返す。見出しがなければ空文字列を返し、本文が空の見出しも同じく空文字列を返す（見出しの不在と区別しない）。呼び出し側は `#` を含む見出し行全体（例 `## 決定済みの方針`、`### 8.1. ブラウザ拡張（#110）`）を渡す。`## `・`### `・`#### ` のいずれにも使える。 |
 | `sectionByHeadingPrefix(doc, prefix string) string` | 前後の空白を除いて `prefix` で始まる最初の見出し行を探し、**その行を含めず**、レベルを問わず次の見出し行の手前までを返す（現行 `docs.test.ts` の `bodyAfterHeadingLine` と同じ。下位の見出しだけを残して本文を空にした場合も空文字列になる）。見出しがなければ空文字列を返す。`#### 3.12.1.` のように見出しの番号だけを渡す。 |
 | `extensionIDFromManifestKey(key string) (string, error)` | `key` を base64 から DER に戻し、公開鍵として解析して DER に再エンコードし、SHA-256 の先頭 16 バイトを 16 進で表し、各桁 `0`〜`f` を `a`〜`p` に置き換えた文字列を返す。解析できない値はエラーを返す。 |
 
-両ヘルパの「見出し行」は、行頭の 1 個以上の `#` の直後に空白が続く行（現行 `docs.test.ts` の `/^(#+)\s/` と同じ）であり、見出しのレベルは `#` の個数である。`#109 への含意は…`（`0007` の `02_architecture.md:839,865`）のように `#` の直後に空白がない行は見出しではない。この定義を外すと `3.12.1`・`3.12.2` の節が途中で切れる。
+両ヘルパの「見出し行」は、行頭の 1 個以上の `#` の直後に空白（スペースまたはタブ）が続く行（現行 `docs.test.ts` の `/^(#+)\s/` に相当。対象の文書は ASCII で、`#` の直後はスペースかタブである）であり、見出しのレベルは `#` の個数である。`#109 への含意は…`（`0007` の `02_architecture.md:839,865`）のように `#` の直後に空白がない行は見出しではない。この定義を外すと `3.12.1`・`3.12.2` の節が途中で切れる。
 
 `markdownTables`（表の分解）・`findTable`（見出しの表の取得）・`readDoc`（ファイルの読み込み）・`repositoryRoot`（リポジトリのルートの相対パス）は既存のものを再利用する。新しいファイルに重複して定義しない。
 
@@ -184,7 +184,7 @@ Chrome の拡張 ID は、manifest の `key` が表す DER の SubjectPublicKeyI
 
 役割の境界は「`cmd/yt2column/docs_test.go` の既存の検査は CLI と各プロバイダの契約、`extension_docs_test.go` の検査はブラウザ拡張の契約」とする。対象のファイルは重なる（`README.md`・`security.md`・`project_overview.md`・文書の節）が、照合する内容は重ならない。
 
-節の切り出しは、既存の `docSection`（`cmd/yt2column/docs_test.go:397-416`）を汎用の `sectionByHeading` に置き換える。`docSection` は `## ` の見出しだけを扱い、`### 8.1.`・`#### 3.12.1.` を切れないためである。既存の呼び出し（`docs_test.go:126`・`:277`）は `sectionByHeading(doc, "## <見出し>")` に直す。`docSection` は見出し行を含めずに次の `## ` までを返し、`sectionByHeading` も見出し行を含めずに同じか高いレベルの次の見出しまでを返すので、既存の検査が照合する文字列が節の本文に含まれる限り、結果は変わらない（§3.8 のとおり、既存の検査が引き続き通ることで確かめる）。
+節の切り出しは、既存の `docSection`（`cmd/yt2column/docs_test.go:360-381`）を汎用の `sectionByHeading` に置き換える。`docSection` は `## ` の見出しだけを扱い、`### 8.1.`・`#### 3.12.1.` を切れないためである。既存の呼び出し（`TestReviewEvaluationRecords` と、その補助の `columnEvaluationVideoIDs` の 2 か所）は `sectionByHeading(doc, "## <見出し>")` に直す。`docSection` は見出し行を含めずに次の `## ` までを返し、`sectionByHeading` も見出し行を含めずに同じか高いレベルの次の見出しまでを返すので、既存の検査が照合する文字列が節の本文に含まれる限り、結果は変わらない（§3.8 のとおり、既存の検査が引き続き通ることで確かめる）。
 
 ### 3.6. `.gitignore` の ignore 規則の扱い（H-07）
 
@@ -212,7 +212,7 @@ Chrome の拡張 ID は、manifest の `key` が表す DER の SubjectPublicKeyI
 
 ### 3.8. 変更が要る既存のテスト
 
-- `cmd/yt2column/docs_test.go` の `docSection` を `sectionByHeading` に置き換える。`docSection` を使う既存の検査（`TestProjectOverviewDocumentsConfig`・`TestClaudePlanRecordsManualRun`）が引き続き通ることを確かめる（§3.9）。
+- `cmd/yt2column/docs_test.go` の `docSection` を `sectionByHeading` に置き換える。`docSection` を使っていた既存の検査（`TestReviewEvaluationRecords`）とその補助（`columnEvaluationVideoIDs`）が引き続き通ることを確かめる（§3.9）。
 - `cmd/yt2column/docs_test.go` の `readDoc`・`markdownTables`・`findTable`・`tableRow` は変更しない。
 - `extension/test/docs.test.ts` の削除の後、`extension/test/` の他のテストが使わないヘルパ・import が残っていないことを `make ext-lint`・`make ext-typecheck`・`make ext-check` で確かめる（AC-09）。
 - 新しい文書 guard は `make test`（`-tags test`）で走らせるので、ファイルの先頭を `//go:build test` にする。`cmd/yt2column` のテストファイルの先頭行は一様ではない（`integration_test.go` と `integration_slack_test.go` は `//go:build integration`）が、文書 guard は統合テストではないので `//go:build test` とする。`TestFakesCarryBuildTag`（`internal/pipeline/pipeline_test.go:534-582`）は `testutil/` のファイル・`test_helpers*.go`・テスト専用パッケージのソースの先頭行を固定し、`_test.go` は対象にしないので、新しいファイルによる変更は要らない。

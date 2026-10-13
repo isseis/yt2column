@@ -8,9 +8,9 @@
 | Created | 2026-10-13 |
 | Review date | 2026-10-13 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | PR-1 の実装時、本計画が基準とした `f94ae62` より後に `cmd/yt2column/docs_test.go` が変わっており（`TestProjectOverviewDocumentsConfig`・`TestClaudePlanRecordsManualRun` は削除、`TestReviewEvaluationRecords` ほかに置き換え、`tableContains` は `tableFlagContains` に改名）、§1.3・§1.4・ステップ 1-1・1-11・PR-1 のレビュー観点・PR-1 の判定理由・§6.1 の参照が古くなっていた。これらを現在のコードに合わせて編集上訂正した。決定は変えていない。 |
 
-本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「requirements」）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目、節番号は [02_architecture.md](02_architecture.md)（以下「architecture」）の節を指す。既存のコードと文書の行番号は、断りがない限り HEAD `f94ae62`（ブランチ `doc-guard-refactor`）で確かめた。
+本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「requirements」）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目、節番号は [02_architecture.md](02_architecture.md)（以下「architecture」）の節を指す。既存のコードと文書の行番号は、断りがない限り HEAD `f94ae62`（ブランチ `doc-guard-refactor`）で確かめた。ただし `cmd/yt2column/docs_test.go` の行番号と既存の doc guard の名前は、PR-1 の実装時に現在の HEAD で確かめ直した。
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -31,8 +31,8 @@ requirements が定める 4 つの機能要件（F-001〜F-004）を、architect
 
 ### 1.3. 既存コード調査結果
 
-- **`cmd/yt2column/docs_test.go`（フェーズ 1 で変える）。** `//go:build test` の `package main`。再利用するヘルパは、`readDoc`（`:289-296`）、`markdownTables`（`:301-324`）、`splitTableRow`（`:328-336`）、`isTableSeparator`（`:339-350`）、`findTable`（`:353-365`）、`tableRow`（`:369-376`）、`tableContains`（`:379-388`）、`stripBackticks`（`:391-393`）、`stepBlock`（`:420-442`）、パス定数（`:17-24`）である。新しいファイルにこれらを複製しない。
-- **`docSection`（`docs_test.go:397-416`）。** `## ` の見出しだけを扱い、見出し行を含めずに次の `## ` までを返す。呼び出しは `:126`（`TestProjectOverviewDocumentsConfig`）と `:277`（`TestClaudePlanRecordsManualRun`）の 2 か所だけである。`### 8.1.`・`#### 3.12.1.` を切れないので、architecture §3.5 のとおり汎用の `sectionByHeading` に置き換える（§1.4）。
+- **`cmd/yt2column/docs_test.go`（フェーズ 1 で変える）。** `//go:build test` の `package main`。再利用するヘルパは、`readDoc`（`:289-296`）、`markdownTables`（`:301-324`）、`splitTableRow`（`:328-336`）、`isTableSeparator`（`:339-350`）、`findTable`（`:353-365`）、`tableRow`（`:369-376`）、`tableRowsWithFirstCell`（`:381-389`）、`tableFlagContains`（`:395-408`）、`stripBackticks`（`:411-413`）、`stepBlock`（`:467-489`）、パス定数（`:20-27`）である。新しいファイルにこれらを複製しない。ステップ 1-1・1-2 で加える `headingLevel`（`:419-433`）・`sectionByHeading`（`:440-463`）もこのファイルに置く。
+- **`docSection`（`docs_test.go:360-381`）。** `## ` の見出しだけを扱い、見出し行を含めずに次の `## ` までを返す。呼び出しは `TestReviewEvaluationRecords`（`:138`）と、その補助の `columnEvaluationVideoIDs`（`:193`）の 2 か所だけである。`### 8.1.`・`#### 3.12.1.` を切れないので、architecture §3.5 のとおり汎用の `sectionByHeading` に置き換える（§1.4）。
 - **`repositoryRoot`（`cmd/yt2column/makefile_test.go:21`）。** `"../.."`。拡張の文書 guard もリポジトリのルートからの相対パスに使う。
 - **`extension/test/docs.test.ts`（フェーズ 2 で削除）。** 検査は 6 つで、`sectionByHeading`・`sliceBetween`・`bodyAfterHeadingLine`・`tableRows` を自前で持つ。拡張 ID は `manifest.json` の `key` から `extensionIdFromManifestKey` で導出する（`:89-93`）。検査 2 は `Makefile` を行頭 `ext-<名前>:`、`CLAUDE.md` を行頭 `` - `make ext-<名前>` `` で集め、重複を除いて比較する（`:105-123`）。検査 6 は §5.1 の表の 0 起点の 2〜4 列だけを空でないことの対象にしており、確認の内容（1 列目）は見ていない（`:214`）。architecture §3.3 のとおり、移す際に確認の内容も対象に加える（現行の表は 1 列目がすべて埋まっているので、既存の文書は落ちない）。
 - **`extension/test/helpers/`（変更なし）。** `extensionId.ts`（`:9-20`）は `manifest.test.ts:7,85,89` と `docs.test.ts:4,93` が使う。`repoFile.ts` は `repository.test.ts:14` と `docs.test.ts:5` が使う。`paths.ts` は `repoFile.ts` と `checkDist.test.ts:16`・`typecheck.test.ts:8`・`lintRules.test.ts:6`・`ciChanges.test.ts:6`・`checkLockfile.test.ts:9` が使う。`docs.test.ts` の削除で未使用になるヘルパはない見込みであり、フェーズ 2 で `make ext-check` により確かめる。
@@ -55,7 +55,7 @@ requirements が定める 4 つの機能要件（F-001〜F-004）を、architect
 
 | 変更前 | 変更後 | ステップ |
 |---|---|---|
-| `docSection(doc, heading string) string`（`cmd/yt2column/docs_test.go:397`） | `sectionByHeading(doc, heading string) string`（同じファイル。呼び出しは `## ` を含む見出し行全体を渡す） | 1-1 |
+| `docSection(doc, heading string) string`（`cmd/yt2column/docs_test.go:360`） | `sectionByHeading(doc, heading string) string`（同じファイル。呼び出しは `## ` を含む見出し行全体を渡す） | 1-1 |
 
 ### 1.5. 申し送り（design_handoff）への対応
 
@@ -77,8 +77,8 @@ requirements が定める 4 つの機能要件（F-001〜F-004）を、architect
 
 **対象ファイル:** `cmd/yt2column/docs_test.go`（変更）、`cmd/yt2column/extension_docs_test.go`（新設）
 
-- [ ] **ステップ 1-1**: `docs_test.go` の `docSection` を汎用の `sectionByHeading` に置き換える（契約は architecture §3.2）。呼び出し `:126`・`:277` を `sectionByHeading(doc, "## <見出し>")` に直す。既存の検査（`TestProjectOverviewDocumentsConfig`・`TestClaudePlanRecordsManualRun`）の期待値は変えない。
-- [ ] **ステップ 1-2**: `docs_test.go` に、`sectionByHeading` の境界の挙動を固定する小さな単体テストを加える。見出し行が結果に含まれないこと、同じか高いレベルの次の見出し行の手前で止まること、見出しがないとき空文字列を返すこと、`#` の直後に空白がない行を見出しと見なさないことを確かめる。
+- [x] **ステップ 1-1**: `docs_test.go` の `docSection` を汎用の `sectionByHeading` に置き換える（契約は architecture §3.2）。呼び出し 2 か所（`TestReviewEvaluationRecords`・`columnEvaluationVideoIDs`）を `sectionByHeading(doc, "## <見出し>")` に直す。既存の検査（`TestReviewEvaluationRecords`）の期待値は変えない。
+- [x] **ステップ 1-2**: `docs_test.go` に、`sectionByHeading` の境界の挙動を固定する小さな単体テストを加える。見出し行が結果に含まれないこと、同じか高いレベルの次の見出し行の手前で止まること、見出しがないとき空文字列を返すこと、`#` の直後に空白がない行を見出しと見なさないことを確かめる。
 
 ### PR-1 作成ポイント: general heading-section helper
 
@@ -86,14 +86,14 @@ requirements が定める 4 つの機能要件（F-001〜F-004）を、architect
 
 **推奨タイトル**: `refactor(0012): generalize the doc section helper for heading levels`
 
-**レビュー観点**: `sectionByHeading` が `## `・`### `・`#### ` のいずれでも「同じか高いレベルの次の見出し行の手前まで」で切り、見出し行を結果に含めないこと（ステップ 1-1・1-2、architecture §3.2） / 呼び出しを直した既存の検査（`TestProjectOverviewDocumentsConfig`・`TestClaudePlanRecordsManualRun`）の期待値が変わっていないこと（ステップ 1-1、§1.4 の名前の変更の一覧） / `#` の直後に空白がない行（例 `#109 への含意は…`）を見出しと見なさないこと（ステップ 1-2、architecture §3.2）
+**レビュー観点**: `sectionByHeading` が `## `・`### `・`#### ` のいずれでも「同じか高いレベルの次の見出し行の手前まで」で切り、見出し行を結果に含めないこと（ステップ 1-1・1-2、architecture §3.2） / 呼び出しを直した既存の検査（`TestReviewEvaluationRecords`）の期待値が変わっていないこと（ステップ 1-1、§1.4 の名前の変更の一覧） / `#` の直後に空白がない行（例 `#109 への含意は…`）を見出しと見なさないこと（ステップ 1-2、architecture §3.2）
 
 **実装モデル要件**: frontier-recommended
 
-**判定理由**: ステップ 1-1 が、既存の doc guard（`TestProjectOverviewDocumentsConfig`・`TestClaudePlanRecordsManualRun`）の切り出す範囲を変えないまま `docSection` を汎用の `sectionByHeading` に一般化する、振る舞いを保つ一般化の判断を要する隔離したステップであり、この PR に隔離してレビューするため（architecture §3.5、§6.1 のリスク）。
+**判定理由**: ステップ 1-1 が、既存の doc guard（`TestReviewEvaluationRecords`）の切り出す範囲を変えないまま `docSection` を汎用の `sectionByHeading` に一般化する、振る舞いを保つ一般化の判断を要する隔離したステップであり、この PR に隔離してレビューするため（architecture §3.5、§6.1 のリスク）。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
@@ -105,7 +105,7 @@ requirements が定める 4 つの機能要件（F-001〜F-004）を、architect
 - [ ] **ステップ 1-8**: 検査 4（`docs/dev/project_overview.md` の記述）のサブテストを実装する（architecture §3.3）。
 - [ ] **ステップ 1-9**: 検査 5（`0007` の `02_architecture.md` の調査の記録）のサブテストを実装する（architecture §3.3）。
 - [ ] **ステップ 1-10**: 検査 6（`0007` の `03_implementation_plan.md` §5.1）のサブテストを実装する（照合の内容は architecture §3.3）。表の本文の行の数が期待する行の数と一致することも確かめ、余分な行・欠けた行のどちらでも落ちるようにする（現行 `docs.test.ts` の `deepEqual` と同じ）。期待する行ラベルは §1.2 のとおりヘルパで番号から組み立て、Go ソースに `AC-<数字>` のリテラルを書かない。
-- [ ] **ステップ 1-11**: フェーズ 1 の完了条件として、`make fmt` → `make test` → `make lint` を通す。既存の doc guard（`TestProjectOverviewDocumentsConfig`・`TestClaudePlanRecordsManualRun`）と README の guard（`TestREADMEDocumentsCLI`）が引き続き通ることを確かめる。
+- [ ] **ステップ 1-11**: フェーズ 1 の完了条件として、`make fmt` → `make test` → `make lint` を通す。既存の doc guard（`TestReviewEvaluationRecords`）と README の guard（`TestREADMEDocumentsFlags`）が引き続き通ることを確かめる。
 
 **完了条件:** 6 種の検査が `make test` で通り、node も npm も起動しない。既存の doc guard の期待値が変わっていない。
 
@@ -292,7 +292,7 @@ Go の guard は macOS と Linux（CI）のどちらでも `make test` で動く
 
 | リスク | 影響 | 対策 |
 |---|---|---|
-| `docSection` を `sectionByHeading` に置き換えると、既存の検査（`TestProjectOverviewDocumentsConfig`・`TestClaudePlanRecordsManualRun`）の切り出す範囲が変わりうる | 既存の doc guard が落ちる | `sectionByHeading` は「同じか高いレベルの次の見出しまで」で切る。ステップ 1-2 の単体テストで境界を固定し、ステップ 1-1 の `make test` で既存の検査が通ることを確かめる |
+| `docSection` を `sectionByHeading` に置き換えると、既存の検査（`TestReviewEvaluationRecords`）の切り出す範囲が変わりうる | 既存の doc guard が落ちる | `sectionByHeading` は「同じか高いレベルの次の見出しまで」で切る。ステップ 1-2 の単体テストで境界を固定し、ステップ 1-1 の `make test` で既存の検査が通ることを確かめる |
 | `sectionByHeading`・`sectionByHeadingPrefix` は、フェンスで囲んだコードブロックの中の `# ` で始まる行（シェルのコメントなど）も見出しとみなす。`docSection` は `## ` だけを見たので、置き換え後は既存の検査の節もこの行で切れる | 文書のコードブロックにシェルのコメントを足すと、節が途中で切れて guard が落ちる（現行の対象の節にはそのような行はない） | 現行 `docs.test.ts` と同じ定義（architecture §3.2）なので挙動は変えない。guard が落ちたときの原因として、失敗のメッセージに対象の見出しを含める |
 | Go の `extensionIDFromManifestKey` の導出値が node の値と一致しない | 検査 1・5 が落ちる、または誤った値を受け入れる | 文書に記録済みの値（`README.md`・`security.md`・`0007` §3.12.1）と照合する。一致しない場合は `x509` の使い方（`ParsePKIXPublicKey`・`MarshalPKIXPublicKey`）を見直す |
 | 検査 6 の期待する行ラベルを Go ソースに `AC-<数字>` のリテラルで書く | `runplan.md` ステップ 6.5 の Check 1 が失敗する | §1.2 のとおり `AC-` と番号から組み立てる |
