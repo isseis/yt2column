@@ -303,7 +303,7 @@ Go の guard は macOS と Linux（CI）のどちらでも `make test` で動く
 ## 9. 将来の拡張性 (Future Extensibility)
 
 - 新しい文書のテキスト同期の guard は、`extension_docs_test.go` にサブテストを足すだけで増やせる。ヘルパと実行経路を共有する。
-- 文書だけの変更を CI でも guard したい場合は、`check-changes` の分類に guard が読むファイルを加えるか、常に走る小さなジョブを足す。これは実行時間と `check-changes` の設計に関わるので、必要になった時点で別のタスクとする（H-03）。
+- 文書だけの変更を CI でも guard したい場合は、`check-changes` の分類に guard が読むファイルを加えるか、常に走る小さなジョブを足す。これは実行時間と `check-changes` の設計に関わるので、別のタスクとする（#181。H-03）。
 - `.gitignore` の ignore 規則の検査を Go へ移す場合は、`git check-ignore` を起動する Go のテストを足し、`repository.test.ts` の該当の節を削る（§11 の案 B）。
 
 ## 10. 設計への申し送りへの回答 (Handling of design_handoff Items)
@@ -312,7 +312,7 @@ Go の guard は macOS と Linux（CI）のどちらでも `make test` で動く
 |---|---|
 | H-01（移した guard の置き場所） | `cmd/yt2column/extension_docs_test.go`（`package main`、`//go:build test`）に置く。既存の doc guard と同じ場所で、ヘルパと `repositoryRoot` を共有できる（§1.1 原則 2・§2.2） |
 | H-02（既存 `docs_test.go` との境界とヘルパの再利用） | 境界は「既存は CLI とプロバイダの契約、移す検査は拡張の契約」。`docSection` を汎用の `sectionByHeading` に置き換え、表のヘルパは再利用する（§3.2・§3.5・§3.8・§3.9） |
-| H-03（文書だけの変更を CI で保護するか） | 変えない。CI の分類・トリガはそのままとし、ローカルの `make test`（`CLAUDE.md:209`）に委ねる。残るリスクを §7.4 に明示した（§11） |
+| H-03（文書だけの変更を CI で保護するか） | 変えない。CI の分類・トリガはそのままとし、ローカルの `make test`（`CLAUDE.md:209`）に委ねる。残るリスクを §7.4 に明示した。CI で守る案は別のタスクとする（#181。§11） |
 | H-04（タスク `0007` の文書の訂正の扱い） | 編集しない。`0007` の `02_architecture.md` に `docs.test.ts` への言及はない。`03_implementation_plan.md` の `docs.test.ts` への言及は、ステップの完了記録・AC トレーサビリティ表・マイルストーン・PR・リスク・成功基準のいずれも、そのとき何をしたかの履歴である。申し送りが現在形の指針として挙げた 2 か所（`03_implementation_plan.md:36` の英語の例外の説明と、`:445` の「`docs.test.ts::manual checks are recorded`（ステップ 5-6）は…確かめる」）も、完了したタスクの計画の記述であり、現在の指針は `CLAUDE.md`「Go Idioms」の例外と本タスクの `extension_docs_test.go` が担う。したがって、これらも履歴として残し、編集上の訂正も行わない（要件 §2.3・制約） |
 | H-05（拡張 ID の導出と manifest の読み取りの Go 実装） | `encoding/json` で manifest を読み、`encoding/base64`・`crypto/x509`・`crypto/sha256` で導出する。解析の失敗はエラーとする（§3.4） |
 | H-06（`extension/test` のヘルパの再利用と削除） | `extensionId.ts`・`repoFile.ts`・`paths.ts` は他のテストが使うので残す。`docs.test.ts` だけの import・リテラルは削除し、`make ext-check` で確かめる（§3.7・§3.8） |
@@ -323,6 +323,6 @@ Go の guard は macOS と Linux（CI）のどちらでも `make test` で動く
 本節は、本タスクで採らなかった案と、後から読む人が疑問に思う決定を記録する。本体（§1〜§10）は現在の設計だけを述べる。
 
 - **`.gitignore` の ignore 規則の検査を Go へ移す案（H-07 の案 B）。** `git check-ignore` を起動する Go のテストを `extension_docs_test.go` に足し、`extension/test/repository.test.ts:57-75` の節を削れば、`.gitignore` だけの変更でも node が不要になり、かつ `.gitignore` は `check-changes`（`ci.yml:36`）がコードの変更とみなすので Go の `test` ジョブで CI にも守られる。採らなかった理由は、(1) 要件は文書のテキスト同期の guard の移設を求めており、この検査は含まれない、(2) 既存の挙動のテストは node 側に残す（要件 §2.3）、(3) `git check-ignore` は `.git` のある作業ツリーでしか意味を持たず、`make test` がソースのアーカイブなど作業ツリーでない場所で失敗しうる（外部コマンドの起動自体は既存の Go のテストにも前例がある。§3.6）、(4) タスク `0007` がこの検査の CI の穴を残るリスクとして受け入れ、AC-06 を `repository.test.ts`（`0007` の `03_implementation_plan.md:416`）に結び付けているため。`.gitignore` だけの変更で node を避けたい要望が強ければ、別のタスクでこの案を採る。
-- **文書だけの変更を CI で guard する案（H-03）。** `check-changes`（`ci.yml:24-53`）の分類に、guard が読むファイル（`README.md`・`CLAUDE.md`・`docs/` の一部）を加える、または文書の guard だけを走らせる常時の小さなジョブを足せば、文書だけの PR でも guard が走る。採らなかった理由は、要件が CI の変更をスコープ外とし（要件 §2.3・制約）、実行時間と `check-changes` の設計の変更を伴うため。移設の前後で CI の実行範囲は変わらない（文書だけの変更では、移設前の拡張の guard も移設後の Go の guard も走らない）。
+- **文書だけの変更を CI で guard する案（H-03）。** `check-changes`（`ci.yml:24-53`）の分類に、guard が読むファイル（`README.md`・`CLAUDE.md`・`docs/` の一部）を加える、または文書の guard だけを走らせる常時の小さなジョブを足せば、文書だけの PR でも guard が走る。採らなかった理由は、要件が CI の変更をスコープ外とし（要件 §2.3・制約）、実行時間と `check-changes` の設計の変更を伴うため。移設の前後で CI の実行範囲は変わらない（文書だけの変更では、移設前の拡張の guard も移設後の Go の guard も走らない）。この案は別のタスクで扱う（#181）。
 - **文書の guard を新しいパッケージに置く案（H-01）。** `internal/...` などの新しいパッケージに置けば、`cmd/yt2column` が拡張の文書に関心を持つことを避けられる。採らなかった理由は、Markdown のヘルパ（`docs_test.go` の `markdownTables`・`findTable`・`readDoc`）と `repositoryRoot` を公開するか複製する必要があり、既存の doc guard が `cmd/yt2column` に集まっているため。
 - **`0011` の拡張 ID の記載。** `docs/tasks/0011_localhost_server/01_requirements.md:131,137,220` は拡張 ID を `Origin` の契約として固定する。guard の対象を 6 種の検査に限る要件（F-001）に従い、`0011` は対象外とする。manifest の `key` を変える場合は、`0011` の記載も別途直す必要がある。
