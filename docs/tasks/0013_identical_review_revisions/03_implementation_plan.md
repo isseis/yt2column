@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-14 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-14 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「requirements」）の項番を、節番号は [02_architecture.md](02_architecture.md)（以下「architecture」）の節を指す。既存のコードとテストの行番号は、断りがない限り HEAD `edb914d` で確かめた。architecture は行番号を `56062fd` で確かめているが、`56062fd` から `edb914d` までの間に本計画が触れるファイル（`internal/writer/revision.go`・`review.go`・`revision_test.go`・`review_test.go`・`steps_test.go`・`internal/publisher/reviewlog.go`・`reviewlog_test.go`）は変わっていない（`git log 56062fd..edb914d -- <これらのパス>` が空）。
