@@ -8,7 +8,7 @@
 | Created | 2026-10-13 |
 | Review date | - |
 | Reviewer | - |
-| Comments | 2026-10-13 レビュー往復 1（決定の変更）: 検査 3（manifest の permission）を、`security.md` §8.1 の `要求する権限` の列挙と manifest の `permissions` を集合として両方向に一致させる実装に変更し（ステップ 1-7・§5 の AC-04）、壊し確認の対象に manifest からの permission の削除を加えた（ステップ 4-1）。あわせて編集上の修正（決定の変更なし）: §8 の node 側の削除の AC 参照を `AC-02〜AC-09` から `AC-08〜AC-09` に直した。再承認を求める。 2026-10-13 レビュー往復 2（編集上の修正。決定の変更なし）: ステップ 4-1 の `-run` の具体形の記載をやめ、各検査のサブテストだけを実行してそれが落ちることを確かめる義務として計画の高さで書き直した。 |
+| Comments | 2026-10-13 レビュー往復 1（決定の変更）: 検査 3（manifest の permission）を、`security.md` §8.1 の `要求する権限` の列挙と manifest の `permissions` を集合として両方向に一致させる実装に変更し（ステップ 1-7・§5 の AC-04）、壊し確認の対象に manifest からの permission の削除を加えた（ステップ 4-1）。あわせて編集上の修正（決定の変更なし）: §8 の node 側の削除の AC 参照を `AC-02〜AC-09` から `AC-08〜AC-09` に直した。再承認を求める。 2026-10-13 レビュー往復 2（編集上の修正。決定の変更なし）: ステップ 4-1 の `-run` の具体形の記載をやめ、各検査のサブテストだけを実行してそれが落ちることを確かめる義務として計画の高さで書き直した。 2026-10-13 レビュー往復 3（編集上の修正。決定の変更なし）: ステップ 4-1 の復元手順から `git restore`／`git checkout` の具体形をやめ、対象ファイルのほかの変更を失わないように戻す義務として計画の高さで書き直した。 |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「requirements」）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目、節番号は [02_architecture.md](02_architecture.md)（以下「architecture」）の節を指す。既存のコードと文書の行番号は、断りがない限り HEAD `f94ae62`（ブランチ `doc-guard-refactor`）で確かめた。
 
@@ -183,7 +183,7 @@ requirements が定める 4 つの機能要件（F-001〜F-004）を、architect
 
 **対象ファイル:** `docs/tasks/0012_doc_sync_guards/03_implementation_plan.md`（本計画の §5.1）
 
-- [ ] **ステップ 4-1**: 移した 6 種の各検査について、architecture §7.2 が挙げる対象を壊し、その検査のサブテストだけを実行して、それが落ちることを確かめる。主な対象は、拡張 ID の 1 文字、`Makefile` の `ext-` ターゲット 1 つ、`security.md` の `要求する権限` の permission 1 つ、manifest の `permissions` の permission 1 つ（manifest から消す場合に落ちることも確かめる。検査 3 の集合の比較が両方向であることの確認）、`project_overview.md` の `TypeScript` と `extension/`、`0007` の `3.12.x` の見出しと `3.12.2`・`3.12.3` の本文、`0007` の §5.1 のセルである。壊した変更は `git restore -- <対象ファイル>`（または `git checkout -- <対象ファイル>`）で戻し、戻した後に `make test` が通ることを確かめてから次の検査に進む。
+- [ ] **ステップ 4-1**: 移した 6 種の各検査について、architecture §7.2 が挙げる対象を壊し、その検査のサブテストだけを実行して、それが落ちることを確かめる。主な対象は、拡張 ID の 1 文字、`Makefile` の `ext-` ターゲット 1 つ、`security.md` の `要求する権限` の permission 1 つ、manifest の `permissions` の permission 1 つ（manifest から消す場合に落ちることも確かめる。検査 3 の集合の比較が両方向であることの確認）、`project_overview.md` の `TypeScript` と `extension/`、`0007` の `3.12.x` の見出しと `3.12.2`・`3.12.3` の本文、`0007` の §5.1 のセルである。壊した変更は、対象ファイルのほかの変更を巻き込まずに戻し（壊し確認の前に、対象ファイルに無関係な未ステージ変更がないことを確かめる）、戻した後に `make test` が通ることを確かめてから次の検査に進む。
 - [ ] **ステップ 4-2**: ステップ 4-1 の手順と結果を §5.1 の表に記録する（形式はタスク `0007` の §5.1 に倣う）。
 - [ ] **ステップ 4-3**: フェーズ 4 の完了条件として、`make fmt` → `make test` → `make lint` を通す。
 
