@@ -25,6 +25,11 @@ const (
 	columnArticlesPath   = "../../docs/tasks/0008_column_prompt/02_evaluation.md"
 )
 
+// evaluatedVideoCount is the number of videos the column-prompt task evaluated.
+// The record guard requires a record for each of them, so a dropped row in that
+// task's table does not silently shrink what is checked.
+const evaluatedVideoCount = 5
+
 // TestREADMEDocumentsFlags checks that README.md documents every flag run
 // defines. The flag names come from newFlagSet, not from a list kept here, so a
 // new flag fails this test until README names it.
@@ -203,8 +208,8 @@ func columnEvaluationVideoIDs(t *testing.T) []string {
 		}
 		ids = append(ids, id)
 	}
-	if len(ids) == 0 {
-		t.Fatal("0008's video table has no numbered rows")
+	if len(ids) != evaluatedVideoCount {
+		t.Fatalf("0008's evaluation lists %d numbered videos, want %d", len(ids), evaluatedVideoCount)
 	}
 	return ids
 }
