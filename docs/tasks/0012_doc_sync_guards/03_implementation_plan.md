@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-13 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-13 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「requirements」）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目、節番号は [02_architecture.md](02_architecture.md)（以下「architecture」）の節を指す。既存のコードと文書の行番号は、断りがない限り HEAD `f94ae62`（ブランチ `doc-guard-refactor`）で確かめた。
