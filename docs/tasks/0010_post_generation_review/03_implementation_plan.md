@@ -388,7 +388,7 @@ HEAD `4dd797d`（ブランチ `claude/mkplan-0010-xnazts`）で確認した。�
 **判定理由**: 手順の文書と、既存の `stepBlock`・`docSection` を使う guard テストの追加だけで、パネルモードのトリガー・競合する実装案・高リスクの手順のどれにも該当しないため。
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 - [ ] **ステップ 6-3**: 検証・推敲のモデルを生成と同じ deepseek-flash にして、5 本の動画で評価し、`02_evaluation.md` に記録する（AC-28〜AC-30）。実 API の実行は、実行のたびに人の承認を得る（requirements §5、CLAUDE.md「Tool Execution Safety」）。
