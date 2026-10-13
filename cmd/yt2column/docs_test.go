@@ -5,6 +5,7 @@ package main
 import (
 	"flag"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -333,11 +334,18 @@ func tableRowsWithFirstCell(table [][]string, first string) [][]string {
 }
 
 // tableFlagContains reports whether the flags table documents want, a flag name
-// such as --out. It looks only at the first cell (the flag column), so a flag
-// named in another row's description does not count as documented.
+// such as --out. It splits the first cell (the flag column) into tokens and
+// requires an exact match, so a documented --output does not satisfy --out and a
+// flag named in another row's description does not count as documented.
 func tableFlagContains(table [][]string, want string) bool {
 	for _, row := range table[1:] {
-		if len(row) > 0 && strings.Contains(stripBackticks(row[0]), want) {
+		if len(row) == 0 {
+			continue
+		}
+		tokens := strings.FieldsFunc(row[0], func(r rune) bool {
+			return r == '`' || r == ',' || r == ' ' || r == '\t'
+		})
+		if slices.Contains(tokens, want) {
 			return true
 		}
 	}
