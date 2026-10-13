@@ -79,6 +79,24 @@ requirements が定める 4 つの機能要件（F-001〜F-004）を、architect
 
 - [ ] **ステップ 1-1**: `docs_test.go` の `docSection` を汎用の `sectionByHeading` に置き換える（契約は architecture §3.2）。呼び出し `:126`・`:277` を `sectionByHeading(doc, "## <見出し>")` に直す。既存の検査（`TestProjectOverviewDocumentsConfig`・`TestClaudePlanRecordsManualRun`）の期待値は変えない。
 - [ ] **ステップ 1-2**: `docs_test.go` に、`sectionByHeading` の境界の挙動を固定する小さな単体テストを加える。見出し行が結果に含まれないこと、同じか高いレベルの次の見出し行の手前で止まること、見出しがないとき空文字列を返すこと、`#` の直後に空白がない行を見出しと見なさないことを確かめる。
+
+### PR-1 作成ポイント: general heading-section helper
+
+**対象ステップ**: 1-1 / 1-2
+
+**推奨タイトル**: `refactor(0012): generalize the doc section helper for heading levels`
+
+**レビュー観点**: `sectionByHeading` が `## `・`### `・`#### ` のいずれでも「同じか高いレベルの次の見出し行の手前まで」で切り、見出し行を結果に含めないこと（ステップ 1-1・1-2、architecture §3.2） / 呼び出しを直した既存の検査（`TestProjectOverviewDocumentsConfig`・`TestClaudePlanRecordsManualRun`）の期待値が変わっていないこと（ステップ 1-1、§1.4 の名前の変更の一覧） / `#` の直後に空白がない行（例 `#109 への含意は…`）を見出しと見なさないこと（ステップ 1-2、architecture §3.2）
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: ステップ 1-1 が、既存の doc guard（`TestProjectOverviewDocumentsConfig`・`TestClaudePlanRecordsManualRun`）の切り出す範囲を変えないまま `docSection` を汎用の `sectionByHeading` に一般化する、振る舞いを保つ一般化の判断を要する隔離したステップであり、この PR に隔離してレビューするため（architecture §3.5、§6.1 のリスク）。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 - [ ] **ステップ 1-3**: `extension_docs_test.go` を新設する（`package main`、先頭行は `//go:build test`）。`readDoc`・`markdownTables`・`findTable`・`tableRow`・`repositoryRoot` を再利用する。`manifest.json`（`key`・`permissions`）を `encoding/json` で読む。manifest と各文書はテスト関数の冒頭で 1 回だけ読み、サブテストで共有する（requirements §4.1）。
 - [ ] **ステップ 1-4**: `sectionByHeadingPrefix(doc, prefix string) string` を実装する（契約は architecture §3.2。前後の空白を除いて `prefix` で始まる最初の見出し行を探し、その行を含めず、次の見出し行の手前までを返す。見出しがなければ空文字列）。`extensionIDFromManifestKey(key string) (string, error)` を実装する（`encoding/base64`・`crypto/x509`・`crypto/sha256`。解析できない値はエラーを返す。契約は architecture §3.4）。解析できない `key` でエラーを返すことを確かめる小さな単体テストを加える（固定値によらない）。
 - [ ] **ステップ 1-5**: 検査 1（拡張 ID の記載。`README.md`・`docs/dev/security.md`）のサブテストを実装する。導出値が両文書の本文に含まれることを確かめる（architecture §3.3）。
@@ -91,6 +109,23 @@ requirements が定める 4 つの機能要件（F-001〜F-004）を、architect
 
 **完了条件:** 6 種の検査が `make test` で通り、node も npm も起動しない。既存の doc guard の期待値が変わっていない。
 
+### PR-2 作成ポイント: Go port of the extension doc-sync guards
+
+**対象ステップ**: 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8 / 1-9 / 1-10 / 1-11
+
+**推奨タイトル**: `feat(0012): port the extension doc-sync guards to Go tests`
+
+**レビュー観点**: 拡張 ID を `manifest.json` の `key` から導出し（base64 → DER → `x509` で公開鍵に再エンコード → SHA-256 の先頭 16 バイト → 各桁 `a`〜`p`）、文書側に固定値を置かないこと（ステップ 1-4・1-5、AC-02、architecture §3.4）と、`sectionByHeadingPrefix` の境界（見出し行を結果に含めず、レベルを問わず次の見出し行の手前で止まり、見出しがなければ空文字列）が小さな単体テストで固定されていること（ステップ 1-4、§1.3、architecture §3.2） / 6 種の検査が `make test` で走り、node も npm も起動しないこと、かつ各 guard を実装した PR-2 のコミットで対象を壊すと落ちることを確かめてコミットメッセージに記録していること（ステップ 1-3〜1-10、AC-01・AC-11、`CLAUDE.md`「Testing Strategy」。体系的な 6 種の記録は PR-5） / `ext-` ターゲットの抽出規則（`Makefile` は行頭 `ext-<名前>:`、`CLAUDE.md` は行頭 `` - `make ext-<名前>` ``）と、`Makefile` から 1 件も集まらないときに失敗させること（ステップ 1-6、AC-03、architecture §3.3） / 検査 6 の期待する行ラベルを `AC-<数字>` のリテラルで書かず、番号からヘルパで組み立てること（ステップ 1-10、§1.2。`runplan.md` ステップ 6.5 の Check 1 に掛からないため）
+
+**実装モデル要件**: standard
+
+**判定理由**: 6 種の検査の照合の内容、`sectionByHeadingPrefix` と拡張 ID の導出の方法が architecture §3.2〜§3.4 で確定しており、`既存コード調査結果` に競合する実装方針の併記がなく、パネルモードの引き金・2 つ以上の Conditional check・隔離すべき高リスクなステップのいずれにも該当しないため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ### フェーズ 2: node 側の削除（F-002）
 
 **対象ファイル:** `extension/test/docs.test.ts`（削除）
@@ -101,6 +136,23 @@ requirements が定める 4 つの機能要件（F-001〜F-004）を、architect
 
 **完了条件:** `extension/test/docs.test.ts` がなく、移した 6 種の検査が `make ext-test` に含まれない。拡張に残る挙動のテストが `make ext-check` で通る（AC-08・AC-09）。
 
+### PR-3 作成ポイント: remove the duplicated node doc-sync tests
+
+**対象ステップ**: 2-1 / 2-2 / 2-3
+
+**推奨タイトル**: `refactor(0012): remove the node doc-sync tests moved to Go`
+
+**レビュー観点**: `extension/test/docs.test.ts` を削除し、移した 6 種の検査を node 側に残していないこと（ステップ 2-1、AC-08） / `docs.test.ts` だけが使っていた import・文字列リテラルが残らず、他のテストが使うヘルパ（`extensionId.ts`・`repoFile.ts`・`paths.ts`）が残っていること（ステップ 2-2、AC-09） / `make ext-check` が型検査・lint・fmt-check・test・build のすべてで通ること（ステップ 2-3、AC-09）
+
+**実装モデル要件**: standard
+
+**判定理由**: 移した検査の node 側の複製の削除と未使用のヘルパの始末に限られ、`既存コード調査結果` に競合する実装方針の併記がなく、パネルモードの引き金・2 つ以上の Conditional check・隔離すべき高リスクなステップのいずれにも該当しないため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ### フェーズ 3: 規則の見直し（F-003）
 
 **対象ファイル:** `CLAUDE.md`（変更）
@@ -109,6 +161,23 @@ requirements が定める 4 つの機能要件（F-001〜F-004）を、architect
 - [ ] **ステップ 3-2**: フェーズ 3 の完了条件として、`make fmt` → `make test` → `make lint` を通す。移した検査 2 が `CLAUDE.md` の `ext-` ターゲットの一覧を読むので、`make test` がこの変更を守る。
 
 **完了条件:** `CLAUDE.md` の規則が文書だけの変更で `make ext-test` を要求せず、`.gitignore` だけの変更の扱いを明記している（AC-10）。
+
+### PR-4 作成ポイント: revise the development note for doc-only changes
+
+**対象ステップ**: 3-1 / 3-2
+
+**推奨タイトル**: `docs(0012): drop the node requirement for documentation-only changes`
+
+**レビュー観点**: `CLAUDE.md` の「Development Notes」が (a) 文書だけの変更では `make ext-test` を要求しないこと、(b) 文書のテキスト同期の guard は node を必要としない `make test` に含まれること、(c) `.gitignore` だけの変更では ignore 規則の検査が node 側に残るので `make ext-test` を要求すること、の 3 点を明記していること（ステップ 3-1、AC-10・AC-12、architecture §3.7） / `CLAUDE.md:209` の「編集の後に `make test` と `make lint` を実行する」規則を維持していること（ステップ 3-1） / 検査 2 が読む `ext-` ターゲットの一覧を変えていないので `make test` が通ること（ステップ 3-2、AC-03）
+
+**実装モデル要件**: standard
+
+**判定理由**: `CLAUDE.md` の文言の変更だけで、満たす内容 (a)〜(c) は architecture §3.7 で確定しており、`既存コード調査結果` に競合する実装方針の併記がなく、パネルモードの引き金・2 つ以上の Conditional check・隔離すべき高リスクなステップのいずれにも該当しないため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 4: 壊し確認と記録（F-004）
 
@@ -119,6 +188,23 @@ requirements が定める 4 つの機能要件（F-001〜F-004）を、architect
 - [ ] **ステップ 4-3**: フェーズ 4 の完了条件として、`make fmt` → `make test` → `make lint` を通す。
 
 **完了条件:** 6 種の各検査の壊し確認の手順と結果が §5.1 に記録されている（AC-13）。
+
+### PR-5 作成ポイント: break-check record for the migrated guards
+
+**対象ステップ**: 4-1 / 4-2 / 4-3
+
+**推奨タイトル**: `docs(0012): record the break-check results for the doc-sync guards`
+
+**レビュー観点**: 移した 6 種の各検査について、対象を壊すと該当のサブテストだけが落ち、戻した後に `make test` が通ることを確かめていること（ステップ 4-1、AC-13） / §5.1 の各欄（検査・壊す対象・実行したテスト・日付・結果）が空でなく、タスク `0007` の §5.1 と同じ形式であること（ステップ 4-2、AC-13） / 壊した変更を戻し忘れていないこと（ステップ 4-1・4-3、§6.1 のリスク）
+
+**実装モデル要件**: standard
+
+**判定理由**: 既に実装した guard の壊し確認と、その結果を本計画の §5.1 に記録する作業に限られ、`既存コード調査結果` に競合する実装方針の併記がなく、パネルモードの引き金・隔離すべき高リスクなステップのいずれにも該当しないため。複数の成果物に固定された対象を一時的に壊す手順（ステップ 4-1）という Conditional check に 1 つだけ該当するが、ステップ 4-1 が 1 件ごとに `git restore` で戻し、ステップ 4-3 がグリーンゲートを通すので、2 つ以上の基準には当たらない。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
 
@@ -131,7 +217,23 @@ requirements が定める 4 つの機能要件（F-001〜F-004）を、architect
 | M3 | フェーズ 3 | `CLAUDE.md` の規則が新しくなる |
 | M4 | フェーズ 4 | §5.1 の壊し確認の記録がそろい、全体のグリーンゲート（`make test`・`make lint`）が通る |
 
-### 3.2. 実装順序の根拠
+### 3.2. PR 構成
+
+PR はフェーズ 1 を 2 つに分け、そのほかはフェーズと 1 対 1 に対応させる（PR-1〜PR-5）。PR-1 は既存 `docs_test.go` の `docSection` を汎用の `sectionByHeading` に置き換えるヘルパの変更だけを行い、既存の doc guard を回帰させるリスクを新設の guard のレビューから分離する。PR-2 はその汎用ヘルパを使って `extension_docs_test.go` の 6 種の検査を実装する。フェーズ 2（PR-3）は移した検査の node 側の複製を削除し、フェーズ 3（PR-4）は `CLAUDE.md` の規則を直し、フェーズ 4（PR-5）は移した検査の壊し確認とその記録を行う。各 PR は単独でグリーンゲートを通せる単位とする。
+
+グリーンゲートは `_context.md` の "Green gate"（`make test && make lint`）とする。拡張のファイルを変える PR-3 だけは、これに `make ext-check` を加える（`extension/test/docs.test.ts` の削除後も残る node のテストが型検査・lint・fmt-check・test・build を通ることを確かめるため）。PR-1 の `sectionByHeading` は PR-2 の検査が使うので、PR-1 は PR-2 に先行する（architecture §3.5・§3.8）。ステップ番号の順と文書の順は一致し、各 `### PR-N 作成ポイント` は対象のステップのすべての後にある。
+
+`CLAUDE.md`「Testing Strategy」が求める「テストをコミットする前に、対象を壊して落ちることを確かめ、コミットメッセージに書く」は、各 guard を実装する PR-2 のコミットで満たす。PR-5 は、移した 6 種の検査をあらためて体系的に壊し確認し、その手順と結果を §5.1 にまとめて記録する（§1.2 の「フェーズ 4 で…記録する」はこの体系的な記録を指す）。
+
+| PR | 対象ステップ | 主な変更内容 | 実装モデル要件 |
+|---|---|---|---|
+| PR-1 | 1-1 / 1-2 | `docs_test.go` の `docSection` を汎用の `sectionByHeading` に置き換え、呼び出しを直し、境界の単体テストを足す | frontier-recommended |
+| PR-2 | 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8 / 1-9 / 1-10 / 1-11 | `extension_docs_test.go` の 6 種の検査と、`sectionByHeadingPrefix`・`extensionIDFromManifestKey` のヘルパ | standard |
+| PR-3 | 2-1 / 2-2 / 2-3 | `extension/test/docs.test.ts` の削除と、未使用になったヘルパ・import の始末 | standard |
+| PR-4 | 3-1 / 3-2 | `CLAUDE.md`「Development Notes」の規則（文書だけの変更で `make ext-test` を要求しない） | standard |
+| PR-5 | 4-1 / 4-2 / 4-3 | 6 種の検査の壊し確認と、§5.1 の記録 | standard |
+
+### 3.3. 実装順序の根拠
 
 architecture §8 の優先順位（フェーズ 1: ヘルパと Go の guard、フェーズ 2: node 側の削除、フェーズ 3: 規則の見直し、フェーズ 4: 壊し確認と記録）のとおりにする。フェーズ 1 を先に行うのは、移した検査が `make test` で通ってからでないと、node 側の削除（フェーズ 2）で検査のない期間ができるためである。フェーズ 3 は、移した検査が `make test` にあることを前提に `CLAUDE.md` の規則を直す。フェーズ 4 は、壊し確認の記録を本計画の §5.1 に残すので最後に行う。
 
@@ -201,10 +303,11 @@ Go の guard は macOS と Linux（CI）のどちらでも `make test` で動く
 
 ## 7. 実装チェックリスト (Implementation Checklist)
 
-- [ ] フェーズ 1: `sectionByHeading` への置き換えとヘルパの単体テスト、`extension_docs_test.go` の 6 種の検査（ステップ 1-1〜1-11）が完了し、`make test`・`make lint` が通る
-- [ ] フェーズ 2: `extension/test/docs.test.ts` の削除とヘルパの確認（ステップ 2-1〜2-3）が完了し、`make ext-check` が通る
-- [ ] フェーズ 3: `CLAUDE.md` の規則の見直し（ステップ 3-1〜3-2）が完了し、`make test`・`make lint` が通る
-- [ ] フェーズ 4: 6 種の壊し確認と §5.1 の記録（ステップ 4-1〜4-3）が完了し、`make test`・`make lint` が通る
+- [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2）
+- [ ] PR-2 マージ済み（対象ステップ: 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8 / 1-9 / 1-10 / 1-11）
+- [ ] PR-3 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3）
+- [ ] PR-4 マージ済み（対象ステップ: 3-1 / 3-2）
+- [ ] PR-5 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3）
 - [ ] §5 のすべての AC の検証が通り、§5.1 の記録がそろっている
 
 ## 8. 成功基準 (Success Criteria)
@@ -216,6 +319,5 @@ Go の guard は macOS と Linux（CI）のどちらでも `make test` で動く
 
 ## 9. 次のステップ (Next Steps)
 
-- 本計画のレビューと `approved` への変更。
-- `approved` の後に、フェーズ 1〜4 を実装し、各フェーズの完了条件を満たす。
+- PR の境界は §3.2 に埋め込み済みである（2026-10-13）。`/runplan 0012` で PR-1 から実装する。
 - 文書だけの変更を CI で守る案（H-03）と、`.gitignore` の ignore 規則の検査を Go へ移す案（H-07 の案 B）は、別のタスク（#181 など）として扱う（architecture §11）。
