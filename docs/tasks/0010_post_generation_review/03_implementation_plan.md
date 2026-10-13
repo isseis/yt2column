@@ -336,17 +336,17 @@ HEAD `4dd797d`（ブランチ `claude/mkplan-0010-xnazts`）で確認した。�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
-- [ ] **ステップ 5-9**: architecture §3.10 の文書を更新する（§1.3 の「文書の更新対象」のすべての箇所）。
-  - `README.md`: 2 つの段階の説明、設定の表の 2 行と `DEEPSEEK_API_KEY` の行（検証・推敲のプロバイダが `deepseek` の場合も必須）、終了コード 1 の意味（記事の書き出し・投稿の後に一覧のファイルの書き出しだけが失敗した場合）、更新時の注意 5 項目（architecture §3.10）、`--no-review` でも検証・推敲の設定を検査すること。
-  - `project_overview.md`: パイプラインの 2 つの段階と `:31` の `Article` のフィールド、設定の表の 2 行と `:97` の `DEEPSEEK_API_KEY` の行、`:76` の `internal/strictjson` の利用者（§1.3 の 4 つ）。
-  - `security.md` §4・§6。`CLAUDE.md:94-95`（`internal/strictjson` の利用者を §1.3 の 4 つにする）。
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] **ステップ 5-9**: architecture §3.10 の文書を更新する（§1.3 の「文書の更新対象」のすべての箇所）。
+  - `README.md`: 2 つの段階の説明、設定の表の 2 行と `DEEPSEEK_API_KEY` の行（検証・推敲のプロバイダが `deepseek` の場合も必須。0009 がマージ済みなので、`ANTHROPIC_API_KEY`・`YT2COLUMN_CLAUDE_EFFORT` の行も「生成または検証・推敲のプロバイダが `claude`」の文言にする）、終了コード 1 の意味（記事の書き出し・投稿の後に一覧のファイルの書き出しだけが失敗した場合）、更新時の注意 5 項目（architecture §3.10）、`--no-review` でも検証・推敲の設定を検査すること。
+  - `project_overview.md`: パイプラインの 2 つの段階と `:31` の `Article` のフィールド、設定の表の 2 行と `:97` の `DEEPSEEK_API_KEY` の行（`ANTHROPIC_API_KEY`・`YT2COLUMN_CLAUDE_EFFORT` の行も同じ）、`:76` の `internal/strictjson` の利用者（0009 の `internal/llm/claude` を残した 5 つ。§1.3 の 4 つは 0009 のマージ前のものである）。
+  - `security.md` §4・§6。`CLAUDE.md:94-95`（`internal/strictjson` の利用者を、0009 の `internal/llm/claude` を残した 5 つにする）。
   - `package_reference.md` の `:15`・`:18`・`:21`・`:27`・`:28`・`:29`・`:30`・`:32`・`:36` の行。0009 の計画のステップ 4-8 も同じ行を変えるので、後に実装する側が先の変更を残して書き足す。
 
   設定の表の行を変えるコミットで、`docs_test.go` の `configDocRows` に 2 つの変数を加え、`DEEPSEEK_API_KEY` の行の文言を表の新しい文言に合わせる（当てる文言は requirements F-004 の表現から実装で決める）。各記述を実装と照らし、照らした箇所をコミットメッセージに書く。`make ext-test` を通す。
-- [ ] **ステップ 5-10**: `check_article.py` の `HEADER_RE` を、生成の 2 行の後に段階のモデルの行（`- Shorten model:`・`- Shorten model version:`・`- Review model:`・`- Review model version:`）を任意で受け付ける形にする。0008 の記事と評価のキャッシュはリポジトリにない（`docs/tasks/0008_column_prompt/v5/` はテンプレートだけで、キャッシュは 0008 §2.4 のとおりリポジトリの外）。そのため、一時ディレクトリに、短い合成した記事（段階の行がないものと、段階の行を加えたもの）と、スクリプトが読む最小のキャッシュ（`<video ID>.current` に `a` か `b` を書き、そのスロットのディレクトリ `<video ID>.a` などに、数の `duration` を持つ `<video ID>.info.json` を置く。`check_article.py:36-42`・`:133`）を作る。段階の行がある記事とない記事の両方でスクリプトを実行し、同じ字数と判定が出ることを確かめる。実行したコマンドと出力をコミットメッセージに書く。
-- [ ] **ステップ 5-11**: ステップ 5-9 のテストについて、壊して失敗することを確かめ、コミットメッセージに書く（ステップ 5-1〜5-8 の壊す対象は、ステップ 5-4・5-8 で確かめた）。対象: `configDocRows` の行に対応する README の行を消す（`TestREADMEDocumentsCLI`）。`make fmt` → `make test` → `make lint` → `make ext-test` を通す。
+- [x] **ステップ 5-10**: `check_article.py` の `HEADER_RE` を、生成の 2 行の後に段階のモデルの行（`- Shorten model:`・`- Shorten model version:`・`- Review model:`・`- Review model version:`）を任意で受け付ける形にする。0008 の記事と評価のキャッシュはリポジトリにない（`docs/tasks/0008_column_prompt/v5/` はテンプレートだけで、キャッシュは 0008 §2.4 のとおりリポジトリの外）。そのため、一時ディレクトリに、短い合成した記事（段階の行がないものと、段階の行を加えたもの）と、スクリプトが読む最小のキャッシュ（`<video ID>.current` に `a` か `b` を書き、そのスロットのディレクトリ `<video ID>.a` などに、数の `duration` を持つ `<video ID>.info.json` を置く。`check_article.py:36-42`・`:133`）を作る。段階の行がある記事とない記事の両方でスクリプトを実行し、同じ字数と判定が出ることを確かめる。実行したコマンドと出力をコミットメッセージに書く。
+- [x] **ステップ 5-11**: ステップ 5-9 のテストについて、壊して失敗することを確かめ、コミットメッセージに書く（ステップ 5-1〜5-8 の壊す対象は、ステップ 5-4・5-8 で確かめた）。対象: `configDocRows` の行に対応する README の行を消す（`TestREADMEDocumentsCLI`）。`make fmt` → `make test` → `make lint` → `make ext-test` を通す。
 
 ### PR-8 作成ポイント: documentation and the evaluation script
 
@@ -360,8 +360,8 @@ HEAD `4dd797d`（ブランチ `claude/mkplan-0010-xnazts`）で確認した。�
 
 **判定理由**: 文書と評価用スクリプトの正規表現の更新だけで、パネルモードのトリガー・競合する実装案・高リスクの手順のどれにも該当しないため。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 

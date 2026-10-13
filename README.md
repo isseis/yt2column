@@ -22,8 +22,9 @@ URL → TranscriptSource → Transcript → ArticleWriter → Article → Publis
 - `yt-dlp` on `PATH` (or set `YT2COLUMN_YTDLP_PATH`); see
   [Setting up yt-dlp](#setting-up-yt-dlp)
 - An API key for the selected provider: `DEEPSEEK_API_KEY` for `deepseek`,
-  `ANTHROPIC_API_KEY` for `claude`. `SLACK_WEBHOOK_URL` is required when
-  `--slack` is used.
+  `ANTHROPIC_API_KEY` for `claude`. When the review step uses a different
+  provider, that provider's key is required too. `SLACK_WEBHOOK_URL` is
+  required when `--slack` is used.
 
 ## Usage
 
@@ -63,8 +64,44 @@ printed to standard error).
 | Code | Meaning |
 |---|---|
 | `0` | The article was written to `--out` or posted to the configured webhook. Warnings about cache cleanup do not change this. `-h`/`--help` also exits `0`. |
-| `1` | A run failure: fetching the transcript, generating the article, or publishing failed; another run held the cache directory; or the run was interrupted. |
+| `1` | A run failure: fetching the transcript, generating the article, or publishing failed; another run held the cache directory; the run was interrupted; or the article was published but writing the review log failed. |
 | `2` | A usage or configuration error: bad arguments or video URL, a rejected environment variable, or a stage that could not be built. |
+
+## Post-generation steps
+
+After the article is generated, two steps run by default.
+
+1. **Shorten.** If the body is longer than 4,000 characters, the generation
+   model shortens it toward a target of 3,600. If it is still over 4,000
+   characters after shortening — or after the review step — the run fails with
+   a length error and the article is neither written nor posted.
+2. **Review.** The review model compares the article with the video's title,
+   channel name, description, and transcript, and returns a list of corrections
+   to claims with no basis in the material, meaning-changing paraphrases, wrong
+   speaker attributions, copied speech-recognition errors, and sentences whose
+   meaning cannot be made out. The writer applies the list to the article. The
+   review step can use a provider and a model of its own, set in
+   `YT2COLUMN_REVIEW_PROVIDER` and `YT2COLUMN_REVIEW_MODEL`; by default it uses
+   the generation provider and model.
+
+Both steps call the LLM (the shorten step only when the body is over the
+limit), so the default uses up to two more calls, and more cost, than
+generation alone. With `--no-shorten` the shorten step and the final length
+check are skipped; with `--no-review` the review step is skipped.
+`--no-shorten --no-review` restores the single-call behavior of earlier
+versions, including the `--out` format.
+
+An article's model lines start with the generation model and add one pair per
+step that ran, in the order shorten, review. For unattended runs, pass
+`--review-log <path>` to record, in a separate file, what the review step
+changed; the log is written after the article is published, and if it cannot be
+written the run exits `1` with a message saying the article is already
+published.
+
+The review step's configuration is validated even with `--no-review`, because
+the configuration is independent of the flags: if `YT2COLUMN_REVIEW_PROVIDER`
+selects a different provider, that provider's variables (its API key, and for
+`claude` its effort) are still required.
 
 ## Cache and concurrency
 
@@ -150,9 +187,11 @@ On other platforms, see the yt-dlp
 |---|---|---|
 | `YT2COLUMN_LLM_PROVIDER` | LLM provider; `deepseek` or `claude` | `deepseek` |
 | `YT2COLUMN_MODEL` | LLM model name (e.g. `deepseek-flash`, `claude-opus-5-5`) | Required (an error) |
-| `DEEPSEEK_API_KEY` | DeepSeek API key | Required when the provider is `deepseek` (an error) |
-| `ANTHROPIC_API_KEY` | Anthropic API key | Required when the provider is `claude` (an error) |
-| `YT2COLUMN_CLAUDE_EFFORT` | Claude effort; `low`, `medium`, `high`, `xhigh`, or `max` | Required when the provider is `claude` (an error) |
+| `YT2COLUMN_REVIEW_PROVIDER` | Review step's LLM provider; same values as `YT2COLUMN_LLM_PROVIDER` | The generation provider |
+| `YT2COLUMN_REVIEW_MODEL` | Review step's LLM model name (required when `YT2COLUMN_REVIEW_PROVIDER` is set) | The generation model |
+| `DEEPSEEK_API_KEY` | DeepSeek API key | Required when the generation or review provider is `deepseek` (an error) |
+| `ANTHROPIC_API_KEY` | Anthropic API key | Required when the generation or review provider is `claude` (an error) |
+| `YT2COLUMN_CLAUDE_EFFORT` | Claude effort; `low`, `medium`, `high`, `xhigh`, or `max` | Required when the generation or review provider is `claude` (an error) |
 | `ANTHROPIC_WORKSPACE_ID` | Anthropic workspace ID, for an API key not bound to a workspace | No workspace ID is sent |
 | `SLACK_WEBHOOK_URL` | Slack-compatible Incoming Webhook URL (Mattermost is the verified target) | Required with `--slack`; optional with `--out` (no value) |
 | `YT2COLUMN_CACHE_DIR` | Cache directory for subtitles and video metadata | `$HOME/Library/Caches/yt2column` on macOS; `$XDG_CACHE_HOME/yt2column` or `$HOME/.cache/yt2column` on other Unix |
@@ -161,12 +200,17 @@ On other platforms, see the yt-dlp
 The value of an environment variable is never trimmed or otherwise corrected;
 an empty value is treated as set and rejected, not as unset.
 
-Only the variables of the selected provider are read and checked. The other
-provider's variables are ignored whatever their value, so exporting
-`ANTHROPIC_API_KEY=` for another tool does not stop a `deepseek` run; when
-`YT2COLUMN_LLM_PROVIDER` itself is invalid, no provider-specific variable is
-checked, but errors for common variables such as `YT2COLUMN_MODEL` are still
-reported.
+Setting `YT2COLUMN_REVIEW_PROVIDER` requires `YT2COLUMN_REVIEW_MODEL`; setting
+only `YT2COLUMN_REVIEW_MODEL` keeps the generation provider. With both unset,
+the review step reuses the generation provider and model.
+
+Only the variables of the selected providers are read and checked: a provider's
+variables are read when the generation or the review provider is that provider.
+The other provider's variables are ignored whatever their value, so exporting
+`ANTHROPIC_API_KEY=` for another tool does not stop a run that uses only
+`deepseek`; when `YT2COLUMN_LLM_PROVIDER` itself is invalid and
+`YT2COLUMN_REVIEW_PROVIDER` is unset, no provider-specific variable is checked,
+but errors for common variables such as `YT2COLUMN_MODEL` are still reported.
 
 With `claude`, `max` is accepted but in this use case it spends the whole output
 budget on reasoning and returns no article text, so the run fails as truncated.

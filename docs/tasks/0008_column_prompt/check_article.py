@@ -23,8 +23,14 @@ LONG_VIDEO_SECONDS = 15 * 60
 LONG_MIN, BODY_MAX = 2500, 4000
 SECTIONS_MIN, SECTIONS_MAX = 3, 5
 
+# The header is the title, the generation model lines, then optionally one
+# model-line pair per post-generation step (shorten, then review) that ran, as
+# task 0010 renders them, then a blank line.
 HEADER_RE = re.compile(
-    r"\A# (?P<title>[^\n]*)\n\n- Model: (?P<model>[^\n]*)\n- Model version: (?P<version>[^\n]*)\n\n"
+    r"\A# (?P<title>[^\n]*)\n\n- Model: (?P<model>[^\n]*)\n- Model version: (?P<version>[^\n]*)\n"
+    r"(?:- Shorten model: [^\n]*\n- Shorten model version: [^\n]*\n)?"
+    r"(?:- Review model: [^\n]*\n- Review model version: [^\n]*\n)?"
+    r"\n"
 )
 SOURCE_RE = re.compile(r"\n\n出典: <[^>\n]+>\n\Z")
 # URL-like text in the body (AC-13): any http, https, or ftp URL, a bare www.
