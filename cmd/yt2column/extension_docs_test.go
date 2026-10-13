@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 // Paths from cmd/yt2column to the browser-extension artifacts and documents
@@ -32,12 +33,6 @@ var extTargetRE = regexp.MustCompile(`(?m)^(ext-[a-z0-9-]+):`)
 // claudeExtTargetRE matches a bullet that lists an extension make target, such
 // as "- `make ext-test`" at the start of a line.
 var claudeExtTargetRE = regexp.MustCompile("(?m)^- `make (ext-[a-z0-9-]+)`")
-
-// requestedPermissionRE captures a requested permission: a code span that is
-// the item name of the requested-permissions list, directly followed by its
-// parenthesised reason. Incidental code spans inside a reason are not followed
-// by "（", so they are not captured.
-var requestedPermissionRE = regexp.MustCompile("`([^`]+)`（")
 
 // extensionManifest is the subset of extension/static/manifest.json these
 // guards read.
@@ -285,6 +280,12 @@ func TestDeclaredPermissions(t *testing.T) {
 			ok:      true,
 		},
 		{
+			name:    "ignores a nested code span followed by its own parenthesis",
+			section: "**要求する権限**: `storage`（`activeTab`（使用例）には使わない）。",
+			want:    []string{"storage"},
+			ok:      true,
+		},
+		{
 			name:    "stops before a later bullet's code span",
 			section: "**要求する権限**: `activeTab`（タブを読む）。\n- **秘密鍵**: `key`（公開鍵）だけを使う。",
 			want:    []string{"activeTab"},
@@ -381,10 +382,11 @@ func extensionIDFromManifestKey(key string) (string, error) {
 
 // declaredPermissions returns the permissions listed on the requested-permissions
 // bullet of a security.md extension section. A listed permission is a code span
-// followed by its parenthesised reason; incidental code spans inside a reason
-// are not permissions. It reads only up to the first sentence end, so the
-// permissions the section names as not requested are excluded. The second
-// result is false when the bullet is missing or lists nothing.
+// at the top level of the list, directly followed by its parenthesised reason;
+// code spans inside a reason, including nested ones, are not permissions. It
+// reads only up to the first sentence end, so the permissions the section names
+// as not requested are excluded. The second result is false when the bullet is
+// missing or lists nothing.
 func declaredPermissions(section string) ([]string, bool) {
 	const marker = "**要求する権限**"
 	start := strings.Index(section, marker)
@@ -396,8 +398,33 @@ func declaredPermissions(section string) ([]string, bool) {
 		rest = rest[:end]
 	}
 	var permissions []string
-	for _, match := range requestedPermissionRE.FindAllStringSubmatch(rest, -1) {
-		permissions = append(permissions, match[1])
+	depth := 0
+	for i := 0; i < len(rest); {
+		r, size := utf8.DecodeRuneInString(rest[i:])
+		switch r {
+		case '（':
+			depth++
+			i += size
+		case '）':
+			if depth > 0 {
+				depth--
+			}
+			i += size
+		case '`':
+			end := strings.IndexByte(rest[i+1:], '`')
+			if end < 0 {
+				i = len(rest)
+				continue
+			}
+			name := rest[i+1 : i+1+end]
+			next := i + 1 + end + 1
+			if depth == 0 && strings.HasPrefix(rest[next:], "（") {
+				permissions = append(permissions, name)
+			}
+			i = next
+		default:
+			i += size
+		}
 	}
 	if len(permissions) == 0 {
 		return nil, false
