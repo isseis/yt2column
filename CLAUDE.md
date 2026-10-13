@@ -210,8 +210,9 @@ See [Test Organization Guide](docs/dev/developer_guide/test_organization.md) for
 - After changing the browser extension under `extension/`, run `make ext-check`.
 - A change that touches only documents (`README.md`, `CLAUDE.md`, `docs/`) does
   not need `make ext-test`. The text-sync guards that read them (the extension
-  ID, the `ext-` targets in this file, the manifest permissions, the task
-  records) are Go tests included in `make test` and need no node.
+  ID, the `ext-` targets in this file, the manifest permissions, the
+  `project_overview.md` notes, the task records) are Go tests included in
+  `make test` and need no node.
 - A change that touches only `.gitignore` can still break the extension's
   ignore-rule check, which stays in its node tests. Run `make ext-test` locally
   before committing such a change.
