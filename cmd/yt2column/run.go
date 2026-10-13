@@ -226,10 +226,10 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 	if err != nil {
 		return usageError(errOut, "%v", err)
 	}
-	if err := checkReviewLog(fs, opts, dest); err != nil {
+	reviewLogGiven := flagGiven(fs, "review-log")
+	if err := checkReviewLog(reviewLogGiven, opts, dest); err != nil {
 		return usageError(errOut, "%v", err)
 	}
-	reviewLogGiven := flagGiven(fs, "review-log")
 
 	// A3: the configuration. Each rejected variable is reported on its own
 	// line; a VarError never carries a value.
@@ -330,12 +330,13 @@ func chooseDestination(fs *flag.FlagSet, opts *cliOptions) (destination, error) 
 }
 
 // checkReviewLog rejects the --review-log combinations that cannot be used:
-// with --no-review, with an empty path, and naming the same file as --out. It
-// reads which flags were set, never their values, so the choice cannot depend
-// on what a value happens to hold. The same-file rule is textual: a different
-// alias of the same file is caught only when link(2) fails after the publish.
-func checkReviewLog(fs *flag.FlagSet, opts *cliOptions, dest destination) error {
-	if !flagGiven(fs, "review-log") {
+// with --no-review, with an empty path, and naming the same file as --out.
+// reviewLogGiven is whether --review-log was set on the command line, never
+// read from its value, so the choice cannot depend on what a value happens to
+// hold. The same-file rule is textual: a different alias of the same file is
+// caught only when link(2) fails after the publish.
+func checkReviewLog(reviewLogGiven bool, opts *cliOptions, dest destination) error {
+	if !reviewLogGiven {
 		return nil
 	}
 	switch {
