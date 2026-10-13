@@ -8,7 +8,7 @@
 | Created | 2026-10-13 |
 | Review date | 2026-10-13 |
 | Reviewer | isseis |
-| Comments | 2026-10-13 レビュー往復 1（決定の変更）: 検査 3（manifest の permission）を、`security.md` §8.1 の `要求する権限` の列挙と manifest の `permissions` を集合として両方向に一致させる設計に変更し（§3.1・§3.3）、壊し確認の対象に manifest からの permission の削除を加えた（§7.2）。再承認を求める。2026-10-13 編集上の修正（決定の変更なし）: §3.5 の確認手順の参照先を §3.9 から §3.8 に直した。 |
+| Comments | - |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md) の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §10）を指す。既存のコードと文書の行番号は、コミット `38885ab` で確かめたものである。
 
