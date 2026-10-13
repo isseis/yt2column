@@ -27,7 +27,7 @@ requirements が定める 4 つの機能要件（F-001〜F-004）を、architect
 - Go のコメント・識別子・文字列リテラルは英語で書く。ただし、日本語の文書の見出し・表のセルと照合するための文字列リテラルは `CLAUDE.md`「Go Idioms」の例外に当たるので日本語で書く。`AC-NN`・`F-NNN`・`H-NN` は Go ソースに書かず、本計画にだけ記録する（`requirements_process.md` §4）。
 - **検査 6 が照合する行ラベルを、Go ソースに `AC-<数字>` のリテラルとして書かない。** `runplan.md` ステップ 6.5 の Check 1（`\bAC-[0-9]+[a-z]?\b`）が、変更した Go ファイルのソースにある `AC-<数字>` を拒否するためである。期待するラベルは `AC-` と番号から組み立てる（例: `fmt.Sprintf`。組み合わせの行 `AC-10・AC-11` なども同様に組み立てる）。文字列 `AC-<数字>` を直接書くと、この検査に掛かる。
 - 各テストは、対象の分岐を実際に壊して失敗することを確かめ、そのことをコミットメッセージに書く（`CLAUDE.md`「Testing Strategy」）。フェーズ 4 で、移した 6 種の検査の壊し確認を行い、結果を §5.1 に記録する。
-- 各フェーズの完了条件は、`make fmt` の後に `make test` と `make lint`（グリーンゲート、`_context.md`）が通ることである。フェーズ 2 は `make ext-check` も通す。文書（`CLAUDE.md`）を変えるフェーズ 3 では、`make ext-test`（`make ext-check` の一部）も通す。
+- 各フェーズの完了条件は、`make fmt` の後に `make test` と `make lint`（グリーンゲート、`_context.md`）が通ることである。フェーズ 2 は `make ext-check` も通す。フェーズ 2 の後は node のテストが文書を読まないので、文書（`CLAUDE.md`）だけを変えるフェーズ 3 では、フェーズ 3 で書く規則のとおり `make ext-test` を要求しない。
 
 ### 1.3. 既存コード調査結果
 
@@ -79,14 +79,14 @@ requirements が定める 4 つの機能要件（F-001〜F-004）を、architect
 
 - [ ] **ステップ 1-1**: `docs_test.go` の `docSection` を汎用の `sectionByHeading` に置き換える（契約は architecture §3.2）。呼び出し `:126`・`:277` を `sectionByHeading(doc, "## <見出し>")` に直す。既存の検査（`TestProjectOverviewDocumentsConfig`・`TestClaudePlanRecordsManualRun`）の期待値は変えない。
 - [ ] **ステップ 1-2**: `docs_test.go` に、`sectionByHeading` の境界の挙動を固定する小さな単体テストを加える。見出し行が結果に含まれないこと、同じか高いレベルの次の見出し行の手前で止まること、見出しがないとき空文字列を返すこと、`#` の直後に空白がない行を見出しと見なさないことを確かめる。
-- [ ] **ステップ 1-3**: `extension_docs_test.go` を新設する（`package main`、先頭行は `//go:build test`）。`readDoc`・`markdownTables`・`findTable`・`tableRow`・`repositoryRoot` を再利用する。`manifest.json`（`key`・`permissions`）を `encoding/json` で読む。
+- [ ] **ステップ 1-3**: `extension_docs_test.go` を新設する（`package main`、先頭行は `//go:build test`）。`readDoc`・`markdownTables`・`findTable`・`tableRow`・`repositoryRoot` を再利用する。`manifest.json`（`key`・`permissions`）を `encoding/json` で読む。manifest と各文書はテスト関数の冒頭で 1 回だけ読み、サブテストで共有する（requirements §4.1）。
 - [ ] **ステップ 1-4**: `sectionByHeadingPrefix(doc, prefix string) string` を実装する（契約は architecture §3.2。前後の空白を除いて `prefix` で始まる最初の見出し行を探し、その行を含めず、次の見出し行の手前までを返す。見出しがなければ空文字列）。`extensionIDFromManifestKey(key string) (string, error)` を実装する（`encoding/base64`・`crypto/x509`・`crypto/sha256`。解析できない値はエラーを返す。契約は architecture §3.4）。解析できない `key` でエラーを返すことを確かめる小さな単体テストを加える（固定値によらない）。
 - [ ] **ステップ 1-5**: 検査 1（拡張 ID の記載。`README.md`・`docs/dev/security.md`）のサブテストを実装する。導出値が両文書の本文に含まれることを確かめる（architecture §3.3）。
 - [ ] **ステップ 1-6**: 検査 2（`ext-` ターゲットの一覧。`Makefile`・`CLAUDE.md`）のサブテストを実装する（抽出規則は architecture §3.3 の契約）。両者から集めた名前の集合が一致することを確かめ、`Makefile` から 1 件も集まらなければ失敗させる。
 - [ ] **ステップ 1-7**: 検査 3（manifest の permission。`docs/dev/security.md` §8.1）のサブテストを実装する（architecture §3.3）。
 - [ ] **ステップ 1-8**: 検査 4（`docs/dev/project_overview.md` の記述）のサブテストを実装する（architecture §3.3）。
 - [ ] **ステップ 1-9**: 検査 5（`0007` の `02_architecture.md` の調査の記録）のサブテストを実装する（architecture §3.3）。
-- [ ] **ステップ 1-10**: 検査 6（`0007` の `03_implementation_plan.md` §5.1）のサブテストを実装する（照合の内容は architecture §3.3）。期待する行ラベルは §1.2 のとおり `AC-` と番号から組み立て、Go ソースに `AC-<数字>` のリテラルを書かない。
+- [ ] **ステップ 1-10**: 検査 6（`0007` の `03_implementation_plan.md` §5.1）のサブテストを実装する（照合の内容は architecture §3.3）。表の本文の行の数が期待する行の数と一致することも確かめ、余分な行・欠けた行のどちらでも落ちるようにする（現行 `docs.test.ts` の `deepEqual` と同じ）。期待する行ラベルは §1.2 のとおり `AC-` と番号から組み立て、Go ソースに `AC-<数字>` のリテラルを書かない。
 - [ ] **ステップ 1-11**: フェーズ 1 の完了条件として、`make fmt` → `make test` → `make lint` を通す。既存の doc guard（`TestProjectOverviewDocumentsConfig`・`TestClaudePlanRecordsManualRun`）と README の guard（`TestREADMEDocumentsCLI`）が引き続き通ることを確かめる。
 
 **完了条件:** 6 種の検査が `make test` で通り、node も npm も起動しない。既存の doc guard の期待値が変わっていない。
@@ -106,7 +106,7 @@ requirements が定める 4 つの機能要件（F-001〜F-004）を、architect
 **対象ファイル:** `CLAUDE.md`（変更）
 
 - [ ] **ステップ 3-1**: `CLAUDE.md:211-215` の規則を、architecture §3.7 の内容 (a)〜(c) を満たす形に直す。(a) 文書（`README.md`・`CLAUDE.md`・`docs/`）だけの変更では `make ext-test` を要求しない。(b) 文書のテキスト同期の guard は `make test`（`:209` が求める）に含まれ、node を必要としない。(c) `.gitignore` だけの変更では、ignore 規則の検査が node 側に残るので `make ext-test` を要求する。文言は実装で決める。`CLAUDE.md:209` の規則は維持する。
-- [ ] **ステップ 3-2**: フェーズ 3 の完了条件として、`make fmt` → `make test` → `make lint` を通す。`CLAUDE.md` を変えるので `make ext-test` も通す。
+- [ ] **ステップ 3-2**: フェーズ 3 の完了条件として、`make fmt` → `make test` → `make lint` を通す。移した検査 2 が `CLAUDE.md` の `ext-` ターゲットの一覧を読むので、`make test` がこの変更を守る。
 
 **完了条件:** `CLAUDE.md` の規則が文書だけの変更で `make ext-test` を要求せず、`.gitignore` だけの変更の扱いを明記している（AC-10）。
 
@@ -164,7 +164,7 @@ Go の guard は macOS と Linux（CI）のどちらでも `make test` で動く
 | AC-05 | test | 検査 4 のサブテスト。ステップ 4-1 の壊し確認（`project_overview.md` の `TypeScript`・`extension/`） |
 | AC-06 | test | 検査 5 のサブテスト。ステップ 4-1 の壊し確認（`3.12.x` の見出しの削除、`3.12.2`・`3.12.3` の本文を空にする） |
 | AC-07 | test | 検査 6 のサブテスト。ステップ 4-1 の壊し確認（§5.1 の行の削除、セルを空にする） |
-| AC-08 | test | `make ext-check`（`Makefile:287-292`）が `extension/test/docs.test.ts` を削除した状態で通ること（削除そのものは差分で確認する） |
+| AC-08 | static / test | `extension/test/docs.test.ts` が存在せず、`extension/test/` に移した 6 種の検査（`extensionIdFromManifestKey` を文書と照合する、`CLAUDE.md`・`security.md`・`project_overview.md`・`0007` の文書を読む）が残っていないこと（static。差分と `git grep` で確かめる）。`make ext-check`（`Makefile:287-292`）が削除した状態で通ること（test。これは AC-09 の確認であり、検査が残っていても通るので AC-08 の不在の確認にはならない） |
 | AC-09 | test | `make ext-check`（`ext-typecheck`・`ext-lint`・`ext-fmt-check`・`ext-test`・`ext-build`） |
 | AC-10 | static | `CLAUDE.md`「Development Notes」の節が architecture §3.7 の (a)〜(c)（文書だけの変更は `make ext-test` 不要、移した guard は `make test`、`.gitignore` だけの変更は `make ext-test`）を明記していること（requirements §3.1 は静的確認とする） |
 | AC-11 | test / static | `extension_docs_test.go` の 6 種が `make test` で実行されること（test）と、`extension/test/repository.test.ts::go targets do not need node`（`make -n test` の出力に node・npm が現れない。static） |
@@ -191,6 +191,7 @@ Go の guard は macOS と Linux（CI）のどちらでも `make test` で動く
 | リスク | 影響 | 対策 |
 |---|---|---|
 | `docSection` を `sectionByHeading` に置き換えると、既存の検査（`TestProjectOverviewDocumentsConfig`・`TestClaudePlanRecordsManualRun`）の切り出す範囲が変わりうる | 既存の doc guard が落ちる | `sectionByHeading` は「同じか高いレベルの次の見出しまで」で切る。ステップ 1-2 の単体テストで境界を固定し、ステップ 1-1 の `make test` で既存の検査が通ることを確かめる |
+| `sectionByHeading`・`sectionByHeadingPrefix` は、フェンスで囲んだコードブロックの中の `# ` で始まる行（シェルのコメントなど）も見出しとみなす。`docSection` は `## ` だけを見たので、置き換え後は既存の検査の節もこの行で切れる | 文書のコードブロックにシェルのコメントを足すと、節が途中で切れて guard が落ちる（現行の対象の節にはそのような行はない） | 現行 `docs.test.ts` と同じ定義（architecture §3.2）なので挙動は変えない。guard が落ちたときの原因として、失敗のメッセージに対象の見出しを含める |
 | Go の `extensionIDFromManifestKey` の導出値が node の値と一致しない | 検査 1・5 が落ちる、または誤った値を受け入れる | 文書に記録済みの値（`README.md`・`security.md`・`0007` §3.12.1）と照合する。一致しない場合は `x509` の使い方（`ParsePKIXPublicKey`・`MarshalPKIXPublicKey`）を見直す |
 | 検査 6 の期待する行ラベルを Go ソースに `AC-<数字>` のリテラルで書く | `runplan.md` ステップ 6.5 の Check 1 が失敗する | §1.2 のとおり `AC-` と番号から組み立てる |
 | `extension/test/docs.test.ts` だけが使っていたヘルパ・import が残る | `make ext-lint`・`make ext-typecheck` が落ちる | ステップ 2-2 で利用状況を確認し、ステップ 2-3 の `make ext-check` で確かめる |
@@ -202,7 +203,7 @@ Go の guard は macOS と Linux（CI）のどちらでも `make test` で動く
 
 - [ ] フェーズ 1: `sectionByHeading` への置き換えとヘルパの単体テスト、`extension_docs_test.go` の 6 種の検査（ステップ 1-1〜1-11）が完了し、`make test`・`make lint` が通る
 - [ ] フェーズ 2: `extension/test/docs.test.ts` の削除とヘルパの確認（ステップ 2-1〜2-3）が完了し、`make ext-check` が通る
-- [ ] フェーズ 3: `CLAUDE.md` の規則の見直し（ステップ 3-1〜3-2）が完了し、`make test`・`make lint`・`make ext-test` が通る
+- [ ] フェーズ 3: `CLAUDE.md` の規則の見直し（ステップ 3-1〜3-2）が完了し、`make test`・`make lint` が通る
 - [ ] フェーズ 4: 6 種の壊し確認と §5.1 の記録（ステップ 4-1〜4-3）が完了し、`make test`・`make lint` が通る
 - [ ] §5 のすべての AC の検証が通り、§5.1 の記録がそろっている
 

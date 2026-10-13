@@ -8,7 +8,7 @@
 | Created | 2026-10-13 |
 | Review date | 2026-10-13 |
 | Reviewer | isseis |
-| Comments | 2026-10-13 編集上の修正（決定の変更なし）: 背景と F-003 が参照する `CLAUDE.md` の行番号を、現在の位置（`CLAUDE.md:211-215`・`CLAUDE.md:209`）に直した。 |
+| Comments | 2026-10-13 編集上の修正（決定の変更なし）: 背景と F-003 が参照する `CLAUDE.md` の行番号を、現在の位置（`CLAUDE.md:211-215`・`CLAUDE.md:209`）に直した。2026-10-13 編集上の修正（決定の変更なし）: 用語集の「docs-only の変更」が `.gitignore` も `check-changes` のコードの変更から外れるとしていた誤りを直し、F-001 の検査 6 の列番号を、列挙した 4 列（2〜5 列目）に揃えた。 |
 
 ## 1. 概要 (Overview)
 
@@ -65,7 +65,7 @@
 3.  **manifest の permission:** `docs/dev/security.md` の `### 8.1. ブラウザ拡張（#110）` の節が、`extension/static/manifest.json` の `permissions` の各値を、バッククォートで囲んだ形で列挙する。
 4.  **project overview の記述:** `docs/dev/project_overview.md` の `## 決定済みの方針` の節に `TypeScript` があり、`## 想定ディレクトリ構成` の節に `extension/` がある。
 5.  **タスク 0007 の調査の記録:** `docs/tasks/0007_browser_extension_skeleton/02_architecture.md` に `#### 3.12.1.`・`#### 3.12.2.`・`#### 3.12.3.` の見出しがあり、`3.12.1` の本文に拡張 ID があり、`3.12.2`・`3.12.3` の見出しの直後の本文が空でない。
-6.  **タスク 0007 の手動確認の記録:** `docs/tasks/0007_browser_extension_skeleton/03_implementation_plan.md` の `### 5.1. 手動の確認と記録` の表が、定められた AC の行（`AC-02`・`AC-03`・`AC-05`・`AC-07`・`AC-08`・`AC-10・AC-11`・`AC-13`・`AC-20`・`AC-21・AC-22・AC-31`・`AC-28・AC-29`・`AC-25`）をこの順で持ち、各行が 5 列で、確認内容・ブラウザか環境・日付・結果の列（2〜4 列目）が空でない。
+6.  **タスク 0007 の手動確認の記録:** `docs/tasks/0007_browser_extension_skeleton/03_implementation_plan.md` の `### 5.1. 手動の確認と記録` の表が、定められた AC の行（`AC-02`・`AC-03`・`AC-05`・`AC-07`・`AC-08`・`AC-10・AC-11`・`AC-13`・`AC-20`・`AC-21・AC-22・AC-31`・`AC-28・AC-29`・`AC-25`）をこの順で持ち、各行が 5 列で、確認内容・ブラウザか環境・日付・結果の列（2〜5 列目）が空でない。
 
 **Acceptance Criteria**:
 - **AC-01**: 上記 1〜6 の各検査が、Go のテストとして実装され、`make test`（`go test -tags test ./...`）で実行される。検査は node も npm も起動しない。
@@ -153,7 +153,7 @@
 -   **文書の同期 guard:** 文書・`Makefile`・manifest の間で一致すべきテキスト（拡張 ID、`ext-` ターゲットの一覧、permission の列挙）を検査するテスト。
 -   **テキスト同期の検査:** リポジトリのファイルを読み、文字列・見出し・表を照合するだけで、ブラウザ・npm・ネットワークを使わない検査。
 -   **挙動のテスト:** manifest の妥当性、`dist/` の内容、型検査、lint、build など、拡張の実際の振る舞いを検査する node のテスト。
--   **docs-only の変更:** `README.md`・`CLAUDE.md`・`docs/` と `.gitignore` だけを変える変更。`ci.yml` の `check-changes` がコードの変更とみなさない。
+-   **docs-only の変更:** `README.md`・`CLAUDE.md`・`docs/` と `.gitignore` だけを変える変更。このうち文書（`*.md`・`docs/`）は `ci.yml` の `check-changes` がコードの変更とみなさない。`.gitignore` はコードの変更とみなされて Go のテストのジョブを走らせるが、`has-extension-changes` に該当しないので拡張のジョブは走らない。
 -   **`ext-` ターゲット:** `Makefile` が定義する `ext-install`・`ext-typecheck`・`ext-lint`・`ext-fmt-check`・`ext-fmt`・`ext-test`・`ext-build`・`ext-check` の各ターゲット。
 -   **拡張 ID:** manifest の `key`（公開鍵）から導出される Chrome の拡張 ID。値は `clfmbbcdpnjcefbdihdoahomaifbabkk`（タスク `0007` の `02_architecture.md` §3.12.1）。
 -   **壊し確認:** テストが主張する対象を無効にして、そのテストが落ちることを確かめる手順（`CLAUDE.md` の testing strategy）。

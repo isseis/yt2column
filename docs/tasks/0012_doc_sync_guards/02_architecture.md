@@ -8,7 +8,7 @@
 | Created | 2026-10-13 |
 | Review date | 2026-10-13 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-13 編集上の修正（決定の変更なし）: §3.5 の確認手順の参照先を §3.9 から §3.8 に直した。 |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md) の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §10）を指す。既存のコードと文書の行番号は、コミット `38885ab` で確かめたものである。
 
@@ -184,7 +184,7 @@ Chrome の拡張 ID は、manifest の `key` が表す DER の SubjectPublicKeyI
 
 役割の境界は「`cmd/yt2column/docs_test.go` の既存の検査は CLI と各プロバイダの契約、`extension_docs_test.go` の検査はブラウザ拡張の契約」とする。対象のファイルは重なる（`README.md`・`security.md`・`project_overview.md`・文書の節）が、照合する内容は重ならない。
 
-節の切り出しは、既存の `docSection`（`cmd/yt2column/docs_test.go:397-416`）を汎用の `sectionByHeading` に置き換える。`docSection` は `## ` の見出しだけを扱い、`### 8.1.`・`#### 3.12.1.` を切れないためである。既存の呼び出し（`docs_test.go:126`・`:277`）は `sectionByHeading(doc, "## <見出し>")` に直す。`docSection` は見出し行を含めずに次の `## ` までを返し、`sectionByHeading` も見出し行を含めずに同じか高いレベルの次の見出しまでを返すので、既存の検査が照合する文字列が節の本文に含まれる限り、結果は変わらない（§3.9 の確認手順で確かめる）。
+節の切り出しは、既存の `docSection`（`cmd/yt2column/docs_test.go:397-416`）を汎用の `sectionByHeading` に置き換える。`docSection` は `## ` の見出しだけを扱い、`### 8.1.`・`#### 3.12.1.` を切れないためである。既存の呼び出し（`docs_test.go:126`・`:277`）は `sectionByHeading(doc, "## <見出し>")` に直す。`docSection` は見出し行を含めずに次の `## ` までを返し、`sectionByHeading` も見出し行を含めずに同じか高いレベルの次の見出しまでを返すので、既存の検査が照合する文字列が節の本文に含まれる限り、結果は変わらない（§3.8 のとおり、既存の検査が引き続き通ることで確かめる）。
 
 ### 3.6. `.gitignore` の ignore 規則の扱い（H-07）
 
