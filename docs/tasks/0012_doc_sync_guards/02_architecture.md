@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-13 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-13 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md) の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §10）を指す。既存のコードと文書の行番号は、コミット `38885ab` で確かめたものである。
