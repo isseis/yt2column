@@ -122,7 +122,7 @@ requirements が定める 4 つの機能要件（F-001〜F-004）を、architect
 **判定理由**: 6 種の検査の照合の内容、`sectionByHeadingPrefix` と拡張 ID の導出の方法が architecture §3.2〜§3.4 で確定しており、`既存コード調査結果` に競合する実装方針の併記がなく、パネルモードの引き金・2 つ以上の Conditional check・隔離すべき高リスクなステップのいずれにも該当しないため。
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] PR を作成した（[#189](https://github.com/isseis/yt2column/pull/189)）
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
