@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-13 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-13 |
+| Reviewer | isseis |
 | Comments | 2026-10-13 レビュー往復 1（決定の変更）: 検査 3（manifest の permission）を、`security.md` §8.1 の `要求する権限` の列挙と manifest の `permissions` を集合として両方向に一致させる検査に変更し、AC-04 の双方向の要件（manifest から permission を消した場合を含む）に揃えた。再承認を求める。2026-10-13 編集上の修正（決定の変更なし）: 背景と F-003 が参照する `CLAUDE.md` の行番号を、現在の位置（`CLAUDE.md:211-215`・`CLAUDE.md:209`）に直した。2026-10-13 編集上の修正（決定の変更なし）: 用語集の「docs-only の変更」が `.gitignore` も `check-changes` のコードの変更から外れるとしていた誤りを直し、F-001 の検査 6 の列番号を、列挙した 4 列（2〜5 列目）に揃えた。 |
 
 ## 1. 概要 (Overview)
