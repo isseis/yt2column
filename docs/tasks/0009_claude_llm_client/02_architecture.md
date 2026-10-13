@@ -510,7 +510,7 @@ func Post(ctx context.Context, call Call) ([]byte, error)
 | `internal/llm/provider/provider.go` | 変更 | §3.3 | `internal/llm/provider/provider_test.go:132`・`:178` |
 | `internal/llm/provider/provider_test.go` | 変更 | 本番の送信先に届かないことの検査（§7.1）を加える | 同ファイル |
 | `cmd/yt2column/run.go` | 変更 | `configuredSecrets`（`:474-486`）に Anthropic の API キーを加える（§5.2）| なし（テストを加える）|
-| `cmd/yt2column/docs_test.go` | 変更 | 設定の表の行（`:33-40`）に `ANTHROPIC_API_KEY`・`YT2COLUMN_CLAUDE_EFFORT`・`ANTHROPIC_WORKSPACE_ID` を加える | 同ファイル |
+| `cmd/yt2column/docs_test.go` | 変更 | 統合テストの変数名と Make ターゲットを `TestClaudeDocsContract` で固定する（散文を固定する `configDocRows` は 2026-10-13 に削除） | 同ファイル |
 | `Makefile` | 変更 | `test-integration-claude` を加える | - |
 | `testdata/claude_messages_end_turn.json`・`claude_messages_max_tokens.json`・`README.md` | 新設・変更 | §1.4 のフィクスチャと出典 | - |
 | `README.md` | 変更 | 設定の表（プロバイダ固有の変数は選んだプロバイダのときだけ検査すること）、`max` の注意、統合テスト | - |

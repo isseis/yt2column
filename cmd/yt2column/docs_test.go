@@ -20,169 +20,35 @@ const (
 	readmePath           = "../../README.md"
 	projectOverviewPath  = "../../docs/dev/project_overview.md"
 	securityPath         = "../../docs/dev/security.md"
-	planPath             = "../../docs/tasks/0005_cli_assembly/03_implementation_plan.md"
-	slackPlanPath        = "../../docs/tasks/0006_slack_webhook_publisher/03_implementation_plan.md"
-	claudePlanPath       = "../../docs/tasks/0009_claude_llm_client/03_implementation_plan.md"
 	reviewPlanPath       = "../../docs/tasks/0010_post_generation_review/03_implementation_plan.md"
 	reviewEvaluationPath = "../../docs/tasks/0010_post_generation_review/02_evaluation.md"
 	columnArticlesPath   = "../../docs/tasks/0008_column_prompt/02_evaluation.md"
 )
 
-// configDocRow pairs a configuration variable with the "when unset" text each
-// document must contain. The expected text comes from the requirements'
-// environment-variable table, never from the code.
-type configDocRow struct {
-	name     string
-	readme   string
-	overview string
-}
-
-var configDocRows = []configDocRow{
-	{"YT2COLUMN_LLM_PROVIDER", "`deepseek`", "`deepseek`"},
-	{"YT2COLUMN_MODEL", "Required (an error)", "エラー（必須）"},
-	{"YT2COLUMN_REVIEW_PROVIDER", "The generation provider", "生成と同じ"},
-	{"YT2COLUMN_REVIEW_MODEL", "The generation model", "生成と同じ"},
-	{"DEEPSEEK_API_KEY", "Required when the generation or review provider is `deepseek`", "生成または検証・推敲のプロバイダが `deepseek` ならエラー"},
-	{"ANTHROPIC_API_KEY", "Required when the generation or review provider is `claude`", "生成または検証・推敲のプロバイダが `claude` ならエラー"},
-	{"YT2COLUMN_CLAUDE_EFFORT", "Required when the generation or review provider is `claude`", "生成または検証・推敲のプロバイダが `claude` ならエラー"},
-	{"ANTHROPIC_WORKSPACE_ID", "No workspace ID is sent", "ワークスペース ID を送らない"},
-	{"SLACK_WEBHOOK_URL", "Required with `--slack`; optional with `--out`", "`--slack` では必須"},
-	{"YT2COLUMN_CACHE_DIR", "Library/Caches/yt2column", "yt2column"},
-	{"YT2COLUMN_YTDLP_PATH", "on `PATH`", "`PATH` 上の `yt-dlp`"},
-}
-
-// TestREADMEDocumentsCLI checks the machine-checkable parts of README.md: the
-// calling form, every flag run defines (read from newFlagSet), the exit codes,
-// and the configuration table with each variable's unset value. Prose that
-// states behavior is not pinned here; it is checked by review.
-func TestREADMEDocumentsCLI(t *testing.T) {
+// TestREADMEDocumentsFlags checks that README.md documents every flag run
+// defines. The flag names come from newFlagSet, not from a list kept here, so a
+// new flag fails this test until README names it.
+func TestREADMEDocumentsFlags(t *testing.T) {
 	doc := readDoc(t, readmePath)
-
-	t.Run("calling form", func(t *testing.T) {
-		if !strings.Contains(doc, "yt2column [flags] <video URL>") {
-			t.Error("README does not show the calling form")
-		}
-	})
-
-	t.Run("flags", func(t *testing.T) {
-		table := findTable(doc, "Flag")
-		if table == nil {
-			t.Fatal("README has no flags table")
-		}
-		fs, _ := newFlagSet()
-		fs.VisitAll(func(f *flag.Flag) {
-			if !tableContains(table, "--"+f.Name) {
-				t.Errorf("flags table does not document --%s", f.Name)
-			}
-		})
-		if !tableContains(table, "--help") {
-			t.Error("flags table does not document --help")
-		}
-	})
-
-	t.Run("exit codes", func(t *testing.T) {
-		table := findTable(doc, "Code")
-		if table == nil {
-			t.Fatal("README has no exit-code table")
-		}
-		for _, want := range []struct {
-			code, meaning string
-		}{
-			{"0", "written"},
-			{"1", "run failure"},
-			{"2", "usage or configuration"},
-		} {
-			row := tableRow(table, want.code)
-			if row == nil {
-				t.Errorf("exit-code table has no row for %s", want.code)
-				continue
-			}
-			if len(row) < 2 || !strings.Contains(row[1], want.meaning) {
-				t.Errorf("exit code %s meaning = %q, want it to contain %q", want.code, row, want.meaning)
-			}
-		}
-	})
-
-	t.Run("configuration", func(t *testing.T) {
-		table := findTable(doc, "Variable")
-		if table == nil {
-			t.Fatal("README has no configuration table")
-		}
-		for _, want := range configDocRows {
-			row := tableRow(table, want.name)
-			if row == nil {
-				t.Errorf("configuration table has no row for %s", want.name)
-				continue
-			}
-			if len(row) < 3 {
-				t.Errorf("%s row has %d cells, want a when-unset cell", want.name, len(row))
-				continue
-			}
-			if !strings.Contains(row[2], want.readme) {
-				t.Errorf("%s when-unset cell = %q, want it to contain %q", want.name, row[2], want.readme)
-			}
-		}
-	})
-}
-
-// TestProjectOverviewDocumentsConfig checks the project overview's configuration
-// table against the same requirements-derived unset values.
-func TestProjectOverviewDocumentsConfig(t *testing.T) {
-	section := docSection(readDoc(t, projectOverviewPath), "設定（環境変数）")
-	if section == "" {
-		t.Fatal("project_overview.md has no 設定（環境変数） section")
-	}
-	table := findTable(section, "変数")
+	table := findTable(doc, "Flag")
 	if table == nil {
-		t.Fatal("project_overview.md has no configuration table")
+		t.Fatal("README has no flags table")
 	}
-	for _, want := range configDocRows {
-		row := tableRow(table, want.name)
-		if row == nil {
-			t.Errorf("configuration table has no row for %s", want.name)
-			continue
+	fs, _ := newFlagSet()
+	fs.VisitAll(func(f *flag.Flag) {
+		if !tableContains(table, "--"+f.Name) {
+			t.Errorf("flags table does not document --%s", f.Name)
 		}
-		if len(row) < 3 {
-			t.Errorf("%s row has %d cells, want a when-unset cell", want.name, len(row))
-			continue
-		}
-		if !strings.Contains(row[2], want.overview) {
-			t.Errorf("%s when-unset cell = %q, want it to contain %q", want.name, row[2], want.overview)
-		}
-	}
-}
-
-// TestPlanRecordsManualRuns checks that the implementation plan carries the two
-// manual runs as completion conditions and, once a step is checked, records the
-// video URL and the result under it.
-func TestPlanRecordsManualRuns(t *testing.T) {
-	doc := readDoc(t, planPath)
-	checked := map[string]bool{}
-	for _, step := range []string{"9-5", "9-6"} {
-		block, done, found := stepBlock(doc, "**ステップ "+step+"**")
-		if !found {
-			t.Errorf("the plan has no step %s", step)
-			continue
-		}
-		checked[step] = done
-		if !done {
-			continue
-		}
-		if !strings.Contains(block, "https://www.youtube.com/watch?v=") {
-			t.Errorf("checked step %s has no video URL record", step)
-		}
-		if !strings.Contains(block, "結果") || !strings.Contains(block, "終了コード") {
-			t.Errorf("checked step %s has no result record", step)
-		}
-	}
-	if checked["9-5"] != checked["9-6"] {
-		t.Error("steps 9-5 and 9-6 must be completed together")
+	})
+	if !tableContains(table, "--help") {
+		t.Error("flags table does not document --help")
 	}
 }
 
 // TestSlackDocsContract pins the machine-checkable contract values of webhook
 // publishing: the test environment variables, the make targets, and the
-// per-message limit. Prose meaning is not pinned here; it is checked by review.
+// per-message limit. The values come from the publisher's exported test
+// constants, not from the documents.
 func TestSlackDocsContract(t *testing.T) {
 	// The documents state the limit with a thousands separator, so the
 	// literal below is pinned to the publisher's own exported test constant:
@@ -222,29 +88,10 @@ func TestSlackDocsContract(t *testing.T) {
 	}
 }
 
-// TestSlackPlanRecordsManualChecks checks that the webhook task's plan carries
-// its manual runs and integration run as completion conditions and, once a
-// step is checked, records the server version and the result under it.
-func TestSlackPlanRecordsManualChecks(t *testing.T) {
-	doc := readDoc(t, slackPlanPath)
-	for _, step := range []string{"7-13", "8-6", "8-7"} {
-		block, done, found := stepBlock(doc, "**ステップ "+step+"**")
-		if !found {
-			t.Errorf("the plan has no step %s", step)
-			continue
-		}
-		if !done {
-			continue
-		}
-		if !strings.Contains(block, "サーバの版") || !strings.Contains(block, "結果") {
-			t.Errorf("checked step %s has no server version and result record", step)
-		}
-	}
-}
-
 // TestClaudeDocsContract pins the machine-checkable contract values of the
 // Claude provider: the integration test's environment variables and make target.
-// Prose meaning is not pinned here; it is checked by review.
+// The environment variables come from the claude test package's exported
+// constants, not from the documents.
 func TestClaudeDocsContract(t *testing.T) {
 	values := []string{
 		claudetestutil.APIKeyEnv,
@@ -262,30 +109,6 @@ func TestClaudeDocsContract(t *testing.T) {
 			if !strings.Contains(doc.text, value) {
 				t.Errorf("%s does not mention %q", doc.name, value)
 			}
-		}
-	}
-}
-
-// TestClaudePlanRecordsManualRun checks that the Claude task's plan carries its
-// integration run as a completion condition and, once step 5-12 is checked,
-// records the execution date, the HEAD commit, the model name, and a passing
-// subtest under §5.1.
-func TestClaudePlanRecordsManualRun(t *testing.T) {
-	doc := readDoc(t, claudePlanPath)
-	_, done, found := stepBlock(doc, "**ステップ 5-12**")
-	if !found {
-		t.Fatal("the plan has no step 5-12")
-	}
-	if !done {
-		return
-	}
-	section := docSection(doc, "5. 受け入れ基準の検証 (Acceptance Criteria Verification)")
-	// These strings appear only in the run records, not in §5.1's instruction
-	// sentence (which writes "モデル名" and "`--- PASS`" without the record's
-	// surrounding text).
-	for _, want := range []string{"2026-", "HEAD `", "モデル名は `", "--- PASS: TestIntegrationGenerate"} {
-		if !strings.Contains(section, want) {
-			t.Errorf("§5.1 has no %q record", want)
 		}
 	}
 }

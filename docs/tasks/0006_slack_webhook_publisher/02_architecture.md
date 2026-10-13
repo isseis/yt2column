@@ -698,7 +698,7 @@ func SettingsFrom(getenv func(string) string, opts IntegrationOptions) Integrati
 | [package_reference.md](../../dev/developer_guide/package_reference.md) | `internal/publisher` に `SlackWebhookPublisher` を、`internal/publisher/testutil` に統合テストの判定を、`internal/job` に `Output` を加える。`internal/config` の Webhook URL の規則の記述を改める。`internal/slackwebhook`・`internal/loopbacktest` の行を加える |
 | [security.md](../../dev/security.md) | §2: テスト用の Webhook URL の例外と統合テストの表への追加、`--slack` で `http2debug` を設定した場合に Webhook URL のパスが書かれうること。§3: リダイレクトに従わないこと、自動でリトライしないこと、応答の本文の上限、エラーの応答の `message` を読まないこと。§6: `silent` とメンションの記法の拒否による通知の抑止 |
 
-`cmd/yt2column/docs_test.go` の `configDocRows`（`docs_test.go:28-35`）の `SLACK_WEBHOOK_URL` の行（README の `Optional (no value)`、概要の `値なし`）は、README と概要の表の新しい記述に合わせて更新する。
+`cmd/yt2column/docs_test.go` は、`SLACK_WEBHOOK_URL` の行を含む設定の表を `configDocRows` で固定していたが、散文を固定する文書のテストを外すのに合わせて `configDocRows` を削除した（2026-10-13）。README と概要の表の `SLACK_WEBHOOK_URL` の新しい記述（README の `Optional (no value)`、概要の `値なし`）は、`TestSlackDocsContract` が担う上限値と統合テストの契約値だけを固定する。
 
 ### 3.14. 既存パッケージの変更と、更新が必要な既存のテスト
 
@@ -722,7 +722,7 @@ func SettingsFrom(getenv func(string) string, opts IntegrationOptions) Integrati
 | `cmd/yt2column/integration_slack_test.go`（新規、`integration` のタグ） | CLI の Webhook の統合テスト | 3.12 | なし |
 | `cmd/yt2column/test_helpers_integration.go` | CLI の Webhook の統合テストの判定の補助 | 3.12 | なし |
 | `cmd/yt2column/makefile_test.go` | `make test-integration-cli-slack` のテストを足し、オプトインがターゲットごとであることのテストに Webhook の変数を加える | 3.12 | `TestMakeOptInsAreTargetSpecific`（確認する変数が増える） |
-| `cmd/yt2column/docs_test.go` | `configDocRows`（`docs_test.go:28-35`）の `SLACK_WEBHOOK_URL` の行を新しい記述に合わせる | 3.13 | 同ファイル |
+| `cmd/yt2column/docs_test.go` | `TestSlackDocsContract` で上限値と統合テストの契約値を固定する（散文を固定していた `configDocRows` は 2026-10-13 に削除） | 3.13 | 同ファイル |
 | `Makefile` | `test-integration-slack`・`test-integration-cli-slack` と、それぞれのタイムアウトの変数。`.PHONY` と `lint` のコメントの更新 | 3.12 | なし（新しいターゲットのテストを足す） |
 | `internal/pipeline/pipeline_test.go` | 変更しない本番のコードに対するガードのテストの追従 | 3.12・3.13 | `TestFakesCarryBuildTag`（`pipeline_test.go:541-542` が `testutil/` の `.go` の数を 13 に固定している。`internal/publisher/testutil` に加わるファイルの分だけ増やす）。`TestPackageReferenceListsPackages`（`pipeline_test.go:565-629`。`test` のタグだけでビルドされるファイルしかないパッケージを数えず、表にある行を「本番のコードがない」として失敗にする。3.13 で `internal/loopbacktest` の行を加えるので、`testutil/` 以外のテスト用のビルドだけのパッケージも行を求めるように改める） |
 

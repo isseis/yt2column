@@ -8,7 +8,7 @@
 | Created | 2026-10-10 |
 | Review date | 2026-10-10 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 編集上の修正（2026-10-13）: 散文を固定する文書のテストを `cmd/yt2column/docs_test.go` から外した（`configDocRows`、計画書の手動実行の記録の `TestClaudePlanRecordsManualRun`）。統合テストの変数名と Make ターゲットの契約値は `TestClaudeDocsContract` が担い、AC-30 は `claude/integration_test.go::TestIntegrationGenerate` が担う（ガイドの「計画が再割り当てしたテスト」に当たる編集上の修正）。決定の変更はない。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -43,7 +43,7 @@ HEAD `7864eec`（ブランチ `issei/llm-claude-02`）で確認した。architec
 - **`internal/config/config.go`。** `loadAPIKey`（`:199-222`）は、プロバイダによらず空の `DEEPSEEK_API_KEY` を拒否する。`reasonProvider` は `:52`、http2debug のコメントは `:40-41`、`apiKeyEnv` は `:30` にある。`apiKeyEnv` の参照は `config.go` と `config_test.go`（`:32`・`:71-72`・`:97`・`:134-135`・`:151`・`:289`・`:301`・`:359`）だけである（`rg -n apiKeyEnv`、2026-10-10、HEAD `7864eec`）。`config_test.go:173` は `claude` を不正なプロバイダとして挙げている。
 - **`internal/config/envaccess_test.go`。** 秘密情報の変数名は `secretEnvNames`（`:59`）で、文字列リテラルの部分一致で検査する（`:200-201`）。テストのコード（`_test.go`、または `test`・`integration` タグがないとビルドされないファイル）は検査の対象外である（`:276-299` の `isTestCode`）。そのため、`internal/llm/claude/testutil/integration.go`（`test || integration`）の `YT2COLUMN_TEST_ANTHROPIC_API_KEY` は、部分文字列 `ANTHROPIC_API_KEY` を含むが検査に掛からない。
 - **`internal/llm/provider`。** `newClient` の呼び出しは `provider.go:29` と `provider_test.go:132`・`:178` の 3 か所だけである（`rg -n "newClient\("`）。`provider_test.go` には `TestMain` がなく、`TestNewUsesDeepSeekAdapter`（`:153`）は本番の `deepseek.New` で構築するが `Generate` は呼ばない。
-- **`cmd/yt2column`。** `configuredSecrets`（`run.go:474-486`）は DeepSeek の API キーと Webhook URL だけを返す。対応するテストは `run_test.go:1398` の `TestConfiguredSecretsIncludesWebhookParts` である。`warnHTTP2Debug`（`run.go:302-310`）の文言はキーの種類を問わない。`docs_test.go:33-40` の `configDocRows` は README と project_overview の設定の表を検査するため、表の更新と同じコミットで行を加える（ステップ 6-2）。
+- **`cmd/yt2column`。** `configuredSecrets`（`run.go:474-486`）は DeepSeek の API キーと Webhook URL だけを返す。対応するテストは `run_test.go:1398` の `TestConfiguredSecretsIncludesWebhookParts` である。`warnHTTP2Debug`（`run.go:302-310`）の文言はキーの種類を問わない。`docs_test.go` の `configDocRows` は README と project_overview の設定の表を検査していたが、散文を固定する文書のテストを外すのに合わせて削除した（2026-10-13。上部 Comments を参照）。
 - **Make の部品。** `internal/llm/deepseek/testutil/make.go` の公開の名前（`RunMakeTarget`・`MakeInvocation`・`ChargedTarget`・`CheckChargedTarget`・`FirstLineIs`・`ErrFirstLineMismatch`）は、`cmd/yt2column/makefile_test.go`・`internal/publisher/makefile_test.go`・`internal/llm/deepseek/makefile_test.go`・`internal/llm/deepseek/deepseek_test.go` が使う（`rg -n "FirstLineIs|RunMakeTarget|CheckChargedTarget"`）。公開の形を変えずにラッパーとして残す。`make_test.go` は非公開の `validateEnvNames`・`recordedNames` だけをテストしている。
 - **Makefile。** `test-integration-deepseek`（`Makefile:92-110`）が手本である。`.PHONY`（`:49`）と `lint` の前のコメント（`:163-167`）は統合テストのターゲットを列挙している。`make lint` は `go vet -tags integration ./...` も実行するため、`integration` タグだけのビルドの型の誤りも検出する（`Makefile:168-170`）。
 - **フィクスチャ。** `testdata/claude_messages_end_turn.json`（1459 バイト）と `testdata/claude_messages_max_tokens.json`（596 バイト）、および `testdata/README.md` の出典の節は、コミット `9e7d0db` で追加済みである。architecture §8 の 6 の「testdata の README」は完了しており、本計画は内容の確認だけを行う（ステップ 6-7）。
@@ -58,7 +58,7 @@ HEAD `7864eec`（ブランチ `issei/llm-claude-02`）で確認した。architec
   - `claudeparam.Effort` に、5 つの値のいずれかであるかを返すメソッド（`Valid`）を加える。architecture §3.2 の公開 API の概略にはないが、`claude.New` が「5 つの値のどれでもない effort」を拒否するときに、値の一覧を `claudeparam` の外に持たないためである（requirements §4.5）。`ParseEffort(e.String())` の往復でも判定できるが、文字列を経由した判定は意図が読み取りにくいため採らない。
   - requirements AC-31 の設定の部分は、`internal/config` と `internal/llm/claudeparam` が、`net`・`net/*` と、`internal/llm/claudeparam` 以外の `internal/llm/*` を直接 import しないことを固定する guard で確かめる（ステップ 4-4）。推移的な依存は検査しない（`internal/config` は `internal/slackwebhook` を通じて既に `net/url` に依存している）。アダプタのパッケージへの直接の import を禁じることで、`net/http` を持つパッケージへの依存を防ぐ。
   - `TestMain` のプロキシと Claude の統合テストの判定のテストは、DeepSeek の `TestMain`・`TestIntegrationOptionsSkipMissingKey`（`deepseek_test.go:777`）と同じ形にする。`Post` の契約（タイムアウト・キャンセル・通信の失敗・上限・`200` 以外）は `llmhttp` と各アダプタの両方で検証する。requirements §1 が、共通の規則をアダプタごとに独立して検証できるように AC として定めているためである。
-  - `cmd/yt2column/docs_test.go` に、本計画の手動実行の記録（§5.1）と、統合テストの変数名・Make ターゲットの記述を固定する guard を加える（ステップ 6-2）。`0005`・`0006` の `TestPlanRecordsManualRuns`・`TestSlackDocsContract`（`docs_test.go:146`・`:174`）と同じ形である。
+  - `cmd/yt2column/docs_test.go` に、統合テストの変数名・Make ターゲットの記述を固定する `TestClaudeDocsContract` を加える（ステップ 6-2）。手動実行の記録を確かめる `TestClaudePlanRecordsManualRun` は、散文を固定する文書のテストを外すのに合わせて削除した（2026-10-13。上部 Comments を参照）。`TestSlackDocsContract`（`docs_test.go`）と同じ形である。
   - architecture §4.2 は、CLI が `400` のときにワークスペース ID の環境変数を案内してもよいとする。本計画では加えない（YAGNI）。
   - `deepseektestutil` の `make_test.go` のテストは、移した非公開の関数のテストであるため `internal/maketestutil` に移す。ファイルは残し、ラッパーが記録する変数を固定するテストに入れ替える（ステップ 5-2）。
   - architecture §8 は、実装計画の作成時に編集上の修正をした（同書の Comments）。テストサーバーの部品をフェーズ 1 に、パッケージの行の追加を各フェーズに置いた。決定は変えていない。
@@ -316,7 +316,7 @@ HEAD `7864eec`（ブランチ `issei/llm-claude-02`）で確認した。architec
 
 **タスク**
 - [x] **ステップ 6-1**: `README.md` を更新する。設定の表（`YT2COLUMN_LLM_PROVIDER` に `claude`、`ANTHROPIC_API_KEY`・`YT2COLUMN_CLAUDE_EFFORT`・`ANTHROPIC_WORKSPACE_ID` の行、プロバイダ固有の変数は選んだプロバイダのときだけ検査すること）、effort `max` の注意（architecture §3.6）、`make test-integration-claude` の説明（テスト用の変数、既定のモデル・effort、料金）を書く。
-- [x] **ステップ 6-2**: `docs_test.go` の `configDocRows` に、`ANTHROPIC_API_KEY`・`YT2COLUMN_CLAUDE_EFFORT`・`ANTHROPIC_WORKSPACE_ID` の行を加える。期待する「未設定のとき」の文言は、requirements F-006 の規則を、既存の行（`docs_test.go:34-39`）と同じ書き方で表したものにする（コードから取らない。`docs_test.go:24-26` の方針）。project_overview の欄の期待値は、既存の行と同じく日本語の文字列リテラルになる。これは日本語の表の欄に一致させる guard のリテラルであるため、既存の行の前例に従う。README と project_overview の表の更新と同じコミットにする。同じファイルに、`TestSlackDocsContract`（`:174`）と同じ形で、README と `security.md` が `YT2COLUMN_TEST_ANTHROPIC_API_KEY`・`YT2COLUMN_TEST_ANTHROPIC_WORKSPACE_ID`・`YT2COLUMN_CLAUDE_INTEGRATION`・`test-integration-claude` を記載していることを固定する `TestClaudeDocsContract` と、`TestPlanRecordsManualRuns`（`:146`）と同じ形で、本計画のステップ 5-12 にチェックが入っていれば §5.1 に実行日・HEAD・モデル名・`--- PASS` の記録があることを固定する `TestClaudePlanRecordsManualRun` を加える。
+- [x] **ステップ 6-2**: `docs_test.go` の `configDocRows` に、`ANTHROPIC_API_KEY`・`YT2COLUMN_CLAUDE_EFFORT`・`ANTHROPIC_WORKSPACE_ID` の行を加え、README と project_overview の表の更新と同じコミットにする。同じファイルに、`TestSlackDocsContract` と同じ形で、README と `security.md` が `YT2COLUMN_TEST_ANTHROPIC_API_KEY`・`YT2COLUMN_TEST_ANTHROPIC_WORKSPACE_ID`・`YT2COLUMN_CLAUDE_INTEGRATION`・`test-integration-claude` を記載していることを固定する `TestClaudeDocsContract` を加える。手動実行の記録（§5.1）を確かめる `TestClaudePlanRecordsManualRun` と、`configDocRows` の 3 行は、散文を固定する文書のテストを外すのに合わせて削除した（2026-10-13。上部 Comments を参照）。
 - [x] **ステップ 6-3**: `project_overview.md` を更新する。`:43` と `:79-82` のパッケージ構成（`internal/llm/claude`・`claudeparam`・`llmhttp` を実装済みにする）、`:95-97` の設定の表、`:104` の後に「選択したプロバイダに関係しない変数は読まず、検査しない」原則（requirements §5.1）を書く。
 - [x] **ステップ 6-4**: `security.md` を更新する。§2 の統合テストの例外の表に Claude の統合テストの行を加え、テスト用のキーは利用上限を設けたワークスペースのものにすることを書く。http2debug の説明（`:40`）に `x-api-key` を加える。§4 に、Anthropic の API へ送るデータの扱い（API の入出力をモデルの学習に使うかどうか、保存期間）を書く。§4 の記述は Anthropic の公開文書を確かめて書き、その URL と確認した日付を本文に記す（ネットワークを使うため、確認の前に人間の承認を得る）。
 - [x] **ステップ 6-5**: `CLAUDE.md` の Architecture Overview に `internal/llm/llmhttp`・`internal/llm/claude` を加え、`internal/strictjson` の説明（`:94-95`）の利用者に `internal/llm/claude` を加え、Development Notes の秘密情報の例（`:210`）に `ANTHROPIC_API_KEY` を加える。`AGENTS.md:10` の秘密情報の例にも `ANTHROPIC_API_KEY` を加える。
@@ -331,7 +331,7 @@ HEAD `7864eec`（ブランチ `issei/llm-claude-02`）で確認した。architec
 
 **推奨タイトル**: `docs(0009): document the claude provider and integration test`
 
-**レビュー観点**: README と project_overview の設定の表が、プロバイダ固有の変数を選んだプロバイダのときだけ検査する規則（F-006）と一致し、`docs_test.go` の guard が同じコミットで更新されていること（AC-26・AC-45） / security.md の §2・§4 の記述が Anthropic の公開文書を確認したうえで書かれ、根拠を照合していること（§5.3・§7.2） / CLAUDE.md・AGENTS.md・package_reference.md が実装と一致し、`make ext-test` が通ること（§8）
+**レビュー観点**: README と project_overview の設定の表が、プロバイダ固有の変数を選んだプロバイダのときだけ検査する規則（F-006）と一致すること（AC-26・AC-45） / security.md の §2・§4 の記述が Anthropic の公開文書を確認したうえで書かれ、根拠を照合していること（§5.3・§7.2） / CLAUDE.md・AGENTS.md・package_reference.md が実装と一致し、`make ext-test` が通ること（§8）
 
 **実装モデル要件**: standard
 
@@ -443,7 +443,7 @@ architecture §7.3 に従う。計画固有の事項は次のとおり。
 | AC-27 | 既存の DeepSeek の設定の振る舞いが変わらない | test | `internal/config/config_test.go` の既存テスト（ステップ 4-1 の改名だけのコミットで期待値を変えずに通る。以後の変更は `:173` の入れ替えと行の追加）・`internal/llm/provider/provider_test.go::TestNewDeepSeekSendsConfiguredRequest`（`newClient` の呼び出しの形だけを変える）・`make test` |
 | AC-28 | 統合テストは `make test`・`make test-ci` に含まれない | static | `claude/claude_test.go::TestIntegrationTestBuildTag`・`make test`・`make test-ci`（`-tags test` だけでビルドする） |
 | AC-29 | `make test-integration-claude` のフラグ・表示・スキップ | test / manual | `claude/makefile_test.go::TestMakeTestIntegrationClaude`・`internal/llm/claude/testutil/integration_settings_test.go::TestIntegrationSettings`（API キーの未設定・空でスキップし理由に変数名、`ANTHROPIC_API_KEY` だけではスキップ）・`claude/claude_test.go::TestIntegrationOptionsSkipMissingKey`・`cmd/yt2column/makefile_test.go::TestMakeOptInsAreTargetSpecific`・`internal/llm/deepseek/testutil/make_test.go`（ラッパーの記録する変数）・§5.1 の記録（API キーなしのスキップの行を含む） |
-| AC-30 | 実 API での正常な生成と打ち切り | test / manual | `claude/integration_test.go::TestIntegrationGenerate`（`make test-integration-claude` で実行）・§5.1 の記録（`cmd/yt2column/docs_test.go::TestClaudePlanRecordsManualRun`） |
+| AC-30 | 実 API での正常な生成と打ち切り | test / manual | `claude/integration_test.go::TestIntegrationGenerate`（`make test-integration-claude` で実行） |
 | AC-31 | ユニットテストは外部ホストを呼ばない | test / static | `claude/claude_test.go::TestUnitTestsCannotReachProductionEndpoint`（`TestMain` のプロキシと `Transport` が `nil`）・`TestNewForLoopbackTestRejectsNonLoopback`・`internal/llm/provider/provider_test.go::TestUnitTestsCannotReachProductionEndpoint`・`llmhttp/llmhttp_test.go::TestNewClient`・`internal/pipeline/pipeline_test.go::TestConfigImports`（`internal/config`・`claudeparam` の直接の import） |
 | AC-32 | 不正な JSON・空・オブジェクト以外・後続データ | test | `claude/response_test.go::TestGenerateInvalidBody` |
 | AC-33 | 消費するメンバーの欠落・`null`・種類の不一致、空の `model` | test | `claude/response_test.go::TestGenerateConsumedMembers`（`ErrEmptyResponse` でないことも確かめる） |
@@ -462,7 +462,7 @@ architecture §7.3 に従う。計画固有の事項は次のとおり。
 
 ### 5.1. 手動実行の記録 (AC-29・AC-30・AC-43)
 
-ステップ 5-12 で記入する。記録する項目は、API キーなしでの実行のスキップの行と、API キーありでの実行日、HEAD、モデル名・effort、ワークスペース ID の指定の有無（値は書かない）、`TestIntegrationGenerate` の 2 つのサブテストの `--- PASS` と所要時間である。チェックが入った後の記録の有無は `cmd/yt2column/docs_test.go::TestClaudePlanRecordsManualRun` が固定する。
+ステップ 5-12 で記入する。記録する項目は、API キーなしでの実行のスキップの行と、API キーありでの実行日、HEAD、モデル名・effort、ワークスペース ID の指定の有無（値は書かない）、`TestIntegrationGenerate` の 2 つのサブテストの `--- PASS` と所要時間である。
 
 **API キーなしでの実行（料金は発生しない）。** 2026-10-10、HEAD `4466478` に本ステップの変更を加えた作業ツリーで、`YT2COLUMN_TEST_ANTHROPIC_API_KEY` と `ANTHROPIC_API_KEY` を設定せずに `make test-integration-claude` を実行した。出力は次のとおりで、スキップの行は変数名を示し、`make` は成功した。
 
