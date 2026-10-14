@@ -8,7 +8,7 @@
 | Created | 2026-10-14 |
 | Review date | 2026-10-14 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-14 記述の訂正（決定の変更なし）: 実データの追加のコミットを、存在しない `938a4d9` から squash 後の `4fe06e0` に改め、§3.4・§8 で `testdata/README.md`・`.gitattributes` が同コミットで追加済みであることを明記した。 |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md) の項番を指す。既存のコードと文書の行番号は、コミット `0a46cf0`（要件の承認のコミット）で確かめたものである。「0011 §N」は [0011_localhost_server/02_architecture.md](../0011_localhost_server/02_architecture.md) の節を、「0007」は [0007_browser_extension_skeleton/](../0007_browser_extension_skeleton/) の文書を指す。
 
@@ -447,9 +447,9 @@ var ErrCopiedTranscriptFormat = errors.New("copied transcript does not match the
 | `internal/transcript/copied_test.go` | 新規 | `NewCopiedSource`・`Fetch` のテスト（§7.1） |
 | `internal/transcript/copied_format_test.go` | 新規 | パーサのテストと fuzz のテスト（§7.1・§7.3） |
 | `internal/writer/prompt_test.go` | 変更 | `testdata/` の実データから `NewCopiedSource` で作った `Transcript` が `validateTranscript` を通るテスト（§7.1） |
-| `testdata/IkngpxCMmRQ.transcript_copy.txt`・`testdata/Yoboo9g7saY.transcript_copy.txt`・`testdata/mbyG85GZ0PI.transcript_copy.txt` | 新規（コミット `938a4d9` で追加済み） | 形 A・形 B の実データ（AC-01） |
-| `testdata/README.md` | 変更 | 上の 3 ファイルの出典・ライセンス・取得日・取得方法・加工内容（§3.5） |
-| `.gitattributes` | 新規 | `testdata/*.transcript_copy.txt -text`。`core.autocrlf` の設定で、チェックアウト時に行の区切りが CRLF に書き換わらないようにする（§3.5） |
+| `testdata/IkngpxCMmRQ.transcript_copy.txt`・`testdata/Yoboo9g7saY.transcript_copy.txt`・`testdata/mbyG85GZ0PI.transcript_copy.txt` | 新規（コミット `4fe06e0` で追加済み） | 形 A・形 B の実データ（AC-01） |
+| `testdata/README.md` | 変更（コミット `4fe06e0` で記載済み） | 上の 3 ファイルの出典・ライセンス・取得日・取得方法・加工内容（§3.5） |
+| `.gitattributes` | 新規（コミット `4fe06e0` で追加済み） | `testdata/*.transcript_copy.txt -text`。`core.autocrlf` の設定で、チェックアウト時に行の区切りが CRLF に書き換わらないようにする（§3.5） |
 | `CLAUDE.md` | 変更 | 「Declare, don't infer」と「Delegate the fragile part」の例外（§1.3.1・§3.6）。Architecture Overview の `TranscriptSource` の説明に `CopiedSource` を加える |
 | `docs/dev/project_overview.md` | 変更 | 「決定済みの方針」の字幕取得（`:11`）に例外 2（§1.3.1）を加える。「パイプライン」の `TranscriptSource` の実装に `CopiedSource` を加える |
 | `docs/dev/developer_guide/package_reference.md` | 変更 | `internal/transcript` の行に `CopiedSource`・`NewCopiedSource`・`ErrCopiedTranscriptFormat` を加える |
@@ -740,7 +740,7 @@ stateDiagram-v2
 
 | AC | 設計要素 | 確かめ方 |
 |---|---|---|
-| AC-01 | `testdata/` の 3 ファイル（コミット `938a4d9`）、`testdata/README.md`（§3.5） | 静的な確認 |
+| AC-01 | `testdata/` の 3 ファイル（コミット `4fe06e0`）、`testdata/README.md`（§3.5） | 静的な確認 |
 | AC-01a | §1.4.1（`nv94SmoSPQA` の `2:10:26`、`mbyG85GZ0PI` の `1:00:07`） | 静的な確認 |
 | AC-01b | §1.4.1 の 2 つの表 | 静的な確認 |
 | AC-02 | §3.2（書式の定義）、実データの解析のテスト。利用者への案内（§4.4）は #108・#109 で確かめる | テスト・静的な確認 |
@@ -766,7 +766,7 @@ stateDiagram-v2
 |---|---|---|
 | 1 | `ErrCopiedTranscriptFormat` と理由の番兵、時刻の文法と読み上げ用ラベルの導出、パーサとそのテスト（合成の入力） | なし |
 | 2 | `CopiedInput`・`CopiedSource`・`NewCopiedSource`・`Fetch` とそのテスト | フェーズ 1 |
-| 3 | 実データのテスト、`writer` との整合のテスト、`testdata/README.md`、`.gitattributes` | フェーズ 2 |
+| 3 | 実データのテスト、`writer` との整合のテスト（`testdata/README.md`・`.gitattributes` はコミット `4fe06e0` で追加済み） | フェーズ 2 |
 | 4 | 4 MiB の入力、時間とメモリ、fuzz のテスト | フェーズ 1 |
 | 5 | 文書（CLAUDE.md の 2 つの例外、`project_overview.md`、`package_reference.md`、`translation_glossary.md`） | フェーズ 2 |
 
