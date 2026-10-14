@@ -10,7 +10,7 @@
 | Reviewer | - |
 | Comments | - |
 
-本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md) の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §3.8）を指す。「#109 §N」は [0011_localhost_server/02_architecture.md](../0011_localhost_server/02_architecture.md) の節を指す。既存のコードの行番号は、コミット `beefcee`（要件の承認のコミット）で確かめたものである。
+本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md) の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §3.8）を、I-NN は [implementation_handoff.md](implementation_handoff.md) の項目（対応は §3.4）を指す。「#109 §N」は [0011_localhost_server/02_architecture.md](../0011_localhost_server/02_architecture.md) の節を指す。既存のコードの行番号は、コミット `beefcee`（要件の承認のコミット）で確かめたものである。
 
 **用語。** 本書では、要件書の用語に加えて次の語を使う。
 
@@ -111,7 +111,7 @@ flowchart LR
 
 **前提とする、まだ実装されていない部品。** `internal/failure` は、#109 の最初の PR（#109 §8 の手順 1）が新設する。コミット `beefcee` の時点で、`internal/failure` のディレクトリはない。本タスクの通知の実装は、その PR がマージされた後に作る（§8）。#109 の設計書は、コミット `beefcee` の時点で `draft` である。本書は #109 §3.9 の型の定義と、#109 §3.4.2 のリクエスト ID の形（`crypto/rand` の 8 バイトを 16 進の小文字 16 文字で表す）をそのまま前提にする。#109 の承認の過程でこれらが変わった場合は、本書を改める（決定の変更として `draft` に戻す）。
 
-**#109 と共有する事実。** リクエスト ID の形 `^[0-9a-f]{16}$` は、#109 が生成し、本設計が検査する（§3.4 の手順 2）。両者が別々に同じ事実を持つので、#109 が形を変えると、すべての通知が `ErrSlackInvalidNotice` で拒否される。この食い違いはサーバのログにしか現れない。そこで、#109 に、生成したリクエスト ID を実物の `SlackFailureNotifier`（loopback の送信先）に通すテストを置くよう求める（§8 の手順 4、§9）。そのテストがサーバのパッケージから実物を使えるよう、本タスクが公開のテスト用の構築関数 `NewSlackFailureNotifierForLoopbackTest` を用意する（§3.2）。
+**#109 と共有する事実。** リクエスト ID の形 `^[0-9a-f]{16}$` は、#109 が生成し、本設計が検査する（§3.4）。両者が別々に同じ事実を持つので、#109 が形を変えると、すべての通知が `ErrSlackInvalidNotice` で拒否される。この食い違いはサーバのログにしか現れない。そこで、#109 に、生成したリクエスト ID を実物の `SlackFailureNotifier`（loopback の送信先）に通すテストを置くよう求める（§8 の手順 4、§9）。そのテストがサーバのパッケージから実物を使えるよう、本タスクが公開のテスト用の構築関数 `NewSlackFailureNotifierForLoopbackTest` を用意する（§3.2）。
 
 **他の文書の方針との関係。** 次の 3 点は、他の文書が定めたことと本設計の扱いが異なる。
 
@@ -296,7 +296,7 @@ type SlackWebhookPublisher struct {
 -   **URL を `webhookClient` に持たせる理由。** 伏せる部分（`parts`）は、送信に使う URL と同じ値から導かなければならない。URL を呼び出し元が持って `post` に渡す形では、この対応を呼び出し元ごとの約束で守ることになる。`webhookClient` が URL を持ち、`post` の中で取り出して導出すれば、対応は型で決まる（CLAUDE.md「Enforce invariants with the type」）。伏せる部分は平文なので、フィールドには持たず、`post` の呼び出しごとに導出する。導出の費用は、送信の時間（秒の単位）に比べて無視できる（CLAUDE.md「Performance」）。
 -   `post` の振る舞い（`context.WithTimeoutCause` による上限、`webhookPayload`、`Content-Type`、8,193 バイトまでの読み込み、`ok` の判定、`*SlackHTTPStatusError`・`ErrSlackInvalidResponse`・`ErrSlackTransport`・時間切れと中断のエラー）は、現在の `postMessage`・`postFailure`（`slack.go:158-194`・`:220-228`）と同じである。`post` の返すエラーがちょうど 1 つの番兵に一致するという約束（`slack.go:215-219` のコメント）も変えない。
 -   `Publish` は、先頭（`prepareSlackMessages` の前）で `client.configured()` を呼び、URL の有無を確かめる。今と同じく、ゼロ値では記事の準備のエラーより先に `errZeroWebhookURL` を返す（`slack.go:126-130`）。`post` も、URL のない `webhookClient` では送らずに `errZeroWebhookURL` を返す。ゼロ値の `SlackWebhookPublisher` は、今と同じく `errZeroWebhookURL` を返し、何も送らず、`*SlackPostError` を返さない（`TestSlackPublishZeroValue`、`slack_test.go:1093`）。
--   `post` は送信の前に `ctx` を確かめない。現在の `postMessage` も確かめず、確認は `Publish` のループ（`slack.go:144-146`）にある。通知の実装は `post` を呼ぶ前に自分で確かめる（§3.4 の手順 3）。`post` に確認を加えないのは、記事の投稿の `*SlackPostError` の `Attempted`（`slack_errors.go:43-52`）の意味を変えないためである。
+-   `post` は送信の前に `ctx` を確かめない。現在の `postMessage` も確かめず、確認は `Publish` のループ（`slack.go:144-146`）にある。通知の実装は `post` を呼ぶ前に自分で確かめる（§3.4）。`post` に確認を加えないのは、記事の投稿の `*SlackPostError` の `Attempted`（`slack_errors.go:43-52`）の意味を変えないためである。
 -   `checkWebhookURL` は、`NewSlackWebhookPublisher` の検査（`slack.go:92-98`）をそのまま切り出したものである。返す番兵（`errZeroWebhookURL`・`errInvalidWebhookURL`）もメッセージも変えない。
 -   **既存の 2 つの方式を選ばなかった理由。** (1) 通知の実装が `*SlackWebhookPublisher` を持ち、その非公開のメソッド `postMessage` を呼ぶ形は、既存のコードを変えずに済む。しかし、通知の実装が使わない `interval` を持つ `SlackWebhookPublisher` の値を抱えることになり、通知の実装の上限をテストで短くするにも記事の投稿の構築関数を経由する必要がある。送信の経路そのものを型として切り出せば、両者が同じ部品を対等に持つ形になる。(2) 送信の経路を `internal/slackwebhook` に移す形（H-01 の候補 (b)）は、`*SlackHTTPStatusError` などのエラー型と番兵も移すことになり、`internal/config`・`cmd/yt2column` が import する検査用のリーフパッケージに `net/http` の送信が入る。共有に必要なのは同じパッケージの中の 2 つの型だけなので、パッケージを越えて移す理由がない（YAGNI）。
 
@@ -369,19 +369,15 @@ video: <https://www.youtube.com/watch?v=<VideoID>>
 -   種類の文は互いに異なる（AC-02）。`KindPublish` の文は、記事の投稿が途中で失敗した場合（#109 §3.9 の最後の項目）に、チャンネルに残った断片の意味を利用者が読み取れるようにする。
 -   文面に現れる文字は、種類の文の英字・空白・`;`、接頭辞の `yt2column`（数字の `2` を含む）、接頭辞と行の見出しの `:`、改行、`[0-9a-f]`、`<https://www.youtube.com/watch?v=`・`[A-Za-z0-9_-]`・`>` だけである。`@`・`&`・`|`・`!` を含まず、`<` の直後は常に `h` である。メンションの記法（`@` に続く名前、`<!`・`<@`、文字参照、`<a|b>` の形）は現れない（AC-06）。
 
-### 3.4. `Notify` の手順
+### 3.4. `Notify` の契約
 
-`Notify` は次の順に処理する。どの手順で失敗しても、後の手順は行わない。
+`Notify` は、`Notice` を §3.3 の文面に組み立て、通知の実装の上限の下で送る。外部から観測できる保証は次のとおりである。処理の順序と、エラーの判定・包み方の手段は実装で決める（[implementation_handoff.md](implementation_handoff.md) の I-01）。
 
-1. **受け手と URL の確認。** 受け手が nil、または `client.configured()` がエラーを返すなら、非公開の `errZeroNotifier` を返す。送らない。
-2. **値の形の検査と文面の組み立て。** `RequestID` が `^[0-9a-f]{16}$` に一致しなければ、`ErrSlackInvalidNotice` を包むエラーを返す。`VideoID` が空でなく、`transcript.NormalizedVideoURL` が拒否すれば、同じく `ErrSlackInvalidNotice` を包むエラーを返す。どちらのエラーも、値そのものを含まない（`RequestID` に `<!channel>` のような値が来ても、エラーを書いたログに写らない）。検査を通れば §3.3 の文面を組み立てる（AC-04a）。
-3. **`ctx` の確認。** `ctx.Err()` が nil でなければ、それを包み、送っていないことを示すエラー（§4.2）を返す。送らない（AC-10）。
-4. **送信。** `client.post` を 1 回だけ呼ぶ（AC-11）。
-5. **結果の包み直し。** `post` のエラーが `ErrSlackHTTPStatus` または `ErrSlackInvalidResponse` と判定できるとき（`errors.Is`）、`ErrSlackNoticeRejected` と元のエラーの両方で判定できるエラーにして返す（AC-08・AC-09）。それ以外のエラー（送信の途中の時間切れ・中断、`ErrSlackTransport`）は、どれも届いたかどうかが分からない（§4.1 の表の「0 回または 1 回」）ので、届いたかもしれないことを示すエラー（§4.2）で包んで返す。元のエラーは `%w` で残す。
-
--   検査（手順 2）を `ctx` の確認（手順 3）より先に行うのは、呼び出し元の誤りを、`ctx` の状態によらず同じエラーで返すためである。
--   手順 3 と手順 4 の間で `ctx` が取り消された場合、`post` の中の `http.Client.Do` が中断を返す。この場合にリクエストが送られたかどうかは `net/http` の動作に依存し、本設計は保証しない。AC-10 が求めるのは「キャンセル済みの `ctx` で送らない」ことで、手順 3 がそれを保証する。この場合のエラーは手順 5 のとおり「届いたかもしれない」と示す。
--   `Notify` はパッケージの外の値を変えず、自分のフィールドも変えない。同じ値を複数の goroutine から同時に呼べる（#109 のサーバは、ジョブの goroutine と本文の検査の後の goroutine から呼ぶ。#109 §3.9）。`http.Client` は並行に使える。投稿の失敗のあとも、次の `Notify` はそのまま送る（AC-16）。
+-   **無効な通知を送らない。** 受け手がゼロ値のとき、`Notice` の `RequestID`・`VideoID` の形が合わないとき、`ctx` が既に取り消されている・期限を過ぎているときは、送信先にリクエストを届けずにエラーを返す（AC-04・AC-04a・AC-10）。形の誤りは、`ctx` の状態によらず `ErrSlackInvalidNotice` として返す。
+-   **送信は多くとも 1 回。** 検査と `ctx` の確認を通ったとき、送信の経路で 1 回だけ送る。再試行もリダイレクトの追跡もしない（AC-07・AC-09・AC-11）。
+-   **結果を文書化した番兵に写す。** 応答の拒否は `ErrSlackNoticeRejected`（`ErrSlackHTTPStatus`・`ErrSlackInvalidResponse` と判定できる）、形の誤りは `ErrSlackInvalidNotice`、時間切れ・中断・通信の失敗は元のエラーとして、呼び出し元が判定できる（§4.1）。どのエラーも Webhook URL もその一部も含まない（AC-08・AC-12・AC-13・AC-14）。
+-   **呼び出し元に届いたかどうかを示す。** 検査・`ctx` の確認・拒否で終わった場合は届いていないこと、送信の途中の時間切れ・中断・通信の失敗の場合は届いたかもしれないことを、エラーの文から読み取れるようにする（§4.2）。
+-   **状態を持たず、記録しない。** `Notify` はパッケージの外の値も自分のフィールドも変えず、出力を書かない。同じ値を複数の goroutine から同時に呼べる（#109 のサーバは、ジョブの goroutine と本文の検査の後の goroutine から呼ぶ。#109 §3.9）。`http.Client` は並行に使える。投稿の失敗のあとも、次の `Notify` はそのまま送る（AC-15・AC-16）。
 
 ### 3.5. 時間の上限と `ctx`（H-05）
 
@@ -422,7 +418,7 @@ video: <https://www.youtube.com/watch?v=<VideoID>>
 
 | 項目 | 本設計の対応 | 節 |
 |---|---|---|
-| H-01 送信の経路の共有 | 候補 (a)。`SlackWebhookPublisher` の送信の部分を、Webhook URL ごと、同じパッケージの非公開の型 `webhookClient` に切り出して共有する。候補 (b)（`internal/slackwebhook` へ移す）は採らない。キャンセル済みの `ctx` で送らないことは、`Notify` の側（手順 3）で保証する。要件の仮称 `ErrWebhookResponseRejected` は `ErrSlackNoticeRejected` と名付け、`internal/publisher` に置く。`ErrSlackHTTPStatus`・`ErrSlackInvalidResponse` と判定できるエラーを `Notify` がこれで包む。`internal/failure` には置かない（#109 の型を変えないため） | §3.1・§3.4・§4.1 |
+| H-01 送信の経路の共有 | 候補 (a)。`SlackWebhookPublisher` の送信の部分を、Webhook URL ごと、同じパッケージの非公開の型 `webhookClient` に切り出して共有する。候補 (b)（`internal/slackwebhook` へ移す）は採らない。キャンセル済みの `ctx` で送らないことは、`Notify` の側（§3.4）で保証する。要件の仮称 `ErrWebhookResponseRejected` は `ErrSlackNoticeRejected` と名付け、`internal/publisher` に置く。`ErrSlackHTTPStatus`・`ErrSlackInvalidResponse` と判定できるエラーを `Notify` がこれで包む。`internal/failure` には置かない（#109 の型を変えないため） | §3.1・§3.4・§4.1 |
 | H-02 種類の文と文面 | 3 行の文面（接頭辞と種類の文、`request:`、`video:`）。動画の URL は記事と同じ `<URL>` の形。種類の文は英語の固定の一文で、表で定める。`KindUnknown` と列挙にない値は「unclassified reason」の文 | §3.3 |
 | H-03 置き場所と依存の向き | `internal/publisher` に置く。`internal/publisher` が `internal/server` を import しないことを `depguard` で固定する。`internal/server` が実装の型を参照しないことは #109 が保証する | §2.1・§3.2・§3.7 |
 | H-04 guard | `internal/failure/failure_test.go` に、フィールドの集合・メソッドの集合・`Kind` のゼロ値・`Kind` の定数の並びの 4 つの guard を置く | §3.6 |
@@ -492,7 +488,7 @@ var errZeroNotifier = errors.New("webhook: the notifier has no webhook URL")
 
 -   既存の番兵と同じく、`webhook:` で始まる英語の一文とする。
 -   `ErrSlackInvalidNotice` を包むエラーは、どのフィールドが合わなかったか（`the request ID is not 16 lowercase hexadecimal characters`・`the video ID is not 11 characters of [A-Za-z0-9_-]`）だけを書き、値を書かない。
--   呼び出し元はエラーの文をログに書くだけなので、ログを読む人が、通知が届いたかどうかをエラーの文から判断できるようにする。送っていない場合（§3.4 の手順 1〜3）は `the failure notice was not sent`、送信の途中の時間切れ・中断と通信の失敗（手順 5）は `the failure notice may have been posted` を、文の先頭に置く。記事の投稿の `*SlackPostError` の "may have been posted" と同じ考え方である。
+-   呼び出し元はエラーの文をログに書くだけなので、ログを読む人が、通知が届いたかどうかをエラーの文から判断できるようにする。送っていない場合（§4.1）は `the failure notice was not sent`、送信の途中の時間切れ・中断と通信の失敗（§4.1）は `the failure notice may have been posted` を、文の先頭に置く。記事の投稿の `*SlackPostError` の "may have been posted" と同じ考え方である。
 -   応答の拒否は、`*SlackHTTPStatusError` の既存のメッセージ（状態コードと、受理した形の識別子だけ。`slack_errors.go:27-39`）をそのまま含む。応答の本文の自由文は含まない（security.md §3）。
 
 例（呼び出し元のログに現れる形）:
@@ -579,7 +575,7 @@ flowchart LR
 | Webhook URL がエラーに載る | 送信の経路の既存の対策（`*url.Error` を包まない、`SensitiveParts` に重なる識別子を捨てる。`slack.go:233-276`）をそのまま使う。通知の実装のエラーは値を含まない | AC-12・AC-13 |
 | リダイレクトで Webhook URL が別のホストへ送られる | `CheckRedirect` が `http.ErrUseLastResponse` を返す（`webhookClient` の構築関数に移すが、変えない） | AC-09 |
 | 呼び出し元の誤りで、`RequestID` にメンションの記法などが入る | `^[0-9a-f]{16}$` の検査。合わなければ送らない。エラーにも値を写さない | AC-04a |
-| 失敗の通知の投稿が、メンションとして扱われて着信通知を起こす | `silent`。文面にメンションの記法が現れない | AC-06（全 `Kind` の文面に `rejectMention` を当てて通ること、`@`・`&`・`|`・`!` を含まないこと） |
+| 失敗の通知の投稿が、メンションとして扱われて着信通知を起こす | `silent`。文面にメンションの記法が現れない | AC-06（全 `Kind` の文面に `rejectMention` を当てて通ること、`@`・`&`・`&#124;`・`!` を含まないこと） |
 | 応答しない、または巨大な応答を返す送信先で、通知が終わらない | 上限 30 秒、応答の本文は 8,193 バイトまで | AC-08・AC-10 |
 | 投稿の失敗の経路から秘密情報が出力に流れる | 通知の実装と送信の経路は書かない。`log`・`log/slog` を `depguard` で禁じる | AC-15 |
 
@@ -588,8 +584,8 @@ flowchart LR
 | 境界 | 受理する形 | 上限 | 拒否時の扱い | 検査する箇所 |
 |---|---|---|---|---|
 | Webhook の応答 | 状態 `200` で本文がちょうど `ok`。3xx には従わない | 8,192 バイト（8,193 バイトまで読む） | `ErrSlackNoticeRejected`。再試行しない | `webhookClient.post`（既存の処理） |
-| `Notice.RequestID` | `^[0-9a-f]{16}$` | 16 文字 | `ErrSlackInvalidNotice`。送らない | `Notify` の手順 2 |
-| `Notice.VideoID` | 空、または `transcript.NormalizedVideoURL` が受理する 11 文字 | 11 文字 | `ErrSlackInvalidNotice`。送らない | `Notify` の手順 2 |
+| `Notice.RequestID` | `^[0-9a-f]{16}$` | 16 文字 | `ErrSlackInvalidNotice`。送らない | `Notify`（§3.4） |
+| `Notice.VideoID` | 空、または `transcript.NormalizedVideoURL` が受理する 11 文字 | 11 文字 | `ErrSlackInvalidNotice`。送らない | `Notify`（§3.4） |
 | `Notice.Kind` | 任意の値 | - | 列挙にない値は `KindUnknown` と同じ種類の文 | 種類の文の `switch` |
 
 -   `200` 以外の応答の本文から読むのは、既存の処理と同じく `id`・`request_id` の識別子だけである（`slack.go:249-276`）。自由文は読まない。
@@ -694,9 +690,8 @@ flowchart LR
 ### 7.3. セキュリティテスト
 
 -   **AC-05（文面に秘密情報が現れない）。** 目印の値をパスに含む Webhook URL（`slackWebhookPath`）で構築し、すべての `Kind` について通知する。受け取ったすべての `text` に、URL・パス・末尾 8 文字・`slackwebhook.SensitiveParts` の各要素が現れないことを確かめる。あわせて文面の全体を表で照合する（§7.1）。
--   **AC-06（メンションの記法）。** 受け取ったすべての `text` に `rejectMention`（`slack_message.go:142-149`）を当てて nil であること、`@`・`&`・`|`・`!` を含まないことを確かめる。この検査が失敗しうることは、種類の文の 1 つに `@channel` を含めた実装で失敗することで確かめる（CLAUDE.md「Every test must be able to fail」）。
+-   **AC-06（メンションの記法）。** 受け取ったすべての `text` に `rejectMention`（`slack_message.go:142-149`）を当てて nil であること、`@`・`&`・`|`・`!` を含まないことを確かめる。
 -   **AC-13（エラーに URL が現れない）。** 同じ目印の URL で、AC-08 の各応答、3xx、時間切れ、接続の拒否（送信先のサーバを閉じた後の URL）を起こす。返されたエラーから、`Unwrap() error` と `Unwrap() []error` の両方をたどって得られるすべてのエラーの `Error()` に、`SensitiveParts` の各要素が現れないことを確かめる（§4.1 のとおり、AC-13 の文言より広い範囲）。この検査では、既存の補助関数 `requireErrorOmitsEndpoint`（`slack_test.go:208-223`。`TestSlackPublishErrorsOmitWebhookURL` が使う）を共有して使う。この関数は現在 `errors.Unwrap` だけでたどる（`slack_test.go:216`）ので、`Unwrap() []error` の枝もたどるように改める。記事の投稿のエラーは `Unwrap() []error` を持たないので、既存の呼び出し元の結果は変わらない。`fmt` の各書式（`%v`・`%+v`・`%#v`・`%s`）で `SlackFailureNotifier` の値を書いても目印が現れないことも、既存の `struct formatting` の部分テスト（`slack_test.go:1060-1067`）と同じ形で確かめる。
--   **テストが失敗しうることの確認。** 各テストは、対象の検査を外した実装（`RequestID` の検査を外す、`ctx` の確認を外す、包み直しを外す、`CheckRedirect` を外す、など）で失敗することを確かめ、コミットメッセージに書く。
 
 ### 7.4. 受け入れ基準と設計要素の対応
 
@@ -706,15 +701,15 @@ flowchart LR
 | AC-01a | §3.6 `TestKindConstants` | ユニット（guard） |
 | AC-02 | §3.3 | ユニット（文面の表） |
 | AC-03 | §3.3 | ユニット |
-| AC-04 | §3.3 の `switch` の `default`・§3.4 の手順 1 | ユニット |
-| AC-04a | §3.4 の手順 2 | ユニット |
+| AC-04 | §3.3 の `switch` の `default`・§3.4 | ユニット |
+| AC-04a | §3.4 | ユニット |
 | AC-05 | §3.3・§5.2 | §7.3 |
 | AC-06 | §3.3・§1.3 の「他の文書の方針との関係」の 3 点目 | §7.3 ＋ 静的な確認（種類の文の表） |
 | AC-07 | §3.1 `webhookClient.post` | ユニット |
-| AC-08 | §3.4 の手順 5・§4.1（`ErrSlackNoticeRejected` が要件の仮称 `ErrWebhookResponseRejected` に当たる） | ユニット |
-| AC-09 | §3.1（`CheckRedirect`）・§3.4 の手順 5 | ユニット |
-| AC-10 | §3.4 の手順 3・§3.5 | ユニット |
-| AC-11 | §3.4 の手順 4 | ユニット |
+| AC-08 | §3.4・§4.1（`ErrSlackNoticeRejected` が要件の仮称 `ErrWebhookResponseRejected` に当たる） | ユニット |
+| AC-09 | §3.1（`CheckRedirect`）・§3.4 | ユニット |
+| AC-10 | §3.4・§3.5 | ユニット |
+| AC-11 | §3.4 | ユニット |
 | AC-12 | §3.1 `checkWebhookURL`・§3.2 | ユニット |
 | AC-13 | §3.1（既存の対策）・§4.1 | §7.3 |
 | AC-14 | §3.4・§4.1 | ユニット |
@@ -736,7 +731,7 @@ flowchart LR
 
 ## 9. 将来の拡張性 (Future Extensibility)
 
--   **CLI からの通知。** `publisher.NewSlackFailureNotifier` は `internal/server` に依存しないので、CLI から構築して呼べる。ただし `Notice.RequestID` の形（16 進 16 文字）を CLI が満たす値を持たないので、CLI から通知するときは、#109 と合わせて `Notice` の契約（`RequestID` を空にできるようにするなど）を決め直す（要件 F-005）。そのとき、`RequestID` の検査（§3.4 の手順 2）と文面の 2 行目の扱いを本書で改める。
+-   **CLI からの通知。** `publisher.NewSlackFailureNotifier` は `internal/server` に依存しないので、CLI から構築して呼べる。ただし `Notice.RequestID` の形（16 進 16 文字）を CLI が満たす値を持たないので、CLI から通知するときは、#109 と合わせて `Notice` の契約（`RequestID` を空にできるようにするなど）を決め直す（要件 F-005）。そのとき、`RequestID` の検査（§3.4）と文面の 2 行目の扱いを本書で改める。
 -   **他のパッケージのテストからの実物の利用。** 公開のテスト用の構築関数 `NewSlackFailureNotifierForLoopbackTest`（§3.2）を #109 のテスト（§1.3 のリクエスト ID のテスト）が使う。他のパッケージのテストが実物をさらに必要としたら、同じ形の関数を加える。
 -   **新しい `Kind`。** #109 が `Kind` を加えると、`TestKindConstants`（§3.6）が失敗する。種類の文の `switch` と表、テストの表に行を加えてから guard を改める。加え忘れた `Kind` は `default` の文（unclassified reason）で投稿されるので、通知自体は失われない。
 -   **通知の集約・抑制・停止。** 要件 §2.3 の対象外である。必要になれば、`failure.Notifier` を包む別の実装（たとえば設定で通知を止める実装）として、`SlackFailureNotifier` を変えずに加えられる。
