@@ -70,44 +70,26 @@ type webhookPayload struct {
 	Silent bool   `json:"silent"` // always true
 }
 
-// SlackWebhookPublisher posts an article to a Slack-compatible Incoming
-// Webhook (Mattermost is the verified target) as one or more messages. It
-// holds the webhook URL only as a secret.Secret, so printing the struct never
-// shows the URL. Its fields are set once by the constructor and never mutated
-// afterwards. Publish on the zero value fails without sending.
-type SlackWebhookPublisher struct {
+// webhookClient holds the webhook URL and sends one message to a
+// Slack-compatible Incoming Webhook. It reveals the URL and derives its
+// sensitive parts itself, so no caller handles the plain URL. Its timeout
+// bounds the send and the whole body read; its http.Client never follows a
+// redirect. Shared by SlackWebhookPublisher and SlackFailureNotifier. Its
+// fields are set once by newWebhookClient and never mutated afterwards.
+type webhookClient struct {
 	webhookURL secret.Secret
 	timeout    time.Duration
-	interval   time.Duration
 	httpClient *http.Client
 }
 
-var _ Publisher = (*SlackWebhookPublisher)(nil)
-
-// NewSlackWebhookPublisher validates webhookURL with slackwebhook.ValidURL
-// and returns a publisher with the production timeout and interval. It never
-// reads environment variables and never touches the network. A rejection
-// never holds the URL or any part of it.
-func NewSlackWebhookPublisher(webhookURL secret.Secret) (*SlackWebhookPublisher, error) {
-	value, err := webhookURL.Reveal()
-	if err != nil {
-		return nil, errZeroWebhookURL
-	}
-	if !slackwebhook.ValidURL(value) {
-		return nil, errInvalidWebhookURL
-	}
-	return newSlackWebhookPublisher(webhookURL, SlackPostTimeout, slackMessageInterval, nil), nil
-}
-
-// newSlackWebhookPublisher builds a publisher around webhookURL. transport, when
-// non-nil, replaces the default transport; it lets a test observe or fail the
-// send. A 3xx response is returned as the response instead of being followed,
-// so the Webhook URL is never sent to a redirect target.
-func newSlackWebhookPublisher(webhookURL secret.Secret, timeout, interval time.Duration, transport http.RoundTripper) *SlackWebhookPublisher {
-	return &SlackWebhookPublisher{
+// newWebhookClient returns a client for webhookURL with the given timeout.
+// transport, when non-nil, replaces the default transport (a test seam). A 3xx
+// response is returned as the response instead of being followed, so the
+// Webhook URL is never sent to a redirect target.
+func newWebhookClient(webhookURL secret.Secret, timeout time.Duration, transport http.RoundTripper) webhookClient {
+	return webhookClient{
 		webhookURL: webhookURL,
 		timeout:    timeout,
-		interval:   interval,
 		httpClient: &http.Client{
 			Transport: transport,
 			CheckRedirect: func(*http.Request, []*http.Request) error {
@@ -117,21 +99,70 @@ func newSlackWebhookPublisher(webhookURL secret.Secret, timeout, interval time.D
 	}
 }
 
+// configured returns errZeroWebhookURL when the client holds no webhook URL.
+func (c webhookClient) configured() error {
+	if _, err := c.webhookURL.Reveal(); err != nil {
+		return errZeroWebhookURL
+	}
+	return nil
+}
+
+// checkWebhookURL returns errZeroWebhookURL for a zero secret and
+// errInvalidWebhookURL for a value slackwebhook.ValidURL rejects.
+func checkWebhookURL(webhookURL secret.Secret) error {
+	value, err := webhookURL.Reveal()
+	if err != nil {
+		return errZeroWebhookURL
+	}
+	if !slackwebhook.ValidURL(value) {
+		return errInvalidWebhookURL
+	}
+	return nil
+}
+
+// SlackWebhookPublisher posts an article to a Slack-compatible Incoming
+// Webhook (Mattermost is the verified target) as one or more messages. Its
+// send path is a webhookClient, which holds the webhook URL only as a
+// secret.Secret, so printing the struct never shows the URL. Its fields are set
+// once by the constructor and never mutated afterwards. Publish on the zero
+// value fails without sending.
+type SlackWebhookPublisher struct {
+	interval time.Duration
+	client   webhookClient
+}
+
+var _ Publisher = (*SlackWebhookPublisher)(nil)
+
+// NewSlackWebhookPublisher validates webhookURL with slackwebhook.ValidURL
+// and returns a publisher with the production timeout and interval. It never
+// reads environment variables and never touches the network. A rejection
+// never holds the URL or any part of it.
+func NewSlackWebhookPublisher(webhookURL secret.Secret) (*SlackWebhookPublisher, error) {
+	if err := checkWebhookURL(webhookURL); err != nil {
+		return nil, err
+	}
+	return newSlackWebhookPublisher(slackMessageInterval, newWebhookClient(webhookURL, SlackPostTimeout, nil)), nil
+}
+
+// newSlackWebhookPublisher builds a publisher that sends through client and
+// waits interval between messages.
+func newSlackWebhookPublisher(interval time.Duration, client webhookClient) *SlackWebhookPublisher {
+	return &SlackWebhookPublisher{interval: interval, client: client}
+}
+
 // Publish checks article, rejects mention syntax and syntax the server would
 // rewrite, splits it into messages, and posts them in order with silent set,
 // waiting between messages. It sends nothing when a preparation check fails.
 // After preparation, every failure is a *SlackPostError that tells how many
 // of the messages were confirmed posted.
 func (p *SlackWebhookPublisher) Publish(ctx context.Context, article writer.Article) error {
-	webhookURL, err := p.webhookURL.Reveal()
-	if err != nil {
-		return errZeroWebhookURL
+	if err := p.client.configured(); err != nil {
+		return err
 	}
 	messages, err := prepareSlackMessages(article)
 	if err != nil {
 		return err
 	}
-	parts := slackwebhook.SensitiveParts(webhookURL)
 
 	total := len(messages)
 	posted := 0
@@ -144,7 +175,7 @@ func (p *SlackWebhookPublisher) Publish(ctx context.Context, article writer.Arti
 		if err := ctx.Err(); err != nil {
 			return &SlackPostError{Total: total, Posted: posted, Attempted: false, Err: err}
 		}
-		if err := p.postMessage(ctx, webhookURL, message, parts); err != nil {
+		if err := p.client.post(ctx, message); err != nil {
 			return &SlackPostError{Total: total, Posted: posted, Attempted: true, Err: err}
 		}
 		posted++
@@ -152,11 +183,20 @@ func (p *SlackWebhookPublisher) Publish(ctx context.Context, article writer.Arti
 	return nil
 }
 
-// postMessage sends one message and validates the response. Its timeout covers
+// post sends message with silent set and returns nil only for a 200 response
+// whose body is exactly "ok". (Moved from SlackWebhookPublisher.postMessage;
+// the URL reveal and SensitiveParts move in from Publish.) Its timeout covers
 // the send and the whole body read; http.Client.Timeout is deliberately not
-// used, so a timeout is distinguishable from another transport failure.
-func (p *SlackWebhookPublisher) postMessage(parent context.Context, webhookURL, message string, parts []string) error {
-	callCtx, cancel := context.WithTimeoutCause(parent, p.timeout, errSlackPostTimeout)
+// used, so a timeout is distinguishable from another transport failure. It
+// sends nothing and returns errZeroWebhookURL when it holds no webhook URL.
+func (c webhookClient) post(ctx context.Context, message string) error {
+	webhookURL, err := c.webhookURL.Reveal()
+	if err != nil {
+		return errZeroWebhookURL
+	}
+	parts := slackwebhook.SensitiveParts(webhookURL)
+
+	callCtx, cancel := context.WithTimeoutCause(ctx, c.timeout, errSlackPostTimeout)
 	defer cancel()
 
 	body, err := json.Marshal(webhookPayload{Text: message, Silent: true})
@@ -167,16 +207,16 @@ func (p *SlackWebhookPublisher) postMessage(parent context.Context, webhookURL, 
 	if err != nil {
 		return errSlackBuildRequest
 	}
-	response, err := p.httpClient.Do(request)
+	response, err := c.httpClient.Do(request)
 	if err != nil {
-		return p.postFailure(callCtx, err, parts)
+		return c.postFailure(callCtx, err, parts)
 	}
 	defer func() { _ = response.Body.Close() }()
 
 	data, readErr := readSlackResponse(response.Body)
 	if response.StatusCode == http.StatusOK {
 		if readErr != nil {
-			return p.postFailure(callCtx, readErr, parts)
+			return c.postFailure(callCtx, readErr, parts)
 		}
 		if len(data) > slackMaxResponseBytes || string(data) != slackOKResponse {
 			return fmt.Errorf("%w: the server did not acknowledge the post with %q", ErrSlackInvalidResponse, slackOKResponse)
@@ -217,10 +257,10 @@ func readSlackResponse(body io.Reader) ([]byte, error) {
 // transport returns another error. A transport cause is never %w-chained:
 // the returned error must match exactly one sentinel, and the cause could
 // itself contain a context error.
-func (p *SlackWebhookPublisher) postFailure(callCtx context.Context, cause error, parts []string) error {
+func (c webhookClient) postFailure(callCtx context.Context, cause error, parts []string) error {
 	if err := callCtx.Err(); err != nil {
 		if errors.Is(context.Cause(callCtx), errSlackPostTimeout) {
-			return fmt.Errorf("webhook: the post timed out after %s: %w", p.timeout, err)
+			return fmt.Errorf("webhook: the post timed out after %s: %w", c.timeout, err)
 		}
 		return fmt.Errorf("webhook: the post was interrupted: %w", err)
 	}

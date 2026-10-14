@@ -29,25 +29,38 @@ func NewSlackWebhookPublisherForLoopbackTest(t testing.TB, opts SlackTestOptions
 	return newSlackWebhookPublisherForLoopbackTest(t, opts, endpoint, nil)
 }
 
-// newSlackWebhookPublisherForLoopbackTest is NewSlackWebhookPublisherForLoopbackTest
-// with a transport seam. The endpoint may hold a Webhook URL path, so a
-// failure message never repeats the validation error.
-func newSlackWebhookPublisherForLoopbackTest(t testing.TB, opts SlackTestOptions, endpoint string, transport http.RoundTripper) *SlackWebhookPublisher {
+// newLoopbackWebhookClient validates a loopback endpoint and builds the shared
+// send path for it. endpoint may hold a Webhook URL path, so a failure message
+// never repeats the validation error. It calls t.Fatal and returns false when
+// the endpoint is not loopback, the timeout is not positive, or the endpoint is
+// empty, so a caller can return nil instead of a half-built client.
+func newLoopbackWebhookClient(t testing.TB, timeout time.Duration, endpoint string, transport http.RoundTripper) (webhookClient, bool) {
 	t.Helper()
 	if err := loopbacktest.ValidateURL(endpoint); err != nil {
-		t.Fatal("slack test publisher: the endpoint is not a loopback URL")
-		return nil
+		t.Fatal("slack test client: the endpoint is not a loopback URL")
+		return webhookClient{}, false
 	}
-	if opts.Timeout <= 0 {
-		t.Fatal("slack test publisher: Timeout must be positive")
-		return nil
+	if timeout <= 0 {
+		t.Fatal("slack test client: Timeout must be positive")
+		return webhookClient{}, false
 	}
 	value, err := secret.New(endpoint)
 	if err != nil {
-		t.Fatal("slack test publisher: the endpoint is empty")
+		t.Fatal("slack test client: the endpoint is empty")
+		return webhookClient{}, false
+	}
+	return newWebhookClient(value, timeout, transport), true
+}
+
+// newSlackWebhookPublisherForLoopbackTest is NewSlackWebhookPublisherForLoopbackTest
+// with a transport seam.
+func newSlackWebhookPublisherForLoopbackTest(t testing.TB, opts SlackTestOptions, endpoint string, transport http.RoundTripper) *SlackWebhookPublisher {
+	t.Helper()
+	client, ok := newLoopbackWebhookClient(t, opts.Timeout, endpoint, transport)
+	if !ok {
 		return nil
 	}
-	return newSlackWebhookPublisher(value, opts.Timeout, opts.Interval, transport)
+	return newSlackWebhookPublisher(opts.Interval, client)
 }
 
 // SlackMessagesForTest returns the text of every message Publish sends for
