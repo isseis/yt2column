@@ -13,6 +13,9 @@ var (
 	ErrParseSubtitles  = errors.New("parse subtitles")
 	ErrParseInfo       = errors.New("parse video info")
 	ErrNoSubtitles     = errors.New("no subtitles")
+	// ErrCopiedTranscriptFormat is wrapped by every error returned because a
+	// copied transcript does not match the expected format.
+	ErrCopiedTranscriptFormat = errors.New("copied transcript does not match the expected format")
 )
 
 // ParseError keeps the path of the file that failed to parse so the caller can
