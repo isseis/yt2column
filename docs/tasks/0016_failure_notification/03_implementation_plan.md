@@ -8,7 +8,7 @@
 | Created | 2026-10-14 |
 | Review date | 2026-10-14 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-14: AC-15 の標準出力・標準エラー出力の部分を architecture §3.7 のとおりコードのレビューで確かめる義務を、ステップ 3-3・フェーズ 3 の完了条件・§5 の AC-15 の行と注記に明記した。既に承認済みの architecture §3.7 が割り当てた検証の義務を明示する編集上の補正であり、決定は変えていない。 |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「requirements」）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目、I-NN は [implementation_handoff.md](implementation_handoff.md) の項目、節番号は [02_architecture.md](02_architecture.md)（以下「architecture」）の節を指す。「#109 §N」は [0011_localhost_server/02_architecture.md](../0011_localhost_server/02_architecture.md) の節を指す。既存のファイルの行番号は、断りがない限り HEAD `bf3bd58`（ブランチ `isesi/failure-post-on-slack-03`）で確かめた。
 
@@ -168,9 +168,9 @@ requirements が定める 5 つの機能要件（F-001〜F-005）を、architect
 
 - [ ] **ステップ 3-1**: `internal/failure` に guard のテストを置く（#109 が同等の guard を既に置いていない場合）。`//go:build test` の `failure_test.go` に、architecture §3.6 の 4 つのテストを書く。`TestNoticeFieldSet`（`reflect.TypeFor[Notice]()` の exported フィールドが `RequestID string`・`VideoID string`・`Kind`（`reflect` が返す型名は `failure.Kind`）の 3 つだけ）、`TestNotifierMethodSet`（`reflect.TypeFor[Notifier]()` のメソッドが `Notify` の 1 つで、型が `func(context.Context, Notice) error`）、`TestKindZeroValue`（`Kind` のゼロ値が `KindUnknown`）、`TestKindConstants`（パッケージの `_test.go` 以外のすべての Go のファイルを `go/parser` で読み、`Kind` 型の定数の名前を宣言の順に集めて requirements F-001 の列挙と一致させる。1 つも見つからなければ失敗させる）。失敗したときのメッセージは英語で書き、architecture §3.6 の表の第 3 列が伝える内容（その guard が失敗したときに、読む人に何を直せばよいかを伝える内容）を含める（表の第 3 列は日本語の散文なので、そのまま写さず英語にする）。
 - [ ] **ステップ 3-2**: `.golangci.yml` の `depguard` に 2 つの規則を加える（architecture §3.7）。`publisher-no-server`（`files: ["**/internal/publisher/**"]`、`list-mode: lax`、`deny: github.com/isseis/yt2column/internal/server`。AC-17）。`publisher-no-log`（`files: ["**/internal/publisher/**", "!$test"]`、`list-mode: lax`、`deny: log` と `log/slog`。AC-15）。既存の `deps` と `*-confinement` の規則は変えない。
-- [ ] **ステップ 3-3**: `depguard` の規則が実際に効くことを確かめる。`internal/publisher` の非テストのファイルに一時的に `log`（または `log/slog`）を import して `make lint` が `publisher-no-log` で落ちることを確かめる（これは `files` の glob `**/internal/publisher/**` が絶対パスに一致することの確認でもある。落ちなければ glob を直す）。次に、`publisher-no-server` は `internal/server` がまだ無いので、`deny` の対象を一時的に既存の `github.com/isseis/yt2column/internal/failure` に変え、`publisher-no-server` が同じ glob と `list-mode` の下で落ちることを確かめる（PR-3 はフェーズ 2 の後に行うので、`slack_failure.go` が既に `internal/failure` を import しており、一時的な import は要らない）。確認の後、`deny` の対象と（加えた場合は）一時的な import を戻し、`make lint` が通ることを確かめる。（`internal/server` を実際に import する違反の確認は、#109 が `internal/server` を新設した後でないとできない。これは `internal/publisher` が `internal/server` を import しないことを保つ予防的な規則である。）
+- [ ] **ステップ 3-3**: `depguard` の規則が実際に効くことを確かめる。`internal/publisher` の非テストのファイルに一時的に `log`（または `log/slog`）を import して `make lint` が `publisher-no-log` で落ちることを確かめる（これは `files` の glob `**/internal/publisher/**` が絶対パスに一致することの確認でもある。落ちなければ glob を直す）。次に、`publisher-no-server` は `internal/server` がまだ無いので、`deny` の対象を一時的に既存の `github.com/isseis/yt2column/internal/failure` に変え、`publisher-no-server` が同じ glob と `list-mode` の下で落ちることを確かめる（PR-3 はフェーズ 2 の後に行うので、`slack_failure.go` が既に `internal/failure` を import しており、一時的な import は要らない）。確認の後、`deny` の対象と（加えた場合は）一時的な import を戻し、`make lint` が通ることを確かめる。（`internal/server` を実際に import する違反の確認は、#109 が `internal/server` を新設した後でないとできない。これは `internal/publisher` が `internal/server` を import しないことを保つ予防的な規則である。）あわせて、`depguard` では禁じられない AC-15 の標準出力・標準エラー出力の部分を確かめる。`internal/publisher` の非テストの Go ファイル（送信の経路を含む）をレビューし、`fmt.Print*` や `os.Stdout`・`os.Stderr` への書き込みがなく、`SlackFailureNotifier` がロガーも `io.Writer` も持たないこと（architecture §3.2・§3.7）を確認して、その結果を記録する。
 
-**完了条件:** `make fmt`・`make test`・`make lint` が通る。`make lint` が 2 つの新しい規則を読み込む。ステップ 3-3 の確認を済ませる。
+**完了条件:** `make fmt`・`make test`・`make lint` が通る。`make lint` が 2 つの新しい規則を読み込む。ステップ 3-3 の確認を済ませる。あわせて、AC-15 の標準出力・標準エラー出力の部分を、`internal/publisher` の非テストの Go ファイルのレビューで確かめ、その結果を記録する（architecture §3.7）。
 
 ### フェーズ 4: #109 への連絡
 
@@ -279,14 +279,14 @@ architecture §7.3 の 3 つの検査を、フェーズ 2 のステップ 2-8 �
 | AC-12 | test | `internal/publisher/slack_failure_test.go::TestNewSlackFailureNotifier`（ゼロ値の `secret.Secret`・`http://`・ホストのない URL・制御文字を含む URL でエラー。メッセージに URL もその一部も現れない。`https` の正しい URL で構築しても TLS のテスト用の送信先のリクエストの数が 0）と `::TestNewSlackFailureNotifierForLoopbackTestRejects`（loopback でない URL・非正の `timeout`・空の URL を拒否し nil を返す） |
 | AC-13 | test | `internal/publisher/slack_failure_test.go::TestSlackFailureNotifyOmitsWebhookURL`（§4.3 の AC-13 の検査。`requireErrorOmitsEndpoint` の `Unwrap() []error` 対応を含む） |
 | AC-14 | test | `internal/publisher/slack_failure_test.go::TestSlackFailureNotifyRejected`（非 nil のエラーを返し、パニックしない） |
-| AC-15 | static | `make lint` の `depguard` 規則 `publisher-no-log`（ステップ 3-2。`internal/publisher` の非テストのファイルが `log`・`log/slog` を import しない）。`SlackFailureNotifier` がロガーも `io.Writer` も受け取らないことは型の定義（ステップ 2-1）で確認する |
+| AC-15 | static / manual | `make lint` の `depguard` 規則 `publisher-no-log`（ステップ 3-2。`internal/publisher` の非テストのファイルが `log`・`log/slog` を import しない）。標準出力・標準エラー出力へ書かないことは `depguard` では禁じられない（`fmt`・`os` は他の目的でも使う）ので、`internal/publisher` の非テストの Go ファイルのレビューで確かめる（ステップ 3-3。architecture §3.7）。`SlackFailureNotifier` がロガーも `io.Writer` も受け取らないことは型の定義（ステップ 2-1）で確認する |
 | AC-16 | test | `internal/publisher/slack_failure_test.go::TestSlackFailureNotifyReuse`（`500` の後に `ok` を返す送信先で、2 回目の `Notify` が成功しリクエストの数が 2） |
 | AC-17 | static | `make lint` の `depguard` 規則 `publisher-no-server`（ステップ 3-2。`internal/publisher` が `internal/server` を import しない） |
 | AC-18 | static / manual | `make test` が `cmd/yt2column` の既存テスト（`cmd/yt2column/docs_test.go::TestREADMEDocumentsFlags` が `newFlagSet` の全フラグを README の表に求める）を無変更で通すこと。`cmd/yt2column` の差分がないことは PR で確認する（manual。フェーズ 1〜3 で `cmd/yt2column` を変更しない） |
 
 - フェーズ 2・3 でも、`make test` と `make lint` を完了条件とする（§1.2）。
 - 並行の呼び出しのテスト（`slack_failure_test.go` の 1 つの値からの複数 goroutine の `Notify`）は特定の AC に対応しないが、architecture §3.4 の「状態を持たず、記録しない」を確かめるのでフェーズ 2 のステップ 2-8 に含める。
-- AC-15・AC-17 は文書の存在ではなくコードの構造（`internal/publisher` の import と、通知の実装がロガー・`io.Writer` を持たないこと）の不変条件である。実行される検証は `make lint` の `depguard` の規則と、`SlackFailureNotifier` の型の定義（ステップ 2-1）であり、architecture §3.7 の 2 つの規則がこれに当たる。
+- AC-15・AC-17 は文書の存在ではなくコードの構造（`internal/publisher` の import と、通知の実装がロガー・`io.Writer` を持たないこと）の不変条件である。実行される検証は `make lint` の `depguard` の規則と、`SlackFailureNotifier` の型の定義（ステップ 2-1）であり、architecture §3.7 の 2 つの規則がこれに当たる。AC-15 の標準出力・標準エラー出力の部分（`fmt.Print*` と `os.Stdout`・`os.Stderr` への書き込みがないこと）は `depguard` では禁じられないので、`internal/publisher` の非テストの Go ファイルのレビューで確かめる（ステップ 3-3。architecture §3.7）。
 - AC-18 は「`cmd/yt2column` を変更しない」という差分の性質である。実行される検証は `make test` が `cmd/yt2column` の既存テスト（`TestREADMEDocumentsFlags` を含む）を無変更で通すことで、`cmd/yt2column` の差分がないことは PR で確認する（manual）。`cmd/yt2column` に失敗の投稿の経路を足さないことを import の検査で固定することは architecture §3.7 が定めておらず、`cmd/yt2column` を変更しないという要件とも矛盾するので、本タスクでは行わない（規則を足す場合は architecture の改訂が要る）。
 
 ## 6. リスク管理 (Risk Management)
