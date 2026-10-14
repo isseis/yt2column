@@ -8,7 +8,7 @@
 | Created | 2026-10-13 |
 | Review date | - |
 | Reviewer | - |
-| Comments | - |
+| Comments | 2026-10-14: §1.3・§3.7 の #107・#108 の実装状況の記述を現状（#107 は実装済み、#108 は実装中）に合わせ、記録済みの前提を過去形にした。決定は変えていない（editorial correction）。 |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md) の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §3.13）を指す。既存のコードの行番号は、コミット `f768cdb`（要件の承認のコミット）で確かめたものである。
 
@@ -109,7 +109,7 @@ flowchart LR
 | 既存のもの | 本設計での扱い |
 |---|---|
 | `pipeline.Pipeline`・`pipeline.New`・`Run`（`internal/pipeline/pipeline.go:68-117`） | 変更しない。ジョブごとに `pipeline.New` で組み、`Run` を呼ぶ。失敗は `*pipeline.StageError`（`pipeline.go:50-66`）の段階で分類する（§3.9） |
-| `transcript.TranscriptSource`（`internal/transcript/transcript.go:23-28`）・`transcript.Transcript`（同 `:13-21`） | 本タスクは変更しない（H-07）。#107 が実装を加える（§3.7） |
+| `transcript.TranscriptSource`（`internal/transcript/transcript.go:23-28`）・`transcript.Transcript`（同 `:13-21`） | 本タスクは変更しない（H-07）。#107 が実装を加えた（§3.7） |
 | `transcript.ValidateVideoURL`（`internal/transcript/video_id.go:16-60`） | `videoUrl` の検証にそのまま使う（AC-09） |
 | `writer.New`・`writer.ArticleWriter`（`internal/writer/writer.go:36-38`・`:101`） | サーバは CLI の既定と同じく、字数の調整と検証・推敲の段階を有効にし、組み込みのテンプレートで 1 つ構築して、すべてのジョブで共有する。`templateWriter` のフィールドは構築後に変わらず（`writer.go:86-88`）、LLM の adapter も並行に呼べる（`internal/llm/deepseek/deepseek.go:38-40`・`internal/llm/claude/claude.go:36-38`・`internal/llm/llmhttp/llmhttp.go:120-124`） |
 | `writer` の非公開の番兵 `errPromptTooLarge`（`internal/writer/prompt.go:101-111`・`:122-125`） | 公開の `ErrPromptTooLarge` に改める。プロンプトの上限を超える字幕を、LLM の失敗と区別して通知するため（§3.9）。包む関係（`ErrInvalidTemplate` も包む）は変えない |
@@ -129,21 +129,21 @@ flowchart LR
 -   **入口は CLI だけとする前提を改める。** 方針の出典は [project_overview.md](../../dev/project_overview.md)「決定済みの方針」の「実行形式: ローカル実行の CLI」と、CLAUDE.md「Separation of Concerns」の「can later back a Slack bot or a scheduled job」である。本タスクは 2 つ目の入口として localhost サーバを加える（要件 F-010）。コアロジックを `cmd/` の外に置く方針はそのまま守る。この前提を確かめている既存のテストはない。文書は F-010 で更新する（§3.12）。
 -   **`config.Config` から LLM の設定を分ける。** 方針の出典は、タスク 0005 の [02_architecture.md](../0005_cli_assembly/02_architecture.md)（`config.Load` が 1 つの `Config` を返し、`provider.New(cfg config.Config)` がそれを受け取る形）と、タスク 0009・0010 の同書（`newClient(provider, model, cfg config.Config, build)`）である。例外にするのは、サーバがキャッシュディレクトリと `yt-dlp` の設定を検査せずに LLM の設定を得る必要があるためである（要件 F-009、H-08）。`config.Load` の振る舞いは変えない。更新が必要な既存のテストは §3.14 に挙げる。
 
-**前提とする、まだ実装されていない部品と、依存の順序。** 要件 §5 は、#107（コピーした字幕のパーサと `TranscriptSource`）と #108（失敗を Slack へ投稿する仕組み）の完了を前提にする。コミット `f768cdb` の時点で、どちらもリポジトリにない（`internal/transcript` にあるのは `YtDlpSource` と json3・info.json のパーサだけで、`internal/publisher` にあるのは記事の投稿だけである）。本設計は、両者に求める契約を §3.7・§3.9 に定める。
+**前提とする他のタスクの部品と、依存の順序。** 要件 §5 は、#107（コピーした字幕のパーサと `TranscriptSource`）と #108（失敗を Slack へ投稿する仕組み）の完了を前提にする。本書の作成時（コミット `f768cdb`）はどちらもリポジトリになかった。現在（コミット `3a69896`）は #107 が実装済みで（`internal/transcript/copied.go` の `CopiedSource`・`CopiedInput` と `errors.go` の `ErrCopiedTranscriptFormat` が §3.7 の契約を満たす）、#108 は実装の途中である（`internal/publisher` に送信の経路 `webhookClient` はあるが、`Notifier` の実装はまだない）。本タスクが新設する `internal/failure` もまだない。本設計は、#107 に求めた契約を §3.7 に、#108 に求める契約を §3.9 に定める。
 
 **契約を葉に固定し、依存を一方向にする。** #108 が本タスクの型に依存して見えるのは、契約（interface と型）と実装を分けていないためである。契約を葉として先に凍結すれば、#107・#108・サーバの依存は巡回しない。
 
 | 段階 | 成果物 | 依存 |
 |---|---|---|
 | 0. 契約の凍結 | `internal/failure` の型（`Kind`・`Notice`・`Notifier`、§3.9）と、#107 の `CopiedInput`・`NewCopiedSource` の契約（§3.7） | なし（葉） |
-| 1. 部品の実装 | #107 の `CopiedSource` と #108 の `Notifier` の実装 | 段階 0 |
+| 1. 部品の実装 | #107 の `CopiedSource` と #108 の `Notifier` の実装（#107 は実装済み、#108 は実装中） | 段階 0 |
 | 2. サーバの実装 | `internal/server` | 段階 0（型）・段階 1（#107 の実物。ただし §7.1 のとおり fake の `Notifier` を使うので、#108 の実物が要るのは統合テストだけ） |
 
 -   段階 0 は本タスクの作業として最初に行う（§8 のフェーズ 1）。これにより、#108 は本タスクの「実装」ではなく「凍結した型」にだけ依存する。#107 と #108 は互いに依存しないので、段階 1 は並行してよい。
 -   段階 2 のユニットテストは fake の `failure.Notifier` を使う（§7.1）。サーバの開発は #108 の実装を待たない。実物の通知が必要になるのは、統合テストと起動時の配線だけである（§8 のフェーズ 2 の手順 8）。
--   この契約は #107・#108 への要求である。本書の承認の前に、#107・#108 の issue（または各タスクの要件書）に、本書の §3.7・§3.9 を参照する形で記録する。
+-   この契約は #107・#108 への要求であり、#107・#108 の issue に、本書の §3.7・§3.9 を参照する形で記録済みである。
 -   `internal/failure` は `internal/server` の内部ではなく、独立した契約のパッケージとする（§2.1）。本タスクが新設するが、その型と interface は #108 とサーバの両方が従う仕様である。
--   #107 が別の形（たとえば `Fetch` の中で解析する形）で実装された場合も、AC-11 は守れる。サーバが `202` の前に `Fetch` を同期的に呼び、得た `Transcript` を返すだけの source でパイプラインを組めばよい。その場合は本書を改める（決定の変更として `draft` に戻す）。
+-   #107 が別の形（たとえば `Fetch` の中で解析する形）で実装された場合も、AC-11 は守れる。サーバが `202` の前に `Fetch` を同期的に呼び、得た `Transcript` を返すだけの source でパイプラインを組めばよい。その場合は本書を改める（決定の変更として `draft` に戻す）。#107 は規定の形（`NewCopiedSource` の中で解析する形）で実装したので、この代替案は採らなかった。
 
 ## 2. システム構成 (System Structure)
 
@@ -622,7 +622,7 @@ var ErrInvalidOptions = errors.New("invalid server options")
 
 ### 3.7. #107 の `TranscriptSource` の使い方（H-04）
 
-本設計は、#107 に次の契約を求める。名前は #107 で変えてよいが、下表の性質は変えない。
+本設計は、#107 に次の契約を求めた。名前は #107 で変えてよいが、下表の性質は変えない。#107（タスク 0015）はこれを実装済みで、名前も下表のままである（`internal/transcript/copied.go`・`errors.go`）。
 
 ```go
 // CopiedInput is the input of a CopiedSource. VideoID must already be
