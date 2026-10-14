@@ -853,16 +853,13 @@ func slogOutput(t *testing.T, cfg Config, jsonFormat bool) string {
 	return buf.String()
 }
 
-// validServerEnv is an environment LoadServer accepts: the LLM settings, the
-// required Webhook URL, and HOME, from which the token path is derived.
+// validServerEnv is an environment LoadServer accepts: the CLI environment
+// without the cache and yt-dlp variables the server does not use, plus HOME,
+// from which the token path is derived.
 func validServerEnv() map[string]string {
-	return map[string]string{
-		providerEnv:       "deepseek",
-		modelEnv:          "deepseek-chat",
-		deepSeekAPIKeyEnv: "sk-test-key",
-		slackEnv:          "https://hooks.slack.com/services/T000/B000/XXXX",
-		"HOME":            "/home/user",
-	}
+	env := without(validEnv(), cacheDirEnv, ytDlpEnv)
+	env["HOME"] = "/home/user"
+	return env
 }
 
 // wantTokenPath returns the token path LoadServer derives from home on the
@@ -876,9 +873,11 @@ func wantTokenPath(home string) string {
 }
 
 // TestLoadServerValid checks that LoadServer loads the LLM settings, the
-// required Webhook URL, the configured port, and the derived token path.
+// required Webhook URL, the configured port, the derived token path, and the
+// HTTP/2 debug flag.
 func TestLoadServerValid(t *testing.T) {
 	env := with(validServerEnv(), serverPortEnv, "9000")
+	env = with(env, godebugEnv, "http2debug=1")
 	cfg, err := LoadServer(envLookup(env))
 	if err != nil {
 		t.Fatalf("LoadServer() error = %v, want nil", err)
@@ -902,8 +901,8 @@ func TestLoadServerValid(t *testing.T) {
 	if want := wantTokenPath(env["HOME"]); cfg.TokenPath() != want {
 		t.Errorf("TokenPath() = %q, want %q", cfg.TokenPath(), want)
 	}
-	if cfg.HTTP2DebugEnabled() {
-		t.Error("HTTP2DebugEnabled() = true, want false")
+	if !cfg.HTTP2DebugEnabled() {
+		t.Error("HTTP2DebugEnabled() = false, want true")
 	}
 }
 
@@ -920,26 +919,9 @@ func TestLoadServerDefaultPort(t *testing.T) {
 	}
 }
 
-// TestLoadServerClaude checks that LoadServer applies the shared LLM rules to a
-// claude environment.
-func TestLoadServerClaude(t *testing.T) {
-	env := validClaudeEnv()
-	env = with(env, slackEnv, "https://hooks.slack.com/services/T000/B000/XXXX")
-	env = with(env, "HOME", "/home/user")
-	cfg, err := LoadServer(envLookup(env))
-	if err != nil {
-		t.Fatalf("LoadServer() error = %v, want nil", err)
-	}
-	if cfg.LLM().Provider() != ProviderClaude {
-		t.Errorf("LLM().Provider() = %v, want ProviderClaude", cfg.LLM().Provider())
-	}
-	if _, err := cfg.LLM().AnthropicAPIKey().Reveal(); err != nil {
-		t.Errorf("LLM().AnthropicAPIKey().Reveal() error = %v", err)
-	}
-}
-
 // TestLoadServerModelMissing checks that a missing or empty model ends the
-// load with an ErrMissing that names the variable.
+// load with an ErrMissing that names the variable. The claude provider and the
+// other LLM rules are covered by the Load tests, which LoadServer shares.
 func TestLoadServerModelMissing(t *testing.T) {
 	cases := []struct {
 		name string
@@ -951,12 +933,7 @@ func TestLoadServerModelMissing(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := LoadServer(envLookup(tc.env))
-			if !errors.Is(err, ErrMissing) {
-				t.Fatalf("LoadServer() error = %v, want ErrMissing", err)
-			}
-			if !strings.Contains(err.Error(), modelEnv) {
-				t.Errorf("LoadServer() error = %q, want it to name %q", err, modelEnv)
-			}
+			assertVarError(t, err, ErrMissing, modelEnv)
 		})
 	}
 }
@@ -975,9 +952,7 @@ func TestLoadServerWebhookRequired(t *testing.T) {
 	})
 	t.Run("invalid", func(t *testing.T) {
 		_, err := LoadServer(envLookup(with(validServerEnv(), slackEnv, "http://host/"+mark)))
-		if !errors.Is(err, ErrInvalid) {
-			t.Fatalf("LoadServer() error = %v, want ErrInvalid", err)
-		}
+		assertVarError(t, err, ErrInvalid, slackEnv)
 		if strings.Contains(err.Error(), mark) {
 			t.Errorf("LoadServer() error = %q, contains the value mark %q", err, mark)
 		}
@@ -999,37 +974,24 @@ func TestLoadServerIgnoresCacheAndYtdlp(t *testing.T) {
 }
 
 // TestLoadServerTokenPathUnderivable checks that a HOME that cannot provide an
-// absolute base ends the load with a *VarError naming it, and that the returned
-// ServerConfig is the zero value. The XDG-specific failure is fixed by
-// TestDefaultConfigDir, which can choose the OS; here HOME fails on every
-// supported OS.
+// absolute base ends the load with a *VarError naming it and a zero
+// ServerConfig. TestDefaultConfigDir fixes the input shapes and the
+// OS-specific branches; here the failure must reach LoadServer.
 func TestLoadServerTokenPathUnderivable(t *testing.T) {
-	cases := []struct {
-		name string
-		env  map[string]string
-	}{
-		{"home unset", without(validServerEnv(), "HOME")},
-		{"home empty", with(validServerEnv(), "HOME", "")},
-		{"home relative", with(validServerEnv(), "HOME", "rel")},
+	cfg, err := LoadServer(envLookup(without(validServerEnv(), "HOME")))
+	varErr, ok := errors.AsType[*VarError](err)
+	if !ok {
+		t.Fatalf("LoadServer() error = %v, want *VarError", err)
 	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			cfg, err := LoadServer(envLookup(tc.env))
-			varErr, ok := errors.AsType[*VarError](err)
-			if !ok {
-				t.Fatalf("LoadServer() error = %v, want *VarError", err)
-			}
-			if varErr.Name != "HOME" {
-				t.Errorf("VarError.Name = %q, want %q", varErr.Name, "HOME")
-			}
-			if !errors.Is(err, ErrMissing) {
-				t.Errorf("LoadServer() error = %v, want it to wrap ErrMissing", err)
-			}
-			if cfg.Port() != 0 || cfg.TokenPath() != "" || cfg.LLM().Model() != "" {
-				t.Errorf("LoadServer() returned a non-zero ServerConfig on error: port=%d tokenPath=%q model=%q",
-					cfg.Port(), cfg.TokenPath(), cfg.LLM().Model())
-			}
-		})
+	if varErr.Name != "HOME" {
+		t.Errorf("VarError.Name = %q, want %q", varErr.Name, "HOME")
+	}
+	if !errors.Is(err, ErrMissing) {
+		t.Errorf("LoadServer() error = %v, want it to wrap ErrMissing", err)
+	}
+	if cfg.Port() != 0 || cfg.TokenPath() != "" || cfg.LLM().Model() != "" {
+		t.Errorf("LoadServer() returned a non-zero ServerConfig on error: port=%d tokenPath=%q model=%q",
+			cfg.Port(), cfg.TokenPath(), cfg.LLM().Model())
 	}
 }
 
@@ -1082,14 +1044,23 @@ func TestServerPort(t *testing.T) {
 	}
 }
 
-// TestLoadServerPortRejected checks that LoadServer reports a rejected port and
-// names the variable.
+// TestLoadServerPortRejected checks that LoadServer surfaces a rejected port and
+// names the variable, for an empty value and an unacceptable one. The accepted
+// and rejected forms themselves are fixed by TestServerPort.
 func TestLoadServerPortRejected(t *testing.T) {
-	for _, value := range []string{"0", "08765", "65536", " 8765"} {
-		t.Run(value, func(t *testing.T) {
-			_, err := LoadServer(envLookup(with(validServerEnv(), serverPortEnv, value)))
-			if !errors.Is(err, ErrInvalid) {
-				t.Fatalf("LoadServer() error = %v, want ErrInvalid", err)
+	cases := []struct {
+		name     string
+		value    string
+		sentinel error
+	}{
+		{"empty", "", ErrMissing},
+		{"leading zero", "08765", ErrInvalid},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := LoadServer(envLookup(with(validServerEnv(), serverPortEnv, tc.value)))
+			if !errors.Is(err, tc.sentinel) {
+				t.Fatalf("LoadServer() error = %v, want it to wrap %v", err, tc.sentinel)
 			}
 			if !strings.Contains(err.Error(), serverPortEnv) {
 				t.Errorf("LoadServer() error = %q, want it to name %q", err, serverPortEnv)
