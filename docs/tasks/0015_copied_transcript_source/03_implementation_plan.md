@@ -328,9 +328,11 @@ architecture §7.1 のとおり、すべて文字列の入力だけで行い、`
 | 項目 | 値 | 条件（コミット・実行環境） |
 |---|---|---|
 | (a)・(b)・(c) の解析の `TotalAlloc` ÷ 入力の長さ（実測） | (a) 18.68・(b) 0.00・(c) 12.82 バイト/バイト。`-race` 付きでは (a) 1718.50・(b) 0.00・(c) 1873.48（race ランタイムが `TotalAlloc` を約 2 桁大きくする） | `-race` なしと `-race` 付きの `go test -tags test -run TestParseCopiedLargeInputs ./internal/transcript`。macOS arm64 |
-| テストの上限の定数 | 8192 バイト/入力 1 バイト | `-race` 付きの (a) の実測 1718.50 に余裕を持たせた値。`-race` なしの実測 18.68 も満たす。2 乗に比例する割り当てはこれを大きく超える |
-| (a)・(b)・(c) の解析時間（`make test`、`-race` 付き） | (a) 約 2.9 秒・(b) 約 0.02 秒・(c) 約 3.1 秒 | `go test -tags test -race -run TestParseCopiedLargeInputs ./internal/transcript`。macOS arm64。上限は 5 秒 |
+| テストの上限の定数 | race ビルド: 8192 バイト/入力 1 バイト（`-race` 付きの (a) の実測 1718.50 に余裕を持たせた値）。非 race ビルド: 128 バイト/入力 1 バイト（`-race` なしの実測 18.68 に余裕を持たせた値） | `-race` の有無でビルドタグを分けて定義する（`copied_format_race_test.go`・`copied_format_norace_test.go`）。`make test` は race ビルドなので 8192、`make lint` は非 race ビルドなので 128 をコンパイルする。2 乗に比例する割り当てはどちらも大きく超える |
+| (a)・(b)・(c) の解析時間（`make test`、`-race` 付き） | (a) 約 2.9 秒・(b) 約 0.02 秒・(c) 約 3.1 秒 | `go test -tags test -race -run TestParseCopiedLargeInputs ./internal/transcript`。macOS arm64。上限は 15 秒（§7.3 の時間の上限。CI の遅い環境での揺れを避けるため、実測約 3 秒に余裕を持たせた） |
 | 60 秒の fuzz の実行回数と結果 | 3,508,982 回、失敗なし（新規 interesting 86 件） | `go test -tags test -run '^$' -fuzz '^FuzzNewCopiedSource$' -fuzztime 60s ./internal/transcript`。macOS arm64 |
+
+ステップ 4-6 のメモリの変異（(b)）は、4 MiB では 2 乗に比例する割り当てが現実的な時間で終わらないため、`copiedLargeInputLimit` を一時的に `1 << 18`（256 KiB）に下げて行い、メモリの検査が失敗することを確かめた。
 
 ### 5.2. 手動確認の記録
 

@@ -477,15 +477,14 @@ func assertCopiedRejected(t *testing.T, input string, reason error) string {
 
 // The server caps the request body at 4 MiB; the parser must finish such an
 // input within a small part of the server's request window and without
-// allocating super-linearly. The allocation bound is generous because make test
-// builds with the race detector, whose runtime inflates TotalAlloc by about two
-// orders of magnitude (measured: about 19 bytes per input byte without -race,
-// about 1.9 KiB with it). The bound still catches a quadratic number of
-// allocations, which would be vastly larger.
+// allocating super-linearly. The deadline is generous because make test builds
+// with the race detector (measured about 3.2s for the 4 MiB inputs under -race)
+// and CI may run on a slower, contended runner; the parse budget on the server
+// is under 30s. copiedParseAllocPerByte is defined per build: the race
+// detector's runtime inflates TotalAlloc, so the race build uses a loose bound.
 const (
-	copiedLargeInputLimit   = 4 << 20
-	copiedParseDeadline     = 5 * time.Second
-	copiedParseAllocPerByte = 8192
+	copiedLargeInputLimit = 4 << 20
+	copiedParseDeadline   = 15 * time.Second
 )
 
 // TestParseCopiedLargeInputs parses three synthetic 4 MiB inputs: the shortest
@@ -496,12 +495,13 @@ const (
 // measures only this parse.
 func TestParseCopiedLargeInputs(t *testing.T) {
 	inputs := []struct {
-		name  string
-		input string
+		name         string
+		input        string
+		wantSegments int
 	}{
-		{"shortest form A lines", buildCopiedShortestFormALines(copiedLargeInputLimit)},
-		{"one long form A line", buildCopiedLongFormALine(copiedLargeInputLimit)},
-		{"textless form B timestamps", buildCopiedTextlessFormB(copiedLargeInputLimit)},
+		{"shortest form A lines", buildCopiedShortestFormALines(copiedLargeInputLimit), copiedLargeInputLimit / len("0:000 秒x\n")},
+		{"one long form A line", buildCopiedLongFormALine(copiedLargeInputLimit), 1},
+		{"textless form B timestamps", buildCopiedTextlessFormB(copiedLargeInputLimit), 1},
 	}
 	for _, tc := range inputs {
 		t.Run(tc.name, func(t *testing.T) {
@@ -517,8 +517,8 @@ func TestParseCopiedLargeInputs(t *testing.T) {
 			if err != nil {
 				t.Fatalf("parse error = %v", err)
 			}
-			if len(segments) == 0 {
-				t.Fatal("parse returned no segments")
+			if len(segments) != tc.wantSegments {
+				t.Errorf("parsed into %d segments, want %d", len(segments), tc.wantSegments)
 			}
 			if elapsed > copiedParseDeadline {
 				t.Errorf("parsed %d bytes in %s, want under %s", len(tc.input), elapsed, copiedParseDeadline)
@@ -560,6 +560,9 @@ func FuzzNewCopiedSource(f *testing.F) {
 	paths, err := filepath.Glob(testdataCopiedTranscripts)
 	if err != nil {
 		f.Fatalf("glob %s: %v", testdataCopiedTranscripts, err)
+	}
+	if len(paths) != len(copiedSampleFiles) {
+		f.Fatalf("found %d copied transcript fixtures, want %d", len(paths), len(copiedSampleFiles))
 	}
 	for _, path := range paths {
 		data, err := os.ReadFile(path) //nolint:gosec // the path names a committed testdata fixture
