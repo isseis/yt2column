@@ -5,7 +5,9 @@ package transcript
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -334,4 +336,166 @@ func mustCopiedTranscript(t *testing.T, in CopiedInput) Transcript {
 		t.Fatalf("Fetch error = %v", err)
 	}
 	return transcript
+}
+
+// copiedSampleFiles is the exact set of copied-transcript fixtures the tests
+// expect. A file added under testdata/ without an expected value here fails
+// TestCopiedSourceRealSamples, so a new sample cannot go unchecked.
+var copiedSampleFiles = []string{
+	"IkngpxCMmRQ.transcript_copy.txt",
+	"Yoboo9g7saY.transcript_copy.txt",
+	"mbyG85GZ0PI.transcript_copy.txt",
+}
+
+// copiedSample holds the expected values for one real fixture. The values come
+// from reading the file and from the task's independent measurements, never
+// from the parser's output.
+type copiedSample struct {
+	videoID    string
+	bytes      int
+	segments   int
+	form       byte
+	firstStart int64
+	firstText  string
+	lastStart  int64
+	lastText   string
+}
+
+func TestCopiedSourceRealSamples(t *testing.T) {
+	paths := copiedTranscriptPaths(t)
+	if got := copiedFileNames(paths); !slices.Equal(got, copiedSampleFiles) {
+		t.Fatalf("testdata copied-transcript files = %v, want %v", got, copiedSampleFiles)
+	}
+
+	samples := []copiedSample{
+		{
+			videoID:    "IkngpxCMmRQ",
+			bytes:      4786,
+			segments:   40,
+			form:       'A',
+			firstStart: 3000,
+			firstText:  "皆さんこんにちは一番 ん はじめまして日本人技能実習社員として文芸社から来ました",
+			lastStart:  312000,
+			lastText:   "[拍手]",
+		},
+		{
+			videoID:    "Yoboo9g7saY",
+			bytes:      9015,
+			segments:   185,
+			form:       'B',
+			firstStart: 0,
+			firstText:  "翻訳: Tomoko Richard 校正: Masaki Yanagishita",
+			lastStart:  601000,
+			lastText:   "（拍手）",
+		},
+		{
+			videoID:    "mbyG85GZ0PI",
+			bytes:      77824,
+			segments:   697,
+			form:       'B',
+			firstStart: 0,
+			firstText:  "ANNOUNCER: The following program is brought to you by Caltech.",
+			lastStart:  4871000,
+			lastText:   "OK, we'll call it a day, and we'll see you on Thursday.",
+		},
+	}
+	for _, tc := range samples {
+		t.Run(tc.videoID, func(t *testing.T) {
+			path := filepath.Join("../../testdata", tc.videoID+".transcript_copy.txt")
+			data := readTestdataFile(t, path)
+			if len(data) != tc.bytes {
+				t.Fatalf("%s has %d bytes, want %d", tc.videoID, len(data), tc.bytes)
+			}
+			transcript := mustCopiedTranscript(t, CopiedInput{VideoID: tc.videoID, Raw: string(data)})
+			if len(transcript.Segments) != tc.segments {
+				t.Fatalf("%s parsed into %d segments, want %d", tc.videoID, len(transcript.Segments), tc.segments)
+			}
+			first := transcript.Segments[0]
+			if first.StartMs != tc.firstStart || first.Text != tc.firstText {
+				t.Errorf("%s first segment = %+v, want {%d %q}", tc.videoID, first, tc.firstStart, tc.firstText)
+			}
+			last := transcript.Segments[len(transcript.Segments)-1]
+			if last.StartMs != tc.lastStart || last.Text != tc.lastText {
+				t.Errorf("%s last segment = %+v, want {%d %q}", tc.videoID, last, tc.lastStart, tc.lastText)
+			}
+			checkCopiedSampleSegments(t, tc, transcript.Segments, string(data))
+		})
+	}
+}
+
+// checkCopiedSampleSegments verifies the properties every parsed sample must
+// have and the characteristic spots the task records for each video.
+func checkCopiedSampleSegments(t *testing.T, tc copiedSample, segments []Segment, raw string) {
+	t.Helper()
+	previous := int64(-1)
+	lines := strings.Split(raw, "\n")
+	for i, segment := range segments {
+		if segment.StartMs < previous {
+			t.Errorf("%s segment %d has StartMs %d, earlier than %d", tc.videoID, i, segment.StartMs, previous)
+		}
+		previous = segment.StartMs
+		if !sampleTextComesFromInput(tc.form, lines, segment.Text) {
+			t.Errorf("%s segment %d text %q is not part of the input", tc.videoID, i, segment.Text)
+		}
+	}
+
+	switch tc.videoID {
+	case "IkngpxCMmRQ":
+		segment, ok := findSegmentAt(segments, 60000)
+		if !ok || !strings.HasPrefix(segment.Text, "一般的には") {
+			t.Errorf("IkngpxCMmRQ has no 1:00 segment starting with 一般的には: %+v", segment)
+		}
+	case "mbyG85GZ0PI":
+		segment, ok := findSegmentAt(segments, 3607000)
+		if !ok || segment.Text != "So basically, I'm also resisting taking the data, deciding" {
+			t.Errorf("mbyG85GZ0PI has no 1:00:07 segment: %+v", segment)
+		}
+		for _, ms := range []int64{3067000, 3126000, 3133000, 4737000} {
+			if _, ok := findSegmentAt(segments, ms); ok {
+				t.Errorf("mbyG85GZ0PI includes the textless timestamp %d in Segments", ms)
+			}
+		}
+	}
+}
+
+// sampleTextComesFromInput reports whether text appears in the input. Form B
+// puts the text line on its own, so a segment text equals a line; form A
+// concatenates the label and the text, so a segment text is a line's tail.
+func sampleTextComesFromInput(form byte, lines []string, text string) bool {
+	for _, line := range lines {
+		if line == text {
+			return true
+		}
+		if form == 'A' && strings.HasSuffix(line, text) {
+			return true
+		}
+	}
+	return false
+}
+
+func findSegmentAt(segments []Segment, startMs int64) (Segment, bool) {
+	for _, segment := range segments {
+		if segment.StartMs == startMs {
+			return segment, true
+		}
+	}
+	return Segment{}, false
+}
+
+func copiedTranscriptPaths(t *testing.T) []string {
+	t.Helper()
+	paths, err := filepath.Glob(testdataCopiedTranscripts)
+	if err != nil {
+		t.Fatalf("glob %s: %v", testdataCopiedTranscripts, err)
+	}
+	return paths
+}
+
+func copiedFileNames(paths []string) []string {
+	names := make([]string, len(paths))
+	for i, path := range paths {
+		names[i] = filepath.Base(path)
+	}
+	slices.Sort(names)
+	return names
 }

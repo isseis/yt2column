@@ -5,6 +5,8 @@ package writer
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"text/template"
@@ -326,4 +328,43 @@ func TestBoundedWriter(t *testing.T) {
 			t.Errorf("buffer = %q, want %q", got, "abcd")
 		}
 	})
+}
+
+// TestValidateTranscriptAcceptsCopiedSamples checks the cross-package
+// integration: a Transcript built by transcript.NewCopiedSource from each
+// committed real copied-transcript sample must pass writer's validateTranscript.
+// The writer's own conditions are not restated here.
+func TestValidateTranscriptAcceptsCopiedSamples(t *testing.T) {
+	paths, err := filepath.Glob("../../testdata/*.transcript_copy.txt")
+	if err != nil {
+		t.Fatalf("glob the copied transcript samples: %v", err)
+	}
+	const wantSamples = 3
+	if len(paths) != wantSamples {
+		t.Fatalf("found %d copied transcript samples, want %d", len(paths), wantSamples)
+	}
+	for _, path := range paths {
+		t.Run(filepath.Base(path), func(t *testing.T) {
+			videoID := strings.TrimSuffix(filepath.Base(path), ".transcript_copy.txt")
+			videoURL, ok := transcript.NormalizedVideoURL(videoID)
+			if !ok {
+				t.Fatalf("sample %s does not start with a valid video ID", path)
+			}
+			data, err := os.ReadFile(path) //nolint:gosec // the path names a committed testdata fixture
+			if err != nil {
+				t.Fatalf("read %s: %v", path, err)
+			}
+			source, err := transcript.NewCopiedSource(transcript.CopiedInput{VideoID: videoID, Raw: string(data)})
+			if err != nil {
+				t.Fatalf("NewCopiedSource(%s) error = %v", videoID, err)
+			}
+			tr, err := source.Fetch(context.Background(), videoURL)
+			if err != nil {
+				t.Fatalf("Fetch(%s) error = %v", videoID, err)
+			}
+			if _, err := validateTranscript(tr); err != nil {
+				t.Errorf("validateTranscript rejected the sample %s: %v", videoID, err)
+			}
+		})
+	}
 }

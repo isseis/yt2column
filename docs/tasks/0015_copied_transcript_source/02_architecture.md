@@ -8,7 +8,7 @@
 | Created | 2026-10-14 |
 | Review date | 2026-10-14 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | §1.4.1 に `h:mm:ss` の観測（`2:10:26`・`1:00:07`）を 1 行補った（§7.4 の対応と AC-01a に合わせた記載の補完。判断は変更していない） |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md) の項番を指す。既存のコードと文書の行番号は、コミット `0a46cf0`（要件の承認のコミット）で確かめたものである。「0011 §N」は [0011_localhost_server/02_architecture.md](../0011_localhost_server/02_architecture.md) の節を、「0007」は [0007_browser_extension_skeleton/](../0007_browser_extension_skeleton/) の文書を指す。
 
@@ -159,6 +159,7 @@ flowchart LR
 -   角括弧は `[拍手]`（形 A の自動字幕）と全角の `（拍手）`（形 B の手動字幕）の両方があった。
 -   形 A の本文が空のセグメントは、コピーした文字列では観測していない。既存の `testdata/2tcCWM-sRBw.transcript_panel.html`（形 A のパネルの DOM）では、先頭のセグメントが時刻 `0:04`、ラベル `4 秒`、本文が空である。
 -   パネルに見えていないチャプターの見出しの要素も、選択範囲に含まれてコピーされる（`BkaUHsH_mkw`・`9nx455-_h68`）。チャプターの見出しは形 A にも形 B にも入る。
+-   `h:mm:ss` の時刻を `nv94SmoSPQA` で `2:10:26`、`mbyG85GZ0PI` で `1:00:07` に観測した（AC-01a）。
 
 #### 1.4.2. 長い動画の選択（AC-03）
 
