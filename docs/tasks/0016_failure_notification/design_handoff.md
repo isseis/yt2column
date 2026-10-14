@@ -21,6 +21,7 @@
 -   **事項:** `Notifier` の投稿は、`SlackWebhookPublisher` と同じ送信の性質（`POST`・`Content-Type: application/json`・`silent`・リダイレクトに従わない・応答の上限・`ok` の判定・タイムアウト・URL をエラーに含めない）を持つ（F-003）。この送信の処理を、記事の投稿と `Notifier` の間で共有する手段を決める。
 -   **理由:** 同じ処理を 2 か所に書くと、一方だけが変わったときに食い違う（[CLAUDE.md](../../../CLAUDE.md)「DRY」）。`SlackWebhookPublisher.Publish` は `writer.Article` を受け取り、メンションの検査と分割を行うので、短い通知の投稿にはそのまま使えない。内部の送信の関数（`slack.go` の `postMessage` 相当）を、投稿する本文を受け取る形に切り出すことを候補とする。
 -   **候補:** (a) `internal/publisher` の中の送信の関数を引数（本文、`silent` は常に真）で共有する。(b) `internal/slackwebhook` に送信の関数を移し、記事の投稿と `Notifier` の両方が使う。いずれの場合も、記事の投稿の振る舞い（既存のテスト）を変えない。現在の `postMessage` は送信の前に `ctx` を確かめない（確認は `Publish` のループにある）ので、共有する関数を `Notify` から呼ぶときは、キャンセル済みの `ctx` で送らないこと（AC-10）を `Notify` 側か共有する関数の側で保証する。
+-   **番兵の対応:** AC-08・AC-09 は、応答の拒否を `ErrWebhookResponseRejected`（仮称）と判定できることを求める。共有する経路は既存の `ErrSlackHTTPStatus`（`200` 以外のステータス）・`ErrSlackInvalidResponse`（`200` で本文が `ok` 以外、上限を超える本文）を返すので、`Notifier` が `ErrWebhookResponseRejected` をどう定義するか（両者を包む・別名にする・`internal/failure` に置く）を設計で決める。
 -   **関連:** F-003、AC-07〜AC-13
 
 ## H-02: `Kind` ごとの固定の文の文言と、文面への載せ方
