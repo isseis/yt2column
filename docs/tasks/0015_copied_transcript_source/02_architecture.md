@@ -8,7 +8,7 @@
 | Created | 2026-10-14 |
 | Review date | 2026-10-14 |
 | Reviewer | isseis |
-| Comments | 2026-10-14 記述の訂正（決定の変更なし）: 実データの追加のコミットを、存在しない `938a4d9` から squash 後の `4fe06e0` に改め、§3.4・§8 で `testdata/README.md`・`.gitattributes` が同コミットで追加済みであることを明記した。同日、§3.4 の `project_overview.md` の行に、`:76` の注記の更新を加えた（記載漏れの訂正。決定の変更なし）。 |
+| Comments | 2026-10-14 記述の訂正（決定の変更なし）: 実データの追加のコミットを、存在しない `938a4d9` から squash 後の `4fe06e0` に改め、§3.4・§8 で `testdata/README.md`・`.gitattributes` が同コミットで追加済みであることを明記した。同日、§3.4 の `project_overview.md` の行に、`:76` の注記の更新を加えた（記載漏れの訂正。決定の変更なし）。同日、§8 のフェーズ 4 の依存にフェーズ 2 を加えた（fuzz のターゲットが `NewCopiedSource` を呼ぶため。記載漏れの訂正。決定の変更なし）。 |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md) の項番を指す。既存のコードと文書の行番号は、コミット `0a46cf0`（要件の承認のコミット）で確かめたものである。「0011 §N」は [0011_localhost_server/02_architecture.md](../0011_localhost_server/02_architecture.md) の節を、「0007」は [0007_browser_extension_skeleton/](../0007_browser_extension_skeleton/) の文書を指す。
 
@@ -767,8 +767,10 @@ stateDiagram-v2
 | 1 | `ErrCopiedTranscriptFormat` と理由の番兵、時刻の文法と読み上げ用ラベルの導出、パーサとそのテスト（合成の入力） | なし |
 | 2 | `CopiedInput`・`CopiedSource`・`NewCopiedSource`・`Fetch` とそのテスト | フェーズ 1 |
 | 3 | 実データのテスト、`writer` との整合のテスト（`testdata/README.md`・`.gitattributes` はコミット `4fe06e0` で追加済み） | フェーズ 2 |
-| 4 | 4 MiB の入力、時間とメモリ、fuzz のテスト | フェーズ 1 |
+| 4 | 4 MiB の入力、時間とメモリ、fuzz のテスト | フェーズ 1・フェーズ 2 |
 | 5 | 文書（CLAUDE.md の 2 つの例外、`project_overview.md`、`package_reference.md`、`translation_glossary.md`） | フェーズ 2 |
+
+フェーズ 4 の fuzz のターゲットは `NewCopiedSource`（§7.3）を呼ぶので、フェーズ 1 のパーサに加えてフェーズ 2 にも依存する。
 
 #109 は、フェーズ 2 の公開の型と関数（0011 §3.7 の契約と同じ名前と性質）に依存する。
 
