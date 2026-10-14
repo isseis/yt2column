@@ -73,6 +73,7 @@
 -   投稿するメッセージの文面は、`Kind` ごとの固定の文と、`Notice.RequestID`、`Notice.VideoID` から導いた正規化 URL だけで組み立てる。
 -   `VideoID` が空のときは、動画の URL を文面に載せない。`VideoID` が空でないときは、`transcript.NormalizedVideoURL` と一致する正規化 URL を載せる（#109 §3.9）。
 -   `KindUnknown` と、列挙にない `Kind` の値にも、固定の文を使う。ゼロ値でパニックしない。
+-   `RequestID` が `[0-9a-f]{16}` でないとき、または `VideoID` が空でなく `transcript.NormalizedVideoURL` が拒否する値のときは、何も送らずにエラーを返す。呼び出し元の検証に頼らず、文面に載る値の形を `Notifier` 自身が保証する（[CLAUDE.md](../../../CLAUDE.md)「Reject, don't normalize」）。
 -   文面に、リクエストから来た値（コピーした字幕 `transcript`・`title`・`channelName`・`description`）、エラーメッセージの文字列、スタックトレース、ローカルのパス、API キー、Webhook URL、共有トークンを含めない。`Notice` にそれらの欄がないので、載せようがない（型による保証）。
 -   時刻は文面に載せない。Slack は投稿の時刻を示し、処理の時刻は #109 のサーバがログに記録する。
 -   文面は、メンションの記法（`@channel`・`@all`・`@here`・`@everyone`・`<@U…>`・`<!subteam^…>` など）を含まない。
@@ -81,8 +82,9 @@
 - **AC-02**: 16 進 16 文字の `RequestID` と検証済みの `VideoID` を持つ `Notice` を、テスト用の送信先へ `Notify` すると、受け取る `text` は、その `Kind` に対応する固定の文と、`RequestID` と、動画の正規化 URL を含む。すべての `Kind`（`KindUnknown` を含む列挙の各値）について、同じ `Kind` では常に同じ文面になり、異なる `Kind` の文面は互いに区別できる（表で確かめる）。
 - **AC-03**: `Notice` の `VideoID` が空のとき、`text` は動画の URL を含まない。`VideoID` が空でないとき、`text` は `transcript.NormalizedVideoURL` と一致する URL を含む。
 - **AC-04**: `KindUnknown`（ゼロ値）と、列挙にない `Kind` の値で `Notify` すると、パニックせず、固定の文で投稿する。
-- **AC-05**: 目印の値を入れた `RequestID` と、目印の値を入れたリクエストの値（`transcript`・`title`・`channelName`・`description`）・API キー・Webhook URL・共有トークン・エラーメッセージ・ローカルのパスを用いて `Notify` すると、テスト用の送信先が受け取るすべての `text` に、それらの目印が現れない。載りうるのは `RequestID`・`VideoID`（正規化 URL）・`Kind` の文面だけである。
-- **AC-06**: 任意の有効な `Notice` で投稿される `text` は、メンションの記法を含まない。固定の文と、`[0-9a-f]{16}` の `RequestID` と、`[A-Za-z0-9_-]{11}` から導いた URL だけで組み立てるためである（静的な確認と、テスト用の送信先が受け取る `text` の検査）。
+- **AC-04a**: `RequestID` が空・`[0-9a-f]{16}` 以外（大文字、長さの違い、`<!channel>` などを含む）のとき、または `VideoID` が空でなく 11 文字の `[A-Za-z0-9_-]` でないとき、`Notify` はエラーを返し、テスト用の送信先はリクエストを受け取らない。
+- **AC-05**: 目印の値を入れた Webhook URL（`Notifier` が保持する唯一の秘密）で構築した `Notifier` で、すべての `Kind` について `Notify` すると、テスト用の送信先が受け取るすべての `text` に、Webhook URL・そのパス・その末尾 8 文字のいずれも現れない。`text` は、`Kind` の固定の文と `RequestID` と正規化 URL を除くと、`Kind` ごとに固定の文字列に一致する（文面の全体を表で照合する）。リクエストの値・API キー・共有トークン・エラーメッセージ・ローカルのパスは `Notify` へ渡す経路がない（AC-01 の型による保証）。
+- **AC-06**: 投稿される `text` は、メンションの記法を含まない。固定の文と、AC-04a の検査を通った `[0-9a-f]{16}` の `RequestID` と、`[A-Za-z0-9_-]{11}` から導いた URL だけで組み立てるためである（静的な確認と、テスト用の送信先が受け取る `text` の検査）。
 
 #### F-003: Webhook への投稿
 
@@ -91,7 +93,7 @@
     -   メッセージごとに `POST` し、本文は `Content-Type: application/json` の JSON とする。
     -   ペイロードは、`text` と `silent`（真）を持つ JSON とする。`silent` は Mattermost の通知を抑止する。記事の投稿と同じく、`blocks`・`attachments` などの他の項目は使わない。
     -   リダイレクトに従わない（`http.Client.CheckRedirect` が `http.ErrUseLastResponse` を返す）。3xx の応答は投稿の失敗とし、`Location` の送信先にリクエストを送らない。
-    -   投稿の成功は、ステータス `200` で本文がちょうど `ok` のときだけとする。応答の本文は 8,193 バイトまで読み、それを超える本文はステータスが `200` でも失敗とする。
+    -   投稿の成功は、ステータス `200` で本文がちょうど `ok` のときだけとする。応答の本文は 8,193 バイトまで読み、8,192 バイトを超える本文はステータスが `200` でも失敗とする（`SlackWebhookPublisher` と同じ。0006 §3.6）。
     -   送信の時間の上限を自分で持ち、上限を過ぎたらエラーを返す。上限は 30 秒以下とする。呼び出し元の `ctx` の期限に頼らない（`ctx` がまだ生きていても、自分の上限で打ち切る）。`ctx` がキャンセルされているときはリクエストを送らない。
     -   自動でリトライしない。1 回の `Notify` は、多くとも 1 つのメッセージを送る。
 -   構築はネットワークに触れない。テスト用の loopback の送信先へ `http` で送る構築の手段を、テスト用のビルドでだけ使えるようにする（既存の `newSlackWebhookPublisher`・`deepseek.NewForLoopbackTest` と同じ考え方）。
@@ -103,9 +105,9 @@
 - **AC-08**: テスト用の送信先が、`200` で本文が `ok` 以外（空・`OK`・`ok\n`・`{"ok":true}`）、`200` 以外のステータス（`400`・`403`・`500` など）、読み取る上限を超える本文、のいずれかを返すと、`Notify` はエラーを返す。
 - **AC-09**: テスト用の送信先が、別のテスト用の送信先を `Location` に指定した 3xx を返すと、`Notify` はエラーを返し、リダイレクト先はリクエストを 1 つも受け取らない。
 - **AC-10**: テスト用の送信先が応答を返さないとき、`Notify` は有限の時間（設計で定める 30 秒以下の上限。テストでは短い上限で構築する）でエラーを返す。呼び出し元の `ctx` に長い期限があるときも、自分の上限で打ち切る。キャンセル済みの `ctx` で `Notify` すると、送信先はリクエストを受け取らない。
-- **AC-11**: AC-08・AC-09・AC-10 のそれぞれの場合で、テスト用の送信先が受け取るリクエストは 1 つだけである（自動でリトライしない）。
+- **AC-11**: AC-08・AC-09、および AC-10 の応答を返さない場合のそれぞれで、テスト用の送信先が受け取るリクエストは 1 つだけである（自動でリトライしない）。AC-10 のキャンセル済みの `ctx` の場合は 0 である。
 - **AC-12**: ゼロ値の `secret.Secret`、または `slackwebhook.ValidURL` が拒否する URL で構築すると、エラーになる。いずれのエラーのメッセージも、URL の値もその一部も含まない。構築は送信先にリクエストを送らない。
-- **AC-13**: 目印の値を入れた Webhook URL（パスに特徴的な文字列を含む）で構築した `Notifier` で AC-08〜AC-10 の各失敗を起こすと、返されたエラーと `errors.Unwrap` でたどれるすべてのエラーの `Error()` の値に、Webhook URL・そのパス・その末尾 8 文字のいずれも現れない。
+- **AC-13**: 目印の値を入れた Webhook URL（パスに特徴的な文字列を含む）で構築した `Notifier` で AC-08〜AC-10 の各失敗と、通信の失敗（接続の拒否など、`*url.Error` が URL を持つ失敗）を起こすと、返されたエラーと `errors.Unwrap` でたどれるすべてのエラーの `Error()` の値に、Webhook URL・そのパス・その末尾 8 文字のいずれも現れない。
 
 #### F-004: 投稿自体が失敗したときの扱い
 
@@ -130,7 +132,7 @@
 -   したがって、`Notifier` の実装は `internal/server` を import しない（#109 §2.1 の循環を避け、CLI からも使える形にする）。
 
 **Acceptance Criteria**:
-- **AC-17**: `Notifier` の実装を含むパッケージは `internal/server` を import しない（静的な確認。`go list` の依存の検査）。`internal/server` は `internal/failure` の interface だけに依存する（#109 §2.1）。
+- **AC-17**: `Notifier` の実装を含むパッケージは `internal/server` を import しない（静的な確認。`go list` の依存の検査）。`internal/server` が失敗の通知を `failure.Notifier` の interface を通してだけ使うことは #109 が保証する（#109 §2.1）。
 - **AC-18**: `cmd/yt2column` に失敗の投稿の呼び出しを加えない。新しいフラグ・環境変数を加えない（静的な確認）。既存の CLI の振る舞いは変わらない。
 
 ### 3.2. 信頼できない入力の境界 (Untrusted Input Boundaries)
@@ -139,13 +141,13 @@
 
 | 境界 | 受理する形 | 上限 | 拒否時の扱い | 主な AC |
 |---|---|---|---|---|
-| Webhook の応答 | ステータス `200` で、本文がちょうど `ok`。3xx には従わない | 読み取る本文は 8,193 バイト（1 バイト多く読んで超過を検出する） | 投稿の失敗（エラーを返す。再試行しない） | AC-08・AC-09 |
-| `Notice.RequestID` | 呼び出し元（サーバ）が生成する 16 進 16 文字。`Notifier` は中身を検証しない | - | なし（検証は呼び出し元の責務） | AC-02・AC-05 |
-| `Notice.VideoID` | 呼び出し元が検証した 11 文字の `[A-Za-z0-9_-]`（空を許す） | - | なし（検証は呼び出し元の責務） | AC-03・AC-05 |
+| Webhook の応答 | ステータス `200` で、本文がちょうど `ok`。3xx には従わない | 8,192 バイト（1 バイト多い 8,193 バイトまで読んで超過を検出する） | 投稿の失敗（エラーを返す。再試行しない） | AC-08・AC-09 |
+| `Notice.RequestID` | 呼び出し元（サーバ）が生成する 16 進 16 文字（`[0-9a-f]{16}`） | 16 文字 | 何も送らずにエラーを返す | AC-02・AC-04a |
+| `Notice.VideoID` | 呼び出し元が検証した 11 文字の `[A-Za-z0-9_-]`（空を許す） | 11 文字 | 何も送らずにエラーを返す（`transcript.NormalizedVideoURL` で検査する） | AC-03・AC-04a |
 | `Notice.Kind` | 列挙のいずれかの値 | - | 列挙にない値は `KindUnknown` と同じ固定の文 | AC-04 |
 
 -   標準ライブラリが黙って修復・破棄・無視すれば受理できてしまう入力は、受理せずに失敗とする。応答の本文は、失敗の理由として識別子だけを読む場合でも自由文を表示しない（`SlackWebhookPublisher` と同じ。security.md §3）。
--   `Notice` の値は呼び出し元が生成する。`Notifier` は値の中身によって振る舞いを選ばない。`Kind` は列挙と `switch` で文面に写し、`default` は固定の文（`KindUnknown` と同じ）に倒す（[CLAUDE.md](../../../CLAUDE.md)「Declare, don't infer」）。
+-   `Notice` の値は呼び出し元が生成する。`Notifier` は `RequestID`・`VideoID` の形だけを検査し（AC-04a）、値の中身によって文面を選ばない。`Kind` は列挙と `switch` で文面に写し、`default` は固定の文（`KindUnknown` と同じ）に倒す（[CLAUDE.md](../../../CLAUDE.md)「Declare, don't infer」）。
 
 ## 4. 非機能要件 (Non-Functional Requirements)
 

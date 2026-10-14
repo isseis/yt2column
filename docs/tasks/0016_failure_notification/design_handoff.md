@@ -10,7 +10,7 @@
 | ID | 対象 | 概要 | 関連 AC |
 |---|---|---|---|
 | H-01 | F-003 | 送信の経路を `SlackWebhookPublisher` と共有する手段 | AC-07〜AC-13 |
-| H-02 | F-002 | `Kind` ごとの固定の文の文言と、`RequestID`・動画 ID の文面への載せ方 | AC-02〜AC-06 |
+| H-02 | F-002 | `Kind` ごとの固定の文の文言と、`RequestID`・動画 ID の文面への載せ方 | AC-02〜AC-06（AC-04a を含む） |
 | H-03 | F-003・F-005 | `Notifier` の実装の置き場所と、`internal/server` との依存の向き | AC-12・AC-17 |
 | H-04 | F-001 | `Notice`・`Notifier` のフィールドとメソッドの集合を固定する guard の置き方 | AC-01 |
 | H-05 | F-003・F-004 | 送信の時間の上限の値と、`ctx` との関係（キャンセル・期限） | AC-10・AC-14 |
@@ -20,7 +20,7 @@
 
 -   **事項:** `Notifier` の投稿は、`SlackWebhookPublisher` と同じ送信の性質（`POST`・`Content-Type: application/json`・`silent`・リダイレクトに従わない・応答の上限・`ok` の判定・タイムアウト・URL をエラーに含めない）を持つ（F-003）。この送信の処理を、記事の投稿と `Notifier` の間で共有する手段を決める。
 -   **理由:** 同じ処理を 2 か所に書くと、一方だけが変わったときに食い違う（[CLAUDE.md](../../../CLAUDE.md)「DRY」）。`SlackWebhookPublisher.Publish` は `writer.Article` を受け取り、メンションの検査と分割を行うので、短い通知の投稿にはそのまま使えない。内部の送信の関数（`slack.go` の `postMessage` 相当）を、投稿する本文を受け取る形に切り出すことを候補とする。
--   **候補:** (a) `internal/publisher` の中の送信の関数を引数（本文、`silent` は常に真）で共有する。(b) `internal/slackwebhook` に送信の関数を移し、記事の投稿と `Notifier` の両方が使う。いずれの場合も、記事の投稿の振る舞い（既存のテスト）を変えない。
+-   **候補:** (a) `internal/publisher` の中の送信の関数を引数（本文、`silent` は常に真）で共有する。(b) `internal/slackwebhook` に送信の関数を移し、記事の投稿と `Notifier` の両方が使う。いずれの場合も、記事の投稿の振る舞い（既存のテスト）を変えない。現在の `postMessage` は送信の前に `ctx` を確かめない（確認は `Publish` のループにある）ので、共有する関数を `Notify` から呼ぶときは、キャンセル済みの `ctx` で送らないこと（AC-10）を `Notify` 側か共有する関数の側で保証する。
 -   **関連:** F-003、AC-07〜AC-13
 
 ## H-02: `Kind` ごとの固定の文の文言と、文面への載せ方
@@ -33,7 +33,7 @@
 ## H-03: `Notifier` の実装の置き場所と依存の向き
 
 -   **事項:** `Notifier` の実装をどのパッケージに置くかを決める。#109 §2.1・§3.9 は、`internal/server` が `internal/failure` の interface だけに依存し、#108 の実装が `internal/publisher` に置かれても循環しないとしている。CLI からも使える形にする（F-005・AC-17）必要がある。
--   **候補:** `internal/publisher`（`SlackWebhookPublisher` と同じパッケージ。送信の経路を共有しやすい）。この場合、`internal/publisher` が `internal/failure` を import し、`internal/server` は両方を import する。`internal/publisher` が `internal/server` を import しないことを確かめる。
+-   **候補:** `internal/publisher`（`SlackWebhookPublisher` と同じパッケージ。送信の経路を共有しやすい）。この場合、`internal/publisher` が `internal/failure` を import し、`internal/server` は両方を import する。`internal/publisher` が `internal/server` を import しないことを確かめる。`internal/server` は記事の投稿のために `internal/publisher` を import する（#109 §2.1 の図 2）ので、この配置では「`internal/server` が実装を import しない」ことを import の検査では確かめられない。`internal/server` が実装の型を参照しないことは #109 の側で保証する。
 -   **関連:** F-003・F-005、AC-12・AC-17
 
 ## H-04: フィールドとメソッドの集合を固定する guard
