@@ -2,9 +2,9 @@ package config
 
 import "path/filepath"
 
-// cacheDirName is the directory the application's cache and configuration live
+// appDirName is the directory the application's cache and configuration live
 // in under the operating system's user directory.
-const cacheDirName = "yt2column"
+const appDirName = "yt2column"
 
 // tokenFileName is the shared token file's name under the configuration
 // directory.
@@ -50,7 +50,7 @@ func defaultCacheDir(goos string, lookup LookupFunc) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	return filepath.Join(base, cacheDirName), true
+	return filepath.Join(base, appDirName), true
 }
 
 // defaultConfigDir returns the default configuration directory for goos,
@@ -62,7 +62,7 @@ func defaultConfigDir(goos string, lookup LookupFunc) (string, *VarError) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(base, cacheDirName), nil
+	return filepath.Join(base, appDirName), nil
 }
 
 // userDirBase returns the base directory of the user-directory rule o for goos,

@@ -907,14 +907,16 @@ func TestLoadServerValid(t *testing.T) {
 	}
 }
 
-// TestLoadServerDefaultPort checks that an unset port defaults to 8765.
+// TestLoadServerDefaultPort checks that an unset port defaults to 8765, the
+// documented default. The literal is asserted rather than defaultServerPort, so
+// a change to the constant fails this test instead of moving its expectation.
 func TestLoadServerDefaultPort(t *testing.T) {
 	cfg, err := LoadServer(envLookup(validServerEnv()))
 	if err != nil {
 		t.Fatalf("LoadServer() error = %v, want nil", err)
 	}
-	if cfg.Port() != defaultServerPort {
-		t.Errorf("Port() = %d, want %d", cfg.Port(), defaultServerPort)
+	if cfg.Port() != 8765 {
+		t.Errorf("Port() = %d, want 8765", cfg.Port())
 	}
 }
 
@@ -993,6 +995,41 @@ func TestLoadServerIgnoresCacheAndYtdlp(t *testing.T) {
 	}
 	if _, err := Load(envLookup(env)); err == nil {
 		t.Fatal("Load() error = nil, want a rejection of the cache directory or the yt-dlp path")
+	}
+}
+
+// TestLoadServerTokenPathUnderivable checks that a HOME that cannot provide an
+// absolute base ends the load with a *VarError naming it, and that the returned
+// ServerConfig is the zero value. The XDG-specific failure is fixed by
+// TestDefaultConfigDir, which can choose the OS; here HOME fails on every
+// supported OS.
+func TestLoadServerTokenPathUnderivable(t *testing.T) {
+	cases := []struct {
+		name string
+		env  map[string]string
+	}{
+		{"home unset", without(validServerEnv(), "HOME")},
+		{"home empty", with(validServerEnv(), "HOME", "")},
+		{"home relative", with(validServerEnv(), "HOME", "rel")},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg, err := LoadServer(envLookup(tc.env))
+			varErr, ok := errors.AsType[*VarError](err)
+			if !ok {
+				t.Fatalf("LoadServer() error = %v, want *VarError", err)
+			}
+			if varErr.Name != "HOME" {
+				t.Errorf("VarError.Name = %q, want %q", varErr.Name, "HOME")
+			}
+			if !errors.Is(err, ErrMissing) {
+				t.Errorf("LoadServer() error = %v, want it to wrap ErrMissing", err)
+			}
+			if cfg.Port() != 0 || cfg.TokenPath() != "" || cfg.LLM().Model() != "" {
+				t.Errorf("LoadServer() returned a non-zero ServerConfig on error: port=%d tokenPath=%q model=%q",
+					cfg.Port(), cfg.TokenPath(), cfg.LLM().Model())
+			}
+		})
 	}
 }
 
