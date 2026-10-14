@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-13 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 2026-10-14: 決定の変更。§7.2 の `cmd/yt2column-server` の統合テストを、`integration` のビルドタグで実際のバイナリを loopback の fake のサーバに向ける方式から、`//go:build test` のテストとして `make test` に含め、`run` の `deps` を差し替える方式に改めた。LLM のエンドポイントは設定で差し替えられず、loopback の構築関数と fake は `//go:build test` でしか見えないので、前の方式は実装できなかった（実装計画のフェーズ 2 の阻害要因）。§3.12・§3.14 の `test-integration-server` のターゲットとその検査を除いた。 |
+| Review date | 2026-10-13 |
+| Reviewer | isseis |
+| Comments | - |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md) の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §3.13）を指す。既存のコードの行番号は、コミット `f768cdb`（要件の承認のコミット）で確かめたものである。
 
