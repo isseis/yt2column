@@ -85,6 +85,28 @@ linters:
             - pkg: github.com/google/generative-ai-go
               desc: "legacy Gemini SDK; use google.golang.org/genai"
 
+        # The publisher posts to a Webhook: it must not import the server
+        # (internal/server imports the publisher, so a direct import would
+        # cycle) and must not write to a log (it returns failures; the caller
+        # logs them).
+        publisher-no-server:
+          list-mode: lax
+          files:
+            - "**/internal/publisher/**"
+          deny:
+            - pkg: github.com/isseis/yt2column/internal/server
+              desc: "internal/publisher must not import internal/server (the server imports the publisher)"
+        publisher-no-log:
+          list-mode: lax
+          files:
+            - "**/internal/publisher/**"
+            - "!$test"
+          deny:
+            - pkg: log
+              desc: "internal/publisher returns failures; the caller logs them"
+            - pkg: log/slog
+              desc: "internal/publisher returns failures; the caller logs them"
+
     mnd:
       checks:
         - argument
