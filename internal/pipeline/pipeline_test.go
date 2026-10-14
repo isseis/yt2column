@@ -555,8 +555,8 @@ func TestFakesCarryBuildTag(t *testing.T) {
 			t.Fatalf("walk %s: %v", root, err)
 		}
 	}
-	if len(testutilFiles) != 17 {
-		t.Fatalf("found %d testutil files, want 17: %v", len(testutilFiles), testutilFiles)
+	if len(testutilFiles) != 18 {
+		t.Fatalf("found %d testutil files, want 18: %v", len(testutilFiles), testutilFiles)
 	}
 	if len(helperFiles) == 0 {
 		t.Fatal("found no test_helpers*.go files")
