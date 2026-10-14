@@ -78,13 +78,14 @@ Same test as `runpr.md` step 1:
 - Fetch the unresolved review threads, following every page (`endCursor` until
   `hasNextPage` is false), the same way `runpr.md` step 1 does. Filter to
   `isResolved=false`.
-- **While any thread is unresolved**, and it is new since the last `fixpr` run
-  for this PR (including one that appears while CodeRabbit is still `PENDING`),
-  run `.claude/commands/fixpr.md` for the PR before continuing to wait. Note the
-  unresolved count `fixpr` left; re-run `fixpr` only when the count rises above
-  it, so the same batch is not processed twice. `fixpr` pushes a fix, so
-  CodeRabbit re-reviews; keep polling. Do not wait for CodeRabbit to finish
-  before running `fixpr` when a new unresolved thread already exists.
+- **While any thread is unresolved**, run `.claude/commands/fixpr.md` for the PR
+  when there is an unresolved thread ID you have not yet passed to `fixpr`
+  (including one that appears while CodeRabbit is still `PENDING`). Record the set
+  of unresolved thread IDs each time; re-run `fixpr` when the set holds an ID not
+  seen before — not merely when the count rises, since resolving one thread while
+  another is added keeps the count the same. `fixpr` pushes a fix, so CodeRabbit
+  re-reviews; keep polling. Do not wait for CodeRabbit to finish before running
+  `fixpr` when a new unresolved thread already exists.
 - Proceed to step 3 when CodeRabbit's state is `SUCCESS` and either no thread is
   unresolved or `fixpr` reported that every remaining thread is at its severity
   floor (`no-harm`; `fixpr.md`'s convergence policy defines the floor). If an
