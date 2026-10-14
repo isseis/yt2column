@@ -3,6 +3,7 @@
 package main
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -13,22 +14,19 @@ const (
 	copiedTranscriptArchitecturePath = repositoryRoot + "/docs/tasks/0015_copied_transcript_source/02_architecture.md"
 )
 
-// copiedTranscriptSampleIDs are the videos whose copied transcripts are saved
-// under testdata/. The survey guard requires a record for each, so a dropped
-// record does not silently shrink what is checked.
-var copiedTranscriptSampleIDs = []string{"IkngpxCMmRQ", "Yoboo9g7saY", "mbyG85GZ0PI"}
-
 // TestCopiedTranscriptSurveyRecords checks the copied-transcript survey record:
 // testdata/README.md names the source, license, and provenance of each saved
 // sample, and the task's architecture records the per-video attributes, the
 // observed formats, the h:mm:ss observation, and the long-video selection
-// investigation.
+// investigation. The sample set is read from testdata/, so a newly saved
+// sample without a record fails this guard.
 func TestCopiedTranscriptSurveyRecords(t *testing.T) {
+	sampleIDs := copiedTranscriptSampleIDs(t)
 	readmeSection := sectionByHeading(readDoc(t, copiedTranscriptReadmePath), "## コピーした字幕（文字起こしパネルからのコピー）")
 	if readmeSection == "" {
 		t.Fatal("testdata/README.md has no copied-transcript section")
 	}
-	for _, id := range copiedTranscriptSampleIDs {
+	for _, id := range sampleIDs {
 		if !strings.Contains(readmeSection, id+".transcript_copy.txt") {
 			t.Errorf("testdata/README.md does not name the file %s.transcript_copy.txt", id)
 		}
@@ -61,13 +59,13 @@ func TestCopiedTranscriptSurveyRecords(t *testing.T) {
 		}
 	}
 	saved := tableColumnIndex(attributes, "testdata/")
-	for _, id := range copiedTranscriptSampleIDs {
+	for _, id := range sampleIDs {
 		row := tableRow(attributes, id)
 		if row == nil {
 			t.Errorf("1.4.1 attribute table has no row for %s", id)
 			continue
 		}
-		if saved < 0 || saved >= len(row) || !strings.Contains(row[saved], "保存") {
+		if saved < 0 || saved >= len(row) || !strings.Contains(row[saved], "保存する") {
 			t.Errorf("1.4.1 row %s does not record that its sample is saved", id)
 		}
 	}
@@ -83,7 +81,7 @@ func TestCopiedTranscriptSurveyRecords(t *testing.T) {
 	if formats == nil {
 		t.Fatal("1.4.1 has no observed-format table")
 	}
-	for _, column := range []string{"時刻・本文の並び", "読み上げ用ラベル", "時刻の文法", "行の区切り", "空行", "本文の行数", "混じる表示項目"} {
+	for _, column := range []string{"時刻・本文の並び", "読み上げ用ラベル", "時刻の文法", "行の区切り", "空行", "本文の行数", "前後の空白・末尾の改行", "混じる表示項目"} {
 		if !tableHasColumn(formats, column) {
 			t.Errorf("1.4.1 observed-format table has no %q column", column)
 		}
@@ -103,6 +101,25 @@ func TestCopiedTranscriptSurveyRecords(t *testing.T) {
 			t.Errorf("1.4.2 does not record %q", want)
 		}
 	}
+}
+
+// copiedTranscriptSampleIDs returns the video IDs of the committed
+// copied-transcript samples. It reads the directory rather than a fixed list,
+// so a newly saved sample without a survey record fails the guard.
+func copiedTranscriptSampleIDs(t *testing.T) []string {
+	t.Helper()
+	paths, err := filepath.Glob(repositoryRoot + "/testdata/*.transcript_copy.txt")
+	if err != nil {
+		t.Fatalf("glob the copied transcript samples: %v", err)
+	}
+	if len(paths) == 0 {
+		t.Fatal("no copied transcript samples found under testdata/")
+	}
+	ids := make([]string, len(paths))
+	for i, path := range paths {
+		ids[i] = strings.TrimSuffix(filepath.Base(path), ".transcript_copy.txt")
+	}
+	return ids
 }
 
 // tableHasColumn reports whether any header cell of table contains name.

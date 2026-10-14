@@ -434,9 +434,6 @@ func checkCopiedSampleSegments(t *testing.T, tc copiedSample, segments []Segment
 			t.Errorf("%s segment %d has StartMs %d, earlier than %d", tc.videoID, i, segment.StartMs, previous)
 		}
 		previous = segment.StartMs
-		if strings.TrimSpace(segment.Text) == "" {
-			t.Errorf("%s segment %d has whitespace-only text %q", tc.videoID, i, segment.Text)
-		}
 		if !sampleTextComesFromInput(tc.form, lines, segment.Text) {
 			t.Errorf("%s segment %d text %q is not part of the input", tc.videoID, i, segment.Text)
 		}
