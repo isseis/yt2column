@@ -20,31 +20,39 @@ no argument, use the current branch.
 
 ## 1. Create the PR (reuse an existing one)
 
-- Determine the target: `$ARGUMENTS` when it is given (a PR number or branch),
-  otherwise the current branch. Resolve its PR — pass the argument to `gh pr
-  view`, and omit it only to fall back to the current branch:
+- Determine the target: `$ARGUMENTS` when it is given (a PR number or a branch),
+  otherwise the current branch. Resolve its PR, passing the argument only when it
+  is set (an empty argument would otherwise replace `gh pr view`'s
+  current-branch default and fail):
 
   ```bash
-  gh pr view "$ARGUMENTS" --json number,url,headRefName
+  if [ -n "$ARGUMENTS" ]; then
+    gh pr view "$ARGUMENTS" --json number,url,headRefName
+  else
+    gh pr view --json number,url,headRefName
+  fi
   ```
 
   If a PR is open, reuse it, use its number in the steps below, and go to step 2.
-- Otherwise the target branch has no PR yet. Confirm the base branch (`main`; the
-  repository's base for a normal PR), push the branch and set its upstream so
-  `gh pr create` does not prompt:
+- Otherwise the target is a branch with no PR. Set `<target-branch>` to that
+  branch (`$ARGUMENTS` when it names a branch, otherwise
+  `git rev-parse --abbrev-ref HEAD`), confirm the base branch (`main`; the
+  repository's base for a normal PR), and push that branch and set its upstream
+  so `gh pr create` does not prompt:
 
   ```bash
-  git push -u origin HEAD
+  git push -u origin <target-branch>
   ```
 
 - Draft a conventional-commit title (`<type>(<scope>): <summary>`, matching the
   style of `git log origin/<base>`) and a short body from the branch's commits,
   describing the final state, not the history. Write the body to a file with the
   Write tool and pass it with `--body-file` so shell metacharacters in the body
-  are not interpreted:
+  are not interpreted. Name the head branch explicitly, so a branch argument
+  other than the checked-out branch is not ignored:
 
   ```bash
-  gh pr create --base <base> --title "<title>" --body-file <body-file>
+  gh pr create --base <base> --head <target-branch> --title "<title>" --body-file <body-file>
   ```
 
 - Report the PR URL. If the user wants to adjust the title or body, do so before
