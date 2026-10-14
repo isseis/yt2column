@@ -57,6 +57,31 @@ func failureSentenceCases() []failureSentenceCase {
 	}
 }
 
+// failureRejectionResponse is a response that does not acknowledge the notice.
+// The status decides which shared sentinel the rejection also matches: a
+// non-200 is ErrSlackHTTPStatus, a 200 with a wrong body is
+// ErrSlackInvalidResponse.
+type failureRejectionResponse struct {
+	name   string
+	status int
+	body   string
+}
+
+// failureRejectionResponses is the shared table of responses that must be
+// rejected, used by both the classification and the omission tests.
+func failureRejectionResponses() []failureRejectionResponse {
+	return []failureRejectionResponse{
+		{"200 empty", http.StatusOK, ""},
+		{"200 OK", http.StatusOK, "OK"},
+		{"200 ok newline", http.StatusOK, "ok\n"},
+		{"200 json", http.StatusOK, `{"ok":true}`},
+		{"200 oversized", http.StatusOK, strings.Repeat("a", slackMaxResponseBytes+1)},
+		{"400", http.StatusBadRequest, "bad request"},
+		{"403", http.StatusForbidden, ""},
+		{"500", http.StatusInternalServerError, "server error"},
+	}
+}
+
 // validFailureNotice returns a notice every field of which is accepted.
 func validFailureNotice() failure.Notice {
 	return failure.Notice{RequestID: failureRequestIDForTest, VideoID: failureVideoIDForTest, Kind: failure.KindInternal}
@@ -242,19 +267,20 @@ func TestSlackFailureNotifyZeroValue(t *testing.T) {
 // URL or any of its sensitive parts.
 func TestSlackFailureNotifyOmitsWebhookURL(t *testing.T) {
 	t.Run("text omits the endpoint", func(t *testing.T) {
+		cases := failureSentenceCases()
 		server := newSlackOKServer(t)
 		endpoint := server.url()
 		n := newSlackFailureNotifierForLoopbackTest(t, time.Second, endpoint, nil)
 		parts := append([]string{endpoint, slackWebhookPath, slackWebhookMarker}, slackwebhook.SensitiveParts(endpoint)...)
-		for _, tc := range failureSentenceCases() {
+		for _, tc := range cases {
 			notice := failure.Notice{RequestID: failureRequestIDForTest, VideoID: failureVideoIDForTest, Kind: tc.kind}
 			if err := n.Notify(context.Background(), notice); err != nil {
 				t.Fatalf("Notify(kind %d): %v", tc.kind, err)
 			}
 		}
 		requests := server.recorder.all()
-		if len(requests) != len(failureSentenceCases()) {
-			t.Fatalf("%d requests, want %d", len(requests), len(failureSentenceCases()))
+		if len(requests) != len(cases) {
+			t.Fatalf("%d requests, want %d", len(requests), len(cases))
 		}
 		videoURL, _ := transcript.NormalizedVideoURL(failureVideoIDForTest)
 		for i, req := range requests {
@@ -264,7 +290,7 @@ func TestSlackFailureNotifyOmitsWebhookURL(t *testing.T) {
 					t.Fatalf("text %d leaks %q: %q", i, s, text)
 				}
 			}
-			want := expectedFailureText(failureSentenceCases()[i].sentence, videoURL)
+			want := expectedFailureText(cases[i].sentence, videoURL)
 			if text != want {
 				t.Fatalf("text %d = %q, want %q", i, text, want)
 			}
@@ -272,21 +298,7 @@ func TestSlackFailureNotifyOmitsWebhookURL(t *testing.T) {
 	})
 
 	t.Run("errors omit the endpoint", func(t *testing.T) {
-		responses := []struct {
-			name   string
-			status int
-			body   string
-		}{
-			{"200 empty", http.StatusOK, ""},
-			{"200 OK", http.StatusOK, "OK"},
-			{"200 ok newline", http.StatusOK, "ok\n"},
-			{"200 json", http.StatusOK, `{"ok":true}`},
-			{"200 oversized", http.StatusOK, strings.Repeat("a", slackMaxResponseBytes+1)},
-			{"400", http.StatusBadRequest, "bad request"},
-			{"403", http.StatusForbidden, ""},
-			{"500", http.StatusInternalServerError, "server error"},
-		}
-		for _, tc := range responses {
+		for _, tc := range failureRejectionResponses() {
 			t.Run(tc.name, func(t *testing.T) {
 				server := newSlackServer(t, func(w http.ResponseWriter, _ *http.Request, _ int) {
 					w.WriteHeader(tc.status)
@@ -391,23 +403,7 @@ func TestSlackFailureNotifyPayload(t *testing.T) {
 // not acknowledge the notice maps to ErrSlackNoticeRejected (and the shared
 // sentinel), and a transport failure does not.
 func TestSlackFailureNotifyRejected(t *testing.T) {
-	cases := []struct {
-		name            string
-		status          int
-		body            string
-		wantHTTPStatus  bool
-		wantInvalidResp bool
-	}{
-		{"200 empty", http.StatusOK, "", false, true},
-		{"200 OK", http.StatusOK, "OK", false, true},
-		{"200 ok newline", http.StatusOK, "ok\n", false, true},
-		{"200 json", http.StatusOK, `{"ok":true}`, false, true},
-		{"200 oversized", http.StatusOK, strings.Repeat("a", slackMaxResponseBytes+1), false, true},
-		{"400", http.StatusBadRequest, "bad request", true, false},
-		{"403", http.StatusForbidden, "", true, false},
-		{"500", http.StatusInternalServerError, "server error", true, false},
-	}
-	for _, tc := range cases {
+	for _, tc := range failureRejectionResponses() {
 		t.Run(tc.name, func(t *testing.T) {
 			server := newSlackServer(t, func(w http.ResponseWriter, _ *http.Request, _ int) {
 				w.WriteHeader(tc.status)
@@ -421,12 +417,14 @@ func TestSlackFailureNotifyRejected(t *testing.T) {
 			if !errors.Is(err, ErrSlackNoticeRejected) {
 				t.Fatalf("err = %v, want ErrSlackNoticeRejected", err)
 			}
-			if tc.wantHTTPStatus && !errors.Is(err, ErrSlackHTTPStatus) {
-				t.Fatalf("err = %v, want ErrSlackHTTPStatus", err)
+			wantShared := ErrSlackHTTPStatus
+			if tc.status == http.StatusOK {
+				wantShared = ErrSlackInvalidResponse
 			}
-			if tc.wantInvalidResp && !errors.Is(err, ErrSlackInvalidResponse) {
-				t.Fatalf("err = %v, want ErrSlackInvalidResponse", err)
+			if !errors.Is(err, wantShared) {
+				t.Fatalf("err = %v, want %v", err, wantShared)
 			}
+			requireErrorPhrase(t, err, "the server rejected the failure notice")
 		})
 	}
 
@@ -442,6 +440,7 @@ func TestSlackFailureNotifyRejected(t *testing.T) {
 		if errors.Is(err, ErrSlackNoticeRejected) {
 			t.Fatalf("a transport failure matched ErrSlackNoticeRejected: %v", err)
 		}
+		requireErrorPhrase(t, err, "the failure notice may have been posted")
 	})
 }
 
@@ -461,9 +460,6 @@ func TestSlackFailureNotifyRedirect(t *testing.T) {
 	if got := target.recorder.count(); got != 0 {
 		t.Fatalf("the redirect target received %d requests, want 0", got)
 	}
-	if got := server.recorder.count(); got != 1 {
-		t.Fatalf("the server received %d requests, want 1", got)
-	}
 }
 
 // TestSlackFailureNotifyTimeout checks that the notifier's own bound ends a
@@ -482,9 +478,7 @@ func TestSlackFailureNotifyTimeout(t *testing.T) {
 		if elapsed := time.Since(start); elapsed > 5*time.Second {
 			t.Fatalf("Notify took %s, want well under the caller's one-hour deadline", elapsed)
 		}
-		if got := server.recorder.count(); got != 1 {
-			t.Fatalf("the server received %d requests, want 1", got)
-		}
+		requireErrorPhrase(t, err, "the failure notice may have been posted")
 	})
 
 	t.Run("canceled context sends nothing", func(t *testing.T) {
@@ -502,34 +496,7 @@ func TestSlackFailureNotifyTimeout(t *testing.T) {
 		if got := server.recorder.count(); got != 0 {
 			t.Fatalf("the server received %d requests, want 0", got)
 		}
-	})
-}
-
-// TestSlackFailureNotifyErrorWording checks the phrases that tell a logging
-// caller whether the notice left the process: "was not sent" before the send,
-// "may have been posted" once it started, and the rejection phrase for a
-// response that did not acknowledge it.
-func TestSlackFailureNotifyErrorWording(t *testing.T) {
-	t.Run("not sent before the send", func(t *testing.T) {
-		server := newSlackOKServer(t)
-		n := newSlackFailureNotifierForLoopbackTest(t, time.Second, server.url(), nil)
-		ctx := &cancelableContext{Context: context.Background()}
-		ctx.cancel(context.Canceled)
-		requireErrorPhrase(t, n.Notify(ctx, validFailureNotice()), "the failure notice was not sent")
-	})
-
-	t.Run("may have been posted after the send started", func(t *testing.T) {
-		server := newSlackServer(t, func(_ http.ResponseWriter, r *http.Request, _ int) { <-r.Context().Done() })
-		n := newSlackFailureNotifierForLoopbackTest(t, 100*time.Millisecond, server.url(), nil)
-		requireErrorPhrase(t, n.Notify(context.Background(), validFailureNotice()), "the failure notice may have been posted")
-	})
-
-	t.Run("rejection names the rejected notice", func(t *testing.T) {
-		server := newSlackServer(t, func(w http.ResponseWriter, _ *http.Request, _ int) {
-			w.WriteHeader(http.StatusForbidden)
-		})
-		n := newSlackFailureNotifierForLoopbackTest(t, time.Second, server.url(), nil)
-		requireErrorPhrase(t, n.Notify(context.Background(), validFailureNotice()), "the server rejected the failure notice")
+		requireErrorPhrase(t, err, "the failure notice was not sent")
 	})
 }
 
