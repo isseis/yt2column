@@ -22,6 +22,7 @@ import (
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/publisher"
 	"github.com/isseis/yt2column/internal/secret"
+	"github.com/isseis/yt2column/internal/signalrun"
 	"github.com/isseis/yt2column/internal/writer"
 )
 
@@ -251,7 +252,9 @@ func runChildMode(mode string) int {
 	if newSlack != nil {
 		d.newSlackPublisher = newSlack
 	}
-	return runWithSignals(os.Args[1:], os.LookupEnv, os.Stdout, os.Stderr, d)
+	return signalrun.Run(func(ctx context.Context) int {
+		return run(ctx, os.Args[1:], os.LookupEnv, os.Stdout, os.Stderr, d)
+	})
 }
 
 // cliChild is a CLI child process started by startCLIChild.

@@ -289,29 +289,7 @@ func TestSIGKILLWithoutYtDlp(t *testing.T) {
 	}
 }
 
-// TestSubscribedSignals checks that SIGINT and SIGHUP are each subscribed
-// only when not ignored at startup, and SIGTERM always.
-func TestSubscribedSignals(t *testing.T) {
-	for _, intIgnored := range []bool{false, true} {
-		for _, hupIgnored := range []bool{false, true} {
-			ignored := func(sig os.Signal) bool {
-				return (sig == os.Interrupt && intIgnored) || (sig == syscall.SIGHUP && hupIgnored)
-			}
-			got := subscribedSignals(ignored)
-			if !slices.Contains(got, os.Signal(syscall.SIGTERM)) {
-				t.Errorf("SIGINT ignored = %v, SIGHUP ignored = %v: subscribed %v, want SIGTERM", intIgnored, hupIgnored, got)
-			}
-			if slices.Contains(got, os.Interrupt) == intIgnored {
-				t.Errorf("SIGINT ignored = %v: subscribed %v", intIgnored, got)
-			}
-			if slices.Contains(got, os.Signal(syscall.SIGHUP)) == hupIgnored {
-				t.Errorf("SIGHUP ignored = %v: subscribed %v", hupIgnored, got)
-			}
-		}
-	}
-}
-
-// TestIgnoredSignalNotSubscribed starts the CLI (through runWithSignals) with
+// TestIgnoredSignalNotSubscribed starts the CLI (through signalrun.Run) with
 // SIGINT or SIGHUP ignored, as a shell's background job or nohup does, and checks that
 // the signal does not interrupt the run: the child must still be generating
 // after the signal. Only a wrongly subscribed signal could end it within the

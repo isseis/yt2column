@@ -1,16 +1,22 @@
-package main
+// Package redact replaces secret values in the text a program writes to
+// output, and renders a line for a terminal.
+package redact
 
 import (
 	"cmp"
+	"io"
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/isseis/yt2column/internal/secret"
+	"github.com/isseis/yt2column/internal/slackwebhook"
 )
 
 // redactedMarker replaces every occurrence of a secret value and its trailing
-// characters in a line the CLI writes to standard error. It is used unless it
-// would make a protected string appear in the result, in which case a
-// collision-free marker is chosen instead (see chooseMarker).
+// characters in a line. It is used unless it would make a protected string
+// appear in the result, in which case a collision-free marker is chosen
+// instead (see chooseMarker).
 const redactedMarker = "[REDACTED]"
 
 // exposedTail is how many trailing characters of a secret are redacted on
@@ -19,10 +25,10 @@ const redactedMarker = "[REDACTED]"
 // invalid UTF-8 is still hidden without lossy decoding).
 const exposedTail = 8
 
-// sanitize prepares one line for standard error. It renders the line with the
-// same escaping as strconv.Quote (see escapeNonPrintable), then replaces every
-// secret value, its trailing characters, and the escaped spelling of both with
-// the redaction marker.
+// Line renders one line for a terminal: non-printable characters are escaped
+// as strconv.Quote does, then every secret, its trailing characters, and their
+// escaped spellings are replaced with a marker. (Moved from
+// cmd/yt2column/output.go sanitize, unchanged.)
 //
 // Redacting the escaped rendering means escaping cannot synthesize a secret
 // value that was absent from the original line: a secret whose literal value
@@ -31,9 +37,9 @@ const exposedTail = 8
 // opaque placeholder and the marker is chosen so that no protected value can
 // be reconstructed inside it or across its boundaries, so the marker cannot
 // reintroduce a secret.
-func sanitize(line string, secretValues ...string) string {
+func Line(line string, secrets ...string) string {
 	rendered := escapeNonPrintable(line)
-	replacements := secretReplacements(secretValues)
+	replacements := secretReplacements(secrets)
 	if len(replacements) == 0 {
 		return rendered
 	}
@@ -42,6 +48,57 @@ func sanitize(line string, secretValues ...string) string {
 		rendered = strings.ReplaceAll(rendered, replacement, placeholder)
 	}
 	return strings.ReplaceAll(rendered, placeholder, chooseMarker(rendered, placeholder, replacements))
+}
+
+// Writer returns an io.Writer that replaces, in every write, each secret, its
+// trailing characters, and their escaped spellings with a marker before
+// passing the bytes to w. It does not escape anything else, so text already
+// quoted by log/slog is not quoted twice. The replacement set is computed
+// once, at construction.
+func Writer(w io.Writer, secrets []string) io.Writer {
+	return &redactWriter{w: w, replacements: secretReplacements(secrets)}
+}
+
+// redactWriter replaces the protected strings in each write, without escaping.
+type redactWriter struct {
+	w            io.Writer
+	replacements []string
+}
+
+// Write redacts p and writes the result to the underlying writer. It reports
+// the length of p as consumed, not the length of the transformed output.
+func (rw *redactWriter) Write(p []byte) (int, error) {
+	if len(rw.replacements) == 0 {
+		return rw.w.Write(p)
+	}
+	rendered := string(p)
+	placeholder := choosePlaceholder(rendered, rw.replacements)
+	for _, replacement := range rw.replacements {
+		rendered = strings.ReplaceAll(rendered, replacement, placeholder)
+	}
+	rendered = strings.ReplaceAll(rendered, placeholder, chooseMarker(rendered, placeholder, rw.replacements))
+	if _, err := io.WriteString(rw.w, rendered); err != nil {
+		return 0, err
+	}
+	return len(p), nil
+}
+
+// SecretStrings returns the strings to redact for the given secrets: each
+// value, and for webhookURL also its slackwebhook.SensitiveParts. A zero
+// secret contributes nothing. (Moved from cmd/yt2column/run.go
+// configuredSecrets, generalized.)
+func SecretStrings(webhookURL secret.Secret, others ...secret.Secret) []string {
+	var secrets []string
+	for _, s := range others {
+		if value, err := s.Reveal(); err == nil {
+			secrets = append(secrets, value)
+		}
+	}
+	if value, err := webhookURL.Reveal(); err == nil {
+		secrets = append(secrets, value)
+		secrets = append(secrets, slackwebhook.SensitiveParts(value)...)
+	}
+	return secrets
 }
 
 // secretReplacements returns the distinct strings to redact, longest first:

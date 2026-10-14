@@ -1,16 +1,20 @@
 //go:build test
 
-package main
+package redact
 
 import (
+	"bytes"
+	"io"
 	"strings"
 	"testing"
+
+	"github.com/isseis/yt2column/internal/secret"
 )
 
-// TestSanitize verifies that sanitize redacts secret values, their exposed
-// tails, and the escaped spelling of both, and escapes non-printable input,
-// including cases where the marker itself would collide with a secret.
-func TestSanitize(t *testing.T) {
+// TestLine verifies that Line redacts secret values, their exposed tails, and
+// the escaped spelling of both, and escapes non-printable input, including
+// cases where the marker itself would collide with a secret.
+func TestLine(t *testing.T) {
 	cases := []struct {
 		name    string
 		line    string
@@ -140,32 +144,123 @@ func TestSanitize(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := sanitize(tc.line, tc.secrets...); got != tc.want {
-				t.Fatalf("sanitize(%q) = %q, want %q", tc.line, got, tc.want)
+			if got := Line(tc.line, tc.secrets...); got != tc.want {
+				t.Fatalf("Line(%q) = %q, want %q", tc.line, got, tc.want)
 			}
 		})
 	}
 }
 
-// TestSanitizeSecretOfEveryPrintableByte verifies that, for a secret holding
-// every printable ASCII byte, the chosen marker is printable and no protected
-// value survives in the output.
-func TestSanitizeSecretOfEveryPrintableByte(t *testing.T) {
-	var secret []byte
+// TestLineSecretOfEveryPrintableByte verifies that, for a secret holding every
+// printable ASCII byte, the chosen marker is printable and no protected value
+// survives in the output.
+func TestLineSecretOfEveryPrintableByte(t *testing.T) {
+	var secretBytes []byte
 	for b := byte(0x20); b <= 0x7e; b++ {
-		secret = append(secret, b)
+		secretBytes = append(secretBytes, b)
 	}
-	value := string(secret)
+	value := string(secretBytes)
 	line := "key=" + value
-	got := sanitize(line, value)
+	got := Line(line, value)
 	for i := range len(got) {
 		if got[i] < 0x20 || got[i] > 0x7e {
-			t.Fatalf("sanitize(%q) = %q: byte %#x is outside 0x20..0x7e", line, got, got[i])
+			t.Fatalf("Line(%q) = %q: byte %#x is outside 0x20..0x7e", line, got, got[i])
 		}
 	}
 	for _, protected := range append([]string{value}, value[len(value)-exposedTail:]) {
 		if strings.Contains(got, protected) {
-			t.Fatalf("sanitize(%q) = %q: protected value %q survived", line, got, protected)
+			t.Fatalf("Line(%q) = %q: protected value %q survived", line, got, protected)
 		}
+	}
+}
+
+// TestSecretStrings verifies that SecretStrings redacts a secret's value and
+// its exposed tail, and that a zero secret contributes nothing.
+func TestSecretStrings(t *testing.T) {
+	const key = "sk-ant-APIKEYVALUE-0123456789-TAIL8ANT"
+	keySecret, err := secret.New(key)
+	if err != nil {
+		t.Fatalf("secret.New: %v", err)
+	}
+	got := SecretStrings(secret.Secret{}, keySecret)
+	line := Line("POST with "+key+" failed", got...)
+	if strings.Contains(line, key) {
+		t.Errorf("Line left the secret value: %q", line)
+	}
+	tail := key[len(key)-8:]
+	if strings.Contains(line, tail) {
+		t.Errorf("Line left the exposed tail %q: %q", tail, line)
+	}
+	if got := SecretStrings(secret.Secret{}); len(got) != 0 {
+		t.Errorf("SecretStrings(zero) = %v, want none", got)
+	}
+}
+
+// TestSecretStringsWebhookParts verifies that the Webhook URL contributes its
+// slackwebhook.SensitiveParts, so a line holding only its path is redacted.
+func TestSecretStringsWebhookParts(t *testing.T) {
+	const marker = "WEBHOOKVALUE"
+	path := "/services/T0/B0/" + marker + "-TAIL8HKS"
+	webhookURL, err := secret.New("https://hooks.slack.com" + path)
+	if err != nil {
+		t.Fatalf("secret.New: %v", err)
+	}
+	got := SecretStrings(webhookURL)
+	line := Line("POST "+path+" failed", got...)
+	if strings.Contains(line, marker) {
+		t.Errorf("Line left part of the webhook path: %q", line)
+	}
+}
+
+// TestWriterRedactsWithoutEscaping verifies that Writer replaces the protected
+// strings in what it is given without escaping anything else, so text already
+// escaped by log/slog is not escaped twice.
+func TestWriterRedactsWithoutEscaping(t *testing.T) {
+	cases := []struct {
+		name    string
+		input   string
+		secrets []string
+		want    string
+	}{
+		{
+			name:    "redacts a whole value",
+			input:   "key=SECRETVALUE123",
+			secrets: []string{"SECRETVALUE123"},
+			want:    "key=[REDACTED]",
+		},
+		{
+			name:    "redacts the exposed tail",
+			input:   "token=IJKLMNOP",
+			secrets: []string{"ABCDEFGHIJKLMNOP"},
+			want:    "token=[REDACTED]",
+		},
+		{
+			name:    "redacts the escaped spelling of a secret",
+			input:   `key=\x1b`,
+			secrets: []string{"\x1b"},
+			want:    `key=[REDACTED]`,
+		},
+		{
+			name:    "does not escape the rest of the input while redacting",
+			input:   `key=SECRETVALUE123\tmore`,
+			secrets: []string{"SECRETVALUE123"},
+			want:    `key=[REDACTED]\tmore`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			w := Writer(&buf, tc.secrets)
+			n, err := io.WriteString(w, tc.input)
+			if err != nil {
+				t.Fatalf("Write: %v", err)
+			}
+			if n != len(tc.input) {
+				t.Errorf("Write reported %d bytes, want %d", n, len(tc.input))
+			}
+			if got := buf.String(); got != tc.want {
+				t.Errorf("Writer wrote %q, want %q", got, tc.want)
+			}
+		})
 	}
 }

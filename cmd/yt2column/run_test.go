@@ -24,6 +24,7 @@ import (
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/publisher"
 	publishertestutil "github.com/isseis/yt2column/internal/publisher/testutil"
+	"github.com/isseis/yt2column/internal/redact"
 	"github.com/isseis/yt2column/internal/secret"
 	"github.com/isseis/yt2column/internal/transcript"
 	transcripttestutil "github.com/isseis/yt2column/internal/transcript/testutil"
@@ -600,7 +601,7 @@ func executionPathRows() []pathRow {
 				})
 			},
 			wantCode:   exitFailure,
-			wantStderr: []string{"the write stage failed", "the server rejected " + redactedMarker},
+			wantStderr: []string{"the write stage failed", "the server rejected " + "[REDACTED]"},
 		},
 		{
 			name: "LLM timeout",
@@ -964,7 +965,7 @@ func executionPathRows() []pathRow {
 				}
 			},
 			wantCode:   exitFailure,
-			wantStderr: []string{"the publish stage failed", "post to " + redactedMarker},
+			wantStderr: []string{"the publish stage failed", "post to " + "[REDACTED]"},
 		},
 		{
 			name: "--slack fails partway through a split post",
@@ -1081,7 +1082,7 @@ func executionPathRows() []pathRow {
 				}
 			},
 			wantCode:   exitFailure,
-			wantStderr: []string{"the write stage failed", "review step", "review call failed with " + redactedMarker},
+			wantStderr: []string{"the write stage failed", "review step", "review call failed with " + "[REDACTED]"},
 		},
 	}
 }
@@ -1860,18 +1861,21 @@ func TestRunInvalidStepTemplate(t *testing.T) {
 	}
 }
 
-// TestConfiguredSecretsIncludesWebhookParts checks that a line holding only
-// part of the Webhook URL, its path, is redacted. Which parts are produced
-// (and that short ones are omitted) is slackwebhook.SensitiveParts' contract,
-// tested there.
-func TestConfiguredSecretsIncludesWebhookParts(t *testing.T) {
+// TestCLISecretStringsIncludesWebhookParts checks that the secret set the CLI
+// builds from its configuration makes a line holding only part of the Webhook
+// URL, its path, redacted. The expression mirrors run's mapping of config to
+// redact.SecretStrings. Which parts are produced (and that short ones are
+// omitted) is slackwebhook.SensitiveParts' contract, tested there.
+func TestCLISecretStringsIncludesWebhookParts(t *testing.T) {
 	cfg, err := config.Load(lookupFrom(newRunEnv(t).env))
 	if err != nil {
 		t.Fatalf("config.Load: %v", err)
 	}
-	got := sanitize("POST "+testWebhookPath+" failed", configuredSecrets(cfg)...)
+	webhookURL, _ := cfg.SlackWebhookURL()
+	secrets := redact.SecretStrings(webhookURL, cfg.DeepSeekAPIKey(), cfg.AnthropicAPIKey())
+	got := redact.Line("POST "+testWebhookPath+" failed", secrets...)
 	if strings.Contains(got, webhookPathMarker) {
-		t.Errorf("sanitize left part of the webhook path: %q", got)
+		t.Errorf("redact.Line left part of the webhook path: %q", got)
 	}
 }
 
@@ -1898,10 +1902,11 @@ func TestRunClaudeConfigurationErrorsOneLineEach(t *testing.T) {
 	}
 }
 
-// TestConfiguredSecretsIncludesAnthropicAPIKey checks that a claude
-// configuration's Anthropic API key, and a line holding only its last eight
-// characters, are both redacted.
-func TestConfiguredSecretsIncludesAnthropicAPIKey(t *testing.T) {
+// TestCLISecretStringsIncludesAnthropicAPIKey checks that the secret set the
+// CLI builds from a claude configuration makes the Anthropic API key, and a
+// line holding only its last eight characters, both redacted. The expression
+// mirrors run's mapping of config to redact.SecretStrings.
+func TestCLISecretStringsIncludesAnthropicAPIKey(t *testing.T) {
 	const key = "sk-ant-APIKEYVALUE-0123456789-TAIL8ANT"
 	env := map[string]string{
 		"YT2COLUMN_LLM_PROVIDER":  "claude",
@@ -1917,12 +1922,14 @@ func TestConfiguredSecretsIncludesAnthropicAPIKey(t *testing.T) {
 	if _, err := cfg.AnthropicAPIKey().Reveal(); err != nil {
 		t.Fatalf("AnthropicAPIKey().Reveal() error = %v", err)
 	}
+	webhookURL, _ := cfg.SlackWebhookURL()
+	secrets := redact.SecretStrings(webhookURL, cfg.DeepSeekAPIKey(), cfg.AnthropicAPIKey())
 	tail := key[len(key)-8:]
-	if got := sanitize("POST with "+key+" failed", configuredSecrets(cfg)...); strings.Contains(got, key) {
-		t.Errorf("sanitize left the Anthropic API key: %q", got)
+	if got := redact.Line("POST with "+key+" failed", secrets...); strings.Contains(got, key) {
+		t.Errorf("redact.Line left the Anthropic API key: %q", got)
 	}
-	if got := sanitize("short tail "+tail+" seen", configuredSecrets(cfg)...); strings.Contains(got, tail) {
-		t.Errorf("sanitize left the Anthropic API key tail: %q", got)
+	if got := redact.Line("short tail "+tail+" seen", secrets...); strings.Contains(got, tail) {
+		t.Errorf("redact.Line left the Anthropic API key tail: %q", got)
 	}
 }
 
