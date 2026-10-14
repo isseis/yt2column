@@ -93,6 +93,21 @@ func TestParseReviewResponse(t *testing.T) {
 		}
 	})
 
+	t.Run("accepts a replacement with no change", func(t *testing.T) {
+		// The whole response boundary runs: the item's before and after are
+		// identical strings, and the boundary accepts it like any other
+		// replacement.
+		text := reviewResponse(replaceItem(markRevisionBefore, markRevisionBefore, "meaning_change", markRevisionEvidence))
+		revisions, err := parseReviewResponse(text)
+		if err != nil {
+			t.Fatalf("parseReviewResponse() error = %v, want nil", err)
+		}
+		want := Revision{Before: markRevisionBefore, Action: ActionReplace, After: markRevisionBefore, Reason: ReasonMeaningChange, Evidence: markRevisionEvidence}
+		if len(revisions) != 1 || revisions[0] != want {
+			t.Errorf("parseReviewResponse() = %+v, want [%+v]", revisions, want)
+		}
+	})
+
 	t.Run("accepts a line feed in evidence", func(t *testing.T) {
 		text := reviewResponse(replaceItem(markRevisionBefore, markRevisionAfter, "speaker", "first\nsecond"))
 		if _, err := parseReviewResponse(text); err != nil {
@@ -224,6 +239,7 @@ func TestApplyRevisions(t *testing.T) {
 		{"deletion removes the text", "# T\n" + jia + yi, []Revision{remove(jia)}, "# T\n" + yi},
 		{"touching ranges are accepted", "# T\nab", []Revision{replace("a", "x"), replace("b", "y")}, "# T\nxy"},
 		{"title line replacement", "# T\nbody", []Revision{replace("T", "U")}, "# U\nbody"},
+		{"no-change replacement keeps the text", "# T\n" + jia, []Revision{replace(jia, jia)}, "# T\n" + jia},
 		{"empty revisions keep the text", "# T\nbody", nil, "# T\nbody"},
 	}
 	for _, tc := range accepted {

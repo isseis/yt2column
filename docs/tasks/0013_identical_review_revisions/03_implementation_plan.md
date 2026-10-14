@@ -108,17 +108,17 @@ requirements が定める 2 つの機能要件（F-001・F-002）を、architect
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: 統合の確認
 
 **対象ファイル:** `internal/writer/review_test.go`（変更）、`internal/writer/steps_test.go`（変更）
 
-- [ ] **ステップ 3-1**: `TestParseReviewResponse`（`internal/writer/review_test.go:62`）に、無変更の項目を含む応答を受理するケースを 1 件加える。`reviewResponse` と、同じ `before` と `after` を渡した `replaceItem` で応答の文字列を組み立て、`parseReviewResponse` に渡す。`Revision` を直接組み立てて `Check` だけを確かめる形にはせず、無変更の項目が境界の契約の全体（architecture §3.4）を通って受理されることを示す。解析結果が `ActionReplace` で `Before == After` の 1 項目を返すことを確かめる（AC-01）。既存の受理・拒否のケースは変えず、無変更の項目に固有の拒否のケースは加えない（architecture §3.4。契約の拒否は既存の `rejected` 表が確かめる）。（対象: `internal/writer/review_test.go`。成功基準: `TestParseReviewResponse` に、応答の文字列から無変更の項目を受理するケースが加わり、既存の受理・拒否のケースは変わらず通る）
-- [ ] **ステップ 3-2**: `TestApplyRevisions`（`review_test.go:203`）の `accepted` 表に、無変更の項目を当てはめた結果が当てはめの対象と同じ文面になるケースを 1 件加える（AC-03）。既存の `accepted`・`rejected` の各行は変えない。（対象: `internal/writer/review_test.go`。成功基準: `TestApplyRevisions` の `accepted` 表に無変更の行が加わり、当てはめ後の文面が当てはめの対象と同じであることを確かめて通る）
-- [ ] **ステップ 3-3**: `internal/writer/steps_test.go` の `TestWriteReviewApplies`（`:329`）に、`Write` が無変更の項目の応答で成功することを確かめるサブテストを加える。無変更の項目だけの応答と、それに変更のある項目を加えた応答の両方で `Write` が成功し、ゼロ値でない `Article` を返し、`Review.Revisions` に無変更の項目が応答の順序どおりに含まれることを確かめる（AC-02）。既存のサブテストと同じ組み立て（`newStepClient`・`withStepsEnabled`・`validTranscript`）を使い、既存のサブテストは変えない。無変更の項目と変更のある項目の両方について、`before` が生成後の文面に一度だけ現れる値にする（`applyRevisions` は `before` が複数回現れると拒否するため）。（対象: `internal/writer/steps_test.go`。成功基準: `TestWriteReviewApplies` に無変更の項目のサブテストが加わり、`Write` が成功して `Review.Revisions` に応答の順序どおりに含まれることを確かめて通る）
-- [ ] **ステップ 3-4**: フェーズ 3 の完了条件として、`make fmt` → `make test` → `make lint` を通す。既存の拒否のケース（`TestReviewResultCheck`・`TestParseReviewResponse`・`TestApplyRevisions` の `rejected`、`TestWriteReviewRejects`）と、境界の契約を確かめる `internal/strictjson` のテストが引き続き通ることを確かめる（AC-04、architecture §3.4）。
+- [x] **ステップ 3-1**: `TestParseReviewResponse`（`internal/writer/review_test.go:62`）に、無変更の項目を含む応答を受理するケースを 1 件加える。`reviewResponse` と、同じ `before` と `after` を渡した `replaceItem` で応答の文字列を組み立て、`parseReviewResponse` に渡す。`Revision` を直接組み立てて `Check` だけを確かめる形にはせず、無変更の項目が境界の契約の全体（architecture §3.4）を通って受理されることを示す。解析結果が `ActionReplace` で `Before == After` の 1 項目を返すことを確かめる（AC-01）。既存の受理・拒否のケースは変えず、無変更の項目に固有の拒否のケースは加えない（architecture §3.4。契約の拒否は既存の `rejected` 表が確かめる）。（対象: `internal/writer/review_test.go`。成功基準: `TestParseReviewResponse` に、応答の文字列から無変更の項目を受理するケースが加わり、既存の受理・拒否のケースは変わらず通る）
+- [x] **ステップ 3-2**: `TestApplyRevisions`（`review_test.go:203`）の `accepted` 表に、無変更の項目を当てはめた結果が当てはめの対象と同じ文面になるケースを 1 件加える（AC-03）。既存の `accepted`・`rejected` の各行は変えない。（対象: `internal/writer/review_test.go`。成功基準: `TestApplyRevisions` の `accepted` 表に無変更の行が加わり、当てはめ後の文面が当てはめの対象と同じであることを確かめて通る）
+- [x] **ステップ 3-3**: `internal/writer/steps_test.go` の `TestWriteReviewApplies`（`:329`）に、`Write` が無変更の項目の応答で成功することを確かめるサブテストを加える。無変更の項目だけの応答と、それに変更のある項目を加えた応答の両方で `Write` が成功し、ゼロ値でない `Article` を返し、`Review.Revisions` に無変更の項目が応答の順序どおりに含まれることを確かめる（AC-02）。既存のサブテストと同じ組み立て（`newStepClient`・`withStepsEnabled`・`validTranscript`）を使い、既存のサブテストは変えない。無変更の項目と変更のある項目の両方について、`before` が生成後の文面に一度だけ現れる値にする（`applyRevisions` は `before` が複数回現れると拒否するため）。（対象: `internal/writer/steps_test.go`。成功基準: `TestWriteReviewApplies` に無変更の項目のサブテストが加わり、`Write` が成功して `Review.Revisions` に応答の順序どおりに含まれることを確かめて通る）
+- [x] **ステップ 3-4**: フェーズ 3 の完了条件として、`make fmt` → `make test` → `make lint` を通す。既存の拒否のケース（`TestReviewResultCheck`・`TestParseReviewResponse`・`TestApplyRevisions` の `rejected`、`TestWriteReviewRejects`）と、境界の契約を確かめる `internal/strictjson` のテストが引き続き通ることを確かめる（AC-04、architecture §3.4）。
 
 **完了条件:** 無変更の項目が解析・検査・当てはめ・`Write` のどの経路でも受理され、既存の拒否の規則と変更のある項目の扱いが変わっていない。
 
@@ -134,8 +134,8 @@ requirements が定める 2 つの機能要件（F-001・F-002）を、architect
 
 **判定理由**: 変更しないコードの受理の挙動を確かめるテストの追加であり、前例のない設計判断・panel-mode トリガー・競合する実装案・複数の Conditional check・分離された高リスク／複雑なステップのいずれにも該当しないため。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
