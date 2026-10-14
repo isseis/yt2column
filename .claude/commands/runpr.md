@@ -9,10 +9,18 @@
 Drive one already-created PR through review, merge, and the post-merge plan
 bookkeeping, then offer to continue with the next PR of the same task.
 
-**Input.** `$ARGUMENTS` is a PR number, a branch name, or a task ID (e.g.
-`0015`). Resolve it to a PR with `gh pr view`; with no argument, use the current
-branch's PR. A task ID resolves to the current branch's PR, or to the open PR
-whose head branch belongs to that task.
+**Input.** `$ARGUMENTS`, when given, is a PR number, a branch name, or a task ID
+(e.g. `0015`). Resolve it to a PR:
+
+- a PR number or branch: `gh pr view "$ARGUMENTS" --json number,url,headRefName`.
+  Pass the argument only when it is set — an empty argument would replace
+  `gh pr view`'s current-branch default and fail;
+- a task ID: the current branch's PR, or the open PR whose head branch is named
+  for that task (`gh pr list --state open --json number,headRefName,url`, then
+  match the task);
+- no argument: `gh pr view --json number,url,headRefName` for the current branch.
+
+Use the resolved PR's number in the steps below.
 
 The PR this loop starts on is created by `runplan.md` step 5a; this command does
 not create the first PR.
@@ -64,11 +72,18 @@ Poll until CodeRabbit has finished and no review thread is left to fix.
   comments are capped at the first 10, as `fixpr.md` also notes; read more only
   when a thread needs it.)
 
-- If a **new unresolved thread** has appeared since the last `fixpr` run for this
-  PR, run `.claude/commands/fixpr.md` for the PR before continuing to wait.
-  `fixpr` pushes a fix, so CodeRabbit re-reviews: keep polling.
-- When CodeRabbit's state is `SUCCESS` and there are no unresolved threads, go to
-  step 2. If its state is `FAILURE`, report and stop.
+- **While any thread is unresolved**, run `.claude/commands/fixpr.md` for the PR
+  when there is an unresolved thread ID you have not yet passed to `fixpr`
+  (including one that appears while CodeRabbit is still `PENDING`). Record the set
+  of unresolved thread IDs each time; re-run `fixpr` when the set holds an ID not
+  seen before — not merely when the count rises, since resolving one thread while
+  another is added keeps the count the same. `fixpr` pushes a fix, so CodeRabbit
+  re-reviews: keep polling.
+- When CodeRabbit's state is `SUCCESS` and either no thread is unresolved or
+  `fixpr` reported that every remaining thread is at its severity floor
+  (`no-harm`; `fixpr.md`'s convergence policy defines the floor), go to step 2. If
+  a remaining unresolved thread is not at the floor, report it and stop rather
+  than merge. If its state is `FAILURE`, report and stop.
 - If no `CodeRabbit` status context ever appears after a reasonable wait, report
   that and ask the user how to proceed rather than assuming green.
 
@@ -82,9 +97,12 @@ never merge without that approval.
 
 Once `mergepr.md` reports the merge:
 
-- Update the local base branch and create the next branch for the next phase
-  group from it. Never branch from, or keep committing to, the merged branch:
-  after a squash merge its commits are not ancestors of the base.
+- Confirm its cleanup finished and the local base branch was updated before
+  creating the next branch. `mergepr.md` can stop after the merge with cleanup
+  pending, in which case run `mergepr cleanup --state <state-file>` and only then
+  continue. Then update the local base branch and create the next branch for the
+  next phase group from it. Never branch from, or keep committing to, the merged
+  branch: after a squash merge its commits are not ancestors of the base.
 - In the task's `03_implementation_plan.md`, mark the just-completed PR
   checkpoint's remaining checkboxes — the "PR がマージされた" and
   "次のブランチへ切り替えた" items — as `[x]`, and commit. This is the same
