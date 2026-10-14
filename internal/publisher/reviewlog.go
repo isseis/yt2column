@@ -86,6 +86,9 @@ func renderReviewLog(a writer.Article) string {
 			b.WriteString("\nDeleted.\n")
 		} else {
 			fmt.Fprintf(&b, "\nAfter:\n\n%s\n", quoteBlock(revision.After))
+			if revision.NoChange() {
+				b.WriteString("\nNo change.\n")
+			}
 		}
 		fmt.Fprintf(&b, "\nEvidence:\n\n%s\n", quoteBlock(revision.Evidence))
 	}

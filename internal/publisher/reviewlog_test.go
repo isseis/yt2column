@@ -25,6 +25,9 @@ func reviewArticle(revisions ...writer.Revision) writer.Article {
 	return a
 }
 
+// TestReviewLogWriterFormat checks the rendered review log's whole-file
+// format: the empty-list case, a replacement, a no-change replacement marked
+// No change., and a deletion with a multiline evidence.
 func TestReviewLogWriterFormat(t *testing.T) {
 	const header = "# Review log\n\n" +
 		"- Article: A title\n" +
@@ -83,6 +86,33 @@ func TestReviewLogWriterFormat(t *testing.T) {
 			"\n## 1. meaning_change\n" +
 			"\nBefore:\n\n> bad\n" +
 			"\nAfter:\n\n> good\n" +
+			"\nEvidence:\n\n> e1\n"
+		if string(got) != want {
+			t.Fatalf("content = %q, want %q", got, want)
+		}
+		requireOnlyReviewLog(t, dir)
+	})
+
+	t.Run("no change", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "review.log")
+		w, _ := NewReviewLogWriter(path)
+		article := reviewArticle(writer.Revision{
+			Before: "same", Action: writer.ActionReplace, After: "same",
+			Reason: writer.ReasonMeaningChange, Evidence: "e1",
+		})
+		if err := w.Write(context.Background(), article); err != nil {
+			t.Fatalf("Write: %v", err)
+		}
+		got, _ := os.ReadFile(path)
+		want := header +
+			"- Review model: review-x\n" +
+			"- Review model version: r1\n" +
+			"- Revisions: 1\n" +
+			"\n## 1. meaning_change\n" +
+			"\nBefore:\n\n> same\n" +
+			"\nAfter:\n\n> same\n" +
+			"\nNo change.\n" +
 			"\nEvidence:\n\n> e1\n"
 		if string(got) != want {
 			t.Fatalf("content = %q, want %q", got, want)
