@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Created | 2026-10-14 |
-| Review date | 2026-10-14 |
-| Reviewer | isseis |
-| Comments | - |
+| Review date | - |
+| Reviewer | - |
+| Comments | H-01（無変更の項目への応答の境界の契約の適用）により `02_architecture.md` を draft に戻したため、後続の本計画も draft に戻した。あわせて各ステップに対象ファイルと成功基準を加えた。 |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「requirements」）の項番を、節番号は [02_architecture.md](02_architecture.md)（以下「architecture」）の節を指す。既存のコードとテストの行番号は、断りがない限り HEAD `edb914d` で確かめた。architecture は行番号を `56062fd` で確かめているが、`56062fd` から `edb914d` までの間に本計画が触れるファイル（`internal/writer/revision.go`・`review.go`・`revision_test.go`・`review_test.go`・`steps_test.go`・`internal/publisher/reviewlog.go`・`reviewlog_test.go`）は変わっていない（`git log 56062fd..edb914d -- <これらのパス>` が空）。
 
@@ -47,18 +47,20 @@ requirements が定める 2 つの機能要件（F-001・F-002）を、architect
 
 ### 1.4. 申し送りへの対応
 
-`implementation_handoff.md`・`design_handoff.md` はどちらも無い。したがって本計画が対応すべき `I-NN`・`H-NN` の項目は無い。
+`implementation_handoff.md` は無い。`design_handoff.md` には H-01（無変更の項目への応答の境界の契約の適用）があるが、その消費者は設計（`02_architecture.md`）であり、本計画が対応すべき `I-NN` の項目は無い。
 
 ## 2. 実装ステップ (Implementation Steps)
+
+各ステップは、対象ファイルと、そのステップだけで判定できる成功基準を述べる（`requirements_process.md` §3）。フェーズ末尾のグリーンゲートとフェーズ単位の完了条件は、そのまま残す。
 
 ### フェーズ 1: 判定
 
 **対象ファイル:** `internal/writer/revision.go`（変更）、`internal/writer/revision_test.go`（変更）
 
-- [ ] **ステップ 1-1**: `internal/writer/revision.go` に `func (r Revision) NoChange() bool` を加える。定義は architecture §3.1 のとおりとし、`r.Action == ActionReplace` かつ `r.Before != ""` かつ `r.Before == r.After` のときだけ真を返す。doc コメントは英語で書き、「受理された形の置換（空でない `Before` とそれに等しい `After`）のときに真」であることと、一覧のファイルの書き出しが使うことを述べる。
-- [ ] **ステップ 1-2**: `Revision.check()`（`revision.go:53`）と `ReviewResult.Check()`（同 `:26`）の doc コメントに、`ActionReplace` で `Before == After` の項目を受理する（拒否しない）ことを述べる 1 文を加える。検査の条件（`switch`・`if` の本体）は変えない。この文言の追加を機械的に検査するガードは無い（architecture §7。`TestInterfaceDocComments` は 4 つのインタフェースの doc コメントだけを対象にする）。文言はステップ 1-5 のグリーンゲートとレビューで確かめる。
-- [ ] **ステップ 1-3**: `internal/writer/revision_test.go` に `TestRevisionNoChange` を加える。真偽表は architecture §7 のとおり、（真）`ActionReplace` で `Before == After` かつ `Before` が空でない、（偽）`ActionReplace` で `Before != After`、（偽）`ActionReplace` のゼロ値（`Before` と `After` が空）、（偽）`ActionDelete`、（偽）未知の action を確かめる。`validRevision` を基にした値を使う。
-- [ ] **ステップ 1-4**: `TestReviewResultCheck`（`revision_test.go:63`）の `accepted` 表に、`ActionReplace` で `Before == After` の `Revision` を 1 件加える（既存の `accepted`・`rejected` の各行は変えない）。
+- [ ] **ステップ 1-1**: `internal/writer/revision.go` に `func (r Revision) NoChange() bool` を加える。定義は architecture §3.1 のとおりとし、`r.Action == ActionReplace` かつ `r.Before != ""` かつ `r.Before == r.After` のときだけ真を返す。doc コメントは英語で書き、「受理された形の置換（空でない `Before` とそれに等しい `After`）のときに真」であることと、一覧のファイルの書き出しが使うことを述べる。（対象: `internal/writer/revision.go`。成功基準: `NoChange()` が architecture §3.1 の条件（`ActionReplace`・空でない `Before`・`Before == After`）で定義され、doc コメントが受理の形を述べている）
+- [ ] **ステップ 1-2**: `Revision.check()`（`revision.go:53`）と `ReviewResult.Check()`（同 `:26`）の doc コメントに、`ActionReplace` で `Before == After` の項目を受理する（拒否しない）ことを述べる 1 文を加える。検査の条件（`switch`・`if` の本体）は変えない。この文言の追加を機械的に検査するガードは無い（architecture §7。`TestInterfaceDocComments` は 4 つのインタフェースの doc コメントだけを対象にする）。文言はステップ 1-5 のグリーンゲートとレビューで確かめる。（対象: `internal/writer/revision.go`。成功基準: `check()` と `Check()` の doc コメントに受理の 1 文が加わり、`switch`・`if` の本体は変わっていない）
+- [ ] **ステップ 1-3**: `internal/writer/revision_test.go` に `TestRevisionNoChange` を加える。真偽表は architecture §7 のとおり、（真）`ActionReplace` で `Before == After` かつ `Before` が空でない、（偽）`ActionReplace` で `Before != After`、（偽）`ActionReplace` のゼロ値（`Before` と `After` が空）、（偽）`ActionDelete`、（偽）未知の action を確かめる。`validRevision` を基にした値を使う。（対象: `internal/writer/revision_test.go`。成功基準: `TestRevisionNoChange` が真偽表の 5 行（真 1・偽 4）を実行して通る）
+- [ ] **ステップ 1-4**: `TestReviewResultCheck`（`revision_test.go:63`）の `accepted` 表に、`ActionReplace` で `Before == After` の `Revision` を 1 件加える（既存の `accepted`・`rejected` の各行は変えない）。（対象: `internal/writer/revision_test.go`。成功基準: `TestReviewResultCheck` の `accepted` 表に `ActionReplace` で `Before == After` の行が加わり、`rejected` の各行は変わらず通る）
 - [ ] **ステップ 1-5**: フェーズ 1 の完了条件として、`make fmt` → `make test` → `make lint` を通す。既存の `TestReviewResultCheck` の `rejected` の各行が引き続き通ることを確かめる。
 
 **完了条件:** `NoChange()` が真偽表のとおりに動き、無変更の項目が `ReviewResult.Check` で受理される。受理の規則と既存の拒否のケースは変わっていない。
@@ -84,8 +86,8 @@ requirements が定める 2 つの機能要件（F-001・F-002）を、architect
 
 **対象ファイル:** `internal/publisher/reviewlog.go`（変更）、`internal/publisher/reviewlog_test.go`（変更）
 
-- [ ] **ステップ 2-1**: `renderReviewLog`（`internal/publisher/reviewlog.go:74-93`）の項目ごとの分岐に、`ActionReplace` かつ `revision.NoChange()` のとき `After:` の引用の直後に `No change.` の 1 行を書く場合を加える（architecture §3.2・§6 の図3）。`Deleted.` の分岐、`Before != After` の置換の分岐、先頭の `- Revisions:` の件数、`quoteBlock` は変えない。`No change.` の位置は `Deleted.` と同じ（`Evidence:` の直前）とする。
-- [ ] **ステップ 2-2**: `TestReviewLogWriterFormat`（`internal/publisher/reviewlog_test.go:28`）に、無変更の項目のサブテストを 1 件加える。`reviewArticle`（`reviewlog_test.go:19`）で `ActionReplace` かつ `Before == After` の `Revision` を持つ記事を作り、書き出したファイル全体を文字列リテラルと比べる。`Before:`・`After:`・`No change.`・`Evidence:` がこの順で読めることを確かめる（AC-05・AC-06）。既存の `empty list`・`replacement`・`deletion with a multiline evidence` の各サブテストは変えない。
+- [ ] **ステップ 2-1**: `renderReviewLog`（`internal/publisher/reviewlog.go:74-93`）の項目ごとの分岐に、`ActionReplace` かつ `revision.NoChange()` のとき `After:` の引用の直後に `No change.` の 1 行を書く場合を加える（architecture §3.2・§6 の図3）。`Deleted.` の分岐、`Before != After` の置換の分岐、先頭の `- Revisions:` の件数、`quoteBlock` は変えない。`No change.` の位置は `Deleted.` と同じ（`Evidence:` の直前）とする。（対象: `internal/publisher/reviewlog.go`。成功基準: `renderReviewLog` に `No change.` の分岐が加わり、`Deleted.`・`After:` の分岐と先頭の件数は変わっていない）
+- [ ] **ステップ 2-2**: `TestReviewLogWriterFormat`（`internal/publisher/reviewlog_test.go:28`）に、無変更の項目のサブテストを 1 件加える。`reviewArticle`（`reviewlog_test.go:19`）で `ActionReplace` かつ `Before == After` の `Revision` を持つ記事を作り、書き出したファイル全体を文字列リテラルと比べる。`Before:`・`After:`・`No change.`・`Evidence:` がこの順で読めることを確かめる（AC-05・AC-06）。既存の `empty list`・`replacement`・`deletion with a multiline evidence` の各サブテストは変えない。（対象: `internal/publisher/reviewlog_test.go`。成功基準: 無変更のサブテストが、ファイル全体を文字列リテラルで比べて `Before:`・`After:`・`No change.`・`Evidence:` の順を固定し、既存のサブテストは変わらず通る）
 - [ ] **ステップ 2-3**: フェーズ 2 の完了条件として、`make fmt` → `make test` → `make lint` を通す。既存の `TestReviewLogWriterFormat` の置換・削除のサブテストが引き続き通ることを確かめる。
 
 **完了条件:** 無変更の項目の一覧のファイルに `No change.` が `Evidence:` の直前に 1 行入り、変更のある項目の書式と先頭の件数は変わっていない。
@@ -111,9 +113,9 @@ requirements が定める 2 つの機能要件（F-001・F-002）を、architect
 
 **対象ファイル:** `internal/writer/review_test.go`（変更）、`internal/writer/steps_test.go`（変更）
 
-- [ ] **ステップ 3-1**: `TestParseReviewResponse`（`internal/writer/review_test.go:62`）に、無変更の項目を含む応答を受理するケースを 1 件加える。`replaceItem` に同じ `before` と `after` を渡して無変更の項目を作り、解析結果がその 1 項目を返すことを確かめる（AC-01）。既存の受理・拒否のケースは変えない。
-- [ ] **ステップ 3-2**: `TestApplyRevisions`（`review_test.go:203`）の `accepted` 表に、無変更の項目を当てはめた結果が当てはめの対象と同じ文面になるケースを 1 件加える（AC-03）。既存の `accepted`・`rejected` の各行は変えない。
-- [ ] **ステップ 3-3**: `internal/writer/steps_test.go` の `TestWriteReviewApplies`（`:329`）に、`Write` が無変更の項目の応答で成功することを確かめるサブテストを加える。無変更の項目だけの応答と、それに変更のある項目を加えた応答の両方で `Write` が成功し、ゼロ値でない `Article` を返し、`Review.Revisions` に無変更の項目が応答の順序どおりに含まれることを確かめる（AC-02）。既存のサブテストと同じ組み立て（`newStepClient`・`withStepsEnabled`・`validTranscript`）を使い、既存のサブテストは変えない。無変更の項目と変更のある項目の両方について、`before` が生成後の文面に一度だけ現れる値にする（`applyRevisions` は `before` が複数回現れると拒否するため）。
+- [ ] **ステップ 3-1**: `TestParseReviewResponse`（`internal/writer/review_test.go:62`）に、無変更の項目を含む応答を受理するケースを 1 件加える。`replaceItem` に同じ `before` と `after` を渡して無変更の項目を作り、解析結果がその 1 項目を返すことを確かめる（AC-01）。既存の受理・拒否のケースは変えない。（対象: `internal/writer/review_test.go`。成功基準: `TestParseReviewResponse` に無変更の項目を含む応答の受理のケースが加わり、既存の受理・拒否のケースは変わらず通る）
+- [ ] **ステップ 3-2**: `TestApplyRevisions`（`review_test.go:203`）の `accepted` 表に、無変更の項目を当てはめた結果が当てはめの対象と同じ文面になるケースを 1 件加える（AC-03）。既存の `accepted`・`rejected` の各行は変えない。（対象: `internal/writer/review_test.go`。成功基準: `TestApplyRevisions` の `accepted` 表に無変更の行が加わり、当てはめ後の文面が当てはめの対象と同じであることを確かめて通る）
+- [ ] **ステップ 3-3**: `internal/writer/steps_test.go` の `TestWriteReviewApplies`（`:329`）に、`Write` が無変更の項目の応答で成功することを確かめるサブテストを加える。無変更の項目だけの応答と、それに変更のある項目を加えた応答の両方で `Write` が成功し、ゼロ値でない `Article` を返し、`Review.Revisions` に無変更の項目が応答の順序どおりに含まれることを確かめる（AC-02）。既存のサブテストと同じ組み立て（`newStepClient`・`withStepsEnabled`・`validTranscript`）を使い、既存のサブテストは変えない。無変更の項目と変更のある項目の両方について、`before` が生成後の文面に一度だけ現れる値にする（`applyRevisions` は `before` が複数回現れると拒否するため）。（対象: `internal/writer/steps_test.go`。成功基準: `TestWriteReviewApplies` に無変更の項目のサブテストが加わり、`Write` が成功して `Review.Revisions` に応答の順序どおりに含まれることを確かめて通る）
 - [ ] **ステップ 3-4**: フェーズ 3 の完了条件として、`make fmt` → `make test` → `make lint` を通す。既存の拒否のケース（`TestReviewResultCheck`・`TestParseReviewResponse`・`TestApplyRevisions` の `rejected`、`TestWriteReviewRejects`）が引き続き通ることを確かめる（AC-04）。
 
 **完了条件:** 無変更の項目が解析・検査・当てはめ・`Write` のどの経路でも受理され、既存の拒否の規則と変更のある項目の扱いが変わっていない。

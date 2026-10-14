@@ -8,7 +8,7 @@
 | Created | 2026-10-14 |
 | Review date | 2026-10-14 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | AC-04 の抽象度を上げ、応答の検査の列挙を 0010 F-003 の境界の契約への参照に改めた（編集上の修正。決定は変えていない）。 |
 
 ## 1. 概要 (Overview)
 
@@ -55,7 +55,7 @@
 - **AC-01**: `ActionReplace` で `Before == After` の項目は、`ReviewResult.Check` と応答の解析（`parseReviewResponse`）の両方で受理される（拒否されない）。
 - **AC-02**: 無変更の項目だけからなる応答、または無変更の項目と他の項目を合わせて持つ応答に対して、`ArticleWriter.Write` は成功し、ゼロ値でない `Article` を返す。返る記事の `Review.Revisions` には、無変更の項目が応答の順序どおりに含まれる。
 - **AC-03**: 無変更の項目を当てはめた結果の文面は、当てはめの対象の文面と同じである（その項目の `before` の範囲が同じ文字列で置き換わる）。
-- **AC-04**: `ActionDelete` の項目、および `Before != After` の `ActionReplace` の項目の受理と当てはめは、変わらない。無変更の項目を拒否する既存の検査（空の値・制御文字・未知の action と reason・出現の数・重なり・見出しの一致）も変わらない。
+- **AC-04**: `ActionDelete` の項目、および `Before != After` の `ActionReplace` の項目の受理と当てはめは、変わらない。無変更の項目は、既存の応答の受理の規則と、0010 F-003 が定める信頼できない入力の境界の契約を、そのまま受ける（無変更の項目を理由に新しい受理・拒否を加えない）。境界の契約をどう適用するかの詳細は設計で扱う（[design_handoff.md](design_handoff.md) H-01）。
 
 #### F-002: 一覧での無変更の印
 
@@ -95,6 +95,8 @@
 - [project_overview.md](../../dev/project_overview.md) の「決定済みの方針」「前提・制約」に従う。外部ライブラリは追加しない。
 - タスク `0010_post_generation_review` の承認済みの文書（01_requirements.md・02_architecture.md）の決定を変える部分は、本書と 0013 の設計で明示する。0010 の要件（F-003・AC-12・AC-13・AC-14・AC-20）のうち、変えるものと変えないものを、設計で対応付ける。
 - 一覧の書式は 0010 の 02_architecture.md §3.8 を正典とする。0013 の設計で、§3.8 を変えずに差分（無変更の項目の印）を 0013 側に置くか、0010 §3.8 を draft に戻して追記するかを決める。
+
+本書のレビューで挙がった実装・設計の段階の事項は、[design_handoff.md](design_handoff.md) に集め、設計が扱う。
 
 ## 6. 用語集 (Glossary)
 

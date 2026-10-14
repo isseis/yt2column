@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Created | 2026-10-14 |
-| Review date | 2026-10-14 |
-| Reviewer | isseis |
-| Comments | - |
+| Review date | - |
+| Reviewer | - |
+| Comments | design_handoff.md の H-01（無変更の項目への応答の境界の契約の適用）を受け、対応する設計を検討するため draft に戻した。 |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md) の項番を指す。既存のコードの行番号は、コミット `56062fd` で確かめたものである。
 
