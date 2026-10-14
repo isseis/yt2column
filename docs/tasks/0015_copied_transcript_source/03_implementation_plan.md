@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-14 |
-| Review date | - |
-| Reviewer | - |
-| Comments | - |
+| Review date | 2026-10-14 |
+| Reviewer | isesis |
+| Comments | 2026-10-14 `/mkplan2` により、`### PR-N 作成ポイント`・§3.2・§7 に PR の境界を埋め込み、§3.1・§3.2・各フェーズの対象ファイルとステップの記述を PR の構成に合わせて整えたほか、architecture §8 のフェーズ 4 の依存の記載漏れを訂正した（決定の変更なし）。 |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「requirements」）の項番、節番号は [02_architecture.md](02_architecture.md)（以下「architecture」）の節を指す。番号だけの「§N」は、断りがない限り architecture の節を指し、本計画自身の節は「本計画 §N」と書く。既存のファイルの行番号は、断りがない限り HEAD `d8f163e`（ブランチ `claude/task-dphh91`）で確かめた。Go のソースとテストデータは、`4fe06e0`（`main`）から変わっていない。
 
@@ -69,7 +69,7 @@ requirements の F-001〜F-004 を、architecture の設計どおりに実装す
 
 ### フェーズ 1: 番兵、時刻の文法、読み上げ用ラベル、パーサ（F-002）
 
-**対象ファイル:** `internal/transcript/errors.go`（変更）、`internal/transcript/copied_format.go`（新規）、`internal/transcript/copied_format_test.go`（新規）
+**対象ファイル:** `internal/transcript/errors.go`（変更）、`internal/transcript/copied_format.go`（新規）、`internal/transcript/copied_format_test.go`（新規、`//go:build test`）
 
 - [ ] **ステップ 1-1**: `errors.go` の公開の番兵の並びに `ErrCopiedTranscriptFormat` を加える（文面と doc comment は architecture §3.1）。
 - [ ] **ステップ 1-2**: `copied_format.go` に、拒否の理由の非公開の番兵（architecture §4.1 の 11 個）と、エラーを組み立てる関数を置く。エラーは `ErrCopiedTranscriptFormat` と理由の番兵の両方を `errors.Is` で判定でき、文面は architecture §4.2 の形（固定の文と行番号だけ）にする。
@@ -85,9 +85,26 @@ requirements の F-001〜F-004 を、architecture の設計どおりに実装す
 
 **完了条件:** パーサが architecture §3.2 の書式を受理し、§4.1 の各理由で拒否する。`make fmt`・`make test`・`make lint` が通る。
 
+### PR-1 作成ポイント: copied transcript parser and format definition
+
+**対象ステップ**: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8 / 1-9 / 1-10 / 1-11
+
+**推奨タイトル**: `feat(0015): parse copied YouTube transcripts into segments`
+
+**レビュー観点**: 受理する書式と拒否の順序が architecture §3.2・§4 のとおりで、書式に合わない入力を補正せずに `ErrCopiedTranscriptFormat` を包むこと（AC-05） / 形 A の読み上げ用ラベルを時刻から導いて照合し、本文が数字や単位で始まっても分割を誤らないこと（AC-04b） / 行の区切り（LF と CRLF、末尾の区切り 0 個と 1 個）と本文のないセグメントの扱いが §3.2 のとおりであること（AC-04a・AC-07a） / 拒否のエラーの文面が固定の文と行番号だけで、入力の文字列を含まないこと（AC-06）
+
+**実装モデル要件**: standard
+
+**判定理由**: 純粋な文字列処理とそのテストに限られ、受理する書式と拒否の順序は architecture §3.2・§4.3 で確定している。形 B の行の分類は §6.2 の 2 状態の単純な遷移で、状態をまたぐ複雑な制御やリカバリ、並行性を含まず、競合する実装方式の併記も外部コマンド・ネットワーク・CI の面もないため、どのトリガにも一致しない。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ### フェーズ 2: `CopiedInput`・`CopiedSource`・`NewCopiedSource`・`Fetch`（F-003）
 
-**対象ファイル:** `internal/transcript/copied.go`（新規）、`internal/transcript/copied_test.go`（新規）
+**対象ファイル:** `internal/transcript/copied.go`（新規）、`internal/transcript/copied_test.go`（新規、`//go:build test`）
 
 - [ ] **ステップ 2-1**: `copied.go` に `CopiedInput`・`CopiedSource`・`NewCopiedSource`・`(*CopiedSource).Fetch` を、architecture §3.1 の宣言と表の性質のとおりに書く。`NewCopiedSource` は `VideoID` を先に検査し、次に `Raw` をフェーズ 1 のパーサで解析する。`CopiedSource` のフィールドは `transcript Transcript` だけにする。`Fetch` は §3.1 の表の (1)〜(3) の順に確かめる。(2) のゼロ値のエラーは非公開の番兵として宣言する（`err113` に適合させ、テストで `errors.Is` により判定できるようにするため）。エラーの文面は §4.2。
 - [ ] **ステップ 2-2**: `copied_test.go` に、構築のテスト `TestNewCopiedSource` を書く。書式に合う `Raw` で成功すること、書式に合わない `Raw` で `ErrCopiedTranscriptFormat` を包むエラーと nil の source を返すこと、`NormalizedVideoURL` が拒否する `VideoID`（空、10 文字、`/` を含むもの）で `ErrInvalidVideoURL` を包み `ErrCopiedTranscriptFormat` を包まないエラーを返すこと、両方が誤っている入力で `ErrInvalidVideoURL` の側になること（§3.1 の表の検査の順序）。`*CopiedSource` が `TranscriptSource` を満たすことを、コンパイル時の代入でテストに置く。
@@ -98,6 +115,23 @@ requirements の F-001〜F-004 を、architecture の設計どおりに実装す
 - [ ] **ステップ 2-7**: `make deadcode` が `NewCopiedSource` などを報告しても削除しないことを、コミットメッセージに記す（本計画 §1.3「`make deadcode`」）。
 
 **完了条件:** `CopiedSource` が `transcript.TranscriptSource` を満たし、architecture §3.1 の性質を満たす。`make fmt`・`make test`・`make lint` が通る。
+
+### PR-2 作成ポイント: CopiedSource TranscriptSource
+
+**対象ステップ**: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7
+
+**推奨タイトル**: `feat(0015): add CopiedSource as a TranscriptSource`
+
+**レビュー観点**: 構築の検査が `VideoID` → `Raw` の順で、動画 ID の誤りが `ErrCopiedTranscriptFormat` を包まないこと（AC-09） / `VideoURL` が入力の別の文字列ではなく `NormalizedVideoURL(VideoID)` から導出されること（AC-11） / `Fetch` が一致する URL でだけ返し、`ctx` の誤り・ゼロ値・URL の不一致を §3.1 の順で拒否すること（AC-10） / `CopiedSource` が `Transcript` だけを保持し、`Fetch` が解析をやり直さないこと（AC-09）
+
+**実装モデル要件**: standard
+
+**判定理由**: 構築と `Fetch` の固定の検査順序を architecture §3.1 のとおりに実装するだけで、手法は確定しており、競合する方式・高リスクな制御・外部面・Conditional checks のいずれにも該当しないため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: 実データのテスト、`writer` との整合のテスト、調査記録の guard（F-001・F-002・F-003）
 
@@ -112,7 +146,7 @@ requirements の F-001〜F-004 を、architecture の設計どおりに実装す
     - 先頭と末尾のセグメントの `StartMs`・`Text`、§7.1 が挙げる特徴的な箇所（`IkngpxCMmRQ` の `1:00`、`mbyG85GZ0PI` の `1:00:07` と、本文のない 4 つの時刻が `Segments` に入らないこと）。
     - すべてのセグメントについての性質: `StartMs` が減らないこと。形 B では各 `Text` が入力中のいずれかの行と一致すること、形 A では各 `Text` が入力中のいずれかの行の末尾の部分であること（行の分割を、目で読んだ定数とは別の方法で確かめる）。
 - [ ] **ステップ 3-3**: `prompt_test.go` に、`TestValidateTranscriptAcceptsCopiedSamples` を書く。`../../testdata/*.transcript_copy.txt` の各ファイルについて、ファイル名の先頭の動画 ID を `VideoID` にして `transcript.NewCopiedSource` と `Fetch` で `Transcript` を得て、`validateTranscript` を通ることを確かめる（architecture §7.1「`writer` との整合」）。ファイルが 3 つ見つからない場合は失敗させる。`writer` の検査の条件を `internal/transcript` のテストに写さない。
-- [ ] **ステップ 3-4**: `cmd/yt2column/copied_transcript_docs_test.go`（`//go:build test`、`package main`）に、調査記録の guard `TestCopiedTranscriptSurveyRecords` を書く。本計画 §1.3 の文書の guard の部品を再利用する。次を確かめる。
+- [ ] **ステップ 3-4**: `cmd/yt2column/copied_transcript_docs_test.go`（`//go:build test`、`package main`）に、調査記録の guard `TestCopiedTranscriptSurveyRecords` を書く。本計画 §1.3 の文書の guard の部品を再利用する。読む文書は `testdata/README.md` と本タスクの `02_architecture.md` で、後者のパスの定数を新たに加える（`extension_docs_test.go` の `extensionArchitecturePath` と同じ形）。次を確かめる。
     - `testdata/*.transcript_copy.txt` の各ファイルについて、`testdata/README.md` のコピーした字幕の節が、そのファイル名、動画の URL、CC BY のライセンスを記載していること。同じ節が、取得日・取得方法・加工内容・取得者を特定できる情報を含まないことの確認の各項を持つこと（AC-01）。
     - architecture §1.4.1 の 1 つ目の表が、requirements AC-01b の列（動画 ID・字幕の言語・自動/手動・長さ・ライセンス・ブラウザ・表示言語）を持ち、各実データの動画 ID の行の `testdata/` の欄が保存を示すこと。日本語・英語と自動・手動の 4 つの組み合わせの行がそろうこと（AC-01b）。
     - architecture §1.4.1 の 2 つ目の表が、requirements AC-01b の観測した書式の列を持つこと（AC-01b）。
@@ -123,6 +157,23 @@ requirements の F-001〜F-004 を、architecture の設計どおりに実装す
 
 **完了条件:** 実データ 3 ファイルが解析され、`writer` の検査を通る。調査記録の guard が通る。`make fmt`・`make test`・`make lint` と、`go test -tags test ./cmd/yt2column ./internal/pipeline`（CI の `doc-guard` ジョブと同じ）が通る。
 
+### PR-3 作成ポイント: real-sample parsing and survey-record guards
+
+**対象ステップ**: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6
+
+**推奨タイトル**: `test(0015): verify copied transcript parsing against real samples`
+
+**レビュー観点**: 実データの期待値が目で読んだ定数と独立の実測値（本計画 §1.3）から書かれ、パーサの出力から作られていないこと（AC-04） / glob で見つけた集合が期待値の 3 動画 ID と一致し、期待値のないファイルの追加を検出すること（AC-01・AC-02） / `writer` の `validateTranscript` を通すことを `internal/writer` 側で確かめ（architecture §7.1 の「`writer` との整合」）、検査条件を `internal/transcript` に写していないこと / 調査記録の guard が architecture §1.4 の表と `testdata/README.md` の記載を確かめること（AC-01・AC-01a・AC-01b・AC-03）
+
+**実装モデル要件**: standard
+
+**判定理由**: 実データのテストと、既存の guard 部品を再利用した文書の guard に限られ、方式は architecture §7.1・§1.4 で確定している。新しい guard は既存の `doc-guard` ジョブの中で走る通常の Go テストであり、重い統合テスト・外部リソース・リカバリの面を持たないため、どのトリガにも一致しない。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ### フェーズ 4: 4 MiB の入力、時間とメモリ、fuzz のテスト（F-002）
 
 **対象ファイル:** `internal/transcript/copied_format_test.go`（変更）
@@ -131,12 +182,29 @@ fuzz のターゲットは `NewCopiedSource`（フェーズ 2）を呼ぶので�
 
 - [ ] **ステップ 4-1**: テスト `TestParseCopiedLargeInputs` に、architecture §7.3 の合成の入力 (a)〜(c) を作る関数を書く。各入力は、リクエストの本文の上限（4 MiB、`4 << 20` バイト）以下で最大の大きさにする。このテストで、解析が成功することを確かめる（AC-08）。
 - [ ] **ステップ 4-2**: 同じテストで、(a)〜(c) のそれぞれの解析が 5 秒未満で終わることを確かめる（architecture §7.3「時間」）。`make test` は `-race` 付きなので、その実行で満たすこと。
-- [ ] **ステップ 4-3**: 同じテストで、(a)〜(c) のそれぞれについて、解析の前後の `runtime.MemStats.TotalAlloc` の差が、入力の長さの定数倍以下であることを確かめる（architecture §7.3「メモリ」）。テストは `t.Parallel` を呼ばない。定数は (a)〜(c) の実測の最大から余裕を持たせて決め、実測値と定数を本計画 §5.1 に記録する。
-- [ ] **ステップ 4-4**: `FuzzNewCopiedSource` を書く。`VideoID` は固定の正しい値を使う。種は `testdata/` の 3 ファイルと、フェーズ 1 のテストの受理・拒否の入力の一部とする。architecture §7.3 の (1)〜(4) の性質を確かめる。`make test` では種だけが実行される。
+- [ ] **ステップ 4-3**: 同じテストで、(a)〜(c) のそれぞれについて、解析の前後の `runtime.MemStats.TotalAlloc` の差が、入力の長さの定数倍以下であることを確かめる（architecture §7.3「メモリ」）。テストは `t.Parallel` を呼ばない。定数は architecture §7.3 のとおり (a) の実測を基準に、余裕を持たせて決め、実測値と定数を本計画 §5.1 に記録する。
+- [ ] **ステップ 4-4**: `FuzzNewCopiedSource` を書く。`VideoID` は固定の正しい値を使う。種は `testdata/` の 3 ファイル（ステップ 3-1 の glob のパターンで読み込む）と、フェーズ 1 のテストの受理・拒否の入力の一部とする。architecture §7.3 の (1)〜(4) の性質を確かめる。`make test` では種だけが実行される。
 - [ ] **ステップ 4-5**: `go test -tags test -run '^$' -fuzz '^FuzzNewCopiedSource$' -fuzztime 60s ./internal/transcript` を手元で 1 回実行し、結果（実行回数、見つかった失敗の有無）を本計画 §5.1 に記録する。失敗が見つかった場合は、パーサを直し、その入力を表のテストの行に加え、`internal/transcript/testdata/fuzz/` に書かれたファイルを削除する（コミットしない）。
 - [ ] **ステップ 4-6**: ステップ 4-1〜4-4 の各テストが、その理由で失敗しうることを確かめる。少なくとも、(a) 行ごとに入力の先頭から行番号を数え直す実装に一時的に変えると、時間の検査が失敗すること、(b) 行ごとに入力の残り全体を写す（割り当てが入力の長さの 2 乗に比例する）実装に一時的に変えると、メモリの検査が失敗すること、(c) fuzz の性質 (2) を破る値（空白だけの `Text`）をパーサが返すように一時的に変えると、種の実行が失敗すること、を確かめ、コミットメッセージに記す。
 
 **完了条件:** 4 MiB の 3 つの入力が時間とメモリの上限の中で解析される。fuzz の種が通り、60 秒の fuzz で失敗がない。`make fmt`・`make test`・`make lint` が通る。
+
+### PR-4 作成ポイント: large-input, timing, memory, and fuzz tests
+
+**対象ステップ**: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6
+
+**推奨タイトル**: `test(0015): add large-input, timing, memory, and fuzz coverage`
+
+**レビュー観点**: 4 MiB の合成入力 (a)〜(c) がすべて解析に成功し、時間が入力を先頭から読む 1 回分に収まること（AC-08） / メモリの検査が `runtime.MemStats.TotalAlloc` の差で行なわれ、定数が (a)〜(c) の実測に余裕を持ち、`t.Parallel` を呼ばないこと（AC-08） / fuzz の性質（パニックしない・受理した結果の不変条件・CRLF 置換の一致・拒否の文面）が architecture §7.3 の 4 点を満たすこと（AC-05・AC-06・AC-07a） / 60 秒の fuzz と計測の結果が本計画 §5.1 に記録されていること
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: ステップ 4-1〜4-4 の 4 MiB の時間・メモリの不変条件と fuzz のオラクルの検証が、環境で揺れうる孤立した複雑な検証ステップ（frontier-recommended の「孤立した高リスク・複雑なステップ」）に該当し、レビューの負荷から隔離する対象であるため（本計画 §6.1 のテスト不安定のリスク）。競合する実装方式の併記（2 件以上）とパネルモードのトリガーには該当しない。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 5: 文書（F-004）
 
@@ -156,7 +224,26 @@ fuzz のターゲットは `NewCopiedSource`（フェーズ 2）を呼ぶので�
 
 **完了条件:** 文書が architecture §3.4・§3.6 の内容を満たす。`make fmt`・`make test`・`make lint` と `go test -tags test ./cmd/yt2column ./internal/pipeline` が通る。
 
+### PR-5 作成ポイント: documentation of the copied-transcript exception
+
+**対象ステップ**: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6 / 5-7 / 5-8 / 5-9 / 5-10 / 5-11
+
+**推奨タイトル**: `docs(0015): document and guard the copied-transcript exception`
+
+**レビュー観点**: CLAUDE.md の「Declare, don't infer」の例外が範囲・理由・境界を述べていること（AC-14） / 「Delegate the fragile part」の項が、パネルの書式への依存をパーサに限り、`yt-dlp` の経路を代わりの手段として残すことを述べていること / `project_overview.md`・`package_reference.md` が `CopiedSource` を挙げ、用語集に 6 語の対訳があること / guard は語の有無を確かめ、文意はステップ 5-11 の読み合わせで確かめていること
+
+**実装モデル要件**: standard
+
+**判定理由**: 文書の追記と、既存の guard 部品を再利用した文書の guard に限られ、競合する実装方式・高リスクな制御・外部面・Conditional checks のいずれにも該当しないため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ## 3. 実装の順序とマイルストーン (Implementation Order and Milestones)
+
+### 3.1. マイルストーン
 
 | マイルストーン | 成果物 | 対応するフェーズ |
 |---|---|---|
@@ -166,7 +253,21 @@ fuzz のターゲットは `NewCopiedSource`（フェーズ 2）を呼ぶので�
 | M4: 大きな入力と想定外の入力への耐性が確かめられる | 4 MiB のテスト、fuzz のテスト、本計画 §5.1 の記録 | フェーズ 4 |
 | M5: 文書が新しい実装と例外を反映する | CLAUDE.md・`project_overview.md`・`package_reference.md`・`translation_glossary.md` と文書の guard | フェーズ 5 |
 
-フェーズは 1 → 2 → 3 → 4 → 5 の順に行う。フェーズ 4 は architecture §8 ではフェーズ 1 だけに依存するが、fuzz のターゲットがフェーズ 2 の `NewCopiedSource` を呼ぶので、フェーズ 2 の後に行う。#109 はフェーズ 2 の公開の型と関数に依存する（architecture §8）。PR の境界は `/mkplan2` で決める。
+フェーズは 1 → 2 → 3 → 4 → 5 の順に行う。フェーズ 4 は architecture §8 のとおりフェーズ 1 とフェーズ 2 に依存する（fuzz のターゲットがフェーズ 2 の `NewCopiedSource` を呼ぶ）。#109 はフェーズ 2 の公開の型と関数に依存する（architecture §8）。
+
+### 3.2. PR 構成
+
+PR はフェーズと 1 対 1 に対応させる。各 PR は主たる関心事（パーサ / source / 実データと調査記録の guard / 大きな入力と fuzz / 文書）を持ち、単独でグリーンゲート（`make test && make lint`）を通せる単位とする。本タスクは `Transcript`・`Segment`・`TranscriptSource` と `cmd/` の本番のコードを変更せず、`internal/transcript` の新しい部品は同一パッケージで完結するため、`internal/` の変更が `cmd/` に先行する順序の問題は生じない。`cmd/yt2column/copied_transcript_docs_test.go` は PR-3 で作り、PR-5 が guard を足すので、PR-5 は PR-3 の後に行う。
+
+PR-1 のパーサは公開されず `NewCopiedSource`（PR-2）からだけ呼ばれる。ステップ 1-1〜1-11 は、書式の定義（§3.2）・拒否の理由（§4.1）・パーサ・そのテストが 1 つの単位として閉じているため、分割しない。PR-2 の `CopiedSource` は PR-1 のパーサに依存する。PR-3 は PR-2 に依存し、F-001 の調査記録の guard と実データの解析のテストをまとめる（どちらも `testdata/` の実データとその記録を確かめる 1 つの関心事である）。PR-4 は設計上はフェーズ 1・2 に依存する（§3.1）が、種の `testdata/` の 3 ファイルの読み込みに PR-3 のステップ 3-1 の glob のパターンを使うため、テストの順序として PR-3 の後に行う。PR-4 の 4 MiB・時間・メモリ・fuzz のテストは、環境で揺れうる検証（本計画 §6.1）をレビューの負荷から隔離するため、関心が独立した PR とする。PR-5 は文書とその guard だけを扱い、PR-4 とは独立にレビューできる。PR-5 は `cmd/yt2column/copied_transcript_docs_test.go` を PR-3 が作るので、ファイルの順序として PR-3 の後に行う。PR-5 は 11 ステップと大きいが、対象は文書と既存の guard 部品を再利用したその guard に限られ、段階ごとに独立して検証できるため分割しない。
+
+| PR | 対象ステップ | 主な変更内容 | 実装モデル要件 |
+|---|---|---|---|
+| PR-1 | 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8 / 1-9 / 1-10 / 1-11 | `errors.go` の `ErrCopiedTranscriptFormat`、`copied_format.go` の時刻の文法・読み上げ用ラベル・パーサ、`copied_format_test.go` の受理・拒否・行の区切り・検査の順序・エラーの文面のテスト | standard |
+| PR-2 | 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 | `copied.go` の `CopiedInput`・`CopiedSource`・`NewCopiedSource`・`Fetch` と `copied_test.go` | standard |
+| PR-3 | 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 | `test_helpers.go` の glob のパターン、`copied_test.go` の実データのテスト、`prompt_test.go` の `writer` の整合のテスト、`copied_transcript_docs_test.go` の調査記録の guard、security.md §7 の確認の記録 | standard |
+| PR-4 | 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 | `copied_format_test.go` の 4 MiB の合成入力のテスト、時間・メモリの検査、fuzz のテスト、本計画 §5.1 の記録 | frontier-recommended |
+| PR-5 | 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6 / 5-7 / 5-8 / 5-9 / 5-10 / 5-11 | `CLAUDE.md`・`project_overview.md`・`package_reference.md`・`translation_glossary.md` の更新と、`copied_transcript_docs_test.go` の CLAUDE.md と文書の guard | standard |
 
 ## 4. テスト戦略 (Test Strategy)
 
@@ -217,7 +318,7 @@ architecture §7.1 のとおり、すべて文字列の入力だけで行い、`
 | AC-10 | test | `internal/transcript/copied_test.go::TestCopiedSourceFetch`（ステップ 2-4） |
 | AC-11 | test | `internal/transcript/copied_test.go::TestCopiedSourceTranscript`（ステップ 2-3） |
 | AC-12 | test | `internal/transcript/copied_test.go::TestCopiedSourceTranscript`（ステップ 2-3） |
-| AC-13 | test | `internal/transcript/copied_test.go::TestCopiedSourceTranscript`（パーサの直接の結果との一致。ステップ 2-3）。`internal/writer/prompt_test.go::TestValidateTranscriptAcceptsCopiedSamples`（ステップ 3-3） |
+| AC-13 | test | `internal/transcript/copied_test.go::TestCopiedSourceTranscript`（パーサの直接の結果との一致。ステップ 2-3） |
 | AC-14 | static | `cmd/yt2column/copied_transcript_docs_test.go::TestClaudeMDCopiedTranscriptException`（ステップ 5-8） |
 
 ### 5.1. 計測と fuzz の記録
@@ -259,17 +360,18 @@ architecture §7.1 のとおり、すべて文字列の入力だけで行い、`
 | リスク | 影響 | 対策 |
 |---|---|---|
 | fuzz や時間・メモリの計測で、パーサの作り直しが要る誤りが見つかる | フェーズ 4 が延びる | 計算量の性質（architecture §3.3）はフェーズ 1 のパーサの実装の時点で守る。フェーズ 4 で見つかった誤りは、フェーズ 1 のテストに行を加えてから直す |
-| #109 がフェーズ 2 の公開の型と関数を待つ | #109 の着手が遅れる | フェーズ 2 までを先に PR にできるよう、`/mkplan2` で PR の境界をフェーズ 2 の後に置くことを検討する |
+| #109 がフェーズ 2 の公開の型と関数を待つ | #109 の着手が遅れる | PR-2 のマージで公開の型と関数（ステップ 2-1）が `main` に入るので、#109 は PR-2 の後に着手できる（§3.2） |
 
 ## 7. 実装チェックリスト (Implementation Checklist)
 
-- [ ] フェーズ 1 完了（ステップ 1-1〜1-11）
-- [ ] フェーズ 2 完了（ステップ 2-1〜2-7）
-- [ ] フェーズ 3 完了（ステップ 3-1〜3-6）と本計画 §5.2 の記録
-- [ ] フェーズ 4 完了（ステップ 4-1〜4-6）と本計画 §5.1 の記録
-- [ ] フェーズ 5 完了（ステップ 5-1〜5-11）
+- [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8 / 1-9 / 1-10 / 1-11）
+- [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7）
+- [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6）と本計画 §5.2 の記録
+- [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6）と本計画 §5.1 の記録
+- [ ] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6 / 5-7 / 5-8 / 5-9 / 5-10 / 5-11）
+- [ ] 各 PR で `make fmt` → `make test` → `make lint` が通る
+- [ ] PR-3・PR-5: `go test -tags test ./cmd/yt2column ./internal/pipeline` が通る
 - [ ] 本計画 §5 のすべての AC の検証が通る
-- [ ] `make test`・`make lint`・`go test -tags test ./cmd/yt2column ./internal/pipeline` が通る
 
 ## 8. 成功基準 (Success Criteria)
 
@@ -280,5 +382,5 @@ architecture §7.1 のとおり、すべて文字列の入力だけで行い、`
 
 ## 9. 次のステップ (Next Steps)
 
-- 本計画のレビューと承認の後、`/mkplan2 0015` で PR の境界を埋め込み、`/runplan 0015` で実装する。
+- 本計画は `approved`。PR 境界は §2 の `PR-N 作成ポイント` と §3.2 に埋め込み済み。`/runplan 0015` で PR の順に実装する（各 PR は独立してグリーンゲートを通す）。
 - #109（サーバ）は、フェーズ 2 の公開の型と関数を使う。architecture §9 の #109・#108・#111 への要求（拒否のログ、受理したときのログ、案内の文面、拡張が見出しを除かないこと）は、それぞれのタスクで扱う。
