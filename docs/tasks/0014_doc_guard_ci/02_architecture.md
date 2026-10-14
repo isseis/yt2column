@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Created | 2026-10-14 |
-| Review date | 2026-10-14 |
-| Reviewer | isseis |
-| Comments | - |
+| Review date | - |
+| Reviewer | - |
+| Comments | 本修正で `design_handoff.md` の項目（H-01）を変更したため、再承認が必要である。他の決定は変更していない。 |
 
 ## 1. 設計の全体像 (Design Overview)
 
@@ -153,7 +153,7 @@ sequenceDiagram
 ### 5.1. 設計上の考慮
 
 -   `doc-guard` は secrets を渡さず、環境変数も設定しない。workflow レベルの `permissions: contents: read` を維持する。ジョブに `permissions` を足さない（既定を広げない）。
--   `doc-guard` はネットワーク・外部コマンド（`yt-dlp`・`git` など）を新たに起動しない。`go test` が読むのは、リポジトリにコミットされたファイルだけである。
+-   `doc-guard` は `-run` を付けず対象パッケージの全テストを実行するため、テストが起動する子プロセス（テストバイナリの再実行、`/bin/sh`、テスト用の `yt-dlp`）と loopback の HTTP サーバーを起動し、一時ファイルと環境変数も扱う。外部サービス（DeepSeek・Slack）の統合テストは環境変数でゲートされ、`doc-guard` はそれらを設定しないので実行されない。
 -   対象の guard（`0012` の文書 guard、`internal/pipeline` の文書 guard）は、いずれもリポジトリのファイルを読むだけで、利用者のデータ・秘密情報を扱わない。
 
 ### 5.2. 脅威モデル

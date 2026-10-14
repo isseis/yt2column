@@ -4,9 +4,9 @@
 
 ## H-01: `doc-guard` ジョブのコマンドの置き場
 
--   **事項:** `doc-guard` ジョブが実行するコマンドを、`ci.yml` に直接 `go test -tags test ./cmd/yt2column` と書くか、`Makefile` にターゲット（例: `test-doc-guard`）を足して `make` で呼ぶかを決める。
+-   **事項:** `doc-guard` ジョブが実行するコマンドを、`ci.yml` に直接 `go test -tags test ./cmd/yt2column ./internal/pipeline` と書くか、`Makefile` にターゲット（例: `test-doc-guard`）を足して `make` で呼ぶかを決める。
 -   **理由:** 実行コマンドを 1 か所に保つと、対象パッケージを変えるときに更新する場所が明確になる。一方、既存の `test` ジョブは `make test-ci` を呼び、`secret-scan` ジョブは `git grep` を直接書いており、CI のコマンドは両方の形が混在している。Makefile に足せば手元でも同じコマンドを再現できる。
--   **候補の方針:** 対象は `./cmd/yt2column` だけなので、`ci.yml` にコマンドを直接書く（`secret-scan` と同じ形）。Makefile のターゲットを足すのは、複数のジョブ・手順から同じコマンドを呼ぶ必要が出たときに限る。採らなかった場合の理由を `02_architecture.md` に記す。
+-   **候補の方針:** 対象は `./cmd/yt2column` と `./internal/pipeline`（H-02 の決定）なので、`ci.yml` にコマンドを直接書く（`secret-scan` と同じ形）。Makefile のターゲットを足すのは、複数のジョブ・手順から同じコマンドを呼ぶ必要が出たときに限る。採らなかった場合の理由を `02_architecture.md` に記す。
 -   **関連:** F-001、AC-01、AC-02、保守性
 
 ## H-02: `doc-guard` が対象とするパッケージの範囲
