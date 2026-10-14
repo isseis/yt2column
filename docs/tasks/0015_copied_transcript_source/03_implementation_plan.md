@@ -8,7 +8,7 @@
 | Created | 2026-10-14 |
 | Review date | 2026-10-14 |
 | Reviewer | isesis |
-| Comments | 2026-10-14 `/mkplan2` により、`### PR-N 作成ポイント`・§3.2・§7 に PR の境界を埋め込み、§3.1・§3.2・各フェーズの対象ファイルとステップの記述を PR の構成に合わせて整えたほか、architecture §8 のフェーズ 4 の依存の記載漏れを訂正した（決定の変更なし）。 |
+| Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「requirements」）の項番、節番号は [02_architecture.md](02_architecture.md)（以下「architecture」）の節を指す。番号だけの「§N」は、断りがない限り architecture の節を指し、本計画自身の節は「本計画 §N」と書く。既存のファイルの行番号は、断りがない限り HEAD `d8f163e`（ブランチ `claude/task-dphh91`）で確かめた。Go のソースとテストデータは、`4fe06e0`（`main`）から変わっていない。
 

@@ -8,7 +8,7 @@
 | Created | 2026-10-14 |
 | Review date | 2026-10-14 |
 | Reviewer | isseis |
-| Comments | 2026-10-14 記述の訂正（決定の変更なし）: 実データの追加のコミットを、存在しない `938a4d9` から squash 後の `4fe06e0` に改め、§3.4・§8 で `testdata/README.md`・`.gitattributes` が同コミットで追加済みであることを明記した。同日、§3.4 の `project_overview.md` の行に、`:76` の注記の更新を加えた（記載漏れの訂正。決定の変更なし）。同日、§8 のフェーズ 4 の依存にフェーズ 2 を加えた（fuzz のターゲットが `NewCopiedSource` を呼ぶため。記載漏れの訂正。決定の変更なし）。 |
+| Comments | - |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md) の項番を指す。既存のコードと文書の行番号は、コミット `0a46cf0`（要件の承認のコミット）で確かめたものである。「0011 §N」は [0011_localhost_server/02_architecture.md](../0011_localhost_server/02_architecture.md) の節を、「0007」は [0007_browser_extension_skeleton/](../0007_browser_extension_skeleton/) の文書を指す。
 
