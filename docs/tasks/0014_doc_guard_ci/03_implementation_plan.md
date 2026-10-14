@@ -68,7 +68,7 @@ requirements が定める 4 つの機能要件（F-001〜F-004）を、architect
 - [x] **ステップ 1-1**: `.github/workflows/ci.yml` に `doc-guard` ジョブを追加する。`secret-scan` と同じく `needs` も `if` も付けず、ジョブに `permissions` を付けない。ステップは `actions/checkout@v5` → `actions/setup-go@v6`（`go-version-file: go.mod`、`cache: true`）→ `go test -tags test ./cmd/yt2column ./internal/pipeline` の 3 つ。`-run` を付けない（architecture §3.1）。
 - [x] **ステップ 1-2**: `check-changes`・`test`・`lint`・`extension`・`secret-scan` の各ジョブを変更していないことを `git diff .github/workflows/ci.yml` で確かめる。`check-changes` の分類ロジック（`:24-53`）に差分がないこと、追加が `doc-guard` ジョブだけであることを確認する。
 - [x] **ステップ 1-3**: フェーズ 1 の完了条件として、`make test` と `make lint` を通す（Go のソースは変えていないので、回帰の確認）。`doc-guard` が実行する `go test -tags test ./cmd/yt2column ./internal/pipeline` が手元で通ることを確かめる。
-- [ ] **ステップ 1-4**: PR-1 自身の PR チェックで `doc-guard` ジョブが走り、成功することを確認する。同一リポジトリのブランチでは PR の workflow が使われるので、PR-1 の `pull_request` で `doc-guard` が起動する。これはジョブの形（YAML の妥当性、`needs`・`if` の不在、対象パッケージ）の最初の検出点であり、未検証のジョブを `main` にマージしないための確認である（AC-01・AC-02）。workflow の実行 URL を控える。
+- [x] **ステップ 1-4**: PR-1 自身の PR チェックで `doc-guard` ジョブが走り、成功することを確認する。同一リポジトリのブランチでは PR の workflow が使われるので、PR-1 の `pull_request` で `doc-guard` が起動する。これはジョブの形（YAML の妥当性、`needs`・`if` の不在、対象パッケージ）の最初の検出点であり、未検証のジョブを `main` にマージしないための確認である（AC-01・AC-02）。workflow の実行 URL を控える。
 
 **完了条件:** `ci.yml` に `doc-guard` ジョブがあり、`check-changes` と既存ジョブに差分がない。`go test -tags test ./cmd/yt2column ./internal/pipeline` が手元で通る。PR-1 の PR チェックで `doc-guard` が走り成功する。
 
@@ -94,7 +94,7 @@ requirements が定める 4 つの機能要件（F-001〜F-004）を、architect
 **判定理由**: ステップ 1-1 は `secret-scan` と同じ宣言的なジョブを写すだけで、未確定の設計判断・競合する方式・高リスクのステップがない。ステップ 1-2〜1-4 は差分の確認・グリーンゲート・PR-1 自身の CI での確認であり、設計判断を伴わない。ステップ 2-1 は既存の規則への追記、ステップ 2-2 は `0012` の記述更新で、編集の区分は §1.6 で確定しており、競合する方式はない。CI 面は単一の宣言的ジョブであり、`mkplan.md` の panel-mode トリガが指す「重い CI 面」には当たらない。どのトリガにも一致しない。
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
