@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-14 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 2026-10-14: 承認後の F-001 の調査の結果を反映した（decision change のため `draft` に戻した）。英語 UI のラベルの単位の区切りを `, ` とし（F-002・AC-04b の例を修正。カンマのない形は拒否する）、すべての単位が 0 の時刻のラベル（`0 秒`・`0 seconds`）を定めた。チャプターの見出しの観測（形 A を含む・見えない見出しもコピーされる）と、観測した動画の一覧を追記した。行の区切りとして LF と CRLF の両方を受理し（混在と単独の CR は拒否）、末尾の行の区切りを 0 個か 1 個までとした（F-002・AC-07a を追加。§3.2 の表を更新）。 |
+| Review date | 2026-10-14 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
