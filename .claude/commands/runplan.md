@@ -32,6 +32,8 @@ Work in order.
 - Scan forward from the last completed item. If the next unchecked items are inside a `### PR-N 作成ポイント` section (PR checkpoint checkboxes), treat this as a PR checkpoint — go to step 5a instead of step 5.
 - Otherwise, select the next implementation group: use one phase by default unless it cannot pass `make test` alone (e.g. stub-only or tightly coupled); then extend the group until it can pass. Stop the group at the next `### PR-N 作成ポイント` boundary — do not include the PR checkpoint checkboxes in the implementation group. Briefly note the reason for any grouping before starting work.
 
+4.5. Record the starting commit of the phase group: `PHASE_START=$(git rev-parse HEAD)`. Keep it until the reviews in steps 7 and 7.5 are done, and pass `${PHASE_START}..HEAD` as their commit range, so the range covers exactly this phase group's commits and not the previous group's.
+
 5. Implement the selected phase group.
 - Follow the design in `02_architecture.md`.
 - Before writing new files in a package, read at least one existing file of the same kind (e.g. a `_test.go` in the target package) to confirm assertion library, import style, and helper conventions in use. Mismatches with the established style will be caught in review — reading first avoids the rework.
@@ -99,7 +101,7 @@ Work in order.
 7. Run the critical-review subagent procedure in `.claude/commands/_lib/review-subagent-pattern.md` with these inputs:
    - **ARTIFACT**: this phase group's code changes.
    - **PERSONA**: an experienced senior Go engineer and senior SRE. Direct it to surface bugs, missing test coverage, architecture drift, and unclear code.
-   - **FILES**: the architecture document and the implementation plan document (paths in `_context.md`), as resolved absolute-path strings; instruct the subagent to read both in full before evaluating the code. Also list the source files added or modified in this phase group as resolved absolute-path strings (read in full). Provide the specific commit range for this phase group (e.g., `HEAD~N..HEAD`) and instruct the subagent to run `git diff <range>` to see exactly what changed.
+   - **FILES**: the architecture document and the implementation plan document (paths in `_context.md`), as resolved absolute-path strings; instruct the subagent to read both in full before evaluating the code. Also list the source files added or modified in this phase group as resolved absolute-path strings (read in full). Provide `${PHASE_START}..HEAD` as the commit range and instruct the subagent to run `git diff ${PHASE_START}..HEAD` to see exactly what changed.
    - **CRITERIA**: every item from the phase-group review checklist below, copied verbatim.
 
    Extra rule: when fixing Critical and Major issues, run the build checks (defined in `_context.md`) and commit before spawning the verification pass.
@@ -125,8 +127,8 @@ Phase-group review checklist (use verbatim as evaluation criteria in the subagen
    - **FILES**: the test files added or modified in this phase group, plus
      `CLAUDE.md` (for the testing rules) and the implementation plan document
      (paths in `_context.md`), as resolved absolute-path strings (read in full).
-     Provide the commit range for this phase group (e.g., `HEAD~N..HEAD`) and
-     instruct the subagent to run `git diff <range>`.
+     Provide `${PHASE_START}..HEAD` as the commit range and instruct the
+     subagent to run `git diff ${PHASE_START}..HEAD`.
    - **CRITERIA**: every item from the test-review checklist below, copied
      verbatim.
 
@@ -140,9 +142,9 @@ Test-review checklist (use verbatim as evaluation criteria in the step 7.5 promp
 - [ ] No test is so trivial that it adds no verification value (for example, a
       struct field asserted to hold the value just assigned to it, or a constant
       asserted equal to its own literal).
-- [ ] A plurality of cases is covered by one table or loop; the same rows are not
-      repeated as a second table, and rows that differ only by a shared fixture
-      are consolidated.
+- [ ] Related cases that share setup and verification are covered by one table or
+      loop; duplicate rows are not repeated as a second table, and cases that
+      differ only by fixture data are consolidated.
 - [ ] String matching on error messages (`strings.Contains(err.Error(), ...)`,
       `err.Error() == ...`) is a type check (`errors.Is` / `errors.AsType`)
       wherever the verified property is an error type or sentinel. String
