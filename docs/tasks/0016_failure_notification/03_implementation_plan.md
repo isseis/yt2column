@@ -81,7 +81,7 @@ requirements が定める 5 つの機能要件（F-001〜F-005）を、architect
 | H-03 置き場所と依存の向き | フェーズ 2 のステップ 2-1（`internal/publisher` に置く）とフェーズ 3 のステップ 3-2（`depguard`） |
 | H-04 guard | フェーズ 3 のステップ 3-1 |
 | H-05 上限と `ctx` | フェーズ 2 のステップ 2-4（`SlackPostTimeout` を使う） |
-| H-06 テスト用の構築 | フェーズ 1 のステップ 1-4・フェーズ 2 のステップ 2-6 |
+| H-06 テスト用の構築 | フェーズ 1 のステップ 1-5・フェーズ 2 のステップ 2-6 |
 | I-01 `Notify` の処理手順 | フェーズ 2 のステップ 2-4。検査の順序・エラーの包み方・`ctx` の確認の置き場所を architecture §3.4 の契約の下で決める。テスト用の構築関数の拒否（AC-12）の検査方法もここで決める |
 
 ### 1.6. 対象外（requirements §2.3）
@@ -110,6 +110,23 @@ requirements が定める 5 つの機能要件（F-001〜F-005）を、architect
 
 **完了条件:** `make fmt`・`make test`・`make lint` が通る。`internal/publisher` の既存テストが内容を変えずに通る（記事の投稿の振る舞いが変わっていないことの確認）。
 
+### PR-1 作成ポイント: shared webhook send path extraction
+
+**対象ステップ**: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7
+
+**推奨タイトル**: `refactor(0016): extract the shared webhook send path`
+
+**レビュー観点**: `webhookClient` に移す送信・URL の取り出し・`SensitiveParts` の導出・`CheckRedirect`・8,193 バイトの上限・`ok` の判定が architecture §3.1 のとおりで、記事の投稿の振る舞いを変えていないこと / `post` が `ctx.Err()` を確かめず、`*SlackPostError` の `Total`・`Posted`・`Attempted` の意味を変えていないこと / `internal/publisher` の既存テストを 1 行も変えずに通していること / テスト用の構築関数の検査を `newLoopbackWebhookClient` に切り出しても、失敗メッセージが URL を含まず nil を返す振る舞いを保っていること
+
+**実装モデル要件**: standard
+
+**判定理由**: 振る舞いを変えない切り出しであり、移す処理は architecture §3.1 に確定し、既存テストを無変更で通すことで固定される。前例のない設計判断・panel-mode トリガー・競合する実装案・分離された高リスク／複雑なステップのいずれにも該当しない。該当しうる Conditional check はビルドタグ下の非 `_test.go` のソース（`test_helpers_slack.go`）の 1 つだけで、2 つには達しない（`make test` が `-tags test` で読むため完了条件で満たされる）。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ### フェーズ 2: 通知の実装
 
 **対象ファイル:** `internal/publisher/slack_failure.go`（新規）、`internal/publisher/slack_errors.go`（変更）、`internal/publisher/test_helpers_slack.go`（変更）、`internal/publisher/slack_test.go`（補助関数の変更）、`internal/publisher/slack_failure_test.go`（新規）、`internal/publisher/publisher.go`（変更）
@@ -128,13 +145,30 @@ requirements が定める 5 つの機能要件（F-001〜F-005）を、architect
 
 **完了条件:** `make fmt`・`make test`・`make lint` が通る。`slack_failure_test.go` の各テストが architecture §7.1・§7.3 を満たす。
 
+### PR-2 作成ポイント: Slack failure notifier implementation
+
+**対象ステップ**: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 / 2-8 / 2-9
+
+**推奨タイトル**: `feat(0016): add the Slack failure notifier`
+
+**レビュー観点**: `Notify` の検査の順序（受け手のゼロ値 → 値の形 → `ctx`）と、形の誤りを `ctx` の状態によらず `ErrSlackInvalidNotice` とする契約（architecture §3.4）を満たしていること / 文面が種類の文（固定の定数）と検証済みの `RequestID`・`VideoID` だけで組み立てられ、Webhook URL・リクエストの値・秘密情報・時刻を含まないこと（AC-05・AC-06） / 応答の拒否を `ErrSlackNoticeRejected` と元のエラーの両方で判定できる形（複数の `%w`）に包み、`Unwrap() error` と `Unwrap() []error` の両方をたどる拡張した `requireErrorOmitsEndpoint` で URL が現れないことを確かめていること / 送信が多くとも 1 回で、再試行もリダイレクトの追跡もなく、同じ値からの並行の `Notify` が安全であること
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: ステップ 2-1〜2-4 の通知の実装は Webhook URL（唯一の秘密）を扱うセキュリティの中核で、誤ると URL がエラーや文面に漏れる。ステップ 2-4 の `Notify` は、検査の順序・エラーの包み方・`ctx` の確認の置き場所を自ら決め、複数の `%w` の包みと並行の呼び出しへの安全を扱う、独立した高リスクで込み入ったステップである。これをこの PR に隔離する（`frontier-recommended` の「分離された高リスク／複雑なステップ」に該当）。あわせて、ステップ 2-6 はビルドタグ下の非 `_test.go` のソース（`test_helpers_slack.go`）の追加という Conditional check にも該当する。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ### フェーズ 3: guard と静的な検査
 
 **対象ファイル:** `internal/failure/failure_test.go`（新規。ただし §2.0 の前提を参照）、`.golangci.yml`（変更）
 
 - [ ] **ステップ 3-1**: `internal/failure` に guard のテストを置く（#109 が同等の guard を既に置いていない場合）。`//go:build test` の `failure_test.go` に、architecture §3.6 の 4 つのテストを書く。`TestNoticeFieldSet`（`reflect.TypeFor[Notice]()` の exported フィールドが `RequestID string`・`VideoID string`・`Kind`（`reflect` が返す型名は `failure.Kind`）の 3 つだけ）、`TestNotifierMethodSet`（`reflect.TypeFor[Notifier]()` のメソッドが `Notify` の 1 つで、型が `func(context.Context, Notice) error`）、`TestKindZeroValue`（`Kind` のゼロ値が `KindUnknown`）、`TestKindConstants`（パッケージの `_test.go` 以外のすべての Go のファイルを `go/parser` で読み、`Kind` 型の定数の名前を宣言の順に集めて requirements F-001 の列挙と一致させる。1 つも見つからなければ失敗させる）。失敗したときのメッセージは英語で書き、architecture §3.6 の表の第 3 列が伝える内容（その guard が失敗したときに、読む人に何を直せばよいかを伝える内容）を含める（表の第 3 列は日本語の散文なので、そのまま写さず英語にする）。
 - [ ] **ステップ 3-2**: `.golangci.yml` の `depguard` に 2 つの規則を加える（architecture §3.7）。`publisher-no-server`（`files: ["**/internal/publisher/**"]`、`list-mode: lax`、`deny: github.com/isseis/yt2column/internal/server`。AC-17）。`publisher-no-log`（`files: ["**/internal/publisher/**", "!$test"]`、`list-mode: lax`、`deny: log` と `log/slog`。AC-15）。既存の `deps` と `*-confinement` の規則は変えない。
-- [ ] **ステップ 3-3**: `depguard` の規則が実際に効くことを確かめる。`internal/publisher` の非テストのファイルに一時的に `log`（または `log/slog`）を import して `make lint` が `publisher-no-log` で落ちることを確かめる（これは `files` の glob `**/internal/publisher/**` が絶対パスに一致することの確認でもある。落ちなければ glob を直す）。次に、`publisher-no-server` は `internal/server` がまだ無いので、`deny` の対象を一時的に既存の `github.com/isseis/yt2column/internal/failure` に変え、`publisher-no-server` が同じ glob と `list-mode` の下で落ちることを確かめる（フェーズ 2 の後なら `slack_failure.go` が既に `internal/failure` を import しているので一時的な import は要らない。フェーズ 2 より前なら、`internal/publisher` の非テストのファイルに一時的に `internal/failure` を import する）。確認の後、`deny` の対象と（加えた場合は）一時的な import を戻し、`make lint` が通ることを確かめる。（`internal/server` を実際に import する違反の確認は、#109 が `internal/server` を新設した後でないとできない。これは `internal/publisher` が `internal/server` を import しないことを保つ予防的な規則である。）
+- [ ] **ステップ 3-3**: `depguard` の規則が実際に効くことを確かめる。`internal/publisher` の非テストのファイルに一時的に `log`（または `log/slog`）を import して `make lint` が `publisher-no-log` で落ちることを確かめる（これは `files` の glob `**/internal/publisher/**` が絶対パスに一致することの確認でもある。落ちなければ glob を直す）。次に、`publisher-no-server` は `internal/server` がまだ無いので、`deny` の対象を一時的に既存の `github.com/isseis/yt2column/internal/failure` に変え、`publisher-no-server` が同じ glob と `list-mode` の下で落ちることを確かめる（PR-3 はフェーズ 2 の後に行うので、`slack_failure.go` が既に `internal/failure` を import しており、一時的な import は要らない）。確認の後、`deny` の対象と（加えた場合は）一時的な import を戻し、`make lint` が通ることを確かめる。（`internal/server` を実際に import する違反の確認は、#109 が `internal/server` を新設した後でないとできない。これは `internal/publisher` が `internal/server` を import しないことを保つ予防的な規則である。）
 
 **完了条件:** `make fmt`・`make test`・`make lint` が通る。`make lint` が 2 つの新しい規則を読み込む。ステップ 3-3 の確認を済ませる。
 
@@ -145,6 +179,23 @@ requirements が定める 5 つの機能要件（F-001〜F-005）を、architect
 - [ ] **ステップ 4-1**: #109 の issue に、architecture §8 の手順 4 の (a)〜(f) を記録する。(a) 通知の実装の名前（`publisher.NewSlackFailureNotifier`）。(b) architecture §3.3 の文面（#109 §4.2 の例を改めるため。文面と種類の文は architecture §3.3 からそのまま写し、写した内容が §3.3 と一致することを確かめる）。(c) `package_reference.md` の `internal/publisher` の行に通知の実装を加えること（#109 §3.12）。(d) リクエスト ID の形 `^[0-9a-f]{16}$` を本実装（architecture §3.4 の設計）が検査していることと、#109 が生成したリクエスト ID を実物の `SlackFailureNotifier` に通すテストを置くこと、そのテストが使う公開のテスト用の構築関数 `NewSlackFailureNotifierForLoopbackTest` を本タスクが用意すること。(e) 通知が `silent` のため利用者に気づかれにくいこと（architecture §5.4）。(f) #109 の手動の確認で通知の表示（`<URL>` のリンクと改行）を Mattermost で確かめること。
 
 **完了条件:** #109 の issue に (a)〜(f) の記録がある（issue の URL を控える）。(b) の文面と種類の文が architecture §3.3 と一致する（記録を §3.3 と照合する）。
+
+### PR-3 作成ポイント: failure contract guards, depguard rules, and #109 handoff
+
+**対象ステップ**: 3-1 / 3-2 / 3-3 / 4-1
+
+**推奨タイトル**: `chore(0016): guard the failure contract and record it for #109`
+
+**レビュー観点**: `internal/failure` の guard が architecture §3.6 の 4 つのテスト（`Notice` のフィールド集合・`Notifier` のメソッド集合・`Kind` のゼロ値・`Kind` 定数の並び）を実装し、#109 の手順 1 の PR が同等の guard を置いている場合は重複させないこと / `depguard` の 2 つの規則（`publisher-no-server`・`publisher-no-log`）が architecture §3.7 のとおりで、既存の `deps`・`*-confinement` の規則を変えていないこと / ステップ 3-3 で規則が実際に効くことを（`deny` の対象と非テストの import を一時的に変えて）確かめ、確認後に戻して `make lint` が通ること / ステップ 4-1 の記録が architecture §8 の手順 4 の (a)〜(f) を含み、(b) の文面と種類の文が §3.3 と一致すること
+
+**実装モデル要件**: standard
+
+**判定理由**: guard は `internal/pipeline` の既存の guard と同じ考え方で architecture §3.6 に確定しており、`depguard` の規則も architecture §3.7 に確定している。#109 への記録（ステップ 4-1）も architecture §8 の手順 4 の列挙に従う。前例のない設計判断・panel-mode トリガー・競合する実装案・分離された高リスク／複雑なステップのいずれにも該当せず、Conditional check にも該当しない。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装の順序とマイルストーン (Implementation Order and Milestones)
 
@@ -159,14 +210,30 @@ requirements が定める 5 つの機能要件（F-001〜F-005）を、architect
 
 - フェーズ 1 はフェーズ 2・3 の前提である（architecture §8）。
 - フェーズ 1 は `internal/failure` に依存しないので、#109 の手順 1 の PR のマージを待たずに着手できる。
-- フェーズ 2 とフェーズ 3 は互いに独立で、順序を入れ替えてよい（architecture §8）。フェーズ 3 のステップ 3-2 は、フェーズ 2 の後に走らせると `depguard` の効果を実物のコードで確かめられる。
+- フェーズ 2 とフェーズ 3 は互いに独立である（architecture §8）。ただし PR の順序は §3.2 のとおり PR-2 → PR-3 とし、フェーズ 3 のステップ 3-2・3-3 は、フェーズ 2 の後に走らせて `depguard` の効果を実物のコードで確かめる。
 - フェーズ 4 はフェーズ 2 の後（実装名と文面が確定した後）に行う。
 
-### 3.2 ブランチとコミットの構成
+### 3.2 PR 構成
+
+PR はフェーズを単位とし、コードの差分を生まないステップ 4-1 は PR-3 に含めて独立した PR にしない（PR は 3 つである）。各 PR は単一の関心事（送信の経路の切り出し / 通知の実装 / 契約の guard・`depguard`・#109 への記録）を持ち、単独でグリーンゲートを通せる単位とする。
+
+| PR | 対象ステップ | 主な変更内容 | 実装モデル要件 |
+|---|---|---|---|
+| PR-1 | 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 | `internal/publisher/slack.go` に `webhookClient`・`newWebhookClient`・`configured`・`post`・`checkWebhookURL` を切り出し、`SlackWebhookPublisher` を `interval` と `client` に切り替える。`test_helpers_slack.go` に `newLoopbackWebhookClient` を切り出す。既存テストは無変更で通す | standard |
+| PR-2 | 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 / 2-8 / 2-9 | `internal/publisher/slack_failure.go`（新規）に `SlackFailureNotifier`・`NewSlackFailureNotifier`・`Notify` と種類の文の `switch` を加え、`slack_errors.go` に番兵を、`test_helpers_slack.go` にテスト用の構築関数を、`slack_failure_test.go`（新規）に §7.1・§7.3 のテストを加える。`requireErrorOmitsEndpoint` を `Unwrap() []error` 対応にする | frontier-recommended |
+| PR-3 | 3-1 / 3-2 / 3-3 / 4-1 | `internal/failure/failure_test.go`（新規）に guard を、`.golangci.yml` の `depguard` に 2 つの規則を加え、#109 の issue に本タスクの契約を記録する | standard |
+
+PR-1 は `internal/` の送信の経路を切り出し、PR-2 はそれを使う通知の実装を加えるので、PR-1 → PR-2 の順とする。PR-2 は PR-1 の `webhookClient` に依存する。PR-3 の guard と `depguard` は PR-1・PR-2 のどちらにも依存しないが、architecture §8 の順序（guard と静的な検査を通知の実装の後）に従い PR-3 に置く。ステップ 4-1（#109 への記録）は実装名と文面が確定した後に行う必要があり、コードの差分を生まないので、独立した PR にせず、契約を締める PR-3 に含める。`internal/` の変更（PR-1・PR-2）は、それを使う層より先に着地する。
+
+PR-2 は、実装（ステップ 2-1〜2-4）とその契約を確かめるテスト（ステップ 2-8）を分けない。`SlackFailureNotifier` と `Notify` の振る舞いを観測できるのは `Notify` を通す経路だけで、テストが契約そのものであるため、実装とテストを同じ PR に置く（interface・実装・テストの密結合した単位を分けない）。応答の拒否・リダイレクト・時間の上限・再試行・セキュリティのテストを別の PR に切り出すこともできるが、それらはステップ 2-6 の共通のテスト用の構築関数とステップ 2-7 の `requireErrorOmitsEndpoint` の拡張を共有するので、切り出してもレビューの単位は小さくならない。したがって PR-2 の大きさは意図的である。
+
+PR-3 のグリーンゲートは、コードの変更（ステップ 3-1〜3-3 の guard と `depguard`）を対象とする。ステップ 4-1 は #109 の issue への記録でリポジトリの差分を生まないため、PR-3 の非コードのチェック項目として扱う。
+
+### 3.3 ブランチとコミットの構成
 
 - フェーズ 1 は 1 つのコミットにする（architecture §8 の手順 1「1 つのコミットにする」）。振る舞いを変えないリファクタリングとしてレビューできるようにする。
 - フェーズ 2・3 は、`internal/failure` がマージされた後に、フェーズ 2 とフェーズ 3 をそれぞれ別のコミットにする。
-- PR の境界と推奨タイトルは、本計画の後に `mkplan2.md` が加える。本計画ではコミットの単位だけを定める。
+- PR の境界と実装モデル要件は §3.2 と各 `### PR-N 作成ポイント` のとおりである。
 
 ## 4. テスト戦略 (Test Strategy)
 
@@ -247,10 +314,9 @@ architecture §7.3 の 3 つの検査を、フェーズ 2 のステップ 2-8 �
 
 ## 7. 実装チェックリスト (Implementation Checklist)
 
-- [ ] フェーズ 1: `webhookClient` の切り出しと `SlackWebhookPublisher` の切り替え（ステップ 1-1〜1-7）。`internal/failure` に依存せずに完了できる
-- [ ] フェーズ 2: `SlackFailureNotifier` と番兵とテスト（ステップ 2-1〜2-9）。前提（`internal/failure`）を満たすこと
-- [ ] フェーズ 3: `internal/failure` の guard と `.golangci.yml` の `depguard`（ステップ 3-1〜3-3）
-- [ ] フェーズ 4: #109 への記録（ステップ 4-1）
+- [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7）。フェーズ 1 の完了条件を満たす
+- [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 / 2-8 / 2-9）。フェーズ 2 の完了条件を満たす
+- [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 4-1）。フェーズ 3 の完了条件を満たし、#109 の issue に記録した
 - [ ] §5 のすべての AC の検証の区分（`test`・`static`）が実行され、通る
 - [ ] `make fmt`・`make test`・`make lint` がすべてのフェーズの完了時に通る
 
@@ -263,7 +329,5 @@ architecture §7.3 の 3 つの検査を、フェーズ 2 のステップ 2-8 �
 
 ## 9. 次のステップ (Next Steps)
 
-- 本計画をレビューし、`approved` にする（`requirements_process.md` §0）。`approved` になるまで実装に着手しない。
-- 承認の後、`mkplan2.md` で PR の境界と実装モデル要件を加える。
-- `/runplan 0016` でフェーズ 1 から実装する。フェーズ 1 は `internal/failure` のマージを待たずに着手できる。フェーズ 2・3 は #109 の手順 1 の PR のマージ後に行う。
-- #109 の手順 1 の PR が同等の `internal/failure` の guard を置いた場合は、ステップ 3-1 の重複を避ける（§2.0）。
+- 本書の PR の境界と実装モデル要件（§3.2 と各 `### PR-N 作成ポイント`）に従い、`/runplan 0016` で PR-1 から順に実装する。PR-1 は `internal/failure` のマージを待たずに着手できる。PR-2・PR-3 は #109 の手順 1 の PR のマージ後に行う。
+- #109 の手順 1 の PR が同等の `internal/failure` の guard を置いた場合は、ステップ 3-1 を飛ばし、重複するテストを加えない（§2.0）。
