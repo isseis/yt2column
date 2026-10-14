@@ -296,7 +296,7 @@ type SlackWebhookPublisher struct {
 -   **URL を `webhookClient` に持たせる理由。** 伏せる部分（`parts`）は、送信に使う URL と同じ値から導かなければならない。URL を呼び出し元が持って `post` に渡す形では、この対応を呼び出し元ごとの約束で守ることになる。`webhookClient` が URL を持ち、`post` の中で取り出して導出すれば、対応は型で決まる（CLAUDE.md「Enforce invariants with the type」）。伏せる部分は平文なので、フィールドには持たず、`post` の呼び出しごとに導出する。導出の費用は、送信の時間（秒の単位）に比べて無視できる（CLAUDE.md「Performance」）。
 -   `post` の振る舞い（`context.WithTimeoutCause` による上限、`webhookPayload`、`Content-Type`、8,193 バイトまでの読み込み、`ok` の判定、`*SlackHTTPStatusError`・`ErrSlackInvalidResponse`・`ErrSlackTransport`・時間切れと中断のエラー）は、現在の `postMessage`・`postFailure`（`slack.go:158-194`・`:220-228`）と同じである。`post` の返すエラーがちょうど 1 つの番兵に一致するという約束（`slack.go:215-219` のコメント）も変えない。
 -   `Publish` は、先頭（`prepareSlackMessages` の前）で `client.configured()` を呼び、URL の有無を確かめる。今と同じく、ゼロ値では記事の準備のエラーより先に `errZeroWebhookURL` を返す（`slack.go:126-130`）。`post` も、URL のない `webhookClient` では送らずに `errZeroWebhookURL` を返す。ゼロ値の `SlackWebhookPublisher` は、今と同じく `errZeroWebhookURL` を返し、何も送らず、`*SlackPostError` を返さない（`TestSlackPublishZeroValue`、`slack_test.go:1093`）。
--   `post` は送信の前に `ctx` を確かめない。現在の `postMessage` も確かめず、確認は `Publish` のループ（`slack.go:144-146`）にある。通知の実装は `post` を呼ぶ前に自分で確かめる（§3.4）。`post` に確認を加えないのは、記事の投稿の `*SlackPostError` の `Attempted`（`slack_errors.go:43-52`）の意味を変えないためである。
+-   **`post` は `ctx` を確かめない。** 共有の `post` 自身は `ctx` の状態を確かめない。これは、記事の投稿の `*SlackPostError` の `Attempted`（`slack_errors.go:43-52`）の意味を変えないためである。取り消し済みの `ctx` を送らないことは、通知の実装（`Notify` の契約、§3.4）の責務である。
 -   `checkWebhookURL` は、`NewSlackWebhookPublisher` の検査（`slack.go:92-98`）をそのまま切り出したものである。返す番兵（`errZeroWebhookURL`・`errInvalidWebhookURL`）もメッセージも変えない。
 -   **既存の 2 つの方式を選ばなかった理由。** (1) 通知の実装が `*SlackWebhookPublisher` を持ち、その非公開のメソッド `postMessage` を呼ぶ形は、既存のコードを変えずに済む。しかし、通知の実装が使わない `interval` を持つ `SlackWebhookPublisher` の値を抱えることになり、通知の実装の上限をテストで短くするにも記事の投稿の構築関数を経由する必要がある。送信の経路そのものを型として切り出せば、両者が同じ部品を対等に持つ形になる。(2) 送信の経路を `internal/slackwebhook` に移す形（H-01 の候補 (b)）は、`*SlackHTTPStatusError` などのエラー型と番兵も移すことになり、`internal/config`・`cmd/yt2column` が import する検査用のリーフパッケージに `net/http` の送信が入る。共有に必要なのは同じパッケージの中の 2 つの型だけなので、パッケージを越えて移す理由がない（YAGNI）。
 
@@ -676,7 +676,7 @@ flowchart LR
 | 時間の上限と `ctx`（AC-10） | 応答を返さないサーバで、上限 100 ミリ秒、`ctx` の期限 1 時間のとき、`context.DeadlineExceeded` と判定できるエラーが 5 秒以内に返る（5 秒は、呼び出し元の期限（1 時間）ではなく通知の実装の時間の上限（100 ミリ秒）で打ち切られたことを示すための、余裕を持たせた固定の値である）。取り消し済みの `ctx` で送信先のリクエストの数が 0 |
 | 再試行しない（AC-11） | AC-08・AC-09・AC-10 の各場合で、送信先のリクエストの数がちょうど 1（取り消し済みの `ctx` では 0） |
 | 構築（AC-12） | ゼロ値の `secret.Secret`、`http://`・ホストのない URL・制御文字を含む URL でエラー。メッセージに URL もその一部も現れない。`https` の正しい URL で構築しても、TLS のテスト用のサーバ（`httptest.NewTLSServer`）のリクエストの数が 0 |
-| テスト用の構築（AC-12） | `NewSlackFailureNotifierForLoopbackTest` が、loopback でない URL・非正の `timeout`・空の URL で `t.Fatal` になり、nil を返す（`fatalRecorder` を使う `TestNewSlackWebhookPublisherForLoopbackTestRejects` と同じ形）。`NewSlackWebhookPublisherForLoopbackTest` は変更しないまま通る |
+| テスト用の構築（AC-12） | `NewSlackFailureNotifierForLoopbackTest` が、loopback でない URL・非正の `timeout`・空の URL を拒否し、nil を返す。`NewSlackWebhookPublisherForLoopbackTest` は変更しないまま通る |
 | 失敗の後の再利用（AC-16） | `500` を返した後に `ok` を返すサーバで、2 回目の `Notify` が成功し、リクエストの数が 2 |
 | 並行の呼び出し | 1 つの値から複数の goroutine で同時に `Notify` し（`make test` の `-race` の下で）、すべてが成功し、リクエストの数が呼び出しの数と一致する |
 | guard（AC-01・AC-01a） | §3.6 の 4 つのテスト |
