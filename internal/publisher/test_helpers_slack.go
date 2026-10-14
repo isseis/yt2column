@@ -53,14 +53,20 @@ func newLoopbackWebhookClient(t testing.TB, timeout time.Duration, endpoint stri
 }
 
 // newSlackWebhookPublisherForLoopbackTest is NewSlackWebhookPublisherForLoopbackTest
-// with a transport seam.
+// with a transport seam. It fails t when the interval it was given does not
+// reach the publisher, so a refactor of the constructor cannot silently drop
+// the inter-message wait.
 func newSlackWebhookPublisherForLoopbackTest(t testing.TB, opts SlackTestOptions, endpoint string, transport http.RoundTripper) *SlackWebhookPublisher {
 	t.Helper()
 	client, ok := newLoopbackWebhookClient(t, opts.Timeout, endpoint, transport)
 	if !ok {
 		return nil
 	}
-	return newSlackWebhookPublisher(opts.Interval, client)
+	value := newSlackWebhookPublisher(opts.Interval, client)
+	if value.interval != opts.Interval {
+		t.Fatal("slack test publisher: the interval was not carried to the publisher")
+	}
+	return value
 }
 
 // SlackMessagesForTest returns the text of every message Publish sends for
