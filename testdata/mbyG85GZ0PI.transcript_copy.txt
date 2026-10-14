@@ -1,0 +1,1398 @@
+0:00
+ANNOUNCER: The following program is brought to you by Caltech.
+0:16
+YASER ABU-MOSTAFA: Welcome to machine learning, and welcome to our online audience as well.
+0:21
+Let me start with an outline of the course, and then go into the material of today's lecture.
+0:28
+As you see from the outline, the topics are given colors, and that
+0:34
+designates their main content, whether it's mathematical or practical. Machine learning is a very broad subject.
+0:41
+It goes from very abstract theory to extreme practice as in rules of thumb.
+0:47
+And the inclusion of a topic in the course depends on the relevance to
+0:52
+machine learning. So some mathematics is useful because it gives you the conceptual framework,
+0:57
+and then some practical aspects are useful because they give you the way to deal with real learning systems.
+1:05
+Now if you look at the topics, these are not meant to be separate topics for each lecture.
+1:10
+They just highlight the main content of those lectures. But there is a story line that goes through it, and let me tell you what
+1:17
+the story line is like. It starts here with: what is learning?
+1:23
+Can we learn?
+1:29
+How to do it? How to do it well?
+1:37
+And then the take-home lessons. There is a logical dependency that goes through the course, and there's
+1:44
+one exception to that logical dependency. One lecture, which is the third one, doesn't really belong here.
+1:53
+It's a practical topic, and the reason I included it early on is because I needed to give you some tools to play around with, to test the
+2:01
+theoretical and conceptual aspects. If I waited until it belonged normally, which is to the second aspect of the
+2:09
+linear models which is down there, the beginning of the course would be
+2:15
+just too theoretical for people's taste. And as you see, if you look at the colors, it is mostly red in the
+2:22
+beginning and mostly blue in the end. So it starts building the concepts and the theory.
+2:28
+And then it goes on to the practical aspects. Now, let me start today's lecture.
+2:35
+And the subject of the lecture is the learning problem. It's an introduction to what learning is.
+2:41
+And I will draw your attention to one aspect of this slide, which is this part.
+2:48
+That's the logo of the course. And believe it or not, this is not artwork.
+2:53
+This is actually a technical figure that will come up in one of the lectures. I'm not going to tell you which one.
+2:59
+So you can wait in anticipation until it comes up, but this will actually be a scientific figure that we will talk about.
+3:06
+Now when we move to today's lecture, I'm going to talk
+3:11
+today about the following. Machine learning is a very broad subject, and I'm going to start with
+3:18
+one example that captures the essence of machine learning. It's a fun example about movies that everybody watches.
+3:26
+And then after that, I'm going to abstract from the learning problem, the practical learning problem, aspects that are common to all
+3:35
+learning situations that you're going to face. And in abstracting them, we'll have the mathematical formalization of the
+3:42
+learning problem. And then we will get our first algorithm for machine learning today.
+3:47
+It's a very simple algorithm, but it will fix the idea about what is the role of an algorithm in this case.
+3:53
+And we will survey the types of learning, so that we know which part we are emphasizing in this course, and which parts are nearby.
+4:01
+And I will end up with a puzzle, a very interesting puzzle, and it's a puzzle in more ways than one, as you will see.
+4:08
+OK, so let me start with an example.
+4:14
+The example of machine learning that I'm going to start with is how a viewer would rate a movie.
+4:22
+Now that is an interesting problem, and it's interesting for us because we watch movies, and very interesting for a company that rents out movies.
+4:30
+And indeed, a company which is Netflix wanted to improve the in-house system
+4:37
+by a mere 10%. So they make recommendations when you log in, they recommend movies that
+4:43
+they think you will like, so they think that you'll rate them highly. And they had a system, and they wanted to improve the system.
+4:50
+So how much is a 10% improvement in performance worth to the company?
+4:56
+It was actually $1 million that was paid out to the first group that
+5:03
+actually managed to get the 10% improvement. So you ask yourself, 10% improvement in something like that, why should
+5:10
+that be worth a million dollars? It's because, if the recommendations that the movie company makes are spot
+5:19
+on, you will pay more attention to the recommendation, you are likely to rent
+5:25
+the movies that they recommend, and they will make lots of money-- much more than the million dollars they promised. And this is very typical in machine learning.
+5:31
+For example, machine learning has applications in financial forecasting. You can imagine that the minutest improvement in financial forecasting
+5:38
+can make a lot of money. So the fact that you can actually push the system to be better using machine
+5:45
+learning is a very attractive aspect of the technique in a wide spectrum of
+5:50
+applications. So what did these guys do?
+5:57
+They gave the data, and people started working on the problem using different
+6:04
+algorithms, until someone managed to get the prize. Now if you look at the problem of rating a movie, it captures the
+6:12
+essence of machine learning, and the essence has three components. If you find these three components in a problem you have in your field, then
+6:20
+you know that machine learning is ready as an application tool. What are the three?
+6:25
+The first one is that a pattern exists. If a pattern didn't exist, there would be nothing to look for.
+6:33
+So what is the pattern here? There is no question that the way a person rates a movie is related to how
+6:41
+they rated other movies, and is also related to how other people rated that movie.
+6:48
+We know that much. So there is a pattern to be discovered. However, we cannot really pin it down mathematically.
+6:57
+I cannot ask you to write a 17th-order polynomial that captures how people rate movies.
+7:03
+So the fact that there is a pattern, and that we cannot pin it down mathematically, is the reason why we are going for machine learning.
+7:10
+For "learning from data". We couldn't write down the system on our own, so we're going to depend on
+7:15
+data in order to be able to find the system. There is a missing component which is very important.
+7:21
+If you don't have that, you are out of luck. We have to have data. We are learning from data.
+7:28
+So if someone knocks on my door with an interesting machine learning application, and they tell me how exciting it is, and how great the
+7:33
+application would be, and how much money they would make, the first question I ask, what data do you have?
+7:41
+If you data, we are in business. If you don't, you are out of luck. If you have these three components, you are ready to
+7:48
+apply machine learning. Now let me give you a solution to the movie rating, in order to start
+7:56
+getting a feel for it. So here is a system. Let me start to focus on part of it.
+8:01
+We are going to describe a viewer as a vector of factors, a profile if
+8:07
+you will. So if you look here for example, the first one would be comedy content.
+8:16
+Does the movie have a lot of comedy?
+8:21
+From a viewer point of view, do they like comedies? Here, do they like action?
+8:27
+Do they prefer blockbusters, or do they like fringe movies? And you can go on all the way, even to asking yourself whether you like the
+8:36
+lead actor or not. Now you go to the content of the movie itself, and you get the
+8:42
+corresponding part. Does the movie have comedy? Does it have action?
+8:48
+Is it a blockbuster? And so on. Now you compare the two, and you realize that if there is a match--
+8:56
+let's say you hate comedy and the movie has a lot of comedy-- then the chances are you're not going to like it.
+9:02
+But if there is a match between so many coordinates, and the number of factors here could be really like 300 factors.
+9:10
+Then the chances are you'll like the movie. And if there's a mismatch, the chances are you're not going to like the movie.
+9:16
+So what do you do, you match the movie and the viewer factors, and then you add the
+9:21
+contributions of them. And then as a result of that, you get the predicted rating.
+9:26
+This is all good except for one problem, which is this is really not
+9:34
+machine learning. In order to produce this thing, you have to watch the movie, and analyze
+9:40
+the content. You have to interview the viewer, and ask about their taste.
+9:46
+And then after that, you combine them and try to get a prediction for the rating.
+9:52
+Now the idea of machine learning is that you don't have to do any of that. All you do is sit down and sip on your tea, while the machine is doing
+9:59
+something to come up with this figure on its own. So let's look at the learning approach.
+10:06
+So in the learning approach, we know that the viewer will be a vector of
+10:12
+different factors, and different components for every factor. So this vector will be different from one viewer to another.
+10:20
+For example, one viewer will have a big blue content here, and one of them will have a small blue content, depending on their taste.
+10:28
+And then, there is the movie. And a particular movie will have different contents that correspond to those.
+10:37
+And the way we said we are computing the rating, is by simply taking these
+10:42
+and combining them and getting the rating. Now what machine learning will do is reverse-engineer that process.
+10:51
+It starts from the rating, and then tries to find out what factors would be
+10:59
+consistent with that rating. So think of it this way. You start, let's say, with completely random factors.
+11:07
+So you take these guys, just random numbers from beginning to end, and these guys, random numbers from beginning to end.
+11:14
+For every user and every movie, that's your starting point. Obviously, there is no chance in the world that when you get the inner
+11:22
+product between these factors that are random, that you'll get anything that looks like the rating that actually took place, right?
+11:30
+But what you do is you take a rating that actually happened, and then you start nudging the factors ever so slightly toward that rating.
+11:40
+Make the direction of the inner product get closer to the rating.
+11:45
+Now it looks like a hopeless thing. I start with so many factors, they are all random, and I'm trying to make them match a rating.
+11:51
+What are the chances? Well the point is that you are going to do this not for one rating, but for
+11:57
+a 100 million ratings. And you keep cycling through the 100 million, over and over and over.
+12:03
+And eventually, lo and behold, you find that the factors now are meaningful in terms of the ratings.
+12:10
+And if you get a user, a viewer here, that didn't watch a movie, and you get
+12:17
+the vector that resulted from that learning process, and you get the movie vector that resulted from that process, and you do the inner product,
+12:25
+lo and behold, you get a rating which is actually consistent with how that viewer rates the movie.
+12:31
+That's the idea. Now this actually, the solution I described, is one of the winning
+12:41
+solutions in the competition that I mentioned. So this is for real, this actually can be used.
+12:47
+Now with this example in mind, let's actually go to the components of learning.
+12:52
+So now I would like to abstract from the learning problems that I see, what are the mathematical components that make up the learning problem?
+13:00
+And I'm going to use a metaphor. I'm going to use a metaphor now from another application domain, which
+13:05
+is a financial application. So the metaphor we are going to use is credit approval.
+13:11
+You apply for a credit card, and the bank wants to decide whether it's a good idea to extend a credit card for you or not.
+13:18
+From the bank's point of view, if they're going to make money, they are happy. If they are going to lose money, they are not happy. That's the only criterion they have.
+13:24
+Now, very much like we didn't have a magic formula for deciding how a viewer will rate a movie, the bank doesn't have a magic formula for
+13:32
+deciding whether a person is creditworthy or not. What they're going to do, they're going to rely on historical records of
+13:39
+previous customers, and how their credit behavior turned out, and then try to reverse-engineer the system, and when they get the system frozen,
+13:47
+they're going to apply it to a future customer. That's the deal. What are the components here?
+13:54
+Let's look at it. First, you have the applicant information. And the applicant information-- you look at this, and you can see that
+14:02
+there is the age, the gender, how much money you make, how much money you owe, and all kinds of fields that are believed to be related to the
+14:10
+creditworthiness. Again, pretty much like we did in the movie example, there is no question
+14:17
+that these fields are related to the creditworthiness. They don't necessarily uniquely determine it, but they are related.
+14:25
+And the bank doesn't want a sure bet. They want to get the credit decision as reliable as possible. So they want to use that pattern, in order to be able to come up with
+14:32
+a good decision. And they take this input, and they want to approve the credit or deny it.
+14:38
+So let's formalize this. First, we are going to have an input.
+14:45
+And the input is called x. Surprise, surprise! And that input happens to be the customer application.
+14:52
+So we can think of it as a d-dimensional vector, the first component is the salary, years in residence, outstanding debt, whatever
+15:00
+the components are. You put it as a vector, and that becomes the input. Then we get the output y. The output y is simply the decision, either to
+15:09
+extend credit or not to extend credit, +1 and -1.
+15:15
+And being a good or bad customer, that is from the bank's point of view.
+15:22
+Now we have after that, the target function. The target function is a function from a domain X, which is the
+15:31
+set of all of these x's. So it is the set of vectors of d dimensions.
+15:37
+So it's a d-dimensional Euclidean space, in this case. And then the Y is the set of y's. Well, that's an easy one because y can only be +1 or -1,
+15:44
+accept or deny. And therefore this is just a binary co-domain.
+15:49
+And this target function is the ideal credit approval formula, which we
+15:55
+don't know. In all of our endeavors in machine learning, the target function is
+16:00
+unknown to us. If it were known, nobody needs learning. We just go ahead and implement it.
+16:08
+But we need to learn it because it is unknown to us. So what are we going to do to learn it?
+16:14
+We are going to use data, examples. So the data in this case is based on previous customer application records.
+16:23
+The input, which is the information in their applications, and the output, which is how they turned out in hindsight.
+16:31
+This is not a question of prediction at the time they applied, but after five years, they turned out to be a great customer.
+16:36
+So the bank says, if someone has these attributes again, let's approve credit because these guys tend to make us money.
+16:43
+And this one made us lose a lot of money, so let's deny it, and so on. And the historical records-- there are plenty of historical records.
+16:50
+All of this makes sense when you're talking about having 100,000 of those guys. Then you pretty much say, I will capture what the essence of that
+16:58
+function is. So this is the data, and then you use the data, which is the historical records, in order to get the hypothesis.
+17:06
+The hypothesis is the formal name we're going to call the formula we get
+17:12
+to approximate the target function. So the hypothesis lives in the same world as the target function, and if
+17:19
+you look at the value of g, it supposedly approximates f.
+17:25
+While f is unknown to us, g is very much known-- actually we created it-- and the hope is that it does approximate f well.
+17:33
+That's the goal of learning. So this notation will be our notation for the rest of the course, so get
+17:39
+used to it. The target function is always f, the hypothesis we produce, which we'll refer to as the final hypothesis will be called g, the data will always have
+17:47
+that notation-- there are capital N points, which are the data set. And the output is always y.
+17:55
+So this is the formula to be used. Now, let's put it in a diagram in order to analyze it a little bit more.
+18:03
+If you look at the diagram here, here is the target function and it is unknown-- that is the ideal approval which we will never know, but that's what we're
+18:11
+hoping to get to approximate. And we don't see it. We see it only through the eyes of the training examples.
+18:18
+This is our vehicle of understanding what the target function is. Otherwise the target function is a mysterious quantity for us.
+18:25
+And eventually, we would like to produce the final hypothesis. The final hypothesis is the formula the bank is going to use in order to
+18:31
+approve or deny credit, with the hope that g hopefully approximates that f.
+18:37
+Now what connects those two guys? This will be the learning algorithm.
+18:43
+So the learning algorithm takes the examples, and will produce the final hypothesis, as we described in the example of the movie rating.
+18:51
+Now there is another component that goes into the learning algorithm.
+18:56
+So what the learning algorithm does, it creates the formula from a preset
+19:02
+model of formulas, a set of candidate formulas, if you will. And these we are going to call the hypothesis set, a set of hypotheses
+19:10
+from which we are going to pick one hypothesis. So from this H comes a bunch of small h's, which are functions that can be
+19:18
+candidates for being the credit approval. And one of them will be picked by the learning algorithm, which happens to
+19:24
+be g, hopefully approximating f. Now if you look at this part of the chain, from the target function to the
+19:30
+training to the learning algorithm to the final hypothesis, this is very natural, and nobody will object to that.
+19:37
+But why do we have this hypothesis set? Why not let the algorithm pick from anything?
+19:44
+Just create the formula, without being restricted to a particular set of formulas H.
+19:50
+There are two reasons, and I want to explain them. One of them is that there is no downside for including a hypothesis
+19:56
+set in the formalization. And there is an upside. So let me describe why there is no downside, and then describe why there
+20:05
+is an upside. There is no downside for the simple reason that, from a practical point of
+20:11
+view, that's what you do. You want to learn, you say I'm going to use a linear formula. I'm going to use a neural network. I'm going to use a support vector machine.
+20:17
+So you are already dictating a set of hypotheses. If you happen to be a brave soul, and you don't want to restrict yourself at
+20:25
+all, very well, then your hypothesis set is the set of all possible hypotheses.
+20:31
+Right? So there is no loss of generality in putting it. So there is no downside.
+20:37
+The upside is not obvious here, but it will become obvious as we go through the theory. The hypothesis set will play a pivotal role in the theory of learning.
+20:47
+It will tell us: can we learn, and how well we learn, and whatnot. Therefore having it as an explicit component in the problem statement
+20:54
+will make the theory go through. So that's why we have this figure.
+20:59
+Now, let me focus on the solution components of that figure. What do I mean by the solution components?
+21:07
+If you look at this, the first part, which is the target-- let me try to
+21:14
+expand it-- so the target function is not under your control. Someone knocks on my door and says: I want to approve credit.
+21:21
+That's the target function, I have no control over that. And by the way, here are the historical records.
+21:27
+I have no control over that, so they give me the data. And would you please hand me the final hypothesis?
+21:33
+That is what I'm going to give them at the end, before I receive my check. So all of that is completely dictated.
+21:39
+Now let's look at the other part. The learning algorithm, and the hypothesis
+21:49
+set that we talked about, are your solution tools. These are things you choose, in order to solve the problem.
+21:55
+And I would like to take a little bit of a look into what they look like,
+22:01
+and give you an example of them, so that you have a complete chain for the entire figure in your mind.
+22:06
+From the target function, to the data set, to the learning algorithm, hypothesis set, and the final hypothesis.
+22:12
+So, here is the hypothesis set. We chose the notation H for the set, and the element will be given the
+22:22
+symbol small h. So h is a function, pretty much like the final hypothesis g.
+22:27
+g is just one of them that you happen to elect. So when we elect it, we call it g. If it's sitting there generically, we
+22:34
+call it h. And then, when you put them together, they are referred to as
+22:39
+the learning model. So if you're asked what is the learning model you are using, you're actually choosing both a hypothesis set and a learning algorithm.
+22:46
+We'll see the perceptron in a moment, so this would be the perceptron model, and this would be the perceptron learning algorithm.
+22:52
+This could be neural network, and this would be back propagation. This could be support vector machines of some kind, let's say
+22:59
+radial basis function version, and this would be the quadratic programming. So every time you have a model, there is a hypothesis set, and then there is
+23:05
+an algorithm that will do the searching and produce one of those guys. So this is the standard form
+23:13
+for the solution. Now, let me go through a simple hypothesis set in detail so we have
+23:18
+something to implement. So after the lecture, you can actually implement a learning algorithm on real data if you want to.
+23:24
+This is not a glorious model. It's a very simple model. On the other hand, it's a very clear model to pinpoint what we are talking about.
+23:33
+So here is the deal.
+23:39
+You have an input, and the input is x_1 up to x_d, as we said-- d-dimensional vector-- and each of them comes from the real numbers, just
+23:49
+for simplicity. So this belongs to the real numbers. And these are the attributes of a customer. As we said, salary, years in residence, and whatnot.
+23:56
+So what does the perceptron model do? It does a very simple formula.
+24:02
+It takes the attributes you have and gives them different weights, w.
+24:08
+So let's say the salary is important, the chances are w corresponding to the salary will be big.
+24:13
+Some other attribute is not that important. The chances are the w that goes with it is not that big.
+24:19
+Actually, outstanding debt is bad news. If you owe a lot, that's not good. So the chances are the weight will be negative for outstanding
+24:26
+debt, and so on. Now you add them together, and you add them in a linear form-- that's what
+24:32
+makes it a perceptron-- and you can look at this as a credit score, of sorts.
+24:39
+Now you compare the credit score with a threshold. If you exceed the threshold, they approve the credit card.
+24:46
+And if you don't, they deny the credit card. So that is the formula they
+24:51
+settle on. They have no idea, yet, what the w's and the threshold are, but they dictated the
+24:58
+formula-- the analytic form that they're going to use. Now we take this and we put it in the formalization we had.
+25:06
+We have to define a hypothesis h, and this will tell us what is the hypothesis set that has all the hypotheses that have the same
+25:14
+functional form. So you can write it down as this. This is a little bit long, but there's absolutely nothing to it.
+25:22
+This is your credit score, and this is the threshold you compare to by subtracting.
+25:27
+If this quantity is positive, you belong to the first thing and you will approve credit. If it's negative, you belong here and you will deny credit.
+25:34
+Well, the function that takes a real number, and produces the sign +1 or -1, is called the sign.
+25:41
+So when you take the sign of this thing, this will indeed be +1 or -1, and this will give the decision you want.
+25:46
+And that will be the form of your hypothesis. Now let's put it in color, and you realize that what defines h is your
+25:57
+choice of w_i and the threshold. These are the parameters that define one hypothesis versus the other.
+26:05
+x is an input that will be put into any hypothesis. As far as we are concerned, when we are learning for example, the inputs
+26:11
+and outputs are already determined. These are the data set. But what we vary to get one hypothesis or another, and what the algorithm
+26:19
+needs to vary in order to choose the final hypothesis, are those parameters which, in this case, are w_i and the threshold.
+26:27
+So let's look at it visually. Let's assume that the data you are working
+26:32
+with is linearly separable. Linearly separable in this case, for example, you have nine data points.
+26:38
+And if you look at the nine data points, some of them were good customers and some of them were bad customers.
+26:44
+And you would like now to apply the perceptron model, in order to separate them correctly. You would like to get to this situation, where the perceptron, which
+26:53
+is this purple line, separates the blue region from the red region or the pink region, and indeed all the good customers belong to one, and the bad
+27:02
+customers belong to the other. So you have hope that a future customer, if they lie here or lie here, they will be classified correctly.
+27:09
+If there is actually a simple linear pattern to this to be detected. But when you start, you start with random weights, and the random weights
+27:16
+will give you any line. So the purple line in both cases corresponds to the
+27:23
+purple parameters there. One choice of these w's and the threshold corresponds to one line.
+27:30
+You change them, you get another line. So you can see that the learning algorithm is playing around with these
+27:35
+parameters, and therefore moving the line around, trying to arrive at this happy solution.
+27:40
+Now we are going to have a simple change of notation. Instead of calling it threshold, we're going to treat it as if it's a weight.
+27:51
+It was minus threshold. Now we call it, plus w_0. Absolutely nothing, all you need to do is choose w_0 to
+27:58
+be minus the threshold. No big deal. So why do we do that?
+28:04
+We do that because we are going to introduce an artificial coordinate. Remember that the input was x_1 through x_d.
+28:11
+Now we're going to add x_0. This is not an attribute of the customer, but an artificial constant we add, which happens to be always +1.
+28:20
+Why are we doing this? You probably guessed. Because when you do that, then all of a sudden the formula simplifies.
+28:26
+Now you are summing from i equals 0, instead of i equals 1. So you added the zero term, and what is the zero term?
+28:33
+It's the threshold which you conveniently call w_0 with a plus sign, multiplied by the 1. So indeed, this will be the formula equivalent to that.
+28:41
+So it looks better. And this is the standard notation we're going to use. And now we put it as a vector form, which will simplify matters, so
+28:51
+in this case you will be having an inner product between a vector w, a column vector, and a vector x.
+28:59
+So the vector w would be w_0, w_1, w_2, w_3, w_4, et cetera.
+29:04
+And x_0, x_1, x_2, et cetera. And you do the inner product by taking a transpose, and you get a formula
+29:10
+which is exactly the formula you have here. So now we are down to this formula for the perceptron hypothesis.
+29:17
+Now that we have the hypothesis set, let's look for the learning algorithm
+29:22
+that goes with it. The hypothesis set tells you the resources you can work with. Now we need the algorithm that is going to look at the data, the
+29:29
+training data that you're going to use, and navigate through the space of hypotheses, to bring the one that is going to output as the final
+29:37
+hypothesis that you give to your customer. So this one is called the perceptron learning algorithm, and it implements
+29:47
+this function. What it does is the following. It takes the training data.
+29:54
+That is always what a learning algorithm does. This is their starting point. So it takes existing customers, and their existing credit behavior in
+30:03
+hindsight-- that's what it uses-- and what does it do? It tries to make the w correct.
+30:12
+So it really doesn't like at all when a point is misclassified.
+30:17
+So if a point is misclassified, it means that your w didn't do
+30:22
+the right job here. So what does it mean to be a misclassified point here? It means that when you apply your formula, with the current w--
+30:31
+the w is the one that the algorithm will play with-- apply it to this particular x.
+30:37
+Then what happens? You get something that is not the credit behavior you want. It is misclassified.
+30:43
+So what do we do when a point is misclassified? We have to do something. So what the algorithm does, it updates the weight vector.
+30:49
+It changes the weight, which changes the hypothesis, so that it behaves better on that particular point.
+30:55
+And this is the formula that it does. So I'll explain it in a moment.
+31:01
+Let me first try to explain the inner product in terms of agreement or
+31:08
+disagreement. If you have the vector x and the vector w this way, their inner product
+31:16
+will be positive, and the sign will give you a +1. If they are this way, the inner product will be negative, and the sign
+31:25
+will be -1. So being misclassified means that either they are this way and the
+31:32
+output should be -1, or it's this way and output should be +1.
+31:37
+That's what makes it misclassified, right? So if you look here at this formula, it takes the old w and adds something
+31:49
+that depends on the misclassified point. Both in terms of the x_n and y_n.
+31:55
+y_n is just +1 or -1. So here you are either adding a vector or subtracting a vector.
+32:00
+And we will see from this diagram that you're always doing so in such a way that you make the point more likely to be correctly classified.
+32:09
+How is that? If y equals +1, as you see here, then it must be that since the point
+32:15
+is misclassified, that w dot x was negative. Now when you modify this to w plus y x, it's actually w plus x.
+32:24
+You add x to w, and when you add x to w you get the blue vector instead of the red vector.
+32:30
+And lo and behold, now the inner product is indeed positive. And in the other case when it's -1, it is misclassified because they
+32:38
+were this way. They give you +1 when it should be -1. And when you apply the rule, since y is -1, you are actually
+32:44
+subtracting x. So you subtract x and get this guy, and you will get the correct classification.
+32:49
+So this is the intuition behind it. However, it is not the intuition that makes this work. There are a number of problems with this approach.
+32:58
+I just motivated that this is not a crazy rule. Whether or not it's a working rule, that is yet to be seen.
+33:06
+Let's look at the iterations of the perceptron learning algorithm. Here is one iteration of PLA.
+33:13
+So you look at this thing, and you have this current w corresponds to
+33:18
+the purple line. This guy is blue in the red region. It means it's misclassified.
+33:24
+So now you would like to adjust the weights, that is move around that purple line, such that the point is classified correctly.
+33:32
+If you apply the learning rule, you'll find that you're actually moving in this direction, which means that the blue point will likely be correctly
+33:40
+classified after that iteration. There is a problem because, let's say that I actually move
+33:46
+this guy in this direction. Well this one, I got it right, but this one, which used to be right,
+33:55
+now is messed up. It moved to the blue region, right? And if you think about it, I'm trying to take care of one point, and I may be
+34:02
+messing up all other points, because I'm not taking them into consideration. Well, the good news for the perceptron
+34:08
+learning algorithm is that all you need to do, is for iterations 1, 2, 3, 4, et cetera, pick a misclassified point, anyone you like.
+34:19
+And then apply the iteration to it.
+34:24
+The iteration we just talked about, which is this one. The top one. And that's it.
+34:31
+If you do that, and the data was originally linearly separable, then you will end up with the case that you will get to a correct solution.
+34:40
+You will get to something that classifies all of them correctly. This is not an obvious statement. It requires a proof. The proof is not that hard.
+34:47
+But it gives us the simplest possible learning model we can think of. It's a linear model, and this is your algorithm.
+34:54
+All you need to do is be very patient, because 1, 2, 3, 4-- this is a really long.
+35:00
+At times it can be very long. But it eventually converges. That's the promise, as long as the data is linearly separable.
+35:06
+So now we have one learning model, and if I give you now data from a bank--
+35:13
+previous customers and their credit behavior-- you can actually run the perceptron learning algorithm, and come up with a final hypothesis g that you
+35:21
+can hand to the bank. Not clear at all that it will be good, because all you did was match the
+35:26
+historical records. Well, you may ask the question: if I match the historical records, does this mean that I'm getting future customers right, which is the
+35:34
+only thing that matters? The bank already knows what happened with the previous customers. It's just using the data to help you find a good formula.
+35:41
+The formula will be good or not good to the extent that it applies to a new customer, and can predict the behavior correctly.
+35:47
+Well, that's a loaded question which will be handled in extreme detail, when we talk about the theory of learning.
+35:53
+That's why we have to develop all of this theory. So, that's it.
+35:58
+And that is the perceptron learning algorithm. Now let me go into the bigger picture of learning, because what I talked
+36:07
+about so far is one type of learning. It happens to be by far the most popular, and the most used.
+36:13
+But there are other types of learning. So let's talk about the premise of learning, from which the different
+36:21
+types came about. That's what learning is about.
+36:27
+This is the premise that is common between any problem that you
+36:34
+would consider learning. You use a set of observations, what we call data, to uncover
+36:41
+an underlying process. In our case, the target function.
+36:46
+You can see that this is a very broad premise. And therefore, you can see that people have rediscovered that over and over
+36:54
+and over, in so many disciplines. Can you think of a discipline, other than machine learning, that uses that
+37:00
+as its exclusive premise? Anybody have taken courses in statistics?
+37:09
+In statistics, that's what they do. The underlying process is a probability distribution.
+37:16
+And the observations are samples generated by that distribution.
+37:21
+And you want to take the samples, and predict what the probability distribution is. And over and over, there are so many disciplines under different names.
+37:29
+Now when we talk about different types of learning, it's not like we sit down and look at the world and say, this looks different from this because the
+37:37
+assumptions look different. What you do is, you take this premise and apply it in a context.
+37:43
+And that calls for a certain amount of mathematics and algorithms. If a particular set of assumptions takes you sufficiently far from the
+37:53
+mathematics and the algorithms you used in the other disciplines, that it takes on a life of its own.
+38:00
+And it develops its own math and algorithms, then you declare it a different type.
+38:05
+So when I list the types, it's not completely obvious just by the slide itself, that these should be the types that you have.
+38:13
+But for what it's worth, these are the most important types. First one is supervised learning, that's what we have
+38:18
+been talking about. And I will discuss it in detail, and tell you why it's called supervised. And it is, by far, the concentration of this course.
+38:26
+There is another one which is called unsupervised learning, and
+38:31
+unsupervised learning is very intriguing. I will mention it briefly here, and then we will talk about a very famous
+38:37
+algorithm for unsupervised learning later in the course. And the final type is reinforcement learning, which is even more
+38:44
+intriguing, and I will discuss it in a brief introduction in a moment.
+38:49
+So let's take them one by one. Supervised learning. So what is supervised learning?
+38:56
+Anytime you have the data that is given to you, with the output explicitly given-- here is the user and movie, and here is the rating.
+39:07
+Here is the previous customer, and here is their credit behavior. It's as if a supervisor is helping you out, in order to be able to classify
+39:15
+the future ones. That's why it's called supervised. Let's take an example of coin recognition, just to be able to
+39:21
+contrast it with unsupervised learning in a moment. Let's say you have a vending machine, and you would like to make
+39:29
+the system able to recognize the coins. So what do you do? You have physical measurements of the coin, let's be simplistic and say we
+39:36
+measure the size and mass of the coin you put. Now the coins will be quarters, nickels, pennies, and dimes.
+39:44
+25, 5, 1, and 10. And when you put the data in this diagram, they will belong there.
+39:51
+So the quarters, for example, are bigger, so they will belong here. And the dimes in the US currency happen to be the smallest of them,
+40:00
+so they are smallest here, and there will be a scatter because of the error in measurement, because of the exposure to the elements, and whatnot.
+40:07
+So let's say that this is your training data, and it's supervised because things are colored. I gave you those and told you they are 25 cents, 5 cents, et cetera.
+40:15
+So you use those in order to train a system, and the system will then be able to classify a future one.
+40:22
+For example, if we stick to the linear approach, you may be able to find separator lines like those.
+40:29
+And those separator lines will separate, based on the data, the 10 from the 1 from the 5 from the 25.
+40:35
+And once you have those, you can bid farewell to the data. You don't need it anymore. And when you get a future coin that is now unlabeled, you don't know what it
+40:42
+is, when the vending machine is actually working, then the coin will lie in one region or another, and you're going to classify it accordingly.
+40:51
+So that is supervised learning. Now let's look at unsupervised learning. For unsupervised learning, instead of having the examples, the training data,
+41:01
+having this form which is the input plus the correct target-- the correct output--
+41:07
+the customer and how they behaved in reality in credit,
+41:12
+we are going to have examples that have less information, so much less it is laughable.
+41:19
+I'm just going to tell you what the input is. And I'm not going to tell you what the target function is at all.
+41:27
+I'm not going to tell you anything about the target function. I'm just going to tell you, here is the data of a customer.
+41:32
+Good luck, try to predict the credit. OK--
+41:38
+How in the world are we going to do that? Let me show you that the situation is not totally hopeless.
+41:44
+That's what I'm going to achieve. I'm not going to tell you how to do it completely. But let me show you that a situation like that is not totally hopeless.
+41:51
+Let's go for the coin example. For the coin example, we have data that looks like this.
+42:01
+If I didn't tell you what the denominations are, the data would look like this.
+42:08
+Right? You have the measurements, but you don't know, is that a quarter, is it-- you don't know.
+42:14
+Now honestly, if you look at this thing, you say I can know something from this figure.
+42:19
+Things tend to cluster together. So I may be able to classify those clusters into categories, without
+42:25
+knowing what the categories are. That will be quite an achievement already. You still don't know whether it's 25 cents, or whatever.
+42:33
+But the data actually made you able to do something that is a significant step.
+42:38
+You're going to be able to come up with these boundaries. And now, you are so close to finding the full system.
+42:46
+So unlabeled data actually can be pretty useful. Obviously, I have seen the colored ones, so I actually chose the
+42:52
+boundaries right because I still remember them visually. But if you look at the clusters and you have never heard about that,
+42:58
+especially these guys might not look like two clusters. They may look like one cluster.
+43:04
+So it actually could be that this is ambiguous, and indeed in unsupervised
+43:10
+learning, the number of clusters is ambiguous at times.
+43:16
+And then, what you do-- this is the output of your system. Now, I can categorize the
+43:23
+coins into types. I'm just going to call them types: type 1, type 2, type 3, type 4.
+43:29
+I have no idea which belongs to which, but obviously if someone comes with a single example of a quarter, a dime, et cetera, then you are ready to go.
+43:37
+Whereas before, you had to have lots of examples in order to choose where exactly to put the boundary.
+43:42
+And this is why a set like that, which looks like complete jungle, is actually useful.
+43:50
+Let me give you another interesting example of unsupervised learning, where I give you the input without the output, and you are actually in
+43:55
+a better situation to learn. Let's say that your company or your school in this case, is sending you
+44:02
+for a semester in Rio de Janeiro. So you're very excited, and you decide that you'd better learn some
+44:09
+Portuguese, in order to be able to speak the language when you arrive. Not to worry, when you arrive, there will be a tutor who teaches you
+44:17
+Portuguese. But you have a month to go, and you want to help yourself as much as possible. You look around, and you find that the only resource you have is a radio
+44:26
+station in Portuguese in your car. So what you do, you just turn it on whenever you drive.
+44:35
+And for an entire month, you're bombarded with Portuguese. "tudo bem", "como vai", "valeu", stuff like that comes back.
+44:42
+After a while, without knowing anything-- it's unsupervised, nobody told you the meaning of any word-- you start to develop a model of the language in your mind.
+44:50
+You know what the idioms are, et cetera. You are very eager to know what actually "tudo bem" -- what does that mean?
+44:56
+You are ready to learn, and once you learn it, it's actually fixed in your mind. Then when you go there, you will learn the language faster than if you didn't
+45:03
+go through this experience. So you can think of unsupervised learning, in one way or another, as
+45:08
+a way of getting a higher-level representation of the input. Whether it's extremely high level as in clusters-- you forgot all the
+45:15
+attributes and you just tell me a label, or higher level as in this-- a better representation than just the crude input into some model
+45:23
+in your mind.
+45:29
+Now let's talk about reinforcement learning. In this case, it's not as bad as unsupervised learning.
+45:35
+So again, without the benefit of supervised learning, you don't get the correct output.
+45:40
+What you do is-- I will give you the input. OK, thank you very much, that's very kind.
+45:46
+What else? I'm going to give you some output.
+45:53
+The correct output? No! Some output. OK, that's very nice, but doesn't seem very helpful.
+46:01
+It looks now like unsupervised learning, because in unsupervised learning I could give you some output.
+46:06
+Here is a dime. Oh, it's a quarter. It's some output! Such output has no information.
+46:12
+The information comes from the next one. I'm going to grade this output.
+46:19
+So that is the information provided to you. So I'm not explicitly giving you the output, but when you choose an output,
+46:26
+I'm going to tell you how well you're doing. Reinforcement learning is interesting because it is mostly our own
+46:31
+experience in learning. Think of a toddler, and a hot cup of tea in front of her.
+46:38
+She is looking at it, and she is very curious. So she reaches to touch. Ouch!
+46:43
+And she starts crying. The reward is very negative for trying. Now next time she looks at it, and she remembers the previous experience, and
+46:51
+she doesn't touch it. But there is a certain level of pain, because there is an unfulfilled curiosity.
+46:57
+And curiosity killed the cat. In three or four trials, the toddler tries again. Maybe now it's OK.
+47:04
+And Ouch! Eventually from just the grade of the behavior of to touch it or not to
+47:09
+touch it, the toddler will learn not to touch cups of tea that have smoke coming out of them.
+47:15
+So that is a case of reinforcement learning. The most important application, or one of the most important applications of
+47:22
+reinforcement learning, is in playing games.
+47:28
+So backgammon is one of the games, and think that you want a system to learn it.
+47:33
+So what you want, you want to take the current state of the board, and you
+47:40
+roll the dice, and then you decide what is the optimal move in order to stand the best chance to win.
+47:45
+That's the game. So the target function is the best move given a state. Now, if I have to generate those things in order for the system to
+47:55
+learn, then I must be a pretty good backgammon player already. So now it's a vicious cycle.
+48:03
+Now, reinforcement learning comes in handy. What you're going to do, you are going to have the
+48:09
+computer choose any output. A crazy move, for all you care. And then see what happens eventually.
+48:16
+So this computer is playing against another computer, both of them want to learn. And you make a move, and eventually you win or lose.
+48:24
+So you propagate back the credit because of winning or losing, according to a very specific and sophisticated formula, into all the
+48:31
+moves that happened. Now you think that's completely hopeless, because maybe this is not the
+48:37
+move that resulted in this, it's another move. But always remember, that you are going to do this 100 billion times.
+48:45
+Not you, the poor computer. You're sitting down sipping your tea. A computer is doing this, playing against an imaginary opponent, and
+48:53
+they keep playing and playing and playing. And in three hours of CPU time, you go back to the computer-- maybe not three
+48:58
+hours, maybe three days of CPU time-- you go back to the computer, and you have a backgammon champion.
+49:06
+Actually, that's true. The world champion, at some point, was a neural network that learned the way
+49:13
+I described. So it is actually a very attractive approach, because in machine
+49:20
+learning now, we have a target function that we cannot model. That covers a lot of territory, I've seen a lot of those.
+49:27
+We have data coming from the target function. I usually have that. And now we have the lazy man's approach to life.
+49:36
+We are going to sit down, and let the computer do all of the work, and produce the system we want. Instead of studying the thing mathematically, and writing code, and
+49:44
+debugging-- I hate debugging. And then you go. No, we're not going to do that.
+49:49
+The learning algorithm just works, and produces something good. And we get the check. So this is a pretty good deal.
+49:56
+It actually is so good, it might be too good to be true.
+50:03
+So let's actually examine if all of this was a fantasy.
+50:10
+So now I'm going to give you a learning puzzle. Humans are very good learners, right?
+50:16
+So I'm now going to give you a learning problem in the form that I
+50:21
+described, a supervised learning problem. And that supervised learning problem will give you a training set, some
+50:28
+points mapped to +1, some points mapped to -1. And then I'm going to give you a test point that is unlabeled.
+50:35
+Your task is to look at the examples, learn the target function, apply it to
+50:41
+the test point, and then decide what the value of the function is. After that, I'm going to ask, who decided that the function is +1,
+50:50
+and who decided that the function is -1. OK? It's clear what the deal is.
+50:55
+And I would like our online audience to do the same thing. And please text what the solution is.
+51:02
+Just +1 or -1. Fair enough? Let's start the game.
+51:07
+51:14
+What is above the line are the training examples. I put the input as a three-by-three pattern in order to be visually easy
+51:23
+to understand. But this is just really nine bits worth of information. And they are ones and zeros, black and white.
+51:31
+And for this input, this input, and this input, the value of the target
+51:36
+function is -1. For this input, this input, and this input, the value of the target
+51:42
+function is +1. Now this is your data set, this is your training set.
+51:47
+Now you should learn the function. And when you're done, could you please tell me what your function will return on this test point?
+51:54
+Is it +1 or -1. I will give everybody 30 seconds before I ask for an answer.
+52:00
+Maybe we should have some background music?
+52:06
+52:13
+52:20
+OK, time's up. Your learning algorithm has converged, I hope. And now we apply it here, and I ask people here, who says it's +1?
+52:30
+Thank you. Who says it's -1?
+52:37
+Thank you. I see that the online audience also contributed? MODERATOR: Yeah, the big majority says +1.
+52:44
+PROFESSOR: But are there -1's? MODERATOR: Two -1's. PROFESSOR: Cool. I don't care if it's a +1 or -1.
+52:50
+What I care about is that I get both answers. That is the essence of it. Why do I care?
+52:57
+Because in reality, this is an impossible task.
+53:03
+I told you the target function is unknown. It could be anything, really anything.
+53:11
+And now I give you the value of the target function at 6 points. Well, there are many functions that fit those 6 points, and behave
+53:19
+differently outside. For example, if you take the function to be +1 if the top left square
+53:32
+is white, then this should be -1, right?
+53:40
+If you take the function to be +1 if the pattern is symmetric--
+53:49
+let's see, I said it the other way around. So the top one is black, it would be -1.
+53:57
+So this would be -1. If it's symmetric, it would be +1. So this would be +1, because this guy has both-- this is
+54:03
+black, and also it is symmetric. Right? And you can find infinite variety like that.
+54:09
+And that problem is not restricted to this case. The question here is obvious.
+54:15
+The function is unknown. You really mean unknown, right? Yes, I mean it. Unknown-- anything? Yes, I do.
+54:21
+OK. You give me a finite sample, it can be anything outside. How in the world am I going to tell what the learning outside is?
+54:30
+OK, that sounds about right. But we are in trouble, because that's the premise of learning.
+54:37
+If the goal was to memorize the examples I gave you, that would be memorizing, not learning.
+54:43
+Learning is to figure out a pattern that applies outside. And now we realize that outside, I cannot say anything.
+54:53
+Does this mean that learning is doomed? Well, this is going to be a very short course!
+55:00
+Well, the good news is that learning is alive and well.
+55:06
+And we are going to show that, without compromising our basic premise.
+55:13
+The target function will continue to be unknown. And we still mean unknown.
+55:21
+And we will be able to learn. And that will be the subject of the next lecture.
+55:27
+Right now, we are going to go for a short break, after which we are going to take the Q&A.
+55:40
+We'll start the Q&A, and we will get questions from the class here, and
+55:49
+from the online audience. And if you'd like to ask a question, let me ask you to go to this side of
+55:56
+the room where the mic is, so that your question can be heard. And we will alternate, if there are questions here, we will alternate
+56:04
+between campus and off campus. So let me start if there is a question from outside.
+56:11
+MODERATOR: Yes, so the most common question is, how do you determine if
+56:16
+a set of points is linearly separable, and what do you do if they're not separable. PROFESSOR: The linear separability assumption is a very
+56:26
+simplistic assumption, and doesn't apply mostly in practice. And I chose it only because it goes with a very simple algorithm, which is
+56:34
+the perceptron learning algorithm. There are two ways to deal with the case of linear inseparability.
+56:40
+There are algorithms, and most algorithms actually deal with that case, and there's also a technique that we are going to study next
+56:49
+week, which will take a set of points which is not linearly separable, and
+56:55
+create a mapping that makes them linearly separable. So there is a way to deal with it.
+57:02
+However, the question how do you determine it's linearly separable, the right way of doing it in practice is that, when someone gives you data, you
+57:09
+assume in general it's not linearly separable. It will hardly ever be, and therefore you take techniques that can deal with
+57:15
+that case as well. There is a simple modification of the perceptron learning algorithm, which is called the pocket algorithm,
+57:21
+that applies the same rule with a very minor modification, and deals with the case where the data is not separable.
+57:29
+However, if you apply the perceptron learning algorithm, that is guaranteed
+57:34
+to converge to a correct solution in the case of linear separability, and you apply it to data that is not linearly separable, bad things happen.
+57:43
+Not only is it going not to converge, obviously it is not going to converge because it terminates when there are no misclassified points, right?
+57:50
+If there is a misclassified point, then there's a next iteration always. So since the data is not linearly separable, we will never come to
+57:56
+a point where all the points are classified correctly. So this is not what is bothering us. What is bothering us is that, as you go from one step to another, you can
+58:04
+go from a very good solution to a terrible solution. In the case of no linear separability.
+58:10
+So it's not an algorithm that you would like to use, and just terminate by force at an iteration.
+58:15
+A modification of it can be used this way, and I'll mention it briefly when
+58:21
+we talk about linear regression and other linear methods. MODERATOR: There's also a question of how does the rate of convergence of
+58:29
+the perceptron change with the dimensionality of the data? PROFESSOR: Badly!
+58:35
+That's the answer. Let me put it this way. You can build pathological cases, where it really will take forever.
+58:42
+However, I did not give the perceptron learning algorithm in the first lecture to tell you that this is the great algorithm that you
+58:47
+need to learn. I gave it in the first lecture, because this is simplest algorithm I could give.
+58:53
+By the end of this course, you'll be saying, what? Perceptron? Never heard of it.
+58:58
+So it will go out of contention, after we get to the more interesting stuff. But as a method that can be used, it indeed can be used, and can be
+59:07
+explained in five minutes as you have seen. MODERATOR: Regarding the items for learning, you mentioned that there
+59:15
+must be a pattern. So can you be more specific about that? How do you know if there's a pattern?
+59:20
+PROFESSOR: You don't. My answers seem to be very abrupt, but that's the way it is.
+59:25
+When we get to the theory-- is learning feasible-- it will become very clear that there is a separation between the target
+59:34
+function-- there is a pattern to detect-- and whether we can learn it. It is very difficult for me to explain it in two minutes, it will take a full
+59:40
+lecture to get there. But the essence of it is that you take the data, you apply your learning
+59:47
+algorithm, and there is something you can explicitly detect that will
+59:52
+tell you whether you learned or not. So in some cases, you're not going to be able to learn. In some cases, you'll be able to learn.
+59:59
+And the key is that you're going to be able to tell by running your algorithm. And I'm going to explain that in more details later on.
+1:00:07
+So basically, I'm also resisting taking the data, deciding
+1:00:15
+whether it's linearly separable, looking at it and seeing. You will realize as we go through that it's a no-no to actually look at the data.
+1:00:25
+What? That's what data is for, to look at. Bear with me.
+1:00:30
+We will come to the level where we ask why don't we look at the data-- just looking at it and then saying: It's linearly separable.
+1:00:37
+Let's pick the perceptron. That's bad practice, for reasons that are not obvious now. They will become obvious, once we are done with the theory.
+1:00:45
+So when someone knocks on my door with a set of data, I can ask them all kinds of questions about the data-- not the particular data set that they gave
+1:00:54
+me, but about the general data that is generated by their process. They can tell me this variable is important, the function is symmetric,
+1:01:00
+they can give you all kinds of information that I will take to heart. But I will try, as much as I can, to avoid looking at the particular data
+1:01:08
+set that they gave me, lest I should tailor my system toward this data set,
+1:01:14
+and be disappointed when another data set comes about. You don't want to get too close to the data set.
+1:01:20
+This will become very clear as we go with the theory. MODERATOR: In general about machine learning, how does it
+1:01:27
+relate to other statistical, especially econometric techniques?
+1:01:33
+PROFESSOR: Statistics is, in the form I said, it's machine learning where the target--
+1:01:38
+it's not a function in this case-- is a probability distribution. Statistics is a mathematical field.
+1:01:44
+And therefore, you put the assumptions that you need in order to be able to rigorously prove the results you have, and get the results in detail.
+1:01:53
+For example, linear regression. When we talk about linear regression, it will have very few assumptions, and
+1:01:59
+the results will apply to a wide range, because we didn't make too many assumptions. When you study linear regression under statistics, there is a lot of
+1:02:07
+mathematics that goes with it, lot of assumptions, because that is the purpose of the field.
+1:02:12
+In general, machine learning tries to make the least assumptions and cover the
+1:02:18
+most territory. These go together. So it is not a mathematical discipline, but it's not a purely
+1:02:25
+applied discipline. It spans both the mathematical, to certain extent, but it is willing to
+1:02:31
+actually go into territory where we don't have mathematical models, and still want to apply our techniques.
+1:02:38
+So that is what characterizes it the most. And then there are other fields. By doing machine learning,
+1:02:44
+you can find it under the name computational learning, or statistical learning. Data mining has a huge intersection with machine learning.
+1:02:52
+There are lots of disciplines around that actually share some value. But the point is, the premise that you saw is so broad, that it shouldn't be
+1:02:59
+surprising that people at different times developed a particular discipline with its own jargon, to deal with that discipline.
+1:03:06
+So what I'm giving you is machine learning as the mainstream goes, and
+1:03:13
+that can be applied as widely as possible to applications, both practical applications and scientific applications.
+1:03:20
+You will see, here is a situation, I have an experiment, here is a target, I have the data.
+1:03:25
+How do I produce the target in the best way I want? And then you apply machine learning.
+1:03:32
+MODERATOR: Also, in a general question about machine learning. Do machine learning algorithms perform global optimization methods,
+1:03:42
+or just local optimization methods? PROFESSOR: Obviously, a general question.
+1:03:47
+Optimization is a tool for machine learning. So we will pick whatever optimization that does the job for us.
+1:03:56
+And sometimes, there is a very specific optimization method. For example, in support vector machines, it will be quadratic
+1:04:01
+programming. It happens to be the one that works with that. But optimization is not something that machine learning people
+1:04:08
+study for its own sake. They obviously study it to understand it better, and to choose the correct optimization method.
+1:04:14
+Now, the question is alluding to something that will become clear when we talk about neural networks, which is local minimum versus
+1:04:21
+global minimum. And it is impossible to put this in any perspective before we get the
+1:04:26
+details of neural networks, so I will defer that until we get to that lecture.
+1:04:32
+MODERATOR: Also, this is a math question, I guess. Is the hypothesis set, in a topological sense, continuous?
+1:04:42
+PROFESSOR: The hypothesis set can be anything, in principle. So it can be continuous, and it can be discrete.
+1:04:50
+For example, in the next lecture I take the simplest case where we have a finite hypothesis set, in order to make a certain point.
+1:04:57
+In reality, almost all the hypothesis sets that you find are continuous and infinite. Very infinite!
+1:05:04
+And the level of sophistication of the hypothesis set can be huge.
+1:05:10
+And nonetheless, we will be able to see that under one condition, which
+1:05:15
+comes from the theory, we'll be able to learn even if the hypothesis set is huge and complicated.
+1:05:23
+There's a question from inside, yes? STUDENT: I think I understood, more or less, the general idea, but I don't
+1:05:32
+understand the second example you gave about credit approval. So how do we collect our data?
+1:05:41
+Should we give credit to everyone, or should we make our data biased,
+1:05:46
+because we cannot determine the data of-- we can't determine, should we give credit or not to persons we rejected?
+1:05:57
+PROFESSOR: Correct. This is a good point. Every time someone asks a question, the
+1:06:04
+lecture number comes to my mind. I know when I'm going to talk about it. So what you describe is called sampling bias.
+1:06:10
+And I will describe it in detail. But when you use the biased data, let's say the bank uses historical records.
+1:06:18
+So it sees the people who applied and were accepted, and for those guys, it can actually predict what the credit behavior is, because it has their
+1:06:26
+credit history. They charged and repaid and maxed out, and all of this. And then they decide: is this a good customer or not?
+1:06:32
+For those who were rejected, there's really no way to tell in this case whether they were falsely rejected, that they would have been good
+1:06:38
+customers or not. Nonetheless, if you take the customer base that you have, and base your
+1:06:44
+decision on it, the boundary works fairly decently. Actually, pretty decently, even for the other guys, because the other guys
+1:06:51
+usually are deeper into the classification region than the boundary guys that you accepted, and turned out to be bad.
+1:06:57
+But the point is well taken. The data set in this case is not completely representative, and there
+1:07:04
+is a particular principle in learning that we'll talk about, which is sampling bias, that deals with this case.
+1:07:11
+Another question from here? STUDENT: You explain that we need to have a lot of data to learn.
+1:07:17
+So how do you decide how much amount of data that is required for a particular problem, in order to be able to come up with a reasonable--
+1:07:26
+PROFESSOR: Good question. So let me tell you the theoretical, and the practical answer. The theoretical answer is that this is exactly the crux of the theory part
+1:07:36
+that we're going to talk about. And in the theory, we are going to see, can we learn? And how much data.
+1:07:43
+So all of this will be answered in a mathematical way. So this is the theoretical answer. The practical answer is: that's not under your control.
+1:07:52
+When someone knocks on your door: Here is the data, I have 500 points. I tell him, I will give you a fantastic system if you
+1:08:00
+just give me 2000. But I don't have 2000, I have 500. So now you go and you use your theory to do something to your system, such
+1:08:09
+that it can work with the 500. There was one case-- I worked with data in different applications--
+1:08:16
+at some point, we had almost 100 million points. You were swimming in data. You wouldn't complain about data.
+1:08:23
+Data was wonderful. And in another case, there were less than 100 points.
+1:08:28
+And you had to deal with the data with gloves! Because if you use them the wrong way, they are contaminated, which is
+1:08:36
+an expression we will see, and then you have nothing. And you will produce a system, and you are proud of it, but you have no idea
+1:08:43
+whether it will perform well or not. And you cannot give this to the customer, and have the customer come back to you and say: what did you do!?
+1:08:49
+So there is a question of, what performance can you do given
+1:08:55
+what data size you have? But in practice, you really have no control over the data size in almost
+1:09:00
+all the cases, almost all the practical cases. Yes?
+1:09:05
+STUDENT: Another question I have is regarding the hypothesis set. So the larger the hypothesis set is, probably I'll be able to
+1:09:13
+better fit the data. But that, as you were explaining, might be a bad thing to do because
+1:09:20
+when the new data point comes, there might be troubles. So how do you decide the size of your-- PROFESSOR: You are asking all the right questions, and all of
+1:09:27
+them are coming up. This is again part of the theory, but let me try to explain this. As we mentioned, learning is about being able to predict.
+1:09:35
+So you are using the data, not to memorize it, but to figure out what
+1:09:40
+the pattern is. And if you figure out a pattern that applies to all the data, and it's a reasonable pattern, then you have a chance that it
+1:09:47
+will generalize outside. Now the problem is that, if I give you 50 points, and you use a 7000th-order
+1:09:53
+polynomial, you will fit the heck out of the data. You will fit it so much with so many degrees of freedom to spare, but you
+1:10:01
+haven't learned anything. You just memorized it in a fancy way. You put it in a polynomial form, and that actually carries all the
+1:10:08
+information about the data that you have, and then some. So you don't expect at all that this will generalize outside.
+1:10:15
+And that intuitive observation will be formalized when we talk about the theory. There will be a measurement of the hypothesis set that you give me, that
+1:10:22
+measures the sophistication of it, and will tell you with that sophistication, you need that amount of data in order to be able to make
+1:10:28
+any statement about generalization. So that is what the theory is about.
+1:10:34
+STUDENT: Suppose, I mean, here whatever we discussed, it is like I had a data set and I came up with an algorithm, and gave the output.
+1:10:42
+But won't it be also important to see, OK, we came up with the output, and
+1:10:48
+using that, what was the feedback? Are there techniques where you take the feedback and try to
+1:10:57
+correct your-- PROFESSOR: You are alluding to different techniques here.
+1:11:03
+But one of them would be validation, which is after you learn, you validate your solution.
+1:11:09
+And this is an extremely established and core technique in machine learning that will be covered in one of the lectures.
+1:11:16
+Any questions from the online audience? MODERATOR: In practice, how many dimensions would be considered easy,
+1:11:25
+medium, and hard for a perceptron problem? PROFESSOR: The hard,
+1:11:31
+in most people's mind before they get into machine learning, is the computational time.
+1:11:36
+If something takes a lot of time, then it's a hard problem. If something can be computed quickly, it's an easy problem.
+1:11:42
+For machine learning, the bottleneck in my case, has never been the computation time, even in incredibly big data sets.
+1:11:51
+The bottleneck for machine learning is to be able to generalize outside the data that you have seen.
+1:11:56
+So to answer your question, the perceptron behaves badly in terms of the computational behavior.
+1:12:04
+We will be able to predict its generalization behavior, based on the number of dimensions and the amount of data.
+1:12:09
+This will be given explicitly. And therefore, the perceptron algorithm is bad computationally, good
+1:12:19
+in terms of generalization. If you actually can get away with perceptrons, your chances of
+1:12:24
+generalizing are good because it's a simplistic model, and therefore its ability to generalize is good, as we will see.
+1:12:33
+MODERATOR: Also, in the example you explain the use of binary function. So can you use more multi-valued or real functions?
+1:12:43
+PROFESSOR: Correct. Remember when I told you that there is a topic that is out of sequence. There was a logical sequence to the course, and then I took part of the
+1:12:51
+linear models and put it very early on, to give you something a little bit more sophisticated than perceptrons to try your hand on.
+1:12:59
+That happens to be for real-valued functions. And obviously there are hypotheses that cover all types of co-domains.
+1:13:05
+Y could be anything as well. MODERATOR: Another question is, in the learning process you showed, when
+1:13:18
+do you pick your learning algorithm, when do you pick your hypothesis set, and what liberty do you have?
+1:13:23
+PROFESSOR: The hypothesis set is the most important aspect of
+1:13:33
+determining the generalization behavior that we'll talk about. The learning algorithm does play a role, although it is a secondary role,
+1:13:38
+as we will see in the discussion. So in general, the learning algorithm has the form of
+1:13:45
+minimizing an error function. So you can think of the perceptron, what does
+1:13:51
+the algorithm do? It tries to minimize the classification error. That is your error function, and you're minimizing it using this
+1:13:58
+particular update rule. And in other cases, we'll see that we are minimizing an error function. Now the minimization aspect is an optimization question, and once you
+1:14:08
+determine that this is indeed the error function that I want to minimize, then you go and minimize as much as you can using the most
+1:14:15
+sophisticated optimization technique that you find. So the question now translates into what is the choice of the error
+1:14:22
+function or error measure that will help or not help. And that will be covered also next week under the topic, Error and Noise.
+1:14:29
+When I talk about error, we'll talk about error measures, and this translates directly to the learning algorithm that goes with them.
+1:14:37
+MODERATOR: Back to the perceptron. So what happens if your hypothesis gives you exactly 0 in this case?
+1:14:43
+PROFESSOR: So remember that the quantity you compute and compare with the threshold was your credit score.
+1:14:49
+So I told you what happens if you are above threshold, and what happens if you're below threshold. So what happens if you're exactly at the threshold?
+1:14:57
+Your score is exactly that. The informal answer is that it depends on the mood of the credit
+1:15:07
+officer on that day. If they had a bad day, you will be denied! But the serious answer is that there are technical ways of
+1:15:16
+defining that point. You can define it as 0, so the sign of 0 is 0.
+1:15:21
+In which case you are always making an error, because you are never +1 or -1, when you should be. Or you could make it belong to the +1 category or
+1:15:28
+to the -1 category. There are ramifications for all of these decisions that are purely technical.
+1:15:33
+Nothing conceptual comes out of them. That's why I decided not to include it. Because it clutters the main concept with something that really has no
+1:15:42
+ramification. As far as you're concerned, the easiest way to consider it is that the output will be 0, and therefore you will be making an error regardless of
+1:15:49
+whether it's +1 or -1. MODERATOR: Is there a kind of problem that cannot be learned even if
+1:15:57
+there's a huge amount of data? PROFESSOR: Correct.
+1:16:02
+For example, if I go to my computer and use a pseudo-random number generator to generate the target over the entire domain, then patently,
+1:16:12
+nothing I can give you will make you learn the other guys. So remember the three--
+1:16:17
+let me try to--
+1:16:23
+the essence of machine learning. The first one was, a pattern exists.
+1:16:28
+If there's no pattern that exists, there is nothing to learn.
+1:16:34
+Let's say that it's like a baby, and stuff is happening, and the baby is just staring. There is nothing to pick from that thing.
+1:16:42
+Once there is a pattern, you can see the smile on the baby's face. Now I can see what is going on. So whatever you are learning, there needs to be a pattern.
+1:16:49
+Now, how to tell that there's a pattern or not, that's a different question. But the main ingredient, there's a pattern. The other one is we cannot pin
+1:16:58
+it down mathematically. If we can pin it down mathematically, and you decide to do the learning, then you are really lazy. Because you could just write the code.
+1:17:04
+But fine. You can use learning in this case, but it's not the recommended method, because it has certain errors in performance.
+1:17:11
+Whereas if you have the mathematical definition, you just implement it and you'll get the best possible solution. And the third one, you have data, which is key.
+1:17:18
+So you have plenty of data, but the first one is off, you are simply not going to learn.
+1:17:23
+And it's not like I have to answer each of these questions at random. The theory will completely capture what is going on.
+1:17:31
+So there's a very good reason for going through four lectures in the outline that are mathematically inclined.
+1:17:38
+This is not for the sake of math. I don't like to do math hacking, if you will.
+1:17:45
+I pick the math that is necessary to establish a concept. And these will establish it, and they are very much worth being patient with
+1:17:51
+and going through. Because once you're done with them, you basically have it cold about what are the components that make learning possible, and how do we tell, and all
+1:18:00
+of the questions that have been asked. MODERATOR: Historical question. So why is the perceptron often related with a neuron?
+1:18:10
+PROFESSOR: I will discuss this in neural networks, but in general, when you take a neuron and synapses, and you find what is the function that
+1:18:19
+gets to the neuron, you find that the neuron fires, which is +1, if the
+1:18:25
+signal coming to it, which is roughly a combination of the stimuli, exceeds
+1:18:31
+a certain threshold. So that was the initial inspiration, and the initial inspiration was
+1:18:37
+that: the brain does a pretty good job, so maybe if we mimic the function, we will get something good.
+1:18:42
+But you mimic one neuron, and then you put it together and you'll get the neural network that you are talking about. And I will discuss the analogy with biology, and the extent that it can be
+1:18:52
+benefited from, when we talk about neural networks, because that will be the more proper context for that.
+1:18:57
+1:19:02
+MODERATOR: Another question is, regarding the hypothesis set, are there
+1:19:08
+Bayesian hierarchical procedures to narrow down the hypothesis set?
+1:19:15
+PROFESSOR: OK. The choice of the hypothesis set and the model in general is model selection, and there's quite a bit of stuff that we are going to talk about
+1:19:23
+in model selection, when we talk about validation. In general, the word Bayesian was mentioned here-- if you
+1:19:31
+look at machine learning, there are schools that deal with the subject
+1:19:36
+differently. So for example, the Bayesian school puts a mathematical framework
+1:19:41
+completely on it. And then everything can be derived, and that is based on Bayesian
+1:19:47
+principles. I will talk about that at the very end, so it's last but not least.
+1:19:54
+And I will make a very specific point about it, for what it's worth. But what I'm talking about in the course in all of the details, are the
+1:20:03
+most commonly useful methods in practice.
+1:20:08
+That is my criterion for inclusion. So I will get to that when we get there.
+1:20:13
+In terms of a hierarchy, there are a number of hierarchical methods.
+1:20:19
+For example, structural risk minimization is one of them. There are methods of hierarchies, and the ramifications of it in
+1:20:27
+generalization. I may touch upon it, when I get to support vector machines. But again, there's a lot of theory, and if you read a book on machine
+1:20:35
+learning written by someone from pure theory, you would think that you are reading about a completely different subject.
+1:20:41
+It's respectable stuff, but different from the other stuff that is practiced. So one of the things that I'm trying to do, I'm trying to pick from all the
+1:20:51
+components of machine learning, the big picture that gives you the understanding of the concept, and the tools to use it in practice.
+1:20:59
+That is the criterion for inclusion.
+1:21:04
+Any questions from the inside here?
+1:21:11
+OK, we'll call it a day, and we'll see you on Thursday.
