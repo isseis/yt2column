@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-14 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-14 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「requirements」）の項番、節番号は [02_architecture.md](02_architecture.md)（以下「architecture」）の節を指す。H-NN は [design_handoff.md](design_handoff.md) の項目で、その対応は architecture §3.13 にある。既存のファイルの行番号と事実は、断りがない限り HEAD `e0f898e`（ブランチ `issei/localhost-server-01`）で確かめた。`implementation_handoff.md` は本タスクにはない。
