@@ -193,7 +193,7 @@ requirements が定める 5 つの機能要件（F-001〜F-005）を、architect
 **判定理由**: guard は `internal/pipeline` の既存の guard と同じ考え方で architecture §3.6 に確定しており、`depguard` の規則も architecture §3.7 に確定している。#109 への記録（ステップ 4-1）も architecture §8 の手順 4 の列挙に従う。前例のない設計判断・panel-mode トリガー・競合する実装案・分離された高リスク／複雑なステップのいずれにも該当せず、Conditional check にも該当しない。
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
