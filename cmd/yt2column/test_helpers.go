@@ -22,6 +22,7 @@ import (
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/publisher"
 	"github.com/isseis/yt2column/internal/secret"
+	"github.com/isseis/yt2column/internal/signalrun"
 	"github.com/isseis/yt2column/internal/writer"
 )
 
@@ -39,13 +40,13 @@ const (
 	// childModeMain runs the production main, so a test observes exactly the
 	// signal handling main installs.
 	childModeMain = "main"
-	// childModeStall runs runWithSignals with an LLM client that stops until
+	// childModeStall runs signalrun.Run with an LLM client that stops until
 	// its context ends.
 	childModeStall = "stall"
-	// childModeIgnoreCtx runs runWithSignals with an LLM client that keeps
+	// childModeIgnoreCtx runs signalrun.Run with an LLM client that keeps
 	// stopping after its context ends.
 	childModeIgnoreCtx = "ignore-ctx"
-	// childModeSlackStall runs runWithSignals with an LLM client that
+	// childModeSlackStall runs signalrun.Run with an LLM client that
 	// succeeds at once and a webhook publisher that stops until its context
 	// ends; the publisher, not the LLM client, creates the ready marker.
 	childModeSlackStall = "slack-stall"
@@ -251,7 +252,9 @@ func runChildMode(mode string) int {
 	if newSlack != nil {
 		d.newSlackPublisher = newSlack
 	}
-	return runWithSignals(os.Args[1:], os.LookupEnv, os.Stdout, os.Stderr, d)
+	return signalrun.Run(func(ctx context.Context) int {
+		return run(ctx, os.Args[1:], os.LookupEnv, os.Stdout, os.Stderr, d)
+	})
 }
 
 // cliChild is a CLI child process started by startCLIChild.

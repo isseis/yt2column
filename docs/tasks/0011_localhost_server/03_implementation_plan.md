@@ -94,10 +94,10 @@ requirements §2.3 のとおり。加えて、次のものは本計画で扱わ�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
-- [ ] **ステップ 1-2**: `internal/redact`（`Line`・`Writer`・`SecretStrings`）と `internal/signalrun`（`Run`）を新設し（architecture §3.11）、CLI を切り替える。`cmd/yt2column/output.go` を削除する。`cmd/yt2column/run.go` の `configuredSecrets` の呼び出しを `redact.SecretStrings` に、`sanitize` の呼び出しを `redact.Line` に置き換える。`cmd/yt2column/main.go` と `cmd/yt2column/test_helpers.go:254` は `signalrun.Run` を使う。`TestSanitize*`・`TestSubscribedSignals` を `internal/redact`・`internal/signalrun` のテストとして移す。`TestConfiguredSecrets*`（`cmd/yt2column/run_test.go:1867`・`:1904`）は `config.Load` と `cmd/yt2column` の `newRunEnv` で組んだ `config.Config` を使うので、そのままは移せない。`internal/redact` には `secret.Secret` から組む `SecretStrings` のテストを新しく書き、`cmd/yt2column` には設定から `redact.SecretStrings` に渡す秘密の組（Webhook URL の各部分と `ANTHROPIC_API_KEY`・`DEEPSEEK_API_KEY`）を確かめるテストを残す。子プロセスで `subscribedSignals` の無視の分岐を確かめる `TestIgnoredSignalNotSubscribed` などのシグナルのテストは `cmd/yt2column` に残る。`package_reference.md` に 2 つの行を加える。`internal/redact` は `internal/config` を import しない（秘密は `secret.Secret` の列で受け取る）。
+- [x] **ステップ 1-2**: `internal/redact`（`Line`・`Writer`・`SecretStrings`）と `internal/signalrun`（`Run`）を新設し（architecture §3.11）、CLI を切り替える。`cmd/yt2column/output.go` を削除する。`cmd/yt2column/run.go` の `configuredSecrets` の呼び出しを `redact.SecretStrings` に、`sanitize` の呼び出しを `redact.Line` に置き換える。`cmd/yt2column/main.go` と `cmd/yt2column/test_helpers.go:254` は `signalrun.Run` を使う。`TestSanitize*`・`TestSubscribedSignals` を `internal/redact`・`internal/signalrun` のテストとして移す。`TestConfiguredSecrets*`（`cmd/yt2column/run_test.go:1867`・`:1904`）は `config.Load` と `cmd/yt2column` の `newRunEnv` で組んだ `config.Config` を使うので、そのままは移せない。`internal/redact` には `secret.Secret` から組む `SecretStrings` のテストを新しく書く。`cmd/yt2column` では設定から `redact.SecretStrings` に渡す秘密の組（Webhook URL の各部分と `ANTHROPIC_API_KEY`・`DEEPSEEK_API_KEY`）を `run` の実行経路で確かめる。`configuredSecrets` の呼び出しをテスト側で再現するだけでは `run` の対応付けの退行を検出できないため、`TestConfiguredSecrets*` は残さずに削除し、既存の「write failure whose message holds the API key」の行が DeepSeek 鍵を、新設する Claude 設定で `ANTHROPIC_API_KEY` を載せた失敗の行が Anthropic 鍵を、`--slack failure whose message holds the webhook path` の行が Webhook URL の一部分を、それぞれ `[REDACTED]` として確かめる。子プロセスで `subscribedSignals` の無視の分岐を確かめる `TestIgnoredSignalNotSubscribed` などのシグナルのテストは `cmd/yt2column` に残る。`package_reference.md` に 2 つの行を加える。`internal/redact` は `internal/config` を import しない（秘密は `secret.Secret` の列で受け取る）。
 
 ### PR-2 作成ポイント: move the shared CLI parts
 
@@ -111,8 +111,8 @@ requirements §2.3 のとおり。加えて、次のものは本計画で扱わ�
 
 **判定理由**: architecture §3.11 に確定した振る舞い不変の移動で、前例のない設計判断・競合する実装案・分離された高リスク／複雑なステップのいずれにも該当しない。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
@@ -339,7 +339,7 @@ architecture §7.3 を 2-1〜2-3 のテストに書く。(1) AC-12（本文を�
 
 ## 7. 実装チェックリスト (Implementation Checklist)
 
-- [ ] PR-1 マージ済み（対象ステップ: 1-1）
+- [x] PR-1 マージ済み（対象ステップ: 1-1）
 - [ ] PR-2 マージ済み（対象ステップ: 1-2）
 - [ ] PR-3 マージ済み（対象ステップ: 1-3 / 1-4）
 - [ ] PR-4 マージ済み（対象ステップ: 1-5）
