@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-14 |
-| Review date | - |
-| Reviewer | - |
-| Comments | - |
+| Review date | 2026-10-14 |
+| Reviewer | isseis |
+| Comments | 2026-10-14: mkplan2 で PR 境界（PR-1〜PR-7）を加え、§3.2 PR 構成と §7 チェックリストを PR 単位にした。あわせて、#222 で architecture §7.2 の改訂と再承認が済んだことに合わせ、再承認を「これから受ける」と書いていた記述を過去形に直した（editorial correction。計画の決定は変えていない）。 |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「requirements」）の項番、節番号は [02_architecture.md](02_architecture.md)（以下「architecture」）の節を指す。H-NN は [design_handoff.md](design_handoff.md) の項目で、その対応は architecture §3.13 にある。既存のファイルの行番号と事実は、断りがない限り HEAD `e0f898e`（ブランチ `issei/localhost-server-01`）で確かめた。`implementation_handoff.md` は本タスクにはない。
 
@@ -58,11 +58,11 @@ requirements が定める 10 の機能要件（F-001〜F-010）を、architectur
 - `internal/pipeline/pipeline_test.go`（`:558` の 17、`:610` の `TestPackageReferenceListsPackages`）: `testutil/` と新パッケージを加えるステップで更新する。
 - `internal/config/envaccess_test.go`（`:65-68` の `allowedEnvRefs`）: 2-4 で `cmd/yt2column-server/main.go` の行を加える。
 - `cmd/yt2column/test_helpers.go`（`:254` の子プロセスの入口）: 1-2 で `signalrun.Run` を呼ぶ形に改める。
-- `cmd/yt2column/run.go`（`:44` の `deps`、`:357` の `buildWriter`、`:586` の `reportStepHints`、`:667` の `configuredSecrets`）: 1-3 で `deps` の型を、1-2 で `configuredSecrets` の呼び出しを、1-4 で `reportStepHints` の `ErrPromptTooLarge` の扱いを改める。
+- `cmd/yt2column/run.go`（`:44` の `deps`、`:357` の `buildWriter`、`:667` の `configuredSecrets`）: 1-3 で `deps` の型を、1-2 で `configuredSecrets` の呼び出しを改める（`:357` の `buildWriter` は `deps` の型に従う）。`errPromptTooLarge` の参照は `internal/writer` の外にないので、CLI の変更は要らない。
 
 **新設するパッケージと `package_reference.md` の行（各ステップで同時に加える）。** `internal/failure`（1-1）・`internal/failure/testutil`（1-1）・`internal/redact`（1-2）・`internal/signalrun`（1-2）・`internal/authtoken`（1-5）・`internal/server`（2-1）・`cmd/yt2column-server`（2-4）。`internal/publisher` の行への `SlackFailureNotifier` の追記は #108（タスク 0016 のフェーズ 4）が行うので、本タスクでは加えない（architecture §3.12）。
 
-**architecture §3.14 の記述のうち、HEAD `e0f898e` と食い違う点。** `TestProjectOverviewDocumentsConfig` はコミット `4443ddf` で削除済みで存在しない。architecture §3.14 をこの事実に合わせる editorial correction を、本計画と同じブランチで先に行った（architecture の Comments に記録）。これを踏まえ、`project_overview.md` のサーバの内容は 2-5 の新しいガードで固定する。
+**architecture §3.14 の記述のうち、HEAD `e0f898e` と食い違う点。** `TestProjectOverviewDocumentsConfig` はコミット `4443ddf` で削除済みで存在しない。architecture §3.14 をこの事実に合わせる editorial correction を、本計画と同じブランチで先に行った（#222 に含めた）。これを踏まえ、`project_overview.md` のサーバの内容は 2-5 の新しいガードで固定する。
 
 **#108 との調整。** 1-1 で `internal/failure` の契約ガード（`internal/failure/failure_test.go`。契約は architecture §3.9、テストの内容はタスク 0016 の architecture §3.6）を置く。これにより、タスク 0016 の実装計画 §フェーズ 3 のステップ 3-1（「#109 が同等のガード を置いていない場合だけ加える」）は当てはまらなくなる（N/A）。`internal/publisher` の `depguard` 規則（同ステップ 3-2・3-3）は 0016 側に残る。
 
@@ -79,10 +79,81 @@ requirements §2.3 のとおり。加えて、次のものは本計画で扱わ�
 **対象ファイル:** 新設する `internal/failure`・`internal/redact`・`internal/signalrun`・`internal/authtoken` と、変更する `internal/config`・`internal/llm/provider`・`internal/writer`・`cmd/yt2column`。
 
 - [ ] **ステップ 1-1**: `internal/failure/failure.go` に `Kind`・`Notice`・`Notifier` を、architecture §3.9 のとおりに定義する。`Kind` の列挙の並びとゼロ値（`KindUnknown`）を §3.9 のまま固定する。`internal/failure/testutil/mocks.go`（`package failuretestutil`、`//go:build test`）に fake の `Notifier`（呼び出された `Notice` を記録する）を加える。`internal/failure/failure_test.go`（`//go:build test`）に契約ガード（`Notice` の exported フィールドが `RequestID`・`VideoID`・`Kind` の 3 つだけ、`Notifier` のメソッドが `Notify(ctx context.Context, Notice) error` の 1 つだけ、`Kind` のゼロ値が `KindUnknown`、`Kind` 型の定数の並びが §3.9 の列挙と一致する。内容は 0016 architecture §3.6）を置く。`package_reference.md` に `internal/failure`・`internal/failure/testutil` の行を加え、`TestFakesCarryBuildTag` の件数を 17 から 18 に増やす。
-- [ ] **ステップ 1-2**: `internal/redact`（`Line`・`Writer`・`SecretStrings`）と `internal/signalrun`（`Run`）を新設し（architecture §3.11）、CLI を切り替える。`cmd/yt2column/output.go` を削除する。`cmd/yt2column/run.go` の `configuredSecrets` の呼び出しを `redact.SecretStrings` に、`sanitize` の呼び出しを `redact.Line` に置き換える。`cmd/yt2column/main.go` と `cmd/yt2column/test_helpers.go:254` は `signalrun.Run` を使う。`TestSanitize*`・`TestSubscribedSignals` を `internal/redact`・`internal/signalrun` のテストとして移す。`TestConfiguredSecrets*`（`cmd/yt2column/run_test.go:1867`・`:1904`）は `config.Load` と `cmd/yt2column` の `newRunEnv` で組んだ `config.Config` を使うので、そのままは移せない。`internal/redact` には `secret.Secret` から組む `SecretStrings` のテストを新しく書き、`cmd/yt2column` には設定から `redact.SecretStrings` に渡す秘密の組（Webhook URL の各部分と `ANTHROPIC_API_KEY`）を確かめるテストを残す。子プロセスで `subscribedSignals` の無視の分岐を確かめる `TestIgnoredSignalNotSubscribed` などのシグナルのテストは `cmd/yt2column` に残る。`package_reference.md` に 2 つの行を加える。`internal/redact` は `internal/config` を import しない（秘密は `secret.Secret` の列で受け取る）。
+
+### PR-1 作成ポイント: failure contract package
+
+**対象ステップ**: 1-1
+
+**推奨タイトル**: `feat(0011): add the internal/failure contract`
+
+**レビュー観点**: `Kind` の列挙の並びとゼロ値（`KindUnknown`）が architecture §3.9 のとおりであること / `Notice` の exported フィールドが `RequestID`・`VideoID`・`Kind` の 3 つだけで、`Notifier` のメソッドが `Notify(ctx context.Context, Notice) error` の 1 つであること / 契約ガードが architecture §3.9 と 0016 architecture §3.6 の内容を固定していること / `package_reference.md` の行と `TestFakesCarryBuildTag` の件数（17→18）を同じ変更で更新していること
+
+**実装モデル要件**: standard
+
+**判定理由**: 契約は architecture §3.9 と 0016 architecture §3.6 に確定しており、前例のない設計判断・競合する実装案・分離された高リスク／複雑なステップのいずれにも該当しない。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
+- [ ] **ステップ 1-2**: `internal/redact`（`Line`・`Writer`・`SecretStrings`）と `internal/signalrun`（`Run`）を新設し（architecture §3.11）、CLI を切り替える。`cmd/yt2column/output.go` を削除する。`cmd/yt2column/run.go` の `configuredSecrets` の呼び出しを `redact.SecretStrings` に、`sanitize` の呼び出しを `redact.Line` に置き換える。`cmd/yt2column/main.go` と `cmd/yt2column/test_helpers.go:254` は `signalrun.Run` を使う。`TestSanitize*`・`TestSubscribedSignals` を `internal/redact`・`internal/signalrun` のテストとして移す。`TestConfiguredSecrets*`（`cmd/yt2column/run_test.go:1867`・`:1904`）は `config.Load` と `cmd/yt2column` の `newRunEnv` で組んだ `config.Config` を使うので、そのままは移せない。`internal/redact` には `secret.Secret` から組む `SecretStrings` のテストを新しく書き、`cmd/yt2column` には設定から `redact.SecretStrings` に渡す秘密の組（Webhook URL の各部分と `ANTHROPIC_API_KEY`・`DEEPSEEK_API_KEY`）を確かめるテストを残す。子プロセスで `subscribedSignals` の無視の分岐を確かめる `TestIgnoredSignalNotSubscribed` などのシグナルのテストは `cmd/yt2column` に残る。`package_reference.md` に 2 つの行を加える。`internal/redact` は `internal/config` を import しない（秘密は `secret.Secret` の列で受け取る）。
+
+### PR-2 作成ポイント: move the shared CLI parts
+
+**対象ステップ**: 1-2
+
+**推奨タイトル**: `refactor(0011): move redaction and signal handling into internal`
+
+**レビュー観点**: 振る舞いを変えない移動であること（既存テストを内容を変えずに通す）/ `internal/redact` が `internal/config` を import しないこと / `TestSanitize*`・`TestSubscribedSignals` の移設と `TestConfiguredSecrets*` の書き換えが計画どおりであること / `package_reference.md` の 2 つの行を同じ変更で加えていること
+
+**実装モデル要件**: standard
+
+**判定理由**: architecture §3.11 に確定した振る舞い不変の移動で、前例のない設計判断・競合する実装案・分離された高リスク／複雑なステップのいずれにも該当しない。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 - [ ] **ステップ 1-3**: `internal/config` に `LLMConfig` を分離する（architecture §3.2.1）。`Config` は LLM の設定を非公開のフィールドで持ち、`LLM()` で返す。`provider.New`・`NewReview`・`newClient` の引数を `config.LLMConfig` に変える。`cmd/yt2column` の `deps.newLLMClient`・`newReviewLLMClient` の型と `cfg` のアクセサの呼び出し（`cfg.Provider()` → `cfg.LLM().Provider()`）を書き換える。`config_test.go`・`provider_test.go`・`run_test.go`・`test_helpers.go`・`integration_test.go`（`:127`・`:134` の `func(cfg config.Config)`）のアクセサと fake の型を改める。`make lint` は golangci-lint を `--build-tags test,integration` で走らせ、`go vet -tags integration ./...` も走らせる（`Makefile:10`・`:195`）ので、`integration` タグのビルドも通ることを確かめる。振る舞いは変えない。
 - [ ] **ステップ 1-4**: `ServerConfig`・`LoadServer`・`YT2COLUMN_SERVER_PORT`（既定 `8765`、`1024`〜`65535`）・設定ディレクトリとトークンのパスの導出を加える（architecture §3.2.1〜§3.2.3）。`cachedir.go` の OS ごとの分岐を、ディレクトリ名と XDG の変数名を引数に取る関数に一般化し、`defaultCacheDir` と共有する。`loadLLM` を切り出し、`loadSlackWebhook` の返り値を「値・設定されていたか・拒否」に改める。`internal/config` は `net` を import しない（`pipeline_test.go:817` の `TestConfigImports`。ポートの検査は `strconv` と文字の比較で行う）。`internal/writer` の `errPromptTooLarge` を公開の `ErrPromptTooLarge` に改め、`errors.go`・`prompt.go` と `prompt_test.go` の参照を改める。ポートの受理・拒否の表（§3.2.2）と設定ディレクトリの導出の表（§3.2.3。`goos`・`HOME`・`XDG_CONFIG_HOME` と失敗した変数の名前）をテストで固定する。
+
+### PR-3 作成ポイント: split the LLM config and add the server config
+
+**対象ステップ**: 1-3 / 1-4
+
+**推奨タイトル**: `feat(0011): split config.LLMConfig and add LoadServer`
+
+**レビュー観点**: `Config.LLM()` の分離で「非ゼロの `Config` は `Load` からしか来ない」保証が崩れていないこと / `provider.New`・`NewReview` の引数の変更が全呼び出し元とテスト（`integration_test.go` を含む）に及んでいること / `LoadServer` が `YT2COLUMN_CACHE_DIR`・`YT2COLUMN_YTDLP_PATH` を読まないこと（AC-29・AC-30）/ `internal/config` が `net` を import していないこと（`TestConfigImports`）
+
+**実装モデル要件**: standard
+
+**判定理由**: 分離と新設の方法は architecture §3.2 に確定しており、前例のない設計判断・競合する実装案・分離された高リスク／複雑なステップのいずれにも該当しない。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 - [ ] **ステップ 1-5**: `internal/authtoken`（`Token`・`LoadOrCreate`・`Matches`・`IsZero`・`Value`・`FileError`・`ErrInvalidTokenFile`）を architecture §3.3・§4.1 のとおりに実装する。一時ファイルと `link(2)` で作り、読み込みで通常ファイル・権限・所有者・64 バイト・`^[0-9a-f]{64}$` を検査し、末尾の改行も拒否する。`crypto/subtle.ConstantTimeCompare` で比較する。`package_reference.md` に行を加える。
+
+### PR-4 作成ポイント: shared token file
+
+**対象ステップ**: 1-5
+
+**推奨タイトル**: `feat(0011): add internal/authtoken`
+
+**レビュー観点**: 一時ファイルと `link(2)` で作る手順と、読み込みの検査（通常ファイル・権限 `0077` のビット・所有者・64 バイト・`^[0-9a-f]{64}$`・末尾の改行の拒否）が architecture §3.3 のとおりであること / 比較が定数時間で、ゼロ値と空の値が一致しないこと / 不正なファイルを修復も再生成もしないこと（AC-03）/ `FileError` のメッセージにファイルの内容が現れないこと
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: 唯一の認証要素である共有トークンのファイル作成と検査（シンボリックリンク・権限・所有者）と定数時間比較を扱う、分離されたセキュリティ上重要なステップである。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 **完了条件:** `make fmt`・`make test`・`make lint` が通る。既存テスト（1-2・1-3 で触れないもの）が内容を変えずに通る。
 
@@ -90,13 +161,66 @@ requirements §2.3 のとおり。加えて、次のものは本計画で扱わ�
 
 **対象ファイル:** 新設する `internal/server`・`cmd/yt2column-server` と、変更する `Makefile`・文書。ユニットテストは fake の `failure.Notifier`（1-1）を使うので #108 の実物を待たない。実物の通知が要るのは 2-4 の統合テストだけである。
 
-**着手前に必要な architecture の再承認（阻害要因）。** 承認済みの architecture §7.2 は、統合テストで「`integration` のビルドタグで実際のバイナリを起動し、LLM と Webhook を loopback の fake のサーバに向ける」としていたが、実装できなかった。LLM のエンドポイントは設定で差し替えられず（`internal/llm/deepseek/deepseek.go` と `internal/llm/claude` に固定されており、`config.LoadServer` にエンドポイントの変数はない）、adapter と記事の投稿の loopback の構築関数（`deepseek.NewForLoopbackTest`・`claude.NewForLoopbackTest`・`publisher.NewSlackWebhookPublisherForLoopbackTest`）と fake の `llm.LLMClient`（`internal/llm/testutil`）はすべて `//go:build test` で、`integration` タグだけのビルドからは見えないためである。LLM の API も Webhook も実物を呼ばないテストなので、architecture §7.2 を、`//go:build test` のテストとして `make test` に含め、`run` の `deps` の構築関数を差し替える方式に改め（`cmd/yt2column/signal_test.go` と同じタグ）、`draft` に戻した。あわせて §3.12・§3.14 から `test-integration-server` のターゲットとその検査を除いた。2-4 の前に、改めた architecture の再承認を受ける。フェーズ 1 と 2-1〜2-3 はこの修正に依存しない。
+**統合テストの方式の変更（#222 で再承認済み）。** architecture §7.2 は、統合テストで「`integration` のビルドタグで実際のバイナリを起動し、LLM と Webhook を loopback の fake のサーバに向ける」としていたが、実装できなかった。LLM のエンドポイントは設定で差し替えられず（`internal/llm/deepseek/deepseek.go` と `internal/llm/claude` に固定されており、`config.LoadServer` にエンドポイントの変数はない）、adapter と記事の投稿の loopback の構築関数（`deepseek.NewForLoopbackTest`・`claude.NewForLoopbackTest`・`publisher.NewSlackWebhookPublisherForLoopbackTest`）と fake の `llm.LLMClient`（`internal/llm/testutil`）はすべて `//go:build test` で、`integration` タグだけのビルドからは見えないためである。LLM の API も Webhook も実物を呼ばないテストなので、architecture §7.2 を、`//go:build test` のテストとして `make test` に含め、`run` の `deps` の構築関数を差し替える方式に改め（`cmd/yt2column/signal_test.go` と同じタグ）、`draft` に戻し、#222 で再承認を受けた。あわせて §3.12・§3.14 から `test-integration-server` のターゲットとその検査を除いた。したがって 2-4 はこの点ではブロックされない。フェーズ 1 と 2-1〜2-3 はこの修正に依存しない。
 
 - [ ] **ステップ 2-1**: `internal/server/server.go` に `Options`・`New`・`Server`・`Listen`・`Serve` と `http.Server` の設定（architecture §3.5.1）を、`handler.go` に検査の順序（§3.5.2 の手順 1〜7）とジョブの起動を、`response.go` に `rejectReason`・拒否の詳細・状態コード・追加のヘッダ・応答の本文・リクエスト ID（§3.4.2〜§3.4.3・§3.10）を実装する。`New` は nil の依存部品・ゼロの `Token`・ゼロの `Port` を拒否し、ログと `ErrorLog` を `redact.Writer` の上に作る。`Serve` は取り消し・いずれかの `net.Listener` の失敗で終了の手順（§3.8.3）に入る。`package_reference.md` に行を加える。
 - [ ] **ステップ 2-2**: `internal/server/request.go` に、枠を取った後の本文の読み込みと検査（`Content-Length` の事前検査、`http.MaxBytesReader`、`strictjson`（§3.6 の (a)〜(d)）、`ValidateVideoURL`（(e)）、`NewCopiedSource`（§3.5.2 の手順 8〜12））を実装する。検査の順序により、ヘッダの検査に失敗したリクエストと枠を取れなかったリクエストの本文は 1 バイトも読まない（AC-12）。
 - [ ] **ステップ 2-3**: `internal/server/job.go` に、枠（`maxInFlight = 2`）・ジョブの goroutine・パニックの回収・失敗の分類（§3.9 の表を網羅的な `switch` で実装し、`rejectReason` から `Kind` への対応も 1 つの `switch` にする）・失敗の通知（枠を持ったまま、`Notify` に 60 秒の期限を付ける）を実装する。枠の持ち主を明示的に移し、解放はちょうど 1 つの持ち主が行う（§3.8.4）。
-- [ ] **ステップ 2-4**: `cmd/yt2column-server/main.go`（`os.LookupEnv`・標準出力・標準エラー出力を `run` に渡し、`signalrun.Run` で包む）と `cmd/yt2column-server/run.go`（起動の手順と終了コード、部品の構築、ログの組み立て。CLI の `deps` と同じく、LLM・`Publisher`・`Notifier` の構築関数をテストで差し替えられる形にする）を実装する。`Makefile` の `build` を 2 つの実行ファイルにする（統合テストは `make test` に含まれるので、専用のターゲットは加えない）。`internal/config/envaccess_test.go` の `allowedEnvRefs` に `cmd/yt2column-server/main.go` を加える。`cmd/yt2column-server/server_test.go`（`//go:build test`）に §4.2 の統合テストを書く。サーバの `writer.Options` が CLI の既定の解析結果と一致することを `cmd/yt2column-server` のユニットテストで固定する（§3.1）。上の architecture の再承認を先に受ける。
+
+### PR-5 作成ポイント: the server core
+
+**対象ステップ**: 2-1 / 2-2 / 2-3
+
+**推奨タイトル**: `feat(0011): add internal/server`
+
+**レビュー観点**: 検査の順序（architecture §3.5.2 の手順 1〜7）で、ヘッダの検査に失敗したリクエストと枠を取れないリクエストが本文を 1 バイトも読まないこと（AC-12）/ 枠の持ち主を明示的に移し、解放がちょうど 1 つであること、起動するすべての goroutine がパニックを回収すること（§3.8.4）/ 失敗の分類が §3.9 の表の網羅的な `switch` で、`rejectReason` から `Kind` への対応も 1 つの `switch` であること / 応答・ログ・通知に秘密と字幕の本文が現れないこと（`redact.Writer` を必ず通す）
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: 枠（同時実行数）・goroutine のパニック回収・失敗の分類と通知という分離された高リスク／複雑なステップ（並行処理と回復）を含む。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
+- [ ] **ステップ 2-4**: `cmd/yt2column-server/main.go`（`os.LookupEnv`・標準出力・標準エラー出力を `run` に渡し、`signalrun.Run` で包む）と `cmd/yt2column-server/run.go`（起動の手順と終了コード、部品の構築、ログの組み立て。CLI の `deps` と同じく、LLM・`Publisher`・`Notifier` の構築関数をテストで差し替えられる形にする）を実装する。`Makefile` の `build` を 2 つの実行ファイルにする（統合テストは `make test` に含まれるので、専用のターゲットは加えない）。`internal/config/envaccess_test.go` の `allowedEnvRefs` に `cmd/yt2column-server/main.go` を加える。`cmd/yt2column-server/server_test.go`（`//go:build test`）に §4.2 の統合テストを書く。サーバの `writer.Options` が CLI の既定の解析結果と一致することを `cmd/yt2column-server` のユニットテストで固定する（§3.1）。
+
+### PR-6 作成ポイント: the server entry point and integration test
+
+**対象ステップ**: 2-4
+
+**推奨タイトル**: `feat(0011): add the yt2column-server entry point`
+
+**レビュー観点**: 起動の手順と終了コード（2・3・4・5）が architecture §3.1 のとおりであること / `server.Options.Secrets` に API キー・Webhook URL・共有トークンが入り、標準エラー出力に秘密が現れないこと / 統合テストが `deps` を差し替え、`SLACK_WEBHOOK_URL` に `https` の値を渡していること（`http://` の `httptest` の URL を渡していない）/ 子プロセスの起動時に `t.Cleanup` に kill と reap を登録していること。起動の配線と統合テストは #108 の実物（`NewSlackFailureNotifierForLoopbackTest`）に依存するので #108 のマージ後に行う
+
+**実装モデル要件**: frontier-required
+
+**判定理由**: 子プロセスでシグナルと再起動を確かめる統合テストと、`Makefile`・起動の配線を扱う heavy な integration-test surface に該当する（mkplan.md の panel-mode trigger）。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 - [ ] **ステップ 2-5**: 文書を F-010・architecture §3.12 のとおりに更新する。`CLAUDE.md`（2 つの入口、Architecture Overview に新しいパッケージ）、`docs/dev/project_overview.md`（実行形式、入力元、想定ディレクトリ構成、`YT2COLUMN_SERVER_PORT` と読まない変数）、`docs/dev/security.md` §8（サーバの節）、`README.md`（起動と確認の手順、`curl` の例、拒否の理由の一覧）、`docs/translation_glossary.md`。`cmd/yt2column-server/docs_test.go`（`//go:build test`）に、サーバの文書の内容を固定するガードを加える。ガードは、実装と食い違いうる値（既定のポート `8765`、拒否の理由と状態コードの対応、`config` の変数の名前、`rejectReason` の列挙）を `internal/config`・`internal/server` の定数や表から導く（`rejectReason` は `internal/server` の非公開なので、`internal/server` に `-tags test` の公開のテスト用アクセサを用意してガードから読む。`publisher.SlackMaxMessageRunesForTest` と同じ形）。`README` の `curl` の例が要求する要素（パス・送るヘッダ・標準入力から渡す `Authorization`）を確かめる（`cmd/yt2column/docs_test.go:62` の `TestSlackDocsContract` が値を実装の定数から導く形に倣う）。文書を読む補助（`readDoc`・`findTable`・`sectionByHeading` など。`cmd/yt2column/docs_test.go:304-478`）は `cmd/yt2column` の非公開なので、共有の `testutil` に切り出すか、複製する理由を記録する。ガードの日本語の見出しの文字列リテラルは §1.2 の英語の規則の例外とする（`cmd/yt2column/extension_docs_test.go:89` と同じ）。既存の doc ガード（`cmd/yt2column/docs_test.go` の `TestREADMEDocumentsFlags`・`TestSlackDocsContract`・`TestClaudeDocsContract`、`cmd/yt2column/extension_docs_test.go`）が引き続き通ることを確かめる。あわせて、`doc-guard` の CI ジョブ（`.github/workflows/ci.yml:184`。文書だけの PR でも走る）が `go test -tags test ./cmd/yt2column ./internal/pipeline` だけを走らせるので、`./cmd/yt2column-server` を加え、文書だけの PR でもサーバのガードが走るようにする。
+
+### PR-7 作成ポイント: the docs
+
+**対象ステップ**: 2-5
+
+**推奨タイトル**: `docs(0011): document the localhost server`
+
+**レビュー観点**: F-010 と architecture §3.12 の各文書（`CLAUDE.md`・`project_overview.md`・`security.md` §8・`README.md`・`translation_glossary.md`）が更新されていること / 文書のガードが実装の定数・表から値を導き、`project_overview.md` の変数・README の `curl` の例・security.md §8 の内容を確かめていること / `doc-guard` の CI ジョブに `./cmd/yt2column-server` を加え、文書だけの PR でもガードが走ること / 既存の doc ガード（`TestREADMEDocumentsFlags`・`TestSlackDocsContract`・`TestClaudeDocsContract`・`TestExtensionDocumentation`）が引き続き通ること
+
+**実装モデル要件**: standard
+
+**判定理由**: 文書の更新と、`doc-guard` の CI ジョブへの 1 パッケージの追加が主で、前例のない設計判断・競合する実装案・分離された高リスク／複雑なステップのいずれにも該当しない。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 **完了条件:** `make fmt`・`make test`・`make lint` が通る。§4.2 の統合テスト（LLM の fake と loopback の Webhook）は `make test` に含まれる。AC-01 の外部インターフェースの確認、実際のソケットで上限を超える本文と誤ったトークンを送ったときの結果の記録、通知の表示（`video:` の行の `<URL>` のリンクと改行）の Mattermost での確認を、PR の手動の確認として記録する。
 
@@ -115,7 +239,23 @@ requirements §2.3 のとおり。加えて、次のものは本計画で扱わ�
 - フェーズ 1 は #107・#108 に依存しない。1-1 の契約は #107・#108 の issue に記録済み（architecture §1.3）。
 - フェーズ 2 の 2-1〜2-3 のユニットテストは fake の `Notifier` と #107 の実物で足りる。#108 の実物が要るのは 2-4 だけである（architecture §8）。
 
-### 3.2. 各ステップの依存
+### 3.2. PR 構成
+
+PR は、レビューの単位（1 つの関心事）と、単独でグリーンゲートを通せる単位で分ける。`internal/` を変えるステップは、それを使う `cmd/` より先に着地する。
+
+| PR | 対象ステップ | 主な変更内容 | 実装モデル要件 |
+|---|---|---|---|
+| PR-1 | 1-1 | `internal/failure` の型・fake・契約ガード | standard |
+| PR-2 | 1-2 | `internal/redact`・`internal/signalrun` の新設と CLI の切り替え（振る舞い不変） | standard |
+| PR-3 | 1-3 / 1-4 | `LLMConfig` の分離、`LoadServer`・ポート・設定ディレクトリ、`ErrPromptTooLarge` | standard |
+| PR-4 | 1-5 | `internal/authtoken` | frontier-recommended |
+| PR-5 | 2-1 / 2-2 / 2-3 | `internal/server`（受け口・本文の検査・ジョブと枠と通知と終了） | frontier-recommended |
+| PR-6 | 2-4 | `cmd/yt2column-server`・`Makefile`・統合テスト | frontier-required |
+| PR-7 | 2-5 | 文書（F-010）とサーバの文書のガード、`doc-guard` の CI | standard |
+
+PR-1 と PR-2 は独立である。PR-3 は 1-3 → 1-4 の順に、PR-4 は PR-3 の後に置く。PR-5 は PR-1（`failure` の型）・PR-2（`redact`）・PR-3（`writer.ErrPromptTooLarge`）・PR-4（`authtoken`）に依存し、PR-6 は PR-5・PR-3（`config.LoadServer`）と #108 の実物に依存する。PR-7 は PR-6 に依存する。
+
+### 3.3. 各ステップの依存
 
 - 1-2 は `internal/secret`・`internal/slackwebhook` だけに依存し、1-1・1-3 と独立である。1-3 → 1-4 → 1-5 は一本の連鎖である（1-4 は 1-3 の `LLMConfig` に、1-5 は 1-4 の設定ディレクトリ導出に依存する）。1-1 はどのステップにも依存しない。
 - 2-1 → 2-2 → 2-3 の順に積む（2-3 は 2-1 の `Options.Notifier` と 2-2 の検査結果を使う）。2-4 は 2-3（と #108 の実物）に、2-5 は 2-4 に依存する。
@@ -194,23 +334,19 @@ architecture §7.3 を 2-1〜2-3 のテストに書く。(1) AC-12（本文を�
 | 実装の手順と architecture が食い違う（検査の順序、上限、状態コード） | architecture を唯一の設計の出典とし、変える場合は architecture を先に直す（architecture §3.5.2・§3.4.3・§3.5.3） |
 | #108 の実物が無いために 2-4 の統合テストが書けない | 2-1〜2-3 のユニットテストは fake の `Notifier` で進める。2-4 の統合テストは #108 のマージ後に行う（§3.1） |
 | 文書の更新で既存の doc ガードが落ちる | 2-5 で `TestREADMEDocumentsFlags`・`TestSlackDocsContract`・`TestClaudeDocsContract`・`TestExtensionDocumentation` を確認する |
-| 承認済みの architecture §7.2 の統合テストの方式（実際のバイナリ、`integration` タグだけ）が実装できない（LLM のエンドポイントを差し替えられない） | architecture §7.2 を `//go:build test` と `deps` の差し替えの方式に改めて `draft` に戻した。2-4 の前に再承認を受ける（フェーズ 2 の阻害要因。フェーズ 1・2-1〜2-3 は影響を受けない） |
+| architecture §7.2 の旧方式の統合テスト（実際のバイナリ、`integration` タグだけ）が実装できない（LLM のエンドポイントを差し替えられない） | architecture §7.2 を `//go:build test` と `deps` の差し替えの方式に改めて `draft` に戻し、#222 で再承認を受けた（フェーズ 2 の阻害要因は解消済み。フェーズ 1・2-1〜2-3 はこの修正に依存しない） |
 | 子プロセスや `net.Listener` のリークで再実行が `EADDRINUSE` を起こしたり不安定になったりする | 起動・取得の時点で `t.Cleanup` に kill と reap・close を登録し、再起動の前にポートの解放を待つ（§4.2） |
 
 ## 7. 実装チェックリスト (Implementation Checklist)
 
-- [ ] 1-1 `internal/failure`（型・fake・ガード・`package_reference.md`・件数）
-- [ ] 1-2 `internal/redact`・`internal/signalrun` と CLI の切り替え（テストの移動を含む）
-- [ ] 1-3 `LLMConfig` の分離と `provider` の引数の変更（振る舞い不変）
-- [ ] 1-4 `LoadServer`・ポート・設定ディレクトリ・`ErrPromptTooLarge`
-- [ ] 1-5 `internal/authtoken`
-- [ ] 2-1 `internal/server` の受け口・検査の順序・応答
-- [ ] 2-2 本文の検査と #107 の接続
-- [ ] 2-3 ジョブ・枠・失敗の分類と通知・終了
-- [ ] 2-4 の前に、改めた architecture §7.2（`//go:build test`・`deps` の差し替え）の再承認を受けた（阻害要因）
-- [ ] 2-4 `cmd/yt2column-server`・`Makefile`・統合テスト
-- [ ] 2-5 文書（F-010）とサーバの文書のガード
-- [ ] 各フェーズで `make fmt`・`make test`・`make lint` が通る
+- [ ] PR-1 マージ済み（対象ステップ: 1-1）
+- [ ] PR-2 マージ済み（対象ステップ: 1-2）
+- [ ] PR-3 マージ済み（対象ステップ: 1-3 / 1-4）
+- [ ] PR-4 マージ済み（対象ステップ: 1-5）
+- [ ] PR-5 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3）
+- [ ] PR-6 マージ済み（対象ステップ: 2-4）
+- [ ] PR-7 マージ済み（対象ステップ: 2-5）
+- [ ] 各 PR でグリーンゲート（`make test && make lint`）が通った
 - [ ] AC-01 の外部インターフェースの確認と、通知の表示の Mattermost での確認を PR に記録した
 
 ## 8. 完了条件 (Success Criteria)
@@ -223,8 +359,7 @@ architecture §7.3 を 2-1〜2-3 のテストに書く。(1) AC-12（本文を�
 
 ## 9. 次のステップ (Next Steps)
 
-- 本計画の承認後、フェーズ 1 から順に実装する。各ステップの後にグリーンゲートを通す。
-- 2-4 の前に、フェーズ 2 の阻害要因のとおり、改めた architecture §7.2 の再承認を受ける。
-- 1-1 の後、`internal/failure` の契約をタスク 0016 のフェーズ 2（`SlackFailureNotifier`）が使える状態にする。
+- 本計画の承認後、PR-1 から順に実装する。各 PR の後にグリーンゲートを通す。
+- 1-1（PR-1）の後、`internal/failure` の契約をタスク 0016 のフェーズ 2（`SlackFailureNotifier`）が使える状態にする。
 - 2-4 の統合テスト（実物の通知）は #108（タスク 0016）のマージ後に行う。
 - 2-5 の後、#111（拡張の送信）が本 API に従える状態にする。
