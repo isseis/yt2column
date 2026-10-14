@@ -114,6 +114,48 @@ Phase-group review checklist (use verbatim as evaluation criteria in the subagen
 - [ ] Newly authored artifacts (runbooks, command examples, tables, prose, translations) are verified against ground truth, not only by absence-search.
 - [ ] All source comments and identifiers are in English. (Non-ASCII flagged by step 6.5 Check 2 has been reviewed and is intentional.)
 
+7.5. Run a second critical-review subagent focused on the tests, following the
+   procedure in `.claude/commands/_lib/review-subagent-pattern.md` with:
+   - **ARTIFACT**: the test code added or modified in this phase group.
+   - **PERSONA**: an experienced Go test reviewer. Direct it to find, in this
+     phase group's tests only, coverage that duplicates another test, tests too
+     trivial to verify anything, tests that can be simplified, string matching on
+     error messages that should be a type check, and tests that break the
+     project's testing rules.
+   - **FILES**: the test files added or modified in this phase group, plus
+     `CLAUDE.md` (for the testing rules) and the implementation plan document
+     (paths in `_context.md`), as resolved absolute-path strings (read in full).
+     Provide the commit range for this phase group (e.g., `HEAD~N..HEAD`) and
+     instruct the subagent to run `git diff <range>`.
+   - **CRITERIA**: every item from the test-review checklist below, copied
+     verbatim.
+
+   Run it after step 7, so it reviews the tests as they stand after any
+   code-review fixes. Fix its Critical and Major findings and include them in the
+   same build-check/commit/verification loop as step 7. If the phase group adds
+   or changes no tests, skip this step.
+
+Test-review checklist (use verbatim as evaluation criteria in the step 7.5 prompt):
+- [ ] No test duplicates another test's coverage without good reason.
+- [ ] No test is so trivial that it adds no verification value (for example, a
+      struct field asserted to hold the value just assigned to it, or a constant
+      asserted equal to its own literal).
+- [ ] A plurality of cases is covered by one table or loop; the same rows are not
+      repeated as a second table, and rows that differ only by a shared fixture
+      are consolidated.
+- [ ] String matching on error messages (`strings.Contains(err.Error(), ...)`,
+      `err.Error() == ...`) is a type check (`errors.Is` / `errors.AsType`)
+      wherever the verified property is an error type or sentinel. String
+      matching is kept only where the wording itself is the observable contract,
+      and the test comments why.
+- [ ] The tests obey the testing rules in `CLAUDE.md`: every test can fail for its
+      stated reason (and the break-to-fail check was performed); a layered path is
+      given an input only one layer can handle; no constant-equals-its-own-literal
+      or field-holds-its-own-assignment assertion; duplication is checked before
+      adding a table test; a deleted test's coverage was confirmed unchanged.
+- [ ] Each test asserts observable behavior rather than restating an
+      implementation detail.
+
 8. Decide whether to continue or finish.
 - If implementation ran this iteration: summarize implementation, verified ACs, assumptions, and deferred items.
 - If phases remain: ask "Shall I continue with the next phase group?" — return to step 4 if agreed, otherwise report status and stop.
