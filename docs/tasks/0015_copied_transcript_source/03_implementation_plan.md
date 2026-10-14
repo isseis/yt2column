@@ -99,8 +99,8 @@ requirements の F-001〜F-004 を、architecture の設計どおりに実装す
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: `CopiedInput`・`CopiedSource`・`NewCopiedSource`・`Fetch`（F-003）
 
