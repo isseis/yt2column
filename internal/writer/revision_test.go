@@ -44,7 +44,7 @@ func TestRevisionNoChange(t *testing.T) {
 		{"replacement with different before and after", changed, false},
 		{"zero-value replacement", Revision{Action: ActionReplace}, false},
 		{"deletion", deleted, false},
-		{"unknown action", Revision{Before: markRevisionBefore, Action: ActionUnknown}, false},
+		{"unknown action", Revision{Before: markRevisionBefore, Action: ActionUnknown, After: markRevisionBefore}, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
