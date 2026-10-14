@@ -15,8 +15,10 @@ Follow `.claude/commands/_lib/pr-review-merge-loop.md` for the PR with:
 
 - **CREATE_PR** = `false` — `runplan.md` step 5a creates the PR.
 - **POST_MERGE** = in the task's `03_implementation_plan.md`, mark the
-  just-completed PR checkpoint's remaining checkboxes — the "PR がマージされた"
-  and "次のブランチへ切り替えた" items — as `[x]`, and commit. This is the same
+  just-completed PR checkpoint's "PR がマージされた" checkbox as `[x]`, and commit.
+  Mark "次のブランチへ切り替えた" as `[x]` only when the shared loop created and
+  checked out a next work branch; on the task's final PR (no next change, the
+  loop checks out the base branch) leave it unchecked. This is the same
   bookkeeping `runplan.md` step 5a defines.
 
 Then ask the user whether to implement the next PR with `/runplan`:

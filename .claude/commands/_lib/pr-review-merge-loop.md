@@ -60,6 +60,10 @@ Repeat steps 1–4 for the PR.
     body are not interpreted. Report the URL; let the user adjust the title or
     body before continuing.
   - without `CREATE_PR`, report that no PR exists and stop.
+- Check out the PR's head branch before making any change, so `fixpr`'s commit
+  and push land on the PR instead of on whatever branch the worktree has out:
+  `gh pr checkout <number>`. (Skip it when the head branch is already current.)
+  Do this in step 1, before the step 2 `fixpr`.
 
 ### 2. Wait for CodeRabbit, running fixpr as comments appear
 
@@ -73,7 +77,7 @@ Poll until CodeRabbit has finished and nothing is left to fix.
   ```
 
   Find the entry whose `context` (a `StatusContext`) or `name` is `CodeRabbit`
-  and read its `state` (`PENDING` → `SUCCESS` / `FAILURE`). `gh pr checks` can
+  and read its `state` (`PENDING` → `SUCCESS` / `FAILURE` / `ERROR`). `gh pr checks` can
   report a separate check run whose conclusion is `pass` with the description
   `Review skipped` while the review is still in progress, so it is not a reliable
   signal. Wait between polls rather than spinning.
@@ -115,7 +119,7 @@ Poll until CodeRabbit has finished and nothing is left to fix.
   `fixpr` reported that every remaining thread is at its severity floor
   (`no-harm`; `fixpr.md`'s convergence policy defines the floor), go to step 3.
   If a remaining unresolved thread is not at the floor, report it and stop rather
-  than merge. If its state is `FAILURE`, report and stop.
+  than merge. If its state is `FAILURE` or `ERROR`, report and stop.
 - If no `CodeRabbit` status context ever appears after a reasonable wait, report
   that and ask the user how to proceed rather than assuming green.
 
