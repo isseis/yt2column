@@ -63,6 +63,23 @@ requirements が定める 2 つの機能要件（F-001・F-002）を、architect
 
 **完了条件:** `NoChange()` が真偽表のとおりに動き、無変更の項目が `ReviewResult.Check` で受理される。受理の規則と既存の拒否のケースは変わっていない。
 
+### PR-1 作成ポイント: revision no-change predicate
+
+**対象ステップ**: 1-1 / 1-2 / 1-3 / 1-4 / 1-5
+
+**推奨タイトル**: `feat(0013): add Revision.NoChange for identical revisions`
+
+**レビュー観点**: `NoChange()` の条件が architecture §3.1 のとおり（`ActionReplace`・空でない `Before`・`Before == After`）であること / 受理の規則そのもの（`check`・`Check` の条件）を変えず doc コメントの 1 文の追加に留めていること / 真偽表がゼロ値・`ActionDelete`・未知の action を偽とする行を含むこと
+
+**実装モデル要件**: standard
+
+**判定理由**: 条件が architecture §3.1 で確定しており、前例のない設計判断・panel-mode トリガー・競合する実装案・複数の Conditional check・分離された高リスク／複雑なステップのいずれにも該当しないため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ### フェーズ 2: 書式
 
 **対象ファイル:** `internal/publisher/reviewlog.go`（変更）、`internal/publisher/reviewlog_test.go`（変更）
@@ -72,6 +89,23 @@ requirements が定める 2 つの機能要件（F-001・F-002）を、architect
 - [ ] **ステップ 2-3**: フェーズ 2 の完了条件として、`make fmt` → `make test` → `make lint` を通す。既存の `TestReviewLogWriterFormat` の置換・削除のサブテストが引き続き通ることを確かめる。
 
 **完了条件:** 無変更の項目の一覧のファイルに `No change.` が `Evidence:` の直前に 1 行入り、変更のある項目の書式と先頭の件数は変わっていない。
+
+### PR-2 作成ポイント: review log no-change mark
+
+**対象ステップ**: 2-1 / 2-2 / 2-3
+
+**推奨タイトル**: `feat(0013): mark no-change revisions in the review log`
+
+**レビュー観点**: `No change.` が `After:` の引用の直後・`Evidence:` の直前（`Deleted.` と同じ位置）に入ること / 削除と `Before != After` の置換の書式、および先頭の `- Revisions:` の件数を変えていないこと / `No change.` が応答の値を含まない固定の英語リテラルであること / `internal/publisher` が自前の比較を書かず `writer.Revision.NoChange()` を呼んでいること
+
+**実装モデル要件**: standard
+
+**判定理由**: 位置と分岐の条件が architecture §3.2 で確定しており、前例のない設計判断・panel-mode トリガー・競合する実装案・複数の Conditional check・分離された高リスク／複雑なステップのいずれにも該当しないため。security.md §6 の条件付きガイドには該当する（architecture §5）が、新しいデータの流れ・外部の面を持たない固定リテラルの追加であり、frontier-required のセキュリティゲート／移行のトリガーには当たらない。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: 統合の確認
 
@@ -84,6 +118,23 @@ requirements が定める 2 つの機能要件（F-001・F-002）を、architect
 
 **完了条件:** 無変更の項目が解析・検査・当てはめ・`Write` のどの経路でも受理され、既存の拒否の規則と変更のある項目の扱いが変わっていない。
 
+### PR-3 作成ポイント: writer pipeline acceptance tests
+
+**対象ステップ**: 3-1 / 3-2 / 3-3 / 3-4
+
+**推奨タイトル**: `test(0013): cover identical revisions across the write path`
+
+**レビュー観点**: 無変更の項目が `parseReviewResponse`・`applyRevisions`・`Write` の各経路で受理されることを確かめていること / 既存の拒否のケースと変更のある項目の扱いを変えていないこと / `before` が生成後の文面に一度だけ現れる値でテストを組み立てていること
+
+**実装モデル要件**: standard
+
+**判定理由**: 変更しないコードの受理の挙動を確かめるテストの追加であり、前例のない設計判断・panel-mode トリガー・競合する実装案・複数の Conditional check・分離された高リスク／複雑なステップのいずれにも該当しないため。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
 
 ### 3.1. マイルストーン
@@ -94,11 +145,21 @@ requirements が定める 2 つの機能要件（F-001・F-002）を、architect
 | M2 | フェーズ 2 | 一覧のファイルの無変更の項目に `No change.` が入り、変更のある項目の書式は変わらない |
 | M3 | フェーズ 3 | 解析・当てはめ・`Write` の各経路で無変更の項目が受理され、全体のグリーンゲート（`make test`・`make lint`）が通る |
 
-### 3.2. 実装順序の根拠
+### 3.2. PR 構成
+
+| PR | 対象ステップ | 主な変更内容 | 実装モデル要件 |
+|---|---|---|---|
+| PR-1 | 1-1 / 1-2 / 1-3 / 1-4 / 1-5 | `internal/writer/revision.go` に `Revision.NoChange()` と受理の doc コメントを加え、`revision_test.go` に真偽表と受理のケースを加える | standard |
+| PR-2 | 2-1 / 2-2 / 2-3 | `internal/publisher/reviewlog.go` の `renderReviewLog` に `No change.` の分岐を加え、`reviewlog_test.go` に書式のケースを加える | standard |
+| PR-3 | 3-1 / 3-2 / 3-3 / 3-4 | `internal/writer/review_test.go`・`steps_test.go` に無変更の項目の受理の統合テストを加える | standard |
+
+PR-1 は `internal/writer` の型に判定を加え、PR-2 はその判定を呼ぶ `internal/publisher` の書式を加えるので、PR-1 → PR-2 の順とする。PR-1 の `NoChange()` を実際に使うのは PR-2 の `renderReviewLog` だけだが、判定を型に置くという architecture §1.1 原則 1 に従い、消費側より先に PR-1 で入れ、真偽表のテストで単独に固定する。PR-3 は HEAD で既に成り立つ受理の挙動を確かめるテストの追加で、PR-1・PR-2 のどちらにも依存しないが、architecture §8 の順序（統合の確認を最後に置く）に従い PR-3 に置く。各 PR はグリーンゲートを独立に通す（PR-2 は PR-1 の `NoChange()` に依存するため PR-1 の後に置く）。
+
+### 3.3. 実装順序の根拠
 
 architecture §8 の優先順位（1: 判定、2: 書式、3: 統合の確認）のとおりにする。フェーズ 2 の `renderReviewLog` は `Revision.NoChange()` を呼ぶので、判定（フェーズ 1）が先である。フェーズ 3 は、判定と書式がそろったうえで、応答から記事に至る経路で無変更の項目が受理されることをまとめて確かめる。フェーズ 3 のテストはフェーズ 1 の `NoChange()` に依存しないが、architecture の順序に従う。
 
-PR の境界は本計画では定めない。`/mkplan2 0013` が承認後に埋め込む。
+PR の境界は §3.2 のとおり 3 つに分ける。この依存（PR-1 → PR-2）とアーキテクチャの順序（判定 → 書式 → 統合の確認）はいずれも PR-1 → PR-2 → PR-3 を指すので、ステップの並べ替えは行わない。
 
 ## 4. テスト戦略 (Test Strategy)
 
@@ -161,9 +222,9 @@ PR の境界は本計画では定めない。`/mkplan2 0013` が承認後に埋�
 
 ## 7. 実装チェックリスト (Implementation Checklist)
 
-- [ ] フェーズ 1 のステップ 1-1〜1-5 が完了し、M1 の完了条件を満たす
-- [ ] フェーズ 2 のステップ 2-1〜2-3 が完了し、M2 の完了条件を満たす
-- [ ] フェーズ 3 のステップ 3-1〜3-4 が完了し、M3 の完了条件を満たす
+- [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5）。フェーズ 1 のステップが完了し、M1 の完了条件を満たす
+- [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3）。フェーズ 2 のステップが完了し、M2 の完了条件を満たす
+- [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4）。フェーズ 3 のステップが完了し、M3 の完了条件を満たす
 - [ ] §4.2 の壊し確認をすべて行い、結果をコミットメッセージに記録した
 - [ ] §5 のすべての AC の検証が通り、§5 の表の `test` の検証が `make test` で実行される
 - [ ] グリーンゲート（`make test && make lint`）が通る
@@ -177,5 +238,5 @@ PR の境界は本計画では定めない。`/mkplan2 0013` が承認後に埋�
 
 ## 9. 次のステップ (Next Steps)
 
-- 本書が `approved` になったら、`/mkplan2 0013` で PR の境界を本書に埋め込み、その後 `/runplan 0013` でフェーズ 1 から実装する。
+- 本書の PR の境界（§3.2）に従い、`/runplan 0013` で PR-1 から順に実装する。
 - 要約の観測性（無変更の項目を要約の件数から分ける変更）は、要約の書式を定める別のタスクで扱う（architecture §9）。
