@@ -18,7 +18,7 @@ const (
 	copiedTestOtherID    = "abcdefghijk"
 	copiedTestRaw        = "0:00\n0:05\nこんにちは\n"
 	copiedTestVideoURL   = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-	copiedTestOtherURL   = "https://www.youtube.com/watch?v=abcdefghijk"
+	copiedTestOtherURL   = "https://www.youtube.com/watch?v=" + copiedTestOtherID
 	copiedTestYoutuBeURL = "https://youtu.be/dQw4w9WgXcQ"
 )
 
@@ -142,6 +142,15 @@ func TestCopiedSourceTranscript(t *testing.T) {
 			t.Errorf("Segments = %+v, want %+v", transcript.Segments, want)
 		}
 	})
+
+	t.Run("parses a form A sample", func(t *testing.T) {
+		in := CopiedInput{VideoID: copiedTestVideoID, Raw: "0:2424 secondsHello\n"}
+		transcript := mustCopiedTranscript(t, in)
+		want := []Segment{{StartMs: 24000, Text: "Hello"}}
+		if !reflect.DeepEqual(transcript.Segments, want) {
+			t.Errorf("Segments = %+v, want %+v", transcript.Segments, want)
+		}
+	})
 }
 
 func TestCopiedSourceFetch(t *testing.T) {
@@ -202,6 +211,19 @@ func TestCopiedSourceFetch(t *testing.T) {
 		}
 	})
 
+	t.Run("canceled context precedes the zero-value check", func(t *testing.T) {
+		var source CopiedSource
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		_, err := source.Fetch(ctx, "")
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("Fetch error = %v, want context.Canceled", err)
+		}
+		if errors.Is(err, errCopiedSourceUninitialized) {
+			t.Errorf("error = %v, also matches errCopiedSourceUninitialized", err)
+		}
+	})
+
 	t.Run("zero value is not initialized", func(t *testing.T) {
 		var source CopiedSource
 		transcript, err := source.Fetch(context.Background(), "")
@@ -228,7 +250,7 @@ func TestCopiedSourceHoldsOnlyTranscript(t *testing.T) {
 		}
 	})
 
-	t.Run("Fetch returns the same value twice", func(t *testing.T) {
+	t.Run("Fetch returns the stored segments without parsing again", func(t *testing.T) {
 		source := mustCopiedSource(t, CopiedInput{VideoID: copiedTestVideoID, Raw: copiedTestRaw})
 		first, err := source.Fetch(context.Background(), copiedTestVideoURL)
 		if err != nil {
@@ -240,6 +262,12 @@ func TestCopiedSourceHoldsOnlyTranscript(t *testing.T) {
 		}
 		if !reflect.DeepEqual(first, second) {
 			t.Errorf("Fetch returned %+v then %+v", first, second)
+		}
+		if len(first.Segments) == 0 {
+			t.Fatal("Fetch returned no segments")
+		}
+		if &first.Segments[0] != &second.Segments[0] {
+			t.Error("two Fetch calls returned different segment backing arrays, so they may be parsing again")
 		}
 	})
 }
