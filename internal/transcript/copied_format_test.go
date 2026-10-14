@@ -3,11 +3,18 @@
 package transcript
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
+	"runtime"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
+	"unicode/utf8"
 )
 
 func TestCopiedLabels(t *testing.T) {
@@ -466,4 +473,204 @@ func assertCopiedRejected(t *testing.T, input string, reason error) string {
 		t.Errorf("parseCopiedTranscript(%q) returned segments %+v", input, segments)
 	}
 	return err.Error()
+}
+
+// The server caps the request body at 4 MiB; the parser must finish such an
+// input within a small part of the server's request window and without
+// allocating super-linearly. The deadline is generous because make test builds
+// with the race detector (measured about 3.2s for the 4 MiB inputs under -race)
+// and CI may run on a slower, contended runner; the parse budget on the server
+// is under 30s. copiedParseAllocPerByte is defined per build: the race
+// detector's runtime inflates TotalAlloc, so the race build uses a loose bound.
+const (
+	copiedLargeInputLimit = 4 << 20
+	copiedParseDeadline   = 15 * time.Second
+)
+
+// TestParseCopiedLargeInputs parses three synthetic 4 MiB inputs: the shortest
+// form A line repeated (the most segments), one form A line nearly 4 MiB long,
+// and many textless form B timestamps followed by one text. Each must parse
+// within the deadline and allocate at most copiedParseAllocPerByte bytes per
+// input byte. The test does not run in parallel, so TotalAlloc around the parse
+// measures only this parse.
+func TestParseCopiedLargeInputs(t *testing.T) {
+	inputs := []struct {
+		name         string
+		input        string
+		wantSegments int
+	}{
+		{"shortest form A lines", buildCopiedShortestFormALines(copiedLargeInputLimit), copiedLargeInputLimit / len("0:000 秒x\n")},
+		{"one long form A line", buildCopiedLongFormALine(copiedLargeInputLimit), 1},
+		{"textless form B timestamps", buildCopiedTextlessFormB(copiedLargeInputLimit), 1},
+	}
+	for _, tc := range inputs {
+		t.Run(tc.name, func(t *testing.T) {
+			if len(tc.input) > copiedLargeInputLimit {
+				t.Fatalf("input is %d bytes, over the %d limit", len(tc.input), copiedLargeInputLimit)
+			}
+			var before, after runtime.MemStats
+			runtime.ReadMemStats(&before)
+			start := time.Now()
+			segments, err := parseCopiedTranscript(tc.input)
+			elapsed := time.Since(start)
+			runtime.ReadMemStats(&after)
+			if err != nil {
+				t.Fatalf("parse error = %v", err)
+			}
+			if len(segments) != tc.wantSegments {
+				t.Errorf("parsed into %d segments, want %d", len(segments), tc.wantSegments)
+			}
+			if elapsed > copiedParseDeadline {
+				t.Errorf("parsed %d bytes in %s, want under %s", len(tc.input), elapsed, copiedParseDeadline)
+			}
+			allocated := after.TotalAlloc - before.TotalAlloc
+			if allocated > copiedParseAllocPerByte*uint64(len(tc.input)) {
+				t.Errorf("parse allocated %d bytes for %d input bytes, want at most %d per byte",
+					allocated, len(tc.input), copiedParseAllocPerByte)
+			}
+			t.Logf("%d bytes, %d segments, %s, %d allocated (%.2f per byte)",
+				len(tc.input), len(segments), elapsed, allocated, float64(allocated)/float64(len(tc.input)))
+		})
+	}
+}
+
+func buildCopiedShortestFormALines(limit int) string {
+	line := "0:000 秒x\n"
+	return strings.Repeat(line, limit/len(line))
+}
+
+func buildCopiedLongFormALine(limit int) string {
+	prefix := "0:000 秒"
+	return prefix + strings.Repeat("x", limit-len(prefix))
+}
+
+func buildCopiedTextlessFormB(limit int) string {
+	timestamp := "0:00\n"
+	tail := "0:05\nx"
+	return strings.Repeat(timestamp, (limit-len(tail))/len(timestamp)) + tail
+}
+
+// FuzzNewCopiedSource checks four properties: it never panics; an accepted
+// transcript has a non-whitespace, valid-UTF-8 text and a non-decreasing
+// StartMs for every segment; replacing LF with CRLF in a CR-free input gives
+// the same result; and a rejection wraps ErrCopiedTranscriptFormat with a fixed
+// reason and an optional line number only. The seeds are the committed real
+// fixtures and a few table inputs; make test runs only the seeds.
+func FuzzNewCopiedSource(f *testing.F) {
+	paths, err := filepath.Glob(testdataCopiedTranscripts)
+	if err != nil {
+		f.Fatalf("glob %s: %v", testdataCopiedTranscripts, err)
+	}
+	if len(paths) != len(copiedSampleFiles) {
+		f.Fatalf("found %d copied transcript fixtures, want %d", len(paths), len(copiedSampleFiles))
+	}
+	for _, path := range paths {
+		data, err := os.ReadFile(path) //nolint:gosec // the path names a committed testdata fixture
+		if err != nil {
+			f.Fatalf("read %s: %v", path, err)
+		}
+		f.Add(string(data))
+	}
+	f.Add("0:2424 secondsHello\n")
+	f.Add("0:00\n0:05\nこんにちは\n")
+	f.Add("0:000 秒\n")
+	f.Add("not a transcript\n")
+	f.Add("1:251 minute 25 secondsHello\n")
+	f.Add("0:00\n1:30 から始めます\n")
+
+	f.Fuzz(func(t *testing.T, raw string) {
+		source, err := NewCopiedSource(CopiedInput{VideoID: copiedTestVideoID, Raw: raw})
+		if err != nil {
+			assertCopiedFuzzRejection(t, err)
+			return
+		}
+		transcript, err := source.Fetch(context.Background(), copiedTestVideoURL)
+		if err != nil {
+			t.Fatalf("Fetch after a successful NewCopiedSource = %v", err)
+		}
+		assertCopiedFuzzAcceptance(t, transcript, raw)
+	})
+}
+
+func assertCopiedFuzzRejection(t *testing.T, err error) {
+	t.Helper()
+	if !errors.Is(err, ErrCopiedTranscriptFormat) {
+		t.Fatalf("error = %v, want ErrCopiedTranscriptFormat", err)
+	}
+	if errors.Is(err, ErrInvalidVideoURL) {
+		t.Errorf("error = %v, also matches ErrInvalidVideoURL", err)
+	}
+	if !copiedErrorMessageOK(err.Error()) {
+		t.Errorf("message = %q, want a fixed reason and an optional line number", err.Error())
+	}
+}
+
+func assertCopiedFuzzAcceptance(t *testing.T, transcript Transcript, raw string) {
+	t.Helper()
+	if len(transcript.Segments) == 0 {
+		t.Fatal("an accepted input produced no segments")
+	}
+	previous := int64(-1)
+	for i, segment := range transcript.Segments {
+		if !utf8.ValidString(segment.Text) {
+			t.Errorf("segment %d text is not valid UTF-8", i)
+		}
+		if strings.TrimSpace(segment.Text) == "" {
+			t.Errorf("segment %d text is whitespace only", i)
+		}
+		if segment.StartMs < previous {
+			t.Errorf("segment %d StartMs %d is earlier than %d", i, segment.StartMs, previous)
+		}
+		previous = segment.StartMs
+	}
+	if !strings.Contains(raw, "\r") {
+		crlfSegments, err := parseCopiedTranscript(strings.ReplaceAll(raw, "\n", "\r\n"))
+		if err != nil {
+			t.Fatalf("the CRLF version of an accepted input was rejected: %v", err)
+		}
+		if !reflect.DeepEqual(transcript.Segments, crlfSegments) {
+			t.Error("LF and CRLF versions of the same input differ")
+		}
+	}
+}
+
+// copiedErrorMessageOK reports whether message is the fixed prefix plus either
+// a bare reason string or "line N: <reason>".
+func copiedErrorMessageOK(message string) bool {
+	rest, ok := strings.CutPrefix(message, ErrCopiedTranscriptFormat.Error()+": ")
+	if !ok {
+		return false
+	}
+	if isCopiedReason(rest) {
+		return true
+	}
+	number, reason, ok := strings.Cut(rest, ": ")
+	if !ok || !strings.HasPrefix(number, "line ") {
+		return false
+	}
+	if _, err := strconv.Atoi(strings.TrimPrefix(number, "line ")); err != nil {
+		return false
+	}
+	return isCopiedReason(reason)
+}
+
+func isCopiedReason(text string) bool {
+	for _, reason := range []error{
+		errCopiedInvalidUTF8,
+		errCopiedBlank,
+		errCopiedLineBreak,
+		errCopiedEmptyLine,
+		errCopiedControlChar,
+		errCopiedNotTimestamp,
+		errCopiedLabelMismatch,
+		errCopiedBlankText,
+		errCopiedMixedForms,
+		errCopiedTimestampOrder,
+		errCopiedNoText,
+	} {
+		if reason.Error() == text {
+			return true
+		}
+	}
+	return false
 }
