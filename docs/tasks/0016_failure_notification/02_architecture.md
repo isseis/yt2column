@@ -111,7 +111,7 @@ flowchart LR
 
 **前提とする、まだ実装されていない部品。** `internal/failure` は、#109 の最初の PR（#109 §8 の手順 1）が新設する。コミット `beefcee` の時点で、`internal/failure` のディレクトリはない。本タスクの通知の実装は、その PR がマージされた後に作る（§8）。#109 の設計書は、コミット `beefcee` の時点で `draft` である。本書は #109 §3.9 の型の定義と、#109 §3.4.2 のリクエスト ID の形（`crypto/rand` の 8 バイトを 16 進の小文字 16 文字で表す）をそのまま前提にする。#109 の承認の過程でこれらが変わった場合は、本書を改める（決定の変更として `draft` に戻す）。
 
-**#109 と共有する事実。** リクエスト ID の形 `^[0-9a-f]{16}$` は、#109 が生成し、本設計が検査する（§3.4 の手順 2）。両者が別々に同じ事実を持つので、#109 が形を変えると、すべての通知が `ErrSlackInvalidNotice` で拒否される。この食い違いはサーバのログにしか現れない。そこで、#109 に、生成したリクエスト ID を実物の `SlackFailureNotifier`（loopback の送信先）に通すテストを置くよう求める（§8 の手順 4、§9）。
+**#109 と共有する事実。** リクエスト ID の形 `^[0-9a-f]{16}$` は、#109 が生成し、本設計が検査する（§3.4 の手順 2）。両者が別々に同じ事実を持つので、#109 が形を変えると、すべての通知が `ErrSlackInvalidNotice` で拒否される。この食い違いはサーバのログにしか現れない。そこで、#109 に、生成したリクエスト ID を実物の `SlackFailureNotifier`（loopback の送信先）に通すテストを置くよう求める（§8 の手順 4、§9）。そのテストがサーバのパッケージから実物を使えるよう、本タスクが公開のテスト用の構築関数 `NewSlackFailureNotifierForLoopbackTest` を用意する（§3.2）。
 
 **他の文書の方針との関係。** 次の 3 点は、他の文書が定めたことと本設計の扱いが異なる。
 
@@ -332,7 +332,7 @@ func (s *SlackFailureNotifier) Notify(ctx context.Context, notice failure.Notice
 -   **置き場所（H-03）。** `internal/publisher` に置く。送信の経路（§3.1）を同じパッケージの中で共有でき、非公開の型のまま使えるためである。`internal/publisher` は `internal/server` を import しない（§3.7）。CLI からも `publisher.NewSlackFailureNotifier` で使える（F-005）。
 -   **構築。** `checkWebhookURL` で検査し、`newWebhookClient(webhookURL, SlackPostTimeout, nil)` を持つ値を返す。ネットワークに触れない（AC-12）。
 -   **テスト用の構築（H-06）。** 既存の `newSlackWebhookPublisherForLoopbackTest`（`test_helpers_slack.go:35-51`）の検査（loopback の URL であること、時間の上限が正であること、URL が空でないこと）と `webhookClient` の構築を、非公開の関数 `newLoopbackWebhookClient(t testing.TB, timeout time.Duration, endpoint string, transport http.RoundTripper) (webhookClient, bool)` に切り出す。検査に失敗したら `t.Fatal` を呼んで `false` を返し、呼び出し元は nil を返す（`TestNewSlackWebhookPublisherForLoopbackTestRejects` が `fatalRecorder` で確かめている、nil を返す振る舞いを保つため）。失敗のメッセージは、2 つの構築関数に共通する語（`slack test client: ...`）に改め、今と同じく URL を含めない。この上に、非公開の `newSlackFailureNotifierForLoopbackTest(t testing.TB, timeout time.Duration, endpoint string, transport http.RoundTripper) *SlackFailureNotifier` を `test_helpers_slack.go`（`//go:build test`）に加える。`SlackTestOptions` ではなく `timeout` を取るのは、`SlackTestOptions` の `Interval` が通知に関係しないためである。`slackwebhook.ValidURL` を当てないので `http` の URL を使える。テストは `timeout` に短い値（たとえば 100 ミリ秒）を渡して AC-10 を確かめる。
--   **公開のテスト用の構築関数は作らない。** 記事の投稿には他のパッケージのテストのための `NewSlackWebhookPublisherForLoopbackTest` があるが、通知の実装を他のパッケージのテストから実物で使う予定は今はない（#109 のサーバのユニットテストは fake の `failure.Notifier` を使う。#109 §7.1）。§1.3 の #109 のテスト（リクエスト ID を実物に通す）のために必要になれば、#109 が既存の形に合わせて公開する（§9）。
+-   **公開のテスト用の構築関数。** `NewSlackWebhookPublisherForLoopbackTest` と同じ形の公開の構築関数 `NewSlackFailureNotifierForLoopbackTest(t testing.TB, timeout time.Duration, endpoint string) *SlackFailureNotifier` を `test_helpers_slack.go` に加える。非公開の `newSlackFailureNotifierForLoopbackTest` は transport の差し込み口を取るが、公開する方は取らない（記事の投稿の公開の構築関数と同じ形）。`timeout` を取り `SlackTestOptions` を取らないのは、通知に関係するのが時間の上限だけのためである。この関数は、#109 のテスト（§1.3 のリクエスト ID のテスト）が、サーバのパッケージから実物の通知の実装を loopback の送信先で使うために要る（#109 §7.2）。#109 のサーバのユニットテストは fake の `failure.Notifier` を使う（#109 §7.1）ので、実物が要るのはこのテストだけである。
 
 ### 3.3. 文面（H-02）
 
@@ -427,7 +427,7 @@ video: <https://www.youtube.com/watch?v=<VideoID>>
 | H-03 置き場所と依存の向き | `internal/publisher` に置く。`internal/publisher` が `internal/server` を import しないことを `depguard` で固定する。`internal/server` が実装の型を参照しないことは #109 が保証する | §2.1・§3.2・§3.7 |
 | H-04 guard | `internal/failure/failure_test.go` に、フィールドの集合・メソッドの集合・`Kind` のゼロ値・`Kind` の定数の並びの 4 つの guard を置く | §3.6 |
 | H-05 上限と `ctx` | 上限は既存の `SlackPostTimeout`（30 秒）。`context.WithTimeoutCause` による既存の上限をそのまま使い、`http.Client.Timeout` は使わない。`ctx` が取り消されていれば送らない | §3.4・§3.5 |
-| H-06 テスト用の構築 | 非公開の `newSlackFailureNotifierForLoopbackTest`（時間の上限と transport を引数に取る）。loopback の検査と `webhookClient` の構築は、既存のテスト用の構築関数と共有する | §3.2 |
+| H-06 テスト用の構築 | 公開の `NewSlackFailureNotifierForLoopbackTest`（loopback の URL と時間の上限を引数に取る）と、transport の差し込み口を持つ非公開の `newSlackFailureNotifierForLoopbackTest`。loopback の検査と `webhookClient` の構築は、既存のテスト用の構築関数と共有する | §3.2 |
 
 ### 3.9. コンポーネント責務表
 
@@ -437,7 +437,7 @@ video: <https://www.youtube.com/watch?v=<VideoID>>
 | `internal/publisher/slack_failure.go` | 新規 | `SlackFailureNotifier`・`NewSlackFailureNotifier`・`Notify`、`errZeroNotifier`、`Kind` から種類の文への `switch`、`RequestID` の形の検査、文面の組み立て（§3.2〜§3.4） |
 | `internal/publisher/slack_errors.go` | 変更 | `ErrSlackInvalidNotice`・`ErrSlackNoticeRejected` を加える（§4.1）。既存の番兵のコメント「Sentinels for SlackWebhookPublisher」（`slack_errors.go:8`）を、送信の経路の番兵であることが分かる形に改める |
 | `internal/publisher/publisher.go` | 変更 | パッケージコメント（`publisher.go:1-2`「defines the publishing stage」）に、失敗の通知の実装も置くことを加える |
-| `internal/publisher/test_helpers_slack.go` | 変更 | `newLoopbackWebhookClient` の切り出しと、`newSlackFailureNotifierForLoopbackTest` の追加（§3.2） |
+| `internal/publisher/test_helpers_slack.go` | 変更 | `newLoopbackWebhookClient` の切り出しと、非公開の `newSlackFailureNotifierForLoopbackTest`・公開の `NewSlackFailureNotifierForLoopbackTest` の追加（§3.2） |
 | `internal/publisher/slack_test.go` | 変更 | 補助関数 `requireErrorOmitsEndpoint` が `Unwrap() []error` の枝もたどるようにする（§7.3）。テストの内容は変えない |
 | `internal/publisher/slack_failure_test.go` | 新規 | 通知の実装のテスト（§7.1・§7.3） |
 | `internal/failure/failure_test.go` | 新規 | guard（§3.6） |
@@ -680,6 +680,7 @@ flowchart LR
 | 時間の上限と `ctx`（AC-10） | 応答を返さないサーバで、上限 100 ミリ秒、`ctx` の期限 1 時間のとき、`context.DeadlineExceeded` と判定できるエラーが 5 秒以内に返る（5 秒は、呼び出し元の期限（1 時間）ではなく通知の実装の時間の上限（100 ミリ秒）で打ち切られたことを示すための、余裕を持たせた固定の値である）。取り消し済みの `ctx` で送信先のリクエストの数が 0 |
 | 再試行しない（AC-11） | AC-08・AC-09・AC-10 の各場合で、送信先のリクエストの数がちょうど 1（取り消し済みの `ctx` では 0） |
 | 構築（AC-12） | ゼロ値の `secret.Secret`、`http://`・ホストのない URL・制御文字を含む URL でエラー。メッセージに URL もその一部も現れない。`https` の正しい URL で構築しても、TLS のテスト用のサーバ（`httptest.NewTLSServer`）のリクエストの数が 0 |
+| テスト用の構築（AC-12） | `NewSlackFailureNotifierForLoopbackTest` が、loopback でない URL・非正の `timeout`・空の URL で `t.Fatal` になり、nil を返す（`fatalRecorder` を使う `TestNewSlackWebhookPublisherForLoopbackTestRejects` と同じ形）。`NewSlackWebhookPublisherForLoopbackTest` は変更しないまま通る |
 | 失敗の後の再利用（AC-16） | `500` を返した後に `ok` を返すサーバで、2 回目の `Notify` が成功し、リクエストの数が 2 |
 | 並行の呼び出し | 1 つの値から複数の goroutine で同時に `Notify` し（`make test` の `-race` の下で）、すべてが成功し、リクエストの数が呼び出しの数と一致する |
 | guard（AC-01・AC-01a） | §3.6 の 4 つのテスト |
@@ -727,15 +728,15 @@ flowchart LR
 **前提。** #109 の手順 1 の PR（`internal/failure` の新設）がマージされていること。マージされるまで、手順 1 だけを先に進めてよい（`internal/failure` に依存しない）。
 
 1. **送信の経路の切り出し（振る舞いを変えないリファクタリング）。** `webhookClient`・`newWebhookClient`・`configured`・`post`・`checkWebhookURL` を切り出し、`SlackWebhookPublisher` をそれに切り替える。テスト用の構築関数の検査を `newLoopbackWebhookClient` に切り出す。既存のテストを変更せずに通す。1 つのコミットにする。
-2. **通知の実装。** `slack_failure.go`・番兵・テスト用の構築関数・`requireErrorOmitsEndpoint` の拡張・`slack_failure_test.go`（§7.1・§7.3）・パッケージコメント。
+2. **通知の実装。** `slack_failure.go`・番兵・非公開と公開のテスト用の構築関数・`requireErrorOmitsEndpoint` の拡張・`slack_failure_test.go`（§7.1・§7.3）・パッケージコメント。
 3. **guard と静的な検査。** `internal/failure/failure_test.go`（§3.6）と `.golangci.yml` の `depguard` の規則（§3.7）。
-4. **#109 への連絡。** #109 の issue に、次を記録する。(a) 通知の実装の名前（`publisher.NewSlackFailureNotifier`）。(b) §3.3 の文面（#109 §4.2 の例を改めるため）。(c) `package_reference.md` の `internal/publisher` の行に通知の実装を加えること（#109 §3.12）。(d) リクエスト ID の形 `^[0-9a-f]{16}$` を本設計が検査していること（§1.3）と、#109 が生成したリクエスト ID を実物の `SlackFailureNotifier` に通すテストを置くこと。(e) 通知が `silent` のために利用者に気づかれにくいこと（§5.4）。(f) #109 の手動の確認で、通知の表示（`<URL>` のリンクと改行）を Mattermost で確かめること（§3.3）。
+4. **#109 への連絡。** #109 の issue に、次を記録する。(a) 通知の実装の名前（`publisher.NewSlackFailureNotifier`）。(b) §3.3 の文面（#109 §4.2 の例を改めるため）。(c) `package_reference.md` の `internal/publisher` の行に通知の実装を加えること（#109 §3.12）。(d) リクエスト ID の形 `^[0-9a-f]{16}$` を本設計が検査していること（§1.3）と、#109 が生成したリクエスト ID を実物の `SlackFailureNotifier` に通すテストを置くこと。そのテストが使う公開のテスト用の構築関数 `NewSlackFailureNotifierForLoopbackTest` を本タスクが用意すること（§3.2）。(e) 通知が `silent` のために利用者に気づかれにくいこと（§5.4）。(f) #109 の手動の確認で、通知の表示（`<URL>` のリンクと改行）を Mattermost で確かめること（§3.3）。
 
 手順 1 は手順 2 の前提である。手順 3 の guard は手順 2 と独立しており、順序を入れ替えてよい。
 
 ## 9. 将来の拡張性 (Future Extensibility)
 
 -   **CLI からの通知。** `publisher.NewSlackFailureNotifier` は `internal/server` に依存しないので、CLI から構築して呼べる。ただし `Notice.RequestID` の形（16 進 16 文字）を CLI が満たす値を持たないので、CLI から通知するときは、#109 と合わせて `Notice` の契約（`RequestID` を空にできるようにするなど）を決め直す（要件 F-005）。そのとき、`RequestID` の検査（§3.4 の手順 2）と文面の 2 行目の扱いを本書で改める。
--   **他のパッケージのテストからの実物の利用。** #109 のテスト（§1.3 のリクエスト ID のテストなど）が通知の実装の実物を loopback の送信先で使う必要が生じたら、`NewSlackWebhookPublisherForLoopbackTest` と同じ形の公開のテスト用の構築関数を `test_helpers_slack.go` に加える。
+-   **他のパッケージのテストからの実物の利用。** 公開のテスト用の構築関数 `NewSlackFailureNotifierForLoopbackTest`（§3.2）を #109 のテスト（§1.3 のリクエスト ID のテスト）が使う。他のパッケージのテストが実物をさらに必要としたら、同じ形の関数を加える。
 -   **新しい `Kind`。** #109 が `Kind` を加えると、`TestKindConstants`（§3.6）が失敗する。種類の文の `switch` と表、テストの表に行を加えてから guard を改める。加え忘れた `Kind` は `default` の文（unclassified reason）で投稿されるので、通知自体は失われない。
 -   **通知の集約・抑制・停止。** 要件 §2.3 の対象外である。必要になれば、`failure.Notifier` を包む別の実装（たとえば設定で通知を止める実装）として、`SlackFailureNotifier` を変えずに加えられる。
