@@ -25,6 +25,9 @@ func reviewArticle(revisions ...writer.Revision) writer.Article {
 	return a
 }
 
+// TestReviewLogWriterFormat checks the rendered review log's whole-file
+// format: the empty-list case, a replacement, a no-change replacement marked
+// No change., and a deletion with a multiline evidence.
 func TestReviewLogWriterFormat(t *testing.T) {
 	const header = "# Review log\n\n" +
 		"- Article: A title\n" +
