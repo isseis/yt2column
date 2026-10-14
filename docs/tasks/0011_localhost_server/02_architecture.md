@@ -859,7 +859,7 @@ func Run(run func(ctx context.Context) int) int
 | `docs/dev/project_overview.md` | 「決定済みの方針」の実行形式に localhost サーバを加える。「パイプライン」にサーバの入力元（拡張が送る字幕、#107 の `TranscriptSource`）。「想定ディレクトリ構成」に新しいパッケージ。「設定（環境変数）」に `YT2COLUMN_SERVER_PORT` の行と、サーバが `YT2COLUMN_CACHE_DIR`・`YT2COLUMN_YTDLP_PATH` を読まないこと、`SLACK_WEBHOOK_URL` が必須であること |
 | `docs/dev/security.md` §8 | サーバの節（§8.2 として新設）: loopback への bind、`Host`・`Origin`・`Content-Type`・共有トークンの検査とその順序、認証前に本文を読まず副作用を起こさないこと、秘密情報の扱い（応答・ログ・通知に載せない）、受け取る入力の境界（§5.3 の表）、共有トークンのファイルの場所・権限・検査、拡張への受け渡しと拡張側の保存先（0007 §3.12.3）、残余のリスク（§5.4） |
 | `README.md` | サーバの節: 必要な環境変数、`make build`、起動（標準エラー出力をファイルにも残す例 `2>>server.log` と、リクエスト ID でログを探す方法を含む）、初回に表示される共有トークンを拡張のオプションページに貼ること、トークンを再び表示する手順（ファイルを読む）、作り直す手順（ファイルを削除して再起動）、一時ファイルの残骸は削除してよいこと、終了の方法（シグナル 1 回で処理中のジョブを待ち、最悪で 45 分程度かかること、2 回で直ちに終わること）、`curl` による確認の例（下記）、拒否の理由の一覧 |
-| `docs/dev/developer_guide/package_reference.md` | 新しいパッケージの行（`cmd/yt2column-server`・`internal/server`・`internal/authtoken`・`internal/failure`・`internal/redact`・`internal/signalrun`） |
+| `docs/dev/developer_guide/package_reference.md` | 新しいパッケージの行（`cmd/yt2column-server`・`internal/server`・`internal/authtoken`・`internal/failure`・`internal/redact`・`internal/signalrun`）と、既存の `internal/publisher` の行への失敗の通知の実装（`publisher.SlackFailureNotifier`。#108 が同じパッケージに加える）の追記 |
 | `docs/translation_glossary.md` | 「共有トークン」「枠」「拒否の理由」などの対訳 |
 
 README の `curl` の例は次の形とする。トークンを `curl` の引数に置くと、同じマシンの他の利用者から `ps` で見えるので、ヘッダは標準入力から渡す（`printf` はシェルの組み込みのコマンドなので、そのプロセスの引数として現れない）。
@@ -974,7 +974,7 @@ var ErrPromptTooLarge = errors.New("prompt exceeds the size limit")
 | 起動時の標準エラー出力 | `yt2column-server: <分類>: <理由>` の 1 行。設定の誤りは変数ごとに 1 行 | `yt2column-server: configuration: YT2COLUMN_MODEL: is unset or empty`、`yt2column-server: shared token: /Users/u/Library/Application Support/yt2column/server-token: is readable or writable by others; fix the permissions or delete the file and restart` |
 | 応答の本文 | 固定の `reason` | `{"status":"rejected","reason":"invalid_video_url","requestId":"…"}` |
 | ログ | `slog` の属性。出力先で伏せ字にする | `level=WARN msg="request rejected" requestId=… remoteAddr=127.0.0.1:53122 status=401 reason=unauthorized detail=auth_wrong_length` |
-| 失敗の通知 | #108 の固定の文面（§3.9） | 「記事の生成に失敗しました（LLM の時間切れ）。動画: <正規化 URL>、リクエスト ID: …」 |
+| 失敗の通知 | #108 の固定の文面（§3.9）。1 行目は接頭辞 `yt2column failure:` と `Kind` ごとの固定の文、2 行目は `request:` と `RequestID`、3 行目は `video:` と `<` と `>` で囲んだ正規化 URL（`VideoID` が空のときは 3 行目を書かない）。文面は英語の固定の文と検査済みの値だけで組み立て、`@` などのメンションの記法を生まない | `yt2column failure: the LLM call timed out`<br>`request: 0123456789abcdef`<br>`video: <https://www.youtube.com/watch?v=dQw4w9WgXcQ>` |
 
 共有トークンのファイルの誤りのメッセージは、直し方（権限を直すか、ファイルを削除して再起動する）を案内する。ファイルの内容は書かない（AC-03）。
 
@@ -1222,8 +1222,10 @@ sequenceDiagram
 ### 7.2. 統合テスト
 
 -   `cmd/yt2column-server` の統合テスト（`make test-integration-server`、`integration` のビルドタグ）は、実際のバイナリを起動し、`HOME` を一時ディレクトリに向け、LLM と Webhook は loopback の fake のサーバ（`internal/loopbacktest` の既存の方式）に向ける。受理から記事の投稿まで、トークンの生成から再起動後の認証まで（AC-02）、シグナル 1 回と 2 回の終了を確かめる。ポートは空きポートを探して `YT2COLUMN_SERVER_PORT` に渡し、起動が `EADDRINUSE` で失敗したら探し直す。実際の LLM の API と Webhook は呼ばない。
+-   サーバが生成したリクエスト ID を、実物の通知の実装（#108 の `publisher.SlackFailureNotifier`）へ loopback の Webhook で通すテストを置く。リクエスト ID の形 `^[0-9a-f]{16}$` は #109 が生成し（§3.4.2）、#108 の通知の実装が `Notify` の中で別々に検査するので、#109 が形を変えるとすべての通知が拒否され、その食い違いはサーバのログにしか現れない。テストは、loopback の Webhook へ送る実物の通知の実装でサーバを組み、リクエストを送り、応答の `requestId` と同じ値が Webhook の受け取った `text` に現れ、通知の実装が `ErrSlackInvalidNotice` を返さないことを確かめる。サーバのパッケージのテストから実物を使えるよう、記事の投稿の `NewSlackWebhookPublisherForLoopbackTest` と同じ形のテスト用の構築関数を #108 が用意する。
 -   実際のソケットで、4 MiB を超える本文と誤ったトークンを送り、送り手が受け取る結果（`401` か接続の切断か）を確かめて記録する（§3.5.2）。
 -   AC-01 の「外部インターフェースのアドレスからは接続できない」は、手動で確かめる（実装計画に記録する）。マシンの外部インターフェースのアドレスへ `curl` し、接続が拒否されることを見る。
+-   失敗の通知の表示は、自動のテストでは確かめられない。通知の文面の `video:` の行の `<https://www.youtube.com/watch?v=…>` が Mattermost でリンクとして描画されることと、3 行がそのまま改行されて表示されることを、Mattermost のテスト用のチャンネルで手動で確かめ、実装計画に記録する（文面は §4.2、記事の投稿の出典の行と同じ `<URL>` の形である）。
 -   拡張（#111）との結合は #111 で確かめる。
 
 ### 7.3. セキュリティテスト
@@ -1286,7 +1288,7 @@ sequenceDiagram
 5. **HTTP の受け口。** `internal/server` の待ち受け・ヘッダの検査・応答。
 6. **本文の検査と #107 の接続。** #107 の実装（§3.7 の契約）を前提にする。
 7. **ジョブ・枠・失敗の分類と通知・終了。** ユニットテストは fake の `failure.Notifier` を使うので（§7.1）、#108 の実装を待たずに進められる。
-8. **`cmd/yt2column-server`・`Makefile`・統合テスト。** #108 の実装（§3.9 の契約）を前提にする。実物の通知が必要になるのはここだけである。
+8. **`cmd/yt2column-server`・`Makefile`・統合テスト。** #108 の実装（§3.9 の契約）を前提にする。実物の通知が必要になるのはここだけである。§7.2 の、サーバが生成したリクエスト ID を実物の通知の実装へ通すテスト（両者が別々に持つ `^[0-9a-f]{16}$` の食い違いを検出する）と、通知の表示（`video:` の行の `<URL>` のリンクと改行）の手動の確認を、ここで行う。
 9. **文書（F-010）。**
 
 #107 と #108 の実装は互いに依存せず、フェーズ 1 の後なら並行してよい。フェーズ 2 の手順 5・6 は #107 に、手順 8 は #108 に依存する。手順 6 以降のユニットテストは fake と #107 の実物で足りるので、#108 の実装を待つのは手順 8 だけである。
