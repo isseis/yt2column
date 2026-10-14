@@ -98,7 +98,7 @@ func newTemplateData(t transcript.Transcript) templateData {
 }
 
 // boundedWriter holds at most limit bytes. A write that would take the total
-// past limit is refused whole with errPromptTooLarge and nothing of it is
+// past limit is refused whole with ErrPromptTooLarge and nothing of it is
 // kept, so expansion stops before the prompt can grow beyond the limit.
 type boundedWriter struct {
 	buf   bytes.Buffer
@@ -107,7 +107,7 @@ type boundedWriter struct {
 
 func (w *boundedWriter) Write(p []byte) (int, error) {
 	if len(p) > w.limit-w.buf.Len() {
-		return 0, errPromptTooLarge
+		return 0, ErrPromptTooLarge
 	}
 	return w.buf.Write(p)
 }
@@ -119,9 +119,9 @@ func (w *boundedWriter) Write(p []byte) (int, error) {
 func (c checkedTemplate[T]) expand(data T) (string, error) {
 	w := &boundedWriter{limit: maxPromptBytes}
 	if err := c.tmpl.Execute(w, data); err != nil {
-		if errors.Is(err, errPromptTooLarge) {
+		if errors.Is(err, ErrPromptTooLarge) {
 			return "", fmt.Errorf("%w: %s prompt: %w of %d bytes; the template or the values it embeds are too large",
-				ErrInvalidTemplate, c.tmpl.Name(), errPromptTooLarge, maxPromptBytes)
+				ErrInvalidTemplate, c.tmpl.Name(), ErrPromptTooLarge, maxPromptBytes)
 		}
 		return "", fmt.Errorf("%w: %s template failed to expand: %q", ErrInvalidTemplate, c.tmpl.Name(), err.Error())
 	}

@@ -184,7 +184,7 @@ func (s stallingPublisher) Publish(ctx context.Context, _ writer.Article) error 
 // reach the Webhook named by the environment.
 func testDeps(client llm.LLMClient) deps {
 	d := productionDeps()
-	d.newLLMClient = func(config.Config) (llm.LLMClient, error) { return client, nil }
+	d.newLLMClient = func(config.LLMConfig) (llm.LLMClient, error) { return client, nil }
 	d.newReviewLLMClient = refusingReviewLLMClient
 	d.newSlackPublisher = refusingSlackPublisher
 	return d
@@ -201,7 +201,7 @@ func refusingSlackPublisher(secret.Secret) (publisher.Publisher, error) {
 // it builds nothing and returns errReviewClientNotSubstituted, which run
 // reports on its "build the review LLM client" line. A test that enables the
 // review step must substitute one.
-func refusingReviewLLMClient(config.Config) (llm.LLMClient, error) {
+func refusingReviewLLMClient(config.LLMConfig) (llm.LLMClient, error) {
 	return nil, errReviewClientNotSubstituted
 }
 

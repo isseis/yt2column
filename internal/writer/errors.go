@@ -18,6 +18,10 @@ var (
 	// ErrTooLong reports that the body is over the length limit after the
 	// shorten step or after the review step.
 	ErrTooLong = errors.New("article body exceeds the length limit")
+	// ErrPromptTooLarge reports that expanding a prompt would take it past its
+	// size limit. boundedWriter returns it, and expand joins it with
+	// ErrInvalidTemplate.
+	ErrPromptTooLarge = errors.New("prompt exceeds the size limit")
 )
 
 var (
@@ -42,9 +46,6 @@ var (
 	// a template.
 	errTemplateDefinition = errors.New("define and block are not allowed")
 	errDisallowedSyntax   = errors.New("disallowed syntax")
-	// errPromptTooLarge is returned by boundedWriter when a write would take
-	// a prompt past its limit, and joined with ErrInvalidTemplate.
-	errPromptTooLarge = errors.New("prompt exceeds the limit")
 	// errRawHTML, errUnclosedFence, and errFenceLikeLine are wrapped together
 	// with ErrMalformedOutput when the body part breaks a Markdown rule, so
 	// tests can tell which rule rejected it.

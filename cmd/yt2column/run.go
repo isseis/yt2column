@@ -42,8 +42,8 @@ const usageHint = programName + ": run '" + programName + " -h' for usage"
 // deps are the constructors run uses. main passes productionDeps(); a unit test
 // substitutes fakes.
 type deps struct {
-	newLLMClient       func(config.Config) (llm.LLMClient, error)
-	newReviewLLMClient func(config.Config) (llm.LLMClient, error)
+	newLLMClient       func(config.LLMConfig) (llm.LLMClient, error)
+	newReviewLLMClient func(config.LLMConfig) (llm.LLMClient, error)
 	newWriter          func(llm.LLMClient, writer.Options) (writer.ArticleWriter, error)
 	newFilePublisher   func(path string) (publisher.Publisher, error)
 	newSlackPublisher  func(webhookURL secret.Secret) (publisher.Publisher, error)
@@ -238,7 +238,7 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 		return configurationError(errOut, err)
 	}
 	webhookURL, _ := cfg.SlackWebhookURL()
-	errOut.secrets = redact.SecretStrings(webhookURL, cfg.DeepSeekAPIKey(), cfg.AnthropicAPIKey())
+	errOut.secrets = redact.SecretStrings(webhookURL, cfg.LLM().DeepSeekAPIKey(), cfg.LLM().AnthropicAPIKey())
 	if dest == destinationWebhook {
 		if webhookURL, err = cfg.RequireSlackWebhookURL(); err != nil {
 			return configurationError(errOut, err)
@@ -355,13 +355,13 @@ func checkReviewLog(reviewLogGiven bool, opts *cliOptions, dest destination) err
 // reviewLogGiven is set, the review log writer. The review LLM client is built
 // only when the review step runs, so --no-review never builds one.
 func buildWriter(d deps, cfg config.Config, opts *cliOptions, reviewLogGiven bool) (writer.ArticleWriter, *publisher.ReviewLogWriter, error) {
-	client, err := d.newLLMClient(cfg)
+	client, err := d.newLLMClient(cfg.LLM())
 	if err != nil {
 		return nil, nil, fmt.Errorf("build the LLM client: %w", err)
 	}
 	var reviewClient llm.LLMClient
 	if !opts.noReview {
-		if reviewClient, err = d.newReviewLLMClient(cfg); err != nil {
+		if reviewClient, err = d.newReviewLLMClient(cfg.LLM()); err != nil {
 			return nil, nil, fmt.Errorf("build the review LLM client: %w", err)
 		}
 	}

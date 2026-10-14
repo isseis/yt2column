@@ -73,13 +73,13 @@ func TestLoadValid(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load() error = %v, want nil", err)
 	}
-	if cfg.Provider() != ProviderDeepSeek {
-		t.Errorf("Provider() = %v, want ProviderDeepSeek", cfg.Provider())
+	if cfg.LLM().Provider() != ProviderDeepSeek {
+		t.Errorf("Provider() = %v, want ProviderDeepSeek", cfg.LLM().Provider())
 	}
-	if cfg.Model() != env[modelEnv] {
-		t.Errorf("Model() = %q, want %q", cfg.Model(), env[modelEnv])
+	if cfg.LLM().Model() != env[modelEnv] {
+		t.Errorf("Model() = %q, want %q", cfg.LLM().Model(), env[modelEnv])
 	}
-	key, err := cfg.DeepSeekAPIKey().Reveal()
+	key, err := cfg.LLM().DeepSeekAPIKey().Reveal()
 	if err != nil {
 		t.Fatalf("DeepSeekAPIKey().Reveal() error = %v", err)
 	}
@@ -120,8 +120,8 @@ func TestLoadDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load() error = %v, want nil", err)
 	}
-	if cfg.Provider() != ProviderDeepSeek {
-		t.Errorf("Provider() = %v, want ProviderDeepSeek", cfg.Provider())
+	if cfg.LLM().Provider() != ProviderDeepSeek {
+		t.Errorf("Provider() = %v, want ProviderDeepSeek", cfg.LLM().Provider())
 	}
 	if _, ok := cfg.SlackWebhookURL(); ok {
 		t.Error("SlackWebhookURL() reports set, want unset")
@@ -234,20 +234,20 @@ func TestLoadClaude(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Load() error = %v, want nil", err)
 			}
-			if cfg.Provider() != ProviderClaude {
-				t.Errorf("Provider() = %v, want ProviderClaude", cfg.Provider())
+			if cfg.LLM().Provider() != ProviderClaude {
+				t.Errorf("Provider() = %v, want ProviderClaude", cfg.LLM().Provider())
 			}
-			if cfg.ClaudeEffort() != effort.want {
-				t.Errorf("ClaudeEffort() = %v, want %v", cfg.ClaudeEffort(), effort.want)
+			if cfg.LLM().ClaudeEffort() != effort.want {
+				t.Errorf("ClaudeEffort() = %v, want %v", cfg.LLM().ClaudeEffort(), effort.want)
 			}
-			key, err := cfg.AnthropicAPIKey().Reveal()
+			key, err := cfg.LLM().AnthropicAPIKey().Reveal()
 			if err != nil {
 				t.Fatalf("AnthropicAPIKey().Reveal() error = %v", err)
 			}
 			if key != env[anthropicAPIKeyEnv] {
 				t.Errorf("AnthropicAPIKey() = %q, want %q", key, env[anthropicAPIKeyEnv])
 			}
-			workspace, ok := cfg.AnthropicWorkspaceID().Value()
+			workspace, ok := cfg.LLM().AnthropicWorkspaceID().Value()
 			if !ok {
 				t.Fatal("AnthropicWorkspaceID() reports unset, want set")
 			}
@@ -262,7 +262,7 @@ func TestLoadClaude(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Load() error = %v, want nil", err)
 		}
-		if _, ok := cfg.AnthropicWorkspaceID().Value(); ok {
+		if _, ok := cfg.LLM().AnthropicWorkspaceID().Value(); ok {
 			t.Error("AnthropicWorkspaceID() reports set, want unset")
 		}
 	})
@@ -354,8 +354,8 @@ func TestLoadClaudeIgnoresDeepSeekKey(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Load() error = %v, want nil", err)
 				}
-				if cfg.Provider() != ProviderClaude {
-					t.Errorf("Provider() = %v, want ProviderClaude", cfg.Provider())
+				if cfg.LLM().Provider() != ProviderClaude {
+					t.Errorf("Provider() = %v, want ProviderClaude", cfg.LLM().Provider())
 				}
 			})
 		}
@@ -420,16 +420,16 @@ func TestLoadIgnoresOtherProviderVars(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Load() error = %v, want nil", err)
 				}
-				if cfg.Provider() != ProviderDeepSeek {
-					t.Errorf("Provider() = %v, want ProviderDeepSeek", cfg.Provider())
+				if cfg.LLM().Provider() != ProviderDeepSeek {
+					t.Errorf("Provider() = %v, want ProviderDeepSeek", cfg.LLM().Provider())
 				}
-				if _, err := cfg.AnthropicAPIKey().Reveal(); err == nil {
+				if _, err := cfg.LLM().AnthropicAPIKey().Reveal(); err == nil {
 					t.Error("AnthropicAPIKey() is set for the deepseek provider")
 				}
-				if cfg.ClaudeEffort() != claudeparam.EffortUnset {
-					t.Errorf("ClaudeEffort() = %v, want EffortUnset", cfg.ClaudeEffort())
+				if cfg.LLM().ClaudeEffort() != claudeparam.EffortUnset {
+					t.Errorf("ClaudeEffort() = %v, want EffortUnset", cfg.LLM().ClaudeEffort())
 				}
-				if _, ok := cfg.AnthropicWorkspaceID().Value(); ok {
+				if _, ok := cfg.LLM().AnthropicWorkspaceID().Value(); ok {
 					t.Error("AnthropicWorkspaceID() is set for the deepseek provider")
 				}
 			})
@@ -465,11 +465,11 @@ func TestLoadReview(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Load() error = %v, want nil", err)
 		}
-		if cfg.ReviewProvider() != cfg.Provider() {
-			t.Errorf("ReviewProvider() = %v, want Provider() = %v", cfg.ReviewProvider(), cfg.Provider())
+		if cfg.LLM().ReviewProvider() != cfg.LLM().Provider() {
+			t.Errorf("ReviewProvider() = %v, want Provider() = %v", cfg.LLM().ReviewProvider(), cfg.LLM().Provider())
 		}
-		if cfg.ReviewModel() != cfg.Model() {
-			t.Errorf("ReviewModel() = %q, want Model() = %q", cfg.ReviewModel(), cfg.Model())
+		if cfg.LLM().ReviewModel() != cfg.LLM().Model() {
+			t.Errorf("ReviewModel() = %q, want Model() = %q", cfg.LLM().ReviewModel(), cfg.LLM().Model())
 		}
 	})
 
@@ -480,11 +480,11 @@ func TestLoadReview(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Load() error = %v, want nil", err)
 		}
-		if cfg.ReviewProvider() != ProviderDeepSeek {
-			t.Errorf("ReviewProvider() = %v, want ProviderDeepSeek", cfg.ReviewProvider())
+		if cfg.LLM().ReviewProvider() != ProviderDeepSeek {
+			t.Errorf("ReviewProvider() = %v, want ProviderDeepSeek", cfg.LLM().ReviewProvider())
 		}
-		if cfg.ReviewModel() != reviewModel {
-			t.Errorf("ReviewModel() = %q, want %q", cfg.ReviewModel(), reviewModel)
+		if cfg.LLM().ReviewModel() != reviewModel {
+			t.Errorf("ReviewModel() = %q, want %q", cfg.LLM().ReviewModel(), reviewModel)
 		}
 	})
 
@@ -499,17 +499,17 @@ func TestLoadReview(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Load() error = %v, want nil", err)
 		}
-		if cfg.Provider() != ProviderDeepSeek {
-			t.Errorf("Provider() = %v, want ProviderDeepSeek", cfg.Provider())
+		if cfg.LLM().Provider() != ProviderDeepSeek {
+			t.Errorf("Provider() = %v, want ProviderDeepSeek", cfg.LLM().Provider())
 		}
-		if cfg.Model() != env[modelEnv] {
-			t.Errorf("Model() = %q, want %q", cfg.Model(), env[modelEnv])
+		if cfg.LLM().Model() != env[modelEnv] {
+			t.Errorf("Model() = %q, want %q", cfg.LLM().Model(), env[modelEnv])
 		}
-		if cfg.ReviewProvider() != ProviderClaude {
-			t.Errorf("ReviewProvider() = %v, want ProviderClaude", cfg.ReviewProvider())
+		if cfg.LLM().ReviewProvider() != ProviderClaude {
+			t.Errorf("ReviewProvider() = %v, want ProviderClaude", cfg.LLM().ReviewProvider())
 		}
-		if cfg.ReviewModel() != reviewModel {
-			t.Errorf("ReviewModel() = %q, want %q", cfg.ReviewModel(), reviewModel)
+		if cfg.LLM().ReviewModel() != reviewModel {
+			t.Errorf("ReviewModel() = %q, want %q", cfg.LLM().ReviewModel(), reviewModel)
 		}
 	})
 
@@ -784,7 +784,7 @@ func TestConfigOutputRedactsSecrets(t *testing.T) {
 			[]string{key, webhook},
 			func(t *testing.T, cfg Config) {
 				t.Helper()
-				if revealed, err := cfg.DeepSeekAPIKey().Reveal(); err != nil || revealed != key {
+				if revealed, err := cfg.LLM().DeepSeekAPIKey().Reveal(); err != nil || revealed != key {
 					t.Fatalf("DeepSeekAPIKey() = %q, %v, want %q", revealed, err, key)
 				}
 			},
@@ -795,7 +795,7 @@ func TestConfigOutputRedactsSecrets(t *testing.T) {
 			[]string{claudeKey},
 			func(t *testing.T, cfg Config) {
 				t.Helper()
-				if revealed, err := cfg.AnthropicAPIKey().Reveal(); err != nil || revealed != claudeKey {
+				if revealed, err := cfg.LLM().AnthropicAPIKey().Reveal(); err != nil || revealed != claudeKey {
 					t.Fatalf("AnthropicAPIKey() = %q, %v, want %q", revealed, err, claudeKey)
 				}
 			},
@@ -851,6 +851,222 @@ func slogOutput(t *testing.T, cfg Config, jsonFormat bool) string {
 	}
 	slog.New(handler).Info("config", slog.Any("config", cfg))
 	return buf.String()
+}
+
+// validServerEnv is an environment LoadServer accepts: the CLI environment
+// without the cache and yt-dlp variables the server does not use, plus HOME,
+// from which the token path is derived.
+func validServerEnv() map[string]string {
+	env := without(validEnv(), cacheDirEnv, ytDlpEnv)
+	env["HOME"] = "/home/user"
+	return env
+}
+
+// wantTokenPath returns the token path LoadServer derives from home on the
+// test host's OS.
+func wantTokenPath(home string) string {
+	dir := filepath.Join(home, ".config", "yt2column")
+	if runtime.GOOS == "darwin" {
+		dir = filepath.Join(home, "Library", "Application Support", "yt2column")
+	}
+	return filepath.Join(dir, "server-token")
+}
+
+// TestLoadServerValid checks that LoadServer loads the LLM settings, the
+// required Webhook URL, the configured port, the derived token path, and the
+// HTTP/2 debug flag.
+func TestLoadServerValid(t *testing.T) {
+	env := with(validServerEnv(), serverPortEnv, "9000")
+	env = with(env, godebugEnv, "http2debug=1")
+	cfg, err := LoadServer(envLookup(env))
+	if err != nil {
+		t.Fatalf("LoadServer() error = %v, want nil", err)
+	}
+	if cfg.LLM().Provider() != ProviderDeepSeek {
+		t.Errorf("LLM().Provider() = %v, want ProviderDeepSeek", cfg.LLM().Provider())
+	}
+	if cfg.LLM().Model() != env[modelEnv] {
+		t.Errorf("LLM().Model() = %q, want %q", cfg.LLM().Model(), env[modelEnv])
+	}
+	webhook, err := cfg.WebhookURL().Reveal()
+	if err != nil {
+		t.Fatalf("WebhookURL().Reveal() error = %v", err)
+	}
+	if webhook != env[slackEnv] {
+		t.Errorf("WebhookURL() = %q, want %q", webhook, env[slackEnv])
+	}
+	if cfg.Port() != 9000 {
+		t.Errorf("Port() = %d, want 9000", cfg.Port())
+	}
+	if want := wantTokenPath(env["HOME"]); cfg.TokenPath() != want {
+		t.Errorf("TokenPath() = %q, want %q", cfg.TokenPath(), want)
+	}
+	if !cfg.HTTP2DebugEnabled() {
+		t.Error("HTTP2DebugEnabled() = false, want true")
+	}
+}
+
+// TestLoadServerDefaultPort checks that an unset port defaults to 8765, the
+// documented default. The literal is asserted rather than defaultServerPort, so
+// a change to the constant fails this test instead of moving its expectation.
+func TestLoadServerDefaultPort(t *testing.T) {
+	cfg, err := LoadServer(envLookup(validServerEnv()))
+	if err != nil {
+		t.Fatalf("LoadServer() error = %v, want nil", err)
+	}
+	if cfg.Port() != 8765 {
+		t.Errorf("Port() = %d, want 8765", cfg.Port())
+	}
+}
+
+// TestLoadServerModelMissing checks that a missing or empty model ends the
+// load with an ErrMissing that names the variable. The claude provider and the
+// other LLM rules are covered by the Load tests, which LoadServer shares.
+func TestLoadServerModelMissing(t *testing.T) {
+	cases := []struct {
+		name string
+		env  map[string]string
+	}{
+		{"unset", without(validServerEnv(), modelEnv)},
+		{"empty", with(validServerEnv(), modelEnv, "")},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := LoadServer(envLookup(tc.env))
+			assertVarError(t, err, ErrMissing, modelEnv)
+		})
+	}
+}
+
+// TestLoadServerWebhookRequired checks that SLACK_WEBHOOK_URL is required, that
+// an invalid value is rejected, and that neither rejection holds the value.
+func TestLoadServerWebhookRequired(t *testing.T) {
+	const mark = "MARK-SERVER-WEBHOOK-D4"
+	t.Run("unset", func(t *testing.T) {
+		_, err := LoadServer(envLookup(without(validServerEnv(), slackEnv)))
+		assertVarError(t, err, ErrMissing, slackEnv)
+	})
+	t.Run("empty", func(t *testing.T) {
+		_, err := LoadServer(envLookup(with(validServerEnv(), slackEnv, "")))
+		assertVarError(t, err, ErrMissing, slackEnv)
+	})
+	t.Run("invalid", func(t *testing.T) {
+		_, err := LoadServer(envLookup(with(validServerEnv(), slackEnv, "http://host/"+mark)))
+		assertVarError(t, err, ErrInvalid, slackEnv)
+		if strings.Contains(err.Error(), mark) {
+			t.Errorf("LoadServer() error = %q, contains the value mark %q", err, mark)
+		}
+	})
+}
+
+// TestLoadServerIgnoresCacheAndYtdlp checks that LoadServer neither reads nor
+// checks YT2COLUMN_CACHE_DIR and YT2COLUMN_YTDLP_PATH, even when Load would
+// reject them.
+func TestLoadServerIgnoresCacheAndYtdlp(t *testing.T) {
+	env := with(validServerEnv(), cacheDirEnv, "relative-cache")
+	env = with(env, ytDlpEnv, "")
+	if _, err := LoadServer(envLookup(env)); err != nil {
+		t.Fatalf("LoadServer() error = %v, want nil", err)
+	}
+	if _, err := Load(envLookup(env)); err == nil {
+		t.Fatal("Load() error = nil, want a rejection of the cache directory or the yt-dlp path")
+	}
+}
+
+// TestLoadServerTokenPathUnderivable checks that a HOME that cannot provide an
+// absolute base ends the load with a *VarError naming it and a zero
+// ServerConfig. TestDefaultConfigDir fixes the input shapes and the
+// OS-specific branches; here the failure must reach LoadServer.
+func TestLoadServerTokenPathUnderivable(t *testing.T) {
+	cfg, err := LoadServer(envLookup(without(validServerEnv(), "HOME")))
+	varErr, ok := errors.AsType[*VarError](err)
+	if !ok {
+		t.Fatalf("LoadServer() error = %v, want *VarError", err)
+	}
+	if varErr.Name != "HOME" {
+		t.Errorf("VarError.Name = %q, want %q", varErr.Name, "HOME")
+	}
+	if !errors.Is(err, ErrMissing) {
+		t.Errorf("LoadServer() error = %v, want it to wrap ErrMissing", err)
+	}
+	if cfg.Port() != 0 || cfg.TokenPath() != "" || cfg.LLM().Model() != "" {
+		t.Errorf("LoadServer() returned a non-zero ServerConfig on error: port=%d tokenPath=%q model=%q",
+			cfg.Port(), cfg.TokenPath(), cfg.LLM().Model())
+	}
+}
+
+// TestServerPort fixes the accepted and rejected forms of YT2COLUMN_SERVER_PORT.
+func TestServerPort(t *testing.T) {
+	accepted := []struct {
+		value string
+		want  uint16
+	}{
+		{"1024", 1024},
+		{"8765", 8765},
+		{"65535", 65535},
+	}
+	for _, tc := range accepted {
+		t.Run("accept "+tc.value, func(t *testing.T) {
+			got, err := parseServerPort(tc.value)
+			if err != nil {
+				t.Fatalf("parseServerPort(%q) error = %v, want nil", tc.value, err)
+			}
+			if got != tc.want {
+				t.Errorf("parseServerPort(%q) = %d, want %d", tc.value, got, tc.want)
+			}
+		})
+	}
+
+	rejected := []struct {
+		value    string
+		sentinel error
+	}{
+		{"", ErrMissing},
+		{"08765", ErrInvalid},
+		{"+8765", ErrInvalid},
+		{" 8765", ErrInvalid},
+		{"8765 ", ErrInvalid},
+		{"0x2235", ErrInvalid},
+		{"0", ErrInvalid},
+		{"80", ErrInvalid},
+		{"65536", ErrInvalid},
+		{"-1", ErrInvalid},
+		{"1.0", ErrInvalid},
+		{"12a3", ErrInvalid},
+	}
+	for _, tc := range rejected {
+		t.Run(fmt.Sprintf("reject %q", tc.value), func(t *testing.T) {
+			_, err := parseServerPort(tc.value)
+			if !errors.Is(err, tc.sentinel) {
+				t.Fatalf("parseServerPort(%q) error = %v, want it to wrap %v", tc.value, err, tc.sentinel)
+			}
+		})
+	}
+}
+
+// TestLoadServerPortRejected checks that LoadServer surfaces a rejected port and
+// names the variable, for an empty value and an unacceptable one. The accepted
+// and rejected forms themselves are fixed by TestServerPort.
+func TestLoadServerPortRejected(t *testing.T) {
+	cases := []struct {
+		name     string
+		value    string
+		sentinel error
+	}{
+		{"empty", "", ErrMissing},
+		{"leading zero", "08765", ErrInvalid},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := LoadServer(envLookup(with(validServerEnv(), serverPortEnv, tc.value)))
+			if !errors.Is(err, tc.sentinel) {
+				t.Fatalf("LoadServer() error = %v, want it to wrap %v", err, tc.sentinel)
+			}
+			if !strings.Contains(err.Error(), serverPortEnv) {
+				t.Errorf("LoadServer() error = %q, want it to name %q", err, serverPortEnv)
+			}
+		})
+	}
 }
 
 func TestLoadHTTP2Debug(t *testing.T) {

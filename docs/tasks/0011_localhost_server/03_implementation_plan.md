@@ -105,7 +105,7 @@ requirements §2.3 のとおり。加えて、次のものは本計画で扱わ�
 
 **推奨タイトル**: `refactor(0011): move redaction and signal handling into internal`
 
-**レビュー観点**: 振る舞いを変えない移動であること（既存テストを内容を変えずに通す）/ `internal/redact` が `internal/config` を import しないこと / `TestSanitize*`・`TestSubscribedSignals` の移設と `TestConfiguredSecrets*` の書き換えが計画どおりであること / `package_reference.md` の 2 つの行を同じ変更で加えていること
+**レビュー観点**: 振る舞いを変えない移動であること（既存テストを内容を変えずに通す）/ `internal/redact` が `internal/config` を import しないこと / `TestSanitize*`・`TestSubscribedSignals` の移設と `TestConfiguredSecrets*` の実行経路の行への置き換えがステップ 1-2 の記述どおりであること / `package_reference.md` の 2 つの行を同じ変更で加えていること
 
 **実装モデル要件**: standard
 
@@ -113,11 +113,11 @@ requirements §2.3 のとおり。加えて、次のものは本計画で扱わ�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
-- [ ] **ステップ 1-3**: `internal/config` に `LLMConfig` を分離する（architecture §3.2.1）。`Config` は LLM の設定を非公開のフィールドで持ち、`LLM()` で返す。`provider.New`・`NewReview`・`newClient` の引数を `config.LLMConfig` に変える。`cmd/yt2column` の `deps.newLLMClient`・`newReviewLLMClient` の型と `cfg` のアクセサの呼び出し（`cfg.Provider()` → `cfg.LLM().Provider()`）を書き換える。`config_test.go`・`provider_test.go`・`run_test.go`・`test_helpers.go`・`integration_test.go`（`:127`・`:134` の `func(cfg config.Config)`）のアクセサと fake の型を改める。`make lint` は golangci-lint を `--build-tags test,integration` で走らせ、`go vet -tags integration ./...` も走らせる（`Makefile:10`・`:195`）ので、`integration` タグのビルドも通ることを確かめる。振る舞いは変えない。
-- [ ] **ステップ 1-4**: `ServerConfig`・`LoadServer`・`YT2COLUMN_SERVER_PORT`（既定 `8765`、`1024`〜`65535`）・設定ディレクトリとトークンのパスの導出を加える（architecture §3.2.1〜§3.2.3）。`cachedir.go` の OS ごとの分岐を、ディレクトリ名と XDG の変数名を引数に取る関数に一般化し、`defaultCacheDir` と共有する。`loadLLM` を切り出し、`loadSlackWebhook` の返り値を「値・設定されていたか・拒否」に改める。`internal/config` は `net` を import しない（`pipeline_test.go:817` の `TestConfigImports`。ポートの検査は `strconv` と文字の比較で行う）。`internal/writer` の `errPromptTooLarge` を公開の `ErrPromptTooLarge` に改め、`errors.go`・`prompt.go` と `prompt_test.go` の参照を改める。ポートの受理・拒否の表（§3.2.2）と設定ディレクトリの導出の表（§3.2.3。`goos`・`HOME`・`XDG_CONFIG_HOME` と失敗した変数の名前）をテストで固定する。
+- [x] **ステップ 1-3**: `internal/config` に `LLMConfig` を分離する（architecture §3.2.1）。`Config` は LLM の設定を非公開のフィールドで持ち、`LLM()` で返す。`provider.New`・`NewReview`・`newClient` の引数を `config.LLMConfig` に変える。`cmd/yt2column` の `deps.newLLMClient`・`newReviewLLMClient` の型と `cfg` のアクセサの呼び出し（`cfg.Provider()` → `cfg.LLM().Provider()`）を書き換える。`config_test.go`・`provider_test.go`・`run_test.go`・`test_helpers.go`・`integration_test.go`（`:127`・`:134` の `func(cfg config.Config)`）のアクセサと fake の型を改める。`make lint` は golangci-lint を `--build-tags test,integration` で走らせ、`go vet -tags integration ./...` も走らせる（`Makefile:10`・`:195`）ので、`integration` タグのビルドも通ることを確かめる。振る舞いは変えない。
+- [x] **ステップ 1-4**: `ServerConfig`・`LoadServer`・`YT2COLUMN_SERVER_PORT`（既定 `8765`、`1024`〜`65535`）・設定ディレクトリとトークンのパスの導出を加える（architecture §3.2.1〜§3.2.3）。`cachedir.go` の OS ごとの分岐を、ディレクトリ名と XDG の変数名を引数に取る関数に一般化し、`defaultCacheDir` と共有する。`loadLLM` を切り出し、`loadSlackWebhook` の返り値を「値・設定されていたか・拒否」に改める。`internal/config` は `net` を import しない（`pipeline_test.go:817` の `TestConfigImports`。ポートの検査は `strconv` と文字の比較で行う）。`internal/writer` の `errPromptTooLarge` を公開の `ErrPromptTooLarge` に改め、`errors.go`・`prompt.go` と `prompt_test.go` の参照を改める。ポートの受理・拒否の表（§3.2.2）と設定ディレクトリの導出の表（§3.2.3。`goos`・`HOME`・`XDG_CONFIG_HOME` と失敗した変数の名前）をテストで固定する。
 
 ### PR-3 作成ポイント: split the LLM config and add the server config
 
@@ -131,8 +131,8 @@ requirements §2.3 のとおり。加えて、次のものは本計画で扱わ�
 
 **判定理由**: 分離と新設の方法は architecture §3.2 に確定しており、前例のない設計判断・競合する実装案・分離された高リスク／複雑なステップのいずれにも該当しない。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
@@ -340,7 +340,7 @@ architecture §7.3 を 2-1〜2-3 のテストに書く。(1) AC-12（本文を�
 ## 7. 実装チェックリスト (Implementation Checklist)
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1）
-- [ ] PR-2 マージ済み（対象ステップ: 1-2）
+- [x] PR-2 マージ済み（対象ステップ: 1-2）
 - [ ] PR-3 マージ済み（対象ステップ: 1-3 / 1-4）
 - [ ] PR-4 マージ済み（対象ステップ: 1-5）
 - [ ] PR-5 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3）
