@@ -8,7 +8,7 @@
 | Created | 2026-10-13 |
 | Review date | 2026-10-14 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-14: §3.14 の「更新が必要な既存のテスト」で、`TestProjectOverviewDocumentsConfig` を現存するテストとして挙げていた記述を、削除済み（`4443ddf`）である事実に合わせた。決定は変えていない（editorial correction）。 |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md) の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §3.13）を指す。既存のコードの行番号は、コミット `f768cdb`（要件の承認のコミット）で確かめたものである。
 
@@ -928,7 +928,7 @@ printf 'Authorization: Bearer %s\n' "$(cat "$HOME/Library/Application Support/yt
 | `internal/pipeline/pipeline_test.go:610` の `TestPackageReferenceListsPackages` | 新しいパッケージの行を `package_reference.md` に加える（テスト自体は変えない） |
 | `internal/pipeline/pipeline_test.go:534` の `TestFakesCarryBuildTag` | `testutil/` にファイルを加える場合（fake の `failure.Notifier` など）、件数（17）を改める |
 | `cmd/yt2column/makefile_test.go` | サーバの統合テストのターゲットについて、`test-integration-cli` と同じ検査を加える |
-| `cmd/yt2column/docs_test.go:123` の `TestProjectOverviewDocumentsConfig` | `YT2COLUMN_SERVER_PORT` の行を `project_overview.md` に加える。テストの対象の変数の一覧を改める必要があるかは実装計画で確かめる |
+| `project_overview.md` の設定の変数を固定するガード（`TestProjectOverviewDocumentsConfig` はコミット `4443ddf` で削除済みで、HEAD `e0f898e` にはない） | `YT2COLUMN_SERVER_PORT` の行を `project_overview.md` に加える。既存のガードがないので、サーバの文書の内容を固定するガードを実装計画で新設するかを決める |
 
 テストを移すときは、移した後に `go tool cover -func` で関数ごとのカバレッジが変わらないことを確かめる（CLAUDE.md「Deleting a test is a claim that must be checked」）。`internal/pipeline` の `TestCommonTypesFieldSets` は、`Transcript`・`Segment`・`Article` を変えないので変更せずに通る。
 
