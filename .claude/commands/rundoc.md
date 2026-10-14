@@ -20,10 +20,18 @@ no argument, use the current branch.
 
 ## 1. Create the PR (reuse an existing one)
 
-- Resolve the current branch's PR with `gh pr view --json number,url,headRefName`.
-  If one is open, reuse it and go to step 2.
-- Otherwise confirm the base branch (`main`; the repository's base for a normal
-  PR), push the branch and set its upstream so `gh pr create` does not prompt:
+- Determine the target: `$ARGUMENTS` when it is given (a PR number or branch),
+  otherwise the current branch. Resolve its PR — pass the argument to `gh pr
+  view`, and omit it only to fall back to the current branch:
+
+  ```bash
+  gh pr view "$ARGUMENTS" --json number,url,headRefName
+  ```
+
+  If a PR is open, reuse it, use its number in the steps below, and go to step 2.
+- Otherwise the target branch has no PR yet. Confirm the base branch (`main`; the
+  repository's base for a normal PR), push the branch and set its upstream so
+  `gh pr create` does not prompt:
 
   ```bash
   git push -u origin HEAD
@@ -65,10 +73,14 @@ Same test as `runpr.md` step 1:
 - If a **new unresolved thread** has appeared since the last `fixpr` run for this
   PR, run `.claude/commands/fixpr.md` for the PR before continuing to wait;
   `fixpr` pushes a fix, so CodeRabbit re-reviews and you keep polling.
-- Proceed to step 3 when CodeRabbit's state is `SUCCESS` and no thread is
-  unresolved. If its state is `FAILURE`, report and stop. If no `CodeRabbit`
-  status context ever appears after a reasonable wait, report that and ask the
-  user how to proceed rather than assuming green.
+- Proceed to step 3 when CodeRabbit's state is `SUCCESS` and either no thread is
+  unresolved or `fixpr` reported that every remaining thread is at its severity
+  floor (`no-harm`; `fixpr.md`'s convergence policy defines the floor). If an
+  unresolved thread is not at the floor (a `must-fix`, or a thread `fixpr` could
+  not fix), report it and stop rather than merge. If its state is `FAILURE`,
+  report and stop. If no `CodeRabbit` status context ever appears after a
+  reasonable wait, report that and ask the user how to proceed rather than
+  assuming green.
 
 ## 3. Merge
 
@@ -78,11 +90,14 @@ never merge without that approval.
 
 ## 4. Switch branch
 
-Once `mergepr.md` reports the merge, update the local base branch (it leaves the
-base checked out and up to date) and create a new branch for the next change from
-it. Do not keep committing to the merged branch: after a squash merge its commits
-are not ancestors of the base. This is the branch handling of `runplan.md` step
-5a, without its plan-checkbox update. If there is no next change, check out the
+Once `mergepr.md` reports the merge, confirm its cleanup finished and the local
+base branch was updated before creating the next branch. `mergepr.md` can stop
+after the merge with cleanup pending, in which case run
+`mergepr cleanup --state <state-file>` and only then continue. Then update the
+local base branch and create a new branch for the next change from it. Do not
+keep committing to the merged branch: after a squash merge its commits are not
+ancestors of the base. This is the branch handling of `runplan.md` step 5a,
+without its plan-checkbox update. If there is no next change, check out the
 updated base branch instead.
 
 Then report the final status. There is no next-PR prompt: create the next change
