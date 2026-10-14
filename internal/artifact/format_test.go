@@ -464,7 +464,8 @@ func TestParseRecordLimits(t *testing.T) {
 		rec.Title = "T"
 		rec.Body = strings.Repeat("a", testMaxTextBytes-len("# ")-len(rec.Title))
 		rec.ID = recordID(rec)
-		requireMalformed(t, mustMarshal(t, rec))
+		// Built without Marshal, which now refuses a record Parse rejects.
+		requireMalformed(t, marshalFields(t, fieldsFrom(rec)))
 	})
 
 	// The revision cap: exactly testMaxRevisions entries are accepted, one more
@@ -500,7 +501,8 @@ func TestParseRecordLimits(t *testing.T) {
 			}
 		}
 		rec.ID = recordID(rec)
-		requireMalformed(t, mustMarshal(t, rec))
+		// Built without Marshal, which now refuses a record Parse rejects.
+		requireMalformed(t, marshalFields(t, fieldsFrom(rec)))
 	})
 
 	// The file cap: an artifact one byte over is rejected before its content
@@ -515,6 +517,24 @@ func TestParseRecordLimits(t *testing.T) {
 // to assert the boundary length.
 func textLength(rec writer.StageRecord) string {
 	return "# " + rec.Title + "\n" + rec.Body
+}
+
+func TestMarshalRejectsUnloadableRecord(t *testing.T) {
+	// A revision list on a non-review stage is omitted from the file, so the
+	// written id (which includes it) would not match the reload. Marshal must
+	// refuse it instead of writing a file Load always rejects.
+	rec := validGeneration()
+	rec.Revisions = []writer.Revision{{
+		Before:   "x",
+		Action:   writer.ActionReplace,
+		After:    "y",
+		Reason:   writer.ReasonMeaningChange,
+		Evidence: markArtifactRev,
+	}}
+	rec.ID = recordID(rec)
+	if _, err := Marshal(rec); !errors.Is(err, ErrMalformed) {
+		t.Fatalf("Marshal error = %v, want ErrMalformed", err)
+	}
 }
 
 func TestMarshalKeepsEscapingHeavyBodyWithinTheLimit(t *testing.T) {

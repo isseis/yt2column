@@ -75,10 +75,9 @@ type revisionJSON struct {
 // Marshal builds the JSON body of one artifact from a record. It computes the
 // record's identifier from its content and stores it under the id key. It does
 // not escape HTML, so a body's "<", ">", and "&" do not expand (the file is
-// read back by this package, not by a browser). It rejects a record whose JSON
-// still exceeds the size limit, so a save never writes an artifact the load
-// path would refuse. The writer validates a record before saving it; Marshal
-// trusts its input values.
+// read back by this package, not by a browser). It then rejects the result
+// unless Parse accepts it, so a save never writes an artifact the load path
+// refuses.
 func Marshal(record writer.StageRecord) ([]byte, error) {
 	out := recordJSON{
 		Version:      artifactVersion,
@@ -104,6 +103,13 @@ func Marshal(record writer.StageRecord) ([]byte, error) {
 	data := bytes.TrimSuffix(buffer.Bytes(), []byte("\n"))
 	if len(data) > maxArtifactBytes {
 		return nil, malformedf("artifact exceeds the limit of %d bytes", maxArtifactBytes)
+	}
+	// Round-trip through Parse so a save never writes an artifact the load
+	// path refuses: a value Parse rejects (a revision list on a non-review
+	// stage, an unnormalized title, an invalid model name) fails here, at
+	// save time, rather than silently writing an unloadable file.
+	if _, err := Parse(data); err != nil {
+		return nil, err
 	}
 	return data, nil
 }
