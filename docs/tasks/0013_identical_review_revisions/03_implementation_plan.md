@@ -8,9 +8,9 @@
 | Created | 2026-10-14 |
 | Review date | 2026-10-14 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | `02_architecture.md` §3.4 から実装の詳細を外したことに伴い、本文の §3.4 の行番号への言及を削った（編集上の修正。決定は変えていない）。 |
 
-本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「requirements」）の項番を、節番号は [02_architecture.md](02_architecture.md)（以下「architecture」）の節を指す。既存のコードとテストの行番号は、断りがない限り HEAD `edb914d` で確かめた。architecture は行番号を `56062fd` で確かめているが（§3.4 で加えた行番号も、コードが同じ `2fb8914` で確かめた）、`56062fd` から `edb914d` までの間に本計画が触れるファイル（`internal/writer/revision.go`・`review.go`・`revision_test.go`・`review_test.go`・`steps_test.go`・`internal/publisher/reviewlog.go`・`reviewlog_test.go`）は変わっていない（`git log 56062fd..edb914d -- <これらのパス>` が空）。
+本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「requirements」）の項番を、節番号は [02_architecture.md](02_architecture.md)（以下「architecture」）の節を指す。既存のコードとテストの行番号は、断りがない限り HEAD `edb914d` で確かめた。architecture は行番号を `56062fd` で確かめているが、`56062fd` から `edb914d` までの間に本計画が触れるファイル（`internal/writer/revision.go`・`review.go`・`revision_test.go`・`review_test.go`・`steps_test.go`・`internal/publisher/reviewlog.go`・`reviewlog_test.go`）は変わっていない（`git log 56062fd..edb914d -- <これらのパス>` が空）。
 
 ## 1. 実装の概要 (Implementation Overview)
 
