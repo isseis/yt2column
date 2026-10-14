@@ -27,6 +27,34 @@ func validRevision() Revision {
 	}
 }
 
+func TestRevisionNoChange(t *testing.T) {
+	noChange := validRevision()
+	noChange.After = noChange.Before
+	changed := validRevision()
+	deleted := validRevision()
+	deleted.Action = ActionDelete
+	deleted.After = ""
+
+	tests := []struct {
+		name     string
+		revision Revision
+		want     bool
+	}{
+		{"replacement with equal before and after", noChange, true},
+		{"replacement with different before and after", changed, false},
+		{"zero-value replacement", Revision{Action: ActionReplace}, false},
+		{"deletion", deleted, false},
+		{"unknown action", Revision{Before: markRevisionBefore, Action: ActionUnknown}, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.revision.NoChange(); got != tc.want {
+				t.Errorf("NoChange() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestRevisionReasonWireValue(t *testing.T) {
 	values := []string{"unsupported", "meaning_change", "speaker", "misrecognition", "unintelligible"}
 	for _, wire := range values {
@@ -62,6 +90,8 @@ func TestRevisionReasonWireValue(t *testing.T) {
 
 func TestReviewResultCheck(t *testing.T) {
 	valid := validRevision()
+	validNoChange := validRevision()
+	validNoChange.After = validNoChange.Before
 	validDelete := validRevision()
 	validDelete.Action = ActionDelete
 	validDelete.After = ""
@@ -76,6 +106,7 @@ func TestReviewResultCheck(t *testing.T) {
 	}{
 		{"empty revisions", ReviewResult{Model: StepModel{Model: markRevisionBefore}}},
 		{"replacement", ReviewResult{Model: StepModel{Model: markRevisionBefore}, Revisions: []Revision{valid}}},
+		{"replacement with no change", ReviewResult{Model: StepModel{Model: markRevisionBefore}, Revisions: []Revision{validNoChange}}},
 		{"deletion", ReviewResult{Model: StepModel{Model: markRevisionBefore}, Revisions: []Revision{validDelete}}},
 		{"evidence with a line feed", ReviewResult{Model: StepModel{Model: markRevisionBefore}, Revisions: []Revision{validEvidenceNewline}}},
 		{"tab in a value", ReviewResult{Model: StepModel{Model: markRevisionBefore}, Revisions: []Revision{validEvidenceTab}}},
