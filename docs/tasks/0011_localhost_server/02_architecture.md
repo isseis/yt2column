@@ -129,12 +129,21 @@ flowchart LR
 -   **入口は CLI だけとする前提を改める。** 方針の出典は [project_overview.md](../../dev/project_overview.md)「決定済みの方針」の「実行形式: ローカル実行の CLI」と、CLAUDE.md「Separation of Concerns」の「can later back a Slack bot or a scheduled job」である。本タスクは 2 つ目の入口として localhost サーバを加える（要件 F-010）。コアロジックを `cmd/` の外に置く方針はそのまま守る。この前提を確かめている既存のテストはない。文書は F-010 で更新する（§3.12）。
 -   **`config.Config` から LLM の設定を分ける。** 方針の出典は、タスク 0005 の [02_architecture.md](../0005_cli_assembly/02_architecture.md)（`config.Load` が 1 つの `Config` を返し、`provider.New(cfg config.Config)` がそれを受け取る形）と、タスク 0009・0010 の同書（`newClient(provider, model, cfg config.Config, build)`）である。例外にするのは、サーバがキャッシュディレクトリと `yt-dlp` の設定を検査せずに LLM の設定を得る必要があるためである（要件 F-009、H-08）。`config.Load` の振る舞いは変えない。更新が必要な既存のテストは §3.14 に挙げる。
 
-**前提とする、まだ実装されていない部品。** 要件 §5 は、#107（コピーした字幕のパーサと `TranscriptSource`）と #108（失敗を Slack へ投稿する仕組み）の完了を前提にする。コミット `f768cdb` の時点で、どちらもリポジトリにない（`internal/transcript` にあるのは `YtDlpSource` と json3・info.json のパーサだけで、`internal/publisher` にあるのは記事の投稿だけである）。本設計は、両者に求める契約を §3.7・§3.9 に定める。
+**前提とする、まだ実装されていない部品と、依存の順序。** 要件 §5 は、#107（コピーした字幕のパーサと `TranscriptSource`）と #108（失敗を Slack へ投稿する仕組み）の完了を前提にする。コミット `f768cdb` の時点で、どちらもリポジトリにない（`internal/transcript` にあるのは `YtDlpSource` と json3・info.json のパーサだけで、`internal/publisher` にあるのは記事の投稿だけである）。本設計は、両者に求める契約を §3.7・§3.9 に定める。
 
+**契約を葉に固定し、依存を一方向にする。** #108 が本タスクの型に依存して見えるのは、契約（interface と型）と実装を分けていないためである。契約を葉として先に凍結すれば、#107・#108・サーバの依存は巡回しない。
+
+| 段階 | 成果物 | 依存 |
+|---|---|---|
+| 0. 契約の凍結 | `internal/failure` の型（`Kind`・`Notice`・`Notifier`、§3.9）と、#107 の `CopiedInput`・`NewCopiedSource` の契約（§3.7） | なし（葉） |
+| 1. 部品の実装 | #107 の `CopiedSource` と #108 の `Notifier` の実装 | 段階 0 |
+| 2. サーバの実装 | `internal/server` | 段階 0（型）・段階 1（#107 の実物。ただし §7.1 のとおり fake の `Notifier` を使うので、#108 の実物が要るのは統合テストだけ） |
+
+-   段階 0 は本タスクの作業として最初に行う（§8 のフェーズ 1）。これにより、#108 は本タスクの「実装」ではなく「凍結した型」にだけ依存する。#107 と #108 は互いに依存しないので、段階 1 は並行してよい。
+-   段階 2 のユニットテストは fake の `failure.Notifier` を使う（§7.1）。サーバの開発は #108 の実装を待たない。実物の通知が必要になるのは、統合テストと起動時の配線だけである（§8 のフェーズ 2 の手順 8）。
 -   この契約は #107・#108 への要求である。本書の承認の前に、#107・#108 の issue（または各タスクの要件書）に、本書の §3.7・§3.9 を参照する形で記録する。
--   失敗の通知の型（`failure.Kind`・`failure.Notice`・`failure.Notifier`）は、本タスクが新設する `internal/failure` に置く（§3.9）。#108 はその `Notifier` を実装する。#108 は本タスクの型に依存し、サーバの設計の詳細には依存しない。
+-   `internal/failure` は `internal/server` の内部ではなく、独立した契約のパッケージとする（§2.1）。本タスクが新設するが、その型と interface は #108 とサーバの両方が従う仕様である。
 -   #107 が別の形（たとえば `Fetch` の中で解析する形）で実装された場合も、AC-11 は守れる。サーバが `202` の前に `Fetch` を同期的に呼び、得た `Transcript` を返すだけの source でパイプラインを組めばよい。その場合は本書を改める（決定の変更として `draft` に戻す）。
--   本タスクの実装は、#107・#108 の実装の後に始める（§8）。
 
 ## 2. システム構成 (System Structure)
 
@@ -876,6 +885,7 @@ printf 'Authorization: Bearer %s\n' "$(cat "$HOME/Library/Application Support/yt
 | H-06 上限超過の状態コード | `429`、`Retry-After` なし。失敗の通知はしない | §3.8.2 |
 | H-07 リクエストの型 | `transcript.Transcript` を使わず、#107 の `CopiedInput` を本文の検査で直接作る。`Transcript` と `Segment` は変更しない | §3.6 |
 | H-08 ポートと使わない設定 | `YT2COLUMN_SERVER_PORT`（既定 `8765`、`1024`〜`65535`）。`config.LoadServer` を新設し、キャッシュディレクトリと `yt-dlp` の設定を読まない。LLM の設定は `Load` と共有する。トークンのパスはキャッシュディレクトリと同じ規則（`os.User*Dir`）と同じ関数で導出する | §3.2 |
+| H-09 依存の順序 | 契約（`internal/failure` の型と #107 の interface）を葉として先に凍結する。順序は「契約の凍結 → #107・#108 の実装（並行）→ サーバ本体」で一方向。サーバのユニットテストは fake の `Notifier` を使い、#108 の実物が要るのは統合テストだけ | §1.3・§7.1・§8 |
 
 ### 3.14. コンポーネント責務表
 
@@ -1192,7 +1202,7 @@ sequenceDiagram
 
 ### 7.1. ユニットテスト
 
-ユニットテストは LLM の API も Webhook も呼ばない（要件 §5）。`internal/server` のテストは、fake の `ArticleWriter`・`Publisher`（既存の `internal/writer/testutil`・`internal/publisher/testutil`）と fake の `failure.Notifier` を使い、ハンドラを `httptest.NewRecorder` で直接呼ぶか、`127.0.0.1:0` の `net.Listener` を `Serve` に渡して loopback の接続を通して呼ぶ。#107 の部品は実物を使う（解析はネットワークに触れないため）。
+ユニットテストは LLM の API も Webhook も呼ばない（要件 §5）。`internal/server` のテストは、fake の `ArticleWriter`・`Publisher`（既存の `internal/writer/testutil`・`internal/publisher/testutil`）と fake の `failure.Notifier` を使い、ハンドラを `httptest.NewRecorder` で直接呼ぶか、`127.0.0.1:0` の `net.Listener` を `Serve` に渡して loopback の接続を通して呼ぶ。#107 の部品は実物を使う（解析はネットワークに触れないため）。fake の `failure.Notifier` を使うので、サーバのユニットテストは #108 の実装を必要としない。#108 の実物が要るのは統合テストだけである（§8）。
 
 | 対象 | 主なテスト |
 |---|---|
@@ -1260,17 +1270,26 @@ sequenceDiagram
 
 ## 8. 実装優先順位 (Implementation Priorities)
 
-前提: #107（§3.7 の契約）と #108（§3.9 の契約）が実装済みであること。#108 は本タスクの `internal/failure` の型に依存するので、`internal/failure` だけは #108 より先に作ってよい（手順 1）。
+依存の向きは §1.3 のとおり一方向である。本タスクの作業を、#107・#108 の実装を待たずに進められる「契約の凍結」と、#107・#108 の実装を前提とする「サーバ本体」の 2 つのフェーズに分ける。
 
-1. **`internal/failure`。** 型だけのパッケージ。#108 の実装の前提になる。
+**フェーズ 1: 契約の凍結（#107・#108 の実装を待たない）。**
+
+1. **`internal/failure`。** 型だけのパッケージ。契約の葉であり、#108 の実装とサーバの両方がこれに従う。最初に確定させる。
 2. **共有部品の移動。** `internal/redact`・`internal/signalrun` を作り、CLI をそれに切り替える。振る舞いを変えない純粋なリファクタリングとして 1 つのコミットにする。
 3. **設定。** `LLMConfig` の分離と `provider` の引数の変更（振る舞いを変えない）、続いて `LoadServer`・ポート・設定ディレクトリ。`writer.ErrPromptTooLarge` の公開。
 4. **共有トークン。** `internal/authtoken`。
+
+このフェーズは #107・#108 に依存しない。手順 1 の契約は、§1.3 のとおり #107・#108 の issue に記録する。
+
+**フェーズ 2: サーバ本体（#107 の実装と、#108 の実装を前提とする）。**
+
 5. **HTTP の受け口。** `internal/server` の待ち受け・ヘッダの検査・応答。
-6. **本文の検査と #107 の接続。**
-7. **ジョブ・枠・失敗の分類と通知・終了。**
-8. **`cmd/yt2column-server`・`Makefile`・統合テスト。**
+6. **本文の検査と #107 の接続。** #107 の実装（§3.7 の契約）を前提にする。
+7. **ジョブ・枠・失敗の分類と通知・終了。** ユニットテストは fake の `failure.Notifier` を使うので（§7.1）、#108 の実装を待たずに進められる。
+8. **`cmd/yt2column-server`・`Makefile`・統合テスト。** #108 の実装（§3.9 の契約）を前提にする。実物の通知が必要になるのはここだけである。
 9. **文書（F-010）。**
+
+#107 と #108 の実装は互いに依存せず、フェーズ 1 の後なら並行してよい。フェーズ 2 の手順 5・6 は #107 に、手順 8 は #108 に依存する。手順 6 以降のユニットテストは fake と #107 の実物で足りるので、#108 の実装を待つのは手順 8 だけである。
 
 ## 9. 将来の拡張性 (Future Extensibility)
 
