@@ -392,10 +392,11 @@ func TestParseCopiedCheckOrder(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			message := assertCopiedRejected(t, tc.input, tc.want)
+			assertCopiedRejected(t, tc.input, tc.want)
+			_, err := parseCopiedTranscript(tc.input)
 			for _, other := range tc.notWant {
-				if strings.Contains(message, other.Error()) {
-					t.Errorf("Error() = %q, must not report %v", message, other)
+				if errors.Is(err, other) {
+					t.Errorf("parseCopiedTranscript(%q) error = %v, must not wrap %v", tc.input, err, other)
 				}
 			}
 		})
