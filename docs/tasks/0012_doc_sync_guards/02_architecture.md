@@ -8,7 +8,7 @@
 | Created | 2026-10-13 |
 | Review date | 2026-10-13 |
 | Reviewer | isseis |
-| Comments | PR-1 の実装時、本書が基準とした `38885ab` より後に `cmd/yt2column/docs_test.go` が変わっており（`TestProjectOverviewDocumentsConfig`・`TestClaudePlanRecordsManualRun` は削除、`TestReviewEvaluationRecords` ほかに置き換え）、§3.5・§3.8 の既存の呼び出しと doc guard の名前、および `docSection` の行番号が古くなっていた。これらを現在のコードに合わせて編集上訂正した。あわせて §3.2 の見出し行の定義を、`/^(#+)\s/` との一致という記述から、実装が受け取る空白（スペースまたはタブ）と本文が空の見出しの扱いを明記する形に編集上明確化した。いずれも決定は変えていない。PR-2 の実装時、§3.3 の manifest の permission の照合に、`要求する権限` の列挙の書式（トップレベルのコードスパンの直後に理由の `（…）` が続く項目を権限として数え、理由の中の入れ子は数えない。列挙は深さ 0 の `。` で終わり、理由の中の `。` は終わらせない）を契約として明記した。これも編集上の明確化であり、決定は変えていない。 |
+| Comments | PR-1 の実装時、本書が基準とした `38885ab` より後に `cmd/yt2column/docs_test.go` が変わっており（`TestProjectOverviewDocumentsConfig`・`TestClaudePlanRecordsManualRun` は削除、`TestReviewEvaluationRecords` ほかに置き換え）、§3.5・§3.8 の既存の呼び出しと doc guard の名前、および `docSection` の行番号が古くなっていた。これらを現在のコードに合わせて編集上訂正した。あわせて §3.2 の見出し行の定義を、`/^(#+)\s/` との一致という記述から、実装が受け取る空白（スペースまたはタブ）と本文が空の見出しの扱いを明記する形に編集上明確化した。いずれも決定は変えていない。PR-2 の実装時、§3.3 の manifest の permission の照合に、`要求する権限` の列挙の書式（トップレベルのコードスパンの直後に理由の `（…）` が続く項目を権限として数え、理由の中の入れ子は数えない。列挙は深さ 0 の `。` で終わり、理由の中の `。` は終わらせない）を契約として明記した。これも編集上の明確化であり、決定は変えていない。後続タスク `0014`（#181）が常時実行の `doc-guard` ジョブを実装した後、§7.4・§9 を、文書だけの変更を CI が守るようになった事実に合わせて更新した。これは本タスクが残した穴を後続タスクが閉じたことによる記述の更新であり、決定は変えていない。 |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md) の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §10）を指す。既存のコードと文書の行番号は、コミット `38885ab` で確かめたものである。ただし `cmd/yt2column/docs_test.go` の行番号と既存の doc guard の名前は、PR-1 の実装時に現在の HEAD で確かめ直した。
 
@@ -291,7 +291,9 @@ Go の guard は macOS と Linux（CI）のどちらでも `make test` で動く
 
 `ci.yml:36` の分類は `*.md`・`docs/`・`.claude/`・`LICENSE` だけの変更をコードの変更とみなさない。そのため文書だけの変更では Go のテストのジョブ（`ci.yml:55-74` の `test`）も拡張のジョブ（`ci.yml:115-165` の `extension`）も走らない。本タスクはこの分類を変えない。
 
-**残るリスク（明示）。** 文書だけの変更では、文書の guard はローカルの `make test` でだけ走る。`CLAUDE.md:209` が「編集の後に `make test` と `make lint` を実行する」ことを求めるので、通常の開発では保護される。しかし、手元でテストを実行しない経路（GitHub のウェブ画面での編集、bot）では破損が混入し、それは次にコードの変更を含む PR で `make test` が走ったときに初めて検出される（原因の PR とは別の PR で検出されるため、原因の特定が遅れる）。このリスクは、タスク `0007` が受け入れたものと同じである（`docs/tasks/0007_browser_extension_skeleton/03_implementation_plan.md:471`）。文書だけの変更を CI で守る案は §11 に記す。`.gitignore` だけの変更の残るリスクは §3.6 に記した。
+**後続タスク `0014`（#181）による解消。** 本タスクが残した「文書だけの変更では文書の guard が CI で走らない」穴は、タスク `0014`（#181）が `ci.yml` に常時実行の `doc-guard` ジョブを足して閉じた。`doc-guard` は `check-changes` の分類に依存せず（`needs` も `if` も持たず）、`go test -tags test ./cmd/yt2column ./internal/pipeline` を実行する。したがって文書だけの変更でも、本タスクが置いた guard（`./cmd/yt2column`・`./internal/pipeline`）は CI で走る。ローカルの `make test`（`CLAUDE.md:209`）による保護は引き続き有効である。
+
+**残る限界（明示）。** `doc-guard` は対象パッケージを明示列挙する（`./cmd/yt2column`・`./internal/pipeline`）。本タスクが置いた guard はこの 2 パッケージにあるので守られるが、後から別のパッケージに文書 guard を足した場合は、`doc-guard` のコマンドを更新するまで CI では走らない。`.gitignore` だけの変更を守る検査は node 側に残るため、その変更では引き続き `make ext-test` を要求する（§3.6）。
 
 ## 8. 実装の優先順位 (Implementation Priorities)
 
@@ -303,7 +305,7 @@ Go の guard は macOS と Linux（CI）のどちらでも `make test` で動く
 ## 9. 将来の拡張性 (Future Extensibility)
 
 - 新しい文書のテキスト同期の guard は、`extension_docs_test.go` にサブテストを足すだけで増やせる。ヘルパと実行経路を共有する。
-- 文書だけの変更を CI でも guard したい場合は、`check-changes` の分類に guard が読むファイルを加えるか、常に走る小さなジョブを足す。これは実行時間と `check-changes` の設計に関わるので、別のタスクとする（#181。H-03）。
+- 文書だけの変更を CI でも guard する案は、常時実行の小さなジョブ（`doc-guard`）を足す形でタスク `0014`（#181）が実装した（§7.4）。`check-changes` の分類に guard が読むファイルを加える案は採らず、分類は変えていない。別パッケージに文書 guard を足す場合は、`doc-guard` の `go test` の対象を更新する。
 - `.gitignore` の ignore 規則の検査を Go へ移す場合は、`git check-ignore` を起動する Go のテストを足し、`repository.test.ts` の該当の節を削る（§11 の案 B）。
 
 ## 10. 設計への申し送りへの回答 (Handling of design_handoff Items)
@@ -312,7 +314,7 @@ Go の guard は macOS と Linux（CI）のどちらでも `make test` で動く
 |---|---|
 | H-01（移した guard の置き場所） | `cmd/yt2column/extension_docs_test.go`（`package main`、`//go:build test`）に置く。既存の doc guard と同じ場所で、ヘルパと `repositoryRoot` を共有できる（§1.1 原則 2・§2.2） |
 | H-02（既存 `docs_test.go` との境界とヘルパの再利用） | 境界は「既存は CLI とプロバイダの契約、移す検査は拡張の契約」。`docSection` を汎用の `sectionByHeading` に置き換え、表のヘルパは再利用する（§3.2・§3.5・§3.8・§3.9） |
-| H-03（文書だけの変更を CI で保護するか） | 変えない。CI の分類・トリガはそのままとし、ローカルの `make test`（`CLAUDE.md:209`）に委ねる。残るリスクを §7.4 に明示した。CI で守る案は別のタスクとする（#181。§11） |
+| H-03（文書だけの変更を CI で保護するか） | 変えない。CI の分類・トリガはそのままとし、ローカルの `make test`（`CLAUDE.md:209`）に委ねる。残るリスクを §7.4 に明示した。CI で守る案は別のタスクとする（#181。§11）。（後続タスク `0014`（#181）が常時実行の `doc-guard` ジョブとして実装したので、この回答は設計時の記録であり、現在の実行範囲は §7.4 を参照。） |
 | H-04（タスク `0007` の文書の訂正の扱い） | 編集しない。`0007` の `02_architecture.md` に `docs.test.ts` への言及はない。`03_implementation_plan.md` の `docs.test.ts` への言及は、ステップの完了記録・AC トレーサビリティ表・マイルストーン・PR・リスク・成功基準のいずれも、そのとき何をしたかの履歴である。申し送りが現在形の指針として挙げた 2 か所（`03_implementation_plan.md:36` の英語の例外の説明と、`:445` の「`docs.test.ts::manual checks are recorded`（ステップ 5-6）は…確かめる」）も、完了したタスクの計画の記述であり、現在の指針は `CLAUDE.md`「Go Idioms」の例外と本タスクの `extension_docs_test.go` が担う。したがって、これらも履歴として残し、編集上の訂正も行わない（要件 §2.3・制約） |
 | H-05（拡張 ID の導出と manifest の読み取りの Go 実装） | `encoding/json` で manifest を読み、`encoding/base64`・`crypto/x509`・`crypto/sha256` で導出する。解析の失敗はエラーとする（§3.4） |
 | H-06（`extension/test` のヘルパの再利用と削除） | `extensionId.ts`・`repoFile.ts`・`paths.ts` は他のテストが使うので残す。`docs.test.ts` だけの import・リテラルは削除し、`make ext-check` で確かめる（§3.7・§3.8） |

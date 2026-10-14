@@ -212,7 +212,10 @@ See [Test Organization Guide](docs/dev/developer_guide/test_organization.md) for
   not need `make ext-test`. The text-sync guards that read them (the extension
   ID, the `ext-` targets in this file, the manifest permissions, the
   `project_overview.md` notes, the task records) are Go tests included in
-  `make test` and need no node.
+  `make test` and need no node. The `doc-guard` CI job runs those guards
+  (`go test -tags test ./cmd/yt2column ./internal/pipeline`) on every pull
+  request, so a documentation-only change is checked in CI even though
+  `check-changes` classifies it as non-code.
 - A change that touches only `.gitignore` can still break the extension's
   ignore-rule check, which stays in its node tests. Run `make ext-test` locally
   before committing such a change.

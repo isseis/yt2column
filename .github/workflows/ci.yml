@@ -164,6 +164,25 @@ jobs:
           fi
           echo "PASS: no extension packages in go list ./..."
 
+  # Runs on every pull request, independent of the change classification, so the
+  # document text-sync guards run even for a documentation-only change (which
+  # check-changes classifies as non-code and would otherwise skip).
+  doc-guard:
+    name: Documentation guard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run documentation sync guards
+        run: go test -tags test ./cmd/yt2column ./internal/pipeline
+
   # Runs on every pull request, independent of the change classification, so a
   # private key committed anywhere in the repository fails CI.
   secret-scan:
