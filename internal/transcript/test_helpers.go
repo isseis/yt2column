@@ -21,6 +21,7 @@ const (
 	testdataInvalidUTF8Info      = "../../testdata/invalid_utf8.info.json"
 	testdataSurrogateInfo        = "../../testdata/unpaired_surrogate.info.json"
 	testdataRealVideoID          = "2tcCWM-sRBw"
+	testdataCopiedTranscripts    = "../../testdata/*.transcript_copy.txt"
 )
 
 // fakeCommandCall records one fakeCommandExecutor.Run call.

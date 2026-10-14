@@ -139,21 +139,21 @@ requirements の F-001〜F-004 を、architecture の設計どおりに実装す
 
 `testdata/` の 3 ファイル、`testdata/README.md`、`.gitattributes` はコミット `4fe06e0` で追加済みなので、変更しない（本計画 §1.3）。
 
-- [ ] **ステップ 3-1**: `test_helpers.go` のパスの定数の並びに、`testdata/*.transcript_copy.txt` の glob のパターンを加える。
-- [ ] **ステップ 3-2**: `copied_test.go` に、実データのテスト `TestCopiedSourceRealSamples` を書く（architecture §7.1「実データ」）。glob で見つけたファイルの集合が、テストが期待値を持つ 3 つの動画 ID の集合とちょうど一致することを確かめる（期待値のないファイルが加わったら失敗する）。各ファイルについて、`readTestdataFile` で読み、次を確かめる。期待値は、本計画 §1.3 の実測値と、ファイルを目で読んで書いた定数から決める。パーサの出力からは作らない。
+- [x] **ステップ 3-1**: `test_helpers.go` のパスの定数の並びに、`testdata/*.transcript_copy.txt` の glob のパターンを加える。
+- [x] **ステップ 3-2**: `copied_test.go` に、実データのテスト `TestCopiedSourceRealSamples` を書く（architecture §7.1「実データ」）。glob で見つけたファイルの集合が、テストが期待値を持つ 3 つの動画 ID の集合とちょうど一致することを確かめる（期待値のないファイルが加わったら失敗する）。各ファイルについて、`readTestdataFile` で読み、次を確かめる。期待値は、本計画 §1.3 の実測値と、ファイルを目で読んで書いた定数から決める。パーサの出力からは作らない。
     - バイト数と、`NewCopiedSource` での解析の成功。
     - セグメント数（本計画 §1.3 の見込みの 40・185・697）。
     - 先頭と末尾のセグメントの `StartMs`・`Text`、§7.1 が挙げる特徴的な箇所（`IkngpxCMmRQ` の `1:00`、`mbyG85GZ0PI` の `1:00:07` と、本文のない 4 つの時刻が `Segments` に入らないこと）。
     - すべてのセグメントについての性質: `StartMs` が減らないこと。形 B では各 `Text` が入力中のいずれかの行と一致すること、形 A では各 `Text` が入力中のいずれかの行の末尾の部分であること（行の分割を、目で読んだ定数とは別の方法で確かめる）。
-- [ ] **ステップ 3-3**: `prompt_test.go` に、`TestValidateTranscriptAcceptsCopiedSamples` を書く。`../../testdata/*.transcript_copy.txt` の各ファイルについて、ファイル名の先頭の動画 ID を `VideoID` にして `transcript.NewCopiedSource` と `Fetch` で `Transcript` を得て、`validateTranscript` を通ることを確かめる（architecture §7.1「`writer` との整合」）。ファイルが 3 つ見つからない場合は失敗させる。`writer` の検査の条件を `internal/transcript` のテストに写さない。
-- [ ] **ステップ 3-4**: `cmd/yt2column/copied_transcript_docs_test.go`（`//go:build test`、`package main`）に、調査記録の guard `TestCopiedTranscriptSurveyRecords` を書く。本計画 §1.3 の文書の guard の部品を再利用する。読む文書は `testdata/README.md` と本タスクの `02_architecture.md` で、後者のパスの定数を新たに加える（`extension_docs_test.go` の `extensionArchitecturePath` と同じ形）。次を確かめる。
+- [x] **ステップ 3-3**: `prompt_test.go` に、`TestValidateTranscriptAcceptsCopiedSamples` を書く。`../../testdata/*.transcript_copy.txt` の各ファイルについて、ファイル名の先頭の動画 ID を `VideoID` にして `transcript.NewCopiedSource` と `Fetch` で `Transcript` を得て、`validateTranscript` を通ることを確かめる（architecture §7.1「`writer` との整合」）。ファイルが 3 つ見つからない場合は失敗させる。`writer` の検査の条件を `internal/transcript` のテストに写さない。
+- [x] **ステップ 3-4**: `cmd/yt2column/copied_transcript_docs_test.go`（`//go:build test`、`package main`）に、調査記録の guard `TestCopiedTranscriptSurveyRecords` を書く。本計画 §1.3 の文書の guard の部品を再利用する。読む文書は `testdata/README.md` と本タスクの `02_architecture.md` で、後者のパスの定数を新たに加える（`extension_docs_test.go` の `extensionArchitecturePath` と同じ形）。次を確かめる。
     - `testdata/*.transcript_copy.txt` の各ファイルについて、`testdata/README.md` のコピーした字幕の節が、そのファイル名、動画の URL、CC BY のライセンスを記載していること。同じ節が、取得日・取得方法・加工内容・取得者を特定できる情報を含まないことの確認の各項を持つこと（AC-01）。
     - architecture §1.4.1 の 1 つ目の表が、requirements AC-01b の列（動画 ID・字幕の言語・自動/手動・長さ・ライセンス・ブラウザ・表示言語）を持ち、各実データの動画 ID の行の `testdata/` の欄が保存を示すこと。日本語・英語と自動・手動の 4 つの組み合わせの行がそろうこと（AC-01b）。
     - architecture §1.4.1 の 2 つ目の表が、requirements AC-01b の観測した書式の列を持つこと（AC-01b）。
     - architecture §1.4.1 に `h:mm:ss` の観測（`2:10:26`・`1:00:07`）が記録されていること（AC-01a）。
     - architecture §1.4.2 が、パネル全体を選択できたこと、調べた最長の長さ、選択できない場合の手段として CLI（`yt-dlp` の経路）を記載していること（AC-03）。
-- [ ] **ステップ 3-5**: ステップ 3-2〜3-4 の各テストが、その理由で失敗しうることを確かめる。少なくとも、(a) 期待値の 1 つ（末尾のセグメントの `StartMs`、セグメント数）を変える、(b) `testdata/` に期待値のない `*.transcript_copy.txt` を一時的に置く、(c) 本文のないセグメントを `Segments` に含めない処理を一時的に外す（このとき `TestValidateTranscriptAcceptsCopiedSamples` は `-run` で単独に実行する。`mbyG85GZ0PI` の 4 つの時刻が空の `Text` になり、`validateTranscript` が拒否する）、(d) `testdata/README.md` から 1 ファイルの URL と取得日を順に消す、(e) architecture §1.4.1 の表から列や行を 1 つ消す、§1.4.2 から CLI の記載を消す、の各変更で、対応するテストが失敗することを確かめ、コミットメッセージに記す。変更はすべて元に戻す。
-- [ ] **ステップ 3-6**: `testdata/README.md` の記載が security.md §7（取得者を特定できる情報を含まない）を満たすことを、実データ 3 ファイルを目で見て確かめ、本計画 §5.2 に記録する。
+- [x] **ステップ 3-5**: ステップ 3-2〜3-4 の各テストが、その理由で失敗しうることを確かめる。少なくとも、(a) 期待値の 1 つ（末尾のセグメントの `StartMs`、セグメント数）を変える、(b) `testdata/` に期待値のない `*.transcript_copy.txt` を一時的に置く、(c) 本文のないセグメントを `Segments` に含めない処理を一時的に外す（このとき `TestValidateTranscriptAcceptsCopiedSamples` は `-run` で単独に実行する。`mbyG85GZ0PI` の 4 つの時刻が空の `Text` になり、`validateTranscript` が拒否する）、(d) `testdata/README.md` から 1 ファイルの URL と取得日を順に消す、(e) architecture §1.4.1 の表から列や行を 1 つ消す、§1.4.2 から CLI の記載を消す、の各変更で、対応するテストが失敗することを確かめ、コミットメッセージに記す。変更はすべて元に戻す。
+- [x] **ステップ 3-6**: `testdata/README.md` の記載が security.md §7（取得者を特定できる情報を含まない）を満たすことを、実データ 3 ファイルを目で見て確かめ、本計画 §5.2 に記録する。
 
 **完了条件:** 実データ 3 ファイルが解析され、`writer` の検査を通る。調査記録の guard が通る。`make fmt`・`make test`・`make lint` と、`go test -tags test ./cmd/yt2column ./internal/pipeline`（CI の `doc-guard` ジョブと同じ）が通る。
 
@@ -336,7 +336,7 @@ architecture §7.1 のとおり、すべて文字列の入力だけで行い、`
 
 | 確認 | 日付 | 結果 |
 |---|---|---|
-| 実データ 3 ファイルが取得者を特定できる情報を含まないこと（security.md §7。ステップ 3-6） | - | - |
+| 実データ 3 ファイルが取得者を特定できる情報を含まないこと（security.md §7。ステップ 3-6） | 2026-10-14 | 確認した。3 ファイルともパネルからコピーした字幕の本文だけで、URL・アカウント・IP アドレスの情報を含まない。`testdata/README.md` の記載どおり、ログインしていない状態で取得し、加工もしていない（末尾の `Yoboo9g7saY` の `翻訳: … 校正: …` は字幕の作成者のクレジットで動画の内容） |
 
 ## 6. リスク管理 (Risk Management)
 
