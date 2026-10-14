@@ -12,6 +12,8 @@ import (
 const (
 	copiedTranscriptReadmePath       = repositoryRoot + "/testdata/README.md"
 	copiedTranscriptArchitecturePath = repositoryRoot + "/docs/tasks/0015_copied_transcript_source/02_architecture.md"
+	packageReferencePath             = repositoryRoot + "/docs/dev/developer_guide/package_reference.md"
+	translationGlossaryPath          = repositoryRoot + "/docs/translation_glossary.md"
 )
 
 // TestCopiedTranscriptSurveyRecords checks the copied-transcript survey record:
@@ -156,4 +158,184 @@ func surveyHasCombination(table [][]string, language, kind string) bool {
 		}
 	}
 	return false
+}
+
+// TestClaudeMDCopiedTranscriptException checks the "Declare, don't infer" item
+// in CLAUDE.md states the copied-transcript exception's scope, reason, and
+// boundary.
+func TestClaudeMDCopiedTranscriptException(t *testing.T) {
+	item := claudeBullet(readDoc(t, claudePath), "Declare, don't infer")
+	if item == "" {
+		t.Fatal("CLAUDE.md has no 'Declare, don't infer' item")
+	}
+	for _, want := range []string{
+		"copied-transcript parser",
+		"form A",
+		"form B",
+		"screen-reader label",
+		"Segments",
+		"external value",
+		"cannot express in a type",
+		"internal/transcript",
+		"rejected",
+	} {
+		if !strings.Contains(item, want) {
+			t.Errorf("the 'Declare, don't infer' item does not mention %q", want)
+		}
+	}
+}
+
+// TestCopiedTranscriptDocsUpdated checks the documents that name CopiedSource or
+// the copied-transcript exception stay updated, and that the glossary defines
+// the six survey terms.
+func TestCopiedTranscriptDocsUpdated(t *testing.T) {
+	claude := readDoc(t, claudePath)
+
+	fragile := claudeBullet(claude, "Delegate the fragile part")
+	if fragile == "" {
+		t.Fatal("CLAUDE.md has no 'Delegate the fragile part' item")
+	}
+	for _, want := range []string{"yt-dlp", "parser", "fallback"} {
+		if !strings.Contains(fragile, want) {
+			t.Errorf("the 'Delegate the fragile part' item does not mention %q", want)
+		}
+	}
+
+	// The Architecture Overview entry, not the whole section: the "Declare,
+	// don't infer" exception in a later subsection also names CopiedSource, so
+	// a section-wide search would pass even if this entry lost it.
+	if entry := markdownBullet(claude, "- `TranscriptSource`"); !strings.Contains(entry, "CopiedSource") {
+		t.Error("CLAUDE.md's Architecture Overview TranscriptSource entry does not mention CopiedSource")
+	}
+
+	overview := readDoc(t, projectOverviewPath)
+	for _, heading := range []string{"## パイプライン", "## 想定ディレクトリ構成"} {
+		if section := sectionByHeading(overview, heading); !strings.Contains(section, "CopiedSource") {
+			t.Errorf("project_overview.md %s does not mention CopiedSource", heading)
+		}
+	}
+	if policies := sectionByHeading(overview, "## 決定済みの方針"); !strings.Contains(policies, "yt-dlp") || !strings.Contains(policies, "代わりの手段") {
+		t.Error("project_overview.md 決定済みの方針 does not record the copied-transcript exception")
+	}
+
+	reference := readDoc(t, packageReferencePath)
+	table := findTable(reference, "Package")
+	if table == nil {
+		t.Fatal("package_reference.md has no package table")
+	}
+	row := tableRow(table, "internal/transcript")
+	if row == nil {
+		t.Fatal("package_reference.md has no internal/transcript row")
+	}
+	cells := strings.Join(row, " ")
+	for _, want := range []string{"CopiedSource", "NewCopiedSource", "ErrCopiedTranscriptFormat"} {
+		if !strings.Contains(cells, want) {
+			t.Errorf("the package_reference.md internal/transcript row does not mention %s", want)
+		}
+	}
+
+	glossary := readDoc(t, translationGlossaryPath)
+	terms := findTable(glossary, "日本語")
+	if terms == nil {
+		t.Fatal("translation_glossary.md has no term table")
+	}
+	for _, term := range []string{"コピーした字幕", "形 A", "形 B", "時刻の行", "本文の行", "読み上げ用ラベル"} {
+		if tableRow(terms, term) == nil {
+			t.Errorf("translation_glossary.md has no row for %q", term)
+		}
+	}
+}
+
+// TestClaudeBullet pins claudeBullet's boundaries: it includes the item's
+// continuation lines, stops at the next top-level bullet, stops at a heading,
+// matches the bold name exactly, and returns the empty string when the item is
+// absent.
+func TestClaudeBullet(t *testing.T) {
+	const doc = `# Top
+intro
+- **A**: a body
+  a continuation
+- **B**: b body
+- **Blank**: body line
+
+  after a blank line
+## Next
+- **Declare, don't infer**: first line
+  second line
+- **Delegate the fragile part**: body
+`
+	for _, tc := range []struct {
+		name string
+		want string
+	}{
+		{
+			name: "A",
+			want: "- **A**: a body\n  a continuation\n",
+		},
+		{
+			name: "B",
+			want: "- **B**: b body\n",
+		},
+		{
+			name: "Blank",
+			want: "- **Blank**: body line\n",
+		},
+		{
+			name: "Declare, don't infer",
+			want: "- **Declare, don't infer**: first line\n  second line\n",
+		},
+		{
+			name: "Delegate the fragile part",
+			want: "- **Delegate the fragile part**: body\n",
+		},
+		{
+			name: "Declare",
+			want: "",
+		},
+		{
+			name: "Delegate",
+			want: "",
+		},
+		{
+			name: "Absent",
+			want: "",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := claudeBullet(doc, tc.name); got != tc.want {
+				t.Errorf("claudeBullet(doc, %q) = %q, want %q", tc.name, got, tc.want)
+			}
+		})
+	}
+}
+
+// claudeBullet returns the text of the top-level bullet in doc whose lead-in is
+// the bold name (for example "Declare, don't infer"). It is markdownBullet with
+// the bold lead-in form.
+func claudeBullet(doc, name string) string {
+	return markdownBullet(doc, "- **"+name+"**:")
+}
+
+// markdownBullet returns the text of the top-level bullet in doc that starts
+// with marker, including its continuation lines, up to the next top-level
+// bullet, heading, or blank line. The marker is matched exactly, so a name that
+// only prefixes another (for example "Delegate" against "Delegate the fragile
+// part") does not match, and a missing bullet returns the empty string.
+func markdownBullet(doc, marker string) string {
+	inItem := false
+	var b strings.Builder
+	for line := range strings.Lines(doc) {
+		if !inItem {
+			if strings.HasPrefix(line, marker) {
+				inItem = true
+				b.WriteString(line)
+			}
+			continue
+		}
+		if strings.HasPrefix(line, "- ") || headingLevel(line) > 0 || strings.TrimSpace(line) == "" {
+			break
+		}
+		b.WriteString(line)
+	}
+	return b.String()
 }

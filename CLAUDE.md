@@ -91,6 +91,8 @@ URL → TranscriptSource → Transcript → ArticleWriter → Article → Publis
 
 - `TranscriptSource` (`internal/transcript`): fetches subtitles and info.json by
   invoking the external `yt-dlp` command, parses json3, caches per video ID.
+  `CopiedSource` also implements it by parsing the copied transcript text a user
+  takes from YouTube's transcript panel.
 - `internal/strictjson`: strict JSON extraction shared by `internal/transcript`,
   `internal/llm/deepseek`, `internal/llm/claude`, `internal/publisher`, and
   `internal/writer`; rejects the byte sequences and structural shapes
@@ -126,7 +128,12 @@ for the packages that exist today.
   (for example `google.golang.org/genai` for `internal/llm/gemini`), it is
   imported only there; `depguard` in `.golangci.yml` already enforces that.
 - **Delegate the fragile part**: subtitle retrieval is delegated to `yt-dlp`. Do
-  not reimplement YouTube scraping in Go.
+  not reimplement YouTube scraping in Go. Exception: the copied-transcript parser
+  (`internal/transcript`) depends on the format of YouTube's transcript-panel
+  output, an undocumented and fragile format. The dependency is confined to that
+  parser — no Go code fetches or parses YouTube's page or panel — and the
+  `yt-dlp` retrieval path stays as the fallback while the panel format is
+  rejected.
 - **YAGNI**: Use simple and clear approach to satisfy the requirement. Don't take complex approach for not-yet-planned features. No LangChain-style frameworks or multi-provider abstraction libraries.
 - **DRY**: Don't repeat yourself. Before adding new code, check the codebase and prefer reusing existing implementations.
 - **Declare, don't infer**: Do not choose behavior by inspecting the content of a
@@ -136,6 +143,18 @@ for the packages that exist today.
   whose `default` fails secure. Changing a struct's shape is cheap here — the
   project has no consumers outside the repository, so "it would change the exported
   API" is not on its own a reason to keep inferring.
+  Exception: the copied-transcript parser (`internal/transcript`) chooses behavior
+  by inspecting the content of the `Raw` string. Scope: it parses the copied
+  transcript format — form A and form B, the timestamp grammar, and the
+  arrangement of timestamp, screen-reader label, and text — to build segment
+  boundaries and `Segments`; this parse is the only place the text's content
+  selects behavior. Reason: that string is produced by YouTube's transcript panel
+  and copied by the user, an external value the caller (the browser extension, the
+  server) cannot express in a type, and the format is YouTube's UI contract, so
+  changing our type would not change the input. Boundary: the exception covers only
+  the copied-transcript parser in `internal/transcript` and the `Raw` parse in
+  `CopiedSource`; an input that matches neither form is rejected, not accepted by
+  widening the interpretation.
 - **Enforce invariants with the type, not with convention**: if a value must pass
   validation before use (e.g. a video ID), make the compiler the thing that
   guarantees it — unexported fields plus a mandatory constructor — rather than

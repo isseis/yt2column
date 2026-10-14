@@ -23,6 +23,12 @@
 | 字幕 | subtitles | yt-dlp が出力する字幕ファイル（json3） |
 | 自動字幕 | auto-generated subtitles | YouTube が自動生成する字幕 |
 | 手動字幕 | manual subtitles | 投稿者がアップロードした字幕 |
+| コピーした字幕 | copied transcript | 利用者が文字起こしパネルで選択・コピーした文字列。形 A と形 B がある |
+| 形 A | form A | 1 セグメント 1 行で、時刻・読み上げ用ラベル・本文が区切りなしで連結された書式 |
+| 形 B | form B | 時刻の行と本文の行が分かれた書式 |
+| 時刻の行 | timestamp line | パネルの各セグメントの先頭に表示される時刻（例: `0:04`、`1:02:03`） |
+| 本文の行 | text line | 時刻の行に続く、そのセグメントの本文（形 B） |
+| 読み上げ用ラベル | screen-reader label | 形 A で時刻の直後に連結される、画面読み上げ用にその時刻を読み上げる文字列 |
 | コラム記事 | column article | `Article` 型。生成結果 |
 | 出典リンク | source link | 記事末尾に付与する元動画へのリンク |
 | 投稿先 | publisher | `Publisher` interface |

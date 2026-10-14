@@ -8,7 +8,7 @@ YouTube 動画の URL を受け取り、その文字起こしを元に LLM で�
 
 - **言語: Go**（ブラウザ拡張は TypeScript。詳細は §「想定ディレクトリ構成」と `docs/tasks/0007_browser_extension_skeleton/`）。依存関係を最小限にし、シングルバイナリで配布する。
 - **実行形式: ローカル実行の CLI**。将来的に Slack Bot や定期実行へ拡張する可能性があるので、コアロジックは CLI から分離したパッケージとして実装する。
-- **字幕取得: 外部コマンドの `yt-dlp` に委譲する**。YouTube の非公式な仕様に依存する最も壊れやすい部分を、保守が活発なツールに任せるため。Go で字幕取得を自前実装しないこと。
+- **字幕取得: 外部コマンドの `yt-dlp` に委譲する**。YouTube の非公式な仕様に依存する最も壊れやすい部分を、保守が活発なツールに任せるため。Go で字幕取得を自前実装しないこと。例外として、利用者が YouTube の文字起こしパネルからコピーした字幕の文字列を解析するパーサ（`internal/transcript` で `CopiedSource` が `Raw` を解析する箇所）は、パネルが出力する書式に依存する。依存はそのパーサに限り（Go から YouTube のページやパネルを取得・解析しない）、書式が変わって拒否が続く間は `yt-dlp` の経路を代わりの手段として残す。
 - **LLM: 初期実装は DeepSeek**（DeepSeek 公式 API を直接契約して使う）。API は OpenAI 互換の Chat Completions 形式（`POST https://api.deepseek.com/chat/completions`）で単純なため、SDK は使わず標準ライブラリ（`net/http`・`encoding/json`）で呼び出す。
   - OpenCode Go 経由の利用は採用しない。利用条件が「コーディングエージェントのトラフィック」を前提としており、本ツールの用途に合わないため。
 - **LLM プロバイダは差し替え可能にする**。DeepSeek と Claude を実装済みで、Claude は公式 SDK を使わず標準ライブラリで Anthropic Messages API を呼ぶ（タスク `0009_claude_llm_client` の要件定義書 §2.3）。将来 Gemini（`google.golang.org/genai`）などを追加する前提。プロバイダとモデル名は設定で切り替える。Gemini を追加する場合、旧 SDK の `github.com/google/generative-ai-go` はレガシーなので使わないこと。
@@ -23,7 +23,7 @@ URL → TranscriptSource → Transcript → ArticleWriter → Article → Publis
 
 各段階は interface で抽象化し、実装を差し替えられるようにする。
 
-- `TranscriptSource`: 初期実装は `YtDlpSource`。
+- `TranscriptSource`: 初期実装は `YtDlpSource`。利用者が文字起こしパネルからコピーした字幕の文字列から作る `CopiedSource` もある。
   - 例: `yt-dlp --ignore-config --no-plugin-dirs --skip-download --write-subs --write-auto-subs --sub-langs ja --sub-format json3 --write-info-json -P "<cache>" -o "%(id)s" -- <URL>`
   - json3 の `events[].segs[].utf8` を連結して本文にする。`tStartMs` も保持する（将来、見出しごとに動画の該当時刻へのリンクを付けるため）。
   - info.json からタイトル・チャンネル名・概要欄を取り出し、メタ情報として `Transcript` に含める。
@@ -73,7 +73,7 @@ URL → TranscriptSource → Transcript → ArticleWriter → Article → Publis
 ```
 cmd/yt2column/main.go     # CLI エントリポイント
 internal/pipeline/        # 3段階を束ねるオーケストレーション
-internal/transcript/      # TranscriptSource と yt-dlp 実装、json3 パーサ
+internal/transcript/      # TranscriptSource と yt-dlp 実装、json3 パーサ、コピーした字幕の CopiedSource
 internal/strictjson/      # 検証を通った JSON 文書から値を取り出す厳格な部品（transcript・deepseek・claude・writer・publisher が共有）
 internal/nilcheck/        # typed nil を含む nil の判定
 internal/writer/          # ArticleWriter（プロバイダ非依存）

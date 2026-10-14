@@ -203,24 +203,24 @@ fuzz のターゲットは `NewCopiedSource`（フェーズ 2）を呼ぶので�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 5: 文書（F-004）
 
 **対象ファイル:** `CLAUDE.md`（変更）、`docs/dev/project_overview.md`（変更）、`docs/dev/developer_guide/package_reference.md`（変更）、`docs/translation_glossary.md`（変更）、`cmd/yt2column/copied_transcript_docs_test.go`（変更）
 
-- [ ] **ステップ 5-1**: `translation_glossary.md` の用語の表に、「コピーした字幕」「形 A」「形 B」「時刻の行」「本文の行」「読み上げ用ラベル」の対訳を加える。ステップ 5-2〜5-6 の英語の記述は、この対訳を使う。
-- [ ] **ステップ 5-2**: CLAUDE.md の「Declare, don't infer」の項（`:132-138`）に、architecture §3.6 の範囲・理由・境界を英語で加える（AC-14）。
-- [ ] **ステップ 5-3**: CLAUDE.md の「Delegate the fragile part」の項（`:128-129`）に、architecture §1.3.1 の例外 2 の範囲（パネルの出力の書式への依存はパーサに限ること、`yt-dlp` の経路を代わりの手段として残すこと）を英語で加える。
-- [ ] **ステップ 5-4**: CLAUDE.md の Architecture Overview の `TranscriptSource` の項（`:92-93`）に、`CopiedSource`（コピーした字幕を解析して `Transcript` にする実装）を加える。
-- [ ] **ステップ 5-5**: `project_overview.md` の字幕取得の方針（`:11`）に例外 2 を、パイプラインの `TranscriptSource` の実装（`:26`）と想定ディレクトリ構成の注記（`:76`）に `CopiedSource` を、日本語で加える。
-- [ ] **ステップ 5-6**: `package_reference.md` の `internal/transcript` の行（`:22`）に、`CopiedSource`・`NewCopiedSource`・`ErrCopiedTranscriptFormat` を英語で加える。
-- [ ] **ステップ 5-7**: `copied_transcript_docs_test.go` に、CLAUDE.md の箇条書きの 1 項を、項の先頭の太字の名前で取り出す部品を書き、その部品の表のテストを置く（既存の `TestSectionByHeading` と同じ形）。
-- [ ] **ステップ 5-8**: `copied_transcript_docs_test.go` に、guard `TestClaudeMDCopiedTranscriptException` を書く。ステップ 5-7 の部品で取り出した「Declare, don't infer」の項が、例外の範囲（コピーした字幕の書式の解析）・理由（呼び出し側が型で表せない外部の値）・境界（`internal/transcript` のパーサだけ、書式に合わない入力は拒否）を述べていることを確かめる（AC-14）。
-- [ ] **ステップ 5-9**: 同じファイルに、guard `TestCopiedTranscriptDocsUpdated` を書く。次を確かめる。CLAUDE.md の「Delegate the fragile part」の項が、パーサに限る範囲と `yt-dlp` の経路を代わりの手段とすることを述べること。CLAUDE.md の Architecture Overview の `TranscriptSource` の項と、`project_overview.md`（`projectOverviewPath`）が `CopiedSource` を挙げること。`package_reference.md` の `internal/transcript` の行が `CopiedSource`・`NewCopiedSource`・`ErrCopiedTranscriptFormat` を挙げること。`translation_glossary.md` の用語の表に 6 語の行があること。
-- [ ] **ステップ 5-10**: ステップ 5-7〜5-9 の部品と guard が、その理由で失敗しうることを確かめる。少なくとも、(a) CLAUDE.md の例外の文から範囲・理由・境界のどれか 1 つを消す、(b) 同じ語を項の外に移す、(c) `package_reference.md` から `NewCopiedSource` を消す、(d) 用語集から 1 語の行を消す、の各変更で失敗することを確かめ、コミットメッセージに記す。
-- [ ] **ステップ 5-11**: ステップ 5-1〜5-6 の文面が architecture §1.3.1・§3.4・§3.6 の内容と一致することを、節ごとに読み合わせて確かめる（guard は語の有無だけを確かめるので、文意はこの読み合わせで確かめる）。
+- [x] **ステップ 5-1**: `translation_glossary.md` の用語の表に、「コピーした字幕」「形 A」「形 B」「時刻の行」「本文の行」「読み上げ用ラベル」の対訳を加える。ステップ 5-2〜5-6 の英語の記述は、この対訳を使う。
+- [x] **ステップ 5-2**: CLAUDE.md の「Declare, don't infer」の項（`:132-138`）に、architecture §3.6 の範囲・理由・境界を英語で加える（AC-14）。
+- [x] **ステップ 5-3**: CLAUDE.md の「Delegate the fragile part」の項（`:128-129`）に、architecture §1.3.1 の例外 2 の範囲（パネルの出力の書式への依存はパーサに限ること、`yt-dlp` の経路を代わりの手段として残すこと）を英語で加える。
+- [x] **ステップ 5-4**: CLAUDE.md の Architecture Overview の `TranscriptSource` の項（`:92-93`）に、`CopiedSource`（コピーした字幕を解析して `Transcript` にする実装）を加える。
+- [x] **ステップ 5-5**: `project_overview.md` の字幕取得の方針（`:11`）に例外 2 を、パイプラインの `TranscriptSource` の実装（`:26`）と想定ディレクトリ構成の注記（`:76`）に `CopiedSource` を、日本語で加える。
+- [x] **ステップ 5-6**: `package_reference.md` の `internal/transcript` の行（`:22`）に、`CopiedSource`・`NewCopiedSource`・`ErrCopiedTranscriptFormat` を英語で加える。
+- [x] **ステップ 5-7**: `copied_transcript_docs_test.go` に、CLAUDE.md の箇条書きの 1 項を、項の先頭の太字の名前で取り出す部品を書き、その部品の表のテストを置く（既存の `TestSectionByHeading` と同じ形）。
+- [x] **ステップ 5-8**: `copied_transcript_docs_test.go` に、guard `TestClaudeMDCopiedTranscriptException` を書く。ステップ 5-7 の部品で取り出した「Declare, don't infer」の項が、例外の範囲（コピーした字幕の書式の解析）・理由（呼び出し側が型で表せない外部の値）・境界（`internal/transcript` のパーサだけ、書式に合わない入力は拒否）を述べていることを確かめる（AC-14）。
+- [x] **ステップ 5-9**: 同じファイルに、guard `TestCopiedTranscriptDocsUpdated` を書く。次を確かめる。CLAUDE.md の「Delegate the fragile part」の項が、パーサに限る範囲と `yt-dlp` の経路を代わりの手段とすることを述べること。CLAUDE.md の Architecture Overview の `TranscriptSource` の項と、`project_overview.md`（`projectOverviewPath`）が `CopiedSource` を挙げること。`package_reference.md` の `internal/transcript` の行が `CopiedSource`・`NewCopiedSource`・`ErrCopiedTranscriptFormat` を挙げること。`translation_glossary.md` の用語の表に 6 語の行があること。
+- [x] **ステップ 5-10**: ステップ 5-7〜5-9 の部品と guard が、その理由で失敗しうることを確かめる。少なくとも、(a) CLAUDE.md の例外の文から範囲・理由・境界のどれか 1 つを消す、(b) 同じ語を項の外に移す、(c) `package_reference.md` から `NewCopiedSource` を消す、(d) 用語集から 1 語の行を消す、の各変更で失敗することを確かめ、コミットメッセージに記す。
+- [x] **ステップ 5-11**: ステップ 5-1〜5-6 の文面が architecture §1.3.1・§3.4・§3.6 の内容と一致することを、節ごとに読み合わせて確かめる（guard は語の有無だけを確かめるので、文意はこの読み合わせで確かめる）。
 
 **完了条件:** 文書が architecture §3.4・§3.6 の内容を満たす。`make fmt`・`make test`・`make lint` と `go test -tags test ./cmd/yt2column ./internal/pipeline` が通る。
 
@@ -236,8 +236,8 @@ fuzz のターゲットは `NewCopiedSource`（フェーズ 2）を呼ぶので�
 
 **判定理由**: 文書の追記と、既存の guard 部品を再利用した文書の guard に限られ、競合する実装方式・高リスクな制御・外部面・Conditional checks のいずれにも該当しないため。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
