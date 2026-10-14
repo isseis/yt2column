@@ -85,9 +85,6 @@ func newStore(dir string, beforeOpen func(string)) (*Store, error) {
 
 // Close releases the directory handle. The Store must not be used afterwards.
 func (s *Store) Close() error {
-	if s.root == nil {
-		return nil
-	}
 	return s.root.Close()
 }
 

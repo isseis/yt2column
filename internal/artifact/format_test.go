@@ -244,14 +244,8 @@ func TestParseRecordRejects(t *testing.T) {
 			fields := mutate(t, generation, func(f map[string]any) { delete(f, "model") })
 			return marshalFields(t, fields)
 		}},
-		{"empty model", func(t *testing.T) []byte {
-			fields := mutate(t, generation, func(f map[string]any) { f["model"] = "" })
-			return marshalFields(t, fields)
-		}},
-		{"model with control character", func(t *testing.T) []byte {
-			fields := mutate(t, generation, func(f map[string]any) { f["model"] = "m\x1b" })
-			return marshalFields(t, fields)
-		}},
+		{"empty model", recordCase(validGeneration(), func(r *writer.StageRecord) { r.Model = "" })},
+		{"model with control character", recordCase(validGeneration(), func(r *writer.StageRecord) { r.Model = "m\x1b" })},
 		{"missing model_version", func(t *testing.T) []byte {
 			fields := mutate(t, generation, func(f map[string]any) { delete(f, "model_version") })
 			return marshalFields(t, fields)
@@ -260,10 +254,7 @@ func TestParseRecordRejects(t *testing.T) {
 			fields := mutate(t, generation, func(f map[string]any) { f["model_version"] = 1 })
 			return marshalFields(t, fields)
 		}},
-		{"model_version with control character", func(t *testing.T) []byte {
-			fields := mutate(t, generation, func(f map[string]any) { f["model_version"] = "v\x00" })
-			return marshalFields(t, fields)
-		}},
+		{"model_version with control character", recordCase(validGeneration(), func(r *writer.StageRecord) { r.ModelVersion = "v\x00" })},
 		{"missing system", func(t *testing.T) []byte {
 			fields := mutate(t, generation, func(f map[string]any) { delete(f, "system") })
 			return marshalFields(t, fields)
@@ -290,10 +281,7 @@ func TestParseRecordRejects(t *testing.T) {
 			})
 			return marshalFields(t, fields)
 		}},
-		{"input not hex", func(t *testing.T) []byte {
-			fields := mutate(t, generation, func(f map[string]any) { f["input"] = "x" })
-			return marshalFields(t, fields)
-		}},
+		{"input not hex", recordCase(validGeneration(), func(r *writer.StageRecord) { r.Input = "x" })},
 		{"id not hex", func(t *testing.T) []byte {
 			fields := mutate(t, generation, func(f map[string]any) { f["id"] = "x" })
 			return marshalFields(t, fields)
@@ -302,10 +290,7 @@ func TestParseRecordRejects(t *testing.T) {
 			fields := mutate(t, generation, func(f map[string]any) { f["id"] = writer.Digest("other") })
 			return marshalFields(t, fields)
 		}},
-		{"empty title", func(t *testing.T) []byte {
-			fields := mutate(t, generation, func(f map[string]any) { f["title"] = "" })
-			return marshalFields(t, fields)
-		}},
+		{"empty title", recordCase(validGeneration(), func(r *writer.StageRecord) { r.Title = "" })},
 		{"missing body", func(t *testing.T) []byte {
 			fields := mutate(t, generation, func(f map[string]any) { delete(f, "body") })
 			return marshalFields(t, fields)
@@ -334,26 +319,17 @@ func TestParseRecordRejects(t *testing.T) {
 			return marshalFields(t, fields)
 		}},
 		{"review without revisions", func(t *testing.T) []byte {
-			fields := fieldsFrom(validReview())
+			rec := validReview()
+			rec.Revisions = nil
+			rec.ID = recordID(rec)
+			fields := fieldsFrom(rec)
 			delete(fields, "revisions")
 			return marshalFields(t, fields)
 		}},
-		{"body starts with a byte order mark", func(t *testing.T) []byte {
-			fields := mutate(t, generation, func(f map[string]any) { f["body"] = "\uFEFF" + markArtifactBody })
-			return marshalFields(t, fields)
-		}},
-		{"body has a carriage return", func(t *testing.T) []byte {
-			fields := mutate(t, generation, func(f map[string]any) { f["body"] = markArtifactBody + "\r\n" })
-			return marshalFields(t, fields)
-		}},
-		{"title has leading whitespace", func(t *testing.T) []byte {
-			fields := mutate(t, generation, func(f map[string]any) { f["title"] = " Title" })
-			return marshalFields(t, fields)
-		}},
-		{"title has a line feed", func(t *testing.T) []byte {
-			fields := mutate(t, generation, func(f map[string]any) { f["title"] = "Ti\ntle" })
-			return marshalFields(t, fields)
-		}},
+		{"body starts with a byte order mark", recordCase(validGeneration(), func(r *writer.StageRecord) { r.Body = "\uFEFF" + markArtifactBody })},
+		{"body has a carriage return", recordCase(validGeneration(), func(r *writer.StageRecord) { r.Body = markArtifactBody + "\r\n" })},
+		{"title has leading whitespace", recordCase(validGeneration(), func(r *writer.StageRecord) { r.Title = " Title" })},
+		{"title has a line feed", recordCase(validGeneration(), func(r *writer.StageRecord) { r.Title = "Ti\ntle" })},
 		{"review revision unknown key", func(t *testing.T) []byte {
 			fields := mutate(t, review, func(f map[string]any) {
 				rev := f["revisions"].([]any)[0].(map[string]any)
@@ -376,18 +352,24 @@ func TestParseRecordRejects(t *testing.T) {
 			})
 			return marshalFields(t, fields)
 		}},
-		{"review revision empty before", func(t *testing.T) []byte {
-			fields := mutate(t, review, func(f map[string]any) {
-				rev := f["revisions"].([]any)[0].(map[string]any)
-				rev["before"] = ""
-			})
-			return marshalFields(t, fields)
-		}},
+		{"review revision empty before", recordCase(validReview(), func(r *writer.StageRecord) { r.Revisions[0].Before = "" })},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			requireMalformed(t, tc.data(t))
 		})
+	}
+}
+
+// recordCase builds the wire form of a mutated record with the id recomputed
+// from the mutated content, so only the rule under test can reject it. Without
+// the recomputation the id check would reject any content change and the case
+// could not prove its own rule rejects.
+func recordCase(base writer.StageRecord, mutate func(*writer.StageRecord)) func(*testing.T) []byte {
+	return func(t *testing.T) []byte {
+		mutate(&base)
+		base.ID = recordID(base)
+		return marshalFields(t, fieldsFrom(base))
 	}
 }
 

@@ -410,14 +410,16 @@ func TestLoadRejectsOversizedFile(t *testing.T) {
 }
 
 func TestLoadRejectsWrongStageInFile(t *testing.T) {
-	// A generation artifact stored under the shorten name is a mismatch, not a
-	// malformed file: the stage inside the file does not match the request.
+	// A review artifact stored under the generation name. Its input already
+	// matches the material and its content is valid, so only the stage check
+	// can reject it; without that check Load would return it as a generation.
 	store, dir := newTestStore(t)
-	data := mustMarshal(t, validGeneration())
-	if err := os.WriteFile(filepath.Join(dir, testVideoID+".shorten.json"), data, 0o600); err != nil {
+	materialID := validGeneration().Input
+	data := mustMarshal(t, reviewOf(materialID))
+	if err := os.WriteFile(filepath.Join(dir, testVideoID+".generation.json"), data, 0o600); err != nil {
 		t.Fatalf("write artifact: %v", err)
 	}
-	if _, err := store.Load(context.Background(), testVideoID, writer.StageShorten, validGeneration().Input); !errors.Is(err, ErrMismatch) {
+	if _, err := store.Load(context.Background(), testVideoID, writer.StageGeneration, materialID); !errors.Is(err, ErrMismatch) {
 		t.Fatalf("Load error = %v, want ErrMismatch", err)
 	}
 }
