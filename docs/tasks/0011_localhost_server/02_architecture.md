@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-13 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 2026-10-14: §1.3・§3.7 の #107・#108 の実装状況の記述を現状（#107 は実装済み、#108 は実装中）に合わせ、記録済みの前提を過去形にした。決定は変えていない（editorial correction）。 |
+| Review date | 2026-10-14 |
+| Reviewer | isseis |
+| Comments | - |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md) の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §3.13）を指す。既存のコードの行番号は、コミット `f768cdb`（要件の承認のコミット）で確かめたものである。
 
