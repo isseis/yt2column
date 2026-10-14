@@ -76,7 +76,6 @@ refuses to run when `node --version` does not match.
 - `make ext-typecheck` - Type-check with `tsc`
 - `make ext-lint` - Lint with ESLint
 - `make ext-fmt-check` - Check formatting with Prettier
-- `make ext-fmt` - Rewrite files with Prettier (CI runs `ext-fmt-check` instead)
 - `make ext-test` - Run the extension unit tests (`node --test`)
 - `make ext-build` - Build into `extension/dist/`
 - `make ext-check` - Run the checks CI runs after `ext-install`: typecheck, lint, fmt-check, test, build
