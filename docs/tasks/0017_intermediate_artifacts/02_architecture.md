@@ -61,8 +61,9 @@ flowchart TB
     FINAL --> PUB
     GEN -.->|"保存"| G1
     SHORT -.->|"保存"| S1
-    R1 -.->|"読み込み（再開）"| GEN
-    S1 -.->|"読み込み（再開）"| SHORT
+    REV -.->|"保存"| R1
+    G1 -.->|"読み込み（再開）"| SHORT
+    S1 -.->|"読み込み（再開）"| REV
     R1 -.->|"読み込み（再開）"| FINAL
     G1 -.-> STORE
     S1 -.-> STORE
@@ -200,7 +201,7 @@ sequenceDiagram
     participant R as 検証・推敲の LLMClient
 
     P->>W: Write(ctx, transcript)
-    W->>A: Load(generation, 素材の識別子)
+    W->>A: Load(動画 ID, generation, 素材の識別子)
     A->>A: 生成の成果物と連鎖を検証
     A-->>W: ArtifactChain（生成の出力・来歴）
     W->>W: 本文の字数を確認（上限を超える）
@@ -274,8 +275,8 @@ type Options struct {
 - **`Shorten.Enabled`・`Review.Enabled` の意味は変えない。** どちらも「その段階を実行してよい」であり、最終の字数の確認が `Shorten.Enabled` に従うことも 0010 と同じである。再開で実行しない段階は、`Resume` との組み合わせで決まる。たとえば `--after review` では、`Shorten.Enabled`・`Review.Enabled` が真でも、両段階とも実行せず、最終の字数の確認だけを行う。
 - **`New` の検査（§1.3 の例外）。** `New` は次の組み合わせを拒否する。エラーは番兵を持たない非公開のエラーで、CLI は使い方の誤りとして報告する。
   - `Artifacts.Resume` が `StageUnset` でないのに `Artifacts.Store` が nil（型付きの nil を含む。`nilcheck.IsNil` を使う。再開の入力が無い）。
-  - 実行する段階（上の表）のクライアントが nil（型付きの nil を含む。`nilcheck.IsNil` を使う）。生成を実行するのに生成の `LLMClient` が nil、検証・推敲を実行するのに `Review.Client` が nil の場合である。
-  - 実行しない段階のクライアントが nil でない、または実行しない段階のテンプレートのパスが空でない。`--after review` では `Review.Enabled` が真でも検証・推敲を実行しないので、`Review.Client` は nil でなければならず、`--review-system-prompt` などは拒否される。
+  - 使う段階があるクライアントが nil（型付きの nil を含む。`nilcheck.IsNil` を使う）。クライアントごとに判定する。生成の `LLMClient` は生成と字数の調整の両方が使うので、生成または字数の調整を実行し得る（`Resume == StageUnset`、または `Resume == StageGeneration` かつ `Shorten.Enabled`）のに nil なら拒否する。検証・推敲を実行するのに `Review.Client` が nil の場合も拒否する。生成だけで判定すると、`--after generation` で字数の調整が走るのに nil のクライアントが `New` を通り、`runShorten` で nil の呼び出しになる。
+  - 使う段階が無いクライアントが nil でない、または実行しない段階のテンプレートのパスが空でない。生成の `LLMClient` は、生成も字数の調整も実行しないとき（`--after shorten`・`--after review`、`--no-shorten` を付けた `--after generation`）に nil でなければならない。`--after review` では `Review.Enabled` が真でも検証・推敲を実行しないので、`Review.Client` は nil でなければならず、`--review-system-prompt` などは拒否される。
 - **`Options` のゼロ値。** `Artifacts.Store` が nil、`Resume` が `StageUnset` なので、`Write` は従来どおり生成だけを行う（AC-05・AC-32）。
 
 ### 3.2. 成果物の形式と識別子（H-01）
@@ -323,9 +324,9 @@ type Options struct {
 | 検証・推敲の一覧 | `revisions` | `stage` が `review` のときだけ必須。0010 §3.5.3 の規則（要素の数は `maxRevisions` 以下、未知のキー・重複したキー・`after`/`delete`・`reason`・制御文字の規則）を満たす。`generation`・`shorten` のときは現れてはならない |
 
 - **一覧の検査の再利用（H-08）。** `revisions` の形（`before`・`after`/`delete`・`reason`・`evidence`）は、0010 の検証・推敲の応答と同一である。`writer` に、この形の配列を検査して `[]writer.Revision` に変換する補助関数を加え、`internal/artifact` がそれを呼ぶ。規則を 2 か所に持たない（DRY）。`artifact` は、読み込んだ成果物の `revisions` をこの補助関数に渡し、拒否されたら `ErrMalformed` として扱う。書き込みは、`writer.Revision` の公開されたフィールドと `WireValue` から、同じ形に組み立てる。
-- **文面の検査の再利用。** `textString`・`checkGeneratedText`・`checkModelString` は `writer` の非公開の関数なので、`writer` に成果物の検査のための公開の補助関数を加える（`output.go` を変更する）。`writer.CheckStageText(title, body string) error` は `textString` と `checkGeneratedText` を行い、`writer.CheckModelText(name, value string) error` は `checkModelString` を行う。`internal/artifact` はこの 2 つを呼ぶ。`checkGeneratedText` は本文の先頭の U+FEFF を 1 個除去するが、要件 F-004 が「再利用の境界では正規化せず、先頭の U+FEFF を拒否する」と定めるため、`artifact` は `CheckStageText` を呼ぶ前に、本文が U+FEFF で始まらないことを確かめ、始まれば `ErrMalformed` とする（0010 の生成の経路と異なる点である。§3.10 H-05）。モデル名とモデルの版は `CheckModelText` で検査する（AC-22）。
+- **文面の検査の再利用。** `textString`・`checkGeneratedText`・`checkModelString` は `writer` の非公開の関数なので、`writer` に成果物の検査のための公開の補助関数を加える（`output.go` を変更する）。`writer.CheckStageText(title, body string) error` は `textString` と `checkGeneratedText` を行い、`checkGeneratedText` が返したタイトルと本文が引数と完全に一致することを確かめる（一致しなければ `ErrMalformedOutput`）。`checkGeneratedText` はタイトルの前後の空白・タブを除き、本文の改行（CRLF・CR）を LF に揃えるので、戻り値を捨てて検査だけに使うと、正規化した値を検査し、正規化していない保存値を使うことになる（検査した値と使う値がずれ、「Reject, don't normalize」にも反する）。`writer.CheckModelText(name, value string) error` は `checkModelString` を行う。`internal/artifact` はこの 2 つを呼ぶ。`checkGeneratedText` は本文の先頭の U+FEFF を 1 個除去するが、要件 F-004 が「再利用の境界では正規化せず、先頭の U+FEFF を拒否する」と定めるため、`artifact` は `CheckStageText` を呼ぶ前に、本文が U+FEFF で始まらないことを確かめ、始まれば `ErrMalformed` とする（0010 の生成の経路と異なる点である。§3.10 H-05）。モデル名とモデルの版は `CheckModelText` で検査する（AC-22）。
 - **段階の照合。** 読み込んだ成果物の `stage` は、読み込もうとした段階（`Load` の引数）および連鎖のたどりで期待する前段の段階と一致しなければならない。一致しなければ `ErrMismatch` とする。
-- **ダイジェストの共通化（DRY）。** 値の区切りが曖昧にならないよう、複数の値を「値の長さを表す 10 進の文字列 + `:` + 値」の形で連結し、その SHA-256 を返す `writer.Digest(parts ...string) string` を `writer` に置く。エンコーディングを 1 か所に固定する。 (1) 素材の識別子は、素材の 4 つの値（動画タイトル・チャンネル名・概要欄・`newTemplateData`（`prompt.go:87-98`）が作る字幕の文字列）を `Digest` に渡す `writer.MaterialID(t transcript.Transcript) string` とする。(2) 成果物の識別子 `id` は、成果物の内容を決める値（`version`・`stage`・`model`・`model_version`・`system`・`user`・`input`・`title`・`body`・各 `revision` の値）を決まった順に `Digest` に渡した値とする。`internal/artifact` は (2) に `writer.Digest` を使う。読み込みのときは、記録された `id` が内容から計算した値と一致することを確かめ、一致しなければ `ErrMalformed` とする。
+- **ダイジェストの共通化（DRY）。** 値の区切りが曖昧にならないよう、複数の値を「値の長さを表す 10 進の文字列 + `:` + 値」の形で連結し、その SHA-256 を返す `writer.Digest(parts ...string) string` を `writer` に置く。エンコーディングを 1 か所に固定する。 (1) 素材の識別子は、動画 ID（`Transcript.VideoID`）と素材の 4 つの値（動画タイトル・チャンネル名・概要欄・`newTemplateData`（`prompt.go:87-98`）が作る字幕の文字列）をこの順に `Digest` に渡す `writer.MaterialID(t transcript.Transcript) string` とする。動画 ID を含めるのは、F-004・AC-21 が入力の識別子と照合する値に動画 ID を挙げているためである。動画 ID とのひも付けをファイル名 `<videoID>.<stage>.json` だけに任せると、利用者が書き換えられるディレクトリ内の名前に頼ることになり、要件 §4.2・AC-10 の「ディレクトリ内の任意の名前を信用しない」と食い違う。動画 ID を含めれば、別の動画 ID の名前にコピーした生成の成果物は、素材が同じでも §3.3 の手順 4 で `ErrMismatch` になる。(2) 成果物の識別子 `id` は、成果物の内容を決める値（`version`・`stage`・`model`・`model_version`・`system`・`user`・`input`・`title`・`body`・各 `revision` の値）を決まった順に `Digest` に渡した値とする。文字列でない値と可変長の部分は、区切りが一意になる形に固定する。真偽値（`embedded`）は `"true"`・`"false"`、`version` は 10 進の文字列とする。`revisions` は、先に要素の数を 10 進の文字列で渡し、各要素を `before`、種別のタグ（`"after"` か `"delete"`）、`after` の値（`delete` のときは渡さない）、`reason`、`evidence` の順に渡す。タグを渡さないと、`delete` の項目と `after` の値が `"true"` の項目のように、異なる一覧が同じ部品の列になり、同じ `id` を持ちうる。`internal/artifact` は (2) に `writer.Digest` を使う。読み込みのときは、記録された `id` が内容から計算した値と一致することを確かめ、一致しなければ `ErrMalformed` とする。
 - **テンプレートの識別子。** 段階が使った system と user のテンプレートについて、埋め込みの既定か上書きファイルかと、その内容の SHA-256 を記録する。`checkedTemplate[T]`（`template.go:86-88`）に、読み込み時にテンプレートのテキストのダイジェストと埋め込みかどうかを持たせる。上書きファイルのパスは記録しない（ローカルのパスを成果物に入れない。要件 §4.2）。
 - **上限（H-01・H-05）。** ファイル全体の上限を `maxArtifactBytes = 4 MiB` とする。この上限は、生成テキスト（≤ 1 MiB）と検証・推敲の応答（≤ 1 MiB）の両方を 1 つのファイルに収めるため、両者の合計に JSON のエスケープの余裕を加えた値である。読み込みは、ファイルの大きさが上限を超えていれば、内容を読む前に拒否する。文面の上限は `checkGeneratedText` の `maxTextBytes`（1 MiB）、一覧の上限は `maxRevisions`（256）を再利用する。
 - **不正な入力の検出。** 正しい UTF-8・対になっていないサロゲート・末尾の内容・トップレベルがオブジェクトであることは `strictjson.ParseObject`（`strictjson.go:67-80`）が検査する。未知のキーとその重複は `CollectOnly`（`strictjson.go:104-116`）、真偽値の型は `AsBool`（`strictjson.go:190-203`）が拒否する。`encoding/json` が黙って修復・破棄・無視する入力は受理しない（AC-20・AC-23）。
@@ -339,7 +340,7 @@ type Options struct {
 3. 前段の成果物を読んで、その `id` が一致することを確かめ、同じ手順を生成の出力まで繰り返す。
 4. 生成の出力に達したら、その `input` が、いまの `Transcript` から計算した素材の識別子（`MaterialID`）と一致することを確かめる。一致しなければ `ErrMismatch`。
 
-- **検証・推敲の前段の決め方。** 検証・推敲の前段は、字数の調整の出力か生成の出力のどちらかである（字数の調整が走らなかった場合）。`input` を、字数の調整の成果物の `id` と照合し、一致すればそれを前段とし、一致せず生成の成果物の `id` と一致すれば生成を前段とする。どちらとも一致しなければ `ErrMismatch` である。段階を記録する追加のフィールドは設けない（`input` の照合で一意に決まる）。
+- **検証・推敲の前段の決め方。** 検証・推敲の前段は、字数の調整の出力か生成の出力のどちらかである（字数の調整が走らなかった場合）。`input` を、字数の調整の成果物の `id` と照合し、一致すればそれを前段とし、一致せず生成の成果物の `id` と一致すれば生成を前段とする。どちらとも一致しなければ `ErrMismatch` である。字数の調整の成果物のファイルが無いこと（`ErrMissing`）は、字数の調整が走らなかった実行（AC-03）の正常な状態なので、ここではエラーにせず「字数の調整の候補が無い」として生成との照合に進む。字数の調整の成果物のファイルがあって壊れている（`ErrMalformed`）場合は、前段かどうかを判定できないので、補正せず `ErrMalformed` で拒否する（利用者はそのファイルを消して再開できる）。この扱いを決めないと、字数の調整が走らなかった連鎖の `--after review` が、無い字数の調整の成果物を読もうとして `ErrMissing` で失敗する。段階を記録する追加のフィールドは設けない（`input` の照合で一意に決まる）。
 - **H-11 の扱い。** 同じ動画 ID で生成からやり直し、字数の調整または検証・推敲が走らなかった場合、前の実行の後段の成果物が残る（AC-03・AC-10）。新しい生成の出力の `id` は前のものと異なるので、残った後段の成果物を `--after shorten`・`--after review` で使おうとすると、手順 2 か 4 で一致しなくなり `ErrMismatch` になる。前段の照合を直前の 1 段で打ち切らないのは、この状態を見逃さないためである。
 - **`Load` の戻り値。** `Load` は、再開する段階の成果物と、検証のために読んだ前段の成果物を、`ArtifactChain`（§3.5）として返す。`Write` は、再利用した段階の来歴（モデル名・ModelVersion・テンプレート）を `Article` に写すのに使う（AC-27）。
 
@@ -350,13 +351,13 @@ type Options struct {
 **書き込みは一時ファイルと `rename(2)` で行う。**
 
 1. `--artifacts` のディレクトリを確かめる。存在しない、ディレクトリでない、シンボリックリンクである場合は `ErrMissing`（AC-09）。この確認は CLI の組み立て（§3.8）で 1 回だけ行い、`Store` は開いたディレクトリのハンドルを保持する。以後の読み書きはそのハンドルを基準に行うので、パスが後から置き換わっても別の場所を読み書きしない。
-2. 同じディレクトリに一時ファイルを作る（`os.CreateTemp`、モード `0o600`）。名前は `.yt2column-artifact-*.tmp` とする。
+2. 同じディレクトリに一時ファイルを作る。`os.CreateTemp` はパスを基準にするので使わず、手順 1 のハンドル（`os.Root`）の `OpenFile` に `O_CREATE|O_EXCL|O_NOFOLLOW` とモード `0o600` を渡し、ランダムな接尾辞の名前で作る（衝突したら名前を変えて再試行する）。名前は `.yt2column-artifact-<videoID>.<stage>.<ランダム>.tmp` とし、動画 ID を含める（下の回収で同じ動画 ID のものだけを選ぶため）。
 3. 内容を書き、`Sync` してから閉じる。
-4. `os.Rename` で `<videoID>.<stage>.json` に置き換える（既存の成果物を上書きする。AC-10）。
+4. `os.Root.Rename` で `<videoID>.<stage>.json` に置き換える（既存の成果物を上書きする。AC-10）。`os.Rename` を使うとパスを基準にするので、手順 1 で開いたハンドルの保証が失われる。
 5. ディレクトリをベストエフォートで同期する。失敗は無視する（`rename` の後なので、エラーを返すと「保存に失敗した」と誤って伝えることになる。`cache_consistency.md` §5.3 と同じ考え方）。
 
 - **中断の後の状態。** `rename` の前（手順 2・3）に中断した場合、残るのは一時ファイルだけで、対象の成果物は前の内容のままか存在しない。次の読み込みは、一時ファイルの名前を対象の成果物として扱わない（固定の名前だけを読む。AC-10）。`rename` の後に中断した場合、対象は新しい内容である。
-- **一時ファイルの回収。** 実行の開始時（`Store` を設定したとき）に、同じ動画 ID の `.yt2column-artifact-*.tmp` を削除する。中断で残った一時ファイルを回収する（`cache_consistency.md` §5 の dangling の回収と同じ考え方）。
+- **一時ファイルの回収。** `artifact.NewStore` を呼ぶ CLI の組み立ての時点では、動画 ID はまだ分からない（字幕の取得の後に決まる）。そのため、回収は `Store` がその実行で最初に `Load` または `Save` を呼ばれたとき（引数から動画 ID が分かる時点）に、手順 1 のハンドルを基準に、同じ動画 ID の `.yt2column-artifact-<videoID>.*.tmp` を削除する。中断で残った一時ファイルを回収する（`cache_consistency.md` §5 の dangling の回収と同じ考え方）。
 - **読み込みは、種別と大きさを開いた記述子で確かめる。** 固定の名前の成果物を、シンボリックリンクを辿らない開き方（`O_NOFOLLOW`）に `O_NONBLOCK` を加えて開く（FIFO を開いてブロックしないため）。開いた記述子の `Stat` で、通常のファイルであること（シンボリックリンク・FIFO・ディレクトリでない）と、大きさが `maxArtifactBytes` 以下であることを確かめ、`io.LimitReader` で上限 + 1 バイトまで読む。種別と大きさを別の `Lstat` で確かめないのは、確認と読み込みの間で種別が変わる競合を避けるためである（`template.go:104-139` の `readOpenedFile` と同じ考え方）。
 - **`rename` を使い、`link(2)` を使わない理由。** 0010 の `atomicFile`（`publisher/file.go:64-87`）は、既存のファイルを上書きしないため `link(2)` を使う。成果物は同じ動画 ID・同じ段階の保存を置き換える（AC-10）ので、上書きする `rename(2)` を使う。`link(2)` と `rename(2)` は意味が違うため、`atomicFile` を共有せずに `internal/artifact` の中に同じ手順を持つ。手順（一時ファイル・`Sync`・置き換え・ディレクトリの同期）の形はそろえる。
 - **`cache_consistency.md` との関係。** 成果物の保存は、キャッシュ（`internal/transcript`）とは独立である。成果物の世代の切り替えは、`rename` の 1 回だけであり、読み込み側が内容・識別子・連鎖を厳密に検証する（§3.2・§3.3）ので、中断の後に壊れた内容が受理されることはない。`cache_consistency.md` §7 のチェックリストは、成果物には適用しない（対象はキャッシュのコードである）。
@@ -401,13 +402,16 @@ type ArtifactChain struct {
 // Implementations must reject malformed input rather than repair it, and must
 // not create the artifacts directory.
 type ArtifactStore interface {
-	// Load verifies the chain that ends at stage against materialID and
-	// returns it.
-	Load(ctx context.Context, stage Stage, materialID string) (ArtifactChain, error)
-	// Save writes one completed stage's record and returns its identifier.
-	Save(ctx context.Context, record StageRecord) (id string, err error)
+	// Load verifies the chain of videoID's artifacts that ends at stage
+	// against materialID and returns it.
+	Load(ctx context.Context, videoID string, stage Stage, materialID string) (ArtifactChain, error)
+	// Save writes one completed stage's record for videoID and returns its
+	// identifier.
+	Save(ctx context.Context, videoID string, record StageRecord) (id string, err error)
 }
 ```
+
+- **動画 ID の受け渡し。** ファイル名 `<videoID>.<stage>.json`（§3.2）を決めるのに動画 ID が要るので、`Load`・`Save` は動画 ID を引数に取る。`Write` は `validateTranscript` を通した `Transcript.VideoID` だけを渡す（AC-10）。`internal/artifact` は、受け取った動画 ID を `transcript` の動画 ID の検証にもう一度通し、通らなければファイルを開く前に拒否する（パスの区切りなどを含む値でディレクトリの外を指さないため）。
 
 - **`Article` の組み立て（AC-27）。** `Write` は、再利用した段階の来歴と、実行した段階の結果から `Article` を組み立てる。
   - `Model`・`ModelVersion`: 生成を実行した場合は生成の応答の値、再開した場合は `ArtifactChain.Generation` の値。
@@ -422,7 +426,7 @@ type ArtifactStore interface {
 `templateWriter.Write` は、0010 §3.2 の順序を、`Artifacts.Resume` に合わせて次のように進める。どこかで失敗したら、ゼロ値の `Article` とエラーを返す。
 
 1. `Transcript` の検査と素材の識別子の計算。
-2. 再開する場合: `Store.Load(ctx, Resume, materialID)` を呼び、連鎖を検証して `ArtifactChain` を得る（AC-19〜AC-21）。生成を実行しない場合、`Article` の `Model`・`ModelVersion` を `ArtifactChain.Generation` から決める。再開しない場合（`Store` が設定されているとき）は `Load` を呼ばないが、`Store` のディレクトリが使えることは CLI の組み立てで確かめ済みである（§3.8）。
+2. 再開する場合: `Store.Load(ctx, t.VideoID, Resume, materialID)` を呼び、連鎖を検証して `ArtifactChain` を得る（AC-19〜AC-21）。生成を実行しない場合、`Article` の `Model`・`ModelVersion` を `ArtifactChain.Generation` から決める。再開しない場合（`Store` が設定されているとき）は `Load` を呼ばないが、`Store` のディレクトリが使えることは CLI の組み立てで確かめ済みである（§3.8）。
 3. 生成（`Resume == StageUnset` のとき）: 既存の生成を行い、完了時に `Store.Save` で生成の成果物を保存する（AC-04）。再開した場合は、`ArtifactChain.Generation` の `Title`・`Body` を生成の出力とする。
 4. 字数の調整（実行する条件は §3.1 の表）: 本文が上限を超えていれば実行し、完了時に保存する。`--after generation` で字数の調整を実行しない場合（`Shorten.Enabled` が偽、または本文が上限以内）は、`Save` を呼ばない。`--after shorten`・`--after review` では、`ArtifactChain.Shorten` の `Title`・`Body` を検証・推敲の対象とする。
 5. 検証・推敲（実行する条件は §3.1 の表）: 0010 §3.5 の処理を行い、完了時に一覧と適用後の記事を 1 つの成果物として保存する。`--after review` では、`ArtifactChain.Review` の `Title`・`Body` を適用後の記事とする。
@@ -464,7 +468,7 @@ func Load(lookup LookupFunc) (Config, error)
 
 - **生成を実行しないときの生成の設定。** `Need.Generation` が偽のとき、`LoadFor` は `YT2COLUMN_LLM_PROVIDER`・`YT2COLUMN_MODEL` を必須にせず、生成のプロバイダの API キー・`YT2COLUMN_CLAUDE_EFFORT`・`ANTHROPIC_WORKSPACE_ID` を検査しない。`Need.Review` が偽のときは、`YT2COLUMN_REVIEW_PROVIDER`・`YT2COLUMN_REVIEW_MODEL` と検証・推敲のプロバイダの変数を検査しない（AC-15）。
 - **`--after` なしの実行は 0010 と同じ。** 要件 §2.3 が、`--no-review`・`--no-shorten` の既存の振る舞いの変更をスコープ外としている。そのため、再開しない実行では `Need` の両方を真とし、0010 §3.7 の「`--no-review` でも検証・推敲の設定を検査する」を保つ。これは 0010 が `Load` にフラグを渡さなかったために生じた振る舞いであり、本設計で `LoadFor` に段階を渡せるようになった後も、通常の実行では意図的に保つ。再開のときだけ、実行する段階に合わせて `Need` を絞る。
-- **`provider.New`・`provider.NewReview` の呼び出し。** CLI（`cmd/yt2column`）は、`Need.Generation` が真のときだけ `provider.New` を呼んで生成の `LLMClient` を作り、`Need.Review` が真のときだけ `provider.NewReview` を呼ぶ。作らないクライアントは `writer.New` に nil で渡す（§3.1 の例外）。
+- **`provider.New`・`provider.NewReview` の呼び出し。** クライアントを作るかどうかは `Need` ではなく、§3.1 の表で段階を実行するかどうかから決める。`Need` は設定の検査の範囲だけを表し、通常の実行では `--no-review` でも `Need.Review` が真なので（上の表）、`Need` から作ると、実行しない検証・推敲のクライアントを作って `writer.New` に渡し、`errReviewClientSet` で拒否される（現在の `buildWriter`（`run.go:357-393`）が `!opts.noReview` のときだけ作るのと同じ規則を保つ）。CLI（`cmd/yt2column`）は、生成または字数の調整を実行するとき（`--after` なし、または `--after generation` で `--no-shorten` が無いとき）だけ `provider.New` を呼んで生成の `LLMClient` を作り、検証・推敲を実行するとき（`--no-review` が無く、`--after review` でないとき）だけ `provider.NewReview` を呼ぶ。作らないクライアントは `writer.New` に nil で渡す（§3.1 の例外）。
 - **値の扱いは既存の規則を共有する。** 補正しない、空の値はエラー、選んだプロバイダに関係しない変数は検査しない、という規則（0009 の F-006）はそのままである。`LoadFor` は、`Need` で選んだプロバイダの変数だけを読む。
 
 ### 3.8. フラグと組み合わせの検査（H-06・F-005）
@@ -490,7 +494,7 @@ func Load(lookup LookupFunc) (Config, error)
 
 **既存のフラグとの組み合わせ（H-06）。**
 
-- `--no-shorten`・`--no-review` は、再開と同時に指定できる。どちらも段階の実行を止めるだけであり、`Resume` と矛盾しない。たとえば `--after shorten --no-review` は、検証・推敲を実行せず、最終の字数の確認（`--no-shorten` が無ければ）と公開だけを行う（`--after review` と同じ結果になる）。
+- `--no-shorten`・`--no-review` は、再開と同時に指定できる。どちらも段階の実行を止めるだけであり、`Resume` と矛盾しない。たとえば `--after shorten --no-review` は、検証・推敲を実行せず、最終の字数の確認（`--no-shorten` が無ければ）と公開だけを行う。公開するのは字数の調整の出力であり、`--after review` が公開する検証・推敲の適用後の記事とは異なる。
 - 上書きテンプレート（`--shorten-system-prompt` など）は、その段階を実行しないときに `writer.New` が拒否する（§3.1）。`--after shorten` の `--shorten-system-prompt`、`--after review` の `--review-system-prompt` は、それぞれ字数の調整・検証・推敲を実行しないので、使い方の誤りになる。
 - 当初案の `--article`・`--review-only` は設けない（要件 F-005）。
 
@@ -674,7 +678,7 @@ flowchart LR
 | 改ざんした成果物で、意図しない記事を公開する | 公開する記事は、成果物の値ではなく、その後の段階の出力から作る。検証・推敲を実行しない `--after review` では、成果物の文面がそのまま公開されるが、文面は生成テキストの検査を通り、投稿の前に `CheckPublishable` とメンションの検査を通る（0010 §5.1 と同じ） |
 | 成果物に巨大な内容や大量の項目を入れて、メモリや時間を使い切らせる | ファイル全体 4 MiB、文面 1 MiB、一覧 256 項目の上限（§3.2）。読み込みは上限を超えるファイルを、内容を読む前に拒否する |
 | `encoding/json` が黙って修復する入力（不正な UTF-8・対になっていないサロゲート・重複したキー・末尾の内容）で、検査した値と使う値をずらす | `strictjson` の既存の検査と `CollectOnly`・`AsBool` で拒否する（§3.2） |
-| 成果物の識別子を偽って、別の実行の成果物を使わせる | 読み込みで `id` を内容から再計算して照合し（§3.2）、連鎖を生成の出力まで検証する（§3.3）。生成の入力は今の素材の識別子と照合する |
+| 成果物の識別子を偽って、別の実行の成果物を使わせる | 読み込みで `id` を内容から再計算して照合し（§3.2）、連鎖を生成の出力まで検証する（§3.3）。生成の入力は今の素材の識別子（動画 ID を含む）と照合する |
 | シンボリックリンクや FIFO を成果物の名前・ディレクトリに置き、リンク先のファイルを読み書きしたり、FIFO でプロセスを停止させたりする | `--artifacts` のディレクトリは CLI の組み立てで 1 回開き、以後はそのハンドルを基準に読み書きする（パスが後から置き換わっても別の場所を読み書きしない）。読み込みは `O_NOFOLLOW` と `O_NONBLOCK` で開き、開いた記述子の `Stat` で通常のファイルに限る（FIFO・シンボリックリンクを拒否する。§3.4） |
 | 成果物に API キー・Webhook URL・ローカルのパスが入る | 成果物には記事の値・素材から作った値・モデル名・テンプレートの内容のダイジェストだけを書き、設定の値と上書きファイルのパスを書かない（§3.2）。成果物を書く前に、記事の値を `CheckPublishable` で検査する |
 | 成果物の値を端末に出す | 読み込みの拒否のメッセージに成果物の値を含めない（§4.2） |
@@ -719,13 +723,13 @@ flowchart TD
     C1 -->|"Yes"| SH["字数の調整"]
     SH -->|"失敗"| E3(["shorten step"])
     SH --> SAVE2["Store.Save（字数の調整）"]
-    SAVE2 -->|"失敗"| E3
+    SAVE2 -->|"失敗"| E6(["shorten artifact"])
     SAVE2 --> C2
     C2 -->|"No"| FC{"Shorten 有効?"}
     C2 -->|"Yes"| RV["検証・推敲"]
     RV -->|"失敗"| E4(["review step"])
     RV --> SAVE3["Store.Save（検証・推敲）"]
-    SAVE3 -->|"失敗"| E4
+    SAVE3 -->|"失敗"| E7(["review artifact"])
     SAVE3 --> FC
     FC -->|"No"| OUT["出典の付与"]
     FC -->|"Yes"| C3{"本文の字数<br>> 4000?"}
@@ -735,7 +739,7 @@ flowchart TD
 
     class V,GEN,OUT,R,FC process
     class LOAD,SH,RV,SAVE1,SAVE2,SAVE3,C1,C2,C3 enhanced
-    class E1,E2,E3,E4,E5 problem
+    class E1,E2,E3,E4,E5,E6,E7 problem
 ```
 
 **Legend**
@@ -773,7 +777,7 @@ sequenceDiagram
     C->>C: A5 ArticleWriter（Store=artifact.NewStore・Resume=StageShorten）の構築
     C->>P: job.Run
     P->>W: Write(ctx, t)
-    W->>A: Load(shorten, 素材の識別子)
+    W->>A: Load(動画 ID, shorten, 素材の識別子)
     A-->>W: ArtifactChain（生成・字数の調整）
     W->>W: 字数の調整の出力を検証・推敲の対象にする
     W->>W: 検証・推敲・最終の字数の確認
