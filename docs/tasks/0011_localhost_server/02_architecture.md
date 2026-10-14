@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Created | 2026-10-13 |
-| Review date | 2026-10-14 |
-| Reviewer | isseis |
-| Comments | 2026-10-14: §3.14 の「更新が必要な既存のテスト」で、`TestProjectOverviewDocumentsConfig` を現存するテストとして挙げていた記述を、削除済み（`4443ddf`）である事実に合わせた。決定は変えていない（editorial correction）。 |
+| Review date | - |
+| Reviewer | - |
+| Comments | 2026-10-14: 決定の変更。§7.2 の `cmd/yt2column-server` の統合テストを、`integration` のビルドタグで実際のバイナリを loopback の fake のサーバに向ける方式から、`//go:build test` のテストとして `make test` に含め、`run` の `deps` を差し替える方式に改めた。LLM のエンドポイントは設定で差し替えられず、loopback の構築関数と fake は `//go:build test` でしか見えないので、前の方式は実装できなかった（実装計画のフェーズ 2 の阻害要因）。§3.12・§3.14 の `test-integration-server` のターゲットとその検査を除いた。 |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md) の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §3.13）を指す。既存のコードの行番号は、コミット `f768cdb`（要件の承認のコミット）で確かめたものである。
 
@@ -855,7 +855,7 @@ func Run(run func(ctx context.Context) int) int
 
 | 文書 | 加える内容 |
 |---|---|
-| `CLAUDE.md` | 「Separation of Concerns」の Slack bot・定期実行の記述を、CLI と localhost サーバの 2 つの入口に改める。`make build` が 2 つの実行ファイルを作ること、サーバの統合テストの make のターゲット、サーバの起動と確認の手順への参照。Architecture Overview に `internal/server`・`internal/authtoken`・`internal/failure`・`internal/redact`・`internal/signalrun` |
+| `CLAUDE.md` | 「Separation of Concerns」の Slack bot・定期実行の記述を、CLI と localhost サーバの 2 つの入口に改める。`make build` が 2 つの実行ファイルを作ること、サーバの起動と確認の手順への参照。Architecture Overview に `internal/server`・`internal/authtoken`・`internal/failure`・`internal/redact`・`internal/signalrun` |
 | `docs/dev/project_overview.md` | 「決定済みの方針」の実行形式に localhost サーバを加える。「パイプライン」にサーバの入力元（拡張が送る字幕、#107 の `TranscriptSource`）。「想定ディレクトリ構成」に新しいパッケージ。「設定（環境変数）」に `YT2COLUMN_SERVER_PORT` の行と、サーバが `YT2COLUMN_CACHE_DIR`・`YT2COLUMN_YTDLP_PATH` を読まないこと、`SLACK_WEBHOOK_URL` が必須であること |
 | `docs/dev/security.md` §8 | サーバの節（§8.2 として新設）: loopback への bind、`Host`・`Origin`・`Content-Type`・共有トークンの検査とその順序、認証前に本文を読まず副作用を起こさないこと、秘密情報の扱い（応答・ログ・通知に載せない）、受け取る入力の境界（§5.3 の表）、共有トークンのファイルの場所・権限・検査、拡張への受け渡しと拡張側の保存先（0007 §3.12.3）、残余のリスク（§5.4） |
 | `README.md` | サーバの節: 必要な環境変数、`make build`、起動（標準エラー出力をファイルにも残す例 `2>>server.log` と、リクエスト ID でログを探す方法を含む）、初回に表示される共有トークンを拡張のオプションページに貼ること、トークンを再び表示する手順（ファイルを読む）、作り直す手順（ファイルを削除して再起動）、一時ファイルの残骸は削除してよいこと、終了の方法（シグナル 1 回で処理中のジョブを待ち、最悪で 45 分程度かかること、2 回で直ちに終わること）、`curl` による確認の例（下記）、拒否の理由の一覧 |
@@ -909,7 +909,7 @@ printf 'Authorization: Bearer %s\n' "$(cat "$HOME/Library/Application Support/yt
 | `cmd/yt2column/run.go` | 変更 | `deps` の `newLLMClient`・`newReviewLLMClient` の型を `func(config.LLMConfig)` にし、`cfg.LLM()` を渡す。LLM のアクセサの呼び出しを `cfg.LLM().X()` にする。`configuredSecrets`・`sanitize` を `internal/redact` の関数に置き換える |
 | `cmd/yt2column/main.go`・`test_helpers.go` | 変更 | `runWithSignals` を `signalrun.Run` に置き換える |
 | `cmd/yt2column/output.go` | 削除 | `internal/redact` へ移す |
-| `Makefile` | 変更 | `build` で `build/yt2column-server` も作る。サーバの統合テストのターゲット（`test-integration-server`。`test-integration-cli` と同じ形で、`integration` のビルドタグ） |
+| `Makefile` | 変更 | `build` で `build/yt2column-server` も作る。サーバの統合テストは `//go:build test` で `make test` に含まれるので、専用のターゲットは加えない（§7.2） |
 | `CLAUDE.md`・`README.md`・`docs/dev/project_overview.md`・`docs/dev/security.md`・`docs/dev/developer_guide/package_reference.md`・`docs/translation_glossary.md` | 変更 | §3.12 |
 
 **更新が必要な既存のテスト。**
@@ -927,7 +927,6 @@ printf 'Authorization: Bearer %s\n' "$(cat "$HOME/Library/Application Support/yt
 | `internal/writer/prompt_test.go:198`・`:247`・`:277`・`:308`・`:322` | `errPromptTooLarge` を `ErrPromptTooLarge` に改める |
 | `internal/pipeline/pipeline_test.go:610` の `TestPackageReferenceListsPackages` | 新しいパッケージの行を `package_reference.md` に加える（テスト自体は変えない） |
 | `internal/pipeline/pipeline_test.go:534` の `TestFakesCarryBuildTag` | `testutil/` にファイルを加える場合（fake の `failure.Notifier` など）、件数（17）を改める |
-| `cmd/yt2column/makefile_test.go` | サーバの統合テストのターゲットについて、`test-integration-cli` と同じ検査を加える |
 | `project_overview.md` の設定の変数を固定するガード（`TestProjectOverviewDocumentsConfig` はコミット `4443ddf` で削除済みで、HEAD `e0f898e` にはない） | `YT2COLUMN_SERVER_PORT` の行を `project_overview.md` に加える。既存のガードがないので、サーバの文書の内容を固定するガードを実装計画で新設するかを決める |
 
 テストを移すときは、移した後に `go tool cover -func` で関数ごとのカバレッジが変わらないことを確かめる（CLAUDE.md「Deleting a test is a claim that must be checked」）。`internal/pipeline` の `TestCommonTypesFieldSets` は、`Transcript`・`Segment`・`Article` を変えないので変更せずに通る。
@@ -1221,7 +1220,11 @@ sequenceDiagram
 
 ### 7.2. 統合テスト
 
--   `cmd/yt2column-server` の統合テスト（`make test-integration-server`、`integration` のビルドタグ）は、実際のバイナリを起動し、`HOME` を一時ディレクトリに向け、LLM と Webhook は loopback の fake のサーバ（`internal/loopbacktest` の既存の方式）に向ける。受理から記事の投稿まで、トークンの生成から再起動後の認証まで（AC-02）、シグナル 1 回と 2 回の終了を確かめる。ポートは空きポートを探して `YT2COLUMN_SERVER_PORT` に渡し、起動が `EADDRINUSE` で失敗したら探し直す。実際の LLM の API と Webhook は呼ばない。
+-   `cmd/yt2column-server` の統合テストは、LLM の API も Webhook も実物を呼ばないので、`integration` のビルドタグを使わず、`//go:build test` のテストとして `make test` に含める（`cmd/yt2column/signal_test.go` の子プロセスのテストと同じ）。LLM のエンドポイントは設定で差し替えられないので、実際のバイナリを loopback のサーバに向けるのではなく、`run` の `deps` の LLM・`Publisher`・`Notifier` の構築関数を差し替える。`HOME` を一時ディレクトリに向ける。テストは次の 2 つの形で書く。
+    -   **同じプロセス。** テストが `run` を goroutine で呼び、`ctx` の取り消しで終える。`deps` の LLM は fake の `llm.LLMClient`、`Publisher` と `Notifier` は `httptest` の loopback の Webhook へ送る実物（`publisher.NewSlackWebhookPublisherForLoopbackTest` と #108 のテスト用の構築関数。どちらも `testing.TB` を取るので、テストの中で構築する）にする。`run` は実物の `server.Listen` で待ち受けるので、リクエストは実際のソケットを通る。受理から記事の投稿まで、トークンの生成から再起動後の認証まで（AC-02。同じ `HOME` で、前の `run` が返った後に `run` をもう一度呼ぶ）、下の 2 項目（リクエスト ID と実際のソケットの結果）をこの形で確かめる。
+    -   **子プロセス。** シグナル 1 回と 2 回の終了は、テスト用バイナリを子プロセスで起動して確かめる（`cmd/yt2column/test_helpers.go` の `runChildMode`・`startCLIChild` と同じ形）。子は `TestMain` から `m.Run` の前に分岐するので `testing.TB` を持たず、`testing.TB` を取る loopback の構築関数を呼べない。そこで子の `deps` には、ネットワークに触れない fake（ブロックする LLM と、Webhook へ送らない `Publisher`・`Notifier`。CLI の子モードの `stallingLLM`・`stallingPublisher` と同じ考え方）を使う。子プロセスは、起動した時点で `t.Cleanup` に kill と reap を登録する。
+
+    ポートは空きポートを探して `YT2COLUMN_SERVER_PORT` に渡し、起動が `EADDRINUSE` で失敗したら探し直す。`SLACK_WEBHOOK_URL` には `slackwebhook.ValidURL` を通る `https` の値を渡す（`config.LoadServer` は `https` 以外を拒否するので、`httptest` の `http://` の URL は渡せない。差し替えた構築関数はこの値を使わない）。実際の LLM の API と Webhook は呼ばない。
 -   サーバが生成したリクエスト ID を、実物の通知の実装（#108 の `publisher.SlackFailureNotifier`）へ loopback の Webhook で通すテストを置く。リクエスト ID の形 `^[0-9a-f]{16}$` は #109 が生成し（§3.4.2）、#108 の通知の実装が `Notify` の中で別々に検査するので、#109 が形を変えるとすべての通知が拒否され、その食い違いはサーバのログにしか現れない。テストは、loopback の Webhook へ送る実物の通知の実装でサーバを組み、リクエストを送り、応答の `requestId` と同じ値が Webhook の受け取った `text` に現れ、通知の実装が `ErrSlackInvalidNotice` を返さないことを確かめる。サーバのパッケージのテストから実物を使えるよう、記事の投稿の `NewSlackWebhookPublisherForLoopbackTest` と同じ形のテスト用の構築関数を #108 が用意する。
 -   実際のソケットで、4 MiB を超える本文と誤ったトークンを送り、送り手が受け取る結果（`401` か接続の切断か）を確かめて記録する（§3.5.2）。
 -   AC-01 の「外部インターフェースのアドレスからは接続できない」は、手動で確かめる（実装計画に記録する）。マシンの外部インターフェースのアドレスへ `curl` し、接続が拒否されることを見る。
