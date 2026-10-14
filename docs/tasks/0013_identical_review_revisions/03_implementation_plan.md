@@ -8,9 +8,9 @@
 | Created | 2026-10-14 |
 | Review date | - |
 | Reviewer | - |
-| Comments | H-01（無変更の項目への応答の境界の契約の適用）により `02_architecture.md` を draft に戻したため、後続の本計画も draft に戻した。あわせて各ステップに対象ファイルと成功基準を加えた。 |
+| Comments | H-01（無変更の項目への応答の境界の契約の適用）により `02_architecture.md` を draft に戻したため、後続の本計画も draft に戻した。あわせて各ステップに対象ファイルと成功基準を加えた。その後、architecture §3.4（境界の契約の引き継ぎ）・§3.5 の追加に合わせ、§1.2・§1.3・§1.4、ステップ 3-1・3-4、PR-3 のレビュー観点、§4・§5 の AC-04、§8 を更新した。ステップの数と PR の境界は変えていない。 |
 
-本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「requirements」）の項番を、節番号は [02_architecture.md](02_architecture.md)（以下「architecture」）の節を指す。既存のコードとテストの行番号は、断りがない限り HEAD `edb914d` で確かめた。architecture は行番号を `56062fd` で確かめているが、`56062fd` から `edb914d` までの間に本計画が触れるファイル（`internal/writer/revision.go`・`review.go`・`revision_test.go`・`review_test.go`・`steps_test.go`・`internal/publisher/reviewlog.go`・`reviewlog_test.go`）は変わっていない（`git log 56062fd..edb914d -- <これらのパス>` が空）。
+本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「requirements」）の項番を、節番号は [02_architecture.md](02_architecture.md)（以下「architecture」）の節を指す。既存のコードとテストの行番号は、断りがない限り HEAD `edb914d` で確かめた。architecture は行番号を `56062fd` で確かめているが（§3.4 で加えた行番号も、コードが同じ `2fb8914` で確かめた）、`56062fd` から `edb914d` までの間に本計画が触れるファイル（`internal/writer/revision.go`・`review.go`・`revision_test.go`・`review_test.go`・`steps_test.go`・`internal/publisher/reviewlog.go`・`reviewlog_test.go`）は変わっていない（`git log 56062fd..edb914d -- <これらのパス>` が空）。
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -25,6 +25,7 @@ requirements が定める 2 つの機能要件（F-001・F-002）を、architect
 - architecture §1.1 の 6 つの設計原則に従う。特に、無変更の判定は `writer.Revision` の意味として型に置き（原則 1）、一覧のファイルを書き出す `internal/publisher` は自前の比較を書かず `Revision.NoChange()` を呼ぶ。
 - 変更するファイルは architecture §2.2 の責務表のとおりとする。テストは同表のとおり既存の `_test.go` に加える。新しいファイル・`testutil/` ヘルパ・`test_helpers*.go` は作らない。
 - 受理の規則（`Revision.check`・`parseReviewResponse`・`ReviewResult.Check`）と、当てはめ、要約、エラーの種類、変更のある項目の書式は変えない（architecture §3.3）。
+- 検証・推敲の応答の境界の契約（0010 F-003・0010 §3.5.3）は再定義せず、そのまま再利用する（architecture §3.4）。無変更の項目のために、境界に新しい拒否を加えることも、境界の検査を省くこともしない。境界の検査（`parseReviewResponse`・`parseRevision`）は `NoChange()` を参照しない。
 - Go のコメント・識別子・文字列リテラルは英語で書く。`AC-NN`・`F-NNN` は Go ソースに書かず、本計画にだけ記録する（`requirements_process.md` §4）。`No change.` は固定の英語の文字列リテラルである。
 - 変更した分岐を対象とする各テストは、対象の分岐を実際に壊して失敗することを確かめ、そのことをコミットメッセージに書く（`CLAUDE.md`「Testing Strategy」）。手順は §4.2 に従う。変更しないコード（`applyRevisions`）を対象とする既存の回帰テストは、この壊し確認の対象外である。
 - 各フェーズの完了条件は、グリーンゲート（`_context.md` の "Green gate"、`make test && make lint`）と `make fmt` が通ることである。
@@ -35,6 +36,7 @@ requirements が定める 2 つの機能要件（F-001・F-002）を、architect
 - **`Before` と `After` の比較は、既存のコードに無い。** `revision.go` 全体と `internal/` の非テストコードを `Before == After`・`Before != After` で検索して確認した（`internal/writer/review.go:116` は `ActionReplace` の代入のみ）。したがって、判定は `NoChange()` の 1 か所にだけ置く。
 - **`NoChange` と `No change.` は既存のコードに無い。** リポジトリ全体を検索した結果、`NoChange` という識別子と `No change.` という文字列リテラルは存在しない（`Makefile:205` の `No changed Go files to format` は無関係な別の文字列）。名前の衝突は無い。
 - **既存の受理・当てはめは、無変更の項目を既に受理している（コードは変えない）。** `parseReviewResponse`（`internal/writer/review.go:38`）・`parseRevision`（同 `:75`）・`applyRevisions`（同 `:149-192`）は `Before == After` を調べない。`Revision.check`（`revision.go:53-85`）も、空値・制御文字・未知の action と reason だけを拒否する。`applyRevisions` は `Before` の範囲を `After` で置き換えるだけなので、両者が同じなら文面は変わらない（architecture §1.1 原則 2・4）。
+- **応答の境界の契約は、無変更の項目で分岐しない（architecture §3.4）。** 契約の各要素は `parseReviewResponse`（`internal/writer/review.go:38-71`）と `parseRevision`（同 `:75-125`）の中で、無変更かどうかを見ずに検査される。大きさの上限（`:39-41`）、`strictjson.ParseObject`（`:42-45`）、`Object.CollectOnly`（`:46`・`:80`）、`maxRevisions`（`:58-60`）、`after` と `delete` の排他（`:96-101`）、`reason`（`:102-109`）、`Revision.check()` の値の規則である。無変更の項目は置換の形 `{"before": X, "after": X, "reason": …, "evidence": …}` そのもので、新しい形・メンバーを持たない。契約の拒否は、既存の `TestParseReviewResponse`（`internal/writer/review_test.go:62`）の `rejected` 表（未知・重複したキー、項目の数の上限、`after` と `delete` の排他、値の規則など）と、`internal/strictjson` のテスト（`TestParseObject`・`TestObjectCollectOnly`・`TestValueAsBool`・`TestAsArrayElementLimit` など）が既に確かめている。したがって、無変更の項目に固有の拒否のテストは加えない。
 - **`renderReviewLog`（`internal/publisher/reviewlog.go:74-93`）。** 項目ごとに `Before:` の引用（`:84`）に続けて、削除なら `Deleted.`（`:85-86`）、それ以外は `After:` の引用（`:87-89`）を書く。本計画は、`ActionReplace` かつ `revision.NoChange()` のとき `After:` の引用の直後に `No change.` の 1 行を加える（architecture §3.2。`Deleted.` と同じ位置、すなわち `Evidence:` の直前）。先頭の `- Revisions:` の件数（`:76-77`）と `quoteBlock`（`:96-102`）は変えない。`internal/publisher` は既に `internal/writer` を import している（`:10`）。
 - **再利用するテストとヘルパ。**
   - `internal/writer/revision_test.go`: `TestReviewResultCheck`（`:63`）と `validRevision`（`:20`）。無変更の項目の受理のケースを `TestReviewResultCheck` の `accepted` 表に加える。
@@ -47,7 +49,7 @@ requirements が定める 2 つの機能要件（F-001・F-002）を、architect
 
 ### 1.4. 申し送りへの対応
 
-`implementation_handoff.md` は無い。`design_handoff.md` には H-01（無変更の項目への応答の境界の契約の適用）があるが、その消費者は設計（`02_architecture.md`）であり、本計画が対応すべき `I-NN` の項目は無い。
+`implementation_handoff.md` は無い。`design_handoff.md` の H-01（無変更の項目への応答の境界の契約の適用）は、設計（architecture §3.4・§3.5）が対応した。本計画はその帰結として、ステップ 3-1 で無変更の項目の受理を応答の文字列から `parseReviewResponse` を通して確かめ（境界の全体を通ることを示す）、契約の拒否は既存のテストに依る（ステップ 3-4・§5 の AC-04）。本計画が対応すべき `I-NN` の項目は無い。
 
 ## 2. 実装ステップ (Implementation Steps)
 
@@ -113,10 +115,10 @@ requirements が定める 2 つの機能要件（F-001・F-002）を、architect
 
 **対象ファイル:** `internal/writer/review_test.go`（変更）、`internal/writer/steps_test.go`（変更）
 
-- [ ] **ステップ 3-1**: `TestParseReviewResponse`（`internal/writer/review_test.go:62`）に、無変更の項目を含む応答を受理するケースを 1 件加える。`replaceItem` に同じ `before` と `after` を渡して無変更の項目を作り、解析結果がその 1 項目を返すことを確かめる（AC-01）。既存の受理・拒否のケースは変えない。（対象: `internal/writer/review_test.go`。成功基準: `TestParseReviewResponse` に無変更の項目を含む応答の受理のケースが加わり、既存の受理・拒否のケースは変わらず通る）
+- [ ] **ステップ 3-1**: `TestParseReviewResponse`（`internal/writer/review_test.go:62`）に、無変更の項目を含む応答を受理するケースを 1 件加える。`reviewResponse` と、同じ `before` と `after` を渡した `replaceItem` で応答の文字列を組み立て、`parseReviewResponse` に渡す。`Revision` を直接組み立てて `Check` だけを確かめる形にはせず、無変更の項目が境界の契約の全体（architecture §3.4）を通って受理されることを示す。解析結果が `ActionReplace` で `Before == After` の 1 項目を返すことを確かめる（AC-01）。既存の受理・拒否のケースは変えず、無変更の項目に固有の拒否のケースは加えない（architecture §3.4。契約の拒否は既存の `rejected` 表が確かめる）。（対象: `internal/writer/review_test.go`。成功基準: `TestParseReviewResponse` に、応答の文字列から無変更の項目を受理するケースが加わり、既存の受理・拒否のケースは変わらず通る）
 - [ ] **ステップ 3-2**: `TestApplyRevisions`（`review_test.go:203`）の `accepted` 表に、無変更の項目を当てはめた結果が当てはめの対象と同じ文面になるケースを 1 件加える（AC-03）。既存の `accepted`・`rejected` の各行は変えない。（対象: `internal/writer/review_test.go`。成功基準: `TestApplyRevisions` の `accepted` 表に無変更の行が加わり、当てはめ後の文面が当てはめの対象と同じであることを確かめて通る）
 - [ ] **ステップ 3-3**: `internal/writer/steps_test.go` の `TestWriteReviewApplies`（`:329`）に、`Write` が無変更の項目の応答で成功することを確かめるサブテストを加える。無変更の項目だけの応答と、それに変更のある項目を加えた応答の両方で `Write` が成功し、ゼロ値でない `Article` を返し、`Review.Revisions` に無変更の項目が応答の順序どおりに含まれることを確かめる（AC-02）。既存のサブテストと同じ組み立て（`newStepClient`・`withStepsEnabled`・`validTranscript`）を使い、既存のサブテストは変えない。無変更の項目と変更のある項目の両方について、`before` が生成後の文面に一度だけ現れる値にする（`applyRevisions` は `before` が複数回現れると拒否するため）。（対象: `internal/writer/steps_test.go`。成功基準: `TestWriteReviewApplies` に無変更の項目のサブテストが加わり、`Write` が成功して `Review.Revisions` に応答の順序どおりに含まれることを確かめて通る）
-- [ ] **ステップ 3-4**: フェーズ 3 の完了条件として、`make fmt` → `make test` → `make lint` を通す。既存の拒否のケース（`TestReviewResultCheck`・`TestParseReviewResponse`・`TestApplyRevisions` の `rejected`、`TestWriteReviewRejects`）が引き続き通ることを確かめる（AC-04）。
+- [ ] **ステップ 3-4**: フェーズ 3 の完了条件として、`make fmt` → `make test` → `make lint` を通す。既存の拒否のケース（`TestReviewResultCheck`・`TestParseReviewResponse`・`TestApplyRevisions` の `rejected`、`TestWriteReviewRejects`）と、境界の契約を確かめる `internal/strictjson` のテストが引き続き通ることを確かめる（AC-04、architecture §3.4）。
 
 **完了条件:** 無変更の項目が解析・検査・当てはめ・`Write` のどの経路でも受理され、既存の拒否の規則と変更のある項目の扱いが変わっていない。
 
@@ -126,7 +128,7 @@ requirements が定める 2 つの機能要件（F-001・F-002）を、architect
 
 **推奨タイトル**: `test(0013): cover identical revisions across the write path`
 
-**レビュー観点**: 無変更の項目が `parseReviewResponse`・`applyRevisions`・`Write` の各経路で受理されることを確かめていること / 既存の拒否のケースと変更のある項目の扱いを変えていないこと / `before` が生成後の文面に一度だけ現れる値でテストを組み立てていること
+**レビュー観点**: 無変更の項目が `parseReviewResponse`・`applyRevisions`・`Write` の各経路で受理されることを確かめていること / `parseReviewResponse` の受理のケースが応答の文字列から組み立てられ、境界の契約の全体を通っていること（architecture §3.4） / 境界の契約を再定義・変更せず、無変更の項目に固有の拒否のケースを加えていないこと / 既存の拒否のケースと変更のある項目の扱いを変えていないこと / `before` が生成後の文面に一度だけ現れる値でテストを組み立てていること
 
 **実装モデル要件**: standard
 
@@ -170,11 +172,11 @@ PR の境界は §3.2 のとおり 3 つに分ける。この依存（PR-1 → P
 ユニットテストは API もネットワークも呼ばない（0010 の F-007・AC-26 と同じ）。無変更の項目は、fake の応答（`internal/writer` のテストの応答の部品 `reviewResponse`・`replaceItem`）と、直接組み立てた `writer.Article`（`internal/publisher` の `reviewArticle`）で作る。確かめる対象は次のとおり。
 
 - `NoChange()` の真偽表（`TestRevisionNoChange`、ステップ 1-3）。
-- 無変更の項目の受理: `ReviewResult.Check`（`TestReviewResultCheck`、ステップ 1-4）と `parseReviewResponse`（`TestParseReviewResponse`、ステップ 3-1）。
+- 無変更の項目の受理: `ReviewResult.Check`（`TestReviewResultCheck`、ステップ 1-4）と `parseReviewResponse`（`TestParseReviewResponse`、ステップ 3-1。応答の文字列から境界の契約の全体を通す）。
 - 当てはめが文面を変えないこと（`TestApplyRevisions`、ステップ 3-2）。
 - `Write` が無変更の項目の応答で成功し、`Review.Revisions` に応答の順序どおりに残ること（`steps_test.go`、ステップ 3-3）。
 - 一覧のファイルの無変更の項目の書式（`TestReviewLogWriterFormat`、ステップ 2-2）。
-- 既存の拒否・変更のある項目の扱いが変わらないこと（既存の `TestReviewResultCheck`・`TestParseReviewResponse`・`TestApplyRevisions` の `rejected`、`TestWriteReviewRejects`、`TestReviewLogWriterFormat` の置換・削除のサブテスト）。
+- 既存の拒否・変更のある項目の扱いが変わらないこと（既存の `TestReviewResultCheck`・`TestParseReviewResponse`・`TestApplyRevisions` の `rejected`、`TestWriteReviewRejects`、`TestReviewLogWriterFormat` の置換・削除のサブテスト）。境界の契約（0010 F-003）の拒否は、`TestParseReviewResponse` の `rejected` 表と `internal/strictjson` のテストが確かめる。境界の検査は無変更の項目で分岐しないので、無変更の項目に固有の拒否のテストは加えない（architecture §3.4）。
 
 統合テストは該当なしである。このタスクはコンテナ・DB・ネットワーク・キャッシュなどの外部状態を触らず、確かめるのは 2 つのパッケージ内の純粋な処理だけである。後方互換は、変更のある項目の受理・拒否と書式が変わらないことを既存の拒否・置換・削除のテスト（AC-04・AC-07）で確かめる。
 
@@ -186,6 +188,7 @@ PR の境界は §3.2 のとおり 3 つに分ける。この依存（PR-1 → P
 - `NoChange()` を `Before` が空のゼロ値にも真を返すようにすると、`TestRevisionNoChange` のゼロ値の行が落ちること。
 - `renderReviewLog` の `No change.` の分岐を外すと、`TestReviewLogWriterFormat` の無変更のサブテストが落ちること。
 - 無変更の項目の受理を拒否する検査を（一時的に）加えると、`TestReviewResultCheck`・`TestParseReviewResponse`・`TestWriteReviewApplies` の無変更のサブテストが落ちること。
+- 境界の契約の拒否は、本計画で変えない `parseReviewResponse`・`strictjson` の既存のテストに依るので、壊し確認を課さない（新しいテストを加えないため。architecture §3.4）。
 - ステップ 3-2 の `TestApplyRevisions` の無変更の行は、変更しない `applyRevisions` を対象とする回帰テストである。`applyRevisions` は本計画で変えないので、この行には壊し確認を課さず、既存の当てはめが文面を変えないことの回帰として扱う。
 
 ### 4.3. テストヘルパー
@@ -199,7 +202,7 @@ PR の境界は §3.2 のとおり 3 つに分ける。この依存（PR-1 → P
 | AC-01 | test | `internal/writer/revision_test.go::TestRevisionNoChange`（真偽表）・`internal/writer/revision_test.go::TestReviewResultCheck`（無変更の項目の受理の行）・`internal/writer/review_test.go::TestParseReviewResponse`（無変更の項目を含む応答の受理のサブテスト）。`make test` で実行する |
 | AC-02 | test | `internal/writer/steps_test.go::TestWriteReviewApplies`（無変更の項目だけの応答、および無変更と変更を合わせた応答で `Write` が成功し、`Review.Revisions` に応答の順序どおりに含まれること）。`make test` で実行する |
 | AC-03 | test | `internal/writer/review_test.go::TestApplyRevisions`（無変更の項目を当てはめた結果が当てはめの対象と同じ文面になる行）。`make test` で実行する |
-| AC-04 | test | `internal/writer/revision_test.go::TestReviewResultCheck`・`internal/writer/review_test.go::TestParseReviewResponse`・`internal/writer/review_test.go::TestApplyRevisions` の既存の `rejected` の行と、`internal/writer/steps_test.go::TestWriteReviewRejects` の既存の拒否の行、`internal/publisher/reviewlog_test.go::TestReviewLogWriterFormat` の置換・削除のサブテスト。`make test` で実行する |
+| AC-04 | test | `internal/writer/revision_test.go::TestReviewResultCheck`・`internal/writer/review_test.go::TestParseReviewResponse`・`internal/writer/review_test.go::TestApplyRevisions` の既存の `rejected` の行（`TestParseReviewResponse` の行は 0010 F-003 の境界の契約の拒否を含む）、`internal/strictjson` の既存のテスト（`TestParseObject`・`TestObjectCollectOnly`・`TestValueAsBool`・`TestAsArrayElementLimit` など）と、`internal/writer/steps_test.go::TestWriteReviewRejects` の既存の拒否の行、`internal/publisher/reviewlog_test.go::TestReviewLogWriterFormat` の置換・削除のサブテスト。`make test` で実行する |
 | AC-05 | test | `internal/publisher/reviewlog_test.go::TestReviewLogWriterFormat` の無変更のサブテスト（`Before:`・`After:`・`No change.`・`Evidence:` がこの順で読めること、`No change.` が `Evidence:` の直前にあること）。`make test` で実行する |
 | AC-06 | test | 同上のサブテストで、`Before:` の引用・`After:` の引用・`Evidence:` の引用と見出しの理由の値（`reason`）が無変更の項目でも読めることをファイル全体の文字列で固定する。`make test` で実行する |
 | AC-07 | test | `internal/publisher/reviewlog_test.go::TestReviewLogWriterFormat` の既存の `replacement`・`deletion with a multiline evidence`・`empty list` の各サブテスト（削除の `Deleted.`、置換の `After:`、先頭の `- Revisions:` の件数が変わらないこと）。`make test` で実行する |
@@ -233,7 +236,7 @@ PR の境界は §3.2 のとおり 3 つに分ける。この依存（PR-1 → P
 
 ## 8. 成功基準 (Success Criteria)
 
-- **機能:** 無変更の項目が `ReviewResult.Check`・`parseReviewResponse`・`Write` の各経路で受理され（AC-01〜AC-03）、一覧のファイルで `No change.` が `Evidence:` の直前に読める（AC-05・AC-06）。変更のある項目の書式と受理・拒否の規則は変わらない（AC-04・AC-07）。
+- **機能:** 無変更の項目が `ReviewResult.Check`・`parseReviewResponse`・`Write` の各経路で受理され（AC-01〜AC-03）、一覧のファイルで `No change.` が `Evidence:` の直前に読める（AC-05・AC-06）。変更のある項目の書式と受理・拒否の規則、および応答の境界の契約（0010 F-003）は変わらない（AC-04・AC-07、architecture §3.4）。
 - **品質:** `make test`・`make lint` が通る。追加した各テストが、§4.2 の壊し確認で対象の分岐を外すと落ちることが確認され、結果がコミットメッセージに記録されている。
 - **セキュリティ:** 新しい外部モジュール・外部コマンド・ネットワーク送信・キャッシュの読み書きを加えない。`No change.` は応答の値を含まない固定の英語の 1 行であり、無変更の項目の値は既存と同じく引用ブロックの中に置く（architecture §5）。無変更の判定は `CheckPublishable` の後にだけ使う。
 - **文書:** 変更するソースのコメント・識別子・文字列リテラルは英語である。`AC-NN`・`F-NNN` を Go ソースに書かない。0010 の文書と `package_reference.md` は編集しない（architecture §1.1 原則 3・§2.2）。
