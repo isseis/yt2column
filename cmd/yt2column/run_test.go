@@ -24,7 +24,6 @@ import (
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/publisher"
 	publishertestutil "github.com/isseis/yt2column/internal/publisher/testutil"
-	"github.com/isseis/yt2column/internal/redact"
 	"github.com/isseis/yt2column/internal/secret"
 	"github.com/isseis/yt2column/internal/transcript"
 	transcripttestutil "github.com/isseis/yt2column/internal/transcript/testutil"
@@ -39,8 +38,11 @@ const (
 
 	// testAPIKey and testWebhook are distinctive secret values. Their last
 	// eight characters differ from every other string a run writes.
-	testAPIKey  = "sk-unit-APIKEYVALUE-0123456789-TAIL8KEY"
-	testWebhook = "https://hooks.slack.com" + testWebhookPath
+	testAPIKey = "sk-unit-APIKEYVALUE-0123456789-TAIL8KEY"
+	// testAnthropicKey is the Anthropic key of a claude configuration; a
+	// failure whose message holds it must be redacted too.
+	testAnthropicKey = "sk-ant-APIKEYVALUE-0123456789-TAIL8ANT"
+	testWebhook      = "https://hooks.slack.com" + testWebhookPath
 	// testWebhookPath is the path of testWebhook; a line holding it alone
 	// must be redacted too. webhookPathMarker is the part of it no output
 	// may hold.
@@ -598,6 +600,20 @@ func executionPathRows() []pathRow {
 			setup: func(_ *testing.T, e *runEnv) {
 				e.client = funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
 					return llm.GenerateResponse{}, fmt.Errorf("%w: the server rejected %s", errStubLLM, testAPIKey)
+				})
+			},
+			wantCode:   exitFailure,
+			wantStderr: []string{"the write stage failed", "the server rejected " + "[REDACTED]"},
+		},
+		{
+			name: "write failure whose message holds the Anthropic API key",
+			setup: func(_ *testing.T, e *runEnv) {
+				delete(e.env, "DEEPSEEK_API_KEY")
+				e.env["YT2COLUMN_LLM_PROVIDER"] = "claude"
+				e.env["ANTHROPIC_API_KEY"] = testAnthropicKey
+				e.env["YT2COLUMN_CLAUDE_EFFORT"] = "low"
+				e.client = funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
+					return llm.GenerateResponse{}, fmt.Errorf("%w: the server rejected %s", errStubLLM, testAnthropicKey)
 				})
 			},
 			wantCode:   exitFailure,
@@ -1861,24 +1877,6 @@ func TestRunInvalidStepTemplate(t *testing.T) {
 	}
 }
 
-// TestCLISecretStringsIncludesWebhookParts checks that the secret set the CLI
-// builds from its configuration makes a line holding only part of the Webhook
-// URL, its path, redacted. The expression mirrors run's mapping of config to
-// redact.SecretStrings. Which parts are produced (and that short ones are
-// omitted) is slackwebhook.SensitiveParts' contract, tested there.
-func TestCLISecretStringsIncludesWebhookParts(t *testing.T) {
-	cfg, err := config.Load(lookupFrom(newRunEnv(t).env))
-	if err != nil {
-		t.Fatalf("config.Load: %v", err)
-	}
-	webhookURL, _ := cfg.SlackWebhookURL()
-	secrets := redact.SecretStrings(webhookURL, cfg.DeepSeekAPIKey(), cfg.AnthropicAPIKey())
-	got := redact.Line("POST "+testWebhookPath+" failed", secrets...)
-	if strings.Contains(got, webhookPathMarker) {
-		t.Errorf("redact.Line left part of the webhook path: %q", got)
-	}
-}
-
 // TestRunClaudeConfigurationErrorsOneLineEach checks that when the CLI loads a
 // claude environment with more than one rejected provider variable, it writes
 // each rejection on its own line. A nested errors.Join would otherwise render
@@ -1899,37 +1897,6 @@ func TestRunClaudeConfigurationErrorsOneLineEach(t *testing.T) {
 		if !slices.ContainsFunc(lines, func(line string) bool { return strings.HasPrefix(line, prefix) }) {
 			t.Errorf("stderr has no line starting with %q:\n%s", prefix, stderr)
 		}
-	}
-}
-
-// TestCLISecretStringsIncludesAnthropicAPIKey checks that the secret set the
-// CLI builds from a claude configuration makes the Anthropic API key, and a
-// line holding only its last eight characters, both redacted. The expression
-// mirrors run's mapping of config to redact.SecretStrings.
-func TestCLISecretStringsIncludesAnthropicAPIKey(t *testing.T) {
-	const key = "sk-ant-APIKEYVALUE-0123456789-TAIL8ANT"
-	env := map[string]string{
-		"YT2COLUMN_LLM_PROVIDER":  "claude",
-		"YT2COLUMN_MODEL":         "claude-opus-5-5",
-		"ANTHROPIC_API_KEY":       key,
-		"YT2COLUMN_CLAUDE_EFFORT": "high",
-		"YT2COLUMN_CACHE_DIR":     t.TempDir(),
-	}
-	cfg, err := config.Load(lookupFrom(env))
-	if err != nil {
-		t.Fatalf("config.Load: %v", err)
-	}
-	if _, err := cfg.AnthropicAPIKey().Reveal(); err != nil {
-		t.Fatalf("AnthropicAPIKey().Reveal() error = %v", err)
-	}
-	webhookURL, _ := cfg.SlackWebhookURL()
-	secrets := redact.SecretStrings(webhookURL, cfg.DeepSeekAPIKey(), cfg.AnthropicAPIKey())
-	tail := key[len(key)-8:]
-	if got := redact.Line("POST with "+key+" failed", secrets...); strings.Contains(got, key) {
-		t.Errorf("redact.Line left the Anthropic API key: %q", got)
-	}
-	if got := redact.Line("short tail "+tail+" seen", secrets...); strings.Contains(got, tail) {
-		t.Errorf("redact.Line left the Anthropic API key tail: %q", got)
 	}
 }
 

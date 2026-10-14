@@ -4,6 +4,7 @@ package redact
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -246,6 +247,17 @@ func TestWriterRedactsWithoutEscaping(t *testing.T) {
 			secrets: []string{"SECRETVALUE123"},
 			want:    `key=[REDACTED]\tmore`,
 		},
+		{
+			name:  "leaves the input unchanged when there are no secrets",
+			input: "plain text",
+			want:  "plain text",
+		},
+		{
+			name:    "chooses a printable marker when the secret collides with it",
+			input:   "model=REDACTED",
+			secrets: []string{"REDACTED"},
+			want:    "model=!!!!!!!!!!",
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -262,5 +274,24 @@ func TestWriterRedactsWithoutEscaping(t *testing.T) {
 				t.Errorf("Writer wrote %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+// failingWriter is an io.Writer that fails every write.
+type failingWriter struct{ err error }
+
+func (w failingWriter) Write([]byte) (int, error) { return 0, w.err }
+
+// TestWriterPropagatesError verifies that Write reports 0 bytes and the
+// underlying error, so a caller such as log/slog sees the failure.
+func TestWriterPropagatesError(t *testing.T) {
+	errWrite := errors.New("write failed")
+	w := Writer(failingWriter{err: errWrite}, []string{"SECRET"})
+	n, err := io.WriteString(w, "key=SECRET")
+	if !errors.Is(err, errWrite) {
+		t.Fatalf("Write error = %v, want %v", err, errWrite)
+	}
+	if n != 0 {
+		t.Errorf("Write reported %d bytes, want 0", n)
 	}
 }

@@ -38,8 +38,13 @@ const exposedTail = 8
 // be reconstructed inside it or across its boundaries, so the marker cannot
 // reintroduce a secret.
 func Line(line string, secrets ...string) string {
-	rendered := escapeNonPrintable(line)
-	replacements := secretReplacements(secrets)
+	return redactAll(escapeNonPrintable(line), secretReplacements(secrets))
+}
+
+// redactAll replaces each protected string in rendered with a marker chosen so
+// that no protected string survives, through an opaque placeholder. It is the
+// replacement step Line and Writer share; only Line escapes the input first.
+func redactAll(rendered string, replacements []string) string {
 	if len(replacements) == 0 {
 		return rendered
 	}
@@ -71,12 +76,7 @@ func (rw *redactWriter) Write(p []byte) (int, error) {
 	if len(rw.replacements) == 0 {
 		return rw.w.Write(p)
 	}
-	rendered := string(p)
-	placeholder := choosePlaceholder(rendered, rw.replacements)
-	for _, replacement := range rw.replacements {
-		rendered = strings.ReplaceAll(rendered, replacement, placeholder)
-	}
-	rendered = strings.ReplaceAll(rendered, placeholder, chooseMarker(rendered, placeholder, rw.replacements))
+	rendered := redactAll(string(p), rw.replacements)
 	if _, err := io.WriteString(rw.w, rendered); err != nil {
 		return 0, err
 	}

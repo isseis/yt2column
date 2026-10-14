@@ -40,13 +40,13 @@ const (
 	// childModeMain runs the production main, so a test observes exactly the
 	// signal handling main installs.
 	childModeMain = "main"
-	// childModeStall runs runWithSignals with an LLM client that stops until
+	// childModeStall runs signalrun.Run with an LLM client that stops until
 	// its context ends.
 	childModeStall = "stall"
-	// childModeIgnoreCtx runs runWithSignals with an LLM client that keeps
+	// childModeIgnoreCtx runs signalrun.Run with an LLM client that keeps
 	// stopping after its context ends.
 	childModeIgnoreCtx = "ignore-ctx"
-	// childModeSlackStall runs runWithSignals with an LLM client that
+	// childModeSlackStall runs signalrun.Run with an LLM client that
 	// succeeds at once and a webhook publisher that stops until its context
 	// ends; the publisher, not the LLM client, creates the ready marker.
 	childModeSlackStall = "slack-stall"
