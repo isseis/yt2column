@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-14 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 本修正で `design_handoff.md` の項目（H-01）を変更したため、再承認が必要である。他の決定は変更していない。 |
+| Review date | 2026-10-14 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 設計の全体像 (Design Overview)
 
