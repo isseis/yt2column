@@ -8,7 +8,7 @@
 | Created | 2026-10-14 |
 | Review date | 2026-10-14 |
 | Reviewer | isseis |
-| Comments | AC-04 の抽象度を上げ、応答の検査の列挙を 0010 F-003 の境界の契約への参照に改めた（編集上の修正。決定は変えていない）。 |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
