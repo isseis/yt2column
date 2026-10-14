@@ -451,8 +451,26 @@ func TestStoreCloseIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewStore error = %v", err)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatalf("Close error = %v", err)
+	for i := range 2 {
+		if err := store.Close(); err != nil {
+			t.Fatalf("Close call %d error = %v, want nil", i+1, err)
+		}
+	}
+}
+
+func TestSaveLoadRejectUnknownStage(t *testing.T) {
+	store, _ := newTestStore(t)
+	for _, stage := range []writer.Stage{writer.StageUnset, writer.Stage(99)} {
+		t.Run(stage.String(), func(t *testing.T) {
+			rec := validGeneration()
+			rec.Stage = stage
+			if _, err := store.Save(context.Background(), testVideoID, rec); !errors.Is(err, errInvalidStage) {
+				t.Errorf("Save error = %v, want errInvalidStage", err)
+			}
+			if _, err := store.Load(context.Background(), testVideoID, stage, "m"); !errors.Is(err, errInvalidStage) {
+				t.Errorf("Load error = %v, want errInvalidStage", err)
+			}
+		})
 	}
 }
 

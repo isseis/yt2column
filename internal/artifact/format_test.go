@@ -167,6 +167,12 @@ func TestMarshalParseRoundTrip(t *testing.T) {
 		rec  writer.StageRecord
 	}{
 		{"generation", validGeneration()},
+		{"generation with a model version", func() writer.StageRecord {
+			rec := validGeneration()
+			rec.ModelVersion = "2026-10-14"
+			rec.ID = recordID(rec)
+			return rec
+		}()},
 		{"review", validReview()},
 		{"review with no revisions", func() writer.StageRecord {
 			rec := validReview()
@@ -339,6 +345,24 @@ func TestParseRecordRejects(t *testing.T) {
 			fields := mutate(t, generation, func(f map[string]any) { delete(f, "body") })
 			return marshalFields(t, fields)
 		}},
+		{"missing title", func(t *testing.T) []byte {
+			fields := mutate(t, generation, func(f map[string]any) { delete(f, "title") })
+			return marshalFields(t, fields)
+		}},
+		{"review revision not an object", func(t *testing.T) []byte {
+			fields := mutate(t, review, func(f map[string]any) {
+				f["revisions"] = []any{"x"}
+			})
+			return marshalFields(t, fields)
+		}},
+		{"review revision duplicate key", func(t *testing.T) []byte {
+			valid := mustMarshal(t, validReview())
+			return []byte(strings.Replace(string(valid), `"reason":"meaning_change"`, `"reason":"meaning_change","reason":"meaning_change"`, 1))
+		}},
+		{"system duplicate key", func(t *testing.T) []byte {
+			valid := mustMarshal(t, validGeneration())
+			return []byte(strings.Replace(string(valid), `"embedded":true`, `"embedded":true,"embedded":true`, 1))
+		}},
 		{"body starts with a byte order mark", func(t *testing.T) []byte {
 			fields := mutate(t, generation, func(f map[string]any) { f["body"] = "\uFEFF" + markArtifactBody })
 			return marshalFields(t, fields)
@@ -491,4 +515,25 @@ func TestParseRecordLimits(t *testing.T) {
 // to assert the boundary length.
 func textLength(rec writer.StageRecord) string {
 	return "# " + rec.Title + "\n" + rec.Body
+}
+
+func TestMarshalKeepsEscapingHeavyBodyWithinTheLimit(t *testing.T) {
+	// A body at the text cap of "&" would expand six-fold under HTML escaping
+	// and exceed the file cap; Marshal must not escape it, so the artifact it
+	// writes still round-trips through Parse (and therefore through Load).
+	rec := validGeneration()
+	rec.Title = "T"
+	rec.Body = strings.Repeat("&", testMaxTextBytes-len("# ")-len(rec.Title)-1)
+	rec.ID = recordID(rec)
+	data, err := Marshal(rec)
+	if err != nil {
+		t.Fatalf("Marshal error = %v", err)
+	}
+	if len(data) > maxArtifactBytes {
+		t.Fatalf("Marshal produced %d bytes, want at most %d", len(data), maxArtifactBytes)
+	}
+	got := mustParse(t, data)
+	if got.Body != rec.Body {
+		t.Errorf("body round trip = %d bytes, want %d", len(got.Body), len(rec.Body))
+	}
 }

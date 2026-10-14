@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/isseis/yt2column/internal/transcript"
 	"github.com/isseis/yt2column/internal/writer"
 )
 
@@ -123,4 +124,60 @@ func TestLoadRejectsBrokenPreviousStage(t *testing.T) {
 	if _, err := store.Load(context.Background(), testVideoID, writer.StageReview, materialID); !errors.Is(err, ErrMalformed) {
 		t.Fatalf("Load error = %v, want ErrMalformed", err)
 	}
+}
+
+func TestMaterialID(t *testing.T) {
+	// MaterialID is the value the whole chain is anchored to: the generation
+	// artifact's input must equal the current material. Pin its exact
+	// composition, including the video ID and the transcript text's join.
+	base := transcript.Transcript{
+		VideoID:     testVideoID,
+		VideoURL:    "https://www.youtube.com/watch?v=" + testVideoID,
+		Title:       "Title",
+		ChannelName: "Channel",
+		Description: "Description",
+		Segments: []transcript.Segment{
+			{StartMs: 0, Text: "one"},
+			{StartMs: 1500, Text: "two"},
+		},
+	}
+	id := writer.MaterialID(base)
+	want := writer.Digest(base.VideoID, base.Title, base.ChannelName, base.Description, "one\ntwo")
+	if id != want {
+		t.Fatalf("MaterialID = %q, want %q", id, want)
+	}
+
+	changes := []struct {
+		name   string
+		change func(*transcript.Transcript)
+	}{
+		{"video ID", func(tr *transcript.Transcript) {
+			tr.VideoID = "aaaaaaaaaaa"
+			tr.VideoURL = "https://www.youtube.com/watch?v=aaaaaaaaaaa"
+		}},
+		{"title", func(tr *transcript.Transcript) { tr.Title = "Other" }},
+		{"channel name", func(tr *transcript.Transcript) { tr.ChannelName = "Other" }},
+		{"description", func(tr *transcript.Transcript) { tr.Description = "Other" }},
+		{"segment text", func(tr *transcript.Transcript) { tr.Segments[0].Text = "changed" }},
+		{"segment count", func(tr *transcript.Transcript) { tr.Segments = tr.Segments[:1] }},
+	}
+	for _, tc := range changes {
+		t.Run(tc.name, func(t *testing.T) {
+			other := base
+			other.Segments = append([]transcript.Segment(nil), base.Segments...)
+			tc.change(&other)
+			if writer.MaterialID(other) == id {
+				t.Errorf("MaterialID did not change with the %s", tc.name)
+			}
+		})
+	}
+
+	t.Run("segment start times do not matter", func(t *testing.T) {
+		other := base
+		other.Segments = append([]transcript.Segment(nil), base.Segments...)
+		other.Segments[0].StartMs = 9999
+		if got := writer.MaterialID(other); got != id {
+			t.Errorf("MaterialID = %q, want %q (StartMs must not affect it)", got, id)
+		}
+	})
 }

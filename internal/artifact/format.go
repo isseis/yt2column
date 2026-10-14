@@ -1,6 +1,7 @@
 package artifact
 
 import (
+	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -72,8 +73,12 @@ type revisionJSON struct {
 }
 
 // Marshal builds the JSON body of one artifact from a record. It computes the
-// record's identifier from its content and stores it under the id key. The
-// writer validates a record before saving it; Marshal trusts its input.
+// record's identifier from its content and stores it under the id key. It does
+// not escape HTML, so a body's "<", ">", and "&" do not expand (the file is
+// read back by this package, not by a browser). It rejects a record whose JSON
+// still exceeds the size limit, so a save never writes an artifact the load
+// path would refuse. The writer validates a record before saving it; Marshal
+// trusts its input values.
 func Marshal(record writer.StageRecord) ([]byte, error) {
 	out := recordJSON{
 		Version:      artifactVersion,
@@ -90,7 +95,17 @@ func Marshal(record writer.StageRecord) ([]byte, error) {
 	if record.Stage == writer.StageReview {
 		out.Revisions = revisionsJSON(record.Revisions)
 	}
-	return json.Marshal(out)
+	var buffer bytes.Buffer
+	encoder := json.NewEncoder(&buffer)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(out); err != nil {
+		return nil, err
+	}
+	data := bytes.TrimSuffix(buffer.Bytes(), []byte("\n"))
+	if len(data) > maxArtifactBytes {
+		return nil, malformedf("artifact exceeds the limit of %d bytes", maxArtifactBytes)
+	}
+	return data, nil
 }
 
 // Parse validates one artifact's bytes and returns its record. It rejects any
@@ -374,9 +389,10 @@ func boolWire(value bool) string {
 	return "false"
 }
 
-// isHexDigest reports whether value is exactly one SHA-256 digest in hex.
+// isHexDigest reports whether value is exactly one SHA-256 digest in lower-case
+// hex, the only spelling Marshal writes.
 func isHexDigest(value string) bool {
-	if len(value) != sha256HexLen {
+	if len(value) != sha256HexLen || strings.ToLower(value) != value {
 		return false
 	}
 	_, err := hex.DecodeString(value)
