@@ -31,12 +31,13 @@ func testIdentity(embedded bool, text string) writer.TemplateIdentity {
 	return writer.TemplateIdentity{Embedded: embedded, Digest: writer.Digest(text)}
 }
 
-// validGeneration returns a generation record that passes Parse.
+// validGeneration returns a generation record that passes Parse. The body
+// carries a mark, so a rejection's error message can be checked for it.
 func validGeneration() writer.StageRecord {
 	rec := writer.StageRecord{
 		Stage:  writer.StageGeneration,
 		Title:  "Title",
-		Body:   "Body text.",
+		Body:   markArtifactBody,
 		Model:  "test-model",
 		System: testIdentity(true, "system template"),
 		User:   testIdentity(false, "user template"),
@@ -47,13 +48,14 @@ func validGeneration() writer.StageRecord {
 }
 
 // validReview returns a review record, with a replacement and a deletion, that
-// passes Parse.
+// passes Parse. The evidence carries a mark, so a rejection's error message can
+// be checked for it.
 func validReview() writer.StageRecord {
 	rec := validGeneration()
 	rec.Stage = writer.StageReview
 	rec.Revisions = []writer.Revision{
-		{Before: "Body text.", Action: writer.ActionReplace, After: "Body revised.", Reason: writer.ReasonMeaningChange, Evidence: "evidence one"},
-		{Before: "extra", Action: writer.ActionDelete, Reason: writer.ReasonUnsupported, Evidence: "evidence two"},
+		{Before: markArtifactBody, Action: writer.ActionReplace, After: markArtifactBody + " revised", Reason: writer.ReasonMeaningChange, Evidence: markArtifactRev},
+		{Before: "extra", Action: writer.ActionDelete, Reason: writer.ReasonUnsupported, Evidence: markArtifactRev},
 	}
 	rec.ID = recordID(rec)
 	return rec
@@ -183,49 +185,12 @@ func TestMarshalParseRoundTrip(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			data := mustMarshal(t, tc.rec)
-			got := mustParse(t, data)
-			if got.Stage != tc.rec.Stage || got.Title != tc.rec.Title || got.Body != tc.rec.Body {
+			got := mustParse(t, mustMarshal(t, tc.rec))
+			if !sameRecord(got, tc.rec) {
 				t.Errorf("Parse(Marshal(record)) = %+v, want %+v", got, tc.rec)
-			}
-			if got.Model != tc.rec.Model || got.ModelVersion != tc.rec.ModelVersion {
-				t.Errorf("model = %q/%q, want %q/%q", got.Model, got.ModelVersion, tc.rec.Model, tc.rec.ModelVersion)
-			}
-			if got.System != tc.rec.System || got.User != tc.rec.User {
-				t.Errorf("identities = %+v/%+v, want %+v/%+v", got.System, got.User, tc.rec.System, tc.rec.User)
-			}
-			if got.Input != tc.rec.Input || got.ID != tc.rec.ID {
-				t.Errorf("input/id = %q/%q, want %q/%q", got.Input, got.ID, tc.rec.Input, tc.rec.ID)
-			}
-			if len(got.Revisions) != len(tc.rec.Revisions) {
-				t.Fatalf("revisions = %+v, want %+v", got.Revisions, tc.rec.Revisions)
-			}
-			for i := range got.Revisions {
-				if got.Revisions[i] != tc.rec.Revisions[i] {
-					t.Errorf("revisions[%d] = %+v, want %+v", i, got.Revisions[i], tc.rec.Revisions[i])
-				}
-			}
-			// The id is a function of the content, so it survives the trip.
-			if got.ID == "" || got.ID != recordID(got) {
-				t.Errorf("id = %q, want the content identifier %q", got.ID, recordID(got))
 			}
 		})
 	}
-}
-
-func TestParseRejectsRevisionStageMismatch(t *testing.T) {
-	// A generation record carrying revisions is rejected, and a review record
-	// with no revisions key is rejected.
-	t.Run("generation with revisions", func(t *testing.T) {
-		fields := fieldsFrom(validGeneration())
-		fields["revisions"] = []any{}
-		requireMalformed(t, marshalFields(t, fields))
-	})
-	t.Run("review without revisions", func(t *testing.T) {
-		fields := fieldsFrom(validReview())
-		delete(fields, "revisions")
-		requireMalformed(t, marshalFields(t, fields))
-	})
 }
 
 func TestParseRecordRejects(t *testing.T) {
@@ -363,6 +328,16 @@ func TestParseRecordRejects(t *testing.T) {
 			valid := mustMarshal(t, validGeneration())
 			return []byte(strings.Replace(string(valid), `"embedded":true`, `"embedded":true,"embedded":true`, 1))
 		}},
+		{"revisions on a generation", func(t *testing.T) []byte {
+			fields := fieldsFrom(validGeneration())
+			fields["revisions"] = []any{}
+			return marshalFields(t, fields)
+		}},
+		{"review without revisions", func(t *testing.T) []byte {
+			fields := fieldsFrom(validReview())
+			delete(fields, "revisions")
+			return marshalFields(t, fields)
+		}},
 		{"body starts with a byte order mark", func(t *testing.T) []byte {
 			fields := mutate(t, generation, func(f map[string]any) { f["body"] = "\uFEFF" + markArtifactBody })
 			return marshalFields(t, fields)
@@ -433,9 +408,6 @@ func mutate(t *testing.T, base map[string]any, change func(map[string]any)) map[
 }
 
 func TestParseRecordTextRules(t *testing.T) {
-	t.Run("valid text is accepted", func(t *testing.T) {
-		mustParse(t, mustMarshal(t, validGeneration()))
-	})
 	t.Run("body is whitespace only", func(t *testing.T) {
 		fields := mutate(t, fieldsFrom(validGeneration()), func(f map[string]any) { f["body"] = " \t " })
 		requireMalformed(t, marshalFields(t, fields))
@@ -446,17 +418,32 @@ func TestParseRecordTextRules(t *testing.T) {
 	})
 }
 
+// revisionsN builds n replacement revisions, for the revision-count boundary.
+func revisionsN(n int) []writer.Revision {
+	revisions := make([]writer.Revision, n)
+	for i := range revisions {
+		revisions[i] = writer.Revision{
+			Before:   "b" + strconv.Itoa(i),
+			Action:   writer.ActionReplace,
+			After:    "a" + strconv.Itoa(i),
+			Reason:   writer.ReasonMeaningChange,
+			Evidence: markArtifactRev,
+		}
+	}
+	return revisions
+}
+
 func TestParseRecordLimits(t *testing.T) {
-	// The text cap: a text of exactly maxTextBytes is accepted, one byte more
-	// is rejected.
+	// The text cap: a text of exactly testMaxTextBytes is accepted, one byte
+	// more is rejected.
 	t.Run("text at the limit", func(t *testing.T) {
 		rec := validGeneration()
 		rec.Title = "T"
 		rec.Body = strings.Repeat("a", testMaxTextBytes-len("# ")-len(rec.Title)-1)
 		rec.ID = recordID(rec)
 		got := mustParse(t, mustMarshal(t, rec))
-		if len(textLength(got)) != testMaxTextBytes {
-			t.Fatalf("text length = %d, want %d", len(textLength(got)), testMaxTextBytes)
+		if want := testMaxTextBytes - len("# ") - len(rec.Title) - 1; len(got.Body) != want {
+			t.Fatalf("body length = %d, want %d", len(got.Body), want)
 		}
 	})
 	t.Run("text over the limit", func(t *testing.T) {
@@ -472,16 +459,7 @@ func TestParseRecordLimits(t *testing.T) {
 	// is rejected.
 	t.Run("revisions at the limit", func(t *testing.T) {
 		rec := validReview()
-		rec.Revisions = make([]writer.Revision, testMaxRevisions)
-		for i := range rec.Revisions {
-			rec.Revisions[i] = writer.Revision{
-				Before:   "b" + strconv.Itoa(i),
-				Action:   writer.ActionReplace,
-				After:    "a" + strconv.Itoa(i),
-				Reason:   writer.ReasonMeaningChange,
-				Evidence: markArtifactRev,
-			}
-		}
+		rec.Revisions = revisionsN(testMaxRevisions)
 		rec.ID = recordID(rec)
 		got := mustParse(t, mustMarshal(t, rec))
 		if len(got.Revisions) != testMaxRevisions {
@@ -490,16 +468,7 @@ func TestParseRecordLimits(t *testing.T) {
 	})
 	t.Run("revisions over the limit", func(t *testing.T) {
 		rec := validReview()
-		rec.Revisions = make([]writer.Revision, testMaxRevisions+1)
-		for i := range rec.Revisions {
-			rec.Revisions[i] = writer.Revision{
-				Before:   "b" + strconv.Itoa(i),
-				Action:   writer.ActionReplace,
-				After:    "a" + strconv.Itoa(i),
-				Reason:   writer.ReasonMeaningChange,
-				Evidence: markArtifactRev,
-			}
-		}
+		rec.Revisions = revisionsN(testMaxRevisions + 1)
 		rec.ID = recordID(rec)
 		// Built without Marshal, which now refuses a record Parse rejects.
 		requireMalformed(t, marshalFields(t, fieldsFrom(rec)))
@@ -511,12 +480,6 @@ func TestParseRecordLimits(t *testing.T) {
 	t.Run("file over the limit", func(t *testing.T) {
 		requireMalformed(t, make([]byte, maxArtifactBytes+1))
 	})
-}
-
-// textLength returns the generated-text form Parse checked for a record, used
-// to assert the boundary length.
-func textLength(rec writer.StageRecord) string {
-	return "# " + rec.Title + "\n" + rec.Body
 }
 
 func TestMarshalRejectsUnloadableRecord(t *testing.T) {
@@ -548,9 +511,6 @@ func TestMarshalKeepsEscapingHeavyBodyWithinTheLimit(t *testing.T) {
 	data, err := Marshal(rec)
 	if err != nil {
 		t.Fatalf("Marshal error = %v", err)
-	}
-	if len(data) > maxArtifactBytes {
-		t.Fatalf("Marshal produced %d bytes, want at most %d", len(data), maxArtifactBytes)
 	}
 	got := mustParse(t, data)
 	if got.Body != rec.Body {

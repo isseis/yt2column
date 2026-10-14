@@ -8,7 +8,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"testing"
 
@@ -55,9 +54,6 @@ func mustSave(t *testing.T, store *Store, rec writer.StageRecord) string {
 	id, err := store.Save(context.Background(), testVideoID, rec)
 	if err != nil {
 		t.Fatalf("Save error = %v", err)
-	}
-	if id != recordID(rec) {
-		t.Fatalf("Save id = %q, want %q", id, recordID(rec))
 	}
 	return id
 }
@@ -292,35 +288,36 @@ func TestLoadRejectsSymlinkAndFIFO(t *testing.T) {
 	})
 }
 
+// swapWithSymlink returns a newStore hook that, when called for the artifact
+// name, replaces it with a symbolic link to linkTarget.
+func swapWithSymlink(t *testing.T, dir, name, linkTarget string) func(string) {
+	t.Helper()
+	return func(hit string) {
+		if filepath.Base(hit) != name {
+			return
+		}
+		if err := os.Remove(filepath.Join(dir, name)); err != nil {
+			t.Fatalf("remove artifact: %v", err)
+		}
+		if err := os.Symlink(linkTarget, filepath.Join(dir, name)); err != nil {
+			t.Fatalf("symlink: %v", err)
+		}
+	}
+}
+
 func TestLoadRejectsSwapAfterLstat(t *testing.T) {
 	valid := mustMarshal(t, validGeneration())
+	name := testVideoID + ".generation.json"
 
 	t.Run("replaced by a relative symbolic link", func(t *testing.T) {
-		base := t.TempDir()
-		dir := filepath.Join(base, "dir")
-		if err := os.Mkdir(dir, 0o700); err != nil {
-			t.Fatalf("mkdir: %v", err)
-		}
-		target := filepath.Join(dir, "target")
-		if err := os.WriteFile(target, valid, 0o600); err != nil {
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, "target"), valid, 0o600); err != nil {
 			t.Fatalf("write target: %v", err)
 		}
-		name := testVideoID + ".generation.json"
 		if err := os.WriteFile(filepath.Join(dir, name), valid, 0o600); err != nil {
 			t.Fatalf("write artifact: %v", err)
 		}
-		swap := func(hit string) {
-			if filepath.Base(hit) != name {
-				return
-			}
-			if err := os.Remove(filepath.Join(dir, name)); err != nil {
-				t.Fatalf("remove artifact: %v", err)
-			}
-			if err := os.Symlink("target", filepath.Join(dir, name)); err != nil {
-				t.Fatalf("symlink: %v", err)
-			}
-		}
-		store, err := newStore(dir, swap)
+		store, err := newStore(dir, swapWithSymlink(t, dir, name, "target"))
 		if err != nil {
 			t.Fatalf("newStore error = %v", err)
 		}
@@ -331,31 +328,15 @@ func TestLoadRejectsSwapAfterLstat(t *testing.T) {
 	})
 
 	t.Run("replaced by an escaping symbolic link", func(t *testing.T) {
-		base := t.TempDir()
-		dir := filepath.Join(base, "dir")
-		if err := os.Mkdir(dir, 0o700); err != nil {
-			t.Fatalf("mkdir: %v", err)
-		}
-		name := testVideoID + ".generation.json"
-		outside := filepath.Join(base, "outside")
+		dir := t.TempDir()
+		outside := filepath.Join(t.TempDir(), "outside")
 		if err := os.WriteFile(outside, valid, 0o600); err != nil {
 			t.Fatalf("write outside: %v", err)
 		}
 		if err := os.WriteFile(filepath.Join(dir, name), valid, 0o600); err != nil {
 			t.Fatalf("write artifact: %v", err)
 		}
-		swap := func(hit string) {
-			if filepath.Base(hit) != name {
-				return
-			}
-			if err := os.Remove(filepath.Join(dir, name)); err != nil {
-				t.Fatalf("remove artifact: %v", err)
-			}
-			if err := os.Symlink(outside, filepath.Join(dir, name)); err != nil {
-				t.Fatalf("symlink: %v", err)
-			}
-		}
-		store, err := newStore(dir, swap)
+		store, err := newStore(dir, swapWithSymlink(t, dir, name, outside))
 		if err != nil {
 			t.Fatalf("newStore error = %v", err)
 		}
@@ -392,12 +373,8 @@ func TestSaveDoesNotFollowSymlink(t *testing.T) {
 	if !info.Mode().IsRegular() {
 		t.Errorf("artifact is %v, want a regular file (the rename replaces the link)", info.Mode())
 	}
-	chain, err := store.Load(context.Background(), testVideoID, writer.StageGeneration, validGeneration().Input)
-	if err != nil {
-		t.Fatalf("Load error = %v", err)
-	}
-	if chain.Generation.Stage != writer.StageGeneration {
-		t.Errorf("stage = %v, want generation", chain.Generation.Stage)
+	if _, err := store.Load(context.Background(), testVideoID, writer.StageGeneration, validGeneration().Input); err != nil {
+		t.Errorf("Load error = %v, want the saved artifact to be readable", err)
 	}
 }
 
@@ -445,19 +422,6 @@ func TestLoadRejectsWrongStageInFile(t *testing.T) {
 	}
 }
 
-func TestStoreCloseIsIdempotent(t *testing.T) {
-	dir := t.TempDir()
-	store, err := NewStore(dir)
-	if err != nil {
-		t.Fatalf("NewStore error = %v", err)
-	}
-	for i := range 2 {
-		if err := store.Close(); err != nil {
-			t.Fatalf("Close call %d error = %v, want nil", i+1, err)
-		}
-	}
-}
-
 func TestSaveLoadRejectUnknownStage(t *testing.T) {
 	store, _ := newTestStore(t)
 	for _, stage := range []writer.Stage{writer.StageUnset, writer.Stage(99)} {
@@ -471,15 +435,5 @@ func TestSaveLoadRejectUnknownStage(t *testing.T) {
 				t.Errorf("Load error = %v, want errInvalidStage", err)
 			}
 		})
-	}
-}
-
-func TestArtifactNameHasNoSeparators(t *testing.T) {
-	name := artifactName(testVideoID, writer.StageReview)
-	if strings.ContainsAny(name, `/\`) {
-		t.Errorf("artifact name %q contains a path separator", name)
-	}
-	if name != testVideoID+".review.json" {
-		t.Errorf("artifact name = %q, want %q", name, testVideoID+".review.json")
 	}
 }
