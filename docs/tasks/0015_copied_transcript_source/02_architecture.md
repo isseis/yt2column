@@ -8,7 +8,7 @@
 | Created | 2026-10-14 |
 | Review date | 2026-10-14 |
 | Reviewer | isseis |
-| Comments | 2026-10-14 記述の訂正（決定の変更なし）: 実データの追加のコミットを、存在しない `938a4d9` から squash 後の `4fe06e0` に改め、§3.4・§8 で `testdata/README.md`・`.gitattributes` が同コミットで追加済みであることを明記した。 |
+| Comments | 2026-10-14 記述の訂正（決定の変更なし）: 実データの追加のコミットを、存在しない `938a4d9` から squash 後の `4fe06e0` に改め、§3.4・§8 で `testdata/README.md`・`.gitattributes` が同コミットで追加済みであることを明記した。同日、§3.4 の `project_overview.md` の行に、`:76` の注記の更新を加えた（記載漏れの訂正。決定の変更なし）。 |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md) の項番を指す。既存のコードと文書の行番号は、コミット `0a46cf0`（要件の承認のコミット）で確かめたものである。「0011 §N」は [0011_localhost_server/02_architecture.md](../0011_localhost_server/02_architecture.md) の節を、「0007」は [0007_browser_extension_skeleton/](../0007_browser_extension_skeleton/) の文書を指す。
 
@@ -451,7 +451,7 @@ var ErrCopiedTranscriptFormat = errors.New("copied transcript does not match the
 | `testdata/README.md` | 変更（コミット `4fe06e0` で記載済み） | 上の 3 ファイルの出典・ライセンス・取得日・取得方法・加工内容（§3.5） |
 | `.gitattributes` | 新規（コミット `4fe06e0` で追加済み） | `testdata/*.transcript_copy.txt -text`。`core.autocrlf` の設定で、チェックアウト時に行の区切りが CRLF に書き換わらないようにする（§3.5） |
 | `CLAUDE.md` | 変更 | 「Declare, don't infer」と「Delegate the fragile part」の例外（§1.3.1・§3.6）。Architecture Overview の `TranscriptSource` の説明に `CopiedSource` を加える |
-| `docs/dev/project_overview.md` | 変更 | 「決定済みの方針」の字幕取得（`:11`）に例外 2（§1.3.1）を加える。「パイプライン」の `TranscriptSource` の実装に `CopiedSource` を加える |
+| `docs/dev/project_overview.md` | 変更 | 「決定済みの方針」の字幕取得（`:11`）に例外 2（§1.3.1）を加える。「パイプライン」の `TranscriptSource` の実装と、「想定ディレクトリ構成」の `internal/transcript/` の注記（`:76`）に `CopiedSource` を加える |
 | `docs/dev/developer_guide/package_reference.md` | 変更 | `internal/transcript` の行に `CopiedSource`・`NewCopiedSource`・`ErrCopiedTranscriptFormat` を加える |
 | `docs/translation_glossary.md` | 変更 | 「コピーした字幕」「形 A」「形 B」「時刻の行」「本文の行」「読み上げ用ラベル」の対訳 |
 
