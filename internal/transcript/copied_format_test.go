@@ -68,9 +68,24 @@ func TestParseCopiedAccepts(t *testing.T) {
 			want:  []Segment{{StartMs: 24000, Text: "Hello"}},
 		},
 		{
-			name:  "form A English single-unit labels",
+			name:  "form A Japanese single-unit label",
 			input: "1:001 分Hello\n",
 			want:  []Segment{{StartMs: 60000, Text: "Hello"}},
+		},
+		{
+			name:  "form A English single-unit label",
+			input: "1:001 minuteHello\n",
+			want:  []Segment{{StartMs: 60000, Text: "Hello"}},
+		},
+		{
+			name:  "form A equal timestamps are accepted",
+			input: "0:2424 秒x\n0:2424 秒y\n",
+			want:  []Segment{{StartMs: 24000, Text: "x"}, {StartMs: 24000, Text: "y"}},
+		},
+		{
+			name:  "form B equal timestamps are accepted",
+			input: "0:00\nx\n0:00\ny\n",
+			want:  []Segment{{StartMs: 0, Text: "x"}, {StartMs: 0, Text: "y"}},
 		},
 		{
 			name:  "form A English minutes and singular second",
@@ -241,7 +256,10 @@ func TestParseCopiedRejects(t *testing.T) {
 		{name: "form A whitespace-only text", input: "0:2424 秒 ", reason: errCopiedBlankText, line: 1},
 		{name: "form B whitespace-only text", input: "0:00\n \n", reason: errCopiedBlankText, line: 2},
 		{name: "form A has a whole timestamp line", input: "0:2424 秒x\n0:30\n", reason: errCopiedMixedForms, line: 2},
+		{name: "form A has a whole hour timestamp line", input: "0:2424 秒x\n1:00:00\n", reason: errCopiedMixedForms, line: 2},
 		{name: "form B text reads as form A", input: "0:00\n0:2424 秒x\n", reason: errCopiedMixedForms, line: 2},
+		{name: "form A line where form B wants a timestamp", input: "0:00\nx\n1:0024 秒y\n", reason: errCopiedNotTimestamp, line: 3},
+		{name: "English first then a Japanese label", input: "0:2424 secondsx\n0:2424 秒y\n", reason: errCopiedLabelMismatch, line: 2},
 		{name: "form A timestamp goes backward", input: "0:2424 秒x\n0:1010 秒y\n", reason: errCopiedTimestampOrder, line: 2},
 		{name: "form B timestamp goes backward", input: "0:05\nx\n0:00\ny\n", reason: errCopiedTimestampOrder, line: 3},
 		{name: "form B has no text", input: "0:00\n0:05\n", reason: errCopiedNoText},

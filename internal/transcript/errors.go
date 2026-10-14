@@ -13,8 +13,8 @@ var (
 	ErrParseSubtitles  = errors.New("parse subtitles")
 	ErrParseInfo       = errors.New("parse video info")
 	ErrNoSubtitles     = errors.New("no subtitles")
-	// ErrCopiedTranscriptFormat is wrapped by every error returned because a
-	// copied transcript does not match the expected format.
+	// ErrCopiedTranscriptFormat is wrapped by every error NewCopiedSource
+	// returns because the copied transcript does not match the defined format.
 	ErrCopiedTranscriptFormat = errors.New("copied transcript does not match the expected format")
 )
 
