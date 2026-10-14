@@ -227,6 +227,8 @@ See [Test Organization Guide](docs/dev/developer_guide/test_organization.md) for
   for redistribution and must not identify whoever captured it; full-page browser
   snapshots are never committed and live outside the repository. See
   [Security Considerations §7](docs/dev/security.md) before adding any.
+- This documentation-only line is a temporary change used to verify the
+  `doc-guard` CI job on a pull request that touches no code.
 
 ### Dependencies
 
