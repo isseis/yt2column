@@ -88,9 +88,9 @@ requirements が定める 2 つの機能要件（F-001・F-002）を、architect
 
 **対象ファイル:** `internal/publisher/reviewlog.go`（変更）、`internal/publisher/reviewlog_test.go`（変更）
 
-- [ ] **ステップ 2-1**: `renderReviewLog`（`internal/publisher/reviewlog.go:74-93`）の項目ごとの分岐に、`ActionReplace` かつ `revision.NoChange()` のとき `After:` の引用の直後に `No change.` の 1 行を書く場合を加える（architecture §3.2・§6 の図3）。`Deleted.` の分岐、`Before != After` の置換の分岐、先頭の `- Revisions:` の件数、`quoteBlock` は変えない。`No change.` の位置は `Deleted.` と同じ（`Evidence:` の直前）とする。（対象: `internal/publisher/reviewlog.go`。成功基準: `renderReviewLog` に `No change.` の分岐が加わり、`Deleted.`・`After:` の分岐と先頭の件数は変わっていない）
-- [ ] **ステップ 2-2**: `TestReviewLogWriterFormat`（`internal/publisher/reviewlog_test.go:28`）に、無変更の項目のサブテストを 1 件加える。`reviewArticle`（`reviewlog_test.go:19`）で `ActionReplace` かつ `Before == After` の `Revision` を持つ記事を作り、書き出したファイル全体を文字列リテラルと比べる。`Before:`・`After:`・`No change.`・`Evidence:` がこの順で読めることを確かめる（AC-05・AC-06）。既存の `empty list`・`replacement`・`deletion with a multiline evidence` の各サブテストは変えない。（対象: `internal/publisher/reviewlog_test.go`。成功基準: 無変更のサブテストが、ファイル全体を文字列リテラルで比べて `Before:`・`After:`・`No change.`・`Evidence:` の順を固定し、既存のサブテストは変わらず通る）
-- [ ] **ステップ 2-3**: フェーズ 2 の完了条件として、`make fmt` → `make test` → `make lint` を通す。既存の `TestReviewLogWriterFormat` の置換・削除のサブテストが引き続き通ることを確かめる。
+- [x] **ステップ 2-1**: `renderReviewLog`（`internal/publisher/reviewlog.go:74-93`）の項目ごとの分岐に、`ActionReplace` かつ `revision.NoChange()` のとき `After:` の引用の直後に `No change.` の 1 行を書く場合を加える（architecture §3.2・§6 の図3）。`Deleted.` の分岐、`Before != After` の置換の分岐、先頭の `- Revisions:` の件数、`quoteBlock` は変えない。`No change.` の位置は `Deleted.` と同じ（`Evidence:` の直前）とする。（対象: `internal/publisher/reviewlog.go`。成功基準: `renderReviewLog` に `No change.` の分岐が加わり、`Deleted.`・`After:` の分岐と先頭の件数は変わっていない）
+- [x] **ステップ 2-2**: `TestReviewLogWriterFormat`（`internal/publisher/reviewlog_test.go:28`）に、無変更の項目のサブテストを 1 件加える。`reviewArticle`（`reviewlog_test.go:19`）で `ActionReplace` かつ `Before == After` の `Revision` を持つ記事を作り、書き出したファイル全体を文字列リテラルと比べる。`Before:`・`After:`・`No change.`・`Evidence:` がこの順で読めることを確かめる（AC-05・AC-06）。既存の `empty list`・`replacement`・`deletion with a multiline evidence` の各サブテストは変えない。（対象: `internal/publisher/reviewlog_test.go`。成功基準: 無変更のサブテストが、ファイル全体を文字列リテラルで比べて `Before:`・`After:`・`No change.`・`Evidence:` の順を固定し、既存のサブテストは変わらず通る）
+- [x] **ステップ 2-3**: フェーズ 2 の完了条件として、`make fmt` → `make test` → `make lint` を通す。既存の `TestReviewLogWriterFormat` の置換・削除のサブテストが引き続き通ることを確かめる。
 
 **完了条件:** 無変更の項目の一覧のファイルに `No change.` が `Evidence:` の直前に 1 行入り、変更のある項目の書式と先頭の件数は変わっていない。
 
