@@ -13,7 +13,7 @@
 
 -   **事項:** `go test -tags test ./cmd/yt2column` の対象範囲で足りるか、文書を読む guard が他のパッケージにもあるかを確認し、対象を決める。
 -   **理由:** `0012` は文書の同期 guard を `cmd/yt2column`（`extension_docs_test.go`・`docs_test.go`・`makefile_test.go`）に集約した。`internal/pipeline/pipeline_test.go` の静的な契約の guard は文書ではなくコードの契約を固定するもので、文書だけの変更では壊れない。対象を広げると `./...` の全テスト（race 付き）を文書だけの PR で走らせることになり、性能の要件に反する。
--   **候補の方針:** 対象は `./cmd/yt2column` とする。文書を読む guard が他パッケージに見つかった場合は、対象に加える（そのときは `-run` を付けず、パッケージを列挙する）。確認の手順と結果を `02_architecture.md` に記す。
+-   **候補の方針:** 要件レビューで `internal/pipeline/pipeline_test.go`（`:646` の `package_reference.md`、`:696` の `prompts/README.md`）にも文書を読む guard があることが分かったため、対象は `./cmd/yt2column ./internal/pipeline` とする（`01_requirements.md` の AC-02・制約を更新済み）。他に文書を読む guard がないことを確認し、確認の手順と結果を `02_architecture.md` に記す。
 -   **関連:** F-001、AC-02、性能
 
 ## H-03: `-tags` の選択（`test` のみで足りるか）
