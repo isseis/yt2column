@@ -78,7 +78,7 @@ requirements §2.3 のとおり。加えて、次のものは本計画で扱わ�
 
 **対象ファイル:** 新設する `internal/failure`・`internal/redact`・`internal/signalrun`・`internal/authtoken` と、変更する `internal/config`・`internal/llm/provider`・`internal/writer`・`cmd/yt2column`。
 
-- [ ] **ステップ 1-1**: `internal/failure/failure.go` に `Kind`・`Notice`・`Notifier` を、architecture §3.9 のとおりに定義する。`Kind` の列挙の並びとゼロ値（`KindUnknown`）を §3.9 のまま固定する。`internal/failure/testutil/mocks.go`（`package failuretestutil`、`//go:build test`）に fake の `Notifier`（呼び出された `Notice` を記録する）を加える。`internal/failure/failure_test.go`（`//go:build test`）に契約ガード（`Notice` の exported フィールドが `RequestID`・`VideoID`・`Kind` の 3 つだけ、`Notifier` のメソッドが `Notify(ctx context.Context, Notice) error` の 1 つだけ、`Kind` のゼロ値が `KindUnknown`、`Kind` 型の定数の並びが §3.9 の列挙と一致する。内容は 0016 architecture §3.6）を置く。`package_reference.md` に `internal/failure`・`internal/failure/testutil` の行を加え、`TestFakesCarryBuildTag` の件数を 17 から 18 に増やす。
+- [x] **ステップ 1-1**: `internal/failure/failure.go` に `Kind`・`Notice`・`Notifier` を、architecture §3.9 のとおりに定義する。`Kind` の列挙の並びとゼロ値（`KindUnknown`）を §3.9 のまま固定する。`internal/failure/testutil/mocks.go`（`package failuretestutil`、`//go:build test`）に fake の `Notifier`（呼び出された `Notice` を記録する）を加える。`internal/failure/failure_test.go`（`//go:build test`）に契約ガード（`Notice` の exported フィールドが `RequestID`・`VideoID`・`Kind` の 3 つだけ、`Notifier` のメソッドが `Notify(ctx context.Context, Notice) error` の 1 つだけ、`Kind` のゼロ値が `KindUnknown`、`Kind` 型の定数の並びが §3.9 の列挙と一致する。内容は 0016 architecture §3.6）を置く。`package_reference.md` に `internal/failure`・`internal/failure/testutil` の行を加え、`TestFakesCarryBuildTag` の件数を 17 から 18 に増やす。
 
 ### PR-1 作成ポイント: failure contract package
 
