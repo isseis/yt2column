@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-14 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-14 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md) の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §3.8）を、I-NN は [implementation_handoff.md](implementation_handoff.md) の項目（対応は §3.4）を指す。「#109 §N」は [0011_localhost_server/02_architecture.md](../0011_localhost_server/02_architecture.md) の節を指す。既存のコードの行番号は、コミット `beefcee`（要件の承認のコミット）で確かめたものである。
