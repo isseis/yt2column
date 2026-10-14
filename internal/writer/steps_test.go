@@ -379,8 +379,8 @@ func TestWriteReviewApplies(t *testing.T) {
 		if a.Title != markGenTitle {
 			t.Errorf("Title = %q, want the unchanged title %q", a.Title, markGenTitle)
 		}
-		if !strings.HasPrefix(a.Body, markGenBody) {
-			t.Errorf("Body = %q, want it to start with the unchanged body %q", a.Body, markGenBody)
+		if want := markGenBody + bodySeparator + sourceBlock(testSourceURL); a.Body != want {
+			t.Errorf("Body = %q, want %q", a.Body, want)
 		}
 		if a.Review == nil {
 			t.Fatal("Review = nil, want the review result")
@@ -392,12 +392,15 @@ func TestWriteReviewApplies(t *testing.T) {
 	})
 
 	t.Run("applies a no-change and a changed revision", func(t *testing.T) {
+		// The changed body revision comes first and the no-change title
+		// revision second, so response order differs from document order: a
+		// list sorted by position would fail the comparison below.
 		edited := markGenBody + "-edited"
 		gen := newStepClient(t, stepResult(llm.GenerateResponse{Text: stepResponseText(markGenTitle, markGenBody), Model: markOutModel}))
 		review := &llmtestutil.FakeLLMClient{Result: llm.GenerateResponse{
 			Text: reviewResponse(
-				replaceItem(markGenTitle, markGenTitle, "meaning_change", markRevisionEvidence),
 				replaceItem(markGenBody, edited, "meaning_change", markRevisionEvidence),
+				replaceItem(markGenTitle, markGenTitle, "meaning_change", markRevisionEvidence),
 			),
 			Model: markReviewModel,
 		}}
@@ -413,15 +416,15 @@ func TestWriteReviewApplies(t *testing.T) {
 		if a.Title != markGenTitle {
 			t.Errorf("Title = %q, want the unchanged title %q", a.Title, markGenTitle)
 		}
-		if !strings.HasPrefix(a.Body, edited) {
-			t.Errorf("Body = %q, want it to start with the revised body %q", a.Body, edited)
+		if want := edited + bodySeparator + sourceBlock(testSourceURL); a.Body != want {
+			t.Errorf("Body = %q, want %q", a.Body, want)
 		}
 		if a.Review == nil {
 			t.Fatal("Review = nil, want the review result")
 		}
 		want := []Revision{
-			{Before: markGenTitle, Action: ActionReplace, After: markGenTitle, Reason: ReasonMeaningChange, Evidence: markRevisionEvidence},
 			{Before: markGenBody, Action: ActionReplace, After: edited, Reason: ReasonMeaningChange, Evidence: markRevisionEvidence},
+			{Before: markGenTitle, Action: ActionReplace, After: markGenTitle, Reason: ReasonMeaningChange, Evidence: markRevisionEvidence},
 		}
 		if !slices.Equal(a.Review.Revisions, want) {
 			t.Errorf("Review.Revisions = %+v, want %+v", a.Review.Revisions, want)
