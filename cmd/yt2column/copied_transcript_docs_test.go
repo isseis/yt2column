@@ -201,8 +201,11 @@ func TestCopiedTranscriptDocsUpdated(t *testing.T) {
 		}
 	}
 
-	if overview := sectionByHeading(claude, "## Architecture Overview"); !strings.Contains(overview, "CopiedSource") {
-		t.Error("CLAUDE.md Architecture Overview does not mention CopiedSource")
+	// The Architecture Overview entry, not the whole section: the "Declare,
+	// don't infer" exception in a later subsection also names CopiedSource, so
+	// a section-wide search would pass even if this entry lost it.
+	if entry := markdownBullet(claude, "- `TranscriptSource`"); !strings.Contains(entry, "CopiedSource") {
+		t.Error("CLAUDE.md's Architecture Overview TranscriptSource entry does not mention CopiedSource")
 	}
 
 	overview := readDoc(t, projectOverviewPath)
@@ -210,6 +213,9 @@ func TestCopiedTranscriptDocsUpdated(t *testing.T) {
 		if section := sectionByHeading(overview, heading); !strings.Contains(section, "CopiedSource") {
 			t.Errorf("project_overview.md %s does not mention CopiedSource", heading)
 		}
+	}
+	if policies := sectionByHeading(overview, "## 決定済みの方針"); !strings.Contains(policies, "yt-dlp") || !strings.Contains(policies, "代わりの手段") {
+		t.Error("project_overview.md 決定済みの方針 does not record the copied-transcript exception")
 	}
 
 	reference := readDoc(t, packageReferencePath)
@@ -250,6 +256,9 @@ intro
 - **A**: a body
   a continuation
 - **B**: b body
+- **Blank**: body line
+
+  after a blank line
 ## Next
 - **Declare, don't infer**: first line
   second line
@@ -268,6 +277,10 @@ intro
 			want: "- **B**: b body\n",
 		},
 		{
+			name: "Blank",
+			want: "- **Blank**: body line\n",
+		},
+		{
 			name: "Declare, don't infer",
 			want: "- **Declare, don't infer**: first line\n  second line\n",
 		},
@@ -277,6 +290,10 @@ intro
 		},
 		{
 			name: "Declare",
+			want: "",
+		},
+		{
+			name: "Delegate",
 			want: "",
 		},
 		{
@@ -293,12 +310,18 @@ intro
 }
 
 // claudeBullet returns the text of the top-level bullet in doc whose lead-in is
-// the bold name (for example "Declare, don't infer"), including its
-// continuation lines, up to the next top-level bullet or heading. The name is
-// matched exactly, so "Delegate" does not match "Delegate the fragile part", and
-// a missing item returns the empty string.
+// the bold name (for example "Declare, don't infer"). It is markdownBullet with
+// the bold lead-in form.
 func claudeBullet(doc, name string) string {
-	marker := "- **" + name + "**:"
+	return markdownBullet(doc, "- **"+name+"**:")
+}
+
+// markdownBullet returns the text of the top-level bullet in doc that starts
+// with marker, including its continuation lines, up to the next top-level
+// bullet, heading, or blank line. The marker is matched exactly, so a name that
+// only prefixes another (for example "Delegate" against "Delegate the fragile
+// part") does not match, and a missing bullet returns the empty string.
+func markdownBullet(doc, marker string) string {
 	inItem := false
 	var b strings.Builder
 	for line := range strings.Lines(doc) {
