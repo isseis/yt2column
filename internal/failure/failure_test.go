@@ -27,10 +27,10 @@ func TestNoticeFieldSet(t *testing.T) {
 	}
 	typ := reflect.TypeFor[Notice]()
 	if typ.NumField() != len(want) {
-		t.Errorf("Notice has %d fields, want %d", typ.NumField(), len(want))
+		t.Errorf("Notice has %d fields, want %d; a new field widens what a failure post may carry, so revisit the notice text and its callers", typ.NumField(), len(want))
 	}
 	if got := exportedFieldTypes(typ); !maps.Equal(got, want) {
-		t.Errorf("Notice fields = %v, want %v", got, want)
+		t.Errorf("Notice fields = %v, want %v; a new field widens what a failure post may carry, so revisit the notice text and its callers", got, want)
 	}
 }
 
@@ -39,14 +39,14 @@ func TestNoticeFieldSet(t *testing.T) {
 func TestNotifierMethodSet(t *testing.T) {
 	typ := reflect.TypeFor[Notifier]()
 	if typ.NumMethod() != 1 {
-		t.Fatalf("Notifier has %d methods, want 1", typ.NumMethod())
+		t.Fatalf("Notifier has %d methods, want 1; a new method widens the notifier contract, so revisit the notice text and its callers", typ.NumMethod())
 	}
 	m := typ.Method(0)
 	if m.Name != "Notify" {
-		t.Errorf("Notifier method = %q, want %q", m.Name, "Notify")
+		t.Errorf("Notifier method = %q, want %q; a new method widens the notifier contract, so revisit the notice text and its callers", m.Name, "Notify")
 	}
 	if want := reflect.TypeFor[func(context.Context, Notice) error](); m.Type != want {
-		t.Errorf("Notifier.Notify type = %s, want %s", m.Type, want)
+		t.Errorf("Notifier.Notify type = %s, want %s; a changed signature widens the notifier contract, so revisit the notice text and its callers", m.Type, want)
 	}
 }
 
@@ -55,7 +55,7 @@ func TestNotifierMethodSet(t *testing.T) {
 func TestKindZeroValue(t *testing.T) {
 	var k Kind
 	if k != KindUnknown {
-		t.Errorf("zero Kind = %d, want KindUnknown", k)
+		t.Errorf("zero Kind = %d, want KindUnknown; Notice{} must keep meaning an unclassified failure, so keep KindUnknown first in the iota block", k)
 	}
 }
 
@@ -79,10 +79,10 @@ func TestKindConstants(t *testing.T) {
 	}
 	got := kindConstantNames(t)
 	if len(got) == 0 {
-		t.Fatalf("found no Kind constants in the package")
+		t.Fatalf("found no Kind constants in the package; keep the Kind-typed iota block and this guard in step")
 	}
 	if !slices.Equal(got, want) {
-		t.Errorf("Kind constants = %v, want %v", got, want)
+		t.Errorf("Kind constants = %v, want %v; a new kind must also reach the failure text and the classification switch", got, want)
 	}
 }
 
@@ -112,8 +112,10 @@ func kindConstantNames(t *testing.T) []string {
 }
 
 // kindConstantsInFile returns the names of the Kind-typed constants of one
-// file, in declaration order. Within a const block a spec without a type
-// repeats the previous spec's type, so the last explicit type is tracked.
+// file, in declaration order. It recognizes the `Name Kind = iota` form: within
+// a const block a spec with neither a type nor its own expression list repeats
+// the previous spec's type, while a spec with its own expression is not a
+// continuation. A type written as a Kind(...) conversion is not recognized.
 func kindConstantsInFile(file *ast.File) []string {
 	var names []string
 	for _, decl := range file.Decls {
@@ -127,8 +129,11 @@ func kindConstantsInFile(file *ast.File) []string {
 			if !ok {
 				continue
 			}
-			if vs.Type != nil {
+			switch {
+			case vs.Type != nil:
 				current = vs.Type
+			case vs.Values != nil:
+				current = nil
 			}
 			if !isKindType(current) {
 				continue
