@@ -314,7 +314,7 @@ Go の guard は macOS と Linux（CI）のどちらでも `make test` で動く
 |---|---|
 | H-01（移した guard の置き場所） | `cmd/yt2column/extension_docs_test.go`（`package main`、`//go:build test`）に置く。既存の doc guard と同じ場所で、ヘルパと `repositoryRoot` を共有できる（§1.1 原則 2・§2.2） |
 | H-02（既存 `docs_test.go` との境界とヘルパの再利用） | 境界は「既存は CLI とプロバイダの契約、移す検査は拡張の契約」。`docSection` を汎用の `sectionByHeading` に置き換え、表のヘルパは再利用する（§3.2・§3.5・§3.8・§3.9） |
-| H-03（文書だけの変更を CI で保護するか） | 変えない。CI の分類・トリガはそのままとし、ローカルの `make test`（`CLAUDE.md:209`）に委ねる。残るリスクを §7.4 に明示した。CI で守る案は別のタスクとする（#181。§11） |
+| H-03（文書だけの変更を CI で保護するか） | 変えない。CI の分類・トリガはそのままとし、ローカルの `make test`（`CLAUDE.md:209`）に委ねる。残るリスクを §7.4 に明示した。CI で守る案は別のタスクとする（#181。§11）。（後続タスク `0014`（#181）が常時実行の `doc-guard` ジョブとして実装したので、この回答は設計時の記録であり、現在の実行範囲は §7.4 を参照。） |
 | H-04（タスク `0007` の文書の訂正の扱い） | 編集しない。`0007` の `02_architecture.md` に `docs.test.ts` への言及はない。`03_implementation_plan.md` の `docs.test.ts` への言及は、ステップの完了記録・AC トレーサビリティ表・マイルストーン・PR・リスク・成功基準のいずれも、そのとき何をしたかの履歴である。申し送りが現在形の指針として挙げた 2 か所（`03_implementation_plan.md:36` の英語の例外の説明と、`:445` の「`docs.test.ts::manual checks are recorded`（ステップ 5-6）は…確かめる」）も、完了したタスクの計画の記述であり、現在の指針は `CLAUDE.md`「Go Idioms」の例外と本タスクの `extension_docs_test.go` が担う。したがって、これらも履歴として残し、編集上の訂正も行わない（要件 §2.3・制約） |
 | H-05（拡張 ID の導出と manifest の読み取りの Go 実装） | `encoding/json` で manifest を読み、`encoding/base64`・`crypto/x509`・`crypto/sha256` で導出する。解析の失敗はエラーとする（§3.4） |
 | H-06（`extension/test` のヘルパの再利用と削除） | `extensionId.ts`・`repoFile.ts`・`paths.ts` は他のテストが使うので残す。`docs.test.ts` だけの import・リテラルは削除し、`make ext-check` で確かめる（§3.7・§3.8） |
