@@ -136,7 +136,7 @@ requirements §2.3 のとおり。加えて、次のものは本計画で扱わ�
 - [x] PR がマージされた
 - [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
-- [ ] **ステップ 1-5**: `internal/authtoken`（`Token`・`LoadOrCreate`・`Matches`・`IsZero`・`Value`・`FileError`・`ErrInvalidTokenFile`）を architecture §3.3・§4.1 のとおりに実装する。一時ファイルと `link(2)` で作り、読み込みで通常ファイル・権限・所有者・64 バイト・`^[0-9a-f]{64}$` を検査し、末尾の改行も拒否する。`crypto/subtle.ConstantTimeCompare` で比較する。`package_reference.md` に行を加える。
+- [x] **ステップ 1-5**: `internal/authtoken`（`Token`・`LoadOrCreate`・`Matches`・`IsZero`・`Value`・`FileError`・`ErrInvalidTokenFile`）を architecture §3.3・§4.1 のとおりに実装する。一時ファイルと `link(2)` で作り、読み込みで通常ファイル・権限・所有者・64 バイト・`^[0-9a-f]{64}$` を検査し、末尾の改行も拒否する。`crypto/subtle.ConstantTimeCompare` で比較する。`package_reference.md` に行を加える。
 
 ### PR-4 作成ポイント: shared token file
 
