@@ -144,7 +144,7 @@ func newRunEnv(t *testing.T) *runEnv {
 		return validResponse(), nil
 	})
 	e.d = productionDeps()
-	e.d.newLLMClient = func(config.Config) (llm.LLMClient, error) {
+	e.d.newLLMClient = func(config.LLMConfig) (llm.LLMClient, error) {
 		return e.counter.wrap(e.client), nil
 	}
 	e.d.newReviewLLMClient = refusingReviewLLMClient
@@ -254,7 +254,7 @@ func reviewLLM(text string) llm.LLMClient {
 
 // useReviewClient makes the run build reviewClient for the review step.
 func (e *runEnv) useReviewClient(client llm.LLMClient) {
-	e.d.newReviewLLMClient = func(config.Config) (llm.LLMClient, error) { return client, nil }
+	e.d.newReviewLLMClient = func(config.LLMConfig) (llm.LLMClient, error) { return client, nil }
 }
 
 // cliArgs returns the arguments run receives. Unless the test enabled the
@@ -1091,7 +1091,7 @@ func executionPathRows() []pathRow {
 			name: "review failure whose message holds the API key",
 			setup: func(_ *testing.T, e *runEnv) {
 				e.withSteps = true
-				e.d.newReviewLLMClient = func(config.Config) (llm.LLMClient, error) {
+				e.d.newReviewLLMClient = func(config.LLMConfig) (llm.LLMClient, error) {
 					return funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
 						return llm.GenerateResponse{}, fmt.Errorf("review call failed with %s", testAPIKey)
 					}), nil
@@ -1559,7 +1559,7 @@ func TestRunStepFlags(t *testing.T) {
 		e.withSteps = true
 		e.args = []string{"--no-review", "--out", e.outPath, runVideoURL}
 		reviewCalls := 0
-		e.d.newReviewLLMClient = func(config.Config) (llm.LLMClient, error) {
+		e.d.newReviewLLMClient = func(config.LLMConfig) (llm.LLMClient, error) {
 			reviewCalls++
 			return reviewLLM(emptyReviewJSON), nil
 		}
@@ -1640,7 +1640,7 @@ func TestRunDefaultSteps(t *testing.T) {
 		return llm.GenerateResponse{Text: shortGeneratedText(), Model: "fake-model", ModelVersion: "v1"}, nil
 	})
 	reviewCalls := 0
-	e.d.newReviewLLMClient = func(config.Config) (llm.LLMClient, error) {
+	e.d.newReviewLLMClient = func(config.LLMConfig) (llm.LLMClient, error) {
 		reviewCalls++
 		return reviewLLM(emptyReviewJSON), nil
 	}

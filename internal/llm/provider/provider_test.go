@@ -184,7 +184,7 @@ func TestNewDeepSeekSendsConfiguredRequest(t *testing.T) {
 		return deepseek.NewForLoopbackTest(t, opts, server.URL), nil
 	}
 
-	client, err := newClient(cfg.Provider(), cfg.Model(), cfg, builders{deepseek: build})
+	client, err := newClient(cfg.LLM().Provider(), cfg.LLM().Model(), cfg.LLM(), builders{deepseek: build})
 	if err != nil {
 		t.Fatalf("newClient() error = %v", err)
 	}
@@ -207,7 +207,7 @@ func TestNewDeepSeekSendsConfiguredRequest(t *testing.T) {
 // constructor to newClient by checking the dynamic type of the built client.
 func TestNewUsesDeepSeekAdapter(t *testing.T) {
 	cfg := loadConfig(t, validEnv())
-	client, err := New(cfg)
+	client, err := New(cfg.LLM())
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -238,7 +238,7 @@ func TestNewUnknownProvider(t *testing.T) {
 	}
 	cfg := loadConfig(t, validEnv())
 	for _, provider := range []config.Provider{config.ProviderUnset, config.Provider(99)} {
-		client, err := newClient(provider, cfg.Model(), cfg, build)
+		client, err := newClient(provider, cfg.LLM().Model(), cfg.LLM(), build)
 		if !errors.Is(err, errUnknownProvider) {
 			t.Errorf("newClient(%d) error = %v, want errUnknownProvider", provider, err)
 		}
@@ -321,7 +321,7 @@ func claudeRequestFor(t *testing.T, env map[string]string, body []byte) llmhttpt
 		}
 		return claude.NewForLoopbackTest(t, opts, server.URL), nil
 	}
-	client, err := newClient(cfg.Provider(), cfg.Model(), cfg, builders{claude: build})
+	client, err := newClient(cfg.LLM().Provider(), cfg.LLM().Model(), cfg.LLM(), builders{claude: build})
 	if err != nil {
 		t.Fatalf("newClient() error = %v", err)
 	}
@@ -335,7 +335,7 @@ func claudeRequestFor(t *testing.T, env map[string]string, body []byte) llmhttpt
 // constructor to newClient by checking the dynamic type of the built client.
 func TestNewUsesClaudeAdapter(t *testing.T) {
 	cfg := loadConfig(t, claudeValidEnv())
-	client, err := New(cfg)
+	client, err := New(cfg.LLM())
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -389,7 +389,7 @@ func deepseekOptionsFor(t *testing.T, env map[string]string) deepseek.Options {
 		received = opts
 		return &llmtestutil.FakeLLMClient{}, nil
 	}
-	if _, err := newClient(cfg.Provider(), cfg.Model(), cfg, builders{deepseek: build}); err != nil {
+	if _, err := newClient(cfg.LLM().Provider(), cfg.LLM().Model(), cfg.LLM(), builders{deepseek: build}); err != nil {
 		t.Fatalf("newClient() error = %v", err)
 	}
 	return received
@@ -408,7 +408,7 @@ func TestUnitTestsCannotReachProductionEndpoint(t *testing.T) {
 		t.Fatalf("proxy for %s = %v, want %s", productionURL, proxyURL, testProxy.URL())
 	}
 
-	client, err := New(loadConfig(t, claudeValidEnv()))
+	client, err := New(loadConfig(t, claudeValidEnv()).LLM())
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -427,7 +427,7 @@ func TestNewPaddedModel(t *testing.T) {
 	env := validEnv()
 	env["YT2COLUMN_MODEL"] = " deepseek-flash"
 	cfg := loadConfig(t, env)
-	client, err := New(cfg)
+	client, err := New(cfg.LLM())
 	if !errors.Is(err, deepseek.ErrPaddedModel) {
 		t.Errorf("New() error = %v, want it to wrap deepseek.ErrPaddedModel", err)
 	}
@@ -444,14 +444,14 @@ func TestNewReviewUsesReviewModel(t *testing.T) {
 		env := validEnv()
 		env["YT2COLUMN_REVIEW_MODEL"] = " " + testModel
 		cfg := loadConfig(t, env)
-		client, err := NewReview(cfg)
+		client, err := NewReview(cfg.LLM())
 		if !errors.Is(err, deepseek.ErrPaddedModel) {
 			t.Errorf("NewReview() error = %v, want it to wrap deepseek.ErrPaddedModel", err)
 		}
 		if client != nil {
 			t.Errorf("NewReview() = %v, want nil", client)
 		}
-		if _, err := New(cfg); err != nil {
+		if _, err := New(cfg.LLM()); err != nil {
 			t.Errorf("New() error = %v, want nil", err)
 		}
 	})
@@ -460,7 +460,7 @@ func TestNewReviewUsesReviewModel(t *testing.T) {
 		env := validEnv()
 		env["YT2COLUMN_MODEL"] = " " + testModel
 		cfg := loadConfig(t, env)
-		client, err := NewReview(cfg)
+		client, err := NewReview(cfg.LLM())
 		if !errors.Is(err, deepseek.ErrPaddedModel) {
 			t.Errorf("NewReview() error = %v, want it to wrap deepseek.ErrPaddedModel", err)
 		}
@@ -477,7 +477,7 @@ func TestNewReviewUsesReviewModel(t *testing.T) {
 		env["YT2COLUMN_CLAUDE_EFFORT"] = "high"
 		cfg := loadConfig(t, env)
 
-		reviewClient, err := NewReview(cfg)
+		reviewClient, err := NewReview(cfg.LLM())
 		if err != nil {
 			t.Fatalf("NewReview() error = %v", err)
 		}
@@ -487,7 +487,7 @@ func TestNewReviewUsesReviewModel(t *testing.T) {
 			t.Errorf("NewReview() returned %v, want a client from %q", reviewType, wantReviewPkg)
 		}
 
-		genClient, err := New(cfg)
+		genClient, err := New(cfg.LLM())
 		if err != nil {
 			t.Fatalf("New() error = %v", err)
 		}

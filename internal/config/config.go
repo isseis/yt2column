@@ -98,9 +98,10 @@ func (e *VarError) Unwrap() error {
 	return e.Err
 }
 
-// Config is the validated configuration. Its fields are unexported, so a
-// non-zero Config can only come from Load.
-type Config struct {
+// LLMConfig is the validated configuration of the generation and review LLM
+// calls. Its fields are unexported, so a non-zero LLMConfig can only come from
+// Load or LoadServer.
+type LLMConfig struct {
 	provider             Provider
 	model                string
 	reviewProvider       Provider
@@ -109,58 +110,69 @@ type Config struct {
 	anthropicAPIKey      secret.Secret
 	claudeEffort         claudeparam.Effort
 	anthropicWorkspaceID claudeparam.WorkspaceID
-	slackWebhookURL      secret.Secret
-	cacheDir             string
-	ytDlpPath            string
-	http2DebugEnabled    bool
 }
 
 // Provider returns the LLM provider of the generation.
-func (c Config) Provider() Provider {
+func (c LLMConfig) Provider() Provider {
 	return c.provider
 }
 
 // Model returns the model name of the generation. It is non-empty.
-func (c Config) Model() string {
+func (c LLMConfig) Model() string {
 	return c.model
 }
 
 // ReviewProvider returns the provider of the review step. It equals
 // Provider() when YT2COLUMN_REVIEW_PROVIDER is unset.
-func (c Config) ReviewProvider() Provider {
+func (c LLMConfig) ReviewProvider() Provider {
 	return c.reviewProvider
 }
 
 // ReviewModel returns the model name of the review step. It is non-empty.
 // It equals Model() when both YT2COLUMN_REVIEW_PROVIDER and
 // YT2COLUMN_REVIEW_MODEL are unset.
-func (c Config) ReviewModel() string {
+func (c LLMConfig) ReviewModel() string {
 	return c.reviewModel
 }
 
 // DeepSeekAPIKey returns the API key. It is non-zero when the generation or the
 // review provider is ProviderDeepSeek.
-func (c Config) DeepSeekAPIKey() secret.Secret {
+func (c LLMConfig) DeepSeekAPIKey() secret.Secret {
 	return c.deepSeekAPIKey
 }
 
 // AnthropicAPIKey returns the Anthropic API key. It is non-zero when the
 // generation or the review provider is ProviderClaude.
-func (c Config) AnthropicAPIKey() secret.Secret {
+func (c LLMConfig) AnthropicAPIKey() secret.Secret {
 	return c.anthropicAPIKey
 }
 
 // ClaudeEffort returns the effort. It is not claudeparam.EffortUnset when
 // the generation or the review provider is ProviderClaude.
-func (c Config) ClaudeEffort() claudeparam.Effort {
+func (c LLMConfig) ClaudeEffort() claudeparam.Effort {
 	return c.claudeEffort
 }
 
 // AnthropicWorkspaceID returns the workspace ID. It is the zero value when
 // ANTHROPIC_WORKSPACE_ID is unset or neither the generation nor the review
 // provider is ProviderClaude.
-func (c Config) AnthropicWorkspaceID() claudeparam.WorkspaceID {
+func (c LLMConfig) AnthropicWorkspaceID() claudeparam.WorkspaceID {
 	return c.anthropicWorkspaceID
+}
+
+// Config is the CLI configuration. Its fields are unexported, so a non-zero
+// Config can only come from Load.
+type Config struct {
+	llm               LLMConfig
+	slackWebhookURL   secret.Secret
+	cacheDir          string
+	ytDlpPath         string
+	http2DebugEnabled bool
+}
+
+// LLM returns the validated LLM configuration.
+func (c Config) LLM() LLMConfig {
+	return c.llm
 }
 
 // SlackWebhookURL returns the Webhook URL and whether one is configured.
@@ -202,13 +214,8 @@ func (c Config) HTTP2DebugEnabled() bool {
 // the zero Config, because a value that did not pass validation must not reach
 // a caller.
 func Load(lookup LookupFunc) (Config, error) {
+	llm, errs := loadLLM(lookup)
 	var cfg Config
-	errs := []error{
-		loadProvider(lookup, &cfg),
-		loadModel(lookup, &cfg),
-	}
-	errs = append(errs, loadReview(lookup, &cfg)...)
-	errs = append(errs, loadProviderVars(lookup, &cfg)...)
 	errs = append(errs,
 		loadSlackWebhook(lookup, &cfg),
 		loadCacheDir(lookup, &cfg),
@@ -217,13 +224,29 @@ func Load(lookup LookupFunc) (Config, error) {
 	if err := errors.Join(errs...); err != nil {
 		return Config{}, err
 	}
+	cfg.llm = llm
 	cfg.http2DebugEnabled = hasHTTP2Debug(lookup)
 	return cfg, nil
 }
 
+// loadLLM reads and validates every LLM variable: the generation and review
+// providers and models, and the variables of the selected providers. It returns
+// the validated LLMConfig and each rejection separately, so Load and LoadServer
+// report them the same way.
+func loadLLM(lookup LookupFunc) (LLMConfig, []error) {
+	var cfg LLMConfig
+	errs := []error{
+		loadProvider(lookup, &cfg),
+		loadModel(lookup, &cfg),
+	}
+	errs = append(errs, loadReview(lookup, &cfg)...)
+	errs = append(errs, loadProviderVars(lookup, &cfg)...)
+	return cfg, errs
+}
+
 // loadProvider validates YT2COLUMN_LLM_PROVIDER with parseProvider. Unset
 // defaults to deepseek.
-func loadProvider(lookup LookupFunc, cfg *Config) error {
+func loadProvider(lookup LookupFunc, cfg *LLMConfig) error {
 	value, ok := lookup(providerEnv)
 	provider, err := parseProvider(providerEnv, value, ok)
 	if err != nil {
@@ -261,7 +284,7 @@ func parseProvider(name, value string, present bool) (Provider, error) {
 // model; only the model may be set on its own, to reuse the generation
 // provider. It returns each rejection as a separate element so Load joins them
 // flat.
-func loadReview(lookup LookupFunc, cfg *Config) []error {
+func loadReview(lookup LookupFunc, cfg *LLMConfig) []error {
 	var errs []error
 	providerValue, providerPresent := lookup(reviewProviderEnv)
 	modelValue, modelPresent := lookup(reviewModelEnv)
@@ -305,7 +328,7 @@ func loadReview(lookup LookupFunc, cfg *Config) []error {
 // provider variable rejects a value the user did not intend to use. Each
 // rejection is a separate element so Load joins them flat; a nested join would
 // reach a caller that prints one error per line as a single line.
-func loadProviderVars(lookup LookupFunc, cfg *Config) []error {
+func loadProviderVars(lookup LookupFunc, cfg *LLMConfig) []error {
 	var errs []error
 	if cfg.provider == ProviderDeepSeek || cfg.reviewProvider == ProviderDeepSeek {
 		errs = append(errs, loadDeepSeekAPIKey(lookup, cfg))
@@ -321,7 +344,7 @@ func loadProviderVars(lookup LookupFunc, cfg *Config) []error {
 }
 
 // loadModel validates YT2COLUMN_MODEL, which has no default.
-func loadModel(lookup LookupFunc, cfg *Config) error {
+func loadModel(lookup LookupFunc, cfg *LLMConfig) error {
 	value, ok := lookup(modelEnv)
 	if !ok || value == "" {
 		return missingVar(modelEnv)
@@ -333,7 +356,7 @@ func loadModel(lookup LookupFunc, cfg *Config) error {
 // loadDeepSeekAPIKey validates DEEPSEEK_API_KEY, which is required when the
 // generation or the review provider is deepseek. It is called only when one of
 // them is, so the variable is never read, and never rejected, otherwise.
-func loadDeepSeekAPIKey(lookup LookupFunc, cfg *Config) error {
+func loadDeepSeekAPIKey(lookup LookupFunc, cfg *LLMConfig) error {
 	value, ok := lookup(deepSeekAPIKeyEnv)
 	if !ok || value == "" {
 		return missingVar(deepSeekAPIKeyEnv)
@@ -349,7 +372,7 @@ func loadDeepSeekAPIKey(lookup LookupFunc, cfg *Config) error {
 // loadAnthropicAPIKey validates ANTHROPIC_API_KEY, which is required when the
 // generation or the review provider is claude. It is called only when one of
 // them is, so the variable is never read, and never rejected, otherwise.
-func loadAnthropicAPIKey(lookup LookupFunc, cfg *Config) error {
+func loadAnthropicAPIKey(lookup LookupFunc, cfg *LLMConfig) error {
 	value, ok := lookup(anthropicAPIKeyEnv)
 	if !ok || value == "" {
 		return missingVar(anthropicAPIKeyEnv)
@@ -366,7 +389,7 @@ func loadAnthropicAPIKey(lookup LookupFunc, cfg *Config) error {
 // the generation or the review provider is claude. It is called only when one
 // of them is. The accepted values live in claudeparam and are not repeated
 // here.
-func loadClaudeEffort(lookup LookupFunc, cfg *Config) error {
+func loadClaudeEffort(lookup LookupFunc, cfg *LLMConfig) error {
 	value, ok := lookup(claudeEffortEnv)
 	if !ok || value == "" {
 		return missingVar(claudeEffortEnv)
@@ -383,7 +406,7 @@ func loadClaudeEffort(lookup LookupFunc, cfg *Config) error {
 // when the generation or the review provider is claude. It is called only when
 // one of them is: unset is accepted, and a present value must satisfy
 // claudeparam.ParseWorkspaceID.
-func loadAnthropicWorkspaceID(lookup LookupFunc, cfg *Config) error {
+func loadAnthropicWorkspaceID(lookup LookupFunc, cfg *LLMConfig) error {
 	value, ok := lookup(anthropicWorkspaceIDEnv)
 	switch {
 	case !ok:

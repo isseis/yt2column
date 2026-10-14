@@ -73,13 +73,13 @@ func TestLoadValid(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load() error = %v, want nil", err)
 	}
-	if cfg.Provider() != ProviderDeepSeek {
-		t.Errorf("Provider() = %v, want ProviderDeepSeek", cfg.Provider())
+	if cfg.LLM().Provider() != ProviderDeepSeek {
+		t.Errorf("Provider() = %v, want ProviderDeepSeek", cfg.LLM().Provider())
 	}
-	if cfg.Model() != env[modelEnv] {
-		t.Errorf("Model() = %q, want %q", cfg.Model(), env[modelEnv])
+	if cfg.LLM().Model() != env[modelEnv] {
+		t.Errorf("Model() = %q, want %q", cfg.LLM().Model(), env[modelEnv])
 	}
-	key, err := cfg.DeepSeekAPIKey().Reveal()
+	key, err := cfg.LLM().DeepSeekAPIKey().Reveal()
 	if err != nil {
 		t.Fatalf("DeepSeekAPIKey().Reveal() error = %v", err)
 	}
@@ -120,8 +120,8 @@ func TestLoadDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load() error = %v, want nil", err)
 	}
-	if cfg.Provider() != ProviderDeepSeek {
-		t.Errorf("Provider() = %v, want ProviderDeepSeek", cfg.Provider())
+	if cfg.LLM().Provider() != ProviderDeepSeek {
+		t.Errorf("Provider() = %v, want ProviderDeepSeek", cfg.LLM().Provider())
 	}
 	if _, ok := cfg.SlackWebhookURL(); ok {
 		t.Error("SlackWebhookURL() reports set, want unset")
@@ -234,20 +234,20 @@ func TestLoadClaude(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Load() error = %v, want nil", err)
 			}
-			if cfg.Provider() != ProviderClaude {
-				t.Errorf("Provider() = %v, want ProviderClaude", cfg.Provider())
+			if cfg.LLM().Provider() != ProviderClaude {
+				t.Errorf("Provider() = %v, want ProviderClaude", cfg.LLM().Provider())
 			}
-			if cfg.ClaudeEffort() != effort.want {
-				t.Errorf("ClaudeEffort() = %v, want %v", cfg.ClaudeEffort(), effort.want)
+			if cfg.LLM().ClaudeEffort() != effort.want {
+				t.Errorf("ClaudeEffort() = %v, want %v", cfg.LLM().ClaudeEffort(), effort.want)
 			}
-			key, err := cfg.AnthropicAPIKey().Reveal()
+			key, err := cfg.LLM().AnthropicAPIKey().Reveal()
 			if err != nil {
 				t.Fatalf("AnthropicAPIKey().Reveal() error = %v", err)
 			}
 			if key != env[anthropicAPIKeyEnv] {
 				t.Errorf("AnthropicAPIKey() = %q, want %q", key, env[anthropicAPIKeyEnv])
 			}
-			workspace, ok := cfg.AnthropicWorkspaceID().Value()
+			workspace, ok := cfg.LLM().AnthropicWorkspaceID().Value()
 			if !ok {
 				t.Fatal("AnthropicWorkspaceID() reports unset, want set")
 			}
@@ -262,7 +262,7 @@ func TestLoadClaude(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Load() error = %v, want nil", err)
 		}
-		if _, ok := cfg.AnthropicWorkspaceID().Value(); ok {
+		if _, ok := cfg.LLM().AnthropicWorkspaceID().Value(); ok {
 			t.Error("AnthropicWorkspaceID() reports set, want unset")
 		}
 	})
@@ -354,8 +354,8 @@ func TestLoadClaudeIgnoresDeepSeekKey(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Load() error = %v, want nil", err)
 				}
-				if cfg.Provider() != ProviderClaude {
-					t.Errorf("Provider() = %v, want ProviderClaude", cfg.Provider())
+				if cfg.LLM().Provider() != ProviderClaude {
+					t.Errorf("Provider() = %v, want ProviderClaude", cfg.LLM().Provider())
 				}
 			})
 		}
@@ -420,16 +420,16 @@ func TestLoadIgnoresOtherProviderVars(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Load() error = %v, want nil", err)
 				}
-				if cfg.Provider() != ProviderDeepSeek {
-					t.Errorf("Provider() = %v, want ProviderDeepSeek", cfg.Provider())
+				if cfg.LLM().Provider() != ProviderDeepSeek {
+					t.Errorf("Provider() = %v, want ProviderDeepSeek", cfg.LLM().Provider())
 				}
-				if _, err := cfg.AnthropicAPIKey().Reveal(); err == nil {
+				if _, err := cfg.LLM().AnthropicAPIKey().Reveal(); err == nil {
 					t.Error("AnthropicAPIKey() is set for the deepseek provider")
 				}
-				if cfg.ClaudeEffort() != claudeparam.EffortUnset {
-					t.Errorf("ClaudeEffort() = %v, want EffortUnset", cfg.ClaudeEffort())
+				if cfg.LLM().ClaudeEffort() != claudeparam.EffortUnset {
+					t.Errorf("ClaudeEffort() = %v, want EffortUnset", cfg.LLM().ClaudeEffort())
 				}
-				if _, ok := cfg.AnthropicWorkspaceID().Value(); ok {
+				if _, ok := cfg.LLM().AnthropicWorkspaceID().Value(); ok {
 					t.Error("AnthropicWorkspaceID() is set for the deepseek provider")
 				}
 			})
@@ -465,11 +465,11 @@ func TestLoadReview(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Load() error = %v, want nil", err)
 		}
-		if cfg.ReviewProvider() != cfg.Provider() {
-			t.Errorf("ReviewProvider() = %v, want Provider() = %v", cfg.ReviewProvider(), cfg.Provider())
+		if cfg.LLM().ReviewProvider() != cfg.LLM().Provider() {
+			t.Errorf("ReviewProvider() = %v, want Provider() = %v", cfg.LLM().ReviewProvider(), cfg.LLM().Provider())
 		}
-		if cfg.ReviewModel() != cfg.Model() {
-			t.Errorf("ReviewModel() = %q, want Model() = %q", cfg.ReviewModel(), cfg.Model())
+		if cfg.LLM().ReviewModel() != cfg.LLM().Model() {
+			t.Errorf("ReviewModel() = %q, want Model() = %q", cfg.LLM().ReviewModel(), cfg.LLM().Model())
 		}
 	})
 
@@ -480,11 +480,11 @@ func TestLoadReview(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Load() error = %v, want nil", err)
 		}
-		if cfg.ReviewProvider() != ProviderDeepSeek {
-			t.Errorf("ReviewProvider() = %v, want ProviderDeepSeek", cfg.ReviewProvider())
+		if cfg.LLM().ReviewProvider() != ProviderDeepSeek {
+			t.Errorf("ReviewProvider() = %v, want ProviderDeepSeek", cfg.LLM().ReviewProvider())
 		}
-		if cfg.ReviewModel() != reviewModel {
-			t.Errorf("ReviewModel() = %q, want %q", cfg.ReviewModel(), reviewModel)
+		if cfg.LLM().ReviewModel() != reviewModel {
+			t.Errorf("ReviewModel() = %q, want %q", cfg.LLM().ReviewModel(), reviewModel)
 		}
 	})
 
@@ -499,17 +499,17 @@ func TestLoadReview(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Load() error = %v, want nil", err)
 		}
-		if cfg.Provider() != ProviderDeepSeek {
-			t.Errorf("Provider() = %v, want ProviderDeepSeek", cfg.Provider())
+		if cfg.LLM().Provider() != ProviderDeepSeek {
+			t.Errorf("Provider() = %v, want ProviderDeepSeek", cfg.LLM().Provider())
 		}
-		if cfg.Model() != env[modelEnv] {
-			t.Errorf("Model() = %q, want %q", cfg.Model(), env[modelEnv])
+		if cfg.LLM().Model() != env[modelEnv] {
+			t.Errorf("Model() = %q, want %q", cfg.LLM().Model(), env[modelEnv])
 		}
-		if cfg.ReviewProvider() != ProviderClaude {
-			t.Errorf("ReviewProvider() = %v, want ProviderClaude", cfg.ReviewProvider())
+		if cfg.LLM().ReviewProvider() != ProviderClaude {
+			t.Errorf("ReviewProvider() = %v, want ProviderClaude", cfg.LLM().ReviewProvider())
 		}
-		if cfg.ReviewModel() != reviewModel {
-			t.Errorf("ReviewModel() = %q, want %q", cfg.ReviewModel(), reviewModel)
+		if cfg.LLM().ReviewModel() != reviewModel {
+			t.Errorf("ReviewModel() = %q, want %q", cfg.LLM().ReviewModel(), reviewModel)
 		}
 	})
 
@@ -784,7 +784,7 @@ func TestConfigOutputRedactsSecrets(t *testing.T) {
 			[]string{key, webhook},
 			func(t *testing.T, cfg Config) {
 				t.Helper()
-				if revealed, err := cfg.DeepSeekAPIKey().Reveal(); err != nil || revealed != key {
+				if revealed, err := cfg.LLM().DeepSeekAPIKey().Reveal(); err != nil || revealed != key {
 					t.Fatalf("DeepSeekAPIKey() = %q, %v, want %q", revealed, err, key)
 				}
 			},
@@ -795,7 +795,7 @@ func TestConfigOutputRedactsSecrets(t *testing.T) {
 			[]string{claudeKey},
 			func(t *testing.T, cfg Config) {
 				t.Helper()
-				if revealed, err := cfg.AnthropicAPIKey().Reveal(); err != nil || revealed != claudeKey {
+				if revealed, err := cfg.LLM().AnthropicAPIKey().Reveal(); err != nil || revealed != claudeKey {
 					t.Fatalf("AnthropicAPIKey() = %q, %v, want %q", revealed, err, claudeKey)
 				}
 			},
