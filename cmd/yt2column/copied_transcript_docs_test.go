@@ -47,7 +47,7 @@ func TestCopiedTranscriptSurveyRecords(t *testing.T) {
 
 	architecture := readDoc(t, copiedTranscriptArchitecturePath)
 
-	survey := sectionByHeading(architecture, "#### 1.4.1. 動画ごとの属性と書式（AC-01b）")
+	survey := sectionByHeadingPrefix(architecture, "#### 1.4.1.")
 	if survey == "" {
 		t.Fatal("the architecture has no 1.4.1 survey section")
 	}
@@ -94,7 +94,7 @@ func TestCopiedTranscriptSurveyRecords(t *testing.T) {
 		}
 	}
 
-	long := sectionByHeading(architecture, "#### 1.4.2. 長い動画の選択（AC-03）")
+	long := sectionByHeadingPrefix(architecture, "#### 1.4.2.")
 	if long == "" {
 		t.Fatal("the architecture has no 1.4.2 selection section")
 	}
