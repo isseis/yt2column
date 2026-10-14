@@ -27,6 +27,8 @@ func validRevision() Revision {
 	}
 }
 
+// TestRevisionNoChange checks the truth table of Revision.NoChange: true only
+// for an ActionReplace revision with a non-empty Before equal to its After.
 func TestRevisionNoChange(t *testing.T) {
 	noChange := validRevision()
 	noChange.After = noChange.Before
@@ -88,6 +90,8 @@ func TestRevisionReasonWireValue(t *testing.T) {
 	})
 }
 
+// TestReviewResultCheck checks the acceptance and rejection rules of
+// ReviewResult.Check, including the acceptance of a no-change replacement.
 func TestReviewResultCheck(t *testing.T) {
 	valid := validRevision()
 	validNoChange := validRevision()
