@@ -36,15 +36,15 @@ Poll until CodeRabbit has finished and no review thread is left to fix.
   `Review skipped` while the review is still in progress, so it is not a
   reliable signal. Wait between polls rather than spinning.
 
-- Fetch the unresolved review threads:
+- Fetch the unresolved review threads, following every page:
 
   ```bash
   gh api graphql -F owner=<owner> -F repo=<repo> -F number=<number> -f query='
-    query($owner:String!, $repo:String!, $number:Int!) {
+    query($owner:String!, $repo:String!, $number:Int!, $after:String) {
       repository(owner:$owner, name:$repo) {
         pullRequest(number:$number) {
-          reviewThreads(first:100) {
-            pageInfo { hasNextPage }
+          reviewThreads(first:100, after:$after) {
+            pageInfo { hasNextPage endCursor }
             nodes {
               id
               isResolved
@@ -58,7 +58,11 @@ Poll until CodeRabbit has finished and no review thread is left to fix.
     }'
   ```
 
-  Filter to `isResolved=false`.
+  Filter to `isResolved=false`, and repeat the call with `-F after=<endCursor>`
+  from the previous page until `hasNextPage` is false; otherwise a thread past the
+  first 100 would be left open while the flow proceeds to merge. (Each thread's
+  comments are capped at the first 10, as `fixpr.md` also notes; read more only
+  when a thread needs it.)
 
 - If a **new unresolved thread** has appeared since the last `fixpr` run for this
   PR, run `.claude/commands/fixpr.md` for the PR before continuing to wait.
