@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-14 |
 | Review date | 2026-10-14 |
 | Reviewer | isseis |
-| Comments | 2026-10-14 承認後の decision change（再承認が必要）。§3.4 の「成果物を `O_NOFOLLOW` で開けばシンボリックリンクを辿らない」は、`go1.27.1`（darwin）の `os.Root` では成り立たない（`os.Root.OpenFile` は `O_NOFOLLOW` を無視し、ルート内を指す相対シンボリックリンクを辿る。実装計画書 §1.3）。読み込みを「`os.Root.Lstat` で通常のファイルであることを確かめてから開き、開いた記述子の `Stat` と `os.SameFile` で同じファイルであることを確かめる」形に改め、`--artifacts` のディレクトリにも同じ照合を加えた（パスは `filepath.Clean` してから調べる。末尾の `/` や `/.` が付いたパスでは `os.Lstat` がシンボリックリンクを辿るため）。`Lstat` の後に開く処理そのものが失敗した場合（ルートの外を指すシンボリックリンクへの置き換えなど）も `ErrMalformed` とした。§3.4・§3.10（H-05）・§4.1・§5.1・§5.3・§7.3 を対応して更新した |
+| Comments | - |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md) の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §3.10）を指す。既存のコードの行番号は、コミット `704ff5e`（要件定義書を承認したコミット。コードは `4b2d227` と同じ）で確かめたものである。
 
