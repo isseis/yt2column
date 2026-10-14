@@ -1,6 +1,6 @@
 # testdata
 
-このディレクトリには、パーサのテスト用に保存した `yt-dlp` の実出力、YouTube の動画ページの文字起こしパネルの HTML の抜粋、DeepSeek と Claude の API の実応答（後述）がある。`yt-dlp` の出力と HTML の抜粋については、**リポジトリに保存してよいのは、再配布が許諾されたライセンスの動画からの出力だけ**とする（通常の YouTube 標準ライセンスの動画の全文字起こしは保存しない）。
+このディレクトリには、パーサのテスト用に保存した `yt-dlp` の実出力、コピーした字幕の文字列、YouTube の動画ページの文字起こしパネルの HTML の抜粋、DeepSeek と Claude の API の実応答（後述）がある。`yt-dlp` の出力、コピーした字幕、HTML の抜粋については、**リポジトリに保存してよいのは、再配布が許諾されたライセンスの動画からの出力だけ**とする（通常の YouTube 標準ライセンスの動画の全文字起こしは保存しない）。
 
 ## 出典とライセンス
 
@@ -37,6 +37,37 @@ CC BY 3.0 の条件に従い、上記の出典（動画 URL・チャンネル名
 - `2tcCWM-sRBw.transcript_panel_hidden.html`: ページの読み込みが終わった直後の、まだ開いていないパネル（`visibility="ENGAGEMENT_PANEL_VISIBILITY_HIDDEN"`）。中身は読み込み中の表示（`yt-content-loading-renderer`）だけである。
 
 パネルの文字起こしは `2tcCWM-sRBw.ja.json3` とは別のデータで、区切りが粗く、句読点や「…」を含む。
+
+## コピーした字幕（文字起こしパネルからのコピー）
+
+利用者が YouTube の「文字起こしを表示」パネルからコピーした字幕の文字列（[issue #107](https://github.com/isseis/yt2column/issues/107)）を、パーサ（`internal/transcript` のコピーした字幕のパーサ）のテスト用に保存した。3 ファイルとも、再配布が許諾されたライセンス（CC BY）の動画からのものである。
+
+- 取得日: 2026-10-14
+- 取得条件: Brave 1.97.56（Chromium 155.0.8059.40、arm64、macOS）で動画ページを開き、ログインしていない状態で取得した。YouTube の表示言語は日本語である（表示言語によって変わるのは形 A の画面読み上げ用のラベルのみ）。
+- 取得方法: 文字起こしパネルの最初のセグメントの時刻の先頭から、最後のセグメントの本文の末尾までをドラッグで選択し、Cmd+C でコピーして、`pbpaste` でファイルに書き出した。エディタを経由していない。
+- 加工内容: なし（無改変）。末尾に改行がないこと、行の区切りが LF であることを確認した。
+- 先頭の表示項目（`タイムライン`・`文字起こし`・`動画内を検索`／`文字音声変換を検索`）と、チャプターの見出しの行を含まない。
+- 取得者を特定できる情報（URL・アカウントの情報）を含まないことを確認した。`Yoboo9g7saY` の先頭の本文の `翻訳: … 校正: …` は、字幕の作成者のクレジットであり、動画のコンテンツの一部である。
+
+CC BY の条件に従い、各動画の出典（動画 URL・チャンネル名・ライセンスとその URI）を明記する。
+
+- `IkngpxCMmRQ.transcript_copy.txt`（形 A）:
+    - 動画: INDONESIAからのスピーチコンテスト大会のザキーさん。
+    - URL: https://www.youtube.com/watch?v=IkngpxCMmRQ
+    - チャンネル: hamba allah
+    - ライセンス: Creative Commons Attribution 3.0 Unported（CC BY 3.0）、https://creativecommons.org/licenses/by/3.0/ 。YouTube の動画ページの表示は "Creative Commons Attribution license (reuse allowed)" であり、YouTube のこの指定は CC BY 3.0 を指す
+- `Yoboo9g7saY.transcript_copy.txt`（形 B）:
+    - 動画: Bridging Diversity: Kyoko Matsuoka at TEDxFukuoka 日本語CC
+    - URL: https://www.youtube.com/watch?v=Yoboo9g7saY
+    - チャンネル: TEDx Talks
+    - ライセンス: Creative Commons Attribution 3.0 Unported（CC BY 3.0）、https://creativecommons.org/licenses/by/3.0/ 。YouTube の動画ページの表示は "Creative Commons Attribution license (reuse allowed)" であり、YouTube のこの指定は CC BY 3.0 を指す
+- `mbyG85GZ0PI.transcript_copy.txt`（形 B）:
+    - 動画: Lecture 01 - The Learning Problem
+    - URL: https://www.youtube.com/watch?v=mbyG85GZ0PI
+    - チャンネル: caltech
+    - ライセンス: Creative Commons Attribution 3.0 Unported（CC BY 3.0）、https://creativecommons.org/licenses/by/3.0/ 。YouTube の動画ページの表示は "Creative Commons Attribution license (reuse allowed)" であり、YouTube のこの指定は CC BY 3.0 を指す
+
+これらのファイルのバイト列（末尾の改行の有無・LF）を保つため、`.pre-commit-config.yaml` は `trailing-whitespace` と `end-of-file-fixer` の対象から `testdata/` を外しており、`.gitattributes` の `testdata/*.transcript_copy.txt -text` は、`core.autocrlf` の設定でチェックアウト時に行の区切りが CRLF に書き換わるのを止める。
 
 ## テスト用の合成サンプル（実出力ではない）
 
