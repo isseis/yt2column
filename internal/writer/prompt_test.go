@@ -197,7 +197,7 @@ func TestWriteExpansionFailure(t *testing.T) {
 				if !errors.Is(err, ErrInvalidTemplate) {
 					t.Fatalf("Write error = %v, want ErrInvalidTemplate", err)
 				}
-				if errors.Is(err, errPromptTooLarge) {
+				if errors.Is(err, ErrPromptTooLarge) {
 					t.Errorf("Write error = %v, want a failure other than the size limit", err)
 				}
 				// The text/template error is quoted into the message, not
@@ -246,7 +246,7 @@ func TestWritePromptSizeLimit(t *testing.T) {
 				if tc.wantCalls == 1 && err != nil {
 					t.Fatalf("Write error = %v, want nil", err)
 				}
-				if tc.wantCalls == 0 && (!errors.Is(err, ErrInvalidTemplate) || !errors.Is(err, errPromptTooLarge)) {
+				if tc.wantCalls == 0 && (!errors.Is(err, ErrInvalidTemplate) || !errors.Is(err, ErrPromptTooLarge)) {
 					t.Fatalf("Write error = %v, want ErrInvalidTemplate for the size limit", err)
 				}
 				if tc.wantCalls == 0 && !strings.Contains(err.Error(), target.name) {
@@ -276,8 +276,8 @@ func TestWritePromptSizeLimitStopsExpansion(t *testing.T) {
 			w := mustNew(t, client, opts)
 			tr := validTranscript()
 			tr.Title = strings.Repeat("a", maxPromptBytes+1)
-			if _, err := w.Write(context.Background(), tr); !errors.Is(err, errPromptTooLarge) {
-				t.Errorf("Write error = %v, want errPromptTooLarge", err)
+			if _, err := w.Write(context.Background(), tr); !errors.Is(err, ErrPromptTooLarge) {
+				t.Errorf("Write error = %v, want ErrPromptTooLarge", err)
 			}
 			if len(client.Calls) != 0 {
 				t.Errorf("Generate called %d times, want 0", len(client.Calls))
@@ -307,8 +307,8 @@ func TestBoundedWriter(t *testing.T) {
 	})
 	t.Run("one write over limit", func(t *testing.T) {
 		w := &boundedWriter{limit: limit}
-		if _, err := w.Write([]byte("abcde")); !errors.Is(err, errPromptTooLarge) {
-			t.Fatalf("Write error = %v, want errPromptTooLarge", err)
+		if _, err := w.Write([]byte("abcde")); !errors.Is(err, ErrPromptTooLarge) {
+			t.Fatalf("Write error = %v, want ErrPromptTooLarge", err)
 		}
 		if w.buf.Len() != 0 {
 			t.Errorf("buffer holds %d bytes of a refused write, want 0", w.buf.Len())
@@ -321,8 +321,8 @@ func TestBoundedWriter(t *testing.T) {
 				t.Fatalf("Write(%q) error = %v", p, err)
 			}
 		}
-		if _, err := w.Write([]byte("e")); !errors.Is(err, errPromptTooLarge) {
-			t.Fatalf("Write past the total error = %v, want errPromptTooLarge", err)
+		if _, err := w.Write([]byte("e")); !errors.Is(err, ErrPromptTooLarge) {
+			t.Fatalf("Write past the total error = %v, want ErrPromptTooLarge", err)
 		}
 		if got := w.buf.String(); got != "abcd" {
 			t.Errorf("buffer = %q, want %q", got, "abcd")

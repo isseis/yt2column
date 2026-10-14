@@ -7,6 +7,7 @@ import (
 	"errors"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/isseis/yt2column/internal/llm/claudeparam"
@@ -38,7 +39,18 @@ const (
 	slackEnv                = "SLACK_WEBHOOK_URL"
 	cacheDirEnv             = "YT2COLUMN_CACHE_DIR"
 	ytDlpEnv                = "YT2COLUMN_YTDLP_PATH"
+	serverPortEnv           = "YT2COLUMN_SERVER_PORT"
 	godebugEnv              = "GODEBUG"
+)
+
+// The accepted range and default of YT2COLUMN_SERVER_PORT. Port 0, which lets
+// the operating system choose, is rejected because the extension has no way to
+// learn the chosen port. Ports below 1024 are rejected because the server runs
+// with ordinary user privileges and has no reason to use a privileged one.
+const (
+	defaultServerPort = 8765
+	minServerPort     = 1024
+	maxServerPort     = 65535
 )
 
 // The accepted values of providerEnv.
@@ -63,8 +75,10 @@ const (
 	reasonClaudeEffort         = "must be a supported effort value"
 	reasonAnthropicWorkspaceID = "must be a non-empty string of printable ASCII characters other than space"
 	reasonSlackWebhook         = "must be an https URL with a host"
-	reasonCacheDir             = "must be an absolute path"
+	reasonDirRelative          = "must be an absolute path"
 	reasonCacheDirAbsent       = "no absolute default could be derived from HOME or XDG_CACHE_HOME"
+	reasonConfigDirAbsent      = "no absolute default could be derived from HOME or XDG_CONFIG_HOME"
+	reasonServerPort           = "must be a decimal integer from 1024 through 65535"
 )
 
 // LookupFunc has the signature of os.LookupEnv. Load reads every variable
@@ -209,6 +223,130 @@ func (c Config) HTTP2DebugEnabled() bool {
 	return c.http2DebugEnabled
 }
 
+// ServerConfig is the server configuration. Its fields are unexported, so a
+// non-zero ServerConfig can only come from LoadServer. LoadServer never reads
+// or checks YT2COLUMN_CACHE_DIR, YT2COLUMN_YTDLP_PATH, or the cache directory
+// defaults.
+type ServerConfig struct {
+	llm               LLMConfig
+	webhookURL        secret.Secret // always set
+	port              uint16
+	tokenPath         string // absolute
+	http2DebugEnabled bool
+}
+
+// LLM returns the validated LLM configuration.
+func (c ServerConfig) LLM() LLMConfig {
+	return c.llm
+}
+
+// WebhookURL returns the Webhook URL. It is always set.
+func (c ServerConfig) WebhookURL() secret.Secret {
+	return c.webhookURL
+}
+
+// Port returns the TCP port the server listens on. It is in the accepted range.
+func (c ServerConfig) Port() uint16 {
+	return c.port
+}
+
+// TokenPath returns the absolute path of the shared token file.
+func (c ServerConfig) TokenPath() string {
+	return c.tokenPath
+}
+
+// HTTP2DebugEnabled reports whether GODEBUG contains http2debug=1 or
+// http2debug=2. LoadServer never rejects this setting; the caller warns instead.
+func (c ServerConfig) HTTP2DebugEnabled() bool {
+	return c.http2DebugEnabled
+}
+
+// LoadServer reads and validates the server's variables through lookup: the
+// LLM settings (shared with Load), SLACK_WEBHOOK_URL (required), the listening
+// port, and the shared token file's path. It joins every rejection together and
+// returns the zero ServerConfig on any error, so a value that did not pass
+// validation never reaches a caller. It reads no variable the server does not
+// use.
+func LoadServer(lookup LookupFunc) (ServerConfig, error) {
+	llm, errs := loadLLM(lookup)
+	var cfg ServerConfig
+	webhook, set, webhookErr := loadSlackWebhook(lookup)
+	switch {
+	case webhookErr != nil:
+		errs = append(errs, webhookErr)
+	case !set:
+		errs = append(errs, missingVar(slackEnv))
+	}
+	port, portErr := loadServerPort(lookup)
+	if portErr != nil {
+		errs = append(errs, portErr)
+	}
+	tokenPath, tokenErr := loadTokenPath(lookup)
+	if tokenErr != nil {
+		errs = append(errs, tokenErr)
+	}
+	if err := errors.Join(errs...); err != nil {
+		return ServerConfig{}, err
+	}
+	cfg.llm = llm
+	cfg.webhookURL = webhook
+	cfg.port = port
+	cfg.tokenPath = tokenPath
+	cfg.http2DebugEnabled = hasHTTP2Debug(lookup)
+	return cfg, nil
+}
+
+// loadServerPort validates YT2COLUMN_SERVER_PORT. Unset defaults to
+// defaultServerPort; a present value must be in the accepted form.
+func loadServerPort(lookup LookupFunc) (uint16, error) {
+	value, ok := lookup(serverPortEnv)
+	if !ok {
+		return defaultServerPort, nil
+	}
+	return parseServerPort(value)
+}
+
+// parseServerPort converts a YT2COLUMN_SERVER_PORT value into a port. The
+// accepted form is decimal digits only, with no leading zero, in the range
+// minServerPort through maxServerPort. An empty value is missing; every other
+// rejected form is invalid. The check uses strconv and a byte comparison rather
+// than net, because internal/config must not import net.
+func parseServerPort(value string) (uint16, error) {
+	switch {
+	case value == "":
+		return 0, missingVar(serverPortEnv)
+	case !isDecimalDigits(value) || value[0] == '0':
+		return 0, invalidVar(serverPortEnv, reasonServerPort)
+	}
+	n, err := strconv.Atoi(value)
+	if err != nil || n < minServerPort || n > maxServerPort {
+		return 0, invalidVar(serverPortEnv, reasonServerPort)
+	}
+	return uint16(n), nil
+}
+
+// isDecimalDigits reports whether s is non-empty and all of its bytes are
+// decimal digits.
+func isDecimalDigits(s string) bool {
+	for i := range len(s) {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return len(s) > 0
+}
+
+// loadTokenPath derives the shared token file's path from the configuration
+// directory. A failure to derive the directory is reported with the variable
+// that prevented it.
+func loadTokenPath(lookup LookupFunc) (string, error) {
+	dir, err := defaultConfigDir(runtime.GOOS, lookup)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, tokenFileName), nil
+}
+
 // Load reads and validates every variable through lookup. It joins every
 // rejection together so callers can report all of them; on any error it returns
 // the zero Config, because a value that did not pass validation must not reach
@@ -216,8 +354,9 @@ func (c Config) HTTP2DebugEnabled() bool {
 func Load(lookup LookupFunc) (Config, error) {
 	llm, errs := loadLLM(lookup)
 	var cfg Config
+	webhook, _, webhookErr := loadSlackWebhook(lookup)
 	errs = append(errs,
-		loadSlackWebhook(lookup, &cfg),
+		webhookErr,
 		loadCacheDir(lookup, &cfg),
 		loadYtDlpPath(lookup, &cfg),
 	)
@@ -225,6 +364,7 @@ func Load(lookup LookupFunc) (Config, error) {
 		return Config{}, err
 	}
 	cfg.llm = llm
+	cfg.slackWebhookURL = webhook
 	cfg.http2DebugEnabled = hasHTTP2Debug(lookup)
 	return cfg, nil
 }
@@ -423,24 +563,25 @@ func loadAnthropicWorkspaceID(lookup LookupFunc, cfg *LLMConfig) error {
 	}
 }
 
-// loadSlackWebhook validates SLACK_WEBHOOK_URL. Unset is accepted; a present
-// value must satisfy slackwebhook.ValidURL.
-func loadSlackWebhook(lookup LookupFunc, cfg *Config) error {
+// loadSlackWebhook validates SLACK_WEBHOOK_URL and returns the value, whether
+// one is set, and any rejection. Unset is accepted here; a present value must
+// satisfy slackwebhook.ValidURL. Load treats unset as no Webhook; LoadServer,
+// where the Webhook is required, adds its own ErrMissing.
+func loadSlackWebhook(lookup LookupFunc) (secret.Secret, bool, error) {
 	value, ok := lookup(slackEnv)
 	switch {
 	case !ok:
-		return nil
+		return secret.Secret{}, false, nil
 	case value == "":
-		return missingVar(slackEnv)
+		return secret.Secret{}, false, missingVar(slackEnv)
 	case !slackwebhook.ValidURL(value):
-		return invalidVar(slackEnv, reasonSlackWebhook)
+		return secret.Secret{}, false, invalidVar(slackEnv, reasonSlackWebhook)
 	default:
 		url, err := secret.New(value)
 		if err != nil {
-			return missingVar(slackEnv)
+			return secret.Secret{}, false, missingVar(slackEnv)
 		}
-		cfg.slackWebhookURL = url
-		return nil
+		return url, true, nil
 	}
 }
 
@@ -453,7 +594,7 @@ func loadCacheDir(lookup LookupFunc, cfg *Config) error {
 		return missingVar(cacheDirEnv)
 	case ok:
 		if !filepath.IsAbs(value) {
-			return invalidVar(cacheDirEnv, reasonCacheDir)
+			return invalidVar(cacheDirEnv, reasonDirRelative)
 		}
 		cfg.cacheDir = value
 		return nil

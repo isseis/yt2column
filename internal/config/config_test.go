@@ -853,6 +853,214 @@ func slogOutput(t *testing.T, cfg Config, jsonFormat bool) string {
 	return buf.String()
 }
 
+// validServerEnv is an environment LoadServer accepts: the LLM settings, the
+// required Webhook URL, and HOME, from which the token path is derived.
+func validServerEnv() map[string]string {
+	return map[string]string{
+		providerEnv:       "deepseek",
+		modelEnv:          "deepseek-chat",
+		deepSeekAPIKeyEnv: "sk-test-key",
+		slackEnv:          "https://hooks.slack.com/services/T000/B000/XXXX",
+		"HOME":            "/home/user",
+	}
+}
+
+// wantTokenPath returns the token path LoadServer derives from home on the
+// test host's OS.
+func wantTokenPath(home string) string {
+	dir := filepath.Join(home, ".config", "yt2column")
+	if runtime.GOOS == "darwin" {
+		dir = filepath.Join(home, "Library", "Application Support", "yt2column")
+	}
+	return filepath.Join(dir, "server-token")
+}
+
+// TestLoadServerValid checks that LoadServer loads the LLM settings, the
+// required Webhook URL, the configured port, and the derived token path.
+func TestLoadServerValid(t *testing.T) {
+	env := with(validServerEnv(), serverPortEnv, "9000")
+	cfg, err := LoadServer(envLookup(env))
+	if err != nil {
+		t.Fatalf("LoadServer() error = %v, want nil", err)
+	}
+	if cfg.LLM().Provider() != ProviderDeepSeek {
+		t.Errorf("LLM().Provider() = %v, want ProviderDeepSeek", cfg.LLM().Provider())
+	}
+	if cfg.LLM().Model() != env[modelEnv] {
+		t.Errorf("LLM().Model() = %q, want %q", cfg.LLM().Model(), env[modelEnv])
+	}
+	webhook, err := cfg.WebhookURL().Reveal()
+	if err != nil {
+		t.Fatalf("WebhookURL().Reveal() error = %v", err)
+	}
+	if webhook != env[slackEnv] {
+		t.Errorf("WebhookURL() = %q, want %q", webhook, env[slackEnv])
+	}
+	if cfg.Port() != 9000 {
+		t.Errorf("Port() = %d, want 9000", cfg.Port())
+	}
+	if want := wantTokenPath(env["HOME"]); cfg.TokenPath() != want {
+		t.Errorf("TokenPath() = %q, want %q", cfg.TokenPath(), want)
+	}
+	if cfg.HTTP2DebugEnabled() {
+		t.Error("HTTP2DebugEnabled() = true, want false")
+	}
+}
+
+// TestLoadServerDefaultPort checks that an unset port defaults to 8765.
+func TestLoadServerDefaultPort(t *testing.T) {
+	cfg, err := LoadServer(envLookup(validServerEnv()))
+	if err != nil {
+		t.Fatalf("LoadServer() error = %v, want nil", err)
+	}
+	if cfg.Port() != defaultServerPort {
+		t.Errorf("Port() = %d, want %d", cfg.Port(), defaultServerPort)
+	}
+}
+
+// TestLoadServerClaude checks that LoadServer applies the shared LLM rules to a
+// claude environment.
+func TestLoadServerClaude(t *testing.T) {
+	env := validClaudeEnv()
+	env = with(env, slackEnv, "https://hooks.slack.com/services/T000/B000/XXXX")
+	env = with(env, "HOME", "/home/user")
+	cfg, err := LoadServer(envLookup(env))
+	if err != nil {
+		t.Fatalf("LoadServer() error = %v, want nil", err)
+	}
+	if cfg.LLM().Provider() != ProviderClaude {
+		t.Errorf("LLM().Provider() = %v, want ProviderClaude", cfg.LLM().Provider())
+	}
+	if _, err := cfg.LLM().AnthropicAPIKey().Reveal(); err != nil {
+		t.Errorf("LLM().AnthropicAPIKey().Reveal() error = %v", err)
+	}
+}
+
+// TestLoadServerModelMissing checks that a missing or empty model ends the
+// load with an ErrMissing that names the variable.
+func TestLoadServerModelMissing(t *testing.T) {
+	cases := []struct {
+		name string
+		env  map[string]string
+	}{
+		{"unset", without(validServerEnv(), modelEnv)},
+		{"empty", with(validServerEnv(), modelEnv, "")},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := LoadServer(envLookup(tc.env))
+			if !errors.Is(err, ErrMissing) {
+				t.Fatalf("LoadServer() error = %v, want ErrMissing", err)
+			}
+			if !strings.Contains(err.Error(), modelEnv) {
+				t.Errorf("LoadServer() error = %q, want it to name %q", err, modelEnv)
+			}
+		})
+	}
+}
+
+// TestLoadServerWebhookRequired checks that SLACK_WEBHOOK_URL is required, that
+// an invalid value is rejected, and that neither rejection holds the value.
+func TestLoadServerWebhookRequired(t *testing.T) {
+	const mark = "MARK-SERVER-WEBHOOK-D4"
+	t.Run("unset", func(t *testing.T) {
+		_, err := LoadServer(envLookup(without(validServerEnv(), slackEnv)))
+		assertVarError(t, err, ErrMissing, slackEnv)
+	})
+	t.Run("empty", func(t *testing.T) {
+		_, err := LoadServer(envLookup(with(validServerEnv(), slackEnv, "")))
+		assertVarError(t, err, ErrMissing, slackEnv)
+	})
+	t.Run("invalid", func(t *testing.T) {
+		_, err := LoadServer(envLookup(with(validServerEnv(), slackEnv, "http://host/"+mark)))
+		if !errors.Is(err, ErrInvalid) {
+			t.Fatalf("LoadServer() error = %v, want ErrInvalid", err)
+		}
+		if strings.Contains(err.Error(), mark) {
+			t.Errorf("LoadServer() error = %q, contains the value mark %q", err, mark)
+		}
+	})
+}
+
+// TestLoadServerIgnoresCacheAndYtdlp checks that LoadServer neither reads nor
+// checks YT2COLUMN_CACHE_DIR and YT2COLUMN_YTDLP_PATH, even when Load would
+// reject them.
+func TestLoadServerIgnoresCacheAndYtdlp(t *testing.T) {
+	env := with(validServerEnv(), cacheDirEnv, "relative-cache")
+	env = with(env, ytDlpEnv, "")
+	if _, err := LoadServer(envLookup(env)); err != nil {
+		t.Fatalf("LoadServer() error = %v, want nil", err)
+	}
+	if _, err := Load(envLookup(env)); err == nil {
+		t.Fatal("Load() error = nil, want a rejection of the cache directory or the yt-dlp path")
+	}
+}
+
+// TestServerPort fixes the accepted and rejected forms of YT2COLUMN_SERVER_PORT.
+func TestServerPort(t *testing.T) {
+	accepted := []struct {
+		value string
+		want  uint16
+	}{
+		{"1024", 1024},
+		{"8765", 8765},
+		{"65535", 65535},
+	}
+	for _, tc := range accepted {
+		t.Run("accept "+tc.value, func(t *testing.T) {
+			got, err := parseServerPort(tc.value)
+			if err != nil {
+				t.Fatalf("parseServerPort(%q) error = %v, want nil", tc.value, err)
+			}
+			if got != tc.want {
+				t.Errorf("parseServerPort(%q) = %d, want %d", tc.value, got, tc.want)
+			}
+		})
+	}
+
+	rejected := []struct {
+		value    string
+		sentinel error
+	}{
+		{"", ErrMissing},
+		{"08765", ErrInvalid},
+		{"+8765", ErrInvalid},
+		{" 8765", ErrInvalid},
+		{"8765 ", ErrInvalid},
+		{"0x2235", ErrInvalid},
+		{"0", ErrInvalid},
+		{"80", ErrInvalid},
+		{"65536", ErrInvalid},
+		{"-1", ErrInvalid},
+		{"1.0", ErrInvalid},
+		{"12a3", ErrInvalid},
+	}
+	for _, tc := range rejected {
+		t.Run(fmt.Sprintf("reject %q", tc.value), func(t *testing.T) {
+			_, err := parseServerPort(tc.value)
+			if !errors.Is(err, tc.sentinel) {
+				t.Fatalf("parseServerPort(%q) error = %v, want it to wrap %v", tc.value, err, tc.sentinel)
+			}
+		})
+	}
+}
+
+// TestLoadServerPortRejected checks that LoadServer reports a rejected port and
+// names the variable.
+func TestLoadServerPortRejected(t *testing.T) {
+	for _, value := range []string{"0", "08765", "65536", " 8765"} {
+		t.Run(value, func(t *testing.T) {
+			_, err := LoadServer(envLookup(with(validServerEnv(), serverPortEnv, value)))
+			if !errors.Is(err, ErrInvalid) {
+				t.Fatalf("LoadServer() error = %v, want ErrInvalid", err)
+			}
+			if !strings.Contains(err.Error(), serverPortEnv) {
+				t.Errorf("LoadServer() error = %q, want it to name %q", err, serverPortEnv)
+			}
+		})
+	}
+}
+
 func TestLoadHTTP2Debug(t *testing.T) {
 	cases := []struct {
 		name string
