@@ -21,8 +21,9 @@ type ReviewResult struct {
 // revisions, and every revision has a known Action and Reason, a non-empty
 // Before, an After that is non-empty exactly when Action is ActionReplace, an
 // Evidence that is not whitespace only, and no character that the response
-// rules of each value reject. It wraps ErrInvalidReview and never puts a field
-// value in the error.
+// rules of each value reject. An ActionReplace revision whose After equals its
+// Before is accepted, not rejected. It wraps ErrInvalidReview and never puts a
+// field value in the error.
 func (r ReviewResult) Check() error {
 	if reason := displayStringProblem("model", r.Model.Model); reason != "" {
 		return fmt.Errorf("%w: %s", ErrInvalidReview, reason)
@@ -47,8 +48,16 @@ type Revision struct {
 	Evidence string // the quoted source material
 }
 
+// NoChange reports whether applying r leaves the reviewed text unchanged: r is
+// an accepted-shaped replacement (a non-empty Before with After equal to it).
+// The acceptance rules accept such a revision; the review log marks it.
+func (r Revision) NoChange() bool {
+	return r.Action == ActionReplace && r.Before != "" && r.Before == r.After
+}
+
 // check reports whether r satisfies the value rules a revision of an accepted
-// response must satisfy. The parser wraps the rejection with
+// response must satisfy. An ActionReplace revision whose After equals its
+// Before is accepted, not rejected. The parser wraps the rejection with
 // ErrMalformedOutput; ReviewResult.Check wraps it with ErrInvalidReview.
 func (r Revision) check() error {
 	switch r.Action {
