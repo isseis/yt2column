@@ -65,7 +65,7 @@ requirements が定める機能要件（F-001〜F-008）を、architecture の�
 
 **外部の前提の確認。** モジュールは `go 1.26.5`、ツールチェーンは `go1.27.1`（`go.mod`・`go version`）。`os.OpenRoot`・`os.Root.OpenFile`・`os.Root.Rename`・`os.Root.Remove`・`os.Root.Lstat`・`os.Root.Close` の存在を `go doc os` で確認した。`OpenRoot` はディレクトリ名のシンボリックリンクを辿るので、`--artifacts` のシンボリックリンクの拒否（AC-09）は `NewStore` が `OpenRoot` の前に別に行う（architecture §3.4）。`errors.AsType` は既存コードが使う（`run.go:289`・`:540`）。
 
-**architecture を訂正した箇所（再承認待ち）。** 承認時の architecture §3.4 は、成果物を `O_NOFOLLOW` を付けて `os.Root.OpenFile` で開けばシンボリックリンクを辿らないとしていた（AC-11・§5.1）。しかし `go1.27.1`（darwin）で確かめたところ、`os.Root` の解決は `O_NOFOLLOW` を無視し、ルート内を指す**相対**シンボリックリンク（`target` を指す `link` など）を辿って対象を返す（ルートの外を指すものだけを "path escapes from parent" で拒否する）。したがって承認時の機構では AC-11 の「シンボリックリンクを辿らない」を満たせない。同じ環境で、次のことも確かめた。`os.Root.Lstat` は相対シンボリックリンクを `Lrwxr-xr-x` として報告する。`os.Root.OpenFile` の `O_CREATE|O_EXCL` は、名前がシンボリックリンク（リンク先が無いものを含む）なら `file exists` で拒否し、リンク先を作らない。`os.Root.Rename` は置き換え先のシンボリックリンクそのものを置き換える。FIFO は `O_NONBLOCK` で開けばブロックせず、記述子の `Stat` が `p` の種別を返す。`os.SameFile` は、`Lstat` の結果と、同じファイルを開いた記述子の `Stat` を同じと判定する。`os.Root.Stat(".")` は、`OpenRoot` に渡したディレクトリの `os.Lstat` と `os.SameFile` で一致する。これに基づき、architecture §3.4 を「`Lstat` で通常のファイルに限ってから開き、開いた記述子の `Stat` と `os.SameFile` で同じファイルであることを確かめる」形に訂正し、`Status` を `draft` に戻した（decision change。§2.0）。
+**architecture を訂正した箇所（訂正・再承認済み）。** 承認時の architecture §3.4 は、成果物を `O_NOFOLLOW` を付けて `os.Root.OpenFile` で開けばシンボリックリンクを辿らないとしていた（AC-11・§5.1）。しかし `go1.27.1`（darwin）で確かめたところ、`os.Root` の解決は `O_NOFOLLOW` を無視し、ルート内を指す**相対**シンボリックリンク（`target` を指す `link` など）を辿って対象を返す（ルートの外を指すものだけを "path escapes from parent" で拒否する）。したがって承認時の機構では AC-11 の「シンボリックリンクを辿らない」を満たせない。同じ環境で、次のことも確かめた。`os.Root.Lstat` は相対シンボリックリンクを `Lrwxr-xr-x` として報告する。`os.Root.OpenFile` の `O_CREATE|O_EXCL` は、名前がシンボリックリンク（リンク先が無いものを含む）なら `file exists` で拒否し、リンク先を作らない。`os.Root.Rename` は置き換え先のシンボリックリンクそのものを置き換える。FIFO は `O_NONBLOCK` で開けばブロックせず、記述子の `Stat` が `p` の種別を返す。`os.SameFile` は、`Lstat` の結果と、同じファイルを開いた記述子の `Stat` を同じと判定する。`os.Root.Stat(".")` は、`OpenRoot` に渡したディレクトリの `os.Lstat` と `os.SameFile` で一致する。これに基づき、architecture §3.4 を「`Lstat` で通常のファイルに限ってから開き、開いた記述子の `Stat` と `os.SameFile` で同じファイルであることを確かめる」形に訂正し、再承認を得た（decision change。§2.0）。
 
 ### 1.4. 新しい名前の一覧
 
@@ -111,17 +111,17 @@ requirements が定める機能要件（F-001〜F-008）を、architecture の�
 
 ## 2. 実装ステップ (Implementation Steps)
 
-### 2.0. ブロッカー（フェーズ 1 の着手前に解消する）
+### 2.0. 前提（解消済み）
 
 承認時の architecture §3.4 は、成果物を `O_NOFOLLOW` を付けて `os.Root.OpenFile` で開けばシンボリックリンクを辿らないとしていたが、これは `go1.27.1`（darwin）では成り立たない（§1.3「architecture を訂正した箇所」）。`os.Root` の解決は `O_NOFOLLOW` を無視し、ルート内を指す相対シンボリックリンクを辿る。
 
-architecture §3.4 を次の形に訂正し、`Status` を `draft` に戻した（`requirements_process.md` の「Editing an approved document」の decision change）。本書のステップ 1-6・1-7、§3 の AC-11 の行、§6.1 のリスクは、訂正後の architecture と同時に更新しており、両文書は同じ機構を述べる。
+architecture §3.4 を次の形に訂正し、再承認を得た（`requirements_process.md` の「Editing an approved document」の decision change）。本書のステップ 1-6・1-7、§3 の AC-11 の行、§6.1 のリスクは、訂正後の architecture と同時に更新しており、両文書は同じ機構を述べる。
 
 - **読み込み:** `os.Root.Lstat` で名前が通常のファイルであることを確かめ、`O_RDONLY|O_NONBLOCK` で開き、開いた記述子の `Stat` で通常のファイルであること・`Lstat` の結果と `os.SameFile` で一致すること・大きさが上限以下であることを確かめる。通常のファイルでない場合・`Lstat` の後に開く処理が失敗した場合・一致しない場合は `ErrMalformed`（architecture §4.1 に行を加えた）。
 - **保存:** 一時ファイルは `O_CREATE|O_EXCL` で作る（`O_NOFOLLOW` に頼らない。`O_EXCL` は既存のシンボリックリンクの名前を拒否する）。置き換えは `os.Root.Rename` で、置き換え先のシンボリックリンクそのものを置き換える。
 - **ディレクトリ:** `filepath.Clean` したパスを `os.Lstat` で調べ（末尾の `/`・`/.` は `Lstat` にシンボリックリンクを辿らせる）、シンボリックリンクでないディレクトリであることを確かめてから `os.OpenRoot` で開き、`os.Root.Stat(".")` が `Lstat` の結果と `os.SameFile` で一致することを確かめる。
 
-architecture が再承認されるまで、フェーズ 1 に着手しない。
+architecture は再承認済みなので、フェーズ 1 に着手できる。
 
 ### フェーズ 1: `internal/writer` の成果物の型と `internal/artifact` パッケージ
 
@@ -413,7 +413,7 @@ architecture §7.3 の検査を、フェーズ 1 の `internal/artifact` のテ�
 ## 7. 実装チェックリスト (Implementation Checklist)
 
 - [x] architecture §3.4 のシンボリックリンクの機構を `Lstat` と `os.SameFile` で拒否する形に訂正した（§2.0）
-- [ ] 訂正した architecture の再承認を得た（§2.0 のブロッカーの解消）
+- [x] 訂正した architecture の再承認を得た（§2.0 の前提の解消）
 - [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8）。フェーズ 1 の完了条件を満たす
 - [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5）。フェーズ 2 の完了条件を満たす
 - [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2）。フェーズ 3 の完了条件を満たす
