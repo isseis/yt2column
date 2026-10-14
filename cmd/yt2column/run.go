@@ -18,8 +18,8 @@ import (
 	"github.com/isseis/yt2column/internal/llm/provider"
 	"github.com/isseis/yt2column/internal/pipeline"
 	"github.com/isseis/yt2column/internal/publisher"
+	"github.com/isseis/yt2column/internal/redact"
 	"github.com/isseis/yt2column/internal/secret"
-	"github.com/isseis/yt2column/internal/slackwebhook"
 	"github.com/isseis/yt2column/internal/transcript"
 	"github.com/isseis/yt2column/internal/writer"
 )
@@ -42,8 +42,8 @@ const usageHint = programName + ": run '" + programName + " -h' for usage"
 // deps are the constructors run uses. main passes productionDeps(); a unit test
 // substitutes fakes.
 type deps struct {
-	newLLMClient       func(config.Config) (llm.LLMClient, error)
-	newReviewLLMClient func(config.Config) (llm.LLMClient, error)
+	newLLMClient       func(config.LLMConfig) (llm.LLMClient, error)
+	newReviewLLMClient func(config.LLMConfig) (llm.LLMClient, error)
 	newWriter          func(llm.LLMClient, writer.Options) (writer.ArticleWriter, error)
 	newFilePublisher   func(path string) (publisher.Publisher, error)
 	newSlackPublisher  func(webhookURL secret.Secret) (publisher.Publisher, error)
@@ -191,7 +191,7 @@ type stderrWriter struct {
 
 // line writes one sanitized line.
 func (s *stderrWriter) line(format string, args ...any) {
-	_, _ = io.WriteString(s.w, sanitize(fmt.Sprintf(format, args...), s.secrets...)+"\n")
+	_, _ = io.WriteString(s.w, redact.Line(fmt.Sprintf(format, args...), s.secrets...)+"\n")
 }
 
 // run executes one CLI invocation and returns the process exit code. Steps A1
@@ -237,8 +237,8 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 	if err != nil {
 		return configurationError(errOut, err)
 	}
-	errOut.secrets = configuredSecrets(cfg)
-	var webhookURL secret.Secret
+	webhookURL, _ := cfg.SlackWebhookURL()
+	errOut.secrets = redact.SecretStrings(webhookURL, cfg.LLM().DeepSeekAPIKey(), cfg.LLM().AnthropicAPIKey())
 	if dest == destinationWebhook {
 		if webhookURL, err = cfg.RequireSlackWebhookURL(); err != nil {
 			return configurationError(errOut, err)
@@ -355,13 +355,13 @@ func checkReviewLog(reviewLogGiven bool, opts *cliOptions, dest destination) err
 // reviewLogGiven is set, the review log writer. The review LLM client is built
 // only when the review step runs, so --no-review never builds one.
 func buildWriter(d deps, cfg config.Config, opts *cliOptions, reviewLogGiven bool) (writer.ArticleWriter, *publisher.ReviewLogWriter, error) {
-	client, err := d.newLLMClient(cfg)
+	client, err := d.newLLMClient(cfg.LLM())
 	if err != nil {
 		return nil, nil, fmt.Errorf("build the LLM client: %w", err)
 	}
 	var reviewClient llm.LLMClient
 	if !opts.noReview {
-		if reviewClient, err = d.newReviewLLMClient(cfg); err != nil {
+		if reviewClient, err = d.newReviewLLMClient(cfg.LLM()); err != nil {
 			return nil, nil, fmt.Errorf("build the review LLM client: %w", err)
 		}
 	}
@@ -403,8 +403,8 @@ func configurationError(errOut *stderrWriter, err error) int {
 }
 
 // warnHTTP2Debug warns, before any LLM call or post, that the Go HTTP/2 log
-// bypasses sanitize: it may write the API key, and with a webhook destination
-// the Webhook URL path as well.
+// bypasses redact.Line: it may write the API key, and with a webhook
+// destination the Webhook URL path as well.
 func warnHTTP2Debug(errOut *stderrWriter, cfg config.Config, dest destination) {
 	if !cfg.HTTP2DebugEnabled() {
 		return
@@ -658,25 +658,4 @@ func splitJoined(err error) []error {
 		return joined.Unwrap()
 	}
 	return []error{err}
-}
-
-// configuredSecrets returns the secret values in cfg, so every later line is
-// redacted. An unset secret contributes nothing. The Webhook URL also
-// contributes its slackwebhook.SensitiveParts, so a fragment such as its path
-// alone is redacted too, not only its last characters.
-func configuredSecrets(cfg config.Config) []string {
-	var secrets []string
-	if key, err := cfg.DeepSeekAPIKey().Reveal(); err == nil {
-		secrets = append(secrets, key)
-	}
-	if key, err := cfg.AnthropicAPIKey().Reveal(); err == nil {
-		secrets = append(secrets, key)
-	}
-	if url, ok := cfg.SlackWebhookURL(); ok {
-		if value, err := url.Reveal(); err == nil {
-			secrets = append(secrets, value)
-			secrets = append(secrets, slackwebhook.SensitiveParts(value)...)
-		}
-	}
-	return secrets
 }

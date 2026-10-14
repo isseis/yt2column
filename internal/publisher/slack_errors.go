@@ -5,14 +5,28 @@ import (
 	"fmt"
 )
 
-// Sentinels for SlackWebhookPublisher. Preparation rejections are returned as
-// they are; failures after preparation are wrapped in *SlackPostError.
+// Sentinels for the shared webhook send path. Preparation rejections are
+// returned as they are; article-post failures after preparation are wrapped in
+// *SlackPostError.
 var (
 	ErrSlackHTTPStatus      = errors.New("webhook: unexpected HTTP status")
 	ErrSlackInvalidResponse = errors.New("webhook: invalid response")
 	ErrSlackTransport       = errors.New("webhook: transport failure")
 	ErrSlackUnsplittable    = errors.New("webhook: the article cannot be split into messages")
 	ErrSlackMention         = errors.New("webhook: the article contains text that may be treated as a mention or rewritten by the server")
+)
+
+// Sentinels for SlackFailureNotifier, added to the ones above.
+var (
+	// ErrSlackInvalidNotice reports a Notice whose RequestID or VideoID does
+	// not have the accepted shape. Nothing is sent.
+	ErrSlackInvalidNotice = errors.New("webhook: the failure notice is not valid")
+	// ErrSlackNoticeRejected reports a response that did not acknowledge the
+	// failure notice: a non-200 status (including 3xx, which is never
+	// followed), or a 200 whose body is not exactly "ok" or exceeds the
+	// limit. The returned error also matches ErrSlackHTTPStatus or
+	// ErrSlackInvalidResponse.
+	ErrSlackNoticeRejected = errors.New("webhook: the server rejected the failure notice")
 )
 
 // SlackHTTPStatusError reports a response whose status is not 200. Reason and

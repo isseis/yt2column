@@ -124,14 +124,14 @@ func newIntegrationRun(t *testing.T, settings deepseektestutil.IntegrationSettin
 	counter := &generateCounter{}
 	d := productionDeps()
 	newLLMClient := d.newLLMClient
-	d.newLLMClient = func(cfg config.Config) (llm.LLMClient, error) {
+	d.newLLMClient = func(cfg config.LLMConfig) (llm.LLMClient, error) {
 		client, err := newLLMClient(cfg)
 		return counter.wrap(client), err
 	}
 	// The review client is counted too, so the Generate count proves the steps
 	// did not run: with them disabled only the generation client is built.
 	newReviewLLMClient := d.newReviewLLMClient
-	d.newReviewLLMClient = func(cfg config.Config) (llm.LLMClient, error) {
+	d.newReviewLLMClient = func(cfg config.LLMConfig) (llm.LLMClient, error) {
 		client, err := newReviewLLMClient(cfg)
 		return counter.wrap(client), err
 	}

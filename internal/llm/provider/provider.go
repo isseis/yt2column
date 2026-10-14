@@ -26,15 +26,15 @@ var errUnknownProvider = errors.New("unknown LLM provider")
 
 // New builds the generation LLMClient from cfg.Provider() and cfg.Model(). It
 // never reads environment variables; every value comes from the
-// already-validated Config.
-func New(cfg config.Config) (llm.LLMClient, error) {
+// already-validated LLMConfig.
+func New(cfg config.LLMConfig) (llm.LLMClient, error) {
 	return newClient(cfg.Provider(), cfg.Model(), cfg, builders{deepseek: deepseek.New, claude: claude.New})
 }
 
 // NewReview builds the review LLMClient from cfg.ReviewProvider() and
 // cfg.ReviewModel(). It never reads environment variables; every value comes
-// from the already-validated Config.
-func NewReview(cfg config.Config) (llm.LLMClient, error) {
+// from the already-validated LLMConfig.
+func NewReview(cfg config.LLMConfig) (llm.LLMClient, error) {
 	return newClient(cfg.ReviewProvider(), cfg.ReviewModel(), cfg, builders{deepseek: deepseek.New, claude: claude.New})
 }
 
@@ -52,7 +52,7 @@ type builders struct {
 // production passes deepseek.New and claude.New, a test passes loopback
 // constructors or spies. An unknown provider returns errUnknownProvider without
 // calling any of them.
-func newClient(provider config.Provider, model string, cfg config.Config, build builders) (llm.LLMClient, error) {
+func newClient(provider config.Provider, model string, cfg config.LLMConfig, build builders) (llm.LLMClient, error) {
 	switch provider {
 	case config.ProviderDeepSeek:
 		client, err := build.deepseek(deepseek.Options{

@@ -69,6 +69,28 @@ func newSlackWebhookPublisherForLoopbackTest(t testing.TB, opts SlackTestOptions
 	return value
 }
 
+// NewSlackFailureNotifierForLoopbackTest builds a notifier that posts to
+// endpoint, which must be a loopback URL (loopbacktest.ValidateURL); any other
+// endpoint, or a non-positive timeout, fails t. It does not apply
+// slackwebhook.ValidURL, so the endpoint may use http. Built only with the
+// test tag.
+func NewSlackFailureNotifierForLoopbackTest(t testing.TB, timeout time.Duration, endpoint string) *SlackFailureNotifier {
+	t.Helper()
+	return newSlackFailureNotifierForLoopbackTest(t, timeout, endpoint, nil)
+}
+
+// newSlackFailureNotifierForLoopbackTest is
+// NewSlackFailureNotifierForLoopbackTest with a transport seam. It takes no
+// interval: only the time bound concerns a notifier.
+func newSlackFailureNotifierForLoopbackTest(t testing.TB, timeout time.Duration, endpoint string, transport http.RoundTripper) *SlackFailureNotifier {
+	t.Helper()
+	client, ok := newLoopbackWebhookClient(t, timeout, endpoint, transport)
+	if !ok {
+		return nil
+	}
+	return &SlackFailureNotifier{client: client}
+}
+
 // SlackMessagesForTest returns the text of every message Publish sends for
 // article. It runs the same preparation and touches no network, so a test in
 // another package can pin the length and shape of the messages. Built only
