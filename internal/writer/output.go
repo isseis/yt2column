@@ -77,6 +77,33 @@ func checkGeneratedText(text string) (title, body string, err error) {
 	return title, body, nil
 }
 
+// CheckStageText validates a saved stage's title and body with the same rules
+// checkGeneratedText applies to generated text. It also rejects a value
+// checkGeneratedText would normalize (a trimmed title, a rewritten line ending,
+// or a leading U+FEFF), so a loaded artifact carries exactly the values the
+// checks read rather than the values they rewrote. It wraps ErrMalformedOutput
+// and names the broken rule only, never a value.
+func CheckStageText(title, body string) error {
+	checkedTitle, checkedBody, err := checkGeneratedText(textString(title, body))
+	if err != nil {
+		return err
+	}
+	if checkedTitle != title || checkedBody != body {
+		return fmt.Errorf("%w: the saved text is not in normalized form", ErrMalformedOutput)
+	}
+	return nil
+}
+
+// CheckModelText validates a saved artifact's model name or model version with
+// the rules a response's Model and ModelVersion must satisfy. It is the
+// response rule under an exported name, so a loader reuses it instead of
+// restating it. An empty value is rejected; a caller that allows an empty
+// model version checks only a non-empty one. It wraps ErrMalformedOutput and
+// never puts the value in the error.
+func CheckModelText(name, value string) error {
+	return checkModelString(name, value)
+}
+
 // checkResponse validates a generation or shorten response: the generated text
 // with checkGeneratedText, then Model and ModelVersion. It returns the title and
 // the body part. Errors wrap ErrMalformedOutput and name the broken rule only,
