@@ -65,9 +65,9 @@ requirements が定める 4 つの機能要件（F-001〜F-004）を、architect
 
 **対象ファイル:** `.github/workflows/ci.yml`（変更）
 
-- [ ] **ステップ 1-1**: `.github/workflows/ci.yml` に `doc-guard` ジョブを追加する。`secret-scan` と同じく `needs` も `if` も付けず、ジョブに `permissions` を付けない。ステップは `actions/checkout@v5` → `actions/setup-go@v6`（`go-version-file: go.mod`、`cache: true`）→ `go test -tags test ./cmd/yt2column ./internal/pipeline` の 3 つ。`-run` を付けない（architecture §3.1）。
-- [ ] **ステップ 1-2**: `check-changes`・`test`・`lint`・`extension`・`secret-scan` の各ジョブを変更していないことを `git diff .github/workflows/ci.yml` で確かめる。`check-changes` の分類ロジック（`:24-53`）に差分がないこと、追加が `doc-guard` ジョブだけであることを確認する。
-- [ ] **ステップ 1-3**: フェーズ 1 の完了条件として、`make test` と `make lint` を通す（Go のソースは変えていないので、回帰の確認）。`doc-guard` が実行する `go test -tags test ./cmd/yt2column ./internal/pipeline` が手元で通ることを確かめる。
+- [x] **ステップ 1-1**: `.github/workflows/ci.yml` に `doc-guard` ジョブを追加する。`secret-scan` と同じく `needs` も `if` も付けず、ジョブに `permissions` を付けない。ステップは `actions/checkout@v5` → `actions/setup-go@v6`（`go-version-file: go.mod`、`cache: true`）→ `go test -tags test ./cmd/yt2column ./internal/pipeline` の 3 つ。`-run` を付けない（architecture §3.1）。
+- [x] **ステップ 1-2**: `check-changes`・`test`・`lint`・`extension`・`secret-scan` の各ジョブを変更していないことを `git diff .github/workflows/ci.yml` で確かめる。`check-changes` の分類ロジック（`:24-53`）に差分がないこと、追加が `doc-guard` ジョブだけであることを確認する。
+- [x] **ステップ 1-3**: フェーズ 1 の完了条件として、`make test` と `make lint` を通す（Go のソースは変えていないので、回帰の確認）。`doc-guard` が実行する `go test -tags test ./cmd/yt2column ./internal/pipeline` が手元で通ることを確かめる。
 - [ ] **ステップ 1-4**: PR-1 自身の PR チェックで `doc-guard` ジョブが走り、成功することを確認する。同一リポジトリのブランチでは PR の workflow が使われるので、PR-1 の `pull_request` で `doc-guard` が起動する。これはジョブの形（YAML の妥当性、`needs`・`if` の不在、対象パッケージ）の最初の検出点であり、未検証のジョブを `main` にマージしないための確認である（AC-01・AC-02）。workflow の実行 URL を控える。
 
 **完了条件:** `ci.yml` に `doc-guard` ジョブがあり、`check-changes` と既存ジョブに差分がない。`go test -tags test ./cmd/yt2column ./internal/pipeline` が手元で通る。PR-1 の PR チェックで `doc-guard` が走り成功する。
@@ -76,8 +76,8 @@ requirements が定める 4 つの機能要件（F-001〜F-004）を、architect
 
 **対象ファイル:** `CLAUDE.md`（変更）、`docs/tasks/0012_doc_sync_guards/02_architecture.md`（変更）
 
-- [ ] **ステップ 2-1**: `CLAUDE.md` の「Development Notes」の文書だけの変更に関する規則（`:211-215`）に、文書だけの変更でも CI の `doc-guard` ジョブが文書の guard を実行することを追記する。現行の趣旨（文書だけの変更は `make ext-test` を要求しない、移した guard は `make test` に含まれ node を必要としない）は維持する（AC-04）。
-- [ ] **ステップ 2-2**: `0012` の `02_architecture.md` §7.4 を §1.6 の方針で更新する。`#181`（タスク `0014`）で `doc-guard` ジョブが追加されたことと、残った限界（対象パッケージを明示列挙していること）を記す。§9（将来の拡張性）の「文書だけの変更を CI でも guard したい場合は…別のタスクとする（#181）」も、#181 が実装されたことを反映する。§10（設計への申し送りへの回答）と §11（決定の履歴）は `0012` の設計時の記録なので履歴として残す（§1.6）。`0012` の `02_architecture.md` の `Comments` に、決定を変えない記述の更新である旨を記す（AC-05）。
+- [x] **ステップ 2-1**: `CLAUDE.md` の「Development Notes」の文書だけの変更に関する規則（`:211-215`）に、文書だけの変更でも CI の `doc-guard` ジョブが文書の guard を実行することを追記する。現行の趣旨（文書だけの変更は `make ext-test` を要求しない、移した guard は `make test` に含まれ node を必要としない）は維持する（AC-04）。
+- [x] **ステップ 2-2**: `0012` の `02_architecture.md` §7.4 を §1.6 の方針で更新する。`#181`（タスク `0014`）で `doc-guard` ジョブが追加されたことと、残った限界（対象パッケージを明示列挙していること）を記す。§9（将来の拡張性）の「文書だけの変更を CI でも guard したい場合は…別のタスクとする（#181）」も、#181 が実装されたことを反映する。§10（設計への申し送りへの回答）と §11（決定の履歴）は `0012` の設計時の記録なので履歴として残す（§1.6）。`0012` の `02_architecture.md` の `Comments` に、決定を変えない記述の更新である旨を記す（AC-05）。
 
 **完了条件:** `CLAUDE.md` と `0012` §7.4 が architecture §3.3 の内容を満たす。`make test` と `make lint` が通る。
 
