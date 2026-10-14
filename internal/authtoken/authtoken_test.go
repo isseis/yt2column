@@ -275,9 +275,12 @@ func TestCreateDoesNotOverwriteExisting(t *testing.T) {
 	// A source that would produce a different token, so a passing test cannot
 	// come from the new value matching the old one.
 	other := bytes.Repeat([]byte{0x11}, tokenBytes)
-	token, err := create(path, bytes.NewReader(other))
+	token, created, err := create(path, bytes.NewReader(other))
 	if err != nil {
 		t.Fatalf("create: %v", err)
+	}
+	if created {
+		t.Errorf("create reported created = true when the name already existed, want false")
 	}
 	value, err := token.Value().Reveal()
 	if err != nil {

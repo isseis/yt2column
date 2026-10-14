@@ -96,19 +96,15 @@ type Token struct {
 // source of the token bytes; production passes crypto/rand.Reader. A file that
 // exists but does not meet the accepted form is reported as a *FileError
 // wrapping ErrInvalidTokenFile and is neither repaired nor regenerated.
-func LoadOrCreate(path string, random io.Reader) (token Token, created bool, err error) {
-	token, err = read(path)
+func LoadOrCreate(path string, random io.Reader) (Token, bool, error) {
+	token, err := read(path)
 	if err == nil {
 		return token, false, nil
 	}
 	if !errors.Is(err, fs.ErrNotExist) {
 		return Token{}, false, err
 	}
-	token, err = create(path, random)
-	if err != nil {
-		return Token{}, false, err
-	}
-	return token, true, nil
+	return create(path, random)
 }
 
 // Matches reports whether presented equals the token, in constant time with
@@ -195,49 +191,51 @@ func ownedByCurrentUser(info fs.FileInfo) bool {
 	return uint32(os.Geteuid()) == st.Uid //nolint:gosec // a user ID is non-negative and fits in uint32
 }
 
-// create generates a token from random and publishes it at path. It writes a
-// temporary file in the same directory, syncs it, and gives it the final name
-// with link(2); the name therefore only ever refers to a complete token even if
-// another process reads it while the write is in flight. When link(2) reports
-// that the name already exists, another process created the token first, so
-// this call reads (and never overwrites) that file.
-func create(path string, random io.Reader) (Token, error) {
+// create generates a token from random and publishes it at path. created
+// reports whether this call generated the token: a concurrent first start that
+// won the race has already published one, so this call reads (and never
+// overwrites) that file and reports created=false. It writes a temporary file
+// in the same directory, syncs it, and gives it the final name with link(2);
+// the name therefore only ever refers to a complete token even if another
+// process reads it while the write is in flight.
+func create(path string, random io.Reader) (Token, bool, error) {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, dirMode); err != nil {
-		return Token{}, fmt.Errorf("create the token directory %s: %w", dir, err)
+		return Token{}, false, fmt.Errorf("create the token directory %s: %w", dir, err)
 	}
 	raw := make([]byte, tokenBytes)
 	if _, err := io.ReadFull(random, raw); err != nil {
-		return Token{}, fmt.Errorf("generate the shared token: %w", err)
+		return Token{}, false, fmt.Errorf("generate the shared token: %w", err)
 	}
 	value := hex.EncodeToString(raw)
 
 	file, err := os.CreateTemp(dir, tokenFileName+".tmp-*")
 	if err != nil {
-		return Token{}, fmt.Errorf("create a temporary token file in %s: %w", dir, err)
+		return Token{}, false, fmt.Errorf("create a temporary token file in %s: %w", dir, err)
 	}
 	tmpPath := file.Name()
 	if _, err := file.WriteString(value); err != nil {
 		_ = file.Close()
 		_ = os.Remove(tmpPath)
-		return Token{}, fmt.Errorf("write the temporary token file %s: %w", tmpPath, err)
+		return Token{}, false, fmt.Errorf("write the temporary token file %s: %w", tmpPath, err)
 	}
 	if err := file.Sync(); err != nil {
 		_ = file.Close()
 		_ = os.Remove(tmpPath)
-		return Token{}, fmt.Errorf("sync the temporary token file %s: %w", tmpPath, err)
+		return Token{}, false, fmt.Errorf("sync the temporary token file %s: %w", tmpPath, err)
 	}
 	if err := file.Close(); err != nil {
 		_ = os.Remove(tmpPath)
-		return Token{}, fmt.Errorf("close the temporary token file %s: %w", tmpPath, err)
+		return Token{}, false, fmt.Errorf("close the temporary token file %s: %w", tmpPath, err)
 	}
 
 	if err := os.Link(tmpPath, path); err != nil {
 		_ = os.Remove(tmpPath)
 		if errors.Is(err, fs.ErrExist) {
-			return read(path)
+			token, readErr := read(path)
+			return token, false, readErr
 		}
-		return Token{}, fmt.Errorf("name the shared token file %s: %w", path, err)
+		return Token{}, false, fmt.Errorf("name the shared token file %s: %w", path, err)
 	}
 	// The token is complete under its final name. A leftover temporary file
 	// does not affect the next read, so its removal is best effort.
@@ -245,7 +243,7 @@ func create(path string, random io.Reader) (Token, error) {
 
 	secretValue, err := secret.New(value)
 	if err != nil {
-		return Token{}, fmt.Errorf("hold the shared token: %w", err)
+		return Token{}, false, fmt.Errorf("hold the shared token: %w", err)
 	}
-	return Token{value: secretValue}, nil
+	return Token{value: secretValue}, true, nil
 }
