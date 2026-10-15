@@ -8,7 +8,7 @@
 | Created | 2026-10-14 |
 | Review date | 2026-10-14 |
 | Reviewer | isseis |
-| Comments | 2026-10-14: §5.1 の成果物の脅威の表のセルで、フラグの表記を `O_CREATE` と `O_EXCL` の 2 つに分けた（元の表記の縦棒が Markdown の列区切りとして解釈され、行が 3 列になっていたため。表示の修正のみで、決定は変えていない） |
+| Comments | 2026-10-14: §5.1 の成果物の脅威の表のセルで、フラグの表記を `O_CREATE` と `O_EXCL` の 2 つに分けた（元の表記の縦棒が Markdown の列区切りとして解釈され、行が 3 列になっていたため。表示の修正のみで、決定は変えていない）。2026-10-15: §3.9 の評価の手順で、`--keep-cache` を最初の実行だけでなく手順のすべての実行に付けると訂正した（成功した実行のたびにキャッシュが削除されるため。計画と 0010 の 02_evaluation.md はすでに全実行に付けている。表示の整合のみで、決定は変えていない） |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md) の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §3.10）を指す。既存のコードの行番号は、コミット `704ff5e`（要件定義書を承認したコミット。コードは `4b2d227` と同じ）で確かめたものである。
 
@@ -512,7 +512,7 @@ func Load(lookup LookupFunc) (Config, error)
 - **モデルの行（H-07・AC-27）。** `renderArticle`（`publisher/file.go:203-214`）は変更しない。`Article.Model`・`Article.Shorten`・`Article.Review` に、再利用した段階の来歴（§3.5）が入るので、`--out` と Webhook の出力に、実行した段階と再利用した段階の両方のモデルの行が、どの段階のものか分かる形で出る（`- Model:`・`- Shorten model:`・`- Review model:`）。ModelVersion が空のときは既存の `modelVersionOrNone` が `(none)` と書く（0010 §3.8 と同じ）。
 - **一覧のファイル（H-08・AC-07）。** `--review-log` の Markdown は、0010 の `ReviewLogWriter`（`publisher/reviewlog.go`）が `Article.Review` から作る。再開で検証・推敲を実行した場合は新しい一覧が `Article.Review` に入り、`--after review` の場合は `ArtifactChain.Review` から入る。`--review-log` のファイルは読み取りの入力には使わず、成果物（`<videoID>.review.json`）だけを読む（AC-07）。
 - **`--artifacts` は書き込み可能でなければならない。** 再開でも実行した段階の成果物を保存するので（AC-18）、読み取り専用のディレクトリでは再開できない。凍結した生成の出力を守る場合は、成果物を別のディレクトリに複製してから再開する（§5.3）。
-- **評価の手順（H-09・AC-34）。** [0010 の 02_evaluation.md](../0010_post_generation_review/02_evaluation.md) §2 に、生成を 1 回だけ行って成果物を保存し、同じ生成の出力に別の字数の調整・検証・推敲を当てるコマンドの形を加える。最初の実行には `--keep-cache` を付ける（成功した実行の後にキャッシュが削除され、取り直した字幕が変わると再開が AC-21 で拒否されるため。AC-17）。段階の呼び出し回数と料金については、再開では呼ばない段階があることを記録する。評価の再実行と §3 の記録の更新はスコープ外である。
+- **評価の手順（H-09・AC-34）。** [0010 の 02_evaluation.md](../0010_post_generation_review/02_evaluation.md) §2 に、生成を 1 回だけ行って成果物を保存し、同じ生成の出力に別の字数の調整・検証・推敲を当てるコマンドの形を加える。手順のすべての実行に `--keep-cache` を付ける（成功した実行の後はキャッシュが既定で削除され、次の実行が字幕を取り直す。取り直した字幕が保存時と変わると再開が AC-21 で拒否されるため。AC-17）。段階の呼び出し回数と料金については、再開では呼ばない段階があることを記録する。評価の再実行と §3 の記録の更新はスコープ外である。
 
 ### 3.10. design_handoff の各項目への対応
 

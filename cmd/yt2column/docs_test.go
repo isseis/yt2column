@@ -3,7 +3,10 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"flag"
+	"io"
 	"os"
 	"slices"
 	"strconv"
@@ -501,4 +504,109 @@ func stepBlock(doc, marker string) (block string, checked, found bool) {
 		b.WriteString("\n")
 	}
 	return b.String(), checked, true
+}
+
+// TestArtifactDocsContract checks the documents' save-and-resume contract: the
+// README flags table and the -h usage state that --after requires --artifacts
+// and that --after review does not accept --review-log; project_overview.md
+// describes saving and resuming; security.md states the artifact file
+// permissions and the read boundary; and 0010's evaluation procedure names
+// --artifacts, --after, and --keep-cache.
+//
+// The behavior these documents describe is pinned by running tests, not by
+// this test: security.md's permission (0o600) is internal/artifact's
+// TestSaveFileMode, and its "outside the cache directory" rule and its
+// inside-cache-directory rejection are cmd/yt2column's
+// TestRunArtifactsInsideCacheDir.
+func TestArtifactDocsContract(t *testing.T) {
+	readme := readDoc(t, readmePath)
+	table := findTable(readme, "Flag")
+	if table == nil {
+		t.Fatal("README has no flags table")
+	}
+	for _, flag := range []string{"--artifacts", "--after"} {
+		if !tableFlagContains(table, flag) {
+			t.Errorf("README flags table does not document %s", flag)
+		}
+	}
+	var afterRow []string
+	for _, row := range table[1:] {
+		if len(row) > 0 && strings.Contains(row[0], "--after") {
+			afterRow = row
+			break
+		}
+	}
+	if afterRow == nil {
+		t.Fatal("README flags table has no --after row")
+	}
+	rowText := strings.Join(afterRow, " ")
+	for _, want := range []string{"--artifacts", "--review-log"} {
+		if !strings.Contains(rowText, want) {
+			t.Errorf("README --after row does not state the %s rule: %q", want, rowText)
+		}
+	}
+
+	var stdout bytes.Buffer
+	if code := run(context.Background(), []string{"-h"}, lookupFrom(nil), &stdout, io.Discard, productionDeps()); code != exitOK {
+		t.Fatalf("run(-h) exit code = %d, want %d", code, exitOK)
+	}
+	usage := stdout.String()
+	for _, want := range []string{"requires --artifacts", "--after review does not accept --review-log"} {
+		if !strings.Contains(usage, want) {
+			t.Errorf("-h usage does not state %q:\n%s", want, usage)
+		}
+	}
+
+	overview := readDoc(t, projectOverviewPath)
+	for _, want := range []string{"--artifacts", "--after"} {
+		if !strings.Contains(overview, want) {
+			t.Errorf("project_overview.md does not mention %s", want)
+		}
+	}
+
+	security := readDoc(t, securityPath)
+	cacheSection := sectionByHeading(security, "## 5. キャッシュディレクトリ")
+	if cacheSection == "" {
+		t.Fatal("security.md has no 5. キャッシュディレクトリ section")
+	}
+	artifactLine := bulletContaining(cacheSection, "--artifacts")
+	if artifactLine == "" {
+		t.Fatal("security.md 5. キャッシュディレクトリ has no --artifacts bullet")
+	}
+	if !strings.Contains(artifactLine, "0o600") {
+		t.Errorf("security.md's --artifacts bullet does not state the file mode 0o600: %q", artifactLine)
+	}
+	untrusted := sectionByHeading(security, "## 6. 信頼できないテキストの取り扱い")
+	if untrusted == "" {
+		t.Fatal("security.md has no 6. 信頼できないテキストの取り扱い section")
+	}
+	artifactContentLine := bulletContaining(untrusted, "--artifacts")
+	if artifactContentLine == "" {
+		t.Fatal("security.md 6. has no --artifacts bullet")
+	}
+	for _, want := range []string{"U+FEFF", "4 MiB"} {
+		if !strings.Contains(artifactContentLine, want) {
+			t.Errorf("security.md's --artifacts bullet does not state %q: %q", want, artifactContentLine)
+		}
+	}
+
+	evaluation := sectionByHeading(readDoc(t, reviewEvaluationPath), "### 2.6. 中間生成物を固定した比較（タスク 0017 以降）")
+	if evaluation == "" {
+		t.Fatal("02_evaluation.md has no 2.6 section")
+	}
+	for _, want := range []string{"--artifacts", "--after", "--keep-cache"} {
+		if !strings.Contains(evaluation, want) {
+			t.Errorf("02_evaluation.md 2.6 does not mention %s", want)
+		}
+	}
+}
+
+// bulletContaining returns the first line of section that contains term, or "".
+func bulletContaining(section, term string) string {
+	for line := range strings.SplitSeq(section, "\n") {
+		if strings.Contains(line, term) {
+			return line
+		}
+	}
+	return ""
 }

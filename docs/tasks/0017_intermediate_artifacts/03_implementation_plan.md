@@ -243,20 +243,20 @@ architecture は再承認済みなので、フェーズ 1 に着手できる。
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 5: 文書
 
 **対象ファイル:** `README.md`（変更）、`docs/dev/project_overview.md`（変更）、`docs/dev/security.md`（変更）、`docs/dev/developer_guide/package_reference.md`（変更）、`docs/tasks/0010_post_generation_review/02_evaluation.md`（変更）、`cmd/yt2column/docs_test.go`（変更）、`cmd/yt2column/run_test.go`（変更）
 
-- [ ] **ステップ 5-1**: `README.md` の `## Post-generation steps` のモデルの行と `--review-log` の説明（`:94-99`）と、`## Cache and concurrency`（`:106`）に、成果物の保存と再開（`--artifacts`・`--after`）と、再開でも実行した段階を保存するため `--artifacts` のディレクトリは書き込み可能でなければならないことを加える。フラグの表の行はステップ 4-8 で加え済みである（重複して加えない）。
-- [ ] **ステップ 5-2**: `docs/dev/project_overview.md` の `## パイプライン`（`:18`）の `ArticleWriter` の項（`:31-33`）に、段階の出力の保存と再開（`--artifacts`・`--after`）を加える。`## 前提・制約` のキャッシュの項（`:58`）に、成果物はキャッシュの外の利用者が指定したディレクトリに保存され、利用者が削除するまで残ることを加える。
-- [ ] **ステップ 5-3**: `docs/dev/security.md` の `## 5. キャッシュディレクトリ`（`:61`）に、成果物のファイルの権限（`0o600`）・保存先（キャッシュの外）・検証済みの動画 ID と固定の段階名から名前を組み立てること・シンボリックリンクを辿らないこと（§2.0 の訂正後の機構）を加える。`## 6. 信頼できないテキストの取り扱い`（`:67`）の `--review-log` の項（`:75`）に倣い、成果物に含めてはならない値（API キー・Webhook URL・共有トークン・上書きファイルのローカルのパス）と、読み込みの境界（未知のキー・重複したキー・末尾の内容・上限・冒頭の U+FEFF の拒否、連鎖の照合）を加える。
-- [ ] **ステップ 5-4**: `docs/dev/developer_guide/package_reference.md` の `internal/writer` の行に保存と再開を、`internal/config` の行に `Need`・`LoadFor` を加える。フェーズ 1 で加えた `internal/artifact` の行と整合させる。
-- [ ] **ステップ 5-5**: `docs/tasks/0010_post_generation_review/02_evaluation.md` の `## 2. 手順`（`:38`）に、生成を 1 回だけ行って成果物を保存し、同じ生成の出力に別の字数の調整・検証・推敲を当てる手順を加える（`--artifacts`・`--after`）。**加えるコマンドのすべての実行に `--keep-cache` を付ける**（成功した実行の後にキャッシュが既定で削除され、取り直した字幕が変わると次の再開が AC-21 で拒否されるため。requirements AC-17・design_handoff H-09。既存の `### 2.2`・`### 2.3` のコマンド例も `--keep-cache` を使う）。段階の呼び出し回数と料金の記録の方法（再開では呼ばない段階があること）に触れる（requirements F-008・AC-34）。
-- [ ] **ステップ 5-6**: `cmd/yt2column/docs_test.go`（`//go:build test`）に、文書の契約を確かめる `TestArtifactDocsContract` を加える。`readDoc`（`:304-311`）・`findTable`（`:368-380`）・`sectionByHeading`（`:455-478`）を使い、README のフラグの表に `--artifacts`・`--after` があること、`--after` が `--artifacts` を要することと `--after review` が `--review-log` を使えないことが README か `-h` の使い方の説明に書かれていること、`project_overview.md` と `security.md` の該当の節に保存と再開・読み込みの境界の記述があること、`02_evaluation.md` の §2 に `--artifacts`・`--after`・`--keep-cache` があることを確かめる。`security.md` が述べる権限（`0o600`）と保存先（キャッシュの外）が、実行されるテスト（`internal/artifact/store_test.go::TestSaveFileMode` と `cmd/yt2column/run_test.go::TestRunArtifactsInsideCacheDir`）が固定する振る舞いと一致することを、`TestArtifactDocsContract` のコメントで対応づける（文書の文言はそれが存在することの確認にとどまり、振る舞いの正否は実行されるテストを基準に判断する）。`TestREADMEDocumentsFlags`（`:37-52`）が通ることを確かめる。
-- [ ] **ステップ 5-7**: `02_evaluation.md` に書いた手順のコマンドの**すべての行**（`--artifacts`・`--after`・`--keep-cache`・`--no-shorten`/`--no-review`。最初の実行と各再開の実行の両方）が、yt-dlp と LLM の前に拒否されないことを、フェーズ 4 の fake の組み立て（`run_test.go`）で確かめる（AC-34 の基準となる正解。AC-17 の「再開でもキャッシュを保つ」条件を各行に当てる）。実行するテストは `cmd/yt2column/run_test.go::TestRunEvaluationProcedureFlags` である。
+- [x] **ステップ 5-1**: `README.md` の `## Post-generation steps` のモデルの行と `--review-log` の説明（`:94-99`）と、`## Cache and concurrency`（`:106`）に、成果物の保存と再開（`--artifacts`・`--after`）と、再開でも実行した段階を保存するため `--artifacts` のディレクトリは書き込み可能でなければならないことを加える。フラグの表の行はステップ 4-8 で加え済みである（重複して加えない）。
+- [x] **ステップ 5-2**: `docs/dev/project_overview.md` の `## パイプライン`（`:18`）の `ArticleWriter` の項（`:31-33`）に、段階の出力の保存と再開（`--artifacts`・`--after`）を加える。`## 前提・制約` のキャッシュの項（`:58`）に、成果物はキャッシュの外の利用者が指定したディレクトリに保存され、利用者が削除するまで残ることを加える。
+- [x] **ステップ 5-3**: `docs/dev/security.md` の `## 5. キャッシュディレクトリ`（`:61`）に、成果物のファイルの権限（`0o600`）・保存先（キャッシュの外）・検証済みの動画 ID と固定の段階名から名前を組み立てること・シンボリックリンクを辿らないこと（§2.0 の訂正後の機構）を加える。`## 6. 信頼できないテキストの取り扱い`（`:67`）の `--review-log` の項（`:75`）に倣い、成果物に含めてはならない値（API キー・Webhook URL・共有トークン・上書きファイルのローカルのパス）と、読み込みの境界（未知のキー・重複したキー・末尾の内容・上限・冒頭の U+FEFF の拒否、連鎖の照合）を加える。
+- [x] **ステップ 5-4**: `docs/dev/developer_guide/package_reference.md` の `internal/writer` の行に保存と再開を、`internal/config` の行に `Need`・`LoadFor` を加える。フェーズ 1 で加えた `internal/artifact` の行と整合させる。
+- [x] **ステップ 5-5**: `docs/tasks/0010_post_generation_review/02_evaluation.md` の `## 2. 手順`（`:38`）に、生成を 1 回だけ行って成果物を保存し、同じ生成の出力に別の字数の調整・検証・推敲を当てる手順を加える（`--artifacts`・`--after`）。**加えるコマンドのすべての実行に `--keep-cache` を付ける**（成功した実行の後にキャッシュが既定で削除され、取り直した字幕が変わると次の再開が AC-21 で拒否されるため。requirements AC-17・design_handoff H-09。既存の `### 2.2`・`### 2.3` のコマンド例も `--keep-cache` を使う）。段階の呼び出し回数と料金の記録の方法（再開では呼ばない段階があること）に触れる（requirements F-008・AC-34）。
+- [x] **ステップ 5-6**: `cmd/yt2column/docs_test.go`（`//go:build test`）に、文書の契約を確かめる `TestArtifactDocsContract` を加える。`readDoc`（`:304-311`）・`findTable`（`:368-380`）・`sectionByHeading`（`:455-478`）を使い、README のフラグの表に `--artifacts`・`--after` があること、`--after` が `--artifacts` を要することと `--after review` が `--review-log` を使えないことが README か `-h` の使い方の説明に書かれていること、`project_overview.md` と `security.md` の該当の節に保存と再開・読み込みの境界の記述があること、`02_evaluation.md` の §2 に `--artifacts`・`--after`・`--keep-cache` があることを確かめる。`security.md` が述べる権限（`0o600`）と保存先（キャッシュの外）が、実行されるテスト（`internal/artifact/store_test.go::TestSaveFileMode` と `cmd/yt2column/run_test.go::TestRunArtifactsInsideCacheDir`）が固定する振る舞いと一致することを、`TestArtifactDocsContract` のコメントで対応づける（文書の文言はそれが存在することの確認にとどまり、振る舞いの正否は実行されるテストを基準に判断する）。`TestREADMEDocumentsFlags`（`:37-52`）が通ることを確かめる。
+- [x] **ステップ 5-7**: `02_evaluation.md` に書いた手順のコマンドの**すべての行**（`--artifacts`・`--after`・`--keep-cache`・`--no-shorten`/`--no-review`。最初の実行と各再開の実行の両方）が、yt-dlp と LLM の前に拒否されないことを、フェーズ 4 の fake の組み立て（`run_test.go`）で確かめる（AC-34 の基準となる正解。AC-17 の「再開でもキャッシュを保つ」条件を各行に当てる）。実行するテストは `cmd/yt2column/run_test.go::TestRunEvaluationProcedureFlags` である。
 
 **完了条件:** `make fmt`・`make test`・`make lint` が通る。`TestREADMEDocumentsFlags`・`TestArtifactDocsContract` が通る。`02_evaluation.md` の手順のコマンドの組み合わせが `run_test.go` のテストで受理される。
 
@@ -272,8 +272,8 @@ architecture は再承認済みなので、フェーズ 1 に着手できる。
 
 **判定理由**: 文書の更新は architecture §3.9・§5.2 のとおりの内容を既存の節に加える作業であり、基準となる正解の確認はフェーズ 4 の fake の組み立てを再利用したテストで行う。前例のない設計判断・panel-mode トリガー・競合する実装案・分離された高リスク／複雑なステップのいずれにも該当しない。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
