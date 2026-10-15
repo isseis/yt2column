@@ -181,8 +181,8 @@ requirements §2.3 のとおり。加えて、次のものは本計画で扱わ�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 - [ ] **ステップ 2-4**: `cmd/yt2column-server/main.go`（`os.LookupEnv`・標準出力・標準エラー出力を `run` に渡し、`signalrun.Run` で包む）と `cmd/yt2column-server/run.go`（起動の手順と終了コード、部品の構築、ログの組み立て。CLI の `deps` と同じく、LLM・`Publisher`・`Notifier` の構築関数をテストで差し替えられる形にする）を実装する。`Makefile` の `build` を 2 つの実行ファイルにする（統合テストは `make test` に含まれるので、専用のターゲットは加えない）。`internal/config/envaccess_test.go` の `allowedEnvRefs` に `cmd/yt2column-server/main.go` を加える。`cmd/yt2column-server/server_test.go`（`//go:build test`）に §4.2 の統合テストを書く。サーバの `writer.Options` が CLI の既定の解析結果と一致することを `cmd/yt2column-server` のユニットテストで固定する（§3.1）。
 
@@ -343,7 +343,7 @@ architecture §7.3 を 2-1〜2-3 のテストに書く。(1) AC-12（本文を�
 - [x] PR-2 マージ済み（対象ステップ: 1-2）
 - [x] PR-3 マージ済み（対象ステップ: 1-3 / 1-4）
 - [x] PR-4 マージ済み（対象ステップ: 1-5）
-- [ ] PR-5 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3）
+- [x] PR-5 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3）
 - [ ] PR-6 マージ済み（対象ステップ: 2-4）
 - [ ] PR-7 マージ済み（対象ステップ: 2-5）
 - [ ] 各 PR でグリーンゲート（`make test && make lint`）が通った
