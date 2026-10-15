@@ -43,11 +43,18 @@ func assertBodyRejected(t *testing.T, body []byte, want error) error {
 	return err
 }
 
-// assertUsageUnknown requires body to be accepted with an unknown usage whose
-// reason is want.
-func assertUsageUnknown(t *testing.T, body []byte, want string) {
+// assertUsageUnknown requires body to be accepted with the fixture's text,
+// model, and model version, and an unknown usage whose reason is want. The
+// accepted response must be unchanged apart from the usage.
+func assertUsageUnknown(t *testing.T, fixture, body []byte, want string) {
 	t.Helper()
 	response := assertBodyAccepted(t, body)
+	document := documentOf(t, fixture)
+	wantText, _ := textBlockOf(t, document)[keyText].(string)
+	wantModel, _ := document[keyModel].(string)
+	if response.Text != wantText || response.Model != wantModel || response.ModelVersion != "" {
+		t.Errorf("response = %+v, want Text %q, Model %q, ModelVersion %q", response, wantText, wantModel, "")
+	}
 	if _, known := response.Usage.Counts(); known {
 		t.Fatalf("Usage = %+v, want an unknown usage", response.Usage)
 	}
@@ -73,9 +80,6 @@ func TestGenerateResponseFixtures(t *testing.T) {
 		}
 		if response.ModelVersion != "" {
 			t.Errorf("ModelVersion = %q, want an empty string", response.ModelVersion)
-		}
-		if response.Usage != endTurnFixtureUsage {
-			t.Errorf("Usage = %+v, want %+v", response.Usage, endTurnFixtureUsage)
 		}
 	})
 
@@ -486,23 +490,17 @@ func TestGenerateUsageCategories(t *testing.T) {
 
 func TestGenerateUsageNullCache(t *testing.T) {
 	endTurn := readFixture(t, testdataEndTurnFixture)
-	want := llm.KnownUsage(llm.TokenCounts{Input: 75, CacheRead: 0, CacheWrite: 0, Output: 49})
 
-	t.Run("cache_read null is zero", func(t *testing.T) {
-		body := responseWithUsage(t, endTurn, usageCounts(75, json.RawMessage("null"), 0, 49))
-		response := assertBodyAccepted(t, body)
-		if response.Usage != want {
-			t.Errorf("Usage = %+v, want %+v", response.Usage, want)
-		}
-	})
-
-	t.Run("cache_creation null is zero", func(t *testing.T) {
-		body := responseWithUsage(t, endTurn, usageCounts(75, 0, json.RawMessage("null"), 49))
-		response := assertBodyAccepted(t, body)
-		if response.Usage != want {
-			t.Errorf("Usage = %+v, want %+v", response.Usage, want)
-		}
-	})
+	for _, member := range []string{keyCacheReadInputTokens, keyCacheCreationInputTokens} {
+		t.Run(member+" null is zero", func(t *testing.T) {
+			usage := usageCounts(75, 0, 0, 49)
+			usage[member] = json.RawMessage("null")
+			response := assertBodyAccepted(t, responseWithUsage(t, endTurn, usage))
+			if response.Usage != endTurnFixtureUsage {
+				t.Errorf("Usage = %+v, want %+v", response.Usage, endTurnFixtureUsage)
+			}
+		})
+	}
 }
 
 func TestGenerateUsageUnknown(t *testing.T) {
@@ -550,7 +548,7 @@ func TestGenerateUsageUnknown(t *testing.T) {
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
-				assertUsageUnknown(t, tc.body, tc.want)
+				assertUsageUnknown(t, endTurn, tc.body, tc.want)
 			})
 		}
 	})
@@ -560,7 +558,7 @@ func TestGenerateUsageUnknown(t *testing.T) {
 			t.Run(member.name+" "+invalid.name, func(t *testing.T) {
 				usage := usageCounts(1, 2, 3, 4)
 				usage[member.name] = invalid.value
-				assertUsageUnknown(t, responseWithUsage(t, endTurn, usage), "usage."+member.name+":not-a-non-negative-integer")
+				assertUsageUnknown(t, endTurn, responseWithUsage(t, endTurn, usage), "usage."+member.name+":not-a-non-negative-integer")
 			})
 		}
 
@@ -568,20 +566,20 @@ func TestGenerateUsageUnknown(t *testing.T) {
 			t.Run(member.name+" null", func(t *testing.T) {
 				usage := usageCounts(1, 2, 3, 4)
 				usage[member.name] = json.RawMessage("null")
-				assertUsageUnknown(t, responseWithUsage(t, endTurn, usage), "usage."+member.name+":not-a-non-negative-integer")
+				assertUsageUnknown(t, endTurn, responseWithUsage(t, endTurn, usage), "usage."+member.name+":not-a-non-negative-integer")
 			})
 		}
 
 		t.Run(member.name+" missing", func(t *testing.T) {
 			usage := usageCounts(1, 2, 3, 4)
 			delete(usage, member.name)
-			assertUsageUnknown(t, responseWithUsage(t, endTurn, usage), "usage."+member.name+":missing")
+			assertUsageUnknown(t, endTurn, responseWithUsage(t, endTurn, usage), "usage."+member.name+":missing")
 		})
 
 		t.Run(member.name+" duplicate", func(t *testing.T) {
 			body := responseWithUsage(t, endTurn, usageCounts(1, 2, 3, 4))
 			needle := fmt.Sprintf("%q:%d", member.name, member.value)
-			assertUsageUnknown(t, replaceOnce(t, body, needle, needle+","+needle), "usage."+member.name+":duplicate")
+			assertUsageUnknown(t, endTurn, replaceOnce(t, body, needle, needle+","+needle), "usage."+member.name+":duplicate")
 		})
 	}
 }

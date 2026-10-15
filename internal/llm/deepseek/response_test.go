@@ -42,11 +42,19 @@ func assertBodyRejected(t *testing.T, body []byte, want error) error {
 	return err
 }
 
-// assertUsageUnknown requires body to be accepted with an unknown usage whose
-// reason is want.
-func assertUsageUnknown(t *testing.T, body []byte, want string) {
+// assertUsageUnknown requires body to be accepted with the fixture's text,
+// model, and model version, and an unknown usage whose reason is want. The
+// accepted response must be unchanged apart from the usage.
+func assertUsageUnknown(t *testing.T, fixture, body []byte, want string) {
 	t.Helper()
 	response := assertBodyAccepted(t, body)
+	document := documentOf(t, fixture)
+	content, _ := messageOf(t, document)[keyContent].(string)
+	model, _ := document[keyModel].(string)
+	fingerprint, _ := document[keySystemFingerprint].(string)
+	if response.Text != content || response.Model != model || response.ModelVersion != fingerprint {
+		t.Errorf("response = %+v, want Text %q, Model %q, ModelVersion %q", response, content, model, fingerprint)
+	}
 	if _, known := response.Usage.Counts(); known {
 		t.Fatalf("Usage = %+v, want an unknown usage", response.Usage)
 	}
@@ -73,9 +81,6 @@ func TestGenerateResponseFixtures(t *testing.T) {
 		}
 		if response.ModelVersion != fingerprint {
 			t.Errorf("ModelVersion = %q, want %q", response.ModelVersion, fingerprint)
-		}
-		if response.Usage != stopFixtureUsage {
-			t.Errorf("Usage = %+v, want %+v", response.Usage, stopFixtureUsage)
 		}
 	})
 
@@ -563,7 +568,7 @@ func TestGenerateUsageUnknown(t *testing.T) {
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
-				assertUsageUnknown(t, tc.body, tc.want)
+				assertUsageUnknown(t, stop, tc.body, tc.want)
 			})
 		}
 	})
@@ -573,20 +578,20 @@ func TestGenerateUsageUnknown(t *testing.T) {
 			t.Run(member.name+" "+invalid.name, func(t *testing.T) {
 				usage := usageCounts(1, 2, 3)
 				usage[member.name] = invalid.value
-				assertUsageUnknown(t, responseWithUsage(t, stop, usage), "usage."+member.name+":not-a-non-negative-integer")
+				assertUsageUnknown(t, stop, responseWithUsage(t, stop, usage), "usage."+member.name+":not-a-non-negative-integer")
 			})
 		}
 
 		t.Run(member.name+" missing", func(t *testing.T) {
 			usage := usageCounts(1, 2, 3)
 			delete(usage, member.name)
-			assertUsageUnknown(t, responseWithUsage(t, stop, usage), "usage."+member.name+":missing")
+			assertUsageUnknown(t, stop, responseWithUsage(t, stop, usage), "usage."+member.name+":missing")
 		})
 
 		t.Run(member.name+" duplicate", func(t *testing.T) {
 			body := responseWithUsage(t, stop, usageCounts(1, 2, 3))
 			needle := fmt.Sprintf("%q:%d", member.name, member.value)
-			assertUsageUnknown(t, replaceOnce(t, body, needle, needle+","+needle), "usage."+member.name+":duplicate")
+			assertUsageUnknown(t, stop, replaceOnce(t, body, needle, needle+","+needle), "usage."+member.name+":duplicate")
 		})
 	}
 }
@@ -686,6 +691,21 @@ func TestGenerateRejectedResponseUsage(t *testing.T) {
 	messageOf(t, empty)[keyContent] = ""
 	empty[keyUsage] = usageCounts(11, 22, 33)
 	assertBodyRejectedResponse(t, encodeDocument(t, empty), llm.ErrEmptyResponse, counts)
+
+	t.Run("the rejected response's model, not the client's, is carried", func(t *testing.T) {
+		// The fixtures' model equals the test client's model, so a body with a
+		// distinct model pins that Model comes from the response.
+		const responseModel = "deepseek-v4-1-flash"
+		document := documentOf(t, length)
+		document[keyModel] = responseModel
+		document[keyUsage] = usageCounts(11, 22, 33)
+		server := newResponseServer(t, http.StatusOK, encodeDocument(t, document))
+		response, err := generateAgainst(t, server.URL, validRequest(), nil)
+		if !errors.Is(err, llm.ErrTruncated) {
+			t.Errorf("Generate() error = %v, want ErrTruncated", err)
+		}
+		assertRejectedResponse(t, response, err, responseModel, counts)
+	})
 
 	t.Run("a broken usage in a truncated response is unknown", func(t *testing.T) {
 		body := responseWithUsage(t, length, usageCounts(json.RawMessage("-1"), 0, 0))
