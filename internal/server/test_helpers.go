@@ -242,3 +242,30 @@ func (rr *recordingReader) Read(p []byte) (int, error) {
 // MaxBodyBytesForTest is the body size limit, for tests in other packages that
 // build a body just over it. Built only with the test tag.
 const MaxBodyBytesForTest = maxBodyBytes
+
+// MaxInFlightForTest is the number of authenticated requests allowed in flight
+// at once, for documentation guards in other packages.
+const MaxInFlightForTest = maxInFlight
+
+// ExtensionOriginForTest is the fixed extension origin the handler accepts.
+func ExtensionOriginForTest() string { return extensionOrigin }
+
+// JSONContentTypeForTest is the one accepted content type.
+func JSONContentTypeForTest() string { return jsonContentType }
+
+// RejectReasonForTest is one rejection's fixed reason value and HTTP status.
+type RejectReasonForTest struct {
+	Value  string
+	Status int
+}
+
+// RejectReasonsForTest returns every rejection's fixed reason value and status,
+// in the declaration order, so a documentation guard in another package reads
+// the table from the code instead of copying it. Built only with the test tag.
+func RejectReasonsForTest() []RejectReasonForTest {
+	table := make([]RejectReasonForTest, 0, int(reasonInvalidTranscript)+1)
+	for reason := reasonInternal; reason <= reasonInvalidTranscript; reason++ {
+		table = append(table, RejectReasonForTest{Value: reason.reasonValue(), Status: reason.statusCode()})
+	}
+	return table
+}

@@ -39,7 +39,7 @@ structural consistency) and the glossary workflow live in
 ## Commands
 
 ### Build Commands
-- `make build` - Build the `yt2column` binary into `build/`
+- `make build` - Build both binaries (`yt2column`, `yt2column-server`) into `build/`
 - `make clean` - Clean build artifacts
 - `make all` - Default build target
 - `make install-mergepr` - Install the `/mergepr` developer tool (`go install ./cmd/mergepr`)
@@ -113,13 +113,24 @@ URL → TranscriptSource → Transcript → ArticleWriter → Article → Publis
 - `internal/pipeline` orchestrates the stages; `internal/config` reads environment
   variables; `cmd/yt2column` wires everything together.
 
+Two entry points share the pipeline: the CLI (`cmd/yt2column`, above) and a
+localhost server (`cmd/yt2column-server` + `internal/server`) that takes a
+copied transcript from the browser extension over HTTP and posts the article to
+the Webhook. The server's supporting packages are `internal/authtoken` (the
+shared token that authenticates the extension), `internal/failure` (the
+`Kind`/`Notice`/`Notifier` contract it reports a failed request with),
+`internal/redact` (secret redaction for every output), and `internal/signalrun`
+(signal handling both entry points share).
+
 See [Project Overview](docs/dev/project_overview.md) for the decided policies and
 constraints, and [Package Reference](docs/dev/developer_guide/package_reference.md)
-for the packages that exist today.
+for the packages that exist today. The server's API and startup are documented in
+the [README](README.md) and `docs/dev/security.md` §8.
 
 ### Key Design Patterns
 - **Separation of Concerns**: Each package has a single responsibility. Core logic
-  stays out of `cmd/` so it can later back a Slack bot or a scheduled job.
+  stays out of `cmd/`, so the CLI and the localhost server share it and a further
+  entry point can be added without touching it.
 - **Interface-based Design**: Every pipeline stage (`TranscriptSource`,
   `LLMClient`, `Publisher`) is an interface with a fake for tests.
 - **Provider details stay in their adapter package**: request/response shapes of

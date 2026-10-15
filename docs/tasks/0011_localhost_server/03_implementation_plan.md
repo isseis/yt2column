@@ -200,10 +200,10 @@ requirements §2.3 のとおり。加えて、次のものは本計画で扱わ�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した（#252）
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
-- [ ] **ステップ 2-5**: 文書を F-010・architecture §3.12 のとおりに更新する。`CLAUDE.md`（2 つの入口、`make build` が 2 つの実行ファイルを作ること、Architecture Overview に新しいパッケージ）、`docs/dev/project_overview.md`（実行形式、入力元、想定ディレクトリ構成、`YT2COLUMN_SERVER_PORT` と読まない変数）、`docs/dev/security.md` §8（サーバの節）、`README.md`（起動と確認の手順、`curl` の例、拒否の理由の一覧）、`docs/translation_glossary.md`。`cmd/yt2column-server/docs_test.go`（`//go:build test`）に、サーバの文書の内容を固定するガードを加える。ガードは、実装と食い違いうる値（既定のポート `8765`、拒否の理由と状態コードの対応、`config` の変数の名前、`rejectReason` の列挙）を `internal/config`・`internal/server` の定数や表から導く（`rejectReason` は `internal/server` の非公開なので、`internal/server` に `-tags test` の公開のテスト用アクセサを用意してガードから読む。`publisher.SlackMaxMessageRunesForTest` と同じ形）。`README` の `curl` の例が要求する要素（パス・送るヘッダ・標準入力から渡す `Authorization`）を確かめる（`cmd/yt2column/docs_test.go:62` の `TestSlackDocsContract` が値を実装の定数から導く形に倣う）。文書を読む補助（`readDoc`・`findTable`・`sectionByHeading` など。`cmd/yt2column/docs_test.go:304-478`）は `cmd/yt2column` の非公開なので、共有の `testutil` に切り出すか、複製する理由を記録する。ガードの日本語の見出しの文字列リテラルは §1.2 の英語の規則の例外とする（`cmd/yt2column/extension_docs_test.go:89` と同じ）。既存の doc ガード（`cmd/yt2column/docs_test.go` の `TestREADMEDocumentsFlags`・`TestSlackDocsContract`・`TestClaudeDocsContract`、`cmd/yt2column/extension_docs_test.go`）が引き続き通ることを確かめる。あわせて、`doc-guard` の CI ジョブ（`.github/workflows/ci.yml:184`。文書だけの PR でも走る）が `go test -tags test ./cmd/yt2column ./internal/pipeline` だけを走らせるので、`./cmd/yt2column-server` を加え、文書だけの PR でもサーバのガードが走るようにする。
+- [x] **ステップ 2-5**: 文書を F-010・architecture §3.12 のとおりに更新する。`CLAUDE.md`（2 つの入口、`make build` が 2 つの実行ファイルを作ること、Architecture Overview に新しいパッケージ）、`docs/dev/project_overview.md`（実行形式、入力元、想定ディレクトリ構成、`YT2COLUMN_SERVER_PORT` と読まない変数）、`docs/dev/security.md` §8（サーバの節）、`README.md`（起動と確認の手順、`curl` の例、拒否の理由の一覧）、`docs/translation_glossary.md`。`cmd/yt2column-server/docs_test.go`（`//go:build test`）に、サーバの文書の内容を固定するガードを加える。ガードは、実装と食い違いうる値（既定のポート `8765`、拒否の理由と状態コードの対応、`config` の変数の名前、`rejectReason` の列挙）を `internal/config`・`internal/server` の定数や表から導く（`rejectReason` は `internal/server` の非公開なので、`internal/server` に `-tags test` の公開のテスト用アクセサを用意してガードから読む。`publisher.SlackMaxMessageRunesForTest` と同じ形）。`README` の `curl` の例が要求する要素（パス・送るヘッダ・標準入力から渡す `Authorization`）を確かめる（`cmd/yt2column/docs_test.go:62` の `TestSlackDocsContract` が値を実装の定数から導く形に倣う）。文書を読む補助（`readDoc`・`findTable`・`sectionByHeading` など。`cmd/yt2column/docs_test.go:304-478`）は `cmd/yt2column` の非公開なので、共有の `testutil` に切り出すか、複製する理由を記録する。ガードの日本語の見出しの文字列リテラルは §1.2 の英語の規則の例外とする（`cmd/yt2column/extension_docs_test.go:89` と同じ）。既存の doc ガード（`cmd/yt2column/docs_test.go` の `TestREADMEDocumentsFlags`・`TestSlackDocsContract`・`TestClaudeDocsContract`、`cmd/yt2column/extension_docs_test.go`）が引き続き通ることを確かめる。あわせて、`doc-guard` の CI ジョブ（`.github/workflows/ci.yml:184`。文書だけの PR でも走る）が `go test -tags test ./cmd/yt2column ./internal/pipeline` だけを走らせるので、`./cmd/yt2column-server` を加え、文書だけの PR でもサーバのガードが走るようにする。文書の補助は、2 つの `package main` が互いを import できないため `cmd/yt2column-server/docs_test.go` に複製し、その理由を同ファイルのコメントに記録した（共有パッケージへの抽出は、既存の 600 行のガードを書き換えるため文書だけの変更に対して過大と判断した）。
 
 ### PR-7 作成ポイント: the docs
 
@@ -217,8 +217,8 @@ requirements §2.3 のとおり。加えて、次のものは本計画で扱わ�
 
 **判定理由**: 文書の更新と、`doc-guard` の CI ジョブへの 1 パッケージの追加が主で、前例のない設計判断・競合する実装案・分離された高リスク／複雑なステップのいずれにも該当しない。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
@@ -344,7 +344,7 @@ architecture §7.3 を 2-1〜2-3 のテストに書く。(1) AC-12（本文を�
 - [x] PR-3 マージ済み（対象ステップ: 1-3 / 1-4）
 - [x] PR-4 マージ済み（対象ステップ: 1-5）
 - [x] PR-5 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3）
-- [ ] PR-6 マージ済み（対象ステップ: 2-4）
+- [x] PR-6 マージ済み（対象ステップ: 2-4）
 - [ ] PR-7 マージ済み（対象ステップ: 2-5）
 - [ ] 各 PR でグリーンゲート（`make test && make lint`）が通った
 - [ ] AC-01 の外部インターフェースの確認と、通知の表示の Mattermost での確認を PR に記録した
