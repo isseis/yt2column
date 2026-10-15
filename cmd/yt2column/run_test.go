@@ -2402,6 +2402,19 @@ func TestRunArtifactExitCodes(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "a malformed usage is a run failure",
+			want: exitFailure,
+			args: []string{"--artifacts", "@dir", "--after", "generation", "--out", "@out", runVideoURL},
+			prepared: func(t *testing.T, e *runEnv, dir string) {
+				e.useReviewClient(reviewLLM(emptyReviewJSON))
+				// A known usage must be an object; a string is rejected.
+				data := strings.Replace(string(validGeneration(writer.Digest("material"))), `"usage":null`, `"usage":"x"`, 1)
+				if err := os.WriteFile(artifactFile(dir, runVideoID, "generation"), []byte(data), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

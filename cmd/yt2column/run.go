@@ -37,6 +37,34 @@ const (
 // programName prefixes every line written to standard error.
 const programName = "yt2column"
 
+// Token-usage line format. The line is defined in the form it appears after
+// redact.Line: fixed prefix, the stage, the origin, and the state as
+// whitespace-free words, then either the four counts or the reason, then the
+// model name as the rest of the line (or nomodel). The stage word is
+// writer.Stage.String(); the words here are the only place these spellings are
+// defined, and the README is checked against them.
+const (
+	// tokensPrefix begins every token-usage line.
+	tokensPrefix = programName + ": tokens: "
+	// Token-usage origin words: a call of this run, or a reused artifact.
+	tokensRun    = "run"
+	tokensReused = "reused"
+	// Token-usage state words.
+	tokensKnown   = "known"
+	tokensUnknown = "unknown"
+	// Token-usage count names, in the line's order.
+	tokensInput      = "input="
+	tokensCacheRead  = "cache_read="
+	tokensCacheWrite = "cache_write="
+	tokensOutput     = "output="
+	// tokensReason prefixes the unknown reason.
+	tokensReason = "reason="
+	// tokensModel prefixes the model name; tokensNoModel replaces it when the
+	// stage reported no model that passed the model-name rules.
+	tokensModel   = "model="
+	tokensNoModel = "nomodel"
+)
+
 // usageHint ends every usage or configuration error.
 const usageHint = programName + ": run '" + programName + " -h' for usage"
 
@@ -588,12 +616,78 @@ func buildOutput(d deps, dest destination, outPath string, webhookURL secret.Sec
 	}
 }
 
+// tokensOriginName returns the origin word of a line and whether the stage has
+// a usage to report. OriginNone, and any value outside the enumeration, report
+// nothing.
+func tokensOriginName(origin writer.UsageOrigin) (string, bool) {
+	switch origin {
+	case writer.OriginRun:
+		return tokensRun, true
+	case writer.OriginReused:
+		return tokensReused, true
+	default:
+		return "", false
+	}
+}
+
+// tokensLine renders one stage's token-usage line, or "" when the stage has no
+// usage to report. The unknown reason is llm.Usage.UnknownReason: one
+// whitespace-free token that never carries a response value. The model name is
+// the rest of the line, so a model with spaces has no ambiguous boundary.
+func tokensLine(stage writer.Stage, stageUsage writer.StageUsage) string {
+	origin, ok := tokensOriginName(stageUsage.Origin)
+	if !ok {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString(tokensPrefix)
+	b.WriteString(stage.String())
+	b.WriteByte(' ')
+	b.WriteString(origin)
+	b.WriteByte(' ')
+	if counts, known := stageUsage.Usage.Counts(); known {
+		fmt.Fprintf(&b, "%s %s%d %s%d %s%d %s%d",
+			tokensKnown,
+			tokensInput, counts.Input,
+			tokensCacheRead, counts.CacheRead,
+			tokensCacheWrite, counts.CacheWrite,
+			tokensOutput, counts.Output)
+	} else {
+		fmt.Fprintf(&b, "%s %s%s", tokensUnknown, tokensReason, stageUsage.Usage.UnknownReason())
+	}
+	b.WriteByte(' ')
+	if stageUsage.Model == "" {
+		b.WriteString(tokensNoModel)
+	} else {
+		b.WriteString(tokensModel)
+		b.WriteString(stageUsage.Model)
+	}
+	return b.String()
+}
+
+// reportTokens writes one token-usage line per stage, in stage order, for each
+// stage that ran or reused an artifact. A stage that ran no LLM writes no line.
+func reportTokens(errOut *stderrWriter, runUsage writer.RunUsage) {
+	for _, entry := range []struct {
+		stage writer.Stage
+		usage writer.StageUsage
+	}{
+		{writer.StageGeneration, runUsage.Generation},
+		{writer.StageShorten, runUsage.Shorten},
+		{writer.StageReview, runUsage.Review},
+	} {
+		if line := tokensLine(entry.stage, entry.usage); line != "" {
+			errOut.line("%s", line)
+		}
+	}
+}
+
 // reportSuccess writes the summary of a published run. The message count of a
 // webhook post is recomputed from the article; it is "unknown" when that
 // fails, which only a fake publisher that accepts any article can cause. It
 // adds one line per post-generation step that ran, the review log path when one
-// was written, and the artifacts directory when one was used. An empty path
-// writes nothing.
+// was written, the artifacts directory when one was used, and one token-usage
+// line per stage that ran or was reused. An empty path writes nothing.
 func reportSuccess(errOut *stderrWriter, dest destination, outPath, reviewLogPath, artifactsDir string, article writer.Article) {
 	modelVersion := orNone(article.ModelVersion)
 	switch dest {
@@ -617,6 +711,7 @@ func reportSuccess(errOut *stderrWriter, dest destination, outPath, reviewLogPat
 	if artifactsDir != "" {
 		errOut.line("%s: saved the artifacts to %s", programName, artifactsDir)
 	}
+	reportTokens(errOut, article.RunUsage)
 }
 
 // reportStepSummary writes one line per post-generation step that ran. The
@@ -696,6 +791,9 @@ func reportRunError(errOut *stderrWriter, dest destination, outPath string, err 
 	if reviewLogErr, ok := errors.AsType[*job.ReviewLogError](err); ok {
 		reportReviewLogFailure(errOut, dest, outPath, reviewLogErr)
 		return
+	}
+	if usageErr, ok := errors.AsType[*writer.TokenUsageError](err); ok {
+		reportTokens(errOut, usageErr.RunUsage)
 	}
 	stageErr, isStage := errors.AsType[*pipeline.StageError](err)
 	if isStage {
