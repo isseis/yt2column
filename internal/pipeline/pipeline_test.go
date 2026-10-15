@@ -412,6 +412,7 @@ func TestCommonTypesFieldSets(t *testing.T) {
 			"ModelVersion": "string",
 			"Shorten":      "*writer.StepModel",
 			"Review":       "*writer.ReviewResult",
+			"RunUsage":     "writer.RunUsage",
 		}},
 	}
 	for _, tc := range cases {
@@ -473,6 +474,7 @@ func TestInterfaceDocComments(t *testing.T) {
 		{"../writer/writer.go", "ArticleWriter", []string{
 			"must return an error on failure",
 			"must not return an empty Article as a successful result",
+			"Write wraps every failure in a *TokenUsageError that carries the usage of the stages that ran, or were reused, before the failure",
 		}},
 		{"../publisher/publisher.go", "Publisher", []string{
 			"must return an error on failure",

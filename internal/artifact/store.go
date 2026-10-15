@@ -240,18 +240,18 @@ func (s *Store) loadRecord(videoID string, stage writer.Stage) (writer.StageReco
 		return writer.StageRecord{}, malformedf("artifact %s changed between the check and the open", stage)
 	}
 	if openedInfo.Size() > maxArtifactBytes {
-		return writer.StageRecord{}, malformedf("artifact exceeds the limit of %d bytes", maxArtifactBytes)
+		return writer.StageRecord{}, malformedf("artifact %s exceeds the limit of %d bytes", stage, maxArtifactBytes)
 	}
 	data, err := io.ReadAll(io.LimitReader(file, maxArtifactBytes+1))
 	if err != nil {
 		return writer.StageRecord{}, malformedf("artifact %s could not be read", stage)
 	}
 	if len(data) > maxArtifactBytes {
-		return writer.StageRecord{}, malformedf("artifact exceeds the limit of %d bytes", maxArtifactBytes)
+		return writer.StageRecord{}, malformedf("artifact %s exceeds the limit of %d bytes", stage, maxArtifactBytes)
 	}
 	record, err := Parse(data)
 	if err != nil {
-		return writer.StageRecord{}, err
+		return writer.StageRecord{}, fmt.Errorf("%s artifact: %w", stage, err)
 	}
 	if record.Stage != stage {
 		return writer.StageRecord{}, mismatchf("the artifact's stage is %s, want %s", record.Stage, stage)

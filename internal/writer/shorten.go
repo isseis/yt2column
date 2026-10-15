@@ -10,8 +10,10 @@ import (
 // runShorten runs the shorten step: it expands the shorten templates with the
 // text's title, body, and length values, calls the generation LLM client once,
 // and checks the response with the generation rules. A body still over the
-// limit is ErrTooLong. Every failure is a *StepError.
-func (w *templateWriter) runShorten(ctx context.Context, title, body string) (string, string, *StepModel, error) {
+// limit is ErrTooLong. Every failure is a *StepError. The returned StageUsage
+// is the stage's usage when Generate ran, or OriginNone when a failure
+// happened before it.
+func (w *templateWriter) runShorten(ctx context.Context, title, body string) (string, string, *StepModel, StageUsage, error) {
 	data := shortenTemplateData{
 		ArticleTitle:    title,
 		ArticleBody:     body,
@@ -21,20 +23,21 @@ func (w *templateWriter) runShorten(ctx context.Context, title, body string) (st
 	}
 	system, user, err := w.shorten.expand(data)
 	if err != nil {
-		return "", "", nil, stepError(StepShorten, err)
+		return "", "", nil, StageUsage{}, stepError(StepShorten, err)
 	}
 	resp, err := w.client.Generate(ctx, llm.GenerateRequest{SystemPrompt: system, UserPrompt: user, MaxOutputTokens: 0})
+	usage := stageUsage(resp)
 	if err != nil {
-		return "", "", nil, stepError(StepShorten, err)
+		return "", "", nil, usage, stepError(StepShorten, err)
 	}
 	title, body, err = checkResponse(resp)
 	if err != nil {
-		return "", "", nil, stepError(StepShorten, err)
+		return "", "", nil, usage, stepError(StepShorten, err)
 	}
 	if chars := bodyChars(body); chars > maxBodyChars {
-		return "", "", nil, stepError(StepShorten, tooLongError(chars))
+		return "", "", nil, usage, stepError(StepShorten, tooLongError(chars))
 	}
-	return title, body, &StepModel{Model: resp.Model, ModelVersion: resp.ModelVersion}, nil
+	return title, body, &StepModel{Model: resp.Model, ModelVersion: resp.ModelVersion}, usage, nil
 }
 
 // tooLongError is the ErrTooLong message of a body over the limit. It carries

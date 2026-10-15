@@ -5,10 +5,12 @@ package artifact
 import (
 	"encoding/json"
 	"errors"
+	"maps"
 	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/writer"
 )
 
@@ -62,11 +64,15 @@ func validReview() writer.StageRecord {
 }
 
 // sameRecord reports whether two records carry the same values. StageRecord
-// holds a slice, so it is not comparable with ==.
+// holds a slice, so it is not comparable with ==. Two unknown usages are equal
+// however they became unknown: the reason is not stored.
 func sameRecord(a, b writer.StageRecord) bool {
 	if a.Stage != b.Stage || a.Title != b.Title || a.Body != b.Body ||
 		a.Model != b.Model || a.ModelVersion != b.ModelVersion ||
 		a.System != b.System || a.User != b.User || a.Input != b.Input || a.ID != b.ID {
+		return false
+	}
+	if !sameUsage(a.Usage, b.Usage) {
 		return false
 	}
 	if len(a.Revisions) != len(b.Revisions) {
@@ -78,6 +84,20 @@ func sameRecord(a, b writer.StageRecord) bool {
 		}
 	}
 	return true
+}
+
+// sameUsage reports whether two usages are equal: both unknown, or both known
+// with the same counts.
+func sameUsage(a, b llm.Usage) bool {
+	aCounts, aKnown := a.Counts()
+	bCounts, bKnown := b.Counts()
+	if aKnown != bKnown {
+		return false
+	}
+	if !aKnown {
+		return true
+	}
+	return aCounts == bCounts
 }
 
 // mustMarshal marshals a record or fails the test.
@@ -108,6 +128,7 @@ func fieldsFrom(rec writer.StageRecord) map[string]any {
 		"stage":         rec.Stage.String(),
 		"model":         rec.Model,
 		"model_version": rec.ModelVersion,
+		"usage":         usageFields(rec.Usage),
 		"system":        map[string]any{"embedded": rec.System.Embedded, "digest": rec.System.Digest},
 		"user":          map[string]any{"embedded": rec.User.Embedded, "digest": rec.User.Digest},
 		"input":         rec.Input,
@@ -132,6 +153,21 @@ func fieldsFrom(rec writer.StageRecord) map[string]any {
 	return fields
 }
 
+// usageFields builds the wire form of a usage as a field-map value: nil for an
+// unknown usage, an object of the four counts for a known one.
+func usageFields(usage llm.Usage) any {
+	counts, known := usage.Counts()
+	if !known {
+		return nil
+	}
+	return map[string]any{
+		"input":       float64(counts.Input),
+		"cache_read":  float64(counts.CacheRead),
+		"cache_write": float64(counts.CacheWrite),
+		"output":      float64(counts.Output),
+	}
+}
+
 // marshalFields encodes a field map or fails the test.
 func marshalFields(t *testing.T, fields map[string]any) []byte {
 	t.Helper()
@@ -143,8 +179,9 @@ func marshalFields(t *testing.T, fields map[string]any) []byte {
 }
 
 // requireMalformed checks that Parse rejected data with ErrMalformed and
-// writer.ErrMalformedOutput, and that the message carries none of the marks.
-func requireMalformed(t *testing.T, data []byte) {
+// writer.ErrMalformedOutput, that the message carries none of the marks, and
+// returns the error for further checks.
+func requireMalformed(t *testing.T, data []byte) error {
 	t.Helper()
 	rec, err := Parse(data)
 	if err == nil {
@@ -160,6 +197,17 @@ func requireMalformed(t *testing.T, data []byte) {
 		if strings.Contains(err.Error(), mark) {
 			t.Errorf("Parse error %q contains the artifact value marked %q", err, mark)
 		}
+	}
+	return err
+}
+
+// requireMalformedUsage is requireMalformed for a rejection the usage rule
+// itself must produce: the error also names usage.
+func requireMalformedUsage(t *testing.T, data []byte) {
+	t.Helper()
+	err := requireMalformed(t, data)
+	if !strings.Contains(err.Error(), "usage") {
+		t.Errorf("Parse error %q does not name usage", err)
 	}
 }
 
@@ -179,6 +227,18 @@ func TestMarshalParseRoundTrip(t *testing.T) {
 		{"review with no revisions", func() writer.StageRecord {
 			rec := validReview()
 			rec.Revisions = nil
+			rec.ID = recordID(rec)
+			return rec
+		}()},
+		{"generation with a known usage", func() writer.StageRecord {
+			rec := validGeneration()
+			rec.Usage = llm.KnownUsage(llm.TokenCounts{Input: 46, CacheRead: 7, CacheWrite: 0, Output: 85})
+			rec.ID = recordID(rec)
+			return rec
+		}()},
+		{"generation with an unknown usage", func() writer.StageRecord {
+			rec := validGeneration()
+			rec.Usage = llm.UnknownUsage(llm.RuleNotRead, "")
 			rec.ID = recordID(rec)
 			return rec
 		}()},
@@ -221,7 +281,7 @@ func TestParseRecordRejects(t *testing.T) {
 			return []byte(strings.Replace(string(valid), `"title":"Title"`, `"title":"Title","title":"Title"`, 1))
 		}},
 		{"unsupported version", func(t *testing.T) []byte {
-			fields := mutate(t, generation, func(f map[string]any) { f["version"] = float64(2) })
+			fields := mutate(t, generation, func(f map[string]any) { f["version"] = float64(artifactVersion + 1) })
 			return marshalFields(t, fields)
 		}},
 		{"version not a number", func(t *testing.T) []byte {
@@ -498,4 +558,160 @@ func TestMarshalKeepsEscapingHeavyBodyWithinTheLimit(t *testing.T) {
 	if got.Body != rec.Body {
 		t.Errorf("body round trip = %d bytes, want %d", len(got.Body), len(rec.Body))
 	}
+}
+
+// usageMap returns a fresh copy of a known-usage field map, so a case can
+// change one member without touching the others.
+func usageMap(counts map[string]any) map[string]any {
+	return maps.Clone(counts)
+}
+
+// validUsageFields is an all-counts-known usage in the field-map form.
+var validUsageFields = map[string]any{"input": 1, "cache_read": 2, "cache_write": 3, "output": 4}
+
+func TestParseRecordRejectsUsage(t *testing.T) {
+	generation := fieldsFrom(validGeneration())
+	members := []string{"input", "cache_read", "cache_write", "output"}
+	invalidValues := []struct {
+		name  string
+		value any
+	}{
+		{"negative", json.RawMessage("-1")},
+		{"negative zero", json.RawMessage("-0")},
+		{"fraction", json.RawMessage("1.5")},
+		{"exponent", json.RawMessage("1e3")},
+		{"out of int64", json.RawMessage("9223372036854775808")},
+		{"string", "x"},
+		{"boolean", true},
+		{"null", nil},
+		{"array", []any{}},
+		{"object", map[string]any{}},
+	}
+
+	t.Run("usage member", func(t *testing.T) {
+		cases := []struct {
+			name  string
+			named bool // whether the rejection must name usage
+			data  func(t *testing.T) []byte
+		}{
+			{"missing", true, func(t *testing.T) []byte {
+				fields := mutate(t, generation, func(f map[string]any) { delete(f, "usage") })
+				return marshalFields(t, fields)
+			}},
+			{"duplicate", false, func(t *testing.T) []byte {
+				// A duplicate top-level member is rejected by the artifact
+				// key check, which never names the untrusted key.
+				data := mustMarshal(t, validGeneration()) // the zero usage writes null
+				return []byte(strings.Replace(string(data), `"usage":null`, `"usage":null,"usage":null`, 1))
+			}},
+			{"a string", true, func(t *testing.T) []byte {
+				fields := mutate(t, generation, func(f map[string]any) { f["usage"] = "x" })
+				return marshalFields(t, fields)
+			}},
+			{"a number", true, func(t *testing.T) []byte {
+				fields := mutate(t, generation, func(f map[string]any) { f["usage"] = 1 })
+				return marshalFields(t, fields)
+			}},
+			{"a boolean", true, func(t *testing.T) []byte {
+				fields := mutate(t, generation, func(f map[string]any) { f["usage"] = true })
+				return marshalFields(t, fields)
+			}},
+			{"an array", true, func(t *testing.T) []byte {
+				fields := mutate(t, generation, func(f map[string]any) { f["usage"] = []any{} })
+				return marshalFields(t, fields)
+			}},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				if tc.named {
+					requireMalformedUsage(t, tc.data(t))
+					return
+				}
+				requireMalformed(t, tc.data(t))
+			})
+		}
+	})
+
+	t.Run("usage object keys", func(t *testing.T) {
+		t.Run("unlisted key", func(t *testing.T) {
+			fields := mutate(t, generation, func(f map[string]any) {
+				counts := usageMap(validUsageFields)
+				counts["extra"] = 1
+				f["usage"] = counts
+			})
+			requireMalformedUsage(t, marshalFields(t, fields))
+		})
+		t.Run("duplicate key", func(t *testing.T) {
+			rec := validGeneration()
+			rec.Usage = llm.KnownUsage(llm.TokenCounts{Input: 1, CacheRead: 2, CacheWrite: 3, Output: 4})
+			rec.ID = recordID(rec)
+			data := mustMarshal(t, rec)
+			requireMalformedUsage(t, []byte(strings.Replace(string(data), `"input":1`, `"input":1,"input":1`, 1)))
+		})
+		for _, member := range members {
+			t.Run(member+" missing", func(t *testing.T) {
+				fields := mutate(t, generation, func(f map[string]any) {
+					counts := usageMap(validUsageFields)
+					delete(counts, member)
+					f["usage"] = counts
+				})
+				requireMalformedUsage(t, marshalFields(t, fields))
+			})
+			for _, invalid := range invalidValues {
+				t.Run(member+" "+invalid.name, func(t *testing.T) {
+					fields := mutate(t, generation, func(f map[string]any) {
+						counts := usageMap(validUsageFields)
+						counts[member] = invalid.value
+						f["usage"] = counts
+					})
+					requireMalformedUsage(t, marshalFields(t, fields))
+				})
+			}
+		}
+	})
+}
+
+func TestParseRejectsVersion1(t *testing.T) {
+	// A version 1 artifact has no usage element. The version check rejects it
+	// before the usage or id checks, with the recovery step.
+	fields := fieldsFrom(validGeneration())
+	fields["version"] = float64(1)
+	delete(fields, "usage")
+	err := requireMalformed(t, marshalFields(t, fields))
+	for _, want := range []string{"unsupported artifact version 1", "version 2", "new --artifacts directory"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("Parse error = %v, want it to contain %q", err, want)
+		}
+	}
+}
+
+func TestRecordIDCoversUsage(t *testing.T) {
+	base := validGeneration()
+	first := base
+	first.Usage = llm.KnownUsage(llm.TokenCounts{Input: 1, CacheRead: 0, CacheWrite: 0, Output: 2})
+	first.ID = recordID(first)
+	second := base
+	second.Usage = llm.KnownUsage(llm.TokenCounts{Input: 1, CacheRead: 0, CacheWrite: 0, Output: 3})
+	second.ID = recordID(second)
+	if first.ID == second.ID {
+		t.Error("records differing only in the output token count share an id")
+	}
+
+	t.Run("a rewritten token count is rejected", func(t *testing.T) {
+		data := mustMarshal(t, first)
+		rewritten := strings.Replace(string(data), `"output":2`, `"output":3`, 1)
+		requireMalformed(t, []byte(rewritten))
+	})
+
+	t.Run("different unknown reasons share an id", func(t *testing.T) {
+		a := base
+		a.Usage = llm.UnknownUsage(llm.RuleNotRead, "")
+		a.ID = recordID(a)
+		b := base
+		b.Usage = llm.UnknownUsage(llm.RuleRecordedUnknown, "completion_tokens")
+		b.ID = recordID(b)
+		if a.ID != b.ID {
+			t.Error("unknown usages with different reasons have different ids")
+		}
+	})
 }

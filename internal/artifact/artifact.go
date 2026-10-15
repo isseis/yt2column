@@ -17,7 +17,8 @@ import (
 const maxArtifactBytes = 4 << 20 // 4 MiB
 
 // artifactVersion is the only format version this package reads and writes.
-const artifactVersion = 1
+// Version 2 adds the usage element to version 1.
+const artifactVersion = 2
 
 // sha256HexLen is the length of a SHA-256 digest written in hex.
 const sha256HexLen = 64

@@ -22,6 +22,39 @@ type Article struct {
 	ModelVersion string        // opaque, provider-defined; empty when the provider reports none
 	Shorten      *StepModel    // nil when the shorten step called no LLM
 	Review       *ReviewResult // nil when the review step did not run
+	RunUsage     RunUsage      // each stage's token usage
+}
+
+// UsageOrigin is where a stage's token usage came from. The zero value
+// OriginNone means the stage called no LLM in this run and reused no artifact,
+// so the stage has no usage to report.
+type UsageOrigin int
+
+const (
+	// OriginNone is the zero value: the stage made no LLM call and reused
+	// nothing.
+	OriginNone UsageOrigin = iota
+	// OriginRun means this run called the stage's LLM client.
+	OriginRun
+	// OriginReused means the run reused the stage's artifact, and the usage is
+	// the one that artifact recorded.
+	OriginReused
+)
+
+// StageUsage is one stage's token usage, the model its call reported, and
+// where both came from. Model is empty when Origin is OriginNone, or when a
+// failed call reported no model that passed the model-name rules.
+type StageUsage struct {
+	Origin UsageOrigin
+	Model  string
+	Usage  llm.Usage
+}
+
+// RunUsage is the token usage of each stage of one Write.
+type RunUsage struct {
+	Generation StageUsage
+	Shorten    StageUsage
+	Review     StageUsage
 }
 
 // StepModel is the model one step's LLM call reported.
@@ -31,8 +64,10 @@ type StepModel struct {
 }
 
 // ArticleWriter generates a column article from a transcript.
-// Implementations must return an error on failure and must not
-// return an empty Article as a successful result.
+// Implementations must return an error on failure and must not return an empty
+// Article as a successful result. Write wraps every failure in a
+// *TokenUsageError that carries the usage of the stages that ran, or were
+// reused, before the failure.
 type ArticleWriter interface {
 	Write(ctx context.Context, t transcript.Transcript) (Article, error)
 }
@@ -269,49 +304,58 @@ func loadStepTemplates[T any](system, user templateSpec) (stepTemplates[T], erro
 // It returns the zero Article on every failure. An LLM client's error is
 // wrapped as is, never with a sentinel of this package, so callers can tell it
 // from a template or output failure; every failure of a step is a *StepError,
-// and every store failure is a *ArtifactError.
+// every store failure is a *ArtifactError, and every failure carries the
+// stages' usage in a *TokenUsageError.
 func (w *templateWriter) Write(ctx context.Context, t transcript.Transcript) (Article, error) {
 	if err := ctx.Err(); err != nil {
-		return Article{}, fmt.Errorf("article generation not started: %w", err)
+		return Article{}, tokenUsageError(RunUsage{}, fmt.Errorf("article generation not started: %w", err))
 	}
 	sourceURL, err := validateTranscript(t)
 	if err != nil {
-		return Article{}, err
+		return Article{}, tokenUsageError(RunUsage{}, err)
 	}
 	materialID := MaterialID(t)
 	data := newTemplateData(t)
 
+	var runUsage RunUsage
 	var chain ArtifactChain
 	if w.resume != StageUnset {
 		if err := ctx.Err(); err != nil {
-			return Article{}, artifactError(w.resume, err)
+			return Article{}, tokenUsageError(runUsage, artifactError(w.resume, err))
 		}
 		loaded, err := w.store.Load(ctx, t.VideoID, w.resume, materialID)
 		if err != nil {
-			return Article{}, artifactError(w.resume, err)
+			return Article{}, tokenUsageError(runUsage, artifactError(w.resume, err))
 		}
 		chain = loaded
 	}
 
 	generation := chain.Generation
 	if w.generationRuns() {
-		generation, err = w.generateStage(ctx, t.VideoID, data, materialID)
+		var usage StageUsage
+		generation, usage, err = w.generateStage(ctx, t.VideoID, data, materialID)
+		runUsage.Generation = usage
 		if err != nil {
-			return Article{}, err
+			return Article{}, tokenUsageError(runUsage, err)
 		}
+	} else {
+		runUsage.Generation = reusedUsage(chain.Generation)
 	}
 	title, body, previousID := generation.Title, generation.Body, generation.ID
 
 	var shortenModel *StepModel
 	switch {
 	case w.shortenRuns() && bodyChars(body) > maxBodyChars:
-		title, body, shortenModel, previousID, err = w.shortenStage(ctx, t.VideoID, title, body, previousID)
+		var usage StageUsage
+		title, body, shortenModel, previousID, usage, err = w.shortenStage(ctx, t.VideoID, title, body, previousID)
+		runUsage.Shorten = usage
 		if err != nil {
-			return Article{}, err
+			return Article{}, tokenUsageError(runUsage, err)
 		}
 	case chain.Shorten != nil:
 		shortenModel = &StepModel{Model: chain.Shorten.Model, ModelVersion: chain.Shorten.ModelVersion}
 		previousID = chain.Shorten.ID
+		runUsage.Shorten = reusedUsage(*chain.Shorten)
 		if w.resume == StageShorten {
 			title, body = chain.Shorten.Title, chain.Shorten.Body
 		}
@@ -320,9 +364,11 @@ func (w *templateWriter) Write(ctx context.Context, t transcript.Transcript) (Ar
 	var reviewResult *ReviewResult
 	switch {
 	case w.reviewRuns():
-		title, body, reviewResult, err = w.reviewStage(ctx, t.VideoID, data, title, body, previousID)
+		var usage StageUsage
+		title, body, reviewResult, usage, err = w.reviewStage(ctx, t.VideoID, data, title, body, previousID)
+		runUsage.Review = usage
 		if err != nil {
-			return Article{}, err
+			return Article{}, tokenUsageError(runUsage, err)
 		}
 	case w.resume == StageReview:
 		title, body = chain.Review.Title, chain.Review.Body
@@ -330,30 +376,50 @@ func (w *templateWriter) Write(ctx context.Context, t transcript.Transcript) (Ar
 			Model:     StepModel{Model: chain.Review.Model, ModelVersion: chain.Review.ModelVersion},
 			Revisions: chain.Review.Revisions,
 		}
+		runUsage.Review = reusedUsage(*chain.Review)
 	}
 
 	if w.shorten != nil {
 		if chars := bodyChars(body); chars > maxBodyChars {
-			return Article{}, stepError(StepReview, tooLongError(chars))
+			return Article{}, tokenUsageError(runUsage, stepError(StepReview, tooLongError(chars)))
 		}
 	}
-	return newArticle(title, body, sourceURL, generation.Model, generation.ModelVersion, shortenModel, reviewResult), nil
+	return newArticle(title, body, sourceURL, generation.Model, generation.ModelVersion, shortenModel, reviewResult, runUsage), nil
+}
+
+// stageUsage is the usage of a stage that called Generate: OriginRun, the
+// response's Usage, and resp.Model only when it passes the model-name rule (so
+// a failed call whose model was invalid reports an empty model).
+func stageUsage(resp llm.GenerateResponse) StageUsage {
+	model := ""
+	if checkModelString("Model", resp.Model) == nil {
+		model = resp.Model
+	}
+	return StageUsage{Origin: OriginRun, Model: model, Usage: resp.Usage}
+}
+
+// reusedUsage is the usage of a stage that reused a loaded artifact: the
+// record's already-verified model and usage.
+func reusedUsage(record StageRecord) StageUsage {
+	return StageUsage{Origin: OriginReused, Model: record.Model, Usage: record.Usage}
 }
 
 // generateStage runs the generation stage and saves its artifact when a store
-// is configured, returning the record with its id set.
-func (w *templateWriter) generateStage(ctx context.Context, videoID string, data templateData, materialID string) (StageRecord, error) {
+// is configured, returning the record with its id set and the stage's usage. A
+// failure after Generate returns the stage's usage with the error.
+func (w *templateWriter) generateStage(ctx context.Context, videoID string, data templateData, materialID string) (StageRecord, StageUsage, error) {
 	system, user, err := w.generation.expand(data)
 	if err != nil {
-		return StageRecord{}, err
+		return StageRecord{}, StageUsage{}, err
 	}
 	resp, err := w.client.Generate(ctx, llm.GenerateRequest{SystemPrompt: system, UserPrompt: user, MaxOutputTokens: 0})
+	usage := stageUsage(resp)
 	if err != nil {
-		return StageRecord{}, fmt.Errorf("LLM generation failed: %w", err)
+		return StageRecord{}, usage, fmt.Errorf("LLM generation failed: %w", err)
 	}
 	title, body, err := checkResponse(resp)
 	if err != nil {
-		return StageRecord{}, err
+		return StageRecord{}, usage, err
 	}
 	record := StageRecord{
 		Stage:        StageGeneration,
@@ -361,34 +427,36 @@ func (w *templateWriter) generateStage(ctx context.Context, videoID string, data
 		Body:         body,
 		Model:        resp.Model,
 		ModelVersion: resp.ModelVersion,
+		Usage:        resp.Usage,
 		System:       w.generation.system.identity,
 		User:         w.generation.user.identity,
 		Input:        materialID,
 	}
 	if w.store == nil {
-		return record, nil
+		return record, usage, nil
 	}
 	id, err := w.saveStage(ctx, videoID, StageGeneration, record)
 	if err != nil {
-		return StageRecord{}, err
+		return StageRecord{}, usage, err
 	}
 	record.ID = id
-	return record, nil
+	return record, usage, nil
 }
 
 // shortenStage runs the shorten step and saves its artifact, returning the new
-// text, the step model, and the id of the saved artifact (or its input id when
-// no store is configured).
-func (w *templateWriter) shortenStage(ctx context.Context, videoID, title, body, input string) (string, string, *StepModel, string, error) {
+// text, the step model, the id of the saved artifact (or its input id when no
+// store is configured), and the stage's usage. A failure after Generate
+// returns the stage's usage with the error.
+func (w *templateWriter) shortenStage(ctx context.Context, videoID, title, body, input string) (string, string, *StepModel, string, StageUsage, error) {
 	if err := ctx.Err(); err != nil {
-		return "", "", nil, "", stepError(StepShorten, err)
+		return "", "", nil, "", StageUsage{}, stepError(StepShorten, err)
 	}
-	title, body, model, err := w.runShorten(ctx, title, body)
+	title, body, model, usage, err := w.runShorten(ctx, title, body)
 	if err != nil {
-		return "", "", nil, "", err
+		return "", "", nil, "", usage, err
 	}
 	if w.store == nil {
-		return title, body, model, input, nil
+		return title, body, model, input, usage, nil
 	}
 	id, err := w.saveStage(ctx, videoID, StageShorten, StageRecord{
 		Stage:        StageShorten,
@@ -396,27 +464,29 @@ func (w *templateWriter) shortenStage(ctx context.Context, videoID, title, body,
 		Body:         body,
 		Model:        model.Model,
 		ModelVersion: model.ModelVersion,
+		Usage:        usage.Usage,
 		System:       w.shorten.system.identity,
 		User:         w.shorten.user.identity,
 		Input:        input,
 	})
 	if err != nil {
-		return "", "", nil, "", err
+		return "", "", nil, "", usage, err
 	}
-	return title, body, model, id, nil
+	return title, body, model, id, usage, nil
 }
 
-// reviewStage runs the review step and saves its artifact.
-func (w *templateWriter) reviewStage(ctx context.Context, videoID string, data templateData, title, body, input string) (string, string, *ReviewResult, error) {
+// reviewStage runs the review step and saves its artifact, returning the stage's
+// usage. A failure after Generate returns the stage's usage with the error.
+func (w *templateWriter) reviewStage(ctx context.Context, videoID string, data templateData, title, body, input string) (string, string, *ReviewResult, StageUsage, error) {
 	if err := ctx.Err(); err != nil {
-		return "", "", nil, stepError(StepReview, err)
+		return "", "", nil, StageUsage{}, stepError(StepReview, err)
 	}
-	title, body, result, err := w.runReview(ctx, data, title, body)
+	title, body, result, usage, err := w.runReview(ctx, data, title, body)
 	if err != nil {
-		return "", "", nil, err
+		return "", "", nil, usage, err
 	}
 	if w.store == nil {
-		return title, body, result, nil
+		return title, body, result, usage, nil
 	}
 	if _, err := w.saveStage(ctx, videoID, StageReview, StageRecord{
 		Stage:        StageReview,
@@ -425,13 +495,14 @@ func (w *templateWriter) reviewStage(ctx context.Context, videoID string, data t
 		Revisions:    result.Revisions,
 		Model:        result.Model.Model,
 		ModelVersion: result.Model.ModelVersion,
+		Usage:        usage.Usage,
 		System:       w.review.system.identity,
 		User:         w.review.user.identity,
 		Input:        input,
 	}); err != nil {
-		return "", "", nil, err
+		return "", "", nil, usage, err
 	}
-	return title, body, result, nil
+	return title, body, result, usage, nil
 }
 
 // saveStage checks the context, saves one completed stage's record, and

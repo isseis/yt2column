@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/strictjson"
 	"github.com/isseis/yt2column/internal/writer"
 )
@@ -19,6 +20,7 @@ const (
 	keyStage        = "stage"
 	keyModel        = "model"
 	keyModelVersion = "model_version"
+	keyUsage        = "usage"
 	keySystem       = "system"
 	keyUser         = "user"
 	keyInput        = "input"
@@ -28,25 +30,34 @@ const (
 	keyRevisions    = "revisions"
 	keyEmbedded     = "embedded"
 	keyDigest       = "digest"
+	keyCacheRead    = "cache_read"
+	keyCacheWrite   = "cache_write"
+	keyOutput       = "output"
 )
 
 // artifactKeys are the top-level keys CollectOnly accepts.
 var artifactKeys = []string{
-	keyVersion, keyStage, keyModel, keyModelVersion, keySystem, keyUser,
+	keyVersion, keyStage, keyModel, keyModelVersion, keyUsage, keySystem, keyUser,
 	keyInput, keyID, keyTitle, keyBody, keyRevisions,
 }
+
+// usageKeys are the keys a known-usage object must carry, in the order they are
+// read and written.
+var usageKeys = []string{keyInput, keyCacheRead, keyCacheWrite, keyOutput}
 
 // identityKeys are the keys a template identity object may carry.
 var identityKeys = []string{keyEmbedded, keyDigest}
 
 // recordJSON is the wire form of a StageRecord. Field order is the key order
 // in the output; Revisions is a pointer so a review with no revisions still
-// writes an empty array while generation and shorten omit the key.
+// writes an empty array while generation and shorten omit the key. Usage is a
+// pointer so a known usage writes an object and an unknown usage writes null.
 type recordJSON struct {
 	Version      int             `json:"version"`
 	Stage        string          `json:"stage"`
 	Model        string          `json:"model"`
 	ModelVersion string          `json:"model_version"`
+	Usage        *usageJSON      `json:"usage"`
 	System       identityJSON    `json:"system"`
 	User         identityJSON    `json:"user"`
 	Input        string          `json:"input"`
@@ -54,6 +65,15 @@ type recordJSON struct {
 	Title        string          `json:"title"`
 	Body         string          `json:"body"`
 	Revisions    *[]revisionJSON `json:"revisions,omitempty"`
+}
+
+// usageJSON is the wire form of a known token usage. An unknown usage is
+// written as the JSON literal null instead.
+type usageJSON struct {
+	Input      uint64 `json:"input"`
+	CacheRead  uint64 `json:"cache_read"`
+	CacheWrite uint64 `json:"cache_write"`
+	Output     uint64 `json:"output"`
 }
 
 // identityJSON is the wire form of a TemplateIdentity.
@@ -95,6 +115,14 @@ func Marshal(record writer.StageRecord) (data []byte, id string, err error) {
 	}
 	if record.Stage == writer.StageReview {
 		out.Revisions = revisionsJSON(record.Revisions)
+	}
+	if counts, known := record.Usage.Counts(); known {
+		out.Usage = &usageJSON{
+			Input:      counts.Input,
+			CacheRead:  counts.CacheRead,
+			CacheWrite: counts.CacheWrite,
+			Output:     counts.Output,
+		}
 	}
 	var buffer bytes.Buffer
 	encoder := json.NewEncoder(&buffer)
@@ -143,6 +171,10 @@ func Parse(data []byte) (writer.StageRecord, error) {
 	if err != nil {
 		return writer.StageRecord{}, err
 	}
+	usage, err := parseUsage(members)
+	if err != nil {
+		return writer.StageRecord{}, err
+	}
 	system, err := parseIdentityMember(members, keySystem)
 	if err != nil {
 		return writer.StageRecord{}, err
@@ -174,6 +206,7 @@ func Parse(data []byte) (writer.StageRecord, error) {
 		Revisions:    revisions,
 		Model:        model,
 		ModelVersion: modelVersion,
+		Usage:        usage,
 		System:       system,
 		User:         user,
 		Input:        input,
@@ -197,7 +230,9 @@ func parseStage(members map[string]strictjson.Value) (writer.Stage, error) {
 		return writer.StageUnset, malformedf("version: %s", err)
 	}
 	if version != artifactVersion {
-		return writer.StageUnset, malformedf("unsupported artifact version %d", version)
+		return writer.StageUnset, malformedf(
+			"unsupported artifact version %d; this CLI reads version %d only; move away the artifacts an older CLI saved, or use a new --artifacts directory, then rerun",
+			version, artifactVersion)
 	}
 	wire, err := strictjson.RequiredString(members, keyStage)
 	if err != nil {
@@ -240,6 +275,51 @@ func parseModelVersion(members map[string]strictjson.Value) (string, error) {
 		return "", malformedFrom(err)
 	}
 	return version, nil
+}
+
+// parseUsage reads the required usage member: the JSON literal null is an
+// unknown usage, an object is a known one whose four count members are all
+// required non-negative integers. An unlisted or duplicate key, a missing
+// member, or a value that is not a non-negative integer is ErrMalformed. The
+// reason is not recorded. It never carries a file value.
+func parseUsage(members map[string]strictjson.Value) (llm.Usage, error) {
+	value, present := members[keyUsage]
+	if !present {
+		return llm.Usage{}, malformed("usage: missing")
+	}
+	if value.IsNull() {
+		return llm.UnknownUsage(llm.RuleRecordedUnknown, ""), nil
+	}
+	object, err := value.AsObject()
+	if err != nil {
+		return llm.Usage{}, malformedf("usage: %s", err)
+	}
+	usageMembers, err := object.CollectOnly(usageKeys...)
+	if err != nil {
+		return llm.Usage{}, malformed("usage has an unlisted or duplicate key")
+	}
+	counts := llm.TokenCounts{}
+	for _, member := range []struct {
+		key  string
+		dest *uint64
+	}{
+		{keyInput, &counts.Input},
+		{keyCacheRead, &counts.CacheRead},
+		{keyCacheWrite, &counts.CacheWrite},
+		{keyOutput, &counts.Output},
+	} {
+		raw, present := usageMembers[member.key]
+		if !present {
+			return llm.Usage{}, malformedf("usage.%s: missing", member.key)
+		}
+		number, err := raw.AsNonNegativeInt64()
+		if err != nil {
+			return llm.Usage{}, malformedf("usage.%s: not a non-negative integer", member.key)
+		}
+		// AsNonNegativeInt64 returns a value in [0, MaxInt64].
+		*member.dest = uint64(number) //nolint:gosec // number is non-negative
+	}
+	return llm.KnownUsage(counts), nil
 }
 
 // parseIdentityMember reads a required template identity object.
@@ -360,6 +440,9 @@ func recordID(record writer.StageRecord) string {
 		record.Stage.String(),
 		record.Model,
 		record.ModelVersion,
+	}
+	parts = append(parts, usageIDParts(record.Usage)...)
+	parts = append(parts,
 		boolWire(record.System.Embedded),
 		record.System.Digest,
 		boolWire(record.User.Embedded),
@@ -368,7 +451,7 @@ func recordID(record writer.StageRecord) string {
 		record.Title,
 		record.Body,
 		strconv.Itoa(len(record.Revisions)),
-	}
+	)
 	for _, revision := range record.Revisions {
 		wire, _ := revision.Reason.WireValue()
 		if revision.Action == writer.ActionDelete {
@@ -378,6 +461,24 @@ func recordID(record writer.StageRecord) string {
 		}
 	}
 	return writer.Digest(parts...)
+}
+
+// usageIDParts is the usage part of an id: the fixed word usage-known and the
+// four decimal counts for a known usage, or usage-unknown for an unknown one.
+// The reason is not part of it, so an unknown usage keeps the same id however
+// it became unknown.
+func usageIDParts(usage llm.Usage) []string {
+	counts, known := usage.Counts()
+	if !known {
+		return []string{"usage-unknown"}
+	}
+	return []string{
+		"usage-known",
+		strconv.FormatUint(counts.Input, 10),
+		strconv.FormatUint(counts.CacheRead, 10),
+		strconv.FormatUint(counts.CacheWrite, 10),
+		strconv.FormatUint(counts.Output, 10),
+	}
 }
 
 // malformedFrom wraps an error from the writer's text, model, or list checks.
