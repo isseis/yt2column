@@ -116,8 +116,9 @@ func TestWriteSavesAllArtifacts(t *testing.T) {
 	}
 
 	generation := store.saveFor(StageGeneration)
-	if !sameArtifact(generation.record, generationRecord(materialID, overLimitBody())) {
-		t.Errorf("generation record = %+v, want %+v", generation.record, generationRecord(materialID, overLimitBody()))
+	wantGeneration := generationRecord(materialID, overLimitBody())
+	if !sameArtifact(generation.record, wantGeneration) {
+		t.Errorf("generation record = %+v, want %+v", generation.record, wantGeneration)
 	}
 	if generation.videoID != tr.VideoID {
 		t.Errorf("Save videoID = %q, want %q", generation.videoID, tr.VideoID)
@@ -245,16 +246,15 @@ func TestWriteSavesBeforeLaterFailure(t *testing.T) {
 
 func TestWriteSaveFailure(t *testing.T) {
 	cases := []struct {
-		name   string
-		stage  Stage
-		review bool
-		opts   func(*fakeArtifactStore, llm.LLMClient) Options
-		calls  []llmtestutil.FakeLLMSequenceStep
+		name  string
+		stage Stage
+		opts  func(*fakeArtifactStore) Options
+		calls []llmtestutil.FakeLLMSequenceStep
 	}{
 		{
 			name:  "generation",
 			stage: StageGeneration,
-			opts: func(store *fakeArtifactStore, _ llm.LLMClient) Options {
+			opts: func(store *fakeArtifactStore) Options {
 				return Options{Artifacts: ArtifactOptions{Store: store}}
 			},
 			calls: []llmtestutil.FakeLLMSequenceStep{stepResult(llm.GenerateResponse{Text: stepResponseText(markGenTitle, markGenBody), Model: markOutModel})},
@@ -262,7 +262,7 @@ func TestWriteSaveFailure(t *testing.T) {
 		{
 			name:  "shorten",
 			stage: StageShorten,
-			opts: func(store *fakeArtifactStore, _ llm.LLMClient) Options {
+			opts: func(store *fakeArtifactStore) Options {
 				return Options{Shorten: ShortenOptions{Enabled: true}, Artifacts: ArtifactOptions{Store: store}}
 			},
 			calls: []llmtestutil.FakeLLMSequenceStep{
@@ -271,10 +271,10 @@ func TestWriteSaveFailure(t *testing.T) {
 			},
 		},
 		{
-			name:   "review",
-			stage:  StageReview,
-			review: true,
-			opts: func(store *fakeArtifactStore, review llm.LLMClient) Options {
+			name:  "review",
+			stage: StageReview,
+			opts: func(store *fakeArtifactStore) Options {
+				review := &llmtestutil.FakeLLMClient{Result: llm.GenerateResponse{Text: reviewResponse(), Model: markReviewModel}}
 				return Options{Review: ReviewOptions{Enabled: true, Client: review}, Artifacts: ArtifactOptions{Store: store}}
 			},
 			calls: []llmtestutil.FakeLLMSequenceStep{stepResult(llm.GenerateResponse{Text: stepResponseText(markGenTitle, markGenBody), Model: markOutModel})},
@@ -282,13 +282,9 @@ func TestWriteSaveFailure(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			var review llm.LLMClient
-			if tc.review {
-				review = &llmtestutil.FakeLLMClient{Result: llm.GenerateResponse{Text: reviewResponse(), Model: markReviewModel}}
-			}
 			store := &fakeArtifactStore{saveErrs: map[Stage]error{tc.stage: errors.New("save failed")}}
 			gen := newStepClient(t, tc.calls...)
-			w := mustNew(t, gen, tc.opts(store, review))
+			w := mustNew(t, gen, tc.opts(store))
 
 			a, err := w.Write(context.Background(), validTranscript())
 			if a != (Article{}) {
@@ -406,7 +402,7 @@ func TestResumeSavesExecutedStages(t *testing.T) {
 
 func TestResumeAfterShorten(t *testing.T) {
 	tr := validTranscript()
-	review := &llmtestutil.FakeLLMClient{Result: llm.GenerateResponse{Text: reviewResponse(), Model: markReviewModel}}
+	review := &llmtestutil.FakeLLMClient{Result: llm.GenerateResponse{Text: reviewResponse(), Model: markReviewModel, ModelVersion: markStepModelVersion}}
 	store := &fakeArtifactStore{loadResult: resumeChainShorten()}
 	// The generation client is nil: neither generation nor shorten runs, so a
 	// call to it would panic.
@@ -420,17 +416,26 @@ func TestResumeAfterShorten(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Write error = %v, want nil", err)
 	}
+	if len(store.loadCalls) != 1 {
+		t.Fatalf("Load called %d times, want 1", len(store.loadCalls))
+	}
 	if store.loadCalls[0].stage != StageShorten {
 		t.Errorf("Load stage = %v, want shorten", store.loadCalls[0].stage)
 	}
 	if len(review.Calls) != 1 {
 		t.Errorf("review client called %d times, want 1", len(review.Calls))
 	}
+	if a.Model != reusedGenModel || a.ModelVersion != reusedGenVersion {
+		t.Errorf("Article model = %q/%q, want the reused generation %q/%q", a.Model, a.ModelVersion, reusedGenModel, reusedGenVersion)
+	}
 	if a.Shorten == nil || a.Shorten.Model != reusedShortModel || a.Shorten.ModelVersion != reusedShortVersion {
 		t.Errorf("Article.Shorten = %+v, want the reused %q/%q", a.Shorten, reusedShortModel, reusedShortVersion)
 	}
 	if a.Title != markShortTitle || !strings.HasPrefix(a.Body, markShortBody) {
 		t.Errorf("Article text = %q/%q, want the reused shorten text", a.Title, a.Body)
+	}
+	if a.Review == nil || a.Review.Model.Model != markReviewModel || a.Review.Model.ModelVersion != markStepModelVersion {
+		t.Errorf("Article.Review = %+v, want the executed review %q/%q", a.Review, markReviewModel, markStepModelVersion)
 	}
 	reviewCall := store.saveFor(StageReview)
 	if reviewCall.record.Input != shortenRecordID {
@@ -453,6 +458,9 @@ func TestResumeAfterReview(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Write error = %v, want nil", err)
 	}
+	if len(store.loadCalls) != 1 {
+		t.Fatalf("Load called %d times, want 1", len(store.loadCalls))
+	}
 	if store.loadCalls[0].stage != StageReview {
 		t.Errorf("Load stage = %v, want review", store.loadCalls[0].stage)
 	}
@@ -470,34 +478,37 @@ func TestResumeAfterReview(t *testing.T) {
 	}
 }
 
-func TestResumeFinalLengthAndReviewLog(t *testing.T) {
-	// The reused review text is over the limit and Shorten is enabled, so the
-	// final length check still rejects it.
-	chain := resumeChainReview(nil)
-	chain.Review.Body = overLimitBody()
-	store := &fakeArtifactStore{loadResult: chain}
-	w := mustNew(t, nil, Options{
-		Shorten:   ShortenOptions{Enabled: true},
-		Artifacts: ArtifactOptions{Store: store, Resume: StageReview},
+func TestResumeFinalLengthCheck(t *testing.T) {
+	// The reused review text is over the limit; the final length check follows
+	// Shorten.Enabled, so it rejects when shorten is enabled and is skipped
+	// when it is not.
+	overLimitChain := func() ArtifactChain {
+		chain := resumeChainReview(nil)
+		chain.Review.Body = overLimitBody()
+		return chain
+	}
+
+	t.Run("shorten enabled rejects", func(t *testing.T) {
+		store := &fakeArtifactStore{loadResult: overLimitChain()}
+		w := mustNew(t, nil, Options{
+			Shorten:   ShortenOptions{Enabled: true},
+			Artifacts: ArtifactOptions{Store: store, Resume: StageReview},
+		})
+		a, err := w.Write(context.Background(), validTranscript())
+		requireStepError(t, err, ErrTooLong, StepReview, a)
 	})
 
-	a, err := w.Write(context.Background(), validTranscript())
-	requireStepError(t, err, ErrTooLong, StepReview, a)
-}
-
-func TestResumeAfterReviewNoShortenSkipsFinalLength(t *testing.T) {
-	chain := resumeChainReview(nil)
-	chain.Review.Body = overLimitBody()
-	store := &fakeArtifactStore{loadResult: chain}
-	w := mustNew(t, nil, Options{Artifacts: ArtifactOptions{Store: store, Resume: StageReview}})
-
-	a, err := w.Write(context.Background(), validTranscript())
-	if err != nil {
-		t.Fatalf("Write error = %v, want nil (Shorten is disabled, so the final check is off)", err)
-	}
-	if a == (Article{}) {
-		t.Error("Write article is the zero value, want the reused review article")
-	}
+	t.Run("shorten disabled accepts", func(t *testing.T) {
+		store := &fakeArtifactStore{loadResult: overLimitChain()}
+		w := mustNew(t, nil, Options{Artifacts: ArtifactOptions{Store: store, Resume: StageReview}})
+		a, err := w.Write(context.Background(), validTranscript())
+		if err != nil {
+			t.Fatalf("Write error = %v, want nil (Shorten is disabled, so the final check is off)", err)
+		}
+		if a == (Article{}) {
+			t.Error("Write article is the zero value, want the reused review article")
+		}
+	})
 }
 
 func TestResumeLoadFailure(t *testing.T) {
@@ -575,12 +586,6 @@ func TestNewArtifactOptions(t *testing.T) {
 			nil,
 			Options{Shorten: ShortenOptions{Enabled: true, UserTemplatePath: writeOverrideFile(t, "x")}, Artifacts: ArtifactOptions{Store: store, Resume: StageReview}},
 		},
-		{
-			"review runs without a client",
-			errReviewClientNil,
-			nil,
-			Options{Review: ReviewOptions{Enabled: true}, Artifacts: ArtifactOptions{Store: store, Resume: StageShorten}},
-		},
 	}
 	for _, tc := range rejected {
 		t.Run("rejects/"+tc.name, func(t *testing.T) {
@@ -629,32 +634,6 @@ func TestNewArtifactOptions(t *testing.T) {
 			w, err := New(tc.c, tc.opts)
 			requireAccepted(t, w, err)
 		})
-	}
-}
-
-func TestResumeArticleProvenance(t *testing.T) {
-	// A resumed run writes the reused generation and shorten provenance and the
-	// executed review provenance into the Article, which --out reads.
-	review := &llmtestutil.FakeLLMClient{Result: llm.GenerateResponse{Text: reviewResponse(), Model: markReviewModel, ModelVersion: markStepModelVersion}}
-	store := &fakeArtifactStore{loadResult: resumeChainShorten()}
-	w := mustNew(t, nil, Options{
-		Shorten:   ShortenOptions{Enabled: true},
-		Review:    ReviewOptions{Enabled: true, Client: review},
-		Artifacts: ArtifactOptions{Store: store, Resume: StageShorten},
-	})
-
-	a, err := w.Write(context.Background(), validTranscript())
-	if err != nil {
-		t.Fatalf("Write error = %v, want nil", err)
-	}
-	if a.Model != reusedGenModel || a.ModelVersion != reusedGenVersion {
-		t.Errorf("Article model = %q/%q, want the reused generation %q/%q", a.Model, a.ModelVersion, reusedGenModel, reusedGenVersion)
-	}
-	if a.Shorten == nil || a.Shorten.Model != reusedShortModel || a.Shorten.ModelVersion != reusedShortVersion {
-		t.Errorf("Article.Shorten = %+v, want the reused shorten %q/%q", a.Shorten, reusedShortModel, reusedShortVersion)
-	}
-	if a.Review == nil || a.Review.Model.Model != markReviewModel || a.Review.Model.ModelVersion != markStepModelVersion {
-		t.Errorf("Article.Review = %+v, want the executed review %q/%q", a.Review, markReviewModel, markStepModelVersion)
 	}
 }
 

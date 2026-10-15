@@ -363,7 +363,7 @@ architecture §7.3 の検査を、フェーズ 1 の `internal/artifact` のテ�
 | AC-13 | test | `internal/writer/artifact_test.go::TestResumeAfterShorten`（生成と字数の調整の LLM が呼ばれない）と `cmd/yt2column/run_test.go::TestRunAfterShorten` |
 | AC-14 | test | `internal/writer/artifact_test.go::TestResumeAfterReview`（どの LLM も呼ばれない）と `cmd/yt2column/run_test.go::TestRunAfterReview` |
 | AC-15 | test | `internal/config/config_test.go::TestLoadFor`（各行の検査の範囲）と `cmd/yt2column/run_test.go::TestRunResumeConfigScoping`（`--after review` で `YT2COLUMN_MODEL` と API キーが未設定でも通る） |
-| AC-16 | test | `internal/writer/artifact_test.go::TestResumeFinalLengthAndReviewLog`（再開でも `Shorten.Enabled` に従う最終の字数の確認と、検証・推敲を実行する再開の `ReviewResult`）と `cmd/yt2column/run_test.go::TestRunAfterReviewRejectsReviewLog`（`--after review` と `--review-log` で終了コード 2） |
+| AC-16 | test | `internal/writer/artifact_test.go::TestResumeFinalLengthCheck`（再開でも `Shorten.Enabled` に従う最終の字数の確認と、検証・推敲を実行する再開の `ReviewResult`）と `cmd/yt2column/run_test.go::TestRunAfterReviewRejectsReviewLog`（`--after review` と `--review-log` で終了コード 2） |
 | AC-17 | test | `cmd/yt2column/run_test.go::TestRunResumeFetchesTranscript`（再開でもキャッシュの取得を行い、キャッシュが無ければ yt-dlp を呼ぶ。`internal/job`・`internal/pipeline` を変更しない） |
 | AC-18 | test | `internal/writer/artifact_test.go::TestResumeSavesExecutedStages` と `cmd/yt2column/run_test.go::TestRunResumeSavesExecutedStages`（再開で実行した段階の成果物が保存される） |
 | AC-19 | test | `internal/artifact/store_test.go::TestLoadMissing`（`errors.Is(_, ErrMissing)`）と `cmd/yt2column/run_test.go::TestRunAfterMissingArtifact`（LLM を呼ばず、公開しない） |
@@ -374,7 +374,7 @@ architecture §7.3 の検査を、フェーズ 1 の `internal/artifact` のテ�
 | AC-24 | test | `cmd/yt2column/run_test.go::TestRunAfterRequiresArtifacts`（yt-dlp と LLM を呼ばずに終了コード 2） |
 | AC-25 | test | `cmd/yt2column/run_test.go::TestRunAfterInvalidValue`（3 つの値以外で終了コード 2。メッセージに拒否した値） |
 | AC-26 | test | `cmd/yt2column/run_test.go::TestRunAfterRejectsGenerationFlags`（`--system-prompt`・`--user-prompt` と `--after` で終了コード 2） |
-| AC-27 | test | `internal/writer/artifact_test.go::TestResumeArticleProvenance`（再利用した段階の `Model`・`ModelVersion` が `Article` に入る）と `cmd/yt2column/run_test.go::TestRunAfterShortenOutModelLines`（`--out` のモデルの行に段階の区別が付く形で出る。空の ModelVersion は書かない） |
+| AC-27 | test | `internal/writer/artifact_test.go::TestResumeAfterGeneration`（再利用した生成の `Model`・`ModelVersion`）と `::TestResumeAfterShorten`（再利用した `Shorten` と、実行した検証・推敲の `Model`・`ModelVersion` が `Article` に入る）と `cmd/yt2column/run_test.go::TestRunAfterShortenOutModelLines`（`--out` のモデルの行に段階の区別が付く形で出る。空の ModelVersion は書かない） |
 | AC-28 | static | `cmd/yt2column/run_test.go::TestRunHelp`（`-h`/`--help` の使い方の表示に `--artifacts`・`--after`）と `cmd/yt2column/docs_test.go::TestREADMEDocumentsFlags`（README のフラグの表）と `::TestArtifactDocsContract`（`--after` が `--artifacts` を要すること、`--after review` が `--review-log` を使えないこと） |
 | AC-29 | test | `internal/writer/artifact_test.go::TestWriteSaveFailure`（保存の失敗が段階を示し、記事を公開しない）と `internal/artifact/store_test.go::TestLoadMissing`・`::TestLoadRejectsSymlinkAndFIFO`（読み込みの失敗が番兵で判定でき、公開しない） |
 | AC-30 | test | `cmd/yt2column/run_test.go::TestRunArtifactExitCodes`（引数の形だけの誤りは 2、ファイルシステムの状態の誤りは 1。`--artifacts` のディレクトリを実際に開く 1 回の確認で判定する。成果物が壊れている場合と入力の識別子が食い違う場合も終了コード 1 になることを含める） |
