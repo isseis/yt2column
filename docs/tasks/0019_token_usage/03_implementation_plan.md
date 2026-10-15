@@ -80,7 +80,7 @@ requirements の機能要件（F-001〜F-008）を、architecture の設計ど�
 | H-01 アダプタのテストの応答の形 | ステップ 2-4・2-5（記録済みの応答と、`usage` だけを置き換える補助） |
 | H-02 失敗した呼び出しのトークン数の受け渡し | ステップ 2-1・2-2（3 つのエラーで `Model`・`Usage` を返す）、ステップ 3-2（`TokenUsageError`）、ステップ 4-1（`pipeline.Run` の包み） |
 | H-03 `Article` と結果の型の形 | ステップ 3-1・3-2・3-5、ステップ 1-5 と 3-6（`TestCommonTypesFieldSets`） |
-| H-04 要約の行の書式 | ステップ 4-2・4-3、ステップ 5-1・5-2 |
+| H-04 要約の行の書式 | ステップ 4-3・4-4、ステップ 5-1・5-2 |
 | H-05 中間生成物の形式の変更 | ステップ 3-3・3-4・3-7 |
 | H-06 数値の検証の方法 | ステップ 1-3・1-4 |
 
@@ -99,7 +99,7 @@ requirements の機能要件（F-001〜F-008）を、architecture の設計ど�
 計画の作成時に、architecture が既存のコードと食い違う箇所を 3 つ見つけ、architecture を editorial correction として直した（status は `approved` のまま。`Comments` に記録。コミット `15a5b84`・`6a92cb4`）。設計の決定は変えていない。
 
 - §1.3「要件 AC-27 との関係」と §3.10 に、`TestPipelineCanceled` の「canceled after write」を加えた（§1.3 の `internal/pipeline`）。
-- §7.2 の最初の項目を、実際の API を呼ぶ既存の統合テストではなく、`make test` で走る新しいループバックのテスト（ステップ 4-4）に改めた。
+- §7.2 の最初の項目を、実際の API を呼ぶ既存の統合テストではなく、`make test` で走る新しいループバックのテスト（ステップ 4-5）に改めた。
 - §1.3 の例外 1 と §3.10 の Claude の一覧に、`TestGenerateResponseFixtures` の打ち切りの行を加えた。
 
 ### フェーズ 1: 型と数値の検証
@@ -118,6 +118,23 @@ requirements の機能要件（F-001〜F-008）を、architecture の設計ど�
 - [ ] **ステップ 1-5**: `internal/pipeline/pipeline_test.go` の `TestCommonTypesFieldSets` の `GenerateResponse` の行に `"Usage": "llm.Usage"` を加える（architecture §3.10）。
 
 **完了条件:** グリーンゲートが通る。アダプタはまだ `Usage` を設定しないので、既存のアダプタのテストは変えずに通る（応答の `Usage` はゼロ値で `!=` の比較に影響しない）。
+
+### PR-1 作成ポイント: usage types and numeric validation
+
+**対象ステップ**: 1-1 / 1-2 / 1-3 / 1-4 / 1-5
+
+**推奨タイトル**: `feat(0019): add the token usage types and non-negative integer parsing`
+
+**レビュー観点**: `internal/llm` の `Usage` のゼロ値が不明（`not-read`）で、`KnownUsage(TokenCounts{})` の 0 の分かった値と `!=` であること / `UnknownReason` が規則と要素名ごとの空白を含まない 1 語を返し、応答の値を含めないこと / `AsNonNegativeInt64` が負数・`-0`・小数・指数・`int64` を超える数を拒否し、拒否のエラーが入力の値を含まないこと / `TestNoProviderMemberNames` が `internal/llm` の本番のソースにプロバイダ固有の要素名を許さず、`TestCommonTypesFieldSets` の `GenerateResponse` の行が更新されていること
+
+**実装モデル要件**: standard
+
+**判定理由**: 使用量の型と数値の検証の形は architecture §3.1〜§3.3 に確定しており、前例のない設計判断・panel-mode トリガー・競合する実装案・分離された高リスク／複雑なステップのいずれにも該当しない。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: アダプタ
 
@@ -139,6 +156,23 @@ requirements の機能要件（F-001〜F-008）を、architecture の設計ど�
 - [ ] **ステップ 2-7**: 壊して確かめる。`usage` を既存の最上位の `Collect` に加えると、`TestGenerateUsageUnknown` の最上位の重複の行（応答が受理されることを確かめる）が失敗することを確かめる。`Generate` がエラーのときにゼロ値を返す形に戻すと、`TestGenerateRejectedResponseUsage` が失敗することを確かめる。
 
 **完了条件:** グリーンゲートが通る。`internal/llm` を除く他のパッケージは、アダプタの `Usage` をまだ読まない。
+
+### PR-2 作成ポイント: adapter usage reading
+
+**対象ステップ**: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7
+
+**推奨タイトル**: `feat(0019): read token usage in the DeepSeek and Claude adapters`
+
+**レビュー観点**: `usage` を本文の検証とは別の `Collect` で読み、最上位・中の重複でも応答を拒否しないこと（AC-09）/ `usage` を読む時点が本文の検証の後・終了理由の判定の前で、打ち切り・想定外の終了理由・空の応答だけが `Model` と `Usage` を返し、ほかのエラーはゼロ値のままであること / 不正な `usage` を不明にし、理由が規則と要素名だけで応答の値を含まないこと（AC-04〜AC-08）/ Claude のキャッシュの 2 つの要素の `null` を 0、`input_tokens`・`output_tokens` の `null` は不明にすること（AC-02a）
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: ステップ 2-1・2-2 が、信頼しない入力である `usage` の境界の検査を 2 つのアダプタで担い、本文の受理・拒否の結果（AC-09）を変えずに、打ち切り・想定外の終了理由・空の応答の 3 つだけのエラーで `Model` と `Usage` を返す契約に変える、分離された高リスク／複雑なステップであるため（セキュリティゲートや移行ではなく、既存コード調査結果に競合する実装案もないので `frontier-required` ではない）。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: `writer` と中間生成物
 
@@ -169,12 +203,47 @@ requirements の機能要件（F-001〜F-008）を、architecture の設計ど�
 
 **完了条件:** グリーンゲートが通る。CLI はまだ `RunUsage` を出さない。中間生成物は版 2 で保存され、既存の CLI の中間生成物のテスト（`artifact.Marshal` で作る）は変えずに通る。
 
+### PR-3 作成ポイント: writer usage recording and artifact format v2
+
+**対象ステップ**: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8
+
+**推奨タイトル**: `feat(0019): record per-stage usage and raise the artifact format to version 2`
+
+**レビュー観点**: `Write` が段階ごとの `Origin`（呼んだ・再利用した・呼ばなかった）と値の対応をすべての経路で誤らないこと（AC-10・AC-11・AC-11a・AC-14）/ 失敗の経路で `*TokenUsageError` が取り出せ、段階ごとの `Origin` と `Usage` が期待どおりで、`Article` がゼロ値であること（AC-16〜AC-20）/ 中間生成物の版 2 と `usage` の保存・読み込み、版 1 と不正な `usage` の `ErrMalformed` 拒否と回復の手順のメッセージ（AC-21〜AC-23）/ `recordID` がトークン数を含み、書き換えたファイルを拒否し、`usage` を `parseStage` の後で読むこと（AC-24）
+
+**実装モデル要件**: frontier-required
+
+**判定理由**: ステップ 3-3・3-4 が中間生成物の形式の版を 1 から 2 へ上げ、古い版を回復の手順つきで拒否する移行であり、`id` にトークン数を含める改ざん検出（AC-24）を伴い、`TestWriteArticle`・`TestCommonTypesFieldSets`・`TestInterfaceDocComments`・`TestParseRecordRejects`・`sameRecord`・`fieldsFrom` など多数の既存テストの更新を要するため（`mkplan.md` ステップ 8 のパネルモードのトリガーの、移行と多数のテストの更新に該当）。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ### フェーズ 4: パイプラインと CLI
 
 **対象ファイル:** `internal/pipeline/pipeline.go`・`pipeline_test.go`、`cmd/yt2column/run.go`・`run_test.go`
 
 - [ ] **ステップ 4-1**: `pipeline.Run` が、`Write` の成功後の公開の失敗を `&StageError{Stage: StagePublish, Err: &writer.TokenUsageError{RunUsage: article.RunUsage, Err: err}}` で、`Write` と公開の間の中断を `&writer.TokenUsageError{RunUsage: article.RunUsage, Err: ctxErr}` で返すようにし、`Run` の文書に「`Write` の成功後の失敗を `*writer.TokenUsageError` で包む」を加え、「the context error if the context is canceled between stages」を、`Write` の後の中断では包んだエラーになることが分かる文に改める（architecture §3.6）。ゼロ値の `Article` を返す規則は変えない。
 - [ ] **ステップ 4-2**: `pipeline_test.go` を更新する。`TestPipelineCanceled` の「canceled after write」（`:267`）の `err != context.Canceled` を `errors.Is` での比較に改め、`StageError` で包まないことの確認は残す。そのうえで、`*writer.TokenUsageError` を取り出せ、fake の `ArticleWriter` が返した `Article.RunUsage` を持つことを加える。新しい `TestPipelinePublishFailureCarriesRunUsage` で、公開の失敗のエラーから `*writer.TokenUsageError` が取り出せ、`RunUsage` が `Write` の値で、`StageError.Stage` が `StagePublish` であることを確かめる（AC-19 の公開の失敗）。
+
+### PR-4 作成ポイント: pipeline usage wrapping
+
+**対象ステップ**: 4-1 / 4-2
+
+**推奨タイトル**: `feat(0019): carry run usage in pipeline errors`
+
+**レビュー観点**: `Write` の成功後の公開の失敗を `StageError{Publish}` で包んだ内側に `*writer.TokenUsageError` を置くこと / `Write` と公開の間の中断を `*writer.TokenUsageError` で包み、`StageError` で包まないこと / ゼロ値の `Article` を返す規則を変えないこと / `TestPipelineCanceled` の比較を `errors.Is` に改め、`StageError` で包まないことの確認を残すこと
+
+**実装モデル要件**: standard
+
+**判定理由**: `Run` の包みの形は architecture §3.6 に確定しており、前例のない設計判断・panel-mode トリガー・競合する実装案・分離された高リスク／複雑なステップのいずれにも該当しない。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 - [ ] **ステップ 4-3**: `cmd/yt2column/run.go` に、architecture §3.8 の書式の定数、1 行を作る関数、`RunUsage` から段階の順に行を書く `reportTokens` を置く。`OriginNone` と列挙の外の `UsageOrigin` は行を書かない。`reportSuccess` の最後で `reportTokens(errOut, article.RunUsage)` を呼ぶ。`reportRunError` では、`*job.ReviewLogError` の分岐の後、失敗の行の前に、`errors.AsType[*writer.TokenUsageError]` で取り出せたときだけ `reportTokens` を呼ぶ。行はすべて `errOut.line` で書く。
 - [ ] **ステップ 4-4**: `cmd/yt2column/run_test.go` に、fake の `LLMClient`・`TranscriptSource`・`Publisher` と `t.TempDir`（`newRunEnv`・`funcLLM`・`reviewLLM`・`useReviewClient`・`saveArtifactsOnce`・`firstLongThenShort` を再利用する）で CLI のテストを書く。行は `redact.Line` を通った後の標準エラーの行のバイト列として比べる。
   - `TestRunTokenLinesAllStages`: 3 つの段階が走る成功した実行で、段階の順に 3 行が、段階ごとに異なる値とモデル名で出ること、行が既存の要約の行の後にあること（AC-12・AC-15）。
@@ -192,7 +261,24 @@ requirements の機能要件（F-001〜F-008）を、architecture の設計ど�
 - [ ] **ステップ 4-5**: architecture §7.2 のループバックのテスト `TestRunTokenLinesLoopbackAdapter` を `run_test.go` に書く。`deps.newLLMClient` を、`deepseek.NewForLoopbackTest` で `httptest` のサーバに向けたアダプタを返す関数に差し替え、サーバは記録済みの応答（`testdata/deepseek_chat_completion_stop.json`）の `message.content` だけを記事の形の文字列に置き換えた本文を返す。字数の調整と検証・推敲を無効にして実行し、生成の行が記録済みの応答の `usage` の値とモデル名で出ることを確かめる。記録済みの応答は `../../testdata/` の定数のパスで読み、gosec が読み込みを指摘する場合は、その 1 行に限った `//nolint:gosec` を、根拠（コミット済みの testdata の記録）のコメント付きで置く。
 - [ ] **ステップ 4-6**: 壊して確かめる。`reportRunError` の `reportTokens` の呼び出しを消すと `TestRunTokenLinesReviewFailure` が失敗すること、`reportTokens` の `OriginNone` の判定を外すと `TestRunTokenLinesSkippedStages` が失敗することを確かめる。
 
-**完了条件:** グリーンゲートが通る。既存の `cmd/yt2column` と `internal/server` のテストが変えずに通る（AC-27・AC-28）。
+**完了条件:** グリーンゲートが通る。既存の `cmd/yt2column` と `internal/server` のテストの既存の行が変えずに通る（`TestRunArtifactExitCodes` はステップ 4-4 で行を 1 つ追記する。AC-27・AC-28）。
+
+### PR-5 作成ポイント: CLI token line output
+
+**対象ステップ**: 4-3 / 4-4 / 4-5 / 4-6
+
+**推奨タイトル**: `feat(0019): print per-stage token usage lines in the CLI`
+
+**レビュー観点**: 行が `redact.Line` を通った後の形で、`model=` から行の終わりまでがモデル名であり、README の手順で元に戻せて、応答の値と秘密情報を含まないこと / `reportTokens` が段階の順に `OriginNone` でない段階の行だけを書き、成功では要約の最後、失敗では失敗の行の前に出し、検証・推敲の一覧のファイルの失敗では 1 回だけ出ること / `--after` で再利用した段階が `reused` で保存時の値とモデル名を、呼んだ段階が `run` を示すこと（AC-14）/ ループバックのテストが実際の API を呼ばずに `make test` で走り、gosec の抑制が 1 行に限られること
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: ステップ 4-3 が、伏せ字とエスケープを通る標準エラーの行の書式と、成功・失敗・一覧のファイルの失敗の各経路での行の順序を決める、秘密情報と応答の値の漏れを避けるセキュリティ上重要な分離された込み入ったステップであるため（ステップ 4-5 のループバックのテストは `make test` で走る局所の `httptest` であり、外部リソースの面には該当しない）。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 5: 文書
 
@@ -212,7 +298,26 @@ requirements の機能要件（F-001〜F-008）を、architecture の設計ど�
 
 **完了条件:** グリーンゲートが通る。`TestTokenUsageDocsContract`・`TestPackageReferenceListsPackages` が通る。
 
+### PR-6 作成ポイント: documentation
+
+**対象ステップ**: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6
+
+**推奨タイトル**: `docs(0019): document token usage lines and provider usage handling`
+
+**レビュー観点**: README の節が `run.go` の書式の定数と `llm.Usage.UnknownReason` の語のすべてを含むこと（`TestTokenUsageDocsContract`）/ `security.md` の応答の `usage` と `--artifacts` の記述が、実行されるテストが固定する振る舞いと一致すること / `package_reference.md` の `internal/llm`・`internal/strictjson`・`internal/writer`・`internal/artifact`・両アダプタの行が更新されていること / README の例の行がステップ 4-4 のテストの出力と同じ形であること
+
+**実装モデル要件**: standard
+
+**判定理由**: 文書の更新は architecture §3.8・§3.10 のとおりの内容を既存の節に加える作業であり、書式と定数の一致の確認は実行される `TestTokenUsageDocsContract` で行う。前例のない設計判断・panel-mode トリガー・競合する実装案・分離された高リスク／複雑なステップのいずれにも該当しない。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ## 3. 実装の順序とマイルストーン (Implementation Order and Milestones)
+
+### 3.1 マイルストーン
 
 | マイルストーン | このフェーズで作るもの | フェーズ |
 |---|---|---|
@@ -224,7 +329,22 @@ requirements の機能要件（F-001〜F-008）を、architecture の設計ど�
 
 - フェーズの名前と順序は architecture §8 の手順 1〜5 と同じである。
 - 各フェーズは前のフェーズに依存する。フェーズ 2 は M1 の型を、フェーズ 3 はアダプタが返す `Usage` の契約（fake で代用できるが、契約の文書はフェーズ 2 で入る）を、フェーズ 4 は `RunUsage` と `TokenUsageError` を、フェーズ 5 は `run.go` の書式の定数を使う。
-- 各フェーズは単独でグリーンゲートを通せる単位とする。PR の境界と実装モデル要件は `/mkplan2` で本書に加える。
+- 各フェーズは単独でグリーンゲートを通せる単位とする。PR の境界と実装モデル要件は §3.2 と各 `### PR-N 作成ポイント` のとおりである。
+
+### 3.2 PR 構成
+
+PR はフェーズを単位とし、フェーズ 4 だけを `internal/` と `cmd/` の 2 つに分ける（PR は 6 つ）。各 PR は単一の関心事（使用量の型と数値の検証 / アダプタの読み取り / `writer` の記録と中間生成物の版 2 / `pipeline` の包み / CLI の行の出力 / 文書）を持ち、単独でグリーンゲートを通せる単位とする。フェーズ 4 は、`internal/pipeline` の `Run` の変更（PR-4）と、それに依存する `cmd/yt2column` の出力（PR-5）に分ける。`internal/` の変更を `cmd/` の層より先に着地させ（internal-before-cmd）、出力の書式と失敗の経路を集中してレビューできる。
+
+PR は PR-1 → PR-2 → PR-3 → PR-4 → PR-5 → PR-6 の順とし、各 PR は前の PR に依存する。PR-3 は実装（使用量の型・記録・形式）とテストを分けない。段階の記録と中間生成物の形式の契約を観測できるのは同じ変更のテストだけであり、実装をテストと同じ PR に置く。また、PR-3 の中で `writer` の記録と `internal/artifact` の形式も分けない。中間生成物の形式と `Write` の再利用の記録は互いに依存する（architecture §8）ためである。
+
+| PR | 対象ステップ | 主な変更内容 | 実装モデル要件 |
+|---|---|---|---|
+| PR-1 | 1-1 / 1-2 / 1-3 / 1-4 / 1-5 | `internal/llm/usage.go`（新規）・`GenerateResponse.Usage`、`internal/strictjson` の `IsNull`・`AsNonNegativeInt64`、`internal/pipeline` の `TestCommonTypesFieldSets` の `GenerateResponse` の行 | standard |
+| PR-2 | 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 | 両アダプタの `usage` の読み取りと検証、3 つのエラーでの `Model`・`Usage`、`LLMClient` の契約の文、テストの補助・更新・追加 | frontier-recommended |
+| PR-3 | 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8 | `internal/writer` の `UsageOrigin`・`StageUsage`・`RunUsage`・`TokenUsageError` と `Write` の記録・包み、`internal/artifact` の版 2 と `usage`・`recordID`・メッセージ | frontier-required |
+| PR-4 | 4-1 / 4-2 | `internal/pipeline.Run` の公開の失敗と中断の `*writer.TokenUsageError` での包み、`pipeline_test.go` | standard |
+| PR-5 | 4-3 / 4-4 / 4-5 / 4-6 | `cmd/yt2column/run.go` の書式の定数・`reportTokens` と要約での呼び出し、`run_test.go` の CLI のテストとループバックのテスト | frontier-recommended |
+| PR-6 | 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6 | README・`project_overview.md`・`security.md`・`package_reference.md` と `TestTokenUsageDocsContract` | standard |
 
 ## 4. テスト戦略 (Test Strategy)
 
@@ -247,7 +367,7 @@ architecture §7.3 の検査を、ステップ 1-4（`AsNonNegativeInt64` のエ
 
 ### 4.5. 既存のテストとの互換
 
-requirements AC-27 が認める変更は、architecture §1.3「要件 AC-27 との関係」の一覧（アダプタの失敗の契約のテスト、`TestWriteArticle`、`TestCommonTypesFieldSets`・`TestInterfaceDocComments`、`TestPipelineCanceled` の「canceled after write」）と、版の値を書いた `TestParseRecordRejects` の行・`fieldsFrom`・`sameRecord`（architecture §3.10 の `format_test.go` の行）、コメントだけを直す Claude の `TestGenerateDuplicateMembers`・`TestGenerateUnconsumedMembers` だけである。ほかの既存のテストは内容を変えずに `make test` で通す。
+requirements AC-27 が認める変更は、architecture §1.3「要件 AC-27 との関係」の一覧（アダプタの失敗の契約のテスト、`TestWriteArticle`、`TestCommonTypesFieldSets`・`TestInterfaceDocComments`、`TestPipelineCanceled` の「canceled after write」）と、版の値を書いた `TestParseRecordRejects` の行・`fieldsFrom`・`sameRecord`（architecture §3.10 の `format_test.go` の行）、コメントだけを直す Claude の `TestGenerateDuplicateMembers`・`TestGenerateUnconsumedMembers`、および `TestRunArtifactExitCodes` に AC-22 の CLI の検証のために `usage` が不正な中間生成物の行を追記すること（ステップ 4-4。既存の行は変えない）だけである。ほかの既存のテストは内容を変えずに `make test` で通す。
 
 ## 5. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -316,13 +436,14 @@ requirements AC-27 が認める変更は、architecture §1.3「要件 AC-27 と
 ## 7. 実装チェックリスト (Implementation Checklist)
 
 - [x] architecture の 3 つの食い違いを editorial correction として直した（§2.0）
-- [ ] フェーズ 1 の完了条件を満たす（ステップ 1-1〜1-5）
-- [ ] フェーズ 2 の完了条件を満たす（ステップ 2-1〜2-7）
-- [ ] フェーズ 3 の完了条件を満たす（ステップ 3-1〜3-8）
-- [ ] フェーズ 4 の完了条件を満たす（ステップ 4-1〜4-6）
-- [ ] フェーズ 5 の完了条件を満たす（ステップ 5-1〜5-6）
+- [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5）
+- [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7）
+- [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8）
+- [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2）
+- [ ] PR-5 マージ済み（対象ステップ: 4-3 / 4-4 / 4-5 / 4-6）
+- [ ] PR-6 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6）
 - [ ] §5 のすべての AC の `test`・`static` の検証が実行され、通る
-- [ ] `make fmt`・`make test`・`make lint` がすべてのフェーズの完了時に通る
+- [ ] `make fmt`・`make test`・`make lint` がすべての PR の完了時に通る
 
 ## 8. 成功基準 (Success Criteria)
 
@@ -333,6 +454,6 @@ requirements AC-27 が認める変更は、architecture §1.3「要件 AC-27 と
 
 ## 9. 次のステップ (Next Steps)
 
-- 本書の承認後に、`/mkplan2 0019` で PR の境界と実装モデル要件を加え、`/runplan 0019` でフェーズ 1 から実装する。
+- 本書の PR の境界と実装モデル要件（§3.2 と各 `### PR-N 作成ポイント`）に従い、`/runplan 0019` で PR-1 から順に実装する。
 - 実装中に architecture の記述が実際のコードと合わない箇所が見つかった場合は、本計画を独自に変えず、`requirements_process.md` の「Editing an approved document」に従って architecture を直す。
 - 本タスクの完了後に、0018（#248）が基準の集合を作る（requirements §1）。
