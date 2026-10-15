@@ -22,10 +22,6 @@ const artifactVersion = 1
 // sha256HexLen is the length of a SHA-256 digest written in hex.
 const sha256HexLen = 64
 
-// byteOrderMark is U+FEFF, which this package rejects at the start of a saved
-// body instead of removing it (the writer's response path removes one).
-const byteOrderMark = "\uFEFF"
-
 // Sentinels a caller identifies with errors.Is.
 var (
 	// ErrMissing reports that the artifacts directory or the requested

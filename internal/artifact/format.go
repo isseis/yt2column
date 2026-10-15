@@ -294,9 +294,10 @@ func parseDigestMember(members map[string]strictjson.Value, key string) (string,
 	return value, nil
 }
 
-// parseText reads and validates the required title and body. The body must not
-// start with a byte order mark, which this package rejects rather than
-// removes.
+// parseText reads and validates the required title and body. A body starting
+// with a byte order mark is rejected, not stripped: writer.CheckStageText
+// rejects any text its checks would have normalized, the removed mark
+// included.
 func parseText(members map[string]strictjson.Value) (title, body string, err error) {
 	title, err = strictjson.RequiredString(members, keyTitle)
 	if err != nil {
@@ -305,9 +306,6 @@ func parseText(members map[string]strictjson.Value) (title, body string, err err
 	body, err = strictjson.RequiredString(members, keyBody)
 	if err != nil {
 		return "", "", malformedf("body: %s", err)
-	}
-	if strings.HasPrefix(body, byteOrderMark) {
-		return "", "", malformed("body starts with a byte order mark")
 	}
 	if err := writer.CheckStageText(title, body); err != nil {
 		return "", "", malformedFrom(err)
