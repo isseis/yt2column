@@ -8,7 +8,7 @@
 | Created | 2026-10-15 |
 | Review date | 2026-10-15 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-15 実装計画の作成時の editorial correction（設計の決定は変えていない。status は `approved` のまま）。(1) §1.3「要件 AC-27 との関係」と §3.10 の `internal/pipeline/pipeline.go` の行に、`TestPipelineCanceled` の「canceled after write」（`internal/pipeline/pipeline_test.go:267` が `err != context.Canceled` で同一性を比べる）を加えた。§3.6 が `Write` と公開の間の中断を `TokenUsageError` で包むので、このテストは `errors.Is` での比較に改める必要があり、手を入れる既存のテストの一覧から漏れていた。(2) §7.2 の最初の項目は、`cmd/yt2column/integration_test.go` がループバックの fake の API で確かめるとしていたが、このテストは実際の DeepSeek の API を呼ぶ（`make test-integration-cli`）。同じ意図（実際の API を呼ばずに、記録済みの応答の形の `usage` から行が出ること）を、`make test` で走る新しい `cmd/yt2column` のテストで確かめる形に改めた。 |
 
 本書の既存コードへの言及（`file:line`）は、コミット `593c696` で確かめた。
 
@@ -133,6 +133,7 @@ AC-27 は、トークン数に関わらない振る舞いを検証する既存�
 -   **アダプタの失敗の契約のテスト（上の例外 1 の一覧）。** AC-17 が 3 つのエラーで使用量を返すことを求めるので、ゼロ値を確かめる部分は、要件どうしの衝突として改める。テキスト・終了理由・エラーの番兵の確認は変えない。
 -   **`TestWriteArticle`（上の例外 2）。** `Article` を値で比べるので、新しいフィールドの期待値を加える。記事の本文・モデルの確認は変えない。
 -   **`TestCommonTypesFieldSets`・`TestInterfaceDocComments`（`internal/pipeline/pipeline_test.go:455-490`）。** 型の形と契約の文言を固定する guard であり、要件 §4.4 のとおり同じ変更で更新する。
+-   **`TestPipelineCanceled` の「canceled after write」（`internal/pipeline/pipeline_test.go:267`）。** `Run` のエラーが `context.Canceled` そのものであることを `!=` で確かめている。§3.6 が `Write` と公開の間の中断を `TokenUsageError` で包むので、`errors.Is` での比較に改める。`StageError` で包まないことの確認は変えない。
 
 これ以外の既存のテスト（記事の本文、モデル名の行、検証・推敲の一覧、中間生成物の再開の規則、サーバ）は変更しない。
 
@@ -609,7 +610,7 @@ yt2column: tokens: generation run unknown reason=not-read nomodel
 | `internal/writer/shorten.go`・`review.go` | 変更 | 呼び出しの成否にかかわらず、その段階の `StageUsage` を呼び出し元に返すこと（§3.5） | なし（非公開の関数を直接呼ぶテストはない。`steps_test.go` は `Write` を通す） |
 | `internal/writer/output.go` | 変更 | `newArticle` が `RunUsage` を受け取ること。`CheckPublishable`（`article.go`）は変えない | `output_test.go` の `TestWriteArticle`（期待する `Article` に `RunUsage` を加える） |
 | `internal/artifact/artifact.go`・`format.go`・`store.go` | 変更 | 版 2、`usage` の保存と読み込み、`recordID`、版 1 のメッセージ、`loadRecord` の `Parse` のエラーへの段階の名前 | `format_test.go` の `fieldsFrom`（`usage` を加える）と、版・キーの拒否の表 |
-| `internal/pipeline/pipeline.go` | 変更 | 公開の失敗と、`Write` の後の中断を `*writer.TokenUsageError` で包むこと。`Run` の文書 | `pipeline_test.go` の `TestCommonTypesFieldSets`（`GenerateResponse` に `Usage: llm.Usage`、`Article` に `RunUsage: writer.RunUsage`）と `TestInterfaceDocComments`（`LLMClient`・`ArticleWriter` の文） |
+| `internal/pipeline/pipeline.go` | 変更 | 公開の失敗と、`Write` の後の中断を `*writer.TokenUsageError` で包むこと。`Run` の文書 | `pipeline_test.go` の `TestCommonTypesFieldSets`（`GenerateResponse` に `Usage: llm.Usage`、`Article` に `RunUsage: writer.RunUsage`）と `TestInterfaceDocComments`（`LLMClient`・`ArticleWriter` の文）、`TestPipelineCanceled` の「canceled after write」（`errors.Is` での比較に改める。§1.3） |
 | `cmd/yt2column/run.go` | 変更 | トークン数の行の書式の定数と `reportTokens`、成功・失敗の要約での呼び出し | なし。既存のテストは標準エラーを部分文字列で照合する（`run_test.go` の `wantStderr`・`notStderr`）。出てはならない文字列として照合するもの（`the shorten step ran`・`the review step returned`・`the run failed:` など）は、トークン数の行に現れない。行の形を見る `requireSafeOutput`（`run_test.go:310-330`）は、行が `yt2column: ` で始まることだけを求め、トークン数の行もそれを満たす |
 | `cmd/yt2column/docs_test.go` | 変更 | README のトークン数の行の書式と、`run.go` の定数の一致を確かめる契約のテストの追加 | なし |
 | `README.md` | 変更 | トークン数の行の書式、区分の意味、再利用の印、不明の表し方と理由の語、モデル名のエスケープの戻し方、行の順序、更新後は新しい `--artifacts` のディレクトリを使うこと（要件 AC-15・AC-29） | なし |
@@ -817,7 +818,7 @@ flowchart TD
 
 ### 7.2. 統合テスト
 
--   既存の CLI の統合テスト（`cmd/yt2column/integration_test.go`）が、ループバックの fake の API で、記録済みの応答の形の `usage` から行が出ることを確かめる（実際の API は呼ばない）。
+-   `cmd/yt2column` の新しいテストが、`deps.newLLMClient` を `deepseek.NewForLoopbackTest`（ループバックの `httptest` のサーバに向けた実際のアダプタ）に差し替え、記録済みの応答（`testdata/deepseek_chat_completion_stop.json`）を返すサーバに対して CLI を実行し、その `usage` から生成のトークン数の行が出ることを確かめる。実際の API は呼ばず、`make test` で走る。既存の `cmd/yt2column/integration_test.go`（実際の DeepSeek の API を呼ぶ `make test-integration-cli`）は変更しない。
 -   サーバの既存のテスト（`internal/server/job_test.go` の `TestFailureClassification` など）が変更なしで通ること（AC-28）。
 
 ### 7.3. セキュリティテスト
