@@ -357,7 +357,7 @@ architecture §7.3 を 2-1〜2-3 のテストに書く。(1) AC-12（本文を�
   ```
   yt2column failure: the copied transcript was not in the expected format
   request: d57bcc78c1b42f66
-  video: https://www.youtube.com/watch?v=dQw4w9WgXcQ
+  video: <https://www.youtube.com/watch?v=dQw4w9WgXcQ>
   ```
 
   実際のソケットでの結果: 上限を超える本文（4 MiB + 1）と誤ったトークンを送ると、サイズ超過ではなく共有トークンの不一致（`401 unauthorized`）として拒否された（ステップ 2-4 の統合テストで記録済み）。
