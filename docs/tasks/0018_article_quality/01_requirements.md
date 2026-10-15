@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-15 |
 | Review date | - |
 | Reviewer | - |
-| Comments | F-008 に、試作が読む字幕のキャッシュと基準の集合の中間生成物の、信頼できない入力としての受理・拒否の規則と AC-33 を加えた（`requirements_process.md` の「Untrusted input boundaries」に合わせる）。決定の変更のため `approved` から `draft` に戻した（2026-10-15）。同日、字幕のキャッシュに未知のメンバーの拒否を当てていた誤り（0002 §3.2 と矛盾）を直し、2 つの入力を既存の読み込み（`internal/transcript`・`internal/artifact`）で読むことと、AC-33 を記録で確かめられる形に改めた。 |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
