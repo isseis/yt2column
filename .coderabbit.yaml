@@ -1,0 +1,11 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# The built-in docstring coverage check measures the functions touched by the
+# diff, including test functions, and offers no way to exclude test files. It is
+# therefore disabled; doc comments on exported production identifiers stay
+# enforced by revive (`exported`, `package-comments`) in `make lint`.
+# `inheritance: true` keeps the existing organization/repository UI settings.
+inheritance: true
+reviews:
+  pre_merge_checks:
+    docstrings:
+      mode: "off"
