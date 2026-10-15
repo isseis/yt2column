@@ -84,11 +84,13 @@ func wrapError(err error) error {
 // Generate sends req to the DeepSeek Chat Completions API and returns the
 // generated text. It reports a failure with the sentinels of internal/llm
 // and of this package, and a timeout or cancellation with an error that
-// matches context.DeadlineExceeded or context.Canceled.
+// matches context.DeadlineExceeded or context.Canceled. For a truncation, an
+// unexpected finish reason, or an empty response, the returned response
+// carries the rejected response's Model and Usage.
 func (c *client) Generate(ctx context.Context, req llm.GenerateRequest) (llm.GenerateResponse, error) {
 	response, err := c.generate(ctx, req)
 	if err != nil {
-		return llm.GenerateResponse{}, wrapError(err)
+		return response, wrapError(err)
 	}
 	return response, nil
 }

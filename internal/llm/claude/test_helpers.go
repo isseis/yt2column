@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"testing"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/llm/claudeparam"
+	"github.com/isseis/yt2column/internal/llm/llmhttp/llmhttptest"
 	"github.com/isseis/yt2column/internal/secret"
 )
 
@@ -232,4 +234,67 @@ func assertRejected(t *testing.T, response llm.GenerateResponse, err error) {
 	if response != (llm.GenerateResponse{}) {
 		t.Errorf("Generate() response = %+v, want the zero value", response)
 	}
+}
+
+// The model and token usage the recorded fixtures report.
+const (
+	endTurnFixtureModel   = "claude-opus-5-5"
+	maxTokensFixtureModel = "claude-haiku-5-5" //nolint:gosec // fixture model name, not a credential
+)
+
+var (
+	endTurnFixtureUsage   = llm.KnownUsage(llm.TokenCounts{Input: 75, CacheRead: 0, CacheWrite: 0, Output: 49}) //nolint:mnd // recorded fixture values
+	maxTokensFixtureUsage = llm.KnownUsage(llm.TokenCounts{Input: 45, CacheRead: 0, CacheWrite: 0, Output: 16}) //nolint:mnd // recorded fixture values
+)
+
+// responseWithUsage returns the recorded fixture with its usage member set to
+// usage and encoded back to bytes. A nil usage deletes the member, so the
+// response has no usage at all.
+func responseWithUsage(t *testing.T, fixture []byte, usage any) []byte {
+	t.Helper()
+	document := documentOf(t, fixture)
+	if usage == nil {
+		delete(document, keyUsage)
+	} else {
+		document[keyUsage] = usage
+	}
+	return encodeDocument(t, document)
+}
+
+// usageCounts builds a usage object from the four consumed Messages API
+// members. A value may be any JSON value, including json.RawMessage for a
+// literal the strict reader must classify.
+func usageCounts(input, cacheRead, cacheWrite, output any) map[string]any {
+	return map[string]any{
+		keyInputTokens:              input,
+		keyCacheReadInputTokens:     cacheRead,
+		keyCacheCreationInputTokens: cacheWrite,
+		keyOutputTokens:             output,
+	}
+}
+
+// assertRejectedResponse is assertRejected for a rejection that carries the
+// rejected response's model and usage: a truncation, an unexpected finish
+// reason, or an empty response. Text and ModelVersion must be empty.
+func assertRejectedResponse(t *testing.T, response llm.GenerateResponse, err error, wantModel string, wantUsage llm.Usage) {
+	t.Helper()
+	assertSingleSentinel(t, err)
+	assertErrorPrefix(t, err)
+	assertNoAPIKey(t, err)
+	if want := (llm.GenerateResponse{Model: wantModel, Usage: wantUsage}); response != want {
+		t.Errorf("Generate() response = %+v, want %+v", response, want)
+	}
+}
+
+// assertBodyRejectedResponse is assertBodyRejected for a rejection that carries
+// the rejected response's model and usage.
+func assertBodyRejectedResponse(t *testing.T, body []byte, want error, wantModel string, wantUsage llm.Usage) error {
+	t.Helper()
+	server := llmhttptest.NewResponseServer(t, http.StatusOK, body)
+	response, err := generateAgainst(t, server.URL, validRequest(), nil)
+	if !errors.Is(err, want) {
+		t.Errorf("Generate() error = %v, want %v", err, want)
+	}
+	assertRejectedResponse(t, response, err, wantModel, wantUsage)
+	return err
 }

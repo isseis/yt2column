@@ -22,6 +22,18 @@ const (
 	keyType       = "type"
 	keyText       = "text"
 	keyError      = "error"
+	keyUsage      = "usage"
+)
+
+// Usage member names of the Messages API that map onto the provider-independent
+// categories. Only the members the adapter consumes are named. The two cache
+// members are documented as nullable and are read as 0 when null, because the
+// project never requests a prompt cache.
+const (
+	keyInputTokens              = "input_tokens"
+	keyCacheReadInputTokens     = "cache_read_input_tokens"
+	keyCacheCreationInputTokens = "cache_creation_input_tokens"
+	keyOutputTokens             = "output_tokens"
 )
 
 // Content block types the adapter accepts. A text block carries the answer;
@@ -63,8 +75,10 @@ type requestSummary struct {
 }
 
 // parseResponse validates one response body and builds the GenerateResponse.
-// The checks run in the requirement order: body shape, stop reason, text. Any
-// rejection returns the zero GenerateResponse.
+// The checks run in the requirement order: body shape, usage, stop reason,
+// text. A body-shape rejection returns the zero GenerateResponse, whose usage
+// is unknown. A truncation, an unexpected finish reason, or an empty response
+// carries the rejected response's model and token usage with the error.
 func parseResponse(data []byte, summary requestSummary) (llm.GenerateResponse, error) {
 	// Only JSON whitespace counts: bytes.TrimSpace would also strip Unicode
 	// spaces such as U+00A0, which are not JSON whitespace.
@@ -91,23 +105,96 @@ func parseResponse(data []byte, summary requestSummary) (llm.GenerateResponse, e
 	if err != nil {
 		return llm.GenerateResponse{}, err
 	}
+	// The usage is read after the body shape checks and in its own Collect, so
+	// a broken usage cannot reject a response whose body is otherwise valid.
+	usage := parseUsage(object)
 
 	switch stopReason {
 	case stopMaxTokens:
-		return llm.GenerateResponse{}, truncatedError(stopReason, summary, hasTextBlock)
+		return llm.GenerateResponse{Model: model, Usage: usage}, truncatedError(stopReason, summary, hasTextBlock)
 	case stopEndTurn:
 	default:
-		return llm.GenerateResponse{}, unexpectedFinishReasonError(stopReason, summary, hasTextBlock)
+		return llm.GenerateResponse{Model: model, Usage: usage}, unexpectedFinishReasonError(stopReason, summary, hasTextBlock)
 	}
 	if !hasTextBlock || strings.TrimSpace(text) == "" {
-		return llm.GenerateResponse{}, fmt.Errorf("%w: stop_reason is %s and no non-whitespace text block is present",
-			llm.ErrEmptyResponse, quoteReason(stopReason))
+		return llm.GenerateResponse{Model: model, Usage: usage},
+			fmt.Errorf("%w: stop_reason is %s and no non-whitespace text block is present",
+				llm.ErrEmptyResponse, quoteReason(stopReason))
 	}
 	return llm.GenerateResponse{
 		Text:         text,
 		Model:        model,
 		ModelVersion: "",
+		Usage:        usage,
 	}, nil
+}
+
+// parseUsage reads the response's top-level usage member into an llm.Usage.
+// Unlike the response body, a missing, wrong-shaped, duplicated, or
+// non-numeric usage never rejects the response: it makes the usage unknown,
+// and the reason names a rule and a consumed member only, never a value. The
+// unconsumed members are ignored, duplicates included.
+func parseUsage(object strictjson.Object) llm.Usage {
+	members, err := object.Collect(keyUsage)
+	if err != nil {
+		return llm.UnknownUsage(llm.RuleDuplicate, "")
+	}
+	value, present := members[keyUsage]
+	if !present {
+		return llm.UnknownUsage(llm.RuleMissing, "")
+	}
+	usage, err := value.AsObject()
+	if err != nil {
+		return llm.UnknownUsage(llm.RuleNotObject, "")
+	}
+	input, broken, ok := readUsageMember(usage, keyInputTokens, false)
+	if !ok {
+		return broken
+	}
+	cacheRead, broken, ok := readUsageMember(usage, keyCacheReadInputTokens, true)
+	if !ok {
+		return broken
+	}
+	cacheWrite, broken, ok := readUsageMember(usage, keyCacheCreationInputTokens, true)
+	if !ok {
+		return broken
+	}
+	output, broken, ok := readUsageMember(usage, keyOutputTokens, false)
+	if !ok {
+		return broken
+	}
+	return llm.KnownUsage(llm.TokenCounts{
+		Input:      input,
+		CacheRead:  cacheRead,
+		CacheWrite: cacheWrite,
+		Output:     output,
+	})
+}
+
+// readUsageMember reads one consumed usage member as a non-negative integer.
+// When nullIsZero is set, the JSON literal null is read as 0. ok is false when
+// the member is missing, duplicated, or not a non-negative integer (without
+// nullIsZero, null included); broken is then the unknown usage naming the
+// member and its rule.
+func readUsageMember(object strictjson.Object, key string, nullIsZero bool) (value uint64, broken llm.Usage, ok bool) {
+	members, err := object.Collect(key)
+	if err != nil {
+		return 0, llm.UnknownUsage(llm.RuleDuplicate, key), false
+	}
+	raw, present := members[key]
+	if !present {
+		return 0, llm.UnknownUsage(llm.RuleMissing, key), false
+	}
+	if nullIsZero && raw.IsNull() {
+		return 0, llm.Usage{}, true
+	}
+	number, err := raw.AsNonNegativeInt64()
+	if err != nil {
+		return 0, llm.UnknownUsage(llm.RuleNotNonNegativeInteger, key), false
+	}
+	// AsNonNegativeInt64 returns a value in [0, MaxInt64], so the conversion is
+	// lossless.
+	return uint64(number), llm.Usage{}, true //nolint:gosec // number is non-negative
 }
 
 // parseContent validates the content array and returns its single text block's

@@ -467,6 +467,8 @@ func TestInterfaceDocComments(t *testing.T) {
 			"must not return an empty response without an error",
 			"report a failure with ErrInvalidRequest, ErrTruncated, ErrUnexpectedFinishReason, or ErrEmptyResponse",
 			"matches context.DeadlineExceeded or context.Canceled",
+			"carries the Model and the Usage of the rejected response, and an empty Text and ModelVersion",
+			"With any other error it is the zero value, whose Usage is unknown",
 		}},
 		{"../writer/writer.go", "ArticleWriter", []string{
 			"must return an error on failure",

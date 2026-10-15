@@ -799,49 +799,51 @@ func TestGenerateSentinelsDistinct(t *testing.T) {
 	endTurn := readFixture(t, testdataEndTurnFixture)
 	maxTokens := readFixture(t, testdataMaxTokensFixture)
 	cases := []struct {
-		name string
-		want error
-		run  func(t *testing.T) (llm.GenerateResponse, error)
+		name      string
+		want      error
+		wantModel string
+		wantUsage *llm.Usage
+		run       func(t *testing.T) (llm.GenerateResponse, error)
 	}{
-		{"invalid request", llm.ErrInvalidRequest, func(t *testing.T) (llm.GenerateResponse, error) {
+		{"invalid request", llm.ErrInvalidRequest, "", nil, func(t *testing.T) (llm.GenerateResponse, error) {
 			server, _ := llmhttptest.NewRecordingServer(t, endTurn)
 			req := validRequest()
 			req.UserPrompt = ""
 			return generateAgainst(t, server.URL, req, nil)
 		}},
-		{"http status", ErrHTTPStatus, func(t *testing.T) (llm.GenerateResponse, error) {
+		{"http status", ErrHTTPStatus, "", nil, func(t *testing.T) (llm.GenerateResponse, error) {
 			server := llmhttptest.NewResponseServer(t, http.StatusInternalServerError, []byte("boom"))
 			return generateAgainst(t, server.URL, validRequest(), nil)
 		}},
-		{"invalid response", ErrInvalidResponse, func(t *testing.T) (llm.GenerateResponse, error) {
+		{"invalid response", ErrInvalidResponse, "", nil, func(t *testing.T) (llm.GenerateResponse, error) {
 			server := llmhttptest.NewResponseServer(t, http.StatusOK, []byte("not json"))
 			return generateAgainst(t, server.URL, validRequest(), nil)
 		}},
-		{"truncated", llm.ErrTruncated, func(t *testing.T) (llm.GenerateResponse, error) {
+		{"truncated", llm.ErrTruncated, maxTokensFixtureModel, &maxTokensFixtureUsage, func(t *testing.T) (llm.GenerateResponse, error) {
 			server := llmhttptest.NewResponseServer(t, http.StatusOK, maxTokens)
 			return generateAgainst(t, server.URL, validRequest(), nil)
 		}},
-		{"unexpected finish reason", llm.ErrUnexpectedFinishReason, func(t *testing.T) (llm.GenerateResponse, error) {
+		{"unexpected finish reason", llm.ErrUnexpectedFinishReason, endTurnFixtureModel, &endTurnFixtureUsage, func(t *testing.T) (llm.GenerateResponse, error) {
 			body := replaceOnce(t, endTurn, `"stop_reason":"end_turn"`, `"stop_reason":"refusal"`)
 			server := llmhttptest.NewResponseServer(t, http.StatusOK, body)
 			return generateAgainst(t, server.URL, validRequest(), nil)
 		}},
-		{"empty response", llm.ErrEmptyResponse, func(t *testing.T) (llm.GenerateResponse, error) {
+		{"empty response", llm.ErrEmptyResponse, endTurnFixtureModel, &endTurnFixtureUsage, func(t *testing.T) (llm.GenerateResponse, error) {
 			document := documentOf(t, endTurn)
 			document[keyContent] = []any{blockOfType(t, document, blockThinking)}
 			server := llmhttptest.NewResponseServer(t, http.StatusOK, encodeDocument(t, document))
 			return generateAgainst(t, server.URL, validRequest(), nil)
 		}},
-		{"transport", ErrTransport, func(t *testing.T) (llm.GenerateResponse, error) {
+		{"transport", ErrTransport, "", nil, func(t *testing.T) (llm.GenerateResponse, error) {
 			return generateAgainst(t, llmhttptest.NewClosedListener(t), validRequest(), nil)
 		}},
-		{"deadline", context.DeadlineExceeded, func(t *testing.T) (llm.GenerateResponse, error) {
+		{"deadline", context.DeadlineExceeded, "", nil, func(t *testing.T) (llm.GenerateResponse, error) {
 			server := llmhttptest.NewStallingServer(t)
 			return generateAgainst(t, server.URL, validRequest(), func(options *Options) {
 				options.Timeout = 100 * time.Millisecond
 			})
 		}},
-		{"canceled", context.Canceled, func(t *testing.T) (llm.GenerateResponse, error) {
+		{"canceled", context.Canceled, "", nil, func(t *testing.T) (llm.GenerateResponse, error) {
 			server, _ := llmhttptest.NewRecordingServer(t, endTurn)
 			client := newTestClient(t, server.URL, nil)
 			ctx, cancel := context.WithCancel(context.Background())
@@ -855,7 +857,11 @@ func TestGenerateSentinelsDistinct(t *testing.T) {
 			if !errors.Is(err, tc.want) {
 				t.Errorf("error = %v, want %v", err, tc.want)
 			}
-			assertRejected(t, response, err)
+			if tc.wantUsage == nil {
+				assertRejected(t, response, err)
+				return
+			}
+			assertRejectedResponse(t, response, err, tc.wantModel, *tc.wantUsage)
 		})
 	}
 }
