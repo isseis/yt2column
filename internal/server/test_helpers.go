@@ -242,3 +242,34 @@ func (rr *recordingReader) Read(p []byte) (int, error) {
 // MaxBodyBytesForTest is the body size limit, for tests in other packages that
 // build a body just over it. Built only with the test tag.
 const MaxBodyBytesForTest = maxBodyBytes
+
+// RejectReasonForTest is one rejection's fixed reason value and HTTP status.
+type RejectReasonForTest struct {
+	Value  string
+	Status int
+}
+
+// RejectReasonsForTest returns every rejection's fixed reason value and status,
+// in the declaration order, so a documentation guard in another package reads
+// the table from the code instead of copying it. Built only with the test tag.
+func RejectReasonsForTest() []RejectReasonForTest {
+	reasons := []rejectReason{
+		reasonInternal,
+		reasonForbiddenHost,
+		reasonNotFound,
+		reasonMethodNotAllowed,
+		reasonUnsupportedMediaType,
+		reasonForbiddenOrigin,
+		reasonUnauthorized,
+		reasonTooManyRequests,
+		reasonBodyTooLarge,
+		reasonInvalidBody,
+		reasonInvalidVideoURL,
+		reasonInvalidTranscript,
+	}
+	table := make([]RejectReasonForTest, 0, len(reasons))
+	for _, reason := range reasons {
+		table = append(table, RejectReasonForTest{Value: reason.reasonValue(), Status: reason.statusCode()})
+	}
+	return table
+}

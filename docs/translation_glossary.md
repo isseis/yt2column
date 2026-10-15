@@ -40,6 +40,10 @@
 | 構成要素パッケージ | component package | パイプラインの構成要素（3 つの段階と、`ArticleWriter` が使う `LLMClient`）の interface とデータ型を持つパッケージ（`internal/transcript`・`internal/llm`・`internal/writer`・`internal/publisher`）。リーフとは限らない |
 | リーフパッケージ | leaf package | 依存先を持たないパッケージ（例: `internal/llm`）。旧称: 葉パッケージ |
 | 秘密情報 | secret | API キー・Webhook URL など。`Secret` 型で保持する |
+| 共有トークン | shared token | 拡張を認証する値。設定ディレクトリのファイルに保存し、サーバの再起動をまたいで同じ値を使う（`internal/authtoken` の `Token`） |
+| 枠 | slot | localhost サーバが同時に処理するリクエストの数を数える単位（`maxInFlight`） |
+| 拒否の理由 | reject reason | 応答の本文の `reason` に載せる固定の値（`rejectReason`） |
+| リクエスト ID | request ID | サーバがリクエストごとに生成する 16 文字の識別子。応答・ログ・失敗の通知を結び付ける |
 | 片付け | cleanup | `/mergepr` のマージ後処理（base の更新、ローカル head ブランチの削除） |
 | 材料 | material | `/mergepr` がコミットメッセージの下書きに使う PR 情報（log.txt・stat.txt・body.txt） |
 | 件名 | subject | コミットメッセージの 1 行目 |

@@ -173,6 +173,83 @@ in the channel. There is no retry or resume: running again generates a new
 article and posts it from the first message, so the channel can end up with part
 of the old article and all of the new one.
 
+## Localhost server
+
+`yt2column-server` accepts the transcript the browser extension collects and
+posts the generated article to the same Webhook as the CLI. `make build` builds
+both `build/yt2column` and `build/yt2column-server`.
+
+It reads the same LLM variables as the CLI, requires `SLACK_WEBHOOK_URL`, and
+listens on `YT2COLUMN_SERVER_PORT` (default `8765`). It never calls `yt-dlp` and
+reads neither `YT2COLUMN_CACHE_DIR` nor `YT2COLUMN_YTDLP_PATH`. It binds
+`127.0.0.1` and `::1` only and rejects a request whose `Host`, `Origin`, or
+shared token does not match.
+
+### The shared token
+
+On the first start the server generates a shared token, saves it to
+`<config dir>/yt2column/server-token` (macOS:
+`$HOME/Library/Application Support/yt2column/server-token`; other Unix:
+`$XDG_CONFIG_HOME` or `$HOME/.config`), and prints it once to standard output.
+Paste that token into the extension's options page. On later starts the server
+reads the same token and does not print it.
+
+- To see the token again, read the file:
+  `cat "$HOME/Library/Application Support/yt2column/server-token"`.
+- To recreate it, delete the file and restart the server; this prints a new
+  token that must be pasted into the extension again.
+- A temporary file left by an interrupted first start (`server-token.tmp-*`) can
+  be deleted.
+- If the file exists but is not a regular file owned by you with mode `0600`
+  holding exactly 64 lowercase hexadecimal characters, the server refuses to
+  start and does not repair or recreate it.
+
+### Stopping the server
+
+The server logs to standard error. The first `SIGINT` or `SIGTERM` stops
+accepting connections and lets the in-flight jobs finish, which can take up to
+about 45 minutes (three LLM calls of 15 minutes each); a second signal exits at
+once.
+
+### Checking the server with curl
+
+Write a request body (a video URL and the copied transcript):
+
+```json
+{"videoUrl":"https://www.youtube.com/watch?v=dQw4w9WgXcQ","transcript":"0:00\nHello\n"}
+```
+
+Send it with the token on standard input, so it does not appear in the process
+arguments:
+
+```sh
+printf 'Authorization: Bearer %s\n' "$(cat "$HOME/Library/Application Support/yt2column/server-token")" |
+  curl -sS -X POST http://127.0.0.1:8765/articles \
+    -H 'Origin: chrome-extension://clfmbbcdpnjcefbdihdoahomaifbabkk' \
+    -H 'Content-Type: application/json' \
+    -H @- \
+    --data-binary @request.json
+```
+
+An accepted request answers `202` with `{"status":"accepted","requestId":"…"}`.
+A rejected request answers a `4xx` with
+`{"status":"rejected","reason":"…","requestId":"…"}`, where `reason` is one of:
+
+| reason | status code |
+|---|---|
+| `forbidden_host` | 403 |
+| `not_found` | 404 |
+| `method_not_allowed` | 405 |
+| `unsupported_media_type` | 415 |
+| `forbidden_origin` | 403 |
+| `unauthorized` | 401 |
+| `too_many_requests` | 429 |
+| `body_too_large` | 413 |
+| `invalid_body` | 400 |
+| `invalid_video_url` | 400 |
+| `invalid_transcript` | 400 |
+| `internal_error` | 500 |
+
 ## Setting up yt-dlp
 
 yt2column fetches subtitles by running `yt-dlp`, which needs to reach YouTube
@@ -217,6 +294,11 @@ On other platforms, see the yt-dlp
 | `SLACK_WEBHOOK_URL` | Slack-compatible Incoming Webhook URL (Mattermost is the verified target) | Required with `--slack`; optional with `--out` (no value) |
 | `YT2COLUMN_CACHE_DIR` | Cache directory for subtitles and video metadata | `$HOME/Library/Caches/yt2column` on macOS; `$XDG_CACHE_HOME/yt2column` or `$HOME/.cache/yt2column` on other Unix |
 | `YT2COLUMN_YTDLP_PATH` | Path to `yt-dlp` | `yt-dlp` on `PATH` |
+| `YT2COLUMN_SERVER_PORT` | Port the localhost server listens on (`1024`–`65535`) | `8765` |
+
+`yt2column-server` reads the LLM variables and requires `SLACK_WEBHOOK_URL`; it
+reads neither `YT2COLUMN_CACHE_DIR` nor `YT2COLUMN_YTDLP_PATH`, because it never
+calls `yt-dlp`.
 
 The value of an environment variable is never trimmed or otherwise corrected;
 an empty value is treated as set and rejected, not as unset.
