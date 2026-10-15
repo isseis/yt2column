@@ -702,40 +702,41 @@ func TestGenerateSentinelsDistinct(t *testing.T) {
 	stop := readFixture(t, testdataStopFixture)
 	length := readFixture(t, testdataLengthFixture)
 	cases := []struct {
-		name string
-		want error
-		run  func(t *testing.T) (llm.GenerateResponse, error)
+		name      string
+		want      error
+		wantUsage *llm.Usage
+		run       func(t *testing.T) (llm.GenerateResponse, error)
 	}{
-		{"invalid request", llm.ErrInvalidRequest, func(t *testing.T) (llm.GenerateResponse, error) {
+		{"invalid request", llm.ErrInvalidRequest, nil, func(t *testing.T) (llm.GenerateResponse, error) {
 			server, _ := newRecordingServer(t, stop)
 			req := validRequest()
 			req.UserPrompt = ""
 			return generateAgainst(t, server.URL, req, nil)
 		}},
-		{"http status", ErrHTTPStatus, func(t *testing.T) (llm.GenerateResponse, error) {
+		{"http status", ErrHTTPStatus, nil, func(t *testing.T) (llm.GenerateResponse, error) {
 			server := newResponseServer(t, http.StatusInternalServerError, []byte("boom"))
 			return generateAgainst(t, server.URL, validRequest(), nil)
 		}},
-		{"invalid response", ErrInvalidResponse, func(t *testing.T) (llm.GenerateResponse, error) {
+		{"invalid response", ErrInvalidResponse, nil, func(t *testing.T) (llm.GenerateResponse, error) {
 			server := newResponseServer(t, http.StatusOK, []byte("not json"))
 			return generateAgainst(t, server.URL, validRequest(), nil)
 		}},
-		{"truncated", llm.ErrTruncated, func(t *testing.T) (llm.GenerateResponse, error) {
+		{"truncated", llm.ErrTruncated, &lengthFixtureUsage, func(t *testing.T) (llm.GenerateResponse, error) {
 			server := newResponseServer(t, http.StatusOK, length)
 			return generateAgainst(t, server.URL, validRequest(), nil)
 		}},
-		{"unexpected finish reason", llm.ErrUnexpectedFinishReason, func(t *testing.T) (llm.GenerateResponse, error) {
+		{"unexpected finish reason", llm.ErrUnexpectedFinishReason, &stopFixtureUsage, func(t *testing.T) (llm.GenerateResponse, error) {
 			body := replaceOnce(t, stop, `"finish_reason":"stop"`, `"finish_reason":"content_filter"`)
 			server := newResponseServer(t, http.StatusOK, body)
 			return generateAgainst(t, server.URL, validRequest(), nil)
 		}},
-		{"empty response", llm.ErrEmptyResponse, func(t *testing.T) (llm.GenerateResponse, error) {
+		{"empty response", llm.ErrEmptyResponse, &stopFixtureUsage, func(t *testing.T) (llm.GenerateResponse, error) {
 			document := documentOf(t, stop)
 			messageOf(t, document)[keyContent] = ""
 			server := newResponseServer(t, http.StatusOK, encodeDocument(t, document))
 			return generateAgainst(t, server.URL, validRequest(), nil)
 		}},
-		{"transport", ErrTransport, func(t *testing.T) (llm.GenerateResponse, error) {
+		{"transport", ErrTransport, nil, func(t *testing.T) (llm.GenerateResponse, error) {
 			proxy, err := startBlackholeProxy()
 			if err != nil {
 				t.Fatalf("start listener: %v", err)
@@ -743,7 +744,7 @@ func TestGenerateSentinelsDistinct(t *testing.T) {
 			t.Cleanup(proxy.stop)
 			return generateAgainst(t, proxy.url(), validRequest(), nil)
 		}},
-		{"deadline", context.DeadlineExceeded, func(t *testing.T) (llm.GenerateResponse, error) {
+		{"deadline", context.DeadlineExceeded, nil, func(t *testing.T) (llm.GenerateResponse, error) {
 			server := newStallingServer(t, false)
 			return generateAgainst(t, server.URL, validRequest(), func(options *Options) {
 				options.Timeout = 100 * time.Millisecond
@@ -752,7 +753,7 @@ func TestGenerateSentinelsDistinct(t *testing.T) {
 		// A pre-canceled context already makes the transport return
 		// context.Canceled without the adapter's own pre-send check, which
 		// TestGenerateInvalidRequest's ordering case pins instead.
-		{"canceled", context.Canceled, func(t *testing.T) (llm.GenerateResponse, error) {
+		{"canceled", context.Canceled, nil, func(t *testing.T) (llm.GenerateResponse, error) {
 			server, _ := newRecordingServer(t, stop)
 			client := newTestClient(t, server.URL, nil)
 			ctx, cancel := context.WithCancel(context.Background())
@@ -766,7 +767,11 @@ func TestGenerateSentinelsDistinct(t *testing.T) {
 			if !errors.Is(err, tc.want) {
 				t.Errorf("error = %v, want %v", err, tc.want)
 			}
-			assertRejected(t, response, err)
+			if tc.wantUsage == nil {
+				assertRejected(t, response, err)
+				return
+			}
+			assertRejectedResponse(t, response, err, testModel, *tc.wantUsage)
 		})
 	}
 }

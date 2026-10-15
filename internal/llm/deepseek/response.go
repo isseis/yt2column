@@ -21,6 +21,16 @@ const (
 	keyMessage           = "message"
 	keyContent           = "content"
 	keyError             = "error"
+	keyUsage             = "usage"
+)
+
+// Usage member names of the Chat Completions API that map onto the
+// provider-independent categories. Only the members the adapter consumes are
+// named; the cache-write category has no member and is always 0.
+const (
+	keyPromptCacheMissTokens = "prompt_cache_miss_tokens" //nolint:gosec // API usage member name, not a credential
+	keyPromptCacheHitTokens  = "prompt_cache_hit_tokens"  //nolint:gosec // API usage member name, not a credential
+	keyCompletionTokens      = "completion_tokens"        //nolint:gosec // API usage member name, not a credential
 )
 
 // finish_reason values that carry a defined meaning for the adapter.
@@ -37,8 +47,11 @@ const maxReasonBytes = 64
 const jsonWhitespace = " \t\r\n"
 
 // parseResponse validates one response body and builds the GenerateResponse.
-// The checks run in the requirement order: body shape, finish reason, content.
-// Any rejection returns the zero GenerateResponse.
+// The checks run in the requirement order: body shape, usage, finish reason,
+// content. A body-shape rejection returns the zero GenerateResponse, whose
+// usage is unknown. A truncation, an unexpected finish reason, or an empty
+// response carries the rejected response's model and token usage with the
+// error.
 func parseResponse(data []byte) (llm.GenerateResponse, error) {
 	// Only JSON whitespace counts: bytes.TrimSpace would also strip Unicode
 	// spaces such as U+00A0, which are not JSON whitespace.
@@ -80,22 +93,89 @@ func parseResponse(data []byte) (llm.GenerateResponse, error) {
 	if err != nil {
 		return llm.GenerateResponse{}, err
 	}
+	// The usage is read after the body shape checks and in its own Collect, so
+	// a broken usage cannot reject a response whose body is otherwise valid.
+	usage := parseUsage(object)
 
 	switch finishReason {
 	case finishReasonLength:
-		return llm.GenerateResponse{}, fmt.Errorf("%w: finish_reason is %s", llm.ErrTruncated, quoteReason(finishReason))
+		return llm.GenerateResponse{Model: model, Usage: usage},
+			fmt.Errorf("%w: finish_reason is %s", llm.ErrTruncated, quoteReason(finishReason))
 	case finishReasonStop:
 	default:
-		return llm.GenerateResponse{}, fmt.Errorf("%w: finish_reason is %s", llm.ErrUnexpectedFinishReason, quoteReason(finishReason))
+		return llm.GenerateResponse{Model: model, Usage: usage},
+			fmt.Errorf("%w: finish_reason is %s", llm.ErrUnexpectedFinishReason, quoteReason(finishReason))
 	}
 	if strings.TrimSpace(content) == "" {
-		return llm.GenerateResponse{}, fmt.Errorf("%w: content is empty or whitespace only", llm.ErrEmptyResponse)
+		return llm.GenerateResponse{Model: model, Usage: usage},
+			fmt.Errorf("%w: content is empty or whitespace only", llm.ErrEmptyResponse)
 	}
 	return llm.GenerateResponse{
 		Text:         content,
 		Model:        model,
 		ModelVersion: modelVersion,
+		Usage:        usage,
 	}, nil
+}
+
+// parseUsage reads the response's top-level usage member into an llm.Usage.
+// Unlike the response body, a missing, wrong-shaped, duplicated, or
+// non-numeric usage never rejects the response: it makes the usage unknown,
+// and the reason names a rule and a consumed member only, never a value. The
+// unconsumed members are ignored, duplicates included.
+func parseUsage(object strictjson.Object) llm.Usage {
+	members, err := object.Collect(keyUsage)
+	if err != nil {
+		return llm.UnknownUsage(llm.RuleDuplicate, "")
+	}
+	value, present := members[keyUsage]
+	if !present {
+		return llm.UnknownUsage(llm.RuleMissing, "")
+	}
+	usage, err := value.AsObject()
+	if err != nil {
+		return llm.UnknownUsage(llm.RuleNotObject, "")
+	}
+	input, broken, ok := nonNegativeMember(usage, keyPromptCacheMissTokens)
+	if !ok {
+		return broken
+	}
+	cacheRead, broken, ok := nonNegativeMember(usage, keyPromptCacheHitTokens)
+	if !ok {
+		return broken
+	}
+	output, broken, ok := nonNegativeMember(usage, keyCompletionTokens)
+	if !ok {
+		return broken
+	}
+	// The Chat Completions API has no cache-write category, so it is 0.
+	return llm.KnownUsage(llm.TokenCounts{
+		Input:      input,
+		CacheRead:  cacheRead,
+		CacheWrite: 0,
+		Output:     output,
+	})
+}
+
+// nonNegativeMember reads one consumed usage member as a non-negative integer.
+// ok is false when the member is missing, duplicated, or not a non-negative
+// integer; broken is then the unknown usage naming the member and its rule.
+func nonNegativeMember(object strictjson.Object, key string) (value uint64, broken llm.Usage, ok bool) {
+	members, err := object.Collect(key)
+	if err != nil {
+		return 0, llm.UnknownUsage(llm.RuleDuplicate, key), false
+	}
+	raw, present := members[key]
+	if !present {
+		return 0, llm.UnknownUsage(llm.RuleMissing, key), false
+	}
+	number, err := raw.AsNonNegativeInt64()
+	if err != nil {
+		return 0, llm.UnknownUsage(llm.RuleNotNonNegativeInteger, key), false
+	}
+	// AsNonNegativeInt64 returns a value in [0, MaxInt64], so the conversion is
+	// lossless.
+	return uint64(number), llm.Usage{}, true //nolint:gosec // number is non-negative
 }
 
 // parseChoice validates choices[0]'s consumed members and returns the finish

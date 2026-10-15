@@ -214,6 +214,65 @@ func assertRejected(t *testing.T, response llm.GenerateResponse, err error) {
 	}
 }
 
+// The token usage the recorded fixtures report. CacheWrite is always 0 for the
+// Chat Completions API, which has no cache-write category.
+var (
+	stopFixtureUsage   = llm.KnownUsage(llm.TokenCounts{Input: 46, CacheRead: 0, CacheWrite: 0, Output: 85}) //nolint:mnd // recorded fixture values
+	lengthFixtureUsage = llm.KnownUsage(llm.TokenCounts{Input: 46, CacheRead: 0, CacheWrite: 0, Output: 16}) //nolint:mnd // recorded fixture values
+)
+
+// responseWithUsage returns the recorded fixture with its usage member set to
+// usage and encoded back to bytes. A nil usage deletes the member, so the
+// response has no usage at all.
+func responseWithUsage(t *testing.T, fixture []byte, usage any) []byte {
+	t.Helper()
+	document := documentOf(t, fixture)
+	if usage == nil {
+		delete(document, keyUsage)
+	} else {
+		document[keyUsage] = usage
+	}
+	return encodeDocument(t, document)
+}
+
+// usageCounts builds a usage object from the three consumed Chat Completions
+// members. A value may be any JSON value, including json.RawMessage for a
+// literal the strict reader must classify.
+func usageCounts(input, cacheRead, output any) map[string]any {
+	return map[string]any{
+		keyPromptCacheMissTokens: input,
+		keyPromptCacheHitTokens:  cacheRead,
+		keyCompletionTokens:      output,
+	}
+}
+
+// assertRejectedResponse is assertRejected for a rejection that carries the
+// rejected response's model and usage: a truncation, an unexpected finish
+// reason, or an empty response. Text and ModelVersion must be empty.
+func assertRejectedResponse(t *testing.T, response llm.GenerateResponse, err error, wantModel string, wantUsage llm.Usage) {
+	t.Helper()
+	assertSingleSentinel(t, err)
+	assertErrorPrefix(t, err)
+	assertNoAPIKey(t, err)
+	if want := (llm.GenerateResponse{Model: wantModel, Usage: wantUsage}); response != want {
+		t.Errorf("Generate() response = %+v, want %+v", response, want)
+	}
+}
+
+// assertBodyRejectedResponse is assertBodyRejected for a rejection that carries
+// the rejected response's model and usage. Every recorded fixture names the
+// adapter's own model.
+func assertBodyRejectedResponse(t *testing.T, body []byte, want error, wantUsage llm.Usage) error {
+	t.Helper()
+	server := newResponseServer(t, http.StatusOK, body)
+	response, err := generateAgainst(t, server.URL, validRequest(), nil)
+	if !errors.Is(err, want) {
+		t.Errorf("Generate() error = %v, want %v", err, want)
+	}
+	assertRejectedResponse(t, response, err, testModel, wantUsage)
+	return err
+}
+
 // recordedRequest is one request received by a requestRecorder. target is
 // the request URI (path and query), so tests can assert that no secret
 // appears in the URL either.

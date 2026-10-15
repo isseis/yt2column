@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -41,6 +42,19 @@ func assertBodyRejected(t *testing.T, body []byte, want error) error {
 	return err
 }
 
+// assertUsageUnknown requires body to be accepted with an unknown usage whose
+// reason is want.
+func assertUsageUnknown(t *testing.T, body []byte, want string) {
+	t.Helper()
+	response := assertBodyAccepted(t, body)
+	if _, known := response.Usage.Counts(); known {
+		t.Fatalf("Usage = %+v, want an unknown usage", response.Usage)
+	}
+	if got := response.Usage.UnknownReason(); got != want {
+		t.Errorf("UnknownReason() = %q, want %q", got, want)
+	}
+}
+
 func TestGenerateResponseFixtures(t *testing.T) {
 	stop := readFixture(t, testdataStopFixture)
 	length := readFixture(t, testdataLengthFixture)
@@ -60,10 +74,13 @@ func TestGenerateResponseFixtures(t *testing.T) {
 		if response.ModelVersion != fingerprint {
 			t.Errorf("ModelVersion = %q, want %q", response.ModelVersion, fingerprint)
 		}
+		if response.Usage != stopFixtureUsage {
+			t.Errorf("Usage = %+v, want %+v", response.Usage, stopFixtureUsage)
+		}
 	})
 
 	t.Run("length fixture is truncated", func(t *testing.T) {
-		assertBodyRejected(t, length, llm.ErrTruncated)
+		assertBodyRejectedResponse(t, length, llm.ErrTruncated, lengthFixtureUsage)
 	})
 
 	t.Run("content whitespace is preserved", func(t *testing.T) {
@@ -110,18 +127,13 @@ func TestGenerateFinishReason(t *testing.T) {
 	t.Run("length with non-empty content is truncated", func(t *testing.T) {
 		document := documentOf(t, readFixture(t, testdataLengthFixture))
 		messageOf(t, document)[keyContent] = "partial answer"
-		server := newResponseServer(t, http.StatusOK, encodeDocument(t, document))
-		response, err := generateAgainst(t, server.URL, validRequest(), nil)
-		if !errors.Is(err, llm.ErrTruncated) {
-			t.Errorf("Generate() error = %v, want ErrTruncated", err)
-		}
-		assertRejected(t, response, err)
+		assertBodyRejectedResponse(t, encodeDocument(t, document), llm.ErrTruncated, lengthFixtureUsage)
 	})
 
 	for _, reason := range []string{"content_filter", "insufficient_system_resource", "tool_calls", "surprise_value"} {
 		t.Run("unexpected "+reason, func(t *testing.T) {
 			body := replaceOnce(t, stop, `"finish_reason":"stop"`, `"finish_reason":"`+reason+`"`)
-			err := assertBodyRejected(t, body, llm.ErrUnexpectedFinishReason)
+			err := assertBodyRejectedResponse(t, body, llm.ErrUnexpectedFinishReason, stopFixtureUsage)
 			if errors.Is(err, llm.ErrTruncated) {
 				t.Errorf("error %v must not match ErrTruncated", err)
 			}
@@ -136,7 +148,7 @@ func TestGenerateFinishReason(t *testing.T) {
 		// value is classified by the finish-reason check, not rejected as a
 		// shape error.
 		body := replaceOnce(t, stop, `"finish_reason":"stop"`, `"finish_reason":""`)
-		err := assertBodyRejected(t, body, llm.ErrUnexpectedFinishReason)
+		err := assertBodyRejectedResponse(t, body, llm.ErrUnexpectedFinishReason, stopFixtureUsage)
 		if errors.Is(err, ErrInvalidResponse) {
 			t.Errorf("error %v must not match ErrInvalidResponse", err)
 		}
@@ -148,7 +160,7 @@ func TestGenerateFinishReason(t *testing.T) {
 			t.Fatalf("the test reason must be longer than %d bytes", maxReasonBytes)
 		}
 		body := replaceOnce(t, stop, `"finish_reason":"stop"`, `"finish_reason":"`+long+`"`)
-		err := assertBodyRejected(t, body, llm.ErrUnexpectedFinishReason)
+		err := assertBodyRejectedResponse(t, body, llm.ErrUnexpectedFinishReason, stopFixtureUsage)
 		if !strings.Contains(err.Error(), long[:maxReasonBytes]) {
 			t.Errorf("error %q does not include the first %d bytes of the reason", err, maxReasonBytes)
 		}
@@ -167,7 +179,7 @@ func TestGenerateValidationOrder(t *testing.T) {
 	if errors.Is(err, llm.ErrEmptyResponse) {
 		t.Errorf("Generate() error = %v, must not match ErrEmptyResponse", err)
 	}
-	assertRejected(t, response, err)
+	assertRejectedResponse(t, response, err, testModel, lengthFixtureUsage)
 }
 
 func TestGenerateEmptyContent(t *testing.T) {
@@ -183,14 +195,14 @@ func TestGenerateEmptyContent(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			document := documentOf(t, stop)
 			messageOf(t, document)[keyContent] = content
-			assertBodyRejected(t, encodeDocument(t, document), llm.ErrEmptyResponse)
+			assertBodyRejectedResponse(t, encodeDocument(t, document), llm.ErrEmptyResponse, stopFixtureUsage)
 		})
 	}
 
 	t.Run("reasoning_content alone is not an answer", func(t *testing.T) {
 		document := documentOf(t, stop)
 		messageOf(t, document)[keyContent] = ""
-		assertBodyRejected(t, encodeDocument(t, document), llm.ErrEmptyResponse)
+		assertBodyRejectedResponse(t, encodeDocument(t, document), llm.ErrEmptyResponse, stopFixtureUsage)
 	})
 
 	t.Run("reasoning_content is not part of Text", func(t *testing.T) {
@@ -487,5 +499,197 @@ func TestGenerateSystemFingerprint(t *testing.T) {
 	t.Run("rejects a duplicate", func(t *testing.T) {
 		body := replaceOnce(t, stop, `"system_fingerprint":"`, `"system_fingerprint":"dup","system_fingerprint":"`)
 		assertBodyRejected(t, body, ErrInvalidResponse)
+	})
+}
+
+func TestGenerateUsageFixtures(t *testing.T) {
+	response := assertBodyAccepted(t, readFixture(t, testdataStopFixture))
+	if response.Usage != stopFixtureUsage {
+		t.Errorf("Usage = %+v, want %+v", response.Usage, stopFixtureUsage)
+	}
+}
+
+func TestGenerateUsageCategories(t *testing.T) {
+	const input, cacheRead, output = 11, 22, 33
+	body := responseWithUsage(t, readFixture(t, testdataStopFixture), usageCounts(input, cacheRead, output))
+	response := assertBodyAccepted(t, body)
+	want := llm.KnownUsage(llm.TokenCounts{Input: input, CacheRead: cacheRead, CacheWrite: 0, Output: output})
+	if response.Usage != want {
+		t.Errorf("Usage = %+v, want %+v", response.Usage, want)
+	}
+}
+
+func TestGenerateUsageUnknown(t *testing.T) {
+	stop := readFixture(t, testdataStopFixture)
+	// Each consumed member and the value it is set to in the valid usage, so a
+	// duplicate can be injected at the byte level with replaceOnce.
+	members := []struct {
+		name  string
+		value int
+	}{
+		{keyPromptCacheMissTokens, 1},
+		{keyPromptCacheHitTokens, 2},
+		{keyCompletionTokens, 3},
+	}
+	invalidValues := []struct {
+		name  string
+		value json.RawMessage
+	}{
+		{"negative", json.RawMessage("-1")},
+		{"negative zero", json.RawMessage("-0")},
+		{"fraction", json.RawMessage("1.5")},
+		{"exponent", json.RawMessage("1e3")},
+		{"out of int64", json.RawMessage("9223372036854775808")},
+		{"string", json.RawMessage(`"x"`)},
+		{"boolean", json.RawMessage("true")},
+		{"null", json.RawMessage("null")},
+		{"array", json.RawMessage("[]")},
+		{"object", json.RawMessage("{}")},
+	}
+
+	t.Run("top-level usage", func(t *testing.T) {
+		cases := []struct {
+			name string
+			body []byte
+			want string
+		}{
+			{"missing", responseWithUsage(t, stop, nil), "usage:missing"},
+			{"null", responseWithUsage(t, stop, json.RawMessage("null")), "usage:not-an-object"},
+			{"string", responseWithUsage(t, stop, json.RawMessage(`"x"`)), "usage:not-an-object"},
+			{"number", responseWithUsage(t, stop, json.RawMessage("1")), "usage:not-an-object"},
+			{"boolean", responseWithUsage(t, stop, json.RawMessage("true")), "usage:not-an-object"},
+			{"array", responseWithUsage(t, stop, json.RawMessage("[]")), "usage:not-an-object"},
+			{"duplicate", replaceOnce(t, stop, `"usage":{`, `"usage":{},"usage":{`), "usage:duplicate"},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				assertUsageUnknown(t, tc.body, tc.want)
+			})
+		}
+	})
+
+	for _, member := range members {
+		for _, invalid := range invalidValues {
+			t.Run(member.name+" "+invalid.name, func(t *testing.T) {
+				usage := usageCounts(1, 2, 3)
+				usage[member.name] = invalid.value
+				assertUsageUnknown(t, responseWithUsage(t, stop, usage), "usage."+member.name+":not-a-non-negative-integer")
+			})
+		}
+
+		t.Run(member.name+" missing", func(t *testing.T) {
+			usage := usageCounts(1, 2, 3)
+			delete(usage, member.name)
+			assertUsageUnknown(t, responseWithUsage(t, stop, usage), "usage."+member.name+":missing")
+		})
+
+		t.Run(member.name+" duplicate", func(t *testing.T) {
+			body := responseWithUsage(t, stop, usageCounts(1, 2, 3))
+			needle := fmt.Sprintf("%q:%d", member.name, member.value)
+			assertUsageUnknown(t, replaceOnce(t, body, needle, needle+","+needle), "usage."+member.name+":duplicate")
+		})
+	}
+}
+
+func TestGenerateUsageIgnoresUnconsumed(t *testing.T) {
+	stop := readFixture(t, testdataStopFixture)
+
+	t.Run("differing kinds and unknown members", func(t *testing.T) {
+		usage := usageCounts(11, 22, 33)
+		usage["prompt_tokens"] = "not a number"
+		usage["total_tokens"] = json.RawMessage("[]")
+		usage["prompt_tokens_details"] = json.RawMessage(`{"cached_tokens":true}`)
+		usage["completion_tokens_details"] = json.RawMessage(`[1,2,3]`)
+		usage["unknown_member"] = json.RawMessage("null")
+		response := assertBodyAccepted(t, responseWithUsage(t, stop, usage))
+		want := llm.KnownUsage(llm.TokenCounts{Input: 11, CacheRead: 22, CacheWrite: 0, Output: 33})
+		if response.Usage != want {
+			t.Errorf("Usage = %+v, want %+v", response.Usage, want)
+		}
+	})
+
+	t.Run("a duplicate unconsumed member is ignored", func(t *testing.T) {
+		body := replaceOnce(t, stop, `"prompt_tokens":46`, `"prompt_tokens":46,"prompt_tokens":99`)
+		response := assertBodyAccepted(t, body)
+		if response.Usage != stopFixtureUsage {
+			t.Errorf("Usage = %+v, want %+v", response.Usage, stopFixtureUsage)
+		}
+	})
+}
+
+func TestGenerateUsageKeepsVerdict(t *testing.T) {
+	stop := readFixture(t, testdataStopFixture)
+	length := readFixture(t, testdataLengthFixture)
+	valid := usageCounts(1, 2, 3)
+	broken := usageCounts(json.RawMessage("-1"), json.RawMessage("null"), json.RawMessage(`"x"`))
+
+	verdict := func(t *testing.T, body []byte) error {
+		t.Helper()
+		server := newResponseServer(t, http.StatusOK, body)
+		_, err := generateAgainst(t, server.URL, validRequest(), nil)
+		return err
+	}
+	errText := func(err error) string {
+		if err == nil {
+			return ""
+		}
+		return err.Error()
+	}
+
+	unexpected := replaceOnce(t, stop, `"finish_reason":"stop"`, `"finish_reason":"content_filter"`)
+	empty := documentOf(t, stop)
+	messageOf(t, empty)[keyContent] = ""
+	invalid := documentOf(t, stop)
+	invalid[keyModel] = float64(1)
+
+	cases := []struct {
+		name       string
+		validBody  []byte
+		brokenBody []byte
+		want       error
+	}{
+		{"accepted", responseWithUsage(t, stop, valid), responseWithUsage(t, stop, broken), nil},
+		{"truncated", responseWithUsage(t, length, valid), responseWithUsage(t, length, broken), llm.ErrTruncated},
+		{"unexpected finish reason", responseWithUsage(t, unexpected, valid), responseWithUsage(t, unexpected, broken), llm.ErrUnexpectedFinishReason},
+		{"empty response", responseWithUsage(t, encodeDocument(t, empty), valid), responseWithUsage(t, encodeDocument(t, empty), broken), llm.ErrEmptyResponse},
+		{"invalid response", responseWithUsage(t, encodeDocument(t, invalid), valid), responseWithUsage(t, encodeDocument(t, invalid), broken), ErrInvalidResponse},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			validErr := verdict(t, tc.validBody)
+			brokenErr := verdict(t, tc.brokenBody)
+			if !errors.Is(validErr, tc.want) || !errors.Is(brokenErr, tc.want) {
+				t.Errorf("errors = %v, %v, want %v", validErr, brokenErr, tc.want)
+			}
+			if errText(validErr) != errText(brokenErr) {
+				t.Errorf("errors differ: %q vs %q", errText(validErr), errText(brokenErr))
+			}
+		})
+	}
+}
+
+func TestGenerateRejectedResponseUsage(t *testing.T) {
+	stop := readFixture(t, testdataStopFixture)
+	length := readFixture(t, testdataLengthFixture)
+	counts := llm.KnownUsage(llm.TokenCounts{Input: 11, CacheRead: 22, CacheWrite: 0, Output: 33})
+
+	truncated := documentOf(t, length)
+	truncated[keyUsage] = usageCounts(11, 22, 33)
+	assertBodyRejectedResponse(t, encodeDocument(t, truncated), llm.ErrTruncated, counts)
+
+	unexpected := documentOf(t, stop)
+	choiceOf(t, unexpected)[keyFinishReason] = "content_filter"
+	unexpected[keyUsage] = usageCounts(11, 22, 33)
+	assertBodyRejectedResponse(t, encodeDocument(t, unexpected), llm.ErrUnexpectedFinishReason, counts)
+
+	empty := documentOf(t, stop)
+	messageOf(t, empty)[keyContent] = ""
+	empty[keyUsage] = usageCounts(11, 22, 33)
+	assertBodyRejectedResponse(t, encodeDocument(t, empty), llm.ErrEmptyResponse, counts)
+
+	t.Run("a broken usage in a truncated response is unknown", func(t *testing.T) {
+		body := responseWithUsage(t, length, usageCounts(json.RawMessage("-1"), 0, 0))
+		assertBodyRejectedResponse(t, body, llm.ErrTruncated,
+			llm.UnknownUsage(llm.RuleNotNonNegativeInteger, keyPromptCacheMissTokens))
 	})
 }
