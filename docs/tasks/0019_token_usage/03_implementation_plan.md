@@ -106,16 +106,16 @@ requirements の機能要件（F-001〜F-008）を、architecture の設計ど�
 
 **対象ファイル:** `internal/llm/usage.go`（新規）、`internal/llm/usage_test.go`（新規）、`internal/llm/llm.go`、`internal/strictjson/strictjson.go`、`internal/strictjson/strictjson_test.go`、`internal/pipeline/pipeline_test.go`
 
-- [ ] **ステップ 1-1**: `internal/llm/usage.go` に、architecture §3.1 の `TokenCounts`・`UnknownRule`・`Usage`・`KnownUsage`・`UnknownUsage`・`Counts`・`UnknownReason` を置く。理由の語は architecture §3.1 の `UnknownReason` の文書と §3.4 の表の例のとおりとし、その綴りは `UnknownReason` の中だけに書く。
-- [ ] **ステップ 1-2**: `internal/llm/llm.go` の `GenerateResponse` に `Usage Usage` を加え、文書の 1 行目を architecture §3.2 の形にする。`LLMClient` の文書の変更はフェーズ 2（ステップ 2-3）で行う。
-- [ ] **ステップ 1-3**: `internal/strictjson/strictjson.go` に `Value.IsNull` と `Value.AsNonNegativeInt64` を architecture §3.3 のとおりに加える。
-- [ ] **ステップ 1-4**: テストを書く。
+- [x] **ステップ 1-1**: `internal/llm/usage.go` に、architecture §3.1 の `TokenCounts`・`UnknownRule`・`Usage`・`KnownUsage`・`UnknownUsage`・`Counts`・`UnknownReason` を置く。理由の語は architecture §3.1 の `UnknownReason` の文書と §3.4 の表の例のとおりとし、その綴りは `UnknownReason` の中だけに書く。
+- [x] **ステップ 1-2**: `internal/llm/llm.go` の `GenerateResponse` に `Usage Usage` を加え、文書の 1 行目を architecture §3.2 の形にする。`LLMClient` の文書の変更はフェーズ 2（ステップ 2-3）で行う。
+- [x] **ステップ 1-3**: `internal/strictjson/strictjson.go` に `Value.IsNull` と `Value.AsNonNegativeInt64` を architecture §3.3 のとおりに加える。
+- [x] **ステップ 1-4**: テストを書く。
   - `internal/strictjson/strictjson_test.go` の `TestAsNonNegativeInt64`（architecture §7.1 の受理と拒否の値。拒否のエラーのメッセージが入力の値の文字列を含まないこと）と `TestIsNull`。
   - `internal/llm/usage_test.go` の `TestUsageZeroValue`（ゼロ値が不明で `not-read`、`KnownUsage(TokenCounts{})` が 0 の分かった値でゼロ値と `!=`）と `TestUnknownReason`（規則と要素名の組み合わせごとの語、空白を含まないこと、列挙の外の規則の `invalid-rule`）。
   - AC-03 の guard の `TestNoProviderMemberNames`。`internal/llm` のディレクトリの直下の、`_test.go` でない `.go` ファイル（サブディレクトリのアダプタを含めない）が、architecture §7.1 の 7 つの要素名を含まないことを確かめる。
   - `strictjson_test.go` の `TestCollectErrorIsDuplicate`: `Collect` が返すエラーが消費する要素の重複（`errDuplicateMember`）だけであることを固定する（アダプタが `Collect` のエラーを `RuleDuplicate` に対応させる前提。§1.3）。
   - `AsNonNegativeInt64` を `AsInt64` に差し戻すと `-1`・`-0` の行が失敗することを確かめる。`TestNoProviderMemberNames` は、`usage.go` に要素名の 1 つを一時的に書くと失敗することを確かめる。
-- [ ] **ステップ 1-5**: `internal/pipeline/pipeline_test.go` の `TestCommonTypesFieldSets` の `GenerateResponse` の行に `"Usage": "llm.Usage"` を加える（architecture §3.10）。
+- [x] **ステップ 1-5**: `internal/pipeline/pipeline_test.go` の `TestCommonTypesFieldSets` の `GenerateResponse` の行に `"Usage": "llm.Usage"` を加える（architecture §3.10）。
 
 **完了条件:** グリーンゲートが通る。アダプタはまだ `Usage` を設定しないので、既存のアダプタのテストは変えずに通る（応答の `Usage` はゼロ値で `!=` の比較に影響しない）。
 
@@ -131,8 +131,8 @@ requirements の機能要件（F-001〜F-008）を、architecture の設計ど�
 
 **判定理由**: 使用量の型と数値の検証の形は architecture §3.1〜§3.3 に確定しており、前例のない設計判断・panel-mode トリガー・競合する実装案・分離された高リスク／複雑なステップのいずれにも該当しない。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 

@@ -402,6 +402,7 @@ func TestCommonTypesFieldSets(t *testing.T) {
 			"Text":         "string",
 			"Model":        "string",
 			"ModelVersion": "string",
+			"Usage":        "llm.Usage",
 		}},
 		{"Article", reflect.TypeFor[writer.Article](), map[string]string{
 			"Title":        "string",
