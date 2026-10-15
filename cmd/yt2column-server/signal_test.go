@@ -79,10 +79,8 @@ func TestSignalWaitsForJob(t *testing.T) {
 		t.Fatalf("exit status = %v, want exit code %d\nstderr:\n%s", state, exitOK, child.stderr.String())
 	}
 	stderr := child.stderr.String()
-	for _, want := range []string{"job succeeded"} {
-		if !strings.Contains(stderr, want) {
-			t.Errorf("stderr does not contain %q:\n%s", want, stderr)
-		}
+	if !strings.Contains(stderr, "job succeeded") {
+		t.Errorf("stderr does not report the job's success:\n%s", stderr)
 	}
 }
 
