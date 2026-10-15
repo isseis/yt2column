@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-16 |
 | Review date | 2026-10-16 |
 | Reviewer | isseis |
-| Comments | 2026-10-16: 実装計画のレビューで、AC-30 の確かめ方（7.4 の「文書（静的な確認）」）が実行する検査を定めていないことが分かった。タスク 0012 の方針（文書のテキストの同期のガードは Go のテストに置く）に合わせ、README・security.md の AC-30 の記述と、実装計画 §5.1 の手動の確認の記録を確かめる Go のガードのテストを `cmd/yt2column/extension_docs_test.go` に加えることにした（1.3・3.12・3.14・7.3・7.4）。「Go のテストを変更しない」を改めるので決定の変更として扱い、状態を `draft` に戻した。Go のソース（テスト以外）とサーバは変更しない |
+| Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `c4b656e` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指す。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-07）への対応は 3.13 にまとめる。
 
