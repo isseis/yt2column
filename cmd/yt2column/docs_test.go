@@ -515,8 +515,9 @@ func stepBlock(doc, marker string) (block string, checked, found bool) {
 //
 // The behavior these documents describe is pinned by running tests, not by
 // this test: security.md's permission (0o600) is internal/artifact's
-// TestSaveFileMode, and its "outside the cache directory" rule and the AC-08
-// rejection are cmd/yt2column's TestRunArtifactsInsideCacheDir.
+// TestSaveFileMode, and its "outside the cache directory" rule and its
+// inside-cache-directory rejection are cmd/yt2column's
+// TestRunArtifactsInsideCacheDir.
 func TestArtifactDocsContract(t *testing.T) {
 	readme := readDoc(t, readmePath)
 	table := findTable(readme, "Flag")

@@ -2435,7 +2435,7 @@ func TestResumeNeed(t *testing.T) {
 }
 
 // TestRunAfterShortenWritesReviewLog checks that --review-log is accepted on a
-// resume whose review step runs (AC-16).
+// resume whose review step runs.
 func TestRunAfterShortenWritesReviewLog(t *testing.T) {
 	dir := saveArtifactsOnce(t, firstLongThenShort)
 	e := newRunEnv(t)
@@ -2452,7 +2452,7 @@ func TestRunAfterShortenWritesReviewLog(t *testing.T) {
 }
 
 // TestRunAfterShortenEmptyModelVersion checks that a reused stage with an empty
-// ModelVersion is written as (none), not omitted (AC-27).
+// ModelVersion is written as (none), not omitted.
 func TestRunAfterShortenEmptyModelVersion(t *testing.T) {
 	dir := saveArtifactsOnce(t, func(e *runEnv) {
 		calls := 0
