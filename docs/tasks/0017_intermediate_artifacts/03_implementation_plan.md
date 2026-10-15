@@ -152,8 +152,8 @@ architecture は再承認済みなので、フェーズ 1 に着手できる。
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: `internal/writer` の保存と再開
 
@@ -161,11 +161,11 @@ architecture は再承認済みなので、フェーズ 1 に着手できる。
 
 **前提:** フェーズ 1 の `writer.ArtifactStore`・`StageRecord`・`ArtifactChain`・`ArtifactError` と `internal/artifact` が使えること。
 
-- [ ] **ステップ 2-1**: `writer.Options` に `Artifacts ArtifactOptions` を加え、`templateWriter` に `Store` と `Resume` と識別子を持つ `stepTemplates` を渡す。`New`（`:101-142`）と `validateStepOptions`（`:148-163`）を architecture §3.1 の組み合わせ検査に改める。`Resume` が設定されているのに `Store` が nil の場合は拒否する。段階ごとに、実行する段階が使うクライアント（生成の `LLMClient` は生成と字数の調整の両方が使う）が nil なら拒否し、実行しない段階のクライアントが nil でない場合と、実行しない段階のテンプレートのパスがある場合も拒否する（`nilcheck.IsNil` を使う）。
-- [ ] **ステップ 2-2**: `Write`（`:193-240`）を architecture §3.6 の順序に改める。`validateTranscript` の後に素材の識別子を計算し、`Resume` が `StageUnset` でなければ `Store.Load` を呼んで連鎖を得る。段階の実行の有無を `Resume` と `Shorten.Enabled`・`Review.Enabled` から導く（§3.1 の表）。生成・字数の調整・検証・推敲の完了時に、検査に通った出力を `Store.Save` で保存する（公開より前。`Save` の失敗は `*ArtifactError` として段階を示し、記事を公開しない）。`Article` を、実行した段階の結果と再利用した段階の来歴から architecture §3.5 のとおりに組み立てる。各段階の `Generate` と `Store.Load`・`Store.Save` の直前に `ctx.Err()` を確かめる。
-- [ ] **ステップ 2-3**: `internal/writer/test_helpers.go`（`//go:build test`）に fake の `ArtifactStore` を加える。`Load` の戻り値（`ArtifactChain` とエラー）と `Save` の記録（動画 ID と `StageRecord`・呼び出しの順）を設定できる形にし、`Save` のエラーを返せるようにする。`testutil/` にファイルを加えない。
-- [ ] **ステップ 2-4**: `internal/writer/artifact_test.go`（`//go:build test`、`package writer`）に architecture §7.1 のテストを書く。fake の `ArtifactStore`（`test_helpers.go`）と `llmtestutil.FakeLLMClient`・`FakeLLMSequence`、`test_helpers.go` の `validTranscript()` と `transcript.Transcript` の値を使う（`publishertestutil` は `internal/writer` を import するので `package writer` からは循環になり、`transcripttestutil.FakeTranscriptSource` は `Write` が消費しないので使わない。`TranscriptSource` と `Publisher` の fake を使うのは `cmd/yt2column/run_test.go` である）。保存の読み書きはフェーズ 1 の `internal/artifact` のテストが実物で確かめる。対象は、保存（AC-01・AC-02・AC-18）・段階の完了時の保存（AC-04）・保存の失敗（AC-06・AC-29）・再開（AC-12〜AC-14。呼ばない段階の LLM が呼ばれないことを `len(Calls)` で確かめる）・最終の字数の確認と検証・推敲（AC-16）・`Article` の来歴の組み立て（AC-27）・`New` の組み合わせ検査（§3.1）である。`--artifacts` なし（`Store` が nil）では `Save` が呼ばれないこと（AC-03・AC-05）も確かめる。テンプレートの上書きを使う場合は既存の `writeOverrideFile`（`t.TempDir` を使う）を再利用する。
-- [ ] **ステップ 2-5**: `internal/writer`・`internal/job` の既存のテストを内容を変えずに通す（`make test`）。`Article` を `==` で比べるテスト（`steps_test.go:38`、`job_test.go:184`・`:223`）が通ることを確かめる（AC-32）。
+- [x] **ステップ 2-1**: `writer.Options` に `Artifacts ArtifactOptions` を加え、`templateWriter` に `Store` と `Resume` と識別子を持つ `stepTemplates` を渡す。`New`（`:101-142`）と `validateStepOptions`（`:148-163`）を architecture §3.1 の組み合わせ検査に改める。`Resume` が設定されているのに `Store` が nil の場合は拒否する。段階ごとに、実行する段階が使うクライアント（生成の `LLMClient` は生成と字数の調整の両方が使う）が nil なら拒否し、実行しない段階のクライアントが nil でない場合と、実行しない段階のテンプレートのパスがある場合も拒否する（`nilcheck.IsNil` を使う）。
+- [x] **ステップ 2-2**: `Write`（`:193-240`）を architecture §3.6 の順序に改める。`validateTranscript` の後に素材の識別子を計算し、`Resume` が `StageUnset` でなければ `Store.Load` を呼んで連鎖を得る。段階の実行の有無を `Resume` と `Shorten.Enabled`・`Review.Enabled` から導く（§3.1 の表）。生成・字数の調整・検証・推敲の完了時に、検査に通った出力を `Store.Save` で保存する（公開より前。`Save` の失敗は `*ArtifactError` として段階を示し、記事を公開しない）。`Article` を、実行した段階の結果と再利用した段階の来歴から architecture §3.5 のとおりに組み立てる。各段階の `Generate` と `Store.Load`・`Store.Save` の直前に `ctx.Err()` を確かめる。
+- [x] **ステップ 2-3**: `internal/writer/test_helpers.go`（`//go:build test`）に fake の `ArtifactStore` を加える。`Load` の戻り値（`ArtifactChain` とエラー）と `Save` の記録（動画 ID と `StageRecord`・呼び出しの順）を設定できる形にし、`Save` のエラーを返せるようにする。`testutil/` にファイルを加えない。
+- [x] **ステップ 2-4**: `internal/writer/artifact_test.go`（`//go:build test`、`package writer`）に architecture §7.1 のテストを書く。fake の `ArtifactStore`（`test_helpers.go`）と `llmtestutil.FakeLLMClient`・`FakeLLMSequence`、`test_helpers.go` の `validTranscript()` と `transcript.Transcript` の値を使う（`publishertestutil` は `internal/writer` を import するので `package writer` からは循環になり、`transcripttestutil.FakeTranscriptSource` は `Write` が消費しないので使わない。`TranscriptSource` と `Publisher` の fake を使うのは `cmd/yt2column/run_test.go` である）。保存の読み書きはフェーズ 1 の `internal/artifact` のテストが実物で確かめる。対象は、保存（AC-01・AC-02・AC-18）・段階の完了時の保存（AC-04）・保存の失敗（AC-06・AC-29）・再開（AC-12〜AC-14。呼ばない段階の LLM が呼ばれないことを `len(Calls)` で確かめる）・最終の字数の確認と検証・推敲（AC-16）・`Article` の来歴の組み立て（AC-27）・`New` の組み合わせ検査（§3.1）である。`--artifacts` なし（`Store` が nil）では `Save` が呼ばれないこと（AC-03・AC-05）も確かめる。テンプレートの上書きを使う場合は既存の `writeOverrideFile`（`t.TempDir` を使う）を再利用する。
+- [x] **ステップ 2-5**: `internal/writer`・`internal/job` の既存のテストを内容を変えずに通す（`make test`）。`Article` を `==` で比べるテスト（`steps_test.go:38`、`job_test.go:184`・`:223`）が通ることを確かめる（AC-32）。
 
 **完了条件:** `make fmt`・`make test`・`make lint` が通る。`artifact_test.go` が architecture §7.1 の検証を満たし、既存の `internal/writer`・`internal/job` のテストが内容を変えずに通る。
 
@@ -181,8 +181,8 @@ architecture は再承認済みなので、フェーズ 1 に着手できる。
 
 **判定理由**: `Write` の段階の導出・保存の位置・再開の適用・`Article` の組み立ては、architecture §3.5・§3.6 に確定しているが、既存の段階の実行の順序と `ctx.Err()` の確認の置き場所に保存と再開を組み込む込み入った変更である。`New` の組み合わせ検査は誤ると nil のクライアント呼び出しや実行しない段階の設定の黙殺を招く。既存テストを無変更で通すことが完了条件であり、分離された込み入ったステップとして `frontier-recommended` とする。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
@@ -363,7 +363,7 @@ architecture §7.3 の検査を、フェーズ 1 の `internal/artifact` のテ�
 | AC-13 | test | `internal/writer/artifact_test.go::TestResumeAfterShorten`（生成と字数の調整の LLM が呼ばれない）と `cmd/yt2column/run_test.go::TestRunAfterShorten` |
 | AC-14 | test | `internal/writer/artifact_test.go::TestResumeAfterReview`（どの LLM も呼ばれない）と `cmd/yt2column/run_test.go::TestRunAfterReview` |
 | AC-15 | test | `internal/config/config_test.go::TestLoadFor`（各行の検査の範囲）と `cmd/yt2column/run_test.go::TestRunResumeConfigScoping`（`--after review` で `YT2COLUMN_MODEL` と API キーが未設定でも通る） |
-| AC-16 | test | `internal/writer/artifact_test.go::TestResumeFinalLengthAndReviewLog`（再開でも `Shorten.Enabled` に従う最終の字数の確認と、検証・推敲を実行する再開の `ReviewResult`）と `cmd/yt2column/run_test.go::TestRunAfterReviewRejectsReviewLog`（`--after review` と `--review-log` で終了コード 2） |
+| AC-16 | test | `internal/writer/artifact_test.go::TestResumeFinalLengthCheck`（再開でも `Shorten.Enabled` に従う最終の字数の確認と、検証・推敲を実行する再開の `ReviewResult`）と `cmd/yt2column/run_test.go::TestRunAfterReviewRejectsReviewLog`（`--after review` と `--review-log` で終了コード 2） |
 | AC-17 | test | `cmd/yt2column/run_test.go::TestRunResumeFetchesTranscript`（再開でもキャッシュの取得を行い、キャッシュが無ければ yt-dlp を呼ぶ。`internal/job`・`internal/pipeline` を変更しない） |
 | AC-18 | test | `internal/writer/artifact_test.go::TestResumeSavesExecutedStages` と `cmd/yt2column/run_test.go::TestRunResumeSavesExecutedStages`（再開で実行した段階の成果物が保存される） |
 | AC-19 | test | `internal/artifact/store_test.go::TestLoadMissing`（`errors.Is(_, ErrMissing)`）と `cmd/yt2column/run_test.go::TestRunAfterMissingArtifact`（LLM を呼ばず、公開しない） |
@@ -374,7 +374,7 @@ architecture §7.3 の検査を、フェーズ 1 の `internal/artifact` のテ�
 | AC-24 | test | `cmd/yt2column/run_test.go::TestRunAfterRequiresArtifacts`（yt-dlp と LLM を呼ばずに終了コード 2） |
 | AC-25 | test | `cmd/yt2column/run_test.go::TestRunAfterInvalidValue`（3 つの値以外で終了コード 2。メッセージに拒否した値） |
 | AC-26 | test | `cmd/yt2column/run_test.go::TestRunAfterRejectsGenerationFlags`（`--system-prompt`・`--user-prompt` と `--after` で終了コード 2） |
-| AC-27 | test | `internal/writer/artifact_test.go::TestResumeArticleProvenance`（再利用した段階の `Model`・`ModelVersion` が `Article` に入る）と `cmd/yt2column/run_test.go::TestRunAfterShortenOutModelLines`（`--out` のモデルの行に段階の区別が付く形で出る。空の ModelVersion は書かない） |
+| AC-27 | test | `internal/writer/artifact_test.go::TestResumeAfterGeneration`（再利用した生成の `Model`・`ModelVersion`）と `::TestResumeAfterShorten`（再利用した `Shorten` と、実行した検証・推敲の `Model`・`ModelVersion` が `Article` に入る）と `cmd/yt2column/run_test.go::TestRunAfterShortenOutModelLines`（`--out` のモデルの行に段階の区別が付く形で出る。空の ModelVersion は書かない） |
 | AC-28 | static | `cmd/yt2column/run_test.go::TestRunHelp`（`-h`/`--help` の使い方の表示に `--artifacts`・`--after`）と `cmd/yt2column/docs_test.go::TestREADMEDocumentsFlags`（README のフラグの表）と `::TestArtifactDocsContract`（`--after` が `--artifacts` を要すること、`--after review` が `--review-log` を使えないこと） |
 | AC-29 | test | `internal/writer/artifact_test.go::TestWriteSaveFailure`（保存の失敗が段階を示し、記事を公開しない）と `internal/artifact/store_test.go::TestLoadMissing`・`::TestLoadRejectsSymlinkAndFIFO`（読み込みの失敗が番兵で判定でき、公開しない） |
 | AC-30 | test | `cmd/yt2column/run_test.go::TestRunArtifactExitCodes`（引数の形だけの誤りは 2、ファイルシステムの状態の誤りは 1。`--artifacts` のディレクトリを実際に開く 1 回の確認で判定する。成果物が壊れている場合と入力の識別子が食い違う場合も終了コード 1 になることを含める） |

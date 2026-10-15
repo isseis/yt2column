@@ -40,12 +40,13 @@ type ArticleWriter interface {
 // Options configures the ArticleWriter returned by New. An empty template path
 // selects the embedded default template; a non-empty path names an override
 // file that New reads once. The zero value generates the article only:
-// neither post-generation step runs.
+// neither post-generation step runs and no artifact is saved.
 type Options struct {
 	SystemTemplatePath string
 	UserTemplatePath   string
 	Shorten            ShortenOptions
 	Review             ReviewOptions
+	Artifacts          ArtifactOptions
 }
 
 // ShortenOptions configures the shorten step, which uses the generation
@@ -85,13 +86,44 @@ func (p stepTemplates[T]) expand(data T) (system, user string, err error) {
 
 // templateWriter is the ArticleWriter returned by New. Its fields are set once
 // by New and never mutated afterwards. A nil shorten or review means the step
-// is disabled.
+// is disabled; resume is the stage whose saved output Write starts from, and
+// store saves and loads the artifacts (nil when none is configured).
 type templateWriter struct {
 	client       llm.LLMClient
 	generation   stepTemplates[templateData]
 	shorten      *stepTemplates[shortenTemplateData]
 	review       *stepTemplates[reviewTemplateData]
 	reviewClient llm.LLMClient
+	store        ArtifactStore
+	resume       Stage
+}
+
+// generationRuns reports whether Write runs the generation stage.
+func (w *templateWriter) generationRuns() bool {
+	generation, _, _ := stageRuns(w.resume, w.shorten != nil, w.review != nil)
+	return generation
+}
+
+// shortenRuns reports whether Write runs the shorten step.
+func (w *templateWriter) shortenRuns() bool {
+	_, shorten, _ := stageRuns(w.resume, w.shorten != nil, w.review != nil)
+	return shorten
+}
+
+// reviewRuns reports whether Write runs the review step.
+func (w *templateWriter) reviewRuns() bool {
+	_, _, review := stageRuns(w.resume, w.shorten != nil, w.review != nil)
+	return review
+}
+
+// stageRuns derives which stages a run executes from the resume stage and the
+// enabled steps (the table of architecture section 3.1). New and Write read
+// this one definition, so the validation and the execution cannot drift.
+func stageRuns(resume Stage, shortenEnabled, reviewEnabled bool) (generation, shorten, review bool) {
+	generation = resume == StageUnset
+	shorten = shortenEnabled && (resume == StageUnset || resume == StageGeneration)
+	review = reviewEnabled && resume != StageReview
+	return generation, shorten, review
 }
 
 // New validates client, the options, and the templates of the enabled steps,
@@ -99,10 +131,7 @@ type templateWriter struct {
 // concrete type is unexported, so an ArticleWriter can only be obtained
 // through New.
 func New(client llm.LLMClient, opts Options) (ArticleWriter, error) {
-	if nilcheck.IsNil(client) {
-		return nil, errNilLLMClient
-	}
-	if err := validateStepOptions(opts); err != nil {
+	if err := validateOptions(client, opts); err != nil {
 		return nil, err
 	}
 	system, err := loadTemplate[templateData](templateSource{name: systemTemplateName, path: opts.SystemTemplatePath}, prompts.System())
@@ -116,6 +145,12 @@ func New(client llm.LLMClient, opts Options) (ArticleWriter, error) {
 	w := &templateWriter{
 		client:     client,
 		generation: stepTemplates[templateData]{system: system, user: user},
+		resume:     opts.Artifacts.Resume,
+	}
+	// Normalize a typed-nil store to a nil interface, so Write's "no store"
+	// test is the same as the caller's "no store".
+	if !nilcheck.IsNil(opts.Artifacts.Store) {
+		w.store = opts.Artifacts.Store
 	}
 	if opts.Shorten.Enabled {
 		shorten, err := loadStepTemplates[shortenTemplateData](
@@ -141,22 +176,66 @@ func New(client llm.LLMClient, opts Options) (ArticleWriter, error) {
 	return w, nil
 }
 
-// validateStepOptions rejects the step combinations New must not accept: a
-// review step whose client is missing, a review client set while the step is
-// disabled, and a template path for a disabled step. Silently ignoring such a
-// setting would hide the caller's mistake.
-func validateStepOptions(opts Options) error {
-	if opts.Review.Enabled {
-		if nilcheck.IsNil(opts.Review.Client) {
+// validateOptions rejects the step combinations New must not accept, deriving
+// which stages run from Artifacts.Resume and the enabled steps (the table of
+// architecture section 3.1). It rejects an unknown resume, a resume with no
+// store to load from, a client missing for a stage that runs, a client set for
+// a stage that does not run, and a template path for a stage that does not run.
+// Silently ignoring such a setting would hide the caller's mistake.
+func validateOptions(client llm.LLMClient, opts Options) error {
+	resume := opts.Artifacts.Resume
+	if !isKnownResume(resume) {
+		return errUnknownResume
+	}
+	if resume != StageUnset && nilcheck.IsNil(opts.Artifacts.Store) {
+		return errResumeWithoutStore
+	}
+	generationRuns, shortenRuns, reviewRuns := stageRuns(resume, opts.Shorten.Enabled, opts.Review.Enabled)
+	if err := validateClients(client, opts.Review.Client, generationRuns, shortenRuns, reviewRuns); err != nil {
+		return err
+	}
+	return validateTemplatePaths(opts, generationRuns, shortenRuns, reviewRuns)
+}
+
+// isKnownResume reports whether stage is a value Artifacts.Resume may name.
+func isKnownResume(stage Stage) bool {
+	switch stage {
+	case StageUnset, StageGeneration, StageShorten, StageReview:
+		return true
+	default:
+		return false
+	}
+}
+
+// validateClients rejects a client missing for a stage that runs, and a client
+// set for a stage that does not.
+func validateClients(generation, review llm.LLMClient, generationRuns, shortenRuns, reviewRuns bool) error {
+	if generationRuns || shortenRuns {
+		if nilcheck.IsNil(generation) {
+			return errNilLLMClient
+		}
+	} else if !nilcheck.IsNil(generation) {
+		return errGenerationClientSet
+	}
+	if reviewRuns {
+		if nilcheck.IsNil(review) {
 			return errReviewClientNil
 		}
-	} else if !nilcheck.IsNil(opts.Review.Client) {
+	} else if !nilcheck.IsNil(review) {
 		return errReviewClientSet
 	}
-	if !opts.Shorten.Enabled && (opts.Shorten.SystemTemplatePath != "" || opts.Shorten.UserTemplatePath != "") {
+	return nil
+}
+
+// validateTemplatePaths rejects a template path for a stage that does not run.
+func validateTemplatePaths(opts Options, generationRuns, shortenRuns, reviewRuns bool) error {
+	if !generationRuns && (opts.SystemTemplatePath != "" || opts.UserTemplatePath != "") {
 		return errDisabledStepTemplate
 	}
-	if !opts.Review.Enabled && (opts.Review.SystemTemplatePath != "" || opts.Review.UserTemplatePath != "") {
+	if !shortenRuns && (opts.Shorten.SystemTemplatePath != "" || opts.Shorten.UserTemplatePath != "") {
+		return errDisabledStepTemplate
+	}
+	if !reviewRuns && (opts.Review.SystemTemplatePath != "" || opts.Review.UserTemplatePath != "") {
 		return errDisabledStepTemplate
 	}
 	return nil
@@ -183,13 +262,14 @@ func loadStepTemplates[T any](system, user templateSpec) (stepTemplates[T], erro
 	return stepTemplates[T]{system: systemTmpl, user: userTmpl}, nil
 }
 
-// Write validates t, expands the generation templates, calls the generation
-// LLM client once, and validates its response; then it runs the steps Options
-// enabled, in order (shorten, review, the final length check), and builds the
-// article. It returns the zero Article on every failure. An LLM client's error
-// is wrapped as is, never with a sentinel of this package, so callers can tell
-// it from a template or output failure; every failure of a step is a
-// *StepError.
+// Write validates t, then runs the stages that Artifacts.Resume and the
+// enabled steps select, in order (generation, shorten, review, the final
+// length check), saving each completed stage's artifact when a store is
+// configured, and builds the article from the executed and the reused stages.
+// It returns the zero Article on every failure. An LLM client's error is
+// wrapped as is, never with a sentinel of this package, so callers can tell it
+// from a template or output failure; every failure of a step is a *StepError,
+// and every store failure is a *ArtifactError.
 func (w *templateWriter) Write(ctx context.Context, t transcript.Transcript) (Article, error) {
 	if err := ctx.Err(); err != nil {
 		return Article{}, fmt.Errorf("article generation not started: %w", err)
@@ -198,43 +278,172 @@ func (w *templateWriter) Write(ctx context.Context, t transcript.Transcript) (Ar
 	if err != nil {
 		return Article{}, err
 	}
+	materialID := MaterialID(t)
 	data := newTemplateData(t)
-	system, user, err := w.generation.expand(data)
-	if err != nil {
-		return Article{}, err
+
+	var chain ArtifactChain
+	if w.resume != StageUnset {
+		if err := ctx.Err(); err != nil {
+			return Article{}, artifactError(w.resume, err)
+		}
+		loaded, err := w.store.Load(ctx, t.VideoID, w.resume, materialID)
+		if err != nil {
+			return Article{}, artifactError(w.resume, err)
+		}
+		chain = loaded
 	}
-	resp, err := w.client.Generate(ctx, llm.GenerateRequest{SystemPrompt: system, UserPrompt: user, MaxOutputTokens: 0})
-	if err != nil {
-		return Article{}, fmt.Errorf("LLM generation failed: %w", err)
+
+	generation := chain.Generation
+	if w.generationRuns() {
+		generation, err = w.generateStage(ctx, t.VideoID, data, materialID)
+		if err != nil {
+			return Article{}, err
+		}
 	}
-	title, body, err := checkResponse(resp)
-	if err != nil {
-		return Article{}, err
-	}
+	title, body, previousID := generation.Title, generation.Body, generation.ID
+
 	var shortenModel *StepModel
-	if w.shorten != nil && bodyChars(body) > maxBodyChars {
-		if err := ctx.Err(); err != nil {
-			return Article{}, stepError(StepShorten, err)
-		}
-		title, body, shortenModel, err = w.runShorten(ctx, title, body)
+	switch {
+	case w.shortenRuns() && bodyChars(body) > maxBodyChars:
+		title, body, shortenModel, previousID, err = w.shortenStage(ctx, t.VideoID, title, body, previousID)
 		if err != nil {
 			return Article{}, err
 		}
+	case chain.Shorten != nil:
+		shortenModel = &StepModel{Model: chain.Shorten.Model, ModelVersion: chain.Shorten.ModelVersion}
+		previousID = chain.Shorten.ID
+		if w.resume == StageShorten {
+			title, body = chain.Shorten.Title, chain.Shorten.Body
+		}
 	}
+
 	var reviewResult *ReviewResult
-	if w.review != nil {
-		if err := ctx.Err(); err != nil {
-			return Article{}, stepError(StepReview, err)
-		}
-		title, body, reviewResult, err = w.runReview(ctx, data, title, body)
+	switch {
+	case w.reviewRuns():
+		title, body, reviewResult, err = w.reviewStage(ctx, t.VideoID, data, title, body, previousID)
 		if err != nil {
 			return Article{}, err
 		}
+	case w.resume == StageReview:
+		title, body = chain.Review.Title, chain.Review.Body
+		reviewResult = &ReviewResult{
+			Model:     StepModel{Model: chain.Review.Model, ModelVersion: chain.Review.ModelVersion},
+			Revisions: chain.Review.Revisions,
+		}
 	}
+
 	if w.shorten != nil {
 		if chars := bodyChars(body); chars > maxBodyChars {
 			return Article{}, stepError(StepReview, tooLongError(chars))
 		}
 	}
-	return newArticle(title, body, sourceURL, resp, shortenModel, reviewResult), nil
+	return newArticle(title, body, sourceURL, generation.Model, generation.ModelVersion, shortenModel, reviewResult), nil
+}
+
+// generateStage runs the generation stage and saves its artifact when a store
+// is configured, returning the record with its id set.
+func (w *templateWriter) generateStage(ctx context.Context, videoID string, data templateData, materialID string) (StageRecord, error) {
+	system, user, err := w.generation.expand(data)
+	if err != nil {
+		return StageRecord{}, err
+	}
+	resp, err := w.client.Generate(ctx, llm.GenerateRequest{SystemPrompt: system, UserPrompt: user, MaxOutputTokens: 0})
+	if err != nil {
+		return StageRecord{}, fmt.Errorf("LLM generation failed: %w", err)
+	}
+	title, body, err := checkResponse(resp)
+	if err != nil {
+		return StageRecord{}, err
+	}
+	record := StageRecord{
+		Stage:        StageGeneration,
+		Title:        title,
+		Body:         body,
+		Model:        resp.Model,
+		ModelVersion: resp.ModelVersion,
+		System:       w.generation.system.identity,
+		User:         w.generation.user.identity,
+		Input:        materialID,
+	}
+	if w.store == nil {
+		return record, nil
+	}
+	id, err := w.saveStage(ctx, videoID, StageGeneration, record)
+	if err != nil {
+		return StageRecord{}, err
+	}
+	record.ID = id
+	return record, nil
+}
+
+// shortenStage runs the shorten step and saves its artifact, returning the new
+// text, the step model, and the id of the saved artifact (or its input id when
+// no store is configured).
+func (w *templateWriter) shortenStage(ctx context.Context, videoID, title, body, input string) (string, string, *StepModel, string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", "", nil, "", stepError(StepShorten, err)
+	}
+	title, body, model, err := w.runShorten(ctx, title, body)
+	if err != nil {
+		return "", "", nil, "", err
+	}
+	if w.store == nil {
+		return title, body, model, input, nil
+	}
+	id, err := w.saveStage(ctx, videoID, StageShorten, StageRecord{
+		Stage:        StageShorten,
+		Title:        title,
+		Body:         body,
+		Model:        model.Model,
+		ModelVersion: model.ModelVersion,
+		System:       w.shorten.system.identity,
+		User:         w.shorten.user.identity,
+		Input:        input,
+	})
+	if err != nil {
+		return "", "", nil, "", err
+	}
+	return title, body, model, id, nil
+}
+
+// reviewStage runs the review step and saves its artifact.
+func (w *templateWriter) reviewStage(ctx context.Context, videoID string, data templateData, title, body, input string) (string, string, *ReviewResult, error) {
+	if err := ctx.Err(); err != nil {
+		return "", "", nil, stepError(StepReview, err)
+	}
+	title, body, result, err := w.runReview(ctx, data, title, body)
+	if err != nil {
+		return "", "", nil, err
+	}
+	if w.store == nil {
+		return title, body, result, nil
+	}
+	if _, err := w.saveStage(ctx, videoID, StageReview, StageRecord{
+		Stage:        StageReview,
+		Title:        title,
+		Body:         body,
+		Revisions:    result.Revisions,
+		Model:        result.Model.Model,
+		ModelVersion: result.Model.ModelVersion,
+		System:       w.review.system.identity,
+		User:         w.review.user.identity,
+		Input:        input,
+	}); err != nil {
+		return "", "", nil, err
+	}
+	return title, body, result, nil
+}
+
+// saveStage checks the context, saves one completed stage's record, and
+// returns its identifier. A store or context failure is a *ArtifactError
+// naming the stage, so the caller can tell which stage failed.
+func (w *templateWriter) saveStage(ctx context.Context, videoID string, stage Stage, record StageRecord) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", artifactError(stage, err)
+	}
+	id, err := w.store.Save(ctx, videoID, record)
+	if err != nil {
+		return "", artifactError(stage, err)
+	}
+	return id, nil
 }
