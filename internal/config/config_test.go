@@ -1097,3 +1097,137 @@ func TestLoadHTTP2Debug(t *testing.T) {
 		})
 	}
 }
+
+// TestLoadForNeed checks that LoadFor reads and checks only the variables the
+// run's stages need (architecture section 3.7). The CLI scenarios map to Need
+// as: no --after -> {true,true}; --after generation -> {true,true}; --after
+// generation --no-shorten -> {false,true}; --after generation --no-review ->
+// {true,false}; --after shorten -> {false,true}; --after shorten --no-review ->
+// {false,false}; --after review -> {false,false}.
+func TestLoadForNeed(t *testing.T) {
+	t.Run("both needs equal Load", func(t *testing.T) {
+		cfg, err := LoadFor(envLookup(validEnv()), Need{Generation: true, Review: true})
+		if err != nil {
+			t.Fatalf("LoadFor() error = %v, want nil", err)
+		}
+		if cfg.LLM().Provider() != ProviderDeepSeek || cfg.LLM().ReviewProvider() != ProviderDeepSeek {
+			t.Errorf("providers = %v/%v, want deepseek/deepseek", cfg.LLM().Provider(), cfg.LLM().ReviewProvider())
+		}
+	})
+
+	t.Run("generation only leaves the review settings unread", func(t *testing.T) {
+		// A review provider and an empty review model that would be rejected if
+		// read are neither required nor read when the review step does not run.
+		env := with(validEnv(), reviewProviderEnv, "gemini")
+		env = with(env, reviewModelEnv, "")
+		cfg, err := LoadFor(envLookup(env), Need{Generation: true})
+		if err != nil {
+			t.Fatalf("LoadFor() error = %v, want nil", err)
+		}
+		if cfg.LLM().ReviewProvider() != ProviderUnset {
+			t.Errorf("ReviewProvider() = %v, want ProviderUnset (not read)", cfg.LLM().ReviewProvider())
+		}
+		if cfg.LLM().ReviewModel() != "" {
+			t.Errorf("ReviewModel() = %q, want empty (not read)", cfg.LLM().ReviewModel())
+		}
+	})
+
+	t.Run("generation only requires the generation settings", func(t *testing.T) {
+		for _, name := range []string{modelEnv, deepSeekAPIKeyEnv} {
+			t.Run(name, func(t *testing.T) {
+				_, err := LoadFor(envLookup(without(validEnv(), name)), Need{Generation: true})
+				assertVarError(t, err, ErrMissing, name)
+			})
+		}
+	})
+
+	t.Run("review only does not require the generation settings", func(t *testing.T) {
+		// The review step has its own provider and model, so neither
+		// YT2COLUMN_MODEL nor the generation provider is needed.
+		env := map[string]string{
+			reviewProviderEnv: "deepseek",
+			reviewModelEnv:    "deepseek-review",
+			deepSeekAPIKeyEnv: "sk-test-key",
+			cacheDirEnv:       "/tmp/yt2column-test-cache",
+		}
+		cfg, err := LoadFor(envLookup(env), Need{Review: true})
+		if err != nil {
+			t.Fatalf("LoadFor() error = %v, want nil", err)
+		}
+		if cfg.LLM().ReviewProvider() != ProviderDeepSeek || cfg.LLM().ReviewModel() != "deepseek-review" {
+			t.Errorf("review = %v/%q, want deepseek/deepseek-review", cfg.LLM().ReviewProvider(), cfg.LLM().ReviewModel())
+		}
+	})
+
+	t.Run("review only checks the review provider's key", func(t *testing.T) {
+		env := map[string]string{
+			reviewProviderEnv: "deepseek",
+			reviewModelEnv:    "deepseek-review",
+			cacheDirEnv:       "/tmp/yt2column-test-cache",
+		}
+		_, err := LoadFor(envLookup(env), Need{Review: true})
+		assertVarError(t, err, ErrMissing, deepSeekAPIKeyEnv)
+	})
+
+	t.Run("review only inherits the generation provider and model", func(t *testing.T) {
+		env := without(validEnv(), reviewProviderEnv, reviewModelEnv)
+		cfg, err := LoadFor(envLookup(env), Need{Review: true})
+		if err != nil {
+			t.Fatalf("LoadFor() error = %v, want nil", err)
+		}
+		if cfg.LLM().ReviewProvider() != ProviderDeepSeek {
+			t.Errorf("ReviewProvider() = %v, want the inherited deepseek", cfg.LLM().ReviewProvider())
+		}
+		if cfg.LLM().ReviewModel() != env[modelEnv] {
+			t.Errorf("ReviewModel() = %q, want the inherited %q", cfg.LLM().ReviewModel(), env[modelEnv])
+		}
+	})
+
+	t.Run("review only inherits a claude generation provider", func(t *testing.T) {
+		// The inherited claude provider brings its own variables into the
+		// check even though generation does not run.
+		cfg, err := LoadFor(envLookup(validClaudeEnv()), Need{Review: true})
+		if err != nil {
+			t.Fatalf("LoadFor() error = %v, want nil", err)
+		}
+		if cfg.LLM().ReviewProvider() != ProviderClaude || cfg.LLM().ReviewModel() != validClaudeEnv()[modelEnv] {
+			t.Errorf("review = %v/%q, want claude/%q", cfg.LLM().ReviewProvider(), cfg.LLM().ReviewModel(), validClaudeEnv()[modelEnv])
+		}
+		if cfg.LLM().ClaudeEffort() == claudeparam.EffortUnset {
+			t.Error("ClaudeEffort() is unset, want the checked value")
+		}
+	})
+
+	t.Run("review only requires a model", func(t *testing.T) {
+		// With no model anywhere, the review step has none.
+		env := map[string]string{
+			deepSeekAPIKeyEnv: "sk-test-key",
+			cacheDirEnv:       "/tmp/yt2column-test-cache",
+		}
+		_, err := LoadFor(envLookup(env), Need{Review: true})
+		assertVarError(t, err, ErrMissing, reviewModelEnv)
+	})
+
+	t.Run("no stage reads no LLM variable", func(t *testing.T) {
+		// --after review: not even an invalid provider or model is read.
+		env := map[string]string{
+			providerEnv:     "gemini",
+			modelEnv:        "",
+			claudeEffortEnv: "High",
+			cacheDirEnv:     "/tmp/yt2column-test-cache",
+		}
+		cfg, err := LoadFor(envLookup(env), Need{})
+		if err != nil {
+			t.Fatalf("LoadFor() error = %v, want nil", err)
+		}
+		if cfg.LLM().Provider() != ProviderUnset {
+			t.Errorf("Provider() = %v, want ProviderUnset", cfg.LLM().Provider())
+		}
+	})
+
+	t.Run("non-LLM variables are still checked", func(t *testing.T) {
+		env := map[string]string{cacheDirEnv: "relative"}
+		_, err := LoadFor(envLookup(env), Need{})
+		assertVarError(t, err, ErrInvalid, cacheDirEnv)
+	})
+}

@@ -268,7 +268,7 @@ func (c ServerConfig) HTTP2DebugEnabled() bool {
 // validation never reaches a caller. It reads no variable the server does not
 // use.
 func LoadServer(lookup LookupFunc) (ServerConfig, error) {
-	llm, errs := loadLLM(lookup)
+	llm, errs := loadLLM(lookup, Need{Generation: true, Review: true})
 	var cfg ServerConfig
 	webhook, set, webhookErr := loadSlackWebhook(lookup)
 	switch {
@@ -350,9 +350,30 @@ func loadTokenPath(lookup LookupFunc) (string, error) {
 // Load reads and validates every variable through lookup. It joins every
 // rejection together so callers can report all of them; on any error it returns
 // the zero Config, because a value that did not pass validation must not reach
-// a caller.
+// a caller. It is LoadFor with both needs set, so a run that does not resume
+// keeps the behavior of task 0010.
 func Load(lookup LookupFunc) (Config, error) {
-	llm, errs := loadLLM(lookup)
+	return LoadFor(lookup, Need{Generation: true, Review: true})
+}
+
+// Need says which LLM configurations a run uses, so LoadFor reads and
+// validates only those. A stage that does not run does not contribute its
+// provider's variables. Generation also covers the shorten step, which uses
+// the generation client.
+type Need struct {
+	Generation bool // the generation client is built (generation and/or shorten runs)
+	Review     bool // the review client is built (the review step runs)
+}
+
+// LoadFor reads and validates the variables the run needs, and rejects no
+// other provider variable. It joins every rejection together and returns the
+// zero Config on any error. A need that is true reads and requires its stage's
+// provider and model variables and the selected providers' own variables; a
+// need that is false does not check them. When Review is true but Generation is
+// false, the generation provider and model are still read, without being
+// required, so the review step inherits them when its own variables are unset.
+func LoadFor(lookup LookupFunc, need Need) (Config, error) {
+	llm, errs := loadLLM(lookup, need)
 	var cfg Config
 	webhook, _, webhookErr := loadSlackWebhook(lookup)
 	errs = append(errs,
@@ -369,18 +390,21 @@ func Load(lookup LookupFunc) (Config, error) {
 	return cfg, nil
 }
 
-// loadLLM reads and validates every LLM variable: the generation and review
-// providers and models, and the variables of the selected providers. It returns
-// the validated LLMConfig and each rejection separately, so Load and LoadServer
-// report them the same way.
-func loadLLM(lookup LookupFunc) (LLMConfig, []error) {
+// loadLLM reads and validates the LLM variables the run needs: the generation
+// and review providers and models, and the variables of the selected
+// providers. It returns the validated LLMConfig and each rejection separately,
+// so LoadFor and LoadServer report them the same way. A need that is false
+// leaves its stage's settings unchecked.
+func loadLLM(lookup LookupFunc, need Need) (LLMConfig, []error) {
 	var cfg LLMConfig
-	errs := []error{
-		loadProvider(lookup, &cfg),
-		loadModel(lookup, &cfg),
+	var errs []error
+	if need.Generation {
+		errs = append(errs, loadProvider(lookup, &cfg), loadModel(lookup, &cfg))
 	}
-	errs = append(errs, loadReview(lookup, &cfg)...)
-	errs = append(errs, loadProviderVars(lookup, &cfg)...)
+	if need.Review {
+		errs = append(errs, loadReview(lookup, &cfg, need.Generation)...)
+	}
+	errs = append(errs, loadProviderVars(lookup, &cfg, need)...)
 	return cfg, errs
 }
 
@@ -394,6 +418,34 @@ func loadProvider(lookup LookupFunc, cfg *LLMConfig) error {
 	}
 	cfg.provider = provider
 	return nil
+}
+
+// loadProviderOptional reads YT2COLUMN_LLM_PROVIDER without requiring it, for a
+// run whose generation does not execute: an unset or empty value falls back to
+// the default deepseek provider, so the review step still inherits a provider.
+// A present, non-empty value must be accepted.
+func loadProviderOptional(lookup LookupFunc, cfg *LLMConfig) error {
+	value, ok := lookup(providerEnv)
+	provider, err := parseProvider(providerEnv, value, ok)
+	if err != nil {
+		if errors.Is(err, ErrMissing) {
+			cfg.provider = ProviderDeepSeek
+			return nil
+		}
+		return err
+	}
+	cfg.provider = provider
+	return nil
+}
+
+// loadModelOptional reads YT2COLUMN_MODEL without requiring it, for a run whose
+// generation does not execute: an unset or empty value leaves the model empty
+// for the review step's own resolution.
+func loadModelOptional(lookup LookupFunc, cfg *LLMConfig) {
+	value, ok := lookup(modelEnv)
+	if ok && value != "" {
+		cfg.model = value
+	}
 }
 
 // parseProvider converts a provider variable's value into a Provider. present
@@ -422,15 +474,19 @@ func parseProvider(name, value string, present bool) (Provider, error) {
 // select the review step's provider and model. Both unset means the review step
 // reuses the generation provider and model. A set provider requires a set
 // model; only the model may be set on its own, to reuse the generation
-// provider. It returns each rejection as a separate element so Load joins them
-// flat.
-func loadReview(lookup LookupFunc, cfg *LLMConfig) []error {
+// provider. generationRuns reports whether the generation model is required
+// (and so already reported missing by loadModel); when it is false and the
+// review model still resolves to empty, the review step has no model, so it is
+// reported here. It returns each rejection as a separate element so LoadFor
+// joins them flat.
+func loadReview(lookup LookupFunc, cfg *LLMConfig, generationRuns bool) []error {
 	var errs []error
 	providerValue, providerPresent := lookup(reviewProviderEnv)
 	modelValue, modelPresent := lookup(reviewModelEnv)
 
 	providerOK := true
-	if providerPresent {
+	switch {
+	case providerPresent:
 		provider, err := parseProvider(reviewProviderEnv, providerValue, true)
 		if err != nil {
 			errs = append(errs, err)
@@ -438,8 +494,17 @@ func loadReview(lookup LookupFunc, cfg *LLMConfig) []error {
 		} else {
 			cfg.reviewProvider = provider
 		}
-	} else {
+	case generationRuns:
 		cfg.reviewProvider = cfg.provider
+	default:
+		// The review step inherits the generation provider, which the run did
+		// not read because generation does not run. Read it here, without
+		// requiring it: an unset value falls back to the default deepseek.
+		if err := loadProviderOptional(lookup, cfg); err != nil {
+			errs = append(errs, err)
+		} else {
+			cfg.reviewProvider = cfg.provider
+		}
 	}
 
 	switch {
@@ -447,33 +512,47 @@ func loadReview(lookup LookupFunc, cfg *LLMConfig) []error {
 		errs = append(errs, missingVar(reviewModelEnv))
 	case modelPresent:
 		cfg.reviewModel = modelValue
-	case !providerPresent:
-		// Neither review variable is set: inherit the generation model. When
-		// the generation provider was rejected, cfg.model is empty too, but
-		// Load already reports that rejection.
-		cfg.reviewModel = cfg.model
-	case providerOK:
-		// A review provider with no model of its own is incomplete.
-		errs = append(errs, missingVar(reviewModelEnv))
+	case providerPresent:
+		if providerOK {
+			// A review provider with no model of its own is incomplete.
+			errs = append(errs, missingVar(reviewModelEnv))
+		}
+	default:
+		// The review step inherits the generation model. When generation does
+		// not run, read that model here, without requiring it, and report a
+		// still-empty inherited model because the review step needs one.
+		if !generationRuns {
+			loadModelOptional(lookup, cfg)
+			cfg.reviewModel = cfg.model
+			if cfg.reviewModel == "" {
+				errs = append(errs, missingVar(reviewModelEnv))
+			}
+		} else {
+			cfg.reviewModel = cfg.model
+		}
 	}
 	return errs
 }
 
 // loadProviderVars returns the rejections of the selected providers' variables
-// and reads no others. A provider's variables are read when either the
-// generation or the review provider is that provider, so a key shared by both
-// is read once. It returns nothing when neither provider is set, which happens
-// only when YT2COLUMN_LLM_PROVIDER was rejected and the review provider fell
-// back to it, so an invalid generation provider is reported alone and no
-// provider variable rejects a value the user did not intend to use. Each
-// rejection is a separate element so Load joins them flat; a nested join would
-// reach a caller that prints one error per line as a single line.
-func loadProviderVars(lookup LookupFunc, cfg *LLMConfig) []error {
+// and reads no others. A provider's variables are read only when a stage the
+// run needs (need) uses that provider, so a key shared by the generation and
+// review stages is read once and a stage that does not run contributes
+// nothing. It returns nothing when no needed stage uses either provider, so an
+// invalid generation provider is reported once by loadProvider and no provider
+// variable rejects a value the user did not intend to use. Each rejection is a
+// separate element so LoadFor joins them flat; a nested join would reach a
+// caller that prints one error per line as a single line.
+func loadProviderVars(lookup LookupFunc, cfg *LLMConfig, need Need) []error {
 	var errs []error
-	if cfg.provider == ProviderDeepSeek || cfg.reviewProvider == ProviderDeepSeek {
+	deepSeek := (need.Generation && cfg.provider == ProviderDeepSeek) ||
+		(need.Review && cfg.reviewProvider == ProviderDeepSeek)
+	if deepSeek {
 		errs = append(errs, loadDeepSeekAPIKey(lookup, cfg))
 	}
-	if cfg.provider == ProviderClaude || cfg.reviewProvider == ProviderClaude {
+	claude := (need.Generation && cfg.provider == ProviderClaude) ||
+		(need.Review && cfg.reviewProvider == ProviderClaude)
+	if claude {
 		errs = append(errs,
 			loadAnthropicAPIKey(lookup, cfg),
 			loadClaudeEffort(lookup, cfg),
