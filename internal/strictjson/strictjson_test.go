@@ -645,10 +645,11 @@ func TestAsNonNegativeInt64(t *testing.T) {
 		"object":         {errValueNotNumber, "{}"},
 	}
 	for name, tc := range rejected {
-		if _, err := consumed[name].AsNonNegativeInt64(); !errors.Is(err, tc.target) {
+		_, err := consumed[name].AsNonNegativeInt64()
+		if !errors.Is(err, tc.target) {
 			t.Errorf("AsNonNegativeInt64(%s) error = %v, want %v", name, err, tc.target)
 		}
-		if _, err := consumed[name].AsNonNegativeInt64(); err != nil && strings.Contains(err.Error(), tc.value) {
+		if err != nil && strings.Contains(err.Error(), tc.value) {
 			t.Errorf("AsNonNegativeInt64(%s) error = %q, must not contain the value %q", name, err.Error(), tc.value)
 		}
 	}
@@ -662,37 +663,24 @@ func TestAsNonNegativeInt64(t *testing.T) {
 }
 
 // TestCollectErrorIsDuplicate fixes that Collect rejects only a duplicate
-// consumed member: the adapters map its error to a duplicate usage member, and
-// must not see any other rejection.
+// consumed member. The adapters read usage with Collect and map its error to a
+// duplicate usage member, so any other rejection would change the response
+// verdict. Unlike TestObjectCollect, this test pairs the rejected duplicate with
+// an input that an allowlist reader (CollectOnly) rejects but Collect accepts.
 func TestCollectErrorIsDuplicate(t *testing.T) {
-	accepted := map[string]struct {
-		document string
-		keys     []string
-	}{
-		"unlisted duplicates": {`{"ignored":1,"ignored":2,"kept":true}`, []string{"kept"}},
-		"missing consumed":    {`{"kept":1}`, []string{"kept", "missing"}},
-		"wrong kind consumed": {`{"kept":[]}`, []string{"kept"}},
-		"unlisted only":       {`{"ignored":1,"ignored":2}`, []string{"kept"}},
+	accepted, err := ParseObject([]byte(`{"kept":[]}`))
+	if err != nil {
+		t.Fatalf("ParseObject error = %v", err)
 	}
-	for name, tc := range accepted {
-		t.Run("accepts "+name, func(t *testing.T) {
-			object, err := ParseObject([]byte(tc.document))
-			if err != nil {
-				t.Fatalf("ParseObject error = %v", err)
-			}
-			if _, err := object.Collect(tc.keys...); err != nil {
-				t.Errorf("Collect error = %v, want nil", err)
-			}
-		})
+	if _, err := accepted.Collect("kept"); err != nil {
+		t.Errorf("Collect error = %v, want nil for a consumed member of any kind", err)
 	}
 
-	t.Run("rejects only a duplicate consumed member", func(t *testing.T) {
-		object, err := ParseObject([]byte(`{"kept":1,"ignored":2,"ignored":3,"kept":4}`))
-		if err != nil {
-			t.Fatalf("ParseObject error = %v", err)
-		}
-		if _, err := object.Collect("kept"); !errors.Is(err, errDuplicateMember) {
-			t.Errorf("Collect error = %v, want errDuplicateMember", err)
-		}
-	})
+	duplicated, err := ParseObject([]byte(`{"kept":[],"kept":1}`))
+	if err != nil {
+		t.Fatalf("ParseObject error = %v", err)
+	}
+	if _, err := duplicated.Collect("kept"); !errors.Is(err, errDuplicateMember) {
+		t.Errorf("Collect error = %v, want errDuplicateMember", err)
+	}
 }
