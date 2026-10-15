@@ -297,7 +297,7 @@ sequenceDiagram
 
 **標準出力と標準エラー出力。** 標準出力に書くのは、生成した共有トークンの 1 行だけである。ログ・案内・エラーはすべて標準エラー出力に書く。共有トークンがログの経路に流れないよう、出力先を分ける（H-02）。
 
-**記事の生成の設定。** サーバの `writer.Options` は、CLI のフラグを何も指定しないときの値（字数の調整と検証・推敲を有効、組み込みのテンプレート）と同じにする。CLI の `buildWriter`（`run.go:357-393`）はフラグから組み立てるので共有しない。段階を加えるタスクは、両方の既定をそろえる必要がある。この点は `cmd/yt2column-server` のテストで、サーバの `writer.Options` が CLI の既定の解析結果と一致することを確かめて固定する（§7.1）。
+**記事の生成の設定。** サーバの `writer.Options` は、CLI のフラグを何も指定しないときの値（字数の調整と検証・推敲を有効、組み込みのテンプレート）と同じにする。CLI の `buildWriter`（`run.go:357-393`）はフラグから組み立てるので共有しない。段階を加えるタスクは、両方の既定をそろえる必要がある。2 つの実行ファイルは互いを import できないので、既定の値を 1 か所（`internal/writer/testutil` の `DefaultOptions`。`-tags test` でだけビルドする）に置き、CLI のテスト（段階のフラグを指定しない実行で `newWriter` に渡る値）とサーバのテストの両方がこの値と一致することを確かめて固定する。CLI の既定を変えると CLI のテストが落ちて `DefaultOptions` の変更を求め、その変更がサーバのテストを落とす（§7.1）。
 
 ### 3.2. 設定（`internal/config`、H-08）
 
@@ -553,8 +553,12 @@ func (s *Server) Listen() ([]net.Listener, error)
 func (s *Server) Serve(ctx context.Context, listeners []net.Listener) error
 
 var ErrInvalidOptions = errors.New("invalid server options")
+
+// ArticlesPath is the request target of the one endpoint.
+const ArticlesPath = "/articles"
 ```
 
+-   `ArticlesPath` は、`cmd/yt2column-server` が待ち受けの URL をログに書くために公開する。検査（§3.5.2 の手順 2）も同じ定数を使う。
 -   ポートは `Options.Port` の 1 か所だけに置く。`Listen` も `Host` の検査も同じ値を使うので、待ち受けのポートと検査のポートが食い違わない。テストは `127.0.0.1:0` の `net.Listener` を自分で作り、得たポートを `Options.Port` に入れて `Serve` に渡す（§7.1）。
 -   `Listen` は `127.0.0.1` と `::1` だけで待ち受ける。`0.0.0.0`・`::`・ホスト名で待ち受けない（AC-01）。1 つの `http.Server` が 2 つの `net.Listener` で `Serve` する。
 
@@ -1214,7 +1218,7 @@ sequenceDiagram
 | `internal/server` の終了 | `ctx` の取り消しの後、新しい接続を受け付けず、処理中のハンドラが起動したジョブも含めて、ジョブの完了まで `Serve` が返らない（§3.8.4 の 3・4）。一方の `net.Listener` を閉じると `Serve` がエラーを返す（同 5） |
 | `internal/server` の応答 | 応答の本文が `status`・`reason`・`requestId` だけを持ち、リクエストの値（目印の文字列を入れた `transcript`・`title` など）・秘密を含まない（AC-21・AC-27・AC-28）。`rejectReason` のゼロ値が `500` になる |
 | `internal/server` の待ち受け | `Listen` が返す `net.Listener` のアドレスが `127.0.0.1:<ポート>` と `[::1]:<ポート>` だけである（AC-01 の一部）。ポートは空きポートを探して使い、使用中なら探し直す。`::1` を使えない環境では IPv6 の部分を飛ばし、そのことをテストの出力に示す |
-| `cmd/yt2column-server` | 起動の手順の各失敗の終了コードと出力（AC-03・AC-29・AC-30）。`server.Options.Secrets` に API キー・Webhook URL・共有トークンが入っていること。トークンの生成時だけ標準出力に 1 行、再起動では書かない（AC-02）。標準エラー出力に秘密とトークンが現れない。サーバの `writer.Options` が CLI の既定と一致する（§3.1） |
+| `cmd/yt2column-server` | 起動の手順の各失敗の終了コードと出力（AC-03・AC-29・AC-30）。`server.Options.Secrets` に API キー・Webhook URL・共有トークンが入っていること。トークンの生成時だけ標準出力に 1 行、再起動では書かない（AC-02）。標準エラー出力に秘密とトークンが現れない。サーバの `writer.Options` が CLI の既定と一致する（両者を `writertestutil.DefaultOptions` と比べる。§3.1） |
 | `internal/redact` | CLI から移したテスト。`Writer` が秘密の値・その一部・エスケープした綴りを伏せ、`slog` のテキスト形式の出力を二重にエスケープしない |
 | `internal/signalrun` | CLI から移したテスト（§3.14） |
 

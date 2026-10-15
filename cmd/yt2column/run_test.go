@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -23,6 +24,7 @@ import (
 	"github.com/isseis/yt2column/internal/artifact"
 	"github.com/isseis/yt2column/internal/config"
 	"github.com/isseis/yt2column/internal/llm"
+	llmtestutil "github.com/isseis/yt2column/internal/llm/testutil"
 	"github.com/isseis/yt2column/internal/publisher"
 	publishertestutil "github.com/isseis/yt2column/internal/publisher/testutil"
 	"github.com/isseis/yt2column/internal/secret"
@@ -1668,6 +1670,32 @@ func TestRunDefaultSteps(t *testing.T) {
 		if !strings.Contains(string(data), want) {
 			t.Errorf("--out does not contain %q:\n%s", want, data)
 		}
+	}
+}
+
+// TestRunDefaultWriterOptions checks that a run with no step flags builds the
+// writer with writertestutil.DefaultOptions, the value the server's writer is
+// also checked against, so the two defaults cannot drift apart.
+func TestRunDefaultWriterOptions(t *testing.T) {
+	e := newRunEnv(t)
+	e.withSteps = true
+	// A pointer client, so reflect.DeepEqual can match it (a func-typed client
+	// never compares equal).
+	review := &llmtestutil.FakeLLMClient{Result: llm.GenerateResponse{Text: emptyReviewJSON, Model: "review-model"}}
+	e.useReviewClient(review)
+	var got []writer.Options
+	e.d.newWriter = func(client llm.LLMClient, opts writer.Options) (writer.ArticleWriter, error) {
+		got = append(got, opts)
+		return writer.New(client, opts)
+	}
+	if code := e.run(); code != exitOK {
+		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
+	}
+	if len(got) != 1 {
+		t.Fatalf("newWriter calls = %d, want 1", len(got))
+	}
+	if want := writertestutil.DefaultOptions(review); !reflect.DeepEqual(got[0], want) {
+		t.Errorf("writer options = %+v, want %+v", got[0], want)
 	}
 }
 

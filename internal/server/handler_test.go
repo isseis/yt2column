@@ -11,7 +11,7 @@ import (
 // validHTTPRequest builds a request that passes every header check.
 func validHTTPRequest(t *testing.T) *http.Request {
 	t.Helper()
-	req := newRequest(http.MethodPost, articlesPath, strings.NewReader(validBody(testValidVideoURL, testValidRaw)))
+	req := newRequest(http.MethodPost, ArticlesPath, strings.NewReader(validBody(testValidVideoURL, testValidRaw)))
 	withValidHeaders(req, testTokenValue)
 	return req
 }
@@ -51,7 +51,7 @@ func TestRejectHeaders(t *testing.T) {
 			return req
 		}, http.StatusNotFound, "not_found"},
 		{"method_get", func(_ *testing.T) *http.Request {
-			req := newRequest(http.MethodGet, articlesPath, nil)
+			req := newRequest(http.MethodGet, ArticlesPath, nil)
 			withValidHeaders(req, testTokenValue)
 			return req
 		}, http.StatusMethodNotAllowed, "method_not_allowed"},
@@ -165,7 +165,7 @@ func TestRejectStatusCodes(t *testing.T) {
 			return req
 		}, http.StatusNotFound, "not_found", false, false, true},
 		{"method_not_allowed", func(_ *testing.T, _ *testServer) *http.Request {
-			req := newRequest(http.MethodGet, articlesPath, nil)
+			req := newRequest(http.MethodGet, ArticlesPath, nil)
 			withValidHeaders(req, testTokenValue)
 			return req
 		}, http.StatusMethodNotAllowed, "method_not_allowed", true, false, true},
@@ -195,7 +195,7 @@ func TestRejectStatusCodes(t *testing.T) {
 			return req
 		}, http.StatusRequestEntityTooLarge, "body_too_large", false, false, true},
 		{"invalid_body", func(_ *testing.T, _ *testServer) *http.Request {
-			req := newRequest(http.MethodPost, articlesPath, strings.NewReader(`{"videoUrl":1}`))
+			req := newRequest(http.MethodPost, ArticlesPath, strings.NewReader(`{"videoUrl":1}`))
 			withValidHeaders(req, testTokenValue)
 			return req
 		}, http.StatusBadRequest, "invalid_body", false, false, false},

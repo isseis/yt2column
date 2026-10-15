@@ -77,7 +77,7 @@ func TestResponseOmitsInputs(t *testing.T) {
 // rejectRequest builds a valid-header request with the given body.
 func rejectRequest(t *testing.T, body string) *http.Request {
 	t.Helper()
-	req := newRequest(http.MethodPost, articlesPath, strings.NewReader(body))
+	req := newRequest(http.MethodPost, ArticlesPath, strings.NewReader(body))
 	withValidHeaders(req, testTokenValue)
 	return req
 }

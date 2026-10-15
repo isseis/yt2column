@@ -197,7 +197,7 @@ func (ts *testServer) serve(req *http.Request) *httptest.ResponseRecorder {
 // fakes' recorded calls are complete.
 func (ts *testServer) serveAccepted(t *testing.T, body string) *httptest.ResponseRecorder {
 	t.Helper()
-	req := newRequest(http.MethodPost, articlesPath, bytes.NewBufferString(body))
+	req := newRequest(http.MethodPost, ArticlesPath, bytes.NewBufferString(body))
 	withValidHeaders(req, ts.token)
 	rec := ts.serve(req)
 	ts.jobs.Wait()
@@ -238,3 +238,7 @@ func (rr *recordingReader) Read(p []byte) (int, error) {
 	rr.n += n
 	return n, err
 }
+
+// MaxBodyBytesForTest is the body size limit, for tests in other packages that
+// build a body just over it. Built only with the test tag.
+const MaxBodyBytesForTest = maxBodyBytes

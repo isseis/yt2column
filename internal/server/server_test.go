@@ -47,8 +47,9 @@ func freePort(t *testing.T) uint16 {
 	return uint16(port) //nolint:gosec // a TCP port fits in uint16
 }
 
-// newServerOnPort builds a Server with the given port and collaborators.
-func newServerOnPort(t *testing.T, port uint16, w writer.ArticleWriter, p publisher.Publisher, n failure.Notifier) *Server {
+// newServerOnPort builds a Server with the given port, collaborators, and log
+// output.
+func newServerOnPort(t *testing.T, port uint16, w writer.ArticleWriter, p publisher.Publisher, n failure.Notifier, logs io.Writer) *Server {
 	t.Helper()
 	s, err := New(Options{
 		Port:      port,
@@ -56,7 +57,7 @@ func newServerOnPort(t *testing.T, port uint16, w writer.ArticleWriter, p publis
 		Writer:    w,
 		Publisher: p,
 		Notifier:  n,
-		LogOutput: &bytes.Buffer{},
+		LogOutput: logs,
 	})
 	if err != nil {
 		t.Fatalf("New: %v", err)
@@ -92,7 +93,7 @@ func closeListeners(listeners []net.Listener) {
 // TestListenBindsLoopbackOnly checks that Listen binds only 127.0.0.1 and ::1 on
 // the configured port.
 func TestListenBindsLoopbackOnly(t *testing.T) {
-	s := newServerOnPort(t, testPort, &writertestutil.FakeArticleWriter{}, &publishertestutil.FakePublisher{}, &failuretestutil.FakeNotifier{})
+	s := newServerOnPort(t, testPort, &writertestutil.FakeArticleWriter{}, &publishertestutil.FakePublisher{}, &failuretestutil.FakeNotifier{}, &bytes.Buffer{})
 	listeners, port := listenOnFreePort(t, s)
 	defer closeListeners(listeners)
 
@@ -117,7 +118,7 @@ func TestListenBindsLoopbackOnly(t *testing.T) {
 // TestServeListenerFailureStops checks that when one listener fails, Serve stops
 // and returns the error instead of serving on the other alone.
 func TestServeListenerFailureStops(t *testing.T) {
-	s := newServerOnPort(t, testPort, &writertestutil.FakeArticleWriter{}, &publishertestutil.FakePublisher{}, &failuretestutil.FakeNotifier{})
+	s := newServerOnPort(t, testPort, &writertestutil.FakeArticleWriter{}, &publishertestutil.FakePublisher{}, &failuretestutil.FakeNotifier{}, &bytes.Buffer{})
 	listeners, _ := listenOnFreePort(t, s)
 	done := make(chan error, 1)
 	go func() { done <- s.Serve(context.Background(), listeners) }()
@@ -139,10 +140,12 @@ func TestServeListenerFailureStops(t *testing.T) {
 }
 
 // TestServeShutdownWaitsForJobs checks that a canceled context stops accepting
-// connections but Serve waits for the in-flight job before returning.
+// connections but Serve waits for the in-flight job before returning, and that
+// the log names how many jobs the shutdown waits for.
 func TestServeShutdownWaitsForJobs(t *testing.T) {
 	gate := newGateWriter()
-	s := newServerOnPort(t, testPort, gate, &publishertestutil.FakePublisher{}, &failuretestutil.FakeNotifier{})
+	logs := &bytes.Buffer{}
+	s := newServerOnPort(t, testPort, gate, &publishertestutil.FakePublisher{}, &failuretestutil.FakeNotifier{}, logs)
 	listeners, port := listenOnFreePort(t, s)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -156,7 +159,7 @@ func TestServeShutdownWaitsForJobs(t *testing.T) {
 	}()
 
 	body := strings.NewReader(validBody(testValidVideoURL, testValidRaw))
-	req, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:"+strconv.Itoa(int(port))+articlesPath, body)
+	req, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:"+strconv.Itoa(int(port))+ArticlesPath, body)
 	if err != nil {
 		t.Fatalf("NewRequest: %v", err)
 	}
@@ -195,6 +198,10 @@ func TestServeShutdownWaitsForJobs(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("Serve did not return after the job finished")
 	}
+	// Serve has returned, so nothing writes to logs any more.
+	if !strings.Contains(logs.String(), "pending=1") {
+		t.Errorf("the shutdown log does not name the one pending job:\n%s", logs.String())
+	}
 }
 
 // TestBodyReadFailureWritesNoResponse checks on a real socket that a body the
@@ -209,7 +216,7 @@ func TestBodyReadFailureWritesNoResponse(t *testing.T) {
 		t.Fatalf("dial: %v", err)
 	}
 	t.Cleanup(func() { _ = conn.Close() })
-	request := "POST " + articlesPath + " HTTP/1.1\r\n" +
+	request := "POST " + ArticlesPath + " HTTP/1.1\r\n" +
 		"Host: 127.0.0.1:" + strconv.Itoa(testPort) + "\r\n" +
 		"Content-Type: " + jsonContentType + "\r\n" +
 		"Origin: " + extensionOrigin + "\r\n" +
