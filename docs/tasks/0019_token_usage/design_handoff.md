@@ -2,14 +2,14 @@
 
 本書は、[01_requirements.md](01_requirements.md) のレビューで挙がった事項のうち、設計の段階で決めるものを集める。`02_architecture.md` は、各項目について、採った方針か、当てはまらない理由を記録する。
 
-## H-01: 区分の対応を実際の応答で確かめる
+## H-01: アダプタのテストの応答の形
 
--   **事項:** F-001 の表の対応のうち、公式の文書が明記していない点を、記録した実際の応答で確かめる。
-    -   DeepSeek の `completion_tokens` が、推論の出力（`completion_tokens_details.reasoning_tokens`）を含むこと。`completion_tokens` が `reasoning_tokens` 以上であり、本文のトークン数を足した値と整合すること。
-    -   Claude の `cache_read_input_tokens`・`cache_creation_input_tokens` が、キャッシュを指定しない本プロジェクトのリクエストでも、`null` ではなく整数（0）で返ること。`null` が返る場合は、F-002 の決定（拒否する）では記事が生成できなくなるので、要件定義書を変更する。
--   **理由:** DeepSeek の文書は、推論のトークン数を `completion_tokens` の内訳として示すが、含むと明記していない。Claude の Go SDK は 4 つの要素を必須とするが、`null` の可否を示していない（要件定義書 F-001・F-002）。
--   **候補の方針:** 人の承認を得て、両プロバイダに 1 回ずつ（DeepSeek は推論を有効にした既定の設定、Claude は effort を指定した既定の設定で）リクエストを送り、応答の `usage` を記録する。記録した応答は、アダプタのテストの入力の形の根拠にする。記事の本文を含む応答を `testdata/` に置く場合は、[security.md](../../dev/security.md) §7 の規則に従う。
--   **関連:** F-001、F-002、AC-01・AC-02・AC-05
+-   **事項:** アダプタのテストで使う応答の `usage` の形を決める。要件定義の段階で確かめた形（要件定義書 F-001）を根拠にする。
+    -   DeepSeek: 2026-10-15 の実際の応答の `usage` は、`prompt_tokens`・`completion_tokens`・`total_tokens`・`prompt_tokens_details.cached_tokens`・`completion_tokens_details.reasoning_tokens`・`prompt_cache_hit_tokens`・`prompt_cache_miss_tokens` を持っていた。消費しない要素も含めた、この形の応答を受理のテストの入力にする。
+    -   Claude: 実際の応答は記録していない。公式の SDK の型定義（4 つの要素が必須、キャッシュの 2 つの要素は `null` を取り得る）と、その他の要素（`cache_creation`・`output_tokens_details`・`server_tool_use`・`service_tier`・`inference_geo`）を含む形を入力にする。キャッシュの 2 つの要素が整数の場合と `null` の場合の両方を用意する（要件定義書 AC-02・AC-02a）。
+-   **理由:** テストの入力が実際の応答と異なる形だと、受理のテストが実際の応答の受理を保証しない。
+-   **候補の方針:** 記録した値をそのまま `testdata/` に置くのではなく、テストのヘルパーが組み立てる応答に、確かめた要素の集合を反映する。実際の応答の本文は記録していない（要素の名前と数値だけを確かめた）。
+-   **関連:** F-001、F-002、AC-01・AC-02・AC-02a・AC-07
 
 ## H-02: 失敗した呼び出しのトークン数の受け渡し
 

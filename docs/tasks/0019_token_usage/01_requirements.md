@@ -8,7 +8,7 @@
 | Created | 2026-10-15 |
 | Review date | - |
 | Reviewer | - |
-| Comments | issue #247 の「検討事項」1〜5 は、本書で次のとおり決めた（レビューで判断を求める）。1: `usage` がない・形が不正な応答は拒否する（F-002）。2: 新しいフラグを設けず、標準エラーの要約を固定の書式で出す（F-004）。3: 中間生成物の形式の版を上げ、トークン数を `id` の計算に含める（F-006）。4: `Article` の形は設計で決める（[design_handoff.md](design_handoff.md) H-03）。5: 呼ばなかった段階の行は出さない（AC-13）。 |
+| Comments | F-001 の区分の対応は、要件定義の段階で確かめた（DeepSeek は実際の応答 1 件、Claude は公式の Go・Python SDK の型定義）。この結果、Claude のキャッシュの 2 つの要素の `null` を受理する規則（AC-02a）を加えた。issue #247 の「検討事項」1〜5 は、本書で次のとおり決めた（レビューで判断を求める）。1: `usage` がない・形が不正な応答は拒否する（F-002）。2: 新しいフラグを設けず、標準エラーの要約を固定の書式で出す（F-004）。3: 中間生成物の形式の版を上げ、トークン数を `id` の計算に含める（F-006）。4: `Article` の形は設計で決める（[design_handoff.md](design_handoff.md) H-03）。5: 呼ばなかった段階の行は出さない（AC-13）。 |
 
 ## 1. 概要 (Overview)
 
@@ -76,14 +76,17 @@
 
 表の対応は、2026-10-15 に次の公式の記述で確かめた。
 
--   **DeepSeek:** API リファレンス（`create-chat-completion`）は、`prompt_tokens` を「`prompt_cache_hit_tokens + prompt_cache_miss_tokens` に等しい」とし、`prompt_cache_hit_tokens`・`prompt_cache_miss_tokens`・`completion_tokens` を必須の要素とする。推論の出力トークン数（`reasoning_tokens`）は `completion_tokens_details`（「completion で使ったトークンの内訳」）の中にあり、`completion_tokens` の内訳として報告される。料金表は、入力をキャッシュに当たった分と当たらなかった分で別の単価とし、「入力と出力のトークンの合計に基づいて請求する」とする。キャッシュの書き込みの区分はない。`completion_tokens` が推論の出力を含むと明記した文はないので、設計で、記録した実際の応答で確かめる（[design_handoff.md](design_handoff.md) H-01）。
--   **Claude:** プロンプトキャッシュの文書は、`input_tokens` を「キャッシュから読まず、キャッシュの作成にも使わなかった入力のトークン数」とし、入力の合計を `cache_read_input_tokens + cache_creation_input_tokens + input_tokens` とする。公式の Go SDK（`anthropic-sdk-go` の `Usage`）は、4 つの要素をすべて必須とし、`output_tokens_details` について「`output_tokens` は請求に使う、内訳を含む正式な合計である」とする。thinking の出力は `output_tokens` に含まれる。
+-   **DeepSeek:** API リファレンス（`create-chat-completion`）は、`prompt_tokens` を「`prompt_cache_hit_tokens + prompt_cache_miss_tokens` に等しい」とし、`prompt_cache_hit_tokens`・`prompt_cache_miss_tokens`・`completion_tokens` を必須の要素とする。推論の出力トークン数（`reasoning_tokens`）は `completion_tokens_details`（「completion で使ったトークンの内訳」）の中にあり、`completion_tokens` の内訳として報告される。料金表は、入力をキャッシュに当たった分と当たらなかった分で別の単価とし、「入力と出力のトークンの合計に基づいて請求する」とする。キャッシュの書き込みの区分はない。`completion_tokens` が推論の出力を含むと明記した文はないので、2026-10-15 に実際の応答（`deepseek-flash`、推論が有効な既定の設定、アダプタと同じ形のリクエスト）で確かめた。`completion_tokens` は 59、`completion_tokens_details.reasoning_tokens` は 38 で、残りの 21 は本文（52 文字）に見合う。`total_tokens`（109）は `prompt_tokens`（50）と `completion_tokens` の和だった。したがって、`completion_tokens` は推論の出力を含む。
+-   **Claude:** プロンプトキャッシュの文書は、`input_tokens` を「キャッシュから読まず、キャッシュの作成にも使わなかった入力のトークン数」とし、入力の合計を `cache_read_input_tokens + cache_creation_input_tokens + input_tokens` とする。公式の Go SDK（`anthropic-sdk-go` の `Usage`）は、4 つの要素をすべて必須とし、`output_tokens_details` について「`output_tokens` は請求に使う、内訳を含む正式な合計である」とする。thinking の出力は `output_tokens` に含まれる。公式の Python SDK（`anthropic-sdk-python` の `Usage`）は、`input_tokens`・`output_tokens` を `int`、`cache_creation_input_tokens`・`cache_read_input_tokens` を `Optional[int]` とする。後の 2 つは、要素としては必須だが、値が `null` になり得る。
 
 プロバイダ固有の要素名と、区分への対応は、アダプタ（`internal/llm/<provider>`）の中に閉じる。`internal/llm` には、プロバイダに依存しない 4 つの区分だけを置く（0009・0010 と同じく、[CLAUDE.md](../../../CLAUDE.md)「Provider details stay in their adapter package」）。DeepSeek の「キャッシュに書き込んだ入力」を 0 とするのは、DeepSeek がその区分を持たず、料金も取らないことをアダプタで宣言した対応であり、応答の値を補ったものではない。
+
+Claude の `cache_read_input_tokens`・`cache_creation_input_tokens` が `null` の場合は、その区分を 0 として記録する。これは、文書化された値（`null`）に対する、アダプタで宣言した解釈であり、壊れた入力の修復ではない。0 としてよい理由は、本プロジェクトが Claude へのリクエストでプロンプトキャッシュを指定しておらず（`cache_control` を送らない）、キャッシュの読み書きが起きないためである。`null` を拒否すると、文書どおりの応答で記事が生成できなくなる。将来プロンプトキャッシュを指定する場合は、`null` が「0」と「報告なし」のどちらを意味するかを確かめ直し、本書を変更する（§5）。要素がない場合と、`null` 以外の不正な値は、F-002 のとおり拒否する。
 
 **Acceptance Criteria**:
 - **AC-01**: DeepSeek のアダプタは、受理した応答について、`usage.prompt_cache_miss_tokens` を入力、`usage.prompt_cache_hit_tokens` をキャッシュから読んだ入力、`usage.completion_tokens` を出力として返し、キャッシュに書き込んだ入力を 0 として返す。4 つの区分がそれぞれ異なる値の応答で、各区分が対応する要素の値になることを確かめる。
 - **AC-02**: Claude のアダプタは、受理した応答について、`usage.input_tokens` を入力、`usage.cache_read_input_tokens` をキャッシュから読んだ入力、`usage.cache_creation_input_tokens` をキャッシュに書き込んだ入力、`usage.output_tokens` を出力として返す。4 つの区分がそれぞれ異なる値の応答で、各区分が対応する要素の値になることを確かめる。
+- **AC-02a**: Claude の応答の `usage.cache_read_input_tokens` または `usage.cache_creation_input_tokens` が `null` の場合、アダプタは応答を受理し、その区分を 0 として返す。2 つの要素のそれぞれについて、その要素だけが `null` の応答で確かめる。`input_tokens`・`output_tokens` の `null` は、AC-05 のとおり拒否する。
 - **AC-03**: `internal/llm` のトークン数の型と `GenerateResponse` は、プロバイダ固有の要素名（`prompt_cache_hit_tokens`・`cache_read_input_tokens` など）を含まない（静的な確認）。
 
 #### F-002: 応答の `usage` の検証
@@ -92,7 +95,7 @@
 
 **決定（issue #247 の検討事項 1）:** `usage` がない応答、または `usage` の消費する要素がない・形が不正な応答は、記事の生成に使える本文があっても、応答の検証の失敗として拒否する（各アダプタの `ErrInvalidResponse`）。トークン数を「不明」として生成を続けることはしない。理由は次のとおり。
 
--   両プロバイダとも、`usage` と本書が消費する要素を必須として文書化している（F-001）。それがない応答は、文書と異なる応答であり、ほかの要素の解釈も信用できない。
+-   両プロバイダとも、`usage` と本書が消費する要素を必須として文書化している（F-001。Claude のキャッシュの 2 つの要素は、必須だが `null` を取り得る）。それがない応答は、文書と異なる応答であり、ほかの要素の解釈も信用できない。
 -   「不明」を許すと、0018 の評価で、推定コストを求められない記事が混ざる。基準の集合のトークン数は後から取り直せない（§1）。拒否すれば、その実行が失敗として見え、記録の欠けに気付ける。
 -   既存のアダプタは、消費する要素の不在・不正を、応答の拒否として扱っている。`usage` だけを例外にする理由がない（[CLAUDE.md](../../../CLAUDE.md)「Reject, don't normalize」）。
 
@@ -100,7 +103,7 @@
 
 **Acceptance Criteria**:
 - **AC-04**: 応答に `usage` がない、または `usage` がオブジェクトでない（`null` を含む）場合、アダプタは `errors.Is` でそのアダプタの `ErrInvalidResponse` と判定できるエラーを返し、`GenerateResponse` はゼロ値である。応答の本文（テキスト）が正しくても同じである。
-- **AC-05**: `usage` の中の、F-001 の表でそのアダプタが消費する要素のどれかがない場合、または値が負でない整数でない（負数、小数、`int64` で表せない数（例: `9223372036854775808`）、文字列、真偽値、`null`、配列、オブジェクト）場合、AC-04 と同じエラーを返す。要素ごと・不正な形ごとに、その入力だけで拒否することを確かめる。
+- **AC-05**: `usage` の中の、F-001 の表でそのアダプタが消費する要素のどれかがない場合、または値が負でない整数でない（負数、小数、`int64` で表せない数（例: `9223372036854775808`）、文字列、真偽値、`null`、配列、オブジェクト）場合、AC-04 と同じエラーを返す。ただし、Claude の `cache_read_input_tokens`・`cache_creation_input_tokens` の `null` は受理する（AC-02a）。要素ごと・不正な形ごとに、その入力だけで拒否することを確かめる。
 - **AC-06**: `usage` の中で、消費する要素が重複している場合、AC-04 と同じエラーを返す。
 - **AC-07**: `usage` の中の、消費しない要素（DeepSeek の `prompt_tokens`・`total_tokens`・`prompt_tokens_details`・`completion_tokens_details`、Claude の `cache_creation`・`output_tokens_details`・`server_tool_use`・`service_tier`・`inference_geo` など、および未知の要素）は、値の種類にかかわらず無視し、受理する（拡張可能として宣言する。既存のアダプタの応答の最上位と同じ規則）。
 - **AC-08**: `usage` の検証の失敗のエラーメッセージは、壊れた規則と要素の名前だけを示し、応答のテキストを含めない。
@@ -183,7 +186,7 @@
 | 境界 | 消費する要素 | 受理する形 | 上限 | 拒否時の扱い | 主な AC |
 |---|---|---|---|---|---|
 | DeepSeek の応答の `usage` | `prompt_cache_hit_tokens`・`prompt_cache_miss_tokens`・`completion_tokens` | オブジェクト。消費する要素はそれぞれ 1 回だけ現れ、負でない整数で `int64` で表せる。消費しない要素は拡張可能として無視する | `int64` の範囲（応答全体の上限は既存のとおり） | `deepseek.ErrInvalidResponse`。`GenerateResponse` はゼロ値 | AC-04〜AC-09 |
-| Claude の応答の `usage` | `input_tokens`・`cache_read_input_tokens`・`cache_creation_input_tokens`・`output_tokens` | 同上 | 同上 | `claude.ErrInvalidResponse`。`GenerateResponse` はゼロ値 | AC-04〜AC-09 |
+| Claude の応答の `usage` | `input_tokens`・`cache_read_input_tokens`・`cache_creation_input_tokens`・`output_tokens` | 同上。ただし `cache_read_input_tokens`・`cache_creation_input_tokens` は `null` も受理し、0 として記録する | 同上 | `claude.ErrInvalidResponse`。`GenerateResponse` はゼロ値 | AC-02a・AC-04〜AC-09 |
 | 中間生成物のトークン数 | 4 つの区分 | 宣言した要素だけを持ち、それぞれ 1 回だけ現れ、負でない整数で `int64` で表せる（0017 の中間生成物は、宣言していない要素を拒否する） | `int64` の範囲（ファイル全体の上限は 0017 のとおり） | `artifact.ErrMalformed`（0017 の中間生成物の破損）。LLM を呼ばず、公開しない | AC-22〜AC-24 |
 
 -   標準ライブラリが黙って修復・破棄・無視すれば受理できてしまう入力（`int64` を超える数の丸め、小数の切り捨て、重複した要素の後勝ち）は、受理せず拒否する。不正な形の検出方法は `02_architecture.md` で決める。
@@ -225,7 +228,8 @@
 -   本タスクは、0017 の中間生成物の形式（来歴）を変える。0017 の要件定義書は `approved` であり、本書の F-006 を 0017 の F-001（来歴）への追加として扱う。0017 の再開の規則（F-003・F-004）は変えない。
 -   本タスクは、0003（DeepSeek）と 0009（Claude）の応答の検証に、`usage` の検証を加える。応答の拒否の条件が増える（F-002）ことを、それらの要件定義書からの変更として本書で扱う。応答のテキスト・終了理由・モデル名の検証は変えない。
 -   パイプラインの各段階の振る舞い（プロンプト、モデル、呼び出しの回数、出力の検証）を変えない。本タスクは、各呼び出しのトークン数を記録して出力するだけである。
--   ユニットテストは、実際の `yt-dlp` も LLM の API も Webhook も呼ばない（[CLAUDE.md](../../../CLAUDE.md)「Testing Strategy」）。設計で実際の応答を記録する場合（[design_handoff.md](design_handoff.md) H-01）は、実際の API の呼び出しになるので、人の承認を得て行う。
+-   ユニットテストは、実際の `yt-dlp` も LLM の API も Webhook も呼ばない（[CLAUDE.md](../../../CLAUDE.md)「Testing Strategy」）。F-001 の DeepSeek の確認のための実際の API の呼び出しは、人の承認を得て、要件定義の段階で 1 回だけ行った。
+-   Claude へのリクエストでプロンプトキャッシュを指定しないこと（`cache_control` を送らないこと）を、F-001 の `null` の解釈の前提とする。プロンプトキャッシュを指定する変更は、本書の変更を伴う。
 -   0018 は本タスクの完了後に基準の集合を作る（§1）。
 
 ## 6. 用語集 (Glossary)
