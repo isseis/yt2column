@@ -2291,6 +2291,9 @@ func TestRunAfterRejectsGenerationFlags(t *testing.T) {
 	if code := e.run(); code != exitUsage {
 		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, e.stderr.String())
 	}
+	if !strings.Contains(e.stderr.String(), "--after cannot be used with --system-prompt") {
+		t.Errorf("stderr does not name the CLI rule (the writer would reject it too):\n%s", e.stderr.String())
+	}
 	requireUntouched(t, e)
 }
 
@@ -2398,5 +2401,82 @@ func TestRunArtifactExitCodes(t *testing.T) {
 			}
 			requireUntouched(t, e)
 		})
+	}
+}
+
+// TestResumeNeed pins the configuration each resume and step combination needs
+// (architecture section 3.7).
+func TestResumeNeed(t *testing.T) {
+	cases := []struct {
+		name                       string
+		after                      string
+		noShorten, noReview        bool
+		afterGiven                 bool
+		wantGeneration, wantReview bool
+	}{
+		{"no resume", "", false, false, false, true, true},
+		{"no resume ignores --no-review", "", false, true, false, true, true},
+		{"after generation", "generation", false, false, true, true, true},
+		{"after generation --no-shorten", "generation", true, false, true, false, true},
+		{"after generation --no-review", "generation", false, true, true, true, false},
+		{"after shorten", "shorten", false, false, true, false, true},
+		{"after shorten --no-review", "shorten", false, true, true, false, false},
+		{"after review", "review", false, true, true, false, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			need := resumeNeed(tc.after, tc.noShorten, tc.noReview, tc.afterGiven)
+			if need.Generation != tc.wantGeneration || need.Review != tc.wantReview {
+				t.Errorf("resumeNeed(%q, noShorten=%v, noReview=%v, afterGiven=%v) = %+v, want generation=%v review=%v",
+					tc.after, tc.noShorten, tc.noReview, tc.afterGiven, need, tc.wantGeneration, tc.wantReview)
+			}
+		})
+	}
+}
+
+// TestRunAfterShortenWritesReviewLog checks that --review-log is accepted on a
+// resume whose review step runs (AC-16).
+func TestRunAfterShortenWritesReviewLog(t *testing.T) {
+	dir := saveArtifactsOnce(t, firstLongThenShort)
+	e := newRunEnv(t)
+	e.withSteps = true
+	logPath := filepath.Join(e.base, "review-log.md")
+	e.args = []string{"--artifacts", dir, "--after", "shorten", "--review-log", logPath, "--out", e.outPath, runVideoURL}
+	e.useReviewClient(reviewLLM(emptyReviewJSON))
+	if code := e.run(); code != exitOK {
+		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
+	}
+	if _, err := os.Stat(logPath); err != nil {
+		t.Errorf("the review log was not written: %v", err)
+	}
+}
+
+// TestRunAfterShortenEmptyModelVersion checks that a reused stage with an empty
+// ModelVersion is written as (none), not omitted (AC-27).
+func TestRunAfterShortenEmptyModelVersion(t *testing.T) {
+	dir := saveArtifactsOnce(t, func(e *runEnv) {
+		calls := 0
+		e.client = funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
+			calls++
+			text := longGeneratedText()
+			if calls > 1 {
+				text = shortGeneratedText()
+			}
+			return llm.GenerateResponse{Text: text, Model: "fake-model"}, nil
+		})
+	})
+	e := newRunEnv(t)
+	e.withSteps = true
+	e.args = []string{"--artifacts", dir, "--after", "shorten", "--out", e.outPath, runVideoURL}
+	e.useReviewClient(reviewLLM(emptyReviewJSON))
+	if code := e.run(); code != exitOK {
+		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
+	}
+	data, err := os.ReadFile(e.outPath) //nolint:gosec // a path inside the test's temporary directory
+	if err != nil {
+		t.Fatalf("read --out: %v", err)
+	}
+	if !strings.Contains(string(data), "- Shorten model version: (none)") {
+		t.Errorf("--out does not write the empty reused model version as (none):\n%s", data)
 	}
 }

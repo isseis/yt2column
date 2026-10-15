@@ -162,7 +162,7 @@ func newFlagSet() (*flag.FlagSet, *cliOptions) {
 	fs.StringVar(&opts.reviewSystemPrompt, "review-system-prompt", "", "read the review system prompt template from this `path` instead of the built-in one")
 	fs.StringVar(&opts.reviewUserPrompt, "review-user-prompt", "", "read the review user prompt template from this `path` instead of the built-in one")
 	fs.StringVar(&opts.artifacts, "artifacts", "", "save each stage's output to this `path` directory and reuse it to resume; the directory must exist and be outside the cache directory")
-	fs.StringVar(&opts.after, "after", "", "run only the stages after `stage` (generation, shorten, or review), reusing its saved output; requires --artifacts")
+	fs.StringVar(&opts.after, "after", "", "run only the stages after `stage` (generation, shorten, or review), reusing its saved output; requires --artifacts, and --after review does not accept --review-log")
 	return fs, opts
 }
 

@@ -52,7 +52,7 @@ configured webhook) is required.
 | `--review-system-prompt <path>` | Read the review system prompt template from this file instead of the built-in one. |
 | `--review-user-prompt <path>` | Read the review user prompt template from this file instead of the built-in one. |
 | `--artifacts <path>` | Save each stage's output (the generated article, the shortened article, and the review list with the applied article) to this directory, and reuse it to resume. The directory must exist and be outside the cache directory. |
-| `--after <stage>` | Run only the stages after `stage` (`generation`, `shorten`, or `review`), reusing that stage's saved output from `--artifacts`. Requires `--artifacts`. |
+| `--after <stage>` | Run only the stages after `stage` (`generation`, `shorten`, or `review`), reusing that stage's saved output from `--artifacts`. Requires `--artifacts`; `--after review` does not accept `--review-log`. |
 | `-h`, `--help` | Show this usage and exit. |
 
 The article is written with file mode `0o644`. The output directory must allow
