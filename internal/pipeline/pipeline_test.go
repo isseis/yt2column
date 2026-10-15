@@ -266,7 +266,10 @@ func TestPipelineCanceled(t *testing.T) {
 			t.Fatalf("New returned error: %v", err)
 		}
 
-		_, err = p.Run(ctx, "url")
+		article, err := p.Run(ctx, "url")
+		if article != (writer.Article{}) {
+			t.Errorf("Run article = %+v, want the zero value", article)
+		}
 		if !errors.Is(err, context.Canceled) {
 			t.Errorf("Run error = %v, want context.Canceled", err)
 		}
@@ -307,7 +310,10 @@ func TestPipelinePublishFailureCarriesRunUsage(t *testing.T) {
 		t.Fatalf("New returned error: %v", err)
 	}
 
-	_, err = p.Run(context.Background(), "url")
+	article, err := p.Run(context.Background(), "url")
+	if article != (writer.Article{}) {
+		t.Errorf("Run article = %+v, want the zero value", article)
+	}
 	stageErr, ok := errors.AsType[*StageError](err)
 	if !ok {
 		t.Fatalf("Run error = %v, want *StageError", err)
@@ -315,9 +321,9 @@ func TestPipelinePublishFailureCarriesRunUsage(t *testing.T) {
 	if stageErr.Stage != StagePublish {
 		t.Errorf("StageError.Stage = %v, want %v", stageErr.Stage, StagePublish)
 	}
-	tue, ok := errors.AsType[*writer.TokenUsageError](stageErr.Err)
+	tue, ok := errors.AsType[*writer.TokenUsageError](err)
 	if !ok {
-		t.Fatalf("StageError.Err = %v, want a *writer.TokenUsageError", stageErr.Err)
+		t.Fatalf("Run error = %v, want it to unwrap to a *writer.TokenUsageError", err)
 	}
 	if tue.RunUsage != runUsage {
 		t.Errorf("TokenUsageError.RunUsage = %+v, want %+v", tue.RunUsage, runUsage)
