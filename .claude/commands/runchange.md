@@ -7,9 +7,10 @@ Create a PR for a change already committed on the current branch, drive it
 through CodeRabbit review and merge, then switch to a fresh branch for the next
 change.
 
-Use this for a change that is **not** a `/runplan` task — for example a
-`01_requirements.md`, `02_architecture.md`, or `03_implementation_plan.md`
-document, or any other standalone change. There is no `/runplan` step and no
+Use this for a change that is **not** a `/runplan` task — a document such as
+`01_requirements.md`, `02_architecture.md`, or `03_implementation_plan.md`, a
+standalone code change, a development-environment file, or any other change made
+without an implementation plan. There is no `/runplan` step and no
 implementation-plan checkbox to update (the plan file may not exist yet).
 `runpr.md` is the variant for a `/runplan` task PR, where runplan creates the PR
 and the plan's PR-checkpoint checkboxes are updated after the merge.

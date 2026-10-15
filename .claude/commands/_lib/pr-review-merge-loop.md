@@ -1,6 +1,6 @@
 # Shared pattern: the per-PR review, merge, and branch-switch loop
 
-`runpr.md` and `rundoc.md` both drive one PR through CodeRabbit review,
+`runpr.md` and `runchange.md` both drive one PR through CodeRabbit review,
 `fixpr`, `mergepr`, and the post-merge branch switch; they differ only in how
 the PR is created and what the calling command does after the merge. This file
 defines the common procedure once. A calling command invokes it by saying
@@ -15,11 +15,11 @@ files — follow them rather than copying their content here.
 ## Inputs the calling command must supply
 
 - **CREATE_PR** — `true` when the calling command should create the PR for the
-  target branch when none exists yet (`rundoc.md`); `false` when the PR already
+  target branch when none exists yet (`runchange.md`); `false` when the PR already
   exists (`runpr.md`; `runplan.md` step 5a creates it).
 - **POST_MERGE** — what the calling command does after the merge and branch
   switch, beyond the shared procedure (`runpr.md` updates the task plan's
-  PR-checkpoint checkboxes; `rundoc.md` nothing).
+  PR-checkpoint checkboxes; `runchange.md` nothing).
 
 The PR to operate on is `$ARGUMENTS` when given, otherwise the current branch's
 PR; the calling command states which argument forms it accepts.
