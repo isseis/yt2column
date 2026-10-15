@@ -164,7 +164,8 @@ func New(client llm.LLMClient, opts Options) (ArticleWriter, error) {
 
 // validateOptions rejects the step combinations New must not accept, deriving
 // which stages run from Artifacts.Resume and the enabled steps (the table of
-// architecture §3.1). It rejects a resume with no store to load from, a client
+// architecture section 3.1). It rejects a resume with no store to load from, a
+// client
 // missing for a stage that runs, a client set for a stage that does not run,
 // and a template path for a stage that does not run. Silently ignoring such a
 // setting would hide the caller's mistake.
