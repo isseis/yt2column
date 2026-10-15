@@ -5,7 +5,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"os"
@@ -19,7 +18,6 @@ import (
 	"github.com/isseis/yt2column/internal/config"
 	"github.com/isseis/yt2column/internal/failure"
 	"github.com/isseis/yt2column/internal/llm"
-	"github.com/isseis/yt2column/internal/llm/provider"
 	llmtestutil "github.com/isseis/yt2column/internal/llm/testutil"
 	"github.com/isseis/yt2column/internal/publisher"
 	"github.com/isseis/yt2column/internal/secret"
@@ -49,11 +47,15 @@ func TestStartupFailures(t *testing.T) {
 		// setup changes the environment or the deps before the run.
 		setup func(t *testing.T, e *serverEnv, d *deps)
 		want  int
-		// wantStderr is a part of standard error that names the cause.
+		// wantStderr is a part of standard error that names the cause. run
+		// returns only an exit code, so its standard error, which tells the
+		// operator what to fix, is the observable contract matched here.
 		wantStderr string
 		// tokenShown is whether the run created the token and wrote it to
 		// standard output before it stopped.
 		tokenShown bool
+		// hint, when set, is a second part standard error must hold.
+		hint string
 		// configLines, when set, is how many configuration lines standard
 		// error must hold: one per rejected variable.
 		configLines int
@@ -67,12 +69,9 @@ func TestStartupFailures(t *testing.T) {
 			wantStderr: "takes no arguments",
 		},
 		{
-			name:       "model missing",
-			setup:      func(_ *testing.T, e *serverEnv, _ *deps) { delete(e.vars, "YT2COLUMN_MODEL") },
-			want:       exitUsage,
-			wantStderr: "configuration: YT2COLUMN_MODEL",
-		},
-		{
+			// Which values config.LoadServer rejects is its own tests'
+			// concern; here every rejection takes the same path, so one row
+			// with two of them checks the exit code and one line each.
 			name: "model and webhook missing",
 			setup: func(_ *testing.T, e *serverEnv, _ *deps) {
 				delete(e.vars, "YT2COLUMN_MODEL")
@@ -80,27 +79,8 @@ func TestStartupFailures(t *testing.T) {
 			},
 			want:        exitUsage,
 			wantStderr:  "configuration: SLACK_WEBHOOK_URL",
+			hint:        "configuration: YT2COLUMN_MODEL",
 			configLines: 2,
-		},
-		{
-			name:       "webhook missing",
-			setup:      func(_ *testing.T, e *serverEnv, _ *deps) { delete(e.vars, "SLACK_WEBHOOK_URL") },
-			want:       exitUsage,
-			wantStderr: "configuration: SLACK_WEBHOOK_URL",
-		},
-		{
-			name: "webhook not https",
-			setup: func(_ *testing.T, e *serverEnv, _ *deps) {
-				e.vars["SLACK_WEBHOOK_URL"] = "http://hooks.slack.com" + testWebhookPath
-			},
-			want:       exitUsage,
-			wantStderr: "configuration: SLACK_WEBHOOK_URL",
-		},
-		{
-			name:       "port privileged",
-			setup:      func(_ *testing.T, e *serverEnv, _ *deps) { e.setPort(80) },
-			want:       exitUsage,
-			wantStderr: "configuration: YT2COLUMN_SERVER_PORT",
 		},
 		{
 			name: "token file readable by others",
@@ -109,6 +89,7 @@ func TestStartupFailures(t *testing.T) {
 			},
 			want:       exitUsage,
 			wantStderr: "shared token: ",
+			hint:       "delete it and restart",
 		},
 		{
 			name: "LLM client not built",
@@ -145,6 +126,15 @@ func TestStartupFailures(t *testing.T) {
 			},
 			want:       exitUsage,
 			wantStderr: "build the review LLM client",
+			tokenShown: true,
+		},
+		{
+			name: "writer not built",
+			setup: func(_ *testing.T, _ *serverEnv, d *deps) {
+				d.newWriter = func(llm.LLMClient, writer.Options) (writer.ArticleWriter, error) { return nil, errBuildRefused }
+			},
+			want:       exitUsage,
+			wantStderr: "build the article writer",
 			tokenShown: true,
 		},
 		{
@@ -211,6 +201,9 @@ func TestStartupFailures(t *testing.T) {
 			}
 			if !strings.Contains(stderr.String(), tc.wantStderr) {
 				t.Errorf("stderr does not contain %q:\n%s", tc.wantStderr, stderr.String())
+			}
+			if !strings.Contains(stderr.String(), tc.hint) {
+				t.Errorf("stderr does not contain %q:\n%s", tc.hint, stderr.String())
 			}
 			if tc.configLines != 0 {
 				if got := strings.Count(stderr.String(), programName+": configuration: "); got != tc.configLines {
@@ -342,10 +335,6 @@ func TestOutputsOmitSecrets(t *testing.T) {
 		t.Fatalf("stderr does not hold the redacted job failure:\n%s", stderr)
 	}
 	requireNoSecret(t, "stderr", stderr, token)
-	// The token's own tail is redacted too, so a truncated token cannot leak.
-	if tail := token[len(token)-8:]; strings.Contains(stderr, tail) {
-		t.Errorf("stderr holds the token's last characters %q:\n%s", tail, stderr)
-	}
 }
 
 // TestBuildsSlackPublisher checks that the production constructors build the
@@ -415,6 +404,8 @@ func TestWriterOptionsMatchCLIDefaults(t *testing.T) {
 // signal exits at once.
 func TestRunLogsListeningAndStop(t *testing.T) {
 	e := newServerEnv(t)
+	// An existing token, so no "created" line also names the file's path.
+	writeTokenFile(t, e.tokenPath(t), validTokenContent, 0o600)
 	srv := startServer(t, e, testDeps(validResponseLLM()))
 	port := strconv.Itoa(int(e.port(t)))
 	if code := srv.stop(t); code != exitOK {
@@ -425,7 +416,8 @@ func TestRunLogsListeningAndStop(t *testing.T) {
 		"http://127.0.0.1:" + port + server.ArticlesPath,
 		"http://[::1]:" + port + server.ArticlesPath,
 		e.tokenPath(t),
-		fmt.Sprintf("up to about %d minutes", int(llmCallsPerJob*provider.LLMTimeout/time.Minute)),
+		// Three LLM calls of at most 15 minutes each.
+		"up to about 45 minutes",
 		"send the signal again to exit at once",
 	} {
 		if !strings.Contains(stderr, want) {

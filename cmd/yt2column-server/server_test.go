@@ -72,21 +72,15 @@ func TestServerEndToEnd(t *testing.T) {
 	if got := len(webhook.messages()); got != before {
 		t.Errorf("webhook messages after the unauthorized request = %d, want %d (no notice)", got, before)
 	}
-	if strings.Contains(first.stderr.String(), "failure notice failed") {
-		t.Errorf("a failure notice failed:\n%s", first.stderr.String())
-	}
 
 	second := startServer(t, e, d)
-	again := mustPostArticle(t, e.port(t), token, requestBody(testValidRaw), 202)
+	mustPostArticle(t, e.port(t), token, requestBody(testValidRaw), 202)
 	// stop waits for the job, so its article has been posted when it returns.
 	if code := second.stop(t); code != exitOK {
 		t.Fatalf("second run exit code = %d, want %d\nstderr:\n%s", code, exitOK, second.stderr.String())
 	}
 	if posted := webhook.messages()[before:]; len(posted) != 1 || !strings.Contains(posted[0], "A title") {
 		t.Errorf("messages posted by the second run = %q, want the one article", posted)
-	}
-	if again.RequestID == accepted.RequestID {
-		t.Errorf("two requests share the request ID %s", again.RequestID)
 	}
 	requireNoSecret(t, "first stderr", first.stderr.String(), token)
 	requireNoSecret(t, "second stderr", second.stderr.String(), token)

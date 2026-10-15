@@ -44,7 +44,9 @@ func blockingChild(t *testing.T) (*serverChild, string) {
 }
 
 // TestSignalStopsServer sends SIGINT, SIGTERM, and SIGHUP to the production
-// main while no job runs, and checks that it stops with exitOK.
+// main while no job runs, and checks that it stops with exitOK. Which signals
+// signalrun subscribes is its own test's; all three are sent here so a main
+// that handled signals itself, with a narrower set, would fail.
 func TestSignalStopsServer(t *testing.T) {
 	for _, sig := range []syscall.Signal{syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP} {
 		t.Run(sig.String(), func(t *testing.T) {
@@ -60,7 +62,8 @@ func TestSignalStopsServer(t *testing.T) {
 
 // TestSignalWaitsForJob checks that the first signal does not end an
 // in-flight job: the child keeps running until the job finishes, then exits
-// with exitOK, and its log names the one job it waited for.
+// with exitOK. That the log counts the pending job is
+// internal/server's TestServeShutdownWaitsForJobs.
 func TestSignalWaitsForJob(t *testing.T) {
 	skipIfIgnored(t, syscall.SIGTERM)
 	child, release := blockingChild(t)
@@ -76,7 +79,7 @@ func TestSignalWaitsForJob(t *testing.T) {
 		t.Fatalf("exit status = %v, want exit code %d\nstderr:\n%s", state, exitOK, child.stderr.String())
 	}
 	stderr := child.stderr.String()
-	for _, want := range []string{"pending=1", "job succeeded"} {
+	for _, want := range []string{"job succeeded"} {
 		if !strings.Contains(stderr, want) {
 			t.Errorf("stderr does not contain %q:\n%s", want, stderr)
 		}
@@ -84,7 +87,10 @@ func TestSignalWaitsForJob(t *testing.T) {
 }
 
 // TestSecondSignalExitsAtOnce checks that a second signal ends the child by
-// the signal's default disposition while its job is still blocked.
+// the signal's default disposition while its job is still blocked. It repeats
+// cmd/yt2column's TestSecondSignal on purpose: there the CLI's job is
+// canceled, here the server's job deliberately is not, so this is the case
+// the second signal exists for.
 func TestSecondSignalExitsAtOnce(t *testing.T) {
 	skipIfIgnored(t, syscall.SIGTERM)
 	child, _ := blockingChild(t)
