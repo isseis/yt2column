@@ -84,7 +84,8 @@ func (s templateSource) String() string {
 // parseTemplate[T] builds one, and expand accepts only a T, so a template
 // checked against one data type is never executed with another.
 type checkedTemplate[T any] struct {
-	tmpl *template.Template
+	tmpl     *template.Template
+	identity TemplateIdentity
 }
 
 // loadTemplate returns the checked template for src: embedded when src.path
@@ -98,7 +99,12 @@ func loadTemplate[T any](src templateSource, embedded string) (checkedTemplate[T
 		}
 		text = string(data)
 	}
-	return parseTemplate[T](src, text)
+	tmpl, err := parseTemplate[T](src, text)
+	if err != nil {
+		return checkedTemplate[T]{}, err
+	}
+	tmpl.identity.Embedded = src.path == ""
+	return tmpl, nil
 }
 
 // readOverrideFile opens the override file, following symbolic links, and
@@ -163,7 +169,7 @@ func parseTemplate[T any](src templateSource, text string) (checkedTemplate[T], 
 	if err := checker.check(tmpl.Root); err != nil {
 		return checkedTemplate[T]{}, fmt.Errorf("%w: %s: %w", ErrInvalidTemplate, src, err)
 	}
-	return checkedTemplate[T]{tmpl: tmpl}, nil
+	return checkedTemplate[T]{tmpl: tmpl, identity: TemplateIdentity{Digest: Digest(text)}}, nil
 }
 
 // checkNoDefinitions rejects {{define}} and {{block}}. A definition under

@@ -51,6 +51,17 @@ func parseReviewResponse(text string) ([]Revision, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrMalformedOutput, err)
 	}
+	return CheckRevisionList(raw)
+}
+
+// CheckRevisionList validates a review list value (the array a review
+// response's "revisions" member holds) and returns it as a []Revision. It
+// applies the same rules parseReviewResponse applies, so a saved artifact is
+// checked exactly like a live response. It rejects a non-array, an over-long
+// list, a non-object element, an unknown or duplicate key, and any value rule
+// of a revision, names the broken rule and the item index only, and never
+// partly accepts a list. The errors wrap ErrMalformedOutput.
+func CheckRevisionList(raw strictjson.Value) ([]Revision, error) {
 	elements, err := raw.AsArray()
 	if err != nil {
 		return nil, fmt.Errorf("%w: revisions: %w", ErrMalformedOutput, err)
