@@ -199,7 +199,7 @@ requirements §2.3 のとおり。加えて、次のものは本計画で扱わ�
 **判定理由**: 子プロセスでシグナルと再起動を確かめる統合テストと、`Makefile`・起動の配線を扱う heavy な integration-test surface に該当する（mkplan.md の panel-mode trigger）。
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] PR を作成した（#252）
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
