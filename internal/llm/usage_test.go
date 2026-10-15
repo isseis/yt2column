@@ -69,9 +69,9 @@ func TestUnknownReason(t *testing.T) {
 	}
 }
 
-// TestNoProviderMemberNames is the static check for AC-03: the provider-free
-// package internal/llm must not name a provider's usage members. The adapter
-// packages name them, in their own directories.
+// TestNoProviderMemberNames checks that the provider-free package internal/llm
+// names no provider's usage members. The adapter packages name them, in their
+// own directories.
 func TestNoProviderMemberNames(t *testing.T) {
 	members := []string{
 		"prompt_cache_hit_tokens",
