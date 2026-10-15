@@ -183,15 +183,15 @@ architecture は再承認済みなので、フェーズ 1 に着手できる。
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: 設定の読み込み（`Need`・`LoadFor`）
 
 **対象ファイル:** `internal/config/config.go`（変更）、`internal/config/config_test.go`（変更）
 
-- [ ] **ステップ 3-1**: `internal/config/config.go` に `Need`（`Generation bool`・`Review bool`）と `LoadFor(lookup LookupFunc, need Need) (Config, error)` を architecture §3.7 の形で加え、`Load`（`:204-222`）を `LoadFor(lookup, Need{Generation: true, Review: true})` に委譲する。`Need.Generation` が偽のときは `YT2COLUMN_LLM_PROVIDER`・`YT2COLUMN_MODEL` の未設定を必須の誤りとせず、生成のプロバイダの API キー・`YT2COLUMN_CLAUDE_EFFORT`・`ANTHROPIC_WORKSPACE_ID` を検査しない。`Need.Review` が偽のときは `YT2COLUMN_REVIEW_PROVIDER`・`YT2COLUMN_REVIEW_MODEL` と検証・推敲のプロバイダの変数を検査しない。**`Need.Generation` が偽でも、検証・推敲のプロバイダとモデルの既定を解決するために `YT2COLUMN_LLM_PROVIDER`・`YT2COLUMN_MODEL` を読む**（`YT2COLUMN_REVIEW_PROVIDER`／`YT2COLUMN_REVIEW_MODEL` が未設定のときの既存の継承規則 `loadReview` `:264-297` を保つ。読むが、生成を実行しないときはその未設定を誤りにしない）。選んだプロバイダの変数だけを読む既存の規則（0009 の F-006）はそのままにする。
-- [ ] **ステップ 3-2**: `config_test.go`（`//go:build test`）に `LoadFor` のテストを加える。architecture §3.7 の表の各行（`--after` なし・`--after generation`（`--no-shorten` あり/なし）・`--after shorten`・`--after review`）について、`envLookup`（`:22-27`）の環境で、必須にしない変数が未設定でも通り、実行する段階のプロバイダの変数だけが検査されることを確かめる。継承の場合（`--after shorten` または `--after generation --no-shorten` で `YT2COLUMN_REVIEW_PROVIDER`／`YT2COLUMN_REVIEW_MODEL` が未設定）に、`ReviewProvider` と `ReviewModel` が `YT2COLUMN_LLM_PROVIDER`・`YT2COLUMN_MODEL` から引き継がれ、検証・推敲のプロバイダの API キーが検査されることも確かめる。`Load` を呼ぶ既存のテストが内容を変えずに通ることを確かめる（`TestLoadIgnoresOtherProviderVars` `:380-457`・`TestLoadClaudeIgnoresDeepSeekKey` `:341-375`）。
+- [x] **ステップ 3-1**: `internal/config/config.go` に `Need`（`Generation bool`・`Review bool`）と `LoadFor(lookup LookupFunc, need Need) (Config, error)` を architecture §3.7 の形で加え、`Load`（`:204-222`）を `LoadFor(lookup, Need{Generation: true, Review: true})` に委譲する。`Need.Generation` が偽のときは `YT2COLUMN_LLM_PROVIDER`・`YT2COLUMN_MODEL` の未設定を必須の誤りとせず、生成のプロバイダの API キー・`YT2COLUMN_CLAUDE_EFFORT`・`ANTHROPIC_WORKSPACE_ID` を検査しない。`Need.Review` が偽のときは `YT2COLUMN_REVIEW_PROVIDER`・`YT2COLUMN_REVIEW_MODEL` と検証・推敲のプロバイダの変数を検査しない。**`Need.Generation` が偽でも、検証・推敲のプロバイダとモデルの既定を解決するために `YT2COLUMN_LLM_PROVIDER`・`YT2COLUMN_MODEL` を読む**（`YT2COLUMN_REVIEW_PROVIDER`／`YT2COLUMN_REVIEW_MODEL` が未設定のときの既存の継承規則 `loadReview` `:264-297` を保つ。読むが、生成を実行しないときはその未設定を誤りにしない）。選んだプロバイダの変数だけを読む既存の規則（0009 の F-006）はそのままにする。
+- [x] **ステップ 3-2**: `config_test.go`（`//go:build test`）に `LoadFor` のテストを加える。architecture §3.7 の表の各行（`--after` なし・`--after generation`（`--no-shorten` あり/なし）・`--after shorten`・`--after review`）について、`envLookup`（`:22-27`）の環境で、必須にしない変数が未設定でも通り、実行する段階のプロバイダの変数だけが検査されることを確かめる。継承の場合（`--after shorten` または `--after generation --no-shorten` で `YT2COLUMN_REVIEW_PROVIDER`／`YT2COLUMN_REVIEW_MODEL` が未設定）に、`ReviewProvider` と `ReviewModel` が `YT2COLUMN_LLM_PROVIDER`・`YT2COLUMN_MODEL` から引き継がれ、検証・推敲のプロバイダの API キーが検査されることも確かめる。`Load` を呼ぶ既存のテストが内容を変えずに通ることを確かめる（`TestLoadIgnoresOtherProviderVars` `:380-457`・`TestLoadClaudeIgnoresDeepSeekKey` `:341-375`）。
 
 **完了条件:** `make fmt`・`make test`・`make lint` が通る。`LoadFor` の各行の検査が architecture §3.7 の表のとおりで、`Load` の期待が変わらない。
 
@@ -207,8 +207,8 @@ architecture は再承認済みなので、フェーズ 1 に着手できる。
 
 **判定理由**: `Need` の形と各行の検査の範囲は architecture §3.7 の表に確定しており、既存の `load*` 関数を `Need` で絞る作業である。前例のない設計判断・panel-mode トリガー・競合する実装案・分離された高リスク／複雑なステップのいずれにも該当しない。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
