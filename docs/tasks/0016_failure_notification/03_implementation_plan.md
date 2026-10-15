@@ -159,16 +159,16 @@ requirements が定める 5 つの機能要件（F-001〜F-005）を、architect
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: guard と静的な検査
 
 **対象ファイル:** `internal/failure/failure_test.go`（新規。ただし §2.0 の前提を参照）、`.golangci.yml`（変更）
 
-- [ ] **ステップ 3-1**: `internal/failure` に guard のテストを置く（#109 が同等の guard を既に置いていない場合）。`//go:build test` の `failure_test.go` に、architecture §3.6 の 4 つのテストを書く。`TestNoticeFieldSet`（`reflect.TypeFor[Notice]()` の exported フィールドが `RequestID string`・`VideoID string`・`Kind`（`reflect` が返す型名は `failure.Kind`）の 3 つだけ）、`TestNotifierMethodSet`（`reflect.TypeFor[Notifier]()` のメソッドが `Notify` の 1 つで、型が `func(context.Context, Notice) error`）、`TestKindZeroValue`（`Kind` のゼロ値が `KindUnknown`）、`TestKindConstants`（パッケージの `_test.go` 以外のすべての Go のファイルを `go/parser` で読み、`Kind` 型の定数の名前を宣言の順に集めて requirements F-001 の列挙と一致させる。1 つも見つからなければ失敗させる）。失敗したときのメッセージは英語で書き、architecture §3.6 の表の第 3 列が伝える内容（その guard が失敗したときに、読む人に何を直せばよいかを伝える内容）を含める（表の第 3 列は日本語の散文なので、そのまま写さず英語にする）。
-- [ ] **ステップ 3-2**: `.golangci.yml` の `depguard` に 2 つの規則を加える（architecture §3.7）。`publisher-no-server`（`files: ["**/internal/publisher/**"]`、`list-mode: lax`、`deny: github.com/isseis/yt2column/internal/server`。AC-17）。`publisher-no-log`（`files: ["**/internal/publisher/**", "!$test"]`、`list-mode: lax`、`deny: log` と `log/slog`。AC-15）。既存の `deps` と `*-confinement` の規則は変えない。
-- [ ] **ステップ 3-3**: `depguard` の規則が実際に効くことを確かめる。`internal/publisher` の非テストのファイルに一時的に `log`（または `log/slog`）を import して `make lint` が `publisher-no-log` で落ちることを確かめる（これは `files` の glob `**/internal/publisher/**` が絶対パスに一致することの確認でもある。落ちなければ glob を直す）。次に、`publisher-no-server` は `internal/server` がまだ無いので、`deny` の対象を一時的に既存の `github.com/isseis/yt2column/internal/failure` に変え、`publisher-no-server` が同じ glob と `list-mode` の下で落ちることを確かめる（PR-3 はフェーズ 2 の後に行うので、`slack_failure.go` が既に `internal/failure` を import しており、一時的な import は要らない）。確認の後、`deny` の対象と（加えた場合は）一時的な import を戻し、`make lint` が通ることを確かめる。（`internal/server` を実際に import する違反の確認は、#109 が `internal/server` を新設した後でないとできない。これは `internal/publisher` が `internal/server` を import しないことを保つ予防的な規則である。）あわせて、`depguard` では禁じられない AC-15 の標準出力・標準エラー出力の部分を確かめる。`internal/publisher` の非テストの Go ファイル（送信の経路を含む）をレビューし、`fmt.Print*` や `os.Stdout`・`os.Stderr` への書き込みがなく、`SlackFailureNotifier` がロガーも `io.Writer` も持たないこと（architecture §3.2・§3.7）を確認して、その結果を記録する。
+- [-] **ステップ 3-1**: （`#109` の PR #232 が同等の 4 つの guard（`TestNoticeFieldSet`・`TestNotifierMethodSet`・`TestKindZeroValue`・`TestKindConstants`）を `internal/failure/failure_test.go` に既に置いているため、追加しない。§2.0 の前提のとおり。）`internal/failure` に guard のテストを置く（#109 が同等の guard を既に置いていない場合）。`//go:build test` の `failure_test.go` に、architecture §3.6 の 4 つのテストを書く。`TestNoticeFieldSet`（`reflect.TypeFor[Notice]()` の exported フィールドが `RequestID string`・`VideoID string`・`Kind`（`reflect` が返す型名は `failure.Kind`）の 3 つだけ）、`TestNotifierMethodSet`（`reflect.TypeFor[Notifier]()` のメソッドが `Notify` の 1 つで、型が `func(context.Context, Notice) error`）、`TestKindZeroValue`（`Kind` のゼロ値が `KindUnknown`）、`TestKindConstants`（パッケージの `_test.go` 以外のすべての Go のファイルを `go/parser` で読み、`Kind` 型の定数の名前を宣言の順に集めて requirements F-001 の列挙と一致させる。1 つも見つからなければ失敗させる）。失敗したときのメッセージは英語で書き、architecture §3.6 の表の第 3 列が伝える内容（その guard が失敗したときに、読む人に何を直せばよいかを伝える内容）を含める（表の第 3 列は日本語の散文なので、そのまま写さず英語にする）。
+- [x] **ステップ 3-2**: `.golangci.yml` の `depguard` に 2 つの規則を加える（architecture §3.7）。`publisher-no-server`（`files: ["**/internal/publisher/**"]`、`list-mode: lax`、`deny: github.com/isseis/yt2column/internal/server`。AC-17）。`publisher-no-log`（`files: ["**/internal/publisher/**", "!$test"]`、`list-mode: lax`、`deny: log` と `log/slog`。AC-15）。既存の `deps` と `*-confinement` の規則は変えない。
+- [x] **ステップ 3-3**: `depguard` の規則が実際に効くことを確かめる。`internal/publisher` の非テストのファイルに一時的に `log`（または `log/slog`）を import して `make lint` が `publisher-no-log` で落ちることを確かめる（これは `files` の glob `**/internal/publisher/**` が絶対パスに一致することの確認でもある。落ちなければ glob を直す）。次に、`publisher-no-server` は `internal/server` がまだ無いので、`deny` の対象を一時的に既存の `github.com/isseis/yt2column/internal/failure` に変え、`publisher-no-server` が同じ glob と `list-mode` の下で落ちることを確かめる（PR-3 はフェーズ 2 の後に行うので、`slack_failure.go` が既に `internal/failure` を import しており、一時的な import は要らない）。確認の後、`deny` の対象と（加えた場合は）一時的な import を戻し、`make lint` が通ることを確かめる。（`internal/server` を実際に import する違反の確認は、#109 が `internal/server` を新設した後でないとできない。これは `internal/publisher` が `internal/server` を import しないことを保つ予防的な規則である。）あわせて、`depguard` では禁じられない AC-15 の標準出力・標準エラー出力の部分を確かめる。`internal/publisher` の非テストの Go ファイル（送信の経路を含む）をレビューし、`fmt.Print*` や `os.Stdout`・`os.Stderr` への書き込みがなく、`SlackFailureNotifier` がロガーも `io.Writer` も持たないこと（architecture §3.2・§3.7）を確認して、その結果を記録する。（実施結果: `publisher-no-log` は `internal/publisher` の非テストファイルに一時的に `log` を import すると `make lint` が落ちること、`publisher-no-server` は `deny` の対象を一時的に `github.com/isseis/yt2column/internal/failure` に変えると落ちることを確認した（`files` の glob `**/internal/publisher/**` が絶対パスに一致することの確認を兼ねる）。`internal/publisher` の非テストの Go ファイルに `fmt.Print*`・`os.Stdout`・`os.Stderr` への書き込みはなく、`SlackFailureNotifier` はロガーも `io.Writer` も持たない。）
 
 **完了条件:** `make fmt`・`make test`・`make lint` が通る。`make lint` が 2 つの新しい規則を読み込む。ステップ 3-3 の確認を済ませる。あわせて、AC-15 の標準出力・標準エラー出力の部分を、`internal/publisher` の非テストの Go ファイルのレビューで確かめ、その結果を記録する（architecture §3.7）。
 
@@ -176,7 +176,7 @@ requirements が定める 5 つの機能要件（F-001〜F-005）を、architect
 
 **対象ファイル:** なし（#109 の issue への記録）
 
-- [ ] **ステップ 4-1**: #109 の issue に、architecture §8 の手順 4 の (a)〜(f) を記録する。(a) 通知の実装の名前（`publisher.NewSlackFailureNotifier`）。(b) architecture §3.3 の文面（#109 §4.2 の例を改めるため。文面と種類の文は architecture §3.3 からそのまま写し、写した内容が §3.3 と一致することを確かめる）。(c) `package_reference.md` の `internal/publisher` の行に通知の実装を加えること（#109 §3.12）。(d) リクエスト ID の形 `^[0-9a-f]{16}$` を本実装（architecture §3.4 の設計）が検査していることと、#109 が生成したリクエスト ID を実物の `SlackFailureNotifier` に通すテストを置くこと、そのテストが使う公開のテスト用の構築関数 `NewSlackFailureNotifierForLoopbackTest` を本タスクが用意すること。(e) 通知が `silent` のため利用者に気づかれにくいこと（architecture §5.4）。(f) #109 の手動の確認で通知の表示（`<URL>` のリンクと改行）を Mattermost で確かめること。
+- [x] **ステップ 4-1**: #109 の issue に、architecture §8 の手順 4 の (a)〜(f) を記録する（記録: https://github.com/isseis/yt2column/issues/109#issuecomment-6179509640）。(a) 通知の実装の名前（`publisher.NewSlackFailureNotifier`）。(b) architecture §3.3 の文面（#109 §4.2 の例を改めるため。文面と種類の文は architecture §3.3 からそのまま写し、写した内容が §3.3 と一致することを確かめる）。(c) `package_reference.md` の `internal/publisher` の行に通知の実装を加えること（#109 §3.12）。(d) リクエスト ID の形 `^[0-9a-f]{16}$` を本実装（architecture §3.4 の設計）が検査していることと、#109 が生成したリクエスト ID を実物の `SlackFailureNotifier` に通すテストを置くこと、そのテストが使う公開のテスト用の構築関数 `NewSlackFailureNotifierForLoopbackTest` を本タスクが用意すること。(e) 通知が `silent` のため利用者に気づかれにくいこと（architecture §5.4）。(f) #109 の手動の確認で通知の表示（`<URL>` のリンクと改行）を Mattermost で確かめること。
 
 **完了条件:** #109 の issue に (a)〜(f) の記録がある（issue の URL を控える）。(b) の文面と種類の文が architecture §3.3 と一致する（記録を §3.3 と照合する）。
 
@@ -192,8 +192,8 @@ requirements が定める 5 つの機能要件（F-001〜F-005）を、architect
 
 **判定理由**: guard は `internal/pipeline` の既存の guard と同じ考え方で architecture §3.6 に確定しており、`depguard` の規則も architecture §3.7 に確定している。#109 への記録（ステップ 4-1）も architecture §8 の手順 4 の列挙に従う。前例のない設計判断・panel-mode トリガー・競合する実装案・分離された高リスク／複雑なステップのいずれにも該当せず、Conditional check にも該当しない。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
