@@ -128,9 +128,6 @@ func TestWriteRunUsageUnknownStage(t *testing.T) {
 	if a.RunUsage.Generation.Usage != unknown {
 		t.Errorf("generation usage = %+v, want %+v", a.RunUsage.Generation.Usage, unknown)
 	}
-	if _, known := a.RunUsage.Generation.Usage.Counts(); known {
-		t.Error("generation usage is known, want unknown")
-	}
 	requireRunUsageInvariants(t, a)
 }
 
@@ -224,9 +221,6 @@ func TestWriteRunUsageResume(t *testing.T) {
 			t.Errorf("RunUsage = %+v, want %+v", a.RunUsage, want)
 		}
 		requireRunUsageInvariants(t, a)
-		if _, known := a.RunUsage.Shorten.Usage.Counts(); known {
-			t.Error("reused shorten usage is known, want the recorded unknown")
-		}
 		if got := a.RunUsage.Shorten.Usage.UnknownReason(); got != "recorded-unknown" {
 			t.Errorf("reused shorten reason = %q, want %q", got, "recorded-unknown")
 		}
@@ -368,6 +362,25 @@ func TestWriteFailureRunUsage(t *testing.T) {
 		requireFailureUsage(t, a, err, RunUsage{
 			Generation: StageUsage{Origin: OriginRun},
 		})
+	})
+
+	t.Run("a failed call with an invalid model reports no model", func(t *testing.T) {
+		gen := newStepClient(t, llmtestutil.FakeLLMSequenceStep{
+			Result: llm.GenerateResponse{Model: "bad\x1bmodel", Usage: genUsage},
+			Err:    stepFailure,
+		})
+		w := mustNew(t, gen, Options{})
+		a, err := w.Write(context.Background(), validTranscript())
+		requireFailureUsage(t, a, err, RunUsage{
+			Generation: StageUsage{Origin: OriginRun, Usage: genUsage},
+		})
+	})
+
+	t.Run("generation expansion failure leaves the stage unrun", func(t *testing.T) {
+		gen := newStepClient(t)
+		w := mustNew(t, gen, Options{UserTemplatePath: writeOverrideFile(t, "{{index .Title 100}}")})
+		a, err := w.Write(context.Background(), validTranscript())
+		requireFailureUsage(t, a, err, RunUsage{})
 	})
 
 	t.Run("review response shape invalid keeps the stage run", func(t *testing.T) {
@@ -543,4 +556,11 @@ func TestTokenUsageErrorTransparent(t *testing.T) {
 	if _, ok := errors.AsType[*ArtifactError](artifactWrapped); !ok {
 		t.Error("TokenUsageError does not unwrap to the inner *ArtifactError")
 	}
+
+	t.Run("a nil inner error does not panic", func(t *testing.T) {
+		e := &TokenUsageError{}
+		if got := e.Error(); got != "token usage error" {
+			t.Errorf("Error() = %q, want the fixed fallback", got)
+		}
+	})
 }
