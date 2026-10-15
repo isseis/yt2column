@@ -638,7 +638,7 @@ func TestAsNonNegativeInt64(t *testing.T) {
 		"exponent":       {errNonIntegerNumber, "1e3"},
 		"upper-exponent": {errNonIntegerNumber, "1E3"},
 		"overflow":       {errIntegerOutOfRange, "9223372036854775808"},
-		"string":         {errValueNotNumber, `"7"`},
+		"string":         {errValueNotNumber, "7"},
 		"boolean":        {errValueNotNumber, "true"},
 		"null":           {errValueNotNumber, "null"},
 		"array":          {errValueNotNumber, "[]"},

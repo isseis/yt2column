@@ -10,8 +10,12 @@ import (
 
 func TestUsageZeroValue(t *testing.T) {
 	var zero Usage
-	if _, ok := zero.Counts(); ok {
+	unknownCounts, ok := zero.Counts()
+	if ok {
 		t.Error("zero Usage.Counts() ok = true, want false (unknown)")
+	}
+	if unknownCounts != (TokenCounts{}) {
+		t.Errorf("zero Usage.Counts() = %+v, want the zero counts", unknownCounts)
 	}
 	if got := zero.UnknownReason(); got != "not-read" {
 		t.Errorf("zero Usage.UnknownReason() = %q, want %q", got, "not-read")
