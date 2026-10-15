@@ -3,7 +3,10 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"flag"
+	"io"
 	"os"
 	"slices"
 	"strconv"
@@ -501,4 +504,79 @@ func stepBlock(doc, marker string) (block string, checked, found bool) {
 		b.WriteString("\n")
 	}
 	return b.String(), checked, true
+}
+
+// TestArtifactDocsContract checks the documents' save-and-resume contract: the
+// README flags table and the -h usage state that --after requires --artifacts
+// and that --after review does not accept --review-log; project_overview.md
+// describes saving and resuming; security.md states the artifact file
+// permissions and the read boundary; and 0010's evaluation procedure names
+// --artifacts, --after, and --keep-cache.
+//
+// The behavior these documents describe is pinned by running tests, not by
+// this test: security.md's permission (0o600) is internal/artifact's
+// TestSaveFileMode, and its "outside the cache directory" rule and the AC-08
+// rejection are cmd/yt2column's TestRunArtifactsInsideCacheDir.
+func TestArtifactDocsContract(t *testing.T) {
+	readme := readDoc(t, readmePath)
+	table := findTable(readme, "Flag")
+	if table == nil {
+		t.Fatal("README has no flags table")
+	}
+	for _, flag := range []string{"--artifacts", "--after"} {
+		if !tableFlagContains(table, flag) {
+			t.Errorf("README flags table does not document %s", flag)
+		}
+	}
+	var afterRow []string
+	for _, row := range table[1:] {
+		if len(row) > 0 && strings.Contains(row[0], "--after") {
+			afterRow = row
+			break
+		}
+	}
+	if afterRow == nil {
+		t.Fatal("README flags table has no --after row")
+	}
+	rowText := strings.Join(afterRow, " ")
+	for _, want := range []string{"--artifacts", "--review-log"} {
+		if !strings.Contains(rowText, want) {
+			t.Errorf("README --after row does not state the %s rule: %q", want, rowText)
+		}
+	}
+
+	var stdout bytes.Buffer
+	if code := run(context.Background(), []string{"-h"}, lookupFrom(nil), &stdout, io.Discard, productionDeps()); code != exitOK {
+		t.Fatalf("run(-h) exit code = %d, want %d", code, exitOK)
+	}
+	usage := stdout.String()
+	for _, want := range []string{"requires --artifacts", "--after review does not accept --review-log"} {
+		if !strings.Contains(usage, want) {
+			t.Errorf("-h usage does not state %q:\n%s", want, usage)
+		}
+	}
+
+	overview := readDoc(t, projectOverviewPath)
+	for _, want := range []string{"--artifacts", "--after"} {
+		if !strings.Contains(overview, want) {
+			t.Errorf("project_overview.md does not mention %s", want)
+		}
+	}
+
+	security := readDoc(t, securityPath)
+	for _, want := range []string{"--artifacts", "0o600", "U+FEFF", "4 MiB"} {
+		if !strings.Contains(security, want) {
+			t.Errorf("security.md does not state %q", want)
+		}
+	}
+
+	evaluation := sectionByHeading(readDoc(t, reviewEvaluationPath), "## 2. 手順")
+	if evaluation == "" {
+		t.Fatal("02_evaluation.md has no 2. 手順 section")
+	}
+	for _, want := range []string{"--artifacts", "--after", "--keep-cache"} {
+		if !strings.Contains(evaluation, want) {
+			t.Errorf("02_evaluation.md 2. 手順 does not mention %s", want)
+		}
+	}
 }

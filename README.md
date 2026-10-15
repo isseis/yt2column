@@ -100,10 +100,24 @@ changed; the log is written after the article is published, and if it cannot be
 written the run exits `1` with a message saying the article is already
 published.
 
+With `--artifacts <dir>`, a run also saves each stage's output — the generated
+article, the shortened article, and the review list with the applied article —
+to its own file (`<video ID>.generation.json`, `.shorten.json`, `.review.json`)
+as the stage completes and before the article is published, so a later stage's
+failure still leaves the earlier stages on disk. `--after <stage>` restarts from
+a saved stage and runs only the stages after it, reusing the saved output
+instead of calling the LLM for the skipped stages; `--after review` calls no LLM
+and only checks the final length and publishes. A resumed run saves the stages
+it does execute, so the `--artifacts` directory must be writable. The directory
+lives outside the cache directory and is still there on the next run, which is
+what makes the resume work; see [Cache and concurrency](#cache-and-concurrency).
+
 The review step's configuration is validated even with `--no-review`, because
 the configuration is independent of the flags: if `YT2COLUMN_REVIEW_PROVIDER`
 selects a different provider, that provider's variables (its API key, and for
-`claude` its effort) are still required.
+`claude` its effort) are still required. A resumed run validates only the
+settings of the stages it executes, so `--after review` requires no LLM
+settings at all.
 
 ## Cache and concurrency
 
@@ -111,6 +125,11 @@ Every run takes an exclusive lock on the cache directory, so runs that share a
 cache directory are serialized: a second run fails immediately, without waiting,
 while the first holds the lock. Different cache directories do not affect each
 other.
+
+The artifacts saved with `--artifacts` live outside the cache directory, so
+removing the cache does not remove them and they are still there for a resume.
+The CLI neither prunes nor deletes them; delete the directory yourself when it
+is no longer needed.
 
 If the CLI is killed with SIGKILL, `yt-dlp` may keep running. The lock stays held
 until that `yt-dlp` exits, so until then the next run fails as a concurrent run
