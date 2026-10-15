@@ -3,6 +3,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -29,6 +30,11 @@ const (
 // documents follow, and a document that states a wrong value fails it too.
 func TestServerDocsContract(t *testing.T) {
 	port := serverDefaultPort(t)
+	portEnv := config.ServerPortEnvForTest()
+	slackEnv := config.SlackWebhookEnvForTest()
+	tokenName := config.TokenFileNameForTest()
+	cacheDirEnv := config.CacheDirEnvForTest()
+	ytDlpEnv := config.YtDlpEnvForTest()
 
 	readme := readDoc(t, readmePath)
 	overview := readDoc(t, projectOverviewPath)
@@ -43,9 +49,9 @@ func TestServerDocsContract(t *testing.T) {
 		for _, want := range []string{
 			"yt2column-server",
 			"build/yt2column-server",
-			"YT2COLUMN_SERVER_PORT",
-			"SLACK_WEBHOOK_URL",
-			"server-token",
+			portEnv,
+			slackEnv,
+			tokenName,
 			"0600",
 			strconv.Itoa(port),
 		} {
@@ -53,11 +59,28 @@ func TestServerDocsContract(t *testing.T) {
 				t.Errorf("README.md server section does not mention %q", want)
 			}
 		}
-		// A curl example must carry the endpoint, the four headers, and the
-		// token fed through standard input (not as an argument).
-		for _, want := range []string{"/articles", "Origin: chrome-extension://", "Content-Type: application/json", "-H @-"} {
+		// A curl example must carry the endpoint, the four headers (with the
+		// token fed through standard input, not as an argument), and the
+		// stdin header flag.
+		for _, want := range []string{
+			server.ArticlesPath,
+			"Origin: " + server.ExtensionOriginForTest(),
+			"Content-Type: " + server.JSONContentTypeForTest(),
+			"Authorization: Bearer",
+			"-H @-",
+		} {
 			if !strings.Contains(section, want) {
 				t.Errorf("README.md server section has no %q in its curl example", want)
+			}
+		}
+		// The exit-code table must name every code the entry point defines.
+		exitCodes := findTable(section, "Code")
+		if exitCodes == nil {
+			t.Fatal("README.md server section has no exit-code table")
+		}
+		for _, code := range []int{exitOK, exitFailure, exitUsage} {
+			if tableRow(exitCodes, strconv.Itoa(code)) == nil {
+				t.Errorf("README.md server exit-code table has no code %d", code)
 			}
 		}
 	})
@@ -74,7 +97,8 @@ func TestServerDocsContract(t *testing.T) {
 			}
 			byReason[stripBackticks(row[0])] = parseStatus(t, row[1])
 		}
-		for _, reason := range server.RejectReasonsForTest() {
+		reasons := server.RejectReasonsForTest()
+		for _, reason := range reasons {
 			got, ok := byReason[reason.Value]
 			if !ok {
 				t.Errorf("README.md rejection table has no reason %q", reason.Value)
@@ -84,21 +108,22 @@ func TestServerDocsContract(t *testing.T) {
 				t.Errorf("README.md lists %s with status %d, want %d", reason.Value, got, reason.Status)
 			}
 		}
-		if len(byReason) != len(server.RejectReasonsForTest()) {
-			t.Errorf("README.md rejection table has %d rows, want %d", len(byReason), len(server.RejectReasonsForTest()))
+		if len(byReason) != len(reasons) {
+			t.Errorf("README.md rejection table has %d rows, want %d", len(byReason), len(reasons))
 		}
 	})
 
 	t.Run("project_overview.md", func(t *testing.T) {
-		for _, want := range []string{"yt2column-server", "internal/server", "YT2COLUMN_SERVER_PORT"} {
+		for _, want := range []string{"yt2column-server", "internal/server", portEnv} {
 			if !strings.Contains(overview, want) {
 				t.Errorf("project_overview.md does not mention %q", want)
 			}
 		}
-		for _, name := range []string{"YT2COLUMN_CACHE_DIR", "YT2COLUMN_YTDLP_PATH"} {
-			if !strings.Contains(overview, name) {
-				t.Errorf("project_overview.md does not mention %q among the server's unused variables", name)
-			}
+		// The "does not read" claim must be one sentence; the variable names
+		// also appear in the configuration table, so a bare Contains would pass
+		// even without it.
+		if !hasLineContainingAll(overview, cacheDirEnv, ytDlpEnv, "読まない") {
+			t.Errorf("project_overview.md has no sentence saying the server does not read %s or %s", cacheDirEnv, ytDlpEnv)
 		}
 	})
 
@@ -107,7 +132,16 @@ func TestServerDocsContract(t *testing.T) {
 		if section == "" {
 			t.Fatal("security.md has no 8.2 server section")
 		}
-		for _, want := range []string{"server-token", "0600", "O_NOFOLLOW", "link(2)", "chrome.storage.local"} {
+		bodyMiB := fmt.Sprintf("%d MiB", server.MaxBodyBytesForTest>>20)
+		for _, want := range []string{
+			tokenName,
+			"0600",
+			"O_NOFOLLOW",
+			"link(2)",
+			"chrome.storage.local",
+			"枠（`" + strconv.Itoa(server.MaxInFlightForTest) + "`）",
+			bodyMiB,
+		} {
 			if !strings.Contains(section, want) {
 				t.Errorf("security.md 8.2 does not mention %q", want)
 			}
@@ -187,6 +221,42 @@ func parseStatus(t *testing.T, cell string) int {
 	}
 	t.Fatalf("no status code in table cell %q", cell)
 	return 0
+}
+
+// TestSectionByHeading pins the duplicated helper's boundaries, so the copy
+// cannot drift from cmd/yt2column's TestSectionByHeading.
+func TestSectionByHeading(t *testing.T) {
+	const doc = "# Top\ntop body\n## Middle\nmiddle body\n### Deep\ndeep body\n## Two\ntwo body\n"
+	for _, tc := range []struct {
+		heading, want string
+	}{
+		{"## Middle", "middle body\n### Deep\ndeep body\n"},
+		{"### Deep", "deep body\n"},
+		{"## Absent", ""},
+	} {
+		if got := sectionByHeading(doc, tc.heading); got != tc.want {
+			t.Errorf("sectionByHeading(doc, %q) = %q, want %q", tc.heading, got, tc.want)
+		}
+	}
+}
+
+// hasLineContainingAll reports whether one line of doc contains every one of
+// subs, so a claim is checked as a whole sentence rather than as several
+// Contains that could each match elsewhere in the document.
+func hasLineContainingAll(doc string, subs ...string) bool {
+	for line := range strings.Lines(doc) {
+		all := true
+		for _, sub := range subs {
+			if !strings.Contains(line, sub) {
+				all = false
+				break
+			}
+		}
+		if all {
+			return true
+		}
+	}
+	return false
 }
 
 // The Markdown helpers below are duplicated from cmd/yt2column/docs_test.go.

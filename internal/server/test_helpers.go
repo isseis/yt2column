@@ -243,6 +243,16 @@ func (rr *recordingReader) Read(p []byte) (int, error) {
 // build a body just over it. Built only with the test tag.
 const MaxBodyBytesForTest = maxBodyBytes
 
+// MaxInFlightForTest is the number of authenticated requests allowed in flight
+// at once, for documentation guards in other packages.
+const MaxInFlightForTest = maxInFlight
+
+// ExtensionOriginForTest is the fixed extension origin the handler accepts.
+func ExtensionOriginForTest() string { return extensionOrigin }
+
+// JSONContentTypeForTest is the one accepted content type.
+func JSONContentTypeForTest() string { return jsonContentType }
+
 // RejectReasonForTest is one rejection's fixed reason value and HTTP status.
 type RejectReasonForTest struct {
 	Value  string
@@ -253,22 +263,8 @@ type RejectReasonForTest struct {
 // in the declaration order, so a documentation guard in another package reads
 // the table from the code instead of copying it. Built only with the test tag.
 func RejectReasonsForTest() []RejectReasonForTest {
-	reasons := []rejectReason{
-		reasonInternal,
-		reasonForbiddenHost,
-		reasonNotFound,
-		reasonMethodNotAllowed,
-		reasonUnsupportedMediaType,
-		reasonForbiddenOrigin,
-		reasonUnauthorized,
-		reasonTooManyRequests,
-		reasonBodyTooLarge,
-		reasonInvalidBody,
-		reasonInvalidVideoURL,
-		reasonInvalidTranscript,
-	}
-	table := make([]RejectReasonForTest, 0, len(reasons))
-	for _, reason := range reasons {
+	table := make([]RejectReasonForTest, 0, int(reasonInvalidTranscript)+1)
+	for reason := reasonInternal; reason <= reasonInvalidTranscript; reason++ {
 		table = append(table, RejectReasonForTest{Value: reason.reasonValue(), Status: reason.statusCode()})
 	}
 	return table

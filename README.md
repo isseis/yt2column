@@ -185,6 +185,27 @@ reads neither `YT2COLUMN_CACHE_DIR` nor `YT2COLUMN_YTDLP_PATH`. It binds
 `127.0.0.1` and `::1` only and rejects a request whose `Host`, `Origin`, or
 shared token does not match.
 
+### Running the server
+
+Start it with the provider and Webhook variables set:
+
+```sh
+./build/yt2column-server 2>>server.log
+```
+
+The token (on the first start only) is printed to standard output; the logs go
+to standard error, so `2>>server.log` keeps a record. Every request and job log
+line carries the `requestId` the response returns, so you can find a request's
+log with `grep <requestId> server.log`.
+
+Exit codes:
+
+| Code | Meaning |
+|---|---|
+| `0` | The server stopped after a signal. |
+| `1` | Listening on a loopback address, or serving, failed. |
+| `2` | The configuration, the shared token file, or building the components failed before listening. |
+
 ### The shared token
 
 On the first start the server generates a shared token, saves it to
@@ -200,16 +221,17 @@ reads the same token and does not print it.
   token that must be pasted into the extension again.
 - A temporary file left by an interrupted first start (`server-token.tmp-*`) can
   be deleted.
-- If the file exists but is not a regular file owned by you with mode `0600`
-  holding exactly 64 lowercase hexadecimal characters, the server refuses to
-  start and does not repair or recreate it.
+- If the file exists but is not a regular file owned by you with no group or
+  other permission bits (mode `0600` or stricter), holding exactly 64 lowercase
+  hexadecimal characters, the server refuses to start and does not repair or
+  recreate it.
 
 ### Stopping the server
 
-The server logs to standard error. The first `SIGINT` or `SIGTERM` stops
-accepting connections and lets the in-flight jobs finish, which can take up to
-about 45 minutes (three LLM calls of 15 minutes each); a second signal exits at
-once.
+The server logs to standard error. The first `SIGINT`, `SIGTERM`, or `SIGHUP`
+(one ignored at startup is not subscribed) stops accepting connections and lets
+the in-flight jobs finish, which can take up to about 45 minutes (three LLM
+calls of 15 minutes each); a second signal exits at once.
 
 ### Checking the server with curl
 
@@ -322,7 +344,7 @@ Use `low` through `xhigh` for column generation.
 ## Development
 
 ```sh
-make build   # build/yt2column
+make build   # build both binaries into build/
 make test    # unit tests (no network, no yt-dlp)
 make lint    # golangci-lint (pinned version)
 make fmt     # gofumpt on changed files
