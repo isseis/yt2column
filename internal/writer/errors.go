@@ -37,6 +37,12 @@ var (
 	errReviewClientNil      = errors.New("review step is enabled but its LLM client is nil")
 	errReviewClientSet      = errors.New("review step is disabled but its LLM client is set")
 	errDisabledStepTemplate = errors.New("a disabled step has a template path")
+	// errResumeWithoutStore rejects a resume with no artifact store to load
+	// from, and errGenerationClientSet rejects a generation client set while
+	// no stage that uses it runs. They are not exported: each is a caller
+	// mistake, not a condition to branch on.
+	errResumeWithoutStore  = errors.New("resume is set but the artifact store is nil")
+	errGenerationClientSet = errors.New("the generation client is set but no stage uses it")
 	// errNotRegularFile is joined with ErrInvalidTemplate when an override
 	// path names a directory, FIFO, device, or socket.
 	errNotRegularFile = errors.New("not a regular file")

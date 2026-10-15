@@ -176,14 +176,15 @@ func displayStringProblem(name, value string) string {
 // newArticle builds the article from validated values. Body is the body part
 // of the last checked text (from checkResponse or checkGeneratedText),
 // bodySeparator, then the source block, whose URL comes from the validated
-// VideoID, never from the generated text.
-func newArticle(title, body, sourceURL string, resp llm.GenerateResponse, shorten *StepModel, review *ReviewResult) Article {
+// VideoID, never from the generated text. model and modelVersion are the
+// generation model when it ran, or the reused generation artifact's values.
+func newArticle(title, body, sourceURL, model, modelVersion string, shorten *StepModel, review *ReviewResult) Article {
 	return Article{
 		Title:        title,
 		Body:         body + bodySeparator + sourceBlock(sourceURL),
 		SourceURL:    sourceURL,
-		Model:        resp.Model,
-		ModelVersion: resp.ModelVersion,
+		Model:        model,
+		ModelVersion: modelVersion,
 		Shorten:      shorten,
 		Review:       review,
 	}

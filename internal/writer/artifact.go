@@ -102,6 +102,11 @@ func (e *ArtifactError) Error() string {
 // Unwrap returns the original error.
 func (e *ArtifactError) Unwrap() error { return e.Err }
 
+// artifactError wraps a store failure as the failure of one stage.
+func artifactError(stage Stage, err error) error {
+	return &ArtifactError{Stage: stage, Err: err}
+}
+
 // ArtifactOptions configures saving the intermediate artifacts of a run and
 // resuming from a saved one. The zero value saves nothing and starts from
 // generation.

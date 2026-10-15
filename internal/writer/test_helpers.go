@@ -3,6 +3,7 @@
 package writer
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -266,4 +267,74 @@ func requireNonRoot(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Fatal("unsupported test environment: permission-failure tests require a non-root user")
 	}
+}
+
+// fakeArtifactStore remembers Load and Save calls and returns configured
+// values. It stands in for ArtifactStore in unit tests; Save returns a
+// per-stage identifier (or a configured one) so a test can tell that the
+// writer used its return value as the next stage's input.
+type fakeArtifactStore struct {
+	loadResult ArtifactChain
+	loadErr    error
+	loadCalls  []fakeLoadCall
+	saveErr    error
+	saveErrs   map[Stage]error
+	saveCalls  []fakeSaveCall
+	saveIDs    map[Stage]string
+}
+
+// fakeLoadCall is one recorded Load call.
+type fakeLoadCall struct {
+	videoID    string
+	stage      Stage
+	materialID string
+}
+
+// fakeSaveCall is one recorded Save call.
+type fakeSaveCall struct {
+	videoID string
+	record  StageRecord
+}
+
+var _ ArtifactStore = (*fakeArtifactStore)(nil)
+
+func (f *fakeArtifactStore) Load(_ context.Context, videoID string, stage Stage, materialID string) (ArtifactChain, error) {
+	f.loadCalls = append(f.loadCalls, fakeLoadCall{videoID: videoID, stage: stage, materialID: materialID})
+	if f.loadErr != nil {
+		return ArtifactChain{}, f.loadErr
+	}
+	return f.loadResult, nil
+}
+
+func (f *fakeArtifactStore) Save(_ context.Context, videoID string, record StageRecord) (string, error) {
+	f.saveCalls = append(f.saveCalls, fakeSaveCall{videoID: videoID, record: record})
+	if err, ok := f.saveErrs[record.Stage]; ok {
+		return "", err
+	}
+	if f.saveErr != nil {
+		return "", f.saveErr
+	}
+	if id, ok := f.saveIDs[record.Stage]; ok {
+		return id, nil
+	}
+	return "id-" + record.Stage.String(), nil
+}
+
+// saveStages returns the stage of every recorded Save call, in order.
+func (f *fakeArtifactStore) saveStages() []Stage {
+	stages := make([]Stage, len(f.saveCalls))
+	for i, call := range f.saveCalls {
+		stages[i] = call.record.Stage
+	}
+	return stages
+}
+
+// saveFor returns the recorded Save call for stage (the zero call if none).
+func (f *fakeArtifactStore) saveFor(stage Stage) fakeSaveCall {
+	for _, call := range f.saveCalls {
+		if call.record.Stage == stage {
+			return call
+		}
+	}
+	return fakeSaveCall{}
 }
