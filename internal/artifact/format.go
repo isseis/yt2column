@@ -72,13 +72,15 @@ type revisionJSON struct {
 	Evidence string `json:"evidence"`
 }
 
-// Marshal builds the JSON body of one artifact from a record. It computes the
-// record's identifier from its content and stores it under the id key. It does
+// Marshal builds the JSON body of one artifact from a record and returns it
+// with the record's identifier, computed from its content and stored under the
+// id key. It does
 // not escape HTML, so a body's "<", ">", and "&" do not expand (the file is
 // read back by this package, not by a browser). It then rejects the result
 // unless Parse accepts it, so a save never writes an artifact the load path
 // refuses.
-func Marshal(record writer.StageRecord) ([]byte, error) {
+func Marshal(record writer.StageRecord) (data []byte, id string, err error) {
+	id = recordID(record)
 	out := recordJSON{
 		Version:      artifactVersion,
 		Stage:        record.Stage.String(),
@@ -87,7 +89,7 @@ func Marshal(record writer.StageRecord) ([]byte, error) {
 		System:       identityJSON{Embedded: record.System.Embedded, Digest: record.System.Digest},
 		User:         identityJSON{Embedded: record.User.Embedded, Digest: record.User.Digest},
 		Input:        record.Input,
-		ID:           recordID(record),
+		ID:           id,
 		Title:        record.Title,
 		Body:         record.Body,
 	}
@@ -98,20 +100,20 @@ func Marshal(record writer.StageRecord) ([]byte, error) {
 	encoder := json.NewEncoder(&buffer)
 	encoder.SetEscapeHTML(false)
 	if err := encoder.Encode(out); err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	data := bytes.TrimSuffix(buffer.Bytes(), []byte("\n"))
+	data = bytes.TrimSuffix(buffer.Bytes(), []byte("\n"))
 	if len(data) > maxArtifactBytes {
-		return nil, malformedf("artifact exceeds the limit of %d bytes", maxArtifactBytes)
+		return nil, "", malformedf("artifact exceeds the limit of %d bytes", maxArtifactBytes)
 	}
 	// Round-trip through Parse so a save never writes an artifact the load
 	// path refuses: a value Parse rejects (a revision list on a non-review
 	// stage, an unnormalized title, an invalid model name) fails here, at
 	// save time, rather than silently writing an unloadable file.
 	if _, err := Parse(data); err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	return data, nil
+	return data, id, nil
 }
 
 // Parse validates one artifact's bytes and returns its record. It rejects any

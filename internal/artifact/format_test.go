@@ -83,7 +83,7 @@ func sameRecord(a, b writer.StageRecord) bool {
 // mustMarshal marshals a record or fails the test.
 func mustMarshal(t *testing.T, rec writer.StageRecord) []byte {
 	t.Helper()
-	data, err := Marshal(rec)
+	data, _, err := Marshal(rec)
 	if err != nil {
 		t.Fatalf("Marshal error = %v", err)
 	}
@@ -477,7 +477,7 @@ func TestMarshalRejectsUnloadableRecord(t *testing.T) {
 		Evidence: markArtifactRev,
 	}}
 	rec.ID = recordID(rec)
-	if _, err := Marshal(rec); !errors.Is(err, ErrMalformed) {
+	if _, _, err := Marshal(rec); !errors.Is(err, ErrMalformed) {
 		t.Fatalf("Marshal error = %v, want ErrMalformed", err)
 	}
 }
@@ -490,7 +490,7 @@ func TestMarshalKeepsEscapingHeavyBodyWithinTheLimit(t *testing.T) {
 	rec.Title = "T"
 	rec.Body = strings.Repeat("&", testMaxTextBytes-len("# ")-len(rec.Title)-1)
 	rec.ID = recordID(rec)
-	data, err := Marshal(rec)
+	data, _, err := Marshal(rec)
 	if err != nil {
 		t.Fatalf("Marshal error = %v", err)
 	}
