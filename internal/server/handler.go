@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"net/http"
 	"runtime/debug"
 	"strconv"
@@ -40,6 +41,11 @@ func (s *Server) handler(w http.ResponseWriter, r *http.Request) {
 		if p == nil {
 			return
 		}
+		if err, ok := p.(error); ok && errors.Is(err, http.ErrAbortHandler) && !slotHeld {
+			// The handler's own abort after a body-read failure: let net/http
+			// close the connection without writing a response.
+			panic(p)
+		}
 		s.logger.Error("request handler panicked", "requestId", requestID, "panic", p, "stack", string(debug.Stack()))
 		if !responded {
 			if err := writeRejected(w, requestID, reasonInternal, !slotHeld); err != nil {
@@ -68,13 +74,16 @@ func (s *Server) handler(w http.ResponseWriter, r *http.Request) {
 	input, rej := s.readRequest(w, r, requestID)
 	if rej != nil {
 		if rej.readFailed {
-			// A cut connection or a timeout: the sender is gone, so there is
-			// no response and no notice, only a log line. No goroutine took
-			// the slot, so the handler releases it.
+			// A cut connection, a timeout, or a malformed chunked body: there
+			// is no response and no notice, only a log line. No goroutine took
+			// the slot, so the handler releases it. Returning normally would
+			// make net/http write an empty 200, so the handler aborts instead,
+			// which closes the connection with no response at all.
 			s.logger.Warn("request body read failed", "requestId", requestID, "error", rej.err)
 			s.releaseSlot()
 			slotHeld = false
-			return
+			responded = true
+			panic(http.ErrAbortHandler)
 		}
 		s.reject(w, r, requestID, *rej)
 		responded = true

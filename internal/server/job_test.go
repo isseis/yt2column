@@ -115,9 +115,17 @@ func TestSlotReleasedOnce(t *testing.T) {
 		ts := newTestServer(t)
 		req := newRequest(http.MethodPost, articlesPath, iotest.ErrReader(errors.New("cut")))
 		withValidHeaders(req, testTokenValue)
-		rec := ts.serve(req)
-		if rec.Body.Len() != 0 {
-			t.Errorf("response body = %q, want none", rec.Body.String())
+		rec := httptest.NewRecorder()
+		func() {
+			defer func() {
+				if p := recover(); p != http.ErrAbortHandler {
+					t.Errorf("handler panic = %v, want http.ErrAbortHandler", p)
+				}
+			}()
+			ts.handler(rec, req)
+		}()
+		if rec.Code != http.StatusOK || rec.Body.Len() != 0 || rec.Flushed {
+			t.Errorf("response written (status %d, body %q), want none", rec.Code, rec.Body.String())
 		}
 		if len(ts.slots) != 0 {
 			t.Errorf("slots held = %d, want 0", len(ts.slots))

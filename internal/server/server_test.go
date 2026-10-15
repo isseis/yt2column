@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"strings"
 	"sync"
@@ -193,5 +194,46 @@ func TestServeShutdownWaitsForJobs(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("Serve did not return after the job finished")
+	}
+}
+
+// TestBodyReadFailureWritesNoResponse checks on a real socket that a body the
+// server cannot read (a malformed chunked encoding) gets no response at all:
+// the connection is closed without net/http's implicit empty 200.
+func TestBodyReadFailureWritesNoResponse(t *testing.T) {
+	ts := newTestServer(t)
+	srv := httptest.NewServer(http.HandlerFunc(ts.handler))
+	t.Cleanup(srv.Close)
+	conn, err := net.Dial("tcp", srv.Listener.Addr().String())
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	t.Cleanup(func() { _ = conn.Close() })
+	request := "POST " + articlesPath + " HTTP/1.1\r\n" +
+		"Host: 127.0.0.1:" + strconv.Itoa(testPort) + "\r\n" +
+		"Content-Type: " + jsonContentType + "\r\n" +
+		"Origin: " + extensionOrigin + "\r\n" +
+		"Authorization: " + bearerPrefix + testTokenValue + "\r\n" +
+		"Transfer-Encoding: chunked\r\n\r\n" +
+		"zz\r\n"
+	if _, err := conn.Write([]byte(request)); err != nil {
+		t.Fatalf("write the request: %v", err)
+	}
+	if err := conn.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		t.Fatalf("set the read deadline: %v", err)
+	}
+	data, err := io.ReadAll(conn)
+	if err != nil {
+		t.Fatalf("read the response: %v", err)
+	}
+	if len(data) != 0 {
+		t.Errorf("response = %q, want the connection closed with no response", data)
+	}
+	ts.waitJobs()
+	if len(ts.slots) != 0 {
+		t.Errorf("slots held = %d, want 0", len(ts.slots))
+	}
+	if len(ts.notifier.Calls) != 0 {
+		t.Errorf("notifier calls = %d, want 0 for a body-read failure", len(ts.notifier.Calls))
 	}
 }
