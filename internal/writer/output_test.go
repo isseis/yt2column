@@ -78,6 +78,9 @@ func TestWriteArticle(t *testing.T) {
 				SourceURL:    testSourceURL,
 				Model:        tc.resp.Model,
 				ModelVersion: tc.resp.ModelVersion,
+				RunUsage: RunUsage{
+					Generation: StageUsage{Origin: OriginRun, Model: tc.resp.Model, Usage: tc.resp.Usage},
+				},
 			}
 			if a != want {
 				t.Errorf("Write article = %+v, want %+v", a, want)

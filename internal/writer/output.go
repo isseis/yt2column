@@ -178,7 +178,7 @@ func displayStringProblem(name, value string) string {
 // bodySeparator, then the source block, whose URL comes from the validated
 // VideoID, never from the generated text. model and modelVersion are the
 // generation model when it ran, or the reused generation artifact's values.
-func newArticle(title, body, sourceURL, model, modelVersion string, shorten *StepModel, review *ReviewResult) Article {
+func newArticle(title, body, sourceURL, model, modelVersion string, shorten *StepModel, review *ReviewResult, runUsage RunUsage) Article {
 	return Article{
 		Title:        title,
 		Body:         body + bodySeparator + sourceBlock(sourceURL),
@@ -187,6 +187,7 @@ func newArticle(title, body, sourceURL, model, modelVersion string, shorten *Ste
 		ModelVersion: modelVersion,
 		Shorten:      shorten,
 		Review:       review,
+		RunUsage:     runUsage,
 	}
 }
 

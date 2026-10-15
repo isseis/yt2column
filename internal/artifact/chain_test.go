@@ -126,6 +126,30 @@ func TestLoadRejectsBrokenPreviousStage(t *testing.T) {
 	}
 }
 
+func TestLoadNamesBrokenStage(t *testing.T) {
+	// A version 1 shorten artifact under a valid version 2 generation and
+	// review chain: the load must name the shorten stage as the broken one.
+	store, dir := newTestStore(t)
+	materialID := validGeneration().Input
+	genID := mustSave(t, store, validGeneration())
+	shortenID := mustSave(t, store, shortenOf(genID))
+	mustSave(t, store, reviewOf(shortenID))
+
+	v1 := fieldsFrom(shortenOf(genID))
+	v1["version"] = float64(1)
+	delete(v1, "usage")
+	if err := os.WriteFile(filepath.Join(dir, testVideoID+".shorten.json"), marshalFields(t, v1), 0o600); err != nil {
+		t.Fatalf("write version 1 shorten: %v", err)
+	}
+	_, err := store.Load(context.Background(), testVideoID, writer.StageReview, materialID)
+	if !errors.Is(err, ErrMalformed) {
+		t.Fatalf("Load error = %v, want ErrMalformed", err)
+	}
+	if !strings.Contains(err.Error(), writer.StageShorten.String()) {
+		t.Errorf("Load error = %v, want it to name the %s stage", err, writer.StageShorten)
+	}
+}
+
 func TestMaterialID(t *testing.T) {
 	// MaterialID is the value the whole chain is anchored to: the generation
 	// artifact's input must equal the current material. Pin its exact

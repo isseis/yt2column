@@ -244,32 +244,35 @@ func firstHeadingDifference(before, after []string) (int, bool) {
 // runReview runs the review step: it expands the review templates with the
 // reviewed text and the material, calls the review LLM client once, parses the
 // response, checks its model, applies the revisions to the text, and checks
-// the revised text. Every failure is a *StepError.
-func (w *templateWriter) runReview(ctx context.Context, material templateData, title, body string) (string, string, *ReviewResult, error) {
+// the revised text. Every failure is a *StepError. The returned StageUsage is
+// the stage's usage when Generate ran, or OriginNone when a failure happened
+// before it.
+func (w *templateWriter) runReview(ctx context.Context, material templateData, title, body string) (string, string, *ReviewResult, StageUsage, error) {
 	data := reviewTemplateData{templateData: material, ArticleTitle: title, ArticleBody: body}
 	system, user, err := w.review.expand(data)
 	if err != nil {
-		return "", "", nil, stepError(StepReview, err)
+		return "", "", nil, StageUsage{}, stepError(StepReview, err)
 	}
 	resp, err := w.reviewClient.Generate(ctx, llm.GenerateRequest{SystemPrompt: system, UserPrompt: user, MaxOutputTokens: 0})
+	usage := stageUsage(resp)
 	if err != nil {
-		return "", "", nil, stepError(StepReview, err)
+		return "", "", nil, usage, stepError(StepReview, err)
 	}
 	revisions, err := parseReviewResponse(resp.Text)
 	if err != nil {
-		return "", "", nil, stepError(StepReview, err)
+		return "", "", nil, usage, stepError(StepReview, err)
 	}
 	if err := checkModelPair(resp.Model, resp.ModelVersion); err != nil {
-		return "", "", nil, stepError(StepReview, err)
+		return "", "", nil, usage, stepError(StepReview, err)
 	}
 	revised, err := applyRevisions(textString(title, body), revisions)
 	if err != nil {
-		return "", "", nil, stepError(StepReview, err)
+		return "", "", nil, usage, stepError(StepReview, err)
 	}
 	newTitle, newBody, err := checkGeneratedText(revised)
 	if err != nil {
-		return "", "", nil, stepError(StepReview, err)
+		return "", "", nil, usage, stepError(StepReview, err)
 	}
 	result := ReviewResult{Model: StepModel{Model: resp.Model, ModelVersion: resp.ModelVersion}, Revisions: revisions}
-	return newTitle, newBody, &result, nil
+	return newTitle, newBody, &result, usage, nil
 }

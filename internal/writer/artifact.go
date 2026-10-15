@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/transcript"
 )
 
@@ -60,6 +61,7 @@ type StageRecord struct {
 	Revisions    []Revision // StageReview only
 	Model        string
 	ModelVersion string
+	Usage        llm.Usage // the token usage of the stage's call
 	System       TemplateIdentity
 	User         TemplateIdentity
 	Input        string // the identifier of the input this stage consumed

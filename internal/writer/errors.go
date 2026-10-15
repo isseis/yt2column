@@ -127,3 +127,27 @@ func (e *StepError) Unwrap() error { return e.Err }
 func stepError(step Step, err error) error {
 	return &StepError{Step: step, Err: err}
 }
+
+// TokenUsageError carries the token usage of the stages that ran, or were
+// reused, before a run failed. Write wraps every failure in it, and
+// pipeline.Run wraps a failure after a successful Write in it. Error returns
+// Err's message unchanged, so wrapping does not change what a caller logs;
+// Unwrap returns Err.
+type TokenUsageError struct {
+	RunUsage RunUsage
+	Err      error
+}
+
+func (e *TokenUsageError) Error() string {
+	if e.Err == nil {
+		return "token usage error"
+	}
+	return e.Err.Error()
+}
+
+func (e *TokenUsageError) Unwrap() error { return e.Err }
+
+// tokenUsageError wraps a failure with the usage recorded so far.
+func tokenUsageError(runUsage RunUsage, err error) error {
+	return &TokenUsageError{RunUsage: runUsage, Err: err}
+}

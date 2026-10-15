@@ -171,20 +171,20 @@ requirements の機能要件（F-001〜F-008）を、architecture の設計ど�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: `writer` と中間生成物
 
 **対象ファイル:** `internal/writer/writer.go`・`artifact.go`・`errors.go`・`shorten.go`・`review.go`・`output.go`・`output_test.go`、`internal/writer/usage_test.go`（新規）、`internal/artifact/artifact.go`・`format.go`・`store.go`・`format_test.go`・`chain_test.go`、`internal/pipeline/pipeline_test.go`
 
-- [ ] **ステップ 3-1**: architecture §3.5・§3.6 の型を置く。`UsageOrigin`・`StageUsage`・`RunUsage` と `Article.RunUsage` は `writer.go`、`StageRecord.Usage` は `artifact.go`、`TokenUsageError` は `errors.go` に置く。`ArticleWriter` の文書に「失敗では `*TokenUsageError` で包んだエラーを返す」を加える。
-- [ ] **ステップ 3-2**: `Write` に使用量の記録を加える。各段階の関数が返す `StageUsage`、`StageUsage.Model` に入れる値、`StageRecord.Usage`、再利用した段階の `OriginReused` は architecture §3.5（「段階の関数の戻り値」「`StageUsage.Model` に入れる値」）、失敗での `*TokenUsageError` の包み方は §3.6 と図6 のとおりとする。成功では `newArticle` に `RunUsage` を渡す。
-- [ ] **ステップ 3-3**: `internal/artifact` を、architecture §3.7 の形式の版 2（`usage` 要素の形、読み込みの規則、読み込んだ不明の値、`recordID` に加える部分）にする。`Parse` は `usage` を `parseStage` の後で読む（版 1 のファイルを版の違いで拒否するため。ステップ 3-8 で固定する）。拒否は `malformed`・`malformedf` で、ファイルの値を含めずに返す。
-- [ ] **ステップ 3-4**: `internal/artifact` のメッセージを 2 か所変える。
+- [x] **ステップ 3-1**: architecture §3.5・§3.6 の型を置く。`UsageOrigin`・`StageUsage`・`RunUsage` と `Article.RunUsage` は `writer.go`、`StageRecord.Usage` は `artifact.go`、`TokenUsageError` は `errors.go` に置く。`ArticleWriter` の文書に「失敗では `*TokenUsageError` で包んだエラーを返す」を加える。
+- [x] **ステップ 3-2**: `Write` に使用量の記録を加える。各段階の関数が返す `StageUsage`、`StageUsage.Model` に入れる値、`StageRecord.Usage`、再利用した段階の `OriginReused` は architecture §3.5（「段階の関数の戻り値」「`StageUsage.Model` に入れる値」）、失敗での `*TokenUsageError` の包み方は §3.6 と図6 のとおりとする。成功では `newArticle` に `RunUsage` を渡す。
+- [x] **ステップ 3-3**: `internal/artifact` を、architecture §3.7 の形式の版 2（`usage` 要素の形、読み込みの規則、読み込んだ不明の値、`recordID` に加える部分）にする。`Parse` は `usage` を `parseStage` の後で読む（版 1 のファイルを版の違いで拒否するため。ステップ 3-8 で固定する）。拒否は `malformed`・`malformedf` で、ファイルの値を含めずに返す。
+- [x] **ステップ 3-4**: `internal/artifact` のメッセージを 2 か所変える。
   - `parseStage` の版の拒否（`format.go:200`）を、`"unsupported artifact version %d"` から `"unsupported artifact version %d; this CLI reads version %d only; move away the artifacts an older CLI saved, or use a new --artifacts directory, then rerun"`（2 つ目の `%d` は `artifactVersion`）に変える。版 1 では architecture §3.7 の文になる。
   - `loadRecord` が `Parse` から受け取ったエラー（`store.go:252-254`）を `fmt.Errorf("%s artifact: %w", stage, err)` で包む。大きさの上限の 2 つのメッセージ（`store.go:243`・`:250`）を、`"artifact exceeds the limit of %d bytes"` から `"artifact %s exceeds the limit of %d bytes"`（`%s` は段階の名前）に変える。番兵（`ErrMalformed`・`writer.ErrMalformedOutput`）の包みは変えない。
-- [ ] **ステップ 3-5**: `internal/writer/usage_test.go` に、fake の `LLMClient`（`FakeLLMSequence`・`FakeLLMClient`）と fake の `ArtifactStore` で architecture §7.1 の `internal/writer` のテストを書く。
+- [x] **ステップ 3-5**: `internal/writer/usage_test.go` に、fake の `LLMClient`（`FakeLLMSequence`・`FakeLLMClient`）と fake の `ArtifactStore` で architecture §7.1 の `internal/writer` のテストを書く。
   - `TestWriteRunUsagePerStage`: 3 つの段階に異なる使用量を返し、各段階の値とモデル名が対応する呼び出しのものであること（AC-10）。1 つの段階が `KnownUsage(TokenCounts{})` を返す行で、その段階が `OriginRun` で `Counts` の第 2 戻り値が真であること（AC-11 の「0 を含む」）。
   - `TestWriteRunUsageUnknownStage`: 1 つの段階だけが不明を返す成功した実行で、記事が返り、ほかの段階が影響を受けないこと（AC-11a）。
   - `TestWriteRunUsageInvariants`: architecture §1.3 の例外 3 の不変条件を、字数の調整と検証・推敲の有効・無効、字数の調整が LLM を呼ぶかどうか、`--after` の 3 つの値と再開しない場合の組み合わせのすべてで確かめる（AC-11・AC-14）。
@@ -192,14 +192,14 @@ requirements の機能要件（F-001〜F-008）を、architecture の設計ど�
   - `TestWriteFailureRunUsage`: architecture §7.1 の失敗の経路の表（字幕の検証、`--after` の読み込み、展開の失敗、呼び出しの前の中断、字数の調整の呼び出しの失敗（使用量を返す打ち切り）、検証・推敲の呼び出しの失敗、生成の使用量を返す打ち切り、期限切れ、検証・推敲の応答の形の不正、保存の失敗、最後の字数の検査）で、`errors.AsType[*TokenUsageError]` が取り出せ、各段階の `Origin` と `Usage` が期待どおりであること、`Article` がゼロ値であること（AC-16〜AC-20）。失敗した呼び出しのモデル名が `checkModelString` を通らない行では、`StageUsage.Model` が空であることを含める。
   - `TestWriteSavesUsage`: 保存した各段階の `StageRecord.Usage` が、その段階の呼び出しの使用量であること（AC-21）。
   - `TestTokenUsageErrorTransparent`: `Error()` が中のエラーのメッセージと等しく、`errors.Is`・`errors.AsType` が中の `*StepError`・`*ArtifactError`・番兵に届くこと（AC-28 の前提）。
-- [ ] **ステップ 3-6**: 既存のテストを更新する。`TestWriteArticle`（`output_test.go:75-82`）の期待する `Article` に `RunUsage` を加える。`TestCommonTypesFieldSets` の `Article` の行に `"RunUsage": "writer.RunUsage"` を、`TestInterfaceDocComments` の `ArticleWriter` の行に、ステップ 3-1 の文を固定する句を加える。`TestParseRecordRejects` の「unsupported version」の行（`format_test.go:223-226`）の版を、`2` から `artifactVersion+1` に変える。`fieldsFrom`（`format_test.go:105`）に `usage` を加える。`sameRecord`（`format_test.go:66-82`）に使用量の比較を加える。分かった値はトークン数が等しいこと、不明は両方が不明であることを等しいとし、理由は比べない（理由は保存しない。architecture §3.7）。
-- [ ] **ステップ 3-7**: `internal/artifact` のテストを書く。
+- [x] **ステップ 3-6**: 既存のテストを更新する。`TestWriteArticle`（`output_test.go:75-82`）の期待する `Article` に `RunUsage` を加える。`TestCommonTypesFieldSets` の `Article` の行に `"RunUsage": "writer.RunUsage"` を、`TestInterfaceDocComments` の `ArticleWriter` の行に、ステップ 3-1 の文を固定する句を加える。`TestParseRecordRejects` の「unsupported version」の行（`format_test.go:223-226`）の版を、`2` から `artifactVersion+1` に変える。`fieldsFrom`（`format_test.go:105`）に `usage` を加える。`sameRecord`（`format_test.go:66-82`）に使用量の比較を加える。分かった値はトークン数が等しいこと、不明は両方が不明であることを等しいとし、理由は比べない（理由は保存しない。architecture §3.7）。
+- [x] **ステップ 3-7**: `internal/artifact` のテストを書く。
   - `format_test.go` の `TestMarshalParseRoundTrip` に、分かった値と不明の行を加える（AC-21）。
   - `TestParseRecordRejectsUsage`: `usage` がない・重複・オブジェクトでも `null` でもない値（文字列・数・真偽値・配列）、中の宣言していない要素・要素の欠け・重複、値の負数・`-0`・小数・指数・`int64` を超える数・文字列・真偽値・配列・オブジェクト・`null` を、それぞれその入力だけで `ErrMalformed` で拒否し、メッセージにファイルの値を含めないこと（AC-22）。
   - `TestParseRejectsVersion1`: `usage` のない版 1 の中間生成物を `ErrMalformed` で拒否し、メッセージが版の違いと回復の手順を示すこと（AC-23）。
   - `TestRecordIDCoversUsage`: トークン数だけが異なる 2 つの記録の `id` が異なること、`id` を変えずにトークン数だけを書き換えたファイルを `ErrMalformed` で拒否すること、理由だけが異なる不明の 2 つの記録の `id` が同じであること（AC-24、architecture §3.7）。
   - `chain_test.go` の `TestLoadNamesBrokenStage`: 版 2 の生成の中間生成物と検証・推敲の中間生成物、および版 1 の字数の調整の中間生成物で `--after review` の `Load` を呼び、エラーが `ErrMalformed` で、メッセージが字数の調整の段階の名前を含むこと（architecture §7.1）。
-- [ ] **ステップ 3-8**: 壊して確かめる。`Origin` を設定する箇所を 1 つずつ消し、そのたびに次のテストが失敗することを確かめる。生成、字数の調整、検証・推敲の `OriginRun`（成功した呼び出し）は `TestWriteRunUsageInvariants` の該当する組み合わせの行、同じ 3 つの `OriginRun`（失敗した呼び出し）は `TestWriteFailureRunUsage` の生成の使用量を返す打ち切りの行、字数の調整の呼び出しの失敗の行、検証・推敲の呼び出しの失敗の行、生成、字数の調整、検証・推敲の `OriginReused` は `TestWriteRunUsageResume` の `--after generation`・`shorten`・`review` の行である。あわせて、`Marshal` から `usage` を除くと `TestMarshalParseRoundTrip` の分かった値の行が失敗すること、`recordID` から使用量の部分を除くと `TestRecordIDCoversUsage` が失敗すること、`Parse` で `usage` を `parseStage` の前に読むと `TestParseRejectsVersion1` が失敗することを確かめる。
+- [x] **ステップ 3-8**: 壊して確かめる。`Origin` を設定する箇所を 1 つずつ消し、そのたびに次のテストが失敗することを確かめる。生成、字数の調整、検証・推敲の `OriginRun`（成功した呼び出し）は `TestWriteRunUsageInvariants` の該当する組み合わせの行、同じ 3 つの `OriginRun`（失敗した呼び出し）は `TestWriteFailureRunUsage` の生成の使用量を返す打ち切りの行、字数の調整の呼び出しの失敗の行、検証・推敲の呼び出しの失敗の行、生成、字数の調整、検証・推敲の `OriginReused` は `TestWriteRunUsageResume` の `--after generation`・`shorten`・`review` の行である。あわせて、`Marshal` から `usage` を除くと `TestMarshalParseRoundTrip` の分かった値の行が失敗すること、`recordID` から使用量の部分を除くと `TestRecordIDCoversUsage` が失敗すること、`Parse` で `usage` を `parseStage` の前に読むと `TestParseRejectsVersion1` が失敗することを確かめる。
 
 **完了条件:** グリーンゲートが通る。CLI はまだ `RunUsage` を出さない。中間生成物は版 2 で保存され、既存の CLI の中間生成物のテスト（`artifact.Marshal` で作る）は変えずに通る。
 
@@ -215,8 +215,8 @@ requirements の機能要件（F-001〜F-008）を、architecture の設計ど�
 
 **判定理由**: ステップ 3-3・3-4 が中間生成物の形式の版を 1 から 2 へ上げ、古い版を回復の手順つきで拒否する移行であり、`id` にトークン数を含める改ざん検出（AC-24）を伴い、`TestWriteArticle`・`TestCommonTypesFieldSets`・`TestInterfaceDocComments`・`TestParseRecordRejects`・`sameRecord`・`fieldsFrom` など多数の既存テストの更新を要するため（`mkplan.md` ステップ 8 のパネルモードのトリガーの、移行と多数のテストの更新に該当）。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
