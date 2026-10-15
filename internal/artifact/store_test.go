@@ -59,6 +59,13 @@ func mustSave(t *testing.T, store *Store, rec writer.StageRecord) string {
 }
 
 func TestNewStoreRejectsBadDir(t *testing.T) {
+	t.Run("empty", func(t *testing.T) {
+		// Run from a valid directory, so only the empty-path check can reject.
+		t.Chdir(t.TempDir())
+		if _, err := NewStore(""); !errors.Is(err, ErrMissing) {
+			t.Fatalf("NewStore error = %v, want ErrMissing", err)
+		}
+	})
 	t.Run("missing", func(t *testing.T) {
 		dir := filepath.Join(t.TempDir(), "absent")
 		if _, err := NewStore(dir); !errors.Is(err, ErrMissing) {

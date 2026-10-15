@@ -50,9 +50,9 @@ type Store struct {
 // Store implements the writer's artifact boundary.
 var _ writer.ArtifactStore = (*Store)(nil)
 
-// NewStore opens dir as an artifacts directory. It rejects a missing path, a
-// path that is not a directory, and a symbolic link with ErrMissing, and it
-// never creates the directory.
+// NewStore opens dir as an artifacts directory. It rejects an empty path, a
+// missing path, a path that is not a directory, and a symbolic link with
+// ErrMissing, and it never creates the directory.
 func NewStore(dir string) (*Store, error) {
 	return newStore(dir, nil)
 }
@@ -60,6 +60,11 @@ func NewStore(dir string) (*Store, error) {
 // newStore is NewStore with the test hook used to replace the path between the
 // type check and the open.
 func newStore(dir string, beforeOpen func(string)) (*Store, error) {
+	// filepath.Clean turns "" into ".", which would accept the current
+	// directory for a path nobody named.
+	if dir == "" {
+		return nil, ErrMissing
+	}
 	clean := filepath.Clean(dir)
 	info, err := os.Lstat(clean) //nolint:gosec // stats the directory the caller named, before opening it
 	if err != nil {
