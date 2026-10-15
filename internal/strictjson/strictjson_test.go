@@ -571,3 +571,128 @@ func TestAsArrayElementLimit(t *testing.T) {
 		}
 	})
 }
+
+func TestIsNull(t *testing.T) {
+	object, err := ParseObject([]byte(`{"null":null,"string":"null","number":0,"bool":false,"object":{},"array":[]}`))
+	if err != nil {
+		t.Fatalf("ParseObject error = %v", err)
+	}
+	keys := []string{"null", "string", "number", "bool", "object", "array"}
+	consumed, err := object.Collect(keys...)
+	if err != nil {
+		t.Fatalf("Collect error = %v", err)
+	}
+	if !consumed["null"].IsNull() {
+		t.Error("IsNull(null) = false, want true")
+	}
+	for _, key := range []string{"string", "number", "bool", "object", "array"} {
+		if consumed[key].IsNull() {
+			t.Errorf("IsNull(%s) = true, want false", key)
+		}
+	}
+
+	var zero Value
+	if zero.IsNull() {
+		t.Error("zero Value.IsNull() = true, want false")
+	}
+}
+
+func TestAsNonNegativeInt64(t *testing.T) {
+	document := `{"zero":0,"one":1,"max":9223372036854775807,` +
+		`"negative":-1,"negative-zero":-0,"fraction":1.0,"half":1.5,` +
+		`"exponent":1e3,"upper-exponent":1E3,"overflow":9223372036854775808,` +
+		`"string":"7","boolean":true,"null":null,"array":[],"object":{}}`
+	object, err := ParseObject([]byte(document))
+	if err != nil {
+		t.Fatalf("ParseObject error = %v", err)
+	}
+	consumed, err := object.Collect(
+		"zero", "one", "max", "negative", "negative-zero", "fraction", "half",
+		"exponent", "upper-exponent", "overflow", "string", "boolean", "null",
+		"array", "object",
+	)
+	if err != nil {
+		t.Fatalf("Collect error = %v", err)
+	}
+
+	accepted := map[string]int64{
+		"zero": 0,
+		"one":  1,
+		"max":  9223372036854775807,
+	}
+	for name, want := range accepted {
+		got, err := consumed[name].AsNonNegativeInt64()
+		if err != nil || got != want {
+			t.Errorf("AsNonNegativeInt64(%s) = %d, %v; want %d, nil", name, got, err, want)
+		}
+	}
+
+	rejected := map[string]struct {
+		target error
+		value  string
+	}{
+		"negative":       {errNegativeNumber, "-1"},
+		"negative-zero":  {errNegativeNumber, "-0"},
+		"fraction":       {errNonIntegerNumber, "1.0"},
+		"half":           {errNonIntegerNumber, "1.5"},
+		"exponent":       {errNonIntegerNumber, "1e3"},
+		"upper-exponent": {errNonIntegerNumber, "1E3"},
+		"overflow":       {errIntegerOutOfRange, "9223372036854775808"},
+		"string":         {errValueNotNumber, `"7"`},
+		"boolean":        {errValueNotNumber, "true"},
+		"null":           {errValueNotNumber, "null"},
+		"array":          {errValueNotNumber, "[]"},
+		"object":         {errValueNotNumber, "{}"},
+	}
+	for name, tc := range rejected {
+		if _, err := consumed[name].AsNonNegativeInt64(); !errors.Is(err, tc.target) {
+			t.Errorf("AsNonNegativeInt64(%s) error = %v, want %v", name, err, tc.target)
+		}
+		if _, err := consumed[name].AsNonNegativeInt64(); err != nil && strings.Contains(err.Error(), tc.value) {
+			t.Errorf("AsNonNegativeInt64(%s) error = %q, must not contain the value %q", name, err.Error(), tc.value)
+		}
+	}
+
+	t.Run("rejects the zero value", func(t *testing.T) {
+		var zero Value
+		if _, err := zero.AsNonNegativeInt64(); !errors.Is(err, errZeroValue) {
+			t.Errorf("AsNonNegativeInt64 error = %v, want errZeroValue", err)
+		}
+	})
+}
+
+// TestCollectErrorIsDuplicate fixes that Collect rejects only a duplicate
+// consumed member: the adapters map its error to a duplicate usage member, and
+// must not see any other rejection.
+func TestCollectErrorIsDuplicate(t *testing.T) {
+	accepted := map[string]struct {
+		document string
+		keys     []string
+	}{
+		"unlisted duplicates": {`{"ignored":1,"ignored":2,"kept":true}`, []string{"kept"}},
+		"missing consumed":    {`{"kept":1}`, []string{"kept", "missing"}},
+		"wrong kind consumed": {`{"kept":[]}`, []string{"kept"}},
+		"unlisted only":       {`{"ignored":1,"ignored":2}`, []string{"kept"}},
+	}
+	for name, tc := range accepted {
+		t.Run("accepts "+name, func(t *testing.T) {
+			object, err := ParseObject([]byte(tc.document))
+			if err != nil {
+				t.Fatalf("ParseObject error = %v", err)
+			}
+			if _, err := object.Collect(tc.keys...); err != nil {
+				t.Errorf("Collect error = %v, want nil", err)
+			}
+		})
+	}
+
+	t.Run("rejects only a duplicate consumed member", func(t *testing.T) {
+		object, err := ParseObject([]byte(`{"kept":1,"ignored":2,"ignored":3,"kept":4}`))
+		if err != nil {
+			t.Fatalf("ParseObject error = %v", err)
+		}
+		if _, err := object.Collect("kept"); !errors.Is(err, errDuplicateMember) {
+			t.Errorf("Collect error = %v, want errDuplicateMember", err)
+		}
+	})
+}

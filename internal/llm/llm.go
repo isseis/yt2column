@@ -50,7 +50,8 @@ func (r GenerateRequest) Validate() error {
 	return nil
 }
 
-// GenerateResponse is the generated text and the model that produced it.
+// GenerateResponse is the generated text and the model that produced it,
+// with the token usage the response reported.
 // ModelVersion is an opaque, provider-defined identifier of the model or
 // backend version that produced the text, comparable only within one provider.
 // It is empty when the provider reports none.
@@ -58,6 +59,7 @@ type GenerateResponse struct {
 	Text         string
 	Model        string
 	ModelVersion string
+	Usage        Usage
 }
 
 // LLMClient sends a provider-common request and returns the generated result.

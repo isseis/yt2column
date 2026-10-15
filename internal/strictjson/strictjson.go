@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strconv"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -39,6 +41,9 @@ var (
 	errValueNotString    = errors.New("value is not a string")
 	errValueNotNumber    = errors.New("value is not a number")
 	errValueNotBool      = errors.New("value is not a boolean")
+	errNegativeNumber    = errors.New("value is negative")
+	errNonIntegerNumber  = errors.New("value is not an integer")
+	errIntegerOutOfRange = errors.New("value is out of range")
 	errMissingField      = errors.New("missing required member")
 	errEmptyField        = errors.New("required member is empty")
 )
@@ -170,6 +175,19 @@ func OptionalString(members map[string]Value, key string) (value string, present
 	return text, true, nil
 }
 
+// IsNull reports whether the value is the JSON literal null. The zero Value
+// is not null.
+func (v Value) IsNull() bool {
+	if v.raw == nil {
+		return false
+	}
+	token, err := newRawDecoder(v.raw).Token()
+	if err != nil {
+		return false
+	}
+	return token == nil
+}
+
 // AsString returns the value as a string, rejecting null and other kinds.
 func (v Value) AsString() (string, error) {
 	if v.raw == nil {
@@ -219,6 +237,37 @@ func (v Value) AsInt64() (int64, error) {
 	value, err := number.Int64()
 	if err != nil {
 		return 0, err
+	}
+	return value, nil
+}
+
+// AsNonNegativeInt64 returns the value as a non-negative integer that fits
+// int64. It rejects a non-number, null, a number with a fraction or an
+// exponent (1.0, 1e3), a number with a leading minus sign (-1 and -0), and a
+// number outside int64. Its errors name the broken rule only, never the
+// value.
+func (v Value) AsNonNegativeInt64() (int64, error) {
+	if v.raw == nil {
+		return 0, errZeroValue
+	}
+	token, err := newRawDecoder(v.raw).Token()
+	if err != nil {
+		return 0, err
+	}
+	number, ok := token.(json.Number)
+	if !ok {
+		return 0, errValueNotNumber
+	}
+	text := number.String()
+	if strings.HasPrefix(text, "-") {
+		return 0, errNegativeNumber
+	}
+	if strings.ContainsAny(text, ".eE") {
+		return 0, errNonIntegerNumber
+	}
+	value, err := strconv.ParseInt(text, 10, 64)
+	if err != nil {
+		return 0, errIntegerOutOfRange
 	}
 	return value, nil
 }
