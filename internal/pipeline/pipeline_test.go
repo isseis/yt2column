@@ -255,7 +255,10 @@ func TestPipelineCanceled(t *testing.T) {
 
 	t.Run("canceled after write", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
-		wrFake := &writertestutil.FakeArticleWriter{}
+		runUsage := writer.RunUsage{
+			Generation: writer.StageUsage{Origin: writer.OriginRun, Model: "gen-model", Usage: testUsage(5, 7)},
+		}
+		wrFake := &writertestutil.FakeArticleWriter{Result: writer.Article{RunUsage: runUsage}}
 		wr := &flipAfterWrite{inner: wrFake, flip: cancel}
 		pub := &publishertestutil.FakePublisher{}
 		p, err := New(&transcripttestutil.FakeTranscriptSource{}, wr, pub)
@@ -263,12 +266,22 @@ func TestPipelineCanceled(t *testing.T) {
 			t.Fatalf("New returned error: %v", err)
 		}
 
-		_, err = p.Run(ctx, "url")
-		if err != context.Canceled {
+		article, err := p.Run(ctx, "url")
+		if article != (writer.Article{}) {
+			t.Errorf("Run article = %+v, want the zero value", article)
+		}
+		if !errors.Is(err, context.Canceled) {
 			t.Errorf("Run error = %v, want context.Canceled", err)
 		}
 		if _, ok := errors.AsType[*StageError](err); ok {
 			t.Error("cancellation was wrapped in a StageError")
+		}
+		tue, ok := errors.AsType[*writer.TokenUsageError](err)
+		if !ok {
+			t.Fatalf("Run error = %v, want a *writer.TokenUsageError", err)
+		}
+		if tue.RunUsage != runUsage {
+			t.Errorf("TokenUsageError.RunUsage = %+v, want %+v", tue.RunUsage, runUsage)
 		}
 		if len(wrFake.Calls) != 1 {
 			t.Errorf("writer calls = %d, want 1", len(wrFake.Calls))
@@ -277,6 +290,47 @@ func TestPipelineCanceled(t *testing.T) {
 			t.Error("publisher called after cancellation")
 		}
 	})
+}
+
+// testUsage is a known usage with the given input and output counts, for the
+// tests that carry a run usage through the pipeline.
+func testUsage(input, output uint64) llm.Usage {
+	return llm.KnownUsage(llm.TokenCounts{Input: input, Output: output})
+}
+
+func TestPipelinePublishFailureCarriesRunUsage(t *testing.T) {
+	runUsage := writer.RunUsage{
+		Review: writer.StageUsage{Origin: writer.OriginRun, Model: "review-model", Usage: testUsage(3, 4)},
+	}
+	wr := &writertestutil.FakeArticleWriter{Result: writer.Article{RunUsage: runUsage}}
+	publishErr := errors.New("publish boom")
+	pub := &publishertestutil.FakePublisher{Err: publishErr}
+	p, err := New(&transcripttestutil.FakeTranscriptSource{}, wr, pub)
+	if err != nil {
+		t.Fatalf("New returned error: %v", err)
+	}
+
+	article, err := p.Run(context.Background(), "url")
+	if article != (writer.Article{}) {
+		t.Errorf("Run article = %+v, want the zero value", article)
+	}
+	stageErr, ok := errors.AsType[*StageError](err)
+	if !ok {
+		t.Fatalf("Run error = %v, want *StageError", err)
+	}
+	if stageErr.Stage != StagePublish {
+		t.Errorf("StageError.Stage = %v, want %v", stageErr.Stage, StagePublish)
+	}
+	tue, ok := errors.AsType[*writer.TokenUsageError](err)
+	if !ok {
+		t.Fatalf("Run error = %v, want it to unwrap to a *writer.TokenUsageError", err)
+	}
+	if tue.RunUsage != runUsage {
+		t.Errorf("TokenUsageError.RunUsage = %+v, want %+v", tue.RunUsage, runUsage)
+	}
+	if !errors.Is(err, publishErr) {
+		t.Errorf("errors.Is(err, publish error) = false for %v", err)
+	}
 }
 
 func TestPipelineNewNilStage(t *testing.T) {
