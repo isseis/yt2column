@@ -215,7 +215,7 @@ requirements の機能要件（F-001〜F-008）を、architecture の設計ど�
 
 **判定理由**: ステップ 3-3・3-4 が中間生成物の形式の版を 1 から 2 へ上げ、古い版を回復の手順つきで拒否する移行であり、`id` にトークン数を含める改ざん検出（AC-24）を伴い、`TestWriteArticle`・`TestCommonTypesFieldSets`・`TestInterfaceDocComments`・`TestParseRecordRejects`・`sameRecord`・`fieldsFrom` など多数の既存テストの更新を要するため（`mkplan.md` ステップ 8 のパネルモードのトリガーの、移行と多数のテストの更新に該当）。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
