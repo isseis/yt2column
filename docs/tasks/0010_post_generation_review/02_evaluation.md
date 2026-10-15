@@ -96,7 +96,7 @@ time YT2COLUMN_YTDLP_PATH=/usr/bin/false yt2column --keep-cache \
 
 ```sh
 V=v5; RUN=1; A=~/yt2column-eval/artifacts/<動画 ID>
-mkdir -p "$A"
+mkdir -p "$A" ~/yt2column-eval/out/$V ~/yt2column-eval/review
 YT2COLUMN_YTDLP_PATH=/usr/bin/false yt2column --keep-cache --artifacts "$A" \
   --system-prompt docs/tasks/0008_column_prompt/$V/system.tmpl \
   --user-prompt docs/tasks/0008_column_prompt/$V/user.tmpl \
@@ -112,7 +112,8 @@ YT2COLUMN_YTDLP_PATH=/usr/bin/false yt2column --keep-cache --artifacts "$A" \
   --out ~/yt2column-eval/out/$V/<動画 ID>-$RUN-after-shorten.md <URL>
 ```
 
--   1) の実行だけが生成を呼ぶ。2) の実行は生成を呼ばず、字数の調整（本文が上限を超えるときだけ）・検証・推敲を呼ぶ。3) の実行は生成と字数の調整を呼ばず、検証・推敲だけを呼ぶ。呼び出し回数は §2.3 と同じく CLI の要約の行から決める（生成は常に 1 回、字数の調整は `the shorten step ran`、検証・推敲は `the review step returned ...`）。`--after` に与えた段階より前の段階は呼ばれないので、料金もその分減る。
+-   生成を呼ぶのは 1) だけ（1 回）。2) は生成を呼ばず、字数の調整（本文が上限を超えるときだけ）・検証・推敲を呼ぶ。3) は生成と字数の調整を呼ばず、検証・推敲だけを呼ぶ。呼び出し回数は §2.3 と同じく CLI の要約の行から決める（字数の調整は `the shorten step ran`、検証・推敲は `the review step returned ...`）。`--after` に与えた段階より前の段階は呼ばれないので、料金もその分減る。
+-   3) の実行は、1) で字数の調整が走って `<動画 ID>.shorten.json` が保存された動画に限る。本文が上限以内で字数の調整が走らなかった動画では、そのファイルが無いので `--after shorten` は拒否される。その場合は 2) の `--after generation` を使う。
 -   保存した成果物（`<動画 ID>.generation.json` など）を使い回すことで、生成の非決定性を切り離し、字数の調整・検証・推敲の差だけを比べられる。段階の前の文面（§3.1 の「段階の前の文面」）も成果物から読める。
 -   **すべての実行に `--keep-cache` を付ける。** 付けないと成功後にその動画のキャッシュが削除され、再開が字幕を取り直す。取り直した字幕が保存時と変わると、再開は入力の識別子の食い違いで拒否される（[01_requirements.md](01_requirements.md) の AC-21）。
 -   実 API を呼ぶ実行は、§2.3 と同じく人が承認する。段階の呼び出し回数と料金は、再開では呼ばない段階があることを記録する。

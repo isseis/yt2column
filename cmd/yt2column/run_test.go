@@ -2513,6 +2513,9 @@ func TestRunEvaluationProcedureFlags(t *testing.T) {
 	}
 
 	for i, flags := range commands {
+		if !slices.Contains(flags, "--keep-cache") {
+			t.Errorf("the evaluation procedure's command %d does not carry --keep-cache: %v", i+1, flags)
+		}
 		e.args = procedureArgs(flags, e, artifacts, i, system, user)
 		code := e.run()
 		if code == exitUsage {

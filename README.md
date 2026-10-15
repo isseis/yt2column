@@ -66,8 +66,8 @@ printed to standard error).
 | Code | Meaning |
 |---|---|
 | `0` | The article was written to `--out` or posted to the configured webhook. Warnings about cache cleanup do not change this. `-h`/`--help` also exits `0`. |
-| `1` | A run failure: fetching the transcript, generating the article, or publishing failed; another run held the cache directory; the run was interrupted; or the article was published but writing the review log failed. |
-| `2` | A usage or configuration error: bad arguments or video URL, a rejected environment variable, or a stage that could not be built. |
+| `1` | A run failure: fetching the transcript, generating the article, or publishing failed; another run held the cache directory; the run was interrupted; an `--artifacts` directory was unusable or a saved artifact was missing, broken, or from another run; or the article was published but writing the review log failed. |
+| `2` | A usage or configuration error: bad arguments or video URL, a rejected environment variable, a forbidden `--artifacts`/`--after` combination, or a stage that could not be built. |
 
 ## Post-generation steps
 

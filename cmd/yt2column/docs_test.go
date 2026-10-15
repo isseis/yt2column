@@ -565,19 +565,48 @@ func TestArtifactDocsContract(t *testing.T) {
 	}
 
 	security := readDoc(t, securityPath)
-	for _, want := range []string{"--artifacts", "0o600", "U+FEFF", "4 MiB"} {
-		if !strings.Contains(security, want) {
-			t.Errorf("security.md does not state %q", want)
+	cacheSection := sectionByHeading(security, "## 5. キャッシュディレクトリ")
+	if cacheSection == "" {
+		t.Fatal("security.md has no 5. キャッシュディレクトリ section")
+	}
+	artifactLine := bulletContaining(cacheSection, "--artifacts")
+	if artifactLine == "" {
+		t.Fatal("security.md 5. キャッシュディレクトリ has no --artifacts bullet")
+	}
+	if !strings.Contains(artifactLine, "0o600") {
+		t.Errorf("security.md's --artifacts bullet does not state the file mode 0o600: %q", artifactLine)
+	}
+	untrusted := sectionByHeading(security, "## 6. 信頼できないテキストの取り扱い")
+	if untrusted == "" {
+		t.Fatal("security.md has no 6. 信頼できないテキストの取り扱い section")
+	}
+	artifactContentLine := bulletContaining(untrusted, "--artifacts")
+	if artifactContentLine == "" {
+		t.Fatal("security.md 6. has no --artifacts bullet")
+	}
+	for _, want := range []string{"U+FEFF", "4 MiB"} {
+		if !strings.Contains(artifactContentLine, want) {
+			t.Errorf("security.md's --artifacts bullet does not state %q: %q", want, artifactContentLine)
 		}
 	}
 
-	evaluation := sectionByHeading(readDoc(t, reviewEvaluationPath), "## 2. 手順")
+	evaluation := sectionByHeading(readDoc(t, reviewEvaluationPath), "### 2.6. 中間生成物を固定した比較（タスク 0017 以降）")
 	if evaluation == "" {
-		t.Fatal("02_evaluation.md has no 2. 手順 section")
+		t.Fatal("02_evaluation.md has no 2.6 section")
 	}
 	for _, want := range []string{"--artifacts", "--after", "--keep-cache"} {
 		if !strings.Contains(evaluation, want) {
-			t.Errorf("02_evaluation.md 2. 手順 does not mention %s", want)
+			t.Errorf("02_evaluation.md 2.6 does not mention %s", want)
 		}
 	}
+}
+
+// bulletContaining returns the first line of section that contains term, or "".
+func bulletContaining(section, term string) string {
+	for line := range strings.SplitSeq(section, "\n") {
+		if strings.Contains(line, term) {
+			return line
+		}
+	}
+	return ""
 }
