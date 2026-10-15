@@ -212,11 +212,14 @@ On the first start the server generates a shared token, saves it to
 `<config dir>/yt2column/server-token` (macOS:
 `$HOME/Library/Application Support/yt2column/server-token`; other Unix:
 `$XDG_CONFIG_HOME` or `$HOME/.config`), and prints it once to standard output.
-Paste that token into the extension's options page. On later starts the server
-reads the same token and does not print it.
+The extension uses this token once it sends requests (#111); paste it into the
+extension's options page then, and until then use the curl example below to
+check the server by hand. On later starts the server reads the same token and
+does not print it.
 
 - To see the token again, read the file:
-  `cat "$HOME/Library/Application Support/yt2column/server-token"`.
+  - macOS: `cat "$HOME/Library/Application Support/yt2column/server-token"`.
+  - other Unix: `cat "${XDG_CONFIG_HOME:-$HOME/.config}/yt2column/server-token"`.
 - To recreate it, delete the file and restart the server; this prints a new
   token that must be pasted into the extension again.
 - A temporary file left by an interrupted first start (`server-token.tmp-*`) can
@@ -235,7 +238,7 @@ calls of 15 minutes each); a second signal exits at once.
 
 ### Checking the server with curl
 
-Write a request body (a video URL and the copied transcript):
+Write a request body to `request.json` (a video URL and the copied transcript):
 
 ```json
 {"videoUrl":"https://www.youtube.com/watch?v=dQw4w9WgXcQ","transcript":"0:00\nHello\n"}
@@ -245,7 +248,9 @@ Send it with the token on standard input, so it does not appear in the process
 arguments:
 
 ```sh
-printf 'Authorization: Bearer %s\n' "$(cat "$HOME/Library/Application Support/yt2column/server-token")" |
+config_dir="${XDG_CONFIG_HOME:-$HOME/.config}"
+if [ "$(uname -s)" = Darwin ]; then config_dir="$HOME/Library/Application Support"; fi
+printf 'Authorization: Bearer %s\n' "$(cat "$config_dir/yt2column/server-token")" |
   curl -sS -X POST http://127.0.0.1:8765/articles \
     -H 'Origin: chrome-extension://clfmbbcdpnjcefbdihdoahomaifbabkk' \
     -H 'Content-Type: application/json' \
@@ -254,7 +259,7 @@ printf 'Authorization: Bearer %s\n' "$(cat "$HOME/Library/Application Support/yt
 ```
 
 An accepted request answers `202` with `{"status":"accepted","requestId":"…"}`.
-A rejected request answers a `4xx` with
+A rejected request answers a `4xx` or `5xx` with
 `{"status":"rejected","reason":"…","requestId":"…"}`, where `reason` is one of:
 
 | reason | status code |
