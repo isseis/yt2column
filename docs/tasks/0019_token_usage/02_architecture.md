@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-15 |
-| Review date | - |
-| Reviewer | - |
-| Comments | - |
+| Review date | 2026-10-15 |
+| Reviewer | isseis |
+| Comments | 2026-10-15 実装計画の作成時の editorial correction（設計の決定は変えていない。status は `approved` のまま）。(1) §1.3「要件 AC-27 との関係」と §3.10 の `internal/pipeline/pipeline.go` の行に、`TestPipelineCanceled` の「canceled after write」（`internal/pipeline/pipeline_test.go:267` が `err != context.Canceled` で同一性を比べる）を加えた。§3.6 が `Write` と公開の間の中断を `TokenUsageError` で包むので、このテストは `errors.Is` での比較に改める必要があり、手を入れる既存のテストの一覧から漏れていた。(2) §7.2 の最初の項目は、`cmd/yt2column/integration_test.go` がループバックの fake の API で確かめるとしていたが、このテストは実際の DeepSeek の API を呼ぶ（`make test-integration-cli`）。同じ意図（実際の API を呼ばずに、記録済みの応答の形の `usage` から行が出ること）を、`make test` で走る新しい `cmd/yt2column` のテストで確かめる形に改めた。(3) §1.3 の例外 1 と §3.10 の Claude の行の、更新が要るテストの一覧に、`TestGenerateResponseFixtures` の「max_tokens fixture is truncated」（`internal/llm/claude/response_test.go:66`。打ち切りの記録済みの応答を `assertBodyRejected` で確かめる）を加えた。DeepSeek の一覧には対応する行があり、Claude の一覧から漏れていた。(4) §1.3「他のタスクの方針への例外」に 4 を加えた。0003・0009 の「`usage` は消費しないメンバーとして無視する」が応答の受理判定の規則として残り、使用量の取得のための別の読み取りは受理判定を変えないことを記録した。これは要件 §5 と AC-09 がすでに定めていることで、例外の一覧から漏れていた。あわせて、0003・0009 の文書にも同じ範囲を示す注記を加えた。 |
 
 本書の既存コードへの言及（`file:line`）は、コミット `593c696` で確かめた。
 
@@ -113,7 +113,7 @@ flowchart LR
     -   **例外の内容と理由:** 打ち切り（`llm.ErrTruncated`）・想定外の終了理由（`llm.ErrUnexpectedFinishReason`）・空の応答（`llm.ErrEmptyResponse`）では、アダプタは `Model` と `Usage` だけを設定した `GenerateResponse` をエラーとともに返す（§3.2）。要件 F-005・AC-17 が、これらの失敗した呼び出しの使用量を呼び出し元に渡すことを求めるためである。`Text` と `ModelVersion` は空のままとし、`writer` はエラーのときに `Text` を読まない（0004 の AC-14 の規則「`Generate` が空でない `Text` とエラーを同時に返しても `Text` を使わない」は変わらない）。ほかのエラー（`ErrInvalidResponse`・HTTP の状態・通信の失敗・リクエストの不正・タイムアウト）では、これまでどおりゼロ値を返す。
     -   **更新が要るテスト:** `assertRejected`（`internal/llm/deepseek/test_helpers.go:207-215`、`internal/llm/claude/test_helpers.go:227-236`）は、すべての失敗でゼロ値の応答を確かめる。3 つのエラーでは `Model` と `Usage` を確かめるように改める。これを使う次のテストが影響を受ける。
         -   DeepSeek: `TestGenerateFinishReason`・`TestGenerateEmptyContent`・`TestGenerateValidationOrder`（`internal/llm/deepseek/response_test.go:161-171`）・`TestGenerateResponseFixtures` の「length fixture is truncated」（同 :66）・`TestGenerateSentinelsDistinct`（`internal/llm/deepseek/deepseek_test.go:701-771`）。
-        -   Claude: `TestGenerateStopReason`・`TestGenerateEmptyText`・`TestGenerateValidationOrder`（`internal/llm/claude/response_test.go:139-160`）・`TestGenerateSentinelsDistinct`（`internal/llm/claude/claude_test.go:798-860`）。
+        -   Claude: `TestGenerateStopReason`・`TestGenerateEmptyText`・`TestGenerateValidationOrder`（`internal/llm/claude/response_test.go:139-160`）・`TestGenerateResponseFixtures` の「max_tokens fixture is truncated」（同 :66）・`TestGenerateSentinelsDistinct`（`internal/llm/claude/claude_test.go:798-860`）。
 2. **「`Article` を変更しない」の例外。**
     -   **元の方針と場所:** [0017 の 02_architecture.md](../0017_intermediate_artifacts/02_architecture.md) §3.5「`Article` を変更しない理由」。
     -   **例外の内容と理由:** `Article` に `RunUsage` を加える（§3.5）。要件 F-003 と §4.5 が、段階ごとの使用量を `ArticleWriter` の結果として呼び出し元に渡し、後続の #99（料金の概算。§9）が `Article` から取り出せることを求めるためである。`RunUsage` は比較できる値だけからなるので、`Article` は `==` で比べられるままである。
@@ -125,6 +125,10 @@ flowchart LR
         -   `(Shorten != nil) == (RunUsage.Shorten.Origin != OriginNone)`、`(Review != nil) == (RunUsage.Review.Origin != OriginNone)`。
         -   各段階の `StageUsage.Model` は、`Article.Model`・`Shorten.Model`・`Review.Model.Model` と等しい。
     -   **更新が要るテスト:** ない（既存の nil の規則は変えない）。
+4. **「`usage` は消費しないメンバーとして無視する」の範囲を、応答の受理判定に限る。**
+    -   **元の方針と場所:** [0003 の 01_requirements.md](../0003_deepseek_llm_client/01_requirements.md) §3.2 の拡張可能の宣言（:194）と AC-32（:218）、[0003 の 02_architecture.md](../0003_deepseek_llm_client/02_architecture.md) §9（:865。「`usage` は消費しないメンバーとして無視している」）、[0009 の 01_requirements.md](../0009_claude_llm_client/01_requirements.md) §3.2 の拡張可能の宣言（:249）と AC-38（:273）。どれも、トップレベルの `usage` を、値の種類や重複を問わず無視して受理するメンバーに数える。
+    -   **例外の内容と理由:** 両アダプタは、トークン数を得るために、トップレベルの `usage` を応答の本文の検証とは別の読み取りで読む（§3.4、要件 F-001・F-002）。「無視して受理する」は、応答の受理判定についての規則として残る。`usage` の不在・種類の違い・重複・中の値の不正は、使用量を不明にするだけで、応答の受理・拒否を変えない（要件 AC-09、本タスクの要件 §5）。そのため、AC-32・AC-38 が求める「消費しないメンバーを含んでいても受理され、`GenerateResponse` が組み立てられる」は、本タスクの後も成り立つ。0003・0009 の要件定義書の拡張可能の宣言とスコープ外の項、0003 の §9 には、この範囲と本タスクへの参照を示す注記を加えた（editorial correction。それぞれの決定は変えていない）。
+    -   **更新が要るテスト:** ない。AC-32・AC-38 を確かめるテストは、`usage` を含む応答の受理を確かめており、その期待は変わらない。`usage` を消費しないメンバーとして述べるテストのコメント（Claude の `TestGenerateDuplicateMembers`・`TestGenerateUnconsumedMembers`）は、実装計画のステップ 2-5 で直す。
 
 #### 要件 AC-27 との関係
 
@@ -133,6 +137,7 @@ AC-27 は、トークン数に関わらない振る舞いを検証する既存�
 -   **アダプタの失敗の契約のテスト（上の例外 1 の一覧）。** AC-17 が 3 つのエラーで使用量を返すことを求めるので、ゼロ値を確かめる部分は、要件どうしの衝突として改める。テキスト・終了理由・エラーの番兵の確認は変えない。
 -   **`TestWriteArticle`（上の例外 2）。** `Article` を値で比べるので、新しいフィールドの期待値を加える。記事の本文・モデルの確認は変えない。
 -   **`TestCommonTypesFieldSets`・`TestInterfaceDocComments`（`internal/pipeline/pipeline_test.go:455-490`）。** 型の形と契約の文言を固定する guard であり、要件 §4.4 のとおり同じ変更で更新する。
+-   **`TestPipelineCanceled` の「canceled after write」（`internal/pipeline/pipeline_test.go:267`）。** `Run` のエラーが `context.Canceled` そのものであることを `!=` で確かめている。§3.6 が `Write` と公開の間の中断を `TokenUsageError` で包むので、`errors.Is` での比較に改める。`StageError` で包まないことの確認は変えない。
 
 これ以外の既存のテスト（記事の本文、モデル名の行、検証・推敲の一覧、中間生成物の再開の規則、サーバ）は変更しない。
 
@@ -602,14 +607,14 @@ yt2column: tokens: generation run unknown reason=not-read nomodel
 | `internal/llm/llm.go` | 変更 | `GenerateResponse.Usage`。`LLMClient` の契約の文 | なし（guard は `internal/pipeline` の行を参照） |
 | `internal/strictjson/strictjson.go` | 変更 | `Value.IsNull`・`Value.AsNonNegativeInt64` | なし |
 | `internal/llm/deepseek/response.go`・`deepseek.go` | 変更 | `usage` の読み取りと検証、3 つのエラーでの `Model`・`Usage` の返却、`Generate` が応答を捨てないこと | `test_helpers.go` の `assertRejected`、`response_test.go` の `TestGenerateFinishReason`・`TestGenerateEmptyContent`・`TestGenerateValidationOrder`・`TestGenerateResponseFixtures`（打ち切りの記録済みの応答の行）、`deepseek_test.go` の `TestGenerateSentinelsDistinct`。受理のテストはフィールドごとに比べるので（`response_test.go:44-63`）変わらない |
-| `internal/llm/claude/response.go`・`claude.go` | 変更 | DeepSeek と同じ。キャッシュの 2 つの要素の `null` を 0 とすること | `test_helpers.go` の `assertRejected`、`response_test.go` の `TestGenerateStopReason`・`TestGenerateEmptyText`・`TestGenerateValidationOrder`、`claude_test.go` の `TestGenerateSentinelsDistinct` |
+| `internal/llm/claude/response.go`・`claude.go` | 変更 | DeepSeek と同じ。キャッシュの 2 つの要素の `null` を 0 とすること | `test_helpers.go` の `assertRejected`、`response_test.go` の `TestGenerateStopReason`・`TestGenerateEmptyText`・`TestGenerateValidationOrder`・`TestGenerateResponseFixtures`（打ち切りの記録済みの応答の行）、`claude_test.go` の `TestGenerateSentinelsDistinct` |
 | `internal/writer/writer.go` | 変更 | `Article.RunUsage`、`RunUsage`・`StageUsage`・`UsageOrigin` の定義、`Write` の段階ごとの記録と `TokenUsageError` での包み、再利用した段階の `OriginReused`。`ArticleWriter` の文書 | なし（失敗の経路の `Article{}` との比較は変わらない） |
 | `internal/writer/artifact.go` | 変更 | `StageRecord.Usage` | なし（`StageRecord` を作るテストは、`Usage` のゼロ値のままでも通る） |
 | `internal/writer/errors.go` | 変更 | `TokenUsageError` | なし |
 | `internal/writer/shorten.go`・`review.go` | 変更 | 呼び出しの成否にかかわらず、その段階の `StageUsage` を呼び出し元に返すこと（§3.5） | なし（非公開の関数を直接呼ぶテストはない。`steps_test.go` は `Write` を通す） |
 | `internal/writer/output.go` | 変更 | `newArticle` が `RunUsage` を受け取ること。`CheckPublishable`（`article.go`）は変えない | `output_test.go` の `TestWriteArticle`（期待する `Article` に `RunUsage` を加える） |
 | `internal/artifact/artifact.go`・`format.go`・`store.go` | 変更 | 版 2、`usage` の保存と読み込み、`recordID`、版 1 のメッセージ、`loadRecord` の `Parse` のエラーへの段階の名前 | `format_test.go` の `fieldsFrom`（`usage` を加える）と、版・キーの拒否の表 |
-| `internal/pipeline/pipeline.go` | 変更 | 公開の失敗と、`Write` の後の中断を `*writer.TokenUsageError` で包むこと。`Run` の文書 | `pipeline_test.go` の `TestCommonTypesFieldSets`（`GenerateResponse` に `Usage: llm.Usage`、`Article` に `RunUsage: writer.RunUsage`）と `TestInterfaceDocComments`（`LLMClient`・`ArticleWriter` の文） |
+| `internal/pipeline/pipeline.go` | 変更 | 公開の失敗と、`Write` の後の中断を `*writer.TokenUsageError` で包むこと。`Run` の文書 | `pipeline_test.go` の `TestCommonTypesFieldSets`（`GenerateResponse` に `Usage: llm.Usage`、`Article` に `RunUsage: writer.RunUsage`）と `TestInterfaceDocComments`（`LLMClient`・`ArticleWriter` の文）、`TestPipelineCanceled` の「canceled after write」（`errors.Is` での比較に改める。§1.3） |
 | `cmd/yt2column/run.go` | 変更 | トークン数の行の書式の定数と `reportTokens`、成功・失敗の要約での呼び出し | なし。既存のテストは標準エラーを部分文字列で照合する（`run_test.go` の `wantStderr`・`notStderr`）。出てはならない文字列として照合するもの（`the shorten step ran`・`the review step returned`・`the run failed:` など）は、トークン数の行に現れない。行の形を見る `requireSafeOutput`（`run_test.go:310-330`）は、行が `yt2column: ` で始まることだけを求め、トークン数の行もそれを満たす |
 | `cmd/yt2column/docs_test.go` | 変更 | README のトークン数の行の書式と、`run.go` の定数の一致を確かめる契約のテストの追加 | なし |
 | `README.md` | 変更 | トークン数の行の書式、区分の意味、再利用の印、不明の表し方と理由の語、モデル名のエスケープの戻し方、行の順序、更新後は新しい `--artifacts` のディレクトリを使うこと（要件 AC-15・AC-29） | なし |
@@ -817,7 +822,7 @@ flowchart TD
 
 ### 7.2. 統合テスト
 
--   既存の CLI の統合テスト（`cmd/yt2column/integration_test.go`）が、ループバックの fake の API で、記録済みの応答の形の `usage` から行が出ることを確かめる（実際の API は呼ばない）。
+-   `cmd/yt2column` の新しいテストが、`deps.newLLMClient` を `deepseek.NewForLoopbackTest`（ループバックの `httptest` のサーバに向けた実際のアダプタ）に差し替え、記録済みの応答（`testdata/deepseek_chat_completion_stop.json`）を返すサーバに対して CLI を実行し、その `usage` から生成のトークン数の行が出ることを確かめる。実際の API は呼ばず、`make test` で走る。既存の `cmd/yt2column/integration_test.go`（実際の DeepSeek の API を呼ぶ `make test-integration-cli`）は変更しない。
 -   サーバの既存のテスト（`internal/server/job_test.go` の `TestFailureClassification` など）が変更なしで通ること（AC-28）。
 
 ### 7.3. セキュリティテスト
