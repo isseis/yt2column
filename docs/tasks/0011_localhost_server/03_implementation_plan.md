@@ -8,7 +8,7 @@
 | Created | 2026-10-14 |
 | Review date | 2026-10-14 |
 | Reviewer | isseis |
-| Comments | 2026-10-14: mkplan2 で PR 境界（PR-1〜PR-7）を加え、§3.2 PR 構成と §7 チェックリストを PR 単位にした。あわせて、#222 で architecture §7.2 の改訂と再承認が済んだことに合わせ、再承認を「これから受ける」と書いていた記述を過去形に直した（editorial correction。計画の決定は変えていない）。 |
+| Comments | 2026-10-14: mkplan2 で PR 境界（PR-1〜PR-7）を加え、§3.2 PR 構成と §7 チェックリストを PR 単位にした。あわせて、#222 で architecture §7.2 の改訂と再承認が済んだことに合わせ、再承認を「これから受ける」と書いていた記述を過去形に直した（editorial correction。計画の決定は変えていない）。 2026-10-15: ステップ 2-1〜2-3 の実装で、§5 の AC-17 の検証から `TestBodyTooLarge` を外した。`body_too_large` は認証後の拒否で、architecture §3.4.3 のとおり失敗を通知する（AC-23）ため、AC-17 の対象（F-004・`Content-Type`・メソッドの検査）に含まれない。検証の対応付けだけの editorial correction で、計画の決定は変えていない。 |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「requirements」）の項番、節番号は [02_architecture.md](02_architecture.md)（以下「architecture」）の節を指す。H-NN は [design_handoff.md](design_handoff.md) の項目で、その対応は architecture §3.13 にある。既存のファイルの行番号と事実は、断りがない限り HEAD `e0f898e`（ブランチ `issei/localhost-server-01`）で確かめた。`implementation_handoff.md` は本タスクにはない。
 
@@ -152,8 +152,8 @@ requirements §2.3 のとおり。加えて、次のものは本計画で扱わ�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 **完了条件:** `make fmt`・`make test`・`make lint` が通る。既存テスト（1-2・1-3 で触れないもの）が内容を変えずに通る。
 
@@ -163,9 +163,9 @@ requirements §2.3 のとおり。加えて、次のものは本計画で扱わ�
 
 **統合テストの方式の変更（#222 で再承認済み）。** architecture §7.2 は、統合テストで「`integration` のビルドタグで実際のバイナリを起動し、LLM と Webhook を loopback の fake のサーバに向ける」としていたが、実装できなかった。LLM のエンドポイントは設定で差し替えられず（`internal/llm/deepseek/deepseek.go` と `internal/llm/claude` に固定されており、`config.LoadServer` にエンドポイントの変数はない）、adapter と記事の投稿の loopback の構築関数（`deepseek.NewForLoopbackTest`・`claude.NewForLoopbackTest`・`publisher.NewSlackWebhookPublisherForLoopbackTest`）と fake の `llm.LLMClient`（`internal/llm/testutil`）はすべて `//go:build test` で、`integration` タグだけのビルドからは見えないためである。LLM の API も Webhook も実物を呼ばないテストなので、architecture §7.2 を、`//go:build test` のテストとして `make test` に含め、`run` の `deps` の構築関数を差し替える方式に改め（`cmd/yt2column/signal_test.go` と同じタグ）、`draft` に戻し、#222 で再承認を受けた。あわせて §3.12・§3.14 から `test-integration-server` のターゲットとその検査を除いた。したがって 2-4 はこの点ではブロックされない。フェーズ 1 と 2-1〜2-3 はこの修正に依存しない。
 
-- [ ] **ステップ 2-1**: `internal/server/server.go` に `Options`・`New`・`Server`・`Listen`・`Serve` と `http.Server` の設定（architecture §3.5.1）を、`handler.go` に検査の順序（§3.5.2 の手順 1〜7）とジョブの起動を、`response.go` に `rejectReason`・拒否の詳細・状態コード・追加のヘッダ・応答の本文・リクエスト ID（§3.4.2〜§3.4.3・§3.10）を実装する。`New` は nil の依存部品・ゼロの `Token`・ゼロの `Port` を拒否し、ログと `ErrorLog` を `redact.Writer` の上に作る。`Serve` は取り消し・いずれかの `net.Listener` の失敗で終了の手順（§3.8.3）に入る。`package_reference.md` に行を加える。
-- [ ] **ステップ 2-2**: `internal/server/request.go` に、枠を取った後の本文の読み込みと検査（`Content-Length` の事前検査、`http.MaxBytesReader`、`strictjson`（§3.6 の (a)〜(d)）、`ValidateVideoURL`（(e)）、`NewCopiedSource`（§3.5.2 の手順 8〜12））を実装する。検査の順序により、ヘッダの検査に失敗したリクエストと枠を取れなかったリクエストの本文は 1 バイトも読まない（AC-12）。
-- [ ] **ステップ 2-3**: `internal/server/job.go` に、枠（`maxInFlight = 2`）・ジョブの goroutine・パニックの回収・失敗の分類（§3.9 の表を網羅的な `switch` で実装し、`rejectReason` から `Kind` への対応も 1 つの `switch` にする）・失敗の通知（枠を持ったまま、`Notify` に 60 秒の期限を付ける）を実装する。枠の持ち主を明示的に移し、解放はちょうど 1 つの持ち主が行う（§3.8.4）。
+- [x] **ステップ 2-1**: `internal/server/server.go` に `Options`・`New`・`Server`・`Listen`・`Serve` と `http.Server` の設定（architecture §3.5.1）を、`handler.go` に検査の順序（§3.5.2 の手順 1〜7）とジョブの起動を、`response.go` に `rejectReason`・拒否の詳細・状態コード・追加のヘッダ・応答の本文・リクエスト ID（§3.4.2〜§3.4.3・§3.10）を実装する。`New` は nil の依存部品・ゼロの `Token`・ゼロの `Port` を拒否し、ログと `ErrorLog` を `redact.Writer` の上に作る。`Serve` は取り消し・いずれかの `net.Listener` の失敗で終了の手順（§3.8.3）に入る。`package_reference.md` に行を加える。
+- [x] **ステップ 2-2**: `internal/server/request.go` に、枠を取った後の本文の読み込みと検査（`Content-Length` の事前検査、`http.MaxBytesReader`、`strictjson`（§3.6 の (a)〜(d)）、`ValidateVideoURL`（(e)）、`NewCopiedSource`（§3.5.2 の手順 8〜12））を実装する。検査の順序により、ヘッダの検査に失敗したリクエストと枠を取れなかったリクエストの本文は 1 バイトも読まない（AC-12）。
+- [x] **ステップ 2-3**: `internal/server/job.go` に、枠（`maxInFlight = 2`）・ジョブの goroutine・パニックの回収・失敗の分類（§3.9 の表を網羅的な `switch` で実装し、`rejectReason` から `Kind` への対応も 1 つの `switch` にする）・失敗の通知（枠を持ったまま、`Notify` に 60 秒の期限を付ける）を実装する。枠の持ち主を明示的に移し、解放はちょうど 1 つの持ち主が行う（§3.8.4）。
 
 ### PR-5 作成ポイント: the server core
 
@@ -179,8 +179,8 @@ requirements §2.3 のとおり。加えて、次のものは本計画で扱わ�
 
 **判定理由**: 枠（同時実行数）・goroutine のパニック回収・失敗の分類と通知という分離された高リスク／複雑なステップ（並行処理と回復）を含む。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
@@ -306,7 +306,7 @@ architecture §7.3 を 2-1〜2-3 のテストに書く。(1) AC-12（本文を�
 | AC-14 | test | `internal/server/handler_test.go::TestRejectHeaders`（`Host` の大文字・ポートの省略・非 loopback） |
 | AC-15 | test | `internal/server/handler_test.go::TestRejectHeaders`（`Origin` の欠落・不一致・複数） |
 | AC-16 | test | `internal/server/handler_test.go::TestRejectHeaders`（トークンの欠落・不一致・`Bearer ` でない・長さ違い、複数） |
-| AC-17 | test | `internal/server/handler_test.go::TestRejectHeaders`（fake の `ArticleWriter`・`Publisher`・`Notifier` が呼ばれない）、`internal/server/request_test.go::TestHeaderRejectionReadsNoBody`・`::TestBodyTooLarge`（fake の `Notifier` が呼ばれない） |
+| AC-17 | test | `internal/server/handler_test.go::TestRejectHeaders`（fake の `ArticleWriter`・`Publisher`・`Notifier` が呼ばれない）、`internal/server/request_test.go::TestHeaderRejectionReadsNoBody`（fake の `Notifier` が呼ばれない） |
 | AC-18 | test | `internal/server/job_test.go::TestAcceptStartsJob`（`202`、fake の `Publisher` が呼ばれる） |
 | AC-19 | test | `internal/server/job_test.go::TestJobTranscriptValues`（fake の `ArticleWriter` が受け取った `Transcript` の `VideoID`・`VideoURL` が導出値と一致し、`videoUrl` の文字列と異なる） |
 | AC-20 | test | `cmd/yt2column-server/run_test.go::TestBuildsSlackPublisher`（構築される `Publisher` が `*publisher.SlackWebhookPublisher` である）、統合テスト `::TestServerEndToEnd` |
@@ -342,7 +342,7 @@ architecture §7.3 を 2-1〜2-3 のテストに書く。(1) AC-12（本文を�
 - [x] PR-1 マージ済み（対象ステップ: 1-1）
 - [x] PR-2 マージ済み（対象ステップ: 1-2）
 - [x] PR-3 マージ済み（対象ステップ: 1-3 / 1-4）
-- [ ] PR-4 マージ済み（対象ステップ: 1-5）
+- [x] PR-4 マージ済み（対象ステップ: 1-5）
 - [ ] PR-5 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3）
 - [ ] PR-6 マージ済み（対象ステップ: 2-4）
 - [ ] PR-7 マージ済み（対象ステップ: 2-5）
