@@ -382,7 +382,7 @@ func (v Value) AsNonNegativeInt64() (int64, error)
 -   **受理する構文。** JSON の数のうち、符号・小数部・指数部のない 10 進の整数で、`int64` の範囲にあるものだけを受理する。`ParseObject` を通った文書の値なので、先頭の 0（`01`）は文書の構文検査で既に拒否されている。
 -   **`-0` を拒否する理由。** `-0` は数としては 0 だが、負の符号を持つ表記である。受理すると、符号を黙って捨てる正規化になる（[CLAUDE.md](../../../CLAUDE.md)「Reject, don't normalize」）。両プロバイダの応答と本プロジェクトの `Marshal` は `-0` を書かないので、受理する理由もない。
 -   **エラーに値を含めない。** `AsInt64` のエラーは `strconv.ParseInt` のメッセージ（値を含む）をそのまま返す（§1.3）。`AsNonNegativeInt64` は、壊れた規則ごとの非公開の静的なエラー（数でない・負の符号・整数でない・範囲外）を返し、`strconv` のエラーを包まない。
--   **`AsInt64` は変えない。** `AsInt64` の既存の呼び出し元は、字幕の `tStartMs`（`internal/transcript/json3.go:148-158`）と中間生成物の版（`internal/artifact/format.go:195`）である。前者の `decodeTimestamp` は、`AsInt64` の後に負の値を拒否して「負でない整数」を実装しているが、`-0` を受理し、エラーに値を含む点で、`AsNonNegativeInt64` と規則が異なる。字幕の読み取りは本タスクの範囲外なので、この違いを既知の差として残し、移行は別の issue とする。中間生成物の版は、範囲外でも `unsupported artifact version` で拒否されるので、変える必要がない。
+-   **`AsInt64` は変えない。** `AsInt64` の既存の呼び出し元は、字幕の `tStartMs`（`internal/transcript/json3.go:148-158`）と中間生成物の版（`internal/artifact/format.go:195`）である。前者の `decodeTimestamp` は、`AsInt64` の後に負の値を拒否して「負でない整数」を実装しているが、`-0` を受理し、エラーに値を含む点で、`AsNonNegativeInt64` と規則が異なる。字幕の読み取りは本タスクの範囲外なので、この違いを既知の差として残し、移行は [#259](https://github.com/isseis/yt2column/issues/259) で扱う。中間生成物の版は、範囲外でも `unsupported artifact version` で拒否されるので、変える必要がない。
 -   **`IsNull` を加える理由。** Claude の `cache_read_input_tokens`・`cache_creation_input_tokens` の `null`（要件 AC-02a）と、中間生成物の不明の表し方（§3.7）の 2 か所で、`null` とそれ以外を区別する必要がある。現在の `strictjson` には `null` を判定する手段がない（`As...` はどれも `null` をほかの種類と同じエラーで拒否する。`internal/strictjson/strictjson.go:173-267`）。
 
 ### 3.4. アダプタの `usage` の読み取り（H-01）
@@ -861,7 +861,7 @@ flowchart TD
 -   **プロバイダの追加。** 新しいアダプタは、自分の `usage` の要素を 4 つの区分に対応させ、`strictjson` の `AsNonNegativeInt64` で読み、不明の理由を `UnknownRule` で選ぶ。区分を持たないものは、DeepSeek のキャッシュの書き込みと同じく、アダプタで 0 を宣言する。AC-03 の静的な確認の要素名の一覧にも加える。
 -   **プロンプトキャッシュの指定。** Claude で `cache_control` を送る場合は、`null` の解釈（§5.2）を見直し、要件定義書と本設計を変更する。
 -   **推論の出力の内訳。** 要件の対象外としたが、必要になれば `TokenCounts` に区分を加え、中間生成物の版を上げる。
--   **字幕の `tStartMs` の読み取り。** `decodeTimestamp` を `AsNonNegativeInt64` に移すと、負でない整数の規則が 1 つになる（§3.3）。
+-   **字幕の `tStartMs` の読み取り。** `decodeTimestamp` を `AsNonNegativeInt64` に移すと、負でない整数の規則が 1 つになる（§3.3、[#259](https://github.com/isseis/yt2column/issues/259)）。
 
 ## 付録 A. 決定の経緯
 
