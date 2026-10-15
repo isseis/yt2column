@@ -665,8 +665,8 @@ func TestAsNonNegativeInt64(t *testing.T) {
 // TestCollectErrorIsDuplicate fixes that Collect rejects only a duplicate
 // consumed member. The adapters read usage with Collect and map its error to a
 // duplicate usage member, so any other rejection would change the response
-// verdict. Unlike TestObjectCollect, this test pairs the rejected duplicate with
-// an input that an allowlist reader (CollectOnly) rejects but Collect accepts.
+// verdict. Unlike TestObjectCollect, this test also pins that a consumed member
+// of any kind is accepted.
 func TestCollectErrorIsDuplicate(t *testing.T) {
 	accepted, err := ParseObject([]byte(`{"kept":[]}`))
 	if err != nil {
