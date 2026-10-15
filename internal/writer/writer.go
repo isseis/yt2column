@@ -98,22 +98,32 @@ type templateWriter struct {
 	resume       Stage
 }
 
-// generationRuns reports whether Write runs the generation stage: it runs only
-// when the run does not resume.
-func (w *templateWriter) generationRuns() bool { return w.resume == StageUnset }
-
-// shortenRuns reports whether Write runs the shorten step: it is enabled and
-// the resume stage is at or before it. w.shorten is non-nil exactly when the
-// step is enabled.
-func (w *templateWriter) shortenRuns() bool {
-	return w.shorten != nil && (w.resume == StageUnset || w.resume == StageGeneration)
+// generationRuns reports whether Write runs the generation stage.
+func (w *templateWriter) generationRuns() bool {
+	generation, _, _ := stageRuns(w.resume, w.shorten != nil, w.review != nil)
+	return generation
 }
 
-// reviewRuns reports whether Write runs the review step: it is enabled and the
-// resume stage is not review. w.review is non-nil exactly when the step is
-// enabled.
+// shortenRuns reports whether Write runs the shorten step.
+func (w *templateWriter) shortenRuns() bool {
+	_, shorten, _ := stageRuns(w.resume, w.shorten != nil, w.review != nil)
+	return shorten
+}
+
+// reviewRuns reports whether Write runs the review step.
 func (w *templateWriter) reviewRuns() bool {
-	return w.review != nil && w.resume != StageReview
+	_, _, review := stageRuns(w.resume, w.shorten != nil, w.review != nil)
+	return review
+}
+
+// stageRuns derives which stages a run executes from the resume stage and the
+// enabled steps (the table of architecture section 3.1). New and Write read
+// this one definition, so the validation and the execution cannot drift.
+func stageRuns(resume Stage, shortenEnabled, reviewEnabled bool) (generation, shorten, review bool) {
+	generation = resume == StageUnset
+	shorten = shortenEnabled && (resume == StageUnset || resume == StageGeneration)
+	review = reviewEnabled && resume != StageReview
+	return generation, shorten, review
 }
 
 // New validates client, the options, and the templates of the enabled steps,
@@ -135,8 +145,12 @@ func New(client llm.LLMClient, opts Options) (ArticleWriter, error) {
 	w := &templateWriter{
 		client:     client,
 		generation: stepTemplates[templateData]{system: system, user: user},
-		store:      opts.Artifacts.Store,
 		resume:     opts.Artifacts.Resume,
+	}
+	// Normalize a typed-nil store to a nil interface, so Write's "no store"
+	// test is the same as the caller's "no store".
+	if !nilcheck.IsNil(opts.Artifacts.Store) {
+		w.store = opts.Artifacts.Store
 	}
 	if opts.Shorten.Enabled {
 		shorten, err := loadStepTemplates[shortenTemplateData](
@@ -164,23 +178,33 @@ func New(client llm.LLMClient, opts Options) (ArticleWriter, error) {
 
 // validateOptions rejects the step combinations New must not accept, deriving
 // which stages run from Artifacts.Resume and the enabled steps (the table of
-// architecture section 3.1). It rejects a resume with no store to load from, a
-// client
-// missing for a stage that runs, a client set for a stage that does not run,
-// and a template path for a stage that does not run. Silently ignoring such a
-// setting would hide the caller's mistake.
+// architecture section 3.1). It rejects an unknown resume, a resume with no
+// store to load from, a client missing for a stage that runs, a client set for
+// a stage that does not run, and a template path for a stage that does not run.
+// Silently ignoring such a setting would hide the caller's mistake.
 func validateOptions(client llm.LLMClient, opts Options) error {
 	resume := opts.Artifacts.Resume
+	if !isKnownResume(resume) {
+		return errUnknownResume
+	}
 	if resume != StageUnset && nilcheck.IsNil(opts.Artifacts.Store) {
 		return errResumeWithoutStore
 	}
-	generationRuns := resume == StageUnset
-	shortenRuns := opts.Shorten.Enabled && (resume == StageUnset || resume == StageGeneration)
-	reviewRuns := opts.Review.Enabled && resume != StageReview
+	generationRuns, shortenRuns, reviewRuns := stageRuns(resume, opts.Shorten.Enabled, opts.Review.Enabled)
 	if err := validateClients(client, opts.Review.Client, generationRuns, shortenRuns, reviewRuns); err != nil {
 		return err
 	}
 	return validateTemplatePaths(opts, generationRuns, shortenRuns, reviewRuns)
+}
+
+// isKnownResume reports whether stage is a value Artifacts.Resume may name.
+func isKnownResume(stage Stage) bool {
+	switch stage {
+	case StageUnset, StageGeneration, StageShorten, StageReview:
+		return true
+	default:
+		return false
+	}
 }
 
 // validateClients rejects a client missing for a stage that runs, and a client

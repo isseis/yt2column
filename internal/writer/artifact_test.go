@@ -191,15 +191,28 @@ func TestWriteSavesOnlyRunStages(t *testing.T) {
 	})
 }
 
-func TestWriteWithoutStoreSavesNothing(t *testing.T) {
-	// Store is nil, so a Save call would dereference it and panic.
-	client := newFakeClient()
-	w := mustNew(t, client, Options{})
-	if _, err := w.Write(context.Background(), validTranscript()); err != nil {
-		t.Fatalf("Write error = %v, want nil", err)
+func TestWriteNoStoreSavesNothing(t *testing.T) {
+	// A nil store is not saved to. A typed-nil store must behave the same:
+	// without normalizing it in New, Write would call Save on a nil receiver
+	// and panic.
+	cases := []struct {
+		name string
+		opts Options
+	}{
+		{"nil store", Options{}},
+		{"typed-nil store", Options{Artifacts: ArtifactOptions{Store: (*fakeArtifactStore)(nil)}}},
 	}
-	if len(client.Calls) != 1 {
-		t.Errorf("Generate called %d times, want 1", len(client.Calls))
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			client := newFakeClient()
+			w := mustNew(t, client, tc.opts)
+			if _, err := w.Write(context.Background(), validTranscript()); err != nil {
+				t.Fatalf("Write error = %v, want nil", err)
+			}
+			if len(client.Calls) != 1 {
+				t.Errorf("Generate called %d times, want 1", len(client.Calls))
+			}
+		})
 	}
 }
 
@@ -232,15 +245,16 @@ func TestWriteSavesBeforeLaterFailure(t *testing.T) {
 
 func TestWriteSaveFailure(t *testing.T) {
 	cases := []struct {
-		name  string
-		stage Stage
-		opts  func(*fakeArtifactStore) Options
-		calls []llmtestutil.FakeLLMSequenceStep
+		name   string
+		stage  Stage
+		review bool
+		opts   func(*fakeArtifactStore, llm.LLMClient) Options
+		calls  []llmtestutil.FakeLLMSequenceStep
 	}{
 		{
 			name:  "generation",
 			stage: StageGeneration,
-			opts: func(store *fakeArtifactStore) Options {
+			opts: func(store *fakeArtifactStore, _ llm.LLMClient) Options {
 				return Options{Artifacts: ArtifactOptions{Store: store}}
 			},
 			calls: []llmtestutil.FakeLLMSequenceStep{stepResult(llm.GenerateResponse{Text: stepResponseText(markGenTitle, markGenBody), Model: markOutModel})},
@@ -248,7 +262,7 @@ func TestWriteSaveFailure(t *testing.T) {
 		{
 			name:  "shorten",
 			stage: StageShorten,
-			opts: func(store *fakeArtifactStore) Options {
+			opts: func(store *fakeArtifactStore, _ llm.LLMClient) Options {
 				return Options{Shorten: ShortenOptions{Enabled: true}, Artifacts: ArtifactOptions{Store: store}}
 			},
 			calls: []llmtestutil.FakeLLMSequenceStep{
@@ -256,12 +270,25 @@ func TestWriteSaveFailure(t *testing.T) {
 				stepResult(llm.GenerateResponse{Text: stepResponseText(markShortTitle, markShortBody), Model: markShortenModel}),
 			},
 		},
+		{
+			name:   "review",
+			stage:  StageReview,
+			review: true,
+			opts: func(store *fakeArtifactStore, review llm.LLMClient) Options {
+				return Options{Review: ReviewOptions{Enabled: true, Client: review}, Artifacts: ArtifactOptions{Store: store}}
+			},
+			calls: []llmtestutil.FakeLLMSequenceStep{stepResult(llm.GenerateResponse{Text: stepResponseText(markGenTitle, markGenBody), Model: markOutModel})},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			var review llm.LLMClient
+			if tc.review {
+				review = &llmtestutil.FakeLLMClient{Result: llm.GenerateResponse{Text: reviewResponse(), Model: markReviewModel}}
+			}
 			store := &fakeArtifactStore{saveErrs: map[Stage]error{tc.stage: errors.New("save failed")}}
 			gen := newStepClient(t, tc.calls...)
-			w := mustNew(t, gen, tc.opts(store))
+			w := mustNew(t, gen, tc.opts(store, review))
 
 			a, err := w.Write(context.Background(), validTranscript())
 			if a != (Article{}) {
@@ -345,7 +372,7 @@ func TestResumeAfterGeneration(t *testing.T) {
 	}
 }
 
-func TestResumeAfterGenerationShortens(t *testing.T) {
+func TestResumeSavesExecutedStages(t *testing.T) {
 	// The reused generation body is over the limit, so the shorten step runs on
 	// the generation client and only that stage's save is added.
 	chain := resumeChainGeneration()
@@ -443,7 +470,7 @@ func TestResumeAfterReview(t *testing.T) {
 	}
 }
 
-func TestResumeAfterReviewFinalLength(t *testing.T) {
+func TestResumeFinalLengthAndReviewLog(t *testing.T) {
 	// The reused review text is over the limit and Shorten is enabled, so the
 	// final length check still rejects it.
 	chain := resumeChainReview(nil)
@@ -507,10 +534,28 @@ func TestNewArtifactOptions(t *testing.T) {
 	}{
 		{"resume without a store", errResumeWithoutStore, client, Options{Artifacts: ArtifactOptions{Resume: StageGeneration}}},
 		{
+			"resume with a typed-nil store",
+			errResumeWithoutStore,
+			client,
+			Options{Artifacts: ArtifactOptions{Store: (*fakeArtifactStore)(nil), Resume: StageGeneration}},
+		},
+		{
+			"unknown resume stage",
+			errUnknownResume,
+			client,
+			Options{Artifacts: ArtifactOptions{Store: store, Resume: Stage(99)}},
+		},
+		{
 			"generation client set but unused",
 			errGenerationClientSet,
 			client,
 			Options{Artifacts: ArtifactOptions{Store: store, Resume: StageShorten}},
+		},
+		{
+			"shorten runs on a generation resume without a client",
+			errNilLLMClient,
+			nil,
+			Options{Shorten: ShortenOptions{Enabled: true}, Artifacts: ArtifactOptions{Store: store, Resume: StageGeneration}},
 		},
 		{
 			"review client set for a review resume",
@@ -565,6 +610,11 @@ func TestNewArtifactOptions(t *testing.T) {
 			},
 		},
 		{
+			"after generation without shorten and no client",
+			nil,
+			Options{Artifacts: ArtifactOptions{Store: store, Resume: StageGeneration}},
+		},
+		{
 			"after review with no clients",
 			nil,
 			Options{
@@ -578,6 +628,79 @@ func TestNewArtifactOptions(t *testing.T) {
 		t.Run("accepts/"+tc.name, func(t *testing.T) {
 			w, err := New(tc.c, tc.opts)
 			requireAccepted(t, w, err)
+		})
+	}
+}
+
+func TestResumeArticleProvenance(t *testing.T) {
+	// A resumed run writes the reused generation and shorten provenance and the
+	// executed review provenance into the Article, which --out reads.
+	review := &llmtestutil.FakeLLMClient{Result: llm.GenerateResponse{Text: reviewResponse(), Model: markReviewModel, ModelVersion: markStepModelVersion}}
+	store := &fakeArtifactStore{loadResult: resumeChainShorten()}
+	w := mustNew(t, nil, Options{
+		Shorten:   ShortenOptions{Enabled: true},
+		Review:    ReviewOptions{Enabled: true, Client: review},
+		Artifacts: ArtifactOptions{Store: store, Resume: StageShorten},
+	})
+
+	a, err := w.Write(context.Background(), validTranscript())
+	if err != nil {
+		t.Fatalf("Write error = %v, want nil", err)
+	}
+	if a.Model != reusedGenModel || a.ModelVersion != reusedGenVersion {
+		t.Errorf("Article model = %q/%q, want the reused generation %q/%q", a.Model, a.ModelVersion, reusedGenModel, reusedGenVersion)
+	}
+	if a.Shorten == nil || a.Shorten.Model != reusedShortModel || a.Shorten.ModelVersion != reusedShortVersion {
+		t.Errorf("Article.Shorten = %+v, want the reused shorten %q/%q", a.Shorten, reusedShortModel, reusedShortVersion)
+	}
+	if a.Review == nil || a.Review.Model.Model != markReviewModel || a.Review.Model.ModelVersion != markStepModelVersion {
+		t.Errorf("Article.Review = %+v, want the executed review %q/%q", a.Review, markReviewModel, markStepModelVersion)
+	}
+}
+
+func TestWriteMalformedOutputIsNotSaved(t *testing.T) {
+	// A stage's output is saved only after it passes validation, so a malformed
+	// output leaves no artifact for that stage.
+	cases := []struct {
+		name      string
+		opts      func(*fakeArtifactStore) Options
+		calls     []llmtestutil.FakeLLMSequenceStep
+		wantSaved []Stage
+	}{
+		{
+			name:      "generation",
+			opts:      func(store *fakeArtifactStore) Options { return Options{Artifacts: ArtifactOptions{Store: store}} },
+			calls:     []llmtestutil.FakeLLMSequenceStep{stepResult(llm.GenerateResponse{Text: "no heading", Model: markOutModel})},
+			wantSaved: nil,
+		},
+		{
+			name: "shorten",
+			opts: func(store *fakeArtifactStore) Options {
+				return Options{Shorten: ShortenOptions{Enabled: true}, Artifacts: ArtifactOptions{Store: store}}
+			},
+			calls: []llmtestutil.FakeLLMSequenceStep{
+				stepResult(llm.GenerateResponse{Text: stepResponseText(markGenTitle, overLimitBody()), Model: markOutModel}),
+				stepResult(llm.GenerateResponse{Text: "no heading", Model: markOutModel}),
+			},
+			wantSaved: []Stage{StageGeneration},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store := &fakeArtifactStore{}
+			gen := newStepClient(t, tc.calls...)
+			w := mustNew(t, gen, tc.opts(store))
+
+			a, err := w.Write(context.Background(), validTranscript())
+			if !errors.Is(err, ErrMalformedOutput) {
+				t.Fatalf("Write error = %v, want ErrMalformedOutput", err)
+			}
+			if a != (Article{}) {
+				t.Errorf("Write article = %+v, want the zero value", a)
+			}
+			if got := store.saveStages(); !slices.Equal(got, tc.wantSaved) {
+				t.Errorf("Save stages = %v, want %v (the malformed stage must not be saved)", got, tc.wantSaved)
+			}
 		})
 	}
 }

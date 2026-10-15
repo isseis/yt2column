@@ -271,16 +271,14 @@ func requireNonRoot(t *testing.T) {
 
 // fakeArtifactStore remembers Load and Save calls and returns configured
 // values. It stands in for ArtifactStore in unit tests; Save returns a
-// per-stage identifier (or a configured one) so a test can tell that the
-// writer used its return value as the next stage's input.
+// per-stage identifier so a test can tell that the writer used its return
+// value as the next stage's input.
 type fakeArtifactStore struct {
 	loadResult ArtifactChain
 	loadErr    error
 	loadCalls  []fakeLoadCall
-	saveErr    error
 	saveErrs   map[Stage]error
 	saveCalls  []fakeSaveCall
-	saveIDs    map[Stage]string
 }
 
 // fakeLoadCall is one recorded Load call.
@@ -310,12 +308,6 @@ func (f *fakeArtifactStore) Save(_ context.Context, videoID string, record Stage
 	f.saveCalls = append(f.saveCalls, fakeSaveCall{videoID: videoID, record: record})
 	if err, ok := f.saveErrs[record.Stage]; ok {
 		return "", err
-	}
-	if f.saveErr != nil {
-		return "", f.saveErr
-	}
-	if id, ok := f.saveIDs[record.Stage]; ok {
-		return id, nil
 	}
 	return "id-" + record.Stage.String(), nil
 }
