@@ -84,7 +84,9 @@ func New(source transcript.TranscriptSource, writer writer.ArticleWriter, publis
 
 // Run takes a video URL, calls each stage in order, and returns the published
 // article. It returns an error wrapping ErrNilStage if a stage is not set, and
-// the context error if the context is canceled between stages.
+// the context error if the context is canceled before Write. A cancellation
+// between Write and publish, and a publish failure, are wrapped in a
+// *writer.TokenUsageError that carries the article's run usage.
 func (p *Pipeline) Run(ctx context.Context, videoURL string) (writer.Article, error) {
 	if err := p.validate(); err != nil {
 		return writer.Article{}, err
@@ -106,11 +108,14 @@ func (p *Pipeline) Run(ctx context.Context, videoURL string) (writer.Article, er
 		return writer.Article{}, &StageError{Stage: StageWrite, Err: err}
 	}
 	if err := ctx.Err(); err != nil {
-		return writer.Article{}, err
+		return writer.Article{}, &writer.TokenUsageError{RunUsage: article.RunUsage, Err: err}
 	}
 
 	if err := p.publisher.Publish(ctx, article); err != nil {
-		return writer.Article{}, &StageError{Stage: StagePublish, Err: err}
+		return writer.Article{}, &StageError{
+			Stage: StagePublish,
+			Err:   &writer.TokenUsageError{RunUsage: article.RunUsage, Err: err},
+		}
 	}
 	return article, nil
 }

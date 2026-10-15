@@ -224,8 +224,8 @@ requirements の機能要件（F-001〜F-008）を、architecture の設計ど�
 
 **対象ファイル:** `internal/pipeline/pipeline.go`・`pipeline_test.go`、`cmd/yt2column/run.go`・`run_test.go`
 
-- [ ] **ステップ 4-1**: `pipeline.Run` が、`Write` の成功後の公開の失敗を `&StageError{Stage: StagePublish, Err: &writer.TokenUsageError{RunUsage: article.RunUsage, Err: err}}` で、`Write` と公開の間の中断を `&writer.TokenUsageError{RunUsage: article.RunUsage, Err: ctxErr}` で返すようにし、`Run` の文書に「`Write` の成功後の失敗を `*writer.TokenUsageError` で包む」を加え、「the context error if the context is canceled between stages」を、`Write` の後の中断では包んだエラーになることが分かる文に改める（architecture §3.6）。ゼロ値の `Article` を返す規則は変えない。
-- [ ] **ステップ 4-2**: `pipeline_test.go` を更新する。`TestPipelineCanceled` の「canceled after write」（`:267`）の `err != context.Canceled` を `errors.Is` での比較に改め、`StageError` で包まないことの確認は残す。そのうえで、`*writer.TokenUsageError` を取り出せ、fake の `ArticleWriter` が返した `Article.RunUsage` を持つことを加える。新しい `TestPipelinePublishFailureCarriesRunUsage` で、公開の失敗のエラーから `*writer.TokenUsageError` が取り出せ、`RunUsage` が `Write` の値で、`StageError.Stage` が `StagePublish` であることを確かめる（AC-19 の公開の失敗）。
+- [x] **ステップ 4-1**: `pipeline.Run` が、`Write` の成功後の公開の失敗を `&StageError{Stage: StagePublish, Err: &writer.TokenUsageError{RunUsage: article.RunUsage, Err: err}}` で、`Write` と公開の間の中断を `&writer.TokenUsageError{RunUsage: article.RunUsage, Err: ctxErr}` で返すようにし、`Run` の文書に「`Write` の成功後の失敗を `*writer.TokenUsageError` で包む」を加え、「the context error if the context is canceled between stages」を、`Write` の後の中断では包んだエラーになることが分かる文に改める（architecture §3.6）。ゼロ値の `Article` を返す規則は変えない。
+- [x] **ステップ 4-2**: `pipeline_test.go` を更新する。`TestPipelineCanceled` の「canceled after write」（`:267`）の `err != context.Canceled` を `errors.Is` での比較に改め、`StageError` で包まないことの確認は残す。そのうえで、`*writer.TokenUsageError` を取り出せ、fake の `ArticleWriter` が返した `Article.RunUsage` を持つことを加える。新しい `TestPipelinePublishFailureCarriesRunUsage` で、公開の失敗のエラーから `*writer.TokenUsageError` が取り出せ、`RunUsage` が `Write` の値で、`StageError.Stage` が `StagePublish` であることを確かめる（AC-19 の公開の失敗）。
 
 ### PR-4 作成ポイント: pipeline usage wrapping
 
