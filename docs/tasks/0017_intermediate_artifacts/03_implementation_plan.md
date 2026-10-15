@@ -209,8 +209,8 @@ architecture は再承認済みなので、フェーズ 1 に着手できる。
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 4: CLI のフラグと組み立て
 
@@ -218,14 +218,14 @@ architecture は再承認済みなので、フェーズ 1 に着手できる。
 
 **前提:** フェーズ 2 の `writer.Artifacts` とフェーズ 3 の `config.LoadFor` が使えること。
 
-- [ ] **ステップ 4-1**: `newFlagSet`（`:132-150`）に `--artifacts <path>` と `--after <stage>` を加え、`cliOptions`（`:113-127`）に `artifacts`・`after` を加える。`--after` の値を受理する 3 つの値への `switch` で検証し、フラグが現れたかどうかは `flagGiven`（`:153-161`）と同じ `flag.FlagSet.Visit` で判定する（「Declare, don't infer」）。
-- [ ] **ステップ 4-2**: `run`（`:203-299`）に組み合わせの検査を加え、次の場合を、yt-dlp と LLM を呼ぶ前に `exitUsage`（終了コード 2）で終わらせる（architecture §3.8・AC-30）。`--after` を `--artifacts` なしで指定した（AC-24）。`--after` に 3 つの値以外を指定した（拒否した値をメッセージに含める。AC-25）。`--system-prompt`・`--user-prompt` を `--after` と同時に指定した（AC-26）。`--review-log` を `--after review` と同時に指定した（AC-16）。`--artifacts` のパスがキャッシュディレクトリの中にある（`outPathInsideCacheDir`（`outpath.go:29`）を使う。AC-08）。`--no-shorten`・`--no-review` は `--after` と同時に指定できる（矛盾しない）。
-- [ ] **ステップ 4-3**: `run` で、`--after`・`--no-shorten`・`--no-review` から `config.Need` を算出し（architecture §3.7 の表）、`config.Load` の代わりに `config.LoadFor(lookup, need)` を呼ぶ。`--after` なしのときは既存と同じく `Need` の両方を真とする。
-- [ ] **ステップ 4-4**: `run`（`:203-299`）で、`--artifacts` が指定されたときだけ `artifact.NewStore(opts.artifacts)` を呼び、成功したら `defer store.Close()` を登録し、失敗したら「実行の失敗」（終了コード 1）で終わる。`buildWriter`（`:357-393`）には開いた `store` を渡し、`writer.Options.Artifacts` に `Store` と `Resume`（`--after` の値）を設定する。`buildWriter` は、生成または字数の調整を実行するときだけ `provider.New` を、検証・推敲を実行するときだけ `provider.NewReview` を呼び、作らないクライアントは nil で渡す。`writer.New` の組み合わせ検査の失敗は、既存どおり `run` が使い方の誤り（終了コード 2）として報告する（`buildWriter` の失敗を「実行の失敗」と混同しない）。
-- [ ] **ステップ 4-5**: `reportSuccess`（`:444-464`）に、`--artifacts` を指定した実行で保存した成果物のディレクトリを報告する 1 行を加える。モデルの行の要約（`reportSuccess`・`reportStepSummary` `:469-477`）は `Article` から作られるので変更しない（再開でも再利用した段階の行が出る。AC-27）。
-- [ ] **ステップ 4-6**: `run_test.go`（`//go:build test`）に architecture §7.2 のテストを書く。`runEnv`・`newRunEnv`・`seedCache`・`lookupFrom` と、`newWriter`・`newLLMClient`・`newReviewLLMClient` の差し替えの既存の形（`:1277`・`:1289`）を使う。対象は、`--artifacts` で 4 つの成果物のファイルができること（AC-01）・`--after` の各値で呼ばれない段階の LLM が呼ばれないことと `--after review` で LLM が呼ばれないこと（AC-12〜AC-14）・組み合わせの誤り（AC-16・AC-24〜AC-26）・`--artifacts` がキャッシュディレクトリの中の場合に `exitUsage` で終わること（AC-08）・`--artifacts` のディレクトリが無い場合に終了コード 1 で終わること（AC-09・AC-30）・成果物が壊れている場合と識別子が食い違う場合に終了コード 1 で終わること（AC-30）・成果物が無い場合に番兵で終わること（AC-19）・生成の設定を外した再開で通ること（AC-15）・`--out` のモデルの行（AC-27）・再開で実行した段階が保存されること（AC-18）・再開でも字幕の取得とキャッシュを行うこと（AC-17）・`--review-log` のファイルを置いても再開が成果物の一覧を読むこと（AC-07）である。`TestRunHelp`（`:1198-1226`）の一覧に `--artifacts`・`--after` を加える（AC-28）。
-- [ ] **ステップ 4-7**: `cmd/yt2column` の既存のテストを内容を変えずに通す（`make test`。AC-32）。
-- [ ] **ステップ 4-8**: `README.md` の Usage のフラグの表（`:39-54`。`-h`/`--help` を最後の行に残す）に `--artifacts <path>` と `--after <generation|shorten|review>` の行を加える。`newFlagSet` のフラグを README に求める `TestREADMEDocumentsFlags`（`docs_test.go:37-52`）が、フラグを加えた同じ PR で通るようにする（PR-4 を単独でグリーンゲートを通すため）。
+- [x] **ステップ 4-1**: `newFlagSet`（`:132-150`）に `--artifacts <path>` と `--after <stage>` を加え、`cliOptions`（`:113-127`）に `artifacts`・`after` を加える。`--after` の値を受理する 3 つの値への `switch` で検証し、フラグが現れたかどうかは `flagGiven`（`:153-161`）と同じ `flag.FlagSet.Visit` で判定する（「Declare, don't infer」）。
+- [x] **ステップ 4-2**: `run`（`:203-299`）に組み合わせの検査を加え、次の場合を、yt-dlp と LLM を呼ぶ前に `exitUsage`（終了コード 2）で終わらせる（architecture §3.8・AC-30）。`--after` を `--artifacts` なしで指定した（AC-24）。`--after` に 3 つの値以外を指定した（拒否した値をメッセージに含める。AC-25）。`--system-prompt`・`--user-prompt` を `--after` と同時に指定した（AC-26）。`--review-log` を `--after review` と同時に指定した（AC-16）。`--artifacts` のパスがキャッシュディレクトリの中にある（`outPathInsideCacheDir`（`outpath.go:29`）を使う。AC-08）。`--no-shorten`・`--no-review` は `--after` と同時に指定できる（矛盾しない）。
+- [x] **ステップ 4-3**: `run` で、`--after`・`--no-shorten`・`--no-review` から `config.Need` を算出し（architecture §3.7 の表）、`config.Load` の代わりに `config.LoadFor(lookup, need)` を呼ぶ。`--after` なしのときは既存と同じく `Need` の両方を真とする。
+- [x] **ステップ 4-4**: `run`（`:203-299`）で、`--artifacts` が指定されたときだけ `artifact.NewStore(opts.artifacts)` を呼び、成功したら `defer store.Close()` を登録し、失敗したら「実行の失敗」（終了コード 1）で終わる。`buildWriter`（`:357-393`）には開いた `store` を渡し、`writer.Options.Artifacts` に `Store` と `Resume`（`--after` の値）を設定する。`buildWriter` は、生成または字数の調整を実行するときだけ `provider.New` を、検証・推敲を実行するときだけ `provider.NewReview` を呼び、作らないクライアントは nil で渡す。`writer.New` の組み合わせ検査の失敗は、既存どおり `run` が使い方の誤り（終了コード 2）として報告する（`buildWriter` の失敗を「実行の失敗」と混同しない）。
+- [x] **ステップ 4-5**: `reportSuccess`（`:444-464`）に、`--artifacts` を指定した実行で保存した成果物のディレクトリを報告する 1 行を加える。モデルの行の要約（`reportSuccess`・`reportStepSummary` `:469-477`）は `Article` から作られるので変更しない（再開でも再利用した段階の行が出る。AC-27）。
+- [x] **ステップ 4-6**: `run_test.go`（`//go:build test`）に architecture §7.2 のテストを書く。`runEnv`・`newRunEnv`・`seedCache`・`lookupFrom` と、`newWriter`・`newLLMClient`・`newReviewLLMClient` の差し替えの既存の形（`:1277`・`:1289`）を使う。対象は、`--artifacts` で生成・字数の調整・検証・推敲の 3 つの成果物ファイル（review は一覧と適用後の記事を 1 つに持つ）ができること（AC-01）・`--after` の各値で呼ばれない段階の LLM が呼ばれないことと `--after review` で LLM が呼ばれないこと（AC-12〜AC-14）・組み合わせの誤り（AC-16・AC-24〜AC-26）・`--artifacts` がキャッシュディレクトリの中の場合に `exitUsage` で終わること（AC-08）・`--artifacts` のディレクトリが無い場合に終了コード 1 で終わること（AC-09・AC-30）・成果物が壊れている場合と識別子が食い違う場合に終了コード 1 で終わること（AC-30）・成果物が無い場合に番兵で終わること（AC-19）・生成の設定を外した再開で通ること（AC-15）・`--out` のモデルの行（AC-27）・再開で実行した段階が保存されること（AC-18）・再開でも字幕の取得とキャッシュを行うこと（AC-17）・`--review-log` のファイルを置いても再開が成果物の一覧を読むこと（AC-07）である。`TestRunHelp`（`:1198-1226`）の一覧に `--artifacts`・`--after` を加える（AC-28）。
+- [x] **ステップ 4-7**: `cmd/yt2column` の既存のテストを内容を変えずに通す（`make test`。AC-32）。
+- [x] **ステップ 4-8**: `README.md` の Usage のフラグの表（`:39-54`。`-h`/`--help` を最後の行に残す）に `--artifacts <path>` と `--after <generation|shorten|review>` の行を加える。`newFlagSet` のフラグを README に求める `TestREADMEDocumentsFlags`（`docs_test.go:37-52`）が、フラグを加えた同じ PR で通るようにする（PR-4 を単独でグリーンゲートを通すため）。
 
 **完了条件:** `make fmt`・`make test`・`make lint` が通る。`run_test.go` の新しいテストが architecture §7.2 の検証を満たし、既存の CLI のテストが内容を変えずに通る。
 
@@ -241,8 +241,8 @@ architecture は再承認済みなので、フェーズ 1 に着手できる。
 
 **判定理由**: 終了コードの分け方（引数の形だけで判定できる誤りを 2、ファイルシステムの状態を確かめて分かる誤りを 1）と、`config.Need`・クライアント・`writer.Options` の組み立ては、複数のフラグと段階の実行の有無が絡む込み入った調整であり、誤ると AC の終了コードや設定の検査が崩れる。文献は architecture §3.7・§3.8 に確定しているが、既存の `run` の手順に組み込む分離された込み入ったステップであり、`frontier-recommended` とする。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
@@ -330,7 +330,7 @@ PR-1 は実装（型・形式・読み書き）とテスト（`internal/artifact
 
 ### 4.2. 統合テスト
 
-- **CLI の組み立て（`cmd/yt2column`、fake の `LLMClient`）。** `runEnv` と `productionDeps` の差し替えを使い、`--artifacts` で 4 つのファイルができること・`--after` の各値で呼ばれない段階の LLM が呼ばれないこと・組み合わせの誤りとディレクトリの状態の誤りの終了コードを確かめる（architecture §7.2）。
+- **CLI の組み立て（`cmd/yt2column`、fake の `LLMClient`）。** `runEnv` と `productionDeps` の差し替えを使い、`--artifacts` で 3 つのファイルができること・`--after` の各値で呼ばれない段階の LLM が呼ばれないこと・組み合わせの誤りとディレクトリの状態の誤りの終了コードを確かめる（architecture §7.2）。
 - **既存のテスト（AC-32）。** `--artifacts`・`--after` を付けない既存の CLI のテストは、引数も期待も変えずに通る。`internal/writer`・`internal/job` の既存のテストは、`Options{}` を使い、`Article` を `==` で比べたまま変更しない。
 - **実 API の統合テスト。** 既存の `TestIntegrationCLI`（`cmd/yt2column/integration_test.go`）は変更しない。成果物の保存と再開を実 API で通す確認は、評価（AC-34）の実行で行う（architecture §7.2）。
 
@@ -348,7 +348,7 @@ architecture §7.3 の検査を、フェーズ 1 の `internal/artifact` のテ�
 
 | AC | 検証の区分 | 検証 |
 |---|---|---|
-| AC-01 | test | `cmd/yt2column/run_test.go::TestRunArtifactsSavesAllStages`（`--artifacts` で 4 つのファイルができ、生成の出力・字数の調整の出力・適用後の記事・一覧の値が実行の途中の値と一致する）と `internal/writer/artifact_test.go::TestWriteSavesAllArtifacts` |
+| AC-01 | test | `cmd/yt2column/run_test.go::TestRunArtifactsSavesAllStages`（`--artifacts` で 3 つの成果物ファイル（review は一覧と適用後の記事を 1 つに持つ）ができ、各ファイルがその段階の成果物として `artifact.Parse` を通る）と `internal/writer/artifact_test.go::TestWriteSavesAllArtifacts`（保存した値が実行の途中の値と一致する） |
 | AC-02 | test | `internal/writer/artifact_test.go::TestWriteSavesAllArtifacts`（各 `StageRecord` の `Stage`・`Model`・`ModelVersion`・`System`・`User`・`Input` が実行の値と一致する）と `internal/artifact/format_test.go::TestParseRecordRejects`（来歴の必須のキー） |
 | AC-03 | test | `internal/writer/artifact_test.go::TestWriteSavesOnlyRunStages`（字数の調整・検証・推敲を実行しないときは保存しない） |
 | AC-04 | test | `internal/writer/artifact_test.go::TestWriteSavesBeforeLaterFailure`（検証・推敲を失敗させても生成と字数の調整の `Save` が呼ばれている） |
@@ -374,7 +374,7 @@ architecture §7.3 の検査を、フェーズ 1 の `internal/artifact` のテ�
 | AC-24 | test | `cmd/yt2column/run_test.go::TestRunAfterRequiresArtifacts`（yt-dlp と LLM を呼ばずに終了コード 2） |
 | AC-25 | test | `cmd/yt2column/run_test.go::TestRunAfterInvalidValue`（3 つの値以外で終了コード 2。メッセージに拒否した値） |
 | AC-26 | test | `cmd/yt2column/run_test.go::TestRunAfterRejectsGenerationFlags`（`--system-prompt`・`--user-prompt` と `--after` で終了コード 2） |
-| AC-27 | test | `internal/writer/artifact_test.go::TestResumeAfterGeneration`（再利用した生成の `Model`・`ModelVersion`）と `::TestResumeAfterShorten`（再利用した `Shorten` と、実行した検証・推敲の `Model`・`ModelVersion` が `Article` に入る）と `cmd/yt2column/run_test.go::TestRunAfterShortenOutModelLines`（`--out` のモデルの行に段階の区別が付く形で出る。空の ModelVersion は書かない） |
+| AC-27 | test | `internal/writer/artifact_test.go::TestResumeAfterGeneration`（再利用した生成の `Model`・`ModelVersion`）と `::TestResumeAfterShorten`（再利用した `Shorten` と、実行した検証・推敲の `Model`・`ModelVersion` が `Article` に入る）と `cmd/yt2column/run_test.go::TestRunAfterShortenOutModelLines`（`--out` のモデルの行に段階の区別が付く形で出る）・`::TestRunAfterShortenEmptyModelVersion`（再利用した段階の空の ModelVersion は `(none)` として書く） |
 | AC-28 | static | `cmd/yt2column/run_test.go::TestRunHelp`（`-h`/`--help` の使い方の表示に `--artifacts`・`--after`）と `cmd/yt2column/docs_test.go::TestREADMEDocumentsFlags`（README のフラグの表）と `::TestArtifactDocsContract`（`--after` が `--artifacts` を要すること、`--after review` が `--review-log` を使えないこと） |
 | AC-29 | test | `internal/writer/artifact_test.go::TestWriteSaveFailure`（保存の失敗が段階を示し、記事を公開しない）と `internal/artifact/store_test.go::TestLoadMissing`・`::TestLoadRejectsSymlinkAndFIFO`（読み込みの失敗が番兵で判定でき、公開しない） |
 | AC-30 | test | `cmd/yt2column/run_test.go::TestRunArtifactExitCodes`（引数の形だけの誤りは 2、ファイルシステムの状態の誤りは 1。`--artifacts` のディレクトリを実際に開く 1 回の確認で判定する。成果物が壊れている場合と入力の識別子が食い違う場合も終了コード 1 になることを含める） |
