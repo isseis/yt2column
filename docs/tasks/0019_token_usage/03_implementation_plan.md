@@ -241,8 +241,8 @@ requirements の機能要件（F-001〜F-008）を、architecture の設計ど�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 - [ ] **ステップ 4-3**: `cmd/yt2column/run.go` に、architecture §3.8 の書式の定数、1 行を作る関数、`RunUsage` から段階の順に行を書く `reportTokens` を置く。`OriginNone` と列挙の外の `UsageOrigin` は行を書かない。`reportSuccess` の最後で `reportTokens(errOut, article.RunUsage)` を呼ぶ。`reportRunError` では、`*job.ReviewLogError` の分岐の後、失敗の行の前に、`errors.AsType[*writer.TokenUsageError]` で取り出せたときだけ `reportTokens` を呼ぶ。行はすべて `errOut.line` で書く。
 - [ ] **ステップ 4-4**: `cmd/yt2column/run_test.go` に、fake の `LLMClient`・`TranscriptSource`・`Publisher` と `t.TempDir`（`newRunEnv`・`funcLLM`・`reviewLLM`・`useReviewClient`・`saveArtifactsOnce`・`firstLongThenShort` を再利用する）で CLI のテストを書く。行は `redact.Line` を通った後の標準エラーの行のバイト列として比べる。
