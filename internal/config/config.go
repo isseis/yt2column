@@ -19,9 +19,9 @@ import (
 type Provider int
 
 // The supported Provider values. ProviderUnset is the zero value, which no
-// factory accepts, so Load never stores it in a Config it returns. LoadFor
-// stores it only when no stage reads the provider (Need{}), where no factory is
-// built.
+// factory accepts. Load never stores it in a Config it returns; LoadFor stores
+// it only for a run that reads no generation provider (Need{}, or a review-only
+// run with its own YT2COLUMN_REVIEW_PROVIDER), where no factory is built.
 const (
 	ProviderUnset Provider = iota
 	ProviderDeepSeek
@@ -134,8 +134,9 @@ func (c LLMConfig) Provider() Provider {
 }
 
 // Model returns the model name of the generation. It is non-empty when the
-// generation or the shorten step runs (Need.Generation); a run that needs
-// neither leaves it empty and does not build a generation client.
+// generation or the shorten step runs (Need.Generation), or when a review-only
+// run inherits YT2COLUMN_MODEL; otherwise it is empty and no generation client
+// is built.
 func (c LLMConfig) Model() string {
 	return c.model
 }

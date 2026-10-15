@@ -1098,7 +1098,7 @@ func TestLoadHTTP2Debug(t *testing.T) {
 	}
 }
 
-// TestLoadForNeed checks that LoadFor reads and checks only the variables the
+// TestLoadFor checks that LoadFor reads and checks only the variables the
 // run's stages need (architecture section 3.7). The CLI scenarios map to Need
 // as: no --after -> {true,true}; --after generation -> {true,true}; --after
 // generation --no-shorten -> {false,true}; --after generation --no-review ->
