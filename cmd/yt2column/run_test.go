@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/isseis/yt2column/internal/artifact"
 	"github.com/isseis/yt2column/internal/config"
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/publisher"
@@ -1232,6 +1233,7 @@ func TestRunHelp(t *testing.T) {
 				"--no-shorten", "--no-review", "--review-log <path>",
 				"--shorten-system-prompt <path>", "--shorten-user-prompt <path>",
 				"--review-system-prompt <path>", "--review-user-prompt <path>",
+				"--artifacts <path>", "--after <stage>",
 				"-h, --help",
 			} {
 				if !strings.Contains(stdout.String(), flag) {
@@ -1955,5 +1957,446 @@ func TestNewSlackPublisherNilOnFailure(t *testing.T) {
 	}
 	if p != nil {
 		t.Fatalf("newSlackPublisher(zero Secret) = %#v, want a nil interface", p)
+	}
+}
+
+// artifactsPath returns a fresh artifacts directory under base.
+func artifactsPath(t *testing.T, base string) string {
+	t.Helper()
+	dir := filepath.Join(base, "artifacts")
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+// artifactFile returns the path of videoID's stage artifact under dir.
+func artifactFile(dir, videoID, stage string) string {
+	return filepath.Join(dir, videoID+"."+stage+".json")
+}
+
+// requireArtifactStages asserts dir holds a parseable artifact of each stage.
+func requireArtifactStages(t *testing.T, dir, videoID string, stages ...string) {
+	t.Helper()
+	for _, stage := range stages {
+		data, err := os.ReadFile(artifactFile(dir, videoID, stage))
+		if err != nil {
+			t.Errorf("read the %s artifact: %v", stage, err)
+			continue
+		}
+		record, err := artifact.Parse(data)
+		if err != nil {
+			t.Errorf("parse the %s artifact: %v", stage, err)
+			continue
+		}
+		if record.Stage.String() != stage {
+			t.Errorf("%s file holds stage %v", stage, record.Stage)
+		}
+	}
+}
+
+// requireUntouched asserts a run touched nothing external: yt-dlp was not
+// started, the LLM was not called, and --out does not exist.
+func requireUntouched(t *testing.T, e *runEnv) {
+	t.Helper()
+	if _, err := os.Stat(e.tripwireMarker); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("yt-dlp was started (tripwire marker stat error = %v)", err)
+	}
+	if got := e.counter.count(); got != 0 {
+		t.Errorf("the LLM was called %d times, want 0", got)
+	}
+	requireNoFile(t, e.outPath)
+}
+
+// firstLongThenShort sets e.client to answer the generation call with an
+// over-long body and the shorten call with a short one, so the shorten step
+// runs.
+func firstLongThenShort(e *runEnv) {
+	calls := 0
+	e.client = funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
+		calls++
+		if calls == 1 {
+			return llm.GenerateResponse{Text: longGeneratedText(), Model: "fake-model", ModelVersion: "v1"}, nil
+		}
+		return llm.GenerateResponse{Text: shortGeneratedText(), Model: "fake-model", ModelVersion: "v1"}, nil
+	})
+}
+
+// saveArtifactsOnce runs a run with --artifacts and --keep-cache, set up by
+// setup, and returns the artifacts directory. The cache is kept so a later
+// resume in the same test reuses the seeded transcript.
+func saveArtifactsOnce(t *testing.T, setup func(*runEnv)) string {
+	t.Helper()
+	e := newRunEnv(t)
+	e.withSteps = true
+	dir := artifactsPath(t, e.base)
+	e.args = []string{"--artifacts", dir, "--keep-cache", "--out", e.outPath, runVideoURL}
+	setup(e)
+	e.useReviewClient(reviewLLM(emptyReviewJSON))
+	if code := e.run(); code != exitOK {
+		t.Fatalf("the artifacts run failed: exit code = %d\nstderr:\n%s", code, e.stderr.String())
+	}
+	return dir
+}
+
+// shortGeneration keeps the generation body within the limit, so the shorten
+// step does not run.
+func shortGeneration(e *runEnv) { e.respondWith(shortGeneratedText()) }
+
+func TestRunArtifactsSavesAllStages(t *testing.T) {
+	e := newRunEnv(t)
+	e.withSteps = true
+	dir := artifactsPath(t, e.base)
+	e.args = []string{"--artifacts", dir, "--out", e.outPath, runVideoURL}
+	firstLongThenShort(e)
+	e.useReviewClient(reviewLLM(reviewJSON("A short body.", "A shorter body.")))
+
+	if code := e.run(); code != exitOK {
+		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
+	}
+	requireArtifactStages(t, dir, runVideoID, "generation", "shorten", "review")
+	if !strings.Contains(e.stderr.String(), "saved the artifacts to "+dir) {
+		t.Errorf("stderr does not report the artifacts directory:\n%s", e.stderr.String())
+	}
+	requireSafeOutput(t, e.stdout.String(), e.stderr.String(), e.outPath)
+}
+
+func TestRunAfterGeneration(t *testing.T) {
+	dir := saveArtifactsOnce(t, shortGeneration)
+	e := newRunEnv(t)
+	e.withSteps = true
+	e.args = []string{"--artifacts", dir, "--after", "generation", "--out", e.outPath, runVideoURL}
+	e.useReviewClient(reviewLLM(emptyReviewJSON))
+
+	if code := e.run(); code != exitOK {
+		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
+	}
+	if got := e.counter.count(); got != 0 {
+		t.Errorf("the generation client was called %d times, want 0 (reused, within the limit)", got)
+	}
+	if !strings.Contains(e.stderr.String(), "the review step returned") {
+		t.Errorf("the review step did not run on the resume:\n%s", e.stderr.String())
+	}
+}
+
+func TestRunAfterShorten(t *testing.T) {
+	dir := saveArtifactsOnce(t, firstLongThenShort)
+	e := newRunEnv(t)
+	e.withSteps = true
+	e.args = []string{"--artifacts", dir, "--after", "shorten", "--out", e.outPath, runVideoURL}
+	e.useReviewClient(reviewLLM(emptyReviewJSON))
+
+	if code := e.run(); code != exitOK {
+		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
+	}
+	if got := e.counter.count(); got != 0 {
+		t.Errorf("the generation client was called %d times, want 0 (generation and shorten were skipped)", got)
+	}
+	if !strings.Contains(e.stderr.String(), "the review step returned") {
+		t.Errorf("the review step did not run on the resume:\n%s", e.stderr.String())
+	}
+}
+
+func TestRunAfterShortenOutModelLines(t *testing.T) {
+	dir := saveArtifactsOnce(t, firstLongThenShort)
+	e := newRunEnv(t)
+	e.withSteps = true
+	e.args = []string{"--artifacts", dir, "--after", "shorten", "--out", e.outPath, runVideoURL}
+	e.useReviewClient(reviewLLM(emptyReviewJSON))
+
+	if code := e.run(); code != exitOK {
+		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
+	}
+	data, err := os.ReadFile(e.outPath) //nolint:gosec // a path inside the test's temporary directory
+	if err != nil {
+		t.Fatalf("read --out: %v", err)
+	}
+	for _, want := range []string{"- Model: fake-model", "- Shorten model: fake-model", "- Review model: review-model"} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("--out does not contain %q:\n%s", want, data)
+		}
+	}
+}
+
+func TestRunAfterReview(t *testing.T) {
+	dir := saveArtifactsOnce(t, shortGeneration)
+	e := newRunEnv(t)
+	e.withSteps = true
+	e.args = []string{"--artifacts", dir, "--after", "review", "--out", e.outPath, runVideoURL}
+	e.d.newLLMClient = func(config.LLMConfig) (llm.LLMClient, error) {
+		t.Error("built the generation client for --after review")
+		return validResponseLLM(), nil
+	}
+	e.d.newReviewLLMClient = func(config.LLMConfig) (llm.LLMClient, error) {
+		t.Error("built the review client for --after review")
+		return nil, nil
+	}
+
+	if code := e.run(); code != exitOK {
+		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
+	}
+	if !strings.Contains(e.stderr.String(), "model: fake-model") {
+		t.Errorf("the summary does not carry the reused model:\n%s", e.stderr.String())
+	}
+}
+
+func TestRunResumeConfigScoping(t *testing.T) {
+	// --after review runs no LLM, so its configuration is not required.
+	dir := saveArtifactsOnce(t, shortGeneration)
+	e := newRunEnv(t)
+	e.withSteps = true
+	delete(e.env, "YT2COLUMN_MODEL")
+	delete(e.env, "DEEPSEEK_API_KEY")
+	e.args = []string{"--artifacts", dir, "--after", "review", "--out", e.outPath, runVideoURL}
+
+	if code := e.run(); code != exitOK {
+		t.Fatalf("exit code = %d, want %d with the generation model and key unset\nstderr:\n%s", code, exitOK, e.stderr.String())
+	}
+}
+
+func TestRunResumeSavesExecutedStages(t *testing.T) {
+	dir := saveArtifactsOnce(t, firstLongThenShort)
+	// Remove the stages the resume will re-run, so their re-creation proves the
+	// resume saved them.
+	for _, stage := range []string{"shorten", "review"} {
+		if err := os.Remove(artifactFile(dir, runVideoID, stage)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	e := newRunEnv(t)
+	e.withSteps = true
+	e.args = []string{"--artifacts", dir, "--after", "generation", "--out", e.outPath, runVideoURL}
+	e.useReviewClient(reviewLLM(emptyReviewJSON))
+
+	if code := e.run(); code != exitOK {
+		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
+	}
+	requireArtifactStages(t, dir, runVideoID, "shorten", "review")
+}
+
+func TestRunResumeFetchesTranscript(t *testing.T) {
+	t.Run("reuses the cached transcript", func(t *testing.T) {
+		dir := saveArtifactsOnce(t, shortGeneration)
+		e := newRunEnv(t)
+		e.withSteps = true
+		e.args = []string{"--artifacts", dir, "--after", "review", "--out", e.outPath, runVideoURL}
+		if code := e.run(); code != exitOK {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
+		}
+		if _, err := os.Stat(e.tripwireMarker); !errors.Is(err, os.ErrNotExist) {
+			t.Error("yt-dlp was started although the transcript was cached")
+		}
+	})
+
+	t.Run("fetches when the cache is gone", func(t *testing.T) {
+		dir := saveArtifactsOnce(t, shortGeneration)
+		e := newRunEnv(t)
+		e.withSteps = true
+		removeVideoCache(t, e.cacheDir)
+		e.args = []string{"--artifacts", dir, "--after", "review", "--out", e.outPath, runVideoURL}
+		if code := e.run(); code != exitFailure {
+			t.Fatalf("exit code = %d, want %d (yt-dlp is a tripwire)\nstderr:\n%s", code, exitFailure, e.stderr.String())
+		}
+		if _, err := os.Stat(e.tripwireMarker); err != nil {
+			t.Errorf("yt-dlp was not started although the cache was gone: %v", err)
+		}
+	})
+}
+
+func TestRunReviewLogNotInput(t *testing.T) {
+	// A review log left on disk is never read as the resume's input.
+	e := newRunEnv(t)
+	e.withSteps = true
+	dir := artifactsPath(t, e.base)
+	logPath := filepath.Join(e.base, "review-log.md")
+	e.args = []string{"--artifacts", dir, "--keep-cache", "--review-log", logPath, "--out", e.outPath, runVideoURL}
+	firstLongThenShort(e)
+	e.useReviewClient(reviewLLM(emptyReviewJSON))
+	if code := e.run(); code != exitOK {
+		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
+	}
+	// Replace the review log with something no parser would accept.
+	if err := os.WriteFile(logPath, []byte("not a review list"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	e2 := newRunEnv(t)
+	e2.withSteps = true
+	e2.args = []string{"--artifacts", dir, "--after", "shorten", "--out", e2.outPath, runVideoURL}
+	e2.useReviewClient(reviewLLM(emptyReviewJSON))
+	if code := e2.run(); code != exitOK {
+		t.Fatalf("exit code = %d, want %d (the review log must not be read)\nstderr:\n%s", code, exitOK, e2.stderr.String())
+	}
+}
+
+func TestRunArtifactsInsideCacheDir(t *testing.T) {
+	e := newRunEnv(t)
+	e.withSteps = true
+	e.args = []string{"--artifacts", e.cacheDir, "--out", e.outPath, runVideoURL}
+	if code := e.run(); code != exitUsage {
+		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, e.stderr.String())
+	}
+	if !strings.Contains(e.stderr.String(), "inside the cache directory") {
+		t.Errorf("stderr does not name the cache directory rule:\n%s", e.stderr.String())
+	}
+	requireUntouched(t, e)
+}
+
+func TestRunArtifactsBadDir(t *testing.T) {
+	e := newRunEnv(t)
+	e.withSteps = true
+	e.args = []string{"--artifacts", filepath.Join(e.base, "no-such-artifacts"), "--out", e.outPath, runVideoURL}
+	if code := e.run(); code != exitFailure {
+		t.Fatalf("exit code = %d, want %d (an unusable directory is a run failure)\nstderr:\n%s", code, exitFailure, e.stderr.String())
+	}
+	requireUntouched(t, e)
+}
+
+func TestRunAfterRequiresArtifacts(t *testing.T) {
+	e := newRunEnv(t)
+	e.withSteps = true
+	e.args = []string{"--after", "generation", "--out", e.outPath, runVideoURL}
+	if code := e.run(); code != exitUsage {
+		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, e.stderr.String())
+	}
+	if !strings.Contains(e.stderr.String(), "--after requires --artifacts") {
+		t.Errorf("stderr does not name the rule:\n%s", e.stderr.String())
+	}
+	requireUntouched(t, e)
+}
+
+func TestRunAfterInvalidValue(t *testing.T) {
+	e := newRunEnv(t)
+	e.withSteps = true
+	dir := artifactsPath(t, e.base)
+	e.args = []string{"--after", "generationz", "--artifacts", dir, "--out", e.outPath, runVideoURL}
+	if code := e.run(); code != exitUsage {
+		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, e.stderr.String())
+	}
+	if !strings.Contains(e.stderr.String(), "generationz") {
+		t.Errorf("stderr does not name the rejected value:\n%s", e.stderr.String())
+	}
+	requireUntouched(t, e)
+}
+
+func TestRunAfterRejectsGenerationFlags(t *testing.T) {
+	e := newRunEnv(t)
+	e.withSteps = true
+	dir := artifactsPath(t, e.base)
+	prompt := filepath.Join(e.base, "system.tmpl")
+	if err := os.WriteFile(prompt, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	e.args = []string{"--after", "generation", "--artifacts", dir, "--system-prompt", prompt, "--out", e.outPath, runVideoURL}
+	if code := e.run(); code != exitUsage {
+		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, e.stderr.String())
+	}
+	requireUntouched(t, e)
+}
+
+func TestRunAfterReviewRejectsReviewLog(t *testing.T) {
+	e := newRunEnv(t)
+	e.withSteps = true
+	dir := artifactsPath(t, e.base)
+	e.args = []string{"--after", "review", "--artifacts", dir, "--review-log", filepath.Join(e.base, "log.md"), "--out", e.outPath, runVideoURL}
+	if code := e.run(); code != exitUsage {
+		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, e.stderr.String())
+	}
+	requireUntouched(t, e)
+}
+
+func TestRunAfterMissingArtifact(t *testing.T) {
+	e := newRunEnv(t)
+	e.withSteps = true
+	dir := artifactsPath(t, e.base) // empty: no generation artifact
+	e.args = []string{"--artifacts", dir, "--after", "generation", "--out", e.outPath, runVideoURL}
+	// The writer is built before the artifact is loaded, so a review client is
+	// needed for the build to reach the load.
+	e.useReviewClient(reviewLLM(emptyReviewJSON))
+	if code := e.run(); code != exitFailure {
+		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitFailure, e.stderr.String())
+	}
+	requireUntouched(t, e)
+}
+
+func TestRunArtifactExitCodes(t *testing.T) {
+	validGeneration := func(input string) []byte {
+		record := writer.StageRecord{
+			Stage: writer.StageGeneration, Title: "T", Body: "B.", Model: "m",
+			System: writer.TemplateIdentity{Embedded: true, Digest: writer.Digest("s")},
+			User:   writer.TemplateIdentity{Embedded: true, Digest: writer.Digest("u")},
+			Input:  input,
+		}
+		data, _, err := artifact.Marshal(record)
+		if err != nil {
+			t.Fatalf("Marshal: %v", err)
+		}
+		return data
+	}
+	cases := []struct {
+		name     string
+		want     int
+		prepared func(t *testing.T, e *runEnv, dir string)
+		args     []string
+	}{
+		{
+			name: "argument shape is a usage error",
+			want: exitUsage,
+			args: []string{"--after", "bogus", "--artifacts", "@dir", "--out", "@out", runVideoURL},
+		},
+		{
+			name: "missing directory is a run failure",
+			want: exitFailure,
+			args: []string{"--artifacts", filepath.Join("@base", "absent"), "--out", "@out", runVideoURL},
+		},
+		{
+			name: "a broken artifact is a run failure",
+			want: exitFailure,
+			args: []string{"--artifacts", "@dir", "--after", "generation", "--out", "@out", runVideoURL},
+			prepared: func(t *testing.T, e *runEnv, dir string) {
+				e.useReviewClient(reviewLLM(emptyReviewJSON))
+				if err := os.WriteFile(artifactFile(dir, runVideoID, "generation"), []byte("not json"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
+			name: "a mismatched artifact is a run failure",
+			want: exitFailure,
+			args: []string{"--artifacts", "@dir", "--after", "generation", "--out", "@out", runVideoURL},
+			prepared: func(t *testing.T, e *runEnv, dir string) {
+				e.useReviewClient(reviewLLM(emptyReviewJSON))
+				if err := os.WriteFile(artifactFile(dir, runVideoID, "generation"), validGeneration(writer.Digest("other")), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newRunEnv(t)
+			e.withSteps = true
+			dir := artifactsPath(t, e.base)
+			if tc.prepared != nil {
+				tc.prepared(t, e, dir)
+			}
+			args := make([]string, len(tc.args))
+			for i, arg := range tc.args {
+				switch arg {
+				case "@dir":
+					arg = dir
+				case "@out":
+					arg = e.outPath
+				case "@base":
+					arg = e.base
+				}
+				args[i] = arg
+			}
+			e.args = args
+			if code := e.run(); code != tc.want {
+				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, tc.want, e.stderr.String())
+			}
+			requireUntouched(t, e)
+		})
 	}
 }

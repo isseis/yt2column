@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/isseis/yt2column/internal/artifact"
 	"github.com/isseis/yt2column/internal/config"
 	"github.com/isseis/yt2column/internal/job"
 	"github.com/isseis/yt2column/internal/llm"
@@ -107,6 +108,18 @@ var (
 	errReviewLogNoReview = errors.New("--review-log cannot be used with --no-review")
 	errReviewLogEmpty    = errors.New("--review-log needs a path")
 	errReviewLogSameFile = errors.New("--out and --review-log cannot name the same file")
+	// Artifact and resume rejections, in the order they are checked.
+	errArtifactsEmpty       = errors.New("--artifacts needs a path")
+	errAfterNoArtifacts     = errors.New("--after requires --artifacts")
+	errAfterEmpty           = errors.New("--after needs a stage")
+	errAfterInvalid         = errors.New("--after must be generation, shorten, or review")
+	errAfterPromptFlags     = errors.New("--after cannot be used with --system-prompt or --user-prompt")
+	errAfterReviewReviewLog = errors.New("--after review cannot be used with --review-log")
+	// Inside-cache-directory rejections, one per path kind. Each is wrapped
+	// with the path and the cache directory.
+	errOutInsideCache       = errors.New("--out is inside the cache directory")
+	errReviewLogInsideCache = errors.New("--review-log is inside the cache directory")
+	errArtifactsInsideCache = errors.New("--artifacts is inside the cache directory")
 )
 
 // cliOptions holds the parsed flags.
@@ -124,6 +137,8 @@ type cliOptions struct {
 	shortenUserPrompt   string
 	reviewSystemPrompt  string
 	reviewUserPrompt    string
+	artifacts           string
+	after               string
 }
 
 // newFlagSet defines every flag in one place, so run and the documentation
@@ -146,6 +161,8 @@ func newFlagSet() (*flag.FlagSet, *cliOptions) {
 	fs.StringVar(&opts.shortenUserPrompt, "shorten-user-prompt", "", "read the shorten user prompt template from this `path` instead of the built-in one")
 	fs.StringVar(&opts.reviewSystemPrompt, "review-system-prompt", "", "read the review system prompt template from this `path` instead of the built-in one")
 	fs.StringVar(&opts.reviewUserPrompt, "review-user-prompt", "", "read the review user prompt template from this `path` instead of the built-in one")
+	fs.StringVar(&opts.artifacts, "artifacts", "", "save each stage's output to this `path` directory and reuse it to resume; the directory must exist and be outside the cache directory")
+	fs.StringVar(&opts.after, "after", "", "run only the stages after `stage` (generation, shorten, or review), reusing its saved output; requires --artifacts")
 	return fs, opts
 }
 
@@ -230,10 +247,15 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 	if err := checkReviewLog(reviewLogGiven, opts, dest); err != nil {
 		return usageError(errOut, "%v", err)
 	}
+	artifactsGiven, resume, need, err := resumeOptions(fs, opts)
+	if err != nil {
+		return usageError(errOut, "%v", err)
+	}
 
 	// A3: the configuration. Each rejected variable is reported on its own
-	// line; a VarError never carries a value.
-	cfg, err := config.Load(lookup)
+	// line; a VarError never carries a value. Only the stages the run executes
+	// contribute their provider's variables.
+	cfg, err := config.LoadFor(lookup, need)
 	if err != nil {
 		return configurationError(errOut, err)
 	}
@@ -246,20 +268,30 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 	}
 	warnHTTP2Debug(errOut, cfg, dest)
 
-	// A4: a file output must not be inside the cache directory, where pruning
-	// or removing the cache could delete it. The review log is checked the same
-	// way.
-	if dest == destinationFile && outPathInsideCacheDir(opts.out, cfg.CacheDir()) {
-		return usageError(errOut, "--out %s is inside the cache directory %s; choose a path outside it", opts.out, cfg.CacheDir())
+	// A4: a file output, the review log, and the artifacts directory must not
+	// be inside the cache directory, where pruning or removing the cache could
+	// delete them.
+	if err := checkCacheDirs(opts, dest, reviewLogGiven, artifactsGiven, cfg.CacheDir()); err != nil {
+		return usageError(errOut, "%v", err)
 	}
-	if reviewLogGiven && outPathInsideCacheDir(opts.reviewLog, cfg.CacheDir()) {
-		return usageError(errOut, "--review-log %s is inside the cache directory %s; choose a path outside it", opts.reviewLog, cfg.CacheDir())
+
+	// A4.5: open the artifacts directory once, before yt-dlp and the LLM. A
+	// missing or unusable directory is an execution failure (exit 1), not a
+	// usage error, because it depends on the filesystem rather than the
+	// argument's shape.
+	var store *artifact.Store
+	if artifactsGiven {
+		store, err = artifact.NewStore(opts.artifacts)
+		if err != nil {
+			return runFailure(errOut, "open the artifacts directory: %v", err)
+		}
+		defer func() { _ = store.Close() }()
 	}
 
 	// A5: build the stages. writer.New only reads the template files, and
 	// neither the publisher constructors nor the review log writer touches its
 	// destination.
-	articleWriter, reviewLog, err := buildWriter(d, cfg, opts, reviewLogGiven)
+	articleWriter, reviewLog, err := buildWriter(d, cfg, opts, reviewLogGiven, store, resume)
 	if err != nil {
 		return usageError(errOut, "%v", err)
 	}
@@ -287,14 +319,14 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 		// summary is written first and reportRunError reports the failure on
 		// its own, without the "the run failed:" line.
 		if _, isReviewLog := errors.AsType[*job.ReviewLogError](err); isReviewLog {
-			reportSuccess(errOut, dest, opts.out, "", result.Article)
+			reportSuccess(errOut, dest, opts.out, "", opts.artifacts, result.Article)
 		}
 		reportRunError(errOut, dest, opts.out, err)
 		return exitFailure
 	}
 
 	// C: the summary.
-	reportSuccess(errOut, dest, opts.out, opts.reviewLog, result.Article)
+	reportSuccess(errOut, dest, opts.out, opts.reviewLog, opts.artifacts, result.Article)
 	return exitOK
 }
 
@@ -351,16 +383,132 @@ func checkReviewLog(reviewLogGiven bool, opts *cliOptions, dest destination) err
 	}
 }
 
+// afterStage maps an --after value to the writer.Stage it resumes from. The
+// accepted values are exactly "generation", "shorten", and "review".
+func afterStage(value string) (writer.Stage, bool) {
+	switch value {
+	case "generation":
+		return writer.StageGeneration, true
+	case "shorten":
+		return writer.StageShorten, true
+	case "review":
+		return writer.StageReview, true
+	default:
+		return writer.StageUnset, false
+	}
+}
+
+// resumeNeed maps the resume and step flags to the configuration the run needs
+// (architecture section 3.7): without --after, both stages run; with --after,
+// only the stages after the resume stage run, and --no-shorten and --no-review
+// still suppress their step. after must already be a validated value.
+func resumeNeed(after string, noShorten, noReview, afterGiven bool) config.Need {
+	if !afterGiven {
+		return config.Need{Generation: true, Review: true}
+	}
+	switch after {
+	case "generation":
+		return config.Need{Generation: !noShorten, Review: !noReview}
+	case "shorten":
+		return config.Need{Generation: false, Review: !noReview}
+	default: // "review", already validated
+		return config.Need{}
+	}
+}
+
+// checkResumeFlags rejects the --artifacts and --after combinations that need
+// no configuration, reading which flags appeared on the command line rather
+// than their values. When several apply, the first in this order wins: an empty
+// --artifacts, --after without --artifacts, an empty --after, an invalid
+// --after, --after with a generation-only prompt, and --after review with
+// --review-log. The --artifacts-inside-the-cache check needs the configuration
+// and runs later.
+func checkResumeFlags(fs *flag.FlagSet, opts *cliOptions, artifactsGiven, afterGiven bool) error {
+	if artifactsGiven && opts.artifacts == "" {
+		return errArtifactsEmpty
+	}
+	if !afterGiven {
+		return nil
+	}
+	switch {
+	case !artifactsGiven:
+		return errAfterNoArtifacts
+	case opts.after == "":
+		return errAfterEmpty
+	}
+	stage, ok := afterStage(opts.after)
+	if !ok {
+		return fmt.Errorf("%w: %q", errAfterInvalid, opts.after)
+	}
+	if flagGiven(fs, "system-prompt") || flagGiven(fs, "user-prompt") {
+		return errAfterPromptFlags
+	}
+	if stage == writer.StageReview && flagGiven(fs, "review-log") {
+		return errAfterReviewReviewLog
+	}
+	return nil
+}
+
+// resumeOptions reads the --artifacts and --after flags, rejects their invalid
+// combinations, and returns whether --artifacts was given, the stage to resume
+// from, and the configuration the run needs.
+func resumeOptions(fs *flag.FlagSet, opts *cliOptions) (artifactsGiven bool, resume writer.Stage, need config.Need, err error) {
+	artifactsGiven = flagGiven(fs, "artifacts")
+	afterGiven := flagGiven(fs, "after")
+	if err = checkResumeFlags(fs, opts, artifactsGiven, afterGiven); err != nil {
+		return false, writer.StageUnset, config.Need{}, err
+	}
+	if afterGiven {
+		resume, _ = afterStage(opts.after)
+	}
+	return artifactsGiven, resume, resumeNeed(opts.after, opts.noShorten, opts.noReview, afterGiven), nil
+}
+
+// checkCacheDirs rejects an --out, --review-log, or --artifacts path inside the
+// cache directory, where pruning or removing the cache could delete it.
+func checkCacheDirs(opts *cliOptions, dest destination, reviewLogGiven, artifactsGiven bool, cacheDir string) error {
+	if dest == destinationFile && outPathInsideCacheDir(opts.out, cacheDir) {
+		return fmt.Errorf("%w %s; choose a path outside %s", errOutInsideCache, opts.out, cacheDir)
+	}
+	if reviewLogGiven && outPathInsideCacheDir(opts.reviewLog, cacheDir) {
+		return fmt.Errorf("%w %s; choose a path outside %s", errReviewLogInsideCache, opts.reviewLog, cacheDir)
+	}
+	if artifactsGiven && outPathInsideCacheDir(opts.artifacts, cacheDir) {
+		return fmt.Errorf("%w %s; choose a path outside %s", errArtifactsInsideCache, opts.artifacts, cacheDir)
+	}
+	return nil
+}
+
+// runFailure reports a failure that is not a usage or configuration error but
+// happens before job.Run (an unusable artifacts directory) and returns
+// exitFailure.
+func runFailure(errOut *stderrWriter, format string, args ...any) int {
+	errOut.line("%s: the run failed: %s", programName, fmt.Sprintf(format, args...))
+	return exitFailure
+}
+
 // buildWriter builds the ArticleWriter for the requested steps and, when
-// reviewLogGiven is set, the review log writer. The review LLM client is built
-// only when the review step runs, so --no-review never builds one.
-func buildWriter(d deps, cfg config.Config, opts *cliOptions, reviewLogGiven bool) (writer.ArticleWriter, *publisher.ReviewLogWriter, error) {
-	client, err := d.newLLMClient(cfg.LLM())
-	if err != nil {
-		return nil, nil, fmt.Errorf("build the LLM client: %w", err)
+// reviewLogGiven is set, the review log writer. It builds the generation LLM
+// client only when a stage that uses it runs (generation, or shorten with a
+// resume at or before it) and the review client only when the review step runs,
+// and passes nil for a client it does not build. Client building follows the
+// stages the run executes, never config.Need, which only widens the
+// configuration check (a run without --after still checks the review settings
+// under --no-review). store and resume configure artifact saving and resuming.
+func buildWriter(d deps, cfg config.Config, opts *cliOptions, reviewLogGiven bool, store writer.ArtifactStore, resume writer.Stage) (writer.ArticleWriter, *publisher.ReviewLogWriter, error) {
+	generationRuns := resume == writer.StageUnset
+	shortenRuns := !opts.noShorten && (resume == writer.StageUnset || resume == writer.StageGeneration)
+	reviewRuns := !opts.noReview && resume != writer.StageReview
+
+	var client llm.LLMClient
+	var err error
+	if generationRuns || shortenRuns {
+		if client, err = d.newLLMClient(cfg.LLM()); err != nil {
+			return nil, nil, fmt.Errorf("build the LLM client: %w", err)
+		}
 	}
 	var reviewClient llm.LLMClient
-	if !opts.noReview {
+	if reviewRuns {
 		if reviewClient, err = d.newReviewLLMClient(cfg.LLM()); err != nil {
 			return nil, nil, fmt.Errorf("build the review LLM client: %w", err)
 		}
@@ -379,6 +527,7 @@ func buildWriter(d deps, cfg config.Config, opts *cliOptions, reviewLogGiven boo
 			SystemTemplatePath: opts.reviewSystemPrompt,
 			UserTemplatePath:   opts.reviewUserPrompt,
 		},
+		Artifacts: writer.ArtifactOptions{Store: store, Resume: resume},
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("build the article writer: %w", err)
@@ -439,9 +588,10 @@ func buildOutput(d deps, dest destination, outPath string, webhookURL secret.Sec
 // reportSuccess writes the summary of a published run. The message count of a
 // webhook post is recomputed from the article; it is "unknown" when that
 // fails, which only a fake publisher that accepts any article can cause. It
-// adds one line per post-generation step that ran, and the review log path
-// when one was written. A reviewLogPath that is empty writes nothing.
-func reportSuccess(errOut *stderrWriter, dest destination, outPath, reviewLogPath string, article writer.Article) {
+// adds one line per post-generation step that ran, the review log path when one
+// was written, and the artifacts directory when one was used. An empty path
+// writes nothing.
+func reportSuccess(errOut *stderrWriter, dest destination, outPath, reviewLogPath, artifactsDir string, article writer.Article) {
 	modelVersion := orNone(article.ModelVersion)
 	switch dest {
 	case destinationFile:
@@ -460,6 +610,9 @@ func reportSuccess(errOut *stderrWriter, dest destination, outPath, reviewLogPat
 	reportStepSummary(errOut, article)
 	if reviewLogPath != "" {
 		errOut.line("%s: wrote the review log to %s", programName, reviewLogPath)
+	}
+	if artifactsDir != "" {
+		errOut.line("%s: saved the artifacts to %s", programName, artifactsDir)
 	}
 }
 
