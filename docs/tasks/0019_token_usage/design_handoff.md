@@ -6,9 +6,9 @@
 
 -   **事項:** アダプタのテストで使う応答の `usage` の形を決める。要件定義の段階で確かめた形（要件定義書 F-001）を根拠にする。
     -   DeepSeek: 2026-10-15 の実際の応答の `usage` は、`prompt_tokens`・`completion_tokens`・`total_tokens`・`prompt_tokens_details.cached_tokens`・`completion_tokens_details.reasoning_tokens`・`prompt_cache_hit_tokens`・`prompt_cache_miss_tokens` を持っていた。消費しない要素も含めた、この形の応答を受理のテストの入力にする。
-    -   Claude: 実際の応答は記録していない。公式の SDK の型定義（4 つの要素が必須、キャッシュの 2 つの要素は `null` を取り得る）と、その他の要素（`cache_creation`・`output_tokens_details`・`server_tool_use`・`service_tier`・`inference_geo`）を含む形を入力にする。キャッシュの 2 つの要素が整数の場合と `null` の場合の両方を用意する（要件定義書 AC-02・AC-02a）。
+    -   Claude: 記録済みの実際の応答（`testdata/claude_messages_end_turn.json`・`claude_messages_max_tokens.json`）は、4 つの要素に加えて `cache_creation`・`output_tokens_details`・`service_tier`・`inference_geo` を持ち、キャッシュの 2 つの要素は `0` である。公式の SDK の型定義では、キャッシュの 2 つの要素は `null` を取り得るので、整数の場合と `null` の場合の両方を用意する（要件定義書 AC-02・AC-02a）。
 -   **理由:** テストの入力が実際の応答と異なる形だと、受理のテストが実際の応答の受理を保証しない。
--   **候補の方針:** 記録した値をそのまま `testdata/` に置くのではなく、テストのヘルパーが組み立てる応答に、確かめた要素の集合を反映する。実際の応答の本文は記録していない（要素の名前と数値だけを確かめた）。
+-   **候補の方針:** 既存の `testdata/` の記録済みの応答（DeepSeek・Claude それぞれ正常終了と打ち切り）は、すでに `usage` を含むので、そのまま受理のテストと、打ち切りでトークン数を渡すテスト（AC-17）の入力に使う。異常な形は、テストのヘルパーが組み立てる。
 -   **関連:** F-001、F-002、AC-01・AC-02・AC-02a・AC-07
 
 ## H-02: 失敗した呼び出しのトークン数の受け渡し

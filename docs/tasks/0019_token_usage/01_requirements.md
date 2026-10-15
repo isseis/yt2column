@@ -8,7 +8,7 @@
 | Created | 2026-10-15 |
 | Review date | - |
 | Reviewer | - |
-| Comments | F-001 の区分の対応は、要件定義の段階で確かめた（DeepSeek は実際の応答 1 件、Claude は公式の Go・Python SDK の型定義）。この結果、Claude のキャッシュの 2 つの要素の `null` を受理する規則（AC-02a）を加えた。issue #247 の「検討事項」1〜5 は、本書で次のとおり決めた（レビューで判断を求める）。1: `usage` がない・形が不正な応答は拒否する（F-002）。2: 新しいフラグを設けず、標準エラーの要約を固定の書式で出す（F-004）。3: 中間生成物の形式の版を上げ、トークン数を `id` の計算に含める（F-006）。4: `Article` の形は設計で決める（[design_handoff.md](design_handoff.md) H-03）。5: 呼ばなかった段階の行は出さない（AC-13）。 |
+| Comments | F-001 の区分の対応は、要件定義の段階で確かめた（DeepSeek は実際の応答 1 件、Claude は公式の Go・Python SDK の型定義）。この結果、Claude のキャッシュの 2 つの要素の `null` を受理する規則（AC-02a）を加えた。料金の概算の利用者への提示は #99 の将来の予定とし、スコープ外と §4.5 に、#99 との分担を書いた。issue #247 の「検討事項」1〜5 は、本書で次のとおり決めた（レビューで判断を求める）。1: `usage` がない・形が不正な応答は拒否する（F-002）。2: 新しいフラグを設けず、標準エラーの要約を固定の書式で出す（F-004）。3: 中間生成物の形式の版を上げ、トークン数を `id` の計算に含める（F-006）。4: `Article` の形は設計で決める（[design_handoff.md](design_handoff.md) H-03）。5: 呼ばなかった段階の行は出さない（AC-13）。 |
 
 ## 1. 概要 (Overview)
 
@@ -22,7 +22,7 @@
 -   **後から取り直せない。** 0018 は、固定した生成の出力の集合（基準の集合）を 1 度作り、タスク `0017_intermediate_artifacts` の `--after` で後の段階だけを当て直して比べる。再開で呼ばなかった段階のコストには、基準の集合を作った実行のトークン数を使う。その実行のときに記録していないと、後から取り直す方法がない。そのため、本タスクは 0018 の基準の集合を作る前に終える。
 -   **失敗した実行にも料金がかかる。** 生成の応答の打ち切り（`llm.ErrTruncated`）などで記事を公開しなかった実行でも、それまでに呼んだ LLM の料金はかかる。0010 の評価では、`roNZ-rLxhUE` で生成の打ち切りが複数回起きている（[0010 の 02_evaluation.md](../0010_post_generation_review/02_evaluation.md) §3.5・§3.6）。現在の CLI は、失敗した実行ではエラーを報告して終わり、それまでの呼び出しの情報を残さない。
 
-対応 issue: #247。先行: #213（0017、中間生成物の保存と再開）。後続: #248（0018）。関連: #171（Claude の `max_tokens` と effort high。出力トークン数が記録できれば、この前提の確認にも使える）。
+対応 issue: #247。先行: #213（0017、中間生成物の保存と再開）。後続: #248（0018）、[#99](https://github.com/isseis/yt2column/issues/99)（料金の概算の算出と、利用者への提示）。関連: #171（Claude の `max_tokens` と effort high。出力トークン数が記録できれば、この前提の確認にも使える）。
 
 要件レビューの過程で挙がった、設計で決める事項は [design_handoff.md](design_handoff.md) に申し送る。
 
@@ -49,9 +49,9 @@
 
 ### 2.3. スコープ外 (Out of Scope)
 
--   料金の計算（単価の保持、通貨、DeepSeek のピーク時間帯の料金など）。単価は変わるので、CLI は持たない。推定コストの計算は評価の側（0018 の `02_evaluation.md`）で行う。
--   トークン数の合計の計算と出力。段階ごとの値だけを出し、合計は評価の側で求める（区分ごとに単価が異なり、トークン数の合計は料金の計算に使えないため）。
--   `--out` の記事の出力と Webhook の投稿に、トークン数を書くこと。記事の読者には不要である。
+-   料金の計算（単価の保持、単価の出典と確認日、通貨、DeepSeek のピーク時間帯の料金など）。本タスクでは CLI に単価を持たせない。CLI が料金の概算を算出して利用者に示すことは、将来の予定として #99 で扱う。0018 の推定コストは、本タスクの出力から評価の側（0018 の `02_evaluation.md`）で求める。
+-   トークン数の合計の計算と出力。段階ごとの値だけを出す（区分ごとに単価が異なり、トークン数の合計は料金の計算に使えないため）。
+-   `--out` の記事の出力と Webhook の投稿に、トークン数を書くこと。トークン数そのものは記事の読者に不要である。料金の概算を `--out`・Webhook の投稿・CLI の要約で利用者に示すことは、#99 で扱う。本タスクは、#99 がその概算を算出できるように、段階ごとのトークン数を `ArticleWriter` の結果として呼び出し元に渡す（F-003・§4.5）。
 -   localhost サーバ（タスク `0011_localhost_server`）のログや応答に、トークン数を出すこと。サーバは本タスクで変わる `writer` の結果を受け取るが、その振る舞いは変えない（AC-28）。
 -   トークン数による実行の制限（予算の上限など）。
 -   推論・thinking の出力トークン数の内訳（DeepSeek の `completion_tokens_details.reasoning_tokens`、Claude の `output_tokens_details.thinking_tokens`）の記録。料金は出力トークン数の全体にかかり、内訳は推定コストに要らない。
@@ -76,8 +76,8 @@
 
 表の対応は、2026-10-15 に次の公式の記述で確かめた。
 
--   **DeepSeek:** API リファレンス（`create-chat-completion`）は、`prompt_tokens` を「`prompt_cache_hit_tokens + prompt_cache_miss_tokens` に等しい」とし、`prompt_cache_hit_tokens`・`prompt_cache_miss_tokens`・`completion_tokens` を必須の要素とする。推論の出力トークン数（`reasoning_tokens`）は `completion_tokens_details`（「completion で使ったトークンの内訳」）の中にあり、`completion_tokens` の内訳として報告される。料金表は、入力をキャッシュに当たった分と当たらなかった分で別の単価とし、「入力と出力のトークンの合計に基づいて請求する」とする。キャッシュの書き込みの区分はない。`completion_tokens` が推論の出力を含むと明記した文はないので、2026-10-15 に実際の応答（`deepseek-flash`、推論が有効な既定の設定、アダプタと同じ形のリクエスト）で確かめた。`completion_tokens` は 59、`completion_tokens_details.reasoning_tokens` は 38 で、残りの 21 は本文（52 文字）に見合う。`total_tokens`（109）は `prompt_tokens`（50）と `completion_tokens` の和だった。したがって、`completion_tokens` は推論の出力を含む。
--   **Claude:** プロンプトキャッシュの文書は、`input_tokens` を「キャッシュから読まず、キャッシュの作成にも使わなかった入力のトークン数」とし、入力の合計を `cache_read_input_tokens + cache_creation_input_tokens + input_tokens` とする。公式の Go SDK（`anthropic-sdk-go` の `Usage`）は、4 つの要素をすべて必須とし、`output_tokens_details` について「`output_tokens` は請求に使う、内訳を含む正式な合計である」とする。thinking の出力は `output_tokens` に含まれる。公式の Python SDK（`anthropic-sdk-python` の `Usage`）は、`input_tokens`・`output_tokens` を `int`、`cache_creation_input_tokens`・`cache_read_input_tokens` を `Optional[int]` とする。後の 2 つは、要素としては必須だが、値が `null` になり得る。
+-   **DeepSeek:** API リファレンス（`create-chat-completion`）は、`prompt_tokens` を「`prompt_cache_hit_tokens + prompt_cache_miss_tokens` に等しい」とし、`prompt_cache_hit_tokens`・`prompt_cache_miss_tokens`・`completion_tokens` を必須の要素とする。推論の出力トークン数（`reasoning_tokens`）は `completion_tokens_details`（「completion で使ったトークンの内訳」）の中にあり、`completion_tokens` の内訳として報告される。料金表は、入力をキャッシュに当たった分と当たらなかった分で別の単価とし、「入力と出力のトークンの合計に基づいて請求する」とする。キャッシュの書き込みの区分はない。`completion_tokens` が推論の出力を含むと明記した文はないので、2026-10-15 に実際の応答（`deepseek-flash`、推論が有効な既定の設定、アダプタと同じ形のリクエスト）で確かめた。`completion_tokens` は 59、`completion_tokens_details.reasoning_tokens` は 38 で、残りの 21 は本文（52 文字）に見合う。`total_tokens`（109）は `prompt_tokens`（50）と `completion_tokens` の和だった。したがって、`completion_tokens` は推論の出力を含む。リポジトリに記録済みの実際の応答（`testdata/deepseek_chat_completion_stop.json`・`deepseek_chat_completion_length.json`）も同じ形で、打ち切りの応答（`finish_reason` が `length`）も `usage` を持つ（後者は `completion_tokens` と `reasoning_tokens` がともに 16 で、推論の途中で打ち切られている）。
+-   **Claude:** プロンプトキャッシュの文書は、`input_tokens` を「キャッシュから読まず、キャッシュの作成にも使わなかった入力のトークン数」とし、入力の合計を `cache_read_input_tokens + cache_creation_input_tokens + input_tokens` とする。公式の Go SDK（`anthropic-sdk-go` の `Usage`）は、4 つの要素をすべて必須とし、`output_tokens_details` について「`output_tokens` は請求に使う、内訳を含む正式な合計である」とする。thinking の出力は `output_tokens` に含まれる。公式の Python SDK（`anthropic-sdk-python` の `Usage`）は、`input_tokens`・`output_tokens` を `int`、`cache_creation_input_tokens`・`cache_read_input_tokens` を `Optional[int]` とする。後の 2 つは、要素としては必須だが、値が `null` になり得る。リポジトリに記録済みの実際の応答（`testdata/claude_messages_end_turn.json`・`claude_messages_max_tokens.json`、2026-10 の記録）では、2 つとも `0` であり、打ち切りの応答（`stop_reason` が `max_tokens`）も `usage` を持つ。
 
 プロバイダ固有の要素名と、区分への対応は、アダプタ（`internal/llm/<provider>`）の中に閉じる。`internal/llm` には、プロバイダに依存しない 4 つの区分だけを置く（0009・0010 と同じく、[CLAUDE.md](../../../CLAUDE.md)「Provider details stay in their adapter package」）。DeepSeek の「キャッシュに書き込んだ入力」を 0 とするのは、DeepSeek がその区分を持たず、料金も取らないことをアダプタで宣言した対応であり、応答の値を補ったものではない。
 
@@ -221,6 +221,7 @@ Claude の `cache_read_input_tokens`・`cache_creation_input_tokens` が `null` 
 -   `usage` の検証は、既存の応答の検証（`internal/strictjson`）を再利用し、複製しない（[CLAUDE.md](../../../CLAUDE.md)「DRY」）。
 -   中間生成物のトークン数の保存と読み込みは、0017 の形式の定義（保存と読み込みが同じ定義を読む）に加え、別の定義を作らない。
 -   要約の行の書式は 1 か所で定義し、成功と失敗の両方が同じ定義を使う（F-004・F-005）。
+-   段階ごとのトークン数は、モデル名とともに `ArticleWriter` の結果から取り出せるようにする。#99 は、この値とモデル名から料金の概算を算出し、`Publisher`（Webhook・`--out`）と CLI の要約に渡す。本タスクは、その算出と提示のための経路（単価の参照、`Publisher` への受け渡し）を作らない（YAGNI）が、トークン数を CLI の要約の中だけに閉じた形にしない。
 
 ## 5. 制約条件 (Constraints)
 
