@@ -208,7 +208,11 @@ func (s *Server) Serve(ctx context.Context, listeners []net.Listener) error {
 
 	// Jobs and notices are not canceled: each is bounded by its own timeout
 	// (the LLM timeout, the per-message post timeout, and the notice timeout).
+	// Every handler has returned, so each slot still taken belongs to a job or
+	// a notice: their count is what the wait below waits for.
+	s.logger.Info("stopped accepting connections; waiting for in-flight jobs and failure notices", "pending", len(s.slots))
 	s.jobs.Wait()
 	s.jobCancel()
+	s.logger.Info("every job and failure notice has finished")
 	return cause
 }

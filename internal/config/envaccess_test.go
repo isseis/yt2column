@@ -64,6 +64,7 @@ var secretEnvNames = []string{"DEEPSEEK_API_KEY", "ANTHROPIC_API_KEY", "SLACK_WE
 // "value", "import", or "secret".
 var allowedEnvRefs = map[string]map[string]int{
 	"cmd/yt2column/main.go":        {"value:os.LookupEnv": 1},
+	"cmd/yt2column-server/main.go": {"value:os.LookupEnv": 1},
 	"internal/transcript/ytdlp.go": {"call:os.Environ": 1},
 }
 

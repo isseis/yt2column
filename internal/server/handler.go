@@ -10,13 +10,15 @@ import (
 	"github.com/isseis/yt2column/internal/failure"
 )
 
-// The fixed request values the handler checks: the one endpoint, the only
-// accepted content type and method, the extension's origin, and the bearer
-// scheme. The shared token is 64 characters, which is a public part of the
-// protocol.
+// ArticlesPath is the request target of the one endpoint. The handler accepts
+// exactly this string, before any decoding, and no query.
+const ArticlesPath = "/articles"
+
+// The other fixed request values the handler checks: the only accepted content
+// type and method, the extension's origin, and the bearer scheme. The shared
+// token is 64 characters, which is a public part of the protocol.
 const (
 	extensionOrigin   = "chrome-extension://clfmbbcdpnjcefbdihdoahomaifbabkk"
-	articlesPath      = "/articles"
 	jsonContentType   = "application/json"
 	bearerPrefix      = "Bearer "
 	sharedTokenLength = 64
@@ -132,7 +134,7 @@ func (s *Server) checkHeaders(r *http.Request) *rejection {
 	if !s.hostAllowed(r.Host) {
 		return &rejection{reason: reasonForbiddenHost, detail: detailHostMismatch}
 	}
-	if r.RequestURI != articlesPath {
+	if r.RequestURI != ArticlesPath {
 		return &rejection{reason: reasonNotFound, detail: detailNotFound}
 	}
 	if r.Method != http.MethodPost {

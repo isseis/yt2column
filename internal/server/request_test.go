@@ -65,7 +65,7 @@ func TestRejectBodyTable(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ts := newTestServer(t)
-			req := newRequest(http.MethodPost, articlesPath, bytes.NewReader(tc.body))
+			req := newRequest(http.MethodPost, ArticlesPath, bytes.NewReader(tc.body))
 			withValidHeaders(req, testTokenValue)
 			rec := ts.serve(req)
 			ts.waitJobs()
@@ -128,7 +128,7 @@ func TestOptionalMembers(t *testing.T) {
 // request builds a valid-header request with body.
 func (ts *testServer) request(t *testing.T, body string) *http.Request {
 	t.Helper()
-	req := newRequest(http.MethodPost, articlesPath, strings.NewReader(body))
+	req := newRequest(http.MethodPost, ArticlesPath, strings.NewReader(body))
 	withValidHeaders(req, ts.token)
 	return req
 }
@@ -211,7 +211,7 @@ func TestHeaderRejectionReadsNoBody(t *testing.T) {
 		code  int
 	}{
 		{"host", func(_ *testing.T, body io.Reader) *http.Request {
-			req := newRequest(http.MethodPost, articlesPath, body)
+			req := newRequest(http.MethodPost, ArticlesPath, body)
 			withValidHeaders(req, testTokenValue)
 			req.Host = "example.com:8765"
 			return req
@@ -222,29 +222,29 @@ func TestHeaderRejectionReadsNoBody(t *testing.T) {
 			return req
 		}, http.StatusNotFound},
 		{"method", func(_ *testing.T, body io.Reader) *http.Request {
-			req := newRequest(http.MethodGet, articlesPath, body)
+			req := newRequest(http.MethodGet, ArticlesPath, body)
 			withValidHeaders(req, testTokenValue)
 			return req
 		}, http.StatusMethodNotAllowed},
 		{"content_type", func(_ *testing.T, body io.Reader) *http.Request {
-			req := newRequest(http.MethodPost, articlesPath, body)
+			req := newRequest(http.MethodPost, ArticlesPath, body)
 			withValidHeaders(req, testTokenValue)
 			req.Header.Set("Content-Type", "text/plain")
 			return req
 		}, http.StatusUnsupportedMediaType},
 		{"origin", func(_ *testing.T, body io.Reader) *http.Request {
-			req := newRequest(http.MethodPost, articlesPath, body)
+			req := newRequest(http.MethodPost, ArticlesPath, body)
 			withValidHeaders(req, testTokenValue)
 			req.Header.Set("Origin", "chrome-extension://other")
 			return req
 		}, http.StatusForbidden},
 		{"token", func(_ *testing.T, body io.Reader) *http.Request {
-			req := newRequest(http.MethodPost, articlesPath, body)
+			req := newRequest(http.MethodPost, ArticlesPath, body)
 			withValidHeaders(req, testOtherTokenValue)
 			return req
 		}, http.StatusUnauthorized},
 		{"oversized_body_wrong_token", func(_ *testing.T, body io.Reader) *http.Request {
-			req := newRequest(http.MethodPost, articlesPath, body)
+			req := newRequest(http.MethodPost, ArticlesPath, body)
 			withValidHeaders(req, testOtherTokenValue)
 			req.ContentLength = maxBodyBytes * 4
 			return req
@@ -272,7 +272,7 @@ func TestBodyTooLarge(t *testing.T) {
 	t.Run("content_length", func(t *testing.T) {
 		ts := newTestServer(t)
 		counter := &recordingReader{r: bytes.NewReader([]byte("{}"))}
-		req := newRequest(http.MethodPost, articlesPath, io.NopCloser(counter))
+		req := newRequest(http.MethodPost, ArticlesPath, io.NopCloser(counter))
 		withValidHeaders(req, testTokenValue)
 		req.ContentLength = maxBodyBytes + 1
 		rec := ts.serve(req)
@@ -290,7 +290,7 @@ func TestBodyTooLarge(t *testing.T) {
 	t.Run("no_content_length", func(t *testing.T) {
 		ts := newTestServer(t)
 		counter := &recordingReader{r: strings.NewReader(strings.Repeat("x", maxBodyBytes+10))}
-		req := newRequest(http.MethodPost, articlesPath, io.NopCloser(counter))
+		req := newRequest(http.MethodPost, ArticlesPath, io.NopCloser(counter))
 		withValidHeaders(req, testTokenValue)
 		req.ContentLength = -1
 		rec := ts.serve(req)

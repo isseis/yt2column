@@ -70,7 +70,7 @@ func TestSlotLimit(t *testing.T) {
 	s := newCustomServer(t, gate, pub, notifier)
 
 	serve := func() *httptest.ResponseRecorder {
-		req := newRequest(http.MethodPost, articlesPath, strings.NewReader(validBody(testValidVideoURL, testValidRaw)))
+		req := newRequest(http.MethodPost, ArticlesPath, strings.NewReader(validBody(testValidVideoURL, testValidRaw)))
 		withValidHeaders(req, testTokenValue)
 		rec := httptest.NewRecorder()
 		s.handler(rec, req)
@@ -113,7 +113,7 @@ func TestSlotReleasedOnce(t *testing.T) {
 	})
 	t.Run("read_failure", func(t *testing.T) {
 		ts := newTestServer(t)
-		req := newRequest(http.MethodPost, articlesPath, iotest.ErrReader(errors.New("cut")))
+		req := newRequest(http.MethodPost, ArticlesPath, iotest.ErrReader(errors.New("cut")))
 		withValidHeaders(req, testTokenValue)
 		rec := httptest.NewRecorder()
 		func() {
@@ -136,7 +136,7 @@ func TestSlotReleasedOnce(t *testing.T) {
 	})
 	t.Run("handler_panic", func(t *testing.T) {
 		ts := newTestServer(t)
-		req := newRequest(http.MethodPost, articlesPath, panickingReader{})
+		req := newRequest(http.MethodPost, ArticlesPath, panickingReader{})
 		withValidHeaders(req, testTokenValue)
 		rec := ts.serve(req)
 		ts.waitJobs()
@@ -180,7 +180,7 @@ func TestFailureClassification(t *testing.T) {
 			fakePub := &publishertestutil.FakePublisher{Err: tc.pubErr}
 			notifier := &failuretestutil.FakeNotifier{}
 			s := newCustomServer(t, fakeWriter, fakePub, notifier)
-			req := newRequest(http.MethodPost, articlesPath, strings.NewReader(validBody(testValidVideoURL, testValidRaw)))
+			req := newRequest(http.MethodPost, ArticlesPath, strings.NewReader(validBody(testValidVideoURL, testValidRaw)))
 			withValidHeaders(req, testTokenValue)
 			s.handler(httptest.NewRecorder(), req)
 			s.jobs.Wait()
@@ -281,7 +281,7 @@ func TestNotifyErrorContinues(t *testing.T) {
 func TestPanicRecycledAsInternal(t *testing.T) {
 	notifier := &failuretestutil.FakeNotifier{}
 	s := newCustomServer(t, panickingWriter{}, &publishertestutil.FakePublisher{}, notifier)
-	req := newRequest(http.MethodPost, articlesPath, strings.NewReader(validBody(testValidVideoURL, testValidRaw)))
+	req := newRequest(http.MethodPost, ArticlesPath, strings.NewReader(validBody(testValidVideoURL, testValidRaw)))
 	withValidHeaders(req, testTokenValue)
 	rec := httptest.NewRecorder()
 	s.handler(rec, req)
@@ -312,7 +312,7 @@ func TestNotifyPanicLogged(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	req := newRequest(http.MethodPost, articlesPath, strings.NewReader(validBody(testValidVideoURL, testValidRaw)))
+	req := newRequest(http.MethodPost, ArticlesPath, strings.NewReader(validBody(testValidVideoURL, testValidRaw)))
 	withValidHeaders(req, testTokenValue)
 	s.handler(httptest.NewRecorder(), req)
 	s.jobs.Wait()

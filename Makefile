@@ -12,6 +12,8 @@ GOFUMPTCMD=gofumpt
 
 BINARY=build/yt2column
 MAIN_PKG=./cmd/yt2column
+SERVER_BINARY=build/yt2column-server
+SERVER_PKG=./cmd/yt2column-server
 
 # Common gofumpt check and error message
 define check_gofumpt
@@ -53,6 +55,7 @@ all: build
 build:
 	@mkdir -p build
 	$(GOBUILD) -trimpath -ldflags "-s -w" -o $(BINARY) $(MAIN_PKG)
+	$(GOBUILD) -trimpath -ldflags "-s -w" -o $(SERVER_BINARY) $(SERVER_PKG)
 
 # Install the /mergepr developer tool into $(go env GOPATH)/bin. Run from an
 # up-to-date main checkout (docs/dev/developer_guide/mergepr_guide.md).

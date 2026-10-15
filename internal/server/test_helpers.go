@@ -197,7 +197,7 @@ func (ts *testServer) serve(req *http.Request) *httptest.ResponseRecorder {
 // fakes' recorded calls are complete.
 func (ts *testServer) serveAccepted(t *testing.T, body string) *httptest.ResponseRecorder {
 	t.Helper()
-	req := newRequest(http.MethodPost, articlesPath, bytes.NewBufferString(body))
+	req := newRequest(http.MethodPost, ArticlesPath, bytes.NewBufferString(body))
 	withValidHeaders(req, ts.token)
 	rec := ts.serve(req)
 	ts.jobs.Wait()

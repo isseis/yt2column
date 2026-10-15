@@ -8,7 +8,7 @@
 | Created | 2026-10-14 |
 | Review date | 2026-10-14 |
 | Reviewer | isseis |
-| Comments | 2026-10-14: mkplan2 で PR 境界（PR-1〜PR-7）を加え、§3.2 PR 構成と §7 チェックリストを PR 単位にした。あわせて、#222 で architecture §7.2 の改訂と再承認が済んだことに合わせ、再承認を「これから受ける」と書いていた記述を過去形に直した（editorial correction。計画の決定は変えていない）。 2026-10-15: ステップ 2-1〜2-3 の実装で、§5 の AC-17 の検証から `TestBodyTooLarge` を外した。`body_too_large` は認証後の拒否で、architecture §3.4.3 のとおり失敗を通知する（AC-23）ため、AC-17 の対象（F-004・`Content-Type`・メソッドの検査）に含まれない。検証の対応付けだけの editorial correction で、計画の決定は変えていない。 |
+| Comments | 2026-10-14: mkplan2 で PR 境界（PR-1〜PR-7）を加え、§3.2 PR 構成と §7 チェックリストを PR 単位にした。あわせて、#222 で architecture §7.2 の改訂と再承認が済んだことに合わせ、再承認を「これから受ける」と書いていた記述を過去形に直した（editorial correction。計画の決定は変えていない）。 2026-10-15: ステップ 2-1〜2-3 の実装で、§5 の AC-17 の検証から `TestBodyTooLarge` を外した。`body_too_large` は認証後の拒否で、architecture §3.4.3 のとおり失敗を通知する（AC-23）ため、AC-17 の対象（F-004・`Content-Type`・メソッドの検査）に含まれない。検証の対応付けだけの editorial correction で、計画の決定は変えていない。 2026-10-15: ステップ 2-4 の実装で、サーバと CLI の `writer.Options` の既定の一致を、共有のテスト用の値（`writertestutil.DefaultOptions`）との比較で固定する方式にし、ステップ 2-4 の記述・§4.4・§5 と architecture §3.1・§7.1 の該当の文をこれに合わせた（2 つの `package main` は互いを import できないため。固定する性質は変えていない）。§5 の AC-02 のテスト名を `TestOutputsOmitSecrets` に改め、AC-12 に実際のソケットの結果を記録した。 |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「requirements」）の項番、節番号は [02_architecture.md](02_architecture.md)（以下「architecture」）の節を指す。H-NN は [design_handoff.md](design_handoff.md) の項目で、その対応は architecture §3.13 にある。既存のファイルの行番号と事実は、断りがない限り HEAD `e0f898e`（ブランチ `issei/localhost-server-01`）で確かめた。`implementation_handoff.md` は本タスクにはない。
 
@@ -184,7 +184,7 @@ requirements §2.3 のとおり。加えて、次のものは本計画で扱わ�
 - [x] PR がマージされた
 - [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
-- [ ] **ステップ 2-4**: `cmd/yt2column-server/main.go`（`os.LookupEnv`・標準出力・標準エラー出力を `run` に渡し、`signalrun.Run` で包む）と `cmd/yt2column-server/run.go`（起動の手順と終了コード、部品の構築、ログの組み立て。CLI の `deps` と同じく、LLM・`Publisher`・`Notifier` の構築関数をテストで差し替えられる形にする）を実装する。`Makefile` の `build` を 2 つの実行ファイルにする（統合テストは `make test` に含まれるので、専用のターゲットは加えない）。`internal/config/envaccess_test.go` の `allowedEnvRefs` に `cmd/yt2column-server/main.go` を加える。`cmd/yt2column-server/server_test.go`（`//go:build test`）に §4.2 の統合テストを書く。サーバの `writer.Options` が CLI の既定の解析結果と一致することを `cmd/yt2column-server` のユニットテストで固定する（§3.1）。
+- [x] **ステップ 2-4**: `cmd/yt2column-server/main.go`（`os.LookupEnv`・標準出力・標準エラー出力を `run` に渡し、`signalrun.Run` で包む）と `cmd/yt2column-server/run.go`（起動の手順と終了コード、部品の構築、ログの組み立て。CLI の `deps` と同じく、LLM・`Publisher`・`Notifier` の構築関数をテストで差し替えられる形にする）を実装する。`Makefile` の `build` を 2 つの実行ファイルにする（統合テストは `make test` に含まれるので、専用のターゲットは加えない）。`internal/config/envaccess_test.go` の `allowedEnvRefs` に `cmd/yt2column-server/main.go` を加える。`cmd/yt2column-server/server_test.go`（`//go:build test`）に §4.2 の統合テストを書く。サーバの `writer.Options` が CLI の既定の解析結果と一致することを固定する（§3.1）。2 つの `package main` は互いを import できないので、既定の値を `internal/writer/testutil/helpers.go` の `DefaultOptions` に置き、`cmd/yt2column/run_test.go::TestRunDefaultWriterOptions`（段階のフラグを指定しない実行で `newWriter` に渡る値）と `cmd/yt2column-server/run_test.go::TestWriterOptionsMatchCLIDefaults` の両方がこの値と比べる（architecture §3.1 をこの方式に合わせた）。`testutil/` のファイルが 1 つ増えるので、`TestFakesCarryBuildTag` の件数を 18 から 19 にする。あわせて、`run` が待ち受けの URL をログに書くために `internal/server` の `articlesPath` を公開の `ArticlesPath` に改め、architecture §3.10 の「終了の開始・ジョブの待機・終了」のログ（PR-5 では書いていなかった）を加える。待っている件数は `Server.Serve` が `Shutdown` の後の枠の数で書き、最悪の場合の目安と 2 つ目のシグナルの案内は `run` が書く。`run` 自身のロガーとサーバのロガーが標準エラー出力へ別々の goroutine から書くので、`run` は標準エラー出力を書き込みを直列化する `io.Writer` で包む。
 
 ### PR-6 作成ポイント: the server entry point and integration test
 
@@ -282,7 +282,7 @@ architecture §7.3 を 2-1〜2-3 のテストに書く。(1) AC-12（本文を�
 
 ### 4.4. テストヘルパー
 
-新しい `testutil/` は `internal/failure/testutil` の 1 つだけである（1-1）。既存の fake（`ArticleWriter`・`Publisher`）はそのまま使う。`internal/server` のテスト内の補助は `internal/server/test_helpers.go`（`//go:build test`）に置く。`cmd/yt2column-server` のテスト内の補助は、統合テストも `//go:build test` なので、すべて `cmd/yt2column-server/test_helpers.go`（`//go:build test`）に置く。`integration` タグのビルドから見える補助（`test_helpers_integration.go`）は作らず、既存の部品（`internal/publisher/test_helpers_slack.go`・`internal/llm/testutil`・#108 の `NewSlackFailureNotifierForLoopbackTest`）のビルドタグも広げない。子プロセスを起動する行には `//nolint:gosec` を付ける（`cmd/yt2column/test_helpers.go:270` と同じ）。`TestFakesCarryBuildTag` が数える `testutil/` のファイル数は 17 から 18 になる（1-1）。
+新しい `testutil/` は `internal/failure/testutil` の 1 つだけである（1-1）。既存の fake（`ArticleWriter`・`Publisher`）はそのまま使う。`internal/server` のテスト内の補助は `internal/server/test_helpers.go`（`//go:build test`）に置く。`cmd/yt2column-server` のテスト内の補助は、統合テストも `//go:build test` なので、すべて `cmd/yt2column-server/test_helpers.go`（`//go:build test`）に置く。`integration` タグのビルドから見える補助（`test_helpers_integration.go`）は作らず、既存の部品（`internal/publisher/test_helpers_slack.go`・`internal/llm/testutil`・#108 の `NewSlackFailureNotifierForLoopbackTest`）のビルドタグも広げない。子プロセスを起動する行には `//nolint:gosec` を付ける（`cmd/yt2column/test_helpers.go:270` と同じ）。`TestFakesCarryBuildTag` が数える `testutil/` のファイル数は 17 から 18 になる（1-1）。2-4 で `internal/writer/testutil/helpers.go`（`DefaultOptions`）を加えて 19 になる。子プロセスのシグナルのテストは `cmd/yt2column-server/signal_test.go::TestSignalStopsServer`（本番の `main` がシグナル 1 回で終了コード 0）・`::TestSignalWaitsForJob`（処理中のジョブを待ってから 0 で終わり、ログに待つ件数）・`::TestSecondSignalExitsAtOnce`（2 回目のシグナルの既定の動作で終わる）である。
 
 ## 5. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -291,8 +291,8 @@ architecture §7.3 を 2-1〜2-3 のテストに書く。(1) AC-12（本文を�
 | AC | 区分 | 検証 |
 |---|---|---|
 | AC-01 | test / manual | `internal/server/server_test.go::TestListenBindsLoopbackOnly`（`Listen` が返す `net.Listener` のアドレスが `127.0.0.1:<ポート>` と `[::1]:<ポート>` だけである）。外部インターフェースのアドレスからの接続の拒否は、フェーズ 2 の手動の確認として記録する |
-| AC-02 | test / static | `internal/authtoken/authtoken_test.go::TestLoadOrCreateCreates`・`::TestLoadOrCreateReadsAgain`（生成の権限 `0600`・64 文字・`created`・再読み込み）、`cmd/yt2column-server/run_test.go::TestTokenShownOnlyWhenCreated`（生成時だけ標準出力に 1 行）、`cmd/yt2column-server/run_test.go::TestOutputsOmitToken`。統合テスト `cmd/yt2column-server/server_test.go::TestServerEndToEnd`（生成から再起動後の認証） |
-| AC-03 | test | `cmd/yt2column-server/run_test.go::TestStartupFailures`（設定の欠落・不正なトークンのファイルで待ち受けを開始せず終了コード 2）、`internal/authtoken/authtoken_test.go::TestLoadOrCreateRejectsInvalidFile`（各理由と、ファイルを変更しないこと。所有者の不一致は所有者を変えられる環境でだけ）、`::TestFileErrorMessageOmitsContent`（`FileError` のメッセージがファイルの内容を含まないことを単独で確かめる） |
+| AC-02 | test / static | `internal/authtoken/authtoken_test.go::TestLoadOrCreateCreates`・`::TestLoadOrCreateReadsAgain`（生成の権限 `0600`・64 文字・`created`・再読み込み）、`cmd/yt2column-server/run_test.go::TestTokenShownOnlyWhenCreated`（生成時だけ標準出力に 1 行）、`cmd/yt2column-server/run_test.go::TestOutputsOmitSecrets`（LLM のエラーに API キー・Webhook URL・共有トークンを載せ、サーバのログで伏せ字になる）。統合テスト `cmd/yt2column-server/server_test.go::TestServerEndToEnd`（生成から再起動後の認証） |
+| AC-03 | test | `cmd/yt2column-server/run_test.go::TestStartupFailures`（引数・設定の欠落と不正・不正なトークンのファイル・部品の構築の失敗で待ち受けを開始せず終了コード 2、待ち受けの失敗で終了コード 1。トークンは待ち受けの前に作って表示する）、`internal/authtoken/authtoken_test.go::TestLoadOrCreateRejectsInvalidFile`（各理由と、ファイルを変更しないこと。所有者の不一致は所有者を変えられる環境でだけ）、`::TestFileErrorMessageOmitsContent`（`FileError` のメッセージがファイルの内容を含まないことを単独で確かめる） |
 | AC-04 | test | `internal/server/request_test.go::TestAcceptValidRequest`（`202`、`status`=`accepted`） |
 | AC-05 | test | `internal/server/request_test.go::TestRejectBodyTable`（`videoUrl`・`transcript` の欠落・非文字列・空・空白のみ） |
 | AC-06 | test | `internal/server/request_test.go::TestOptionalMembers`（欠落・空を受理し `Transcript` が空文字列、非文字列・`null` を拒否） |
@@ -301,7 +301,7 @@ architecture §7.3 を 2-1〜2-3 のテストに書く。(1) AC-12（本文を�
 | AC-09 | test | `internal/server/request_test.go::TestRejectVideoURLTable`（`transcript.ValidateVideoURL` が拒否する形） |
 | AC-10 | test | `internal/server/request_test.go::TestRejectBodyTable`（空・空白のみの `transcript`） |
 | AC-11 | test | `internal/server/request_test.go::TestRejectInvalidTranscript`（#107 の実物の `NewCopiedSource` が返す `ErrCopiedTranscriptFormat`） |
-| AC-12 | test | `internal/server/request_test.go::TestHeaderRejectionReadsNoBody`（読み込みを数える `io.Reader` で 0 バイト。上限超えの本文と誤ったトークンの組み合わせも `401` で 0 バイト）、`::TestBodyTooLarge`（`Content-Length` あり・なしの `413`、読まれたバイト数が上限 + 1 以下）。統合テスト `::TestServerEndToEnd` で実際のソケットの結果を記録する |
+| AC-12 | test | `internal/server/request_test.go::TestHeaderRejectionReadsNoBody`（読み込みを数える `io.Reader` で 0 バイト。上限超えの本文と誤ったトークンの組み合わせも `401` で 0 バイト）、`::TestBodyTooLarge`（`Content-Length` あり・なしの `413`、読まれたバイト数が上限 + 1 以下）。統合テスト `cmd/yt2column-server/server_test.go::TestServerEndToEnd` で実際のソケットの結果を記録する（2026-10-15、macOS の loopback で、4 MiB + 1 バイトの本文と誤ったトークンは `401` `unauthorized` を受け取った。接続の切断も許容し、`413` だけを誤りとする） |
 | AC-13 | test | `internal/server/request_test.go::TestRejectBodyTable`（無効な UTF-8・対になっていないサロゲート。宣言していないメンバの中も含む） |
 | AC-14 | test | `internal/server/handler_test.go::TestRejectHeaders`（`Host` の大文字・ポートの省略・非 loopback） |
 | AC-15 | test | `internal/server/handler_test.go::TestRejectHeaders`（`Origin` の欠落・不一致・複数） |
