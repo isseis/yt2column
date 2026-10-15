@@ -50,9 +50,9 @@ type Store struct {
 // Store implements the writer's artifact boundary.
 var _ writer.ArtifactStore = (*Store)(nil)
 
-// NewStore opens dir as an artifacts directory. It rejects a missing path, a
-// path that is not a directory, and a symbolic link with ErrMissing, and it
-// never creates the directory.
+// NewStore opens dir as an artifacts directory. It rejects an empty path, a
+// missing path, a path that is not a directory, and a symbolic link with
+// ErrMissing, and it never creates the directory.
 func NewStore(dir string) (*Store, error) {
 	return newStore(dir, nil)
 }
@@ -60,6 +60,11 @@ func NewStore(dir string) (*Store, error) {
 // newStore is NewStore with the test hook used to replace the path between the
 // type check and the open.
 func newStore(dir string, beforeOpen func(string)) (*Store, error) {
+	// filepath.Clean turns "" into ".", which would accept the current
+	// directory for a path nobody named.
+	if dir == "" {
+		return nil, ErrMissing
+	}
 	clean := filepath.Clean(dir)
 	info, err := os.Lstat(clean) //nolint:gosec // stats the directory the caller named, before opening it
 	if err != nil {
@@ -103,14 +108,14 @@ func (s *Store) Save(ctx context.Context, videoID string, record writer.StageRec
 		return "", errInvalidStage
 	}
 	s.collectTempFiles(videoID)
-	data, err := Marshal(record)
+	data, id, err := Marshal(record)
 	if err != nil {
 		return "", err
 	}
 	if err := s.writeArtifact(videoID, record.Stage, data); err != nil {
 		return "", err
 	}
-	return recordID(record), nil
+	return id, nil
 }
 
 // Load verifies the chain of videoID's artifacts that ends at stage against
@@ -261,7 +266,7 @@ func (s *Store) writeArtifact(videoID string, stage writer.Stage, data []byte) e
 	if err != nil {
 		return err
 	}
-	writeErr := writeAll(file, data)
+	_, writeErr := file.Write(data)
 	if writeErr == nil {
 		writeErr = file.Sync()
 	}
@@ -297,18 +302,6 @@ func (s *Store) createTemp(videoID string, stage writer.Stage) (*os.File, string
 		return file, name, nil
 	}
 	return nil, "", fmt.Errorf("%w: could not create a temporary artifact file", ErrMissing)
-}
-
-// writeAll writes data to file, looping over short writes.
-func writeAll(file *os.File, data []byte) error {
-	for len(data) > 0 {
-		n, err := file.Write(data)
-		if err != nil {
-			return err
-		}
-		data = data[n:]
-	}
-	return nil
 }
 
 // syncDir best-effort syncs the artifacts directory after a rename. A failure
