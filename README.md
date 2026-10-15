@@ -204,7 +204,7 @@ Exit codes:
 |---|---|
 | `0` | The server stopped after a signal. |
 | `1` | Listening on a loopback address, or serving, failed. |
-| `2` | The configuration, the shared token file, or building the components failed before listening. |
+| `2` | The server was given arguments, or the configuration, the shared token file, or building the components failed before listening. |
 
 ### The shared token
 
