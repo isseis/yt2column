@@ -257,7 +257,10 @@ func TestWriteRunUsageResume(t *testing.T) {
 	})
 
 	t.Run("after generation reuses generation, runs shorten and review", func(t *testing.T) {
-		store := &fakeArtifactStore{loadResult: chain()}
+		store := &fakeArtifactStore{loadResult: ArtifactChain{Generation: StageRecord{
+			Stage: StageGeneration, Title: markGenTitle, Body: overLimitBody(),
+			Model: "reused-gen-model", Usage: genUsage, Input: "material", ID: "gen-id",
+		}}}
 		gen := newStepClient(t, stepResult(llm.GenerateResponse{Text: stepResponseText(markShortTitle, markShortBody), Model: markShortenModel, Usage: shortUsage}))
 		review := &llmtestutil.FakeLLMClient{Result: llm.GenerateResponse{Text: reviewResponse(), Model: markReviewModel, Usage: reviewUsage}}
 		w := mustNew(t, gen, Options{
@@ -277,6 +280,49 @@ func TestWriteRunUsageResume(t *testing.T) {
 		if a.RunUsage != want {
 			t.Errorf("RunUsage = %+v, want %+v", a.RunUsage, want)
 		}
+	})
+
+	t.Run("after shorten with review disabled reuses generation and shorten", func(t *testing.T) {
+		store := &fakeArtifactStore{loadResult: chain()}
+		w := mustNew(t, nil, Options{Artifacts: ArtifactOptions{Store: store, Resume: StageShorten}})
+		a, err := w.Write(context.Background(), validTranscript())
+		if err != nil {
+			t.Fatalf("Write error = %v, want nil", err)
+		}
+		want := RunUsage{
+			Generation: StageUsage{Origin: OriginReused, Model: "reused-gen-model", Usage: genUsage},
+			Shorten:    StageUsage{Origin: OriginReused, Model: "reused-short-model", Usage: llm.UnknownUsage(llm.RuleRecordedUnknown, "")},
+		}
+		if a.RunUsage != want {
+			t.Errorf("RunUsage = %+v, want %+v", a.RunUsage, want)
+		}
+		requireRunUsageInvariants(t, a)
+	})
+
+	t.Run("after generation with a short body leaves shorten unrun", func(t *testing.T) {
+		store := &fakeArtifactStore{loadResult: ArtifactChain{Generation: StageRecord{
+			Stage: StageGeneration, Title: markGenTitle, Body: markGenBody,
+			Model: "reused-gen-model", Usage: genUsage, Input: "material", ID: "gen-id",
+		}}}
+		gen := newStepClient(t)
+		review := &llmtestutil.FakeLLMClient{Result: llm.GenerateResponse{Text: reviewResponse(), Model: markReviewModel, Usage: reviewUsage}}
+		w := mustNew(t, gen, Options{
+			Artifacts: ArtifactOptions{Store: store, Resume: StageGeneration},
+			Shorten:   ShortenOptions{Enabled: true},
+			Review:    ReviewOptions{Enabled: true, Client: review},
+		})
+		a, err := w.Write(context.Background(), validTranscript())
+		if err != nil {
+			t.Fatalf("Write error = %v, want nil", err)
+		}
+		want := RunUsage{
+			Generation: StageUsage{Origin: OriginReused, Model: "reused-gen-model", Usage: genUsage},
+			Review:     StageUsage{Origin: OriginRun, Model: markReviewModel, Usage: reviewUsage},
+		}
+		if a.RunUsage != want {
+			t.Errorf("RunUsage = %+v, want %+v", a.RunUsage, want)
+		}
+		requireRunUsageInvariants(t, a)
 	})
 }
 
@@ -321,6 +367,55 @@ func TestWriteFailureRunUsage(t *testing.T) {
 		a, err := w.Write(context.Background(), validTranscript())
 		requireFailureUsage(t, a, err, RunUsage{
 			Generation: StageUsage{Origin: OriginRun},
+		})
+	})
+
+	t.Run("review response shape invalid keeps the stage run", func(t *testing.T) {
+		gen := newStepClient(t, stepResult(generationResponse(markGenBody, genUsage)))
+		review := &llmtestutil.FakeLLMClient{Result: llm.GenerateResponse{Text: "not json", Model: markReviewModel, Usage: reviewUsage}}
+		w := mustNew(t, gen, Options{Review: ReviewOptions{Enabled: true, Client: review}})
+		a, err := w.Write(context.Background(), validTranscript())
+		requireFailureUsage(t, a, err, RunUsage{
+			Generation: StageUsage{Origin: OriginRun, Model: markOutModel, Usage: genUsage},
+			Review:     StageUsage{Origin: OriginRun, Model: markReviewModel, Usage: reviewUsage},
+		})
+	})
+
+	t.Run("shorten expansion failure leaves the stage unrun", func(t *testing.T) {
+		gen := newStepClient(t, stepResult(generationResponse(overLimitBody(), genUsage)))
+		w := mustNew(t, gen, Options{Shorten: ShortenOptions{
+			Enabled: true, UserTemplatePath: writeOverrideFile(t, "{{index .ArticleTitle 100}}"),
+		}})
+		a, err := w.Write(context.Background(), validTranscript())
+		requireFailureUsage(t, a, err, RunUsage{
+			Generation: StageUsage{Origin: OriginRun, Model: markOutModel, Usage: genUsage},
+		})
+	})
+
+	t.Run("canceled before the shorten call leaves the stage unrun", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		gen := newStepClient(t, llmtestutil.FakeLLMSequenceStep{Respond: func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
+			cancel()
+			return generationResponse(overLimitBody(), genUsage), nil
+		}})
+		w := mustNew(t, gen, Options{Shorten: ShortenOptions{Enabled: true}})
+		a, err := w.Write(ctx, validTranscript())
+		requireFailureUsage(t, a, err, RunUsage{
+			Generation: StageUsage{Origin: OriginRun, Model: markOutModel, Usage: genUsage},
+		})
+	})
+
+	t.Run("canceled before the review call leaves the stage unrun", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		gen := newStepClient(t, llmtestutil.FakeLLMSequenceStep{Respond: func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
+			cancel()
+			return generationResponse(markGenBody, genUsage), nil
+		}})
+		review := &llmtestutil.FakeLLMClient{}
+		w := mustNew(t, gen, Options{Review: ReviewOptions{Enabled: true, Client: review}})
+		a, err := w.Write(ctx, validTranscript())
+		requireFailureUsage(t, a, err, RunUsage{
+			Generation: StageUsage{Origin: OriginRun, Model: markOutModel, Usage: genUsage},
 		})
 	})
 

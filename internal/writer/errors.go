@@ -138,7 +138,12 @@ type TokenUsageError struct {
 	Err      error
 }
 
-func (e *TokenUsageError) Error() string { return e.Err.Error() }
+func (e *TokenUsageError) Error() string {
+	if e.Err == nil {
+		return "token usage error"
+	}
+	return e.Err.Error()
+}
 
 func (e *TokenUsageError) Unwrap() error { return e.Err }
 

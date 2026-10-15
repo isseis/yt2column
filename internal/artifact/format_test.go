@@ -669,6 +669,27 @@ func TestParseRecordRejectsUsage(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("the message carries no value", func(t *testing.T) {
+		const marker = "usage-value-marker-Q7z"
+		fields := mutate(t, generation, func(f map[string]any) {
+			counts := usageMap(validUsageFields)
+			counts["input"] = marker
+			f["usage"] = counts
+		})
+		if err := requireMalformed(t, marshalFields(t, fields)); strings.Contains(err.Error(), marker) {
+			t.Errorf("Parse error %q contains the injected string value", err)
+		}
+
+		fields = mutate(t, generation, func(f map[string]any) {
+			counts := usageMap(validUsageFields)
+			counts["output"] = json.RawMessage("9223372036854775808")
+			f["usage"] = counts
+		})
+		if err := requireMalformed(t, marshalFields(t, fields)); strings.Contains(err.Error(), "9223372036854775808") {
+			t.Errorf("Parse error %q contains the injected number", err)
+		}
+	})
 }
 
 func TestParseRejectsVersion1(t *testing.T) {
