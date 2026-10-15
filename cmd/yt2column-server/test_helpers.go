@@ -12,7 +12,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"os/exec"
 	"slices"
@@ -37,6 +36,8 @@ import (
 const (
 	testAPIKey        = "sk-unit-APIKEYVALUE-0123456789-TAIL8KEY" //nolint:gosec // a fake key the redaction checks look for
 	apiKeyMarker      = "APIKEYVALUE"
+	testAnthropicKey  = "sk-ant-ANTHROPICVALUE-0123456789-TAIL8ANT" //nolint:gosec // a fake key the redaction checks look for
+	anthropicMarker   = "ANTHROPICVALUE"
 	webhookPathMarker = "WEBHOOKVALUE"
 	testWebhookPath   = "/services/T0/B0/" + webhookPathMarker + "-TAIL8HKS"
 	// testWebhook passes slackwebhook.ValidURL, as config.LoadServer
@@ -81,8 +82,8 @@ const childExitUnknownMode = 99
 
 const (
 	// blockLifetime caps how long the blocking fake LLM client waits, so a
-	// leaked child stops by itself. It is far longer than any bound a test
-	// waits for.
+	// leaked child's job ends by itself (the child then keeps serving until
+	// the cleanup kills it). It is far longer than any bound a test waits for.
 	blockLifetime = 3 * time.Minute
 	// readyBound bounds a wait for a server to listen or a fake to signal
 	// readiness.
@@ -108,8 +109,8 @@ const (
 var childEnvAllowlist = []string{"PATH", "TMPDIR"}
 
 var (
-	errBlockExpired = errors.New("the blocking fake reached its lifetime")
-	errWebhookParse = errors.New("the configured webhook URL does not parse")
+	errBlockExpired      = errors.New("the blocking fake reached its lifetime")
+	errUnexpectedWebhook = errors.New("run passed a webhook URL other than the configured one")
 )
 
 // serverEnv is the environment of one server: a temporary HOME, which holds
@@ -339,43 +340,46 @@ func testDeps(client llm.LLMClient) deps {
 	return deps{
 		newLLMClient:       func(config.LLMConfig) (llm.LLMClient, error) { return client, nil },
 		newReviewLLMClient: func(config.LLMConfig) (llm.LLMClient, error) { return reviewLLM(), nil },
+		newWriter:          writer.New,
 		newPublisher:       func(secret.Secret) (publisher.Publisher, error) { return nopPublisher{}, nil },
 		newNotifier:        func(secret.Secret) (failure.Notifier, error) { return nopNotifier{}, nil },
 	}
 }
 
 // loopbackDeps returns testDeps(client) with the real SlackWebhookPublisher
-// and SlackFailureNotifier posting to serverURL, a loopback webhook. The path
-// of the configured webhook URL is kept, so the endpoint carries the same
-// secret path the server redacts.
+// and SlackFailureNotifier posting to serverURL, a loopback webhook. Both are
+// built here, in the test goroutine, because their constructors may fail t;
+// the deps return them after checking that run passes the configured webhook
+// URL. The endpoint keeps the configured path, so it carries the same secret
+// path the server redacts.
 func loopbackDeps(t *testing.T, client llm.LLMClient, serverURL string) deps {
+	t.Helper()
+	endpoint := serverURL + testWebhookPath
+	pub := publisher.NewSlackWebhookPublisherForLoopbackTest(t, publisher.SlackTestOptions{Timeout: loopbackTimeout}, endpoint)
+	notifier := publisher.NewSlackFailureNotifierForLoopbackTest(t, loopbackTimeout, endpoint)
 	d := testDeps(client)
-	endpoint := func(webhookURL secret.Secret) (string, error) {
-		value, err := webhookURL.Reveal()
-		if err != nil {
-			return "", err
-		}
-		parsed, err := url.Parse(value)
-		if err != nil {
-			return "", errWebhookParse
-		}
-		return serverURL + parsed.EscapedPath(), nil
-	}
 	d.newPublisher = func(webhookURL secret.Secret) (publisher.Publisher, error) {
-		target, err := endpoint(webhookURL)
-		if err != nil {
+		if err := requireTestWebhook(webhookURL); err != nil {
 			return nil, err
 		}
-		return publisher.NewSlackWebhookPublisherForLoopbackTest(t, publisher.SlackTestOptions{Timeout: loopbackTimeout}, target), nil
+		return pub, nil
 	}
 	d.newNotifier = func(webhookURL secret.Secret) (failure.Notifier, error) {
-		target, err := endpoint(webhookURL)
-		if err != nil {
+		if err := requireTestWebhook(webhookURL); err != nil {
 			return nil, err
 		}
-		return publisher.NewSlackFailureNotifierForLoopbackTest(t, loopbackTimeout, target), nil
+		return notifier, nil
 	}
 	return d
+}
+
+// requireTestWebhook reports errUnexpectedWebhook unless webhookURL is
+// testWebhook, the value the test environment configures.
+func requireTestWebhook(webhookURL secret.Secret) error {
+	if value, err := webhookURL.Reveal(); err != nil || value != testWebhook {
+		return errUnexpectedWebhook
+	}
+	return nil
 }
 
 // webhookServer is a loopback webhook that records the text of every message
@@ -663,10 +667,10 @@ func waitForFile(t *testing.T, path string) {
 }
 
 // requireNoSecret fails the test when output holds the shared token or any
-// marked part of the API key or the webhook URL.
+// marked part of an API key or the webhook URL.
 func requireNoSecret(t *testing.T, name, output, token string) {
 	t.Helper()
-	for _, s := range []string{token, apiKeyMarker, webhookPathMarker} {
+	for _, s := range []string{token, apiKeyMarker, anthropicMarker, webhookPathMarker} {
 		if s != "" && strings.Contains(output, s) {
 			t.Errorf("%s holds a secret (%.8s...):\n%s", name, s, output)
 		}

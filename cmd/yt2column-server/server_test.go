@@ -7,11 +7,9 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-)
 
-// maxBodyBytes is the server's body limit (4 MiB); the oversized request is
-// one byte over it.
-const maxBodyBytes = 4 << 20
+	"github.com/isseis/yt2column/internal/server"
+)
 
 // requestIDPattern is the form of the request ID the server generates and the
 // failure notifier accepts.
@@ -24,8 +22,8 @@ var requestIDPattern = regexp.MustCompile(`^[0-9a-f]{16}$`)
 // failure notice that carries the response's request ID, so the server's ID
 // and the notifier's check agree; and an oversized body with a wrong token is
 // refused as unauthorized or by a cut connection, never as too large, and is
-// not notified. A second start with the same HOME shows no token and accepts
-// the first token.
+// not notified. A second start with the same HOME accepts the first token.
+// That only the first start shows the token is TestTokenShownOnlyWhenCreated's.
 func TestServerEndToEnd(t *testing.T) {
 	webhook, webhookURL := newWebhookServer(t)
 	e := newServerEnv(t)
@@ -57,7 +55,7 @@ func TestServerEndToEnd(t *testing.T) {
 	// the server closes the connection while the body is still being sent,
 	// a cut connection. Either is recorded; 413 would mean the body was read.
 	before := len(webhook.messages())
-	oversized := bytes.Repeat([]byte("a"), maxBodyBytes+1)
+	oversized := bytes.Repeat([]byte("a"), server.MaxBodyBytesForTest+1)
 	status, resp, err := postArticle(port, strings.Repeat("0", len(token)), bytes.NewReader(oversized))
 	switch {
 	case err != nil && status == 0:
@@ -74,9 +72,6 @@ func TestServerEndToEnd(t *testing.T) {
 	if got := len(webhook.messages()); got != before {
 		t.Errorf("webhook messages after the unauthorized request = %d, want %d (no notice)", got, before)
 	}
-	if first.stdout.String() != token+"\n" {
-		t.Errorf("first stdout = %q, want the token on one line", first.stdout.String())
-	}
 	if strings.Contains(first.stderr.String(), "failure notice failed") {
 		t.Errorf("a failure notice failed:\n%s", first.stderr.String())
 	}
@@ -89,9 +84,6 @@ func TestServerEndToEnd(t *testing.T) {
 	}
 	if posted := webhook.messages()[before:]; len(posted) != 1 || !strings.Contains(posted[0], "A title") {
 		t.Errorf("messages posted by the second run = %q, want the one article", posted)
-	}
-	if second.stdout.Len() != 0 {
-		t.Errorf("second stdout = %q, want empty", second.stdout.String())
 	}
 	if again.RequestID == accepted.RequestID {
 		t.Errorf("two requests share the request ID %s", again.RequestID)

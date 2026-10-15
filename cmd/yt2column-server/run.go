@@ -45,10 +45,12 @@ const llmCallsPerJob = 3
 
 // deps are the constructors run substitutes in a test: the two LLM clients,
 // the article publisher, and the failure notifier, the only components that
-// reach the network. main passes productionDeps().
+// reach the network, and the writer, so a test can observe the options it is
+// built with. main passes productionDeps().
 type deps struct {
 	newLLMClient       func(config.LLMConfig) (llm.LLMClient, error)
 	newReviewLLMClient func(config.LLMConfig) (llm.LLMClient, error)
+	newWriter          func(llm.LLMClient, writer.Options) (writer.ArticleWriter, error)
 	newPublisher       func(webhookURL secret.Secret) (publisher.Publisher, error)
 	newNotifier        func(webhookURL secret.Secret) (failure.Notifier, error)
 }
@@ -58,6 +60,7 @@ func productionDeps() deps {
 	return deps{
 		newLLMClient:       provider.New,
 		newReviewLLMClient: provider.NewReview,
+		newWriter:          writer.New,
 		newPublisher:       newPublisher,
 		newNotifier:        newNotifier,
 	}
@@ -172,7 +175,10 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 			errOut.line("%s: shared token: the created token cannot be shown: %v", programName, err)
 			return exitUsage
 		}
-		_, _ = io.WriteString(stdout, value+"\n")
+		if _, err := io.WriteString(stdout, value+"\n"); err != nil {
+			errOut.line("%s: shared token: writing the created token to standard output failed: %v; read it from %s", programName, err, cfg.TokenPath())
+			return exitUsage
+		}
 		errOut.line("%s: created a new shared token in %s and wrote it to standard output; paste it into the extension's options page (it is not shown again; read the file to see it later)", programName, cfg.TokenPath())
 	}
 
@@ -228,7 +234,7 @@ func buildServer(d deps, cfg config.ServerConfig, token authtoken.Token, logOutp
 	if err != nil {
 		return nil, fmt.Errorf("build the review LLM client: %w", err)
 	}
-	articleWriter, err := writer.New(client, writerOptions(review))
+	articleWriter, err := d.newWriter(client, writerOptions(review))
 	if err != nil {
 		return nil, fmt.Errorf("build the article writer: %w", err)
 	}

@@ -5,10 +5,13 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -16,15 +19,21 @@ import (
 	"github.com/isseis/yt2column/internal/config"
 	"github.com/isseis/yt2column/internal/failure"
 	"github.com/isseis/yt2column/internal/llm"
+	"github.com/isseis/yt2column/internal/llm/provider"
 	llmtestutil "github.com/isseis/yt2column/internal/llm/testutil"
 	"github.com/isseis/yt2column/internal/publisher"
 	"github.com/isseis/yt2column/internal/secret"
+	"github.com/isseis/yt2column/internal/server"
+	"github.com/isseis/yt2column/internal/writer"
 	writertestutil "github.com/isseis/yt2column/internal/writer/testutil"
 )
 
 // errBuildRefused is what a constructor substituted by TestStartupFailures
 // returns.
-var errBuildRefused = errors.New("the test refuses to build this component")
+var (
+	errBuildRefused = errors.New("the test refuses to build this component")
+	errWriteRefused = errors.New("the test refuses to write")
+)
 
 // validTokenContent is a token file content the server accepts.
 const validTokenContent = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
@@ -45,6 +54,11 @@ func TestStartupFailures(t *testing.T) {
 		// tokenShown is whether the run created the token and wrote it to
 		// standard output before it stopped.
 		tokenShown bool
+		// configLines, when set, is how many configuration lines standard
+		// error must hold: one per rejected variable.
+		configLines int
+		// stdoutFails makes standard output reject every write.
+		stdoutFails bool
 	}{
 		{
 			name:       "an argument",
@@ -57,6 +71,16 @@ func TestStartupFailures(t *testing.T) {
 			setup:      func(_ *testing.T, e *serverEnv, _ *deps) { delete(e.vars, "YT2COLUMN_MODEL") },
 			want:       exitUsage,
 			wantStderr: "configuration: YT2COLUMN_MODEL",
+		},
+		{
+			name: "model and webhook missing",
+			setup: func(_ *testing.T, e *serverEnv, _ *deps) {
+				delete(e.vars, "YT2COLUMN_MODEL")
+				delete(e.vars, "SLACK_WEBHOOK_URL")
+			},
+			want:        exitUsage,
+			wantStderr:  "configuration: SLACK_WEBHOOK_URL",
+			configLines: 2,
 		},
 		{
 			name:       "webhook missing",
@@ -94,6 +118,25 @@ func TestStartupFailures(t *testing.T) {
 			want:       exitUsage,
 			wantStderr: "build the LLM client",
 			tokenShown: true,
+		},
+		{
+			// The warning comes before any component is built.
+			name: "GODEBUG enables http2debug",
+			setup: func(_ *testing.T, e *serverEnv, d *deps) {
+				e.vars["GODEBUG"] = "http2debug=1"
+				d.newLLMClient = func(config.LLMConfig) (llm.LLMClient, error) { return nil, errBuildRefused }
+			},
+			want:       exitUsage,
+			wantStderr: "warning: GODEBUG enables http2debug",
+			tokenShown: true,
+		},
+		{
+			// The token is kept in the file, and the run stops rather than
+			// claim it was shown.
+			name:        "token not written to stdout",
+			stdoutFails: true,
+			want:        exitUsage,
+			wantStderr:  "writing the created token to standard output failed",
 		},
 		{
 			name: "review LLM client not built",
@@ -140,15 +183,15 @@ func TestStartupFailures(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			// No case listens, except "port in use", which sets its own
+			// port, so the default port is left as it is.
 			e := newServerEnv(t)
-			e.setPort(freePort(t))
+			// HOME is not changed by setup, so the path is derived from the
+			// valid environment, before setup can make it invalid.
+			tokenPath := e.tokenPath(t)
 			d := testDeps(validResponseLLM())
 			if tc.setup != nil {
 				tc.setup(t, e, &d)
-			}
-			tokenPath := filepath.Join(e.vars["HOME"], "token-path-unknown")
-			if cfg, err := config.LoadServer(e.lookup()); err == nil {
-				tokenPath = cfg.TokenPath()
 			}
 			before, _ := os.ReadFile(tokenPath)
 
@@ -157,7 +200,11 @@ func TestStartupFailures(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), exitBound)
 			defer cancel()
 			var stdout, stderr strings.Builder
-			code := run(ctx, tc.args, e.lookup(), &stdout, &stderr, d)
+			var out io.Writer = &stdout
+			if tc.stdoutFails {
+				out = failingWriter{}
+			}
+			code := run(ctx, tc.args, e.lookup(), out, &stderr, d)
 
 			if code != tc.want {
 				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, tc.want, stderr.String())
@@ -165,13 +212,23 @@ func TestStartupFailures(t *testing.T) {
 			if !strings.Contains(stderr.String(), tc.wantStderr) {
 				t.Errorf("stderr does not contain %q:\n%s", tc.wantStderr, stderr.String())
 			}
+			if tc.configLines != 0 {
+				if got := strings.Count(stderr.String(), programName+": configuration: "); got != tc.configLines {
+					t.Errorf("configuration lines = %d, want %d:\n%s", got, tc.configLines, stderr.String())
+				}
+			}
 			after, _ := os.ReadFile(tokenPath)
 			token := string(after)
-			if tc.tokenShown {
+			switch {
+			case tc.stdoutFails:
+				if len(after) == 0 {
+					t.Error("the token file was not created")
+				}
+			case tc.tokenShown:
 				if len(before) != 0 || stdout.String() != token+"\n" {
 					t.Errorf("stdout = %q, want the created token %q on one line", stdout.String(), token)
 				}
-			} else {
+			default:
 				if stdout.Len() != 0 {
 					t.Errorf("stdout = %q, want empty", stdout.String())
 				}
@@ -183,6 +240,12 @@ func TestStartupFailures(t *testing.T) {
 		})
 	}
 }
+
+// failingWriter rejects every write.
+type failingWriter struct{}
+
+// Write implements io.Writer.
+func (failingWriter) Write([]byte) (int, error) { return 0, errWriteRefused }
 
 // writeTokenFile creates the token file at path with content and mode.
 func writeTokenFile(t *testing.T, path, content string, mode os.FileMode) {
@@ -239,18 +302,23 @@ func (n noticeSignal) Notify(_ context.Context, notice failure.Notice) error {
 }
 
 // TestOutputsOmitSecrets checks that the server's log redacts every secret run
-// hands it: the LLM client fails with an error that holds the API key, the
-// webhook URL, and the shared token, and the "job failed" line that carries
-// that error shows none of them.
+// hands it: the LLM client fails with an error that holds both API keys (the
+// review step uses Claude, so both are configured), the webhook URL, and the
+// shared token, and the "job failed" line that carries that error shows none
+// of them.
 func TestOutputsOmitSecrets(t *testing.T) {
 	e := newServerEnv(t)
+	e.vars["YT2COLUMN_REVIEW_PROVIDER"] = "claude"
+	e.vars["YT2COLUMN_REVIEW_MODEL"] = "fake-review-model"
+	e.vars["ANTHROPIC_API_KEY"] = testAnthropicKey
+	e.vars["YT2COLUMN_CLAUDE_EFFORT"] = "low"
 	tokenPath := e.tokenPath(t)
 	leaking := funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
 		token, err := os.ReadFile(tokenPath) //nolint:gosec // a path inside the test's temporary directory
 		if err != nil {
 			return llm.GenerateResponse{}, err
 		}
-		return llm.GenerateResponse{}, errors.New("leak " + testAPIKey + " " + testWebhook + " " + string(token))
+		return llm.GenerateResponse{}, errors.New("leak " + testAPIKey + " " + testAnthropicKey + " " + testWebhook + " " + string(token))
 	})
 	notices := make(noticeSignal, 1)
 	d := testDeps(leaking)
@@ -313,12 +381,55 @@ func TestBuildsSlackPublisher(t *testing.T) {
 	}
 }
 
-// TestWriterOptionsMatchCLIDefaults checks that the server builds its writer
-// with writertestutil.DefaultOptions, the value the CLI's options with no step
-// flags are checked against in cmd/yt2column.
+// TestWriterOptionsMatchCLIDefaults checks that run builds the writer with
+// writertestutil.DefaultOptions and the review client it built, the value
+// the CLI's options with no step flags are checked against in cmd/yt2column.
+// The publisher is refused, so run stops right after building the writer.
 func TestWriterOptionsMatchCLIDefaults(t *testing.T) {
+	e := newServerEnv(t)
 	review := &llmtestutil.FakeLLMClient{}
-	if got, want := writerOptions(review), writertestutil.DefaultOptions(review); !reflect.DeepEqual(got, want) {
-		t.Errorf("writerOptions = %+v, want %+v", got, want)
+	d := testDeps(validResponseLLM())
+	d.newReviewLLMClient = func(config.LLMConfig) (llm.LLMClient, error) { return review, nil }
+	var got []writer.Options
+	d.newWriter = func(client llm.LLMClient, opts writer.Options) (writer.ArticleWriter, error) {
+		got = append(got, opts)
+		return writer.New(client, opts)
+	}
+	d.newPublisher = func(secret.Secret) (publisher.Publisher, error) { return nil, errBuildRefused }
+
+	var stdout, stderr strings.Builder
+	if code := run(t.Context(), nil, e.lookup(), &stdout, &stderr, d); code != exitUsage {
+		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, stderr.String())
+	}
+	if len(got) != 1 {
+		t.Fatalf("newWriter calls = %d, want 1", len(got))
+	}
+	if want := writertestutil.DefaultOptions(review); !reflect.DeepEqual(got[0], want) {
+		t.Errorf("writer options = %+v, want %+v", got[0], want)
+	}
+}
+
+// TestRunLogsListeningAndStop checks the lines run itself logs: the endpoint
+// URL on both loopback addresses and the token file when it listens, and,
+// when the stop begins, the longest wait for in-flight jobs and that a second
+// signal exits at once.
+func TestRunLogsListeningAndStop(t *testing.T) {
+	e := newServerEnv(t)
+	srv := startServer(t, e, testDeps(validResponseLLM()))
+	port := strconv.Itoa(int(e.port(t)))
+	if code := srv.stop(t); code != exitOK {
+		t.Fatalf("exit code = %d, want %d", code, exitOK)
+	}
+	stderr := srv.stderr.String()
+	for _, want := range []string{
+		"http://127.0.0.1:" + port + server.ArticlesPath,
+		"http://[::1]:" + port + server.ArticlesPath,
+		e.tokenPath(t),
+		fmt.Sprintf("up to about %d minutes", int(llmCallsPerJob*provider.LLMTimeout/time.Minute)),
+		"send the signal again to exit at once",
+	} {
+		if !strings.Contains(stderr, want) {
+			t.Errorf("stderr does not contain %q:\n%s", want, stderr)
+		}
 	}
 }

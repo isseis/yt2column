@@ -553,8 +553,12 @@ func (s *Server) Listen() ([]net.Listener, error)
 func (s *Server) Serve(ctx context.Context, listeners []net.Listener) error
 
 var ErrInvalidOptions = errors.New("invalid server options")
+
+// ArticlesPath is the request target of the one endpoint.
+const ArticlesPath = "/articles"
 ```
 
+-   `ArticlesPath` は、`cmd/yt2column-server` が待ち受けの URL をログに書くために公開する。検査（§3.5.2 の手順 2）も同じ定数を使う。
 -   ポートは `Options.Port` の 1 か所だけに置く。`Listen` も `Host` の検査も同じ値を使うので、待ち受けのポートと検査のポートが食い違わない。テストは `127.0.0.1:0` の `net.Listener` を自分で作り、得たポートを `Options.Port` に入れて `Serve` に渡す（§7.1）。
 -   `Listen` は `127.0.0.1` と `::1` だけで待ち受ける。`0.0.0.0`・`::`・ホスト名で待ち受けない（AC-01）。1 つの `http.Server` が 2 つの `net.Listener` で `Serve` する。
 

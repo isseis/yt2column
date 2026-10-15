@@ -238,3 +238,7 @@ func (rr *recordingReader) Read(p []byte) (int, error) {
 	rr.n += n
 	return n, err
 }
+
+// MaxBodyBytesForTest is the body size limit, for tests in other packages that
+// build a body just over it. Built only with the test tag.
+const MaxBodyBytesForTest = maxBodyBytes

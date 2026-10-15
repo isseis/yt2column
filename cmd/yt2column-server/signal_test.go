@@ -43,10 +43,10 @@ func blockingChild(t *testing.T) (*serverChild, string) {
 	return child, release
 }
 
-// TestSignalStopsServer sends SIGINT and SIGTERM to the production main while
-// no job runs, and checks that it stops with exitOK.
+// TestSignalStopsServer sends SIGINT, SIGTERM, and SIGHUP to the production
+// main while no job runs, and checks that it stops with exitOK.
 func TestSignalStopsServer(t *testing.T) {
-	for _, sig := range []syscall.Signal{syscall.SIGINT, syscall.SIGTERM} {
+	for _, sig := range []syscall.Signal{syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP} {
 		t.Run(sig.String(), func(t *testing.T) {
 			skipIfIgnored(t, sig)
 			child := startServerChild(t, childModeMain, newServerEnv(t), nil)
