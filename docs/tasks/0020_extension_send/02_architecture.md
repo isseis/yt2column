@@ -236,6 +236,7 @@ flowchart LR
     SM --> ME
     SM --> PR
     SM --> RP
+    RP --> SU
     RV --> SU
     RV --> TY
     RV --> PR
@@ -263,7 +264,7 @@ flowchart LR
 
 -   `send.ts` は `launch.ts` を import しない。`sendArticle` はログを出さず、ログは呼び出し側（経路の処理）が出す（3.8）。
 -   `optionsPage.ts` が `launch.ts` を import するのは、`Logger` の型を使うためである。`chromeDeps.ts` が `send.ts` を import するのは、`fetch` の実装の型（`FetchFn`）を使うためである。
--   `core/resultView.ts` は `core/summary.ts` の `parseSummary`・`hasExactKeys`・`isRejectionReason` を使い、表示用の要約の検査を再実装しない（3.8）。
+-   `core/resultView.ts` は `core/summary.ts` の `parseSummary`・`hasExactKeys`・`isRejectionReason` を使い、表示用の要約の検査を再実装しない（3.8）。`core/response.ts` も、応答のメンバの集合の検査に `hasExactKeys` を使う（3.6）。
 
 ### 2.3. 実行時の配置
 
@@ -666,6 +667,9 @@ export type UnexpectedCheck =
   | "status-pairing"
   | "classification-error";
 
+/** Runtime set of the unexpected checks; a Record, so it stays in step with the union. */
+export const unexpectedChecks: Record<UnexpectedCheck, true>;
+
 /** A send result without the cause of "unknown": what is displayed and stored. */
 export type SendOutcome =
   | { readonly kind: "accepted"; readonly requestId: RequestId }
@@ -700,15 +704,15 @@ export function classifyResponse(
 |---|---|---|---|
 | 1 | リダイレクトでない | （`redirected` になる。AC-12） | - |
 | 2 | 本文が上限（1,024 バイト）以下 | `body-over-limit` | 上限を超える本文 |
-| 3 | 本文のバイト列が、BOM のない正しい UTF-8 である | `encoding` | 無効な UTF-8、先頭の BOM |
+| 3 | 本文のバイト列が正しい UTF-8 である | `encoding` | 無効な UTF-8 |
 | 4 | 本文の文字列が `\` を含まない | `escape` | `"accepted"` のようなエスケープ、対になっていないサロゲートのエスケープ |
-| 5 | `JSON.parse` が成功し、結果が（配列でも `null` でもない）オブジェクトで、そのすべての自身のメンバの値が文字列である | `json-shape` | 空の本文、JSON でない `400`、JSON の配列 |
+| 5 | `JSON.parse` が成功し、結果が（配列でも `null` でもない）オブジェクトで、そのすべての自身のメンバの値が文字列である | `json-shape` | 空の本文、JSON でない `400`、JSON の配列、先頭の BOM（順 3 で文字として残り、`JSON.parse` が失敗する） |
 | 6 | 本文の文字列の `"` の数が、メンバの数の 4 倍と等しい | `duplicate-member` | 重複したメンバ（下記） |
-| 7 | メンバの集合が、`status` が `accepted` なら `{status, requestId}`、`rejected` なら `{status, reason, requestId}` とちょうど一致する | `member-set` | 余分なメンバ、欠けたメンバ、`status` が表にない値 |
+| 7 | メンバの集合が、`status` が `accepted` なら `{status, requestId}`、`rejected` なら `{status, reason, requestId}` とちょうど一致する（0007 の `hasExactKeys` で確かめる。3.11） | `member-set` | 余分なメンバ、欠けたメンバ、`status` が表にない値 |
 | 8 | `requestId` が `^[0-9a-f]{16}$` に一致する（`parseRequestId`） | `request-id` | 大文字を含む、15 文字、17 文字 |
 | 9 | `accepted` なら状態コードが `202`。`rejected` なら `reason` が `ServerRejectReason` のどれかで、`serverRejectStatus[reason]` が状態コードと一致する | `status-pairing` | `202` で `rejected`、`200` で受付の形、`401` で受付の形、表にない `reason`、`unauthorized` で `403` |
 
-**解析した値の扱い:** `JSON.parse` の結果は、攻撃者が決めた名前（`__proto__`・`hasOwnProperty`・`toString`・`constructor` など）の自身のメンバを持ちうる。`classifyResponse` は、メンバの一覧を `Object.keys` だけで、メンバの有無を `Object.hasOwn` だけで調べ、値は自身のメンバとして（`Object.keys` で得た名前か `Object.values` で）だけ読む。解析した値のメソッドを呼ばず、継承したメンバを読まない。こうすれば、どの名前のメンバでも例外も継承した値の読み取りも起きない。`__proto__` は `JSON.parse` では通常の自身のメンバになり、順 7 で拒否される。
+**解析した値の扱い:** `JSON.parse` の結果は、攻撃者が決めた名前（`__proto__`・`hasOwnProperty`・`toString`・`constructor` など）の自身のメンバを持ちうる。`classifyResponse` は、メンバの一覧を `Object.keys` だけで、メンバの有無を `Object.hasOwn`（または `hasExactKeys` が使う同等の `Object.prototype.hasOwnProperty.call`）だけで調べ、値は自身のメンバとして（`Object.keys` で得た名前か `Object.values` で）だけ読む。解析した値のメソッドを呼ばず、継承したメンバを読まない。こうすれば、どの名前のメンバでも例外も継承した値の読み取りも起きない。`__proto__` は `JSON.parse` では通常の自身のメンバになり、順 7 で拒否される。
 
 **標準の JSON の解析が黙って修復するものの拒否（H-04）:** 要件書 3.2 は、標準の解析が黙って修復・破棄・無視すれば受理できてしまう入力を拒否するよう求めている。ブラウザの API でそれに当たるものと、本設計の検出の手段を次に示す。
 
@@ -803,7 +807,7 @@ export type ResultView =
 export function parseResultView(value: unknown): ResultView | undefined;
 ```
 
--   `parseResultView` は、0007 の `parseSummary`（表示用の要約）・`hasExactKeys`（メンバの集合の一致）・`isRejectionReason`（`extension/src/core/summary.ts:69-87`）と、`preflightReasons`・`isServerRejectReason`・`parseRequestId` を使い、同じ検査を再実装しない。`sent` の `outcome` の `unknown` に `cause` があれば、形が違うものとして拒否する（メンバの集合の検査による）。
+-   `parseResultView` は、0007 の `parseSummary`（表示用の要約）・`hasExactKeys`（メンバの集合の一致）・`isRejectionReason`（`extension/src/core/summary.ts:69-87`）と、`preflightReasons`・`isServerRejectReason`・`parseRequestId`・`unexpectedChecks` を使い、同じ検査を再実装しない。`unexpected` の `status` は 100〜599 の整数だけを受理する。`sent` の `outcome` の `unknown` に `cause` があれば、形が違うものとして拒否する（メンバの集合の検査による）。
 
 ```typescript
 // browser/chromeDeps.ts
@@ -1115,12 +1119,12 @@ export function runOptionsPage(container: HTMLElement, deps: OptionsPageDeps): P
 | `test/renderSend.test.ts`（新規） | `renderSendOutcome`・`renderResultView` を jsdom の要素で実行する。リクエスト ID と状態コードの表示、リダイレクトの表示、送らない理由の表示、`<img ...>` を含む値が要素にならないこと、想定外の応答の表示に応答の本文の文字列が現れないこと | AC-12・AC-15a・AC-15b・AC-16・AC-23〜AC-25・AC-28・AC-29 |
 | `test/optionsPage.test.ts`（新規） | `runOptionsPage`。保存・拒否・消去、保存後に値が表示されないこと、拒否した入力で保存先の値が変わらないこと、ポートの 3 つの状態の表示、ログと表示にトークンが現れないこと | AC-01〜AC-03・AC-05・AC-32 |
 | `test/chromeDeps.test.ts`（変更） | `createSettingsStore` が保存と消去を渡された保存先にだけ書くこと。`createResultViewStore` の `get`・`remove`、`watch` が `session` 以外の領域・別の鍵・削除の通知を渡さないこと、止めた後に渡さないこと | AC-06 |
-| `test/launch.test.ts`（変更） | `runMenuLaunch`・`runPopupSend`・`runResultWindow`。2 つの経路で同じ本文と同じ結果の分類になること、収集の拒否で設定を読まず送らないこと、ポップアップを開いただけで送らないこと、クリックの繰り返しで 1 回だけ送ること、ボタンが押せない状態になること、送信中の `put` の失敗とウィンドウを開けない場合に送らないこと、`unknown` の送信の結果を `cause` なしで保存先に書くこと（`toSendOutcome` を通さないと失敗する）、結果のウィンドウの状態の移り方（通知が `get` の前・後に届く場合、`get` が値なしを返す場合、`get` が失敗する場合、待ち時間の上限、`Final` の後の事象を無視すること）、読めない場合に Slack を確かめる案内を表示すること、失敗の結果を `log.error` に出すこと、fake のロガー・保存先・描画した DOM のテキストにトークンが現れないこと | AC-14・AC-17〜AC-21・AC-32 |
+| `test/launch.test.ts`（変更） | `runMenuLaunch`・`runPopupSend`・`runResultWindow`。2 つの経路で同じ本文と同じ結果の分類になること、収集の拒否で設定を読まず送らないこと、ポップアップを開いただけで送らないこと、クリックの繰り返しで 1 回だけ送ること、ボタンが押せない状態になること、送信中の `put` の失敗とウィンドウを開けない場合に送らないこと、`unknown` の送信の結果を `cause` なしで保存先に書くこと、結果のウィンドウの状態の移り方（通知が `get` の前・後に届く場合、`get` が値なしを返す場合、`get` が失敗する場合、待ち時間の上限、`Final` の後の事象を無視すること）、読めない場合に Slack を確かめる案内を表示すること、失敗の結果を `log.error` に出すこと、fake のロガー・保存先・描画した DOM のテキストにトークンが現れないこと | AC-14・AC-17〜AC-21・AC-32 |
 | `test/manifest.test.ts`（変更） | 最上位のキーの集合、`host_permissions` がちょうど `["http://127.0.0.1/*"]`、`options_ui`、`minimum_chrome_version`、`permissions` が 0007 の 4 つのまま。security.md §8.1 が `host_permissions` の各値を記していること | AC-31 |
 | `test/lintRules.test.ts`（変更） | ブランド付きの型の表明の禁止の範囲（作り手のファイルでは自身の型だけを許すこと）、`storage.sync` の禁止 | AC-06 |
 | `test/checkDist.test.ts`（変更） | `options_ui.page` の参照 | - |
 | `test/ciChanges.test.ts`（変更） | `README.md`・`docs/dev/security.md`・`internal/server/response.go` の変更で拡張のジョブが起動すること | - |
-| `test/secretsAbsent.test.ts`（新規） | `src/`・`static/` のファイルに、API キーと Webhook URL を扱う設定・入力欄・保存先を示す語（`webhook`・`api key`・`apikey`・`api_key`・環境変数の名前。大文字と小文字を区別しない）が現れないこと | AC-33 |
+| `test/secretsAbsent.test.ts`（新規） | `src/`・`static/` のファイルに、API キーと Webhook URL を扱う設定・入力欄・保存先を示す語（`webhook`・`api key`・`apikey`・`api_key`、秘密の環境変数の名前 `DEEPSEEK_API_KEY`・`ANTHROPIC_API_KEY`・`SLACK_WEBHOOK_URL`。大文字と小文字を区別しない）が現れないこと。`port-invalid` の文言が示す `YT2COLUMN_SERVER_PORT` は秘密ではないので対象にしない | AC-33 |
 
 -   **サーバの拒否の理由の表との同期（AC-24）:** `serverRejectStatus` はサーバの `rejectReason`（`internal/server/response.go`）と同じ組を持つ必要がある。拡張のテストは Go のコードを読めない。そこで、README の拒否の理由の表を介して同期を確かめる。README の表は、Go のテスト（`cmd/yt2column-server/docs_test.go:88-114`）がサーバの組とちょうど一致することを確かめている。拡張のテスト（`serverReasons.test.ts`）が `serverRejectStatus` と README の表の一致を確かめる。サーバの組を変える PR は、Go のテストを通すために README も改める。CI は `internal/server/response.go` と `README.md` の変更で拡張のジョブを起動する（3.11）ので、その PR で拡張のテストが食い違いを検出する。拡張のテストがリポジトリのファイルを読む形は、0007 の `repository.test.ts`（Makefile・CI の設定を読む）と同じである。
 -   AC-32 の「識別できるトークンの値」は、テストごとに固定の 64 文字の値を使い、fake のロガーが受け取った値・fake の保存先に書かれた値・描画した DOM の `textContent` を、`JSON.stringify` などで文字列にしてから、その値を含まないことを確かめる。
@@ -1150,7 +1154,7 @@ export function runOptionsPage(container: HTMLElement, deps: OptionsPageDeps): P
 | `extension/tsconfig.core.json` | 変更 | `types/core-encoding.d.ts` を `include` に加える |
 | `extension/src/core/settings.ts` | 新規 | `SharedToken`・`ServerPort`・`defaultPort`・`parseToken`・`parsePort`・`StoredSettings`・`SettingsBlockReason`・`SettingsCheck`・`checkSettings`・`SettingsReader`・`SettingsStore`（3.3） |
 | `extension/src/core/prepare.ts` | 新規 | `ArticleMetadata`・`ArticleBody`・`buildArticleBody`・`maxBodyBytes`・`PreparedRequest`・`PreflightReason`・`preflightReasons`・`BlockReason`・`PrepareOutcome`・`prepareSend`（3.4） |
-| `extension/src/core/response.ts` | 新規 | `ServerRejectReason`・`serverRejectStatus`・`isServerRejectReason`・`RequestId`・`parseRequestId`・`maxResponseBytes`・`ReceivedResponse`・`UnexpectedCheck`・`SendOutcome`・`SendResult`・`toSendOutcome`・`classifyResponse`（3.6） |
+| `extension/src/core/response.ts` | 新規 | `ServerRejectReason`・`serverRejectStatus`・`isServerRejectReason`・`RequestId`・`parseRequestId`・`maxResponseBytes`・`ReceivedResponse`・`UnexpectedCheck`・`unexpectedChecks`・`SendOutcome`・`SendResult`・`toSendOutcome`・`classifyResponse`（3.6） |
 | `extension/src/core/sendMessages.ts` | 新規 | `blockMessage`・`serverRejectMessage`・`sendOutcomeMessage`・`unreadableResultMessage`（3.7） |
 | `extension/src/core/resultView.ts` | 新規 | `CollectedSummary`・`ResultView`・`parseResultView`（3.8） |
 | `extension/src/core/summary.ts` | 変更 | `hasExactKeys`・`isRejectionReason` を公開する（振る舞いは変えない。3.11） |
