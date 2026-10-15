@@ -8,7 +8,7 @@
 | Created | 2026-10-14 |
 | Review date | 2026-10-14 |
 | Reviewer | isseis |
-| Comments | 2026-10-14: mkplan2 で PR 境界（PR-1〜PR-7）を加え、§3.2 PR 構成と §7 チェックリストを PR 単位にした。あわせて、#222 で architecture §7.2 の改訂と再承認が済んだことに合わせ、再承認を「これから受ける」と書いていた記述を過去形に直した（editorial correction。計画の決定は変えていない）。 |
+| Comments | 2026-10-14: mkplan2 で PR 境界（PR-1〜PR-7）を加え、§3.2 PR 構成と §7 チェックリストを PR 単位にした。あわせて、#222 で architecture §7.2 の改訂と再承認が済んだことに合わせ、再承認を「これから受ける」と書いていた記述を過去形に直した（editorial correction。計画の決定は変えていない）。 2026-10-15: ステップ 2-1〜2-3 の実装で、§5 の AC-17 の検証から `TestBodyTooLarge` を外した。`body_too_large` は認証後の拒否で、architecture §3.4.3 のとおり失敗を通知する（AC-23）ため、AC-17 の対象（F-004・`Content-Type`・メソッドの検査）に含まれない。検証の対応付けだけの editorial correction で、計画の決定は変えていない。 |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「requirements」）の項番、節番号は [02_architecture.md](02_architecture.md)（以下「architecture」）の節を指す。H-NN は [design_handoff.md](design_handoff.md) の項目で、その対応は architecture §3.13 にある。既存のファイルの行番号と事実は、断りがない限り HEAD `e0f898e`（ブランチ `issei/localhost-server-01`）で確かめた。`implementation_handoff.md` は本タスクにはない。
 
@@ -306,7 +306,7 @@ architecture §7.3 を 2-1〜2-3 のテストに書く。(1) AC-12（本文を�
 | AC-14 | test | `internal/server/handler_test.go::TestRejectHeaders`（`Host` の大文字・ポートの省略・非 loopback） |
 | AC-15 | test | `internal/server/handler_test.go::TestRejectHeaders`（`Origin` の欠落・不一致・複数） |
 | AC-16 | test | `internal/server/handler_test.go::TestRejectHeaders`（トークンの欠落・不一致・`Bearer ` でない・長さ違い、複数） |
-| AC-17 | test | `internal/server/handler_test.go::TestRejectHeaders`（fake の `ArticleWriter`・`Publisher`・`Notifier` が呼ばれない）、`internal/server/request_test.go::TestHeaderRejectionReadsNoBody`・`::TestBodyTooLarge`（fake の `Notifier` が呼ばれない） |
+| AC-17 | test | `internal/server/handler_test.go::TestRejectHeaders`（fake の `ArticleWriter`・`Publisher`・`Notifier` が呼ばれない）、`internal/server/request_test.go::TestHeaderRejectionReadsNoBody`（fake の `Notifier` が呼ばれない） |
 | AC-18 | test | `internal/server/job_test.go::TestAcceptStartsJob`（`202`、fake の `Publisher` が呼ばれる） |
 | AC-19 | test | `internal/server/job_test.go::TestJobTranscriptValues`（fake の `ArticleWriter` が受け取った `Transcript` の `VideoID`・`VideoURL` が導出値と一致し、`videoUrl` の文字列と異なる） |
 | AC-20 | test | `cmd/yt2column-server/run_test.go::TestBuildsSlackPublisher`（構築される `Publisher` が `*publisher.SlackWebhookPublisher` である）、統合テスト `::TestServerEndToEnd` |

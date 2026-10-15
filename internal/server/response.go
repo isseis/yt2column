@@ -100,11 +100,11 @@ func (r rejectReason) notify() bool {
 }
 
 // forceClose reports whether the rejection adds `Connection: close`. Rejections
-// that did not read the whole body (the header checks, the size checks, and a
-// pre-slot internal error) close the connection so net/http does not read and
-// discard the body to reuse it. reasonInternal is pre-slot only here; the
-// post-slot internal error leaves the connection open, and the handler decides
-// that by passing closeConnection.
+// that did not read the whole body (the header checks, the slot and size
+// checks) close the connection, so net/http does not read and discard the body
+// to reuse it. A pre-slot internal error is the same; the post-slot internal
+// error reads the body and does not force close, and the handler passes
+// closeConnection directly for that case rather than using this method.
 func (r rejectReason) forceClose() bool {
 	switch r {
 	case reasonForbiddenHost, reasonNotFound, reasonMethodNotAllowed,

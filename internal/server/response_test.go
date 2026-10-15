@@ -32,13 +32,15 @@ func TestRejectReasonZeroValueIs500(t *testing.T) {
 // or a secret, and that the logs do not either.
 func TestResponseOmitsInputs(t *testing.T) {
 	ts := newTestServer(t)
-	marker := testMarker + "-in-transcript"
+	// The transcript and metadata use the non-secret transcript marker, so a
+	// leaked value would still be visible in the log. channelName uses the
+	// secret marker, to prove the redacting writer is a backstop.
 	body, err := json.Marshal(map[string]string{
 		"videoUrl":    testValidVideoURL,
-		"transcript":  "0:00\n" + marker + "\n",
-		"title":       testMarker,
+		"transcript":  "0:00\n" + testTranscriptMarker + "\n",
+		"title":       testTranscriptMarker,
 		"channelName": testMarker,
-		"description": testMarker,
+		"description": testTranscriptMarker,
 	})
 	if err != nil {
 		t.Fatalf("marshal body: %v", err)
@@ -48,8 +50,10 @@ func TestResponseOmitsInputs(t *testing.T) {
 	if accepted.Code != http.StatusAccepted {
 		t.Fatalf("status = %d, want 202 (body %q)", accepted.Code, accepted.Body.String())
 	}
-	if strings.Contains(accepted.Body.String(), testMarker) {
-		t.Errorf("accepted response body %q carries a request value", accepted.Body.String())
+	for _, marker := range []string{testTranscriptMarker, testMarker} {
+		if strings.Contains(accepted.Body.String(), marker) {
+			t.Errorf("accepted response body %q carries a request value", accepted.Body.String())
+		}
 	}
 	if got := decodeBody(t, accepted); got.Status != "accepted" || got.Reason != "" {
 		t.Errorf("accepted body = %+v", got)
@@ -61,8 +65,12 @@ func TestResponseOmitsInputs(t *testing.T) {
 	if strings.Contains(rejected.Body.String(), testMarker) {
 		t.Errorf("rejected response body %q carries a request value", rejected.Body.String())
 	}
-	if strings.Contains(ts.logs.String(), testMarker) {
-		t.Errorf("logs carry a request value:\n%s", ts.logs.String())
+	logs := ts.logs.String()
+	if strings.Contains(logs, testTranscriptMarker) {
+		t.Errorf("logs carry transcript or metadata text:\n%s", logs)
+	}
+	if strings.Contains(logs, testMarker) {
+		t.Errorf("logs carry a secret:\n%s", logs)
 	}
 }
 

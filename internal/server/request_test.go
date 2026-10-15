@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/isseis/yt2column/internal/failure"
 )
 
 // requestIDShape is the request ID form the server generates.
@@ -166,6 +168,9 @@ func TestRejectVideoURLTable(t *testing.T) {
 			if body := decodeBody(t, rec); body.Reason != "invalid_video_url" {
 				t.Errorf("reason = %q, want invalid_video_url", body.Reason)
 			}
+			if len(ts.notifier.Calls) != 1 || ts.notifier.Calls[0].Notice.Kind != failure.KindInvalidVideoURL {
+				t.Errorf("notifier calls = %+v, want one KindInvalidVideoURL", ts.notifier.Calls)
+			}
 		})
 	}
 }
@@ -188,6 +193,9 @@ func TestRejectInvalidTranscript(t *testing.T) {
 			}
 			if body := decodeBody(t, rec); body.Reason != "invalid_transcript" {
 				t.Errorf("reason = %q, want invalid_transcript", body.Reason)
+			}
+			if len(ts.notifier.Calls) != 1 || ts.notifier.Calls[0].Notice.Kind != failure.KindInvalidTranscript {
+				t.Errorf("notifier calls = %+v, want one KindInvalidTranscript", ts.notifier.Calls)
 			}
 		})
 	}
@@ -275,6 +283,9 @@ func TestBodyTooLarge(t *testing.T) {
 		if counter.n != 0 {
 			t.Errorf("read %d bytes of a body refused on its length, want 0", counter.n)
 		}
+		if len(ts.notifier.Calls) != 1 || ts.notifier.Calls[0].Notice.Kind != failure.KindBodyTooLarge {
+			t.Errorf("notifier calls = %+v, want one KindBodyTooLarge", ts.notifier.Calls)
+		}
 	})
 	t.Run("no_content_length", func(t *testing.T) {
 		ts := newTestServer(t)
@@ -289,6 +300,9 @@ func TestBodyTooLarge(t *testing.T) {
 		}
 		if counter.n > maxBodyBytes+1 {
 			t.Errorf("read %d bytes, want at most %d", counter.n, maxBodyBytes+1)
+		}
+		if len(ts.notifier.Calls) != 1 || ts.notifier.Calls[0].Notice.Kind != failure.KindBodyTooLarge {
+			t.Errorf("notifier calls = %+v, want one KindBodyTooLarge", ts.notifier.Calls)
 		}
 	})
 }

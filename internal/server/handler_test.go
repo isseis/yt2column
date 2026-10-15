@@ -55,6 +55,11 @@ func TestRejectHeaders(t *testing.T) {
 			withValidHeaders(req, testTokenValue)
 			return req
 		}, http.StatusMethodNotAllowed, "method_not_allowed"},
+		{"options_star", func(_ *testing.T) *http.Request {
+			req := newRequest(http.MethodOptions, "*", nil)
+			withValidHeaders(req, testTokenValue)
+			return req
+		}, http.StatusNotFound, "not_found"},
 		{"content_type_missing", func(t *testing.T) *http.Request {
 			req := validHTTPRequest(t)
 			req.Header.Del("Content-Type")

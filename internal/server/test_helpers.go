@@ -35,6 +35,10 @@ const (
 	testValidRaw        = "0:00\nHello\n"
 	testValidVideoURL   = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 	testMarker          = "MARKER-SECRET-VALUE"
+	// testTranscriptMarker stands in for transcript or metadata text. It is
+	// deliberately not in Options.Secrets, so a log line that carried it would
+	// still contain it after redaction.
+	testTranscriptMarker = "MARKER-TRANSCRIPT-TEXT"
 	// testTokenBytes is the number of random bytes LoadOrCreate draws; the
 	// file already exists, so the reader's content is irrelevant.
 	testTokenBytes = 32

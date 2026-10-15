@@ -132,6 +132,9 @@ func TestServeListenerFailureStops(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("Serve did not return after a listener failed")
 	}
+	if _, err := listeners[1].Accept(); err == nil {
+		t.Error("the other listener is still open after one failed")
+	}
 }
 
 // TestServeShutdownWaitsForJobs checks that a canceled context stops accepting
