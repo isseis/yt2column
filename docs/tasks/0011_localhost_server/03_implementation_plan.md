@@ -347,7 +347,20 @@ architecture §7.3 を 2-1〜2-3 のテストに書く。(1) AC-12（本文を�
 - [x] PR-6 マージ済み（対象ステップ: 2-4）
 - [x] PR-7 マージ済み（対象ステップ: 2-5）
 - [x] 各 PR でグリーンゲート（`make test && make lint`）が通った
-- [ ] AC-01 の外部インターフェースの確認と、通知の表示の Mattermost での確認を PR に記録した
+- [x] AC-01 の外部インターフェースの確認と、通知の表示の Mattermost での確認を PR に記録した
+
+#### 手動の確認の記録（2026-10-15）
+
+- **AC-01（外部インターフェースからの拒否）**: `build/yt2column-server` を起動し、マシンの外部（LAN）アドレス `192.168.0.22` の `8765` 番へ `curl -sS -v --max-time 5 http://192.168.0.22:8765/articles` を実行したところ、`curl: (28) Connection timed out`（HTTP 応答なし）だった。外部インターフェースのアドレスでは API に到達しない。loopback（`127.0.0.1`）では下記のとおりリクエストが処理されるので、`127.0.0.1` と `::1` だけに bind していることを確認した。
+- **失敗の通知の表示（Mattermost）**: 字幕の書式不正（`400 invalid_transcript`）を送ると、テスト用チャンネルに 3 行の通知が投稿された。`video:` の URL はリンクとして描画され（プレビューも表示された）、3 行は改行されたまま表示された。改行を含む実際の文面（`video:` の行は `<https://…>`）:
+
+  ```
+  yt2column failure: the copied transcript was not in the expected format
+  request: d57bcc78c1b42f66
+  video: https://www.youtube.com/watch?v=dQw4w9WgXcQ
+  ```
+
+  実際のソケットでの結果: 上限を超える本文（4 MiB + 1）と誤ったトークンを送ると、サイズ超過ではなく共有トークンの不一致（`401 unauthorized`）として拒否された（ステップ 2-4 の統合テストで記録済み）。
 
 ## 8. 完了条件 (Success Criteria)
 
