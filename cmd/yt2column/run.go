@@ -279,13 +279,16 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 	// missing or unusable directory is an execution failure (exit 1), not a
 	// usage error, because it depends on the filesystem rather than the
 	// argument's shape.
-	var store *artifact.Store
+	// store stays a nil interface, never a typed nil, without --artifacts,
+	// so the writer options of a run without it are the default ones.
+	var store writer.ArtifactStore
 	if artifactsGiven {
-		store, err = artifact.NewStore(opts.artifacts)
+		opened, err := artifact.NewStore(opts.artifacts)
 		if err != nil {
 			return runFailure(errOut, "open the artifacts directory: %v", err)
 		}
-		defer func() { _ = store.Close() }()
+		defer func() { _ = opened.Close() }()
+		store = opened
 	}
 
 	// A5: build the stages. writer.New only reads the template files, and
