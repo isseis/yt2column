@@ -19,7 +19,9 @@ import (
 type Provider int
 
 // The supported Provider values. ProviderUnset is the zero value, which no
-// factory accepts, so Load never stores it in a Config it returns.
+// factory accepts, so Load never stores it in a Config it returns. LoadFor
+// stores it only when no stage reads the provider (Need{}), where no factory is
+// built.
 const (
 	ProviderUnset Provider = iota
 	ProviderDeepSeek
@@ -114,7 +116,7 @@ func (e *VarError) Unwrap() error {
 
 // LLMConfig is the validated configuration of the generation and review LLM
 // calls. Its fields are unexported, so a non-zero LLMConfig can only come from
-// Load or LoadServer.
+// Load, LoadFor, or LoadServer.
 type LLMConfig struct {
 	provider             Provider
 	model                string
@@ -131,7 +133,9 @@ func (c LLMConfig) Provider() Provider {
 	return c.provider
 }
 
-// Model returns the model name of the generation. It is non-empty.
+// Model returns the model name of the generation. It is non-empty when the
+// generation or the shorten step runs (Need.Generation); a run that needs
+// neither leaves it empty and does not build a generation client.
 func (c LLMConfig) Model() string {
 	return c.model
 }
@@ -175,7 +179,7 @@ func (c LLMConfig) AnthropicWorkspaceID() claudeparam.WorkspaceID {
 }
 
 // Config is the CLI configuration. Its fields are unexported, so a non-zero
-// Config can only come from Load.
+// Config can only come from Load or LoadFor.
 type Config struct {
 	llm               LLMConfig
 	slackWebhookURL   secret.Secret
@@ -421,17 +425,18 @@ func loadProvider(lookup LookupFunc, cfg *LLMConfig) error {
 }
 
 // loadProviderOptional reads YT2COLUMN_LLM_PROVIDER without requiring it, for a
-// run whose generation does not execute: an unset or empty value falls back to
-// the default deepseek provider, so the review step still inherits a provider.
-// A present, non-empty value must be accepted.
+// run whose generation does not execute: unset falls back to the default
+// deepseek provider, while a present value must be accepted (an empty one is
+// rejected, matching loadProvider, so a broken export is not silently
+// defaulted).
 func loadProviderOptional(lookup LookupFunc, cfg *LLMConfig) error {
 	value, ok := lookup(providerEnv)
-	provider, err := parseProvider(providerEnv, value, ok)
+	if !ok {
+		cfg.provider = ProviderDeepSeek
+		return nil
+	}
+	provider, err := parseProvider(providerEnv, value, true)
 	if err != nil {
-		if errors.Is(err, ErrMissing) {
-			cfg.provider = ProviderDeepSeek
-			return nil
-		}
 		return err
 	}
 	cfg.provider = provider
@@ -439,12 +444,19 @@ func loadProviderOptional(lookup LookupFunc, cfg *LLMConfig) error {
 }
 
 // loadModelOptional reads YT2COLUMN_MODEL without requiring it, for a run whose
-// generation does not execute: an unset or empty value leaves the model empty
-// for the review step's own resolution.
-func loadModelOptional(lookup LookupFunc, cfg *LLMConfig) {
+// generation does not execute: unset leaves the model empty for the review
+// step's own resolution, while a present value (an empty one included) follows
+// loadModel's rule.
+func loadModelOptional(lookup LookupFunc, cfg *LLMConfig) error {
 	value, ok := lookup(modelEnv)
-	if ok && value != "" {
+	switch {
+	case !ok:
+		return nil
+	case value == "":
+		return missingVar(modelEnv)
+	default:
 		cfg.model = value
+		return nil
 	}
 }
 
@@ -522,13 +534,13 @@ func loadReview(lookup LookupFunc, cfg *LLMConfig, generationRuns bool) []error 
 		// not run, read that model here, without requiring it, and report a
 		// still-empty inherited model because the review step needs one.
 		if !generationRuns {
-			loadModelOptional(lookup, cfg)
-			cfg.reviewModel = cfg.model
-			if cfg.reviewModel == "" {
-				errs = append(errs, missingVar(reviewModelEnv))
+			if err := loadModelOptional(lookup, cfg); err != nil {
+				errs = append(errs, err)
 			}
-		} else {
-			cfg.reviewModel = cfg.model
+		}
+		cfg.reviewModel = cfg.model
+		if !generationRuns && cfg.reviewModel == "" {
+			errs = append(errs, missingVar(reviewModelEnv))
 		}
 	}
 	return errs

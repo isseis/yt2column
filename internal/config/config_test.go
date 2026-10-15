@@ -1104,7 +1104,7 @@ func TestLoadHTTP2Debug(t *testing.T) {
 // generation --no-shorten -> {false,true}; --after generation --no-review ->
 // {true,false}; --after shorten -> {false,true}; --after shorten --no-review ->
 // {false,false}; --after review -> {false,false}.
-func TestLoadForNeed(t *testing.T) {
+func TestLoadFor(t *testing.T) {
 	t.Run("both needs equal Load", func(t *testing.T) {
 		cfg, err := LoadFor(envLookup(validEnv()), Need{Generation: true, Review: true})
 		if err != nil {
@@ -1229,5 +1229,59 @@ func TestLoadForNeed(t *testing.T) {
 		env := map[string]string{cacheDirEnv: "relative"}
 		_, err := LoadFor(envLookup(env), Need{})
 		assertVarError(t, err, ErrInvalid, cacheDirEnv)
+	})
+
+	t.Run("review only rejects an empty inherited provider", func(t *testing.T) {
+		// The review step inherits the generation provider, so a present-empty
+		// one is rejected rather than silently defaulted.
+		env := map[string]string{
+			providerEnv:       "",
+			reviewModelEnv:    "deepseek-review",
+			deepSeekAPIKeyEnv: "sk-test-key",
+			cacheDirEnv:       "/tmp/yt2column-test-cache",
+		}
+		_, err := LoadFor(envLookup(env), Need{Review: true})
+		assertVarError(t, err, ErrMissing, providerEnv)
+	})
+
+	t.Run("review only rejects an invalid inherited provider", func(t *testing.T) {
+		env := map[string]string{
+			providerEnv:       "gemini",
+			reviewModelEnv:    "deepseek-review",
+			deepSeekAPIKeyEnv: "sk-test-key",
+			cacheDirEnv:       "/tmp/yt2column-test-cache",
+		}
+		_, err := LoadFor(envLookup(env), Need{Review: true})
+		assertVarError(t, err, ErrInvalid, providerEnv)
+	})
+
+	t.Run("review only rejects an empty inherited model", func(t *testing.T) {
+		env := map[string]string{
+			modelEnv:          "",
+			deepSeekAPIKeyEnv: "sk-test-key",
+			cacheDirEnv:       "/tmp/yt2column-test-cache",
+		}
+		_, err := LoadFor(envLookup(env), Need{Review: true})
+		assertVarError(t, err, ErrMissing, modelEnv)
+	})
+
+	t.Run("review only ignores an unused generation provider's variables", func(t *testing.T) {
+		// The review step has its own deepseek provider, so the claude
+		// generation provider and its API key, effort, and workspace are not
+		// read even though YT2COLUMN_LLM_PROVIDER is set.
+		env := map[string]string{
+			providerEnv:       "claude",
+			reviewProviderEnv: "deepseek",
+			reviewModelEnv:    "deepseek-review",
+			deepSeekAPIKeyEnv: "sk-test-key",
+			cacheDirEnv:       "/tmp/yt2column-test-cache",
+		}
+		cfg, err := LoadFor(envLookup(env), Need{Review: true})
+		if err != nil {
+			t.Fatalf("LoadFor() error = %v, want nil (the unused claude provider is not checked)", err)
+		}
+		if cfg.LLM().ReviewProvider() != ProviderDeepSeek {
+			t.Errorf("ReviewProvider() = %v, want ProviderDeepSeek", cfg.LLM().ReviewProvider())
+		}
 	})
 }
