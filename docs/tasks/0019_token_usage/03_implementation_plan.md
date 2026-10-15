@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-15 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-15 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「requirements」）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目、節番号は [02_architecture.md](02_architecture.md)（以下「architecture」）の節を指す。既存のファイルの行番号は、断りがない限り HEAD `6a92cb4` で確かめた。architecture の行番号はコミット `593c696` のものだが、`593c696..6a92cb4` の Go のファイルの差分はテストの補助（`internal/config/test_helpers.go`・`internal/server/test_helpers.go`・`cmd/yt2column-server/docs_test.go`）だけで、本計画が変える Go のソースは同じである（`git diff --stat 593c696 6a92cb4 -- '*.go'` で確認）。Go のソースのコメント・識別子・文字列リテラルは英語で書き（`_context.md`）、`AC-NN`・`F-NNN`・`H-NN` は Go のソースに書かず本計画にだけ記録する（`requirements_process.md` §4）。

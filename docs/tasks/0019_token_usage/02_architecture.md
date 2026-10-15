@@ -8,7 +8,7 @@
 | Created | 2026-10-15 |
 | Review date | 2026-10-15 |
 | Reviewer | isseis |
-| Comments | 2026-10-15 実装計画の作成時の editorial correction（設計の決定は変えていない。status は `approved` のまま）。(1) §1.3「要件 AC-27 との関係」と §3.10 の `internal/pipeline/pipeline.go` の行に、`TestPipelineCanceled` の「canceled after write」（`internal/pipeline/pipeline_test.go:267` が `err != context.Canceled` で同一性を比べる）を加えた。§3.6 が `Write` と公開の間の中断を `TokenUsageError` で包むので、このテストは `errors.Is` での比較に改める必要があり、手を入れる既存のテストの一覧から漏れていた。(2) §7.2 の最初の項目は、`cmd/yt2column/integration_test.go` がループバックの fake の API で確かめるとしていたが、このテストは実際の DeepSeek の API を呼ぶ（`make test-integration-cli`）。同じ意図（実際の API を呼ばずに、記録済みの応答の形の `usage` から行が出ること）を、`make test` で走る新しい `cmd/yt2column` のテストで確かめる形に改めた。(3) §1.3 の例外 1 と §3.10 の Claude の行の、更新が要るテストの一覧に、`TestGenerateResponseFixtures` の「max_tokens fixture is truncated」（`internal/llm/claude/response_test.go:66`。打ち切りの記録済みの応答を `assertBodyRejected` で確かめる）を加えた。DeepSeek の一覧には対応する行があり、Claude の一覧から漏れていた。(4) §1.3「他のタスクの方針への例外」に 4 を加えた。0003・0009 の「`usage` は消費しないメンバーとして無視する」が応答の受理判定の規則として残り、使用量の取得のための別の読み取りは受理判定を変えないことを記録した。これは要件 §5 と AC-09 がすでに定めていることで、例外の一覧から漏れていた。あわせて、0003・0009 の文書にも同じ範囲を示す注記を加えた。 |
+| Comments | - |
 
 本書の既存コードへの言及（`file:line`）は、コミット `593c696` で確かめた。
 
