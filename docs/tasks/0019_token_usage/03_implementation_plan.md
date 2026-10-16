@@ -245,7 +245,7 @@ requirements の機能要件（F-001〜F-008）を、architecture の設計ど�
 - [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 - [x] **ステップ 4-3**: `cmd/yt2column/run.go` に、architecture §3.8 の書式の定数、1 行を作る関数、`RunUsage` から段階の順に行を書く `reportTokens` を置く。`OriginNone` と列挙の外の `UsageOrigin` は行を書かない。`reportSuccess` の最後で `reportTokens(errOut, article.RunUsage)` を呼ぶ。`reportRunError` では、`*job.ReviewLogError` の分岐の後、失敗の行の前に、`errors.AsType[*writer.TokenUsageError]` で取り出せたときだけ `reportTokens` を呼ぶ。行はすべて `errOut.line` で書く。
-- [x] **ステップ 4-4**: `cmd/yt2column/run_test.go` に、fake の `LLMClient`・`TranscriptSource`・`Publisher` と `t.TempDir`（`newRunEnv`・`funcLLM`・`reviewLLM`・`useReviewClient`・`saveArtifactsOnce`・`firstLongThenShort` を再利用する）で CLI のテストを書く。行は `redact.Line` を通った後の標準エラーの行のバイト列として比べる。
+- [x] **ステップ 4-4**: `cmd/yt2column/token_test.go` に、fake の `LLMClient`・`TranscriptSource`・`Publisher` と `t.TempDir`（`newRunEnv`・`funcLLM`・`reviewLLM`・`useReviewClient`・`saveArtifactsOnce`・`firstLongThenShort` を再利用する）で CLI のテストを書く。行は `redact.Line` を通った後の標準エラーの行のバイト列として比べる。
   - `TestRunTokenLinesAllStages`: 3 つの段階が走る成功した実行で、段階の順に 3 行が、段階ごとに異なる値とモデル名で出ること、行が既存の要約の行の後にあること（AC-12・AC-15）。
   - `TestRunTokenLinesSkippedStages`: 字数の調整が LLM を呼ばない実行と `--no-review` の実行で、その段階の行が出ないこと（AC-13）。
   - `TestRunTokenLinesResume`: `--after generation`・`shorten`・`review` の各再開で、再利用した段階の行が `reused` で保存時の値とモデル名を、呼んだ段階の行が `run` を示すこと。保存の実行と再開の実行の fake は、トークン数もモデル名も異ならせる。不明のまま保存した段階を再利用した行が `reused unknown reason=recorded-unknown` であること。`--after` の読み込みが成功した後に失敗した実行で、再利用した段階の行が出ること（AC-14・AC-20 の後半・AC-21）。
@@ -258,7 +258,7 @@ requirements の機能要件（F-001〜F-008）を、architecture の設計ど�
   - `TestRunTokenLineModelName`: モデル名が空白・`"`・`\`・U+202E を含む行で、`model=` から行の終わりまでがモデル名であり、README に書く手順（`model=` の後の文字列を `"` で囲み `strconv.Unquote` に渡す）で元のモデル名に戻ること（architecture §3.8）。
   - `TestRunTokenLinesReviewLogFailure`: 検証・推敲の一覧のファイルの書き込みが失敗した実行で、行が 1 回だけ出ること。
   - 既存の `TestRunArtifactExitCodes` に、`usage` が不正な中間生成物で `--after` を実行する行を加え、既存の行と同じく `requireUntouched` で LLM を呼ばず公開しないことを確かめる（AC-22 の CLI の部分）。
-- [x] **ステップ 4-5**: architecture §7.2 のループバックのテスト `TestRunTokenLinesLoopbackAdapter` を `run_test.go` に書く。`deps.newLLMClient` を、`deepseek.NewForLoopbackTest` で `httptest` のサーバに向けたアダプタを返す関数に差し替え、サーバは記録済みの応答（`testdata/deepseek_chat_completion_stop.json`）の `message.content` だけを記事の形の文字列に置き換えた本文を返す。字数の調整と検証・推敲を無効にして実行し、生成の行が記録済みの応答の `usage` の値とモデル名で出ることを確かめる。記録済みの応答は `../../testdata/` の定数のパスで読み、gosec が読み込みを指摘する場合は、その 1 行に限った `//nolint:gosec` を、根拠（コミット済みの testdata の記録）のコメント付きで置く。
+- [x] **ステップ 4-5**: architecture §7.2 のループバックのテスト `TestRunTokenLinesLoopbackAdapter` を `token_test.go` に書く。`deps.newLLMClient` を、`deepseek.NewForLoopbackTest` で `httptest` のサーバに向けたアダプタを返す関数に差し替え、サーバは記録済みの応答（`testdata/deepseek_chat_completion_stop.json`）の `message.content` だけを記事の形の文字列に置き換えた本文を返す。字数の調整と検証・推敲を無効にして実行し、生成の行が記録済みの応答の `usage` の値とモデル名で出ることを確かめる。記録済みの応答は `../../testdata/` の定数のパスで読み、gosec が読み込みを指摘する場合は、その 1 行に限った `//nolint:gosec` を、根拠（コミット済みの testdata の記録）のコメント付きで置く。
 - [x] **ステップ 4-6**: 壊して確かめる。`reportRunError` の `reportTokens` の呼び出しを消すと `TestRunTokenLinesReviewFailure` が失敗すること、`reportTokens` の `OriginNone` の判定を外すと `TestRunTokenLinesSkippedStages` が失敗することを確かめる。
 
 **完了条件:** グリーンゲートが通る。既存の `cmd/yt2column` と `internal/server` のテストの既存の行が変えずに通る（`TestRunArtifactExitCodes` はステップ 4-4 で行を 1 つ追記する。AC-27・AC-28）。

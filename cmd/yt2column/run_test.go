@@ -2416,6 +2416,9 @@ func TestRunArtifactExitCodes(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+				if !strings.Contains(string(data), `"usage":null`) {
+					t.Fatalf("the saved artifact has no usage field to tamper with:\n%s", data)
+				}
 				tampered := strings.Replace(string(data), `"usage":null`, `"usage":"x"`, 1)
 				if err := os.WriteFile(artifactFile(dir, runVideoID, "generation"), []byte(tampered), 0o600); err != nil {
 					t.Fatal(err)
