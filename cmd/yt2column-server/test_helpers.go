@@ -594,6 +594,17 @@ type serverChild struct {
 // reaps each child is registered as soon as it starts.
 func startServerChild(t *testing.T, mode string, e *serverEnv, extra map[string]string) *serverChild {
 	t.Helper()
+	return startServerChildWithStdout(t, mode, e, extra, nil)
+}
+
+// startServerChildWithStdout is startServerChild, but when stdout is non-nil
+// the child's standard output is that file instead of the captured buffer. It
+// takes an *os.File because the child's standard output must be the file
+// itself (the closed-pipe test passes the write end of a pipe whose reader it
+// has already closed); any other io.Writer would be copied through a live
+// parent-side pipe. The caller owns stdout and must close it.
+func startServerChildWithStdout(t *testing.T, mode string, e *serverEnv, extra map[string]string, stdout *os.File) *serverChild {
+	t.Helper()
 	requireIPv6Loopback(t)
 	for range listenAttempts {
 		e.setPort(freePort(t))
@@ -601,7 +612,11 @@ func startServerChild(t *testing.T, mode string, e *serverEnv, extra map[string]
 		cmd.Env = childEnv(mode, e.vars, extra)
 		cmd.WaitDelay = childWaitDelay
 		c := &serverChild{cmd: cmd, done: make(chan struct{})}
-		cmd.Stdout = &c.stdout
+		if stdout != nil {
+			cmd.Stdout = stdout
+		} else {
+			cmd.Stdout = &c.stdout
+		}
 		cmd.Stderr = &c.stderr
 		if err := cmd.Start(); err != nil {
 			t.Fatalf("start the server child: %v", err)
