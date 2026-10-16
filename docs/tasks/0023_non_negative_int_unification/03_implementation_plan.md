@@ -8,7 +8,7 @@
 | Created | 2026-10-16 |
 | Review date | 2026-10-17 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 実装中のチェックボックス更新（判断の変更なし）。 |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「requirements」）の項番を指し、節番号は [02_architecture.md](02_architecture.md)（以下「architecture」）の節を指す。用語は requirements §6 に従う。既存のコードとテストの行番号は、断りがない限り HEAD `581b39c` で確かめた。
 

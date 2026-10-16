@@ -10,6 +10,7 @@ import (
 	"go/parser"
 	"go/token"
 	"math"
+	"os"
 	"reflect"
 	"slices"
 	"strconv"
@@ -439,10 +440,12 @@ func segsDocument(segs int) []byte {
 // TestTimestampReadingIsUnified fixes the single non-negative integer rule for
 // tStartMs: json3.go must read it with strictjson.Value.AsNonNegativeInt64 and
 // must not reintroduce a second rule, whether by calling AsInt64/decodeTimestamp
-// or by comparing the read value against zero or a negative constant. The guard
-// parses the source, so it catches an equivalent spelling of the same check.
+// or by comparing a value derived from that read against zero or a negative
+// constant. The guard parses the source, so an equivalent spelling of the same
+// check is caught, while an unrelated comparison such as len(x) > 0 is not.
 func TestTimestampReadingIsUnified(t *testing.T) {
 	file, fset := parsePackageFile(t, "json3.go")
+	readNames := readValueNames(file)
 
 	var (
 		readsUnified bool
@@ -461,7 +464,7 @@ func TestTimestampReadingIsUnified(t *testing.T) {
 				stale = append(stale, v.Name)
 			}
 		case *ast.BinaryExpr:
-			if isSignComparison(v) {
+			if signCheckOn(v, readNames) {
 				signChecks = append(signChecks, fset.Position(v.Pos()).String())
 			}
 		}
@@ -475,7 +478,7 @@ func TestTimestampReadingIsUnified(t *testing.T) {
 		t.Errorf("json3.go still carries the old non-negative rule via %v", stale)
 	}
 	if len(signChecks) > 0 {
-		t.Errorf("json3.go compares a value against zero or a negative constant at %v", signChecks)
+		t.Errorf("json3.go compares a tStartMs-derived value against zero or a negative constant at %v", signChecks)
 	}
 }
 
@@ -483,7 +486,10 @@ func TestTimestampReadingIsUnified(t *testing.T) {
 // package. A new sentinel changes the error contract that callers branch on
 // with errors.Is, so adding one must revisit the callers and this guard.
 func TestExportedSentinelErrorsUnchanged(t *testing.T) {
-	file, _ := parsePackageFile(t, "errors.go")
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatalf("read package directory: %v", err)
+	}
 	want := []string{
 		"ErrCopiedTranscriptFormat",
 		"ErrInvalidVideoURL",
@@ -494,6 +500,24 @@ func TestExportedSentinelErrorsUnchanged(t *testing.T) {
 	}
 
 	var got []string
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		file, _ := parsePackageFile(t, name)
+		got = append(got, exportedErrNames(file)...)
+	}
+	slices.Sort(got)
+	if !slices.Equal(got, want) {
+		t.Errorf("exported sentinel errors = %v, want %v; a new sentinel changes the error contract callers branch on, so revisit the callers and this guard", got, want)
+	}
+}
+
+// exportedErrNames returns the package-level var and const identifiers of the
+// file that are exported and start with "Err".
+func exportedErrNames(file *ast.File) []string {
+	var names []string
 	for _, decl := range file.Decls {
 		gen, ok := decl.(*ast.GenDecl)
 		if !ok || (gen.Tok != token.VAR && gen.Tok != token.CONST) {
@@ -506,15 +530,12 @@ func TestExportedSentinelErrorsUnchanged(t *testing.T) {
 			}
 			for _, name := range vs.Names {
 				if ast.IsExported(name.Name) && strings.HasPrefix(name.Name, "Err") {
-					got = append(got, name.Name)
+					names = append(names, name.Name)
 				}
 			}
 		}
 	}
-	slices.Sort(got)
-	if !slices.Equal(got, want) {
-		t.Errorf("exported sentinel errors = %v, want %v; a new sentinel changes the error contract callers branch on, so revisit the callers and this guard", got, want)
-	}
+	return names
 }
 
 // parsePackageFile parses a source file of the package under test. The test
@@ -529,10 +550,81 @@ func parsePackageFile(t *testing.T, name string) (*ast.File, *token.FileSet) {
 	return file, fset
 }
 
+// readValueNames returns the identifiers that hold a value produced by
+// AsNonNegativeInt64, following a plain assignment from one to another.
+func readValueNames(file *ast.File) map[string]bool {
+	var assigns []*ast.AssignStmt
+	ast.Inspect(file, func(n ast.Node) bool {
+		if assign, ok := n.(*ast.AssignStmt); ok {
+			assigns = append(assigns, assign)
+		}
+		return true
+	})
+
+	names := map[string]bool{}
+	for changed := true; changed; {
+		changed = false
+		for _, assign := range assigns {
+			add := false
+			for _, rhs := range assign.Rhs {
+				if callsAsNonNegativeInt64(rhs) || referencesAny(rhs, names) {
+					add = true
+				}
+			}
+			if !add {
+				continue
+			}
+			for _, lhs := range assign.Lhs {
+				id, ok := lhs.(*ast.Ident)
+				if !ok || id.Name == "_" || names[id.Name] {
+					continue
+				}
+				names[id.Name] = true
+				changed = true
+			}
+		}
+	}
+	return names
+}
+
+// callsAsNonNegativeInt64 reports whether expr is a call to AsNonNegativeInt64.
+func callsAsNonNegativeInt64(expr ast.Expr) bool {
+	call, ok := expr.(*ast.CallExpr)
+	if !ok {
+		return false
+	}
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	return ok && sel.Sel.Name == "AsNonNegativeInt64"
+}
+
+// referencesAny reports whether expr mentions one of names.
+func referencesAny(expr ast.Expr, names map[string]bool) bool {
+	found := false
+	ast.Inspect(expr, func(n ast.Node) bool {
+		if found {
+			return false
+		}
+		if id, ok := n.(*ast.Ident); ok && names[id.Name] {
+			found = true
+		}
+		return true
+	})
+	return found
+}
+
+// signCheckOn reports whether expr compares one of the read values against a
+// zero or negative integer constant, the shape of a hand-written non-negative
+// check (v < 0, v <= -1, 0 > v). A comparison on an unrelated value, such as
+// len(x) > 0, is not a sign check on the read value and is not flagged.
+func signCheckOn(expr *ast.BinaryExpr, readNames map[string]bool) bool {
+	if !isSignComparison(expr) {
+		return false
+	}
+	return referencesAny(expr.X, readNames) || referencesAny(expr.Y, readNames)
+}
+
 // isSignComparison reports whether expr compares something against a zero or
-// negative integer constant, the shape of a hand-written non-negative check
-// (v < 0, v <= -1, 0 > v, ...). It inspects the AST, so an equivalent spelling
-// of the same check is caught too.
+// negative integer constant.
 func isSignComparison(expr *ast.BinaryExpr) bool {
 	switch expr.Op {
 	case token.LSS, token.LEQ, token.GTR, token.GEQ:
@@ -547,7 +639,8 @@ func isSignComparison(expr *ast.BinaryExpr) bool {
 	return false
 }
 
-// constantInt returns the value of an integer literal, including a negated one.
+// constantInt returns the value of an integer literal, including a negated,
+// parenthesized, or explicitly positive one.
 func constantInt(expr ast.Expr) (int64, bool) {
 	switch v := expr.(type) {
 	case *ast.BasicLit:
@@ -559,15 +652,53 @@ func constantInt(expr ast.Expr) (int64, bool) {
 			return 0, false
 		}
 		return value, true
+	case *ast.ParenExpr:
+		return constantInt(v.X)
 	case *ast.UnaryExpr:
-		if v.Op != token.SUB {
-			return 0, false
+		switch v.Op {
+		case token.SUB:
+			value, ok := constantInt(v.X)
+			if !ok {
+				return 0, false
+			}
+			return -value, true
+		case token.ADD:
+			return constantInt(v.X)
 		}
-		value, ok := constantInt(v.X)
-		if !ok {
-			return 0, false
-		}
-		return -value, true
 	}
 	return 0, false
+}
+
+// TestSignCheckOn pins the guard's detection logic: a sign check on the read
+// value is flagged, an unrelated comparison is not.
+func TestSignCheckOn(t *testing.T) {
+	readNames := map[string]bool{"startMs": true}
+	cases := map[string]struct {
+		expr string
+		want bool
+	}{
+		"less than zero":          {"startMs < 0", true},
+		"less or equal minus one": {"startMs <= -1", true},
+		"zero greater than value": {"0 > startMs", true},
+		"parenthesized zero":      {"startMs < (0)", true},
+		"unary plus zero":         {"startMs < +0", true},
+		"unrelated length":        {"len(segs) > 0", false},
+		"unrelated variable":      {"count > 0", false},
+		"equality is not a sign":  {"startMs == 0", false},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			expr, err := parser.ParseExpr(tc.expr)
+			if err != nil {
+				t.Fatalf("ParseExpr(%q): %v", tc.expr, err)
+			}
+			comparison, ok := expr.(*ast.BinaryExpr)
+			if !ok {
+				t.Fatalf("%q is not a comparison", tc.expr)
+			}
+			if got := signCheckOn(comparison, readNames); got != tc.want {
+				t.Errorf("signCheckOn(%q) = %v, want %v", tc.expr, got, tc.want)
+			}
+		})
+	}
 }
