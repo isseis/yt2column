@@ -134,13 +134,14 @@ function logBlocked(log: Logger, prepared: BlockedPrepare): void {
  */
 function logSend(
   log: Logger,
+  now: () => number,
   startedAt: number,
   port: string,
   result: SendResult,
 ): void {
   const data = {
     at: new Date(startedAt).toISOString(),
-    durationMs: Date.now() - startedAt,
+    durationMs: now() - startedAt,
     port,
     result,
   };
@@ -163,7 +164,6 @@ export async function runMenuLaunch(
   deps: MenuLaunchDeps,
 ): Promise<void> {
   await attempt(deps.clearDisplayFailure, deps.log, clearBadgeLabel);
-  const startedAt = deps.now();
   const outcome = await collect(launchContextFromTab(tab), deps.reader);
   deps.log.info(menuLogLabel, {
     pageUrl: info.pageUrl,
@@ -207,8 +207,9 @@ export async function runMenuLaunch(
   if (!(await openResultWindow(key, deps))) {
     return;
   }
+  const startedAt = deps.now();
   const result = await sendArticle(prepared.request, deps.send);
-  logSend(deps.log, startedAt, prepared.request.port, result);
+  logSend(deps.log, deps.now, startedAt, prepared.request.port, result);
   try {
     await deps.store.put(key, {
       kind: "sent",
@@ -299,7 +300,7 @@ export async function runPopupSend(
       status.replaceChildren(...messageNodes(doc, sendingMessage));
       const startedAt = deps.now();
       const result = await sendArticle(prepared.request, deps.send);
-      logSend(deps.log, startedAt, prepared.request.port, result);
+      logSend(deps.log, deps.now, startedAt, prepared.request.port, result);
       state = "sent";
       renderSendOutcome(status, toSendOutcome(result));
     })();
@@ -322,6 +323,9 @@ export async function runResultWindow(
   let state: "waiting" | "sending" | "final" = "waiting";
   let stopWatch: () => void = () => {};
   let cancelWait: () => void = () => {};
+
+  /** Whether the window has already reached Final. */
+  const reachedFinal = (): boolean => state === "final";
 
   /** Moves to Final: stops following, renders once, then removes the key. */
   const finish = (render: () => void): void => {
@@ -399,7 +403,10 @@ export async function runResultWindow(
   try {
     stored = await deps.store.get(key);
   } catch (error) {
-    showUnreadable(error);
+    // A final view may have arrived while get was pending; Final ignores it.
+    if (!reachedFinal()) {
+      showUnreadable(error);
+    }
     return;
   }
   if (stored !== undefined) {

@@ -363,6 +363,46 @@ describe("launch paths", () => {
     });
   });
 
+  it("sends the same body and classification through both paths", async () => {
+    const selection = " 00:00\ncaption line\n\n";
+    const title = "  A title  ";
+    const reader = readerReturning(page(selection));
+    const tab = fakeTab({ id: 7, url: watchUrl, title });
+
+    const menuFetch = acceptedFetch();
+    const menu = menuHarness({ reader, send: testSendDeps(menuFetch.fetchFn) });
+    await runMenuLaunch(menuInfo(), tab, menu.deps);
+    const menuBody = menuFetch.calls[0]?.init.body;
+    assert.equal(typeof menuBody, "string");
+    assert.deepEqual(JSON.parse(menuBody as string), {
+      videoUrl: watchUrl,
+      transcript: selection,
+    });
+
+    const popupFetch = acceptedFetch();
+    const outcome = await runPopupLaunch(
+      container(),
+      popupHarness({ reader, activeTab: async () => tab }).deps,
+    );
+    const popupRoot = container();
+    await runPopupSend(popupRoot, outcome, {
+      settings: readySettings().reader,
+      send: testSendDeps(popupFetch.fetchFn),
+      now: () => 1000,
+      log: recordingLogger().log,
+    });
+    await clickSend(popupRoot);
+
+    assert.equal(popupFetch.calls[0]?.init.body, menuBody);
+    const menuSent = menu.store.puts[1]?.view;
+    assert.ok(menuSent?.kind === "sent");
+    assert.deepEqual(menuSent.outcome, acceptedOutcome);
+    assert.equal(
+      popupRoot.querySelector(".send-request-id")?.textContent,
+      requestId,
+    );
+  });
+
   it("does not read settings or send for a rejected collection", async () => {
     const settings = failingSettings(new Error("must not load"));
     const menu = menuHarness({
@@ -661,8 +701,9 @@ describe("popup send", () => {
     expectMessage(root, blockMessage("token-missing"));
   });
 
-  it("renders nothing for a rejected collection", async () => {
-    const { deps: popupDeps } = deps();
+  it("renders nothing and does not read settings for a rejected collection", async () => {
+    const settings = failingSettings(new Error("must not load"));
+    const { deps: popupDeps } = deps({ settings: settings.reader });
     const root = container();
     root.append(root.ownerDocument.createElement("p"));
     await runPopupSend(
@@ -671,13 +712,24 @@ describe("popup send", () => {
       popupDeps,
     );
     assert.equal(root.childNodes.length, 0);
+    assert.equal(settings.loadCalls(), 0);
   });
 
-  it("blocks settings-unreadable and port-invalid without sending", async () => {
-    for (const settings of [
-      failingSettings(new Error("storage failed")).reader,
-      fixedSettings({ token: identifiableToken, port: "80" }).reader,
-    ]) {
+  const popupBlocks: {
+    reason: "settings-unreadable" | "port-invalid";
+    settings: SettingsReader;
+  }[] = [
+    {
+      reason: "settings-unreadable",
+      settings: failingSettings(new Error("storage failed")).reader,
+    },
+    {
+      reason: "port-invalid",
+      settings: fixedSettings({ token: identifiableToken, port: "80" }).reader,
+    },
+  ];
+  for (const { reason, settings } of popupBlocks) {
+    it(`shows the ${reason} reason and no button without sending`, async () => {
       const fetch = acceptedFetch();
       const { deps: popupDeps } = deps({
         settings,
@@ -686,9 +738,10 @@ describe("popup send", () => {
       const root = container();
       await runPopupSend(root, collected(), popupDeps);
       assert.equal(root.querySelector(".send-button"), null);
+      expectMessage(root, blockMessage(reason));
       assert.equal(fetch.calls.length, 0);
-    }
-  });
+    });
+  }
 });
 
 describe("result window", () => {
@@ -754,6 +807,30 @@ describe("result window", () => {
       root.querySelector(".send-request-id")?.textContent,
       requestId,
     );
+  });
+
+  it("ignores a get rejection that arrives after the final view", async () => {
+    const store = fakeStore();
+    let rejectGet: ((reason: unknown) => void) | undefined;
+    const deferred: ResultWindowDeps["store"] = {
+      ...store.store,
+      get: () =>
+        new Promise((_resolve, reject) => {
+          rejectGet = reject;
+        }),
+    };
+    const { deps, recorder, schedule } = resultDeps(store);
+    const root = container();
+    const run = runResultWindow(root, "#key-1", { ...deps, store: deferred });
+    store.fire("key-1", sentView(acceptedOutcome));
+    rejectGet?.(new Error("get failed"));
+    await run;
+    assert.equal(
+      root.querySelector(".send-request-id")?.textContent,
+      requestId,
+    );
+    assert.equal(recorder.errors.length, 0);
+    assert.equal(schedule.pending(), false);
   });
 
   it("shows a blocked view and removes the key", async () => {
@@ -866,6 +943,7 @@ describe("token never leaks", () => {
       menuInfos: menu.recorder.infos,
       menuErrors: menu.recorder.errors,
       popupInfos: popup.recorder.infos,
+      popupErrors: popup.recorder.errors,
       storePuts: menu.store.puts,
       text: root.textContent,
     });
