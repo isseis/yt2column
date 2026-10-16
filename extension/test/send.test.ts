@@ -7,13 +7,14 @@ import type { PreparedRequest } from "../src/core/prepare.ts";
 import { maxResponseBytes } from "../src/core/response.ts";
 import type { RequestId } from "../src/core/response.ts";
 import type { ServerPort, SharedToken } from "../src/core/settings.ts";
-import { sendArticle } from "../src/send.ts";
+import { sendArticle, sendTimeoutMs } from "../src/send.ts";
 import {
   endlessStream,
   failingStream,
   recordingFetch,
   redirectResponse,
   rejectingFetch,
+  streamOf,
   testSendDeps,
   textResponse,
 } from "./helpers/fetch.ts";
@@ -42,7 +43,15 @@ describe("sendArticle", () => {
     const { fetchFn, calls } = recordingFetch(async () =>
       textResponse(202, accepted),
     );
-    const result = await sendArticle(request, testSendDeps(fetchFn));
+    const timeouts: number[] = [];
+    const deps = {
+      fetch: fetchFn,
+      timeoutSignal: (ms: number) => {
+        timeouts.push(ms);
+        return new AbortController().signal;
+      },
+    };
+    const result = await sendArticle(request, deps);
 
     assert.deepEqual(result, { kind: "accepted", requestId });
     assert.equal(calls.length, 1);
@@ -59,6 +68,21 @@ describe("sendArticle", () => {
     assert.equal(call.init.credentials, "omit");
     assert.equal(call.init.cache, "no-store");
     assert.ok(call.init.signal instanceof AbortSignal);
+    assert.deepEqual(timeouts, [sendTimeoutMs]);
+  });
+
+  it("classifies a body delivered in several chunks", async () => {
+    const bytes = new TextEncoder().encode(accepted);
+    const body = streamOf([bytes.slice(0, 10), bytes.slice(10)]);
+    const { fetchFn } = recordingFetch(async () => ({
+      type: "basic",
+      status: 202,
+      body,
+    }));
+    assert.deepEqual(await sendArticle(request, testSendDeps(fetchFn)), {
+      kind: "accepted",
+      requestId,
+    });
   });
 
   const rejections: { name: string; cause: unknown }[] = [

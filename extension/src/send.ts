@@ -60,6 +60,7 @@ async function readBody(
   const reader = body.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
+  let overLimit = false;
   try {
     for (;;) {
       const { done, value } = await reader.read();
@@ -68,13 +69,23 @@ async function readBody(
       }
       total += value.byteLength;
       if (total > maxResponseBytes) {
-        await reader.cancel();
-        return { kind: "over-limit" };
+        overLimit = true;
+        break;
       }
       chunks.push(value);
     }
   } catch (cause) {
     return { kind: "failed", cause };
+  }
+  if (overLimit) {
+    // Cancelling is best effort: an over-limit body is over-limit even if the
+    // source's cancel rejects, and must not be reclassified as unknown.
+    try {
+      await reader.cancel();
+    } catch {
+      // ignore
+    }
+    return { kind: "over-limit" };
   }
   return { kind: "body", bytes: concat(chunks, total) };
 }
