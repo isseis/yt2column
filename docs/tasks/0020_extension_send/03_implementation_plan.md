@@ -6,8 +6,8 @@
 |---|---|
 | Status | `approved` |
 | Created | 2026-10-16 |
-| Review date | isseis |
-| Reviewer | - |
+| Review date | 2026-10-16 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 実装の概要 (Implementation Overview)
