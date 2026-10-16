@@ -185,8 +185,8 @@ HEAD `f40a831` で確認した。設計書は既存のファイルの行番号�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 -   [ ] **ステップ 2-3**: `test_helpers.go` に、標準出力への書き出しに失敗する `io.Writer` を渡して起動できる補助を加える（`startServer` の再試行・後始末の処理を共有し、標準出力のバッファを受け取れる形にする。設計書 7）。`requireNoSecret`・`writeTokenFile` を再利用し、書き込みに失敗する `io.Writer`（`failingWriter`。ステップ 1-5 で外したものをここで加え直す）を使う。新しい依存を足さない。
     -   **対象:** `cmd/yt2column-server/test_helpers.go`。**完了:** `make fmt` と `go vet -tags test ./cmd/yt2column-server` が通る。
