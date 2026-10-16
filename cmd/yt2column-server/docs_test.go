@@ -75,8 +75,12 @@ func TestServerDocsContract(t *testing.T) {
 		if !hasLineContainingAll(section, "To see the token again", "restart the server") {
 			t.Error("README.md server section does not say to restart the server to see the token again")
 		}
-		if !hasLineContainingAll(section, "cat", "server-token") {
-			t.Error("README.md server section gives no command to read the token file")
+		// Pin the fallback commands themselves: the curl recipe below also
+		// names the token file with cat, so a bare cat/server-token check
+		// would pass without them.
+		if !hasLineContainingAll(section, "macOS:", "cat", "server-token") ||
+			!hasLineContainingAll(section, "other Unix:", "cat", "server-token") {
+			t.Error("README.md server section gives no per-OS command to read the token file")
 		}
 		// A curl example must carry the endpoint, the four headers (with the
 		// token fed through standard input, not as an argument), and the
@@ -172,6 +176,7 @@ func TestServerDocsContract(t *testing.T) {
 		for _, want := range []string{
 			"起動のたび",
 			"起動時に表示されたトークン",
+			"標準エラー出力に分ける",
 			"トークンはログに残らない",
 			"表示に失敗しても起動を止めない",
 			"スクロールバック",
