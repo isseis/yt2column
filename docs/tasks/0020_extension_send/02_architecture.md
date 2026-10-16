@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-16 |
-| Review date | - |
-| Reviewer | - |
-| Comments | - |
+| Review date | 2026-10-16 |
+| Reviewer | isseis |
+| Comments | レビュー指摘により §1.3「既存のコードとの関係」の変更範囲の一覧へ `cmd/yt2column/extension_docs_test.go` を加えた。同一節が本文で既に Go の文書ガードのテストを加えると述べており、その一覧だけが抜けていた内部の不整合を正したもので、判断は変わっていない（編集上の訂正） |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `c4b656e` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指す。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-07）への対応は 3.13 にまとめる。
 
@@ -101,7 +101,7 @@ flowchart LR
 
 ### 1.3. 既存のコードとの関係
 
-本タスクは Go のソースとテストを変更しない。サーバ側と API は API の設計書 §3.4 のまま使う（要件書 5.）。変更は拡張のディレクトリ、CI の変更検出のスクリプト、文書（README・security.md・CLAUDE.md）に限る。
+本タスクは Go のソースを変更しない。Go のテストは、文書のガード（`cmd/yt2column/extension_docs_test.go`。3.12）だけを加える。サーバ側と API は API の設計書 §3.4 のまま使う（要件書 5.）。変更は拡張のディレクトリ、`cmd/yt2column/extension_docs_test.go`、CI の変更検出のスクリプト、文書（README・security.md・CLAUDE.md）に限る。
 
 拡張の中で既存のものを変える箇所は次のとおりである。0007 の設計書が定めた方針に対する例外を含むので、方針・例外の理由・更新が必要なテストを 3.11 にまとめる。
 
@@ -1125,6 +1125,7 @@ export function runOptionsPage(container: HTMLElement, deps: OptionsPageDeps): P
 | `test/checkDist.test.ts`（変更） | `options_ui.page` の参照 | - |
 | `test/ciChanges.test.ts`（変更） | `README.md`・`docs/dev/security.md`・`internal/server/response.go` の変更で拡張のジョブが起動すること | - |
 | `test/secretsAbsent.test.ts`（新規） | `src/`・`static/` のファイルに、API キーと Webhook URL を扱う設定・入力欄・保存先を示す語（`webhook`・`api key`・`apikey`・`api_key`、秘密の環境変数の名前 `DEEPSEEK_API_KEY`・`ANTHROPIC_API_KEY`・`SLACK_WEBHOOK_URL`。大文字と小文字を区別しない）が現れないこと。`port-invalid` の文言が示す `YT2COLUMN_SERVER_PORT` は秘密ではないので対象にしない | AC-33 |
+| `cmd/yt2column/extension_docs_test.go`（Go。変更） | README・security.md が F-008 の内容を記し、#111 で決めるとした古い記述を残していないこと。本タスクの実装計画 §5.1 の手動の確認の表のすべての欄が埋まっていること（0007 の記録の検査と同じ形）。node を使わないので、文書だけの変更でも CI の `doc-guard` のジョブで実行される（タスク 0012 の方針） | AC-30 |
 
 -   **サーバの拒否の理由の表との同期（AC-24）:** `serverRejectStatus` はサーバの `rejectReason`（`internal/server/response.go`）と同じ組を持つ必要がある。拡張のテストは Go のコードを読めない。そこで、README の拒否の理由の表を介して同期を確かめる。README の表は、Go のテスト（`cmd/yt2column-server/docs_test.go:88-114`）がサーバの組とちょうど一致することを確かめている。拡張のテスト（`serverReasons.test.ts`）が `serverRejectStatus` と README の表の一致を確かめる。サーバの組を変える PR は、Go のテストを通すために README も改める。CI は `internal/server/response.go` と `README.md` の変更で拡張のジョブを起動する（3.11）ので、その PR で拡張のテストが食い違いを検出する。拡張のテストがリポジトリのファイルを読む形は、0007 の `repository.test.ts`（Makefile・CI の設定を読む）と同じである。
 -   AC-32 の「識別できるトークンの値」は、テストごとに固定の 64 文字の値を使い、fake のロガーが受け取った値・fake の保存先に書かれた値・描画した DOM の `textContent` を、`JSON.stringify` などで文字列にしてから、その値を含まないことを確かめる。
@@ -1173,10 +1174,11 @@ export function runOptionsPage(container: HTMLElement, deps: OptionsPageDeps): P
 | `extension/scripts/has-extension-changes.sh` | 変更 | `README.md`・`docs/dev/security.md`・`internal/server/response.go` を、拡張のジョブを起動する条件に加え、冒頭のコメントを改める（3.11） |
 | `extension/test/*.test.ts` | 新規・変更 | 3.12 |
 | `CLAUDE.md` | 変更 | 「Development Notes」の、文書だけの変更は `make ext-test` を要しないという記述に、README.md と security.md の変更は拡張のテスト（`serverReasons.test.ts`・`manifest.test.ts`）が読むので `make ext-test` を要することを加える（3.11） |
+| `cmd/yt2column/extension_docs_test.go` | 変更 | AC-30 の文書の記述と、実装計画 §5.1 の記録の検査を加える（3.12）。既存の検査は変えない |
 | `README.md` | 変更 | F-008: 「Browser extension」の節を、送信する現在の振る舞いに改める（「never sends anything」を削る）。オプションページを開いて共有トークン（とポートを変えた場合はポート）を設定する手順、2 つの起動の手段からの送信、「結果が分からない」の表示のときは送り直す前に Slack を確かめること、`requestId` でサーバのログと Slack の通知を照合できること、`requestId` のない失敗は時刻で照合すること、送信中にポップアップと結果のウィンドウを閉じないこと、拡張の「サイトへのアクセス」で `127.0.0.1` を許可しないと「結果が分からない」になること。「The shared token」の節の「once it sends requests (#111)」の記述を改める |
 | `docs/dev/security.md` | 変更 | F-008: §8 の冒頭の、拡張が「収集した字幕・URL・タイトル」を送るという記述（`docs/dev/security.md:89`）を、字幕と URL を送り、タブのタイトルを送らないことに改める。§8 の「トークンの受け渡しと保存先は #109・#111 で決める」を決まった内容（オプションページに貼り付け、`chrome.storage.local`）に改める。§8.1 に、送信すること、`host_permissions` の `http://127.0.0.1/*` とその理由と及ぶ範囲（「**要求する権限**」の一覧の外の別の項目として。3.11・5.4）、`storage` の権限の用途に `chrome.storage.local` を加えること、トークンの保存先の理由と残余のリスク（5.4）、トークンをログ・表示・本文に出さないこと、API キーと Webhook URL を持たないこと、応答を受け取れない場合に自動で再送しないこと、応答を受理する形で検査し本文の文字列を表示しないことを加える。§8.2 の「確定は #111」を改める（`chrome.storage.local` の語は残す）。見出しは変えない |
 
-0007 と 0011 の文書のうち、#111 で決めるとした記述は、それぞれのタスクの記録として残し、変更しない（要件書 F-008）。Go のソースとテストは変更しない。
+0007 と 0011 の文書のうち、#111 で決めるとした記述は、それぞれのタスクの記録として残し、変更しない（要件書 F-008）。Go のソースは変更しない。Go のテストは `extension_docs_test.go` の文書のガードだけを加える。
 
 ## 4. エラーハンドリング設計 (Error Handling Design)
 
@@ -1391,6 +1393,7 @@ flowchart TD
 -   AC-32: `launch.test.ts`・`optionsPage.test.ts`・`resultView.test.ts` の、識別できるトークンの値の検索。
 -   AC-31: `manifest.test.ts`。
 -   AC-33: `secretsAbsent.test.ts`（静的な確認）。
+-   AC-30: `cmd/yt2column/extension_docs_test.go`（静的な確認）。
 
 ### 7.4. 受け入れ基準と設計の対応
 
@@ -1421,7 +1424,7 @@ flowchart TD
 | AC-27 | 3.5 | 手動（7.2） |
 | AC-28 | 3.6・3.9 | `response.test.ts`・`renderSend.test.ts` |
 | AC-29 | 3.6・3.9 | `renderSend.test.ts` |
-| AC-30 | 3.14 | 文書（静的な確認） |
+| AC-30 | 3.12・3.14 | `cmd/yt2column/extension_docs_test.go`（静的な確認） |
 | AC-31 | 3.1 | `manifest.test.ts` |
 | AC-32 | 3.4・3.8・3.10 | `launch.test.ts`・`optionsPage.test.ts`・`resultView.test.ts` |
 | AC-33 | 3.12 | `secretsAbsent.test.ts`（静的な確認） |
