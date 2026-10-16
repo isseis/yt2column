@@ -23,7 +23,7 @@
 
 本計画で使う略号は次のとおりである。AC-NN は要件書の受け入れ基準、F-NNN は要件書の機能要件、H-NN は [design_handoff.md](design_handoff.md) の項目を指す。「§N」は本計画の節、「設計書 N」は設計書の節を指す。
 
-本計画は、設計書 8 章の実装優先順位 1〜3 の順序に従い、フェーズ 1〜3 とする。ただし、表示の条件を変えると同じコミットで失敗する既存のテスト（設計書 8 章の優先順位 2 が挙げる `TestTokenShownOnlyWhenCreated` と `TestStartupFailures` の表示失敗の行の更新）は、グリーンゲート（`make test && make lint` が通る状態。§3.2）を保つためフェーズ 1 に含める。
+本計画は、設計書 8 章の実装優先順位 1〜3 の順序に従い、フェーズ 1〜3 とする。ただし、表示の条件を変えると同じコミットで失敗する既存のテスト（設計書 8 章の優先順位 2 が挙げる `TestTokenShownOnlyWhenCreated` と `TestStartupFailures` の表示失敗の行の更新）は、グリーンゲート（`make test && make lint` が通る状態。§3.3）を保つためフェーズ 1 に含める。
 
 ### 1.2. 実装原則
 
@@ -60,7 +60,7 @@ HEAD `f40a831` で確認した。設計書は既存のファイルの行番号�
 -   `TestTokenShownOnlyWhenCreated`（`run_test.go:257-286`）は、2 回目の起動が標準出力へ何も書かないことを確かめる。`TestTokenShownOnEveryStart` に改称し、2 回目も標準出力に値の 1 行を書くこと、ファイルが変わらないこと、標準エラー出力の案内に「値が再び表示されない」とする記述が現れないことを確かめる形にする（設計書 7。AC-01〜AC-03）。
 -   `TestOutputsOmitSecrets`（`run_test.go:302-338`）と `requireNoSecret`（`cmd/yt2column-server/test_helpers.go:669-678`）は、トークンが出力に現れないことの検査に使う（AC-06）。変更しない。
 -   `TestServerEndToEnd`（`cmd/yt2column-server/server_test.go:27-87`）は、2 回目の起動が 1 回目のトークンで認証を受けることは確かめるが、標準出力に表示された 1 行を値として使ってはいない。表示された 1 行だけを取り出して `Authorization: Bearer` に使う検査を加える（AC-07。設計書 7）。`:26` のコメント「That only the first start shows the token is TestTokenShownOnlyWhenCreated's.」を改める（設計書 1.4）。
--   `failingWriter`（`run_test.go:238-241`）・`writeTokenFile`（`run_test.go:244-255`）・`startServer`（`test_helpers.go:238-263`）・`startServerChild`（`test_helpers.go:571-605`）・`requireNoSecret` は既存の補助で、本計画の新しいテストで再利用する。補助の追加・拡張は、§1.3「テストの補助で直す点」の同期するバッファと、ステップ 2-1・2-2 の `startServer`・`startServerChild` の拡張に限り、それ以外の補助は作らない。
+-   `failingWriter`（`run_test.go:238-241`）・`writeTokenFile`（`run_test.go:244-255`）・`startServer`（`test_helpers.go:238-263`）・`startServerChild`（`test_helpers.go:571-605`）・`requireNoSecret` は既存の補助で、本計画の新しいテストで再利用する。補助の追加・拡張は、§1.3「テストの補助で直す点」の同期するバッファと、ステップ 2-1・2-3 の `startServerChild`・`startServer` の拡張に限り、それ以外の補助は作らない。
 -   `internal/authtoken/authtoken_test.go` は、`created` を受け取って確かめる箇所（`TestLoadOrCreateCreates` `:25-31`、`TestLoadOrCreateReadsAgain` `:74-93`、`TestLoadOrCreateRejectsInvalidFile` `:220-223`、`TestCreateDoesNotOverwriteExisting` `:278-284`、`TestLoadOrCreateRandomError` `:305-311`）と、`_` で捨てる箇所（`:254`・`:321`・`:380`）を新しい署名に合わせる。`created` の検査は外し、残りの検査（ファイルの作成と権限、2 回目に同じ値を読むこと、不正なファイルの拒否、既存のファイルを上書きしないこと、乱数の失敗）はそのまま残す（設計書 3.2・7）。生成したか読んだかは、ファイルの有無と値の一致で確かめられるので、`created` の検査を外しても確かめる振る舞いは減らない。
 
 **テストの補助で直す点**
@@ -80,20 +80,20 @@ HEAD `f40a831` で確認した。設計書は既存のファイルの行番号�
 
 | 種類 | 旧 | 新 | 場所 | ステップ |
 |---|---|---|---|---|
-| テスト関数 | `TestTokenShownOnlyWhenCreated` | `TestTokenShownOnEveryStart` | `cmd/yt2column-server/run_test.go` | 1-6 |
-| テスト関数（追加） | - | `TestDisplayFailureKeepsServing` | `cmd/yt2column-server/run_test.go` | 2-3 |
-| テスト関数（追加） | - | `TestClosedStdoutPipeKeepsServing` | `cmd/yt2column-server/run_test.go` | 2-4 |
+| テスト関数 | `TestTokenShownOnlyWhenCreated` | `TestTokenShownOnEveryStart` | `cmd/yt2column-server/run_test.go` | 1-5 |
+| テスト関数（追加） | - | `TestDisplayFailureKeepsServing` | `cmd/yt2column-server/run_test.go` | 2-4 |
+| テスト関数（追加） | - | `TestClosedStdoutPipeKeepsServing` | `cmd/yt2column-server/run_test.go` | 2-2 |
 | 関数の署名 | `LoadOrCreate(path string, random io.Reader) (Token, bool, error)` | `LoadOrCreate(path string, random io.Reader) (Token, error)` | `internal/authtoken/authtoken.go` | 1-1 |
 | 関数の署名 | `create(path string, random io.Reader) (Token, bool, error)` | `create(path string, random io.Reader) (Token, error)` | `internal/authtoken/authtoken.go` | 1-1 |
-| 表の行 | `TestStartupFailures` の「token not written to stdout」 | 削除（表示の失敗は起動を止めない） | 同上 | 1-6 |
-| 表のフィールド | `TestStartupFailures.stdoutFails` | 削除（表示の失敗で終了しなくなる） | 同上 | 1-6 |
+| 表の行 | `TestStartupFailures` の「token not written to stdout」 | 削除（表示の失敗は起動を止めない） | 同上 | 1-5 |
+| 表のフィールド | `TestStartupFailures.stdoutFails` | 削除（表示の失敗で終了しなくなる） | 同上 | 1-5 |
 | 文書の語句 | 「他方が先に作ったファイルを読んで `created=false` を返し、上書きしない」 | 「他方が先に作ったファイルを読んでその値を返し、上書きしない」 | `docs/dev/security.md:116` | 3-2 |
 | 文書の語句 | 「生成時に表示されたトークン」 | 「起動時に表示されたトークン」 | `docs/dev/security.md:120` | 3-2 |
 | 文書の語句 | 「a created token is written to standard output once, before listening, and nowhere else」・「Standard error carries every line except the created token」 | 「the shared token is written to standard output on every start, before listening, and nowhere else」・「Standard error carries every line except the shared token」 | `docs/dev/developer_guide/package_reference.md:16` | 3-3 |
 
 **改名の残余参照の確認（横断検索）**
 
--   `TestTokenShownOnlyWhenCreated` の出現は、`cmd/yt2column-server/run_test.go:257`・`:261`、`cmd/yt2column-server/server_test.go:26` である（`rg -n "TestTokenShownOnlyWhenCreated"` の結果。2026-10-16、HEAD `f40a831`）。run_test.go はステップ 1-6 で改め、server_test.go:26 は同じステップで改める。
+-   `TestTokenShownOnlyWhenCreated` の出現は、`cmd/yt2column-server/run_test.go:257`・`:261`、`cmd/yt2column-server/server_test.go:26` である（`rg -n "TestTokenShownOnlyWhenCreated"` の結果。2026-10-16、HEAD `f40a831`）。run_test.go はステップ 1-5 で改め、server_test.go:26 は同じステップで改める。
 -   `LoadOrCreate` の呼び出しは、`cmd/yt2column-server/run.go:161`、`internal/server/test_helpers.go:164`（`newTestToken`）、`internal/authtoken/authtoken_test.go` の各テストである。`create` の直接の呼び出しは `authtoken.go:107` と `authtoken_test.go:278` である（`rg -n "LoadOrCreate\(|[^a-zA-Z.]create\(" --type go` の結果。2026-10-16、HEAD `f40a831`）。いずれもステップ 1-1 で改める。`newTestToken`（`internal/server/test_helpers.go:157-171`）は `created` が偽であること（ファイルから読んだこと）を確かめている。新しい署名では、代わりに返った `Token` が `Matches(testTokenValue)` であることを確かめる（ファイルの値を読んだことを、より直接に確かめる）。文書のうち生きている文書で `created` に触れるのは `docs/dev/security.md:116` だけで、ステップ 3-2 で改める。
 -   `docs/tasks/0011_localhost_server/03_implementation_plan.md:294` も旧名を挙げるが、`0011`（localhost サーバ本体を作ったタスク）の文書は当時の記録として残し、変更しない（要件書 §1・F-002）。設計書 1.4 も `0011` の文書を変更しないとしている。
 
@@ -120,22 +120,40 @@ HEAD `f40a831` で確認した。設計書は既存のファイルの行番号�
 
 **タスク**
 -   [ ] **ステップ 1-1**: `internal/authtoken` の `LoadOrCreate` と `create` の戻り値から `created` を外し、`(Token, error)` にする（§1.3 の名前の台帳。設計書 3.2）。両者の doc コメントから `created` の記述を外す。続けて `run.go` の手順 2 の表示を、`created` で分岐せず起動のたびに行う（`token, err := authtoken.LoadOrCreate(...)`。設計書 3.1）。表示の内容（値 + 改行）と表示先（標準出力）は変えない。同じステップで、新しい署名に合わせて `internal/authtoken/authtoken_test.go` から `created` の検査を外し（§1.3）、`internal/server/test_helpers.go` の `newTestToken` の `created` の検査を `token.Matches(testTokenValue)` の検査に置き換える（§1.3）。
-    -   **対象:** `internal/authtoken/authtoken.go`・`authtoken_test.go`、`internal/server/test_helpers.go`、`cmd/yt2column-server/run.go`。**完了:** `make fmt` と `go build ./...` が通り、`go test -tags test ./internal/authtoken ./internal/server` が通る。`TestTokenShownOnlyWhenCreated` は、このステップの後は失敗する。`TestStartupFailures` の表示失敗の行は、ステップ 1-2 の後に失敗する（いずれもステップ 1-6 で改める。§1.2・§3.2）。
+    -   **対象:** `internal/authtoken/authtoken.go`・`authtoken_test.go`、`internal/server/test_helpers.go`、`cmd/yt2column-server/run.go`。**完了:** `make fmt` と `go build ./...` が通り、`go test -tags test ./internal/authtoken ./internal/server` が通る。`TestTokenShownOnlyWhenCreated` は、このステップの後は失敗する。`TestStartupFailures` の表示失敗の行は、ステップ 1-2 の後に失敗する（いずれもステップ 1-5 で改める。§1.2・§3.3）。
 -   [ ] **ステップ 1-2**: 表示の失敗を best-effort にする。標準出力への書き出しに失敗したら（閉じたパイプへの書き込みを含む）、値を含まない 1 行を `redact.Line` を通して標準エラー出力に書き、起動を続ける（`exitUsage` で終えない）。値の取り出し（`token.Value().Reveal()`）の失敗は `exitUsage` のまま残す（設計書 3.1・4）。値の取り出しの失敗の 1 行（`run.go:175`）と書き出しの失敗の 1 行（`run.go:179`）の「created」を前提にした文言を、起動のたびに表示する振る舞いに合わせて改める（§1.3）。
     -   **対象:** `cmd/yt2column-server/run.go`。**完了:** `make fmt` が通る。
 -   [ ] **ステップ 1-3**: 案内（標準エラー出力に書く 1 行）を、起動の種類で分けず常に同じ文言にする。値を含めず、「標準出力に表示したこと」「貼り付け」「起動のたびに表示すること」「ファイルのパス」を述べ、「値が再び表示されない」とする記述を含めない（設計書 3.1・3.4）。`run` の doc コメントと手順 2 のコメントを、起動のたびに表示する形に改める（設計書 3.1）。
     -   **対象:** `cmd/yt2column-server/run.go`。**完了:** `make fmt` が通り、表示の 1 行のあとに値を含まない案内が出ることを目視で確かめる。
--   [ ] **ステップ 1-4**: `main.go` で、`run` を呼ぶ前に `signal.Ignore(syscall.SIGPIPE)` を呼ぶ。SIGPIPE を無視すると、ファイル記述子 1・2 への閉じたパイプの書き込みはプロセスを終了させず、書き込みが `syscall.EPIPE` を返すので、ステップ 1-2 の失敗の扱いに届く（ランタイムの `sigpipe`（`$(go env GOROOT)/src/runtime/signal_unix.go:334-339`）は `signal_ignored(_SIGPIPE)` のとき終了しない。2026-10-16、Go 1.27.1 で確認）。`signal.Notify` で購読してチャネルを読まない形と比べ、読まれないチャネルを残さず 1 回の呼び出しで済む。無視は子プロセスに引き継がれるが、サーバは子プロセスを起動しないので影響しない。
-    -   **対象:** `cmd/yt2column-server/main.go`。**完了:** `make fmt` と `go build ./...` が通り、`TestClosedStdoutPipeKeepsServing`（ステップ 2-4）で確かめる。
--   [ ] **ステップ 1-5**: `internal/authtoken/authtoken.go` の `Token.Value` のコメント（`:132-134`）を、起動のたびの表示に合わせて改める。ステップ 1-1 の署名の変更のほかは、`LoadOrCreate` の振る舞いと実装を変えない（設計書 3.2）。
+-   [ ] **ステップ 1-4**: `internal/authtoken/authtoken.go` の `Token.Value` のコメント（`:132-134`）を、起動のたびの表示に合わせて改める。ステップ 1-1 の署名の変更のほかは、`LoadOrCreate` の振る舞いと実装を変えない（設計書 3.2）。
     -   **対象:** `internal/authtoken/authtoken.go`。**完了:** `make fmt` が通り、`internal/authtoken` のテストが通る。
--   [ ] **ステップ 1-6**: 振る舞いの変更で更新が要る既存のテストを改める（設計書 1.4・7）。
+-   [ ] **ステップ 1-5**: 振る舞いの変更で更新が要る既存のテストを改める（設計書 1.4・7）。
     -   `TestTokenShownOnlyWhenCreated` を `TestTokenShownOnEveryStart` に改称し、2 回目の起動も標準出力に値の 1 行を書き、ファイルが変わらないことを確かめる形にする（§1.3 の名前の台帳。AC-01〜AC-03）。加えて、2 回目の起動の標準エラー出力の案内が、値を再び表示しないとする記述（旧文言の「not shown again」など）を含まず、トークンのファイルのパスを含むことを確かめる（AC-02）。実装する文言に合わせて、この検査の禁止する語句を決める。
     -   `TestStartupFailures` から「token not written to stdout」の行と、`stdoutFails` のフィールド・分岐を外す（§1.3 の名前の台帳）。`tokenShown` の説明と「port in use」の行のコメント（`run_test.go:159-160`）を起動のたびの表示に合わせて改める。他の行は維持する（AC-04・AC-05・AC-06）。
     -   `server_test.go:26` のコメントを改める。
     -   `startServer` を、試行ごとに標準出力のバッファを新しくし、待ち受けた試行の標準出力だけを返す形に改める。標準出力を、書き込みと読み出しを同期するバッファにする（§1.3）。
     -   **対象:** `cmd/yt2column-server/run_test.go`・`server_test.go`・`test_helpers.go`。**完了:** `make test` が通る。
--   [ ] **ステップ 1-7**: 壊して失敗することを確かめ、コミットメッセージに記録する。2 回目の起動で表示を書かない形に壊す（例: 手順 2 の前にトークンのファイルがあったときは表示しない。`TestTokenShownOnEveryStart` の 2 回目の起動）。案内を「値が再び表示されない」とする旧文言に戻す（`TestTokenShownOnEveryStart` の案内の検査）。`newTestToken` の新しい検査は、`LoadOrCreate` に渡すファイルの値を `testTokenValue` と異なる値にして失敗することを確かめる。`internal/authtoken/authtoken_test.go` から `created` の検査を外したことについて、`go tool cover -func` の結果（`internal/authtoken`）が関数ごとに変わらないことを確かめ、コミットメッセージに記す（CLAUDE.md「Deleting a test is a claim that must be checked」）。続けて `make fmt` → `make test` → `make lint` を通す。**対象:** なし（確認のみ）。**完了:** 各対象を壊して失敗することを確認し、コミットメッセージに記録する。
+-   [ ] **ステップ 1-6**: 壊して失敗することを確かめ、コミットメッセージに記録する。2 回目の起動で表示を書かない形に壊す（例: 手順 2 の前にトークンのファイルがあったときは表示しない。`TestTokenShownOnEveryStart` の 2 回目の起動）。案内を「値が再び表示されない」とする旧文言に戻す（`TestTokenShownOnEveryStart` の案内の検査）。`newTestToken` の新しい検査は、`LoadOrCreate` に渡すファイルの値を `testTokenValue` と異なる値にして失敗することを確かめる。`internal/authtoken/authtoken_test.go` から `created` の検査を外したことについて、`go tool cover -func` の結果（`internal/authtoken`）が関数ごとに変わらないことを確かめ、コミットメッセージに記す（CLAUDE.md「Deleting a test is a claim that must be checked」）。続けて `make fmt` → `make test` → `make lint` を通す。**対象:** なし（確認のみ）。**完了:** 各対象を壊して失敗することを確認し、コミットメッセージに記録する。
+
+### PR-1 作成ポイント: every-start token display
+
+**対象ステップ**: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6
+
+**推奨タイトル**: `feat(0021): display the shared token on every server start`
+
+**レビュー観点**: 表示が `created` で分岐せず起動のたびに行われ、`LoadOrCreate`・`create` の戻り値から外した `created` を `run`・`internal/server` のテスト補助・`authtoken_test` のどこにも残さないこと / 表示に失敗しても終了せず、値を含まない 1 行を標準エラー出力に書いて起動を続けること（`exitUsage` で終えない）/ 既存のテストの更新が新しい振る舞いに追従し、`internal/authtoken` の `created` 以外の検査（生成の権限・2 回目の値の一致・不正なファイルの拒否・上書きしないこと）を変えないこと / 標準出力を書き込みと読み出しで同期するバッファにし、待ち受けの再試行でも標準出力が 1 行のままであること（標準出力を稼働中に読む AC-07 の検査はステップ 2-5、閉じたパイプの扱いは PR-2）
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: ステップ 1-5 が、`-race` のための書き込みと読み出しを同期する標準出力のバッファ（並行性）を導入する。テストの補助に限られる小さな変更だが、並行性に触れるステップを含むため `frontier-recommended` とする（`frontier-recommended` の「高リスク／複雑なステップ（並行性）」に該当）。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
+-   [ ] **ステップ 1-7**: `main.go` で、`run` を呼ぶ前に `signal.Ignore(syscall.SIGPIPE)` を呼ぶ。SIGPIPE を無視すると、ファイル記述子 1・2 への閉じたパイプの書き込みはプロセスを終了させず、書き込みが `syscall.EPIPE` を返すので、ステップ 1-2 の失敗の扱いに届く（ランタイムの `sigpipe`（`$(go env GOROOT)/src/runtime/signal_unix.go:334-339`）は `signal_ignored(_SIGPIPE)` のとき終了しない。2026-10-16、Go 1.27.1 で確認）。`signal.Notify` で購読してチャネルを読まない形と比べ、読まれないチャネルを残さず 1 回の呼び出しで済む。無視は子プロセスに引き継がれるが、サーバは子プロセスを起動しないので影響しない。
+    -   **対象:** `cmd/yt2column-server/main.go`。**完了:** `make fmt` と `go build ./...` が通り、`TestClosedStdoutPipeKeepsServing`（ステップ 2-2）で確かめる。
 
 **完了条件:** `make fmt` → `make test` → `make lint` が通り、`TestTokenShownOnEveryStart`・`TestStartupFailures` が通る。
 
@@ -144,22 +162,57 @@ HEAD `f40a831` で確認した。設計書は既存のファイルの行番号�
 **対象ファイル**
 -   変更: `cmd/yt2column-server/run_test.go`・`server_test.go`・`test_helpers.go`
 
-ステップ 2-3・2-4 は、フェーズ 1 と同じファイルを触るが、フェーズ 1 の完了後（`make test` が通った状態）に、新しい検査を加えるステップである。
+ステップ 2-2・2-4 は、フェーズ 1 と同じファイルを触るが、フェーズ 1 の完了後（`make test` が通った状態）に、新しい検査を加えるステップである。
 
 **タスク**
--   [ ] **ステップ 2-1**: `test_helpers.go` に、標準出力への書き出しに失敗する `io.Writer` を渡して起動できる補助を加える（`startServer` の再試行・後始末の処理を共有し、標準出力のバッファを受け取れる形にする。設計書 7）。`requireNoSecret`・`writeTokenFile`・`failingWriter` を再利用し、新しい依存を足さない。
-    -   **対象:** `cmd/yt2column-server/test_helpers.go`。**完了:** `make fmt` と `go vet -tags test ./cmd/yt2column-server` が通る。
--   [ ] **ステップ 2-2**: `test_helpers.go` に、子プロセスの標準出力として、読み手を閉じたパイプの書き込み側を渡して起動できる形を `startServerChild` に加える（設計書 7）。読み手は子の起動（`cmd.Start`）より前に閉じる（子の最初の書き込みが必ず閉じたパイプへ届くようにする）。親が持つ書き込み側は `t.Cleanup` で閉じる。子の環境と待ち受けの判定は既存の処理をそのまま使う。
+-   [ ] **ステップ 2-1**: `test_helpers.go` に、子プロセスの標準出力として、読み手を閉じたパイプの書き込み側を渡して起動できる形を `startServerChild` に加える（設計書 7）。読み手は子の起動（`cmd.Start`）より前に閉じる（子の最初の書き込みが必ず閉じたパイプへ届くようにする）。親が持つ書き込み側は `t.Cleanup` で閉じる。子の環境と待ち受けの判定は既存の処理をそのまま使う。
     -   **対象:** `cmd/yt2column-server/test_helpers.go`。**完了:** `make fmt` が通る。
--   [ ] **ステップ 2-3**: `TestDisplayFailureKeepsServing` を加える（要件書 4.3、設計書 7）。トークンのファイルがある状態とない状態（初回の起動）の 2 通りで、書き出しに失敗する標準出力を渡して起動し、標準エラー出力に失敗の 1 行（失敗の理由とファイルのパスを含み、`requireNoSecret` を通る）が出ること、サーバがリクエストを受理すること、停止したときの終了コードが `exitOK` であることを確かめる。ファイルがある状態ではファイルが書き換えられないことを、ない状態ではファイルが作られていること（削除する「token not written to stdout」の行が確かめていた点）を確かめる。
-    -   **対象:** `cmd/yt2column-server/run_test.go`。**完了:** このテストが通り、表示に失敗しても待ち受ける。
--   [ ] **ステップ 2-4**: `TestClosedStdoutPipeKeepsServing` を加える（SIGPIPE。設計書 7）。SIGPIPE はプロセス全体に働くので、子プロセスのテスト（`childModeMain`。本番の `main` をそのまま動かす）で確かめる。子の標準出力に、読み手を閉じた `os.Pipe` の書き込み側を渡して起動し、子が待ち受けを開始すること、標準エラー出力に表示の失敗の 1 行（`requireNoSecret` を通る）が出ること、`SIGTERM` で停止したときの終了コードが `exitOK` であることを確かめる。
+-   [ ] **ステップ 2-2**: `TestClosedStdoutPipeKeepsServing` を加える（SIGPIPE。設計書 7）。SIGPIPE はプロセス全体に働くので、子プロセスのテスト（`childModeMain`。本番の `main` をそのまま動かす）で確かめる。子の標準出力に、読み手を閉じた `os.Pipe` の書き込み側を渡して起動し、子が待ち受けを開始すること、標準エラー出力に表示の失敗の 1 行（`requireNoSecret` を通る）が出ること、`SIGTERM` で停止したときの終了コードが `exitOK` であることを確かめる。
     -   **対象:** `cmd/yt2column-server/run_test.go`。**完了:** このテストが通り、子が閉じたパイプで終了しない。
+
+### PR-2 作成ポイント: closed stdout pipe (SIGPIPE)
+
+**対象ステップ**: 1-7 / 2-1 / 2-2
+
+**推奨タイトル**: `feat(0021): keep serving when standard output is a closed pipe`
+
+**レビュー観点**: `main.go` が `run` の前に `signal.Ignore(syscall.SIGPIPE)` を呼び、閉じたパイプへの書き込みでプロセスが終了しないこと（`signal.Notify` で購読する形より、読まれないチャネルを残さないこと）/ 子プロセスのテストが、読み手を閉じたパイプの書き込み側を `cmd.Start` より前に閉じて渡し、親が持つ書き込み側を `t.Cleanup` で閉じること / 子が待ち受けを開始し、標準エラー出力に表示の失敗の 1 行（`requireNoSecret` を通る）が出て、`SIGTERM` で終了コード `exitOK` で止まること
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: ステップ 1-7（SIGPIPE の扱いが `go doc` に載らないランタイムの挙動に依存し、`$(go env GOROOT)/src/runtime/signal_unix.go` で確かめている）とステップ 2-2（子プロセス・シグナル・パイプの後始末を扱うテスト）を含む、分離された高リスクで込み入ったステップである（`frontier-recommended` の「分離された高リスク／複雑なステップ」に該当）。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
+-   [ ] **ステップ 2-3**: `test_helpers.go` に、標準出力への書き出しに失敗する `io.Writer` を渡して起動できる補助を加える（`startServer` の再試行・後始末の処理を共有し、標準出力のバッファを受け取れる形にする。設計書 7）。`requireNoSecret`・`writeTokenFile`・`failingWriter` を再利用し、新しい依存を足さない。
+    -   **対象:** `cmd/yt2column-server/test_helpers.go`。**完了:** `make fmt` と `go vet -tags test ./cmd/yt2column-server` が通る。
+-   [ ] **ステップ 2-4**: `TestDisplayFailureKeepsServing` を加える（要件書 4.3、設計書 7）。トークンのファイルがある状態とない状態（初回の起動）の 2 通りで、書き出しに失敗する標準出力を渡して起動し、標準エラー出力に失敗の 1 行（失敗の理由とファイルのパスを含み、`requireNoSecret` を通る）が出ること、サーバがリクエストを受理すること、停止したときの終了コードが `exitOK` であることを確かめる。ファイルがある状態ではファイルが書き換えられないことを、ない状態ではファイルが作られていること（削除する「token not written to stdout」の行が確かめていた点）を確かめる。
+    -   **対象:** `cmd/yt2column-server/run_test.go`。**完了:** このテストが通り、表示に失敗しても待ち受ける。
 -   [ ] **ステップ 2-5**: `server_test.go` の `TestServerEndToEnd` に、標準出力に表示された 1 行だけを取り出して `Authorization: Bearer` に使う検査を加える（AC-07。設計書 7）。稼働中のサーバの標準出力から、同期したバッファを通して表示された行を取り出し（§1.3）、その値で認証が通ることを確かめる。`e.readToken(t)`（トークンのファイルの内容）ではなく、表示された行を使う。
     -   **対象:** `cmd/yt2column-server/server_test.go`。**完了:** `TestServerEndToEnd` が通り、`-race` で競合を報告しない。
 -   [ ] **ステップ 2-6**: 壊して失敗することを確かめ、コミットメッセージに記録する。表示に失敗すると `exitUsage` で終える形に戻す（`TestDisplayFailureKeepsServing`）。閉じたパイプの扱い（`signal.Ignore`）を外す（`TestClosedStdoutPipeKeepsServing`。子が SIGPIPE で終了して失敗する）。表示された 1 行の代わりに別の値を使う（`TestServerEndToEnd` の表示からの認証）。続けて `make fmt` → `make test` → `make lint` を通す。**対象:** なし（確認のみ）。**完了:** 各対象を壊して失敗することを確認し、コミットメッセージに記録する。
 
-**完了条件:** `make fmt` → `make test` → `make lint` が通り、ステップ 2-3〜2-5 のテストが通る。
+**完了条件:** `make fmt` → `make test` → `make lint` が通り、ステップ 2-2・2-4・2-5 のテストが通る。
+
+### PR-3 作成ポイント: display failure and displayed-token auth tests
+
+**対象ステップ**: 2-3 / 2-4 / 2-5 / 2-6
+
+**推奨タイトル**: `test(0021): verify the display failure and the displayed token`
+
+**レビュー観点**: 表示に失敗しても待ち受けるテストが、値を含まない 1 行・ファイルの不変（または作成）・リクエストの受理・終了コード `exitOK` を確かめること / AC-07 が、サーバの稼働中に同期したバッファを通して標準出力の 1 行を取り出し、トークンのファイルの値ではなくその値で認証すること（`-race` で競合しないこと）/ 各テストが対象を壊すと失敗することを確かめていること（閉じたパイプのテストのミューテーションはステップ 2-6 で行う）
+
+**実装モデル要件**: standard
+
+**判定理由**: 表示失敗のテストと AC-07 の検査は、ステップ 1-5 の同期するバッファを使うテストであり、前例のない設計判断・panel-mode トリガー・競合する実装案・分離された高リスク／複雑なステップのいずれにも該当しない。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: 文書
 
@@ -179,6 +232,23 @@ HEAD `f40a831` で確認した。設計書は既存のファイルの行番号�
 
 **完了条件:** `make fmt` → `make test` → `make lint` が通り、README・`security.md` §8.2 の記載が `TestServerDocsContract` で固定されている。
 
+### PR-4 作成ポイント: documentation
+
+**対象ステップ**: 3-1 / 3-2 / 3-3 / 3-4 / 3-5
+
+**推奨タイトル**: `docs(0021): document displaying the shared token on every start`
+
+**レビュー観点**: README の起動のたびの表示・貼り付け・再確認の経路・標準出力をリダイレクトしたときの注意が、設計書 3.4 のとおりであること / `security.md` §8.2 の表示のタイミング・露出の経路・ログへの非露出・標準出力と標準エラー出力の分離が設計書 3.4 のとおりで、見出し「### 8.2. localhost サーバ（#109）」を変えていないこと / `TestServerDocsContract` の新しい検査が実行され、README・`security.md` §8.2 の記載を固定すること / `package_reference.md` の語句が §1.3 の名前の台帳のとおりで、既存のガード（`TestPackageReferenceListsPackages`）が通ること
+
+**実装モデル要件**: standard
+
+**判定理由**: 前例のない設計判断・panel-mode トリガー・競合する実装案・分離された高リスク／複雑なステップのいずれにも該当しない。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
 
 ### 3.1. マイルストーン
@@ -189,7 +259,25 @@ HEAD `f40a831` で確認した。設計書は既存のファイルの行番号�
 | M2: テスト | フェーズ 2 | 表示失敗・閉じたパイプ・AC-07 のテストが通り、`make test && make lint` が通る |
 | M3: 文書 | フェーズ 3 | `TestServerDocsContract` と `make test` が通る |
 
-### 3.2. 実装順序の根拠
+### 3.2. PR 構成
+
+PR は 4 つとする。各 PR は単一の関心事（起動のたびの表示 / 閉じたパイプ（SIGPIPE）/ 残りの検査 / 文書）を持ち、単独でグリーンゲートを通せる単位とする。
+
+| PR | 対象ステップ | 主な変更内容 | 実装モデル要件 |
+|---|---|---|---|
+| PR-1 | 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 | `internal/authtoken` の `LoadOrCreate`・`create` から `created` を外し、`run` が起動のたびに表示して表示の失敗で止まらないようにする。既存のテストと補助（`startServer` の同期するバッファを含む）を更新する | frontier-recommended |
+| PR-2 | 1-7 / 2-1 / 2-2 | `main.go` が SIGPIPE を無視し、閉じたパイプを子プロセスで確かめるテストとその補助 | frontier-recommended |
+| PR-3 | 2-3 / 2-4 / 2-5 / 2-6 | 表示の失敗と、表示された値での認証（AC-07）のテストとその補助 | standard |
+| PR-4 | 3-1 / 3-2 / 3-3 / 3-4 / 3-5 | README・`docs/dev/security.md` §8.2・`package_reference.md` と、`docs_test.go` の `TestServerDocsContract` のガード | standard |
+
+- PR-1 は、`internal/authtoken` の署名変更（`created` の削除）と、それに依存する `run`・`internal/server` のテスト補助・`authtoken_test` の更新を同じ PR に含める。署名を変えると、`run` と `internal/server` のテスト補助を同じコミットで直さないとビルドが通らないため、これらは 1 つの PR とする（`internal/` の変更が、それに依存する `cmd/`・`internal/` の変更より後に着地しない）。
+- PR-2 は、SIGPIPE の本番の変更（ステップ 1-7）と、その唯一の回帰テスト（ステップ 2-2）を同じ PR に含める。設計書 8 章の優先順位ではステップ 1-7 はフェーズ 1 にあるが、その検証はフェーズ 1 では行わず、テストと同じ PR に置く（本番の変更と唯一のテストを分けない）。
+- PR-3 は PR-1 の振る舞いを確かめる残りのテストで、PR-1 に依存する。閉じたパイプのテスト（ステップ 2-2）のミューテーションは、ミューテーションのステップ 2-6 が 3 つのテストをまとめて扱うため、PR-3 で行う。
+- PR-4 は実装した振る舞いを記す文書で、PR-1〜PR-3 に依存する。
+- PR-1 は、ステップ 1-5 で標準出力のバッファを書き込みと読み出しで同期する。この同期を実際に使う検査（AC-07。標準出力を稼働中に読む）はステップ 2-5（PR-3）にあるため、PR-1 では並行の検査は無く、AC-07 の前提として先に導入する。同じステップが、待ち受けの再試行のたびに標準出力のバッファを新しくする変更（PR-1 の起動のたびの表示で必要）を含む。
+- ステップはフェーズ内で並べ替え、各 PR の対象ステップが連続するようにした（フェーズ 1 はステップ 1-7 を最後に、フェーズ 2 はステップ 2-1・2-2 を先頭に置いた）。PR の境界はフェーズと一致しない。
+
+### 3.3. 実装順序の根拠
 
 設計書 8 章の順序（起動時の表示 → テスト → 文書）に従う。フェーズ 1 では、振る舞いの変更で更新が要る既存のテスト（`TestTokenShownOnEveryStart`・`TestStartupFailures`）を同じフェーズに含める。設計書 8 章はこれらを「テスト」の段階に置くが、表示の条件を変えると同じコミットで既存のテストが失敗するので、グリーンゲートを保つためフェーズ 1 に含める。フェーズ 2 の残りのテストは、新しい検査（表示失敗・SIGPIPE・AC-07）だけを加える。文書（フェーズ 3）は、実装した振る舞いを記すので最後に行う。
 
@@ -219,17 +307,17 @@ HEAD `f40a831` で確認した。設計書は既存のファイルの行番号�
 
 | AC | ラベル | 検証 | 実装 |
 |---|---|---|---|
-| AC-01 | test | `cmd/yt2column-server/run_test.go::TestTokenShownOnEveryStart`（初回の起動）、`cmd/yt2column-server/server_test.go::TestServerEndToEnd` | ステップ 1-1・1-6 |
-| AC-02 | test | `cmd/yt2column-server/run_test.go::TestTokenShownOnEveryStart`（2 回目の起動。標準出力 1 行・ファイル不変・案内がトークンのファイルのパスを含み、値を再び表示しないとする語句を含まない） | ステップ 1-1・1-3・1-6 |
-| AC-03 | test | `cmd/yt2column-server/run_test.go::TestTokenShownOnEveryStart`、`cmd/yt2column-server/server_test.go::TestServerEndToEnd`（2 回目の起動の認証） | ステップ 1-1・1-6 |
+| AC-01 | test | `cmd/yt2column-server/run_test.go::TestTokenShownOnEveryStart`（初回の起動）、`cmd/yt2column-server/server_test.go::TestServerEndToEnd` | ステップ 1-1・1-5 |
+| AC-02 | test | `cmd/yt2column-server/run_test.go::TestTokenShownOnEveryStart`（2 回目の起動。標準出力 1 行・ファイル不変・案内がトークンのファイルのパスを含み、値を再び表示しないとする語句を含まない） | ステップ 1-1・1-3・1-5 |
+| AC-03 | test | `cmd/yt2column-server/run_test.go::TestTokenShownOnEveryStart`、`cmd/yt2column-server/server_test.go::TestServerEndToEnd`（2 回目の起動の認証） | ステップ 1-1・1-5 |
 | AC-04 | test | `cmd/yt2column-server/run_test.go::TestStartupFailures`（「token file readable by others」）、`internal/authtoken/authtoken_test.go::TestLoadOrCreateRejectsInvalidFile`・`::TestLoadOrCreateRejectsWrongOwner`（不正なファイルの各ケース） | 変更なし（既存） |
 | AC-05 | test | `cmd/yt2column-server/run_test.go::TestStartupFailures`（「model and webhook missing」） | 変更なし（既存） |
-| AC-06 | test | `cmd/yt2column-server/run_test.go::TestOutputsOmitSecrets`、`cmd/yt2column-server/run_test.go::TestStartupFailures`（`requireNoSecret` の検査）、`cmd/yt2column-server/run_test.go::TestDisplayFailureKeepsServing`、`internal/server/response_test.go::TestResponseOmitsInputs`、`internal/server/job_test.go::TestNotifyNoticeFields` | ステップ 1-2・2-3 |
+| AC-06 | test | `cmd/yt2column-server/run_test.go::TestOutputsOmitSecrets`、`cmd/yt2column-server/run_test.go::TestStartupFailures`（`requireNoSecret` の検査）、`cmd/yt2column-server/run_test.go::TestDisplayFailureKeepsServing`、`internal/server/response_test.go::TestResponseOmitsInputs`、`internal/server/job_test.go::TestNotifyNoticeFields` | ステップ 1-2・2-4 |
 | AC-07 | test | `cmd/yt2column-server/server_test.go::TestServerEndToEnd`（稼働中に標準出力から同期して取り出した 1 行を認証に使う） | ステップ 2-5 |
 | AC-08 | static | `cmd/yt2column-server/docs_test.go::TestServerDocsContract`（README の検査を追加） | ステップ 3-1・3-4 |
 | AC-09 | static | `cmd/yt2column-server/docs_test.go::TestServerDocsContract`（`security.md` §8.2 の検査を追加） | ステップ 3-2・3-4 |
 
--   `TestDisplayFailureKeepsServing`（ステップ 2-3）と `TestClosedStdoutPipeKeepsServing`（ステップ 2-4）は、要件書 4.3 に対応するが、単独の AC 番号を持たない。両テストは `TestStartupFailures` の表示失敗の行を外した後に加える（§2 のフェーズ 2）。
+-   `TestClosedStdoutPipeKeepsServing`（ステップ 2-2）と `TestDisplayFailureKeepsServing`（ステップ 2-4）は、要件書 4.3 に対応するが、単独の AC 番号を持たない。両テストは `TestStartupFailures` の表示失敗の行を外した後に加える（§2 のフェーズ 2）。
 
 ## 6. リスク管理 (Risk Management)
 
@@ -237,10 +325,10 @@ HEAD `f40a831` で確認した。設計書は既存のファイルの行番号�
 
 | リスク | 影響 | 対策 |
 |---|---|---|
-| Go のランタイムは、標準出力・標準エラー出力（ファイル記述子 1・2）への閉じたパイプの書き込みで、既定ではプロセスを SIGPIPE で終了させる（`go doc os/signal` の「SIGPIPE」節。2026-10-16、Go 1.27.1）。閉じたパイプでも起動を続けるには、この終了を抑える必要がある | 表示に失敗しても起動を続けるという設計書 1.1 原則 2 が、閉じたパイプの場合に成り立たない | ステップ 1-4 で、`run` の前に `signal.Ignore(syscall.SIGPIPE)` を呼ぶ。ステップ 2-4 の子プロセスのテストで確かめる |
-| `startServer` が試行ごとに標準出力を同じバッファへ書き足すと、待ち受けの再試行のときに標準出力が複数行になり、検査が偶発的に失敗する | `TestTokenShownOnEveryStart` と AC-07 の検査が不安定になる | ステップ 1-6 で、試行ごとに標準出力のバッファを新しくし、待ち受けた試行の標準出力だけを返す形に改める（§1.3） |
-| AC-07 は、サーバの稼働中に `run` の書き込む標準出力を読む。`runningServer.stdout` は `stop` の後に読む取り決めで（`test_helpers.go:228`）、同期しないと `-race` で競合になる | AC-07 の検査が競合として失敗する | ステップ 1-6 で、標準出力の書き込みと読み出しを同期するバッファにし、稼働中に取り出せるようにする（§1.3） |
-| 案内の文言を実装で決めるため、AC-02 の検査は、実装が選んだ文言に依存する | 文言を変えたときに検査が追従しない | ステップ 1-6 で、案内がトークンのファイルのパスを含み、値を再び表示しないとする語句（実装した文言に合わせて決める）を含まないことを確かめる。ステップ 1-7 で、案内を旧文言に戻すとこの検査が失敗することを確かめる |
+| Go のランタイムは、標準出力・標準エラー出力（ファイル記述子 1・2）への閉じたパイプの書き込みで、既定ではプロセスを SIGPIPE で終了させる（`go doc os/signal` の「SIGPIPE」節。2026-10-16、Go 1.27.1）。閉じたパイプでも起動を続けるには、この終了を抑える必要がある | 表示に失敗しても起動を続けるという設計書 1.1 原則 2 が、閉じたパイプの場合に成り立たない | ステップ 1-7 で、`run` の前に `signal.Ignore(syscall.SIGPIPE)` を呼ぶ。ステップ 2-2 の子プロセスのテストで確かめる |
+| `startServer` が試行ごとに標準出力を同じバッファへ書き足すと、待ち受けの再試行のときに標準出力が複数行になり、検査が偶発的に失敗する | `TestTokenShownOnEveryStart` と AC-07 の検査が不安定になる | ステップ 1-5 で、試行ごとに標準出力のバッファを新しくし、待ち受けた試行の標準出力だけを返す形に改める（§1.3） |
+| AC-07 は、サーバの稼働中に `run` の書き込む標準出力を読む。`runningServer.stdout` は `stop` の後に読む取り決めで（`test_helpers.go:228`）、同期しないと `-race` で競合になる | AC-07 の検査が競合として失敗する | ステップ 1-5 で、標準出力の書き込みと読み出しを同期するバッファにし、稼働中に取り出せるようにする（§1.3） |
+| 案内の文言を実装で決めるため、AC-02 の検査は、実装が選んだ文言に依存する | 文言を変えたときに検査が追従しない | ステップ 1-5 で、案内がトークンのファイルのパスを含み、値を再び表示しないとする語句（実装した文言に合わせて決める）を含まないことを確かめる。ステップ 1-6 で、案内を旧文言に戻すとこの検査が失敗することを確かめる |
 
 ### 6.2. スケジュールのリスク
 
@@ -250,9 +338,10 @@ HEAD `f40a831` で確認した。設計書は既存のファイルの行番号�
 
 ## 7. 実装チェックリスト (Implementation Checklist)
 
--   [ ] フェーズ 1 完了（ステップ 1-1〜1-7）
--   [ ] フェーズ 2 完了（ステップ 2-1〜2-6）
--   [ ] フェーズ 3 完了（ステップ 3-1〜3-5）
+-   [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6）
+-   [ ] PR-2 マージ済み（対象ステップ: 1-7 / 2-1 / 2-2）
+-   [ ] PR-3 マージ済み（対象ステップ: 2-3 / 2-4 / 2-5 / 2-6）
+-   [ ] PR-4 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5）
 -   [ ] §5 のすべての AC の検証が通り、各テストを壊して失敗することをコミットメッセージに記録している
 
 ## 8. 成功基準 (Success Criteria)
@@ -264,6 +353,5 @@ HEAD `f40a831` で確認した。設計書は既存のファイルの行番号�
 
 ## 9. 次のステップ (Next Steps)
 
--   本計画をレビューし、`approved` にする。
--   `/mkplan2 0021` で PR の境界を本計画に埋め込む。
--   その後、`/runplan 0021` でフェーズ 1 から実装する。
+-   PR の境界と実装モデル要件（§3.2 と各 `### PR-N 作成ポイント`）をレビューする。
+-   `/runplan 0021` で PR-1 から順に実装する。
