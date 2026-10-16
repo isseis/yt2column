@@ -297,8 +297,8 @@ HEAD `e8b21fa`（ブランチ `issei/browser-extension-03`）で確認した。�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 -   [ ] **ステップ 4-2**: `launch.ts` を設計書 3.8 のとおりに改める。`MenuLaunchDeps`・`ResultWindowDeps` の変更、`PopupSendDeps`・`runPopupSend`・`resultWaitMs` の追加、`runMenuLaunch`（失敗の扱いはシーケンス図とその下の箇条のとおり）、`runResultWindow`（状態図のとおり）、開発者向けのログ（設計書 3.8 の「開発者向けのログ」）。名前の台帳（§1.3）のとおり、`SummaryStore`・`take`・`missingResultText`・`renderNotice`・`createSummaryStore` を削り、ログのラベルを改め、`runPopupLaunch` の doc コメント（`:128-129`）から「#111's send button」を除く。
     -   **対象:** `extension/src/launch.ts`・`src/browser/chromeDeps.ts`。**完了:** なし（ステップ 4-3 の後に型検査する）。
