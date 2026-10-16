@@ -45,6 +45,8 @@ export async function runOptionsPage(
   const tokenLabel = doc.createElement("label");
   tokenLabel.textContent = "Shared token";
   const tokenInput = doc.createElement("input");
+  tokenInput.id = "options-shared-token";
+  tokenLabel.htmlFor = tokenInput.id;
   tokenInput.type = "password";
   tokenInput.className = "options-token";
   tokenInput.setAttribute("autocomplete", "new-password");
@@ -59,10 +61,13 @@ export async function runOptionsPage(
   tokenClear.textContent = "Clear token";
   const tokenStatus = doc.createElement("p");
   tokenStatus.className = "options-token-status";
+  tokenStatus.setAttribute("aria-live", "polite");
 
   const portLabel = doc.createElement("label");
   portLabel.textContent = "Server port";
   const portInput = doc.createElement("input");
+  portInput.id = "options-server-port";
+  portLabel.htmlFor = portInput.id;
   portInput.type = "text";
   portInput.className = "options-port";
   portInput.setAttribute("inputmode", "numeric");
@@ -72,6 +77,7 @@ export async function runOptionsPage(
   portSave.textContent = "Save port";
   const portStatus = doc.createElement("p");
   portStatus.className = "options-port-status";
+  portStatus.setAttribute("aria-live", "polite");
 
   container.replaceChildren(
     tokenLabel,

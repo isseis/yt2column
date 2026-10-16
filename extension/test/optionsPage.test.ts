@@ -96,6 +96,24 @@ describe("runOptionsPage", () => {
     const port = query<HTMLInputElement>(root, ".options-port");
     assert.equal(port.type, "text");
     assert.equal(port.getAttribute("inputmode"), "numeric");
+
+    // Each field is associated with its label, and each status element
+    // announces changes to assistive technology.
+    for (const [labelText, input] of [
+      ["Shared token", token],
+      ["Server port", port],
+    ] as const) {
+      const label = query<HTMLLabelElement>(root, `label[for='${input.id}']`);
+      assert.equal(label.textContent, labelText);
+    }
+    assert.equal(
+      query(root, ".options-token-status").getAttribute("aria-live"),
+      "polite",
+    );
+    assert.equal(
+      query(root, ".options-port-status").getAttribute("aria-live"),
+      "polite",
+    );
   });
 
   it("distinguishes the set, missing and invalid stored-token states", async () => {
