@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -185,33 +186,45 @@ func TestRunTokenLinesReviewFailure(t *testing.T) {
 }
 
 func TestRunTokenLinesRejectedResponse(t *testing.T) {
-	e := newRunEnv(t)
-	e.withSteps = true
-	e.args = []string{"--no-shorten", "--no-review", "--out", e.outPath, runVideoURL}
-	e.client = funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
-		return llm.GenerateResponse{Model: "gen-model", Usage: testGenTokens}, fmt.Errorf("stub: %w", llm.ErrTruncated)
-	})
+	// Each of the three sentinels a response can carry with a model and usage
+	// produces the same generation line, whatever the sentinel.
+	for _, sentinel := range []error{llm.ErrTruncated, llm.ErrUnexpectedFinishReason, llm.ErrEmptyResponse} {
+		t.Run(sentinel.Error(), func(t *testing.T) {
+			e := newRunEnv(t)
+			e.withSteps = true
+			e.args = []string{"--no-shorten", "--no-review", "--out", e.outPath, runVideoURL}
+			e.client = funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
+				return llm.GenerateResponse{Model: "gen-model", Usage: testGenTokens}, fmt.Errorf("stub: %w", sentinel)
+			})
 
-	if code := e.run(); code == exitOK {
-		t.Fatalf("exit code = %d, want a failure (the generation was truncated)", code)
+			if code := e.run(); code == exitOK {
+				t.Fatalf("exit code = %d, want a failure (the response was rejected)", code)
+			}
+			requireTokenLines(t, e, []string{knownLine("generation", tokensRun, "gen-model", testGenTokens)})
+		})
 	}
-	requireTokenLines(t, e, []string{knownLine("generation", tokensRun, "gen-model", testGenTokens)})
 }
 
 func TestRunTokenLinesNoUsage(t *testing.T) {
-	e := newRunEnv(t)
-	e.withSteps = true
-	e.args = []string{"--no-shorten", "--no-review", "--out", e.outPath, runVideoURL}
-	e.client = funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
-		return llm.GenerateResponse{}, context.DeadlineExceeded
-	})
+	// A failure that reported no usage, whether a timeout or an invalid
+	// response, records the stage as run with a not-read, no-model usage.
+	for _, failure := range []error{context.DeadlineExceeded, errors.New("invalid response")} {
+		t.Run(failure.Error(), func(t *testing.T) {
+			e := newRunEnv(t)
+			e.withSteps = true
+			e.args = []string{"--no-shorten", "--no-review", "--out", e.outPath, runVideoURL}
+			e.client = funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
+				return llm.GenerateResponse{}, failure
+			})
 
-	if code := e.run(); code == exitOK {
-		t.Fatalf("exit code = %d, want a failure (the call had no usage)", code)
+			if code := e.run(); code == exitOK {
+				t.Fatalf("exit code = %d, want a failure (the call had no usage)", code)
+			}
+			requireTokenLines(t, e, []string{
+				tokensPrefix + "generation run unknown " + tokensReason + "not-read " + tokensNoModel,
+			})
+		})
 	}
-	requireTokenLines(t, e, []string{
-		tokensPrefix + "generation run unknown " + tokensReason + "not-read " + tokensNoModel,
-	})
 }
 
 func TestRunTokenLinesBeforeLLM(t *testing.T) {
@@ -365,10 +378,12 @@ func TestRunTokenLinesResume(t *testing.T) {
 		if got := e.counter.count(); got != 0 {
 			t.Errorf("the LLM was called %d times, want 0 (every stage was reused)", got)
 		}
+		// A literal assertion pins the origin word ("reused") and the recorded
+		// unknown reason, which the constant-built expectations would not.
 		requireTokenLines(t, e, []string{
-			knownLine("generation", tokensReused, "gen-model", testGenTokens),
-			knownLine("shorten", tokensReused, "short-model", testShortTokens),
-			tokensPrefix + "review reused unknown " + tokensReason + "recorded-unknown " + tokensModel + "review-model",
+			"yt2column: tokens: generation reused known input=11 cache_read=12 cache_write=13 output=14 model=gen-model",
+			"yt2column: tokens: shorten reused known input=21 cache_read=22 cache_write=23 output=24 model=short-model",
+			"yt2column: tokens: review reused unknown reason=recorded-unknown model=review-model",
 		})
 	})
 
@@ -492,9 +507,6 @@ func TestRunTokenLinesReviewLogFailure(t *testing.T) {
 
 	if code := e.run(); code != exitFailure {
 		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitFailure, e.stderr.String())
-	}
-	if got := strings.Count(e.stderr.String(), tokensPrefix); got != 2 {
-		t.Errorf("token lines appear %d times, want 2 (once each for generation and review)\nstderr:\n%s", got, e.stderr.String())
 	}
 	requireTokenLines(t, e, []string{
 		knownLine("generation", tokensRun, "gen-model", testGenTokens),
