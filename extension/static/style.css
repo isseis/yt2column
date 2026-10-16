@@ -66,3 +66,17 @@ body {
 .options-port-status {
   margin: 0 0 1rem;
 }
+
+/* Send result: the request id is one click away from a full copy. */
+.send-request-id {
+  font-family: ui-monospace, monospace;
+  user-select: all;
+}
+
+.send-status {
+  font-weight: 600;
+}
+
+.send-summary {
+  margin-top: 0.75rem;
+}

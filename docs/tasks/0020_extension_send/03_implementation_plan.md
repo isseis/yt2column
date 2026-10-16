@@ -280,7 +280,7 @@ HEAD `e8b21fa`（ブランチ `issei/browser-extension-03`）で確認した。�
 ステップ 4-2 から 4-6 までは、本番のコードの interface の変更とテストの更新を分けて書く。`make ext-typecheck` はテストも型検査するので（§1.3「型検査」）、ステップ 4-2・4-3 の完了は本番のコードだけを型検査する `tsc --noEmit -p tsconfig.build.json` で確かめ、`make ext-typecheck` はステップ 4-6 の後に通す。
 
 **タスク**
--   [ ] **ステップ 4-1**: `ui/render.ts` の `rejectedNodes` の文言と手順の部分を `messageNodes` として公開し、`renderSummary` はそれを使い続ける（振る舞いは変えない。既存の `render.test.ts` を変更せずに通す）。`ui/renderSend.ts` に `renderSendOutcome`・`renderResultView` を設計書 3.9 のとおりに作り、`style.css` に送信の表示の書式（リクエスト ID の `user-select: all` など）を加える。`renderSend.test.ts`（「renderSendOutcome」「renderResultView」）を設計書 3.12 の行のとおりに作る（送信中の表示（文言と閉じないことの案内）も確かめる。AC-22）。
+-   [x] **ステップ 4-1**: `ui/render.ts` の `rejectedNodes` の文言と手順の部分を `messageNodes` として公開し、`renderSummary` はそれを使い続ける（振る舞いは変えない。既存の `render.test.ts` を変更せずに通す）。`ui/renderSend.ts` に `renderSendOutcome`・`renderResultView` を設計書 3.9 のとおりに作り、`style.css` に送信の表示の書式（リクエスト ID の `user-select: all` など）を加える。`renderSend.test.ts`（「renderSendOutcome」「renderResultView」）を設計書 3.12 の行のとおりに作る（送信中の表示（文言と閉じないことの案内）も確かめる。AC-22）。
     -   **対象:** `extension/src/ui/render.ts`・`src/ui/renderSend.ts`・`static/style.css`・`test/renderSend.test.ts`。**完了:** `make ext-typecheck` と `render.test.ts`・`renderSend.test.ts` が通る。
 
 ### PR-4 作成ポイント: send result rendering

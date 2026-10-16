@@ -1,4 +1,5 @@
 import { rejectionMessage } from "../core/messages.ts";
+import type { RejectionMessage } from "../core/messages.ts";
 import type { OutcomeSummary } from "../core/types.ts";
 
 /** Appended to a value that was shortened for display. */
@@ -64,12 +65,11 @@ function collectedNodes(
   ];
 }
 
-/** The rejection message and, when present, its numbered steps. */
-function rejectedNodes(
+/** The message text and, when present, its numbered steps; textContent only. */
+export function messageNodes(
   doc: Document,
-  summary: Extract<OutcomeSummary, { kind: "rejected" }>,
+  message: RejectionMessage,
 ): HTMLElement[] {
-  const message = rejectionMessage(summary.reason);
   const text = doc.createElement("p");
   text.className = "summary-message";
   text.textContent = message.text;
@@ -85,6 +85,14 @@ function rejectedNodes(
     nodes.push(list);
   }
   return nodes;
+}
+
+/** The rejection message and, when present, its numbered steps. */
+function rejectedNodes(
+  doc: Document,
+  summary: Extract<OutcomeSummary, { kind: "rejected" }>,
+): HTMLElement[] {
+  return messageNodes(doc, rejectionMessage(summary.reason));
 }
 
 /**
