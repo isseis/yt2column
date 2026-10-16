@@ -8,7 +8,7 @@
 | Created | 2026-10-16 |
 | Review date | 2026-10-16 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | レビューでの修正: フェーズ 3 の対象ファイルと §3.2 の PR-5 の変更内容に、手動の確認（M-1〜M-3）の日時と結果を記録する `docs/tasks/0022_cost_estimate/03_implementation_plan.md` を加えた（AC-32・AC-34 の記録先を PR-5 の対象範囲と一致させた）。決定の変更はない。 |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「requirements」）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目、節番号は [02_architecture.md](02_architecture.md)（以下「architecture」）の節を指す。既存のファイルの行番号は、断りがない限りコミット `c4eeaa6` で確かめた（その後のコミットは文書だけを変えている）。architecture が確かめたコミット `15d9b72` から `c4eeaa6` までの Go のファイルの差分は `cmd/yt2column-server` の `main.go` とそのテストだけで、本計画が変えるパッケージには差分がない（`git diff --stat 15d9b72 c4eeaa6 -- '*.go'` で確認）。Go のソースのコメント・識別子・文字列リテラルは英語で書き（`_context.md`）、`AC-NN`・`F-NNN`・`H-NN` は Go のソースに書かず本計画にだけ記録する（`requirements_process.md` §4）。
 
@@ -194,7 +194,7 @@ requirements の機能要件（F-001〜F-010）を、architecture の設計ど�
 
 ### フェーズ 3: 出力
 
-**対象ファイル:** `internal/publisher/file.go`・`file_test.go`・`slack_test.go`・`slack_message_test.go`、`internal/publisher/testutil/integration.go`、`docs/tasks/0008_column_prompt/check_article.py`、`internal/pipeline/pipeline_test.go`、`cmd/yt2column/run.go`、`cmd/yt2column/cost_test.go`（新規。CLI の料金のテストは `token_test.go` と同じパッケージの新しいファイルに置く）、`cmd/yt2column/integration_test.go`・`integration_slack_test.go`、`internal/pricing/testutil/helpers.go`・`helpers_test.go`（新規）、`internal/llm/deepseek/integration_test.go`、`internal/llm/claude/integration_test.go`、`docs/dev/developer_guide/package_reference.md`
+**対象ファイル:** `internal/publisher/file.go`・`file_test.go`・`slack_test.go`・`slack_message_test.go`、`internal/publisher/testutil/integration.go`、`docs/tasks/0008_column_prompt/check_article.py`、`internal/pipeline/pipeline_test.go`、`cmd/yt2column/run.go`、`cmd/yt2column/cost_test.go`（新規。CLI の料金のテストは `token_test.go` と同じパッケージの新しいファイルに置く）、`cmd/yt2column/integration_test.go`・`integration_slack_test.go`、`internal/pricing/testutil/helpers.go`・`helpers_test.go`（新規）、`internal/llm/deepseek/integration_test.go`、`internal/llm/claude/integration_test.go`、`docs/dev/developer_guide/package_reference.md`、`docs/tasks/0022_cost_estimate/03_implementation_plan.md`（手動の確認 M-1〜M-3 の日時と結果）
 
 - [ ] **ステップ 3-1**: `renderArticle` に、architecture §3.7 の料金の行を 1 行加える。金額は `pricing.Totals` の記事 1 本の料金の `Format(4)` と `USD`、不明は `unknown` だけとする。`renderArticle` の文書に行の位置と内容を加える。
 - [ ] **ステップ 3-2**: 見出しの形を固定する既存のものを更新する（architecture §1.3 の例外 1）。`file_test.go:64` と `TestRenderArticleSteps` の期待値に不明の行を加え、`integrationHeader` に同じ行を加え、その文書（`testutil/integration.go:165-167`）に料金の行を写していることを加える。`check_article.py` の `HEADER_RE` を、モデル名の行の後に料金の行（分かった場合と不明の場合）を任意で受け付ける形にする。スクリプトの先頭のコメント（`:26-28`）にも料金の行を加える。
@@ -354,7 +354,7 @@ PR は PR-1 → PR-2 → PR-3 → PR-4 → PR-5 → PR-6 の順とし、各 PR �
 | PR-2 | 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 / 2-8 / 2-9 | `writer` の `Options.Clock`・時刻の記録・`ErrMissingCallTime`、`internal/artifact` の版 3 と `call_time`、既存のテストの更新、版の数字を述べる文書 | frontier-required |
 | PR-3 | 3-1 / 3-2 / 3-3 / 3-4 / 3-5 | `renderArticle` の料金の行、見出しの固定の追従（`file_test.go`・`integrationHeader`・`check_article.py`）、`internal/publisher` のテスト | standard |
 | PR-4 | 3-6 / 3-7 / 3-8 | `cmd/yt2column/run.go` の料金の行・合計の行・`reportUsage`、`cost_test.go` | frontier-recommended |
-| PR-5 | 3-9 / 3-10 / M-1 / M-2 / M-3 | `pricingtestutil`、両アダプタと CLI の統合テストのログ、`TestFakesCarryBuildTag` の数、手動の確認の記録 | frontier-recommended |
+| PR-5 | 3-9 / 3-10 / M-1 / M-2 / M-3 | `pricingtestutil`、両アダプタと CLI の統合テストのログ、`TestFakesCarryBuildTag` の数、`docs/tasks/0022_cost_estimate/03_implementation_plan.md` の手動の確認の記録 | frontier-recommended |
 | PR-6 | 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7 | README・`pricing_update.md`・`CLAUDE.md`・`project_overview.md`・`security.md`・`package_reference.md` と `TestCostDocsContract` | standard |
 
 ## 4. テスト戦略 (Test Strategy)
