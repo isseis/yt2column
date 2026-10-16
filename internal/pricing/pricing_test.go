@@ -17,26 +17,33 @@ import (
 // TestEstimateCategories checks the cost of one stage of each model from four
 // distinct, non-zero token counts, so a category mix-up changes the value.
 func TestEstimateCategories(t *testing.T) {
-	// Saturday noon UTC: deepseek-flash is off-peak.
+	// Saturday noon UTC and Monday 01:00 UTC: deepseek-flash is off-peak and
+	// peak respectively.
 	offPeak := time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC)
+	peak := time.Date(2026, 10, 19, 1, 0, 0, 0, time.UTC)
 	broad := llm.KnownUsage(llm.TokenCounts{Input: 1000000, CacheRead: 2000000, CacheWrite: 3000000, Output: 4000000})
 	cases := []struct {
+		name  string
 		model string
 		usage llm.Usage
 		at    time.Time
 		// deepseek-flash off-peak: 1000000*0.15 + 2000000*0.003 + 3000000*0 + 4000000*0.6 = 2.556
+		// deepseek-flash peak: 1000000*0.3 + 2000000*0.006 + 3000000*0 + 4000000*1.2 = 5.112
 		// claude-opus-5-5: 1000000*4 + 2000000*0.2 + 3000000*5 + 4000000*20 = 99.4
 		// claude-sonnet-5-5: 1000000*2 + 2000000*0.1 + 3000000*2.5 + 4000000*10 = 49.7
 		// claude-haiku-5-5 (short prompt): 1000*0.1 + 2000*0.01 + 3000*0.125 + 4000000*0.5 = 2.000495
+		// claude-haiku-5-5 (long prompt, input over the threshold): 200000*0.5 + 300000*0.05 + 400000*0.625 + 500000*2.5 = 1.615
 		want string
 	}{
-		{"deepseek-flash", broad, offPeak, "2.556000"},
-		{"claude-opus-5-5", broad, offPeak, "99.400000"},
-		{"claude-sonnet-5-5", broad, offPeak, "49.700000"},
-		{"claude-haiku-5-5", llm.KnownUsage(llm.TokenCounts{Input: 1000, CacheRead: 2000, CacheWrite: 3000, Output: 4000000}), offPeak, "2.000495"},
+		{"deepseek-flash off-peak", "deepseek-flash", broad, offPeak, "2.556000"},
+		{"deepseek-flash peak", "deepseek-flash", broad, peak, "5.112000"},
+		{"claude-opus-5-5", "claude-opus-5-5", broad, offPeak, "99.400000"},
+		{"claude-sonnet-5-5", "claude-sonnet-5-5", broad, offPeak, "49.700000"},
+		{"claude-haiku-5-5 short prompt", "claude-haiku-5-5", llm.KnownUsage(llm.TokenCounts{Input: 1000, CacheRead: 2000, CacheWrite: 3000, Output: 4000000}), offPeak, "2.000495"},
+		{"claude-haiku-5-5 long prompt", "claude-haiku-5-5", llm.KnownUsage(llm.TokenCounts{Input: 200000, CacheRead: 300000, CacheWrite: 400000, Output: 500000}), offPeak, "1.615000"},
 	}
 	for _, tc := range cases {
-		t.Run(tc.model, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			amount, _, ok := Estimate(tc.model, tc.usage, tc.at).Known()
 			if !ok {
 				t.Fatalf("Estimate(%s) is unknown, want known", tc.model)
@@ -266,7 +273,7 @@ func TestEstimateUnknown(t *testing.T) {
 // fails closed with ReasonInvalid.
 func TestEstimateUnknownScheme(t *testing.T) {
 	counts := llm.TokenCounts{Input: 1}
-	cost := estimateEntry(modelRates{scheme: rateScheme(99)}, counts, time.Now())
+	cost := estimateEntry(modelRates{scheme: rateScheme(99)}, counts, time.Time{})
 	reason, ok := cost.Unknown()
 	if !ok || reason != ReasonInvalid {
 		t.Errorf("estimateEntry with an unknown scheme = %v, want unknown with %v", reason, ReasonInvalid)

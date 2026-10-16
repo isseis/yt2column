@@ -78,8 +78,10 @@ var (
 var rateTable = []modelRates{
 	// Source: https://api-docs.deepseek.com/quick_start/pricing (checked 2026-10-16)
 	{
-		model:     "deepseek-flash",
-		scheme:    schemeTimeOfDay,
+		model:  "deepseek-flash",
+		scheme: schemeTimeOfDay,
+		// The cache-write rate is 0 because this model reports no cache-write
+		// category: the adapter always declares that category 0.
 		base:      rates{input: 150000, cacheRead: 3000, cacheWrite: 0, output: 600000},  //nolint:mnd // published per-million-token rates
 		alternate: rates{input: 300000, cacheRead: 6000, cacheWrite: 0, output: 1200000}, //nolint:mnd // published per-million-token rates
 		// Source: https://api-docs.deepseek.com/quick_start/pricing (checked 2026-10-16)

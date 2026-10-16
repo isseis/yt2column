@@ -26,6 +26,9 @@ func TestAmountFormat(t *testing.T) {
 		{"six places keep every digit", "2345000000", 6, "0.002345"},
 		{"four places round the fifth", "2345000000", 4, "0.0023"},
 		{"integer part is one", "1234567000000", 6, "1.234567"},
+		{"rounding carries into the integer part", "999999999999", 6, "1.000000"},
+		{"zero places round half up", "1500000000000", 0, "2"},
+		{"places equal the stored precision", "1234567000000", 12, "1.234567000000"},
 		{"no exponent for a large amount", "123456789012345678901234567890", 6, "123456789012345678.901235"},
 	}
 	for _, tc := range cases {
