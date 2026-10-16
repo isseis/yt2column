@@ -8,7 +8,7 @@
 | Created | 2026-10-16 |
 | Review date | 2026-10-16 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | レビュー指摘により §1.3「既存のコードとの関係」の変更範囲の一覧へ `cmd/yt2column/extension_docs_test.go` を加えた。同一節が本文で既に Go の文書ガードのテストを加えると述べており、その一覧だけが抜けていた内部の不整合を正したもので、判断は変わっていない（編集上の訂正） |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `c4b656e` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指す。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-07）への対応は 3.13 にまとめる。
 
@@ -101,7 +101,7 @@ flowchart LR
 
 ### 1.3. 既存のコードとの関係
 
-本タスクは Go のソースを変更しない。Go のテストは、文書のガード（`cmd/yt2column/extension_docs_test.go`。3.12）だけを加える。サーバ側と API は API の設計書 §3.4 のまま使う（要件書 5.）。変更は拡張のディレクトリ、CI の変更検出のスクリプト、文書（README・security.md・CLAUDE.md）に限る。
+本タスクは Go のソースを変更しない。Go のテストは、文書のガード（`cmd/yt2column/extension_docs_test.go`。3.12）だけを加える。サーバ側と API は API の設計書 §3.4 のまま使う（要件書 5.）。変更は拡張のディレクトリ、`cmd/yt2column/extension_docs_test.go`、CI の変更検出のスクリプト、文書（README・security.md・CLAUDE.md）に限る。
 
 拡張の中で既存のものを変える箇所は次のとおりである。0007 の設計書が定めた方針に対する例外を含むので、方針・例外の理由・更新が必要なテストを 3.11 にまとめる。
 
