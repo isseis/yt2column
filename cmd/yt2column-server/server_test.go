@@ -23,7 +23,7 @@ var requestIDPattern = regexp.MustCompile(`^[0-9a-f]{16}$`)
 // and the notifier's check agree; and an oversized body with a wrong token is
 // refused as unauthorized or by a cut connection, never as too large, and is
 // not notified. A second start with the same HOME accepts the first token.
-// That only the first start shows the token is TestTokenShownOnlyWhenCreated's.
+// How each start displays the token is TestTokenShownOnEveryStart's.
 func TestServerEndToEnd(t *testing.T) {
 	webhook, webhookURL := newWebhookServer(t)
 	e := newServerEnv(t)

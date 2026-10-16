@@ -161,12 +161,12 @@ func newTestToken(t *testing.T) authtoken.Token {
 	if err := os.WriteFile(path, []byte(testTokenValue), 0o600); err != nil {
 		t.Fatalf("write token file: %v", err)
 	}
-	token, created, err := authtoken.LoadOrCreate(path, bytes.NewReader(make([]byte, testTokenBytes)))
+	token, err := authtoken.LoadOrCreate(path, bytes.NewReader(make([]byte, testTokenBytes)))
 	if err != nil {
 		t.Fatalf("LoadOrCreate: %v", err)
 	}
-	if created {
-		t.Fatalf("token was created, want it read from the file")
+	if !token.Matches(testTokenValue) {
+		t.Fatalf("token does not match the value in the file")
 	}
 	return token
 }

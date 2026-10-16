@@ -60,7 +60,7 @@ HEAD `f40a831` で確認した。設計書は既存のファイルの行番号�
 -   `TestTokenShownOnlyWhenCreated`（`run_test.go:257-286`）は、2 回目の起動が標準出力へ何も書かないことを確かめる。`TestTokenShownOnEveryStart` に改称し、2 回目も標準出力に値の 1 行を書くこと、ファイルが変わらないこと、標準エラー出力の案内に「値が再び表示されない」とする記述が現れないことを確かめる形にする（設計書 7。AC-01〜AC-03）。
 -   `TestOutputsOmitSecrets`（`run_test.go:302-338`）と `requireNoSecret`（`cmd/yt2column-server/test_helpers.go:669-678`）は、トークンが出力に現れないことの検査に使う（AC-06）。変更しない。
 -   `TestServerEndToEnd`（`cmd/yt2column-server/server_test.go:27-87`）は、2 回目の起動が 1 回目のトークンで認証を受けることは確かめるが、標準出力に表示された 1 行を値として使ってはいない。表示された 1 行だけを取り出して `Authorization: Bearer` に使う検査を加える（AC-07。設計書 7）。`:26` のコメント「That only the first start shows the token is TestTokenShownOnlyWhenCreated's.」を改める（設計書 1.4）。
--   `failingWriter`（`run_test.go:238-241`）・`writeTokenFile`（`run_test.go:244-255`）・`startServer`（`test_helpers.go:238-263`）・`startServerChild`（`test_helpers.go:571-605`）・`requireNoSecret` は既存の補助で、本計画の新しいテストで再利用する。補助の追加・拡張は、§1.3「テストの補助で直す点」の同期するバッファと、ステップ 2-1・2-3 の `startServerChild`・`startServer` の拡張に限り、それ以外の補助は作らない。
+-   `writeTokenFile`（`run_test.go:244-255`）・`startServer`（`test_helpers.go:238-263`）・`startServerChild`（`test_helpers.go:571-605`）・`requireNoSecret` は既存の補助で、本計画の新しいテストで再利用する。`failingWriter`（`run_test.go:238-241`）は、その唯一の利用者である `TestStartupFailures` の「token not written to stdout」の行をステップ 1-5 で外すと未使用になり `make lint`（`unused`）が失敗するため、ステップ 1-5 で `errWriteRefused` とともに外し、表示失敗のテストで必要になるステップ 2-3 で加え直す。補助の追加・拡張は、§1.3「テストの補助で直す点」の同期するバッファと、ステップ 2-1・2-3 の `startServerChild`・`startServer` の拡張、およびこの `failingWriter` の再追加に限り、それ以外の補助は作らない。
 -   `internal/authtoken/authtoken_test.go` は、`created` を受け取って確かめる箇所（`TestLoadOrCreateCreates` `:25-31`、`TestLoadOrCreateReadsAgain` `:74-93`、`TestLoadOrCreateRejectsInvalidFile` `:220-223`、`TestCreateDoesNotOverwriteExisting` `:278-284`、`TestLoadOrCreateRandomError` `:305-311`）と、`_` で捨てる箇所（`:254`・`:321`・`:380`）を新しい署名に合わせる。`created` の検査は外し、残りの検査（ファイルの作成と権限、2 回目に同じ値を読むこと、不正なファイルの拒否、既存のファイルを上書きしないこと、乱数の失敗）はそのまま残す（設計書 3.2・7）。生成したか読んだかは、ファイルの有無と値の一致で確かめられるので、`created` の検査を外しても確かめる振る舞いは減らない。
 
 **テストの補助で直す点**
@@ -119,21 +119,22 @@ HEAD `f40a831` で確認した。設計書は既存のファイルの行番号�
 -   変更: `cmd/yt2column-server/run.go`・`main.go`、`internal/authtoken/authtoken.go`・`authtoken_test.go`、`internal/server/test_helpers.go`、`cmd/yt2column-server/run_test.go`・`server_test.go`・`test_helpers.go`
 
 **タスク**
--   [ ] **ステップ 1-1**: `internal/authtoken` の `LoadOrCreate` と `create` の戻り値から `created` を外し、`(Token, error)` にする（§1.3 の名前の台帳。設計書 3.2）。両者の doc コメントから `created` の記述を外す。続けて `run.go` の手順 2 の表示を、`created` で分岐せず起動のたびに行う（`token, err := authtoken.LoadOrCreate(...)`。設計書 3.1）。表示の内容（値 + 改行）と表示先（標準出力）は変えない。同じステップで、新しい署名に合わせて `internal/authtoken/authtoken_test.go` から `created` の検査を外し（§1.3）、`internal/server/test_helpers.go` の `newTestToken` の `created` の検査を `token.Matches(testTokenValue)` の検査に置き換える（§1.3）。
+-   [x] **ステップ 1-1**: `internal/authtoken` の `LoadOrCreate` と `create` の戻り値から `created` を外し、`(Token, error)` にする（§1.3 の名前の台帳。設計書 3.2）。両者の doc コメントから `created` の記述を外す。続けて `run.go` の手順 2 の表示を、`created` で分岐せず起動のたびに行う（`token, err := authtoken.LoadOrCreate(...)`。設計書 3.1）。表示の内容（値 + 改行）と表示先（標準出力）は変えない。同じステップで、新しい署名に合わせて `internal/authtoken/authtoken_test.go` から `created` の検査を外し（§1.3）、`internal/server/test_helpers.go` の `newTestToken` の `created` の検査を `token.Matches(testTokenValue)` の検査に置き換える（§1.3）。
     -   **対象:** `internal/authtoken/authtoken.go`・`authtoken_test.go`、`internal/server/test_helpers.go`、`cmd/yt2column-server/run.go`。**完了:** `make fmt` と `go build ./...` が通り、`go test -tags test ./internal/authtoken ./internal/server` が通る。`TestTokenShownOnlyWhenCreated` は、このステップの後は失敗する。`TestStartupFailures` の表示失敗の行は、ステップ 1-2 の後に失敗する（いずれもステップ 1-5 で改める。§1.2・§3.3）。
--   [ ] **ステップ 1-2**: 表示の失敗を best-effort にする。標準出力への書き出しに失敗したら（閉じたパイプへの書き込みを含む）、値を含まない 1 行を `redact.Line` を通して標準エラー出力に書き、起動を続ける（`exitUsage` で終えない）。値の取り出し（`token.Value().Reveal()`）の失敗は `exitUsage` のまま残す（設計書 3.1・4）。値の取り出しの失敗の 1 行（`run.go:175`）と書き出しの失敗の 1 行（`run.go:179`）の「created」を前提にした文言を、起動のたびに表示する振る舞いに合わせて改める（§1.3）。
+-   [x] **ステップ 1-2**: 表示の失敗を best-effort にする。標準出力への書き出しに失敗したら（閉じたパイプへの書き込みを含む）、値を含まない 1 行を `redact.Line` を通して標準エラー出力に書き、起動を続ける（`exitUsage` で終えない）。値の取り出し（`token.Value().Reveal()`）の失敗は `exitUsage` のまま残す（設計書 3.1・4）。値の取り出しの失敗の 1 行（`run.go:175`）と書き出しの失敗の 1 行（`run.go:179`）の「created」を前提にした文言を、起動のたびに表示する振る舞いに合わせて改める（§1.3）。
     -   **対象:** `cmd/yt2column-server/run.go`。**完了:** `make fmt` が通る。
--   [ ] **ステップ 1-3**: 案内（標準エラー出力に書く 1 行）を、起動の種類で分けず常に同じ文言にする。値を含めず、「標準出力に表示したこと」「貼り付け」「起動のたびに表示すること」「ファイルのパス」を述べ、「値が再び表示されない」とする記述を含めない（設計書 3.1・3.4）。`run` の doc コメントと手順 2 のコメントを、起動のたびに表示する形に改める（設計書 3.1）。
+-   [x] **ステップ 1-3**: 案内（標準エラー出力に書く 1 行）を、起動の種類で分けず常に同じ文言にする。値を含めず、「標準出力に表示したこと」「貼り付け」「起動のたびに表示すること」「ファイルのパス」を述べ、「値が再び表示されない」とする記述を含めない（設計書 3.1・3.4）。`run` の doc コメントと手順 2 のコメントを、起動のたびに表示する形に改める（設計書 3.1）。
     -   **対象:** `cmd/yt2column-server/run.go`。**完了:** `make fmt` が通り、表示の 1 行のあとに値を含まない案内が出ることを目視で確かめる。
--   [ ] **ステップ 1-4**: `internal/authtoken/authtoken.go` の `Token.Value` のコメント（`:132-134`）を、起動のたびの表示に合わせて改める。ステップ 1-1 の署名の変更のほかは、`LoadOrCreate` の振る舞いと実装を変えない（設計書 3.2）。
+-   [x] **ステップ 1-4**: `internal/authtoken/authtoken.go` の `Token.Value` のコメント（`:132-134`）を、起動のたびの表示に合わせて改める。ステップ 1-1 の署名の変更のほかは、`LoadOrCreate` の振る舞いと実装を変えない（設計書 3.2）。
     -   **対象:** `internal/authtoken/authtoken.go`。**完了:** `make fmt` が通り、`internal/authtoken` のテストが通る。
--   [ ] **ステップ 1-5**: 振る舞いの変更で更新が要る既存のテストを改める（設計書 1.4・7）。
+-   [x] **ステップ 1-5**: 振る舞いの変更で更新が要る既存のテストを改める（設計書 1.4・7）。
     -   `TestTokenShownOnlyWhenCreated` を `TestTokenShownOnEveryStart` に改称し、2 回目の起動も標準出力に値の 1 行を書き、ファイルが変わらないことを確かめる形にする（§1.3 の名前の台帳。AC-01〜AC-03）。加えて、2 回目の起動の標準エラー出力の案内が、値を再び表示しないとする記述（旧文言の「not shown again」など）を含まず、トークンのファイルのパスを含むことを確かめる（AC-02）。実装する文言に合わせて、この検査の禁止する語句を決める。
     -   `TestStartupFailures` から「token not written to stdout」の行と、`stdoutFails` のフィールド・分岐を外す（§1.3 の名前の台帳）。`tokenShown` の説明と「port in use」の行のコメント（`run_test.go:159-160`）を起動のたびの表示に合わせて改める。他の行は維持する（AC-04・AC-05・AC-06）。
+    -   `failingWriter` と `errWriteRefused` を外す。上の行を外すと、これらは `cmd/yt2column-server` で未使用になり `make lint`（`unused`）が失敗するため。表示失敗のテストで使うステップ 2-3 で加え直す（§1.3）。
     -   `server_test.go:26` のコメントを改める。
     -   `startServer` を、試行ごとに標準出力のバッファを新しくし、待ち受けた試行の標準出力だけを返す形に改める。標準出力を、書き込みと読み出しを同期するバッファにする（§1.3）。
     -   **対象:** `cmd/yt2column-server/run_test.go`・`server_test.go`・`test_helpers.go`。**完了:** `make test` が通る。
--   [ ] **ステップ 1-6**: 壊して失敗することを確かめ、コミットメッセージに記録する。2 回目の起動で表示を書かない形に壊す（例: 手順 2 の前にトークンのファイルがあったときは表示しない。`TestTokenShownOnEveryStart` の 2 回目の起動）。案内を「値が再び表示されない」とする旧文言に戻す（`TestTokenShownOnEveryStart` の案内の検査）。`newTestToken` の新しい検査は、`LoadOrCreate` に渡すファイルの値を `testTokenValue` と異なる値にして失敗することを確かめる。`internal/authtoken/authtoken_test.go` から `created` の検査を外したことについて、`go tool cover -func` の結果（`internal/authtoken`）が関数ごとに変わらないことを確かめ、コミットメッセージに記す（CLAUDE.md「Deleting a test is a claim that must be checked」）。続けて `make fmt` → `make test` → `make lint` を通す。**対象:** なし（確認のみ）。**完了:** 各対象を壊して失敗することを確認し、コミットメッセージに記録する。
+-   [x] **ステップ 1-6**: 壊して失敗することを確かめ、コミットメッセージに記録する。2 回目の起動で表示を書かない形に壊す（例: 手順 2 の前にトークンのファイルがあったときは表示しない。`TestTokenShownOnEveryStart` の 2 回目の起動）。案内を「値が再び表示されない」とする旧文言に戻す（`TestTokenShownOnEveryStart` の案内の検査）。`newTestToken` の新しい検査は、`LoadOrCreate` に渡すファイルの値を `testTokenValue` と異なる値にして失敗することを確かめる。`internal/authtoken/authtoken_test.go` から `created` の検査を外したことについて、`go tool cover -func` の結果（`internal/authtoken`）が関数ごとに変わらないことを確かめ、コミットメッセージに記す（CLAUDE.md「Deleting a test is a claim that must be checked」）。続けて `make fmt` → `make test` → `make lint` を通す。**対象:** なし（確認のみ）。**完了:** 各対象を壊して失敗することを確認し、コミットメッセージに記録する。
 
 ### PR-1 作成ポイント: every-start token display
 
@@ -187,7 +188,7 @@ HEAD `f40a831` で確認した。設計書は既存のファイルの行番号�
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
--   [ ] **ステップ 2-3**: `test_helpers.go` に、標準出力への書き出しに失敗する `io.Writer` を渡して起動できる補助を加える（`startServer` の再試行・後始末の処理を共有し、標準出力のバッファを受け取れる形にする。設計書 7）。`requireNoSecret`・`writeTokenFile`・`failingWriter` を再利用し、新しい依存を足さない。
+-   [ ] **ステップ 2-3**: `test_helpers.go` に、標準出力への書き出しに失敗する `io.Writer` を渡して起動できる補助を加える（`startServer` の再試行・後始末の処理を共有し、標準出力のバッファを受け取れる形にする。設計書 7）。`requireNoSecret`・`writeTokenFile` を再利用し、書き込みに失敗する `io.Writer`（`failingWriter`。ステップ 1-5 で外したものをここで加え直す）を使う。新しい依存を足さない。
     -   **対象:** `cmd/yt2column-server/test_helpers.go`。**完了:** `make fmt` と `go vet -tags test ./cmd/yt2column-server` が通る。
 -   [ ] **ステップ 2-4**: `TestDisplayFailureKeepsServing` を加える（要件書 4.3、設計書 7）。トークンのファイルがある状態とない状態（初回の起動）の 2 通りで、書き出しに失敗する標準出力を渡して起動し、標準エラー出力に失敗の 1 行（失敗の理由とファイルのパスを含み、`requireNoSecret` を通る）が出ること、サーバがリクエストを受理すること、停止したときの終了コードが `exitOK` であることを確かめる。ファイルがある状態ではファイルが書き換えられないことを、ない状態ではファイルが作られていること（削除する「token not written to stdout」の行が確かめていた点）を確かめる。
     -   **対象:** `cmd/yt2column-server/run_test.go`。**完了:** このテストが通り、表示に失敗しても待ち受ける。
