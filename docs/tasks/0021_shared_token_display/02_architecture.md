@@ -8,7 +8,7 @@
 | Created | 2026-10-16 |
 | Review date | 2026-10-16 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | レビューでの修正: §2.1 の「`internal/authtoken` は契約・実装とも変更しない」を、トークンのファイルの生成・保存・読み込み・検査の振る舞いは変えない一方、`LoadOrCreate` と内部の `create` が `created` の戻り値を外し、`Token.Value` のコメントを改める（§3.2）旨に改めた。決定の変更はない。 |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。F-NNN・AC-NN は要件書の項番、H-NN は [design_handoff.md](design_handoff.md) の項目を指す（対応は §3.3）。既存のファイルの行番号は、コミット `3180ae3`（要件書を承認したコミット）で確かめたものである。
 
@@ -144,7 +144,7 @@ flowchart LR
     class L2 enhanced
 ```
 
-変更は `cmd/yt2column-server` の `run` に閉じる。`internal/authtoken` は契約・実装とも変更しない（§3.2）。`internal/redact` はトークンの伏せ字の経路として引き続き使う（変更なし）。
+変更は `cmd/yt2column-server` の `run` に閉じる。`internal/authtoken` はトークンのファイルの生成・保存・読み込み・検査の振る舞いを変えないが、`LoadOrCreate` と内部の `create` が `created` の戻り値を外し、`Token.Value` のコメントを改める（§3.2）。`internal/redact` はトークンの伏せ字の経路として引き続き使う（変更なし）。
 
 ### 2.2. コンポーネント配置
 
