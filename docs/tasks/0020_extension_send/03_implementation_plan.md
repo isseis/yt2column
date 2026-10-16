@@ -174,6 +174,23 @@ HEAD `e8b21fa`（ブランチ `issei/browser-extension-03`）で確認した。�
 
 **完了条件:** `make ext-check` → `make test` → `make lint` が通り、ステップ 1-6 のテストが通る。
 
+### PR-1 作成ポイント: core judgement layer and lint guards
+
+**対象ステップ**: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7
+
+**推奨タイトル**: `feat(0020): add core send judgement layer and lint guards`
+
+**レビュー観点**: ブランド付きの型で、確認を通った値だけが送信の入力になること / 応答を受理する形だけで解釈し、応答の本文を表示に渡さないこと / lint のブランド付きの型の禁止が作り手のファイルごとに正しい範囲であること / 既存の `collect`・`summary` の振る舞いを変えていないこと
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: §1.3「ブランド付きの型の作り方の制約」が `SharedToken`・`ServerPort`・`PreparedRequest`・`RequestId` の作り方に「リーフパッケージへの移動」と「lint での禁止」の 2 案を挙げており、「競合する実装の案」の引き金に当たるため。ステップ 1-4 の応答の解析は複雑だが、設計書 3.6 が判定の順序と各検査を確定した決定的な処理で、回復の流れ・並行・状態機械ではない。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ### フェーズ 2: 送信と保存先
 
 **対象ファイル**
@@ -195,6 +212,23 @@ HEAD `e8b21fa`（ブランチ `issei/browser-extension-03`）で確認した。�
     -   続けて `make ext-check` → `make test` → `make lint` を通す。**対象:** なし（確認のみ）。**完了:** 各対象を壊して失敗することを確認し、コミットメッセージに記録する。
 
 **完了条件:** `make ext-check` → `make test` → `make lint` が通り、`send.test.ts`・`chromeDeps.test.ts` が通る。
+
+### PR-2 作成ポイント: send and storage dependencies
+
+**対象ステップ**: 2-1 / 2-2 / 2-3 / 2-4
+
+**推奨タイトル**: `feat(0020): add article sending and storage dependencies`
+
+**レビュー観点**: `fetch` を 1 回だけ呼び、どの結果でも再送しないこと / `RequestInit` の各項目とヘッダの集合が設計書 3.5 と一致すること / 応答の本文を上限まで読み、超えたら読むのをやめること / 設定と表示内容が、渡された保存先の決まったキーにだけ書かれること
+
+**実装モデル要件**: standard
+
+**判定理由**: どのトリガーにも当たらない（§1.3 に競合する実装の案がない）。送信の処理（ステップ 2-1）は設計書 3.5 が `RequestInit` の値・本文の読み方・時間の上限を確定しており、直線的な処理で、回復の流れ・並行・状態機械に当たらない。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: manifest とオプションページ
 
@@ -220,6 +254,23 @@ HEAD `e8b21fa`（ブランチ `issei/browser-extension-03`）で確認した。�
 
 **完了条件:** `make ext-check` → `make test` → `make lint` が通り、`manifest.test.ts`・`optionsPage.test.ts`・`checkDist.test.ts`・`ciChanges.test.ts` が通る。
 
+### PR-3 作成ポイント: manifest and options page
+
+**対象ステップ**: 3-1 / 3-2 / 3-3 / 3-4 / 3-5
+
+**推奨タイトル**: `feat(0020): add manifest permissions and options page`
+
+**レビュー観点**: `host_permissions` と `options_ui` が設計書 3.1 と一致し、security.md §8.1 と同期していること / トークンとポートの検証が補正をせず、拒否したときも保存先の既存の値を変えないこと / トークンの値が表示・ログ・欄の値の照合に出ないこと / `check-dist` が `options_ui.page` の参照も確かめること
+
+**実装モデル要件**: standard
+
+**判定理由**: どのトリガーにも当たらない（§1.3 に競合する実装の案がない）。`host_permissions` は `127.0.0.1` に限った固定の 1 項目で、設計書 3.1 が値を確定しており、段階的な公開や振る舞いの同時の上げ下げを伴わないので、セキュリティゲート・移行の引き金に当たらない。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ### フェーズ 4: 経路の処理と表示
 
 **対象ファイル**
@@ -229,8 +280,26 @@ HEAD `e8b21fa`（ブランチ `issei/browser-extension-03`）で確認した。�
 ステップ 4-2 から 4-6 までは、本番のコードの interface の変更とテストの更新を分けて書く。`make ext-typecheck` はテストも型検査するので（§1.3「型検査」）、ステップ 4-2・4-3 の完了は本番のコードだけを型検査する `tsc --noEmit -p tsconfig.build.json` で確かめ、`make ext-typecheck` はステップ 4-6 の後に通す。
 
 **タスク**
--   [ ] **ステップ 4-1**: `ui/render.ts` の `rejectedNodes` の文言と手順の部分を `messageNodes` として公開し、`renderSummary` はそれを使い続ける（振る舞いは変えない。既存の `render.test.ts` を変更せずに通す）。`ui/renderSend.ts` に `renderSendOutcome`・`renderResultView` を設計書 3.9 のとおりに作り、`style.css` に送信の表示の書式（リクエスト ID の `user-select: all` など）を加える。
-    -   **対象:** `extension/src/ui/render.ts`・`src/ui/renderSend.ts`・`static/style.css`。**完了:** `make ext-typecheck` と `render.test.ts` が通る。
+-   [ ] **ステップ 4-1**: `ui/render.ts` の `rejectedNodes` の文言と手順の部分を `messageNodes` として公開し、`renderSummary` はそれを使い続ける（振る舞いは変えない。既存の `render.test.ts` を変更せずに通す）。`ui/renderSend.ts` に `renderSendOutcome`・`renderResultView` を設計書 3.9 のとおりに作り、`style.css` に送信の表示の書式（リクエスト ID の `user-select: all` など）を加える。`renderSend.test.ts`（「renderSendOutcome」「renderResultView」）を設計書 3.12 の行のとおりに作る（送信中の表示（文言と閉じないことの案内）も確かめる。AC-22）。
+    -   **対象:** `extension/src/ui/render.ts`・`src/ui/renderSend.ts`・`static/style.css`・`test/renderSend.test.ts`。**完了:** `make ext-typecheck` と `render.test.ts`・`renderSend.test.ts` が通る。
+
+### PR-4 作成ポイント: send result rendering
+
+**対象ステップ**: 4-1
+
+**推奨タイトル**: `feat(0020): render send outcomes and result views`
+
+**レビュー観点**: 文言と手順の要素の作成を `messageNodes` に集約し、`renderSummary` の振る舞いを変えていないこと / リクエスト ID を文言とは別の要素に `user-select: all` で表示し、状態コードは想定外の応答にだけ表示し、リダイレクトには表示しないこと / 応答の本文の文字列がどの表示にも現れないこと / 送信中の表示に閉じないことの案内が含まれること
+
+**実装モデル要件**: standard
+
+**判定理由**: どのトリガーにも当たらない（表示の組み立てとそのテストに限られ、§1.3 に競合する実装の案がなく、分離すべき高リスク・複雑なステップもない）。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 -   [ ] **ステップ 4-2**: `launch.ts` を設計書 3.8 のとおりに改める。`MenuLaunchDeps`・`ResultWindowDeps` の変更、`PopupSendDeps`・`runPopupSend`・`resultWaitMs` の追加、`runMenuLaunch`（失敗の扱いはシーケンス図とその下の箇条のとおり）、`runResultWindow`（状態図のとおり）、開発者向けのログ（設計書 3.8 の「開発者向けのログ」）。名前の台帳（§1.3）のとおり、`SummaryStore`・`take`・`missingResultText`・`renderNotice`・`createSummaryStore` を削り、ログのラベルを改め、`runPopupLaunch` の doc コメント（`:128-129`）から「#111's send button」を除く。
     -   **対象:** `extension/src/launch.ts`・`src/browser/chromeDeps.ts`。**完了:** なし（ステップ 4-3 の後に型検査する）。
 -   [ ] **ステップ 4-3**: エントリポイントと `popup.html` を改める。`background.ts` はメニューの経路の依存に設定の読み込み（`chrome.storage.local`）・`SendDeps`・`now`・`createResultViewStore` を加える。`popup.html` に要約の領域と送信の領域を置き、`popup.ts` は前者で `runPopupLaunch`、後者で `runPopupSend` を呼ぶ。`result.ts` は `createResultViewStore(chrome.storage.session, chrome.storage.onChanged)` と `schedule` で `runResultWindow` を呼ぶ。
@@ -240,12 +309,11 @@ HEAD `e8b21fa`（ブランチ `issei/browser-extension-03`）で確認した。�
 -   [ ] **ステップ 4-5**: `launch.test.ts` を改める。`recordingStore` を `ResultViewStore` の fake（`put`・`get`・`watch`・`remove` を記録し、通知を任意の時点で起こせ、各操作を失敗させられる）に置き換え、`menuHarness` に設定・`SendDeps`・`now` を加える。§1.3 に挙げたメニューの経路と結果のウィンドウの行を新しい振る舞いに合わせて改め、設計書 3.12 の `launch.test.ts` の行の項目を「launch paths」「menu send」「popup send」「result window」「token never leaks」に加える。ポップアップの送信中の表示（文言と閉じないことの案内、ボタンの `disabled`）と、送らない場合にボタンを出さないことを確かめる行を含める（AC-14・AC-22）。
     -   **対象:** `extension/test/launch.test.ts`。**完了:** `launch.test.ts` が通る。
 -   [ ] **ステップ 4-6**: 残りのテストを作る・改める。
-    -   `renderSend.test.ts`（「renderSendOutcome」「renderResultView」）: 設計書 3.12 の行。送信中の表示（文言と閉じないことの案内）も確かめる（AC-22）。
     -   `serverReasons.test.ts`（「server reasons match README」）: `serverRejectStatus` の組が README の拒否の理由の表とちょうど一致すること（設計書 3.12）。表は `test/helpers/repoFile.ts` の `readRepoFile` で読む。
     -   `secretsAbsent.test.ts`（「no API key or Webhook settings」）: 設計書 3.12 の行の語が `src/`・`static/` のファイルに現れないこと。
     -   `ciChanges.test.ts`: 起動する一覧に `README.md`・`internal/server/response.go` をそれぞれ単独の一覧として加え、起動しない一覧から `["README.md"]` を除く。`:28` の行は `["docs/dev/project_overview.md", "extension/package.json"]` に替える。新しい 3 つのパスのそれぞれについて、先頭以外に現れる・後ろに続きを持つパス（`docs/README.md`・`README.md.bak`・`x/docs/dev/security.md`・`docs/dev/security.md.orig`・`x/internal/server/response.go`・`internal/server/response.go.orig`）と、同じディレクトリのほかのファイル（`docs/dev/project_overview.md`・`internal/server/handler.go`）が起動しない行を加える。
     -   `chromeDeps.test.ts`: 「summary store」の `describe` を消す（名前の台帳）。
-    -   **対象:** `extension/test/renderSend.test.ts`・`serverReasons.test.ts`・`secretsAbsent.test.ts`・`ciChanges.test.ts`・`chromeDeps.test.ts`。**完了:** `make ext-typecheck` とこれらのテストが通る。
+    -   **対象:** `extension/test/serverReasons.test.ts`・`secretsAbsent.test.ts`・`ciChanges.test.ts`・`chromeDeps.test.ts`。**完了:** `make ext-typecheck` とこれらのテストが通る。
 -   [ ] **ステップ 4-7**: 壊して失敗することを確かめ、コミットメッセージに記録する。
     -   `messageNodes` で手順のリストを作らない（`render.test.ts`・`renderSend.test.ts`）。想定外の応答の表示に状態コードを出さない、リダイレクトの表示に状態コードを出す、送信中の表示から閉じないことの案内を消す（`renderSend.test.ts`）。表示に `innerHTML` を使う（`make ext-lint`。値が 16 進や固定の文言に限られる要素はテストでは区別できない）。
     -   `runMenuLaunch` で送信中の `put` の失敗やウィンドウの失敗の後にも送る、`toSendOutcome` を通さずに `put` する、収集の拒否で設定を読む（`launch.test.ts::menu send`）。
@@ -256,6 +324,23 @@ HEAD `e8b21fa`（ブランチ `issei/browser-extension-03`）で確認した。�
     -   続けて `make ext-check` → `make test` → `make lint` を通す。最後に `node --test --experimental-test-coverage` の出力で、`core/`・`send.ts`・`launch.ts`・`optionsPage.ts`・`ui/renderSend.ts` に実行されない分岐が残っていないかを確かめ、残る分岐をコミットメッセージに挙げる。**対象:** なし（確認のみ）。**完了:** 各対象を壊して失敗することを確認し、コミットメッセージに記録する。
 
 **完了条件:** `make ext-check` → `make test` → `make lint` が通り、ステップ 4-5・4-6 のテストが通る。
+
+### PR-5 作成ポイント: launch paths, entry points, and CI change detection
+
+**対象ステップ**: 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7
+
+**推奨タイトル**: `feat(0020): wire the launch paths to send and display results`
+
+**レビュー観点**: ポップアップとメニューの経路が同じ `prepareSend`・`sendArticle` を使うこと / 結果のウィンドウの一方向の状態の移り方と、通知と `get` の順序に依存する送信結果の受け渡し / 送信中に表示できなければ送らず、送信の結果を `toSendOutcome` を通してから保存先に書くこと / ポップアップが 1 回だけ送り、送信中と送信後にボタンを押せない状態のままにすること / トークンがログ・保存先へ渡す値・表示のどこにも現れないこと
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: ステップ 4-2 の `runResultWindow` の状態機械と、通知と `get` の順序に依存する送信結果の受け渡しが、高リスク・複雑なステップであるため。この PR は送信の経路の処理に集中し、表示（ステップ 4-1）は PR-4 に分けて、状態機械のレビューを単純な表示の変更で妨げないようにしている。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 5: 手動の確認と文書
 
@@ -281,6 +366,23 @@ HEAD `e8b21fa`（ブランチ `issei/browser-extension-03`）で確認した。�
 
 **完了条件:** `make ext-check` → `make test` → `make lint` が通り、§5.1 のすべての行が記録されている。
 
+### PR-6 作成ポイント: manual verification and documentation
+
+**対象ステップ**: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6
+
+**推奨タイトル**: `docs(0020): record manual verification and update send documentation`
+
+**レビュー観点**: §5.1 の表のすべての欄が、実際の確認の結果で埋まっていること / Go のガード `TestExtensionSendDocumentation` が、README・security.md に残る #111 で決めるとした古い記述を検出すること / security.md の見出しと「**要求する権限**」の一覧を変えずに `host_permissions` を一覧の外に書いていること / CLAUDE.md の `doc-guard` のコマンドが `ci.yml` のジョブと一致すること
+
+**実装モデル要件**: standard
+
+**判定理由**: どのトリガーにも当たらない（手動の確認の記録、文書の更新、および既存の Go のガードと同じ形の検査に限られ、§1.3 に競合する実装の案がない）。手動の確認（ステップ 5-1）が実際のサーバ・Slack・LLM API を呼ぶのは人間の操作による受け入れの確認であり、自動テストや CI の外部資源の面ではないので、パネルモードの引き金に当たらない。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
 
 ### 3.1. マイルストーン
@@ -293,7 +395,24 @@ HEAD `e8b21fa`（ブランチ `issei/browser-extension-03`）で確認した。�
 | M4: 経路の処理と表示 | フェーズ 4 | `launch`・`renderSend`・`serverReasons`・`secretsAbsent`・`ciChanges` のテストが通る |
 | M5: 確認と文書 | フェーズ 5 | §5.1 の記録がそろい、`TestExtensionSendDocumentation` と `make test` が通る |
 
-### 3.2. 実装順序の根拠
+### 3.2. PR 構成
+
+PR は、フェーズ 4 を 2 つに分け、そのほかはフェーズと 1 対 1 に対応させる（PR-1〜PR-6）。各 PR は主たる関心事（`core/` の判定 / 送信と保存先 / manifest とオプションページ / 送信の結果の表示 / 経路の処理とエントリポイント / 手動の確認と文書）を持ち、単独でグリーンゲートを通せる単位とする。PR の境界と実装モデル要件の根拠は、各フェーズの末尾の「PR-N 作成ポイント」に記す。
+
+本タスクの各 PR のグリーンゲートは、`_context.md` の "Green gate"（`make test && make lint`）に `make ext-check` を加えた `make ext-check` → `make test` → `make lint`（各フェーズの完了条件と同じ）とする。`make test`・`make lint` は Go のソースだけを対象にし、拡張の TypeScript の型検査・lint・テストを確かめないためである。
+
+フェーズ 4 では、送信の結果の表示（ステップ 4-1）を PR-4 に分ける。これは、送信の経路の処理（ステップ 4-2 の `runResultWindow` の状態機械）を、単純な表示の変更で妨げずにレビューできるようにするためである。依存の向きは、`ui/renderSend.ts`（ステップ 4-1）→ `launch.ts`（ステップ 4-2）→ エントリポイント（ステップ 4-3）である。ステップ 4-1 は `launch.ts` を変更しないので、PR-4 は単独でグリーンゲートを通せる。ステップの順序は変えていないので、ステップの番号も §2 のままである。フェーズ 1 の `core/` の 5 つのモジュールとそのテスト、lint の規則は、lint の規則が 5 つのブランド付きの型すべてを一度に扱い、テストがその規則の対象になるため、1 つの PR にまとめる。分けると、テストのないモジュールが先に出るか、対象のない lint の規則が先に出る。
+
+| PR | 対象ステップ | 主な変更内容 | 実装モデル要件 |
+|---|---|---|---|
+| PR-1 | 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 | `core/` のブラウザに依存しない判定（設定の検証・本文の組み立て・応答の解釈・文言・表示内容の解析）とそのテスト、lint のブランド付きの型と `storage.sync` の禁止、型検査の宣言 | frontier-recommended |
+| PR-2 | 2-1 / 2-2 / 2-3 / 2-4 | `send.ts` の送信と応答の受け取り、`chromeDeps.ts` の保存先・`fetch` の実装、そのテスト | standard |
+| PR-3 | 3-1 / 3-2 / 3-3 / 3-4 / 3-5 | manifest の権限とオプションページ、`optionsPage.ts`、`check-dist` の検査、security.md §8.1 の `host_permissions` の項目、そのテスト | standard |
+| PR-4 | 4-1 | 送信の結果の表示（`ui/renderSend.ts`、`ui/render.ts` の `messageNodes` の公開）とそのテスト | standard |
+| PR-5 | 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7 | `launch.ts` の経路の処理と結果のウィンドウ、エントリポイント、CI の変更検出の条件、そのテスト | frontier-recommended |
+| PR-6 | 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6 | 手動の確認の記録、README・security.md・CLAUDE.md・project_overview.md の更新、Go の文書のガード | standard |
+
+### 3.3. 実装順序の根拠
 
 設計書 8 章の順序に従う。フェーズ 1 の `core/` は、ほかのすべてのフェーズが使う。フェーズ 2 は、フェーズ 4 の経路の処理が使う `ResultViewStore` の interface を先に加え、従来の `SummaryStore` を残すことで、フェーズ 2 だけでも既存の経路がそのまま動く状態を保つ。フェーズ 3 の `manifest.test.ts` が security.md §8.1 を読むので、§8.1 の `host_permissions` の項目と、`has-extension-changes.sh` の `docs/dev/security.md` の条件を、前提としてフェーズ 3 で加える。security.md の残りはフェーズ 5 で改める。手動の確認は、すべての経路がそろうフェーズ 5 で行う。
 
@@ -338,26 +457,26 @@ HEAD `e8b21fa`（ブランチ `issei/browser-extension-03`）で確認した。�
 | AC-09 | test | `prepare.test.ts::buildArticleBody` | ステップ 1-3・1-6 |
 | AC-10 | test | `send.test.ts::sendArticle` | ステップ 2-1・2-3 |
 | AC-11 | test | `send.test.ts::sendArticle` | ステップ 2-1・2-3 |
-| AC-12 | test・manual | `send.test.ts::sendArticle`（`redirect: "manual"`、`opaqueredirect`）、`renderSend.test.ts::renderSendOutcome`、§5.1 | ステップ 2-1・2-3・4-1・4-6 |
+| AC-12 | test・manual | `send.test.ts::sendArticle`（`redirect: "manual"`、`opaqueredirect`）、`renderSend.test.ts::renderSendOutcome`、§5.1 | ステップ 2-1・2-3・4-1 |
 | AC-13 | test・static・manual | `send.test.ts::sendArticle`（ヘッダの完全な集合）、`manifest.test.ts::host permissions`、§5.1 | ステップ 2-1・2-3・3-1 |
 | AC-14 | test・manual | `prepare.test.ts::prepareSend`、`sendMessages.test.ts::blockMessage`、`launch.test.ts::menu send`・`popup send`（送信が呼ばれず理由を表示）、§5.1 | ステップ 1-3・1-5・1-6・4-2・4-5 |
 | AC-15 | test | `settings.test.ts::checkSettings`、`prepare.test.ts::prepareSend` | ステップ 1-2・1-3・1-6 |
-| AC-15a | test | `prepare.test.ts::prepareSend`、`sendMessages.test.ts::blockMessage`、`renderSend.test.ts::renderResultView` | ステップ 1-3・1-5・1-6・4-1・4-6 |
-| AC-15b | test | `settings.test.ts::checkSettings`、`sendMessages.test.ts::blockMessage`、`renderSend.test.ts::renderResultView` | ステップ 1-2・1-5・1-6・4-1・4-6 |
-| AC-16 | test | `prepare.test.ts::prepareSend`（多バイト文字で 4,194,304 と 4,194,305）、`sendMessages.test.ts::blockMessage`、`renderSend.test.ts::renderResultView` | ステップ 1-3・1-5・1-6・4-1・4-6 |
+| AC-15a | test | `prepare.test.ts::prepareSend`、`sendMessages.test.ts::blockMessage`、`renderSend.test.ts::renderResultView` | ステップ 1-3・1-5・1-6・4-1 |
+| AC-15b | test | `settings.test.ts::checkSettings`、`sendMessages.test.ts::blockMessage`、`renderSend.test.ts::renderResultView` | ステップ 1-2・1-5・1-6・4-1 |
+| AC-16 | test | `prepare.test.ts::prepareSend`（多バイト文字で 4,194,304 と 4,194,305）、`sendMessages.test.ts::blockMessage`、`renderSend.test.ts::renderResultView` | ステップ 1-3・1-5・1-6・4-1 |
 | AC-17 | test | `prepare.test.ts::prepareSend`（`load` を呼ばない）、`launch.test.ts::menu send`・`popup send`（送信も読み込みもしない） | ステップ 1-3・1-6・4-2・4-5 |
 | AC-18 | test・manual | `launch.test.ts::menu send`、§5.1 | ステップ 4-2・4-5 |
 | AC-19 | test | `launch.test.ts::popup send` | ステップ 4-2・4-5 |
 | AC-20 | test | `launch.test.ts::popup send` | ステップ 4-2・4-5 |
 | AC-21 | test | `launch.test.ts::launch paths`（同じ本文・同じ結果の分類） | ステップ 4-2・4-5 |
-| AC-22 | test・manual | `renderSend.test.ts::renderResultView`（送信中の表示）、`launch.test.ts::popup send`（送信中の表示とボタン）、§5.1 | ステップ 4-1・4-2・4-5・4-6 |
-| AC-23 | test・manual | `response.test.ts::classifyResponse`、`renderSend.test.ts::renderSendOutcome`、§5.1 | ステップ 1-4・1-6・4-1・4-6 |
+| AC-22 | test・manual | `renderSend.test.ts::renderResultView`（送信中の表示）、`launch.test.ts::popup send`（送信中の表示とボタン）、§5.1 | ステップ 4-1・4-2・4-5 |
+| AC-23 | test・manual | `response.test.ts::classifyResponse`、`renderSend.test.ts::renderSendOutcome`、§5.1 | ステップ 1-4・1-6・4-1 |
 | AC-24 | test・manual | `response.test.ts::classifyResponse`、`sendMessages.test.ts::serverRejectMessage`、`serverReasons.test.ts::server reasons match README`、§5.1 | ステップ 1-4・1-5・1-6・4-6 |
-| AC-25 | test | `response.test.ts::classifyResponse`、`renderSend.test.ts::renderSendOutcome` | ステップ 1-4・1-6・4-1・4-6 |
+| AC-25 | test | `response.test.ts::classifyResponse`、`renderSend.test.ts::renderSendOutcome` | ステップ 1-4・1-6・4-1 |
 | AC-26 | test | `send.test.ts::sendArticle`、`sendMessages.test.ts::sendOutcomeMessage` | ステップ 1-5・1-6・2-1・2-3 |
-| AC-27 | test・manual | `send.test.ts::sendArticle`（`fetch` の `TypeError` で `unknown`）、`renderSend.test.ts::renderSendOutcome`（`unknown` の表示）、§5.1 | ステップ 2-1・2-3・4-1・4-6 |
-| AC-28 | test | `response.test.ts::classifyResponse`、`renderSend.test.ts::renderSendOutcome` | ステップ 1-4・1-6・4-1・4-6 |
-| AC-29 | test | `renderSend.test.ts::renderSendOutcome` | ステップ 4-1・4-6 |
+| AC-27 | test・manual | `send.test.ts::sendArticle`（`fetch` の `TypeError` で `unknown`）、`renderSend.test.ts::renderSendOutcome`（`unknown` の表示）、§5.1 | ステップ 2-1・2-3・4-1 |
+| AC-28 | test | `response.test.ts::classifyResponse`、`renderSend.test.ts::renderSendOutcome` | ステップ 1-4・1-6・4-1 |
+| AC-29 | test | `renderSend.test.ts::renderSendOutcome` | ステップ 4-1 |
 | AC-30 | static・manual | `cmd/yt2column/extension_docs_test.go::TestExtensionSendDocumentation`、§5.1（ステップ 5-4 の照合） | ステップ 3-2・5-2・5-3・5-4・5-5 |
 | AC-31 | test | `manifest.test.ts::permissions`・`undeclared keys`・`host permissions`・`options page` | ステップ 3-1・3-2 |
 | AC-32 | test | `launch.test.ts::token never leaks`、`optionsPage.test.ts::runOptionsPage`、`resultView.test.ts::parseResultView`（`unknown` の `cause` を拒否） | ステップ 1-5・1-6・3-3・4-2・4-5 |
@@ -405,11 +524,12 @@ HEAD `e8b21fa`（ブランチ `issei/browser-extension-03`）で確認した。�
 
 ## 7. 実装チェックリスト (Implementation Checklist)
 
--   [ ] フェーズ 1 完了（ステップ 1-1〜1-7）
--   [ ] フェーズ 2 完了（ステップ 2-1〜2-4）
--   [ ] フェーズ 3 完了（ステップ 3-1〜3-5）
--   [ ] フェーズ 4 完了（ステップ 4-1〜4-7）
--   [ ] フェーズ 5 完了（ステップ 5-1〜5-6）
+-   [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7）
+-   [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4）
+-   [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5）
+-   [ ] PR-4 マージ済み（対象ステップ: 4-1）
+-   [ ] PR-5 マージ済み（対象ステップ: 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7）
+-   [ ] PR-6 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6）
 -   [ ] §5 のすべての AC の検証が通り、§5.1 の記録がそろっている
 
 ## 8. 成功基準 (Success Criteria)
@@ -422,5 +542,4 @@ HEAD `e8b21fa`（ブランチ `issei/browser-extension-03`）で確認した。�
 ## 9. 次のステップ (Next Steps)
 
 -   設計書の変更（§1.3「文書」）と本計画をレビューし、設計書を再承認した後に、本計画を `approved` にする。
--   `/mkplan2 0020` で PR の境界を本計画に埋め込む。
--   その後、`/runplan 0020` でフェーズ 1 から実装する。
+-   `/runplan 0020` で PR-1 から順に実装する。
