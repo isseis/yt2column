@@ -8,7 +8,7 @@
 | Created | 2026-10-16 |
 | Review date | 2026-10-16 |
 | Reviewer | isseis |
-| Comments | 2026-10-16: 実装計画の作成時に editorial correction を 2 つ加えた（設計の決定は変えていない）。(1) §1.3 の例外 1 と §3.11 に、見出しのメタデータの形を読む評価のスクリプト `docs/tasks/0008_column_prompt/check_article.py` を加えた（料金の行を加えると `HEADER_RE` が一致しなくなる。0010 が段階のモデルの行を加えたときと同じ追従）。(2) §1.3 の `cmd/yt2column-server/run_test.go` の行番号を、0021 の変更の後の位置に改めた。 |
+| Comments | 2026-10-16: 実装計画の作成時に editorial correction を 2 つ加えた（設計の決定は変えていない）。(1) §1.3 の例外 1 と §3.11 に、見出しのメタデータの形を読む評価のスクリプト `docs/tasks/0008_column_prompt/check_article.py` を加えた（料金の行を加えると `HEADER_RE` が一致しなくなる。0010 が段階のモデルの行を加えたときと同じ追従）。(2) §1.3 の `cmd/yt2column-server/run_test.go` の行番号を、0021 の変更の後の位置に改めた。(3) §3.8 の「CLI の統合テストは標準エラーをログに出しているので、コードの変更は要らない」が事実でなかったので、秘密情報の検査の後に料金の行をログに出す変更を §3.8 と §3.11 に加えた（requirements F-008・AC-32 の決定を実現するための追従）。(4) §8 のフェーズ 1 の「`Totals` は既存の型だけを使う」が事実でなかった（`Totals` は `StageUsage.CallTime` を読む）ので、フィールドの追加だけをフェーズ 1 に置くと改めた。 |
 
 本書の既存コードへの言及（`file:line`）は、コミット `15d9b72` で確かめた（`cmd/yt2column-server/run_test.go` の行番号だけは、コミット `51ba36e` で確かめた）。
 
@@ -584,7 +584,7 @@ yt2column: cost-total: article known usd=0.032610
 
 ### 3.8. 統合テストのログ（要件 F-008）
 
--   **`make test-integration-cli`・`make test-integration-cli-slack`。** CLI の標準エラーをログに出しているので、§3.6 の行がそのまま出る。コードの変更は要らない。
+-   **`make test-integration-cli`・`make test-integration-cli-slack`。** どちらのテストも、成功した実行の標準エラーをログに出さない（`cmd/yt2column/integration_test.go` の `runIntegrationCLI` は標準エラーを秘密情報の検査にだけ渡し、`integration_slack_test.go` は失敗のときだけ標準エラー全体を出す）。そのため、既存の秘密情報の検査が通った後で、§3.6 の料金の行と合計の行（とトークン数の行）を `t.Log` でログに出す。
 -   **`make test-integration-deepseek`・`make test-integration-claude`。** 各アダプタの `integration_test.go` の `generate` と `truncated` の各サブテストで、`Generate` が戻った直後に `time.Now()` を取り、`pricing.Estimate(response.Model, response.Usage, now)` の結果と、4 つの区分のトークン数を `t.Logf` で出す。金額は `Amount.Format(6)` で、適用した単価の種類か不明の理由を添える。モデル名は既存のとおり `%+q` でエスケープして出す（`internal/llm/deepseek/integration_test.go` の既存の `t.Logf`）。ログの語は、§3.6 の CLI の行の語と同じにするが、機械可読の契約にはしない（要件 AC-33 は手動の確認）。
 
 ### 3.9. 文書と単価の更新の手順（要件 F-010）
@@ -628,6 +628,7 @@ yt2column: cost-total: article known usd=0.032610
 | `cmd/yt2column/run.go` | 変更 | 料金の行と合計の行の書式の定数、行を書く関数（`reportUsage`）、成功・失敗の要約での呼び出し | `run_test.go:2353-2362` の `TestRunArtifactExitCodes`（`artifact.Marshal` に渡す記録に `CallTime` を加える）。ほかの既存のテストは標準エラーを部分文字列で照合し、料金の行は既存の照合の文字列を含まないので変わらない |
 | `cmd/yt2column/docs_test.go` | 変更 | README の料金の行の書式と定数の一致の契約のテスト。`package_reference.md` の型の一覧に `internal/pricing` を加える | :747-752 の表（`internal/pricing` の行の追加と、`internal/artifact` の行の `"version 2"` を `"version 3"` に改める） |
 | `internal/llm/deepseek/integration_test.go`・`internal/llm/claude/integration_test.go` | 変更 | トークン数と料金の概算のログ | なし |
+| `cmd/yt2column/integration_test.go`・`cmd/yt2column/integration_slack_test.go` | 変更 | 秘密情報の検査の後に、料金の行と合計の行をログに出す（§3.8） | なし |
 | `README.md` | 変更 | §3.9 の内容 | なし |
 | `docs/dev/developer_guide/pricing_update.md` | 新規 | 単価の更新の手順（英語） | なし |
 | `CLAUDE.md` | 変更 | Development Guides に `pricing_update.md` を加える | なし |
@@ -895,7 +896,7 @@ flowchart TD
 
 ## 8. 実装優先順位 (Implementation Priorities)
 
-1. **フェーズ 1: `internal/pricing`。** 単価の表（出典のページとの再確認を含む）、`validate`、`Amount`、`Estimate`・`Totals` とそのユニットテスト。`Totals` は `writer` の既存の値の型だけを使うので、ほかのパッケージの変更を待たずに作れる。
+1. **フェーズ 1: `internal/pricing`。** 単価の表（出典のページとの再確認を含む）、`validate`、`Amount`、`Estimate`・`Totals` とそのユニットテスト。`Totals` は時間帯の判定に `StageUsage.CallTime` を読むので、このフェーズで `StageUsage` に `CallTime` のフィールドだけを加える（ゼロ値のままなので既存の振る舞いとテストは変わらない）。時刻を入れる処理はフェーズ 2 で加える。
 2. **フェーズ 2: 呼び出しの時刻と中間生成物。** `writer` の `CallTime`・`Options.Clock`、`internal/artifact` の版 3 と `call_time`。中間生成物の形式と `Write` の再利用の時刻は互いに依存するので、同じフェーズに置く。
 3. **フェーズ 3: 出力。** CLI の料金の行と合計の行、`renderArticle` の料金の行、統合テストのログ。
 4. **フェーズ 4: 文書。** README と契約のテスト、`pricing_update.md`、`CLAUDE.md`・`project_overview.md`・`security.md`・`package_reference.md`。
