@@ -5,7 +5,9 @@
 # embedded newline cannot split a path into a fragment that matches. The job
 # runs for the extension itself, the Makefile that drives it, any workflow,
 # go.mod (whose ignore directive keeps extension/node_modules out of ./...),
-# and docs/dev/security.md (which the extension tests read).
+# and the documents the extension tests read: docs/dev/security.md, README.md
+# (its rejection-reason table) and internal/server/response.go (which that
+# table mirrors).
 set -euo pipefail
 
 # Reads every record, even after a match, so the writer (git diff -z) never
@@ -13,7 +15,7 @@ set -euo pipefail
 matched=false
 while IFS= read -r -d '' path; do
   case "$path" in
-    extension/* | Makefile | .github/workflows/* | go.mod | docs/dev/security.md)
+    extension/* | Makefile | .github/workflows/* | go.mod | docs/dev/security.md | README.md | internal/server/response.go)
       matched=true
       ;;
   esac

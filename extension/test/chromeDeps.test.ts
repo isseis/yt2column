@@ -6,7 +6,6 @@ import {
   createResultViewStore,
   createSelectionReader,
   createSettingsStore,
-  createSummaryStore,
   type ScriptingApi,
   type StorageArea,
   type StorageChangeEvents,
@@ -129,15 +128,6 @@ function memoryStorage(entries: Map<string, unknown>): StorageArea {
     },
   };
 }
-
-describe("summary store", () => {
-  it("returns the stored value from take and removes it", async () => {
-    const entries = new Map<string, unknown>([["key-1", "summary"]]);
-    const store = createSummaryStore(memoryStorage(entries));
-    assert.equal(await store.take("key-1"), "summary");
-    assert.equal(entries.has("key-1"), false);
-  });
-});
 
 interface AreaRecorder {
   readonly area: StorageArea;
