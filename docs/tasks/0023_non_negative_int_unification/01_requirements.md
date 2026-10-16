@@ -85,7 +85,7 @@
 
 #### F-002: 拒否のエラーの契約
 
-`tStartMs` の拒否のエラーの契約を、本タスクの前と同じにする。すなわち、拒否は `ErrParseSubtitles` を包む `*ParseError`（`Path` に呼び出し元が渡したパスを持つ）として返り、`ErrNoSubtitles` にはマッチしない。部分的な結果（`nil` でない `[]Segment`）を返さない。拒否のエラーメッセージは、拒否した値の文字列（`-1`・`-0`・`9223372036854775808` など）を含めない（[security.md](../../dev/security.md) §6「拒否のエラーに値を含めない」）。
+`ErrParseSubtitles` を包む `*ParseError`（`Path` に呼び出し元が渡したパスを持つ）として返すこと、`ErrNoSubtitles` にはマッチしないこと、部分的な結果（`nil` でない `[]Segment`）を返さないことは、本タスクの前と同じにする。一方、拒否のエラーメッセージは変更する。従来は範囲外・非整数のエラーメッセージに拒否した値が含まれていた（`strconv` のエラー）が、本タスク後は、拒否した値の文字列（`-1`・`-0`・`9223372036854775808` など）を含めない（[security.md](../../dev/security.md) §6「拒否のエラーに値を含めない」）。
 
 **決定（`-1` と `-0` を区別する番兵）:** `-1` と `-0` を区別する、パッケージ外から観測できる新しい番兵エラーは加えない。`tStartMs` の拒否は、`AsNonNegativeInt64` が返す規則ごとのエラー（非公開。負の符号・非整数・範囲外・非数）をそのまま `ErrParseSubtitles` として包む。既存の非公開の番兵 `errNegativeTimestamp`（`internal/transcript/json3.go:26`）は本タスクで削除する。これを観測する呼び出し元もテストもない（`internal/transcript` の外からは見えず、`errors.Is` で確かめているテストは存在しない）。残して `errors.Is(err, errNegativeTimestamp)` で `-1` を確かめても、`-0` も同じ規則（負の符号）で拒否されるため、番兵の意味が曖昧になる。`AsNonNegativeInt64` の拒否が規則ごとの非公開のエラーである以上、`internal/transcript` が独自の番兵でそれらを包み直す理由はない。
 
