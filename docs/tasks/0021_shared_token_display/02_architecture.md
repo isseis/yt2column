@@ -26,10 +26,10 @@
 ### 1.1. 設計原則
 
 1.  **表示の条件から「生成したとき」を外す。** `run` は `created` で表示を分岐せず、起動のたびに同じ手順で表示する（F-001・AC-01〜AC-03）。表示の中身は変えない。標準出力へ共有トークンの値だけを 1 行（値 + 改行）書き出す（`0011` の実装そのもの）。
-2.  **表示は best-effort とし、失敗しても起動を止めない。** 標準出力への書き出し、または値の取り出しに失敗しても、標準エラー出力へ 1 行を書いて起動を続ける。トークンの値はファイルに残るので、利用者はファイルから読める（要件書 4.3）。これは現在の「書き出しに失敗したら終了コード 2 で終える」という振る舞いを変える（§1.4）。
+2.  **表示は best-effort とし、失敗しても起動を止めない。** 標準出力への書き出しに失敗しても、標準エラー出力へ 1 行を書いて起動を続ける。標準出力が閉じたパイプの場合も同じ扱いにするため、`main` は SIGPIPE を購読し、閉じたパイプへの書き込みをプロセスの終了ではなく `EPIPE` のエラーとして受け取る（§3.1）（値の取り出しの失敗は表示の失敗ではなく `Token` の不変条件の違反なので、`0011` のまま終了コード 2 で終える。§3.1）。トークンの値はファイルに残るので、利用者はファイルから読める（要件書 4.3）。これは現在の「書き出しに失敗したら終了コード 2 で終える」という振る舞いを変える（§1.4）。
 3.  **共有トークンの生成・保存・読み込み・検査は `0011` のままにする。** `internal/authtoken.LoadOrCreate` の署名と契約を変えない。`run` では `created` を使わなくなるが、`LoadOrCreate` の契約の一部として残す（要件書 2.3・5。§3.2）。
 4.  **出力先の分離を維持する。** 標準出力に書くのはトークンの 1 行だけ、ログ・案内・エラーは標準エラー出力に書く（`0011` §3.1・§3.10）。トークンは引き続き `redact.SecretStrings` が返す伏せ字の対象に含め、ログの経路に値が流れても伏せ字になるようにする（F-001・AC-06）。
-5.  **表示に新しい部品を足さない。** 変更は `cmd/yt2column-server` の起動の手順（`run`）に閉じる。新しいパッケージ・型・インタフェース・エラー型は加えない（要件書 4.5）。
+5.  **表示に新しい部品を足さない。** 変更は `cmd/yt2column-server` の起動の手順（`run`）と、SIGPIPE を購読する `main` に閉じる。新しいパッケージ・型・インタフェース・エラー型は加えない（要件書 4.5）。
 6.  **表示以外の手段を設けない。** 起動のたびに表示するので、`--show-token` のような別の表示の手段は設けない（要件書 2.3）。
 
 ### 1.2. 概念モデル
@@ -81,7 +81,7 @@ flowchart LR
 ```
 
 -   `created` は `LoadOrCreate` の結果であるが、表示はそれで分岐しない。生成した起動でも読み込んだ起動でも `TOKEN` から `DISPLAY` へ進む（§3.1）。
--   `DISPLAY` の失敗は `SERVE` を止めない。`STDERR` に書いたあと `SERVE` へ進む（§1.1 原則 2）。
+-   `DISPLAY` の失敗は `SERVE` を止めない。`STDERR` に書いたあと `SERVE` へ進む（§1.1 原則 2）。閉じたパイプへの書き込み（SIGPIPE）も、この失敗に含める（§3.1）。
 
 ### 1.3. 既存コードとの関係
 
@@ -105,7 +105,7 @@ flowchart LR
     -   **更新が必要な既存のテスト:** `cmd/yt2column-server/run_test.go` の `TestTokenShownOnlyWhenCreated`（`:261-286`）は、2 回目の起動が標準出力へ何も書かないことを確かめている。本設計では 2 回目も表示するので、このテストを「起動のたびに表示する」ことを確かめる形に改める（§7）。`cmd/yt2column-server/server_test.go:26` の、このテストを名指しするコメントも改める。
 2.  **表示に失敗したときの振る舞い（実装が選んでいた挙動の変更）。**
     -   **元の挙動:** `0011` の文書は表示の失敗を定めていない。実装は、トークンの値の取り出しに失敗すると（`run.go:173-177`）、標準出力への書き出しに失敗すると（`run.go:178-181`）、いずれも標準エラー出力に 1 行を書いて終了コード 2 で起動を止める。
-    -   **例外の理由:** 要件書 4.3 は「表示に失敗しても、サーバを停止させない。トークンの値はファイルに残るので、利用者はファイルから読める」と定める。表示は利用者の利便のための出力であり、サーバの提供を止める理由にはしない。
+    -   **例外の理由:** 要件書 4.3 は「表示に失敗しても、サーバを停止させない。トークンの値はファイルに残るので、利用者はファイルから読める」と定める。表示は利用者の利便のための出力であり、サーバの提供を止める理由にはしない。変えるのは標準出力への書き出しの失敗だけで、値の取り出しの失敗（`run.go:173-177`）は終了コード 2 のまま残す（§3.1）。
     -   **更新が必要な既存のテスト:** `cmd/yt2column-server/run_test.go` の `TestStartupFailures`（`:114-121`）の「token not written to stdout」の行は、標準出力が失敗すると終了コード `exitUsage` で止まることを確かめている。本設計では止まらないので、この行を外し、表示に失敗しても待ち受けることを確かめるテストを別に加える（§7）。
 
 ## 2. システム構成 (System Structure)
@@ -153,15 +153,16 @@ flowchart LR
 | ファイル | 変更 | 責務 |
 |---|---|---|
 | `cmd/yt2column-server/run.go` | 変更 | 手順 2 の表示を起動のたびに行い（`created` で分岐しない）、表示の失敗で起動を止めない。案内を常に書く（§3.1） |
-| `cmd/yt2column-server/run_test.go` | 変更 | `TestTokenShownOnlyWhenCreated` を「起動のたびに表示する」テストに改める。`TestStartupFailures` から表示失敗の行を外す。表示に失敗しても待ち受けるテストを加える（§7） |
+| `cmd/yt2column-server/main.go` | 変更 | `signalrun.Run` を呼ぶ前に `signal.Notify` で SIGPIPE を購読し、閉じたパイプへの書き込みを `EPIPE` のエラーとして受け取る（§3.1） |
+| `cmd/yt2column-server/run_test.go` | 変更 | `TestTokenShownOnlyWhenCreated` を「起動のたびに表示する」テストに改める。`TestStartupFailures` から表示失敗の行と、その行だけが使う `stdoutFails` のフィールド・分岐（`:62-63`・`:194`・`:216`）を外す。表示に失敗しても待ち受けるテストを加える（§7） |
 | `cmd/yt2column-server/server_test.go` | 変更 | 2 回目の起動の表示を参照するコメントを改め、標準出力に表示された値を `Authorization: Bearer` に使って認証を確かめる（AC-07。§1.4・§7） |
-| `cmd/yt2column-server/test_helpers.go` | 変更 | 表示に失敗する標準出力を渡して起動する補助を、必要に応じて加える（§7） |
+| `cmd/yt2column-server/test_helpers.go` | 変更 | 表示に失敗する標準出力を渡して起動する補助を、必要に応じて加える。`startServerChild` に、子プロセスの標準出力として読み手を閉じたパイプを渡せる形を加える（SIGPIPE のテスト。§7）。`startServer` が待ち受けの再試行のたびに標準出力を同じバッファへ書き足す点を改める（§7） |
 | `cmd/yt2column-server/docs_test.go` | 変更 | `TestServerDocsContract` に、README・`security.md` §8.2 の新しい記載を固定する検査を加える（§7。AC-08・AC-09 の静的な確認） |
-| `internal/authtoken/authtoken.go` | 変更なし | `LoadOrCreate` の署名（`created` を含む）と契約を変えない（§3.2） |
+| `internal/authtoken/authtoken.go` | コメントのみ変更 | `LoadOrCreate` の署名（`created` を含む）と契約を変えない（§3.2）。`Token.Value` のコメント（`:132-134`）の「for the one-time display after creation」を、起動のたびの表示に合わせて改める |
 | `internal/authtoken/authtoken_test.go` | 変更なし | `created` の検査をそのまま残す（§3.2） |
 | `README.md` | 変更 | 起動のたびの表示、貼り付け、再確認の経路、リダイレクトの注意（§3.4。F-002） |
 | `docs/dev/security.md` §8.2 | 変更 | 表示のタイミング、露出の経路、ログへの非露出、標準出力と標準エラー出力の分離（§3.4。F-002） |
-| `docs/dev/developer_guide/package_reference.md` | 変更 | `cmd/yt2column-server` の行の「created token を一度だけ表示する」を「起動のたびに表示する」に改める |
+| `docs/dev/developer_guide/package_reference.md` | 変更 | `cmd/yt2column-server` の行の、生成したトークンを一度だけ表示する旨の 2 か所（「a created token is written to standard output once, before listening, and nowhere else」「Standard error carries every line except the created token」）を、起動のたびに表示する形に改める（§3.4） |
 | `docs/dev/project_overview.md`・`CLAUDE.md` | 変更なし | 起動時の表示の条件を記述していない（`CLAUDE.md:116-123` はサーバの部品を列挙するだけ、`project_overview.md` に共有トークンの表示の記述はない。要件書 §5 の「変える必要がある場合」に当たらない） |
 | `docs/tasks/0011_localhost_server/` の文書 | 変更なし | 当時の記録として残す（要件書 §1・F-002） |
 
@@ -200,7 +201,13 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 
 -   **`created` を使わない理由。** 表示の条件を外すと `created` は表示の判断に使われなくなる。それでも `LoadOrCreate` の署名を変えないのは、要件書 2.3・5 がトークンの生成・保存・読み込み・検査を `0011` のままとするからである。`created` を含む契約は `0011` §3.3 と `security.md` §8.2（同時の初回起動で `created=false` を返す記述）に書かれており、本タスクの目的（表示の条件だけを変える）を超えて署名を変えない。`created` は `internal/authtoken` のテストが引き続き確かめる。`run` は `token, _, err := authtoken.LoadOrCreate(...)` の形で受け取り、表示の判断に第 2 戻り値を使わない（design_handoff H-01 が許容する形）。
 -   **案内を常に同じ文言にする理由。** 利用者が取る行動（値を拡張へ貼り付ける、必要なら起動し直す）は、生成した起動でも読み込んだ起動でも同じである。案内を「生成した/読み込んだ」で分けると分岐が増え、テストも 2 通りになる。要件書 F-001 はどちらでもよいとしており、単純な方（常に同じ文言）を採る（YAGNI）。案内は、値が再び表示されないとする記述を含めず、「起動のたびに表示する」ことを述べる（F-001・AC-02）。
--   **表示の失敗を終了にしない理由。** 要件書 4.3 による。表示は利用者の利便のための出力であり、失敗しても値はファイルに残る。失敗の 1 行は、値を伏せたうえで（`redact.Line` を通す）、利用者がファイルを読めるようパスを示す。`LoadOrCreate` が返す `Token` は検証済みの非ゼロの値を持つ（`internal/authtoken/authtoken.go:177-181`・`:244-248`。値の取り出しに失敗する `Token` は正常に返らない）ので、実際に起こりうる失敗は標準出力への書き出しである。値の取り出しに失敗した場合も、同じ 1 行（`shared token:` で始まる）を書いて起動を続け、表示の失敗をログで特定できるようにする。
+-   **表示の失敗を終了にしない理由。** 要件書 4.3 による。表示は利用者の利便のための出力であり、失敗しても値はファイルに残る。失敗の 1 行は、値を伏せたうえで（`redact.Line` を通す）、利用者がファイルを読めるようパスを示す。`LoadOrCreate` が返す `Token` は検証済みの非ゼロの値を持つ（`internal/authtoken/authtoken.go:177-181`・`:244-248`。値の取り出しに失敗する `Token` は正常に返らない）ので、実際に起こりうる失敗は標準出力への書き出しである。値の取り出しに失敗した場合は表示の失敗として扱わず、`0011` のまま 1 行を書いて終了コード 2 で終える。取り出しに失敗する `Token` はゼロ値であり、起動を続けても手順 3 の `server.New` がゼロのトークンを拒む（`internal/server/server.go:142`）ので、続ける分岐は到達しても終了コード 2 に終わるだけである。
+-   **標準出力が閉じたパイプの場合（SIGPIPE）。** Go のランタイムは、SIGPIPE を購読しないプロセスがファイル記述子 1・2 の閉じたパイプへ書くと、プロセスを SIGPIPE で終了させる（`os/signal` の文書）。何もしなければ、読み手が終了したパイプ（例: `yt2column-server | true`）へ表示を書いた時点で、`io.WriteString` がエラーを返す前に起動が止まり、原則 2 が成り立たない。そこで `main`（`cmd/yt2column-server/main.go`）は、`signalrun.Run` を呼ぶ前に `signal.Notify(make(chan os.Signal, 1), syscall.SIGPIPE)` で SIGPIPE を購読する。購読したプロセスでは、閉じたパイプへの書き込みが `EPIPE` のエラーを返すので、表示の失敗として標準エラー出力へ 1 行を書き、起動を続ける。チャネルは読まない（バッファが埋まった後の SIGPIPE は捨てられる。購読の目的は終了を防ぐことだけである）。
+    -   **`main` に置く理由。** 購読はプロセス全体の状態であり、プロセスの境界（`main`）に置く。`run` はテストから同じプロセスで何度も呼ばれるので、`run` には置かない。
+    -   **`internal/signalrun` に置かない理由。** `signalrun` が購読するシグナルは実行を取り消す（コンテキストを取り消す）ものであり、SIGPIPE は取り消しの理由にしない。また `signalrun` は CLI（`cmd/yt2column`）と共有している。CLI の出力を `head` などへ渡したとき SIGPIPE で終わるのは通常の振る舞いであり、本タスクの対象（サーバの起動時の表示）を超えて CLI を変えない。
+    -   **`signal.Ignore` を使わない理由。** 無視（`SIG_IGN`）は `exec` をまたいで子プロセスに引き継がれる。`signal.Notify` で購読したシグナルは、子プロセスでは既定の扱いに戻る。サーバは現在子プロセスを起動しないが、将来起動したときに子プロセスの振る舞いを変えない方を採る。
+    -   **標準エラー出力も閉じたパイプの場合。** 購読により、標準エラー出力への書き込みも終了ではなくエラーになる。ログが失われるだけで、待ち受けは続く。
+-   **手順 2 のコメント。** `run.go` の手順 2 のコメント「so a token created by a start whose listen then fails is still shown once」も、起動のたびに表示する形に改める。
 -   **表示は値をそのまま書き出す。** 標準出力へのトークンの 1 行は伏せ字の経路を通さない。利用者がそのままコピーできる必要があるためである（F-001）。トークンは `redact.SecretStrings` の対象に残すので、同じ値が別の経路（ログ・案内・エラー）へ流れた場合は伏せ字になる（§3.2・§5）。
 
 ### 3.2. 共有トークンの読み込み・生成（`internal/authtoken`、変更なし）
@@ -233,7 +240,7 @@ func LoadOrCreate(path string, random io.Reader) (Token, bool, error)
 |---|---|
 | `README.md` | 「Running the server」節: トークンが起動のたびに標準出力に表示されること（現在の「on the first start only」を改める）。「The shared token」節: 初回に生成し、2 回目以降は同じ値を読み込んで表示すること（現在の「prints it once」「does not print it」を改める）。値を再び確認する主たる経路を「起動し直す」とし、ファイルを読む手順を表示に失敗したときの補足として残す。標準出力をファイルにリダイレクトするとトークンがそのファイルに残る注意を加える（`2>>server.log` はログだけを残す形として維持する） |
 | `docs/dev/security.md` §8.2 | 「表示と作り直し」の記述を、生成した起動だけでなく起動のたびに表示する形に改める。露出の経路（標準出力、端末のスクロールバック、標準出力をリダイレクトしたファイル、起動した呼び出し元による出力の捕捉）、ログへの非露出、標準出力と標準エラー出力の分離、表示に失敗しても起動を続けることを記す |
-| `docs/dev/developer_guide/package_reference.md` | `cmd/yt2column-server` の行の「a created token is written to standard output once, before listening」を「the shared token is written to standard output before listening on every start」に改める |
+| `docs/dev/developer_guide/package_reference.md` | `cmd/yt2column-server` の行の「a created token is written to standard output once, before listening, and nowhere else」を「the shared token is written to standard output on every start, before listening, and nowhere else」に、「Standard error carries every line except the created token」を「Standard error carries every line except the shared token」に改める |
 
 -   **案内の文言（実装で確定する）。** 標準エラー出力に書く 1 行は、値を含まず、「標準出力に表示したこと」「拡張のオプションページに貼り付けること」「起動のたびに表示すること」「ファイルのパス」を述べる。表示に失敗した場合は、値を含まず、失敗の理由とファイルのパスを示して、ファイルを読むよう案内する。いずれも Go の文字列リテラル（英語）である（`_context.md` の Source-language rule）。
 -   **README の起動例。** `0011` §3.12 の `curl` の例（トークンを引数に置かず標準入力から渡す）は変えない。変えるのは表示のタイミングの説明と、リダイレクトの注意である。
@@ -247,7 +254,7 @@ func LoadOrCreate(path string, random io.Reader) (Token, bool, error)
 |---|---|
 | 設定の誤り（手順 1） | `0011` のまま。`*VarError` を変数ごとに 1 行書き、終了コード 2 で終える（値を表示しない。AC-05） |
 | トークンのファイルが不正（手順 2） | `0011` のまま。`*FileError` のパスと理由を 1 行書き、終了コード 2 で終える。**値を表示しない**（AC-04） |
-| トークンを読み込み・生成できた（手順 2） | 表示を試みる。値の取り出し（`Reveal`）または標準出力への書き出しに失敗しても終了しない。標準エラー出力に値を含まない 1 行を書き、手順 3 へ進む（要件書 4.3） |
+| トークンを読み込み・生成できた（手順 2） | 表示を試みる。標準出力への書き出しに失敗しても（閉じたパイプへの書き込みによる `EPIPE` を含む）終了しない。標準エラー出力に値を含まない 1 行を書き、手順 3 へ進む（要件書 4.3）。値の取り出し（`Reveal`）の失敗は `Token` の不変条件の違反であり、`0011` のまま終了コード 2 で終える（§3.1） |
 | 部品の構築の失敗（手順 3） | `0011` のまま。終了コード 2 |
 | 待ち受けの失敗（手順 4） | `0011` のまま。終了コード 1 |
 | 処理の失敗（手順 5） | `0011` のまま。変更しない |
@@ -439,23 +446,25 @@ sequenceDiagram
 | AC-09 | `docs_test.go` の `TestServerDocsContract`（`security.md` §8.2 の検査を追加） | `security.md` §8.2 に、起動のたびの表示、露出の経路、ログへの非露出、標準出力と標準エラー出力の分離が記載されている（静的な確認） |
 
 -   **表示に失敗しても待ち受けるテスト（要件書 4.3）。** 既存のトークンのファイルがある状態で、書き込みに失敗する標準出力を渡して `run` を起動する。標準エラー出力に失敗の 1 行（失敗の理由とファイルのパスを含み、トークン・API キー・Webhook URL を含まない）が出ること、トークンのファイルが書き換えられないこと、サーバがリクエストを受理すること、停止したときの終了コードが 0 であることを確かめる。`startServer`（`test_helpers.go:238-263`）は標準出力を `bytes.Buffer` に固定しているので、書き込みに失敗する `io.Writer` を渡せる補助を加える（実装で決める）。
--   **`TestStartupFailures` の改修。** 「token not written to stdout」の行（`run_test.go:114-121`）を外す（表示の失敗は起動を止めないため）。他の行は維持する。表の `tokenShown` の説明（`:54-56`）は「起動のたびに表示する」に合わせて改める。
+-   **標準出力が閉じたパイプでも待ち受けるテスト（SIGPIPE。要件書 4.3）。** SIGPIPE はプロセス全体に働くので、`run` を同じプロセスで呼ぶテストでは確かめられない。既存の子プロセスのテスト（`startServerChild` の `childModeMain`。本番の `main` をそのまま動かす）を使い、子の標準出力に読み手を閉じた `os.Pipe` の書き込み側を渡して起動する。子が待ち受けを開始すること、標準エラー出力に表示の失敗の 1 行が出ること、SIGTERM で停止したときの終了コードが 0 であることを確かめる。
+-   **`startServer` の再試行と標準出力。** `startServer` は、待ち受けの前にポートを取られた試行を再試行し、すべての試行の出力を同じバッファへ書き足す（`test_helpers.go:232-236` のコメント）。`0011` では 2 回目以降の試行はトークンを生成しないので標準出力は 1 行のままだったが、本設計では試行のたびに表示するので、再試行が起きると標準出力が複数行になり、「標準出力 == 値 + 改行」の検査（AC-01・AC-02）と、1 行を取り出して認証する検査（AC-07）が偶発的に失敗する。`startServer` は試行ごとに標準出力のバッファを新しくし、待ち受けた試行の標準出力だけを返す形に改める。
+-   **`TestStartupFailures` の改修。** 「token not written to stdout」の行（`run_test.go:114-121`）を外す（表示の失敗は起動を止めないため）。この行だけが使う `stdoutFails` のフィールドと分岐も外す。他の行は維持する。表の `tokenShown` の説明（`:54-56`）は「起動のたびに表示する」に合わせて改める。
 -   **`created` の検査は `internal/authtoken` に残す。** `internal/authtoken/authtoken_test.go` は変更しない。`LoadOrCreate` の `created` の意味は本設計で変わらない。
--   **テストが主張どおりに失敗できること。** 実装時に、次の 2 つを確認する。表示の条件を `created` で分岐する形に戻すと `TestTokenShownOnEveryStart` の 2 回目の起動が失敗すること。表示の失敗で終了する形に戻すと、表示失敗のテストが失敗すること（CLAUDE.md「Every test must be able to fail for its stated reason」）。
+-   **テストが主張どおりに失敗できること。** 実装時に、次の 3 つを確認する。表示の条件を `created` で分岐する形に戻すと `TestTokenShownOnEveryStart` の 2 回目の起動が失敗すること。表示の失敗で終了する形に戻すと、表示失敗のテストが失敗すること。`main` の SIGPIPE の購読を外すと、閉じたパイプのテストが（子が SIGPIPE で終了して）失敗すること（CLAUDE.md「Every test must be able to fail for its stated reason」）。
 -   **ガードテスト。** `internal/pipeline/pipeline_test.go` の `TestPackageReferenceListsPackages` は新しいパッケージを加えないので変わらない（`package_reference.md` の行の文面は固定していない）。`TestFakesCarryBuildTag`・`TestCommonTypesFieldSets`・`TestInterfaceDocComments` は対象を変えない。`docs_test.go` の `TestServerDocsContract` は、README・`security.md` §8.2 の既存の検査（`tokenName`・`0600`・`O_NOFOLLOW`・`link(2)` など）を維持したまま、本設計の記載の検査を加える。
 
 ## 8. 実装優先順位 (Implementation Priorities)
 
 変更は小さく、1 つのフェーズで行う。各段階の後に `make fmt`・`make test`・`make lint` を通す。
 
-1.  **起動時の表示。** `cmd/yt2column-server/run.go` の手順 2 を、`created` で分岐せず起動のたびに表示する形にし、表示の失敗で終了しないようにする。案内を常に同じ文言にする（§3.1）。
-2.  **テスト。** `TestTokenShownOnlyWhenCreated` を `TestTokenShownOnEveryStart` に改める。`TestStartupFailures` の表示失敗の行を外し、表示に失敗しても待ち受けるテストを加える。`server_test.go` のコメントを改める（§7）。
+1.  **起動時の表示。** `cmd/yt2column-server/run.go` の手順 2 を、`created` で分岐せず起動のたびに表示する形にし、表示の失敗で終了しないようにする。案内を常に同じ文言にする。`main.go` で SIGPIPE を購読する（§3.1）。
+2.  **テスト。** `TestTokenShownOnlyWhenCreated` を `TestTokenShownOnEveryStart` に改める。`TestStartupFailures` の表示失敗の行を外し、表示に失敗しても待ち受けるテストと、標準出力が閉じたパイプでも待ち受ける子プロセスのテストを加える。`server_test.go` のコメントを改める（§7）。
 3.  **文書。** README・`security.md` §8.2・`package_reference.md` を更新する（§3.4）。`TestServerDocsContract` に README・`security.md` §8.2 の記載の検査を加える（§7）。
 
 ## 9. 将来の拡張性 (Future Extensibility)
 
 -   **表示以外の手段。** 起動のたびに表示するので、`--show-token` のような別の手段は設けない（要件書 2.3）。将来必要になれば、起動時の表示を抑えるフラグ（例: 標準出力が端末でないときに表示しない）と併せて検討する。
--   **表示の抑制・切り替え。** 標準出力が端末でない場合に表示を抑える形は、本設計では採らない。表示に失敗しても起動を続けるので、`nohup` などの呼び出し元が出力を捕捉しても動作を妨げない（§5.2）。
+-   **表示の抑制・切り替え。** 標準出力が端末でない場合に表示を抑える形は、本設計では採らない。表示に失敗しても起動を続けるので、標準出力が書き込めない起動でも待ち受けを妨げない（閉じたパイプを含む。§3.1）。出力を捕捉する呼び出し元（`nohup` など）から起動しないことは運用の前提のままである（§5.3）。
 -   **トークンのローテーション・複数のトークン。** 要件書 2.3 の対象外であり、本設計は変えない。表示のタイミングを変える余地は残る（§3.1 の表示の判断に閉じる）。
 
 ## 付録 A. `0011` との関係
