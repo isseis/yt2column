@@ -254,14 +254,33 @@ func TestTokenShownOnEveryStart(t *testing.T) {
 	if got := e.readToken(t); got != token {
 		t.Errorf("the token file changed from %q to %q", token, got)
 	}
-	if notice := second.stderr.String(); strings.Contains(notice, "not shown again") {
-		t.Errorf("the notice claims the token is not shown again:\n%s", notice)
+	// The display notice is the one standard-error line that mentions standard
+	// output. Assert on that line alone: the "listening" log line also carries
+	// the token path, so checking the whole output would pass even if the
+	// notice omitted it.
+	notice := noticeLine(second.stderr.String())
+	if notice == "" {
+		t.Fatalf("second stderr has no display notice:\n%s", second.stderr.String())
 	}
-	if notice := second.stderr.String(); !strings.Contains(notice, e.tokenPath(t)) {
-		t.Errorf("second stderr does not name the token file %s:\n%s", e.tokenPath(t), notice)
+	if strings.Contains(notice, "not shown again") {
+		t.Errorf("the display notice claims the token is not shown again: %s", notice)
+	}
+	if !strings.Contains(notice, e.tokenPath(t)) {
+		t.Errorf("the display notice does not name the token file %s: %s", e.tokenPath(t), notice)
 	}
 	requireNoSecret(t, "first stderr", first.stderr.String(), token)
 	requireNoSecret(t, "second stderr", second.stderr.String(), token)
+}
+
+// noticeLine returns the first standard-error line that mentions standard
+// output, which is the token display notice, or "" when there is none.
+func noticeLine(stderr string) string {
+	for line := range strings.SplitSeq(stderr, "\n") {
+		if strings.Contains(line, "standard output") {
+			return line
+		}
+	}
+	return ""
 }
 
 // noticeSignal is a notifier that reports each notice on a channel.
