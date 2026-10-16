@@ -123,42 +123,157 @@ describe("dynamic import", () => {
   ]);
 });
 
-describe("CollectedInput assertions", () => {
-  const code =
-    "declare const value: unknown;\nexport const input = value as CollectedInput;\n";
+interface Brand {
+  readonly type: string;
+  readonly creator: string;
+}
 
-  it("allows the assertion in the collector", async () => {
-    assert.deepEqual(await ruleIds(code, "src/core/collect.ts"), []);
+const brands: Brand[] = [
+  { type: "CollectedInput", creator: "src/core/collect.ts" },
+  { type: "SharedToken", creator: "src/core/settings.ts" },
+  { type: "ServerPort", creator: "src/core/settings.ts" },
+  { type: "PreparedRequest", creator: "src/core/prepare.ts" },
+  { type: "RequestId", creator: "src/core/response.ts" },
+];
+
+const creatorFiles = [...new Set(brands.map((brand) => brand.creator))];
+const otherFiles = ["src/sample.ts", "scripts/sample.ts"];
+
+const assertion = (type: string): string =>
+  `declare const value: unknown;\nexport const x = value as ${type};\n`;
+
+describe("branded type assertions", () => {
+  for (const { type, creator } of brands) {
+    it(`allows the ${type} assertion in its creator ${creator}`, async () => {
+      assert.deepEqual(await ruleIds(assertion(type), creator), []);
+    });
+
+    it(`allows the ${type} assertion in a test`, async () => {
+      assert.deepEqual(
+        await ruleIds(assertion(type), "test/sample.test.ts"),
+        [],
+      );
+    });
+
+    for (const filePath of [...otherFiles, ...creatorFiles]) {
+      if (filePath === creator) {
+        continue;
+      }
+      it(`forbids the ${type} assertion in ${filePath}`, async () => {
+        assert.ok(
+          (await ruleIds(assertion(type), filePath)).includes(
+            "no-restricted-syntax",
+          ),
+          type,
+        );
+      });
+    }
+  }
+
+  it("allows an assertion of a non-branded type in a source file", async () => {
+    const code =
+      "declare const value: unknown;\nexport const x = value as Record<string, unknown>;\n";
+    assert.deepEqual(await ruleIds(code, "src/sample.ts"), []);
   });
 
-  it("allows the assertion in a test", async () => {
-    assert.deepEqual(await ruleIds(code, "test/sample.test.ts"), []);
-  });
+  const forms: { name: string; code: (type: string) => string }[] = [
+    {
+      name: "an angle-bracket assertion",
+      code: (type) =>
+        `declare const value: unknown;\nexport const x = <${type}>value;\n`,
+    },
+    {
+      name: "an assertion with a union",
+      code: (type) =>
+        `declare const value: unknown;\nexport const x = value as ${type} | undefined;\n`,
+    },
+    {
+      name: "an assertion with a generic wrapper",
+      code: (type) =>
+        `declare const value: unknown;\nexport const x = value as Readonly<${type}>;\n`,
+    },
+    {
+      name: "a namespace assertion",
+      code: (type) =>
+        `declare const value: unknown;\nexport const x = value as settings.${type};\n`,
+    },
+    {
+      name: "a type predicate",
+      code: (type) =>
+        `export function f(v: unknown): v is ${type} {\n  return true;\n}\n`,
+    },
+    { name: "a type alias", code: (type) => `export type Alias = ${type};\n` },
+    {
+      name: "a renaming import",
+      code: (type) =>
+        `import type { ${type} as Renamed } from "./x.ts";\nexport type Y = Renamed;\n`,
+    },
+  ];
+  for (const { type } of brands) {
+    for (const { name, code } of forms) {
+      it(`forbids ${name} of ${type} in a source file`, async () => {
+        assert.ok(
+          (await ruleIds(code(type), "src/sample.ts")).includes(
+            "no-restricted-syntax",
+          ),
+          name,
+        );
+      });
+    }
+  }
+});
 
-  it("forbids the assertion in another source file", async () => {
-    assert.ok(
-      (await ruleIds(code, "src/sample.ts")).includes("no-restricted-syntax"),
-      code,
-    );
-  });
+describe("storage.sync", () => {
+  const violations: { name: string; code: string }[] = [
+    {
+      name: "the dotted reference",
+      code: 'export const p = chrome.storage.sync.get("x");\n',
+    },
+    {
+      name: "the computed string reference",
+      code: 'export const p = chrome.storage["sync"].get("x");\n',
+    },
+    {
+      name: "the computed template reference",
+      code: 'export const p = chrome.storage[`sync`].get("x");\n',
+    },
+    {
+      name: "the destructured reference",
+      code: "export const { sync } = chrome.storage;\n",
+    },
+  ];
+  for (const { name, code } of violations) {
+    expectViolation([{ name, code, rule: "no-restricted-syntax" }]);
+  }
 
-  it("forbids the assertion in a script", async () => {
-    assert.ok(
-      (await ruleIds(code, "scripts/sample.ts")).includes(
-        "no-restricted-syntax",
-      ),
-      code,
-    );
-  });
+  for (const filePath of paths) {
+    it(`allows chrome.storage.local in ${filePath}`, async () => {
+      const code = 'export const p = chrome.storage.local.get("x");\n';
+      assert.deepEqual(await ruleIds(code, filePath), []);
+    });
+  }
+});
 
-  it("forbids the angle-bracket assertion in another source file", async () => {
-    const angleCode =
-      "declare const value: unknown;\nexport const input = <CollectedInput>value;\n";
-    assert.ok(
-      (await ruleIds(angleCode, "src/sample.ts")).includes(
-        "no-restricted-syntax",
-      ),
-      angleCode,
-    );
-  });
+describe("common selectors in creator files", () => {
+  const violations: { name: string; code: string }[] = [
+    {
+      name: "innerHTML",
+      code: "declare const el: HTMLElement;\ndeclare const s: string;\nexport const f = (): void => {\n  el.innerHTML = s;\n};\n",
+    },
+    { name: "import()", code: 'export const m = import("./x.js");\n' },
+    {
+      name: "storage.sync",
+      code: 'export const p = chrome.storage.sync.get("x");\n',
+    },
+  ];
+  for (const creator of creatorFiles) {
+    for (const { name, code } of violations) {
+      it(`forbids ${name} in ${creator}`, async () => {
+        assert.ok(
+          (await ruleIds(code, creator)).includes("no-restricted-syntax"),
+          name,
+        );
+      });
+    }
+  }
 });

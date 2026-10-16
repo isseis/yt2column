@@ -21,6 +21,10 @@ const sources = {
   // What src/core/ may use (types/core-url.d.ts) and what it may not.
   usesUrl:
     'export const ids: string[] = new URL("https://a/?v=1").searchParams.getAll("v");\n',
+  // What src/core/ may use (types/core-encoding.d.ts).
+  usesTextEncoding:
+    'export const n: number = new TextEncoder().encode("x").length;\n' +
+    'export const s: string = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(new Uint8Array());\n',
   usesDocument: "export const t: string = document.title;\n",
   usesChrome: "export const id: string = chrome.runtime.id;\n",
 };
@@ -66,7 +70,10 @@ describe("type errors fail typecheck and build", () => {
         files: [
           path.join(dir, `${file}.ts`),
           ...(base === "tsconfig.core.json"
-            ? [path.join(extensionDir, "types", "core-url.d.ts")]
+            ? [
+                path.join(extensionDir, "types", "core-url.d.ts"),
+                path.join(extensionDir, "types", "core-encoding.d.ts"),
+              ]
             : []),
         ],
       }),
@@ -101,7 +108,7 @@ describe("type errors fail typecheck and build", () => {
   }
 
   describe("core is checked without browser types", () => {
-    for (const file of ["good", "usesUrl"] as const) {
+    for (const file of ["good", "usesUrl", "usesTextEncoding"] as const) {
       it(`tsconfig.core.json accepts ${file}`, () => {
         const { status, output } = runTsc("tsconfig.core.json", file);
         assert.equal(status, 0, output);
