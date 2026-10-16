@@ -66,21 +66,32 @@ func TestServerDocsContract(t *testing.T) {
 			"on every start",
 			"paste it into the extension's options page",
 			"the display fails",
-			"redirect",
 		} {
 			if !strings.Contains(section, want) {
 				t.Errorf("README.md server section does not mention %q", want)
 			}
 		}
+		if !hasLineContainingAll(section, "On every start", "the first included") {
+			t.Error(`README.md does not say the shared token is printed on every start`)
+		}
 		if !hasLineContainingAll(section, "To see the token again", "restart the server") {
 			t.Error("README.md server section does not say to restart the server to see the token again")
 		}
+		if !strings.Contains(section, "Standard output is easy to redirect") {
+			t.Error("README.md server section has no caveat about redirecting standard output")
+		}
 		// Pin the fallback commands themselves: the curl recipe below also
-		// names the token file with cat, so a bare cat/server-token check
-		// would pass without them.
-		if !hasLineContainingAll(section, "macOS:", "cat", "server-token") ||
-			!hasLineContainingAll(section, "other Unix:", "cat", "server-token") {
+		// names the token file with cat, so a bare cat/tokenName check would
+		// pass without them.
+		if !hasLineContainingAll(section, "macOS:", "cat", tokenName) ||
+			!hasLineContainingAll(section, "other Unix:", "cat", tokenName) {
 			t.Error("README.md server section gives no per-OS command to read the token file")
+		}
+		// The retired first-start-only wording must not come back.
+		for _, retired := range []string{"on the first start only", "does not print it"} {
+			if strings.Contains(section, retired) {
+				t.Errorf("README.md server section still says %q", retired)
+			}
 		}
 		// A curl example must carry the endpoint, the four headers (with the
 		// token fed through standard input, not as an argument), and the
@@ -176,11 +187,12 @@ func TestServerDocsContract(t *testing.T) {
 		for _, want := range []string{
 			"起動のたび",
 			"起動時に表示されたトークン",
-			"標準エラー出力に分ける",
+			"ログ・案内・エラーは標準エラー出力に分ける",
 			"トークンはログに残らない",
 			"表示に失敗しても起動を止めない",
 			"スクロールバック",
 			"リダイレクト",
+			"呼び出し元による出力の捕捉",
 		} {
 			if !strings.Contains(section, want) {
 				t.Errorf("security.md 8.2 does not mention %q", want)
