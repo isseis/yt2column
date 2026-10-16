@@ -5,7 +5,6 @@ package main
 import (
 	"context"
 	"errors"
-	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -28,10 +27,7 @@ import (
 
 // errBuildRefused is what a constructor substituted by TestStartupFailures
 // returns.
-var (
-	errBuildRefused = errors.New("the test refuses to build this component")
-	errWriteRefused = errors.New("the test refuses to write")
-)
+var errBuildRefused = errors.New("the test refuses to build this component")
 
 // validTokenContent is a token file content the server accepts.
 const validTokenContent = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
@@ -51,16 +47,14 @@ func TestStartupFailures(t *testing.T) {
 		// returns only an exit code, so its standard error, which tells the
 		// operator what to fix, is the observable contract matched here.
 		wantStderr string
-		// tokenShown is whether the run created the token and wrote it to
-		// standard output before it stopped.
+		// tokenShown is whether the run wrote the shared token to standard
+		// output before it stopped.
 		tokenShown bool
 		// hint, when set, is a second part standard error must hold.
 		hint string
 		// configLines, when set, is how many configuration lines standard
 		// error must hold: one per rejected variable.
 		configLines int
-		// stdoutFails makes standard output reject every write.
-		stdoutFails bool
 	}{
 		{
 			name:       "an argument",
@@ -112,14 +106,6 @@ func TestStartupFailures(t *testing.T) {
 			tokenShown: true,
 		},
 		{
-			// The token is kept in the file, and the run stops rather than
-			// claim it was shown.
-			name:        "token not written to stdout",
-			stdoutFails: true,
-			want:        exitUsage,
-			wantStderr:  "writing the created token to standard output failed",
-		},
-		{
 			name: "review LLM client not built",
 			setup: func(_ *testing.T, _ *serverEnv, d *deps) {
 				d.newReviewLLMClient = func(config.LLMConfig) (llm.LLMClient, error) { return nil, errBuildRefused }
@@ -156,8 +142,8 @@ func TestStartupFailures(t *testing.T) {
 			tokenShown: true,
 		},
 		{
-			// The token is created before listening, so a start whose listen
-			// fails still shows it once.
+			// The token is displayed before listening, so a start whose
+			// listen fails still shows it.
 			name: "port in use",
 			setup: func(t *testing.T, e *serverEnv, _ *deps) {
 				occupied, err := net.Listen("tcp", "127.0.0.1:0")
@@ -190,11 +176,7 @@ func TestStartupFailures(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), exitBound)
 			defer cancel()
 			var stdout, stderr strings.Builder
-			var out io.Writer = &stdout
-			if tc.stdoutFails {
-				out = failingWriter{}
-			}
-			code := run(ctx, tc.args, e.lookup(), out, &stderr, d)
+			code := run(ctx, tc.args, e.lookup(), &stdout, &stderr, d)
 
 			if code != tc.want {
 				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, tc.want, stderr.String())
@@ -213,13 +195,9 @@ func TestStartupFailures(t *testing.T) {
 			after, _ := os.ReadFile(tokenPath)
 			token := string(after)
 			switch {
-			case tc.stdoutFails:
-				if len(after) == 0 {
-					t.Error("the token file was not created")
-				}
 			case tc.tokenShown:
 				if len(before) != 0 || stdout.String() != token+"\n" {
-					t.Errorf("stdout = %q, want the created token %q on one line", stdout.String(), token)
+					t.Errorf("stdout = %q, want the token %q on one line", stdout.String(), token)
 				}
 			default:
 				if stdout.Len() != 0 {
@@ -233,12 +211,6 @@ func TestStartupFailures(t *testing.T) {
 		})
 	}
 }
-
-// failingWriter rejects every write.
-type failingWriter struct{}
-
-// Write implements io.Writer.
-func (failingWriter) Write([]byte) (int, error) { return 0, errWriteRefused }
 
 // writeTokenFile creates the token file at path with content and mode.
 func writeTokenFile(t *testing.T, path, content string, mode os.FileMode) {
@@ -254,11 +226,12 @@ func writeTokenFile(t *testing.T, path, content string, mode os.FileMode) {
 	}
 }
 
-// TestTokenShownOnlyWhenCreated checks that the first start writes the token it
-// creates to standard output as one line, and that a second start with the
-// same token file writes nothing there and keeps the file. Neither start writes
-// the token to standard error.
-func TestTokenShownOnlyWhenCreated(t *testing.T) {
+// TestTokenShownOnEveryStart checks that each start writes the shared token to
+// standard output as one line: the first start creates the file, and a second
+// start reads the same value and writes it too, leaving the file unchanged.
+// Neither start writes the token to standard error, and the notice does not
+// claim the token will not be shown again.
+func TestTokenShownOnEveryStart(t *testing.T) {
 	e := newServerEnv(t)
 	d := testDeps(validResponseLLM())
 
@@ -275,14 +248,39 @@ func TestTokenShownOnlyWhenCreated(t *testing.T) {
 	if code := second.stop(t); code != exitOK {
 		t.Fatalf("second run exit code = %d, want %d\nstderr:\n%s", code, exitOK, second.stderr.String())
 	}
-	if second.stdout.Len() != 0 {
-		t.Errorf("second stdout = %q, want empty", second.stdout.String())
+	if second.stdout.String() != token+"\n" {
+		t.Errorf("second stdout = %q, want the same token %q on one line", second.stdout.String(), token)
 	}
 	if got := e.readToken(t); got != token {
 		t.Errorf("the token file changed from %q to %q", token, got)
 	}
+	// The display notice is the one standard-error line that mentions standard
+	// output. Assert on that line alone: the "listening" log line also carries
+	// the token path, so checking the whole output would pass even if the
+	// notice omitted it.
+	notice := stderrLine(second.stderr.String(), "standard output")
+	if notice == "" {
+		t.Fatalf("second stderr has no display notice:\n%s", second.stderr.String())
+	}
+	if strings.Contains(notice, "not shown again") {
+		t.Errorf("the display notice claims the token is not shown again: %s", notice)
+	}
+	if !strings.Contains(notice, e.tokenPath(t)) {
+		t.Errorf("the display notice does not name the token file %s: %s", e.tokenPath(t), notice)
+	}
 	requireNoSecret(t, "first stderr", first.stderr.String(), token)
 	requireNoSecret(t, "second stderr", second.stderr.String(), token)
+}
+
+// stderrLine returns the first line of output that contains sub, or "" when
+// there is none.
+func stderrLine(output, sub string) string {
+	for line := range strings.SplitSeq(output, "\n") {
+		if strings.Contains(line, sub) {
+			return line
+		}
+	}
+	return ""
 }
 
 // noticeSignal is a notifier that reports each notice on a channel.
@@ -404,7 +402,7 @@ func TestWriterOptionsMatchCLIDefaults(t *testing.T) {
 // signal exits at once.
 func TestRunLogsListeningAndStop(t *testing.T) {
 	e := newServerEnv(t)
-	// An existing token, so no "created" line also names the file's path.
+	// An existing token, so the start reads it rather than creating one.
 	writeTokenFile(t, e.tokenPath(t), validTokenContent, 0o600)
 	srv := startServer(t, e, testDeps(validResponseLLM()))
 	port := strconv.Itoa(int(e.port(t)))
@@ -412,10 +410,18 @@ func TestRunLogsListeningAndStop(t *testing.T) {
 		t.Fatalf("exit code = %d, want %d", code, exitOK)
 	}
 	stderr := srv.stderr.String()
+	// The token path is logged on the listening line; assert on that line, not
+	// on the whole output, where the display notice also carries the path.
+	listening := stderrLine(stderr, "msg=listening")
+	if listening == "" {
+		t.Fatalf("stderr has no listening log line:\n%s", stderr)
+	}
+	if !strings.Contains(listening, e.tokenPath(t)) {
+		t.Errorf("the listening log does not name the token file %s: %s", e.tokenPath(t), listening)
+	}
 	for _, want := range []string{
 		"http://127.0.0.1:" + port + server.ArticlesPath,
 		"http://[::1]:" + port + server.ArticlesPath,
-		e.tokenPath(t),
 		// Three LLM calls of at most 15 minutes each.
 		"up to about 45 minutes",
 		"send the signal again to exit at once",

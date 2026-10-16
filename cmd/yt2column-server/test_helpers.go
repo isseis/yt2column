@@ -225,22 +225,46 @@ type runningServer struct {
 	cancel context.CancelFunc
 	done   chan struct{}
 	code   int
-	// stdout and stderr are written by run; read them only after stop.
-	stdout *bytes.Buffer
+	// stdout is synchronized, so a test can read what run has written while
+	// the server keeps serving; stderr is read only after stop.
+	stdout *syncBuffer
 	stderr *bytes.Buffer
+}
+
+// syncBuffer is a buffer whose writes and reads are synchronized, so run's
+// display can be read while run keeps serving (make test runs with -race).
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+// Write implements io.Writer.
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+// String returns the bytes written so far.
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
 }
 
 // startServer calls run in a goroutine on a free port and returns once the
 // server accepts connections. When the port is taken before run listens (run
-// returns exitFailure without serving), it tries another. The output of every
-// attempt goes to the same buffers, so a token a failed attempt created is
-// still in stdout. A cleanup stops the run.
+// returns exitFailure without serving), it tries another. Each attempt gets a
+// fresh stdout buffer, so the returned server's standard output holds only the
+// listening attempt's display; the retries' standard error is kept for the
+// diagnostic on failure. A cleanup stops the run.
 func startServer(t *testing.T, e *serverEnv, d deps) *runningServer {
 	t.Helper()
 	requireIPv6Loopback(t)
-	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
 	for range listenAttempts {
 		e.setPort(freePort(t))
+		stdout := &syncBuffer{}
 		ctx, cancel := context.WithCancel(context.Background())
 		r := &runningServer{cancel: cancel, done: make(chan struct{}), stdout: stdout, stderr: stderr}
 		lookup := e.lookup()

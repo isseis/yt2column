@@ -126,10 +126,12 @@ func (l *lockedWriter) Write(p []byte) (int, error) {
 }
 
 // run starts the server and serves until ctx is canceled, then returns the
-// process exit code. Steps 1 to 3 have no side effect beyond creating the
-// token file when it is absent: any failure there exits with exitUsage before
-// the server listens. Standard output only ever receives a newly created
-// token; everything else goes to standard error.
+// process exit code. Steps 1 to 3 touch no network and change no file other
+// than creating the token file when it is absent. A failure there stops the
+// start with exitUsage before the server listens, except a failure to display
+// the token, which is written to standard error and does not stop the start.
+// Standard output receives the shared token on every start; everything else
+// goes to standard error.
 func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, stderr io.Writer, d deps) int {
 	// run's own logger and the server's write to stderr from different
 	// goroutines, so each write is serialized here rather than relying on
@@ -156,9 +158,9 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 		errOut.line("%s: warning: GODEBUG enables http2debug, so the Go HTTP/2 log may write the API key and the Webhook URL path to standard error", programName)
 	}
 
-	// 2: the shared token, before listening, so a token created by a start
-	// whose listen then fails is still shown once.
-	token, created, err := authtoken.LoadOrCreate(cfg.TokenPath(), rand.Reader)
+	// 2: the shared token, displayed on every start before listening, so a
+	// start whose listen then fails still shows the token.
+	token, err := authtoken.LoadOrCreate(cfg.TokenPath(), rand.Reader)
 	if err != nil {
 		if _, ok := errors.AsType[*authtoken.FileError](err); ok {
 			errOut.line("%s: shared token: %v; fix the file, or delete it and restart to create a new token", programName, err)
@@ -169,17 +171,17 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 	}
 	secrets := redact.SecretStrings(cfg.WebhookURL(), llmCfg.DeepSeekAPIKey(), llmCfg.AnthropicAPIKey(), token.Value())
 	errOut.secrets = secrets
-	if created {
-		value, err := token.Value().Reveal()
-		if err != nil {
-			errOut.line("%s: shared token: the created token cannot be shown: %v", programName, err)
-			return exitUsage
-		}
-		if _, err := io.WriteString(stdout, value+"\n"); err != nil {
-			errOut.line("%s: shared token: writing the created token to standard output failed: %v; read it from %s", programName, err, cfg.TokenPath())
-			return exitUsage
-		}
-		errOut.line("%s: created a new shared token in %s and wrote it to standard output; paste it into the extension's options page (it is not shown again; read the file to see it later)", programName, cfg.TokenPath())
+	// The display is best effort: a failure to write it to standard output
+	// does not stop the start, because the value stays in the token file.
+	value, err := token.Value().Reveal()
+	if err != nil {
+		errOut.line("%s: shared token: the token value cannot be read: %v", programName, err)
+		return exitUsage
+	}
+	if _, err := io.WriteString(stdout, value+"\n"); err != nil {
+		errOut.line("%s: shared token: writing the token to standard output failed: %v; read it from %s", programName, err, cfg.TokenPath())
+	} else {
+		errOut.line("%s: wrote the shared token to standard output; it is shown on every start, so restart the server to see it again; paste it into the extension's options page; the token file is %s", programName, cfg.TokenPath())
 	}
 
 	// 3: the components. None of the constructors touches the network.

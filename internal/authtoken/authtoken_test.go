@@ -22,12 +22,9 @@ func TestLoadOrCreateCreates(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "yt2column", tokenFileName)
 
-	token, created, err := LoadOrCreate(path, rand.Reader)
+	token, err := LoadOrCreate(path, rand.Reader)
 	if err != nil {
 		t.Fatalf("LoadOrCreate: %v", err)
-	}
-	if !created {
-		t.Errorf("created = false, want true when the token file did not exist")
 	}
 	if token.IsZero() {
 		t.Errorf("IsZero() = true, want false after creation")
@@ -71,12 +68,9 @@ func TestLoadOrCreateCreates(t *testing.T) {
 // without regenerating or modifying it.
 func TestLoadOrCreateReadsAgain(t *testing.T) {
 	path := filepath.Join(t.TempDir(), tokenFileName)
-	first, created, err := LoadOrCreate(path, rand.Reader)
+	first, err := LoadOrCreate(path, rand.Reader)
 	if err != nil {
 		t.Fatalf("first LoadOrCreate: %v", err)
-	}
-	if !created {
-		t.Fatalf("first LoadOrCreate created = false, want true")
 	}
 	firstValue, err := first.Value().Reveal()
 	if err != nil {
@@ -84,12 +78,9 @@ func TestLoadOrCreateReadsAgain(t *testing.T) {
 	}
 	before := takeSnapshot(t, path)
 
-	second, created, err := LoadOrCreate(path, rand.Reader)
+	second, err := LoadOrCreate(path, rand.Reader)
 	if err != nil {
 		t.Fatalf("second LoadOrCreate: %v", err)
-	}
-	if created {
-		t.Errorf("second LoadOrCreate created = true, want false")
 	}
 	secondValue, err := second.Value().Reveal()
 	if err != nil {
@@ -217,10 +208,7 @@ func TestLoadOrCreateRejectsInvalidFile(t *testing.T) {
 			tc.setup(t, path)
 			before := takeSnapshot(t, path)
 
-			_, created, err := LoadOrCreate(path, rand.Reader)
-			if created {
-				t.Errorf("created = true, want false for a rejected file")
-			}
+			_, err := LoadOrCreate(path, rand.Reader)
 			if !errors.Is(err, ErrInvalidTokenFile) {
 				t.Fatalf("LoadOrCreate error = %v, want ErrInvalidTokenFile", err)
 			}
@@ -251,7 +239,7 @@ func TestLoadOrCreateRejectsWrongOwner(t *testing.T) {
 		t.Fatalf("chown: %v", err)
 	}
 
-	_, _, err := LoadOrCreate(path, rand.Reader)
+	_, err := LoadOrCreate(path, rand.Reader)
 	if !errors.Is(err, ErrInvalidTokenFile) {
 		t.Fatalf("LoadOrCreate error = %v, want ErrInvalidTokenFile", err)
 	}
@@ -275,12 +263,9 @@ func TestCreateDoesNotOverwriteExisting(t *testing.T) {
 	// A source that would produce a different token, so a passing test cannot
 	// come from the new value matching the old one.
 	other := bytes.Repeat([]byte{0x11}, tokenBytes)
-	token, created, err := create(path, bytes.NewReader(other))
+	token, err := create(path, bytes.NewReader(other))
 	if err != nil {
 		t.Fatalf("create: %v", err)
-	}
-	if created {
-		t.Errorf("create reported created = true when the name already existed, want false")
 	}
 	value, err := token.Value().Reveal()
 	if err != nil {
@@ -302,12 +287,9 @@ func TestCreateDoesNotOverwriteExisting(t *testing.T) {
 // reported and creates no file.
 func TestLoadOrCreateRandomError(t *testing.T) {
 	path := filepath.Join(t.TempDir(), tokenFileName)
-	_, created, err := LoadOrCreate(path, iotest.ErrReader(errors.New("no randomness")))
+	_, err := LoadOrCreate(path, iotest.ErrReader(errors.New("no randomness")))
 	if err == nil {
 		t.Fatalf("LoadOrCreate error = nil, want a failure")
-	}
-	if created {
-		t.Errorf("created = true, want false when generation failed")
 	}
 	if _, statErr := os.Stat(path); !errors.Is(statErr, fs.ErrNotExist) {
 		t.Errorf("a token file exists after a failed creation: %v", statErr)
@@ -318,7 +300,7 @@ func TestLoadOrCreateRandomError(t *testing.T) {
 // must never match: an empty value and the zero Token.
 func TestMatches(t *testing.T) {
 	path := filepath.Join(t.TempDir(), tokenFileName)
-	token, _, err := LoadOrCreate(path, rand.Reader)
+	token, err := LoadOrCreate(path, rand.Reader)
 	if err != nil {
 		t.Fatalf("LoadOrCreate: %v", err)
 	}
@@ -377,7 +359,7 @@ func TestFileErrorMessageOmitsContent(t *testing.T) {
 	content := "S3cret-not-a-token"
 	writeTokenFile(t, path, 0o600, []byte(content))
 
-	_, _, err := LoadOrCreate(path, rand.Reader)
+	_, err := LoadOrCreate(path, rand.Reader)
 	var fileErr *FileError
 	if !errors.As(err, &fileErr) {
 		t.Fatalf("LoadOrCreate error = %v, want *FileError", err)
