@@ -1,5 +1,7 @@
 import type { PageSelection, SelectionReader } from "../core/collect.ts";
-import type { Logger, SummaryStore } from "../launch.ts";
+import type { SettingsStore } from "../core/settings.ts";
+import type { Logger, ResultViewStore, SummaryStore } from "../launch.ts";
+import type { FetchFn, SendDeps } from "../send.ts";
 
 /** The one chrome.scripting call used; its result is validated at runtime. */
 export interface ScriptingApi {
@@ -9,12 +11,23 @@ export interface ScriptingApi {
   }): Promise<Array<{ readonly result?: unknown }>>;
 }
 
-/** The chrome.storage.session surface used. */
+/** The chrome.storage area surface used (session for result views, local for settings). */
 export interface StorageArea {
-  get(keys: string): Promise<Record<string, unknown>>;
+  get(keys: string | string[]): Promise<Record<string, unknown>>;
   set(items: Record<string, unknown>): Promise<void>;
-  remove(keys: string): Promise<void>;
+  remove(keys: string | string[]): Promise<void>;
 }
+
+/** The chrome.storage.onChanged surface used to follow a result view. */
+export interface StorageChangeEvents {
+  addListener(callback: StorageChangeListener): void;
+  removeListener(callback: StorageChangeListener): void;
+}
+
+export type StorageChangeListener = (
+  changes: Record<string, { readonly newValue?: unknown }>,
+  areaName: string,
+) => void;
 
 export interface WindowsApi {
   create(data: {
@@ -108,6 +121,73 @@ export function createSummaryStore(storage: StorageArea): SummaryStore {
   };
 }
 
+const tokenKey = "sharedToken";
+const portKey = "serverPort";
+
+/**
+ * The SettingsStore backed by the given storage area (chrome.storage.local in
+ * production). The token and the port use separate keys, so saving or clearing
+ * one never touches the other, and load reads both keys in one get.
+ */
+export function createSettingsStore(area: StorageArea): SettingsStore {
+  return {
+    async load() {
+      const values = await area.get([tokenKey, portKey]);
+      return { token: values[tokenKey], port: values[portKey] };
+    },
+    async saveToken(token) {
+      await area.set({ [tokenKey]: token });
+    },
+    async clearToken() {
+      await area.remove(tokenKey);
+    },
+    async savePort(port) {
+      await area.set({ [portKey]: port });
+    },
+  };
+}
+
+/**
+ * The ResultViewStore backed by the given storage area (chrome.storage.session
+ * in production) and change events (chrome.storage.onChanged). watch reports
+ * only a value newly stored under the key in the "session" area; a removal or
+ * a change in another area or key is not reported.
+ */
+export function createResultViewStore(
+  area: StorageArea,
+  events: StorageChangeEvents,
+): ResultViewStore {
+  return {
+    async put(key, view) {
+      await area.set({ [key]: view });
+    },
+    async get(key) {
+      const values = await area.get(key);
+      return values[key];
+    },
+    async remove(key) {
+      await area.remove(key);
+    },
+    watch(key, listener) {
+      const callback: StorageChangeListener = (changes, areaName) => {
+        if (areaName !== "session") {
+          return;
+        }
+        const change = changes[key];
+        if (
+          change === undefined ||
+          !Object.prototype.hasOwnProperty.call(change, "newValue")
+        ) {
+          return;
+        }
+        listener(change.newValue);
+      };
+      events.addListener(callback);
+      return () => events.removeListener(callback);
+    },
+  };
+}
+
 /** Opens resultUrl with the summary key in the fragment, as a popup window. */
 export function createResultWindowOpener(
   windows: WindowsApi,
@@ -139,4 +219,24 @@ export function createActiveTabQuery(
     const [tab] = await tabs.query({ active: true, currentWindow: true });
     return tab;
   };
+}
+
+/**
+ * The SendDeps backed by the global fetch and AbortSignal.timeout. fetch is
+ * called through this wrapper, so the global stays an unbound reference;
+ * calling the global as another object's method would throw "Illegal
+ * invocation" and be read as an unknown result.
+ */
+export function createSendDeps(): SendDeps {
+  const fetchFn: FetchFn = (url, init) => fetch(url, init);
+  return {
+    fetch: fetchFn,
+    timeoutSignal: (ms) => AbortSignal.timeout(ms),
+  };
+}
+
+/** Runs callback once after ms milliseconds; the returned function cancels it. */
+export function schedule(ms: number, callback: () => void): () => void {
+  const id = setTimeout(callback, ms);
+  return () => clearTimeout(id);
 }

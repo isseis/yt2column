@@ -1,5 +1,6 @@
 import { collect } from "./core/collect.ts";
 import type { CollectOutcome, SelectionReader } from "./core/collect.ts";
+import type { ResultView } from "./core/resultView.ts";
 import { parseSummary, summarize } from "./core/summary.ts";
 import type { LaunchContext, OutcomeSummary } from "./core/types.ts";
 import { renderSummary } from "./ui/render.ts";
@@ -20,6 +21,19 @@ export interface SummaryStore {
    * opened. Rejects when the removal fails.
    */
   remove(key: string): Promise<void>;
+}
+
+/** Hands a ResultView from the service worker to the result window. Replaces SummaryStore. */
+export interface ResultViewStore {
+  put(key: string, view: ResultView): Promise<void>;
+  /** Returns the stored value; undefined when absent. Does not remove it. */
+  get(key: string): Promise<unknown>;
+  remove(key: string): Promise<void>;
+  /**
+   * Calls listener with each value newly stored under key in storage.session.
+   * Removals are not reported. Returns a function that stops the listener.
+   */
+  watch(key: string, listener: (value: unknown) => void): () => void;
 }
 
 export interface MenuLaunchDeps {
