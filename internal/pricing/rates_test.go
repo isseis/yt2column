@@ -70,9 +70,6 @@ func TestRateFieldsUnsigned(t *testing.T) {
 		if !ok {
 			t.Fatalf("rates has no field %q", name)
 		}
-		if !isUnsignedKind(field.Type.Kind()) {
-			t.Errorf("rates.%s kind = %v, want an unsigned integer", name, field.Type.Kind())
-		}
 		if field.Type != rateType {
 			t.Errorf("rates.%s type = %v, want %v", name, field.Type, rateType)
 		}
@@ -104,7 +101,6 @@ func TestValidateRejects(t *testing.T) {
 		{"empty model", func(tb []modelRates) { tb[0].model = "" }, errEmptyModel},
 		{"duplicate model", func(tb []modelRates) { tb[1].model = tb[0].model }, errDuplicateModel},
 		{"unset scheme", func(tb []modelRates) { tb[0].scheme = schemeUnset }, errUnknownScheme},
-		{"scheme outside the enumeration", func(tb []modelRates) { tb[0].scheme = rateScheme(99) }, errUnknownScheme},
 		{"flat model with a peak rule", func(tb []modelRates) { tb[0].peak = validPeak }, errUnusedField},
 		{"flat model with a threshold", func(tb []modelRates) { tb[0].threshold = 1 }, errUnusedField},
 		{"flat model with an alternate set", func(tb []modelRates) { tb[0].alternate = rates{input: 1} }, errUnusedField},

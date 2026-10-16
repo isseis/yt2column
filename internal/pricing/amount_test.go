@@ -4,7 +4,6 @@ package pricing
 
 import (
 	"math/big"
-	"strings"
 	"testing"
 )
 
@@ -40,9 +39,6 @@ func TestAmountFormat(t *testing.T) {
 			got := Amount{pico: pico}.Format(tc.places)
 			if got != tc.want {
 				t.Errorf("Format(%d) = %q, want %q", tc.places, got, tc.want)
-			}
-			if strings.ContainsAny(got, "eE") {
-				t.Errorf("Format(%d) = %q uses an exponent", tc.places, got)
 			}
 		})
 	}

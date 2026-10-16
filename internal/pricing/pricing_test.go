@@ -78,9 +78,10 @@ func TestEstimatePeakWindow(t *testing.T) {
 		{"monday 10:00:00", monday.Add(10 * time.Hour), BasisOffPeak},
 		{"saturday 01:00:00", time.Date(2026, 10, 17, 1, 0, 0, 0, time.UTC), BasisOffPeak},
 		{"sunday 01:00:00", time.Date(2026, 10, 18, 1, 0, 0, 0, time.UTC), BasisOffPeak},
-		// The instant is Friday 22:00 UTC, off-peak; its JST wall clock reads
-		// Saturday 07:00, inside the peak window.
-		{"instant read in JST sits on saturday", time.Date(2026, 10, 17, 7, 0, 0, 0, jst), BasisOffPeak},
+		// The instant is Sunday 22:00 UTC, off-peak; its JST wall clock reads
+		// Monday 07:00, inside the peak window, so reading the local weekday
+		// and time would change the verdict.
+		{"instant read in JST sits on monday", time.Date(2026, 10, 19, 7, 0, 0, 0, jst), BasisOffPeak},
 		// The instant is Monday 06:00 UTC, peak; its PST wall clock reads
 		// Sunday 23:00, off-peak.
 		{"instant read in PST sits on sunday", time.Date(2026, 10, 18, 23, 0, 0, 0, pst), BasisPeak},
