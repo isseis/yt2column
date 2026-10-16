@@ -258,8 +258,8 @@ Start it with the provider and Webhook variables set:
 ./build/yt2column-server 2>>server.log
 ```
 
-The token (on the first start only) is printed to standard output; the logs go
-to standard error, so `2>>server.log` keeps a record. Every request and job log
+The shared token is printed to standard output on every start; the logs go to
+standard error, so `2>>server.log` keeps a record. Every request and job log
 line carries the `requestId` the response returns, so you can find a request's
 log with `grep <requestId> server.log`.
 
@@ -273,16 +273,20 @@ Exit codes:
 
 ### The shared token
 
-On the first start the server generates a shared token, saves it to
+On the first start the server generates a shared token and saves it to
 `<config dir>/yt2column/server-token` (macOS:
 `$HOME/Library/Application Support/yt2column/server-token`; other Unix:
-`$XDG_CONFIG_HOME` or `$HOME/.config`), and prints it once to standard output.
-The extension uses this token once it sends requests (#111); paste it into the
-extension's options page then, and until then use the curl example below to
-check the server by hand. On later starts the server reads the same token and
-does not print it.
+`$XDG_CONFIG_HOME` or `$HOME/.config`). On every start, the first included, the
+server prints the token to standard output. The extension uses this token once
+it sends requests (#111); paste it into the extension's options page then, and
+until then use the curl example below to check the server by hand.
 
-- To see the token again, read the file:
+- To see the token again, restart the server: it prints the same token every
+  time. Standard output is easy to redirect, so a start whose standard output
+  goes to a file leaves the token in that file; `2>>server.log` above redirects
+  only standard error, which never carries the token.
+- If the display fails (for example standard output is a closed pipe), the start
+  still serves and standard error names the file to read:
   - macOS: `cat "$HOME/Library/Application Support/yt2column/server-token"`.
   - other Unix: `cat "${XDG_CONFIG_HOME:-$HOME/.config}/yt2column/server-token"`.
 - To recreate it, delete the file and restart the server; this prints a new
