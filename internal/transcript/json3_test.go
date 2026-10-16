@@ -6,7 +6,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"math"
 	"reflect"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -112,8 +118,14 @@ func TestParseSubtitlesTimestamps(t *testing.T) {
 		"missing tStartMs": `{"events":[{"segs":[{"utf8":"hi"}]}]}`,
 		"null tStartMs":    `{"events":[{"tStartMs":null,"segs":[{"utf8":"hi"}]}]}`,
 		"negative":         `{"events":[{"tStartMs":-1,"segs":[{"utf8":"hi"}]}]}`,
+		"negative zero":    `{"events":[{"tStartMs":-0,"segs":[{"utf8":"hi"}]}]}`,
 		"fractional":       `{"events":[{"tStartMs":1.5,"segs":[{"utf8":"hi"}]}]}`,
+		"whole float":      `{"events":[{"tStartMs":1.0,"segs":[{"utf8":"hi"}]}]}`,
+		"exponent":         `{"events":[{"tStartMs":1e3,"segs":[{"utf8":"hi"}]}]}`,
 		"string":           `{"events":[{"tStartMs":"0","segs":[{"utf8":"hi"}]}]}`,
+		"boolean":          `{"events":[{"tStartMs":true,"segs":[{"utf8":"hi"}]}]}`,
+		"array":            `{"events":[{"tStartMs":[],"segs":[{"utf8":"hi"}]}]}`,
+		"object":           `{"events":[{"tStartMs":{},"segs":[{"utf8":"hi"}]}]}`,
 		"overflow":         `{"events":[{"tStartMs":9223372036854775808,"segs":[{"utf8":"hi"}]}]}`,
 	}
 	for name, input := range cases {
@@ -133,15 +145,65 @@ func TestParseSubtitlesTimestamps(t *testing.T) {
 		}
 	})
 
-	t.Run("discarded event ignores tStartMs", func(t *testing.T) {
-		segments, err := parseSubtitles("inline.json3", []byte(`{"events":[{"tStartMs":null,"segs":[]}]}`))
-		if err != nil {
-			t.Fatalf("parseSubtitles error = %v", err)
+	t.Run("non-negative integers are valid", func(t *testing.T) {
+		cases := map[string]struct {
+			input string
+			want  int64
+		}{
+			"positive":  {`{"events":[{"tStartMs":5000,"segs":[{"utf8":"hi"}]}]}`, 5000},
+			"max int64": {`{"events":[{"tStartMs":9223372036854775807,"segs":[{"utf8":"hi"}]}]}`, math.MaxInt64},
 		}
-		if len(segments) != 0 {
-			t.Errorf("got %d segments, want 0", len(segments))
+		for name, tc := range cases {
+			t.Run(name, func(t *testing.T) {
+				segments, err := parseSubtitles("inline.json3", []byte(tc.input))
+				if err != nil {
+					t.Fatalf("parseSubtitles error = %v", err)
+				}
+				want := []Segment{{StartMs: tc.want, Text: "hi"}}
+				if !reflect.DeepEqual(segments, want) {
+					t.Errorf("segments = %+v, want %+v", segments, want)
+				}
+			})
 		}
 	})
+
+	t.Run("discarded event ignores tStartMs", func(t *testing.T) {
+		cases := map[string]string{
+			"null tStartMs with empty segs": `{"events":[{"tStartMs":null,"segs":[]}]}`,
+			"negative zero without segs":    `{"events":[{"tStartMs":-0}]}`,
+			"negative zero with blank text": `{"events":[{"tStartMs":-0,"segs":[{"utf8":" "}]}]}`,
+		}
+		for name, input := range cases {
+			t.Run(name, func(t *testing.T) {
+				segments, err := parseSubtitles("inline.json3", []byte(input))
+				if err != nil {
+					t.Fatalf("parseSubtitles error = %v", err)
+				}
+				if len(segments) != 0 {
+					t.Errorf("got %d segments, want 0", len(segments))
+				}
+			})
+		}
+	})
+}
+
+func TestParseSubtitlesTimestampErrorOmitsValue(t *testing.T) {
+	// The rejected value is untrusted input, so the error must not echo it. -0
+	// is included because the old reader accepted it, which would show up as a
+	// nil error rather than as a leak.
+	values := []string{"-1", "-0", "9223372036854775808", "1.5", "1e3"}
+	for _, value := range values {
+		t.Run(value, func(t *testing.T) {
+			input := `{"events":[{"tStartMs":` + value + `,"segs":[{"utf8":"hi"}]}]}`
+			_, err := parseSubtitles("inline.json3", []byte(input))
+			if err == nil {
+				t.Fatalf("parseSubtitles(%s) error = nil, want an error", value)
+			}
+			if strings.Contains(err.Error(), value) {
+				t.Errorf("parseSubtitles(%s) error = %q, must not contain the value", value, err.Error())
+			}
+		})
+	}
 }
 
 func TestParseSubtitlesKeepsRepeatedText(t *testing.T) {
@@ -372,4 +434,140 @@ func segsDocument(segs int) []byte {
 	}
 	builder.WriteString(`]}]}`)
 	return []byte(builder.String())
+}
+
+// TestTimestampReadingIsUnified fixes the single non-negative integer rule for
+// tStartMs: json3.go must read it with strictjson.Value.AsNonNegativeInt64 and
+// must not reintroduce a second rule, whether by calling AsInt64/decodeTimestamp
+// or by comparing the read value against zero or a negative constant. The guard
+// parses the source, so it catches an equivalent spelling of the same check.
+func TestTimestampReadingIsUnified(t *testing.T) {
+	file, fset := parsePackageFile(t, "json3.go")
+
+	var (
+		readsUnified bool
+		stale        []string
+		signChecks   []string
+	)
+	ast.Inspect(file, func(n ast.Node) bool {
+		switch v := n.(type) {
+		case *ast.SelectorExpr:
+			if v.Sel.Name == "AsNonNegativeInt64" {
+				readsUnified = true
+			}
+		case *ast.Ident:
+			switch v.Name {
+			case "AsInt64", "decodeTimestamp", "errNegativeTimestamp":
+				stale = append(stale, v.Name)
+			}
+		case *ast.BinaryExpr:
+			if isSignComparison(v) {
+				signChecks = append(signChecks, fset.Position(v.Pos()).String())
+			}
+		}
+		return true
+	})
+
+	if !readsUnified {
+		t.Error("json3.go does not read tStartMs with AsNonNegativeInt64")
+	}
+	if len(stale) > 0 {
+		t.Errorf("json3.go still carries the old non-negative rule via %v", stale)
+	}
+	if len(signChecks) > 0 {
+		t.Errorf("json3.go compares a value against zero or a negative constant at %v", signChecks)
+	}
+}
+
+// TestExportedSentinelErrorsUnchanged fixes the exported sentinel errors of the
+// package. A new sentinel changes the error contract that callers branch on
+// with errors.Is, so adding one must revisit the callers and this guard.
+func TestExportedSentinelErrorsUnchanged(t *testing.T) {
+	file, _ := parsePackageFile(t, "errors.go")
+	want := []string{
+		"ErrCopiedTranscriptFormat",
+		"ErrInvalidVideoURL",
+		"ErrNoSubtitles",
+		"ErrParseInfo",
+		"ErrParseSubtitles",
+		"ErrYtDlpExec",
+	}
+
+	var got []string
+	for _, decl := range file.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok || (gen.Tok != token.VAR && gen.Tok != token.CONST) {
+			continue
+		}
+		for _, spec := range gen.Specs {
+			vs, ok := spec.(*ast.ValueSpec)
+			if !ok {
+				continue
+			}
+			for _, name := range vs.Names {
+				if ast.IsExported(name.Name) && strings.HasPrefix(name.Name, "Err") {
+					got = append(got, name.Name)
+				}
+			}
+		}
+	}
+	slices.Sort(got)
+	if !slices.Equal(got, want) {
+		t.Errorf("exported sentinel errors = %v, want %v; a new sentinel changes the error contract callers branch on, so revisit the callers and this guard", got, want)
+	}
+}
+
+// parsePackageFile parses a source file of the package under test. The test
+// working directory is the package directory.
+func parsePackageFile(t *testing.T, name string) (*ast.File, *token.FileSet) {
+	t.Helper()
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, name, nil, parser.SkipObjectResolution)
+	if err != nil {
+		t.Fatalf("parse %s: %v", name, err)
+	}
+	return file, fset
+}
+
+// isSignComparison reports whether expr compares something against a zero or
+// negative integer constant, the shape of a hand-written non-negative check
+// (v < 0, v <= -1, 0 > v, ...). It inspects the AST, so an equivalent spelling
+// of the same check is caught too.
+func isSignComparison(expr *ast.BinaryExpr) bool {
+	switch expr.Op {
+	case token.LSS, token.LEQ, token.GTR, token.GEQ:
+	default:
+		return false
+	}
+	for _, side := range []ast.Expr{expr.X, expr.Y} {
+		if value, ok := constantInt(side); ok && value <= 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// constantInt returns the value of an integer literal, including a negated one.
+func constantInt(expr ast.Expr) (int64, bool) {
+	switch v := expr.(type) {
+	case *ast.BasicLit:
+		if v.Kind != token.INT {
+			return 0, false
+		}
+		value, err := strconv.ParseInt(v.Value, 0, 64)
+		if err != nil {
+			return 0, false
+		}
+		return value, true
+	case *ast.UnaryExpr:
+		if v.Op != token.SUB {
+			return 0, false
+		}
+		value, ok := constantInt(v.X)
+		if !ok {
+			return 0, false
+		}
+		return -value, true
+	}
+	return 0, false
 }
