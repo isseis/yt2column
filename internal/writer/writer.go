@@ -5,6 +5,7 @@ package writer
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/nilcheck"
@@ -41,13 +42,17 @@ const (
 	OriginReused
 )
 
-// StageUsage is one stage's token usage, the model its call reported, and
-// where both came from. Model is empty when Origin is OriginNone, or when a
-// failed call reported no model that passed the model-name rules.
+// StageUsage is one stage's token usage, the model its call reported, the
+// time its Generate call returned, and where all three came from. Model is
+// empty when Origin is OriginNone, or when a failed call reported no model
+// that passed the model-name rules. CallTime is in UTC, truncated to the
+// second, with no monotonic clock reading; it is the zero time when Origin is
+// OriginNone.
 type StageUsage struct {
-	Origin UsageOrigin
-	Model  string
-	Usage  llm.Usage
+	Origin   UsageOrigin
+	Model    string
+	Usage    llm.Usage
+	CallTime time.Time
 }
 
 // RunUsage is the token usage of each stage of one Write.
