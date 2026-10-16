@@ -654,9 +654,9 @@ func TestTokenUsageDocsContract(t *testing.T) {
 			t.Errorf("README Token usage section does not contain the token %q", word)
 		}
 	}
-	// Every reason llm.Usage can produce, obtained from the code so the test
-	// does not spell them: the member-less rules, a member-named rule, and a
-	// rule outside the enumeration.
+	// Every member-less reason llm.Usage can produce, obtained from the code so
+	// the test does not spell them. The README also documents the member-named
+	// forms (`usage.<member>:<rule>`) in prose.
 	reasons := []llm.Usage{
 		llm.UnknownUsage(llm.RuleNotRead, ""),
 		llm.UnknownUsage(llm.RuleRecordedUnknown, ""),
@@ -664,7 +664,6 @@ func TestTokenUsageDocsContract(t *testing.T) {
 		llm.UnknownUsage(llm.RuleDuplicate, ""),
 		llm.UnknownUsage(llm.RuleNotObject, ""),
 		llm.UnknownUsage(llm.RuleNotNonNegativeInteger, ""),
-		llm.UnknownUsage(llm.RuleNotNonNegativeInteger, "output_tokens"),
 		llm.UnknownUsage(llm.UnknownRule(99), ""),
 	}
 	for _, usage := range reasons {
@@ -710,7 +709,7 @@ func TestTokenUsageDocsContract(t *testing.T) {
 	if overview == "" {
 		t.Fatal("project_overview.md has no パイプライン section")
 	}
-	if !strings.Contains(overview, "Usage") {
+	if !containsToken(overview, "Usage") {
 		t.Error("project_overview.md パイプライン does not mention Usage")
 	}
 
@@ -718,8 +717,14 @@ func TestTokenUsageDocsContract(t *testing.T) {
 	if untrusted == "" {
 		t.Fatal("security.md has no 6. 信頼できないテキストの取り扱い section")
 	}
-	if !strings.Contains(untrusted, "usage") {
-		t.Error("security.md 6. does not mention the response usage")
+	responseUsage := bulletContaining(untrusted, "応答の `usage`")
+	if responseUsage == "" {
+		t.Fatal("security.md 6. has no response-usage bullet")
+	}
+	for _, want := range []string{"不明", "redact.Line"} {
+		if !strings.Contains(responseUsage, want) {
+			t.Errorf("security.md's response-usage bullet does not state %q: %q", want, responseUsage)
+		}
 	}
 	artifactLine := bulletContaining(untrusted, "--artifacts")
 	if artifactLine == "" {
@@ -754,7 +759,7 @@ func TestTokenUsageDocsContract(t *testing.T) {
 		}
 		joined := strings.Join(cells, " ")
 		for _, want := range row.want {
-			if !strings.Contains(joined, want) {
+			if !containsToken(joined, want) {
 				t.Errorf("the package_reference.md %s row does not mention %s", row.pkg, want)
 			}
 		}
