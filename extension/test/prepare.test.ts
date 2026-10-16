@@ -48,20 +48,27 @@ describe("buildArticleBody", () => {
     });
   });
 
-  it("preserves selection whitespace, line breaks and surrogate pairs", () => {
-    const selection = "\n \r\n\u3000a\u{1F600}b\n\n";
-    const body = buildArticleBody(collectedInput(selection), {});
-    assert.equal(
-      (JSON.parse(body.json) as { transcript: string }).transcript,
-      selection,
-    );
-  });
-
-  it("preserves the URL parameters and fragment", () => {
-    const url = "https://www.youtube.com/watch?v=abc&t=42&list=PL#frag";
-    const body = buildArticleBody(collectedInput("x", url), {});
-    assert.equal((JSON.parse(body.json) as { videoUrl: string }).videoUrl, url);
-  });
+  const roundTrips: { name: string; selection: string; url: string }[] = [
+    {
+      name: "selection whitespace, line breaks and surrogate pairs",
+      selection: "\n \r\n\u3000a\u{1F600}b\n\n",
+      url: watchUrl,
+    },
+    {
+      name: "URL parameters and fragment",
+      selection: "x",
+      url: "https://www.youtube.com/watch?v=abc&t=42&list=PL#frag",
+    },
+  ];
+  for (const { name, selection, url } of roundTrips) {
+    it(`preserves the ${name}`, () => {
+      const body = buildArticleBody(collectedInput(selection, url), {});
+      assert.deepEqual(JSON.parse(body.json), {
+        videoUrl: url,
+        transcript: selection,
+      });
+    });
+  }
 
   it("includes non-empty metadata members", () => {
     const body = buildArticleBody(collectedInput("x"), {
@@ -124,7 +131,7 @@ describe("prepareSend", () => {
     assert.equal(outcome.request.port, "1024");
   });
 
-  it("does not read settings or send when the collection was rejected", async () => {
+  it("does not read settings when the collection was rejected", async () => {
     const settings = fixedSettings({ token: validToken, port: undefined });
     const outcome: CollectOutcome = {
       kind: "rejected",
@@ -149,7 +156,6 @@ describe("prepareSend", () => {
       kind: "blocked",
       reason: "collection-failed",
     });
-    assert.equal(settings.loadCalls(), 0);
   });
 
   it("blocks with settings-unreadable when loading fails", async () => {

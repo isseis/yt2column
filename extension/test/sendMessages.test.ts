@@ -23,7 +23,10 @@ import type { RejectionReason } from "../src/core/types.ts";
 // Tests may assert a branded type to build fixtures.
 const requestId = "0123456789abcdef" as RequestId;
 
-/** The whole message as one string, for content checks. */
+/**
+ * The whole message as one string, for content checks. Matching on this text
+ * is matching the displayed contract: the wording is what the user reads.
+ */
 function textOf(message: RejectionMessage): string {
   return [message.text, ...message.steps].join("\n");
 }
@@ -94,15 +97,8 @@ describe("sendOutcomeMessage", () => {
     );
   });
 
-  it("names Slack for an accepted article", () => {
-    assert.ok(
-      textOf(sendOutcomeMessage({ kind: "accepted", requestId })).includes(
-        "Slack",
-      ),
-    );
-  });
-
   const slackCases: { name: string; outcome: SendOutcome }[] = [
+    { name: "accepted", outcome: { kind: "accepted", requestId } },
     { name: "unknown", outcome: { kind: "unknown" } },
     {
       name: "unexpected",

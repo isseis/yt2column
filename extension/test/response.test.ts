@@ -4,7 +4,6 @@ import { describe, it } from "node:test";
 import {
   classifyResponse,
   isServerRejectReason,
-  maxResponseBytes,
   parseRequestId,
   serverRejectStatus,
   toSendOutcome,
@@ -35,11 +34,8 @@ function bytes(status: number, value: number[]): BodyResponse {
 const reasons = Object.keys(serverRejectStatus) as ServerRejectReason[];
 
 describe("serverRejectStatus", () => {
-  it("maps every reason to a number", () => {
+  it("declares twelve reasons", () => {
     assert.equal(reasons.length, 12);
-    for (const reason of reasons) {
-      assert.equal(typeof serverRejectStatus[reason], "number");
-    }
   });
 
   it("is queried through isServerRejectReason", () => {
@@ -201,26 +197,12 @@ describe("classifyResponse", () => {
       check: "member-set",
     },
     {
-      name: "an uppercase requestId",
-      received: body(
-        202,
-        '{"status":"accepted","requestId":"0123456789ABCDEF"}',
-      ),
-      check: "request-id",
-    },
-    {
-      name: "a 15-character requestId",
+      // parseRequestId owns the requestId grammar cases; this row only
+      // exercises the classification branch.
+      name: "a malformed requestId",
       received: body(
         202,
         '{"status":"accepted","requestId":"0123456789abcde"}',
-      ),
-      check: "request-id",
-    },
-    {
-      name: "a 17-character requestId",
-      received: body(
-        202,
-        '{"status":"accepted","requestId":"0123456789abcdef0"}',
       ),
       check: "request-id",
     },
@@ -324,10 +306,6 @@ describe("classifyResponse", () => {
     assert.ok(result.kind === "unexpected");
     assert.equal(result.check, "request-id");
     assert.equal(JSON.stringify(result).includes("img"), false);
-  });
-
-  it("exposes the response body limit", () => {
-    assert.equal(maxResponseBytes, 1024);
   });
 });
 

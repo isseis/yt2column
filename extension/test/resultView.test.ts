@@ -52,13 +52,9 @@ describe("parseResultView", () => {
   });
 
   it("accepts a sent view for every outcome kind", () => {
+    // "rejected" is covered exhaustively by its own test below.
     const outcomes: SendOutcome[] = [
       { kind: "accepted", requestId },
-      {
-        kind: "rejected",
-        reason: "unauthorized",
-        requestId,
-      },
       { kind: "unknown" },
       { kind: "unexpected", status: 500, check: "json-shape" },
       { kind: "redirected" },

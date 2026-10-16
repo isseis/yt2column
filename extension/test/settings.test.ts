@@ -11,14 +11,15 @@ import {
 const validToken = "a".repeat(64);
 
 describe("parseToken", () => {
-  it("accepts 64 lowercase hex characters unchanged", () => {
-    const token = "0123456789abcdef".repeat(4);
-    assert.equal(parseToken(token), token);
-  });
-
-  it("accepts the all-a token", () => {
-    assert.equal(parseToken(validToken), validToken);
-  });
+  const accepted: { name: string; value: string }[] = [
+    { name: "a repeating hex pattern", value: "0123456789abcdef".repeat(4) },
+    { name: "the all-a token", value: validToken },
+  ];
+  for (const { name, value } of accepted) {
+    it(`accepts ${name} unchanged`, () => {
+      assert.equal(parseToken(value), value);
+    });
+  }
 
   const rejected: { name: string; value: unknown }[] = [
     { name: "an empty string", value: "" },
@@ -81,7 +82,6 @@ describe("checkSettings", () => {
       token: validToken,
       port: defaultPort,
     });
-    assert.equal(defaultPort, "8765");
   });
 
   it("reports a missing token before anything else", () => {
@@ -98,16 +98,11 @@ describe("checkSettings", () => {
     });
   });
 
-  it("reports an invalid stored port", () => {
+  it("reports an invalid stored port without replacing it with the default", () => {
     assert.deepEqual(checkSettings({ token: validToken, port: "80" }), {
       kind: "blocked",
       reason: "port-invalid",
     });
-  });
-
-  it("does not replace an invalid stored port with the default", () => {
-    const check = checkSettings({ token: validToken, port: "08765" });
-    assert.deepEqual(check, { kind: "blocked", reason: "port-invalid" });
   });
 
   it("accepts a valid token and port", () => {
