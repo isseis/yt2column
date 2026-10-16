@@ -42,7 +42,7 @@ const programName = "yt2column"
 // whitespace-free words, then either the four counts or the reason, then the
 // model name as the rest of the line (or nomodel). The stage word is
 // writer.Stage.String(); the words here are the only place these spellings are
-// defined, and the README is checked against them.
+// defined.
 const (
 	// tokensPrefix begins every token-usage line.
 	tokensPrefix = programName + ": tokens: "

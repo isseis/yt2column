@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -77,23 +78,9 @@ func knownLine(stage, origin, model string, usage llm.Usage) string {
 // requireTokenLines asserts the token lines of e.stderr equal want, in order.
 func requireTokenLines(t *testing.T, e *runEnv, want []string) {
 	t.Helper()
-	if got := tokenLines(e.stderr.String()); !slicesEqual(got, want) {
+	if got := tokenLines(e.stderr.String()); !slices.Equal(got, want) {
 		t.Errorf("token lines = %q, want %q\nstderr:\n%s", got, want, e.stderr.String())
 	}
-}
-
-// slicesEqual is slices.Equal for []string, kept local so the test file needs
-// no extra import.
-func slicesEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }
 
 func TestRunTokenLinesAllStages(t *testing.T) {
@@ -228,38 +215,96 @@ func TestRunTokenLinesNoUsage(t *testing.T) {
 }
 
 func TestRunTokenLinesBeforeLLM(t *testing.T) {
-	e := newRunEnv(t)
-	// No destination: a usage error before any side effect.
-	e.args = []string{runVideoURL}
+	t.Run("usage error", func(t *testing.T) {
+		e := newRunEnv(t)
+		// No destination: a usage error before any side effect.
+		e.args = []string{runVideoURL}
+		if code := e.run(); code != exitUsage {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, e.stderr.String())
+		}
+		requireUntouched(t, e)
+		requireNoTokenLines(t, e)
+	})
 
-	if code := e.run(); code != exitUsage {
-		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, e.stderr.String())
-	}
-	requireUntouched(t, e)
+	t.Run("configuration error", func(t *testing.T) {
+		e := newRunEnv(t)
+		delete(e.env, "DEEPSEEK_API_KEY")
+		if code := e.run(); code != exitUsage {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, e.stderr.String())
+		}
+		requireUntouched(t, e)
+		requireNoTokenLines(t, e)
+	})
+
+	t.Run("--after rejection", func(t *testing.T) {
+		e := newRunEnv(t)
+		e.args = []string{"--after", "generation", "--out", e.outPath, runVideoURL}
+		if code := e.run(); code != exitUsage {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, e.stderr.String())
+		}
+		requireUntouched(t, e)
+		requireNoTokenLines(t, e)
+	})
+
+	t.Run("transcript failure", func(t *testing.T) {
+		e := newRunEnv(t)
+		removeVideoCache(t, e.cacheDir)
+		if code := e.run(); code == exitOK {
+			t.Fatalf("exit code = %d, want a failure (the transcript cannot be fetched)", code)
+		}
+		if got := e.counter.count(); got != 0 {
+			t.Errorf("the LLM was called %d times, want 0", got)
+		}
+		requireNoTokenLines(t, e)
+	})
+}
+
+// requireNoTokenLines asserts no token-usage line was written.
+func requireNoTokenLines(t *testing.T, e *runEnv) {
+	t.Helper()
 	if got := tokenLines(e.stderr.String()); len(got) != 0 {
-		t.Errorf("token lines = %q, want none before the LLM runs", got)
+		t.Errorf("token lines = %q, want none", got)
 	}
 }
 
 func TestRunTokenLinesAfterAllCalls(t *testing.T) {
-	e := newRunEnv(t)
-	e.withSteps = true
-	// The webhook rejects the post, so the publish fails after every stage ran.
-	// (An existing --out file would fail the job's precheck before any call.)
-	e.useWebhook(t, failMessage(1, http.StatusServiceUnavailable, "boom"))
-	e.client = usageSequence(
-		usageResponse(longGeneratedText(), "gen-model", testGenTokens),
-		usageResponse(shortGeneratedText(), "short-model", testShortTokens),
-	)
-	e.useReviewClient(usageLLM(usageResponse(emptyReviewJSON, "review-model", testReviewTokens)))
+	t.Run("publish failure", func(t *testing.T) {
+		e := newRunEnv(t)
+		e.withSteps = true
+		// The webhook rejects the post, so the publish fails after every stage
+		// ran. (An existing --out file would fail the job's precheck before any
+		// call.)
+		e.useWebhook(t, failMessage(1, http.StatusServiceUnavailable, "boom"))
+		e.client = usageSequence(
+			usageResponse(longGeneratedText(), "gen-model", testGenTokens),
+			usageResponse(shortGeneratedText(), "short-model", testShortTokens),
+		)
+		e.useReviewClient(usageLLM(usageResponse(emptyReviewJSON, "review-model", testReviewTokens)))
 
-	if code := e.run(); code == exitOK {
-		t.Fatalf("exit code = %d, want a failure (the post must fail)", code)
-	}
-	requireTokenLines(t, e, []string{
-		knownLine("generation", tokensRun, "gen-model", testGenTokens),
-		knownLine("shorten", tokensRun, "short-model", testShortTokens),
-		knownLine("review", tokensRun, "review-model", testReviewTokens),
+		if code := e.run(); code == exitOK {
+			t.Fatalf("exit code = %d, want a failure (the post must fail)", code)
+		}
+		requireTokenLines(t, e, []string{
+			knownLine("generation", tokensRun, "gen-model", testGenTokens),
+			knownLine("shorten", tokensRun, "short-model", testShortTokens),
+			knownLine("review", tokensRun, "review-model", testReviewTokens),
+		})
+	})
+
+	t.Run("length limit after review", func(t *testing.T) {
+		e := newRunEnv(t)
+		e.withSteps = true
+		tooLong := "A short body." + strings.Repeat("a", 10000)
+		e.client = usageLLM(usageResponse(shortGeneratedText(), "gen-model", testGenTokens))
+		e.useReviewClient(usageLLM(usageResponse(reviewJSON("A short body.", tooLong), "review-model", testReviewTokens)))
+
+		if code := e.run(); code == exitOK {
+			t.Fatalf("exit code = %d, want a failure (the final length check must fail)", code)
+		}
+		requireTokenLines(t, e, []string{
+			knownLine("generation", tokensRun, "gen-model", testGenTokens),
+			knownLine("review", tokensRun, "review-model", testReviewTokens),
+		})
 	})
 }
 
@@ -339,6 +384,23 @@ func TestRunTokenLinesResume(t *testing.T) {
 		requireTokenLines(t, e, []string{
 			knownLine("generation", tokensReused, "gen-model", testGenTokens),
 			knownLine("shorten", tokensReused, "short-model", testShortTokens),
+			knownLine("review", tokensRun, "review-model", testReviewTokens),
+		})
+	})
+
+	t.Run("after generation reuses generation and runs shorten and review", func(t *testing.T) {
+		e := newRunEnv(t)
+		e.withSteps = true
+		e.args = []string{"--artifacts", dir, "--after", "generation", "--out", e.outPath, runVideoURL}
+		e.client = usageSequence(usageResponse(shortGeneratedText(), "short-run-model", testShortTokens))
+		e.useReviewClient(usageLLM(usageResponse(emptyReviewJSON, "review-model", testReviewTokens)))
+
+		if code := e.run(); code != exitOK {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
+		}
+		requireTokenLines(t, e, []string{
+			knownLine("generation", tokensReused, "gen-model", testGenTokens),
+			knownLine("shorten", tokensRun, "short-run-model", testShortTokens),
 			knownLine("review", tokensRun, "review-model", testReviewTokens),
 		})
 	})
@@ -422,7 +484,8 @@ func TestRunTokenLinesReviewLogFailure(t *testing.T) {
 			if err := pub.Publish(ctx, a); err != nil {
 				return err
 			}
-			// Race the review log's write so it fails after the publish.
+			// Write the log path first, so the review log's own create finds it
+			// and fails after the article is published.
 			return os.WriteFile(logPath, []byte("raced"), 0o600)
 		}), nil
 	}
@@ -436,5 +499,51 @@ func TestRunTokenLinesReviewLogFailure(t *testing.T) {
 	requireTokenLines(t, e, []string{
 		knownLine("generation", tokensRun, "gen-model", testGenTokens),
 		knownLine("review", tokensRun, "review-model", testReviewTokens),
+	})
+}
+
+// TestRunTokenLinesGoldenFormat pins the literal line spellings, so a change to
+// the prefix, a count label, reason=, model=, or nomodel is caught even though
+// the other tests build the expected line from the same constants.
+func TestRunTokenLinesGoldenFormat(t *testing.T) {
+	t.Run("known", func(t *testing.T) {
+		e := newRunEnv(t)
+		e.withSteps = true
+		e.args = []string{"--no-shorten", "--no-review", "--out", e.outPath, runVideoURL}
+		e.client = usageLLM(usageResponse(shortGeneratedText(), "gen-model", testGenTokens))
+		if code := e.run(); code != exitOK {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
+		}
+		requireTokenLines(t, e, []string{
+			"yt2column: tokens: generation run known input=11 cache_read=12 cache_write=13 output=14 model=gen-model",
+		})
+	})
+
+	t.Run("unknown", func(t *testing.T) {
+		e := newRunEnv(t)
+		e.withSteps = true
+		e.args = []string{"--no-shorten", "--no-review", "--out", e.outPath, runVideoURL}
+		e.client = usageLLM(usageResponse(shortGeneratedText(), "gen-model", llm.UnknownUsage(llm.RuleNotNonNegativeInteger, "completion_tokens")))
+		if code := e.run(); code != exitOK {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
+		}
+		requireTokenLines(t, e, []string{
+			"yt2column: tokens: generation run unknown reason=usage.completion_tokens:not-a-non-negative-integer model=gen-model",
+		})
+	})
+
+	t.Run("no model", func(t *testing.T) {
+		e := newRunEnv(t)
+		e.withSteps = true
+		e.args = []string{"--no-shorten", "--no-review", "--out", e.outPath, runVideoURL}
+		e.client = funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
+			return llm.GenerateResponse{}, context.DeadlineExceeded
+		})
+		if code := e.run(); code == exitOK {
+			t.Fatalf("exit code = %d, want a failure (the call reported no usage)", code)
+		}
+		requireTokenLines(t, e, []string{
+			"yt2column: tokens: generation run unknown reason=not-read nomodel",
+		})
 	})
 }

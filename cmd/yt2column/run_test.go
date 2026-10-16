@@ -2408,9 +2408,16 @@ func TestRunArtifactExitCodes(t *testing.T) {
 			args: []string{"--artifacts", "@dir", "--after", "generation", "--out", "@out", runVideoURL},
 			prepared: func(t *testing.T, e *runEnv, dir string) {
 				e.useReviewClient(reviewLLM(emptyReviewJSON))
-				// A known usage must be an object; a string is rejected.
-				data := strings.Replace(string(validGeneration(writer.Digest("material"))), `"usage":null`, `"usage":"x"`, 1)
-				if err := os.WriteFile(artifactFile(dir, runVideoID, "generation"), []byte(data), 0o600); err != nil {
+				// Save a real generation artifact (so its input matches the
+				// material), then break only its usage: a valid usage would let
+				// the run proceed, so the rejection is the usage rule's.
+				saved := saveArtifactsOnce(t, shortGeneration)
+				data, err := os.ReadFile(artifactFile(saved, runVideoID, "generation"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				tampered := strings.Replace(string(data), `"usage":null`, `"usage":"x"`, 1)
+				if err := os.WriteFile(artifactFile(dir, runVideoID, "generation"), []byte(tampered), 0o600); err != nil {
 					t.Fatal(err)
 				}
 			},
