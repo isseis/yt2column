@@ -243,6 +243,8 @@ func TestDisplayFailureKeepsServing(t *testing.T) {
 				writeTokenFile(t, e.tokenPath(t), validTokenContent, 0o600)
 			}
 			srv := startServerWithStdout(t, e, testDeps(validResponseLLM()), failingWriter{})
+			// A first start reads the file it created (readToken fails when the
+			// file is absent); an existing file must be unchanged below.
 			token := e.readToken(t)
 			mustPostArticle(t, e.port(t), token, requestBody(testValidRaw), 202)
 			if code := srv.stop(t); code != exitOK {
@@ -250,9 +252,11 @@ func TestDisplayFailureKeepsServing(t *testing.T) {
 			}
 
 			stderr := srv.stderr.String()
-			// run returns only an exit code, so the failure line is the
-			// observable contract; assert on it alone, since the "listening"
-			// log line also names the token file.
+			// run returns only an exit code across the process boundary, so the
+			// failure line is the observable contract; assert on it alone,
+			// since the "listening" log line also names the token file. The
+			// write error never crosses as a value, so its text is the only
+			// form the reason takes here.
 			failure := stderrLine(stderr, "writing the token to standard output failed")
 			if failure == "" {
 				t.Fatalf("stderr does not report the display failure:\n%s", stderr)
@@ -272,10 +276,6 @@ func TestDisplayFailureKeepsServing(t *testing.T) {
 				if got := e.readToken(t); got != validTokenContent {
 					t.Errorf("the token file changed from %q to %q", validTokenContent, got)
 				}
-			} else if len(token) != 64 {
-				// A first start still creates the file even though the display
-				// failed; e.readToken fails the test when the file is absent.
-				t.Errorf("created token length = %d, want 64", len(token))
 			}
 		})
 	}

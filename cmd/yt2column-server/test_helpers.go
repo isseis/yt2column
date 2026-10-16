@@ -266,8 +266,9 @@ func startServer(t *testing.T, e *serverEnv, d deps) *runningServer {
 
 // startServerWithStdout is startServer, but when stdout is non-nil run writes
 // the token to that writer instead of a fresh synchronized buffer, and the
-// returned server's stdout is nil. The display-failure test passes a writer
-// that rejects every write; the retry and cleanup logic is shared with
+// returned server's stdout is nil. The caller-supplied writer is reused across
+// listen retries, so it must tolerate repeated writes (the failing writer
+// discards them); the retry and cleanup logic is otherwise shared with
 // startServer.
 func startServerWithStdout(t *testing.T, e *serverEnv, d deps, stdout io.Writer) *runningServer {
 	t.Helper()
