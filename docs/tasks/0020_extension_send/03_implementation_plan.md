@@ -300,21 +300,21 @@ HEAD `e8b21fa`（ブランチ `issei/browser-extension-03`）で確認した。�
 - [x] PR がマージされた
 - [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
--   [ ] **ステップ 4-2**: `launch.ts` を設計書 3.8 のとおりに改める。`MenuLaunchDeps`・`ResultWindowDeps` の変更、`PopupSendDeps`・`runPopupSend`・`resultWaitMs` の追加、`runMenuLaunch`（失敗の扱いはシーケンス図とその下の箇条のとおり）、`runResultWindow`（状態図のとおり）、開発者向けのログ（設計書 3.8 の「開発者向けのログ」）。名前の台帳（§1.3）のとおり、`SummaryStore`・`take`・`missingResultText`・`renderNotice`・`createSummaryStore` を削り、ログのラベルを改め、`runPopupLaunch` の doc コメント（`:128-129`）から「#111's send button」を除く。
+-   [x] **ステップ 4-2**: `launch.ts` を設計書 3.8 のとおりに改める。`MenuLaunchDeps`・`ResultWindowDeps` の変更、`PopupSendDeps`・`runPopupSend`・`resultWaitMs` の追加、`runMenuLaunch`（失敗の扱いはシーケンス図とその下の箇条のとおり）、`runResultWindow`（状態図のとおり）、開発者向けのログ（設計書 3.8 の「開発者向けのログ」）。名前の台帳（§1.3）のとおり、`SummaryStore`・`take`・`missingResultText`・`renderNotice`・`createSummaryStore` を削り、ログのラベルを改め、`runPopupLaunch` の doc コメント（`:128-129`）から「#111's send button」を除く。
     -   **対象:** `extension/src/launch.ts`・`src/browser/chromeDeps.ts`。**完了:** なし（ステップ 4-3 の後に型検査する）。
--   [ ] **ステップ 4-3**: エントリポイントと `popup.html` を改める。`background.ts` はメニューの経路の依存に設定の読み込み（`chrome.storage.local`）・`SendDeps`・`now`・`createResultViewStore` を加える。`popup.html` に要約の領域と送信の領域を置き、`popup.ts` は前者で `runPopupLaunch`、後者で `runPopupSend` を呼ぶ。`result.ts` は `createResultViewStore(chrome.storage.session, chrome.storage.onChanged)` と `schedule` で `runResultWindow` を呼ぶ。
+-   [x] **ステップ 4-3**: エントリポイントと `popup.html` を改める。`background.ts` はメニューの経路の依存に設定の読み込み（`chrome.storage.local`）・`SendDeps`・`now`・`createResultViewStore` を加える。`popup.html` に要約の領域と送信の領域を置き、`popup.ts` は前者で `runPopupLaunch`、後者で `runPopupSend` を呼ぶ。`result.ts` は `createResultViewStore(chrome.storage.session, chrome.storage.onChanged)` と `schedule` で `runResultWindow` を呼ぶ。
     -   **対象:** `extension/src/background.ts`・`src/popup.ts`・`src/result.ts`・`static/popup.html`。**完了:** `tsc --noEmit -p tsconfig.build.json` が通る。
--   [ ] **ステップ 4-4**: `has-extension-changes.sh` の起動の条件に `README.md`・`internal/server/response.go` を加え、冒頭のコメントの起動の条件の説明を改める（設計書 3.11。`docs/dev/security.md` はステップ 3-2 で加えた）。
+-   [x] **ステップ 4-4**: `has-extension-changes.sh` の起動の条件に `README.md`・`internal/server/response.go` を加え、冒頭のコメントの起動の条件の説明を改める（設計書 3.11。`docs/dev/security.md` はステップ 3-2 で加えた）。
     -   **対象:** `extension/scripts/has-extension-changes.sh`。**完了:** なし。`ciChanges.test.ts` はステップ 4-6 で改めるまで失敗する（フェーズの完了条件で確かめる）。
--   [ ] **ステップ 4-5**: `launch.test.ts` を改める。`recordingStore` を `ResultViewStore` の fake（`put`・`get`・`watch`・`remove` を記録し、通知を任意の時点で起こせ、各操作を失敗させられる）に置き換え、`menuHarness` に設定・`SendDeps`・`now` を加える。§1.3 に挙げたメニューの経路と結果のウィンドウの行を新しい振る舞いに合わせて改め、設計書 3.12 の `launch.test.ts` の行の項目を「launch paths」「menu send」「popup send」「result window」「token never leaks」に加える。ポップアップの送信中の表示（文言と閉じないことの案内、ボタンの `disabled`）と、送らない場合にボタンを出さないことを確かめる行を含める（AC-14・AC-22）。あわせて、設定の読み込みの失敗（`settings-unreadable`、AC-15a）と保存されたポートの形が正しくない場合（`port-invalid`、AC-15b）に、メニューの経路とポップアップの経路のどちらでも要求を送らず（`fetch` を呼ばず）理由が示されることを確かめる行を含める。
+-   [x] **ステップ 4-5**: `launch.test.ts` を改める。`recordingStore` を `ResultViewStore` の fake（`put`・`get`・`watch`・`remove` を記録し、通知を任意の時点で起こせ、各操作を失敗させられる）に置き換え、`menuHarness` に設定・`SendDeps`・`now` を加える。§1.3 に挙げたメニューの経路と結果のウィンドウの行を新しい振る舞いに合わせて改め、設計書 3.12 の `launch.test.ts` の行の項目を「launch paths」「menu send」「popup send」「result window」「token never leaks」に加える。ポップアップの送信中の表示（文言と閉じないことの案内、ボタンの `disabled`）と、送らない場合にボタンを出さないことを確かめる行を含める（AC-14・AC-22）。あわせて、設定の読み込みの失敗（`settings-unreadable`、AC-15a）と保存されたポートの形が正しくない場合（`port-invalid`、AC-15b）に、メニューの経路とポップアップの経路のどちらでも要求を送らず（`fetch` を呼ばず）理由が示されることを確かめる行を含める。
     -   **対象:** `extension/test/launch.test.ts`。**完了:** `launch.test.ts` が通る。
--   [ ] **ステップ 4-6**: 残りのテストを作る・改める。
+-   [x] **ステップ 4-6**: 残りのテストを作る・改める。
     -   `serverReasons.test.ts`（「server reasons match README」）: `serverRejectStatus` の組が README の拒否の理由の表とちょうど一致すること（設計書 3.12）。表は `test/helpers/repoFile.ts` の `readRepoFile` で読む。
     -   `secretsAbsent.test.ts`（「no API key or Webhook settings」）: 設計書 3.12 の行の語が `src/`・`static/` のファイルに現れないこと。
     -   `ciChanges.test.ts`: 起動する一覧に `README.md`・`internal/server/response.go` をそれぞれ単独の一覧として加え、起動しない一覧から `["README.md"]` を除く。`:28` の行は `["docs/dev/project_overview.md", "extension/package.json"]` に替える。新しい 3 つのパスのそれぞれについて、先頭以外に現れる・後ろに続きを持つパス（`docs/README.md`・`README.md.bak`・`x/docs/dev/security.md`・`docs/dev/security.md.orig`・`x/internal/server/response.go`・`internal/server/response.go.orig`）と、同じディレクトリのほかのファイル（`docs/dev/project_overview.md`・`internal/server/handler.go`）が起動しない行を加える。
     -   `chromeDeps.test.ts`: 「summary store」の `describe` を消す（名前の台帳）。
     -   **対象:** `extension/test/serverReasons.test.ts`・`secretsAbsent.test.ts`・`ciChanges.test.ts`・`chromeDeps.test.ts`。**完了:** `make ext-typecheck` とこれらのテストが通る。
--   [ ] **ステップ 4-7**: 壊して失敗することを確かめ、コミットメッセージに記録する。
+-   [x] **ステップ 4-7**: 壊して失敗することを確かめ、コミットメッセージに記録する。
     -   `messageNodes` で手順のリストを作らない（`render.test.ts`・`renderSend.test.ts`）。想定外の応答の表示に状態コードを出さない、リダイレクトの表示に状態コードを出す、送信中の表示から閉じないことの案内を消す（`renderSend.test.ts`）。表示に `innerHTML` を使う（`make ext-lint`。値が 16 進や固定の文言に限られる要素はテストでは区別できない）。
     -   `runMenuLaunch` で送信中の `put` の失敗やウィンドウの失敗の後にも送る、`toSendOutcome` を通さずに `put` する、収集の拒否で設定を読む（`launch.test.ts::menu send`）。
     -   ポップアップを開いた時点で送る、送らない場合にもボタンを出す、送信中・送信後にボタンを押せるようにする、クリックの重複を状態で防ぐ仕組みを外す（`launch.test.ts::popup send`）。

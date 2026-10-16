@@ -1,6 +1,6 @@
 import type { PageSelection, SelectionReader } from "../core/collect.ts";
 import type { SettingsStore } from "../core/settings.ts";
-import type { Logger, ResultViewStore, SummaryStore } from "../launch.ts";
+import type { Logger, ResultViewStore } from "../launch.ts";
 import type { FetchFn, SendDeps } from "../send.ts";
 
 /** The one chrome.scripting call used; its result is validated at runtime. */
@@ -98,26 +98,6 @@ export function createLogger(): Logger {
   return {
     info: (label, data) => console.info(label, data),
     error: (label, data) => console.error(label, data),
-  };
-}
-
-/**
- * The SummaryStore backed by chrome.storage.session. take() reads and removes;
- * remove() rejects when the underlying removal fails.
- */
-export function createSummaryStore(storage: StorageArea): SummaryStore {
-  return {
-    async put(key, summary) {
-      await storage.set({ [key]: summary });
-    },
-    async take(key) {
-      const values = await storage.get(key);
-      await storage.remove(key);
-      return values[key];
-    },
-    async remove(key) {
-      await storage.remove(key);
-    },
   };
 }
 

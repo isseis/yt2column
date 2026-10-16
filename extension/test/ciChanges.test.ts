@@ -26,7 +26,9 @@ describe("has-extension-changes", () => {
     [".github/workflows/release.yml"],
     ["go.mod"],
     ["docs/dev/security.md"],
-    ["README.md", "extension/package.json"],
+    ["README.md"],
+    ["internal/server/response.go"],
+    ["docs/dev/project_overview.md", "extension/package.json"],
   ];
   for (const files of triggering) {
     it(`runs the extension job for ${files.join(", ")}`, () => {
@@ -50,7 +52,6 @@ describe("has-extension-changes", () => {
 
   const quiet = [
     ["internal/transcript/ytdlp.go"],
-    ["README.md"],
     ["notes/myextension.txt"],
     // Each pattern's text elsewhere in a path: these fail a pattern that
     // lost its ^ or $.
@@ -60,6 +61,16 @@ describe("has-extension-changes", () => {
     ["tools/go.mod"],
     ["go.modx"],
     ["tools/.github/workflows/ci.yml"],
+    // The document and server paths match whole paths only.
+    ["docs/README.md"],
+    ["README.md.bak"],
+    ["x/docs/dev/security.md"],
+    ["docs/dev/security.md.orig"],
+    ["x/internal/server/response.go"],
+    ["internal/server/response.go.orig"],
+    // Another file in a scanned directory.
+    ["docs/dev/project_overview.md"],
+    ["internal/server/handler.go"],
     [],
   ];
   for (const files of quiet) {

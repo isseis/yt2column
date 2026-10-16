@@ -1,9 +1,23 @@
 import { collect } from "./core/collect.ts";
 import type { CollectOutcome, SelectionReader } from "./core/collect.ts";
+import { prepareSend } from "./core/prepare.ts";
+import type { PrepareOutcome } from "./core/prepare.ts";
+import { toSendOutcome } from "./core/response.ts";
+import type { SendResult } from "./core/response.ts";
+import { parseResultView } from "./core/resultView.ts";
 import type { ResultView } from "./core/resultView.ts";
-import { parseSummary, summarize } from "./core/summary.ts";
-import type { LaunchContext, OutcomeSummary } from "./core/types.ts";
-import { renderSummary } from "./ui/render.ts";
+import { unreadableResultMessage } from "./core/sendMessages.ts";
+import type { SettingsReader } from "./core/settings.ts";
+import { summarize } from "./core/summary.ts";
+import type { LaunchContext } from "./core/types.ts";
+import { sendArticle, sendTimeoutMs } from "./send.ts";
+import type { SendDeps } from "./send.ts";
+import { messageNodes, renderSummary } from "./ui/render.ts";
+import {
+  renderResultView,
+  renderSendOutcome,
+  sendingMessage,
+} from "./ui/renderSend.ts";
 
 /** Developer-facing log. The first argument is always a fixed label. */
 export interface Logger {
@@ -11,19 +25,7 @@ export interface Logger {
   error(label: string, data: unknown): void;
 }
 
-/** Hands an OutcomeSummary from the service worker to the result window. */
-export interface SummaryStore {
-  put(key: string, summary: OutcomeSummary): Promise<void>;
-  /** Returns the stored value and removes it; undefined when absent. */
-  take(key: string): Promise<unknown>;
-  /**
-   * Discards the stored value for key; used when the result window cannot be
-   * opened. Rejects when the removal fails.
-   */
-  remove(key: string): Promise<void>;
-}
-
-/** Hands a ResultView from the service worker to the result window. Replaces SummaryStore. */
+/** Hands a ResultView from the service worker to the result window. */
 export interface ResultViewStore {
   put(key: string, view: ResultView): Promise<void>;
   /** Returns the stored value; undefined when absent. Does not remove it. */
@@ -38,8 +40,11 @@ export interface ResultViewStore {
 
 export interface MenuLaunchDeps {
   readonly reader: SelectionReader;
-  readonly store: SummaryStore;
+  readonly settings: SettingsReader;
+  readonly send: SendDeps;
+  readonly store: ResultViewStore;
   readonly newKey: () => string;
+  readonly now: () => number;
   openResultWindow(key: string): Promise<void>;
   /** Visible fallback when the result window cannot be shown (toolbar badge). */
   signalDisplayFailure(): Promise<void>;
@@ -53,8 +58,17 @@ export interface PopupLaunchDeps {
   readonly log: Logger;
 }
 
+export interface PopupSendDeps {
+  readonly settings: SettingsReader;
+  readonly send: SendDeps;
+  readonly now: () => number;
+  readonly log: Logger;
+}
+
 export interface ResultWindowDeps {
-  readonly store: SummaryStore;
+  readonly store: ResultViewStore;
+  /** Runs callback once after ms milliseconds; returns a function that cancels it. */
+  schedule(ms: number, callback: () => void): () => void;
   readonly log: Logger;
 }
 
@@ -62,16 +76,17 @@ const menuLogLabel = "yt2column menu launch";
 const popupLogLabel = "yt2column popup launch";
 const resultLogLabel = "yt2column result window";
 const clearBadgeLabel = "yt2column clear badge";
-const putLabel = "yt2column store summary";
+const putLabel = "yt2column store result view";
 const openWindowLabel = "yt2column open result window";
-const removeLabel = "yt2column remove summary";
+const removeLabel = "yt2column remove result view";
 const badgeLabel = "yt2column signal display failure";
 const activeTabLabel = "yt2column active tab";
-const keyLabel = "yt2column create summary key";
+const keyLabel = "yt2column create result view key";
+const blockedLabel = "yt2column blocked";
+const sendLabel = "yt2column send result";
 
-/** The message shown when the result window finds no usable summary. */
-export const missingResultText =
-  "This result is no longer available. Launch yt2column again.";
+/** How long a result window waits for the result after it opens. */
+export const resultWaitMs = sendTimeoutMs + 10_000;
 
 /** Copies id, url and title verbatim; undefined when there is no tab or no tab id. */
 export function launchContextFromTab(
@@ -96,10 +111,50 @@ async function attempt(
   }
 }
 
+/** A launch that ends without a request, after the collection and settings checks. */
+type BlockedPrepare = Extract<PrepareOutcome, { readonly kind: "blocked" }>;
+
 /**
- * Context-menu path. Collects the selection, stores the display summary, and
- * opens the result window. The stored summary is written before the window is
- * opened, and a window failure removes that key. Every failure is logged; the
+ * Logs a blocked launch. Everything but a settings read failure is normal and
+ * goes to info; a settings read failure is a defect and goes to error.
+ */
+function logBlocked(log: Logger, prepared: BlockedPrepare): void {
+  const data = { reason: prepared.reason, cause: prepared.cause };
+  if (prepared.reason === "settings-unreadable") {
+    log.error(blockedLabel, data);
+  } else {
+    log.info(blockedLabel, data);
+  }
+}
+
+/**
+ * Logs one send attempt: the start time, the duration, the port and the
+ * result. A result that is a failure goes to error; accepted and rejected go
+ * to info. The token is never part of the logged values.
+ */
+function logSend(
+  log: Logger,
+  startedAt: number,
+  port: string,
+  result: SendResult,
+): void {
+  const data = {
+    at: new Date(startedAt).toISOString(),
+    durationMs: Date.now() - startedAt,
+    port,
+    result,
+  };
+  if (result.kind === "accepted" || result.kind === "rejected") {
+    log.info(sendLabel, data);
+  } else {
+    log.error(sendLabel, data);
+  }
+}
+
+/**
+ * Context-menu path: collect, prepare, show the window, then send once. The
+ * sending view is written before the window opens, and the send only starts
+ * once that write and the window both succeed. Every failure is logged; the
  * function never throws, and it never reads info.selectionText.
  */
 export async function runMenuLaunch(
@@ -108,6 +163,7 @@ export async function runMenuLaunch(
   deps: MenuLaunchDeps,
 ): Promise<void> {
   await attempt(deps.clearDisplayFailure, deps.log, clearBadgeLabel);
+  const startedAt = deps.now();
   const outcome = await collect(launchContextFromTab(tab), deps.reader);
   deps.log.info(menuLogLabel, {
     pageUrl: info.pageUrl,
@@ -122,25 +178,68 @@ export async function runMenuLaunch(
     await attempt(deps.signalDisplayFailure, deps.log, badgeLabel);
     return;
   }
+  const prepared = await prepareSend(outcome, deps.settings, {});
+  if (prepared.kind === "blocked") {
+    logBlocked(deps.log, prepared);
+    try {
+      await deps.store.put(key, { kind: "blocked", reason: prepared.reason });
+    } catch (error) {
+      deps.log.error(putLabel, error);
+      await attempt(deps.signalDisplayFailure, deps.log, badgeLabel);
+      return;
+    }
+    await openResultWindow(key, deps);
+    return;
+  }
+  const summary = summarize(outcome);
+  if (summary.kind !== "collected") {
+    // Unreachable: prepareSend returns ready only for a collected input.
+    deps.log.error(menuLogLabel, "a ready request without a collected input");
+    return;
+  }
   try {
-    await deps.store.put(key, summarize(outcome));
+    await deps.store.put(key, { kind: "sending", summary });
   } catch (error) {
     deps.log.error(putLabel, error);
     await attempt(deps.signalDisplayFailure, deps.log, badgeLabel);
     return;
   }
+  if (!(await openResultWindow(key, deps))) {
+    return;
+  }
+  const result = await sendArticle(prepared.request, deps.send);
+  logSend(deps.log, startedAt, prepared.request.port, result);
+  try {
+    await deps.store.put(key, {
+      kind: "sent",
+      summary,
+      outcome: toSendOutcome(result),
+    });
+  } catch (error) {
+    deps.log.error(putLabel, error);
+    await attempt(deps.signalDisplayFailure, deps.log, badgeLabel);
+  }
+}
+
+/** Opens the result window for key; on failure removes the key and badges. */
+async function openResultWindow(
+  key: string,
+  deps: MenuLaunchDeps,
+): Promise<boolean> {
   try {
     await deps.openResultWindow(key);
+    return true;
   } catch (error) {
     deps.log.error(openWindowLabel, error);
     await attempt(() => deps.store.remove(key), deps.log, removeLabel);
     await attempt(deps.signalDisplayFailure, deps.log, badgeLabel);
+    return false;
   }
 }
 
 /**
  * Popup path. Collects the active tab's selection and renders the summary
- * into container, returning the outcome for #111's send button. Never throws.
+ * into container, returning the outcome for the send controls. Never throws.
  */
 export async function runPopupLaunch(
   container: HTMLElement,
@@ -159,46 +258,153 @@ export async function runPopupLaunch(
   return outcome;
 }
 
-/** Replaces the children of container with a single fixed notice. */
-function renderNotice(container: HTMLElement, text: string): void {
-  const notice = container.ownerDocument.createElement("p");
-  notice.className = "summary-message";
-  notice.textContent = text;
-  container.replaceChildren(notice);
+/**
+ * Popup send controls below the summary. Checks once when the popup opens,
+ * shows a disabled button while sending, and sends at most once per popup.
+ * Never throws.
+ */
+export async function runPopupSend(
+  container: HTMLElement,
+  outcome: CollectOutcome,
+  deps: PopupSendDeps,
+): Promise<void> {
+  if (outcome.kind === "rejected") {
+    // The summary region already shows the rejection reason.
+    container.replaceChildren();
+    return;
+  }
+  const prepared = await prepareSend(outcome, deps.settings, {});
+  if (prepared.kind === "blocked") {
+    logBlocked(deps.log, prepared);
+    renderResultView(container, { kind: "blocked", reason: prepared.reason });
+    return;
+  }
+  const doc = container.ownerDocument;
+  const status = doc.createElement("div");
+  status.className = "send-message";
+  const button = doc.createElement("button");
+  button.type = "button";
+  button.className = "send-button";
+  button.textContent = "Send to yt2column";
+  container.replaceChildren(button, status);
+
+  let state: "unused" | "sending" | "sent" = "unused";
+  button.addEventListener("click", () => {
+    void (async () => {
+      if (state !== "unused") {
+        return;
+      }
+      state = "sending";
+      button.disabled = true;
+      status.replaceChildren(...messageNodes(doc, sendingMessage));
+      const startedAt = deps.now();
+      const result = await sendArticle(prepared.request, deps.send);
+      logSend(deps.log, startedAt, prepared.request.port, result);
+      state = "sent";
+      renderSendOutcome(status, toSendOutcome(result));
+    })();
+  });
 }
 
 /**
- * Result window. Takes location.hash as is, renders the summary stored under
- * its key after taking it, or a fixed notice when there is none. Never throws.
+ * Result window. Reads the stored view under location.hash's key, follows it
+ * until a final value or the wait limit, and shows one of: the blocked reason,
+ * the sending notice, the send result, or a fixed "unknown/unreadable" notice.
+ * It moves through its states in one direction only. Never throws.
  */
 export async function runResultWindow(
   container: HTMLElement,
   hash: string,
   deps: ResultWindowDeps,
 ): Promise<void> {
+  const doc = container.ownerDocument;
   const key = hash.replace(/^#/, "");
+  let state: "waiting" | "sending" | "final" = "waiting";
+  let stopWatch: () => void = () => {};
+  let cancelWait: () => void = () => {};
+
+  /** Moves to Final: stops following, renders once, then removes the key. */
+  const finish = (render: () => void): void => {
+    if (state === "final") {
+      return;
+    }
+    state = "final";
+    stopWatch();
+    cancelWait();
+    render();
+    if (key !== "") {
+      void deps.store.remove(key).catch((error) => {
+        deps.log.error(removeLabel, error);
+      });
+    }
+  };
+
+  const showUnreadable = (detail: unknown): void => {
+    deps.log.error(resultLogLabel, detail);
+    finish(() => {
+      container.replaceChildren(...messageNodes(doc, unreadableResultMessage));
+    });
+  };
+
+  const onValue = (value: unknown): void => {
+    if (state === "final") {
+      return;
+    }
+    const view = parseResultView(value);
+    if (view === undefined) {
+      showUnreadable("the stored result view has an unexpected shape");
+      return;
+    }
+    switch (view.kind) {
+      case "sending":
+        if (state === "waiting") {
+          state = "sending";
+          renderResultView(container, view);
+        }
+        return;
+      case "blocked":
+      case "sent":
+        finish(() => {
+          renderResultView(container, view);
+        });
+        return;
+      default: {
+        const exhaustive: never = view;
+        deps.log.error(resultLogLabel, exhaustive);
+      }
+    }
+  };
+
   if (key === "") {
-    renderNotice(container, missingResultText);
+    showUnreadable("the result window has no key");
     return;
   }
+
+  // Watch before get, so a value stored between the two is not missed.
+  stopWatch = deps.store.watch(key, onValue);
+  cancelWait = deps.schedule(resultWaitMs, () => {
+    if (state === "final") {
+      return;
+    }
+    deps.log.error(
+      resultLogLabel,
+      "the result did not arrive before the wait limit",
+    );
+    finish(() => {
+      renderSendOutcome(container, { kind: "unknown" });
+    });
+  });
+
   let stored: unknown;
   try {
-    stored = await deps.store.take(key);
+    stored = await deps.store.get(key);
   } catch (error) {
-    deps.log.error(resultLogLabel, error);
-    renderNotice(container, missingResultText);
+    showUnreadable(error);
     return;
   }
-  const summary = parseSummary(stored);
-  if (summary === undefined) {
-    if (stored !== undefined) {
-      deps.log.error(
-        resultLogLabel,
-        "the stored summary has an unexpected shape",
-      );
-    }
-    renderNotice(container, missingResultText);
-    return;
+  if (stored !== undefined) {
+    onValue(stored);
+  } else if (state === "waiting") {
+    showUnreadable("the stored result view is missing");
   }
-  renderSummary(container, summary);
 }

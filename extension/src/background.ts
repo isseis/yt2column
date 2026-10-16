@@ -5,9 +5,11 @@
 import {
   createBadge,
   createLogger,
+  createResultViewStore,
   createResultWindowOpener,
   createSelectionReader,
-  createSummaryStore,
+  createSendDeps,
+  createSettingsStore,
 } from "./browser/chromeDeps.ts";
 import type { MenuLaunchDeps } from "./launch.ts";
 import { runMenuLaunch } from "./launch.ts";
@@ -24,8 +26,14 @@ function menuDeps(): MenuLaunchDeps {
   const badge = createBadge(chrome.action);
   return {
     reader: createSelectionReader(chrome.scripting),
-    store: createSummaryStore(chrome.storage.session),
+    settings: createSettingsStore(chrome.storage.local),
+    send: createSendDeps(),
+    store: createResultViewStore(
+      chrome.storage.session,
+      chrome.storage.onChanged,
+    ),
     newKey: () => crypto.randomUUID(),
+    now: () => Date.now(),
     openResultWindow: createResultWindowOpener(
       chrome.windows,
       chrome.runtime.getURL("result.html"),
