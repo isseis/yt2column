@@ -60,7 +60,7 @@ architecture §8 の実装優先順位はフェーズ 1 だけである。本計
 - [ ] **ステップ 1-1**: `json3.go` の `decodeEvent`（`:112`）の `decodeTimestamp(start)` を `start.AsNonNegativeInt64()` に置き換える。`decodeTimestamp`（`:148-158`）と `errNegativeTimestamp`（`:26`）を削除する。`errMissingTimestamp` と `Collect` の規則は変えない。（対象: `internal/transcript/json3.go`。成功基準: `json3.go` に `AsNonNegativeInt64` があり、`decodeTimestamp`・`errNegativeTimestamp`・`AsInt64` が無い。`make build` が通る）
 - [ ] **ステップ 1-2**: `TestParseSubtitlesTimestamps`（`json3_test.go:110`）の `cases` の表に、`-0`（AC-03）と、`1.0`・`1e3`・`true`・`[]`・`{}`（AC-05 の小数・指数・真偽値・配列・オブジェクトのうち既存の行が無いもの）を加える。`zero is valid` のサブテストの隣に、正の整数と `int64` の最大値（`9223372036854775807`）を受理するサブテストを加え、`Segment.StartMs` がその値になることを確かめる（AC-01）。`discarded event ignores tStartMs`（`:136`）のサブテストに、捨てる 2 つの形（`segs` がない、`utf8` を連結した本文が空白だけ）のそれぞれについて、`-0` の `tStartMs` を持つイベントが検査されないケースを加える（AC-07）。既存の行・サブテストは変えない。（対象: `internal/transcript/json3_test.go`。成功基準: 追加した拒否の行が `assertSubtitlesRejected` を通り、受理のサブテストが通る）
 - [ ] **ステップ 1-3**: `json3_test.go` に `TestParseSubtitlesTimestampErrorOmitsValue` を加える。`-1`・`-0`・`9223372036854775808`・`1.5`・`1e3` の `tStartMs` を `parseSubtitles` に渡し、まず各呼び出しが `nil` でないエラーを返すことを確かめたうえで（`-0` は本タスクの前は受理されるので、この確認が要る）、そのエラーの `Error()` が値の文字列を含まないことを確かめる（AC-09）。`assertSubtitlesRejected`（`ErrParseSubtitles`・`*ParseError.Path`・部分結果を返さないことを確かめ、エラーメッセージは見ない）とは別に、`parseSubtitles` の戻り値のエラー文字列を直接調べる。（対象: `internal/transcript/json3_test.go`。成功基準: 5 つの値のそれぞれで、`err` が `nil` でなく、エラー文字列に値の文字列が含まれない）
-- [ ] **ステップ 1-4**: `json3_test.go` に、AC-11・AC-12 のガードテストを加える（architecture §7）。`TestTimestampReadingIsUnified` は `json3.go` を読み、`tStartMs` の読み取りが `AsNonNegativeInt64` であり、`AsInt64`・`decodeTimestamp`・`errNegativeTimestamp` と、`tStartMs` の値が負かどうかを調べる式（`< 0`）が残っていないことを確かめる（AC-12）。`TestExportedSentinelErrorsUnchanged` は `errors.go` を読み、`Err` で始まる exported の番兵の宣言の集合が §1.3 の 6 つと一致することを確かめる（AC-11）。どちらもソースを読むガードであり、対象のファイルのパスはテストの作業ディレクトリ（パッケージディレクトリ）からの相対で渡す。（対象: `internal/transcript/json3_test.go`。成功基準: 2 つのガードテストが通り、番兵を 1 つ足す・読み取りを `decodeTimestamp` に戻す（`AsInt64` と負かどうかを調べる式が現れる）、のいずれかで落ちる）
+- [ ] **ステップ 1-4**: `json3_test.go` に、AC-11・AC-12 のガードテストを加える（architecture §7）。`TestTimestampReadingIsUnified` は `json3.go` を解析し、`tStartMs` の読み取りが `AsNonNegativeInt64` であり、`AsInt64`・`decodeTimestamp`・`errNegativeTimestamp` が残っておらず、`tStartMs` から読んだ値に対する自前の負の値判定（`< 0` に相当する比較。`<= -1` など表記が異なる同値の形を含む）が残っていないことを確かめる（AC-12）。文字列の照合ではなく、Go のソースを解析して比較の式を調べる方法で確認し、特定の表記に依存しない。`TestExportedSentinelErrorsUnchanged` は `errors.go` を読み、`Err` で始まる exported の番兵の宣言の集合が §1.3 の 6 つと一致することを確かめる（AC-11）。どちらもソースを読むガードであり、対象のファイルのパスはテストの作業ディレクトリ（パッケージディレクトリ）からの相対で渡す。（対象: `internal/transcript/json3_test.go`。成功基準: 2 つのガードテストが通り、番兵を 1 つ足す・読み取りを `decodeTimestamp` に戻す（`AsInt64` と負の値判定が現れる）・自前の負の値判定を別の表記で戻す、のいずれかで落ちる）
 - [ ] **ステップ 1-5**: フェーズ 1 の完了条件として、`make fmt` → `make test` → `make lint` を通す。§4.2 の壊し確認を行い、結果をコミットメッセージに記録する。既存の拒否のケース（`TestParseSubtitlesTimestamps` の既存の行・`TestParseSubtitlesDuplicateMembers`）と、`internal/strictjson` の `TestAsNonNegativeInt64` が引き続き通ることを確かめる（AC-13・AC-15）。
 
 **完了条件:** 消費するイベントの `tStartMs` が `AsNonNegativeInt64` で読まれ、`-0` が拒否され、`-0` 以外の受理・拒否が変わらず、拒否のエラーが値の文字列を含まない。規則が 1 か所であることと exported の番兵の集合が変わらないことがガードテストで固定されている。
@@ -123,6 +123,7 @@ architecture §8 の実装優先順位はフェーズ 1 だけであり、PR も
 
 - `decodeEvent` の読み取りを `decodeTimestamp`（`AsInt64` の後に負の値を拒否する）に戻すと、`TestParseSubtitlesTimestamps` の `-0` の行（`-0` を `0` として受理する）と `TestTimestampReadingIsUnified`（`AsInt64`・`decodeTimestamp`・負かどうかを調べる式が現れる）が落ちること。
 - `decodeTimestamp` に戻すと、`TestParseSubtitlesTimestampErrorOmitsValue` の範囲外（`9223372036854775808`）と非整数（`1.5`・`1e3`）のケースが落ちること（`strconv` のエラーが値を含むため）、および `-0` のケースが落ちること（本タスクの前は受理されて `err` が `nil` になるため）。
+- 自前の負の値判定を `<= -1` など別の表記で読み取りの後に戻すと、`TestTimestampReadingIsUnified` が落ちること（表記に依存せず検出する）。
 - `errors.go` に exported の番兵を 1 つ足すと、`TestExportedSentinelErrorsUnchanged` が落ちること。
 
 変更しないコード（`AsNonNegativeInt64`・`AsInt64`）を対象とする `internal/strictjson` の既存のテストには、壊し確認を課さない。
@@ -146,7 +147,7 @@ architecture §8 の実装優先順位はフェーズ 1 だけであり、PR も
 | AC-09 | test | `internal/transcript/json3_test.go::TestParseSubtitlesTimestampErrorOmitsValue`（`-1`・`-0`・`9223372036854775808`・`1.5`・`1e3` のエラー文字列が値を含まないこと）。`make test` で実行する |
 | AC-10 | test | `assertSubtitlesRejected` が、AC-02〜AC-06 の各行で `parseSubtitles` の `[]Segment` が `nil` であることを確かめる。`make test` で実行する |
 | AC-11 | static | `internal/transcript/json3_test.go::TestExportedSentinelErrorsUnchanged`（`errors.go` の exported の番兵の集合を固定するガードテスト）。`make test` で実行する |
-| AC-12 | static | `internal/transcript/json3_test.go::TestTimestampReadingIsUnified`（`json3.go` の読み取りが `AsNonNegativeInt64` で、`AsInt64`・`decodeTimestamp`・`errNegativeTimestamp`・負かどうかを調べる式が無いことを固定するガードテスト）。`make test` で実行する |
+| AC-12 | static | `internal/transcript/json3_test.go::TestTimestampReadingIsUnified`（`json3.go` を解析し、読み取りが `AsNonNegativeInt64` で、`AsInt64`・`decodeTimestamp`・`errNegativeTimestamp` と、`tStartMs` から読んだ値に対する自前の負の値判定が無いことを、表記に依存せず固定するガードテスト）。`make test` で実行する |
 | AC-13 | test | `internal/strictjson/strictjson_test.go::TestAsNonNegativeInt64`（`AsNonNegativeInt64` の受理・拒否と、エラーが値を含まないこと）。`make test` で実行する |
 | AC-14 | test | `internal/transcript/json3_test.go::TestParseSubtitlesRealData`（`testdata/` の json3 と `subtitlesOracle` の一致）。`make test` で実行する |
 | AC-15 | test | `internal/transcript/json3_test.go` の既存の拒否・重複・上限・UTF-8 の各テスト（`TestParseSubtitlesRejectsSimple`・`TestParseSubtitlesElementKinds`・`TestParseSubtitlesTimestamps` の既存の行・`TestParseSubtitlesDuplicateMembers`・`TestParseSubtitlesLimits`・`TestParseSubtitlesArrayElementLimit`・`TestParseSubtitlesUTF8`）。`make test` で実行する |
@@ -161,7 +162,7 @@ architecture §8 の実装優先順位はフェーズ 1 だけであり、PR も
 | リスク | 影響 | 対策 |
 |---|---|---|
 | 読み取りを置き換えたつもりで古い `decodeTimestamp` の経路が残る | `-0` が受理され、規則が一本化されない | ステップ 1-1 で `decodeTimestamp`・`errNegativeTimestamp` を削除し、`-0` の拒否の行と `TestTimestampReadingIsUnified` で固定する。§4.2 の壊し確認で落ちることを確かめる |
-| ガードテストの文字列照合が広すぎ、無関係な一致で偽陽性・偽陰性になる | ガードが通らない、または規則の退行を見逃す | `TestTimestampReadingIsUnified` は `AsInt64`・`decodeTimestamp`・`errNegativeTimestamp`・`< 0` で照合し、`json3.go` 1 ファイルに限る。これらは本番のコードでこのファイルから消えるので、コメント以外に一致しない |
+| ガードテストが特定の表記に依存し、同値の別表記の退行を見逃す | 自前の負の値判定が別の表記で戻ってもガードが通る | `TestTimestampReadingIsUnified` は `json3.go` を解析し、識別子（`AsInt64`・`decodeTimestamp`・`errNegativeTimestamp`）と、`tStartMs` から読んだ値に対する負の値判定（`< 0`・`<= -1` などの同値の形を含む）を、表記に依存せずに調べる。§4.2 の壊し確認で、別表記の再導入でも落ちることを確かめる |
 | 実際のサンプル（`testdata/`）に `-0` が含まれ、受理のテストが変わる | AC-14 が落ちる | 実際のサンプルに `-0` は無い（`testdata/2tcCWM-sRBw.ja.json3` の `tStartMs` は `0` または正の整数＝負でない整数）。ステップ 1-5 の `TestParseSubtitlesRealData` で確かめる |
 | エラーに値を含まないテストが、`ParseError.Path` の文字列を誤って値として扱う | テストが偽陽性で落ちる | `TestParseSubtitlesTimestampErrorOmitsValue` は値の文字列（`-1` など）だけを照合し、`Path` に渡す名前（`inline.json3`）は値を含まない |
 | テストが想定した理由で落ちないままコミットされる | 検証が空振りする | §4.2 の壊し確認を全項目行い、結果をコミットメッセージに記録する |
