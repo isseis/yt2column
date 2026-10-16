@@ -8,9 +8,9 @@
 | Created | 2026-10-16 |
 | Review date | 2026-10-16 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-16: 実装計画の作成時に editorial correction を 2 つ加えた（設計の決定は変えていない）。(1) §1.3 の例外 1 と §3.11 に、見出しのメタデータの形を読む評価のスクリプト `docs/tasks/0008_column_prompt/check_article.py` を加えた（料金の行を加えると `HEADER_RE` が一致しなくなる。0010 が段階のモデルの行を加えたときと同じ追従）。(2) §1.3 の `cmd/yt2column-server/run_test.go` の行番号を、0021 の変更の後の位置に改めた。 |
 
-本書の既存コードへの言及（`file:line`）は、コミット `15d9b72` で確かめた。
+本書の既存コードへの言及（`file:line`）は、コミット `15d9b72` で確かめた（`cmd/yt2column-server/run_test.go` の行番号だけは、コミット `51ba36e` で確かめた）。
 
 **本書の用語。** 要件定義書の用語に加えて、本書では次の語を使う。
 
@@ -101,7 +101,7 @@ flowchart LR
 
 -   **段階の使用量は、由来・モデル名・使用量を持ち、時刻を持たない。** `StageUsage` は `Origin`・`Model`・`Usage` だけを持つ（`internal/writer/writer.go:47-51`）。`Write` は、`Generate` が戻った直後に `stageUsage(resp)` で `OriginRun` の値を作り（`internal/writer/writer.go:393-399`。呼び出しは `internal/writer/writer.go:416`・`internal/writer/shorten.go:29`・`internal/writer/review.go:257`）、再利用した段階は `reusedUsage(record)` で `StageRecord` の値から作る（`internal/writer/writer.go:403-405`）。`Write` はどの失敗でも、記録済みの段階の使用量を `*TokenUsageError` で包んで返す（`internal/writer/writer.go:309-390`）。本設計は、この 2 つの関数に呼び出しの時刻を加えるだけで、時刻を 0019 の経路にそのまま載せる（§3.4）。
 -   **`Article` は `RunUsage` を持ち、`==` で比べられる。** `Article.RunUsage` は 0019 で加わった（`internal/writer/writer.go:17-26`）。`TestCommonTypesFieldSets` は `Article` のフィールドの集合を固定する（`internal/pipeline/pipeline_test.go:431-484`）が、`StageUsage` のフィールドは固定しない。本設計は `Article` のフィールドを変えないので、この guard は変わらない。`time.Time` は `==` で比べられる型なので、`StageUsage` に `time.Time` を加えても `Article` は `==` で比べられるままである。ただし `time.Time` の `==` はタイムゾーン（`*time.Location`）とモノトニック時計の読みも比べるので、本設計は時刻を「UTC・秒に切り捨て・モノトニック時計の読みなし」の 1 つの形に正規化してから保持する（§3.4）。
--   **時計はどこにも注入されていない。** 本番のコードで `time.Now` を呼ぶのは、`internal/llm/llmhttp/llmhttp.go:90`（送信の所要時間の計測）と `internal/server/job.go:55`（ジョブの所要時間）だけである。`writer.Options`（`internal/writer/writer.go:79-85`）には時計のフィールドがない。CLI とサーバの `writer.Options` は、どちらも `writertestutil.DefaultOptions` と `reflect.DeepEqual` で比べるテストで一致を固定している（`cmd/yt2column/run_test.go:1684-1700`、`cmd/yt2column-server/run_test.go:378-396`）。
+-   **時計はどこにも注入されていない。** 本番のコードで `time.Now` を呼ぶのは、`internal/llm/llmhttp/llmhttp.go:90`（送信の所要時間の計測）と `internal/server/job.go:55`（ジョブの所要時間）だけである。`writer.Options`（`internal/writer/writer.go:79-85`）には時計のフィールドがない。CLI とサーバの `writer.Options` は、どちらも `writertestutil.DefaultOptions` と `reflect.DeepEqual` で比べるテストで一致を固定している（`cmd/yt2column/run_test.go:1684-1700`、`cmd/yt2column-server/run_test.go:481-503`）。
 -   **中間生成物の形式の版は 2 で、`id` は版と使用量を含む。** `artifactVersion` は 2（`internal/artifact/artifact.go:21`）、`Parse` は宣言したキー以外を `CollectOnly` で拒否し（`internal/artifact/format.go:158`）、版が違えば `unsupported artifact version` で拒否する（`internal/artifact/format.go:232-236`）。`recordID` は、版・段階・モデル名・モデルの版・使用量（`usageIDParts`）・テンプレート・入力・本文の順に部分を並べる（`internal/artifact/format.go:437-464`）。
 -   **`renderArticle` が `--out` と Slack の共通の本文を作る。** `renderArticle` は、見出し・モデル名の行（生成、字数の調整、検証・推敲）・空行・本文の順に書く（`internal/publisher/file.go:203-214`）。`FilePublisher` はそれをファイルに書き（`internal/publisher/file.go:111`）、Slack の `prepareSlackMessages` は `CheckPublishable` と UTF-8 の検査の後で `renderArticle` の結果を分割し、メンションを検査する（`internal/publisher/slack_message.go:25-56`）。localhost サーバも同じ `Publisher` を使う。
 -   **CLI のトークン数の行は `reportTokens` が書き、成功と失敗で同じ関数を呼ぶ。** `tokensLine`（`cmd/yt2column/run.go:637-667`）と `reportTokens`（`cmd/yt2column/run.go:670-684`）がある。成功では `reportSuccess` の最後（`cmd/yt2column/run.go:714`）、失敗では `reportRunError` の最初（`cmd/yt2column/run.go:795-797`）で呼ぶ。どの行も `stderrWriter.line` を通って `redact.Line` を受ける。
@@ -116,6 +116,7 @@ flowchart LR
     -   **元の方針と場所:** [0019 の 01_requirements.md](../0019_token_usage/01_requirements.md) §2.3（`--out`・Webhook・検証・推敲の一覧にトークン数を書かない）、[0019 の 02_architecture.md](../0019_token_usage/02_architecture.md) §3.5「`Article.CheckPublishable` は `RunUsage` を検査しない」と §4.3 のサイドエフェクト契約（「`--out` のファイル・Webhook の投稿: 変えない。トークン数を書かない」）。0019 の §9 は、#99 が料金を公開先に出すときに `CheckPublishable` に検査を加えることを見込んでいた。
     -   **例外の内容と理由:** `--out` と Slack の見出しのメタデータに、`Article.RunUsage` から算出した記事 1 本の料金の行を 1 行加える（要件 F-006）。トークン数そのものは出さない。行は、`pricing.Amount` を整数の除算で書いた数字と、固定の英語の文言だけからなり、モデル名・応答の値を含まない。`StageUsage.Model` は単価の表を引く鍵として使うだけで、出力しない。そのため、0019 の §9 が見込んだ `CheckPublishable` の検査は要らず、`CheckPublishable` は変えない（§3.7）。
     -   **更新が要るテスト:** `internal/publisher/file_test.go:64`（見出し全体を `==` で比べる）と、同じファイルの `TestRenderArticleSteps`（`internal/publisher/file_test.go:94-125`。3 つのサブテストが `renderArticle` の結果全体を比べる）。`internal/publisher/testutil/integration.go:166-170` の `integrationHeader`（`renderArticle` の写しで、`TestIntegrationArticles` がずれを検出する）。これらはいずれも、期待値に料金の行（`RunUsage` がゼロ値なので、不明の行）を加える。`renderArticle` の結果と比べる Slack のテスト（`internal/publisher/slack_test.go`・`slack_message_test.go`）は、期待値も `renderArticle` から作るので変わらない。`cmd/yt2column/run_test.go:1614` は見出しの前半を部分文字列で照合し、料金の行はその後に来るので変わらない。
+    -   **更新が要る評価のスクリプト:** `docs/tasks/0008_column_prompt/check_article.py` の `HEADER_RE` は、モデル名の行の直後に空行を求めるので、料金の行を加えた `--out` のファイルを `unrecognized --out format` とする。0018 の評価が 0008 の手順でこのスクリプトを使うので、0010 が段階のモデルの行を加えたときと同じく、料金の行（分かった場合と不明の場合）を受け付ける形に改める。
 2. **中間生成物の形式の版を 2 から 3 に上げる。**
     -   **元の方針と場所:** [0019 の 02_architecture.md](../0019_token_usage/02_architecture.md) §3.7（版 2 と、版 1 の拒否）。0017 の §4.4 は、別のバージョンの CLI との互換を対象外とする。
     -   **内容と理由:** `call_time` 要素を加え、版を 3 にして版 2 を拒否する（要件 F-007・AC-30）。版 2 の拒否は、0019 が版 1 を拒否したのと同じ既存の経路（`parseStage` の版の検査）とメッセージで行う。
@@ -622,6 +623,7 @@ yt2column: cost-total: article known usd=0.032610
 | `internal/writer/shorten.go`・`review.go` | 変更 | `Generate` の戻りでの時刻の取得 | なし（`Write` を通すテストは上の行に含む） |
 | `internal/artifact/artifact.go`・`format.go` | 変更 | 版 3、`call_time` の保存・読み込み・検証、`Marshal` の時刻の検査、`recordID` への追加 | `format_test.go` の `fieldsFrom`・`validGeneration` と、キー・版の拒否の表。`store_test.go`・`chain_test.go` は `validGeneration`・`reviewOf` を通して追従する |
 | `internal/publisher/file.go` | 変更 | `renderArticle` の料金の行 | `file_test.go:64` と `TestRenderArticleSteps`（`file_test.go:94-125`。見出し全体の比較） |
+| `docs/tasks/0008_column_prompt/check_article.py` | 変更 | `HEADER_RE` に料金の行を加える（§1.3 の例外 1） | なし |
 | `internal/publisher/testutil/integration.go` | 変更 | `integrationHeader` に料金の行（不明）を加える | `TestIntegrationArticles` 自体は変えない（`integrationHeader` とのずれを検出するテストなので、`integrationHeader` を直せば通る） |
 | `cmd/yt2column/run.go` | 変更 | 料金の行と合計の行の書式の定数、行を書く関数（`reportUsage`）、成功・失敗の要約での呼び出し | `run_test.go:2353-2362` の `TestRunArtifactExitCodes`（`artifact.Marshal` に渡す記録に `CallTime` を加える）。ほかの既存のテストは標準エラーを部分文字列で照合し、料金の行は既存の照合の文字列を含まないので変わらない |
 | `cmd/yt2column/docs_test.go` | 変更 | README の料金の行の書式と定数の一致の契約のテスト。`package_reference.md` の型の一覧に `internal/pricing` を加える | :747-752 の表（`internal/pricing` の行の追加と、`internal/artifact` の行の `"version 2"` を `"version 3"` に改める） |
