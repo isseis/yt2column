@@ -12,12 +12,15 @@ import type { CollectedSummary, ResultView } from "../src/core/resultView.ts";
 import type { RequestId, SendOutcome } from "../src/core/response.ts";
 import {
   blockMessage,
+  sendOutcomeMessage,
   unreadableResultMessage,
 } from "../src/core/sendMessages.ts";
 import type { SettingsReader } from "../src/core/settings.ts";
 import { summarize } from "../src/core/summary.ts";
+import { sendingMessage } from "../src/ui/renderSend.ts";
 import {
   launchContextFromTab,
+  resultWaitMs,
   runMenuLaunch,
   runPopupLaunch,
   runPopupSend,
@@ -30,7 +33,7 @@ import type {
   ResultWindowDeps,
 } from "../src/launch.ts";
 import type { FetchFn, FetchResponse, SendDeps } from "../src/send.ts";
-import { container } from "./helpers/dom.ts";
+import { container, query } from "./helpers/dom.ts";
 import { recordingLogger } from "./helpers/logger.ts";
 import type { RecordingLogger } from "./helpers/logger.ts";
 import {
@@ -428,7 +431,9 @@ describe("launch paths", () => {
 
     const menu = menuHarness({ reader });
     await runMenuLaunch(menuInfo(), undefined, menu.deps);
-    assert.equal(loggedOutcome(menu.recorder).kind, "rejected");
+    const menuOutcome = loggedOutcome(menu.recorder);
+    assert.equal(menuOutcome.kind, "rejected");
+    assert.equal(menuOutcome.reason, "collection-failed");
   });
 
   it("treats a failing activeTab as collection-failed without rejecting", async () => {
@@ -458,11 +463,13 @@ describe("launch paths", () => {
   });
 
   it("keeps untrusted text out of the fixed log labels", async () => {
-    const menu = menuHarness({
-      reader: readerReturning(page(`${malicious}\n`)),
-    });
+    const reader = readerReturning(page(`${malicious}\n`));
+    const menu = menuHarness({ reader });
     await runMenuLaunch(menuInfo(), fakeTab(), menu.deps);
     assert.equal(menu.recorder.infos[0]?.label, "yt2column menu launch");
+    const popup = popupHarness({ reader });
+    await runPopupLaunch(container(), popup.deps);
+    assert.equal(popup.recorder.infos[0]?.label, "yt2column popup launch");
   });
 
   it("clears the badge at the start of the menu path", async () => {
@@ -579,11 +586,12 @@ describe("menu send", () => {
       assert.deepEqual(menu.store.puts[0]?.view, { kind: "blocked", reason });
       assert.equal(menu.fetch.calls.length, 0);
       assert.deepEqual(menu.windows, ["key-1"]);
-      if (error) {
-        assert.equal(menu.recorder.errors.length, 1);
-      } else {
-        assert.equal(menu.recorder.infos.length, 2);
-      }
+      const entries = error ? menu.recorder.errors : menu.recorder.infos;
+      const entry = entries.find(
+        (candidate) => candidate.label === "yt2column blocked",
+      );
+      assert.ok(entry !== undefined);
+      assert.equal((entry.data as { reason: string }).reason, reason);
     });
   }
 
@@ -651,9 +659,7 @@ describe("popup send", () => {
     await runPopupSend(root, collected(), popupDeps);
     await clickSend(root);
     assert.equal(fetch.calls.length, 1);
-    const button = root.querySelector(".send-button");
-    assert.ok(button instanceof Object && "disabled" in button);
-    assert.equal((button as HTMLButtonElement).disabled, true);
+    assert.equal(query<HTMLButtonElement>(root, ".send-button").disabled, true);
     assert.equal(
       root.querySelector(".send-request-id")?.textContent,
       requestId,
@@ -675,30 +681,17 @@ describe("popup send", () => {
     const { deps: popupDeps } = deps({ send: testSendDeps(deferred.fetchFn) });
     const root = container();
     await runPopupSend(root, collected(), popupDeps);
-    const button = root.querySelector(".send-button");
-    assert.ok(button instanceof Object && "click" in button);
-    (button as HTMLButtonElement).click();
+    const button = query<HTMLButtonElement>(root, ".send-button");
+    button.click();
     await flush();
-    assert.equal((button as HTMLButtonElement).disabled, true);
-    const text = root.textContent ?? "";
-    assert.ok(text.includes("close"), text);
-    assert.ok(text.includes("Slack"), text);
+    assert.equal(button.disabled, true);
+    expectMessage(root, sendingMessage);
     deferred.resolve(textResponse(202, acceptedBody));
     await flush();
     assert.equal(
       root.querySelector(".send-request-id")?.textContent,
       requestId,
     );
-  });
-
-  it("shows a block reason and no button for a preflight block", async () => {
-    const { deps: popupDeps } = deps({
-      settings: fixedSettings({ token: undefined, port: undefined }).reader,
-    });
-    const root = container();
-    await runPopupSend(root, collected(), popupDeps);
-    assert.equal(root.querySelector(".send-button"), null);
-    expectMessage(root, blockMessage("token-missing"));
   });
 
   it("renders nothing and does not read settings for a rejected collection", async () => {
@@ -716,9 +709,13 @@ describe("popup send", () => {
   });
 
   const popupBlocks: {
-    reason: "settings-unreadable" | "port-invalid";
+    reason: "token-missing" | "settings-unreadable" | "port-invalid";
     settings: SettingsReader;
   }[] = [
+    {
+      reason: "token-missing",
+      settings: fixedSettings({ token: undefined, port: undefined }).reader,
+    },
     {
       reason: "settings-unreadable",
       settings: failingSettings(new Error("storage failed")).reader,
@@ -781,7 +778,7 @@ describe("result window", () => {
     const root = container();
     const run = runResultWindow(root, "#key-1", deps);
     await flush();
-    assert.ok((root.textContent ?? "").includes("Sending the article"));
+    expectMessage(root, sendingMessage);
     store.fire("key-1", view);
     await run;
     assert.equal(
@@ -790,7 +787,7 @@ describe("result window", () => {
     );
     assert.deepEqual(store.removes, ["key-1"]);
     assert.equal(store.watching("key-1"), false);
-    assert.equal(schedule.delayMs(), 35_000);
+    assert.equal(schedule.delayMs(), resultWaitMs);
     // The wait-limit reservation is cancelled on reaching Final.
     assert.equal(schedule.pending(), false);
   });
@@ -863,7 +860,7 @@ describe("result window", () => {
     await flush();
     schedule.fire();
     await run;
-    assert.ok((root.textContent ?? "").includes("Slack"));
+    expectMessage(root, sendOutcomeMessage({ kind: "unknown" }));
     assert.deepEqual(store.removes, ["key-1"]);
     assert.equal(recorder.errors.length, 1);
   });
@@ -962,16 +959,5 @@ describe("display", () => {
     );
     assert.equal(root.querySelector("img"), null);
     assert.ok(root.textContent?.includes(malicious));
-  });
-
-  it("shows the fixed notice in the result window for a missing key", async () => {
-    const store = fakeStore();
-    const root = container();
-    await runResultWindow(root, "#", {
-      store: store.store,
-      schedule: fakeSchedule().schedule,
-      log: recordingLogger().log,
-    });
-    expectMessage(root, unreadableResultMessage);
   });
 });

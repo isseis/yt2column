@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, it } from "node:test";
 
@@ -39,7 +39,6 @@ describe("no API key or Webhook settings", () => {
     ];
     assert.notEqual(files.length, 0, "found no extension files to scan");
     for (const file of files) {
-      assert.ok(statSync(file).isFile());
       const text = readFileSync(file, "utf8").toLowerCase();
       for (const word of forbidden) {
         assert.equal(
