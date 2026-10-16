@@ -88,14 +88,14 @@ func TestServerEndToEnd(t *testing.T) {
 	requireNoSecret(t, "second stderr", second.stderr.String(), token)
 }
 
-// displayedToken returns the shared token from the line the server displays on
-// standard output, read while the server serves through the synchronized
+// displayedToken returns the shared token from the one line the server displays
+// on standard output, read while the server serves through the synchronized
 // buffer.
 func displayedToken(t *testing.T, srv *runningServer) string {
 	t.Helper()
-	displayed := strings.TrimSuffix(srv.stdout.String(), "\n")
-	if displayed == "" {
-		t.Fatal("the server displayed no token")
+	raw := srv.stdout.String()
+	if strings.Count(raw, "\n") != 1 || !strings.HasSuffix(raw, "\n") {
+		t.Fatalf("the display is not one token line: %q", raw)
 	}
-	return displayed
+	return strings.TrimSuffix(raw, "\n")
 }

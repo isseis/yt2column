@@ -257,8 +257,14 @@ func TestDisplayFailureKeepsServing(t *testing.T) {
 			if failure == "" {
 				t.Fatalf("stderr does not report the display failure:\n%s", stderr)
 			}
+			if !strings.Contains(failure, errWriteRefused.Error()) {
+				t.Errorf("the display failure does not name the reason %q: %s", errWriteRefused, failure)
+			}
 			if !strings.Contains(failure, e.tokenPath(t)) {
 				t.Errorf("the display failure does not name the token file %s: %s", e.tokenPath(t), failure)
+			}
+			if notice := stderrLine(stderr, "wrote the shared token to standard output"); notice != "" {
+				t.Errorf("a failed display still wrote the success notice: %s", notice)
 			}
 			requireNoSecret(t, "stderr", stderr, token)
 
