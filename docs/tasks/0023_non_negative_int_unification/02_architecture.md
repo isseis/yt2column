@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-16 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-16 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 0. 本書の方針
