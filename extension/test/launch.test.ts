@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { JSDOM } from "jsdom";
 
 import { rejectionMessage } from "../src/core/messages.ts";
 import type {
@@ -22,6 +21,7 @@ import type {
   PopupLaunchDeps,
   SummaryStore,
 } from "../src/launch.ts";
+import { container } from "./helpers/dom.ts";
 import { recordingLogger } from "./helpers/logger.ts";
 import type { RecordingLogger } from "./helpers/logger.ts";
 
@@ -170,14 +170,6 @@ function loggedOutcome(recorder: RecordingLogger): CollectOutcome {
   const entry = recorder.infos[0];
   assert.ok(entry !== undefined, "expected an info log");
   return (entry.data as { outcome: CollectOutcome }).outcome;
-}
-
-/** A fresh container element in its own document. */
-function container(): HTMLElement {
-  const dom = new JSDOM("<!DOCTYPE html><body><div id='root'></div></body>");
-  const element = dom.window.document.getElementById("root");
-  assert.ok(element !== null);
-  return element;
 }
 
 describe("launchContextFromTab", () => {

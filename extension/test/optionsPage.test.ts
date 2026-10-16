@@ -1,22 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { JSDOM } from "jsdom";
 
 import type { ServerPort, SharedToken } from "../src/core/settings.ts";
 import type { SettingsStore } from "../src/core/settings.ts";
 import { runOptionsPage } from "../src/optionsPage.ts";
-import { identifiableToken } from "./helpers/settings.ts";
+import { container } from "./helpers/dom.ts";
 import { recordingLogger } from "./helpers/logger.ts";
+import { identifiableToken } from "./helpers/settings.ts";
 
 const validToken = "a".repeat(64);
-
-/** A fresh options container in its own document. */
-function container(): HTMLElement {
-  const dom = new JSDOM("<!DOCTYPE html><body><div id='root'></div></body>");
-  const element = dom.window.document.getElementById("root");
-  assert.ok(element !== null);
-  return element;
-}
 
 /** The one element matching selector, asserting it exists. */
 function query<T extends Element>(root: HTMLElement, selector: string): T {
@@ -107,18 +99,26 @@ describe("runOptionsPage", () => {
   });
 
   it("distinguishes the set, missing and invalid stored-token states", async () => {
-    const texts: string[] = [];
-    for (const token of [undefined, validToken, "not-a-token"]) {
+    const texts = new Map<string, string>();
+    for (const [state, token] of [
+      ["missing", undefined],
+      ["set", validToken],
+      ["invalid", "not-a-token"],
+    ] as const) {
       const root = container();
       await runOptionsPage(root, {
         store: fakeSettings({ token }).store,
         log: recordingLogger().log,
       });
-      const status = query(root, ".options-token-status").textContent ?? "";
-      assert.notEqual(status, "");
-      texts.push(status);
+      const text = query(root, ".options-token-status").textContent ?? "";
+      assert.notEqual(text, "");
+      texts.set(state, text);
     }
-    assert.equal(new Set(texts).size, 3);
+    assert.notEqual(texts.get("set"), texts.get("missing"));
+    assert.notEqual(texts.get("invalid"), texts.get("missing"));
+    assert.notEqual(texts.get("invalid"), texts.get("set"));
+    // The set state never shows the stored value.
+    assert.equal(texts.get("set")?.includes(validToken), false);
   });
 
   it("saves an accepted token, clears the field and shows it is set", async () => {
@@ -137,14 +137,11 @@ describe("runOptionsPage", () => {
     assert.notEqual(query(root, ".options-token-status").textContent, "");
   });
 
+  // Two representatives: the wrong length and the wrong characters. The full
+  // AC-02 input table is parseToken's contract, covered by settings.test.ts.
   const rejectedTokens: { name: string; value: string }[] = [
-    { name: "an empty string", value: "" },
     { name: "63 characters", value: "a".repeat(63) },
-    { name: "65 characters", value: "a".repeat(65) },
     { name: "an uppercase letter", value: "A".repeat(64) },
-    { name: "a g", value: `g${"a".repeat(63)}` },
-    { name: "a leading space", value: ` ${validToken}` },
-    { name: "full-width characters", value: "\uFF41".repeat(64) },
   ];
   for (const { name, value } of rejectedTokens) {
     it(`rejects a token with ${name} without saving or clearing the field`, async () => {
@@ -221,19 +218,9 @@ describe("runOptionsPage", () => {
     assert.deepEqual(settings.calls.savePort, ["65535"]);
   });
 
-  const rejectedPorts = [
-    "",
-    "0",
-    "80",
-    "1023",
-    "65536",
-    "08765",
-    "+8765",
-    " 8765",
-    "8765 ",
-    "0x2235",
-    "8765.0",
-  ];
+  // Two representatives: the wrong range and the wrong characters. The full
+  // AC-03 input table is parsePort's contract, covered by settings.test.ts.
+  const rejectedPorts = ["80", "08765"];
   for (const value of rejectedPorts) {
     it(`rejects the port ${JSON.stringify(value)} without saving`, async () => {
       const settings = fakeSettings();
@@ -337,5 +324,22 @@ describe("runOptionsPage", () => {
     assert.equal(serialized.includes(identifiableToken), false);
     assert.equal(serialized.includes(identifiableToken.slice(0, 4)), false);
     assert.equal(serialized.includes(identifiableToken.slice(-4)), false);
+  });
+
+  it("does not log the token when a save fails", async () => {
+    const recorder = recordingLogger();
+    const settings = fakeSettings({ saveTokenFails: new Error("boom") });
+    const root = container();
+    await runOptionsPage(root, { store: settings.store, log: recorder.log });
+    query<HTMLInputElement>(root, ".options-token").value = identifiableToken;
+    await click(query<HTMLButtonElement>(root, ".options-token-save"));
+
+    assert.equal(recorder.errors.length, 1);
+    const logged = JSON.stringify({
+      infos: recorder.infos,
+      errors: recorder.errors,
+      text: root.textContent,
+    });
+    assert.equal(logged.includes(identifiableToken), false);
   });
 });

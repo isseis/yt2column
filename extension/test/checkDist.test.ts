@@ -145,26 +145,52 @@ describe("checkDist", () => {
     assert.deepEqual(checkDist(root), []);
   });
 
-  it("rejects a manifest service worker that is not in dist/", () => {
-    writeManifest(root, "background.js", "page.html", "page.html");
-    assert.deepEqual(checkDist(root), [
-      'manifest.json: background.service_worker "background.js" is not in dist/',
-    ]);
-  });
-
-  it("rejects a manifest popup that is not in dist/", () => {
-    writeManifest(root, "main.js", "popup.html", "page.html");
-    assert.deepEqual(checkDist(root), [
-      'manifest.json: action.default_popup "popup.html" is not in dist/',
-    ]);
-  });
-
-  it("rejects a manifest options page that is not in dist/", () => {
-    writeManifest(root, "main.js", "page.html", "options.html");
-    assert.deepEqual(checkDist(root), [
-      'manifest.json: options_ui.page "options.html" is not in dist/',
-    ]);
-  });
+  // One row per manifest reference: the base tree has dist/main.js and
+  // dist/page.html, so each row leaves exactly one reference unresolved.
+  const missingReferences: {
+    name: string;
+    serviceWorker: string;
+    popup: string;
+    optionsPage: string;
+    violation: string;
+  }[] = [
+    {
+      name: "service worker",
+      serviceWorker: "background.js",
+      popup: "page.html",
+      optionsPage: "page.html",
+      violation:
+        'manifest.json: background.service_worker "background.js" is not in dist/',
+    },
+    {
+      name: "popup",
+      serviceWorker: "main.js",
+      popup: "popup.html",
+      optionsPage: "page.html",
+      violation:
+        'manifest.json: action.default_popup "popup.html" is not in dist/',
+    },
+    {
+      name: "options page",
+      serviceWorker: "main.js",
+      popup: "page.html",
+      optionsPage: "options.html",
+      violation:
+        'manifest.json: options_ui.page "options.html" is not in dist/',
+    },
+  ];
+  for (const {
+    name,
+    serviceWorker,
+    popup,
+    optionsPage,
+    violation,
+  } of missingReferences) {
+    it(`rejects a manifest ${name} that is not in dist/`, () => {
+      writeManifest(root, serviceWorker, popup, optionsPage);
+      assert.deepEqual(checkDist(root), [violation]);
+    });
+  }
 
   it("accepts an HTML page whose references exist", () => {
     write(root, "static/style.css");
