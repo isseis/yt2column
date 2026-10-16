@@ -4,18 +4,11 @@ import { describe, it } from "node:test";
 import type { ServerPort, SharedToken } from "../src/core/settings.ts";
 import type { SettingsStore } from "../src/core/settings.ts";
 import { runOptionsPage } from "../src/optionsPage.ts";
-import { container } from "./helpers/dom.ts";
+import { container, query } from "./helpers/dom.ts";
 import { recordingLogger } from "./helpers/logger.ts";
 import { identifiableToken } from "./helpers/settings.ts";
 
 const validToken = "a".repeat(64);
-
-/** The one element matching selector, asserting it exists. */
-function query<T extends Element>(root: HTMLElement, selector: string): T {
-  const element = root.querySelector(selector);
-  assert.ok(element !== null, selector);
-  return element as T;
-}
 
 /** Clicks a button and waits for the async handler to settle. */
 async function click(button: HTMLButtonElement): Promise<void> {
