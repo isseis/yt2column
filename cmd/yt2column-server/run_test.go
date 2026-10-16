@@ -258,7 +258,7 @@ func TestTokenShownOnEveryStart(t *testing.T) {
 	// output. Assert on that line alone: the "listening" log line also carries
 	// the token path, so checking the whole output would pass even if the
 	// notice omitted it.
-	notice := noticeLine(second.stderr.String())
+	notice := stderrLine(second.stderr.String(), "standard output")
 	if notice == "" {
 		t.Fatalf("second stderr has no display notice:\n%s", second.stderr.String())
 	}
@@ -272,11 +272,11 @@ func TestTokenShownOnEveryStart(t *testing.T) {
 	requireNoSecret(t, "second stderr", second.stderr.String(), token)
 }
 
-// noticeLine returns the first standard-error line that mentions standard
-// output, which is the token display notice, or "" when there is none.
-func noticeLine(stderr string) string {
-	for line := range strings.SplitSeq(stderr, "\n") {
-		if strings.Contains(line, "standard output") {
+// stderrLine returns the first line of output that contains sub, or "" when
+// there is none.
+func stderrLine(output, sub string) string {
+	for line := range strings.SplitSeq(output, "\n") {
+		if strings.Contains(line, sub) {
 			return line
 		}
 	}
@@ -402,7 +402,7 @@ func TestWriterOptionsMatchCLIDefaults(t *testing.T) {
 // signal exits at once.
 func TestRunLogsListeningAndStop(t *testing.T) {
 	e := newServerEnv(t)
-	// An existing token, so no "created" line also names the file's path.
+	// An existing token, so the start reads it rather than creating one.
 	writeTokenFile(t, e.tokenPath(t), validTokenContent, 0o600)
 	srv := startServer(t, e, testDeps(validResponseLLM()))
 	port := strconv.Itoa(int(e.port(t)))
@@ -410,10 +410,18 @@ func TestRunLogsListeningAndStop(t *testing.T) {
 		t.Fatalf("exit code = %d, want %d", code, exitOK)
 	}
 	stderr := srv.stderr.String()
+	// The token path is logged on the listening line; assert on that line, not
+	// on the whole output, where the display notice also carries the path.
+	listening := stderrLine(stderr, "msg=listening")
+	if listening == "" {
+		t.Fatalf("stderr has no listening log line:\n%s", stderr)
+	}
+	if !strings.Contains(listening, e.tokenPath(t)) {
+		t.Errorf("the listening log does not name the token file %s: %s", e.tokenPath(t), listening)
+	}
 	for _, want := range []string{
 		"http://127.0.0.1:" + port + server.ArticlesPath,
 		"http://[::1]:" + port + server.ArticlesPath,
-		e.tokenPath(t),
 		// Three LLM calls of at most 15 minutes each.
 		"up to about 45 minutes",
 		"send the signal again to exit at once",
