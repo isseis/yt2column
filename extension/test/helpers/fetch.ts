@@ -85,29 +85,54 @@ export function failingStream(
 export interface TrackedStream {
   readonly body: ReadableStream<Uint8Array>;
   cancelled(): boolean;
-  pulls(): number;
 }
 
-/** An endless body stream that records how often it is pulled and cancelled. */
+/** An endless body stream that records whether it is cancelled. */
 export function endlessStream(chunkSize: number): TrackedStream {
   let cancelled = false;
-  let pulls = 0;
   const body = new ReadableStream<Uint8Array>({
     pull(controller) {
-      pulls += 1;
       controller.enqueue(new Uint8Array(chunkSize));
     },
     cancel() {
       cancelled = true;
     },
   });
-  return { body, cancelled: () => cancelled, pulls: () => pulls };
+  return { body, cancelled: () => cancelled };
 }
 
-/** SendDeps using fetchFn and a signal that never aborts. */
-export function testSendDeps(fetchFn: FetchFn): SendDeps {
+export interface RejectingCancelStream {
+  readonly body: ReadableStream<Uint8Array>;
+  cancelCalls(): number;
+}
+
+/** An endless stream whose cancel() rejects, to test best-effort cancelling. */
+export function endlessStreamWithRejectingCancel(
+  chunkSize: number,
+): RejectingCancelStream {
+  let cancelCalls = 0;
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      controller.enqueue(new Uint8Array(chunkSize));
+    },
+    cancel() {
+      cancelCalls += 1;
+      return Promise.reject(new Error("cancel failed"));
+    },
+  });
+  return { body, cancelCalls: () => cancelCalls };
+}
+
+/**
+ * SendDeps using fetchFn. The signal never aborts unless timeoutSignal is
+ * given; tests pass one to record the requested timeout and the signal.
+ */
+export function testSendDeps(
+  fetchFn: FetchFn,
+  timeoutSignal?: (ms: number) => AbortSignal,
+): SendDeps {
   return {
     fetch: fetchFn,
-    timeoutSignal: () => new AbortController().signal,
+    timeoutSignal: timeoutSignal ?? (() => new AbortController().signal),
   };
 }

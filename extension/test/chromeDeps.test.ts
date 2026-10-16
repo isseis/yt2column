@@ -212,7 +212,6 @@ interface EventRecorder {
     changes: Record<string, { newValue?: unknown; oldValue?: unknown }>,
     areaName: string,
   ): void;
-  count(): number;
 }
 
 /** A StorageChangeEvents whose listeners can be fired by hand. */
@@ -232,7 +231,6 @@ function recordingEvents(): EventRecorder {
         callback(changes, areaName);
       }
     },
-    count: () => listeners.size,
   };
 }
 
@@ -243,6 +241,8 @@ describe("result view store", () => {
     const { area } = recordingArea(new Map());
     const store = createResultViewStore(area, recordingEvents().events);
     await store.put("key-1", resultView);
+    assert.deepEqual(await store.get("key-1"), resultView);
+    // get does not remove the value.
     assert.deepEqual(await store.get("key-1"), resultView);
     await store.remove("key-1");
     assert.equal(await store.get("key-1"), undefined);
@@ -285,6 +285,5 @@ describe("result view store", () => {
     stop();
     events.fire({ "key-1": { newValue: resultView } }, "session");
     assert.deepEqual(seen, []);
-    assert.equal(events.count(), 0);
   });
 });

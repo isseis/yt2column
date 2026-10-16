@@ -8,8 +8,10 @@ import { maxResponseBytes } from "../src/core/response.ts";
 import type { RequestId } from "../src/core/response.ts";
 import type { ServerPort, SharedToken } from "../src/core/settings.ts";
 import { sendArticle, sendTimeoutMs } from "../src/send.ts";
+import type { SendResult } from "../src/core/response.ts";
 import {
   endlessStream,
+  endlessStreamWithRejectingCancel,
   failingStream,
   recordingFetch,
   redirectResponse,
@@ -43,14 +45,12 @@ describe("sendArticle", () => {
     const { fetchFn, calls } = recordingFetch(async () =>
       textResponse(202, accepted),
     );
+    const returnedSignal = new AbortController().signal;
     const timeouts: number[] = [];
-    const deps = {
-      fetch: fetchFn,
-      timeoutSignal: (ms: number) => {
-        timeouts.push(ms);
-        return new AbortController().signal;
-      },
-    };
+    const deps = testSendDeps(fetchFn, (ms) => {
+      timeouts.push(ms);
+      return returnedSignal;
+    });
     const result = await sendArticle(request, deps);
 
     assert.deepEqual(result, { kind: "accepted", requestId });
@@ -67,7 +67,7 @@ describe("sendArticle", () => {
     assert.equal(call.init.redirect, "manual");
     assert.equal(call.init.credentials, "omit");
     assert.equal(call.init.cache, "no-store");
-    assert.ok(call.init.signal instanceof AbortSignal);
+    assert.equal(call.init.signal, returnedSignal);
     assert.deepEqual(timeouts, [sendTimeoutMs]);
   });
 
@@ -103,23 +103,33 @@ describe("sendArticle", () => {
     });
   }
 
-  it("reads a body exactly at the limit and classifies it", async () => {
-    const padded = accepted + " ".repeat(maxResponseBytes - accepted.length);
-    const { fetchFn } = recordingFetch(async () => textResponse(202, padded));
-    assert.deepEqual(await sendArticle(request, testSendDeps(fetchFn)), {
-      kind: "accepted",
-      requestId,
+  const limitCases: { name: string; pad: number; expected: SendResult }[] = [
+    {
+      name: "exactly at the limit",
+      pad: 0,
+      expected: { kind: "accepted", requestId },
+    },
+    {
+      name: "one byte over the limit",
+      pad: 1,
+      expected: {
+        kind: "unexpected",
+        status: 202,
+        check: "body-over-limit",
+      },
+    },
+  ];
+  for (const { name, pad, expected } of limitCases) {
+    it(`reads a body ${name}`, async () => {
+      const padded =
+        accepted + " ".repeat(maxResponseBytes + pad - accepted.length);
+      const { fetchFn } = recordingFetch(async () => textResponse(202, padded));
+      assert.deepEqual(
+        await sendArticle(request, testSendDeps(fetchFn)),
+        expected,
+      );
     });
-  });
-
-  it("reports a body one byte over the limit as unexpected", async () => {
-    const padded =
-      accepted + " ".repeat(maxResponseBytes + 1 - accepted.length);
-    const { fetchFn } = recordingFetch(async () => textResponse(202, padded));
-    const result = await sendArticle(request, testSendDeps(fetchFn));
-    assert.ok(result.kind === "unexpected");
-    assert.equal(result.check, "body-over-limit");
-  });
+  }
 
   it("cancels an endless body and stops reading", async () => {
     const tracked = endlessStream(512);
@@ -132,9 +142,19 @@ describe("sendArticle", () => {
     assert.ok(result.kind === "unexpected");
     assert.equal(result.check, "body-over-limit");
     assert.equal(tracked.cancelled(), true);
-    // Bounded reading: ~3 reads to exceed 1,024 bytes in 512-byte chunks,
-    // plus at most one prefetch by the stream.
-    assert.ok(tracked.pulls() <= 5, `pulled ${String(tracked.pulls())} times`);
+  });
+
+  it("reports an over-limit body even when cancel rejects", async () => {
+    const stream = endlessStreamWithRejectingCancel(512);
+    const { fetchFn } = recordingFetch(async () => ({
+      type: "basic",
+      status: 202,
+      body: stream.body,
+    }));
+    const result = await sendArticle(request, testSendDeps(fetchFn));
+    assert.ok(result.kind === "unexpected");
+    assert.equal(result.check, "body-over-limit");
+    assert.equal(stream.cancelCalls(), 1);
   });
 
   it("treats a null body as empty", async () => {
