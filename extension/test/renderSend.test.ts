@@ -2,19 +2,16 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import type { RejectionMessage } from "../src/core/messages.ts";
-import { preflightReasons } from "../src/core/prepare.ts";
 import type { BlockReason } from "../src/core/prepare.ts";
 import type { CollectedSummary, ResultView } from "../src/core/resultView.ts";
 import type { RequestId, SendOutcome } from "../src/core/response.ts";
 import { blockMessage, sendOutcomeMessage } from "../src/core/sendMessages.ts";
-import { rejectionReasons } from "../src/core/types.ts";
-import type { RejectionReason } from "../src/core/types.ts";
 import {
   renderResultView,
   renderSendOutcome,
   sendingMessage,
 } from "../src/ui/renderSend.ts";
-import { container } from "./helpers/dom.ts";
+import { container, query } from "./helpers/dom.ts";
 
 const requestId = "0123456789abcdef" as RequestId;
 const malicious = "<img src=x onerror=alert(1)>";
@@ -30,13 +27,6 @@ const collected: CollectedSummary = {
   preview: "hi",
   previewTruncated: false,
 };
-
-/** The one element matching selector, asserting it exists. */
-function query<T extends Element>(root: HTMLElement, selector: string): T {
-  const element = root.querySelector(selector);
-  assert.ok(element !== null, selector);
-  return element as T;
-}
 
 /** Asserts the container's text shows the message and each of its steps. */
 function expectMessage(root: HTMLElement, message: RejectionMessage): void {
@@ -66,11 +56,10 @@ describe("renderSendOutcome", () => {
     });
   }
 
-  it("shows the unknown message with the Slack guidance", () => {
+  it("shows the unknown message", () => {
     const root = container();
     renderSendOutcome(root, { kind: "unknown" });
     expectMessage(root, sendOutcomeMessage({ kind: "unknown" }));
-    assert.ok((root.textContent ?? "").includes("Slack"));
   });
 
   it("shows the unexpected message and the status number but not the check", () => {
@@ -104,14 +93,14 @@ describe("renderSendOutcome", () => {
     renderSendOutcome(root, accepted);
     renderSendOutcome(root, { kind: "unknown" });
     assert.equal(root.querySelectorAll(".send-request-id").length, 0);
+    expectMessage(root, sendOutcomeMessage({ kind: "unknown" }));
   });
 });
 
 describe("renderResultView", () => {
-  const blockReasons: BlockReason[] = [
-    ...(Object.keys(rejectionReasons) as RejectionReason[]),
-    ...(Object.keys(preflightReasons) as (keyof typeof preflightReasons)[]),
-  ];
+  // One collection reason and one preflight reason: the blocked branch does
+  // not vary by reason, and message content is sendMessages.test.ts's contract.
+  const blockReasons: BlockReason[] = ["empty-selection", "token-missing"];
   for (const reason of blockReasons) {
     it(`shows the ${reason} block message`, () => {
       const root = container();
@@ -133,14 +122,13 @@ describe("renderResultView", () => {
     assert.ok(text.includes(collected.title));
   });
 
-  it("shows the sent outcome, its request id and the summary", () => {
+  it("shows the sent outcome and its request id alongside the summary", () => {
     const root = container();
     renderResultView(root, {
       kind: "sent",
       summary: collected,
       outcome: { kind: "accepted", requestId },
     });
-    expectMessage(root, sendOutcomeMessage({ kind: "accepted", requestId }));
     assert.equal(query(root, ".send-request-id").textContent, requestId);
     assert.ok((root.textContent ?? "").includes(collected.title));
   });

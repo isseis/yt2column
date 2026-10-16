@@ -8,3 +8,13 @@ export function container(): HTMLElement {
   assert.ok(element !== null);
   return element;
 }
+
+/** The one element matching selector in root, asserting it exists. */
+export function query<T extends Element>(
+  root: ParentNode,
+  selector: string,
+): T {
+  const element = root.querySelector(selector);
+  assert.ok(element !== null, selector);
+  return element as T;
+}
