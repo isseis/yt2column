@@ -142,10 +142,10 @@ yt2column: tokens: <stage> <origin> unknown reason=<reason> <model-field>
   artifact recorded.
 - `unknown` means the usage could not be read or did not meet the rules. No
   number is written, and `reason=` gives one space-free word: `not-read` (no
-  usage was read: a failed call, or a client that reports none),
-  `recorded-unknown` (a saved artifact stored the stage as unknown),
-  `invalid-rule` (a rule outside the set of known rules), or, for the usage
-  member or one of the consumed members that broke a rule, `usage:missing`,
+  usage could be read: a call that failed before its usage was read, or a client
+  that reports none), `recorded-unknown` (a saved artifact stored the stage as
+  unknown), `invalid-rule` (a rule outside the set of known rules), or, for the
+  usage member or one of the consumed members that broke a rule, `usage:missing`,
   `usage:duplicate`, `usage:not-an-object`,
   `usage:not-a-non-negative-integer` and their `usage.<member>:missing`,
   `usage.<member>:duplicate`, `usage.<member>:not-a-non-negative-integer` forms.
@@ -166,10 +166,13 @@ yt2column: tokens: review run unknown reason=usage.output_tokens:not-a-non-negat
 yt2column: tokens: generation run unknown reason=not-read nomodel
 ```
 
-An unknown usage that came from an otherwise-successful call (a malformed
-`usage`) never fails the run: the article is still generated and published, and
-the exit code is still 0. A failed call is a failed run: its line says
-`reason=not-read`, and the run exits non-zero for that call's error.
+An invalid `usage` alone does not fail the run: the call still succeeds, and
+whether the article is published and the exit code is 0 depend on the rest of
+the processing. A failed call fails the run (the exit code is non-zero), but its
+line is not always `unknown`: a truncation, an unexpected finish reason, or an
+empty response still carries the rejected response's model and usage, so the
+line can be `known`. `reason=not-read` is written only when no usage could be
+read.
 
 A run that ends before it calls any LLM (a usage or configuration error, a
 transcript-fetch failure, a rejected `--after` input, an unusable `--artifacts`
