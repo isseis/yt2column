@@ -8,7 +8,7 @@
 | Created | 2026-10-16 |
 | Review date | 2026-10-16 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 実装計画の検討で、AC-11・AC-12 の検証を inspection から実行されるガードテストに移し（§7）、`make deadcode` を完了条件から外した（§8。実行しても exit 0 のままで到達不能なテスト専用のヘルパを列挙するため、ゲートにならない）。検証の手段だけの変更で、作るものは変えない（編集上の修正）。 |
 
 ## 0. 本書の方針
 
@@ -102,7 +102,7 @@ flowchart TD
 
 -   **単体テスト:** `internal/transcript/json3_test.go` に、AC-16 のテストを加える。`-0` の `tStartMs` が `ErrParseSubtitles` で拒否されること、負の値・範囲外の値の拒否のエラーメッセージが値の文字列を含まないこと。テストは、読み取りを本タスクの前の `decodeTimestamp`（`-0` を受理する）に戻すと失敗することを確かめる。
 -   **既存テスト:** `TestParseSubtitlesTimestamps`（`−1`・小数・文字列・範囲外）・重複・上限・UTF-8 と、実データ（`testdata/` の json3）のテストは、`-0` を追加する行を除きそのまま通る。実際のサンプルに `-0` はなく、結果は変わらない（AC-14・AC-15）。
--   **静的確認:** AC-12（`internal/transcript` に自前の負の値検査を残さない）は、`json3.go` の `tStartMs` の読み取りが `AsNonNegativeInt64` であることと `startMs` の符号を検査する分岐がないことを確認する。Go のガードテストは加えない（対象が 1 ファイルの読み取りで、コードの削除によって満たされるため）。
+-   **静的確認:** AC-11（`internal/transcript` の exported の番兵の集合が変わらない）と AC-12（自前の負の値検査を残さない）は、`internal/transcript/json3_test.go` に加えるガードテストで固定する。ガードは `json3.go` と `errors.go` を読み、AC-12 は `tStartMs` の読み取りが `AsNonNegativeInt64` であることと `AsInt64`・自前の負の値検査が残っていないことを、AC-11 は `errors.go` の exported の番兵（`Err` で始まる宣言）の集合が本タスクの前と同じであることを確かめる。対象が 1 ファイルの読み取りでも、inspection ではなく実行される検査に置く。
 -   外部コマンド・API・Webhook を呼ばない（[CLAUDE.md](../../../CLAUDE.md)「Testing Strategy」）。
 
 ## 8. 実装の優先順位 (Implementation Priorities)
@@ -111,7 +111,7 @@ flowchart TD
 
 | フェーズ | 内容 | 成果物 |
 |---|---|---|
-| 1 | `decodeEvent` の読み取りの置き換え、`decodeTimestamp`・`errNegativeTimestamp` の削除、テストの追加、`make fmt`・`make test`・`make lint`・`make deadcode` の確認 | `internal/transcript/json3.go`・`json3_test.go` |
+| 1 | `decodeEvent` の読み取りの置き換え、`decodeTimestamp`・`errNegativeTimestamp` の削除、テストの追加、`make fmt`・`make test`・`make lint` の確認 | `internal/transcript/json3.go`・`json3_test.go` |
 
 ## 9. 将来の拡張性 (Future Extensibility)
 
