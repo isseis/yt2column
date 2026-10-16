@@ -188,8 +188,8 @@ HEAD `e8b21fa`（ブランチ `issei/browser-extension-03`）で確認した。�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: 送信と保存先
 
@@ -198,15 +198,15 @@ HEAD `e8b21fa`（ブランチ `issei/browser-extension-03`）で確認した。�
 -   変更: `extension/src/browser/chromeDeps.ts`、`extension/src/launch.ts`（`ResultViewStore` の追加だけ）、`extension/test/chromeDeps.test.ts`
 
 **タスク**
--   [ ] **ステップ 2-1**: `send.ts` を設計書 3.5 のとおりに作る（`FetchResponse`・`FetchFn`・`SendDeps`・`sendTimeoutMs`・`sendArticle`）。`RequestInit` は設計書 3.5 の表の値とし、本文は `getReader()` で `maxResponseBytes` まで読み、超えたら `cancel()` する。`sendArticle` は例外を投げず、`fetch` を 1 回だけ呼ぶ。
+-   [x] **ステップ 2-1**: `send.ts` を設計書 3.5 のとおりに作る（`FetchResponse`・`FetchFn`・`SendDeps`・`sendTimeoutMs`・`sendArticle`）。`RequestInit` は設計書 3.5 の表の値とし、本文は `getReader()` で `maxResponseBytes` まで読み、超えたら `cancel()` する。`sendArticle` は例外を投げず、`fetch` を 1 回だけ呼ぶ。
     -   **対象:** `extension/src/send.ts`。**完了:** `make ext-typecheck` が通る。
--   [ ] **ステップ 2-2**: `chromeDeps.ts` を改める。`StorageArea` を複数のキーに広げ（設計書 3.3）、コメント（`:12`）を、session と local の両方に使う型であるという説明に改める。`StorageChangeEvents`・`StorageChangeListener`（設計書 3.8）、`createSettingsStore(area)`（設計書 3.3 の「保存先」の表）、`createResultViewStore(area, events)`（設計書 3.8）、`SendDeps` の実装、`schedule` を加える。`SendDeps.fetch` は大域の `fetch` をそのまま入れず、`(url, init) => fetch(url, init)` で包む（`fetch` を別のオブジェクトのメソッドとして呼ぶと、ブラウザは `TypeError: Illegal invocation` を投げ、`sendArticle` はそれを「結果が分からない」にしてしまう）。`ResultViewStore` の interface を `launch.ts` に加える（フェーズ 4 の前提）。`SummaryStore`・`createSummaryStore` はフェーズ 4 で使う側を改めるまで残す（§1.3 の名前の台帳）。`chromeDeps.test.ts` の `memoryStorage` を、配列のキーも受け取るように改める（`StorageArea` の型の変更に合わせる）。
+-   [x] **ステップ 2-2**: `chromeDeps.ts` を改める。`StorageArea` を複数のキーに広げ（`string | string[]`。`@types/chrome` の型をそのまま代入できる可変の配列とし、`readonly` は付けない。設計書 3.3）、コメント（`:12`）を、session と local の両方に使う型であるという説明に改める。`StorageChangeEvents`・`StorageChangeListener`（設計書 3.8）、`createSettingsStore(area)`（設計書 3.3 の「保存先」の表）、`createResultViewStore(area, events)`（設計書 3.8）、`SendDeps` の実装、`schedule` を加える。`SendDeps.fetch` は大域の `fetch` をそのまま入れず、`(url, init) => fetch(url, init)` で包む（`fetch` を別のオブジェクトのメソッドとして呼ぶと、ブラウザは `TypeError: Illegal invocation` を投げ、`sendArticle` はそれを「結果が分からない」にしてしまう）。`ResultViewStore` の interface を `launch.ts` に加える（フェーズ 4 の前提）。`SummaryStore`・`createSummaryStore` はフェーズ 4 で使う側を改めるまで残す（§1.3 の名前の台帳）。`chromeDeps.test.ts` の `memoryStorage` を、配列のキーも受け取るように改める（`StorageArea` の型の変更に合わせる）。
     -   **対象:** `extension/src/browser/chromeDeps.ts`・`src/launch.ts`・`test/chromeDeps.test.ts`。**完了:** `make ext-typecheck` と既存の `chromeDeps.test.ts` が通る。
--   [ ] **ステップ 2-3**: `test/helpers/fetch.ts` を作り（§1.3「テストの補助」）、テストを作る。
-    -   `send.test.ts`（「sendArticle」）: 設計書 3.12 の表の行。URL・`RequestInit` の各項目とヘッダの完全な集合、`fetch` の拒否（`TypeError`・`TimeoutError`）で `unknown` になり `fetch` が 1 回だけ呼ばれること、本文の読み込みの失敗、上限ちょうどの本文と 1 バイト超えた本文（超えたら `cancel` を呼び、それ以上読まない）、`body` が `null` の場合、`opaqueredirect` の場合に本文を読まないこと、`classifyResponse` が例外を投げた場合の `classification-error`。
+-   [x] **ステップ 2-3**: `test/helpers/fetch.ts` を作り（§1.3「テストの補助」）、テストを作る。
+    -   `send.test.ts`（「sendArticle」）: 設計書 3.12 の表の行。URL・`RequestInit` の各項目とヘッダの完全な集合、`fetch` の拒否（`TypeError`・`TimeoutError`）で `unknown` になり `fetch` が 1 回だけ呼ばれること、本文の読み込みの失敗、上限ちょうどの本文と 1 バイト超えた本文（超えたら `cancel` を呼び、それ以上読まない）、`body` が `null` の場合、`opaqueredirect` の場合に本文を読まないこと。`classifyResponse` が例外を投げた場合の `classification-error` は、`classifyResponse` がどの `ReceivedResponse` でも例外を投げない設計（設計書 3.6）のため、ユニットテストで再現できない。防御的な分岐として残し、未実行の分岐として記録する（`classifyResponse` を差し替えられる形にすると設計書 3.5 の `SendDeps` から外れるため、テストのためだけに依存を足さない）。
     -   `chromeDeps.test.ts`（「settings store」「result view store」）: 保存と消去が渡された保存先の決まったキーにだけ書き、もう片方のキーに触れないこと、`load` が 2 つのキーを 1 回の `get` で読むこと、消去の後の `load` でトークンが欠落すること。`get`・`remove` の動作と、`watch` が、`session` 以外の領域・別のキー・削除の通知をリスナに渡さないこと、停止した後に通知を渡さないこと。
     -   **対象:** `extension/test/helpers/fetch.ts`・`test/send.test.ts`・`test/chromeDeps.test.ts`。**完了:** これらのテストが通る。
--   [ ] **ステップ 2-4**: 壊して失敗することを確かめ、コミットメッセージに記録する。
+-   [x] **ステップ 2-4**: 壊して失敗することを確かめ、コミットメッセージに記録する。
     -   `RequestInit` の各項目を 1 つずつ変える・ヘッダを 1 つ足す、`fetch` の拒否で再送する、本文を `arrayBuffer()` で読む、上限を超えても読み続ける、`opaqueredirect` で本文を読む、`classifyResponse` の例外を捕まえない（`send.test.ts`）。
     -   `createSettingsStore` が 2 つのキーを 1 つのオブジェクトに書く、`clearToken` がポートのキーも消す、`watch` の `areaName`・キー・`newValue` の各条件を 1 つずつ外す、`watch` の停止を何もしない関数にする（`chromeDeps.test.ts`）。
     -   続けて `make ext-check` → `make test` → `make lint` を通す。**対象:** なし（確認のみ）。**完了:** 各対象を壊して失敗することを確認し、コミットメッセージに記録する。
@@ -225,8 +225,8 @@ HEAD `e8b21fa`（ブランチ `issei/browser-extension-03`）で確認した。�
 
 **判定理由**: どのトリガーにも当たらない（§1.3 に競合する実装の案がない）。送信の処理（ステップ 2-1）は設計書 3.5 が `RequestInit` の値・本文の読み方・時間の上限を確定しており、直線的な処理で、回復の流れ・並行・状態機械に当たらない。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 

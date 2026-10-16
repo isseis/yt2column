@@ -8,7 +8,7 @@
 | Created | 2026-10-16 |
 | Review date | 2026-10-16 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 3.3 の `StorageArea` のキーの型を `string \| readonly string[]` から `string \| string[]` に直した（`@types/chrome` の `get`・`remove` の型をそのまま受けられるようにするための編集上の訂正）。受け取る値の方針は変えておらず、判断は変わっていない |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `c4b656e` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指す。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-07）への対応は 3.13 にまとめる。
 
@@ -442,11 +442,13 @@ export interface SettingsStore extends SettingsReader {
 
 /** The chrome.storage area surface used (session for result views, local for settings). */
 export interface StorageArea {
-  get(keys: string | readonly string[]): Promise<Record<string, unknown>>;
+  get(keys: string | string[]): Promise<Record<string, unknown>>;
   set(items: Record<string, unknown>): Promise<void>;
-  remove(keys: string | readonly string[]): Promise<void>;
+  remove(keys: string | string[]): Promise<void>;
 }
 ```
+
+キーの型を `string | string[]`（`readonly` を付けない可変の配列）とするのは、`@types/chrome` の `chrome.storage.StorageArea` の `get`・`remove` の引数が `keyof T | Array<keyof T>`（既定の `T` では `string | number | (string | number)[]`）であり、`readonly string[]` を引数に取る interface にはその型を代入できないためである。エントリポイントは `chrome.storage.local`・`chrome.storage.session` をそのまま渡す（3.14）。
 
 **`storage.sync` を使わないことの保証（AC-06）:** `createSettingsStore` は保存先を引数で受け取るので、エントリポイントが `chrome.storage.sync` を渡す誤りは、`createSettingsStore` のユニットテストでは見つけられない。そこで、拡張のソースで `storage.sync` を参照することを lint で禁止する（3.11）。lint の規則のテスト（`lintRules.test.ts`）は、`chrome.storage.sync` を参照するソースが規則に違反することを確かめる。`createSettingsStore` のユニットテストは、保存と消去が渡された保存先にだけ書くことを確かめる。
 
