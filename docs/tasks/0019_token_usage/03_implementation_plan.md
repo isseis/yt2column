@@ -277,24 +277,24 @@ requirements の機能要件（F-001〜F-008）を、architecture の設計ど�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 5: 文書
 
 **対象ファイル:** `README.md`、`cmd/yt2column/docs_test.go`、`docs/dev/project_overview.md`、`docs/dev/security.md`、`docs/dev/developer_guide/package_reference.md`
 
-- [ ] **ステップ 5-1**: `README.md` に、トークン数の行の節（例: `## Token usage`。`## Post-generation steps` の後）を加える。書く内容は architecture §3.10 の `README.md` の行のとおりで、行の書式（2 つの形と位置ごとの語）、4 つの区分の意味、再利用の印、不明の表し方と理由の語、`nomodel`、モデル名のエスケープの戻し方、行の順序（成功では要約の最後、失敗では失敗の行の前）、行が出ない終わり方（architecture §3.6）、更新後は新しい `--artifacts` のディレクトリを使うこと、である。例の行は、ステップ 4-4 のテストの出力と同じ形にする。
-- [ ] **ステップ 5-2**: `cmd/yt2column/docs_test.go` に、既存の `TestArtifactDocsContract` と同じ形の `TestTokenUsageDocsContract` を加える。`readDoc`・`sectionByHeading`・`bulletContaining` を使い、次を確かめる。
+- [x] **ステップ 5-1**: `README.md` に、トークン数の行の節（例: `## Token usage`。`## Post-generation steps` の後）を加える。書く内容は architecture §3.10 の `README.md` の行のとおりで、行の書式（2 つの形と位置ごとの語）、4 つの区分の意味、再利用の印、不明の表し方と理由の語、`nomodel`、モデル名のエスケープの戻し方、行の順序（成功では要約の最後、失敗では失敗の行の前）、行が出ない終わり方（architecture §3.6）、更新後は新しい `--artifacts` のディレクトリを使うこと、である。例の行は、ステップ 4-4 のテストの出力と同じ形にする。
+- [x] **ステップ 5-2**: `cmd/yt2column/docs_test.go` に、既存の `TestArtifactDocsContract` と同じ形の `TestTokenUsageDocsContract` を加える。`readDoc`・`sectionByHeading`・`bulletContaining` を使い、次を確かめる。
   - README の節が、`run.go` の書式の定数（接頭辞・3 つの語・区分の名前・`model=`・`nomodel`）をすべて含むこと。
   - README の節が、`llm.UnknownUsage` で作った各規則の `UnknownReason` の語と `not-read`・`recorded-unknown` を含むこと。語はコードから得て、テストに綴りを書かない。
   - README の例の行が、接頭辞の後の第 1〜3 の語に定数の語だけを持つこと。
   - `project_overview.md` の `## パイプライン` が `Usage` を、`security.md` の §6 が応答の `usage` の項目（新しい項目）と、`--artifacts` の項目（`bulletContaining` で選ぶ）の `usage` の記述の両方を、`package_reference.md` の `internal/llm` の行が `TokenCounts` と `Usage` を含むこと（AC-29）。
   - README から定数の語を 1 つ消すと失敗することを確かめる。
-- [ ] **ステップ 5-3**: `docs/dev/project_overview.md` の `## パイプライン` の `ArticleWriter` の項に段階ごとの使用量と CLI の標準エラーの行を、`LLMClient` の項（`:35`）と `GenerateResponse` の説明（`:42`）に `Usage` と 3 つのエラーで返す値を加える。
-- [ ] **ステップ 5-4**: `docs/dev/security.md` の `## 6. 信頼できないテキストの取り扱い` に、応答の `usage` を信頼できない入力として扱う規則（受理する形、不明にする場合、応答を拒否しないこと、理由に値を含めないこと）の項目を加える。また、`--artifacts` の項目（`:77`）の来歴の列挙にトークン数を加え、`usage` 要素の拒否の規則を加える（requirements §3.2、architecture §3.4・§3.7）。
-- [ ] **ステップ 5-5**: `docs/dev/developer_guide/package_reference.md` の `internal/llm` の行に `TokenCounts`・`UnknownRule`・`Usage` を、`internal/strictjson` の行に `IsNull`・`AsNonNegativeInt64` を、`internal/writer` の行に `RunUsage`・`StageUsage`・`UsageOrigin`・`TokenUsageError` を加える。`internal/llm/deepseek`・`internal/llm/claude` の行に、応答の `usage` を読むことと、3 つのエラーで `Model` と `Usage` を返すことを加える。`internal/artifact` の行に形式の版 2 と `usage` を加え、依存先に `internal/llm` を加える。
-- [ ] **ステップ 5-6**: 書いた文書を、正とするもの（コードとテストの出力）と照らす。README の書式・語・順序は `TestTokenUsageDocsContract` とステップ 4-4 のテストの出力で、`security.md`・`project_overview.md` の規則は、それぞれが述べる振る舞いを固定するテスト（ステップ 2-6・3-7 の名前）と、PR の差分で突き合わせる。
+- [x] **ステップ 5-3**: `docs/dev/project_overview.md` の `## パイプライン` の `ArticleWriter` の項に段階ごとの使用量と CLI の標準エラーの行を、`LLMClient` の項（`:35`）と `GenerateResponse` の説明（`:42`）に `Usage` と 3 つのエラーで返す値を加える。
+- [x] **ステップ 5-4**: `docs/dev/security.md` の `## 6. 信頼できないテキストの取り扱い` に、応答の `usage` を信頼できない入力として扱う規則（受理する形、不明にする場合、応答を拒否しないこと、理由に値を含めないこと）の項目を加える。また、`--artifacts` の項目（`:77`）の来歴の列挙にトークン数を加え、`usage` 要素の拒否の規則を加える（requirements §3.2、architecture §3.4・§3.7）。
+- [x] **ステップ 5-5**: `docs/dev/developer_guide/package_reference.md` の `internal/llm` の行に `TokenCounts`・`UnknownRule`・`Usage` を、`internal/strictjson` の行に `IsNull`・`AsNonNegativeInt64` を、`internal/writer` の行に `RunUsage`・`StageUsage`・`UsageOrigin`・`TokenUsageError` を加える。`internal/llm/deepseek`・`internal/llm/claude` の行に、応答の `usage` を読むことと、3 つのエラーで `Model` と `Usage` を返すことを加える。`internal/artifact` の行に形式の版 2 と `usage` を加え、依存先に `internal/llm` を加える。
+- [x] **ステップ 5-6**: 書いた文書を、正とするもの（コードとテストの出力）と照らす。README の書式・語・順序は `TestTokenUsageDocsContract` とステップ 4-4 のテストの出力で、`security.md`・`project_overview.md` の規則は、それぞれが述べる振る舞いを固定するテスト（ステップ 2-6・3-7 の名前）と、PR の差分で突き合わせる。
 
 **完了条件:** グリーンゲートが通る。`TestTokenUsageDocsContract`・`TestPackageReferenceListsPackages` が通る。
 
@@ -310,8 +310,8 @@ requirements の機能要件（F-001〜F-008）を、architecture の設計ど�
 
 **判定理由**: 文書の更新は architecture §3.8・§3.10 のとおりの内容を既存の節に加える作業であり、書式と定数の一致の確認は実行される `TestTokenUsageDocsContract` で行う。前例のない設計判断・panel-mode トリガー・競合する実装案・分離された高リスク／複雑なステップのいずれにも該当しない。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
@@ -354,7 +354,7 @@ PR は PR-1 → PR-2 → PR-3 → PR-4 → PR-5 → PR-6 の順とし、各 PR �
 
 ### 4.2. 統合テスト
 
-- `cmd/yt2column/run_test.go::TestRunTokenLinesLoopbackAdapter`（ステップ 4-5）が、記録済みの応答の形の `usage` から、実際のアダプタと CLI を通って行が出ることを、実際の API を呼ばずに確かめる（architecture §7.2）。
+- `cmd/yt2column/token_test.go::TestRunTokenLinesLoopbackAdapter`（ステップ 4-5）が、記録済みの応答の形の `usage` から、実際のアダプタと CLI を通って行が出ることを、実際の API を呼ばずに確かめる（architecture §7.2）。
 - 実際の API を呼ぶ統合テスト（`make test-integration-cli` など）は変更せず、本タスクでは実行しない（実行には人の承認が要る。CLAUDE.md「Tool Execution Safety」）。
 
 ### 4.3. セキュリティテスト
@@ -388,17 +388,17 @@ requirements AC-27 が認める変更は、architecture §1.3「要件 AC-27 と
 | AC-10 | test | `internal/writer/usage_test.go::TestWriteRunUsagePerStage` |
 | AC-11 | test | `internal/writer/usage_test.go::TestWriteRunUsageInvariants`（呼ばなかった段階が `OriginNone`。分かった値・0・不明の区別は `::TestWriteRunUsagePerStage`・`::TestWriteRunUsageUnknownStage`） |
 | AC-11a | test | `internal/writer/usage_test.go::TestWriteRunUsageUnknownStage` |
-| AC-12 | test | `cmd/yt2column/run_test.go::TestRunTokenLinesAllStages` |
-| AC-13 | test | `cmd/yt2column/run_test.go::TestRunTokenLinesSkippedStages` |
-| AC-14 | test | `internal/writer/usage_test.go::TestWriteRunUsageResume`・`::TestWriteRunUsageInvariants` と `cmd/yt2column/run_test.go::TestRunTokenLinesResume` |
-| AC-15 | static / test | `cmd/yt2column/docs_test.go::TestTokenUsageDocsContract`（README の書式と定数の一致）と `cmd/yt2column/run_test.go::TestRunTokenLinesAllStages`（固定の位置の固定の語） |
-| AC-15a | test | `cmd/yt2column/run_test.go::TestRunTokenLinesUnknown` |
-| AC-16 | test | `internal/writer/usage_test.go::TestWriteFailureRunUsage`（検証・推敲の呼び出しの失敗の行）と `cmd/yt2column/run_test.go::TestRunTokenLinesReviewFailure` |
-| AC-17 | test | 両アダプタの `::TestGenerateRejectedResponseUsage`・`::TestGenerateSentinelsDistinct`、`internal/writer/usage_test.go::TestWriteFailureRunUsage`（生成と字数の調整の打ち切りの行）、`cmd/yt2column/run_test.go::TestRunTokenLinesRejectedResponse` |
-| AC-18 | test | `internal/writer/usage_test.go::TestWriteFailureRunUsage`（期限切れ・応答の形の不正の行）と `cmd/yt2column/run_test.go::TestRunTokenLinesNoUsage` |
-| AC-19 | test | `internal/writer/usage_test.go::TestWriteFailureRunUsage`（最後の字数の検査・保存の失敗の行）、`internal/pipeline/pipeline_test.go::TestPipelinePublishFailureCarriesRunUsage`、`cmd/yt2column/run_test.go::TestRunTokenLinesAfterAllCalls` |
-| AC-20 | test | `internal/writer/usage_test.go::TestWriteFailureRunUsage`（字幕の検証・`--after` の読み込みの行がすべて `OriginNone`）、`cmd/yt2column/run_test.go::TestRunTokenLinesBeforeLLM`・`::TestRunTokenLinesResume`（`--after` を受理した後の失敗） |
-| AC-21 | test | `internal/writer/usage_test.go::TestWriteSavesUsage`、`internal/artifact/format_test.go::TestMarshalParseRoundTrip`（分かった値と不明の行）、`cmd/yt2column/run_test.go::TestRunTokenLinesResume`（不明のまま保存した段階の再利用） |
+| AC-12 | test | `cmd/yt2column/token_test.go::TestRunTokenLinesAllStages` |
+| AC-13 | test | `cmd/yt2column/token_test.go::TestRunTokenLinesSkippedStages` |
+| AC-14 | test | `internal/writer/usage_test.go::TestWriteRunUsageResume`・`::TestWriteRunUsageInvariants` と `cmd/yt2column/token_test.go::TestRunTokenLinesResume` |
+| AC-15 | static / test | `cmd/yt2column/docs_test.go::TestTokenUsageDocsContract`（README の書式と定数の一致）と `cmd/yt2column/token_test.go::TestRunTokenLinesAllStages`（固定の位置の固定の語） |
+| AC-15a | test | `cmd/yt2column/token_test.go::TestRunTokenLinesUnknown` |
+| AC-16 | test | `internal/writer/usage_test.go::TestWriteFailureRunUsage`（検証・推敲の呼び出しの失敗の行）と `cmd/yt2column/token_test.go::TestRunTokenLinesReviewFailure` |
+| AC-17 | test | 両アダプタの `::TestGenerateRejectedResponseUsage`・`::TestGenerateSentinelsDistinct`、`internal/writer/usage_test.go::TestWriteFailureRunUsage`（生成と字数の調整の打ち切りの行）、`cmd/yt2column/token_test.go::TestRunTokenLinesRejectedResponse` |
+| AC-18 | test | `internal/writer/usage_test.go::TestWriteFailureRunUsage`（期限切れ・応答の形の不正の行）と `cmd/yt2column/token_test.go::TestRunTokenLinesNoUsage` |
+| AC-19 | test | `internal/writer/usage_test.go::TestWriteFailureRunUsage`（最後の字数の検査・保存の失敗の行）、`internal/pipeline/pipeline_test.go::TestPipelinePublishFailureCarriesRunUsage`、`cmd/yt2column/token_test.go::TestRunTokenLinesAfterAllCalls` |
+| AC-20 | test | `internal/writer/usage_test.go::TestWriteFailureRunUsage`（字幕の検証・`--after` の読み込みの行がすべて `OriginNone`）、`cmd/yt2column/token_test.go::TestRunTokenLinesBeforeLLM`・`::TestRunTokenLinesResume`（`--after` を受理した後の失敗） |
+| AC-21 | test | `internal/writer/usage_test.go::TestWriteSavesUsage`、`internal/artifact/format_test.go::TestMarshalParseRoundTrip`（分かった値と不明の行）、`cmd/yt2column/token_test.go::TestRunTokenLinesResume`（不明のまま保存した段階の再利用） |
 | AC-22 | test | `internal/artifact/format_test.go::TestParseRecordRejectsUsage` と `cmd/yt2column/run_test.go::TestRunArtifactExitCodes`（`usage` が不正な中間生成物で LLM を呼ばず公開しない行） |
 | AC-23 | test | `internal/artifact/format_test.go::TestParseRejectsVersion1` と `internal/artifact/chain_test.go::TestLoadNamesBrokenStage` |
 | AC-24 | test | `internal/artifact/format_test.go::TestRecordIDCoversUsage` |

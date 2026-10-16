@@ -8,15 +8,18 @@ import (
 	"flag"
 	"io"
 	"os"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/isseis/yt2column/internal/llm"
 	claudetestutil "github.com/isseis/yt2column/internal/llm/claude/testutil"
 	"github.com/isseis/yt2column/internal/publisher"
 	publishertestutil "github.com/isseis/yt2column/internal/publisher/testutil"
 	"github.com/isseis/yt2column/internal/transcript"
+	"github.com/isseis/yt2column/internal/writer"
 )
 
 // Paths from cmd/yt2column to the documents these tests check.
@@ -609,4 +612,156 @@ func bulletContaining(section, term string) string {
 		}
 	}
 	return ""
+}
+
+// containsToken reports whether word appears in doc bounded by characters that
+// are not letters, digits, underscores, or hyphens, so "known" is not satisfied
+// by "unknown" or "recorded-unknown", and "run" is not satisfied by "runs".
+func containsToken(doc, word string) bool {
+	pattern := `(^|[^A-Za-z0-9_-])` + regexp.QuoteMeta(word) + `([^A-Za-z0-9_-]|$)`
+	return regexp.MustCompile(pattern).MatchString(doc)
+}
+
+// TestTokenUsageDocsContract checks the token-usage documents: the README
+// section describes the line's words and every reason llm.Usage can produce,
+// project_overview.md and security.md describe the usage handling, and
+// package_reference.md lists the new types.
+//
+// The behavior these documents describe is pinned by running tests, not by this
+// test: the line format by cmd/yt2column's TestRunTokenLinesGoldenFormat, and
+// the usage validation by the adapters' TestGenerateUsageUnknown and
+// internal/artifact's TestParseRecordRejectsUsage.
+func TestTokenUsageDocsContract(t *testing.T) {
+	readme := readDoc(t, readmePath)
+	section := sectionByHeading(readme, "## Token usage")
+	if section == "" {
+		t.Fatal("README has no Token usage section")
+	}
+	// Every format word run.go defines, plus the three stage names. The
+	// value-carrying fields are matched as substrings; the fixed words are
+	// matched as whole tokens, so "known" is not satisfied by "unknown" and
+	// "run" is not satisfied by "runs".
+	for _, word := range []string{tokensInput, tokensCacheRead, tokensCacheWrite, tokensOutput, tokensReason, tokensModel} {
+		if !strings.Contains(section, word) {
+			t.Errorf("README Token usage section does not contain %q", word)
+		}
+	}
+	for _, word := range []string{
+		tokensPrefix, tokensRun, tokensReused, tokensKnown, tokensUnknown, tokensNoModel,
+		writer.StageGeneration.String(), writer.StageShorten.String(), writer.StageReview.String(),
+	} {
+		if !containsToken(section, word) {
+			t.Errorf("README Token usage section does not contain the token %q", word)
+		}
+	}
+	// Every member-less reason llm.Usage can produce, obtained from the code so
+	// the test does not spell them. The README also documents the member-named
+	// forms (`usage.<member>:<rule>`) in prose.
+	reasons := []llm.Usage{
+		llm.UnknownUsage(llm.RuleNotRead, ""),
+		llm.UnknownUsage(llm.RuleRecordedUnknown, ""),
+		llm.UnknownUsage(llm.RuleMissing, ""),
+		llm.UnknownUsage(llm.RuleDuplicate, ""),
+		llm.UnknownUsage(llm.RuleNotObject, ""),
+		llm.UnknownUsage(llm.RuleNotNonNegativeInteger, ""),
+		llm.UnknownUsage(llm.UnknownRule(99), ""),
+	}
+	for _, usage := range reasons {
+		if reason := usage.UnknownReason(); !strings.Contains(section, reason) {
+			t.Errorf("README Token usage section does not contain the reason %q", reason)
+		}
+	}
+	// Each example line's first three words after the prefix are known words.
+	allowed := map[string]bool{
+		tokensRun: true, tokensReused: true, tokensKnown: true, tokensUnknown: true,
+	}
+	for _, stage := range []writer.Stage{writer.StageGeneration, writer.StageShorten, writer.StageReview} {
+		allowed[stage.String()] = true
+	}
+	examples := 0
+	for line := range strings.SplitSeq(section, "\n") {
+		rest, ok := strings.CutPrefix(strings.TrimSpace(line), tokensPrefix)
+		if !ok {
+			continue
+		}
+		words := strings.Fields(rest)
+		// A line whose first word is a placeholder shows the shape, not an
+		// example; the lines below it are the examples.
+		if len(words) > 0 && strings.HasPrefix(words[0], "<") {
+			continue
+		}
+		examples++
+		if len(words) < 3 {
+			t.Errorf("README example line %q has fewer than three words after the prefix", line)
+			continue
+		}
+		for i := range 3 {
+			if !allowed[words[i]] {
+				t.Errorf("README example line %q has the unknown word %q at position %d", line, words[i], i+1)
+			}
+		}
+	}
+	if examples == 0 {
+		t.Error("README Token usage section has no example line")
+	}
+
+	overview := sectionByHeading(readDoc(t, projectOverviewPath), "## パイプライン")
+	if overview == "" {
+		t.Fatal("project_overview.md has no パイプライン section")
+	}
+	if !containsToken(overview, "Usage") {
+		t.Error("project_overview.md パイプライン does not mention Usage")
+	}
+
+	untrusted := sectionByHeading(readDoc(t, securityPath), "## 6. 信頼できないテキストの取り扱い")
+	if untrusted == "" {
+		t.Fatal("security.md has no 6. 信頼できないテキストの取り扱い section")
+	}
+	responseUsage := bulletContaining(untrusted, "応答の `usage`")
+	if responseUsage == "" {
+		t.Fatal("security.md 6. has no response-usage bullet")
+	}
+	for _, want := range []string{"不明", "redact.Line"} {
+		if !strings.Contains(responseUsage, want) {
+			t.Errorf("security.md's response-usage bullet does not state %q: %q", want, responseUsage)
+		}
+	}
+	artifactLine := bulletContaining(untrusted, "--artifacts")
+	if artifactLine == "" {
+		t.Fatal("security.md 6. has no --artifacts bullet")
+	}
+	for _, want := range []string{"usage", "トークン数"} {
+		if !strings.Contains(artifactLine, want) {
+			t.Errorf("security.md's --artifacts bullet does not mention %q: %q", want, artifactLine)
+		}
+	}
+
+	reference := readDoc(t, packageReferencePath)
+	table := findTable(reference, "Package")
+	if table == nil {
+		t.Fatal("package_reference.md has no package table")
+	}
+	for _, row := range []struct {
+		pkg  string
+		want []string
+	}{
+		{"internal/llm", []string{"TokenCounts", "UnknownRule", "Usage"}},
+		{"internal/strictjson", []string{"IsNull", "AsNonNegativeInt64"}},
+		{"internal/writer", []string{"UsageOrigin", "StageUsage", "RunUsage", "TokenUsageError"}},
+		{"internal/artifact", []string{"version 2", "usage", "internal/llm"}},
+		{"internal/llm/deepseek", []string{"usage"}},
+		{"internal/llm/claude", []string{"usage"}},
+	} {
+		cells := tableRow(table, row.pkg)
+		if cells == nil {
+			t.Errorf("package_reference.md has no %s row", row.pkg)
+			continue
+		}
+		joined := strings.Join(cells, " ")
+		for _, want := range row.want {
+			if !containsToken(joined, want) {
+				t.Errorf("the package_reference.md %s row does not mention %s", row.pkg, want)
+			}
+		}
+	}
 }

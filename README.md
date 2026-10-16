@@ -119,6 +119,71 @@ selects a different provider, that provider's variables (its API key, and for
 settings of the stages it executes, so `--after review` requires no LLM
 settings at all.
 
+## Token usage
+
+Every run reports the token usage the LLM API returned, one line per stage, on
+standard error. A successful run writes the lines after its other summary lines;
+a failed run writes them before the line that names the failure. A stage that
+neither ran nor reused an artifact writes no line. The line is:
+
+```text
+yt2column: tokens: <stage> <origin> known input=<n> cache_read=<n> cache_write=<n> output=<n> <model-field>
+yt2column: tokens: <stage> <origin> unknown reason=<reason> <model-field>
+```
+
+- `<stage>` is `generation`, `shorten`, or `review`.
+- `<origin>` is `run` when this run called the stage's LLM, or `reused` when the
+  stage came from a `--after` artifact.
+- `known` means the four counts are known; they are, in order, `input=`
+  (neither read from nor written to the prompt cache), `cache_read=` (read from
+  the prompt cache), `cache_write=` (written to the prompt cache; always 0 for
+  DeepSeek, which has no such category), and `output=` (the output, reasoning
+  and thinking included). For a `reused` stage they are the counts the saved
+  artifact recorded.
+- `unknown` means the usage could not be read or did not meet the rules. No
+  number is written, and `reason=` gives one space-free word: `not-read` (no
+  usage could be read: a call that failed before its usage was read, or a client
+  that reports none), `recorded-unknown` (a saved artifact stored the stage as
+  unknown), `invalid-rule` (a rule outside the set of known rules), or, for the
+  usage member or one of the consumed members that broke a rule, `usage:missing`,
+  `usage:duplicate`, `usage:not-an-object`,
+  `usage:not-a-non-negative-integer` and their `usage.<member>:missing`,
+  `usage.<member>:duplicate`, `usage.<member>:not-a-non-negative-integer` forms.
+- `<model-field>` is `model=<model>`, the model name, or the fixed word
+  `nomodel` when the stage reported no model that passed the model-name rules.
+  The model name is escaped the way `redact.Line` escapes every standard-error
+  line, so a `"` or a `\` in it is escaped; to recover it, wrap everything after
+  `model=` in double quotes and pass the result to `strconv.Unquote`. A model
+  name that contains a configured secret (or its last eight characters) is
+  replaced by the redaction marker and cannot be recovered.
+
+For example:
+
+```text
+yt2column: tokens: generation reused known input=46 cache_read=0 cache_write=0 output=85 model=deepseek-flash
+yt2column: tokens: shorten run known input=1800 cache_read=0 cache_write=0 output=2400 model=deepseek-flash
+yt2column: tokens: review run unknown reason=usage.output_tokens:not-a-non-negative-integer model=claude-opus-5-5
+yt2column: tokens: generation run unknown reason=not-read nomodel
+```
+
+An invalid `usage` alone does not fail the run: the call still succeeds, and
+whether the article is published and the exit code is 0 depend on the rest of
+the processing. A failed call fails the run (the exit code is non-zero), but its
+line is not always `unknown`: a truncation, an unexpected finish reason, or an
+empty response still carries the rejected response's model and usage, so the
+line can be `known`. `reason=not-read` is written only when no usage could be
+read.
+
+A run that ends before it calls any LLM (a usage or configuration error, a
+transcript-fetch failure, a rejected `--after` input, an unusable `--artifacts`
+directory, or a stage that could not be built) writes no token line. A run that
+is stopped without writing its summary (a second signal, `kill -9`, or a panic)
+writes none either.
+
+The counts are also stored, as the `usage` element, in a `--artifacts` file. The
+artifact format is version 2: a version 1 file is rejected on resume, so after
+updating, use a new `--artifacts` directory or move the old one away.
+
 ## Cache and concurrency
 
 Every run takes an exclusive lock on the cache directory, so runs that share a
