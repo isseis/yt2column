@@ -285,11 +285,11 @@ func stderrLine(output, sub string) string {
 }
 
 // TestClosedStdoutPipeKeepsServing checks that a start whose standard output is
-// a pipe with no reader keeps serving. SIGPIPE is process-wide, so the
-// production main runs in a child process: the child's first display write
+// a pipe with no reader does not stop the process: SIGPIPE is process-wide, so
+// the production main runs in a child process. The child's first display write
 // reaches the closed pipe, and because main ignores SIGPIPE the write fails
-// with EPIPE, run reports the display failure without the token, and the
-// server keeps listening until a signal stops it with exitOK.
+// with EPIPE, run reports the display failure without the token, and the child
+// keeps listening until a signal stops it with exitOK.
 func TestClosedStdoutPipeKeepsServing(t *testing.T) {
 	reader, writer, err := os.Pipe()
 	if err != nil {
@@ -311,8 +311,9 @@ func TestClosedStdoutPipeKeepsServing(t *testing.T) {
 		t.Fatalf("exit status = %v, want exit code %d\nstderr:\n%s", state, exitOK, child.stderr.String())
 	}
 	stderr := child.stderr.String()
-	// The failure line is the one that reports the display failure; assert on
-	// it alone, since the "listening" log line also names the token file.
+	// run returns only an exit code across the process boundary, so the
+	// failure line on standard error is the observable contract; assert on it
+	// alone, since the "listening" log line also names the token file.
 	failure := stderrLine(stderr, "writing the token to standard output failed")
 	if failure == "" {
 		t.Fatalf("stderr does not report the display failure:\n%s", stderr)

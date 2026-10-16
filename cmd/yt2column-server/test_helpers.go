@@ -598,11 +598,12 @@ func startServerChild(t *testing.T, mode string, e *serverEnv, extra map[string]
 }
 
 // startServerChildWithStdout is startServerChild, but when stdout is non-nil
-// the child's standard output is that writer instead of the captured buffer;
-// the caller retains ownership of stdout and must close it. The closed-pipe
-// test passes the write end of a pipe whose reader it has already closed, so
-// the child's display write reaches a closed pipe.
-func startServerChildWithStdout(t *testing.T, mode string, e *serverEnv, extra map[string]string, stdout io.Writer) *serverChild {
+// the child's standard output is that file instead of the captured buffer. It
+// takes an *os.File because the child's standard output must be the file
+// itself (the closed-pipe test passes the write end of a pipe whose reader it
+// has already closed); any other io.Writer would be copied through a live
+// parent-side pipe. The caller owns stdout and must close it.
+func startServerChildWithStdout(t *testing.T, mode string, e *serverEnv, extra map[string]string, stdout *os.File) *serverChild {
 	t.Helper()
 	requireIPv6Loopback(t)
 	for range listenAttempts {
