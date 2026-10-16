@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-16 |
-| Review date | - |
+| Review date | isseis |
 | Reviewer | - |
-| Comments | 本計画の作成中に、設計書 1.3・3.12・3.14・7.3・7.4 を改め、設計書を一時的に `draft` に戻した（AC-30 の静的な確認を Go のガードのテストに置く。§1.3「文書」）。その後、設計書を再承認した。本計画の状態は `draft` であり、設計書の再承認は完了している |
+| Comments | - |
 
 ## 1. 実装の概要 (Implementation Overview)
 
