@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-16 |
-| Review date | - |
-| Reviewer | - |
-| Comments | - |
+| Review date | 2026-10-16 |
+| Reviewer | isseis |
+| Comments | レビューでの修正: フェーズ 3 の対象ファイルと §3.2 の PR-5 の変更内容に、手動の確認（M-1〜M-3）の日時と結果を記録する `docs/tasks/0022_cost_estimate/03_implementation_plan.md` を加えた（AC-32・AC-34 の記録先を PR-5 の対象範囲と一致させた）。決定の変更はない。 |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「requirements」）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目、節番号は [02_architecture.md](02_architecture.md)（以下「architecture」）の節を指す。既存のファイルの行番号は、断りがない限りコミット `c4eeaa6` で確かめた（その後のコミットは文書だけを変えている）。architecture が確かめたコミット `15d9b72` から `c4eeaa6` までの Go のファイルの差分は `cmd/yt2column-server` の `main.go` とそのテストだけで、本計画が変えるパッケージには差分がない（`git diff --stat 15d9b72 c4eeaa6 -- '*.go'` で確認）。Go のソースのコメント・識別子・文字列リテラルは英語で書き（`_context.md`）、`AC-NN`・`F-NNN`・`H-NN` は Go のソースに書かず本計画にだけ記録する（`requirements_process.md` §4）。
 
@@ -25,7 +25,7 @@ requirements の機能要件（F-001〜F-010）を、architecture の設計ど�
 - architecture §1.1 の設計原則 8 項目に従う。`internal/llm`（本番のコード）・`internal/pipeline`・`internal/job`・`internal/server`・`cmd/yt2column-server` は変更しない（architecture §3.11）。
 - 単価の選び方・不明の理由・適用した単価は列挙型で宣言し、`switch` の `default` は不明か `invalid` にする（CLAUDE.md「Declare, don't infer」）。モデル名の照合は完全一致だけにする。
 - 単価の表・算出・合計の規則は `internal/pricing`、標準エラーの料金の行の書式は `cmd/yt2column`、`--out`・Slack の行は `internal/publisher` の `renderArticle` の、それぞれ 1 か所に置く（requirements §4.5）。
-- 各フェーズの完了時に、`_context.md` の "Build checks"（`make fmt` → `make test` → `make lint`）を通す。グリーンゲートは `make test && make lint`。`make test` は `-tags test` で走る（`Makefile:71-72`）ので、新しいテストのファイルには既存と同じく `//go:build test` を付ける。`make lint` は `go vet -tags integration ./...` も実行する（`Makefile:196-198`）ので、`integration` のタグ付きのファイルの変更もグリーンゲートでコンパイルされる。
+- 各 PR の完了時に、`_context.md` の "Build checks"（`make fmt` → `make test` → `make lint`）を通す。グリーンゲートは `make test && make lint`。`make test` は `-tags test` で走る（`Makefile:71-72`）ので、新しいテストのファイルには既存と同じく `//go:build test` を付ける。`make lint` は `go vet -tags integration ./...` も実行する（`Makefile:196-198`）ので、`integration` のタグ付きのファイルの変更もグリーンゲートでコンパイルされる。
 - 外部ライブラリは追加しない（requirements §5）。`internal/pricing` は標準ライブラリ（`math/big`・`time` など）と本リポジトリのパッケージだけを使う（architecture §2.1）。
 - 各テストは、対象の仕組みを壊して失敗することを実装時に確かめ、そのことをコミットメッセージに書く（CLAUDE.md「Every test must be able to fail for its stated reason」）。本計画の「壊して確かめる」タスクは、この義務を具体化したものである。
 
@@ -84,7 +84,7 @@ requirements の機能要件（F-001〜F-010）を、architecture の設計ど�
 
 ### 1.7. 横断検索チェックリスト
 
-本タスクは既存の名前を変更・削除しない。中間生成物の形式の版を述べる文書は、ステップ 2-8 で版 3 に改め、README の記述と `package_reference.md` の記述を guard（`TestTokenUsageDocsContract`）で確かめる。`reportTokens` の呼び出しを置き換えたときに事実でなくなるコメント（`reportSuccess` の文書の「one token-usage line per stage」、`run.go:685-690`）はステップ 3-4、版 2 を述べる Go のコメント（`artifact.go:20`・`chain_test.go:129-130`）はステップ 2-3・2-4、`integrationHeader` の文書（`testutil/integration.go:165-167`）はステップ 3-2 のタスクにした。これらのほかに、`make lint`・`make test` で検出できない残存参照として、次の 1 つを手で確かめる。
+本タスクは既存の名前を変更・削除しない。中間生成物の形式の版を述べる文書は、ステップ 2-8 で版 3 に改め、README の記述と `package_reference.md` の記述を guard（`TestTokenUsageDocsContract`）で確かめる。`reportTokens` の呼び出しを置き換えたときに事実でなくなるコメント（`reportSuccess` の文書の「one token-usage line per stage」、`run.go:685-690`）はステップ 3-6、版 2 を述べる Go のコメント（`artifact.go:20`・`chain_test.go:129-130`）はステップ 2-3・2-4、`integrationHeader` の文書（`testutil/integration.go:165-167`）はステップ 3-2 のタスクにした。これらのほかに、`make lint`・`make test` で検出できない残存参照として、次の 1 つを手で確かめる。
 
 - [ ] `docs/` の `docs/tasks/` を除く文書と `README.md` が、中間生成物の形式の版を 2 と書いていないこと（ステップ 2-8 の完了時）。`docs/tasks/` の過去のタスクの記録は、当時の事実として残す。
 
@@ -96,7 +96,7 @@ requirements の機能要件（F-001〜F-010）を、architecture の設計ど�
 
 - §1.3 の例外 1 と §3.11 に、`docs/tasks/0008_column_prompt/check_article.py` を加えた（§1.3 の調査結果）。
 - §1.3 の `cmd/yt2column-server/run_test.go` の行番号を、0021 の変更の後の `:481-503` に改めた。
-- 計画のレビューで、§3.8 の「CLI の統合テストは標準エラーをログに出している」と §8 の「`Totals` は既存の型だけを使う」が事実でないことが分かり、§3.8・§3.11（CLI の統合テストに料金の行のログを加える）と §8（フェーズ 1 で `StageUsage.CallTime` のフィールドだけを加える）を直した（コミット `33780ab`）。2 つのアダプタの統合テストが共有するログの補助 `internal/pricing/testutil`（ステップ 3-6）はテストの補助の置き場所であり、architecture の設計の要素を変えないので、本計画で決める（§1.4）。
+- 計画のレビューで、§3.8 の「CLI の統合テストは標準エラーをログに出している」と §8 の「`Totals` は既存の型だけを使う」が事実でないことが分かり、§3.8・§3.11（CLI の統合テストに料金の行のログを加える）と §8（フェーズ 1 で `StageUsage.CallTime` のフィールドだけを加える）を直した（コミット `33780ab`）。2 つのアダプタの統合テストが共有するログの補助 `internal/pricing/testutil`（ステップ 3-9）はテストの補助の置き場所であり、architecture の設計の要素を変えないので、本計画で決める（§1.4）。
 
 ### フェーズ 1: `internal/pricing`
 
@@ -121,6 +121,23 @@ requirements の機能要件（F-001〜F-010）を、architecture の設計ど�
   - 表のエントリのコメントから確認日を消す: `TestRateTableSourceComments`。
 
 **完了条件:** グリーンゲートが通る。`internal/pricing` はまだどこからも import されない（`make deadcode` の報告に新しい関数が出ることは、フェーズ 3 で解消する）。
+
+### PR-1 作成ポイント: pricing package
+
+**対象ステップ**: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6
+
+**推奨タイトル**: `feat(0022): add the pricing package with the rate table and cost estimation`
+
+**レビュー観点**: 単価の表の値が出典のページと一致し、各エントリに出典の URL と確認日のコメントがあり、`validate` の規則ごとの番兵がその規則だけで返ること / `Estimate` の不明の理由の優先順位、ピーク時間帯の UTC と半開区間の判定、プロンプトの長さの和の桁あふれのない判定 / 期待値が出典の単価から手で計算され、計算式がコメントにあること（表の定数から導いていないこと）/ `StageCost`・`Total` のゼロ値が不明で、`Totals` が由来で集合を選ぶこと / ステップ 1-3 の `internal/writer` の差分が `StageUsage.CallTime` のフィールドと文書だけで、既存のテストを変えていないこと
+
+**実装モデル要件**: standard
+
+**判定理由**: 算出の方法（`math/big` の整数・四捨五入・単価の選び方）は architecture §3.1〜§3.3 に確定しており、競合する実装案はない。新しいパッケージの追加で、移行・外部リソース・前例のない設計判断のいずれにも当たらない。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: 呼び出しの時刻と中間生成物
 
@@ -158,9 +175,26 @@ requirements の機能要件（F-001〜F-010）を、architecture の設計ど�
 
 **完了条件:** グリーンゲートが通る。中間生成物は版 3 で保存され、版 2 を拒否する。CLI と `Publisher` はまだ料金を出さない。
 
+### PR-2 作成ポイント: call time and artifact format version 3
+
+**対象ステップ**: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 / 2-8 / 2-9
+
+**推奨タイトル**: `feat(0022): record call times and raise the artifact format to version 3`
+
+**レビュー観点**: `Generate` の戻りで取った時刻が UTC・秒に切り捨てられて `StageUsage` と保存する `StageRecord` の両方に入り、再利用した段階が記録の時刻を使うこと / `call_time` の受理の形が 1 つで、書き直しの比較・ゼロの時刻の拒否・`Marshal` の事前の検査・`recordID` への追加があり、版 2 を版の違いとして拒否すること / 時刻のない再利用の記録を LLM を呼ばずに `ErrMissingCallTime` で拒否すること / 既存のテストの更新が §4.5 の一覧の範囲に収まり、版の数字を述べる文書が同じ PR で改められていること
+
+**実装モデル要件**: frontier-required
+
+**判定理由**: ステップ 2-3・2-8 が中間生成物の形式の版を 2 から 3 に上げて古い版を拒否する移行であるため（`mkplan.md` ステップ 8 のパネルモードのトリガーの、移行に該当）。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ### フェーズ 3: 出力
 
-**対象ファイル:** `internal/publisher/file.go`・`file_test.go`・`slack_test.go`・`slack_message_test.go`、`internal/publisher/testutil/integration.go`、`docs/tasks/0008_column_prompt/check_article.py`、`internal/pipeline/pipeline_test.go`、`cmd/yt2column/run.go`、`cmd/yt2column/cost_test.go`（新規。CLI の料金のテストは `token_test.go` と同じパッケージの新しいファイルに置く）、`cmd/yt2column/integration_test.go`・`integration_slack_test.go`、`internal/pricing/testutil/helpers.go`・`helpers_test.go`（新規）、`internal/llm/deepseek/integration_test.go`、`internal/llm/claude/integration_test.go`、`docs/dev/developer_guide/package_reference.md`
+**対象ファイル:** `internal/publisher/file.go`・`file_test.go`・`slack_test.go`・`slack_message_test.go`、`internal/publisher/testutil/integration.go`、`docs/tasks/0008_column_prompt/check_article.py`、`internal/pipeline/pipeline_test.go`、`cmd/yt2column/run.go`、`cmd/yt2column/cost_test.go`（新規。CLI の料金のテストは `token_test.go` と同じパッケージの新しいファイルに置く）、`cmd/yt2column/integration_test.go`・`integration_slack_test.go`、`internal/pricing/testutil/helpers.go`・`helpers_test.go`（新規）、`internal/llm/deepseek/integration_test.go`、`internal/llm/claude/integration_test.go`、`docs/dev/developer_guide/package_reference.md`、`docs/tasks/0022_cost_estimate/03_implementation_plan.md`（手動の確認 M-1〜M-3 の日時と結果）
 
 - [ ] **ステップ 3-1**: `renderArticle` に、architecture §3.7 の料金の行を 1 行加える。金額は `pricing.Totals` の記事 1 本の料金の `Format(4)` と `USD`、不明は `unknown` だけとする。`renderArticle` の文書に行の位置と内容を加える。
 - [ ] **ステップ 3-2**: 見出しの形を固定する既存のものを更新する（architecture §1.3 の例外 1）。`file_test.go:64` と `TestRenderArticleSteps` の期待値に不明の行を加え、`integrationHeader` に同じ行を加え、その文書（`testutil/integration.go:165-167`）に料金の行を写していることを加える。`check_article.py` の `HEADER_RE` を、モデル名の行の後に料金の行（分かった場合と不明の場合）を任意で受け付ける形にする。スクリプトの先頭のコメント（`:26-28`）にも料金の行を加える。
@@ -168,8 +202,28 @@ requirements の機能要件（F-001〜F-010）を、architecture の設計ど�
   - `file_test.go` の `TestRenderArticleCost`: 料金が分かった `Article`（手で計算した 4 桁の金額）と、不明になる `Article`（`RunUsage` のゼロ値、表にないモデル）で、見出しの語 `Estimated cost` を含む行の文字列を綴りで固定し、行が 1 回だけ現れること（AC-23・AC-25）。`TestFilePublisherWritesCostLine`: 料金が分かった `Article` で、`FilePublisher` が書いたファイルに同じ行があること（AC-23。不明の行のファイルは、ステップ 3-2 で更新する `file_test.go:64` のファイル全体の比較が確かめる）。
   - `slack_test.go` の `TestSlackPublishCostLine`: `httptest` の Webhook への投稿で、料金が分かった場合と不明の場合に行が 1 回だけ現れ、分割が起きる長さの記事でも最初のメッセージにだけ現れること（AC-24・AC-25）。
   - `slack_message_test.go` の `TestCostLineHasNoMention`: 分かった場合と不明の場合の `renderArticle` の結果から取り出した料金の行を `findMention` に渡して当たらないこと（AC-26）。手で書いた文字列は使わない。
-- [ ] **ステップ 3-4**: `cmd/yt2column/run.go` に、architecture §3.6 の書式の定数、列挙値を語に対応させる関数（`default` は `invalid`）、段階の行と合計の行を作る関数、`reportUsage` を置く。`reportSuccess` と `reportRunError` の `reportTokens` の呼び出しを `reportUsage` の呼び出しに置き換える。`at=` は `artifact.CallTimeLayout` で書く。`reportSuccess` の文書（`:685-690`）に料金の行と合計の行を加える。
-- [ ] **ステップ 3-5**: `cmd/yt2column/cost_test.go` に、fake の `LLMClient`・`TranscriptSource`・`Publisher` と `t.TempDir`（`newRunEnv`・`usageSequence`・`usageResponse`・`saveArtifactsOnce`・`firstLongThenShort`・`useReviewClient` を再利用する）と、`e.d.newWriter` を包んで `Options.Clock` を設定する固定の時計で CLI のテストを書く。段階ごとに、表にあるモデル名と異なるトークン数を返す。行は `redact.Line` を通った後の標準エラーの行のバイト列として比べる（AC-36・AC-37）。
+- [ ] **ステップ 3-4**: 壊して確かめる。`renderArticle` の料金の行を消すと `TestRenderArticleCost`・`TestSlackPublishCostLine` が失敗することを確かめる。`renderArticle` の行に、名前の文字が続く `@`（例: `@all`。`findMention` の M2 は `@` の後に名前の文字を求める。`slack_message.go:187-191`）を加えると `TestCostLineHasNoMention` が失敗することを確かめる。
+- [ ] **ステップ 3-5**: `check_article.py` を、料金の行が分かった場合と不明の場合の `--out` のファイル（`FilePublisher` が実際に書いたもの。例えばステップ 3-3 のテストの一時のファイルを写す）と、料金の行のない古い形のファイルで、一時のキャッシュのディレクトリ（`load_info` が読む `<id>.current`（`a` か `b`）と `<id>.<slot>/<id>.info.json`。`check_article.py:44-50`）に対して `python3 -I` で実行し、どれも `unrecognized --out format` にならないことを確かめる。実行したコマンドと出力を PR の説明に書く（manual）。
+
+### PR-3 作成ポイント: publisher cost line
+
+**対象ステップ**: 3-1 / 3-2 / 3-3 / 3-4 / 3-5
+
+**推奨タイトル**: `feat(0022): add the estimated cost line to the --out and Slack article header`
+
+**レビュー観点**: `renderArticle` の料金の行が `pricing.Totals` の記事 1 本の料金の 4 桁と `USD`、不明では `unknown` だけで、値（0 を含む）を推測しないこと / 行が見出しのメタデータに 1 回だけ現れ、Slack の分割でも最初のメッセージにだけ出て、メンションの規則に当たらないこと / `file_test.go:64`・`TestRenderArticleSteps`・`integrationHeader`・`check_article.py` の追従が見出しの形と一致すること
+
+**実装モデル要件**: standard
+
+**判定理由**: `renderArticle` への 1 行の追加と既存の見出しの固定の追従であり、書式は architecture §3.7 に確定している。前例のない設計判断・panel-mode のトリガー・競合する実装案・分離された高リスクのステップのいずれにも当たらない。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
+- [ ] **ステップ 3-6**: `cmd/yt2column/run.go` に、architecture §3.6 の書式の定数、列挙値を語に対応させる関数（`default` は `invalid`）、段階の行と合計の行を作る関数、`reportUsage` を置く。`reportUsage` は既存の `reportTokens` を呼んでから料金の行と合計の行を書き、`reportSuccess` と `reportRunError` の `reportTokens` の呼び出しを `reportUsage` の呼び出しに置き換える。`at=` は `artifact.CallTimeLayout` で書く。`reportSuccess` の文書（`:685-690`）に料金の行と合計の行を加える。
+- [ ] **ステップ 3-7**: `cmd/yt2column/cost_test.go` に、fake の `LLMClient`・`TranscriptSource`・`Publisher` と `t.TempDir`（`newRunEnv`・`usageSequence`・`usageResponse`・`saveArtifactsOnce`・`firstLongThenShort`・`useReviewClient` を再利用する）と、`e.d.newWriter` を包んで `Options.Clock` を設定する固定の時計で CLI のテストを書く。段階ごとに、表にあるモデル名と異なるトークン数を返す。行は `redact.Line` を通った後の標準エラーの行のバイト列として比べる（AC-36・AC-37）。
   - `TestRunCostLinesAllStages`: 3 つの段階が走る成功した実行で、段階の行が 3 行、合計の行が 2 行、トークン数の行の直後にこの順に出て、金額が手で計算した 6 桁の値で、2 つの合計が等しいこと。同じ実行の `--out` のファイルの料金の行が、記事 1 本の料金を 4 桁に四捨五入した値であること（AC-12・AC-15・AC-23）。
   - `TestRunCostLinesRateBasis`: `deepseek-flash` のピーク・オフピークの時刻、Claude のモデルの `flat`・`short-prompt`・`long-prompt` が、適用した単価の位置の語に出ること（AC-16）。
   - `TestRunCostLinesUnknown`: 3 つの理由（不明の使用量・モデル名なし・表にないモデル名）の段階の行が `unknown reason=` と理由の語を出して数値を出さず、2 つの合計が不明で、記事が公開されること（AC-09・AC-11・AC-17）。
@@ -182,20 +236,68 @@ requirements の機能要件（F-001〜F-010）を、architecture の設計ど�
   - `TestRunCostLinesGoldenFormat`: 分かった段階・不明の段階・2 つの合計の行の綴りを、定数を使わずに文字列で固定する（AC-21）。
   - `TestCostWords`: `RateBasis` と `UnknownReason` のゼロ値と列挙の外の値が `invalid` の語になること（architecture §3.6）。
   - `TestRunCostLinesOmitModel`: モデル名の規則を通る、表にない目印のモデル名（`Estimate` に届く）を返す実行で、目印がトークン数の行には現れ、料金の行と合計の行には現れないこと。秘密情報の値を含むモデル名の実行で `requireSafeOutput` が通ること（architecture §7.3、requirements §4.2）。
-- [ ] **ステップ 3-6**: `internal/pricing/testutil/helpers.go`（`package pricingtestutil`、`//go:build test || integration`）に、段階の料金を、金額（`Format(6)`）と適用した単価の種類、または不明の理由を architecture §3.6 の語で 1 行にする関数を置き、`helpers_test.go` の `TestCostSummary` で各状態の文字列を確かめる。語は CLI の行と同じ綴りにするが、ログは機械可読の契約にしない（architecture §3.8）ので、2 つを結ぶ guard は置かない。統合テストのログの語がずれても、利用者の出力には影響しない。
+- [ ] **ステップ 3-8**: 壊して確かめる。`reportRunError` の `reportUsage` の呼び出しを `reportTokens` に戻すと `TestRunCostLinesFailure` が、「記事 1 本の料金」の行に「この実行の料金」の値を出すと `TestRunCostLinesResume` の `--after` の行が、語の対応の `default` を `flat` にすると `TestCostWords` が失敗することを確かめる。
+
+### PR-4 作成ポイント: CLI cost lines
+
+**対象ステップ**: 3-6 / 3-7 / 3-8
+
+**推奨タイトル**: `feat(0022): print per-stage cost and total lines in the CLI summary`
+
+**レビュー観点**: 料金の行と合計の行が、トークン数の行の直後に固定の位置の固定の語で出て、モデル名と応答の値を含まないこと / 成功・失敗・検証・推敲の一覧のファイルの失敗・`--after` の各経路で、行の有無・順序・1 回だけの出力が 0019 のトークン数の行と同じ規則に従うこと / `--after` の再利用した段階が中間生成物の時刻で算出され、`--after review` の「この実行の料金」が `usd=0.000000` であること / 列挙の外の値とゼロ値が `invalid` になること
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: ステップ 3-6 が、成功・失敗・一覧のファイルの失敗・再開の各経路での行の順序と有無を決める、分離された込み入ったステップであるため（ステップ 3-7 は Conditional checks の「CLI を複数回起動する」にも当たる。移行や外部リソースの面は持たないので `frontier-required` ではない）。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
+- [ ] **ステップ 3-9**: `internal/pricing/testutil/helpers.go`（`package pricingtestutil`、`//go:build test || integration`）に、段階の料金を、金額（`Format(6)`）と適用した単価の種類、または不明の理由を architecture §3.6 の語で 1 行にする関数を置き、`helpers_test.go` の `TestCostSummary` で各状態の文字列を確かめる。語は CLI の行と同じ綴りにするが、ログは機械可読の契約にしない（architecture §3.8）ので、2 つを結ぶ guard は置かない。統合テストのログの語がずれても、利用者の出力には影響しない。
   - `package_reference.md` にこのパッケージの行を加える（`TestPackageReferenceListsPackages`）。`TestFakesCarryBuildTag` が固定する `testutil` のファイルの数（`internal/pipeline/pipeline_test.go:617` の 19）を、加えた 2 つのファイルの分だけ 21 に改める。
   - 両アダプタの `integration_test.go` の `generate` と `truncated` のサブテストで、`Generate` が戻った直後の時刻と応答から `pricing.Estimate` を求め、4 区分のトークン数とこの関数の結果を `t.Logf` で出す。`truncated` は応答を受け取る形にし、モデル名をログに出す前に、`generate` と同じく応答のモデル名（DeepSeek ではモデルの版も）が API キーを含まないことを確かめる。DeepSeek では、その確認が使うキーの取り出しを両方のサブテストから使える位置に移す。モデル名は既存の `t.Logf` と同じく `%+q` で出す。
-- [ ] **ステップ 3-7**: `cmd/yt2column/integration_test.go` の `runIntegrationCLI` と `integration_slack_test.go` の成功の経路で、既存の秘密情報の検査（`requireNoSecrets`）の後、実行の成否を判定する `checkRun` の前に（失敗した実行でも行が残るように）、標準エラーのトークン数の行・料金の行・合計の行を `t.Log` で出す（architecture §3.8。M-1・M-3 で照らすため）。
-- [ ] **ステップ 3-8**: 壊して確かめる。`reportRunError` の `reportUsage` の呼び出しを `reportTokens` に戻すと `TestRunCostLinesFailure` が、「記事 1 本の料金」の行に「この実行の料金」の値を出すと `TestRunCostLinesResume` の `--after` の行が、`renderArticle` の料金の行を消すと `TestRenderArticleCost`・`TestSlackPublishCostLine` が、語の対応の `default` を `flat` にすると `TestCostWords` が失敗することを確かめる。`renderArticle` の行に、名前の文字が続く `@`（例: `@all`。`findMention` の M2 は `@` の後に名前の文字を求める。`slack_message.go:187-191`）を加えると `TestCostLineHasNoMention` が失敗することを確かめる。
-- [ ] **ステップ 3-9**: `check_article.py` を、料金の行が分かった場合と不明の場合の `--out` のファイル（`FilePublisher` が実際に書いたもの。例えばステップ 3-3 のテストの一時のファイルを写す）と、料金の行のない古い形のファイルで、一時のキャッシュのディレクトリ（`load_info` が読む `<id>.current`（`a` か `b`）と `<id>.<slot>/<id>.info.json`。`check_article.py:44-50`）に対して `python3 -I` で実行し、どれも `unrecognized --out format` にならないことを確かめる。実行したコマンドと出力を PR の説明に書く（manual）。
+- [ ] **ステップ 3-10**: `cmd/yt2column/integration_test.go` の `runIntegrationCLI` と `integration_slack_test.go` の成功の経路で、既存の秘密情報の検査（`requireNoSecrets`）の後、実行の成否を判定する `checkRun` の前に（失敗した実行でも行が残るように）、標準エラーのトークン数の行・料金の行・合計の行を `t.Log` で出す（architecture §3.8。M-1・M-3 で照らすため）。
 
-**完了条件:** グリーンゲートが通る（`make lint` の `go vet -tags integration` が統合テストの変更と `pricingtestutil` をコンパイルする）。既存の `token_test.go` と `internal/server`・`cmd/yt2column-server` のテストが変えずに通る（AC-22・AC-38）。
+**完了条件:** 各 PR（PR-3・PR-4・PR-5）でグリーンゲートが通る（PR-5 では `make lint` の `go vet -tags integration` が統合テストの変更と `pricingtestutil` をコンパイルする）。既存の `token_test.go` と `internal/server`・`cmd/yt2column-server` のテストが変えずに通る（AC-22・AC-38）。
+
+### 手動の確認（人の承認を得て行う）
+
+実際の API と Webhook を呼ぶ確認であり、実行には人の承認が要る（CLAUDE.md「Tool Execution Safety」、requirements §5）。PR-5 の変更（統合テストのログ）を実際に動かす唯一の確認なので、PR-5 のマージの前に行い、結果を本節の表に記録して PR-5 に含める（AC-32・AC-34）。
+
+- [ ] **ステップ M-1**: `make test-integration-cli` を実行し、ログの料金の行と合計の行の値を、DeepSeek のコンソールの利用履歴の同じ実行の料金と照らす（祝日に行った呼び出しは除く。AC-32）。
+- [ ] **ステップ M-2**: `make test-integration-deepseek` と `make test-integration-claude` を実行し、ログに各呼び出しのトークン数と料金の概算が出ることを確かめる（AC-33）。
+- [ ] **ステップ M-3**: `make test-integration-cli-slack` を実行し、Mattermost の投稿の見出しのメタデータに料金の行が表示されることを確かめる（AC-34）。
+
+| 確認 | 日時 | 結果 |
+|---|---|---|
+| M-1（AC-32） | - | - |
+| M-2（AC-33） | - | - |
+| M-3（AC-34） | - | - |
+
+### PR-5 作成ポイント: integration test cost logs
+
+**対象ステップ**: 3-9 / 3-10 / M-1 / M-2 / M-3
+
+**推奨タイトル**: `test(0022): log token counts and cost estimates in the billed integration tests`
+
+**レビュー観点**: `truncated` のサブテストでも、モデル名をログに出す前に API キーを含まないことを確かめ、`errors.Is(err, llm.ErrTruncated)` の確認を保ったまま、エラーとともに返る応答の使用量で料金を出すこと / CLI の統合テストが `requireNoSecrets` の後、`checkRun` の前にだけ行をログに出すこと / `pricingtestutil` が `//go:build test || integration` を持ち、`TestFakesCarryBuildTag` の数と `package_reference.md` の行が更新されていること / M-1〜M-3 の日時と結果が §2 の表に記録されていること
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: ステップ 3-9 が、課金を伴う統合テストに API キーの漏れを防ぐ検査を加えて `truncated` のサブテストの形を変える、分離された高リスクのステップであり、グリーンゲートはそのコードをコンパイルするだけで実行しない（実行は人の承認を得た M-1〜M-3 だけ）ため。実際の API を呼ぶテストの数や CI の面は増やさないので `frontier-required` ではない。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 4: 文書
 
 **対象ファイル:** `README.md`、`docs/dev/developer_guide/pricing_update.md`（新規）、`internal/pricing/rates.go`（先頭のコメント）、`CLAUDE.md`、`docs/dev/project_overview.md`、`docs/dev/security.md`、`docs/dev/developer_guide/package_reference.md`、`cmd/yt2column/docs_test.go`
 
-- [ ] **ステップ 4-1**: `README.md` の `## Token usage` の後に、料金の概算の節（例: `## Estimated cost`）を加える。内容は architecture §3.9 の README の項目のとおりで、版 3 の記述はステップ 2-8 で済んでいる。例の行は、ステップ 3-5 の `TestRunCostLinesGoldenFormat` が固定する綴りと同じ形にする。
+- [ ] **ステップ 4-1**: `README.md` の `## Token usage` の後に、料金の概算の節（例: `## Estimated cost`）を加える。内容は architecture §3.9 の README の項目のとおりで、版 3 の記述はステップ 2-8 で済んでいる。例の行は、ステップ 3-7 の `TestRunCostLinesGoldenFormat` が固定する綴りと同じ形にする。
 - [ ] **ステップ 4-2**: `docs/dev/developer_guide/pricing_update.md`（英語）に、architecture §3.9 の単価の更新の手順を書く。`internal/pricing/rates.go` の先頭のコメントからこの文書を指し、`CLAUDE.md` の Development Guides の一覧に 1 行加える（AC-41）。
 - [ ] **ステップ 4-3**: `docs/dev/project_overview.md` の `--artifacts` の項（`:34`）に形式の版 3 と呼び出しの時刻を、トークン数の行の項（`:35`）の後に料金の行と `--out`・Slack の行を加え、「前提・制約」のモデル名の項（`:66`）に、単価の表がこの方針の対象外であることの注記を加える（architecture §1.3 の例外 3）。
 - [ ] **ステップ 4-4**: `docs/dev/security.md` の `## 6.` の `--artifacts` の項（`:78`）に、来歴の列挙への呼び出しの時刻と、`call_time` の受理の形と拒否の規則を加える（architecture §3.9）。
@@ -208,21 +310,26 @@ requirements の機能要件（F-001〜F-010）を、architecture の設計ど�
 
 **完了条件:** グリーンゲートが通る。`TestCostDocsContract`・`TestTokenUsageDocsContract`・`TestPackageReferenceListsPackages` が通る。
 
-### 手動の確認（人の承認を得て行う）
+### PR-6 作成ポイント: documentation
 
-実際の API と Webhook を呼ぶ確認であり、実行には人の承認が要る（CLAUDE.md「Tool Execution Safety」、requirements §5）。結果は本節の表に記録する（AC-32・AC-34）。
+**対象ステップ**: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7
 
-- [ ] **ステップ M-1**: `make test-integration-cli` を実行し、ログの料金の行と合計の行の値を、DeepSeek のコンソールの利用履歴の同じ実行の料金と照らす（祝日に行った呼び出しは除く。AC-32）。
-- [ ] **ステップ M-2**: `make test-integration-deepseek` と `make test-integration-claude` を実行し、ログに各呼び出しのトークン数と料金の概算が出ることを確かめる（AC-33）。
-- [ ] **ステップ M-3**: `make test-integration-cli-slack` を実行し、Mattermost の投稿の見出しのメタデータに料金の行が表示されることを確かめる（AC-34）。
+**推奨タイトル**: `docs(0022): document the cost estimate and the rate update procedure`
 
-| 確認 | 日時 | 結果 |
-|---|---|---|
-| M-1（AC-32） | - | - |
-| M-2（AC-33） | - | - |
-| M-3（AC-34） | - | - |
+**レビュー観点**: README の料金の節が `run.go` の書式の定数と語の対応の関数のすべての語を含み（`TestCostDocsContract`）、例の行が `TestRunCostLinesGoldenFormat` の綴りと一致すること / DeepSeek のピーク時間帯の判定の限界（祝日・境界・時計）と、合計の丸め・再利用した段階の単価・請求額はコンソールで確かめることが README にあること / `pricing_update.md` の手順が `rates.go` と手で計算した期待値のテストを指し、`CLAUDE.md` からリンクされていること / `project_overview.md`・`security.md`・`package_reference.md` の記述が、それぞれが述べるコードとテストに一致すること
+
+**実装モデル要件**: standard
+
+**判定理由**: 文書の追加と、その内容を確かめる guard のテストである。前例のない設計判断・panel-mode のトリガー・競合する実装案・分離された高リスクのステップのいずれにも当たらない。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装の順序とマイルストーン (Implementation Order and Milestones)
+
+### 3.1 マイルストーン
 
 | マイルストーン | このフェーズで作るもの | フェーズ |
 |---|---|---|
@@ -231,9 +338,24 @@ requirements の機能要件（F-001〜F-010）を、architecture の設計ど�
 | M3: 利用者に料金が見える | `renderArticle` の料金の行、CLI の料金の行と合計の行、`pricingtestutil` と統合テストのログ、`check_article.py` | フェーズ 3 |
 | M4: 文書が揃う | README・`pricing_update.md`・`CLAUDE.md`・`project_overview.md`・`security.md`・`package_reference.md` と `TestCostDocsContract` | フェーズ 4 |
 
-- フェーズの名前と順序は architecture §8 の手順 1〜4 と同じである。フェーズ 1 の `StageUsage.CallTime` のフィールド（ステップ 1-3）と `package_reference.md` の行（ステップ 1-4）、フェーズ 2 の版の記述（ステップ 2-8）は、各フェーズのコンパイル・グリーンゲート・文書の正しさのために、そのフェーズの中で行う前提の作業である。
+- フェーズの名前と順序は architecture §8 の手順 1〜4 と同じである。フェーズ 1 の `StageUsage.CallTime` のフィールド（ステップ 1-3）と `package_reference.md` の行（ステップ 1-4）、フェーズ 2 の版の記述（ステップ 2-8）は、それを含む PR のコンパイル・グリーンゲート・文書の正しさのために、その PR の中で行う前提の作業である。
 - フェーズ 3 はフェーズ 1 の `pricing` とフェーズ 2 の `CallTime` を、フェーズ 4 はフェーズ 3 の書式の定数と語の対応の関数を使う。フェーズ 2 は、フェーズ 1 のステップ 1-3 で加えた `StageUsage.CallTime` のフィールドに値を入れる（architecture §8）。
-- 各フェーズは単独でグリーンゲートを通せる単位とする。手動の確認（M-1〜M-3）はフェーズ 3 の後、人の承認を得て行う。
+- 各 PR は単独でグリーンゲートを通せる単位とする。手動の確認（M-1〜M-3）は PR-5 のマージの前に、人の承認を得て行う。PR の境界と実装モデル要件は §3.2 と各 `### PR-N 作成ポイント` のとおりである。
+
+### 3.2 PR 構成
+
+PR はフェーズ 1・2・4 をそれぞれ 1 つとし、フェーズ 3 を `internal/publisher`（PR-3）・`cmd/yt2column` の要約（PR-4）・統合テストのログ（PR-5）の 3 つに分ける（PR は 6 つ）。フェーズ 2 は 1 つの PR に残す。`writer` の時刻の記録を先に、`internal/artifact` の版 3 と時刻のない記録の拒否を後にすれば 2 つの PR に分けられるが、そのためにはステップ 2-1・2-2・2-5・2-9 を分割する必要があり、architecture §8 も 2 つを同じフェーズに置いている。フェーズ 3 は、`internal/` の出力（PR-3）を `cmd/` の要約（PR-4）より先に着地させ、課金を伴う統合テストのログ（PR-5）を本番の出力から切り離してレビューできるようにする。そのため、旧ステップ 3-8（壊して確かめる）を `internal/publisher` の部分（ステップ 3-4）と CLI の部分（ステップ 3-8）に分け、`check_article.py` の確認（ステップ 3-5）を `renderArticle` の変更と同じ PR に移し、フェーズ 3 のステップを番号順に振り直した。手動の確認（M-1〜M-3）は PR-5 の変更を実際に動かす唯一の確認なので、PR-5 のマージの前に人の承認を得て行い、結果を PR-5 で記録する（手動の確認の節は、そのためにフェーズ 3 の最後へ移した）。
+
+PR は PR-1 → PR-2 → PR-3 → PR-4 → PR-5 → PR-6 の順とし、各 PR は前の PR に依存する（PR-1 と PR-2 は `StageUsage.CallTime` のフィールドで、PR-3 は `pricing`、PR-4 は `artifact.CallTimeLayout` と PR-3 の `--out` の行、PR-5 は PR-4 の行の接頭辞、PR-6 は PR-4 の書式の定数と語の対応の関数を使う）。
+
+| PR | 対象ステップ | 主な変更内容 | 実装モデル要件 |
+|---|---|---|---|
+| PR-1 | 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 | `internal/pricing`（単価の表・`validate`・`Amount`・`Estimate`・`Totals`）とテスト、`StageUsage.CallTime` のフィールド、`package_reference.md` の `internal/pricing` の行 | standard |
+| PR-2 | 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 / 2-8 / 2-9 | `writer` の `Options.Clock`・時刻の記録・`ErrMissingCallTime`、`internal/artifact` の版 3 と `call_time`、既存のテストの更新、版の数字を述べる文書 | frontier-required |
+| PR-3 | 3-1 / 3-2 / 3-3 / 3-4 / 3-5 | `renderArticle` の料金の行、見出しの固定の追従（`file_test.go`・`integrationHeader`・`check_article.py`）、`internal/publisher` のテスト | standard |
+| PR-4 | 3-6 / 3-7 / 3-8 | `cmd/yt2column/run.go` の料金の行・合計の行・`reportUsage`、`cost_test.go` | frontier-recommended |
+| PR-5 | 3-9 / 3-10 / M-1 / M-2 / M-3 | `pricingtestutil`、両アダプタと CLI の統合テストのログ、`TestFakesCarryBuildTag` の数、`docs/tasks/0022_cost_estimate/03_implementation_plan.md` の手動の確認の記録 | frontier-recommended |
+| PR-6 | 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7 | README・`pricing_update.md`・`CLAUDE.md`・`project_overview.md`・`security.md`・`package_reference.md` と `TestCostDocsContract` | standard |
 
 ## 4. テスト戦略 (Test Strategy)
 
@@ -243,20 +365,20 @@ requirements の機能要件（F-001〜F-010）を、architecture の設計ど�
 
 ### 4.2. 統合テスト
 
-- 実際の API を呼ぶ統合テストは、ステップ 3-6・3-7 でログを加えるだけで、本タスクの自動のテストとしては実行しない。手動の確認（M-1〜M-3）で、人の承認を得て実行する。
+- 実際の API を呼ぶ統合テストは、ステップ 3-9・3-10 でログを加えるだけで、本タスクの自動のテストとしては実行しない。手動の確認（M-1〜M-3）で、人の承認を得て実行する。
 - localhost サーバの経路で料金の行が載ることは、同じ `renderArticle` を通る `internal/publisher` のテスト（ステップ 3-3）で確かめる。`internal/server`・`cmd/yt2column-server` の既存のテストは変えずに通す（AC-38）。
 
 ### 4.3. セキュリティテスト
 
-architecture §7.3 の検査を、ステップ 1-5（`TestEstimateLargeCounts`。T3）、ステップ 2-6（`TestParseRecordRejectsCallTime` のメッセージに入力の値を含めない。T1）、ステップ 2-6（`TestRecordIDCoversCallTime`。T2）、ステップ 2-7（`call_time` が不正な中間生成物で LLM を呼ばず公開しない。T1）、ステップ 3-3（`TestCostLineHasNoMention`）、ステップ 3-5（`TestRunCostLinesOmitModel`。T4）、ステップ 3-6・3-7（統合テストのログは、API キーの検査の後でだけ出す。T4）に含める。
+architecture §7.3 の検査を、ステップ 1-5（`TestEstimateLargeCounts`。T3）、ステップ 2-6（`TestParseRecordRejectsCallTime` のメッセージに入力の値を含めない。T1）、ステップ 2-6（`TestRecordIDCoversCallTime`。T2）、ステップ 2-7（`call_time` が不正な中間生成物で LLM を呼ばず公開しない。T1）、ステップ 3-3（`TestCostLineHasNoMention`）、ステップ 3-7（`TestRunCostLinesOmitModel`。T4）、ステップ 3-9・3-10（統合テストのログは、API キーの検査の後でだけ出す。T4）に含める。
 
 ### 4.4. テストヘルパー
 
-CLI の固定の時計の補助は `cost_test.go` の中に、`internal/writer` の固定の時計の補助は `calltime_test.go` の中に置く（どちらも同じパッケージの `_test.go` だけが使う）。新しい `testutil/` は、2 つのアダプタの統合テストが共有する `internal/pricing/testutil`（ステップ 3-6。`test_organization.md` の分類 A の `helpers.go` と `helpers_test.go`、`//go:build test || integration`）だけで、`TestFakesCarryBuildTag` の数える `testutil` のファイルが 2 つ増える（ステップ 3-6 で期待する数を改める）。`internal/pricing` の壊した表の補助は `rates_test.go` の中に置く（非公開の型を使うが、使うのは同じパッケージのテストだけなので `test_helpers.go` は要らない）。`internal/writer`・`internal/artifact` は既存の補助（§1.3）を更新して使う。
+CLI の固定の時計の補助は `cost_test.go` の中に、`internal/writer` の固定の時計の補助は `calltime_test.go` の中に置く（どちらも同じパッケージの `_test.go` だけが使う）。新しい `testutil/` は、2 つのアダプタの統合テストが共有する `internal/pricing/testutil`（ステップ 3-9。`test_organization.md` の分類 A の `helpers.go` と `helpers_test.go`、`//go:build test || integration`）だけで、`TestFakesCarryBuildTag` の数える `testutil` のファイルが 2 つ増える（ステップ 3-9 で期待する数を改める）。`internal/pricing` の壊した表の補助は `rates_test.go` の中に置く（非公開の型を使うが、使うのは同じパッケージのテストだけなので `test_helpers.go` は要らない）。`internal/writer`・`internal/artifact` は既存の補助（§1.3）を更新して使う。
 
 ### 4.5. 既存のテストとの互換
 
-requirements AC-39 が認める変更は、architecture §1.3「要件 AC-39 との関係」の一覧と、本計画のステップ 2-4・2-6・2-7・2-8・3-2・4-6 の更新（`sameRecord` への `CallTime` の比較の追加、`TestMarshalParseRoundTrip` と `TestRunArtifactExitCodes` への行の追記、`TestFakesCarryBuildTag` の `testutil` のファイルの数、`TestTokenUsageDocsContract` の版の文字列と `call_time` と `internal/pricing` の行、`check_article.py`）だけである。ほかの既存のテストは内容を変えずに `make test` で通す。
+requirements AC-39 が認める変更は、architecture §1.3「要件 AC-39 との関係」の一覧と、本計画のステップ 2-4・2-6・2-7・2-8・3-2・3-9・3-10・4-6 の更新（両アダプタと CLI の統合テストへのログの追加と `truncated` のサブテストの応答の受け取り、`sameRecord` への `CallTime` の比較の追加、`TestMarshalParseRoundTrip` と `TestRunArtifactExitCodes` への行の追記、`TestFakesCarryBuildTag` の `testutil` のファイルの数、`TestTokenUsageDocsContract` の版の文字列と `call_time` と `internal/pricing` の行、`check_article.py`）だけである。ほかの既存のテストは内容を変えずに `make test` で通す。
 
 ## 5. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -296,14 +418,14 @@ requirements AC-39 が認める変更は、architecture §1.3「要件 AC-39 と
 | AC-29 | test | `internal/artifact/format_test.go::TestParseRecordRejectsCallTime`、`cmd/yt2column/run_test.go::TestRunArtifactExitCodes`（`call_time` が不正な中間生成物の行） |
 | AC-30 | test | `internal/artifact/format_test.go::TestParseRejectsVersion2` |
 | AC-31 | test | `internal/artifact/format_test.go::TestRecordIDCoversCallTime` |
-| AC-32 | static / manual | `make lint`（`go vet -tags integration` がステップ 3-7 のログの変更をコンパイルする。static）、ステップ M-1（§2 の表に日時と結果を記録。manual） |
-| AC-33 | test / static / manual | `internal/pricing/testutil/helpers_test.go::TestCostSummary`（ログの行の文字列。test）、`make lint`（`go vet -tags integration` がステップ 3-6 のログの変更をコンパイルする。static）、ステップ M-2（manual） |
+| AC-32 | static / manual | `make lint`（`go vet -tags integration` がステップ 3-10 のログの変更をコンパイルする。static）、ステップ M-1（§2 の表に日時と結果を記録。manual） |
+| AC-33 | test / static / manual | `internal/pricing/testutil/helpers_test.go::TestCostSummary`（ログの行の文字列。test）、`make lint`（`go vet -tags integration` がステップ 3-9 のログの変更をコンパイルする。static）、ステップ M-2（manual） |
 | AC-34 | test / manual | `internal/publisher/slack_test.go::TestSlackPublishCostLine`（投稿の本文。test）、ステップ M-3（Mattermost での表示。manual） |
 | AC-35 | test / manual | §5 の `internal/pricing` のテスト（test）。期待値が手で計算した値で、計算式がコメントにあることは、ステップ 1-5 の PR で確認する（manual） |
 | AC-36 | test | `internal/pricing/pricing_test.go::TestEstimatePeakWindow`、`internal/writer/calltime_test.go::TestWriteCallTimePerStage`、`cmd/yt2column/cost_test.go::TestRunCostLinesResumeUsesSavedTime`（固定の時計） |
 | AC-37 | test | `cmd/yt2column/cost_test.go` のすべてのテスト。fake の `LLMClient`・`TranscriptSource`・`Publisher` と `t.TempDir` を使う。`make test` で実行する |
 | AC-38 | static | `make test` が `internal/server` と `cmd/yt2column-server` の既存のテストを変えずに通す |
-| AC-39 | static / manual | `make test` が既存のテストを通す（static）。§4.5 の一覧の外の既存のテストを変えていないことを、各フェーズの差分で確認する（manual） |
+| AC-39 | static / manual | `make test` が既存のテストを通す（static）。§4.5 の一覧の外の既存のテストを変えていないことを、各 PR の差分で確認する（manual） |
 | AC-40 | static / manual | `cmd/yt2column/docs_test.go::TestCostDocsContract`（static）。記述の内容がコードと architecture と一致することは、ステップ 4-7 で確認する（manual） |
 | AC-41 | static | `cmd/yt2column/docs_test.go::TestCostDocsContract`（`pricing_update.md`・`CLAUDE.md`・`rates.go` のコメント） |
 | AC-42 | static | `cmd/yt2column/docs_test.go::TestCostDocsContract`（`project_overview.md`）・`::TestTokenUsageDocsContract`（`package_reference.md` の `internal/pricing`・`internal/artifact` の行）、`internal/pipeline/pipeline_test.go::TestPackageReferenceListsPackages` |
@@ -321,30 +443,31 @@ requirements AC-39 が認める変更は、architecture §1.3「要件 AC-39 と
 | `sameRecord` に時刻の比較がなく、往復のテストが時刻の欠落を見逃す | AC-27 の保存の誤りを検出できない | `sameRecord` に `CallTime` を加える（ステップ 2-4） |
 | `RunUsage` を `!=` で比べるテストが、nil の時計の `time.Now` の時刻で不安定に失敗する | `make test` が失敗する | 該当するテスト（§1.3 の 8 か所）に固定の時計を入れる（ステップ 2-4） |
 | 料金の行で見出しが長くなり、これまで 1 つのメッセージに収まった記事が 2 つに分かれる | Slack の分割のテストの期待が変わる | 分割のテストは長さを `renderArticle` から求めるので追従する（architecture §3.7）。`integrationHeader` を同じ変更で直す（ステップ 3-2） |
-| `check_article.py` が料金の行のある `--out` のファイルを読めない | 0018 の評価の機械的な判定ができない | `HEADER_RE` を改め（ステップ 3-2）、古い形と新しい形のファイルで実行して確かめる（ステップ 3-9） |
+| `check_article.py` が料金の行のある `--out` のファイルを読めない | 0018 の評価の機械的な判定ができない | `HEADER_RE` を改め（ステップ 3-2）、古い形と新しい形のファイルで実行して確かめる（ステップ 3-5） |
 | 単価の表のリテラルの数値が `mnd`（magic number）や `gosec` に指摘される | `make lint` が通らない | 表は宣言した定数であり、指摘を受けたときは、該当するエントリの行に限って `//nolint:<linter>` を根拠のコメント付きで置く（ファイル全体の抑制はしない） |
 | `Estimate` の分岐と CLI の語の対応が `gocyclo`（閾値 20）に指摘される | `make lint` が通らない | 単価の組の選び方や語の対応を、小さな非公開の関数に分ける |
 | DeepSeek のコンソールの利用履歴が、1 回の実行の料金を分けて示さない（日ごと・モデルごとの合計だけを示す） | M-1 で 1 回の実行の概算と照らせない | M-1 の前にコンソールの粒度を確かめ、ほかの呼び出しのない時間帯に実行するなど、実行を切り分ける方法を M-1 の記録に書く |
 
 ### 6.2. スケジュールのリスク
 
-- 手動の確認（M-1〜M-3）は人の承認と実際の API・Webhook を要する。自動のテストとグリーンゲートはこれを待たないので、フェーズ 1〜4 は手動の確認と独立に進め、確認の結果は §2 の表に後から記録する。
+- 手動の確認（M-1〜M-3）は人の承認と実際の API・Webhook を要する。PR-1〜PR-4 は手動の確認を待たない。PR-5 は、マージの前に手動の確認を行うので、人の承認を得られるまでマージを待つ。その間も PR-6（文書）の作業は進められる。
 
 ### 6.3. セキュリティリスク
 
-- 料金の行・合計の行・`--out`・Slack の行は、金額の数字と固定の語だけで作り、モデル名・応答の値・秘密情報を含めない（ステップ 3-1・3-4）。標準エラーの行は `stderrWriter.line` を通す。
+- 料金の行・合計の行・`--out`・Slack の行は、金額の数字と固定の語だけで作り、モデル名・応答の値・秘密情報を含めない（ステップ 3-1・3-6）。標準エラーの行は `stderrWriter.line` を通す。
 - 中間生成物の `call_time` は信頼できない入力として境界で検査し、補正せず、部分受理しない（ステップ 2-3・2-6）。時刻の書き換えは `id` の照合で拒否する（AC-31）。`id` を計算し直したファイルを検出できないことは、architecture §5.1 の T2 の残余のリスクのとおりである。
 
 ## 7. 実装チェックリスト (Implementation Checklist)
 
 - [x] architecture の記述の漏れと古い行番号を editorial correction として直した（§2.0）
-- [ ] フェーズ 1 完了（ステップ 1-1〜1-6）
-- [ ] フェーズ 2 完了（ステップ 2-1〜2-9）
-- [ ] フェーズ 3 完了（ステップ 3-1〜3-9）
-- [ ] フェーズ 4 完了（ステップ 4-1〜4-7）
-- [ ] 手動の確認 M-1〜M-3 を行い、§2 の表に記録した
+- [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6）
+- [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 / 2-8 / 2-9）
+- [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5）
+- [ ] PR-4 マージ済み（対象ステップ: 3-6 / 3-7 / 3-8）
+- [ ] PR-5 マージ済み（対象ステップ: 3-9 / 3-10 / M-1 / M-2 / M-3）
+- [ ] PR-6 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7）
 - [ ] §5 のすべての AC の `test`・`static` の検証が実行され、通る
-- [ ] `make fmt`・`make test`・`make lint` がすべてのフェーズの完了時に通る
+- [ ] `make fmt`・`make test`・`make lint` がすべての PR の完了時に通る
 
 ## 8. 成功基準 (Success Criteria)
 
@@ -356,6 +479,6 @@ requirements AC-39 が認める変更は、architecture §1.3「要件 AC-39 と
 
 ## 9. 次のステップ (Next Steps)
 
-- 本計画のレビューと承認の後、`/mkplan2 0022` で PR の境界と実装モデル要件を本計画に埋め込み、`/runplan 0022` で実装する。
+- 本書の PR の境界と実装モデル要件（§3.2 と各 `### PR-N 作成ポイント`）に従い、`/runplan 0022` で PR-1 から順に実装する。
 - 実装中に architecture の記述が実際のコードや出典のページと合わない箇所が見つかった場合は、本計画を独自に変えず、`requirements_process.md` の「Editing an approved document」に従って architecture を直す。
 - 本タスクの完了後に、0018（#248）が基準の集合を版 3 の CLI で作る（requirements §5）。
