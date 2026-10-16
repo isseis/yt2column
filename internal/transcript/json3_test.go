@@ -135,22 +135,12 @@ func TestParseSubtitlesTimestamps(t *testing.T) {
 		})
 	}
 
-	t.Run("zero is valid", func(t *testing.T) {
-		segments, err := parseSubtitles("inline.json3", []byte(`{"events":[{"tStartMs":0,"segs":[{"utf8":"hi"}]}]}`))
-		if err != nil {
-			t.Fatalf("parseSubtitles error = %v", err)
-		}
-		want := []Segment{{StartMs: 0, Text: "hi"}}
-		if !reflect.DeepEqual(segments, want) {
-			t.Errorf("segments = %+v, want %+v", segments, want)
-		}
-	})
-
 	t.Run("non-negative integers are valid", func(t *testing.T) {
 		cases := map[string]struct {
 			input string
 			want  int64
 		}{
+			"zero":      {`{"events":[{"tStartMs":0,"segs":[{"utf8":"hi"}]}]}`, 0},
 			"positive":  {`{"events":[{"tStartMs":5000,"segs":[{"utf8":"hi"}]}]}`, 5000},
 			"max int64": {`{"events":[{"tStartMs":9223372036854775807,"segs":[{"utf8":"hi"}]}]}`, math.MaxInt64},
 		}
@@ -169,6 +159,10 @@ func TestParseSubtitlesTimestamps(t *testing.T) {
 	})
 
 	t.Run("discarded event ignores tStartMs", func(t *testing.T) {
+		// An event without segs returns before tStartMs is read; an event whose
+		// concatenated text is blank is discarded after that. Each branch is
+		// checked with both a pre-existing invalid value and the -0 the new
+		// reader rejects, so a discarded event never triggers the reader.
 		cases := map[string]string{
 			"null tStartMs with empty segs": `{"events":[{"tStartMs":null,"segs":[]}]}`,
 			"negative zero without segs":    `{"events":[{"tStartMs":-0}]}`,
@@ -551,7 +545,9 @@ func parsePackageFile(t *testing.T, name string) (*ast.File, *token.FileSet) {
 }
 
 // readValueNames returns the identifiers that hold a value produced by
-// AsNonNegativeInt64, following a plain assignment from one to another.
+// AsNonNegativeInt64: the identifier that receives the call's integer result,
+// and any identifier later assigned from one of them. The call's trailing error
+// result is not a read value and is not tracked.
 func readValueNames(file *ast.File) map[string]bool {
 	var assigns []*ast.AssignStmt
 	ast.Inspect(file, func(n ast.Node) bool {
@@ -565,26 +561,34 @@ func readValueNames(file *ast.File) map[string]bool {
 	for changed := true; changed; {
 		changed = false
 		for _, assign := range assigns {
-			add := false
-			for _, rhs := range assign.Rhs {
-				if callsAsNonNegativeInt64(rhs) || referencesAny(rhs, names) {
-					add = true
-				}
-			}
-			if !add {
-				continue
-			}
-			for _, lhs := range assign.Lhs {
-				id, ok := lhs.(*ast.Ident)
-				if !ok || id.Name == "_" || names[id.Name] {
+			for i, rhs := range assign.Rhs {
+				if callsAsNonNegativeInt64(rhs) && i < len(assign.Lhs) {
+					if markName(assign.Lhs[i], names) {
+						changed = true
+					}
 					continue
 				}
-				names[id.Name] = true
-				changed = true
+				if referencesAny(rhs, names) {
+					for _, lhs := range assign.Lhs {
+						if markName(lhs, names) {
+							changed = true
+						}
+					}
+				}
 			}
 		}
 	}
 	return names
+}
+
+// markName records id in names and reports whether it was newly added.
+func markName(expr ast.Expr, names map[string]bool) bool {
+	id, ok := expr.(*ast.Ident)
+	if !ok || id.Name == "_" || names[id.Name] {
+		return false
+	}
+	names[id.Name] = true
+	return true
 }
 
 // callsAsNonNegativeInt64 reports whether expr is a call to AsNonNegativeInt64.
@@ -612,10 +616,10 @@ func referencesAny(expr ast.Expr, names map[string]bool) bool {
 	return found
 }
 
-// signCheckOn reports whether expr compares one of the read values against a
-// zero or negative integer constant, the shape of a hand-written non-negative
-// check (v < 0, v <= -1, 0 > v). A comparison on an unrelated value, such as
-// len(x) > 0, is not a sign check on the read value and is not flagged.
+// signCheckOn reports whether expr tests the zero boundary of one of the read
+// values, the shape of a hand-written non-negative check (v < 0, v <= -1, 0 > v,
+// v >= 0). A comparison on an unrelated value (len(x) > 0) or a different rule
+// (v > 0, a strictly positive check) is not flagged.
 func signCheckOn(expr *ast.BinaryExpr, readNames map[string]bool) bool {
 	if !isSignComparison(expr) {
 		return false
@@ -623,20 +627,56 @@ func signCheckOn(expr *ast.BinaryExpr, readNames map[string]bool) bool {
 	return referencesAny(expr.X, readNames) || referencesAny(expr.Y, readNames)
 }
 
-// isSignComparison reports whether expr compares something against a zero or
-// negative integer constant.
+// isSignComparison reports whether expr tests the boundary zero of the value it
+// compares: it rejects a negative value (v < 0, v <= -1) or accepts a
+// non-negative one (v >= 0, v > -1). A strictly positive check (v > 0) is a
+// different rule and is not matched.
 func isSignComparison(expr *ast.BinaryExpr) bool {
-	switch expr.Op {
-	case token.LSS, token.LEQ, token.GTR, token.GEQ:
+	if value, ok := constantInt(expr.X); ok {
+		return nonNegativeBoundary(expr.Op, value, false)
+	}
+	if value, ok := constantInt(expr.Y); ok {
+		return nonNegativeBoundary(expr.Op, value, true)
+	}
+	return false
+}
+
+// nonNegativeBoundary reports whether a comparison with integer constant c tests
+// the boundary zero with the non-negative side inclusive. constantOnRight tells
+// whether the comparison reads value op c (true) or c op value (false).
+func nonNegativeBoundary(op token.Token, c int64, constantOnRight bool) bool {
+	if !constantOnRight {
+		op = reverseComparison(op)
+	}
+	switch op {
+	case token.LSS: // value < c
+		return c == 0
+	case token.LEQ: // value <= c
+		return c == -1
+	case token.GTR: // value > c
+		return c == -1
+	case token.GEQ: // value >= c
+		return c == 0
 	default:
 		return false
 	}
-	for _, side := range []ast.Expr{expr.X, expr.Y} {
-		if value, ok := constantInt(side); ok && value <= 0 {
-			return true
-		}
+}
+
+// reverseComparison returns the operator that means the same with its operands
+// swapped.
+func reverseComparison(op token.Token) token.Token {
+	switch op {
+	case token.LSS:
+		return token.GTR
+	case token.LEQ:
+		return token.GEQ
+	case token.GTR:
+		return token.LSS
+	case token.GEQ:
+		return token.LEQ
+	default:
+		return op
 	}
-	return false
 }
 
 // constantInt returns the value of an integer literal, including a negated,
@@ -680,8 +720,11 @@ func TestSignCheckOn(t *testing.T) {
 		"less than zero":          {"startMs < 0", true},
 		"less or equal minus one": {"startMs <= -1", true},
 		"zero greater than value": {"0 > startMs", true},
+		"non-negative accepted":   {"startMs >= 0", true},
+		"greater than minus one":  {"startMs > -1", true},
 		"parenthesized zero":      {"startMs < (0)", true},
 		"unary plus zero":         {"startMs < +0", true},
+		"strictly positive":       {"startMs > 0", false},
 		"unrelated length":        {"len(segs) > 0", false},
 		"unrelated variable":      {"count > 0", false},
 		"equality is not a sign":  {"startMs == 0", false},
