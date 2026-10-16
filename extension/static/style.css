@@ -48,3 +48,21 @@ body {
   margin: 0;
   padding-left: 1.25rem;
 }
+
+/* Options page: the token and port fields stack under their labels. */
+.options-token,
+.options-port {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0.25rem 0 0.5rem;
+}
+
+.options-token-clear {
+  margin-left: 0.5rem;
+}
+
+.options-token-status,
+.options-port-status {
+  margin: 0 0 1rem;
+}

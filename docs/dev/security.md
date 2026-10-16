@@ -100,6 +100,7 @@ yt2column はローカルで実行する CLI であり、利用者本人が入�
 本タスクの拡張（#110）は、開発環境と、選択範囲・タブの URL・タブのタイトルの収集と表示だけを行う。サーバへの送信は #111 で加える。
 
 - **要求する権限**（設計書 3.1 の manifest）: `activeTab`（利用者が起動したタブに限り、そのタブの URL・タイトルを読み、スクリプトを注入することを許す）、`scripting`（起動したタブに、選択範囲を読む関数を注入する）、`contextMenus`（右クリックメニューに項目を加える）、`storage`（メニューの経路で、表示用の要約を service worker から結果のウィンドウへ `chrome.storage.session` で渡す）。閲覧内容全般に及ぶ権限（すべてのサイトへのホストの権限、`tabs`、`history`、`cookies`、`webRequest` など）は要求しない。
+- **ホストの権限（`host_permissions`）:** `http://127.0.0.1/*` を宣言する。送信先は loopback のサーバだけで、宣言しないと `Content-Type: application/json` の `POST` が preflight（`OPTIONS`）になり、サーバは `OPTIONS` を拒否するためである（#111 で送信を加える）。
 - **利用者が起動するまでページを読まない。** `content_scripts` を宣言せず、ページの読み込み時に自動で実行されるコードを持たない。起動で読むのは起動したタブだけである（`activeTab`）。ページの DOM の構造には依存せず、選択範囲はブラウザの選択の API（`window.getSelection()`）で取得する。
 - **読み取った文字列をテキストとして表示する。** 選択範囲とタイトルは信頼できない入力であり、HTML やほかのマークアップとして解釈せず、`textContent` だけで表示する。`eval`・`new Function` と HTML を解釈する API は lint で禁止し、Manifest V3 の既定の Content Security Policy を緩めない（lint とは独立した 2 つ目の防御）。
 - **秘密鍵をリポジトリに含めない。** 拡張 ID の固定には manifest の `key`（公開鍵）だけを使い、生成した RSA の秘密鍵は生成直後に削除する。固定した拡張 ID は `clfmbbcdpnjcefbdihdoahomaifbabkk`。拡張 ID は秘密ではなく、`key` は公開情報なので誰でも同じ ID の拡張を読み込んで名乗れる。したがって `Origin` ヘッダは送り元の認証にならない（前段と設計書 3.12.1）。

@@ -27,11 +27,13 @@ function writeManifest(
   root: string,
   serviceWorker: string,
   defaultPopup: string,
+  optionsPage: string,
 ): void {
   const content = JSON.stringify({
     manifest_version: 3,
     background: { service_worker: serviceWorker, type: "module" },
     action: { default_popup: defaultPopup },
+    options_ui: { page: optionsPage, open_in_tab: true },
   });
   write(root, "static/manifest.json", content);
   write(root, "dist/manifest.json", content);
@@ -137,21 +139,30 @@ describe("checkDist", () => {
     write(root, "dist/background.js");
     write(root, "static/popup.html");
     write(root, "dist/popup.html");
-    writeManifest(root, "background.js", "popup.html");
+    write(root, "static/options.html");
+    write(root, "dist/options.html");
+    writeManifest(root, "background.js", "popup.html", "options.html");
     assert.deepEqual(checkDist(root), []);
   });
 
   it("rejects a manifest service worker that is not in dist/", () => {
-    writeManifest(root, "background.js", "page.html");
+    writeManifest(root, "background.js", "page.html", "page.html");
     assert.deepEqual(checkDist(root), [
       'manifest.json: background.service_worker "background.js" is not in dist/',
     ]);
   });
 
   it("rejects a manifest popup that is not in dist/", () => {
-    writeManifest(root, "main.js", "popup.html");
+    writeManifest(root, "main.js", "popup.html", "page.html");
     assert.deepEqual(checkDist(root), [
       'manifest.json: action.default_popup "popup.html" is not in dist/',
+    ]);
+  });
+
+  it("rejects a manifest options page that is not in dist/", () => {
+    writeManifest(root, "main.js", "page.html", "options.html");
+    assert.deepEqual(checkDist(root), [
+      'manifest.json: options_ui.page "options.html" is not in dist/',
     ]);
   });
 

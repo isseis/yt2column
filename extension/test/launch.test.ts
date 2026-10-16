@@ -18,39 +18,15 @@ import {
   runResultWindow,
 } from "../src/launch.ts";
 import type {
-  Logger,
   MenuLaunchDeps,
   PopupLaunchDeps,
   SummaryStore,
 } from "../src/launch.ts";
+import { recordingLogger } from "./helpers/logger.ts";
+import type { RecordingLogger } from "./helpers/logger.ts";
 
 const watchUrl = "https://www.youtube.com/watch?v=abc";
 const malicious = "<img src=x onerror=alert(1)>";
-
-interface Recorded {
-  readonly label: string;
-  readonly data: unknown;
-}
-
-interface RecordingLogger {
-  readonly log: Logger;
-  readonly infos: Recorded[];
-  readonly errors: Recorded[];
-}
-
-/** A Logger that records every call instead of printing. */
-function recordingLogger(): RecordingLogger {
-  const infos: Recorded[] = [];
-  const errors: Recorded[] = [];
-  return {
-    log: {
-      info: (label, data) => infos.push({ label, data }),
-      error: (label, data) => errors.push({ label, data }),
-    },
-    infos,
-    errors,
-  };
-}
 
 interface RecordingStore {
   readonly store: SummaryStore;
