@@ -226,7 +226,8 @@ type runningServer struct {
 	done   chan struct{}
 	code   int
 	// stdout is synchronized, so a test can read what run has written while
-	// the server keeps serving; stderr is read only after stop.
+	// the server keeps serving; it is nil when run writes to a caller-supplied
+	// writer. stderr is read only after stop.
 	stdout *syncBuffer
 	stderr *bytes.Buffer
 }
@@ -260,17 +261,32 @@ func (b *syncBuffer) String() string {
 // diagnostic on failure. A cleanup stops the run.
 func startServer(t *testing.T, e *serverEnv, d deps) *runningServer {
 	t.Helper()
+	return startServerWithStdout(t, e, d, nil)
+}
+
+// startServerWithStdout is startServer, but when stdout is non-nil run writes
+// the token to that writer instead of a fresh synchronized buffer, and the
+// returned server's stdout is nil. The display-failure test passes a writer
+// that rejects every write; the retry and cleanup logic is shared with
+// startServer.
+func startServerWithStdout(t *testing.T, e *serverEnv, d deps, stdout io.Writer) *runningServer {
+	t.Helper()
 	requireIPv6Loopback(t)
 	stderr := &bytes.Buffer{}
 	for range listenAttempts {
 		e.setPort(freePort(t))
-		stdout := &syncBuffer{}
+		out := stdout
+		var buf *syncBuffer
+		if out == nil {
+			buf = &syncBuffer{}
+			out = buf
+		}
 		ctx, cancel := context.WithCancel(context.Background())
-		r := &runningServer{cancel: cancel, done: make(chan struct{}), stdout: stdout, stderr: stderr}
+		r := &runningServer{cancel: cancel, done: make(chan struct{}), stdout: buf, stderr: stderr}
 		lookup := e.lookup()
 		go func() {
 			defer close(r.done)
-			r.code = run(ctx, nil, lookup, stdout, stderr, d)
+			r.code = run(ctx, nil, lookup, out, stderr, d)
 		}()
 		if waitListening(e.port(t), r.done) {
 			t.Cleanup(func() { r.stop(t) })

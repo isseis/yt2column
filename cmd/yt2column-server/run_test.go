@@ -26,9 +26,13 @@ import (
 	writertestutil "github.com/isseis/yt2column/internal/writer/testutil"
 )
 
-// errBuildRefused is what a constructor substituted by TestStartupFailures
+// errBuildRefused and errWriteRefused are what a constructor or a writer
+// substituted by TestStartupFailures and TestDisplayFailureKeepsServing
 // returns.
-var errBuildRefused = errors.New("the test refuses to build this component")
+var (
+	errBuildRefused = errors.New("the test refuses to build this component")
+	errWriteRefused = errors.New("the test refuses to write")
+)
 
 // validTokenContent is a token file content the server accepts.
 const validTokenContent = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
@@ -209,6 +213,64 @@ func TestStartupFailures(t *testing.T) {
 				}
 			}
 			requireNoSecret(t, "stderr", stderr.String(), token)
+		})
+	}
+}
+
+// failingWriter rejects every write, so run's token display fails.
+type failingWriter struct{}
+
+// Write implements io.Writer.
+func (failingWriter) Write([]byte) (int, error) { return 0, errWriteRefused }
+
+// TestDisplayFailureKeepsServing checks that a start whose token display fails
+// keeps serving: with a standard output that rejects every write, run reports
+// the display failure on standard error (naming the token file and without the
+// token) and still accepts a request, then stops with exitOK. It covers a start
+// that reads an existing token (whose file must not change) and a first start
+// (whose token file is created).
+func TestDisplayFailureKeepsServing(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		existing bool
+	}{
+		{name: "existing token file", existing: true},
+		{name: "first start", existing: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newServerEnv(t)
+			if tc.existing {
+				writeTokenFile(t, e.tokenPath(t), validTokenContent, 0o600)
+			}
+			srv := startServerWithStdout(t, e, testDeps(validResponseLLM()), failingWriter{})
+			token := e.readToken(t)
+			mustPostArticle(t, e.port(t), token, requestBody(testValidRaw), 202)
+			if code := srv.stop(t); code != exitOK {
+				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, srv.stderr.String())
+			}
+
+			stderr := srv.stderr.String()
+			// run returns only an exit code, so the failure line is the
+			// observable contract; assert on it alone, since the "listening"
+			// log line also names the token file.
+			failure := stderrLine(stderr, "writing the token to standard output failed")
+			if failure == "" {
+				t.Fatalf("stderr does not report the display failure:\n%s", stderr)
+			}
+			if !strings.Contains(failure, e.tokenPath(t)) {
+				t.Errorf("the display failure does not name the token file %s: %s", e.tokenPath(t), failure)
+			}
+			requireNoSecret(t, "stderr", stderr, token)
+
+			if tc.existing {
+				if got := e.readToken(t); got != validTokenContent {
+					t.Errorf("the token file changed from %q to %q", validTokenContent, got)
+				}
+			} else if len(token) != 64 {
+				// A first start still creates the file even though the display
+				// failed; e.readToken fails the test when the file is absent.
+				t.Errorf("created token length = %d, want 64", len(token))
+			}
 		})
 	}
 }
