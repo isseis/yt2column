@@ -85,17 +85,22 @@ export async function runOptionsPage(
     portStatus,
   );
 
-  /** Reads the store and shows the token state and the port state. */
-  async function refresh(): Promise<void> {
-    let stored: { readonly token: unknown; readonly port: unknown };
+  /** Reads the store; on failure shows the failure in both sections. */
+  async function load(): Promise<
+    { readonly token: unknown; readonly port: unknown } | undefined
+  > {
     try {
-      stored = await deps.store.load();
+      return await deps.store.load();
     } catch (error) {
       deps.log.error(loadLabel, error);
       tokenStatus.textContent = settingsFailedText;
       portStatus.textContent = settingsFailedText;
-      return;
+      return undefined;
     }
+  }
+
+  /** Shows the token state: set, not set, or a stored value of the wrong form. */
+  function showToken(stored: { readonly token: unknown }): void {
     if (stored.token === undefined) {
       tokenStatus.textContent = tokenMissingText;
     } else if (parseToken(stored.token) === undefined) {
@@ -103,18 +108,38 @@ export async function runOptionsPage(
     } else {
       tokenStatus.textContent = tokenSetText;
     }
+  }
+
+  /** Shows the stored port in the field, or a note when absent or invalid. */
+  function showPort(stored: { readonly port: unknown }): void {
     if (stored.port === undefined) {
       portInput.value = "";
       portStatus.textContent = portDefaultText;
-    } else {
-      const port = parsePort(stored.port);
-      if (port === undefined) {
-        portInput.value = "";
-        portStatus.textContent = portInvalidText;
-      } else {
-        portInput.value = port;
-        portStatus.textContent = "";
-      }
+      return;
+    }
+    const port = parsePort(stored.port);
+    if (port === undefined) {
+      portInput.value = "";
+      portStatus.textContent = portInvalidText;
+      return;
+    }
+    portInput.value = port;
+    portStatus.textContent = "";
+  }
+
+  // The token and the port are refreshed separately, so saving one never
+  // discards an unsaved entry in the other field.
+  async function refreshToken(): Promise<void> {
+    const stored = await load();
+    if (stored !== undefined) {
+      showToken(stored);
+    }
+  }
+
+  async function refreshPort(): Promise<void> {
+    const stored = await load();
+    if (stored !== undefined) {
+      showPort(stored);
     }
   }
 
@@ -133,7 +158,7 @@ export async function runOptionsPage(
         return;
       }
       tokenInput.value = "";
-      await refresh();
+      await refreshToken();
     })();
   });
 
@@ -146,7 +171,7 @@ export async function runOptionsPage(
         tokenStatus.textContent = tokenClearFailedText;
         return;
       }
-      await refresh();
+      await refreshToken();
     })();
   });
 
@@ -164,9 +189,13 @@ export async function runOptionsPage(
         portStatus.textContent = portSaveFailedText;
         return;
       }
-      await refresh();
+      await refreshPort();
     })();
   });
 
-  await refresh();
+  const initial = await load();
+  if (initial !== undefined) {
+    showToken(initial);
+    showPort(initial);
+  }
 }

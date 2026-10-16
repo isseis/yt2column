@@ -106,13 +106,19 @@ describe("runOptionsPage", () => {
     assert.equal(port.getAttribute("inputmode"), "numeric");
   });
 
-  it("shows that no token is set on a fresh store", async () => {
-    const { store } = fakeSettings();
-    const root = container();
-    await runOptionsPage(root, { store, log: recordingLogger().log });
-    const status = query(root, ".options-token-status").textContent ?? "";
-    assert.notEqual(status, "");
-    assert.equal(status.includes(validToken), false);
+  it("distinguishes the set, missing and invalid stored-token states", async () => {
+    const texts: string[] = [];
+    for (const token of [undefined, validToken, "not-a-token"]) {
+      const root = container();
+      await runOptionsPage(root, {
+        store: fakeSettings({ token }).store,
+        log: recordingLogger().log,
+      });
+      const status = query(root, ".options-token-status").textContent ?? "";
+      assert.notEqual(status, "");
+      texts.push(status);
+    }
+    assert.equal(new Set(texts).size, 3);
   });
 
   it("saves an accepted token, clears the field and shows it is set", async () => {
@@ -148,12 +154,17 @@ describe("runOptionsPage", () => {
         store: settings.store,
         log: recordingLogger().log,
       });
+      const status = query(root, ".options-token-status");
+      const before = status.textContent;
       const tokenInput = query<HTMLInputElement>(root, ".options-token");
       tokenInput.value = value;
       await click(query<HTMLButtonElement>(root, ".options-token-save"));
 
       assert.equal(settings.calls.saveToken.length, 0);
       assert.equal(tokenInput.value, value);
+      // A rejection replaces the state text with a reason.
+      assert.notEqual(status.textContent, before);
+      assert.notEqual(status.textContent, "");
     });
   }
 
@@ -231,11 +242,29 @@ describe("runOptionsPage", () => {
         store: settings.store,
         log: recordingLogger().log,
       });
+      const status = query(root, ".options-port-status");
+      const before = status.textContent;
       query<HTMLInputElement>(root, ".options-port").value = value;
       await click(query<HTMLButtonElement>(root, ".options-port-save"));
       assert.equal(settings.calls.savePort.length, 0);
+      // A rejection replaces the state text with a reason.
+      assert.notEqual(status.textContent, before);
+      assert.notEqual(status.textContent, "");
     });
   }
+
+  it("does not discard an unsaved port entry when the token is saved", async () => {
+    const settings = fakeSettings();
+    const root = container();
+    await runOptionsPage(root, {
+      store: settings.store,
+      log: recordingLogger().log,
+    });
+    query<HTMLInputElement>(root, ".options-port").value = "9999";
+    query<HTMLInputElement>(root, ".options-token").value = validToken;
+    await click(query<HTMLButtonElement>(root, ".options-token-save"));
+    assert.equal(query<HTMLInputElement>(root, ".options-port").value, "9999");
+  });
 
   it("reports a load failure on both sections and logs it", async () => {
     const recorder = recordingLogger();
