@@ -8,6 +8,7 @@ import (
 	"flag"
 	"io"
 	"os"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -613,6 +614,14 @@ func bulletContaining(section, term string) string {
 	return ""
 }
 
+// containsToken reports whether word appears in doc bounded by characters that
+// are not letters, digits, underscores, or hyphens, so "known" is not satisfied
+// by "unknown" or "recorded-unknown", and "run" is not satisfied by "runs".
+func containsToken(doc, word string) bool {
+	pattern := `(^|[^A-Za-z0-9_-])` + regexp.QuoteMeta(word) + `([^A-Za-z0-9_-]|$)`
+	return regexp.MustCompile(pattern).MatchString(doc)
+}
+
 // TestTokenUsageDocsContract checks the token-usage documents: the README
 // section describes the line's words and every reason llm.Usage can produce,
 // project_overview.md and security.md describe the usage handling, and
@@ -628,20 +637,26 @@ func TestTokenUsageDocsContract(t *testing.T) {
 	if section == "" {
 		t.Fatal("README has no Token usage section")
 	}
-	// Every format word run.go defines, plus the three stage names.
-	formatWords := []string{
-		tokensPrefix, tokensRun, tokensReused, tokensKnown, tokensUnknown,
-		tokensInput, tokensCacheRead, tokensCacheWrite, tokensOutput,
-		tokensReason, tokensModel, tokensNoModel,
-		writer.StageGeneration.String(), writer.StageShorten.String(), writer.StageReview.String(),
-	}
-	for _, word := range formatWords {
+	// Every format word run.go defines, plus the three stage names. The
+	// value-carrying fields are matched as substrings; the fixed words are
+	// matched as whole tokens, so "known" is not satisfied by "unknown" and
+	// "run" is not satisfied by "runs".
+	for _, word := range []string{tokensInput, tokensCacheRead, tokensCacheWrite, tokensOutput, tokensReason, tokensModel} {
 		if !strings.Contains(section, word) {
 			t.Errorf("README Token usage section does not contain %q", word)
 		}
 	}
+	for _, word := range []string{
+		tokensPrefix, tokensRun, tokensReused, tokensKnown, tokensUnknown, tokensNoModel,
+		writer.StageGeneration.String(), writer.StageShorten.String(), writer.StageReview.String(),
+	} {
+		if !containsToken(section, word) {
+			t.Errorf("README Token usage section does not contain the token %q", word)
+		}
+	}
 	// Every reason llm.Usage can produce, obtained from the code so the test
-	// does not spell them.
+	// does not spell them: the member-less rules, a member-named rule, and a
+	// rule outside the enumeration.
 	reasons := []llm.Usage{
 		llm.UnknownUsage(llm.RuleNotRead, ""),
 		llm.UnknownUsage(llm.RuleRecordedUnknown, ""),
@@ -649,6 +664,7 @@ func TestTokenUsageDocsContract(t *testing.T) {
 		llm.UnknownUsage(llm.RuleDuplicate, ""),
 		llm.UnknownUsage(llm.RuleNotObject, ""),
 		llm.UnknownUsage(llm.RuleNotNonNegativeInteger, ""),
+		llm.UnknownUsage(llm.RuleNotNonNegativeInteger, "output_tokens"),
 		llm.UnknownUsage(llm.UnknownRule(99), ""),
 	}
 	for _, usage := range reasons {
@@ -720,14 +736,27 @@ func TestTokenUsageDocsContract(t *testing.T) {
 	if table == nil {
 		t.Fatal("package_reference.md has no package table")
 	}
-	llmRow := tableRow(table, "internal/llm")
-	if llmRow == nil {
-		t.Fatal("package_reference.md has no internal/llm row")
-	}
-	cells := strings.Join(llmRow, " ")
-	for _, want := range []string{"TokenCounts", "Usage"} {
-		if !strings.Contains(cells, want) {
-			t.Errorf("the package_reference.md internal/llm row does not mention %s", want)
+	for _, row := range []struct {
+		pkg  string
+		want []string
+	}{
+		{"internal/llm", []string{"TokenCounts", "UnknownRule", "Usage"}},
+		{"internal/strictjson", []string{"IsNull", "AsNonNegativeInt64"}},
+		{"internal/writer", []string{"UsageOrigin", "StageUsage", "RunUsage", "TokenUsageError"}},
+		{"internal/artifact", []string{"version 2", "usage", "internal/llm"}},
+		{"internal/llm/deepseek", []string{"usage"}},
+		{"internal/llm/claude", []string{"usage"}},
+	} {
+		cells := tableRow(table, row.pkg)
+		if cells == nil {
+			t.Errorf("package_reference.md has no %s row", row.pkg)
+			continue
+		}
+		joined := strings.Join(cells, " ")
+		for _, want := range row.want {
+			if !strings.Contains(joined, want) {
+				t.Errorf("the package_reference.md %s row does not mention %s", row.pkg, want)
+			}
 		}
 	}
 }
