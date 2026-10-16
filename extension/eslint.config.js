@@ -18,7 +18,67 @@ const documentWritePattern = "/^(write|writeln)$/";
 const htmlParsingMessage =
   "Do not parse strings as HTML; build elements and set textContent.";
 
-// Selectors shared by every file. The CollectedInput rule below reuses this
+// chrome.storage.sync would sync the shared token off the device; the
+// extension stores it in chrome.storage.local only.
+const syncPattern = "/^sync$/";
+const syncMessage =
+  "Do not use chrome.storage.sync; store settings in chrome.storage.local.";
+
+// The branded types hide their brand symbol, so only the function named here
+// may assert the type to create a value. Every other reference form (an alias
+// import, a type alias, a nested reference, a namespace reference, a type
+// predicate) is rejected too.
+const brandMessage =
+  "Only the type's creator may assert this branded type; build it through its constructor.";
+
+/** Selectors that forbid asserting, aliasing or renaming any of the given brand names. */
+function brandSelectors(names) {
+  const name = `/^(${names.join("|")})$/`;
+  return [
+    {
+      selector: `:matches(TSAsExpression, TSTypeAssertion) TSTypeReference[typeName.name=${name}]`,
+      message: brandMessage,
+    },
+    {
+      selector: `:matches(TSAsExpression, TSTypeAssertion) TSQualifiedName[right.name=${name}]`,
+      message: brandMessage,
+    },
+    {
+      selector: `TSTypePredicate TSTypeReference[typeName.name=${name}]`,
+      message: brandMessage,
+    },
+    {
+      selector: `TSTypePredicate TSQualifiedName[right.name=${name}]`,
+      message: brandMessage,
+    },
+    {
+      selector: `TSTypeAliasDeclaration TSTypeReference[typeName.name=${name}]`,
+      message: brandMessage,
+    },
+    {
+      selector: `TSTypeAliasDeclaration TSQualifiedName[right.name=${name}]`,
+      message: brandMessage,
+    },
+    {
+      selector: `ImportSpecifier[imported.name=${name}]:not([local.name=${name}])`,
+      message: brandMessage,
+    },
+    {
+      selector: `ExportSpecifier[local.name=${name}]:not([exported.name=${name}])`,
+      message: brandMessage,
+    },
+  ];
+}
+
+const brandNames = [
+  "CollectedInput",
+  "SharedToken",
+  "ServerPort",
+  "PreparedRequest",
+  "RequestId",
+];
+
+// Selectors shared by every file. The files-scoped config below reuses this
 // list because a later config with files/ignores replaces the whole rule.
 const restrictedSyntax = [
   {
@@ -58,7 +118,41 @@ const restrictedSyntax = [
     selector: "ImportExpression",
     message: "Use a static import; import() is not allowed in the extension.",
   },
+  {
+    // chrome.storage.sync in the same four reference forms. The destructuring
+    // form matches any { sync } key by name, so the rule is intentionally
+    // name-based and would also reject an unrelated property named sync.
+    selector: `MemberExpression[computed=false][property.name=${syncPattern}]`,
+    message: syncMessage,
+  },
+  {
+    selector: `MemberExpression[computed=true][property.value=${syncPattern}]`,
+    message: syncMessage,
+  },
+  {
+    selector: `MemberExpression[computed=true][property.type="TemplateLiteral"][property.quasis.0.value.cooked=${syncPattern}]`,
+    message: syncMessage,
+  },
+  {
+    selector: `Property[key.name=${syncPattern}], Property[key.value=${syncPattern}]`,
+    message: syncMessage,
+  },
 ];
+
+/** A config that forbids the listed brands (and the common selectors) in file. */
+function creatorConfig(file, own) {
+  const forbidden = brandNames.filter((name) => !own.includes(name));
+  return {
+    files: [file],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        ...restrictedSyntax,
+        ...brandSelectors(forbidden),
+      ],
+    },
+  };
+}
 
 export default defineConfig(
   { ignores: ["dist/", "node_modules/"] },
@@ -83,21 +177,19 @@ export default defineConfig(
     },
   },
   {
-    // Only collect() creates a CollectedInput. Other modules must consume
-    // the value through its type, not assert it; tests may build fixtures.
+    // Source and scripts must consume every branded value through its type;
+    // only the creator file below may assert it. Tests may build fixtures.
     files: ["src/**/*.ts", "scripts/**/*.ts"],
-    ignores: ["src/core/collect.ts"],
     rules: {
       "no-restricted-syntax": [
         "error",
         ...restrictedSyntax,
-        {
-          selector:
-            'TSAsExpression[typeAnnotation.typeName.name="CollectedInput"], TSTypeAssertion[typeAnnotation.typeName.name="CollectedInput"]',
-          message:
-            "Only collect() creates a CollectedInput; do not assert the type.",
-        },
+        ...brandSelectors(brandNames),
       ],
     },
   },
+  creatorConfig("src/core/collect.ts", ["CollectedInput"]),
+  creatorConfig("src/core/settings.ts", ["SharedToken", "ServerPort"]),
+  creatorConfig("src/core/prepare.ts", ["PreparedRequest"]),
+  creatorConfig("src/core/response.ts", ["RequestId"]),
 );

@@ -56,7 +56,7 @@ HEAD `e8b21fa`（ブランチ `issei/browser-extension-03`）で確認した。�
 
 -   型の表明の禁止は `CollectedInput` の 1 つで、`files: ["src/**/*.ts", "scripts/**/*.ts"]`・`ignores: ["src/core/collect.ts"]` の 1 つの設定のオブジェクトにある（`extension/eslint.config.js:85-102`）。選択子は `typeAnnotation.typeName.name="CollectedInput"`（`:96`）で、表明する型がその名前の型の参照そのものである場合だけに一致する。共通の選択子 `restrictedSyntax`（`:23-61`）は、ファイルを限定しない設定のオブジェクト（`:70-84`）を通じてテストのファイルにも当たる。flat config では後の設定のオブジェクトが `no-restricted-syntax` を丸ごと置き換えるので、ファイルを限定する設定のオブジェクトは、それぞれ `...restrictedSyntax` を並べ直す必要がある（設計書 3.11）。
 -   既存のメンバの禁止は、`.name`・`["name"]`・`` [`name`] `` の 3 つの参照の書き方（`:24-35`）と、分割代入のキー（`:36-40`）を対象にする。`storage.sync` の禁止も同じ 4 つの書き方を対象にする。既存のソースとテストは `storage.sync` を参照しない（`rg -n "storage\.sync" extension` の結果は 0 件。終了コード 1。2026-10-16、HEAD `e8b21fa`）。
--   既存の `lintRules.test.ts` は、共通の選択子を `src/sample.ts` と `test/sample.test.ts` の名前だけで確かめる（`extension/test/lintRules.test.ts:24`）。「CollectedInput assertions」（`:126-164`）は残す（設計書 3.11）。
+-   既存の `lintRules.test.ts` は、共通の選択子を `src/sample.ts` と `test/sample.test.ts` の名前だけで確かめる（`extension/test/lintRules.test.ts:24`）。既存の「CollectedInput assertions」（`:126-164`）の確かめ方（作り手のファイルとテストで許され、ほかのソースとスクリプトで禁じられること、山括弧の表明も禁じられること）は、5 つのブランド付きの型を対象にする「branded type assertions」の表の行として残す（設計書 3.11）。
 
 **ブランド付きの型の作り方の制約（Conditional checks の「具体的な型の作り方」）**
 
@@ -148,21 +148,21 @@ HEAD `e8b21fa`（ブランチ `issei/browser-extension-03`）で確認した。�
 -   変更: `extension/src/core/summary.ts`、`extension/tsconfig.core.json`、`extension/eslint.config.js`、`extension/test/lintRules.test.ts`・`typecheck.test.ts`
 
 **タスク**
--   [ ] **ステップ 1-1**: `types/core-encoding.d.ts` を作り（`core/` が使う `TextEncoder.encode` と、`TextDecoder` の構築子・`decode` の宣言だけ）、`tsconfig.core.json` の `include` に足す。`typecheck.test.ts` の `runTsc` が、`tsconfig.core.json` を検査するときに足す宣言のファイルへ `core-encoding.d.ts` を加える。あわせて、`TextEncoder`・`TextDecoder` を使うファイルを `tsconfig.core.json` が受理することを確かめる行を加える（§1.3「型検査」）。`core/summary.ts` の `hasExactKeys`・`isRejectionReason` に `export` を付ける。
+-   [x] **ステップ 1-1**: `types/core-encoding.d.ts` を作り（`core/` が使う `TextEncoder.encode` と、`TextDecoder` の構築子・`decode` の宣言だけ）、`tsconfig.core.json` の `include` に足す。`typecheck.test.ts` の `runTsc` が、`tsconfig.core.json` を検査するときに足す宣言のファイルへ `core-encoding.d.ts` を加える。あわせて、`TextEncoder`・`TextDecoder` を使うファイルを `tsconfig.core.json` が受理することを確かめる行を加える（§1.3「型検査」）。`core/summary.ts` の `hasExactKeys`・`isRejectionReason` に `export` を付ける。
     -   **対象:** `extension/types/core-encoding.d.ts`・`tsconfig.core.json`・`src/core/summary.ts`・`test/typecheck.test.ts`。**完了:** `make ext-typecheck` と `typecheck.test.ts` が通る。
--   [ ] **ステップ 1-2**: `core/settings.ts` を設計書 3.3 のとおりに作る（`defaultPort`・`parseToken`・`parsePort`・`checkSettings`・`SettingsReader`・`SettingsStore`）。補正をしないこと、`[0-9]` を ASCII に限ることは設計書 3.3 の「受理する形」のとおりとする。
+-   [x] **ステップ 1-2**: `core/settings.ts` を設計書 3.3 のとおりに作る（`defaultPort`・`parseToken`・`parsePort`・`checkSettings`・`SettingsReader`・`SettingsStore`）。補正をしないこと、`[0-9]` を ASCII に限ることは設計書 3.3 の「受理する形」のとおりとする。
     -   **対象:** `extension/src/core/settings.ts`。**完了:** `make ext-typecheck` が通る。
--   [ ] **ステップ 1-3**: `core/prepare.ts` を設計書 3.4 のとおりに作る（`buildArticleBody`・`maxBodyBytes`・`PreparedRequest`・`preflightReasons`・`prepareSend`）。確認の順序は設計書 3.4 のフローチャートのとおりで、収集の拒否では `settings.load` を呼ばない。バイト数は `TextEncoder` で数える。
+-   [x] **ステップ 1-3**: `core/prepare.ts` を設計書 3.4 のとおりに作る（`buildArticleBody`・`maxBodyBytes`・`PreparedRequest`・`preflightReasons`・`prepareSend`）。確認の順序は設計書 3.4 のフローチャートのとおりで、収集の拒否では `settings.load` を呼ばない。バイト数は `TextEncoder` で数える。
     -   **対象:** `extension/src/core/prepare.ts`。**完了:** `make ext-typecheck` が通る。
--   [ ] **ステップ 1-4**: `core/response.ts` を設計書 3.6 のとおりに作る（`serverRejectStatus`・`isServerRejectReason`・`parseRequestId`・`maxResponseBytes`・`unexpectedChecks`・`toSendOutcome`・`classifyResponse`）。判定は 3.6 の表の順 1〜9 とし、解析した値は `Object.keys`・`Object.hasOwn`（または `hasExactKeys`）だけで調べる。
+-   [x] **ステップ 1-4**: `core/response.ts` を設計書 3.6 のとおりに作る（`serverRejectStatus`・`isServerRejectReason`・`parseRequestId`・`maxResponseBytes`・`unexpectedChecks`・`toSendOutcome`・`classifyResponse`）。判定は 3.6 の表の順 1〜9 とし、解析した値は `Object.keys`・`Object.hasOwn`（または `hasExactKeys`）だけで調べる。
     -   **対象:** `extension/src/core/response.ts`。**完了:** `make ext-typecheck` が通る。
--   [ ] **ステップ 1-5**: `core/sendMessages.ts`（設計書 3.7）と `core/resultView.ts`（設計書 3.8 の `ResultView`・`parseResultView`）を作る。`blockMessage` は `RejectionReason` を `rejectionMessage` に渡す。3 つの関数の `switch` は `default` で `never` を受ける。`parseResultView` は設計書 3.8 に挙げた既存の検査の関数を使い、再実装しない。
+-   [x] **ステップ 1-5**: `core/sendMessages.ts`（設計書 3.7）と `core/resultView.ts`（設計書 3.8 の `ResultView`・`parseResultView`）を作る。`blockMessage` は `RejectionReason` を `rejectionMessage` に渡す。3 つの関数の `switch` は `default` で `never` を受ける。`parseResultView` は設計書 3.8 に挙げた既存の検査の関数を使い、再実装しない。
     -   **対象:** `extension/src/core/sendMessages.ts`・`resultView.ts`。**完了:** `make ext-typecheck` が通る。
--   [ ] **ステップ 1-6**: lint の規則を設計書 3.11 の「lint の規則の構成」のとおりに改める。ブランド付きの 4 つの型と `CollectedInput` について §1.3 の表の「禁止する」の書き方をすべて禁止し、`storage.sync` を §1.3 の 4 つの書き方で禁止する。作り手のファイルごとの設定のオブジェクトは `...restrictedSyntax` を並べ直す。`test/helpers/settings.ts` を作り（§1.3「テストの補助」）、テストを作る。
+-   [x] **ステップ 1-6**: lint の規則を設計書 3.11 の「lint の規則の構成」のとおりに改める。ブランド付きの 4 つの型と `CollectedInput` について §1.3 の表の「禁止する」の書き方をすべて禁止し、`storage.sync` を §1.3 の 4 つの書き方で禁止する。作り手のファイルごとの設定のオブジェクトは `...restrictedSyntax` を並べ直す。`test/helpers/settings.ts` を作り（§1.3「テストの補助」）、テストを作る。
     -   `settings.test.ts`・`prepare.test.ts`・`response.test.ts`・`sendMessages.test.ts`・`resultView.test.ts`: 設計書 3.12 の表の「対象」の各項目と、要件書の AC-02・AC-03・AC-07・AC-08・AC-16・AC-28 に挙がった入力の例をすべて含める。`parseResultView` は、`unexpected` の `status` の境界（99・100・599・600・整数でない値）を含める。`classifyResponse` は、`__proto__` などの名前のメンバ（設計書 3.12）を含める。
     -   `lintRules.test.ts`（「branded type assertions」「storage.sync」）: 作り手のファイルごとに、自身の型の表明が許され、ほかの 4 つの型の表明が禁止されること。`src/`・`scripts/` のほかのファイルでは 5 つのブランド付きの型への表明が禁止され、ほかの型への表明（既存の `as Record<string, unknown>` など）は禁止されないこと。テストのファイルでは 5 つの型への表明が許されること。§1.3 の表で「禁止する」とした書き方のそれぞれが違反になること。`chrome.storage.sync` の 4 つの書き方が違反になり、`chrome.storage.local` は違反にならないこと。作り手のファイルのそれぞれで、共通の選択子（`innerHTML` への代入、`import()`、`storage.sync`）が違反になること。
     -   **対象:** `extension/eslint.config.js`・`test/lintRules.test.ts`・`test/helpers/settings.ts`・`test/settings.test.ts`・`prepare.test.ts`・`response.test.ts`・`sendMessages.test.ts`・`resultView.test.ts`。**完了:** これらのテストと `make ext-lint` が通る。
--   [ ] **ステップ 1-7**: 壊して失敗することを確かめ、コミットメッセージに記録する。括弧の中は、それを検出するテストである。
+-   [x] **ステップ 1-7**: 壊して失敗することを確かめ、コミットメッセージに記録する。括弧の中は、それを検出するテストである。
     -   `parseToken`・`parsePort` の各条件を 1 つずつ外す、`trim` を加える、`checkSettings` の判定の順序を入れ替える、ポートの欠落と不正を同じ扱いにする（`settings.test.ts`）。
     -   `prepareSend` の確認の順序を入れ替える、収集の拒否で `load` を呼ぶ、バイト数を `length` で数える、上限の比較を `<` にする、本文にタイトル・トークン・空の任意のメンバを入れる（`prepare.test.ts`）。
     -   `classifyResponse` の順 2〜9 の各判定を 1 つずつ外す、`fatal`・`ignoreBOM` を外す、`Object.hasOwn` を `in` に替える、`toSendOutcome` で `cause` を残す（`response.test.ts`）。
@@ -186,8 +186,8 @@ HEAD `e8b21fa`（ブランチ `issei/browser-extension-03`）で確認した。�
 
 **判定理由**: §1.3「ブランド付きの型の作り方の制約」が `SharedToken`・`ServerPort`・`PreparedRequest`・`RequestId` の作り方に「リーフパッケージへの移動」と「lint での禁止」の 2 案を挙げており、「競合する実装の案」の引き金に当たるため。ステップ 1-4 の応答の解析は複雑だが、設計書 3.6 が判定の順序と各検査を確定した決定的な処理で、回復の流れ・並行・状態機械ではない。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
