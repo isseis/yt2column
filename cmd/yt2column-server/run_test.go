@@ -311,8 +311,14 @@ func TestClosedStdoutPipeKeepsServing(t *testing.T) {
 		t.Fatalf("exit status = %v, want exit code %d\nstderr:\n%s", state, exitOK, child.stderr.String())
 	}
 	stderr := child.stderr.String()
-	if !strings.Contains(stderr, "writing the token to standard output failed") {
-		t.Errorf("stderr does not report the display failure:\n%s", stderr)
+	// The failure line is the one that reports the display failure; assert on
+	// it alone, since the "listening" log line also names the token file.
+	failure := stderrLine(stderr, "writing the token to standard output failed")
+	if failure == "" {
+		t.Fatalf("stderr does not report the display failure:\n%s", stderr)
+	}
+	if !strings.Contains(failure, e.tokenPath(t)) {
+		t.Errorf("the display failure does not name the token file %s: %s", e.tokenPath(t), failure)
 	}
 	requireNoSecret(t, "child stderr", stderr, e.readToken(t))
 }
