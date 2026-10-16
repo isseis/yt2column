@@ -2402,6 +2402,29 @@ func TestRunArtifactExitCodes(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "a malformed usage is a run failure",
+			want: exitFailure,
+			args: []string{"--artifacts", "@dir", "--after", "generation", "--out", "@out", runVideoURL},
+			prepared: func(t *testing.T, e *runEnv, dir string) {
+				e.useReviewClient(reviewLLM(emptyReviewJSON))
+				// Save a real generation artifact (so its input matches the
+				// material), then break only its usage: a valid usage would let
+				// the run proceed, so the rejection is the usage rule's.
+				saved := saveArtifactsOnce(t, shortGeneration)
+				data, err := os.ReadFile(artifactFile(saved, runVideoID, "generation"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !strings.Contains(string(data), `"usage":null`) {
+					t.Fatalf("the saved artifact has no usage field to tamper with:\n%s", data)
+				}
+				tampered := strings.Replace(string(data), `"usage":null`, `"usage":"x"`, 1)
+				if err := os.WriteFile(artifactFile(dir, runVideoID, "generation"), []byte(tampered), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
