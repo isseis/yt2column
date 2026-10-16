@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-16 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-16 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書の既存コードへの言及（`file:line`）は、コミット `15d9b72` で確かめた。
