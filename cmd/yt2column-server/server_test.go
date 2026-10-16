@@ -30,7 +30,9 @@ func TestServerEndToEnd(t *testing.T) {
 	d := loopbackDeps(t, validResponseLLM(), webhookURL)
 
 	first := startServer(t, e, d)
-	token := e.readToken(t)
+	// Use the one line the start displays on standard output, not the token
+	// file, so a mismatch between the two would fail the authentication below.
+	token := displayedToken(t, first)
 	port := e.port(t)
 
 	accepted := mustPostArticle(t, port, token, requestBody(testValidRaw), 202)
@@ -74,7 +76,7 @@ func TestServerEndToEnd(t *testing.T) {
 	}
 
 	second := startServer(t, e, d)
-	mustPostArticle(t, e.port(t), token, requestBody(testValidRaw), 202)
+	mustPostArticle(t, e.port(t), displayedToken(t, second), requestBody(testValidRaw), 202)
 	// stop waits for the job, so its article has been posted when it returns.
 	if code := second.stop(t); code != exitOK {
 		t.Fatalf("second run exit code = %d, want %d\nstderr:\n%s", code, exitOK, second.stderr.String())
@@ -84,4 +86,16 @@ func TestServerEndToEnd(t *testing.T) {
 	}
 	requireNoSecret(t, "first stderr", first.stderr.String(), token)
 	requireNoSecret(t, "second stderr", second.stderr.String(), token)
+}
+
+// displayedToken returns the shared token from the one line the server displays
+// on standard output, read while the server serves through the synchronized
+// buffer.
+func displayedToken(t *testing.T, srv *runningServer) string {
+	t.Helper()
+	raw := srv.stdout.String()
+	if strings.Count(raw, "\n") != 1 || !strings.HasSuffix(raw, "\n") {
+		t.Fatalf("the display is not one token line: %q", raw)
+	}
+	return strings.TrimSuffix(raw, "\n")
 }
