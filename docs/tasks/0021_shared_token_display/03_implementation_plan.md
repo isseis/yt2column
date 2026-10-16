@@ -153,7 +153,7 @@ HEAD `f40a831` で確認した。設計書は既存のファイルの行番号�
 - [x] PR がマージされた
 - [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
--   [ ] **ステップ 1-7**: `main.go` で、`run` を呼ぶ前に `signal.Ignore(syscall.SIGPIPE)` を呼ぶ。SIGPIPE を無視すると、ファイル記述子 1・2 への閉じたパイプの書き込みはプロセスを終了させず、書き込みが `syscall.EPIPE` を返すので、ステップ 1-2 の失敗の扱いに届く（ランタイムの `sigpipe`（`$(go env GOROOT)/src/runtime/signal_unix.go:334-339`）は `signal_ignored(_SIGPIPE)` のとき終了しない。2026-10-16、Go 1.27.1 で確認）。`signal.Notify` で購読してチャネルを読まない形と比べ、読まれないチャネルを残さず 1 回の呼び出しで済む。無視は子プロセスに引き継がれるが、サーバは子プロセスを起動しないので影響しない。
+-   [x] **ステップ 1-7**: `main.go` で、`run` を呼ぶ前に `signal.Ignore(syscall.SIGPIPE)` を呼ぶ。SIGPIPE を無視すると、ファイル記述子 1・2 への閉じたパイプの書き込みはプロセスを終了させず、書き込みが `syscall.EPIPE` を返すので、ステップ 1-2 の失敗の扱いに届く（ランタイムの `sigpipe`（`$(go env GOROOT)/src/runtime/signal_unix.go:334-339`）は `signal_ignored(_SIGPIPE)` のとき終了しない。2026-10-16、Go 1.27.1 で確認）。`signal.Notify` で購読してチャネルを読まない形と比べ、読まれないチャネルを残さず 1 回の呼び出しで済む。無視は子プロセスに引き継がれるが、サーバは子プロセスを起動しないので影響しない。
     -   **対象:** `cmd/yt2column-server/main.go`。**完了:** `make fmt` と `go build ./...` が通り、`TestClosedStdoutPipeKeepsServing`（ステップ 2-2）で確かめる。
 
 **完了条件:** `make fmt` → `make test` → `make lint` が通り、`TestTokenShownOnEveryStart`・`TestStartupFailures` が通る。
@@ -166,9 +166,9 @@ HEAD `f40a831` で確認した。設計書は既存のファイルの行番号�
 ステップ 2-2・2-4 は、フェーズ 1 と同じファイルを触るが、フェーズ 1 の完了後（`make test` が通った状態）に、新しい検査を加えるステップである。
 
 **タスク**
--   [ ] **ステップ 2-1**: `test_helpers.go` に、子プロセスの標準出力として、読み手を閉じたパイプの書き込み側を渡して起動できる形を `startServerChild` に加える（設計書 7）。読み手は子の起動（`cmd.Start`）より前に閉じる（子の最初の書き込みが必ず閉じたパイプへ届くようにする）。親が持つ書き込み側は `t.Cleanup` で閉じる。子の環境と待ち受けの判定は既存の処理をそのまま使う。
+-   [x] **ステップ 2-1**: `test_helpers.go` に、子プロセスの標準出力として、読み手を閉じたパイプの書き込み側を渡して起動できる形を `startServerChild` に加える（設計書 7）。読み手は子の起動（`cmd.Start`）より前に閉じる（子の最初の書き込みが必ず閉じたパイプへ届くようにする）。親が持つ書き込み側は `t.Cleanup` で閉じる。子の環境と待ち受けの判定は既存の処理をそのまま使う。
     -   **対象:** `cmd/yt2column-server/test_helpers.go`。**完了:** `make fmt` が通る。
--   [ ] **ステップ 2-2**: `TestClosedStdoutPipeKeepsServing` を加える（SIGPIPE。設計書 7）。SIGPIPE はプロセス全体に働くので、子プロセスのテスト（`childModeMain`。本番の `main` をそのまま動かす）で確かめる。子の標準出力に、読み手を閉じた `os.Pipe` の書き込み側を渡して起動し、子が待ち受けを開始すること、標準エラー出力に表示の失敗の 1 行（`requireNoSecret` を通る）が出ること、`SIGTERM` で停止したときの終了コードが `exitOK` であることを確かめる。
+-   [x] **ステップ 2-2**: `TestClosedStdoutPipeKeepsServing` を加える（SIGPIPE。設計書 7）。SIGPIPE はプロセス全体に働くので、子プロセスのテスト（`childModeMain`。本番の `main` をそのまま動かす）で確かめる。子の標準出力に、読み手を閉じた `os.Pipe` の書き込み側を渡して起動し、子が待ち受けを開始すること、標準エラー出力に表示の失敗の 1 行（`requireNoSecret` を通る）が出ること、`SIGTERM` で停止したときの終了コードが `exitOK` であることを確かめる。
     -   **対象:** `cmd/yt2column-server/run_test.go`。**完了:** このテストが通り、子が閉じたパイプで終了しない。
 
 ### PR-2 作成ポイント: closed stdout pipe (SIGPIPE)

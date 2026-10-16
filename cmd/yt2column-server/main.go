@@ -6,6 +6,8 @@ package main
 import (
 	"context"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/isseis/yt2column/internal/signalrun"
 )
@@ -16,6 +18,12 @@ import (
 // nowhere else in this package's production code, so internal/config is the
 // only code that reads a variable's value.
 func main() {
+	// Ignore SIGPIPE before run writes the token: a write to a closed pipe
+	// (for example standard output whose reader has exited) then returns EPIPE
+	// instead of ending the process, so run reports the display failure and
+	// keeps serving. Ignoring is inherited by child processes, but the server
+	// starts none.
+	signal.Ignore(syscall.SIGPIPE)
 	os.Exit(signalrun.Run(func(ctx context.Context) int {
 		return run(ctx, os.Args[1:], os.LookupEnv, os.Stdout, os.Stderr, productionDeps())
 	}))

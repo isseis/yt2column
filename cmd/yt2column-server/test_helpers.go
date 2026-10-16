@@ -594,6 +594,15 @@ type serverChild struct {
 // reaps each child is registered as soon as it starts.
 func startServerChild(t *testing.T, mode string, e *serverEnv, extra map[string]string) *serverChild {
 	t.Helper()
+	return startServerChildWithStdout(t, mode, e, extra, nil)
+}
+
+// startServerChildWithStdout is startServerChild, but when stdout is non-nil
+// the child's standard output is that writer instead of the captured buffer.
+// The closed-pipe test passes the write end of a pipe whose reader it has
+// already closed, so the child's display write reaches a closed pipe.
+func startServerChildWithStdout(t *testing.T, mode string, e *serverEnv, extra map[string]string, stdout io.Writer) *serverChild {
+	t.Helper()
 	requireIPv6Loopback(t)
 	for range listenAttempts {
 		e.setPort(freePort(t))
@@ -601,7 +610,11 @@ func startServerChild(t *testing.T, mode string, e *serverEnv, extra map[string]
 		cmd.Env = childEnv(mode, e.vars, extra)
 		cmd.WaitDelay = childWaitDelay
 		c := &serverChild{cmd: cmd, done: make(chan struct{})}
-		cmd.Stdout = &c.stdout
+		if stdout != nil {
+			cmd.Stdout = stdout
+		} else {
+			cmd.Stdout = &c.stdout
+		}
 		cmd.Stderr = &c.stderr
 		if err := cmd.Start(); err != nil {
 			t.Fatalf("start the server child: %v", err)

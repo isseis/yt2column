@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -281,6 +282,39 @@ func stderrLine(output, sub string) string {
 		}
 	}
 	return ""
+}
+
+// TestClosedStdoutPipeKeepsServing checks that a start whose standard output is
+// a pipe with no reader keeps serving. SIGPIPE is process-wide, so the
+// production main runs in a child process: the child's first display write
+// reaches the closed pipe, and because main ignores SIGPIPE the write fails
+// with EPIPE, run reports the display failure without the token, and the
+// server keeps listening until a signal stops it with exitOK.
+func TestClosedStdoutPipeKeepsServing(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("create a pipe: %v", err)
+	}
+	// Close the reader before the child starts, so the child's first write
+	// always reaches a closed pipe.
+	if err := reader.Close(); err != nil {
+		t.Fatalf("close the pipe's reader: %v", err)
+	}
+	t.Cleanup(func() { _ = writer.Close() })
+
+	e := newServerEnv(t)
+	// startServerChildWithStdout returns only once the child listens, so
+	// reaching the next line proves the display failure did not stop it.
+	child := startServerChildWithStdout(t, childModeMain, e, nil, writer)
+	child.signal(t, syscall.SIGTERM)
+	if state := child.wait(t); state.ExitCode() != exitOK {
+		t.Fatalf("exit status = %v, want exit code %d\nstderr:\n%s", state, exitOK, child.stderr.String())
+	}
+	stderr := child.stderr.String()
+	if !strings.Contains(stderr, "writing the token to standard output failed") {
+		t.Errorf("stderr does not report the display failure:\n%s", stderr)
+	}
+	requireNoSecret(t, "child stderr", stderr, e.readToken(t))
 }
 
 // noticeSignal is a notifier that reports each notice on a channel.
