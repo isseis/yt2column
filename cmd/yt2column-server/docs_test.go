@@ -59,6 +59,25 @@ func TestServerDocsContract(t *testing.T) {
 				t.Errorf("README.md server section does not mention %q", want)
 			}
 		}
+		// The token-display contract: shown on every start, re-confirmed by
+		// restarting, with reading the file as the fallback when the display
+		// fails, and a caveat when standard output is redirected.
+		for _, want := range []string{
+			"on every start",
+			"paste it into the extension's options page",
+			"the display fails",
+			"redirect",
+		} {
+			if !strings.Contains(section, want) {
+				t.Errorf("README.md server section does not mention %q", want)
+			}
+		}
+		if !hasLineContainingAll(section, "To see the token again", "restart the server") {
+			t.Error("README.md server section does not say to restart the server to see the token again")
+		}
+		if !hasLineContainingAll(section, "cat", "server-token") {
+			t.Error("README.md server section gives no command to read the token file")
+		}
 		// A curl example must carry the endpoint, the four headers (with the
 		// token fed through standard input, not as an argument), and the
 		// stdin header flag.
@@ -141,6 +160,22 @@ func TestServerDocsContract(t *testing.T) {
 			"chrome.storage.local",
 			"枠（`" + strconv.Itoa(server.MaxInFlightForTest) + "`）",
 			bodyMiB,
+		} {
+			if !strings.Contains(section, want) {
+				t.Errorf("security.md 8.2 does not mention %q", want)
+			}
+		}
+		// The token-display contract: shown on every start, its exposure
+		// limited to standard output and where that output lingers, never in
+		// the log, and a failed display does not stop the start. The token
+		// handed to the extension is the one displayed at startup.
+		for _, want := range []string{
+			"起動のたび",
+			"起動時に表示されたトークン",
+			"トークンはログに残らない",
+			"表示に失敗しても起動を止めない",
+			"スクロールバック",
+			"リダイレクト",
 		} {
 			if !strings.Contains(section, want) {
 				t.Errorf("security.md 8.2 does not mention %q", want)
