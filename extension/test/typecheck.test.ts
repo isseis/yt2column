@@ -49,7 +49,8 @@ describe("type errors fail typecheck and build", () => {
   });
 
   // Runs tsc with a configuration that extends base and checks only file
-  // (plus the URL declarations tsconfig.core.json reads). typeRoots points at
+  // (plus the URL and encoding declarations tsconfig.core.json reads).
+  // typeRoots points at
   // the extension's node_modules because the temporary directory has none;
   // rootDir and outDir keep the file inside the project.
   function runTsc(

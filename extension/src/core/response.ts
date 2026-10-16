@@ -1,6 +1,7 @@
 // Interprets a received response as a trusted value. The response body is
-// untrusted: only the accepted shapes are read, values are read as own
-// properties, and the raw body text is never carried out of this module.
+// untrusted: the member set is checked with Object.keys, so the fixed names
+// read below are own properties; no parsed method is called, no inherited
+// member is read, and the raw body text is never carried out of this module.
 
 import { hasExactKeys } from "./summary.ts";
 

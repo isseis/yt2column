@@ -58,6 +58,12 @@ describe("blockMessage", () => {
     const texts = blockReasons.map((reason) => blockMessage(reason).text);
     assert.equal(new Set(texts).size, blockReasons.length);
   });
+
+  it("names the next action for the preflight reasons", () => {
+    assert.ok(textOf(blockMessage("settings-unreadable")).includes("options"));
+    assert.ok(textOf(blockMessage("port-invalid")).includes("8765"));
+    assert.ok(textOf(blockMessage("body-too-large")).includes("4 MiB"));
+  });
 });
 
 describe("serverRejectMessage", () => {

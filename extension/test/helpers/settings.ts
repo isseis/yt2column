@@ -6,9 +6,6 @@ import type {
 /** A 64-character lowercase hex token, distinctive enough to search for in output. */
 export const identifiableToken = "cafebabe".repeat(8);
 
-/** A second accepted token, distinct from identifiableToken. */
-export const otherToken = "deadbeef".repeat(8);
-
 export interface SettingsReaderRecorder {
   readonly reader: SettingsReader;
   loadCalls(): number;

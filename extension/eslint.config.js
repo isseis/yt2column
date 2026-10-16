@@ -63,6 +63,10 @@ function brandSelectors(names) {
       selector: `ImportSpecifier[imported.name=${name}]:not([local.name=${name}])`,
       message: brandMessage,
     },
+    {
+      selector: `ExportSpecifier[local.name=${name}]:not([exported.name=${name}])`,
+      message: brandMessage,
+    },
   ];
 }
 
@@ -115,7 +119,9 @@ const restrictedSyntax = [
     message: "Use a static import; import() is not allowed in the extension.",
   },
   {
-    // chrome.storage.sync in the same four reference forms.
+    // chrome.storage.sync in the same four reference forms. The destructuring
+    // form matches any { sync } key by name, so the rule is intentionally
+    // name-based and would also reject an unrelated property named sync.
     selector: `MemberExpression[computed=false][property.name=${syncPattern}]`,
     message: syncMessage,
   },

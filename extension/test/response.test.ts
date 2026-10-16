@@ -47,6 +47,26 @@ describe("serverRejectStatus", () => {
     assert.equal(isServerRejectReason("bogus"), false);
     assert.equal(isServerRejectReason(1), false);
   });
+
+  it("pins the reason-to-status pairs", () => {
+    const pairs: [ServerRejectReason, number][] = [
+      ["unauthorized", 401],
+      ["forbidden_origin", 403],
+      ["forbidden_host", 403],
+      ["too_many_requests", 429],
+      ["body_too_large", 413],
+      ["invalid_body", 400],
+      ["invalid_video_url", 400],
+      ["invalid_transcript", 400],
+      ["internal_error", 500],
+      ["not_found", 404],
+      ["method_not_allowed", 405],
+      ["unsupported_media_type", 415],
+    ];
+    for (const [reason, status] of pairs) {
+      assert.equal(serverRejectStatus[reason], status, reason);
+    }
+  });
 });
 
 describe("parseRequestId", () => {

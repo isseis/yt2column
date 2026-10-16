@@ -208,6 +208,10 @@ describe("branded type assertions", () => {
       code: (type) =>
         `import type { ${type} as Renamed } from "./x.ts";\nexport type Y = Renamed;\n`,
     },
+    {
+      name: "a renaming re-export",
+      code: (type) => `export type { ${type} as Renamed } from "./x.ts";\n`,
+    },
   ];
   for (const { type } of brands) {
     for (const { name, code } of forms) {
