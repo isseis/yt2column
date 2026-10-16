@@ -76,5 +76,9 @@ export function renderResultView(
         summaryNode(doc, view.summary),
       );
       return;
+    default: {
+      const exhaustive: never = view;
+      throw new Error(`Unhandled result view: ${String(exhaustive)}`);
+    }
   }
 }

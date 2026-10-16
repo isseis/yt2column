@@ -125,7 +125,12 @@ describe("renderResultView", () => {
     const root = container();
     renderResultView(root, { kind: "sending", summary: collected });
     expectMessage(root, sendingMessage);
-    assert.ok((root.textContent ?? "").includes(collected.title));
+    // The close guidance and the Slack warning are the substance of AC-22, so
+    // assert them independently of the constant the code renders.
+    const text = root.textContent ?? "";
+    assert.ok(text.includes("close"), text);
+    assert.ok(text.includes("Slack"), text);
+    assert.ok(text.includes(collected.title));
   });
 
   it("shows the sent outcome, its request id and the summary", () => {

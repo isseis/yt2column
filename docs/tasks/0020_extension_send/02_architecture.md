@@ -8,7 +8,7 @@
 | Created | 2026-10-16 |
 | Review date | 2026-10-16 |
 | Reviewer | isseis |
-| Comments | 3.3 の `StorageArea` のキーの型を `string \| readonly string[]` から `string \| string[]` に直した（`@types/chrome` の `get`・`remove` の型をそのまま受けられるようにするための編集上の訂正）。受け取る値の方針は変えておらず、判断は変わっていない |
+| Comments | 3.3 の `StorageArea` のキーの型を `string \| readonly string[]` から `string \| string[]` に直した（`@types/chrome` の `get`・`remove` の型をそのまま受けられるようにするための編集上の訂正）。受け取る値の方針は変えておらず、判断は変わっていない。3.9・3.14・2.2 に `sendingMessage` を加えた（送信中の文言をポップアップの経路と結果のウィンドウで共有する。3.8・3.9 が既に求める振る舞いを公開したもので、判断は変わっていない） |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `c4b656e` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指す。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-07）への対応は 3.13 にまとめる。
 
@@ -232,6 +232,7 @@ flowchart LR
     RS --> SM
     RS --> RV
     RS --> RP
+    RS --> ME
     RD --> ME
     SM --> ME
     SM --> PR
@@ -1040,6 +1041,9 @@ export function messageNodes(doc: Document, message: RejectionMessage): HTMLElem
 
 // ui/renderSend.ts
 
+/** The "sending" notice; the popup path and the result window both show it (3.8). */
+export const sendingMessage: RejectionMessage;
+
 /** Replaces the children of container with a text-only rendering of a send outcome. */
 export function renderSendOutcome(container: HTMLElement, outcome: SendOutcome): void;
 
@@ -1048,6 +1052,7 @@ export function renderResultView(container: HTMLElement, view: ResultView): void
 ```
 
 -   `messageNodes` は、0007 の `rejectedNodes`（`extension/src/ui/render.ts:68-88`）の、文言と手順のリストを作る部分を公開したものである。`renderSummary` はこれを使い続け、振る舞いは変えない。`renderSend.ts` は送らない理由・送信の結果の文言の表示に同じ `messageNodes` を使い、手順のリストの表示を再実装しない。
+-   `sendingMessage` は、送信中に示す文言と、閉じないことの案内（`renderResultView` の `sending` と、ポップアップの経路の送信中の表示（3.8））である。両者が同じ文言を共有するために公開する。
 -   0007 §3.7 の規則（要素は `createElement`、文字列は `textContent` だけ、HTML を解釈する API を lint で禁止、既定の CSP）をそのまま守る。`renderResultView` は、`sending`・`sent` の要約の部分に 0007 の `renderSummary` を使う。
 -   **リクエスト ID（要件書 F-006）:** `accepted` と `rejected` では、文言とは別の要素に `requestId` を表示する。その要素には CSS の `user-select: all` を当て、クリックで値の全体を選択してコピーできるようにする。値は 16 進 16 文字に限られる（3.6）。
 -   **状態コード:** `unexpected` では、文言とは別の要素に状態コードの数値を表示する。`check` は表示しない。`redirected` は状態コードを表示せず、リダイレクトで応答したことを文言で示す（要件書 F-007）。
@@ -1163,7 +1168,7 @@ export function runOptionsPage(container: HTMLElement, deps: OptionsPageDeps): P
 | `extension/src/core/summary.ts` | 変更 | `hasExactKeys`・`isRejectionReason` を公開する（振る舞いは変えない。3.11） |
 | `extension/src/send.ts` | 新規 | `FetchResponse`・`FetchFn`・`SendDeps`・`sendTimeoutMs`・`sendArticle`（3.5） |
 | `extension/src/ui/render.ts` | 変更 | `rejectedNodes` の文言の部分を `messageNodes` として公開する（`renderSummary` の振る舞いは変えない。3.9） |
-| `extension/src/ui/renderSend.ts` | 新規 | `renderSendOutcome`・`renderResultView`（3.9） |
+| `extension/src/ui/renderSend.ts` | 新規 | `sendingMessage`・`renderSendOutcome`・`renderResultView`（3.9） |
 | `extension/src/optionsPage.ts` | 新規 | `OptionsPageDeps`・`runOptionsPage`（3.10） |
 | `extension/src/options.ts` | 新規 | オプションページのエントリポイント。`chrome.storage.local` の設定の保存先で `runOptionsPage` を呼ぶ |
 | `extension/src/launch.ts` | 変更 | `SummaryStore` を `ResultViewStore` に置き換える。`missingResultText` を削り、`unreadableResultMessage` を使う。`MenuLaunchDeps`・`ResultWindowDeps` の変更、`PopupSendDeps`・`runPopupSend`・`resultWaitMs` の追加、`runMenuLaunch`・`runResultWindow` の変更（3.8） |
