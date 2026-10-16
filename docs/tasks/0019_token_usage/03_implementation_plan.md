@@ -284,17 +284,17 @@ requirements の機能要件（F-001〜F-008）を、architecture の設計ど�
 
 **対象ファイル:** `README.md`、`cmd/yt2column/docs_test.go`、`docs/dev/project_overview.md`、`docs/dev/security.md`、`docs/dev/developer_guide/package_reference.md`
 
-- [ ] **ステップ 5-1**: `README.md` に、トークン数の行の節（例: `## Token usage`。`## Post-generation steps` の後）を加える。書く内容は architecture §3.10 の `README.md` の行のとおりで、行の書式（2 つの形と位置ごとの語）、4 つの区分の意味、再利用の印、不明の表し方と理由の語、`nomodel`、モデル名のエスケープの戻し方、行の順序（成功では要約の最後、失敗では失敗の行の前）、行が出ない終わり方（architecture §3.6）、更新後は新しい `--artifacts` のディレクトリを使うこと、である。例の行は、ステップ 4-4 のテストの出力と同じ形にする。
-- [ ] **ステップ 5-2**: `cmd/yt2column/docs_test.go` に、既存の `TestArtifactDocsContract` と同じ形の `TestTokenUsageDocsContract` を加える。`readDoc`・`sectionByHeading`・`bulletContaining` を使い、次を確かめる。
+- [x] **ステップ 5-1**: `README.md` に、トークン数の行の節（例: `## Token usage`。`## Post-generation steps` の後）を加える。書く内容は architecture §3.10 の `README.md` の行のとおりで、行の書式（2 つの形と位置ごとの語）、4 つの区分の意味、再利用の印、不明の表し方と理由の語、`nomodel`、モデル名のエスケープの戻し方、行の順序（成功では要約の最後、失敗では失敗の行の前）、行が出ない終わり方（architecture §3.6）、更新後は新しい `--artifacts` のディレクトリを使うこと、である。例の行は、ステップ 4-4 のテストの出力と同じ形にする。
+- [x] **ステップ 5-2**: `cmd/yt2column/docs_test.go` に、既存の `TestArtifactDocsContract` と同じ形の `TestTokenUsageDocsContract` を加える。`readDoc`・`sectionByHeading`・`bulletContaining` を使い、次を確かめる。
   - README の節が、`run.go` の書式の定数（接頭辞・3 つの語・区分の名前・`model=`・`nomodel`）をすべて含むこと。
   - README の節が、`llm.UnknownUsage` で作った各規則の `UnknownReason` の語と `not-read`・`recorded-unknown` を含むこと。語はコードから得て、テストに綴りを書かない。
   - README の例の行が、接頭辞の後の第 1〜3 の語に定数の語だけを持つこと。
   - `project_overview.md` の `## パイプライン` が `Usage` を、`security.md` の §6 が応答の `usage` の項目（新しい項目）と、`--artifacts` の項目（`bulletContaining` で選ぶ）の `usage` の記述の両方を、`package_reference.md` の `internal/llm` の行が `TokenCounts` と `Usage` を含むこと（AC-29）。
   - README から定数の語を 1 つ消すと失敗することを確かめる。
-- [ ] **ステップ 5-3**: `docs/dev/project_overview.md` の `## パイプライン` の `ArticleWriter` の項に段階ごとの使用量と CLI の標準エラーの行を、`LLMClient` の項（`:35`）と `GenerateResponse` の説明（`:42`）に `Usage` と 3 つのエラーで返す値を加える。
-- [ ] **ステップ 5-4**: `docs/dev/security.md` の `## 6. 信頼できないテキストの取り扱い` に、応答の `usage` を信頼できない入力として扱う規則（受理する形、不明にする場合、応答を拒否しないこと、理由に値を含めないこと）の項目を加える。また、`--artifacts` の項目（`:77`）の来歴の列挙にトークン数を加え、`usage` 要素の拒否の規則を加える（requirements §3.2、architecture §3.4・§3.7）。
-- [ ] **ステップ 5-5**: `docs/dev/developer_guide/package_reference.md` の `internal/llm` の行に `TokenCounts`・`UnknownRule`・`Usage` を、`internal/strictjson` の行に `IsNull`・`AsNonNegativeInt64` を、`internal/writer` の行に `RunUsage`・`StageUsage`・`UsageOrigin`・`TokenUsageError` を加える。`internal/llm/deepseek`・`internal/llm/claude` の行に、応答の `usage` を読むことと、3 つのエラーで `Model` と `Usage` を返すことを加える。`internal/artifact` の行に形式の版 2 と `usage` を加え、依存先に `internal/llm` を加える。
-- [ ] **ステップ 5-6**: 書いた文書を、正とするもの（コードとテストの出力）と照らす。README の書式・語・順序は `TestTokenUsageDocsContract` とステップ 4-4 のテストの出力で、`security.md`・`project_overview.md` の規則は、それぞれが述べる振る舞いを固定するテスト（ステップ 2-6・3-7 の名前）と、PR の差分で突き合わせる。
+- [x] **ステップ 5-3**: `docs/dev/project_overview.md` の `## パイプライン` の `ArticleWriter` の項に段階ごとの使用量と CLI の標準エラーの行を、`LLMClient` の項（`:35`）と `GenerateResponse` の説明（`:42`）に `Usage` と 3 つのエラーで返す値を加える。
+- [x] **ステップ 5-4**: `docs/dev/security.md` の `## 6. 信頼できないテキストの取り扱い` に、応答の `usage` を信頼できない入力として扱う規則（受理する形、不明にする場合、応答を拒否しないこと、理由に値を含めないこと）の項目を加える。また、`--artifacts` の項目（`:77`）の来歴の列挙にトークン数を加え、`usage` 要素の拒否の規則を加える（requirements §3.2、architecture §3.4・§3.7）。
+- [x] **ステップ 5-5**: `docs/dev/developer_guide/package_reference.md` の `internal/llm` の行に `TokenCounts`・`UnknownRule`・`Usage` を、`internal/strictjson` の行に `IsNull`・`AsNonNegativeInt64` を、`internal/writer` の行に `RunUsage`・`StageUsage`・`UsageOrigin`・`TokenUsageError` を加える。`internal/llm/deepseek`・`internal/llm/claude` の行に、応答の `usage` を読むことと、3 つのエラーで `Model` と `Usage` を返すことを加える。`internal/artifact` の行に形式の版 2 と `usage` を加え、依存先に `internal/llm` を加える。
+- [x] **ステップ 5-6**: 書いた文書を、正とするもの（コードとテストの出力）と照らす。README の書式・語・順序は `TestTokenUsageDocsContract` とステップ 4-4 のテストの出力で、`security.md`・`project_overview.md` の規則は、それぞれが述べる振る舞いを固定するテスト（ステップ 2-6・3-7 の名前）と、PR の差分で突き合わせる。
 
 **完了条件:** グリーンゲートが通る。`TestTokenUsageDocsContract`・`TestPackageReferenceListsPackages` が通る。
 

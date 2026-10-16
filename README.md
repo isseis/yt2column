@@ -119,6 +119,60 @@ selects a different provider, that provider's variables (its API key, and for
 settings of the stages it executes, so `--after review` requires no LLM
 settings at all.
 
+## Token usage
+
+Every run reports the token usage the LLM API returned, one line per stage, on
+standard error. A successful run writes the lines after its other summary lines;
+a failed run writes them before the line that names the failure. A stage that
+called no LLM writes no line. The line is:
+
+```text
+yt2column: tokens: <stage> <origin> known input=<n> cache_read=<n> cache_write=<n> output=<n> <model>
+yt2column: tokens: <stage> <origin> unknown reason=<reason> <model>
+```
+
+- `<stage>` is `generation`, `shorten`, or `review`.
+- `<origin>` is `run` when this run called the stage's LLM, or `reused` when the
+  stage came from a `--after` artifact.
+- `known` means the counts are the response's. They are, in order, `input=`
+  (neither read from nor written to the prompt cache), `cache_read=` (read from
+  the prompt cache), `cache_write=` (written to the prompt cache; always 0 for
+  DeepSeek, which has no such category), and `output=` (the output, reasoning
+  and thinking included).
+- `unknown` means the response's usage did not meet the rules. No number is
+  written, and `reason=` gives one space-free word: `not-read` (no usage was
+  read: a failed call, or a client that reports none), `recorded-unknown` (a
+  saved artifact stored the stage as unknown), `invalid-rule` (a rule outside
+  the set of known rules), or, for the usage member or one of the consumed
+  members that broke a rule, `usage:missing`, `usage:duplicate`,
+  `usage:not-an-object`, `usage:not-a-non-negative-integer` and their
+  `usage.<member>:missing`, `usage.<member>:duplicate`,
+  `usage.<member>:not-a-non-negative-integer` forms.
+- The rest of the line is the model name, after `model=`. A stage that reported
+  no model that passed the model-name rules writes `nomodel` instead. The model
+  name is escaped the way `redact.Line` escapes every standard-error line, so a
+  `"` or a `\` in it is escaped; to recover it, wrap everything after `model=`
+  in double quotes and pass the result to `strconv.Unquote`.
+
+For example:
+
+```text
+yt2column: tokens: generation reused known input=46 cache_read=0 cache_write=0 output=85 model=deepseek-flash
+yt2column: tokens: shorten run known input=1800 cache_read=0 cache_write=0 output=2400 model=deepseek-flash
+yt2column: tokens: review run unknown reason=usage.output_tokens:not-a-non-negative-integer model=claude-opus-5-5
+yt2column: tokens: generation run unknown reason=not-read nomodel
+```
+
+An unknown usage never fails the run: the article is still generated and
+published, and the exit code is still 0. A run that ends before it calls any
+LLM (a usage or configuration error, a transcript-fetch failure, or a rejected
+`--after` input) writes no token line. A run that is stopped without writing its
+summary (a second signal, `kill -9`, or a panic) writes none either.
+
+The counts are also stored, as the `usage` element, in a `--artifacts` file. The
+artifact format is version 2: a version 1 file is rejected on resume, so after
+updating, use a new `--artifacts` directory or move the old one away.
+
 ## Cache and concurrency
 
 Every run takes an exclusive lock on the cache directory, so runs that share a
