@@ -25,6 +25,7 @@ describe("has-extension-changes", () => {
     [".github/workflows/ci.yml"],
     [".github/workflows/release.yml"],
     ["go.mod"],
+    ["docs/dev/security.md"],
     ["README.md", "extension/package.json"],
   ];
   for (const files of triggering) {
@@ -49,7 +50,6 @@ describe("has-extension-changes", () => {
 
   const quiet = [
     ["internal/transcript/ytdlp.go"],
-    ["docs/dev/security.md"],
     ["README.md"],
     ["notes/myextension.txt"],
     // Each pattern's text elsewhere in a path: these fail a pattern that

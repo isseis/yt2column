@@ -227,8 +227,8 @@ HEAD `e8b21fa`（ブランチ `issei/browser-extension-03`）で確認した。�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: manifest とオプションページ
 
@@ -237,15 +237,15 @@ HEAD `e8b21fa`（ブランチ `issei/browser-extension-03`）で確認した。�
 -   変更: `extension/static/manifest.json`・`style.css`、`extension/src/background.ts`（コメントだけ）、`extension/scripts/check-dist.ts`・`has-extension-changes.sh`（`docs/dev/security.md` の追加だけ）、`extension/test/manifest.test.ts`・`checkDist.test.ts`・`ciChanges.test.ts`・`launch.test.ts`（`recordingLogger` の移動だけ）、`docs/dev/security.md`（§8.1 の `host_permissions` の項目だけ）
 
 **タスク**
--   [ ] **ステップ 3-1**: `manifest.json` に設計書 3.1 の表の 3 項目を加える・改める。`background.ts:39-43` のコメントを、最小の版が Chrome 103 であることに合わせて改める。`manifest.test.ts` を設計書 3.12 の行のとおりに改める（「undeclared keys」の最上位のキーの集合、「host permissions」、「options page」、`minimum_chrome_version`、`permissions` が 4 つのまま）。テストの名前は §1.3 の名前の台帳に従う。
+-   [x] **ステップ 3-1**: `manifest.json` に設計書 3.1 の表の 3 項目を加える・改める。`background.ts:39-43` のコメントを、最小の版が Chrome 103 であることに合わせて改める。`manifest.test.ts` を設計書 3.12 の行のとおりに改める（「undeclared keys」の最上位のキーの集合、「host permissions」、「options page」、`minimum_chrome_version`、`permissions` が 4 つのまま）。テストの名前は §1.3 の名前の台帳に従う。
     -   **対象:** `extension/static/manifest.json`・`src/background.ts`・`test/manifest.test.ts`。**完了:** `manifest.test.ts` が通る。
--   [ ] **ステップ 3-2**: security.md §8.1 に、`host_permissions` の `http://127.0.0.1/*` とその理由を、「**要求する権限**」の一覧の外の別の項目として加える（§1.3「文書」）。及ぶ範囲などの残りの記述はステップ 5-3 で加える。`manifest.test.ts` の「host permissions」に、security.md §8.1 が `host_permissions` の各値を記していることの行を加える。この時点から node のテストが security.md を読むので、`has-extension-changes.sh` の起動の条件に `docs/dev/security.md` を加え（設計書 3.11 の 3 つのパスのうち 1 つ。残りはステップ 4-4）、`ciChanges.test.ts` の起動しない一覧から `["docs/dev/security.md"]` を除き、起動する一覧に加える。
+-   [x] **ステップ 3-2**: security.md §8.1 に、`host_permissions` の `http://127.0.0.1/*` とその理由を、「**要求する権限**」の一覧の外の別の項目として加える（§1.3「文書」）。及ぶ範囲などの残りの記述はステップ 5-3 で加える。`manifest.test.ts` の「host permissions」に、security.md §8.1 が `host_permissions` の各値を記していることの行を加える。この時点から node のテストが security.md を読むので、`has-extension-changes.sh` の起動の条件に `docs/dev/security.md` を加え（設計書 3.11 の 3 つのパスのうち 1 つ。残りはステップ 4-4）、`ciChanges.test.ts` の起動しない一覧から `["docs/dev/security.md"]` を除き、起動する一覧に加える。
     -   **対象:** `docs/dev/security.md`・`extension/test/manifest.test.ts`・`scripts/has-extension-changes.sh`・`test/ciChanges.test.ts`。**完了:** `manifest.test.ts`・`ciChanges.test.ts` と `make test`（`extension_docs_test.go` の §8.1 の権限の一覧）が通る。
--   [ ] **ステップ 3-3**: `optionsPage.ts`（設計書 3.10）、`options.ts`（`chrome.storage.local` の `createSettingsStore` で `runOptionsPage` を呼ぶ）、`static/options.html`（設計書 3.14）を作り、`style.css` にオプションページの書式を加える。`recordingLogger` を `test/helpers/logger.ts` に移し、`launch.test.ts` はそこから読む。`optionsPage.test.ts`（「runOptionsPage」）を設計書 3.12 の行のとおりに作る（保存・拒否・消去、AC-02・AC-03 の各入力で保存先が変わらないこと、トークンの 3 つの表示とポートの 3 つの状態、保存と読み込みの失敗、ログ・表示・欄にトークンが現れないこと、トークンの欄の `type`・`autocomplete`）。
+-   [x] **ステップ 3-3**: `optionsPage.ts`（設計書 3.10）、`options.ts`（`chrome.storage.local` の `createSettingsStore` で `runOptionsPage` を呼ぶ）、`static/options.html`（設計書 3.14）を作り、`style.css` にオプションページの書式を加える。`recordingLogger` を `test/helpers/logger.ts` に移し、`launch.test.ts` はそこから読む。`optionsPage.test.ts`（「runOptionsPage」）を設計書 3.12 の行のとおりに作る（保存・拒否・消去、AC-02・AC-03 の代表的な拒否入力で保存先が変わらないこと。入力の網羅は `settings.test.ts` の `parseToken`・`parsePort` が行う。トークンの 3 つの表示とポートの 3 つの状態、保存と読み込みの失敗、ログ・表示・欄にトークンが現れないこと、トークンの欄の `type`・`autocomplete`）。
     -   **対象:** `extension/src/optionsPage.ts`・`src/options.ts`・`static/options.html`・`static/style.css`・`test/helpers/logger.ts`・`test/launch.test.ts`・`test/optionsPage.test.ts`。**完了:** `optionsPage.test.ts` と `launch.test.ts` が通る。
--   [ ] **ステップ 3-4**: `check-dist.ts` の manifest の参照の検査に `options_ui.page` を加える。`checkDist.test.ts` の manifest の行と、その manifest を書く補助関数にオプションページの引数を加え、`options_ui.page` が `dist/` にない場合を拒否する行を加える（§1.3）。
+-   [x] **ステップ 3-4**: `check-dist.ts` の manifest の参照の検査に `options_ui.page` を加える。`checkDist.test.ts` の manifest の行と、その manifest を書く補助関数にオプションページの引数を加え、`options_ui.page` が `dist/` にない場合を拒否する行を加える（§1.3）。
     -   **対象:** `extension/scripts/check-dist.ts`・`test/checkDist.test.ts`。**完了:** `checkDist.test.ts` と `make ext-build` が通る。
--   [ ] **ステップ 3-5**: 壊して失敗することを確かめ、コミットメッセージに記録する。
+-   [x] **ステップ 3-5**: 壊して失敗することを確かめ、コミットメッセージに記録する。
     -   `host_permissions` に `http://localhost/*` を足す・ポートを書く、`options_ui` を消す・`open_in_tab` を変える、`minimum_chrome_version` を `"102"` に戻す、security.md §8.1 から `http://127.0.0.1/*` を消す（`manifest.test.ts`）。
     -   `has-extension-changes.sh` から `docs/dev/security.md` を外す（`ciChanges.test.ts`）。
     -   トークンの保存で `parseToken` を外す、保存後に欄を空にしない、設定済みの表示にトークンの先頭を含める、ポートの拒否でトークンの保存も止める、消去でポートも消す、保存の失敗を `log.info` に出す（`optionsPage.test.ts`）。
@@ -266,8 +266,8 @@ HEAD `e8b21fa`（ブランチ `issei/browser-extension-03`）で確認した。�
 
 **判定理由**: どのトリガーにも当たらない（§1.3 に競合する実装の案がない）。`host_permissions` は `127.0.0.1` に限った固定の 1 項目で、設計書 3.1 が値を確定しており、段階的な公開や振る舞いの同時の上げ下げを伴わないので、セキュリティゲート・移行の引き金に当たらない。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" に `make ext-check` を加えたもの。§3.2 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 

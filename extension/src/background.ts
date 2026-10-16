@@ -38,8 +38,8 @@ function menuDeps(): MenuLaunchDeps {
 
 /**
  * Resolves once contextMenus.removeAll reports completion. The Promise form
- * of removeAll arrived in Chrome 123, but the manifest supports Chrome 102 for
- * chrome.storage.session, so the callback form is wrapped by hand.
+ * of removeAll arrived in Chrome 123, but the manifest supports Chrome 103 for
+ * AbortSignal.timeout, so the callback form is wrapped by hand.
  */
 function removeAllMenuItems(): Promise<void> {
   return new Promise((resolve, reject) => {

@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { JSDOM } from "jsdom";
 
 import { rejectionMessage } from "../src/core/messages.ts";
 import type {
@@ -18,39 +17,16 @@ import {
   runResultWindow,
 } from "../src/launch.ts";
 import type {
-  Logger,
   MenuLaunchDeps,
   PopupLaunchDeps,
   SummaryStore,
 } from "../src/launch.ts";
+import { container } from "./helpers/dom.ts";
+import { recordingLogger } from "./helpers/logger.ts";
+import type { RecordingLogger } from "./helpers/logger.ts";
 
 const watchUrl = "https://www.youtube.com/watch?v=abc";
 const malicious = "<img src=x onerror=alert(1)>";
-
-interface Recorded {
-  readonly label: string;
-  readonly data: unknown;
-}
-
-interface RecordingLogger {
-  readonly log: Logger;
-  readonly infos: Recorded[];
-  readonly errors: Recorded[];
-}
-
-/** A Logger that records every call instead of printing. */
-function recordingLogger(): RecordingLogger {
-  const infos: Recorded[] = [];
-  const errors: Recorded[] = [];
-  return {
-    log: {
-      info: (label, data) => infos.push({ label, data }),
-      error: (label, data) => errors.push({ label, data }),
-    },
-    infos,
-    errors,
-  };
-}
 
 interface RecordingStore {
   readonly store: SummaryStore;
@@ -194,14 +170,6 @@ function loggedOutcome(recorder: RecordingLogger): CollectOutcome {
   const entry = recorder.infos[0];
   assert.ok(entry !== undefined, "expected an info log");
   return (entry.data as { outcome: CollectOutcome }).outcome;
-}
-
-/** A fresh container element in its own document. */
-function container(): HTMLElement {
-  const dom = new JSDOM("<!DOCTYPE html><body><div id='root'></div></body>");
-  const element = dom.window.document.getElementById("root");
-  assert.ok(element !== null);
-  return element;
 }
 
 describe("launchContextFromTab", () => {
