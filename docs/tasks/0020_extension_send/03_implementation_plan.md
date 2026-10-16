@@ -8,7 +8,7 @@
 | Created | 2026-10-16 |
 | Review date | 2026-10-16 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | AC-15a/AC-15b の対応表に launch.test.ts の経路テストを加えた編集上の訂正で、判断は変わっていない |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -306,7 +306,7 @@ HEAD `e8b21fa`（ブランチ `issei/browser-extension-03`）で確認した。�
     -   **対象:** `extension/src/background.ts`・`src/popup.ts`・`src/result.ts`・`static/popup.html`。**完了:** `tsc --noEmit -p tsconfig.build.json` が通る。
 -   [ ] **ステップ 4-4**: `has-extension-changes.sh` の起動の条件に `README.md`・`internal/server/response.go` を加え、冒頭のコメントの起動の条件の説明を改める（設計書 3.11。`docs/dev/security.md` はステップ 3-2 で加えた）。
     -   **対象:** `extension/scripts/has-extension-changes.sh`。**完了:** なし。`ciChanges.test.ts` はステップ 4-6 で改めるまで失敗する（フェーズの完了条件で確かめる）。
--   [ ] **ステップ 4-5**: `launch.test.ts` を改める。`recordingStore` を `ResultViewStore` の fake（`put`・`get`・`watch`・`remove` を記録し、通知を任意の時点で起こせ、各操作を失敗させられる）に置き換え、`menuHarness` に設定・`SendDeps`・`now` を加える。§1.3 に挙げたメニューの経路と結果のウィンドウの行を新しい振る舞いに合わせて改め、設計書 3.12 の `launch.test.ts` の行の項目を「launch paths」「menu send」「popup send」「result window」「token never leaks」に加える。ポップアップの送信中の表示（文言と閉じないことの案内、ボタンの `disabled`）と、送らない場合にボタンを出さないことを確かめる行を含める（AC-14・AC-22）。
+-   [ ] **ステップ 4-5**: `launch.test.ts` を改める。`recordingStore` を `ResultViewStore` の fake（`put`・`get`・`watch`・`remove` を記録し、通知を任意の時点で起こせ、各操作を失敗させられる）に置き換え、`menuHarness` に設定・`SendDeps`・`now` を加える。§1.3 に挙げたメニューの経路と結果のウィンドウの行を新しい振る舞いに合わせて改め、設計書 3.12 の `launch.test.ts` の行の項目を「launch paths」「menu send」「popup send」「result window」「token never leaks」に加える。ポップアップの送信中の表示（文言と閉じないことの案内、ボタンの `disabled`）と、送らない場合にボタンを出さないことを確かめる行を含める（AC-14・AC-22）。あわせて、設定の読み込みの失敗（`settings-unreadable`、AC-15a）と保存されたポートの形が正しくない場合（`port-invalid`、AC-15b）に、メニューの経路とポップアップの経路のどちらでも要求を送らず（`fetch` を呼ばず）理由が示されることを確かめる行を含める。
     -   **対象:** `extension/test/launch.test.ts`。**完了:** `launch.test.ts` が通る。
 -   [ ] **ステップ 4-6**: 残りのテストを作る・改める。
     -   `serverReasons.test.ts`（「server reasons match README」）: `serverRejectStatus` の組が README の拒否の理由の表とちょうど一致すること（設計書 3.12）。表は `test/helpers/repoFile.ts` の `readRepoFile` で読む。
@@ -461,8 +461,8 @@ PR は、フェーズ 4 を 2 つに分け、そのほかはフェーズと 1 �
 | AC-13 | test・static・manual | `send.test.ts::sendArticle`（ヘッダの完全な集合）、`manifest.test.ts::host permissions`、§5.1 | ステップ 2-1・2-3・3-1 |
 | AC-14 | test・manual | `prepare.test.ts::prepareSend`、`sendMessages.test.ts::blockMessage`、`launch.test.ts::menu send`・`popup send`（送信が呼ばれず理由を表示）、§5.1 | ステップ 1-3・1-5・1-6・4-2・4-5 |
 | AC-15 | test | `settings.test.ts::checkSettings`、`prepare.test.ts::prepareSend` | ステップ 1-2・1-3・1-6 |
-| AC-15a | test | `prepare.test.ts::prepareSend`、`sendMessages.test.ts::blockMessage`、`renderSend.test.ts::renderResultView` | ステップ 1-3・1-5・1-6・4-1 |
-| AC-15b | test | `settings.test.ts::checkSettings`、`sendMessages.test.ts::blockMessage`、`renderSend.test.ts::renderResultView` | ステップ 1-2・1-5・1-6・4-1 |
+| AC-15a | test | `prepare.test.ts::prepareSend`、`sendMessages.test.ts::blockMessage`、`renderSend.test.ts::renderResultView`、`launch.test.ts::menu send`・`popup send`（設定の読み込み失敗で送信が呼ばれない） | ステップ 1-3・1-5・1-6・4-1・4-2・4-5 |
+| AC-15b | test | `settings.test.ts::checkSettings`、`sendMessages.test.ts::blockMessage`、`renderSend.test.ts::renderResultView`、`launch.test.ts::menu send`・`popup send`（保存されたポートの形が正しくないときに送信が呼ばれない） | ステップ 1-2・1-5・1-6・4-1・4-2・4-5 |
 | AC-16 | test | `prepare.test.ts::prepareSend`（多バイト文字で 4,194,304 と 4,194,305）、`sendMessages.test.ts::blockMessage`、`renderSend.test.ts::renderResultView` | ステップ 1-3・1-5・1-6・4-1 |
 | AC-17 | test | `prepare.test.ts::prepareSend`（`load` を呼ばない）、`launch.test.ts::menu send`・`popup send`（送信も読み込みもしない） | ステップ 1-3・1-6・4-2・4-5 |
 | AC-18 | test・manual | `launch.test.ts::menu send`、§5.1 | ステップ 4-2・4-5 |
