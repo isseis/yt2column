@@ -8,7 +8,7 @@
 | Created | 2026-10-17 |
 | Review date | 2026-10-18 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 実装計画の作成に合わせた編集上の訂正（判断は変えていない）。AC-18 の静的な確認を実行する拡張のテスト `extension/test/metadataDocs.test.ts` と、`whitespaceOnly` の再利用のための `core/collect.ts` の export を 2.1・3.8・3.9・3.11 に加えた。AC-09・AC-10・AC-18・AC-19 の確かめ方を 7.4 と 3.9 で実行する検査に合わせた（AC-09 はタブのタイトルの結線を `launch.test.ts`、AC-10 は省略の理由のログを `launch.test.ts`、AC-18 は `metadataDocs.test.ts`、AC-19 は `chromeDeps.test.ts` の注入がページを操作しないこと）。いずれも設計の判断（何を確かめるか）を変えず、確かめる手段を実行される検査に定めるだけである |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `c93a87b` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指す。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-05）への対応は 3.10 にまとめる。レビューで実装の段階に申し送る事項は [implementation_handoff.md](implementation_handoff.md) が集め、`03_implementation_plan.md` が対応を記録する。
 
@@ -120,6 +120,7 @@ extension/
     core/
       metadata.ts          # PageMetadata・VideoMetadata・MetadataResult・parsePageMetadata・acceptMetadata（新規。3.2）
       messages.ts          # Message と expandPromptMessage を加える（変更。3.8）
+      collect.ts           # whitespaceOnly を export する（変更。振る舞いは変えない。3.8）
       summary.ts           # truncate を export する（変更。3.6）
     ui/
       render.ts            # renderMetadata を加える（変更。3.6）
@@ -133,6 +134,7 @@ extension/
   test/
     metadata.test.ts       # 新規（3.9）
     renderMetadata.test.ts # 新規（3.9）
+    metadataDocs.test.ts   # 新規。README・security.md の記載の静的な確認（AC-18。3.9・7.4）
     chromeDeps.test.ts     # 変更（3.9）
     launch.test.ts         # 変更（3.9）
     messages.test.ts       # 変更（3.9）
@@ -573,6 +575,7 @@ export const expandPromptMessage: Message;
 | 変更 | 内容 | 更新するテスト |
 |---|---|---|
 | `core/messages.ts` | `Message` を加え、`RejectionMessage` をその別名にする。`expandPromptMessage` を加える。振る舞いは変えない | `messages.test.ts`（振る舞いは同じ。型の一般化だけ） |
+| `core/collect.ts` | `whitespaceOnly` を export する（`metadata.ts` が空白のみの判定に再利用する。3.2）。振る舞いは変えない | `collect.test.ts`（既存は同じ） |
 | `core/summary.ts` | `truncate` を export する。振る舞いは変えない | `summary.test.ts`（既存は同じ） |
 | `ui/render.ts` | `messageNodes` の引数の型を `Message` にする。`renderMetadata` を加える | `render.test.ts`（既存は同じ）、`renderMetadata.test.ts`（新規） |
 | `static/style.css` | メタデータの値の `unicode-bidi: plaintext` の規則を加える（3.6） | なし（手動の確認。7.2） |
@@ -582,7 +585,7 @@ export const expandPromptMessage: Message;
 | `background.ts` | メニューの経路の依存に `createMetadataReader(chrome.scripting)` を加える | なし（薄い配線） |
 | manifest | 変更しない（権限を加えない） | `manifest.test.ts` を変更しない（AC-19） |
 
--   0007 の `collect`・`SelectionReader`・`CollectedInput`・`renderSummary` の振る舞いを変更しない。0007 と 0020 の文書のうち #170 で決めるとした記述は、それぞれの記録として残し、変更しない（要件書 F-005）。
+-   0007 の `collect`・`SelectionReader`・`CollectedInput`・`renderSummary` の振る舞いを変更しない（`collect.ts` は `whitespaceOnly` を export するだけで、振る舞いは変えない）。0007 と 0020 の文書のうち #170 で決めるとした記述は、それぞれの記録として残し、変更しない（要件書 F-005）。
 
 ### 3.9. テストの構成（AC-01〜AC-21）
 
@@ -592,10 +595,11 @@ export const expandPromptMessage: Message;
 |---|---|---|
 | `test/metadata.test.ts`（新規） | `parsePageMetadata`（受理する形。不正な JSON、配列、`null`、未知のメンバ、重複したメンバ、`descriptionCollapsed` の欠落、値の型の違い。返す `check`）と `acceptMetadata`（欠落・空白のみ・対になっていないサロゲートの省略、値の保持、`showExpandPrompt`、`readFailureResult`・`emptyMetadataResult`） | AC-01・AC-02・AC-03・AC-06〜AC-10・AC-20 |
 | `test/renderMetadata.test.ts`（新規） | `renderMetadata` を jsdom で実行し、値が `textContent` で表示され要素にならないこと、`<img src=x onerror=alert(1)>` が要素にならないこと、表示の切り詰め（コードポイントで切れ、サロゲートペアを割らない）、`dir` の指定、促しのメッセージが折りたたみ時だけ出ること、促しがページの文字列を含まないこと | AC-11・AC-12・AC-14 |
-| `test/chromeDeps.test.ts`（変更） | `createMetadataReader`。fake の `executeScript` が文字列以外を返す（URL の不一致の `null` を含む）か例外を投げると `read` が失敗すること。注入する関数のソースを jsdom の `document` で実行し、3.1 のセレクタで値と折りたたみの状態を読み、URL が一致しなければ `null` を返すこと | AC-03・AC-04 |
-| `test/launch.test.ts`（変更） | `runPopupLaunch` が収集に成功したときだけメタデータを読み、`PopupLaunchResult` を返すこと。`runPopupSend` が `result.metadata.values` を `prepareSend` に渡すこと。`runMenuLaunch` が `readMetadata` の値を `prepareSend` に渡し、省略と読み取りの失敗をログに残すこと。読み取りの失敗でも送信に進むこと。ログに値が含まれないこと | AC-04・AC-05・AC-13・AC-15・AC-16・AC-16a・AC-17 |
-| `test/prepare.test.ts`（変更） | メタデータを渡した本文（`title`・`channelName`・`description` が入ること、空文字列が入らないこと、タブのタイトルが入らないこと、`<img src=x onerror=alert(1)>` を含む値が JSON の文字列として入ること） | AC-06〜AC-09・AC-21 |
+| `test/chromeDeps.test.ts`（変更） | `createMetadataReader`。fake の `executeScript` が文字列以外を返す（URL の不一致の `null` を含む）か例外を投げると `read` が失敗すること。注入する関数のソースを jsdom の `document` で実行し、3.1 のセレクタで値と折りたたみの状態を読み、URL が一致しなければ `null` を返し、注入がページを操作しないこと | AC-03・AC-04・AC-19 |
+| `test/launch.test.ts`（変更） | `runPopupLaunch` が収集に成功したときだけメタデータを読み、`PopupLaunchResult` を返すこと。`runPopupSend` が `result.metadata.values` を `prepareSend` に渡すこと。`runMenuLaunch` が `readMetadata` の値を `prepareSend` に渡し、省略と読み取りの失敗をログに残すこと。読み取りの失敗でも送信に進むこと。ログに値が含まれないこと。本文の `title` が動画タイトルで、タブのタイトルが本文に現れないこと | AC-04・AC-05・AC-09・AC-10・AC-13・AC-15・AC-16・AC-16a・AC-17 |
+| `test/prepare.test.ts`（変更） | メタデータを渡した本文（`title`・`channelName`・`description` が入ること、空文字列が入らないこと、`input.title` が入らないこと、`<img src=x onerror=alert(1)>` を含む値が JSON の文字列として入ること、メタデータを含めた大きさの上限） | AC-06〜AC-09・AC-21 |
 | `test/messages.test.ts`・`test/render.test.ts`（変更） | `Message` の一般化と `messageNodes` の引数の変更で、既存のテストが通ること（振る舞いは同じ） | -（既存） |
+| `test/metadataDocs.test.ts`（新規） | `readRepoFile` で README と `docs/dev/security.md` を読み、要件書 F-005 の記載（動画タイトル・チャンネル名・概要欄を収集して送ること、促しのメッセージの手順、取得できない値があること。DOM から読むこと、untrusted テキストの扱い、新しい権限を加えないこと、ページを操作しないこと、取得に失敗しても起動を失敗させないこと）を含むこと | AC-18 |
 | `test/manifest.test.ts`（変更しない） | manifest の権限が変わらないこと | AC-19 |
 
 -   3.1 の観測は手動で行い、結果を 3.1 の表に記す（7.2）。
@@ -616,6 +620,7 @@ export const expandPromptMessage: Message;
 |---|---|---|
 | `extension/src/core/metadata.ts` | 新規 | `PageMetadata`・`VideoMetadata`・`MetadataField`・`OmissionReason`・`MetadataOmission`・`MetadataResult`・`parsePageMetadata`・`acceptMetadata`・`readFailureResult`・`emptyMetadataResult`（3.2） |
 | `extension/src/core/messages.ts` | 変更 | `Message` を加え、`RejectionMessage` をその別名にする。`expandPromptMessage` を加える（3.6・3.8） |
+| `extension/src/core/collect.ts` | 変更 | 空白のみの判定に再利用する `whitespaceOnly` を export する（振る舞いは変えない。3.8） |
 | `extension/src/core/summary.ts` | 変更 | 表示の切り詰めに再利用する `truncate` を export する（振る舞いは変えない。3.6） |
 | `extension/src/ui/render.ts` | 変更 | `messageNodes` の引数を `Message` にする。`renderMetadata` を加える（3.6） |
 | `extension/src/browser/chromeDeps.ts` | 変更 | `ScriptingApi` を総称型にする。`readPageMetadata`・`createMetadataReader` を加える（3.3） |
@@ -625,6 +630,7 @@ export const expandPromptMessage: Message;
 | `extension/src/popup.ts` | 変更 | `runPopupLaunch` の結果を `runPopupSend` へ渡す |
 | `extension/test/metadata.test.ts` | 新規 | 3.9 |
 | `extension/test/renderMetadata.test.ts` | 新規 | 3.9 |
+| `extension/test/metadataDocs.test.ts` | 新規 | README・`docs/dev/security.md` の記載の静的な確認（AC-18。3.9・7.4） |
 | `extension/test/chromeDeps.test.ts` | 変更 | 3.9 |
 | `extension/test/launch.test.ts` | 変更 | 3.9 |
 | `extension/test/prepare.test.ts` | 変更 | 3.9 |
@@ -633,7 +639,7 @@ export const expandPromptMessage: Message;
 | `README.md` | 変更 | F-005: 動画タイトル・チャンネル名・概要欄を収集して送ること、概要欄が折りたたまれているときの促しのメッセージ、取得できない値があることを記す（要件書 F-005） |
 | `docs/dev/security.md` | 変更 | F-005: §8.1 に、拡張が動画ページの DOM から動画タイトル・チャンネル名・概要欄を読むこと、untrusted テキストとして扱い HTML として解釈せず本文へは JSON の文字列として入れること、新しい権限を加えず既存の `scripting` の注入で DOM を読むだけでページを操作しないこと、取得に失敗しても起動を失敗させないことを加える（要件書 F-005・§4.2） |
 
--   0007 の `collect`・`SelectionReader`・`CollectedInput`・`renderSummary` を変更しない。Go のソースを変更しない。manifest を変更しない。
+-   0007 の `collect`・`SelectionReader`・`CollectedInput`・`renderSummary` を変更しない（`collect.ts` は `whitespaceOnly` を export するだけ）。Go のソースを変更しない。manifest を変更しない。
 
 ## 4. エラーハンドリング設計 (Error Handling Design)
 
@@ -827,8 +833,8 @@ flowchart TD
 | AC-06 | 3.4 | `prepare.test.ts` |
 | AC-07 | 3.2・3.4 | `metadata.test.ts`・`prepare.test.ts` |
 | AC-08 | 3.4 | `prepare.test.ts` |
-| AC-09 | 3.3・3.4 | `prepare.test.ts` |
-| AC-10 | 3.2・3.4 | `metadata.test.ts`・`prepare.test.ts` |
+| AC-09 | 3.3・3.4・3.5 | `launch.test.ts`（タブのタイトルが本文に現れないこと）・`prepare.test.ts` |
+| AC-10 | 3.2・3.4・3.7 | `metadata.test.ts`・`launch.test.ts`（省略の理由のログ） |
 | AC-11 | 3.6 | `renderMetadata.test.ts`・手動（7.2） |
 | AC-12 | 3.2・3.6 | `renderMetadata.test.ts`・手動（7.2） |
 | AC-13 | 3.5・3.6 | `launch.test.ts` |
@@ -837,8 +843,8 @@ flowchart TD
 | AC-16 | 3.5・3.7 | `launch.test.ts` |
 | AC-16a | 3.2・3.7 | `metadata.test.ts`・`launch.test.ts` |
 | AC-17 | 3.5 | `launch.test.ts` |
-| AC-18 | 3.11（README） | 静的な確認 |
-| AC-19 | 3.8・5.3 | `manifest.test.ts`（静的な確認） |
+| AC-18 | 3.11（README・security.md） | `metadataDocs.test.ts`（静的な確認）・手動（7.2） |
+| AC-19 | 3.8・5.3 | `manifest.test.ts`・`chromeDeps.test.ts`（静的な確認）・手動（7.2） |
 | AC-20 | 3.2 | `metadata.test.ts` |
 | AC-21 | 3.4・3.6 | `prepare.test.ts`（本文に文字列として入ること）・`renderMetadata.test.ts`（表示で要素にならないこと） |
 
