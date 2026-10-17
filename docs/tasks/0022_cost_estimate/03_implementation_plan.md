@@ -219,8 +219,8 @@ requirements の機能要件（F-001〜F-010）を、architecture の設計ど�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 - [ ] **ステップ 3-6**: `cmd/yt2column/run.go` に、architecture §3.6 の書式の定数、列挙値を語に対応させる関数（`default` は `invalid`）、段階の行と合計の行を作る関数、`reportUsage` を置く。`reportUsage` は既存の `reportTokens` を呼んでから料金の行と合計の行を書き、`reportSuccess` と `reportRunError` の `reportTokens` の呼び出しを `reportUsage` の呼び出しに置き換える。`at=` は `artifact.CallTimeLayout` で書く。`reportSuccess` の文書（`:685-690`）に料金の行と合計の行を加える。
 - [ ] **ステップ 3-7**: `cmd/yt2column/cost_test.go` に、fake の `LLMClient`・`TranscriptSource`・`Publisher` と `t.TempDir`（`newRunEnv`・`usageSequence`・`usageResponse`・`saveArtifactsOnce`・`firstLongThenShort`・`useReviewClient` を再利用する）と、`e.d.newWriter` を包んで `Options.Clock` を設定する固定の時計で CLI のテストを書く。段階ごとに、表にあるモデル名と異なるトークン数を返す。行は `redact.Line` を通った後の標準エラーの行のバイト列として比べる（AC-36・AC-37）。
@@ -462,7 +462,7 @@ requirements AC-39 が認める変更は、architecture §1.3「要件 AC-39 と
 - [x] architecture の記述の漏れと古い行番号を editorial correction として直した（§2.0）
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6）
 - [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 / 2-8 / 2-9）
-- [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5）
+- [x] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5）
 - [ ] PR-4 マージ済み（対象ステップ: 3-6 / 3-7 / 3-8）
 - [ ] PR-5 マージ済み（対象ステップ: 3-9 / 3-10 / M-1 / M-2 / M-3）
 - [ ] PR-6 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7）
