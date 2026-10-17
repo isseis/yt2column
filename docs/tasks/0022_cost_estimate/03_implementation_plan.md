@@ -266,9 +266,9 @@ requirements の機能要件（F-001〜F-010）を、architecture の設計ど�
 
 実際の API と Webhook を呼ぶ確認であり、実行には人の承認が要る（CLAUDE.md「Tool Execution Safety」、requirements §5）。PR-5 の変更（統合テストのログ）を実際に動かす唯一の確認なので、PR-5 のマージの前に行い、結果を本節の表に記録して PR-5 に含める（AC-32・AC-34）。
 
-- [x] **ステップ M-1**: `make test-integration-cli` を実行し、ログの料金の行と合計の行の値を、DeepSeek のコンソールの利用履歴の同じ実行の料金と照らす（祝日に行った呼び出しは除く。AC-32）。
+- [-] **ステップ M-1**: `make test-integration-cli` を実行し、ログの料金の行と合計の行の値を、DeepSeek のコンソールの利用履歴の同じ実行の料金と照らす（祝日に行った呼び出しは除く。AC-32）。実行は済んだ（下の表）。コンソールの利用履歴との照合は未確認で、PR-5 のマージの前に操作者が行う。
 - [x] **ステップ M-2**: `make test-integration-deepseek` と `make test-integration-claude` を実行し、ログに各呼び出しのトークン数と料金の概算が出ることを確かめる（AC-33）。
-- [x] **ステップ M-3**: `make test-integration-cli-slack` を実行し、Mattermost の投稿の見出しのメタデータに料金の行が表示されることを確かめる（AC-34）。
+- [-] **ステップ M-3**: `make test-integration-cli-slack` を実行し、Mattermost の投稿の見出しのメタデータに料金の行が表示されることを確かめる（AC-34）。実行は済んだ（下の表）。Mattermost の表示は未確認で、PR-5 のマージの前に操作者が行う。
 
 | 確認 | 日時 | 結果 |
 |---|---|---|
