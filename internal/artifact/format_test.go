@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/writer"
@@ -19,6 +20,13 @@ import (
 const (
 	markArtifactBody = "mark-artifact-body-R4kd"
 	markArtifactRev  = "mark-artifact-revision-T7wm"
+)
+
+// testCallTime is the call time of every record the helpers build. A second
+// time lets a test tell two records apart by their call time alone.
+var (
+	testCallTime  = time.Date(2026, time.October, 16, 1, 0, 0, 0, time.UTC)
+	testCallTime2 = time.Date(2027, time.March, 2, 9, 30, 15, 0, time.UTC)
 )
 
 // testMaxTextBytes mirrors the writer's unexported text limit, so the boundary
@@ -37,13 +45,14 @@ func testIdentity(embedded bool, text string) writer.TemplateIdentity {
 // carries a mark, so a rejection's error message can be checked for it.
 func validGeneration() writer.StageRecord {
 	rec := writer.StageRecord{
-		Stage:  writer.StageGeneration,
-		Title:  "Title",
-		Body:   markArtifactBody,
-		Model:  "test-model",
-		System: testIdentity(true, "system template"),
-		User:   testIdentity(false, "user template"),
-		Input:  writer.Digest("material"),
+		Stage:    writer.StageGeneration,
+		Title:    "Title",
+		Body:     markArtifactBody,
+		Model:    "test-model",
+		CallTime: testCallTime,
+		System:   testIdentity(true, "system template"),
+		User:     testIdentity(false, "user template"),
+		Input:    writer.Digest("material"),
 	}
 	rec.ID = recordID(rec)
 	return rec
@@ -69,6 +78,7 @@ func validReview() writer.StageRecord {
 func sameRecord(a, b writer.StageRecord) bool {
 	if a.Stage != b.Stage || a.Title != b.Title || a.Body != b.Body ||
 		a.Model != b.Model || a.ModelVersion != b.ModelVersion ||
+		!a.CallTime.Equal(b.CallTime) ||
 		a.System != b.System || a.User != b.User || a.Input != b.Input || a.ID != b.ID {
 		return false
 	}
@@ -129,6 +139,7 @@ func fieldsFrom(rec writer.StageRecord) map[string]any {
 		"model":         rec.Model,
 		"model_version": rec.ModelVersion,
 		"usage":         usageFields(rec.Usage),
+		"call_time":     rec.CallTime.Format(CallTimeLayout),
 		"system":        map[string]any{"embedded": rec.System.Embedded, "digest": rec.System.Digest},
 		"user":          map[string]any{"embedded": rec.User.Embedded, "digest": rec.User.Digest},
 		"input":         rec.Input,
@@ -217,6 +228,12 @@ func TestMarshalParseRoundTrip(t *testing.T) {
 		rec  writer.StageRecord
 	}{
 		{"generation", validGeneration()},
+		{"generation with another call time", func() writer.StageRecord {
+			rec := validGeneration()
+			rec.CallTime = testCallTime2
+			rec.ID = recordID(rec)
+			return rec
+		}()},
 		{"generation with a model version", func() writer.StageRecord {
 			rec := validGeneration()
 			rec.ModelVersion = "2026-10-14"
@@ -698,11 +715,136 @@ func TestParseRejectsVersion1(t *testing.T) {
 	fields := fieldsFrom(validGeneration())
 	fields["version"] = float64(1)
 	delete(fields, "usage")
+	delete(fields, "call_time")
 	err := requireMalformed(t, marshalFields(t, fields))
-	for _, want := range []string{"unsupported artifact version 1", "version 2", "new --artifacts directory"} {
+	for _, want := range []string{"unsupported artifact version 1", "version 3", "new --artifacts directory"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("Parse error = %v, want it to contain %q", err, want)
 		}
+	}
+}
+
+func TestParseRejectsVersion2(t *testing.T) {
+	// A version 2 artifact has a usage element but no call_time. The version
+	// check rejects it as a version difference, not as a missing call_time.
+	fields := fieldsFrom(validGeneration())
+	fields["version"] = float64(2)
+	delete(fields, "call_time")
+	err := requireMalformed(t, marshalFields(t, fields))
+	for _, want := range []string{"unsupported artifact version 2", "version 3", "new --artifacts directory"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("Parse error = %v, want it to contain %q", err, want)
+		}
+	}
+}
+
+func TestParseRecordRejectsCallTime(t *testing.T) {
+	// Each case breaks only the call_time member. For a value time.Parse
+	// accepts (a fractional second, a one-digit hour, the zero time), the id
+	// is recomputed from the parsed value, so that if the call-time rule were
+	// removed the id check would still match and the artifact would load: the
+	// case proves the call-time rule rejects the input, not the id rule.
+	baseFields := func(t *testing.T, raw string) map[string]any {
+		t.Helper()
+		fields := fieldsFrom(validGeneration())
+		fields["call_time"] = raw
+		if parsed, err := time.Parse(CallTimeLayout, raw); err == nil {
+			rec := validGeneration()
+			rec.CallTime = parsed
+			fields["id"] = recordID(rec)
+		}
+		return fields
+	}
+	cases := []struct {
+		name string
+		data func(t *testing.T) []byte
+	}{
+		{"missing", func(t *testing.T) []byte {
+			fields := fieldsFrom(validGeneration())
+			delete(fields, "call_time")
+			return marshalFields(t, fields)
+		}},
+		{"duplicate", func(t *testing.T) []byte {
+			// A duplicate key is rejected by the artifact key check, which
+			// never names the untrusted value.
+			data := mustMarshal(t, validGeneration())
+			return []byte(strings.Replace(string(data), `"call_time":`, `"call_time":"x","call_time":`, 1))
+		}},
+		{"not a string", func(t *testing.T) []byte {
+			fields := fieldsFrom(validGeneration())
+			fields["call_time"] = 1
+			return marshalFields(t, fields)
+		}},
+		{"null", func(t *testing.T) []byte {
+			fields := fieldsFrom(validGeneration())
+			fields["call_time"] = nil
+			return marshalFields(t, fields)
+		}},
+		{"unpaired surrogate", func(t *testing.T) []byte {
+			fields := fieldsFrom(validGeneration())
+			fields["call_time"] = json.RawMessage(`"\ud800"`)
+			return marshalFields(t, fields)
+		}},
+		{"offset", func(t *testing.T) []byte { return marshalFields(t, baseFields(t, "2026-10-16T01:00:00+00:00")) }},
+		{"offset east", func(t *testing.T) []byte { return marshalFields(t, baseFields(t, "2026-10-16T10:00:00+09:00")) }},
+		{"lowercase z", func(t *testing.T) []byte { return marshalFields(t, baseFields(t, "2026-10-16T01:00:00z")) }},
+		{"fractional second", func(t *testing.T) []byte { return marshalFields(t, baseFields(t, "2026-10-16T01:00:00.5Z")) }},
+		{"missing second", func(t *testing.T) []byte { return marshalFields(t, baseFields(t, "2026-10-16T01:00Z")) }},
+		{"one-digit hour", func(t *testing.T) []byte { return marshalFields(t, baseFields(t, "2026-10-16T1:00:00Z")) }},
+		{"leading space", func(t *testing.T) []byte { return marshalFields(t, baseFields(t, " 2026-10-16T01:00:00Z")) }},
+		{"trailing space", func(t *testing.T) []byte { return marshalFields(t, baseFields(t, "2026-10-16T01:00:00Z ")) }},
+		{"space separator", func(t *testing.T) []byte { return marshalFields(t, baseFields(t, "2026-10-16 01:00:00Z")) }},
+		{"lowercase t", func(t *testing.T) []byte { return marshalFields(t, baseFields(t, "2026-10-16t01:00:00Z")) }},
+		{"day out of range", func(t *testing.T) []byte { return marshalFields(t, baseFields(t, "2026-02-30T00:00:00Z")) }},
+		{"hour out of range", func(t *testing.T) []byte { return marshalFields(t, baseFields(t, "2026-10-16T24:00:00Z")) }},
+		{"leap second", func(t *testing.T) []byte { return marshalFields(t, baseFields(t, "2026-10-16T23:59:60Z")) }},
+		{"zero time", func(t *testing.T) []byte { return marshalFields(t, baseFields(t, "0001-01-01T00:00:00Z")) }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			requireMalformed(t, tc.data(t))
+		})
+	}
+}
+
+func TestRecordIDCoversCallTime(t *testing.T) {
+	first := validGeneration()
+	second := validGeneration()
+	second.CallTime = testCallTime2
+	second.ID = recordID(second)
+	if first.ID == second.ID {
+		t.Error("records differing only in the call time share an id")
+	}
+
+	t.Run("a rewritten call time is rejected", func(t *testing.T) {
+		// A canonical time of the right shape, so only the id check can reject
+		// the file.
+		data := mustMarshal(t, first)
+		rewritten := strings.Replace(string(data),
+			first.CallTime.Format(CallTimeLayout),
+			testCallTime2.Format(CallTimeLayout), 1)
+		requireMalformed(t, []byte(rewritten))
+	})
+}
+
+func TestMarshalRejectsNonCanonicalCallTime(t *testing.T) {
+	cases := []struct {
+		name     string
+		callTime time.Time
+	}{
+		{"zero", time.Time{}},
+		{"not UTC", testCallTime.In(time.FixedZone("JST", 9*60*60))},
+		{"fractional second", testCallTime.Add(500 * time.Millisecond)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := validGeneration()
+			rec.CallTime = tc.callTime
+			rec.ID = recordID(rec)
+			if _, _, err := Marshal(rec); !errors.Is(err, ErrMalformed) {
+				t.Fatalf("Marshal error = %v, want ErrMalformed", err)
+			}
+		})
 	}
 }
 

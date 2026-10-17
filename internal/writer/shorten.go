@@ -26,7 +26,7 @@ func (w *templateWriter) runShorten(ctx context.Context, title, body string) (st
 		return "", "", nil, StageUsage{}, stepError(StepShorten, err)
 	}
 	resp, err := w.client.Generate(ctx, llm.GenerateRequest{SystemPrompt: system, UserPrompt: user, MaxOutputTokens: 0})
-	usage := stageUsage(resp)
+	usage := stageUsage(resp, w.clock())
 	if err != nil {
 		return "", "", nil, usage, stepError(StepShorten, err)
 	}

@@ -22,7 +22,7 @@ const testSourceBlock = "出典: <" + testSourceURL + ">\n"
 // writeResponse writes validTranscript with a client that answers resp.
 func writeResponse(t *testing.T, resp llm.GenerateResponse) (Article, error) {
 	t.Helper()
-	w := mustNew(t, &llmtestutil.FakeLLMClient{Result: resp}, Options{})
+	w := newFixedWriter(t, &llmtestutil.FakeLLMClient{Result: resp}, Options{})
 	return w.Write(context.Background(), validTranscript())
 }
 
@@ -79,7 +79,7 @@ func TestWriteArticle(t *testing.T) {
 				Model:        tc.resp.Model,
 				ModelVersion: tc.resp.ModelVersion,
 				RunUsage: RunUsage{
-					Generation: StageUsage{Origin: OriginRun, Model: tc.resp.Model, Usage: tc.resp.Usage},
+					Generation: StageUsage{Origin: OriginRun, Model: tc.resp.Model, Usage: tc.resp.Usage, CallTime: callTime1},
 				},
 			}
 			if a != want {

@@ -63,7 +63,7 @@ func generationRecord(materialID, body string) StageRecord {
 func resumeChainGeneration() ArtifactChain {
 	return ArtifactChain{Generation: StageRecord{
 		Stage: StageGeneration, Title: markGenTitle, Body: markGenBody,
-		Model: reusedGenModel, ModelVersion: reusedGenVersion, ID: genRecordID,
+		Model: reusedGenModel, ModelVersion: reusedGenVersion, CallTime: reusedCallTime, ID: genRecordID,
 	}}
 }
 
@@ -72,7 +72,7 @@ func resumeChainShorten() ArtifactChain {
 	chain := resumeChainGeneration()
 	chain.Shorten = &StageRecord{
 		Stage: StageShorten, Title: markShortTitle, Body: markShortBody,
-		Model: reusedShortModel, ModelVersion: reusedShortVersion, ID: shortenRecordID,
+		Model: reusedShortModel, ModelVersion: reusedShortVersion, CallTime: reusedCallTime, ID: shortenRecordID,
 	}
 	return chain
 }
@@ -83,7 +83,7 @@ func resumeChainReview(revisions []Revision) ArtifactChain {
 	chain.Review = &StageRecord{
 		Stage: StageReview, Title: markShortTitle, Body: markShortBody + "-reused",
 		Model: reusedReviewModel, ModelVersion: reusedReviewVersion,
-		Revisions: revisions, ID: reviewRecordID,
+		Revisions: revisions, CallTime: reusedCallTime, ID: reviewRecordID,
 	}
 	return chain
 }

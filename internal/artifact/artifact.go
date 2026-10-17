@@ -17,8 +17,14 @@ import (
 const maxArtifactBytes = 4 << 20 // 4 MiB
 
 // artifactVersion is the only format version this package reads and writes.
-// Version 2 adds the usage element to version 1.
-const artifactVersion = 2
+// Version 2 added the usage element to version 1; version 3 adds the call_time
+// element (when the stage's Generate call returned) after usage.
+const artifactVersion = 3
+
+// CallTimeLayout is the layout of the call_time element and the only accepted
+// spelling of a call time: UTC, whole seconds. The trailing Z is a literal
+// character, so a value in another zone is rejected rather than misread.
+const CallTimeLayout = "2006-01-02T15:04:05Z"
 
 // sha256HexLen is the length of a SHA-256 digest written in hex.
 const sha256HexLen = 64

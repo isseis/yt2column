@@ -127,7 +127,7 @@ func TestLoadRejectsBrokenPreviousStage(t *testing.T) {
 }
 
 func TestLoadNamesBrokenStage(t *testing.T) {
-	// A version 1 shorten artifact under a valid version 2 generation and
+	// A version 1 shorten artifact under a valid version 3 generation and
 	// review chain: the load must name the shorten stage as the broken one.
 	store, dir := newTestStore(t)
 	materialID := validGeneration().Input

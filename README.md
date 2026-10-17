@@ -180,8 +180,10 @@ directory, or a stage that could not be built) writes no token line. A run that
 is stopped without writing its summary (a second signal, `kill -9`, or a panic)
 writes none either.
 
-The counts are also stored, as the `usage` element, in a `--artifacts` file. The
-artifact format is version 2: a version 1 file is rejected on resume, so after
+The counts are also stored, as the `usage` element, in a `--artifacts` file. A
+stage's call time is stored next to it, as the `call_time` element: the moment
+the stage's LLM call returned, in UTC and whole seconds. The artifact format is
+version 3: a version 1 or version 2 file is rejected on resume, so after
 updating, use a new `--artifacts` directory or move the old one away.
 
 ## Cache and concurrency

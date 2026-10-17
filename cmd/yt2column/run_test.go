@@ -2354,9 +2354,10 @@ func TestRunArtifactExitCodes(t *testing.T) {
 	validGeneration := func(input string) []byte {
 		record := writer.StageRecord{
 			Stage: writer.StageGeneration, Title: "T", Body: "B.", Model: "m",
-			System: writer.TemplateIdentity{Embedded: true, Digest: writer.Digest("s")},
-			User:   writer.TemplateIdentity{Embedded: true, Digest: writer.Digest("u")},
-			Input:  input,
+			System:   writer.TemplateIdentity{Embedded: true, Digest: writer.Digest("s")},
+			User:     writer.TemplateIdentity{Embedded: true, Digest: writer.Digest("u")},
+			Input:    input,
+			CallTime: time.Date(2026, time.October, 16, 1, 0, 0, 0, time.UTC),
 		}
 		data, _, err := artifact.Marshal(record)
 		if err != nil {
@@ -2420,6 +2421,37 @@ func TestRunArtifactExitCodes(t *testing.T) {
 					t.Fatalf("the saved artifact has no usage field to tamper with:\n%s", data)
 				}
 				tampered := strings.Replace(string(data), `"usage":null`, `"usage":"x"`, 1)
+				if err := os.WriteFile(artifactFile(dir, runVideoID, "generation"), []byte(tampered), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
+			name: "a malformed call time is a run failure",
+			want: exitFailure,
+			args: []string{"--artifacts", "@dir", "--after", "generation", "--out", "@out", runVideoURL},
+			prepared: func(t *testing.T, e *runEnv, dir string) {
+				e.useReviewClient(reviewLLM(emptyReviewJSON))
+				// Save a real generation artifact, then break only its
+				// call_time with a spelling time.Parse rejects (a zone
+				// offset). The time rule rejects it before the id check, so
+				// the id need not be recomputed.
+				saved := saveArtifactsOnce(t, shortGeneration)
+				data, err := os.ReadFile(artifactFile(saved, runVideoID, "generation"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				const key = `"call_time":"`
+				start := strings.Index(string(data), key)
+				if start < 0 {
+					t.Fatalf("the saved artifact has no call_time to tamper with:\n%s", data)
+				}
+				valueStart := start + len(key)
+				valueEnd := strings.Index(string(data)[valueStart:], `"`)
+				if valueEnd < 0 {
+					t.Fatalf("the saved artifact has an unterminated call_time:\n%s", data)
+				}
+				tampered := string(data)[:valueStart] + "2026-10-16T01:00:00+00:00" + string(data)[valueStart+valueEnd:]
 				if err := os.WriteFile(artifactFile(dir, runVideoID, "generation"), []byte(tampered), 0o600); err != nil {
 					t.Fatal(err)
 				}

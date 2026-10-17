@@ -87,6 +87,10 @@ type Options struct {
 	Shorten            ShortenOptions
 	Review             ReviewOptions
 	Artifacts          ArtifactOptions
+	// Clock returns the current time. nil selects time.Now. It is read once
+	// after each stage's Generate call returns, and the value is recorded on
+	// the stage's usage and artifact.
+	Clock func() time.Time
 }
 
 // ShortenOptions configures the shorten step, which uses the generation
@@ -136,6 +140,7 @@ type templateWriter struct {
 	reviewClient llm.LLMClient
 	store        ArtifactStore
 	resume       Stage
+	clock        func() time.Time
 }
 
 // generationRuns reports whether Write runs the generation stage.
@@ -182,10 +187,15 @@ func New(client llm.LLMClient, opts Options) (ArticleWriter, error) {
 	if err != nil {
 		return nil, err
 	}
+	clock := opts.Clock
+	if clock == nil {
+		clock = time.Now
+	}
 	w := &templateWriter{
 		client:     client,
 		generation: stepTemplates[templateData]{system: system, user: user},
 		resume:     opts.Artifacts.Resume,
+		clock:      clock,
 	}
 	// Normalize a typed-nil store to a nil interface, so Write's "no store"
 	// test is the same as the caller's "no store".
@@ -333,6 +343,9 @@ func (w *templateWriter) Write(ctx context.Context, t transcript.Transcript) (Ar
 			return Article{}, tokenUsageError(runUsage, artifactError(w.resume, err))
 		}
 		chain = loaded
+		if err := checkChainCallTimes(chain); err != nil {
+			return Article{}, tokenUsageError(runUsage, err)
+		}
 	}
 
 	generation := chain.Generation
@@ -394,19 +407,48 @@ func (w *templateWriter) Write(ctx context.Context, t transcript.Transcript) (Ar
 
 // stageUsage is the usage of a stage that called Generate: OriginRun, the
 // response's Usage, and resp.Model only when it passes the model-name rule (so
-// a failed call whose model was invalid reports an empty model).
-func stageUsage(resp llm.GenerateResponse) StageUsage {
+// a failed call whose model was invalid reports an empty model). callTime is
+// the time the call returned, normalized to UTC, truncated to the second, and
+// stripped of any monotonic clock reading.
+func stageUsage(resp llm.GenerateResponse, callTime time.Time) StageUsage {
 	model := ""
 	if checkModelString("Model", resp.Model) == nil {
 		model = resp.Model
 	}
-	return StageUsage{Origin: OriginRun, Model: model, Usage: resp.Usage}
+	return StageUsage{Origin: OriginRun, Model: model, Usage: resp.Usage, CallTime: normalizeCallTime(callTime)}
 }
 
 // reusedUsage is the usage of a stage that reused a loaded artifact: the
-// record's already-verified model and usage.
+// record's already-verified model, usage, and call time.
 func reusedUsage(record StageRecord) StageUsage {
-	return StageUsage{Origin: OriginReused, Model: record.Model, Usage: record.Usage}
+	return StageUsage{Origin: OriginReused, Model: record.Model, Usage: record.Usage, CallTime: record.CallTime}
+}
+
+// normalizeCallTime returns t in the one form a StageUsage or a StageRecord
+// holds: UTC, whole seconds, no monotonic clock reading.
+func normalizeCallTime(t time.Time) time.Time {
+	return t.UTC().Truncate(time.Second)
+}
+
+// checkChainCallTimes rejects a loaded chain whose records are missing their
+// call time. Write records a call time on every stage it runs and Save refuses
+// a record without one, so a store that returns such a record breaks the
+// ArtifactStore contract; failing closed keeps a time-of-day stage from being
+// priced from a zero time.
+func checkChainCallTimes(chain ArtifactChain) error {
+	records := []StageRecord{chain.Generation}
+	if chain.Shorten != nil {
+		records = append(records, *chain.Shorten)
+	}
+	if chain.Review != nil {
+		records = append(records, *chain.Review)
+	}
+	for _, record := range records {
+		if record.CallTime.IsZero() {
+			return artifactError(record.Stage, fmt.Errorf("%w: the %s artifact has no call time", ErrMissingCallTime, record.Stage))
+		}
+	}
+	return nil
 }
 
 // generateStage runs the generation stage and saves its artifact when a store
@@ -418,7 +460,7 @@ func (w *templateWriter) generateStage(ctx context.Context, videoID string, data
 		return StageRecord{}, StageUsage{}, err
 	}
 	resp, err := w.client.Generate(ctx, llm.GenerateRequest{SystemPrompt: system, UserPrompt: user, MaxOutputTokens: 0})
-	usage := stageUsage(resp)
+	usage := stageUsage(resp, w.clock())
 	if err != nil {
 		return StageRecord{}, usage, fmt.Errorf("LLM generation failed: %w", err)
 	}
@@ -433,6 +475,7 @@ func (w *templateWriter) generateStage(ctx context.Context, videoID string, data
 		Model:        resp.Model,
 		ModelVersion: resp.ModelVersion,
 		Usage:        resp.Usage,
+		CallTime:     usage.CallTime,
 		System:       w.generation.system.identity,
 		User:         w.generation.user.identity,
 		Input:        materialID,
@@ -470,6 +513,7 @@ func (w *templateWriter) shortenStage(ctx context.Context, videoID, title, body,
 		Model:        model.Model,
 		ModelVersion: model.ModelVersion,
 		Usage:        usage.Usage,
+		CallTime:     usage.CallTime,
 		System:       w.shorten.system.identity,
 		User:         w.shorten.user.identity,
 		Input:        input,
@@ -501,6 +545,7 @@ func (w *templateWriter) reviewStage(ctx context.Context, videoID string, data t
 		Model:        result.Model.Model,
 		ModelVersion: result.Model.ModelVersion,
 		Usage:        usage.Usage,
+		CallTime:     usage.CallTime,
 		System:       w.review.system.identity,
 		User:         w.review.user.identity,
 		Input:        input,

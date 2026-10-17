@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/transcript"
@@ -62,6 +63,7 @@ type StageRecord struct {
 	Model        string
 	ModelVersion string
 	Usage        llm.Usage // the token usage of the stage's call
+	CallTime     time.Time // when the stage's Generate call returned; UTC, whole seconds, never zero
 	System       TemplateIdentity
 	User         TemplateIdentity
 	Input        string // the identifier of the input this stage consumed
@@ -78,11 +80,13 @@ type ArtifactChain struct {
 }
 
 // ArtifactStore saves and loads the intermediate artifacts of a run.
-// Implementations must reject malformed input rather than repair it, and must
-// not create the artifacts directory.
+// Implementations must reject malformed input rather than repair it, must not
+// create the artifacts directory, and must return from Load only records whose
+// CallTime is not zero.
 type ArtifactStore interface {
 	// Load verifies the chain of videoID's artifacts that ends at stage
-	// against materialID and returns it.
+	// against materialID and returns it. Every returned record has a
+	// non-zero CallTime.
 	Load(ctx context.Context, videoID string, stage Stage, materialID string) (ArtifactChain, error)
 	// Save writes one completed stage's record for videoID and returns its
 	// identifier.

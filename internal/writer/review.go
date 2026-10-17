@@ -254,7 +254,7 @@ func (w *templateWriter) runReview(ctx context.Context, material templateData, t
 		return "", "", nil, StageUsage{}, stepError(StepReview, err)
 	}
 	resp, err := w.reviewClient.Generate(ctx, llm.GenerateRequest{SystemPrompt: system, UserPrompt: user, MaxOutputTokens: 0})
-	usage := stageUsage(resp)
+	usage := stageUsage(resp, w.clock())
 	if err != nil {
 		return "", "", nil, usage, stepError(StepReview, err)
 	}
