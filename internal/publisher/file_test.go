@@ -11,8 +11,36 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/writer"
 )
+
+// costedArticle returns validArticle with one generation stage whose cost is
+// known: claude-haiku-5-5 at or below its 100,000-token prompt threshold bills
+// 100000 microUSD per million input tokens, which is 100000 picoUSD per token,
+// so 23,000 input tokens cost 23,000 * 100000 = 2,300,000,000 picoUSD =
+// $0.0023, which four decimals render as "0.0023".
+func costedArticle() writer.Article {
+	article := validArticle()
+	article.RunUsage = writer.RunUsage{Generation: writer.StageUsage{
+		Origin: writer.OriginRun,
+		Model:  "claude-haiku-5-5",
+		Usage:  llm.KnownUsage(llm.TokenCounts{Input: 23000}),
+	}}
+	return article
+}
+
+// unpricedArticle returns validArticle with a generation usage whose model is
+// not in the rate table, so the article's cost is unknown.
+func unpricedArticle() writer.Article {
+	article := validArticle()
+	article.RunUsage = writer.RunUsage{Generation: writer.StageUsage{
+		Origin: writer.OriginRun,
+		Model:  "not-in-the-table",
+		Usage:  llm.KnownUsage(llm.TokenCounts{Input: 23000}),
+	}}
+	return article
+}
 
 func validArticle() writer.Article {
 	return writer.Article{
@@ -61,7 +89,7 @@ func TestFilePublisherWritesArticle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "# A title\n\n- Model: model-x\n- Model version: 2026-01-01\n\n" + article.Body
+	want := "# A title\n\n- Model: model-x\n- Model version: 2026-01-01\n- Estimated cost: unknown\n\n" + article.Body
 	if string(got) != want {
 		t.Fatalf("content = %q, want %q", got, want)
 	}
@@ -74,6 +102,25 @@ func TestFilePublisherWritesArticle(t *testing.T) {
 	}
 	if names := dirEntries(t, dir); len(names) != 1 || names[0] != "article.md" {
 		t.Fatalf("directory entries = %v, want only article.md", names)
+	}
+}
+
+func TestFilePublisherWritesCostLine(t *testing.T) {
+	out := filepath.Join(t.TempDir(), "a.md")
+	p, err := NewFilePublisher(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	article := costedArticle()
+	if err := p.Publish(context.Background(), article); err != nil {
+		t.Fatalf("Publish: %v", err)
+	}
+	got, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "- Estimated cost: 0.0023 USD\n"; !strings.Contains(string(got), want) {
+		t.Fatalf("the published file does not carry the cost line %q:\n%s", want, got)
 	}
 }
 
@@ -93,6 +140,8 @@ func TestFilePublisherEmptyModelVersion(t *testing.T) {
 
 func TestRenderArticleSteps(t *testing.T) {
 	header := "# A title\n\n- Model: model-x\n- Model version: 2026-01-01\n"
+	// validArticle carries no run usage, so the cost line is the unknown form.
+	cost := "- Estimated cost: unknown\n"
 
 	t.Run("shorten then review", func(t *testing.T) {
 		article := validArticle()
@@ -100,7 +149,7 @@ func TestRenderArticleSteps(t *testing.T) {
 		article.Review = &writer.ReviewResult{Model: writer.StepModel{Model: "review-x", ModelVersion: ""}}
 		want := header +
 			"- Shorten model: shorten-x\n- Shorten model version: s1\n" +
-			"- Review model: review-x\n- Review model version: (none)\n\n" + article.Body
+			"- Review model: review-x\n- Review model version: (none)\n" + cost + "\n" + article.Body
 		if got := renderArticle(article); got != want {
 			t.Fatalf("renderArticle = %q, want %q", got, want)
 		}
@@ -109,7 +158,7 @@ func TestRenderArticleSteps(t *testing.T) {
 	t.Run("only shorten", func(t *testing.T) {
 		article := validArticle()
 		article.Shorten = &writer.StepModel{Model: "shorten-x", ModelVersion: ""}
-		want := header + "- Shorten model: shorten-x\n- Shorten model version: (none)\n\n" + article.Body
+		want := header + "- Shorten model: shorten-x\n- Shorten model version: (none)\n" + cost + "\n" + article.Body
 		if got := renderArticle(article); got != want {
 			t.Fatalf("renderArticle = %q, want %q", got, want)
 		}
@@ -118,11 +167,34 @@ func TestRenderArticleSteps(t *testing.T) {
 	t.Run("only review", func(t *testing.T) {
 		article := validArticle()
 		article.Review = &writer.ReviewResult{Model: writer.StepModel{Model: "review-x", ModelVersion: "r1"}}
-		want := header + "- Review model: review-x\n- Review model version: r1\n\n" + article.Body
+		want := header + "- Review model: review-x\n- Review model version: r1\n" + cost + "\n" + article.Body
 		if got := renderArticle(article); got != want {
 			t.Fatalf("renderArticle = %q, want %q", got, want)
 		}
 	})
+}
+
+// TestRenderArticleCost fixes the whole rendered header, so it also pins that
+// the cost line appears exactly once: the expected text holds it once.
+func TestRenderArticleCost(t *testing.T) {
+	cases := []struct {
+		name     string
+		article  writer.Article
+		wantLine string
+	}{
+		{"known", costedArticle(), "- Estimated cost: 0.0023 USD"},
+		{"unknown without a run usage", validArticle(), "- Estimated cost: unknown"},
+		{"unknown for a model not in the table", unpricedArticle(), "- Estimated cost: unknown"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			want := "# A title\n\n- Model: model-x\n- Model version: 2026-01-01\n" +
+				tc.wantLine + "\n\n" + tc.article.Body
+			if got := renderArticle(tc.article); got != want {
+				t.Fatalf("renderArticle = %q, want %q", got, want)
+			}
+		})
+	}
 }
 
 func TestFilePublisherExistingPath(t *testing.T) {

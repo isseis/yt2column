@@ -10,6 +10,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/isseis/yt2column/internal/pricing"
 	"github.com/isseis/yt2column/internal/writer"
 )
 
@@ -31,6 +32,11 @@ const tempPrefix = ".yt2column-"
 
 // writeChunkSize bounds how many bytes are written between two checks of ctx.
 const writeChunkSize = 32 * 1024
+
+// articleCostDecimals is how many decimal places the article header's cost
+// line shows. The article reader needs only a rough figure, so it is coarser
+// than the six decimals of the CLI summary.
+const articleCostDecimals = 4
 
 // articleFileMode is the permission of the published file and the review log.
 // Both are non-secret documents built from a public video, and the process
@@ -199,7 +205,9 @@ func syncDir(dir string) {
 // renderArticle returns the text FilePublisher and SlackWebhookPublisher both
 // output for a; it ends with the article body. It adds one model line pair per
 // step that ran, in order (shorten, then review); a nil step result contributes
-// no lines, so an article with no step output is rendered as before.
+// no lines, so an article with no step output is rendered as before. It then
+// adds the article's estimated cost, rounded to four decimals, or the fixed
+// word "unknown" when the cost is not known.
 func renderArticle(a writer.Article) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# %s\n\n- Model: %s\n- Model version: %s\n", a.Title, a.Model, modelVersionOrNone(a.ModelVersion))
@@ -209,8 +217,22 @@ func renderArticle(a writer.Article) string {
 	if a.Review != nil {
 		fmt.Fprintf(&b, "- Review model: %s\n- Review model version: %s\n", a.Review.Model.Model, modelVersionOrNone(a.Review.Model.ModelVersion))
 	}
+	fmt.Fprintf(&b, "%s\n", articleCostLine(a.RunUsage))
 	fmt.Fprintf(&b, "\n%s", a.Body)
 	return b.String()
+}
+
+// articleCostLine returns the article-header cost line: the cost of the whole
+// article (the stages this run called plus the ones it reused) in US dollars
+// with four decimals, or "unknown" when that total is not known. It never
+// guesses a value, so an unpriced model or an unknown usage yields "unknown".
+func articleCostLine(runUsage writer.RunUsage) string {
+	_, article := pricing.Totals(runUsage)
+	amount, known := article.Amount()
+	if !known {
+		return "- Estimated cost: unknown"
+	}
+	return fmt.Sprintf("- Estimated cost: %s USD", amount.Format(articleCostDecimals))
 }
 
 // modelVersionOrNone returns version, or the "(none)" placeholder shown when a
