@@ -175,8 +175,8 @@ func TestExtensionSendDocumentation(t *testing.T) {
 		if section == "" {
 			t.Fatal("README.md has no Browser extension section")
 		}
-		if strings.Contains(section, "never sends anything") {
-			t.Error("README.md's Browser extension section still says it never sends anything")
+		if strings.Contains(section, "never sends") {
+			t.Error("README.md's Browser extension section still says it never sends")
 		}
 		for _, want := range []string{
 			"shared token",

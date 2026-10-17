@@ -501,10 +501,12 @@ How to read the result:
   not resend automatically, and it tells you to check Slack before sending
   again, because the server may already be processing the request.
 
-The `requestId` matches the extension's display with the server log and the
-Slack notification; a failure without one is matched by the time. Do not close
-the popup or the result window while it is sending: if you close it the result
-is not shown, and sending again could post the same article twice.
+The `requestId` matches the extension's display with the server log and with a
+failure notice in Slack. A successfully generated article carries no
+`requestId`, so match it by the video or the time; a failure with no `requestId`
+is matched by the time. Do not close the popup or the result window while it is
+sending: if you close it the result is not shown, and sending again could post
+the same article twice.
 
 The selection is sent exactly as copied from the transcript panel; the extension
 does not trim it, so select only the caption lines — a trailing blank line is
