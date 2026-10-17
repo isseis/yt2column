@@ -266,15 +266,15 @@ requirements の機能要件（F-001〜F-010）を、architecture の設計ど�
 
 実際の API と Webhook を呼ぶ確認であり、実行には人の承認が要る（CLAUDE.md「Tool Execution Safety」、requirements §5）。PR-5 の変更（統合テストのログ）を実際に動かす唯一の確認なので、PR-5 のマージの前に行い、結果を本節の表に記録して PR-5 に含める（AC-32・AC-34）。
 
-- [-] **ステップ M-1**: `make test-integration-cli` を実行し、ログの料金の行と合計の行の値を、DeepSeek のコンソールの利用履歴の同じ実行の料金と照らす（祝日に行った呼び出しは除く。AC-32）。実行は済んだ（下の表）。コンソールの利用履歴との照合は未確認で、PR-5 のマージの前に操作者が行う。
+- [x] **ステップ M-1**: `make test-integration-cli` を実行し、ログの料金の行と合計の行の値を、DeepSeek のコンソールの利用履歴の同じ実行の料金と照らす（祝日に行った呼び出しは除く。AC-32）。前回は同じキーを使う別のコードと利用履歴が混ざったため、専用のテスト用 API キーを用意して実行し直した（下の表）。コンソールの料金は `<$0.01` に丸められ金額の一致までは確認できないが、トークン数が 4 区分とも一致し、専用キーで同じ実行だけが計上されていることを操作者（isseis）が確認し、これで十分とした。
 - [x] **ステップ M-2**: `make test-integration-deepseek` と `make test-integration-claude` を実行し、ログに各呼び出しのトークン数と料金の概算が出ることを確かめる（AC-33）。
-- [-] **ステップ M-3**: `make test-integration-cli-slack` を実行し、Mattermost の投稿の見出しのメタデータに料金の行が表示されることを確かめる（AC-34）。実行は済んだ（下の表）。Mattermost の表示は未確認で、PR-5 のマージの前に操作者が行う。
+- [x] **ステップ M-3**: `make test-integration-cli-slack` を実行し、Mattermost の投稿の見出しのメタデータに料金の行が表示されることを確かめる（AC-34）。実行は済んでおり（下の表）、操作者（isseis）が投稿の見出しの `- Estimated cost: 0.0029 USD` の表示を確認した。
 
 | 確認 | 日時 | 結果 |
 |---|---|---|
-| M-1（AC-32） | 2026-10-17 16:51 JST | `make test-integration-cli` が通り、ログは `cost: generation run known usd=0.002505 off-peak at=2026-10-17T07:51:39Z`（input=4854・cache_read=128・output=2961。オフピークの単価で手計算した 2,505,084,000 picoUSD → 0.002505 USD と一致）。DeepSeek コンソールの利用履歴との照合は操作者（isseis）が行う。 |
+| M-1（AC-32） | 2026-10-18 05:52 JST | 専用のテスト用 API キー（`YT2COLUMN_TEST_DEEPSEEK_API_KEY_DEDICATED`）で `make test-integration-cli` を 1 回実行し、`cost: generation run known usd=0.002575 off-peak at=2026-10-17T20:52:18Z`（input=246・cache_read=4736・cache_write=0・output=4207）、合計の 2 行はともに `usd=0.002575`。DeepSeek コンソールの利用履歴は 05:00〜06:00 の 1 件で、Input (Cache hit) 4,736・Input (Cache miss) 246・Output 4,207・合計 9,189 がログの 4 区分と一致した。コンソールの料金は `<$0.01` に丸められ金額の一致までは確認できないが、専用キーで同じ実行だけが計上されていることを操作者（isseis）が確認した。 |
 | M-2（AC-33） | 2026-10-17 16:52 JST | `make test-integration-deepseek` が通り、generate は `tokens input=47 cache_read=0 cache_write=0 output=65; cost known usd=0.000046 off-peak`、truncated は `tokens input=51 ... output=16; cost known usd=0.000017 off-peak`（手計算と一致）。`make test-integration-claude` は `YT2COLUMN_TEST_ANTHROPIC_WORKSPACE_ID` を設定して通り、generate は `cost known usd=0.000036 short-prompt`、truncated は `cost known usd=0.000013 short-prompt`（手計算と一致）。ログに 4 区分のトークン数と料金の概算が出た。 |
-| M-3（AC-34） | 2026-10-17 16:53 JST | `make test-integration-cli-slack` が通り、`posted the article to the webhook in 1 message`。ログの料金は `cost: generation run known usd=0.002886 off-peak at=2026-10-17T07:53:00Z`（input=246・cache_read=4736・output=4725。手計算と一致）。Mattermost の投稿の見出しの料金の行の表示は操作者（isseis）が確認する。 |
+| M-3（AC-34） | 2026-10-17 16:53 JST（表示の確認は 2026-10-18） | `make test-integration-cli-slack` が通り、`posted the article to the webhook in 1 message`。ログの料金は `cost: generation run known usd=0.002886 off-peak at=2026-10-17T07:53:00Z`（input=246・cache_read=4736・output=4725。手計算と一致）。Mattermost の投稿の見出しのメタデータに `- Model: deepseek-flash`・`- Model version: e72d3c7f663d3e1383b00b3884cb4501`・`- Estimated cost: 0.0029 USD` が表示されることを操作者（isseis）が確認した。 |
 
 ### PR-5 作成ポイント: integration test cost logs
 
