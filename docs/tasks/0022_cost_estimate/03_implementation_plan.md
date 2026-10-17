@@ -297,16 +297,16 @@ requirements の機能要件（F-001〜F-010）を、architecture の設計ど�
 
 **対象ファイル:** `README.md`、`docs/dev/developer_guide/pricing_update.md`（新規）、`internal/pricing/rates.go`（先頭のコメント）、`CLAUDE.md`、`docs/dev/project_overview.md`、`docs/dev/security.md`、`docs/dev/developer_guide/package_reference.md`、`cmd/yt2column/docs_test.go`
 
-- [ ] **ステップ 4-1**: `README.md` の `## Token usage` の後に、料金の概算の節（例: `## Estimated cost`）を加える。内容は architecture §3.9 の README の項目のとおりで、版 3 の記述はステップ 2-8 で済んでいる。例の行は、ステップ 3-7 の `TestRunCostLinesGoldenFormat` が固定する綴りと同じ形にする。
-- [ ] **ステップ 4-2**: `docs/dev/developer_guide/pricing_update.md`（英語）に、architecture §3.9 の単価の更新の手順を書く。`internal/pricing/rates.go` の先頭のコメントからこの文書を指し、`CLAUDE.md` の Development Guides の一覧に 1 行加える（AC-41）。
-- [ ] **ステップ 4-3**: `docs/dev/project_overview.md` の `--artifacts` の項（`:34`）に形式の版 3 と呼び出しの時刻を、トークン数の行の項（`:35`）の後に料金の行と `--out`・Slack の行を加え、「前提・制約」のモデル名の項（`:66`）に、単価の表がこの方針の対象外であることの注記を加える（architecture §1.3 の例外 3）。
-- [ ] **ステップ 4-4**: `docs/dev/security.md` の `## 6.` の `--artifacts` の項（`:78`）に、来歴の列挙への呼び出しの時刻と、`call_time` の受理の形と拒否の規則を加える（architecture §3.9）。
-- [ ] **ステップ 4-5**: `package_reference.md` の `internal/writer` の行に `CallTime`・`Clock`・`ErrMissingCallTime` を、`internal/publisher` の行に料金の行を、`cmd/yt2column` の行に料金の行を加える。
-- [ ] **ステップ 4-6**: `cmd/yt2column/docs_test.go` に、既存の `TestTokenUsageDocsContract` と同じ形の `TestCostDocsContract` を加え、`readDoc`・`sectionByHeading`・`bulletContaining`・`containsToken` を使って次を確かめる。`TestTokenUsageDocsContract` の `package_reference.md` の表に `internal/pricing` の行（公開の型）を加える（architecture §3.11）。
+- [x] **ステップ 4-1**: `README.md` の `## Token usage` の後に、料金の概算の節（例: `## Estimated cost`）を加える。内容は architecture §3.9 の README の項目のとおりで、版 3 の記述はステップ 2-8 で済んでいる。例の行は、ステップ 3-7 の `TestRunCostLinesGoldenFormat` が固定する綴りと同じ形にする。
+- [x] **ステップ 4-2**: `docs/dev/developer_guide/pricing_update.md`（英語）に、architecture §3.9 の単価の更新の手順を書く。`internal/pricing/rates.go` の先頭のコメントからこの文書を指し、`CLAUDE.md` の Development Guides の一覧に 1 行加える（AC-41）。
+- [x] **ステップ 4-3**: `docs/dev/project_overview.md` の `--artifacts` の項（`:34`）に形式の版 3 と呼び出しの時刻を、トークン数の行の項（`:35`）の後に料金の行と `--out`・Slack の行を加え、「前提・制約」のモデル名の項（`:66`）に、単価の表がこの方針の対象外であることの注記を加える（architecture §1.3 の例外 3）。
+- [x] **ステップ 4-4**: `docs/dev/security.md` の `## 6.` の `--artifacts` の項（`:78`）に、来歴の列挙への呼び出しの時刻と、`call_time` の受理の形と拒否の規則を加える（architecture §3.9）。
+- [x] **ステップ 4-5**: `package_reference.md` の `internal/writer` の行に `CallTime`・`Clock`・`ErrMissingCallTime` を、`internal/publisher` の行に料金の行を、`cmd/yt2column` の行に料金の行を加える。
+- [x] **ステップ 4-6**: `cmd/yt2column/docs_test.go` に、既存の `TestTokenUsageDocsContract` と同じ形の `TestCostDocsContract` を加え、`readDoc`・`sectionByHeading`・`bulletContaining`・`containsToken` を使って次を確かめる。`TestTokenUsageDocsContract` の `package_reference.md` の表に `internal/pricing` の行（公開の型）を加える（architecture §3.11）。
   - README の料金の節が、`run.go` の料金の書式の定数と、語の対応の関数が返すすべての語（適用した単価・不明の理由・`invalid`）を含むこと。語はコードから得て、テストに綴りを書かない。README の例の行の固定の位置の語が、定数と語の対応の関数の語だけであること。`--out`・Slack の行の見出しの語 `Estimated cost` を含むこと（この語は `internal/publisher` の非公開の定数なので、guard は綴りを書き、同じ綴りを `TestRenderArticleCost` が固定する）（AC-21・AC-40）。
   - `pricing_update.md` が `rates.go` と、手で計算した期待値のテストの名前を含み、`CLAUDE.md` がこの文書へのリンクを持ち、`rates.go` の先頭のコメントがこの文書を指すこと（AC-41）。
   - `project_overview.md` が料金の行の接頭辞（`run.go` の定数）と `call_time` を、`security.md` の `--artifacts` の項が `call_time` を含むこと（AC-42。日本語の文に当たる文字列は Go のリテラルに書かない）。
-- [ ] **ステップ 4-7**: 書いた文書を、その根拠となるコード・テスト・architecture と照らす。README の行の書式と例は `TestCostDocsContract` と `TestRunCostLinesGoldenFormat` の出力で、README の DeepSeek の判定・合計の丸め・再利用した段階の単価の説明は architecture §3.3・§3.6・§5.2 とステップ 1-5 のテストで、`pricing_update.md` の手順は `rates.go` とステップ 1-5 のテストのファイルの名前で、`security.md` の規則は `TestParseRecordRejectsCallTime` の行と、PR の差分で突き合わせる（manual）。README の DeepSeek の判定の記述（祝日、境界、時計）が AC-40 の項目を満たすことも確かめる。
+- [x] **ステップ 4-7**: 書いた文書を、その根拠となるコード・テスト・architecture と照らす。README の行の書式と例は `TestCostDocsContract` と `TestRunCostLinesGoldenFormat` の出力で、README の DeepSeek の判定・合計の丸め・再利用した段階の単価の説明は architecture §3.3・§3.6・§5.2 とステップ 1-5 のテストで、`pricing_update.md` の手順は `rates.go` とステップ 1-5 のテストのファイルの名前で、`security.md` の規則は `TestParseRecordRejectsCallTime` の行と、PR の差分で突き合わせる（manual）。README の DeepSeek の判定の記述（祝日、境界、時計）が AC-40 の項目を満たすことも確かめる。
 
 **完了条件:** グリーンゲートが通る。`TestCostDocsContract`・`TestTokenUsageDocsContract`・`TestPackageReferenceListsPackages` が通る。
 

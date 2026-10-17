@@ -16,6 +16,7 @@ import (
 
 	"github.com/isseis/yt2column/internal/llm"
 	claudetestutil "github.com/isseis/yt2column/internal/llm/claude/testutil"
+	"github.com/isseis/yt2column/internal/pricing"
 	"github.com/isseis/yt2column/internal/publisher"
 	publishertestutil "github.com/isseis/yt2column/internal/publisher/testutil"
 	"github.com/isseis/yt2column/internal/transcript"
@@ -30,6 +31,8 @@ const (
 	reviewPlanPath       = "../../docs/tasks/0010_post_generation_review/03_implementation_plan.md"
 	reviewEvaluationPath = "../../docs/tasks/0010_post_generation_review/02_evaluation.md"
 	columnArticlesPath   = "../../docs/tasks/0008_column_prompt/02_evaluation.md"
+	pricingUpdatePath    = "../../docs/dev/developer_guide/pricing_update.md"
+	pricingRatesPath     = "../../internal/pricing/rates.go"
 )
 
 // evaluatedVideoCount is the number of videos the column-prompt task evaluated.
@@ -750,6 +753,7 @@ func TestTokenUsageDocsContract(t *testing.T) {
 	}{
 		{"internal/llm", []string{"TokenCounts", "UnknownRule", "Usage"}},
 		{"internal/strictjson", []string{"IsNull", "AsNonNegativeInt64"}},
+		{"internal/pricing", []string{"Estimate", "StageCost", "Total", "Totals", "Amount", "RateBasis", "UnknownReason", "Format"}},
 		{"internal/writer", []string{"UsageOrigin", "StageUsage", "RunUsage", "TokenUsageError"}},
 		{"internal/artifact", []string{"version 3", "usage", "call_time", "internal/llm"}},
 		{"internal/llm/deepseek", []string{"usage"}},
@@ -766,5 +770,136 @@ func TestTokenUsageDocsContract(t *testing.T) {
 				t.Errorf("the package_reference.md %s row does not mention %s", row.pkg, want)
 			}
 		}
+	}
+}
+
+// TestCostDocsContract checks the cost documents: the README's Estimated cost
+// section uses every word run.go's cost format defines, its example lines use
+// only those words and the stage names in the fixed positions, and it names the
+// heading word of the --out and Slack cost line; the rate-update procedure
+// names the rate table and the hand-calculated tests, is linked from CLAUDE.md,
+// and is pointed at from the rate table's leading comment; project_overview.md
+// and security.md describe the cost line and the artifact call_time.
+//
+// The behavior these documents describe is pinned by running tests, not by this
+// test: the line format by cmd/yt2column's TestRunCostLinesGoldenFormat, and the
+// call_time validation by internal/artifact's TestParseRecordRejectsCallTime.
+func TestCostDocsContract(t *testing.T) {
+	readme := readDoc(t, readmePath)
+	section := sectionByHeading(readme, "## Estimated cost")
+	if section == "" {
+		t.Fatal("README has no Estimated cost section")
+	}
+	// The value-carrying fields of the cost lines, taken from run.go so the
+	// test does not spell them.
+	for _, word := range []string{costPrefix, costTotalPrefix, costUSD, costReason, costAt} {
+		if !strings.Contains(section, word) {
+			t.Errorf("README Estimated cost section does not contain %q", word)
+		}
+	}
+	// The fixed words of the lines, matched as whole tokens so "known" is not
+	// satisfied by "unknown" and "run" is not satisfied by "runs".
+	for _, word := range []string{
+		costKnown, costUnknown, costNoTime, costTotalRun, costTotalArticle, costInvalid,
+		writer.StageGeneration.String(), writer.StageShorten.String(), writer.StageReview.String(),
+	} {
+		if !containsToken(section, word) {
+			t.Errorf("README Estimated cost section does not contain the token %q", word)
+		}
+	}
+	// Every rate basis and unknown reason the word mapping returns, obtained
+	// from the code so the test does not spell them; the zero value and a value
+	// outside the enumeration both map to costInvalid.
+	for _, basis := range []pricing.RateBasis{
+		pricing.BasisUnset, pricing.BasisFlat, pricing.BasisOffPeak, pricing.BasisPeak,
+		pricing.BasisShortPrompt, pricing.BasisLongPrompt, pricing.RateBasis(99),
+	} {
+		if word := costBasisWord(basis); !containsToken(section, word) {
+			t.Errorf("README Estimated cost section does not contain the rate-basis word %q", word)
+		}
+	}
+	for _, reason := range []pricing.UnknownReason{
+		pricing.ReasonUnset, pricing.ReasonUsageUnknown, pricing.ReasonNoModel,
+		pricing.ReasonUnpricedModel, pricing.ReasonInvalid, pricing.UnknownReason(99),
+	} {
+		if word := costReasonWord(reason); !containsToken(section, word) {
+			t.Errorf("README Estimated cost section does not contain the reason word %q", word)
+		}
+	}
+	// The heading word of the --out and Slack cost line is an unexported
+	// publisher constant, so the guard writes the spelling; TestRenderArticleCost
+	// pins the same spelling in internal/publisher.
+	const estimatedCostHeading = "Estimated cost"
+	if !strings.Contains(section, estimatedCostHeading) {
+		t.Errorf("README Estimated cost section does not contain the heading word %q", estimatedCostHeading)
+	}
+	// Each example line's first three words after the prefix are known words:
+	// the stage, the origin, and the cost state. A line whose first word is a
+	// placeholder shows the shape, not an example.
+	allowed := map[string]bool{
+		tokensRun: true, tokensReused: true, costKnown: true, costUnknown: true,
+	}
+	for _, stage := range []writer.Stage{writer.StageGeneration, writer.StageShorten, writer.StageReview} {
+		allowed[stage.String()] = true
+	}
+	examples := 0
+	for line := range strings.SplitSeq(section, "\n") {
+		rest, ok := strings.CutPrefix(strings.TrimSpace(line), costPrefix)
+		if !ok {
+			continue
+		}
+		words := strings.Fields(rest)
+		if len(words) > 0 && strings.HasPrefix(words[0], "<") {
+			continue
+		}
+		examples++
+		if len(words) < 3 {
+			t.Errorf("README cost example line %q has fewer than three words after the prefix", line)
+			continue
+		}
+		for i := range 3 {
+			if !allowed[words[i]] {
+				t.Errorf("README cost example line %q has the unknown word %q at position %d", line, words[i], i+1)
+			}
+		}
+	}
+	if examples == 0 {
+		t.Error("README Estimated cost section has no example line")
+	}
+
+	// The rate-update procedure names the table and the hand-calculated tests,
+	// is linked from CLAUDE.md, and is pointed at from the rate table's leading
+	// comment.
+	update := readDoc(t, pricingUpdatePath)
+	for _, want := range []string{"rates.go", "TestEstimateCategories"} {
+		if !strings.Contains(update, want) {
+			t.Errorf("pricing_update.md does not name %q", want)
+		}
+	}
+	if !strings.Contains(readDoc(t, claudePath), "pricing_update.md") {
+		t.Error("CLAUDE.md does not link pricing_update.md")
+	}
+	rates := readDoc(t, pricingRatesPath)
+	head, _, _ := strings.Cut(rates, "\npackage ")
+	if !strings.Contains(head, "pricing_update.md") {
+		t.Error("internal/pricing/rates.go's leading comment does not point at pricing_update.md")
+	}
+
+	overview := readDoc(t, projectOverviewPath)
+	for _, want := range []string{costPrefix, "call_time"} {
+		if !strings.Contains(overview, want) {
+			t.Errorf("project_overview.md does not contain %q", want)
+		}
+	}
+	untrusted := sectionByHeading(readDoc(t, securityPath), "## 6. 信頼できないテキストの取り扱い")
+	if untrusted == "" {
+		t.Fatal("security.md has no 6. 信頼できないテキストの取り扱い section")
+	}
+	artifactLine := bulletContaining(untrusted, "--artifacts")
+	if artifactLine == "" {
+		t.Fatal("security.md 6. has no --artifacts bullet")
+	}
+	if !strings.Contains(artifactLine, "call_time") {
+		t.Errorf("security.md's --artifacts bullet does not mention call_time: %q", artifactLine)
 	}
 }

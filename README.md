@@ -186,6 +186,87 @@ the stage's LLM call returned, in UTC and whole seconds. The artifact format is
 version 3: a version 1 or version 2 file is rejected on resume, so after
 updating, use a new `--artifacts` directory or move the old one away.
 
+## Estimated cost
+
+Every run that calls or reuses at least one LLM stage also reports an estimated
+cost on standard error: one line per stage, then two total lines. A successful
+run writes them after the other summary lines; a failed run writes them before
+the line that names the failure. A stage that neither ran nor reused an artifact
+writes no cost line, and a run that writes no token line writes no cost line
+either. The lines are:
+
+```text
+yt2column: cost: <stage> <origin> known usd=<amount> <basis> at=<time>
+yt2column: cost: <stage> <origin> unknown reason=<reason> at=<time>
+yt2column: cost-total: <total> known usd=<amount>
+yt2column: cost-total: <total> unknown
+```
+
+- `<stage>` and `<origin>` are the same words as the token-usage line:
+  `generation`, `shorten`, or `review`, and `run` or `reused`.
+- `known` is followed by the amount as `usd=` and six decimals, then `basis`,
+  the rate basis the estimate applied: `flat` (the model has one rate),
+  `off-peak` or `peak` (the two windows of DeepSeek's time-of-day rate), or
+  `short-prompt` or `long-prompt` (Claude Haiku's two prompt-length tiers).
+- `unknown` means the cost could not be estimated. No number is written, and
+  `reason` gives one word: `usage-unknown` (the stage's token counts are
+  unknown), `no-model` (the stage reported no model name), or `unpriced-model`
+  (the model name is not in the rate table). `invalid` means the CLI broke an
+  invariant of the pricing package; it does not occur in a correct build.
+- `at` is the call time the estimate used, in UTC as `YYYY-MM-DDTHH:MM:SSZ`. A
+  reused stage shows the time its artifact recorded; `none` marks a broken
+  invariant and does not occur in a correct build.
+- The `cost-total` lines are two totals: `run` is this run's cost (its stages
+  that ran or were reused), and `article` is the whole article's cost. A total
+  is `unknown` when any stage in its set is unknown. The totals round the exact
+  sum of the stages, not the already-rounded stage amounts, so a total can
+  differ from the sum of the printed stage lines in the last digit.
+
+For example:
+
+```text
+yt2column: cost: generation reused known usd=0.000158 peak at=2026-10-16T01:12:09Z
+yt2column: cost: shorten run known usd=0.001710 off-peak at=2026-10-16T04:02:41Z
+yt2column: cost: review run unknown reason=unpriced-model at=2026-10-16T04:03:15Z
+yt2column: cost-total: run unknown
+yt2column: cost-total: article unknown
+```
+
+Both the `--out` file and the Slack post carry the article's cost as a line of
+the heading metadata, with four decimals and the word `USD`, or `unknown`:
+
+```text
+- Estimated cost: 0.0023 USD
+- Estimated cost: unknown
+```
+
+The estimate is an estimate, not the billed amount. It can differ from the
+provider's invoice:
+
+- DeepSeek's peak window is a weekly rule in UTC: the alternate rate applies on
+  Monday through Friday during 01:00-04:00 and 06:00-10:00 UTC. The CLI judges
+  the window from its own clock in UTC and does not know Chinese public
+  holidays, so a call on a holiday is billed at the off-peak rate but estimated
+  as peak: the estimate leans high.
+- A call that crosses a window boundary can be judged at a different minute than
+  the provider billed it, because the CLI's time is when the response was read
+  and validated, and the provider's billing time is not documented.
+- A CLI on a machine whose clock is wrong judges the window wrongly.
+- The rate table can be stale, for example when the provider changes a rate or
+  when the `deepseek-flash` alias starts to point at a model with different
+  rates. Each entry records its source and checked date, and the update
+  procedure is a developer document.
+
+Check the actual charge in the provider's console. A reused stage is priced with
+the rate table of the CLI that resumes, not the one that saved the artifact, so
+a run that resumes after a rate change reports a different article cost for the
+same saved text: the artifact records the call time, not the rate.
+
+A Slack post from the localhost server cannot show why an unknown cost is
+unknown, because the server's logs and HTTP responses do not change. To find the
+reason, run the CLI with the same model setting and read the `reason` word on
+its cost line.
+
 ## Cache and concurrency
 
 Every run takes an exclusive lock on the cache directory, so runs that share a
