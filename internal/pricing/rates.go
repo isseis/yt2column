@@ -1,3 +1,6 @@
+// The rate table below is the single source of the providers' published rates.
+// See docs/dev/developer_guide/pricing_update.md for how to update it.
+
 package pricing
 
 import (
