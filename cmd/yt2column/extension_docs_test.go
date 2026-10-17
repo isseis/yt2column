@@ -175,8 +175,8 @@ func TestExtensionSendDocumentation(t *testing.T) {
 		if section == "" {
 			t.Fatal("README.md has no Browser extension section")
 		}
-		if strings.Contains(section, "never sends") {
-			t.Error("README.md's Browser extension section still says it never sends")
+		if strings.Contains(section, "never sends anything") {
+			t.Error("README.md's Browser extension section still says it never sends anything")
 		}
 		for _, want := range []string{
 			"shared token",
@@ -206,6 +206,8 @@ func TestExtensionSendDocumentation(t *testing.T) {
 
 	t.Run("security.md describes sending without deferring to #111", func(t *testing.T) {
 		// The intro is section 8's own paragraph, before its 8.1/8.2 subsections.
+		// It legitimately names #110 and #111, so check the exact retired
+		// sentence rather than a bare "#111".
 		intro := sectionByHeadingPrefix(security, "## 8. ")
 		if intro == "" {
 			t.Fatal("security.md has no section 8")
@@ -220,13 +222,12 @@ func TestExtensionSendDocumentation(t *testing.T) {
 		if send == "" {
 			t.Fatal("security.md has no section 8.1")
 		}
-		if strings.Contains(send, "サーバへの送信は #111 で加える") {
-			t.Error("security.md 8.1 still says sending is added in #111")
+		if strings.Contains(send, "#111") {
+			t.Error("security.md 8.1 still defers to #111")
 		}
 		for _, want := range []string{
 			"chrome.storage.local",
-			"ログ",
-			"本文",
+			"開発者向けのログ",
 			"API キー",
 			"Webhook URL",
 			"再送しない",
@@ -240,7 +241,7 @@ func TestExtensionSendDocumentation(t *testing.T) {
 		if server == "" {
 			t.Fatal("security.md has no section 8.2")
 		}
-		if strings.Contains(server, "確定は #111") {
+		if strings.Contains(server, "#111") {
 			t.Error("security.md 8.2 still defers to #111")
 		}
 	})
