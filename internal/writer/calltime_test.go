@@ -117,6 +117,27 @@ func TestWriteCallTimePerStage(t *testing.T) {
 	}
 }
 
+func TestWriteReadsClockAfterGenerate(t *testing.T) {
+	// The fake LLM sets the shared clock's value when it answers, so the
+	// recorded call time is non-zero only if the writer reads the clock after
+	// Generate returns. Reading it before the call (or not at all) would leave
+	// the value at its zero initial state.
+	var now time.Time
+	gen := newStepClient(t, llmtestutil.FakeLLMSequenceStep{Respond: func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
+		now = callTime1
+		return generationResponse(markGenBody, genUsage), nil
+	}})
+	w := mustNew(t, gen, Options{Clock: func() time.Time { return now }})
+
+	a, err := w.Write(context.Background(), validTranscript())
+	if err != nil {
+		t.Fatalf("Write error = %v, want nil", err)
+	}
+	if got := a.RunUsage.Generation.CallTime; !got.Equal(callTime1) {
+		t.Errorf("generation CallTime = %v, want %v (read after Generate returned)", got, callTime1)
+	}
+}
+
 func TestWriteRejectsMissingCallTime(t *testing.T) {
 	cases := []struct {
 		name    string

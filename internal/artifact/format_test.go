@@ -727,6 +727,8 @@ func TestParseRejectsVersion1(t *testing.T) {
 func TestParseRejectsVersion2(t *testing.T) {
 	// A version 2 artifact has a usage element but no call_time. The version
 	// check rejects it as a version difference, not as a missing call_time.
+	// The version number and the recovery step in the message are the
+	// contract (architecture section 3.5), so this asserts the wording.
 	fields := fieldsFrom(validGeneration())
 	fields["version"] = float64(2)
 	delete(fields, "call_time")
@@ -781,6 +783,8 @@ func TestParseRecordRejectsCallTime(t *testing.T) {
 			return marshalFields(t, fields)
 		}},
 		{"unpaired surrogate", func(t *testing.T) []byte {
+			// Rejected by the shared JSON string rule, like the title case; it
+			// is kept here so the call_time element's shapes are complete.
 			fields := fieldsFrom(validGeneration())
 			fields["call_time"] = json.RawMessage(`"\ud800"`)
 			return marshalFields(t, fields)
@@ -805,6 +809,16 @@ func TestParseRecordRejectsCallTime(t *testing.T) {
 			requireMalformed(t, tc.data(t))
 		})
 	}
+
+	t.Run("the message carries no value", func(t *testing.T) {
+		const marker = "call-time-marker-Z9q"
+		fields := fieldsFrom(validGeneration())
+		fields["call_time"] = marker
+		err := requireMalformed(t, marshalFields(t, fields))
+		if strings.Contains(err.Error(), marker) {
+			t.Errorf("Parse error %q contains the injected call_time value", err)
+		}
+	})
 }
 
 func TestRecordIDCoversCallTime(t *testing.T) {
@@ -828,6 +842,11 @@ func TestRecordIDCoversCallTime(t *testing.T) {
 }
 
 func TestMarshalRejectsNonCanonicalCallTime(t *testing.T) {
+	// The non-UTC and fractional-second rows isolate checkCallTime: without it
+	// the round-trip Parse accepts what Marshal wrote (a re-zoned or truncated
+	// time that re-renders as itself). The zero row is also caught by the
+	// round-trip Parse's zero-time rule, so it pins the postcondition rather
+	// than checkCallTime's zero branch alone.
 	cases := []struct {
 		name     string
 		callTime time.Time
