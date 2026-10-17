@@ -8,7 +8,7 @@
 | Created | 2026-10-16 |
 | Review date | 2026-10-16 |
 | Reviewer | isseis |
-| Comments | レビューでの修正: フェーズ 3 の対象ファイルと §3.2 の PR-5 の変更内容に、手動の確認（M-1〜M-3）の日時と結果を記録する `docs/tasks/0022_cost_estimate/03_implementation_plan.md` を加えた（AC-32・AC-34 の記録先を PR-5 の対象範囲と一致させた）。決定の変更はない。 |
+| Comments | レビューでの修正: フェーズ 3 の対象ファイルと §3.2 の PR-5 の変更内容に、手動の確認（M-1〜M-3）の日時と結果を記録する `docs/tasks/0022_cost_estimate/03_implementation_plan.md` を加えた（AC-32・AC-34 の記録先を PR-5 の対象範囲と一致させた）。決定の変更はない。実装時の editorial correction（決定の変更はない）: ステップ 3-7 のテストの補助を `saveArtifactsOnce` から同形の `saveCostArtifacts` に改めた（共有の補助は setup の後に検証・推敲の client を上書きするため、レビューの段階に表にあるモデルと既知の使用量を与えられない）。`TestRunCostLinesOmitModel` の秘密情報の確認を `requireSafeOutput` から標準エラーに限った（公開する記事の `- Model:` の行は本タスクの前から応答のモデル名をそのまま載せる）。再利用した段階だけが不明な場合の確認を `TestRunCostLinesResumeUnknownStage` として分けた。 |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「requirements」）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目、節番号は [02_architecture.md](02_architecture.md)（以下「architecture」）の節を指す。既存のファイルの行番号は、断りがない限りコミット `c4eeaa6` で確かめた（その後のコミットは文書だけを変えている）。architecture が確かめたコミット `15d9b72` から `c4eeaa6` までの Go のファイルの差分は `cmd/yt2column-server` の `main.go` とそのテストだけで、本計画が変えるパッケージには差分がない（`git diff --stat 15d9b72 c4eeaa6 -- '*.go'` で確認）。Go のソースのコメント・識別子・文字列リテラルは英語で書き（`_context.md`）、`AC-NN`・`F-NNN`・`H-NN` は Go のソースに書かず本計画にだけ記録する（`requirements_process.md` §4）。
 
@@ -227,7 +227,7 @@ requirements の機能要件（F-001〜F-010）を、architecture の設計ど�
   - `TestRunCostLinesAllStages`: 3 つの段階が走る成功した実行で、段階の行が 3 行、合計の行が 2 行、トークン数の行の直後にこの順に出て、金額が手で計算した 6 桁の値で、2 つの合計が等しいこと。同じ実行の `--out` のファイルの料金の行が、記事 1 本の料金を 4 桁に四捨五入した値であること（AC-12・AC-15・AC-23）。
   - `TestRunCostLinesRateBasis`: `deepseek-flash` のピーク・オフピークの時刻、Claude のモデルの `flat`・`short-prompt`・`long-prompt` が、適用した単価の位置の語に出ること（AC-16）。
   - `TestRunCostLinesUnknown`: 3 つの理由（不明の使用量・モデル名なし・表にないモデル名）の段階の行が `unknown reason=` と理由の語を出して数値を出さず、2 つの合計が不明で、記事が公開されること（AC-09・AC-11・AC-17）。
-  - `TestRunCostLinesResume`: 既存の `TestRunTokenLinesResume`（`token_test.go:360`）と同じく、`saveArtifactsOnce` で保存してから再開する 2 回の実行のどちらにも、固定の時計・`withSteps`・検証・推敲の client を設定する。`--after generation`・`shorten`・`review` の各再開で、再利用した段階の行が `reused` で、「この実行の料金」と「記事 1 本の料金」が手で計算した値であること。`--after review` の「この実行の料金」が `usd=0.000000` であること。再利用した段階だけが不明のとき「この実行の料金」は分かり「記事 1 本の料金」は不明であること（AC-11・AC-13・AC-18）。
+  - `TestRunCostLinesResume`: 既存の `TestRunTokenLinesResume`（`token_test.go:360`）と同じく、`saveArtifactsOnce` で保存してから再開する 2 回の実行のどちらにも、固定の時計・`withSteps`・検証・推敲の client を設定する。`--after generation`・`shorten`・`review` の各再開で、再利用した段階の行が `reused` で、「この実行の料金」と「記事 1 本の料金」が手で計算した値であること。`--after review` の「この実行の料金」が `usd=0.000000` であること（AC-11・AC-13・AC-18）。再利用した段階だけが不明のとき「この実行の料金」は分かり「記事 1 本の料金」は不明であることは、`TestRunCostLinesResumeUnknownStage` で確かめる。
   - `TestRunCostLinesResumeUsesSavedTime`: `TestRunCostLinesResume` と同じ 2 回の実行の形で、ピーク時間帯の時計で保存した中間生成物を、オフピーク時間帯の時計で `--after` で再開し、再利用した `deepseek-flash` の段階が `peak` と保存時の `at=` で算出されること。逆も確かめる（AC-27・AC-28）。
   - `TestRunCostLinesSkippedStages`: 字数の調整が LLM を呼ばない実行と `--no-review` の実行で、その段階の行が出ず、合計がほかの段階の和であること（AC-14）。
   - `TestRunCostLinesFailure`: 次の失敗で、料金の行と合計の行が失敗の行の前に出て、終了コードが本タスクの前と同じであること（AC-19）。(1) 0019 の AC-16〜AC-19 の各場合に当たる、`token_test.go` の `TestRunTokenLinesReviewFailure`・`RejectedResponse`・`NoUsage`・`AfterAllCalls` と同じ失敗の経路（検証・推敲の呼び出しの失敗、生成の打ち切り・想定外の終了理由・空の応答で使用量を返す場合、使用量のない失敗（`usage-unknown` の行）、すべての呼び出しの後の字数の上限・中間生成物の保存・公開の失敗）。(2) `--after` を受理した後の失敗（再利用した段階の行が出る）。

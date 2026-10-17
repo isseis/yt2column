@@ -357,6 +357,15 @@ func TestRunCostLinesGoldenFormat(t *testing.T) {
 	})
 }
 
+func TestCostTimeWord(t *testing.T) {
+	if got := costTimeWord(time.Time{}); got != costNoTime {
+		t.Errorf("costTimeWord(zero) = %q, want %q", got, costNoTime)
+	}
+	if got := costTimeWord(costGenTime); got != "2026-10-16T01:00:00Z" {
+		t.Errorf("costTimeWord = %q, want the CallTimeLayout form", got)
+	}
+}
+
 // TestCostWords checks that the enum-to-word functions map every known value
 // and fall back to "invalid" for the zero value and a value outside the
 // enumeration.
@@ -418,7 +427,11 @@ func TestRunCostLinesOmitModel(t *testing.T) {
 		requireSafeOutput(t, e.stdout.String(), e.stderr.String(), e.outPath)
 	})
 
-	t.Run("a secret in the model name stays out of the CLI's lines", func(t *testing.T) {
+	t.Run("a secret in the model name is redacted from stderr", func(t *testing.T) {
+		// The mystery-model subtest above is what pins that the cost lines omit
+		// the model; here redact.Line masks the secret, so the check only pins
+		// that masking still holds. The published model line is pre-existing
+		// output this task does not change.
 		e := newRunEnv(t)
 		e.withSteps = true
 		e.args = []string{"--no-shorten", "--no-review", "--out", e.outPath, runVideoURL}
@@ -428,13 +441,9 @@ func TestRunCostLinesOmitModel(t *testing.T) {
 		if code := e.run(); code != exitOK {
 			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
 		}
-		// The cost lines never carry the model name, and redact.Line drops the
-		// secret from the token line. The published model line is pre-existing
-		// output this task does not change, so only the CLI's own lines are
-		// checked here.
 		for _, s := range secretStrings() {
-			if strings.Contains(e.stdout.String(), s) || strings.Contains(e.stderr.String(), s) {
-				t.Errorf("the CLI's own output holds a secret or its tail")
+			if strings.Contains(e.stderr.String(), s) {
+				t.Errorf("stderr holds a secret or its tail")
 			}
 		}
 	})
@@ -466,26 +475,92 @@ func TestRunCostLinesBeforeLLM(t *testing.T) {
 }
 
 func TestRunCostLinesFailure(t *testing.T) {
-	t.Run("rejected response keeps the stage line before the failure", func(t *testing.T) {
+	// Each rejected-response sentinel that carries a usage and a model still
+	// records the generation stage's known cost before the failure line.
+	for _, sentinel := range []error{llm.ErrTruncated, llm.ErrUnexpectedFinishReason, llm.ErrEmptyResponse} {
+		t.Run("rejected response: "+sentinel.Error(), func(t *testing.T) {
+			e := newRunEnv(t)
+			e.withSteps = true
+			e.args = []string{"--no-shorten", "--no-review", "--out", e.outPath, runVideoURL}
+			useFixedClock(e, costGenTime)
+			e.client = funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
+				return usageResponse("", costGenModel, costGenTokens), fmt.Errorf("stub: %w", sentinel)
+			})
+
+			if code := e.run(); code == exitOK {
+				t.Fatalf("exit code = %d, want a failure (the response was rejected)", code)
+			}
+			requireCostLines(t, e, []string{
+				costGenLine,
+				"yt2column: cost-total: run known usd=0.000600",
+				"yt2column: cost-total: article known usd=0.000600",
+			})
+			if last, failure := strings.LastIndex(e.stderr.String(), costPrefix), strings.Index(e.stderr.String(), "the write stage failed"); failure < last {
+				t.Errorf("the failure line appears before the cost lines:\n%s", e.stderr.String())
+			}
+		})
+	}
+
+	t.Run("generation failure with no usage", func(t *testing.T) {
 		e := newRunEnv(t)
 		e.withSteps = true
 		e.args = []string{"--no-shorten", "--no-review", "--out", e.outPath, runVideoURL}
 		useFixedClock(e, costGenTime)
 		e.client = funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
-			return usageResponse("", costGenModel, costGenTokens), fmt.Errorf("stub: %w", llm.ErrTruncated)
+			return llm.GenerateResponse{}, context.DeadlineExceeded
 		})
 
 		if code := e.run(); code == exitOK {
-			t.Fatalf("exit code = %d, want a failure (the response was rejected)", code)
+			t.Fatalf("exit code = %d, want a failure (the call had no usage)", code)
+		}
+		requireCostLines(t, e, []string{
+			"yt2column: cost: generation run unknown reason=usage-unknown at=2026-10-16T01:00:00Z",
+			"yt2column: cost-total: run unknown",
+			"yt2column: cost-total: article unknown",
+		})
+	})
+
+	t.Run("review call fails", func(t *testing.T) {
+		e := newRunEnv(t)
+		e.withSteps = true
+		useFixedClock(e, costGenTime, costShortTime, costReviewTime)
+		e.client = usageSequence(
+			usageResponse(longGeneratedText(), costGenModel, costGenTokens),
+			usageResponse(shortGeneratedText(), costShortModel, costShortTokens),
+		)
+		e.useReviewClient(funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
+			return llm.GenerateResponse{}, errStubLLM
+		}))
+
+		if code := e.run(); code == exitOK {
+			t.Fatalf("exit code = %d, want a failure (the review call must fail)", code)
 		}
 		requireCostLines(t, e, []string{
 			costGenLine,
-			"yt2column: cost-total: run known usd=0.000600",
-			"yt2column: cost-total: article known usd=0.000600",
+			costShortLine,
+			"yt2column: cost: review run unknown reason=usage-unknown at=2026-10-16T04:03:15Z",
+			"yt2column: cost-total: run unknown",
+			"yt2column: cost-total: article unknown",
 		})
-		if last, failure := strings.LastIndex(e.stderr.String(), costPrefix), strings.Index(e.stderr.String(), "the write stage failed"); failure < last {
-			t.Errorf("the failure line appears before the cost lines:\n%s", e.stderr.String())
+	})
+
+	t.Run("length limit after review", func(t *testing.T) {
+		e := newRunEnv(t)
+		e.withSteps = true
+		tooLong := "A short body." + strings.Repeat("a", 10000)
+		useFixedClock(e, costGenTime, costReviewTime)
+		e.client = usageLLM(usageResponse(shortGeneratedText(), costGenModel, costGenTokens))
+		e.useReviewClient(usageLLM(usageResponse(reviewJSON("A short body.", tooLong), costReviewModel, costReviewTokens)))
+
+		if code := e.run(); code == exitOK {
+			t.Fatalf("exit code = %d, want a failure (the final length check must fail)", code)
 		}
+		requireCostLines(t, e, []string{
+			costGenLine,
+			costReviewLine,
+			"yt2column: cost-total: run known usd=0.000800",
+			"yt2column: cost-total: article known usd=0.000800",
+		})
 	})
 
 	t.Run("publish failure after every stage", func(t *testing.T) {
@@ -582,12 +657,18 @@ func saveCostArtifacts(t *testing.T, setup func(*runEnv)) string {
 }
 
 func TestRunCostLinesResume(t *testing.T) {
-	dir := saveCostArtifacts(t, func(e *runEnv) {
-		useFixedClock(e, costGenTime, costShortTime, costReviewTime)
-		useAllStagesCost(e)
-	})
+	// Each subtest saves its own artifacts, so a resume never reads a record a
+	// sibling subtest wrote.
+	save := func(t *testing.T) string {
+		t.Helper()
+		return saveCostArtifacts(t, func(e *runEnv) {
+			useFixedClock(e, costGenTime, costShortTime, costReviewTime)
+			useAllStagesCost(e)
+		})
+	}
 
 	t.Run("after review reuses every stage", func(t *testing.T) {
+		dir := save(t)
 		e := newRunEnv(t)
 		e.withSteps = true
 		e.args = []string{"--artifacts", dir, "--after", "review", "--out", e.outPath, runVideoURL}
@@ -605,6 +686,7 @@ func TestRunCostLinesResume(t *testing.T) {
 	})
 
 	t.Run("after shorten runs review", func(t *testing.T) {
+		dir := save(t)
 		e := newRunEnv(t)
 		e.withSteps = true
 		e.args = []string{"--artifacts", dir, "--after", "shorten", "--out", e.outPath, runVideoURL}
@@ -624,6 +706,7 @@ func TestRunCostLinesResume(t *testing.T) {
 	})
 
 	t.Run("after generation runs shorten and review", func(t *testing.T) {
+		dir := save(t)
 		e := newRunEnv(t)
 		e.withSteps = true
 		e.args = []string{"--artifacts", dir, "--after", "generation", "--out", e.outPath, runVideoURL}
