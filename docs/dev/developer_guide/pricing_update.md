@@ -50,10 +50,19 @@ from the table or the code:
 - `TestAmountFormat` in `internal/pricing/amount_test.go`: the rounding of the
   amount at six and four decimals.
 
-## What a rate change does not touch
+## What else a rate change touches
 
-The README's "Estimated cost" section and the package reference
-(`docs/dev/developer_guide/package_reference.md`) are checked by
-`TestCostDocsContract` against the code's format constants, not against any list
-in the document, so a rate change leaves them alone. A change to the models the
-README's configuration section names is separate.
+`TestCostDocsContract` checks the README's "Estimated cost" section against the
+code's format constants, not against any list in the document, so a rate change
+does not force an edit there. Two spots still depend on the table by hand and
+are not tied to it by a test, so update them yourself:
+
+- the README's "Estimated cost" section states the DeepSeek peak window
+  ("Monday through Friday during 01:00-04:00 and 06:00-10:00 UTC"); a window
+  that moves makes that prose stale;
+- the README's configuration section and `project_overview.md` name the models,
+  which change only when the set of models does.
+
+`package_reference.md`'s `internal/pricing` row lists the package's public types
+and is checked by `TestTokenUsageDocsContract` against the package table; a rate
+change leaves it alone.

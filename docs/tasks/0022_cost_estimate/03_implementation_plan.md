@@ -299,7 +299,7 @@ requirements の機能要件（F-001〜F-010）を、architecture の設計ど�
 
 - [x] **ステップ 4-1**: `README.md` の `## Token usage` の後に、料金の概算の節（例: `## Estimated cost`）を加える。内容は architecture §3.9 の README の項目のとおりで、版 3 の記述はステップ 2-8 で済んでいる。例の行は、ステップ 3-7 の `TestRunCostLinesGoldenFormat` が固定する綴りと同じ形にする。
 - [x] **ステップ 4-2**: `docs/dev/developer_guide/pricing_update.md`（英語）に、architecture §3.9 の単価の更新の手順を書く。`internal/pricing/rates.go` の先頭のコメントからこの文書を指し、`CLAUDE.md` の Development Guides の一覧に 1 行加える（AC-41）。
-- [x] **ステップ 4-3**: `docs/dev/project_overview.md` の `--artifacts` の項（`:34`）に形式の版 3 と呼び出しの時刻を、トークン数の行の項（`:35`）の後に料金の行と `--out`・Slack の行を加え、「前提・制約」のモデル名の項（`:66`）に、単価の表がこの方針の対象外であることの注記を加える（architecture §1.3 の例外 3）。
+- [x] **ステップ 4-3**: `docs/dev/project_overview.md` の `--artifacts` の項（`:34`）に形式の版 3 と呼び出しの時刻を、トークン数の行の項（`:35`）の後に料金の行と `--out`・Slack の行を加え、「前提・制約」のモデル名の項（`:67`）に、単価の表がこの方針の対象外であることの注記を加える（architecture §1.3 の例外 3）。
 - [x] **ステップ 4-4**: `docs/dev/security.md` の `## 6.` の `--artifacts` の項（`:78`）に、来歴の列挙への呼び出しの時刻と、`call_time` の受理の形と拒否の規則を加える（architecture §3.9）。
 - [x] **ステップ 4-5**: `package_reference.md` の `internal/writer` の行に `CallTime`・`Clock`・`ErrMissingCallTime` を、`internal/publisher` の行に料金の行を、`cmd/yt2column` の行に料金の行を加える。
 - [x] **ステップ 4-6**: `cmd/yt2column/docs_test.go` に、既存の `TestTokenUsageDocsContract` と同じ形の `TestCostDocsContract` を加え、`readDoc`・`sectionByHeading`・`bulletContaining`・`containsToken` を使って次を確かめる。`TestTokenUsageDocsContract` の `package_reference.md` の表に `internal/pricing` の行（公開の型）を加える（architecture §3.11）。

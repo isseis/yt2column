@@ -208,6 +208,8 @@ yt2column: cost-total: <total> unknown
   the rate basis the estimate applied: `flat` (the model has one rate),
   `off-peak` or `peak` (the two windows of DeepSeek's time-of-day rate), or
   `short-prompt` or `long-prompt` (Claude Haiku's two prompt-length tiers).
+  `invalid` in this position, like the one under `unknown`, marks a broken
+  invariant and does not occur in a correct build.
 - `unknown` means the cost could not be estimated. No number is written, and
   `reason` gives one word: `usage-unknown` (the stage's token counts are
   unknown), `no-model` (the stage reported no model name), or `unpriced-model`
@@ -216,11 +218,14 @@ yt2column: cost-total: <total> unknown
 - `at` is the call time the estimate used, in UTC as `YYYY-MM-DDTHH:MM:SSZ`. A
   reused stage shows the time its artifact recorded; `none` marks a broken
   invariant and does not occur in a correct build.
-- The `cost-total` lines are two totals: `run` is this run's cost (its stages
-  that ran or were reused), and `article` is the whole article's cost. A total
-  is `unknown` when any stage in its set is unknown. The totals round the exact
-  sum of the stages, not the already-rounded stage amounts, so a total can
-  differ from the sum of the printed stage lines in the last digit.
+- The `cost-total` lines are two totals: `run` is this run's cost, from the
+  stages this run called, and `article` is the whole article's cost, from those
+  stages plus the ones reused from `--after`. A total is `unknown` when any
+  stage in its set is unknown, and the `article` total is `unknown` when the
+  generation stage did not run. Without `--after` the two totals are equal. The
+  totals round the exact sum of the stages, not the already-rounded stage
+  amounts, so a total can differ from the sum of the printed stage lines in the
+  last digit.
 
 For example:
 

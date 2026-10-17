@@ -871,7 +871,11 @@ func TestCostDocsContract(t *testing.T) {
 	// is linked from CLAUDE.md, and is pointed at from the rate table's leading
 	// comment.
 	update := readDoc(t, pricingUpdatePath)
-	for _, want := range []string{"rates.go", "TestEstimateCategories"} {
+	for _, want := range []string{
+		"rates.go", "TestEstimateCategories", "TestEstimatePeakWindow",
+		"TestEstimatePromptTier", "TestAmountFormat", "TestRateTableValid",
+		"TestValidateRejects", "TestRateTableSourceComments", "TestRateTableModels",
+	} {
 		if !strings.Contains(update, want) {
 			t.Errorf("pricing_update.md does not name %q", want)
 		}
