@@ -196,14 +196,14 @@ requirements の機能要件（F-001〜F-010）を、architecture の設計ど�
 
 **対象ファイル:** `internal/publisher/file.go`・`file_test.go`・`slack_test.go`・`slack_message_test.go`、`internal/publisher/testutil/integration.go`、`docs/tasks/0008_column_prompt/check_article.py`、`internal/pipeline/pipeline_test.go`、`cmd/yt2column/run.go`、`cmd/yt2column/cost_test.go`（新規。CLI の料金のテストは `token_test.go` と同じパッケージの新しいファイルに置く）、`cmd/yt2column/integration_test.go`・`integration_slack_test.go`、`internal/pricing/testutil/helpers.go`・`helpers_test.go`（新規）、`internal/llm/deepseek/integration_test.go`、`internal/llm/claude/integration_test.go`、`docs/dev/developer_guide/package_reference.md`、`docs/tasks/0022_cost_estimate/03_implementation_plan.md`（手動の確認 M-1〜M-3 の日時と結果）
 
-- [ ] **ステップ 3-1**: `renderArticle` に、architecture §3.7 の料金の行を 1 行加える。金額は `pricing.Totals` の記事 1 本の料金の `Format(4)` と `USD`、不明は `unknown` だけとする。`renderArticle` の文書に行の位置と内容を加える。
-- [ ] **ステップ 3-2**: 見出しの形を固定する既存のものを更新する（architecture §1.3 の例外 1）。`file_test.go:64` と `TestRenderArticleSteps` の期待値に不明の行を加え、`integrationHeader` に同じ行を加え、その文書（`testutil/integration.go:165-167`）に料金の行を写していることを加える。`check_article.py` の `HEADER_RE` を、モデル名の行の後に料金の行（分かった場合と不明の場合）を任意で受け付ける形にする。スクリプトの先頭のコメント（`:26-28`）にも料金の行を加える。
-- [ ] **ステップ 3-3**: `internal/publisher` のテストを書く。
+- [x] **ステップ 3-1**: `renderArticle` に、architecture §3.7 の料金の行を 1 行加える。金額は `pricing.Totals` の記事 1 本の料金の `Format(4)` と `USD`、不明は `unknown` だけとする。`renderArticle` の文書に行の位置と内容を加える。
+- [x] **ステップ 3-2**: 見出しの形を固定する既存のものを更新する（architecture §1.3 の例外 1）。`file_test.go:64` と `TestRenderArticleSteps` の期待値に不明の行を加え、`integrationHeader` に同じ行を加え、その文書（`testutil/integration.go:165-167`）に料金の行を写していることを加える。`check_article.py` の `HEADER_RE` を、モデル名の行の後に料金の行（分かった場合と不明の場合）を任意で受け付ける形にする。スクリプトの先頭のコメント（`:26-28`）にも料金の行を加える。
+- [x] **ステップ 3-3**: `internal/publisher` のテストを書く。
   - `file_test.go` の `TestRenderArticleCost`: 料金が分かった `Article`（手で計算した 4 桁の金額）と、不明になる `Article`（`RunUsage` のゼロ値、表にないモデル）で、見出しの語 `Estimated cost` を含む行の文字列を綴りで固定し、行が 1 回だけ現れること（AC-23・AC-25）。`TestFilePublisherWritesCostLine`: 料金が分かった `Article` で、`FilePublisher` が書いたファイルに同じ行があること（AC-23。不明の行のファイルは、ステップ 3-2 で更新する `file_test.go:64` のファイル全体の比較が確かめる）。
   - `slack_test.go` の `TestSlackPublishCostLine`: `httptest` の Webhook への投稿で、料金が分かった場合と不明の場合に行が 1 回だけ現れ、分割が起きる長さの記事でも最初のメッセージにだけ現れること（AC-24・AC-25）。
   - `slack_message_test.go` の `TestCostLineHasNoMention`: 分かった場合と不明の場合の `renderArticle` の結果から取り出した料金の行を `findMention` に渡して当たらないこと（AC-26）。手で書いた文字列は使わない。
-- [ ] **ステップ 3-4**: 壊して確かめる。`renderArticle` の料金の行を消すと `TestRenderArticleCost`・`TestSlackPublishCostLine` が失敗することを確かめる。`renderArticle` の行に、名前の文字が続く `@`（例: `@all`。`findMention` の M2 は `@` の後に名前の文字を求める。`slack_message.go:187-191`）を加えると `TestCostLineHasNoMention` が失敗することを確かめる。
-- [ ] **ステップ 3-5**: `check_article.py` を、料金の行が分かった場合と不明の場合の `--out` のファイル（`FilePublisher` が実際に書いたもの。例えばステップ 3-3 のテストの一時のファイルを写す）と、料金の行のない古い形のファイルで、一時のキャッシュのディレクトリ（`load_info` が読む `<id>.current`（`a` か `b`）と `<id>.<slot>/<id>.info.json`。`check_article.py:44-50`）に対して `python3 -I` で実行し、どれも `unrecognized --out format` にならないことを確かめる。実行したコマンドと出力を PR の説明に書く（manual）。
+- [x] **ステップ 3-4**: 壊して確かめる。`renderArticle` の料金の行を消すと `TestRenderArticleCost`・`TestSlackPublishCostLine` が失敗することを確かめる。`renderArticle` の行に、名前の文字が続く `@`（例: `@all`。`findMention` の M2 は `@` の後に名前の文字を求める。`slack_message.go:187-191`）を加えると `TestCostLineHasNoMention` が失敗することを確かめる。
+- [x] **ステップ 3-5**: `check_article.py` を、料金の行が分かった場合と不明の場合の `--out` のファイル（`FilePublisher` が実際に書いたもの。例えばステップ 3-3 のテストの一時のファイルを写す）と、料金の行のない古い形のファイルで、一時のキャッシュのディレクトリ（`load_info` が読む `<id>.current`（`a` か `b`）と `<id>.<slot>/<id>.info.json`。`check_article.py:44-50`）に対して `python3 -I` で実行し、どれも `unrecognized --out format` にならないことを確かめる。実行したコマンドと出力を PR の説明に書く（manual）。
 
 ### PR-3 作成ポイント: publisher cost line
 

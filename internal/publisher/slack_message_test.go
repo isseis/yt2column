@@ -293,6 +293,36 @@ func TestSlackMentionAccepted(t *testing.T) {
 	}
 }
 
+// TestCostLineHasNoMention checks that the cost line, in its known and unknown
+// forms, matches none of the mention rules. The line is read from the
+// renderer's output, not spelled out here.
+func TestCostLineHasNoMention(t *testing.T) {
+	for name, article := range map[string]writer.Article{
+		"known":   costedArticle(),
+		"unknown": validArticle(),
+	} {
+		t.Run(name, func(t *testing.T) {
+			line := costLineIn(t, renderArticle(article))
+			if match, ok := findMention(line); ok {
+				t.Fatalf("the cost line %q matches mention rule %s", line, match.rule)
+			}
+		})
+	}
+}
+
+// costLineIn returns the estimated-cost line of a rendered article, which the
+// renderer always writes.
+func costLineIn(t *testing.T, posted string) string {
+	t.Helper()
+	for line := range strings.SplitSeq(posted, "\n") {
+		if strings.Contains(line, "Estimated cost") {
+			return line
+		}
+	}
+	t.Fatalf("no cost line in %q", posted)
+	return ""
+}
+
 func TestSlackPrepareRejectsInvalidArticle(t *testing.T) {
 	cases := []struct {
 		name               string

@@ -507,6 +507,59 @@ func TestSlackPublishPayload(t *testing.T) {
 	})
 }
 
+// TestSlackPublishCostLine checks that the cost line is posted once, in the
+// known and the unknown form, and stays in the first message when the article
+// splits.
+func TestSlackPublishCostLine(t *testing.T) {
+	t.Run("known", func(t *testing.T) {
+		server := newSlackOKServer(t)
+		p := newTestSlackPublisher(t, server, SlackTestOptions{})
+		if err := p.Publish(context.Background(), costedArticle()); err != nil {
+			t.Fatalf("Publish: %v", err)
+		}
+		text := strings.Join(slackMessageTexts(t, server), "")
+		if n := strings.Count(text, "Estimated cost"); n != 1 {
+			t.Fatalf("the cost line appears %d times, want 1", n)
+		}
+		if want := "- Estimated cost: 0.0023 USD\n"; !strings.Contains(text, want) {
+			t.Fatalf("the posted text has no line %q: %q", want, text)
+		}
+	})
+
+	t.Run("unknown", func(t *testing.T) {
+		server := newSlackOKServer(t)
+		p := newTestSlackPublisher(t, server, SlackTestOptions{})
+		if err := p.Publish(context.Background(), validArticle()); err != nil {
+			t.Fatalf("Publish: %v", err)
+		}
+		text := strings.Join(slackMessageTexts(t, server), "")
+		if n := strings.Count(text, "Estimated cost"); n != 1 {
+			t.Fatalf("the cost line appears %d times, want 1", n)
+		}
+		if want := "- Estimated cost: unknown\n"; !strings.Contains(text, want) {
+			t.Fatalf("the posted text has no line %q: %q", want, text)
+		}
+	})
+
+	t.Run("split article keeps the line in the first message", func(t *testing.T) {
+		server := newSlackOKServer(t)
+		p := newTestSlackPublisher(t, server, SlackTestOptions{})
+		if err := p.Publish(context.Background(), threeMessageArticle(t)); err != nil {
+			t.Fatalf("Publish: %v", err)
+		}
+		messages := slackMessageTexts(t, server)
+		if len(messages) < 2 {
+			t.Fatalf("got %d messages, want the article to split", len(messages))
+		}
+		if !strings.Contains(messages[0], "- Estimated cost: ") {
+			t.Fatalf("the first message has no cost line: %q", messages[0])
+		}
+		if n := strings.Count(strings.Join(messages, ""), "Estimated cost"); n != 1 {
+			t.Fatalf("the cost line appears %d times across the messages, want 1", n)
+		}
+	})
+}
+
 // TestSlackPublishSplit checks the split messages,
 // the boundary lengths, and that the request count matches SlackMessageCount.
 func TestSlackPublishSplit(t *testing.T) {

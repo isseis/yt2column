@@ -164,9 +164,10 @@ func integrationArticle(title string) writer.Article {
 
 // integrationHeader is the text SlackWebhookPublisher puts before the body of
 // a, mirroring the unexported publisher.renderArticle for a non-empty
-// ModelVersion. TestIntegrationArticles fails if the two drift apart.
+// ModelVersion and no run usage (so the cost line is the unknown form).
+// TestIntegrationArticles fails if the two drift apart.
 func integrationHeader(a writer.Article) string {
-	return fmt.Sprintf("# %s\n\n- Model: %s\n- Model version: %s\n\n", a.Title, a.Model, a.ModelVersion)
+	return fmt.Sprintf("# %s\n\n- Model: %s\n- Model version: %s\n- Estimated cost: unknown\n\n", a.Title, a.Model, a.ModelVersion)
 }
 
 // integrationBody returns a Markdown body of exactly n code points: a heading
