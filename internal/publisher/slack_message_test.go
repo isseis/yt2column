@@ -295,7 +295,8 @@ func TestSlackMentionAccepted(t *testing.T) {
 
 // TestCostLineHasNoMention checks that the cost line, in its known and unknown
 // forms, matches none of the mention rules. The line is read from the
-// renderer's output, not spelled out here.
+// renderer's output, not spelled out here. The publish path rejects a mention
+// too; this pins the rule at the cost line itself.
 func TestCostLineHasNoMention(t *testing.T) {
 	for name, article := range map[string]writer.Article{
 		"known":   costedArticle(),

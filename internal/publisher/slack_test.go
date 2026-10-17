@@ -511,35 +511,29 @@ func TestSlackPublishPayload(t *testing.T) {
 // known and the unknown form, and stays in the first message when the article
 // splits.
 func TestSlackPublishCostLine(t *testing.T) {
-	t.Run("known", func(t *testing.T) {
-		server := newSlackOKServer(t)
-		p := newTestSlackPublisher(t, server, SlackTestOptions{})
-		if err := p.Publish(context.Background(), costedArticle()); err != nil {
-			t.Fatalf("Publish: %v", err)
-		}
-		text := strings.Join(slackMessageTexts(t, server), "")
-		if n := strings.Count(text, "Estimated cost"); n != 1 {
-			t.Fatalf("the cost line appears %d times, want 1", n)
-		}
-		if want := "- Estimated cost: 0.0023 USD\n"; !strings.Contains(text, want) {
-			t.Fatalf("the posted text has no line %q: %q", want, text)
-		}
-	})
-
-	t.Run("unknown", func(t *testing.T) {
-		server := newSlackOKServer(t)
-		p := newTestSlackPublisher(t, server, SlackTestOptions{})
-		if err := p.Publish(context.Background(), validArticle()); err != nil {
-			t.Fatalf("Publish: %v", err)
-		}
-		text := strings.Join(slackMessageTexts(t, server), "")
-		if n := strings.Count(text, "Estimated cost"); n != 1 {
-			t.Fatalf("the cost line appears %d times, want 1", n)
-		}
-		if want := "- Estimated cost: unknown\n"; !strings.Contains(text, want) {
-			t.Fatalf("the posted text has no line %q: %q", want, text)
-		}
-	})
+	for _, tc := range []struct {
+		name     string
+		article  writer.Article
+		wantLine string
+	}{
+		{"known", costedArticle(), "- Estimated cost: 0.0023 USD\n"},
+		{"unknown", validArticle(), "- Estimated cost: unknown\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := newSlackOKServer(t)
+			p := newTestSlackPublisher(t, server, SlackTestOptions{})
+			if err := p.Publish(context.Background(), tc.article); err != nil {
+				t.Fatalf("Publish: %v", err)
+			}
+			text := strings.Join(slackMessageTexts(t, server), "")
+			if !strings.Contains(text, tc.wantLine) {
+				t.Fatalf("the posted text has no line %q: %q", tc.wantLine, text)
+			}
+			if n := strings.Count(text, "Estimated cost"); n != 1 {
+				t.Fatalf("the cost line appears %d times, want 1", n)
+			}
+		})
+	}
 
 	t.Run("split article keeps the line in the first message", func(t *testing.T) {
 		server := newSlackOKServer(t)

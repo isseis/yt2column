@@ -30,6 +30,18 @@ func costedArticle() writer.Article {
 	return article
 }
 
+// unpricedArticle returns validArticle with a generation usage whose model is
+// not in the rate table, so the article's cost is unknown.
+func unpricedArticle() writer.Article {
+	article := validArticle()
+	article.RunUsage = writer.RunUsage{Generation: writer.StageUsage{
+		Origin: writer.OriginRun,
+		Model:  "not-in-the-table",
+		Usage:  llm.KnownUsage(llm.TokenCounts{Input: 23000}),
+	}}
+	return article
+}
+
 func validArticle() writer.Article {
 	return writer.Article{
 		Title:        "A title",
@@ -162,41 +174,27 @@ func TestRenderArticleSteps(t *testing.T) {
 	})
 }
 
+// TestRenderArticleCost fixes the whole rendered header, so it also pins that
+// the cost line appears exactly once: the expected text holds it once.
 func TestRenderArticleCost(t *testing.T) {
-	t.Run("known", func(t *testing.T) {
-		article := costedArticle()
-		want := "# A title\n\n- Model: model-x\n- Model version: 2026-01-01\n" +
-			"- Estimated cost: 0.0023 USD\n\n" + article.Body
-		got := renderArticle(article)
-		if got != want {
-			t.Fatalf("renderArticle = %q, want %q", got, want)
-		}
-		if n := strings.Count(got, "Estimated cost"); n != 1 {
-			t.Fatalf("the cost line appears %d times, want 1", n)
-		}
-	})
-
-	t.Run("unknown without a run usage", func(t *testing.T) {
-		article := validArticle()
-		want := "# A title\n\n- Model: model-x\n- Model version: 2026-01-01\n" +
-			"- Estimated cost: unknown\n\n" + article.Body
-		got := renderArticle(article)
-		if got != want {
-			t.Fatalf("renderArticle = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("unknown for a model not in the table", func(t *testing.T) {
-		article := validArticle()
-		article.RunUsage = writer.RunUsage{Generation: writer.StageUsage{
-			Origin: writer.OriginRun,
-			Model:  "not-in-the-table",
-			Usage:  llm.KnownUsage(llm.TokenCounts{Input: 23000}),
-		}}
-		if got := renderArticle(article); !strings.Contains(got, "- Estimated cost: unknown\n") {
-			t.Fatalf("renderArticle = %q, want the unknown cost line", got)
-		}
-	})
+	cases := []struct {
+		name     string
+		article  writer.Article
+		wantLine string
+	}{
+		{"known", costedArticle(), "- Estimated cost: 0.0023 USD"},
+		{"unknown without a run usage", validArticle(), "- Estimated cost: unknown"},
+		{"unknown for a model not in the table", unpricedArticle(), "- Estimated cost: unknown"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			want := "# A title\n\n- Model: model-x\n- Model version: 2026-01-01\n" +
+				tc.wantLine + "\n\n" + tc.article.Body
+			if got := renderArticle(tc.article); got != want {
+				t.Fatalf("renderArticle = %q, want %q", got, want)
+			}
+		})
+	}
 }
 
 func TestFilePublisherExistingPath(t *testing.T) {
