@@ -239,13 +239,17 @@ See [Test Organization Guide](docs/dev/developer_guide/test_organization.md) for
 - After editing files, make sure to run `make test` and `make lint` and fix errors.
 - After changing the browser extension under `extension/`, run `make ext-check`.
 - A change that touches only documents (`README.md`, `CLAUDE.md`, `docs/`) does
-  not need `make ext-test`. The text-sync guards that read them (the extension
-  ID, the `ext-` targets in this file, the manifest permissions, the
-  `project_overview.md` notes, the task records) are Go tests included in
-  `make test` and need no node. The `doc-guard` CI job runs those guards
-  (`go test -tags test ./cmd/yt2column ./internal/pipeline`) on every pull
-  request, so a documentation-only change is checked in CI even though
-  `check-changes` classifies it as non-code.
+  not need `make ext-test`, except `README.md` and `docs/dev/security.md`: the
+  extension's node tests read the README rejection-reason table
+  (`serverReasons.test.ts`) and the security.md 8.1 host-permissions item
+  (`manifest.test.ts`), so a change to either needs `make ext-test`. The other
+  text-sync guards that read documents (the extension ID, the `ext-` targets in
+  this file, the manifest permissions, the `project_overview.md` notes, the task
+  records) are Go tests included in `make test` and need no node. The `doc-guard`
+  CI job runs those guards
+  (`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./internal/pipeline`)
+  on every pull request, so a documentation-only change is checked in CI even
+  though `check-changes` classifies it as non-code.
 - A change that touches only `.gitignore` can still break the extension's
   ignore-rule check, which stays in its node tests. Run `make ext-test` locally
   before committing such a change.
