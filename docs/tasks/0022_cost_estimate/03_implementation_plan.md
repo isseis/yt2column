@@ -252,8 +252,8 @@ requirements の機能要件（F-001〜F-010）を、architecture の設計ど�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 - [ ] **ステップ 3-9**: `internal/pricing/testutil/helpers.go`（`package pricingtestutil`、`//go:build test || integration`）に、段階の料金を、金額（`Format(6)`）と適用した単価の種類、または不明の理由を architecture §3.6 の語で 1 行にする関数を置き、`helpers_test.go` の `TestCostSummary` で各状態の文字列を確かめる。語は CLI の行と同じ綴りにするが、ログは機械可読の契約にしない（architecture §3.8）ので、2 つを結ぶ guard は置かない。統合テストのログの語がずれても、利用者の出力には影響しない。
   - `package_reference.md` にこのパッケージの行を加える（`TestPackageReferenceListsPackages`）。`TestFakesCarryBuildTag` が固定する `testutil` のファイルの数（`internal/pipeline/pipeline_test.go:617` の 19）を、加えた 2 つのファイルの分だけ 21 に改める。
@@ -463,7 +463,7 @@ requirements AC-39 が認める変更は、architecture §1.3「要件 AC-39 と
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6）
 - [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 / 2-8 / 2-9）
 - [x] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5）
-- [ ] PR-4 マージ済み（対象ステップ: 3-6 / 3-7 / 3-8）
+- [x] PR-4 マージ済み（対象ステップ: 3-6 / 3-7 / 3-8）
 - [ ] PR-5 マージ済み（対象ステップ: 3-9 / 3-10 / M-1 / M-2 / M-3）
 - [ ] PR-6 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7）
 - [ ] §5 のすべての AC の `test`・`static` の検証が実行され、通る
