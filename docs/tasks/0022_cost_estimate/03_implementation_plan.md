@@ -8,7 +8,7 @@
 | Created | 2026-10-16 |
 | Review date | 2026-10-16 |
 | Reviewer | isseis |
-| Comments | レビューでの修正: フェーズ 3 の対象ファイルと §3.2 の PR-5 の変更内容に、手動の確認（M-1〜M-3）の日時と結果を記録する `docs/tasks/0022_cost_estimate/03_implementation_plan.md` を加えた（AC-32・AC-34 の記録先を PR-5 の対象範囲と一致させた）。決定の変更はない。 |
+| Comments | レビューでの修正: フェーズ 3 の対象ファイルと §3.2 の PR-5 の変更内容に、手動の確認（M-1〜M-3）の日時と結果を記録する `docs/tasks/0022_cost_estimate/03_implementation_plan.md` を加えた（AC-32・AC-34 の記録先を PR-5 の対象範囲と一致させた）。決定の変更はない。実装時の editorial correction（決定の変更はない）: ステップ 3-7 のテストの補助を `saveArtifactsOnce` から同形の `saveCostArtifacts` に改めた（共有の補助は setup の後に検証・推敲の client を上書きするため、レビューの段階に表にあるモデルと既知の使用量を与えられない）。`TestRunCostLinesOmitModel` の秘密情報の確認を、標準出力と標準エラーを見る形から標準エラーに限った（公開する記事の `- Model:` の行は本タスクの前から応答のモデル名をそのまま載せ、`requireSafeOutput` はその行を含む `--out` を見るため通らない。`--out` の行を赤くする変更は本タスクの対象外）。再利用した段階だけが不明な場合の確認を `TestRunCostLinesResumeUnknownStage` として分けた。 |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「requirements」）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目、節番号は [02_architecture.md](02_architecture.md)（以下「architecture」）の節を指す。既存のファイルの行番号は、断りがない限りコミット `c4eeaa6` で確かめた（その後のコミットは文書だけを変えている）。architecture が確かめたコミット `15d9b72` から `c4eeaa6` までの Go のファイルの差分は `cmd/yt2column-server` の `main.go` とそのテストだけで、本計画が変えるパッケージには差分がない（`git diff --stat 15d9b72 c4eeaa6 -- '*.go'` で確認）。Go のソースのコメント・識別子・文字列リテラルは英語で書き（`_context.md`）、`AC-NN`・`F-NNN`・`H-NN` は Go のソースに書かず本計画にだけ記録する（`requirements_process.md` §4）。
 
@@ -219,15 +219,15 @@ requirements の機能要件（F-001〜F-010）を、architecture の設計ど�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
-- [ ] **ステップ 3-6**: `cmd/yt2column/run.go` に、architecture §3.6 の書式の定数、列挙値を語に対応させる関数（`default` は `invalid`）、段階の行と合計の行を作る関数、`reportUsage` を置く。`reportUsage` は既存の `reportTokens` を呼んでから料金の行と合計の行を書き、`reportSuccess` と `reportRunError` の `reportTokens` の呼び出しを `reportUsage` の呼び出しに置き換える。`at=` は `artifact.CallTimeLayout` で書く。`reportSuccess` の文書（`:685-690`）に料金の行と合計の行を加える。
-- [ ] **ステップ 3-7**: `cmd/yt2column/cost_test.go` に、fake の `LLMClient`・`TranscriptSource`・`Publisher` と `t.TempDir`（`newRunEnv`・`usageSequence`・`usageResponse`・`saveArtifactsOnce`・`firstLongThenShort`・`useReviewClient` を再利用する）と、`e.d.newWriter` を包んで `Options.Clock` を設定する固定の時計で CLI のテストを書く。段階ごとに、表にあるモデル名と異なるトークン数を返す。行は `redact.Line` を通った後の標準エラーの行のバイト列として比べる（AC-36・AC-37）。
+- [x] **ステップ 3-6**: `cmd/yt2column/run.go` に、architecture §3.6 の書式の定数、列挙値を語に対応させる関数（`default` は `invalid`）、段階の行と合計の行を作る関数、`reportUsage` を置く。`reportUsage` は既存の `reportTokens` を呼んでから料金の行と合計の行を書き、`reportSuccess` と `reportRunError` の `reportTokens` の呼び出しを `reportUsage` の呼び出しに置き換える。`at=` は `artifact.CallTimeLayout` で書く。`reportSuccess` の文書（`:685-690`）に料金の行と合計の行を加える。
+- [x] **ステップ 3-7**: `cmd/yt2column/cost_test.go` に、fake の `LLMClient`・`TranscriptSource`・`Publisher` と `t.TempDir`（`newRunEnv`・`usageSequence`・`usageResponse`・`useReviewClient` を再利用する。保存してから再開するテストは、`saveArtifactsOnce` が setup の後に検証・推敲の client を上書きするため、レビューの段階に表にあるモデルと既知の使用量を与えられるよう、同じ形の `saveCostArtifacts` をこのファイルに置く）と、`e.d.newWriter` を包んで `Options.Clock` を設定する固定の時計で CLI のテストを書く。段階ごとに、表にあるモデル名と異なるトークン数を返す。行は `redact.Line` を通った後の標準エラーの行のバイト列として比べる（AC-36・AC-37）。
   - `TestRunCostLinesAllStages`: 3 つの段階が走る成功した実行で、段階の行が 3 行、合計の行が 2 行、トークン数の行の直後にこの順に出て、金額が手で計算した 6 桁の値で、2 つの合計が等しいこと。同じ実行の `--out` のファイルの料金の行が、記事 1 本の料金を 4 桁に四捨五入した値であること（AC-12・AC-15・AC-23）。
   - `TestRunCostLinesRateBasis`: `deepseek-flash` のピーク・オフピークの時刻、Claude のモデルの `flat`・`short-prompt`・`long-prompt` が、適用した単価の位置の語に出ること（AC-16）。
   - `TestRunCostLinesUnknown`: 3 つの理由（不明の使用量・モデル名なし・表にないモデル名）の段階の行が `unknown reason=` と理由の語を出して数値を出さず、2 つの合計が不明で、記事が公開されること（AC-09・AC-11・AC-17）。
-  - `TestRunCostLinesResume`: 既存の `TestRunTokenLinesResume`（`token_test.go:360`）と同じく、`saveArtifactsOnce` で保存してから再開する 2 回の実行のどちらにも、固定の時計・`withSteps`・検証・推敲の client を設定する。`--after generation`・`shorten`・`review` の各再開で、再利用した段階の行が `reused` で、「この実行の料金」と「記事 1 本の料金」が手で計算した値であること。`--after review` の「この実行の料金」が `usd=0.000000` であること。再利用した段階だけが不明のとき「この実行の料金」は分かり「記事 1 本の料金」は不明であること（AC-11・AC-13・AC-18）。
+  - `TestRunCostLinesResume`: 既存の `TestRunTokenLinesResume`（`token_test.go:360`）と同じく、`saveCostArtifacts` で保存してから再開する 2 回の実行のどちらにも、固定の時計・`withSteps`・検証・推敲の client を設定する。`--after generation`・`shorten`・`review` の各再開で、再利用した段階の行が `reused` で、「この実行の料金」と「記事 1 本の料金」が手で計算した値であること。`--after review` の「この実行の料金」が `usd=0.000000` であること（AC-11・AC-13・AC-18）。再利用した段階だけが不明のとき「この実行の料金」は分かり「記事 1 本の料金」は不明であることは、`TestRunCostLinesResumeUnknownStage` で確かめる。
   - `TestRunCostLinesResumeUsesSavedTime`: `TestRunCostLinesResume` と同じ 2 回の実行の形で、ピーク時間帯の時計で保存した中間生成物を、オフピーク時間帯の時計で `--after` で再開し、再利用した `deepseek-flash` の段階が `peak` と保存時の `at=` で算出されること。逆も確かめる（AC-27・AC-28）。
   - `TestRunCostLinesSkippedStages`: 字数の調整が LLM を呼ばない実行と `--no-review` の実行で、その段階の行が出ず、合計がほかの段階の和であること（AC-14）。
   - `TestRunCostLinesFailure`: 次の失敗で、料金の行と合計の行が失敗の行の前に出て、終了コードが本タスクの前と同じであること（AC-19）。(1) 0019 の AC-16〜AC-19 の各場合に当たる、`token_test.go` の `TestRunTokenLinesReviewFailure`・`RejectedResponse`・`NoUsage`・`AfterAllCalls` と同じ失敗の経路（検証・推敲の呼び出しの失敗、生成の打ち切り・想定外の終了理由・空の応答で使用量を返す場合、使用量のない失敗（`usage-unknown` の行）、すべての呼び出しの後の字数の上限・中間生成物の保存・公開の失敗）。(2) `--after` を受理した後の失敗（再利用した段階の行が出る）。
@@ -235,8 +235,8 @@ requirements の機能要件（F-001〜F-010）を、architecture の設計ど�
   - `TestRunCostLinesBeforeLLM`: トークン数の行を出さない実行（`TestRunTokenLinesBeforeLLM` と同じ、使い方の誤り・設定の誤り・字幕の取得の失敗・`--after` の読み込みの失敗）で、料金の行も合計の行も出ないこと（AC-20）。
   - `TestRunCostLinesGoldenFormat`: 分かった段階・不明の段階・2 つの合計の行の綴りを、定数を使わずに文字列で固定する（AC-21）。
   - `TestCostWords`: `RateBasis` と `UnknownReason` のゼロ値と列挙の外の値が `invalid` の語になること（architecture §3.6）。
-  - `TestRunCostLinesOmitModel`: モデル名の規則を通る、表にない目印のモデル名（`Estimate` に届く）を返す実行で、目印がトークン数の行には現れ、料金の行と合計の行には現れないこと。秘密情報の値を含むモデル名の実行で `requireSafeOutput` が通ること（architecture §7.3、requirements §4.2）。
-- [ ] **ステップ 3-8**: 壊して確かめる。`reportRunError` の `reportUsage` の呼び出しを `reportTokens` に戻すと `TestRunCostLinesFailure` が、「記事 1 本の料金」の行に「この実行の料金」の値を出すと `TestRunCostLinesResume` の `--after` の行が、語の対応の `default` を `flat` にすると `TestCostWords` が失敗することを確かめる。
+  - `TestRunCostLinesOmitModel`: モデル名の規則を通る、表にない目印のモデル名（`Estimate` に届く）を返す実行で、目印がトークン数の行には現れ、料金の行と合計の行には現れないこと。秘密情報の値を含むモデル名の実行で、標準エラーに秘密情報が現れないこと（architecture §7.3、requirements §4.2。公開する記事の `- Model:` の行は本タスクの前から応答のモデル名をそのまま載せる既存の出力で、確認は CLI 自身の行に限る）。
+- [x] **ステップ 3-8**: 壊して確かめる。`reportRunError` の `reportUsage` の呼び出しを `reportTokens` に戻すと `TestRunCostLinesFailure` が、「記事 1 本の料金」の行に「この実行の料金」の値を出すと `TestRunCostLinesResume` の `--after` の行が、語の対応の `default` を `flat` にすると `TestCostWords` が失敗することを確かめる。
 
 ### PR-4 作成ポイント: CLI cost lines
 
@@ -250,8 +250,8 @@ requirements の機能要件（F-001〜F-010）を、architecture の設計ど�
 
 **判定理由**: ステップ 3-6 が、成功・失敗・一覧のファイルの失敗・再開の各経路での行の順序と有無を決める、分離された込み入ったステップであるため（ステップ 3-7 は Conditional checks の「CLI を複数回起動する」にも当たる。移行や外部リソースの面は持たないので `frontier-required` ではない）。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
@@ -397,7 +397,7 @@ requirements AC-39 が認める変更は、architecture §1.3「要件 AC-39 と
 | AC-08 | test | `internal/pricing/pricing_test.go::TestEstimateLargeCounts`・`::TestEstimatePromptTier`（プロンプトの長さの和の桁あふれの行） |
 | AC-09 | test | `internal/pricing/pricing_test.go::TestEstimateUnknown`、`cmd/yt2column/cost_test.go::TestRunCostLinesUnknown` |
 | AC-10 | test | `internal/pricing/pricing_test.go::TestEstimateUnknown`（表にないモデル名の行） |
-| AC-11 | test | `internal/pricing/pricing_test.go::TestTotals`、`cmd/yt2column/cost_test.go::TestRunCostLinesUnknown`・`::TestRunCostLinesResume`（再利用した段階だけが不明の行） |
+| AC-11 | test | `internal/pricing/pricing_test.go::TestTotals`、`cmd/yt2column/cost_test.go::TestRunCostLinesUnknown`・`::TestRunCostLinesResumeUnknownStage`（再利用した段階だけが不明の行） |
 | AC-12 | test | `internal/pricing/pricing_test.go::TestTotals`、`cmd/yt2column/cost_test.go::TestRunCostLinesAllStages` |
 | AC-13 | test | `internal/pricing/pricing_test.go::TestTotals`、`cmd/yt2column/cost_test.go::TestRunCostLinesResume` |
 | AC-14 | test | `internal/pricing/pricing_test.go::TestTotals`（`OriginNone` の行）、`cmd/yt2column/cost_test.go::TestRunCostLinesSkippedStages` |
@@ -462,7 +462,7 @@ requirements AC-39 が認める変更は、architecture §1.3「要件 AC-39 と
 - [x] architecture の記述の漏れと古い行番号を editorial correction として直した（§2.0）
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6）
 - [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 / 2-8 / 2-9）
-- [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5）
+- [x] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5）
 - [ ] PR-4 マージ済み（対象ステップ: 3-6 / 3-7 / 3-8）
 - [ ] PR-5 マージ済み（対象ステップ: 3-9 / 3-10 / M-1 / M-2 / M-3）
 - [ ] PR-6 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7）
