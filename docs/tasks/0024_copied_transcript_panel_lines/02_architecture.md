@@ -72,7 +72,7 @@ flowchart LR
 | 既存のもの | 本設計での扱い |
 |---|---|
 | パーサ（`internal/transcript/copied_format.go`） | 変更する。`parseCopiedTranscript`（`:86-102`）の形の判定・行の分類・行の検査の順序を、§3.2.1・§3.2.3・§3.2.4 のとおりにする。時刻の文法（`:174-197`）・読み上げ用ラベルの導出（`:210-258`）・ラベルの照合（`:264-276`）は変えない |
-| `CopiedInput`・`CopiedSource`・`NewCopiedSource`・`Fetch`（`internal/transcript/copied.go`） | 変更しない。新しいフィールドも関数も足さない。`NewCopiedSource` は `parseCopiedTranscript` を呼ぶだけである（`copied.go:43-46`） |
+| `CopiedInput`・`CopiedSource`・`NewCopiedSource`・`Fetch`（`internal/transcript/copied.go`） | 変更しない。新しいフィールドも関数も足さない。`NewCopiedSource` は `VideoID` を検査した後、`Raw` の解析を `parseCopiedTranscript` に委ねるだけである（`copied.go:43-46`） |
 | 拒否の理由の非公開の番兵（`copied_format.go:16-28`） | 変更しない。読み飛ばしに新しい理由は要らない（前置きの実害のある行は既存の `errCopiedControlChar`・`errCopiedNotTimestamp` で拒否する） |
 | `ErrCopiedTranscriptFormat`（`internal/transcript/errors.go:18`） | 変更しない。公開の番兵は増やさない（F-004・AC-14） |
 | `transcript.Transcript`・`Segment`・`TranscriptSource`（`transcript.go`） | 変更しない。`internal/pipeline` の `TestCommonTypesFieldSets`（`internal/pipeline/pipeline_test.go:432`）は変更なしで通る |
@@ -88,7 +88,7 @@ flowchart LR
 
 -   **元の規則と出典:** 0015 §3.2.1 は「入力の末尾の行の区切りは 0 個か 1 個である。末尾に区切りが 2 個以上続く入力は、空の行を含むものとして拒否する」と定める（実装は `copied_format.go:148-157` の `splitCopiedLines` と `:280-288` の空の行の検査）。
 -   **例外とする理由:** 範囲の選び方によっては、コピーした文字列の末尾に空行や操作ラベル行（`動画の時間と同期`）が入る（要件 §1）。これを拒否すると `invalid_transcript` になる。本設計は、末尾の行の区切りの数に上限を設けず、末尾の領域（空白行と操作ラベル行）を無視する（F-006）。
--   **古い振る舞いを確かめている既存のテスト:** `TestParseCopiedRejects` の `two trailing separators`・`three trailing separators`、`TestParseCopiedLineBreaks` の `trailingRejects` の同名の 2 ケース（受理に変わる）、および `TestParseCopiedRejects` の `form B whitespace-only text`（`0:00\n \n`。末尾の U+0020 だけの行が末尾の領域になるので、`errCopiedBlankText` 行 2 から、本文のあるセグメントがない `errCopiedNoText` に変わる）。これらは未変更だと失敗する。§3.5 で書き換える。要件 `01_requirements.md` の AC-18 は `form B whitespace-only text` を列挙していない。F-006 の規則（末尾の空白文字だけの行を無視する）から導かれる変更であり、決定は変わらないので、AC-18 への追記は編集上の訂正（editorial correction）として扱う。
+-   **古い振る舞いを確かめている既存のテスト:** `TestParseCopiedRejects` の `two trailing separators`・`three trailing separators`、`TestParseCopiedLineBreaks` の `trailingRejects` の同名の 2 ケース（受理に変わる）、および `TestParseCopiedRejects` の `form B whitespace-only text`（`0:00\n \n`。末尾の U+0020 だけの行が末尾の領域になるので、`errCopiedBlankText` 行 2 から、本文のあるセグメントがない `errCopiedNoText` に変わる）。これらは未変更だと失敗する。§3.5 で書き換える。`form B whitespace-only text` は F-006 の規則（末尾の空白文字だけの行を無視する）から導かれる変更であり、要件 `01_requirements.md` の AC-18 に編集上の訂正（editorial correction）として追記済みである（要件の Document Status の Comments）。
 
 **例外 2: 形の判定の位置（F-007）。**
 
@@ -270,7 +270,7 @@ var ErrCopiedTranscriptFormat = errors.New("copied transcript does not match the
     -   日本語 UI: `動画の時間と同期`（パネルの末尾のボタン。`testdata/2tcCWM-sRBw.transcript_panel.html:3206`・`:3211`、要件 §1 の観測）
     -   英語 UI: `Sync to video time`（2026-10-17 に観測。要件 §1）
     観測していない操作ラベルは加えない（0015 §1.4.4）。操作ラベル行は読み上げ用ラベルの言語の固定に影響しない。
--   **末尾に限る。** 最初のセグメントの行と末尾の領域の間にある空行（0 文字の行）は、従来どおり `errCopiedEmptyLine` で拒否する（0015 §3.2.1）。0 文字でない空白文字だけの行は、従来どおり形ごとの検査で拒否する（形 A の行と、本文を待っていない形 B の位置では `errCopiedNotTimestamp`、本文を待っている形 B の位置では `errCopiedBlankText`。`copied_format.go:313-319`・`:370-371`・`:376-378`）。理由と行番号を変えない。最初のセグメントの行より前の空白文字だけの行は、前置きとして読み飛ばす（§3.2.1）。末尾の領域に当たる行には、除く前に制御文字の検査を適用する（タブ（U+0009）などを含む行は、末尾にあっても `errCopiedControlChar` で拒否する。AC-26）。
+-   **末尾に限る。** 最初のセグメントの行と末尾の領域の間にある空行（0 文字の行）は、従来どおり `errCopiedEmptyLine` で拒否する（0015 §3.2.1）。0 文字でない空白文字だけの行は、従来どおり形ごとの検査で拒否する（形 A の行と、本文を待っていない形 B の位置では `errCopiedNotTimestamp`、本文を待っている形 B の位置では `errCopiedBlankText`。`copied_format.go:313-319`・`:370-371`・`:376-378`）。理由と行番号を変えない。最初のセグメントの行より前の空白文字だけの行は、前置きとして読み飛ばす（§3.2.1）。制御文字を含む行は末尾の領域に含めない。末尾の領域はその行の直後で終わり、その行は前置き（§3.2.1）または最初のセグメントの行から末尾の領域の直前までの行として検査され、`errCopiedControlChar` で拒否される（タブ（U+0009）だけの行のように空白文字だけからなる行でも同じ。AC-26）。末尾の領域の決定は拒否をしないので、末尾の制御文字が、それより前の行の誤りより先に報告されることはない（例: `0:00\n\nx\n\t\n` は従来どおり `errCopiedEmptyLine` 行 2）。
 -   **末尾の行の区切り。** 末尾の領域を無視するので、末尾の行の区切りの数に上限を設けない。入力の最後の行の区切りの有無も問わない。末尾の領域を取り除いた後に残る入力の行番号は、除く前の行番号を保つ（拒否のエラーの行番号を変えない）。
 -   **形 B の本文のないセグメント。** 形 B の最後の時刻の行の後にある空白文字だけの行は、本文の行ではなく末尾の領域として無視し、その時刻は本文のないセグメントになる（0015 §3.2.7 により `Segments` に含めない）。0015 ではこの入力（例: `0:00\nx\n0:05\n \n`）を `errCopiedBlankText` で拒否していたが、本設計は受理する。
 -   **他のセグメントでない行の拒否（F-003）。** 最初のセグメントの行より後で、末尾の領域より前にある、§3.2.2 の見出し行以外のセグメントでない行は、引き続き `errCopiedNotTimestamp` で拒否する。これは、利用者がパネル以外の文字列を選んだ場合と、YouTube の UI の変更で新しい種類の行が現れた場合を検出するためである。
@@ -282,13 +282,13 @@ var ErrCopiedTranscriptFormat = errors.New("copied transcript does not match the
 1.  入力全体が有効な UTF-8 か（`errCopiedInvalidUTF8`）。
 2.  空白文字以外の文字があるか（`errCopiedBlank`）。
 3.  入力全体の行の区切りがそろっているか（`errCopiedLineBreak`）。
-4.  末尾の領域を、入力の最後から前に向かって決め、除く。末尾の領域に当たる行には、除く前に制御文字の検査を適用する。本文の位置（直前の行が時刻だけの行である位置）にある操作ラベル行を末尾の領域に含めない（§3.2.3）。
+4.  末尾の領域を、入力の最後から前に向かって決め、除く。制御文字を含む行と、本文の位置（直前の行が時刻だけの行である位置）にある操作ラベル行は末尾の領域に含めず、そこで末尾の領域を終える（§3.2.3）。この手順は拒否をせず、範囲を決めるだけである。
 5.  残った行の先頭から前置きを決め、除く。前置きの各行に、制御文字の検査と数字・`:`・数字の検査をこの順に適用する。最初のセグメントの行に達した時点で前置きは終わる。最初のセグメントの行がなければ `errCopiedNoText` で拒否する（§3.2.1）。
 6.  形の判定を最初のセグメントの行で行う（最初のセグメントの行が時刻だけの行なら形 B、そうでなければ形 A）。
 7.  最初のセグメントの行から末尾の領域の直前までの行に、0015 §4.3 の手順 4（行ごとの検査）を適用する。形 A では、見出しの形に一致する行の読み飛ばしの判定を、空の行の検査と制御文字の検査の後、形ごとの規則の前に置く。
 8.  本文のあるセグメントがあるか（`errCopiedNoText`）。
 
-手順 4 の「本文の位置」の判定は、直前の行が時刻だけの行かどうかで行う。この判定は形の判定（手順 6）より前に行うが、行の局所的な性質だけから決まる。
+手順 4 の「本文の位置」の判定は、直前の行が時刻だけの行かどうかで行う。この判定は形の判定（手順 6）より前に行うが、行の局所的な性質だけから決まる。手順 4 が拒否をしないので、手順 5・7 の拒否は行の順に起こり、報告する誤りは入力の先頭から見て最初の誤りの行になる（0015 §4.3 と同じ）。
 
 ### 3.3. パーサの構造
 
@@ -326,7 +326,14 @@ var ErrCopiedTranscriptFormat = errors.New("copied transcript does not match the
 
 時刻の文法の拒否のケース（`leading BOM`・`minute leading zero`・`minute over 59`・`single-digit second`・`zero hour in h:mm:ss`・`three-digit hour`・`m:ss then colon and three digits`・`m:ss then colon and one-digit second`）は、いずれも先頭の行が数字・`:`・数字の連続を含むため、§3.2.1 の前置きの拒否の規則により、**理由と行番号を変えずに**通る（AC-18）。`chapter heading after text`（`:250`）は形 B の入力で見出しが本文の行の直後にあり、時刻の行でも見出しの形の行でもないため、引き続き `errCopiedNotTimestamp` 行 3 で拒否する。
 
-要件 `01_requirements.md` の AC-18 の列挙には `form B whitespace-only text` がない。F-006 の規則から導かれる変更であり決定は変わらないので、AC-18 への追記は編集上の訂正として扱う（§1.3.1）。
+`form B whitespace-only text` は F-006 の規則から導かれる変更であり、要件 `01_requirements.md` の AC-18 に編集上の訂正として追記済みである（§1.3.1）。
+
+次のケースは、確かめている経路を本設計で通らなくなる。未変更のままでは、その理由で失敗しえないテストになる（CLAUDE.md「Testing Strategy」）ので、同じ経路を通る入力に書き換える。
+
+| ケース | 今の入力と経路 | 本設計での入力 |
+|---|---|---|
+| `TestParseCopiedCheckOrder` の `line kind before blank text`（`:394-398`） | `0:00\nx\n \n`。本文を待っていない形 B の位置の空白文字だけの行が、`errCopiedBlankText` でなく `errCopiedNotTimestamp` になる順序 | 上の表のとおり受理に変わるので、受理のケースとして残したうえで、順序の確認は空白文字だけの行がセグメントの間にある入力（`0:00\nx\n \n0:05\ny\n`。`errCopiedNotTimestamp` 行 3）に移す。§3.2.3 の「末尾に限る」が残す順序である |
+| `TestParseCopiedErrorOmitsInput` の `not a timestamp omits the line`（`:425-428`） | `MARKER_LINE\n`。`errCopiedNotTimestamp` 行 1 のメッセージが行の文字列を含まないこと | 前置きだけの入力になり、行番号のない全体のエラー `errCopiedNoText` に変わるので、行を最初のセグメントの行より後に置く（`0:00\nx\nMARKER_LINE\n`。`errCopiedNotTimestamp` 行 3） |
 
 ## 4. エラーハンドリング設計 (Error Handling Design)
 
@@ -336,7 +343,7 @@ var ErrCopiedTranscriptFormat = errors.New("copied transcript does not match the
 
 -   前置きの制御文字を含む行は `errCopiedControlChar`、前置きの数字・`:`・数字の連続を含む行は `errCopiedNotTimestamp` で拒否する。
 -   最初のセグメントの行より後で末尾の領域より前のセグメントでない行は、従来どおり `errCopiedNotTimestamp` で拒否する。
--   末尾の領域の制御文字を含む行は `errCopiedControlChar` で拒否する。
+-   入力の末尾の制御文字を含む行は、末尾の領域に含めず、行の検査の `errCopiedControlChar` で拒否する（§3.2.3）。
 -   本文のあるセグメントがない入力は、従来どおり `errCopiedNoText` で拒否する。
 
 `ErrCopiedTranscriptFormat` を包む新しい、`internal/transcript` の外から観測できる番兵を追加しない（F-004・AC-14）。拒否したときは部分的な結果（`nil` でない `[]Segment`）を返さない。
@@ -450,11 +457,12 @@ flowchart LR
 ```mermaid
 flowchart TD
     classDef data fill:#e6f7ff,stroke:#1f77b4,stroke-width:1px,color:#0b3d91;
+    classDef process fill:#fff1e6,stroke:#ff7f0e,stroke-width:1px,color:#8a3e00;
     classDef enhanced fill:#e8f5e8,stroke:#2e8b57,stroke-width:2px,color:#006400;
 
     IN[("Raw")] --> C1{"UTF-8・空白・行の区切り<br>（0015 の手順 1〜3）"}
     C1 -->|"否"| EF["ErrCopiedTranscriptFormat を包むエラー"]
-    C1 -->|"可"| TRAIL["末尾の領域の決定と除去<br>（制御文字を先に検査）"]
+    C1 -->|"可"| TRAIL["末尾の領域の決定と除去<br>（制御文字を含む行で止める。拒否しない）"]
     TRAIL --> PREFIX["前置きの決定と除去<br>（制御文字・数字:数字を検査）"]
     PREFIX --> HAS{"最初のセグメントの行があるか"}
     HAS -->|"否"| EF
@@ -469,21 +477,25 @@ flowchart TD
     O -->|"可"| SEGS[("[]Segment")]
 
     class IN,SEGS data
-    class TRAIL,PREFIX,FORM,A,B,O,C1,HAS enhanced
+    class C1 process
+    class TRAIL,PREFIX,FORM,A,B,O,HAS enhanced
 ```
 
 ```mermaid
 flowchart LR
     classDef data fill:#e6f7ff,stroke:#1f77b4,stroke-width:1px,color:#0b3d91;
+    classDef process fill:#fff1e6,stroke:#ff7f0e,stroke-width:1px,color:#8a3e00;
     classDef enhanced fill:#e8f5e8,stroke:#2e8b57,stroke-width:2px,color:#006400;
 
     subgraph Legend["Legend"]
         L1[("データ")]
-        L2["本タスクで変更・追加する処理"]
+        L2["既存の処理（変更なし）"]
+        L3["本タスクで変更・追加する処理"]
     end
 
     class L1 data
-    class L2 enhanced
+    class L2 process
+    class L3 enhanced
 ```
 
 ### 6.2. 行の領域の決定
@@ -512,7 +524,7 @@ flowchart LR
 
     subgraph Legend["Legend"]
         L1[("セグメントを作る領域")]
-        L2["読み飛ばす領域"]
+        L2[("読み飛ばす領域")]
     end
 
     class L1 data
@@ -555,7 +567,7 @@ flowchart LR
 | AC-16 | §7.1 | 静的な確認 |
 | AC-17 | §7.1（実データは得られなかった。`testdata/` を変更しない） | 静的な確認 |
 | AC-18 | §3.5 | テスト |
-| AC-19 | 手動確認（サーバと拡張）。003 に記録する | 手動 |
+| AC-19 | 手動確認（サーバと拡張）。03 に記録する | 手動 |
 | AC-20 | §3.3・§7.3 | テスト |
 | AC-21〜AC-26 | §3.2.3・§3.2.4 | テスト |
 | AC-27 | §1.3.1（CLAUDE.md の例外の境界）、`CLAUDE.md` | 静的な確認 |
