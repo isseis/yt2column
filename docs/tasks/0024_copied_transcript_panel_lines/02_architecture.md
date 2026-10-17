@@ -8,7 +8,7 @@
 | Created | 2026-10-17 |
 | Review date | 2026-10-17 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 計画作成時の editorial correction（決定の変更なし）: 変更するファイルの一覧（§2.1・§3.4）に `cmd/yt2column/copied_transcript_docs_test.go` を加えた。AC-27 の静的な確認（CLAUDE.md の「Declare, don't infer」の例外の境界）は、既存の guard `TestClaudeMDCopiedTranscriptException` の拡張として実行するため。 |
 
 ## 1. 設計の全体像 (Design Overview)
 
@@ -109,7 +109,7 @@ flowchart LR
 
 ### 2.1. パッケージ構成
 
-新しいパッケージを作らない。変更するのは `internal/transcript` のパーサと、そのテスト、および例外の境界の記載（CLAUDE.md）だけである。
+新しいパッケージを作らない。変更するのは `internal/transcript` のパーサと、そのテスト、例外の境界の記載（CLAUDE.md）、およびその記載を確かめる `cmd/yt2column` の guard テストだけである。
 
 矢印 A → B は「A が B の関数を呼ぶ、または B の型を使う」を表す。本設計で変更するファイルを緑（`enhanced`）で示す。
 
@@ -306,6 +306,7 @@ var ErrCopiedTranscriptFormat = errors.New("copied transcript does not match the
 | `internal/transcript/copied_format.go` | 変更 | 前置き・末尾の領域の決定、見出し行の読み飛ばし、形の判定の位置の変更、検査の順序の変更。読み飛ばす行の形と操作ラベルの一覧の定数 |
 | `internal/transcript/copied_format_test.go` | 変更 | 書き換える既存ケース（§3.5）と、AC-01〜AC-15・AC-21〜AC-26・AC-28〜AC-33 を確かめる新しいケース |
 | `CLAUDE.md` | 変更 | 「Declare, don't infer」の例外の境界に、前置き・形 A の見出し行・末尾の領域の読み飛ばしを加える（AC-27） |
+| `cmd/yt2column/copied_transcript_docs_test.go` | 変更 | 「Declare, don't infer」の例外の境界の記載（AC-27）を確かめる `TestClaudeMDCopiedTranscriptException` に、前置きの位置の規則と読み飛ばす行の種類の確認を加える |
 | `docs/tasks/0024_copied_transcript_panel_lines/02_architecture.md` | 新規 | 本書 |
 
 `internal/transcript/copied.go`・`errors.go`・`copied_test.go`・`internal/writer/prompt_test.go`・`internal/pipeline` の guard は変更しない。
