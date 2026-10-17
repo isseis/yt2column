@@ -277,9 +277,10 @@ On the first start the server generates a shared token and saves it to
 `<config dir>/yt2column/server-token` (macOS:
 `$HOME/Library/Application Support/yt2column/server-token`; other Unix:
 `$XDG_CONFIG_HOME` or `$HOME/.config`). On every start, the first included, the
-server prints the token to standard output. The extension uses this token once
-it sends requests (#111); paste it into the extension's options page then, and
-until then use the curl example below to check the server by hand.
+server prints the token to standard output. The extension sends this token as
+its bearer token; paste it into the extension's options page (see
+[Browser extension](#browser-extension)). Use the curl example below to check
+the server by hand.
 
 - To see the token again, restart the server: it prints the same token every
   time. Standard output is easy to redirect, so a start whose standard output
@@ -440,9 +441,9 @@ Design documents are written in Japanese; start with
 
 A Chrome/Brave extension (Manifest V3) lives in `extension/`; it is written in
 TypeScript and built with Node.js. It is not published to a store — you build it
-and load the build as an unpacked extension. At this point it never sends
-anything: it only collects a selection, the tab URL, and the tab title, and
-shows them.
+and load the build as an unpacked extension. It collects a selection, the tab
+URL, and the tab title, sends the selection and the URL to the localhost server,
+and shows the response.
 
 Node.js 24 is required, and every `ext-*` target refuses to run when
 `node --version` does not match `extension/.node-version`. The version file sits
@@ -466,18 +467,51 @@ Load the build in Chrome or Brave:
 The extension ID is fixed to `clfmbbcdpnjcefbdihdoahomaifbabkk`, so it is the
 same on every machine and from every directory.
 
-There are two ways to launch the extension, and both collect the same three
+Before sending, set the shared token on the extension's options page:
+right-click the toolbar icon, then **Options** (or **Details** → **Extension
+options** on `chrome://extensions/`). Paste the token the server printed at
+startup and save it; if you changed the server's port, set it on the same page
+too. Without a saved token the extension does not send and says how to set one.
+The value itself is never shown again, only whether one is set.
+
+The extension must be allowed to reach `127.0.0.1`, or the request fails: on
+`chrome://extensions/` open **Details** → **Site access** and allow
+`127.0.0.1`. Without it the extension shows "Could not get a response from the
+server", which looks the same as a server that is not running.
+
+There are two ways to launch the extension, and both collect and send the same
 values:
 
-- **Context menu:** on a video page, select the transcript text, right-click,
-  and choose the extension's item. The result opens in a window.
-- **Toolbar icon:** click the icon to open the popup, which shows what would be
-  collected and why nothing would be collected when the page or selection does
-  not qualify. The popup closes when you click elsewhere.
+- **Context menu:** on a video page, open the transcript panel, select the
+  caption lines, right-click, and choose the extension's item. It sends without
+  another confirmation, and a window opens that shows "sending" and then the
+  result.
+- **Toolbar icon:** click the icon to open the popup, which shows what was
+  collected and a **Send to yt2column** button. It sends when you press the
+  button. While sending the button is disabled, and after a send (whatever the
+  result) it stays disabled: reopen the popup to send again.
 
-To see what was collected, open the console before launching: the service
-worker's console via the **service worker** link on `chrome://extensions/`, and
-the popup's console via right-click → **Inspect**.
+How to read the result:
+
+- **Accepted** (`202`): the server took the request. It shows a `requestId` and
+  says the result of generating and posting the article will arrive in Slack.
+- **Rejected**: it shows the reason and a `requestId`.
+- **Could not get a response** or **could not interpret the response**: it does
+  not resend automatically, and it tells you to check Slack before sending
+  again, because the server may already be processing the request.
+
+The `requestId` matches the extension's display with the server log and the
+Slack notification; a failure without one is matched by the time. Do not close
+the popup or the result window while it is sending: if you close it the result
+is not shown, and sending again could post the same article twice.
+
+The selection is sent exactly as copied from the transcript panel; the extension
+does not trim it, so select only the caption lines — a trailing blank line is
+not part of the accepted format and the server rejects it.
+
+To see what was collected and the send result, open the console before
+launching: the service worker's console via the **service worker** link on
+`chrome://extensions/`, and the popup's console via right-click → **Inspect**.
 
 ### Integration test
 

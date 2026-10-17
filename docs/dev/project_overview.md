@@ -97,7 +97,7 @@ internal/publisher/       # Slack 互換 Incoming Webhook / File
 internal/config/          # 環境変数からの設定読み込み
 prompts/                  # プロンプトテンプレート
 testdata/                 # json3・info.json のサンプル、文字起こしパネルの HTML の抜粋、DeepSeek・Claude API の実応答
-extension/                # ブラウザ拡張（TypeScript。開発環境・Manifest V3・選択範囲の収集と表示）
+extension/                # ブラウザ拡張（TypeScript。開発環境・Manifest V3・選択範囲と URL の収集・表示と localhost のサーバへの送信）
 ```
 
 ## 設定（環境変数）
