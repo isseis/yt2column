@@ -99,12 +99,22 @@ func costTotalLines(stderr string) []string {
 	return lines
 }
 
-// requireCostLines asserts the stage lines and then the total lines of e.stderr
-// equal want, in order.
+// costLines returns every cost line of stderr, stage and total, in the order
+// they were written, so a test can tell that the totals follow the stages.
+func costLines(stderr string) []string {
+	var lines []string
+	for line := range strings.SplitSeq(strings.TrimSuffix(stderr, "\n"), "\n") {
+		if strings.HasPrefix(line, costPrefix) || strings.HasPrefix(line, costTotalPrefix) {
+			lines = append(lines, line)
+		}
+	}
+	return lines
+}
+
+// requireCostLines asserts the cost lines of e.stderr equal want, in order.
 func requireCostLines(t *testing.T, e *runEnv, want []string) {
 	t.Helper()
-	got := append(costStageLines(e.stderr.String()), costTotalLines(e.stderr.String())...)
-	if !slices.Equal(got, want) {
+	if got := costLines(e.stderr.String()); !slices.Equal(got, want) {
 		t.Errorf("cost lines = %q, want %q\nstderr:\n%s", got, want, e.stderr.String())
 	}
 }
@@ -112,8 +122,7 @@ func requireCostLines(t *testing.T, e *runEnv, want []string) {
 // requireNoCostLines asserts no cost line was written.
 func requireNoCostLines(t *testing.T, e *runEnv) {
 	t.Helper()
-	got := append(costStageLines(e.stderr.String()), costTotalLines(e.stderr.String())...)
-	if len(got) != 0 {
+	if got := costLines(e.stderr.String()); len(got) != 0 {
 		t.Errorf("cost lines = %q, want none", got)
 	}
 }
@@ -427,11 +436,13 @@ func TestRunCostLinesOmitModel(t *testing.T) {
 		requireSafeOutput(t, e.stdout.String(), e.stderr.String(), e.outPath)
 	})
 
-	t.Run("a secret in the model name is redacted from stderr", func(t *testing.T) {
-		// The mystery-model subtest above is what pins that the cost lines omit
-		// the model; here redact.Line masks the secret, so the check only pins
-		// that masking still holds. The published model line is pre-existing
-		// output this task does not change.
+	t.Run("a secret in the model name is masked on stderr", func(t *testing.T) {
+		// The mystery-model subtest above pins that the cost lines omit the
+		// model. Here redact.Line masks the secret from the CLI's own lines, so
+		// the check pins that masking still holds. The published article header
+		// (--out and Slack) writes the raw model name, a pre-existing behavior
+		// this task does not change, so this subtest deliberately does not
+		// claim the published output is secret-free.
 		e := newRunEnv(t)
 		e.withSteps = true
 		e.args = []string{"--no-shorten", "--no-review", "--out", e.outPath, runVideoURL}
@@ -495,7 +506,7 @@ func TestRunCostLinesFailure(t *testing.T) {
 				"yt2column: cost-total: run known usd=0.000600",
 				"yt2column: cost-total: article known usd=0.000600",
 			})
-			if last, failure := strings.LastIndex(e.stderr.String(), costPrefix), strings.Index(e.stderr.String(), "the write stage failed"); failure < last {
+			if last, failure := strings.LastIndex(e.stderr.String(), costTotalPrefix), strings.Index(e.stderr.String(), "the write stage failed"); failure < last {
 				t.Errorf("the failure line appears before the cost lines:\n%s", e.stderr.String())
 			}
 		})
@@ -769,6 +780,8 @@ func TestRunCostLinesResumeUsesSavedTime(t *testing.T) {
 		e := newRunEnv(t)
 		e.withSteps = true
 		e.args = []string{"--artifacts", dir, "--after", "review", "--out", e.outPath, runVideoURL}
+		// The resume clock is the other window; the reused stage must ignore it.
+		useFixedClock(e, costOffPeakTime)
 
 		if code := e.run(); code != exitOK {
 			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
@@ -788,6 +801,8 @@ func TestRunCostLinesResumeUsesSavedTime(t *testing.T) {
 		e := newRunEnv(t)
 		e.withSteps = true
 		e.args = []string{"--artifacts", dir, "--after", "review", "--out", e.outPath, runVideoURL}
+		// The resume clock is the other window; the reused stage must ignore it.
+		useFixedClock(e, costPeakTime)
 
 		if code := e.run(); code != exitOK {
 			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
