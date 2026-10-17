@@ -85,6 +85,17 @@ func TestIntegrationGenerate(t *testing.T) {
 	})
 }
 
+// containsAPIKey reports whether value holds the API key or its last eight
+// characters, which must never be logged (security.md: neither the key nor any
+// part of it).
+func containsAPIKey(value, key string) bool {
+	if strings.Contains(value, key) {
+		return true
+	}
+	runes := []rune(key)
+	return len(runes) > 8 && strings.Contains(value, string(runes[len(runes)-8:]))
+}
+
 // logResponse logs a response's token counts and estimated cost. It refuses to
 // log a Model or ModelVersion that contains the API key: both are
 // provider-controlled, so a faulty response or a TLS-terminating proxy could
@@ -98,8 +109,8 @@ func logResponse(t *testing.T, response llm.GenerateResponse, key string) {
 		{"Model", response.Model},
 		{"ModelVersion", response.ModelVersion},
 	} {
-		if strings.Contains(field.value, key) {
-			t.Fatalf("Generate() %s contains the API key; it is not logged", field.name)
+		if containsAPIKey(field.value, key) {
+			t.Fatalf("Generate() %s contains the API key or its tail; it is not logged", field.name)
 		}
 	}
 	// The cost is estimated from the time Generate returned and the response's

@@ -12,8 +12,10 @@ import (
 
 func TestCostSummary(t *testing.T) {
 	usage := llm.KnownUsage(llm.TokenCounts{Input: 100, Output: 10})
-	// Monday 01:00 UTC is inside deepseek-flash's peak window.
+	// Monday 01:00 UTC is inside deepseek-flash's peak window; 04:30 UTC is
+	// outside both of its ranges.
 	peak := time.Date(2026, time.October, 19, 1, 0, 0, 0, time.UTC)
+	offPeak := time.Date(2026, time.October, 19, 4, 30, 0, 0, time.UTC)
 	cases := []struct {
 		name string
 		cost pricing.StageCost
@@ -21,6 +23,8 @@ func TestCostSummary(t *testing.T) {
 	}{
 		{"flat", pricing.Estimate("claude-opus-5-5", usage, time.Time{}), "known usd=0.000600 flat"},
 		{"peak", pricing.Estimate("deepseek-flash", usage, peak), "known usd=0.000042 peak"},
+		{"off-peak", pricing.Estimate("deepseek-flash", usage, offPeak), "known usd=0.000021 off-peak"},
+		{"short prompt", pricing.Estimate("claude-haiku-5-5", llm.KnownUsage(llm.TokenCounts{Input: 100000}), time.Time{}), "known usd=0.010000 short-prompt"},
 		{"long prompt", pricing.Estimate("claude-haiku-5-5", llm.KnownUsage(llm.TokenCounts{Input: 100001}), time.Time{}), "known usd=0.050001 long-prompt"},
 		{"unknown usage", pricing.Estimate("claude-opus-5-5", llm.UnknownUsage(llm.RuleNotRead, ""), time.Time{}), "unknown reason=usage-unknown"},
 		{"no model", pricing.Estimate("", usage, time.Time{}), "unknown reason=no-model"},

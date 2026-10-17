@@ -48,8 +48,8 @@ func TestIntegrationGenerate(t *testing.T) {
 		t.Fatal("the API key cannot be revealed")
 	}
 	_, workspaceSpecified := settings.WorkspaceID.Value()
-	if strings.Contains(settings.Model, key) {
-		t.Fatal("the configured model contains the API key; it is not logged")
+	if containsAPIKey(settings.Model, key) {
+		t.Fatal("the configured model contains the API key or its tail; it is not logged")
 	}
 	// The model name is an untrusted string; %+q escapes control and non-ASCII
 	// characters so it cannot alter the terminal or log.
@@ -98,6 +98,17 @@ func TestIntegrationGenerate(t *testing.T) {
 	})
 }
 
+// containsAPIKey reports whether value holds the API key or its last eight
+// characters, which must never be logged (security.md: neither the key nor any
+// part of it).
+func containsAPIKey(value, key string) bool {
+	if strings.Contains(value, key) {
+		return true
+	}
+	runes := []rune(key)
+	return len(runes) > 8 && strings.Contains(value, string(runes[len(runes)-8:]))
+}
+
 // logResponse logs a response's token counts and estimated cost. It refuses to
 // log a Model that contains the API key: the model is provider-controlled, so
 // a faulty response or a TLS-terminating proxy could echo the API key into it,
@@ -107,8 +118,8 @@ func TestIntegrationGenerate(t *testing.T) {
 // alter the terminal or log.
 func logResponse(t *testing.T, response llm.GenerateResponse, key string) {
 	t.Helper()
-	if strings.Contains(response.Model, key) {
-		t.Fatal("Generate() Model contains the API key; it is not logged")
+	if containsAPIKey(response.Model, key) {
+		t.Fatal("Generate() Model contains the API key or its tail; it is not logged")
 	}
 	// The cost is estimated from the time Generate returned and the response's
 	// own usage, like the CLI's cost line.
