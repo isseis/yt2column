@@ -8,7 +8,7 @@
 | Created | 2026-10-17 |
 | Review date | 2026-10-17 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 編集上の訂正（決定の変更なし）: AC-18 が列挙する書き換え対象の既存テストに `form B whitespace-only text`（`0:00\n \n`。F-006 の規則により末尾の空白文字だけの行が無視され、`errCopiedNoText` になる）を追加した。 |
 
 ## 1. 概要 (Overview)
 
@@ -177,7 +177,7 @@
 **Acceptance Criteria**:
 - **AC-16**: AC-01〜AC-15・AC-21〜AC-26・AC-28〜AC-33 を確かめるユニットテストを加える。テストの入力は、`_test.go` の中の文字列（合成の入力）で作る。見出しのタイトルとセグメントの本文は架空の文字列とする。報告された入力（動画 `dsuNgos_kxA`）と §1 で観測した入力の全体は、再配布の許諾が確認できないため `testdata/` に保存しない（[security.md](../../dev/security.md) §7）。前置き・末尾の操作ラベルの文字列は、パネルの UI のラベルなので合成の入力に使ってよい。
 - **AC-17**: 再配布が許諾されたライセンス（CC BY など）の、チャプター付きの動画のコピーが得られた場合は、`testdata/` に保存し、`testdata/README.md` に出典・ライセンス・取得日・取得方法・加工内容を記録する。得られない場合は、得られなかったことを 02 に記録する。
-- **AC-18**: 既存のテスト（`internal/transcript/copied_format_test.go`・`copied_test.go`・`internal/writer/prompt_test.go`・パイプラインの guard）が、本タスクの後もそのまま通る。例外は、F-006・F-007 が変える振る舞いを確かめている `copied_format_test.go` の次のケースであり、本書に合わせて書き換える: 拒否の表の `two trailing separators`・`three trailing separators`（`errCopiedEmptyLine`。受理になる）、`trailingRejects` の同名の 2 ケース（受理になる）、`empty line at the start`（入力 `\n0:00\nx\n`。先頭の空行が前置きになるので受理になる）、`leading display items`（入力 `タイムライン\n`。`errCopiedNoText` になる）、検査の順序の `line kind before blank text`（入力 `0:00\nx\n \n`。末尾の U+0020 だけの行が無視されるので受理になる）。時刻の文法の拒否のケース（`leading BOM`・`minute leading zero`・`minute over 59`・`single-digit second` など、先頭の行が時刻の文法に合わない時刻であるもの）は、F-007 の拒否の規則により、理由と行番号を変えずに通ることを要する。書き換えたケースは 03 に記録する。
+- **AC-18**: 既存のテスト（`internal/transcript/copied_format_test.go`・`copied_test.go`・`internal/writer/prompt_test.go`・パイプラインの guard）が、本タスクの後もそのまま通る。例外は、F-006・F-007 が変える振る舞いを確かめている `copied_format_test.go` の次のケースであり、本書に合わせて書き換える: 拒否の表の `two trailing separators`・`three trailing separators`（`errCopiedEmptyLine`。受理になる）、`trailingRejects` の同名の 2 ケース（受理になる）、`empty line at the start`（入力 `\n0:00\nx\n`。先頭の空行が前置きになるので受理になる）、`leading display items`（入力 `タイムライン\n`。`errCopiedNoText` になる）、検査の順序の `line kind before blank text`（入力 `0:00\nx\n \n`。末尾の U+0020 だけの行が無視されるので受理になる）、`form B whitespace-only text`（入力 `0:00\n \n`。末尾の U+0020 だけの行が無視され、本文のあるセグメントが残らないので `errCopiedNoText` になる）。時刻の文法の拒否のケース（`leading BOM`・`minute leading zero`・`minute over 59`・`single-digit second` など、先頭の行が時刻の文法に合わない時刻であるもの）は、F-007 の拒否の規則により、理由と行番号を変えずに通ることを要する。書き換えたケースは 03 に記録する。
 - **AC-19**: 報告された動画の入力（チャプター見出し行 24 行を含む形 A）と、§1 の前置きから末尾の `動画の時間と同期` までを含むパネル全体の選択を、実際のサーバと拡張を通して送り、`202` で受理されることを手動で確かめる。結果を 03 に記録する（0011 の手動確認と同じ方法）。
 - **AC-20**: サーバの本文の上限と同じ大きさ（4 MiB）の、前置き・見出し行・末尾の領域を含む入力で解析が完走し、解析の時間とメモリが入力の長さに比例する（0015 AC-08 を維持する）。
 
