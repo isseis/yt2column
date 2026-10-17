@@ -2354,9 +2354,10 @@ func TestRunArtifactExitCodes(t *testing.T) {
 	validGeneration := func(input string) []byte {
 		record := writer.StageRecord{
 			Stage: writer.StageGeneration, Title: "T", Body: "B.", Model: "m",
-			System: writer.TemplateIdentity{Embedded: true, Digest: writer.Digest("s")},
-			User:   writer.TemplateIdentity{Embedded: true, Digest: writer.Digest("u")},
-			Input:  input,
+			System:   writer.TemplateIdentity{Embedded: true, Digest: writer.Digest("s")},
+			User:     writer.TemplateIdentity{Embedded: true, Digest: writer.Digest("u")},
+			Input:    input,
+			CallTime: time.Date(2026, time.October, 16, 1, 0, 0, 0, time.UTC),
 		}
 		data, _, err := artifact.Marshal(record)
 		if err != nil {
@@ -2365,10 +2366,14 @@ func TestRunArtifactExitCodes(t *testing.T) {
 		return data
 	}
 	cases := []struct {
-		name     string
-		want     int
-		prepared func(t *testing.T, e *runEnv, dir string)
-		args     []string
+		name string
+		want int
+		// wantStderr, when set, must appear in the run's standard error. It
+		// isolates a rejection to the rule under test when another layer (the
+		// id check) would also reject the same input.
+		wantStderr string
+		prepared   func(t *testing.T, e *runEnv, dir string)
+		args       []string
 	}{
 		{
 			name: "argument shape is a usage error",
@@ -2425,6 +2430,41 @@ func TestRunArtifactExitCodes(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "a malformed call time is a run failure",
+			want: exitFailure,
+			// The call-time rule rejects before the id check, so the message
+			// names call_time; without this the id check would mask a broken
+			// call-time rule and the case would pass either way.
+			wantStderr: "call_time",
+			args:       []string{"--artifacts", "@dir", "--after", "generation", "--out", "@out", runVideoURL},
+			prepared: func(t *testing.T, e *runEnv, dir string) {
+				e.useReviewClient(reviewLLM(emptyReviewJSON))
+				// Save a real generation artifact, then break only its
+				// call_time with a spelling time.Parse rejects (a zone
+				// offset). The time rule rejects it before the id check, so
+				// the id need not be recomputed.
+				saved := saveArtifactsOnce(t, shortGeneration)
+				data, err := os.ReadFile(artifactFile(saved, runVideoID, "generation"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				const key = `"call_time":"`
+				start := strings.Index(string(data), key)
+				if start < 0 {
+					t.Fatalf("the saved artifact has no call_time to tamper with:\n%s", data)
+				}
+				valueStart := start + len(key)
+				valueEnd := strings.Index(string(data)[valueStart:], `"`)
+				if valueEnd < 0 {
+					t.Fatalf("the saved artifact has an unterminated call_time:\n%s", data)
+				}
+				tampered := string(data)[:valueStart] + "2026-10-16T01:00:00+00:00" + string(data)[valueStart+valueEnd:]
+				if err := os.WriteFile(artifactFile(dir, runVideoID, "generation"), []byte(tampered), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -2449,6 +2489,9 @@ func TestRunArtifactExitCodes(t *testing.T) {
 			e.args = args
 			if code := e.run(); code != tc.want {
 				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, tc.want, e.stderr.String())
+			}
+			if tc.wantStderr != "" && !strings.Contains(e.stderr.String(), tc.wantStderr) {
+				t.Errorf("stderr does not contain %q, so the rejection may come from another rule:\n%s", tc.wantStderr, e.stderr.String())
 			}
 			requireUntouched(t, e)
 		})

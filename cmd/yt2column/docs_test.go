@@ -637,6 +637,9 @@ func TestTokenUsageDocsContract(t *testing.T) {
 	if section == "" {
 		t.Fatal("README has no Token usage section")
 	}
+	if !strings.Contains(section, "version 3") {
+		t.Error("README Token usage section does not state the artifact format version 3")
+	}
 	// Every format word run.go defines, plus the three stage names. The
 	// value-carrying fields are matched as substrings; the fixed words are
 	// matched as whole tokens, so "known" is not satisfied by "unknown" and
@@ -748,7 +751,7 @@ func TestTokenUsageDocsContract(t *testing.T) {
 		{"internal/llm", []string{"TokenCounts", "UnknownRule", "Usage"}},
 		{"internal/strictjson", []string{"IsNull", "AsNonNegativeInt64"}},
 		{"internal/writer", []string{"UsageOrigin", "StageUsage", "RunUsage", "TokenUsageError"}},
-		{"internal/artifact", []string{"version 2", "usage", "internal/llm"}},
+		{"internal/artifact", []string{"version 3", "usage", "call_time", "internal/llm"}},
 		{"internal/llm/deepseek", []string{"usage"}},
 		{"internal/llm/claude", []string{"usage"}},
 	} {

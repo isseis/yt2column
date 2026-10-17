@@ -22,6 +22,10 @@ var (
 	// size limit. boundedWriter returns it, and expand joins it with
 	// ErrInvalidTemplate.
 	ErrPromptTooLarge = errors.New("prompt exceeds the size limit")
+	// ErrMissingCallTime reports that an artifact store returned a loaded
+	// record without a call time. Write fails rather than let a time-of-day
+	// stage be priced from a zero time.
+	ErrMissingCallTime = errors.New("artifact record has no call time")
 )
 
 var (

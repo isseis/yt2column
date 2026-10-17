@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/strictjson"
@@ -21,6 +22,7 @@ const (
 	keyModel        = "model"
 	keyModelVersion = "model_version"
 	keyUsage        = "usage"
+	keyCallTime     = "call_time"
 	keySystem       = "system"
 	keyUser         = "user"
 	keyInput        = "input"
@@ -37,8 +39,8 @@ const (
 
 // artifactKeys are the top-level keys CollectOnly accepts.
 var artifactKeys = []string{
-	keyVersion, keyStage, keyModel, keyModelVersion, keyUsage, keySystem, keyUser,
-	keyInput, keyID, keyTitle, keyBody, keyRevisions,
+	keyVersion, keyStage, keyModel, keyModelVersion, keyUsage, keyCallTime,
+	keySystem, keyUser, keyInput, keyID, keyTitle, keyBody, keyRevisions,
 }
 
 // usageKeys are the keys a known-usage object must carry, in the order they are
@@ -58,6 +60,7 @@ type recordJSON struct {
 	Model        string          `json:"model"`
 	ModelVersion string          `json:"model_version"`
 	Usage        *usageJSON      `json:"usage"`
+	CallTime     string          `json:"call_time"`
 	System       identityJSON    `json:"system"`
 	User         identityJSON    `json:"user"`
 	Input        string          `json:"input"`
@@ -96,16 +99,21 @@ type revisionJSON struct {
 // with the record's identifier, computed from its content and stored under the
 // id key. It does
 // not escape HTML, so a body's "<", ">", and "&" do not expand (the file is
-// read back by this package, not by a browser). It then rejects the result
-// unless Parse accepts it, so a save never writes an artifact the load path
-// refuses.
+// read back by this package, not by a browser). It refuses a record whose
+// CallTime is zero, not in UTC, or has sub-second precision, then rejects the
+// result unless Parse accepts it, so a save never writes an artifact the load
+// path refuses.
 func Marshal(record writer.StageRecord) (data []byte, id string, err error) {
+	if err := checkCallTime(record.CallTime); err != nil {
+		return nil, "", err
+	}
 	id = recordID(record)
 	out := recordJSON{
 		Version:      artifactVersion,
 		Stage:        record.Stage.String(),
 		Model:        record.Model,
 		ModelVersion: record.ModelVersion,
+		CallTime:     record.CallTime.Format(CallTimeLayout),
 		System:       identityJSON{Embedded: record.System.Embedded, Digest: record.System.Digest},
 		User:         identityJSON{Embedded: record.User.Embedded, Digest: record.User.Digest},
 		Input:        record.Input,
@@ -175,6 +183,10 @@ func Parse(data []byte) (writer.StageRecord, error) {
 	if err != nil {
 		return writer.StageRecord{}, err
 	}
+	callTime, err := parseCallTime(members)
+	if err != nil {
+		return writer.StageRecord{}, err
+	}
 	system, err := parseIdentityMember(members, keySystem)
 	if err != nil {
 		return writer.StageRecord{}, err
@@ -207,6 +219,7 @@ func Parse(data []byte) (writer.StageRecord, error) {
 		Model:        model,
 		ModelVersion: modelVersion,
 		Usage:        usage,
+		CallTime:     callTime,
 		System:       system,
 		User:         user,
 		Input:        input,
@@ -320,6 +333,44 @@ func parseUsage(members map[string]strictjson.Value) (llm.Usage, error) {
 		*member.dest = uint64(number) //nolint:gosec // number is non-negative
 	}
 	return llm.KnownUsage(counts), nil
+}
+
+// parseCallTime reads the required call_time member: a UTC time in whole
+// seconds, written in exactly CallTimeLayout. It rejects any other spelling,
+// including a zone offset, a fractional second, a missing second, and a
+// range-exceeding date, by requiring the parsed value to re-render as the same
+// bytes. It rejects the zero time, because the in-memory zero value means "no
+// call time". The reason never carries a file value.
+func parseCallTime(members map[string]strictjson.Value) (time.Time, error) {
+	raw, err := strictjson.RequiredString(members, keyCallTime)
+	if err != nil {
+		return time.Time{}, malformedf("call_time: %s", err)
+	}
+	parsed, err := time.Parse(CallTimeLayout, raw)
+	if err != nil {
+		return time.Time{}, malformed("call_time: not a UTC time in whole seconds")
+	}
+	if parsed.Format(CallTimeLayout) != raw {
+		return time.Time{}, malformed("call_time: not a UTC time in whole seconds")
+	}
+	if parsed.IsZero() {
+		return time.Time{}, malformed("call_time: zero time")
+	}
+	return parsed, nil
+}
+
+// checkCallTime rejects a record whose call time Marshal must not write: the
+// zero time, a time not in UTC, or a time with sub-second precision. Writing
+// one would store a wrong or lossy value that Parse cannot detect, because the
+// layout's trailing Z is a literal character.
+func checkCallTime(callTime time.Time) error {
+	if callTime.IsZero() {
+		return malformed("call_time: zero time")
+	}
+	if callTime.Location() != time.UTC || callTime.Nanosecond() != 0 {
+		return malformed("call_time: not a UTC time in whole seconds")
+	}
+	return nil
 }
 
 // parseIdentityMember reads a required template identity object.
@@ -442,6 +493,7 @@ func recordID(record writer.StageRecord) string {
 		record.ModelVersion,
 	}
 	parts = append(parts, usageIDParts(record.Usage)...)
+	parts = append(parts, record.CallTime.Format(CallTimeLayout))
 	parts = append(parts,
 		boolWire(record.System.Embedded),
 		record.System.Digest,
