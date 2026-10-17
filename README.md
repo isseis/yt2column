@@ -474,10 +474,11 @@ startup and save it; if you changed the server's port, set it on the same page
 too. Without a saved token the extension does not send and says how to set one.
 The value itself is never shown again, only whether one is set.
 
-The extension must be allowed to reach `127.0.0.1`, or the request fails: on
+If you restricted the extension's site access, allow `127.0.0.1`: on
 `chrome://extensions/` open **Details** → **Site access** and allow
-`127.0.0.1`. Without it the extension shows "Could not get a response from the
-server", which looks the same as a server that is not running.
+`127.0.0.1`. Without it the request fails and the extension shows "Could not get
+a response from the server", which looks the same as a server that is not
+running.
 
 There are two ways to launch the extension, and both collect and send the same
 values:

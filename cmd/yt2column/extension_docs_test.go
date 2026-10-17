@@ -143,16 +143,7 @@ func TestExtensionDocumentation(t *testing.T) {
 	})
 
 	t.Run("fills every cell of the plan's manual-check table", func(t *testing.T) {
-		section := sectionByHeading(plan, "### 5.1. 手動の確認と記録")
-		if section == "" {
-			t.Fatal("the plan has no section 5.1")
-		}
-		table := findTable(section, "AC")
-		if table == nil {
-			t.Fatal("section 5.1 has no AC table")
-		}
-		rows := table[1:]
-		want := []string{
+		checkManualCheckTable(t, plan, []string{
 			acLabel(2),
 			acLabel(3),
 			acLabel(5),
@@ -164,29 +155,7 @@ func TestExtensionDocumentation(t *testing.T) {
 			acLabel(21, 22, 31),
 			acLabel(28, 29),
 			acLabel(25),
-		}
-		if len(rows) != len(want) {
-			t.Fatalf("section 5.1 has %d rows, want %d", len(rows), len(want))
-		}
-		for i, row := range rows {
-			if len(row) == 0 {
-				t.Errorf("section 5.1 row %d is empty", i+1)
-				continue
-			}
-			if row[0] != want[i] {
-				t.Errorf("section 5.1 row %d is %q, want %q", i+1, row[0], want[i])
-				continue
-			}
-			if len(row) != 5 {
-				t.Errorf("section 5.1 row %s is malformed: %d cells, want 5", row[0], len(row))
-				continue
-			}
-			for _, column := range []int{1, 2, 3, 4} {
-				if strings.TrimSpace(row[column]) == "" {
-					t.Errorf("section 5.1 row %s has an empty column %d", row[0], column+1)
-				}
-			}
-		}
+		})
 	})
 }
 
@@ -236,7 +205,8 @@ func TestExtensionSendDocumentation(t *testing.T) {
 	})
 
 	t.Run("security.md describes sending without deferring to #111", func(t *testing.T) {
-		intro := sectionByHeading(security, "## 8. ブラウザ拡張と localhost サーバ（#43）")
+		// The intro is section 8's own paragraph, before its 8.1/8.2 subsections.
+		intro := sectionByHeadingPrefix(security, "## 8. ")
 		if intro == "" {
 			t.Fatal("security.md has no section 8")
 		}
@@ -276,16 +246,7 @@ func TestExtensionSendDocumentation(t *testing.T) {
 	})
 
 	t.Run("fills every cell of the plan's manual-check table", func(t *testing.T) {
-		section := sectionByHeading(plan, "### 5.1. 手動の確認と記録")
-		if section == "" {
-			t.Fatal("the plan has no section 5.1")
-		}
-		table := findTable(section, "AC")
-		if table == nil {
-			t.Fatal("section 5.1 has no AC table")
-		}
-		rows := table[1:]
-		want := []string{
+		checkManualCheckTable(t, plan, []string{
 			acLabel(1),
 			acLabel(13),
 			acLabel(14),
@@ -298,29 +259,7 @@ func TestExtensionSendDocumentation(t *testing.T) {
 			"設計書 5.4",
 			"設計書 3.10",
 			acLabel(30),
-		}
-		if len(rows) != len(want) {
-			t.Fatalf("section 5.1 has %d rows, want %d", len(rows), len(want))
-		}
-		for i, row := range rows {
-			if len(row) == 0 {
-				t.Errorf("section 5.1 row %d is empty", i+1)
-				continue
-			}
-			if row[0] != want[i] {
-				t.Errorf("section 5.1 row %d is %q, want %q", i+1, row[0], want[i])
-				continue
-			}
-			if len(row) != 5 {
-				t.Errorf("section 5.1 row %s is malformed: %d cells, want 5", row[0], len(row))
-				continue
-			}
-			for _, column := range []int{1, 2, 3, 4} {
-				if strings.TrimSpace(row[column]) == "" {
-					t.Errorf("section 5.1 row %s has an empty column %d", row[0], column+1)
-				}
-			}
-		}
+		})
 	})
 }
 
@@ -606,12 +545,52 @@ func sortedUnique(values []string) []string {
 	return unique
 }
 
-// acLabel builds a manual-check row label from acceptance-criterion numbers
-// that belong to task 0007: acLabel(2) returns the label for criterion 2 and
-// acLabel(10, 11) joins two labels with the Japanese middle dot. These labels
-// are document data matched against 0007's table, not references to this task's
-// own acceptance criteria. Building them from numbers keeps the "AC-" prefix
-// out of a literal followed by digits, which runplan's static check rejects.
+// checkManualCheckTable asserts that a plan's manual-check table has exactly the
+// row labels want, in order, with five columns and every column filled. It is
+// shared by the task 0007 and task 0020 guards.
+func checkManualCheckTable(t *testing.T, plan string, want []string) {
+	t.Helper()
+	const heading = "### 5.1. 手動の確認と記録"
+	section := sectionByHeading(plan, heading)
+	if section == "" {
+		t.Fatalf("the plan has no section %s", heading)
+	}
+	table := findTable(section, "AC")
+	if table == nil {
+		t.Fatalf("section %s has no AC table", heading)
+	}
+	rows := table[1:]
+	if len(rows) != len(want) {
+		t.Fatalf("section %s has %d rows, want %d", heading, len(rows), len(want))
+	}
+	for i, row := range rows {
+		if len(row) == 0 {
+			t.Errorf("section %s row %d is empty", heading, i+1)
+			continue
+		}
+		if row[0] != want[i] {
+			t.Errorf("section %s row %d is %q, want %q", heading, i+1, row[0], want[i])
+			continue
+		}
+		if len(row) != 5 {
+			t.Errorf("section %s row %s is malformed: %d cells, want 5", heading, row[0], len(row))
+			continue
+		}
+		for _, column := range []int{1, 2, 3, 4} {
+			if strings.TrimSpace(row[column]) == "" {
+				t.Errorf("section %s row %s has an empty column %d", heading, row[0], column+1)
+			}
+		}
+	}
+}
+
+// acLabel builds a manual-check row label from acceptance-criterion numbers:
+// acLabel(2) returns the label for criterion 2 and acLabel(10, 11) joins two
+// labels with the Japanese middle dot. The labels are document data matched
+// against a plan's manual-check table (task 0007's or task 0020's), not
+// references to source acceptance criteria. Building them from numbers keeps
+// the "AC-" prefix out of a literal followed by digits, which runplan's static
+// check rejects.
 func acLabel(numbers ...int) string {
 	labels := make([]string, len(numbers))
 	for i, number := range numbers {
