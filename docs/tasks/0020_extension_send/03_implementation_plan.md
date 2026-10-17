@@ -348,20 +348,20 @@ HEAD `e8b21fa`（ブランチ `issei/browser-extension-03`）で確認した。�
 -   変更: `README.md`、`docs/dev/security.md`、`docs/dev/project_overview.md`（`:98` の 1 行）、`CLAUDE.md`、`cmd/yt2column/extension_docs_test.go`、本計画（§5.1）
 
 **タスク**
--   [ ] **ステップ 5-1**: 設計書 7.2 の手動の確認を、macOS の Chrome と Brave の作業時点の安定版で行い、§5.1 に記録する。記事の生成に至らない入力は §5.1 の表の「確認の内容」のとおりとし、LLM API と Slack Webhook を実際に呼ぶのは AC-34 の行だけとする。AC-34 の実行の前に利用者の承認を得る（CLAUDE.md「Tool Execution Safety」）。一時的なローカルのサーバ（`429` を返すもの・`302` を返すもの・応答しないもの）は、作業環境にある Node.js（`extension/.node-version` の版）の `node:http` で書き、作業ディレクトリの外に置き、リポジトリに含めない。
+-   [x] **ステップ 5-1**: 設計書 7.2 の手動の確認を、macOS の Chrome と Brave の作業時点の安定版で行い、§5.1 に記録する。記事の生成に至らない入力は §5.1 の表の「確認の内容」のとおりとし、LLM API と Slack Webhook を実際に呼ぶのは AC-34 の行だけとする。AC-34 の実行の前に利用者の承認を得る（CLAUDE.md「Tool Execution Safety」）。一時的なローカルのサーバ（`429` を返すもの・`302` を返すもの・応答しないもの）は、作業環境にある Node.js（`extension/.node-version` の版）の `node:http` で書き、作業ディレクトリの外に置き、リポジトリに含めない。
     -   **対象:** 本計画（§5.1）。**完了:** §5.1 の AC-30 以外のすべての行の欄が埋まっている。
--   [ ] **ステップ 5-2**: README を設計書 3.14 の `README.md` の行のとおりに改める（「Browser extension」の節と「The shared token」の節）。
+-   [x] **ステップ 5-2**: README を設計書 3.14 の `README.md` の行のとおりに改める（「Browser extension」の節と「The shared token」の節）。
     -   **対象:** `README.md`。**完了:** `make test`（README を読む Go のテスト）と `serverReasons.test.ts` が通る。
--   [ ] **ステップ 5-3**: security.md を設計書 3.14 の `docs/dev/security.md` の行のとおりに改める（見出しを変えず、§1.3「文書」の Go のテストの制約を守る）。`project_overview.md:98` の `extension/` の説明に送信を加える。CLAUDE.md の「Development Notes」を設計書 3.14 の `CLAUDE.md` の行のとおりに改め、同じ段落の `doc-guard` のコマンドを `ci.yml:184` に合わせる（§1.3「文書」）。
+-   [x] **ステップ 5-3**: security.md を設計書 3.14 の `docs/dev/security.md` の行のとおりに改める（見出しを変えず、§1.3「文書」の Go のテストの制約を守る）。`project_overview.md:98` の `extension/` の説明に送信を加える。CLAUDE.md の「Development Notes」を設計書 3.14 の `CLAUDE.md` の行のとおりに改め、同じ段落の `doc-guard` のコマンドを `ci.yml:184` に合わせる（§1.3「文書」）。
     -   **対象:** `docs/dev/security.md`・`docs/dev/project_overview.md`・`CLAUDE.md`。**完了:** `make test`（security.md・project_overview.md を読む Go のテスト）と `manifest.test.ts` が通る。
--   [ ] **ステップ 5-4**: 文書を事実と照合する。README の拡張の手順（オプションページの開き方、トークンの貼り付け、2 つの起動の手段からの送信）を、ステップ 5-1 で使ったビルドで上から実行して確かめる。security.md の権限・保存先・残るリスクの記述を設計書 3.1・3.3・5.4 と照合する。CLAUDE.md の記述を `has-extension-changes.sh` の条件と `ci.yml` の `doc-guard` のジョブと照合する。結果を §5.1 の AC-30 の行に記録する。
+-   [x] **ステップ 5-4**: 文書を事実と照合する。README の拡張の手順（オプションページの開き方、トークンの貼り付け、2 つの起動の手段からの送信）を、ステップ 5-1 で使ったビルドで上から実行して確かめる。security.md の権限・保存先・残るリスクの記述を設計書 3.1・3.3・5.4 と照合する。CLAUDE.md の記述を `has-extension-changes.sh` の条件と `ci.yml` の `doc-guard` のジョブと照合する。結果を §5.1 の AC-30 の行に記録する。
     -   **対象:** 本計画（§5.1）。**完了:** §5.1 のすべての行の欄が埋まっている。
--   [ ] **ステップ 5-5**: `cmd/yt2column/extension_docs_test.go` に `TestExtensionSendDocumentation` を加える（設計書 3.12）。既存の `readDoc`・`sectionByHeading`・`findTable`・`acLabel` を使う。確かめる内容は次のとおりである。照合する語句は実装で決め、文書の書きぶりに合わせる。
+-   [x] **ステップ 5-5**: `cmd/yt2column/extension_docs_test.go` に `TestExtensionSendDocumentation` を加える（設計書 3.12）。既存の `readDoc`・`sectionByHeading`・`findTable`・`acLabel` を使う。確かめる内容は次のとおりである。照合する語句は実装で決め、文書の書きぶりに合わせる。
     -   README: 「Browser extension」の節が「never sends」を含まず、オプションページでのトークンの設定、2 つの起動の手段からの送信、「結果が分からない」の表示で Slack を確かめること、`requestId` での照合、`127.0.0.1` のサイトへのアクセスを含むこと。「The shared token」の節が「#111」を含まないこと。
     -   security.md: §8 の冒頭が「#109・#111 で決める」を含まず、タブのタイトルを送らないことを含むこと。§8.1 が「サーバへの送信は #111 で加える」を含まず、`chrome.storage.local`、トークンをログ・表示・本文に出さないこと、API キーと Webhook URL を持たないこと、自動で再送しないこと、応答の本文を表示しないことを含むこと。§8.2 が「確定は #111」を含まないこと。
     -   本計画の §5.1: 表の行の名前が §5.1 の表のとおりで、すべての欄が埋まっていること（0007 の検査と同じ形）。
     -   **対象:** `cmd/yt2column/extension_docs_test.go`。**完了:** `make fmt` の後に `make test` と `make lint` が通る。
--   [ ] **ステップ 5-6**: 壊して失敗することを確かめ、コミットメッセージに記録する。README に「never sends」を戻す、ステップ 5-5 の確かめる語句を含む文を README・security.md から 1 つずつ消す、§8.2 に「確定は #111」を戻す、§5.1 の 1 つの欄を空にする、§5.1 の 1 行を消す（いずれも `TestExtensionSendDocumentation`）。続けて `make ext-check` → `make test` → `make lint` を通す。
+-   [x] **ステップ 5-6**: 壊して失敗することを確かめ、コミットメッセージに記録する。README に「never sends」を戻す、ステップ 5-5 の確かめる語句を含む文を README・security.md から 1 つずつ消す、§8.2 に「確定は #111」を戻す、§5.1 の 1 つの欄を空にする、§5.1 の 1 行を消す（いずれも `TestExtensionSendDocumentation`）。続けて `make ext-check` → `make test` → `make lint` を通す。
     -   **対象:** なし（確認のみ）。**完了:** 各対象を壊して失敗することを確認し、コミットメッセージに記録する。
 
 **完了条件:** `make ext-check` → `make test` → `make lint` が通り、§5.1 のすべての行が記録されている。
@@ -495,12 +495,12 @@ PR は、フェーズ 4 を 2 つに分け、そのほかはフェーズと 1 �
 | AC-18・AC-22・AC-23 | 字幕の書式に合わない選択範囲（`invalid_transcript`）で、メニューの経路で送信中の後に送信の結果とリクエスト ID が表示され、ポップアップで送信中の表示とボタンが押せないことを確かめる。受付（`202`）の表示は AC-34 の実行のときに記録する | Brave 1.97.57（Chromium 155、macOS arm64） | 2026-10-17 | 両経路で送信の結果（`invalid_transcript` の文言と手順）とリクエスト ID が表示され（AC-18・AC-23）、ポップアップのボタンは押せない状態になった。サーバのログに `requestId=ee5b95e1cb03799d`（メニュー）・`requestId=56d77b52db53f5db`（ポップアップ）の 400 `invalid_transcript` を確認。送信中（AC-22）の表示は、遅延する一時サーバ（6 秒）で両経路とも「送信中」の文言（閉じないことの案内つき）が数秒間表示された後に結果へ変わると確認した。受付（`202`）の表示は、両経路で AC-34 の実行時に確認した（AC-34 の行を参照） |
 | AC-24 | `unauthorized`（オプションページに別の 64 文字を保存する）・`invalid_transcript`（実際のサーバ）と、`too_many_requests`（一時的なサーバ）の表示 | Chrome・Brave（`too_many_requests` は一時サーバ） | 2026-10-17 | 3 つとも互いに区別できる文言とリクエスト ID が表示された。`unauthorized` は「The shared token does not match the server.」（両経路）、`invalid_transcript` は「The selected text is not in the transcript panel's caption format.」、`too_many_requests` は「The server is already processing another article.」＋送り直す前に Slack を確かめる手順＋待つ手順＋`requestId=0123456789abcdef` |
 | AC-27 | サーバを起動していない状態で、両方の経路で「結果が分からない」 | Chrome | 2026-10-17 | 両方の経路で「結果が分からない」（"Could not get a response from the server."）が表示された |
-| AC-34 | 視聴中の YouTube ページで字幕を選択し、両方の経路から送ると、記事が Slack に投稿される（Chrome。利用者の承認を得てから行う） | Chrome | 2026-10-17 | メニュー経路: 受付（`202`）の表示「The server accepted the article. The result of generating and posting it will arrive in Slack.」と `requestId=c5cb1ab5e077418a` が表示され、サーバのログに `msg="request accepted" … requestId=c5cb1ab5e077418a videoId=a9f-iblKgBg` が出て、Slack に記事が届いた。ポップアップ経路: 同じく受付（`202`）の表示とリクエスト ID が表示され、Slack に記事が届いた。ポップアップ経路の最初の試行は、選択範囲の末尾に空行（`\n\n`）が入っていたためサーバが `invalid_transcript` で拒否した（サーバは空行を受理しない。拡張は選択範囲を補正しないので、末尾に空行が入らないよう選び直して成功した） |
+| AC-34 | 視聴中の YouTube ページで字幕を選択し、両方の経路から送ると、記事が Slack に投稿される（Chrome。利用者の承認を得てから行う） | Chrome | 2026-10-17 | メニュー経路: 受付（`202`）の表示「The server accepted the article. The result of generating and posting it will arrive in Slack.」と `requestId=c5cb1ab5e077418a` が表示され、サーバのログに `msg="request accepted" … requestId=c5cb1ab5e077418a videoId=a9f-iblKgBg` が出て、Slack に記事が届いた。ポップアップ経路: 同じく受付（`202`）の表示とリクエスト ID が表示され、Slack に記事が届いた。ポップアップ経路の最初の試行は、選択範囲の末尾に空行（`\n\n`）が入っていたためサーバが `invalid_transcript` で拒否した（サーバは空行を受理しない。拡張は選択範囲を補正しないので、末尾に空行が入らないよう選び直して成功した）。この「通常の選択が受理されない場合がある」問題は、別途 issue #301 で扱う |
 | AC-12 | `302` を返す一時的なサーバで、リダイレクト先に要求が届かず、リダイレクトの表示になる | Chrome | 2026-10-17 | 「サーバがリダイレクトで応答した」の表示になった（リダイレクト先への要求の有無は未確認） |
 | 設計書 3.5 | 応答しない一時的なサーバに、メニューの経路から送る。25 秒後に「結果が分からない」が表示され、記録が残る | Chrome | 2026-10-17 | 「結果が分からない」が表示された（コンソール・エラーページの記録は未確認） |
 | 設計書 5.4 | 1〜4 MiB の選択範囲を誤ったトークンで両方の経路から送ったときの表示（`unauthorized` か「結果が分からない」か） | （ブラウザの記載なし） | 2026-10-17 | `unauthorized` になった（「結果が分からない」ではない）。サーバのログは `status=401 reason=unauthorized detail=auth_mismatch`、`requestId=35781a9722f50488`。ブラウザに「The shared token does not match the server.」と手順・リクエスト ID が表示された |
 | 設計書 3.10 | トークンを保存したとき、Chrome と Brave がパスワードの保存を勧めない | Chrome・Brave | 2026-10-17 | 保存時にパスワードの保存を勧められなかった |
-| AC-30 | ステップ 5-4 の文書の照合 | 未実施 | | |
+| AC-30 | ステップ 5-4 の文書の照合 | Chrome・Brave（5-1 と同じ） | 2026-10-17 | README の拡張の手順（オプションページでのトークン設定、2 つの起動の手段からの送信）を、ステップ 5-1 で使ったビルドで実行して確かめた。security.md の権限・保存先・残るリスクの記述を設計書 3.1・3.3・5.4 と照合し一致した。CLAUDE.md の記述を `has-extension-changes.sh` の条件と `ci.yml:184` の `doc-guard` のジョブと照合し、`doc-guard` のコマンドを一致させた |
 
 ## 6. リスク管理 (Risk Management)
 
@@ -514,6 +514,7 @@ PR は、フェーズ 4 を 2 つに分け、そのほかはフェーズと 1 �
 | ブランドの型の値を、型の付かない値（`any`）の代入で作れる（§1.3 の表の最後の行）。型の引数で戻り値の型を決める関数（`f<RequestId>()`）や `Object.assign` など、型の表明を使わない抜け道も同じ扱いとする | `prepareSend` を通らない値を `sendArticle` に渡すコードを書けてしまう | 受け入れる。設計書 3.2 の lint の禁止は型の表明を対象にする。型情報を使う lint の導入は本タスクの範囲の外とする |
 | ステップ 3-2 から 5-3 までの間、CLAUDE.md の「文書だけの変更は `make ext-test` を要しない」の記述と、security.md・README を読む node のテストが食い違う | その間に security.md・README だけを変える PR で、node のテストを手元で実行せず、CI で初めて失敗に気づく | CI では、`has-extension-changes.sh` の条件（ステップ 3-2・4-4）で拡張のジョブが起動する。CLAUDE.md の更新はステップ 5-3 で行う（設計書 8 章の順序） |
 | `serverReasons.test.ts` が README の表の書式に依存する | README の書式の変更で、拡張の挙動と関係なくテストが失敗する | Go のテスト（`cmd/yt2column-server/docs_test.go`）と同じ表の読み方にし、README の変更の PR で拡張のジョブを起動する（ステップ 4-4） |
+| 通常の手順で字幕を選んでも、選択範囲の末尾に空行が入るなどしてサーバが受理せず `invalid_transcript` になる場合がある（ステップ 5-1 で判明） | 利用者が選び直しても同じ結果になりうる | 別途 issue #301 で扱う。本タスクでは、§5.1 の AC-34 に、末尾の空行を避けて選ぶと成功することを記録する（拡張は選択範囲を補正しないので、選び方の問題として残す） |
 
 ### 6.2. スケジュールのリスク
 

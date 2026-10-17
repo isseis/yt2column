@@ -23,6 +23,7 @@ const (
 	makefilePath              = repositoryRoot + "/Makefile"
 	extensionArchitecturePath = repositoryRoot + "/docs/tasks/0007_browser_extension_skeleton/02_architecture.md"
 	extensionPlanPath         = repositoryRoot + "/docs/tasks/0007_browser_extension_skeleton/03_implementation_plan.md"
+	extensionSendPlanPath     = repositoryRoot + "/docs/tasks/0020_extension_send/03_implementation_plan.md"
 )
 
 // extTargetRE matches a make target definition for an extension target, such as
@@ -163,6 +164,140 @@ func TestExtensionDocumentation(t *testing.T) {
 			acLabel(21, 22, 31),
 			acLabel(28, 29),
 			acLabel(25),
+		}
+		if len(rows) != len(want) {
+			t.Fatalf("section 5.1 has %d rows, want %d", len(rows), len(want))
+		}
+		for i, row := range rows {
+			if len(row) == 0 {
+				t.Errorf("section 5.1 row %d is empty", i+1)
+				continue
+			}
+			if row[0] != want[i] {
+				t.Errorf("section 5.1 row %d is %q, want %q", i+1, row[0], want[i])
+				continue
+			}
+			if len(row) != 5 {
+				t.Errorf("section 5.1 row %s is malformed: %d cells, want 5", row[0], len(row))
+				continue
+			}
+			for _, column := range []int{1, 2, 3, 4} {
+				if strings.TrimSpace(row[column]) == "" {
+					t.Errorf("section 5.1 row %s has an empty column %d", row[0], column+1)
+				}
+			}
+		}
+	})
+}
+
+// TestExtensionSendDocumentation pins the text that task 0020's send feature
+// keeps in sync: the README's browser-extension procedure, the security.md
+// notes on sending, and the manual-check record in the plan. The manual-check
+// table rows are document data matched against the plan's own table, not
+// references to acceptance criteria in source. None of these checks invokes
+// node or npm, so a documentation-only change is still checked by `make test`.
+func TestExtensionSendDocumentation(t *testing.T) {
+	readme := readDoc(t, readmePath)
+	security := readDoc(t, securityPath)
+	plan := readDoc(t, extensionSendPlanPath)
+
+	t.Run("README describes sending from the browser extension", func(t *testing.T) {
+		section := sectionByHeading(readme, "### Browser extension")
+		if section == "" {
+			t.Fatal("README.md has no Browser extension section")
+		}
+		if strings.Contains(section, "never sends") {
+			t.Error("README.md's Browser extension section still says it never sends")
+		}
+		for _, want := range []string{
+			"shared token",
+			"Options",
+			"Context menu",
+			"Toolbar icon",
+			"check Slack",
+			"requestId",
+			"Site access",
+			"127.0.0.1",
+		} {
+			if !strings.Contains(section, want) {
+				t.Errorf("README.md's Browser extension section does not mention %q", want)
+			}
+		}
+	})
+
+	t.Run("README's shared-token section no longer defers to #111", func(t *testing.T) {
+		section := sectionByHeading(readme, "### The shared token")
+		if section == "" {
+			t.Fatal("README.md has no The shared token section")
+		}
+		if strings.Contains(section, "#111") {
+			t.Error("README.md's The shared token section still refers to #111")
+		}
+	})
+
+	t.Run("security.md describes sending without deferring to #111", func(t *testing.T) {
+		intro := sectionByHeading(security, "## 8. ブラウザ拡張と localhost サーバ（#43）")
+		if intro == "" {
+			t.Fatal("security.md has no section 8")
+		}
+		if strings.Contains(intro, "#109・#111 で決める") {
+			t.Error("security.md 8 still defers the token handoff to #109/#111")
+		}
+		if !strings.Contains(intro, "タイトルは送らない") {
+			t.Error("security.md 8 does not say the tab title is not sent")
+		}
+		send := sectionByHeading(security, "### 8.1. ブラウザ拡張（#110）")
+		if send == "" {
+			t.Fatal("security.md has no section 8.1")
+		}
+		if strings.Contains(send, "サーバへの送信は #111 で加える") {
+			t.Error("security.md 8.1 still says sending is added in #111")
+		}
+		for _, want := range []string{
+			"chrome.storage.local",
+			"ログ",
+			"本文",
+			"API キー",
+			"Webhook URL",
+			"再送しない",
+			"本文の文字列",
+		} {
+			if !strings.Contains(send, want) {
+				t.Errorf("security.md 8.1 does not mention %q", want)
+			}
+		}
+		server := sectionByHeading(security, "### 8.2. localhost サーバ（#109）")
+		if server == "" {
+			t.Fatal("security.md has no section 8.2")
+		}
+		if strings.Contains(server, "確定は #111") {
+			t.Error("security.md 8.2 still defers to #111")
+		}
+	})
+
+	t.Run("fills every cell of the plan's manual-check table", func(t *testing.T) {
+		section := sectionByHeading(plan, "### 5.1. 手動の確認と記録")
+		if section == "" {
+			t.Fatal("the plan has no section 5.1")
+		}
+		table := findTable(section, "AC")
+		if table == nil {
+			t.Fatal("section 5.1 has no AC table")
+		}
+		rows := table[1:]
+		want := []string{
+			acLabel(1),
+			acLabel(13),
+			acLabel(14),
+			acLabel(18, 22, 23),
+			acLabel(24),
+			acLabel(27),
+			acLabel(34),
+			acLabel(12),
+			"設計書 3.5",
+			"設計書 5.4",
+			"設計書 3.10",
+			acLabel(30),
 		}
 		if len(rows) != len(want) {
 			t.Fatalf("section 5.1 has %d rows, want %d", len(rows), len(want))
