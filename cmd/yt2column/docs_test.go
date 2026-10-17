@@ -625,6 +625,39 @@ func containsToken(doc, word string) bool {
 	return regexp.MustCompile(pattern).MatchString(doc)
 }
 
+// checkExampleLines checks the example lines in section that use prefix: the
+// first three words after the prefix must be in allowed. A line whose first word
+// is a placeholder (one starting with "<") shows the line's shape, not an
+// example, and is skipped. what names the section in the failure messages, and
+// the call fails t when the section has no example line.
+func checkExampleLines(t *testing.T, section, prefix string, allowed map[string]bool, what string) {
+	t.Helper()
+	examples := 0
+	for line := range strings.SplitSeq(section, "\n") {
+		rest, ok := strings.CutPrefix(strings.TrimSpace(line), prefix)
+		if !ok {
+			continue
+		}
+		words := strings.Fields(rest)
+		if len(words) > 0 && strings.HasPrefix(words[0], "<") {
+			continue
+		}
+		examples++
+		if len(words) < 3 {
+			t.Errorf("%s example line %q has fewer than three words after the prefix", what, line)
+			continue
+		}
+		for i := range 3 {
+			if !allowed[words[i]] {
+				t.Errorf("%s example line %q has the unknown word %q at position %d", what, line, words[i], i+1)
+			}
+		}
+	}
+	if examples == 0 {
+		t.Errorf("%s has no example line", what)
+	}
+}
+
 // TestTokenUsageDocsContract checks the token-usage documents: the README
 // section describes the line's words and every reason llm.Usage can produce,
 // project_overview.md and security.md describe the usage handling, and
@@ -684,32 +717,7 @@ func TestTokenUsageDocsContract(t *testing.T) {
 	for _, stage := range []writer.Stage{writer.StageGeneration, writer.StageShorten, writer.StageReview} {
 		allowed[stage.String()] = true
 	}
-	examples := 0
-	for line := range strings.SplitSeq(section, "\n") {
-		rest, ok := strings.CutPrefix(strings.TrimSpace(line), tokensPrefix)
-		if !ok {
-			continue
-		}
-		words := strings.Fields(rest)
-		// A line whose first word is a placeholder shows the shape, not an
-		// example; the lines below it are the examples.
-		if len(words) > 0 && strings.HasPrefix(words[0], "<") {
-			continue
-		}
-		examples++
-		if len(words) < 3 {
-			t.Errorf("README example line %q has fewer than three words after the prefix", line)
-			continue
-		}
-		for i := range 3 {
-			if !allowed[words[i]] {
-				t.Errorf("README example line %q has the unknown word %q at position %d", line, words[i], i+1)
-			}
-		}
-	}
-	if examples == 0 {
-		t.Error("README Token usage section has no example line")
-	}
+	checkExampleLines(t, section, tokensPrefix, allowed, "README Token usage section")
 
 	overview := sectionByHeading(readDoc(t, projectOverviewPath), "## パイプライン")
 	if overview == "" {
@@ -798,23 +806,31 @@ func TestCostDocsContract(t *testing.T) {
 		}
 	}
 	// The fixed words of the lines, matched as whole tokens so "known" is not
-	// satisfied by "unknown" and "run" is not satisfied by "runs".
+	// satisfied by "unknown". The two total-kind words are checked in their
+	// format position below, because both also appear in the section's prose.
 	for _, word := range []string{
-		costKnown, costUnknown, costNoTime, costTotalRun, costTotalArticle, costInvalid,
+		costKnown, costUnknown, costNoTime, costInvalid,
 		writer.StageGeneration.String(), writer.StageShorten.String(), writer.StageReview.String(),
 	} {
 		if !containsToken(section, word) {
 			t.Errorf("README Estimated cost section does not contain the token %q", word)
 		}
 	}
+	// Each total kind must appear on a cost-total line, not only in prose.
+	for _, kind := range []string{costTotalRun, costTotalArticle} {
+		if !strings.Contains(section, costTotalPrefix+kind) {
+			t.Errorf("README Estimated cost section has no %q total line", costTotalPrefix+kind)
+		}
+	}
 	// Every rate basis and unknown reason the word mapping returns, obtained
-	// from the code so the test does not spell them; the zero value and a value
-	// outside the enumeration both map to costInvalid.
+	// from the code so the test does not spell them. The zero value and a value
+	// outside the enumeration map to costInvalid, which the token loop above
+	// already checks, so this only checks the mapping-specific words.
 	for _, basis := range []pricing.RateBasis{
 		pricing.BasisUnset, pricing.BasisFlat, pricing.BasisOffPeak, pricing.BasisPeak,
 		pricing.BasisShortPrompt, pricing.BasisLongPrompt, pricing.RateBasis(99),
 	} {
-		if word := costBasisWord(basis); !containsToken(section, word) {
+		if word := costBasisWord(basis); word != costInvalid && !containsToken(section, word) {
 			t.Errorf("README Estimated cost section does not contain the rate-basis word %q", word)
 		}
 	}
@@ -822,7 +838,7 @@ func TestCostDocsContract(t *testing.T) {
 		pricing.ReasonUnset, pricing.ReasonUsageUnknown, pricing.ReasonNoModel,
 		pricing.ReasonUnpricedModel, pricing.ReasonInvalid, pricing.UnknownReason(99),
 	} {
-		if word := costReasonWord(reason); !containsToken(section, word) {
+		if word := costReasonWord(reason); word != costInvalid && !containsToken(section, word) {
 			t.Errorf("README Estimated cost section does not contain the reason word %q", word)
 		}
 	}
@@ -833,39 +849,15 @@ func TestCostDocsContract(t *testing.T) {
 	if !strings.Contains(section, estimatedCostHeading) {
 		t.Errorf("README Estimated cost section does not contain the heading word %q", estimatedCostHeading)
 	}
-	// Each example line's first three words after the prefix are known words:
-	// the stage, the origin, and the cost state. A line whose first word is a
-	// placeholder shows the shape, not an example.
+	// Each example line's first three words after the prefix are the stage, the
+	// origin, and the cost state.
 	allowed := map[string]bool{
 		tokensRun: true, tokensReused: true, costKnown: true, costUnknown: true,
 	}
 	for _, stage := range []writer.Stage{writer.StageGeneration, writer.StageShorten, writer.StageReview} {
 		allowed[stage.String()] = true
 	}
-	examples := 0
-	for line := range strings.SplitSeq(section, "\n") {
-		rest, ok := strings.CutPrefix(strings.TrimSpace(line), costPrefix)
-		if !ok {
-			continue
-		}
-		words := strings.Fields(rest)
-		if len(words) > 0 && strings.HasPrefix(words[0], "<") {
-			continue
-		}
-		examples++
-		if len(words) < 3 {
-			t.Errorf("README cost example line %q has fewer than three words after the prefix", line)
-			continue
-		}
-		for i := range 3 {
-			if !allowed[words[i]] {
-				t.Errorf("README cost example line %q has the unknown word %q at position %d", line, words[i], i+1)
-			}
-		}
-	}
-	if examples == 0 {
-		t.Error("README Estimated cost section has no example line")
-	}
+	checkExampleLines(t, section, costPrefix, allowed, "README Estimated cost section")
 
 	// The rate-update procedure names the table and the hand-calculated tests,
 	// is linked from CLAUDE.md, and is pointed at from the rate table's leading

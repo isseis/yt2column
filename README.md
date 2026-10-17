@@ -221,11 +221,11 @@ yt2column: cost-total: <total> unknown
 - The `cost-total` lines are two totals: `run` is this run's cost, from the
   stages this run called, and `article` is the whole article's cost, from those
   stages plus the ones reused from `--after`. A total is `unknown` when any
-  stage in its set is unknown, and the `article` total is `unknown` when the
-  generation stage did not run. Without `--after` the two totals are equal. The
-  totals round the exact sum of the stages, not the already-rounded stage
-  amounts, so a total can differ from the sum of the printed stage lines in the
-  last digit.
+  stage in its set is unknown, and the `article` total is also `unknown` when
+  the generation stage is neither run nor reused (an article always has a
+  generation stage). Without `--after` the two totals are equal. The totals
+  round the exact sum of the stages, not the already-rounded stage amounts, so a
+  total can differ from the sum of the printed stage lines in the last digit.
 
 For example:
 
