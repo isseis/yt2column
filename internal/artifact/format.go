@@ -337,7 +337,7 @@ func parseUsage(members map[string]strictjson.Value) (llm.Usage, error) {
 
 // parseCallTime reads the required call_time member: a UTC time in whole
 // seconds, written in exactly CallTimeLayout. It rejects any other spelling,
-// including a targeted zone, a fractional second, a missing second, and a
+// including a zone offset, a fractional second, a missing second, and a
 // range-exceeding date, by requiring the parsed value to re-render as the same
 // bytes. It rejects the zero time, because the in-memory zero value means "no
 // call time". The reason never carries a file value.
