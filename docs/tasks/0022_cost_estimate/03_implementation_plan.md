@@ -102,15 +102,15 @@ requirements の機能要件（F-001〜F-010）を、architecture の設計ど�
 
 **対象ファイル:** `internal/pricing/rates.go`・`amount.go`・`pricing.go`（新規）、`internal/pricing/rates_test.go`・`amount_test.go`・`pricing_test.go`（新規）、`internal/writer/writer.go`、`docs/dev/developer_guide/package_reference.md`
 
-- [ ] **ステップ 1-1**: `internal/pricing/rates.go` に、architecture §3.2 の非公開の型・単価の表・ピーク時間帯の規則・`validate` と §3.2 の表の番兵を置く。表に写す直前に、出典の 2 つのページ（requirements F-001）で単価とピーク時間帯をもう一度確かめ、各エントリとピーク時間帯の規則の直前のコメントに出典の URL と確認日（確かめた日）を書く。architecture §3.2 の表の値とページが食い違えば、実装を止めて architecture を直す（§9）。DeepSeek のキャッシュに書き込んだ入力の単価を 0 とすることは、アダプタの宣言に対応している。この対応関係をコメントに書く。
-- [ ] **ステップ 1-2**: `internal/pricing/amount.go` に、architecture §3.1 の `Amount` と `Format`（§3.3 の四捨五入）を置く。
-- [ ] **ステップ 1-3**: `internal/writer/writer.go` の `StageUsage` に、architecture §3.4 の `CallTime` のフィールドと文書だけを加える（`Totals` が時間帯の判定に読むため。architecture §8）。時刻を入れる処理はフェーズ 2 で加えるので、このフェーズでは常にゼロ値であり、既存のテストは変わらない。`internal/pricing/pricing.go` に、パッケージの文書と、architecture §3.1 の `RateBasis`・`UnknownReason`・`StageCost`・`Total`・`Estimate`・`Totals` を置く。`Estimate` の判定の順序と単価の組の選び方は §3.3 と図5、`Totals` の規則は §3.1 のとおりとする。プロンプトの長さの和の判定は桁あふれさせない（§3.3）。
-- [ ] **ステップ 1-4**: `docs/dev/developer_guide/package_reference.md` に `internal/pricing` の行を、architecture §2.2 の責務と §3.1 の公開の型で書く（`TestPackageReferenceListsPackages` が新しいパッケージの行を求めるため、このフェーズで要る）。この行はフェーズ 4 で書き直さない。
-- [ ] **ステップ 1-5**: テストを書く。期待値は出典のページの単価から手で計算した文字列とし、計算式をテストのコメントに書く。表の定数や算出のコードから期待値を導かない（AC-35）。
+- [x] **ステップ 1-1**: `internal/pricing/rates.go` に、architecture §3.2 の非公開の型・単価の表・ピーク時間帯の規則・`validate` と §3.2 の表の番兵を置く。表に写す直前に、出典の 2 つのページ（requirements F-001）で単価とピーク時間帯をもう一度確かめ、各エントリとピーク時間帯の規則の直前のコメントに出典の URL と確認日（確かめた日）を書く。architecture §3.2 の表の値とページが食い違えば、実装を止めて architecture を直す（§9）。DeepSeek のキャッシュに書き込んだ入力の単価を 0 とすることは、アダプタの宣言に対応している。この対応関係をコメントに書く。
+- [x] **ステップ 1-2**: `internal/pricing/amount.go` に、architecture §3.1 の `Amount` と `Format`（§3.3 の四捨五入）を置く。
+- [x] **ステップ 1-3**: `internal/writer/writer.go` の `StageUsage` に、architecture §3.4 の `CallTime` のフィールドと文書だけを加える（`Totals` が時間帯の判定に読むため。architecture §8）。時刻を入れる処理はフェーズ 2 で加えるので、このフェーズでは常にゼロ値であり、既存のテストは変わらない。`internal/pricing/pricing.go` に、パッケージの文書と、architecture §3.1 の `RateBasis`・`UnknownReason`・`StageCost`・`Total`・`Estimate`・`Totals` を置く。`Estimate` の判定の順序と単価の組の選び方は §3.3 と図5、`Totals` の規則は §3.1 のとおりとする。プロンプトの長さの和の判定は桁あふれさせない（§3.3）。
+- [x] **ステップ 1-4**: `docs/dev/developer_guide/package_reference.md` に `internal/pricing` の行を、architecture §2.2 の責務と §3.1 の公開の型で書く（`TestPackageReferenceListsPackages` が新しいパッケージの行を求めるため、このフェーズで要る）。この行はフェーズ 4 で書き直さない。
+- [x] **ステップ 1-5**: テストを書く。期待値は出典のページの単価から手で計算した文字列とし、計算式をテストのコメントに書く。表の定数や算出のコードから期待値を導かない（AC-35）。
   - `rates_test.go`: `TestRateTableValid`（実際の表に `validate` を通す）、`TestValidateRejects`（§3.2 の規則ごとに、その規則だけを壊した表で、その番兵が `errors.Is` で返る）、`TestRateTableModels`（4 つのモデル名ごとの単価の選び方と組の数。閾値の値は `TestEstimatePromptTier` が振る舞いで固定するので、ここでは定数と同じ値のリテラルと比べない。AC-01）、`TestRateFieldsUnsigned`（`rates` の 4 つのフィールドと `microUSDPerMTok` の型の種類が符号なしの整数であることを `reflect` で確かめる。AC-03 の負の単価）、`TestRateTableSourceComments`（`go/parser` で `rates.go` を読み、表の各エントリとピーク時間帯の規則の直前のコメントが、出典の URL と `checked YYYY-MM-DD` の形の確認日を持つ。AC-02）。
   - `amount_test.go`: `TestAmountFormat`（0、ちょうど 0.5 の桁の切り上げ、0.5 未満の切り捨て、6 桁と 4 桁、整数部が 0 と 1 以上、指数を使わないこと）。
   - `pricing_test.go`: `TestEstimateCategories`（4 つのモデルで 4 区分が互いに異なる 0 でない値。AC-05）、`TestEstimatePeakWindow`（architecture §7.1 の境界の 8 つの時刻、土曜・日曜の 01:00:00、UTC 以外のタイムゾーンの時刻。UTC 以外の行は、その地方時の曜日と時刻で読むと判定が変わる値にし、曜日がまたがる値（例: UTC の金曜 00:00 が地方時の土曜になる値）を含める。AC-06）、`TestEstimateIgnoresCallTime`（Claude の 3 モデルでピーク・オフピーク・ゼロの時刻が同じ金額と同じ適用した単価。AC-07）、`TestEstimatePromptTier`（和が 100,000 と 100,001、区分ごとに 1 つだけで閾値を超える入力、`uint64` で素朴に足すと桁あふれして閾値以下になる入力（例: 入力が `uint64` の上限、キャッシュの読みが 2）が閾値超になること、ほかの 3 モデルで 100,000 を超えても単価が変わらない。AC-07a・AC-08）、`TestEstimateLargeCounts`（各区分が `int64` の上限と `uint64` の上限。手で計算した金額。AC-08）、`TestEstimateUnknown`（architecture §7.1 の不明の各入力と理由、時間帯のモデルのゼロの時刻の `ReasonInvalid`。AC-04・AC-09・AC-10）、`TestEstimateUnknownScheme`（実際の表では通らない `default` の分岐を、単価の組を選ぶ非公開の関数に列挙の外の `rateScheme` のエントリを渡して、`ReasonInvalid` の不明になることで確かめる）、`TestZeroValuesAreUnknown`（`StageCost{}` が `ReasonUnset` の不明、`Total{}` が不明）、`TestTotals`（architecture §7.1 の由来の組み合わせ。AC-11〜AC-14）。
-- [ ] **ステップ 1-6**: 壊して確かめる。次の操作で、それぞれ対応するテストが失敗することを確かめる。
+- [x] **ステップ 1-6**: 壊して確かめる。次の操作で、それぞれ対応するテストが失敗することを確かめる。
   - `validate` の規則を 1 つずつ外す: `TestValidateRejects` の該当する行。
   - ピーク時間帯の判定を `UTC()` を通さない形にする: `TestEstimatePeakWindow` の UTC 以外の行。
   - 範囲の終了を含む比較にする: 同テストの境界の行。
@@ -134,8 +134,8 @@ requirements の機能要件（F-001〜F-010）を、architecture の設計ど�
 
 **判定理由**: 算出の方法（`math/big` の整数・四捨五入・単価の選び方）は architecture §3.1〜§3.3 に確定しており、競合する実装案はない。新しいパッケージの追加で、移行・外部リソース・前例のない設計判断のいずれにも当たらない。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
