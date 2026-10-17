@@ -121,12 +121,7 @@ func TestParseSubtitlesTimestamps(t *testing.T) {
 		"negative":         `{"events":[{"tStartMs":-1,"segs":[{"utf8":"hi"}]}]}`,
 		"negative zero":    `{"events":[{"tStartMs":-0,"segs":[{"utf8":"hi"}]}]}`,
 		"fractional":       `{"events":[{"tStartMs":1.5,"segs":[{"utf8":"hi"}]}]}`,
-		"whole float":      `{"events":[{"tStartMs":1.0,"segs":[{"utf8":"hi"}]}]}`,
-		"exponent":         `{"events":[{"tStartMs":1e3,"segs":[{"utf8":"hi"}]}]}`,
 		"string":           `{"events":[{"tStartMs":"0","segs":[{"utf8":"hi"}]}]}`,
-		"boolean":          `{"events":[{"tStartMs":true,"segs":[{"utf8":"hi"}]}]}`,
-		"array":            `{"events":[{"tStartMs":[],"segs":[{"utf8":"hi"}]}]}`,
-		"object":           `{"events":[{"tStartMs":{},"segs":[{"utf8":"hi"}]}]}`,
 		"overflow":         `{"events":[{"tStartMs":9223372036854775808,"segs":[{"utf8":"hi"}]}]}`,
 	}
 	for name, input := range cases {
@@ -183,21 +178,16 @@ func TestParseSubtitlesTimestamps(t *testing.T) {
 }
 
 func TestParseSubtitlesTimestampErrorOmitsValue(t *testing.T) {
-	// The rejected value is untrusted input, so the error must not echo it. -0
-	// is included because the old reader accepted it, which would show up as a
-	// nil error rather than as a leak.
-	values := []string{"-1", "-0", "9223372036854775808", "1.5", "1e3"}
-	for _, value := range values {
-		t.Run(value, func(t *testing.T) {
-			input := `{"events":[{"tStartMs":` + value + `,"segs":[{"utf8":"hi"}]}]}`
-			_, err := parseSubtitles("inline.json3", []byte(input))
-			if err == nil {
-				t.Fatalf("parseSubtitles(%s) error = nil, want an error", value)
-			}
-			if strings.Contains(err.Error(), value) {
-				t.Errorf("parseSubtitles(%s) error = %q, must not contain the value", value, err.Error())
-			}
-		})
+	// -0 is the value this task newly rejects, and it is untrusted input, so the
+	// public error must not echo it. The other value shapes and the no-leak rule
+	// are pinned by strictjson's TestAsNonNegativeInt64; this case also exercises
+	// ParseError.Error, which the rejection table does not call.
+	_, err := parseSubtitles("inline.json3", []byte(`{"events":[{"tStartMs":-0,"segs":[{"utf8":"hi"}]}]}`))
+	if err == nil {
+		t.Fatal("parseSubtitles(-0) error = nil, want an error")
+	}
+	if strings.Contains(err.Error(), "-0") {
+		t.Errorf("parseSubtitles(-0) error = %q, must not contain the value", err.Error())
 	}
 }
 
