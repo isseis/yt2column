@@ -99,9 +99,10 @@ type revisionJSON struct {
 // with the record's identifier, computed from its content and stored under the
 // id key. It does
 // not escape HTML, so a body's "<", ">", and "&" do not expand (the file is
-// read back by this package, not by a browser). It then rejects the result
-// unless Parse accepts it, so a save never writes an artifact the load path
-// refuses.
+// read back by this package, not by a browser). It refuses a record whose
+// CallTime is zero, not in UTC, or has sub-second precision, then rejects the
+// result unless Parse accepts it, so a save never writes an artifact the load
+// path refuses.
 func Marshal(record writer.StageRecord) (data []byte, id string, err error) {
 	if err := checkCallTime(record.CallTime); err != nil {
 		return nil, "", err

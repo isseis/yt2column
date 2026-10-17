@@ -2366,10 +2366,14 @@ func TestRunArtifactExitCodes(t *testing.T) {
 		return data
 	}
 	cases := []struct {
-		name     string
-		want     int
-		prepared func(t *testing.T, e *runEnv, dir string)
-		args     []string
+		name string
+		want int
+		// wantStderr, when set, must appear in the run's standard error. It
+		// isolates a rejection to the rule under test when another layer (the
+		// id check) would also reject the same input.
+		wantStderr string
+		prepared   func(t *testing.T, e *runEnv, dir string)
+		args       []string
 	}{
 		{
 			name: "argument shape is a usage error",
@@ -2429,7 +2433,11 @@ func TestRunArtifactExitCodes(t *testing.T) {
 		{
 			name: "a malformed call time is a run failure",
 			want: exitFailure,
-			args: []string{"--artifacts", "@dir", "--after", "generation", "--out", "@out", runVideoURL},
+			// The call-time rule rejects before the id check, so the message
+			// names call_time; without this the id check would mask a broken
+			// call-time rule and the case would pass either way.
+			wantStderr: "call_time",
+			args:       []string{"--artifacts", "@dir", "--after", "generation", "--out", "@out", runVideoURL},
 			prepared: func(t *testing.T, e *runEnv, dir string) {
 				e.useReviewClient(reviewLLM(emptyReviewJSON))
 				// Save a real generation artifact, then break only its
@@ -2481,6 +2489,9 @@ func TestRunArtifactExitCodes(t *testing.T) {
 			e.args = args
 			if code := e.run(); code != tc.want {
 				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, tc.want, e.stderr.String())
+			}
+			if tc.wantStderr != "" && !strings.Contains(e.stderr.String(), tc.wantStderr) {
+				t.Errorf("stderr does not contain %q, so the rejection may come from another rule:\n%s", tc.wantStderr, e.stderr.String())
 			}
 			requireUntouched(t, e)
 		})

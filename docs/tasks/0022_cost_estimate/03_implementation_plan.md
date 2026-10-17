@@ -86,7 +86,7 @@ requirements の機能要件（F-001〜F-010）を、architecture の設計ど�
 
 本タスクは既存の名前を変更・削除しない。中間生成物の形式の版を述べる文書は、ステップ 2-8 で版 3 に改め、README の記述と `package_reference.md` の記述を guard（`TestTokenUsageDocsContract`）で確かめる。`reportTokens` の呼び出しを置き換えたときに事実でなくなるコメント（`reportSuccess` の文書の「one token-usage line per stage」、`run.go:685-690`）はステップ 3-6、版 2 を述べる Go のコメント（`artifact.go:20`・`chain_test.go:129-130`）はステップ 2-3・2-4、`integrationHeader` の文書（`testutil/integration.go:165-167`）はステップ 3-2 のタスクにした。これらのほかに、`make lint`・`make test` で検出できない残存参照として、次の 1 つを手で確かめる。
 
-- [ ] `docs/` の `docs/tasks/` を除く文書と `README.md` が、中間生成物の形式の版を 2 と書いていないこと（ステップ 2-8 の完了時）。`docs/tasks/` の過去のタスクの記録は、当時の事実として残す。
+- [x] `docs/` の `docs/tasks/` を除く文書と `README.md` が、中間生成物の形式の版を 2 と書いていないこと（ステップ 2-8 の完了時）。`docs/tasks/` の過去のタスクの記録は、当時の事実として残す。
 
 ## 2. 実装ステップ (Implementation Steps)
 

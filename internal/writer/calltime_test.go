@@ -155,8 +155,12 @@ func TestWriteRejectsMissingCallTime(t *testing.T) {
 			if tue.RunUsage != (RunUsage{}) {
 				t.Errorf("RunUsage = %+v, want the zero value", tue.RunUsage)
 			}
-			if _, ok := errors.AsType[*ArtifactError](tue.Err); !ok {
-				t.Errorf("inner error = %v, want a *ArtifactError", tue.Err)
+			artifactErr, ok := errors.AsType[*ArtifactError](tue.Err)
+			if !ok {
+				t.Fatalf("inner error = %v, want a *ArtifactError", tue.Err)
+			}
+			if artifactErr.Stage != tc.stage {
+				t.Errorf("ArtifactError.Stage = %v, want %v (the record missing its call time)", artifactErr.Stage, tc.stage)
 			}
 			if len(review.Calls) != 0 {
 				t.Errorf("the review client was called %d times, want 0", len(review.Calls))
@@ -182,5 +186,8 @@ func TestWriteDefaultClock(t *testing.T) {
 	got := a.RunUsage.Generation.CallTime
 	if got.Before(before) || got.After(after) {
 		t.Errorf("CallTime = %v, want it in [%v, %v]", got, before, after)
+	}
+	if got.Location() != time.UTC {
+		t.Errorf("CallTime location = %v, want UTC", got.Location())
 	}
 }
