@@ -51,7 +51,13 @@ func runIntegrationCLISlack(t *testing.T, llmSettings deepseektestutil.Integrati
 		{"standard output", stdout.String()},
 		{"standard error", stderr.String()},
 	})
+	// The lines are logged only after stderr is shown to hold no secret, and
+	// before checkRun, so a failed run still leaves them in the log.
+	tokens, costs, totals := logUsageLines(t, stderr.String())
 	r.checkRun(t, code)
+	if code == 0 && (tokens < 1 || costs < 1 || totals != 2) {
+		t.Errorf("the run wrote %d token, %d cost, and %d total lines; want at least one of each and two totals", tokens, costs, totals)
+	}
 	// The output is shown to be free of the secrets above, and run escapes
 	// the untrusted text it writes, so it can be logged: on failure to
 	// explain it, on success to record the message count.
