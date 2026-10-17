@@ -492,7 +492,7 @@ PR は、フェーズ 4 を 2 つに分け、そのほかはフェーズと 1 �
 | AC-01 | トークンを保存し、オプションページを開き直すと「設定済み」だけが表示される | Chrome | 2026-10-17 | 保存でトークンの欄が空になり、開き直すと「設定済み」だけが表示された（値は表示されない） |
 | AC-13 | 字幕の書式に合わない選択範囲（`invalid_transcript`）で送り、サーバのログで `Origin` が `chrome-extension://clfmbbcdpnjcefbdihdoahomaifbabkk` で、`OPTIONS` が届いていないことを、Chrome と Brave のそれぞれで確かめる | Chrome（Brave 未実施） | 2026-10-17 | サーバのログに `Origin` が出て、`OPTIONS` の行が出なかった |
 | AC-14 | トークンを消去した状態で、両方の経路で理由と手順が表示される | Chrome | 2026-10-17 | 両方の経路で「共有トークンが未設定」の理由と貼り付けの手順が表示された |
-| AC-18・AC-22・AC-23 | 字幕の書式に合わない選択範囲（`invalid_transcript`）で、メニューの経路で送信中の後に送信の結果とリクエスト ID が表示され、ポップアップで送信中の表示とボタンが押せないことを確かめる。受付（`202`）の表示は AC-34 の実行のときに記録する | 未実施 | | |
+| AC-18・AC-22・AC-23 | 字幕の書式に合わない選択範囲（`invalid_transcript`）で、メニューの経路で送信中の後に送信の結果とリクエスト ID が表示され、ポップアップで送信中の表示とボタンが押せないことを確かめる。受付（`202`）の表示は AC-34 の実行のときに記録する | Brave 1.97.57（Chromium 155、macOS arm64） | 2026-10-17 | 両経路で送信の結果（`invalid_transcript` の文言と手順）とリクエスト ID が表示され（AC-18・AC-23）、ポップアップのボタンは押せない状態になった。サーバのログに `requestId=ee5b95e1cb03799d`（メニュー）・`requestId=56d77b52db53f5db`（ポップアップ）の 400 `invalid_transcript` を確認。実サーバは即座に応答するため送信中（AC-22）の表示は一瞬で確認できず、遅延する一時サーバで確認する。`202` の表示は AC-34 の実行のときに記録する |
 | AC-24 | `unauthorized`（オプションページに別の 64 文字を保存する）・`invalid_transcript`（実際のサーバ）と、`too_many_requests`（一時的なサーバ）の表示 | Chrome（unauthorized のみ。他は未実施） | 2026-10-17 | `unauthorized` の文言「The shared token does not match the server.」が両方の経路で表示された |
 | AC-27 | サーバを起動していない状態で、両方の経路で「結果が分からない」 | Chrome | 2026-10-17 | 両方の経路で「結果が分からない」（"Could not get a response from the server."）が表示された |
 | AC-34 | 視聴中の YouTube ページで字幕を選択し、両方の経路から送ると、記事が Slack に投稿される（Chrome。利用者の承認を得てから行う） | 未実施 | | |
