@@ -222,8 +222,8 @@ requirements の機能要件（F-001〜F-010）を、architecture の設計ど�
 - [x] PR がマージされた
 - [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
-- [ ] **ステップ 3-6**: `cmd/yt2column/run.go` に、architecture §3.6 の書式の定数、列挙値を語に対応させる関数（`default` は `invalid`）、段階の行と合計の行を作る関数、`reportUsage` を置く。`reportUsage` は既存の `reportTokens` を呼んでから料金の行と合計の行を書き、`reportSuccess` と `reportRunError` の `reportTokens` の呼び出しを `reportUsage` の呼び出しに置き換える。`at=` は `artifact.CallTimeLayout` で書く。`reportSuccess` の文書（`:685-690`）に料金の行と合計の行を加える。
-- [ ] **ステップ 3-7**: `cmd/yt2column/cost_test.go` に、fake の `LLMClient`・`TranscriptSource`・`Publisher` と `t.TempDir`（`newRunEnv`・`usageSequence`・`usageResponse`・`saveArtifactsOnce`・`firstLongThenShort`・`useReviewClient` を再利用する）と、`e.d.newWriter` を包んで `Options.Clock` を設定する固定の時計で CLI のテストを書く。段階ごとに、表にあるモデル名と異なるトークン数を返す。行は `redact.Line` を通った後の標準エラーの行のバイト列として比べる（AC-36・AC-37）。
+- [x] **ステップ 3-6**: `cmd/yt2column/run.go` に、architecture §3.6 の書式の定数、列挙値を語に対応させる関数（`default` は `invalid`）、段階の行と合計の行を作る関数、`reportUsage` を置く。`reportUsage` は既存の `reportTokens` を呼んでから料金の行と合計の行を書き、`reportSuccess` と `reportRunError` の `reportTokens` の呼び出しを `reportUsage` の呼び出しに置き換える。`at=` は `artifact.CallTimeLayout` で書く。`reportSuccess` の文書（`:685-690`）に料金の行と合計の行を加える。
+- [x] **ステップ 3-7**: `cmd/yt2column/cost_test.go` に、fake の `LLMClient`・`TranscriptSource`・`Publisher` と `t.TempDir`（`newRunEnv`・`usageSequence`・`usageResponse`・`useReviewClient` を再利用する。保存してから再開するテストは、`saveArtifactsOnce` が setup の後に検証・推敲の client を上書きするため、レビューの段階に表にあるモデルと既知の使用量を与えられるよう、同じ形の `saveCostArtifacts` をこのファイルに置く）と、`e.d.newWriter` を包んで `Options.Clock` を設定する固定の時計で CLI のテストを書く。段階ごとに、表にあるモデル名と異なるトークン数を返す。行は `redact.Line` を通った後の標準エラーの行のバイト列として比べる（AC-36・AC-37）。
   - `TestRunCostLinesAllStages`: 3 つの段階が走る成功した実行で、段階の行が 3 行、合計の行が 2 行、トークン数の行の直後にこの順に出て、金額が手で計算した 6 桁の値で、2 つの合計が等しいこと。同じ実行の `--out` のファイルの料金の行が、記事 1 本の料金を 4 桁に四捨五入した値であること（AC-12・AC-15・AC-23）。
   - `TestRunCostLinesRateBasis`: `deepseek-flash` のピーク・オフピークの時刻、Claude のモデルの `flat`・`short-prompt`・`long-prompt` が、適用した単価の位置の語に出ること（AC-16）。
   - `TestRunCostLinesUnknown`: 3 つの理由（不明の使用量・モデル名なし・表にないモデル名）の段階の行が `unknown reason=` と理由の語を出して数値を出さず、2 つの合計が不明で、記事が公開されること（AC-09・AC-11・AC-17）。
@@ -235,8 +235,8 @@ requirements の機能要件（F-001〜F-010）を、architecture の設計ど�
   - `TestRunCostLinesBeforeLLM`: トークン数の行を出さない実行（`TestRunTokenLinesBeforeLLM` と同じ、使い方の誤り・設定の誤り・字幕の取得の失敗・`--after` の読み込みの失敗）で、料金の行も合計の行も出ないこと（AC-20）。
   - `TestRunCostLinesGoldenFormat`: 分かった段階・不明の段階・2 つの合計の行の綴りを、定数を使わずに文字列で固定する（AC-21）。
   - `TestCostWords`: `RateBasis` と `UnknownReason` のゼロ値と列挙の外の値が `invalid` の語になること（architecture §3.6）。
-  - `TestRunCostLinesOmitModel`: モデル名の規則を通る、表にない目印のモデル名（`Estimate` に届く）を返す実行で、目印がトークン数の行には現れ、料金の行と合計の行には現れないこと。秘密情報の値を含むモデル名の実行で `requireSafeOutput` が通ること（architecture §7.3、requirements §4.2）。
-- [ ] **ステップ 3-8**: 壊して確かめる。`reportRunError` の `reportUsage` の呼び出しを `reportTokens` に戻すと `TestRunCostLinesFailure` が、「記事 1 本の料金」の行に「この実行の料金」の値を出すと `TestRunCostLinesResume` の `--after` の行が、語の対応の `default` を `flat` にすると `TestCostWords` が失敗することを確かめる。
+  - `TestRunCostLinesOmitModel`: モデル名の規則を通る、表にない目印のモデル名（`Estimate` に届く）を返す実行で、目印がトークン数の行には現れ、料金の行と合計の行には現れないこと。秘密情報の値を含むモデル名の実行で、標準出力と標準エラー（CLI 自身の行）に秘密情報が現れないこと（architecture §7.3、requirements §4.2。公開する記事の `- Model:` の行は本タスクの前から応答のモデル名をそのまま載せる既存の出力なので、対象は CLI 自身の行に限る）。
+- [x] **ステップ 3-8**: 壊して確かめる。`reportRunError` の `reportUsage` の呼び出しを `reportTokens` に戻すと `TestRunCostLinesFailure` が、「記事 1 本の料金」の行に「この実行の料金」の値を出すと `TestRunCostLinesResume` の `--after` の行が、語の対応の `default` を `flat` にすると `TestCostWords` が失敗することを確かめる。
 
 ### PR-4 作成ポイント: CLI cost lines
 

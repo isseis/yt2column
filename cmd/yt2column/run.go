@@ -18,6 +18,7 @@ import (
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/llm/provider"
 	"github.com/isseis/yt2column/internal/pipeline"
+	"github.com/isseis/yt2column/internal/pricing"
 	"github.com/isseis/yt2column/internal/publisher"
 	"github.com/isseis/yt2column/internal/redact"
 	"github.com/isseis/yt2column/internal/secret"
@@ -63,6 +64,50 @@ const (
 	// stage reported no model that passed the model-name rules.
 	tokensModel   = "model="
 	tokensNoModel = "nomodel"
+)
+
+// Cost-line format. Like the token-usage line, it is defined in the form it
+// appears after redact.Line: a fixed prefix, then whitespace-free words and
+// values. A per-stage line names the stage and origin and ends with the call
+// time; a total line names which total it is. The stage word is
+// writer.Stage.String(); the words here are the only place these spellings are
+// defined.
+const (
+	// costPrefix begins every per-stage cost line; costTotalPrefix begins
+	// every total line, so a reader tells the two kinds apart by the prefix
+	// alone rather than by the first word.
+	costPrefix      = programName + ": cost: "
+	costTotalPrefix = programName + ": cost-total: "
+	// Cost state words, spelled like the token-usage line's.
+	costKnown   = "known"
+	costUnknown = "unknown"
+	// costUSD prefixes the amount; costReason prefixes an unknown reason.
+	costUSD    = "usd="
+	costReason = "reason="
+	// costAt prefixes the call time; costNoTime replaces it for a zero time.
+	costAt     = "at="
+	costNoTime = "none"
+	// Total-kind words: this run's cost, or the whole article's.
+	costTotalRun     = "run"
+	costTotalArticle = "article"
+	// Rate-basis words of a known cost.
+	costBasisFlat        = "flat"
+	costBasisOffPeak     = "off-peak"
+	costBasisPeak        = "peak"
+	costBasisShortPrompt = "short-prompt"
+	costBasisLongPrompt  = "long-prompt"
+	// Unknown-reason words of a stage: the three user-facing reasons.
+	costReasonUsageUnknown  = "usage-unknown"
+	costReasonNoModel       = "no-model"
+	costReasonUnpricedModel = "unpriced-model"
+	// costInvalid names a rate basis or reason outside the enumeration, which
+	// the rate table's validation and the writer's invariants keep out of a
+	// real run; a user reads it as a defect in the CLI.
+	costInvalid = "invalid"
+	// costDecimals is how many decimal places a cost-line amount shows. The
+	// article cost is usually under one cent, so the CLI shows finer digits
+	// than the published header.
+	costDecimals = 6
 )
 
 // usageHint ends every usage or configuration error.
@@ -682,12 +727,123 @@ func reportTokens(errOut *stderrWriter, runUsage writer.RunUsage) {
 	}
 }
 
+// reportUsage writes the token-usage lines, then one cost line per stage in
+// stage order, then the two total lines. Which stages get a line follows the
+// token-usage rule; when no stage has one, it writes no total line either.
+func reportUsage(errOut *stderrWriter, runUsage writer.RunUsage) {
+	reportTokens(errOut, runUsage)
+	wrote := false
+	for _, entry := range []struct {
+		stage writer.Stage
+		usage writer.StageUsage
+	}{
+		{writer.StageGeneration, runUsage.Generation},
+		{writer.StageShorten, runUsage.Shorten},
+		{writer.StageReview, runUsage.Review},
+	} {
+		if line := costStageLine(entry.stage, entry.usage); line != "" {
+			errOut.line("%s", line)
+			wrote = true
+		}
+	}
+	if !wrote {
+		return
+	}
+	thisRun, article := pricing.Totals(runUsage)
+	errOut.line("%s", costTotalLine(costTotalRun, thisRun))
+	errOut.line("%s", costTotalLine(costTotalArticle, article))
+}
+
+// costStageLine renders one stage's cost line, or "" when the stage has no cost
+// to report (OriginNone, or an origin outside the enumeration). A known cost
+// shows the amount and the rate basis; an unknown one shows only the reason,
+// never a number. The line ends with the stage's call time, or at=none for the
+// zero time, so every stage line has the same shape.
+func costStageLine(stage writer.Stage, stageUsage writer.StageUsage) string {
+	origin, ok := tokensOriginName(stageUsage.Origin)
+	if !ok {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString(costPrefix)
+	b.WriteString(stage.String())
+	b.WriteByte(' ')
+	b.WriteString(origin)
+	b.WriteByte(' ')
+	cost := pricing.Estimate(stageUsage.Model, stageUsage.Usage, stageUsage.CallTime)
+	if amount, basis, known := cost.Known(); known {
+		fmt.Fprintf(&b, "%s %s%s %s", costKnown, costUSD, amount.Format(costDecimals), costBasisWord(basis))
+	} else {
+		reason, _ := cost.Unknown()
+		fmt.Fprintf(&b, "%s %s%s", costUnknown, costReason, costReasonWord(reason))
+	}
+	fmt.Fprintf(&b, " %s%s", costAt, costTimeWord(stageUsage.CallTime))
+	return b.String()
+}
+
+// costBasisWord returns the fixed word of a known cost's rate basis. The zero
+// BasisUnset, and a value outside the enumeration, are "invalid": a known cost
+// never carries them, so they mark a broken invariant.
+func costBasisWord(basis pricing.RateBasis) string {
+	switch basis {
+	case pricing.BasisFlat:
+		return costBasisFlat
+	case pricing.BasisOffPeak:
+		return costBasisOffPeak
+	case pricing.BasisPeak:
+		return costBasisPeak
+	case pricing.BasisShortPrompt:
+		return costBasisShortPrompt
+	case pricing.BasisLongPrompt:
+		return costBasisLongPrompt
+	default:
+		return costInvalid
+	}
+}
+
+// costReasonWord returns the fixed word of an unknown cost's reason. The three
+// user-facing reasons get their own words; ReasonUnset and ReasonInvalid, and a
+// value outside the enumeration, are "invalid", which a user reads as a defect
+// in the CLI rather than something the environment caused.
+func costReasonWord(reason pricing.UnknownReason) string {
+	switch reason {
+	case pricing.ReasonUsageUnknown:
+		return costReasonUsageUnknown
+	case pricing.ReasonNoModel:
+		return costReasonNoModel
+	case pricing.ReasonUnpricedModel:
+		return costReasonUnpricedModel
+	default:
+		return costInvalid
+	}
+}
+
+// costTimeWord renders a stage's call time in the artifact's call_time form, or
+// the fixed word "none" for the zero time. A stage that ran no LLM writes no
+// cost line, so at=none only marks a broken invariant.
+func costTimeWord(callTime time.Time) string {
+	if callTime.IsZero() {
+		return costNoTime
+	}
+	return callTime.Format(artifact.CallTimeLayout)
+}
+
+// costTotalLine renders one total line: the total kind ("run" for this run's
+// cost, "article" for the whole article's), then the amount, or only "unknown".
+func costTotalLine(kind string, total pricing.Total) string {
+	if amount, known := total.Amount(); known {
+		return fmt.Sprintf("%s%s %s %s%s", costTotalPrefix, kind, costKnown, costUSD, amount.Format(costDecimals))
+	}
+	return fmt.Sprintf("%s%s %s", costTotalPrefix, kind, costUnknown)
+}
+
 // reportSuccess writes the summary of a published run. The message count of a
 // webhook post is recomputed from the article; it is "unknown" when that
 // fails, which only a fake publisher that accepts any article can cause. It
 // adds one line per post-generation step that ran, the review log path when one
-// was written, the artifacts directory when one was used, and one token-usage
-// line per stage that ran or was reused. An empty path writes nothing.
+// was written, the artifacts directory when one was used, and the token-usage
+// and cost lines of every stage that ran or was reused, followed by the two
+// total lines. An empty path writes nothing.
 func reportSuccess(errOut *stderrWriter, dest destination, outPath, reviewLogPath, artifactsDir string, article writer.Article) {
 	modelVersion := orNone(article.ModelVersion)
 	switch dest {
@@ -711,7 +867,7 @@ func reportSuccess(errOut *stderrWriter, dest destination, outPath, reviewLogPat
 	if artifactsDir != "" {
 		errOut.line("%s: saved the artifacts to %s", programName, artifactsDir)
 	}
-	reportTokens(errOut, article.RunUsage)
+	reportUsage(errOut, article.RunUsage)
 }
 
 // reportStepSummary writes one line per post-generation step that ran. The
@@ -793,7 +949,7 @@ func reportRunError(errOut *stderrWriter, dest destination, outPath string, err 
 		return
 	}
 	if usageErr, ok := errors.AsType[*writer.TokenUsageError](err); ok {
-		reportTokens(errOut, usageErr.RunUsage)
+		reportUsage(errOut, usageErr.RunUsage)
 	}
 	stageErr, isStage := errors.AsType[*pipeline.StageError](err)
 	if isStage {
