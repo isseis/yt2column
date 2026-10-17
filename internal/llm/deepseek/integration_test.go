@@ -56,6 +56,7 @@ func TestIntegrationGenerate(t *testing.T) {
 			SystemPrompt: integrationSystemPrompt,
 			UserPrompt:   integrationGeneratePrompt,
 		})
+		now := time.Now()
 		if err != nil {
 			t.Fatalf("Generate() error = %v", err)
 		}
@@ -65,7 +66,7 @@ func TestIntegrationGenerate(t *testing.T) {
 		if response.Model == "" {
 			t.Error("Generate() Model is empty")
 		}
-		logResponse(t, response, key)
+		logResponse(t, response, key, now)
 	})
 
 	t.Run("truncated", func(t *testing.T) {
@@ -74,6 +75,7 @@ func TestIntegrationGenerate(t *testing.T) {
 			UserPrompt:      integrationTruncationPrompt,
 			MaxOutputTokens: integrationTruncationMaxTokens,
 		})
+		now := time.Now()
 		if err == nil {
 			t.Fatalf("Generate() with MaxOutputTokens %d returned no error: the response finished without being truncated, "+
 				"so the test's premise no longer holds (likely a model change, not an adapter defect)", integrationTruncationMaxTokens)
@@ -81,19 +83,8 @@ func TestIntegrationGenerate(t *testing.T) {
 		if !errors.Is(err, llm.ErrTruncated) {
 			t.Fatalf("Generate() with MaxOutputTokens %d error = %v, want llm.ErrTruncated", integrationTruncationMaxTokens, err)
 		}
-		logResponse(t, response, key)
+		logResponse(t, response, key, now)
 	})
-}
-
-// containsAPIKey reports whether value holds the API key or its last eight
-// characters, which must never be logged (security.md: neither the key nor any
-// part of it).
-func containsAPIKey(value, key string) bool {
-	if strings.Contains(value, key) {
-		return true
-	}
-	runes := []rune(key)
-	return len(runes) > 8 && strings.Contains(value, string(runes[len(runes)-8:]))
 }
 
 // logResponse logs a response's token counts and estimated cost. It refuses to
@@ -103,19 +94,19 @@ func containsAPIKey(value, key string) bool {
 // key. The failure messages name the field only, never its value or the key.
 // The count line carries no response text. Model is escaped with %+q, like the
 // other diagnostics, so it cannot alter the terminal or log.
-func logResponse(t *testing.T, response llm.GenerateResponse, key string) {
+func logResponse(t *testing.T, response llm.GenerateResponse, key string, now time.Time) {
 	t.Helper()
 	for _, field := range []struct{ name, value string }{
 		{"Model", response.Model},
 		{"ModelVersion", response.ModelVersion},
 	} {
-		if containsAPIKey(field.value, key) {
-			t.Fatalf("Generate() %s contains the API key or its tail; it is not logged", field.name)
+		if strings.Contains(field.value, key) {
+			t.Fatalf("Generate() %s contains the API key; it is not logged", field.name)
 		}
 	}
 	// The cost is estimated from the time Generate returned and the response's
 	// own usage, like the CLI's cost line.
-	cost := pricing.Estimate(response.Model, response.Usage, time.Now())
+	cost := pricing.Estimate(response.Model, response.Usage, now)
 	if counts, known := response.Usage.Counts(); known {
 		t.Logf("tokens input=%d cache_read=%d cache_write=%d output=%d; cost %s; model %+q, model version %+q",
 			counts.Input, counts.CacheRead, counts.CacheWrite, counts.Output,

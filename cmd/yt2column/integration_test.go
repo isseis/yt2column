@@ -62,20 +62,33 @@ func runIntegrationCLI(t *testing.T, settings deepseektestutil.IntegrationSettin
 
 	// The lines are logged only after stderr is shown to hold no secret, and
 	// before checkRun, so a failed run still leaves them in the log.
-	logUsageLines(t, stderr.String())
+	tokens, costs, totals := logUsageLines(t, stderr.String())
 	r.checkRun(t, code)
+	if code == 0 && (tokens < 1 || costs < 1 || totals != 2) {
+		t.Errorf("the run wrote %d token, %d cost, and %d total lines; want at least one of each and two totals", tokens, costs, totals)
+	}
 	checkIntegrationArticle(t, article)
 }
 
-// logUsageLines logs the token-usage, cost, and total lines of stderr. The
-// caller must have shown stderr holds no secret first.
-func logUsageLines(t *testing.T, stderr string) {
+// logUsageLines logs the token-usage, cost, and total lines of stderr, and
+// returns how many of each it saw. The caller must have shown stderr holds no
+// secret first.
+func logUsageLines(t *testing.T, stderr string) (tokens, costs, totals int) {
 	t.Helper()
 	for line := range strings.SplitSeq(strings.TrimSuffix(stderr, "\n"), "\n") {
-		if strings.HasPrefix(line, tokensPrefix) || strings.HasPrefix(line, costPrefix) || strings.HasPrefix(line, costTotalPrefix) {
-			t.Log(line)
+		switch {
+		case strings.HasPrefix(line, tokensPrefix):
+			tokens++
+		case strings.HasPrefix(line, costPrefix):
+			costs++
+		case strings.HasPrefix(line, costTotalPrefix):
+			totals++
+		default:
+			continue
 		}
+		t.Log(line)
 	}
+	return tokens, costs, totals
 }
 
 // integrationRun is one CLI run assembled for an integration test: a seeded
