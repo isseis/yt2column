@@ -51,6 +51,9 @@ func runIntegrationCLISlack(t *testing.T, llmSettings deepseektestutil.Integrati
 		{"standard output", stdout.String()},
 		{"standard error", stderr.String()},
 	})
+	// The lines are logged only after stderr is shown to hold no secret, and
+	// before checkRun, so a failed run still leaves them in the log.
+	logUsageLines(t, stderr.String())
 	r.checkRun(t, code)
 	// The output is shown to be free of the secrets above, and run escapes
 	// the untrusted text it writes, so it can be logged: on failure to

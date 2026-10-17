@@ -8,9 +8,12 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/isseis/yt2column/internal/llm"
 	claudetestutil "github.com/isseis/yt2column/internal/llm/claude/testutil"
+	"github.com/isseis/yt2column/internal/pricing"
+	pricingtestutil "github.com/isseis/yt2column/internal/pricing/testutil"
 )
 
 const (
@@ -75,20 +78,11 @@ func TestIntegrationGenerate(t *testing.T) {
 		if response.Model == "" {
 			t.Error("Generate() Model is empty")
 		}
-		// Model is provider-controlled: a faulty response or a
-		// TLS-terminating proxy could echo the API key into it, and logging
-		// it would then write the live key to the test output. The failure
-		// message names the field only, never its value or the key.
-		if strings.Contains(response.Model, key) {
-			t.Fatal("Generate() Model contains the API key; it is not logged")
-		}
-		// Model is an untrusted string; %+q escapes control and non-ASCII
-		// characters so it cannot alter the terminal or log.
-		t.Logf("Model %+q", response.Model)
+		logResponse(t, response, key)
 	})
 
 	t.Run("truncated", func(t *testing.T) {
-		_, err := value.Generate(context.Background(), llm.GenerateRequest{
+		response, err := value.Generate(context.Background(), llm.GenerateRequest{
 			SystemPrompt:    integrationSystemPrompt,
 			UserPrompt:      integrationTruncationPrompt,
 			MaxOutputTokens: integrationTruncationMaxTokens,
@@ -100,5 +94,31 @@ func TestIntegrationGenerate(t *testing.T) {
 		if !errors.Is(err, llm.ErrTruncated) {
 			t.Fatalf("Generate() with MaxOutputTokens %d error = %v, want llm.ErrTruncated", integrationTruncationMaxTokens, err)
 		}
+		logResponse(t, response, key)
 	})
+}
+
+// logResponse logs a response's token counts and estimated cost. It refuses to
+// log a Model that contains the API key: the model is provider-controlled, so
+// a faulty response or a TLS-terminating proxy could echo the API key into it,
+// and logging it would then write the live key. The failure message names the
+// field only, never its value or the key. The count line carries no response
+// text. Model is escaped with %+q, like the other diagnostics, so it cannot
+// alter the terminal or log.
+func logResponse(t *testing.T, response llm.GenerateResponse, key string) {
+	t.Helper()
+	if strings.Contains(response.Model, key) {
+		t.Fatal("Generate() Model contains the API key; it is not logged")
+	}
+	// The cost is estimated from the time Generate returned and the response's
+	// own usage, like the CLI's cost line.
+	cost := pricing.Estimate(response.Model, response.Usage, time.Now())
+	if counts, known := response.Usage.Counts(); known {
+		t.Logf("tokens input=%d cache_read=%d cache_write=%d output=%d; cost %s; model %+q",
+			counts.Input, counts.CacheRead, counts.CacheWrite, counts.Output,
+			pricingtestutil.CostSummary(cost), response.Model)
+		return
+	}
+	t.Logf("tokens unknown reason=%s; cost %s; model %+q",
+		response.Usage.UnknownReason(), pricingtestutil.CostSummary(cost), response.Model)
 }

@@ -60,8 +60,22 @@ func runIntegrationCLI(t *testing.T, settings deepseektestutil.IntegrationSettin
 		{"the --out file", article},
 	})
 
+	// The lines are logged only after stderr is shown to hold no secret, and
+	// before checkRun, so a failed run still leaves them in the log.
+	logUsageLines(t, stderr.String())
 	r.checkRun(t, code)
 	checkIntegrationArticle(t, article)
+}
+
+// logUsageLines logs the token-usage, cost, and total lines of stderr. The
+// caller must have shown stderr holds no secret first.
+func logUsageLines(t *testing.T, stderr string) {
+	t.Helper()
+	for line := range strings.SplitSeq(strings.TrimSuffix(stderr, "\n"), "\n") {
+		if strings.HasPrefix(line, tokensPrefix) || strings.HasPrefix(line, costPrefix) || strings.HasPrefix(line, costTotalPrefix) {
+			t.Log(line)
+		}
+	}
 }
 
 // integrationRun is one CLI run assembled for an integration test: a seeded

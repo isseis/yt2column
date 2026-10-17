@@ -8,9 +8,12 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/isseis/yt2column/internal/llm"
 	deepseektestutil "github.com/isseis/yt2column/internal/llm/deepseek/testutil"
+	"github.com/isseis/yt2column/internal/pricing"
+	pricingtestutil "github.com/isseis/yt2column/internal/pricing/testutil"
 )
 
 const (
@@ -41,6 +44,12 @@ func TestIntegrationGenerate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
+	// The key is revealed here, once, so both subtests share the guard that
+	// keeps it out of the log.
+	key, err := settings.APIKey.Reveal()
+	if err != nil {
+		t.Fatal("the API key cannot be revealed")
+	}
 
 	t.Run("generate", func(t *testing.T) {
 		response, err := value.Generate(context.Background(), llm.GenerateRequest{
@@ -56,29 +65,11 @@ func TestIntegrationGenerate(t *testing.T) {
 		if response.Model == "" {
 			t.Error("Generate() Model is empty")
 		}
-		// Model and ModelVersion are provider-controlled: a faulty response or
-		// a TLS-terminating proxy could echo the bearer key into them, and
-		// logging them would then write the live key to the test output. The
-		// failure messages name the field only, never its value or the key.
-		key, err := settings.APIKey.Reveal()
-		if err != nil {
-			t.Fatal("the API key cannot be revealed")
-		}
-		for _, field := range []struct{ name, value string }{
-			{"Model", response.Model},
-			{"ModelVersion", response.ModelVersion},
-		} {
-			if strings.Contains(field.value, key) {
-				t.Fatalf("Generate() %s contains the API key; it is not logged", field.name)
-			}
-		}
-		// Model and ModelVersion are untrusted strings; %+q escapes control
-		// and non-ASCII characters so they cannot alter the terminal or log.
-		t.Logf("Model %+q, ModelVersion %+q", response.Model, response.ModelVersion)
+		logResponse(t, response, key)
 	})
 
 	t.Run("truncated", func(t *testing.T) {
-		_, err := value.Generate(context.Background(), llm.GenerateRequest{
+		response, err := value.Generate(context.Background(), llm.GenerateRequest{
 			SystemPrompt:    integrationSystemPrompt,
 			UserPrompt:      integrationTruncationPrompt,
 			MaxOutputTokens: integrationTruncationMaxTokens,
@@ -90,5 +81,36 @@ func TestIntegrationGenerate(t *testing.T) {
 		if !errors.Is(err, llm.ErrTruncated) {
 			t.Fatalf("Generate() with MaxOutputTokens %d error = %v, want llm.ErrTruncated", integrationTruncationMaxTokens, err)
 		}
+		logResponse(t, response, key)
 	})
+}
+
+// logResponse logs a response's token counts and estimated cost. It refuses to
+// log a Model or ModelVersion that contains the API key: both are
+// provider-controlled, so a faulty response or a TLS-terminating proxy could
+// echo the bearer key into them, and logging them would then write the live
+// key. The failure messages name the field only, never its value or the key.
+// The count line carries no response text. Model is escaped with %+q, like the
+// other diagnostics, so it cannot alter the terminal or log.
+func logResponse(t *testing.T, response llm.GenerateResponse, key string) {
+	t.Helper()
+	for _, field := range []struct{ name, value string }{
+		{"Model", response.Model},
+		{"ModelVersion", response.ModelVersion},
+	} {
+		if strings.Contains(field.value, key) {
+			t.Fatalf("Generate() %s contains the API key; it is not logged", field.name)
+		}
+	}
+	// The cost is estimated from the time Generate returned and the response's
+	// own usage, like the CLI's cost line.
+	cost := pricing.Estimate(response.Model, response.Usage, time.Now())
+	if counts, known := response.Usage.Counts(); known {
+		t.Logf("tokens input=%d cache_read=%d cache_write=%d output=%d; cost %s; model %+q, model version %+q",
+			counts.Input, counts.CacheRead, counts.CacheWrite, counts.Output,
+			pricingtestutil.CostSummary(cost), response.Model, response.ModelVersion)
+		return
+	}
+	t.Logf("tokens unknown reason=%s; cost %s; model %+q, model version %+q",
+		response.Usage.UnknownReason(), pricingtestutil.CostSummary(cost), response.Model, response.ModelVersion)
 }
