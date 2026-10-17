@@ -32,7 +32,7 @@ HEADER_RE = re.compile(
     r"\A# (?P<title>[^\n]*)\n\n- Model: (?P<model>[^\n]*)\n- Model version: (?P<version>[^\n]*)\n"
     r"(?:- Shorten model: [^\n]*\n- Shorten model version: [^\n]*\n)?"
     r"(?:- Review model: [^\n]*\n- Review model version: [^\n]*\n)?"
-    r"(?:- Estimated cost: (?:unknown|[0-9]+\.[0-9]+ USD)\n)?"
+    r"(?:- Estimated cost: (?:unknown|[0-9]+\.[0-9]{4} USD)\n)?"
     r"\n"
 )
 SOURCE_RE = re.compile(r"\n\n出典: <[^>\n]+>\n\Z")

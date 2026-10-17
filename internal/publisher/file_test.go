@@ -17,9 +17,9 @@ import (
 
 // costedArticle returns validArticle with one generation stage whose cost is
 // known: claude-haiku-5-5 at or below its 100,000-token prompt threshold bills
-// $0.10 per million input tokens, so 23,000 input tokens cost 23,000 * 100000
-// picoUSD per MTok = 2,300,000,000 picoUSD = $0.0023, which four decimals
-// render as "0.0023".
+// 100000 microUSD per million input tokens, which is 100000 picoUSD per token,
+// so 23,000 input tokens cost 23,000 * 100000 = 2,300,000,000 picoUSD =
+// $0.0023, which four decimals render as "0.0023".
 func costedArticle() writer.Article {
 	article := validArticle()
 	article.RunUsage = writer.RunUsage{Generation: writer.StageUsage{
