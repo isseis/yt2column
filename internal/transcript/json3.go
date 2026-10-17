@@ -18,13 +18,12 @@ const (
 // Static errors for the json3 and info.json parsers. The strict JSON decoding
 // they rely on, and its errors, live in internal/strictjson.
 var (
-	errInputTooLarge     = errors.New("input exceeds the size limit")
-	errMissingEvents     = errors.New("missing events member")
-	errEventsNotArray    = errors.New("events is not a valid array")
-	errTooManyEvents     = errors.New("too many events")
-	errMissingTimestamp  = errors.New("content event is missing tStartMs")
-	errNegativeTimestamp = errors.New("tStartMs is negative")
-	errSegsNotArray      = errors.New("segs is not a valid array")
+	errInputTooLarge    = errors.New("input exceeds the size limit")
+	errMissingEvents    = errors.New("missing events member")
+	errEventsNotArray   = errors.New("events is not a valid array")
+	errTooManyEvents    = errors.New("too many events")
+	errMissingTimestamp = errors.New("content event is missing tStartMs")
+	errSegsNotArray     = errors.New("segs is not a valid array")
 )
 
 // parseSubtitles parses a json3 subtitle file and returns one segment per event
@@ -109,7 +108,9 @@ func decodeEvent(members strictjson.Object) (Segment, bool, error) {
 	if !ok {
 		return Segment{}, false, errMissingTimestamp
 	}
-	startMs, err := decodeTimestamp(start)
+	// The non-negative integer rule lives only in AsNonNegativeInt64; do not
+	// reimplement it here.
+	startMs, err := start.AsNonNegativeInt64()
 	if err != nil {
 		return Segment{}, false, err
 	}
@@ -143,16 +144,4 @@ func decodeSegs(value strictjson.Value) (string, error) {
 		text.WriteString(value)
 	}
 	return text.String(), nil
-}
-
-// decodeTimestamp decodes a tStartMs value that must be a non-negative integer.
-func decodeTimestamp(value strictjson.Value) (int64, error) {
-	startMs, err := value.AsInt64()
-	if err != nil {
-		return 0, err
-	}
-	if startMs < 0 {
-		return 0, errNegativeTimestamp
-	}
-	return startMs, nil
 }
