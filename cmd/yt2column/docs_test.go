@@ -16,6 +16,7 @@ import (
 
 	"github.com/isseis/yt2column/internal/llm"
 	claudetestutil "github.com/isseis/yt2column/internal/llm/claude/testutil"
+	"github.com/isseis/yt2column/internal/pricing"
 	"github.com/isseis/yt2column/internal/publisher"
 	publishertestutil "github.com/isseis/yt2column/internal/publisher/testutil"
 	"github.com/isseis/yt2column/internal/transcript"
@@ -30,6 +31,8 @@ const (
 	reviewPlanPath       = "../../docs/tasks/0010_post_generation_review/03_implementation_plan.md"
 	reviewEvaluationPath = "../../docs/tasks/0010_post_generation_review/02_evaluation.md"
 	columnArticlesPath   = "../../docs/tasks/0008_column_prompt/02_evaluation.md"
+	pricingUpdatePath    = "../../docs/dev/developer_guide/pricing_update.md"
+	pricingRatesPath     = "../../internal/pricing/rates.go"
 )
 
 // evaluatedVideoCount is the number of videos the column-prompt task evaluated.
@@ -622,6 +625,39 @@ func containsToken(doc, word string) bool {
 	return regexp.MustCompile(pattern).MatchString(doc)
 }
 
+// checkExampleLines checks the example lines in section that use prefix: the
+// first three words after the prefix must be in allowed. A line whose first word
+// is a placeholder (one starting with "<") shows the line's shape, not an
+// example, and is skipped. what names the section in the failure messages, and
+// the call fails t when the section has no example line.
+func checkExampleLines(t *testing.T, section, prefix string, allowed map[string]bool, what string) {
+	t.Helper()
+	examples := 0
+	for line := range strings.SplitSeq(section, "\n") {
+		rest, ok := strings.CutPrefix(strings.TrimSpace(line), prefix)
+		if !ok {
+			continue
+		}
+		words := strings.Fields(rest)
+		if len(words) > 0 && strings.HasPrefix(words[0], "<") {
+			continue
+		}
+		examples++
+		if len(words) < 3 {
+			t.Errorf("%s example line %q has fewer than three words after the prefix", what, line)
+			continue
+		}
+		for i := range 3 {
+			if !allowed[words[i]] {
+				t.Errorf("%s example line %q has the unknown word %q at position %d", what, line, words[i], i+1)
+			}
+		}
+	}
+	if examples == 0 {
+		t.Errorf("%s has no example line", what)
+	}
+}
+
 // TestTokenUsageDocsContract checks the token-usage documents: the README
 // section describes the line's words and every reason llm.Usage can produce,
 // project_overview.md and security.md describe the usage handling, and
@@ -681,32 +717,7 @@ func TestTokenUsageDocsContract(t *testing.T) {
 	for _, stage := range []writer.Stage{writer.StageGeneration, writer.StageShorten, writer.StageReview} {
 		allowed[stage.String()] = true
 	}
-	examples := 0
-	for line := range strings.SplitSeq(section, "\n") {
-		rest, ok := strings.CutPrefix(strings.TrimSpace(line), tokensPrefix)
-		if !ok {
-			continue
-		}
-		words := strings.Fields(rest)
-		// A line whose first word is a placeholder shows the shape, not an
-		// example; the lines below it are the examples.
-		if len(words) > 0 && strings.HasPrefix(words[0], "<") {
-			continue
-		}
-		examples++
-		if len(words) < 3 {
-			t.Errorf("README example line %q has fewer than three words after the prefix", line)
-			continue
-		}
-		for i := range 3 {
-			if !allowed[words[i]] {
-				t.Errorf("README example line %q has the unknown word %q at position %d", line, words[i], i+1)
-			}
-		}
-	}
-	if examples == 0 {
-		t.Error("README Token usage section has no example line")
-	}
+	checkExampleLines(t, section, tokensPrefix, allowed, "README Token usage section")
 
 	overview := sectionByHeading(readDoc(t, projectOverviewPath), "## パイプライン")
 	if overview == "" {
@@ -750,6 +761,7 @@ func TestTokenUsageDocsContract(t *testing.T) {
 	}{
 		{"internal/llm", []string{"TokenCounts", "UnknownRule", "Usage"}},
 		{"internal/strictjson", []string{"IsNull", "AsNonNegativeInt64"}},
+		{"internal/pricing", []string{"Estimate", "StageCost", "Total", "Totals", "Amount", "RateBasis", "UnknownReason", "Format"}},
 		{"internal/writer", []string{"UsageOrigin", "StageUsage", "RunUsage", "TokenUsageError"}},
 		{"internal/artifact", []string{"version 3", "usage", "call_time", "internal/llm"}},
 		{"internal/llm/deepseek", []string{"usage"}},
@@ -766,5 +778,124 @@ func TestTokenUsageDocsContract(t *testing.T) {
 				t.Errorf("the package_reference.md %s row does not mention %s", row.pkg, want)
 			}
 		}
+	}
+}
+
+// TestCostDocsContract checks the cost documents: the README's Estimated cost
+// section uses every word run.go's cost format defines, its example lines use
+// only those words and the stage names in the fixed positions, and it names the
+// heading word of the --out and Slack cost line; the rate-update procedure
+// names the rate table and the hand-calculated tests, is linked from CLAUDE.md,
+// and is pointed at from the rate table's leading comment; project_overview.md
+// and security.md describe the cost line and the artifact call_time.
+//
+// The behavior these documents describe is pinned by running tests, not by this
+// test: the line format by cmd/yt2column's TestRunCostLinesGoldenFormat, and the
+// call_time validation by internal/artifact's TestParseRecordRejectsCallTime.
+func TestCostDocsContract(t *testing.T) {
+	readme := readDoc(t, readmePath)
+	section := sectionByHeading(readme, "## Estimated cost")
+	if section == "" {
+		t.Fatal("README has no Estimated cost section")
+	}
+	// The value-carrying fields of the cost lines, taken from run.go so the
+	// test does not spell them.
+	for _, word := range []string{costPrefix, costTotalPrefix, costUSD, costReason, costAt} {
+		if !strings.Contains(section, word) {
+			t.Errorf("README Estimated cost section does not contain %q", word)
+		}
+	}
+	// The fixed words of the lines, matched as whole tokens so "known" is not
+	// satisfied by "unknown". The two total-kind words are checked in their
+	// format position below, because both also appear in the section's prose.
+	for _, word := range []string{
+		costKnown, costUnknown, costNoTime, costInvalid,
+		writer.StageGeneration.String(), writer.StageShorten.String(), writer.StageReview.String(),
+	} {
+		if !containsToken(section, word) {
+			t.Errorf("README Estimated cost section does not contain the token %q", word)
+		}
+	}
+	// Each total kind must appear on a cost-total line, not only in prose.
+	for _, kind := range []string{costTotalRun, costTotalArticle} {
+		if !strings.Contains(section, costTotalPrefix+kind) {
+			t.Errorf("README Estimated cost section has no %q total line", costTotalPrefix+kind)
+		}
+	}
+	// Every rate basis and unknown reason the word mapping returns, obtained
+	// from the code so the test does not spell them. The zero value and a value
+	// outside the enumeration map to costInvalid, which the token loop above
+	// already checks, so this only checks the mapping-specific words.
+	for _, basis := range []pricing.RateBasis{
+		pricing.BasisUnset, pricing.BasisFlat, pricing.BasisOffPeak, pricing.BasisPeak,
+		pricing.BasisShortPrompt, pricing.BasisLongPrompt, pricing.RateBasis(99),
+	} {
+		if word := costBasisWord(basis); word != costInvalid && !containsToken(section, word) {
+			t.Errorf("README Estimated cost section does not contain the rate-basis word %q", word)
+		}
+	}
+	for _, reason := range []pricing.UnknownReason{
+		pricing.ReasonUnset, pricing.ReasonUsageUnknown, pricing.ReasonNoModel,
+		pricing.ReasonUnpricedModel, pricing.ReasonInvalid, pricing.UnknownReason(99),
+	} {
+		if word := costReasonWord(reason); word != costInvalid && !containsToken(section, word) {
+			t.Errorf("README Estimated cost section does not contain the reason word %q", word)
+		}
+	}
+	// The heading word of the --out and Slack cost line is an unexported
+	// publisher constant, so the guard writes the spelling; TestRenderArticleCost
+	// pins the same spelling in internal/publisher.
+	const estimatedCostHeading = "Estimated cost"
+	if !strings.Contains(section, estimatedCostHeading) {
+		t.Errorf("README Estimated cost section does not contain the heading word %q", estimatedCostHeading)
+	}
+	// Each example line's first three words after the prefix are the stage, the
+	// origin, and the cost state.
+	allowed := map[string]bool{
+		tokensRun: true, tokensReused: true, costKnown: true, costUnknown: true,
+	}
+	for _, stage := range []writer.Stage{writer.StageGeneration, writer.StageShorten, writer.StageReview} {
+		allowed[stage.String()] = true
+	}
+	checkExampleLines(t, section, costPrefix, allowed, "README Estimated cost section")
+
+	// The rate-update procedure names the table and the hand-calculated tests,
+	// is linked from CLAUDE.md, and is pointed at from the rate table's leading
+	// comment.
+	update := readDoc(t, pricingUpdatePath)
+	for _, want := range []string{
+		"rates.go", "TestEstimateCategories", "TestEstimatePeakWindow",
+		"TestEstimatePromptTier", "TestAmountFormat", "TestRateTableValid",
+		"TestValidateRejects", "TestRateTableSourceComments", "TestRateTableModels",
+	} {
+		if !strings.Contains(update, want) {
+			t.Errorf("pricing_update.md does not name %q", want)
+		}
+	}
+	if !strings.Contains(readDoc(t, claudePath), "pricing_update.md") {
+		t.Error("CLAUDE.md does not link pricing_update.md")
+	}
+	rates := readDoc(t, pricingRatesPath)
+	head, _, _ := strings.Cut(rates, "\npackage ")
+	if !strings.Contains(head, "pricing_update.md") {
+		t.Error("internal/pricing/rates.go's leading comment does not point at pricing_update.md")
+	}
+
+	overview := readDoc(t, projectOverviewPath)
+	for _, want := range []string{costPrefix, "call_time"} {
+		if !strings.Contains(overview, want) {
+			t.Errorf("project_overview.md does not contain %q", want)
+		}
+	}
+	untrusted := sectionByHeading(readDoc(t, securityPath), "## 6. 信頼できないテキストの取り扱い")
+	if untrusted == "" {
+		t.Fatal("security.md has no 6. 信頼できないテキストの取り扱い section")
+	}
+	artifactLine := bulletContaining(untrusted, "--artifacts")
+	if artifactLine == "" {
+		t.Fatal("security.md 6. has no --artifacts bullet")
+	}
+	if !strings.Contains(artifactLine, "call_time") {
+		t.Errorf("security.md's --artifacts bullet does not mention call_time: %q", artifactLine)
 	}
 }
