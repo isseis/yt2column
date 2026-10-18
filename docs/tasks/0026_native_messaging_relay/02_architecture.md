@@ -8,7 +8,7 @@
 | Created | 2026-10-18 |
 | Review date | - |
 | Reviewer | - |
-| Comments | §3.10 の実機での確認（S-1〜S-8）を 2026-10-18 に行い、結果を §3.10 の表に記録した。S-6（Brave の manifest の置き場所）が前提と異なったので §2.2・§3.6 を改め、S-3・S-4・S-5 の結果を §3.5.5・§3.7.2 に、S-8 の結果を §3.5.2（読み捨てを外した）に反映した。要件書の F-004・AC-26 の改定（lastError を文字列で分けず、ホストの失敗として結果不明にまとめる）に合わせて §3.7.4・§3.7.5・§6.3 などを改めた（要件書は 2026-10-18 に再承認済み） |
+| Comments | §3.10 の実機での確認（S-1〜S-8）を 2026-10-18 に行い、結果を §3.10 の表に記録した。S-6（Brave の manifest の置き場所）が前提と異なったので §2.2・§3.6 を改め、S-3・S-4・S-5 の結果を §3.5.5・§3.7.2 に、S-8 の結果を §3.5.2（読み捨てを外した）に反映した。要件書の F-004・AC-26 の改定（lastError を文字列で分けず、ホストの失敗として結果不明にまとめる）に合わせて §3.7.4・§3.7.5・§6.3 などを改めた。要件書の F-003・AC-20 の改定（macOS では Chrome と Brave が 1 つの manifest を共有し、どちらに対する uninstall も両方からホストを外す）に合わせて §3.6 の「macOS での共有」に理由と参照を加えた（要件書は draft に戻っており、再承認が必要である） |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §3.11）を指す。既存のコードの行番号は、コミット `9e34229`（要件書の承認のコミット）で確かめたものである。
 
@@ -700,7 +700,7 @@ func Uninstall(home string, browser Browser) (path string, removed bool, err err
 -   **自分が作った manifest の判定:** 既存の manifest のパスについて、`Lstat` で symlink でない通常ファイルであること、64 KiB 以下であることを確かめ、`strictjson` で読み、メンバがちょうど上の 5 つで、`name`・`type`・`allowed_origins` が上の固定の値と一致し、`path` が絶対パスの文字列であることを確かめる。`description` と `path` の値は比べない（説明文の変更と、バイナリの移動の後の install し直しを許すため）。
 -   **install:** manifest がなければ作る。自分が作ったものなら置き換える（バイナリの移動の後の install し直し）。それ以外のファイルがあれば `ErrForeignManifest` で拒否し、変更しない。
 -   **uninstall:** 自分が作ったものだけを削除する。なければ何もせず成功とする（`removed` が `false`）。それ以外のファイルなら `ErrForeignManifest` で拒否し、削除しない。ディレクトリ（`NativeMessagingHosts`）は削除しない。他のホストの manifest が置かれうるためである。
--   **macOS での共有:** macOS では `install chrome` と `install brave` が同じファイルを書く。後から実行したほうが置き換えるが、中身は同じである。`uninstall` は、どちらのブラウザを指定しても、両方のブラウザからホストを外す。install と uninstall は、manifest のパスを標準エラー出力に書き、macOS では、このファイルを Chrome と Brave が共有することも書く。README にも同じことを書く。
+-   **macOS での共有:** macOS では `install chrome` と `install brave` が同じファイルを書く。後から実行したほうが置き換えるが、中身は同じである。`uninstall` は、どちらのブラウザを指定しても、両方のブラウザからホストを外す（要件書 F-003・AC-20）。参照の数や状態のファイルで使用中のブラウザを数えたり、uninstall を拒んだりはしない。1 つのファイルを、一方のブラウザにだけ残して他方から消すことはできず、利用者が他方のブラウザをまだ使っているかどうかをツールは知りえないためである（YAGNI）。他方のブラウザで使い続けるなら、そのブラウザに対して install をやり直せば戻る。install と uninstall は、manifest のパスを標準エラー出力に書き、macOS では、このファイルを Chrome と Brave が共有することも書く。README にも同じことを書く。
 -   **副作用の範囲:** §4.4 の表のとおり。install と uninstall は、選んだブラウザの manifest のファイル（と、なければ `NativeMessagingHosts` のディレクトリ）以外を変更しない。サーバの設定・ソケット・起動のロックに触れず、サーバを起動しない（要件書 F-003）。ビルド（`make build`）は install を実行しない。Makefile に install の目標を設けない（利用者が明示的にコマンドを実行する）。
 -   **他のブラウザ:** manifest の置き場所を任意に指定する手段（`--manifest-dir`）は設けない（要件書 2.3 は検討してよいとするが、手動で確認していないブラウザ向けの手段を、確かめないまま提供しないため。YAGNI）。
 

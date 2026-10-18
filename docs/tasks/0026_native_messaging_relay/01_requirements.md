@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Created | 2026-10-18 |
-| Review date | 2026-10-18 |
+| Review date | - |
 | Reviewer | - |
-| Comments | - |
+| Comments | 2026-10-18: F-003 と AC-20 を改めた（決定の変更）。macOS では Brave が Chrome の置き場所の manifest を読むので、Chrome と Brave は 1 つの manifest のファイルを共有する。どちらのブラウザに対する install も両方でホストを使えるようにし、どちらに対する uninstall も両方からホストを外すこと、install と uninstall が manifest のパスと macOS での共有を知らせることを定めた。再承認が必要である |
 
 ## 1. 概要 (Overview)
 
@@ -156,6 +156,7 @@
 - ホストはサーバを起動しない。サーバが動いていない場合は `server_unavailable` を返す。
 - Chrome と Brave の Native Messaging の manifest を install/uninstall する明示的なコマンドを設ける。manifest は、`type` を `stdio`、`path` をホストのバイナリの絶対パスとし、`allowed_origins` には固定の拡張 ID のオリジンだけを入れる。`allowed_origins` は拡張の manifest の `key` から導出した ID と一致する。
 - install は、選択したブラウザの manifest を置くだけで、サーバの設定を変更せず、サーバを起動せず、ビルド時に自動で実行されない。uninstall は、自分が作った manifest だけを削除する。バイナリを移動した場合は、install をやり直す必要があることを文書に記す。
+- macOS では、Brave は Chrome の置き場所から Native Messaging のホストの manifest を読むので、Chrome と Brave は 1 つの manifest のファイルを共有する。どちらのブラウザに対して install しても両方のブラウザでホストを使えるようになり、どちらのブラウザに対して uninstall しても両方のブラウザからホストが外れる。install と uninstall は manifest のパスを知らせ、macOS では、そのファイルを Chrome と Brave が共有することも知らせる。
 
 **Acceptance Criteria**:
 - **AC-15**: ホストに 1 つの Native Messaging のメッセージを渡すと、サーバへ 1 つのリクエストが転送され、応答が 1 つのメッセージとして返り、ホストが終了する。ジョブの完了は待たない（ユニットテスト・統合テスト）。
@@ -163,7 +164,7 @@
 - **AC-17**: 標準出力にはフレーム以外のバイトが現れない。ログは標準エラー出力にだけ出て、字幕・メタデータ・秘密の値を含まない（ユニットテスト。識別できる値を入れ、標準出力と標準エラー出力を確かめる）。
 - **AC-18**: ソケットのパスは `HOME` からの固定の導出で決まり、メッセージの値や `XDG_CONFIG_HOME` などの他の環境変数では変わらない。シェルを起動しない。`.envrc`・API キー・Webhook URL を読まない（静的な確認・ユニットテスト）。
 - **AC-19**: サーバが動いていない場合、応答が期限までに返らない場合、応答の途中で接続が切れた場合に、それぞれ `server_unavailable`・`server_timeout`・`protocol_error` の固定のエラーが返り、自動で再送されない（ユニットテスト）。
-- **AC-20**: install すると、選択したブラウザの manifest が `stdio`・絶対パス・固定の拡張 ID の `allowed_origins` で作られる。uninstall すると、その manifest だけが削除される。install/uninstall はビルド時に自動で実行されない（ユニットテスト・手動確認）。
+- **AC-20**: install すると、選択したブラウザの manifest が `stdio`・絶対パス・固定の拡張 ID の `allowed_origins` で作られる。uninstall すると、選択したブラウザの manifest のファイルだけが削除される（macOS では Chrome と Brave が 1 つのファイルを共有するので、両方のブラウザからホストが外れる。F-003）。install/uninstall はビルド時に自動で実行されない（ユニットテスト・手動確認）。
 - **AC-21**: ホストは Unix でビルドでき、外部の Go モジュールを追加しない（静的な確認・`make build`）。
 
 #### F-004: 拡張の Native Messaging への切り替え
