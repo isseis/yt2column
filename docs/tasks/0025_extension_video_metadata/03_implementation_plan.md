@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-18 |
 | Review date | 2026-10-18 |
 | Reviewer | isesis |
-| Comments | ステップ 5-1 の完了条件を、§5.1 の欄が埋まっていることから、§5.1 のすべての確認が成功したことに改めた（§5.1 の冒頭に定め、§7・§8 はそれを参照する）。完了の判断を変えるので、決定の変更として `draft` に戻した |
+| Comments | - |
 
 ## 1. 実装の概要 (Implementation Overview)
 
