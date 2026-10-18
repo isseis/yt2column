@@ -8,7 +8,7 @@
 | Created | 2026-10-18 |
 | Review date | - |
 | Reviewer | - |
-| Comments | §3.10 の実機での確認（S-1〜S-8）は未実施。承認の前に行い、結果を §3.10 の表に記録する |
+| Comments | §3.10 の実機での確認（S-1〜S-8）は未実施。承認の前に行い、結果を §3.10 の表に記録する。要件書の F-004・AC-26 の改定（lastError を文字列で分けず、ホストの失敗として結果不明にまとめる）に合わせて §3.7.4・§3.7.5・§6.3 などを改めた。要件書の再承認が必要 |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §3.11）を指す。既存のコードの行番号は、コミット `9e34229`（要件書の承認のコミット）で確かめたものである。
 
@@ -34,7 +34,7 @@
 -   **UDS の上でも HTTP/1.1 を使う。** サーバの `http.Server` とハンドラをそのまま `UnixListener` の上で動かす。新しいフレームの形式を作らない（§3.4、H-06）。
 -   **ホストは中継に徹する。** ホストは記事の JSON を解釈しない。拡張のメッセージのバイト列を HTTP の本文として流し込み、サーバの応答の状態コードと本文のバイト列を、解釈せずに固定の形で包んで返す。判断するのは、長さと時間と通信の失敗だけである（§3.5）。
 -   **失敗は「どこで止まったか」で分類する。** 拡張の表示は、リクエストがサーバに届いていないと確定する場合（未送信）と、届いた可能性がある場合（結果不明）を分ける。ホストは、OS のエラーの種類ではなく、失敗した段階（接続の前か後か）で固定のエラーを選ぶ（§3.5.3、H-05）。分類が付かない失敗は、結果不明の側に倒す（fail-secure。再送による二重投稿を防ぐ側）。
--   **型で宣言し、文字列から推測しない。** ホストのエラー、送信の結果、拒否の理由は、列挙型と網羅的な `switch` で表す。例外は、ブラウザが文字列だけで返す lastError の分類の 1 か所であり、§3.7.5 で範囲と理由と境界を定める（CLAUDE.md「Declare, don't infer」）。
+-   **型で宣言し、文字列から推測しない。** ホストのエラー、送信の結果、拒否の理由は、列挙型と網羅的な `switch` で表す。ブラウザが文字列だけで返す lastError も、その中身で処理を分けず、あったかなかったかだけを見る（§3.7.5、CLAUDE.md「Declare, don't infer」）。
 -   **修復せずに拒否する。** ソケットのディレクトリの権限、ソケットの種別と所有者、manifest の中身が受理する形でなければ、修復も削除もせずに中止する（CLAUDE.md「Reject, don't normalize」）。
 -   **既存の部品を再利用する。** ロックは `internal/cachelock`、環境変数の読み取りは `internal/config`、ログの伏せ字は `internal/redact`、manifest の厳格な読み取りは `internal/strictjson`、拡張の応答の検査は `extension/src/core/response.ts` の `classifyResponse` を使う（§1.3）。
 
@@ -770,8 +770,6 @@ export type NativeReply =
 /** Interprets a reply in the fixed order of §3.7.3. Never throws. */
 export function classifyNativeReply(reply: NativeReply): SendResult;
 
-/** The not-sent cause for one of the three exact lastError strings; undefined for anything else. */
-export function classifyNativeFailure(lastError: string | undefined): NotSentCause | undefined;
 ```
 
 ```typescript
@@ -803,7 +801,7 @@ export function sendArticle(request: PreparedRequest, deps: SendDeps): Promise<S
 ホストの応答の検査は、新しいモジュール `core/native.ts` の `classifyNativeReply` に置く。サーバの応答の本文の検査は、既存の `classifyResponse` をそのまま使う。
 
 1.  `NativeReply` が `timed-out` なら、想定外の応答（`extension-timeout`）。
-2.  `failed` なら、lastError の分類（§3.7.5）。
+2.  `failed` なら、lastError の文字列を見ずに「ホストの失敗」（`host-failed`。結果不明）とする（§3.7.5）。
 3.  `message` の値が、配列でない非 `null` のオブジェクトでなければ想定外の応答（`envelope-shape`）。
 4.  `v` が数値の `1` でなければ想定外の応答（`envelope-version`）。`v` のないオブジェクトもここで落ちる。
 5.  `kind` が `"error"` なら、メンバがちょうど `v`・`kind`・`error` であること（`hasExactKeys`）と、`error` が 4 つの値のどれかであることを確かめる。合わなければ `envelope-shape`。`server_unavailable`・`message_too_large` は未送信、`server_timeout` は応答なし（結果不明）、`protocol_error` は想定外の応答（`host-protocol-error`）。
@@ -821,12 +819,11 @@ export function sendArticle(request: PreparedRequest, deps: SendDeps): Promise<S
 // core/response.ts
 
 /** Why a request is known not to have reached the server. */
-export type NotSentCause = "host-unavailable" | "server-unavailable" | "message-too-large";
+export type NotSentCause = "server-unavailable" | "message-too-large";
 
 /** Which check an unexpected reply failed; for the developer log and the stored view. */
 export type UnexpectedCheck =
   | "extension-timeout"   // the 25-second bound passed with no reply and no lastError
-  | "host-exited"         // a lastError other than the three "not started" strings (§3.7.5)
   | "envelope-shape"
   | "envelope-version"
   | "host-protocol-error"
@@ -846,16 +843,20 @@ export type SendOutcome =
   | { readonly kind: "rejected"; readonly reason: ServerRejectReason; readonly requestId: RequestId }
   | { readonly kind: "not-sent"; readonly cause: NotSentCause }
   | { readonly kind: "no-response" }
+  | { readonly kind: "host-failed" }   // any lastError: not started, or exited without a reply (§3.7.5)
   | { readonly kind: "unexpected"; readonly check: UnexpectedCheck };
 
-/** What sendArticle returns: "unexpected" also carries a value-free cause and the status, for the developer log. */
+/** What sendArticle returns: "unexpected" carries the status and "host-failed" the lastError text, for the developer log only. */
 export type SendResult =
-  | Exclude<SendOutcome, { kind: "unexpected" }>
+  | Exclude<SendOutcome, { kind: "unexpected" | "host-failed" }>
   | {
       readonly kind: "unexpected";
       readonly check: UnexpectedCheck;
       readonly status?: number;      // the server's status, when a response was wrapped
-      readonly lastError?: string;   // for "host-exited" only; never displayed or stored
+    }
+  | {
+      readonly kind: "host-failed";
+      readonly lastError: string | undefined; // logged as is; never compared, displayed, or stored
     };
 
 /** The server-body classifier keeps its role: it only ever returns these three kinds. */
@@ -868,44 +869,34 @@ export function classifyResponse(
 |---|---|---|---|
 | `accepted` | 受理 | 受け付けたこと、`requestId`、結果が Slack に届くこと | 求めない |
 | `rejected` | 拒否 | 理由ごとの固定の文言と `requestId`（既存の `serverRejectMessage` から削除する理由を除く） | 既存の文言のとおり（枠の確保後の拒否は通知がありうることを示す） |
-| `not-sent` / `host-unavailable` | 未送信 | ホストがインストールされていない。`yt2column-nmhost install <browser>` を実行する。バイナリを移動したら install し直す | 求めない |
 | `not-sent` / `server-unavailable` | 未送信 | サーバに接続できない。サーバを起動する（終了の途中でジョブを待っているサーバは、終わるまで次を起動できない）。別のユーザーで起動していないか、ソケットのディレクトリの権限を確かめる | 求めない |
 | `not-sent` / `message-too-large` | 未送信 | 選択した文字列が大きすぎて送れない。行を減らす | 求めない |
 | `no-response` | 結果不明 | サーバが時間内に応答しなかった。ジョブが走っている可能性がある | 再送する前に Slack を確かめる |
+| `host-failed` | 結果不明 | ホストを起動できなかったか、応答の前に終了した。多くの場合、ホストがインストールされていないか、バイナリが移動されている（`yt2column-nmhost install <browser>` を実行する。移動したら install し直す）。送信済みの可能性もある | 再送する前に Slack を確かめる |
 | `unexpected` | 結果不明 | 応答を解釈できなかった。ジョブが走っている可能性がある。ホストとサーバと拡張の版が揃っているか（ホストの install し直し）を確かめる | 再送する前に Slack を確かめる |
 
 -   文言は、既存の `sendOutcomeMessage` の網羅的な `switch`（`extension/src/core/sendMessages.ts:162-201`）に置く。`NotSentCause` と `UnexpectedCheck` の分岐も網羅的な `switch` で書き、値を加えて文言を書き忘れると型検査が失敗する（要件書 4.5）。`unexpected` の文言は 1 つで、`check` は表示を変えない（開発者向けのログと保存した値にだけ使う）。
 -   削除する文言: `blockMessage` の `settings-unreadable`・`token-missing`・`token-invalid`・`port-invalid`（`sendMessages.ts:18-51`）、`serverRejectMessage` の削除する 6 つの理由、`sendOutcomeMessage` の `unknown`・`redirected`。どの文言も、オプションページ・トークン・ポートに触れなくなる（AC-23）。
 -   `requestId` の表示（AC-28）は既存の表示（`extension/src/ui/renderSend.ts:32-36`）を変えない。`unexpected` の状態コードの表示（`renderSend.ts:37-42` の `send-status`）は削除する。ホストの段階の想定外の応答には状態コードがなく、利用者の行動を変えない値だからである。状態コードは `SendResult` に残し、開発者向けのログにだけ出す。
 
-#### 3.7.5. lastError の分類（「Declare, don't infer」の例外、H-07）
+#### 3.7.5. lastError の扱い（H-07）
 
-ブラウザは、ホストを起動できなかった理由と、ホストが応答せずに終了した理由を、どちらも `chrome.runtime.lastError` の `message` の文字列だけで伝える。区別する API はない。要件書 F-004 は、前者（ホストが未インストール）を未送信、後者を結果不明として区別することを求めるので、拡張は lastError の文字列を見て分類する。
+ブラウザは、ホストを起動できなかった場合（manifest がない、`allowed_origins` が合わない、バイナリがないなど）と、ホストが起動した後に応答を返さずに終了した場合を、どちらも `chrome.runtime.lastError` の `message` の文字列だけで伝える。区別する API はない。
 
-| lastError の `message`（完全一致） | 意味（Chrome のソースの定数。§3.10 の S-2 で確かめる） | 分類 |
-|---|---|---|
-| `Specified native messaging host not found.` | manifest がない、または読めない | 未送信（`host-unavailable`） |
-| `Access to the specified native messaging host is forbidden.` | manifest の `allowed_origins` にこの拡張がない | 未送信（`host-unavailable`） |
-| `Failed to start native messaging host.` | ブラウザがホストのプロセスを作れない。バイナリの移動の場合を含むかは未確認（POSIX では子プロセスの `exec` の失敗を親が知れず、`Native host has exited.` になる可能性が高い。表の中で最も外れやすい推定） | 未送信（`host-unavailable`） |
-| それ以外（`Native host has exited.`、`Error when communicating with the native messaging host.`、未知の文字列、`undefined`） | ホストが起動した後の失敗、または分からない失敗 | 想定外の応答（`host-exited`。結果不明） |
+拡張は lastError の文字列で処理を分けない。lastError があれば、文字列を問わず「ホストの失敗」（`host-failed`）とし、結果不明として表示する（要件書 F-004・AC-26）。
 
-**元の方針と場所:** CLAUDE.md「Declare, don't infer」は、呼び出し元が渡す文字列の中身を調べて処理を選ぶことを禁じ、例外を `internal/transcript` のコピーした字幕のパーサに限っている。0020 §3.5（H-02）は、`fetch` の拒否の値を区別せずに「結果が分からない」の 1 つにまとめた。
-
-**例外とする理由:** lastError の文字列はブラウザが作る外部の値で、拡張にはこれを型で表す手段がない（コピーした字幕のパーサの例外と同じ種類）。区別しなければ、ホストが未インストールの場合（初回の利用で必ず起きる）にも「結果不明。Slack を確かめる」旨を表示することになり、要件書 F-004 の未送信の表示を満たせない。
-
-**範囲と境界:**
-
--   文字列を見るのは `core/native.ts` の 1 つの関数（`classifyNativeFailure`）だけで、上の表の 3 つの文字列との完全一致だけを使う。部分一致・前方一致・大文字小文字の無視をしない。
--   一致しない文字列は、どれも結果不明（fail-secure）に倒す。ブラウザの版で文言が変わった場合、ホストが未インストールでも結果不明と表示されるが、再送による二重投稿は起きない。
--   lastError の文字列は表示しない。開発者向けのログにだけ記録する（§3.7.6）。
--   CLAUDE.md の「Declare, don't infer」の項目に、この例外（範囲・理由・境界）を加える。既存のガード（`cmd/yt2column/copied_transcript_docs_test.go:166-186` の `TestClaudeMDCopiedTranscriptException`）は、同じ項目の中のコピーした字幕の例外の語を `strings.Contains` で確かめるだけなので、追記しても失敗しない。
+-   **文字列を見ない理由:** 文言は Chromium の内部の定数で、公開された API の約束ではない。ブラウザの版の更新や、Brave の独自の変更で黙って変わりうる。文字列で分ければ、その変化を検出できないまま誤った分類が出る。CLAUDE.md「Declare, don't infer」にも反する。
+-   **結果不明にまとめてよい理由:** ホストは、正常に動く限り必ずホストの応答を返す（§3.5.2）。lastError が出るのは、ホストが起動できない場合と、クラッシュやブラウザによる強制終了の場合だけである。前者は初回の設定時に集中し、後者は送信済みの可能性がある。結果不明にまとめれば、二重投稿の危険は構造的に生じない。
+-   **表示:** よくある原因（ホストが未インストール、バイナリの移動）と install の手順を先に示し、送信済みの可能性があるので再送する前に Slack を確かめる手順も示す（§3.7.4）。未インストールの利用者は、対処にすぐ進める。不要な Slack の確認を一度求められることは受け入れる。
+-   **診断:** lastError の文字列は、開発者向けのログにそのまま記録する（§3.7.6）。表示も保存もせず、比較もしない。
+-   **未送信の区別:** 未送信と表示するのは、ホストが返す型付きの固定の値（`server_unavailable`・`message_too_large`）だけである。ホストが自分で段階から決める値なので、ブラウザの文言に依存しない（§3.5.3）。
 
 **更新が必要な既存のテスト:** なし（新しい振る舞い）。`extension/test/send.test.ts` の「結果が分からない」の行（`fetch` の拒否）は、送信の仕組みの置き換え（§3.8）で書き直す。
 
 #### 3.7.6. 開発者向けのログと保存する値
 
--   `logSend`（`extension/src/launch.ts:135-153`）の `port` を削除し、`host: nativeHostName` を記録する。`SendResult` の `unexpected` は、状態コードと lastError の文字列（本文の文字列は含めない）を持ち、ログにだけ出す。`toSendOutcome` が表示と保存の前にこれらを落とす（既存の `unknown` の `cause` の扱いと同じ）。
--   結果のウィンドウへ渡す値の検査（`extension/src/core/resultView.ts:58-121` の `parseOutcome`）を、新しい `SendOutcome` の 5 つの形に合わせる。`not-sent` の `cause` と `unexpected` の `check` は、宣言した値の集合（`Record` の実行時の集合）に含まれるものだけを受理する。
+-   `logSend`（`extension/src/launch.ts:135-153`）の `port` を削除し、`host: nativeHostName` を記録する。`SendResult` の `unexpected` は状態コードを、`host-failed` は lastError の文字列を持ち（本文の文字列は含めない）、ログにだけ出す。`toSendOutcome` が表示と保存の前にこれらを落とす（既存の `unknown` の `cause` の扱いと同じ）。
+-   結果のウィンドウへ渡す値の検査（`extension/src/core/resultView.ts:58-121` の `parseOutcome`）を、新しい `SendOutcome` の 6 つの形に合わせる。`not-sent` の `cause` と `unexpected` の `check` は、宣言した値の集合（`Record` の実行時の集合）に含まれるものだけを受理する。
 
 ### 3.8. 既存の設計からの変更と、更新するテスト
 
@@ -924,7 +915,6 @@ export function classifyResponse(
 | `host_permissions: ["http://127.0.0.1/*"]` と `options_ui` を宣言する（0020 §3.1） | 削除し、`nativeMessaging` を加える（§3.7.1） | 要件書 F-004・AC-22 | `extension/test/manifest.test.ts:28-50`（権限とキーの集合）、`cmd/yt2column/extension_docs_test.go:86-110`（`TestExtensionDocumentation` の権限のサブテスト。manifest に追随するので変更は不要で、security.md §8.1 の一覧を改める）と `:168` `TestExtensionSendDocumentation`（§3.9 の表） |
 | 送れなかった場合を区別せず「結果が分からない」にまとめる（0020 §3.5 H-02） | 未送信と結果不明を分ける（§3.5.3・§3.7.4） | 要件書 F-004。Native Messaging では接続の前後で失敗を区別できる | `extension/test/send.test.ts`・`extension/test/sendMessages.test.ts`・`extension/test/resultView.test.ts`（`unknown`・`redirected` の行を、新しい形の行に置き換える） |
 | 拒否の理由は 12 個（0011 §3.4.3、`internal/server/response.go:19-32`） | 8 個（サーバ）、拡張の表示は 6 個（§3.3.1・§3.7.3） | 要件書 F-002・AC-12 | `internal/server/response_test.go`、`extension/test/serverReasons.test.ts`（README の表と照合する。README の表を改める）、`extension/test/response.test.ts` |
-| CLAUDE.md「Declare, don't infer」の例外はコピーした字幕のパーサだけ | lastError の分類を例外に加える（§3.7.5） | ブラウザが文字列だけで伝える外部の値 | なし（`TestClaudeMDCopiedTranscriptException` は追記で失敗しない） |
 | 環境変数を読める場所は `cmd/yt2column/main.go` と `cmd/yt2column-server/main.go` と `internal/transcript/ytdlp.go`（`internal/config/envaccess_test.go:65-69`） | `cmd/yt2column-nmhost/main.go` を加える | ホストが `HOME` を読むため | `internal/config/envaccess_test.go:65-69`（表に 1 行を加える） |
 
 ### 3.9. 文書とガード（F-005・AC-31〜AC-34）
@@ -937,7 +927,7 @@ export function classifyResponse(
 | `README.md` | 「## Localhost server」の節からポートとトークンの記述を削除し、ソケットのパス、起動、ホストの install/uninstall（Chrome・Brave）、バイナリを移動したら install し直すこと、TCC で保護されたフォルダの外に置くこと、トラブルシューティング（ホストが見つからない、サーバが起動していない、ホストのログをターミナルから起動したブラウザで見る手順）、`curl --unix-socket "<パス>" ... http://localhost/articles` の例（パスを二重引用符で囲む）を書く。拒否の理由の表を §3.3.1 の 8 行にし、「拡張の表示」の列を加える。古い版からの更新の手順（古いサーバを止める。不要になったトークンのファイル `server-token` は削除してよい）を書く。トークンの節（`### The shared token`）を削除する（AC-32） |
 | `docs/dev/project_overview.md` | 実行形式の記述（HTTP で受け取る → Native Messaging のホストを通して UDS で受け取る。ホストの manifest は `yt2column-nmhost install <browser>`・`uninstall <browser>` で登録・削除する）、ディレクトリ構成（`internal/authtoken` を削除し、`cmd/yt2column-nmhost`・`internal/nmhost`・`internal/serversock` を加える）（AC-33） |
 | `docs/dev/developer_guide/package_reference.md` | `cmd/yt2column-server`・`internal/server`・`internal/config` の行を改め、`internal/authtoken` の行を削除し、`cmd/yt2column-nmhost`・`internal/nmhost`・`internal/serversock` の行を加える。`internal/cachelock` の行に、サーバの起動のロックにも使うことを加える（AC-33） |
-| `CLAUDE.md` | Architecture Overview の localhost サーバの記述（`internal/authtoken` → `internal/serversock`・`internal/nmhost`、HTTP → UDS と Native Messaging）、「Declare, don't infer」の例外（§3.7.5）、Build Commands（`make build` が 3 つのバイナリを作る。ホストの登録と削除の `yt2column-nmhost install|uninstall <browser>`）（AC-33） |
+| `CLAUDE.md` | Architecture Overview の localhost サーバの記述（`internal/authtoken` → `internal/serversock`・`internal/nmhost`、HTTP → UDS と Native Messaging）、Build Commands（`make build` が 3 つのバイナリを作る。ホストの登録と削除の `yt2column-nmhost install|uninstall <browser>`）（AC-33） |
 | `Makefile` | `build` の目標に `build/yt2column-nmhost` を加える。install/uninstall の目標は設けない（§3.6）（AC-33） |
 | `docs/translation_glossary.md` | ホスト・ホスト名・起動のロック・ホストの応答・未送信・結果不明の用語を加える |
 
@@ -974,7 +964,7 @@ export function classifyResponse(
 | 番号 | 確かめる事項 | 本書の前提 | 前提が崩れた場合の扱い |
 |---|---|---|---|
 | S-1 | ブラウザが `HOME` を設定してホストを起動し、最初の引数に拡張のオリジンを渡すこと。ホストが空白を含むパスの UDS に接続できること | §3.1・§3.5.1 | `HOME` が渡らない場合は、ソケットのパスの導出の規則を見直す（要件書の変更）。引数が渡らない場合は、§3.5.1 の引数の照合をやめる |
-| S-2 | ホストの manifest がない場合、`allowed_origins` が合わない場合、`path` の実行ファイルがない場合、ホストが応答せずに終了した場合の、lastError の `message` の文字列 | §3.7.5 の表の 3 つの文字列と、それ以外が結果不明になること | 文字列が異なれば表を改める。未インストールと応答せずに終了した場合を区別できなければ、全部を結果不明とし、要件書 F-004 の未送信の分け方を見直す |
+| S-2 | ホストの manifest がない場合、`allowed_origins` が合わない場合、`path` の実行ファイルがない場合、ホストが応答せずに終了した場合に、どれも lastError が設定され、拡張がホストの失敗（結果不明）を表示できること。lastError の文字列は記録だけする | §3.7.5 | lastError が設定されない経路があれば、拡張の待ち時間の上限（`extension-timeout`）で結果不明になることを確かめ、文言を見直す |
 | S-3 | ブラウザが拡張のメッセージを直列化したバイト列と、`JSON.stringify` の結果の違い（`<`・`>`・`&`・U+2028・U+2029・制御文字・孤立したサロゲート） | §3.5.5 の最悪 6 倍。孤立したサロゲートはそのまま（`\uD800` の形で）ホストに届き、サーバが `invalid_body` で拒否すること | 8 倍を超えれば、ホストのリクエストの上限を改める。ブラウザが孤立したサロゲートを U+FFFD に置き換えて送る場合は、サーバの拒否（AC-08）が経路全体では働かない。拡張で送る前に拒否するか、置き換えを受け入れるかは、拒否の理由を変えることになるので要件書の変更として扱う（孤立したサロゲートは、置き換わると大きさが 6 バイトから 3 バイトに減る点にも注意する） |
 | S-4 | 拡張からホストへの 1 メッセージの上限（64 MiB）と、ホストから拡張への上限（1 MiB） | §3.5.4・§3.5.5 | 32 MiB を下回れば、ホストの上限を改める |
 | S-5 | 送信中にポップアップを閉じた場合に、ブラウザがホストを終了させるか、その時期 | §3.5.5 | ジョブを失う場合が増えるなら、§5.4 に書き足す |
@@ -1039,7 +1029,7 @@ export function classifyResponse(
 | `.golangci.yml` | 変更 | `depguard` の規則を加える（§7.3） |
 | `extension/static/manifest.json` | 変更 | `nativeMessaging` を加え、`host_permissions`・`options_ui` を削除する |
 | `extension/static/options.html`・`src/options.ts`・`src/optionsPage.ts`・`src/core/settings.ts` | 削除 | - |
-| `extension/src/core/native.ts` | 新規 | ホスト名、`NativeReply`、ホストの応答の外側の検査、lastError の分類 |
+| `extension/src/core/native.ts` | 新規 | ホスト名、`NativeReply`、ホストの応答の外側の検査、lastError をホストの失敗とする分類 |
 | `extension/src/core/response.ts` | 変更 | 拒否の理由の削除、`SendOutcome`・`UnexpectedCheck` の改定、`redirected` の削除 |
 | `extension/src/core/prepare.ts` | 変更 | 設定の読み取りを削除し、本文をオブジェクトで持つ |
 | `extension/src/core/sendMessages.ts` | 変更 | 送信の結果ごとの文言を改める |
@@ -1051,7 +1041,7 @@ export function classifyResponse(
 | `extension/src/background.ts`・`src/popup.ts` | 変更 | `settings` を渡さない。`background.ts` は `onInstalled` で旧版の保存値を削除する（§3.7.1） |
 | `extension/scripts/check-dist.ts` | 変更 | `options_ui.page` の参照の確認を削除する |
 | `extension/eslint.config.js` | 変更 | `SharedToken`・`ServerPort` の規則を削除し、`fetch`・`XMLHttpRequest`・`WebSocket`・`EventSource`・`connectNative` の使用を禁止し、`sendNativeMessage` の参照を `browser/chromeDeps.ts` に限る（§7.3） |
-| `extension/test/native.test.ts`・`extension/test/helpers/native.ts` | 新規 | `classifyNativeReply`・`classifyNativeFailure` のテストと、`sendNative` の fake |
+| `extension/test/native.test.ts`・`extension/test/helpers/native.ts` | 新規 | `classifyNativeReply` のテストと、`sendNative` の fake |
 | `extension/test/*`（その他） | 変更・削除 | §3.8 の表のとおり。`renderSend.test.ts` は状態コードの表示の行を削除する |
 | `README.md`・`CLAUDE.md`・`Makefile`・`docs/dev/*`・`docs/translation_glossary.md` | 変更 | §3.9 |
 | `cmd/yt2column-server/docs_test.go`・`cmd/yt2column/extension_docs_test.go` | 変更 | §3.9 |
@@ -1219,7 +1209,7 @@ flowchart LR
 -   サーバの停止中に、同一ユーザーがソケットのパスを先に bind できる（現行の TCP の残余リスクと同じ種類。他ユーザーにはできなくなった）。
 -   拡張は同じ `key` を使えば誰でも同じ ID を名乗れる。`allowed_origins` は、同じ ID の拡張を読み込める同一ユーザーを排除しない。
 -   送信中にポップアップを閉じると、ブラウザがホストを終了させ、結果を表示できない（§3.5.5）。利用者は Slack で確かめる。
--   lastError の文字列はブラウザの版で変わりうる。変われば、ホストが未インストールの場合も結果不明と表示される（§3.7.5）。二重投稿にはつながらない。
+-   ホストが未インストールの場合も、lastError の文字列を見ないので結果不明と表示され、不要な Slack の確認を一度求める（§3.7.5）。二重投稿にはつながらない。
 
 ### 5.5. 対象クライアント環境の検証
 
@@ -1327,9 +1317,7 @@ flowchart TD
     classDef newpkg fill:#ffe8f5,stroke:#d946ef,stroke-width:2px,color:#701a75;
 
     Reply{"NativeReply"} -->|"timed-out"| U1["unexpected / extension-timeout"]
-    Reply -->|"failed"| LE{"lastError の完全一致"}
-    LE -->|"3 つの文字列のどれか"| NS1["not-sent / host-unavailable"]
-    LE -->|"それ以外"| U5["unexpected / host-exited"]
+    Reply -->|"failed（文字列は見ない）"| HF["host-failed"]
     Reply -->|"message"| Env{"外側の形と v"}
     Env -->|"合わない"| U2["unexpected / envelope-*"]
     Env -->|"kind: error"| Err{"error の値"}
@@ -1344,10 +1332,10 @@ flowchart TD
     CR --> REJ["rejected"]
     CR --> U4["unexpected / 既存の検査"]
 
-    class Reply,LE,Env,Err,B64 newpkg
+    class Reply,Env,Err,B64 newpkg
     class CR enhanced
-    class NS1,NS2,NS3,ACC,REJ process
-    class U1,U2,U3,U4,U5,NR problem
+    class NS2,NS3,ACC,REJ process
+    class U1,U2,U3,U4,NR,HF problem
 ```
 
 **Legend**
@@ -1388,7 +1376,7 @@ flowchart LR
     -   出力: 標準出力が 1 フレームだけで、標準エラー出力に識別できる値（本文に入れた目印）が現れないこと（AC-17）。
     -   manifest: install/uninstall の中身、`0600`、一時ファイルが残らないこと、ブラウザのディレクトリがないときに何も作らないこと、他人の manifest を上書きも削除もしないこと、自分の manifest の置き換えと削除、`path` が相対のときと一時ディレクトリの下のときの拒否、ブラウザ名の完全一致。
     -   root: 所有者や権限に依存するテスト（他人の所有、権限のないディレクトリ）は、root では成り立たないので `os.Geteuid() == 0` のときは飛ばす（`internal/cachelock/test_helpers.go:13` の `requireNonRoot` と同じ扱い）。
--   **拡張:** `classifyNativeReply` の各分岐（§6.3 の葉のすべて）、外側のメンバの未知・欠落・型の不一致、`v` の不一致、base64 の非正規形、復号後の長さ超過、本文の既存の検査（AC-27）、lastError の 3 つの文字列と、似ているが一致しない文字列が結果不明になること、待ち時間の上限、`sendNative` が 1 回しか呼ばれないこと（AC-24）、2 つの経路が同じ本文を送ること、送信の結果ごとの文言が互いに異なり、未送信の文言が Slack に触れず、結果不明の文言が Slack の確認を含むこと（AC-26）、`requestId` の表示（AC-28）、`prepareSend` の拒否の理由と順序（AC-30）、保存する値の検査。
+-   **拡張:** `classifyNativeReply` の各分岐（§6.3 の葉のすべて）、外側のメンバの未知・欠落・型の不一致、`v` の不一致、base64 の非正規形、復号後の長さ超過、本文の既存の検査（AC-27）、lastError がどの文字列でも（`undefined` を含む）ホストの失敗になり、文言が install の手順と Slack の確認の両方を含むこと、待ち時間の上限、`sendNative` が 1 回しか呼ばれないこと（AC-24）、2 つの経路が同じ本文を送ること、送信の結果ごとの文言が互いに異なり、未送信の文言が Slack に触れず、結果不明の文言が Slack の確認を含むこと（AC-26）、`requestId` の表示（AC-28）、`prepareSend` の拒否の理由と順序（AC-30）、保存する値の検査。
 
 ### 7.2. 統合テスト
 
@@ -1481,3 +1469,4 @@ flowchart LR
 -   **`EACCES` を別の固定のエラーにする案:** 要件のエラーの集合を変えることになる（H-05）。どれも未送信が確定する点で同じなので、`server_unavailable` に含め、文言で案内する（§3.5.3）。
 -   **プロセスの umask を変えてから bind する案:** umask はプロセス全体の状態で、他の goroutine と競合する。ディレクトリの `0700` が主な防御なので必要がない（§3.2.1）。
 -   **起動のロックのための新しいパッケージ:** `internal/cachelock` の契約がそのまま合う（§3.2.2）。パッケージの名前を一般的なものに変えることは、本タスクの範囲外とする。
+-   **lastError の文字列で未インストールを未送信と表示する案:** ブラウザの文言は公開された API の約束ではなく、版や Brave の変更で黙って変わりうる。CLAUDE.md「Declare, don't infer」の例外も要る。区別して得られるのは初回の設定時の案内の正確さだけで、要件書 F-004 を改めて結果不明にまとめた（§3.7.5）。
