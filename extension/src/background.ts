@@ -5,6 +5,7 @@
 import {
   createBadge,
   createLogger,
+  createMetadataReader,
   createResultViewStore,
   createResultWindowOpener,
   createSelectionReader,
@@ -26,6 +27,7 @@ function menuDeps(): MenuLaunchDeps {
   const badge = createBadge(chrome.action);
   return {
     reader: createSelectionReader(chrome.scripting),
+    metadataReader: createMetadataReader(chrome.scripting),
     settings: createSettingsStore(chrome.storage.local),
     send: createSendDeps(),
     store: createResultViewStore(

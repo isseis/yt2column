@@ -1,5 +1,12 @@
 import { collect } from "./core/collect.ts";
 import type { CollectOutcome, SelectionReader } from "./core/collect.ts";
+import {
+  acceptMetadata,
+  emptyMetadataResult,
+  parsePageMetadata,
+  readFailureResult,
+} from "./core/metadata.ts";
+import type { MetadataResult } from "./core/metadata.ts";
 import { prepareSend } from "./core/prepare.ts";
 import type { PrepareOutcome } from "./core/prepare.ts";
 import { toSendOutcome } from "./core/response.ts";
@@ -12,7 +19,7 @@ import { summarize } from "./core/summary.ts";
 import type { LaunchContext } from "./core/types.ts";
 import { sendArticle, sendTimeoutMs } from "./send.ts";
 import type { SendDeps } from "./send.ts";
-import { messageNodes, renderSummary } from "./ui/render.ts";
+import { messageNodes, renderMetadata, renderSummary } from "./ui/render.ts";
 import {
   renderResultView,
   renderSendOutcome,
@@ -46,6 +53,7 @@ export interface MetadataReader {
 
 export interface MenuLaunchDeps {
   readonly reader: SelectionReader;
+  readonly metadataReader: MetadataReader;
   readonly settings: SettingsReader;
   readonly send: SendDeps;
   readonly store: ResultViewStore;
@@ -60,8 +68,15 @@ export interface MenuLaunchDeps {
 
 export interface PopupLaunchDeps {
   readonly reader: SelectionReader;
+  readonly metadataReader: MetadataReader;
   activeTab(): Promise<chrome.tabs.Tab | undefined>;
   readonly log: Logger;
+}
+
+/** The popup launch's outcome and the metadata the send will carry. */
+export interface PopupLaunchResult {
+  readonly outcome: CollectOutcome;
+  readonly metadata: MetadataResult;
 }
 
 export interface PopupSendDeps {
@@ -80,6 +95,7 @@ export interface ResultWindowDeps {
 
 const menuLogLabel = "yt2column menu launch";
 const popupLogLabel = "yt2column popup launch";
+const metadataLogLabel = "yt2column video metadata";
 const resultLogLabel = "yt2column result window";
 const clearBadgeLabel = "yt2column clear badge";
 const putLabel = "yt2column store result view";
@@ -115,6 +131,51 @@ async function attempt(
   } catch (error) {
     log.error(label, error);
   }
+}
+
+/**
+ * Reads the video metadata of the tab the selection was collected from, and
+ * accepts what passes the checks. Called only after a successful collection;
+ * a failed read omits every field but never fails the launch. The log holds
+ * field names, omission reasons and the failed check, never a read value or
+ * the rejection error, which may carry page text. Never throws.
+ */
+async function readMetadata(
+  tabId: number,
+  expectedUrl: string,
+  reader: MetadataReader,
+  log: Logger,
+): Promise<MetadataResult> {
+  let text: string;
+  try {
+    text = await reader.read(tabId, expectedUrl);
+  } catch {
+    const failed = readFailureResult();
+    log.error(metadataLogLabel, { omissions: failed.omissions });
+    return failed;
+  }
+  const read = parsePageMetadata(text);
+  if (read.kind === "rejected") {
+    const failed = readFailureResult(read.check);
+    log.error(metadataLogLabel, {
+      check: read.check,
+      omissions: failed.omissions,
+    });
+    return failed;
+  }
+  const result = acceptMetadata(read.page);
+  const accepted = Object.keys(result.values);
+  const collapsed = read.page.descriptionCollapsed;
+  if (result.omissions.length > 0) {
+    log.info(metadataLogLabel, {
+      accepted,
+      collapsed,
+      omissions: result.omissions,
+    });
+  } else {
+    log.info(metadataLogLabel, { accepted, collapsed });
+  }
+  return result;
 }
 
 /** A launch that ends without a request, after the collection and settings checks. */
@@ -170,12 +231,23 @@ export async function runMenuLaunch(
   deps: MenuLaunchDeps,
 ): Promise<void> {
   await attempt(deps.clearDisplayFailure, deps.log, clearBadgeLabel);
-  const outcome = await collect(launchContextFromTab(tab), deps.reader);
+  const launch = launchContextFromTab(tab);
+  const outcome = await collect(launch, deps.reader);
   deps.log.info(menuLogLabel, {
     pageUrl: info.pageUrl,
     frameId: info.frameId,
     outcome,
   });
+  // The page is read only after a successful collection, and only once.
+  const metadata =
+    outcome.kind === "collected" && launch !== undefined
+      ? await readMetadata(
+          launch.tabId,
+          outcome.input.url,
+          deps.metadataReader,
+          deps.log,
+        )
+      : emptyMetadataResult();
   let key: string;
   try {
     key = deps.newKey();
@@ -184,7 +256,7 @@ export async function runMenuLaunch(
     await attempt(deps.signalDisplayFailure, deps.log, badgeLabel);
     return;
   }
-  const prepared = await prepareSend(outcome, deps.settings, {});
+  const prepared = await prepareSend(outcome, deps.settings, metadata.values);
   if (prepared.kind === "blocked") {
     logBlocked(deps.log, prepared);
     try {
@@ -246,12 +318,14 @@ async function openResultWindow(
 
 /**
  * Popup path. Collects the active tab's selection and renders the summary
- * into container, returning the outcome for the send controls. Never throws.
+ * into container; after a successful collection it reads the video metadata
+ * once and renders it below the summary. Returns the outcome and the metadata
+ * for the send controls. Never throws.
  */
 export async function runPopupLaunch(
   container: HTMLElement,
   deps: PopupLaunchDeps,
-): Promise<CollectOutcome> {
+): Promise<PopupLaunchResult> {
   let tab: chrome.tabs.Tab | undefined;
   try {
     tab = await deps.activeTab();
@@ -259,28 +333,45 @@ export async function runPopupLaunch(
     deps.log.error(activeTabLabel, error);
     tab = undefined;
   }
-  const outcome = await collect(launchContextFromTab(tab), deps.reader);
+  const launch = launchContextFromTab(tab);
+  const outcome = await collect(launch, deps.reader);
   deps.log.info(popupLogLabel, { outcome });
   renderSummary(container, summarize(outcome));
-  return outcome;
+  if (outcome.kind !== "collected" || launch === undefined) {
+    return { outcome, metadata: emptyMetadataResult() };
+  }
+  const metadata = await readMetadata(
+    launch.tabId,
+    outcome.input.url,
+    deps.metadataReader,
+    deps.log,
+  );
+  renderMetadata(container, metadata);
+  return { outcome, metadata };
 }
 
 /**
  * Popup send controls below the summary. Checks once when the popup opens,
  * shows a disabled button while sending, and sends at most once per popup.
- * Never throws.
+ * The expand prompt does not change the button: a send carries the metadata
+ * read at launch. Never throws.
  */
 export async function runPopupSend(
   container: HTMLElement,
-  outcome: CollectOutcome,
+  result: PopupLaunchResult,
   deps: PopupSendDeps,
 ): Promise<void> {
+  const { outcome } = result;
   if (outcome.kind === "rejected") {
     // The summary region already shows the rejection reason.
     container.replaceChildren();
     return;
   }
-  const prepared = await prepareSend(outcome, deps.settings, {});
+  const prepared = await prepareSend(
+    outcome,
+    deps.settings,
+    result.metadata.values,
+  );
   if (prepared.kind === "blocked") {
     logBlocked(deps.log, prepared);
     renderResultView(container, { kind: "blocked", reason: prepared.reason });
@@ -305,10 +396,10 @@ export async function runPopupSend(
       button.disabled = true;
       status.replaceChildren(...messageNodes(doc, sendingMessage));
       const startedAt = deps.now();
-      const result = await sendArticle(prepared.request, deps.send);
-      logSend(deps.log, deps.now, startedAt, prepared.request.port, result);
+      const sendResult = await sendArticle(prepared.request, deps.send);
+      logSend(deps.log, deps.now, startedAt, prepared.request.port, sendResult);
       state = "sent";
-      renderSendOutcome(status, toSendOutcome(result));
+      renderSendOutcome(status, toSendOutcome(sendResult));
     })();
   });
 }

@@ -4,6 +4,7 @@
 import {
   createActiveTabQuery,
   createLogger,
+  createMetadataReader,
   createSelectionReader,
   createSendDeps,
   createSettingsStore,
@@ -15,12 +16,13 @@ const sendRegion = document.getElementById("send");
 if (summaryRegion !== null && sendRegion !== null) {
   const log = createLogger();
   void (async () => {
-    const outcome = await runPopupLaunch(summaryRegion, {
+    const launched = await runPopupLaunch(summaryRegion, {
       reader: createSelectionReader(chrome.scripting),
+      metadataReader: createMetadataReader(chrome.scripting),
       activeTab: createActiveTabQuery(chrome.tabs),
       log,
     });
-    await runPopupSend(sendRegion, outcome, {
+    await runPopupSend(sendRegion, launched, {
       settings: createSettingsStore(chrome.storage.local),
       send: createSendDeps(),
       now: () => Date.now(),

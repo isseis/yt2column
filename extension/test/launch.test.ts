@@ -7,7 +7,11 @@ import type {
   PageSelection,
   SelectionReader,
 } from "../src/core/collect.ts";
+import { expandPromptMessage } from "../src/core/messages.ts";
 import type { RejectionMessage } from "../src/core/messages.ts";
+import { emptyMetadataResult } from "../src/core/metadata.ts";
+import type { MetadataResult } from "../src/core/metadata.ts";
+import { maxBodyBytes } from "../src/core/prepare.ts";
 import type { CollectedSummary, ResultView } from "../src/core/resultView.ts";
 import type { RequestId, SendOutcome } from "../src/core/response.ts";
 import {
@@ -17,6 +21,7 @@ import {
 } from "../src/core/sendMessages.ts";
 import type { SettingsReader } from "../src/core/settings.ts";
 import { summarize } from "../src/core/summary.ts";
+import { metadataDisplayLimit } from "../src/ui/render.ts";
 import { sendingMessage } from "../src/ui/renderSend.ts";
 import {
   launchContextFromTab,
@@ -28,7 +33,9 @@ import {
 } from "../src/launch.ts";
 import type {
   MenuLaunchDeps,
+  MetadataReader,
   PopupLaunchDeps,
+  PopupLaunchResult,
   PopupSendDeps,
   ResultWindowDeps,
 } from "../src/launch.ts";
@@ -50,6 +57,7 @@ import {
 
 const watchUrl = "https://www.youtube.com/watch?v=abc";
 const malicious = "<img src=x onerror=alert(1)>";
+const metadataLabel = "yt2column video metadata";
 const requestId = "0123456789abcdef" as RequestId;
 const acceptedBody = JSON.stringify({ status: "accepted", requestId });
 const acceptedOutcome: SendOutcome = { kind: "accepted", requestId };
@@ -85,6 +93,64 @@ function page(text: string, documentUrl = watchUrl): PageSelection {
 /** A SelectionReader that returns the given selection and cannot fail. */
 function readerReturning(selection: PageSelection): SelectionReader {
   return { read: async () => selection };
+}
+
+/** The JSON text the injected metadata reader returns for these values. */
+function metadataJson(
+  values: { title?: string; channelName?: string; description?: string },
+  descriptionCollapsed = false,
+): string {
+  return JSON.stringify({ ...values, descriptionCollapsed });
+}
+
+interface FakeMetadataReader {
+  readonly reader: MetadataReader;
+  readonly calls: { tabId: number; expectedUrl: string }[];
+}
+
+/**
+ * A MetadataReader that records its calls and returns text, or rejects when
+ * the expected URL is not pageUrl, as the injected reader does on a mismatch.
+ */
+function metadataReader(text: string, pageUrl = watchUrl): FakeMetadataReader {
+  const calls: { tabId: number; expectedUrl: string }[] = [];
+  return {
+    reader: {
+      read: async (tabId, expectedUrl) => {
+        calls.push({ tabId, expectedUrl });
+        if (expectedUrl !== pageUrl) {
+          throw new Error("the injected function returned an unexpected value");
+        }
+        return text;
+      },
+    },
+    calls,
+  };
+}
+
+/** A MetadataReader whose every read rejects with error. */
+function rejectingMetadataReader(error: unknown): MetadataReader {
+  return {
+    read: async () => {
+      throw error;
+    },
+  };
+}
+
+/** A collected outcome for the watch URL with the given selection. */
+function collectedOutcome(selection = "selection"): CollectOutcome {
+  return {
+    kind: "collected",
+    input: { selection, url: watchUrl, title: "A video" } as CollectedInput,
+  };
+}
+
+/** A popup launch result; the metadata defaults to the empty result. */
+function launched(
+  outcome: CollectOutcome,
+  metadata: MetadataResult = emptyMetadataResult(),
+): PopupLaunchResult {
+  return { outcome, metadata };
 }
 
 /** The collected display summary from a selection. */
@@ -237,6 +303,7 @@ interface MenuHarness {
 
 interface MenuOptions {
   readonly reader?: SelectionReader;
+  readonly metadataReader?: MetadataReader;
   readonly settings?: SettingsReader;
   readonly send?: SendDeps;
   readonly store?: FakeStore;
@@ -253,6 +320,8 @@ function menuHarness(options: MenuOptions = {}): MenuHarness {
   const fetch = acceptedFetch();
   const deps: MenuLaunchDeps = {
     reader: options.reader ?? readerReturning(page("selection")),
+    metadataReader:
+      options.metadataReader ?? metadataReader(metadataJson({})).reader,
     settings: options.settings ?? readySettings().reader,
     send: options.send ?? testSendDeps(fetch.fetchFn),
     store: store.store,
@@ -284,6 +353,7 @@ function popupHarness(overrides: Partial<PopupLaunchDeps> = {}): PopupHarness {
   const recorder = recordingLogger();
   const deps: PopupLaunchDeps = {
     reader: readerReturning(page("selection")),
+    metadataReader: metadataReader(metadataJson({})).reader,
     activeTab: async () => fakeTab(),
     log: recorder.log,
     ...overrides,
@@ -351,7 +421,10 @@ describe("launch paths", () => {
     const tab = fakeTab({ id: 7, url: watchUrl, title });
 
     const popup = popupHarness({ reader, activeTab: async () => tab });
-    const popupOutcome = await runPopupLaunch(container(), popup.deps);
+    const { outcome: popupOutcome } = await runPopupLaunch(
+      container(),
+      popup.deps,
+    );
 
     const menu = menuHarness({ reader });
     await runMenuLaunch(menuInfo(), tab, menu.deps);
@@ -368,24 +441,41 @@ describe("launch paths", () => {
 
   it("sends the same body and classification through both paths", async () => {
     const selection = " 00:00\ncaption line\n\n";
-    const title = "  A title  ";
+    // The tab title and the video title differ, so the body shows which one
+    // was sent: the body title must be the video title read from the page.
+    const tabTitle = "TAB-TITLE-7f3a";
+    const values = {
+      title: "VIDEO-TITLE-91c2",
+      channelName: "CHANNEL-5d0e",
+      description: " first line\nsecond line ",
+    };
     const reader = readerReturning(page(selection));
-    const tab = fakeTab({ id: 7, url: watchUrl, title });
+    const metadata = metadataReader(metadataJson(values)).reader;
+    const tab = fakeTab({ id: 7, url: watchUrl, title: tabTitle });
 
     const menuFetch = acceptedFetch();
-    const menu = menuHarness({ reader, send: testSendDeps(menuFetch.fetchFn) });
+    const menu = menuHarness({
+      reader,
+      metadataReader: metadata,
+      send: testSendDeps(menuFetch.fetchFn),
+    });
     await runMenuLaunch(menuInfo(), tab, menu.deps);
     const menuBody = menuFetch.calls[0]?.init.body;
     assert.equal(typeof menuBody, "string");
     assert.deepEqual(JSON.parse(menuBody as string), {
       videoUrl: watchUrl,
       transcript: selection,
+      ...values,
     });
 
     const popupFetch = acceptedFetch();
     const outcome = await runPopupLaunch(
       container(),
-      popupHarness({ reader, activeTab: async () => tab }).deps,
+      popupHarness({
+        reader,
+        metadataReader: metadata,
+        activeTab: async () => tab,
+      }).deps,
     );
     const popupRoot = container();
     await runPopupSend(popupRoot, outcome, {
@@ -422,10 +512,133 @@ describe("launch paths", () => {
     });
   });
 
+  it("reads the metadata once, from the collected tab and URL", async () => {
+    const tab = fakeTab({ id: 9, url: watchUrl });
+    const menuMetadata = metadataReader(metadataJson({}));
+    const menu = menuHarness({ metadataReader: menuMetadata.reader });
+    await runMenuLaunch(menuInfo(), tab, menu.deps);
+    const popupMetadata = metadataReader(metadataJson({}));
+    await runPopupLaunch(
+      container(),
+      popupHarness({
+        metadataReader: popupMetadata.reader,
+        activeTab: async () => tab,
+      }).deps,
+    );
+    const expected = [{ tabId: 9, expectedUrl: watchUrl }];
+    assert.deepEqual(menuMetadata.calls, expected);
+    assert.deepEqual(popupMetadata.calls, expected);
+  });
+
+  const rejectedLaunches: {
+    name: string;
+    tab: chrome.tabs.Tab | undefined;
+    selection: string;
+  }[] = [
+    {
+      name: "not-watch-page",
+      tab: fakeTab({ url: "https://example.com/" }),
+      selection: "text",
+    },
+    { name: "collection-failed", tab: undefined, selection: "text" },
+    { name: "empty-selection", tab: fakeTab(), selection: " \n" },
+    { name: "empty-title", tab: fakeTab({ title: " " }), selection: "text" },
+  ];
+  for (const { name, tab, selection } of rejectedLaunches) {
+    it(`does not read the metadata for a ${name} collection`, async () => {
+      const reader = readerReturning(page(selection));
+      const menuMetadata = metadataReader(metadataJson({ title: "T" }));
+      const menu = menuHarness({ reader, metadataReader: menuMetadata.reader });
+      await runMenuLaunch(menuInfo(), tab, menu.deps);
+      const popupMetadata = metadataReader(metadataJson({ title: "T" }));
+      const result = await runPopupLaunch(
+        container(),
+        popupHarness({
+          reader,
+          metadataReader: popupMetadata.reader,
+          activeTab: async () => tab,
+        }).deps,
+      );
+      assert.deepEqual(menuMetadata.calls, []);
+      assert.deepEqual(popupMetadata.calls, []);
+      assert.equal(result.outcome.kind, "rejected");
+      assert.equal(result.outcome.reason, name);
+      assert.deepEqual(result.metadata, emptyMetadataResult());
+      assert.deepEqual(menu.store.puts[0]?.view, {
+        kind: "blocked",
+        reason: name,
+      });
+    });
+  }
+
+  const readFailures: {
+    name: string;
+    reader: MetadataReader;
+    check?: string;
+  }[] = [
+    {
+      name: "the injection fails",
+      reader: rejectingMetadataReader(new Error("injection failed")),
+    },
+    {
+      // The URL comparison itself is tested in chromeDeps.test.ts; this row
+      // checks that the reader's rejection on a mismatch omits every field.
+      name: "the page URL is not the collected URL",
+      reader: metadataReader(
+        metadataJson({ title: "T" }),
+        "https://www.youtube.com/watch?v=other",
+      ).reader,
+    },
+    {
+      name: "the read has the wrong shape",
+      reader: metadataReader("[]").reader,
+      check: "top-level",
+    },
+  ];
+  for (const { name, reader, check } of readFailures) {
+    it(`sends without metadata and logs an error when ${name}`, async () => {
+      const allFailed = ["title", "channelName", "description"].map(
+        (field) => ({
+          field,
+          reason: "read-failure",
+        }),
+      );
+      const menu = menuHarness({ metadataReader: reader });
+      await runMenuLaunch(menuInfo(), fakeTab(), menu.deps);
+      assert.deepEqual(
+        menu.store.puts.map((put) => put.view.kind),
+        ["sending", "sent"],
+      );
+      assert.deepEqual(JSON.parse(menu.fetch.calls[0]?.init.body as string), {
+        videoUrl: watchUrl,
+        transcript: "selection",
+      });
+
+      const popup = popupHarness({ metadataReader: reader });
+      const result = await runPopupLaunch(container(), popup.deps);
+      assert.equal(result.outcome.kind, "collected");
+      assert.deepEqual(result.metadata.values, {});
+
+      const expected =
+        check === undefined
+          ? { omissions: allFailed }
+          : { check, omissions: allFailed };
+      for (const recorder of [menu.recorder, popup.recorder]) {
+        assert.deepEqual(
+          recorder.errors.filter((entry) => entry.label === metadataLabel),
+          [{ label: metadataLabel, data: expected }],
+        );
+      }
+    });
+  }
+
   it("treats a missing tab as collection-failed in both paths", async () => {
     const reader = readerReturning(page("text"));
     const popup = popupHarness({ reader, activeTab: async () => undefined });
-    const popupOutcome = await runPopupLaunch(container(), popup.deps);
+    const { outcome: popupOutcome } = await runPopupLaunch(
+      container(),
+      popup.deps,
+    );
     assert.equal(popupOutcome.kind, "rejected");
     assert.equal(popupOutcome.reason, "collection-failed");
 
@@ -442,7 +655,7 @@ describe("launch paths", () => {
         throw new Error("query failed");
       },
     });
-    const outcome = await runPopupLaunch(container(), popup.deps);
+    const { outcome } = await runPopupLaunch(container(), popup.deps);
     assert.equal(outcome.kind, "rejected");
     assert.equal(outcome.reason, "collection-failed");
     assert.equal(popup.recorder.errors.length, 1);
@@ -595,6 +808,43 @@ describe("menu send", () => {
     });
   }
 
+  it("sends a collapsed description without a confirmation step", async () => {
+    const menu = menuHarness({
+      metadataReader: metadataReader(
+        metadataJson({ description: "first lines" }, true),
+      ).reader,
+    });
+    await runMenuLaunch(menuInfo(), fakeTab(), menu.deps);
+    assert.equal(menu.fetch.calls.length, 1);
+    const body = JSON.parse(menu.fetch.calls[0]?.init.body as string) as {
+      description?: string;
+    };
+    assert.equal(body.description, "first lines");
+    // The views hold only the summary and the outcome: no expand prompt.
+    assert.deepEqual(
+      menu.store.puts.map((put) => put.view),
+      [
+        { kind: "sending", summary: collectedSummary() },
+        { kind: "sent", summary: collectedSummary(), outcome: acceptedOutcome },
+      ],
+    );
+  });
+
+  it("blocks body-too-large when the metadata takes the body over the limit", async () => {
+    const menu = menuHarness({
+      metadataReader: metadataReader(
+        metadataJson({ description: "d".repeat(maxBodyBytes) }),
+      ).reader,
+    });
+    await runMenuLaunch(menuInfo(), fakeTab(), menu.deps);
+    assert.deepEqual(menu.store.puts[0]?.view, {
+      kind: "blocked",
+      reason: "body-too-large",
+    });
+    assert.deepEqual(menu.windows, ["key-1"]);
+    assert.equal(menu.fetch.calls.length, 0);
+  });
+
   it("signals the badge when the blocked view cannot be stored", async () => {
     const store = fakeStore({ putFails: true });
     const menu = menuHarness({
@@ -634,14 +884,7 @@ describe("popup send", () => {
     };
   };
 
-  const collected = (): CollectOutcome => ({
-    kind: "collected",
-    input: {
-      selection: "selection",
-      url: watchUrl,
-      title: "A video",
-    } as CollectedInput,
-  });
+  const collected = (): PopupLaunchResult => launched(collectedOutcome());
 
   it("shows a send button and does not send until it is clicked", async () => {
     const fetch = acceptedFetch();
@@ -694,6 +937,53 @@ describe("popup send", () => {
     );
   });
 
+  it("keeps the button under the expand prompt and sends the shown description", async () => {
+    const fetch = acceptedFetch();
+    const { deps: popupDeps } = deps({ send: testSendDeps(fetch.fetchFn) });
+    const summaryRoot = container();
+    const sendRoot = container();
+    const result = await runPopupLaunch(
+      summaryRoot,
+      popupHarness({
+        metadataReader: metadataReader(
+          metadataJson({ description: "first lines" }, true),
+        ).reader,
+      }).deps,
+    );
+    await runPopupSend(sendRoot, result, popupDeps);
+    expectMessage(summaryRoot, expandPromptMessage);
+    assert.ok(sendRoot.querySelector(".send-button") !== null);
+    await clickSend(sendRoot);
+    assert.equal(fetch.calls.length, 1);
+    const body = JSON.parse(fetch.calls[0]?.init.body as string) as {
+      description?: string;
+    };
+    assert.equal(body.description, "first lines");
+  });
+
+  it("sends the full description while the popup shows it truncated", async () => {
+    const description = "x".repeat(metadataDisplayLimit + 50);
+    const fetch = acceptedFetch();
+    const { deps: popupDeps } = deps({ send: testSendDeps(fetch.fetchFn) });
+    const summaryRoot = container();
+    const result = await runPopupLaunch(
+      summaryRoot,
+      popupHarness({
+        metadataReader: metadataReader(metadataJson({ description })).reader,
+      }).deps,
+    );
+    // Precondition: the popup shows a truncated value, so the body check
+    // below tells the sent value apart from the displayed one.
+    assert.equal(summaryRoot.textContent?.includes(description), false);
+    const root = container();
+    await runPopupSend(root, result, popupDeps);
+    await clickSend(root);
+    const body = JSON.parse(fetch.calls[0]?.init.body as string) as {
+      description?: string;
+    };
+    assert.equal(body.description, description);
+  });
+
   it("renders nothing and does not read settings for a rejected collection", async () => {
     const settings = failingSettings(new Error("must not load"));
     const { deps: popupDeps } = deps({ settings: settings.reader });
@@ -701,7 +991,7 @@ describe("popup send", () => {
     root.append(root.ownerDocument.createElement("p"));
     await runPopupSend(
       root,
-      { kind: "rejected", reason: "empty-selection" },
+      launched({ kind: "rejected", reason: "empty-selection" }),
       popupDeps,
     );
     assert.equal(root.childNodes.length, 0);
@@ -739,6 +1029,110 @@ describe("popup send", () => {
       assert.equal(fetch.calls.length, 0);
     });
   }
+});
+
+describe("video metadata log", () => {
+  /** The metadata log entries of both paths for one read result. */
+  async function metadataLogs(
+    reader: MetadataReader,
+  ): Promise<{ menu: RecordingLogger; popup: RecordingLogger }> {
+    const menu = menuHarness({ metadataReader: reader });
+    await runMenuLaunch(menuInfo(), fakeTab(), menu.deps);
+    const popup = popupHarness({ metadataReader: reader });
+    await runPopupLaunch(container(), popup.deps);
+    return { menu: menu.recorder, popup: popup.recorder };
+  }
+
+  const infoCases: {
+    name: string;
+    text: string;
+    expected: Record<string, unknown>;
+  }[] = [
+    {
+      name: "each omitted field and its reason",
+      text: metadataJson(
+        { title: "kept", channelName: " \u3000", description: "a\uD800b" },
+        true,
+      ),
+      expected: {
+        accepted: ["title"],
+        collapsed: true,
+        omissions: [
+          { field: "channelName", reason: "blank" },
+          { field: "description", reason: "unpaired-surrogate" },
+        ],
+      },
+    },
+    {
+      name: "only the accepted fields when nothing is omitted",
+      text: metadataJson({ title: "t", channelName: "c", description: "d" }),
+      expected: {
+        accepted: ["title", "channelName", "description"],
+        collapsed: false,
+      },
+    },
+  ];
+  for (const { name, text, expected } of infoCases) {
+    it(`records ${name} at info`, async () => {
+      const recorders = await metadataLogs(metadataReader(text).reader);
+      for (const recorder of [recorders.menu, recorders.popup]) {
+        assert.deepEqual(
+          recorder.infos.filter((entry) => entry.label === metadataLabel),
+          [{ label: metadataLabel, data: expected }],
+        );
+        assert.equal(recorder.errors.length, 0);
+      }
+    });
+  }
+
+  it("keeps the read values and the read error out of the logs", async () => {
+    // Every branch of the read gets identifiable page text: accepted values,
+    // omitted values, a rejected shape, and a rejection error.
+    const values = {
+      title: "VALUE-TITLE-2b8e",
+      channelName: "VALUE-CHANNEL-c41f",
+      description: "VALUE-DESCRIPTION-77a0",
+    };
+    const omittedSurrogate = "OMITTED-SURROGATE-5e19";
+    const rejectedShape = "REJECTED-SHAPE-a3d4";
+    const readError = "ERROR-PAGE-TEXT-0d6b";
+    const runs = await Promise.all([
+      metadataLogs(metadataReader(metadataJson(values, true)).reader),
+      metadataLogs(
+        metadataReader(
+          metadataJson({ description: `${omittedSurrogate}\uD800` }),
+        ).reader,
+      ),
+      metadataLogs(
+        metadataReader(
+          JSON.stringify({
+            title: rejectedShape,
+            descriptionCollapsed: false,
+            unknown: 1,
+          }),
+        ).reader,
+      ),
+      metadataLogs(rejectingMetadataReader(new Error(readError))),
+    ]);
+    const serialized = JSON.stringify(
+      runs.flatMap((run) =>
+        [run.menu, run.popup].map((recorder) => [
+          recorder.infos,
+          recorder.errors,
+        ]),
+      ),
+      (_key, value: unknown) =>
+        value instanceof Error ? `${value.name}: ${value.message}` : value,
+    );
+    for (const value of [
+      ...Object.values(values),
+      omittedSurrogate,
+      rejectedShape,
+      readError,
+    ]) {
+      assert.equal(serialized.includes(value), false, value);
+    }
+  });
 });
 
 describe("result window", () => {

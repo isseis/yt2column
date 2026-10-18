@@ -216,8 +216,8 @@ HEAD `0842685` で確認した。設計書は既存のファイルの行番号�
 
 -   [x] グリーンゲート（`make ext-check` → `make test` → `make lint`。§3.2）がパスしていることを確認した
 -   [x] PR を作成した
--   [ ] PR がマージされた
--   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+-   [x] PR がマージされた
+-   [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 4: 経路と配線
 
@@ -225,15 +225,15 @@ HEAD `0842685` で確認した。設計書は既存のファイルの行番号�
 -   変更: `extension/src/launch.ts`、`extension/src/popup.ts`、`extension/src/background.ts`、`extension/test/launch.test.ts`、`extension/test/prepare.test.ts`
 
 **タスク**
--   [ ] **ステップ 4-1**: `launch.ts` を設計書 3.5・3.7 のとおりに改める。`MetadataReader`（`read(tabId, expectedUrl): Promise<string>`）を宣言し、`MenuLaunchDeps`・`PopupLaunchDeps` に `metadataReader` を加える。`PopupLaunchResult`（`outcome` と `metadata`）を加える。内部の補助 `readMetadata(tabId, expectedUrl, reader, log)` を加え、読み取りの失敗・形の不一致・値の省略を `metadataLogLabel` でログに残す（値そのものは残さない。設計書 3.7）。`runMenuLaunch` は収集に成功したときだけ `readMetadata` を呼び、`prepareSend` の第 3 引数に `result.values` を渡す（現在の `{}` を置き換える。`:181`）。`runPopupLaunch` は収集に成功したときだけ `readMetadata` を呼び、`renderSummary` の後に `renderMetadata` を呼んで `PopupLaunchResult` を返す（収集が拒否なら `metadata` は `emptyMetadataResult()`）。`runPopupSend` は第 2 引数を `PopupLaunchResult` に変え、`result.outcome` と `result.metadata.values` を使う。促しのメッセージがあってもボタンの扱いを変えない。既存のログ（`menuLogLabel`・`popupLogLabel`）を変えない。
+-   [x] **ステップ 4-1**: `launch.ts` を設計書 3.5・3.7 のとおりに改める。`MetadataReader`（`read(tabId, expectedUrl): Promise<string>`）を宣言し、`MenuLaunchDeps`・`PopupLaunchDeps` に `metadataReader` を加える。`PopupLaunchResult`（`outcome` と `metadata`）を加える。内部の補助 `readMetadata(tabId, expectedUrl, reader, log)` を加え、読み取りの失敗・形の不一致・値の省略を `metadataLogLabel` でログに残す（値そのものは残さない。設計書 3.7）。`runMenuLaunch` は収集に成功したときだけ `readMetadata` を呼び、`prepareSend` の第 3 引数に `result.values` を渡す（現在の `{}` を置き換える。`:181`）。`runPopupLaunch` は収集に成功したときだけ `readMetadata` を呼び、`renderSummary` の後に `renderMetadata` を呼んで `PopupLaunchResult` を返す（収集が拒否なら `metadata` は `emptyMetadataResult()`）。`runPopupSend` は第 2 引数を `PopupLaunchResult` に変え、`result.outcome` と `result.metadata.values` を使う。促しのメッセージがあってもボタンの扱いを変えない。既存のログ（`menuLogLabel`・`popupLogLabel`）を変えない。
     -   **対象:** `extension/src/launch.ts`。**完了:** `tsc --noEmit -p tsconfig.build.json` が通る（テストの更新はステップ 4-3 の後）。
--   [ ] **ステップ 4-2**: エントリポイントを改める。`popup.ts` は `runPopupLaunch` の結果（`PopupLaunchResult`）をそのまま `runPopupSend` へ渡し、依存に `createMetadataReader(chrome.scripting)` を加える。`background.ts` の `menuDeps` に `createMetadataReader(chrome.scripting)` を加える。
+-   [x] **ステップ 4-2**: エントリポイントを改める。`popup.ts` は `runPopupLaunch` の結果（`PopupLaunchResult`）をそのまま `runPopupSend` へ渡し、依存に `createMetadataReader(chrome.scripting)` を加える。`background.ts` の `menuDeps` に `createMetadataReader(chrome.scripting)` を加える。
     -   **対象:** `extension/src/popup.ts`・`extension/src/background.ts`。**完了:** `tsc --noEmit -p tsconfig.build.json` が通る。
--   [ ] **ステップ 4-3**: `launch.test.ts` を改める。`menuHarness`・`popupHarness` に `metadataReader` の fake を加える。`runPopupLaunch` の戻り値（`.outcome`・`.metadata`）と `runPopupSend` の第 2 引数に合わせて既存の行を改める。`video metadata log` の行を加え、設計書 3.9・7.2 のとおり次を確かめる。読み取りの失敗（注入の失敗・URL の不一致・形の不一致）でも起動が成功し、3 つの `read-failure` の省略が `error` に記録されること、フィールドの名前と省略の理由（`absent`・`blank`・`unpaired-surrogate`）が記録されること、ログに読み取った値が含まれないこと（識別できる文字列を値に使い、ログの文字列に現れないことを確かめる）、メタデータの取得の失敗が既存の拒否の理由（`not-watch-page`・`collection-failed`・`empty-selection`・`empty-title`）にならないこと。`popup send` に、促しがあってもボタンが押せて冒頭のみで送ることを確かめる行を加える。大きなメタデータでも起動が成功し、本文が上限を超える場合に `body-too-large` で止まることを確かめる行を加える（I-01）。タブのタイトルと動画タイトルに別の識別できる文字列を使い、両経路で本文の `title` が動画タイトルで、タブのタイトルが本文のどこにも現れないことを確かめる行を加える（AC-05・AC-09。`buildArticleBody` は `input.title` を読まないので、この結線の誤りはこの行でしか検出できない）。既存の収集の結果・拒否の理由・順序が変わらないこと（AC-05）を確かめる。収集が拒否されたときに `metadataReader` が呼ばれないこと、URL の不一致で 3 つの `read-failure` になること（AC-04a）、表示の切り詰めの長さを超える概要欄でも本文には切り詰める前の値が入ること（AC-11）を確かめる行を加える。
+-   [x] **ステップ 4-3**: `launch.test.ts` を改める。`menuHarness`・`popupHarness` に `metadataReader` の fake を加える。`runPopupLaunch` の戻り値（`.outcome`・`.metadata`）と `runPopupSend` の第 2 引数に合わせて既存の行を改める。`video metadata log` の行を加え、設計書 3.9・7.2 のとおり次を確かめる。読み取りの失敗（注入の失敗・URL の不一致・形の不一致）でも起動が成功し、3 つの `read-failure` の省略が `error` に記録されること、フィールドの名前と省略の理由（`absent`・`blank`・`unpaired-surrogate`）が記録されること、ログに読み取った値が含まれないこと（識別できる文字列を値に使い、ログの文字列に現れないことを確かめる）、メタデータの取得の失敗が既存の拒否の理由（`not-watch-page`・`collection-failed`・`empty-selection`・`empty-title`）にならないこと。`popup send` に、促しがあってもボタンが押せて冒頭のみで送ることを確かめる行を加える。大きなメタデータでも起動が成功し、本文が上限を超える場合に `body-too-large` で止まることを確かめる行を加える（I-01）。タブのタイトルと動画タイトルに別の識別できる文字列を使い、両経路で本文の `title` が動画タイトルで、タブのタイトルが本文のどこにも現れないことを確かめる行を加える（AC-05・AC-09。`buildArticleBody` は `input.title` を読まないので、この結線の誤りはこの行でしか検出できない）。既存の収集の結果・拒否の理由・順序が変わらないこと（AC-05）を確かめる。収集が拒否されたときに `metadataReader` が呼ばれないこと、URL の不一致で 3 つの `read-failure` になること（AC-04a）、表示の切り詰めの長さを超える概要欄でも本文には切り詰める前の値が入ること（AC-11）を確かめる行を加える。
     -   **対象:** `extension/test/launch.test.ts`。**完了:** `launch.test.ts` が通る。
--   [ ] **ステップ 4-4**: `prepare.test.ts` に、メタデータを含めた本文の行を加える（設計書 3.9、AC-08・AC-21、I-01）。既存の本文の行（`:73-105`）は維持する。大きなメタデータを含めた本文の UTF-8 のバイト数が `maxBodyBytes` を超えると `body-too-large` になること（メタデータを含めない場合と比べて、メタデータが上限に算入されること）、`<img src=x onerror=alert(1)>` を値に含めると本文にはその文字列が JSON の文字列として入ること。
+-   [x] **ステップ 4-4**: `prepare.test.ts` に、メタデータを含めた本文の行を加える（設計書 3.9、AC-08・AC-21、I-01）。既存の本文の行（`:73-105`）は維持する。大きなメタデータを含めた本文の UTF-8 のバイト数が `maxBodyBytes` を超えると `body-too-large` になること（メタデータを含めない場合と比べて、メタデータが上限に算入されること）、`<img src=x onerror=alert(1)>` を値に含めると本文にはその文字列が JSON の文字列として入ること。
     -   **対象:** `extension/test/prepare.test.ts`。**完了:** `prepare.test.ts` が通る。
--   [ ] **ステップ 4-5**: 壊して失敗することを確かめ、コミットメッセージに記録する。`runMenuLaunch` の収集の拒否でも `readMetadata` を呼ぶ、`prepareSend` に `result.values` を渡さない、`runPopupLaunch` が収集の拒否でもページを読む、`runPopupSend` が `result.outcome` でなく別の値を使う、`readMetadata` のログに読み取った値（識別できる文字列）を渡す、読み取りの失敗を `RejectionReason` にする、促しがあるとボタンを出さない（いずれも `launch.test.ts`）。`prepareSend` でメタデータを本文に含めない（`prepare.test.ts`）。続けて `make ext-check` → `make test` → `make lint` を通す。
+-   [x] **ステップ 4-5**: 壊して失敗することを確かめ、コミットメッセージに記録する。`runMenuLaunch` の収集の拒否でも `readMetadata` を呼ぶ、`prepareSend` に `result.values` を渡さない、`runPopupLaunch` が収集の拒否でもページを読む、`runPopupSend` が `result.outcome` でなく別の値を使う、`readMetadata` のログに読み取った値（識別できる文字列）を渡す、読み取りの失敗を `RejectionReason` にする、促しがあるとボタンを出さない（いずれも `launch.test.ts`）。`prepareSend` でメタデータを本文に含めない（`prepare.test.ts`）。続けて `make ext-check` → `make test` → `make lint` を通す。
     -   **対象:** なし（確認のみ）。**完了:** 各対象を壊して失敗することを確認し、コミットメッセージに記録する。
 
 **完了条件:** `make ext-check` → `make test` → `make lint` が通り、`launch.test.ts`・`prepare.test.ts` が通る。
@@ -250,8 +250,8 @@ HEAD `0842685` で確認した。設計書は既存のファイルの行番号�
 
 **判定理由**: どのトリガーにも当たらない（§1.3 に競合する実装の案がない）。`readMetadata` の配線は設計書 3.5 が順序と分岐を確定しており、状態機械・回復の流れ・並行を含まない。
 
--   [ ] グリーンゲート（`make ext-check` → `make test` → `make lint`。§3.2）がパスしていることを確認した
--   [ ] PR を作成した
+-   [x] グリーンゲート（`make ext-check` → `make test` → `make lint`。§3.2）がパスしていることを確認した
+-   [x] PR を作成した
 -   [ ] PR がマージされた
 -   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
@@ -368,7 +368,7 @@ PR は、設計書 8 章のフェーズ 3（経路と表示）を表示と経路
 | AC-08 | test | `prepare.test.ts::prepareSend`（メタデータを含めた本文の上限。I-01）、`launch.test.ts::menu send`（`body-too-large`） | 4-1・4-3・4-4 |
 | AC-09 | test | `launch.test.ts::launch paths`（タブのタイトルの識別できる文字列が本文に現れない）、`prepare.test.ts::buildArticleBody`（`input.title` が本文に現れない） | 4-3・4-4 |
 | AC-10 | test | `metadata.test.ts::acceptMetadata`（対になっていないサロゲートの省略、対になったサロゲートの保持）、`launch.test.ts::video metadata log`（省略の理由） | 1-3・1-4・4-1・4-3 |
-| AC-11 | test・manual | `renderMetadata.test.ts::renderMetadata`（jsdom で 3 つの値を表示、省略した値の行を作らない、表示だけをコードポイントで切り詰めサロゲートペアを割らない）、`launch.test.ts::popup send`（本文には切り詰める前の値が入る）、§5.1 | 3-2・3-4 |
+| AC-11 | test・manual | `renderMetadata.test.ts::renderMetadata`（jsdom で 3 つの値を表示、省略した値の行を作らない、表示だけをコードポイントで切り詰めサロゲートペアを割らない）、`launch.test.ts::popup send`（本文には切り詰める前の値が入る）、§5.1 | 3-2・3-4・4-1・4-3 |
 | AC-12 | test・manual | `metadata.test.ts::acceptMetadata`（`showExpandPrompt`）、`renderMetadata.test.ts::renderMetadata`（促しが折りたたみ時だけ）、§5.1 | 1-3・1-4・3-2・3-4 |
 | AC-13 | test | `launch.test.ts::popup send`（促しがあってもボタンが押せ、冒頭のみで送る） | 4-1・4-3 |
 | AC-14 | test・manual | `renderMetadata.test.ts::renderMetadata`（要素にならず `textContent` に現れる、促しがページの文字列を含まない）、§5.1（bidi の分離） | 3-2・3-4 |
