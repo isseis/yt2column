@@ -8,7 +8,7 @@
 | Created | 2026-10-18 |
 | Review date | 2026-10-18 |
 | Reviewer | isesis |
-| Comments | 編集上の訂正（2026-10-18。判断は変えていない）。フェーズ 2 の対象ファイルに `extension/src/launch.ts` を加えた（ステップ 2-3 が既に `MetadataReader` を launch.ts の型としているため、フェーズ 2 の作業内容は変えず、対象の記載を合わせただけである）。ステップ 2-4・2-5 の確かめる手段を `document.body.outerHTML` から jsdom の直列化（`dom.serialize()`）に改めた（`outerHTML` は拡張の ESLint の `no-restricted-syntax` が許さないため。何を確かめるかは変えていない） |
+| Comments | 編集上の訂正（2026-10-18。判断は変えていない）。フェーズ 2 の対象ファイルに `extension/src/launch.ts` を加えた（ステップ 2-3 が既に `MetadataReader` を launch.ts の型としているため、フェーズ 2 の作業内容は変えず、対象の記載を合わせただけである）。ステップ 2-4・2-5 の確かめる手段を `document.body.outerHTML` から jsdom の直列化（`dom.serialize()`）に改めた（`outerHTML` は拡張の ESLint の `no-restricted-syntax` が許さないため。何を確かめるかは変えていない）。フェーズ 3 の対象ファイルに `extension/test/render.test.ts` と `extension/test/helpers/dom.ts` を加え、ステップ 3-2・3-3 に表示の上限の export と値のクラス名を記した（実装で決めるとしていた詳細を実行した結果の記載である。判断は変えていない） |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -179,25 +179,25 @@ HEAD `0842685` で確認した。設計書は既存のファイルの行番号�
 
 -   [x] グリーンゲート（`make ext-check` → `make test` → `make lint`。§3.2）がパスしていることを確認した
 -   [x] PR を作成した
--   [ ] PR がマージされた
--   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+-   [x] PR がマージされた
+-   [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: 表示
 
 **対象ファイル**
 -   新設: `extension/test/renderMetadata.test.ts`
--   変更: `extension/src/ui/render.ts`、`extension/src/core/summary.ts`（`truncate` の `export` のみ）、`extension/static/style.css`
+-   変更: `extension/src/ui/render.ts`、`extension/src/core/summary.ts`（`truncate` の `export` のみ）、`extension/static/style.css`、`extension/test/render.test.ts`・`extension/test/helpers/dom.ts`（`valueOf` を共用するための整理。振る舞いは変えない）
 
 **タスク**
--   [ ] **ステップ 3-1**: `core/summary.ts` の `truncate`（`:26-35`）に `export` を付ける。振る舞いは変えない。
+-   [x] **ステップ 3-1**: `core/summary.ts` の `truncate`（`:26-35`）に `export` を付ける。振る舞いは変えない。
     -   **対象:** `extension/src/core/summary.ts`。**完了:** `make ext-typecheck` と既存の `summary.test.ts` が通る。
--   [ ] **ステップ 3-2**: `ui/render.ts` の `messageNodes` の引数の型を `Message` にする（`RejectionMessage` の別名なので実質は変わらない）。`renderMetadata(container, result)` を加える（設計書 3.6）。`container` の子を置き換えずに追加する。値は既存の `field` で作り（ラベルは `"Video title"`・`"Channel"`・`"Description"`）、`values` にあるフィールドの行だけを作る。表示は `truncate` と `displayValue` でコードポイント単位に切り詰め（上限は実装で決める固定値。例: 200 コードポイント）、`dirAuto: true` を渡す。値は `textContent` だけで設定する。`result.showExpandPrompt` が真のとき、`messageNodes` で `expandPromptMessage` を追加する。
+-   [x] **ステップ 3-2**: `ui/render.ts` の `messageNodes` の引数の型を `Message` にする（`RejectionMessage` の別名なので実質は変わらない）。`renderMetadata(container, result)` を加える（設計書 3.6）。`container` の子を置き換えずに追加する。値は既存の `field` で作り（ラベルは `"Video title"`・`"Channel"`・`"Description"`）、`values` にあるフィールドの行だけを作る。表示は `truncate` と `displayValue` でコードポイント単位に切り詰め（上限は実装で決める固定値。例: 200 コードポイント。境界をテストできるよう `metadataDisplayLimit` として export する）、`dirAuto: true` を渡す。値は `textContent` だけで設定する。`result.showExpandPrompt` が真のとき、`messageNodes` で `expandPromptMessage` を追加する。
     -   **対象:** `extension/src/ui/render.ts`。**完了:** `make ext-typecheck` と既存の `render.test.ts` が通る。
--   [ ] **ステップ 3-3**: `static/style.css` の `unicode-bidi: plaintext` の規則（`:31-36`）に 3 つの値の新しいクラス名を加える。概要欄の値のクラスは `white-space: pre-wrap` の規則（`:39-41`）にも加える（設計書 3.6）。
+-   [x] **ステップ 3-3**: `static/style.css` の `unicode-bidi: plaintext` の規則（`:31-36`）に 3 つの値の新しいクラス名（`.metadata-title`・`.metadata-channel`・`.metadata-description`）を加える。概要欄の値のクラスは `white-space: pre-wrap` の規則（`:39-41`）にも加える（設計書 3.6）。
     -   **対象:** `extension/static/style.css`。**完了:** `make ext-build` が通る。
--   [ ] **ステップ 3-4**: `test/renderMetadata.test.ts` を作る（`renderMetadata`。jsdom）。設計書 3.6・3.9 のとおり、次を含める。3 つの値がラベル付きで `textContent` に表示され、要素にならないこと、`<img src=x onerror=alert(1)>` を値に含めても `querySelector("img")` が `null` で `textContent` に元の文字列が含まれること、表示の切り詰め（上限ちょうど・1 超過・サロゲートペアを割らない）、`dir="auto"` が付くこと、既存の子を置き換えないこと、促しが `showExpandPrompt` が真のときだけ出て、`text` と `steps` が表示され、ページの文字列（概要欄など）を含まないこと。
+-   [x] **ステップ 3-4**: `test/renderMetadata.test.ts` を作る（`renderMetadata`。jsdom）。設計書 3.6・3.9 のとおり、次を含める。3 つの値がラベル付きで `textContent` に表示され、要素にならないこと、`<img src=x onerror=alert(1)>` を値に含めても `querySelector("img")` が `null` で `textContent` に元の文字列が含まれること、表示の切り詰め（上限ちょうど・1 超過・サロゲートペアを割らない）、`dir="auto"` が付くこと、既存の子を置き換えないこと、促しが `showExpandPrompt` が真のときだけ出て、`text` と `steps` が表示され、ページの文字列（概要欄など）を含まないこと。
     -   **対象:** `extension/test/renderMetadata.test.ts`。**完了:** `renderMetadata.test.ts` が通る。
--   [ ] **ステップ 3-5**: 壊して失敗することを確かめ、コミットメッセージに記録する。`renderMetadata` を `replaceChildren` に替える、`textContent` を HTML を解釈する書き方に替える、`truncate` を使わず切り詰めない、`dirAuto` を外す、促しを常に出す・`showExpandPrompt` を見ずに出す、促しの文言に概要欄の文字列を混ぜる（いずれも `renderMetadata.test.ts`）。続けて `make ext-check` → `make test` → `make lint` を通す。
+-   [x] **ステップ 3-5**: 壊して失敗することを確かめ、コミットメッセージに記録する。`renderMetadata` を `replaceChildren` に替える、`textContent` を HTML を解釈する書き方に替える、`truncate` を使わず切り詰めない、`dirAuto` を外す、促しを常に出す・`showExpandPrompt` を見ずに出す、促しの文言に概要欄の文字列を混ぜる（いずれも `renderMetadata.test.ts`）。続けて `make ext-check` → `make test` → `make lint` を通す。
     -   **対象:** なし（確認のみ）。**完了:** 各対象を壊して失敗することを確認し、コミットメッセージに記録する。
 
 **完了条件:** `make ext-check` → `make test` → `make lint` が通り、`renderMetadata.test.ts` と既存の `render.test.ts` が通る。
@@ -214,8 +214,8 @@ HEAD `0842685` で確認した。設計書は既存のファイルの行番号�
 
 **判定理由**: どのトリガーにも当たらない（表示の組み立てとそのテストに限られ、§1.3 に競合する実装の案がない）。
 
--   [ ] グリーンゲート（`make ext-check` → `make test` → `make lint`。§3.2）がパスしていることを確認した
--   [ ] PR を作成した
+-   [x] グリーンゲート（`make ext-check` → `make test` → `make lint`。§3.2）がパスしていることを確認した
+-   [x] PR を作成した
 -   [ ] PR がマージされた
 -   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 

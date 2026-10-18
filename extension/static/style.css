@@ -31,12 +31,17 @@ body {
 /* Keep bidirectional control characters in a value from reordering the
    surrounding labels and other values. */
 .summary-title,
-.summary-preview {
+.summary-preview,
+.metadata-title,
+.metadata-channel,
+.metadata-description {
   unicode-bidi: plaintext;
 }
 
-/* Show the selection's line breaks and surrounding whitespace as they are. */
-.summary-preview {
+/* Show the selection's and the description's line breaks and surrounding
+   whitespace as they are. */
+.summary-preview,
+.metadata-description {
   white-space: pre-wrap;
 }
 

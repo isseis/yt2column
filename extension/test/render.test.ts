@@ -1,30 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { JSDOM } from "jsdom";
 
 import { rejectionMessage } from "../src/core/messages.ts";
 import type { OutcomeSummary } from "../src/core/types.ts";
 import { renderSummary } from "../src/ui/render.ts";
+import { container, valueOf } from "./helpers/dom.ts";
 
 const malicious = "<img src=x onerror=alert(1)>";
-
-/** A fresh container element in its own document. */
-function container(): HTMLElement {
-  const dom = new JSDOM("<!DOCTYPE html><body><div id='root'></div></body>");
-  const element = dom.window.document.getElementById("root");
-  assert.ok(element !== null);
-  return element;
-}
-
-/** The displayed value of the field labelled label, if any. */
-function valueOf(root: HTMLElement, label: string): string | undefined {
-  for (const field of root.querySelectorAll(".summary-field")) {
-    if (field.querySelector(".summary-label")?.textContent === label) {
-      return field.querySelector(".summary-value")?.textContent ?? undefined;
-    }
-  }
-  return undefined;
-}
 
 const collected: Extract<OutcomeSummary, { kind: "collected" }> = {
   kind: "collected",

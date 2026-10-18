@@ -21,9 +21,10 @@ const rejectedKeys: readonly string[] = ["kind", "reason"];
 
 /**
  * Cuts text to at most limit code points. Iterating the string yields code
- * points, so a surrogate pair at the boundary is never split.
+ * points, so a surrogate pair at the boundary is never split. Exported so the
+ * popup's metadata display truncates the same way.
  */
-function truncate(
+export function truncate(
   text: string,
   limit: number,
 ): { value: string; truncated: boolean } {
