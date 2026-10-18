@@ -1,5 +1,7 @@
-import { rejectionMessage } from "../core/messages.ts";
-import type { RejectionMessage } from "../core/messages.ts";
+import { expandPromptMessage, rejectionMessage } from "../core/messages.ts";
+import type { Message } from "../core/messages.ts";
+import type { MetadataField, MetadataResult } from "../core/metadata.ts";
+import { truncate } from "../core/summary.ts";
 import type { OutcomeSummary } from "../core/types.ts";
 
 /** Appended to a value that was shortened for display. */
@@ -66,10 +68,7 @@ function collectedNodes(
 }
 
 /** The message text and, when present, its numbered steps; textContent only. */
-export function messageNodes(
-  doc: Document,
-  message: RejectionMessage,
-): HTMLElement[] {
+export function messageNodes(doc: Document, message: Message): HTMLElement[] {
   const text = doc.createElement("p");
   text.className = "summary-message";
   text.textContent = message.text;
@@ -110,4 +109,54 @@ export function renderSummary(
       ? collectedNodes(doc, summary)
       : rejectedNodes(doc, summary);
   container.replaceChildren(...nodes);
+}
+
+/** The display limit for one metadata value, in code points. */
+export const metadataDisplayLimit = 200;
+
+/** The metadata fields, in display order, with their label and value class. */
+const metadataRows: readonly {
+  readonly name: MetadataField;
+  readonly label: string;
+  readonly className: string;
+}[] = [
+  { name: "title", label: "Video title", className: "metadata-title" },
+  { name: "channelName", label: "Channel", className: "metadata-channel" },
+  {
+    name: "description",
+    label: "Description",
+    className: "metadata-description",
+  },
+];
+
+/**
+ * Appends the video metadata fields -- and the expand prompt when the
+ * description is collapsed -- below whatever the container already holds.
+ * renderSummary replaces the container's children, so this is called after it.
+ * Values are set with textContent only and are truncated for display alone;
+ * the values sent to the server are never truncated.
+ */
+export function renderMetadata(
+  container: HTMLElement,
+  result: MetadataResult,
+): void {
+  const doc = container.ownerDocument;
+  const nodes: HTMLElement[] = [];
+  for (const { name, label, className } of metadataRows) {
+    const value = result.values[name];
+    if (value === undefined) {
+      continue;
+    }
+    const shortened = truncate(value, metadataDisplayLimit);
+    nodes.push(
+      field(doc, label, displayValue(shortened.value, shortened.truncated), {
+        className,
+        dirAuto: true,
+      }),
+    );
+  }
+  if (result.showExpandPrompt) {
+    nodes.push(...messageNodes(doc, expandPromptMessage));
+  }
+  container.append(...nodes);
 }
