@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-18 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 2026-10-18: F-003 と AC-20 を改めた（決定の変更）。macOS では Brave が Chrome の置き場所の manifest を読むので、Chrome と Brave は 1 つの manifest のファイルを共有する。どちらのブラウザに対する install も両方でホストを使えるようにし、どちらに対する uninstall も両方からホストを外すこと、install と uninstall が manifest のパスと macOS での共有を知らせることを定めた。再承認が必要である |
+| Review date | 2026-10-18 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
