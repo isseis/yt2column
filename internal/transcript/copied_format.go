@@ -435,8 +435,9 @@ func checkCopiedTrailingLines(lines []string, start int) error {
 // line is a timestamp, a screen-reader label, and the text concatenated without
 // separators. The label's language is fixed by the body's first line, the first
 // segment line, so a prefix line never fixes it. A segment without text is
-// skipped; a line that is only a timestamp belongs to the other form. Error line numbers are the original input's, so the range is not
-// renumbered. It rejects on the first error in the documented check order.
+// skipped; a line that is only a timestamp belongs to the other form. Error
+// line numbers are the original input's, so the range is not renumbered. It
+// rejects on the first error in the documented check order.
 func parseCopiedFormA(lines []string, start, end int) ([]Segment, error) {
 	language := labelNone
 	var segments []Segment

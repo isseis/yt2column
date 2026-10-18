@@ -271,7 +271,7 @@ func TestParseCopiedRejects(t *testing.T) {
 		{name: "prefix single-digit second", input: "文字起こし\n0:5\n0:00\nx\n", reason: errCopiedNotTimestamp, line: 2},
 		{name: "prefix leading BOM", input: "文字起こし\n\uFEFF0:00\nx\n", reason: errCopiedNotTimestamp, line: 2},
 		{name: "prefix leading space", input: "文字起こし\n 0:00\nx\n", reason: errCopiedNotTimestamp, line: 2},
-		{name: "prefix control character", input: "タイ\tムライン\n0:00\nx\n", reason: errCopiedControlChar, line: 1},
+		{name: "prefix control character", input: "文字起こし\nタイ\tムライン\n0:00\nx\n", reason: errCopiedControlChar, line: 2},
 		{name: "body error line counts the prefix", input: "文字起こし\n\n0:000 秒はい\n0:05BOGUS\n", reason: errCopiedLabelMismatch, line: 4},
 		{name: "form B body error line counts the prefix", input: "文字起こし\n\n0:05\nx\n0:00\ny\n", reason: errCopiedTimestampOrder, line: 5},
 		{name: "chapter heading after text", input: "0:00\nx\n存在感のある声\n", reason: errCopiedNotTimestamp, line: 3},
@@ -310,6 +310,9 @@ func TestParseCopiedRejects(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			message := assertCopiedRejected(t, tc.input, tc.reason)
+			// The line number has no typed form, so the message text is the
+			// contract under test; assertCopiedRejected already checked the
+			// reason with errors.Is.
 			if tc.line > 0 {
 				if !strings.Contains(message, fmt.Sprintf("line %d:", tc.line)) {
 					t.Errorf("Error() = %q, want line %d", message, tc.line)
@@ -513,7 +516,8 @@ func assertCopiedBodyHasNoSkippedLine(t *testing.T, body string) {
 
 // TestParseCopiedPrefix compares an input that has a prefix before the first
 // segment line with the same input without it. The prefix lines must not reach
-// any segment's text, and the prefix must not decide the form. The near-miss
+// any segment's text (the literal want pins every text), and the prefix must
+// not decide the form. The near-miss
 // case pins the digit-colon-digit rule from the accepting side: a colon or a
 // digit alone, a colon between non-digits or with a space, and full-width
 // digits are not a run, so those prefix lines are skipped.
@@ -521,6 +525,7 @@ func TestParseCopiedPrefix(t *testing.T) {
 	formABody := "0:000 秒はい\n0:1010 秒です\n"
 	formBBody := "0:00\nHello\n0:05\nWorld\n"
 	englishBody := "0:000 secondsHello\n0:055 secondsWorld\n"
+	helloWorld := []Segment{{StartMs: 0, Text: "Hello"}, {StartMs: 5000, Text: "World"}}
 	cases := []struct {
 		name   string
 		prefix []string
@@ -537,19 +542,19 @@ func TestParseCopiedPrefix(t *testing.T) {
 			name:   "prefix with a plain chapter title then form B",
 			prefix: []string{"文字起こし", "動画内を検索", "はじめの話"},
 			body:   formBBody,
-			want:   []Segment{{StartMs: 0, Text: "Hello"}, {StartMs: 5000, Text: "World"}},
+			want:   helloWorld,
 		},
 		{
 			name:   "Japanese prefix then English labels",
 			prefix: []string{"文字起こし", "\u3000"},
 			body:   englishBody,
-			want:   []Segment{{StartMs: 0, Text: "Hello"}, {StartMs: 5000, Text: "World"}},
+			want:   helloWorld,
 		},
 		{
 			name:   "prefix lines without a digit-colon-digit run",
 			prefix: []string{"チャプター 1: はじめに", "16 : 9", "Note: x", "第3戦", "１：００", "x:1", "1:x"},
 			body:   formBBody,
-			want:   []Segment{{StartMs: 0, Text: "Hello"}, {StartMs: 5000, Text: "World"}},
+			want:   helloWorld,
 		},
 		{
 			name:   "form A empty line at the start",
@@ -575,16 +580,6 @@ func TestParseCopiedPrefix(t *testing.T) {
 			}
 			if !reflect.DeepEqual(bodySegments, tc.want) {
 				t.Errorf("parseCopiedTranscript(%q) = %+v, want the same segments %+v", tc.body, bodySegments, tc.want)
-			}
-			for _, line := range tc.prefix {
-				if strings.TrimSpace(line) == "" {
-					continue
-				}
-				for _, segment := range got {
-					if strings.Contains(segment.Text, line) {
-						t.Errorf("segment text %q contains the prefix line %q", segment.Text, line)
-					}
-				}
 			}
 		})
 	}
@@ -649,9 +644,9 @@ func TestParseCopiedCheckOrder(t *testing.T) {
 		},
 		{
 			name:    "prefix control character before digit-colon-digit",
-			input:   "1:2\t3\n0:00\nx\n",
+			input:   "文字起こし\n1:2\t3\n0:00\nx\n",
 			want:    errCopiedControlChar,
-			line:    1,
+			line:    2,
 			notWant: []error{errCopiedNotTimestamp},
 		},
 		{
@@ -684,53 +679,58 @@ func TestParseCopiedErrorOmitsInput(t *testing.T) {
 	cases := []struct {
 		name    string
 		input   string
+		reason  error
 		markers []string
 	}{
 		{
 			name:    "label mismatch omits the line",
+			reason:  errCopiedLabelMismatch,
 			input:   "0:24XX24 秒YY",
 			markers: []string{"XX", "YY", "0:24"},
 		},
 		{
 			name:    "not a timestamp omits the line",
+			reason:  errCopiedNotTimestamp,
 			input:   "0:000 秒x\nMARKER_LINE\n",
 			markers: []string{"MARKER_LINE"},
 		},
 		{
 			name:    "prefix digit-colon-digit omits the line",
-			input:   "PREFIX_A 1:23 PREFIX_B\n0:00\nx\n",
+			reason:  errCopiedNotTimestamp,
+			input:   "\nPREFIX_A 1:23 PREFIX_B\n0:00\nx\n",
 			markers: []string{"PREFIX_A", "PREFIX_B", "1:23"},
 		},
 		{
 			name:    "prefix control character omits the line",
-			input:   "CONTROL_MARKER\x01\n0:00\nx\n",
+			reason:  errCopiedControlChar,
+			input:   "文字起こし\nCONTROL_MARKER\x01\n0:00\nx\n",
 			markers: []string{"CONTROL_MARKER"},
 		},
 		{
 			name:    "timestamp order omits the bodies",
+			reason:  errCopiedTimestampOrder,
 			input:   "0:2424 秒AAA\n0:1010 秒BBB\n",
 			markers: []string{"AAA", "BBB", "0:24", "0:10"},
 		},
 		{
 			name:    "mixed forms omits the line",
+			reason:  errCopiedMixedForms,
 			input:   "0:00\n0:2424 秒ZZZ\n",
 			markers: []string{"ZZZ", "0:24"},
 		},
 		{
 			name:    "chapter heading omits the line",
+			reason:  errCopiedNotTimestamp,
 			input:   "0:00\nTEXT_MARKER\nCHAPTER_MARKER\n",
 			markers: []string{"CHAPTER_MARKER", "TEXT_MARKER"},
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := parseCopiedTranscript(tc.input)
-			if err == nil {
-				t.Fatalf("parseCopiedTranscript(%q) accepted the input", tc.input)
-			}
+			message := assertCopiedRejected(t, tc.input, tc.reason)
 			for _, marker := range tc.markers {
-				if strings.Contains(err.Error(), marker) {
-					t.Errorf("Error() = %q, must not contain %q", err.Error(), marker)
+				if strings.Contains(message, marker) {
+					t.Errorf("Error() = %q, must not contain %q", message, marker)
 				}
 			}
 		})
@@ -922,6 +922,20 @@ func assertCopiedFuzzAcceptance(t *testing.T, transcript Transcript, raw string)
 	assertCopiedFuzzPrefix(t, transcript.Segments, raw)
 }
 
+// copiedFuzzSeparator returns the separator to append or prepend lines to an
+// accepted input with: the input's own, or LF for a single-line input.
+func copiedFuzzSeparator(t *testing.T, raw string) string {
+	t.Helper()
+	separator, err := copiedLineSeparator(raw)
+	if err != nil {
+		t.Fatalf("an accepted input has inconsistent line breaks: %v", err)
+	}
+	if separator == "" {
+		return "\n"
+	}
+	return separator
+}
+
 // assertCopiedFuzzPrefix checks property (b): prepending prefix lines that start
 // with no timestamp and that the prefix rules do not reject (a panel label, an
 // empty line, a whitespace-only line, a chapter heading with a digit and a
@@ -929,13 +943,7 @@ func assertCopiedFuzzAcceptance(t *testing.T, transcript Transcript, raw string)
 // prepended lines use the input's own separator, or LF for a single-line input.
 func assertCopiedFuzzPrefix(t *testing.T, want []Segment, raw string) {
 	t.Helper()
-	separator, err := copiedLineSeparator(raw)
-	if err != nil {
-		t.Fatalf("an accepted input has inconsistent line breaks: %v", err)
-	}
-	if separator == "" {
-		separator = "\n"
-	}
+	separator := copiedFuzzSeparator(t, raw)
 	prefix := strings.Join([]string{"文字起こし", "", " ", "チャプター 1: はじめに", "動画内を検索"}, separator) + separator
 	got, err := parseCopiedTranscript(prefix + raw)
 	if err != nil {
@@ -955,13 +963,7 @@ func assertCopiedFuzzPrefix(t *testing.T, want []Segment, raw string) {
 // U+0020 for the whitespace-only run so the run is not also a control character.
 func assertCopiedFuzzTrailingRegion(t *testing.T, want []Segment, raw string) {
 	t.Helper()
-	separator, err := copiedLineSeparator(raw)
-	if err != nil {
-		t.Fatalf("an accepted input has inconsistent line breaks: %v", err)
-	}
-	if separator == "" {
-		separator = "\n"
-	}
+	separator := copiedFuzzSeparator(t, raw)
 	labels := append([]string{""}, copiedOperationLabels...)
 	for _, run := range []string{separator + separator, separator + " "} {
 		for _, label := range labels {
