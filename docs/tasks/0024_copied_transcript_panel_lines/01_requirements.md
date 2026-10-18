@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-17 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 2026-10-17: 編集上の訂正（決定の変更なし）: AC-18 に `form B whitespace-only text`（`0:00\n \n`。F-006 の規則により末尾の空白文字だけの行が無視され、`errCopiedNoText` になる）を追加した。 2026-10-18: 決定変更（再承認待ち）。形 B のチャプター見出し行（接頭辞を持たない素のタイトル）を位置で特定して読み飛ばす要件 F-008 と AC-34〜AC-38 を加えた。F-003・AC-12・AC-13 を形 A に限定し、AC-16・AC-17・§1 方針の変更・§2 スコープ・§3.2 境界・§4.3・§4.5・§5・§6 用語集・§7 を改めた。形 B でチャプターの見出しを含む実データ `BkaUHsH_mkw`（CC BY）を取得した（AC-17）。status を draft に戻す。 2026-10-18: 決定変更（再承認待ち）。`BkaUHsH_mkw` の保存の記録を §1.1 に置き、`TestCopiedTranscriptSurveyRecords` が 0015 §1.4.1 の表と §1.1 の表の一覧を読むことを F-005 の決定とした。AC-17・AC-18 を改め、§7 の該当する問いを除いた。 |
+| Review date | 2026-10-18 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
