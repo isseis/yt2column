@@ -236,7 +236,6 @@ sequenceDiagram
     S->>S: 本文の検証（strictjson・URL・字幕書式）
     S->>J: startJob（応答の前に開始）
     S-->>H: 202 {"status":"accepted","requestId":"…"}
-    H->>H: stdin の残りを読み捨てる（本文を送り終えていれば何もない）
     H-->>B: stdout: ホストの応答（状態コードと本文の base64）
     H->>H: 終了
     B-->>E: 応答のオブジェクト
@@ -498,13 +497,10 @@ UDS の上で HTTP/1.1 を使う。
 
     本文は、stdin から長さ分だけを読む `io.LimitReader` で、バッファに貯めずに流し込む。
 5.  応答の本文を、サーバの応答の上限（64 KiB）+ 1 バイトまで読む。上限を超えれば `protocol_error` とする（途中までを転送しない。AC-16）。
-6.  **stdin の残りを読み捨てる。** 手順 2〜5 のどこで終わった場合も、ホストの応答を書く前に、stdin をメッセージの長さに達するまで（ブラウザが閉じれば EOF まで）読み、捨てる。
-    -   理由: ブラウザは stdin への書き込みを非同期に行う。ホストが本文を読まずに応答して終了すると、書きかけのブラウザが `EPIPE` を受け、応答の代わりに「ホストとの通信の失敗」を拡張に返しうる。macOS ではパイプの容量が 64 KiB であり、字幕の本文はこれより大きいことが多い。サーバが本文を読まずに拒否した場合（`413`・`429`・`server_unavailable`・`message_too_large`）にこれが起きると、未送信や拒否の表示が結果不明に変わってしまう。読み捨てにより、ブラウザの書き込みが終わってから応答を書く。
-    -   メモリ: 上限を超えるメッセージ（最大でブラウザの上限の 64 MiB）も読み捨てるが、メモリには持たない（AC-16「全体をメモリに読み込まずに」）。
-    -   時間: 読み捨ては中継の時間の上限の内で行う。上限は、応答を待つ間と読み捨ての間で共有する。上限に達した場合も、手順 2〜5 で決めた応答をそのまま書く。
-    -   仕組み: stdin は時間の上限を設定できない記述子なので、本文の流し込みと読み捨ては別の goroutine で行う。時間の上限に達したら、待たずに応答を書いて終了する（プロセスの終了が goroutine を止める）。
-    -   読み捨てで応答が確実に届くという前提は、§3.10 の S-8 で確かめる。
-7.  状態コードと本文のバイト列、またはホストのエラーから、ホストの応答（§3.5.4）を作り、標準出力に 1 つのフレームとして書き、終了コード `0` で終える。
+6.  状態コードと本文のバイト列、またはホストのエラーから、ホストの応答（§3.5.4）を作り、標準出力に 1 つのフレームとして書き、終了コード `0` で終える。
+
+-   **stdin の残りを読まない。** 手順 2〜5 のどこで終わった場合も、stdin にメッセージの残りがあれば、読まずに応答を書いて終了する。ブラウザが書きかけのまま終了すると、ブラウザの書き込みが `EPIPE` になり、応答の代わりにホストとの通信の失敗が拡張に返る懸念があったが、§3.10 の S-8 で、Chrome と Brave のどちらも、32 MiB を読まずに残して終了した場合を含め、応答を受け取ることを確かめた（30 回のうち 30 回）。起きない失敗に備える仕組み（読み捨ての goroutine と、応答の待ちとの時間の上限の共有）は持たない（CLAUDE.md「前提を確かめてから仕組みを足す」）。
+-   **時間の上限:** 中継の時間の上限は、`Relay` が受け取る `context` の期限として、接続と HTTP のリクエストの全体に掛ける。本文の流し込みは `http.Transport` が stdin を読む。期限に達すると `RoundTrip` が返り、ホストは `server_timeout` を書いて終了する（stdin の読み込みで止まった goroutine は、プロセスの終了で止まる）。
 
 ```go
 // internal/nmhost
@@ -514,7 +510,8 @@ UDS の上で HTTP/1.1 を使う。
 // fake or a temporary socket.
 type Dialer func(ctx context.Context) (net.Conn, error)
 
-// RelayTimeout bounds one relay, from the length read to the end of the drain.
+// RelayTimeout bounds one relay, from the length read to the end of the
+// server's reply.
 const RelayTimeout = 20 * time.Second
 
 // RelayOptions holds the relay's seams. Every field is required.
@@ -525,8 +522,8 @@ type RelayOptions struct {
 }
 
 // Relay reads one Native Messaging message from stdin, forwards it to the
-// server, drains stdin to the message length, and writes exactly one reply
-// frame to stdout. It returns a non-nil error only when no reply frame could
+// server, and writes exactly one reply frame to stdout without reading the
+// rest of stdin. It returns a non-nil error only when no reply frame could
 // be written (the length could not be read, or stdout failed); a host error is
 // a reply, not a returned error.
 func Relay(ctx context.Context, stdin io.Reader, stdout io.Writer, opts RelayOptions) error
@@ -623,11 +620,11 @@ type errorReply struct {
 | ホストのリクエストの上限 | 32 MiB | 下記 |
 | サーバの応答の上限 | 64 KiB | 要件書 F-003 |
 | 接続の時間の上限 | 2 秒 | UDS の接続は、待ち受けがあれば即座に成り、なければ即座に失敗する。上限は、待ち行列の詰まりなどの異常に備えるだけである |
-| 中継の時間の上限 | 20 秒 | stdin の長さを読んだ後から、stdin の読み捨てを終えるまで。接続の時間を含む |
+| 中継の時間の上限 | 20 秒 | stdin の長さを読んだ後から、サーバの応答を読み終えるまで。接続の時間を含む |
 | 拡張の待ち時間の上限 | 25 秒 | 既存の `sendTimeoutMs`（`extension/src/send.ts:12`）を流用する。ホストの 20 秒より長く、service worker が停止されうる 30 秒より短い（0020 §3.5 の理由） |
 
 -   **ホストのリクエストの上限（H-08）:** 要件書 F-003 は、この値を「サーバの上限（4 MiB）より大きく、ブラウザがホストへ送れる 1 メッセージの上限以下」とする。拡張は `JSON.stringify` の UTF-8 のバイト数で 4 MiB を測る（`extension/src/core/prepare.ts:46-47`）が、ホストに届くのはブラウザが直列化したバイト列である。ブラウザが文字をエスケープすると、1 バイトの文字が最大 6 バイト（`<` など）に増えうる。最悪の場合、拡張の検査を通る本文は 4 MiB × 6 = 24 MiB に増える。これを上回る 32 MiB を上限とすれば、拡張の検査を通った本文が `message_too_large`（未送信）になることはなく、サーバの `body_too_large`（拒否）として一貫して表示される。ブラウザがホストへ送れる上限は、Chrome のドキュメントでは 64 MiB である。ブラウザの実際のエスケープの規則と上限は、§3.10 の S-3・S-4 で確かめる。確かめた結果、増え方が 8 倍を超える、またはブラウザの上限が 32 MiB を下回る場合は、本書の値を改める。
--   **ホストは本文を貯めない:** 本文は stdin からサーバへ流し込むか読み捨てるので、ホストのメモリに 32 MiB を持たない。`message_too_large` の判定は長さの 4 バイトだけで行い、本文を解釈しない（AC-16「全体をメモリに読み込まずに」）。ホストの上限以下でサーバの上限を超える本文は、サーバが `Content-Length` だけで `body_too_large` と判定し、`Expect: 100-continue` により本文はホストから送られない（§3.4）。
+-   **ホストは本文を貯めない:** 本文は stdin からサーバへ流し込むか、読まずに残すので、ホストのメモリに 32 MiB を持たない。`message_too_large` の判定は長さの 4 バイトだけで行い、本文を解釈しない（AC-16「全体をメモリに読み込まずに」）。ホストの上限以下でサーバの上限を超える本文は、サーバが `Content-Length` だけで `body_too_large` と判定し、`Expect: 100-continue` により本文はホストから送られない（§3.4）。
 -   **中継の 20 秒の内訳:** サーバの応答は本文の検証が終わり次第返る。4 MiB の入力の解析は、`-race` 付きのビルドで約 3.2 秒と測定されている（0020 §3.5 の引用）。ホストの 20 秒は通常の応答より十分に長い。サーバの `ReadTimeout`（30 秒）より短いので、サーバが極端に遅い場合はホストが先に `server_timeout`（結果不明）を返す。この場合でも、サーバが受理していればジョブは続く。
 -   **時間の順序:** ホストの 20 秒 < 拡張の 25 秒 < service worker の 30 秒、の順序を保つ。§3.9 の同期のテストで、Go の中継の時間の上限が `send.ts` の `sendTimeoutMs` より短いことを確かめる。
 -   **ブラウザがホストを止める場合:** ポップアップを送信中に閉じると、ブラウザはホストとの接続を閉じ、ホストを終了させる（§3.10 の S-5 で確かめる）。受付応答の前なら、サーバは本文の読み込みの失敗として応答も通知もせず、ジョブを始めない。受付応答の後なら、ジョブは続く。どちらの場合も利用者は結果を見られないが、これは現行の `fetch` による送信の途中でポップアップを閉じた場合の振る舞いと同じ種類である。ホストは `SIGTERM` を無視しない。
@@ -970,7 +967,7 @@ export function classifyResponse(
 | S-5 | 送信中にポップアップを閉じた場合に、ブラウザがホストを終了させるか、その時期 | §3.5.5 | ジョブを失う場合が増えるなら、§5.4 に書き足す |
 | S-6 | Brave が `BraveSoftware/Brave-Browser/NativeMessagingHosts` の manifest を読むこと。Chrome の置き場所の manifest を読むかどうか | §2.2・§3.6 | 置き場所の表を改める |
 | S-7 | メニューの経路（service worker）で、`sendNativeMessage` の応答を拡張の上限の 25 秒まで待っても service worker が止まらず、その後に結果を保存できること | §3.5.5 | 止まる場合は、待ち時間の上限を見直す |
-| S-8 | ホストが stdin を読み終える前に応答を書いて終了した場合（1 MiB 以上の未読）に、拡張が応答を受け取るか、`Error when communicating with the native messaging host.` になるか。§3.5.2 の手順 6 の読み捨てをした場合に、応答を確実に受け取ること | §3.5.2 の手順 6 | 読み捨てでも応答を受け取れない場合は、未送信・拒否の分類を見直す |
+| S-8 | ホストが stdin を読み終える前に応答を書いて終了した場合（1 MiB 以上の未読）に、拡張が応答を受け取るか、`Error when communicating with the native messaging host.` になるか。当初の設計（stdin をメッセージの長さまで読み捨ててから応答する）の場合に、応答を確実に受け取ること | §3.5.2 | 読み捨てでも応答を受け取れない場合は、未送信・拒否の分類を見直す |
 
 -   S-2 で使う manifest を、TCC で保護されたフォルダ（`~/Documents`・`~/Desktop`・`~/Downloads` など）の中のバイナリに向けると、起動が失敗しうる。README には、ホストのバイナリをこれらの外に置くよう書く（H-07）。
 
@@ -985,7 +982,7 @@ export function classifyResponse(
 | S-5 | ブラウザがホストを終了させる。ポップアップを閉じると、ブラウザはホストの stdin を閉じ（EOF）、約 2 秒後に終了させた。SIGTERM は届かず、捕まえられないシグナル（SIGKILL と推定）で終了した。2 回とも同じ | Chrome と同じ（EOF の約 2 秒後に終了） |
 | S-6 | Chrome は `Google/Chrome/NativeMessagingHosts` を読み、`BraveSoftware/Brave-Browser/NativeMessagingHosts` を読まない | **前提と異なる。** Brave は `Google/Chrome/NativeMessagingHosts` の manifest でホストを起動し、`BraveSoftware/Brave-Browser/NativeMessagingHosts` だけに置いた manifest は `Specified native messaging host not found.` になった。Brave を完全に終了して起動し直しても同じ。`Google/Chrome` のディレクトリがない場合の振る舞いは確かめていない |
 | S-7 | 前提どおり。メニューの経路で、ポップアップを閉じたまま 25 秒・40 秒・70 秒の応答を待ち、どれも受け取れた。その後の `chrome.storage.local.set` と、もう 1 回の `sendNativeMessage` も成功した。service worker は途中で起動し直さなかった | Chrome と同じ |
-| S-8 | 前提どおり（読み捨てをした場合は 30 回のうち 30 回、応答を受け取った）。ただし、読み捨てをしない場合も、32 KiB〜32 MiB の 6 つの大きさで 5 回ずつ、30 回のうち 30 回、応答を受け取れた。`Error when communicating with the native messaging host.` は再現しなかった | Chrome と同じ（読み捨てあり・なしとも 30 回のうち 30 回） |
+| S-8 | 前提どおり（読み捨てをした場合は 30 回のうち 30 回、応答を受け取った）。ただし、読み捨てをしない場合も、32 KiB〜32 MiB の 6 つの大きさで 5 回ずつ、30 回のうち 30 回、応答を受け取れた。`Error when communicating with the native messaging host.` は再現しなかった。この結果から、読み捨てを設計から外した（§3.5.2） | Chrome と同じ（読み捨てあり・なしとも 30 回のうち 30 回） |
 
 ### 3.11. design_handoff の各項目への対応
 
@@ -1088,7 +1085,7 @@ export function classifyResponse(
 | ホスト（install/uninstall） | 拒否・書き込みの失敗 | `1` |
 | ホスト（install/uninstall） | 成功（uninstall で manifest がなかった場合を含む） | `0` |
 
--   中継のときに `config.LoadHost` が失敗した場合（ブラウザが `HOME` を渡さない、`HOME` が長すぎる）は、接続を試みる前の失敗で、リクエストは確実に送られていない。ホストは stdin を読み捨ててから（§3.5.2 の手順 6）`server_unavailable` を返して終了コード `0` で終える（拡張の未送信の表示が、サーバの起動とホストの環境を確かめるよう案内する）。原因は標準エラー出力のログに書く。
+-   中継のときに `config.LoadHost` が失敗した場合（ブラウザが `HOME` を渡さない、`HOME` が長すぎる）は、接続を試みる前の失敗で、リクエストは確実に送られていない。ホストは stdin の本文を読まずに（§3.5.2）`server_unavailable` を返して終了コード `0` で終える（拡張の未送信の表示が、サーバの起動とホストの環境を確かめるよう案内する）。原因は標準エラー出力のログに書く。
 
 ### 4.4. 副作用の契約
 
@@ -1278,12 +1275,10 @@ sequenceDiagram
 
     B->>H: 起動・stdin に 4 バイト長
     alt 32 MiB を超える
-        H->>H: stdin を読み捨てる
         H-->>B: {"v":1,"kind":"error","error":"message_too_large"}
     else 長さが 1 以上 32 MiB 以下
         H->>S: connect（2 秒）
         alt 接続できない（ENOENT・ECONNREFUSED・EACCES・時間切れ）
-            H->>H: stdin を読み捨てる
             H-->>B: {"v":1,"kind":"error","error":"server_unavailable"}
         else 接続できた
             H->>S: ヘッダ（Content-Length・Expect: 100-continue）
@@ -1294,7 +1289,6 @@ sequenceDiagram
                 H->>S: 本文（stdin から流し込む）
                 S-->>H: 状態コードと JSON の本文（202 または 400・500）
             end
-            H->>H: stdin の残りを読み捨てる（拒否で本文を送らなかった場合）
             alt 20 秒までに応答を読み終えない
                 H-->>B: {"v":1,"kind":"error","error":"server_timeout"}
             else 本文が 64 KiB を超える・切断・HTTP として読めない
@@ -1373,7 +1367,7 @@ flowchart LR
     -   長さと上限: 長さの読み取り（native endian）。上限超過での `message_too_large` と長さ 0 での `protocol_error`、どちらも接続しないこと（`Dial` の fake が呼ばれないことを確かめる）。本文を貯めないこと（stdin に上限超過の長さだけを書き、本文を書かずに結果が返ること）。
     -   接続と通信の失敗: `server_unavailable`（ソケットなし・stale・権限のないディレクトリ）。`server_timeout`（応答しないサーバ）。`protocol_error`（64 KiB 超の本文、途中の切断、HTTP として読めない応答、stdin が長さに満たない）。時間の上限と書き込みの失敗が重なったときに `server_timeout` になること。
     -   接続の回数とプロキシ: どれも 1 回しか接続しないこと（`Dial` と `Transport` の `DialContext` の呼び出しを数える。AC-19）。`HTTP_PROXY` を設定してもリクエストの行が `POST /articles` の形のままであること。
-    -   読み捨て: どの経路でも stdin がメッセージの長さまで読まれてから応答が書かれること（stdin の fake が読まれたバイト数と、標準出力への書き込みの順序を記録する。§3.5.2 の手順 6）。
+    -   残りを読まない: サーバが本文を読まずに拒否した場合と、`message_too_large`・`server_unavailable` の場合に、stdin の本文が読まれずに応答が書かれること（stdin の fake が読まれたバイト数を記録する。§3.5.2）。
     -   応答の形: 2 つの形のメンバの集合。base64 で本文のバイト列が変わらないこと（無効な UTF-8 の本文でも変わらないこと）。`HostError` のゼロ値が `protocol_error` になること。
     -   出力: 標準出力が 1 フレームだけで、標準エラー出力に識別できる値（本文に入れた目印）が現れないこと（AC-17）。
     -   manifest: install/uninstall の中身、`0600`、一時ファイルが残らないこと、ブラウザのディレクトリがないときに何も作らないこと、他人の manifest を上書きも削除もしないこと、自分の manifest の置き換えと削除、`path` が相対のときと一時ディレクトリの下のときの拒否、ブラウザ名の完全一致。
