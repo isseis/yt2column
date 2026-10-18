@@ -242,6 +242,27 @@ describe("page metadata injection", () => {
     const parsed = await read("<div></div>");
     assert.deepEqual(Object.keys(parsed), ["descriptionCollapsed"]);
     assert.equal(parsed.descriptionCollapsed, false);
+
+    // The expander is present but the element its state selects is absent: the
+    // description is omitted while the collapsed flag still comes from
+    // is-expanded.
+    const collapsedNoSnippet = await read(
+      "<ytd-watch-metadata>" +
+        '<ytd-text-inline-expander id="description-inline-expander">' +
+        '<div id="expanded"><yt-attributed-string>Full</yt-attributed-string></div>' +
+        "</ytd-text-inline-expander></ytd-watch-metadata>",
+    );
+    assert.equal(collapsedNoSnippet.description, undefined);
+    assert.equal(collapsedNoSnippet.descriptionCollapsed, true);
+
+    const expandedNoSnippet = await read(
+      "<ytd-watch-metadata>" +
+        '<ytd-text-inline-expander id="description-inline-expander" is-expanded>' +
+        '<div id="attributed-snippet-text">Snippet</div>' +
+        "</ytd-text-inline-expander></ytd-watch-metadata>",
+    );
+    assert.equal(expandedNoSnippet.description, undefined);
+    assert.equal(expandedNoSnippet.descriptionCollapsed, false);
   });
 
   it("picks the description by is-expanded alone", async () => {
@@ -265,6 +286,8 @@ describe("page metadata injection", () => {
     const dom = watchDom(watchBody(expander("", "Snippet", "Full")));
     const before = dom.serialize();
     run(injection, dom, watchUrl);
+    // The serialized DOM catches mutations; a click-style operation that leaves
+    // the DOM unchanged is caught by the source scan below.
     assert.equal(dom.serialize(), before);
     const source = injection.func.toString();
     for (const call of [

@@ -8,7 +8,7 @@
 | Created | 2026-10-18 |
 | Review date | 2026-10-18 |
 | Reviewer | isesis |
-| Comments | - |
+| Comments | 編集上の訂正（2026-10-18。判断は変えていない）。フェーズ 2 の対象ファイルに `extension/src/launch.ts` を加えた（ステップ 2-3 が既に `MetadataReader` を launch.ts の型としているため、フェーズ 2 の作業内容は変えず、対象の記載を合わせただけである）。ステップ 2-4・2-5 の確かめる手段を `document.body.outerHTML` から jsdom の直列化（`dom.serialize()`）に改めた（`outerHTML` は拡張の ESLint の `no-restricted-syntax` が許さないため。何を確かめるかは変えていない） |
 
 ## 1. 実装の概要 (Implementation Overview)
 
