@@ -40,7 +40,8 @@ export interface SelectionReader {
 
 // The Unicode White_Space property, not JavaScript's \s: \s includes U+FEFF
 // but not U+0085, and only White_Space matches the requirement. Exported so
-// the video metadata applies the same blank rule.
+// the video metadata applies the same blank rule. Shared between modules, so
+// it must stay stateless: never add the g or y flag.
 export const whitespaceOnly = /^\p{White_Space}*$/u;
 
 /**

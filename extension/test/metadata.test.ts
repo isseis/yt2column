@@ -49,7 +49,7 @@ describe("parsePageMetadata", () => {
     assert.deepEqual(accepted(parsePageMetadata(JSON.stringify(page))), page);
   });
 
-  it("decodes a lone surrogate escape for acceptMetadata to judge", () => {
+  it("leaves a lone surrogate for acceptMetadata to judge instead of rejecting it", () => {
     const page = accepted(
       parsePageMetadata('{"title":"\\ud800","descriptionCollapsed":false}'),
     );
@@ -90,6 +90,18 @@ describe("parsePageMetadata", () => {
     [
       "a duplicate descriptionCollapsed",
       '{"descriptionCollapsed":true,"descriptionCollapsed":false}',
+      "duplicate-member",
+    ],
+    [
+      // Both checks fail; the member set is checked first.
+      "a duplicate unknown member",
+      '{"x":1,"x":2,"descriptionCollapsed":false}',
+      "member-set",
+    ],
+    [
+      // Both checks fail; JSON.parse keeps the number, but duplicates come first.
+      "a duplicate whose last value has the wrong type",
+      '{"title":"a","title":1,"descriptionCollapsed":false}',
       "duplicate-member",
     ],
     [

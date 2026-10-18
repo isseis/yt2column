@@ -112,7 +112,7 @@ export function parsePageMetadata(text: string): MetadataRead {
  * twice. JSON.parse keeps only the last of duplicate members, so the parsed
  * value cannot show them. Counting quotes does not work either, because a
  * value may contain escaped quotes; this scan follows strings and escapes,
- * and compares the decoded names so "a" and "a" are the same member.
+ * and compares the decoded names so "a" and "\u0061" are the same member.
  * The text must already have parsed as one JSON object.
  */
 function hasDuplicateTopLevelMember(text: string): boolean {
