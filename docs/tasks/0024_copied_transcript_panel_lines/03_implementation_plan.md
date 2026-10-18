@@ -72,33 +72,79 @@
 
 ### フェーズ 1: 末尾の領域・前置き・形の判定・行番号
 
-設計書 3.2.1・3.2.4・3.2.5・3.3・3.4。
+設計書 3.2.1・3.2.4・3.2.5・3.3・3.4。フェーズ 1 は 2 つの PR に分ける。前半（ステップ 1-1〜1-10）で末尾の領域と元の行番号の報告を、後半（ステップ 1-11〜1-20）で前置きと最初のセグメントの行による形の判定を加える。
 
 **変更するファイル:** `internal/transcript/copied_format.go`、`internal/transcript/copied_format_test.go`
 
--   [ ] 数字・`:`・数字の連続を含むかを返す非公開の述語を 1 つ加える（設計書 3.3）。前置きとフェーズ 3 の形 B の見出しの位置で共有する。
--   [ ] 空白文字だけの行（1 文字以上、すべて `unicode.IsSpace`）の判定と、操作ラベルの一覧（`動画の時間と同期`・`Sync to video time`）を非公開の値として 1 か所に置く（設計書 3.2.4）。一覧のコメントに、比較の対象なので日本語のまま置く理由と出典を英語で書く。
--   [ ] 末尾の領域を決める処理を加える。直前の行が時刻だけの行である操作ラベル行で領域を終える（設計書 3.2.4）。
--   [ ] 前置きを決める処理を、設計書 3.2.1 の (1)〜(4) の順で加える。最初のセグメントの行が見つからないときは `errCopiedNoText` で拒否する。
--   [ ] `parseCopiedTranscript` を設計書 3.2.5 の手順 1〜9 に沿って組み直す。前置きの走査は末尾の領域の直前で止める。形は最初のセグメントの行で判定し、手順 8（末尾の領域の制御文字の検査）は本体の検査の後に置く。今は `parseCopiedFormA`・`parseCopiedFormB` の中にある、本文のあるセグメントがあるかの検査（`copied_format.go:339-341`・`:382-384`）を、手順 8 の後（手順 9）に移す。
--   [ ] `parseCopiedFormA`・`parseCopiedFormB` が、行の並びと本体の範囲を受け取り、元の行番号を報告するようにする（設計書 3.4）。行を詰め直さない。
--   [ ] 関数のコメントを改める。`parseCopiedTranscript` の `decides which by the first line alone` を「最初のセグメントの行で判定し、前置きと末尾の領域を読み飛ばす」旨に、`parseCopiedFormA` の `The label's language is fixed by the first line.` を「本体の最初の行で固定する」旨に、`splitCopiedLines` の `a second or later trailing separator does, and is caught by the empty-line check.` を「残る空の行は末尾の領域に入る」旨に変える。
--   [ ] §2.7 の台帳のうち、フェーズ 1 の行を書き換える。
--   [ ] 新しいテストを加える。対象は AC-07・AC-09〜AC-11・AC-21〜AC-26・AC-28〜AC-33 と、前置きのある入力での本体の拒否の行番号（AC-15）。拒否のテストは `assertCopiedRejected` を通す。AC-07 は日本語 UI と英語 UI（`Sync to video time`）の両方を含める。§2.7 で書き換えるケースと入力が同じになる AC（AC-21〜AC-23 の空行だけの末尾、AC-31 の `タイムライン\n`）は、書き換えたケースを §5 の確認に対応させ、同じ入力のケースを新しく作らない。
--   [ ] `TestParseCopiedCheckOrder` に、設計書 3.2.5 の 2 つの順序のケースを加える。前置きの走査が末尾の領域に入らないこと（`文字起こし\n\t\n` が `errCopiedControlChar` でなく `errCopiedNoText`）と、手順 8 が手順 9 より先であること（`0:000 秒\n\t\n` が `errCopiedNoText` でなく行 2 の `errCopiedControlChar`）。
--   [ ] `TestParseCopiedErrorOmitsInput` に、前置きの拒否（数字・`:`・数字の連続の行、制御文字の行）で目印の文字列がメッセージに入らないケースを加える（AC-15）。
--   [ ] `FuzzNewCopiedSource` に設計書 7.1 の性質 (a)（末尾の空白行と操作ラベル行）と (b)（前置き）を加え、関数のコメントの性質の数（`checks four properties`）を改める。種の入力に、前置き・末尾の領域を含む入力を加える。性質 (a) で足す空白文字だけの行は、`unicode.IsControl` でも真になる文字（`\t`・`\v`・`\f`・U+0085）を使わない。足す行の区切りは入力の区切りに合わせ、区切りのない 1 行の入力には LF を使う。
--   [ ] 次の壊し方をそれぞれ試し、名前を挙げたテストが失敗することを確かめて、結果をコミットメッセージに書く。
+-   [ ] **ステップ 1-1**: 空白文字だけの行（1 文字以上、すべて `unicode.IsSpace`）の判定と、操作ラベルの一覧（`動画の時間と同期`・`Sync to video time`）を非公開の値として 1 か所に置く（設計書 3.2.4）。一覧のコメントに、比較の対象なので日本語のまま置く理由と出典を英語で書く。
+-   [ ] **ステップ 1-2**: 末尾の領域を決める処理を加える。直前の行が時刻だけの行である操作ラベル行で領域を終える（設計書 3.2.4）。
+-   [ ] **ステップ 1-3**: `parseCopiedFormA`・`parseCopiedFormB` が、行の並びと本体の範囲を受け取り、元の行番号を報告するようにする（設計書 3.4）。行を詰め直さない。
+-   [ ] **ステップ 1-4**: `parseCopiedTranscript` に、設計書 3.2.5 の手順 4（末尾の領域の決定）・手順 8（末尾の領域の制御文字の検査）・手順 9 を加える。手順 8 は本体の検査の後に置く。今は `parseCopiedFormA`・`parseCopiedFormB` の中にある、本文のあるセグメントがあるかの検査（`copied_format.go:339-341`・`:382-384`）を、手順 8 の後（手順 9）に移す。形の判定は、この時点では本体の最初の行で行う（ステップ 1-13 で最初のセグメントの行に変える）。末尾の領域が入力のすべての行を覆い本体が空のときは、手順 8 の前に `errCopiedNoText`（行番号なし）で拒否する（設計書 3.2.5 の、最初のセグメントの行がなければ手順 8 を行わない扱いと同じ）。
+-   [ ] **ステップ 1-5**: `splitCopiedLines` のコメントの `a second or later trailing separator does, and is caught by the empty-line check.` を「残る空の行は末尾の領域に入る」旨に変える。
+-   [ ] **ステップ 1-6**: §2.7 の台帳のうち、ステップ 1-6 の行を書き換える。
+-   [ ] **ステップ 1-7**: 新しいテストを加える。対象は AC-07・AC-09・AC-10・AC-21〜AC-23・AC-26・AC-33。拒否のテストは `assertCopiedRejected` を通す。AC-07 は日本語 UI と英語 UI（`Sync to video time`）の両方を含める。§2.7 で書き換えるケースと入力が同じになる AC（AC-22・AC-23 の空行だけの末尾）は、書き換えたケースを §5 の確認に対応させ、同じ入力のケースを新しく作らない。AC-23 の形 A の例（`0:000 秒はい\n\n\n`）は形 B の `three trailing separators` と入力が違うので、別に加える。本体が空の入力（操作ラベル行だけの `動画の時間と同期\n`。AC-11 の一部）の `errCopiedNoText` も加える。
+-   [ ] **ステップ 1-8**: `TestParseCopiedCheckOrder` に、手順 8 が手順 9 より先であるケース（`0:000 秒\n\t\n` が `errCopiedNoText` でなく行 2 の `errCopiedControlChar`）と、本体が空なら手順 8 を行わないケース（`動画の時間と同期\n\t\n` が `errCopiedControlChar` でなく `errCopiedNoText`）を加える。
+-   [ ] **ステップ 1-9**: `FuzzNewCopiedSource` に設計書 7.1 の性質 (a)（末尾の空白行と操作ラベル行）を加え、関数のコメントの性質の数（`checks four properties`）を改める。種の入力に、末尾の領域を含む入力を加える。足す空白文字だけの行は、`unicode.IsControl` でも真になる文字（`\t`・`\v`・`\f`・U+0085）を使わない。足す行の区切りは入力の区切りに合わせ、区切りのない 1 行の入力には LF を使う。
+-   [ ] **ステップ 1-10**: 次の壊し方をそれぞれ試し、名前を挙げたテストが失敗することを確かめて、結果をコミットメッセージに書く。
+    -   (i) 末尾の領域の「直前が時刻だけの行」の条件を外す → AC-33 のテスト。
+    -   (ii) 手順 8 を外す → AC-26 のテスト。
+    -   (iii) 手順 8 と手順 9 の順を入れ替える → `TestParseCopiedCheckOrder` の `0:000 秒\n\t\n` のケース。
+    -   (iv) 拒否の経路で `nil` でない `[]Segment` を返す → `assertCopiedRejected` を通るテスト。
+    -   (v) 末尾の領域の処理を外す → 種の入力での性質 (a)。
+    -   (vi) 本体が空のときの `errCopiedNoText` を外し、手順 8 へ進める → `TestParseCopiedCheckOrder` の `動画の時間と同期\n\t\n` のケース。
+
+**PR-1 の成功の条件:** §2.7 の台帳のステップ 1-6 の行以外の既存のケースが変更なしで通る（AC-18）。
+
+### PR-1 作成ポイント: trailing region and original line numbers
+
+**対象ステップ**: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8 / 1-9 / 1-10
+
+**推奨タイトル**: `feat(0024): skip the trailing region of a copied transcript`
+
+**レビュー観点**: 末尾の領域が空白文字だけの行と一覧の操作ラベル行だけからなり、直前が時刻だけの行である操作ラベル行を含めず形 B の本文として残すこと / 末尾の領域の制御文字の検査が本体の検査の後・本文の有無の検査の前に起こること（設計書 3.2.5 の手順 8・9） / 形ごとの解析が範囲を受け取っても、拒否の行番号が元の入力の行番号のままであり、§2.7 のステップ 1-6 の行以外の既存のケースの理由と行番号が変わらないこと
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: ステップ 1-3・1-4 は、形ごとの解析が受け取る範囲と行番号、および入口の検査の順序（本文の有無の検査の位置）を同時に組み替える複雑な手順で、既存の拒否の理由と行番号を保つ必要があるため。
+
+-   [ ] グリーンゲート（`make test && make lint`。`_context.md` の "Green gate"）がパスしていることを確認した
+-   [ ] PR を作成した
+-   [ ] PR がマージされた
+-   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
+-   [ ] **ステップ 1-11**: 数字・`:`・数字の連続を含むかを返す非公開の述語を 1 つ加える（設計書 3.3）。前置きとステップ 3-1 の形 B の見出しの位置で共有する。
+-   [ ] **ステップ 1-12**: 前置きを決める処理を、設計書 3.2.1 の (1)〜(4) の順で加える。最初のセグメントの行が見つからないときは `errCopiedNoText` で拒否する。
+-   [ ] **ステップ 1-13**: `parseCopiedTranscript` に設計書 3.2.5 の手順 5（前置き）と手順 6（形の判定）を加える。前置きの走査は末尾の領域の直前で止める。形は最初のセグメントの行で判定する。
+-   [ ] **ステップ 1-14**: 関数のコメントを改める。`parseCopiedTranscript` の `decides which by the first line alone` を「最初のセグメントの行で判定し、前置きと末尾の領域を読み飛ばす」旨に、`parseCopiedFormA` の `The label's language is fixed by the first line.` を「本体の最初の行で固定する」旨に変える。
+-   [ ] **ステップ 1-15**: §2.7 の台帳のうち、ステップ 1-15 の行を書き換える。
+-   [ ] **ステップ 1-16**: 新しいテストを加える。対象は AC-11・AC-24・AC-28〜AC-32 と、前置きのある入力での本体の拒否の行番号（AC-15）。拒否のテストは `assertCopiedRejected` を通す。AC-31 の `タイムライン\n` は、§2.7 で書き換える `leading display items` を §5 の確認に対応させ、同じ入力のケースを新しく作らない。
+-   [ ] **ステップ 1-17**: `TestParseCopiedCheckOrder` に、前置きの走査が末尾の領域に入らないケース（`文字起こし\n\t\n` が `errCopiedControlChar` でなく `errCopiedNoText`）を加える。
+-   [ ] **ステップ 1-18**: `TestParseCopiedErrorOmitsInput` に、前置きの拒否（数字・`:`・数字の連続の行、制御文字の行）で目印の文字列がメッセージに入らないケースを加える（AC-15）。
+-   [ ] **ステップ 1-19**: `FuzzNewCopiedSource` に設計書 7.1 の性質 (b)（前置き）を加え、関数のコメントの性質の数を改める。種の入力に、前置きを含む入力を加える。足す行の区切りは入力の区切りに合わせ、区切りのない 1 行の入力には LF を使う。
+-   [ ] **ステップ 1-20**: 次の壊し方をそれぞれ試し、名前を挙げたテストが失敗することを確かめて、結果をコミットメッセージに書く。
     -   (i) 前置きの処理の (2) と (3) の順を入れ替える → AC-28 のテスト。
     -   (ii) 数字・`:`・数字の述語が常に偽を返す → AC-30 と `leading BOM` などの時刻の文法の拒否のケース。
-    -   (iii) 末尾の領域の「直前が時刻だけの行」の条件を外す → AC-33 のテスト。
-    -   (iv) 手順 8 を外す → AC-26 のテスト。
-    -   (v) 手順 8 と手順 9 の順を入れ替える → `TestParseCopiedCheckOrder` の `0:000 秒\n\t\n` のケース。
-    -   (v') 前置きの走査を末尾の領域まで進める → 同じテストの `文字起こし\n\t\n` のケース。
-    -   (vi) 拒否の経路で `nil` でない `[]Segment` を返す → `assertCopiedRejected` を通るテスト。
-    -   (vii) 末尾の領域・前置きの処理を外す → 種の入力での性質 (a)・(b)。
+    -   (iii) 前置きの走査を末尾の領域まで進める → `TestParseCopiedCheckOrder` の `文字起こし\n\t\n` のケース。
+    -   (iv) 前置きの処理を外す → 種の入力での性質 (b)。
 
-**成功の条件:** §2.7 の台帳以外の既存のケースが変更なしで通る（AC-18）。
+**PR-2 の成功の条件:** §2.7 の台帳のステップ 1-6・1-15 の行以外の既存のケースが変更なしで通る（AC-18）。
+
+### PR-2 作成ポイント: prefix and form detection by the first segment line
+
+**対象ステップ**: 1-11 / 1-12 / 1-13 / 1-14 / 1-15 / 1-16 / 1-17 / 1-18 / 1-19 / 1-20
+
+**推奨タイトル**: `feat(0024): skip the prefix before the first segment line`
+
+**レビュー観点**: 前置きの各行が設計書 3.2.1 の (1)〜(4) の順で扱われ、数字・`:`・数字の連続を含む行と制御文字の行を読み飛ばさずに拒否すること / 時刻の文法の拒否のケース（`leading BOM` など）が理由と行番号を変えずに通ること / 前置きの走査が末尾の領域の直前で止まり、形の判定が最初のセグメントの行で行われること / 前置きのある入力の拒否の行番号が元の入力の行番号であること
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: ステップ 1-12・1-13 は、内容にかかわらず行を読み飛ばす前置きの範囲を時刻の文法から決める手順で、(2) と (3) の順や述語を誤るとセグメントを黙って失うため（設計書 5.4）。
+
+-   [ ] グリーンゲート（`make test && make lint`。`_context.md` の "Green gate"）がパスしていることを確認した
+-   [ ] PR を作成した
+-   [ ] PR がマージされた
+-   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: 形 A のチャプターの見出し行
 
@@ -106,23 +152,57 @@
 
 **変更するファイル:** `internal/transcript/copied_format.go`、`internal/transcript/copied_format_test.go`
 
--   [ ] 形 A の見出しの形（`チャプター`・`Chapter` + U+0020 + `[1-9][0-9]*` + `:` + U+0020 + タイトル）を非公開の値として 1 か所に置く。新しい表記は、見出しの形を 1 つ加えるだけで対応できるようにする（要件書 §4.5）。タイトルの最後の文字の判定は `unicode.IsSpace` で行う（`regexp` の `\S` を使わない。設計書 3.2.2）。
--   [ ] `parseCopiedFormA` の本体の行の検査で、`checkCopiedLine` の後、時刻の接頭辞の読み取りの前に、見出しの形に一致する行を読み飛ばす。見出し行は言語の固定と時刻の順序に影響させない。
--   [ ] 新しいテストを加える。対象は AC-01〜AC-06（AC-05 は見出し行だけの入力の `errCopiedNoText`）と、形 A の側の AC-12・AC-13。AC-04 の拒否のケースには、U+3000 で終わるタイトル（`\S` では一致してしまう行）を含める。
--   [ ] `TestParseCopiedErrorOmitsInput` に、見出しの形に一致しない形 A の行（目印を含むもの）の拒否のケースを加える（AC-15）。
--   [ ] 次の壊し方をそれぞれ試し、名前を挙げたテストが失敗することを確かめて、結果をコミットメッセージに書く。見出しの判定を外す → AC-01〜AC-03・AC-06 のテスト。最後の文字の判定を `\S` 相当（ASCII の空白だけを空白と見なす判定）に変える → U+3000 で終わるタイトルのケース。番号の `[1-9]` を `[0-9]` にする → `チャプター 0`・`チャプター 01` のケース。
+-   [ ] **ステップ 2-1**: 形 A の見出しの形（`チャプター`・`Chapter` + U+0020 + `[1-9][0-9]*` + `:` + U+0020 + タイトル）を非公開の値として 1 か所に置く。新しい表記は、見出しの形を 1 つ加えるだけで対応できるようにする（要件書 §4.5）。タイトルの最後の文字の判定は `unicode.IsSpace` で行う（`regexp` の `\S` を使わない。設計書 3.2.2）。
+-   [ ] **ステップ 2-2**: `parseCopiedFormA` の本体の行の検査で、`checkCopiedLine` の後、時刻の接頭辞の読み取りの前に、見出しの形に一致する行を読み飛ばす。見出し行は言語の固定と時刻の順序に影響させない。
+-   [ ] **ステップ 2-3**: 新しいテストを加える。対象は AC-01〜AC-06（AC-05 は見出し行だけの入力の `errCopiedNoText`）と、形 A の側の AC-12・AC-13、および前置き・見出し行・末尾の領域を含む形 A のパネル全体の選択（AC-19 の自動の側）。AC-04 の拒否のケースには、U+3000 で終わるタイトル（`\S` では一致してしまう行）を含める。
+-   [ ] **ステップ 2-4**: `TestParseCopiedErrorOmitsInput` に、見出しの形に一致しない形 A の行（目印を含むもの）の拒否のケースを加える（AC-15）。
+-   [ ] **ステップ 2-5**: 次の壊し方をそれぞれ試し、名前を挙げたテストが失敗することを確かめて、結果をコミットメッセージに書く。見出しの判定を外す → AC-01〜AC-03・AC-06 のテストと、形 A のパネル全体の選択のケース。最後の文字の判定を `\S` 相当（ASCII の空白だけを空白と見なす判定）に変える → U+3000 で終わるタイトルのケース。番号の `[1-9]` を `[0-9]` にする → `チャプター 0`・`チャプター 01` のケース。
+
+### PR-3 作成ポイント: form A chapter headings
+
+**対象ステップ**: 2-1 / 2-2 / 2-3 / 2-4 / 2-5
+
+**推奨タイトル**: `feat(0024): skip form A chapter heading lines`
+
+**レビュー観点**: 見出しの形が行全体の一致で、番号が `[1-9][0-9]*`、タイトルの最後の文字の判定が `\S` でなく `unicode.IsSpace` であること / 見出しの判定が `checkCopiedLine` の後・時刻の接頭辞の読み取りの前にあり、言語の固定と時刻の順序に影響しないこと / 見出しの形に一致しない行（AC-04 の各行）と本体の未知の行を、形 A では引き続き拒否すること
+
+**実装モデル要件**: standard
+
+**判定理由**: 設計書 3.2.2 が見出しの形と判定の位置を確定しており、状態の変更も外部の資源もないため、どの契機にも当たらない。
+
+-   [ ] グリーンゲート（`make test && make lint`。`_context.md` の "Green gate"）がパスしていることを確認した
+-   [ ] PR を作成した
+-   [ ] PR がマージされた
+-   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: 形 B のチャプターの見出し行
 
-設計書 3.2.3。フェーズ 1 の数字・`:`・数字の述語を使う。
+設計書 3.2.3。ステップ 1-11 の数字・`:`・数字の述語を使う。
 
 **変更するファイル:** `internal/transcript/copied_format.go`、`internal/transcript/copied_format_test.go`
 
--   [ ] `parseCopiedFormB` の時刻を期待する位置（`copied_format.go:370-372` の `!awaitingText` の分岐）を、設計書 3.2.3 の手順 3・4 に変える。空白文字だけの行と、数字・`:`・数字の連続を含む行は `errCopiedNotTimestamp` で拒否する。それ以外の行は見出しとして読み飛ばし、`awaitingText` は偽のままにする。
--   [ ] `parseCopiedFormB` のコメントの `The line after a text line must be a timestamp, so a chapter heading there is rejected.` を、「時刻を期待する位置の非時刻行は、拒否の規則に当たらなければ見出しとして読み飛ばす」旨に改める。
--   [ ] §2.7 の台帳のうち、フェーズ 3 の行を書き換える。`chapter heading omits the line` は、入力を、設計書 3.3 の規則で拒否される形 B の見出しの位置の行（設計書 3.6）に差し替え、拒否のメッセージに目印が入らないことを確かめる（AC-15）。
--   [ ] 新しいテストを加える。対象は AC-08（前置き・形 B の見出し・末尾を持つパネル全体の選択）・AC-35〜AC-38 と、設計書 5.4 の前置きの終わりの拒否の経路（`errCopiedTimestampOrder`）。AC-35 には、形 A では拒否される行（`タイムライン`・`チャプター: タイトル`・`動画の時間と同期について話します`）を形 B の時刻を期待する位置に置くケースを含める（AC-04・AC-09・AC-12・AC-13 の形 B の側）。AC-36 は設計書 3.3 の表の形 B の列の 4 行それぞれを含める。
--   [ ] 次の壊し方をそれぞれ試し、名前を挙げたテストが失敗することを確かめて、結果をコミットメッセージに書く。見出しの読み飛ばしを外す → AC-35・AC-08 のテスト。手順 3 を外す → AC-36 の空白文字だけの行と数字・`:`・数字の行、`bad timestamp at a form B position`・`form A line where form B wants a timestamp`。見出しを読み飛ばした後に `awaitingText` を真にする → 連続する 2 行の見出しのケース。
+-   [ ] **ステップ 3-1**: `parseCopiedFormB` の時刻を期待する位置（`copied_format.go:370-372` の `!awaitingText` の分岐）を、設計書 3.2.3 の手順 3・4 に変える。空白文字だけの行と、数字・`:`・数字の連続を含む行は `errCopiedNotTimestamp` で拒否する。それ以外の行は見出しとして読み飛ばし、`awaitingText` は偽のままにする。
+-   [ ] **ステップ 3-2**: `parseCopiedFormB` のコメントの `The line after a text line must be a timestamp, so a chapter heading there is rejected.` を、「時刻を期待する位置の非時刻行は、拒否の規則に当たらなければ見出しとして読み飛ばす」旨に改める。
+-   [ ] **ステップ 3-3**: §2.7 の台帳のうち、ステップ 3-3 の行を書き換える。`chapter heading omits the line` は、入力を、設計書 3.3 の規則で拒否される形 B の見出しの位置の行（設計書 3.6）に差し替え、拒否のメッセージに目印が入らないことを確かめる（AC-15）。
+-   [ ] **ステップ 3-4**: 新しいテストを加える。対象は AC-08（前置き・形 B の見出し・末尾を持つパネル全体の選択）・AC-35〜AC-38 と、設計書 5.4 の前置きの終わりの拒否の経路（`errCopiedTimestampOrder`）。AC-35 には、形 A では拒否される行（`タイムライン`・`チャプター: タイトル`・`動画の時間と同期について話します`）を形 B の時刻を期待する位置に置くケースを含める（AC-04・AC-09・AC-12・AC-13 の形 B の側）。AC-36 は設計書 3.3 の表の形 B の列の 4 行それぞれを含める。
+-   [ ] **ステップ 3-5**: 次の壊し方をそれぞれ試し、名前を挙げたテストが失敗することを確かめて、結果をコミットメッセージに書く。見出しの読み飛ばしを外す → AC-35・AC-08 のテスト。手順 3 を外す → AC-36 の空白文字だけの行と数字・`:`・数字の行、`bad timestamp at a form B position`・`form A line where form B wants a timestamp`。見出しを読み飛ばした後に `awaitingText` を真にする → 連続する 2 行の見出しのケース。
+
+### PR-4 作成ポイント: form B chapter headings by position
+
+**対象ステップ**: 3-1 / 3-2 / 3-3 / 3-4 / 3-5
+
+**推奨タイトル**: `feat(0024): skip form B chapter headings at timestamp-expected positions`
+
+**レビュー観点**: 時刻を期待する位置の非時刻行のうち、空白文字だけの行と数字・`:`・数字の連続を含む行を `errCopiedNotTimestamp` で拒否し、それ以外だけを読み飛ばすこと / 見出しを読み飛ばした後も `awaitingText` が偽のままで、連続する見出しと本文を期待する位置の扱い（AC-37）が設計書 3.2.3 のとおりであること / `chapter heading omits the line` の書き換えで、受理の側と拒否のメッセージの側の両方を確かめていること
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: ステップ 3-1 は、形 B の位置の状態（`awaitingText`）の遷移に、0015 §3.2.9 の方針を反転する読み飛ばしを加える状態機械の変更で、誤るとセグメントを黙って失うため。
+
+-   [ ] グリーンゲート（`make test && make lint`。`_context.md` の "Green gate"）がパスしていることを確認した
+-   [ ] PR を作成した
+-   [ ] PR がマージされた
+-   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 4: 実データ `BkaUHsH_mkw`
 
@@ -130,16 +210,33 @@
 
 **変更するファイル:** `testdata/BkaUHsH_mkw.transcript_copy.txt`（新規）、`testdata/README.md`、`internal/transcript/copied_test.go`、`internal/writer/prompt_test.go`、`cmd/yt2column/copied_transcript_docs_test.go`
 
--   [ ] 取得者に、2026-10-18 の取得物（§1.3 の候補）と、取得の方法（パネルの選択を手でコピーしたものか、プログラムで抽出したものか）と条件（ブラウザとその版、ログインの有無、選択の範囲）を確かめる。手でのコピー（`window.getSelection().toString()` と同じ文字列になる方法）でなければ、取り直す。確認が取れるまでファイルを保存しない。
--   [ ] 確かめたファイルを加工せずに `testdata/BkaUHsH_mkw.transcript_copy.txt` に複写する。複写の後に SHA-256 とバイト数が元のファイルと一致することを確かめる。取得者を特定できる情報を含まないことを確かめる（`docs/dev/security.md` §7）。
--   [ ] `testdata/README.md` の「コピーした字幕」の節を改める。冒頭の `3 ファイルとも` を 4 ファイルに合わせ、共通の項目（取得日 2026-10-14・取得方法・見出しを含まないこと）は既存の 3 ファイルのものと明記する。`BkaUHsH_mkw` について、AC-17 が挙げる項目（動画タイトル・URL・チャンネル・ライセンスとその URI・取得日 2026-10-18・取得方法・加工内容なし・見出し 3 行を含むこと・末尾の改行がないこと）を書く。値は動画のページと取得者の申告から書き写す。
--   [ ] `copiedSampleFiles` に `BkaUHsH_mkw.transcript_copy.txt` を加え、`TestCopiedSourceRealSamples` に期待値を加える。期待値はファイルを読んで決め、パーサの出力から取らない（`copiedSample` のコメントの方針）。
--   [ ] `checkCopiedSampleSegments` に `BkaUHsH_mkw` の確認を加える。ファイルから見出しの 3 行を取り除いた入力を解析した `Segments` と等しいこと（152 要素）、見出しの直前・直後のセグメントの `StartMs` と `Text` が対応するセグメントと等しいこと（AC-34）。取り除いた入力が見出しの行を含まないことを先に確かめる。
--   [ ] `TestValidateTranscriptAcceptsCopiedSamples` の `const wantSamples = 3` を `const wantSamples = 4` にする。
--   [ ] `TestCopiedTranscriptSurveyRecords` の「保存する」の確認（`:63-73`）を、0015 `02_architecture.md` §1.4.1 の表と、要件書 §1.1（見出し `### 1.1. 本タスクで保存するサンプルの記録`）の表の一覧から読む形に変える（設計書 3.5）。要件書のパスの定数を `copiedTranscriptArchitecturePath` の隣に加える。0015 の表に対する他の検査は変えない。関数のコメントを、一覧の表から読む旨に改める。
--   [ ] 次の壊し方をそれぞれ試し、名前を挙げたテストが失敗することを確かめて、結果をコミットメッセージに書く。試した変更は元に戻す。要件書 §1.1 の表の `BkaUHsH_mkw` の行の `testdata/` 列を「保存しない」に変える、一覧から要件書の表を外す → `TestCopiedTranscriptSurveyRecords`。見出しの読み飛ばし（フェーズ 3）を外す → `TestCopiedSourceRealSamples/BkaUHsH_mkw`。
+-   [ ] **ステップ 4-1**: 取得者に、2026-10-18 の取得物（§1.3 の候補）と、取得の方法（パネルの選択を手でコピーしたものか、プログラムで抽出したものか）と条件（ブラウザとその版、ログインの有無、選択の範囲）を確かめる。手でのコピー（`window.getSelection().toString()` と同じ文字列になる方法）でなければ、取り直す。確認が取れるまでファイルを保存しない。
+-   [ ] **ステップ 4-2**: 確かめたファイルを加工せずに `testdata/BkaUHsH_mkw.transcript_copy.txt` に複写する。複写の後に SHA-256 とバイト数が元のファイルと一致することを確かめる。取得者を特定できる情報を含まないことを確かめ、PR の説明に確かめた内容を書いて、レビューで人間がもう一度確かめられるようにする（`docs/dev/security.md` §7）。
+-   [ ] **ステップ 4-3**: `testdata/README.md` の「コピーした字幕」の節を改める。冒頭の `3 ファイルとも` を 4 ファイルに合わせ、共通の項目（取得日 2026-10-14・取得方法・見出しを含まないこと）は既存の 3 ファイルのものと明記する。`BkaUHsH_mkw` について、AC-17 が挙げる項目（動画タイトル・URL・チャンネル・ライセンスとその URI・取得日 2026-10-18・取得方法・加工内容なし・見出し 3 行を含むこと・末尾の改行がないこと）を書く。値は動画のページと取得者の申告から書き写す。
+-   [ ] **ステップ 4-4**: `copiedSampleFiles` に `BkaUHsH_mkw.transcript_copy.txt` を加え、`TestCopiedSourceRealSamples` に期待値を加える。期待値はファイルを読んで決め、パーサの出力から取らない（`copiedSample` のコメントの方針）。
+-   [ ] **ステップ 4-5**: `checkCopiedSampleSegments` に `BkaUHsH_mkw` の確認を加える。ファイルから見出しの 3 行を取り除いた入力を解析した `Segments` と等しいこと（152 要素）、見出しの直前・直後のセグメントの `StartMs` と `Text` が対応するセグメントと等しいこと（AC-34）。取り除いた入力が見出しの行を含まないことを先に確かめる。
+-   [ ] **ステップ 4-6**: `TestValidateTranscriptAcceptsCopiedSamples` の `const wantSamples = 3` を `const wantSamples = 4` にする。
+-   [ ] **ステップ 4-7**: `TestCopiedTranscriptSurveyRecords` の「保存する」の確認（`:63-73`）を、0015 `02_architecture.md` §1.4.1 の表と、要件書 §1.1（見出し `### 1.1. 本タスクで保存するサンプルの記録`）の表の一覧から読む形に変える（設計書 3.5）。要件書のパスの定数を `copiedTranscriptArchitecturePath` の隣に加える。0015 の表に対する他の検査は変えない。関数のコメントを、一覧の表から読む旨に改める。
+-   [ ] **ステップ 4-8**: 次の壊し方をそれぞれ試し、名前を挙げたテストが失敗することを確かめて、結果をコミットメッセージに書く。試した変更は元に戻す。要件書 §1.1 の表の `BkaUHsH_mkw` の行の `testdata/` 列を「保存しない」に変える、一覧から要件書の表を外す → `TestCopiedTranscriptSurveyRecords`。見出しの読み飛ばし（ステップ 3-1）を外す → `TestCopiedSourceRealSamples/BkaUHsH_mkw`。
 
 **成功の条件:** `make test` が通る。`TestFakesCarryBuildTag` などのパイプラインの guard が変更なしで通る（AC-18）。
+
+### PR-5 作成ポイント: BkaUHsH_mkw real sample
+
+**対象ステップ**: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7 / 4-8
+
+**推奨タイトル**: `test(0024): add the BkaUHsH_mkw copied-transcript sample`
+
+**レビュー観点**: サンプルが手でのコピーで取得され、加工されずに保存されていること（SHA-256 とバイト数の一致） / `testdata/README.md` の出典・ライセンス・取得日・取得方法・見出し 3 行・末尾の改行の記録が、既存の 3 ファイルの共通の項目と混ざらないこと / `TestCopiedSourceRealSamples` の期待値がパーサの出力でなくファイルから決められ、見出しを取り除いた入力との比較が AC-34 を確かめること / `TestCopiedTranscriptSurveyRecords` が 0015 の表を書き換えずに、要件書 §1.1 の表から「保存する」を読むこと
+
+**実装モデル要件**: standard
+
+**判定理由**: サンプルの保存と既存のテスト・guard の期待値の更新で、どの契機にも当たらない。ステップ 4-1・4-2 の確認（取得の方法・ライセンス・取得者を特定できる情報を含まないこと）は、`docs/dev/security.md` §7 の既存の手順をそのまま当てるもので、新しい安全の関門や移行の手順ではない。取得の方法は取得者が申告し、PR のレビューで人間がもう一度確かめる。
+
+-   [ ] グリーンゲート（`make test && make lint`。`_context.md` の "Green gate"）がパスしていることを確認した
+-   [ ] PR を作成した
+-   [ ] PR がマージされた
+-   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 5: 4 MiB の入力
 
@@ -147,43 +244,97 @@
 
 **変更するファイル:** `internal/transcript/copied_format_test.go`
 
--   [ ] `TestParseCopiedLargeInputs` に設計書 7.3 の 4 つの入力（末尾の 0 文字の行、1 バイトの前置きの行、形 A の見出し行とセグメントの交互、形 B の本文の後の 1 バイトの見出し行）と、それぞれの組み立て関数を加える。各入力は 4 MiB 以下で、期待するセグメントの数を持つ。
--   [ ] 関数のコメントの `parses three synthetic 4 MiB inputs: the shortest form A line repeated (the most segments), one form A line nearly 4 MiB long, and many textless form B timestamps followed by one text.` を、7 つの入力とそれぞれが走査する経路を述べる形に改める。
--   [ ] `make test`（race あり、`copiedParseAllocPerByte` は 8192）と、race なしの `go test -tags test -run TestParseCopiedLargeInputs ./internal/transcript`（同 128）の両方で、既存の 3 つと新しい 4 つを合わせた 7 つの入力が期限とメモリの上限に収まることを確かめ、両方の `t.Logf` の値をコミットメッセージに書く。
+-   [ ] **ステップ 5-1**: `TestParseCopiedLargeInputs` に設計書 7.3 の 4 つの入力（末尾の 0 文字の行、1 バイトの前置きの行、形 A の見出し行とセグメントの交互、形 B の本文の後の 1 バイトの見出し行）と、それぞれの組み立て関数を加える。各入力は 4 MiB 以下で、期待するセグメントの数を持つ。
+-   [ ] **ステップ 5-2**: 関数のコメントの `parses three synthetic 4 MiB inputs: the shortest form A line repeated (the most segments), one form A line nearly 4 MiB long, and many textless form B timestamps followed by one text.` を、7 つの入力とそれぞれが走査する経路を述べる形に改める。
+-   [ ] **ステップ 5-3**: `make test`（race あり、`copiedParseAllocPerByte` は 8192）と、race なしの `go test -tags test -run TestParseCopiedLargeInputs ./internal/transcript`（同 128）の両方で、既存の 3 つと新しい 4 つを合わせた 7 つの入力が期限とメモリの上限に収まることを確かめ、両方の `t.Logf` の値をコミットメッセージに書く。
+
+### PR-6 作成ポイント: 4 MiB input tests
+
+**対象ステップ**: 5-1 / 5-2 / 5-3
+
+**推奨タイトル**: `test(0024): cover the new skip paths with 4 MiB inputs`
+
+**レビュー観点**: 4 つの入力がそれぞれ設計書 7.3 の走査の経路（末尾の領域・前置き・形 A の見出し・形 B の見出し）を通り、4 MiB 以下であること / race あり・なしの両方で期限と `copiedParseAllocPerByte` に収まり、その値がコミットメッセージにあること
+
+**実装モデル要件**: standard
+
+**判定理由**: 既存の `TestParseCopiedLargeInputs` に入力を足すだけのテストの変更で、どの契機にも当たらない。
+
+-   [ ] グリーンゲート（`make test && make lint`。`_context.md` の "Green gate"）がパスしていることを確認した
+-   [ ] PR を作成した
+-   [ ] PR がマージされた
+-   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 6: CLAUDE.md・README・手動の確認
 
-設計書 1.3.1（例外 5 と CLAUDE.md への記載）・7.5。フェーズ 2・3 の後に行う。
+設計書 1.3.1（例外 5 と CLAUDE.md への記載）・7.5。フェーズ 2・3 の後に行う。フェーズ 6 は 2 つの PR に分ける。ステップ 6-1〜6-5（文書）と、利用者の承認と実際のサービスを要するステップ 6-6（手動の確認）である。
 
 **変更するファイル:** `CLAUDE.md`、`cmd/yt2column/copied_transcript_docs_test.go`、`README.md`、本計画（§5.1）
 
--   [ ] CLAUDE.md の「Declare, don't infer」の Exception の文に、設計書 1.3.1 の 4 種類の読み飛ばしと、例外の境界との関係の 3 点を英語で加える。空行を入れずに同じ項目の続きとして書く（`markdownBullet` は空行で項目を終える）。既存の Boundary の文（`an input that matches neither form is rejected, not accepted by widening the interpretation`）は変えない。
--   [ ] `TestClaudeMDCopiedTranscriptException` の確認の語に、設計書 1.3.1 の `first segment line`・`timestamp-expected position`・`chapter heading`・`trailing`・`explicitly defined` と、前置きと形 A の見出しをそれぞれ指す語（`prefix`・`Chapter N: `）を加える。後の 2 語は設計書 1.3.1 の語の一覧にないが、4 種類の読み飛ばしのそれぞれを 1 語以上で確かめるために加える。関数のコメントの `states the copied-transcript exception's scope, reason, and boundary` を、読み飛ばしの範囲も確かめる旨に改める。
--   [ ] `README.md:599-601` の文 `The selection is sent exactly as copied from the transcript panel; the extension does not trim it, so select only the caption lines — a trailing blank line is not part of the accepted format and the server rejects it.` を、パネル全体を選んでよいこと、読み飛ばす行（前置き・チャプターの見出し・末尾の空白行と `Sync to video time`／`動画の時間と同期`）、それでも拒否される行（形 A の本体の未知の行、本体の空行、時刻に似た文字列を含む前置きと形 B の見出し）を述べる英語の文に改める。内容が設計書 3.2・3.3 と合うことを、PR の説明に対応する節を挙げて示す。
--   [ ] `make ext-test` を実行する（README の拒否の理由の表を `serverReasons.test.ts` が読むため）。
--   [ ] CLAUDE.md から加えた語を 1 つずつ消し、そのたびに `TestClaudeMDCopiedTranscriptException` が失敗することを確かめて、結果をコミットメッセージに書く。
--   [ ] AC-19 の手動の確認を行う。`BkaUHsH_mkw` の行はフェーズ 4 の後に行う。実際のサーバと拡張を使い、LLM の API と Webhook を呼ぶので、実行の前に利用者の承認を得る（CLAUDE.md「Tool Execution Safety」）。結果を §5.1 に記録する。
+-   [ ] **ステップ 6-1**: CLAUDE.md の「Declare, don't infer」の Exception の文に、設計書 1.3.1 の 4 種類の読み飛ばしと、例外の境界との関係の 3 点を英語で加える。空行を入れずに同じ項目の続きとして書く（`markdownBullet` は空行で項目を終える）。既存の Boundary の文（`an input that matches neither form is rejected, not accepted by widening the interpretation`）は変えない。
+-   [ ] **ステップ 6-2**: `TestClaudeMDCopiedTranscriptException` の確認の語に、設計書 1.3.1 の `first segment line`・`timestamp-expected position`・`chapter heading`・`trailing`・`explicitly defined` と、前置きと形 A の見出しをそれぞれ指す語（`prefix`・`Chapter N: `）を加える。後の 2 語は設計書 1.3.1 の語の一覧にないが、4 種類の読み飛ばしのそれぞれを 1 語以上で確かめるために加える。関数のコメントの `states the copied-transcript exception's scope, reason, and boundary` を、読み飛ばしの範囲も確かめる旨に改める。
+-   [ ] **ステップ 6-3**: `README.md:599-601` の文 `The selection is sent exactly as copied from the transcript panel; the extension does not trim it, so select only the caption lines — a trailing blank line is not part of the accepted format and the server rejects it.` を、パネル全体を選んでよいこと、読み飛ばす行（前置き・チャプターの見出し・末尾の空白行と `Sync to video time`／`動画の時間と同期`）、それでも拒否される行（形 A の本体の未知の行、本体の空行、時刻に似た文字列を含む前置きと形 B の見出し）を述べる英語の文に改める。内容が設計書 3.2・3.3 と合うことを、PR の説明に対応する節を挙げて示す。
+-   [ ] **ステップ 6-4**: `make ext-test` を実行する（README の拒否の理由の表を `serverReasons.test.ts` が読むため）。
+-   [ ] **ステップ 6-5**: CLAUDE.md から加えた語を 1 つずつ消し、そのたびに `TestClaudeMDCopiedTranscriptException` が失敗することを確かめて、結果をコミットメッセージに書く。
+
+### PR-7 作成ポイント: documentation of the skipped panel lines
+
+**対象ステップ**: 6-1 / 6-2 / 6-3 / 6-4 / 6-5
+
+**推奨タイトル**: `docs(0024): document the skipped panel lines`
+
+**レビュー観点**: CLAUDE.md の追記が「Declare, don't infer」の項目の中に空行なしで入り、既存の Boundary の文を変えないこと / `TestClaudeMDCopiedTranscriptException` の語が 4 種類の読み飛ばしと境界の 3 点をそれぞれ確かめること / README の案内が設計書 3.2・3.3 の受理と拒否の範囲と一致すること
+
+**実装モデル要件**: standard
+
+**判定理由**: 文書と guard の語の追加だけで、設計上の判断も状態の変更も外部の資源もないため、どの契機にも当たらない。
+
+-   [ ] グリーンゲート（`make test && make lint`、README を変えるので `make ext-test` も。`_context.md` の "Green gate"）がパスしていることを確認した
+-   [ ] PR を作成した
+-   [ ] PR がマージされた
+-   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
+-   [ ] **ステップ 6-6**: AC-19 の手動の確認を行う。実際のサーバと拡張を使い、LLM の API と Webhook を呼ぶので、実行の前に利用者の承認を得る（CLAUDE.md「Tool Execution Safety」）。結果を §5.1 に記録する。PR-5（`BkaUHsH_mkw` のサンプル）と PR-7 のマージ後に行う。
+
+### PR-8 作成ポイント: manual verification record
+
+**対象ステップ**: 6-6
+
+**推奨タイトル**: `docs(0024): record the manual verification of copied panel selections`
+
+**レビュー観点**: §5.1 の 3 つの入力（報告された動画・パネル全体の選択・`BkaUHsH_mkw`）の結果と日付が記録されていること / 送った入力の全体を `testdata/` にも本計画にも保存していないこと（AC-16）
+
+**実装モデル要件**: standard
+
+**判定理由**: 本計画の §5.1 に結果を書くだけの文書の変更である。手動の確認は実際の LLM の API と Webhook を 1 回ずつ呼ぶが、統合テストや CI の仕組みを作るものではないので、外部の資源の契機（多くの統合テスト・CI・外部の資源）に当たらない。実行の前に利用者の承認を得る。
+
+-   [ ] グリーンゲート（`make test && make lint`。`_context.md` の "Green gate"）がパスしていることを確認した
+-   [ ] PR を作成した
+-   [ ] PR がマージされた
+-   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### 2.7. 既存のテストの書き換えの台帳
 
-設計書 3.6 の表を、フェーズとの対応を付けて再掲する。AC-18 の「書き換えたケースは 03 に記録する」はこの表で満たす。ケースの名前を変える場合は、この表の「新しい名前」の列を同じコミットで埋める。
+設計書 3.6 の表を、書き換えるステップとの対応を付けて再掲する。AC-18 の「書き換えたケースは 03 に記録する」はこの表で満たす。ケースの名前を変える場合は、この表の「新しい名前」の列を同じコミットで埋める。
 
-| フェーズ | テスト | ケース | 変更 | 新しい名前 |
+| ステップ | テスト | ケース | 変更 | 新しい名前 |
 |---|---|---|---|---|
-| 1 | `TestParseCopiedRejects` | `empty line at the start` | 受理のケースへ移す | - |
-| 1 | `TestParseCopiedRejects` | `two trailing separators` | 受理のケースへ移す | - |
-| 1 | `TestParseCopiedRejects` | `three trailing separators` | 受理のケースへ移す | - |
-| 1 | `TestParseCopiedRejects` | `leading display items` | 理由を `errCopiedNoText`（行番号なし）にする | - |
-| 1 | `TestParseCopiedRejects` | `form B whitespace-only text` | 理由を `errCopiedNoText` にし、`errCopiedBlankText` の確認を、本体の中に空白文字だけの本文がある入力のケースとして別に加える | - |
-| 1 | `TestParseCopiedLineBreaks` | `trailingRejects` の 2 ケース | 受理の確認に変える | - |
-| 1 | `TestParseCopiedCheckOrder` | `line kind before blank text` | 今の入力 `0:00\nx\n \n` は受理のケースとして `TestParseCopiedAccepts` へ移し、このケースの入力を、空白文字だけの行が本体の中にあるもの（設計書 3.6）に変える | - |
-| 1 | `TestParseCopiedErrorOmitsInput` | `not a timestamp omits the line` | 目印の行を形 A の本体に置く（設計書 3.6） | - |
-| 3 | `TestParseCopiedRejects` | `chapter heading after text` | 受理のケースへ移す | - |
-| 3 | `TestParseCopiedErrorOmitsInput` | `chapter heading omits the line` | 今の入力は受理されるので、`TestParseCopiedErrorOmitsInput`（受理されると `Fatalf` する）には置けない。この入力は `TestParseCopiedFormBChapterHeadings` に移し、`Segments` に目印が入らないことを確かめる。元のケースは名前を残し、設計書 3.3 の規則で拒否される行の入力（設計書 3.6）に変えて拒否のメッセージを確かめる | `TestParseCopiedFormBChapterHeadings` の `chapter heading is not in the segments`（受理の側） |
+| 1-15 | `TestParseCopiedRejects` | `empty line at the start` | 受理のケースへ移す | - |
+| 1-6 | `TestParseCopiedRejects` | `two trailing separators` | 受理のケースへ移す | - |
+| 1-6 | `TestParseCopiedRejects` | `three trailing separators` | 受理のケースへ移す | - |
+| 1-15 | `TestParseCopiedRejects` | `leading display items` | 理由を `errCopiedNoText`（行番号なし）にする | - |
+| 1-6 | `TestParseCopiedRejects` | `form B whitespace-only text` | 理由を `errCopiedNoText` にし、`errCopiedBlankText` の確認を、本体の中に空白文字だけの本文がある入力のケースとして別に加える | - |
+| 1-6 | `TestParseCopiedLineBreaks` | `trailingRejects` の 2 ケース | 受理の確認に変える | - |
+| 1-6 | `TestParseCopiedCheckOrder` | `line kind before blank text` | 今の入力 `0:00\nx\n \n` は受理のケースとして `TestParseCopiedAccepts` へ移し、このケースの入力を、空白文字だけの行が本体の中にあるもの（設計書 3.6）に変える | - |
+| 1-15 | `TestParseCopiedErrorOmitsInput` | `not a timestamp omits the line` | 目印の行を形 A の本体に置く（設計書 3.6） | - |
+| 3-3 | `TestParseCopiedRejects` | `chapter heading after text` | 受理のケースへ移す | - |
+| 3-3 | `TestParseCopiedErrorOmitsInput` | `chapter heading omits the line` | 今の入力は受理されるので、`TestParseCopiedErrorOmitsInput`（受理されると `Fatalf` する）には置けない。この入力は `TestParseCopiedFormBChapterHeadings` に移し、`Segments` に目印が入らないことを確かめる。元のケースは名前を残し、設計書 3.3 の規則で拒否される行の入力（設計書 3.6）に変えて拒否のメッセージを確かめる | `TestParseCopiedFormBChapterHeadings` の `chapter heading is not in the segments`（受理の側） |
 
-`TestParseCopiedRejects` から受理へ移す 4 つのケースと `trailingRejects` の 2 ケースは、受理の確認に `TestParseCopiedAccepts` の表か、読み飛ばす行を取り除いた入力との比較を使う。フェーズ 1 の `two trailing separators`・`three trailing separators` と `trailingRejects` の 2 ケースは入力が同じなので、`TestParseCopiedAccepts` の表と `TestParseCopiedLineBreaks` のどちらか一方にだけ残し、重複させない。重複を除いた後、`go tool cover -func` の結果が関数ごとに変わらないことを確かめ、コミットメッセージに書く（CLAUDE.md「Deleting a test is a claim that must be checked」）。
+`TestParseCopiedRejects` から受理へ移す 4 つのケースと `trailingRejects` の 2 ケースは、受理の確認に `TestParseCopiedAccepts` の表か、読み飛ばす行を取り除いた入力との比較を使う。ステップ 1-6 の `two trailing separators`・`three trailing separators` と `trailingRejects` の 2 ケースは入力が同じなので、`TestParseCopiedAccepts` の表と `TestParseCopiedLineBreaks` のどちらか一方にだけ残し、重複させない。重複を除いた後、`go tool cover -func` の結果が関数ごとに変わらないことを確かめ、コミットメッセージに書く（CLAUDE.md「Deleting a test is a claim that must be checked」）。
 
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
+
+### 3.1. マイルストーン
 
 | マイルストーン | フェーズ | 成果物 | 依存 |
 |---|---|---|---|
@@ -195,6 +346,26 @@
 | M6 | 6 | CLAUDE.md・README・手動の確認の記録 | M2・M3（§5.1 の `BkaUHsH_mkw` の行だけは M4） |
 
 フェーズ 2 と 3 は互いに依存しない（設計書 8 章）。
+
+### 3.2. PR 構成
+
+| PR | 対象ステップ | 主な変更内容 | 実装モデル要件 |
+|---|---|---|---|
+| PR-1 | 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8 / 1-9 / 1-10 | 末尾の領域の読み飛ばし、形ごとの解析への範囲の受け渡しと元の行番号の報告、本文の有無の検査の移動、fuzz の性質 (a) | frontier-recommended |
+| PR-2 | 1-11 / 1-12 / 1-13 / 1-14 / 1-15 / 1-16 / 1-17 / 1-18 / 1-19 / 1-20 | 前置きの読み飛ばしと拒否の規則、最初のセグメントの行による形の判定、fuzz の性質 (b) | frontier-recommended |
+| PR-3 | 2-1 / 2-2 / 2-3 / 2-4 / 2-5 | 形 A のチャプターの見出し行の読み飛ばしとそのテスト | standard |
+| PR-4 | 3-1 / 3-2 / 3-3 / 3-4 / 3-5 | 形 B の時刻を期待する位置の見出し行の読み飛ばし、§2.7 のステップ 3-3 の書き換え | frontier-recommended |
+| PR-5 | 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7 / 4-8 | `BkaUHsH_mkw` のサンプル・`testdata/README.md`・サンプルの数を固定するテストと文書の guard | standard |
+| PR-6 | 5-1 / 5-2 / 5-3 | 4 MiB の入力のテスト | standard |
+| PR-7 | 6-1 / 6-2 / 6-3 / 6-4 / 6-5 | CLAUDE.md の例外・その guard・README の案内 | standard |
+| PR-8 | 6-6 | AC-19 の手動の確認の記録 | standard |
+
+各 PR は前の PR がマージされた `main` から作り、それだけでグリーンゲートを通す。依存は次のとおりである。
+
+-   PR-2 は PR-1 を要する（前置きの走査は末尾の領域の直前で止まる）。PR-3・PR-4 は PR-2 を要し、互いには依存しないので、順を入れ替えてもよい。
+-   PR-5 は PR-4（形 B の見出しの読み飛ばし）を要する。PR-6・PR-7 は PR-3・PR-4 を要し、PR-5 には依存しない。サンプルの確認（ステップ 4-1）が遅れるときは、PR-6・PR-7 を PR-5 より先に作ってよい。PR-8 は PR-5 と PR-7 の後に行う。
+-   フェーズ 1 を PR-1 と PR-2 に分けるのは、末尾の領域と前置きがそれぞれ独立に振る舞いを変え、台帳の書き換えも分けられるためである。各 PR の中で、非公開の述語・処理（ステップ 1-1・1-2、1-11・1-12）は呼び出し側と同じ PR に置く。呼び出し側のない非公開の関数は `make lint` の `unused` で失敗する（`.golangci.yml` で有効）。
+-   PR-1 から PR-7 のマージまで、`main` の `README.md:599-601` の案内（末尾の空行を拒否する）と CLAUDE.md の例外の記載は、パーサの振る舞いより古いままになる。利用者に配布していない開発中の状態なので、この差を受け入れ、PR-7 でまとめて直す。
 
 ## 4. テスト戦略 (Test Strategy)
 
@@ -221,7 +392,7 @@
 
 ## 5. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
-種別: `test` は失敗しうる実行の確認、`static` は guard テスト・`make` ターゲット、`manual` は人の確認。テストの場所はすべて `internal/transcript/copied_format_test.go` を既定とし、別のファイルのものはパスを書く。新しいテスト関数の名前は計画上の名前で、§4.1 のとおり実装に合わせて更新する。
+種別: `test` は失敗しうる実行の確認、`static` は guard テスト・`make` ターゲット、`manual` は人の確認。テストの場所はすべて `internal/transcript/copied_format_test.go` を既定とし、別のファイルのものはパスを書く。新しいテスト関数の名前は計画上の名前で、§4.1 のとおり実装に合わせて更新する。「フェーズ」の列が 1 の行は、ステップ 1-7・1-8 の対象（AC-07・AC-09・AC-10・AC-21〜AC-23・AC-26・AC-33、および AC-11 の本体が空の入力）が PR-1、ステップ 1-16・1-17 の対象（AC-11 の残り・AC-24・AC-28〜AC-32、前置きのある入力の AC-15）が PR-2 である。
 
 | AC | 種別 | 確認 | フェーズ |
 |---|---|---|---|
@@ -267,11 +438,11 @@
 | AC-37 | test | `TestParseCopiedFormBChapterHeadings`（本文を期待する位置の見出し） | 3 |
 | AC-38 | test | `TestParseCopiedFormBChapterHeadings`（前置きの素のタイトル） | 3 |
 
-AC-25 は、入力全体の検査（`errCopiedBlank`）が先に起こるので、本タスクの変更の後も既存のケースのまま確かめられる。フェーズ 1 の後に既存のケースが通ることを確かめる。
+AC-25 は、入力全体の検査（`errCopiedBlank`）が先に起こるので、本タスクの変更の後も既存のケースのまま確かめられる。PR-1・PR-2 の後に既存のケースが通ることを確かめる。
 
 ### 5.1. 手動の確認の記録（AC-19）
 
-フェーズ 6 で記録する。
+ステップ 6-6（PR-8）で記録する。
 
 | 入力 | 経路 | 結果 | 日付 |
 |---|---|---|---|
@@ -288,8 +459,8 @@ AC-25 は、入力全体の検査（`errCopiedBlank`）が先に起こるので�
 | リスク | 対策 |
 |---|---|
 | 前置きと末尾の領域を除いた後の行番号が、元の入力の行番号からずれる | 行を詰め直さず範囲で表す（設計書 3.4）。前置きのある入力の拒否で行番号を確かめる（AC-15） |
-| 時刻の文法の拒否のケースが、前置きとして黙って読み飛ばされる | 数字・`:`・数字の述語の確認（フェーズ 1 の (ii)）。既存のケースを変えずに通す（AC-18） |
-| 形 B の最後の本文が操作ラベルと一致するとき、本文を失う | 末尾の領域の「直前が時刻だけの行」の条件と AC-33 のテスト、フェーズ 1 の (iii) |
+| 時刻の文法の拒否のケースが、前置きとして黙って読み飛ばされる | 数字・`:`・数字の述語の確認（ステップ 1-20 の (ii)）。既存のケースを変えずに通す（AC-18） |
+| 形 B の最後の本文が操作ラベルと一致するとき、本文を失う | 末尾の領域の「直前が時刻だけの行」の条件と AC-33 のテスト、ステップ 1-10 の (i) |
 | 4 MiB の前置きの入力で、行の並びのメモリが race の上限を超える | フェーズ 5 で `copiedParseAllocPerByte` の範囲に収まることを確かめる。収まらなければ、上限を変えずに組み立て方を設計書 7.3 の範囲で見直し、それでも収まらなければ設計書の見直しを依頼する |
 | 設計書 5.4 の残余のリスク（形 B の時刻の行の欠落、正しい入力の拒否） | 本タスクでは受け入れる。運用での観測は設計書 9 章の将来の拡張に残す |
 
@@ -297,18 +468,20 @@ AC-25 は、入力全体の検査（`errCopiedBlank`）が先に起こるので�
 
 | リスク | 対策 |
 |---|---|
-| `BkaUHsH_mkw` の取得物と取得の条件の確認が遅れる | フェーズ 4 のうちサンプルの取得と確認は他のフェーズと独立しているので、先に依頼しておける。フェーズ 5 と、フェーズ 6 のうち手動の確認以外のタスクは、フェーズ 4 に依存しない。§5.1 の `BkaUHsH_mkw` の行だけはフェーズ 4 の後に行う |
+| `BkaUHsH_mkw` の取得物と取得の条件の確認が遅れる | フェーズ 4 のうちサンプルの取得と確認は他のフェーズと独立しているので、先に依頼しておける。フェーズ 5 と、フェーズ 6 のうち手動の確認以外のタスクは、フェーズ 4 に依存しない。PR-6・PR-7 は PR-5 より先に作ってよい（§3.2）。PR-8 は PR-5 の後に行う |
 | §1.3 の候補のファイルが、OS の一時ディレクトリの掃除で消える | 取り直し、§1.3 の測定（バイト数・行数・見出しの位置）をやり直してから期待値を決める |
 | AC-19 の手動の確認に必要な環境（API キー・Webhook）が用意できない | フェーズ 6 のその他のタスクを先に終え、§5.1 は確認ができた時点で記録する |
 
 ## 7. 実装チェックリスト (Implementation Checklist)
 
--   [ ] フェーズ 1: 末尾の領域・前置き・形の判定・行番号
--   [ ] フェーズ 2: 形 A のチャプターの見出し行
--   [ ] フェーズ 3: 形 B のチャプターの見出し行
--   [ ] フェーズ 4: 実データ `BkaUHsH_mkw`
--   [ ] フェーズ 5: 4 MiB の入力
--   [ ] フェーズ 6: CLAUDE.md・README・手動の確認
+-   [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8 / 1-9 / 1-10）
+-   [ ] PR-2 マージ済み（対象ステップ: 1-11 / 1-12 / 1-13 / 1-14 / 1-15 / 1-16 / 1-17 / 1-18 / 1-19 / 1-20）
+-   [ ] PR-3 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5）
+-   [ ] PR-4 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5）
+-   [ ] PR-5 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7 / 4-8）
+-   [ ] PR-6 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3）
+-   [ ] PR-7 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3 / 6-4 / 6-5）
+-   [ ] PR-8 マージ済み（対象ステップ: 6-6）
 -   [ ] §2.7 の台帳の全行を書き換えた
 -   [ ] §5 の表のテスト関数の名前が実装と一致する
 -   [ ] `make test`・`make lint`・`make deadcode`・`make ext-test` が通る
@@ -322,7 +495,6 @@ AC-25 は、入力全体の検査（`errCopiedBlank`）が先に起こるので�
 
 ## 9. 次のステップ (Next Steps)
 
--   `/mkplan2` で本計画に PR の境界を書き込む。
 -   実装の後、設計書 5.4 の観測の対処案（拒否の理由と読み飛ばした行の数のログ）を、必要なら別のタスクとして起こす。
 -   本タスクの用語（最初のセグメントの行・前置き・時刻を期待する位置・末尾の領域）を `docs/translation_glossary.md` に加えるかを決める。設計書 3.5 の変更の対象にないので、本計画のタスクにはしない。
 -   英語 UI の形 A の見出しと、末尾の領域を一覧の外に広げるか（要件書 §7）は、実データが得られた時点で見直す。
