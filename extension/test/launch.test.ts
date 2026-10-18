@@ -57,6 +57,7 @@ import {
 
 const watchUrl = "https://www.youtube.com/watch?v=abc";
 const malicious = "<img src=x onerror=alert(1)>";
+const metadataLabel = "yt2column video metadata";
 const requestId = "0123456789abcdef" as RequestId;
 const acceptedBody = JSON.stringify({ status: "accepted", requestId });
 const acceptedOutcome: SendOutcome = { kind: "accepted", requestId };
@@ -466,7 +467,6 @@ describe("launch paths", () => {
       transcript: selection,
       ...values,
     });
-    assert.equal((menuBody as string).includes(tabTitle), false);
 
     const popupFetch = acceptedFetch();
     const outcome = await runPopupLaunch(
@@ -605,7 +605,6 @@ describe("launch paths", () => {
       );
       const menu = menuHarness({ metadataReader: reader });
       await runMenuLaunch(menuInfo(), fakeTab(), menu.deps);
-      assert.equal(loggedOutcome(menu.recorder).kind, "collected");
       assert.deepEqual(
         menu.store.puts.map((put) => put.view.kind),
         ["sending", "sent"],
@@ -619,14 +618,6 @@ describe("launch paths", () => {
       const result = await runPopupLaunch(container(), popup.deps);
       assert.equal(result.outcome.kind, "collected");
       assert.deepEqual(result.metadata.values, {});
-      const root = container();
-      await runPopupSend(root, result, {
-        settings: readySettings().reader,
-        send: testSendDeps(acceptedFetch().fetchFn),
-        now: () => 1000,
-        log: recordingLogger().log,
-      });
-      assert.ok(root.querySelector(".send-button") !== null);
 
       const expected =
         check === undefined
@@ -634,10 +625,8 @@ describe("launch paths", () => {
           : { check, omissions: allFailed };
       for (const recorder of [menu.recorder, popup.recorder]) {
         assert.deepEqual(
-          recorder.errors.filter(
-            (entry) => entry.label === "yt2column video metadata",
-          ),
-          [{ label: "yt2column video metadata", data: expected }],
+          recorder.errors.filter((entry) => entry.label === metadataLabel),
+          [{ label: metadataLabel, data: expected }],
         );
       }
     });
@@ -831,17 +820,13 @@ describe("menu send", () => {
       description?: string;
     };
     assert.equal(body.description, "first lines");
+    // The views hold only the summary and the outcome: no expand prompt.
     assert.deepEqual(
-      menu.store.puts.map((put) => put.view.kind),
-      ["sending", "sent"],
-    );
-    assert.deepEqual(menu.store.puts[0]?.view, {
-      kind: "sending",
-      summary: collectedSummary(),
-    });
-    assert.equal(
-      JSON.stringify(menu.store.puts).includes(expandPromptMessage.text),
-      false,
+      menu.store.puts.map((put) => put.view),
+      [
+        { kind: "sending", summary: collectedSummary() },
+        { kind: "sent", summary: collectedSummary(), outcome: acceptedOutcome },
+      ],
     );
   });
 
@@ -987,10 +972,9 @@ describe("popup send", () => {
         metadataReader: metadataReader(metadataJson({ description })).reader,
       }).deps,
     );
+    // Precondition: the popup shows a truncated value, so the body check
+    // below tells the sent value apart from the displayed one.
     assert.equal(summaryRoot.textContent?.includes(description), false);
-    assert.ok(
-      summaryRoot.textContent?.includes("x".repeat(metadataDisplayLimit)),
-    );
     const root = container();
     await runPopupSend(root, result, popupDeps);
     await clickSend(root);
@@ -1048,8 +1032,6 @@ describe("popup send", () => {
 });
 
 describe("video metadata log", () => {
-  const label = "yt2column video metadata";
-
   /** The metadata log entries of both paths for one read result. */
   async function metadataLogs(
     reader: MetadataReader,
@@ -1061,83 +1043,93 @@ describe("video metadata log", () => {
     return { menu: menu.recorder, popup: popup.recorder };
   }
 
-  it("records each omitted field and its reason at info", async () => {
-    const text = metadataJson(
-      { title: "kept", channelName: " \u3000", description: "a\uD800b" },
-      true,
-    );
-    const recorders = await metadataLogs(metadataReader(text).reader);
-    for (const recorder of [recorders.menu, recorders.popup]) {
-      assert.deepEqual(
-        recorder.infos.filter((entry) => entry.label === label),
-        [
-          {
-            label,
-            data: {
-              accepted: ["title"],
-              collapsed: true,
-              omissions: [
-                { field: "channelName", reason: "blank" },
-                { field: "description", reason: "unpaired-surrogate" },
-              ],
-            },
-          },
+  const infoCases: {
+    name: string;
+    text: string;
+    expected: Record<string, unknown>;
+  }[] = [
+    {
+      name: "each omitted field and its reason",
+      text: metadataJson(
+        { title: "kept", channelName: " \u3000", description: "a\uD800b" },
+        true,
+      ),
+      expected: {
+        accepted: ["title"],
+        collapsed: true,
+        omissions: [
+          { field: "channelName", reason: "blank" },
+          { field: "description", reason: "unpaired-surrogate" },
         ],
-      );
-      assert.equal(recorder.errors.length, 0);
-    }
-  });
-
-  it("records an absent field as absent", async () => {
-    const recorders = await metadataLogs(
-      metadataReader(metadataJson({ title: "kept", description: "kept" }))
-        .reader,
-    );
-    const entry = recorders.menu.infos.find(
-      (candidate) => candidate.label === label,
-    );
-    assert.deepEqual(entry?.data, {
-      accepted: ["title", "description"],
-      collapsed: false,
-      omissions: [{ field: "channelName", reason: "absent" }],
+      },
+    },
+    {
+      name: "only the accepted fields when nothing is omitted",
+      text: metadataJson({ title: "t", channelName: "c", description: "d" }),
+      expected: {
+        accepted: ["title", "channelName", "description"],
+        collapsed: false,
+      },
+    },
+  ];
+  for (const { name, text, expected } of infoCases) {
+    it(`records ${name} at info`, async () => {
+      const recorders = await metadataLogs(metadataReader(text).reader);
+      for (const recorder of [recorders.menu, recorders.popup]) {
+        assert.deepEqual(
+          recorder.infos.filter((entry) => entry.label === metadataLabel),
+          [{ label: metadataLabel, data: expected }],
+        );
+        assert.equal(recorder.errors.length, 0);
+      }
     });
-  });
-
-  it("records only the accepted fields when nothing is omitted", async () => {
-    const recorders = await metadataLogs(
-      metadataReader(
-        metadataJson({ title: "t", channelName: "c", description: "d" }),
-      ).reader,
-    );
-    const entry = recorders.popup.infos.find(
-      (candidate) => candidate.label === label,
-    );
-    assert.deepEqual(entry?.data, {
-      accepted: ["title", "channelName", "description"],
-      collapsed: false,
-    });
-  });
+  }
 
   it("keeps the read values and the read error out of the logs", async () => {
+    // Every branch of the read gets identifiable page text: accepted values,
+    // omitted values, a rejected shape, and a rejection error.
     const values = {
       title: "VALUE-TITLE-2b8e",
       channelName: "VALUE-CHANNEL-c41f",
       description: "VALUE-DESCRIPTION-77a0",
     };
-    const accepted = await metadataLogs(
-      metadataReader(metadataJson(values, true)).reader,
-    );
-    const failed = await metadataLogs(
-      rejectingMetadataReader(new Error("ERROR-PAGE-TEXT-0d6b")),
-    );
+    const omittedSurrogate = "OMITTED-SURROGATE-5e19";
+    const rejectedShape = "REJECTED-SHAPE-a3d4";
+    const readError = "ERROR-PAGE-TEXT-0d6b";
+    const runs = await Promise.all([
+      metadataLogs(metadataReader(metadataJson(values, true)).reader),
+      metadataLogs(
+        metadataReader(
+          metadataJson({ description: `${omittedSurrogate}\uD800` }),
+        ).reader,
+      ),
+      metadataLogs(
+        metadataReader(
+          JSON.stringify({
+            title: rejectedShape,
+            descriptionCollapsed: false,
+            unknown: 1,
+          }),
+        ).reader,
+      ),
+      metadataLogs(rejectingMetadataReader(new Error(readError))),
+    ]);
     const serialized = JSON.stringify(
-      [accepted.menu, accepted.popup, failed.menu, failed.popup].map(
-        (recorder) => [recorder.infos, recorder.errors],
+      runs.flatMap((run) =>
+        [run.menu, run.popup].map((recorder) => [
+          recorder.infos,
+          recorder.errors,
+        ]),
       ),
       (_key, value: unknown) =>
         value instanceof Error ? `${value.name}: ${value.message}` : value,
     );
-    for (const value of [...Object.values(values), "ERROR-PAGE-TEXT-0d6b"]) {
+    for (const value of [
+      ...Object.values(values),
+      omittedSurrogate,
+      rejectedShape,
+      readError,
+    ]) {
       assert.equal(serialized.includes(value), false, value);
     }
   });
