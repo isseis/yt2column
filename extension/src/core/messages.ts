@@ -1,11 +1,27 @@
 import type { RejectionReason } from "./types.ts";
 
-export interface RejectionMessage {
-  /** One-sentence statement of why nothing was collected. */
+/** The shape of a message: a sentence and optional numbered steps. */
+export interface Message {
+  /** One-sentence statement of the situation. */
   readonly text: string;
   /** Steps that let the user succeed next time; empty when none apply. */
   readonly steps: readonly string[];
 }
+
+/** A rejection reason's message. The name is kept; the shape is Message. */
+export type RejectionMessage = Message;
+
+/**
+ * The prompt shown when the video description is collapsed. A fixed text:
+ * it never holds page text such as the description itself.
+ */
+export const expandPromptMessage: Message = {
+  text: "The video description is collapsed, so only its beginning will be sent.",
+  steps: [
+    'Click "...more" below the video to show the full description.',
+    "Reopen this popup, then send.",
+  ],
+};
 
 /**
  * Maps each rejection reason to a distinct English message. The default

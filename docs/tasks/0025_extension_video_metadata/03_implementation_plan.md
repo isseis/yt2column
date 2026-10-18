@@ -116,15 +116,15 @@ HEAD `0842685` で確認した。設計書は既存のファイルの行番号�
 -   変更: `extension/src/core/messages.ts`、`extension/src/core/collect.ts`（`whitespaceOnly` の `export` のみ）
 
 **タスク**
--   [ ] **ステップ 1-1**: `core/messages.ts` に `Message` interface（`text` と `steps`）を加え、`RejectionMessage` をその別名にする。`expandPromptMessage: Message` を加える（文言と手順は設計書 3.6 の例に従い、README の手順と合わせる）。`rejectionMessage` の戻り値の型は `RejectionMessage` のままとし、振る舞いを変えない（設計書 3.6・3.8）。
+-   [x] **ステップ 1-1**: `core/messages.ts` に `Message` interface（`text` と `steps`）を加え、`RejectionMessage` をその別名にする。`expandPromptMessage: Message` を加える（文言と手順は設計書 3.6 の例に従い、README の手順と合わせる）。`rejectionMessage` の戻り値の型は `RejectionMessage` のままとし、振る舞いを変えない（設計書 3.6・3.8）。
     -   **対象:** `extension/src/core/messages.ts`。**完了:** `make ext-typecheck` が通る。
--   [ ] **ステップ 1-2**: `core/collect.ts` の `whitespaceOnly`（`:43`）に `export` を付ける。振る舞いは変えない。
+-   [x] **ステップ 1-2**: `core/collect.ts` の `whitespaceOnly`（`:43`）に `export` を付ける。振る舞いは変えない。
     -   **対象:** `extension/src/core/collect.ts`。**完了:** `make ext-typecheck` と既存の `collect.test.ts` が通る。
--   [ ] **ステップ 1-3**: `core/metadata.ts` を設計書 3.2 のとおりに作る（`PageMetadata`・`VideoMetadata`・`MetadataField`・`OmissionReason`・`MetadataOmission`・`MetadataCheck`・`MetadataRead`・`MetadataResult`・`parsePageMetadata`・`acceptMetadata`・`readFailureResult`・`emptyMetadataResult`）。`parsePageMetadata` の検査の順序は設計書 3.2 の 1〜5 のとおりとし、重複の検出は引用符の数ではなく、文字列とエスケープを追う小さな走査で行う。`acceptMetadata` は `collect.ts` の `whitespaceOnly` を import して使い、値を補正・切り詰めしない。`VideoMetadata` は `prepare.ts` の `ArticleMetadata` の別名にする。
+-   [x] **ステップ 1-3**: `core/metadata.ts` を設計書 3.2 のとおりに作る（`PageMetadata`・`VideoMetadata`・`MetadataField`・`OmissionReason`・`MetadataOmission`・`MetadataCheck`・`MetadataRead`・`MetadataResult`・`parsePageMetadata`・`acceptMetadata`・`readFailureResult`・`emptyMetadataResult`）。`parsePageMetadata` の検査の順序は設計書 3.2 の 1〜5 のとおりとし、重複の検出は引用符の数ではなく、文字列とエスケープを追う小さな走査で行う。`acceptMetadata` は `collect.ts` の `whitespaceOnly` を import して使い、値を補正・切り詰めしない。`VideoMetadata` は `prepare.ts` の `ArticleMetadata` の別名にする。
     -   **対象:** `extension/src/core/metadata.ts`。**完了:** `make ext-typecheck` が通る。
--   [ ] **ステップ 1-4**: `test/metadata.test.ts` を作る（`parsePageMetadata`・`acceptMetadata`・`readFailureResult`・`emptyMetadataResult`）。設計書 3.2・3.9 のとおり、次を含める。不正な JSON、最上位が配列・`null`・数値、未知のメンバ、`descriptionCollapsed` の欠落、重複したメンバ、値の型の違い（`null`・数値・真偽値・オブジェクト・配列）で、返る `check` が設計書 3.2 の値になること。欠落・空白のみ（全角空白 `\u3000` を含む）・対になっていないサロゲート（`"\uD800"`・`"a\uDC00b"`）の省略と理由、値（前後の空白・改行・全角空白・サロゲートペア）の保持、`showExpandPrompt`（折りたたみ時かつ概要欄を受け入れたときだけ真）、`readFailureResult`・`emptyMetadataResult` の 3 つの `read-failure` と値・促しの欠落、大きな値（I-01。省略しない）。
+-   [x] **ステップ 1-4**: `test/metadata.test.ts` を作る（`parsePageMetadata`・`acceptMetadata`・`readFailureResult`・`emptyMetadataResult`）。設計書 3.2・3.9 のとおり、次を含める。不正な JSON、最上位が配列・`null`・数値、未知のメンバ、`descriptionCollapsed` の欠落、重複したメンバ、値の型の違い（`null`・数値・真偽値・オブジェクト・配列）で、返る `check` が設計書 3.2 の値になること。欠落・空白のみ（全角空白 `\u3000` を含む）・対になっていないサロゲート（`"\uD800"`・`"a\uDC00b"`）の省略と理由、値（前後の空白・改行・全角空白・サロゲートペア）の保持、`showExpandPrompt`（折りたたみ時かつ概要欄を受け入れたときだけ真）、`readFailureResult`・`emptyMetadataResult` の 3 つの `read-failure` と値・促しの欠落、大きな値（I-01。省略しない）。
     -   **対象:** `extension/test/metadata.test.ts`。**完了:** `metadata.test.ts` が通る。
--   [ ] **ステップ 1-5**: 壊して失敗することを確かめ、コミットメッセージに記録する。`parsePageMetadata` の検査 1〜5 を 1 つずつ外す、重複の検出を外す、`descriptionCollapsed` の必須を外す、`acceptMetadata` の空白のみ・対になっていないサロゲートの判定を 1 つずつ外す、`showExpandPrompt` の条件（概要欄を受け入れたときだけ）を外す、`readFailureResult` の省略を 2 つにする（いずれも `metadata.test.ts`）。続けて `make ext-check` → `make test` → `make lint` を通す。
+-   [x] **ステップ 1-5**: 壊して失敗することを確かめ、コミットメッセージに記録する。`parsePageMetadata` の検査 1〜5 を 1 つずつ外す、重複の検出を外す、`descriptionCollapsed` の必須を外す、`acceptMetadata` の空白のみ・対になっていないサロゲートの判定を 1 つずつ外す、`showExpandPrompt` の条件（概要欄を受け入れたときだけ）を外す、`readFailureResult` の省略を 2 つにする（いずれも `metadata.test.ts`）。続けて `make ext-check` → `make test` → `make lint` を通す。
     -   **対象:** なし（確認のみ）。**完了:** 各対象を壊して失敗することを確認し、コミットメッセージに記録する。
 
 **完了条件:** `make ext-check` → `make test` → `make lint` が通り、`metadata.test.ts` が通る。
