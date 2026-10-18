@@ -96,9 +96,9 @@ type copiedTimestamp struct {
 // which by the first segment line (the first line that starts with a
 // timestamp), and rejects every input that matches neither. It skips the prefix
 // before the first segment line and the trailing region (blank lines and
-// trailing operation labels), but still rejects a line in either that could
-// hide a segment. It never repairs an input, never returns a partial result, and
-// includes no part of the input in its errors.
+// trailing operation labels), but still rejects a control character in either
+// and a digit-colon-digit run in the prefix. It never repairs an input, never
+// returns a partial result, and includes no part of the input in its errors.
 func parseCopiedTranscript(raw string) ([]Segment, error) {
 	if !utf8.ValidString(raw) {
 		return nil, copiedGlobalError(errCopiedInvalidUTF8)
@@ -434,9 +434,8 @@ func checkCopiedTrailingLines(lines []string, start int) error {
 // parseCopiedFormA parses form A over the body range lines[start:end]: every
 // line is a timestamp, a screen-reader label, and the text concatenated without
 // separators. The label's language is fixed by the body's first line, the first
-// segment line, so a prefix line never fixes it. A segment
-// without text is skipped; a line that is only a timestamp belongs to the other
-// form. Error line numbers are the original input's, so the range is not
+// segment line, so a prefix line never fixes it. A segment without text is
+// skipped; a line that is only a timestamp belongs to the other form. Error line numbers are the original input's, so the range is not
 // renumbered. It rejects on the first error in the documented check order.
 func parseCopiedFormA(lines []string, start, end int) ([]Segment, error) {
 	language := labelNone

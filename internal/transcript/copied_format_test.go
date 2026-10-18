@@ -273,6 +273,7 @@ func TestParseCopiedRejects(t *testing.T) {
 		{name: "prefix leading space", input: "文字起こし\n 0:00\nx\n", reason: errCopiedNotTimestamp, line: 2},
 		{name: "prefix control character", input: "タイ\tムライン\n0:00\nx\n", reason: errCopiedControlChar, line: 1},
 		{name: "body error line counts the prefix", input: "文字起こし\n\n0:000 秒はい\n0:05BOGUS\n", reason: errCopiedLabelMismatch, line: 4},
+		{name: "form B body error line counts the prefix", input: "文字起こし\n\n0:05\nx\n0:00\ny\n", reason: errCopiedTimestampOrder, line: 5},
 		{name: "chapter heading after text", input: "0:00\nx\n存在感のある声\n", reason: errCopiedNotTimestamp, line: 3},
 		{name: "leading BOM", input: "\uFEFF0:00\nx\n", reason: errCopiedNotTimestamp, line: 1},
 		{name: "minute leading zero", input: "05:00\nx\n", reason: errCopiedNotTimestamp, line: 1},
@@ -512,8 +513,10 @@ func assertCopiedBodyHasNoSkippedLine(t *testing.T, body string) {
 
 // TestParseCopiedPrefix compares an input that has a prefix before the first
 // segment line with the same input without it. The prefix lines must not reach
-// any segment's text, and the prefix must not decide the form or fix the label
-// language.
+// any segment's text, and the prefix must not decide the form. The near-miss
+// case pins the digit-colon-digit rule from the accepting side: a colon or a
+// digit alone, a colon between non-digits or with a space, and full-width
+// digits are not a run, so those prefix lines are skipped.
 func TestParseCopiedPrefix(t *testing.T) {
 	formABody := "0:000 秒はい\n0:1010 秒です\n"
 	formBBody := "0:00\nHello\n0:05\nWorld\n"
@@ -540,6 +543,12 @@ func TestParseCopiedPrefix(t *testing.T) {
 			name:   "Japanese prefix then English labels",
 			prefix: []string{"文字起こし", "\u3000"},
 			body:   englishBody,
+			want:   []Segment{{StartMs: 0, Text: "Hello"}, {StartMs: 5000, Text: "World"}},
+		},
+		{
+			name:   "prefix lines without a digit-colon-digit run",
+			prefix: []string{"チャプター 1: はじめに", "16 : 9", "Note: x", "第3戦", "１：００", "x:1", "1:x"},
+			body:   formBBody,
 			want:   []Segment{{StartMs: 0, Text: "Hello"}, {StartMs: 5000, Text: "World"}},
 		},
 		{
@@ -637,6 +646,13 @@ func TestParseCopiedCheckOrder(t *testing.T) {
 			input:   "動画の時間と同期\n\t\n",
 			want:    errCopiedNoText,
 			notWant: []error{errCopiedControlChar},
+		},
+		{
+			name:    "prefix control character before digit-colon-digit",
+			input:   "1:2\t3\n0:00\nx\n",
+			want:    errCopiedControlChar,
+			line:    1,
+			notWant: []error{errCopiedNotTimestamp},
 		},
 		{
 			name:    "prefix scan stops before the trailing region",
@@ -908,7 +924,8 @@ func assertCopiedFuzzAcceptance(t *testing.T, transcript Transcript, raw string)
 
 // assertCopiedFuzzPrefix checks property (b): prepending prefix lines that start
 // with no timestamp and that the prefix rules do not reject (a panel label, an
-// empty line, a whitespace-only line) leaves the segments unchanged. The
+// empty line, a whitespace-only line, a chapter heading with a digit and a
+// colon but no digit-colon-digit run) leaves the segments unchanged. The
 // prepended lines use the input's own separator, or LF for a single-line input.
 func assertCopiedFuzzPrefix(t *testing.T, want []Segment, raw string) {
 	t.Helper()
@@ -919,7 +936,7 @@ func assertCopiedFuzzPrefix(t *testing.T, want []Segment, raw string) {
 	if separator == "" {
 		separator = "\n"
 	}
-	prefix := strings.Join([]string{"文字起こし", "", " ", "動画内を検索"}, separator) + separator
+	prefix := strings.Join([]string{"文字起こし", "", " ", "チャプター 1: はじめに", "動画内を検索"}, separator) + separator
 	got, err := parseCopiedTranscript(prefix + raw)
 	if err != nil {
 		t.Fatalf("prepending a prefix rejected an accepted input: %v", err)
