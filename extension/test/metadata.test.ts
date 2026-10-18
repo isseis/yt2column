@@ -38,12 +38,23 @@ describe("parsePageMetadata", () => {
   });
 
   it("accepts values whose text looks like JSON structure", () => {
-    // Each value holds quotes, a backslash, braces, commas, and a member name,
-    // so a scan that loses track of strings or escapes sees a duplicate.
+    // Each value holds quotes, a backslash, braces, commas, or a member name,
+    // so a scan that loses track of strings, escapes, or which string is a
+    // name sees a duplicate.
     const page = {
       title: 'a","title":"b',
       channelName: "ends with a backslash\\",
       description: '{"description":"x"},[\\"channelName\\"]',
+      descriptionCollapsed: false,
+    };
+    assert.deepEqual(accepted(parsePageMetadata(JSON.stringify(page))), page);
+  });
+
+  it("accepts values equal to member names", () => {
+    // A member's value is not a name, even when its text equals one.
+    const page = {
+      title: "title",
+      channelName: "descriptionCollapsed",
       descriptionCollapsed: false,
     };
     assert.deepEqual(accepted(parsePageMetadata(JSON.stringify(page))), page);
@@ -107,6 +118,18 @@ describe("parsePageMetadata", () => {
     [
       "a duplicate after whitespace",
       '{ "channelName" : "a" ,\n "channelName" : "b", "descriptionCollapsed": false }',
+      "duplicate-member",
+    ],
+    [
+      // The duplicate follows a closed array, so the scan must leave it.
+      "a duplicate after a nested array",
+      '{"title":[],"title":"b","descriptionCollapsed":false}',
+      "duplicate-member",
+    ],
+    [
+      // The duplicate follows a closed object, so the scan must leave it.
+      "a duplicate after a nested object",
+      '{"title":{},"title":"b","descriptionCollapsed":false}',
       "duplicate-member",
     ],
     [
@@ -214,7 +237,6 @@ describe("acceptMetadata", () => {
         }
         const result = acceptMetadata(page);
         assert.deepEqual(result.omissions, [{ field, reason }]);
-        assert.equal(Object.hasOwn(result.values, field), false);
         const kept: Record<string, string> = {
           title: "T",
           channelName: "C",
@@ -244,11 +266,16 @@ describe("acceptMetadata", () => {
     // Larger than the 4 MiB body limit: the size is judged only when the body
     // is built, never here.
     const description = "x".repeat(5 * 1024 * 1024);
-    const result = acceptMetadata({ description, descriptionCollapsed: false });
-    assert.equal(result.values.description, description);
-    assert.equal(
-      result.omissions.some((omission) => omission.field === "description"),
-      false,
+    assert.deepEqual(
+      acceptMetadata({ description, descriptionCollapsed: false }),
+      {
+        values: { description },
+        showExpandPrompt: false,
+        omissions: [
+          { field: "title", reason: "absent" },
+          { field: "channelName", reason: "absent" },
+        ],
+      },
     );
   });
 
@@ -290,13 +317,11 @@ describe("readFailureResult", () => {
   ];
 
   it("omits every field as a read failure with no check", () => {
-    const result = readFailureResult();
-    assert.deepEqual(result, {
+    assert.deepEqual(readFailureResult(), {
       values: {},
       showExpandPrompt: false,
       omissions: failures,
     });
-    assert.equal(Object.hasOwn(result, "check"), false);
   });
 
   it("carries the failed check", () => {
