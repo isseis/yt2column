@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-18 |
 | Review date | 2026-10-18 |
 | Reviewer | isesis |
-| Comments | `implementation_handoff.md` に I-02（表示の切り詰めに再利用する関数の選び方）を加えたため `draft` に戻した（2026-10-18）。I-02 への対応を §1.4 に加えた。対応は §1.3 とステップ 3-1・3-2 に既に記録されている（`truncate` の `export` と `displayValue` の再利用）ので、タスクは変えていない |
+| Comments | - |
 
 ## 1. 実装の概要 (Implementation Overview)
 
