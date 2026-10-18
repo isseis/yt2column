@@ -6,8 +6,8 @@
 # runs for the extension itself, the Makefile that drives it, any workflow,
 # go.mod (whose ignore directive keeps extension/node_modules out of ./...),
 # and the documents the extension tests read: docs/dev/security.md, README.md
-# (its rejection-reason table) and internal/server/response.go (which that
-# table mirrors).
+# (its rejection-reason table and its Browser extension section) and
+# internal/server/response.go (which that table mirrors).
 set -euo pipefail
 
 # Reads every record, even after a match, so the writer (git diff -z) never
