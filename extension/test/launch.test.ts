@@ -11,6 +11,7 @@ import { expandPromptMessage } from "../src/core/messages.ts";
 import type { RejectionMessage } from "../src/core/messages.ts";
 import { emptyMetadataResult } from "../src/core/metadata.ts";
 import type { MetadataResult } from "../src/core/metadata.ts";
+import { maxBodyBytes } from "../src/core/prepare.ts";
 import type { CollectedSummary, ResultView } from "../src/core/resultView.ts";
 import type { RequestId, SendOutcome } from "../src/core/response.ts";
 import {
@@ -580,6 +581,8 @@ describe("launch paths", () => {
       reader: rejectingMetadataReader(new Error("injection failed")),
     },
     {
+      // The URL comparison itself is tested in chromeDeps.test.ts; this row
+      // checks that the reader's rejection on a mismatch omits every field.
       name: "the page URL is not the collected URL",
       reader: metadataReader(
         metadataJson({ title: "T" }),
@@ -832,12 +835,20 @@ describe("menu send", () => {
       menu.store.puts.map((put) => put.view.kind),
       ["sending", "sent"],
     );
+    assert.deepEqual(menu.store.puts[0]?.view, {
+      kind: "sending",
+      summary: collectedSummary(),
+    });
+    assert.equal(
+      JSON.stringify(menu.store.puts).includes(expandPromptMessage.text),
+      false,
+    );
   });
 
   it("blocks body-too-large when the metadata takes the body over the limit", async () => {
     const menu = menuHarness({
       metadataReader: metadataReader(
-        metadataJson({ description: "d".repeat(4 * 1024 * 1024) }),
+        metadataJson({ description: "d".repeat(maxBodyBytes) }),
       ).reader,
     });
     await runMenuLaunch(menuInfo(), fakeTab(), menu.deps);
@@ -944,18 +955,20 @@ describe("popup send", () => {
   it("keeps the button under the expand prompt and sends the shown description", async () => {
     const fetch = acceptedFetch();
     const { deps: popupDeps } = deps({ send: testSendDeps(fetch.fetchFn) });
-    const root = container();
+    const summaryRoot = container();
+    const sendRoot = container();
     const result = await runPopupLaunch(
-      root,
+      summaryRoot,
       popupHarness({
         metadataReader: metadataReader(
           metadataJson({ description: "first lines" }, true),
         ).reader,
       }).deps,
     );
-    expectMessage(root, expandPromptMessage);
-    await runPopupSend(root, result, popupDeps);
-    await clickSend(root);
+    await runPopupSend(sendRoot, result, popupDeps);
+    expectMessage(summaryRoot, expandPromptMessage);
+    assert.ok(sendRoot.querySelector(".send-button") !== null);
+    await clickSend(sendRoot);
     assert.equal(fetch.calls.length, 1);
     const body = JSON.parse(fetch.calls[0]?.init.body as string) as {
       description?: string;

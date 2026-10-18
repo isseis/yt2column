@@ -396,10 +396,10 @@ export async function runPopupSend(
       button.disabled = true;
       status.replaceChildren(...messageNodes(doc, sendingMessage));
       const startedAt = deps.now();
-      const result = await sendArticle(prepared.request, deps.send);
-      logSend(deps.log, deps.now, startedAt, prepared.request.port, result);
+      const sendResult = await sendArticle(prepared.request, deps.send);
+      logSend(deps.log, deps.now, startedAt, prepared.request.port, sendResult);
       state = "sent";
-      renderSendOutcome(status, toSendOutcome(result));
+      renderSendOutcome(status, toSendOutcome(sendResult));
     })();
   });
 }

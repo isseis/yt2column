@@ -368,7 +368,7 @@ PR は、設計書 8 章のフェーズ 3（経路と表示）を表示と経路
 | AC-08 | test | `prepare.test.ts::prepareSend`（メタデータを含めた本文の上限。I-01）、`launch.test.ts::menu send`（`body-too-large`） | 4-1・4-3・4-4 |
 | AC-09 | test | `launch.test.ts::launch paths`（タブのタイトルの識別できる文字列が本文に現れない）、`prepare.test.ts::buildArticleBody`（`input.title` が本文に現れない） | 4-3・4-4 |
 | AC-10 | test | `metadata.test.ts::acceptMetadata`（対になっていないサロゲートの省略、対になったサロゲートの保持）、`launch.test.ts::video metadata log`（省略の理由） | 1-3・1-4・4-1・4-3 |
-| AC-11 | test・manual | `renderMetadata.test.ts::renderMetadata`（jsdom で 3 つの値を表示、省略した値の行を作らない、表示だけをコードポイントで切り詰めサロゲートペアを割らない）、`launch.test.ts::popup send`（本文には切り詰める前の値が入る）、§5.1 | 3-2・3-4 |
+| AC-11 | test・manual | `renderMetadata.test.ts::renderMetadata`（jsdom で 3 つの値を表示、省略した値の行を作らない、表示だけをコードポイントで切り詰めサロゲートペアを割らない）、`launch.test.ts::popup send`（本文には切り詰める前の値が入る）、§5.1 | 3-2・3-4・4-1・4-3 |
 | AC-12 | test・manual | `metadata.test.ts::acceptMetadata`（`showExpandPrompt`）、`renderMetadata.test.ts::renderMetadata`（促しが折りたたみ時だけ）、§5.1 | 1-3・1-4・3-2・3-4 |
 | AC-13 | test | `launch.test.ts::popup send`（促しがあってもボタンが押せ、冒頭のみで送る） | 4-1・4-3 |
 | AC-14 | test・manual | `renderMetadata.test.ts::renderMetadata`（要素にならず `textContent` に現れる、促しがページの文字列を含まない）、§5.1（bidi の分離） | 3-2・3-4 |
