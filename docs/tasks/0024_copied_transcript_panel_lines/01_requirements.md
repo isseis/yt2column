@@ -8,7 +8,7 @@
 | Created | 2026-10-17 |
 | Review date | - |
 | Reviewer | - |
-| Comments | 2026-10-17: 編集上の訂正（決定の変更なし）: AC-18 に `form B whitespace-only text`（`0:00\n \n`。F-006 の規則により末尾の空白文字だけの行が無視され、`errCopiedNoText` になる）を追加した。 2026-10-18: 決定変更（再承認待ち）。形 B のチャプター見出し行（接頭辞を持たない素のタイトル）を位置で特定して読み飛ばす要件 F-008 と AC-34〜AC-38 を加えた。F-003・AC-12・AC-13 を形 A に限定し、AC-16・AC-17・§1 方針の変更・§2 スコープ・§3.2 境界・§4.3・§4.5・§5・§6 用語集・§7 を改めた。形 B でチャプターの見出しを含む実データ `BkaUHsH_mkw`（CC BY）を取得した（AC-17）。status を draft に戻す。 |
+| Comments | 2026-10-17: 編集上の訂正（決定の変更なし）: AC-18 に `form B whitespace-only text`（`0:00\n \n`。F-006 の規則により末尾の空白文字だけの行が無視され、`errCopiedNoText` になる）を追加した。 2026-10-18: 決定変更（再承認待ち）。形 B のチャプター見出し行（接頭辞を持たない素のタイトル）を位置で特定して読み飛ばす要件 F-008 と AC-34〜AC-38 を加えた。F-003・AC-12・AC-13 を形 A に限定し、AC-16・AC-17・§1 方針の変更・§2 スコープ・§3.2 境界・§4.3・§4.5・§5・§6 用語集・§7 を改めた。形 B でチャプターの見出しを含む実データ `BkaUHsH_mkw`（CC BY）を取得した（AC-17）。status を draft に戻す。 2026-10-18: 決定変更（再承認待ち）。`BkaUHsH_mkw` の保存の記録を §1.1 に置き、`TestCopiedTranscriptSurveyRecords` が 0015 §1.4.1 の表と §1.1 の表の一覧を読むことを F-005 の決定とした。AC-17・AC-18 を改め、§7 の該当する問いを除いた。 |
 
 ## 1. 概要 (Overview)
 
@@ -34,6 +34,14 @@
 対応 issue: [#301](https://github.com/isseis/yt2column/issues/301)。
 
 本書で節番号だけを示す 0015 の参照（`0015 §3.2.1` など）は、`docs/tasks/0015_copied_transcript_source/02_architecture.md` の節を指す。AC 番号の参照（`0015 AC-06` など）は、同じタスクの `01_requirements.md` の AC を指す。
+
+### 1.1. 本タスクで保存するサンプルの記録
+
+0015 `02_architecture.md` §1.4.1 の属性の表は、`BkaUHsH_mkw` を「保存しない（チャプターの見出しを含む）」と記録している。これは 0015 の時点の正しい記録であり、0015 の文書は変更しない（§5）。本タスクは形 B の見出しを読み飛ばすので、このサンプルを保存する（AC-17）。次の表は、0015 の表の同じ動画の行を上書きする記録である。`testdata/` 以外の列は 0015 の表の値を引き継ぐ。
+
+| 動画 ID | 字幕の言語 | 自動/手動 | 長さ（最後のセグメント） | ライセンス | ブラウザ | 表示言語 | 形 | 検索欄の表記 | `testdata/` |
+|---|---|---|---|---|---|---|---|---|---|
+| `BkaUHsH_mkw` | 日本語 | 自動 | 10:11（10:02） | CC BY | Brave | 日本語 | B | `動画内を検索` | 保存する（2026-10-18 に再取得。チャプターの見出しを 3 行含む） |
 
 ## 2. 目的とスコープ (Goals and Scope)
 
@@ -211,10 +219,12 @@
 
 #### F-005: テストと実データ
 
+**決定（保存するサンプルの記録の guard）:** `TestCopiedTranscriptSurveyRecords`（`cmd/yt2column/copied_transcript_docs_test.go`）は、`testdata/` の各サンプルについて、属性の表の行が「保存する」と記録していることを要する。この guard が読む属性の表を、0015 `02_architecture.md` §1.4.1 の表だけから、0015 の表と本書 §1.1 の表の一覧に広げる。サンプルは、一覧のどれかの表にその動画の行があり、その行の `testdata/` 列が「保存する」であれば通る。0015 の表の記録は書き換えない（§5）。属性の表の列・4 つの言語と種類の組み合わせ・観測した書式の表など、0015 の表についての他の検査は変えない。
+
 **Acceptance Criteria**:
 - **AC-16**: AC-01〜AC-15・AC-21〜AC-26・AC-28〜AC-38 を確かめるユニットテストを加える。実データのサンプル（AC-17）を使う AC-34 を除き、テストの入力は、`_test.go` の中の文字列（合成の入力）で作る。見出しのタイトルとセグメントの本文は架空の文字列とする。報告された入力（動画 `dsuNgos_kxA`）と §1 で観測した入力の全体は、再配布の許諾が確認できないため `testdata/` に保存しない（[security.md](../../dev/security.md) §7）。前置き・末尾の操作ラベルの文字列は、パネルの UI のラベルなので合成の入力に使ってよい。
-- **AC-17**: 再配布が許諾されたライセンス（CC BY）の、形 B でチャプターの見出しを含む動画 `BkaUHsH_mkw` のコピーを `testdata/` に保存し、`testdata/README.md` に出典（動画タイトル `子供のスピーチコンテスト対策【高評価を得るための3つのポイント】`・URL `https://www.youtube.com/watch?v=BkaUHsH_mkw`・チャンネル `英語発音専門ドクターDイングリッシュ`・ライセンス CC BY とその URI）・取得日（2026-10-18）・取得方法・加工内容（なし）・チャプターの見出し 3 行を含むこと・末尾の改行がないことを記録する（[security.md](../../dev/security.md) §7）。
-- **AC-18**: 既存のテスト（`internal/transcript/copied_format_test.go`・`copied_test.go`・`internal/writer/prompt_test.go`・パイプラインの guard）が、本タスクの後もそのまま通る。例外は 2 つある。1 つ目は、AC-17 で `testdata/` にサンプルを加えるために必要な `copied_test.go` の変更（サンプルの集合を固定する `copiedSampleFiles` へのファイル名の追加と、`TestCopiedSourceRealSamples` の期待値の追加）である。2 つ目は、F-006〜F-008 が変える振る舞いを確かめている `copied_format_test.go` の次のケースであり、本書に合わせて書き換える: 拒否の表の `two trailing separators`・`three trailing separators`（`errCopiedEmptyLine`。受理になる）、`trailingRejects` の同名の 2 ケース（受理になる）、`empty line at the start`（入力 `\n0:00\nx\n`。先頭の空行が前置きになるので受理になる）、`leading display items`（入力 `タイムライン\n`。`errCopiedNoText` になる）、検査の順序の `line kind before blank text`（入力 `0:00\nx\n \n`。末尾の U+0020 だけの行が無視されるので受理になる）、`form B whitespace-only text`（入力 `0:00\n \n`。末尾の U+0020 だけの行が無視され、本文のあるセグメントが残らないので `errCopiedNoText` になる）、形 B の見出しの位置の `chapter heading after text`（入力 `0:00\nx\n存在感のある声\n`。F-008 で見出しを読み飛ばすので受理になる）、検査の `chapter heading omits the line`（入力 `0:00\nTEXT_MARKER\nCHAPTER_MARKER\n`。受理になり、拒否のメッセージの確認を通らなくなるので、受理のケースとして作り直す）。時刻の文法の拒否のケース（`leading BOM`・`minute leading zero`・`minute over 59`・`single-digit second` など、先頭の行が時刻の文法に合わない時刻であるもの）は、F-007 の拒否の規則により、理由と行番号を変えずに通ることを要する。書き換えたケースは 03 に記録する。
+- **AC-17**: 再配布が許諾されたライセンス（CC BY）の、形 B でチャプターの見出しを含む動画 `BkaUHsH_mkw` のコピーを `testdata/` に保存し、`testdata/README.md` に出典（動画タイトル `子供のスピーチコンテスト対策【高評価を得るための3つのポイント】`・URL `https://www.youtube.com/watch?v=BkaUHsH_mkw`・チャンネル `英語発音専門ドクターDイングリッシュ`・ライセンス CC BY とその URI）・取得日（2026-10-18）・取得方法・加工内容（なし）・チャプターの見出し 3 行を含むこと・末尾の改行がないことを記録する（[security.md](../../dev/security.md) §7）。属性は §1.1 の表に記録し、F-005 の決定により、`TestCopiedTranscriptSurveyRecords` がこのサンプルの記録を §1.1 の表から読んで通る。
+- **AC-18**: 既存のテスト（`internal/transcript/copied_format_test.go`・`copied_test.go`・`internal/writer/prompt_test.go`・パイプラインの guard）が、本タスクの後もそのまま通る。例外は 3 つある。1 つ目は、AC-17 で `testdata/` にサンプルを加えるために必要な `copied_test.go` の変更（サンプルの集合を固定する `copiedSampleFiles` へのファイル名の追加と、`TestCopiedSourceRealSamples` の期待値の追加）である。2 つ目は、F-005 の決定による `cmd/yt2column/copied_transcript_docs_test.go` の `TestCopiedTranscriptSurveyRecords` の変更（属性の表を 0015 の表と本書 §1.1 の表の一覧から読む）である。3 つ目は、F-006〜F-008 が変える振る舞いを確かめている `copied_format_test.go` の次のケースであり、本書に合わせて書き換える: 拒否の表の `two trailing separators`・`three trailing separators`（`errCopiedEmptyLine`。受理になる）、`trailingRejects` の同名の 2 ケース（受理になる）、`empty line at the start`（入力 `\n0:00\nx\n`。先頭の空行が前置きになるので受理になる）、`leading display items`（入力 `タイムライン\n`。`errCopiedNoText` になる）、検査の順序の `line kind before blank text`（入力 `0:00\nx\n \n`。末尾の U+0020 だけの行が無視されるので受理になる）、`form B whitespace-only text`（入力 `0:00\n \n`。末尾の U+0020 だけの行が無視され、本文のあるセグメントが残らないので `errCopiedNoText` になる）、形 B の見出しの位置の `chapter heading after text`（入力 `0:00\nx\n存在感のある声\n`。F-008 で見出しを読み飛ばすので受理になる）、検査の `chapter heading omits the line`（入力 `0:00\nTEXT_MARKER\nCHAPTER_MARKER\n`。受理になり、拒否のメッセージの確認を通らなくなるので、受理のケースとして作り直す）。時刻の文法の拒否のケース（`leading BOM`・`minute leading zero`・`minute over 59`・`single-digit second` など、先頭の行が時刻の文法に合わない時刻であるもの）は、F-007 の拒否の規則により、理由と行番号を変えずに通ることを要する。書き換えたケースは 03 に記録する。
 - **AC-19**: 報告された動画の入力（チャプター見出し行 24 行を含む形 A）と、§1 の前置きから末尾の `動画の時間と同期` までを含むパネル全体の選択、および形 B の見出しを含む `BkaUHsH_mkw` のサンプルを、実際のサーバと拡張を通して送り、`202` で受理されることを手動で確かめる。結果を 03 に記録する（0011 の手動確認と同じ方法）。
 - **AC-20**: サーバの本文の上限と同じ大きさ（4 MiB）の、前置き・形 A と形 B の見出し行・末尾の領域を含む入力で解析が完走し、解析の時間とメモリが入力の長さに比例する（0015 AC-08 を維持する）。
 
@@ -332,4 +342,3 @@
 
 - **英語 UI の見出し。** 形 A の見出しの `Chapter`（F-001）を対称性で受理する案をレビューで決める。英語 UI の末尾のボタンは `Sync to video time` と確認し、F-002 の一覧に加えた。
 -   **末尾の領域を一覧の外にも広げるか（形 A）。** 前置きは任意の行を読み飛ばすが、末尾の領域は空白行と一覧の操作ラベル行に限る。形 B では、最後の本文の行の後の非時刻行は F-008 で読み飛ばすので、この問いは形 A に限られる。§1 の観測ではボタンより後の行は選択に入らないので、本書は狭い規則とした。末尾にも、前置きと同様の任意の行の読み飛ばしを適用するかをレビューで決める。
--   **`BkaUHsH_mkw` のサンプルの記録の guard。** `TestCopiedTranscriptSurveyRecords`（`cmd/yt2column/copied_transcript_docs_test.go`）は、`testdata/` の各サンプルについて、0015 `02_architecture.md` §1.4.1 の属性の表の行が「保存する」と記録していることを要する。`BkaUHsH_mkw` の行は「保存しない（チャプターの見出しを含む）」であり、§5 は 0015 の文書を変更しないとする。AC-17 でサンプルを保存するには、guard が本タスクの記録も読むように変えるか、0015 の表の記録を例外として改めるかを決める必要がある。
