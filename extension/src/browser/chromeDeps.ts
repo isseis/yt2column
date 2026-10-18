@@ -1,13 +1,14 @@
 import type { PageSelection, SelectionReader } from "../core/collect.ts";
 import type { SettingsStore } from "../core/settings.ts";
-import type { Logger, ResultViewStore } from "../launch.ts";
+import type { Logger, MetadataReader, ResultViewStore } from "../launch.ts";
 import type { FetchFn, SendDeps } from "../send.ts";
 
-/** The one chrome.scripting call used; its result is validated at runtime. */
+/** The chrome.scripting call used; the injected function's result is validated at runtime. */
 export interface ScriptingApi {
-  executeScript(injection: {
+  executeScript<Args extends unknown[], Result>(injection: {
     readonly target: { readonly tabId: number };
-    readonly func: () => PageSelection;
+    readonly func: (...args: Args) => Result;
+    readonly args: Args;
   }): Promise<Array<{ readonly result?: unknown }>>;
 }
 
@@ -83,9 +84,78 @@ export function createSelectionReader(
       const results = await scripting.executeScript({
         target: { tabId },
         func: readSelection,
+        args: [],
       });
       const result = results[0]?.result;
       if (!isPageSelection(result)) {
+        throw new Error("the injected function returned an unexpected value");
+      }
+      return result;
+    },
+  };
+}
+
+/**
+ * Runs in the tab's top frame. It must not reference any name from this
+ * module: chrome.scripting serializes the function's source and runs it in the
+ * page, so an outer reference would throw there. It returns the watch metadata
+ * as JSON text, or null when the page has already moved away from the URL the
+ * selection was collected on. Members whose element is absent are left out.
+ */
+function readPageMetadata(expectedUrl: string): string | null {
+  if (location.href !== expectedUrl) {
+    return null;
+  }
+  const metadata: {
+    title?: string;
+    channelName?: string;
+    description?: string;
+    descriptionCollapsed: boolean;
+  } = { descriptionCollapsed: false };
+  const titleElement = document.querySelector(
+    "ytd-watch-metadata #title h1 yt-formatted-string",
+  );
+  if (titleElement !== null) {
+    metadata.title = titleElement.textContent ?? "";
+  }
+  const channelElement = document.querySelector("#owner #channel-name #text");
+  if (channelElement !== null) {
+    metadata.channelName = channelElement.textContent ?? "";
+  }
+  const expander = document.querySelector(
+    "ytd-watch-metadata #description-inline-expander",
+  );
+  if (expander !== null) {
+    // The collapsed state alone picks the element: reading #expanded's content
+    // as a second signal would let a still-empty #expanded send a snippet while
+    // the expand prompt stays hidden.
+    const collapsed = !expander.hasAttribute("is-expanded");
+    metadata.descriptionCollapsed = collapsed;
+    const snippet = expander.querySelector(
+      collapsed ? "#attributed-snippet-text" : "#expanded yt-attributed-string",
+    );
+    if (snippet !== null) {
+      metadata.description = snippet.textContent ?? "";
+    }
+  }
+  return JSON.stringify(metadata);
+}
+
+/**
+ * The MetadataReader backed by chrome.scripting. read() rejects when the
+ * injection throws or returns a value that is not a string (a URL mismatch
+ * makes the injected function return null).
+ */
+export function createMetadataReader(scripting: ScriptingApi): MetadataReader {
+  return {
+    async read(tabId: number, expectedUrl: string): Promise<string> {
+      const results = await scripting.executeScript({
+        target: { tabId },
+        func: readPageMetadata,
+        args: [expectedUrl],
+      });
+      const result = results[0]?.result;
+      if (typeof result !== "string") {
         throw new Error("the injected function returned an unexpected value");
       }
       return result;

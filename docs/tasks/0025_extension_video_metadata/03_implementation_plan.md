@@ -8,7 +8,7 @@
 | Created | 2026-10-18 |
 | Review date | 2026-10-18 |
 | Reviewer | isesis |
-| Comments | - |
+| Comments | 編集上の訂正（2026-10-18。判断は変えていない）。フェーズ 2 の対象ファイルに `extension/src/launch.ts` を加えた（ステップ 2-3 が既に `MetadataReader` を launch.ts の型としているため、フェーズ 2 の作業内容は変えず、対象の記載を合わせただけである）。ステップ 2-4・2-5 の確かめる手段を `document.body.outerHTML` から jsdom の直列化（`dom.serialize()`）に改めた（`outerHTML` は拡張の ESLint の `no-restricted-syntax` が許さないため。何を確かめるかは変えていない） |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -143,24 +143,24 @@ HEAD `0842685` で確認した。設計書は既存のファイルの行番号�
 
 -   [x] グリーンゲート（`make ext-check` → `make test` → `make lint`。§3.2）がパスしていることを確認した
 -   [x] PR を作成した
--   [ ] PR がマージされた
--   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+-   [x] PR がマージされた
+-   [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: ページの読み取りの注入
 
 **対象ファイル**
--   変更: `extension/src/browser/chromeDeps.ts`、`extension/test/chromeDeps.test.ts`
+-   変更: `extension/src/browser/chromeDeps.ts`、`extension/test/chromeDeps.test.ts`、`extension/src/launch.ts`（`MetadataReader` の宣言のみ。振る舞いは変えない。ステップ 2-3）
 
 **タスク**
--   [ ] **ステップ 2-1**: `ScriptingApi`（`chromeDeps.ts:7-12`）を、`func` と `args` を総称型で受け取る形にする（設計書 3.3）。`createSelectionReader`（`:78-94`）の `executeScript` に `args: []` を加える。`chromeDeps.test.ts` の `Injection` 型（`:18`）と `recordingScripting`（`:26-39`）を合わせて改める。選択範囲の読み取りの振る舞いは変えない。
+-   [x] **ステップ 2-1**: `ScriptingApi`（`chromeDeps.ts:7-12`）を、`func` と `args` を総称型で受け取る形にする（設計書 3.3）。`createSelectionReader`（`:78-94`）の `executeScript` に `args: []` を加える。`chromeDeps.test.ts` の `Injection` 型（`:18`）と `recordingScripting`（`:26-39`）を合わせて改める。選択範囲の読み取りの振る舞いは変えない。
     -   **対象:** `extension/src/browser/chromeDeps.ts`・`extension/test/chromeDeps.test.ts`。**完了:** `make ext-typecheck` と既存の `selection reader` の行が通る。
--   [ ] **ステップ 2-2**: `readPageMetadata(expectedUrl)` を加える（設計書 3.3）。動画ページのトップフレームで実行し、外の名前を参照しない。`location.href` が `expectedUrl` と一致しなければ `null` を返す。動画タイトル・チャンネル名・概要欄を設計書 3.1 のセレクタで読み、概要欄は `is-expanded` 属性だけで全文と冒頭を選び、折りたたみの状態を `descriptionCollapsed` として返す。値のないメンバは結果に含めず、`JSON.stringify` した文字列を返す。
+-   [x] **ステップ 2-2**: `readPageMetadata(expectedUrl)` を加える（設計書 3.3）。動画ページのトップフレームで実行し、外の名前を参照しない。`location.href` が `expectedUrl` と一致しなければ `null` を返す。動画タイトル・チャンネル名・概要欄を設計書 3.1 のセレクタで読み、概要欄は `is-expanded` 属性だけで全文と冒頭を選び、折りたたみの状態を `descriptionCollapsed` として返す。値のないメンバは結果に含めず、`JSON.stringify` した文字列を返す。
     -   **対象:** `extension/src/browser/chromeDeps.ts`。**完了:** `make ext-typecheck` が通る。
--   [ ] **ステップ 2-3**: `createMetadataReader(scripting)` を加える（設計書 3.3）。`MetadataReader` は `launch.ts` が持つ型を import する（`chromeDeps.ts:3` が既に `launch.ts` の型を import しているので循環しない）。注入の結果が文字列でなければ拒否する（`null` を含む）。
-    -   **対象:** `extension/src/browser/chromeDeps.ts`。**完了:** `make ext-typecheck` が通る。
--   [ ] **ステップ 2-4**: `chromeDeps.test.ts` に `metadata reader` と `page metadata injection` の行を加える（設計書 3.9・7.1）。`createMetadataReader` について、fake の `executeScript` が文字列以外（`null` を含む）を返すか例外を投げると `read` が失敗すること。注入関数のソースを jsdom の `document` と `location` で実行し（`vm.runInNewContext`。0007 の `selection reader` と同じ方法）、設計書 3.1 のセレクタで 3 つの値と折りたたみの状態を読み、URL が一致しなければ `null` を返し、値のないメンバを含めないこと。概要欄は、`is-expanded` の有無だけで全文と冒頭を選ぶことを、`is-expanded` と `#expanded` の中身が食い違う入力（`is-expanded` があり `#expanded` が空の入力と、`is-expanded` がなく `#expanded` に値がある入力）で確かめる（設計書 3.3 の「Declare, don't infer」。`#expanded` の中身では選ばない）。あわせて、注入関数がページを操作しないことを、実行の前後で jsdom の DOM が変わらないこと（`document.body.outerHTML` の比較）と、注入関数のソース（`executeScript` に渡した `func.toString()`）がページを操作する呼び出し（`.click(`・`dispatchEvent`・`.focus(`・`.blur(`・`.submit(`・`requestSubmit(`・`scrollIntoView`・`.value =`）を含まないことの両方で確かめる（AC-19）。注入関数はページで実行される唯一のコードなので、この 2 つで「ページを操作するコードを持たない」を確かめる。
+-   [x] **ステップ 2-3**: `createMetadataReader(scripting)` を加える（設計書 3.3）。`MetadataReader` は `launch.ts` が持つ型を import する（`chromeDeps.ts:3` が既に `launch.ts` の型を import しているので循環しない）。注入の結果が文字列でなければ拒否する（`null` を含む）。`MetadataReader` の宣言を `launch.ts` に加える（型のみ。フェーズ 3 の経路の変更は含めない）。
+    -   **対象:** `extension/src/browser/chromeDeps.ts`・`extension/src/launch.ts`。**完了:** `make ext-typecheck` が通る。
+-   [x] **ステップ 2-4**: `chromeDeps.test.ts` に `metadata reader` と `page metadata injection` の行を加える（設計書 3.9・7.1）。`createMetadataReader` について、fake の `executeScript` が文字列以外（`null` を含む）を返すか例外を投げると `read` が失敗すること。注入関数のソースを jsdom の `document` と `location` で実行し（`vm.runInNewContext`。0007 の `selection reader` と同じ方法）、設計書 3.1 のセレクタで 3 つの値と折りたたみの状態を読み、URL が一致しなければ `null` を返し、値のないメンバを含めないこと。概要欄は、`is-expanded` の有無だけで全文と冒頭を選ぶことを、`is-expanded` と `#expanded` の中身が食い違う入力（`is-expanded` があり `#expanded` が空の入力と、`is-expanded` がなく `#expanded` に値がある入力）で確かめる（設計書 3.3 の「Declare, don't infer」。`#expanded` の中身では選ばない）。あわせて、注入関数がページを操作しないことを、実行の前後で jsdom の DOM が変わらないこと（`dom.serialize()` の比較。`outerHTML` は ESLint の `no-restricted-syntax` が許さないため、jsdom の直列化を使う）と、注入関数のソース（`executeScript` に渡した `func.toString()`）がページを操作する呼び出し（`.click(`・`dispatchEvent`・`.focus(`・`.blur(`・`.submit(`・`requestSubmit(`・`scrollIntoView`・`.value =`）を含まないことの両方で確かめる（AC-19）。注入関数はページで実行される唯一のコードなので、この 2 つで「ページを操作するコードを持たない」を確かめる。
     -   **対象:** `extension/test/chromeDeps.test.ts`。**完了:** `chromeDeps.test.ts` が通る。
--   [ ] **ステップ 2-5**: 壊して失敗することを確かめ、コミットメッセージに記録する。`createMetadataReader` の文字列以外の拒否を外す、注入関数の URL の確認を外す、`is-expanded` の判定を `#expanded` の中身の有無に替える、折りたたみの状態を常に `false` にする、値のないメンバを結果に含める（いずれも `chromeDeps.test.ts`）。注入関数にページを操作する 1 行（例: 概要欄の要素の `.click()`）を加える（`chromeDeps.test.ts` のページを操作しないことの行。`outerHTML` は変わらないので、ソースの走査の行が落ちる）。続けて `make ext-check` → `make test` → `make lint` を通す。
+-   [x] **ステップ 2-5**: 壊して失敗することを確かめ、コミットメッセージに記録する。`createMetadataReader` の文字列以外の拒否を外す、注入関数の URL の確認を外す、`is-expanded` の判定を `#expanded` の中身の有無に替える、折りたたみの状態を常に `false` にする、値のないメンバを結果に含める（いずれも `chromeDeps.test.ts`）。注入関数にページを操作する 1 行（例: 概要欄の要素の `.click()`）を加える（`chromeDeps.test.ts` のページを操作しないことの行。`dom.serialize()` は変わらないので、ソースの走査の行が落ちる）。続けて `make ext-check` → `make test` → `make lint` を通す。
     -   **対象:** なし（確認のみ）。**完了:** 各対象を壊して失敗することを確認し、コミットメッセージに記録する。
 
 **完了条件:** `make ext-check` → `make test` → `make lint` が通り、`chromeDeps.test.ts` が通る。
@@ -177,8 +177,8 @@ HEAD `0842685` で確認した。設計書は既存のファイルの行番号�
 
 **判定理由**: どのトリガーにも当たらない（§1.3 に競合する実装の案がない）。注入関数は設計書 3.1・3.3 がセレクタ・URL の確認・全文と冒頭の選択を確定しており、直線的な読み取りで、回復の流れ・並行・状態機械に当たらない。
 
--   [ ] グリーンゲート（`make ext-check` → `make test` → `make lint`。§3.2）がパスしていることを確認した
--   [ ] PR を作成した
+-   [x] グリーンゲート（`make ext-check` → `make test` → `make lint`。§3.2）がパスしていることを確認した
+-   [x] PR を作成した
 -   [ ] PR がマージされた
 -   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
