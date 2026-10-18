@@ -324,7 +324,7 @@ requirements の機能要件（F-001〜F-010）を、architecture の設計ど�
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
+- [x] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装の順序とマイルストーン (Implementation Order and Milestones)
@@ -465,9 +465,9 @@ requirements AC-39 が認める変更は、architecture §1.3「要件 AC-39 と
 - [x] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5）
 - [x] PR-4 マージ済み（対象ステップ: 3-6 / 3-7 / 3-8）
 - [x] PR-5 マージ済み（対象ステップ: 3-9 / 3-10 / M-1 / M-2 / M-3）
-- [ ] PR-6 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7）
-- [ ] §5 のすべての AC の `test`・`static` の検証が実行され、通る
-- [ ] `make fmt`・`make test`・`make lint` がすべての PR の完了時に通る
+- [x] PR-6 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7）
+- [x] §5 のすべての AC の `test`・`static` の検証が実行され、通る
+- [x] `make fmt`・`make test`・`make lint` がすべての PR の完了時に通る
 
 ## 8. 成功基準 (Success Criteria)
 
