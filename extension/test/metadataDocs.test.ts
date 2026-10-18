@@ -30,6 +30,8 @@ describe("video metadata documentation", () => {
         "reads the video metadata — the video title, the channel name, and the description — from the video page",
         "the URL, and the video metadata to the localhost server",
         "Some values may not be available",
+        "that value is left out of the request",
+        "The extension still sends the selection and the URL",
       ],
     );
   });

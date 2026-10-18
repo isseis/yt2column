@@ -73,7 +73,7 @@ HEAD `0842685` で確認した。設計書は既存のファイルの行番号�
 -   `extension/test/chromeDeps.test.ts` の `Injection` 型（`:18`）は `Parameters<ScriptingApi["executeScript"]>[0]` で、`executeScript` を総称型にすると引数の型が変わる。`recordingScripting`（`:26-39`）と合わせて改める（ステップ 2-1）。`createMetadataReader` と注入関数の行を加える（ステップ 2-4）。
 -   `extension/test/prepare.test.ts` は既存の本文の行（`:73-105`）を維持し、AC-08・AC-21・I-01 の行だけを加える（ステップ 4-4）。
 -   `extension/test/messages.test.ts`・`extension/test/render.test.ts`・`extension/test/summary.test.ts`・`extension/test/sendMessages.test.ts`・`extension/test/renderSend.test.ts` は、`Message` の別名化と `messageNodes` の引数の変更の後もそのまま通る（`RejectionMessage` は `Message` の別名なので型の実質は変わらない）。編集は不要である（設計書 3.9 の「変更」は型の一般化を指す）。
--   `extension/test/manifest.test.ts` は変更しない（AC-19）。
+-   `extension/test/manifest.test.ts` の権限の検査は変更しない（AC-19）。ステップ 5-5 で、Markdown の節を切り出す補助 `section` を `metadataDocs.test.ts` と共用するため `extension/test/helpers/repoFile.ts` の `markdownSection` へ移した（検査の内容は変えていない）。
 
 **既存のテストの入力の網羅（重複を避ける）**
 

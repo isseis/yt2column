@@ -8,13 +8,18 @@ export function readRepoFile(file: string): string {
   return readFileSync(path.join(repoRoot, file), "utf8");
 }
 
-/** The body of a Markdown section, from its heading to the next ### heading. */
+/**
+ * The body of a level-3 Markdown section, from its heading line to the next
+ * heading of level 3 or higher; "" when no line is exactly the heading.
+ */
 export function markdownSection(markdown: string, heading: string): string {
-  const start = markdown.indexOf(heading);
+  const text = `\n${markdown}`;
+  const marker = `\n${heading}\n`;
+  const start = text.indexOf(marker);
   if (start < 0) {
     return "";
   }
-  const rest = markdown.slice(start + heading.length);
-  const next = rest.indexOf("\n### ");
+  const rest = text.slice(start + marker.length);
+  const next = rest.search(/^#{1,3} /mu);
   return next < 0 ? rest : rest.slice(0, next);
 }

@@ -533,7 +533,7 @@ and load the build as an unpacked extension. It collects a selection, the tab
 URL, and the tab title, and reads the video metadata — the video title, the
 channel name, and the description — from the video page. It sends the selection,
 the URL, and the video metadata to the localhost server, and shows the response.
-The tab title is only shown for checking; it is not sent.
+The tab title is shown for checking (and must not be empty); it is not sent.
 
 Node.js 24 is required, and every `ext-*` target refuses to run when
 `node --version` does not match `extension/.node-version`. The version file sits
@@ -595,7 +595,8 @@ The context menu does not show this message and sends what the page shows.
 
 Some values may not be available: when a video title, channel name, or
 description is missing or blank on the page, that value is left out of the
-request, and when the page cannot be read at all, all three are left out. The
+request, and when the page cannot be read at all — or the tab has moved to
+another video since the selection was read — all three are left out. The
 extension still sends the selection and the URL, and the article is generated
 from them.
 
