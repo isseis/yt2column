@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-18 |
-| Review date | - |
+| Review date | 2026-10-18 |
 | Reviewer | - |
-| Comments | 2026-10-18 の承認の後、決定を変更したため `draft` に戻した。F-004・AC-26: ホストを起動できない場合を未送信とする区別をやめ、ホストが応答前に終了した場合とまとめて「ホストの失敗」（結果不明）とする。ブラウザがこの 2 つを、版で変わりうる文字列（`chrome.runtime.lastError` の `message`）でしか区別しないためである |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
