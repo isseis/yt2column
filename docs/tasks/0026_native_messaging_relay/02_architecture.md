@@ -8,7 +8,7 @@
 | Created | 2026-10-18 |
 | Review date | 2026-10-18 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 編集上の訂正（2026-10-18。判断は変えていない）。`03_implementation_plan.md` の作成に合わせて、§3.12 の UDS のリスナーの補助の置き場所を `internal/server/test_helpers.go` からテスト専用の `internal/udstest` に改め（depguard の `internal/server` → `internal/serversock` の禁止が `internal/serversock/testutil` にも当たるため）、§8 のフェーズ 1 に拡張の 4 つの拒否の理由の削除を加えた（README の表と拡張の理由の集合の一致を保つため。フェーズの順序と最終の状態は変わらない） |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §3.11）を指す。既存のコードの行番号は、コミット `9e34229`（要件書の承認のコミット）で確かめたものである。
 
@@ -1020,7 +1020,8 @@ export function classifyResponse(
 | `internal/server/server.go` | 変更 | `Listen`・`Port`・`Token` を削除し、`Serve` が 1 つのリスナーを受け取る |
 | `internal/server/handler.go` | 変更 | `Host`・`Content-Type`・`Origin`・`Authorization` の検査と `remoteAddr` のログを削除する |
 | `internal/server/response.go` | 変更 | 4 つの拒否の理由とその詳細、`WWW-Authenticate` を削除する |
-| `internal/server/test_helpers.go` | 変更 | トークン・オリジン・`Content-Type` の補助を削除し、UDS のリスナーの補助を加える |
+| `internal/server/test_helpers.go` | 変更 | トークン・オリジン・`Content-Type` の補助を削除する（UDS のリスナーは `internal/udstest` の補助を使う） |
+| `internal/udstest/` | 新規 | テスト専用（`//go:build test`）。`/tmp` の下の短いディレクトリと UDS のリスナーの補助（§7.2）。`internal/serversock`・`internal/server`・`internal/nmhost`・`cmd/yt2column-server`・`cmd/yt2column-nmhost` のテストが使う |
 | `internal/authtoken/` | 削除 | - |
 | `cmd/yt2column-server/run.go` | 変更 | トークンの表示と `stdout` と `listenURLs` を削除し、`serversock` で待ち受け、ロックをジョブの完了の後に解放する |
 | `cmd/yt2column-server/main.go` | 変更 | `run` に `stdout` を渡さない。`SIGPIPE` の無視のコメントを改める |
@@ -1445,7 +1446,7 @@ flowchart LR
 | フェーズ | 内容 | 終わった時点の状態 |
 |---|---|---|
 | 0 | §3.10 の S-1〜S-8 の実機での確認（本書の承認の前） | 前提が確かめられ、本書の値が確定する |
-| 1: サーバの UDS 化 | §3.1（`ServerConfig` の部分）、§3.2、§3.3、`internal/authtoken` の削除、サーバのテストとガードの更新 | サーバは UDS だけで待ち受ける。この時点の拡張はサーバに届かない（要件書 4.4「互換性はない」）ので、フェーズ 1〜3 は同じ版で利用者に渡す。README と security.md のサーバの節はフェーズ 1 で改める |
+| 1: サーバの UDS 化 | §3.1（`ServerConfig` の部分）、§3.2、§3.3、`internal/authtoken` の削除、サーバのテストとガードの更新 | サーバは UDS だけで待ち受ける。この時点の拡張はサーバに届かない（要件書 4.4「互換性はない」）ので、フェーズ 1〜3 は同じ版で利用者に渡す。README と security.md のサーバの節はフェーズ 1 で改める。README の拒否の理由の表と拡張の `serverRejectStatus` の一致を保つため、拡張の `forbidden_host`・`unsupported_media_type`・`forbidden_origin`・`unauthorized` の削除（§3.7.3 の一部）もフェーズ 1 で行う |
 | 2: ホスト | §3.1（`LoadHost`）、§3.4、§3.5、§3.6、§7.2 の統合テスト、Makefile | `curl` の代わりにホストでサーバに送れる。install/uninstall が使える |
 | 3: 拡張 | §3.7、拡張のテスト、README と security.md の拡張の節、CLAUDE.md の例外、ガード | 拡張からホストを通して送れる。手動の確認（AC-36） |
 
