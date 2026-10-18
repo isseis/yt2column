@@ -8,7 +8,7 @@
 | Created | 2026-10-18 |
 | Review date | - |
 | Reviewer | - |
-| Comments | §3.10 の実機での確認（S-1〜S-8）は未実施。承認の前に行い、結果を §3.10 の表に記録する。要件書の F-004・AC-26 の改定（lastError を文字列で分けず、ホストの失敗として結果不明にまとめる）に合わせて §3.7.4・§3.7.5・§6.3 などを改めた。要件書の再承認が必要 |
+| Comments | §3.10 の実機での確認（S-1〜S-8）を 2026-10-18 に行い、結果を §3.10 の表に記録した。S-6（Brave の manifest の置き場所）が前提と異なり、S-4・S-5・S-8 にも本文に反映すべき差がある。本文への反映は未実施。要件書の F-004・AC-26 の改定（lastError を文字列で分けず、ホストの失敗として結果不明にまとめる）に合わせて §3.7.4・§3.7.5・§6.3 などを改めた。要件書の再承認が必要 |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §3.11）を指す。既存のコードの行番号は、コミット `9e34229`（要件書の承認のコミット）で確かめたものである。
 
@@ -959,7 +959,7 @@ export function classifyResponse(
 
 ### 3.10. 実機での確認（H-07）
 
-次の事項は、本設計の前提であり、本書の承認の前に、macOS の Chrome と Brave の作業時点の安定版で、小さなホストと拡張を使って確かめる。結果は下の表の「結果」の列に記録する。本書の作成時点では、いずれも**未実施**である。
+次の事項は、本設計の前提であり、本書の承認の前に、macOS の Chrome と Brave の作業時点の安定版で、小さなホストと拡張を使って確かめる。結果は下の表の「結果」の列に記録する。
 
 | 番号 | 確かめる事項 | 本書の前提 | 前提が崩れた場合の扱い |
 |---|---|---|---|
@@ -974,16 +974,18 @@ export function classifyResponse(
 
 -   S-2 で使う manifest を、TCC で保護されたフォルダ（`~/Documents`・`~/Desktop`・`~/Downloads` など）の中のバイナリに向けると、起動が失敗しうる。README には、ホストのバイナリをこれらの外に置くよう書く（H-07）。
 
+2026-10-18 に、macOS（Darwin 25.6.0、arm64）の Chrome 155.0.8059.40 と Brave 155.1.97.57 で確かめた。小さなホスト（Go。起動時の引数・`HOME`・環境変数の名前・受け取ったバイト列・シグナル・stdin の EOF・250 ms ごとの生存を記録する）と、ID を固定した小さな拡張を使った。ホストのバイナリは TCC で保護されたフォルダの外に置いた。
+
 | 番号 | 結果（Chrome） | 結果（Brave） |
 |---|---|---|
-| S-1 | 未実施 | 未実施 |
-| S-2 | 未実施 | 未実施 |
-| S-3 | 未実施 | 未実施 |
-| S-4 | 未実施 | 未実施 |
-| S-5 | 未実施 | 未実施 |
-| S-6 | 未実施 | 未実施 |
-| S-7 | 未実施 | 未実施 |
-| S-8 | 未実施 | 未実施 |
+| S-1 | 前提どおり。引数はちょうど 1 つで、`chrome-extension://<ID>/`。`HOME` は利用者のホーム。環境変数は launchd 由来の最小限（`PATH`・`TMPDIR`・`SHELL`・`USER` など）で、シェルの変数を引き継がない。作業ディレクトリはホストのバイナリのディレクトリ。`~/Library/Application Support/...` の空白を含むパスの UDS に接続でき、応答を受け取れた | Chrome と同じ |
+| S-2 | 前提どおり。4 つの場合のどれも lastError が設定され、コールバックは 30 ms 以内に呼ばれた。文字列は、manifest がない場合と実行ファイルがない場合がどちらも `Specified native messaging host not found.`、`allowed_origins` が合わない場合が `Access to the specified native messaging host is forbidden.`、応答せずに終了した場合が `Native host has exited.` | Chrome と同じ（文字列も同じ） |
+| S-3 | 前提より良い。ブラウザが直列化したバイト列は `JSON.stringify` の結果と 1 バイトも違わなかった。`<`・`>`・`&`・`/`・U+007F はエスケープせず、U+2028・U+2029 も UTF-8 のまま。制御文字は `\u00XX`（6 バイト）。孤立したサロゲートは `\ud800` の形のまま（U+FFFD に置き換えない）。17 種の文字のどれも、`JSON.stringify` に対する比は 1.00 | Chrome と同じ |
+| S-4 | 拡張からホストへは、JSON で 64 MiB（67,108,864 バイト）ちょうどまで届いた。64 MiB + 1 バイトでは、lastError ではなく、`sendNativeMessage` の呼び出しが同期に `TypeError`（`Message exceeded maximum allowed size of 64MiB.`）を投げた。コールバックは呼ばれず、ホストは起動しない。ホストから拡張へは、本文 1 MiB（1,048,576 バイト）ちょうどまで届いた。1 MiB + 1 バイトでは lastError `Error when communicating with the native messaging host.` になり、ホストの書き込みは `EPIPE` になった | Chrome と同じ |
+| S-5 | ブラウザがホストを終了させる。ポップアップを閉じると、ブラウザはホストの stdin を閉じ（EOF）、約 2 秒後に終了させた。SIGTERM は届かず、捕まえられないシグナル（SIGKILL と推定）で終了した。2 回とも同じ | Chrome と同じ（EOF の約 2 秒後に終了） |
+| S-6 | Chrome は `Google/Chrome/NativeMessagingHosts` を読み、`BraveSoftware/Brave-Browser/NativeMessagingHosts` を読まない | **前提と異なる。** Brave は `Google/Chrome/NativeMessagingHosts` の manifest でホストを起動し、`BraveSoftware/Brave-Browser/NativeMessagingHosts` だけに置いた manifest は `Specified native messaging host not found.` になった。Brave を完全に終了して起動し直しても同じ。`Google/Chrome` のディレクトリがない場合の振る舞いは確かめていない |
+| S-7 | 前提どおり。メニューの経路で、ポップアップを閉じたまま 25 秒・40 秒・70 秒の応答を待ち、どれも受け取れた。その後の `chrome.storage.local.set` と、もう 1 回の `sendNativeMessage` も成功した。service worker は途中で起動し直さなかった | Chrome と同じ |
+| S-8 | 前提どおり（読み捨てをした場合は 30 回のうち 30 回、応答を受け取った）。ただし、読み捨てをしない場合も、32 KiB〜32 MiB の 6 つの大きさで 5 回ずつ、30 回のうち 30 回、応答を受け取れた。`Error when communicating with the native messaging host.` は再現しなかった | Chrome と同じ（読み捨てあり・なしとも 30 回のうち 30 回） |
 
 ### 3.11. design_handoff の各項目への対応
 
