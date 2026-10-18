@@ -104,6 +104,17 @@ describe("buildArticleBody", () => {
     assert.equal(body.json.includes("SECRET-TAB-TITLE"), false);
   });
 
+  it("writes markup in a metadata value as a JSON string", () => {
+    const markup = "<img src=x onerror=alert(1)>";
+    const body = buildArticleBody(collectedInput("x"), {
+      title: markup,
+      description: markup,
+    });
+    const parsed = JSON.parse(body.json) as Record<string, unknown>;
+    assert.equal(parsed.title, markup);
+    assert.equal(parsed.description, markup);
+  });
+
   it("counts the JSON in UTF-8 bytes, not UTF-16 length", () => {
     const body = buildArticleBody(collectedInput("\u3042"), {});
     assert.ok(body.byteLength > body.json.length);
@@ -202,6 +213,24 @@ describe("prepareSend", () => {
     const outcome = await prepareSend(collected("x"), settings.reader, {});
     assert.ok(outcome.kind === "ready");
     assert.equal(outcome.request.body.json.includes(identifiableToken), false);
+  });
+
+  it("counts the metadata toward the body limit", async () => {
+    const base = buildArticleBody(collectedInput(""), {}).byteLength;
+    const input = collectedInput("a".repeat(maxBodyBytes - base));
+    const settings = fixedSettings({ token: validToken, port: undefined });
+    const without = await prepareSend(
+      { kind: "collected", input },
+      settings.reader,
+      {},
+    );
+    assert.equal(without.kind, "ready");
+    const withMetadata = await prepareSend(
+      { kind: "collected", input },
+      settings.reader,
+      { description: "d" },
+    );
+    assert.equal(blockedReason(withMetadata), "body-too-large");
   });
 
   it("sends at exactly the body limit and blocks one byte over", async () => {
