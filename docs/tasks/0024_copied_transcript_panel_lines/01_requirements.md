@@ -8,7 +8,7 @@
 | Created | 2026-10-17 |
 | Review date | 2026-10-18 |
 | Reviewer | isseis |
-| Comments | 2026-10-18: 編集上の訂正（決定の変更なし。アーキテクチャ作成時のレビューで判明）: AC-18 の例外 1（サンプルを加えるために必要な変更）に、サンプルの数を固定している `internal/writer/prompt_test.go` の `TestValidateTranscriptAcceptsCopiedSamples`（`wantSamples`）を加えた。AC-18 の書き換えの一覧に `TestParseCopiedErrorOmitsInput` の `not a timestamp omits the line`（入力 `MARKER_LINE\n`。前置きだけの入力になり、行番号のある拒否の経路を通らなくなるので、形 A の本体の行に移す）を加えた。どちらも本書の決定から導かれる変更であり、決定を変えない。 |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
