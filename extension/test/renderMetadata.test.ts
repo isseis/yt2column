@@ -4,7 +4,7 @@ import { describe, it } from "node:test";
 import { expandPromptMessage } from "../src/core/messages.ts";
 import type { MetadataResult } from "../src/core/metadata.ts";
 import { metadataDisplayLimit, renderMetadata } from "../src/ui/render.ts";
-import { container, valueOf } from "./helpers/dom.ts";
+import { container, valueElement, valueOf } from "./helpers/dom.ts";
 
 const malicious = "<img src=x onerror=alert(1)>";
 
@@ -14,7 +14,7 @@ function result(over: Partial<MetadataResult> = {}): MetadataResult {
 }
 
 describe("renderMetadata", () => {
-  it("shows each present value with its label", () => {
+  it("shows each present value with its label, in field order", () => {
     const root = container();
     renderMetadata(
       root,
@@ -30,7 +30,8 @@ describe("renderMetadata", () => {
     assert.equal(valueOf(root, "Channel"), "A channel");
     assert.equal(valueOf(root, "Description"), "A description");
     assert.deepEqual(
-      Array.from(root.querySelectorAll(".summary-label")).map(
+      Array.from(
+        root.querySelectorAll(".summary-label"),
         (node) => node.textContent,
       ),
       ["Video title", "Channel", "Description"],
@@ -45,6 +46,24 @@ describe("renderMetadata", () => {
     assert.equal(valueOf(root, "Description"), undefined);
   });
 
+  it("gives each value its class and automatic direction", () => {
+    const root = container();
+    renderMetadata(
+      root,
+      result({ values: { title: "t", channelName: "c", description: "d" } }),
+    );
+    const cases = [
+      { label: "Video title", className: "metadata-title" },
+      { label: "Channel", className: "metadata-channel" },
+      { label: "Description", className: "metadata-description" },
+    ];
+    for (const { label, className } of cases) {
+      const value = valueElement(root, label);
+      assert.ok(value?.classList.contains(className), label);
+      assert.equal(value?.getAttribute("dir"), "auto", label);
+    }
+  });
+
   it("displays markup in a value as text, not elements", () => {
     const root = container();
     renderMetadata(
@@ -55,81 +74,69 @@ describe("renderMetadata", () => {
     assert.ok(root.textContent?.includes(malicious));
   });
 
-  it("marks each metadata value for automatic direction", () => {
-    const root = container();
-    renderMetadata(
-      root,
-      result({ values: { title: "t", channelName: "c", description: "d" } }),
-    );
-    for (const selector of [
-      ".metadata-title",
-      ".metadata-channel",
-      ".metadata-description",
-    ]) {
-      assert.equal(root.querySelector(selector)?.getAttribute("dir"), "auto");
+  it("truncates only a value over the display limit", () => {
+    const pair = "\u{1F600}";
+    const cases = [
+      {
+        name: "exactly at the limit",
+        value: "a".repeat(metadataDisplayLimit),
+        shown: "a".repeat(metadataDisplayLimit),
+      },
+      {
+        name: "one over the limit",
+        value: "a".repeat(metadataDisplayLimit + 1),
+        shown: `${"a".repeat(metadataDisplayLimit)}\u2026`,
+      },
+      {
+        name: "a surrogate pair at the boundary",
+        value: `${"a".repeat(metadataDisplayLimit - 1)}${pair}b`,
+        shown: `${"a".repeat(metadataDisplayLimit - 1)}${pair}\u2026`,
+      },
+    ];
+    for (const { name, value, shown } of cases) {
+      const root = container();
+      renderMetadata(root, result({ values: { description: value } }));
+      assert.equal(valueOf(root, "Description"), shown, name);
     }
   });
 
-  it("keeps a value exactly at the limit unchanged", () => {
-    const root = container();
-    const exact = "a".repeat(metadataDisplayLimit);
-    renderMetadata(root, result({ values: { title: exact } }));
-    assert.equal(valueOf(root, "Video title"), exact);
-  });
-
-  it("truncates a value one over the limit with an ellipsis", () => {
-    const root = container();
-    const over = "a".repeat(metadataDisplayLimit + 1);
-    renderMetadata(root, result({ values: { title: over } }));
-    assert.equal(
-      valueOf(root, "Video title"),
-      `${"a".repeat(metadataDisplayLimit)}\u2026`,
-    );
-  });
-
-  it("does not split a surrogate pair at the boundary", () => {
-    const root = container();
-    const pair = "\u{1F600}";
-    const value = `${"a".repeat(metadataDisplayLimit - 1)}${pair}b`;
-    renderMetadata(root, result({ values: { description: value } }));
-    const shown = valueOf(root, "Description");
-    assert.equal(shown, `${"a".repeat(metadataDisplayLimit - 1)}${pair}\u2026`);
-    // A UTF-16 slice would leave a lone surrogate behind.
-    assert.equal(/\p{Cs}/u.test(shown ?? ""), false);
-  });
-
-  it("appends without replacing the existing children", () => {
+  it("appends after the existing children", () => {
     const root = container();
     const kept = root.ownerDocument.createElement("p");
     kept.textContent = "kept";
     root.append(kept);
     renderMetadata(root, result({ values: { title: "A title" } }));
-    assert.equal(root.querySelector("p")?.textContent, "kept");
+    assert.equal(root.firstElementChild, kept);
     assert.equal(valueOf(root, "Video title"), "A title");
   });
 
-  it("shows the expand prompt when the description is collapsed", () => {
-    const root = container();
-    renderMetadata(
-      root,
-      result({
-        values: { description: "beginning" },
-        showExpandPrompt: true,
-      }),
-    );
-    assert.ok(root.textContent?.includes(expandPromptMessage.text));
-    const items = root.querySelectorAll("ol.summary-steps > li");
-    assert.equal(items.length, expandPromptMessage.steps.length);
-  });
-
-  it("shows no expand prompt otherwise", () => {
-    const root = container();
-    renderMetadata(
-      root,
-      result({ values: { description: "beginning" }, showExpandPrompt: false }),
-    );
-    assert.ok(!(root.textContent ?? "").includes(expandPromptMessage.text));
-    assert.equal(root.querySelector("ol.summary-steps"), null);
+  it("shows the expand prompt only when showExpandPrompt is set", () => {
+    const cases = [
+      { name: "collapsed", showExpandPrompt: true, present: true },
+      { name: "not collapsed", showExpandPrompt: false, present: false },
+    ];
+    for (const { name, showExpandPrompt, present } of cases) {
+      const root = container();
+      renderMetadata(
+        root,
+        result({ values: { description: "beginning" }, showExpandPrompt }),
+      );
+      const message = root.querySelector(".summary-message");
+      assert.equal(message !== null, present, name);
+      if (!present) {
+        assert.equal(root.querySelector("ol.summary-steps"), null, name);
+        continue;
+      }
+      assert.equal(message?.textContent, expandPromptMessage.text, name);
+      assert.deepEqual(
+        Array.from(
+          root.querySelectorAll("ol.summary-steps > li"),
+          (item) => item.textContent,
+        ),
+        expandPromptMessage.steps,
+        name,
+      );
+    }
   });
 
   it("does not put page text in the expand prompt", () => {
@@ -139,6 +146,7 @@ describe("renderMetadata", () => {
       root,
       result({ values: { description }, showExpandPrompt: true }),
     );
+    assert.notEqual(root.querySelector(".summary-message"), null);
     const promptText = Array.from(
       root.querySelectorAll(".summary-message, .summary-steps"),
     )
