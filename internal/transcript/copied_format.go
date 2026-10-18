@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode"
@@ -50,6 +51,16 @@ const (
 	jpUnitHour   = "時間"
 )
 
+// copiedOperationLabels are the whole lines the transcript panel's trailing
+// button can emit. Like the Japanese screen-reader units, the parser compares
+// them against the input byte for byte, so they stay in the panel's display
+// languages; translating them would change the strings under comparison. Only
+// labels observed from the panel are listed.
+var copiedOperationLabels = []string{
+	"動画の時間と同期",           // Japanese UI
+	"Sync to video time", // English UI
+}
+
 // The timestamp grammars of the copied transcript format. minuteSecondPattern
 // accepts minutes 0-59 with no leading zero; hourMinuteSecondPattern accepts
 // hours 1-99 with no leading zero. Both require two-digit minutes and seconds.
@@ -80,9 +91,11 @@ type copiedTimestamp struct {
 // parseCopiedTranscript parses a copied YouTube transcript into segments. It
 // accepts form A (a timestamp, a screen-reader label, and the text concatenated
 // on one line) or form B (a timestamp line followed by a text line), decides
-// which by the first line alone, and rejects every input that matches neither.
-// It never repairs an input, never returns a partial result, and includes no
-// part of the input in its errors.
+// which by the body's first line alone, and rejects every input that matches
+// neither. It skips the trailing region (blank lines and trailing operation
+// labels) but still rejects a control character there. It never repairs an
+// input, never returns a partial result, and includes no part of the input in
+// its errors.
 func parseCopiedTranscript(raw string) ([]Segment, error) {
 	if !utf8.ValidString(raw) {
 		return nil, copiedGlobalError(errCopiedInvalidUTF8)
@@ -95,10 +108,26 @@ func parseCopiedTranscript(raw string) ([]Segment, error) {
 		return nil, err
 	}
 	lines := splitCopiedLines(raw, separator)
-	if _, ok := parseTimestampLine(lines[0]); ok {
-		return parseCopiedFormB(lines)
+	bodyEnd := copiedTrailingStart(lines)
+	if bodyEnd == 0 {
+		return nil, copiedGlobalError(errCopiedNoText)
 	}
-	return parseCopiedFormA(lines)
+	var segments []Segment
+	if _, ok := parseTimestampLine(lines[0]); ok {
+		segments, err = parseCopiedFormB(lines, 0, bodyEnd)
+	} else {
+		segments, err = parseCopiedFormA(lines, 0, bodyEnd)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := checkCopiedTrailingLines(lines, bodyEnd); err != nil {
+		return nil, err
+	}
+	if len(segments) == 0 {
+		return nil, copiedGlobalError(errCopiedNoText)
+	}
+	return segments, nil
 }
 
 // copiedGlobalError reports a rejection that concerns the input as a whole, so
@@ -144,7 +173,7 @@ func copiedLineSeparator(raw string) (string, error) {
 
 // splitCopiedLines splits an input into lines. A single trailing separator just
 // ends the last line, so it produces no empty line; a second or later trailing
-// separator does, and is caught by the empty-line check.
+// separator produces an empty line, which the trailing region then skips.
 func splitCopiedLines(raw, separator string) []string {
 	if separator == "" {
 		return []string{raw}
@@ -296,16 +325,86 @@ func hasCopiedControlChar(line string) bool {
 	return false
 }
 
-// parseCopiedFormA parses form A: every line is a timestamp, a screen-reader
-// label, and the text concatenated without separators. The label's language is
-// fixed by the first line. A segment without text is skipped; a line that is
-// only a timestamp belongs to the other form. It rejects on the first error in
-// the documented check order.
-func parseCopiedFormA(lines []string) ([]Segment, error) {
+// copiedWhitespaceOnlyLine reports whether line has at least one character and
+// every character is Unicode White_Space. An empty line is counted separately,
+// so it is not whitespace-only.
+func copiedWhitespaceOnlyLine(line string) bool {
+	if line == "" {
+		return false
+	}
+	for _, r := range line {
+		if !unicode.IsSpace(r) {
+			return false
+		}
+	}
+	return true
+}
+
+// copiedBlankLine reports whether line can belong to the trailing region on its
+// own: an empty line or a whitespace-only line.
+func copiedBlankLine(line string) bool {
+	return line == "" || copiedWhitespaceOnlyLine(line)
+}
+
+// copiedIsOperationLabel reports whether the whole line equals one of the
+// trailing operation labels.
+func copiedIsOperationLabel(line string) bool {
+	return slices.Contains(copiedOperationLabels, line)
+}
+
+// copiedTrailingStart returns the index of the first line after the body, which
+// is where the trailing region begins. The trailing region is the run of blank
+// lines and operation-label lines at the end of lines. An operation-label line
+// whose previous line is a timestamp-only line is not in the trailing region:
+// it is that timestamp's text, so the scan stops there.
+func copiedTrailingStart(lines []string) int {
+	start := len(lines)
+	for start > 0 {
+		index := start - 1
+		line := lines[index]
+		if copiedBlankLine(line) || (copiedIsOperationLabel(line) && !copiedTimestampLineAt(lines, index-1)) {
+			start--
+			continue
+		}
+		break
+	}
+	return start
+}
+
+// copiedTimestampLineAt reports whether lines[index] is a timestamp-only line.
+// An index below zero names no line, so it reports false.
+func copiedTimestampLineAt(lines []string, index int) bool {
+	if index < 0 {
+		return false
+	}
+	_, ok := parseTimestampLine(lines[index])
+	return ok
+}
+
+// checkCopiedTrailingLines rejects a control character in the trailing region.
+// The body is checked first, so an error in the body is reported before one in
+// the trailing region that follows it.
+func checkCopiedTrailingLines(lines []string, start int) error {
+	for index := start; index < len(lines); index++ {
+		if hasCopiedControlChar(lines[index]) {
+			return copiedLineError(index+1, errCopiedControlChar)
+		}
+	}
+	return nil
+}
+
+// parseCopiedFormA parses form A over the body range lines[start:end]: every
+// line is a timestamp, a screen-reader label, and the text concatenated without
+// separators. The label's language is fixed by the body's first line. A segment
+// without text is skipped; a line that is only a timestamp belongs to the other
+// form. Error line numbers are the original input's, so the range is not
+// renumbered. It rejects on the first error in the documented check order.
+func parseCopiedFormA(lines []string, start, end int) ([]Segment, error) {
 	language := labelNone
 	var segments []Segment
 	previousMs := int64(-1)
-	for index, line := range lines {
+	for index := start; index < end; index++ {
+		line := lines[index]
 		lineNumber := index + 1
 		if err := checkCopiedLine(line, lineNumber); err != nil {
 			return nil, err
@@ -336,24 +435,23 @@ func parseCopiedFormA(lines []string) ([]Segment, error) {
 			segments = append(segments, Segment{StartMs: timestamp.startMs, Text: text})
 		}
 	}
-	if len(segments) == 0 {
-		return nil, copiedGlobalError(errCopiedNoText)
-	}
 	return segments, nil
 }
 
-// parseCopiedFormB parses form B: a timestamp line followed by zero or one text
-// line, alternating. A timestamp followed by another timestamp or the end has
-// no text. The line after a text line must be a timestamp, so a chapter heading
-// there is rejected. A text line that reads as a form A line is rejected as a
-// mix of the forms. It rejects on the first error in the documented check
-// order.
-func parseCopiedFormB(lines []string) ([]Segment, error) {
+// parseCopiedFormB parses form B over the body range lines[start:end]: a
+// timestamp line followed by zero or one text line, alternating. A timestamp
+// followed by another timestamp or the end has no text. The line after a text
+// line must be a timestamp, so a chapter heading there is rejected. A text line
+// that reads as a form A line is rejected as a mix of the forms. Error line
+// numbers are the original input's, so the range is not renumbered. It rejects
+// on the first error in the documented check order.
+func parseCopiedFormB(lines []string, start, end int) ([]Segment, error) {
 	var segments []Segment
 	previousMs := int64(-1)
 	pendingMs := int64(0)
 	awaitingText := false
-	for index, line := range lines {
+	for index := start; index < end; index++ {
+		line := lines[index]
 		lineNumber := index + 1
 		if err := checkCopiedLine(line, lineNumber); err != nil {
 			return nil, err
@@ -378,9 +476,6 @@ func parseCopiedFormB(lines []string) ([]Segment, error) {
 		}
 		segments = append(segments, Segment{StartMs: pendingMs, Text: line})
 		awaitingText = false
-	}
-	if len(segments) == 0 {
-		return nil, copiedGlobalError(errCopiedNoText)
 	}
 	return segments, nil
 }

@@ -209,6 +209,21 @@ func TestParseCopiedAccepts(t *testing.T) {
 			input: "10:00:00\nx\n",
 			want:  []Segment{{StartMs: 36000000, Text: "x"}},
 		},
+		{
+			name:  "form B two trailing separators",
+			input: "0:00\nx\n\n",
+			want:  []Segment{{StartMs: 0, Text: "x"}},
+		},
+		{
+			name:  "form B three trailing separators",
+			input: "0:00\nx\n\n\n",
+			want:  []Segment{{StartMs: 0, Text: "x"}},
+		},
+		{
+			name:  "form B trailing whitespace-only line",
+			input: "0:00\nx\n \n",
+			want:  []Segment{{StartMs: 0, Text: "x"}},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -242,8 +257,6 @@ func TestParseCopiedRejects(t *testing.T) {
 		{name: "line break trailing CR", input: "0:00\nx\r", reason: errCopiedLineBreak, line: 2},
 		{name: "empty line in the middle", input: "0:00\n\nx\n", reason: errCopiedEmptyLine, line: 2},
 		{name: "empty line at the start", input: "\n0:00\nx\n", reason: errCopiedEmptyLine, line: 1},
-		{name: "two trailing separators", input: "0:00\nx\n\n", reason: errCopiedEmptyLine, line: 3},
-		{name: "three trailing separators", input: "0:00\nx\n\n\n", reason: errCopiedEmptyLine, line: 3},
 		{name: "control tab in text", input: "0:00\nx\ty\n", reason: errCopiedControlChar, line: 2},
 		{name: "control NUL in timestamp", input: "0:00\x00\nx\n", reason: errCopiedControlChar, line: 1},
 		{name: "leading display items", input: "タイムライン\n", reason: errCopiedNotTimestamp, line: 1},
@@ -261,7 +274,15 @@ func TestParseCopiedRejects(t *testing.T) {
 		{name: "label does not match", input: "0:24abc\n", reason: errCopiedLabelMismatch, line: 1},
 		{name: "second line uses the other language", input: "0:2424 秒x\n0:2424 secondsy\n", reason: errCopiedLabelMismatch, line: 2},
 		{name: "form A whitespace-only text", input: "0:2424 秒 ", reason: errCopiedBlankText, line: 1},
-		{name: "form B whitespace-only text", input: "0:00\n \n", reason: errCopiedBlankText, line: 2},
+		{name: "form B whitespace-only text", input: "0:00\n \n", reason: errCopiedNoText},
+		{name: "form B whitespace-only text in the body", input: "0:00\n \n0:05\nx\n", reason: errCopiedBlankText, line: 2},
+		{name: "operation label between segments", input: "0:2424 秒はい\n動画の時間と同期\n0:1010 秒です\n", reason: errCopiedNotTimestamp, line: 2},
+		{name: "trailing line resembling the operation label", input: "0:2424 秒はい\n動画の時間と同期について話します\n", reason: errCopiedNotTimestamp, line: 2},
+		{name: "trailing operation label with a trailing space", input: "0:2424 秒はい\n動画の時間と同期 \n", reason: errCopiedNotTimestamp, line: 2},
+		{name: "trailing English operation label prefix", input: "0:2424 secondsはい\nSync to video\n", reason: errCopiedNotTimestamp, line: 2},
+		{name: "trailing English operation label with different case", input: "0:2424 secondsはい\nsync to video time\n", reason: errCopiedNotTimestamp, line: 2},
+		{name: "trailing control character", input: "0:000 秒はい\n\n\t\n", reason: errCopiedControlChar, line: 3},
+		{name: "operation label only", input: "動画の時間と同期\n", reason: errCopiedNoText},
 		{name: "form A has a whole timestamp line", input: "0:2424 秒x\n0:30\n", reason: errCopiedMixedForms, line: 2},
 		{name: "form A has a whole hour timestamp line", input: "0:2424 秒x\n1:00:00\n", reason: errCopiedMixedForms, line: 2},
 		{name: "form B text reads as form A", input: "0:00\n0:2424 秒x\n", reason: errCopiedMixedForms, line: 2},
@@ -335,21 +356,158 @@ func TestParseCopiedLineBreaks(t *testing.T) {
 			}
 		})
 	}
+}
 
-	trailingRejects := []struct {
-		name  string
-		input string
+func TestCopiedWhitespaceOnlyLine(t *testing.T) {
+	cases := []struct {
+		name string
+		line string
+		want bool
 	}{
-		{name: "two trailing separators", input: "0:00\nx\n\n"},
-		{name: "three trailing separators", input: "0:00\nx\n\n\n"},
+		{name: "empty line is not whitespace-only", line: "", want: false},
+		{name: "a space is whitespace-only", line: " ", want: true},
+		{name: "a tab is whitespace-only", line: "\t", want: true},
+		{name: "an ideographic space is whitespace-only", line: "\u3000", want: true},
+		{name: "a non-breaking space is whitespace-only", line: "\u00A0", want: true},
+		{name: "text is not whitespace-only", line: "x", want: false},
+		{name: "text with a trailing space is not whitespace-only", line: "x ", want: false},
 	}
-	for _, tc := range trailingRejects {
+	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			message := assertCopiedRejected(t, tc.input, errCopiedEmptyLine)
-			if !strings.Contains(message, "line 3:") {
-				t.Errorf("Error() = %q, want line 3", message)
+			if got := copiedWhitespaceOnlyLine(tc.line); got != tc.want {
+				t.Errorf("copiedWhitespaceOnlyLine(%q) = %v, want %v", tc.line, got, tc.want)
 			}
 		})
+	}
+}
+
+// TestParseCopiedTrailingRegion checks that the trailing region (blank lines
+// and the panel's operation label) is skipped. Each skip case compares the
+// parsed segments against the input with the trailing region removed, which
+// never enters the skip path, and against the literal expectation.
+func TestParseCopiedTrailingRegion(t *testing.T) {
+	formASegments := []Segment{{StartMs: 24000, Text: "Hello"}, {StartMs: 60000, Text: "World"}}
+	formBSegments := []Segment{{StartMs: 0, Text: "Hello"}, {StartMs: 5000, Text: "World"}}
+	formABody := "0:2424 秒Hello\n1:001 分World\n"
+	formAEnglishBody := "0:2424 secondsHello\n1:001 minuteWorld\n"
+	formBBody := "0:00\nHello\n0:05\nWorld\n"
+
+	cases := []struct {
+		name  string
+		input string
+		want  []Segment
+		body  string
+	}{
+		{
+			name:  "form A blank line then the Japanese operation label",
+			input: formABody + "\n動画の時間と同期",
+			want:  formASegments,
+			body:  formABody,
+		},
+		{
+			name:  "form A blank line then the English operation label",
+			input: formAEnglishBody + "\nSync to video time",
+			want:  formASegments,
+			body:  formAEnglishBody,
+		},
+		{
+			name:  "form A one trailing empty line",
+			input: formABody + "\n",
+			want:  formASegments,
+			body:  formABody,
+		},
+		{
+			name:  "form A trailing U+0020 only line",
+			input: formABody + " \n",
+			want:  formASegments,
+			body:  formABody,
+		},
+		{
+			name:  "form A trailing U+3000 only line",
+			input: formABody + "\u3000\n",
+			want:  formASegments,
+			body:  formABody,
+		},
+		{
+			name:  "form A two trailing empty lines",
+			input: formABody + "\n\n",
+			want:  formASegments,
+			body:  formABody,
+		},
+		{
+			name:  "form A mixed empty lines and operation label",
+			input: formABody + "\n動画の時間と同期\n\n",
+			want:  formASegments,
+			body:  formABody,
+		},
+		{
+			name:  "form B one trailing empty line",
+			input: formBBody + "\n",
+			want:  formBSegments,
+			body:  formBBody,
+		},
+		{
+			name:  "form B blank line then the Japanese operation label",
+			input: formBBody + "\n動画の時間と同期",
+			want:  formBSegments,
+			body:  formBBody,
+		},
+		{
+			name:  "form B operation label after a timestamp is the segment text",
+			input: "0:00\n前の字幕\n0:05\n動画の時間と同期",
+			want:  []Segment{{StartMs: 0, Text: "前の字幕"}, {StartMs: 5000, Text: "動画の時間と同期"}},
+		},
+		{
+			name:  "form B trailing operation label after a blank line",
+			input: "0:00\n前の字幕\n0:05\n本文\n\n動画の時間と同期",
+			want:  []Segment{{StartMs: 0, Text: "前の字幕"}, {StartMs: 5000, Text: "本文"}},
+			body:  "0:00\n前の字幕\n0:05\n本文\n",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := parseCopiedTranscript(tc.input)
+			if err != nil {
+				t.Fatalf("parseCopiedTranscript(%q) error = %v", tc.input, err)
+			}
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("parseCopiedTranscript(%q) = %+v, want %+v", tc.input, got, tc.want)
+			}
+			if tc.body == "" {
+				return
+			}
+			assertCopiedBodyHasNoSkippedLine(t, tc.body)
+			bodySegments, err := parseCopiedTranscript(tc.body)
+			if err != nil {
+				t.Fatalf("parseCopiedTranscript(%q) error = %v", tc.body, err)
+			}
+			if !reflect.DeepEqual(bodySegments, tc.want) {
+				t.Errorf("parseCopiedTranscript(%q) = %+v, want the same segments %+v", tc.body, bodySegments, tc.want)
+			}
+		})
+	}
+}
+
+// assertCopiedBodyHasNoSkippedLine fails unless body contains only form A or
+// form B lines: the first line starts with a timestamp, and no line is blank,
+// whitespace-only, or an operation label. Such an input never enters a skip
+// path, so a skip test can use it as the comparison target.
+func assertCopiedBodyHasNoSkippedLine(t *testing.T, body string) {
+	t.Helper()
+	lines := splitCopiedLines(body, "\n")
+	if len(lines) == 0 {
+		t.Fatalf("comparison body %q has no lines", body)
+	}
+	if _, _, ok := parseTimestampPrefix(lines[0]); !ok {
+		t.Fatalf("comparison body %q does not start with a timestamp", body)
+	}
+	for i, line := range lines {
+		if copiedBlankLine(line) {
+			t.Fatalf("comparison body line %d %q is blank or whitespace-only", i+1, line)
+		}
+		if copiedIsOperationLabel(line) {
+			t.Fatalf("comparison body line %d %q is an operation label", i+1, line)
+		}
 	}
 }
 
@@ -392,9 +550,21 @@ func TestParseCopiedCheckOrder(t *testing.T) {
 		},
 		{
 			name:    "line kind before blank text",
-			input:   "0:00\nx\n \n",
+			input:   "0:00\nx\n \n0:05\ny\n",
 			want:    errCopiedNotTimestamp,
 			notWant: []error{errCopiedBlankText},
+		},
+		{
+			name:    "trailing control character before the no-text check",
+			input:   "0:000 秒\n\t\n",
+			want:    errCopiedControlChar,
+			notWant: []error{errCopiedNoText},
+		},
+		{
+			name:    "empty body skips the trailing control-character check",
+			input:   "動画の時間と同期\n\t\n",
+			want:    errCopiedNoText,
+			notWant: []error{errCopiedControlChar},
 		},
 	}
 	for _, tc := range cases {
@@ -550,12 +720,13 @@ func buildCopiedTextlessFormB(limit int) string {
 	return strings.Repeat(timestamp, (limit-len(tail))/len(timestamp)) + tail
 }
 
-// FuzzNewCopiedSource checks four properties: it never panics; an accepted
+// FuzzNewCopiedSource checks five properties: it never panics; an accepted
 // transcript has a non-whitespace, valid-UTF-8 text and a non-decreasing
-// StartMs for every segment; replacing LF with CRLF in a CR-free input gives
-// the same result; and a rejection wraps ErrCopiedTranscriptFormat with a fixed
-// reason and an optional line number only. The seeds are the committed real
-// fixtures and a few table inputs; make test runs only the seeds.
+// StartMs for every segment; appending a trailing region to an accepted input
+// leaves the segments unchanged; replacing LF with CRLF in a CR-free input
+// gives the same result; and a rejection wraps ErrCopiedTranscriptFormat with a
+// fixed reason and an optional line number only. The seeds are the committed
+// real fixtures and a few table inputs; make test runs only the seeds.
 func FuzzNewCopiedSource(f *testing.F) {
 	paths, err := filepath.Glob(testdataCopiedTranscripts)
 	if err != nil {
@@ -577,6 +748,8 @@ func FuzzNewCopiedSource(f *testing.F) {
 	f.Add("not a transcript\n")
 	f.Add("1:251 minute 25 secondsHello\n")
 	f.Add("0:00\n1:30 から始めます\n")
+	f.Add("0:00\nx\n\n動画の時間と同期")
+	f.Add("0:2424 秒Hello\n\nSync to video time")
 
 	f.Fuzz(func(t *testing.T, raw string) {
 		source, err := NewCopiedSource(CopiedInput{VideoID: copiedTestVideoID, Raw: raw})
@@ -630,6 +803,37 @@ func assertCopiedFuzzAcceptance(t *testing.T, transcript Transcript, raw string)
 		}
 		if !reflect.DeepEqual(transcript.Segments, crlfSegments) {
 			t.Error("LF and CRLF versions of the same input differ")
+		}
+	}
+	assertCopiedFuzzTrailingRegion(t, transcript.Segments, raw)
+}
+
+// assertCopiedFuzzTrailingRegion checks property (a): appending a run of blank
+// lines, with or without a trailing operation-label line after them, leaves the
+// segments unchanged. The blank run keeps the operation label's previous line
+// from being a timestamp-only line, so the label stays in the trailing region
+// instead of becoming a segment's text. The appended lines use the input's own
+// separator, or LF for a single-line input.
+func assertCopiedFuzzTrailingRegion(t *testing.T, want []Segment, raw string) {
+	t.Helper()
+	separator, err := copiedLineSeparator(raw)
+	if err != nil {
+		t.Fatalf("an accepted input has inconsistent line breaks: %v", err)
+	}
+	if separator == "" {
+		separator = "\n"
+	}
+	for _, suffix := range []string{
+		separator + separator,
+		separator + separator + copiedOperationLabels[0],
+	} {
+		appended := raw + suffix
+		got, err := parseCopiedTranscript(appended)
+		if err != nil {
+			t.Fatalf("appending a trailing region rejected an accepted input: %v", err)
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("appending a trailing region changed the segments: got %+v, want %+v", got, want)
 		}
 	}
 }

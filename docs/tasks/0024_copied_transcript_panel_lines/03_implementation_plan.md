@@ -76,16 +76,16 @@
 
 **変更するファイル:** `internal/transcript/copied_format.go`、`internal/transcript/copied_format_test.go`
 
--   [ ] **ステップ 1-1**: 空白文字だけの行（1 文字以上、すべて `unicode.IsSpace`）の判定と、操作ラベルの一覧（`動画の時間と同期`・`Sync to video time`）を非公開の値として 1 か所に置く（設計書 3.2.4）。一覧のコメントに、比較の対象なので日本語のまま置く理由と出典を英語で書く。
--   [ ] **ステップ 1-2**: 末尾の領域を決める処理を加える。直前の行が時刻だけの行である操作ラベル行で領域を終える（設計書 3.2.4）。
--   [ ] **ステップ 1-3**: `parseCopiedFormA`・`parseCopiedFormB` が、行の並びと本体の範囲を受け取り、元の行番号を報告するようにする（設計書 3.4）。行を詰め直さない。
--   [ ] **ステップ 1-4**: `parseCopiedTranscript` に、設計書 3.2.5 の手順 4（末尾の領域の決定）・手順 8（末尾の領域の制御文字の検査）・手順 9 を加える。手順 8 は本体の検査の後に置く。今は `parseCopiedFormA`・`parseCopiedFormB` の中にある、本文のあるセグメントがあるかの検査（`copied_format.go:339-341`・`:382-384`）を、手順 8 の後（手順 9）に移す。形の判定は、この時点では本体の最初の行で行う（ステップ 1-13 で最初のセグメントの行に変える）。末尾の領域が入力のすべての行を覆い本体が空のときは、手順 8 の前に `errCopiedNoText`（行番号なし）で拒否する（設計書 3.2.5 の、最初のセグメントの行がなければ手順 8 を行わない扱いと同じ）。
--   [ ] **ステップ 1-5**: `splitCopiedLines` のコメントの `a second or later trailing separator does, and is caught by the empty-line check.` を「残る空の行は末尾の領域に入る」旨に変える。
--   [ ] **ステップ 1-6**: §2.7 の台帳のうち、ステップ 1-6 の行を書き換える。
--   [ ] **ステップ 1-7**: 新しいテストを加える。対象は AC-07・AC-09・AC-10・AC-21〜AC-23・AC-26・AC-33。拒否のテストは `assertCopiedRejected` を通す。AC-07 は日本語 UI と英語 UI（`Sync to video time`）の両方を含める。§2.7 で書き換えるケースと入力が同じになる AC（AC-22・AC-23 の空行だけの末尾）は、書き換えたケースを §5 の確認に対応させ、同じ入力のケースを新しく作らない。AC-23 の形 A の例（`0:000 秒はい\n\n\n`）は形 B の `three trailing separators` と入力が違うので、別に加える。本体が空の入力（操作ラベル行だけの `動画の時間と同期\n`。AC-11 の一部）の `errCopiedNoText` も加える。
--   [ ] **ステップ 1-8**: `TestParseCopiedCheckOrder` に、手順 8 が手順 9 より先であるケース（`0:000 秒\n\t\n` が `errCopiedNoText` でなく行 2 の `errCopiedControlChar`）と、本体が空なら手順 8 を行わないケース（`動画の時間と同期\n\t\n` が `errCopiedControlChar` でなく `errCopiedNoText`）を加える。
--   [ ] **ステップ 1-9**: `FuzzNewCopiedSource` に設計書 7.1 の性質 (a)（末尾の空白行と操作ラベル行）を加え、関数のコメントの性質の数（`checks four properties`）を改める。種の入力に、末尾の領域を含む入力を加える。足す空白文字だけの行は、`unicode.IsControl` でも真になる文字（`\t`・`\v`・`\f`・U+0085）を使わない。足す行の区切りは入力の区切りに合わせ、区切りのない 1 行の入力には LF を使う。
--   [ ] **ステップ 1-10**: 次の壊し方をそれぞれ試し、名前を挙げたテストが失敗することを確かめて、結果をコミットメッセージに書く。
+-   [x] **ステップ 1-1**: 空白文字だけの行（1 文字以上、すべて `unicode.IsSpace`）の判定と、操作ラベルの一覧（`動画の時間と同期`・`Sync to video time`）を非公開の値として 1 か所に置く（設計書 3.2.4）。一覧のコメントに、比較の対象なので日本語のまま置く理由と出典を英語で書く。
+-   [x] **ステップ 1-2**: 末尾の領域を決める処理を加える。直前の行が時刻だけの行である操作ラベル行で領域を終える（設計書 3.2.4）。
+-   [x] **ステップ 1-3**: `parseCopiedFormA`・`parseCopiedFormB` が、行の並びと本体の範囲を受け取り、元の行番号を報告するようにする（設計書 3.4）。行を詰め直さない。
+-   [x] **ステップ 1-4**: `parseCopiedTranscript` に、設計書 3.2.5 の手順 4（末尾の領域の決定）・手順 8（末尾の領域の制御文字の検査）・手順 9 を加える。手順 8 は本体の検査の後に置く。今は `parseCopiedFormA`・`parseCopiedFormB` の中にある、本文のあるセグメントがあるかの検査（`copied_format.go:339-341`・`:382-384`）を、手順 8 の後（手順 9）に移す。形の判定は、この時点では本体の最初の行で行う（ステップ 1-13 で最初のセグメントの行に変える）。末尾の領域が入力のすべての行を覆い本体が空のときは、手順 8 の前に `errCopiedNoText`（行番号なし）で拒否する（設計書 3.2.5 の、最初のセグメントの行がなければ手順 8 を行わない扱いと同じ）。
+-   [x] **ステップ 1-5**: `splitCopiedLines` のコメントの `a second or later trailing separator does, and is caught by the empty-line check.` を「残る空の行は末尾の領域に入る」旨に変える。
+-   [x] **ステップ 1-6**: §2.7 の台帳のうち、ステップ 1-6 の行を書き換える。
+-   [x] **ステップ 1-7**: 新しいテストを加える。対象は AC-07・AC-09・AC-10・AC-21〜AC-23・AC-26・AC-33。拒否のテストは `assertCopiedRejected` を通す。AC-07 は日本語 UI と英語 UI（`Sync to video time`）の両方を含める。§2.7 で書き換えるケースと入力が同じになる AC（AC-22・AC-23 の空行だけの末尾）は、書き換えたケースを §5 の確認に対応させ、同じ入力のケースを新しく作らない。AC-23 の形 A の例（`0:000 秒はい\n\n\n`）は形 B の `three trailing separators` と入力が違うので、別に加える。本体が空の入力（操作ラベル行だけの `動画の時間と同期\n`。AC-11 の一部）の `errCopiedNoText` も加える。
+-   [x] **ステップ 1-8**: `TestParseCopiedCheckOrder` に、手順 8 が手順 9 より先であるケース（`0:000 秒\n\t\n` が `errCopiedNoText` でなく行 2 の `errCopiedControlChar`）と、本体が空なら手順 8 を行わないケース（`動画の時間と同期\n\t\n` が `errCopiedControlChar` でなく `errCopiedNoText`）を加える。
+-   [x] **ステップ 1-9**: `FuzzNewCopiedSource` に設計書 7.1 の性質 (a)（末尾の空白行と操作ラベル行）を加え、関数のコメントの性質の数（`checks four properties`）を改める。種の入力に、末尾の領域を含む入力を加える。足す空白文字だけの行は、`unicode.IsControl` でも真になる文字（`\t`・`\v`・`\f`・U+0085）を使わない。足す行の区切りは入力の区切りに合わせ、区切りのない 1 行の入力には LF を使う。
+-   [x] **ステップ 1-10**: 次の壊し方をそれぞれ試し、名前を挙げたテストが失敗することを確かめて、結果をコミットメッセージに書く。
     -   (i) 末尾の領域の「直前が時刻だけの行」の条件を外す → AC-33 のテスト。
     -   (ii) 手順 8 を外す → AC-26 のテスト。
     -   (iii) 手順 8 と手順 9 の順を入れ替える → `TestParseCopiedCheckOrder` の `0:000 秒\n\t\n` のケース。
@@ -320,12 +320,12 @@
 | ステップ | テスト | ケース | 変更 | 新しい名前 |
 |---|---|---|---|---|
 | 1-15 | `TestParseCopiedRejects` | `empty line at the start` | 受理のケースへ移す | - |
-| 1-6 | `TestParseCopiedRejects` | `two trailing separators` | 受理のケースへ移す | - |
-| 1-6 | `TestParseCopiedRejects` | `three trailing separators` | 受理のケースへ移す | - |
+| 1-6 | `TestParseCopiedRejects` | `two trailing separators` | 受理のケースへ移す | `TestParseCopiedAccepts` の `form B two trailing separators` |
+| 1-6 | `TestParseCopiedRejects` | `three trailing separators` | 受理のケースへ移す | `TestParseCopiedAccepts` の `form B three trailing separators` |
 | 1-15 | `TestParseCopiedRejects` | `leading display items` | 理由を `errCopiedNoText`（行番号なし）にする | - |
-| 1-6 | `TestParseCopiedRejects` | `form B whitespace-only text` | 理由を `errCopiedNoText` にし、`errCopiedBlankText` の確認を、本体の中に空白文字だけの本文がある入力のケースとして別に加える | - |
-| 1-6 | `TestParseCopiedLineBreaks` | `trailingRejects` の 2 ケース | 受理の確認に変える | - |
-| 1-6 | `TestParseCopiedCheckOrder` | `line kind before blank text` | 今の入力 `0:00\nx\n \n` は受理のケースとして `TestParseCopiedAccepts` へ移し、このケースの入力を、空白文字だけの行が本体の中にあるもの（設計書 3.6）に変える | - |
+| 1-6 | `TestParseCopiedRejects` | `form B whitespace-only text` | 理由を `errCopiedNoText` にし、`errCopiedBlankText` の確認を、本体の中に空白文字だけの本文がある入力のケースとして別に加える | -（別に加えるケースは `form B whitespace-only text in the body`） |
+| 1-6 | `TestParseCopiedLineBreaks` | `trailingRejects` の 2 ケース | 受理の確認に変える。入力が `two/three trailing separators` と同じなので、`TestParseCopiedAccepts` の表にだけ残す | `TestParseCopiedAccepts` の `form B two trailing separators`・`form B three trailing separators` |
+| 1-6 | `TestParseCopiedCheckOrder` | `line kind before blank text` | 今の入力 `0:00\nx\n \n` は受理のケースとして `TestParseCopiedAccepts` へ移し、このケースの入力を、空白文字だけの行が本体の中にあるもの（設計書 3.6）に変える | 受理へ移す入力は `TestParseCopiedAccepts` の `form B trailing whitespace-only line` |
 | 1-15 | `TestParseCopiedErrorOmitsInput` | `not a timestamp omits the line` | 目印の行を形 A の本体に置く（設計書 3.6） | - |
 | 3-3 | `TestParseCopiedRejects` | `chapter heading after text` | 受理のケースへ移す | - |
 | 3-3 | `TestParseCopiedErrorOmitsInput` | `chapter heading omits the line` | 今の入力は受理されるので、`TestParseCopiedErrorOmitsInput`（受理されると `Fatalf` する）には置けない。この入力は `TestParseCopiedFormBChapterHeadings` に移し、`Segments` に目印が入らないことを確かめる。元のケースは名前を残し、設計書 3.3 の規則で拒否される行の入力（設計書 3.6）に変えて拒否のメッセージを確かめる | `TestParseCopiedFormBChapterHeadings` の `chapter heading is not in the segments`（受理の側） |
