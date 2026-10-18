@@ -358,29 +358,6 @@ func TestParseCopiedLineBreaks(t *testing.T) {
 	}
 }
 
-func TestCopiedWhitespaceOnlyLine(t *testing.T) {
-	cases := []struct {
-		name string
-		line string
-		want bool
-	}{
-		{name: "empty line is not whitespace-only", line: "", want: false},
-		{name: "a space is whitespace-only", line: " ", want: true},
-		{name: "a tab is whitespace-only", line: "\t", want: true},
-		{name: "an ideographic space is whitespace-only", line: "\u3000", want: true},
-		{name: "a non-breaking space is whitespace-only", line: "\u00A0", want: true},
-		{name: "text is not whitespace-only", line: "x", want: false},
-		{name: "text with a trailing space is not whitespace-only", line: "x ", want: false},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := copiedWhitespaceOnlyLine(tc.line); got != tc.want {
-				t.Errorf("copiedWhitespaceOnlyLine(%q) = %v, want %v", tc.line, got, tc.want)
-			}
-		})
-	}
-}
-
 // TestParseCopiedTrailingRegion checks that the trailing region (blank lines
 // and the panel's operation label) is skipped. Each skip case compares the
 // parsed segments against the input with the trailing region removed, which
@@ -495,15 +472,14 @@ func TestParseCopiedTrailingRegion(t *testing.T) {
 }
 
 // assertCopiedBodyHasNoSkippedLine fails unless body contains only form A or
-// form B lines: the first line starts with a timestamp, and no line is blank,
-// whitespace-only, or an operation label. Such an input never enters a skip
-// path, so a skip test can use it as the comparison target.
+// form B lines: the first line starts with a timestamp, none of its lines is
+// blank or whitespace-only, and it has no trailing region. Such an input never
+// enters a skip path, so a skip test can use it as the comparison target. The
+// trailing-region check calls the production function, so a new skip kind is
+// caught here rather than silently skipping a comparison line.
 func assertCopiedBodyHasNoSkippedLine(t *testing.T, body string) {
 	t.Helper()
 	lines := splitCopiedLines(body, "\n")
-	if len(lines) == 0 {
-		t.Fatalf("comparison body %q has no lines", body)
-	}
 	if _, _, ok := parseTimestampPrefix(lines[0]); !ok {
 		t.Fatalf("comparison body %q does not start with a timestamp", body)
 	}
@@ -511,9 +487,9 @@ func assertCopiedBodyHasNoSkippedLine(t *testing.T, body string) {
 		if copiedBlankLine(line) {
 			t.Fatalf("comparison body line %d %q is blank or whitespace-only", i+1, line)
 		}
-		if copiedIsOperationLabel(line) {
-			t.Fatalf("comparison body line %d %q is an operation label", i+1, line)
-		}
+	}
+	if end := copiedTrailingStart(lines); end != len(lines) {
+		t.Fatalf("comparison body %q has a trailing region from line %d", body, end+1)
 	}
 }
 
@@ -578,6 +554,9 @@ func TestParseCopiedCheckOrder(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			message := assertCopiedRejected(t, tc.input, tc.want)
+			// The line number has no typed form, so the message text is the
+			// contract under test; assertCopiedRejected already checked the
+			// reason with errors.Is.
 			if tc.line > 0 && !strings.Contains(message, fmt.Sprintf("line %d:", tc.line)) {
 				t.Errorf("Error() = %q, want line %d", message, tc.line)
 			}
@@ -835,8 +814,9 @@ func assertCopiedFuzzTrailingRegion(t *testing.T, want []Segment, raw string) {
 	if separator == "" {
 		separator = "\n"
 	}
+	labels := append([]string{""}, copiedOperationLabels...)
 	for _, run := range []string{separator + separator, separator + " "} {
-		for _, label := range []string{"", copiedOperationLabels[0]} {
+		for _, label := range labels {
 			appended := raw + run
 			if label != "" {
 				appended += separator + label
