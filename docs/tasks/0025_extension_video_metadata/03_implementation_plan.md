@@ -90,7 +90,7 @@ HEAD `0842685` で確認した。設計書は既存のファイルの行番号�
 **AC-18 の静的な確認の置き場所（本計画の決定）**
 
 -   設計書 7.4 は AC-18 の確かめ方を「静的な確認」とするが、実行する検査を特定していない。設計書 1.3 は「テスト」の変更を本タスクの範囲に含む。そこで、本計画は AC-18 の検査を拡張の新しいテスト `extension/test/metadataDocs.test.ts` に置く（README・`docs/dev/security.md` の記載を `readRepoFile` で読んで確かめる）。`extension/test/serverReasons.test.ts` が README を読むのと同じ形である。
--   本計画では、次の編集上の訂正を同じ変更で行った（設計書の `Comments` に記録した）。`metadataDocs.test.ts` と `core/collect.ts` の `whitespaceOnly` の `export` を設計書に加え、AC-09・AC-10・AC-18・AC-19 の確かめ方を、実行される検査に合わせて設計書 2.1・3.8・3.9・3.11・7.4 に反映した。設計の判断（何を確かめるか）は変えず、確かめる手段を実行される検査に定めるだけである（`requirements_process.md`「Editing an approved document」の編集上の訂正）。
+-   本計画では、次の編集上の訂正を同じ変更で行った（設計書の `Comments` に記録した）。`metadataDocs.test.ts` と `core/collect.ts` の `whitespaceOnly` の `export`、および `docs/translation_glossary.md`（用語の追加）を設計書に加え、AC-09・AC-10・AC-18・AC-19 の確かめ方を、実行される検査に合わせて設計書 2.1・3.8・3.9・3.11・7.4 に反映した。設計の判断（何を確かめるか）は変えず、確かめる手段を実行される検査に定めるだけである（`requirements_process.md`「Editing an approved document」の編集上の訂正）。
 -   計画だけの変更（`docs/` のみ）では拡張のジョブは起動しないが、AC-18 の対象（README・`docs/dev/security.md`）を変えるときは起動するので、検査は対象の変更とともに実行される。
 
 **I-01（読み取りの結果の大きさの上限）への対応**

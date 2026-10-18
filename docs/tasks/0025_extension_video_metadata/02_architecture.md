@@ -8,7 +8,7 @@
 | Created | 2026-10-17 |
 | Review date | 2026-10-18 |
 | Reviewer | isseis |
-| Comments | 実装計画の作成に合わせた編集上の訂正（判断は変えていない）。AC-18 の静的な確認を実行する拡張のテスト `extension/test/metadataDocs.test.ts` と、`whitespaceOnly` の再利用のための `core/collect.ts` の export を 2.1・3.8・3.9・3.11 に加えた。AC-09・AC-10・AC-18・AC-19 の確かめ方を 7.4 と 3.9 で実行する検査に合わせた（AC-09 はタブのタイトルの結線を `launch.test.ts`、AC-10 は省略の理由のログを `launch.test.ts`、AC-18 は `metadataDocs.test.ts`、AC-19 は `chromeDeps.test.ts` の注入がページを操作しないこと）。いずれも設計の判断（何を確かめるか）を変えず、確かめる手段を実行される検査に定めるだけである |
+| Comments | 実装計画の作成に合わせた編集上の訂正（判断は変えていない）。AC-18 の静的な確認を実行する拡張のテスト `extension/test/metadataDocs.test.ts` と、`whitespaceOnly` の再利用のための `core/collect.ts` の export、用語の追加のための `docs/translation_glossary.md` を 2.1・3.8・3.9・3.11 に加えた。AC-09・AC-10・AC-18・AC-19 の確かめ方を 7.4 と 3.9 で実行する検査に合わせた（AC-09 はタブのタイトルの結線を `launch.test.ts`、AC-10 は省略の理由のログを `launch.test.ts`、AC-18 は `metadataDocs.test.ts`、AC-19 は `chromeDeps.test.ts` の注入がページを操作しないこと）。いずれも設計の判断（何を確かめるか）を変えず、確かめる手段を実行される検査に定めるだけである |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `c93a87b` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指す。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-05）への対応は 3.10 にまとめる。レビューで実装の段階に申し送る事項は [implementation_handoff.md](implementation_handoff.md) が集め、`03_implementation_plan.md` が対応を記録する。
 
@@ -142,6 +142,7 @@ extension/
     render.test.ts         # 変更（3.9）
 README.md                  # 変更（要件書 F-005）
 docs/dev/security.md       # 変更（要件書 F-005）
+docs/translation_glossary.md  # 変更（用語の追加。要件書 6.）
 ```
 
 -   `metadata.ts` は `core/` に置く。DOM も `chrome.*` も参照せず、文字列だけを扱う。
@@ -165,6 +166,7 @@ flowchart LR
     RENDER["ui/render.ts"]
     CHROMEDEPS["browser/chromeDeps.ts"]
     PREPARE["core/prepare.ts"]
+    COLLECT["core/collect.ts"]
     BACKGROUND["background.ts"]
     POPUP["popup.ts"]
 
@@ -172,6 +174,7 @@ flowchart LR
     LAUNCH --> PREPARE
     LAUNCH --> RENDER
     METADATA --> PREPARE
+    METADATA --> COLLECT
     RENDER --> METADATA
     RENDER --> MESSAGES
     CHROMEDEPS --> LAUNCH
@@ -182,7 +185,7 @@ flowchart LR
 
     class METADATA newpkg
     class PREPARE process
-    class LAUNCH,RENDER,MESSAGES,CHROMEDEPS,BACKGROUND,POPUP enhanced
+    class LAUNCH,RENDER,MESSAGES,CHROMEDEPS,COLLECT,BACKGROUND,POPUP enhanced
 
     subgraph Legend["Legend"]
         L1["既存（変更しない）"]
@@ -638,6 +641,7 @@ export const expandPromptMessage: Message;
 | `extension/test/render.test.ts` | 変更 | 3.9 |
 | `README.md` | 変更 | F-005: 動画タイトル・チャンネル名・概要欄を収集して送ること、概要欄が折りたたまれているときの促しのメッセージ、取得できない値があることを記す（要件書 F-005） |
 | `docs/dev/security.md` | 変更 | F-005: §8.1 に、拡張が動画ページの DOM から動画タイトル・チャンネル名・概要欄を読むこと、untrusted テキストとして扱い HTML として解釈せず本文へは JSON の文字列として入れること、新しい権限を加えず既存の `scripting` の注入で DOM を読むだけでページを操作しないこと、取得に失敗しても起動を失敗させないことを加える（要件書 F-005・§4.2） |
+| `docs/translation_glossary.md` | 変更 | 動画タイトル・チャンネル名・概要欄・動画メタデータ・促しのメッセージの訳語を加える（要件書 6.） |
 
 -   0007 の `collect`・`SelectionReader`・`CollectedInput`・`renderSummary` を変更しない（`collect.ts` は `whitespaceOnly` を export するだけ）。Go のソースを変更しない。manifest を変更しない。
 
