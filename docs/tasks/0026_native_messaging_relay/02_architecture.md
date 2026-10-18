@@ -8,9 +8,9 @@
 | Created | 2026-10-18 |
 | Review date | 2026-10-18 |
 | Reviewer | isseis |
-| Comments | 編集上の訂正（2026-10-18。判断は変えていない）。`03_implementation_plan.md` の作成に合わせて、§3.12 の UDS のリスナーの補助の置き場所を `internal/server/test_helpers.go` からテスト専用の `internal/udstest` に改め（depguard の `internal/server` → `internal/serversock` の禁止が `internal/serversock/testutil` にも当たるため）、§8 のフェーズ 1 に拡張の 4 つの拒否の理由の削除を加えた（README の表と拡張の理由の集合の一致を保つため。フェーズの順序と最終の状態は変わらない） |
+| Comments | 編集上の訂正（2026-10-18。判断は変えていない）。`03_implementation_plan.md` の作成に合わせて、§3.12 の UDS のリスナーの補助の置き場所を `internal/server/test_helpers.go` からテスト専用の `internal/udstest` に改め（depguard の `internal/server` → `internal/serversock` の禁止が `internal/serversock/testutil` にも当たるため）、§8 のフェーズ 1 に拡張の 4 つの拒否の理由の削除を加えた（README の表と拡張の理由の集合の一致を保つため。フェーズの順序と最終の状態は変わらない）。編集上の訂正（2026-10-18。判断は変えていない）。レビューの指摘に従い、§3.12 の `internal/udstest` の行を責務だけに絞り、ビルドタグ・`/tmp` の下のディレクトリ・使うパッケージの一覧などの具体を [implementation_handoff.md](implementation_handoff.md) の I-01 と `03_implementation_plan.md`（§1.3「UDS のテストの補助」）に移した |
 
-本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §3.11）を指す。既存のコードの行番号は、コミット `9e34229`（要件書の承認のコミット）で確かめたものである。
+本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §3.11）を指す。I-NN は [implementation_handoff.md](implementation_handoff.md) の項目（対応は `03_implementation_plan.md`）を指す。既存のコードの行番号は、コミット `9e34229`（要件書の承認のコミット）で確かめたものである。
 
 **用語。** 要件書の用語（ホスト、UDS、受付応答、`requestId`、stale socket、残余リスク、同一ユーザーのフル権限プロセスなど）に加えて、本書では次の語を使う。
 
@@ -1021,7 +1021,7 @@ export function classifyResponse(
 | `internal/server/handler.go` | 変更 | `Host`・`Content-Type`・`Origin`・`Authorization` の検査と `remoteAddr` のログを削除する |
 | `internal/server/response.go` | 変更 | 4 つの拒否の理由とその詳細、`WWW-Authenticate` を削除する |
 | `internal/server/test_helpers.go` | 変更 | トークン・オリジン・`Content-Type` の補助を削除する（UDS のリスナーは `internal/udstest` の補助を使う） |
-| `internal/udstest/` | 新規 | テスト専用（`//go:build test`）。`/tmp` の下の短いディレクトリと UDS のリスナーの補助（§7.2）。`internal/serversock`・`internal/server`・`internal/nmhost`・`cmd/yt2column-server`・`cmd/yt2column-nmhost` のテストが使う |
+| `internal/udstest/` | 新規 | テスト専用。UDS を使うテストが共有する、ソケットの置き場所とリスナーの補助（§7.2）。具体は [implementation_handoff.md](implementation_handoff.md) の I-01 と実装計画書に記す |
 | `internal/authtoken/` | 削除 | - |
 | `cmd/yt2column-server/run.go` | 変更 | トークンの表示と `stdout` と `listenURLs` を削除し、`serversock` で待ち受け、ロックをジョブの完了の後に解放する |
 | `cmd/yt2column-server/main.go` | 変更 | `run` に `stdout` を渡さない。`SIGPIPE` の無視のコメントを改める |
