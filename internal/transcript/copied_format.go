@@ -55,7 +55,9 @@ const (
 // button can emit. Like the Japanese screen-reader units, the parser compares
 // them against the input byte for byte, so they stay in the panel's display
 // languages; translating them would change the strings under comparison. Only
-// labels observed from the panel are listed.
+// labels observed from the panel are listed: the Japanese one appears in
+// testdata/2tcCWM-sRBw.transcript_panel.html, and the English one was observed
+// in the panel's English UI (task 0024 requirements, section 1).
 var copiedOperationLabels = []string{
 	"動画の時間と同期",           // Japanese UI
 	"Sync to video time", // English UI

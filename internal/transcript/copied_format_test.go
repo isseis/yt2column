@@ -479,7 +479,11 @@ func TestParseCopiedTrailingRegion(t *testing.T) {
 // caught here rather than silently skipping a comparison line.
 func assertCopiedBodyHasNoSkippedLine(t *testing.T, body string) {
 	t.Helper()
-	lines := splitCopiedLines(body, "\n")
+	separator, err := copiedLineSeparator(body)
+	if err != nil {
+		t.Fatalf("comparison body %q has inconsistent line breaks: %v", body, err)
+	}
+	lines := splitCopiedLines(body, separator)
 	if _, _, ok := parseTimestampPrefix(lines[0]); !ok {
 		t.Fatalf("comparison body %q does not start with a timestamp", body)
 	}
@@ -823,10 +827,10 @@ func assertCopiedFuzzTrailingRegion(t *testing.T, want []Segment, raw string) {
 			}
 			got, err := parseCopiedTranscript(appended)
 			if err != nil {
-				t.Fatalf("appending a trailing region %q rejected an accepted input: %v", run, err)
+				t.Fatalf("appending a trailing region %q with label %q rejected an accepted input: %v", run, label, err)
 			}
 			if !reflect.DeepEqual(got, want) {
-				t.Errorf("appending a trailing region %q changed the segments: got %+v, want %+v", run, got, want)
+				t.Errorf("appending a trailing region %q with label %q changed the segments: got %+v, want %+v", run, label, got, want)
 			}
 		}
 	}
