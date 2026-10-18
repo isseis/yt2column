@@ -530,8 +530,10 @@ Design documents are written in Japanese; start with
 A Chrome/Brave extension (Manifest V3) lives in `extension/`; it is written in
 TypeScript and built with Node.js. It is not published to a store — you build it
 and load the build as an unpacked extension. It collects a selection, the tab
-URL, and the tab title, sends the selection and the URL to the localhost server,
-and shows the response.
+URL, and the tab title, and reads the video metadata — the video title, the
+channel name, and the description — from the video page. It sends the selection,
+the URL, and the video metadata to the localhost server, and shows the response.
+The tab title is only shown for checking; it is not sent.
 
 Node.js 24 is required, and every `ext-*` target refuses to run when
 `node --version` does not match `extension/.node-version`. The version file sits
@@ -576,9 +578,26 @@ values:
   another confirmation, and a window opens that shows "sending" and then the
   result.
 - **Toolbar icon:** click the icon to open the popup, which shows what was
-  collected and a **Send to yt2column** button. It sends when you press the
-  button. While sending the button is disabled, and after a send (whatever the
-  result) it stays disabled: reopen the popup to send again.
+  collected, the video metadata, and a **Send to yt2column** button. It sends
+  when you press the button. While sending the button is disabled, and after a
+  send (whatever the result) it stays disabled: reopen the popup to send again.
+
+The extension reads the video metadata from the page without changing it, so a
+collapsed description is read only up to what the page shows. When the
+description is collapsed, the popup says "The video description is collapsed,
+so only its beginning will be sent." with these steps:
+
+1. Click "...more" below the video to show the full description.
+2. Reopen this popup, then send.
+
+The button stays usable: pressing it sends the beginning that the page shows.
+The context menu does not show this message and sends what the page shows.
+
+Some values may not be available: when a video title, channel name, or
+description is missing or blank on the page, that value is left out of the
+request, and when the page cannot be read at all, all three are left out. The
+extension still sends the selection and the URL, and the article is generated
+from them.
 
 How to read the result:
 
