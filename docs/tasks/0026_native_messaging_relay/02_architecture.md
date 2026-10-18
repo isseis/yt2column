@@ -8,7 +8,7 @@
 | Created | 2026-10-18 |
 | Review date | - |
 | Reviewer | - |
-| Comments | §3.10 の実機での確認（S-1〜S-8）を 2026-10-18 に行い、結果を §3.10 の表に記録した。S-6（Brave の manifest の置き場所）が前提と異なり、S-4・S-5・S-8 にも本文に反映すべき差がある。本文への反映は未実施。要件書の F-004・AC-26 の改定（lastError を文字列で分けず、ホストの失敗として結果不明にまとめる）に合わせて §3.7.4・§3.7.5・§6.3 などを改めた。要件書の再承認が必要 |
+| Comments | §3.10 の実機での確認（S-1〜S-8）を 2026-10-18 に行い、結果を §3.10 の表に記録した。S-6（Brave の manifest の置き場所）が前提と異なったので §2.2・§3.6 を改め、S-3・S-4・S-5 の結果を §3.5.5・§3.7.2 に、S-8 の結果を §3.5.2（読み捨てを外した）に反映した。要件書の F-004・AC-26 の改定（lastError を文字列で分けず、ホストの失敗として結果不明にまとめる）に合わせて §3.7.4・§3.7.5・§6.3 などを改めた。要件書の再承認が必要 |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §3.11）を指す。既存のコードの行番号は、コミット `9e34229`（要件書の承認のコミット）で確かめたものである。
 
@@ -207,11 +207,14 @@ flowchart LR
 | ソケットのディレクトリ | サーバが起動時に作る | `$HOME/Library/Application Support/yt2column/run/` | `$HOME/.local/state/yt2column/run/` |
 | ソケット | サーバが起動時に作り、正常終了で消す | ソケットのディレクトリの `server.sock` | 同左 |
 | 起動のロックのファイル | サーバが起動時に作り、消さない | ソケットのディレクトリの `.yt2column.lock`（`internal/cachelock` の固定の名前） | 同左 |
+| Brave の存在の判定に使うディレクトリ | Brave が作る | `$HOME/Library/Application Support/BraveSoftware/Brave-Browser/` | `$HOME/.config/BraveSoftware/Brave-Browser/` |
+| Chrome の存在の判定に使うディレクトリ | Chrome が作る | `$HOME/Library/Application Support/Google/Chrome/` | `$HOME/.config/google-chrome/` |
 | ホストの manifest（Chrome） | 利用者が install で作る | `$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts/io.github.isseis.yt2column.json` | `$HOME/.config/google-chrome/NativeMessagingHosts/` の同名のファイル |
-| ホストの manifest（Brave） | 同上 | `$HOME/Library/Application Support/BraveSoftware/Brave-Browser/NativeMessagingHosts/io.github.isseis.yt2column.json` | `$HOME/.config/BraveSoftware/Brave-Browser/NativeMessagingHosts/` の同名のファイル |
+| ホストの manifest（Brave） | 同上 | Chrome と同じファイル（`$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts/io.github.isseis.yt2column.json`） | `$HOME/.config/BraveSoftware/Brave-Browser/NativeMessagingHosts/` の同名のファイル |
 
 -   macOS のソケットのパスは、`HOME` の長さを除いて 54 バイトである（`/Library/Application Support/yt2column/run/server.sock`）。macOS の上限（§3.1）の 103 バイトから、`HOME` は 49 バイトまで使える（`/Users/` を除くとユーザー名は 42 文字まで）。超える場合は起動を中止する（AC-04、H-04）。
--   ホストの manifest の置き場所のうち、他の Unix の値は Chrome のドキュメントの記載に従ったもので、本タスクでは手動で確かめない（要件書 2.3「Linux ではビルドとテスト」）。macOS の 2 つの置き場所は §3.10 の S-6 で確かめる。
+-   **macOS の Brave の manifest は Chrome の置き場所に置く（§3.10 の S-6）。** macOS の Brave は、自分のユーザーデータのディレクトリ（`BraveSoftware/Brave-Browser`）の `NativeMessagingHosts` を読まず、Chrome の `Google/Chrome/NativeMessagingHosts` を読む。brave-core の `app/brave_main_delegate.cc` の `BraveMainDelegate::PreSandboxStartup()` が、「アプリは Chrome の場所に manifest を作る」という理由で、利用者ごとの置き場所（`chrome::DIR_USER_NATIVE_MESSAGING`）を `base::DIR_APP_DATA` + `Google/Chrome/NativeMessagingHosts` に上書きし、なければ作る（`OverrideAndCreateIfNeeded` の最後の引数が `true`）。この上書きはプロファイルを開く前にプロセス全体に掛かるので、プライベートウィンドウでも同じである。このため macOS では、`install chrome` と `install brave` が同じファイルを書く（§3.6）。
+-   ホストの manifest の置き場所のうち、他の Unix の値は Chrome のドキュメントの記載に従ったもので、本タスクでは手動で確かめない（要件書 2.3「Linux ではビルドとテスト」）。
 
 ### 2.3. データフロー（受理）
 
@@ -623,11 +626,11 @@ type errorReply struct {
 | 中継の時間の上限 | 20 秒 | stdin の長さを読んだ後から、サーバの応答を読み終えるまで。接続の時間を含む |
 | 拡張の待ち時間の上限 | 25 秒 | 既存の `sendTimeoutMs`（`extension/src/send.ts:12`）を流用する。ホストの 20 秒より長く、service worker が停止されうる 30 秒より短い（0020 §3.5 の理由） |
 
--   **ホストのリクエストの上限（H-08）:** 要件書 F-003 は、この値を「サーバの上限（4 MiB）より大きく、ブラウザがホストへ送れる 1 メッセージの上限以下」とする。拡張は `JSON.stringify` の UTF-8 のバイト数で 4 MiB を測る（`extension/src/core/prepare.ts:46-47`）が、ホストに届くのはブラウザが直列化したバイト列である。ブラウザが文字をエスケープすると、1 バイトの文字が最大 6 バイト（`<` など）に増えうる。最悪の場合、拡張の検査を通る本文は 4 MiB × 6 = 24 MiB に増える。これを上回る 32 MiB を上限とすれば、拡張の検査を通った本文が `message_too_large`（未送信）になることはなく、サーバの `body_too_large`（拒否）として一貫して表示される。ブラウザがホストへ送れる上限は、Chrome のドキュメントでは 64 MiB である。ブラウザの実際のエスケープの規則と上限は、§3.10 の S-3・S-4 で確かめる。確かめた結果、増え方が 8 倍を超える、またはブラウザの上限が 32 MiB を下回る場合は、本書の値を改める。
+-   **ホストのリクエストの上限（H-08）:** 要件書 F-003 は、この値を「サーバの上限（4 MiB）より大きく、ブラウザがホストへ送れる 1 メッセージの上限以下」とする。拡張は `JSON.stringify` の UTF-8 のバイト数で 4 MiB を測る（`extension/src/core/prepare.ts:46-47`）が、ホストに届くのはブラウザが直列化したバイト列である。§3.10 の S-3 で、Chrome と Brave のどちらも、ブラウザが直列化したバイト列が `JSON.stringify` の結果と 1 バイトも違わないことを確かめた（`<`・`>`・`&`・U+2028・U+2029 をエスケープしない。制御文字は `\u00XX`、孤立したサロゲートは `\ud800` の形）。このため、拡張の検査を通った本文は、ホストに 4 MiB 以下で届く。上限の 32 MiB は、作成時に見積もった最悪の場合（1 バイトの文字が 6 バイトに増え、4 MiB × 6 = 24 MiB になる）を上回るように決めた値で、実測では余裕がさらに大きい。これにより、拡張の検査を通った本文が `message_too_large`（未送信）になることはなく、サーバの `body_too_large`（拒否）として一貫して表示される。ブラウザがホストへ送れる上限は 64 MiB で（S-4）、32 MiB を上回る。
 -   **ホストは本文を貯めない:** 本文は stdin からサーバへ流し込むか、読まずに残すので、ホストのメモリに 32 MiB を持たない。`message_too_large` の判定は長さの 4 バイトだけで行い、本文を解釈しない（AC-16「全体をメモリに読み込まずに」）。ホストの上限以下でサーバの上限を超える本文は、サーバが `Content-Length` だけで `body_too_large` と判定し、`Expect: 100-continue` により本文はホストから送られない（§3.4）。
 -   **中継の 20 秒の内訳:** サーバの応答は本文の検証が終わり次第返る。4 MiB の入力の解析は、`-race` 付きのビルドで約 3.2 秒と測定されている（0020 §3.5 の引用）。ホストの 20 秒は通常の応答より十分に長い。サーバの `ReadTimeout`（30 秒）より短いので、サーバが極端に遅い場合はホストが先に `server_timeout`（結果不明）を返す。この場合でも、サーバが受理していればジョブは続く。
 -   **時間の順序:** ホストの 20 秒 < 拡張の 25 秒 < service worker の 30 秒、の順序を保つ。§3.9 の同期のテストで、Go の中継の時間の上限が `send.ts` の `sendTimeoutMs` より短いことを確かめる。
--   **ブラウザがホストを止める場合:** ポップアップを送信中に閉じると、ブラウザはホストとの接続を閉じ、ホストを終了させる（§3.10 の S-5 で確かめる）。受付応答の前なら、サーバは本文の読み込みの失敗として応答も通知もせず、ジョブを始めない。受付応答の後なら、ジョブは続く。どちらの場合も利用者は結果を見られないが、これは現行の `fetch` による送信の途中でポップアップを閉じた場合の振る舞いと同じ種類である。ホストは `SIGTERM` を無視しない。
+-   **ブラウザがホストを止める場合:** ポップアップを送信中に閉じると、ブラウザはホストの stdin を閉じ、約 2 秒後にホストを終了させる。SIGTERM は送らず、捕まえられないシグナルで終了させる（§3.10 の S-5）。本文の流し込みの途中なら、stdin が長さに届く前に EOF になり、HTTP のリクエストは不完全なまま切れる。受付応答の前なら、サーバは本文の読み込みの失敗として応答も通知もせず、ジョブを始めない。受付応答の後なら、ジョブは続く。どちらの場合も利用者は結果を見られないが、これは現行の `fetch` による送信の途中でポップアップを閉じた場合の振る舞いと同じ種類である。ホストはシグナルを扱う処理を持たない。
 
 #### 3.5.6. 標準出力と標準エラー出力（AC-17）
 
@@ -662,7 +665,7 @@ const (
 func ParseBrowser(name string) (Browser, error)
 
 // ErrUnknownBrowser: the name is not one ParseBrowser accepts (a usage error).
-// ErrBrowserNotFound: the browser's user data directory does not exist.
+// ErrBrowserNotFound: the browser's user data directory (§2.2) does not exist.
 // ErrForeignManifest: a file at the manifest path is not one this host wrote.
 // ErrUnstableExecutable: the executable is under the temporary directory (go run).
 // Every error other than ErrUnknownBrowser is returned wrapped with %w together
@@ -671,6 +674,7 @@ var ErrUnknownBrowser, ErrBrowserNotFound, ErrForeignManifest, ErrUnstableExecut
 
 // Install writes the manifest of browser, pointing at executable, under home,
 // using the directory layout of runtime.GOOS. It returns the manifest path.
+// On darwin, BrowserChrome and BrowserBrave share one manifest path (§2.2).
 func Install(home string, browser Browser, executable string) (string, error)
 
 // Uninstall removes the manifest of browser under home when it is one this
@@ -691,10 +695,12 @@ func Uninstall(home string, browser Browser) (path string, removed bool, err err
 ```
 
 -   **`path`:** `cmd/yt2column-nmhost` が `os.Executable` で得たパスを `filepath.EvalSymlinks` で解決した絶対パスを渡す。`Install` は、絶対パスでなければ拒否し、`os.TempDir()` の下（`go run` が作る一時的なバイナリ）なら `ErrUnstableExecutable` で拒否する（manifest が、すぐに消えるファイルを指さないようにするため）。TCC で保護されたフォルダの判定はしない（README で案内する。§3.10）。OS ごとの置き場所の選択は、`runtime.GOOS` を受け取る非公開の関数に置き、テストはその関数に OS の値を渡して確かめる（`internal/config` の `userDirBase` と同じ形）。バイナリを移動したら install をやり直す必要があることを README に書く（要件書 F-003）。
--   **書き込み:** 置き場所のディレクトリ（`NativeMessagingHosts`）がなければ `0o700` で作る。その親（ブラウザのユーザーデータのディレクトリ。§2.2）が存在しなければ `ErrBrowserNotFound` で拒否し、何も作らない。ブラウザを使っていない利用者のホームに、ブラウザのディレクトリを作らないためである。manifest は、同じディレクトリの一時ファイル（`0o600`）に書いて `fsync` した後、`rename` で置き、ディレクトリを `fsync` する。既存の `internal/publisher` の `atomicFile`（`link(2)` で既存の名前を上書きしない）は使わない。install は自分の manifest を置き換える必要があるためである。判定から `rename` までの間に別のファイルが置かれれば上書きされるが、そのディレクトリに書けるのは同一ユーザーだけで、残余リスクの範囲である。
+-   **置き場所の選択:** OS とブラウザの組から、存在の判定に使うディレクトリ（ブラウザのユーザーデータのディレクトリ）と、manifest の置き場所のディレクトリ（`NativeMessagingHosts`）の 2 つを選ぶ（§2.2）。macOS の Brave だけは、2 つが別のブラウザのディレクトリの下にある（判定は `BraveSoftware/Brave-Browser`、置き場所は `Google/Chrome/NativeMessagingHosts`）。それ以外の組では、置き場所は判定のディレクトリの直下の `NativeMessagingHosts` である。
+-   **書き込み:** 存在の判定に使うディレクトリがなければ `ErrBrowserNotFound` で拒否し、何も作らない。ブラウザを使っていない利用者のホームに、ブラウザのディレクトリを作らないためである。置き場所のディレクトリがなければ、親を含めて `0o700` で作る。macOS の Brave では、Chrome を入れていない利用者のホームに `Google/Chrome/NativeMessagingHosts` を作ることになるが、Brave 自身が起動時に同じディレクトリを作る（§2.2）ので、新たに増えるものはない。manifest は、同じディレクトリの一時ファイル（`0o600`）に書いて `fsync` した後、`rename` で置き、ディレクトリを `fsync` する。既存の `internal/publisher` の `atomicFile`（`link(2)` で既存の名前を上書きしない）は使わない。install は自分の manifest を置き換える必要があるためである。判定から `rename` までの間に別のファイルが置かれれば上書きされるが、そのディレクトリに書けるのは同一ユーザーだけで、残余リスクの範囲である。
 -   **自分が作った manifest の判定:** 既存の manifest のパスについて、`Lstat` で symlink でない通常ファイルであること、64 KiB 以下であることを確かめ、`strictjson` で読み、メンバがちょうど上の 5 つで、`name`・`type`・`allowed_origins` が上の固定の値と一致し、`path` が絶対パスの文字列であることを確かめる。`description` と `path` の値は比べない（説明文の変更と、バイナリの移動の後の install し直しを許すため）。
 -   **install:** manifest がなければ作る。自分が作ったものなら置き換える（バイナリの移動の後の install し直し）。それ以外のファイルがあれば `ErrForeignManifest` で拒否し、変更しない。
 -   **uninstall:** 自分が作ったものだけを削除する。なければ何もせず成功とする（`removed` が `false`）。それ以外のファイルなら `ErrForeignManifest` で拒否し、削除しない。ディレクトリ（`NativeMessagingHosts`）は削除しない。他のホストの manifest が置かれうるためである。
+-   **macOS での共有:** macOS では `install chrome` と `install brave` が同じファイルを書く。後から実行したほうが置き換えるが、中身は同じである。`uninstall` は、どちらのブラウザを指定しても、両方のブラウザからホストを外す。install と uninstall は、manifest のパスを標準エラー出力に書き、macOS では、このファイルを Chrome と Brave が共有することも書く。README にも同じことを書く。
 -   **副作用の範囲:** §4.4 の表のとおり。install と uninstall は、選んだブラウザの manifest のファイル（と、なければ `NativeMessagingHosts` のディレクトリ）以外を変更しない。サーバの設定・ソケット・起動のロックに触れず、サーバを起動しない（要件書 F-003）。ビルド（`make build`）は install を実行しない。Makefile に install の目標を設けない（利用者が明示的にコマンドを実行する）。
 -   **他のブラウザ:** manifest の置き場所を任意に指定する手段（`--manifest-dir`）は設けない（要件書 2.3 は検討してよいとするが、手動で確認していないブラウザ向けの手段を、確かめないまま提供しないため。YAGNI）。
 
@@ -788,7 +794,7 @@ export function sendArticle(request: PreparedRequest, deps: SendDeps): Promise<S
 
 -   **設定を読まない（AC-23）:** 共有トークンとポートを読む処理（`prepareSend` の `settings.load`、`extension/src/core/prepare.ts:103-112`）を削除する。`prepareSend` は同期の関数になり、収集の結果と本文の大きさだけを確かめる。拒否の理由と順序（`not-watch-page`・`collection-failed`・`empty-selection`・`empty-title`、その後に `body-too-large`）は変えない（AC-30）。
 -   **本文はオブジェクトで渡す:** `sendNativeMessage` は JS のオブジェクトを受け取り、ブラウザが直列化する。拡張は、送るオブジェクトを `JSON.stringify` したバイト数で 4 MiB を測る（既存の測り方。AC-30）。測った値とホストに届くバイト数の違いは §3.5.5 のとおりサーバの `body_too_large` が受け持つ。
--   **送信（AC-24）:** `sendArticle` は `deps.sendNative` を 1 回だけ呼ぶ。`chromeDeps.ts` の実装は、コールバックの形の `chrome.runtime.sendNativeMessage(nativeHostName, message, callback)` を呼び、コールバックの中で `chrome.runtime.lastError` を読む。`lastError` があれば `{ kind: "failed", lastError: lastError.message }`、なければ `{ kind: "message", value }` を返す。ブラウザが送信先にするのは固定のホスト名だけで、ホスト名を引数に取らない（AC-29）。
+-   **送信（AC-24）:** `sendArticle` は `deps.sendNative` を 1 回だけ呼ぶ。`chromeDeps.ts` の実装は、コールバックの形の `chrome.runtime.sendNativeMessage(nativeHostName, message, callback)` を呼び、コールバックの中で `chrome.runtime.lastError` を読む。`lastError` があれば `{ kind: "failed", lastError: lastError.message }`、なければ `{ kind: "message", value }` を返す。`sendNativeMessage` の呼び出しそのものが同期に例外を投げた場合も、捕まえて `{ kind: "failed", lastError: <例外の文字列> }` を返す（"Never rejects" を保つ）。64 MiB を超えるメッセージでは、ブラウザは lastError ではなく同期の `TypeError` を投げ、コールバックを呼ばない（§3.10 の S-4）。拡張は 4 MiB を超える本文を送らないので通常は起きないが、捕まえなければ Promise が決まらず、待ち時間の上限まで待つことになる。ブラウザが送信先にするのは固定のホスト名だけで、ホスト名を引数に取らない（AC-29）。
 -   **待ち時間の上限:** `sendArticle` は、`deps.schedule(sendTimeoutMs, ...)` で 25 秒の上限を設け、先に来た方を結果とする。上限が先なら `timed-out` とする。ホストは 20 秒で必ず応答して終了するので（§3.5.5）、上限は、ホストやブラウザが応答も lastError も返さない異常に備えるだけである。
 -   **接続を開いたままにしない（AC-24）:** `connectNative` のような持続する接続を使わない。`sendNativeMessage` は 1 回の起動で 1 メッセージを送り、最初の応答で接続を閉じる。
 -   **ポップアップとメニューの経路:** 両方の経路が同じ `prepareSend` と `sendArticle` を使う（既存の構成、`extension/src/launch.ts:181`・`:211`・`:277`・`:302`）。
@@ -962,7 +968,7 @@ export function classifyResponse(
 |---|---|---|---|
 | S-1 | ブラウザが `HOME` を設定してホストを起動し、最初の引数に拡張のオリジンを渡すこと。ホストが空白を含むパスの UDS に接続できること | §3.1・§3.5.1 | `HOME` が渡らない場合は、ソケットのパスの導出の規則を見直す（要件書の変更）。引数が渡らない場合は、§3.5.1 の引数の照合をやめる |
 | S-2 | ホストの manifest がない場合、`allowed_origins` が合わない場合、`path` の実行ファイルがない場合、ホストが応答せずに終了した場合に、どれも lastError が設定され、拡張がホストの失敗（結果不明）を表示できること。lastError の文字列は記録だけする | §3.7.5 | lastError が設定されない経路があれば、拡張の待ち時間の上限（`extension-timeout`）で結果不明になることを確かめ、文言を見直す |
-| S-3 | ブラウザが拡張のメッセージを直列化したバイト列と、`JSON.stringify` の結果の違い（`<`・`>`・`&`・U+2028・U+2029・制御文字・孤立したサロゲート） | §3.5.5 の最悪 6 倍。孤立したサロゲートはそのまま（`\uD800` の形で）ホストに届き、サーバが `invalid_body` で拒否すること | 8 倍を超えれば、ホストのリクエストの上限を改める。ブラウザが孤立したサロゲートを U+FFFD に置き換えて送る場合は、サーバの拒否（AC-08）が経路全体では働かない。拡張で送る前に拒否するか、置き換えを受け入れるかは、拒否の理由を変えることになるので要件書の変更として扱う（孤立したサロゲートは、置き換わると大きさが 6 バイトから 3 バイトに減る点にも注意する） |
+| S-3 | ブラウザが拡張のメッセージを直列化したバイト列と、`JSON.stringify` の結果の違い（`<`・`>`・`&`・U+2028・U+2029・制御文字・孤立したサロゲート） | §3.5.5 の見積もり（最悪 6 倍）。孤立したサロゲートはそのまま（`\uD800` の形で）ホストに届き、サーバが `invalid_body` で拒否すること | 8 倍を超えれば、ホストのリクエストの上限を改める。ブラウザが孤立したサロゲートを U+FFFD に置き換えて送る場合は、サーバの拒否（AC-08）が経路全体では働かない。拡張で送る前に拒否するか、置き換えを受け入れるかは、拒否の理由を変えることになるので要件書の変更として扱う（孤立したサロゲートは、置き換わると大きさが 6 バイトから 3 バイトに減る点にも注意する） |
 | S-4 | 拡張からホストへの 1 メッセージの上限（64 MiB）と、ホストから拡張への上限（1 MiB） | §3.5.4・§3.5.5 | 32 MiB を下回れば、ホストの上限を改める |
 | S-5 | 送信中にポップアップを閉じた場合に、ブラウザがホストを終了させるか、その時期 | §3.5.5 | ジョブを失う場合が増えるなら、§5.4 に書き足す |
 | S-6 | Brave が `BraveSoftware/Brave-Browser/NativeMessagingHosts` の manifest を読むこと。Chrome の置き場所の manifest を読むかどうか | §2.2・§3.6 | 置き場所の表を改める |
@@ -980,7 +986,7 @@ export function classifyResponse(
 | S-3 | 前提より良い。ブラウザが直列化したバイト列は `JSON.stringify` の結果と 1 バイトも違わなかった。`<`・`>`・`&`・`/`・U+007F はエスケープせず、U+2028・U+2029 も UTF-8 のまま。制御文字は `\u00XX`（6 バイト）。孤立したサロゲートは `\ud800` の形のまま（U+FFFD に置き換えない）。17 種の文字のどれも、`JSON.stringify` に対する比は 1.00 | Chrome と同じ |
 | S-4 | 拡張からホストへは、JSON で 64 MiB（67,108,864 バイト）ちょうどまで届いた。64 MiB + 1 バイトでは、lastError ではなく、`sendNativeMessage` の呼び出しが同期に `TypeError`（`Message exceeded maximum allowed size of 64MiB.`）を投げた。コールバックは呼ばれず、ホストは起動しない。ホストから拡張へは、本文 1 MiB（1,048,576 バイト）ちょうどまで届いた。1 MiB + 1 バイトでは lastError `Error when communicating with the native messaging host.` になり、ホストの書き込みは `EPIPE` になった | Chrome と同じ |
 | S-5 | ブラウザがホストを終了させる。ポップアップを閉じると、ブラウザはホストの stdin を閉じ（EOF）、約 2 秒後に終了させた。SIGTERM は届かず、捕まえられないシグナル（SIGKILL と推定）で終了した。2 回とも同じ | Chrome と同じ（EOF の約 2 秒後に終了） |
-| S-6 | Chrome は `Google/Chrome/NativeMessagingHosts` を読み、`BraveSoftware/Brave-Browser/NativeMessagingHosts` を読まない | **前提と異なる。** Brave は `Google/Chrome/NativeMessagingHosts` の manifest でホストを起動し、`BraveSoftware/Brave-Browser/NativeMessagingHosts` だけに置いた manifest は `Specified native messaging host not found.` になった。Brave を完全に終了して起動し直しても同じ。`Google/Chrome` のディレクトリがない場合の振る舞いは確かめていない |
+| S-6 | Chrome は `Google/Chrome/NativeMessagingHosts` を読み、`BraveSoftware/Brave-Browser/NativeMessagingHosts` を読まない | **前提と異なる。** Brave は `Google/Chrome/NativeMessagingHosts` の manifest でホストを起動し、`BraveSoftware/Brave-Browser/NativeMessagingHosts` だけに置いた manifest は `Specified native messaging host not found.` になった。Brave を完全に終了して起動し直しても同じ。ソースでの裏付けは §2.2。プライベートウィンドウで行ったが、上書きはプロセス全体に掛かるので結果に影響しない。`Google/Chrome` のディレクトリがない環境での振る舞いは実機では確かめていない（ソースでは Brave が起動時に作る）。この結果から、macOS の Brave の manifest を Chrome の置き場所に置くよう改めた（§2.2・§3.6） |
 | S-7 | 前提どおり。メニューの経路で、ポップアップを閉じたまま 25 秒・40 秒・70 秒の応答を待ち、どれも受け取れた。その後の `chrome.storage.local.set` と、もう 1 回の `sendNativeMessage` も成功した。service worker は途中で起動し直さなかった | Chrome と同じ |
 | S-8 | 前提どおり（読み捨てをした場合は 30 回のうち 30 回、応答を受け取った）。ただし、読み捨てをしない場合も、32 KiB〜32 MiB の 6 つの大きさで 5 回ずつ、30 回のうち 30 回、応答を受け取れた。`Error when communicating with the native messaging host.` は再現しなかった。この結果から、読み捨てを設計から外した（§3.5.2） | Chrome と同じ（読み捨てあり・なしとも 30 回のうち 30 回） |
 
@@ -1095,7 +1101,7 @@ export function classifyResponse(
 | サーバの起動（手順 4） | ソケットのディレクトリとその親を作る（なければ）。ロックのファイルを作る（なければ）。stale なソケットを削除する。ソケットを作る | stale の判定のための UDS への接続 1 回 | 権限の修復、ソケット以外のファイルの削除、接続できるソケットの削除 |
 | サーバの正常終了 | ソケットを削除する（リスナーを閉じたとき） | 処理中のジョブと失敗の通知の完了（既存） | ロックのファイルを削除しない |
 | ホストの中継 | なし | UDS への接続 1 回と HTTP のリクエスト 1 回 | 再送、サーバの起動、ファイルの書き込み、環境変数のプロキシの使用 |
-| `install <browser>` | `NativeMessagingHosts` のディレクトリ（なければ）と、選んだブラウザの manifest（一時ファイルと `rename`） | なし | 他人の manifest の上書き、ブラウザのユーザーデータのディレクトリの作成、サーバの設定の変更、サーバの起動 |
+| `install <browser>` | `NativeMessagingHosts` のディレクトリとその親（なければ。§3.6）と、選んだブラウザの manifest（一時ファイルと `rename`） | なし | 他人の manifest の上書き、存在の判定に使うディレクトリ（ブラウザのユーザーデータのディレクトリ）の作成、サーバの設定の変更、サーバの起動 |
 | `uninstall <browser>` | 選んだブラウザの、自分が作った manifest の削除 | なし | ディレクトリの削除、他人の manifest の削除 |
 | 拡張の送信 | `chrome.storage.session` の結果の値（既存） | `sendNativeMessage` 1 回 | `chrome.storage.local` への保存、再送、固定のホスト名以外への接続 |
 | 拡張のインストール・更新（`onInstalled`） | `chrome.storage.local` の旧版の 2 つのキーの削除 | なし | 値の読み取り・保存 |
@@ -1370,7 +1376,7 @@ flowchart LR
     -   残りを読まない: サーバが本文を読まずに拒否した場合と、`message_too_large`・`server_unavailable` の場合に、stdin の本文が読まれずに応答が書かれること（stdin の fake が読まれたバイト数を記録する。§3.5.2）。
     -   応答の形: 2 つの形のメンバの集合。base64 で本文のバイト列が変わらないこと（無効な UTF-8 の本文でも変わらないこと）。`HostError` のゼロ値が `protocol_error` になること。
     -   出力: 標準出力が 1 フレームだけで、標準エラー出力に識別できる値（本文に入れた目印）が現れないこと（AC-17）。
-    -   manifest: install/uninstall の中身、`0600`、一時ファイルが残らないこと、ブラウザのディレクトリがないときに何も作らないこと、他人の manifest を上書きも削除もしないこと、自分の manifest の置き換えと削除、`path` が相対のときと一時ディレクトリの下のときの拒否、ブラウザ名の完全一致。
+    -   manifest: install/uninstall の中身、`0600`、一時ファイルが残らないこと、ブラウザのディレクトリがないときに何も作らないこと、macOS の Brave の置き場所が Chrome と同じで、存在の判定が `BraveSoftware/Brave-Browser` で行われること（Brave のディレクトリだけがある `home` で install が成功し、`Google/Chrome/NativeMessagingHosts` に書くこと。Chrome のディレクトリだけがある `home` で `ErrBrowserNotFound` になること）、他人の manifest を上書きも削除もしないこと、自分の manifest の置き換えと削除、`path` が相対のときと一時ディレクトリの下のときの拒否、ブラウザ名の完全一致。
     -   root: 所有者や権限に依存するテスト（他人の所有、権限のないディレクトリ）は、root では成り立たないので `os.Geteuid() == 0` のときは飛ばす（`internal/cachelock/test_helpers.go:13` の `requireNonRoot` と同じ扱い）。
 -   **拡張:** `classifyNativeReply` の各分岐（§6.3 の葉のすべて）、外側のメンバの未知・欠落・型の不一致、`v` の不一致、base64 の非正規形、復号後の長さ超過、本文の既存の検査（AC-27）、lastError がどの文字列でも（`undefined` を含む）ホストの失敗になり、文言が install の手順と Slack の確認の両方を含むこと、待ち時間の上限、`sendNative` が 1 回しか呼ばれないこと（AC-24）、2 つの経路が同じ本文を送ること、送信の結果ごとの文言が互いに異なり、未送信の文言が Slack に触れず、結果不明の文言が Slack の確認を含むこと（AC-26）、`requestId` の表示（AC-28）、`prepareSend` の拒否の理由と順序（AC-30）、保存する値の検査。
 
