@@ -447,6 +447,12 @@ func TestParseCopiedTrailingRegion(t *testing.T) {
 			body:  formBBody,
 		},
 		{
+			name:  "form B trailing whitespace-only line after a timestamp",
+			input: "0:00\nx\n0:05\n \n",
+			want:  []Segment{{StartMs: 0, Text: "x"}},
+			body:  "0:00\nx\n0:05\n",
+		},
+		{
 			name:  "form B blank line then the Japanese operation label",
 			input: formBBody + "\n動画の時間と同期",
 			want:  formBSegments,
@@ -516,6 +522,7 @@ func TestParseCopiedCheckOrder(t *testing.T) {
 		name    string
 		input   string
 		want    error
+		line    int
 		notWant []error
 	}{
 		{
@@ -558,6 +565,7 @@ func TestParseCopiedCheckOrder(t *testing.T) {
 			name:    "trailing control character before the no-text check",
 			input:   "0:000 秒\n\t\n",
 			want:    errCopiedControlChar,
+			line:    2,
 			notWant: []error{errCopiedNoText},
 		},
 		{
@@ -569,7 +577,10 @@ func TestParseCopiedCheckOrder(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			assertCopiedRejected(t, tc.input, tc.want)
+			message := assertCopiedRejected(t, tc.input, tc.want)
+			if tc.line > 0 && !strings.Contains(message, fmt.Sprintf("line %d:", tc.line)) {
+				t.Errorf("Error() = %q, want line %d", message, tc.line)
+			}
 			_, err := parseCopiedTranscript(tc.input)
 			for _, other := range tc.notWant {
 				if errors.Is(err, other) {
@@ -808,12 +819,13 @@ func assertCopiedFuzzAcceptance(t *testing.T, transcript Transcript, raw string)
 	assertCopiedFuzzTrailingRegion(t, transcript.Segments, raw)
 }
 
-// assertCopiedFuzzTrailingRegion checks property (a): appending a run of blank
-// lines, with or without a trailing operation-label line after them, leaves the
-// segments unchanged. The blank run keeps the operation label's previous line
-// from being a timestamp-only line, so the label stays in the trailing region
-// instead of becoming a segment's text. The appended lines use the input's own
-// separator, or LF for a single-line input.
+// assertCopiedFuzzTrailingRegion checks property (a): appending a run of empty
+// or whitespace-only lines, with or without a trailing operation-label line
+// after them, leaves the segments unchanged. The blank run keeps the operation
+// label's previous line from being a timestamp-only line, so the label stays in
+// the trailing region instead of becoming a segment's text. The appended lines
+// use the input's own separator, or LF for a single-line input, and a single
+// U+0020 for the whitespace-only run so the run is not also a control character.
 func assertCopiedFuzzTrailingRegion(t *testing.T, want []Segment, raw string) {
 	t.Helper()
 	separator, err := copiedLineSeparator(raw)
@@ -823,17 +835,19 @@ func assertCopiedFuzzTrailingRegion(t *testing.T, want []Segment, raw string) {
 	if separator == "" {
 		separator = "\n"
 	}
-	for _, suffix := range []string{
-		separator + separator,
-		separator + separator + copiedOperationLabels[0],
-	} {
-		appended := raw + suffix
-		got, err := parseCopiedTranscript(appended)
-		if err != nil {
-			t.Fatalf("appending a trailing region rejected an accepted input: %v", err)
-		}
-		if !reflect.DeepEqual(got, want) {
-			t.Errorf("appending a trailing region changed the segments: got %+v, want %+v", got, want)
+	for _, run := range []string{separator + separator, separator + " "} {
+		for _, label := range []string{"", copiedOperationLabels[0]} {
+			appended := raw + run
+			if label != "" {
+				appended += separator + label
+			}
+			got, err := parseCopiedTranscript(appended)
+			if err != nil {
+				t.Fatalf("appending a trailing region %q rejected an accepted input: %v", run, err)
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Errorf("appending a trailing region %q changed the segments: got %+v, want %+v", run, got, want)
+			}
 		}
 	}
 }

@@ -329,15 +329,7 @@ func hasCopiedControlChar(line string) bool {
 // every character is Unicode White_Space. An empty line is counted separately,
 // so it is not whitespace-only.
 func copiedWhitespaceOnlyLine(line string) bool {
-	if line == "" {
-		return false
-	}
-	for _, r := range line {
-		if !unicode.IsSpace(r) {
-			return false
-		}
-	}
-	return true
+	return line != "" && strings.TrimSpace(line) == ""
 }
 
 // copiedBlankLine reports whether line can belong to the trailing region on its
