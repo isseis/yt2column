@@ -8,7 +8,7 @@
 | Created | 2026-10-18 |
 | Review date | 2026-10-18 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | AC-20 に、F-003 で承認済みの「manifest のパスと macOS での共有を知らせる」ことの確認を加えた。F-003 と AC の対応を直す編集上の修正で、決定は変えていない。 |
 
 ## 1. 概要 (Overview)
 
@@ -164,7 +164,7 @@
 - **AC-17**: 標準出力にはフレーム以外のバイトが現れない。ログは標準エラー出力にだけ出て、字幕・メタデータ・秘密の値を含まない（ユニットテスト。識別できる値を入れ、標準出力と標準エラー出力を確かめる）。
 - **AC-18**: ソケットのパスは `HOME` からの固定の導出で決まり、メッセージの値や `XDG_CONFIG_HOME` などの他の環境変数では変わらない。シェルを起動しない。`.envrc`・API キー・Webhook URL を読まない（静的な確認・ユニットテスト）。
 - **AC-19**: サーバが動いていない場合、応答が期限までに返らない場合、応答の途中で接続が切れた場合に、それぞれ `server_unavailable`・`server_timeout`・`protocol_error` の固定のエラーが返り、自動で再送されない（ユニットテスト）。
-- **AC-20**: install すると、選択したブラウザの manifest が `stdio`・絶対パス・固定の拡張 ID の `allowed_origins` で作られる。uninstall すると、選択したブラウザの manifest のファイルだけが削除される（macOS では Chrome と Brave が 1 つのファイルを共有するので、両方のブラウザからホストが外れる。F-003）。install/uninstall はビルド時に自動で実行されない（ユニットテスト・手動確認）。
+- **AC-20**: install すると、選択したブラウザの manifest が `stdio`・絶対パス・固定の拡張 ID の `allowed_origins` で作られる。uninstall すると、選択したブラウザの manifest のファイルだけが削除される（macOS では Chrome と Brave が 1 つのファイルを共有するので、両方のブラウザからホストが外れる。F-003）。install と uninstall は manifest のパスを知らせ、macOS では、そのファイルを Chrome と Brave が共有することも知らせる（F-003）。install/uninstall はビルド時に自動で実行されない（ユニットテスト・手動確認）。
 - **AC-21**: ホストは Unix でビルドでき、外部の Go モジュールを追加しない（静的な確認・`make build`）。
 
 #### F-004: 拡張の Native Messaging への切り替え
