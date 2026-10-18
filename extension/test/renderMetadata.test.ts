@@ -4,19 +4,9 @@ import { describe, it } from "node:test";
 import { expandPromptMessage } from "../src/core/messages.ts";
 import type { MetadataResult } from "../src/core/metadata.ts";
 import { metadataDisplayLimit, renderMetadata } from "../src/ui/render.ts";
-import { container } from "./helpers/dom.ts";
+import { container, valueOf } from "./helpers/dom.ts";
 
 const malicious = "<img src=x onerror=alert(1)>";
-
-/** The displayed value of the field labelled label, if any. */
-function valueOf(root: HTMLElement, label: string): string | undefined {
-  for (const field of root.querySelectorAll(".summary-field")) {
-    if (field.querySelector(".summary-label")?.textContent === label) {
-      return field.querySelector(".summary-value")?.textContent ?? undefined;
-    }
-  }
-  return undefined;
-}
 
 /** A metadata result with the given values and prompt flag. */
 function result(over: Partial<MetadataResult> = {}): MetadataResult {
@@ -39,6 +29,12 @@ describe("renderMetadata", () => {
     assert.equal(valueOf(root, "Video title"), "A title");
     assert.equal(valueOf(root, "Channel"), "A channel");
     assert.equal(valueOf(root, "Description"), "A description");
+    assert.deepEqual(
+      Array.from(root.querySelectorAll(".summary-label")).map(
+        (node) => node.textContent,
+      ),
+      ["Video title", "Channel", "Description"],
+    );
   });
 
   it("shows only the values that are present", () => {

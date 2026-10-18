@@ -114,20 +114,19 @@ export function renderSummary(
 /** The display limit for one metadata value, in code points. */
 export const metadataDisplayLimit = 200;
 
-/** The metadata fields, in display order, with their label and value class. */
-const metadataRows: readonly {
-  readonly name: MetadataField;
+/** One metadata row's display label and its value-element class. */
+interface MetadataRow {
   readonly label: string;
   readonly className: string;
-}[] = [
-  { name: "title", label: "Video title", className: "metadata-title" },
-  { name: "channelName", label: "Channel", className: "metadata-channel" },
-  {
-    name: "description",
-    label: "Description",
-    className: "metadata-description",
-  },
-];
+}
+
+// A record keyed by every MetadataField, so adding a field fails the type check
+// here until it has a row; the key order is the display order.
+const metadataRows: Record<MetadataField, MetadataRow> = {
+  title: { label: "Video title", className: "metadata-title" },
+  channelName: { label: "Channel", className: "metadata-channel" },
+  description: { label: "Description", className: "metadata-description" },
+};
 
 /**
  * Appends the video metadata fields -- and the expand prompt when the
@@ -142,17 +141,23 @@ export function renderMetadata(
 ): void {
   const doc = container.ownerDocument;
   const nodes: HTMLElement[] = [];
-  for (const { name, label, className } of metadataRows) {
+  for (const name of Object.keys(metadataRows) as MetadataField[]) {
     const value = result.values[name];
     if (value === undefined) {
       continue;
     }
+    const row = metadataRows[name];
     const shortened = truncate(value, metadataDisplayLimit);
     nodes.push(
-      field(doc, label, displayValue(shortened.value, shortened.truncated), {
-        className,
-        dirAuto: true,
-      }),
+      field(
+        doc,
+        row.label,
+        displayValue(shortened.value, shortened.truncated),
+        {
+          className: row.className,
+          dirAuto: true,
+        },
+      ),
     );
   }
   if (result.showExpandPrompt) {

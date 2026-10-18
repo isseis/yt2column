@@ -38,7 +38,8 @@ body {
   unicode-bidi: plaintext;
 }
 
-/* Show the selection's and the description's line breaks as they are. */
+/* Show the selection's and the description's line breaks and surrounding
+   whitespace as they are. */
 .summary-preview,
 .metadata-description {
   white-space: pre-wrap;

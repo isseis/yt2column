@@ -8,7 +8,7 @@
 | Created | 2026-10-17 |
 | Review date | 2026-10-18 |
 | Reviewer | isseis |
-| Comments | 実装計画の作成に合わせた編集上の訂正（判断は変えていない）。AC-18 の静的な確認を実行する拡張のテスト `extension/test/metadataDocs.test.ts` と、`whitespaceOnly` の再利用のための `core/collect.ts` の export、用語の追加のための `docs/translation_glossary.md` を 2.1・3.8・3.9・3.11 に加えた。AC-09・AC-10・AC-18・AC-19 の確かめ方を 7.4 と 3.9 で実行する検査に合わせた（AC-09 はタブのタイトルの結線を `launch.test.ts`、AC-10 は省略の理由のログを `launch.test.ts`、AC-18 は `metadataDocs.test.ts`、AC-19 は `chromeDeps.test.ts` の注入がページを操作しないこと）。いずれも設計の判断（何を確かめるか）を変えず、確かめる手段を実行される検査に定めるだけである。要件書の承認後の訂正（2026-10-18）に合わせた編集上の訂正（判断は変えていない）。新しい AC-04a（収集した URL との不一致による省略と、収集の拒否の後に読まないこと）を 3.3・3.5・3.9・5.2・7.4 の対応に加え、AC-11（表示だけの切り詰めと本文の値）と AC-14（bidi の手動確認）の確かめ方を 3.9・7.2・7.4 に合わせた。3.6 の表示の上限の理由を、要件書 F-002 の本文の大きさの理由と矛盾しない記述に改めた。レビューの指摘（2026-10-18）に合わせた編集上の訂正（判断は変えていない）。3.6 の表示の上限から再利用する関数の指定（`truncate` の export・`displayValue`）を除き、要約と同じ方法の既存の処理を再利用し同じ処理を書き直さないという設計のレベルの記述に改めた。2.1・3.8・3.11 の `core/summary.ts` の記述も同じレベルに揃えた。関数の選び方は [implementation_handoff.md](implementation_handoff.md) I-02 に申し送った。表示だけをコードポイントで切り詰めて `…` を付けること、送る値を切り詰めないこと、上限を実装で決める表示の固定値とすること、その理由は変えていない |
+| Comments | 実装計画の作成に合わせた編集上の訂正（判断は変えていない）。AC-18 の静的な確認を実行する拡張のテスト `extension/test/metadataDocs.test.ts` と、`whitespaceOnly` の再利用のための `core/collect.ts` の export、用語の追加のための `docs/translation_glossary.md` を 2.1・3.8・3.9・3.11 に加えた。AC-09・AC-10・AC-18・AC-19 の確かめ方を 7.4 と 3.9 で実行する検査に合わせた（AC-09 はタブのタイトルの結線を `launch.test.ts`、AC-10 は省略の理由のログを `launch.test.ts`、AC-18 は `metadataDocs.test.ts`、AC-19 は `chromeDeps.test.ts` の注入がページを操作しないこと）。いずれも設計の判断（何を確かめるか）を変えず、確かめる手段を実行される検査に定めるだけである。要件書の承認後の訂正（2026-10-18）に合わせた編集上の訂正（判断は変えていない）。新しい AC-04a（収集した URL との不一致による省略と、収集の拒否の後に読まないこと）を 3.3・3.5・3.9・5.2・7.4 の対応に加え、AC-11（表示だけの切り詰めと本文の値）と AC-14（bidi の手動確認）の確かめ方を 3.9・7.2・7.4 に合わせた。3.6 の表示の上限の理由を、要件書 F-002 の本文の大きさの理由と矛盾しない記述に改めた。レビューの指摘（2026-10-18）に合わせた編集上の訂正（判断は変えていない）。3.6 の表示の上限から再利用する関数の指定（`truncate` の export・`displayValue`）を除き、要約と同じ方法の既存の処理を再利用し同じ処理を書き直さないという設計のレベルの記述に改めた。2.1・3.8・3.11 の `core/summary.ts` の記述も同じレベルに揃えた。関数の選び方は [implementation_handoff.md](implementation_handoff.md) I-02 に申し送った。表示だけをコードポイントで切り詰めて `…` を付けること、送る値を切り詰めないこと、上限を実装で決める表示の固定値とすること、その理由は変えていない。表示での切り詰めの再利用による `ui/render.ts` → `core/summary.ts` の依存を 2.2 の図に加えた（2026-10-18 の編集上の訂正。`truncate` の再利用は既に 3.6 が定めており、図の記載漏れを補っただけで、判断は変えていない） |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `c93a87b` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指す。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-05）への対応は 3.10 にまとめる。レビューで実装の段階に申し送る事項は [implementation_handoff.md](implementation_handoff.md) が集め、`03_implementation_plan.md` が対応を記録する。
 
@@ -163,6 +163,7 @@ flowchart LR
     LAUNCH["launch.ts"]
     METADATA["core/metadata.ts"]
     MESSAGES["core/messages.ts"]
+    SUMMARY["core/summary.ts"]
     RENDER["ui/render.ts"]
     CHROMEDEPS["browser/chromeDeps.ts"]
     PREPARE["core/prepare.ts"]
@@ -177,6 +178,7 @@ flowchart LR
     METADATA --> COLLECT
     RENDER --> METADATA
     RENDER --> MESSAGES
+    RENDER --> SUMMARY
     CHROMEDEPS --> LAUNCH
     BACKGROUND --> LAUNCH
     BACKGROUND --> CHROMEDEPS
@@ -184,8 +186,7 @@ flowchart LR
     POPUP --> CHROMEDEPS
 
     class METADATA newpkg
-    class PREPARE process
-    class LAUNCH,RENDER,MESSAGES,CHROMEDEPS,COLLECT,BACKGROUND,POPUP enhanced
+    class LAUNCH,RENDER,MESSAGES,SUMMARY,CHROMEDEPS,COLLECT,BACKGROUND,POPUP enhanced
 
     subgraph Legend["Legend"]
         L1["既存（変更しない）"]

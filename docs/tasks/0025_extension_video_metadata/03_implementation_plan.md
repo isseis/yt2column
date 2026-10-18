@@ -8,7 +8,7 @@
 | Created | 2026-10-18 |
 | Review date | 2026-10-18 |
 | Reviewer | isesis |
-| Comments | 編集上の訂正（2026-10-18。判断は変えていない）。フェーズ 2 の対象ファイルに `extension/src/launch.ts` を加えた（ステップ 2-3 が既に `MetadataReader` を launch.ts の型としているため、フェーズ 2 の作業内容は変えず、対象の記載を合わせただけである）。ステップ 2-4・2-5 の確かめる手段を `document.body.outerHTML` から jsdom の直列化（`dom.serialize()`）に改めた（`outerHTML` は拡張の ESLint の `no-restricted-syntax` が許さないため。何を確かめるかは変えていない） |
+| Comments | 編集上の訂正（2026-10-18。判断は変えていない）。フェーズ 2 の対象ファイルに `extension/src/launch.ts` を加えた（ステップ 2-3 が既に `MetadataReader` を launch.ts の型としているため、フェーズ 2 の作業内容は変えず、対象の記載を合わせただけである）。ステップ 2-4・2-5 の確かめる手段を `document.body.outerHTML` から jsdom の直列化（`dom.serialize()`）に改めた（`outerHTML` は拡張の ESLint の `no-restricted-syntax` が許さないため。何を確かめるかは変えていない）。フェーズ 3 の対象ファイルに `extension/test/render.test.ts` と `extension/test/helpers/dom.ts` を加え、ステップ 3-2・3-3 に表示の上限の export と値のクラス名を記した（実装で決めるとしていた詳細を実行した結果の記載である。判断は変えていない） |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -186,7 +186,7 @@ HEAD `0842685` で確認した。設計書は既存のファイルの行番号�
 
 **対象ファイル**
 -   新設: `extension/test/renderMetadata.test.ts`
--   変更: `extension/src/ui/render.ts`、`extension/src/core/summary.ts`（`truncate` の `export` のみ）、`extension/static/style.css`
+-   変更: `extension/src/ui/render.ts`、`extension/src/core/summary.ts`（`truncate` の `export` のみ）、`extension/static/style.css`、`extension/test/render.test.ts`・`extension/test/helpers/dom.ts`（`valueOf` を共用するための整理。振る舞いは変えない）
 
 **タスク**
 -   [x] **ステップ 3-1**: `core/summary.ts` の `truncate`（`:26-35`）に `export` を付ける。振る舞いは変えない。
