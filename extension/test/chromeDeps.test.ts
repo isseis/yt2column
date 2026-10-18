@@ -246,39 +246,39 @@ describe("page metadata injection", () => {
     // The expander is present but the element its state selects is absent: the
     // description is omitted while the collapsed flag still comes from
     // is-expanded.
-    const collapsedNoSnippet = await read(
-      "<ytd-watch-metadata>" +
-        '<ytd-text-inline-expander id="description-inline-expander">' +
-        '<div id="expanded"><yt-attributed-string>Full</yt-attributed-string></div>' +
-        "</ytd-text-inline-expander></ytd-watch-metadata>",
-    );
-    assert.equal(collapsedNoSnippet.description, undefined);
-    assert.equal(collapsedNoSnippet.descriptionCollapsed, true);
-
-    const expandedNoSnippet = await read(
-      "<ytd-watch-metadata>" +
-        '<ytd-text-inline-expander id="description-inline-expander" is-expanded>' +
-        '<div id="attributed-snippet-text">Snippet</div>' +
-        "</ytd-text-inline-expander></ytd-watch-metadata>",
-    );
-    assert.equal(expandedNoSnippet.description, undefined);
-    assert.equal(expandedNoSnippet.descriptionCollapsed, false);
+    const absent = [
+      {
+        name: "collapsed",
+        attributes: "",
+        children:
+          '<div id="expanded"><yt-attributed-string>Full</yt-attributed-string></div>',
+        collapsed: true,
+      },
+      {
+        name: "expanded",
+        attributes: " is-expanded",
+        children: '<div id="attributed-snippet-text">Snippet</div>',
+        collapsed: false,
+      },
+    ];
+    for (const { name, attributes, children, collapsed } of absent) {
+      const body =
+        `<ytd-watch-metadata>` +
+        `<ytd-text-inline-expander id="description-inline-expander"${attributes}>${children}` +
+        `</ytd-text-inline-expander></ytd-watch-metadata>`;
+      const omitted = await read(body);
+      assert.equal(omitted.description, undefined, name);
+      assert.equal(omitted.descriptionCollapsed, collapsed, name);
+    }
   });
 
-  it("picks the description by is-expanded alone", async () => {
-    // is-expanded is present while #expanded is still empty: the own-text
-    // element is chosen even though it has no content.
+  it("chooses the full-text element when is-expanded is set", async () => {
+    // is-expanded is present while #expanded is still empty: the expected
+    // element is chosen even though it has no content (the snippet beside it
+    // is not).
     const open = await read(watchBody(expander(" is-expanded", "Snippet", "")));
     assert.equal(open.description, "");
     assert.equal(open.descriptionCollapsed, false);
-
-    // is-expanded is absent while #expanded holds a value: the snippet is
-    // chosen even though a full-text value exists.
-    const collapsed = await read(
-      watchBody(expander("", "Snippet", "Full description")),
-    );
-    assert.equal(collapsed.description, "Snippet");
-    assert.equal(collapsed.descriptionCollapsed, true);
   });
 
   it("does not operate the page", async () => {
@@ -286,8 +286,9 @@ describe("page metadata injection", () => {
     const dom = watchDom(watchBody(expander("", "Snippet", "Full")));
     const before = dom.serialize();
     run(injection, dom, watchUrl);
-    // The serialized DOM catches mutations; a click-style operation that leaves
-    // the DOM unchanged is caught by the source scan below.
+    // The serialized DOM catches mutations. The source scan below is the
+    // denylist of page-operating calls the plan enumerates (AC-19), not a proof
+    // that no other operation exists.
     assert.equal(dom.serialize(), before);
     const source = injection.func.toString();
     for (const call of [
