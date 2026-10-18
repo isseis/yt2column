@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-18 |
-| Review date | - |
-| Reviewer | - |
-| Comments | §3.10 の実機での確認（S-1〜S-8）を 2026-10-18 に行い、結果を §3.10 の表に記録した。S-6（Brave の manifest の置き場所）が前提と異なったので §2.2・§3.6 を改め、S-3・S-4・S-5 の結果を §3.5.5・§3.7.2 に、S-8 の結果を §3.5.2（読み捨てを外した）に反映した。要件書の F-004・AC-26 の改定（lastError を文字列で分けず、ホストの失敗として結果不明にまとめる）に合わせて §3.7.4・§3.7.5・§6.3 などを改めた。要件書の F-003・AC-20 の改定（macOS では Chrome と Brave が 1 つの manifest を共有し、どちらに対する uninstall も両方からホストを外す）に合わせて §3.6 の「macOS での共有」に理由と参照を加えた（要件書は 2026-10-18 に再承認済み） |
+| Review date | 2026-10-18 |
+| Reviewer | isseis |
+| Comments | - |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §3.11）を指す。既存のコードの行番号は、コミット `9e34229`（要件書の承認のコミット）で確かめたものである。
 
