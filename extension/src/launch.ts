@@ -38,6 +38,12 @@ export interface ResultViewStore {
   watch(key: string, listener: (value: unknown) => void): () => void;
 }
 
+/** The only browser capability the metadata read needs. Faked in unit tests. */
+export interface MetadataReader {
+  /** Reads the metadata of the tab's top frame as JSON text. Rejects on any failure. */
+  read(tabId: number, expectedUrl: string): Promise<string>;
+}
+
 export interface MenuLaunchDeps {
   readonly reader: SelectionReader;
   readonly settings: SettingsReader;
