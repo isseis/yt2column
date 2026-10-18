@@ -44,6 +44,7 @@
 | 枠 | slot | localhost サーバが同時に処理するリクエストの数を数える単位（`maxInFlight`） |
 | 拒否の理由 | reject reason | 応答の本文の `reason` に載せる固定の値（`rejectReason`） |
 | リクエスト ID | request ID | サーバがリクエストごとに生成する 16 文字の識別子。応答・ログ・失敗の通知を結び付ける |
+| Unix ドメインソケット（UDS） | Unix domain socket (UDS) | ファイルシステム上のパスを介したプロセス間通信。localhost サーバの待ち受け手段。初出で「Unix ドメインソケット（UDS）」と書き、以降は「UDS」とする |
 | 片付け | cleanup | `/mergepr` のマージ後処理（base の更新、ローカル head ブランチの削除） |
 | 材料 | material | `/mergepr` がコミットメッセージの下書きに使う PR 情報（log.txt・stat.txt・body.txt） |
 | 件名 | subject | コミットメッセージの 1 行目 |
