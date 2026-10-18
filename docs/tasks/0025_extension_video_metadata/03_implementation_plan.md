@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Created | 2026-10-18 |
 | Review date | 2026-10-18 |
 | Reviewer | isesis |
-| Comments | - |
+| Comments | `implementation_handoff.md` に I-02（表示の切り詰めに再利用する関数の選び方）を加えたため `draft` に戻した（2026-10-18）。I-02 への対応を §1.4 に加えた。対応は §1.3 とステップ 3-1・3-2 に既に記録されている（`truncate` の `export` と `displayValue` の再利用）ので、タスクは変えていない |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -101,7 +101,9 @@ HEAD `0842685` で確認した。設計書は既存のファイルの行番号�
 ### 1.4. 申し送りの項目への対応
 
 -   `design_handoff.md` の H-01〜H-05 は、すべて設計書 3.10 に採った方針が記録されている。本計画は設計書のその方針に従う（H-01・H-02 はフェーズ 2、H-03 はフェーズ 4、H-04 はフェーズ 3、H-05 はフェーズ 4）。
--   `implementation_handoff.md` の I-01 は、§1.3「I-01 への対応」のとおりに扱う（読み取りの境界に上限を設けず、本文の上限の 1 か所に委ねる）。検証はステップ 1-4・4-4 のテストに置く。当てはまらない項目はない。
+-   `implementation_handoff.md` の I-01 は、§1.3「I-01 への対応」のとおりに扱う（読み取りの境界に上限を設けず、本文の上限の 1 か所に委ねる）。検証はステップ 1-4・4-4 のテストに置く。
+-   `implementation_handoff.md` の I-02 は、§1.3 の再利用する既存の実装（`truncate` に `export` を付けて再利用し、`…` の付加は `displayValue` を使う）のとおりに扱う。実装はステップ 3-1・3-2、検証はステップ 3-4・3-5 に置く。
+-   当てはまらない項目はない。
 
 ## 2. 実装ステップ (Implementation Steps)
 

@@ -8,7 +8,7 @@
 | Created | 2026-10-17 |
 | Review date | 2026-10-18 |
 | Reviewer | isseis |
-| Comments | 実装計画の作成に合わせた編集上の訂正（判断は変えていない）。AC-18 の静的な確認を実行する拡張のテスト `extension/test/metadataDocs.test.ts` と、`whitespaceOnly` の再利用のための `core/collect.ts` の export、用語の追加のための `docs/translation_glossary.md` を 2.1・3.8・3.9・3.11 に加えた。AC-09・AC-10・AC-18・AC-19 の確かめ方を 7.4 と 3.9 で実行する検査に合わせた（AC-09 はタブのタイトルの結線を `launch.test.ts`、AC-10 は省略の理由のログを `launch.test.ts`、AC-18 は `metadataDocs.test.ts`、AC-19 は `chromeDeps.test.ts` の注入がページを操作しないこと）。いずれも設計の判断（何を確かめるか）を変えず、確かめる手段を実行される検査に定めるだけである。要件書の承認後の訂正（2026-10-18）に合わせた編集上の訂正（判断は変えていない）。新しい AC-04a（収集した URL との不一致による省略と、収集の拒否の後に読まないこと）を 3.3・3.5・3.9・5.2・7.4 の対応に加え、AC-11（表示だけの切り詰めと本文の値）と AC-14（bidi の手動確認）の確かめ方を 3.9・7.2・7.4 に合わせた。3.6 の表示の上限の理由を、要件書 F-002 の本文の大きさの理由と矛盾しない記述に改めた |
+| Comments | 実装計画の作成に合わせた編集上の訂正（判断は変えていない）。AC-18 の静的な確認を実行する拡張のテスト `extension/test/metadataDocs.test.ts` と、`whitespaceOnly` の再利用のための `core/collect.ts` の export、用語の追加のための `docs/translation_glossary.md` を 2.1・3.8・3.9・3.11 に加えた。AC-09・AC-10・AC-18・AC-19 の確かめ方を 7.4 と 3.9 で実行する検査に合わせた（AC-09 はタブのタイトルの結線を `launch.test.ts`、AC-10 は省略の理由のログを `launch.test.ts`、AC-18 は `metadataDocs.test.ts`、AC-19 は `chromeDeps.test.ts` の注入がページを操作しないこと）。いずれも設計の判断（何を確かめるか）を変えず、確かめる手段を実行される検査に定めるだけである。要件書の承認後の訂正（2026-10-18）に合わせた編集上の訂正（判断は変えていない）。新しい AC-04a（収集した URL との不一致による省略と、収集の拒否の後に読まないこと）を 3.3・3.5・3.9・5.2・7.4 の対応に加え、AC-11（表示だけの切り詰めと本文の値）と AC-14（bidi の手動確認）の確かめ方を 3.9・7.2・7.4 に合わせた。3.6 の表示の上限の理由を、要件書 F-002 の本文の大きさの理由と矛盾しない記述に改めた。レビューの指摘（2026-10-18）に合わせた編集上の訂正（判断は変えていない）。3.6 の表示の上限から再利用する関数の指定（`truncate` の export・`displayValue`）を除き、要約と同じ方法の既存の処理を再利用し同じ処理を書き直さないという設計のレベルの記述に改めた。2.1・3.8・3.11 の `core/summary.ts` の記述も同じレベルに揃えた。関数の選び方は [implementation_handoff.md](implementation_handoff.md) I-02 に申し送った。表示だけをコードポイントで切り詰めて `…` を付けること、送る値を切り詰めないこと、上限を実装で決める表示の固定値とすること、その理由は変えていない |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `c93a87b` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指す。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-05）への対応は 3.10 にまとめる。レビューで実装の段階に申し送る事項は [implementation_handoff.md](implementation_handoff.md) が集め、`03_implementation_plan.md` が対応を記録する。
 
@@ -121,7 +121,7 @@ extension/
       metadata.ts          # PageMetadata・VideoMetadata・MetadataResult・parsePageMetadata・acceptMetadata（新規。3.2）
       messages.ts          # Message と expandPromptMessage を加える（変更。3.8）
       collect.ts           # whitespaceOnly を export する（変更。振る舞いは変えない。3.8）
-      summary.ts           # truncate を export する（変更。3.6）
+      summary.ts           # 表示の切り詰めに既存の切り詰めの処理を再利用できるようにする（変更。振る舞いは変えない。3.6）
     ui/
       render.ts            # renderMetadata を加える（変更。3.6）
     browser/
@@ -525,7 +525,7 @@ export function renderMetadata(
 
 -   `renderMetadata` は、`container` の子を置き換えずに**追加**する。`renderSummary`（`extension/src/ui/render.ts:103-113`）が `replaceChildren` で置き換えるので、`runPopupLaunch` は `renderSummary` の後に `renderMetadata` を呼ぶ（3.5）。
 -   値は、既存の `field`（`extension/src/ui/render.ts:19-38`）で作る。ラベルは `"Video title"`・`"Channel"`・`"Description"` とする。
--   **表示の上限:** 表示は、既存の `OutcomeSummary` の要約と同じ方法で、値をコードポイントで切り詰めて `…` を付ける（`extension/src/core/summary.ts:5-7`・`26-35`）。切り詰めは、`core/summary.ts` の非公開の `truncate` を export して再利用し、`render.ts` に同じ処理を書き直さない。`…` の付加は既存の `displayValue`（`extension/src/ui/render.ts:9-11`）を使う。上限は表示のための固定値（例: 200 コードポイント）とし、実装で決める。**送る値は切り詰めない**（本文には取得した値がそのまま入る）。概要欄は untrusted なテキストで、ポップアップの表示には長くなりうるので、表示の大きさを抑える（0007 §3.5 の要約の切り詰めと同じ理由）。値の大きさが本文の上限に比べて十分に小さいこと（要件書 F-002）とは別の、表示のための理由である。
+-   **表示の上限:** 表示は、既存の `OutcomeSummary` の要約と同じ方法で、値をコードポイントで切り詰めて `…` を付ける（`extension/src/core/summary.ts:5-7`・`26-35`）。切り詰めと `…` の付加は、要約が使う既存の処理（`core/summary.ts`・`ui/render.ts`）を再利用し、同じ処理を重ねて書かない。再利用する関数の選び方は実装計画で記録する（[implementation_handoff.md](implementation_handoff.md) I-02）。上限は表示のための固定値（例: 200 コードポイント）とし、実装で決める。**送る値は切り詰めない**（本文には取得した値がそのまま入る）。概要欄は untrusted なテキストで、ポップアップの表示には長くなりうるので、表示の大きさを抑える（0007 §3.5 の要約の切り詰めと同じ理由）。値の大きさが本文の上限に比べて十分に小さいこと（要件書 F-002）とは別の、表示のための理由である。
 -   **双方向テキスト（bidi）の分離:** 3 つの値は untrusted なテキストで、双方向の制御文字を含みうる。0007 の要約と同じく、`field` に `dirAuto: true`（`dir="auto"`）を渡し、3 つの値の新しいクラス名を `static/style.css` の `unicode-bidi: plaintext` の規則（`.summary-title, .summary-preview`）に加える。概要欄の値のクラスは、改行を保って表示するため `.summary-preview` と同じく `white-space: pre-wrap` の規則にも加える（加えないと概要欄の改行が空白 1 つに潰れて表示される）。こうすると、値の中の制御文字によって、周囲のラベルやほかの値の表示順が変わらない（0007 §3.7、`extension/src/ui/render.ts:13-34`・`extension/static/style.css:31-36`）。送る前の確認の画面（ポップアップ）の偽装を防ぐためのセキュリティの要件である。
 -   値は `textContent` だけで設定し、HTML として解釈しない（要件書 §4.2・AC-14、0007 F-006）。
 -   存在する値だけを表示する。`values` にないフィールドの行は作らない。
@@ -579,7 +579,7 @@ export const expandPromptMessage: Message;
 |---|---|---|
 | `core/messages.ts` | `Message` を加え、`RejectionMessage` をその別名にする。`expandPromptMessage` を加える。振る舞いは変えない | `messages.test.ts`（振る舞いは同じ。型の一般化だけ） |
 | `core/collect.ts` | `whitespaceOnly` を export する（`metadata.ts` が空白のみの判定に再利用する。3.2）。振る舞いは変えない | `collect.test.ts`（既存は同じ） |
-| `core/summary.ts` | `truncate` を export する。振る舞いは変えない | `summary.test.ts`（既存は同じ） |
+| `core/summary.ts` | 表示の切り詰めに既存の切り詰めの処理を再利用できるようにする。振る舞いは変えない | `summary.test.ts`（既存は同じ） |
 | `ui/render.ts` | `messageNodes` の引数の型を `Message` にする。`renderMetadata` を加える | `render.test.ts`（既存は同じ）、`renderMetadata.test.ts`（新規） |
 | `static/style.css` | メタデータの値の `unicode-bidi: plaintext` の規則を加える（3.6） | なし（手動の確認。7.2） |
 | `browser/chromeDeps.ts` | `ScriptingApi` を総称型にする。`readPageMetadata`・`createMetadataReader` を加える（`MetadataReader` の型は `launch.ts` が持つ。3.3） | `chromeDeps.test.ts` |
@@ -624,7 +624,7 @@ export const expandPromptMessage: Message;
 | `extension/src/core/metadata.ts` | 新規 | `PageMetadata`・`VideoMetadata`・`MetadataField`・`OmissionReason`・`MetadataOmission`・`MetadataResult`・`parsePageMetadata`・`acceptMetadata`・`readFailureResult`・`emptyMetadataResult`（3.2） |
 | `extension/src/core/messages.ts` | 変更 | `Message` を加え、`RejectionMessage` をその別名にする。`expandPromptMessage` を加える（3.6・3.8） |
 | `extension/src/core/collect.ts` | 変更 | 空白のみの判定に再利用する `whitespaceOnly` を export する（振る舞いは変えない。3.8） |
-| `extension/src/core/summary.ts` | 変更 | 表示の切り詰めに再利用する `truncate` を export する（振る舞いは変えない。3.6） |
+| `extension/src/core/summary.ts` | 変更 | 既存の切り詰めの処理を表示の切り詰めに再利用できるようにする（振る舞いは変えない。3.6） |
 | `extension/src/ui/render.ts` | 変更 | `messageNodes` の引数を `Message` にする。`renderMetadata` を加える（3.6） |
 | `extension/src/browser/chromeDeps.ts` | 変更 | `ScriptingApi` を総称型にする。`readPageMetadata`・`createMetadataReader` を加える（3.3） |
 | `extension/src/launch.ts` | 変更 | `MetadataReader` を宣言する。`MenuLaunchDeps`・`PopupLaunchDeps` に `metadataReader` を加える。`PopupLaunchResult` と `readMetadata` を加える。`runMenuLaunch`・`runPopupLaunch`・`runPopupSend` を変更する（3.5） |
