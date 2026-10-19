@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"syscall"
 
 	"github.com/isseis/yt2column/internal/writer"
@@ -194,36 +193,4 @@ func syncDir(dir string) {
 	}
 	_ = d.Sync()
 	_ = d.Close()
-}
-
-// renderArticle returns the text SlackWebhookPublisher outputs for a; it ends
-// with the article body. It adds one model line pair per
-// step that ran, in order (shorten, then review); a nil step result contributes
-// no lines, so an article with no step output is rendered as before. It then
-// adds the article's estimated cost, rounded to four decimals, or the fixed
-// word "unknown" when the cost is not known.
-func renderArticle(a writer.Article) string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "# %s\n\n- Model: %s\n- Model version: %s\n", a.Title, a.Model, modelVersionOrNone(a.ModelVersion))
-	if a.Shorten != nil {
-		fmt.Fprintf(&b, "- Shorten model: %s\n- Shorten model version: %s\n", a.Shorten.Model, modelVersionOrNone(a.Shorten.ModelVersion))
-	}
-	if a.Review != nil {
-		fmt.Fprintf(&b, "- Review model: %s\n- Review model version: %s\n", a.Review.Model.Model, modelVersionOrNone(a.Review.Model.ModelVersion))
-	}
-	fmt.Fprintf(&b, "%s\n", articleCostLine(a.RunUsage))
-	fmt.Fprintf(&b, "\n%s", a.Body)
-	return b.String()
-}
-
-// articleCostLine returns the article-header cost line: the cost of the whole
-// article (the stages this run called plus the ones it reused) in US dollars
-// with four decimals, or "unknown" when that total is not known. It never
-// guesses a value, so an unpriced model or an unknown usage yields "unknown".
-func articleCostLine(runUsage writer.RunUsage) string {
-	amount, known := articleCost(runUsage)
-	if !known {
-		return "- Estimated cost: unknown"
-	}
-	return fmt.Sprintf("- Estimated cost: %s USD", amount.Format(articleCostDecimals))
 }

@@ -1016,7 +1016,7 @@ func executionPathRows() []pathRow {
 			name: "--slack preparation rejects a mention",
 			setup: func(t *testing.T, e *runEnv) {
 				e.useWebhook(t, nil)
-				e.respondWith("# A title\n\nPing @channel now.\n")
+				e.respondWith("# A title\n\nPing `@channel` now.\n")
 			},
 			wantCode:   exitFailure,
 			wantStderr: []string{"the publish stage failed", "the article was not posted and was discarded"},
@@ -1445,10 +1445,11 @@ func TestNewFilePublisherNilOnFailure(t *testing.T) {
 }
 
 // rejectedMention returns the error SlackMessageCount reports for an article
-// whose body holds a targeted at sign followed by "here".
+// whose body holds a targeted at sign followed by "here" inside a code span,
+// which the renderer does not neutralize.
 func rejectedMention(t *testing.T) error {
 	t.Helper()
-	article := writer.Article{Title: "t", Body: "x @here", Model: "m", ModelVersion: "v", SourceURL: runVideoURL}
+	article := writer.Article{Title: "t", Body: "x `@here`", Model: "m", ModelVersion: "v", SourceURL: runVideoURL}
 	_, err := publisher.SlackMessageCount(article)
 	if !errors.Is(err, publisher.ErrSlackMention) {
 		t.Fatalf("SlackMessageCount err = %v, want ErrSlackMention", err)
@@ -1540,7 +1541,7 @@ func TestRunSlackFailureHints(t *testing.T) {
 func TestRunSlackSummaryUnknownCount(t *testing.T) {
 	e := newRunEnv(t)
 	e.args = []string{"--slack", runVideoURL}
-	e.respondWith("# A title\n\nPing @channel now.\n")
+	e.respondWith("# A title\n\nPing `@channel` now.\n")
 	e.d.newSlackPublisher = func(secret.Secret) (publisher.Publisher, error) {
 		return &publishertestutil.FakePublisher{}, nil
 	}
