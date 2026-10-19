@@ -1,6 +1,7 @@
 // Verifies that dist/ holds only what the build is meant to produce: one .js
 // per src/ .ts file plus the static/ files, linked by relative static
-// imports, with the manifest and HTML references resolving inside dist/.
+// imports, with the manifest and HTML references resolving inside dist/ and
+// dist/manifest.json a byte-for-byte copy of static/manifest.json.
 // Without a bundler, dependency code can reach dist/ only as an extra file, a
 // symbolic link, or a non-relative module specifier, and all three fail here.
 // The reference check catches a mistyped manifest or HTML path before the
@@ -114,8 +115,8 @@ function htmlReferences(html: string): string[] {
 
 /**
  * References the manifest and HTML files make that must resolve inside dist/.
- * The manifest points at the service worker, the popup page and the options
- * page; an HTML page points at its scripts and stylesheets.
+ * The manifest points at the popup page and the options page; an HTML page
+ * points at its scripts and stylesheets.
  */
 function referenceViolations(root: string, actual: Set<string>): string[] {
   const violations: string[] = [];
@@ -123,12 +124,10 @@ function referenceViolations(root: string, actual: Set<string>): string[] {
     const manifest = JSON.parse(
       readFileSync(path.join(root, "dist", "manifest.json"), "utf8"),
     ) as {
-      background?: { service_worker?: unknown };
       action?: { default_popup?: unknown };
       options_ui?: { page?: unknown };
     };
     const entries: [string, unknown][] = [
-      ["background.service_worker", manifest.background?.service_worker],
       ["action.default_popup", manifest.action?.default_popup],
       ["options_ui.page", manifest.options_ui?.page],
     ];
@@ -159,6 +158,28 @@ function referenceViolations(root: string, actual: Set<string>): string[] {
     }
   }
   return violations;
+}
+
+/**
+ * Reports dist/manifest.json when its bytes differ from static/manifest.json,
+ * so the checks on the static manifest hold for the one the browser loads.
+ * Reports nothing unless both are regular files: the missing, not-built and
+ * not-a-regular-file checks already cover the other cases.
+ */
+function manifestCopyViolations(
+  root: string,
+  actual: Set<string>,
+  expected: Set<string>,
+): string[] {
+  if (!actual.has("manifest.json") || !expected.has("manifest.json")) {
+    return [];
+  }
+  const source = readFileSync(path.join(root, "static", "manifest.json"));
+  const copy = readFileSync(path.join(root, "dist", "manifest.json"));
+  if (source.equals(copy)) {
+    return [];
+  }
+  return ["dist/manifest.json: differs from static/manifest.json"];
 }
 
 /** Returns one message per problem found in root/dist; empty when dist/ is as expected. */
@@ -215,6 +236,7 @@ export function checkDist(root: string): string[] {
       }
     }
   }
+  violations.push(...manifestCopyViolations(root, actual, expected));
   violations.push(...referenceViolations(root, actual));
   return violations;
 }

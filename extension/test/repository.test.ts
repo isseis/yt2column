@@ -57,7 +57,7 @@ function jobSteps(job: string[]): string[] {
 describe("build outputs are ignored", () => {
   const paths = [
     "extension/node_modules/pkg/index.js",
-    "extension/dist/background.js",
+    "extension/dist/popup.js",
     // A key must never be committed; *.pem keeps a stray one out of git add.
     "key.pem",
     "extension/key.pem",
