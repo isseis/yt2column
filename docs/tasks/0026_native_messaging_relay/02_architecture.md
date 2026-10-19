@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Created | 2026-10-18 |
-| Review date | 2026-10-18 |
-| Reviewer | isseis |
-| Comments | - |
+| Review date | - |
+| Reviewer | - |
+| Comments | 2026-10-18 に承認した版（isseis）を、要件書の改定（`0027_remove_context_menu` の完了を前提に、送信をポップアップの経路だけにし、`contextMenus`・`storage` の権限を除く）に合わせて改めた。§3.7.1 で `storage` の権限と `onInstalled` による旧版の保存値の削除をやめ、§3.5.5 の時間の順序から service worker の 30 秒を外し、§3.10 から S-7 を外し、結果のウィンドウへ渡す値の検査（旧 §3.7.6 の `parseOutcome`）と `resultView.ts` の変更を削除した。拡張の lint の `chrome.storage.sync` の規則を、`chrome.storage` の参照を禁じる規則に置き換える（§3.8・§7.3）。§8 に、サーバを UDS に移す変更を 0027 の完了の後に始めることを加えた。判断の変更にあたるので `draft` に戻した。以前の承認の後の編集上の訂正（`03_implementation_plan.md` §1.3 が参照するもの。`a5c1df5` で `-` に置き換わっていたので復元した）: 編集上の訂正（2026-10-18。判断は変えていない）。`03_implementation_plan.md` の作成に合わせて、§3.12 の UDS のリスナーの補助の置き場所を `internal/server/test_helpers.go` からテスト専用の `internal/udstest` に改め（depguard の `internal/server` → `internal/serversock` の禁止が `internal/serversock/testutil` にも当たるため）、§8 のフェーズ 1 に拡張の 4 つの拒否の理由の削除を加えた（README の表と拡張の理由の集合の一致を保つため。フェーズの順序と最終の状態は変わらない）。編集上の訂正（2026-10-18。判断は変えていない）。レビューの指摘に従い、§3.12 の `internal/udstest` の行を責務だけに絞り、ビルドタグ・`/tmp` の下のディレクトリ・使うパッケージの一覧などの具体を [implementation_handoff.md](implementation_handoff.md) の I-01 と `03_implementation_plan.md`（§1.3「UDS のテストの補助」）に移した |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §3.11）を指す。I-NN は [implementation_handoff.md](implementation_handoff.md) の項目（対応は `03_implementation_plan.md`）を指す。既存のコードの行番号は、コミット `9e34229`（要件書の承認のコミット）で確かめたものである。
 
@@ -24,7 +24,7 @@
 -   **ホストのエラー:** ホストが返す固定のエラー `server_unavailable`・`server_timeout`・`protocol_error`・`message_too_large`（要件書 F-003）。
 -   **送信の結果:** 拡張が 1 回の送信について決める表示の分類（§3.7.4）。「受理」「拒否」「未送信」「結果不明」の 4 つに分かれる。
 -   **lastError:** 拡張が `chrome.runtime.sendNativeMessage` を呼んだ結果、ブラウザが `chrome.runtime.lastError` に設定する失敗。文字列の `message` だけを持つ。
--   **0007・0011・0020・0021・0025:** 要件書 §6 の用語集のとおり。「0011 §3.5.2」は 0011 の設計書（`docs/tasks/0011_localhost_server/02_architecture.md`）の節を指す。0020 も同様である。
+-   **0007・0011・0020・0021・0025・0027:** 要件書 §6 の用語集のとおり。「0011 §3.5.2」は 0011 の設計書（`docs/tasks/0011_localhost_server/02_architecture.md`）の節を指す。0020 も同様である。
 
 ## 1. 設計の全体像 (Design Overview)
 
@@ -122,7 +122,7 @@ flowchart LR
 
 ### 2.1. パッケージ構成
 
-矢印 A → B は「A が B を import する（拡張では、A が B のモジュールを読み込む）」ことを表す。本タスクに関係する主な import だけを示し、変更する拡張のモジュールのうち `launch.ts`・`sendMessages.ts`・`resultView.ts`・`ui/renderSend.ts` は省く（§3.12）。削除するパッケージとモジュールには `problem` の色を使う。
+矢印 A → B は「A が B を import する（拡張では、A が B のモジュールを読み込む）」ことを表す。本タスクに関係する主な import だけを示し、変更する拡張のモジュールのうち `launch.ts`・`sendMessages.ts`・`ui/renderSend.ts` は省く（§3.12）。拡張の構成は、0027 の後（ポップアップの経路だけ。service worker と結果のウィンドウがない）を前提とする。削除するパッケージとモジュールには `problem` の色を使う。
 
 ```mermaid
 flowchart LR
@@ -624,13 +624,13 @@ type errorReply struct {
 | サーバの応答の上限 | 64 KiB | 要件書 F-003 |
 | 接続の時間の上限 | 2 秒 | UDS の接続は、待ち受けがあれば即座に成り、なければ即座に失敗する。上限は、待ち行列の詰まりなどの異常に備えるだけである |
 | 中継の時間の上限 | 20 秒 | stdin の長さを読んだ後から、サーバの応答を読み終えるまで。接続の時間を含む |
-| 拡張の待ち時間の上限 | 25 秒 | 既存の `sendTimeoutMs`（`extension/src/send.ts:12`）を流用する。ホストの 20 秒より長く、service worker が停止されうる 30 秒より短い（0020 §3.5 の理由） |
+| 拡張の待ち時間の上限 | 25 秒 | 既存の `sendTimeoutMs`（`extension/src/send.ts:12`）を流用する。ホストの 20 秒より長い。0020 §3.5 は、30 秒より短くする理由に、メニューの経路の service worker が停止されうることを挙げていたが、0027 で service worker がなくなったので当てはまらない。値は 0027 でも本タスクでも変えない（0027 要件書 §2.3） |
 
 -   **ホストのリクエストの上限（H-08）:** 要件書 F-003 は、この値を「サーバの上限（4 MiB）より大きく、ブラウザがホストへ送れる 1 メッセージの上限以下」とする。拡張は `JSON.stringify` の UTF-8 のバイト数で 4 MiB を測る（`extension/src/core/prepare.ts:46-47`）が、ホストに届くのはブラウザが直列化したバイト列である。§3.10 の S-3 で、Chrome と Brave のどちらも、ブラウザが直列化したバイト列が `JSON.stringify` の結果と 1 バイトも違わないことを確かめた（`<`・`>`・`&`・U+2028・U+2029 をエスケープしない。制御文字は `\u00XX`、孤立したサロゲートは `\ud800` の形）。このため、拡張の検査を通った本文は、ホストに 4 MiB 以下で届く。上限の 32 MiB は、作成時に見積もった最悪の場合（1 バイトの文字が 6 バイトに増え、4 MiB × 6 = 24 MiB になる）を上回るように決めた値で、実測では余裕がさらに大きい。これにより、拡張の検査を通った本文が `message_too_large`（未送信）になることはなく、サーバの `body_too_large`（拒否）として一貫して表示される。ブラウザがホストへ送れる上限は 64 MiB で（S-4）、32 MiB を上回る。
 -   **ホストは本文を貯めない:** 本文は stdin からサーバへ流し込むか、読まずに残すので、ホストのメモリに 32 MiB を持たない。`message_too_large` の判定は長さの 4 バイトだけで行い、本文を解釈しない（AC-16「全体をメモリに読み込まずに」）。ホストの上限以下でサーバの上限を超える本文は、サーバが `Content-Length` だけで `body_too_large` と判定し、`Expect: 100-continue` により本文はホストから送られない（§3.4）。
 -   **中継の 20 秒の内訳:** サーバの応答は本文の検証が終わり次第返る。4 MiB の入力の解析は、`-race` 付きのビルドで約 3.2 秒と測定されている（0020 §3.5 の引用）。ホストの 20 秒は通常の応答より十分に長い。サーバの `ReadTimeout`（30 秒）より短いので、サーバが極端に遅い場合はホストが先に `server_timeout`（結果不明）を返す。この場合でも、サーバが受理していればジョブは続く。
--   **時間の順序:** ホストの 20 秒 < 拡張の 25 秒 < service worker の 30 秒、の順序を保つ。§3.9 の同期のテストで、Go の中継の時間の上限が `send.ts` の `sendTimeoutMs` より短いことを確かめる。
--   **ブラウザがホストを止める場合:** ポップアップを送信中に閉じると、ブラウザはホストの stdin を閉じ、約 2 秒後にホストを終了させる。SIGTERM は送らず、捕まえられないシグナルで終了させる（§3.10 の S-5）。本文の流し込みの途中なら、stdin が長さに届く前に EOF になり、HTTP のリクエストは不完全なまま切れる。受付応答の前なら、サーバは本文の読み込みの失敗として応答も通知もせず、ジョブを始めない。受付応答の後なら、ジョブは続く。どちらの場合も利用者は結果を見られないが、これは現行の `fetch` による送信の途中でポップアップを閉じた場合の振る舞いと同じ種類である。ホストはシグナルを扱う処理を持たない。
+-   **時間の順序:** ホストの 20 秒 < 拡張の 25 秒、の順序を保つ。§3.9 の同期のテストで、Go の中継の時間の上限が `send.ts` の `sendTimeoutMs` より短いことを確かめる。
+-   **ブラウザがホストを止める場合:** ポップアップを送信中に閉じると、ブラウザはホストの stdin を閉じ、約 2 秒後にホストを終了させる。SIGTERM は送らず、捕まえられないシグナルで終了させる（§3.10 の S-5）。本文の流し込みの途中なら、stdin が長さに届く前に EOF になり、HTTP のリクエストは不完全なまま切れる。受付応答の前なら、サーバは本文の読み込みの失敗として応答も通知もせず、ジョブを始めない。受付応答の後なら、ジョブは続く。どちらの場合も利用者は結果を見られないが、これは現行の `fetch` による送信の途中でポップアップを閉じた場合の振る舞いと同じ種類である。0027 の後は、結果を別の経路（結果のウィンドウ）で見る手段もない。ポップアップの送信中の表示は、閉じないことと、閉じた場合は送り直す前に Slack を確かめることを案内する（0027 AC-08）。ホストはシグナルを扱う処理を持たない。
 
 #### 3.5.6. 標準出力と標準エラー出力（AC-17）
 
@@ -710,13 +710,16 @@ func Uninstall(home string, browser Browser) (path string, removed bool, err err
 
 ```json
 {
-  "permissions": ["activeTab", "contextMenus", "scripting", "storage", "nativeMessaging"]
+  "permissions": ["activeTab", "scripting", "nativeMessaging"]
 }
 ```
 
--   `host_permissions` と `options_ui` を削除する（AC-22）。`storage` は `chrome.storage.session`（結果のウィンドウへの受け渡し）のために残す。
+-   `host_permissions` と `options_ui` を削除する（AC-22）。`storage` の権限も削除する。0027 の後、`chrome.storage` を使うのはトークンとポートの保存（`chrome.storage.local`）だけで、本タスクがそれを削除するためである。拡張は `chrome.storage` を参照しない。
 -   `minimum_chrome_version` は `"103"` のまま上げない（要件書 4.4）。`chrome.runtime.sendNativeMessage` のコールバックの形は Chrome 103 より前から使える。0020 で 103 にした理由の `AbortSignal.timeout` は、本設計では待ち時間の上限を `setTimeout` で実装するので使わなくなる（§3.7.2）。版を下げることもしない（下げる要件がない）。
--   **旧版の保存値の削除:** 0020 の版が `chrome.storage.local` に保存した共有トークンとポート（キー `sharedToken`・`serverPort`、`extension/src/browser/chromeDeps.ts:104-105`）は、拡張を更新しても残る。`background.ts` の `chrome.runtime.onInstalled` で、2 つのキーを `chrome.storage.local.remove` で削除する（読まない・書かない。削除だけを行う）。新規のインストールでは何もない。
+-   **旧版の保存値は削除しない:** 0020 の版が `chrome.storage.local` に保存した共有トークンとポート（キー `sharedToken`・`serverPort`）は、拡張を更新しても残りうる。拡張はこれらを削除する処理を持たない。
+    -   削除の処理を置く場所がない。0027 で service worker がなくなったので、`chrome.runtime.onInstalled` を受け取れない。ポップアップを開くたびに削除する形にすると、1 回の削除のために `storage` の権限を持ち続けることになる。
+    -   残しても害がない。新しいサーバはトークンを読まないので、残った値が通用する相手はない。値はプロファイルのディレクトリにあり、読めるのは同一ユーザーのプロセスだけで、0020 の版のときと同じ信頼の範囲である（要件書 4.2）。
+    -   消したい利用者のために、README の古い版からの更新の手順に、`chrome://extensions/` で拡張を一度削除してから読み込み直せば保存値も消えることを書く（§3.9）。拡張 ID は manifest の `key` で決まるので、読み込み直しても ID は変わらず、ホストの manifest を install し直す必要はない。
 -   削除するファイル: `extension/static/options.html`・`extension/src/options.ts`・`extension/src/optionsPage.ts`・`extension/src/core/settings.ts`。
 
 #### 3.7.2. 送る前の確認と送信
@@ -797,7 +800,7 @@ export function sendArticle(request: PreparedRequest, deps: SendDeps): Promise<S
 -   **送信（AC-24）:** `sendArticle` は `deps.sendNative` を 1 回だけ呼ぶ。`chromeDeps.ts` の実装は、コールバックの形の `chrome.runtime.sendNativeMessage(nativeHostName, message, callback)` を呼び、コールバックの中で `chrome.runtime.lastError` を読む。`lastError` があれば `{ kind: "failed", lastError: lastError.message }`、なければ `{ kind: "message", value }` を返す。`sendNativeMessage` の呼び出しそのものが同期に例外を投げた場合も、捕まえて `{ kind: "failed", lastError: <例外の文字列> }` を返す（"Never rejects" を保つ）。64 MiB を超えるメッセージでは、ブラウザは lastError ではなく同期の `TypeError` を投げ、コールバックを呼ばない（§3.10 の S-4）。拡張は 4 MiB を超える本文を送らないので通常は起きないが、捕まえなければ Promise が決まらず、待ち時間の上限まで待つことになる。ブラウザが送信先にするのは固定のホスト名だけで、ホスト名を引数に取らない（AC-29）。
 -   **待ち時間の上限:** `sendArticle` は、`deps.schedule(sendTimeoutMs, ...)` で 25 秒の上限を設け、先に来た方を結果とする。上限が先なら `timed-out` とする。ホストは 20 秒で必ず応答して終了するので（§3.5.5）、上限は、ホストやブラウザが応答も lastError も返さない異常に備えるだけである。
 -   **接続を開いたままにしない（AC-24）:** `connectNative` のような持続する接続を使わない。`sendNativeMessage` は 1 回の起動で 1 メッセージを送り、最初の応答で接続を閉じる。
--   **ポップアップとメニューの経路:** 両方の経路が同じ `prepareSend` と `sendArticle` を使う（既存の構成、`extension/src/launch.ts:181`・`:211`・`:277`・`:302`）。
+-   **ポップアップの経路:** 0027 の後に残るポップアップの経路（`launch.ts` の `runPopupSend`）が `prepareSend` と `sendArticle` を使う（既存の構成）。拡張から送信を始める入口は、ポップアップの送信のボタンだけである（0027 AC-05a）。
 
 #### 3.7.3. 応答の検査（AC-26〜AC-28）
 
@@ -824,7 +827,7 @@ export function sendArticle(request: PreparedRequest, deps: SendDeps): Promise<S
 /** Why a request is known not to have reached the server. */
 export type NotSentCause = "server-unavailable" | "message-too-large";
 
-/** Which check an unexpected reply failed; for the developer log and the stored view. */
+/** Which check an unexpected reply failed; for the developer log. */
 export type UnexpectedCheck =
   | "extension-timeout"   // the 25-second bound passed with no reply and no lastError
   | "envelope-shape"
@@ -840,7 +843,7 @@ export type UnexpectedCheck =
   | "status-pairing"
   | "classification-error";
 
-/** A send result as displayed and stored. "unknown" and "redirected" are removed. */
+/** A send result as displayed. "unknown" and "redirected" are removed. */
 export type SendOutcome =
   | { readonly kind: "accepted"; readonly requestId: RequestId }
   | { readonly kind: "rejected"; readonly reason: ServerRejectReason; readonly requestId: RequestId }
@@ -878,7 +881,7 @@ export function classifyResponse(
 | `host-failed` | 結果不明 | ホストを起動できなかったか、応答の前に終了した。多くの場合、ホストがインストールされていないか、バイナリが移動されている（`yt2column-nmhost install <browser>` を実行する。移動したら install し直す）。送信済みの可能性もある | 再送する前に Slack を確かめる |
 | `unexpected` | 結果不明 | 応答を解釈できなかった。ジョブが走っている可能性がある。ホストとサーバと拡張の版が揃っているか（ホストの install し直し）を確かめる | 再送する前に Slack を確かめる |
 
--   文言は、既存の `sendOutcomeMessage` の網羅的な `switch`（`extension/src/core/sendMessages.ts:162-201`）に置く。`NotSentCause` と `UnexpectedCheck` の分岐も網羅的な `switch` で書き、値を加えて文言を書き忘れると型検査が失敗する（要件書 4.5）。`unexpected` の文言は 1 つで、`check` は表示を変えない（開発者向けのログと保存した値にだけ使う）。
+-   文言は、既存の `sendOutcomeMessage` の網羅的な `switch`（`extension/src/core/sendMessages.ts:162-201`）に置く。`NotSentCause` と `UnexpectedCheck` の分岐も網羅的な `switch` で書き、値を加えて文言を書き忘れると型検査が失敗する（要件書 4.5）。`unexpected` の文言は 1 つで、`check` は表示を変えない（開発者向けのログにだけ使う）。
 -   削除する文言: `blockMessage` の `settings-unreadable`・`token-missing`・`token-invalid`・`port-invalid`（`sendMessages.ts:18-51`）、`serverRejectMessage` の削除する 6 つの理由、`sendOutcomeMessage` の `unknown`・`redirected`。どの文言も、オプションページ・トークン・ポートに触れなくなる（AC-23）。
 -   `requestId` の表示（AC-28）は既存の表示（`extension/src/ui/renderSend.ts:32-36`）を変えない。`unexpected` の状態コードの表示（`renderSend.ts:37-42` の `send-status`）は削除する。ホストの段階の想定外の応答には状態コードがなく、利用者の行動を変えない値だからである。状態コードは `SendResult` に残し、開発者向けのログにだけ出す。
 
@@ -896,10 +899,10 @@ export function classifyResponse(
 
 **更新が必要な既存のテスト:** なし（新しい振る舞い）。`extension/test/send.test.ts` の「結果が分からない」の行（`fetch` の拒否）は、送信の仕組みの置き換え（§3.8）で書き直す。
 
-#### 3.7.6. 開発者向けのログと保存する値
+#### 3.7.6. 開発者向けのログ
 
--   `logSend`（`extension/src/launch.ts:135-153`）の `port` を削除し、`host: nativeHostName` を記録する。`SendResult` の `unexpected` は状態コードを、`host-failed` は lastError の文字列を持ち（本文の文字列は含めない）、ログにだけ出す。`toSendOutcome` が表示と保存の前にこれらを落とす（既存の `unknown` の `cause` の扱いと同じ）。
--   結果のウィンドウへ渡す値の検査（`extension/src/core/resultView.ts:58-121` の `parseOutcome`）を、新しい `SendOutcome` の 6 つの形に合わせる。`not-sent` の `cause` と `unexpected` の `check` は、宣言した値の集合（`Record` の実行時の集合）に含まれるものだけを受理する。
+-   `logSend`（`extension/src/launch.ts:135-153`）の `port` を削除し、`host: nativeHostName` を記録する。`SendResult` の `unexpected` は状態コードを、`host-failed` は lastError の文字列を持ち（本文の文字列は含めない）、ログにだけ出す。`toSendOutcome` が表示の前にこれらを落とす（既存の `unknown` の `cause` の扱いと同じ）。
+-   送信の結果を保存して別の画面へ渡す処理はない。0027 で、結果のウィンドウと、そこへ値を渡す `chrome.storage.session` と、その値の検査（`parseResultView`）が削除されるためである。
 
 ### 3.8. 既存の設計からの変更と、更新するテスト
 
@@ -914,9 +917,10 @@ export function classifyResponse(
 | 起動のたびにトークンを標準出力に表示する（0021、`cmd/yt2column-server/run.go:161-185`） | 標準出力に何も書かない（§3.3.2） | 要件書 F-001・AC-05 | `cmd/yt2column-server/run_test.go:232` `TestDisplayFailureKeepsServing`・`:303` `TestTokenShownOnEveryStart`・`:361` `TestClosedStdoutPipeKeepsServing`（削除）、`:44` `TestStartupFailures`（トークンのファイルの行をソケットのディレクトリの行に置き換える）、`:409` `TestOutputsOmitSecrets`・`:512` `TestRunLogsListeningAndStop`（`stdout` の引数とトークンを除き、ソケットのパスのログを確かめる）、`cmd/yt2column-server/server_test.go:27` `TestServerEndToEnd`（UDS とトークンなしの形に書き直す） |
 | ログに `remoteAddr` を記録する（0011 §3.10、`internal/server/handler.go:111`・`:118`） | 記録しない（§3.3.1） | UDS では相手のアドレスが識別の役に立たない | ログの属性を確かめるテストがあれば属性の一覧から除く（`internal/server/handler_test.go` の拒否のログの確認） |
 | 拡張は `fetch` で `http://127.0.0.1:<port>/articles` へ送る（0020 §3.5、`extension/src/send.ts:98-141`） | `sendNativeMessage` で固定のホスト名へ送る（§3.7.2） | 要件書 F-004 | `extension/test/send.test.ts`（書き直す）、`extension/test/helpers/fetch.ts`（削除し、`sendNative` の fake に置き換える）、`extension/test/launch.test.ts`（`SendDeps` と `settings` を使う harness）、`extension/test/chromeDeps.test.ts`（`createSendDeps`・`createSettingsStore`） |
-| 共有トークンとポートを `chrome.storage.local` に保存し、オプションページで設定する（0020 §3.3・§3.10） | 削除する（§3.7.1・§3.7.2） | 要件書 F-004・AC-23 | `extension/test/settings.test.ts`・`extension/test/optionsPage.test.ts`・`extension/test/helpers/settings.ts`（削除）、`extension/test/prepare.test.ts`（設定の行を削除）、`extension/test/checkDist.test.ts:135-157`（`options_ui.page` の参照の確認を削除）、`extension/scripts/check-dist.ts:117-133`、`extension/test/lintRules.test.ts`（`SharedToken`・`ServerPort` の型の表明の禁止の行を削除。`storage.sync` の禁止は残す） |
-| `host_permissions: ["http://127.0.0.1/*"]` と `options_ui` を宣言する（0020 §3.1） | 削除し、`nativeMessaging` を加える（§3.7.1） | 要件書 F-004・AC-22 | `extension/test/manifest.test.ts:28-50`（権限とキーの集合）、`cmd/yt2column/extension_docs_test.go:86-110`（`TestExtensionDocumentation` の権限のサブテスト。manifest に追随するので変更は不要で、security.md §8.1 の一覧を改める）と `:168` `TestExtensionSendDocumentation`（§3.9 の表） |
-| 送れなかった場合を区別せず「結果が分からない」にまとめる（0020 §3.5 H-02） | 未送信と結果不明を分ける（§3.5.3・§3.7.4） | 要件書 F-004。Native Messaging では接続の前後で失敗を区別できる | `extension/test/send.test.ts`・`extension/test/sendMessages.test.ts`・`extension/test/resultView.test.ts`（`unknown`・`redirected` の行を、新しい形の行に置き換える） |
+| 共有トークンとポートを `chrome.storage.local` に保存し、オプションページで設定する（0020 §3.3・§3.10） | 削除する（§3.7.1・§3.7.2） | 要件書 F-004・AC-23 | `extension/test/settings.test.ts`・`extension/test/optionsPage.test.ts`・`extension/test/helpers/settings.ts`（削除）、`extension/test/prepare.test.ts`（設定の行を削除）、`extension/test/checkDist.test.ts:135-157`（`options_ui.page` の参照の確認を削除）、`extension/scripts/check-dist.ts:117-133`、`extension/test/lintRules.test.ts`（`SharedToken`・`ServerPort` の型の表明の禁止の行を削除する。`chrome.storage.sync` の禁止の行は次の行のとおり置き換える） |
+| `host_permissions: ["http://127.0.0.1/*"]` と `options_ui` を宣言し、`storage` の権限を要求する（0020 §3.1。0027 の後は `chrome.storage.local` の設定のためだけ） | 削除し、`nativeMessaging` を加える（§3.7.1） | 要件書 F-004・AC-22 | `extension/test/manifest.test.ts:28-50`（権限とキーの集合）、`cmd/yt2column/extension_docs_test.go:86-110`（`TestExtensionDocumentation` の権限のサブテスト。manifest に追随するので変更は不要で、security.md §8.1 の一覧を改める）と `:168` `TestExtensionSendDocumentation`（§3.9 の表） |
+| 拡張の lint で `chrome.storage.sync` を禁じる（トークンをブラウザの外へ同期しないため。`extension/eslint.config.js:21-25`） | `chrome.storage` の参照そのもの（どの領域も）を禁じる規則に置き換える（§3.7.1・§7.3） | 拡張は `storage` の権限を持たず、`chrome.storage` を参照しない（AC-23）。権限がなければ実行時に `chrome.storage` はないが、型の宣言にはあるので `tsc` は参照を通す。規則で参照を禁じ、権限の削除と食い違うコードを lint で検出する | `extension/test/lintRules.test.ts`（`storage.sync` の `describe` と、作成の関数のファイルの共通の規則の `storage.sync` の行を、`chrome.storage` の参照の禁止に改め、`chrome.storage.local` を許す行を削除する） |
+| 送れなかった場合を区別せず「結果が分からない」にまとめる（0020 §3.5 H-02） | 未送信と結果不明を分ける（§3.5.3・§3.7.4） | 要件書 F-004。Native Messaging では接続の前後で失敗を区別できる | `extension/test/send.test.ts`・`extension/test/sendMessages.test.ts`（`unknown`・`redirected` の行を、新しい形の行に置き換える） |
 | 拒否の理由は 12 個（0011 §3.4.3、`internal/server/response.go:19-32`） | 8 個（サーバ）、拡張の表示は 6 個（§3.3.1・§3.7.3） | 要件書 F-002・AC-12 | `internal/server/response_test.go`、`extension/test/serverReasons.test.ts`（README の表と照合する。README の表を改める）、`extension/test/response.test.ts` |
 | 環境変数を読める場所は `cmd/yt2column/main.go` と `cmd/yt2column-server/main.go` と `internal/transcript/ytdlp.go`（`internal/config/envaccess_test.go:65-69`） | `cmd/yt2column-nmhost/main.go` を加える | ホストが `HOME` を読むため | `internal/config/envaccess_test.go:65-69`（表に 1 行を加える） |
 
@@ -925,9 +929,9 @@ export function classifyResponse(
 | 文書 | 変更 |
 |---|---|
 | `docs/dev/security.md` §8 | 冒頭の方針を、「loopback と共有トークン」から「UDS と Native Messaging」に書き換える。相手ごとの排除の根拠（他ユーザー・ウェブページ・サンドボックス化された Agent）と、同一ユーザーのフル権限プロセスを信頼することを書く（AC-31） |
-| `docs/dev/security.md` §8.1 | 「**要求する権限**」の一覧を `activeTab`・`contextMenus`・`scripting`・`storage`・`nativeMessaging` にする。`host_permissions` とトークンの保存先の項目を削除し、`allowed_origins` と固定のホスト名、ホストの応答を信頼できない入力として検査することを書く |
+| `docs/dev/security.md` §8.1 | 「**要求する権限**」の一覧を `activeTab`・`scripting`・`nativeMessaging` にする。`host_permissions` とトークンの保存先の項目を削除し、`allowed_origins` と固定のホスト名、ホストの応答を信頼できない入力として検査することを書く。拡張が `chrome.storage` を使わないこと、旧版が `chrome.storage.local` に保存したトークンとポートが残りうるが通用する相手がないこと（§3.7.1）を書く |
 | `docs/dev/security.md` §8.2 | 見出しを「### 8.2. localhost サーバ（#109）」のまま保ち（ガードの見出し）、bind・ヘッダの検査・トークンのファイルの項目を、ソケットのディレクトリ・起動のロック・stale の判定に書き換える。ホストの項目（標準出力が通信路であること、ログは標準エラー出力だけ、秘密を読まない、上限）を加える。残余リスク（§5.4）を書く |
-| `README.md` | 「## Localhost server」の節からポートとトークンの記述を削除し、ソケットのパス、起動、ホストの install/uninstall（Chrome・Brave）、バイナリを移動したら install し直すこと、TCC で保護されたフォルダの外に置くこと、トラブルシューティング（ホストが見つからない、サーバが起動していない、ホストのログをターミナルから起動したブラウザで見る手順）、`curl --unix-socket "<パス>" ... http://localhost/articles` の例（パスを二重引用符で囲む）を書く。拒否の理由の表を §3.3.1 の 8 行にし、「拡張の表示」の列を加える。古い版からの更新の手順（古いサーバを止める。不要になったトークンのファイル `server-token` は削除してよい）を書く。トークンの節（`### The shared token`）を削除する（AC-32） |
+| `README.md` | 「## Localhost server」の節からポートとトークンの記述を削除し、ソケットのパス、起動、ホストの install/uninstall（Chrome・Brave）、バイナリを移動したら install し直すこと、TCC で保護されたフォルダの外に置くこと、トラブルシューティング（ホストが見つからない、サーバが起動していない、ホストのログをターミナルから起動したブラウザで見る手順）、`curl --unix-socket "<パス>" ... http://localhost/articles` の例（パスを二重引用符で囲む）を書く。拒否の理由の表を §3.3.1 の 8 行にし、「拡張の表示」の列を加える。古い版からの更新の手順（古いサーバを止める。不要になったトークンのファイル `server-token` は削除してよい。旧版の拡張が保存したトークンを消したい場合は、`chrome://extensions/` で拡張を一度削除してから読み込み直す。§3.7.1）を書く。トークンの節（`### The shared token`）を削除する（AC-32） |
 | `docs/dev/project_overview.md` | 実行形式の記述（HTTP で受け取る → Native Messaging のホストを通して UDS で受け取る。ホストの manifest は `yt2column-nmhost install <browser>`・`uninstall <browser>` で登録・削除する）、ディレクトリ構成（`internal/authtoken` を削除し、`cmd/yt2column-nmhost`・`internal/nmhost`・`internal/serversock` を加える）（AC-33） |
 | `docs/dev/developer_guide/package_reference.md` | `cmd/yt2column-server`・`internal/server`・`internal/config` の行を改め、`internal/authtoken` の行を削除し、`cmd/yt2column-nmhost`・`internal/nmhost`・`internal/serversock` の行を加える。`internal/cachelock` の行に、サーバの起動のロックにも使うことを加える（AC-33） |
 | `CLAUDE.md` | Architecture Overview の localhost サーバの記述（`internal/authtoken` → `internal/serversock`・`internal/nmhost`、HTTP → UDS と Native Messaging）、Build Commands（`make build` が 3 つのバイナリを作る。ホストの登録と削除の `yt2column-nmhost install|uninstall <browser>`）（AC-33） |
@@ -952,9 +956,9 @@ export function classifyResponse(
 | テスト（行） | 現在の確認 | 改めた後の確認 |
 |---|---|---|
 | `TestExtensionDocumentation` の権限のサブテスト（`:86-110`） | manifest の `permissions` と security.md §8.1 の一覧の一致 | 変えない（manifest に合わせて自動で追随する。§8.1 の一覧に `nativeMessaging` を書く） |
-| `TestExtensionSendDocumentation` の README のサブテスト（`:173-195`） | `shared token`・`Options`・`Site access`・`127.0.0.1` などを含む | `shared token`・`Options`・`Site access`・`127.0.0.1` の代わりに `yt2column-nmhost install` とホストが見つからない場合の案内を含む。`Context menu`・`Toolbar icon`・`check Slack`・`requestId` は残す |
+| `TestExtensionSendDocumentation` の README のサブテスト（`:173-195`） | `shared token`・`Options`・`Site access`・`127.0.0.1` などを含む | `shared token`・`Options`・`Site access`・`127.0.0.1` の代わりに `yt2column-nmhost install` とホストが見つからない場合の案内を含む。0027 の後に残る語句（`check Slack`・`requestId` など）の確認は残す |
 | `TestExtensionSendDocumentation` のトークンの節のサブテスト（`:197-204`） | `### The shared token` の節がある | 削除する。代わりに、トークンを貼り付ける手順（`shared token`・`Options` の語）が README と security.md に残っていないことを確かめる |
-| `TestExtensionSendDocumentation` の security.md のサブテスト（`:207-247`） | §8 の冒頭が `タイトルは送らない` を含み、§8.1 が `chrome.storage.local`・`開発者向けのログ`・`API キー`・`Webhook URL`・`再送しない`・`本文の文字列` を含む。§8.2 の見出しを読む | 変えない。§8.1 は、拡張が `chrome.storage.local` に何も保存せず、旧版のキーを `onInstalled` で削除することを書くので、この語は自然に残る。他の語の項目も残し、§8.2 の見出しも変えない |
+| `TestExtensionSendDocumentation` の security.md のサブテスト（`:207-247`） | §8 の冒頭が `タイトルは送らない` を含み、§8.1 が `chrome.storage.local`・`開発者向けのログ`・`API キー`・`Webhook URL`・`再送しない`・`本文の文字列` を含む。§8.2 の見出しを読む | 変えない。§8.1 は、拡張が `chrome.storage` を使わず、旧版が `chrome.storage.local` に保存した値が残りうることを書くので、この語は残る。他の語の項目も残し、§8.2 の見出しも変えない |
 | （新規）同期のテスト | - | `nmhost.ExtensionOrigin` が manifest の `key` から導出した拡張 ID（既存の `extensionIDFromManifestKey`）のオリジンと一致すること。`extension/src/core/native.ts` の `nativeHostName`・`hostReplyVersion`・`hostReplyKinds`・`hostErrorValues` の宣言の行の値が、`nmhost` の定数と一致すること。`extension/src/send.ts` の `sendTimeoutMs` が `nmhost` の中継の時間の上限より大きいこと（要件書 F-003「`allowed_origins` は拡張の manifest の `key` から導出した ID と一致する」、§3.5.4・§3.5.5） |
 
 -   `extension/test/serverReasons.test.ts` は、README の表のうち「拡張の表示」の列が固定の文言である行だけを `serverRejectStatus` と照合するように改める（§3.3.1）。`extension/test/manifest.test.ts` は、権限とキーの集合と、security.md §8.1 の記述の確認を改める（CLAUDE.md の「README.md と security.md の変更は `make ext-test` を要する」のとおり）。
@@ -972,9 +976,9 @@ export function classifyResponse(
 | S-4 | 拡張からホストへの 1 メッセージの上限（64 MiB）と、ホストから拡張への上限（1 MiB） | §3.5.4・§3.5.5 | 32 MiB を下回れば、ホストの上限を改める |
 | S-5 | 送信中にポップアップを閉じた場合に、ブラウザがホストを終了させるか、その時期 | §3.5.5 | ジョブを失う場合が増えるなら、§5.4 に書き足す |
 | S-6 | Brave が `BraveSoftware/Brave-Browser/NativeMessagingHosts` の manifest を読むこと。Chrome の置き場所の manifest を読むかどうか | §2.2・§3.6 | 置き場所の表を改める |
-| S-7 | メニューの経路（service worker）で、`sendNativeMessage` の応答を拡張の上限の 25 秒まで待っても service worker が止まらず、その後に結果を保存できること | §3.5.5 | 止まる場合は、待ち時間の上限を見直す |
 | S-8 | ホストが stdin を読み終える前に応答を書いて終了した場合（1 MiB 以上の未読）に、拡張が応答を受け取るか、`Error when communicating with the native messaging host.` になるか。当初の設計（stdin をメッセージの長さまで読み捨ててから応答する）の場合に、応答を確実に受け取ること | §3.5.2 | 読み捨てでも応答を受け取れない場合は、未送信・拒否の分類を見直す |
 
+-   S-7（メニューの経路の service worker が、`sendNativeMessage` の応答を 25 秒まで待っても止まらないこと）は、2026-10-18 に確かめたが、0027 でメニューの経路と service worker を削除したので本設計の前提ではなくなり、表から外した。番号は詰めない。
 -   S-2 で使う manifest を、TCC で保護されたフォルダ（`~/Documents`・`~/Desktop`・`~/Downloads` など）の中のバイナリに向けると、起動が失敗しうる。README には、ホストのバイナリをこれらの外に置くよう書く（H-07）。
 
 2026-10-18 に、macOS（Darwin 25.6.0、arm64）の Chrome 155.0.8059.40 と Brave 155.1.97.57 で確かめた。小さなホスト（Go。起動時の引数・`HOME`・環境変数の名前・受け取ったバイト列・シグナル・stdin の EOF・250 ms ごとの生存を記録する）と、ID を固定した小さな拡張を使った。ホストのバイナリは TCC で保護されたフォルダの外に置いた。
@@ -987,7 +991,6 @@ export function classifyResponse(
 | S-4 | 拡張からホストへは、JSON で 64 MiB（67,108,864 バイト）ちょうどまで届いた。64 MiB + 1 バイトでは、lastError ではなく、`sendNativeMessage` の呼び出しが同期に `TypeError`（`Message exceeded maximum allowed size of 64MiB.`）を投げた。コールバックは呼ばれず、ホストは起動しない。ホストから拡張へは、本文 1 MiB（1,048,576 バイト）ちょうどまで届いた。1 MiB + 1 バイトでは lastError `Error when communicating with the native messaging host.` になり、ホストの書き込みは `EPIPE` になった | Chrome と同じ |
 | S-5 | ブラウザがホストを終了させる。ポップアップを閉じると、ブラウザはホストの stdin を閉じ（EOF）、約 2 秒後に終了させた。SIGTERM は届かず、捕まえられないシグナル（SIGKILL と推定）で終了した。2 回とも同じ | Chrome と同じ（EOF の約 2 秒後に終了） |
 | S-6 | Chrome は `Google/Chrome/NativeMessagingHosts` を読み、`BraveSoftware/Brave-Browser/NativeMessagingHosts` を読まない | **前提と異なる。** Brave は `Google/Chrome/NativeMessagingHosts` の manifest でホストを起動し、`BraveSoftware/Brave-Browser/NativeMessagingHosts` だけに置いた manifest は `Specified native messaging host not found.` になった。Brave を完全に終了して起動し直しても同じ。ソースでの裏付けは §2.2。プライベートウィンドウで行ったが、上書きはプロセス全体に掛かるので結果に影響しない。`Google/Chrome` のディレクトリがない環境での振る舞いは実機では確かめていない（ソースでは Brave が起動時に作る）。この結果から、macOS の Brave の manifest を Chrome の置き場所に置くよう改めた（§2.2・§3.6） |
-| S-7 | 前提どおり。メニューの経路で、ポップアップを閉じたまま 25 秒・40 秒・70 秒の応答を待ち、どれも受け取れた。その後の `chrome.storage.local.set` と、もう 1 回の `sendNativeMessage` も成功した。service worker は途中で起動し直さなかった | Chrome と同じ |
 | S-8 | 前提どおり（読み捨てをした場合は 30 回のうち 30 回、応答を受け取った）。ただし、読み捨てをしない場合も、32 KiB〜32 MiB の 6 つの大きさで 5 回ずつ、30 回のうち 30 回、応答を受け取れた。`Error when communicating with the native messaging host.` は再現しなかった。この結果から、読み捨てを設計から外した（§3.5.2） | Chrome と同じ（読み捨てあり・なしとも 30 回のうち 30 回） |
 
 ### 3.11. design_handoff の各項目への対応
@@ -1000,7 +1003,7 @@ export function classifyResponse(
 | H-04: パスの長さと空白 | 長さの超過は `HOME` を名指す値のない `VarError` で起動を中止する（macOS では `HOME` は 49 バイトまで）。README の `curl` の例はパスを二重引用符で囲む | §2.2・§3.1・§3.9 |
 | H-05: 接続のエラーと固定のエラーの対応 | errno ではなく段階で選ぶ。接続の失敗は `EACCES` を含めてすべて `server_unavailable`（未送信）。要件のエラーの集合は変えない | §3.5.3 |
 | H-06: UDS 上のプロトコル | HTTP/1.1 を再利用する。`Host`・`Origin` の検査は削除する。`not_found`・`method_not_allowed` はサーバに残し、拡張では想定外の応答とする | §3.3.1・§3.4 |
-| H-07: 実機での確認 | S-1〜S-8 として列挙し、承認の前に確かめる。本書の作成時点では未実施。崩れた場合の扱いを表にした。README に TCC の注意を書く | §3.10 |
+| H-07: 実機での確認 | S-1〜S-8 として列挙し、承認の前に確かめる（2026-10-18 に実施。結果は §3.10 の表）。崩れた場合の扱いを表にした。S-7 は 0027 の後に前提から外した。README に TCC の注意を書く | §3.10 |
 | H-08: ホストのリクエストの上限と Chrome の直列化 | 32 MiB（最悪 6 倍の 24 MiB を上回り、Chrome の 64 MiB 以下）。ホストは `Content-Length` を付けて流し込み、サーバは `Content-Length` だけで `body_too_large` と判定する | §3.4・§3.5.5 |
 | H-09: ホストの応答の形と版 | `v`・`kind` を持つ 2 つの形。版 `1` 以外を想定外の応答とする。本文は base64 で包み、既存の厳格な検査にかける | §3.5.4・§3.7.3 |
 | H-10: Linux のソケットの置き場所 | `$HOME/.local/state/yt2column/run/server.sock`。`XDG_STATE_HOME` は読まない | §3.1 |
@@ -1039,14 +1042,13 @@ export function classifyResponse(
 | `extension/src/core/response.ts` | 変更 | 拒否の理由の削除、`SendOutcome`・`UnexpectedCheck` の改定、`redirected` の削除 |
 | `extension/src/core/prepare.ts` | 変更 | 設定の読み取りを削除し、本文をオブジェクトで持つ |
 | `extension/src/core/sendMessages.ts` | 変更 | 送信の結果ごとの文言を改める |
-| `extension/src/core/resultView.ts` | 変更 | 保存する値の検査を新しい `SendOutcome` に合わせる |
 | `extension/src/ui/renderSend.ts` | 変更 | `unexpected` の状態コードの表示を削除する（§3.7.4） |
 | `extension/src/send.ts` | 変更 | `fetch` を `sendNative` に置き換え、待ち時間の上限を `schedule` で設ける |
 | `extension/src/launch.ts` | 変更 | `settings` の依存を削除し、ログのポートをホスト名に置き換える |
-| `extension/src/browser/chromeDeps.ts` | 変更 | `createSettingsStore` を削除し、`sendNativeMessage` の配線を加える |
-| `extension/src/background.ts`・`src/popup.ts` | 変更 | `settings` を渡さない。`background.ts` は `onInstalled` で旧版の保存値を削除する（§3.7.1） |
+| `extension/src/browser/chromeDeps.ts` | 変更 | `createSettingsStore` と `StorageArea` を削除し、`sendNativeMessage` の配線を加える。`schedule` を `SendDeps` に渡す（0027 が削除していれば加え直す） |
+| `extension/src/popup.ts` | 変更 | `settings` を渡さない |
 | `extension/scripts/check-dist.ts` | 変更 | `options_ui.page` の参照の確認を削除する |
-| `extension/eslint.config.js` | 変更 | `SharedToken`・`ServerPort` の規則を削除し、`fetch`・`XMLHttpRequest`・`WebSocket`・`EventSource`・`connectNative` の使用を禁止し、`sendNativeMessage` の参照を `browser/chromeDeps.ts` に限る（§7.3） |
+| `extension/eslint.config.js` | 変更 | `SharedToken`・`ServerPort` の規則を削除し、`chrome.storage.sync` の規則を `chrome.storage` の参照の禁止に置き換え、`fetch`・`XMLHttpRequest`・`WebSocket`・`EventSource`・`connectNative` の使用を禁止し、`sendNativeMessage` の参照を `browser/chromeDeps.ts` に限る（§7.3） |
 | `extension/test/native.test.ts`・`extension/test/helpers/native.ts` | 新規 | `classifyNativeReply` のテストと、`sendNative` の fake |
 | `extension/test/*`（その他） | 変更・削除 | §3.8 の表のとおり。`renderSend.test.ts` は状態コードの表示の行を削除する |
 | `README.md`・`CLAUDE.md`・`Makefile`・`docs/dev/*`・`docs/translation_glossary.md` | 変更 | §3.9 |
@@ -1104,8 +1106,8 @@ export function classifyResponse(
 | ホストの中継 | なし | UDS への接続 1 回と HTTP のリクエスト 1 回 | 再送、サーバの起動、ファイルの書き込み、環境変数のプロキシの使用 |
 | `install <browser>` | `NativeMessagingHosts` のディレクトリとその親（なければ。§3.6）と、選んだブラウザの manifest（一時ファイルと `rename`） | なし | 他人の manifest の上書き、存在の判定に使うディレクトリ（ブラウザのユーザーデータのディレクトリ）の作成、サーバの設定の変更、サーバの起動 |
 | `uninstall <browser>` | 選んだブラウザの、自分が作った manifest の削除 | なし | ディレクトリの削除、他人の manifest の削除 |
-| 拡張の送信 | `chrome.storage.session` の結果の値（既存） | `sendNativeMessage` 1 回 | `chrome.storage.local` への保存、再送、固定のホスト名以外への接続 |
-| 拡張のインストール・更新（`onInstalled`） | `chrome.storage.local` の旧版の 2 つのキーの削除 | なし | 値の読み取り・保存 |
+| 拡張の送信 | なし | `sendNativeMessage` 1 回 | `chrome.storage` の読み書き、再送、固定のホスト名以外への接続 |
+| 拡張のインストール・更新 | なし | なし | 旧版の保存値の読み取り・削除（§3.7.1） |
 
 ## 5. セキュリティ考慮事項 (Security Considerations)
 
@@ -1214,7 +1216,8 @@ flowchart LR
 -   install の判定から `rename` までの間に、同一ユーザーが置いたファイルは上書きされる（§3.6）。
 -   サーバの停止中に、同一ユーザーがソケットのパスを先に bind できる（現行の TCP の残余リスクと同じ種類。他ユーザーにはできなくなった）。
 -   拡張は同じ `key` を使えば誰でも同じ ID を名乗れる。`allowed_origins` は、同じ ID の拡張を読み込める同一ユーザーを排除しない。
--   送信中にポップアップを閉じると、ブラウザがホストを終了させ、結果を表示できない（§3.5.5）。利用者は Slack で確かめる。
+-   送信中にポップアップを閉じると、ブラウザがホストを終了させ、結果を表示できない（§3.5.5）。0027 の後は、結果を別の経路で見る手段もない。利用者は Slack で確かめる。
+-   旧版の拡張が `chrome.storage.local` に保存した共有トークンは、拡張を更新しても残りうる（§3.7.1）。新しいサーバはトークンを読まないので、通用する相手はない。
 -   ホストが未インストールの場合も、lastError の文字列を見ないので結果不明と表示され、不要な Slack の確認を一度求める（§3.7.5）。二重投稿にはつながらない。
 
 ### 5.5. 対象クライアント環境の検証
@@ -1379,7 +1382,7 @@ flowchart LR
     -   出力: 標準出力が 1 フレームだけで、標準エラー出力に識別できる値（本文に入れた目印）が現れないこと（AC-17）。
     -   manifest: install/uninstall の中身、`0600`、一時ファイルが残らないこと、ブラウザのディレクトリがないときに何も作らないこと、macOS の Brave の置き場所が Chrome と同じで、存在の判定が `BraveSoftware/Brave-Browser` で行われること（Brave のディレクトリだけがある `home` で install が成功し、`Google/Chrome/NativeMessagingHosts` に書くこと。Chrome のディレクトリだけがある `home` で `ErrBrowserNotFound` になること）、他人の manifest を上書きも削除もしないこと、自分の manifest の置き換えと削除、`path` が相対のときと一時ディレクトリの下のときの拒否、ブラウザ名の完全一致。
     -   root: 所有者や権限に依存するテスト（他人の所有、権限のないディレクトリ）は、root では成り立たないので `os.Geteuid() == 0` のときは飛ばす（`internal/cachelock/test_helpers.go:13` の `requireNonRoot` と同じ扱い）。
--   **拡張:** `classifyNativeReply` の各分岐（§6.3 の葉のすべて）、外側のメンバの未知・欠落・型の不一致、`v` の不一致、base64 の非正規形、復号後の長さ超過、本文の既存の検査（AC-27）、lastError がどの文字列でも（`undefined` を含む）ホストの失敗になり、文言が install の手順と Slack の確認の両方を含むこと、待ち時間の上限、`sendNative` が 1 回しか呼ばれないこと（AC-24）、2 つの経路が同じ本文を送ること、送信の結果ごとの文言が互いに異なり、未送信の文言が Slack に触れず、結果不明の文言が Slack の確認を含むこと（AC-26）、`requestId` の表示（AC-28）、`prepareSend` の拒否の理由と順序（AC-30）、保存する値の検査。
+-   **拡張:** `classifyNativeReply` の各分岐（§6.3 の葉のすべて）、外側のメンバの未知・欠落・型の不一致、`v` の不一致、base64 の非正規形、復号後の長さ超過、本文の既存の検査（AC-27）、lastError がどの文字列でも（`undefined` を含む）ホストの失敗になり、文言が install の手順と Slack の確認の両方を含むこと、待ち時間の上限、`sendNative` が 1 回しか呼ばれないこと（AC-24）、ポップアップの経路が送信のボタンを押したときだけ送ること、送信の結果ごとの文言が互いに異なり、未送信の文言が Slack に触れず、結果不明の文言が Slack の確認を含むこと（AC-26）、`requestId` の表示（AC-28）、`prepareSend` の拒否の理由と順序（AC-30）。
 
 ### 7.2. 統合テスト
 
@@ -1393,8 +1396,8 @@ flowchart LR
 ### 7.3. セキュリティテスト
 
 -   **静的な確認:** TCP のリスナーを作るコードが残っていないこと（`cmd/`・`internal/` の本番のコードに `net.Listen("tcp"`・`"127.0.0.1"`・`"[::1]"` がない。AC-01）。`internal/authtoken`・`YT2COLUMN_SERVER_PORT`・トークンのファイル名がコードと現在の文書にないこと（AC-05）。`.golangci.yml` の `depguard` に、`internal/server` が `internal/serversock` を、`internal/nmhost` が `internal/server`・`internal/config` を、`internal/nmhost` と `cmd/yt2column-nmhost` が `os/exec` を import しないことの規則を加える（AC-18、`make lint`）。ホストのコードが `os.Stdout`・`fmt.Print*` を `cmd/yt2column-nmhost/main.go` の外で参照しないことは、`internal/config/envaccess_test.go` と同じ構文木の走査で確かめる（AC-17）。
--   **拡張の lint（AC-29）:** `fetch`・`XMLHttpRequest`・`WebSocket`・`EventSource` の使用と `connectNative` の参照を禁止し、`sendNativeMessage` の参照を `browser/chromeDeps.ts` に限る。`lintRules.test.ts` で、規則が違反を検出することを確かめる。
--   **秘密の値:** サーバの応答・ログ・失敗の通知に、識別できる API キー・Webhook URL・字幕・メタデータが現れないこと（AC-11・AC-13、既存のテストを UDS に移す）。ホストの標準出力と標準エラー出力に識別できる字幕が現れないこと（AC-17）。拡張の保存する値・ログ・表示にトークンが現れないこと（AC-23、`secretsAbsent.test.ts`）。
+-   **拡張の lint（AC-23・AC-29）:** `fetch`・`XMLHttpRequest`・`WebSocket`・`EventSource` の使用と `connectNative` の参照を禁止し、`sendNativeMessage` の参照を `browser/chromeDeps.ts` に限る。`chrome.storage` の参照（ドット・計算されたメンバ・分割代入の形）を禁止する（既存の `chrome.storage.sync` の規則を置き換える）。`lintRules.test.ts` で、規則が違反を検出することを確かめる。
+-   **秘密の値:** サーバの応答・ログ・失敗の通知に、識別できる API キー・Webhook URL・字幕・メタデータが現れないこと（AC-11・AC-13、既存のテストを UDS に移す）。ホストの標準出力と標準エラー出力に識別できる字幕が現れないこと（AC-17）。拡張のログ・表示にトークンが現れないこと（AC-23、`secretsAbsent.test.ts`）。
 -   **権限:** §7.1 の `internal/serversock` のテスト（AC-02・AC-03）。
 
 ### 7.4. 受け入れ基準と設計要素の対応
@@ -1423,7 +1426,7 @@ flowchart LR
 | AC-20 | §3.6 | `internal/nmhost`、手動 |
 | AC-21 | §3.5・§3.9 | `make build`、`.golangci.yml` の `depguard`（既存） |
 | AC-22 | §3.7.1 | `extension/test/manifest.test.ts`、`cmd/yt2column/extension_docs_test.go` |
-| AC-23 | §3.7.2・§3.7.4 | `extension/test/prepare.test.ts`・`secretsAbsent.test.ts`、静的な確認 |
+| AC-23 | §3.7.1・§3.7.2・§3.7.4 | `extension/test/prepare.test.ts`・`secretsAbsent.test.ts`・`lintRules.test.ts`（`chrome.storage` の参照の禁止）・`manifest.test.ts`（`storage` の権限がないこと）、静的な確認 |
 | AC-24 | §3.7.2 | `extension/test/send.test.ts`・`launch.test.ts`、手動 |
 | AC-25 | §3.7.4 | `extension/test/sendMessages.test.ts` |
 | AC-26 | §3.5.3・§3.7.4・§3.7.5 | `extension/test/native.test.ts`・`sendMessages.test.ts`、手動 |
@@ -1451,6 +1454,7 @@ flowchart LR
 | 3: 拡張 | §3.7、拡張のテスト、README と security.md の拡張の節、CLAUDE.md の例外、ガード | 拡張からホストを通して送れる。手動の確認（AC-36） |
 
 -   フェーズ 1 の中では、`internal/config` → `internal/serversock` → `internal/server` → `cmd/yt2column-server` → 文書とガードの順に進める。`internal/serversock` は他に依存しないので、最初に書いて単独で確かめられる。
+-   フェーズ 1 のうちサーバを UDS に移す変更（`03_implementation_plan.md` の PR-2）は、0027（右クリックメニューの経路の削除）のすべての PR がマージされた後に始める。その変更の後、フェーズ 3 の前の拡張はサーバに届かず、0027 の手動確認（ポップアップから送って受付を表示する）ができなくなるためである。フェーズ 3 も、0027 の後に始める。フェーズ 3 の拡張の設計（§3.7）は、0027 の後の構成（ポップアップの経路だけ。service worker・結果のウィンドウ・`chrome.storage.session` がない）を前提にする。
 -   フェーズ 3 は、0025（拡張の動画メタデータ）が変更する `extension/src/core/prepare.ts`・`launch.ts` と重なる。0025 の設計は作り直しの途中なので、どちらを先に入れるかは `03_implementation_plan.md` で決め、後に入れる方が `ArticleMetadata` の受け渡しを合わせる。
 
 ## 9. 将来の拡張性 (Future Extensibility)
