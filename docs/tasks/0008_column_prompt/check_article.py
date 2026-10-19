@@ -23,17 +23,25 @@ LONG_VIDEO_SECONDS = 15 * 60
 LONG_MIN, BODY_MAX = 2500, 4000
 SECTIONS_MIN, SECTIONS_MAX = 3, 5
 
-# The header is the title, the generation model lines, then optionally one
-# model-line pair per post-generation step (shorten, then review) that ran, as
-# task 0010 renders them, then optionally the estimated-cost line that task
-# 0022 adds (a four-decimal amount with " USD", or "unknown"), then a blank
-# line. The cost line is optional so a file from before task 0022 still parses.
+# The header is the YAML front matter task 0028 renders (double-quoted values,
+# keys in a fixed order: channel when the article has one, source, model, model
+# version, then one model pair per post-generation step that ran, shorten then
+# review, then the estimated cost: a four-decimal amount or "unknown"), a blank
+# line, the title heading, a blank line, and the channel name line with a blank
+# line when the channel key is present.
+QUOTED = r'"(?:[^"\\\n]|\\.)*"'
 HEADER_RE = re.compile(
-    r"\A# (?P<title>[^\n]*)\n\n- Model: (?P<model>[^\n]*)\n- Model version: (?P<version>[^\n]*)\n"
-    r"(?:- Shorten model: [^\n]*\n- Shorten model version: [^\n]*\n)?"
-    r"(?:- Review model: [^\n]*\n- Review model version: [^\n]*\n)?"
-    r"(?:- Estimated cost: (?:unknown|[0-9]+\.[0-9]{4} USD)\n)?"
-    r"\n"
+    r"\A---\n"
+    rf"(?:channel: (?P<channel>{QUOTED})\n)?"
+    rf"source: {QUOTED}\n"
+    rf'model: "(?P<model>(?:[^"\\\n]|\\.)*)"\n'
+    rf'model_version: "(?P<version>(?:[^"\\\n]|\\.)*)"\n'
+    rf"(?:shorten_model: {QUOTED}\nshorten_model_version: {QUOTED}\n)?"
+    rf"(?:review_model: {QUOTED}\nreview_model_version: {QUOTED}\n)?"
+    r'estimated_cost_usd: "(?:unknown|[0-9]+\.[0-9]{4})"\n'
+    r"---\n\n"
+    r"# (?P<title>[^\n]*)\n\n"
+    r"(?(channel)[^\n]+\n\n)"
 )
 SOURCE_RE = re.compile(r"\n\n出典: <[^>\n]+>\n\Z")
 # URL-like text in the body (AC-13): any http, https, or ftp URL, a bare www.

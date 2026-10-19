@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -230,23 +231,41 @@ func videoCacheEntries(t *testing.T, cacheDir string) []string {
 	return entries
 }
 
-// checkIntegrationArticle checks the --out file: a non-empty title heading, a
-// non-empty model name, a generated body, and the source link. The content itself is
-// never printed.
+// checkIntegrationArticle checks the --out file: YAML front matter with a
+// non-empty model name, a non-empty title heading, a generated body, and the
+// source link. The content itself is never printed.
 func checkIntegrationArticle(t *testing.T, article string) {
 	t.Helper()
 	if article == "" {
 		t.Error("the --out file is missing or empty")
 		return
 	}
-	header, rest, _ := strings.Cut(article, "\n\n")
-	if title, ok := strings.CutPrefix(header, "# "); !ok || strings.TrimSpace(title) == "" {
-		t.Error("the --out file does not start with a non-empty title heading")
+	afterOpen, opened := strings.CutPrefix(article, "---\n")
+	frontMatter, rest, found := strings.Cut(afterOpen, "\n---\n\n")
+	if !opened || !found {
+		t.Error("the --out file does not start with YAML front matter")
+		return
 	}
-	metadata, body, _ := strings.Cut(rest, "\n\n")
-	modelLine, _, _ := strings.Cut(metadata, "\n")
-	if model, ok := strings.CutPrefix(modelLine, "- Model: "); !ok || strings.TrimSpace(model) == "" {
+	var model string
+	hasChannel := false
+	for line := range strings.SplitSeq(frontMatter, "\n") {
+		if strings.HasPrefix(line, "channel: ") {
+			hasChannel = true
+		}
+		if value, ok := strings.CutPrefix(line, "model: "); ok {
+			model, _ = strconv.Unquote(value)
+		}
+	}
+	if strings.TrimSpace(model) == "" {
 		t.Error("the --out file has no non-empty model name")
+	}
+	header, body, _ := strings.Cut(rest, "\n\n")
+	if title, ok := strings.CutPrefix(header, "# "); !ok || strings.TrimSpace(title) == "" {
+		t.Error("the --out file has no non-empty title heading after the front matter")
+	}
+	if hasChannel {
+		// The channel name line is not generated text.
+		_, body, _ = strings.Cut(body, "\n\n")
 	}
 	// The article ends with the source line, an autolink to the video, which
 	// the writer appends itself; the generated text is what precedes it.

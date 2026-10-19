@@ -10,7 +10,6 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/isseis/yt2column/internal/pricing"
 	"github.com/isseis/yt2column/internal/writer"
 )
 
@@ -32,11 +31,6 @@ const tempPrefix = ".yt2column-"
 
 // writeChunkSize bounds how many bytes are written between two checks of ctx.
 const writeChunkSize = 32 * 1024
-
-// articleCostDecimals is how many decimal places the article header's cost
-// line shows. The article reader needs only a rough figure, so it is coarser
-// than the six decimals of the CLI summary.
-const articleCostDecimals = 4
 
 // articleFileMode is the permission of the published file and the review log.
 // Both are non-secret documents built from a public video, and the process
@@ -114,7 +108,7 @@ func (p *FilePublisher) Publish(ctx context.Context, article writer.Article) err
 		return err
 	}
 
-	tempPath, err := p.file.writeTemp(ctx, renderArticle(article))
+	tempPath, err := p.file.writeTemp(ctx, renderFileArticle(article))
 	if err != nil {
 		return err
 	}
@@ -202,8 +196,8 @@ func syncDir(dir string) {
 	_ = d.Close()
 }
 
-// renderArticle returns the text FilePublisher and SlackWebhookPublisher both
-// output for a; it ends with the article body. It adds one model line pair per
+// renderArticle returns the text SlackWebhookPublisher outputs for a; it ends
+// with the article body. It adds one model line pair per
 // step that ran, in order (shorten, then review); a nil step result contributes
 // no lines, so an article with no step output is rendered as before. It then
 // adds the article's estimated cost, rounded to four decimals, or the fixed
@@ -227,20 +221,9 @@ func renderArticle(a writer.Article) string {
 // with four decimals, or "unknown" when that total is not known. It never
 // guesses a value, so an unpriced model or an unknown usage yields "unknown".
 func articleCostLine(runUsage writer.RunUsage) string {
-	_, article := pricing.Totals(runUsage)
-	amount, known := article.Amount()
+	amount, known := articleCost(runUsage)
 	if !known {
 		return "- Estimated cost: unknown"
 	}
 	return fmt.Sprintf("- Estimated cost: %s USD", amount.Format(articleCostDecimals))
-}
-
-// modelVersionOrNone returns version, or the "(none)" placeholder shown when a
-// provider reports no version, for the model lines of the output and the
-// review log.
-func modelVersionOrNone(version string) string {
-	if version == "" {
-		return "(none)"
-	}
-	return version
 }

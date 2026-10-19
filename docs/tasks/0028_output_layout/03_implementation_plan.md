@@ -187,8 +187,8 @@ go test -run '^$' -tags test,integration ./...
 
 -   [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 -   [x] PR を作成した
--   [ ] PR がマージされた
--   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+-   [x] PR がマージされた
+-   [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: 共有の値の書式（出力は変えない）
 
@@ -196,15 +196,15 @@ go test -run '^$' -tags test,integration ./...
 
 **対象:** `internal/publisher/format.go`（新規）・`internal/publisher/file.go`
 
--   [ ] `articleCost(runUsage) (pricing.Amount, bool)`、`modelVersionOrNone`、`articleCostDecimals` を `format.go` に置く。`modelVersionOrNone`・`articleCostDecimals` は `file.go` から移す。`articleCost` は、`articleCostLine`（`file.go:229`）が呼ぶ `pricing.Totals` と `Amount()` の組み立てをそのまま使う。
--   [ ] `articleCostLine` を `articleCost` を使う形に直し、`renderArticle` の出力を変えない。
--   [ ] `reviewlog.go` が `modelVersionOrNone` の移動後もそのままコンパイルされ、出力が変わらないことを確かめる。
+-   [x] `articleCost(runUsage) (pricing.Amount, bool)`、`modelVersionOrNone`、`articleCostDecimals` を `format.go` に置く。`modelVersionOrNone`・`articleCostDecimals` は `file.go` から移す。`articleCost` は、`articleCostLine`（`file.go:229`）が呼ぶ `pricing.Totals` と `Amount()` の組み立てをそのまま使う。
+-   [x] `articleCostLine` を `articleCost` を使う形に直し、`renderArticle` の出力を変えない。
+-   [x] `reviewlog.go` が `modelVersionOrNone` の移動後もそのままコンパイルされ、出力が変わらないことを確かめる。
 
 **完了:** 既存のテストが、変更なしで通る。`format.go` の新しい関数は、フェーズ 3 とフェーズ 4 の整形が使う。
 
 #### ステップ 2-2: フェーズ 2 の確認
 
--   [ ] `make fmt` → `make test` → `make lint` → `make deadcode` が通る。`articleCost` が到達不能として報告される場合は、フェーズ 3 の前に `articleCostLine` から呼ばれていることを確かめる。
+-   [x] `make fmt` → `make test` → `make lint` → `make deadcode` が通る。`articleCost` が到達不能として報告される場合は、フェーズ 3 の前に `articleCostLine` から呼ばれていることを確かめる。
 
 ### フェーズ 3: ファイルの出力（F-003）
 
@@ -212,33 +212,33 @@ go test -run '^$' -tags test,integration ./...
 
 **対象:** `internal/publisher/file_render.go`（新規）
 
--   [ ] `renderFileArticle` を設計書 3.4 のとおりに実装する。キーの名前と順序、条件付きのキー、`(none)`、`estimated_cost_usd` の 2 つの形、フロントマターの後の空行・見出し・チャンネル名の行・本文の並びは、要件書 F-003 に従う。
--   [ ] 値の書き出しは `strconv.Quote` を使い、独自のエスケープ関数は作らない（H-04、設計書 6.3）。
--   [ ] `escapeLeadingMarkdown` を実装する。行頭の 1 文字だけをエスケープし、描画した結果がチャンネル名と一致するようにする。行頭がブロックの記法になる場合の文字ごとの規則は、ここで決め、コードのコメントに理由を書く（設計書 3.4）。
+-   [x] `renderFileArticle` を設計書 3.4 のとおりに実装する。キーの名前と順序、条件付きのキー、`(none)`、`estimated_cost_usd` の 2 つの形、フロントマターの後の空行・見出し・チャンネル名の行・本文の並びは、要件書 F-003 に従う。
+-   [x] 値の書き出しは `strconv.Quote` を使い、独自のエスケープ関数は作らない（H-04、設計書 6.3）。
+-   [x] `escapeLeadingMarkdown` を実装する。行頭の 1 文字だけをエスケープし、描画した結果がチャンネル名と一致するようにする。行頭がブロックの記法になる場合の文字ごとの規則は、ここで決め、コードのコメントに理由を書く（設計書 3.4）。
 
 #### ステップ 3-2: 切り替え
 
 **対象:** `internal/publisher/file.go`
 
--   [ ] `FilePublisher` が `renderFileArticle` を呼ぶ（`file.go:117`）。`renderArticle` は Slack が使うので、削除しない（§1.3）。
--   [ ] 書く前の `CheckPublishable`、一時ファイル、`link(2)`、上書きしない動作を変えないことを確かめる（AC-21）。
+-   [x] `FilePublisher` が `renderFileArticle` を呼ぶ（`file.go:117`）。`renderArticle` は Slack が使うので、削除しない（§1.3）。
+-   [x] 書く前の `CheckPublishable`、一時ファイル、`link(2)`、上書きしない動作を変えないことを確かめる（AC-21）。
 
 #### ステップ 3-3: テストの更新と追加
 
--   [ ] `file_test.go` の次のテストを新しい形に改める: `TestFilePublisherWritesArticle:76`・`TestFilePublisherWritesCostLine:108`・`TestFilePublisherEmptyModelVersion:127`・`TestRenderArticleSteps:141`・`TestRenderArticleCost:179`（名前の変更は §2.1）。`renderArticle` を呼ぶ行は、`renderFileArticle` を呼ぶ形にする。
--   [ ] `renderFileArticle` の新しいテストを加える: フロントマターの先頭と区切り、キーの名前と順序、条件付きのキーの有無、`(none)`、`estimated_cost_usd` の 2 つの形、見出しの下にモデル・コストの行がないこと、チャンネル名の行の有無、フロントマターの前に BOM や空行がないこと。
--   [ ] フロントマターの値のテストを加える: 引用符・バックスラッシュ・`:`・`#`・`---`・日本語を含む値で、行数とキーの並びが変わらず、`strconv.Unquote` で元の値に戻ること。出力に出るエスケープシーケンスの種類が、設計書 6.3 の集合（`\a \b \f \n \r \t \v \\ \"` と `\xNN`・`\uNNNN`・`\UNNNNNNNN`）に含まれること。後者の検査に使う値には、`\a \b \f \v`・DEL・U+0085・U+2028・U+2029・U+FEFF・非 BMP の非印字文字を入れる。
--   [ ] `escapeLeadingMarkdown` の表のテストを加える（ブロックの記法になる各場合と、ならない場合）。
--   [ ] `cmd/yt2column/run_test.go:1622`・`:2150`、`cost_test.go:165` を新しい形に直す。
--   [ ] `cmd/yt2column/integration_test.go` の `checkIntegrationArticle`（`:236`）が、フロントマターで始まる `--out` のファイルを読むように直す。タイトルの見出し、`model` の値、末尾の出典のリンクを確かめる内容は保つ。
--   [ ] `docs/tasks/0008_column_prompt/check_article.py` の `HEADER_RE`（`:31`）を、フロントマターの形に合わせる（0022 のステップ 3-2 の前例）。チャンネル名の行（ある場合）を本文から除くよう、`check()` の `body` の切り出し（`header.end()` から出典の前まで）と、先頭の見出しの検査を直す。
+-   [x] `file_test.go` の次のテストを新しい形に改める: `TestFilePublisherWritesArticle:76`・`TestFilePublisherWritesCostLine:108`（実装では `TestFilePublisherWritesCost` に改名）・`TestFilePublisherEmptyModelVersion:127`。`TestRenderArticleSteps:141`・`TestRenderArticleCost:179` は削除し、同じ不変条件を新しい `file_render_test.go`（`TestRenderFileArticleLayout` の表の行）が引き継ぐ。
+-   [x] `internal/publisher/file_render_test.go`（新規）に `renderFileArticle` の新しいテストを加える: フロントマターの先頭と区切り、キーの名前と順序、条件付きのキーの有無、`(none)`、`estimated_cost_usd` の 2 つの形、見出しの下にモデル・コストの行がないこと、チャンネル名の行の有無、フロントマターの前に BOM や空行がないこと。
+-   [x] フロントマターの値のテストを加える: 引用符・バックスラッシュ・`:`・`#`・`---`・日本語を含む値で、行数とキーの並びが変わらず、`strconv.Unquote` で元の値に戻ること。出力に出るエスケープシーケンスの種類が、設計書 6.3 の集合（`\a \b \f \n \r \t \v \\ \"` と `\xNN`・`\uNNNN`・`\UNNNNNNNN`）に含まれること。後者の検査に使う値には、`\a \b \f \v`・DEL・U+0085・U+2028・U+2029・U+FEFF・非 BMP の非印字文字を入れる。
+-   [x] `escapeLeadingMarkdown` の表のテストを加える（ブロックの記法になる各場合と、ならない場合）。
+-   [x] `cmd/yt2column/run_test.go:1622`・`:2150`、`cost_test.go:165` を新しい形に直す。
+-   [x] `cmd/yt2column/integration_test.go` の `checkIntegrationArticle`（`:236`）が、フロントマターで始まる `--out` のファイルを読むように直す。タイトルの見出し、`model` の値、末尾の出典のリンクを確かめる内容は保つ。
+-   [x] `docs/tasks/0008_column_prompt/check_article.py` の `HEADER_RE`（`:31`）を、フロントマターの形に合わせる（0022 のステップ 3-2 の前例）。チャンネル名の行（ある場合）を本文から除くよう、`check()` の `body` の切り出し（`header.end()` から出典の前まで）と、先頭の見出しの検査を直す。
 
 #### ステップ 3-4: フェーズ 3 の確認
 
--   [ ] `make fmt` → `make test` → `make lint` が通る。
--   [ ] `go test -run '^$' -tags test,integration ./...` が通る（`integration_test.go` のコンパイルの確認。§1.3 に出力を記録した同じコマンド）。
--   [ ] 固定の入力から `renderFileArticle` の出力を `testdata/` の下のファイルに書き出す手順を用意する（`file_test.go` のテストが同じ内容を期待値として持つ）。そのファイルに `check_article.py` を実行して受理されることを、チャンネル名ありとなしの 2 つで確かめ、コマンドと出力を §5.3 に記録する。
--   [ ] 次の変更を 1 つずつ行い、ステップ 3-3 の対応するテストが失敗することを確かめ、コミットメッセージに記す: `FilePublisher` の切り替えを戻す、キーの順序の入れ替え、条件付きのキー（`channel`・`shorten_*`・`review_*`）を常に出す、`(none)` の置き換えを外す、コストの 2 つの形のそれぞれの出力を壊す、`strconv.Quote` を値をそのまま引用符で囲む書き出しに変える、`escapeLeadingMarkdown` の呼び出しを外す、チャンネル名の行の有無の分岐を外す、フロントマターの後の空行を 1 行減らす。
+-   [x] `make fmt` → `make test` → `make lint` が通る。
+-   [x] `go test -run '^$' -tags test,integration ./...` が通る（`integration_test.go` のコンパイルの確認。§1.3 に出力を記録した同じコマンド）。
+-   [x] 固定の入力から `renderFileArticle` の出力を `testdata/` の下のファイルに書き出す手順を用意する（`file_render_test.go` の `TestRenderFileArticleGolden` が同じ内容を期待値として持つ。`-update` を付けて実行すると書き直す）。そのファイルに `check_article.py` を実行して受理されることを、チャンネル名ありとなしの 2 つで確かめ、コマンドと出力を §5.3 に記録する。
+-   [x] 次の変更を 1 つずつ行い、ステップ 3-3 の対応するテストが失敗することを確かめ、コミットメッセージに記す: `FilePublisher` の切り替えを戻す、キーの順序の入れ替え、条件付きのキー（`channel`・`shorten_*`・`review_*`）を常に出す、`(none)` の置き換えを外す、コストの 2 つの形のそれぞれの出力を壊す、`strconv.Quote` を値をそのまま引用符で囲む書き出しに変える、`escapeLeadingMarkdown` の呼び出しを外す、チャンネル名の行の有無の分岐を外す、フロントマターの後の空行を 1 行減らす。
 
 ### PR-2 作成ポイント: shared formatting and front-matter file output
 
@@ -252,8 +252,8 @@ go test -run '^$' -tags test,integration ./...
 
 **判定理由**: ステップ 3-1 の `escapeLeadingMarkdown` は、行頭がブロックの記法になる場合の文字ごとの規則をコードで決める孤立した複雑なステップである。そのため frontier-recommended とした。
 
--   [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
--   [ ] PR を作成した
+-   [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+-   [x] PR を作成した
 -   [ ] PR がマージされた
 -   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
@@ -569,10 +569,10 @@ PR は番号順にマージする。PR-1 のチャンネル名が PR-2 と PR-6 
 | AC-14d | test | `internal/publisher/slack_message_test.go`（追加。分割と `@`） |
 | AC-14e | test | `cmd/yt2column/run_test.go::TestRunSlackFailureHints` |
 | AC-14f | test | `internal/failure/failure_test.go::TestKindConstants`、`internal/server/job_test.go::TestFailureClassification`、`internal/publisher/slack_failure_test.go::TestSlackFailureNotifyText` |
-| AC-15・AC-16・AC-20 | test | `internal/publisher/file_test.go`（改めた `TestFilePublisherWritesArticle`・`TestRenderArticleSteps` と、追加する `renderFileArticle` のテスト。先頭・区切り・キーの順序・条件付きのキー・チャンネル名の行の有無・見出しの下にメタデータがないこと） |
-| AC-18 | test | `internal/publisher/file_test.go::TestFilePublisherEmptyModelVersion`（改める） |
-| AC-19 | test | `internal/publisher/file_test.go::TestFilePublisherWritesCostLine`・`TestRenderArticleCost`（改める） |
-| AC-17 | test | `internal/publisher/file_test.go`（追加。フロントマターの値の往復とエスケープの種類）、`escapeLeadingMarkdown` の表のテスト（新規。AC-15 も） |
+| AC-15・AC-16・AC-20 | test | `internal/publisher/file_test.go::TestFilePublisherWritesArticle`（改めた）、`internal/publisher/file_render_test.go::TestRenderFileArticleLayout`・`TestRenderFileArticleChannelLine`・`TestRenderFileArticleGolden`（先頭・区切り・キーの順序・条件付きのキー・チャンネル名の行の有無・見出しの下にメタデータがないこと） |
+| AC-18 | test | `internal/publisher/file_test.go::TestFilePublisherEmptyModelVersion`（改めた）、`file_render_test.go::TestRenderFileArticleLayout`（版が空の `review_model_version`） |
+| AC-19 | test | `internal/publisher/file_test.go::TestFilePublisherWritesCost`（改めた）、`file_render_test.go::TestRenderFileArticleLayout`（コストの 3 つの形） |
+| AC-17 | test | `internal/publisher/file_render_test.go::TestRenderFileArticleQuoting`（フロントマターの値の往復とエスケープの種類）、`TestEscapeLeadingMarkdown`（AC-15 も） |
 | AC-21・AC-22 | test | `internal/publisher/file_test.go::TestFilePublisherExistingPath`・`TestFilePublisherRejectsArticle`・`TestFilePublisherLinkFailure`（変更なしで通る）、AC-22 はチャンネル名の拒否のテスト（AC-04 の行） |
 | AC-23 | static | `cmd/yt2column/docs_test.go::TestCostDocsContract` と、ステップ 5-1 で加える出力の構成の文書のガード（追加。README の例を実際の出力と比べる）、`make ext-test` |
 | AC-24 | static + manual | ステップ 5-1 で加える出力の構成の文書のガード（追加）。記述を実装と照合した記録は §5.4（manual） |
@@ -606,6 +606,21 @@ AC-23〜AC-25 のガードは語句の有無だけを確かめ、記述が実装
 
 -   ステップ 3-4・4-14 の `go test -run '^$' -tags test,integration ./...`。
 -   ステップ 3-4 の `check_article.py` の実行。
+
+**ステップ 3-4 の記録（フェーズ 2・3 のコミット `5aa1903` の上で実行）。**
+
+```text
+$ go test -run '^$' -tags test,integration ./...      # 終了コード 0、全行が ok または no test files
+$ python3 -I docs/tasks/0008_column_prompt/check_article.py <cache> abcdefghijk \
+    internal/publisher/testdata/file_article_with_channel.md \
+    internal/publisher/testdata/file_article_without_channel.md
+| file | model | model version | title | sections | length | mechanical checks |
+| file_article_with_channel.md | model-x | 2026-01-01 | A title | 3 | 50 | pass |
+| file_article_without_channel.md | model-x | 2026-01-01 | A title | 3 | 50 | pass |
+```
+
+`<cache>` は、`abcdefghijk.current`（`a`）と `abcdefghijk.a/abcdefghijk.info.json`（`{"title":"Video title","duration":300}`）だけを置いた作業用のディレクトリである。旧い `HEADER_RE` は同じファイルを `unrecognized --out format` として拒否した（比較のための実行）。
+
 -   ステップ 4-11 の `renderArticle` の削除の前後の `go tool cover -func` の比較。
 
 ### 5.4. 文書の照合の記録
