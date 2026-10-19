@@ -445,3 +445,142 @@ func TestSharedTokenRemoved(t *testing.T) {
 		}
 	}
 }
+
+// hostDirs are the repository-relative directories of the Native Messaging
+// host's production code.
+var hostDirs = []string{"internal/nmhost/"}
+
+// hostStdoutMain is the one host file that may reference standard output: the
+// entry point wires it into the relay. No other host code writes to it, so the
+// one reply frame is all the browser reads there.
+const hostStdoutMain = "cmd/yt2column-nmhost/main.go"
+
+// stdoutRefs are the references that write to standard output, by import
+// path.
+var stdoutRefs = map[string][]string{
+	"os":      {"Stdout"},
+	"fmt":     {"Print", "Printf", "Println"},
+	"syscall": {"Stdout"},
+}
+
+// spawnRefs are the references that start another program, by import path.
+// Importing os/exec is rejected by depguard instead.
+var spawnRefs = map[string][]string{
+	"os":      {"StartProcess"},
+	"syscall": {"Exec", "ForkExec", "StartProcess"},
+}
+
+// hostFiles returns the production Go files of the host.
+func hostFiles(t *testing.T) []string {
+	t.Helper()
+	var files []string
+	for _, rel := range productionGoFiles(t) {
+		if slices.ContainsFunc(hostDirs, func(dir string) bool { return strings.HasPrefix(rel, dir) }) {
+			files = append(files, rel)
+		}
+	}
+	if len(files) == 0 {
+		t.Fatal("found no production Go files of the host")
+	}
+	return files
+}
+
+// selectorFindings parses src and describes every reference to a name in refs
+// (pkg.Name through the file's own name for the import, including an alias)
+// and every dot import of a package in refs, which would hide such a
+// reference.
+func selectorFindings(t *testing.T, name, src string, refs map[string][]string) []string {
+	t.Helper()
+	file, err := parser.ParseFile(token.NewFileSet(), name, src, parser.SkipObjectResolution)
+	if err != nil {
+		t.Fatalf("parse %s: %v", name, err)
+	}
+	var findings []string
+	local := map[string]string{} // the file's name for an import -> its path
+	for _, imp := range file.Imports {
+		path, err := strconv.Unquote(imp.Path.Value)
+		if err != nil {
+			t.Fatalf("%s: unquote import %s: %v", name, imp.Path.Value, err)
+		}
+		if _, watched := refs[path]; !watched {
+			continue
+		}
+		switch {
+		case imp.Name == nil:
+			local[filepath.Base(path)] = path
+		case imp.Name.Name == ".":
+			findings = append(findings, "dot import of "+path)
+		default:
+			local[imp.Name.Name] = path
+		}
+	}
+	ast.Inspect(file, func(n ast.Node) bool {
+		sel, ok := n.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		pkg, ok := sel.X.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		if path, ok := local[pkg.Name]; ok && slices.Contains(refs[path], sel.Sel.Name) {
+			findings = append(findings, path+"."+sel.Sel.Name)
+		}
+		return true
+	})
+	return findings
+}
+
+// TestSelectorDetection checks the finder's mechanism (import names, aliases,
+// dot imports, other packages) once per reference map; the maps' entries are
+// the guards' declared scope and are not restated here.
+func TestSelectorDetection(t *testing.T) {
+	tests := []struct {
+		name string
+		refs map[string][]string
+		src  string
+		want int
+	}{
+		{"os.Stdout", stdoutRefs, `package p; import "os"; var w = os.Stdout`, 1},
+		{"aliased import", stdoutRefs, `package p; import o "os"; var w = o.Stdout`, 1},
+		{"dot import", stdoutRefs, `package p; import . "fmt"; func f() { Println() }`, 1},
+		{"os.Stderr", stdoutRefs, `package p; import "os"; var w = os.Stderr`, 0},
+		{"same name, other package", stdoutRefs, `package p; import "example.com/os"; var w = os.Stdout`, 0},
+		{"os.StartProcess", spawnRefs, `package p; import "os"; var f = os.StartProcess`, 1},
+		{"syscall.Getpid", spawnRefs, `package p; import "syscall"; var f = syscall.Getpid`, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := selectorFindings(t, "p.go", tt.src, tt.refs); len(got) != tt.want {
+				t.Errorf("findings = %v, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestHostStdoutOnlyInMain(t *testing.T) {
+	for _, rel := range hostFiles(t) {
+		if rel == hostStdoutMain {
+			continue
+		}
+		src, err := os.ReadFile(filepath.Join(repoRoot, rel))
+		if err != nil {
+			t.Fatalf("read %s: %v", rel, err)
+		}
+		for _, finding := range selectorFindings(t, rel, string(src), stdoutRefs) {
+			t.Errorf("%s: %s: only %s may write to standard output, the browser's channel", rel, finding, hostStdoutMain)
+		}
+	}
+}
+
+func TestHostSpawnsNoProcess(t *testing.T) {
+	for _, rel := range hostFiles(t) {
+		src, err := os.ReadFile(filepath.Join(repoRoot, rel))
+		if err != nil {
+			t.Fatalf("read %s: %v", rel, err)
+		}
+		for _, finding := range selectorFindings(t, rel, string(src), spawnRefs) {
+			t.Errorf("%s: %s: the host starts no other program", rel, finding)
+		}
+	}
+}
