@@ -262,8 +262,8 @@
 
 -   [x] グリーンゲート（`make test && make lint`。`_context.md` の "Green gate"）がパスしていることを確認した
 -   [x] PR を作成した（#336）
--   [ ] PR がマージされた
--   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+-   [x] PR がマージされた
+-   [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 6: CLAUDE.md・README・手動の確認
 
@@ -271,11 +271,11 @@
 
 **変更するファイル:** `CLAUDE.md`、`cmd/yt2column/copied_transcript_docs_test.go`、`README.md`、本計画（§5.1）
 
--   [ ] **ステップ 6-1**: CLAUDE.md の「Declare, don't infer」の Exception の文に、設計書 1.3.1 の 4 種類の読み飛ばしと、例外の境界との関係の 3 点を英語で加える。空行を入れずに同じ項目の続きとして書く（`markdownBullet` は空行で項目を終える）。既存の Boundary の文（`an input that matches neither form is rejected, not accepted by widening the interpretation`）は変えない。
--   [ ] **ステップ 6-2**: `TestClaudeMDCopiedTranscriptException` の確認の語に、設計書 1.3.1 の `first segment line`・`timestamp-expected position`・`chapter heading`・`trailing`・`explicitly defined` と、前置きと形 A の見出しをそれぞれ指す語（`prefix`・`Chapter N: `）を加える。後の 2 語は設計書 1.3.1 の語の一覧にないが、4 種類の読み飛ばしのそれぞれを 1 語以上で確かめるために加える。関数のコメントの `states the copied-transcript exception's scope, reason, and boundary` を、読み飛ばしの範囲も確かめる旨に改める。
--   [ ] **ステップ 6-3**: `README.md:599-601` の文 `The selection is sent exactly as copied from the transcript panel; the extension does not trim it, so select only the caption lines — a trailing blank line is not part of the accepted format and the server rejects it.` を、パネル全体を選んでよいこと、読み飛ばす行（前置き・チャプターの見出し・末尾の空白行と `Sync to video time`／`動画の時間と同期`）、それでも拒否される行（形 A の本体の未知の行、本体の空行、時刻に似た文字列を含む前置きと形 B の見出し）を述べる英語の文に改める。内容が設計書 3.2・3.3 と合うことを、PR の説明に対応する節を挙げて示す。
--   [ ] **ステップ 6-4**: `make ext-test` を実行する（README の拒否の理由の表を `serverReasons.test.ts` が読むため）。
--   [ ] **ステップ 6-5**: CLAUDE.md から加えた語を 1 つずつ消し、そのたびに `TestClaudeMDCopiedTranscriptException` が失敗することを確かめて、結果をコミットメッセージに書く。
+-   [x] **ステップ 6-1**: CLAUDE.md の「Declare, don't infer」の Exception の文に、設計書 1.3.1 の 4 種類の読み飛ばしと、例外の境界との関係の 3 点を英語で加える。空行を入れずに同じ項目の続きとして書く（`markdownBullet` は空行で項目を終える）。既存の Boundary の文（`an input that matches neither form is rejected, not accepted by widening the interpretation`）は変えない。
+-   [x] **ステップ 6-2**: `TestClaudeMDCopiedTranscriptException` の確認の語に、設計書 1.3.1 の `first segment line`・`timestamp-expected position`・`chapter heading`・`trailing`・`explicitly defined` と、前置きと形 A の見出しをそれぞれ指す語（`prefix`・`Chapter N: `）を加える。後の 2 語は設計書 1.3.1 の語の一覧にないが、4 種類の読み飛ばしのそれぞれを 1 語以上で確かめるために加える。項目の中でほかの文にも現れる語（`prefix`・`first segment line`・`explicitly defined`・`rejected`）は、それが確かめる文にだけ現れる句に置き換えて確かめる（`prefix before the first segment line`・`prefix ends where the timestamp grammar finds the first segment line`・`identified by its position`・`only the explicitly defined lines`。既存の `rejected` は Boundary の文の `matches neither form is rejected` にし、時刻の壊れた行の拒否の文を `rejected, not skipped` で確かめる）。句が行の折り返しにまたがっても一致するよう、項目の空白をまとめてから照合する。関数のコメントの `states the copied-transcript exception's scope, reason, and boundary` を、読み飛ばしの範囲も確かめる旨に改める。
+-   [x] **ステップ 6-3**: `README.md:599-601` の文 `The selection is sent exactly as copied from the transcript panel; the extension does not trim it, so select only the caption lines — a trailing blank line is not part of the accepted format and the server rejects it.` を、パネル全体を選んでよいこと、読み飛ばす行（前置き・チャプターの見出し・末尾の空白行と `Sync to video time`／`動画の時間と同期`）、それでも拒否される行（形 A の本体の未知の行、本体の空行、時刻に似た文字列を含む前置きと形 B の見出し）を述べる英語の文に改める。内容が設計書 3.2・3.3 と合うことを、PR の説明に対応する節を挙げて示す。
+-   [x] **ステップ 6-4**: `make ext-test` を実行する（README の拒否の理由の表を `serverReasons.test.ts` が読むため）。
+-   [x] **ステップ 6-5**: CLAUDE.md から加えた語と、それを含む文を 1 つずつ消し、そのたびに `TestClaudeMDCopiedTranscriptException` が失敗することを確かめて、結果をコミットメッセージに書く。
 
 ### PR-7 作成ポイント: documentation of the skipped panel lines
 
@@ -289,8 +289,8 @@
 
 **判定理由**: 文書と guard の語の追加だけで、設計上の判断も状態の変更も外部の資源もないため、どの契機にも当たらない。
 
--   [ ] グリーンゲート（`make test && make lint`、README を変えるので `make ext-test` も。`_context.md` の "Green gate"）がパスしていることを確認した
--   [ ] PR を作成した
+-   [x] グリーンゲート（`make test && make lint`、README を変えるので `make ext-test` も。`_context.md` の "Green gate"）がパスしていることを確認した
+-   [x] PR を作成した（#340）
 -   [ ] PR がマージされた
 -   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
@@ -480,7 +480,7 @@ AC-25 は、入力全体の検査（`errCopiedBlank`）が先に起こるので�
 -   [x] PR-3 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5）
 -   [x] PR-4 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5）
 -   [x] PR-5 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7 / 4-8）
--   [ ] PR-6 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3）
+-   [x] PR-6 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3）
 -   [ ] PR-7 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3 / 6-4 / 6-5）
 -   [ ] PR-8 マージ済み（対象ステップ: 6-6）
 -   [ ] §2.7 の台帳の全行を書き換えた
