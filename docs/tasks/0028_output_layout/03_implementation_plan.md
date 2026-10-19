@@ -401,7 +401,7 @@ go test -run '^$' -tags test,integration ./...
 
 #### ステップ 4-10: PR-6 の確認
 
--   [x] `make fmt` → `make test` → `make lint` → `make deadcode` が通る。`renderSlackPost` が本番のコードから呼ばれるのは PR-7 からだが、`make deadcode` は `-test` を付けて実行するので、テストが呼んでいれば報告されない。
+-   [x] `make fmt` → `make test` → `make lint` → `make deadcode` が通る。`renderSlackPost` が本番のコードから呼ばれるのは PR-7 からで、それまでは `make deadcode` が `stageModels`・`renderSlackPost` などを到達不能として報告する。報告された項目は、テストが呼んでいることを確かめ、PR-7 が呼ぶまでの意図した足場として削除しない。
 -   [x] 次の変更を 1 つずつ行い、ステップ 4-9 の対応するテストが失敗することを確かめ、コミットメッセージに記す: `renderSlackPost` の `neutralizeMentions` の呼び出しを外す; `neutralizeProse` の呼び出しを外す; `stageModels` の同一モデルの統合を外す、または段階の順序を入れ替える; `keepTogetherFrom` の指す位置を本文の末尾にする。
 
 ### PR-6 作成ポイント: slack post renderer
