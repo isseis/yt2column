@@ -96,6 +96,16 @@ linters:
           deny:
             - pkg: github.com/isseis/yt2column/internal/server
               desc: "internal/publisher must not import internal/server (the server imports the publisher)"
+        # The server serves on a listener it is handed; the socket directory,
+        # the start lock, and the socket itself are the entry point's concern
+        # (internal/serversock), so internal/server must not depend on them.
+        server-no-serversock:
+          list-mode: lax
+          files:
+            - "**/internal/server/**"
+          deny:
+            - pkg: github.com/isseis/yt2column/internal/serversock
+              desc: "internal/server serves a listener it is given; only cmd/yt2column-server uses internal/serversock"
         publisher-no-log:
           list-mode: lax
           files:
