@@ -555,12 +555,22 @@ makes the socket path too long), and send to its socket:
 ```sh
 dev_home="$(mktemp -d /tmp/y2c.XXXXXX)"
 HOME="$dev_home" ./build/yt2column-server 2>>"$dev_home/server.log" &
+server_pid=$!
 socket="$dev_home/.local/state/yt2column/run/server.sock"
 if [ "$(uname -s)" = Darwin ]; then socket="$dev_home/Library/Application Support/yt2column/run/server.sock"; fi
-until [ -S "$socket" ]; do sleep 0.1; done
-curl -sS --unix-socket "$socket" -X GET http://localhost/articles
-kill %1 && wait %1; rm -rf "$dev_home"
+until [ -S "$socket" ] || ! kill -0 "$server_pid" 2>/dev/null; do sleep 0.1; done
+if [ -S "$socket" ]; then
+  curl -sS --unix-socket "$socket" -X GET http://localhost/articles
+else
+  echo "server exited at startup; $dev_home/server.log:" >&2; cat "$dev_home/server.log" >&2
+fi
+kill "$server_pid" 2>/dev/null; wait "$server_pid"; rm -rf "$dev_home"
 ```
+
+The loop stops waiting when the server exits at startup (a configuration error,
+or another server holding the start lock for that `HOME`); its log is then
+printed instead of sending the request, because the last line removes it. The
+last line works whether or not the server is still running.
 
 Each worktree's server with a different `HOME` runs at the same time as the
 others. The server still reads the LLM and Webhook variables from your
