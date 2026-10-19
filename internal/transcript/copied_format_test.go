@@ -297,16 +297,6 @@ func TestParseCopiedRejects(t *testing.T) {
 		{name: "trailing English operation label with different case", input: "0:2424 secondsはい\nsync to video time\n", reason: errCopiedNotTimestamp, line: 2},
 		{name: "trailing control character", input: "0:000 秒はい\n\n\t\n", reason: errCopiedControlChar, line: 3},
 		{name: "operation label only", input: "動画の時間と同期\n", reason: errCopiedNoText},
-		{name: "chapter heading without a number", input: "0:000 秒はい\nチャプター: タイトル\n0:1010 秒です\n", reason: errCopiedNotTimestamp, line: 2},
-		{name: "chapter heading number zero", input: "0:000 秒はい\nチャプター 0: タイトル\n0:1010 秒です\n", reason: errCopiedNotTimestamp, line: 2},
-		{name: "chapter heading number with a leading zero", input: "0:000 秒はい\nチャプター 01: タイトル\n0:1010 秒です\n", reason: errCopiedNotTimestamp, line: 2},
-		{name: "chapter heading without the space before the number", input: "0:000 秒はい\nチャプター2: タイトル\n0:1010 秒です\n", reason: errCopiedNotTimestamp, line: 2},
-		{name: "chapter heading without the colon", input: "0:000 秒はい\nチャプター 2 タイトル\n0:1010 秒です\n", reason: errCopiedNotTimestamp, line: 2},
-		{name: "chapter heading with a full-width colon", input: "0:000 秒はい\nチャプター 2： タイトル\n0:1010 秒です\n", reason: errCopiedNotTimestamp, line: 2},
-		{name: "chapter heading with an empty title", input: "0:000 秒はい\nチャプター 2: \n0:1010 秒です\n", reason: errCopiedNotTimestamp, line: 2},
-		{name: "chapter heading title ends in U+3000", input: "0:000 秒はい\nチャプター 2: タイトル　\n0:1010 秒です\n", reason: errCopiedNotTimestamp, line: 2},
-		{name: "chapter heading title ends in U+0020", input: "0:000 秒はい\nチャプター 2: タイトル \n0:1010 秒です\n", reason: errCopiedNotTimestamp, line: 2},
-		{name: "chapter heading with a leading space", input: "0:000 秒はい\n チャプター 2: タイトル\n0:1010 秒です\n", reason: errCopiedNotTimestamp, line: 2},
 		{name: "English chapter heading in lowercase", input: "0:000 secondsHello\nchapter 2: title\n0:055 secondsWorld\n", reason: errCopiedNotTimestamp, line: 2},
 		{name: "chapter heading with a control character", input: "0:000 秒はい\nチャプター 2: タイ\tトル\n0:1010 秒です\n", reason: errCopiedControlChar, line: 2},
 		{name: "chapter heading only", input: "チャプター 1: はじめに\n", reason: errCopiedNoText},
@@ -324,6 +314,43 @@ func TestParseCopiedRejects(t *testing.T) {
 		{name: "form B timestamp goes backward", input: "0:05\nx\n0:00\ny\n", reason: errCopiedTimestampOrder, line: 3},
 		{name: "form B has no text", input: "0:00\n0:05\n", reason: errCopiedNoText},
 		{name: "form A has no text", input: "0:000 秒\n", reason: errCopiedNoText},
+	}
+	// Each near-miss differs from a heading in one part of its shape. The rows
+	// are generated for every heading word, because each word has its own
+	// pattern and pinning one says nothing about the other.
+	nearMissHeadings := []struct {
+		name   string
+		format string
+	}{
+		{name: "without a number", format: "%s: Title"},
+		{name: "number zero", format: "%s 0: Title"},
+		{name: "number with a leading zero", format: "%s 01: Title"},
+		{name: "full-width number", format: "%s ２: Title"},
+		{name: "without the space before the number", format: "%s2: Title"},
+		{name: "two spaces before the number", format: "%s  2: Title"},
+		{name: "U+3000 before the number", format: "%s　2: Title"},
+		{name: "without the colon", format: "%s 2 Title"},
+		{name: "with a full-width colon", format: "%s 2： Title"},
+		{name: "without the space after the colon", format: "%s 2:Title"},
+		{name: "with an empty title", format: "%s 2: "},
+		{name: "title ends in U+3000", format: "%s 2: Title　"},
+		{name: "title ends in U+0020", format: "%s 2: Title "},
+		{name: "with a leading space", format: " %s 2: Title"},
+	}
+	for _, word := range []string{"チャプター", "Chapter"} {
+		for _, nearMiss := range nearMissHeadings {
+			cases = append(cases, struct {
+				name   string
+				input  string
+				reason error
+				line   int
+			}{
+				name:   word + " heading " + nearMiss.name,
+				input:  "0:000 秒はい\n" + fmt.Sprintf(nearMiss.format, word) + "\n0:1010 秒です\n",
+				reason: errCopiedNotTimestamp,
+				line:   2,
+			})
+		}
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
