@@ -8,12 +8,14 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
 	"time"
 
 	"github.com/isseis/yt2column/internal/cachelock"
+	"github.com/isseis/yt2column/internal/config"
 	"github.com/isseis/yt2column/internal/udstest"
 )
 
@@ -744,5 +746,16 @@ func TestAbandon(t *testing.T) {
 				t.Errorf("name kept = %v (Lstat error %v), want %v", kept, err, tc.wantKept)
 			}
 		})
+	}
+}
+
+// TestSocketPathLimitMatchesSockaddr checks that the limit internal/config
+// derives the socket path within is the longest path this operating system's
+// sockaddr_un holds with its terminating NUL. internal/config cannot import the
+// OS-specific type, so it keeps the limit as a constant and this test fixes it.
+func TestSocketPathLimitMatchesSockaddr(t *testing.T) {
+	want := len(syscall.RawSockaddrUnix{}.Path) - 1
+	if got := config.SocketPathMaxForTest(runtime.GOOS); got != want {
+		t.Errorf("config socket path limit for %s = %d, want %d", runtime.GOOS, got, want)
 	}
 }

@@ -8,7 +8,9 @@
 package udstest
 
 import (
+	"context"
 	"net"
+	"net/http"
 	"os"
 	"testing"
 )
@@ -53,4 +55,15 @@ func Listen(t testing.TB, path string) net.Listener {
 	}
 	t.Cleanup(func() { _ = listener.Close() })
 	return listener
+}
+
+// Transport returns an HTTP transport that dials the Unix domain socket at
+// path for every request, whatever the URL's host, and never uses a proxy.
+func Transport(path string) *http.Transport {
+	return &http.Transport{
+		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			var d net.Dialer
+			return d.DialContext(ctx, "unix", path)
+		},
+	}
 }

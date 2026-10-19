@@ -87,12 +87,12 @@ describe("sendOutcomeMessage", () => {
   it("delegates a rejection to serverRejectMessage", () => {
     const outcome: SendOutcome = {
       kind: "rejected",
-      reason: "unauthorized",
+      reason: "invalid_body",
       requestId,
     };
     assert.deepEqual(
       sendOutcomeMessage(outcome),
-      serverRejectMessage("unauthorized"),
+      serverRejectMessage("invalid_body"),
     );
   });
 

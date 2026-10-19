@@ -2,12 +2,15 @@
 
 package config
 
-// The server-relevant variable names and the token file's name, exposed so the
-// documentation guard in cmd/yt2column-server derives them from the code
-// instead of copying them. Built only with the test tag.
+import (
+	"path/filepath"
+	"slices"
+)
 
-// ServerPortEnvForTest is the environment variable naming the listening port.
-func ServerPortEnvForTest() string { return serverPortEnv }
+// The server-relevant variable names and the socket path rule, exposed so the
+// documentation guard in cmd/yt2column-server and the internal/serversock
+// tests derive them from the code instead of copying them. Built only with the
+// test tag.
 
 // SlackWebhookEnvForTest is the environment variable naming the Webhook URL.
 func SlackWebhookEnvForTest() string { return slackEnv }
@@ -20,6 +23,23 @@ func CacheDirEnvForTest() string { return cacheDirEnv }
 // LoadServer does not read.
 func YtDlpEnvForTest() string { return ytDlpEnv }
 
-// TokenFileNameForTest is the shared token file's name under the configuration
-// directory.
-func TokenFileNameForTest() string { return tokenFileName }
+// SocketPathTailForTest returns the part of the socket path below HOME for
+// goos, starting with a separator. It panics for an operating system with no
+// rule.
+func SocketPathTailForTest(goos string) string {
+	parts, _, ok := socketRule(goos)
+	if !ok {
+		panic("config: no socket path rule for " + goos)
+	}
+	return string(filepath.Separator) + filepath.Join(slices.Concat(parts, []string{socketFileName})...)
+}
+
+// SocketPathMaxForTest returns the longest socket path, in bytes, accepted for
+// goos. It panics for an operating system with no rule.
+func SocketPathMaxForTest(goos string) int {
+	_, limit, ok := socketRule(goos)
+	if !ok {
+		panic("config: no socket path rule for " + goos)
+	}
+	return limit
+}

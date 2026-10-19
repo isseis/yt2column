@@ -18,35 +18,26 @@ type rejectReason int
 
 const (
 	reasonInternal rejectReason = iota
-	reasonForbiddenHost
 	reasonNotFound
 	reasonMethodNotAllowed
-	reasonUnsupportedMediaType
-	reasonForbiddenOrigin
-	reasonUnauthorized
 	reasonTooManyRequests
 	reasonBodyTooLarge
 	reasonInvalidBody
 	reasonInvalidVideoURL
 	reasonInvalidTranscript
+	// reasonCount is not a reason: it follows the last one, so the tests
+	// enumerate every reason, including one appended later.
+	reasonCount
 )
 
 // reasonValue returns the fixed `reason` value of the response body. It is the
 // English identifier the extension reads, so it never holds a request value.
 func (r rejectReason) reasonValue() string {
 	switch r {
-	case reasonForbiddenHost:
-		return "forbidden_host"
 	case reasonNotFound:
 		return "not_found"
 	case reasonMethodNotAllowed:
 		return "method_not_allowed"
-	case reasonUnsupportedMediaType:
-		return "unsupported_media_type"
-	case reasonForbiddenOrigin:
-		return "forbidden_origin"
-	case reasonUnauthorized:
-		return "unauthorized"
 	case reasonTooManyRequests:
 		return "too_many_requests"
 	case reasonBodyTooLarge:
@@ -65,16 +56,10 @@ func (r rejectReason) reasonValue() string {
 // statusCode returns the HTTP status code of the rejection.
 func (r rejectReason) statusCode() int {
 	switch r {
-	case reasonForbiddenHost, reasonForbiddenOrigin:
-		return http.StatusForbidden
 	case reasonNotFound:
 		return http.StatusNotFound
 	case reasonMethodNotAllowed:
 		return http.StatusMethodNotAllowed
-	case reasonUnsupportedMediaType:
-		return http.StatusUnsupportedMediaType
-	case reasonUnauthorized:
-		return http.StatusUnauthorized
 	case reasonTooManyRequests:
 		return http.StatusTooManyRequests
 	case reasonBodyTooLarge:
@@ -108,9 +93,7 @@ func (r rejectReason) notify() bool {
 // post-slot internal error reads the body and does not force close.
 func (r rejectReason) forceClose() bool {
 	switch r {
-	case reasonForbiddenHost, reasonNotFound, reasonMethodNotAllowed,
-		reasonUnsupportedMediaType, reasonForbiddenOrigin, reasonUnauthorized,
-		reasonTooManyRequests, reasonBodyTooLarge:
+	case reasonNotFound, reasonMethodNotAllowed, reasonTooManyRequests, reasonBodyTooLarge:
 		return true
 	default:
 		return false
@@ -122,27 +105,14 @@ func (r rejectReason) forceClose() bool {
 type rejectDetail string
 
 const (
-	detailHostMismatch        rejectDetail = "host_mismatch"
-	detailNotFound            rejectDetail = "not_found"
-	detailMethodNotAllowed    rejectDetail = "method_not_allowed"
-	detailContentTypeMissing  rejectDetail = "content_type_missing"
-	detailContentTypeMultiple rejectDetail = "content_type_multiple"
-	detailContentTypeMismatch rejectDetail = "content_type_mismatch"
-	detailOriginMissing       rejectDetail = "origin_missing"
-	detailOriginMultiple      rejectDetail = "origin_multiple"
-	detailOriginNotExtension  rejectDetail = "origin_not_extension"
-	detailOriginMismatch      rejectDetail = "origin_mismatch"
-	detailAuthMissing         rejectDetail = "auth_missing"
-	detailAuthMultiple        rejectDetail = "auth_multiple"
-	detailAuthNotBearer       rejectDetail = "auth_not_bearer" //nolint:gosec // a fixed log detail, not a credential
-	detailAuthWrongLength     rejectDetail = "auth_wrong_length"
-	detailAuthMismatch        rejectDetail = "auth_mismatch"
-	detailTooManyRequests     rejectDetail = "too_many_requests"
-	detailBodyTooLarge        rejectDetail = "body_too_large"
-	detailInvalidBody         rejectDetail = "invalid_body"
-	detailInvalidVideoURL     rejectDetail = "invalid_video_url"
-	detailInvalidTranscript   rejectDetail = "invalid_transcript"
-	detailInternalError       rejectDetail = "internal_error"
+	detailNotFound          rejectDetail = "not_found"
+	detailMethodNotAllowed  rejectDetail = "method_not_allowed"
+	detailTooManyRequests   rejectDetail = "too_many_requests"
+	detailBodyTooLarge      rejectDetail = "body_too_large"
+	detailInvalidBody       rejectDetail = "invalid_body"
+	detailInvalidVideoURL   rejectDetail = "invalid_video_url"
+	detailInvalidTranscript rejectDetail = "invalid_transcript"
+	detailInternalError     rejectDetail = "internal_error"
 )
 
 // rejection is a response the handler writes plus the detail it logs. videoID
@@ -186,11 +156,8 @@ func writeAccepted(w http.ResponseWriter, requestID string) error {
 // pre-slot internal error; the caller decides it from the slot it holds.
 func writeRejected(w http.ResponseWriter, requestID string, reason rejectReason, closeConnection bool) error {
 	var headers [][2]string
-	switch reason {
-	case reasonMethodNotAllowed:
+	if reason == reasonMethodNotAllowed {
 		headers = append(headers, [2]string{"Allow", http.MethodPost})
-	case reasonUnauthorized:
-		headers = append(headers, [2]string{"WWW-Authenticate", "Bearer"})
 	}
 	if closeConnection {
 		headers = append(headers, [2]string{"Connection", "close"})

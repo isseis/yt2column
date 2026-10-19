@@ -15,7 +15,6 @@ import (
 	"os"
 	"os/exec"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -28,6 +27,7 @@ import (
 	"github.com/isseis/yt2column/internal/secret"
 	"github.com/isseis/yt2column/internal/server"
 	"github.com/isseis/yt2column/internal/signalrun"
+	"github.com/isseis/yt2column/internal/udstest"
 	"github.com/isseis/yt2column/internal/writer"
 )
 
@@ -50,8 +50,6 @@ const (
 	testNormalizedURL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 	// testValidRaw is a copied transcript the parser accepts.
 	testValidRaw = "0:00\nHello\n"
-	// extensionOrigin is the one Origin the server accepts.
-	extensionOrigin = "chrome-extension://clfmbbcdpnjcefbdihdoahomaifbabkk"
 	// emptyReviewJSON is a valid review response that revises nothing.
 	emptyReviewJSON = `{"revisions":[]}`
 )
@@ -95,9 +93,6 @@ const (
 	// childWaitDelay bounds how long Wait drains a child's output after it
 	// exits.
 	childWaitDelay = 10 * time.Second
-	// listenAttempts bounds the retries when a free port is taken between
-	// probing it and listening on it.
-	listenAttempts = 5
 	// loopbackTimeout bounds one post to the loopback webhook and one request
 	// to the server.
 	loopbackTimeout = 10 * time.Second
@@ -113,22 +108,23 @@ var (
 	errUnexpectedWebhook = errors.New("run passed a webhook URL other than the configured one")
 )
 
-// serverEnv is the environment of one server: a temporary HOME, which holds
-// the token file, and the variables config.LoadServer reads. Every start of
-// the same serverEnv uses the same token file.
+// serverEnv is the environment of one server: HOME, from which the socket
+// path is derived, and the other variables config.LoadServer reads. Every start
+// of the same serverEnv uses the same socket path.
 type serverEnv struct {
 	vars map[string]string
 }
 
 // newServerEnv returns the variables of a valid configuration with HOME in a
-// fresh temporary directory. The port is set by each start.
+// fresh short directory under /tmp, so the socket path stays within the macOS
+// limit and no two tests share it.
 func newServerEnv(t *testing.T) *serverEnv {
 	t.Helper()
 	return &serverEnv{vars: map[string]string{
 		"YT2COLUMN_MODEL":   testModel,
 		"DEEPSEEK_API_KEY":  testAPIKey,
 		"SLACK_WEBHOOK_URL": testWebhook,
-		"HOME":              t.TempDir(),
+		"HOME":              udstest.Dir(t),
 	}}
 }
 
@@ -140,79 +136,20 @@ func (e *serverEnv) lookup() config.LookupFunc {
 	}
 }
 
-// setPort sets YT2COLUMN_SERVER_PORT.
-func (e *serverEnv) setPort(port uint16) {
-	e.vars["YT2COLUMN_SERVER_PORT"] = strconv.Itoa(int(port))
-}
-
-// port returns the port last set.
-func (e *serverEnv) port(t *testing.T) uint16 {
-	t.Helper()
-	port, err := strconv.Atoi(e.vars["YT2COLUMN_SERVER_PORT"])
-	if err != nil {
-		t.Fatalf("the test set no port: %v", err)
-	}
-	return uint16(port) //nolint:gosec // set by setPort from a uint16
-}
-
-// tokenPath returns the token file's path, derived by config.LoadServer as
-// the server derives it.
-func (e *serverEnv) tokenPath(t *testing.T) string {
+// socketPath returns the socket path, derived by config.LoadServer as the
+// server derives it.
+func (e *serverEnv) socketPath(t *testing.T) string {
 	t.Helper()
 	cfg, err := config.LoadServer(e.lookup())
 	if err != nil {
 		t.Fatalf("LoadServer: %v", err)
 	}
-	return cfg.TokenPath()
+	return cfg.SocketPath()
 }
 
-// readToken returns the content of the token file.
-func (e *serverEnv) readToken(t *testing.T) string {
-	t.Helper()
-	data, err := os.ReadFile(e.tokenPath(t))
-	if err != nil {
-		t.Fatalf("read the token file: %v", err)
-	}
-	return string(data)
-}
-
-// requireIPv6Loopback skips the test when the IPv6 loopback is unavailable:
-// the server listens on both loopback addresses and cannot start without it.
-func requireIPv6Loopback(t *testing.T) {
-	t.Helper()
-	listener, err := net.Listen("tcp", "[::1]:0")
-	if err != nil {
-		t.Skipf("IPv6 loopback is unavailable, so the server cannot listen: %v", err)
-	}
-	_ = listener.Close()
-}
-
-// freePort returns a port that was free on both loopback addresses a moment
-// ago. The caller retries when it is taken before the server listens.
-func freePort(t *testing.T) uint16 {
-	t.Helper()
-	for range listenAttempts {
-		ipv4, err := net.Listen("tcp", "127.0.0.1:0")
-		if err != nil {
-			t.Fatalf("find a free port: %v", err)
-		}
-		port := ipv4.Addr().(*net.TCPAddr).Port
-		ipv6, err := net.Listen("tcp", "[::1]:"+strconv.Itoa(port))
-		_ = ipv4.Close()
-		if err != nil {
-			continue
-		}
-		_ = ipv6.Close()
-		return uint16(port) //nolint:gosec // a TCP port fits in uint16
-	}
-	t.Fatal("no port is free on both loopback addresses")
-	return 0
-}
-
-// listening reports whether a connection to the IPv4 loopback on port is
-// accepted.
-func listening(port uint16) bool {
-	conn, err := net.DialTimeout("tcp", "127.0.0.1:"+strconv.Itoa(int(port)), time.Second)
+// listening reports whether a connection to the socket at path is accepted.
+func listening(path string) bool {
+	conn, err := net.DialTimeout("unix", path, time.Second)
 	if err != nil {
 		return false
 	}
@@ -220,92 +157,39 @@ func listening(port uint16) bool {
 	return true
 }
 
-// runningServer is a run started by startServer.
+// runningServer is a run started by startServer. stderr is read only after
+// stop.
 type runningServer struct {
 	cancel context.CancelFunc
 	done   chan struct{}
 	code   int
-	// stdout is synchronized, so a test can read what run has written while
-	// the server keeps serving; it is nil when run writes to a caller-supplied
-	// writer. stderr is read only after stop.
-	stdout *syncBuffer
 	stderr *bytes.Buffer
 }
 
-// syncBuffer is a buffer whose writes and reads are synchronized, so run's
-// display can be read while run keeps serving (make test runs with -race).
-type syncBuffer struct {
-	mu  sync.Mutex
-	buf bytes.Buffer
-}
-
-// Write implements io.Writer.
-func (b *syncBuffer) Write(p []byte) (int, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buf.Write(p)
-}
-
-// String returns the bytes written so far.
-func (b *syncBuffer) String() string {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buf.String()
-}
-
-// startServer calls run in a goroutine on a free port and returns once the
-// server accepts connections. When the port is taken before run listens (run
-// returns exitFailure without serving), it tries another. Each attempt gets a
-// fresh stdout buffer, so the returned server's standard output holds only the
-// listening attempt's display; the retries' standard error is kept for the
-// diagnostic on failure. A cleanup stops the run.
+// startServer calls run in a goroutine and returns once the server accepts
+// connections on its socket. A cleanup stops the run.
 func startServer(t *testing.T, e *serverEnv, d deps) *runningServer {
 	t.Helper()
-	return startServerWithStdout(t, e, d, nil)
-}
-
-// startServerWithStdout is startServer, but when stdout is non-nil run writes
-// the token to that writer instead of a fresh synchronized buffer, and the
-// returned server's stdout is nil. The caller-supplied writer is reused across
-// listen retries, so it must tolerate repeated writes (the failing writer
-// discards them); the retry and cleanup logic is otherwise shared with
-// startServer.
-func startServerWithStdout(t *testing.T, e *serverEnv, d deps, stdout io.Writer) *runningServer {
-	t.Helper()
-	requireIPv6Loopback(t)
 	stderr := &bytes.Buffer{}
-	for range listenAttempts {
-		e.setPort(freePort(t))
-		out := stdout
-		var buf *syncBuffer
-		if out == nil {
-			buf = &syncBuffer{}
-			out = buf
-		}
-		ctx, cancel := context.WithCancel(context.Background())
-		r := &runningServer{cancel: cancel, done: make(chan struct{}), stdout: buf, stderr: stderr}
-		lookup := e.lookup()
-		go func() {
-			defer close(r.done)
-			r.code = run(ctx, nil, lookup, out, stderr, d)
-		}()
-		if waitListening(e.port(t), r.done) {
-			t.Cleanup(func() { r.stop(t) })
-			return r
-		}
+	ctx, cancel := context.WithCancel(context.Background())
+	r := &runningServer{cancel: cancel, done: make(chan struct{}), stderr: stderr}
+	lookup := e.lookup()
+	go func() {
+		defer close(r.done)
+		r.code = run(ctx, nil, lookup, stderr, d)
+	}()
+	if !waitListening(e.socketPath(t), r.done) {
 		cancel()
 		<-r.done
-		if r.code != exitFailure {
-			t.Fatalf("run returned %d before listening, want it to listen\nstderr:\n%s", r.code, stderr.String())
-		}
+		t.Fatalf("run returned %d or did not listen within %v\nstderr:\n%s", r.code, readyBound, stderr.String())
 	}
-	t.Fatalf("run could not listen after %d attempts\nstderr:\n%s", listenAttempts, stderr.String())
-	return nil
+	t.Cleanup(func() { r.stop(t) })
+	return r
 }
 
-// waitListening waits up to readyBound for port to accept connections. It
-// returns false at once when done is closed.
-func waitListening(port uint16, done <-chan struct{}) bool {
+// waitListening waits up to readyBound for the socket at path to accept
+// connections. It returns false at once when done is closed.
+func waitListening(path string, done <-chan struct{}) bool {
 	deadline := time.Now().Add(readyBound)
 	for time.Now().Before(deadline) {
 		select {
@@ -313,7 +197,7 @@ func waitListening(port uint16, done <-chan struct{}) bool {
 			return false
 		default:
 		}
-		if listening(port) {
+		if listening(path) {
 			return true
 		}
 		time.Sleep(pollInterval)
@@ -503,23 +387,22 @@ func requestBody(raw string) string {
 	return string(data)
 }
 
-// loopbackClient sends to the server directly, never through a proxy.
-var loopbackClient = &http.Client{Transport: &http.Transport{}, Timeout: loopbackTimeout}
+// unixClient returns a client that sends every request to the socket at path,
+// whatever the URL's host, and never through a proxy.
+func unixClient(path string) *http.Client {
+	return &http.Client{Transport: udstest.Transport(path), Timeout: loopbackTimeout}
+}
 
-// postArticle sends body to the server on port with the headers the extension
-// sends and token as the shared token, and returns the status and the decoded
-// response. A transport error is returned rather than failing the test, so a
-// caller can record a cut connection.
-func postArticle(port uint16, token string, body io.Reader) (int, apiResponse, error) {
-	target := "http://127.0.0.1:" + strconv.Itoa(int(port)) + server.ArticlesPath
-	req, err := http.NewRequest(http.MethodPost, target, body)
+// postArticle sends body to the server on the socket at path, with no header
+// beyond what net/http adds, and returns the status and the decoded response.
+// A transport error is returned rather than failing the test, so a caller can
+// record a cut connection.
+func postArticle(path string, body io.Reader) (int, apiResponse, error) {
+	req, err := http.NewRequest(http.MethodPost, "http://yt2column"+server.ArticlesPath, body)
 	if err != nil {
 		return 0, apiResponse{}, err
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Origin", extensionOrigin)
-	req.Header.Set("Authorization", "Bearer "+token)
-	resp, err := loopbackClient.Do(req)
+	resp, err := unixClient(path).Do(req)
 	if err != nil {
 		return 0, apiResponse{}, err
 	}
@@ -533,9 +416,9 @@ func postArticle(port uint16, token string, body io.Reader) (int, apiResponse, e
 
 // mustPostArticle is postArticle that fails the test on a transport error and
 // on a status other than want.
-func mustPostArticle(t *testing.T, port uint16, token, body string, want int) apiResponse {
+func mustPostArticle(t *testing.T, path, body string, want int) apiResponse {
 	t.Helper()
-	status, resp, err := postArticle(port, token, strings.NewReader(body))
+	status, resp, err := postArticle(path, strings.NewReader(body))
 	if err != nil {
 		t.Fatalf("post an article: %v", err)
 	}
@@ -588,7 +471,7 @@ func runChildMode(mode string) int {
 	case childModeBlock:
 		d := testDeps(blockingLLM{ready: os.Getenv(childReadyEnv), release: os.Getenv(childReleaseEnv)})
 		return signalrun.Run(func(ctx context.Context) int {
-			return run(ctx, os.Args[1:], os.LookupEnv, os.Stdout, os.Stderr, d)
+			return run(ctx, os.Args[1:], os.LookupEnv, os.Stderr, d)
 		})
 	default:
 		_, _ = fmt.Fprintf(os.Stderr, "unknown child mode %q\n", mode)
@@ -604,60 +487,36 @@ type serverChild struct {
 	done   chan struct{}
 }
 
-// startServerChild starts the test binary as a server child in mode on a free
-// port and returns once it accepts connections, retrying on another port when
-// the child cannot listen. Its environment is the allowlisted parent
-// variables, e's variables, extra, and the mode. A cleanup that kills and
-// reaps each child is registered as soon as it starts.
+// startServerChild starts the test binary as a server child in mode and
+// returns once it accepts connections on its socket. Its environment is the
+// allowlisted parent variables, e's variables, extra, and the mode. A cleanup
+// that kills and reaps the child is registered as soon as it starts.
 func startServerChild(t *testing.T, mode string, e *serverEnv, extra map[string]string) *serverChild {
 	t.Helper()
-	return startServerChildWithStdout(t, mode, e, extra, nil)
-}
-
-// startServerChildWithStdout is startServerChild, but when stdout is non-nil
-// the child's standard output is that file instead of the captured buffer. It
-// takes an *os.File because the child's standard output must be the file
-// itself (the closed-pipe test passes the write end of a pipe whose reader it
-// has already closed); any other io.Writer would be copied through a live
-// parent-side pipe. The caller owns stdout and must close it.
-func startServerChildWithStdout(t *testing.T, mode string, e *serverEnv, extra map[string]string, stdout *os.File) *serverChild {
-	t.Helper()
-	requireIPv6Loopback(t)
-	for range listenAttempts {
-		e.setPort(freePort(t))
-		cmd := exec.Command(os.Args[0]) //nolint:gosec // the test binary itself, re-run as the server
-		cmd.Env = childEnv(mode, e.vars, extra)
-		cmd.WaitDelay = childWaitDelay
-		c := &serverChild{cmd: cmd, done: make(chan struct{})}
-		if stdout != nil {
-			cmd.Stdout = stdout
-		} else {
-			cmd.Stdout = &c.stdout
-		}
-		cmd.Stderr = &c.stderr
-		if err := cmd.Start(); err != nil {
-			t.Fatalf("start the server child: %v", err)
-		}
-		go func() {
-			_ = cmd.Wait()
-			close(c.done)
-		}()
-		t.Cleanup(func() {
-			_ = cmd.Process.Kill()
-			<-c.done
-		})
-		if waitListening(e.port(t), c.done) {
-			return c
-		}
-		if !c.exited() {
-			t.Fatalf("the server child did not listen within %v", readyBound)
-		}
-		if code := c.cmd.ProcessState.ExitCode(); code != exitFailure {
-			t.Fatalf("the server child exited with %d before listening\nstderr:\n%s", code, c.stderr.String())
-		}
+	cmd := exec.Command(os.Args[0]) //nolint:gosec // the test binary itself, re-run as the server
+	cmd.Env = childEnv(mode, e.vars, extra)
+	cmd.WaitDelay = childWaitDelay
+	c := &serverChild{cmd: cmd, done: make(chan struct{})}
+	cmd.Stdout = &c.stdout
+	cmd.Stderr = &c.stderr
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start the server child: %v", err)
 	}
-	t.Fatalf("the server child could not listen after %d attempts", listenAttempts)
-	return nil
+	go func() {
+		_ = cmd.Wait()
+		close(c.done)
+	}()
+	t.Cleanup(func() {
+		_ = cmd.Process.Kill()
+		<-c.done
+	})
+	if !waitListening(e.socketPath(t), c.done) {
+		if c.exited() {
+			t.Fatalf("the server child exited with %d before listening\nstderr:\n%s", c.cmd.ProcessState.ExitCode(), c.stderr.String())
+		}
+		t.Fatalf("the server child did not listen within %v", readyBound)
+	}
+	return c
 }
 
 // childEnv builds a child's environment from the allowlist, the variable
@@ -722,12 +581,12 @@ func waitForFile(t *testing.T, path string) {
 	t.Fatalf("%s did not appear within %v", path, readyBound)
 }
 
-// requireNoSecret fails the test when output holds the shared token or any
-// marked part of an API key or the webhook URL.
-func requireNoSecret(t *testing.T, name, output, token string) {
+// requireNoSecret fails the test when output holds any marked part of an API
+// key or the webhook URL.
+func requireNoSecret(t *testing.T, name, output string) {
 	t.Helper()
-	for _, s := range []string{token, apiKeyMarker, anthropicMarker, webhookPathMarker} {
-		if s != "" && strings.Contains(output, s) {
+	for _, s := range []string{apiKeyMarker, anthropicMarker, webhookPathMarker} {
+		if strings.Contains(output, s) {
 			t.Errorf("%s holds a secret (%.8s...):\n%s", name, s, output)
 		}
 	}

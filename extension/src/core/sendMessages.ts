@@ -66,28 +66,6 @@ export function serverRejectMessage(
   reason: ServerRejectReason,
 ): RejectionMessage {
   switch (reason) {
-    case "unauthorized":
-      return {
-        text: "The shared token does not match the server.",
-        steps: [
-          "Check the token the server printed at startup.",
-          "Paste it into the options page and save it.",
-        ],
-      };
-    case "forbidden_origin":
-      return {
-        text: "The server did not accept this extension.",
-        steps: [
-          "The loaded extension's ID may differ from the one the server allows.",
-        ],
-      };
-    case "forbidden_host":
-      return {
-        text: "The server did not accept the request host.",
-        steps: [
-          "Check the port in the options page; another process may be answering.",
-        ],
-      };
     case "too_many_requests":
       return {
         text: "The server is already processing another article.",
@@ -140,13 +118,6 @@ export function serverRejectMessage(
     case "method_not_allowed":
       return {
         text: "The server did not accept POST at the article endpoint.",
-        steps: [
-          "Check the port in the options page; another process may be using it.",
-        ],
-      };
-    case "unsupported_media_type":
-      return {
-        text: "The server did not accept the request content type.",
         steps: [
           "Check the port in the options page; another process may be using it.",
         ],

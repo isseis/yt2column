@@ -332,11 +332,19 @@ of the old article and all of the new one.
 posts the generated article to the same Webhook as the CLI. `make build` builds
 both `build/yt2column` and `build/yt2column-server`.
 
-It reads the same LLM variables as the CLI, requires `SLACK_WEBHOOK_URL`, and
-listens on `YT2COLUMN_SERVER_PORT` (default `8765`). It never calls `yt-dlp` and
-reads neither `YT2COLUMN_CACHE_DIR` nor `YT2COLUMN_YTDLP_PATH`. It binds
-`127.0.0.1` and `::1` only and rejects a request whose `Host`, `Origin`, or
-shared token does not match.
+It reads the same LLM variables as the CLI and requires `SLACK_WEBHOOK_URL`. It
+never calls `yt-dlp` and reads neither `YT2COLUMN_CACHE_DIR` nor
+`YT2COLUMN_YTDLP_PATH`. It listens on a Unix domain socket only, never on a TCP
+port, at a path derived from `HOME` alone:
+
+- macOS: `$HOME/Library/Application Support/yt2column/run/server.sock`
+- other Unix: `$HOME/.local/state/yt2column/run/server.sock`
+
+No other variable (such as `XDG_STATE_HOME` or `TMPDIR`) changes the path. The
+server needs no shared token: the socket directory has mode `0700` and the
+socket mode `0600`, so only processes running as your user can connect, and the
+server trusts them. It checks only the request path and method, not the
+`Host`, `Origin`, `Content-Type`, or `Authorization` headers.
 
 ### Running the server
 
@@ -346,53 +354,40 @@ Start it with the provider and Webhook variables set:
 ./build/yt2column-server 2>>server.log
 ```
 
-The shared token is printed to standard output on every start; the logs go to
-standard error, so `2>>server.log` keeps a record. Every request and job log
-line carries the `requestId` the response returns, so you can find a request's
-log with `grep <requestId> server.log`.
+The server writes nothing to standard output; the logs go to standard error,
+so `2>>server.log` keeps a record. The first log line names the socket. Every
+request and job log line carries the `requestId` the response returns, so you
+can find a request's log with `grep <requestId> server.log`.
+
+On start the server creates the socket directory (`run`) with mode `0700` when
+it is missing, takes the start lock (the file `.yt2column.lock` in the socket
+directory, which stays), removes a stale socket left by a server that was
+killed, and creates the socket with mode `0600`. Only one server per `HOME`
+(normally one per user) can run: the start lock is held until the server has stopped and its in-flight jobs
+have finished. The server repairs nothing: a socket directory that is not
+yours, is a symbolic link, or does not have exactly mode `0700`, and a name at
+the socket path that is not a socket, stop the start until you fix them by
+hand.
+
+The socket path must fit the operating system's limit (107 bytes on Linux, 103
+on macOS and other Unix). On macOS the part after `HOME` is 54 bytes, so `HOME` can be at
+most 49 bytes; a longer one stops the start with exit code `2`.
 
 Exit codes:
 
 | Code | Meaning |
 |---|---|
 | `0` | The server stopped after a signal. |
-| `1` | Listening on a loopback address, or serving, failed. |
-| `2` | The server was given arguments, or the configuration, the shared token file, or building the components failed before listening. |
-
-### The shared token
-
-On the first start the server generates a shared token and saves it to
-`<config dir>/yt2column/server-token` (macOS:
-`$HOME/Library/Application Support/yt2column/server-token`; other Unix:
-`$XDG_CONFIG_HOME` or `$HOME/.config`). On every start, the first included, the
-server prints the token to standard output. The extension sends this token as
-its bearer token; paste it into the extension's options page (see
-[Browser extension](#browser-extension)). Use the curl example below to check
-the server by hand.
-
-- To see the token again, restart the server: it prints the same token every
-  time. Standard output is easy to redirect, so a start whose standard output
-  goes to a file leaves the token in that file; `2>>server.log` above redirects
-  only standard error, which never carries the token.
-- If the display fails (for example standard output is a closed pipe), the start
-  still serves and standard error names the file to read:
-  - macOS: `cat "$HOME/Library/Application Support/yt2column/server-token"`.
-  - other Unix: `cat "${XDG_CONFIG_HOME:-$HOME/.config}/yt2column/server-token"`.
-- To recreate it, delete the file and restart the server; this prints a new
-  token that must be pasted into the extension again.
-- A temporary file left by an interrupted first start (`server-token.tmp-*`) can
-  be deleted.
-- If the file exists but is not a regular file owned by you with no group or
-  other permission bits (mode `0600` or stricter), holding exactly 64 lowercase
-  hexadecimal characters, the server refuses to start and does not repair or
-  recreate it.
+| `1` | Preparing the socket directory, taking the start lock, creating the socket, or serving failed (for example, another server is already running). |
+| `2` | The server was given arguments, or the configuration (including `HOME` and the socket path derived from it) or building the components failed before listening. |
 
 ### Stopping the server
 
 The server logs to standard error. The first `SIGINT`, `SIGTERM`, or `SIGHUP`
-(one ignored at startup is not subscribed) stops accepting connections and lets
-the in-flight jobs finish, which can take up to about 45 minutes (three LLM
-calls of 15 minutes each); a second signal exits at once.
+(one ignored at startup is not subscribed) stops accepting connections, removes
+the socket, and lets the in-flight jobs finish, which can take up to about 45
+minutes (three LLM calls of 15 minutes each); a second signal exits at once.
+Until the jobs have finished, a new server refuses to start.
 
 ### Checking the server with curl
 
@@ -402,18 +397,15 @@ Write a request body to `request.json` (a video URL and the copied transcript):
 {"videoUrl":"https://www.youtube.com/watch?v=dQw4w9WgXcQ","transcript":"0:00\nHello\n"}
 ```
 
-Send it with the token on standard input, so it does not appear in the process
-arguments:
+Send it to the socket. The path contains a space on macOS, so keep it in
+double quotes:
 
 ```sh
-config_dir="${XDG_CONFIG_HOME:-$HOME/.config}"
-if [ "$(uname -s)" = Darwin ]; then config_dir="$HOME/Library/Application Support"; fi
-printf 'Authorization: Bearer %s\n' "$(cat "$config_dir/yt2column/server-token")" |
-  curl -sS -X POST http://127.0.0.1:8765/articles \
-    -H 'Origin: chrome-extension://clfmbbcdpnjcefbdihdoahomaifbabkk' \
-    -H 'Content-Type: application/json' \
-    -H @- \
-    --data-binary @request.json
+socket="$HOME/.local/state/yt2column/run/server.sock"
+if [ "$(uname -s)" = Darwin ]; then socket="$HOME/Library/Application Support/yt2column/run/server.sock"; fi
+curl -sS --unix-socket "$socket" -X POST http://localhost/articles \
+  -H 'Content-Type: application/json' \
+  --data-binary @request.json
 ```
 
 An accepted request answers `202` with `{"status":"accepted","requestId":"…"}`.
@@ -422,18 +414,46 @@ A rejected request answers a `4xx` or `5xx` with
 
 | reason | status code |
 |---|---|
-| `forbidden_host` | 403 |
 | `not_found` | 404 |
 | `method_not_allowed` | 405 |
-| `unsupported_media_type` | 415 |
-| `forbidden_origin` | 403 |
-| `unauthorized` | 401 |
 | `too_many_requests` | 429 |
 | `body_too_large` | 413 |
 | `invalid_body` | 400 |
 | `invalid_video_url` | 400 |
 | `invalid_transcript` | 400 |
 | `internal_error` | 500 |
+
+`not_found` and `method_not_allowed` answer a wrong path or method; they start
+no job and post no failure notice.
+
+### Troubleshooting
+
+- **The server is not running.** `curl` reports `Couldn't connect to server`
+  (its message names `localhost port 80`, the URL's host and default port; the
+  connection itself goes to the socket). Start the server as above; the first
+  log line names the socket it listens on.
+- **`another server holds the socket directory lock`.** Another server is
+  running, or a stopped one is still waiting for its in-flight jobs. The
+  message names the lock file; `lsof` on it shows which process holds it.
+- **`another process accepts connections on the socket path`.** A process other
+  than a server listens on the socket path. Stop it, or check the file at that
+  path.
+- **`... nothing was repaired or removed, so fix it by hand`.** The socket
+  directory, its parent, or the name at the socket path is not in the accepted
+  form (the message names the path and the reason). Fix it by hand, for
+  example by restoring mode `0700` on the socket directory, and start again.
+- **`HOME: the socket path derived from HOME exceeds the operating system's
+  limit`.** `HOME` is too long for the socket path; see the limit above.
+
+### Upgrading from the shared-token version
+
+- Stop the old server before starting this one. The old server listened on a
+  TCP port and does not take the start lock, so the new one cannot detect it.
+- The server no longer reads the shared token file. It can be deleted:
+  - macOS: `$HOME/Library/Application Support/yt2column/server-token`
+  - other Unix: `${XDG_CONFIG_HOME:-$HOME/.config}/yt2column/server-token`
+- The server no longer reads the variable that chose its port; it can be
+  removed from your environment.
 
 ## Setting up yt-dlp
 
@@ -479,11 +499,11 @@ On other platforms, see the yt-dlp
 | `SLACK_WEBHOOK_URL` | Slack-compatible Incoming Webhook URL (Mattermost is the verified target) | Required with `--slack`; optional with `--out` (no value) |
 | `YT2COLUMN_CACHE_DIR` | Cache directory for subtitles and video metadata | `$HOME/Library/Caches/yt2column` on macOS; `$XDG_CACHE_HOME/yt2column` or `$HOME/.cache/yt2column` on other Unix |
 | `YT2COLUMN_YTDLP_PATH` | Path to `yt-dlp` | `yt-dlp` on `PATH` |
-| `YT2COLUMN_SERVER_PORT` | Port the localhost server listens on (`1024`–`65535`) | `8765` |
 
 `yt2column-server` reads the LLM variables and requires `SLACK_WEBHOOK_URL`; it
 reads neither `YT2COLUMN_CACHE_DIR` nor `YT2COLUMN_YTDLP_PATH`, because it never
-calls `yt-dlp`.
+calls `yt-dlp`. It derives its socket path from `HOME` alone (see
+[Localhost server](#localhost-server)).
 
 The value of an environment variable is never trimmed or otherwise corrected;
 an empty value is treated as set and rejected, not as unset.
@@ -525,6 +545,42 @@ with explicit acceptance criteria. See [CLAUDE.md](CLAUDE.md) and
 Design documents are written in Japanese; start with
 [docs/dev/project_overview.md](docs/dev/project_overview.md).
 
+### Running a separate server for development
+
+The socket path depends only on `HOME`, and one server per `HOME` can run. To
+run a server built from a worktree beside your own, give it its own `HOME` in a
+short directory under `/tmp` (on macOS, the default directory of `mktemp -d`
+makes the socket path too long), and send to its socket:
+
+```sh
+dev_home="$(mktemp -d /tmp/y2c.XXXXXX)"
+HOME="$dev_home" ./build/yt2column-server 2>>"$dev_home/server.log" &
+server_pid=$!
+socket="$dev_home/.local/state/yt2column/run/server.sock"
+if [ "$(uname -s)" = Darwin ]; then socket="$dev_home/Library/Application Support/yt2column/run/server.sock"; fi
+until [ -S "$socket" ] || ! kill -0 "$server_pid" 2>/dev/null; do sleep 0.1; done
+if [ -S "$socket" ]; then
+  curl -sS --unix-socket "$socket" -X GET http://localhost/articles
+else
+  echo "server exited at startup; $dev_home/server.log:" >&2; cat "$dev_home/server.log" >&2
+fi
+kill "$server_pid" 2>/dev/null; wait "$server_pid"; rm -rf "$dev_home"
+```
+
+The loop stops waiting when the server exits at startup (a configuration error,
+or another server holding the start lock for that `HOME`); its log is then
+printed instead of sending the request, because the last line removes it. The
+last line works whether or not the server is still running.
+
+Each worktree's server with a different `HOME` runs at the same time as the
+others. The server still reads the LLM and Webhook variables from your
+environment: with the real ones, an accepted request generates an article and
+posts it. With fake values (any API key, and an `https` Webhook URL such as
+`https://example.invalid/hook`), send only requests that are rejected before a
+job starts, such as the wrong method above (`method_not_allowed`) or a wrong
+path (`not_found`); an accepted request would try to call the LLM API and post
+a failure notice.
+
 ### Browser extension
 
 A Chrome/Brave extension (Manifest V3) lives in `extension/`; it is written in
@@ -534,6 +590,13 @@ URL, and the tab title, and reads the video metadata — the video title, the
 channel name, and the description — from the video page. It sends the selection,
 the URL, and the video metadata to the localhost server, and shows the response.
 The tab title is shown for checking (and must not be empty); it is not sent.
+
+**Transitional note.** This section describes the extension as it is now,
+which sends over HTTP to `127.0.0.1` with the shared token. The server already
+listens only on its Unix socket and has no token (see
+[Localhost server](#localhost-server)), so this extension cannot reach it until
+the extension is switched to the native messaging host; that change rewrites
+this section and removes this note.
 
 Node.js 24 is required, and every `ext-*` target refuses to run when
 `node --version` does not match `extension/.node-version`. The version file sits

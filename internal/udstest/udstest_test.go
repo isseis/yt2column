@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io/fs"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
@@ -67,5 +68,26 @@ func TestListen(t *testing.T) {
 	})
 	if _, err := os.Lstat(path); !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("Lstat(%s) after cleanup: error = %v, want fs.ErrNotExist", path, err)
+	}
+}
+
+// TestTransportDialsTheSocket checks that a request through Transport reaches
+// the server on the socket, though the URL names another host.
+func TestTransportDialsTheSocket(t *testing.T) {
+	path := filepath.Join(Dir(t), "s.sock")
+	listener := Listen(t, path)
+	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusTeapot)
+	})}
+	go func() { _ = srv.Serve(listener) }()
+	t.Cleanup(func() { _ = srv.Close() })
+
+	resp, err := (&http.Client{Transport: Transport(path)}).Get("http://example.invalid/")
+	if err != nil {
+		t.Fatalf("GET through the transport: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusTeapot {
+		t.Errorf("status = %d, want %d from the server on the socket", resp.StatusCode, http.StatusTeapot)
 	}
 }

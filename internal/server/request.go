@@ -26,7 +26,8 @@ type jobInput struct {
 	requestID string
 }
 
-// readRequest reads and validates the body of an already-authenticated request.
+// readRequest reads and validates the body of a request that passed the header
+// checks.
 // It returns the job input on success, or a rejection. A rejection with
 // readFailed set is a body-read failure (a cut connection or a timeout), which
 // the handler answers with no response and no notice.

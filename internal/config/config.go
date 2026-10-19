@@ -7,7 +7,6 @@ import (
 	"errors"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 
 	"github.com/isseis/yt2column/internal/llm/claudeparam"
@@ -41,18 +40,7 @@ const (
 	slackEnv                = "SLACK_WEBHOOK_URL"
 	cacheDirEnv             = "YT2COLUMN_CACHE_DIR"
 	ytDlpEnv                = "YT2COLUMN_YTDLP_PATH"
-	serverPortEnv           = "YT2COLUMN_SERVER_PORT"
 	godebugEnv              = "GODEBUG"
-)
-
-// The accepted range and default of YT2COLUMN_SERVER_PORT. Port 0, which lets
-// the operating system choose, is rejected because the extension has no way to
-// learn the chosen port. Ports below 1024 are rejected because the server runs
-// with ordinary user privileges and has no reason to use a privileged one.
-const (
-	defaultServerPort = 8765
-	minServerPort     = 1024
-	maxServerPort     = 65535
 )
 
 // The accepted values of providerEnv.
@@ -79,8 +67,8 @@ const (
 	reasonSlackWebhook         = "must be an https URL with a host"
 	reasonDirRelative          = "must be an absolute path"
 	reasonCacheDirAbsent       = "no absolute default could be derived from HOME or XDG_CACHE_HOME"
-	reasonConfigDirAbsent      = "no absolute default could be derived from HOME or XDG_CONFIG_HOME"
-	reasonServerPort           = "must be a decimal integer from 1024 through 65535"
+	reasonSocketPathAbsent     = "no absolute socket path could be derived from HOME"
+	reasonSocketPathTooLong    = "the socket path derived from HOME exceeds the operating system's limit"
 )
 
 // LookupFunc has the signature of os.LookupEnv. Load reads every variable
@@ -235,8 +223,7 @@ func (c Config) HTTP2DebugEnabled() bool {
 type ServerConfig struct {
 	llm               LLMConfig
 	webhookURL        secret.Secret // always set
-	port              uint16
-	tokenPath         string // absolute
+	socketPath        string        // absolute, within the OS limit
 	http2DebugEnabled bool
 }
 
@@ -250,14 +237,10 @@ func (c ServerConfig) WebhookURL() secret.Secret {
 	return c.webhookURL
 }
 
-// Port returns the TCP port the server listens on. It is in the accepted range.
-func (c ServerConfig) Port() uint16 {
-	return c.port
-}
-
-// TokenPath returns the absolute path of the shared token file.
-func (c ServerConfig) TokenPath() string {
-	return c.tokenPath
+// SocketPath returns the absolute path of the server's Unix domain socket,
+// derived from HOME alone. It is within the OS limit.
+func (c ServerConfig) SocketPath() string {
+	return c.socketPath
 }
 
 // HTTP2DebugEnabled reports whether GODEBUG contains http2debug=1 or
@@ -267,8 +250,8 @@ func (c ServerConfig) HTTP2DebugEnabled() bool {
 }
 
 // LoadServer reads and validates the server's variables through lookup: the
-// LLM settings (shared with Load), SLACK_WEBHOOK_URL (required), the listening
-// port, and the shared token file's path. It joins every rejection together and
+// LLM settings (shared with Load), SLACK_WEBHOOK_URL (required), and HOME, from
+// which the socket path is derived. It joins every rejection together and
 // returns the zero ServerConfig on any error, so a value that did not pass
 // validation never reaches a caller. It reads no variable the server does not
 // use.
@@ -282,74 +265,18 @@ func LoadServer(lookup LookupFunc) (ServerConfig, error) {
 	case !set:
 		errs = append(errs, missingVar(slackEnv))
 	}
-	port, portErr := loadServerPort(lookup)
-	if portErr != nil {
-		errs = append(errs, portErr)
-	}
-	tokenPath, tokenErr := loadTokenPath(lookup)
-	if tokenErr != nil {
-		errs = append(errs, tokenErr)
+	sockPath, sockErr := socketPath(runtime.GOOS, lookup)
+	if sockErr != nil {
+		errs = append(errs, sockErr)
 	}
 	if err := errors.Join(errs...); err != nil {
 		return ServerConfig{}, err
 	}
 	cfg.llm = llm
 	cfg.webhookURL = webhook
-	cfg.port = port
-	cfg.tokenPath = tokenPath
+	cfg.socketPath = sockPath
 	cfg.http2DebugEnabled = hasHTTP2Debug(lookup)
 	return cfg, nil
-}
-
-// loadServerPort validates YT2COLUMN_SERVER_PORT. Unset defaults to
-// defaultServerPort; a present value must be in the accepted form.
-func loadServerPort(lookup LookupFunc) (uint16, error) {
-	value, ok := lookup(serverPortEnv)
-	if !ok {
-		return defaultServerPort, nil
-	}
-	return parseServerPort(value)
-}
-
-// parseServerPort converts a YT2COLUMN_SERVER_PORT value into a port. The
-// accepted form is decimal digits only, with no leading zero, in the range
-// minServerPort through maxServerPort. An empty value is missing; every other
-// rejected form is invalid. The check uses strconv and a byte comparison rather
-// than net, because internal/config must not import net.
-func parseServerPort(value string) (uint16, error) {
-	switch {
-	case value == "":
-		return 0, missingVar(serverPortEnv)
-	case !isDecimalDigits(value) || value[0] == '0':
-		return 0, invalidVar(serverPortEnv, reasonServerPort)
-	}
-	n, err := strconv.Atoi(value)
-	if err != nil || n < minServerPort || n > maxServerPort {
-		return 0, invalidVar(serverPortEnv, reasonServerPort)
-	}
-	return uint16(n), nil
-}
-
-// isDecimalDigits reports whether s is non-empty and all of its bytes are
-// decimal digits.
-func isDecimalDigits(s string) bool {
-	for i := range len(s) {
-		if s[i] < '0' || s[i] > '9' {
-			return false
-		}
-	}
-	return len(s) > 0
-}
-
-// loadTokenPath derives the shared token file's path from the configuration
-// directory. A failure to derive the directory is reported with the variable
-// that prevented it.
-func loadTokenPath(lookup LookupFunc) (string, error) {
-	dir, err := defaultConfigDir(runtime.GOOS, lookup)
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(dir, tokenFileName), nil
 }
 
 // Load reads and validates every variable through lookup. It joins every

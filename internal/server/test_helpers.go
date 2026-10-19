@@ -9,13 +9,10 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strconv"
 	"sync"
 	"testing"
 
-	"github.com/isseis/yt2column/internal/authtoken"
 	"github.com/isseis/yt2column/internal/failure"
 	failuretestutil "github.com/isseis/yt2column/internal/failure/testutil"
 	"github.com/isseis/yt2column/internal/publisher"
@@ -28,20 +25,14 @@ import (
 // Fixed values the tests share. The transcript is form B (a timestamp line and
 // a text line), which is ASCII so the test files stay ASCII.
 const (
-	testTokenValue      = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-	testOtherTokenValue = "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
-	testPort            = 8765
-	testVideoID         = "dQw4w9WgXcQ"
-	testValidRaw        = "0:00\nHello\n"
-	testValidVideoURL   = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-	testMarker          = "MARKER-SECRET-VALUE"
+	testVideoID       = "dQw4w9WgXcQ"
+	testValidRaw      = "0:00\nHello\n"
+	testValidVideoURL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+	testMarker        = "MARKER-SECRET-VALUE"
 	// testTranscriptMarker stands in for transcript or metadata text. It is
 	// deliberately not in Options.Secrets, so a log line that carried it would
 	// still contain it after redaction.
 	testTranscriptMarker = "MARKER-TRANSCRIPT-TEXT"
-	// testTokenBytes is the number of random bytes LoadOrCreate draws; the
-	// file already exists, so the reader's content is irrelevant.
-	testTokenBytes = 32
 	// gateBuffer is the capacity of the gate writer's entered channel.
 	gateBuffer = 8
 )
@@ -54,7 +45,6 @@ type testServer struct {
 	publisher *publishertestutil.FakePublisher
 	notifier  *failuretestutil.FakeNotifier
 	logs      *bytes.Buffer
-	token     string
 }
 
 // newTestServer builds a Server whose collaborators are recording fakes.
@@ -65,8 +55,6 @@ func newTestServer(t *testing.T) *testServer {
 	notifier := &failuretestutil.FakeNotifier{}
 	logs := &bytes.Buffer{}
 	s, err := New(Options{
-		Port:      testPort,
-		Token:     newTestToken(t),
 		Writer:    fakeWriter,
 		Publisher: pub,
 		Notifier:  notifier,
@@ -76,7 +64,7 @@ func newTestServer(t *testing.T) *testServer {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	return &testServer{Server: s, writer: fakeWriter, publisher: pub, notifier: notifier, logs: logs, token: testTokenValue}
+	return &testServer{Server: s, writer: fakeWriter, publisher: pub, notifier: notifier, logs: logs}
 }
 
 // newCustomServer builds a Server with the given collaborators, for tests that
@@ -84,8 +72,6 @@ func newTestServer(t *testing.T) *testServer {
 func newCustomServer(t *testing.T, w writer.ArticleWriter, p publisher.Publisher, n failure.Notifier) *Server {
 	t.Helper()
 	s, err := New(Options{
-		Port:      testPort,
-		Token:     newTestToken(t),
 		Writer:    w,
 		Publisher: p,
 		Notifier:  n,
@@ -153,37 +139,10 @@ type panickingNotifier struct{}
 
 func (panickingNotifier) Notify(context.Context, failure.Notice) error { panic("test notifier panic") }
 
-// newTestToken builds an authtoken.Token with the known testTokenValue by
-// writing it to a temporary file and loading it.
-func newTestToken(t *testing.T) authtoken.Token {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "server-token")
-	if err := os.WriteFile(path, []byte(testTokenValue), 0o600); err != nil {
-		t.Fatalf("write token file: %v", err)
-	}
-	token, err := authtoken.LoadOrCreate(path, bytes.NewReader(make([]byte, testTokenBytes)))
-	if err != nil {
-		t.Fatalf("LoadOrCreate: %v", err)
-	}
-	if !token.Matches(testTokenValue) {
-		t.Fatalf("token does not match the value in the file")
-	}
-	return token
-}
-
-// newRequest builds a server-style request whose Host is the loopback host and
-// port the server checks.
+// newRequest builds a server-side request with only a method, a target, and a
+// body: the handler checks no header, so an accepted request needs none.
 func newRequest(method, target string, body io.Reader) *http.Request {
-	req := httptest.NewRequest(method, target, body)
-	req.Host = "127.0.0.1:" + strconv.Itoa(testPort)
-	return req
-}
-
-// withValidHeaders sets the four headers every accepted request carries.
-func withValidHeaders(req *http.Request, token string) {
-	req.Header.Set("Content-Type", jsonContentType)
-	req.Header.Set("Origin", extensionOrigin)
-	req.Header.Set("Authorization", bearerPrefix+token)
+	return httptest.NewRequest(method, target, body)
 }
 
 // serve runs the handler and returns the recorder.
@@ -197,9 +156,7 @@ func (ts *testServer) serve(req *http.Request) *httptest.ResponseRecorder {
 // fakes' recorded calls are complete.
 func (ts *testServer) serveAccepted(t *testing.T, body string) *httptest.ResponseRecorder {
 	t.Helper()
-	req := newRequest(http.MethodPost, ArticlesPath, bytes.NewBufferString(body))
-	withValidHeaders(req, ts.token)
-	rec := ts.serve(req)
+	rec := ts.serve(newRequest(http.MethodPost, ArticlesPath, bytes.NewBufferString(body)))
 	ts.jobs.Wait()
 	return rec
 }
@@ -243,15 +200,9 @@ func (rr *recordingReader) Read(p []byte) (int, error) {
 // build a body just over it. Built only with the test tag.
 const MaxBodyBytesForTest = maxBodyBytes
 
-// MaxInFlightForTest is the number of authenticated requests allowed in flight
+// MaxInFlightForTest is the number of requests allowed in flight
 // at once, for documentation guards in other packages.
 const MaxInFlightForTest = maxInFlight
-
-// ExtensionOriginForTest is the fixed extension origin the handler accepts.
-func ExtensionOriginForTest() string { return extensionOrigin }
-
-// JSONContentTypeForTest is the one accepted content type.
-func JSONContentTypeForTest() string { return jsonContentType }
 
 // RejectReasonForTest is one rejection's fixed reason value and HTTP status.
 type RejectReasonForTest struct {
@@ -263,8 +214,8 @@ type RejectReasonForTest struct {
 // in the declaration order, so a documentation guard in another package reads
 // the table from the code instead of copying it. Built only with the test tag.
 func RejectReasonsForTest() []RejectReasonForTest {
-	table := make([]RejectReasonForTest, 0, int(reasonInvalidTranscript)+1)
-	for reason := reasonInternal; reason <= reasonInvalidTranscript; reason++ {
+	table := make([]RejectReasonForTest, 0, int(reasonCount))
+	for reason := range reasonCount {
 		table = append(table, RejectReasonForTest{Value: reason.reasonValue(), Status: reason.statusCode()})
 	}
 	return table

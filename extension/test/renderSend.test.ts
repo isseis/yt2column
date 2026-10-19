@@ -23,7 +23,7 @@ describe("renderSendOutcome", () => {
   const accepted: SendOutcome = { kind: "accepted", requestId };
   const rejected: SendOutcome = {
     kind: "rejected",
-    reason: "unauthorized",
+    reason: "invalid_transcript",
     requestId,
   };
 

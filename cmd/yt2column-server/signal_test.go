@@ -3,6 +3,9 @@
 package main
 
 import (
+	"errors"
+	"io/fs"
+	"os"
 	"os/signal"
 	"path/filepath"
 	"strings"
@@ -30,23 +33,24 @@ func skipIfIgnored(t *testing.T, sig syscall.Signal) {
 
 // blockingChild starts a server child whose LLM client blocks, sends it one
 // accepted request, and returns once the job is inside the LLM call, with the
-// path that releases it.
-func blockingChild(t *testing.T) (*serverChild, string) {
+// path that releases it and the child's socket path.
+func blockingChild(t *testing.T) (child *serverChild, releasePath, socketPath string) {
 	t.Helper()
 	dir := t.TempDir()
 	ready := filepath.Join(dir, "ready")
 	release := filepath.Join(dir, "release")
 	e := newServerEnv(t)
-	child := startServerChild(t, childModeBlock, e, map[string]string{childReadyEnv: ready, childReleaseEnv: release})
-	mustPostArticle(t, e.port(t), e.readToken(t), requestBody(testValidRaw), 202)
+	child = startServerChild(t, childModeBlock, e, map[string]string{childReadyEnv: ready, childReleaseEnv: release})
+	mustPostArticle(t, e.socketPath(t), requestBody(testValidRaw), 202)
 	waitForFile(t, ready)
-	return child, release
+	return child, release, e.socketPath(t)
 }
 
 // TestSignalStopsServer sends SIGINT, SIGTERM, and SIGHUP to the production
-// main while no job runs, and checks that it stops with exitOK. Which signals
-// signalrun subscribes is its own test's; all three are sent here so a main
-// that handled signals itself, with a narrower set, would fail.
+// main while no job runs, and checks that it stops with exitOK and wrote
+// nothing to standard output. Which signals signalrun subscribes is its own
+// test's; all three are sent here so a main that handled signals itself, with
+// a narrower set, would fail.
 func TestSignalStopsServer(t *testing.T) {
 	for _, sig := range []syscall.Signal{syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP} {
 		t.Run(sig.String(), func(t *testing.T) {
@@ -56,17 +60,20 @@ func TestSignalStopsServer(t *testing.T) {
 			if state := child.wait(t); state.ExitCode() != exitOK {
 				t.Fatalf("exit status = %v, want exit code %d\nstderr:\n%s", state, exitOK, child.stderr.String())
 			}
+			if out := child.stdout.String(); out != "" {
+				t.Errorf("stdout = %q, want nothing written to it", out)
+			}
 		})
 	}
 }
 
 // TestSignalWaitsForJob checks that the first signal does not end an
 // in-flight job: the child keeps running until the job finishes, then exits
-// with exitOK. That the log counts the pending job is
+// with exitOK, and its socket is gone. That the log counts the pending job is
 // internal/server's TestServeShutdownWaitsForJobs.
 func TestSignalWaitsForJob(t *testing.T) {
 	skipIfIgnored(t, syscall.SIGTERM)
-	child, release := blockingChild(t)
+	child, release, socket := blockingChild(t)
 	child.signal(t, syscall.SIGTERM)
 
 	time.Sleep(stillRunningWindow)
@@ -82,6 +89,9 @@ func TestSignalWaitsForJob(t *testing.T) {
 	if !strings.Contains(stderr, "job succeeded") {
 		t.Errorf("stderr does not report the job's success:\n%s", stderr)
 	}
+	if _, err := os.Lstat(socket); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("the socket %s is still there after a normal stop: %v", socket, err)
+	}
 }
 
 // TestSecondSignalExitsAtOnce checks that a second signal ends the child by
@@ -91,7 +101,7 @@ func TestSignalWaitsForJob(t *testing.T) {
 // the second signal exists for.
 func TestSecondSignalExitsAtOnce(t *testing.T) {
 	skipIfIgnored(t, syscall.SIGTERM)
-	child, _ := blockingChild(t)
+	child, _, _ := blockingChild(t)
 	child.signal(t, syscall.SIGTERM)
 
 	// The subscription is dropped just after the context ends, so repeat the

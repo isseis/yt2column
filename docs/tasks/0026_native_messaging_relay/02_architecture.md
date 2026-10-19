@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-18 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 2026-10-18 に承認した版（isseis）を、要件書の改定（`0027_remove_context_menu` の完了を前提に、送信をポップアップの経路だけにし、`contextMenus`・`storage` の権限を除く）に合わせて改めた。§3.7.1 で `storage` の権限と `onInstalled` による旧版の保存値の削除をやめ、§3.5.5 の時間の順序から service worker の 30 秒を外し、§3.10 から S-7 を外し、結果のウィンドウへ渡す値の検査（旧 §3.7.6 の `parseOutcome`）と `resultView.ts` の変更を削除した。拡張の lint の `chrome.storage.sync` の規則を、`chrome.storage` の参照を禁じる規則に置き換える（§3.8・§7.3）。§8 に、サーバを UDS に移す変更を 0027 の完了の後に始めることを加えた。判断の変更にあたるので `draft` に戻した。以前の承認の後の編集上の訂正（`03_implementation_plan.md` §1.3 が参照するもの。`a5c1df5` で `-` に置き換わっていたので復元した）: 編集上の訂正（2026-10-18。判断は変えていない）。`03_implementation_plan.md` の作成に合わせて、§3.12 の UDS のリスナーの補助の置き場所を `internal/server/test_helpers.go` からテスト専用の `internal/udstest` に改め（depguard の `internal/server` → `internal/serversock` の禁止が `internal/serversock/testutil` にも当たるため）、§8 のフェーズ 1 に拡張の 4 つの拒否の理由の削除を加えた（README の表と拡張の理由の集合の一致を保つため。フェーズの順序と最終の状態は変わらない）。編集上の訂正（2026-10-18。判断は変えていない）。レビューの指摘に従い、§3.12 の `internal/udstest` の行を責務だけに絞り、ビルドタグ・`/tmp` の下のディレクトリ・使うパッケージの一覧などの具体を [implementation_handoff.md](implementation_handoff.md) の I-01 と `03_implementation_plan.md`（§1.3「UDS のテストの補助」）に移した |
+| Review date | 2026-10-19 |
+| Reviewer | isseis |
+| Comments | 実装（PR-2）で、§3.1 の長さの上限を「`darwin` 以外の Unix で 107 バイト」から「`linux` で 107 バイト、`darwin` とそれ以外の Unix で 103 バイト」に編集上の訂正をした（FreeBSD などの `sun_path` は 104 バイトで、107 バイトの上限では bind に失敗するため）。 |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §3.11）を指す。I-NN は [implementation_handoff.md](implementation_handoff.md) の項目（対応は `03_implementation_plan.md`）を指す。既存のコードの行番号は、コミット `9e34229`（要件書の承認のコミット）で確かめたものである。
 
@@ -261,7 +261,7 @@ sequenceDiagram
 -   **他の環境変数を読まない（AC-18）。** `XDG_CONFIG_HOME`・`XDG_STATE_HOME`・`XDG_RUNTIME_DIR`・`TMPDIR` を読まない。ブラウザが起動するホストは、利用者のシェルの環境変数を引き継がない。他の変数を読むと、シェルから起動したサーバとホストが別のパスを導出しうるためである（要件書 F-001）。この点で、キャッシュのディレクトリの導出（`internal/config/cachedir.go:74-97` の `userDirBase`、`XDG_CACHE_HOME` を優先する）とは規則が異なる。`userDirBase` は再利用しない。
 -   **Linux の置き場所（H-10）。** 要件書の例の `$HOME/.config/...` ではなく、実行時の状態に向いた `$HOME/.local/state/...`（XDG Base Directory の `XDG_STATE_HOME` の既定値）を選ぶ。`XDG_STATE_HOME` 自体は読まない。
 -   **`HOME` の検査。** `HOME` が未設定・空・相対パスなら、`HOME` を名指す `VarError`（`ErrMissing`）を返す。既存の `absoluteEnv`（`internal/config/cachedir.go:99-107`）を使う。
--   **長さの上限（AC-04、H-04）。** 導出したパスのバイト数が、OS の `sun_path` に収まる上限を超えれば、`HOME` を名指す `VarError`（`ErrInvalid`、理由は「導出したソケットのパスが OS の上限を超える」）を返す。上限は `darwin` で 103 バイト（`sun_path` は 104 バイト）、それ以外の Unix で 107 バイト（`sun_path` は 108 バイト）とし、終端の NUL の 1 バイトを残す。`internal/config` はビルドタグなしでどの OS でもビルドされる。テストは `runtime.GOOS` の値を引数に取り、OS ごとの規則を確かめる（既存の `userDirBase` と同じ形）。このため、上限は OS ごとの定数で持つ。`internal/serversock` の `//go:build unix` のテストでは、定数が `len(syscall.RawSockaddrUnix{}.Path) - 1` と一致することを確かめる。`VarError` は値を持たないので、エラーにパスも `HOME` の値も現れない（AC-04「値を含めずに」）。
+-   **長さの上限（AC-04、H-04）。** 導出したパスのバイト数が、OS の `sun_path` に収まる上限を超えれば、`HOME` を名指す `VarError`（`ErrInvalid`、理由は「導出したソケットのパスが OS の上限を超える」）を返す。上限は `linux` で 107 バイト（`sun_path` は 108 バイト）、`darwin` とそれ以外の Unix で 103 バイト（`sun_path` は macOS と BSD で 104 バイト。ほかの Unix にも短い側の上限を与え、受理したパスが長さで bind に失敗しないようにする）とし、終端の NUL の 1 バイトを残す。`internal/config` はビルドタグなしでどの OS でもビルドされる。テストは `runtime.GOOS` の値を引数に取り、OS ごとの規則を確かめる（既存の `userDirBase` と同じ形）。このため、上限は OS ごとの定数で持つ。`internal/serversock` の `//go:build unix` のテストでは、定数が `len(syscall.RawSockaddrUnix{}.Path) - 1` と一致することを確かめる。`VarError` は値を持たないので、エラーにパスも `HOME` の値も現れない（AC-04「値を含めずに」）。
 -   **空白を含むパス（H-04）。** macOS のパスは `Application Support` の空白を含む。Go の `net` と `syscall` はパスをシェルに渡さないので、空白は問題にならない。README の `curl --unix-socket` の例では、パスを二重引用符で囲む（§3.9）。
 
 ```go
