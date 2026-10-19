@@ -44,7 +44,9 @@ func prepareSlackMessages(article writer.Article) ([]string, error) {
 	// cut changes at the start of a fragment; splitSlackText never starts a
 	// fragment with an '@' that M2 accepts in posted and reports in the
 	// message, so M2 holds for the messages too.
-	// TestSlackMentionMessagesFollowPosted pins this.
+	// TestSlackMentionMessagesFollowPosted pins this for M1, M3 and M4;
+	// TestSlackSplitAvoidsMidWordAt, TestSlackSplitRefusesUnmovableCut and
+	// TestCheckFragmentStarts pin it for M2.
 	if err := rejectMention(posted); err != nil {
 		return nil, err
 	}
@@ -142,7 +144,8 @@ func cutSlackFragments(post slackPost) ([]string, error) {
 // reports it in the fragment's message, where a position marker and a blank
 // line precede it, but not in the joined text, where a letter or a digit
 // does. cutSlackFragments avoids such cuts; this refuses the ones it could
-// not avoid.
+// not avoid. It relies on the position marker ending in a newline, so that
+// the rune before a fragment in its message is never a letter or a digit.
 func checkFragmentStarts(fragments []string) error {
 	for i := 1; i < len(fragments); i++ {
 		last, _ := utf8.DecodeLastRuneInString(fragments[i-1])

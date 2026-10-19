@@ -235,7 +235,8 @@ func TestSlackSplitKeepTogether(t *testing.T) {
 	})
 
 	t.Run("last region exceeds a fragment", func(t *testing.T) {
-		post := slackPost{text: "a\n" + b + a, keepTogetherFrom: 2}
+		// The region from keepTogetherFrom is one rune over a fragment.
+		post := slackPost{text: "a\n" + b + "b" + a, keepTogetherFrom: 12}
 		if utf8.RuneCountInString(post.text) <= slackMaxMessageRunes {
 			t.Fatal("the post fits in one message")
 		}
@@ -268,7 +269,7 @@ func runeLens(fragments []string) []int {
 // post, does not start a message.
 func TestSlackSplitAvoidsMidWordAt(t *testing.T) {
 	capacity := slackMaxMessageRunes - slackDisplayMaxRunes
-	for _, word := range []string{"x@here", "1@here", "x＠here"} {
+	for _, word := range []string{"x@here", "1@here", "x\uFF20here", "x\uFE6Bhere", "\u3093@here"} {
 		t.Run(word, func(t *testing.T) {
 			// The body has no newline, so the first fragment is the header
 			// and the body would be cut right before the '@'.
@@ -334,7 +335,10 @@ func TestCheckFragmentStarts(t *testing.T) {
 	}{
 		{"letter before the at sign", []string{"ab x", "@here c"}, true},
 		{"digit before the at sign", []string{"ab 1", "@here"}, true},
-		{"look-alike at sign", []string{"ab x", "＠here"}, true},
+		{"look-alike at sign", []string{"ab x", "\uFF20here"}, true},
+		{"small look-alike at sign", []string{"ab x", "\uFE6Bhere"}, true},
+		{"non-ASCII letter before the at sign", []string{"ab \u3055\u3093", "@here"}, true},
+		{"non-ASCII name after the at sign", []string{"ab x", "@\u540d\u524d"}, true},
 		{"in a later fragment", []string{"a", "b", "x", "@y"}, true},
 
 		{"space before the at sign", []string{"ab ", "@here"}, false},
