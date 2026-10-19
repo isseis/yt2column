@@ -53,6 +53,18 @@ var ErrUnsafe = errors.New("the socket directory or the socket path is not in th
 // errRelativePath reports a socket path that is not absolute.
 var errRelativePath = errors.New("the socket path is not absolute")
 
+// errUncleanPath reports a socket path that filepath.Clean would change. The
+// directories are checked through the cleaned path while bind resolves the
+// path as given, so the two must be the same name.
+var errUncleanPath = errors.New("the socket path is not in clean form")
+
+// errReleased reports Listen on a Lock whose start lock was released.
+var errReleased = errors.New("the start lock was released")
+
+// specialBits are the mode bits other than the permission that an exact-mode
+// check rejects.
+const specialBits = fs.ModeSetuid | fs.ModeSetgid | fs.ModeSticky
+
 // UnsafeReason is one fixed reason; its String is the text shown to the user.
 // The zero value names no specific reason, so an unset reason still reads as
 // a rejection.
@@ -75,6 +87,10 @@ const (
 	ReasonDirMode
 	// ReasonSocketMode means the created socket's mode is not exactly 0600.
 	ReasonSocketMode
+	// ReasonSpecialBits means the socket directory or the created socket has
+	// the setuid, setgid, or sticky bit (Linux copies a parent's setgid bit
+	// to a new directory).
+	ReasonSpecialBits
 	// ReasonUndetermined means the connection attempt to an existing socket failed
 	// with something other than a refusal, so it cannot be called stale.
 	ReasonUndetermined
@@ -96,6 +112,8 @@ func (r UnsafeReason) String() string {
 		return "does not have mode 0700"
 	case ReasonSocketMode:
 		return "does not have mode 0600"
+	case ReasonSpecialBits:
+		return "has the setuid, setgid, or sticky bit"
 	case ReasonUndetermined:
 		return "is a socket that cannot be confirmed stale"
 	default:
@@ -118,11 +136,12 @@ func (e *UnsafeError) Unwrap() error { return ErrUnsafe }
 // Lock is the held start lock of one socket directory. Listen is a method of
 // Lock, so the socket cannot be bound without holding the lock.
 //
-// Contract: the lock is held until Release. The caller keeps the *Lock
-// reachable until then; it holds the lock file, whose finalizer would close
-// the descriptor and drop the lock if the *Lock were lost.
+// Contract: the lock is held until Release, and Listen fails after it. The
+// caller keeps the *Lock reachable until then; it holds the lock file, whose
+// finalizer would close the descriptor and drop the lock if the *Lock were
+// lost.
 type Lock struct {
-	lock       *cachelock.Lock
+	lock       *cachelock.Lock // nil after Release
 	socketPath string
 }
 
@@ -134,11 +153,15 @@ type Lock struct {
 // is removed. A parent that is a symbolic link, is not a directory, is owned
 // by another user, or is writable by its group or others is an *UnsafeError;
 // so is a socket directory that is a symbolic link, is not a directory, is
-// owned by another user, or does not have exactly mode 0o700. A held lock is
-// ErrAlreadyRunning.
+// owned by another user, or does not have exactly mode 0o700 without the
+// setuid, setgid, or sticky bit. A held lock is ErrAlreadyRunning. The socket
+// path must be absolute and in clean form.
 func Acquire(socketPath string) (*Lock, error) {
 	if !filepath.IsAbs(socketPath) {
 		return nil, fmt.Errorf("%w: %s", errRelativePath, socketPath)
+	}
+	if filepath.Clean(socketPath) != socketPath {
+		return nil, fmt.Errorf("%w: %s", errUncleanPath, socketPath)
 	}
 	dir := filepath.Dir(socketPath)
 	parent := filepath.Dir(dir)
@@ -197,6 +220,9 @@ func Acquire(socketPath string) (*Lock, error) {
 // owned by the effective user with exactly mode 0o600, or the listener is
 // closed and an *UnsafeError returned.
 func (l *Lock) Listen() (net.Listener, error) {
+	if l.lock == nil {
+		return nil, errReleased
+	}
 	path := l.socketPath
 	euid := os.Geteuid()
 	info, err := os.Lstat(path)
@@ -217,24 +243,43 @@ func (l *Lock) Listen() (net.Listener, error) {
 	// From bind until here the socket may have the umask's wider mode; the
 	// 0o700 directory keeps other users out meanwhile.
 	if err := os.Chmod(path, socketMode); err != nil {
-		_ = listener.Close()
+		abandon(listener, path, euid)
 		return nil, fmt.Errorf("set the mode of %s: %w", path, err)
 	}
 	info, err = os.Lstat(path)
 	if err != nil {
-		_ = listener.Close()
+		abandon(listener, path, euid)
 		return nil, fmt.Errorf("inspect %s: %w", path, err)
 	}
 	if err := checkSocket(path, info, euid); err != nil {
-		_ = listener.Close()
+		abandon(listener, path, euid)
 		return nil, err
 	}
 	return listener, nil
 }
 
+// abandon closes listener after a failed check that follows bind. Closing
+// unlinks the path by name, so the name is unlinked only while it still holds
+// a socket of the effective user; anything put there after bind is left as it
+// is.
+func abandon(listener *net.UnixListener, path string, euid int) {
+	info, err := os.Lstat(path)
+	if err != nil || info.Mode().Type() != fs.ModeSocket || !ownedBy(info, euid) {
+		listener.SetUnlinkOnClose(false)
+	}
+	_ = listener.Close()
+}
+
 // Release releases the start lock. The caller calls it after every job and
-// failure notice has finished.
-func (l *Lock) Release() error { return l.lock.Close() }
+// failure notice has finished. Listen fails after Release.
+func (l *Lock) Release() error {
+	if l.lock == nil {
+		return errReleased
+	}
+	err := l.lock.Close()
+	l.lock = nil
+	return err
+}
 
 // removeStale removes the existing name at path when it is a stale socket of
 // the effective user, and otherwise returns why it stays.
@@ -279,8 +324,11 @@ func checkSocketDir(path string, info fs.FileInfo, euid int) error {
 	if err := checkOwnedDir(path, info, euid); err != nil {
 		return err
 	}
-	if info.Mode() != fs.ModeDir|dirMode {
+	if info.Mode().Perm() != dirMode {
 		return &UnsafeError{Path: path, Reason: ReasonDirMode}
+	}
+	if info.Mode()&specialBits != 0 {
+		return &UnsafeError{Path: path, Reason: ReasonSpecialBits}
 	}
 	return nil
 }
@@ -306,8 +354,10 @@ func checkSocket(path string, info fs.FileInfo, euid int) error {
 		return &UnsafeError{Path: path, Reason: ReasonNotSocket}
 	case !ownedBy(info, euid):
 		return &UnsafeError{Path: path, Reason: ReasonForeignOwner}
-	case info.Mode() != fs.ModeSocket|socketMode:
+	case info.Mode().Perm() != socketMode:
 		return &UnsafeError{Path: path, Reason: ReasonSocketMode}
+	case info.Mode()&specialBits != 0:
+		return &UnsafeError{Path: path, Reason: ReasonSpecialBits}
 	}
 	return nil
 }

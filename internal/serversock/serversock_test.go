@@ -17,10 +17,6 @@ import (
 	"github.com/isseis/yt2column/internal/udstest"
 )
 
-// lockFileName is cachelock's fixed lock file name, used to check that a
-// rejected directory was not locked.
-const lockFileName = ".yt2column.lock"
-
 // layout is a socket path and the directories above it inside a short
 // temporary HOME. parent's own parent does not exist yet, so Acquire has to
 // create an ancestor too.
@@ -90,6 +86,18 @@ func lstat(t *testing.T, path string) fs.FileInfo {
 		t.Fatal(err)
 	}
 	return info
+}
+
+// requireEmpty checks that the directory at path has no entries.
+func requireEmpty(t *testing.T, path string) {
+	t.Helper()
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		t.Errorf("%s contains %s, want it empty", path, entry.Name())
+	}
 }
 
 func requireAbsent(t *testing.T, path string) {
@@ -245,30 +253,46 @@ func TestAcquireRejectsUnsafeDirectories(t *testing.T) {
 			if after.Mode() != before.Mode() || !os.SameFile(before, after) {
 				t.Errorf("%s changed: mode %v -> %v", rejected, before.Mode(), after.Mode())
 			}
-			// Neither the socket directory under a rejected parent nor the
-			// lock file under a rejected socket directory is created; a
-			// symlink is not followed to create them in its target.
-			requireAbsent(t, filepath.Join(l.home, "elsewhere", "run"))
-			requireAbsent(t, filepath.Join(l.home, "elsewhere", lockFileName))
-			if rejected == l.parent {
-				if after.IsDir() && after.Mode()&fs.ModeSymlink == 0 {
-					requireAbsent(t, l.dir)
-				}
-			} else if after.IsDir() {
-				requireAbsent(t, filepath.Join(l.dir, lockFileName))
+			// Nothing is created below a rejected directory, and a symlink is
+			// not followed to create anything in its target.
+			if after.Mode().IsDir() {
+				requireEmpty(t, rejected)
+			}
+			if after.Mode()&fs.ModeSymlink != 0 {
+				requireEmpty(t, filepath.Join(l.home, "elsewhere"))
 			}
 		})
 	}
 }
 
-// TestAcquireRejectsRelativePath checks that a relative socket path is
-// refused before anything is created.
-func TestAcquireRejectsRelativePath(t *testing.T) {
-	t.Chdir(udstest.Dir(t))
-	if _, err := Acquire(filepath.Join("app", "run", "server.sock")); !errors.Is(err, errRelativePath) {
-		t.Fatalf("Acquire error = %v, want errRelativePath", err)
+// TestAcquireRejectsPathForm checks that a relative socket path and one that
+// filepath.Clean would change are refused before anything is created, since
+// the checks use the cleaned directories while bind resolves the path as
+// given.
+func TestAcquireRejectsPathForm(t *testing.T) {
+	home := udstest.Dir(t)
+	t.Chdir(home)
+	tests := []struct {
+		name, path string
+		want       error
+	}{
+		{"relative", filepath.Join("app", "run", "server.sock"), errRelativePath},
+		{"dot-dot", home + "/x/../app/run/server.sock", errUncleanPath},
+		{"trailing slash", home + "/app/run/server.sock/", errUncleanPath},
+		{"double slash", home + "/app//run/server.sock", errUncleanPath},
 	}
-	requireAbsent(t, "app")
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			lock, err := Acquire(tc.path)
+			if err == nil {
+				_ = lock.Release()
+			}
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("Acquire(%q) error = %v, want %v", tc.path, err, tc.want)
+			}
+			requireEmpty(t, home)
+		})
+	}
 }
 
 // fakeInfo is an fs.FileInfo with a chosen mode and owner, so a check can be
@@ -316,15 +340,37 @@ func TestChecksRejectForeignOwner(t *testing.T) {
 	})
 }
 
-// TestCheckSocketMode checks that a created socket must have exactly 0600.
-func TestCheckSocketMode(t *testing.T) {
+// TestExactModeChecks checks that the socket directory must have exactly
+// 0700 and the created socket exactly 0600, both without the setuid, setgid,
+// or sticky bit. A setgid directory is what Linux creates under a setgid
+// parent.
+func TestExactModeChecks(t *testing.T) {
 	euid := os.Geteuid()
 	own := uint32(euid) //nolint:gosec // the effective user ID is a non-negative uid_t
 	const path = "/home/u/app/run/server.sock"
-	for _, mode := range []fs.FileMode{0o755, 0o660, 0o700, 0o400} {
-		requireUnsafe(t, checkSocket(path, fakeInfo{mode: fs.ModeSocket | mode, uid: own}, euid), path, ReasonSocketMode)
+	tests := []struct {
+		name   string
+		check  func(path string, info fs.FileInfo, euid int) error
+		mode   fs.FileMode
+		reason UnsafeReason
+	}{
+		{"directory 0750", checkSocketDir, fs.ModeDir | 0o750, ReasonDirMode},
+		{"directory 0500", checkSocketDir, fs.ModeDir | 0o500, ReasonDirMode},
+		{"directory setgid", checkSocketDir, fs.ModeDir | fs.ModeSetgid | 0o700, ReasonSpecialBits},
+		{"directory sticky", checkSocketDir, fs.ModeDir | fs.ModeSticky | 0o700, ReasonSpecialBits},
+		{"directory setuid", checkSocketDir, fs.ModeDir | fs.ModeSetuid | 0o700, ReasonSpecialBits},
+		{"socket 0755", checkSocket, fs.ModeSocket | 0o755, ReasonSocketMode},
+		{"socket 0660", checkSocket, fs.ModeSocket | 0o660, ReasonSocketMode},
+		{"socket 0400", checkSocket, fs.ModeSocket | 0o400, ReasonSocketMode},
+		{"socket setuid", checkSocket, fs.ModeSocket | fs.ModeSetuid | 0o600, ReasonSpecialBits},
+		{"socket setgid", checkSocket, fs.ModeSocket | fs.ModeSetgid | 0o600, ReasonSpecialBits},
+		{"regular file as socket", checkSocket, 0o600, ReasonNotSocket},
 	}
-	requireUnsafe(t, checkSocket(path, fakeInfo{mode: 0o600, uid: own}, euid), path, ReasonNotSocket)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			requireUnsafe(t, tc.check(path, fakeInfo{mode: tc.mode, uid: own}, euid), path, tc.reason)
+		})
+	}
 }
 
 // TestAcquireAlreadyRunning checks that a held start lock stops a second
@@ -336,6 +382,7 @@ func TestAcquireAlreadyRunning(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first Acquire: %v", err)
 	}
+	t.Cleanup(func() { _ = first.Release() })
 	second, err := Acquire(l.socket)
 	if err == nil {
 		_ = second.Release()
@@ -351,6 +398,30 @@ func TestAcquireAlreadyRunning(t *testing.T) {
 		t.Fatalf("Release: %v", err)
 	}
 	acquire(t, l.socket)
+}
+
+// TestListenAfterRelease checks that a released Lock cannot bind the socket
+// and that a second Release reports the misuse.
+func TestListenAfterRelease(t *testing.T) {
+	l := newLayout(t)
+	lock, err := Acquire(l.socket)
+	if err != nil {
+		t.Fatalf("Acquire: %v", err)
+	}
+	if err := lock.Release(); err != nil {
+		t.Fatalf("Release: %v", err)
+	}
+	listener, err := lock.Listen()
+	if err == nil {
+		_ = listener.Close()
+	}
+	if !errors.Is(err, errReleased) {
+		t.Errorf("Listen after Release: error = %v, want errReleased", err)
+	}
+	requireAbsent(t, l.socket)
+	if err := lock.Release(); !errors.Is(err, errReleased) {
+		t.Errorf("second Release: error = %v, want errReleased", err)
+	}
 }
 
 // TestListenCreatesSocket checks that the socket accepts connections with
@@ -373,16 +444,14 @@ func TestListenCreatesSocket(t *testing.T) {
 }
 
 // TestListenRemovesStaleSocket checks that a socket left by a killed server
-// is replaced by a working one.
+// is replaced by a working one. Bind fails while the stale file is there, so
+// a successful Listen and dial show it was removed; the inode number cannot
+// show it, since ext4 reuses a freed one at once.
 func TestListenRemovesStaleSocket(t *testing.T) {
 	l := newLayout(t)
 	lock := acquire(t, l.socket)
 	staleSocket(t, l.socket)
-	before := lstat(t, l.socket)
 	listen(t, lock)
-	if os.SameFile(before, lstat(t, l.socket)) {
-		t.Error("the stale socket was not replaced")
-	}
 	conn, err := net.Dial("unix", l.socket)
 	if err != nil {
 		t.Fatalf("dial the new socket: %v", err)
@@ -498,7 +567,8 @@ func TestListenRejectsExistingNames(t *testing.T) {
 func TestUnsafeErrorText(t *testing.T) {
 	reasons := []UnsafeReason{
 		ReasonSymlink, ReasonNotDirectory, ReasonNotSocket, ReasonForeignOwner,
-		ReasonWritableByOthers, ReasonDirMode, ReasonSocketMode, ReasonUndetermined,
+		ReasonWritableByOthers, ReasonDirMode, ReasonSocketMode, ReasonSpecialBits,
+		ReasonUndetermined,
 	}
 	seen := map[string]struct{}{UnsafeReason(0).String(): {}}
 	for _, reason := range reasons {
@@ -544,7 +614,8 @@ func TestAcquireIOFailures(t *testing.T) {
 			name: "ancestor not writable",
 			setup: func(t *testing.T, l layout) {
 				skipIfRoot(t)
-				mkdirMode(t, filepath.Dir(l.parent), 0o500)
+				mkdirMode(t, filepath.Dir(l.parent), 0o700)
+				chmodForTest(t, filepath.Dir(l.parent), 0o500)
 			},
 		},
 		{
@@ -559,14 +630,17 @@ func TestAcquireIOFailures(t *testing.T) {
 			name: "parent not writable",
 			setup: func(t *testing.T, l layout) {
 				skipIfRoot(t)
-				mkdirMode(t, l.parent, 0o500)
+				mkdirMode(t, l.parent, 0o700)
+				chmodForTest(t, l.parent, 0o500)
 			},
 		},
 		{
 			name: "lock name is a directory",
 			setup: func(t *testing.T, l layout) {
 				mkdirMode(t, l.dir, 0o700)
-				mkdirMode(t, filepath.Join(l.dir, lockFileName), 0o700)
+				// cachelock's fixed lock file name. Were it renamed, Acquire
+				// would succeed and this row would fail.
+				mkdirMode(t, filepath.Join(l.dir, ".yt2column.lock"), 0o700)
 			},
 		},
 	}
