@@ -256,8 +256,8 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した（#366）
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 -   [ ] **ステップ 1-17**: リポジトリ全体を読むガードと depguard の規則を加え、壊して失敗することを確かめる。`internal/pipeline/relay_guard_test.go` に `TestNoTCPListenerInProduction` と `TestSharedTokenRemoved` を作る（§1.3「本計画で置く静的な検査の場所」）。`.golangci.yml` に、`internal/server` が `internal/serversock` を import しない depguard の規則を加える。壊す対象: `server.go` に TCP の `net.Listen` を戻す・`hostAllowed` の loopback の文字列の一覧を戻す（`TestNoTCPListenerInProduction`）、README と本番の Go のファイルに `YT2COLUMN_SERVER_PORT` を戻す（`TestSharedTokenRemoved`）、`internal/server` に `internal/serversock` の import を加える（`make lint`）。結果をコミットメッセージに記録する（§1.2）。
     -   **対象:** `internal/pipeline/relay_guard_test.go`・`.golangci.yml`。**完了:** `make test`・`make lint` が通り、各対象で該当するガードか lint が失敗することを確かめた。
 
@@ -680,7 +680,7 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 
 -   [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5）
 -   [x] 0027 のすべての PR がマージされたことを確かめた（PR-2 の前提。PR-8 の前提も兼ねる）
--   [ ] PR-2 マージ済み（対象ステップ: 1-6 / 1-7 / 1-8 / 1-9 / 1-10 / 1-11 / 1-12 / 1-13 / 1-14 / 1-15 / 1-16）
+-   [x] PR-2 マージ済み（対象ステップ: 1-6 / 1-7 / 1-8 / 1-9 / 1-10 / 1-11 / 1-12 / 1-13 / 1-14 / 1-15 / 1-16）
 -   [ ] PR-3 マージ済み（対象ステップ: 1-17）
 -   [ ] PR-4 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5）
 -   [ ] PR-5 マージ済み（対象ステップ: 2-6 / 2-7 / 2-8）
