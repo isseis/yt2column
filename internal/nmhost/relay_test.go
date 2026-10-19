@@ -346,31 +346,22 @@ func TestRelayResponseOverLimit(t *testing.T) {
 	}
 }
 
-// stuckConn is a connection whose reads and writes block until ctx ends and
-// then fail with an error that is not a deadline error.
-type stuckConn struct {
-	ctx context.Context
-}
-
-var errStuck = errors.New("the stuck connection failed")
-
-func (c stuckConn) Read([]byte) (int, error)       { <-c.ctx.Done(); return 0, errStuck }
-func (c stuckConn) Write([]byte) (int, error)      { <-c.ctx.Done(); return 0, errStuck }
-func (stuckConn) Close() error                     { return nil }
-func (stuckConn) LocalAddr() net.Addr              { return &net.UnixAddr{Net: "unix"} }
-func (stuckConn) RemoteAddr() net.Addr             { return &net.UnixAddr{Net: "unix"} }
-func (stuckConn) SetDeadline(time.Time) error      { return nil }
-func (stuckConn) SetReadDeadline(time.Time) error  { return nil }
-func (stuckConn) SetWriteDeadline(time.Time) error { return nil }
+// errStuck is a connection failure that is not a deadline error.
+var errStuck = errors.New("the connection failed")
 
 // deadlineConn is a connection whose every write fails at once with a
 // connection deadline error, as a connection with an expired write deadline
 // does. Reads wait for Close, so the write failure is the only one.
 type deadlineConn struct {
-	stuckConn
 	closed    chan struct{}
 	closeOnce sync.Once
 }
+
+func (*deadlineConn) LocalAddr() net.Addr              { return &net.UnixAddr{Net: "unix"} }
+func (*deadlineConn) RemoteAddr() net.Addr             { return &net.UnixAddr{Net: "unix"} }
+func (*deadlineConn) SetDeadline(time.Time) error      { return nil }
+func (*deadlineConn) SetReadDeadline(time.Time) error  { return nil }
+func (*deadlineConn) SetWriteDeadline(time.Time) error { return nil }
 
 func newDeadlineConn() *deadlineConn { return &deadlineConn{closed: make(chan struct{})} }
 
