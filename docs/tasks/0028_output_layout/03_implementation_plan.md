@@ -131,6 +131,7 @@ go test -run '^$' -tags test,integration ./...
 -   [ ] `Article` に `ChannelName string` を加える。`==` で比較できる構造を保つ。
 -   [ ] `newArticle` に `channelName` を加え、`writer.go:405` の呼び出しで `t.ChannelName` を渡す。
 
+**完了:** ステップ 1-6 の `Article.ChannelName` の受け渡しのテスト（`--after` なしと 3 つの再開）が通る。
 #### ステップ 1-3: 公開の直前の検査
 
 **対象:** `internal/writer/article.go`
@@ -138,17 +139,22 @@ go test -run '^$' -tags test,integration ./...
 -   [ ] `CheckPublishable` に `CheckChannelName` を加え、違反を `ErrInvalidArticle` と `ErrInvalidChannelName` の両方で包む（複数の `%w` は `article.go:37` に前例がある）。
 -   [ ] `CheckPublishable` に `SourceURL` の UTF-8 の検査を加える（設計書 3.5）。
 
+**完了:** ステップ 1-6 の `CheckPublishable` のテスト（チャンネル名と各値の UTF-8 の拒否）が通る。
 #### ステップ 1-4: LLM を呼ぶ前の検査
 
 **対象:** `internal/writer/prompt.go`
 
 -   [ ] `validateTranscript` が `CheckChannelName` を呼び、違反を `ErrInvalidTranscript` と `ErrInvalidChannelName` の両方で包んで返す。UTF-8 の検査の表（`prompt.go:66-70`）から `ChannelName` の項目を外し、`Title`・`Description` の検査は残す。
 
+**完了:** ステップ 1-6 の `validateTranscript` のテスト（`TestWriteRejectsInvalidTranscript` の行）が通る。
+
 #### ステップ 1-5: 要求の入口の検査
 
 **対象:** `internal/server/request.go`
 
 -   [ ] `parseRequest` が `channelName` を `CheckChannelName` で検査し、違反を `reasonInvalidBody`（HTTP 400）で拒否する。README の拒否の理由の表は変えない。
+
+**完了:** ステップ 1-6 の `parseRequest` のテストと、3 つの呼び出し元の一致を確かめるテストが通る。
 
 #### ステップ 1-6: テスト
 
