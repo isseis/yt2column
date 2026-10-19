@@ -207,22 +207,40 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 
 	// 5: serve until ctx is canceled. The stop notice is logged as soon as
 	// the cancellation arrives, not after the wait it announces.
-	noticeDone := make(chan struct{})
-	stopNotice := context.AfterFunc(ctx, func() {
-		defer close(noticeDone)
+	finishNotice := afterCancel(ctx, func() {
 		logger.Info(fmt.Sprintf("stopping: in-flight jobs and failure notices are allowed to finish, which can take up to about %d minutes; send the signal again to exit at once, which drops them",
 			int(llmCallsPerJob*provider.LLMTimeout/time.Minute)))
 	})
 	err = srv.Serve(ctx, listeners)
-	if !stopNotice() {
-		<-noticeDone
-	}
+	finishNotice()
 	if err != nil {
 		logger.Error("serving failed", "error", err)
 		return exitFailure
 	}
 	logger.Info("stopped")
 	return exitOK
+}
+
+// afterCancel arranges for f to run once ctx is canceled, and returns finish,
+// which the caller calls after the work ctx bounds has returned. Contract: if
+// ctx was canceled before finish is called, f has run to completion when
+// finish returns; f never runs after finish returns. Whether ctx was canceled
+// is read from ctx.Err, not from the result of AfterFunc's stop: a
+// cancellation closes ctx.Done before it schedules AfterFunc callbacks, so
+// work that returned on ctx.Done can call stop in that gap, and stop would
+// then report that it prevented f, dropping a call the cancellation owed.
+func afterCancel(ctx context.Context, f func()) (finish func()) {
+	done := make(chan struct{})
+	stop := context.AfterFunc(ctx, func() {
+		defer close(done)
+		f()
+	})
+	return func() {
+		if ctx.Err() == nil && stop() {
+			return
+		}
+		<-done
+	}
 }
 
 // buildServer builds the components and the server. logOutput and secrets

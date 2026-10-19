@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -539,4 +540,91 @@ func TestRunLogsListeningAndStop(t *testing.T) {
 			t.Errorf("stderr does not contain %q:\n%s", want, stderr)
 		}
 	}
+}
+
+// gapContext is a canceled context whose AfterFunc callbacks have not been
+// scheduled yet: Err already reports the cancellation, but the callbacks are
+// scheduled only when start is called. A real cancellation passes through this
+// window between closing Done and scheduling its AfterFunc callbacks.
+// context.AfterFunc hands its scheduling to a parent's AfterFunc method when
+// the parent's Done is non-nil, so the window stays open until start.
+type gapContext struct {
+	context.Context
+	done     chan struct{}
+	schedule func()
+}
+
+func newGapContext() *gapContext {
+	return &gapContext{Context: context.Background(), done: make(chan struct{})}
+}
+
+func (c *gapContext) Done() <-chan struct{} { return c.done }
+
+func (c *gapContext) Err() error { return context.Canceled }
+
+func (c *gapContext) AfterFunc(f func()) func() bool {
+	c.schedule = f
+	return func() bool { return true }
+}
+
+func (c *gapContext) start() { c.schedule() }
+
+// TestAfterCancel checks that finish waits for the callback whenever ctx was
+// canceled, including when the cancellation has not scheduled the callback
+// yet, and that the callback never runs when ctx was not canceled.
+func TestAfterCancel(t *testing.T) {
+	const wait = 5 * time.Second
+
+	t.Run("canceled before its callback is scheduled", func(t *testing.T) {
+		ctx := newGapContext()
+		var ran atomic.Bool
+		finish := afterCancel(ctx, func() { ran.Store(true) })
+		finished := make(chan struct{})
+		go func() {
+			finish()
+			close(finished)
+		}()
+		// Give finish time to act inside the window before the callback is
+		// scheduled; a finish that unregisters the callback here returns
+		// without it.
+		select {
+		case <-finished:
+		case <-time.After(50 * time.Millisecond):
+		}
+		ctx.start()
+		select {
+		case <-finished:
+		case <-time.After(wait):
+			t.Fatal("finish did not return after the callback was scheduled")
+		}
+		if !ran.Load() {
+			t.Error("finish returned without running the callback of a canceled context")
+		}
+	})
+
+	t.Run("canceled", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		var ran atomic.Bool
+		finish := afterCancel(ctx, func() { ran.Store(true) })
+		cancel()
+		finish()
+		if !ran.Load() {
+			t.Error("finish returned before the callback of a canceled context ran")
+		}
+	})
+
+	t.Run("not canceled", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		var ran atomic.Bool
+		finish := afterCancel(ctx, func() { ran.Store(true) })
+		finish()
+		cancel()
+		// A callback that was not unregistered starts in its own goroutine
+		// after the cancellation; give it time to.
+		time.Sleep(50 * time.Millisecond)
+		if ran.Load() {
+			t.Error("the callback ran although ctx was not canceled when finish was called")
+		}
+	})
 }
