@@ -51,6 +51,7 @@ func failureSentenceCases() []failureSentenceCase {
 		{failure.KindLLMTruncated, "the LLM response was cut off before it finished"},
 		{failure.KindLLM, "the LLM call failed"},
 		{failure.KindPublish, "posting the article failed; part of it may already be in the channel"},
+		{failure.KindPublishMention, "part of the article could be treated as a mention, so it was not posted; sending it again generates a different article"},
 		{failure.KindInternal, "an internal error occurred"},
 		{failure.Kind(-1), "the request failed for an unclassified reason"},
 		{failure.KindInternal + 1, "the request failed for an unclassified reason"},

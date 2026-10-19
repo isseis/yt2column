@@ -15,6 +15,7 @@ import (
 	"github.com/isseis/yt2column/internal/failure"
 	failuretestutil "github.com/isseis/yt2column/internal/failure/testutil"
 	"github.com/isseis/yt2column/internal/llm"
+	"github.com/isseis/yt2column/internal/publisher"
 	publishertestutil "github.com/isseis/yt2column/internal/publisher/testutil"
 	"github.com/isseis/yt2column/internal/writer"
 	writertestutil "github.com/isseis/yt2column/internal/writer/testutil"
@@ -170,6 +171,7 @@ func TestFailureClassification(t *testing.T) {
 		{"malformed_output", writer.ErrMalformedOutput, nil, failure.KindLLM},
 		{"too_long", writer.ErrTooLong, nil, failure.KindLLM},
 		{"publish", nil, errors.New("publish failed"), failure.KindPublish},
+		{"publish_mention", nil, fmt.Errorf("%w: rule M2 at line 1, column 3", publisher.ErrSlackMention), failure.KindPublishMention},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

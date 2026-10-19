@@ -1444,6 +1444,18 @@ func TestNewFilePublisherNilOnFailure(t *testing.T) {
 	}
 }
 
+// rejectedMention returns the error SlackMessageCount reports for an article
+// whose body holds a targeted at sign followed by "here".
+func rejectedMention(t *testing.T) error {
+	t.Helper()
+	article := writer.Article{Title: "t", Body: "x @here", Model: "m", ModelVersion: "v", SourceURL: runVideoURL}
+	_, err := publisher.SlackMessageCount(article)
+	if !errors.Is(err, publisher.ErrSlackMention) {
+		t.Fatalf("SlackMessageCount err = %v, want ErrSlackMention", err)
+	}
+	return err
+}
+
 // TestRunSlackFailureHints checks the hints added for a failed webhook post:
 // each appears exactly for the failure it describes.
 func TestRunSlackFailureHints(t *testing.T) {
@@ -1453,6 +1465,9 @@ func TestRunSlackFailureHints(t *testing.T) {
 		reqID    = "request ID"
 		timedOut = "the webhook post timed out after the 30-second limit"
 		mention  = "the article was not posted and was discarded"
+		position = "names the rule and gives the line and column in the post as sent to Slack"
+		cause    = "typically an at sign directly followed by a name character, angle-bracket mention syntax, or a character reference"
+		advice   = "Run again to generate a new article, or use --out to inspect what is generated"
 		rerun    = "running again generates a new article and posts all of it from the first message"
 	)
 	requestID := strings.Repeat("r", 26)
@@ -1486,7 +1501,7 @@ func TestRunSlackFailureHints(t *testing.T) {
 			&publisher.SlackPostError{Total: 1, Posted: 0, Attempted: true, Err: fmt.Errorf("webhook: the post timed out after 30s: %w", context.DeadlineExceeded)},
 			[]string{timedOut},
 		},
-		{"mention", fmt.Errorf("%w: rule M1 at line 3, column 6", publisher.ErrSlackMention), []string{mention}},
+		{"mention", rejectedMention(t), []string{mention, cause, position, advice}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1504,7 +1519,11 @@ func TestRunSlackFailureHints(t *testing.T) {
 					t.Errorf("stderr does not contain %q:\n%s", want, stderr)
 				}
 			}
-			for _, hint := range []string{stay, rejected, reqID, timedOut, mention} {
+			if tc.name == "mention" && strings.Contains(stderr, "here") {
+				// The error and the hint never quote the text after the at sign.
+				t.Errorf("mention output quotes the rejected text:\n%s", stderr)
+			}
+			for _, hint := range []string{stay, rejected, reqID, timedOut, mention, cause, position, advice} {
 				wanted := slices.ContainsFunc(tc.want, func(w string) bool { return strings.Contains(w, hint) })
 				if got := strings.Contains(stderr, hint); got != wanted {
 					t.Errorf("stderr contains %q = %v, want %v:\n%s", hint, got, wanted, stderr)

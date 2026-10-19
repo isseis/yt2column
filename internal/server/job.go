@@ -119,6 +119,11 @@ func classify(err error) failure.Kind {
 		// failure.
 		return failure.KindInternal
 	case pipeline.StagePublish:
+		// A mention refusal discards the article before any message is sent;
+		// resending generates a different article, unlike a transport failure.
+		if errors.Is(stageErr.Err, publisher.ErrSlackMention) {
+			return failure.KindPublishMention
+		}
 		return failure.KindPublish
 	case pipeline.StageWrite:
 		return classifyWrite(stageErr.Err)

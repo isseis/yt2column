@@ -353,23 +353,23 @@ go test -run '^$' -tags test,integration ./...
 
 -   [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 -   [x] PR を作成した
--   [ ] PR がマージされた
--   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+-   [x] PR がマージされた
+-   [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 #### ステップ 4-7: 失敗の理由（AC-14e・AC-14f）
 
 **対象:** `internal/failure/failure.go`・`internal/server/job.go`・`internal/publisher/slack_failure.go`・`cmd/yt2column/run.go`
 
--   [ ] `failure.KindPublishMention` を `KindPublish` の次に加える。
--   [ ] `classify`（`job.go:109`）が、公開段階の失敗が `ErrSlackMention` を包むとき `KindPublishMention` を返す。
--   [ ] `slack_failure.go:113` の写像に、`KindPublishMention` の固定の文面を加える（要件書 AC-14f の内容を英語で）。通知はサーバが選んだ固定の値だけで組み立てる。
--   [ ] `run.go:1031` の案内を、原因（`@` の直後に名前の文字が続く並び）、エラーが示す位置（行と列。1 行目は見出し行。見出し行が入るのは PR-7 からで、それまでは旧い整形での位置である）、再実行すると別の記事が生成されること、`--out` で記事を確かめられることを示す文面にする。`@` の後の文字列は示さない。
--   [ ] 失敗の理由のテストを、`failure_test.go` の `TestKindConstants:65`、`job_test.go` の `TestFailureClassification:160`、`slack_failure_test.go` の `TestSlackFailureNotifyText:115`、`run_test.go:1489` の行に加える。CLI の案内が `@` の後の文字列を含まないことも確かめる。
+-   [x] `failure.KindPublishMention` を `KindPublish` の次に加える。
+-   [x] `classify`（`job.go:109`）が、公開段階の失敗が `ErrSlackMention` を包むとき `KindPublishMention` を返す。
+-   [x] `slack_failure.go:113` の写像に、`KindPublishMention` の固定の文面を加える（要件書 AC-14f の内容を英語で）。通知はサーバが選んだ固定の値だけで組み立てる。
+-   [x] `run.go:1031` の案内を、原因（`@` の直後に名前の文字が続く並び）、エラーが示す位置（行と列。1 行目は見出し行。見出し行が入るのは PR-7 からで、それまでは旧い整形での位置である）、再実行すると別の記事が生成されること、`--out` で記事を確かめられることを示す文面にする。`@` の後の文字列は示さない。
+-   [x] 失敗の理由のテストを、`failure_test.go` の `TestKindConstants:65`、`job_test.go` の `TestFailureClassification:160`、`slack_failure_test.go` の `TestSlackFailureNotifyText:115`、`run_test.go:1489` の行に加える。CLI の案内が `@` の後の文字列を含まないことも確かめる。
 
 #### ステップ 4-8: PR-5 の確認
 
--   [ ] `make fmt` → `make test` → `make lint` が通る。
--   [ ] `classify` の `ErrSlackMention` の分岐を外し、ステップ 4-7 の対応するテストが失敗することを確かめ、コミットメッセージに記す。
+-   [x] `make fmt` → `make test` → `make lint` が通る。
+-   [x] `classify` の `ErrSlackMention` の分岐を外し、ステップ 4-7 の対応するテストが失敗することを確かめ、コミットメッセージに記す。
 
 ### PR-5 作成ポイント: publish-mention failure reason
 
@@ -383,8 +383,8 @@ go test -run '^$' -tags test,integration ./...
 
 **判定理由**: 該当するトリガはない。既存の `Kind` の写像に 1 つの種類を加える変更で、方式は一つに定まっている。
 
--   [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
--   [ ] PR を作成した
+-   [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+-   [x] PR を作成した
 -   [ ] PR がマージされた
 -   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 

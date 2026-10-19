@@ -75,6 +75,7 @@ func TestKindConstants(t *testing.T) {
 		"KindLLMTruncated",
 		"KindLLM",
 		"KindPublish",
+		"KindPublishMention",
 		"KindInternal",
 	}
 	got := kindConstantNames(t)
