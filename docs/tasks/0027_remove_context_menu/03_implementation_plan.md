@@ -797,7 +797,7 @@ AC-09・AC-10 は、確かめた結果を本計画に記録することを求め
 
 -   本タスクの最初のコミットは `f06f396`（親 `a69dbc0`）である。
 -   `git diff --diff-filter=D --stat a69dbc0 HEAD -- '*.go'`: 出力なし（Go のファイルの削除なし）。
--   `git diff -U0 a69dbc0 HEAD -- '*.go' | rg -n '^-\s*func (\([^)]*\) )?(Test|Benchmark|Fuzz|Example)\w*'`: 一致なし（終了コード 1）。`^-func ` の一致も 0 件で、削除した関数は Go のどのファイルにもない（この差分には、本タスクの間に `main` へ入ったほかのタスクの変更も含まれる）。
+-   `git diff -U0 a69dbc0 HEAD -- '*.go' | rg -n '^-\s*func (\([^)]*\) )?(Test|Benchmark|Fuzz|Example)\w*'`: 一致なし（終了コード 1）。`^-func` の一致（行頭の削除された関数宣言）も 0 件で、削除した関数は Go のどのファイルにもない（この差分には、本タスクの間に `main` へ入ったほかのタスクの変更も含まれる）。
 
 
 ## 6. リスク管理 (Risk Management)
