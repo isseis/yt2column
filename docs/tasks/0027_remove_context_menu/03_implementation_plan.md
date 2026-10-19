@@ -133,7 +133,7 @@
 -   変更: 本計画（§5.3）
 
 **タスク**
--   [ ] **ステップ 1-1**: 削除の前の lcov の報告を取る（設計書 3.11）。作業ツリーの `extension/` が `81cb30d` と同じであることを `git diff --quiet 81cb30d -- extension` の終了コード 0 で確かめる。そのうえで、§1.3「カバレッジの取り方の確かめ」のコマンドで報告を取り、リポジトリの外に保存する。報告は `81cb30d` を取り出せば作り直せるので、コミットしない。
+-   [x] **ステップ 1-1**: 削除の前の lcov の報告を取る（設計書 3.11）。作業ツリーの `extension/` が `81cb30d` と同じであることを `git diff --quiet 81cb30d -- extension` の終了コード 0 で確かめる。そのうえで、§1.3「カバレッジの取り方の確かめ」のコマンドで報告を取り、リポジトリの外に保存する。報告は `81cb30d` を取り出せば作り直せるので、コミットしない。
     -   **対象:** 本計画（§5.3）。**完了:** 実行したコマンド・node の版・比べた元のコミット・報告の保存場所を §5.3 に記録した。
 
 **完了条件:** §5.3 に基準の報告の記録がある。コードは変えない。
@@ -144,13 +144,13 @@
 -   変更: `extension/test/launch.test.ts`、本計画（§5.2）
 
 **タスク**
--   [ ] **ステップ 2-1**: §5.2 に、削除・改めるテスト（§1.3 の `launch.test.ts` の表、`renderSend.test.ts`・`summary.test.ts`・`sendMessages.test.ts`・`chromeDeps.test.ts`・`resultView.test.ts` の削除の対象）の検査を、`assert` 1 つにつき 1 件として挙げる。そして、本タスクの後に同じ値を確かめるテスト（既存のテストの名前、または本フェーズで加えるテスト）か、確かめる必要がなくなった理由（削除するコードだけの振る舞い）を対応づける（設計書 3.10.2「確かめ方」）。設計書 3.10.2 の表にない対応先が要る検査は、ステップ 2-2 に加える。
+-   [x] **ステップ 2-1**: §5.2 に、削除・改めるテスト（§1.3 の `launch.test.ts` の表、`renderSend.test.ts`・`summary.test.ts`・`sendMessages.test.ts`・`chromeDeps.test.ts`・`resultView.test.ts` の削除の対象）の検査を、`assert` 1 つにつき 1 件として挙げる。そして、本タスクの後に同じ値を確かめるテスト（既存のテストの名前、または本フェーズで加えるテスト）か、確かめる必要がなくなった理由（削除するコードだけの振る舞い）を対応づける（設計書 3.10.2「確かめ方」）。設計書 3.10.2 の表にない対応先が要る検査は、ステップ 2-2 に加える。
     -   **対象:** 本計画（§5.2）。**完了:** 削除・改めるすべてのテストの検査に、対応先か理由がある。
--   [ ] **ステップ 2-2**: 設計書 3.10.2 の「加えるテスト」の表の 6 つの振る舞いと、ステップ 2-1 で見つかった振る舞いを、ポップアップの経路で確かめる検査を `launch.test.ts` に加える。既存のテストにポップアップの側の検査を加えてもよい。たとえば「sends the same body and classification through both paths」には、ポップアップの本文にリテラルの期待値を当てる検査を加える。「token never leaks」は、ポップアップの起動・送信・送らない理由のログ（`PopupLaunchDeps.log` と `PopupSendDeps.log` の両方）を記録して、検査の対象にする。送らない理由のログは、トークンを読み込んだうえで送らない場合（たとえば `port-invalid` で、トークンが `identifiableToken` の場合）のログを記録して確かめる。設計書 3.10.2 の表のほかに、既に次の 2 つが分かっている。ポップアップの起動のログが収集の結果（`outcome`）を持つこと（メニューの経路では `launch.test.ts:435` が確かめていた）と、送らない理由のログがラベル `yt2column blocked` の下に `reason` を持つこと（`:803-807`）である。`body-too-large` の確かめは、既存の `popupBlocks` の表（`:1001`）に行を加えて行う。この段階ではメニューの経路のコードとテストが残っている。加えた検査は、現在のコードで通ることを確かめる。
+-   [x] **ステップ 2-2**: 設計書 3.10.2 の「加えるテスト」の表の 6 つの振る舞いと、ステップ 2-1 で見つかった振る舞いを、ポップアップの経路で確かめる検査を `launch.test.ts` に加える。既存のテストにポップアップの側の検査を加えてもよい。たとえば「sends the same body and classification through both paths」には、ポップアップの本文にリテラルの期待値を当てる検査を加える。「token never leaks」は、ポップアップの起動・送信・送らない理由のログ（`PopupLaunchDeps.log` と `PopupSendDeps.log` の両方）を記録して、検査の対象にする。送らない理由のログは、トークンを読み込んだうえで送らない場合（たとえば `port-invalid` で、トークンが `identifiableToken` の場合）のログを記録して確かめる。設計書 3.10.2 の表のほかに、既に次の 2 つが分かっている。ポップアップの起動のログが収集の結果（`outcome`）を持つこと（メニューの経路では `launch.test.ts:435` が確かめていた）と、送らない理由のログがラベル `yt2column blocked` の下に `reason` を持つこと（`:803-807`）である。`body-too-large` の確かめは、既存の `popupBlocks` の表（`:1001`）に行を加えて行う。この段階ではメニューの経路のコードとテストが残っている。加えた検査は、現在のコードで通ることを確かめる。
     -   **対象:** `extension/test/launch.test.ts`。**完了:** `make ext-test` が通る。
--   [ ] **ステップ 2-3**: `popup send` の「shows the sending notice and a disabled button while sending」（`launch.test.ts:922`）に、送信中の表示が 2 つの文（`Do not close this window until the result appears.`・`If you close it, check Slack before sending again.`）を含むことを、`sendingMessage` を使わずに文字列の全体で確かめる検査を加える（AC-08、設計書 3.4）。
+-   [x] **ステップ 2-3**: `popup send` の「shows the sending notice and a disabled button while sending」（`launch.test.ts:922`）に、送信中の表示が 2 つの文（`Do not close this window until the result appears.`・`If you close it, check Slack before sending again.`）を含むことを、`sendingMessage` を使わずに文字列の全体で確かめる検査を加える（AC-08、設計書 3.4）。
     -   **対象:** `extension/test/launch.test.ts`。**完了:** `make ext-test` が通る。
--   [ ] **ステップ 2-4**: 壊して失敗することを確かめ、コミットのメッセージに記す。対象は、ステップ 2-2・2-3 で加えた検査のそれぞれである（§5.2 の対応先として加えた検査を含む）。たとえば次のとおりである。`sendingMessage` の 2 つの文の一方を変える（ステップ 2-3 の検査）。`runPopupSend` が `prepareSend` に渡す値の `title` をタブのタイトルに替える。`runPopupSend` が `prepareSend` に `result.metadata.values` ではなく `{}` を渡す（メタデータによる `body-too-large` の行）。読み取りの失敗でもメタデータを省略しない（メタデータなしの本文の検査）。`logSend` の失敗を info に記録する。`logBlocked` の振り分けを逆にする。`logBlocked` から `reason` を落とす。起動のログから `outcome` を落とす。ポップアップの起動・送信・送らない理由のログのそれぞれにトークンを入れる（3 か所を 1 つずつ）。続けて `make ext-check` → `make test` → `make lint` を通す。
+-   [x] **ステップ 2-4**: 壊して失敗することを確かめ、コミットのメッセージに記す。対象は、ステップ 2-2・2-3 で加えた検査のそれぞれである（§5.2 の対応先として加えた検査を含む）。たとえば次のとおりである。`sendingMessage` の 2 つの文の一方を変える（ステップ 2-3 の検査）。`runPopupSend` が `prepareSend` に渡す値の `title` をタブのタイトルに替える。`runPopupSend` が `prepareSend` に `result.metadata.values` ではなく `{}` を渡す（メタデータによる `body-too-large` の行）。読み取りの失敗でもメタデータを省略しない（メタデータなしの本文の検査）。`logSend` の失敗を info に記録する。`logBlocked` の振り分けを逆にする。`logBlocked` から `reason` を落とす。起動のログから `outcome` を落とす。ポップアップの起動・送信・送らない理由のログのそれぞれにトークンを入れる（3 か所を 1 つずつ）。続けて `make ext-check` → `make test` → `make lint` を通す。
     -   **対象:** なし（確認のみ）。**完了:** 各対象を壊すと加えた検査が失敗することを確かめ、コミットのメッセージに記した。
 
 **完了条件:** `make ext-check` → `make test` → `make lint` が通り、§5.2 がすべての検査に対応先か理由を持つ。
@@ -558,11 +558,200 @@ AC-09・AC-10 は、確かめた結果を本計画に記録することを求め
 
 ステップ 2-1 で作り、ステップ 6-3 で加えたテストがあれば追記する。列は、元のテスト（ファイル・describe・`it`）、検査の内容、対応先（本タスクの後のテストの名前）または理由、とする。
 
-（実施のときに記入する）
+元のテストの行番号は `81cb30d` の行を指す。テストの名前は `describe > it` で書き、ファイルを省いたものは `extension/test/launch.test.ts` のテストである。対応先のうち「（残す）」は、同じテストの同じ検査を、期待値を変えずに残すことを表す。「（加えた）」は、ステップ 2-2・2-3 で加えた検査を表す。テストの名前は §2.1 の表の新しい名前で書く。ループや表で複数回実行される `assert` は、ソースの 1 か所を 1 件とする。
+
+確かめる必要がなくなった理由は、次の記号で書く。
+
+-   **R1:** 削除するストア（`ResultViewStore`・`chrome.storage.session` への受け渡し）だけの振る舞い。ポップアップの経路は値を保存せず、同じ容器に描く。
+-   **R2:** 削除するバッジ・結果のウィンドウを開く処理・表示用のキー（`newKey`）だけの振る舞い。
+-   **R3:** 削除する結果のウィンドウ（`runResultWindow`）だけの振る舞い。
+-   **R4:** メニューの経路の入力（`chrome.contextMenus.OnClickData`）と、そのログのラベルだけの振る舞い。
+-   **R5:** 削除する関数（`parseSummary`・`parseResultView`・`createResultViewStore`・`unreadableResultMessage`・`summaryNode`）だけの振る舞い。
+-   **R6:** メニューの経路の値とポップアップの経路の値の比較。比べる相手がなくなる。確かめていた値は、対応先がリテラルの期待値で確かめる。
+-   **R7:** 削除する `runMenuLaunch` の側の検査。同じテストの、ポップアップの経路の同じ期待値の検査は残す。
+
+| 元のテスト | 検査の内容 | 対応先または理由 |
+|---|---|---|
+| launch paths > collects the same input through the menu and popup paths（`:417`） | ポップアップの収集の結果が `collected` | launch paths > collects the selection and the tab title through the popup path（残す） |
+| 同上 | 収集した `selection` が読み取った選択範囲のまま | 同上（残す） |
+| 同上 | 収集した `title` がタブのタイトルのまま | 同上（残す） |
+| 同上 | メニューの起動のログの `outcome` がポップアップの収集の結果と等しい | 同上の、ポップアップの起動のログの `outcome` が収集の結果と等しい検査（加えた） |
+| 同上 | ストアに置いた `sending` の表示が `summarize` の要約を持つ | R1。ポップアップの要約の表示は `render.test.ts::renderSummary` と display > renders the popup summary as text, not elements が確かめる |
+| launch paths > sends the same body and classification through both paths（`:442`） | メニューの本文が文字列 | launch paths > sends the video title, not the tab title, in the body の、ポップアップの本文が文字列である検査（加えた） |
+| 同上 | メニューの本文が `videoUrl`・`transcript`・動画タイトル・チャンネル名・説明のリテラルと等しい（タブのタイトルではない） | 同上の、ポップアップの本文に同じリテラルを当てる検査（加えた） |
+| 同上 | ポップアップの本文がメニューの本文と等しい | R6（対応先は上の行） |
+| 同上 | メニューの `sent` の表示がストアにある | R1 |
+| 同上 | メニューの `sent` の表示の結果が受付（`accepted`・`requestId`） | 同上の、ポップアップの `.send-request-id` が `requestId` である検査（残す） |
+| 同上 | ポップアップの `.send-request-id` が `requestId` | 同上（残す） |
+| launch paths > does not read settings or send for a rejected collection（`:499`） | 拒否した収集で設定を読まない | popup send > renders nothing and does not read settings for a rejected collection の `loadCalls` の検査 |
+| 同上 | 拒否した収集で送らない | 同上の、容器が空である（送信のボタンがなく、送信はボタンからしか始まらない）検査 |
+| 同上 | ストアに `blocked`（`not-watch-page`）を置く | R1。ポップアップは拒否の理由を要約の領域に表示し、launch paths > does not read the metadata for a not-watch-page collection が理由を確かめる |
+| launch paths > reads the metadata once, from the collected tab and URL（`:515`） | メニューの経路のメタデータの読み取りが 1 回で、タブの ID と URL が収集したもの | R7 |
+| 同上 | ポップアップの経路の同じ検査 | launch paths > reads the metadata once, from the collected tab and URL（残す） |
+| launch paths > does not read the metadata for a ${name} collection（`:548`。4 行） | メニューの経路でメタデータを読まない | R7 |
+| 同上 | ポップアップの経路でメタデータを読まない | launch paths > does not read the metadata for a ${name} collection（残す） |
+| 同上 | ポップアップの収集の結果が `rejected` | 同上（残す） |
+| 同上 | 拒否の理由が `${name}` | 同上（残す） |
+| 同上 | メタデータが空の結果 | 同上（残す） |
+| 同上 | ストアに `blocked`（`${name}`）を置く | R1 |
+| launch paths > sends without metadata and logs an error when ${name}（`:599`。3 行） | メニューの経路のストアの表示が `sending`・`sent` の順（送った） | R1。ポップアップから送ったことは次の行の本文の検査が確かめる |
+| 同上 | メニューの経路の本文が `videoUrl`・`transcript` だけ（メタデータなし） | launch paths > sends without metadata and logs an error when ${name} の、ポップアップから送った本文が `videoUrl`・`transcript` だけである検査（加えた） |
+| 同上 | ポップアップの収集の結果が `collected` | 同上（残す） |
+| 同上 | ポップアップのメタデータの値が空 | 同上（残す） |
+| 同上 | メタデータのログが error で、`omissions`（と `check`）を持つ（メニューの記録） | R7 |
+| 同上 | 同じ検査（ポップアップの記録） | 同上（残す） |
+| launch paths > treats a missing tab as collection-failed in both paths（`:635`） | ポップアップの収集の結果が `rejected` | launch paths > treats a missing tab as collection-failed（残す） |
+| 同上 | 拒否の理由が `collection-failed` | 同上（残す） |
+| 同上 | メニューの起動のログの `outcome` が `rejected` | R7。起動のログが収集の結果を持つことは、launch paths > collects the selection and the tab title through the popup path のログの検査（加えた）が確かめる |
+| 同上 | メニューの起動のログの理由が `collection-failed` | 同上 |
+| launch paths > ignores info.selectionText and reads the selection itself（`:664`） | `info.selectionText` があっても収集が `collected` | R4。ポップアップの経路は `info` を持たない |
+| 同上 | 収集した選択範囲がページから読んだもの | R4。ページから読んだ選択範囲を収集することは launch paths > collects the selection and the tab title through the popup path が確かめる |
+| launch paths > keeps untrusted text out of the fixed log labels（`:678`） | メニューの起動のログのラベルが固定の文字列 | R4 |
+| 同上 | ポップアップの起動のログのラベルが固定の文字列 | launch paths > keeps untrusted text out of the fixed log labels（残す） |
+| launch paths > clears the badge at the start of the menu path（`:688`） | バッジを 1 回消す | R2 |
+| launch paths > signals the badge and does not throw when the key cannot be created（`:694`） | ウィンドウを開かない | R2 |
+| 同上 | バッジを 1 回出す | R2 |
+| 同上 | error のログが 1 件 | R2 |
+| launch paths > does not open a window and signals the badge when put fails（`:706`） | ウィンドウを開かない | R2 |
+| 同上 | キーを削除しない | R1 |
+| 同上 | バッジを 1 回出す | R2 |
+| launch paths > does not send when the result window cannot be opened（`:715`） | キーを削除する | R1 |
+| 同上 | バッジを 1 回出す | R2 |
+| 同上 | ウィンドウを開けないと送らない | R2（ウィンドウの表示の後に送る順序はメニューの経路だけのもの） |
+| launch paths > does not reject when the window and the removal both fail（`:727`） | キーの削除を試みる | R1 |
+| 同上 | バッジを 1 回出す | R2 |
+| 同上 | error のログが 2 件 | R2 |
+| menu send > sends once and stores the sending then the sent view（`:743`） | ストアの表示が `sending`・`sent` の順 | R1 |
+| 同上 | 1 回だけ送る | popup send > sends once, disables the button and shows the result の `fetch` の回数の検査 |
+| 同上 | `sent` の表示がある | R1 |
+| 同上 | 結果が受付（`accepted`・`requestId`） | popup send > sends once, disables the button and shows the result の `.send-request-id` の検査 |
+| menu send > stores an unknown result without its cause（`:756`） | `sent` の表示がある | R1 |
+| 同上 | 送信の失敗の結果が `cause` のない `unknown` | popup send > logs a failed send at error and shows the unknown result の、`unknown` の文言を表示する検査（加えた）。`cause` を落とすことは `response.test.ts::toSendOutcome > drops the cause of an unknown result` が確かめる |
+| 同上 | error のログが 1 件 | popup send > logs a failed send at error and shows the unknown result の、送信の結果のログが error だけにある検査（加えた） |
+| menu send > blocks ${reason} without sending（`:792`。4 行） | ストアに `blocked`（`${reason}`）を置く | popup send > shows the ${reason} reason and no button without sending の、送らない理由の文言の検査（`body-too-large` は、加えた「… when the selection is over the limit」の行） |
+| 同上 | 送らない | 同上の `fetch` の回数の検査 |
+| 同上 | ウィンドウを開く | R2 |
+| 同上 | 送らない理由のログが、`settings-unreadable` では error、ほかは info にある | 同上の、ラベル `yt2column blocked` の記録を `error` の列で選ぶ検査（加えた） |
+| 同上 | 送らない理由のログが `reason` を持つ | 同上の、記録の `reason` が `[reason]` と等しい検査（加えた） |
+| menu send > sends a collapsed description without a confirmation step（`:811`） | 1 回送る | popup send > keeps the button under the expand prompt and sends the shown description の `fetch` の回数の検査 |
+| 同上 | 本文の説明が読み取った折りたたみの説明 | 同上の本文の説明の検査 |
+| 同上 | ストアの表示に展開の案内がない | R1。ポップアップでは展開の案内とボタンが並ぶことを同上のテストが確かめる |
+| menu send > blocks body-too-large when the metadata takes the body over the limit（`:833`） | ストアに `blocked`（`body-too-large`）を置く | popup send > shows the body-too-large reason and no button without sending when the metadata takes the body over the limit の、送らない理由の文言の検査（加えた） |
+| 同上 | ウィンドウを開く | R2 |
+| 同上 | 送らない | 同上の `fetch` の回数の検査（加えた） |
+| menu send > signals the badge when the blocked view cannot be stored（`:848`） | ウィンドウを開かない | R2 |
+| 同上 | バッジを 1 回出す | R2 |
+| 同上 | error のログが 1 件（保存の失敗） | R1 |
+| menu send > logs and signals the badge when the sent view cannot be stored（`:860`） | 1 回送る | popup send > sends once, disables the button and shows the result の `fetch` の回数の検査 |
+| 同上 | バッジを 1 回出す | R2 |
+| 同上 | error のログが 1 件（保存の失敗） | R1 |
+| video metadata log > records ${name} at info（`:1076`。2 行） | メタデータのログが info で、`accepted`・`collapsed`（と `omissions`）を持つ（メニューの記録） | R7 |
+| 同上 | 同じ検査（ポップアップの記録） | video metadata log > records ${name} at info（残す。補助 `metadataLogs` をポップアップの経路だけにする） |
+| 同上 | error のログがない（メニューの記録） | R7 |
+| 同上 | 同じ検査（ポップアップの記録） | 同上（残す） |
+| video metadata log > keeps the read values and the read error out of the logs（`:1088`） | 読み取った値・省いた値・拒否した形・読み取りの失敗の文字列がログにない（メニューの記録） | R7 |
+| 同上 | 同じ検査（ポップアップの記録） | video metadata log > keeps the read values and the read error out of the logs（残す） |
+| result window > shows a sending view, then the sent result on a notification（`:1167`） | 送信中の文言を表示する | R3。ポップアップの送信中の表示は popup send > shows the sending notice and a disabled button while sending が確かめる |
+| 同上 | 通知の後に `.send-request-id` を表示する | R3 |
+| 同上 | キーを削除する | R3 |
+| 同上 | 監視を止める | R3 |
+| 同上 | 待ち時間の上限が `resultWaitMs` | R3 |
+| 同上 | 最終の表示で待ち時間の予約を取り消す | R3 |
+| result window > keeps the sent result when the get resolves after the notification（`:1189`） | `.send-request-id` を表示し続ける | R3 |
+| result window > ignores a get rejection that arrives after the final view（`:1203`） | `.send-request-id` を表示し続ける | R3 |
+| 同上 | error のログがない | R3 |
+| 同上 | 待ち時間の予約がない | R3 |
+| result window > shows a blocked view and removes the key（`:1227`） | 送らない理由の文言を表示する | R3。ポップアップの表示は popup send > shows the token-missing reason and no button without sending が確かめる |
+| 同上 | キーを削除する | R3 |
+| result window > logs a failure when the key cannot be removed at Final（`:1237`） | 送らない理由の文言を表示する | R3 |
+| 同上 | error のログが 1 件 | R3 |
+| result window > shows the unknown display at the wait limit and logs it（`:1248`） | `unknown` の文言を表示する | R3 |
+| 同上 | キーを削除する | R3 |
+| 同上 | error のログが 1 件 | R3 |
+| result window > shows the unreadable notice when get fails（`:1262`） | 読めない場合の文言を表示する | R3 |
+| 同上 | error のログが 1 件 | R3 |
+| result window > shows the unreadable notice when get returns no value（`:1271`） | 読めない場合の文言を表示する | R3 |
+| 同上 | error のログが 1 件 | R3 |
+| result window > shows the unreadable notice when the stored shape is wrong（`:1280`） | 読めない場合の文言を表示する | R3 |
+| 同上 | error のログが 1 件 | R3 |
+| result window > shows the unreadable notice without a key and does not touch the store（`:1290`） | 読めない場合の文言を表示する | R3 |
+| 同上 | キーを削除しない | R3 |
+| 同上 | 監視しない | R3 |
+| result window > ignores events after the final view（`:1300`） | `.send-request-id` を表示し続ける | R3 |
+| 同上 | キーを 1 回だけ削除する | R3 |
+| token never leaks > keeps the token out of the logs, the store and the display（`:1318`） | 記録と表示にトークンの全体がない | token never leaks > keeps the token out of the logs and the display の同じ検査（残す）。対象に、ポップアップの送信のログと、トークンを読み込んだうえで送らない場合（`port-invalid`）のログと表示を加えた。メニューの記録とストアは R7・R1 |
+| 同上 | トークンの先頭の 4 文字がない | 同上 |
+| 同上 | トークンの末尾の 4 文字がない | 同上 |
+| `renderSend.test.ts`: renderResultView > shows the ${reason} block message（`:105`。2 行） | 送らない理由の文言を表示する | `renderSend.test.ts`: renderBlockReason > shows the ${reason} block message（ステップ 4-8 で `renderBlockReason` を呼ぶ形に改める） |
+| `renderSend.test.ts`: renderResultView > shows the sending notice with the close guidance and the summary（`:113`） | 送信中の文言（`sendingMessage`）を表示する | popup send > shows the sending notice and a disabled button while sending の `expectMessage` の検査（残す） |
+| 同上 | 表示が `close` を含む | 同上の、`Do not close this window until the result appears.` を文の全体で確かめる検査（加えた。AC-08） |
+| 同上 | 表示が `Slack` を含む | 同上の、`If you close it, check Slack before sending again.` を文の全体で確かめる検査（加えた。AC-08） |
+| 同上 | 表示が要約のタイトルを含む | R5（`summaryNode`）。ポップアップの要約のタイトルは `render.test.ts::renderSummary > shows the title, URL, counts and preview with labels` が確かめる |
+| `renderSend.test.ts`: renderResultView > shows the sent outcome and its request id alongside the summary（`:125`） | `.send-request-id` を表示する | `renderSend.test.ts`: renderSendOutcome > shows the ${outcome.kind} message and its request id |
+| 同上 | 表示が要約のタイトルを含む | R5（`summaryNode`） |
+| `renderSend.test.ts`: renderResultView > displays markup in the summary as text, not elements（`:136`） | 要約のマークアップを要素にしない | R5（`summaryNode`）。ポップアップの要約は display > renders the popup summary as text, not elements と `render.test.ts::renderSummary > displays markup in the title and preview as text, not elements` が確かめる |
+| 同上 | 要約のマークアップを文字列として表示する | 同上 |
+| `summary.test.ts`: parseSummary > accepts summarize output for a collected input（`:106`） | `parseSummary(summarize(o))` が要約と等しい（収集した要約のキーの集合を含む） | キーの集合は `summary.test.ts`: summarize に、収集した要約がちょうど 9 つのキーを持つことを値の全体で確かめる検査（ステップ 4-8 で加える）。`parseSummary` の受け入れは R5 |
+| `summary.test.ts`: parseSummary > accepts summarize output for every rejection reason（`:111`） | すべての拒否の理由で `parseSummary(summarize(o))` が要約と等しい（`cause` を落とす） | `cause` を持つ拒否が `kind`・`reason` だけの値になることを、すべての理由について確かめる検査（ステップ 4-8 で `summary.test.ts`: summarize に加える）。`parseSummary` の受け入れは R5 |
+| `summary.test.ts`: parseSummary > rejects a non-object value（`:123`） | オブジェクトでない値を拒む | R5 |
+| `summary.test.ts`: parseSummary > rejects an unknown kind（`:129`） | 未知の `kind` を拒む | R5 |
+| `summary.test.ts`: parseSummary > rejects a missing field（`:133`） | 前提: 取り除いた `preview` が `x` | R5 |
+| 同上 | フィールドの欠けた要約を拒む | R5 |
+| `summary.test.ts`: parseSummary > rejects an extra field（`:141`） | 余分なフィールドを拒む | R5 |
+| `summary.test.ts`: parseSummary > rejects a collected summary whose ${field} has the wrong type（`:157`。8 行） | 型の違うフィールドを拒む | R5 |
+| `summary.test.ts`: parseSummary > rejects an unknown reason（`:163`） | 未知の拒否の理由を拒む | R5 |
+| `summary.test.ts`: parseSummary > rejects a rejection with an extra field（`:170`） | 余分なフィールドを持つ拒否を拒む | R5 |
+| `sendMessages.test.ts`: sendOutcomeMessage > tells the user to check Slack when a result cannot be displayed（`:119`） | 読めない場合の文言が `Slack` を含む | R5（`unreadableResultMessage`） |
+| `chromeDeps.test.ts`: result view store > puts, gets and removes a value under the key（`:437`） | 置いた値を読める | R5（`createResultViewStore`） |
+| 同上 | 読んでも値を削除しない | R5 |
+| 同上 | 削除の後は読めない | R5 |
+| `chromeDeps.test.ts`: result view store > watch reports a value newly stored under the key in session（`:448`） | `session` の新しい値を通知する | R5 |
+| `chromeDeps.test.ts`: result view store > watch ignores another area, another key, and a removal（`:460`） | ほかの領域・キーと削除を通知しない | R5 |
+| `chromeDeps.test.ts`: result view store > watch stops after the returned function is called（`:474`） | 止めた後は通知しない | R5 |
+| `resultView.test.ts`: parseResultView > accepts a blocked view for every block reason | すべての送らない理由の `blocked` を受け入れる | R5（`parseResultView`） |
+| `resultView.test.ts`: parseResultView > accepts a sending view | `sending` を受け入れる | R5 |
+| `resultView.test.ts`: parseResultView > accepts a sent view for every outcome kind | 各結果の `sent` を受け入れる | R5 |
+| `resultView.test.ts`: parseResultView > rejects a sent view whose unknown outcome carries a cause | `cause` を持つ `unknown` を拒む | R5 |
+| `resultView.test.ts`: parseResultView > rejects an unexpected outcome with status ${status}（4 行） | 範囲の外の状態コードを拒む | R5 |
+| `resultView.test.ts`: parseResultView > accepts an unexpected outcome with status ${status}（2 行） | 範囲の端の状態コードを受け入れる | R5 |
+| `resultView.test.ts`: parseResultView > rejects an unknown unexpected check | 未知の `check` を拒む | R5 |
+| `resultView.test.ts`: parseResultView > rejects a non-object value | オブジェクトでない値を拒む | R5 |
+| `resultView.test.ts`: parseResultView > rejects an unknown kind | 未知の `kind` を拒む | R5 |
+| `resultView.test.ts`: parseResultView > rejects a blocked view with an unknown reason | 未知の送らない理由を拒む | R5 |
+| `resultView.test.ts`: parseResultView > rejects a sending view whose summary is a rejection | 拒否の要約を持つ `sending` を拒む | R5 |
+| `resultView.test.ts`: parseResultView > rejects a blocked view with an extra field | 余分なフィールドを持つ `blocked` を拒む | R5 |
+| `resultView.test.ts`: parseResultView > rejects a sending view missing the summary | 要約のない `sending` を拒む | R5 |
+| `resultView.test.ts`: parseResultView > rejects an accepted outcome with an unparseable requestId | 形の違う `requestId` を拒む | R5。`requestId` の検査そのものは `response.test.ts::parseRequestId > rejects ${value}` が確かめる |
+| `resultView.test.ts`: parseResultView > rejects a rejected outcome with an unknown reason | 未知のサーバの拒否の理由を拒む | R5。理由の検査そのものは `response.test.ts::serverRejectStatus > is queried through isServerRejectReason` が確かめる |
+| `resultView.test.ts`: parseResultView > accepts a rejected outcome for every server reason | すべてのサーバの拒否の理由を受け入れる | R5 |
+
+設計書 3.10.2 の「加えるテスト」の表の 6 つの振る舞いと、上の表で見つけた 2 つ（ポップアップの起動のログの `outcome`、送らない理由のログの `reason`）の対応先は、次のとおりである。
+
+| 振る舞い | 加えた検査 |
+|---|---|
+| 送る本文の値（動画タイトルが本文に入る） | launch paths > sends the video title, not the tab title, in the body |
+| 読めなかったときにメタデータなしで送る | launch paths > sends without metadata and logs an error when ${name} |
+| 送信と送らない理由のログにトークンが出ない | token never leaks > keeps the token out of the logs and the display |
+| 送らない理由のログのレベルの振り分け | popup send > shows the ${reason} reason and no button without sending |
+| 本文が大きすぎる場合（選択範囲・メタデータ）に送らない | popup send > shows the body-too-large reason and no button without sending when the selection is over the limit・… when the metadata takes the body over the limit |
+| 送信の失敗を error で記録する | popup send > logs a failed send at error and shows the unknown result |
+| ポップアップの起動のログが `outcome` を持つ | launch paths > collects the selection and the tab title through the popup path |
+| 送らない理由のログが `reason` を持つ | popup send > shows the ${reason} reason and no button without sending |
+
+この段階（ステップ 2-2・2-3 の後）では、上の「改める」テストは、まだ元の名前とメニューの経路の部分を持つ。名前の変更とメニューの経路の部分の削除は、ステップ 3-12 で行う。
 
 ### 5.3. カバレッジの比較の結果
 
 ステップ 1-1 で基準の報告の取り方を記録し、ステップ 6-3 で比較の結果を記録する。記録するものは、実行したコマンド、node の版、比べた 2 つのコミット、ファイルごとの比較の結果、到達しなくなったものとその対応、削除の前から到達していなかったものである。
+
+**削除の前の基準の報告（ステップ 1-1、2026-10-19）**
+
+-   作業ツリー: HEAD `0860b6f`。`git diff --quiet 81cb30d -- extension` の終了コードは 0 で、`extension/` は `81cb30d` と同じである。
+-   node: `v24.21.0`（`extension/.node-version` と同じ）。
+-   コマンド（`extension/` で実行）: `node --test --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=<出力先> "test/**/*.test.ts"`。終了コードは 0 で、報告は 20 個の `SF:` を持つ。§1.3 で挙げた `logSend` の error の分岐は、`BRDA:217,23,0,1`・`DA:218,1` で到達回数 1 だった。
+-   保存場所: リポジトリの外の `~/.cache/yt2column-0027/lcov-before-81cb30d.info`（出力先をジョブの一時ディレクトリにして実行し、そこへ複製した）。報告は `81cb30d` の `extension/` で同じコマンドを実行すれば作り直せるので、コミットしない。
+
+**比較の結果（ステップ 6-3）**
 
 （実施のときに記入する）
 
