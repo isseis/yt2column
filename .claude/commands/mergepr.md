@@ -45,15 +45,20 @@ around it with your own shell commands. Work in order; do not skip a step.
      style as in `git log origin/<baseRefName>`. When the PR title already fits,
      use it. For a plan-driven PR, `<scope>` is the task ID (`_context.md`, "PR
      marker conventions").
-   - **Body**: a sufficient summary of what changed and why, as short
-     paragraphs or bullets, describing the final state of the PR, not the
-     history of its review rounds. Keep it brief; do not reproduce every detail
-     from the commits. When a detail is already recorded in a committed
+   - **Body**: short. State what changed and why in the final state of the PR,
+     not the history of its review rounds. Aim for about 10 lines at most (a
+     one-sentence lead plus a few bullets; a squash commit stands in for the
+     whole PR, so it may run a little longer than a single commit) and leave out anything a reader can
+     recover from the diff, the subject, or `git log`: file lists, function
+     names, per-file changes, and step-by-step narration. Do not reproduce the
+     commits' details. When a detail is already recorded in a committed
      document — the task's `03_implementation_plan.md` for a plan-driven PR, or
      another document the PR updates — refer to that document instead of copying
-     the detail, as long as a reader can find it there.
+     the detail, as long as a reader can find it there. The records required
+     by the next bullet are the only content that may exceed this size, and
+     each stays at one line.
    - **Carry forward what CLAUDE.md requires a commit message to record**, in
-     summary form. Squashing drops the individual commits from `main`, so the
+     one line each. Squashing drops the individual commits from `main`, so the
      body must still account for each "verified by breaking X, test Y failed"
      record, each stated optimization obligation, each new dependency's
      justification, and any deleted test's coverage check. When a committed
