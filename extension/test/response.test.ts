@@ -251,9 +251,9 @@ describe("classifyResponse", () => {
       check: "status-pairing",
     },
     {
-      name: "too_many_requests with the wrong status",
+      name: "too_many_requests with another reason's status",
       received: body(
-        403,
+        413,
         '{"status":"rejected","reason":"too_many_requests","requestId":"0123456789abcdef"}',
       ),
       check: "status-pairing",

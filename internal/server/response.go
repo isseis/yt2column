@@ -25,6 +25,9 @@ const (
 	reasonInvalidBody
 	reasonInvalidVideoURL
 	reasonInvalidTranscript
+	// reasonCount is not a reason: it follows the last one, so the tests
+	// enumerate every reason, including one appended later.
+	reasonCount
 )
 
 // reasonValue returns the fixed `reason` value of the response body. It is the

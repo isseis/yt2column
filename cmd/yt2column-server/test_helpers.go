@@ -390,15 +390,7 @@ func requestBody(raw string) string {
 // unixClient returns a client that sends every request to the socket at path,
 // whatever the URL's host, and never through a proxy.
 func unixClient(path string) *http.Client {
-	return &http.Client{
-		Transport: &http.Transport{
-			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-				var d net.Dialer
-				return d.DialContext(ctx, "unix", path)
-			},
-		},
-		Timeout: loopbackTimeout,
-	}
+	return &http.Client{Transport: udstest.Transport(path), Timeout: loopbackTimeout}
 }
 
 // postArticle sends body to the server on the socket at path, with no header

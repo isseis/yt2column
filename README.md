@@ -362,8 +362,8 @@ can find a request's log with `grep <requestId> server.log`.
 On start the server creates the socket directory (`run`) with mode `0700` when
 it is missing, takes the start lock (the file `.yt2column.lock` in the socket
 directory, which stays), removes a stale socket left by a server that was
-killed, and creates the socket with mode `0600`. Only one server per user can
-run: the start lock is held until the server has stopped and its in-flight jobs
+killed, and creates the socket with mode `0600`. Only one server per `HOME`
+(normally one per user) can run: the start lock is held until the server has stopped and its in-flight jobs
 have finished. The server repairs nothing: a socket directory that is not
 yours, is a symbolic link, or does not have exactly mode `0700`, and a name at
 the socket path that is not a socket, stop the start until you fix them by
@@ -428,9 +428,10 @@ no job and post no failure notice.
 
 ### Troubleshooting
 
-- **The server is not running.** `curl` reports that it could not connect, or
-  that the socket does not exist. Start the server as above; the first log line
-  names the socket it listens on.
+- **The server is not running.** `curl` reports `Couldn't connect to server`
+  (its message names `localhost port 80`, the URL's host and default port; the
+  connection itself goes to the socket). Start the server as above; the first
+  log line names the socket it listens on.
 - **`another server holds the socket directory lock`.** Another server is
   running, or a stopped one is still waiting for its in-flight jobs. The
   message names the lock file; `lsof` on it shows which process holds it.
@@ -556,7 +557,9 @@ dev_home="$(mktemp -d /tmp/y2c.XXXXXX)"
 HOME="$dev_home" ./build/yt2column-server 2>>"$dev_home/server.log" &
 socket="$dev_home/.local/state/yt2column/run/server.sock"
 if [ "$(uname -s)" = Darwin ]; then socket="$dev_home/Library/Application Support/yt2column/run/server.sock"; fi
+until [ -S "$socket" ]; do sleep 0.1; done
 curl -sS --unix-socket "$socket" -X GET http://localhost/articles
+kill %1 && wait %1; rm -rf "$dev_home"
 ```
 
 Each worktree's server with a different `HOME` runs at the same time as the

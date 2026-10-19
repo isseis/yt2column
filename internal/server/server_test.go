@@ -63,17 +63,6 @@ func serveUnix(t *testing.T, s *Server) string {
 	return path
 }
 
-// unixTransport returns a transport that dials the socket at path for every
-// request, whatever the URL's host.
-func unixTransport(path string) *http.Transport {
-	return &http.Transport{
-		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-			var d net.Dialer
-			return d.DialContext(ctx, "unix", path)
-		},
-	}
-}
-
 // postOnUnix sends a valid article request to the socket at path and returns
 // the status and the decoded body.
 func postOnUnix(t *testing.T, path string) (int, responseBody) {
@@ -83,7 +72,7 @@ func postOnUnix(t *testing.T, path string) (int, responseBody) {
 	if err != nil {
 		t.Fatalf("NewRequest: %v", err)
 	}
-	client := &http.Client{Transport: unixTransport(path)}
+	client := &http.Client{Transport: udstest.Transport(path)}
 	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("send the request: %v", err)
@@ -237,7 +226,7 @@ func TestExpectContinueOversizedBodyNotSent(t *testing.T) {
 	}
 	req.ContentLength = maxBodyBytes + 1
 	req.Header.Set("Expect", "100-continue")
-	transport := unixTransport(path)
+	transport := udstest.Transport(path)
 	// A zero ExpectContinueTimeout sends the body at once; a non-zero one waits
 	// for 100 Continue, which the server writes only when the handler reads.
 	transport.ExpectContinueTimeout = 5 * time.Second
@@ -268,9 +257,18 @@ func TestUnparsableRequestBypassesHandler(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read the response: %v", err)
 	}
+	body, err := io.ReadAll(resp.Body)
 	_ = resp.Body.Close()
+	if err != nil {
+		t.Fatalf("read the response body: %v", err)
+	}
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("status = %d, want 400", resp.StatusCode)
+	}
+	// The handler answers with a JSON body carrying a requestId and logs the
+	// rejection; net/http's own answer does neither.
+	if strings.Contains(string(body), "requestId") || strings.Contains(ts.logs.String(), "request rejected") {
+		t.Errorf("the handler answered the unparsable request: body %q, log:\n%s", body, ts.logs.String())
 	}
 	ts.waitJobs()
 	if len(ts.slots) != 0 {

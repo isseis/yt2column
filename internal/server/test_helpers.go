@@ -214,8 +214,8 @@ type RejectReasonForTest struct {
 // in the declaration order, so a documentation guard in another package reads
 // the table from the code instead of copying it. Built only with the test tag.
 func RejectReasonsForTest() []RejectReasonForTest {
-	table := make([]RejectReasonForTest, 0, int(reasonInvalidTranscript)+1)
-	for reason := reasonInternal; reason <= reasonInvalidTranscript; reason++ {
+	table := make([]RejectReasonForTest, 0, int(reasonCount))
+	for reason := range reasonCount {
 		table = append(table, RejectReasonForTest{Value: reason.reasonValue(), Status: reason.statusCode()})
 	}
 	return table

@@ -203,7 +203,7 @@ func TestReasonToKind(t *testing.T) {
 		reasonMethodNotAllowed:  failure.KindUnknown,
 		reasonTooManyRequests:   failure.KindUnknown,
 	}
-	for reason := range reasonInvalidTranscript + 1 {
+	for reason := range reasonCount {
 		expected, ok := want[reason]
 		if !ok {
 			t.Fatalf("no expected kind for reason %d", reason)
