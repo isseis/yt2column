@@ -27,6 +27,50 @@ const (
 	maxSchemeLength = 32
 )
 
+// ByteRange is the half-open byte range body[Start:End] of a body.
+type ByteRange struct{ Start, End int }
+
+// ProseRanges returns the byte ranges of body outside fenced code blocks and
+// code spans, in order, and true. The fence lines themselves, and the text
+// inside fences and code spans, are not in any range. An empty slice with true
+// means the whole body is code. It returns false when the body cannot be
+// judged: the checks that decide where code ends are not reliable for it
+// (an unclosed fence, a fence-like line CommonMark would nest, a backtick run
+// without a closing run on its line, which includes a code span across
+// lines, or a line with a backslash, bracket, or autolink holding a
+// backtick). A caller must then treat the whole body as unjudged, not as
+// prose. An indented code block is prose here, because checkBodyMarkdown does
+// not tell it apart. It takes the output of normalizeBody, whose only line
+// ending is "\n".
+func ProseRanges(body string) ([]ByteRange, bool) {
+	lines := strings.Split(body, "\n")
+	prose, err := proseLines(lines)
+	if err != nil || !codeSpansExempt(prose) {
+		return nil, false
+	}
+	starts := make([]int, len(lines))
+	for i := 1; i < len(lines); i++ {
+		starts[i] = starts[i-1] + len(lines[i-1]) + 1
+	}
+	var ranges []ByteRange
+	for _, l := range prose {
+		base := starts[l.num-1]
+		// codeSpansExempt returned true, so every run of the line pairs.
+		spans, _ := codeSpans(l.text)
+		from := 0
+		for _, sp := range spans {
+			if sp.start > from {
+				ranges = append(ranges, ByteRange{Start: base + from, End: base + sp.start})
+			}
+			from = sp.end
+		}
+		if from < len(l.text) {
+			ranges = append(ranges, ByteRange{Start: base + from, End: base + len(l.text)})
+		}
+	}
+	return ranges, true
+}
+
 // bodyLine is a line of the body part outside code fences.
 type bodyLine struct {
 	text string

@@ -265,22 +265,23 @@ go test -run '^$' -tags test,integration ./...
 
 **対象:** `internal/writer/markdown.go`
 
--   [ ] `ByteRange` と `ProseRanges(body string) ([]ByteRange, bool)` を、`proseLines`・`codeSpans`・`codeSpansExempt` を使って実装する。行の先頭の位置を累積して本文の中のバイト範囲に直す。判定できない本文（I-01 に列挙した 5 つの場合）は false を返す。全体がコードの本文は、空の範囲と true を返す。
--   [ ] `internal/writer/markdown_test.go` にテストを加える（フェンス付きコードブロック、複数のバッククォートのコードスパン、判定できない 5 つの場合、インデントのコードブロックを散文とする扱い、全体がコードの本文）。
+-   [x] `ByteRange` と `ProseRanges(body string) ([]ByteRange, bool)` を、`proseLines`・`codeSpans`・`codeSpansExempt` を使って実装する。行の先頭の位置を累積して本文の中のバイト範囲に直す。判定できない本文（I-01 に列挙した 5 つの場合）は false を返す。全体がコードの本文は、空の範囲と true を返す。
+-   [x] `internal/writer/markdown_test.go` にテストを加える（フェンス付きコードブロック、複数のバッククォートのコードスパン、判定できない 5 つの場合、インデントのコードブロックを散文とする扱い、全体がコードの本文）。
 
 #### ステップ 4-2: メンションの判定と無効化の部品（I-02）
 
 **対象:** `internal/publisher/slack_message.go`（`mentionAts`。M2 の判定と一緒に置く。テストは `slack_message_test.go`）、`internal/publisher/slack_render.go`（新規。`neutralizeMentions`・`neutralizeProse`。設計書 3.6。テストは `slack_render_test.go`）
 
--   [ ] `mentionAts(text []rune) []int` を設計書 3.7(1) のとおりに実装する。名前の文字は文字・数字・`_`・`.`・`-`。`@` の直前が文字でも数字でもない（または先頭）ことを条件とする。V3（`replaceLookAlike`）だけを適用し、V2・V1 は適用しない（I-05）。
--   [ ] `neutralizeMentions(value string) string` を実装する。対象の `@` の直後に U+200B を入れる。直前が `/` の `@` は無効化しない。
--   [ ] `neutralizeProse(body string, prose []writer.ByteRange) string` を実装する。`mentionAts` の rune の添字を元の本文のバイトの位置に直して、範囲と比べる（I-02）。
--   [ ] テストを加える: `mentionAts` の対象になる場合とならない場合（設計書 7.1 の `mentionAts` の行）、`neutralizeMentions` が入れた後の値に対象が残らないこと（例外を除く）と、対象のない値が変わらないこと、`neutralizeProse` で `＠` がコードスパンの中と外にある本文の位置の変換。
+-   [x] `mentionAts(text []rune) []int` を設計書 3.7(1) のとおりに実装する。名前の文字は文字・数字・`_`・`.`・`-`。`@` の直前が文字でも数字でもない（または先頭）ことを条件とする。V3（`replaceLookAlike`）だけを適用し、V2・V1 は適用しない（I-05）。
+-   [x] `neutralizeMentions(value string) string` を実装する。対象の `@` の直後に U+200B を入れる。直前が `/` の `@` は無効化しない。
+-   [x] `neutralizeProse(body string, prose []writer.ByteRange) string` を実装する。`mentionAts` の rune の添字を元の本文のバイトの位置に直して、範囲と比べる（I-02）。
+-   [x] テストを加える: `mentionAts` の対象になる場合とならない場合（設計書 7.1 の `mentionAts` の行）、`neutralizeMentions` が入れた後の値に対象が残らないこと（例外を除く）と、対象のない値が変わらないこと、`neutralizeProse` で `＠` がコードスパンの中と外にある本文の位置の変換。
 
 #### ステップ 4-3: PR-3 の確認
 
--   [ ] `make fmt` → `make test` → `make lint` → `make deadcode` が通る。この時点で `mentionAts`・`neutralizeMentions`・`neutralizeProse`・`ProseRanges` は本番のコードから呼ばれず、テストだけが呼ぶ。`make deadcode` は `-test` を付けて実行するので、報告されない。報告された場合は、テストが呼んでいることを確かめる。
--   [ ] 次の変更を 1 つずつ行い、ステップ 4-1・4-2 の対応するテストが失敗することを確かめ、コミットメッセージに記す: `ProseRanges` の範囲の判定を外す; `ProseRanges` が false を返す 5 つの場合のそれぞれを、true を返す形にする; `neutralizeProse` の rune からバイトへの変換を外し、rune の添字のまま比べる（`＠` の入力）; `neutralizeMentions` の直前が `/` の例外を外す; `mentionAts` の名前の文字から `.`・`-` を外す; `mentionAts` の直前の文字の条件を外す。
+-   [x] `make fmt` → `make test` → `make lint` → `make deadcode` が通る。この時点で `mentionAts`・`neutralizeMentions`・`neutralizeProse`・`ProseRanges` は本番のコードから呼ばれず、テストだけが呼ぶ。`make deadcode` は `-test` を付けて実行するので、報告されない。報告された場合は、テストが呼んでいることを確かめる。
+    -   実装では、`make deadcode` がこれらを到達不能として報告した（ベースラインの報告に 8 行加わる）。ステップ 4-5 以降（PR-4〜PR-7）が呼ぶまでの意図した足場なので、削除しない。
+-   [x] 次の変更を 1 つずつ行い、ステップ 4-1・4-2 の対応するテストが失敗することを確かめ、コミットメッセージに記す: `ProseRanges` の範囲の判定を外す; `ProseRanges` が false を返す 5 つの場合のそれぞれを、true を返す形にする; `neutralizeProse` の rune からバイトへの変換を外し、rune の添字のまま比べる（`＠` の入力）; `neutralizeMentions` の直前が `/` の例外を外す; `mentionAts` の名前の文字から `.`・`-` を外す; `mentionAts` の直前の文字の条件を外す。
 
 ### PR-3 作成ポイント: mention parts (ProseRanges and neutralization)
 
