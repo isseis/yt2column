@@ -40,7 +40,9 @@ func prepareSlackMessages(article writer.Article) ([]string, error) {
 		return nil, err
 	}
 	// posted is the text after neutralization, so a rejection position counts
-	// the characters of the form Publish sends. Checking posted alone is enough for M1, M3 and M4: the position marker
+	// the characters of the form Publish sends.
+	//
+	// Checking posted alone is enough for M1, M3 and M4: the position marker
 	// adds none of the characters they look for, so a match in a message is
 	// also a match in posted. M2 also looks at the rune before an '@', which a
 	// cut changes at the start of a fragment; splitSlackText never starts a

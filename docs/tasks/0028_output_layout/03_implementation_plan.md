@@ -476,9 +476,10 @@ PR-6 のマージの後に加えたステップである。§3.2 の PR 構成�
 
 #### ステップ 4-14: PR-7 の確認
 
--   [ ] `make fmt` → `make test` → `make lint` → `make deadcode` が通る。
--   [ ] `go test -run '^$' -tags test,integration ./...` が通る。
--   [ ] 次の変更を 1 つずつ行い、ステップ 4-11〜4-13 の対応するテストが失敗することを確かめ、コミットメッセージに記す: `prepareSlackMessages` の `renderSlackPost` の呼び出しを旧い整形に戻す; 脚注を最後以外のメッセージにも出す; `rejectMention` の位置を無効化の前の文字列で数える。
+-   [x] `make fmt` → `make test` → `make lint` → `make deadcode` が通る。
+-   [x] `go test -run '^$' -tags test,integration ./...` が通る。
+-   [x] 次の変更を 1 つずつ行い、ステップ 4-11〜4-13 の対応するテストが失敗することを確かめ、コミットメッセージに記す: `prepareSlackMessages` の `renderSlackPost` の呼び出しを旧い整形に戻す; 脚注を最後以外のメッセージにも出す; `rejectMention` の位置を無効化の前の文字列で数える。
+    -   実装では、旧い整形へ戻す変更は `renderArticle` の削除で不可能なので、割り当てた他の 3 つで確かめた: 脚注を最後以外のメッセージにも出す（`TestSlackSplit`・`TestSlackSplitLayout`・`TestSlackPublishCostLine` が失敗）、位置を U+200B なしで数える（`TestSlackMentionPositionAfterNeutralization` が失敗）、分割に整形前の本文を渡す（分割・メンション・ペイロードのテストが失敗）。
 -   [ ] **手動（実機）。** `@`・U+200B・`name` の投稿が、通知にならないことを実際の Mattermost で確かめる（設計書 10 章 R-4）。確かめた Mattermost の版と結果を §5.1 に記録する。確認が済むまでは、どの版でも通知を防ぐとは書かない。通知を受けないテスト用のアカウントか、`silent` に対応した版を使う。あわせて、語の途中の `@`（`Tech@Work`・`user@example.com`）を含む投稿が通知にならないことも確かめる（PR-4 が受理するようになった形）。
 -   [ ] **手動（実機）。** 見出し行と脚注の見え方を、テスト用の Webhook に `make test-integration-slack` で投稿して確かめる（AC-05〜AC-07）。実行は利用者の承認を得てから行う（CLAUDE.md「Tool Execution Safety」）。
 

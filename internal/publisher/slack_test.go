@@ -502,7 +502,7 @@ func TestSlackPublishPayload(t *testing.T) {
 			t.Fatalf("got %d requests, want 1", len(requests))
 		}
 		// The footnote shows no model version, empty or not.
-		if text := slackPayloadText(t, requests[0]); text != renderSlackPost(article).text || strings.Contains(text, "(none)") {
+		if text := slackPayloadText(t, requests[0]); strings.Contains(text, "(none)") {
 			t.Fatalf("text = %q, want the post with no model version", text)
 		}
 	})

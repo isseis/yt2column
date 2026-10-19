@@ -31,9 +31,6 @@ func articleWithPostedRunes(t *testing.T, total int, fill rune) writer.Article {
 	}
 	base := renderSlackPost(article).text
 	fixed := len([]rune(base)) - len([]rune(article.Body))
-	if total < fixed+1 {
-		t.Fatalf("total %d is too small for a body", total)
-	}
 	tail := len([]rune(shortLastLine))
 	if total < fixed+tail+1 {
 		t.Fatalf("total %d is too small for a body", total)
@@ -214,6 +211,9 @@ func TestSlackSplitLayout(t *testing.T) {
 			t.Fatalf("the first message does not start with the heading line")
 		}
 		for i, message := range messages {
+			if i > 0 && strings.HasPrefix(stripSlackDisplay(messages, i), "# ") {
+				t.Fatalf("message %d starts with a heading line", i)
+			}
 			fragment := stripSlackDisplay(messages, i)
 			if got, want := strings.Contains(fragment, footnote), i == len(messages)-1; got != want {
 				t.Fatalf("message %d holds the footnote = %v, want %v", i, got, want)
@@ -590,11 +590,41 @@ func TestSlackMentionNeutralized(t *testing.T) {
 				if err != nil {
 					t.Fatalf("prepareSlackMessages: %v", err)
 				}
-				if !strings.Contains(strings.Join(messages, ""), zeroWidthSpace) {
-					t.Fatalf("the posted text holds no zero-width space: %q", messages)
+				// Some forms already hold a zero-width space, so count: the
+				// renderer must have added one.
+				if got, input := strings.Count(strings.Join(messages, ""), zeroWidthSpace), strings.Count(form, zeroWidthSpace); got <= input {
+					t.Fatalf("the posted text holds %d zero-width spaces, the input %d: %q", got, input, messages)
 				}
 			})
 		}
+	}
+}
+
+// TestSlackMentionNeutralizedExactly checks where the zero-width space lands,
+// including in the footnote names of the shorten and review models.
+func TestSlackMentionNeutralizedExactly(t *testing.T) {
+	article := validArticle()
+	article.Title = "\uFF20everyone"
+	article.Body = "Ping @alice."
+	article.Shorten = &writer.StepModel{Model: "@short", ModelVersion: "v1"}
+	article.Review = &writer.ReviewResult{Model: writer.StepModel{Model: "@rev", ModelVersion: "v1"}}
+	messages, err := prepareSlackMessages(article)
+	if err != nil {
+		t.Fatalf("prepareSlackMessages: %v", err)
+	}
+	joined := strings.Join(messages, "")
+	for _, want := range []string{
+		"# \uFF20" + zeroWidthSpace + "everyone",
+		"Ping @" + zeroWidthSpace + "alice.",
+		"@" + zeroWidthSpace + "short (shorten)",
+		"@" + zeroWidthSpace + "rev (review)",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("the post does not hold %q: %q", want, joined)
+		}
+	}
+	if got := strings.Count(joined, zeroWidthSpace); got != 4 {
+		t.Fatalf("the post holds %d zero-width spaces, want 4", got)
 	}
 }
 
@@ -613,6 +643,8 @@ func TestSlackMentionPositionAfterNeutralization(t *testing.T) {
 	// column 13; counted before neutralization it would be column 12. The
 	// wording is the observable contract of the position, so the message is
 	// compared.
+	// (TestSlackPrepareErrorsOmitContent below also matches text: it checks
+	// that the error leaks no content, which only the text can show.)
 	if want := "rule M2 at line 3, column 13"; !strings.Contains(err.Error(), want) {
 		t.Fatalf("err = %q, want it to name %q", err, want)
 	}
@@ -639,16 +671,24 @@ func TestSlackMentionAccepted(t *testing.T) {
 	// Title and Body both reach the post verbatim today; the Title rows are
 	// kept because the Slack renderer treats the title on its own path.
 	for _, text := range accepted {
-		for _, field := range []string{"Title", "Body"} {
+		for _, field := range []string{"Title", "ChannelName", "Body"} {
 			t.Run(field+"/"+text, func(t *testing.T) {
 				article := validArticle()
-				if field == "Title" {
+				switch field {
+				case "Title":
 					article.Title = text
-				} else {
+				case "ChannelName":
+					article.ChannelName = text
+				default:
 					article.Body = text
 				}
-				if _, err := prepareSlackMessages(article); err != nil {
+				messages, err := prepareSlackMessages(article)
+				if err != nil {
 					t.Fatalf("prepareSlackMessages: %v, want no error", err)
+				}
+				// Neither changed nor rejected: the text arrives verbatim.
+				if joined := strings.Join(messages, ""); !strings.Contains(joined, text) || strings.Contains(joined, zeroWidthSpace) {
+					t.Fatalf("the post changed %q: %q", text, joined)
 				}
 			})
 		}
