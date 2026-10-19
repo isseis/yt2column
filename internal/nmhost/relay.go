@@ -21,7 +21,9 @@ import (
 type Dialer func(ctx context.Context) (net.Conn, error)
 
 // RelayTimeout bounds one relay, from the length read to the end of the
-// server's reply.
+// server's reply. It cannot cut short a read of stdin that stalls mid-body:
+// the transport waits for its body read to return. The browser writes the
+// whole message at once and closes stdin when it gives up, so that read ends.
 const RelayTimeout = 20 * time.Second
 
 const (
@@ -142,6 +144,9 @@ func (o RelayOptions) validate() error {
 	return nil
 }
 
+// stageKey is the log attribute that names the stage.
+const stageKey = "stage"
+
 // stage is where a relay ended, for the log only; the host error is chosen by
 // control flow, not from this value.
 type stage string
@@ -150,6 +155,7 @@ const (
 	stageLength   stage = "length"   // before connecting: the length decided it
 	stageConnect  stage = "connect"  // the connection attempt failed
 	stageExchange stage = "exchange" // after connecting
+	stageReply    stage = "reply"    // writing the reply frame
 )
 
 // outcome is the result of one relay: the reply to write and the fixed values
@@ -160,7 +166,7 @@ type outcome struct {
 }
 
 func hostFailure(s stage, e HostError, cause error) outcome {
-	attrs := []any{"stage", s, "error", e.Value()}
+	attrs := []any{stageKey, s, "error", e.Value()}
 	if text := errnoText(cause); text != "" {
 		attrs = append(attrs, "errno", text)
 	}
@@ -182,14 +188,18 @@ func Relay(ctx context.Context, stdin io.Reader, stdout io.Writer, opts RelayOpt
 	log := slog.New(slog.NewTextHandler(opts.Log, nil))
 	length, err := readLength(stdin)
 	if err != nil {
-		log.Error("relay", "stage", stageLength, "failure", "length unreadable")
+		log.Error("relay", stageKey, stageLength, "failure", "length unreadable")
 		return fmt.Errorf("read the message length: %w", err)
 	}
 	start := time.Now()
 	result := forward(ctx, stdin, length, opts)
 	log.Info("relay", append(result.attrs, "length", length, "elapsed", time.Since(start).Round(time.Millisecond))...)
 	if err := writeFrame(stdout, encodeReply(result.reply)); err != nil {
-		log.Error("relay", "stage", "reply", "failure", "stdout write failed", "errno", errnoText(err))
+		attrs := []any{stageKey, stageReply, "failure", "stdout write failed"}
+		if text := errnoText(err); text != "" {
+			attrs = append(attrs, "errno", text)
+		}
+		log.Error("relay", attrs...)
 		return err
 	}
 	return nil
@@ -228,27 +238,29 @@ func forward(ctx context.Context, stdin io.Reader, length uint32, opts RelayOpti
 	req.Header.Set("Expect", "100-continue")
 	resp, err := transport.RoundTrip(req)
 	if err != nil {
-		return exchangeFailure(err)
+		return exchangeFailure(ctx, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes+1))
 	if err != nil {
-		return exchangeFailure(err)
+		return exchangeFailure(ctx, err)
 	}
 	if len(body) > maxResponseBytes {
 		return hostFailure(stageExchange, HostErrorProtocol, nil)
 	}
 	return outcome{
 		reply: newResponseReply(resp.StatusCode, body),
-		attrs: []any{"stage", stageExchange, "status", resp.StatusCode},
+		attrs: []any{stageKey, stageExchange, "status", resp.StatusCode},
 	}
 }
 
 // exchangeFailure classifies a failure after the connection. A deadline takes
-// precedence: a failure that is both a deadline and a broken write or read is
-// a timeout, and only the rest are protocol errors.
-func exchangeFailure(err error) outcome {
-	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, os.ErrDeadlineExceeded) {
+// precedence: once the relay's deadline has passed, every failure is a
+// timeout, whatever error the transport reports. The transport may report the
+// broken write instead of the deadline when both happen at once, so the error
+// alone does not decide it.
+func exchangeFailure(ctx context.Context, err error) outcome {
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, os.ErrDeadlineExceeded) {
 		return hostFailure(stageExchange, HostErrorServerTimeout, err)
 	}
 	return hostFailure(stageExchange, HostErrorProtocol, err)

@@ -22,6 +22,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -207,6 +208,16 @@ func (r relayResult) reply(t *testing.T) map[string]any {
 	return members
 }
 
+// asMembers returns the reply as its decoded members.
+func (r errorReply) asMembers(t *testing.T) map[string]any {
+	t.Helper()
+	var members map[string]any
+	if err := json.Unmarshal(encodeReply(r), &members); err != nil {
+		t.Fatalf("decode the reply: %v", err)
+	}
+	return members
+}
+
 // requireError checks that the reply is the error shape carrying want.
 func requireError(t *testing.T, members map[string]any, want HostError) {
 	t.Helper()
@@ -273,8 +284,8 @@ func TestRelayMessageTooLarge(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Only the start of the body is present: a host that buffered the
-			// body before deciding would block or fail instead of replying.
+			// Only the start of the body is present; bodyRead shows whether
+			// the host read any of it before deciding.
 			stdin := newStdin(tt.length, []byte(`{"videoUrl":`))
 			dial, dials := countDials(failingDial)
 			requireError(t, runRelay(stdin, dial, testTimeout).reply(t), tt.want)
@@ -392,13 +403,16 @@ func TestRelayHostErrors(t *testing.T) {
 		want    HostError
 		// unread is whether the body must be left unread: nothing was sent.
 		unread bool
+		// errno is the OS error the log must name, when one causes the
+		// failure; it is how a user tells the connect failures apart.
+		errno syscall.Errno
 	}{
 		{
 			name: "no socket",
 			dial: func(t *testing.T) Dialer {
 				return SocketDialer(filepath.Join(udstest.Dir(t), "absent.sock"))
 			},
-			want: HostErrorServerUnavailable, unread: true,
+			want: HostErrorServerUnavailable, unread: true, errno: syscall.ENOENT,
 		},
 		{
 			name: "stale socket",
@@ -412,7 +426,7 @@ func TestRelayHostErrors(t *testing.T) {
 				_ = listener.Close()
 				return SocketDialer(path)
 			},
-			want: HostErrorServerUnavailable, unread: true,
+			want: HostErrorServerUnavailable, unread: true, errno: syscall.ECONNREFUSED,
 		},
 		{
 			name: "directory without permission",
@@ -427,7 +441,7 @@ func TestRelayHostErrors(t *testing.T) {
 				chmodForTest(t, dir, 0)
 				return SocketDialer(path)
 			},
-			want: HostErrorServerUnavailable, unread: true,
+			want: HostErrorServerUnavailable, unread: true, errno: syscall.EACCES,
 		},
 		{
 			name: "connect attempt outlasts the limit",
@@ -466,6 +480,17 @@ func TestRelayHostErrors(t *testing.T) {
 			want: HostErrorServerTimeout,
 		},
 		{
+			name: "response body stalls",
+			dial: func(t *testing.T) Dialer {
+				return SocketDialer(serveRaw(t, func(conn net.Conn) {
+					_, _ = io.WriteString(conn, "HTTP/1.1 202 Accepted\r\nContent-Length: 100\r\n\r\n{\"status\"")
+					_, _ = io.Copy(io.Discard, conn)
+				}))
+			},
+			timeout: shortTimeout,
+			want:    HostErrorServerTimeout,
+		},
+		{
 			name: "response cut short",
 			dial: func(t *testing.T) Dialer {
 				return SocketDialer(serveRaw(t, func(conn net.Conn) {
@@ -500,13 +525,41 @@ func TestRelayHostErrors(t *testing.T) {
 			}
 			timeout := cmp.Or(tt.timeout, testTimeout)
 
-			requireError(t, runRelay(stdin, dial, timeout).reply(t), tt.want)
+			result := runRelay(stdin, dial, timeout)
+			requireError(t, result.reply(t), tt.want)
+			if tt.errno != 0 && !strings.Contains(result.log, "errno=\""+tt.errno.Error()+"\"") {
+				t.Errorf("the log does not name %q:\n%s", tt.errno.Error(), result.log)
+			}
 			if n := dials.Load(); n != 1 {
 				t.Errorf("Dial called %d times, want 1", n)
 			}
 			if n := stdin.bodyRead(); tt.unread && n != 0 {
 				t.Errorf("read %d body bytes, want none", n)
 			}
+		})
+	}
+}
+
+func TestExchangeFailurePrecedence(t *testing.T) {
+	expired, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	t.Cleanup(cancel)
+	live := context.Background()
+	tests := []struct {
+		name string
+		ctx  context.Context
+		err  error
+		want HostError
+	}{
+		// The transport can report the broken write rather than the deadline
+		// when both happen at once; the passed deadline still decides.
+		{"deadline passed, write error", expired, errStuck, HostErrorServerTimeout},
+		{"connection deadline", live, fmt.Errorf("write: %w", os.ErrDeadlineExceeded), HostErrorServerTimeout},
+		{"context deadline in the error", live, fmt.Errorf("read: %w", context.DeadlineExceeded), HostErrorServerTimeout},
+		{"other failure", live, errStuck, HostErrorProtocol},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			requireError(t, exchangeFailure(tt.ctx, tt.err).reply.(errorReply).asMembers(t), tt.want)
 		})
 	}
 }
@@ -596,6 +649,7 @@ func TestRelayOutputs(t *testing.T) {
 		responseMarker = "response-marker-91c2"
 	)
 	msg := []byte(`{"videoUrl":"x","transcript":"` + messageMarker + `"}`)
+	responseBody := []byte(`{"requestId":"` + responseMarker + `"}`)
 	tests := []struct {
 		name  string
 		dial  func(t *testing.T) Dialer
@@ -604,7 +658,7 @@ func TestRelayOutputs(t *testing.T) {
 		{
 			name: "response",
 			dial: func(t *testing.T) Dialer {
-				path, _ := recordingServer(t, []byte(`{"requestId":"`+responseMarker+`"}`))
+				path, _ := recordingServer(t, responseBody)
 				return SocketDialer(path)
 			},
 			check: func(t *testing.T, members map[string]any) {
@@ -630,7 +684,10 @@ func TestRelayOutputs(t *testing.T) {
 			if result.log == "" {
 				t.Error("nothing was logged")
 			}
-			for _, marker := range []string{messageMarker, responseMarker} {
+			// The reply carries the server's bytes in base64, so a log of the
+			// reply would hide them from a plain-text search.
+			encoded := base64.StdEncoding.EncodeToString(responseBody)
+			for _, marker := range []string{messageMarker, responseMarker, encoded} {
 				if strings.Contains(result.log, marker) {
 					t.Errorf("the log contains %q:\n%s", marker, result.log)
 				}
@@ -639,10 +696,12 @@ func TestRelayOutputs(t *testing.T) {
 	}
 }
 
+var errStdoutClosed = errors.New("stdout closed")
+
 // failingWriter is standard output that rejects every write.
 type failingWriter struct{}
 
-func (failingWriter) Write([]byte) (int, error) { return 0, errors.New("stdout closed") }
+func (failingWriter) Write([]byte) (int, error) { return 0, errStdoutClosed }
 
 func TestRelayNoReplyFrame(t *testing.T) {
 	valid := RelayOptions{Dial: failingDial, Log: io.Discard, Timeout: testTimeout}
@@ -657,8 +716,8 @@ func TestRelayNoReplyFrame(t *testing.T) {
 		}
 	})
 	t.Run("stdout fails", func(t *testing.T) {
-		if err := Relay(context.Background(), message([]byte("{}")), failingWriter{}, valid); err == nil {
-			t.Error("Relay returned nil, want the write failure")
+		if err := Relay(context.Background(), message([]byte("{}")), failingWriter{}, valid); !errors.Is(err, errStdoutClosed) {
+			t.Errorf("Relay error = %v, want the write failure", err)
 		}
 	})
 	t.Run("incomplete options", func(t *testing.T) {

@@ -295,6 +295,7 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
     -   `TestRelayForwardsOneRequest`・`TestRelayHostErrors` などで作る接続とサーバは、作った時点で `t.Cleanup` に閉じる処理を登録する。
     -   `TestRelayDialsOnce`（AC-19）: 中継の `Transport` の `DialContext` が、1 回目に手順 3 の接続を返し、2 回目は失敗すること。`Dial` が 1 回しか呼ばれないことは、`TestRelayForwardsOneRequest`・`TestRelayHostErrors` のすべての行で、呼び出しを数える `Dial` の包みで確かめる（実装で、この 2 つに分けた）。
     -   `TestRelayIgnoresProxyEnv`（AC-18）: `HTTP_PROXY` を設定してもリクエストの行が `POST /articles` のままであること。`net/http` はプロキシの環境変数をプロセスで 1 回だけ読むので、`TestMain` がどのテストよりも前に `HTTP_PROXY` などを設定し `NO_PROXY` を消す（実装の決定）。
+    -   `TestExchangeFailurePrecedence`（AC-19）: 中継の期限が過ぎていれば、期限切れではないエラーでも `server_timeout` になること。`http.Transport` は、期限と書き込みの失敗が同時に起きると書き込みのエラーを返すことがあり、`TestRelayHostErrors` の該当する行は結果がどちらの経路で決まるかを選べないので、優先の判定だけが結果を決める入力をこの表で与える（実装で加えた）。
     -   `TestRelayNoReplyFrame`（AC-15）: 長さが読めない場合、標準出力への書き込みが失敗した場合、`RelayOptions` が欠けている場合にだけ `Relay` がエラーを返し、標準出力に何も書かないこと（実装で加えた）。
     -   `TestReplyShapes`（AC-16・AC-27）: 2 つの形のメンバの集合、無効な UTF-8 の本文でも base64 で包んだバイト列が変わらないこと、`HostError` のゼロ値と範囲外の値が `protocol_error` になること。
     -   `TestRelayOutputs`（AC-17）: 標準出力が 1 フレームだけで、本文とサーバの応答に入れた目印が標準エラー出力に現れないこと。
@@ -604,7 +605,7 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 | | static | `internal/pipeline/relay_guard_test.go::TestHostStdoutOnlyInMain`・`::TestSelectorDetection` | ステップ 2-4・2-13 |
 | AC-18 | test | `internal/config/socketpath_test.go`（`XDG_*`・`TMPDIR` で変わらないこと、`LoadHost` が `HOME` だけを読むこと）、`internal/config/envaccess_test.go`（既存のテストに許可を 1 行加える）、`internal/nmhost/relay_test.go::TestRelayIgnoresProxyEnv`、`cmd/yt2column-nmhost/main_test.go`（すべての役割で `HOME` だけを読むこと） | ステップ 1-6・2-2・2-9・2-10 |
 | | static | `make lint`（`depguard` の `os/exec` の規則）、`internal/pipeline/relay_guard_test.go::TestHostSpawnsNoProcess` | ステップ 2-4・2-13 |
-| AC-19 | test | `internal/nmhost/relay_test.go::TestRelayHostErrors`・`::TestRelayDialsOnce`、`TestRelayEndToEnd` の (3) | ステップ 2-2・2-3 |
+| AC-19 | test | `internal/nmhost/relay_test.go::TestRelayHostErrors`・`::TestExchangeFailurePrecedence`・`::TestRelayDialsOnce`、`TestRelayEndToEnd` の (3) | ステップ 2-2・2-3 |
 | AC-20 | test | `internal/nmhost/manifest_test.go::TestInstall`・`::TestUninstall`・`::TestManifestLocation`、`cmd/yt2column-nmhost/main_test.go`（manifest のパスと macOS での共有の注記） | ステップ 2-6・2-7・2-10 |
 | | static | `cmd/yt2column/makefile_test.go::TestMakeBuildBuildsEveryBinary`（ビルドが install を実行しない）、`cmd/yt2column/extension_docs_test.go::TestNativeHostContract`（`allowed_origins` の値が manifest の `key` から導出した ID と一致すること） | ステップ 2-11・2-13 |
 | | manual | §5.1（install・uninstall の後のブラウザでの起動の可否） | - |

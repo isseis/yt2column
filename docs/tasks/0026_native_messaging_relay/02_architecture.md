@@ -8,7 +8,7 @@
 | Created | 2026-10-18 |
 | Review date | 2026-10-19 |
 | Reviewer | isseis |
-| Comments | 実装（PR-4）で、§3.5.2 のコードに `SocketDialer`（接続の時間の上限を持つ UDS の `Dialer`。中継のテストが実際のソケットで接続の失敗を確かめるのにも使う）を加え、§3.5.6 のログの errno の「名前」を「固定の説明（`syscall.Errno` の `Error()`）」に改めた（標準ライブラリは errno の名前を返す関数を持たないため）。実装（PR-2）で、§3.1 の長さの上限を「`darwin` 以外の Unix で 107 バイト」から「`linux` で 107 バイト、`darwin` とそれ以外の Unix で 103 バイト」に編集上の訂正をした（FreeBSD などの `sun_path` は 104 バイトで、107 バイトの上限では bind に失敗するため）。 |
+| Comments | 実装（PR-4）で、§3.5.2 のコードに `SocketDialer`（接続の時間の上限を持つ UDS の `Dialer`。中継のテストが実際のソケットで接続の失敗を確かめるのにも使う）を加え、§3.5.6 のログの errno の「名前」を「固定の説明（`syscall.Errno` の `Error()`）」に改めた（標準ライブラリは errno の名前を返す関数を持たないため）。§3.5.2 の時間の上限に、stdin が本文の途中で止まった場合は期限で打ち切れないことを、§3.5.3 の時間の上限の優先に、中継の `context` の期限による判定を加えた（どちらも `net/http` の振る舞いを確かめた結果）。`Relay` のコメントと §4.3 に、`RelayOptions` が欠けている場合を加えた。実装（PR-2）で、§3.1 の長さの上限を「`darwin` 以外の Unix で 107 バイト」から「`linux` で 107 バイト、`darwin` とそれ以外の Unix で 103 バイト」に編集上の訂正をした（FreeBSD などの `sun_path` は 104 バイトで、107 バイトの上限では bind に失敗するため）。 |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §3.11）を指す。I-NN は [implementation_handoff.md](implementation_handoff.md) の項目（対応は `03_implementation_plan.md`）を指す。既存のコードの行番号は、コミット `9e34229`（要件書の承認のコミット）で確かめたものである。
 
@@ -503,7 +503,7 @@ UDS の上で HTTP/1.1 を使う。
 6.  状態コードと本文のバイト列、またはホストのエラーから、ホストの応答（§3.5.4）を作り、標準出力に 1 つのフレームとして書き、終了コード `0` で終える。
 
 -   **stdin の残りを読まない。** 手順 2〜5 のどこで終わった場合も、stdin にメッセージの残りがあれば、読まずに応答を書いて終了する。ブラウザが書きかけのまま終了すると、ブラウザの書き込みが `EPIPE` になり、応答の代わりにホストとの通信の失敗が拡張に返る懸念があったが、§3.10 の S-8 で、Chrome と Brave のどちらも、32 MiB を読まずに残して終了した場合を含め、応答を受け取ることを確かめた（30 回のうち 30 回）。起きない失敗に備える仕組み（読み捨ての goroutine と、応答の待ちとの時間の上限の共有）は持たない（CLAUDE.md「前提を確かめてから仕組みを足す」）。
--   **時間の上限:** 中継の時間の上限は、`Relay` が受け取る `context` の期限として、接続と HTTP のリクエストの全体に掛ける。本文の流し込みは `http.Transport` が stdin を読む。期限に達すると `RoundTrip` が返り、ホストは `server_timeout` を書いて終了する（stdin の読み込みで止まった goroutine は、プロセスの終了で止まる）。
+-   **時間の上限:** 中継の時間の上限は、`Relay` が受け取る `context` の期限として、接続と HTTP のリクエストの全体に掛ける。本文の流し込みは `http.Transport` が stdin を読む。期限に達すると `RoundTrip` が返り、ホストは `server_timeout` を書いて終了する。ただし、stdin が本文の途中で止まった場合は、`http.Transport` が本文の読み込みが返るのを待つので、期限に達しても `RoundTrip` は返らない（実装（PR-4）で Go 1.27.1 の `net/http` で確かめた）。ブラウザはメッセージ全体を一度に書き、送信をやめるときは stdin を閉じる（§3.5.5「ブラウザがホストを止める場合」）ので、この読み込みは EOF で終わる。通常は起きない失敗に備える仕組み（stdin を期限で打ち切る読み込みの包み）は持たない（CLAUDE.md「前提を確かめてから仕組みを足す」）。
 
 ```go
 // internal/nmhost
@@ -531,8 +531,8 @@ type RelayOptions struct {
 // Relay reads one Native Messaging message from stdin, forwards it to the
 // server, and writes exactly one reply frame to stdout without reading the
 // rest of stdin. It returns a non-nil error only when no reply frame could
-// be written (the length could not be read, or stdout failed); a host error is
-// a reply, not a returned error.
+// be written (the options are incomplete, the length could not be read, or
+// stdout failed); a host error is a reply, not a returned error.
 func Relay(ctx context.Context, stdin io.Reader, stdout io.Writer, opts RelayOptions) error
 ```
 
@@ -554,7 +554,7 @@ func Relay(ctx context.Context, stdin io.Reader, stdout io.Writer, opts RelayOpt
 
 -   **接続の失敗をすべて未送信とする理由（H-05）:** `connect(2)` が失敗すれば、リクエストのバイトは 1 つもサーバに渡っていない。`ENOENT`（ソケットがない）、`ECONNREFUSED`（stale なソケット）、`EACCES`（別のユーザーで起動したサーバ、ディレクトリの権限）のどれでも、未送信であることは確定する。そこで `EACCES` も `server_unavailable` に含め、要件書の固定のエラーの集合を変えない。拡張の文言（§3.7.4）は、サーバが起動していない場合に加えて、別のユーザーで起動している場合と権限の問題を案内する。原因の区別は、ホストの標準エラー出力のログ（errno の名前）と、サーバの起動のログで行う。
 -   **接続の後の失敗をすべて結果不明とする理由:** 接続の後は、サーバがヘッダや本文の一部を受け取っている。ハンドラは本文を読み終えて検証が通るまでジョブを始めないので、多くの場合ジョブは始まっていないが、ホストからはそれを確定できない（例えば、サーバが `202` を書いた直後に接続が切れた場合）。確定できないものは結果不明に倒す。
--   **時間の上限の優先:** 本文を書いている途中で時間の上限に達した場合のように、「時間の上限」と「書き込みの失敗」の両方に当てはまる失敗は、コンテキストの期限（`context.DeadlineExceeded`・`os.ErrDeadlineExceeded` を `errors.Is` で判定する）を優先して `server_timeout` とする。どちらも結果不明で、文言だけが異なる。
+-   **時間の上限の優先:** 本文を書いている途中で時間の上限に達した場合のように、「時間の上限」と「書き込みの失敗」の両方に当てはまる失敗は、時間の上限を優先して `server_timeout` とする。判定は、中継の `context` の期限が過ぎたこと（`ctx.Err()` が `context.DeadlineExceeded`）と、エラーが `context.DeadlineExceeded`・`os.ErrDeadlineExceeded` を包むこと（`errors.Is`）のどちらかで行う。`http.Transport` は、期限と書き込みの失敗が同時に起きると、期限ではなく書き込みのエラーを返すことがある（実装（PR-4）で確かめた）ので、エラーの値だけでは決めない。どちらも結果不明で、文言だけが異なる。
 -   **シャットダウン中の接続:** サーバがシャットダウンを始めた瞬間に待ち行列に入っていた接続は、処理されずに切られる。ホストはこれを `protocol_error`（結果不明）とする。実態とは異なる分類だが、結果不明に倒すので安全側である。
 -   **列挙型:** ホストのエラーは列挙型で持ち、ゼロ値を `protocol_error`（結果不明）とする。設定し忘れた値が「未送信」として表示され、再送を促すことを防ぐ。
 
@@ -1093,7 +1093,7 @@ export function classifyResponse(
 | サーバ | 待ち受けの失敗（ディレクトリ・ロック・stale の判定・bind・作成後の検査）、提供中のリスナーの失敗 | `1` |
 | サーバ | シグナルによる停止 | `0` |
 | ホスト（中継） | ホストの応答を書いた（ホストのエラーを含む） | `0` |
-| ホスト（中継） | 長さが読めない、標準出力への書き込みに失敗した（ホストの応答を書けない） | `1` |
+| ホスト（中継） | 長さが読めない、標準出力への書き込みに失敗した（ホストの応答を書けない）。`RelayOptions` が欠けている（配線の誤り。通常は起きない） | `1` |
 | ホスト | 引数の誤り（不明なブラウザ名を含む）、install/uninstall のときの `config.LoadHostHome` の失敗 | `2` |
 | ホスト（install/uninstall） | 拒否・書き込みの失敗 | `1` |
 | ホスト（install/uninstall） | 成功（uninstall で manifest がなかった場合を含む） | `0` |

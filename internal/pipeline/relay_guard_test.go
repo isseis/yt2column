@@ -534,22 +534,26 @@ func selectorFindings(t *testing.T, name, src string, refs map[string][]string) 
 func TestSelectorDetection(t *testing.T) {
 	tests := []struct {
 		name string
+		refs map[string][]string
 		src  string
 		want int
 	}{
-		{"os.Stdout", `package p; import "os"; var w = os.Stdout`, 1},
-		{"fmt.Println", `package p; import "fmt"; func f() { fmt.Println() }`, 1},
-		{"fmt.Printf", `package p; import "fmt"; func f() { fmt.Printf("") }`, 1},
-		{"aliased import", `package p; import o "os"; var w = o.Stdout`, 1},
-		{"dot import", `package p; import . "fmt"; func f() { Println() }`, 1},
-		{"syscall.Stdout", `package p; import "syscall"; var fd = syscall.Stdout`, 1},
-		{"os.Stderr", `package p; import "os"; var w = os.Stderr`, 0},
-		{"fmt.Fprintf", `package p; import "fmt"; func f() { fmt.Fprintf(w, "") }`, 0},
-		{"same name, other package", `package p; import "example.com/os"; var w = os.Stdout`, 0},
+		{"os.Stdout", stdoutRefs, `package p; import "os"; var w = os.Stdout`, 1},
+		{"fmt.Println", stdoutRefs, `package p; import "fmt"; func f() { fmt.Println() }`, 1},
+		{"fmt.Printf", stdoutRefs, `package p; import "fmt"; func f() { fmt.Printf("") }`, 1},
+		{"aliased import", stdoutRefs, `package p; import o "os"; var w = o.Stdout`, 1},
+		{"dot import", stdoutRefs, `package p; import . "fmt"; func f() { Println() }`, 1},
+		{"syscall.Stdout", stdoutRefs, `package p; import "syscall"; var fd = syscall.Stdout`, 1},
+		{"os.Stderr", stdoutRefs, `package p; import "os"; var w = os.Stderr`, 0},
+		{"fmt.Fprintf", stdoutRefs, `package p; import "fmt"; func f() { fmt.Fprintf(w, "") }`, 0},
+		{"same name, other package", stdoutRefs, `package p; import "example.com/os"; var w = os.Stdout`, 0},
+		{"os.StartProcess", spawnRefs, `package p; import "os"; var f = os.StartProcess`, 1},
+		{"aliased syscall.ForkExec", spawnRefs, `package p; import sc "syscall"; var f = sc.ForkExec`, 1},
+		{"syscall.Getpid", spawnRefs, `package p; import "syscall"; var f = syscall.Getpid`, 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := selectorFindings(t, "p.go", tt.src, stdoutRefs); len(got) != tt.want {
+			if got := selectorFindings(t, "p.go", tt.src, tt.refs); len(got) != tt.want {
 				t.Errorf("findings = %v, want %d", got, tt.want)
 			}
 		})
