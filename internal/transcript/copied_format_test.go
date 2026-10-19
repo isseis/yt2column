@@ -244,12 +244,13 @@ func TestParseCopiedAccepts(t *testing.T) {
 }
 
 func TestParseCopiedRejects(t *testing.T) {
-	cases := []struct {
+	type rejectCase struct {
 		name   string
 		input  string
 		reason error
 		line   int
-	}{
+	}
+	cases := []rejectCase{
 		{name: "invalid UTF-8", input: string([]byte{0xff}), reason: errCopiedInvalidUTF8},
 		{name: "blank empty", input: "", reason: errCopiedBlank},
 		{name: "blank spaces", input: "   ", reason: errCopiedBlank},
@@ -339,12 +340,7 @@ func TestParseCopiedRejects(t *testing.T) {
 	}
 	for _, word := range []string{"チャプター", "Chapter"} {
 		for _, nearMiss := range nearMissHeadings {
-			cases = append(cases, struct {
-				name   string
-				input  string
-				reason error
-				line   int
-			}{
+			cases = append(cases, rejectCase{
 				name:   word + " heading " + nearMiss.name,
 				input:  "0:000 秒はい\n" + fmt.Sprintf(nearMiss.format, word) + "\n0:1010 秒です\n",
 				reason: errCopiedNotTimestamp,
@@ -684,6 +680,14 @@ func TestParseCopiedFormAChapterHeadings(t *testing.T) {
 			want:  []Segment{{StartMs: 0, Text: "はい"}, {StartMs: 10000, Text: "です"}, {StartMs: 20000, Text: "以上"}},
 		},
 		{
+			name:  "English titles with a colon, spaces, and the heading word",
+			input: "0:000 secondsHello\nChapter 12: Step 2: Next Chapter\n0:055 secondsWorld\nChapter 13:  Leading space\n0:1010 secondsBye\n",
+			body:  "0:000 secondsHello\n0:055 secondsWorld\n0:1010 secondsBye\n",
+			want:  []Segment{{StartMs: 0, Text: "Hello"}, {StartMs: 5000, Text: "World"}, {StartMs: 10000, Text: "Bye"}},
+		},
+		{
+			// The first heading precedes the first segment line, so the prefix
+			// skips it; only the heading after it reaches the form A heading skip.
 			name: "whole panel selection",
 			input: "動画の関連情報\n\n\nタイムライン\n\n文字起こし\n文字音声変換を検索\n文字音声変換を検索\n\n" +
 				"チャプター 1: はじめに\n0:011 秒はい\n0:1010 秒です\nチャプター 2: 本題\n1:001 分以上\n\n動画の時間と同期",
