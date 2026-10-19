@@ -921,15 +921,27 @@ describe("popup send", () => {
 
   it("sends once, disables the button and shows the result", async () => {
     const fetch = acceptedFetch();
-    const { deps: popupDeps } = deps({ send: testSendDeps(fetch.fetchFn) });
+    const { deps: popupDeps, recorder } = deps({
+      send: testSendDeps(fetch.fetchFn),
+    });
     const root = container();
     await runPopupSend(root, collected(), popupDeps);
     await clickSend(root);
     assert.equal(fetch.calls.length, 1);
     assert.equal(query<HTMLButtonElement>(root, ".send-button").disabled, true);
+    expectMessage(root, sendOutcomeMessage(acceptedOutcome));
     assert.equal(
       root.querySelector(".send-request-id")?.textContent,
       requestId,
+    );
+    // An accepted send is normal: it is logged once at info and never at error.
+    assert.equal(
+      recorder.infos.filter((entry) => entry.label === sendLabel).length,
+      1,
+    );
+    assert.equal(
+      recorder.errors.some((entry) => entry.label === sendLabel),
+      false,
     );
   });
 
@@ -1077,7 +1089,7 @@ describe("popup send", () => {
     },
     {
       reason: "body-too-large",
-      when: "the selection is over the limit",
+      when: "the selection takes the body over the limit",
       settings: readySettings().reader,
       result: launched(collectedOutcome("a".repeat(maxBodyBytes))),
       error: false,
@@ -1108,12 +1120,18 @@ describe("popup send", () => {
       assert.equal(root.querySelector(".send-button"), null);
       expectMessage(root, blockMessage(reason));
       assert.equal(fetch.calls.length, 0);
-      const entries = error ? recorder.errors : recorder.infos;
+      const [entries, others] = error
+        ? [recorder.errors, recorder.infos]
+        : [recorder.infos, recorder.errors];
       assert.deepEqual(
         entries
           .filter((entry) => entry.label === blockedLabel)
           .map((entry) => (entry.data as { reason: unknown }).reason),
         [reason],
+      );
+      assert.equal(
+        others.some((entry) => entry.label === blockedLabel),
+        false,
       );
     });
   }
@@ -1426,24 +1444,49 @@ describe("token never leaks", () => {
       now: () => 1000,
       log: blocked.log,
     });
+    // A failed send with the token loaded takes the error branch of the log.
+    const failed = recordingLogger();
+    const failedRoot = container();
+    await runPopupSend(failedRoot, outcome, {
+      settings: readySettings().reader,
+      send: testSendDeps(
+        rejectingFetch(new TypeError("Failed to fetch")).fetchFn,
+      ),
+      now: () => 1000,
+      log: failed.log,
+    });
+    await clickSend(failedRoot);
     // Precondition: each log under test was written.
-    assert.ok(popup.recorder.infos.length > 0);
+    assert.ok(
+      popup.recorder.infos.some(
+        (entry) => entry.label === "yt2column popup launch",
+      ),
+    );
     assert.ok(send.infos.some((entry) => entry.label === sendLabel));
     assert.ok(blocked.infos.some((entry) => entry.label === blockedLabel));
+    assert.ok(failed.errors.some((entry) => entry.label === sendLabel));
 
-    const serialized = JSON.stringify({
-      menuInfos: menu.recorder.infos,
-      menuErrors: menu.recorder.errors,
-      popupInfos: popup.recorder.infos,
-      popupErrors: popup.recorder.errors,
-      sendInfos: send.infos,
-      sendErrors: send.errors,
-      blockedInfos: blocked.infos,
-      blockedErrors: blocked.errors,
-      storePuts: menu.store.puts,
-      text: root.textContent,
-      blockedText: blockedRoot.textContent,
-    });
+    const serialized = JSON.stringify(
+      {
+        menuInfos: menu.recorder.infos,
+        menuErrors: menu.recorder.errors,
+        popupInfos: popup.recorder.infos,
+        popupErrors: popup.recorder.errors,
+        sendInfos: send.infos,
+        sendErrors: send.errors,
+        blockedInfos: blocked.infos,
+        blockedErrors: blocked.errors,
+        failedInfos: failed.infos,
+        failedErrors: failed.errors,
+        storePuts: menu.store.puts,
+        text: root.textContent,
+        blockedText: blockedRoot.textContent,
+        failedText: failedRoot.textContent,
+      },
+      // JSON.stringify turns an Error into {}; keep its name and message.
+      (_key, value: unknown) =>
+        value instanceof Error ? `${value.name}: ${value.message}` : value,
+    );
     assert.equal(serialized.includes(identifiableToken), false);
     assert.equal(serialized.includes(identifiableToken.slice(0, 4)), false);
     assert.equal(serialized.includes(identifiableToken.slice(-4)), false);

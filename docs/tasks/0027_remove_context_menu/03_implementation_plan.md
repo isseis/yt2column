@@ -558,7 +558,7 @@ AC-09・AC-10 は、確かめた結果を本計画に記録することを求め
 
 ステップ 2-1 で作り、ステップ 6-3 で加えたテストがあれば追記する。列は、元のテスト（ファイル・describe・`it`）、検査の内容、対応先（本タスクの後のテストの名前）または理由、とする。
 
-元のテストの行番号は `81cb30d` の行を指す。テストの名前は `describe > it` で書き、ファイルを省いたものは `extension/test/launch.test.ts` のテストである。対応先のうち「（残す）」は、同じテストの同じ検査を、期待値を変えずに残すことを表す。「（加えた）」は、ステップ 2-2・2-3 で加えた検査を表す。テストの名前は §2.1 の表の新しい名前で書く。ループや表で複数回実行される `assert` は、ソースの 1 か所を 1 件とする。
+元のテストの行番号は `81cb30d` の行を指す。テストの名前は `describe > it` で書き、ファイルを省いたものは `extension/test/launch.test.ts` のテストである。対応先のうち「（残す）」は、同じテストの同じ検査を、期待値を変えずに残すことを表す。「（加えた）」は、ステップ 2-2・2-3 で加えた検査を表す。テストの名前は §2.1 の表の新しい名前で書く。ループや表で複数回実行される `assert` は、ソースの 1 か所を 1 件とする。ただし、メニューとポップアップの両方の記録をたどるループの `assert`（`:599`・`:1076`・`:1088`）は、対応先が経路で分かれるので、経路ごとに 2 件に分ける。
 
 確かめる必要がなくなった理由は、次の記号で書く。
 
@@ -581,7 +581,7 @@ AC-09・AC-10 は、確かめた結果を本計画に記録することを求め
 | 同上 | メニューの本文が `videoUrl`・`transcript`・動画タイトル・チャンネル名・説明のリテラルと等しい（タブのタイトルではない） | 同上の、ポップアップの本文に同じリテラルを当てる検査（加えた） |
 | 同上 | ポップアップの本文がメニューの本文と等しい | R6（対応先は上の行） |
 | 同上 | メニューの `sent` の表示がストアにある | R1 |
-| 同上 | メニューの `sent` の表示の結果が受付（`accepted`・`requestId`） | 同上の、ポップアップの `.send-request-id` が `requestId` である検査（残す） |
+| 同上 | メニューの `sent` の表示の結果が受付（`accepted`・`requestId`） | popup send > sends once, disables the button and shows the result の、受付の文言を表示する検査（加えた）と `.send-request-id` の検査 |
 | 同上 | ポップアップの `.send-request-id` が `requestId` | 同上（残す） |
 | launch paths > does not read settings or send for a rejected collection（`:499`） | 拒否した収集で設定を読まない | popup send > renders nothing and does not read settings for a rejected collection の `loadCalls` の検査 |
 | 同上 | 拒否した収集で送らない | 同上の、容器が空である（送信のボタンがなく、送信はボタンからしか始まらない）検査 |
@@ -602,7 +602,7 @@ AC-09・AC-10 は、確かめた結果を本計画に記録することを求め
 | 同上 | 同じ検査（ポップアップの記録） | 同上（残す） |
 | launch paths > treats a missing tab as collection-failed in both paths（`:635`） | ポップアップの収集の結果が `rejected` | launch paths > treats a missing tab as collection-failed（残す） |
 | 同上 | 拒否の理由が `collection-failed` | 同上（残す） |
-| 同上 | メニューの起動のログの `outcome` が `rejected` | R7。起動のログが収集の結果を持つことは、launch paths > collects the selection and the tab title through the popup path のログの検査（加えた）が確かめる |
+| 同上 | メニューの起動のログの `outcome` が `rejected` | 削除する `runMenuLaunch` の側の検査。ポップアップの起動のログは収集の結果によらず `outcome` をそのまま記録する（`launch.ts:338`）。記録することは launch paths > collects the selection and the tab title through the popup path のログの検査（加えた）が確かめ、`rejected` の値そのものは本テストの戻り値の検査が確かめる |
 | 同上 | メニューの起動のログの理由が `collection-failed` | 同上 |
 | launch paths > ignores info.selectionText and reads the selection itself（`:664`） | `info.selectionText` があっても収集が `collected` | R4。ポップアップの経路は `info` を持たない |
 | 同上 | 収集した選択範囲がページから読んだもの | R4。ページから読んだ選択範囲を収集することは launch paths > collects the selection and the tab title through the popup path が確かめる |
@@ -624,14 +624,14 @@ AC-09・AC-10 は、確かめた結果を本計画に記録することを求め
 | menu send > sends once and stores the sending then the sent view（`:743`） | ストアの表示が `sending`・`sent` の順 | R1 |
 | 同上 | 1 回だけ送る | popup send > sends once, disables the button and shows the result の `fetch` の回数の検査 |
 | 同上 | `sent` の表示がある | R1 |
-| 同上 | 結果が受付（`accepted`・`requestId`） | popup send > sends once, disables the button and shows the result の `.send-request-id` の検査 |
+| 同上 | 結果が受付（`accepted`・`requestId`） | popup send > sends once, disables the button and shows the result の、受付の文言を表示する検査（加えた）と `.send-request-id` の検査 |
 | menu send > stores an unknown result without its cause（`:756`） | `sent` の表示がある | R1 |
 | 同上 | 送信の失敗の結果が `cause` のない `unknown` | popup send > logs a failed send at error and shows the unknown result の、`unknown` の文言を表示する検査（加えた）。`cause` を落とすことは `response.test.ts::toSendOutcome > drops the cause of an unknown result` が確かめる |
 | 同上 | error のログが 1 件 | popup send > logs a failed send at error and shows the unknown result の、送信の結果のログが error だけにある検査（加えた） |
-| menu send > blocks ${reason} without sending（`:792`。4 行） | ストアに `blocked`（`${reason}`）を置く | popup send > shows the ${reason} reason and no button without sending の、送らない理由の文言の検査（`body-too-large` は、加えた「… when the selection is over the limit」の行） |
+| menu send > blocks ${reason} without sending（`:792`。4 行） | ストアに `blocked`（`${reason}`）を置く | popup send > shows the ${reason} reason and no button without sending の、送らない理由の文言の検査（`body-too-large` は、加えた「… when the selection takes the body over the limit」の行） |
 | 同上 | 送らない | 同上の `fetch` の回数の検査 |
 | 同上 | ウィンドウを開く | R2 |
-| 同上 | 送らない理由のログが、`settings-unreadable` では error、ほかは info にある | 同上の、ラベル `yt2column blocked` の記録を `error` の列で選ぶ検査（加えた） |
+| 同上 | 送らない理由のログが、`settings-unreadable` では error、ほかは info にある | 同上の、ラベル `yt2column blocked` の記録が `error` の列で選んだ一方のレベルにだけあり、他方のレベルにない検査（加えた） |
 | 同上 | 送らない理由のログが `reason` を持つ | 同上の、記録の `reason` が `[reason]` と等しい検査（加えた） |
 | menu send > sends a collapsed description without a confirmation step（`:811`） | 1 回送る | popup send > keeps the button under the expand prompt and sends the shown description の `fetch` の回数の検査 |
 | 同上 | 本文の説明が読み取った折りたたみの説明 | 同上の本文の説明の検査 |
@@ -641,15 +641,15 @@ AC-09・AC-10 は、確かめた結果を本計画に記録することを求め
 | 同上 | 送らない | 同上の `fetch` の回数の検査（加えた） |
 | menu send > signals the badge when the blocked view cannot be stored（`:848`） | ウィンドウを開かない | R2 |
 | 同上 | バッジを 1 回出す | R2 |
-| 同上 | error のログが 1 件（保存の失敗） | R1 |
+| 同上 | error のログが 1 件（保存の失敗）。送らない理由のログが error にないことも含む | 保存の失敗は R1。`token-missing` の送らない理由が error に記録されないことは、popup send > shows the token-missing reason and no button without sending の、他方のレベルにない検査（加えた）が確かめる |
 | menu send > logs and signals the badge when the sent view cannot be stored（`:860`） | 1 回送る | popup send > sends once, disables the button and shows the result の `fetch` の回数の検査 |
 | 同上 | バッジを 1 回出す | R2 |
-| 同上 | error のログが 1 件（保存の失敗） | R1 |
+| 同上 | error のログが 1 件（保存の失敗）。受付の送信のログが error にないことも含む | 保存の失敗は R1。受付の送信が info に 1 件だけ記録され error にないことは、popup send > sends once, disables the button and shows the result のログの検査（加えた）が確かめる |
 | video metadata log > records ${name} at info（`:1076`。2 行） | メタデータのログが info で、`accepted`・`collapsed`（と `omissions`）を持つ（メニューの記録） | R7 |
 | 同上 | 同じ検査（ポップアップの記録） | video metadata log > records ${name} at info（残す。補助 `metadataLogs` をポップアップの経路だけにする） |
-| 同上 | error のログがない（メニューの記録） | R7 |
+| 同上 | error のログがない（メニューの記録。メタデータのログのほか、受付の送信のログが error にないことも含む） | メタデータのログの部分は R7。受付の送信のログの部分は、popup send > sends once, disables the button and shows the result のログの検査（加えた） |
 | 同上 | 同じ検査（ポップアップの記録） | 同上（残す） |
-| video metadata log > keeps the read values and the read error out of the logs（`:1088`） | 読み取った値・省いた値・拒否した形・読み取りの失敗の文字列がログにない（メニューの記録） | R7 |
+| video metadata log > keeps the read values and the read error out of the logs（`:1088`） | 読み取った値・省いた値・拒否した形・読み取りの失敗の文字列がログにない（メニューの記録。送信と送らない理由のログを含む） | メタデータのログの部分は R7。送信と送らない理由のログは、メタデータを受け取らない（`logSend`・`logBlocked` の引数にない）ので、確かめる必要がない |
 | 同上 | 同じ検査（ポップアップの記録） | video metadata log > keeps the read values and the read error out of the logs（残す） |
 | result window > shows a sending view, then the sent result on a notification（`:1167`） | 送信中の文言を表示する | R3。ポップアップの送信中の表示は popup send > shows the sending notice and a disabled button while sending が確かめる |
 | 同上 | 通知の後に `.send-request-id` を表示する | R3 |
@@ -679,7 +679,7 @@ AC-09・AC-10 は、確かめた結果を本計画に記録することを求め
 | 同上 | 監視しない | R3 |
 | result window > ignores events after the final view（`:1300`） | `.send-request-id` を表示し続ける | R3 |
 | 同上 | キーを 1 回だけ削除する | R3 |
-| token never leaks > keeps the token out of the logs, the store and the display（`:1318`） | 記録と表示にトークンの全体がない | token never leaks > keeps the token out of the logs and the display の同じ検査（残す）。対象に、ポップアップの送信のログと、トークンを読み込んだうえで送らない場合（`port-invalid`）のログと表示を加えた。メニューの記録とストアは R7・R1 |
+| token never leaks > keeps the token out of the logs, the store and the display（`:1318`） | 記録と表示にトークンの全体がない | token never leaks > keeps the token out of the logs and the display の同じ検査（残す）。対象に、ポップアップの送信のログ（受付と失敗）と、トークンを読み込んだうえで送らない場合（`port-invalid`）のログと表示を加え、`Error` の名前と文言も直列化する。メニューの記録とストアは R7・R1 |
 | 同上 | トークンの先頭の 4 文字がない | 同上 |
 | 同上 | トークンの末尾の 4 文字がない | 同上 |
 | `renderSend.test.ts`: renderResultView > shows the ${reason} block message（`:105`。2 行） | 送らない理由の文言を表示する | `renderSend.test.ts`: renderBlockReason > shows the ${reason} block message（ステップ 4-8 で `renderBlockReason` を呼ぶ形に改める） |
@@ -695,7 +695,8 @@ AC-09・AC-10 は、確かめた結果を本計画に記録することを求め
 | `summary.test.ts`: parseSummary > accepts summarize output for every rejection reason（`:111`） | すべての拒否の理由で `parseSummary(summarize(o))` が要約と等しい（`cause` を落とす） | `cause` を持つ拒否が `kind`・`reason` だけの値になることを、すべての理由について確かめる検査（ステップ 4-8 で `summary.test.ts`: summarize に加える）。`parseSummary` の受け入れは R5 |
 | `summary.test.ts`: parseSummary > rejects a non-object value（`:123`） | オブジェクトでない値を拒む | R5 |
 | `summary.test.ts`: parseSummary > rejects an unknown kind（`:129`） | 未知の `kind` を拒む | R5 |
-| `summary.test.ts`: parseSummary > rejects a missing field（`:133`） | 前提: 取り除いた `preview` が `x` | R5 |
+| `summary.test.ts`: parseSummary > rejects a missing field（`:133`） | 前提: 要約が `collected` | R5 |
+| 同上 | 前提: 取り除いた `preview` が `x` | R5 |
 | 同上 | フィールドの欠けた要約を拒む | R5 |
 | `summary.test.ts`: parseSummary > rejects an extra field（`:141`） | 余分なフィールドを拒む | R5 |
 | `summary.test.ts`: parseSummary > rejects a collected summary whose ${field} has the wrong type（`:157`。8 行） | 型の違うフィールドを拒む | R5 |
@@ -708,24 +709,30 @@ AC-09・AC-10 は、確かめた結果を本計画に記録することを求め
 | `chromeDeps.test.ts`: result view store > watch reports a value newly stored under the key in session（`:448`） | `session` の新しい値を通知する | R5 |
 | `chromeDeps.test.ts`: result view store > watch ignores another area, another key, and a removal（`:460`） | ほかの領域・キーと削除を通知しない | R5 |
 | `chromeDeps.test.ts`: result view store > watch stops after the returned function is called（`:474`） | 止めた後は通知しない | R5 |
-| `resultView.test.ts`: parseResultView > accepts a blocked view for every block reason | すべての送らない理由の `blocked` を受け入れる | R5（`parseResultView`） |
-| `resultView.test.ts`: parseResultView > accepts a sending view | `sending` を受け入れる | R5 |
-| `resultView.test.ts`: parseResultView > accepts a sent view for every outcome kind | 各結果の `sent` を受け入れる | R5 |
-| `resultView.test.ts`: parseResultView > rejects a sent view whose unknown outcome carries a cause | `cause` を持つ `unknown` を拒む | R5 |
-| `resultView.test.ts`: parseResultView > rejects an unexpected outcome with status ${status}（4 行） | 範囲の外の状態コードを拒む | R5 |
-| `resultView.test.ts`: parseResultView > accepts an unexpected outcome with status ${status}（2 行） | 範囲の端の状態コードを受け入れる | R5 |
-| `resultView.test.ts`: parseResultView > rejects an unknown unexpected check | 未知の `check` を拒む | R5 |
-| `resultView.test.ts`: parseResultView > rejects a non-object value | オブジェクトでない値を拒む | R5 |
-| `resultView.test.ts`: parseResultView > rejects an unknown kind | 未知の `kind` を拒む | R5 |
-| `resultView.test.ts`: parseResultView > rejects a blocked view with an unknown reason | 未知の送らない理由を拒む | R5 |
-| `resultView.test.ts`: parseResultView > rejects a sending view whose summary is a rejection | 拒否の要約を持つ `sending` を拒む | R5 |
-| `resultView.test.ts`: parseResultView > rejects a blocked view with an extra field | 余分なフィールドを持つ `blocked` を拒む | R5 |
-| `resultView.test.ts`: parseResultView > rejects a sending view missing the summary | 要約のない `sending` を拒む | R5 |
-| `resultView.test.ts`: parseResultView > rejects an accepted outcome with an unparseable requestId | 形の違う `requestId` を拒む | R5。`requestId` の検査そのものは `response.test.ts::parseRequestId > rejects ${value}` が確かめる |
-| `resultView.test.ts`: parseResultView > rejects a rejected outcome with an unknown reason | 未知のサーバの拒否の理由を拒む | R5。理由の検査そのものは `response.test.ts::serverRejectStatus > is queried through isServerRejectReason` が確かめる |
-| `resultView.test.ts`: parseResultView > accepts a rejected outcome for every server reason | すべてのサーバの拒否の理由を受け入れる | R5 |
+| `resultView.test.ts`: parseResultView > accepts a blocked view for every block reason（`:38`） | すべての送らない理由の `blocked` を受け入れる | R5（`parseResultView`） |
+| `resultView.test.ts`: parseResultView > accepts a sending view（`:49`） | `sending` を受け入れる | R5 |
+| `resultView.test.ts`: parseResultView > accepts a sent view for every outcome kind（`:54`） | 各結果の `sent` を受け入れる | R5 |
+| `resultView.test.ts`: parseResultView > rejects a sent view whose unknown outcome carries a cause（`:68`） | `cause` を持つ `unknown` を拒む | R5 |
+| `resultView.test.ts`: parseResultView > rejects an unexpected outcome with status ${status}（`:77`。4 行） | 範囲の外の状態コードを拒む | R5 |
+| `resultView.test.ts`: parseResultView > accepts an unexpected outcome with status ${status}（`:88`。2 行） | 範囲の端の状態コードを受け入れる | R5 |
+| `resultView.test.ts`: parseResultView > rejects an unknown unexpected check（`:94`） | 未知の `check` を拒む | R5 |
+| `resultView.test.ts`: parseResultView > rejects a non-object value（`:103`） | オブジェクトでない値を拒む | R5 |
+| `resultView.test.ts`: parseResultView > rejects an unknown kind（`:109`） | 未知の `kind` を拒む | R5 |
+| `resultView.test.ts`: parseResultView > rejects a blocked view with an unknown reason（`:113`） | 未知の送らない理由を拒む | R5 |
+| `resultView.test.ts`: parseResultView > rejects a sending view whose summary is a rejection（`:120`） | 拒否の要約を持つ `sending` を拒む | R5 |
+| `resultView.test.ts`: parseResultView > rejects a blocked view with an extra field（`:130`） | 余分なフィールドを持つ `blocked` を拒む | R5 |
+| `resultView.test.ts`: parseResultView > rejects a sending view missing the summary（`:137`） | 要約のない `sending` を拒む | R5 |
+| `resultView.test.ts`: parseResultView > rejects an accepted outcome with an unparseable requestId（`:141`） | 形の違う `requestId` を拒む | R5。`requestId` の検査そのものは `response.test.ts::parseRequestId > rejects ${value}` が確かめる |
+| `resultView.test.ts`: parseResultView > rejects a rejected outcome with an unknown reason（`:148`） | 未知のサーバの拒否の理由を拒む | R5。理由の検査そのものは `response.test.ts::serverRejectStatus > is queried through isServerRejectReason` が確かめる |
+| `resultView.test.ts`: parseResultView > accepts a rejected outcome for every server reason（`:153`） | すべてのサーバの拒否の理由を受け入れる | R5 |
+| `manifest.test.ts`: permissions > declares exactly the four permissions the design requires（`:19`） | `permissions` が `contextMenus` を含む 4 つと一致する | `manifest.test.ts`: permissions > declares exactly the three permissions the design requires（ステップ 3-4 で期待値を 3 つに改める。`contextMenus` がないことを確かめる） |
+| `manifest.test.ts`: undeclared keys > declares exactly the keys the design lists（`:30`） | キーの集合が `background` を含むものと一致する | 同じテスト（ステップ 3-4 で集合から `background` を除き、`background` がないことを確かめる） |
+| `manifest.test.ts`: fixed fields > loads the service worker as a module（`:87`） | `background` が `background.js` をモジュールとして読み込む | service worker を削除するので不要。`background` がないことは上の「undeclared keys」が確かめる |
+| `checkDist.test.ts`: checkDist > accepts a manifest whose references exist（`:137`） | 参照先がすべてある manifest を受け入れる（service worker を含む） | 同じテスト（ステップ 3-5 で service worker の参照を除き、`action.default_popup`・`options_ui.page` の参照を確かめる） |
+| `checkDist.test.ts`: checkDist > rejects a manifest ${name} that is not in dist/（`:189`。3 行） | 参照先のない manifest の参照を、参照ごとに違反として報告する | `popup`・`options page` の行は同じテスト（ステップ 3-5 で `serviceWorker` のフィールドを除く）。`service worker` の行は、`check-dist.ts` から `background.service_worker` の項目を削除するので不要（設計書 3.3.2） |
+| `repository.test.ts`: build outputs are ignored > ignores ${file}（`:60` の行） | `extension/dist/background.js` が無視される | `repository.test.ts`: build outputs are ignored > ignores extension/dist/popup.js（ステップ 3-6 で入力を残る成果物の名前に改める） |
 
-設計書 3.10.2 の「加えるテスト」の表の 6 つの振る舞いと、上の表で見つけた 2 つ（ポップアップの起動のログの `outcome`、送らない理由のログの `reason`）の対応先は、次のとおりである。
+設計書 3.10.2 の「加えるテスト」の表の 6 つの振る舞いと、上の表で見つけた 3 つ（受付の送信のログのレベル、ポップアップの起動のログの `outcome`、送らない理由のログの `reason`）の対応先は、次のとおりである。
 
 | 振る舞い | 加えた検査 |
 |---|---|
@@ -733,8 +740,9 @@ AC-09・AC-10 は、確かめた結果を本計画に記録することを求め
 | 読めなかったときにメタデータなしで送る | launch paths > sends without metadata and logs an error when ${name} |
 | 送信と送らない理由のログにトークンが出ない | token never leaks > keeps the token out of the logs and the display |
 | 送らない理由のログのレベルの振り分け | popup send > shows the ${reason} reason and no button without sending |
-| 本文が大きすぎる場合（選択範囲・メタデータ）に送らない | popup send > shows the body-too-large reason and no button without sending when the selection is over the limit・… when the metadata takes the body over the limit |
+| 本文が大きすぎる場合（選択範囲・メタデータ）に送らない | popup send > shows the body-too-large reason and no button without sending when the selection takes the body over the limit・… when the metadata takes the body over the limit |
 | 送信の失敗を error で記録する | popup send > logs a failed send at error and shows the unknown result |
+| 受付の送信を info に 1 件だけ記録し、error に記録しない | popup send > sends once, disables the button and shows the result |
 | ポップアップの起動のログが `outcome` を持つ | launch paths > collects the selection and the tab title through the popup path |
 | 送らない理由のログが `reason` を持つ | popup send > shows the ${reason} reason and no button without sending |
 
