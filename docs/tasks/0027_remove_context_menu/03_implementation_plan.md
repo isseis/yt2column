@@ -181,26 +181,26 @@
 フェーズ 3 は 2 つの PR に分ける。ステップ 3-1〜3-7（入口のモジュールとページ、manifest、成果物の検査）を PR-2、ステップ 3-8〜3-13（`launch.ts`・`chromeDeps.ts` のメニューの経路の処理とそのテスト）を PR-3 とする（§3.2）。PR-2 の後も、`runMenuLaunch` などは本番の参照元のない export として残り、テストが使い続けるので、PR-2 は単独で通る。
 
 **タスク**
--   [ ] **ステップ 3-1**: 入口のモジュールとページを削除する。
-    -   [ ] `extension/src/background.ts` を削除する。
-    -   [ ] `extension/src/result.ts` を削除する。
-    -   [ ] `extension/static/result.html` を削除する。
+-   [x] **ステップ 3-1**: 入口のモジュールとページを削除する。
+    -   [x] `extension/src/background.ts` を削除する。
+    -   [x] `extension/src/result.ts` を削除する。
+    -   [x] `extension/static/result.html` を削除する。
     -   **対象:** `extension/src/background.ts`・`extension/src/result.ts`・`extension/static/result.html`（削除）。**完了:** 3 つのファイルがない。`make ext-build` の後の `extension/dist/` にそれらの成果物がないことは、PR-2 の完了条件としてステップ 3-7 で確かめる。
--   [ ] **ステップ 3-2**: `static/manifest.json` から `background` のメンバを削除し、`permissions` を `["activeTab", "scripting", "storage"]` にする（設計書 3.3.1）。同じステップで、`docs/dev/security.md` §8.1 の「要求する権限」（`:102`）を設計書 3.9.2 の 1 つ目の項目のとおりに改める（設計書 8 章の優先順位 3）。`TestExtensionDocumentation` の権限の一致の検査（`extension_docs_test.go:86-115`）は manifest と §8.1 の一覧を両方向で比べるので、2 つを同じステップで改める。
+-   [x] **ステップ 3-2**: `static/manifest.json` から `background` のメンバを削除し、`permissions` を `["activeTab", "scripting", "storage"]` にする（設計書 3.3.1）。同じステップで、`docs/dev/security.md` §8.1 の「要求する権限」（`:102`）を設計書 3.9.2 の 1 つ目の項目のとおりに改める（設計書 8 章の優先順位 3）。`TestExtensionDocumentation` の権限の一致の検査（`extension_docs_test.go:86-115`）は manifest と §8.1 の一覧を両方向で比べるので、2 つを同じステップで改める。
     -   **対象:** `extension/static/manifest.json`、`docs/dev/security.md`。**完了:** ステップ 3-4 の後に、`manifest.test.ts` の「permissions」と `TestExtensionDocumentation` の権限の一致が、ステップ 3-7 の `make ext-check` → `make test` で通る。
--   [ ] **ステップ 3-3**: `scripts/check-dist.ts` を設計書 3.3.2 のとおりに改める。`referenceViolations` の `background.service_worker` の項目と、manifest の型の `background` のメンバを削除する。`static/manifest.json` と `dist/manifest.json` が両方あるときに、2 つのバイト列が同じでなければ違反を報告する検査を加える。どちらかがない場合は、この検査は何も報告しない。コメントを次のように改める。
+-   [x] **ステップ 3-3**: `scripts/check-dist.ts` を設計書 3.3.2 のとおりに改める。`referenceViolations` の `background.service_worker` の項目と、manifest の型の `background` のメンバを削除する。`static/manifest.json` と `dist/manifest.json` が両方あるときに、2 つのバイト列が同じでなければ違反を報告する検査を加える。どちらかがない場合は、この検査は何も報告しない。コメントを次のように改める。
     -   冒頭の 3 行目を、`// imports, with the manifest and HTML references resolving inside dist/.` から `// imports, with the manifest and HTML references resolving inside dist/ and` と `// dist/manifest.json a byte-for-byte copy of static/manifest.json.` の 2 行に改める。
     -   `referenceViolations` のコメントの `The manifest points at the service worker, the popup page and the options` と `page; an HTML page points at its scripts and stylesheets.` の 2 行を、`The manifest points at the popup page and the options page; an HTML page` と `points at its scripts and stylesheets.` に改める。
     -   **対象:** `extension/scripts/check-dist.ts`。**完了:** ステップ 3-5 で改める `checkDist.test.ts` を含む `make ext-check` が、ステップ 3-7 で通る。
--   [ ] **ステップ 3-4**: `manifest.test.ts` を設計書 3.3.1 のとおりに改める。「permissions」は 3 つの権限と完全に一致することを確かめ、名前を §2.1 の表のとおりに改める。「undeclared keys」の集合から `background` を除く。
-    -   [ ] 「loads the service worker as a module」（`:87`）を削除する。
+-   [x] **ステップ 3-4**: `manifest.test.ts` を設計書 3.3.1 のとおりに改める。「permissions」は 3 つの権限と完全に一致することを確かめ、名前を §2.1 の表のとおりに改める。「undeclared keys」の集合から `background` を除く。
+    -   [x] 「loads the service worker as a module」（`:87`）を削除する。
     -   **対象:** `extension/test/manifest.test.ts`。**完了:** §5 の AC-01・AC-04 の行の manifest のテストが、ステップ 3-7 の `make ext-check` で通る。
--   [ ] **ステップ 3-5**: `checkDist.test.ts` を設計書 3.3.2 のとおりに改める。`writeManifest` を §2.1 の表のとおりにし、`background` のメンバを書かないようにする。「accepts a manifest whose references exist」（`:137`）から `background.ts`・`background.js` を除く。manifest の複製の同一性の検査のテストを加える。`dist/manifest.json` の空白だけを変えたときに同一性の違反が 1 つだけ報告されること（バイト列で比べること）と、`static/manifest.json` だけ、または `dist/manifest.json` だけがある場合に、既存の `missing`・`not built from` の違反だけが報告され、同一性の違反が加わらないことを確かめる。
-    -   [ ] `missingReferences` から `name: "service worker"` の行を削除し、残る行から `serviceWorker` のフィールドを除く。
+-   [x] **ステップ 3-5**: `checkDist.test.ts` を設計書 3.3.2 のとおりに改める。`writeManifest` を §2.1 の表のとおりにし、`background` のメンバを書かないようにする。「accepts a manifest whose references exist」（`:137`）から `background.ts`・`background.js` を除く。manifest の複製の同一性の検査のテストを加える。`dist/manifest.json` の空白だけを変えたときに同一性の違反が 1 つだけ報告されること（バイト列で比べること）と、`static/manifest.json` だけ、または `dist/manifest.json` だけがある場合に、既存の `missing`・`not built from` の違反だけが報告され、同一性の違反が加わらないことを確かめる。
+    -   [x] `missingReferences` から `name: "service worker"` の行を削除し、残る行から `serviceWorker` のフィールドを除く。
     -   **対象:** `extension/test/checkDist.test.ts`。**完了:** 加えた同一性のテストと既存の `checkDist.test.ts` のテストが、ステップ 3-7 の `make ext-check` で通る。
--   [ ] **ステップ 3-6**: `repository.test.ts:60` の入力を §2.1 の表のとおりに改める。
+-   [x] **ステップ 3-6**: `repository.test.ts:60` の入力を §2.1 の表のとおりに改める。
     -   **対象:** `extension/test/repository.test.ts`。**完了:** `make ext-test` が、ステップ 3-7 の `make ext-check` で通る。
--   [ ] **ステップ 3-7**: 壊して失敗することを確かめ、コミットのメッセージに記す。対象は次のとおりである。`static/manifest.json` に `contextMenus` を戻す（`manifest.test.ts` の「permissions」）。`background` を戻す（「undeclared keys」）。§8.1 の一覧に `contextMenus` を戻す（`TestExtensionDocumentation` の権限の一致）。`check-dist.ts` の同一性の検査を外す。どちらかのファイルがない場合にも同一性の違反を報告させる（いずれもステップ 3-5 で加えたテストで確かめる）。AC-02 の集合の比較は、既存の `checkDist.test.ts` の「rejects an extra file」（`:87`）が確かめるので、新しく壊す対象にしない。続けて `make ext-check` → `make test` → `make lint` を通す。
+-   [x] **ステップ 3-7**: 壊して失敗することを確かめ、コミットのメッセージに記す。対象は次のとおりである。`static/manifest.json` に `contextMenus` を戻す（`manifest.test.ts` の「permissions」）。`background` を戻す（「undeclared keys」）。§8.1 の一覧に `contextMenus` を戻す（`TestExtensionDocumentation` の権限の一致）。`check-dist.ts` の同一性の検査を外す。どちらかのファイルがない場合にも同一性の違反を報告させる（いずれもステップ 3-5 で加えたテストで確かめる）。AC-02 の集合の比較は、既存の `checkDist.test.ts` の「rejects an extra file」（`:87`）が確かめるので、新しく壊す対象にしない。続けて `make ext-check` → `make test` → `make lint` を通す。
     -   **対象:** なし（確認のみ）。**完了:** 各対象を壊すと名前を挙げた検査が失敗することを確かめ、コミットのメッセージに記した。`make ext-build` の後の `extension/dist/` に `background.js`・`result.js`・`result.html` がない（PR-2 の完了条件）。
 
 ### PR-2 作成ポイント: entry points, manifest and build check

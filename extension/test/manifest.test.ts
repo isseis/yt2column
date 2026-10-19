@@ -16,10 +16,9 @@ const manifest = JSON.parse(
 ) as Record<string, unknown>;
 
 describe("permissions", () => {
-  it("declares exactly the four permissions the design requires", () => {
+  it("declares exactly the three permissions the design requires", () => {
     assert.deepEqual(manifest["permissions"], [
       "activeTab",
-      "contextMenus",
       "scripting",
       "storage",
     ]);
@@ -30,7 +29,6 @@ describe("undeclared keys", () => {
   it("declares exactly the keys the design lists", () => {
     assert.deepEqual(Object.keys(manifest).sort(), [
       "action",
-      "background",
       "host_permissions",
       "key",
       "manifest_version",
@@ -82,13 +80,6 @@ describe("fixed fields", () => {
 
   it("requires Chrome 103 for AbortSignal.timeout", () => {
     assert.equal(manifest["minimum_chrome_version"], "103");
-  });
-
-  it("loads the service worker as a module", () => {
-    assert.deepEqual(manifest["background"], {
-      service_worker: "background.js",
-      type: "module",
-    });
   });
 
   it("opens popup.html from the toolbar icon", () => {
