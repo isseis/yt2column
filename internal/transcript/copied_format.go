@@ -63,6 +63,23 @@ var copiedOperationLabels = []string{
 	"Sync to video time", // English UI
 }
 
+// copiedChapterHeadingPatterns are the shapes of a form A chapter heading line,
+// one per display language: the word, one U+0020, a positive integer without a
+// leading zero, an ASCII colon, one U+0020, and a non-empty title running to the
+// end of the line. A newly observed notation is supported by adding one pattern.
+// The title's last character is checked separately with unicode.IsSpace, because
+// \S in a pattern only excludes ASCII whitespace and would accept a title ending
+// in U+3000. Like the Japanese screen-reader units, the words are compared
+// against the input byte for byte, so the Japanese one stays in Japanese. The
+// Japanese heading was observed in the panel (task 0015 architecture, section
+// 1.4.1); the English one is not observed yet and is accepted for the same
+// reason as the English screen-reader labels, which follow the same UI's
+// conventions (task 0024 requirements).
+var copiedChapterHeadingPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`^チャプター [1-9][0-9]*: .+$`),   // Japanese UI
+	regexp.MustCompile(`^Chapter [1-9][0-9]*: .+$`), // English UI
+}
+
 // The timestamp grammars of the copied transcript format. minuteSecondPattern
 // accepts minutes 0-59 with no leading zero; hourMinuteSecondPattern accepts
 // hours 1-99 with no leading zero. Both require two-digit minutes and seconds.
@@ -419,6 +436,22 @@ func isASCIIDigit(b byte) bool {
 	return '0' <= b && b <= '9'
 }
 
+// copiedIsChapterHeading reports whether the whole line is a form A chapter
+// heading: it matches one of copiedChapterHeadingPatterns and its last character
+// is not Unicode White_Space.
+func copiedIsChapterHeading(line string) bool {
+	last, _ := utf8.DecodeLastRuneInString(line)
+	if unicode.IsSpace(last) {
+		return false
+	}
+	for _, pattern := range copiedChapterHeadingPatterns {
+		if pattern.MatchString(line) {
+			return true
+		}
+	}
+	return false
+}
+
 // checkCopiedTrailingLines rejects a control character in the trailing region.
 // The body is checked first, so an error in the body is reported before one in
 // the trailing region that follows it.
@@ -434,10 +467,12 @@ func checkCopiedTrailingLines(lines []string, start int) error {
 // parseCopiedFormA parses form A over the body range lines[start:end]: every
 // line is a timestamp, a screen-reader label, and the text concatenated without
 // separators. The label's language is fixed by the body's first line, the first
-// segment line, so a prefix line never fixes it. A segment without text is
-// skipped; a line that is only a timestamp belongs to the other form. Error
-// line numbers are the original input's, so the range is not renumbered. It
-// rejects on the first error in the documented check order.
+// segment line, so a prefix line never fixes it. A chapter heading line is
+// skipped after the per-line checks and before the timestamp is read, so it
+// neither fixes the language nor takes part in the timestamp order. A segment
+// without text is skipped; a line that is only a timestamp belongs to the other
+// form. Error line numbers are the original input's, so the range is not
+// renumbered. It rejects on the first error in the documented check order.
 func parseCopiedFormA(lines []string, start, end int) ([]Segment, error) {
 	language := labelNone
 	var segments []Segment
@@ -447,6 +482,9 @@ func parseCopiedFormA(lines []string, start, end int) ([]Segment, error) {
 		lineNumber := index + 1
 		if err := checkCopiedLine(line, lineNumber); err != nil {
 			return nil, err
+		}
+		if copiedIsChapterHeading(line) {
+			continue
 		}
 		timestamp, consumed, ok := parseTimestampPrefix(line)
 		if !ok {

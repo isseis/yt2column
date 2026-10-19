@@ -244,12 +244,13 @@ func TestParseCopiedAccepts(t *testing.T) {
 }
 
 func TestParseCopiedRejects(t *testing.T) {
-	cases := []struct {
+	type rejectCase struct {
 		name   string
 		input  string
 		reason error
 		line   int
-	}{
+	}
+	cases := []rejectCase{
 		{name: "invalid UTF-8", input: string([]byte{0xff}), reason: errCopiedInvalidUTF8},
 		{name: "blank empty", input: "", reason: errCopiedBlank},
 		{name: "blank spaces", input: "   ", reason: errCopiedBlank},
@@ -297,6 +298,14 @@ func TestParseCopiedRejects(t *testing.T) {
 		{name: "trailing English operation label with different case", input: "0:2424 secondsはい\nsync to video time\n", reason: errCopiedNotTimestamp, line: 2},
 		{name: "trailing control character", input: "0:000 秒はい\n\n\t\n", reason: errCopiedControlChar, line: 3},
 		{name: "operation label only", input: "動画の時間と同期\n", reason: errCopiedNoText},
+		{name: "English chapter heading in lowercase", input: "0:000 secondsHello\nchapter 2: title\n0:055 secondsWorld\n", reason: errCopiedNotTimestamp, line: 2},
+		{name: "chapter heading with a control character", input: "0:000 秒はい\nチャプター 2: タイ\tトル\n0:1010 秒です\n", reason: errCopiedControlChar, line: 2},
+		{name: "chapter heading only", input: "チャプター 1: はじめに\n", reason: errCopiedNoText},
+		{name: "form A chapter heading after a textless segment only", input: "0:000 秒\nチャプター 1: はじめに\n", reason: errCopiedNoText},
+		{name: "form A display item in the body", input: "0:000 秒はい\nタイムライン\n0:1010 秒です\n", reason: errCopiedNotTimestamp, line: 2},
+		{name: "form A plain text line in the body", input: "0:000 秒はい\nこんにちは\n0:1010 秒です\n", reason: errCopiedNotTimestamp, line: 2},
+		{name: "form A unknown Japanese label in the body", input: "0:000 秒はい\nチャプターの一覧\n0:1010 秒です\n", reason: errCopiedNotTimestamp, line: 2},
+		{name: "form A unknown English label in the body", input: "0:000 secondsHello\nDownload transcript\n0:055 secondsWorld\n", reason: errCopiedNotTimestamp, line: 2},
 		{name: "form A has a whole timestamp line", input: "0:2424 秒x\n0:30\n", reason: errCopiedMixedForms, line: 2},
 		{name: "form A has a whole hour timestamp line", input: "0:2424 秒x\n1:00:00\n", reason: errCopiedMixedForms, line: 2},
 		{name: "form B text reads as form A", input: "0:00\n0:2424 秒x\n", reason: errCopiedMixedForms, line: 2},
@@ -306,6 +315,38 @@ func TestParseCopiedRejects(t *testing.T) {
 		{name: "form B timestamp goes backward", input: "0:05\nx\n0:00\ny\n", reason: errCopiedTimestampOrder, line: 3},
 		{name: "form B has no text", input: "0:00\n0:05\n", reason: errCopiedNoText},
 		{name: "form A has no text", input: "0:000 秒\n", reason: errCopiedNoText},
+	}
+	// Each near-miss differs from a heading in one part of its shape. The rows
+	// are generated for every heading word, because each word has its own
+	// pattern and pinning one says nothing about the other.
+	nearMissHeadings := []struct {
+		name   string
+		format string
+	}{
+		{name: "without a number", format: "%s: Title"},
+		{name: "number zero", format: "%s 0: Title"},
+		{name: "number with a leading zero", format: "%s 01: Title"},
+		{name: "full-width number", format: "%s ２: Title"},
+		{name: "without the space before the number", format: "%s2: Title"},
+		{name: "two spaces before the number", format: "%s  2: Title"},
+		{name: "U+3000 before the number", format: "%s　2: Title"},
+		{name: "without the colon", format: "%s 2 Title"},
+		{name: "with a full-width colon", format: "%s 2： Title"},
+		{name: "without the space after the colon", format: "%s 2:Title"},
+		{name: "with an empty title", format: "%s 2: "},
+		{name: "title ends in U+3000", format: "%s 2: Title　"},
+		{name: "title ends in U+0020", format: "%s 2: Title "},
+		{name: "with a leading space", format: " %s 2: Title"},
+	}
+	for _, word := range []string{"チャプター", "Chapter"} {
+		for _, nearMiss := range nearMissHeadings {
+			cases = append(cases, rejectCase{
+				name:   word + " heading " + nearMiss.name,
+				input:  "0:000 秒はい\n" + fmt.Sprintf(nearMiss.format, word) + "\n0:1010 秒です\n",
+				reason: errCopiedNotTimestamp,
+				line:   2,
+			})
+		}
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -490,10 +531,11 @@ func TestParseCopiedTrailingRegion(t *testing.T) {
 
 // assertCopiedBodyHasNoSkippedLine fails unless body contains only form A or
 // form B lines: the first line starts with a timestamp, none of its lines is
-// blank or whitespace-only, and it has no trailing region. Such an input never
-// enters a skip path, so a skip test can use it as the comparison target. The
-// trailing-region check calls the production function, so a new skip kind is
-// caught here rather than silently skipping a comparison line.
+// blank or whitespace-only, none is a form A chapter heading, and it has no
+// trailing region. Such an input never enters a skip path, so a skip test can
+// use it as the comparison target. The heading and trailing-region checks call
+// the production functions, so a new skip kind is caught here rather than
+// silently skipping a comparison line.
 func assertCopiedBodyHasNoSkippedLine(t *testing.T, body string) {
 	t.Helper()
 	separator, err := copiedLineSeparator(body)
@@ -507,6 +549,9 @@ func assertCopiedBodyHasNoSkippedLine(t *testing.T, body string) {
 	for i, line := range lines {
 		if copiedBlankLine(line) {
 			t.Fatalf("comparison body line %d %q is blank or whitespace-only", i+1, line)
+		}
+		if copiedIsChapterHeading(line) {
+			t.Fatalf("comparison body line %d %q is a chapter heading", i+1, line)
 		}
 	}
 	if end := copiedTrailingStart(lines); end != len(lines) {
@@ -573,6 +618,92 @@ func TestParseCopiedPrefix(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got, tc.want) {
 				t.Errorf("parseCopiedTranscript(%q) = %+v, want %+v", input, got, tc.want)
+			}
+			bodySegments, err := parseCopiedTranscript(tc.body)
+			if err != nil {
+				t.Fatalf("parseCopiedTranscript(%q) error = %v", tc.body, err)
+			}
+			if !reflect.DeepEqual(bodySegments, tc.want) {
+				t.Errorf("parseCopiedTranscript(%q) = %+v, want the same segments %+v", tc.body, bodySegments, tc.want)
+			}
+		})
+	}
+}
+
+// TestParseCopiedFormAChapterHeadings compares a form A input that has chapter
+// heading lines with the same input without them. The literal want pins every
+// segment's text and the segment count, so a heading title that reached a
+// segment, or a heading that produced or dropped one, fails the comparison. The
+// panel case also carries the prefix and the trailing region of a whole-panel
+// selection.
+func TestParseCopiedFormAChapterHeadings(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		body  string
+		want  []Segment
+	}{
+		{
+			name:  "Japanese headings between segments",
+			input: "0:000 秒はい\nチャプター 1: はじめに\n0:1010 秒です\nチャプター 2: 3つの準備と1つの注意\n0:2020 秒以上\n",
+			body:  "0:000 秒はい\n0:1010 秒です\n0:2020 秒以上\n",
+			want:  []Segment{{StartMs: 0, Text: "はい"}, {StartMs: 10000, Text: "です"}, {StartMs: 20000, Text: "以上"}},
+		},
+		{
+			name:  "heading after the last segment",
+			input: "0:000 秒はい\n0:1010 秒です\nチャプター 3: おわりに\n",
+			body:  "0:000 秒はい\n0:1010 秒です\n",
+			want:  []Segment{{StartMs: 0, Text: "はい"}, {StartMs: 10000, Text: "です"}},
+		},
+		{
+			name:  "heading after the last segment before the trailing region",
+			input: "0:000 秒はい\n0:1010 秒です\nチャプター 3: おわりに\n\n動画の時間と同期",
+			body:  "0:000 秒はい\n0:1010 秒です\n",
+			want:  []Segment{{StartMs: 0, Text: "はい"}, {StartMs: 10000, Text: "です"}},
+		},
+		{
+			name:  "Japanese heading with English labels",
+			input: "0:000 secondsHello\nチャプター 1: はじめに\n0:055 secondsWorld\n",
+			body:  "0:000 secondsHello\n0:055 secondsWorld\n",
+			want:  []Segment{{StartMs: 0, Text: "Hello"}, {StartMs: 5000, Text: "World"}},
+		},
+		{
+			name:  "English heading with Japanese labels",
+			input: "0:000 秒はい\nChapter 2: Intro\n0:1010 秒です\n",
+			body:  "0:000 秒はい\n0:1010 秒です\n",
+			want:  []Segment{{StartMs: 0, Text: "はい"}, {StartMs: 10000, Text: "です"}},
+		},
+		{
+			name:  "titles with a colon, spaces, and the heading word",
+			input: "0:000 秒はい\nチャプター 5: 手順 2: 次のチャプターの準備\n0:1010 秒です\nチャプター 12: 朝 と 夜\nチャプター 13:  前に空白\n0:2020 秒以上\n",
+			body:  "0:000 秒はい\n0:1010 秒です\n0:2020 秒以上\n",
+			want:  []Segment{{StartMs: 0, Text: "はい"}, {StartMs: 10000, Text: "です"}, {StartMs: 20000, Text: "以上"}},
+		},
+		{
+			name:  "English titles with a colon, spaces, and the heading word",
+			input: "0:000 secondsHello\nChapter 12: Step 2: Next Chapter\n0:055 secondsWorld\nChapter 13:  Leading space\n0:1010 secondsBye\n",
+			body:  "0:000 secondsHello\n0:055 secondsWorld\n0:1010 secondsBye\n",
+			want:  []Segment{{StartMs: 0, Text: "Hello"}, {StartMs: 5000, Text: "World"}, {StartMs: 10000, Text: "Bye"}},
+		},
+		{
+			// The first heading precedes the first segment line, so the prefix
+			// skips it; only the heading after it reaches the form A heading skip.
+			name: "whole panel selection",
+			input: "動画の関連情報\n\n\nタイムライン\n\n文字起こし\n文字音声変換を検索\n文字音声変換を検索\n\n" +
+				"チャプター 1: はじめに\n0:011 秒はい\n0:1010 秒です\nチャプター 2: 本題\n1:001 分以上\n\n動画の時間と同期",
+			body: "0:011 秒はい\n0:1010 秒です\n1:001 分以上\n",
+			want: []Segment{{StartMs: 1000, Text: "はい"}, {StartMs: 10000, Text: "です"}, {StartMs: 60000, Text: "以上"}},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assertCopiedBodyHasNoSkippedLine(t, tc.body)
+			got, err := parseCopiedTranscript(tc.input)
+			if err != nil {
+				t.Fatalf("parseCopiedTranscript(%q) error = %v", tc.input, err)
+			}
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("parseCopiedTranscript(%q) = %+v, want %+v", tc.input, got, tc.want)
 			}
 			bodySegments, err := parseCopiedTranscript(tc.body)
 			if err != nil {
@@ -693,6 +824,12 @@ func TestParseCopiedErrorOmitsInput(t *testing.T) {
 			reason:  errCopiedNotTimestamp,
 			input:   "0:000 秒x\nMARKER_LINE\n",
 			markers: []string{"MARKER_LINE"},
+		},
+		{
+			name:    "form A near-miss chapter heading omits the line",
+			reason:  errCopiedNotTimestamp,
+			input:   "0:000 秒x\nチャプター 0: HEADING_MARKER\n0:1010 秒y\n",
+			markers: []string{"HEADING_MARKER", "チャプター"},
 		},
 		{
 			name:    "prefix digit-colon-digit omits the line",
@@ -863,6 +1000,7 @@ func FuzzNewCopiedSource(f *testing.F) {
 	f.Add("0:2424 秒Hello\n\nSync to video time")
 	f.Add("文字起こし\n\n0:2424 秒Hello\n")
 	f.Add("文字起こし\n動画内を検索\n0:00\nx\n")
+	f.Add("0:000 秒はい\nチャプター 2: 次へ\n0:1010 秒です\n")
 
 	f.Fuzz(func(t *testing.T, raw string) {
 		source, err := NewCopiedSource(CopiedInput{VideoID: copiedTestVideoID, Raw: raw})
