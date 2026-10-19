@@ -10,6 +10,15 @@ import (
 // zeroWidthSpace is inserted after an '@' to keep it from starting a mention.
 const zeroWidthSpace = "\xe2\x80\x8b"
 
+// slackPost is the full text of a post.
+type slackPost struct {
+	text string
+	// keepTogetherFrom is the rune index in text from which the post must not
+	// be cut: the last line of the body and the footer stay in one message.
+	// It lies in [0, rune count of text]; the rune count means no such region.
+	keepTogetherFrom int
+}
+
 // neutralizeMentions returns value with U+200B inserted after each '@' that
 // mentionAts reports for the V3-replaced value, except an '@' that directly
 // follows '/': it may be part of a URL, which U+200B would break, and
@@ -54,17 +63,6 @@ func insertAfterAts(value string, inScope func(offset int) bool) string {
 		offset += utf8.RuneLen(r)
 	}
 	return b.String()
-}
-
-// mentionAtsOf applies the V3 replacement to runes and returns mentionAts of
-// the result. Because V3 replaces one rune with one rune, an index is also an
-// index of runes.
-func mentionAtsOf(runes []rune) []int {
-	replaced := make([]rune, len(runes))
-	for i, r := range runes {
-		replaced[i] = replaceLookAlike(r)
-	}
-	return mentionAts(replaced)
 }
 
 // followsSlash reports whether the rune before index i is '/'.
