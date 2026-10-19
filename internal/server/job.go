@@ -13,7 +13,7 @@ import (
 	"github.com/isseis/yt2column/internal/writer"
 )
 
-// maxInFlight bounds the authenticated requests in progress: from the body read
+// maxInFlight bounds the requests in progress: from the body read
 // through the end of the job or of the failure notice. A request that cannot
 // take a slot is refused at once; there is no queue.
 const maxInFlight = 2

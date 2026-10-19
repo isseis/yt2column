@@ -71,7 +71,6 @@ func TestSlotLimit(t *testing.T) {
 
 	serve := func() *httptest.ResponseRecorder {
 		req := newRequest(http.MethodPost, ArticlesPath, strings.NewReader(validBody(testValidVideoURL, testValidRaw)))
-		withValidHeaders(req, testTokenValue)
 		rec := httptest.NewRecorder()
 		s.handler(rec, req)
 		return rec
@@ -114,7 +113,6 @@ func TestSlotReleasedOnce(t *testing.T) {
 	t.Run("read_failure", func(t *testing.T) {
 		ts := newTestServer(t)
 		req := newRequest(http.MethodPost, ArticlesPath, iotest.ErrReader(errors.New("cut")))
-		withValidHeaders(req, testTokenValue)
 		rec := httptest.NewRecorder()
 		func() {
 			defer func() {
@@ -137,7 +135,6 @@ func TestSlotReleasedOnce(t *testing.T) {
 	t.Run("handler_panic", func(t *testing.T) {
 		ts := newTestServer(t)
 		req := newRequest(http.MethodPost, ArticlesPath, panickingReader{})
-		withValidHeaders(req, testTokenValue)
 		rec := ts.serve(req)
 		ts.waitJobs()
 		if rec.Code != http.StatusInternalServerError {
@@ -181,7 +178,6 @@ func TestFailureClassification(t *testing.T) {
 			notifier := &failuretestutil.FakeNotifier{}
 			s := newCustomServer(t, fakeWriter, fakePub, notifier)
 			req := newRequest(http.MethodPost, ArticlesPath, strings.NewReader(validBody(testValidVideoURL, testValidRaw)))
-			withValidHeaders(req, testTokenValue)
 			s.handler(httptest.NewRecorder(), req)
 			s.jobs.Wait()
 			if len(notifier.Calls) != 1 {
@@ -198,20 +194,16 @@ func TestFailureClassification(t *testing.T) {
 // reason value.
 func TestReasonToKind(t *testing.T) {
 	want := map[rejectReason]failure.Kind{
-		reasonInternal:             failure.KindInternal,
-		reasonBodyTooLarge:         failure.KindBodyTooLarge,
-		reasonInvalidBody:          failure.KindInvalidBody,
-		reasonInvalidVideoURL:      failure.KindInvalidVideoURL,
-		reasonInvalidTranscript:    failure.KindInvalidTranscript,
-		reasonForbiddenHost:        failure.KindUnknown,
-		reasonNotFound:             failure.KindUnknown,
-		reasonMethodNotAllowed:     failure.KindUnknown,
-		reasonUnsupportedMediaType: failure.KindUnknown,
-		reasonForbiddenOrigin:      failure.KindUnknown,
-		reasonUnauthorized:         failure.KindUnknown,
-		reasonTooManyRequests:      failure.KindUnknown,
+		reasonInternal:          failure.KindInternal,
+		reasonBodyTooLarge:      failure.KindBodyTooLarge,
+		reasonInvalidBody:       failure.KindInvalidBody,
+		reasonInvalidVideoURL:   failure.KindInvalidVideoURL,
+		reasonInvalidTranscript: failure.KindInvalidTranscript,
+		reasonNotFound:          failure.KindUnknown,
+		reasonMethodNotAllowed:  failure.KindUnknown,
+		reasonTooManyRequests:   failure.KindUnknown,
 	}
-	for reason := range rejectReason(12) {
+	for reason := range reasonInvalidTranscript + 1 {
 		expected, ok := want[reason]
 		if !ok {
 			t.Fatalf("no expected kind for reason %d", reason)
@@ -282,7 +274,6 @@ func TestPanicRecycledAsInternal(t *testing.T) {
 	notifier := &failuretestutil.FakeNotifier{}
 	s := newCustomServer(t, panickingWriter{}, &publishertestutil.FakePublisher{}, notifier)
 	req := newRequest(http.MethodPost, ArticlesPath, strings.NewReader(validBody(testValidVideoURL, testValidRaw)))
-	withValidHeaders(req, testTokenValue)
 	rec := httptest.NewRecorder()
 	s.handler(rec, req)
 	s.jobs.Wait()
@@ -302,8 +293,6 @@ func TestPanicRecycledAsInternal(t *testing.T) {
 func TestNotifyPanicLogged(t *testing.T) {
 	logs := &strings.Builder{}
 	s, err := New(Options{
-		Port:      testPort,
-		Token:     newTestToken(t),
 		Writer:    panickingWriter{},
 		Publisher: &publishertestutil.FakePublisher{},
 		Notifier:  panickingNotifier{},
@@ -313,7 +302,6 @@ func TestNotifyPanicLogged(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 	req := newRequest(http.MethodPost, ArticlesPath, strings.NewReader(validBody(testValidVideoURL, testValidRaw)))
-	withValidHeaders(req, testTokenValue)
 	s.handler(httptest.NewRecorder(), req)
 	s.jobs.Wait()
 	if !strings.Contains(logs.String(), "failure notice panicked") {

@@ -7,7 +7,7 @@ YouTube 動画の URL を受け取り、その文字起こしを元に LLM で�
 ## 決定済みの方針
 
 - **言語: Go**（ブラウザ拡張は TypeScript。詳細は §「想定ディレクトリ構成」と `docs/tasks/0007_browser_extension_skeleton/`）。依存関係を最小限にし、シングルバイナリで配布する。
-- **実行形式: ローカル実行の CLI と localhost サーバ**。コアロジックは `cmd/` から分離したパッケージとして実装し、両方の入口で共有する。localhost サーバ（`cmd/yt2column-server`・`internal/server`）は、ブラウザ拡張が YouTube の文字起こしパネルからコピーした字幕を HTTP で受け取り、記事を生成して Slack へ投稿する（タスク `0011_localhost_server`）。起動は手動とし、`yt-dlp` は呼ばない。
+- **実行形式: ローカル実行の CLI と localhost サーバ**。コアロジックは `cmd/` から分離したパッケージとして実装し、両方の入口で共有する。localhost サーバ（`cmd/yt2column-server`・`internal/server`）は、ブラウザ拡張が YouTube の文字起こしパネルからコピーした字幕を受け取り、記事を生成して Slack へ投稿する（タスク `0011_localhost_server`）。サーバは TCP を待ち受けず、`HOME` だけから導出したパスの Unix ドメインソケットの上で HTTP を受ける（タスク `0026_native_messaging_relay`）。起動は手動とし、`yt-dlp` は呼ばない。
 - **字幕取得: 外部コマンドの `yt-dlp` に委譲する**。YouTube の非公式な仕様に依存する最も壊れやすい部分を、保守が活発なツールに任せるため。Go で字幕取得を自前実装しないこと。例外として、利用者が YouTube の文字起こしパネルからコピーした字幕の文字列を解析するパーサ（`internal/transcript` で `CopiedSource` が `Raw` を解析する箇所）は、パネルが出力する書式に依存する。依存はそのパーサに限り（Go から YouTube のページやパネルを取得・解析しない）、書式が変わって拒否が続く間は `yt-dlp` の経路を代わりの手段として残す。
 - **LLM: 初期実装は DeepSeek**（DeepSeek 公式 API を直接契約して使う）。API は OpenAI 互換の Chat Completions 形式（`POST https://api.deepseek.com/chat/completions`）で単純なため、SDK は使わず標準ライブラリ（`net/http`・`encoding/json`）で呼び出す。
   - OpenCode Go 経由の利用は採用しない。利用条件が「コーディングエージェントのトラフィック」を前提としており、本ツールの用途に合わないため。
@@ -79,7 +79,7 @@ cmd/yt2column/main.go     # CLI エントリポイント
 cmd/yt2column-server/     # localhost サーバのエントリポイント（main.go・run.go）
 internal/pipeline/        # 3段階を束ねるオーケストレーション
 internal/server/          # localhost サーバ（HTTP の受け口・検査・応答・ジョブ）
-internal/authtoken/       # 拡張を認証する共有トークンとそのファイル
+internal/serversock/      # サーバの Unix ドメインソケット（ソケットのディレクトリの検査・起動のロック・stale の判定）
 internal/failure/         # 失敗の通知の型（Kind・Notice・Notifier）
 internal/redact/          # 出力の伏せ字（CLI とサーバが共有）
 internal/signalrun/       # シグナルの扱い（CLI とサーバが共有）
@@ -117,11 +117,10 @@ extension/                # ブラウザ拡張（TypeScript。開発環境・Man
 | `SLACK_WEBHOOK_URL` | 投稿先の Slack 互換 Incoming Webhook URL（Mattermost を検証済み）。`--out` の場合も、設定されていれば `https` の URL として検証する | `--slack` では必須。`--out` では値なし |
 | `YT2COLUMN_CACHE_DIR` | 字幕・info.json のキャッシュディレクトリ | 利用者のキャッシュディレクトリの下の `yt2column`（macOS は `$HOME/Library/Caches/yt2column`） |
 | `YT2COLUMN_YTDLP_PATH` | `PATH` 上の `yt-dlp` を使う | `PATH` 上の `yt-dlp` |
-| `YT2COLUMN_SERVER_PORT` | localhost サーバが待ち受けるポート（`1024`〜`65535`） | `8765` |
 
 値は前後の空白を取り除くなどの補正をせず、空の値は「未設定」ではなくエラーとして扱う。
 
-`internal/config` の `LoadServer` は、localhost サーバの設定を読む。LLM の設定は CLI と共有し、`SLACK_WEBHOOK_URL` を必須とする。サーバは `yt-dlp` を呼ばないので、`YT2COLUMN_CACHE_DIR` と `YT2COLUMN_YTDLP_PATH` は読まない（不正な値でも起動を止めない）。
+`internal/config` の `LoadServer` は、localhost サーバの設定を読む。LLM の設定は CLI と共有し、`SLACK_WEBHOOK_URL` を必須とする。サーバは `yt-dlp` を呼ばないので、`YT2COLUMN_CACHE_DIR` と `YT2COLUMN_YTDLP_PATH` は読まない（不正な値でも起動を止めない）。ソケットのパスは `HOME` だけから導出し、`XDG_*`・`TMPDIR` は読まない。
 
 プロバイダ固有の変数は、生成と検証・推敲のどちらかが選んだプロバイダのものを読んで検査する。他のプロバイダの変数は、未設定・空・不正な値のいずれでも拒否しない。`YT2COLUMN_LLM_PROVIDER` 自体が不正で `YT2COLUMN_REVIEW_PROVIDER` も未設定の場合は、どのプロバイダ固有の変数も検査しない。`YT2COLUMN_REVIEW_PROVIDER` を設定した場合は `YT2COLUMN_REVIEW_MODEL` が必須で、どちらも未設定なら検証・推敲は生成と同じプロバイダとモデルを使う。`--no-review` を指定しても検証・推敲の設定は検査する。
 

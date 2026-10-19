@@ -2,13 +2,9 @@ package config
 
 import "path/filepath"
 
-// appDirName is the directory the application's cache and configuration live
-// in under the operating system's user directory.
+// appDirName is the directory the application's cache and socket directory
+// live in under the operating system's user directory.
 const appDirName = "yt2column"
-
-// tokenFileName is the shared token file's name under the configuration
-// directory.
-const tokenFileName = "server-token"
 
 // dirOverride is the OS-specific part of a user-directory rule: the
 // subdirectory of HOME macOS uses, the XDG variable the other Unix systems
@@ -29,17 +25,6 @@ var cacheDirOverride = dirOverride{
 	absent:     reasonCacheDirAbsent,
 }
 
-// configDirOverride is the rule for the configuration directory
-// (os.UserConfigDir). On macOS the configuration lives in Library/Application
-// Support, matching the cache's choice of the OS directory rather than the XDG
-// fallback.
-var configDirOverride = dirOverride{
-	darwin:     []string{"Library", "Application Support"},
-	xdgEnv:     "XDG_CONFIG_HOME",
-	xdgDefault: []string{".config"},
-	absent:     reasonConfigDirAbsent,
-}
-
 // defaultCacheDir returns the default YT2COLUMN_CACHE_DIR for goos, derived
 // from the values lookup returns, and whether one could be derived. It follows
 // the same rules as os.UserCacheDir for the supported operating systems, but
@@ -51,18 +36,6 @@ func defaultCacheDir(goos string, lookup LookupFunc) (string, bool) {
 		return "", false
 	}
 	return filepath.Join(base, appDirName), true
-}
-
-// defaultConfigDir returns the default configuration directory for goos,
-// derived from the values lookup returns, or a *VarError naming the variable
-// that prevented the derivation. It follows the same rules as os.UserConfigDir
-// for the supported operating systems and rejects a relative result.
-func defaultConfigDir(goos string, lookup LookupFunc) (string, *VarError) {
-	base, err := userDirBase(goos, lookup, configDirOverride)
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(base, appDirName), nil
 }
 
 // userDirBase returns the base directory of the user-directory rule o for goos,

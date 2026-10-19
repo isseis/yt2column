@@ -3,39 +3,31 @@
 package main
 
 import (
-	"bytes"
 	"regexp"
 	"strings"
 	"testing"
-
-	"github.com/isseis/yt2column/internal/server"
 )
 
 // requestIDPattern is the form of the request ID the server generates and the
 // failure notifier accepts.
 var requestIDPattern = regexp.MustCompile(`^[0-9a-f]{16}$`)
 
-// TestServerEndToEnd runs the assembled server on real sockets with a fake LLM
-// client and the real webhook publisher and failure notifier posting to a
-// loopback webhook. It checks, in one server's lifetime: an accepted request
-// posts the article under the normalized URL; a rejected transcript yields a
-// failure notice that carries the response's request ID, so the server's ID
-// and the notifier's check agree; and an oversized body with a wrong token is
-// refused as unauthorized or by a cut connection, never as too large, and is
-// not notified. A second start with the same HOME accepts the first token.
-// How each start displays the token is TestTokenShownOnEveryStart's.
+// TestServerEndToEnd runs the assembled server on a real Unix socket with a
+// fake LLM client and the real webhook publisher and failure notifier posting
+// to a loopback webhook. It checks, in one server's lifetime: a request with
+// no header beyond what net/http adds is accepted and posts the article under
+// the normalized URL; and a rejected transcript yields a failure notice that
+// carries the response's request ID, so the server's ID and the notifier's
+// check agree. A second start with the same HOME, after a normal stop, serves
+// on the same socket path.
 func TestServerEndToEnd(t *testing.T) {
 	webhook, webhookURL := newWebhookServer(t)
 	e := newServerEnv(t)
 	d := loopbackDeps(t, validResponseLLM(), webhookURL)
+	socket := e.socketPath(t)
 
 	first := startServer(t, e, d)
-	// Use the one line the start displays on standard output, not the token
-	// file, so a mismatch between the two would fail the authentication below.
-	token := displayedToken(t, first)
-	port := e.port(t)
-
-	accepted := mustPostArticle(t, port, token, requestBody(testValidRaw), 202)
+	accepted := mustPostArticle(t, socket, requestBody(testValidRaw), 202)
 	if accepted.Status != "accepted" || !requestIDPattern.MatchString(accepted.RequestID) {
 		t.Errorf("accepted response = %+v, want status accepted and a request ID", accepted)
 	}
@@ -44,7 +36,7 @@ func TestServerEndToEnd(t *testing.T) {
 		t.Errorf("the article names the request's URL instead of the normalized one:\n%s", article)
 	}
 
-	rejected := mustPostArticle(t, port, token, requestBody("not a copied transcript"), 400)
+	rejected := mustPostArticle(t, socket, requestBody("not a copied transcript"), 400)
 	if rejected.Reason != "invalid_transcript" {
 		t.Errorf("rejected reason = %q, want invalid_transcript", rejected.Reason)
 	}
@@ -53,30 +45,13 @@ func TestServerEndToEnd(t *testing.T) {
 		t.Errorf("the notice does not name the video:\n%s", notice)
 	}
 
-	// The body is refused before it is read, so the sender sees 401 or, when
-	// the server closes the connection while the body is still being sent,
-	// a cut connection. Either is recorded; 413 would mean the body was read.
-	before := len(webhook.messages())
-	oversized := bytes.Repeat([]byte("a"), server.MaxBodyBytesForTest+1)
-	status, resp, err := postArticle(port, strings.Repeat("0", len(token)), bytes.NewReader(oversized))
-	switch {
-	case err != nil && status == 0:
-		t.Logf("oversized body with a wrong token: the connection was cut (%v)", err)
-	case status == 401:
-		t.Logf("oversized body with a wrong token: 401 %+v", resp)
-	default:
-		t.Errorf("oversized body with a wrong token: status %d, error %v; want 401 or a cut connection", status, err)
-	}
-
 	if code := first.stop(t); code != exitOK {
 		t.Fatalf("first run exit code = %d, want %d\nstderr:\n%s", code, exitOK, first.stderr.String())
 	}
-	if got := len(webhook.messages()); got != before {
-		t.Errorf("webhook messages after the unauthorized request = %d, want %d (no notice)", got, before)
-	}
+	before := len(webhook.messages())
 
 	second := startServer(t, e, d)
-	mustPostArticle(t, e.port(t), displayedToken(t, second), requestBody(testValidRaw), 202)
+	mustPostArticle(t, socket, requestBody(testValidRaw), 202)
 	// stop waits for the job, so its article has been posted when it returns.
 	if code := second.stop(t); code != exitOK {
 		t.Fatalf("second run exit code = %d, want %d\nstderr:\n%s", code, exitOK, second.stderr.String())
@@ -84,18 +59,6 @@ func TestServerEndToEnd(t *testing.T) {
 	if posted := webhook.messages()[before:]; len(posted) != 1 || !strings.Contains(posted[0], "A title") {
 		t.Errorf("messages posted by the second run = %q, want the one article", posted)
 	}
-	requireNoSecret(t, "first stderr", first.stderr.String(), token)
-	requireNoSecret(t, "second stderr", second.stderr.String(), token)
-}
-
-// displayedToken returns the shared token from the one line the server displays
-// on standard output, read while the server serves through the synchronized
-// buffer.
-func displayedToken(t *testing.T, srv *runningServer) string {
-	t.Helper()
-	raw := srv.stdout.String()
-	if strings.Count(raw, "\n") != 1 || !strings.HasSuffix(raw, "\n") {
-		t.Fatalf("the display is not one token line: %q", raw)
-	}
-	return strings.TrimSuffix(raw, "\n")
+	requireNoSecret(t, "first stderr", first.stderr.String())
+	requireNoSecret(t, "second stderr", second.stderr.String())
 }

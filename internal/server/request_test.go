@@ -75,7 +75,6 @@ func TestRejectBodyTable(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ts := newTestServer(t)
 			req := newRequest(http.MethodPost, ArticlesPath, bytes.NewReader(tc.body))
-			withValidHeaders(req, testTokenValue)
 			rec := ts.serve(req)
 			ts.waitJobs()
 			if rec.Code != http.StatusBadRequest {
@@ -138,7 +137,6 @@ func TestOptionalMembers(t *testing.T) {
 func (ts *testServer) request(t *testing.T, body string) *http.Request {
 	t.Helper()
 	req := newRequest(http.MethodPost, ArticlesPath, strings.NewReader(body))
-	withValidHeaders(req, ts.token)
 	return req
 }
 
@@ -210,54 +208,26 @@ func TestRejectInvalidTranscript(t *testing.T) {
 	}
 }
 
-// TestHeaderRejectionReadsNoBody checks that a request rejected on its headers
-// (including an oversized body with a wrong token) has zero bytes of its body
-// read.
+// TestHeaderRejectionReadsNoBody checks that a request rejected on its target
+// or method (including one that declares an oversized body) has zero bytes of
+// its body read.
 func TestHeaderRejectionReadsNoBody(t *testing.T) {
 	tests := []struct {
 		name  string
 		build func(t *testing.T, body io.Reader) *http.Request
 		code  int
 	}{
-		{"host", func(_ *testing.T, body io.Reader) *http.Request {
-			req := newRequest(http.MethodPost, ArticlesPath, body)
-			withValidHeaders(req, testTokenValue)
-			req.Host = "example.com:8765"
-			return req
-		}, http.StatusForbidden},
 		{"path", func(_ *testing.T, body io.Reader) *http.Request {
-			req := newRequest(http.MethodPost, "/nope", body)
-			withValidHeaders(req, testTokenValue)
-			return req
+			return newRequest(http.MethodPost, "/nope", body)
 		}, http.StatusNotFound},
 		{"method", func(_ *testing.T, body io.Reader) *http.Request {
-			req := newRequest(http.MethodGet, ArticlesPath, body)
-			withValidHeaders(req, testTokenValue)
-			return req
+			return newRequest(http.MethodGet, ArticlesPath, body)
 		}, http.StatusMethodNotAllowed},
-		{"content_type", func(_ *testing.T, body io.Reader) *http.Request {
-			req := newRequest(http.MethodPost, ArticlesPath, body)
-			withValidHeaders(req, testTokenValue)
-			req.Header.Set("Content-Type", "text/plain")
-			return req
-		}, http.StatusUnsupportedMediaType},
-		{"origin", func(_ *testing.T, body io.Reader) *http.Request {
-			req := newRequest(http.MethodPost, ArticlesPath, body)
-			withValidHeaders(req, testTokenValue)
-			req.Header.Set("Origin", "chrome-extension://other")
-			return req
-		}, http.StatusForbidden},
-		{"token", func(_ *testing.T, body io.Reader) *http.Request {
-			req := newRequest(http.MethodPost, ArticlesPath, body)
-			withValidHeaders(req, testOtherTokenValue)
-			return req
-		}, http.StatusUnauthorized},
-		{"oversized_body_wrong_token", func(_ *testing.T, body io.Reader) *http.Request {
-			req := newRequest(http.MethodPost, ArticlesPath, body)
-			withValidHeaders(req, testOtherTokenValue)
+		{"oversized_body_wrong_method", func(_ *testing.T, body io.Reader) *http.Request {
+			req := newRequest(http.MethodPut, ArticlesPath, body)
 			req.ContentLength = maxBodyBytes * 4
 			return req
-		}, http.StatusUnauthorized},
+		}, http.StatusMethodNotAllowed},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -282,7 +252,6 @@ func TestBodyTooLarge(t *testing.T) {
 		ts := newTestServer(t)
 		counter := &recordingReader{r: bytes.NewReader([]byte("{}"))}
 		req := newRequest(http.MethodPost, ArticlesPath, io.NopCloser(counter))
-		withValidHeaders(req, testTokenValue)
 		req.ContentLength = maxBodyBytes + 1
 		rec := ts.serve(req)
 		ts.waitJobs()
@@ -300,7 +269,6 @@ func TestBodyTooLarge(t *testing.T) {
 		ts := newTestServer(t)
 		counter := &recordingReader{r: strings.NewReader(strings.Repeat("x", maxBodyBytes+10))}
 		req := newRequest(http.MethodPost, ArticlesPath, io.NopCloser(counter))
-		withValidHeaders(req, testTokenValue)
 		req.ContentLength = -1
 		rec := ts.serve(req)
 		ts.waitJobs()

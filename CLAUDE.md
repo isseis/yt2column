@@ -116,12 +116,12 @@ URL → TranscriptSource → Transcript → ArticleWriter → Article → Publis
 
 Two entry points share the pipeline: the CLI (`cmd/yt2column`, above) and a
 localhost server (`cmd/yt2column-server` + `internal/server`) that takes a
-copied transcript from the browser extension over HTTP and posts the article to
-the Webhook. The server's supporting packages are `internal/authtoken` (the
-shared token that authenticates the extension), `internal/failure` (the
-`Kind`/`Notice`/`Notifier` contract it reports a failed request with),
-`internal/redact` (secret redaction for every output), and `internal/signalrun`
-(signal handling both entry points share).
+copied transcript from the browser extension over HTTP on a Unix domain socket
+and posts the article to the Webhook. The server's supporting packages are
+`internal/serversock` (the socket directory, the start lock, and the socket
+itself), `internal/failure` (the `Kind`/`Notice`/`Notifier` contract it reports
+a failed request with), `internal/redact` (secret redaction for every output),
+and `internal/signalrun` (signal handling both entry points share).
 
 See [Project Overview](docs/dev/project_overview.md) for the decided policies and
 constraints, and [Package Reference](docs/dev/developer_guide/package_reference.md)

@@ -3,13 +3,14 @@
 package server
 
 import (
+	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net"
 	"net/http"
-	"net/http/httptest"
-	"strconv"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -19,41 +20,15 @@ import (
 	failuretestutil "github.com/isseis/yt2column/internal/failure/testutil"
 	"github.com/isseis/yt2column/internal/publisher"
 	publishertestutil "github.com/isseis/yt2column/internal/publisher/testutil"
+	"github.com/isseis/yt2column/internal/udstest"
 	"github.com/isseis/yt2column/internal/writer"
 	writertestutil "github.com/isseis/yt2column/internal/writer/testutil"
 )
 
-// requireIPv6Loopback skips the test when the IPv6 loopback is unavailable.
-func requireIPv6Loopback(t *testing.T) {
-	t.Helper()
-	listener, err := net.Listen("tcp", "[::1]:0")
-	if err != nil {
-		t.Skipf("IPv6 loopback is unavailable: %v", err)
-	}
-	_ = listener.Close()
-}
-
-// freePort returns a port that was free on the IPv4 loopback a moment ago.
-func freePort(t *testing.T) uint16 {
-	t.Helper()
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("find a free port: %v", err)
-	}
-	port := listener.Addr().(*net.TCPAddr).Port
-	if err := listener.Close(); err != nil {
-		t.Fatalf("close the probe listener: %v", err)
-	}
-	return uint16(port) //nolint:gosec // a TCP port fits in uint16
-}
-
-// newServerOnPort builds a Server with the given port, collaborators, and log
-// output.
-func newServerOnPort(t *testing.T, port uint16, w writer.ArticleWriter, p publisher.Publisher, n failure.Notifier, logs io.Writer) *Server {
+// newServer builds a Server with the given collaborators and log output.
+func newServer(t *testing.T, w writer.ArticleWriter, p publisher.Publisher, n failure.Notifier, logs io.Writer) *Server {
 	t.Helper()
 	s, err := New(Options{
-		Port:      port,
-		Token:     newTestToken(t),
 		Writer:    w,
 		Publisher: p,
 		Notifier:  n,
@@ -65,66 +40,83 @@ func newServerOnPort(t *testing.T, port uint16, w writer.ArticleWriter, p publis
 	return s
 }
 
-// listenOnFreePort finds a free port and binds both loopback addresses on it.
-func listenOnFreePort(t *testing.T, s *Server) ([]net.Listener, uint16) {
+// listenUnix opens a Unix domain socket listener in a fresh short directory and
+// returns it with its path.
+func listenUnix(t *testing.T) (net.Listener, string) {
 	t.Helper()
-	requireIPv6Loopback(t)
-	var lastErr error
-	for range 10 {
-		port := freePort(t)
-		s.port = port
-		listeners, err := s.Listen()
-		if err == nil {
-			return listeners, port
-		}
-		lastErr = err
-	}
-	t.Fatalf("Listen could not bind a free port after several attempts: %v", lastErr)
-	return nil, 0
+	path := filepath.Join(udstest.Dir(t), "s.sock")
+	return udstest.Listen(t, path), path
 }
 
-// closeListeners closes every listener, ignoring an already-closed one.
-func closeListeners(listeners []net.Listener) {
-	for _, l := range listeners {
-		_ = l.Close()
-	}
-}
-
-// TestListenBindsLoopbackOnly checks that Listen binds only 127.0.0.1 and ::1 on
-// the configured port.
-func TestListenBindsLoopbackOnly(t *testing.T) {
-	s := newServerOnPort(t, testPort, &writertestutil.FakeArticleWriter{}, &publishertestutil.FakePublisher{}, &failuretestutil.FakeNotifier{}, &bytes.Buffer{})
-	listeners, port := listenOnFreePort(t, s)
-	defer closeListeners(listeners)
-
-	got := map[string]bool{}
-	for _, l := range listeners {
-		got[l.Addr().String()] = true
-	}
-	want := map[string]bool{
-		"127.0.0.1:" + strconv.Itoa(int(port)): true,
-		"[::1]:" + strconv.Itoa(int(port)):     true,
-	}
-	for addr := range want {
-		if !got[addr] {
-			t.Errorf("missing listener for %s (got %v)", addr, got)
-		}
-	}
-	if len(got) != len(want) {
-		t.Errorf("listeners = %v, want only %v", got, want)
-	}
-}
-
-// TestServeListenerFailureStops checks that when one listener fails, Serve stops
-// and returns the error instead of serving on the other alone.
-func TestServeListenerFailureStops(t *testing.T) {
-	s := newServerOnPort(t, testPort, &writertestutil.FakeArticleWriter{}, &publishertestutil.FakePublisher{}, &failuretestutil.FakeNotifier{}, &bytes.Buffer{})
-	listeners, _ := listenOnFreePort(t, s)
+// serveUnix runs s.Serve on a fresh Unix socket until the test ends, and
+// returns the socket's path. At cleanup it cancels Serve and waits for it.
+func serveUnix(t *testing.T, s *Server) string {
+	t.Helper()
+	listener, path := listenUnix(t)
+	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	go func() { done <- s.Serve(context.Background(), listeners) }()
+	go func() { done <- s.Serve(ctx, listener) }()
+	t.Cleanup(func() {
+		cancel()
+		<-done
+	})
+	return path
+}
+
+// unixTransport returns a transport that dials the socket at path for every
+// request, whatever the URL's host.
+func unixTransport(path string) *http.Transport {
+	return &http.Transport{
+		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			var d net.Dialer
+			return d.DialContext(ctx, "unix", path)
+		},
+	}
+}
+
+// postOnUnix sends a valid article request to the socket at path and returns
+// the status and the decoded body.
+func postOnUnix(t *testing.T, path string) (int, responseBody) {
+	t.Helper()
+	body := strings.NewReader(validBody(testValidVideoURL, testValidRaw))
+	req, err := http.NewRequest(http.MethodPost, "http://yt2column"+ArticlesPath, body)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	client := &http.Client{Transport: unixTransport(path)}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("send the request: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	var decoded responseBody
+	if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil {
+		t.Fatalf("decode the response body: %v", err)
+	}
+	return resp.StatusCode, decoded
+}
+
+// TestServeOnUnixListener checks that Serve answers a request that reaches it
+// over a Unix domain socket listener with the accepted response.
+func TestServeOnUnixListener(t *testing.T) {
+	s := newServer(t, &writertestutil.FakeArticleWriter{}, &publishertestutil.FakePublisher{}, &failuretestutil.FakeNotifier{}, &bytes.Buffer{})
+	path := serveUnix(t, s)
+	status, body := postOnUnix(t, path)
+	if status != http.StatusAccepted || body.Status != "accepted" {
+		t.Errorf("response = %d %+v, want 202 accepted", status, body)
+	}
+}
+
+// TestServeListenerFailureStops checks that when the listener fails, Serve stops
+// and returns the error.
+func TestServeListenerFailureStops(t *testing.T) {
+	s := newServer(t, &writertestutil.FakeArticleWriter{}, &publishertestutil.FakePublisher{}, &failuretestutil.FakeNotifier{}, &bytes.Buffer{})
+	listener, _ := listenUnix(t)
+	done := make(chan error, 1)
+	go func() { done <- s.Serve(context.Background(), listener) }()
 	time.Sleep(50 * time.Millisecond)
-	if err := listeners[0].Close(); err != nil {
-		t.Fatalf("close a listener: %v", err)
+	if err := listener.Close(); err != nil {
+		t.Fatalf("close the listener: %v", err)
 	}
 	select {
 	case err := <-done:
@@ -132,10 +124,7 @@ func TestServeListenerFailureStops(t *testing.T) {
 			t.Errorf("Serve error = nil, want the listener error")
 		}
 	case <-time.After(5 * time.Second):
-		t.Fatal("Serve did not return after a listener failed")
-	}
-	if _, err := listeners[1].Accept(); err == nil {
-		t.Error("the other listener is still open after one failed")
+		t.Fatal("Serve did not return after the listener failed")
 	}
 }
 
@@ -145,12 +134,12 @@ func TestServeListenerFailureStops(t *testing.T) {
 func TestServeShutdownWaitsForJobs(t *testing.T) {
 	gate := newGateWriter()
 	logs := &bytes.Buffer{}
-	s := newServerOnPort(t, testPort, gate, &publishertestutil.FakePublisher{}, &failuretestutil.FakeNotifier{}, logs)
-	listeners, port := listenOnFreePort(t, s)
+	s := newServer(t, gate, &publishertestutil.FakePublisher{}, &failuretestutil.FakeNotifier{}, logs)
+	listener, path := listenUnix(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	go func() { done <- s.Serve(ctx, listeners) }()
+	go func() { done <- s.Serve(ctx, listener) }()
 	var once sync.Once
 	releaseGate := func() { once.Do(func() { close(gate.release) }) }
 	defer func() {
@@ -158,22 +147,8 @@ func TestServeShutdownWaitsForJobs(t *testing.T) {
 		releaseGate()
 	}()
 
-	body := strings.NewReader(validBody(testValidVideoURL, testValidRaw))
-	req, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:"+strconv.Itoa(int(port))+ArticlesPath, body)
-	if err != nil {
-		t.Fatalf("NewRequest: %v", err)
-	}
-	req.Header.Set("Content-Type", jsonContentType)
-	req.Header.Set("Origin", extensionOrigin)
-	req.Header.Set("Authorization", bearerPrefix+testTokenValue)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatalf("send the request: %v", err)
-	}
-	_, _ = io.Copy(io.Discard, resp.Body)
-	_ = resp.Body.Close()
-	if resp.StatusCode != http.StatusAccepted {
-		t.Fatalf("status = %d, want 202", resp.StatusCode)
+	if status, _ := postOnUnix(t, path); status != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202", status)
 	}
 
 	select {
@@ -209,25 +184,13 @@ func TestServeShutdownWaitsForJobs(t *testing.T) {
 // the connection is closed without net/http's implicit empty 200.
 func TestBodyReadFailureWritesNoResponse(t *testing.T) {
 	ts := newTestServer(t)
-	srv := httptest.NewServer(http.HandlerFunc(ts.handler))
-	t.Cleanup(srv.Close)
-	conn, err := net.Dial("tcp", srv.Listener.Addr().String())
-	if err != nil {
-		t.Fatalf("dial: %v", err)
-	}
-	t.Cleanup(func() { _ = conn.Close() })
+	conn := dialUnix(t, serveUnix(t, ts.Server))
 	request := "POST " + ArticlesPath + " HTTP/1.1\r\n" +
-		"Host: 127.0.0.1:" + strconv.Itoa(testPort) + "\r\n" +
-		"Content-Type: " + jsonContentType + "\r\n" +
-		"Origin: " + extensionOrigin + "\r\n" +
-		"Authorization: " + bearerPrefix + testTokenValue + "\r\n" +
+		"Host: yt2column\r\n" +
 		"Transfer-Encoding: chunked\r\n\r\n" +
 		"zz\r\n"
 	if _, err := conn.Write([]byte(request)); err != nil {
 		t.Fatalf("write the request: %v", err)
-	}
-	if err := conn.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
-		t.Fatalf("set the read deadline: %v", err)
 	}
 	data, err := io.ReadAll(conn)
 	if err != nil {
@@ -242,5 +205,79 @@ func TestBodyReadFailureWritesNoResponse(t *testing.T) {
 	}
 	if len(ts.notifier.Calls) != 0 {
 		t.Errorf("notifier calls = %d, want 0 for a body-read failure", len(ts.notifier.Calls))
+	}
+}
+
+// dialUnix connects to the socket at path with a read deadline, and closes the
+// connection at cleanup.
+func dialUnix(t *testing.T, path string) net.Conn {
+	t.Helper()
+	conn, err := net.Dial("unix", path)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	t.Cleanup(func() { _ = conn.Close() })
+	if err := conn.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		t.Fatalf("set the read deadline: %v", err)
+	}
+	return conn
+}
+
+// TestExpectContinueOversizedBodyNotSent checks over a Unix socket that a
+// request declaring a body over the limit with Expect: 100-continue is answered
+// with 413 before the client sends a byte of the body, so the client receives
+// the rejection instead of a write error.
+func TestExpectContinueOversizedBodyNotSent(t *testing.T) {
+	ts := newTestServer(t)
+	path := serveUnix(t, ts.Server)
+	counter := &recordingReader{r: strings.NewReader(strings.Repeat("x", maxBodyBytes+1))}
+	req, err := http.NewRequest(http.MethodPost, "http://yt2column"+ArticlesPath, io.NopCloser(counter))
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	req.ContentLength = maxBodyBytes + 1
+	req.Header.Set("Expect", "100-continue")
+	transport := unixTransport(path)
+	// A zero ExpectContinueTimeout sends the body at once; a non-zero one waits
+	// for 100 Continue, which the server writes only when the handler reads.
+	transport.ExpectContinueTimeout = 5 * time.Second
+	resp, err := (&http.Client{Transport: transport}).Do(req)
+	if err != nil {
+		t.Fatalf("send the request: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusRequestEntityTooLarge {
+		t.Errorf("status = %d, want 413", resp.StatusCode)
+	}
+	if counter.n != 0 {
+		t.Errorf("the client sent %d bytes of the body, want 0", counter.n)
+	}
+}
+
+// TestUnparsableRequestBypassesHandler checks that bytes that are not an HTTP
+// request are answered by net/http itself with 400, and that the handler never
+// runs for them: no slot is taken, no failure notice is posted, and no article
+// is generated.
+func TestUnparsableRequestBypassesHandler(t *testing.T) {
+	ts := newTestServer(t)
+	conn := dialUnix(t, serveUnix(t, ts.Server))
+	if _, err := conn.Write([]byte("NOT AN HTTP REQUEST\r\n\r\n")); err != nil {
+		t.Fatalf("write the request: %v", err)
+	}
+	resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
+	if err != nil {
+		t.Fatalf("read the response: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", resp.StatusCode)
+	}
+	ts.waitJobs()
+	if len(ts.slots) != 0 {
+		t.Errorf("slots held = %d, want 0", len(ts.slots))
+	}
+	if len(ts.notifier.Calls) != 0 || len(ts.writer.Calls) != 0 {
+		t.Errorf("an unparsable request caused a side effect: notifier=%d writer=%d",
+			len(ts.notifier.Calls), len(ts.writer.Calls))
 	}
 }

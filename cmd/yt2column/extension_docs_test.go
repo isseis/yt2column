@@ -239,16 +239,6 @@ func TestExtensionSendDocumentation(t *testing.T) {
 		}
 	})
 
-	t.Run("README's shared-token section no longer defers to #111", func(t *testing.T) {
-		section := sectionByHeading(readme, "### The shared token")
-		if section == "" {
-			t.Fatal("README.md has no The shared token section")
-		}
-		if strings.Contains(section, "#111") {
-			t.Error("README.md's The shared token section still refers to #111")
-		}
-	})
-
 	t.Run("security.md describes sending without deferring to #111", func(t *testing.T) {
 		// The intro is section 8's own paragraph, before its 8.1/8.2 subsections.
 		// It legitimately names #110 and #111, so check the exact retired

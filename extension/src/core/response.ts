@@ -5,12 +5,8 @@
 
 /** The reason values the server sends. */
 export type ServerRejectReason =
-  | "forbidden_host"
   | "not_found"
   | "method_not_allowed"
-  | "unsupported_media_type"
-  | "forbidden_origin"
-  | "unauthorized"
   | "too_many_requests"
   | "body_too_large"
   | "invalid_body"
@@ -20,12 +16,8 @@ export type ServerRejectReason =
 
 /** The status code each reason is sent with; a Record, so a missing reason fails the type check. */
 export const serverRejectStatus: Record<ServerRejectReason, number> = {
-  forbidden_host: 403,
   not_found: 404,
   method_not_allowed: 405,
-  unsupported_media_type: 415,
-  forbidden_origin: 403,
-  unauthorized: 401,
   too_many_requests: 429,
   body_too_large: 413,
   invalid_body: 400,

@@ -4,6 +4,7 @@ package server
 
 import (
 	"encoding/json"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -74,10 +75,34 @@ func TestResponseOmitsInputs(t *testing.T) {
 	}
 }
 
-// rejectRequest builds a valid-header request with the given body.
+// rejectRequest builds a request to the endpoint with the given body.
 func rejectRequest(t *testing.T, body string) *http.Request {
 	t.Helper()
-	req := newRequest(http.MethodPost, ArticlesPath, strings.NewReader(body))
-	withValidHeaders(req, testTokenValue)
-	return req
+	return newRequest(http.MethodPost, ArticlesPath, strings.NewReader(body))
+}
+
+// TestRejectReasonSet checks that the server answers with exactly these eight
+// rejection reasons and statuses: the reasons of the header checks it no
+// longer runs (the Host, the content type, the origin, and the token) are gone.
+func TestRejectReasonSet(t *testing.T) {
+	want := map[RejectReasonForTest]struct{}{
+		{Value: "internal_error", Status: http.StatusInternalServerError}:   {},
+		{Value: "not_found", Status: http.StatusNotFound}:                   {},
+		{Value: "method_not_allowed", Status: http.StatusMethodNotAllowed}:  {},
+		{Value: "too_many_requests", Status: http.StatusTooManyRequests}:    {},
+		{Value: "body_too_large", Status: http.StatusRequestEntityTooLarge}: {},
+		{Value: "invalid_body", Status: http.StatusBadRequest}:              {},
+		{Value: "invalid_video_url", Status: http.StatusBadRequest}:         {},
+		{Value: "invalid_transcript", Status: http.StatusBadRequest}:        {},
+	}
+	got := map[RejectReasonForTest]struct{}{}
+	for _, reason := range RejectReasonsForTest() {
+		if _, dup := got[reason]; dup {
+			t.Errorf("reason %+v appears twice", reason)
+		}
+		got[reason] = struct{}{}
+	}
+	if !maps.Equal(got, want) {
+		t.Errorf("rejection reasons = %v, want %v", got, want)
+	}
 }

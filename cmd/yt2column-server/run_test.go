@@ -5,14 +5,13 @@ package main
 import (
 	"context"
 	"errors"
-	"net"
 	"os"
 	"path/filepath"
 	"reflect"
-	"strconv"
+	"runtime"
 	"strings"
+	"sync"
 	"sync/atomic"
-	"syscall"
 	"testing"
 	"time"
 
@@ -22,26 +21,19 @@ import (
 	llmtestutil "github.com/isseis/yt2column/internal/llm/testutil"
 	"github.com/isseis/yt2column/internal/publisher"
 	"github.com/isseis/yt2column/internal/secret"
-	"github.com/isseis/yt2column/internal/server"
+	"github.com/isseis/yt2column/internal/udstest"
 	"github.com/isseis/yt2column/internal/writer"
 	writertestutil "github.com/isseis/yt2column/internal/writer/testutil"
 )
 
-// errBuildRefused and errWriteRefused are what a constructor or a writer
-// substituted by TestStartupFailures and TestDisplayFailureKeepsServing
+// errBuildRefused is what a constructor substituted by TestStartupFailures
 // returns.
-var (
-	errBuildRefused = errors.New("the test refuses to build this component")
-	errWriteRefused = errors.New("the test refuses to write")
-)
-
-// validTokenContent is a token file content the server accepts.
-const validTokenContent = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+var errBuildRefused = errors.New("the test refuses to build this component")
 
 // TestStartupFailures checks each step that can stop the start: the exit code,
-// that run returns without serving, that standard error names the cause, and
-// that no secret reaches either output. A rejected token file is left
-// unchanged.
+// that run returns without serving, that standard error names the cause, that
+// no secret reaches it, and that the socket path is left as it was: no socket
+// is created where none was, and an existing one is not removed.
 func TestStartupFailures(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -53,9 +45,6 @@ func TestStartupFailures(t *testing.T) {
 		// returns only an exit code, so its standard error, which tells the
 		// operator what to fix, is the observable contract matched here.
 		wantStderr string
-		// tokenShown is whether the run wrote the shared token to standard
-		// output before it stopped.
-		tokenShown bool
 		// hint, when set, is a second part standard error must hold.
 		hint string
 		// configLines, when set, is how many configuration lines standard
@@ -83,13 +72,30 @@ func TestStartupFailures(t *testing.T) {
 			configLines: 2,
 		},
 		{
-			name: "token file readable by others",
-			setup: func(t *testing.T, e *serverEnv, _ *deps) {
-				writeTokenFile(t, e.tokenPath(t), validTokenContent, 0o644)
+			name: "HOME unset",
+			setup: func(_ *testing.T, e *serverEnv, _ *deps) {
+				delete(e.vars, "HOME")
 			},
-			want:       exitUsage,
-			wantStderr: "shared token: ",
-			hint:       "delete it and restart",
+			want:        exitUsage,
+			wantStderr:  "configuration: HOME",
+			configLines: 1,
+		},
+		{
+			// HOME is padded so the derived path is exactly one byte over
+			// this operating system's limit (sun_path minus its NUL), written
+			// out so a change to the limit fails this row.
+			name: "socket path one byte over the limit",
+			setup: func(_ *testing.T, e *serverEnv, _ *deps) {
+				limit := 107
+				if runtime.GOOS == "darwin" {
+					limit = 103
+				}
+				homeLen := limit + 1 - len(config.SocketPathTailForTest(runtime.GOOS))
+				e.vars["HOME"] += "/" + strings.Repeat("h", homeLen-len(e.vars["HOME"])-1)
+			},
+			want:        exitUsage,
+			wantStderr:  "configuration: HOME",
+			configLines: 1,
 		},
 		{
 			name: "LLM client not built",
@@ -98,7 +104,6 @@ func TestStartupFailures(t *testing.T) {
 			},
 			want:       exitUsage,
 			wantStderr: "build the LLM client",
-			tokenShown: true,
 		},
 		{
 			// The warning comes before any component is built.
@@ -109,7 +114,6 @@ func TestStartupFailures(t *testing.T) {
 			},
 			want:       exitUsage,
 			wantStderr: "warning: GODEBUG enables http2debug",
-			tokenShown: true,
 		},
 		{
 			name: "review LLM client not built",
@@ -118,7 +122,6 @@ func TestStartupFailures(t *testing.T) {
 			},
 			want:       exitUsage,
 			wantStderr: "build the review LLM client",
-			tokenShown: true,
 		},
 		{
 			name: "writer not built",
@@ -127,7 +130,6 @@ func TestStartupFailures(t *testing.T) {
 			},
 			want:       exitUsage,
 			wantStderr: "build the article writer",
-			tokenShown: true,
 		},
 		{
 			name: "publisher not built",
@@ -136,7 +138,6 @@ func TestStartupFailures(t *testing.T) {
 			},
 			want:       exitUsage,
 			wantStderr: "build the publisher",
-			tokenShown: true,
 		},
 		{
 			name: "notifier not built",
@@ -145,44 +146,63 @@ func TestStartupFailures(t *testing.T) {
 			},
 			want:       exitUsage,
 			wantStderr: "build the failure notifier",
-			tokenShown: true,
 		},
 		{
-			// The token is displayed before listening, so a start whose
-			// listen fails still shows it.
-			name: "port in use",
+			name: "socket directory with a mode other than 0700",
 			setup: func(t *testing.T, e *serverEnv, _ *deps) {
-				occupied, err := net.Listen("tcp", "127.0.0.1:0")
-				if err != nil {
-					t.Fatalf("occupy a port: %v", err)
+				if err := os.MkdirAll(filepath.Dir(e.socketPath(t)), 0o755); err != nil {
+					t.Fatal(err)
 				}
-				t.Cleanup(func() { _ = occupied.Close() })
-				e.setPort(uint16(occupied.Addr().(*net.TCPAddr).Port)) //nolint:gosec // a TCP port fits in uint16
+				if err := os.Chmod(filepath.Dir(e.socketPath(t)), 0o755); err != nil { // MkdirAll's mode is masked by the umask
+					t.Fatal(err)
+				}
 			},
 			want:       exitFailure,
-			wantStderr: "listen on 127.0.0.1:",
-			tokenShown: true,
+			wantStderr: "does not have mode 0700",
+			hint:       "nothing was repaired or removed",
+		},
+		{
+			name: "another server holds the start lock",
+			setup: func(t *testing.T, e *serverEnv, _ *deps) {
+				startServer(t, e, testDeps(validResponseLLM()))
+			},
+			want:       exitFailure,
+			wantStderr: "another server holds the socket directory lock",
+			hint:       "another server is running",
+		},
+		{
+			// A process that listens on the socket path without the start
+			// lock, which no server does.
+			name: "another process listens on the socket path",
+			setup: func(t *testing.T, e *serverEnv, _ *deps) {
+				if err := os.MkdirAll(filepath.Dir(e.socketPath(t)), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				udstest.Listen(t, e.socketPath(t))
+			},
+			want:       exitFailure,
+			wantStderr: "another process accepts connections on the socket path",
+			hint:       "stop the process that listens on the socket",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			// No case listens, except "port in use", which sets its own
-			// port, so the default port is left as it is.
 			e := newServerEnv(t)
-			// HOME is not changed by setup, so the path is derived from the
-			// valid environment, before setup can make it invalid.
-			tokenPath := e.tokenPath(t)
+			// The path is derived from the valid environment, before setup can
+			// make it invalid.
+			socket := e.socketPath(t)
 			d := testDeps(validResponseLLM())
 			if tc.setup != nil {
 				tc.setup(t, e, &d)
 			}
-			before, _ := os.ReadFile(tokenPath)
+			_, err := os.Lstat(socket)
+			existed := err == nil
 
 			// A run that wrongly started serving returns only when ctx ends,
 			// with exitOK, so the deadline turns a hang into a failure.
 			ctx, cancel := context.WithTimeout(context.Background(), exitBound)
 			defer cancel()
-			var stdout, stderr strings.Builder
-			code := run(ctx, tc.args, e.lookup(), &stdout, &stderr, d)
+			var stderr strings.Builder
+			code := run(ctx, tc.args, e.lookup(), &stderr, d)
 
 			if code != tc.want {
 				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, tc.want, stderr.String())
@@ -198,148 +218,74 @@ func TestStartupFailures(t *testing.T) {
 					t.Errorf("configuration lines = %d, want %d:\n%s", got, tc.configLines, stderr.String())
 				}
 			}
-			after, _ := os.ReadFile(tokenPath)
-			token := string(after)
-			switch {
-			case tc.tokenShown:
-				if len(before) != 0 || stdout.String() != token+"\n" {
-					t.Errorf("stdout = %q, want the token %q on one line", stdout.String(), token)
-				}
-			default:
-				if stdout.Len() != 0 {
-					t.Errorf("stdout = %q, want empty", stdout.String())
-				}
-				if string(before) != token {
-					t.Errorf("the token file changed from %q to %q", before, token)
-				}
+			if _, err := os.Lstat(socket); (err == nil) != existed {
+				t.Errorf("the socket path existed before the run: %v, after it: %v", existed, err == nil)
 			}
-			requireNoSecret(t, "stderr", stderr.String(), token)
+			requireNoSecret(t, "stderr", stderr.String())
 		})
 	}
 }
 
-// failingWriter rejects every write, so run's token display fails.
-type failingWriter struct{}
-
-// Write implements io.Writer.
-func (failingWriter) Write([]byte) (int, error) { return 0, errWriteRefused }
-
-// TestDisplayFailureKeepsServing checks that a start whose token display fails
-// keeps serving: with a standard output that rejects every write, run reports
-// the display failure on standard error (naming the token file and without the
-// token) and still accepts a request, then stops with exitOK. It covers a start
-// that reads an existing token (whose file must not change) and a first start
-// (whose token file is created).
-func TestDisplayFailureKeepsServing(t *testing.T) {
-	for _, tc := range []struct {
-		name     string
-		existing bool
-	}{
-		{name: "existing token file", existing: true},
-		{name: "first start", existing: false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			e := newServerEnv(t)
-			if tc.existing {
-				writeTokenFile(t, e.tokenPath(t), validTokenContent, 0o600)
-			}
-			srv := startServerWithStdout(t, e, testDeps(validResponseLLM()), failingWriter{})
-			// A first start reads the file it created (readToken fails when the
-			// file is absent); an existing file must be unchanged below.
-			token := e.readToken(t)
-			mustPostArticle(t, e.port(t), token, requestBody(testValidRaw), 202)
-			if code := srv.stop(t); code != exitOK {
-				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, srv.stderr.String())
-			}
-
-			stderr := srv.stderr.String()
-			// run returns only an exit code across the process boundary, so the
-			// failure line is the observable contract; assert on it alone,
-			// since the "listening" log line also names the token file. The
-			// write error never crosses as a value, so its text is the only
-			// form the reason takes here.
-			failure := stderrLine(stderr, "writing the token to standard output failed")
-			if failure == "" {
-				t.Fatalf("stderr does not report the display failure:\n%s", stderr)
-			}
-			if !strings.Contains(failure, errWriteRefused.Error()) {
-				t.Errorf("the display failure does not name the reason %q: %s", errWriteRefused, failure)
-			}
-			if !strings.Contains(failure, e.tokenPath(t)) {
-				t.Errorf("the display failure does not name the token file %s: %s", e.tokenPath(t), failure)
-			}
-			if notice := stderrLine(stderr, "wrote the shared token to standard output"); notice != "" {
-				t.Errorf("a failed display still wrote the success notice: %s", notice)
-			}
-			requireNoSecret(t, "stderr", stderr, token)
-
-			if tc.existing {
-				if got := e.readToken(t); got != validTokenContent {
-					t.Errorf("the token file changed from %q to %q", validTokenContent, got)
-				}
-			}
-		})
-	}
+// gatedLLM is an LLM client whose calls signal entered and then wait until
+// release is closed.
+type gatedLLM struct {
+	entered chan struct{}
+	release chan struct{}
 }
 
-// writeTokenFile creates the token file at path with content and mode.
-func writeTokenFile(t *testing.T, path, content string, mode os.FileMode) {
-	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, []byte(content), mode); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chmod(path, mode); err != nil { // WriteFile's mode is masked by the umask
-		t.Fatal(err)
-	}
+// Generate implements llm.LLMClient.
+func (g gatedLLM) Generate(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
+	g.entered <- struct{}{}
+	<-g.release
+	return validResponse(), nil
 }
 
-// TestTokenShownOnEveryStart checks that each start writes the shared token to
-// standard output as one line: the first start creates the file, and a second
-// start reads the same value and writes it too, leaving the file unchanged.
-// Neither start writes the token to standard error, and the notice does not
-// claim the token will not be shown again.
-func TestTokenShownOnEveryStart(t *testing.T) {
+// TestStartDuringShutdownRefused checks that a server started while another is
+// shutting down (its listener closed and its socket gone, but its job still
+// running) stops with exitFailure instead of serving beside it: the first
+// server holds the start lock until its jobs have finished.
+func TestStartDuringShutdownRefused(t *testing.T) {
 	e := newServerEnv(t)
-	d := testDeps(validResponseLLM())
+	gate := gatedLLM{entered: make(chan struct{}, 1), release: make(chan struct{})}
+	var once sync.Once
+	release := func() { once.Do(func() { close(gate.release) }) }
+	t.Cleanup(release)
+	first := startServer(t, e, testDeps(gate))
+	socket := e.socketPath(t)
+	mustPostArticle(t, socket, requestBody(testValidRaw), 202)
+	select {
+	case <-gate.entered:
+	case <-time.After(readyBound):
+		t.Fatal("the job did not start")
+	}
 
-	first := startServer(t, e, d)
+	first.cancel()
+	// Closing the listener removes the socket: from then on the first server
+	// only waits for its job.
+	deadline := time.Now().Add(readyBound)
+	for _, err := os.Lstat(socket); err == nil; _, err = os.Lstat(socket) {
+		if time.Now().After(deadline) {
+			t.Fatalf("the socket %s was not removed within %v of the cancellation", socket, readyBound)
+		}
+		time.Sleep(pollInterval)
+	}
+
+	// A second server that wrongly started would serve until this deadline
+	// and return exitOK, so the deadline turns that into a failure.
+	ctx, cancel := context.WithTimeout(context.Background(), exitBound)
+	defer cancel()
+	var stderr strings.Builder
+	if code := run(ctx, nil, e.lookup(), &stderr, testDeps(validResponseLLM())); code != exitFailure {
+		t.Fatalf("second run exit code = %d, want %d\nstderr:\n%s", code, exitFailure, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "another server holds the socket directory lock") {
+		t.Errorf("stderr does not name the held start lock:\n%s", stderr.String())
+	}
+
+	release()
 	if code := first.stop(t); code != exitOK {
 		t.Fatalf("first run exit code = %d, want %d\nstderr:\n%s", code, exitOK, first.stderr.String())
 	}
-	token := e.readToken(t)
-	if first.stdout.String() != token+"\n" {
-		t.Errorf("first stdout = %q, want the token file's content %q on one line", first.stdout.String(), token)
-	}
-
-	second := startServer(t, e, d)
-	if code := second.stop(t); code != exitOK {
-		t.Fatalf("second run exit code = %d, want %d\nstderr:\n%s", code, exitOK, second.stderr.String())
-	}
-	if second.stdout.String() != token+"\n" {
-		t.Errorf("second stdout = %q, want the same token %q on one line", second.stdout.String(), token)
-	}
-	if got := e.readToken(t); got != token {
-		t.Errorf("the token file changed from %q to %q", token, got)
-	}
-	// The display notice is the one standard-error line that mentions standard
-	// output. Assert on that line alone: the "listening" log line also carries
-	// the token path, so checking the whole output would pass even if the
-	// notice omitted it.
-	notice := stderrLine(second.stderr.String(), "standard output")
-	if notice == "" {
-		t.Fatalf("second stderr has no display notice:\n%s", second.stderr.String())
-	}
-	if strings.Contains(notice, "not shown again") {
-		t.Errorf("the display notice claims the token is not shown again: %s", notice)
-	}
-	if !strings.Contains(notice, e.tokenPath(t)) {
-		t.Errorf("the display notice does not name the token file %s: %s", e.tokenPath(t), notice)
-	}
-	requireNoSecret(t, "first stderr", first.stderr.String(), token)
-	requireNoSecret(t, "second stderr", second.stderr.String(), token)
 }
 
 // stderrLine returns the first line of output that contains sub, or "" when
@@ -353,46 +299,6 @@ func stderrLine(output, sub string) string {
 	return ""
 }
 
-// TestClosedStdoutPipeKeepsServing checks that a start whose standard output is
-// a pipe with no reader does not stop the process: SIGPIPE is process-wide, so
-// the production main runs in a child process. The child's first display write
-// reaches the closed pipe, and because main ignores SIGPIPE the write fails
-// with EPIPE, run reports the display failure without the token, and the child
-// keeps listening until a signal stops it with exitOK.
-func TestClosedStdoutPipeKeepsServing(t *testing.T) {
-	reader, writer, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("create a pipe: %v", err)
-	}
-	// Close the reader before the child starts, so the child's first write
-	// always reaches a closed pipe.
-	if err := reader.Close(); err != nil {
-		t.Fatalf("close the pipe's reader: %v", err)
-	}
-	t.Cleanup(func() { _ = writer.Close() })
-
-	e := newServerEnv(t)
-	// startServerChildWithStdout returns only once the child listens, so
-	// reaching the next line proves the display failure did not stop it.
-	child := startServerChildWithStdout(t, childModeMain, e, nil, writer)
-	child.signal(t, syscall.SIGTERM)
-	if state := child.wait(t); state.ExitCode() != exitOK {
-		t.Fatalf("exit status = %v, want exit code %d\nstderr:\n%s", state, exitOK, child.stderr.String())
-	}
-	stderr := child.stderr.String()
-	// run returns only an exit code across the process boundary, so the
-	// failure line on standard error is the observable contract; assert on it
-	// alone, since the "listening" log line also names the token file.
-	failure := stderrLine(stderr, "writing the token to standard output failed")
-	if failure == "" {
-		t.Fatalf("stderr does not report the display failure:\n%s", stderr)
-	}
-	if !strings.Contains(failure, e.tokenPath(t)) {
-		t.Errorf("the display failure does not name the token file %s: %s", e.tokenPath(t), failure)
-	}
-	requireNoSecret(t, "child stderr", stderr, e.readToken(t))
-}
-
 // noticeSignal is a notifier that reports each notice on a channel.
 type noticeSignal chan failure.Notice
 
@@ -404,30 +310,23 @@ func (n noticeSignal) Notify(_ context.Context, notice failure.Notice) error {
 
 // TestOutputsOmitSecrets checks that the server's log redacts every secret run
 // hands it: the LLM client fails with an error that holds both API keys (the
-// review step uses Claude, so both are configured), the webhook URL, and the
-// shared token, and the "job failed" line that carries that error shows none
-// of them.
+// review step uses Claude, so both are configured) and the webhook URL, and
+// the "job failed" line that carries that error shows none of them.
 func TestOutputsOmitSecrets(t *testing.T) {
 	e := newServerEnv(t)
 	e.vars["YT2COLUMN_REVIEW_PROVIDER"] = "claude"
 	e.vars["YT2COLUMN_REVIEW_MODEL"] = "fake-review-model"
 	e.vars["ANTHROPIC_API_KEY"] = testAnthropicKey
 	e.vars["YT2COLUMN_CLAUDE_EFFORT"] = "low"
-	tokenPath := e.tokenPath(t)
 	leaking := funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
-		token, err := os.ReadFile(tokenPath) //nolint:gosec // a path inside the test's temporary directory
-		if err != nil {
-			return llm.GenerateResponse{}, err
-		}
-		return llm.GenerateResponse{}, errors.New("leak " + testAPIKey + " " + testAnthropicKey + " " + testWebhook + " " + string(token))
+		return llm.GenerateResponse{}, errors.New("leak " + testAPIKey + " " + testAnthropicKey + " " + testWebhook)
 	})
 	notices := make(noticeSignal, 1)
 	d := testDeps(leaking)
 	d.newNotifier = func(secret.Secret) (failure.Notifier, error) { return notices, nil }
 
 	srv := startServer(t, e, d)
-	token := e.readToken(t)
-	mustPostArticle(t, e.port(t), token, requestBody(testValidRaw), 202)
+	mustPostArticle(t, e.socketPath(t), requestBody(testValidRaw), 202)
 	// The job logs its failure before it sends the notice.
 	select {
 	case <-notices:
@@ -442,7 +341,7 @@ func TestOutputsOmitSecrets(t *testing.T) {
 	if !strings.Contains(stderr, "job failed") || !strings.Contains(stderr, "leak [REDACTED]") {
 		t.Fatalf("stderr does not hold the redacted job failure:\n%s", stderr)
 	}
-	requireNoSecret(t, "stderr", stderr, token)
+	requireNoSecret(t, "stderr", stderr)
 }
 
 // TestBuildsSlackPublisher checks that the production constructors build the
@@ -494,8 +393,8 @@ func TestWriterOptionsMatchCLIDefaults(t *testing.T) {
 	}
 	d.newPublisher = func(secret.Secret) (publisher.Publisher, error) { return nil, errBuildRefused }
 
-	var stdout, stderr strings.Builder
-	if code := run(t.Context(), nil, e.lookup(), &stdout, &stderr, d); code != exitUsage {
+	var stderr strings.Builder
+	if code := run(t.Context(), nil, e.lookup(), &stderr, d); code != exitUsage {
 		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, stderr.String())
 	}
 	if len(got) != 1 {
@@ -506,32 +405,24 @@ func TestWriterOptionsMatchCLIDefaults(t *testing.T) {
 	}
 }
 
-// TestRunLogsListeningAndStop checks the lines run itself logs: the endpoint
-// URL on both loopback addresses and the token file when it listens, and,
-// when the stop begins, the longest wait for in-flight jobs and that a second
-// signal exits at once.
+// TestRunLogsListeningAndStop checks the lines run itself logs: the socket
+// path when it listens, and, when the stop begins, the longest wait for
+// in-flight jobs and that a second signal exits at once.
 func TestRunLogsListeningAndStop(t *testing.T) {
 	e := newServerEnv(t)
-	// An existing token, so the start reads it rather than creating one.
-	writeTokenFile(t, e.tokenPath(t), validTokenContent, 0o600)
 	srv := startServer(t, e, testDeps(validResponseLLM()))
-	port := strconv.Itoa(int(e.port(t)))
 	if code := srv.stop(t); code != exitOK {
 		t.Fatalf("exit code = %d, want %d", code, exitOK)
 	}
 	stderr := srv.stderr.String()
-	// The token path is logged on the listening line; assert on that line, not
-	// on the whole output, where the display notice also carries the path.
 	listening := stderrLine(stderr, "msg=listening")
 	if listening == "" {
 		t.Fatalf("stderr has no listening log line:\n%s", stderr)
 	}
-	if !strings.Contains(listening, e.tokenPath(t)) {
-		t.Errorf("the listening log does not name the token file %s: %s", e.tokenPath(t), listening)
+	if !strings.Contains(listening, e.socketPath(t)) {
+		t.Errorf("the listening log does not name the socket %s: %s", e.socketPath(t), listening)
 	}
 	for _, want := range []string{
-		"http://127.0.0.1:" + port + server.ArticlesPath,
-		"http://[::1]:" + port + server.ArticlesPath,
 		// Three LLM calls of at most 15 minutes each.
 		"up to about 45 minutes",
 		"send the signal again to exit at once",
