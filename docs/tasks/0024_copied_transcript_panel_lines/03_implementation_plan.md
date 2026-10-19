@@ -181,11 +181,11 @@
 
 **変更するファイル:** `internal/transcript/copied_format.go`、`internal/transcript/copied_format_test.go`
 
--   [ ] **ステップ 3-1**: `parseCopiedFormB` の時刻を期待する位置（`copied_format.go:370-372` の `!awaitingText` の分岐）を、設計書 3.2.3 の手順 3・4 に変える。空白文字だけの行と、数字・`:`・数字の連続を含む行は `errCopiedNotTimestamp` で拒否する。それ以外の行は見出しとして読み飛ばし、`awaitingText` は偽のままにする。
--   [ ] **ステップ 3-2**: `parseCopiedFormB` のコメントの `The line after a text line must be a timestamp, so a chapter heading there is rejected.` を、「時刻を期待する位置の非時刻行は、拒否の規則に当たらなければ見出しとして読み飛ばす」旨に改める。
--   [ ] **ステップ 3-3**: §2.7 の台帳のうち、ステップ 3-3 の行を書き換える。`chapter heading omits the line` は、入力を、設計書 3.3 の規則で拒否される形 B の見出しの位置の行（設計書 3.6）に差し替え、拒否のメッセージに目印が入らないことを確かめる（AC-15）。
--   [ ] **ステップ 3-4**: 新しいテストを加える。対象は AC-08（前置き・形 B の見出し・末尾を持つパネル全体の選択）・AC-35〜AC-38 と、設計書 5.4 の前置きの終わりの拒否の経路（`errCopiedTimestampOrder`）。AC-35 には、形 A では拒否される行（`タイムライン`・`チャプター: タイトル`・`動画の時間と同期について話します`）を形 B の時刻を期待する位置に置くケースを含める（AC-04・AC-09・AC-12・AC-13 の形 B の側）。AC-36 は設計書 3.3 の表の形 B の列の 4 行それぞれを含める。
--   [ ] **ステップ 3-5**: 次の壊し方をそれぞれ試し、名前を挙げたテストが失敗することを確かめて、結果をコミットメッセージに書く。見出しの読み飛ばしを外す → AC-35・AC-08 のテスト。手順 3 を外す → AC-36 の空白文字だけの行と数字・`:`・数字の行、`bad timestamp at a form B position`・`form A line where form B wants a timestamp`。見出しを読み飛ばした後に `awaitingText` を真にする → 連続する 2 行の見出しのケース。
+-   [x] **ステップ 3-1**: `parseCopiedFormB` の時刻を期待する位置（`copied_format.go:370-372` の `!awaitingText` の分岐）を、設計書 3.2.3 の手順 3・4 に変える。空白文字だけの行と、数字・`:`・数字の連続を含む行は `errCopiedNotTimestamp` で拒否する。それ以外の行は見出しとして読み飛ばし、`awaitingText` は偽のままにする。
+-   [x] **ステップ 3-2**: `parseCopiedFormB` のコメントの `The line after a text line must be a timestamp, so a chapter heading there is rejected.` を、「時刻を期待する位置の非時刻行は、拒否の規則に当たらなければ見出しとして読み飛ばす」旨に改める。
+-   [x] **ステップ 3-3**: §2.7 の台帳のうち、ステップ 3-3 の行を書き換える。`chapter heading omits the line` は、入力を、設計書 3.3 の規則で拒否される形 B の見出しの位置の行（設計書 3.6）に差し替え、拒否のメッセージに目印が入らないことを確かめる（AC-15）。
+-   [x] **ステップ 3-4**: 新しいテストを加える。対象は AC-08（前置き・形 B の見出し・末尾を持つパネル全体の選択）・AC-35〜AC-38 と、設計書 5.4 の前置きの終わりの拒否の経路（`errCopiedTimestampOrder`）。AC-35 には、形 A では拒否される行（`タイムライン`・`チャプター: タイトル`・`動画の時間と同期について話します`）を形 B の時刻を期待する位置に置くケースを含める（AC-04・AC-09・AC-12・AC-13 の形 B の側）。AC-36 は設計書 3.3 の表の形 B の列の 4 行それぞれを含める。
+-   [x] **ステップ 3-5**: 次の壊し方をそれぞれ試し、名前を挙げたテストが失敗することを確かめて、結果をコミットメッセージに書く。見出しの読み飛ばしを外す → AC-35・AC-08 のテスト。手順 3 を外す → AC-36 の空白文字だけの行と数字・`:`・数字の行、`bad timestamp at a form B position`・`form A line where form B wants a timestamp`。見出しを読み飛ばした後に `awaitingText` を真にする → 連続する 2 行の見出しのケース。
 
 ### PR-4 作成ポイント: form B chapter headings by position
 
@@ -327,7 +327,7 @@
 | 1-6 | `TestParseCopiedLineBreaks` | `trailingRejects` の 2 ケース | 受理の確認に変える。入力が `two/three trailing separators` と同じなので、`TestParseCopiedAccepts` の表にだけ残す | `TestParseCopiedAccepts` の `form B two trailing separators`・`form B three trailing separators` |
 | 1-6 | `TestParseCopiedCheckOrder` | `line kind before blank text` | 今の入力 `0:00\nx\n \n` は受理のケースとして `TestParseCopiedAccepts` へ移し、このケースの入力を、空白文字だけの行が本体の中にあるもの（設計書 3.6）に変える | 受理へ移す入力は `TestParseCopiedAccepts` の `form B trailing whitespace-only line` |
 | 1-15 | `TestParseCopiedErrorOmitsInput` | `not a timestamp omits the line` | 目印の行を形 A の本体に置く（設計書 3.6） | - |
-| 3-3 | `TestParseCopiedRejects` | `chapter heading after text` | 受理のケースへ移す | - |
+| 3-3 | `TestParseCopiedRejects` | `chapter heading after text` | 受理のケースへ移す | `TestParseCopiedFormBChapterHeadings` の `chapter heading after text` |
 | 3-3 | `TestParseCopiedErrorOmitsInput` | `chapter heading omits the line` | 今の入力は受理されるので、`TestParseCopiedErrorOmitsInput`（受理されると `Fatalf` する）には置けない。この入力は `TestParseCopiedFormBChapterHeadings` に移し、`Segments` に目印が入らないことを確かめる。元のケースは名前を残し、設計書 3.3 の規則で拒否される行の入力（設計書 3.6）に変えて拒否のメッセージを確かめる | `TestParseCopiedFormBChapterHeadings` の `chapter heading is not in the segments`（受理の側） |
 
 `TestParseCopiedRejects` から受理へ移す 4 つのケースと `trailingRejects` の 2 ケースは、受理の確認に `TestParseCopiedAccepts` の表か、読み飛ばす行を取り除いた入力との比較を使う。ステップ 1-6 の `two trailing separators`・`three trailing separators` と `trailingRejects` の 2 ケースは入力が同じなので、`TestParseCopiedAccepts` の表と `TestParseCopiedLineBreaks` のどちらか一方にだけ残し、重複させない。重複を除いた後、`go tool cover -func` の結果が関数ごとに変わらないことを確かめ、コミットメッセージに書く（CLAUDE.md「Deleting a test is a claim that must be checked」）。
@@ -462,7 +462,7 @@ AC-25 は、入力全体の検査（`errCopiedBlank`）が先に起こるので�
 | 時刻の文法の拒否のケースが、前置きとして黙って読み飛ばされる | 数字・`:`・数字の述語の確認（ステップ 1-20 の (ii)）。既存のケースを変えずに通す（AC-18） |
 | 形 B の最後の本文が操作ラベルと一致するとき、本文を失う | 末尾の領域の「直前が時刻だけの行」の条件と AC-33 のテスト、ステップ 1-10 の (i) |
 | 4 MiB の前置きの入力で、行の並びのメモリが race の上限を超える | フェーズ 5 で `copiedParseAllocPerByte` の範囲に収まることを確かめる。収まらなければ、上限を変えずに組み立て方を設計書 7.3 の範囲で見直し、それでも収まらなければ設計書の見直しを依頼する |
-| テストの補助関数 `assertCopiedBodyHasNoSkippedLine`（PR-3 で追加した見出しの確認）が、形を区別せずに形 A の見出しの形の行を拒否する。フェーズ 3 で、形 B の比較対象の本体に `Chapter 1: Intro` のような本文の行を含めると、テストが誤って失敗する（PR-3 のテストのレビューで指摘） | フェーズ 3 で該当するケースを書くときに、見出しの確認を形 A の本体に限るか、関数のコメントに「形を問わず拒否する保守的な確認」と明記する |
+| テストの補助関数 `assertCopiedBodyHasNoSkippedLine`（PR-3 で追加した見出しの確認）が、形を区別せずに形 A の見出しの形の行を拒否する。フェーズ 3 で、形 B の比較対象の本体に `Chapter 1: Intro` のような本文の行を含めると、テストが誤って失敗する（PR-3 のテストのレビューで指摘） | フェーズ 3 で該当するケースを書くときに、見出しの確認を形 A の本体に限るか、関数のコメントに「形を問わず拒否する保守的な確認」と明記する。フェーズ 3 で後者を採り、形 B の比較対象の本体に形 A の見出しの形の行を含めないことを関数のコメントに書いた |
 | 設計書 5.4 の残余のリスク（形 B の時刻の行の欠落、正しい入力の拒否） | 本タスクでは受け入れる。運用での観測は設計書 9 章の将来の拡張に残す |
 
 ### 6.2. スケジュールのリスク
