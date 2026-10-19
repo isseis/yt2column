@@ -7,6 +7,9 @@ import (
 	"github.com/isseis/yt2column/internal/writer"
 )
 
+// footnoteSeparator joins the parts of the footnote.
+const footnoteSeparator = " \u00b7 "
+
 // zeroWidthSpace is inserted after an '@' to keep it from starting a mention.
 const zeroWidthSpace = "\xe2\x80\x8b"
 
@@ -17,6 +20,91 @@ type slackPost struct {
 	// be cut: the last line of the body and the footer stay in one message.
 	// It lies in [0, rune count of text]; the rune count means no such region.
 	keepTogetherFrom int
+}
+
+// stageModel is one model name and the stages that used it.
+type stageModel struct {
+	Model  string
+	Stages []writer.Stage // StageGeneration, StageShorten, StageReview, in this order
+}
+
+// stageModels returns the models of the stages that ran, grouped by model name
+// in order of first appearance: generation, then shorten when Article.Shorten
+// is set, then review when Article.Review is set. A model's version is not
+// part of the grouping.
+func stageModels(a writer.Article) []stageModel {
+	var models []stageModel
+	add := func(stage writer.Stage, model string) {
+		for i := range models {
+			if models[i].Model == model {
+				models[i].Stages = append(models[i].Stages, stage)
+				return
+			}
+		}
+		models = append(models, stageModel{Model: model, Stages: []writer.Stage{stage}})
+	}
+	add(writer.StageGeneration, a.Model)
+	if a.Shorten != nil {
+		add(writer.StageShorten, a.Shorten.Model)
+	}
+	if a.Review != nil {
+		add(writer.StageReview, a.Review.Model.Model)
+	}
+	return models
+}
+
+// renderSlackPost returns the post for a: a heading line with the title and
+// the channel name, a blank line, the body, a blank line, and a one-line
+// footnote of the models and the estimated cost.
+//
+// Contract: every '@' that mentionAts reports in the title, the channel name,
+// or the footnote's model names is neutralized; in the body only those outside
+// code are, and none when writer.ProseRanges cannot judge the body (the caller
+// then refuses the post if a target remains). a is not changed. The body's
+// trailing newlines are dropped so that exactly one blank line precedes the
+// footnote. a's strings must be valid UTF-8.
+func renderSlackPost(a writer.Article) slackPost {
+	var b strings.Builder
+	b.WriteString("# " + neutralizeMentions(a.Title))
+	if a.ChannelName != "" {
+		b.WriteString("\uff08" + neutralizeMentions(a.ChannelName) + "\uff09")
+	}
+	b.WriteString("\n\n")
+
+	body := a.Body
+	if prose, ok := writer.ProseRanges(body); ok {
+		body = neutralizeProse(body, prose)
+	}
+	body = strings.TrimRight(body, "\n")
+	b.WriteString(body)
+	// The last line of the body is the text after its last newline.
+	lastLine := strings.LastIndexByte(body, '\n') + 1
+	keep := utf8.RuneCountInString(b.String()) - utf8.RuneCountInString(body[lastLine:])
+
+	b.WriteString("\n\n" + slackFootnote(a))
+	return slackPost{text: b.String(), keepTogetherFrom: keep}
+}
+
+// slackFootnote returns the footnote line: the models with their stages, then
+// the estimated cost. It shows no model version.
+func slackFootnote(a writer.Article) string {
+	parts := []string{"Models: "}
+	for i, m := range stageModels(a) {
+		names := make([]string, len(m.Stages))
+		for j, stage := range m.Stages {
+			names[j] = stage.String()
+		}
+		if i > 0 {
+			parts = append(parts, footnoteSeparator)
+		}
+		parts = append(parts, neutralizeMentions(m.Model)+" ("+strings.Join(names, ", ")+")")
+	}
+	cost := "unknown"
+	if amount, known := articleCost(a.RunUsage); known {
+		cost = amount.Format(articleCostDecimals) + " USD"
+	}
+	parts = append(parts, footnoteSeparator+"Estimated cost: "+cost)
+	return strings.Join(parts, "")
 }
 
 // neutralizeMentions returns value with U+200B inserted after each '@' that

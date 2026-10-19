@@ -385,24 +385,24 @@ go test -run '^$' -tags test,integration ./...
 
 -   [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 -   [x] PR を作成した
--   [ ] PR がマージされた
--   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+-   [x] PR がマージされた
+-   [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 #### ステップ 4-9: 整形
 
 **対象:** `internal/publisher/slack_render.go`（ステップ 4-2・4-4 で作成済み）
 
--   [ ] `renderSlackPost`、`stageModel`、`stageModels` を設計書 3.3 のとおりに実装する。見出し行は `# <title>（<channel>）`（チャンネル名がないときは `# <title>`）。脚注は英語の平文 1 行で、版を出さず、同じモデル名の段階を 1 つにまとめる。コストは `articleCost` を使う。
--   [ ] 見出し行のタイトルとチャンネル名、脚注のモデル名は `neutralizeMentions` を、本文は `ProseRanges` と `neutralizeProse` を通してから並べる。`ProseRanges` が false のときは、本文の `@` を無効化しない（このとき本文の対象の `@` が拒否される経路を、`renderSlackPost` から `prepareSlackMessages` まで通すテストをステップ 4-13 に加える）。`Article` の値は変えない。
--   [ ] `keepTogetherFrom` は、`Body` の末尾の改行を除いた最後の行の先頭の rune の位置とする（設計書 3.3）。
--   [ ] `renderSlackPost` のテストを `slack_render_test.go` に加える: 先頭行（チャンネル名の有無）、本文の前が見出し行と空行だけであること、最終行が脚注で 1 行であること、版が出ないこと（版が空の場合と空でない場合で同じ）、同一モデルの統合、異なるモデルの併記と段階の順序、字数の調整・推敲が走らない場合、コストの 2 つの形、`keepTogetherFrom` が本文の最後の行を指すこと。見出し行・脚注の対象の `@name` と `＠everyone` が無効化されること、本文のコードの外の対象の `@name` が無効化されコードの中のものは無効化されないこと、語の途中の `@` を含むタイトル・本文・チャンネル名が変わらないこと、`ProseRanges` が false のとき本文が変わらないこと。
+-   [x] `renderSlackPost`、`stageModel`、`stageModels` を設計書 3.3 のとおりに実装する。見出し行は `# <title>（<channel>）`（チャンネル名がないときは `# <title>`）。脚注は英語の平文 1 行で、版を出さず、同じモデル名の段階を 1 つにまとめる。コストは `articleCost` を使う。
+-   [x] 見出し行のタイトルとチャンネル名、脚注のモデル名は `neutralizeMentions` を、本文は `ProseRanges` と `neutralizeProse` を通してから並べる。`ProseRanges` が false のときは、本文の `@` を無効化しない（このとき本文の対象の `@` が拒否される経路を、`renderSlackPost` から `prepareSlackMessages` まで通すテストをステップ 4-13 に加える）。`Article` の値は変えない。
+-   [x] `keepTogetherFrom` は、`Body` の末尾の改行を除いた最後の行の先頭の rune の位置とする（設計書 3.3）。
+-   [x] `renderSlackPost` のテストを `slack_render_test.go` に加える: 先頭行（チャンネル名の有無）、本文の前が見出し行と空行だけであること、最終行が脚注で 1 行であること、版が出ないこと（版が空の場合と空でない場合で同じ）、同一モデルの統合、異なるモデルの併記と段階の順序、字数の調整・推敲が走らない場合、コストの 2 つの形、`keepTogetherFrom` が本文の最後の行を指すこと。見出し行・脚注の対象の `@name` と `＠everyone` が無効化されること、本文のコードの外の対象の `@name` が無効化されコードの中のものは無効化されないこと、語の途中の `@` を含むタイトル・本文・チャンネル名が変わらないこと、`ProseRanges` が false のとき本文が変わらないこと。
 
 **完了:** `renderSlackPost` は本番のコードからまだ呼ばれない。`make test` が通る。
 
 #### ステップ 4-10: PR-6 の確認
 
--   [ ] `make fmt` → `make test` → `make lint` → `make deadcode` が通る。`renderSlackPost` が本番のコードから呼ばれるのは PR-7 からだが、`make deadcode` は `-test` を付けて実行するので、テストが呼んでいれば報告されない。
--   [ ] 次の変更を 1 つずつ行い、ステップ 4-9 の対応するテストが失敗することを確かめ、コミットメッセージに記す: `renderSlackPost` の `neutralizeMentions` の呼び出しを外す; `neutralizeProse` の呼び出しを外す; `stageModels` の同一モデルの統合を外す、または段階の順序を入れ替える; `keepTogetherFrom` の指す位置を本文の末尾にする。
+-   [x] `make fmt` → `make test` → `make lint` → `make deadcode` が通る。`renderSlackPost` が本番のコードから呼ばれるのは PR-7 からで、それまでは `make deadcode` が `stageModels`・`renderSlackPost` などを到達不能として報告する。報告された項目は、テストが呼んでいることを確かめ、PR-7 が呼ぶまでの意図した足場として削除しない。
+-   [x] 次の変更を 1 つずつ行い、ステップ 4-9 の対応するテストが失敗することを確かめ、コミットメッセージに記す: `renderSlackPost` の `neutralizeMentions` の呼び出しを外す; `neutralizeProse` の呼び出しを外す; `stageModels` の同一モデルの統合を外す、または段階の順序を入れ替える; `keepTogetherFrom` の指す位置を本文の末尾にする。
 
 ### PR-6 作成ポイント: slack post renderer
 
@@ -416,8 +416,8 @@ go test -run '^$' -tags test,integration ./...
 
 **判定理由**: 該当するトリガはない。設計書 3.3 が整形の形を定めており、新しい関数は PR-3 の部品の組み合わせである。
 
--   [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
--   [ ] PR を作成した
+-   [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+-   [x] PR を作成した
 -   [ ] PR がマージされた
 -   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
