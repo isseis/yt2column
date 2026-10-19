@@ -630,7 +630,7 @@ AC-23〜AC-25 のガードは語句の有無だけを確かめ、記述が実装
 | 確認 | 時期 | 結果 |
 |---|---|---|
 | 拡張が読む `channelName` に制御文字・前後の空白が混ざらないこと（実際の YouTube の動画ページ） | フェーズ 1 の前 | - |
-| `@`・U+200B・`name` が通知にならないこと（実際の Mattermost。版を記録する） | フェーズ 4 | 2026-10-20、Mattermost クライアントから投稿して確認。`@`+U+200B+`here`/`channel`/`all`/`everyone` は通知にならない。`Tech@Work` は通知にならず、`user@example.com` は mailto のリンクになるが Mattermost のユーザー名としては扱われない。サーバの版は記録していない |
+| `@`・U+200B・`name` が通知にならないこと（実際の Mattermost。版を記録する） | フェーズ 4 | 2026-10-20、Mattermost クライアントから投稿して確認。`@`+U+200B+`here`/`channel`/`all`/`everyone` は通知にならない。`Tech@Work` は通知にならず、`user@example.com` は mailto のリンクになるが Mattermost のユーザー名としては扱われない。Mattermost サーバ 11.11.2、デスクトップ 6.3.1 |
 | 見出し行と脚注の見え方（`make test-integration-slack`、利用者の承認の後） | フェーズ 4 | 2026-10-20 に実行して通った（single 1 通・split 3 通、マーカー `20261019T233134.424Z`）。投稿の見え方の目視は未記録 |
 
 ### 5.2. 削除・改めるテストの対応
