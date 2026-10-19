@@ -235,8 +235,8 @@
 
 -   [x] グリーンゲート（`make test && make lint`。`_context.md` の "Green gate"）がパスしていることを確認した
 -   [x] PR を作成した（#335）
--   [ ] PR がマージされた
--   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+-   [x] PR がマージされた
+-   [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 5: 4 MiB の入力
 
@@ -244,9 +244,9 @@
 
 **変更するファイル:** `internal/transcript/copied_format_test.go`
 
--   [ ] **ステップ 5-1**: `TestParseCopiedLargeInputs` に設計書 7.3 の 4 つの入力（末尾の 0 文字の行、1 バイトの前置きの行、形 A の見出し行とセグメントの交互、形 B の本文の後の 1 バイトの見出し行）と、それぞれの組み立て関数を加える。各入力は 4 MiB 以下で、期待するセグメントの数を持つ。
--   [ ] **ステップ 5-2**: 関数のコメントの `parses three synthetic 4 MiB inputs: the shortest form A line repeated (the most segments), one form A line nearly 4 MiB long, and many textless form B timestamps followed by one text.` を、7 つの入力とそれぞれが走査する経路を述べる形に改める。
--   [ ] **ステップ 5-3**: `make test`（race あり、`copiedParseAllocPerByte` は 8192）と、race なしの `go test -tags test -run TestParseCopiedLargeInputs ./internal/transcript`（同 128）の両方で、既存の 3 つと新しい 4 つを合わせた 7 つの入力が期限とメモリの上限に収まることを確かめ、両方の `t.Logf` の値をコミットメッセージに書く。
+-   [x] **ステップ 5-1**: `TestParseCopiedLargeInputs` に設計書 7.3 の 4 つの入力（末尾の 0 文字の行、1 バイトの前置きの行、形 A の見出し行とセグメントの交互、形 B の本文の後の 1 バイトの見出し行）と、それぞれの組み立て関数を加える。各入力は 4 MiB 以下で、期待するセグメントの数を持つ。
+-   [x] **ステップ 5-2**: 関数のコメントの `parses three synthetic 4 MiB inputs: the shortest form A line repeated (the most segments), one form A line nearly 4 MiB long, and many textless form B timestamps followed by one text.` を、7 つの入力とそれぞれが走査する経路を述べる形に改める。
+-   [x] **ステップ 5-3**: `make test`（race あり、`copiedParseAllocPerByte` は 8192）と、race なしの `go test -tags test -run TestParseCopiedLargeInputs ./internal/transcript`（同 128）の両方で、既存の 3 つと新しい 4 つを合わせた 7 つの入力が期限とメモリの上限に収まることを確かめ、両方の `t.Logf` の値をコミットメッセージに書く。
 
 ### PR-6 作成ポイント: 4 MiB input tests
 
@@ -260,8 +260,8 @@
 
 **判定理由**: 既存の `TestParseCopiedLargeInputs` に入力を足すだけのテストの変更で、どの契機にも当たらない。
 
--   [ ] グリーンゲート（`make test && make lint`。`_context.md` の "Green gate"）がパスしていることを確認した
--   [ ] PR を作成した
+-   [x] グリーンゲート（`make test && make lint`。`_context.md` の "Green gate"）がパスしていることを確認した
+-   [x] PR を作成した（#336）
 -   [ ] PR がマージされた
 -   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
@@ -479,7 +479,7 @@ AC-25 は、入力全体の検査（`errCopiedBlank`）が先に起こるので�
 -   [x] PR-2 マージ済み（対象ステップ: 1-11 / 1-12 / 1-13 / 1-14 / 1-15 / 1-16 / 1-17 / 1-18 / 1-19 / 1-20）
 -   [x] PR-3 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5）
 -   [x] PR-4 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5）
--   [ ] PR-5 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7 / 4-8）
+-   [x] PR-5 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7 / 4-8）
 -   [ ] PR-6 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3）
 -   [ ] PR-7 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3 / 6-4 / 6-5）
 -   [ ] PR-8 マージ済み（対象ステップ: 6-6）
