@@ -22,9 +22,9 @@ const (
 // sample, and the 0015 architecture records the per-video attributes, the
 // observed formats, the h:mm:ss observation, and the long-video selection
 // investigation. Whether a sample is saved is read from a list of attribute
-// tables: the 0015 table and the 0024 requirements table that overrides its
-// rows for samples a later task saved. A sample passes when any table in the
-// list has its row marked saved. The sample set is read from testdata/, so a
+// tables: the 0015 table and the 0024 requirements table that records the
+// samples 0024 saved. A sample passes when any table in the list has its row
+// marked saved; the order of the tables does not matter. The sample set is read from testdata/, so a
 // newly saved sample without a record fails this guard.
 func TestCopiedTranscriptSurveyRecords(t *testing.T) {
 	sampleIDs := copiedTranscriptSampleIDs(t)
