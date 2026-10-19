@@ -3,9 +3,6 @@
 package publisher
 
 import (
-	"flag"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -13,11 +10,6 @@ import (
 
 	"github.com/isseis/yt2column/internal/writer"
 )
-
-// update rewrites the golden files under testdata/ from renderFileArticle:
-//
-//	go test -tags test ./internal/publisher -run TestRenderFileArticleGolden -update
-var update = flag.Bool("update", false, "rewrite the golden files under testdata/")
 
 const sourceLine = "source: \"https://www.youtube.com/watch?v=abcdefghijk\"\n"
 
@@ -240,50 +232,6 @@ func TestEscapeLeadingMarkdown(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := escapeLeadingMarkdown(tc.in); got != tc.want {
 				t.Fatalf("escapeLeadingMarkdown(%q) = %q, want %q", tc.in, got, tc.want)
-			}
-		})
-	}
-}
-
-// TestRenderFileArticleGolden pins whole files. The golden files are also the
-// input of the mechanical article check of task 0008 (check_article.py), so
-// the front matter the CLI writes stays readable by it. That reading is kept in
-// sync by hand (implementation plan, section 5.3); no test runs the script.
-func TestRenderFileArticleGolden(t *testing.T) {
-	withChannel := costedArticle()
-	withChannel.ChannelName = "Example Channel"
-	withChannel.Body = "Lead paragraph.\n\n## One\n\nText.\n\n## Two\n\nText.\n\n## Three\n\nText.\n\n" +
-		"\u51fa\u5178: <https://www.youtube.com/watch?v=abcdefghijk>\n"
-	withChannel.Shorten = &writer.StepModel{Model: "claude-haiku-5-5", ModelVersion: "s1"}
-	withChannel.Review = &writer.ReviewResult{Model: writer.StepModel{Model: "claude-haiku-5-5"}}
-
-	withoutChannel := withChannel
-	withoutChannel.ChannelName = ""
-	withoutChannel.Shorten = nil
-	withoutChannel.Review = nil
-
-	cases := []struct {
-		file    string
-		article writer.Article
-	}{
-		{"file_article_with_channel.md", withChannel},
-		{"file_article_without_channel.md", withoutChannel},
-	}
-	for _, tc := range cases {
-		t.Run(tc.file, func(t *testing.T) {
-			path := filepath.Join("testdata", tc.file)
-			got := renderFileArticle(tc.article)
-			if *update {
-				if err := os.WriteFile(path, []byte(got), 0o600); err != nil {
-					t.Fatal(err)
-				}
-			}
-			want, err := os.ReadFile(path) //nolint:gosec // a fixed path under testdata
-			if err != nil {
-				t.Fatal(err)
-			}
-			if got != string(want) {
-				t.Fatalf("renderFileArticle differs from %s:\n%s", path, got)
 			}
 		})
 	}

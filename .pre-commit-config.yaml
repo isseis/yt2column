@@ -37,10 +37,11 @@ repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
+    # Golden files are compared byte for byte, trailing newline included.
     -   id: trailing-whitespace
-        exclude: ^testdata/
+        exclude: ^(testdata/|internal/publisher/testdata/golden/)
     -   id: end-of-file-fixer
-        exclude: ^testdata/
+        exclude: ^(testdata/|internal/publisher/testdata/golden/)
     -   id: check-yaml
     -   id: check-added-large-files
         exclude: ^testdata/

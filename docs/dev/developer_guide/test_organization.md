@@ -103,3 +103,32 @@ When adding new test helper code, follow this decision tree:
 - Test setup helper function → `testutil/helpers.go`
 - Method on internal type → `test_helpers.go`
 - Factory function using private constructor → `test_helpers.go`
+
+## Golden Files
+
+`internal/publisher/testdata/golden/` holds the full output of the two article
+renderers for representative articles: `<case>.md` is the `--out` file
+(`renderFileArticle`) and `<case>.slack.txt` is the Slack post text
+(`renderSlackPost`). `TestRenderGolden` (`internal/publisher/golden_test.go`)
+compares them byte for byte; open them to read the finished layout.
+
+- **Regenerate** after an intended layout change, then review the diff:
+  ```
+  go test -tags test ./internal/publisher -run Golden -update
+  git diff internal/publisher/testdata/golden/
+  ```
+  A pull request that changes the output layout says in its description that
+  reviewers should check the golden-file diff.
+- **Do not edit them by hand or let tools rewrite them.** Trailing newlines and
+  trailing spaces are part of the comparison. The pre-commit whitespace hooks
+  exclude the directory and `.gitattributes` marks it `-text`.
+- **Invisible characters are kept as they are.** `mentions.slack.txt` contains
+  U+200B after each neutralized `@`; `TestRenderGoldenNeutralized` checks where
+  they are.
+- **Golden files supplement the per-element tests; they do not replace them.**
+  Key order, conditional keys, the one-line footnote, and so on keep their own
+  assertions in `file_render_test.go` and `slack_render_test.go`.
+- A post split into several messages (over 16,383 characters) has no golden
+  file; the split tests in `slack_message_test.go` cover it.
+- Inputs are fictional values, never data from a real video or channel
+  (`docs/dev/security.md` §7).
