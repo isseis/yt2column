@@ -32,6 +32,9 @@ func productionGoFiles(t *testing.T) []string {
 			if err != nil {
 				return err
 			}
+			if d.IsDir() && d.Name() == "testdata" {
+				return filepath.SkipDir
+			}
 			if d.IsDir() || !strings.HasSuffix(path, ".go") {
 				return nil
 			}
@@ -424,8 +427,9 @@ func TestSharedTokenRemoved(t *testing.T) {
 	if err != nil {
 		t.Fatalf("walk docs/dev: %v", err)
 	}
-	if !slices.Contains(strings.Split(readme, "\n"), upgradeHeading) {
-		t.Fatalf("README.md has no %q section; the exemption is stale", upgradeHeading)
+	_, upgrade := splitSection(readme, upgradeHeading)
+	if !strings.Contains(upgrade, "server-token") {
+		t.Fatalf("README.md %q section does not name server-token; the exemption is stale", upgradeHeading)
 	}
 	for _, rel := range slices.Sorted(maps.Keys(texts)) {
 		for _, word := range removedTokenWords {
@@ -435,9 +439,8 @@ func TestSharedTokenRemoved(t *testing.T) {
 		}
 	}
 	// The upgrade section may name the token file but not the other words.
-	_, upgrade := splitSection(readme, upgradeHeading)
-	for _, word := range []string{"authtoken", "YT2COLUMN_SERVER_PORT"} {
-		if strings.Contains(strings.ToLower(upgrade), strings.ToLower(word)) {
+	for _, word := range removedTokenWords {
+		if word != "server-token" && strings.Contains(strings.ToLower(upgrade), strings.ToLower(word)) {
 			t.Errorf("README.md %q section mentions %q", upgradeHeading, word)
 		}
 	}
