@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-19 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-19 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `81cb30d` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指す。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-05）への対応は 3.12 にまとめる。0007・0020・0025・0026 などの 4 桁の番号は `docs/tasks/` の同じ番号のタスクを、#330 などは GitHub の issue の番号を指す。
