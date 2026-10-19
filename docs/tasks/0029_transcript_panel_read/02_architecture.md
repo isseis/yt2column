@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-19 |
-| Review date | - |
-| Reviewer | - |
-| Comments | - |
+| Review date | 2026-10-20 |
+| Reviewer | isseis |
+| Comments | 編集上の訂正（2026-10-20。判断は変えていない）。2.2 の依存関係の図と箇条書きに、`core/types.ts` → `core/collect.ts` の型だけの import を加えた。3.6 の `OutcomeSummary` が 3.2 の `PanelUnavailableReason`（`core/collect.ts`）を参照することから既に決まっていた辺で、図が示していなかっただけである。型の置き場所は変えていない |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `9698b97` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指す。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-08）への対応は 3.11 にまとめる。
 
@@ -181,6 +181,7 @@ flowchart LR
     LAUNCH --> TYPES
     LAUNCH --> RENDER
     COLLECT --> TYPES
+    TYPES --> COLLECT
     PREPARE --> COLLECT
     PREPARE --> TYPES
     SUMMARY --> COLLECT
@@ -200,7 +201,7 @@ flowchart LR
     class L1 enhanced
 ```
 
--   import の辺は増えも減りもしない。`browser/chromeDeps.ts` → `core/collect.ts` の import は、現在は型だけである（`extension/src/browser/chromeDeps.ts:1`）。本タスクで `whitespaceOnly`（注入の引数）と `parseTranscriptRead` の値の import になる。新しいモジュールは加えない。
+-   import の辺は 1 つだけ増える。`core/types.ts` → `core/collect.ts` の型だけの import である。3.6 の `OutcomeSummary` が、`core/collect.ts` に置く `PanelUnavailableReason`（3.2）を参照するためである。`core/collect.ts` → `core/types.ts` の import は既にあるので、2 つのモジュールは型だけで互いに参照する。ほかの辺は増えも減りもしない。`browser/chromeDeps.ts` → `core/collect.ts` の import は、現在は型だけである（`extension/src/browser/chromeDeps.ts:1`）。本タスクで `whitespaceOnly`（注入の引数）と `parseTranscriptRead` の値の import になる。新しいモジュールは加えない。
 -   `TranscriptOrigin` は `core/types.ts` に置き、`core/collect.ts`（`CollectedInput`）と `core/types.ts`（`OutcomeSummary`）が同じ型を参照する。
 
 ### 2.3. 実行時の配置
