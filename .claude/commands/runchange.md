@@ -24,9 +24,8 @@ and the plan's PR-checkpoint checkboxes are updated after the merge.
 **Input.** `$ARGUMENTS`, when given, is a PR number or a branch to operate on;
 with no argument, use the current branch.
 
-Before the PR is created, review the change locally. Ask once whether to run
-the CodeRabbit review, as the Authorization section of
-`.claude/commands/_lib/coderabbit-local-review.md` defines, then follow that file
+Before the PR is created, review the change locally: follow
+`.claude/commands/_lib/coderabbit-local-review.md`
 with **BASE** = `$(git merge-base origin/main HEAD)`, **SCOPE** = branch,
 **SUMMARY** = the final status report. If the target branch already has a PR,
 push any fix commits to it. Skip this when `$ARGUMENTS` names a PR or branch

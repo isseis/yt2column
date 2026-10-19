@@ -30,8 +30,6 @@ Work in order.
    - Count `### フェーズ` headers in the plan. If there are 2 or more and no `### PR-` sections exist, stop and report: PR boundary design is missing. Ask the user to run `/mkplan2` manually and review its output before re-running `/runplan`. Do not invoke `/mkplan2` yourself.
    - If PR markers already exist, skip this step and continue.
 
-2.7. Ask once whether to run the CodeRabbit review (step 7.7), as the Authorization section of `.claude/commands/_lib/coderabbit-local-review.md` defines (the answer is `CODERABBIT`). Keep it for the rest of this `/runplan` run, including every pass through step 4 after a PR is merged.
-
 3. Read `01_requirements.md`, `02_architecture.md` (both in the target task directory), and `docs/dev/developer_guide/test_organization.md`.
 
 4. Select the next unit of work from `03_implementation_plan.md` checkboxes (`[ ]` not started, `[x]` done, `[-]` skipped).
@@ -168,6 +166,6 @@ Test-review checklist (use verbatim as evaluation criteria in the step 7.5 promp
 7.7. CodeRabbit review and triage. Run it after step 7.5, so CodeRabbit reviews the code and tests as they stand after the subagent-review fixes. Follow `.claude/commands/_lib/coderabbit-local-review.md` with **BASE** = `${PHASE_START}`, **SCOPE** = phase group, **SUMMARY** = the step 8 summary.
 
 8. Decide whether to continue or finish.
-- If implementation ran this iteration: summarize implementation, verified ACs, assumptions, and deferred items, plus the CodeRabbit result (run, declined, or failed; counts of fixed / rejected / deferred findings and the reason for each rejection).
+- If implementation ran this iteration: summarize implementation, verified ACs, assumptions, and deferred items, plus the CodeRabbit result (run or failed; counts of fixed / rejected / deferred findings and the reason for each rejection).
 - If phases remain: ask "Shall I continue with the next phase group?" — return to step 4 if agreed, otherwise report status and stop.
 - If all phases are complete: verify every AC in `01_requirements.md` is satisfied by the implementation and has at least one test. Report the final status and any gaps.
