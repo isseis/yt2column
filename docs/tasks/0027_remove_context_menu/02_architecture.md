@@ -242,7 +242,7 @@ manifest からの 2 本の矢印は、import ではなく「manifest がその�
 | `unreadableResultMessage` | `core/sendMessages.ts:204` | なし | `sendMessages.test.ts:120`・`launch.test.ts` | 削除 |
 | `parseSummary` と、それだけが使う `collectedKeys`・`rejectedKeys` | `core/summary.ts:9-20`・`:94` | なし（`parseResultView` だけが呼ぶ） | `summary.test.ts:105-176` | 削除 |
 | `isRejectionReason` | `core/summary.ts:83` | なし（`parseSummary` と `core/resultView.ts:39` だけが呼ぶ） | — | 削除 |
-| `rejectionReasons` | `core/types.ts:13` | なし（`isRejectionReason` だけが使う） | `messages.test.ts:5`・`sendMessages.test.ts:20` | 残す（3.2.3） |
+| `rejectionReasons` | `core/types.ts:13` | なし（`isRejectionReason` だけが使う） | `messages.test.ts:5`・`sendMessages.test.ts:20`（本タスクの後は `summary.test.ts` の `summarize` の拒否の検査も使う。実装計画のステップ 4-8） | 残す（3.2.3） |
 | `hasExactKeys` | `core/summary.ts:71` | `core/response.ts:190`・`:194` だけ | — | `core/response.ts` の export しない関数に移す（3.2.5） |
 | `unexpectedChecks` | `core/response.ts:90` | なし（`parseResultView` だけが使う） | なし | 削除 |
 | `isServerRejectReason`・`parseRequestId` | `core/response.ts:40`・`:57` | `classifyResponse`（`core/response.ts:200`・`:211`、同じモジュール）。ほかのモジュールからの import は `core/resultView.ts:7-11` だけで、削除する | `response.test.ts` | export を残す |

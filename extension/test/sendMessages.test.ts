@@ -15,7 +15,6 @@ import {
   blockMessage,
   sendOutcomeMessage,
   serverRejectMessage,
-  unreadableResultMessage,
 } from "../src/core/sendMessages.ts";
 import { rejectionReasons } from "../src/core/types.ts";
 import type { RejectionReason } from "../src/core/types.ts";
@@ -115,8 +114,4 @@ describe("sendOutcomeMessage", () => {
       assert.ok(textOf(sendOutcomeMessage(outcome)).includes("Slack"), name);
     });
   }
-
-  it("tells the user to check Slack when a result cannot be displayed", () => {
-    assert.ok(textOf(unreadableResultMessage).includes("Slack"));
-  });
 });

@@ -1,14 +1,14 @@
-// Renders a send outcome and a result-view value as text-only elements. Every
+// Renders a send outcome and a block reason as text-only elements. Every
 // string is set with textContent, so a value that reached this layer as a
 // string is never parsed as HTML; the response body's text never reaches here.
 
 import type { RejectionMessage } from "../core/messages.ts";
-import type { CollectedSummary, ResultView } from "../core/resultView.ts";
+import type { BlockReason } from "../core/prepare.ts";
 import type { SendOutcome } from "../core/response.ts";
 import { blockMessage, sendOutcomeMessage } from "../core/sendMessages.ts";
-import { messageNodes, renderSummary } from "./render.ts";
+import { messageNodes } from "./render.ts";
 
-/** The "sending" notice; the popup and the result window both show it. */
+/** The "sending" notice the popup shows while a send is in flight. */
 export const sendingMessage: RejectionMessage = {
   text: "Sending the article to the server...",
   steps: [
@@ -16,14 +16,6 @@ export const sendingMessage: RejectionMessage = {
     "If you close it, check Slack before sending again.",
   ],
 };
-
-/** A section holding the collected summary, rendered by renderSummary. */
-function summaryNode(doc: Document, summary: CollectedSummary): HTMLElement {
-  const section = doc.createElement("div");
-  section.className = "send-summary";
-  renderSummary(section, summary);
-  return section;
-}
 
 /** The message, plus the request id or the status code when the outcome has one. */
 function outcomeNodes(doc: Document, outcome: SendOutcome): HTMLElement[] {
@@ -52,33 +44,11 @@ export function renderSendOutcome(
   container.replaceChildren(...outcomeNodes(doc, outcome));
 }
 
-/** Replaces the children of container with a text-only rendering of a result view. */
-export function renderResultView(
+/** Replaces the children of container with the text-only message for a block reason. */
+export function renderBlockReason(
   container: HTMLElement,
-  view: ResultView,
+  reason: BlockReason,
 ): void {
   const doc = container.ownerDocument;
-  switch (view.kind) {
-    case "blocked":
-      container.replaceChildren(
-        ...messageNodes(doc, blockMessage(view.reason)),
-      );
-      return;
-    case "sending":
-      container.replaceChildren(
-        ...messageNodes(doc, sendingMessage),
-        summaryNode(doc, view.summary),
-      );
-      return;
-    case "sent":
-      container.replaceChildren(
-        ...outcomeNodes(doc, view.outcome),
-        summaryNode(doc, view.summary),
-      );
-      return;
-    default: {
-      const exhaustive: never = view;
-      throw new Error(`Unhandled result view: ${String(exhaustive)}`);
-    }
-  }
+  container.replaceChildren(...messageNodes(doc, blockMessage(reason)));
 }

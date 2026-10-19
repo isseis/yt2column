@@ -199,9 +199,3 @@ export function sendOutcomeMessage(outcome: SendOutcome): RejectionMessage {
     }
   }
 }
-
-/** Message shown when a result window cannot read what to display. */
-export const unreadableResultMessage: RejectionMessage = {
-  text: "This result cannot be displayed. If you sent an article, check Slack before sending again.",
-  steps: [],
-};

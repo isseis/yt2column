@@ -3,30 +3,12 @@ import { describe, it } from "node:test";
 
 import type { RejectionMessage } from "../src/core/messages.ts";
 import type { BlockReason } from "../src/core/prepare.ts";
-import type { CollectedSummary, ResultView } from "../src/core/resultView.ts";
 import type { RequestId, SendOutcome } from "../src/core/response.ts";
 import { blockMessage, sendOutcomeMessage } from "../src/core/sendMessages.ts";
-import {
-  renderResultView,
-  renderSendOutcome,
-  sendingMessage,
-} from "../src/ui/renderSend.ts";
+import { renderBlockReason, renderSendOutcome } from "../src/ui/renderSend.ts";
 import { container, query } from "./helpers/dom.ts";
 
 const requestId = "0123456789abcdef" as RequestId;
-const malicious = "<img src=x onerror=alert(1)>";
-
-const collected: CollectedSummary = {
-  kind: "collected",
-  title: "A video",
-  titleTruncated: false,
-  url: "https://www.youtube.com/watch?v=abc",
-  urlTruncated: false,
-  characterCount: 2,
-  lineCount: 1,
-  preview: "hi",
-  previewTruncated: false,
-};
 
 /** Asserts the container's text shows the message and each of its steps. */
 function expectMessage(root: HTMLElement, message: RejectionMessage): void {
@@ -97,50 +79,16 @@ describe("renderSendOutcome", () => {
   });
 });
 
-describe("renderResultView", () => {
-  // One collection reason and one preflight reason: the blocked branch does
-  // not vary by reason, and message content is sendMessages.test.ts's contract.
+describe("renderBlockReason", () => {
+  // The rendering does not vary by reason, so two reasons suffice here; the
+  // popup's blocked display is covered per reason in launch.test.ts, and the
+  // message content is sendMessages.test.ts's contract.
   const blockReasons: BlockReason[] = ["empty-selection", "token-missing"];
   for (const reason of blockReasons) {
     it(`shows the ${reason} block message`, () => {
       const root = container();
-      const view: ResultView = { kind: "blocked", reason };
-      renderResultView(root, view);
+      renderBlockReason(root, reason);
       expectMessage(root, blockMessage(reason));
     });
   }
-
-  it("shows the sending notice with the close guidance and the summary", () => {
-    const root = container();
-    renderResultView(root, { kind: "sending", summary: collected });
-    expectMessage(root, sendingMessage);
-    // The close guidance and the Slack warning are the substance of AC-22, so
-    // assert them independently of the constant the code renders.
-    const text = root.textContent ?? "";
-    assert.ok(text.includes("close"), text);
-    assert.ok(text.includes("Slack"), text);
-    assert.ok(text.includes(collected.title));
-  });
-
-  it("shows the sent outcome and its request id alongside the summary", () => {
-    const root = container();
-    renderResultView(root, {
-      kind: "sent",
-      summary: collected,
-      outcome: { kind: "accepted", requestId },
-    });
-    assert.equal(query(root, ".send-request-id").textContent, requestId);
-    assert.ok((root.textContent ?? "").includes(collected.title));
-  });
-
-  it("displays markup in the summary as text, not elements", () => {
-    const root = container();
-    renderResultView(root, {
-      kind: "sent",
-      summary: { ...collected, title: malicious, preview: malicious },
-      outcome: { kind: "accepted", requestId },
-    });
-    assert.equal(root.querySelector("img"), null);
-    assert.ok((root.textContent ?? "").includes(malicious));
-  });
 });

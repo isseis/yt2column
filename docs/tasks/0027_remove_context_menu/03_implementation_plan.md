@@ -272,8 +272,8 @@
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した（#349）
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 4: 共有コードの整理
 
@@ -282,38 +282,38 @@
 -   変更: `extension/src/ui/renderSend.ts`、`extension/src/launch.ts`、`extension/src/core/summary.ts`、`extension/src/core/response.ts`、`extension/src/core/sendMessages.ts`、`extension/src/core/types.ts`、`extension/src/browser/chromeDeps.ts`、`extension/static/style.css`、`extension/test/renderSend.test.ts`、`extension/test/summary.test.ts`、`extension/test/sendMessages.test.ts`
 
 **タスク**
--   [ ] **ステップ 4-1**: `renderResultView` を `renderBlockReason` に置き換える（設計書 3.2.2）。表示は現在の `blocked` の場合と同じにする。`summaryNode` を削除し、`CollectedSummary`・`ResultView`・`renderSummary` の import を除く。`runPopupSend`（`launch.ts:377`）の呼び出しを `renderBlockReason(container, prepared.reason)` に改める。コメントを次のように改める（設計書 3.2.6）。
+-   [x] **ステップ 4-1**: `renderResultView` を `renderBlockReason` に置き換える（設計書 3.2.2）。表示は現在の `blocked` の場合と同じにする。`summaryNode` を削除し、`CollectedSummary`・`ResultView`・`renderSummary` の import を除く。`runPopupSend`（`launch.ts:377`）の呼び出しを `renderBlockReason(container, prepared.reason)` に改める。コメントを次のように改める（設計書 3.2.6）。
     -   `ui/renderSend.ts:1` の `// Renders a send outcome and a result-view value as text-only elements. Every` を `// Renders a send outcome and a block reason as text-only elements. Every` に改める（`:2-3` は変えない）。
     -   `ui/renderSend.ts:55` の `renderResultView` のコメント（`a result view`）は、`renderBlockReason` のコメントとして書き直す（設計書 3.2.2 の宣言のコメント）。
     -   `ui/renderSend.ts:11` の `/** The "sending" notice; the popup and the result window both show it. */` を `/** The "sending" notice the popup shows while a send is in flight. */` に改める。
     -   **対象:** `extension/src/ui/renderSend.ts`、`extension/src/launch.ts`。**完了:** `make ext-typecheck` は同じ PR の後のステップ（4-8）の後に通る。確かめるのはステップ 4-9 のグリーンゲートである。
--   [ ] **ステップ 4-2**: `core/resultView.ts` と `test/resultView.test.ts` を削除する。
-    -   [ ] `extension/src/core/resultView.ts` を削除する。
-    -   [ ] `extension/test/resultView.test.ts` を削除する。
+-   [x] **ステップ 4-2**: `core/resultView.ts` と `test/resultView.test.ts` を削除する。
+    -   [x] `extension/src/core/resultView.ts` を削除する。
+    -   [x] `extension/test/resultView.test.ts` を削除する。
     -   **対象:** `extension/src/core/resultView.ts`、`extension/test/resultView.test.ts`（削除）。**完了:** 2 つのファイルがない。`make ext-check` はステップ 4-9 で通す。
--   [ ] **ステップ 4-3**: `core/summary.ts` から `parseSummary`・`collectedKeys`・`rejectedKeys`・`isRejectionReason` と、`rejectionReasons`・`RejectionReason` の使われなくなった import を削除する。`hasExactKeys` を `core/response.ts` の export しない関数に移し、`core/response.ts:6` の import を除く（設計書 3.2.5）。`core/response.ts` から `unexpectedChecks` を削除する。`UnexpectedCheck` の型は残す。
+-   [x] **ステップ 4-3**: `core/summary.ts` から `parseSummary`・`collectedKeys`・`rejectedKeys`・`isRejectionReason` と、`rejectionReasons`・`RejectionReason` の使われなくなった import を削除する。`hasExactKeys` を `core/response.ts` の export しない関数に移し、`core/response.ts:6` の import を除く（設計書 3.2.5）。`core/response.ts` から `unexpectedChecks` を削除する。`UnexpectedCheck` の型は残す。
     -   **対象:** `extension/src/core/summary.ts`、`extension/src/core/response.ts`。**完了:** `response.test.ts` の既存の検査を含む `make ext-test` が、ステップ 4-8 の後に通る（ステップ 4-9）。
--   [ ] **ステップ 4-4**: `core/sendMessages.ts` から `unreadableResultMessage` を削除する。
+-   [x] **ステップ 4-4**: `core/sendMessages.ts` から `unreadableResultMessage` を削除する。
     -   **対象:** `extension/src/core/sendMessages.ts`。**完了:** `make ext-typecheck` はステップ 4-8 の後に通る（ステップ 4-9）。
--   [ ] **ステップ 4-5**: `browser/chromeDeps.ts` から `schedule` を削除する（設計書 3.2.4）。`:15` のコメント `/** The chrome.storage area surface used (session for result views, local for settings). */` を `/** The chrome.storage area surface used (local, for settings). */` に改める。`StorageArea` の型は変えない（設計書 3.2.1）。
+-   [x] **ステップ 4-5**: `browser/chromeDeps.ts` から `schedule` を削除する（設計書 3.2.4）。`:15` のコメント `/** The chrome.storage area surface used (session for result views, local for settings). */` を `/** The chrome.storage area surface used (local, for settings). */` に改める。`StorageArea` の型は変えない（設計書 3.2.1）。
     -   **対象:** `extension/src/browser/chromeDeps.ts`。**完了:** `make ext-check` が通る（ステップ 4-9）。
--   [ ] **ステップ 4-6**: `static/style.css` から `.send-summary` の規則（`:85-87`）を削除する。
+-   [x] **ステップ 4-6**: `static/style.css` から `.send-summary` の規則（`:85-87`）を削除する。
     -   **対象:** `extension/static/style.css`。**完了:** `make ext-check` が通る（ステップ 4-9）。
--   [ ] **ステップ 4-7**: コメントを改める（設計書 3.2.6）。
+-   [x] **ステップ 4-7**: コメントを改める（設計書 3.2.6）。
     -   `core/types.ts:27` の `/** Display-only digest of an outcome; what the result window receives. */` を `/** Display-only digest of an outcome; what the popup summary shows. */` に改める。
     -   `core/response.ts:102` の `/** A send result without the cause of "unknown": what is displayed and stored. */` を `/** A send result without the cause of "unknown": what is displayed. */` に改める。
     -   `core/response.ts:123` の `/** Drops the cause of "unknown"; the only way a SendResult becomes a stored or displayed value. */` を `/** Drops the cause of "unknown"; the only way a SendResult becomes a displayed value. */` に改める。
     -   **対象:** `extension/src/core/types.ts`、`extension/src/core/response.ts`。**完了:** コメントだけの変更で、`make ext-check` が通る（ステップ 4-9）。
--   [ ] **ステップ 4-8**: テストを改める。
-    -   [ ] `summary.test.ts`: 「parseSummary」を削除する前に、「summarize」の describe に、収集した要約がちょうど 9 つのキーを持つことと、`cause` を持つ拒否（すべての拒否の理由）が `kind`・`reason` だけの値になることを、値の全体で確かめる検査を加える（§1.3）。
-    -   [ ] `renderSend.test.ts`: describe を §2.1 の表のとおりにし、`blocked` の行（`:105`）を `renderBlockReason` を呼ぶ形に改める。
-    -   [ ] `renderSend.test.ts`: 「shows the sending notice with the close guidance and the summary」（`:113`）を削除する（検査はステップ 2-3 が引き継ぐ）。
-    -   [ ] `renderSend.test.ts`: 「shows the sent outcome and its request id alongside the summary」（`:125`）を削除する。
-    -   [ ] `renderSend.test.ts`: 「displays markup in the summary as text, not elements」（`:136`）を削除する。使われなくなった `collected`・`malicious`・`sendingMessage` などの import と定数を除く。
-    -   [ ] `summary.test.ts`: 「parseSummary」の describe と、その 9 つのテスト（`:106`・`:111`・`:123`・`:129`・`:133`・`:141`・`:157`・`:163`・`:170`）を削除し、使われなくなった import（`parseSummary`・`rejectionReasons`・`RejectionReason`）を除く。
-    -   [ ] `sendMessages.test.ts`: 「tells the user to check Slack when a result cannot be displayed」（`:119`）を削除し、`unreadableResultMessage` の import を除く。
+-   [x] **ステップ 4-8**: テストを改める。
+    -   [x] `summary.test.ts`: 「parseSummary」を削除する前に、「summarize」の describe に、収集した要約がちょうど 9 つのキーを持つことと、`cause` を持つ拒否（すべての拒否の理由）が `kind`・`reason` だけの値になることを、値の全体で確かめる検査を加える（§1.3）。
+    -   [x] `renderSend.test.ts`: describe を §2.1 の表のとおりにし、`blocked` の行（`:105`）を `renderBlockReason` を呼ぶ形に改める。
+    -   [x] `renderSend.test.ts`: 「shows the sending notice with the close guidance and the summary」（`:113`）を削除する（検査はステップ 2-3 が引き継ぐ）。
+    -   [x] `renderSend.test.ts`: 「shows the sent outcome and its request id alongside the summary」（`:125`）を削除する。
+    -   [x] `renderSend.test.ts`: 「displays markup in the summary as text, not elements」（`:136`）を削除する。使われなくなった `collected`・`malicious`・`sendingMessage` などの import と定数を除く。
+    -   [x] `summary.test.ts`: 「parseSummary」の describe と、その 9 つのテスト（`:106`・`:111`・`:123`・`:129`・`:133`・`:141`・`:157`・`:163`・`:170`）を削除し、使われなくなった import（`parseSummary`）を除く。`rejectionReasons`・`RejectionReason` は、この段で加えた `summarize` の拒否の検査がすべての理由をたどるのに使うので残す。
+    -   [x] `sendMessages.test.ts`: 「tells the user to check Slack when a result cannot be displayed」（`:119`）を削除し、`unreadableResultMessage` の import を除く。
     -   **対象:** `extension/test/summary.test.ts`、`extension/test/renderSend.test.ts`、`extension/test/sendMessages.test.ts`。**完了:** 上のチェックボックスがすべて済み、`make ext-check` が通る（ステップ 4-9）。
--   [ ] **ステップ 4-9**: 壊して失敗することを確かめ、コミットのメッセージに記す。対象は次のとおりである。`renderBlockReason` が `blockMessage` 以外の文言を描く（`renderSend.test.ts` の `renderBlockReason`）。`runPopupSend` が `renderBlockReason` を呼ばない（`launch.test.ts` の `shows the ${reason} reason and no button without sending`）。`hasExactKeys` が余分なキーを許す（`response.test.ts` の member-set の検査）。`summarize` が収集した要約にキーを 1 つ加える、拒否の `cause` を残す（ステップ 4-8 で加えた `summarize` の検査）。続けて `make ext-check` → `make test` → `make lint` を通す。
+-   [x] **ステップ 4-9**: 壊して失敗することを確かめ、コミットのメッセージに記す。対象は次のとおりである。`renderBlockReason` が `blockMessage` 以外の文言を描く（`renderSend.test.ts` の `renderBlockReason`）。`runPopupSend` が `renderBlockReason` を呼ばない（`launch.test.ts` の `shows the ${reason} reason and no button without sending`）。`hasExactKeys` が余分なキーを許す（`response.test.ts` の member-set の検査）。`summarize` が収集した要約にキーを 1 つ加える、拒否の `cause` を残す（ステップ 4-8 で加えた `summarize` の検査）。続けて `make ext-check` → `make test` → `make lint` を通す。
     -   **対象:** なし（確認のみ）。**完了:** 各対象を壊すと名前を挙げた検査が失敗することを確かめ、コミットのメッセージに記した。
 
 **完了条件:** `make ext-check` → `make test` → `make lint` が通る。
@@ -330,8 +330,8 @@
 
 **判定理由**: どのトリガーにも当たらない（設計書 3.2 が置き換えの形と削除の対象を確定しており、§1.3 に競合する実装の案がない）。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した（#351）
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
@@ -682,7 +682,7 @@ AC-09・AC-10 は、確かめた結果を本計画に記録することを求め
 | token never leaks > keeps the token out of the logs, the store and the display（`:1318`） | 記録と表示にトークンの全体がない | token never leaks > keeps the token out of the logs and the display の同じ検査（残す）。対象に、ポップアップの送信のログ（受付と失敗）と、トークンを読み込んだうえで送らない場合（`port-invalid`）のログと表示を加え、`Error` の名前と文言も直列化する。メニューの記録とストアは R7・R1 |
 | 同上 | トークンの先頭の 4 文字がない | 同上 |
 | 同上 | トークンの末尾の 4 文字がない | 同上 |
-| `renderSend.test.ts`: renderResultView > shows the ${reason} block message（`:105`。2 行） | 送らない理由の文言を表示する | `renderSend.test.ts`: renderBlockReason > shows the ${reason} block message（ステップ 4-8 で `renderBlockReason` を呼ぶ形に改める） |
+| `renderSend.test.ts`: renderResultView > shows the ${reason} block message（`:105`。2 行） | 送らない理由の文言を表示する | `renderSend.test.ts`: renderBlockReason > shows the ${reason} block message（ステップ 4-8 で `renderBlockReason` を呼ぶ形に改めた） |
 | `renderSend.test.ts`: renderResultView > shows the sending notice with the close guidance and the summary（`:113`） | 送信中の文言（`sendingMessage`）を表示する | popup send > shows the sending notice and a disabled button while sending の `expectMessage` の検査（残す） |
 | 同上 | 表示が `close` を含む | 同上の、`Do not close this window until the result appears.` を文の全体で確かめる検査（加えた。AC-08） |
 | 同上 | 表示が `Slack` を含む | 同上の、`If you close it, check Slack before sending again.` を文の全体で確かめる検査（加えた。AC-08） |
@@ -691,8 +691,8 @@ AC-09・AC-10 は、確かめた結果を本計画に記録することを求め
 | 同上 | 表示が要約のタイトルを含む | R5（`summaryNode`） |
 | `renderSend.test.ts`: renderResultView > displays markup in the summary as text, not elements（`:136`） | 要約のマークアップを要素にしない | R5（`summaryNode`）。ポップアップの要約は display > renders the popup summary as text, not elements と `render.test.ts::renderSummary > displays markup in the title and preview as text, not elements` が確かめる |
 | 同上 | 要約のマークアップを文字列として表示する | 同上 |
-| `summary.test.ts`: parseSummary > accepts summarize output for a collected input（`:106`） | `parseSummary(summarize(o))` が要約と等しい（収集した要約のキーの集合を含む） | キーの集合は `summary.test.ts`: summarize に、収集した要約がちょうど 9 つのキーを持つことを値の全体で確かめる検査（ステップ 4-8 で加える）。`parseSummary` の受け入れは R5 |
-| `summary.test.ts`: parseSummary > accepts summarize output for every rejection reason（`:111`） | すべての拒否の理由で `parseSummary(summarize(o))` が要約と等しい（`cause` を落とす） | `cause` を持つ拒否が `kind`・`reason` だけの値になることを、すべての理由について確かめる検査（ステップ 4-8 で `summary.test.ts`: summarize に加える）。`parseSummary` の受け入れは R5 |
+| `summary.test.ts`: parseSummary > accepts summarize output for a collected input（`:106`） | `parseSummary(summarize(o))` が要約と等しい（収集した要約のキーの集合を含む） | キーの集合は `summary.test.ts`: summarize > reduces a collected input to exactly the nine summary members（ステップ 4-8 で加えた）。`parseSummary` の受け入れは R5 |
+| `summary.test.ts`: parseSummary > accepts summarize output for every rejection reason（`:111`） | すべての拒否の理由で `parseSummary(summarize(o))` が要約と等しい（`cause` を落とす） | `summary.test.ts`: summarize > drops the cause of every rejection, keeping only kind and reason（ステップ 4-8 で加えた）。`parseSummary` の受け入れは R5 |
 | `summary.test.ts`: parseSummary > rejects a non-object value（`:123`） | オブジェクトでない値を拒む | R5 |
 | `summary.test.ts`: parseSummary > rejects an unknown kind（`:129`） | 未知の `kind` を拒む | R5 |
 | `summary.test.ts`: parseSummary > rejects a missing field（`:133`） | 前提: 要約が `collected` | R5 |
@@ -792,7 +792,7 @@ AC-09・AC-10 は、確かめた結果を本計画に記録することを求め
 
 -   [x] PR-1 マージ済み（対象ステップ: 1-1 / 2-1 / 2-2 / 2-3 / 2-4）
 -   [x] PR-2 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7）
--   [ ] PR-3 マージ済み（対象ステップ: 3-8 / 3-9 / 3-10 / 3-11 / 3-12 / 3-13）
+-   [x] PR-3 マージ済み（対象ステップ: 3-8 / 3-9 / 3-10 / 3-11 / 3-12 / 3-13）
 -   [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7 / 4-8 / 4-9）
 -   [ ] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6）
 -   [ ] PR-6 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3 / 6-4 / 6-5 / 6-6）

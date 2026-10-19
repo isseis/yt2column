@@ -12,7 +12,7 @@ export interface ScriptingApi {
   }): Promise<Array<{ readonly result?: unknown }>>;
 }
 
-/** The chrome.storage area surface used (session for result views, local for settings). */
+/** The chrome.storage area surface used (local, for settings). */
 export interface StorageArea {
   get(keys: string | string[]): Promise<Record<string, unknown>>;
   set(items: Record<string, unknown>): Promise<void>;
@@ -197,10 +197,4 @@ export function createSendDeps(): SendDeps {
     fetch: fetchFn,
     timeoutSignal: (ms) => AbortSignal.timeout(ms),
   };
-}
-
-/** Runs callback once after ms milliseconds; the returned function cancels it. */
-export function schedule(ms: number, callback: () => void): () => void {
-  const id = setTimeout(callback, ms);
-  return () => clearTimeout(id);
 }
