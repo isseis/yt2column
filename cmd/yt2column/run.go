@@ -1030,8 +1030,8 @@ func reportWebhookHints(errOut *stderrWriter, err error) {
 	}
 	if errors.Is(err, publisher.ErrSlackMention) {
 		errOut.line("%s: the article was not posted and was discarded; part of it could be treated as a mention or rewritten by the server, "+
-			"most often an at sign directly followed by a name character. "+
-			"The error above gives the line and column in the post as sent to Slack (line 1 is the heading line, so lines differ from the --out file). "+
+			"typically an at sign directly followed by a name character, angle-bracket mention syntax, or a character reference. "+
+			"The error above names the rule and gives the line and column in the post as sent to Slack (line 1 is the heading line, so lines differ from the --out file). "+
 			"Run again to generate a new article, or use --out to inspect what is generated", programName)
 	}
 }
