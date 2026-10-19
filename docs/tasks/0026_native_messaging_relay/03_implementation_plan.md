@@ -187,8 +187,8 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 -   [ ] **ステップ 1-6**: `internal/config/socketpath.go` を作り、`HOME` だけからソケットのパスを導出する非公開の関数（`runtime.GOOS` の値を引数に取る）と OS ごとの上限の定数を置く（設計書 3.1）。`ServerConfig` から `port`・`tokenPath` と `Port()`・`TokenPath()` を削除し、`SocketPath()` を加え、`LoadServer` が導出を呼ぶようにする。設計書 3.1「削除するもの」の関数・定数を削除する（`tokenFileName`・`configDirOverride`・`defaultConfigDir`・`reasonConfigDirAbsent` を含む）。`LoadServer` のコメント（`config.go:268-273`）から、ポートとトークンのパスの記述を除く。
     -   **対象:** `internal/config/socketpath.go`・`config.go`・`cachedir.go`。**完了:** `go build ./internal/config` が通る。
 -   [ ] **ステップ 1-7**: `internal/config` のテストを改める。`socketpath_test.go` を作り、設計書 7.1 の `internal/config` の行のうち `LoadServer` に関わるもの（OS ごとのパス、`windows` などで導出しないこと、`HOME` の未設定・空・相対、パスの長さの上限ちょうどと 1 バイト超、`XDG_CONFIG_HOME`・`XDG_STATE_HOME`・`XDG_RUNTIME_DIR`・`TMPDIR` を設定しても結果が変わらないこと、エラーが `HOME` を名指しし、その値を含まないこと）を確かめる。§1.3 の 4 つのテストを削除し、`TestLoadServerValid` からポートとトークンのパスの確認を除いてソケットのパスの確認に替え、`TestLoadServerTokenPathUnderivable` を `TestLoadServerSocketPathUnderivable` に改め、補助 `wantTokenPath`（`config_test.go:867`）を削除する。`test_helpers.go` の `ServerPortEnvForTest`・`TokenFileNameForTest` を削除し、ソケットのパスの末尾（`HOME` を除く部分）を OS ごとに返すアクセサを加える（文書のガードが使う。設計書 3.9）。`test_helpers.go` に OS ごとの上限の定数を返すアクセサも加え、`internal/serversock/serversock_test.go`（`//go:build unix`）に、`internal/config` の上限の定数が `len(syscall.RawSockaddrUnix{}.Path) - 1` と一致することの確認を加える（定数はステップ 1-6 で作る。設計書 3.1）。
@@ -664,7 +664,7 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 
 ## 7. 実装チェックリスト (Implementation Checklist)
 
--   [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5）
+-   [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5）
 -   [ ] PR-2 マージ済み（対象ステップ: 1-6 / 1-7 / 1-8 / 1-9 / 1-10 / 1-11 / 1-12 / 1-13 / 1-14 / 1-15 / 1-16）
 -   [ ] PR-3 マージ済み（対象ステップ: 1-17）
 -   [ ] PR-4 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5）
