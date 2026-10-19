@@ -109,7 +109,7 @@ extension/src/browser/chromeDeps.ts:130:      const results = await scripting.ex
 
 #### 1.3.5. フェーズ 1 の間の暫定の読み取り
 
-フェーズ 1 で `collect` の引数が `TranscriptReader` になると、`chromeDeps.ts` の既存の注入（選択範囲だけを読む）がそのままでは型に合わない。フェーズ 1 の完了条件（`make ext-check`）を満たすため、フェーズ 1 では `createSelectionReader` を残し、既存の注入の結果を `TranscriptRead` に変換する暫定の処理を置く。選択範囲が `whitespaceOnly` に一致するときは `panel` を `absent`、一致しないときは `skipped` とし、`parseTranscriptRead` に通す。この間、選択範囲が空なら、パネルが開いていても `empty-selection` で拒否し、ログの `detail` は常に `panel-absent` になる（パネルを読まないため）。パネルを開けば選択しなくてよいと案内する `empty-selection` の文言は、パネルを読めるようになるステップ 2-2 まで変えない。この暫定の処理は、ステップ 2-1 で `createTranscriptReader` に置き換えて削除する。フェーズ 1 とフェーズ 2 を別の PR にする場合、その間の `main` では、ログの `detail` だけが正確でない。
+フェーズ 1 で `collect` の引数が `TranscriptReader` になると、`chromeDeps.ts` の既存の注入（選択範囲だけを読む）がそのままでは型に合わない。フェーズ 1 の完了条件（`make ext-check`）を満たすため、フェーズ 1 では `createSelectionReader` を残し、既存の注入の結果を `TranscriptRead` に変換する暫定の処理を置く。選択範囲が `whitespaceOnly` に一致するときは `panel` を `absent`、一致しないときは `skipped` とし、`parseTranscriptRead` に通す。この間、選択範囲が空なら、パネルが開いていても `empty-selection` で拒否し、ログの `detail` は常に `panel-absent` になる（パネルを読まないため）。パネルを開けば選択しなくてよいと案内する `empty-selection` の文言は、パネルを読めるようになるステップ 2-2 まで変えない。この暫定の処理は、ステップ 2-1 で `createTranscriptReader` に置き換えて削除する。フェーズ 1（PR-3）とフェーズ 2（PR-4）は別の PR なので（§3.2）、その間の `main` では、ログの `detail` だけが正確でない。
 
 #### 1.3.6. 並行するタスク
 
@@ -150,10 +150,47 @@ Chrome と Brave の安定版で観測する。各記録に、動画 ID、ブラ
     -   **対象:** なし（観測。記録はステップ 0-6 で設計書 3.1 に書く）。**完了:** Chrome と Brave の両方について、挙げた各条件でのパネルの要素の構成と読んだ文字列の記録が、動画 ID・ブラウザとその版・日付・ログインの状態・表示言語とともに作業メモにある。
 -   [ ] **ステップ 0-6**: 0-1〜0-5 の結果を設計書 3.1 に加え、設計書 8.1 の表の「本書を `draft` に戻す条件」に当たるかを行ごとに記す。SPA の画面遷移（0-4）は、信号の有無によらず設計書を `draft` に戻す（設計書 3.1.3）。信号がない場合、またはどれかの試行で前の動画の字幕を収集した場合は、要件のレビューに諮ることも記す。設計書の Status を `draft` にし、Comments に理由を書く。`make test`（設計書を読む文書の検査を含む）を通してからコミットする。
     -   **対象:** `docs/tasks/0029_transcript_panel_read/02_architecture.md`（3.1 と Document Status）。**完了:** 設計書 3.1 に 0-1〜0-5 の記録と、設計書 8.1 の表の行ごとの判定があり、設計書の Status が `draft` で Comments に理由があり、`make test` が通る。
--   [ ] **ステップ 0-7**: 設計書が改めて承認された後、本計画のフェーズ 1〜5 を改めた設計書に合わせる（例: 結びつける信号の照合をステップ 2-1・2-3 に加える）。タスクが変わる場合は本計画を `draft` に戻して承認を受ける。設計書の承認と本計画の承認が揃うまで、フェーズ 1 を始めない。
+
+### PR-1 作成ポイント: transcript panel observation gate
+
+**対象ステップ**: 0-1 / 0-2 / 0-3 / 0-4 / 0-5 / 0-6
+
+**推奨タイトル**: `docs(0029): record the transcript panel observation gate`
+
+**レビュー観点**: 設計書 3.1 の各記録に動画 ID・ブラウザとその版・日付・ログインの状態・表示言語があり、Chrome と Brave の両方がそろっていること / SPA の画面遷移の 30 回の試行の結果と、失敗の定義・結びつける信号の有無の記録が、設計書 8.1 の手順に合っていること / 設計書 8.1 の表の行ごとの判定と、設計書を `draft` に戻す理由・要件のレビューに諮るかの記述 / ページ全体のスナップショットと観測用のスクリプトがリポジトリに入っていないこと（`docs/dev/security.md` §7）
+
+**実装モデル要件**: frontier-required
+
+**判定理由**: ステップ 0-1〜0-6 は、コードを書く前に実際の YouTube の DOM で設計の前提を確かめる観測のゲート（Phase 0 型の実現性の調査）で、結果から設計書 8.1 の各行の判定を下す前例のない判断を含む。ブラウザでの観測は人が行い、この区分は観測用のスクリプトとステップ 0-6 の判定の起草に当てはまる。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
+### フェーズ 0（続き）: 本計画の改訂
+
+-   [ ] **ステップ 0-7**: 設計書が改めて承認された後、本計画のフェーズ 1〜5 を改めた設計書に合わせる（例: 結びつける信号の照合をステップ 2-1・2-3 に加える）。PR の境界（§3.2、各 PR の作成ポイント、§7）も、改めたステップに合わせて導き直す。タスクが変わる場合は本計画を `draft` に戻して承認を受ける。設計書の承認と本計画の承認が揃うまで、フェーズ 1 を始めない。
     -   **対象:** 本計画（フェーズ 1〜5）。**完了:** 改めた設計書に本計画のフェーズ 1〜5 が合っており、設計書と本計画がともに `approved` である。
 
 **完了:** 設計書 3.1 に観測の記録があり、要件書・設計書・本計画がすべて `approved` である（要件のレビューで要件書が改められた場合を含む）。
+
+### PR-2 作成ポイント: plan alignment with the revised architecture
+
+**対象ステップ**: 0-7
+
+**推奨タイトル**: `docs(0029): align the implementation plan with the revised architecture`
+
+**レビュー観点**: 改めた設計書の変更点（例: 結びつける信号の照合）が、フェーズ 1〜5 のステップ・§5 の AC の対応・§3.2 の PR 構成に漏れなく反映されていること / PR の境界を `/mkplan2` の分析で導き直し、各作成ポイントの **対象ステップ**・**実装モデル要件**・**判定理由** と §3.2・§7 が改めたステップに合っていること / ステップの番号を変えた場合に、本計画の中のステップの参照が改まっていること / タスクが変わる場合に本計画を `draft` に戻していること
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: ステップ 0-7 は、§1.2 の分岐（結びつける信号の照合を加えるか、要件のレビューの判断に合わせるか）のどちらになるかが PR-1 の結果まで決まらず、方針が未確定のステップである。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 1: `core/` の型と判定（設計書 8.2 の 1）
 
@@ -190,12 +227,29 @@ Chrome と Brave の安定版で観測する。各記録に、動画 ID、ブラ
 
 **完了:** `make ext-check` → `make test` → `make lint` が通る。
 
+### PR-3 作成ポイント: core transcript read types and origin selection
+
+**対象ステップ**: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8 / 1-9
+
+**推奨タイトル**: `feat(0029): validate the transcript read and select the transcript origin in core`
+
+**レビュー観点**: `parseTranscriptRead` が設計書 3.4 の表の形だけを受理し、選択範囲と `skipped` の対応の食い違いを拒否し、受理した値を補正しないこと / `collect` の判定の順序が設計書 3.5 の表のとおりで、URL の不一致がパネルの結果によらず `collection-failed` になり、タイトルの検査がパネルの拒否より後にあること / §1.3.5 の暫定の処理が `whitespaceOnly` だけで `absent` と `skipped` を分け、`empty-selection` の文言を変えていないこと / §1.3.1 の名前の変更と、§1.3.3 のフィクスチャの更新が検査の内容を変えていないこと
+
+**実装モデル要件**: frontier-required
+
+**判定理由**: ステップ 1-2 の `parseTranscriptRead` は注入の結果という信頼できない入力の境界の検査（設計書 5.2、AC-22）で、`collect` の順序が URL の不一致をパネルの結果より先に拒否する（AC-03・AC-05）。どちらもセキュリティのゲートである。ステップ 1-7 は PR-4 で削除する暫定の処理を置く段階的な移行でもある（mkplan のパネル方式の条件「セキュリティのゲート」と「段階的な移行」）。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ### フェーズ 2: 注入と配線（設計書 8.2 の 2）
 
 **対象ファイル:** `extension/src/browser/chromeDeps.ts`・`extension/src/popup.ts`・`extension/src/launch.ts`・`extension/src/core/messages.ts`、`extension/test/chromeDeps.test.ts`・`extension/test/launch.test.ts`・`extension/test/messages.test.ts`
 
 -   [ ] **ステップ 2-1**: `chromeDeps.ts` に `readTranscript` と `createTranscriptReader` を設計書 3.1.3・3.3 のとおりに作る。注入は外の名前を参照せず、パネルの変種の定義を関数の中に持つ。`createTranscriptReader` は注入の引数を `[whitespaceOnly.source, whitespaceOnly.flags]` とし、結果を `parseTranscriptRead` に通し、合わなければ固定の文言の `Error` で拒否する。`readSelection`・`isPageSelection`・`createSelectionReader` と §1.3.5 の暫定の処理を削除する。選択範囲だけを読むことを前提にした `launch.ts` の文書コメント 2 つを、取得元によらない語に改める（`:75` の `Reads the video metadata of the tab the selection was collected from` の `the selection` を `the transcript` に、`:161` の `Collects the active tab's selection` を `Collects the active tab's transcript (the selection or the transcript panel)` にする）。
-    -   **対象:** `extension/src/browser/chromeDeps.ts`・`extension/src/launch.ts`。**完了:** `tsc --noEmit -p tsconfig.build.json`（`extension/` で実行。本番のコードだけを型検査する）が通る（`chromeDeps.test.ts` の書き直しはステップ 2-3）。
+    -   **対象:** `extension/src/browser/chromeDeps.ts`・`extension/src/launch.ts`。**完了:** 記したとおりの変更がある。`popup.ts` が `createSelectionReader` を参照しているので、本番のコードの型検査は配線を改めるステップ 2-2 の後に確かめる（`chromeDeps.test.ts` の書き直しはステップ 2-3）。
 -   [ ] **ステップ 2-2**: `popup.ts` で `createTranscriptReader(chrome.scripting)` を渡す。`core/messages.ts` の `empty-selection` の文言を改める。文を `"No text is selected."` から `"No text is selected, and no open transcript panel was found."` に、手順を `['Open the transcript panel with "Show transcript".', "Select the caption lines.", "Launch yt2column again."]` から設計書 3.7 の表の `empty-selection` の行の 3 つの手順にする。`messages.test.ts::rejectionMessage` に、`empty-selection` の手順に、パネルを開けば選択が要らないことと、手で選択する手順が含まれることを加える（AC-12）。
     -   **対象:** `extension/src/popup.ts`・`extension/src/core/messages.ts`・`extension/test/messages.test.ts`。**完了:** `tsc --noEmit -p tsconfig.build.json`（`extension/` で実行。本番のコードだけを型検査する）が通り、`messages.test.ts` が通る。
 -   [ ] **ステップ 2-3**: `chromeDeps.test.ts` を書く（H-05）。
@@ -214,6 +268,23 @@ Chrome と Brave の安定版で観測する。各記録に、動画 ID、ブラ
 
 **完了:** `make ext-check` → `make test` → `make lint` が通る。
 
+### PR-4 作成ポイント: transcript panel injection and popup wiring
+
+**対象ステップ**: 2-1 / 2-2 / 2-3 / 2-4 / 2-5
+
+**推奨タイトル**: `feat(0029): read the transcript panel when the selection is blank`
+
+**レビュー観点**: `readTranscript` が選択範囲が空白文字だけでないときにパネルの DOM に触れず、判定の流れ（設計書 3.3 の図）の各分岐で判定できない状態を `unavailable` に倒すこと / 動画 ID の照合（`ytd-watch-flexy` が 1 つ、`video-id` と URL の `v` の一致、パネルがその子孫）と、パネルの処理の例外を `dom-error-<段階>` に閉じ込めること / 注入がページを操作しないことの検査（`Selection` の範囲、直列化した DOM、ソースの走査）と、走査の一覧の `.value =` と検索欄の値の比較の扱い（§1.3.3） / 注入が外の名前を参照せず、`whitespaceOnly` の `source` と `flags` だけから正規表現を作ること
+
+**実装モデル要件**: frontier-required
+
+**判定理由**: ステップ 2-1 は、ページの DOM を字幕として使うかを決める fail closed の判定（設計書 3.3、AC-09・AC-10）で、既存の注入を削除して新しい注入に置き換える（mkplan のパネル方式の条件「セキュリティのゲート」と「振る舞いの追加と削除を同時に行う移行」）。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ### フェーズ 3: 表示（設計書 8.2 の 3）
 
 **対象ファイル:** `extension/src/ui/render.ts`・`extension/static/style.css`、`extension/test/render.test.ts`・`extension/test/launch.test.ts`
@@ -228,6 +299,23 @@ Chrome と Brave の安定版で観測する。各記録に、動画 ID、ブラ
     -   **対象:** なし（確認のみ）。**完了:** 各対象を壊して失敗することを確かめ、コミットメッセージに記録している。
 
 **完了:** `make ext-check` → `make test` → `make lint` が通る。
+
+### PR-5 作成ポイント: summary display of origin, end preview, and reason code
+
+**対象ステップ**: 3-1 / 3-2 / 3-3 / 3-4
+
+**推奨タイトル**: `feat(0029): show the transcript origin, end preview, and reason code`
+
+**レビュー観点**: 欄の順序（Title・URL・Source・Characters・Lines・Preview・End）と、End を取得元が `panel` のときだけ表示し、切り詰めたときに先頭に `…` を付けること / Preview・End・理由のコードを `textContent` で設定し、End が `dir="auto"` と `summary-end-preview` を持つこと（AC-16） / ステップ 4-5 が import する Source のラベルの `Record` と理由のコードのラベルの export
+
+**実装モデル要件**: standard
+
+**判定理由**: 設計書 3.6 で表示が決まっており、どの条件にも当たらない。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 4: 文書（設計書 8.2 の 4）
 
@@ -251,6 +339,23 @@ Chrome と Brave の安定版で観測する。各記録に、動画 ID、ブラ
 
 **完了:** `make ext-check`（`make ext-test` を含む）→ `make test` → `make lint` が通る。
 
+### PR-6 作成ポイント: documentation of the transcript panel read
+
+**対象ステップ**: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6
+
+**推奨タイトル**: `docs(0029): document reading the transcript panel`
+
+**レビュー観点**: README と `security.md` §8・§8.1 の各文が、`readTranscript` の判定・`collect` の表・`render.ts` のラベル・`rejectionMessage` の文言と一致すること（ステップ 4-6 の対応を PR の説明に書く） / `transcriptDocs.test.ts` が表示の文字列をソースから import した値と照合し、`flatSection`・`expectPhrases` の移動で `metadataDocs.test.ts` の検査が弱まっていないこと / `project_overview.md` の「決定済みの方針」の新しい項目が、字幕の取得を利用者に任せる方針（#43）を一部変えることと、その理由を書いていること
+
+**実装モデル要件**: standard
+
+**判定理由**: 書く内容は要件書 F-007 と設計書 3.12 で決まっており、どの条件にも当たらない。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ### フェーズ 5: 手動の確認（設計書 8.2 の 5）
 
 **対象ファイル:** 本計画（§5.1）、`cmd/yt2column/extension_docs_test.go`
@@ -261,6 +366,23 @@ Chrome と Brave の安定版で観測する。各記録に、動画 ID、ブラ
     -   **対象:** `cmd/yt2column/extension_docs_test.go`。**完了:** `make test` が通り、§5.1 の欄を 1 つ空にして失敗することを確かめ、コミットメッセージに記録している。
 
 **完了:** §5.1 のすべての行が §5.1 の完了の規則を満たし、`make test` → `make lint` が通る。
+
+### PR-7 作成ポイント: manual browser verification record
+
+**対象ステップ**: 5-1 / 5-2
+
+**推奨タイトル**: `test(0029): record the manual Chrome and Brave verification`
+
+**レビュー観点**: §5.1 の各行が設計書 7.2 の確認の内容に対応し、Chrome と Brave の両方の結果が「Chrome: …。Brave: …」の形で埋まっていること / AC-19 の差の記録と、形 B の古い版のパネルを拒否して手で選択して送れたことの記録が §5.1 の完了の規則に合うこと / `TestTranscriptPanelReadRecords` が行のラベルと空の欄を確かめていること
+
+**実装モデル要件**: standard
+
+**判定理由**: 確認の手順は設計書 7.2・8.1 で、記録の検査は既存の `checkManualCheckTable` で決まっており、どの条件にも当たらない。
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
 
@@ -275,11 +397,33 @@ Chrome と Brave の安定版で観測する。各記録に、動画 ID、ブラ
 | M4: 文書 | README・`security.md`・`project_overview.md`・用語集と、その検査 | フェーズ 4 の完了条件 |
 | M5: 手動の確認 | §5.1 の記録と、その検査 | フェーズ 5 の完了条件 |
 
-### 3.2. 実装順序の根拠
+### 3.2. PR 構成
+
+| PR | 対象ステップ | 主な変更内容 | 実装モデル要件 |
+|---|---|---|---|
+| PR-1 | 0-1 / 0-2 / 0-3 / 0-4 / 0-5 / 0-6 | 観測のゲートの記録を設計書 3.1 に加え、設計書を `draft` に戻す | frontier-required |
+| PR-2 | 0-7 | 改めて承認された設計書に、本計画のフェーズ 1〜5 を合わせる | frontier-recommended |
+| PR-3 | 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8 / 1-9 | `core/` の字幕の読み取りの型、`parseTranscriptRead`、取得元の選択と拒否の詳細、文言・要約・本文の読み替え、§1.3.5 の暫定の処理、そのテスト | frontier-required |
+| PR-4 | 2-1 / 2-2 / 2-3 / 2-4 / 2-5 | 注入 `readTranscript` と `createTranscriptReader`、`popup.ts` の配線、`empty-selection` の文言、`chromeDeps.test.ts`・`launch.test.ts` | frontier-required |
+| PR-5 | 3-1 / 3-2 / 3-3 / 3-4 | 要約の Source・End の欄と理由のコード、`style.css`、そのテスト | standard |
+| PR-6 | 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 | README・`security.md`・`project_overview.md`・用語集と、`transcriptDocs.test.ts`・`TestTranscriptPanelReadDocs` | standard |
+| PR-7 | 5-1 / 5-2 | Chrome と Brave の手動の確認の記録（§5.1）と `TestTranscriptPanelReadRecords` | standard |
+
+-   PR-1 と PR-2 を分けるのは、その間に設計書の改訂と再承認（要件のレビューを含みうる）が入るためである。PR-2 は、設計書が改めて承認された後に作る。PR-3 は、PR-2 がマージされ、本計画が `approved` である状態で始める（§1.2）。
+-   フェーズ 1 は 1 つの PR にする。ステップ 1-1〜1-6 は、ステップ 1-7 の暫定の処理が入るまで本番のコードが型に合わず、ステップ 1-8 のテストの更新がそろうまで `make ext-check` が通らないためである。名前の変更や文言だけの変更を別の PR に分けるには、ステップ 1-3・1-4・1-8 を分割しなければならないので、分けない。危険の大きいステップ 1-2 を最後に置くこともできない（ステップ 1-5〜1-8 がその型に依存する）。そのため、PR-3 はステップごとにコミットし、ステップ 1-2 の `parseTranscriptRead` と `collect` を個別に読めるようにする。
+-   フェーズ 2 も 1 つの PR にする。ステップ 2-1 が `createSelectionReader` を削除すると、`popup.ts` の配線（ステップ 2-2）と `chromeDeps.test.ts` の書き直し（ステップ 2-3）がなければ型の検査とテストが通らないためである。PR-3 から PR-4 までの間の `main` の振る舞いは §1.3.5 のとおりである。
+-   表示（PR-5）は注入から分ける。PR-5 は PR-4 の後に作る。ステップ 3-3 が、ステップ 2-4 で作る `launch.test.ts` の「transcript panel path」に検査を加えるためである。
+-   文書（PR-6）は PR-5 の後に作る。ステップ 4-5 の `transcriptDocs.test.ts` が、ステップ 3-1 で export する `render.ts` のラベルを import するためである。
+-   PR-4 のマージから PR-6 のマージまでの間の `main` では、拡張がパネルを読むが、PR-5 までは要約に Source と End がない（設計書 5.4 の残るリスクの緩和がない）。PR-6 までは `docs/dev/security.md` §8.1 が「選択範囲はページの DOM の構造に依存せず」と記したままで、実装と食い違う。この間の `main` から作った拡張は利用に使わず、PR-5・PR-6 を PR-4 の後に続けてマージする。
+-   手動の確認（PR-7）は、PR-6 までがマージされた `main` から `make ext-build` で作った拡張で行う。手動の確認で見つかった不具合は、PR-7 とは別の `fix(0029)` の PR で直し、その後に該当する §5.1 の行を確かめ直す。
+-   コードやテストを変える PR-3〜PR-7 は、その PR のテストを壊して確かめるステップ（1-9・2-5・3-4・4-6、PR-7 はステップ 5-2 の中）を含む。
+-   グリーンゲートは `make test && make lint` だが、拡張を変える PR-3〜PR-5 は `make ext-check` も、README と `security.md` を変える PR-6 は `make ext-check`（`make ext-test` を含む）も通す（各フェーズの完了条件）。PR-1・PR-2・PR-7 は `make test` を通す。
+-   0026 PR-8 のマージの有無は、PR-3〜PR-6 のそれぞれを作る前に確かめる（§6.1）。
+
+### 3.3. 実装順序の根拠
 
 -   フェーズ 0 を最初に置くのは、設計書 3.1.3・8.1 が観測の前に実装に進まないと定めているためである。
 -   フェーズ 1〜5 の順序は設計書 8.2 のとおりである。フェーズ 1 が型を変えると注入と配線が型に合わなくなるので、フェーズ 1 の中で暫定の処理（§1.3.5）を置き、各フェーズの完了条件を保つ。
--   PR の境界は `/mkplan2` で本計画に加える。
 
 ## 4. テスト戦略 (Test Strategy)
 
@@ -352,7 +496,7 @@ Chrome と Brave の安定版で観測する。各記録に、動画 ID、ブラ
 | 観測のゲートで、結びつける信号が見つからない、または前の動画の字幕を収集する（設計書 3.1.3） | ステップ 0-6 で要件のレビューに諮る。要件のレビューが判断を示すまでフェーズ 1 に進まない |
 | 観測で、読み込み中を示す要素なしの遅延描画が見つかる | 設計書を `draft` に戻す（設計書 8.1）。本計画をステップ 0-7 で合わせる |
 | `innerText` と手でコピーした文字列が異なる（設計書 5.4） | §5.1 の AC-19 に差と扱いを記録する。書式が崩れればサーバが `invalid_transcript` で拒否する |
-| 0026 PR-8 と同じファイルを変える（§1.3.6） | 着手のときと各フェーズの PR の前に、PR-8 のマージの有無を確かめる。後からマージする側が、本計画の変更（§1.3.1 の台帳、ステップ 1-3・1-4・2-2 の文言、ステップ 1-8 の `prepare.test.ts`・`sendMessages.test.ts` の行、ステップ 4-1・4-2 の文書）を相手の変更の上に載せ直し、`make ext-check` を通す。README と `security.md` §8.1 を PR-8 が書き換えた場合は、ステップ 4-1・4-2 の改める箇所を PR-8 の後の節で選び直す。AC-23 の行も確かめ直す |
+| 0026 PR-8 と同じファイルを変える（§1.3.6） | 着手のときと PR-3〜PR-6 のそれぞれを作る前に、0026 PR-8 のマージの有無を確かめる。後からマージする側が、本計画の変更（§1.3.1 の台帳、ステップ 1-3・1-4・2-2 の文言、ステップ 1-8 の `prepare.test.ts`・`sendMessages.test.ts` の行、ステップ 4-1・4-2 の文書）を相手の変更の上に載せ直し、`make ext-check` を通す。README と `security.md` §8.1 を PR-8 が書き換えた場合は、ステップ 4-1・4-2 の改める箇所を PR-8 の後の節で選び直す。AC-23 の行も確かめ直す |
 | ページを操作する呼び出しのソースの走査が、検索欄の値の比較と一致する（§1.3.3） | ステップ 2-3 で走査の規則か比較の書き方を決め、代入を入れたときに走査が失敗することを確かめる |
 
 ### 6.2. スケジュールのリスク
@@ -362,12 +506,16 @@ Chrome と Brave の安定版で観測する。各記録に、動画 ID、ブラ
 
 ## 7. 実装チェックリスト (Implementation Checklist)
 
--   [ ] フェーズ 0: 観測のゲート（ステップ 0-1〜0-7）
--   [ ] フェーズ 1: `core/` の型と判定（ステップ 1-1〜1-9）
--   [ ] フェーズ 2: 注入と配線（ステップ 2-1〜2-5）
--   [ ] フェーズ 3: 表示（ステップ 3-1〜3-4）
--   [ ] フェーズ 4: 文書（ステップ 4-1〜4-6）
--   [ ] フェーズ 5: 手動の確認（ステップ 5-1〜5-2）
+-   [ ] PR-1 マージ済み（対象ステップ: 0-1 / 0-2 / 0-3 / 0-4 / 0-5 / 0-6）
+-   [ ] 設計書が改めて承認されたことを確かめた（PR-2 の前提）
+-   [ ] PR-2 マージ済み（対象ステップ: 0-7）
+-   [ ] 本計画が `approved` であることを確かめた（PR-3 の前提）
+-   [ ] PR-3 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8 / 1-9）
+-   [ ] PR-4 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5）
+-   [ ] PR-5 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4）
+-   [ ] PR-6 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6）
+-   [ ] 手動の確認で見つかった不具合の `fix(0029)` の PR がマージ済み（PR-7 の前提。不具合がなければ不要）
+-   [ ] PR-7 マージ済み（対象ステップ: 5-1 / 5-2）
 -   [ ] §5 のすべての AC の検証が通る
 -   [ ] §1.3.1 の古い名前が `extension/` に残っていない（`make ext-check` の型検査と、ステップ 2-5 の検索）
 
@@ -381,6 +529,5 @@ Chrome と Brave の安定版で観測する。各記録に、動画 ID、ブラ
 ## 9. 次のステップ (Next Steps)
 
 -   本計画のレビューと承認。
--   承認の後、フェーズ 0（観測のゲート）を行う。フェーズ 1 以降は、ステップ 0-7 の後に着手する。
--   `/mkplan2` で PR の境界を本計画に加える。
+-   承認の後、フェーズ 0（観測のゲート）を行う。フェーズ 1 以降は、ステップ 0-7 の後に着手する。PR の境界は §3.2 のとおりである。
 -   実装の後、構造化したセグメントの送信（#331）の検討に、本タスクの観測の記録（設計書 3.1）と §5.1 を引き継ぐ。
