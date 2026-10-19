@@ -503,17 +503,26 @@ var bkaUHsHMkwHeadings = []copiedSampleHeading{
 // BkaUHsH_mkw sample are skipped without changing any segment: the sample
 // parses into exactly the segments of the same input with the heading lines
 // removed, and the segments on either side of each heading stay adjacent with
-// the file's timestamps and texts.
+// the file's timestamps and texts. The stripped input is parsed by the same
+// parser, so the adjacency check against values read from the file is the
+// part that does not depend on the parser.
 func checkBkaUHsHMkwHeadings(t *testing.T, segments []Segment, raw string) {
 	t.Helper()
+	lines := strings.Split(raw, "\n")
 	removed := make(map[string]int, len(bkaUHsHMkwHeadings))
 	var kept []string
-	for line := range strings.SplitSeq(raw, "\n") {
-		if slices.ContainsFunc(bkaUHsHMkwHeadings, func(h copiedSampleHeading) bool { return h.line == line }) {
-			removed[line]++
+	for i, line := range lines {
+		j := slices.IndexFunc(bkaUHsHMkwHeadings, func(h copiedSampleHeading) bool { return h.line == line })
+		if j < 0 {
+			kept = append(kept, line)
 			continue
 		}
-		kept = append(kept, line)
+		removed[line]++
+		// The heading sits between the text of its before segment and the
+		// timestamp line of its after segment.
+		if i == 0 || i+2 >= len(lines) || lines[i-1] != bkaUHsHMkwHeadings[j].before.Text || lines[i+2] != bkaUHsHMkwHeadings[j].after.Text {
+			t.Fatalf("BkaUHsH_mkw heading %q at line %d is not between its recorded neighbors", line, i+1)
+		}
 	}
 	// Each heading must be exactly one whole line of the file, so the stripped
 	// input below has no heading line left in it.

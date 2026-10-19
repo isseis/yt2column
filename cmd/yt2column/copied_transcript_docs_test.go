@@ -24,8 +24,9 @@ const (
 // investigation. Whether a sample is saved is read from a list of attribute
 // tables: the 0015 table and the 0024 requirements table that records the
 // samples 0024 saved. A sample passes when any table in the list has its row
-// marked saved; the order of the tables does not matter. The sample set is read from testdata/, so a
-// newly saved sample without a record fails this guard.
+// marked saved; the order of the tables does not matter. The sample set is
+// read from testdata/, so a newly saved sample without a record fails this
+// guard.
 func TestCopiedTranscriptSurveyRecords(t *testing.T) {
 	sampleIDs := copiedTranscriptSampleIDs(t)
 	readmeSection := sectionByHeading(readDoc(t, copiedTranscriptReadmePath), "## コピーした字幕（文字起こしパネルからのコピー）")
