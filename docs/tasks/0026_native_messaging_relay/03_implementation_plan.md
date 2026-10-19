@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-18 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 2026-10-19 に承認した版（isseis）を、要件書と設計書の改定（`0027_remove_context_menu` の完了を前提に、送信をポップアップの経路だけにし、`contextMenus`・`storage` の権限を除く）に合わせて改めた。フェーズ 3 の前提に 0027 の完了を加え（§1.3「0027 との順序」）、`onInstalled` による旧版の保存値の削除・`background.ts` の変更・`resultView.ts` の `parseOutcome` の改定とそのテストを削除し、2 つの経路を確かめるテストと手動の確認をポップアップの経路だけにし、ステップ 3-13 で `chrome.storage.sync` の lint の規則を `chrome.storage` の参照の禁止に置き換えるようにした。フェーズ 1・2（PR-1〜PR-7）のステップは変えていない。0027 の手動確認がフェーズ 3 の前の拡張から届くサーバを要するので、PR-2 を 0027 の完了の後に始めることにした（§1.3「0027 との順序」・§7）。判断の変更にあたるので `draft` に戻した。 |
+| Review date | 2026-10-19 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 実装の概要 (Implementation Overview)
 

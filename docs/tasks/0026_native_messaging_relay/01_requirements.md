@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-18 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 2026-10-18 に承認した版（isseis）を、`0027_remove_context_menu`（右クリックメニューの経路の削除）が要件書どおりに完了することを前提に改めた。拡張の送信をポップアップの経路だけにし（F-004・AC-24）、拡張の権限から `contextMenus`（0027 で削除）と `storage`（0027 の後は、本タスクが削除するトークンとポートの保存だけが使う）を除いた（F-004・AC-22・4.2）。結果のウィンドウと service worker への言及を削った。判断の変更にあたるので `draft` に戻した。以前の承認の後の編集上の修正（AC-20 に、F-003 で承認済みの「manifest のパスと macOS での共有を知らせる」ことの確認を加えた）は、そのまま残している。 |
+| Review date | 2026-10-19 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
