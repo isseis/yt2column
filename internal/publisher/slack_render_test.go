@@ -103,7 +103,7 @@ func TestStageModels(t *testing.T) {
 	}{
 		{"generation only", nil, nil, []stageModel{{"g", []writer.Stage{gen}}}},
 		{
-			"shorten and review not run, version ignored", &writer.StepModel{Model: "g", ModelVersion: "v2"}, nil,
+			"shorten with the same model and a different version", &writer.StepModel{Model: "g", ModelVersion: "v2"}, nil,
 			[]stageModel{{"g", []writer.Stage{gen, short}}},
 		},
 		{
@@ -191,6 +191,9 @@ func TestRenderSlackPostKeepTogetherFrom(t *testing.T) {
 		{"several lines", "A\n\nB\n\nSource: x\n", "Source: x"},
 		{"trailing newlines are not a line", "A\n\nSource: x\n\n\n", "Source: x"},
 		{"single line", "Only", "Only"},
+		// A target before the last line gains a U+200B, which shifts the rune
+		// index; counting on the raw body would point one rune too early.
+		{"neutralized at before the last line", "@a\n\nLast\n", "Last"},
 		{"multibyte body", "あ\nいう", "いう"},
 	}
 	for _, tc := range cases {
@@ -221,8 +224,16 @@ func TestRenderSlackPostNeutralizesMentions(t *testing.T) {
 	if got != want {
 		t.Errorf("text = %q, want %q", got, want)
 	}
-	if a.Title != "T @name" || a.Body == "" || strings.Contains(a.Body, z) {
-		t.Errorf("the article was changed: %+v", a)
+}
+
+func TestRenderSlackPostKeepsMidWordAt(t *testing.T) {
+	a := validArticle()
+	a.Title = "Tech@Work"
+	a.ChannelName = "user@example.com"
+	a.Body = "Mail me@example.com\n"
+	want := "# Tech@Work\uff08user@example.com\uff09\n\nMail me@example.com\n\nModels: model-x (generation) \u00b7 Estimated cost: unknown"
+	if got := renderSlackPost(a).text; got != want {
+		t.Errorf("text = %q, want %q", got, want)
 	}
 }
 
@@ -232,7 +243,7 @@ func TestRenderSlackPostUnjudgedBody(t *testing.T) {
 	if _, ok := writer.ProseRanges(a.Body); ok {
 		t.Fatal("ProseRanges judged an unclosed fence")
 	}
-	if got := renderSlackPost(a).text; !strings.Contains(got, "```\n@here\n\nModels") {
+	if got := renderSlackPost(a).text; !strings.HasPrefix(got, "# A title\n\n```\n@here\n\nModels: ") {
 		t.Errorf("an unjudged body must stay as it is: %q", got)
 	}
 }
