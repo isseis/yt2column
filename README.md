@@ -620,11 +620,14 @@ The selection is sent exactly as copied from the transcript panel; the extension
 does not trim it. You can select the whole panel: the server skips the lines the
 panel adds around the captions — the lines before the first timestamp (such as
 the panel's title), chapter heading lines, and, at the end, blank lines and the
-`Sync to video time` (`動画の時間と同期`) button label. Other lines are still
-rejected: an unknown line among captions that put the timestamp and the text on
-one line, an empty or whitespace-only line among the captions, and a line before
-the first caption or in a chapter heading's place that contains digits around a
-colon, such as a malformed timestamp.
+`Sync to video time` (`動画の時間と同期`) button label. When the timestamp and
+the text are on separate lines, a heading directly after a timestamp with no
+text is taken as that timestamp's text. Other lines are still rejected: an
+unknown line among captions that put the timestamp and the text on one line, an
+empty or whitespace-only line among the captions, a tab or other control
+character in any line, and, before the first timestamp or where a timestamp line
+is expected, a line containing an ASCII digit, a colon, and a digit in a row
+(such as a malformed timestamp).
 
 To see what was collected and the send result, open the console before
 launching: the service worker's console via the **service worker** link on

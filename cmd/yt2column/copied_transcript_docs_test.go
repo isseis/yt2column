@@ -178,9 +178,9 @@ func surveyHasCombination(table [][]string, language, kind string) bool {
 
 // TestClaudeMDCopiedTranscriptException checks the "Declare, don't infer" item
 // in CLAUDE.md states the copied-transcript exception's scope, reason, and
-// boundary, including the four kinds of panel line the parse skips (the prefix,
-// form A and form B chapter headings, and the trailing region) and how each
-// skip stays inside the boundary.
+// boundary, and names the four kinds of panel line the parse skips (the prefix,
+// form A and form B chapter headings, and the trailing region) with the terms
+// that tie them to the boundary.
 func TestClaudeMDCopiedTranscriptException(t *testing.T) {
 	item := claudeBullet(readDoc(t, claudePath), "Declare, don't infer")
 	if item == "" {
