@@ -289,7 +289,7 @@
 
 **判定理由**: 文書と guard の語の追加だけで、設計上の判断も状態の変更も外部の資源もないため、どの契機にも当たらない。
 
--   [ ] グリーンゲート（`make test && make lint`、README を変えるので `make ext-test` も。`_context.md` の "Green gate"）がパスしていることを確認した
+-   [x] グリーンゲート（`make test && make lint`、README を変えるので `make ext-test` も。`_context.md` の "Green gate"）がパスしていることを確認した
 -   [ ] PR を作成した
 -   [ ] PR がマージされた
 -   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
