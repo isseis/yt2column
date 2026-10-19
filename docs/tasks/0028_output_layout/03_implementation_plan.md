@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-19 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-19 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 実装の概要 (Implementation Overview)
@@ -23,11 +23,11 @@
 
 本計画が使う記号は次のとおりである。M1〜M4 は `rejectMention` の拒否規則、V1〜V3 は検査用の文字列を作る変換、R-N は設計書 10 章と付録 B の項目を指す（設計書 3.7）。AC-NN・F-NNN は要件書、H-NN は [design_handoff.md](design_handoff.md)、I-NN は [implementation_handoff.md](implementation_handoff.md) の項目を指す。「設計書 N」は設計書の節を、「§N」は本計画の節を指す。
 
-フェーズは設計書 8 章の実装優先順位 1〜5 と 1 対 1 に対応させる（フェーズ N = 優先順位 N）。PR の境界はこの文書の承認の後に `/mkplan2` で加える。
+フェーズは設計書 8 章の実装優先順位 1〜5 と 1 対 1 に対応させる（フェーズ N = 優先順位 N）。PR の境界は §3.2 と各 `### PR-N 作成ポイント` に定めた。
 
 ### 1.2. 実装原則
 
--   設計書 1.1 の設計原則に従う。各フェーズは、終わりで `make fmt` → `make test` → `make lint` が通る状態にする。旧い形と新しい形が混ざった状態を、フェーズの終わりに残さない（設計書 8 章）。
+-   設計書 1.1 の設計原則に従う。各 PR は、終わりで `make fmt` → `make test` → `make lint` が通る状態にする。旧い形と新しい形が混ざった状態は、PR-3〜PR-6 の途中のマージ（各ステップの「完了」に記した状態）を除き、フェーズの終わりに残さない（設計書 8 章）。
 -   新しい依存パッケージを加えない（YAML のライブラリを含む。要件書 §5）。
 -   加える・改めるテストは、対象を無効にして（呼び出しを外す、規則を緩める、削除した分岐を戻す）失敗することを確かめ、その結果をコミットメッセージに記す（CLAUDE.md「Every test must be able to fail for its stated reason」）。各フェーズの最後のステップがこれを行う。
 -   Go のコメント・識別子・文字列リテラルは、テストのコードとテストの補助ファイルを含めて英語で書く。文書のテストが日本語の見出しや語句と照合するリテラルだけは日本語を使う（CLAUDE.md「Go Idioms」）。
@@ -90,9 +90,9 @@ go test -run '^$' -tags test,integration ./...
 |---|---|---|
 | I-01 `ProseRanges` の実装 | 4-1 | `markdown.go` の `proseLines`・`codeSpans`・`codeSpansExempt` から範囲を組み立てる。判定できない 5 つの場合（閉じていないフェンス、フェンスらしい行、対にならないバッククォート、`codeSpansExempt` が偽、複数の行にまたがるコードスパン）は false を返す |
 | I-02 rune の添字とバイトの位置の変換 | 4-2 | `neutralizeProse` が `mentionAts` の添字を元の本文のバイトの位置に直す。`＠` がコードの中と外にある本文をテストに入れる |
-| I-03 分割の切る位置の移動と確認の層 | 4-3 | 切る位置を 1 文字前に動かす規則と、分割後の確認の層の両方を実装する |
-| I-04 切る位置の探索の範囲 | 4-3 | 探索の上限を容量と `keepTogetherFrom` の小さいほうにする。`isWhitespaceOnly` を `keepTogetherFrom` で切った断片にも適用する |
-| I-05 M2 の検査用の文字列 | 4-4 | M2 は V3 だけを行う。M1・M3・M4 の検査用の文字列は変えない |
+| I-03 分割の切る位置の移動と確認の層 | 4-4 | 切る位置を 1 文字前に動かす規則と、分割後の確認の層の両方を実装する |
+| I-04 切る位置の探索の範囲 | 4-4 | 探索の上限を容量と `keepTogetherFrom` の小さいほうにする。`isWhitespaceOnly` を `keepTogetherFrom` で切った断片にも適用する |
+| I-05 M2 の検査用の文字列 | 4-2 / 4-5 | M2 は V3 だけを行う。M1・M3・M4 の検査用の文字列は変えない |
 
 ## 2. 実装ステップ (Implementation Steps)
 
@@ -103,7 +103,7 @@ go test -run '^$' -tags test,integration ./...
 | 旧 | 新 | フェーズ |
 |---|---|---|
 | `renderArticle`（`file.go`） | ファイル: `renderFileArticle`（`file_render.go`、フェーズ 3）。Slack: `renderSlackPost`（`slack_render.go`、フェーズ 4）。`renderArticle` はフェーズ 4 で削除する | 3・4 |
-| `articleCostLine`（`file.go`） | `articleCost`（`format.go`。金額と既知かどうかを返す。行の文字列は各整形が組み立てる） | 2 |
+| `articleCostLine`（`file.go`） | `articleCost`（`format.go`。金額と既知かどうかを返す。行の文字列は各整形が組み立てる）。`articleCostLine` はフェーズ 2 で `articleCost` を使う形に直し、ステップ 4-11 で `renderArticle` と一緒に削除する | 2・4 |
 | `modelVersionOrNone`・`articleCostDecimals`（`file.go`） | 同名で `format.go` へ移す | 2 |
 | `splitSlackText(posted string)` | `splitSlackText(post slackPost)` | 4 |
 | `integrationHeader`（`testutil/integration.go`） | 新しい投稿の見出し行と脚注の長さを数える関数に置き換える（名前はコードで決める） | 4 |
@@ -171,6 +171,23 @@ go test -run '^$' -tags test,integration ./...
 -   [ ] `make fmt` → `make test` → `make lint` が通る。
 -   [ ] 次の変更を 1 つずつ行い、ステップ 1-6 の対応するテストが失敗することを確かめ、コミットメッセージに記す: `newArticle` がチャンネル名を写さない（`steps_test.go` の 4 つの実行）、`CheckPublishable` の `CheckChannelName` の呼び出しを外す、`CheckPublishable` の `SourceURL` の UTF-8 の検査を外す、`displayStringProblem` の UTF-8 の検査を外す、`validateTranscript` の `CheckChannelName` の呼び出しを外して `ChannelName` を UTF-8 の表に戻す（制御文字のチャンネル名の拒否のテスト）、`parseRequest` の検査を外す、`CheckChannelName` の双方向の制御文字・長さの上限の規則を外す。
 
+### PR-1 作成ポイント: channel name carrying and validation
+
+**対象ステップ**: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7
+
+**推奨タイトル**: `feat(0028): carry and validate the channel name`
+
+**レビュー観点**: 3 か所（入口・LLM を呼ぶ前・公開の直前）が同じ `CheckChannelName` で一致すること / 拒否のエラーが値を含まないこと / `Article` が `==` で比較できる構造を保つこと / 各検査を外したときにテストが失敗すること
+
+**実装モデル要件**: standard
+
+**判定理由**: 該当するトリガはない。新しい規則は設計書 3.1 が定めており、3 か所の呼び出しと一致を確かめるテストを加える変更である。
+
+-   [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+-   [ ] PR を作成した
+-   [ ] PR がマージされた
+-   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ### フェーズ 2: 共有の値の書式（出力は変えない）
 
 #### ステップ 2-1: `format.go`
@@ -221,9 +238,26 @@ go test -run '^$' -tags test,integration ./...
 -   [ ] 固定の入力から `renderFileArticle` の出力を `testdata/` の下のファイルに書き出す手順を用意する（`file_test.go` のテストが同じ内容を期待値として持つ）。そのファイルに `check_article.py` を実行して受理されることを、チャンネル名ありとなしの 2 つで確かめ、コマンドと出力を §5.3 に記録する。
 -   [ ] 次の変更を 1 つずつ行い、ステップ 3-3 の対応するテストが失敗することを確かめ、コミットメッセージに記す: `FilePublisher` の切り替えを戻す、キーの順序の入れ替え、条件付きのキー（`channel`・`shorten_*`・`review_*`）を常に出す、`(none)` の置き換えを外す、コストの 2 つの形のそれぞれの出力を壊す、`strconv.Quote` を値をそのまま引用符で囲む書き出しに変える、`escapeLeadingMarkdown` の呼び出しを外す、チャンネル名の行の有無の分岐を外す、フロントマターの後の空行を 1 行減らす。
 
+### PR-2 作成ポイント: shared formatting and front-matter file output
+
+**対象ステップ**: 2-1 / 2-2 / 3-1 / 3-2 / 3-3 / 3-4
+
+**推奨タイトル**: `feat(0028): write --out files with YAML front matter`
+
+**レビュー観点**: `format.go` への移動で出力が変わらないこと / フロントマターのキーの順序・条件付きのキー・`strconv.Quote` の往復 / `escapeLeadingMarkdown` の文字ごとの規則 / `check_article.py` と統合テストの追従
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: ステップ 3-1 の `escapeLeadingMarkdown` は、行頭がブロックの記法になる場合の文字ごとの規則をコードで決める孤立した複雑なステップである。そのため frontier-recommended とした。
+
+-   [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+-   [ ] PR を作成した
+-   [ ] PR がマージされた
+-   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ### フェーズ 4: Slack の投稿（F-002）とメンションの扱い（AC-14〜AC-14f）
 
-フェーズ 4 は、ステップ 4-1〜4-9 の順に進める。ステップ 4-4 で M2 の判定が変わるので、`slack_message_test.go` のメンションのテストをそのステップで直す。
+フェーズ 4 は、ステップ 4-1〜4-14 の順に進め、PR-3〜PR-7 の 5 つに分ける（§3.2）。各 PR は、コードとそのコードのテストを同じ PR に入れる。ステップ 4-5 で M2 の判定が変わるので、`slack_message_test.go` のメンションのテストをそのステップで直す。
 
 #### ステップ 4-1: `ProseRanges`（I-01）
 
@@ -241,75 +275,188 @@ go test -run '^$' -tags test,integration ./...
 -   [ ] `neutralizeProse(body string, prose []writer.ByteRange) string` を実装する。`mentionAts` の rune の添字を元の本文のバイトの位置に直して、範囲と比べる（I-02）。
 -   [ ] テストを加える: `mentionAts` の対象になる場合とならない場合（設計書 7.1 の `mentionAts` の行）、`neutralizeMentions` が入れた後の値に対象が残らないこと（例外を除く）と、対象のない値が変わらないこと、`neutralizeProse` で `＠` がコードスパンの中と外にある本文の位置の変換。
 
-#### ステップ 4-3: 分割（I-03・I-04）
+#### ステップ 4-3: PR-3 の確認
 
-**対象:** `internal/publisher/slack_message.go`
+-   [ ] `make fmt` → `make test` → `make lint` → `make deadcode` が通る。この時点で `mentionAts`・`neutralizeMentions`・`neutralizeProse`・`ProseRanges` は本番のコードから呼ばれず、テストだけが呼ぶ。`make deadcode` は `-test` を付けて実行するので、報告されない。報告された場合は、テストが呼んでいることを確かめる。
+-   [ ] 次の変更を 1 つずつ行い、ステップ 4-1・4-2 の対応するテストが失敗することを確かめ、コミットメッセージに記す: `ProseRanges` の範囲の判定を外す; `ProseRanges` が false を返す 5 つの場合のそれぞれを、true を返す形にする; `neutralizeProse` の rune からバイトへの変換を外し、rune の添字のまま比べる（`＠` の入力）; `neutralizeMentions` の直前が `/` の例外を外す; `mentionAts` の名前の文字から `.`・`-` を外す; `mentionAts` の直前の文字の条件を外す。
 
--   [ ] `slackPost`（`text`・`keepTogetherFrom`）の型を `slack_render.go`（新規）に加える。整形の関数はステップ 4-5 で加える。それまでの間、`prepareSlackMessages` は `renderArticle` の出力に `keepTogetherFrom` を投稿の長さとして渡す（最後の領域（`keepTogetherFrom` 以降）がなく、切る位置に制限がない）。
+### PR-3 作成ポイント: mention parts (ProseRanges and neutralization)
+
+**対象ステップ**: 4-1 / 4-2 / 4-3
+
+**推奨タイトル**: `feat(0028): add ProseRanges and mention neutralization helpers`
+
+**レビュー観点**: `ProseRanges` が判定できない 5 つの場合で false を返すこと / rune の添字からバイトの位置への変換（`＠` を含む本文） / `mentionAts` の名前の文字と直前の文字の条件 / 本番のコードから未使用でも `make lint` が通ること
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: ステップ 4-1 は Markdown のコード範囲を組み立てる小さな解析器で、判定できない場合の扱い（I-01）と rune・バイトの変換（I-02）を誤るとメンションの無効化が漏れる。孤立した複雑なステップなので frontier-recommended とした。
+
+-   [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+-   [ ] PR を作成した
+-   [ ] PR がマージされた
+-   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
+#### ステップ 4-4: 分割（I-03・I-04）
+
+**対象:** `internal/publisher/slack_message.go`・`internal/publisher/slack_render.go`
+
+-   [ ] `slackPost`（`text`・`keepTogetherFrom`）の型を `slack_render.go` に加える。整形の関数はステップ 4-9 で加える。それまでの間、`prepareSlackMessages` は `renderArticle` の出力に `keepTogetherFrom` を投稿の長さとして渡す（最後の領域（`keepTogetherFrom` 以降）がなく、切る位置に制限がない）。
 -   [ ] `splitSlackText` が `slackPost` を受け取る形にする。最後以外の断片は `keepTogetherFrom` 以前で切る。探索の上限を容量と `keepTogetherFrom` の小さいほうにし、最後の領域が容量を超えるときは `ErrSlackUnsplittable` で拒否する（I-04、設計書 3.5）。`isWhitespaceOnly` を `keepTogetherFrom` で切った断片にも適用する。
 -   [ ] 改行の後以外の位置で切るとき、切る位置の直後が対象の `@` で、直前が文字または数字なら、切る位置を 1 文字前に動かす。動かすと断片が空になる場合は `ErrSlackUnsplittable` で拒否する（I-03）。
 -   [ ] 分割の後に確認の層を加える。位置の記号 `(n/m)` を含む各メッセージの先頭の `@` について、投稿の全体では語の途中だったのにメッセージの中で対象になったものがあれば、`ErrSlackUnsplittable` で拒否する（I-03）。確認の層は独立した関数にし、手で作った断片の並びを直接渡してテストする。テストの入力には、切る位置の移動の規則を通った後にも残る形を選ぶ。先に、移動の規則だけではこの入力が変わらず拒否もされないことを確かめる。
 -   [ ] `prepareSlackMessages` の UTF-8 の検査（`:29-41`）を、`Body` だけを対象にする形に絞る（設計書 3.5）。
 -   [ ] `slack_message.go:47-49` のコメント（M1〜M4 の前提）を、M2 だけが成り立たなくなり、分割の規則と確認の層がそれを補うこと（設計書 3.7(3)）を述べる形に書き換える。
+-   [ ] `splitSlackText` を呼ぶ既存のテストを、`slackPost` を渡す形に直す。
+-   [ ] 分割と `@` のテストを `slack_message_test.go` に加える: 改行のない長い本文で、切る位置が `x` と `@` の間に来る入力で `@` が断片の先頭にならないこと。確認の層が `ErrSlackUnsplittable` を返す入力は、切る位置の移動の規則を通らない形（移動すると断片が空になる）で作る。最後の領域が容量を超える入力と、`keepTogetherFrom` の手前が容量にちょうど収まる入力（`keepTogetherFrom` を直接指定する）も加える。
 
-**完了:** この時点では M2 も整形も旧いままで、`make test` が通る。**ステップ 4-3 と 4-4 は同じ PR に入れ、4-4 だけを先にマージしない。** 4-3 の分割の規則なしに M2 を緩めると、分割が語の途中の `@` を断片の先頭に置いた投稿が、全体の検査をすり抜けるためである。
+**完了:** この時点では M2 も整形も旧いままで、`make test` が通る。**ステップ 4-4 と 4-5 は同じ PR-4 に入れ、4-5 だけを先にマージしない。** 4-4 の分割の規則なしに M2 を緩めると、分割が語の途中の `@` を断片の先頭に置いた投稿が、全体の検査をすり抜けるためである。
 
-#### ステップ 4-4: M2 の置き換え（I-05）
+#### ステップ 4-5: M2 の置き換え（I-05）
 
-このステップは 4-3 と同じ PR に入れる。
+このステップは 4-4 と同じ PR-4 に入れる。
 
 **対象:** `internal/publisher/slack_message.go`
 
 -   [ ] `findInspectionMention` の M2 の分岐を `mentionAts` の結果に置き換える。M1 の判定（`<!`・`<@`）と、`inspectMentionText` の V2 → V3 → V1 は変えない。M3・M4 は変えない。
 -   [ ] `isMentionNameRune` を削除する（呼び出し元は M2 だけ。§1.3）。
--   [ ] `rejectMention` が示す位置（行と列）が、Slack に送る形（無効化の後）の投稿の文字列で数えたものになるようにする（設計書 3.7(2) の最後）。
 -   [ ] `TestSlackMentionRejected:235`・`TestSlackMentionAccepted:273`・`TestSlackMentionPosition:428`・`TestSlackMentionMessagesFollowPosted:460` を、新しい M2 に合わせる。語の途中の `@`（`Tech@Work`、`user@example.com`、`さん@xxx`）が受理され、`foo_@bar`・`x@@y` のように直前が `_` や `@` の `@` が対象になることを確かめる行を加える。
 
-**完了:** 整形はまだ旧い `renderArticle` で、分割と M2 が新しい。`make test` が通る。
+**完了:** 整形はまだ旧い `renderArticle` で、分割と M2 が新しい。`make test` が通る。**PR-4 のマージから PR-7 のマージまでの間、`main` は緩めた M2 を持ち、実機の確認（R-4）は済んでいない。** この間に `main` から Slack へ公開することを避ける。R-4 の確認は、ステップ 4-14 で、語の途中の `@`（`Tech@Work`・`user@example.com`）が通知にならないことも対象にする。
 
-#### ステップ 4-5: 整形
+#### ステップ 4-6: PR-4 の確認
 
-**対象:** `internal/publisher/slack_render.go`（新規）・`internal/publisher/slack_message.go`
+-   [ ] `make fmt` → `make test` → `make lint` が通る。
+-   [ ] 次の変更を 1 つずつ行い、ステップ 4-4・4-5 の対応するテストが失敗することを確かめ、コミットメッセージに記す: `keepTogetherFrom` の上限を外す; `isWhitespaceOnly` を `keepTogetherFrom` で切った断片に適用しない; 切る位置の移動の規則を外す; 確認の層を外す; `prepareSlackMessages` の UTF-8 の検査を `Body` 以外にも広げる、または `Body` からも外す; `findInspectionMention` の M2 の分岐を旧い判定（直前を見ない）に戻す。切る位置の移動の規則と確認の層は、別々の入力のテストで確かめる。
 
--   [ ] `renderSlackPost`、`stageModel`、`stageModels` を設計書 3.3 のとおりに実装する。見出し行は `# <title>（<channel>）`（チャンネル名がないときは `# <title>`）。脚注は英語の平文 1 行で、版を出さず、同じモデル名の段階を 1 つにまとめる。コストは `articleCost` を使う。
--   [ ] 見出し行のタイトルとチャンネル名、脚注のモデル名は `neutralizeMentions` を、本文は `ProseRanges` と `neutralizeProse` を通してから並べる。`ProseRanges` が false のときは、本文の `@` を無効化しない（このとき本文の対象の `@` が拒否される経路を、`renderSlackPost` から `prepareSlackMessages` まで通すテストをステップ 4-8 に加える）。`Article` の値は変えない。
--   [ ] `keepTogetherFrom` は、`Body` の末尾の改行を除いた最後の行の先頭の rune の位置とする（設計書 3.3）。
--   [ ] `prepareSlackMessages` が `renderSlackPost` を呼ぶ。分割の後にメンションを検査する順序を保つ。
--   [ ] 旧い `renderArticle`・`articleCostLine` を削除する（§2.1）。
+### PR-4 作成ポイント: slack split rules and M2 replacement
 
-#### ステップ 4-6: 失敗の理由（AC-14e・AC-14f）
+**対象ステップ**: 4-4 / 4-5 / 4-6
+
+**推奨タイトル**: `feat(0028): split Slack posts at safe positions and relax M2`
+
+**レビュー観点**: 切る位置の移動の規則と確認の層が、M2 の緩和で通るようになる投稿を補っていること / `keepTogetherFrom` の探索の上限と `ErrSlackUnsplittable` の条件 / M2 の新旧の判定の差（語の途中の `@`、直前が `_`・`@`） / 各変更を外したときにテストが失敗すること
+
+**実装モデル要件**: frontier-required
+
+**判定理由**: ステップ 4-5 は M2 を緩め、ステップ 4-4 の分割の規則と確認の層が同時にそれを補う。拒否を下げる変更と上げる変更が同時に入るセキュリティの関門なので、frontier-required とした。
+
+-   [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+-   [ ] PR を作成した
+-   [ ] PR がマージされた
+-   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
+#### ステップ 4-7: 失敗の理由（AC-14e・AC-14f）
 
 **対象:** `internal/failure/failure.go`・`internal/server/job.go`・`internal/publisher/slack_failure.go`・`cmd/yt2column/run.go`
 
 -   [ ] `failure.KindPublishMention` を `KindPublish` の次に加える。
 -   [ ] `classify`（`job.go:109`）が、公開段階の失敗が `ErrSlackMention` を包むとき `KindPublishMention` を返す。
 -   [ ] `slack_failure.go:113` の写像に、`KindPublishMention` の固定の文面を加える（要件書 AC-14f の内容を英語で）。通知はサーバが選んだ固定の値だけで組み立てる。
--   [ ] `run.go:1031` の案内を、原因（`@` の直後に名前の文字が続く並び）、エラーが示す位置（行と列。1 行目は見出し行）、再実行すると別の記事が生成されること、`--out` で記事を確かめられることを示す文面にする。`@` の後の文字列は示さない。
+-   [ ] `run.go:1031` の案内を、原因（`@` の直後に名前の文字が続く並び）、エラーが示す位置（行と列。1 行目は見出し行。見出し行が入るのは PR-7 からで、それまでは旧い整形での位置である）、再実行すると別の記事が生成されること、`--out` で記事を確かめられることを示す文面にする。`@` の後の文字列は示さない。
+-   [ ] 失敗の理由のテストを、`failure_test.go` の `TestKindConstants:65`、`job_test.go` の `TestFailureClassification:160`、`slack_failure_test.go` の `TestSlackFailureNotifyText:115`、`run_test.go:1489` の行に加える。CLI の案内が `@` の後の文字列を含まないことも確かめる。
 
-#### ステップ 4-7: 統合テストの補助
+#### ステップ 4-8: PR-5 の確認
+
+-   [ ] `make fmt` → `make test` → `make lint` が通る。
+-   [ ] `classify` の `ErrSlackMention` の分岐を外し、ステップ 4-7 の対応するテストが失敗することを確かめ、コミットメッセージに記す。
+
+### PR-5 作成ポイント: publish-mention failure reason
+
+**対象ステップ**: 4-7 / 4-8
+
+**推奨タイトル**: `feat(0028): report Slack mention rejection as its own failure kind`
+
+**レビュー観点**: `classify` が `ErrSlackMention` だけを `KindPublishMention` に写すこと / 通知の文面がサーバの選んだ固定の値だけで組み立てられること / CLI の案内が `@` の後の文字列を含まないこと
+
+**実装モデル要件**: standard
+
+**判定理由**: 該当するトリガはない。既存の `Kind` の写像に 1 つの種類を加える変更で、方式は一つに定まっている。
+
+-   [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+-   [ ] PR を作成した
+-   [ ] PR がマージされた
+-   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
+#### ステップ 4-9: 整形
+
+**対象:** `internal/publisher/slack_render.go`（ステップ 4-2・4-4 で作成済み）
+
+-   [ ] `renderSlackPost`、`stageModel`、`stageModels` を設計書 3.3 のとおりに実装する。見出し行は `# <title>（<channel>）`（チャンネル名がないときは `# <title>`）。脚注は英語の平文 1 行で、版を出さず、同じモデル名の段階を 1 つにまとめる。コストは `articleCost` を使う。
+-   [ ] 見出し行のタイトルとチャンネル名、脚注のモデル名は `neutralizeMentions` を、本文は `ProseRanges` と `neutralizeProse` を通してから並べる。`ProseRanges` が false のときは、本文の `@` を無効化しない（このとき本文の対象の `@` が拒否される経路を、`renderSlackPost` から `prepareSlackMessages` まで通すテストをステップ 4-13 に加える）。`Article` の値は変えない。
+-   [ ] `keepTogetherFrom` は、`Body` の末尾の改行を除いた最後の行の先頭の rune の位置とする（設計書 3.3）。
+-   [ ] `renderSlackPost` のテストを `slack_render_test.go` に加える: 先頭行（チャンネル名の有無）、本文の前が見出し行と空行だけであること、最終行が脚注で 1 行であること、版が出ないこと（版が空の場合と空でない場合で同じ）、同一モデルの統合、異なるモデルの併記と段階の順序、字数の調整・推敲が走らない場合、コストの 2 つの形、`keepTogetherFrom` が本文の最後の行を指すこと。見出し行・脚注の対象の `@name` と `＠everyone` が無効化されること、本文のコードの外の対象の `@name` が無効化されコードの中のものは無効化されないこと、語の途中の `@` を含むタイトル・本文・チャンネル名が変わらないこと、`ProseRanges` が false のとき本文が変わらないこと。
+
+**完了:** `renderSlackPost` は本番のコードからまだ呼ばれない。`make test` が通る。
+
+#### ステップ 4-10: PR-6 の確認
+
+-   [ ] `make fmt` → `make test` → `make lint` → `make deadcode` が通る。`renderSlackPost` が本番のコードから呼ばれるのは PR-7 からだが、`make deadcode` は `-test` を付けて実行するので、テストが呼んでいれば報告されない。
+-   [ ] 次の変更を 1 つずつ行い、ステップ 4-9 の対応するテストが失敗することを確かめ、コミットメッセージに記す: `renderSlackPost` の `neutralizeMentions` の呼び出しを外す; `neutralizeProse` の呼び出しを外す; `stageModels` の同一モデルの統合を外す、または段階の順序を入れ替える; `keepTogetherFrom` の指す位置を本文の末尾にする。
+
+### PR-6 作成ポイント: slack post renderer
+
+**対象ステップ**: 4-9 / 4-10
+
+**推奨タイトル**: `feat(0028): add the Slack post renderer with header and footnote`
+
+**レビュー観点**: 見出し行・本文・脚注の並びと `keepTogetherFrom` の位置 / 見出し行・脚注・本文の `@` の無効化（コードの内外） / `stageModels` の統合と順序 / 本番のコードから未使用でも既存の動作が変わらないこと
+
+**実装モデル要件**: standard
+
+**判定理由**: 該当するトリガはない。設計書 3.3 が整形の形を定めており、新しい関数は PR-3 の部品の組み合わせである。
+
+-   [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+-   [ ] PR を作成した
+-   [ ] PR がマージされた
+-   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
+#### ステップ 4-11: 切り替え
+
+**対象:** `internal/publisher/slack_message.go`・`internal/publisher/file.go`
+
+-   [ ] `prepareSlackMessages` が `renderSlackPost` を呼ぶ。分割の後にメンションを検査する順序を保つ。
+-   [ ] `rejectMention` が示す位置（行と列）が、Slack に送る形（無効化の後）の投稿の文字列で数えたものになるようにする（設計書 3.7(2) の最後）。
+-   [ ] 旧い `renderArticle`・`articleCostLine` を削除する（§2.1）。削除の前後で `go tool cover -func` の関数ごとの値を比べる（§5.2・§5.3）。
+
+#### ステップ 4-12: 統合テストの補助
 
 **対象:** `internal/publisher/testutil/integration.go`
 
 -   [ ] `integrationHeader` を、新しい投稿の見出し行（空行を含む）と脚注の長さを数える関数に置き換え、`IntegrationArticles` の本文の切り方を、投稿全体が `single` ではちょうど 16,383 コードポイントになる形に改める（§1.3）。`split` が複数のメッセージになり、10 通の上限に遠いことを保つ。
 -   [ ] このファイルの変更は、タグ `test` と `integration` の両方でコンパイルされる（ファイル先頭の `//go:build test || integration`）。
 
-#### ステップ 4-8: テストの更新と追加
+#### ステップ 4-13: テストの更新と追加
 
 -   [ ] `file_test.go` に残る `renderArticle` を呼ぶ行はない（ステップ 3-3 で改めた）ことを確かめる。`slack_test.go`・`slack_message_test.go` の `renderArticle(article)` を、`renderSlackPost(article).text` を使う形に直す。期待値の中の `- Estimated cost: …` の行と、その行が 1 回だけ現れることを確かめるテスト（`TestSlackPublishCostLine:513`）は、脚注の形に直す。
--   [ ] `renderSlackPost` のテストを `slack_render_test.go`（新規）に加える: 先頭行（チャンネル名の有無）、本文の前が見出し行と空行だけであること、最終行が脚注で 1 行であること、版が出ないこと（版が空の場合と空でない場合で同じ）、同一モデルの統合、異なるモデルの併記と段階の順序、字数の調整・推敲が走らない場合、コストの 2 つの形、`keepTogetherFrom` が本文の最後の行を指すこと。
--   [ ] 分割のテストを `slack_message_test.go` に加える: 16,383 文字を超える記事で、見出し行が先頭のメッセージにだけ、脚注が最後のメッセージにだけ 1 回現れ、脚注だけのメッセージがないこと。入力は、本文の最後の改行の直後で切れる場合、`keepTogetherFrom` の手前が容量にちょうど収まる場合、10 通に脚注が加わる場合、容量を超える見出し行を含む場合。`SlackMessageCount` が送る数と一致すること（`TestSlackMessageCount:398` を拡張してよい）。
--   [ ] 分割と `@` のテストを加える: 改行のない長い本文で、切る位置が `x` と `@` の間に来る入力で `@` が断片の先頭にならないこと。見出し行が分割されるほど長い `Tech@Work` のタイトル。確認の層が `ErrSlackUnsplittable` を返す入力は、切る位置の移動の規則を通らない形（移動すると断片が空になる）で作る。
--   [ ] メンションの拒否と無効化のテストを、設計書 7.1 の該当行に従って加える。計画として足すのは次のとおり: 本文のコードの外の対象の `@name` は無効化されて拒否されない。コードスパン・コードブロックの中と、直前が `/` の対象の `@` は `ErrSlackMention` で拒否される。見出し行と脚注の対象の `@name` と `＠everyone` は無効化される。語の途中の `@` を含むタイトル・本文・チャンネル名は変更も拒否もされない。`<!`・`<@`、文字参照、`<a|b>` は見出し行・脚注・本文のどこにあっても拒否される。
--   [ ] 失敗の理由のテストを、`failure_test.go` の `TestKindConstants:65`、`job_test.go` の `TestFailureClassification:160`、`slack_failure_test.go` の `TestSlackFailureNotifyText:115`、`run_test.go:1489` の行に加える。CLI の案内が `@` の後の文字列を含まないことも確かめる。
+-   [ ] 分割のテストを `slack_message_test.go` に加える: 16,383 文字を超える記事で、見出し行が先頭のメッセージにだけ、脚注が最後のメッセージにだけ 1 回現れ、脚注だけのメッセージがないこと。入力は、本文の最後の改行の直後で切れる場合、10 通に脚注が加わる場合、容量を超える見出し行を含む場合。`SlackMessageCount` が送る数と一致すること（`TestSlackMessageCount:398` を拡張してよい）。見出し行が分割されるほど長い `Tech@Work` のタイトルでも、拒否されないこと。
+-   [ ] メンションの拒否と無効化のテストを、設計書 7.1 の該当行に従って加える。計画として足すのは次のとおり: 本文のコードの外の対象の `@name` は無効化されて拒否されない。コードスパン・コードブロックの中と、直前が `/` の対象の `@` は `ErrSlackMention` で拒否される。見出し行と脚注の対象の `@name` と `＠everyone` は無効化される。語の途中の `@` を含むタイトル・本文・チャンネル名は変更も拒否もされない。`<!`・`<@`、文字参照、`<a|b>` は見出し行・脚注・本文のどこにあっても拒否される。`ProseRanges` が false の本文で、対象の `@` が拒否される経路を `prepareSlackMessages` まで通すテストを加える（ステップ 4-9）。位置のテストも加える: 見出し行か本文に、無効化で U+200B が入る対象の `@` があり、その後ろに拒否される `@`（コードの中）がある投稿で、`rejectMention` が示す行と列が、Slack に送る形（無効化の後）の文字列で数えた値になること。
 -   [ ] `internal/publisher/slack_integration_test.go`（`integration` タグ）が、更新した `IntegrationArticles` と矛盾しないことを確かめる。
 
-#### ステップ 4-9: フェーズ 4 の確認
+#### ステップ 4-14: PR-7 の確認
 
 -   [ ] `make fmt` → `make test` → `make lint` → `make deadcode` が通る。
 -   [ ] `go test -run '^$' -tags test,integration ./...` が通る。
--   [ ] 次の変更を 1 つずつ行い、ステップ 4-1〜4-8 の対応するテストが失敗することを確かめ、コミットメッセージに記す: `ProseRanges` の範囲の判定を外す; `ProseRanges` が false を返す 5 つの場合のそれぞれを、true を返す形にする; `neutralizeProse` の rune からバイトへの変換を外し、rune の添字のまま比べる（`＠` の入力）; `neutralizeMentions` の呼び出しを外す; 直前が `/` の例外を外す; 名前の文字から `.`・`-` を外す; M2 の直前の文字の条件を外す; `stageModels` の同一モデルの統合を外す、または段階の順序を入れ替える; 脚注を最後以外のメッセージにも出す; `keepTogetherFrom` の上限を外す; `isWhitespaceOnly` を `keepTogetherFrom` で切った断片に適用しない; 切る位置の移動の規則を外す; 確認の層を外す; `prepareSlackMessages` の UTF-8 の検査を `Body` 以外にも広げる、または `Body` からも外す; `classify` の分岐を外す。切る位置の移動の規則と確認の層は、別々の入力のテスト（ステップ 4-3・4-8）で確かめる。
--   [ ] **手動（実機）。** `@`・U+200B・`name` の投稿が、通知にならないことを実際の Mattermost で確かめる（設計書 10 章 R-4）。確かめた Mattermost の版と結果を §5.1 に記録する。確認が済むまでは、どの版でも通知を防ぐとは書かない。通知を受けないテスト用のアカウントか、`silent` に対応した版を使う。
+-   [ ] 次の変更を 1 つずつ行い、ステップ 4-11〜4-13 の対応するテストが失敗することを確かめ、コミットメッセージに記す: `prepareSlackMessages` の `renderSlackPost` の呼び出しを旧い整形に戻す; 脚注を最後以外のメッセージにも出す; `rejectMention` の位置を無効化の前の文字列で数える。
+-   [ ] **手動（実機）。** `@`・U+200B・`name` の投稿が、通知にならないことを実際の Mattermost で確かめる（設計書 10 章 R-4）。確かめた Mattermost の版と結果を §5.1 に記録する。確認が済むまでは、どの版でも通知を防ぐとは書かない。通知を受けないテスト用のアカウントか、`silent` に対応した版を使う。あわせて、語の途中の `@`（`Tech@Work`・`user@example.com`）を含む投稿が通知にならないことも確かめる（PR-4 が受理するようになった形）。
 -   [ ] **手動（実機）。** 見出し行と脚注の見え方を、テスト用の Webhook に `make test-integration-slack` で投稿して確かめる（AC-05〜AC-07）。実行は利用者の承認を得てから行う（CLAUDE.md「Tool Execution Safety」）。
+
+### PR-7 作成ポイント: switch Slack to the new post
+
+**対象ステップ**: 4-11 / 4-12 / 4-13 / 4-14
+
+**推奨タイトル**: `feat(0028): switch Slack publishing to the new post layout`
+
+**レビュー観点**: `renderArticle`・`articleCostLine` の削除の前後で `go tool cover -func` が下がっていないこと / `IntegrationArticles` が投稿全体でちょうど 16,383 コードポイントになること / `rejectMention` の位置が無効化の後の文字列で数えられていること / 実機の確認（Mattermost の R-4 と `make test-integration-slack`）の記録
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: ステップ 4-12 は投稿全体をちょうど 16,383 コードポイントにする計算をタグ付きのファイルで行い（ビルドタグのコンパイル確認に該当）、ステップ 4-11・4-13 は旧い整形の削除と多数のテストの移行を伴う。方式は設計書で定まっており、実機の確認は利用者が行うので、孤立した複雑なステップとして frontier-recommended とした。
+
+-   [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+-   [ ] PR を作成した
+-   [ ] PR がマージされた
+-   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 5: 文書（F-004）
 
@@ -328,6 +475,23 @@ go test -run '^$' -tags test,integration ./...
 -   [ ] `make test` → `make lint` が通る。`README.md` と `docs/dev/security.md` を変えたので、`make ext-test` も通る（Node のバージョンが `extension/.node-version` と一致していること）。
 -   [ ] `security.md`・`project_overview.md` の新しい記述を、設計書 5 章・3.7 と実装の `file:line` に照らして確かめ、§5.4 に記録する。README の例はステップ 5-1 のガードが確かめる。
 
+### PR-8 作成ポイント: documentation update
+
+**対象ステップ**: 5-1 / 5-2
+
+**推奨タイトル**: `docs(0028): document the new output layout`
+
+**レビュー観点**: README の例が実際の出力と一致すること（文書のガード） / `security.md` の記述が設計書 5 章・3.7 と実装に合うこと / 旧い記述が残っていないこと / `make ext-test` が通ること
+
+**実装モデル要件**: standard
+
+**判定理由**: 該当するトリガはない。文書とその文書のガードの更新で、設計上の判断を含まない。
+
+-   [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+-   [ ] PR を作成した
+-   [ ] PR がマージされた
+-   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
 
 ### 3.1. マイルストーン
@@ -340,7 +504,22 @@ go test -run '^$' -tags test,integration ./...
 | M4 | フェーズ 4 | Slack の投稿が新しい構成になり、メンションの扱いが変わる |
 | M5 | フェーズ 5 | 文書が新しい構成に合い、`make ext-test` が通る |
 
-### 3.2. 実装順序の根拠
+### 3.2. PR 構成
+
+| PR | 対象ステップ | 主な変更内容 | 実装モデル要件 |
+|---|---|---|---|
+| PR-1 | 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 | チャンネル名を `Article` へ運び、入口・LLM を呼ぶ前・公開の直前の 3 か所で `CheckChannelName` により検査する | standard |
+| PR-2 | 2-1 / 2-2 / 3-1 / 3-2 / 3-3 / 3-4 | 共有の値の書式を `format.go` に切り出し、`--out` のファイルをフロントマター付きの形にする | frontier-recommended |
+| PR-3 | 4-1 / 4-2 / 4-3 | `ProseRanges` と、メンションの判定・無効化の部品（本番のコードからはまだ呼ばない） | frontier-recommended |
+| PR-4 | 4-4 / 4-5 / 4-6 | 分割の規則と確認の層を加え、同時に M2 を `mentionAts` に置き換える | frontier-required |
+| PR-5 | 4-7 / 4-8 | `KindPublishMention` を加え、メンションの拒否を専用の失敗の理由として報告する | standard |
+| PR-6 | 4-9 / 4-10 | `renderSlackPost`・`stageModels` を加える（本番のコードからはまだ呼ばない） | standard |
+| PR-7 | 4-11 / 4-12 / 4-13 / 4-14 | Slack の公開を新しい整形に切り替え、`renderArticle` を削除し、統合テストの補助とテストを改める | frontier-recommended |
+| PR-8 | 5-1 / 5-2 | 文書とその文書のガードを新しい構成に合わせる | standard |
+
+PR は番号順にマージする。PR-1 のチャンネル名が PR-2 と PR-6 の整形の前提になり、PR-3 の部品を PR-4 と PR-6 が使い、PR-2 の `articleCost` を PR-6 が使う。PR-4 の分割の規則は、PR-4 の M2 の置き換えと同じ PR に入れる（ステップ 4-4 の完了の注記）。
+
+### 3.3. 実装順序の根拠
 
 設計書 8 章の順序に従う。フェーズ 1 のチャンネル名の受け渡しが、フェーズ 3・4 の整形の前提になる。フェーズ 2 は、2 つの整形が共有する値の書式を、出力を変えずに先に切り出す。`renderArticle` は、Slack が使うフェーズ 4 の終わりまで残す（§1.3）。メンションの扱いを Slack の整形と同じフェーズに入れるのは、見出し行と脚注の `@` の扱いが整形と一体だからである（設計書 8 章）。
 
@@ -381,7 +560,7 @@ go test -run '^$' -tags test,integration ./...
 | AC-09・AC-10 | test | `internal/publisher/slack_render_test.go`（新規。`stageModels`） |
 | AC-11 | test | `internal/publisher/slack_render_test.go`（新規。コストの 2 つの形）、`internal/publisher/slack_test.go::TestSlackPublishCostLine` |
 | AC-12・AC-13 | test | `internal/publisher/slack_message_test.go::TestSlackSplit`・`TestSlackSplitRejects`・`TestSlackMessageCount`（拡張）、`internal/publisher/slack_test.go::TestSlackPublishSplit`（拡張） |
-| AC-14 | test | `internal/publisher/slack_message_test.go`（追加。`mentionAts`・`neutralizeMentions`・`neutralizeProse`）、`internal/writer/markdown_test.go`（追加。`ProseRanges`） |
+| AC-14 | test | `internal/publisher/slack_message_test.go`（追加。`mentionAts`）、`internal/publisher/slack_render_test.go`（新規。`neutralizeMentions`・`neutralizeProse`）、`internal/writer/markdown_test.go`（追加。`ProseRanges`） |
 | AC-14a | test | `internal/publisher/slack_message_test.go::TestSlackMentionAccepted`（拡張） |
 | AC-14b | test | `internal/publisher/slack_message_test.go::TestSlackMentionRejected`（拡張） |
 | AC-14c | test | `internal/publisher/slack_message_test.go::TestSlackMentionRejected`・`TestSlackMentionPosition`（拡張） |
@@ -412,20 +591,20 @@ AC-23〜AC-25 のガードは語句の有無だけを確かめ、記述が実装
 
 ### 5.2. 削除・改めるテストの対応
 
-削除するテストはない。改めるテストは、ステップ 3-3・4-4・4-8 に名前を挙げた。改めた各テストが確かめていた不変条件（上書きしない、モデルの行の順序、コストの値と丸め、メッセージの分割と位置の記号、旧い M2 の拒否）は、次のとおり引き継がれる。
+削除するテストはない。改めるテストは、ステップ 3-3・4-5・4-13 に名前を挙げた。改めた各テストが確かめていた不変条件（上書きしない、モデルの行の順序、コストの値と丸め、メッセージの分割と位置の記号、旧い M2 の拒否）は、次のとおり引き継がれる。
 
 -   モデルの行の順序: `stageModels` のテストとフロントマターのキーの順序のテスト。
 -   コストの値と丸め: `articleCost` を使う 2 つの整形のテスト（`0.0023` と `unknown`、未登録のモデルの `unknown`）。
 -   旧い M2（直前を見ずに拒否）: 置き換える方針なので、引き継ぐ不変条件はない。直前が `/` の `@`、コードの中の `@` の拒否が、新しい拒否のテストになる。
--   `renderArticle` の削除（ステップ 4-5）の前後で、`go tool cover -func` の関数ごとの値を比べ、削除した関数を除いて下がっていないことを確かめて、§5.4 に記録する（CLAUDE.md「Deleting a test is a claim that must be checked」。テストの削除はないが、関数の削除に伴う確認として行う）。
+-   `renderArticle` の削除（ステップ 4-11）の前後で、`go tool cover -func` の関数ごとの値を比べ、削除した関数を除いて下がっていないことを確かめて、§5.4 に記録する（CLAUDE.md「Deleting a test is a claim that must be checked」。テストの削除はないが、関数の削除に伴う確認として行う）。
 
 ### 5.3. 確認のコマンドと出力
 
 実施するときに、コマンド・実行したコミット・出力を記録する。
 
--   ステップ 3-4・4-9 の `go test -run '^$' -tags test,integration ./...`。
+-   ステップ 3-4・4-14 の `go test -run '^$' -tags test,integration ./...`。
 -   ステップ 3-4 の `check_article.py` の実行。
--   ステップ 4-5 の `renderArticle` の削除の前後の `go tool cover -func` の比較。
+-   ステップ 4-11 の `renderArticle` の削除の前後の `go tool cover -func` の比較。
 
 ### 5.4. 文書の照合の記録
 
@@ -437,9 +616,9 @@ AC-23〜AC-25 のガードは語句の有無だけを確かめ、記述が実装
 
 | リスク | 対策 |
 |---|---|
-| フェーズ 4 が大きく、レビューしにくい | ステップ 4-1〜4-9 の順に進め、`/mkplan2` で PR の境界を決める。メンションの部品（4-1・4-2）は独立して通る。分割（4-3）と M2 の置き換え（4-4）は同じ PR に入れる |
+| フェーズ 4 が大きく、レビューしにくい | ステップ 4-1〜4-14 の順に進め、PR-3〜PR-7 に分けた（§3.2）。メンションの部品（4-1・4-2）は PR-3 として独立して通る。分割（4-4）と M2 の置き換え（4-5）は同じ PR-4 に入れる |
 | 無効化が実際の Mattermost の版で効かない | 設計書 5 章のとおり、R-4 の確認が済むまで保証しない。`silent` と拒否の層は残る |
-| `IntegrationArticles` の大きさの計算が合わず、統合テストが 16,383 コードポイントを超える | ステップ 4-7 で、`TestIntegrationArticles` が通ることを確かめる |
+| `IntegrationArticles` の大きさの計算が合わず、統合テストが 16,383 コードポイントを超える | ステップ 4-12 で、`TestIntegrationArticles` が通ることを確かめる |
 | 本文が極端に長いとき、従来は収まった記事が 11 通になり拒否される（設計書 3.5） | 受け入れる。字数の調整が有効な既定の実行では起こらない |
 | `ProseRanges` が判定できない本文で、対象の `@` が拒否される頻度が高い | 設計書 R-6 のとおり、まず測らず、プロンプトの変更はこのタスクの外とする |
 | 文書のガードのテストが README の語句を読むので、README の更新でテストが壊れることがある | ステップ 5-1 で `TestCostDocsContract` を確かめ、`make ext-test` を実行する |
@@ -451,11 +630,14 @@ R-4 の実機の確認は、通知を受けないテスト用のアカウント�
 ## 7. 実装チェックリスト (Implementation Checklist)
 
 -   [ ] フェーズ 1 の前の手動の確認（§5.1）
--   [ ] フェーズ 1: ステップ 1-1〜1-7
--   [ ] フェーズ 2: ステップ 2-1〜2-2
--   [ ] フェーズ 3: ステップ 3-1〜3-4
--   [ ] フェーズ 4: ステップ 4-1〜4-9
--   [ ] フェーズ 5: ステップ 5-1〜5-2
+-   [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7）
+-   [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 3-1 / 3-2 / 3-3 / 3-4）
+-   [ ] PR-3 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3）
+-   [ ] PR-4 マージ済み（対象ステップ: 4-4 / 4-5 / 4-6）
+-   [ ] PR-5 マージ済み（対象ステップ: 4-7 / 4-8）
+-   [ ] PR-6 マージ済み（対象ステップ: 4-9 / 4-10）
+-   [ ] PR-7 マージ済み（対象ステップ: 4-11 / 4-12 / 4-13 / 4-14）
+-   [ ] PR-8 マージ済み（対象ステップ: 5-1 / 5-2）
 -   [ ] §4.4 の横断検索
 -   [ ] すべての AC の検証が §5 の表のとおり実行され、手動の確認が §5.1・§5.4 に記録されている
 -   [ ] `make test`・`make lint`・`make ext-test` が通る
@@ -472,5 +654,4 @@ R-4 の実機の確認は、通知を受けないテスト用のアカウント�
 ## 9. 次のステップ (Next Steps)
 
 1.  利用者が本計画をレビューし、`approved` にする。
-2.  `/mkplan2 0028` で PR の境界を加える。
-3.  `/runplan 0028` でフェーズ 1 から実装する。
+2.  `/runplan 0028` でフェーズ 1 から実装する。
