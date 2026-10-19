@@ -583,6 +583,7 @@ var testOnlyPackageDirs = []string{
 	"internal/loopbacktest",
 	"internal/llm/llmhttp/llmhttptest",
 	"internal/maketestutil",
+	"internal/udstest",
 }
 
 // TestFakesCarryBuildTag checks that every testutil file under internal, at
