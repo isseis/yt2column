@@ -334,20 +334,22 @@ func TestSlackPrepareRejectsInvalidArticle(t *testing.T) {
 		{"body whitespace only", func(a *writer.Article) { a.Body = " \n\t" }, false},
 		{"body escape", func(a *writer.Article) { a.Body = "x\x1b[2J" }, false},
 		{"source url empty", func(a *writer.Article) { a.SourceURL = "" }, false},
-		{"title invalid utf-8", func(a *writer.Article) { a.Title = "a\xffb" }, true},
+		{"channel name control character", func(a *writer.Article) { a.ChannelName = "a\nb" }, false},
+		{"channel name bidirectional control", func(a *writer.Article) { a.ChannelName = "a\u202eb" }, false},
+		{"title invalid utf-8", func(a *writer.Article) { a.Title = "a\xffb" }, false},
 		{"body invalid utf-8", func(a *writer.Article) { a.Body = "x\xffy" }, true},
-		{"model invalid utf-8", func(a *writer.Article) { a.Model = "m\xff" }, true},
-		{"model version invalid utf-8", func(a *writer.Article) { a.ModelVersion = "v\xff" }, true},
-		{"shorten model invalid utf-8", func(a *writer.Article) { a.Shorten = &writer.StepModel{Model: "m\xff"} }, true},
+		{"model invalid utf-8", func(a *writer.Article) { a.Model = "m\xff" }, false},
+		{"model version invalid utf-8", func(a *writer.Article) { a.ModelVersion = "v\xff" }, false},
+		{"shorten model invalid utf-8", func(a *writer.Article) { a.Shorten = &writer.StepModel{Model: "m\xff"} }, false},
 		{"shorten model version invalid utf-8", func(a *writer.Article) {
 			a.Shorten = &writer.StepModel{Model: "shorten-x", ModelVersion: "v\xff"}
-		}, true},
+		}, false},
 		{"review model invalid utf-8", func(a *writer.Article) {
 			a.Review = &writer.ReviewResult{Model: writer.StepModel{Model: "m\xff"}}
-		}, true},
+		}, false},
 		{"review model version invalid utf-8", func(a *writer.Article) {
 			a.Review = &writer.ReviewResult{Model: writer.StepModel{Model: "review-x", ModelVersion: "v\xff"}}
-		}, true},
+		}, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

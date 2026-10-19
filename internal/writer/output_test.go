@@ -74,6 +74,7 @@ func TestWriteArticle(t *testing.T) {
 			}
 			want := Article{
 				Title:        tc.wantTitle,
+				ChannelName:  markChannel,
 				Body:         tc.wantBody + "\n\n" + testSourceBlock,
 				SourceURL:    testSourceURL,
 				Model:        tc.resp.Model,
@@ -321,6 +322,57 @@ func TestWriteRejectsMarkdownHazards(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			if _, err := writeResponse(t, responseWithText("# "+markOutTitle+"\n"+tc.body)); err != nil {
 				t.Errorf("Write error = %v, want nil", err)
+			}
+		})
+	}
+}
+
+func TestCheckChannelName(t *testing.T) {
+	const mark = "mark-channel-secret-X7qp"
+	atLimit := strings.Repeat("あ", maxChannelNameRunes)
+	// A non-BMP code point is one code point however many bytes it takes, so
+	// the limit counts code points, not bytes or UTF-16 units.
+	nonBMPAtLimit := strings.Repeat("😀", maxChannelNameRunes)
+	cases := []struct {
+		name    string
+		value   string
+		wantErr bool
+	}{
+		{"empty", "", false},
+		{"plain", "Some Channel", false},
+		{"Japanese", "チャンネル 名前", false},
+		{"ends with hash", "C#", false},
+		{"emoji with ZWJ", "👨\u200d👩\u200d👧", false},
+		{"ZWNJ and direction marks", "a\u200cb\u200ec\u200f", false},
+		{"at the limit", atLimit, false},
+		{"non-BMP at the limit", nonBMPAtLimit, false},
+		{"over the limit", atLimit + "あ", true},
+		{"non-BMP over the limit", nonBMPAtLimit + "😀", true},
+		{"whitespace only", " \u3000 ", true},
+		{"tab", mark + "\tx", true},
+		{"newline", mark + "\nx", true},
+		{"escape", mark + "\x1bx", true},
+		{"delete", mark + "\x7fx", true},
+		{"invalid UTF-8", mark + "\xff", true},
+		{"embedding start U+202A", mark + "\u202a", true},
+		{"override end U+202E", mark + "\u202e", true},
+		{"isolate start U+2066", mark + "\u2066", true},
+		{"isolate end U+2069", mark + "\u2069", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := CheckChannelName(tc.value)
+			if !tc.wantErr {
+				if err != nil {
+					t.Fatalf("CheckChannelName(%q) = %v, want nil", tc.value, err)
+				}
+				return
+			}
+			if !errors.Is(err, ErrInvalidChannelName) {
+				t.Fatalf("CheckChannelName(%q) = %v, want ErrInvalidChannelName", tc.value, err)
+			}
+			if strings.Contains(err.Error(), mark) {
+				t.Errorf("error %q contains the channel name", err)
 			}
 		})
 	}

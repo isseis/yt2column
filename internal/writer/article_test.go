@@ -45,6 +45,17 @@ func TestArticleCheckPublishable(t *testing.T) {
 		{"body carriage return", func(a *Article) { a.Body = "a\rb" }, true},
 		{"body delete", func(a *Article) { a.Body = "a\x7fb" }, true},
 		{"source URL empty", func(a *Article) { a.SourceURL = "" }, true},
+		{"source URL invalid UTF-8", func(a *Article) { a.SourceURL += "\xff" }, true},
+		{"title invalid UTF-8", func(a *Article) { a.Title += "\xff" }, true},
+		{"model invalid UTF-8", func(a *Article) { a.Model += "\xff" }, true},
+		{"model version invalid UTF-8", func(a *Article) { a.ModelVersion += "\xff" }, true},
+		{"channel name empty", func(a *Article) { a.ChannelName = "" }, false},
+		{"channel name valid", func(a *Article) { a.ChannelName = "Some Channel" }, false},
+		{"channel name whitespace only", func(a *Article) { a.ChannelName = " " }, true},
+		{"channel name control character", func(a *Article) { a.ChannelName = "a\nb" }, true},
+		{"channel name invalid UTF-8", func(a *Article) { a.ChannelName = "a\xff" }, true},
+		{"channel name bidirectional control", func(a *Article) { a.ChannelName = "a\u202eb" }, true},
+		{"channel name over the limit", func(a *Article) { a.ChannelName = strings.Repeat("a", maxChannelNameRunes+1) }, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -142,6 +153,17 @@ func TestArticleCheckPublishableSteps(t *testing.T) {
 	}
 }
 
+// TestArticleCheckPublishableChannelName checks that a rejected channel name is
+// reported with both ErrInvalidArticle and ErrInvalidChannelName.
+func TestArticleCheckPublishableChannelName(t *testing.T) {
+	a := validPublishableArticle()
+	a.ChannelName = "a\u202eb"
+	err := a.CheckPublishable()
+	if !errors.Is(err, ErrInvalidArticle) || !errors.Is(err, ErrInvalidChannelName) {
+		t.Fatalf("CheckPublishable() = %v, want ErrInvalidArticle and ErrInvalidChannelName", err)
+	}
+}
+
 func TestArticleCheckPublishableOmitsValues(t *testing.T) {
 	const mark = "mark-secret-Q4wd"
 	cases := []struct {
@@ -153,6 +175,7 @@ func TestArticleCheckPublishableOmitsValues(t *testing.T) {
 		{"model", "model", func(a *Article) { a.Model = mark + "\n" }},
 		{"model version", "model version", func(a *Article) { a.ModelVersion = mark + "\n" }},
 		{"body", "body", func(a *Article) { a.Body = mark + "\x1b" }},
+		{"channel name", "channel name", func(a *Article) { a.ChannelName = mark + "\n" }},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

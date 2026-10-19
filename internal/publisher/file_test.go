@@ -336,6 +336,8 @@ func TestFilePublisherRejectsArticle(t *testing.T) {
 		{"model control", func(a *writer.Article) { a.Model = "m\x07" }},
 		{"model version control", func(a *writer.Article) { a.ModelVersion = "v\n1" }},
 		{"source URL empty", func(a *writer.Article) { a.SourceURL = "" }},
+		{"channel name control character", func(a *writer.Article) { a.ChannelName = "a\nb" }},
+		{"channel name bidirectional control", func(a *writer.Article) { a.ChannelName = "a\u202eb" }},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

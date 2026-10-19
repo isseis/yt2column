@@ -58,6 +58,9 @@ func TestWriteRejectsInvalidTranscript(t *testing.T) {
 		{"whitespace-only segment text", func(tr *transcript.Transcript) { tr.Segments[1].Text = " \t\n\u3000" }},
 		{"invalid UTF-8 Title", func(tr *transcript.Transcript) { tr.Title += "\xff" }},
 		{"invalid UTF-8 ChannelName", func(tr *transcript.Transcript) { tr.ChannelName += "\xff" }},
+		{"whitespace-only ChannelName", func(tr *transcript.Transcript) { tr.ChannelName = " \t" }},
+		{"control character in ChannelName", func(tr *transcript.Transcript) { tr.ChannelName += "\x1b" }},
+		{"bidirectional control in ChannelName", func(tr *transcript.Transcript) { tr.ChannelName += "\u202e" }},
 		{"invalid UTF-8 Description", func(tr *transcript.Transcript) { tr.Description += "\xff" }},
 		{"invalid UTF-8 segment text", func(tr *transcript.Transcript) { tr.Segments[1].Text += "\xff" }},
 	}
@@ -73,6 +76,9 @@ func TestWriteRejectsInvalidTranscript(t *testing.T) {
 			}
 			if a != (Article{}) {
 				t.Errorf("Write article = %+v, want the zero value", a)
+			}
+			if wantChannel := strings.Contains(tc.name, "ChannelName"); wantChannel != errors.Is(err, ErrInvalidChannelName) {
+				t.Errorf("Write error matches ErrInvalidChannelName = %v, want %v", !wantChannel, wantChannel)
 			}
 			if len(client.Calls) != 0 {
 				t.Errorf("Generate called %d times, want 0", len(client.Calls))
