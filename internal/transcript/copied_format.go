@@ -524,9 +524,8 @@ func parseCopiedFormA(lines []string, start, end int) ([]Segment, error) {
 // which could be a damaged timestamp whose segment would be silently dropped. A
 // skipped heading leaves a timestamp still expected and takes no part in the
 // timestamp order. A text line that reads as a form A line is rejected as a mix
-// of the forms. Error line
-// numbers are the original input's, so the range is not renumbered. It rejects
-// on the first error in the documented check order.
+// of the forms. Error line numbers are the original input's, so the range is
+// not renumbered. It rejects on the first error in the documented check order.
 func parseCopiedFormB(lines []string, start, end int) ([]Segment, error) {
 	var segments []Segment
 	previousMs := int64(-1)

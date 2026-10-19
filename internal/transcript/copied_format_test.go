@@ -539,13 +539,14 @@ func TestParseCopiedTrailingRegion(t *testing.T) {
 
 // assertCopiedBodyHasNoSkippedLine fails unless body contains only form A or
 // form B lines: the first line starts with a timestamp, none of its lines is
-// blank or whitespace-only, none is a form A chapter heading, and it has no
-// trailing region. Such an input never enters a skip path, so a skip test can
-// use it as the comparison target. The heading and trailing-region checks call
-// the production functions, so a new skip kind is caught here rather than
-// silently skipping a comparison line. The heading check is conservative: it
-// rejects a form A heading line in a form B body too, where such a line would
-// be text, so a form B comparison body must not carry one.
+// blank or whitespace-only, none is a form A chapter heading, it has no
+// trailing region, and, in form B, every non-timestamp line follows a
+// timestamp-only line, so no line sits where a form B heading is skipped. Such
+// an input never enters a skip path, so a skip test can use it as the
+// comparison target. The heading and trailing-region checks call the production
+// functions. The heading check is conservative: it rejects a form A heading
+// line in a form B body too, where such a line would be text, so a form B
+// comparison body must not carry one.
 func assertCopiedBodyHasNoSkippedLine(t *testing.T, body string) {
 	t.Helper()
 	separator, err := copiedLineSeparator(body)
@@ -556,12 +557,16 @@ func assertCopiedBodyHasNoSkippedLine(t *testing.T, body string) {
 	if _, _, ok := parseTimestampPrefix(lines[0]); !ok {
 		t.Fatalf("comparison body %q does not start with a timestamp", body)
 	}
+	formB := copiedTimestampLineAt(lines, 0)
 	for i, line := range lines {
 		if copiedBlankLine(line) {
 			t.Fatalf("comparison body line %d %q is blank or whitespace-only", i+1, line)
 		}
 		if copiedIsChapterHeading(line) {
 			t.Fatalf("comparison body line %d %q is a chapter heading", i+1, line)
+		}
+		if formB && i > 0 && !copiedTimestampLineAt(lines, i) && !copiedTimestampLineAt(lines, i-1) {
+			t.Fatalf("comparison body line %d %q is where form B expects a timestamp", i+1, line)
 		}
 	}
 	if end := copiedTrailingStart(lines); end != len(lines) {
@@ -752,11 +757,20 @@ func TestParseCopiedFormBChapterHeadings(t *testing.T) {
 			want:  []Segment{{StartMs: 0, Text: "x"}},
 		},
 		{
-			// The literal want shows the marker in no segment's text.
+			// The accepting half of the ledger's "chapter heading omits the line"
+			// rewrite; the literal want shows the marker in no segment's text.
 			name:  "chapter heading is not in the segments",
 			input: "0:00\nTEXT_MARKER\nCHAPTER_MARKER\n",
 			body:  "0:00\nTEXT_MARKER\n",
 			want:  []Segment{{StartMs: 0, Text: "TEXT_MARKER"}},
+		},
+		{
+			// The exact operation label is skipped as a label only in the trailing
+			// region; between segments it is a form B heading.
+			name:  "operation label between segments",
+			input: "0:00\nA\n動画の時間と同期\n0:05\nB\nSync to video time\n0:10\nC\n",
+			body:  "0:00\nA\n0:05\nB\n0:10\nC\n",
+			want:  []Segment{{StartMs: 0, Text: "A"}, {StartMs: 5000, Text: "B"}, {StartMs: 10000, Text: "C"}},
 		},
 		{
 			name:  "two consecutive headings",
@@ -1114,6 +1128,7 @@ func FuzzNewCopiedSource(f *testing.F) {
 	f.Add("文字起こし\n\n0:2424 秒Hello\n")
 	f.Add("文字起こし\n動画内を検索\n0:00\nx\n")
 	f.Add("0:000 秒はい\nチャプター 2: 次へ\n0:1010 秒です\n")
+	f.Add("0:00\nx\n存在感のある声\n0:05\ny\n")
 
 	f.Fuzz(func(t *testing.T, raw string) {
 		source, err := NewCopiedSource(CopiedInput{VideoID: copiedTestVideoID, Raw: raw})
