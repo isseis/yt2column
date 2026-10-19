@@ -258,9 +258,10 @@ func forward(ctx context.Context, stdin io.Reader, length uint32, opts RelayOpti
 // precedence: once the relay's deadline has passed, every failure is a
 // timeout, whatever error the transport reports. The transport may report the
 // broken write instead of the deadline when both happen at once, so the error
-// alone does not decide it.
+// alone does not decide it. A connection's own deadline error is a timeout
+// too.
 func exchangeFailure(ctx context.Context, err error) outcome {
-	if errors.Is(ctx.Err(), context.DeadlineExceeded) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, os.ErrDeadlineExceeded) {
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) || errors.Is(err, os.ErrDeadlineExceeded) {
 		return hostFailure(stageExchange, HostErrorServerTimeout, err)
 	}
 	return hostFailure(stageExchange, HostErrorProtocol, err)

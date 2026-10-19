@@ -18,7 +18,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -41,6 +40,10 @@ func TestMain(m *testing.M) {
 	}
 	for _, name := range []string{"NO_PROXY", "no_proxy"} {
 		_ = os.Unsetenv(name)
+	}
+	if os.Getenv("HTTP_PROXY") != proxyURL || os.Getenv("NO_PROXY") != "" {
+		fmt.Fprintln(os.Stderr, "TestMain could not set the proxy environment")
+		os.Exit(1)
 	}
 	os.Exit(m.Run())
 }
@@ -79,6 +82,13 @@ func (s *stdinFake) Read(p []byte) (int, error) {
 	n := copy(p, s.data[s.pos:])
 	s.pos += n
 	return n, nil
+}
+
+// consumed returns how many bytes were read, the length included.
+func (s *stdinFake) consumed() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.pos
 }
 
 // bodyRead returns how many bytes after the length were read.
@@ -208,16 +218,6 @@ func (r relayResult) reply(t *testing.T) map[string]any {
 	return members
 }
 
-// asMembers returns the reply as its decoded members.
-func (r errorReply) asMembers(t *testing.T) map[string]any {
-	t.Helper()
-	var members map[string]any
-	if err := json.Unmarshal(encodeReply(r), &members); err != nil {
-		t.Fatalf("decode the reply: %v", err)
-	}
-	return members
-}
-
 // requireError checks that the reply is the error shape carrying want.
 func requireError(t *testing.T, members map[string]any, want HostError) {
 	t.Helper()
@@ -244,7 +244,9 @@ func TestRelayForwardsOneRequest(t *testing.T) {
 	// The message is not valid UTF-8, so a host that decoded or re-encoded it
 	// would change its bytes.
 	msg := []byte("{\"videoUrl\":\"x\",\"transcript\":\"\xff\xfe\"}")
-	accepted := []byte(`{"status":"accepted","requestId":"0123456789abcdef"}`)
+	// The server's body is not valid UTF-8 either: the reply must carry its
+	// bytes, not a repaired string.
+	accepted := []byte("{\"status\":\"accepted\",\"requestId\":\"\xff\xc0\"}")
 	path, got := recordingServer(t, accepted)
 	dial, dials := countDials(SocketDialer(path))
 
@@ -252,6 +254,9 @@ func TestRelayForwardsOneRequest(t *testing.T) {
 
 	requireResponse(t, members, http.StatusAccepted, accepted)
 	req := got()
+	// TestMain sets a proxy in the environment, so this also checks that the
+	// transport ignores it: through a proxy the target would be an absolute
+	// URI.
 	if req.method != http.MethodPost || req.requestURI != "/articles" {
 		t.Errorf("request line = %s %s, want POST /articles", req.method, req.requestURI)
 	}
@@ -269,7 +274,7 @@ func TestRelayForwardsOneRequest(t *testing.T) {
 	}
 }
 
-func TestRelayMessageTooLarge(t *testing.T) {
+func TestRelayLengthChecks(t *testing.T) {
 	tests := []struct {
 		name      string
 		length    uint32
@@ -281,6 +286,8 @@ func TestRelayMessageTooLarge(t *testing.T) {
 		// At the limit the host connects; the failing dial makes that visible
 		// without sending 32 MiB.
 		{"at the limit", maxMessageBytes, HostErrorServerUnavailable, 1},
+		// The browser never sends an empty message; it is not "too large".
+		{"zero length", 0, HostErrorProtocol, 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -296,18 +303,6 @@ func TestRelayMessageTooLarge(t *testing.T) {
 				t.Errorf("read %d body bytes, want none", n)
 			}
 		})
-	}
-}
-
-func TestRelayZeroLength(t *testing.T) {
-	stdin := newStdin(0, []byte("unrelated"))
-	dial, dials := countDials(failingDial)
-	requireError(t, runRelay(stdin, dial, testTimeout).reply(t), HostErrorProtocol)
-	if n := dials.Load(); n != 0 {
-		t.Errorf("Dial called %d times, want 0", n)
-	}
-	if n := stdin.bodyRead(); n != 0 {
-		t.Errorf("read %d bytes after the length, want none", n)
 	}
 }
 
@@ -463,16 +458,9 @@ func TestRelayHostErrors(t *testing.T) {
 			want:    HostErrorServerTimeout,
 		},
 		{
-			name: "write fails as the limit passes",
-			dial: func(*testing.T) Dialer {
-				return func(ctx context.Context) (net.Conn, error) { return stuckConn{ctx: ctx}, nil }
-			},
-			timeout: shortTimeout,
-			want:    HostErrorServerTimeout,
-		},
-		{
-			// The transport reports the broken write itself, not the relay's
-			// context, so only the deadline check makes this a timeout.
+			// The transport reports the broken write itself and the relay's
+			// context is still live, so only the os.ErrDeadlineExceeded
+			// check makes this a timeout.
 			name: "write reports a connection deadline",
 			dial: func(*testing.T) Dialer {
 				return func(context.Context) (net.Conn, error) { return newDeadlineConn(), nil }
@@ -507,7 +495,7 @@ func TestRelayHostErrors(t *testing.T) {
 			want: HostErrorProtocol,
 		},
 		{
-			name: "stdin ends before the length",
+			name: "body shorter than the declared length",
 			dial: func(t *testing.T) Dialer {
 				path, _ := recordingServer(t, []byte("{}"))
 				return SocketDialer(path)
@@ -551,20 +539,24 @@ func TestExchangeFailurePrecedence(t *testing.T) {
 		want HostError
 	}{
 		// The transport can report the broken write rather than the deadline
-		// when both happen at once; the passed deadline still decides.
+		// when both happen at once, and which one it reports is a race; this
+		// input leaves only the passed-deadline check to decide.
 		{"deadline passed, write error", expired, errStuck, HostErrorServerTimeout},
-		{"connection deadline", live, fmt.Errorf("write: %w", os.ErrDeadlineExceeded), HostErrorServerTimeout},
-		{"context deadline in the error", live, fmt.Errorf("read: %w", context.DeadlineExceeded), HostErrorServerTimeout},
 		{"other failure", live, errStuck, HostErrorProtocol},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			requireError(t, exchangeFailure(tt.ctx, tt.err).reply.(errorReply).asMembers(t), tt.want)
+			if got, want := exchangeFailure(tt.ctx, tt.err).reply, any(newErrorReply(tt.want)); got != want {
+				t.Errorf("reply = %v, want %v", got, want)
+			}
 		})
 	}
 }
 
-func TestRelayDialsOnce(t *testing.T) {
+// TestOneUseTransportRefusesRedial checks the transport directly: a second
+// dial cannot be provoked through Relay, since net/http does not redial for a
+// body it cannot replay. The Dial count is asserted in TestRelayHostErrors.
+func TestOneUseTransportRefusesRedial(t *testing.T) {
 	client, server := net.Pipe()
 	t.Cleanup(func() { _ = client.Close(); _ = server.Close() })
 	transport := oneUseTransport(client, testTimeout)
@@ -578,49 +570,13 @@ func TestRelayDialsOnce(t *testing.T) {
 	}
 }
 
-func TestRelayIgnoresProxyEnv(t *testing.T) {
-	if os.Getenv("HTTP_PROXY") != proxyURL || os.Getenv("NO_PROXY") != "" {
-		t.Fatal("TestMain did not set the proxy environment")
-	}
-	path, got := recordingServer(t, []byte("{}"))
-	runRelay(message([]byte("{}")), SocketDialer(path), testTimeout).reply(t)
-	if uri := got().requestURI; uri != "/articles" {
-		t.Errorf("request target = %q, want /articles", uri)
-	}
-}
-
 func TestReplyShapes(t *testing.T) {
-	keys := func(t *testing.T, payload []byte) (map[string]any, []string) {
-		t.Helper()
-		var members map[string]any
-		if err := json.Unmarshal(payload, &members); err != nil {
-			t.Fatalf("decode %s: %v", payload, err)
-		}
-		return members, slices.Sorted(maps.Keys(members))
-	}
-
-	t.Run("response", func(t *testing.T) {
-		// Not valid UTF-8: embedded as a JSON string it would come back with
-		// U+FFFD in place of these bytes.
-		body := []byte("{\"status\":\"\xff\xc0\"}")
-		members, got := keys(t, encodeReply(newResponseReply(http.StatusAccepted, body)))
-		if want := []string{"body", "kind", "status", "v"}; !slices.Equal(got, want) {
-			t.Errorf("members = %v, want %v", got, want)
-		}
-		decoded, err := base64.StdEncoding.DecodeString(members["body"].(string))
-		if err != nil || !bytes.Equal(decoded, body) {
-			t.Errorf("body decodes to %q, %v; want %q", decoded, err, body)
-		}
-	})
-	t.Run("error", func(t *testing.T) {
-		_, got := keys(t, encodeReply(newErrorReply(HostErrorServerTimeout)))
-		if want := []string{"error", "kind", "v"}; !slices.Equal(got, want) {
-			t.Errorf("members = %v, want %v", got, want)
-		}
-	})
 	t.Run("over the frame limit", func(t *testing.T) {
 		huge := newResponseReply(http.StatusAccepted, bytes.Repeat([]byte("a"), maxFrameBytes))
-		members, _ := keys(t, encodeReply(huge))
+		var members map[string]any
+		if err := json.Unmarshal(encodeReply(huge), &members); err != nil {
+			t.Fatalf("decode the reply: %v", err)
+		}
 		requireError(t, members, HostErrorProtocol)
 	})
 	t.Run("host error values", func(t *testing.T) {
@@ -721,19 +677,26 @@ func TestRelayNoReplyFrame(t *testing.T) {
 		}
 	})
 	t.Run("incomplete options", func(t *testing.T) {
-		for name, opts := range map[string]RelayOptions{
-			"no Dial":    {Log: io.Discard, Timeout: testTimeout},
-			"no Log":     {Dial: failingDial, Timeout: testTimeout},
-			"no Timeout": {Dial: failingDial, Log: io.Discard},
-		} {
-			stdin := message([]byte("{}"))
-			var stdout bytes.Buffer
-			if err := Relay(context.Background(), stdin, &stdout, opts); !errors.Is(err, errInvalidOptions) {
-				t.Errorf("%s: Relay error = %v, want errInvalidOptions", name, err)
-			}
-			if stdin.pos != 0 || stdout.Len() != 0 {
-				t.Errorf("%s: read %d bytes and wrote %d, want neither", name, stdin.pos, stdout.Len())
-			}
+		tests := []struct {
+			name string
+			opts RelayOptions
+		}{
+			{"no Dial", RelayOptions{Log: io.Discard, Timeout: testTimeout}},
+			{"no Log", RelayOptions{Dial: failingDial, Timeout: testTimeout}},
+			{"no Timeout", RelayOptions{Dial: failingDial, Log: io.Discard}},
+			{"negative Timeout", RelayOptions{Dial: failingDial, Log: io.Discard, Timeout: -time.Second}},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				stdin := message([]byte("{}"))
+				var stdout bytes.Buffer
+				if err := Relay(context.Background(), stdin, &stdout, tt.opts); !errors.Is(err, errInvalidOptions) {
+					t.Errorf("Relay error = %v, want errInvalidOptions", err)
+				}
+				if read := stdin.consumed(); read != 0 || stdout.Len() != 0 {
+					t.Errorf("read %d bytes and wrote %d, want neither", read, stdout.Len())
+				}
+			})
 		}
 	})
 }
