@@ -8,7 +8,7 @@
 | Created | 2026-10-18 |
 | Review date | - |
 | Reviewer | - |
-| Comments | 2026-10-18 に承認した版（isseis）を、要件書の改定（`0027_remove_context_menu` の完了を前提に、送信をポップアップの経路だけにし、`contextMenus`・`storage` の権限を除く）に合わせて改めた。§3.7.1 で `storage` の権限と `onInstalled` による旧版の保存値の削除をやめ、§3.5.5 の時間の順序から service worker の 30 秒を外し、§3.10 から S-7 を外し、結果のウィンドウへ渡す値の検査（旧 §3.7.6 の `parseOutcome`）と `resultView.ts` の変更を削除した。拡張の lint の `chrome.storage.sync` の規則を、`chrome.storage` の参照を禁じる規則に置き換える（§3.8・§7.3）。判断の変更にあたるので `draft` に戻した。以前の承認の後の編集上の訂正（`03_implementation_plan.md` §1.3 が参照するもの。`a5c1df5` で `-` に置き換わっていたので復元した）: 編集上の訂正（2026-10-18。判断は変えていない）。`03_implementation_plan.md` の作成に合わせて、§3.12 の UDS のリスナーの補助の置き場所を `internal/server/test_helpers.go` からテスト専用の `internal/udstest` に改め（depguard の `internal/server` → `internal/serversock` の禁止が `internal/serversock/testutil` にも当たるため）、§8 のフェーズ 1 に拡張の 4 つの拒否の理由の削除を加えた（README の表と拡張の理由の集合の一致を保つため。フェーズの順序と最終の状態は変わらない）。編集上の訂正（2026-10-18。判断は変えていない）。レビューの指摘に従い、§3.12 の `internal/udstest` の行を責務だけに絞り、ビルドタグ・`/tmp` の下のディレクトリ・使うパッケージの一覧などの具体を [implementation_handoff.md](implementation_handoff.md) の I-01 と `03_implementation_plan.md`（§1.3「UDS のテストの補助」）に移した |
+| Comments | 2026-10-18 に承認した版（isseis）を、要件書の改定（`0027_remove_context_menu` の完了を前提に、送信をポップアップの経路だけにし、`contextMenus`・`storage` の権限を除く）に合わせて改めた。§3.7.1 で `storage` の権限と `onInstalled` による旧版の保存値の削除をやめ、§3.5.5 の時間の順序から service worker の 30 秒を外し、§3.10 から S-7 を外し、結果のウィンドウへ渡す値の検査（旧 §3.7.6 の `parseOutcome`）と `resultView.ts` の変更を削除した。拡張の lint の `chrome.storage.sync` の規則を、`chrome.storage` の参照を禁じる規則に置き換える（§3.8・§7.3）。§8 に、サーバを UDS に移す変更を 0027 の完了の後に始めることを加えた。判断の変更にあたるので `draft` に戻した。以前の承認の後の編集上の訂正（`03_implementation_plan.md` §1.3 が参照するもの。`a5c1df5` で `-` に置き換わっていたので復元した）: 編集上の訂正（2026-10-18。判断は変えていない）。`03_implementation_plan.md` の作成に合わせて、§3.12 の UDS のリスナーの補助の置き場所を `internal/server/test_helpers.go` からテスト専用の `internal/udstest` に改め（depguard の `internal/server` → `internal/serversock` の禁止が `internal/serversock/testutil` にも当たるため）、§8 のフェーズ 1 に拡張の 4 つの拒否の理由の削除を加えた（README の表と拡張の理由の集合の一致を保つため。フェーズの順序と最終の状態は変わらない）。編集上の訂正（2026-10-18。判断は変えていない）。レビューの指摘に従い、§3.12 の `internal/udstest` の行を責務だけに絞り、ビルドタグ・`/tmp` の下のディレクトリ・使うパッケージの一覧などの具体を [implementation_handoff.md](implementation_handoff.md) の I-01 と `03_implementation_plan.md`（§1.3「UDS のテストの補助」）に移した |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §3.11）を指す。I-NN は [implementation_handoff.md](implementation_handoff.md) の項目（対応は `03_implementation_plan.md`）を指す。既存のコードの行番号は、コミット `9e34229`（要件書の承認のコミット）で確かめたものである。
 
@@ -1454,7 +1454,7 @@ flowchart LR
 | 3: 拡張 | §3.7、拡張のテスト、README と security.md の拡張の節、CLAUDE.md の例外、ガード | 拡張からホストを通して送れる。手動の確認（AC-36） |
 
 -   フェーズ 1 の中では、`internal/config` → `internal/serversock` → `internal/server` → `cmd/yt2column-server` → 文書とガードの順に進める。`internal/serversock` は他に依存しないので、最初に書いて単独で確かめられる。
--   フェーズ 3 は、0027（右クリックメニューの経路の削除）のすべての PR がマージされた後に始める。フェーズ 3 の拡張の設計（§3.7）は、0027 の後の構成（ポップアップの経路だけ。service worker・結果のウィンドウ・`chrome.storage.session` がない）を前提にする。
+-   フェーズ 1 のうちサーバを UDS に移す変更（`03_implementation_plan.md` の PR-2）は、0027（右クリックメニューの経路の削除）のすべての PR がマージされた後に始める。その変更の後、フェーズ 3 の前の拡張はサーバに届かず、0027 の手動確認（ポップアップから送って受付を表示する）ができなくなるためである。フェーズ 3 も、0027 の後に始める。フェーズ 3 の拡張の設計（§3.7）は、0027 の後の構成（ポップアップの経路だけ。service worker・結果のウィンドウ・`chrome.storage.session` がない）を前提にする。
 -   フェーズ 3 は、0025（拡張の動画メタデータ）が変更する `extension/src/core/prepare.ts`・`launch.ts` と重なる。0025 の設計は作り直しの途中なので、どちらを先に入れるかは `03_implementation_plan.md` で決め、後に入れる方が `ArticleMetadata` の受け渡しを合わせる。
 
 ## 9. 将来の拡張性 (Future Extensibility)
