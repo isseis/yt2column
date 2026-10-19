@@ -80,8 +80,9 @@ describe("renderSendOutcome", () => {
 });
 
 describe("renderBlockReason", () => {
-  // One collection reason and one preflight reason: the rendering does not
-  // vary by reason, and message content is sendMessages.test.ts's contract.
+  // The rendering does not vary by reason, so two reasons suffice here; the
+  // popup's blocked display is covered per reason in launch.test.ts, and the
+  // message content is sendMessages.test.ts's contract.
   const blockReasons: BlockReason[] = ["empty-selection", "token-missing"];
   for (const reason of blockReasons) {
     it(`shows the ${reason} block message`, () => {

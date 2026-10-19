@@ -90,6 +90,8 @@ describe("summarize", () => {
     assert.equal(summary.urlTruncated, true);
   });
 
+  // The digest carries nothing beyond its declared members, so the full
+  // selection or a rejection's cause cannot reach the display through a spread.
   it("reduces a collected input to exactly the nine summary members", () => {
     assert.deepEqual(summarize(collected("hello\nworld", "a title")), {
       kind: "collected",
