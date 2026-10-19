@@ -338,6 +338,8 @@ func TestChannelNameAgreesWithWriter(t *testing.T) {
 			if tc.Valid {
 				if rec.Code != http.StatusAccepted {
 					t.Errorf("request status = %d, want 202 (body %q)", rec.Code, rec.Body.String())
+				} else if got := ts.writer.Calls[0].Transcript.ChannelName; got != tc.Value {
+					t.Errorf("channel name reaching the writer = %q, want %q", got, tc.Value)
 				}
 			} else {
 				if rec.Code != http.StatusBadRequest {
@@ -367,7 +369,7 @@ func TestChannelNameAgreesWithWriter(t *testing.T) {
 			if err != nil {
 				t.Fatalf("writer.New: %v", err)
 			}
-			_, err = w.Write(context.Background(), transcript.Transcript{
+			got, err := w.Write(context.Background(), transcript.Transcript{
 				VideoID:     testVideoID,
 				VideoURL:    testValidVideoURL,
 				ChannelName: tc.Value,
@@ -375,6 +377,9 @@ func TestChannelNameAgreesWithWriter(t *testing.T) {
 			})
 			if tc.Valid != (err == nil) {
 				t.Errorf("Write() = %v, want valid = %v", err, tc.Valid)
+			}
+			if err == nil && got.ChannelName != tc.Value {
+				t.Errorf("Write() ChannelName = %q, want %q", got.ChannelName, tc.Value)
 			}
 			if err != nil && (!errors.Is(err, writer.ErrInvalidTranscript) || !errors.Is(err, writer.ErrInvalidChannelName)) {
 				t.Errorf("Write() = %v, want ErrInvalidTranscript and ErrInvalidChannelName", err)

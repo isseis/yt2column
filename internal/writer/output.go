@@ -146,14 +146,11 @@ func checkModelPair(model, version string) error {
 	return checkModelString("ModelVersion", version)
 }
 
-// checkModelString applies the size and UTF-8 rules of Model and
-// ModelVersion, then the rules shared with the title.
+// checkModelString applies the size rule of Model and ModelVersion, then the
+// rules shared with the title (which include valid UTF-8).
 func checkModelString(name, value string) error {
 	if len(value) > maxModelBytes {
 		return fmt.Errorf("%w: %s exceeds the limit of %d bytes", ErrMalformedOutput, name, maxModelBytes)
-	}
-	if !utf8.ValidString(value) {
-		return fmt.Errorf("%w: %s is not valid UTF-8", ErrMalformedOutput, name)
 	}
 	if reason := displayStringProblem(name, value); reason != "" {
 		return fmt.Errorf("%w: %s", ErrMalformedOutput, reason)
@@ -211,11 +208,11 @@ func isBidiControl(r rune) bool {
 }
 
 // newArticle builds the article from validated values. ChannelName is the
-// transcript's, unchanged. Body is the body part
-// of the last checked text (from checkResponse or checkGeneratedText),
-// bodySeparator, then the source block, whose URL comes from the validated
-// VideoID, never from the generated text. model and modelVersion are the
-// generation model when it ran, or the reused generation artifact's values.
+// transcript's, unchanged. Body is the body part of the last checked text
+// (from checkResponse or checkGeneratedText), bodySeparator, then the source
+// block, whose URL comes from the validated VideoID, never from the generated
+// text. model and modelVersion are the generation model when it ran, or the
+// reused generation artifact's values.
 func newArticle(title, channelName, body, sourceURL, model, modelVersion string, shorten *StepModel, review *ReviewResult, runUsage RunUsage) Article {
 	return Article{
 		Title:        title,

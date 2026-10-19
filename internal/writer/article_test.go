@@ -194,3 +194,16 @@ func TestArticleCheckPublishableOmitsValues(t *testing.T) {
 		})
 	}
 }
+
+func TestArticleCheckPublishableSourceURLOmitsValue(t *testing.T) {
+	const mark = "mark-secret-R8ze"
+	a := validPublishableArticle()
+	a.SourceURL = mark + "\xff"
+	err := a.CheckPublishable()
+	if !errors.Is(err, ErrInvalidArticle) {
+		t.Fatalf("CheckPublishable() = %v, want ErrInvalidArticle", err)
+	}
+	if strings.Contains(err.Error(), mark) {
+		t.Errorf("error %q contains the source URL", err)
+	}
+}
