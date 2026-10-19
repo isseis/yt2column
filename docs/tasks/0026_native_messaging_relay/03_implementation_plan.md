@@ -255,7 +255,7 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 **判定理由**: TCP とトークンの削除と UDS の追加を同時に行う移行の段階で、多くのテストと文書のガードを書き換える（mkplan のパネル方式の条件「振る舞いの追加と削除を同時に行う移行」）。
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] PR を作成した（#366）
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 -   [ ] **ステップ 1-17**: リポジトリ全体を読むガードと depguard の規則を加え、壊して失敗することを確かめる。`internal/pipeline/relay_guard_test.go` に `TestNoTCPListenerInProduction` と `TestSharedTokenRemoved` を作る（§1.3「本計画で置く静的な検査の場所」）。`.golangci.yml` に、`internal/server` が `internal/serversock` を import しない depguard の規則を加える。壊す対象: `server.go` に TCP の `net.Listen` を戻す・`hostAllowed` の loopback の文字列の一覧を戻す（`TestNoTCPListenerInProduction`）、README と本番の Go のファイルに `YT2COLUMN_SERVER_PORT` を戻す（`TestSharedTokenRemoved`）、`internal/server` に `internal/serversock` の import を加える（`make lint`）。結果をコミットメッセージに記録する（§1.2）。
