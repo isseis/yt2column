@@ -569,7 +569,7 @@ PR は番号順にマージする。PR-1 のチャンネル名が PR-2 と PR-6 
 | AC-14d | test | `internal/publisher/slack_message_test.go`（追加。分割と `@`） |
 | AC-14e | test | `cmd/yt2column/run_test.go::TestRunSlackFailureHints` |
 | AC-14f | test | `internal/failure/failure_test.go::TestKindConstants`、`internal/server/job_test.go::TestFailureClassification`、`internal/publisher/slack_failure_test.go::TestSlackFailureNotifyText` |
-| AC-15・AC-16・AC-20 | test | `internal/publisher/file_test.go::TestFilePublisherWritesArticle`（改めた）、`internal/publisher/file_render_test.go::TestRenderFileArticleLayout`・`TestRenderFileArticleOnlyOneStep`・`TestRenderFileArticleChannelLine`・`TestRenderFileArticleGolden`（先頭・区切り・キーの順序・条件付きのキー・チャンネル名の行の有無・見出しの下にメタデータがないこと） |
+| AC-15・AC-16・AC-20 | test | `internal/publisher/file_test.go::TestFilePublisherWritesArticle`（改めた）、`internal/publisher/file_render_test.go::TestRenderFileArticleLayout`・`TestRenderFileArticleChannelLine`・`TestRenderFileArticleGolden`（先頭・区切り・キーの順序・条件付きのキー・チャンネル名の行の有無・見出しの下にメタデータがないこと） |
 | AC-18 | test | `internal/publisher/file_test.go::TestFilePublisherEmptyModelVersion`（改めた）、`file_render_test.go::TestRenderFileArticleLayout`（版が空の `review_model_version`） |
 | AC-19 | test | `internal/publisher/file_test.go::TestFilePublisherWritesCost`（改めた）、`file_render_test.go::TestRenderFileArticleLayout`（コストの 3 つの形） |
 | AC-17 | test | `internal/publisher/file_render_test.go::TestRenderFileArticleQuoting`（フロントマターの値の往復とエスケープの種類）、`TestEscapeLeadingMarkdown`（AC-15 も） |
