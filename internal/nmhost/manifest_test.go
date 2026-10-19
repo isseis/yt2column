@@ -141,6 +141,16 @@ var foreignManifests = []struct {
 			t.Fatal(err)
 		}
 	}},
+	// Opening a named pipe without O_NONBLOCK would wait for a writer.
+	{"named pipe", func(t *testing.T, path string) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := syscall.Mkfifo(path, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}},
 	{"directory", func(t *testing.T, path string) {
 		t.Helper()
 		if err := os.MkdirAll(path, 0o700); err != nil {
@@ -245,6 +255,7 @@ func TestManifestLocation(t *testing.T) {
 		{"relative home", "linux", "home/someone", BrowserChrome, errNotAbsolute},
 		{"empty home", "darwin", "", BrowserChrome, errNotAbsolute},
 		{"windows", "windows", "/home/someone", BrowserChrome, errUnsupportedOS},
+		{"unlisted OS", "android", "/home/someone", BrowserChrome, errUnsupportedOS},
 	}
 	for _, tt := range rejected {
 		t.Run(tt.name, func(t *testing.T) {
@@ -268,6 +279,16 @@ func TestManifestLocation(t *testing.T) {
 		}
 		if _, err := os.Stat(path); err != nil {
 			t.Errorf("manifest not written: %v", err)
+		}
+		// Every directory install created, parents included, is private.
+		for _, dir := range []string{"Library/Application Support/Google", darwinChromeDir, darwinChromeDir + "/NativeMessagingHosts"} {
+			info, err := os.Stat(filepath.Join(home, filepath.FromSlash(dir)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if mode := info.Mode().Perm(); mode != 0o700 {
+				t.Errorf("%s mode = %o, want 700", dir, mode)
+			}
 		}
 	})
 	t.Run("darwin brave needs brave's directory", func(t *testing.T) {
@@ -346,6 +367,17 @@ func TestInstall(t *testing.T) {
 		// let the browser read a partly written manifest.
 		if os.SameFile(before.info, after.info) {
 			t.Error("the manifest was rewritten in place, not replaced by a new file")
+		}
+	})
+
+	// This host's manifest padded to exactly the cap is still its own.
+	t.Run("own manifest at the size cap", func(t *testing.T) {
+		home := newHome(t, linuxChromeDir)
+		path := filepath.Join(home, filepath.FromSlash(linuxChromeManifest))
+		data := marshalDoc(t, manifestDoc())
+		writeFile(t, path, append(data, bytes.Repeat([]byte(" "), maxManifestBytes-len(data))...))
+		if _, err := install("linux", home, BrowserChrome, testExecutable); err != nil {
+			t.Errorf("install error = %v, want the manifest replaced", err)
 		}
 	})
 
@@ -443,6 +475,16 @@ func TestInstall(t *testing.T) {
 		// under it.
 		if _, err := install("linux", home, BrowserChrome, target+"-bin/yt2column-nmhost"); err != nil {
 			t.Errorf("install outside the temporary directory: %v", err)
+		}
+	})
+
+	// A relative TMPDIR cannot be compared with the executable, so it is
+	// treated as possibly containing it.
+	t.Run("relative temporary directory", func(t *testing.T) {
+		home := newHome(t, linuxChromeDir)
+		t.Setenv("TMPDIR", "tmp")
+		if _, err := install("linux", home, BrowserChrome, testExecutable); !errors.Is(err, ErrUnstableExecutable) {
+			t.Errorf("install error = %v, want ErrUnstableExecutable", err)
 		}
 	})
 
@@ -601,6 +643,22 @@ func TestUninstall(t *testing.T) {
 			t.Errorf("manifest removed: %v", err)
 		}
 	})
+}
+
+// A failed rename leaves no temporary file behind. The manifest path is a
+// directory, which rename(2) cannot replace with a file.
+func TestReplaceFileFailureRemovesTemporaryFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, HostName+".json")
+	if err := os.Mkdir(path, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := replaceFile(path, []byte("{}\n")); err == nil {
+		t.Fatal("replaceFile over a directory succeeded")
+	}
+	if names := dirNames(t, dir); !slices.Equal(names, []string{HostName + ".json"}) {
+		t.Errorf("directory holds %v, want only the original entry", names)
+	}
 }
 
 // marshalEqual compares two decoded JSON values by their encoding.

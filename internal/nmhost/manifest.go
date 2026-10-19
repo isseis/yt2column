@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"syscall"
 
 	"github.com/isseis/yt2column/internal/strictjson"
 )
@@ -55,8 +56,9 @@ const (
 	BrowserBrave
 )
 
-// Errors of the manifest operations. Every error other than ErrUnknownBrowser
-// is returned wrapped with %w together with the path it concerns.
+// Errors of the manifest operations. ErrBrowserNotFound, ErrForeignManifest,
+// and ErrUnstableExecutable are returned wrapped with %w together with the
+// path they concern.
 var (
 	// ErrUnknownBrowser reports a browser name ParseBrowser does not accept,
 	// or BrowserUnset (a usage error).
@@ -121,12 +123,12 @@ func locate(goos, home string, browser Browser) (manifestLocation, error) {
 		support := filepath.Join(home, "Library", "Application Support")
 		chrome = filepath.Join(support, "Google", "Chrome")
 		brave = filepath.Join(support, "BraveSoftware", "Brave-Browser")
-	case "windows", "plan9", "js", "wasip1":
-		return manifestLocation{}, fmt.Errorf("%w: %s", errUnsupportedOS, goos)
-	default:
+	case "linux", "freebsd", "openbsd", "netbsd", "dragonfly":
 		config := filepath.Join(home, ".config")
 		chrome = filepath.Join(config, "google-chrome")
 		brave = filepath.Join(config, "BraveSoftware", "Brave-Browser")
+	default:
+		return manifestLocation{}, fmt.Errorf("%w: %s", errUnsupportedOS, goos)
 	}
 	switch browser {
 	case BrowserChrome:
@@ -172,7 +174,9 @@ func install(goos, home string, browser Browser, executable string) (string, err
 	if err != nil {
 		return "", err
 	}
-	if state == manifestForeign {
+	switch state {
+	case manifestAbsent, manifestOwn:
+	default: // manifestForeign and every value outside the constants
 		return "", fmt.Errorf("%w: %s", ErrForeignManifest, path)
 	}
 	content, err := manifestContent(executable)
@@ -242,12 +246,13 @@ func checkExecutable(executable string) error {
 	return nil
 }
 
-// isWithin reports whether path is dir or below it. Both are clean absolute
-// paths.
+// isWithin reports whether path is dir or below it. path is a clean absolute
+// path. A dir it cannot be compared with, such as a relative TMPDIR, counts as
+// containing it, so the check never passes by default.
 func isWithin(dir, path string) bool {
 	rel, err := filepath.Rel(dir, path)
 	if err != nil {
-		return false
+		return true
 	}
 	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
@@ -291,21 +296,27 @@ const (
 // as this host's manifest is manifestForeign; an error is returned only when
 // the file cannot be examined at all.
 func readManifestState(path string) (manifestState, error) {
-	info, err := os.Lstat(path)
-	if errors.Is(err, fs.ErrNotExist) {
+	// O_NOFOLLOW refuses a symbolic link at the name instead of reading its
+	// target; O_NONBLOCK makes opening a named pipe return at once. The type
+	// is checked on the opened file, so no name swap can pass between a check
+	// and the open.
+	file, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0) //nolint:gosec // path is the fixed manifest name under the user's own browser directory
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
 		return manifestAbsent, nil
+	case errors.Is(err, syscall.ELOOP):
+		return manifestForeign, nil
+	case err != nil:
+		return manifestForeign, err
 	}
+	defer func() { _ = file.Close() }()
+	info, err := file.Stat()
 	if err != nil {
 		return manifestForeign, err
 	}
 	if !info.Mode().IsRegular() {
 		return manifestForeign, nil
 	}
-	file, err := os.Open(path) //nolint:gosec // path is the fixed manifest name under the user's own browser directory
-	if err != nil {
-		return manifestForeign, err
-	}
-	defer func() { _ = file.Close() }()
 	data, err := io.ReadAll(io.LimitReader(file, maxManifestBytes+1))
 	if err != nil {
 		return manifestForeign, err
@@ -325,7 +336,8 @@ func isOwnManifest(data []byte) bool {
 	if err != nil {
 		return false
 	}
-	// A missing member is the zero Value, whose accessors below all fail.
+	// A missing member is the zero Value, whose accessors are documented to
+	// fail, so each accessor below also rejects its member's absence.
 	members, err := object.CollectOnly(manifestMembers...)
 	if err != nil {
 		return false

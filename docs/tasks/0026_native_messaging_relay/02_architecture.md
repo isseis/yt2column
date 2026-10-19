@@ -699,9 +699,9 @@ func Uninstall(home string, browser Browser) (path string, removed bool, err err
 ```
 
 -   **`path`:** `cmd/yt2column-nmhost` が `os.Executable` で得たパスを `filepath.EvalSymlinks` で解決した絶対パスを渡す。`Install` は、絶対パスでなければ拒否し、`os.TempDir()` の下（`go run` が作る一時的なバイナリ）なら `ErrUnstableExecutable` で拒否する（manifest が、すぐに消えるファイルを指さないようにするため）。TCC で保護されたフォルダの判定はしない（README で案内する。§3.10）。OS ごとの置き場所の選択は、`runtime.GOOS` を受け取る非公開の関数に置き、テストはその関数に OS の値を渡して確かめる（`internal/config` の `userDirBase` と同じ形）。バイナリを移動したら install をやり直す必要があることを README に書く（要件書 F-003）。
--   **置き場所の選択:** OS とブラウザの組から、存在の判定に使うディレクトリ（ブラウザのユーザーデータのディレクトリ）と、manifest の置き場所のディレクトリ（`NativeMessagingHosts`）の 2 つを選ぶ（§2.2）。macOS の Brave だけは、2 つが別のブラウザのディレクトリの下にある（判定は `BraveSoftware/Brave-Browser`、置き場所は `Google/Chrome/NativeMessagingHosts`）。それ以外の組では、置き場所は判定のディレクトリの直下の `NativeMessagingHosts` である。
+-   **置き場所の選択:** OS とブラウザの組から、存在の判定に使うディレクトリ（ブラウザのユーザーデータのディレクトリ）と、manifest の置き場所のディレクトリ（`NativeMessagingHosts`）の 2 つを選ぶ（§2.2）。macOS の Brave だけは、2 つが別のブラウザのディレクトリの下にある（判定は `BraveSoftware/Brave-Browser`、置き場所は `Google/Chrome/NativeMessagingHosts`）。それ以外の組では、置き場所は判定のディレクトリの直下の `NativeMessagingHosts` である。「他の Unix」は `linux`・`freebsd`・`openbsd`・`netbsd`・`dragonfly` とし、それ以外の OS では置き場所を選ばずに拒否する。
 -   **書き込み:** 存在の判定に使うディレクトリがなければ `ErrBrowserNotFound` で拒否し、何も作らない。ブラウザを使っていない利用者のホームに、ブラウザのディレクトリを作らないためである。置き場所のディレクトリがなければ、親を含めて `0o700` で作る。macOS の Brave では、Chrome を入れていない利用者のホームに `Google/Chrome/NativeMessagingHosts` を作ることになるが、Brave 自身が起動時に同じディレクトリを作る（§2.2）ので、新たに増えるものはない。manifest は、同じディレクトリの一時ファイル（`0o600`）に書いて `fsync` した後、`rename` で置き、ディレクトリを `fsync` する。既存の `internal/publisher` の `atomicFile`（`link(2)` で既存の名前を上書きしない）は使わない。install は自分の manifest を置き換える必要があるためである。判定から `rename` までの間に別のファイルが置かれれば上書きされるが、そのディレクトリに書けるのは同一ユーザーだけで、残余リスクの範囲である。
--   **自分が作った manifest の判定:** 既存の manifest のパスについて、`Lstat` で symlink でない通常ファイルであること、64 KiB 以下であることを確かめ、`strictjson` で読み、メンバがちょうど上の 5 つで、`name`・`type`・`allowed_origins` が上の固定の値と一致し、`path` が絶対パスの文字列であることを確かめる。`description` と `path` の値は比べない（説明文の変更と、バイナリの移動の後の install し直しを許すため）。
+-   **自分が作った manifest の判定:** 既存の manifest のパスを `O_NOFOLLOW`・`O_NONBLOCK` で開き（symlink は開かずに拒否し、名前付きパイプで待たない）、開いたファイルが通常ファイルであること、64 KiB 以下であることを確かめ、`strictjson` で読み、メンバがちょうど上の 5 つで、`name`・`type`・`allowed_origins` が上の固定の値と一致し、`path` が絶対パスの文字列であることを確かめる。`description` と `path` の値は比べない（説明文の変更と、バイナリの移動の後の install し直しを許すため）。
 -   **install:** manifest がなければ作る。自分が作ったものなら置き換える（バイナリの移動の後の install し直し）。それ以外のファイルがあれば `ErrForeignManifest` で拒否し、変更しない。
 -   **uninstall:** 自分が作ったものだけを削除する。なければ何もせず成功とする（`removed` が `false`）。それ以外のファイルなら `ErrForeignManifest` で拒否し、削除しない。ディレクトリ（`NativeMessagingHosts`）は削除しない。他のホストの manifest が置かれうるためである。
 -   **macOS での共有:** macOS では `install chrome` と `install brave` が同じファイルを書く。後から実行したほうが置き換えるが、中身は同じである。`uninstall` は、どちらのブラウザを指定しても、両方のブラウザからホストを外す（要件書 F-003・AC-20）。参照の数や状態のファイルで使用中のブラウザを数えたり、uninstall を拒んだりはしない。1 つのファイルを、一方のブラウザにだけ残して他方から消すことはできず、利用者が他方のブラウザをまだ使っているかどうかをツールは知りえないためである（YAGNI）。他方のブラウザで使い続けるなら、そのブラウザに対して install をやり直せば戻る。install と uninstall は、manifest のパスを標準エラー出力に書き、macOS では、このファイルを Chrome と Brave が共有することも書く。README にも同じことを書く。
@@ -1217,7 +1217,7 @@ flowchart LR
 -   macOS の拡張 ACL（アクセス制御リスト）は、モードのビットと独立に他ユーザーに検索や追加を許しうる。継承される ACE（ACL の個々のエントリ）が祖先にある場合や、`chmod +a` で `run` に付けた場合、`Lstat` のモードは `0700` のままで検査を通る。標準ライブラリでは ACL を読めないので、ソケットのディレクトリとその親に他ユーザーを許す ACE がないことを、確かめていない前提として置き、security.md §8.2 にも書く。Linux では、モード `0700` のとき POSIX ACL のマスクが `---` になるので、この問題はない。
 -   macOS では、待ち行列が満杯の稼働中の待ち受けへの接続が `ECONNREFUSED` になりうるので、ロックを取らずに同じパスで待ち受ける同一ユーザーのプロセスを、stale と見なして消すことがある（§3.2.3）。同一ユーザーの信頼の範囲に含める。
 -   サーバがシャットダウンを始めた瞬間に待ち行列にあった接続は、処理されずに切られ、拡張では結果不明と表示される（§3.5.3）。
--   install の判定から `rename` までの間に、同一ユーザーが置いたファイルは上書きされる（§3.6）。
+-   install の判定から `rename` までの間に、同一ユーザーが置いたファイルは上書きされる（§3.6）。uninstall の判定から削除までの間に、同一ユーザーが置き換えたファイルは削除される。
 -   サーバの停止中に、同一ユーザーがソケットのパスを先に bind できる（現行の TCP の残余リスクと同じ種類。他ユーザーにはできなくなった）。
 -   拡張は同じ `key` を使えば誰でも同じ ID を名乗れる。`allowed_origins` は、同じ ID の拡張を読み込める同一ユーザーを排除しない。
 -   送信中にポップアップを閉じると、ブラウザがホストを終了させ、結果を表示できない（§3.5.5）。0027 の後は、結果を別の経路で見る手段もない。利用者は Slack で確かめる。
