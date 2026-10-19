@@ -215,7 +215,7 @@
 
 **判定理由**: mkplan の Conditional checks の 2 つに当たる（ステップ 3-3 の成果物の検査に、両方のファイルがある場合だけ働く複数の条件の検査を加えること、ステップ 3-2 で manifest の権限を、それを固定する `manifest.test.ts`・`TestExtensionDocumentation`・`security.md` §8.1 と同じ変更で改めること）。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
