@@ -128,7 +128,7 @@ Models: deepseek-flash (generation, shorten) · claude-haiku-5-5 (review) · Est
 Slack の見出し行の例（記号や強調の細部は設計で決める。H-02）:
 
 ```text
-タイトル — チャンネル名
+タイトル（チャンネル名）
 ```
 
 脚注の語は、開発者向けの情報なので英語とする。現在のメタデータの行（`- Model:`、`- Estimated cost:`）が英語であり、Go の文字列リテラルを英語とする規則（CLAUDE.md）にも合うためである。出典のラベル（`出典: `）は記事の本文の一部で、日本語のままとする。
