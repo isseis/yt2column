@@ -8,7 +8,7 @@
 | Created | 2026-10-18 |
 | Review date | 2026-10-18 |
 | Reviewer | isseis |
-| Comments | 編集上の訂正（2026-10-18。判断は変えていない）。`03_implementation_plan.md` の作成に合わせて、§3.12 の UDS のリスナーの補助の置き場所を `internal/server/test_helpers.go` からテスト専用の `internal/udstest` に改め（depguard の `internal/server` → `internal/serversock` の禁止が `internal/serversock/testutil` にも当たるため）、§8 のフェーズ 1 に拡張の 4 つの拒否の理由の削除を加えた（README の表と拡張の理由の集合の一致を保つため。フェーズの順序と最終の状態は変わらない）。編集上の訂正（2026-10-18。判断は変えていない）。レビューの指摘に従い、§3.12 の `internal/udstest` の行を責務だけに絞り、ビルドタグ・`/tmp` の下のディレクトリ・使うパッケージの一覧などの具体を [implementation_handoff.md](implementation_handoff.md) の I-01 と `03_implementation_plan.md`（§1.3「UDS のテストの補助」）に移した |
+| Comments | - |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §3.11）を指す。I-NN は [implementation_handoff.md](implementation_handoff.md) の項目（対応は `03_implementation_plan.md`）を指す。既存のコードの行番号は、コミット `9e34229`（要件書の承認のコミット）で確かめたものである。
 
