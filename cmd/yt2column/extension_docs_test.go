@@ -24,6 +24,7 @@ const (
 	extensionArchitecturePath = repositoryRoot + "/docs/tasks/0007_browser_extension_skeleton/02_architecture.md"
 	extensionPlanPath         = repositoryRoot + "/docs/tasks/0007_browser_extension_skeleton/03_implementation_plan.md"
 	extensionSendPlanPath     = repositoryRoot + "/docs/tasks/0020_extension_send/03_implementation_plan.md"
+	menuRemovalPlanPath       = repositoryRoot + "/docs/tasks/0027_remove_context_menu/03_implementation_plan.md"
 )
 
 // extTargetRE matches a make target definition for an extension target, such as
@@ -305,6 +306,49 @@ func TestExtensionSendDocumentation(t *testing.T) {
 			"設計書 3.10",
 			acLabel(30),
 		})
+	})
+}
+
+// pendingRecordMarker is the placeholder a plan keeps in a record section until
+// the check it describes has been run.
+const pendingRecordMarker = "（実施のときに記入する）"
+
+// TestContextMenuRemovalRecords pins the records the context-menu removal plan
+// asks for: every cell of its manual-check table is filled, and none of its
+// record sections still holds the placeholder. The row labels are document data
+// matched against the plan's own table, not references to source acceptance
+// criteria.
+func TestContextMenuRemovalRecords(t *testing.T) {
+	plan := readDoc(t, menuRemovalPlanPath)
+
+	t.Run("fills every cell of the plan's manual-check table", func(t *testing.T) {
+		checkManualCheckTable(t, plan, []string{
+			acLabel(4, 5),
+			"設計書 3.7",
+			acLabel(7),
+			acLabel(5) + "a",
+			"設計書 3.2.7",
+			acLabel(9),
+			acLabel(10),
+			"設計書 3.10.2",
+		})
+	})
+
+	t.Run("leaves no placeholder in the record sections", func(t *testing.T) {
+		for _, heading := range []string{
+			"### 5.2. 削除・改めるテストの検査の対応表",
+			"### 5.3. カバレッジの比較の結果",
+			"### 5.4. 確認のコマンドと出力",
+		} {
+			section := sectionByHeading(plan, heading)
+			if section == "" {
+				t.Errorf("the plan has no section %s", heading)
+				continue
+			}
+			if strings.Contains(section, pendingRecordMarker) {
+				t.Errorf("section %s still holds %q", heading, pendingRecordMarker)
+			}
+		}
 	})
 }
 
