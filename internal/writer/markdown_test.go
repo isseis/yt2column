@@ -210,6 +210,10 @@ func TestProseRanges(t *testing.T) {
 		{"multi-byte line before a fence", "＠a\n```\n@x\n```\n＠b `c` d", []string{"＠a", "＠b `", "` d"}, true},
 		{"trailing newline", "a\n", []string{"a"}, true},
 		{"trailing newline after a fence", "```\n@x\n```\n", nil, true},
+		// Without a backtick outside fences, a backslash or bracket does not matter.
+		{"bracket without a backtick", "[note] @a", []string{"[note] @a"}, true},
+		{"backslash without a backtick", `a \ @b`, []string{`a \ @b`}, true},
+		{"bracket and a backtick only inside a fence", "[n] x\n```\n`\n```", []string{"[n] x"}, true},
 		{"indented code block counts as prose", "    @x", []string{"    @x"}, true},
 
 		// Bodies that cannot be judged.
@@ -218,6 +222,7 @@ func TestProseRanges(t *testing.T) {
 		{"fence in a list", "- ```\n  @x\n  ```", nil, false},
 		{"fence in a block quote", "> ```\n> @x\n> ```", nil, false},
 		{"closing bracket only", "a] `@b`", nil, false},
+		{"bracket on one line and a code span on another", "[n] x\n`@b`", nil, false},
 		{"backtick runs of different lengths", "`a`` @b", nil, false},
 		{"unpaired backtick", "a ` b @c", nil, false},
 		{"code span across lines", "`a\n@b`", nil, false},

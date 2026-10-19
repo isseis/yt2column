@@ -88,7 +88,7 @@ go test -run '^$' -tags test,integration ./...
 
 | 項目 | 対応するステップ | 方針 |
 |---|---|---|
-| I-01 `ProseRanges` の実装 | 4-1 | `markdown.go` の `proseLines`・`codeSpans`・`codeSpansExempt` から範囲を組み立てる。判定できない 5 つの場合（閉じていないフェンス、フェンスらしい行、対にならないバッククォート、`codeSpansExempt` が偽、複数の行にまたがるコードスパン）は false を返す |
+| I-01 `ProseRanges` の実装 | 4-1 | `markdown.go` の `proseLines`・`codeSpans`・`codeSpansExempt` から範囲を組み立てる。判定できない 5 つの場合（閉じていないフェンス、フェンスらしい行、対にならないバッククォート、フェンスの外にバッククォートがあるときの `codeSpansExempt` が偽、複数の行にまたがるコードスパン）は false を返す。フェンスの外にバッククォートがない本文は、`[`・`]`・`\` があっても散文として true を返す |
 | I-02 rune の添字とバイトの位置の変換 | 4-2 | `neutralizeProse` が `mentionAts` の添字を元の本文のバイトの位置に直す。`＠` がコードの中と外にある本文をテストに入れる |
 | I-03 分割の切る位置の移動と確認の層 | 4-4 | 切る位置を 1 文字前に動かす規則と、分割後の確認の層の両方を実装する |
 | I-04 切る位置の探索の範囲 | 4-4 | 探索の上限を容量と `keepTogetherFrom` の小さいほうにする。`isWhitespaceOnly` を `keepTogetherFrom` で切った断片にも適用する |

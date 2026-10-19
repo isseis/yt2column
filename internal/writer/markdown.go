@@ -2,6 +2,7 @@ package writer
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -38,15 +39,26 @@ type ByteRange struct{ Start, End int }
 // judged: the checks that decide where code ends are not reliable for it
 // (an unclosed fence, a fence-like line CommonMark would nest, a backtick run
 // without a closing run on its line, which includes a code span across
-// lines, or a line with a backslash, bracket, or autolink holding a
-// backtick). A caller must then treat the whole body as unjudged, not as
+// lines, or, when a line outside fences has a backtick, a line with a
+// backslash, bracket, or autolink holding a backtick). Without any backtick
+// outside fences there is no code span to misjudge, so a backslash or bracket
+// does not matter. A caller must then treat the whole body as unjudged, not as
 // prose. An indented code block is prose here, because checkBodyMarkdown does
 // not tell it apart. It takes the output of normalizeBody, whose only line
 // ending is "\n".
 func ProseRanges(body string) ([]ByteRange, bool) {
 	lines := strings.Split(body, "\n")
 	prose, err := proseLines(lines)
-	if err != nil || !codeSpansExempt(prose) {
+	if err != nil {
+		return nil, false
+	}
+	// A backslash, bracket, or autolink can take in a backtick meant to
+	// delimit a code span; with no backtick outside fences, there is no span
+	// for it to take.
+	hasBacktick := slices.ContainsFunc(prose, func(l bodyLine) bool {
+		return strings.IndexByte(l.text, '`') >= 0
+	})
+	if hasBacktick && !codeSpansExempt(prose) {
 		return nil, false
 	}
 	starts := make([]int, len(lines))
@@ -56,7 +68,8 @@ func ProseRanges(body string) ([]ByteRange, bool) {
 	var ranges []ByteRange
 	for _, l := range prose {
 		base := starts[l.num-1]
-		// codeSpansExempt returned true, so every run of the line pairs.
+		// Either the line has no backtick or codeSpansExempt returned true, so
+		// every run of the line pairs.
 		spans, _ := codeSpans(l.text)
 		from := 0
 		for _, sp := range spans {
