@@ -186,7 +186,7 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 **判定理由**: ステップ 1-3・1-4 は、トークンを削除した後にソケットへの接続を守る唯一の仕組み（ディレクトリの権限・所有者・symlink・stale の判定・起動のロック）を作るセキュリティの関門である（mkplan のパネル方式の条件「security-gate」）。
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 -   [ ] **ステップ 1-6**: `internal/config/socketpath.go` を作り、`HOME` だけからソケットのパスを導出する非公開の関数（`runtime.GOOS` の値を引数に取る）と OS ごとの上限の定数を置く（設計書 3.1）。`ServerConfig` から `port`・`tokenPath` と `Port()`・`TokenPath()` を削除し、`SocketPath()` を加え、`LoadServer` が導出を呼ぶようにする。設計書 3.1「削除するもの」の関数・定数を削除する（`tokenFileName`・`configDirOverride`・`defaultConfigDir`・`reasonConfigDirAbsent` を含む）。`LoadServer` のコメント（`config.go:268-273`）から、ポートとトークンのパスの記述を除く。
