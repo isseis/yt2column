@@ -284,6 +284,8 @@ func TestParseCopiedRejects(t *testing.T) {
 		{name: "m:ss then colon and three digits", input: "0:12:34\nx\n", reason: errCopiedNotTimestamp, line: 1},
 		{name: "m:ss then colon and one-digit second", input: "1:23:4\nx\n", reason: errCopiedNotTimestamp, line: 1},
 		{name: "bad timestamp at a form B position", input: "0:00\nx\n05:00\n", reason: errCopiedNotTimestamp, line: 3},
+		// The per-line checks come before the form B heading skip, so an empty
+		// line or a control character is not skipped as a heading.
 		{name: "form B empty line where a timestamp is expected", input: "0:00\nx\n\n0:05\ny\n", reason: errCopiedEmptyLine, line: 3},
 		{name: "form B control character where a timestamp is expected", input: "0:00\nx\nタイ\tトル\n0:05\ny\n", reason: errCopiedControlChar, line: 3},
 		{name: "form B whitespace-only line where a timestamp is expected", input: "0:00\nx\n\u3000\n0:05\ny\n", reason: errCopiedNotTimestamp, line: 3},
