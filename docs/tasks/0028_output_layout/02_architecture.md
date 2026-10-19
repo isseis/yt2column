@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-19 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-19 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書の「現在の実装」への言及は、コミット `7dd5e04`（`main` の `c0099c7` に要件の承認を重ねたもの）を読んで確かめた。行番号は `file:line` で示す。`H-nn` は `design_handoff.md` の項目、`R-n` は 10 章（未決）と付録 B（決定済み）の項目、`AC-nn` と `F-nnn` は要件定義書の項目を指す。
