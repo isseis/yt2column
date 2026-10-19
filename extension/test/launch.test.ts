@@ -578,7 +578,11 @@ describe("popup send", () => {
 
   it("renders nothing and does not read settings for a rejected collection", async () => {
     const settings = failingSettings(new Error("must not load"));
-    const { deps: popupDeps } = deps({ settings: settings.reader });
+    const fetch = acceptedFetch();
+    const { deps: popupDeps } = deps({
+      settings: settings.reader,
+      send: testSendDeps(fetch.fetchFn),
+    });
     const root = container();
     root.append(root.ownerDocument.createElement("p"));
     await runPopupSend(
@@ -588,6 +592,7 @@ describe("popup send", () => {
     );
     assert.equal(root.childNodes.length, 0);
     assert.equal(settings.loadCalls(), 0);
+    assert.equal(fetch.calls.length, 0);
   });
 
   it("logs a failed send at error and shows the unknown result", async () => {

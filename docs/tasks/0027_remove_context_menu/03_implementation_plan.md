@@ -584,7 +584,7 @@ AC-09・AC-10 は、確かめた結果を本計画に記録することを求め
 | 同上 | メニューの `sent` の表示の結果が受付（`accepted`・`requestId`） | popup send > sends once, disables the button and shows the result の、受付の文言を表示する検査（加えた）と `.send-request-id` の検査 |
 | 同上 | ポップアップの `.send-request-id` が `requestId` | 同上（残す） |
 | launch paths > does not read settings or send for a rejected collection（`:499`） | 拒否した収集で設定を読まない | popup send > renders nothing and does not read settings for a rejected collection の `loadCalls` の検査 |
-| 同上 | 拒否した収集で送らない | 同上の、容器が空である（送信のボタンがなく、送信はボタンからしか始まらない）検査 |
+| 同上 | 拒否した収集で送らない | 同上の、`fetch` の回数が 0 である検査（ステップ 3-13 で加えた）と、容器が空である（送信のボタンがない）検査 |
 | 同上 | ストアに `blocked`（`not-watch-page`）を置く | R1。ポップアップは拒否の理由を要約の領域に表示し、launch paths > does not read the metadata for a not-watch-page collection が理由を確かめる |
 | launch paths > reads the metadata once, from the collected tab and URL（`:515`） | メニューの経路のメタデータの読み取りが 1 回で、タブの ID と URL が収集したもの | R7 |
 | 同上 | ポップアップの経路の同じ検査 | launch paths > reads the metadata once, from the collected tab and URL（残す） |
