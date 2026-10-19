@@ -1034,16 +1034,17 @@ const (
 )
 
 // TestParseCopiedLargeInputs parses seven synthetic inputs of at most 4 MiB,
-// each driving one scan path: the shortest form A line repeated (the most
-// segments); one form A line nearly 4 MiB long (one long line); many textless
-// form B timestamps followed by one text (the form B timestamp position); one
-// segment followed by zero-length lines (the backward scan of the trailing
-// region, with the most lines); one-byte prefix lines before one segment (the
-// prefix scan); form A chapter headings alternating with segments (the form A
-// heading match); and one-byte headings after a form B text (the form B
-// heading skip at timestamp-expected positions). Form A and form B headings
-// cannot share an input, so each has its own. Each must parse within the
-// deadline and allocate at most copiedParseAllocPerByte bytes per input byte. The test does not run in parallel, so TotalAlloc around the parse
+// each stressing one path: the shortest form A line repeated (the most
+// segments); one form A line nearly 4 MiB long (a single line's length); many
+// consecutive textless form B timestamps followed by one text; one segment
+// followed by zero-length lines (the backward scan of the trailing region, and
+// the most lines); one-byte prefix lines before one segment (the prefix scan);
+// form A chapter headings alternating with segments (the form A heading skip;
+// the first heading is a prefix line); and one-byte headings after a form B
+// text (the form B heading skip at timestamp-expected positions). Form A and
+// form B headings cannot share an input, so each has its own. Each must parse
+// within the deadline and allocate at most copiedParseAllocPerByte bytes per
+// input byte. The test does not run in parallel, so TotalAlloc around the parse
 // measures only this parse.
 func TestParseCopiedLargeInputs(t *testing.T) {
 	inputs := []struct {
