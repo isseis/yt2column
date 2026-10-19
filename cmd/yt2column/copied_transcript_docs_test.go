@@ -178,14 +178,19 @@ func surveyHasCombination(table [][]string, language, kind string) bool {
 
 // TestClaudeMDCopiedTranscriptException checks the "Declare, don't infer" item
 // in CLAUDE.md states the copied-transcript exception's scope, reason, and
-// boundary, and names the four kinds of panel line the parse skips (the prefix,
-// form A and form B chapter headings, and the trailing region) with the terms
-// that tie them to the boundary.
+// boundary, the four kinds of panel line the parse skips (the prefix, form A and
+// form B chapter headings, and the trailing region), the three ways those skips
+// stay inside the boundary, and the rejection of a damaged timestamp. Each
+// phrase that pins one sentence occurs in that sentence only, so dropping the
+// sentence fails the test even where its words recur elsewhere in the item.
 func TestClaudeMDCopiedTranscriptException(t *testing.T) {
 	item := claudeBullet(readDoc(t, claudePath), "Declare, don't infer")
 	if item == "" {
 		t.Fatal("CLAUDE.md has no 'Declare, don't infer' item")
 	}
+	// Join the wrapped lines so a multi-word phrase matches wherever the
+	// document breaks its lines.
+	item = strings.Join(strings.Fields(item), " ")
 	for _, want := range []string{
 		"copied-transcript parser",
 		"form A",
@@ -195,14 +200,16 @@ func TestClaudeMDCopiedTranscriptException(t *testing.T) {
 		"external value",
 		"cannot express in a type",
 		"internal/transcript",
-		"rejected",
-		"prefix",
+		"matches neither form is rejected",
+		"prefix before the first segment line",
 		"Chapter N: ",
 		"chapter heading",
 		"timestamp-expected position",
 		"trailing",
-		"first segment line",
-		"explicitly defined",
+		"prefix ends where the timestamp grammar finds the first segment line",
+		"identified by its position",
+		"only the explicitly defined lines",
+		"rejected, not skipped",
 	} {
 		if !strings.Contains(item, want) {
 			t.Errorf("the 'Declare, don't infer' item does not mention %q", want)
