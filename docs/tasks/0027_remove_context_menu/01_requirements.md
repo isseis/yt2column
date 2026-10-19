@@ -23,7 +23,7 @@
 
 送信は、サーバでの LLM の API の呼び出し（課金）につながる。実際に使ってみると、送る前に内容を確かめられるポップアップの経路のほうが安心で、使いやすかった。メニューの経路では、誤って項目を選んだ場合や、字幕ではない場所を選択していた場合に、送信を止められない。
 
-メニューの経路にしかない強みは、送信の途中でポップアップを閉じても結果を表示できることだけである。ポップアップを閉じた場合の扱いは、0020 の設計（`02_architecture.md` §3.8 H-01）がすでに受け入れている。送信中の表示は「閉じない。閉じた場合は、送り直す前に Slack を確かめる」と案内する。Native Messaging への移行（`0026_native_messaging_relay`）の後も、同じ種類の振る舞いである（0026 `02_architecture.md` §3.5.5 の S-5）。
+メニューの経路にしかない強みは、送信の途中でポップアップを閉じても結果を表示できることだけである。ポップアップを閉じた場合の扱いは、0020 の設計（`02_architecture.md` §3.8 H-01）がすでに受け入れている。送信中の表示は「閉じない。閉じた場合は、送り直す前に Slack を確かめる」と案内する。Native Messaging への移行（`0026_native_messaging_relay`）の後も、同じ種類の振る舞いである（0026 `02_architecture.md` §3.5.5。実機での確認は §3.10 の S-5）。
 
 拡張の service worker（`extension/src/background.ts`）は、メニューの項目の登録とメニューの経路のためだけにある。結果のウィンドウ、結果のウィンドウへ表示内容を渡す `chrome.storage.session`、結果のウィンドウを開けないときの代わりの表示であるツールバーのバッジも、メニューの経路だけが使う。メニューの経路を削除すると、これらもまとめて不要になる。利用者の操作なしに送信を始める入口がなくなり、権限も 1 つ減る。
 
@@ -43,7 +43,7 @@
 -   manifest から、service worker の宣言（`background`）と `contextMenus` の権限を削除する。
 -   削除したコードにだけ対応するテストを削除し、残るテストを合わせる。
 -   利用者と開発者向けの文書を、ポップアップだけの構成に合わせる: `README.md` の「Browser extension」節、`docs/dev/security.md` §8.1。
--   文書を読むテスト（拡張の node のテストと、Go の文書のテスト）を、更新後の文書に合わせる。
+-   文書を読むテスト（拡張の node のテストと、Go の文書のテスト）を、更新後の文書に合わせる。たとえば、`cmd/yt2column/extension_docs_test.go` の `TestExtensionSendDocumentation` は README の「Browser extension」節に `Context menu` があることを求めており、AC-11 と両立しない。
 
 ### 2.3. スコープ外 (Out of Scope)
 
@@ -68,11 +68,11 @@
 -   結果のウィンドウ（`result.html`）と、ツールバーのバッジによる表示はない。
 
 **Acceptance Criteria**:
-- **AC-01**: ビルドした manifest（`extension/dist/manifest.json`）に `background` のメンバがなく、`permissions` が `activeTab`・`scripting`・`storage` の 3 つだけである。`host_permissions` は変わらない（ユニットテスト・ビルドの検査）。
+- **AC-01**: manifest（`extension/static/manifest.json` と、ビルドした `extension/dist/manifest.json`）に `background` のメンバがなく、`permissions` が `activeTab`・`scripting`・`storage` の 3 つだけである。`host_permissions` は変わらない（ユニットテストは `static/manifest.json` を、ビルドの検査は `dist/manifest.json` を確かめる）。
 - **AC-02**: ビルドの成果物（`extension/dist/`）に、service worker のスクリプトと結果のウィンドウのページ（とそのスクリプト）が含まれない（ビルドの検査）。
 - **AC-03**: 拡張のソースに、`chrome.contextMenus`・`chrome.storage.session`・`chrome.action.setBadgeText`・`chrome.windows` を使うコードがない（静的な確認）。
 - **AC-04**: 拡張を読み込んだ Chrome と Brave で、YouTube の動画ページの字幕の行を選択して右クリックしても、拡張の項目が表示されない（手動確認）。
-- **AC-05**: メニューの経路が入った版を読み込んでいたブラウザで、本タスクの版に読み込み直す（`chrome://extensions/` の再読み込み）と、拡張の項目が右クリックメニューから消え、権限の追加の確認を求められない（手動確認。Chrome と Brave）。
+- **AC-05**: メニューの経路が入った版を読み込んでいたブラウザで、本タスクの版に読み込み直す（`chrome://extensions/` の再読み込み）と、拡張の項目が右クリックメニューから消える（手動確認。Chrome と Brave）。権限は減るだけなので、追加の確認が出ないことは確認の対象にしない。
 
 #### F-002: ポップアップの経路の維持
 
@@ -80,7 +80,7 @@
 
 **Acceptance Criteria**:
 - **AC-06**: ポップアップの経路の既存のユニットテスト（収集・要約・動画メタデータの表示・送信前の確認・送信・結果の表示）が、期待値を変えずに通る（ユニットテスト）。
-- **AC-07**: Chrome と Brave で、ポップアップから送信し、受付・拒否・結果が分からない、の各表示が従来どおりに出る。少なくとも受付（`202`）と、共有トークンが未設定の場合の送らない理由を確かめる（手動確認）。
+- **AC-07**: Chrome と Brave で、ポップアップから送信し、受付（`202`）の表示と、共有トークンが未設定の場合の送らない理由の表示が従来どおりに出る（手動確認）。拒否・結果が分からない、の表示は AC-06 のユニットテストで確かめる。
 - **AC-08**: ポップアップの送信中の表示が、従来どおり、結果が表示されるまで閉じないことと、閉じた場合は送り直す前に Slack を確かめることを案内する（`Do not close this window until the result appears.`・`If you close it, check Slack before sending again.`）。文言は変えない（ユニットテスト）。
 
 #### F-003: テストの削除の確認
@@ -88,7 +88,7 @@
 削除したコードにだけ対応するテストを削除する。削除によって、残るコードの検査が失われていないことを確かめる。
 
 **Acceptance Criteria**:
-- **AC-09**: 削除の前後で、拡張のテストのカバレッジ（`node --test` のカバレッジの報告）を関数ごとに比べ、残るファイル・関数のカバレッジが下がっていないことを確かめ、結果を実装計画に記録する（CLAUDE.md の「Deleting a test is a claim that must be checked」）。比べ方は設計で決める（[design_handoff.md](design_handoff.md) H-03）。
+- **AC-09**: 削除の前後で、拡張のテストのカバレッジを関数ごとに比べ（ファイルごとの割合は削除した行で分母が変わるので使わない。関数ごとの到達の有無を比べる）、残るファイル・関数のカバレッジが下がっていないことを確かめ、結果を実装計画に記録する（CLAUDE.md の「Deleting a test is a claim that must be checked」）。比べ方は設計で決める（[design_handoff.md](design_handoff.md) H-03）。
 - **AC-10**: Go のテストを削除する場合は、`go tool cover -func` が削除の前後で関数ごとに変わらないことを確かめ、記録する。Go のテストを削除しない場合は、その旨を記録する。
 
 #### F-004: 文書の更新

@@ -5,22 +5,22 @@
 ## H-01: 共有しているコードの切り分け
 
 -   **事項:** メニューの経路とポップアップの経路が共有しているコードのうち、残すものと削除するものを決める。メニューの経路にだけ使う型・関数・定数が残っていないことの確かめ方を決める。
--   **理由:** `extension/src/launch.ts` は両方の経路の処理を持つ。ポップアップは送らない理由の表示に `renderResultView`（`ui/renderSend.ts`）を使い、その引数の型 `ResultView` は `core/resultView.ts` にある。`core/resultView.ts` には、結果のウィンドウだけが使う `parseResultView` もある。`chromeDeps.ts` の `createResultViewStore`・`createResultWindowOpener`・`createBadge` と、その型（`StorageChangeEvents`・`WindowsApi`・`ActionApi` など）はメニューの経路だけが使う。`make deadcode` は Go だけを対象にし、拡張の未使用の export は検出しない。
--   **候補の方針:** ポップアップから到達できる export だけを残す。未使用の export の検出は、ESLint・`tsc` の既存の設定で検出できるかを確かめ、できなければ削除の後に export ごとの参照を確かめて記録する。`ResultView` の型の名前と置き場所を、結果のウィンドウがなくなった後の用途に合うように変えるかを決める。
+-   **理由:** `extension/src/launch.ts` は両方の経路の処理を持つ。ポップアップは送らない理由の表示に `renderResultView`（`ui/renderSend.ts`）を使い、その引数の型 `ResultView` は `core/resultView.ts` にある。`core/resultView.ts` には、結果のウィンドウだけが使う `parseResultView` もある。`chromeDeps.ts` の `createResultViewStore`・`createResultWindowOpener`・`createBadge`・`schedule` と、その型（`StorageChangeEvents`・`WindowsApi`・`ActionApi` など）はメニューの経路だけが使う。ほかに、`launch.ts` の `runMenuLaunch`・`runResultWindow`・`MenuLaunchDeps`・`ResultWindowDeps`・`ResultViewStore`・`resultWaitMs` と、`core/sendMessages.ts` の `unreadableResultMessage` もメニューの経路（結果のウィンドウ）だけが使う。`launchContextFromTab` は両方の経路が使う。`make deadcode` は Go だけを対象にし、拡張の未使用の export は検出しない。
+-   **候補の方針:** ポップアップから到達できる export だけを残す。未使用の export の検出は、ESLint・`tsc` の既存の設定で検出できるかを確かめ、できなければ削除の後に export ごとの参照を確かめて記録する。`ResultView` の型の名前と置き場所を、結果のウィンドウがなくなった後の用途に合うように変えるかを決める。`schedule` は、0026 の実装計画（ステップ 3-5）が `SendDeps` の `schedule` としてポップアップの経路で使う予定なので、削除して 0026 で加え直すか、残すかを決める。
 -   **関連:** F-001、F-002、§4.5
 
 ## H-02: ビルドの検査と manifest のテスト
 
 -   **事項:** ビルドの成果物の検査（`extension/scripts/check-dist.ts`）と manifest のテスト（`extension/test/manifest.test.ts`）を、service worker と結果のウィンドウがない構成に合わせる方法を決める。
--   **理由:** `check-dist.ts` は manifest の `background.service_worker` が指すファイルの存在を確かめている。`manifest.test.ts` は `background` のメンバと `contextMenus` の権限を期待している。AC-01・AC-02 は、これらがないことを確かめる必要がある。
--   **候補の方針:** `background` がないことと、`permissions` の集合を、既存のテストの期待値として固定する。成果物に `background.js`・`result.html`・`result.js` がないことを、ビルドの検査で確かめる。
+-   **理由:** `check-dist.ts` は manifest の `background.service_worker` が指すファイルの存在を確かめている（値が文字列でなければ確かめないので、`background` がなくても失敗しない）。また、`check-dist.ts` は成果物のファイルの集合を `src/` と `static/` から導き、`make ext-build` は `dist/` を作り直すので、ソースを削除すれば成果物にないことも既存の検査で確かめられる。`manifest.test.ts` は `background` のメンバと `contextMenus` の権限を期待している。AC-01・AC-02 は、これらがないことを確かめる必要がある。
+-   **候補の方針:** `background` がないことと、`permissions` の集合を、既存のテストの期待値として固定する。成果物に `background.js`・`result.html`・`result.js` がないことは、ソースの削除と既存の `check-dist.ts` の集合の比較で確かめ、ファイル名を列挙する検査は加えない。`check-dist.ts` の `background.service_worker` の参照の検査を残すかを決める。
 -   **関連:** AC-01、AC-02
 
 ## H-03: テストの削除の前後のカバレッジの比べ方
 
 -   **事項:** 拡張のテストを削除する前後で、残るコードのカバレッジが下がっていないことを確かめる手順を決める（AC-09）。
 -   **理由:** CLAUDE.md の「Deleting a test is a claim that must be checked」は、Go について `go tool cover -func` で関数ごとに比べることを定めている。拡張の node のテストには、同じ目的の手順がまだない。`launch.test.ts`・`chromeDeps.test.ts` は、メニューの経路のテストとポップアップの経路のテストを同じファイルに持つので、ファイルごとの削除では済まない。
--   **候補の方針:** `node --test --experimental-test-coverage` の報告を削除の前後で取り、削除するファイル以外の行と関数のカバレッジを比べる。報告の取り方は実装計画に記録し、Makefile の対象には加えない（一度きりの確認のため）。
+-   **候補の方針:** `node --test --experimental-test-coverage --test-reporter=lcov` で削除の前後の報告を取り、残る関数ごとの到達の有無（lcov の `FN`・`FNDA`）を比べる。既定の報告はファイルごとの割合だけを示し、`launch.ts`・`chromeDeps.ts` のように行を削除するファイルでは分母が変わるので、比べる対象にしない。報告の取り方は実装計画に記録し、Makefile の対象には加えない（一度きりの確認のため）。
 -   **関連:** AC-09、AC-10
 
 ## H-04: `sendTimeoutMs` の理由の記述
