@@ -345,3 +345,6 @@ reviewer sets the previous one to `approved`.
   - merging pull requests on GitHub
   - running the CLI against real services (LLM API calls, Slack Webhook posts)
 - `git commit` and `git push` may be executed without explicit approval
+- `coderabbit review` (the local CodeRabbit CLI, a development tool used on every
+  change) may be executed without explicit approval, although it sends the diff to
+  CodeRabbit's service
