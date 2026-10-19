@@ -295,14 +295,20 @@ describe("removed menu-path APIs", () => {
     }
   }
 
-  // The pattern is anchored: a longer name that only starts with a forbidden
-  // one stays allowed.
-  for (const filePath of paths) {
-    it(`allows names that only start with a forbidden one in ${filePath}`, async () => {
-      const code =
-        "export const p = chrome.storage.local;\nexport const q = chrome.action.setBadgeTextColor;\nexport const { sessionId } = chrome.storage;\n";
-      assert.deepEqual(await ruleIds(code, filePath), []);
-    });
+  // The pattern is anchored at both ends: a longer name that only starts or
+  // ends with a forbidden one stays allowed.
+  const longerNames = [
+    "export const p = chrome.action.setBadgeTextColor;\n",
+    "export const { sessionId } = chrome.storage;\n",
+    "export const { usersession } = chrome.storage;\n",
+    "export const p = chrome.x.subwindows;\n",
+  ];
+  for (const code of longerNames) {
+    for (const filePath of paths) {
+      it(`allows ${code.trim()} in ${filePath}`, async () => {
+        assert.deepEqual(await ruleIds(code, filePath), []);
+      });
+    }
   }
 
   // A type-only reference does not call the API, so it stays allowed.
@@ -331,6 +337,10 @@ describe("common selectors in creator files", () => {
     {
       name: "storage.sync",
       code: 'export const p = chrome.storage.sync.get("x");\n',
+    },
+    {
+      name: "storage.session",
+      code: 'export const p = chrome.storage.session.get("x");\n',
     },
   ];
   for (const creator of creatorFiles) {

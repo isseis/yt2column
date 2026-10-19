@@ -55,6 +55,7 @@ func TestExtensionDocumentation(t *testing.T) {
 	}
 	readme := readDoc(t, readmePath)
 	security := readDoc(t, securityPath)
+	extensionSection := sectionByHeading(security, "### 8.1. ブラウザ拡張（#110）")
 	claude := readDoc(t, claudePath)
 	makefile := readDoc(t, makefilePath)
 	overview := readDoc(t, projectOverviewPath)
@@ -87,7 +88,7 @@ func TestExtensionDocumentation(t *testing.T) {
 		if len(manifest.Permissions) == 0 {
 			t.Fatal("manifest.json requests no permissions")
 		}
-		section := sectionByHeading(security, "### 8.1. ブラウザ拡張（#110）")
+		section := extensionSection
 		if section == "" {
 			t.Fatal("security.md has no 8.1 extension section")
 		}
@@ -116,7 +117,7 @@ func TestExtensionDocumentation(t *testing.T) {
 	})
 
 	t.Run("security.md 8.1 has no trace of the removed menu path", func(t *testing.T) {
-		section := sectionByHeading(security, "### 8.1. ブラウザ拡張（#110）")
+		section := extensionSection
 		if section == "" {
 			t.Fatal("security.md has no 8.1 extension section")
 		}
@@ -133,8 +134,9 @@ func TestExtensionDocumentation(t *testing.T) {
 		if permissions == "" {
 			t.Fatal("security.md 8.1 has no 要求する権限 bullet")
 		}
-		if !strings.Contains(permissions, "`storage`（") || !strings.Contains(permissions, "chrome.storage.local") {
-			t.Error("security.md 8.1's 要求する権限 does not give chrome.storage.local as what storage is for")
+		// The permission-match subtest already requires `storage` in this bullet.
+		if !strings.Contains(permissions, "chrome.storage.local") {
+			t.Error("security.md 8.1's 要求する権限 does not name chrome.storage.local")
 		}
 	})
 
@@ -209,9 +211,10 @@ func TestExtensionSendDocumentation(t *testing.T) {
 			"requestId",
 			"Site access",
 			"127.0.0.1",
-			// Rebuild before reloading: dist/ is not tracked, so an earlier
-			// build would keep running.
-			"make ext-build",
+			// Rebuild before reloading: dist/ is build output, so an earlier
+			// build would keep running. The install block also names
+			// make ext-build, so pin the update step's own wording.
+			"To update from an earlier build, run `make ext-build` to rebuild",
 			// The popup's console is the only log left.
 			"Inspect popup",
 		} {
@@ -225,7 +228,7 @@ func TestExtensionSendDocumentation(t *testing.T) {
 		lower := strings.ToLower(section)
 		for _, unwanted := range []string{
 			"context menu",
-			"choose the extension's item",
+			"choose the extension",
 			"result window",
 			"service worker",
 		} {
