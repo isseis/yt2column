@@ -282,26 +282,27 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 
 ### フェーズ 2: ホスト
 
--   [ ] **ステップ 2-1**: `internal/nmhost/frame.go` に、Native Messaging の長さの読み取り（`encoding/binary.NativeEndian`）とフレームの書き込み（長さと JSON を 1 回の `Write`、1 MiB を超えないことの確認）を置く（設計書 3.5.2・3.5.4・3.5.6）。テスト: 長さの読み取り、長さが読めない場合、フレームの形、1 MiB を超えるフレームを書かないこと。`package_reference.md` に `internal/nmhost` の行を加える（§1.3）。
+-   [x] **ステップ 2-1**: `internal/nmhost/frame.go` に、Native Messaging の長さの読み取り（`encoding/binary.NativeEndian`）とフレームの書き込み（長さと JSON を 1 回の `Write`、1 MiB を超えないことの確認）を置く（設計書 3.5.2・3.5.4・3.5.6）。テスト: 長さの読み取り、長さが読めない場合、フレームの形、1 MiB を超えるフレームを書かないこと。`package_reference.md` に `internal/nmhost` の行を加える（§1.3）。
     -   **対象:** `internal/nmhost/frame.go`・`frame_test.go`・`docs/dev/developer_guide/package_reference.md`。**完了:** `go test -tags test ./internal/nmhost` と `go test -tags test -run TestPackageReferenceListsPackages ./internal/pipeline` が通る。
--   [ ] **ステップ 2-2**: `internal/nmhost/relay.go` に `Dialer`・`RelayTimeout`・`RelayOptions`・`Relay`・`HostError` と 2 つの応答の構造体を置く（設計書 3.5.2〜3.5.5）。`http.Transport` の設定は設計書 3.5.2 の手順 4 のとおりにし、`DialContext` は手順 3 の接続を 1 回だけ返す。ホストのエラーは段階で選ぶ（設計書 3.5.3 の表）。ログは標準エラー出力に `log/slog` のテキスト形式で、設計書 3.5.6 の項目だけを書く。
+-   [x] **ステップ 2-2**: `internal/nmhost/relay.go` に `Dialer`・`RelayTimeout`・`RelayOptions`・`Relay`・`HostError` と 2 つの応答の構造体を置く（設計書 3.5.2〜3.5.5）。`http.Transport` の設定は設計書 3.5.2 の手順 4 のとおりにし、`DialContext` は手順 3 の接続を 1 回だけ返す。ホストのエラーは段階で選ぶ（設計書 3.5.3 の表）。ログは標準エラー出力に `log/slog` のテキスト形式で、設計書 3.5.6 の項目だけを書く。
     -   **対象:** `internal/nmhost/relay.go`。**完了:** `go build ./internal/nmhost` が通る。
--   [ ] **ステップ 2-3**: `internal/nmhost` のフレームと中継のテストを書く（設計書 7.1 の `internal/nmhost` の行のうち、manifest を除くもの）。テストの名前と主な確認は次のとおりである。中継のテストは、`Dial` の fake と、`internal/udstest` の UDS の上の `httptest` 風のサーバ（固定の状態コードと本文を返すもの、応答しないもの、途中で切るもの、HTTP として読めないバイト列を返すもの）を使う。
+-   [x] **ステップ 2-3**: `internal/nmhost` のフレームと中継のテストを書く（設計書 7.1 の `internal/nmhost` の行のうち、manifest を除くもの）。テストの名前と主な確認は次のとおりである。中継のテストは、`Dial` の fake と、`internal/udstest` の UDS の上の `httptest` 風のサーバ（固定の状態コードと本文を返すもの、応答しないもの、途中で切るもの、HTTP として読めないバイト列を返すもの）を使う。
     -   `TestRelayForwardsOneRequest`（AC-15）: 受け取ったバイト列が変わらずに本文として届き、リクエストの行が `POST /articles` で `Content-Length` と `Expect: 100-continue` を持ち、応答のフレームが 1 つだけ書かれること。
     -   `TestRelayMessageTooLarge`・`TestRelayZeroLength`（AC-16）: どちらも `Dial` を呼ばず、stdin の本文を読まないこと（stdin の fake が読まれたバイト数を記録する）。
     -   `TestRelayServerRejectsWithoutBody`（AC-16）: サーバが本文を読まずに `413` を返す場合に、本文を送らず、stdin の本文を読まずに、その応答を包むこと。
     -   `TestRelayResponseOverLimit`（AC-16）: 64 KiB を超える応答の本文で `protocol_error` になり、途中までを転送しないこと。
     -   `TestRelayHostErrors`（AC-19）: 設計書 3.5.3 の表の各行（接続できない場合はソケットなし・stale・権限のないディレクトリ、応答しないサーバでの `server_timeout`、途中の切断・HTTP として読めない応答・stdin が長さに満たない場合の `protocol_error`、時間の上限と書き込みの失敗が重なった場合の `server_timeout`）。返る `HostError` の値を確かめる。接続できない場合は、stdin の本文が読まれないことも確かめる（設計書 7.1「残りを読まない」）。時間の上限と書き込みの失敗が重なる場合は、`Dial` の fake が返す接続の `Write` が期限まで止まってから期限切れ以外のエラーを返す形にし、優先の判定だけが結果を決める入力にする。
     -   `TestRelayForwardsOneRequest`・`TestRelayHostErrors` などで作る接続とサーバは、作った時点で `t.Cleanup` に閉じる処理を登録する。
-    -   `TestRelayDialsOnce`（AC-19）: どの場合も `Dial` と `DialContext` が 1 回しか呼ばれないこと。
-    -   `TestRelayIgnoresProxyEnv`（AC-18）: `HTTP_PROXY` を設定してもリクエストの行が `POST /articles` のままであること。
+    -   `TestRelayDialsOnce`（AC-19）: 中継の `Transport` の `DialContext` が、1 回目に手順 3 の接続を返し、2 回目は失敗すること。`Dial` が 1 回しか呼ばれないことは、`TestRelayForwardsOneRequest`・`TestRelayHostErrors` のすべての行で、呼び出しを数える `Dial` の包みで確かめる（実装で、この 2 つに分けた）。
+    -   `TestRelayIgnoresProxyEnv`（AC-18）: `HTTP_PROXY` を設定してもリクエストの行が `POST /articles` のままであること。`net/http` はプロキシの環境変数をプロセスで 1 回だけ読むので、`TestMain` がどのテストよりも前に `HTTP_PROXY` などを設定し `NO_PROXY` を消す（実装の決定）。
+    -   `TestRelayNoReplyFrame`（AC-15）: 長さが読めない場合、標準出力への書き込みが失敗した場合、`RelayOptions` が欠けている場合にだけ `Relay` がエラーを返し、標準出力に何も書かないこと（実装で加えた）。
     -   `TestReplyShapes`（AC-16・AC-27）: 2 つの形のメンバの集合、無効な UTF-8 の本文でも base64 で包んだバイト列が変わらないこと、`HostError` のゼロ値と範囲外の値が `protocol_error` になること。
     -   `TestRelayOutputs`（AC-17）: 標準出力が 1 フレームだけで、本文とサーバの応答に入れた目印が標準エラー出力に現れないこと。
     -   所有者と権限に依存するテストは root では `t.Skip` で飛ばす（設計書 7.1。§1.3）。
     -   **対象:** `internal/nmhost/relay_test.go`・必要なら `internal/nmhost/test_helpers.go`（`//go:build test`。非公開の関数を使う補助だけ）。**完了:** `go test -tags test ./internal/nmhost` が通る。
--   [ ] **ステップ 2-4**: `internal/nmhost` のガードを加える。ステップ 1-17 で作った `internal/pipeline/relay_guard_test.go` に、同じ本番のファイルの判定を使って `TestHostStdoutOnlyInMain`・`TestHostSpawnsNoProcess` を加え、この時点では `internal/nmhost` を走査する（`cmd/yt2column-nmhost` はステップ 2-13 で走査の対象に加える）。`.golangci.yml` に、`internal/nmhost` が `internal/server`・`internal/config`・`os/exec` を import しない depguard の規則を加える（§1.3）。
+-   [x] **ステップ 2-4**: `internal/nmhost` のガードを加える。ステップ 1-17 で作った `internal/pipeline/relay_guard_test.go` に、同じ本番のファイルの判定を使って `TestHostStdoutOnlyInMain`・`TestHostSpawnsNoProcess` を加え、この時点では `internal/nmhost` を走査する（`cmd/yt2column-nmhost` はステップ 2-13 で走査の対象に加える）。`.golangci.yml` に、`internal/nmhost` が `internal/server`・`internal/config`・`os/exec` を import しない depguard の規則を加える（§1.3）。2 つのガードが使う参照の検出（別名の import とドットの import を含む）は、`TestSelectorDetection` の表で確かめる（実装で加えた。既存の `TestTCPListenerDetection` と同じ流儀）。
     -   **対象:** `internal/pipeline/relay_guard_test.go`・`.golangci.yml`。**完了:** `make test`・`make lint` が通る。
--   [ ] **ステップ 2-5**: ステップ 2-1〜2-4 のテストとガードを壊して失敗することを確かめ、コミットメッセージに記録する（§1.2）。取り違えやすいもの: 本文のバイト列を 1 バイト変える・`Content-Length` を付けない（`TestRelayForwardsOneRequest`）、長さの上限の判定を外す・長さ 0 の判定を外す（`TestRelayMessageTooLarge`・`TestRelayZeroLength`）、`DialContext` が 2 回目も接続を返すようにする（`TestRelayDialsOnce`）、`Proxy` を `http.ProxyFromEnvironment` にする（`TestRelayIgnoresProxyEnv`）、応答の上限の判定を外す（`TestRelayResponseOverLimit`）、時間の上限の優先を外す（`TestRelayHostErrors` の該当する行）、接続の段階の判定をエラーの値で行う形に変える（同）、本文を JSON の文字列として埋め込む（`TestReplyShapes`）、`HostError` のゼロ値を `server_unavailable` にする（同）、ホストのリクエストから `Expect: 100-continue` を外すか `ExpectContinueTimeout` を 0 にする（`TestRelayServerRejectsWithoutBody`）、ログに本文を書く（`TestRelayOutputs`）、`internal/nmhost` に `fmt.Println` を加える（`TestHostStdoutOnlyInMain`）、`os.StartProcess` の呼び出しを加える（`TestHostSpawnsNoProcess`）、`os/exec` の import を加える（`make lint`）。`internal/nmhost` の中継の公開の関数について、§4.4 の `go tool cover -func` の確認を行う。
+-   [x] **ステップ 2-5**: ステップ 2-1〜2-4 のテストとガードを壊して失敗することを確かめ、コミットメッセージに記録する（§1.2）。取り違えやすいもの: 本文のバイト列を 1 バイト変える・`Content-Length` を付けない（`TestRelayForwardsOneRequest`）、長さの上限の判定を外す・長さ 0 の判定を外す（`TestRelayMessageTooLarge`・`TestRelayZeroLength`）、`DialContext` が 2 回目も接続を返すようにする（`TestRelayDialsOnce`）、`Proxy` を `http.ProxyFromEnvironment` にする（`TestRelayIgnoresProxyEnv`）、応答の上限の判定を外す（`TestRelayResponseOverLimit`）、時間の上限の優先を外す（`TestRelayHostErrors` の該当する行）、接続の段階の判定をエラーの値で行う形に変える（同）、本文を JSON の文字列として埋め込む（`TestReplyShapes`）、`HostError` のゼロ値を `server_unavailable` にする（同）、ホストのリクエストから `Expect: 100-continue` を外すか `ExpectContinueTimeout` を 0 にする（`TestRelayServerRejectsWithoutBody`）、ログに本文を書く（`TestRelayOutputs`）、`internal/nmhost` に `fmt.Println` を加える（`TestHostStdoutOnlyInMain`）、`os.StartProcess` の呼び出しを加える（`TestHostSpawnsNoProcess`）、`os/exec` の import を加える（`make lint`）。`internal/nmhost` の中継の公開の関数について、§4.4 の `go tool cover -func` の確認を行う。
     -   **対象:** なし（確認のみ）。**完了:** 各対象で該当するテストか lint が失敗することを確かめ、記録する。
 
 ### PR-4 作成ポイント: native messaging relay library
@@ -597,10 +598,10 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 | AC-13 | test | `internal/server/job_test.go::TestFailureClassification`・`::TestNotifyNoticeFields`（既存）、`cmd/yt2column-server/relay_e2e_test.go::TestRelayEndToEnd` の (2) | 既存・ステップ 2-15 |
 | AC-14 | test | `cmd/yt2column-server/relay_e2e_test.go::TestRelayEndToEnd` の (1) | ステップ 2-15 |
 | | manual | §5.1（応答の後にブラウザを終了しても Slack に記事が届く） | - |
-| AC-15 | test | `internal/nmhost/relay_test.go::TestRelayForwardsOneRequest`、`TestRelayEndToEnd` の (1) | ステップ 2-2・2-3 |
+| AC-15 | test | `internal/nmhost/relay_test.go::TestRelayForwardsOneRequest`・`::TestRelayNoReplyFrame`、`TestRelayEndToEnd` の (1) | ステップ 2-2・2-3 |
 | AC-16 | test | `internal/nmhost/relay_test.go::TestRelayMessageTooLarge`・`::TestRelayZeroLength`・`::TestRelayServerRejectsWithoutBody`・`::TestRelayResponseOverLimit`、`TestRelayEndToEnd` の (4) | ステップ 2-2・2-3 |
 | AC-17 | test | `internal/nmhost/relay_test.go::TestRelayOutputs`、`TestRelayEndToEnd` の (5) | ステップ 2-2・2-3 |
-| | static | `internal/pipeline/relay_guard_test.go::TestHostStdoutOnlyInMain` | ステップ 2-4・2-13 |
+| | static | `internal/pipeline/relay_guard_test.go::TestHostStdoutOnlyInMain`・`::TestSelectorDetection` | ステップ 2-4・2-13 |
 | AC-18 | test | `internal/config/socketpath_test.go`（`XDG_*`・`TMPDIR` で変わらないこと、`LoadHost` が `HOME` だけを読むこと）、`internal/config/envaccess_test.go`（既存のテストに許可を 1 行加える）、`internal/nmhost/relay_test.go::TestRelayIgnoresProxyEnv`、`cmd/yt2column-nmhost/main_test.go`（すべての役割で `HOME` だけを読むこと） | ステップ 1-6・2-2・2-9・2-10 |
 | | static | `make lint`（`depguard` の `os/exec` の規則）、`internal/pipeline/relay_guard_test.go::TestHostSpawnsNoProcess` | ステップ 2-4・2-13 |
 | AC-19 | test | `internal/nmhost/relay_test.go::TestRelayHostErrors`・`::TestRelayDialsOnce`、`TestRelayEndToEnd` の (3) | ステップ 2-2・2-3 |
@@ -681,7 +682,7 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 -   [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5）
 -   [x] 0027 のすべての PR がマージされたことを確かめた（PR-2 の前提。PR-8 の前提も兼ねる）
 -   [x] PR-2 マージ済み（対象ステップ: 1-6 / 1-7 / 1-8 / 1-9 / 1-10 / 1-11 / 1-12 / 1-13 / 1-14 / 1-15 / 1-16）
--   [ ] PR-3 マージ済み（対象ステップ: 1-17）
+-   [x] PR-3 マージ済み（対象ステップ: 1-17）
 -   [ ] PR-4 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5）
 -   [ ] PR-5 マージ済み（対象ステップ: 2-6 / 2-7 / 2-8）
 -   [ ] PR-6 マージ済み（対象ステップ: 2-9 / 2-10 / 2-11 / 2-12 / 2-13 / 2-14）

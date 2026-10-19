@@ -8,7 +8,7 @@
 | Created | 2026-10-18 |
 | Review date | 2026-10-19 |
 | Reviewer | isseis |
-| Comments | 実装（PR-2）で、§3.1 の長さの上限を「`darwin` 以外の Unix で 107 バイト」から「`linux` で 107 バイト、`darwin` とそれ以外の Unix で 103 バイト」に編集上の訂正をした（FreeBSD などの `sun_path` は 104 バイトで、107 バイトの上限では bind に失敗するため）。 |
+| Comments | 実装（PR-4）で、§3.5.2 のコードに `SocketDialer`（接続の時間の上限を持つ UDS の `Dialer`。中継のテストが実際のソケットで接続の失敗を確かめるのにも使う）を加え、§3.5.6 のログの errno の「名前」を「固定の説明（`syscall.Errno` の `Error()`）」に改めた（標準ライブラリは errno の名前を返す関数を持たないため）。実装（PR-2）で、§3.1 の長さの上限を「`darwin` 以外の Unix で 107 バイト」から「`linux` で 107 バイト、`darwin` とそれ以外の Unix で 103 バイト」に編集上の訂正をした（FreeBSD などの `sun_path` は 104 バイトで、107 バイトの上限では bind に失敗するため）。 |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §3.11）を指す。I-NN は [implementation_handoff.md](implementation_handoff.md) の項目（対応は `03_implementation_plan.md`）を指す。既存のコードの行番号は、コミット `9e34229`（要件書の承認のコミット）で確かめたものである。
 
@@ -508,10 +508,14 @@ UDS の上で HTTP/1.1 を使う。
 ```go
 // internal/nmhost
 
-// Dialer opens the one connection to the server. Production passes a
-// net.Dialer bound to the socket path from config.LoadHost; a test passes a
+// Dialer opens the one connection to the server. Production passes
+// SocketDialer with the socket path from config.LoadHost; a test passes a
 // fake or a temporary socket.
 type Dialer func(ctx context.Context) (net.Conn, error)
+
+// SocketDialer returns the Dialer that connects to the Unix socket at path,
+// giving up after the connect limit (2 seconds).
+func SocketDialer(path string) Dialer
 
 // RelayTimeout bounds one relay, from the length read to the end of the
 // server's reply.
@@ -635,7 +639,7 @@ type errorReply struct {
 #### 3.5.6. 標準出力と標準エラー出力（AC-17）
 
 -   標準出力に書くのは、中継の手順 6 のフレーム 1 つだけである。フレームは、長さの 4 バイトと JSON を 1 回の `Write` にまとめて書く。中継の関数は標準出力を `io.Writer` として受け取り、他のコードは標準出力を参照しない（`fmt.Print*`・`os.Stdout` の参照は `cmd/yt2column-nmhost/main.go` の配線の 1 か所だけ。§7.3）。
--   ログは標準エラー出力に、`log/slog` のテキスト形式で書く。記録するのは、固定のイベント名、段階、ホストのエラー、状態コード、OS のエラーの errno の名前、経過時間、リクエストの長さ（バイト数）だけである。導出したソケットのパスも 1 行書く（秘密ではなく、サーバの起動のログが同じ種類のパスを書くのと同じ扱い）。ブラウザが渡した `HOME` がシェルの `HOME` と異なる場合に、サーバの起動のログのパスと見比べて原因を特定するためである。本文・サーバの応答の本文・環境変数の値（`HOME` の値そのもの）は書かない。
+-   ログは標準エラー出力に、`log/slog` のテキスト形式で書く。記録するのは、固定のイベント名、段階、ホストのエラー、状態コード、OS のエラーの errno の固定の説明（`syscall.Errno` の `Error()`。例: `connection refused`）、経過時間、リクエストの長さ（バイト数）だけである。それ以外のエラーの文字列は書かない（`net/http` の、HTTP として読めない応答のエラーは、サーバが送ったバイト列を引用するため）。導出したソケットのパスも 1 行書く（秘密ではなく、サーバの起動のログが同じ種類のパスを書くのと同じ扱い）。ブラウザが渡した `HOME` がシェルの `HOME` と異なる場合に、サーバの起動のログのパスと見比べて原因を特定するためである。本文・サーバの応答の本文・環境変数の値（`HOME` の値そのもの）は書かない。
 -   ブラウザが起動したホストの標準エラー出力は、ブラウザ自身の標準エラー出力に流れる。Dock から起動したブラウザでは利用者の目に触れない。README のトラブルシューティングに、ホストのログを見る手順（ブラウザを一度終了し、ターミナルからブラウザの実行ファイルを直接起動すると、ホストの標準エラー出力がそのターミナルに出る）を書く。その他に原因を調べる手がかりは、拡張の開発者向けのログ（ホストの応答の分類と lastError の文字列。§3.7.6）と、サーバのログ（`requestId`）である。
 
 ### 3.6. manifest の install/uninstall（F-003・AC-20、H-07）

@@ -106,6 +106,21 @@ linters:
           deny:
             - pkg: github.com/isseis/yt2column/internal/serversock
               desc: "internal/server must not import internal/serversock; the entry point binds the socket and hands the listener over"
+        # The Native Messaging host relays bytes without interpreting them:
+        # it must not know the server's types, it is handed the socket path
+        # and HOME by its entry point instead of reading the configuration,
+        # and it starts no other program.
+        nmhost-boundaries:
+          list-mode: lax
+          files:
+            - "**/internal/nmhost/**"
+          deny:
+            - pkg: github.com/isseis/yt2column/internal/server
+              desc: "internal/nmhost must not import internal/server; the host does not interpret the server's reply"
+            - pkg: github.com/isseis/yt2column/internal/config
+              desc: "internal/nmhost must not import internal/config; cmd/yt2column-nmhost passes the values it needs"
+            - pkg: os/exec
+              desc: "internal/nmhost starts no other program"
         publisher-no-log:
           list-mode: lax
           files:
