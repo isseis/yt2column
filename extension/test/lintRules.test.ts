@@ -283,12 +283,26 @@ describe("removed menu-path APIs", () => {
         form: "the destructured reference",
         code: `export const { ${name} } = ${api};\n`,
       },
+      {
+        form: "the string-keyed destructured reference",
+        code: `export const { "${name}": x } = ${api};\n`,
+      },
     ];
     for (const { form, code } of violations) {
       expectViolation([
         { name: `${name} as ${form}`, code, rule: "no-restricted-syntax" },
       ]);
     }
+  }
+
+  // The pattern is anchored: a longer name that only starts with a forbidden
+  // one stays allowed.
+  for (const filePath of paths) {
+    it(`allows names that only start with a forbidden one in ${filePath}`, async () => {
+      const code =
+        "export const p = chrome.storage.local;\nexport const q = chrome.action.setBadgeTextColor;\nexport const { sessionId } = chrome.storage;\n";
+      assert.deepEqual(await ruleIds(code, filePath), []);
+    });
   }
 
   // A type-only reference does not call the API, so it stays allowed.

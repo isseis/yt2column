@@ -556,9 +556,10 @@ Load the build in Chrome or Brave:
 
 To update from an earlier build, run `make ext-build` to rebuild
 `extension/dist/` first, then click the extension's reload button on
-`chrome://extensions/`. `extension/dist/` is not tracked by git, so reloading
-without rebuilding keeps running the earlier build, which may send without
-asking for confirmation.
+`chrome://extensions/` (Brave: `brave://extensions/`). `extension/dist/` is
+build output that pulling new source does not update, so reloading without
+rebuilding keeps running the earlier build, which may send without asking for
+confirmation.
 
 The extension ID is fixed to `clfmbbcdpnjcefbdihdoahomaifbabkk`, so it is the
 same on every machine and from every directory.
@@ -630,8 +631,10 @@ is expected, a line containing an ASCII digit, a colon, and a digit in a row
 
 To see what was collected and the send result, open the popup's console from
 the moment the popup opens: right-click the toolbar icon and choose
-**Inspect popup**. The log is lost when the popup closes, so after closing it,
-find the result of a send in Slack and in the server log by the time.
+**Inspect popup** (shown while Developer mode is on; pin the extension first if
+its icon is in the Extensions menu). The log is lost when the popup closes, so
+after closing it, find the result of a send in Slack and in the server log by
+the time.
 
 ### Integration test
 

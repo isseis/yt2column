@@ -26,8 +26,10 @@ const syncMessage =
 
 // The extension sends only from the popup. These APIs served the removed
 // context-menu path (the menu, the result window, its session store and the
-// toolbar badge); storage.session, windows and action stay usable without a
-// manifest permission, so only this rule keeps them from coming back.
+// toolbar badge). storage.session works under the storage permission the
+// extension keeps, and windows and action need no permission, so only this rule
+// keeps them from coming back. Like the sync rule, it guards against accidental
+// reuse, not deliberate evasion.
 const menuPathPattern = "/^(contextMenus|session|windows|setBadgeText)$/";
 const menuPathMessage =
   "Do not use chrome.contextMenus, chrome.storage.session, chrome.windows or chrome.action.setBadgeText; the extension sends only from the popup.";

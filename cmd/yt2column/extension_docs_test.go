@@ -122,7 +122,7 @@ func TestExtensionDocumentation(t *testing.T) {
 		}
 		// The extension sends only from the popup, so the section must not
 		// describe the result window, its session store, or the menu permission.
-		for _, unwanted := range []string{"結果のウィンドウ", "chrome.storage.session", "contextMenus"} {
+		for _, unwanted := range []string{"結果のウィンドウ", "storage.session", "contextMenus"} {
 			if strings.Contains(section, unwanted) {
 				t.Errorf("security.md 8.1 still mentions %q", unwanted)
 			}
