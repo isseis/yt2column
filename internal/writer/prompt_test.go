@@ -339,7 +339,7 @@ func TestValidateTranscriptAcceptsCopiedSamples(t *testing.T) {
 	if err != nil {
 		t.Fatalf("glob the copied transcript samples: %v", err)
 	}
-	const wantSamples = 3
+	const wantSamples = 4
 	if len(paths) != wantSamples {
 		t.Fatalf("found %d copied transcript samples, want %d", len(paths), wantSamples)
 	}
