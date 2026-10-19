@@ -206,13 +206,11 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 	)
 
 	// 5: serve until ctx is canceled. The stop notice is logged as soon as
-	// the cancellation arrives, not after the wait it announces.
-	finishNotice := afterCancel(ctx, func() {
-		logger.Info(fmt.Sprintf("stopping: in-flight jobs and failure notices are allowed to finish, which can take up to about %d minutes; send the signal again to exit at once, which drops them",
-			int(llmCallsPerJob*provider.LLMTimeout/time.Minute)))
-	})
+	// the cancellation arrives, while Serve is still waiting for in-flight
+	// jobs, not after the wait it announces.
+	notice := afterCancel(ctx, stopNoticeLogger(logger))
 	err = srv.Serve(ctx, listeners)
-	finishNotice()
+	notice.finish()
 	if err != nil {
 		logger.Error("serving failed", "error", err)
 		return exitFailure
@@ -221,26 +219,49 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 	return exitOK
 }
 
-// afterCancel arranges for f to run once ctx is canceled, and returns finish,
-// which the caller calls after the work ctx bounds has returned. Contract: if
-// ctx was canceled before finish is called, f has run to completion when
-// finish returns; f never runs after finish returns. Whether ctx was canceled
-// is read from ctx.Err, not from the result of AfterFunc's stop: a
+// stopNoticeLogger returns the function that logs the stop notice.
+func stopNoticeLogger(logger *slog.Logger) func() {
+	return func() {
+		logger.Info(fmt.Sprintf("stopping: in-flight jobs and failure notices are allowed to finish, which can take up to about %d minutes; send the signal again to exit at once, which drops them",
+			int(llmCallsPerJob*provider.LLMTimeout/time.Minute)))
+	}
+}
+
+// cancelHook runs f once ctx is canceled. Contract: if ctx was canceled
+// before finish is called, f has run to completion when finish returns;
+// f never runs after finish returns.
+type cancelHook struct {
+	ctx  context.Context
+	f    func()
+	stop func() bool
+	done chan struct{}
+}
+
+// afterCancel registers f to run once ctx is canceled. The caller calls
+// finish on the result after the work ctx bounds has returned.
+func afterCancel(ctx context.Context, f func()) *cancelHook {
+	h := &cancelHook{ctx: ctx, f: f, done: make(chan struct{})}
+	h.stop = context.AfterFunc(ctx, h.run)
+	return h
+}
+
+// run is called by context.AfterFunc, in its own goroutine, once ctx is
+// canceled.
+func (h *cancelHook) run() {
+	defer close(h.done)
+	h.f()
+}
+
+// finish is called after the work ctx bounds has returned. Whether ctx was
+// canceled is read from ctx.Err, not from the result of AfterFunc's stop: a
 // cancellation closes ctx.Done before it schedules AfterFunc callbacks, so
 // work that returned on ctx.Done can call stop in that gap, and stop would
 // then report that it prevented f, dropping a call the cancellation owed.
-func afterCancel(ctx context.Context, f func()) (finish func()) {
-	done := make(chan struct{})
-	stop := context.AfterFunc(ctx, func() {
-		defer close(done)
-		f()
-	})
-	return func() {
-		if ctx.Err() == nil && stop() {
-			return
-		}
-		<-done
+func (h *cancelHook) finish() {
+	if h.ctx.Err() == nil && h.stop() {
+		return
 	}
+	<-h.done
 }
 
 // buildServer builds the components and the server. logOutput and secrets

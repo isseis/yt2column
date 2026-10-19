@@ -578,7 +578,7 @@ func TestAfterCancel(t *testing.T) {
 	t.Run("canceled before its callback is scheduled", func(t *testing.T) {
 		ctx := newGapContext()
 		var ran atomic.Bool
-		finish := afterCancel(ctx, func() { ran.Store(true) })
+		finish := afterCancel(ctx, func() { ran.Store(true) }).finish
 		finished := make(chan struct{})
 		go func() {
 			finish()
@@ -605,7 +605,7 @@ func TestAfterCancel(t *testing.T) {
 	t.Run("canceled", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		var ran atomic.Bool
-		finish := afterCancel(ctx, func() { ran.Store(true) })
+		finish := afterCancel(ctx, func() { ran.Store(true) }).finish
 		cancel()
 		finish()
 		if !ran.Load() {
@@ -617,7 +617,7 @@ func TestAfterCancel(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		var ran atomic.Bool
-		finish := afterCancel(ctx, func() { ran.Store(true) })
+		finish := afterCancel(ctx, func() { ran.Store(true) }).finish
 		finish()
 		cancel()
 		// A callback that was not unregistered starts in its own goroutine
