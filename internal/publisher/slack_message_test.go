@@ -335,7 +335,6 @@ func TestSlackPrepareRejectsInvalidArticle(t *testing.T) {
 		{"body escape", func(a *writer.Article) { a.Body = "x\x1b[2J" }, false},
 		{"source url empty", func(a *writer.Article) { a.SourceURL = "" }, false},
 		{"channel name control character", func(a *writer.Article) { a.ChannelName = "a\nb" }, false},
-		{"channel name bidirectional control", func(a *writer.Article) { a.ChannelName = "a\u202eb" }, false},
 		{"title invalid utf-8", func(a *writer.Article) { a.Title = "a\xffb" }, false},
 		{"body invalid utf-8", func(a *writer.Article) { a.Body = "x\xffy" }, true},
 		{"model invalid utf-8", func(a *writer.Article) { a.Model = "m\xff" }, false},

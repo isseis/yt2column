@@ -323,34 +323,18 @@ func TestBodyTooLarge(t *testing.T) {
 func TestChannelNameAgreesWithWriter(t *testing.T) {
 	for _, tc := range writertestutil.ChannelNameCases() {
 		t.Run(tc.Name, func(t *testing.T) {
-			// json.Marshal would repair an invalid UTF-8 value, so it is put
-			// in the body as raw bytes, which the request parser must reject.
-			quoted := []byte(`"` + tc.Value + `"`)
+			ts := newTestServer(t)
+			// The strict JSON layer rejects invalid UTF-8 for the whole body
+			// before the channel name check runs, so the request leg proves
+			// nothing about that check for such a value; the other legs
+			// still apply.
 			if utf8.ValidString(tc.Value) {
-				var err error
-				if quoted, err = json.Marshal(tc.Value); err != nil {
+				quoted, err := json.Marshal(tc.Value)
+				if err != nil {
 					t.Fatalf("Marshal: %v", err)
 				}
-			}
-			body := `{"videoUrl":"` + testValidVideoURL + `","transcript":"0:00\nHello\n","channelName":` + string(quoted) + `}`
-			ts := newTestServer(t)
-			rec := ts.serveAccepted(t, body)
-			if tc.Valid {
-				if rec.Code != http.StatusAccepted {
-					t.Errorf("request status = %d, want 202 (body %q)", rec.Code, rec.Body.String())
-				} else if got := ts.writer.Calls[0].Transcript.ChannelName; got != tc.Value {
-					t.Errorf("channel name reaching the writer = %q, want %q", got, tc.Value)
-				}
-			} else {
-				if rec.Code != http.StatusBadRequest {
-					t.Errorf("request status = %d, want 400 (body %q)", rec.Code, rec.Body.String())
-				}
-				if got := decodeBody(t, rec); got.Reason != "invalid_body" {
-					t.Errorf("request reason = %q, want invalid_body", got.Reason)
-				}
-				if len(ts.writer.Calls) != 0 {
-					t.Errorf("writer called %d times for a rejected request, want 0", len(ts.writer.Calls))
-				}
+				body := `{"videoUrl":"` + testValidVideoURL + `","transcript":"0:00\nHello\n","channelName":` + string(quoted) + `}`
+				requireChannelNameRequestVerdict(t, ts, body, tc)
 			}
 
 			article := writer.Article{
@@ -388,5 +372,31 @@ func TestChannelNameAgreesWithWriter(t *testing.T) {
 				t.Errorf("LLM called %d times for a rejected channel name, want 0", len(client.Calls))
 			}
 		})
+	}
+}
+
+// requireChannelNameRequestVerdict posts body and checks the request is
+// accepted and its channel name reaches the writer, or is rejected as
+// invalid_body without a writer call.
+func requireChannelNameRequestVerdict(t *testing.T, ts *testServer, body string, tc writertestutil.ChannelNameCase) {
+	t.Helper()
+	rec := ts.serveAccepted(t, body)
+	if tc.Valid {
+		if rec.Code != http.StatusAccepted {
+			t.Fatalf("request status = %d, want 202 (body %q)", rec.Code, rec.Body.String())
+		}
+		if got := ts.writer.Calls[0].Transcript.ChannelName; got != tc.Value {
+			t.Errorf("channel name reaching the writer = %q, want %q", got, tc.Value)
+		}
+		return
+	}
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("request status = %d, want 400 (body %q)", rec.Code, rec.Body.String())
+	}
+	if got := decodeBody(t, rec); got.Reason != "invalid_body" {
+		t.Errorf("request reason = %q, want invalid_body", got.Reason)
+	}
+	if len(ts.writer.Calls) != 0 {
+		t.Errorf("writer called %d times for a rejected request, want 0", len(ts.writer.Calls))
 	}
 }
