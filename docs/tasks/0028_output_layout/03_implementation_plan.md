@@ -196,15 +196,15 @@ go test -run '^$' -tags test,integration ./...
 
 **対象:** `internal/publisher/format.go`（新規）・`internal/publisher/file.go`
 
--   [ ] `articleCost(runUsage) (pricing.Amount, bool)`、`modelVersionOrNone`、`articleCostDecimals` を `format.go` に置く。`modelVersionOrNone`・`articleCostDecimals` は `file.go` から移す。`articleCost` は、`articleCostLine`（`file.go:229`）が呼ぶ `pricing.Totals` と `Amount()` の組み立てをそのまま使う。
--   [ ] `articleCostLine` を `articleCost` を使う形に直し、`renderArticle` の出力を変えない。
--   [ ] `reviewlog.go` が `modelVersionOrNone` の移動後もそのままコンパイルされ、出力が変わらないことを確かめる。
+-   [x] `articleCost(runUsage) (pricing.Amount, bool)`、`modelVersionOrNone`、`articleCostDecimals` を `format.go` に置く。`modelVersionOrNone`・`articleCostDecimals` は `file.go` から移す。`articleCost` は、`articleCostLine`（`file.go:229`）が呼ぶ `pricing.Totals` と `Amount()` の組み立てをそのまま使う。
+-   [x] `articleCostLine` を `articleCost` を使う形に直し、`renderArticle` の出力を変えない。
+-   [x] `reviewlog.go` が `modelVersionOrNone` の移動後もそのままコンパイルされ、出力が変わらないことを確かめる。
 
 **完了:** 既存のテストが、変更なしで通る。`format.go` の新しい関数は、フェーズ 3 とフェーズ 4 の整形が使う。
 
 #### ステップ 2-2: フェーズ 2 の確認
 
--   [ ] `make fmt` → `make test` → `make lint` → `make deadcode` が通る。`articleCost` が到達不能として報告される場合は、フェーズ 3 の前に `articleCostLine` から呼ばれていることを確かめる。
+-   [x] `make fmt` → `make test` → `make lint` → `make deadcode` が通る。`articleCost` が到達不能として報告される場合は、フェーズ 3 の前に `articleCostLine` から呼ばれていることを確かめる。
 
 ### フェーズ 3: ファイルの出力（F-003）
 
