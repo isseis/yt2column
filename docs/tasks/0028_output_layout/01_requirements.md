@@ -6,9 +6,9 @@
 |---|---|
 | Status | `draft` |
 | Created | 2026-10-19 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 2026-10-19: ローカルの CodeRabbit のレビューを受けて、チャンネル名で双方向の制御文字（U+202A〜U+202E、U+2066〜U+2069）を拒否する規則を AC-03 と §3.2 に加えたため（決定の変更）、承認を取り消し、再承認を求める。あわせて、AC-14 に全角の `＠` の扱いを明記した（設計書の決定の転記で、決定は変えていない）。 |
+| Review date | 2026-10-19 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
