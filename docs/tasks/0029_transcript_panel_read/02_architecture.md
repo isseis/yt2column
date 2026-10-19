@@ -354,7 +354,11 @@ export function parseTranscriptRead(value: unknown): TranscriptRead | undefined;
 
 /** The only browser capability collect() needs. Faked in unit tests. */
 export interface TranscriptReader {
-  /** Reads the selection and, when it is blank, the transcript panel. Rejects on any failure. */
+  /**
+   * Reads the selection and, when it is blank, the transcript panel.
+   * Rejects if the injection fails or the result does not match the accepted form (3.4).
+   * A DOM error while reading the panel resolves with panel.kind "unavailable" (dom-error-*), not a rejection.
+   */
   read(tabId: number): Promise<TranscriptRead>;
 }
 ```
