@@ -744,7 +744,12 @@ func executionPathRows() []pathRow {
 			wantCode:   exitFailure,
 			untouched:  true,
 			wantStderr: []string{"the run failed: create the directory"},
-			check:      requireNotLocked,
+			check: func(t *testing.T, e *runEnv) {
+				requireNotLocked(t, e)
+				if !strings.Contains(e.stderr.String(), e.cacheDir) {
+					t.Errorf("stderr does not name the cache directory %s:\n%s", e.cacheDir, e.stderr.String())
+				}
+			},
 		},
 		{
 			name: "lock file cannot be created",

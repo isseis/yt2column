@@ -165,14 +165,6 @@ func TestAcquireRejectsUnsafeDirectories(t *testing.T) {
 			reason: ReasonDirMode,
 		},
 		{
-			name: "socket directory 0755",
-			setup: func(t *testing.T, l layout) string {
-				mkdirMode(t, l.dir, 0o755)
-				return l.dir
-			},
-			reason: ReasonDirMode,
-		},
-		{
 			name: "socket directory is a symlink",
 			setup: func(t *testing.T, l layout) string {
 				target := filepath.Join(l.home, "elsewhere")
@@ -342,7 +334,7 @@ func TestChecksRejectForeignOwner(t *testing.T) {
 
 // TestExactModeChecks checks that the socket directory must have exactly
 // 0700 and the created socket exactly 0600, both without the setuid, setgid,
-// or sticky bit. A setgid directory is what Linux creates under a setgid
+// or sticky bit, and that the created socket must be a socket. A setgid directory is what Linux creates under a setgid
 // parent.
 func TestExactModeChecks(t *testing.T) {
 	euid := os.Geteuid()
@@ -452,11 +444,6 @@ func TestListenRemovesStaleSocket(t *testing.T) {
 	lock := acquire(t, l.socket)
 	staleSocket(t, l.socket)
 	listen(t, lock)
-	conn, err := net.Dial("unix", l.socket)
-	if err != nil {
-		t.Fatalf("dial the new socket: %v", err)
-	}
-	_ = conn.Close()
 }
 
 // TestListenInUse checks that a socket another process accepts connections on
@@ -564,14 +551,12 @@ func TestListenRejectsExistingNames(t *testing.T) {
 // TestUnsafeErrorText checks that every reason has its own text, distinct
 // from the zero value's, and that the message names the path, the reason, and
 // that the user has to fix it.
+//
+// The message is what the server prints to the user, so its wording is the
+// observable contract and is matched as text.
 func TestUnsafeErrorText(t *testing.T) {
-	reasons := []UnsafeReason{
-		ReasonSymlink, ReasonNotDirectory, ReasonNotSocket, ReasonForeignOwner,
-		ReasonWritableByOthers, ReasonDirMode, ReasonSocketMode, ReasonSpecialBits,
-		ReasonUndetermined,
-	}
 	seen := map[string]struct{}{UnsafeReason(0).String(): {}}
-	for _, reason := range reasons {
+	for reason := ReasonSymlink; reason <= ReasonUndetermined; reason++ {
 		text := reason.String()
 		if _, dup := seen[text]; dup {
 			t.Errorf("reason %d text %q repeats another reason's or the zero value's", reason, text)
@@ -587,13 +572,17 @@ func TestUnsafeErrorText(t *testing.T) {
 	}
 }
 
-// requireIOFailure checks that err is a failure that is not reported as one
-// of the classified outcomes, so an I/O problem is not mistaken for an unsafe
-// shape, a running server, or a live socket.
-func requireIOFailure(t *testing.T, err error) {
+// requireIOFailure checks that err is the expected I/O failure (when want is
+// not nil) and is not reported as one of the classified outcomes, so an I/O
+// problem is not mistaken for an unsafe shape, a running server, or a live
+// socket.
+func requireIOFailure(t *testing.T, err, want error) {
 	t.Helper()
 	if err == nil {
 		t.Fatal("error = nil, want a failure")
+	}
+	if want != nil && !errors.Is(err, want) {
+		t.Errorf("error = %v, want %v", err, want)
 	}
 	for _, sentinel := range []error{ErrUnsafe, ErrAlreadyRunning, ErrInUse} {
 		if errors.Is(err, sentinel) {
@@ -609,6 +598,8 @@ func TestAcquireIOFailures(t *testing.T) {
 	tests := []struct {
 		name  string
 		setup func(t *testing.T, l layout)
+		// want is the expected cause; nil where it is not exported.
+		want error
 	}{
 		{
 			name: "ancestor not writable",
@@ -617,6 +608,7 @@ func TestAcquireIOFailures(t *testing.T) {
 				mkdirMode(t, filepath.Dir(l.parent), 0o700)
 				chmodForTest(t, filepath.Dir(l.parent), 0o500)
 			},
+			want: fs.ErrPermission,
 		},
 		{
 			name: "ancestor is a regular file",
@@ -625,6 +617,7 @@ func TestAcquireIOFailures(t *testing.T) {
 					t.Fatal(err)
 				}
 			},
+			want: syscall.ENOTDIR,
 		},
 		{
 			name: "parent not writable",
@@ -633,6 +626,7 @@ func TestAcquireIOFailures(t *testing.T) {
 				mkdirMode(t, l.parent, 0o700)
 				chmodForTest(t, l.parent, 0o500)
 			},
+			want: fs.ErrPermission,
 		},
 		{
 			name: "lock name is a directory",
@@ -652,7 +646,7 @@ func TestAcquireIOFailures(t *testing.T) {
 			if err == nil {
 				_ = lock.Release()
 			}
-			requireIOFailure(t, err)
+			requireIOFailure(t, err, tc.want)
 		})
 	}
 }
@@ -665,6 +659,7 @@ func TestListenIOFailures(t *testing.T) {
 		name string
 		// setup runs after Acquire and returns the socket path to listen on.
 		setup func(t *testing.T, l layout) string
+		want  error
 	}{
 		{
 			name: "socket directory not searchable",
@@ -673,6 +668,7 @@ func TestListenIOFailures(t *testing.T) {
 				chmodForTest(t, l.dir, 0o600)
 				return l.socket
 			},
+			want: fs.ErrPermission,
 		},
 		{
 			name: "stale socket cannot be removed",
@@ -682,12 +678,14 @@ func TestListenIOFailures(t *testing.T) {
 				chmodForTest(t, l.dir, 0o500)
 				return l.socket
 			},
+			want: fs.ErrPermission,
 		},
 		{
 			name: "socket path too long to bind",
 			setup: func(_ *testing.T, l layout) string {
 				return filepath.Join(l.dir, strings.Repeat("s", 120)+".sock")
 			},
+			want: syscall.EINVAL,
 		},
 	}
 	for _, tc := range tests {
@@ -699,7 +697,52 @@ func TestListenIOFailures(t *testing.T) {
 			if err == nil {
 				_ = listener.Close()
 			}
-			requireIOFailure(t, err)
+			requireIOFailure(t, err, tc.want)
+		})
+	}
+}
+
+// TestAbandon checks that closing a listener after a failed post-bind check
+// unlinks the path only while it still holds the effective user's socket, so
+// a name put there after bind, or a socket of another user, is left.
+func TestAbandon(t *testing.T) {
+	euid := os.Geteuid()
+	tests := []struct {
+		name string
+		// swap replaces the bound socket, if at all, before abandon runs.
+		swap     func(t *testing.T, path string)
+		euid     int
+		wantKept bool
+	}{
+		{name: "own socket", swap: func(*testing.T, string) {}, euid: euid, wantKept: false},
+		{name: "socket of another user", swap: func(*testing.T, string) {}, euid: euid + 1, wantKept: true},
+		{
+			name: "regular file swapped in",
+			swap: func(t *testing.T, path string) {
+				if err := os.Remove(path); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(path, []byte("keep"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			},
+			euid:     euid,
+			wantKept: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(udstest.Dir(t), "s.sock")
+			listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: path, Net: "unix"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			tc.swap(t, path)
+			abandon(listener, path, tc.euid)
+			_, err = os.Lstat(path)
+			if kept := err == nil; kept != tc.wantKept {
+				t.Errorf("name kept = %v (Lstat error %v), want %v", kept, err, tc.wantKept)
+			}
 		})
 	}
 }

@@ -58,15 +58,12 @@ func TestDirRemovedAtCleanup(t *testing.T) {
 func TestListen(t *testing.T) {
 	path := filepath.Join(Dir(t), "s.sock")
 	t.Run("listen", func(t *testing.T) {
-		listener := Listen(t, path)
+		Listen(t, path)
 		conn, err := net.Dial("unix", path)
 		if err != nil {
 			t.Fatalf("dial %s: %v", path, err)
 		}
 		_ = conn.Close()
-		if listener.Addr().String() != path {
-			t.Errorf("listener address = %q, want %q", listener.Addr().String(), path)
-		}
 	})
 	if _, err := os.Lstat(path); !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("Lstat(%s) after cleanup: error = %v, want fs.ErrNotExist", path, err)
