@@ -210,14 +210,14 @@
 
 **変更するファイル:** `testdata/BkaUHsH_mkw.transcript_copy.txt`（新規）、`testdata/README.md`、`internal/transcript/copied_test.go`、`internal/writer/prompt_test.go`、`cmd/yt2column/copied_transcript_docs_test.go`
 
--   [ ] **ステップ 4-1**: 取得者に、2026-10-18 の取得物（§1.3 の候補）と、取得の方法（パネルの選択を手でコピーしたものか、プログラムで抽出したものか）と条件（ブラウザとその版、ログインの有無、選択の範囲）を確かめる。手でのコピー（`window.getSelection().toString()` と同じ文字列になる方法）でなければ、取り直す。確認が取れるまでファイルを保存しない。
--   [ ] **ステップ 4-2**: 確かめたファイルを加工せずに `testdata/BkaUHsH_mkw.transcript_copy.txt` に複写する。複写の後に SHA-256 とバイト数が元のファイルと一致することを確かめる。取得者を特定できる情報を含まないことを確かめ、PR の説明に確かめた内容を書いて、レビューで人間がもう一度確かめられるようにする（`docs/dev/security.md` §7）。
--   [ ] **ステップ 4-3**: `testdata/README.md` の「コピーした字幕」の節を改める。冒頭の `3 ファイルとも` を 4 ファイルに合わせ、共通の項目（取得日 2026-10-14・取得方法・見出しを含まないこと）は既存の 3 ファイルのものと明記する。`BkaUHsH_mkw` について、AC-17 が挙げる項目（動画タイトル・URL・チャンネル・ライセンスとその URI・取得日 2026-10-18・取得方法・加工内容なし・見出し 3 行を含むこと・末尾の改行がないこと）を書く。値は動画のページと取得者の申告から書き写す。
--   [ ] **ステップ 4-4**: `copiedSampleFiles` に `BkaUHsH_mkw.transcript_copy.txt` を加え、`TestCopiedSourceRealSamples` に期待値を加える。期待値はファイルを読んで決め、パーサの出力から取らない（`copiedSample` のコメントの方針）。
--   [ ] **ステップ 4-5**: `checkCopiedSampleSegments` に `BkaUHsH_mkw` の確認を加える。ファイルから見出しの 3 行を取り除いた入力を解析した `Segments` と等しいこと（152 要素）、見出しの直前・直後のセグメントの `StartMs` と `Text` が対応するセグメントと等しいこと（AC-34）。取り除いた入力が見出しの行を含まないことを先に確かめる。
--   [ ] **ステップ 4-6**: `TestValidateTranscriptAcceptsCopiedSamples` の `const wantSamples = 3` を `const wantSamples = 4` にする。
--   [ ] **ステップ 4-7**: `TestCopiedTranscriptSurveyRecords` の「保存する」の確認（`:63-73`）を、0015 `02_architecture.md` §1.4.1 の表と、要件書 §1.1（見出し `### 1.1. 本タスクで保存するサンプルの記録`）の表の一覧から読む形に変える（設計書 3.5）。要件書のパスの定数を `copiedTranscriptArchitecturePath` の隣に加える。0015 の表に対する他の検査は変えない。関数のコメントを、一覧の表から読む旨に改める。
--   [ ] **ステップ 4-8**: 次の壊し方をそれぞれ試し、名前を挙げたテストが失敗することを確かめて、結果をコミットメッセージに書く。試した変更は元に戻す。要件書 §1.1 の表の `BkaUHsH_mkw` の行の `testdata/` 列を「保存しない」に変える、一覧から要件書の表を外す → `TestCopiedTranscriptSurveyRecords`。見出しの読み飛ばし（ステップ 3-1）を外す → `TestCopiedSourceRealSamples/BkaUHsH_mkw`。
+-   [x] **ステップ 4-1**: 取得者に、2026-10-18 の取得物（§1.3 の候補）と、取得の方法（パネルの選択を手でコピーしたものか、プログラムで抽出したものか）と条件（ブラウザとその版、ログインの有無、選択の範囲）を確かめる。手でのコピー（`window.getSelection().toString()` と同じ文字列になる方法）でなければ、取り直す。確認が取れるまでファイルを保存しない。
+-   [x] **ステップ 4-2**: 確かめたファイルを加工せずに `testdata/BkaUHsH_mkw.transcript_copy.txt` に複写する。複写の後に SHA-256 とバイト数が元のファイルと一致することを確かめる。取得者を特定できる情報を含まないことを確かめ、PR の説明に確かめた内容を書いて、レビューで人間がもう一度確かめられるようにする（`docs/dev/security.md` §7）。
+-   [x] **ステップ 4-3**: `testdata/README.md` の「コピーした字幕」の節を改める。冒頭の `3 ファイルとも` を 4 ファイルに合わせ、共通の項目（取得日 2026-10-14・取得方法・見出しを含まないこと）は既存の 3 ファイルのものと明記する。`BkaUHsH_mkw` について、AC-17 が挙げる項目（動画タイトル・URL・チャンネル・ライセンスとその URI・取得日 2026-10-18・取得方法・加工内容なし・見出し 3 行を含むこと・末尾の改行がないこと）を書く。値は動画のページと取得者の申告から書き写す。
+-   [x] **ステップ 4-4**: `copiedSampleFiles` に `BkaUHsH_mkw.transcript_copy.txt` を加え、`TestCopiedSourceRealSamples` に期待値を加える。期待値はファイルを読んで決め、パーサの出力から取らない（`copiedSample` のコメントの方針）。
+-   [x] **ステップ 4-5**: `checkCopiedSampleSegments` に `BkaUHsH_mkw` の確認を加える。ファイルから見出しの 3 行を取り除いた入力を解析した `Segments` と等しいこと（152 要素）、見出しの直前・直後のセグメントの `StartMs` と `Text` が、ファイルから読んだ値と等しく、隣り合っていること（AC-34。取り除いた入力と `Segments` 全体が等しいので、対応するセグメントとも等しい）。取り除いた入力が見出しの行を含まないことを、各見出しがファイルのちょうど 1 行と一致することで先に確かめる。
+-   [x] **ステップ 4-6**: `TestValidateTranscriptAcceptsCopiedSamples` の `const wantSamples = 3` を `const wantSamples = 4` にする。
+-   [x] **ステップ 4-7**: `TestCopiedTranscriptSurveyRecords` の「保存する」の確認（`:63-73`）を、0015 `02_architecture.md` §1.4.1 の表と、要件書 §1.1（見出し `### 1.1. 本タスクで保存するサンプルの記録`）の表の一覧から読む形に変える（設計書 3.5）。要件書のパスの定数を `copiedTranscriptArchitecturePath` の隣に加える。0015 の表に対する他の検査は変えない。関数のコメントを、一覧の表から読む旨に改める。
+-   [x] **ステップ 4-8**: 次の壊し方をそれぞれ試し、名前を挙げたテストが失敗することを確かめて、結果をコミットメッセージに書く。試した変更は元に戻す。要件書 §1.1 の表の `BkaUHsH_mkw` の行の `testdata/` 列を「保存しない」に変える、一覧から要件書の表を外す → `TestCopiedTranscriptSurveyRecords`。見出しの読み飛ばし（ステップ 3-1）を外す → `TestCopiedSourceRealSamples/BkaUHsH_mkw`。
 
 **成功の条件:** `make test` が通る。`TestFakesCarryBuildTag` などのパイプラインの guard が変更なしで通る（AC-18）。
 

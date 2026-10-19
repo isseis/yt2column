@@ -342,6 +342,7 @@ func mustCopiedTranscript(t *testing.T, in CopiedInput) Transcript {
 // expect. A file added under testdata/ without an expected value here fails
 // TestCopiedSourceRealSamples, so a new sample cannot go unchecked.
 var copiedSampleFiles = []string{
+	"BkaUHsH_mkw.transcript_copy.txt",
 	"IkngpxCMmRQ.transcript_copy.txt",
 	"Yoboo9g7saY.transcript_copy.txt",
 	"mbyG85GZ0PI.transcript_copy.txt",
@@ -368,6 +369,16 @@ func TestCopiedSourceRealSamples(t *testing.T) {
 	}
 
 	samples := []copiedSample{
+		{
+			videoID:    "BkaUHsH_mkw",
+			bytes:      11775,
+			segments:   152,
+			form:       'B',
+			firstStart: 0,
+			firstText:  "[音楽]",
+			lastStart:  602000,
+			lastText:   "[音楽]",
+		},
 		{
 			videoID:    "IkngpxCMmRQ",
 			bytes:      4786,
@@ -440,6 +451,8 @@ func checkCopiedSampleSegments(t *testing.T, tc copiedSample, segments []Segment
 	}
 
 	switch tc.videoID {
+	case "BkaUHsH_mkw":
+		checkBkaUHsHMkwHeadings(t, segments, raw)
 	case "IkngpxCMmRQ":
 		segment, ok := findSegmentAt(segments, 60000)
 		if !ok || !strings.HasPrefix(segment.Text, "一般的には") {
@@ -454,6 +467,70 @@ func checkCopiedSampleSegments(t *testing.T, tc copiedSample, segments []Segment
 			if _, ok := findSegmentAt(segments, ms); ok {
 				t.Errorf("mbyG85GZ0PI includes the textless timestamp %d in Segments", ms)
 			}
+		}
+	}
+}
+
+// copiedSampleHeading is one chapter heading line in a real sample, with the
+// segments the file has right before and right after it.
+type copiedSampleHeading struct {
+	line   string
+	before Segment
+	after  Segment
+}
+
+// bkaUHsHMkwHeadings lists the three form B chapter headings in the
+// BkaUHsH_mkw sample. The values are read from the file.
+var bkaUHsHMkwHeadings = []copiedSampleHeading{
+	{
+		line:   "存在感のある声",
+		before: Segment{StartMs: 246000, Text: "ブーバーそれでまあずーっとポイント1からやっていきたいと思います存在感のある"},
+		after:  Segment{StartMs: 251000, Text: "終えまずこれがすべての基礎になると思います"},
+	},
+	{
+		line:   "ストレスのリズムの安定",
+		before: Segment{StartMs: 348000, Text: "でその次ポン中ストレスのリズムだなんて"},
+		after:  Segment{StartMs: 351000, Text: "でこれはですねあの英語っていうのはそのストレスサーブラング7倍ってて抗ストレス"},
+	},
+	{
+		line:   "間を大切にする",
+		before: Segment{StartMs: 470000, Text: "ok そのすぎポンプりーまを大切にするお礼 b"},
+		after:  Segment{StartMs: 475000, Text: "u cars マイルドパウダーフェイスいい"},
+	},
+}
+
+// checkBkaUHsHMkwHeadings verifies that the chapter headings in the
+// BkaUHsH_mkw sample are skipped without changing any segment: the sample
+// parses into exactly the segments of the same input with the heading lines
+// removed, and the segments on either side of each heading stay adjacent with
+// the file's timestamps and texts.
+func checkBkaUHsHMkwHeadings(t *testing.T, segments []Segment, raw string) {
+	t.Helper()
+	removed := make(map[string]int, len(bkaUHsHMkwHeadings))
+	var kept []string
+	for line := range strings.SplitSeq(raw, "\n") {
+		if slices.ContainsFunc(bkaUHsHMkwHeadings, func(h copiedSampleHeading) bool { return h.line == line }) {
+			removed[line]++
+			continue
+		}
+		kept = append(kept, line)
+	}
+	// Each heading must be exactly one whole line of the file, so the stripped
+	// input below has no heading line left in it.
+	for _, h := range bkaUHsHMkwHeadings {
+		if removed[h.line] != 1 {
+			t.Fatalf("BkaUHsH_mkw has %d lines equal to the heading %q, want 1", removed[h.line], h.line)
+		}
+	}
+	stripped := strings.Join(kept, "\n")
+	want := mustCopiedTranscript(t, CopiedInput{VideoID: "BkaUHsH_mkw", Raw: stripped}).Segments
+	if !slices.Equal(segments, want) {
+		t.Errorf("BkaUHsH_mkw segments differ from the input with the headings removed:\n got %+v\nwant %+v", segments, want)
+	}
+	for _, h := range bkaUHsHMkwHeadings {
+		i := slices.Index(segments, h.before)
+		if i < 0 || i+1 >= len(segments) || segments[i+1] != h.after {
+			t.Errorf("BkaUHsH_mkw segments around the heading %q are not %+v then %+v", h.line, h.before, h.after)
 		}
 	}
 }

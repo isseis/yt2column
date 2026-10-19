@@ -12,16 +12,20 @@ import (
 const (
 	copiedTranscriptReadmePath       = repositoryRoot + "/testdata/README.md"
 	copiedTranscriptArchitecturePath = repositoryRoot + "/docs/tasks/0015_copied_transcript_source/02_architecture.md"
+	panelLinesRequirementsPath       = repositoryRoot + "/docs/tasks/0024_copied_transcript_panel_lines/01_requirements.md"
 	packageReferencePath             = repositoryRoot + "/docs/dev/developer_guide/package_reference.md"
 	translationGlossaryPath          = repositoryRoot + "/docs/translation_glossary.md"
 )
 
 // TestCopiedTranscriptSurveyRecords checks the copied-transcript survey record:
 // testdata/README.md names the source, license, and provenance of each saved
-// sample, and the task's architecture records the per-video attributes, the
+// sample, and the 0015 architecture records the per-video attributes, the
 // observed formats, the h:mm:ss observation, and the long-video selection
-// investigation. The sample set is read from testdata/, so a newly saved
-// sample without a record fails this guard.
+// investigation. Whether a sample is saved is read from a list of attribute
+// tables: the 0015 table and the 0024 requirements table that overrides its
+// rows for samples a later task saved. A sample passes when any table in the
+// list has its row marked saved. The sample set is read from testdata/, so a
+// newly saved sample without a record fails this guard.
 func TestCopiedTranscriptSurveyRecords(t *testing.T) {
 	sampleIDs := copiedTranscriptSampleIDs(t)
 	readmeSection := sectionByHeading(readDoc(t, copiedTranscriptReadmePath), "## コピーした字幕（文字起こしパネルからのコピー）")
@@ -60,15 +64,13 @@ func TestCopiedTranscriptSurveyRecords(t *testing.T) {
 			t.Errorf("1.4.1 attribute table has no %q column", column)
 		}
 	}
-	saved := tableColumnIndex(attributes, "testdata/")
+	overrides := findTable(sectionByHeading(readDoc(t, panelLinesRequirementsPath), "### 1.1. 本タスクで保存するサンプルの記録"), "testdata/")
+	if overrides == nil {
+		t.Fatal("0024 requirements 1.1 has no per-video attribute table")
+	}
 	for _, id := range sampleIDs {
-		row := tableRow(attributes, id)
-		if row == nil {
-			t.Errorf("1.4.1 attribute table has no row for %s", id)
-			continue
-		}
-		if saved < 0 || saved >= len(row) || !strings.Contains(row[saved], "保存する") {
-			t.Errorf("1.4.1 row %s does not record that its sample is saved", id)
+		if !sampleRecordedSaved([][][]string{attributes, overrides}, id) {
+			t.Errorf("no attribute table records that the sample %s is saved", id)
 		}
 	}
 	for _, combo := range []struct{ language, kind string }{
@@ -103,6 +105,19 @@ func TestCopiedTranscriptSurveyRecords(t *testing.T) {
 			t.Errorf("1.4.2 does not record %q", want)
 		}
 	}
+}
+
+// sampleRecordedSaved reports whether any of tables has a row for id whose
+// testdata/ column records the sample as saved.
+func sampleRecordedSaved(tables [][][]string, id string) bool {
+	for _, table := range tables {
+		saved := tableColumnIndex(table, "testdata/")
+		row := tableRow(table, id)
+		if saved >= 0 && saved < len(row) && strings.Contains(row[saved], "保存する") {
+			return true
+		}
+	}
+	return false
 }
 
 // copiedTranscriptSampleIDs returns the video IDs of the committed
