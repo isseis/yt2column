@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-19 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 2026-10-19: 設計のレビュー（`02_architecture.md` §10）で決めた変更を反映したため、承認を取り消し、再承認を求める（決定の変更）。変更は、AC-03（チャンネル名の長さの上限）、AC-14・AC-14a〜AC-14f（メンションの扱いと失敗の通知）、AC-15（読み方）、AC-23・AC-25（文書）、§2.2、§3.2、§4.3、§4.4、§5 である。 |
+| Review date | 2026-10-19 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
