@@ -2,6 +2,7 @@ package writer
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -26,6 +27,63 @@ const (
 	minSchemeLength = 2
 	maxSchemeLength = 32
 )
+
+// ByteRange is the half-open byte range body[Start:End] of a body.
+type ByteRange struct{ Start, End int }
+
+// ProseRanges returns the byte ranges of body outside fenced code blocks and
+// code spans, in order, and true. The fence lines themselves, and the text
+// inside fences and code spans, are not in any range. An empty slice with true
+// means the whole body is code; the ranges are nil whenever ok is false, so
+// a caller must branch on ok. It returns false when the body cannot be
+// judged: the checks that decide where code ends are not reliable for it
+// (an unclosed fence, a fence-like line CommonMark would nest, a backtick run
+// without a closing run on its line, which includes a code span across
+// lines, or, when a line outside fences has a backtick, a line with a
+// backslash, bracket, or autolink holding a backtick). Without any backtick
+// outside fences there is no code span to misjudge, so a backslash or bracket
+// does not matter. A caller must then treat the whole body as unjudged, not as
+// prose. An indented code block is prose here, because checkBodyMarkdown does
+// not tell it apart. It takes the output of normalizeBody, whose only line
+// ending is "\n".
+func ProseRanges(body string) ([]ByteRange, bool) {
+	lines := strings.Split(body, "\n")
+	prose, err := proseLines(lines)
+	if err != nil {
+		return nil, false
+	}
+	// A backslash, bracket, or autolink can take in a backtick meant to
+	// delimit a code span; with no backtick outside fences, there is no span
+	// for it to take.
+	hasBacktick := slices.ContainsFunc(prose, func(l bodyLine) bool {
+		return strings.IndexByte(l.text, '`') >= 0
+	})
+	if hasBacktick && !codeSpansExempt(prose) {
+		return nil, false
+	}
+	starts := make([]int, len(lines))
+	for i := 1; i < len(lines); i++ {
+		starts[i] = starts[i-1] + len(lines[i-1]) + 1
+	}
+	var ranges []ByteRange
+	for _, l := range prose {
+		base := starts[l.num-1]
+		// Either the line has no backtick or codeSpansExempt returned true, so
+		// every run of the line pairs.
+		spans, _ := codeSpans(l.text)
+		from := 0
+		for _, sp := range spans {
+			if sp.start > from {
+				ranges = append(ranges, ByteRange{Start: base + from, End: base + sp.start})
+			}
+			from = sp.end
+		}
+		if from < len(l.text) {
+			ranges = append(ranges, ByteRange{Start: base + from, End: base + len(l.text)})
+		}
+	}
+	return ranges, true
+}
 
 // bodyLine is a line of the body part outside code fences.
 type bodyLine struct {

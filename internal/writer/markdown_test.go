@@ -4,6 +4,7 @@ package writer
 
 import (
 	"errors"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -185,5 +186,74 @@ func BenchmarkCheckBodyMarkdown(b *testing.B) {
 				}
 			})
 		}
+	}
+}
+
+func TestProseRanges(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+		want []string // the substrings the ranges cover; nil with ok for none
+		ok   bool
+	}{
+		{"plain prose", "a @b\nc", []string{"a @b", "c"}, true},
+		{"empty body", "", nil, true},
+		{"code span", "x `@a` y", []string{"x `", "` y"}, true},
+		{"two code spans on a line", "`a` b `c` d", []string{"`", "` b `", "` d"}, true},
+		{"double-backtick span holding a backtick", "p ``a`@b`` q", []string{"p ``", "`` q"}, true},
+		{"code span on a later line", "a\n`@x` b", []string{"a", "`", "` b"}, true},
+		{"fenced block", "a\n```go\n@x\n```\nb", []string{"a", "b"}, true},
+		{"tilde fence", "a\n~~~\n@x\n~~~\nb", []string{"a", "b"}, true},
+		{"whole body is a fence", "```\n@x\n```", nil, true},
+		{"whole body is a code span", "`@x`", []string{"`", "`"}, true},
+		// Offsets count bytes: a multi-byte first line shifts every later start.
+		{"multi-byte line before a fence", "＠a\n```\n@x\n```\n＠b `c` d", []string{"＠a", "＠b `", "` d"}, true},
+		{"trailing newline", "a\n", []string{"a"}, true},
+		{"trailing newline after a fence", "```\n@x\n```\n", nil, true},
+		// Without a backtick outside fences, a backslash or bracket does not matter.
+		{"bracket without a backtick", "[note] @a", []string{"[note] @a"}, true},
+		{"backslash without a backtick", `a \ @b`, []string{`a \ @b`}, true},
+		{"bracket and a backtick only inside a fence", "[n] x\n```\n`\n```", []string{"[n] x"}, true},
+		{"indented code block counts as prose", "    @x", []string{"    @x"}, true},
+
+		// Bodies that cannot be judged.
+		{"unclosed fence", "a\n```\n@x", nil, false},
+		{"indented fence", "a\n  ```\n@x\n  ```", nil, false},
+		{"fence in a list", "- ```\n  @x\n  ```", nil, false},
+		{"fence in a block quote", "> ```\n> @x\n> ```", nil, false},
+		{"closing bracket only", "a] `@b`", nil, false},
+		{"bracket on one line and a code span on another", "[n] x\n`@b`", nil, false},
+		{"backtick runs of different lengths", "`a`` @b", nil, false},
+		{"unpaired backtick", "a ` b @c", nil, false},
+		{"code span across lines", "`a\n@b`", nil, false},
+		{"backslash in the body", "a \\` b `@c`", nil, false},
+		{"bracket in the body", "[a] `@b`", nil, false},
+		{"backtick inside an autolink", "<a`b> c` `@d`", nil, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ranges, ok := ProseRanges(tc.body)
+			if ok != tc.ok {
+				t.Fatalf("ProseRanges(%q) ok = %v, want %v", tc.body, ok, tc.ok)
+			}
+			if !ok {
+				if ranges != nil {
+					t.Fatalf("ProseRanges(%q) ranges = %v with ok false, want nil", tc.body, ranges)
+				}
+				return
+			}
+			var got []string
+			prevEnd := 0
+			for _, r := range ranges {
+				if r.Start < prevEnd || r.End <= r.Start {
+					t.Fatalf("ProseRanges(%q) ranges %v are not ascending, non-empty, and disjoint", tc.body, ranges)
+				}
+				prevEnd = r.End
+				got = append(got, tc.body[r.Start:r.End])
+			}
+			if !slices.Equal(got, tc.want) {
+				t.Errorf("ProseRanges(%q) covers %q, want %q", tc.body, got, tc.want)
+			}
+		})
 	}
 }
