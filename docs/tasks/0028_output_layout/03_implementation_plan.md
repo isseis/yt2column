@@ -252,7 +252,7 @@ go test -run '^$' -tags test,integration ./...
 
 **判定理由**: ステップ 3-1 の `escapeLeadingMarkdown` は、行頭がブロックの記法になる場合の文字ごとの規則をコードで決める孤立した複雑なステップである。そのため frontier-recommended とした。
 
--   [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+-   [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 -   [ ] PR を作成した
 -   [ ] PR がマージされた
 -   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
