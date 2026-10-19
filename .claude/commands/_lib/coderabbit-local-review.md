@@ -63,6 +63,8 @@ Run it only if `CODERABBIT=approved`; otherwise skip it and say so in SUMMARY.
    - Fix every `must-fix`. Fix `worth-fixing` at your discretion.
    - Leave `no-harm` and `invalid` findings unchanged; note one line of reason
      for each.
+   - Record each `unclear` finding in SUMMARY as unresolved (finding, location,
+     why it is uncertain); do not drop it.
    - Apply the Convergence rules in `review-subagent-pattern.md`: prefer deleting
      to adding when closing a finding, and do not chase a mirror case of a rule
      just fixed.
