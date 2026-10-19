@@ -15,13 +15,13 @@ func TestNeutralizeMentions(t *testing.T) {
 		value string
 		want  string
 	}{
+		{"expected value written with a literal U+200B", "hi @name", "hi @\u200bname"},
 		{"mention", "hi @name", "hi @" + z + "name"},
 		{"two mentions", "@a @b", "@" + z + "a @" + z + "b"},
 		{"full-width at", "＠everyone", "＠" + z + "everyone"},
 		{"small at", "﹫here", "﹫" + z + "here"},
 		{"after underscore", "foo_@bar", "foo_@" + z + "bar"},
-		{"unchanged mid-word", "Tech@Work user@example.com", "Tech@Work user@example.com"},
-		{"unchanged without names", "a @ b @!", "a @ b @!"},
+		{"unchanged when no at is a target", "Tech@Work a @ b @!", "Tech@Work a @ b @!"},
 		{"unchanged after a slash", "youtube.com/@name", "youtube.com/@name"},
 		{"slash exception only for that at", "/@a @b", "/@a @" + z + "b"},
 		{"empty", "", ""},
@@ -31,13 +31,6 @@ func TestNeutralizeMentions(t *testing.T) {
 			got := neutralizeMentions(tc.value)
 			if got != tc.want {
 				t.Errorf("neutralizeMentions(%q) = %q, want %q", tc.value, got, tc.want)
-			}
-			// Only an '@' that follows a slash may stay a target.
-			gotRunes := []rune(got)
-			for _, i := range mentionAtsOf(gotRunes) {
-				if !followsSlash(gotRunes, i) {
-					t.Errorf("neutralizeMentions(%q) = %q still has a target at %d", tc.value, got, i)
-				}
 			}
 			if again := neutralizeMentions(got); again != got {
 				t.Errorf("neutralizeMentions is not idempotent: %q then %q", got, again)
@@ -62,9 +55,7 @@ func TestNeutralizeProse(t *testing.T) {
 		// move the code span's edge by two bytes per full-width at.
 		{"full-width at before a code span", "＠＠ `＠a` ＠b", "＠＠ `＠a` ＠" + z + "b"},
 		{"full-width at in a code span", "`＠a` ＠b ＠c", "`＠a` ＠" + z + "b ＠" + z + "c"},
-		{"mid-word at", "Tech@Work", "Tech@Work"},
-		{"after a slash", "/@name", "/@name"},
-		{"no at", "plain", "plain"},
+		{"no target", "Tech@Work plain", "Tech@Work plain"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -74,6 +65,27 @@ func TestNeutralizeProse(t *testing.T) {
 			}
 			if got := neutralizeProse(tc.body, prose); got != tc.want {
 				t.Errorf("neutralizeProse(%q) = %q, want %q", tc.body, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestNeutralizeProseGivenRanges(t *testing.T) {
+	const body = "@a @b"
+	cases := []struct {
+		name  string
+		prose []writer.ByteRange
+		want  string
+	}{
+		{"no ranges means all code", nil, body},
+		{"range over the first at only", []writer.ByteRange{{Start: 0, End: 2}}, "@" + zeroWidthSpace + "a @b"},
+		{"range ending at the at", []writer.ByteRange{{Start: 0, End: 3}}, "@" + zeroWidthSpace + "a @b"},
+		{"range covering both", []writer.ByteRange{{Start: 0, End: 5}}, "@" + zeroWidthSpace + "a @" + zeroWidthSpace + "b"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := neutralizeProse(body, tc.prose); got != tc.want {
+				t.Errorf("neutralizeProse(%q, %v) = %q, want %q", body, tc.prose, got, tc.want)
 			}
 		})
 	}

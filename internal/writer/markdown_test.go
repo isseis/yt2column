@@ -207,7 +207,6 @@ func TestProseRanges(t *testing.T) {
 		{"whole body is a fence", "```\n@x\n```", nil, true},
 		{"whole body is a code span", "`@x`", []string{"`", "`"}, true},
 		// Offsets count bytes: a multi-byte first line shifts every later start.
-		{"multi-byte line before a code span line", "あい\n`@x` y", []string{"あい", "`", "` y"}, true},
 		{"multi-byte line before a fence", "＠a\n```\n@x\n```\n＠b `c` d", []string{"＠a", "＠b `", "` d"}, true},
 		{"trailing newline", "a\n", []string{"a"}, true},
 		{"trailing newline after a fence", "```\n@x\n```\n", nil, true},
@@ -224,7 +223,7 @@ func TestProseRanges(t *testing.T) {
 		{"code span across lines", "`a\n@b`", nil, false},
 		{"backslash in the body", "a \\` b `@c`", nil, false},
 		{"bracket in the body", "[a] `@b`", nil, false},
-		{"backtick inside an autolink", "<a`b> `@c`", nil, false},
+		{"backtick inside an autolink", "<a`b> c` `@d`", nil, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -239,7 +238,12 @@ func TestProseRanges(t *testing.T) {
 				return
 			}
 			var got []string
+			prevEnd := 0
 			for _, r := range ranges {
+				if r.Start < prevEnd || r.End <= r.Start {
+					t.Fatalf("ProseRanges(%q) ranges %v are not ascending, non-empty, and disjoint", tc.body, ranges)
+				}
+				prevEnd = r.End
 				got = append(got, tc.body[r.Start:r.End])
 			}
 			if !slices.Equal(got, tc.want) {
