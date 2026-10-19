@@ -265,9 +265,10 @@ func TestUnparsableRequestBypassesHandler(t *testing.T) {
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("status = %d, want 400", resp.StatusCode)
 	}
-	// The handler answers with a JSON body carrying a requestId and logs the
-	// rejection; net/http's own answer does neither.
-	if strings.Contains(string(body), "requestId") || strings.Contains(ts.logs.String(), "request rejected") {
+	// The handler answers with a JSON body carrying a requestId and logs every
+	// path it takes; net/http's own answer does neither, and nothing else logs
+	// before the shutdown.
+	if strings.Contains(string(body), "requestId") || ts.logs.Len() != 0 {
 		t.Errorf("the handler answered the unparsable request: body %q, log:\n%s", body, ts.logs.String())
 	}
 	ts.waitJobs()

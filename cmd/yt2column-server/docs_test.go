@@ -54,6 +54,9 @@ func TestServerDocsContract(t *testing.T) {
 			t.Error("README.md upgrade notes do not say the server-token file can be deleted")
 		}
 		section := strings.Replace(whole, upgradeHeading+"\n"+upgrade, "", 1)
+		if section == whole {
+			t.Fatal("README.md server section: the upgrade notes were not excluded")
+		}
 		for _, want := range []string{
 			"yt2column-server",
 			"build/yt2column-server",

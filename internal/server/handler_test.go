@@ -8,14 +8,15 @@ import (
 	"testing"
 )
 
-// validHTTPRequest builds a request that passes every header check.
+// validHTTPRequest builds a request that passes the target and method checks.
 func validHTTPRequest(t *testing.T) *http.Request {
 	t.Helper()
 	return newRequest(http.MethodPost, ArticlesPath, strings.NewReader(validBody(testValidVideoURL, testValidRaw)))
 }
 
-// TestRejectHeaders checks every header sub-case: the status and reason, and
-// that no side effect (no writer, publisher, or notifier call) happens.
+// TestRejectHeaders checks every target and method rejection: the status and
+// reason, and that no side effect (no writer, publisher, or notifier call) and
+// no slot follows.
 func TestRejectHeaders(t *testing.T) {
 	tests := []struct {
 		name   string
