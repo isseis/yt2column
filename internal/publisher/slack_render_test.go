@@ -17,7 +17,6 @@ func TestNeutralizeMentions(t *testing.T) {
 		value string
 		want  string
 	}{
-		{"expected value written with a literal U+200B", "hi @name", "hi @\u200bname"},
 		{"mention", "hi @name", "hi @" + z + "name"},
 		{"two mentions", "@a @b", "@" + z + "a @" + z + "b"},
 		{"full-width at", "＠everyone", "＠" + z + "everyone"},
@@ -26,6 +25,8 @@ func TestNeutralizeMentions(t *testing.T) {
 		{"unchanged when no at is a target", "Tech@Work a @ b @!", "Tech@Work a @ b @!"},
 		{"unchanged after a slash", "youtube.com/@name", "youtube.com/@name"},
 		{"slash exception only for that at", "/@a @b", "/@a @" + z + "b"},
+		{"consecutive ats: only the second is a target", "x@@y", "x@@" + z + "y"},
+		{"after a digit", "a1@b", "a1@b"},
 		{"empty", "", ""},
 	}
 	for _, tc := range cases {
@@ -238,12 +239,16 @@ func TestRenderSlackPostKeepsMidWordAt(t *testing.T) {
 }
 
 func TestRenderSlackPostUnjudgedBody(t *testing.T) {
+	const z = zeroWidthSpace
 	a := validArticle()
+	a.Title = "T @x"
 	a.Body = "```\n@here\n"
 	if _, ok := writer.ProseRanges(a.Body); ok {
 		t.Fatal("ProseRanges judged an unclosed fence")
 	}
-	if got := renderSlackPost(a).text; !strings.HasPrefix(got, "# A title\n\n```\n@here\n\nModels: ") {
-		t.Errorf("an unjudged body must stay as it is: %q", got)
+	// Only the body is left as it is; the heading is still neutralized.
+	want := "# T @" + z + "x\n\n```\n@here\n\nModels: model-x (generation) \u00b7 Estimated cost: unknown"
+	if got := renderSlackPost(a).text; got != want {
+		t.Errorf("text = %q, want %q", got, want)
 	}
 }
