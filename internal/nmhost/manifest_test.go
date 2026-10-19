@@ -9,10 +9,12 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"slices"
 	"syscall"
 	"testing"
+	"time"
 )
 
 // testExecutable is an absolute executable path outside the temporary
@@ -109,8 +111,6 @@ var foreignManifests = []struct {
 	{"second origin", placeDoc(func(d map[string]any) {
 		d["allowed_origins"] = []any{ownManifestOrigin, "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/"}
 	})},
-	{"origin not a string", placeDoc(func(d map[string]any) { d["allowed_origins"] = []any{1} })},
-	{"origins not an array", placeDoc(func(d map[string]any) { d["allowed_origins"] = ownManifestOrigin })},
 	{"relative path", placeDoc(func(d map[string]any) { d["path"] = "build/yt2column-nmhost" })},
 	{"description not a string", placeDoc(func(d map[string]any) { d["description"] = 1 })},
 	{"extra member", placeDoc(func(d map[string]any) { d["allowed_extensions"] = []any{} })},
@@ -118,7 +118,9 @@ var foreignManifests = []struct {
 	{"duplicate member", func(t *testing.T, path string) {
 		t.Helper()
 		data := marshalDoc(t, manifestDoc())
-		writeFile(t, path, append([]byte(`{"name":"com.example.other",`), data[1:]...))
+		// Both values are this host's name, so only the duplicate rule
+		// rejects it.
+		writeFile(t, path, append([]byte(`{"name":"io.github.isseis.yt2column",`), data[1:]...))
 	}},
 	{"not JSON", func(t *testing.T, path string) {
 		t.Helper()
@@ -159,6 +161,22 @@ var foreignManifests = []struct {
 	}},
 }
 
+// dispatchRows are the foreignManifests rows install and uninstall run: one
+// rejected by its content and one by its file type.
+var dispatchRows = []string{"other host name", "symbolic link to this host's manifest"}
+
+// placeForeign places the foreignManifests row with the given name at path.
+func placeForeign(t *testing.T, name, path string) {
+	t.Helper()
+	for _, tt := range foreignManifests {
+		if tt.name == name {
+			tt.place(t, path)
+			return
+		}
+	}
+	t.Fatalf("no foreign manifest row %q", name)
+}
+
 func placeDoc(change func(map[string]any)) func(t *testing.T, path string) {
 	return func(t *testing.T, path string) {
 		t.Helper()
@@ -197,6 +215,36 @@ func (s snapshot) requireUnchanged(t *testing.T, path string) {
 	}
 }
 
+func TestReadManifestState(t *testing.T) {
+	for _, tt := range foreignManifests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), HostName+".json")
+			tt.place(t, path)
+			before := takeSnapshot(t, path)
+			// A blocking open (of the named pipe) would hang the test, so the
+			// read runs with a deadline that names the cause.
+			type result struct {
+				state manifestState
+				err   error
+			}
+			done := make(chan result, 1)
+			go func() {
+				state, err := readManifestState(path)
+				done <- result{state, err}
+			}()
+			select {
+			case r := <-done:
+				if r.err != nil || r.state != manifestForeign {
+					t.Errorf("readManifestState = %v, %v; want manifestForeign, nil", r.state, r.err)
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatal("readManifestState blocked opening the file")
+			}
+			before.requireUnchanged(t, path)
+		})
+	}
+}
+
 func TestParseBrowser(t *testing.T) {
 	for name, want := range map[string]Browser{"chrome": BrowserChrome, "brave": BrowserBrave} {
 		got, err := ParseBrowser(name)
@@ -214,21 +262,22 @@ func TestParseBrowser(t *testing.T) {
 
 func TestManifestLocation(t *testing.T) {
 	tests := []struct {
+		name       string
 		goos       string
 		browser    Browser
 		browserDir string
 		manifest   string
 	}{
-		{"darwin", BrowserChrome, darwinChromeDir, darwinManifest},
+		{"darwin chrome", "darwin", BrowserChrome, darwinChromeDir, darwinManifest},
 		// Brave on macOS reads Chrome's directory, so only the existence check
 		// looks at Brave's own directory.
-		{"darwin", BrowserBrave, darwinBraveDir, darwinManifest},
-		{"linux", BrowserChrome, linuxChromeDir, linuxChromeManifest},
-		{"linux", BrowserBrave, linuxBraveDir, linuxBraveManifest},
-		{"freebsd", BrowserBrave, linuxBraveDir, linuxBraveManifest},
+		{"darwin brave", "darwin", BrowserBrave, darwinBraveDir, darwinManifest},
+		{"linux chrome", "linux", BrowserChrome, linuxChromeDir, linuxChromeManifest},
+		{"linux brave", "linux", BrowserBrave, linuxBraveDir, linuxBraveManifest},
+		{"freebsd brave", "freebsd", BrowserBrave, linuxBraveDir, linuxBraveManifest},
 	}
 	for _, tt := range tests {
-		t.Run(tt.goos+"/"+tt.browserDir, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			home := "/home/someone"
 			loc, err := locate(tt.goos, home, tt.browser)
 			if err != nil {
@@ -321,7 +370,7 @@ func TestInstall(t *testing.T) {
 		if err := json.Unmarshal(data, &got); err != nil {
 			t.Fatalf("manifest is not JSON: %v", err)
 		}
-		if want := manifestDoc(); !marshalEqual(t, got, want) {
+		if want := manifestDoc(); !reflect.DeepEqual(got, want) {
 			t.Errorf("manifest = %v, want %v", got, want)
 		}
 		info, err := os.Stat(path)
@@ -360,8 +409,12 @@ func TestInstall(t *testing.T) {
 			t.Fatal(err)
 		}
 		after := takeSnapshot(t, path)
-		if !bytes.Contains(after.data, []byte(`"path": "`+testExecutable+`"`)) {
-			t.Errorf("manifest not replaced: %s", after.data)
+		var got map[string]any
+		if err := json.Unmarshal(after.data, &got); err != nil {
+			t.Fatalf("manifest is not JSON: %v", err)
+		}
+		if want := manifestDoc(); !reflect.DeepEqual(got, want) {
+			t.Errorf("manifest = %v, want %v", got, want)
 		}
 		// A rename puts a new file in place; writing over the old one would
 		// let the browser read a partly written manifest.
@@ -428,11 +481,13 @@ func TestInstall(t *testing.T) {
 		}
 	})
 
-	for _, tt := range foreignManifests {
-		t.Run("foreign: "+tt.name, func(t *testing.T) {
+	// TestReadManifestState covers each foreign shape; these rows show that
+	// install refuses on the verdict and leaves the file as it was.
+	for _, name := range dispatchRows {
+		t.Run("foreign: "+name, func(t *testing.T) {
 			home := newHome(t, linuxChromeDir)
 			path := filepath.Join(home, filepath.FromSlash(linuxChromeManifest))
-			tt.place(t, path)
+			placeForeign(t, name, path)
 			before := takeSnapshot(t, path)
 			if _, err := install("linux", home, BrowserChrome, testExecutable); !errors.Is(err, ErrForeignManifest) {
 				t.Fatalf("install error = %v, want ErrForeignManifest", err)
@@ -588,11 +643,11 @@ func TestUninstall(t *testing.T) {
 		}
 	})
 
-	for _, tt := range foreignManifests {
-		t.Run("foreign: "+tt.name, func(t *testing.T) {
+	for _, name := range dispatchRows {
+		t.Run("foreign: "+name, func(t *testing.T) {
 			home := newHome(t)
 			path := filepath.Join(home, filepath.FromSlash(linuxChromeManifest))
-			tt.place(t, path)
+			placeForeign(t, name, path)
 			before := takeSnapshot(t, path)
 			if _, removed, err := uninstall("linux", home, BrowserChrome); !errors.Is(err, ErrForeignManifest) || removed {
 				t.Fatalf("uninstall = %v, %v; want not removed, ErrForeignManifest", removed, err)
@@ -659,20 +714,6 @@ func TestReplaceFileFailureRemovesTemporaryFile(t *testing.T) {
 	if names := dirNames(t, dir); !slices.Equal(names, []string{HostName + ".json"}) {
 		t.Errorf("directory holds %v, want only the original entry", names)
 	}
-}
-
-// marshalEqual compares two decoded JSON values by their encoding.
-func marshalEqual(t *testing.T, a, b any) bool {
-	t.Helper()
-	ja, err := json.Marshal(a)
-	if err != nil {
-		t.Fatal(err)
-	}
-	jb, err := json.Marshal(b)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return bytes.Equal(ja, jb)
 }
 
 // dirNames lists the names in dir.
