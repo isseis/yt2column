@@ -1,3 +1,8 @@
+---
+description: "Translate a document between Japanese and English"
+argument-hint: "<file>"
+---
+
 > **Project context**: this command refers to "the translation glossary". Its path
 > is defined in `.claude/commands/_context.md` (Process convention: "Translation
 > glossary"). Read that file and use its value. The translation direction is

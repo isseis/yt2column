@@ -1,3 +1,8 @@
+---
+description: "Squash-merge a PR with a generated commit message and clean up its branch"
+argument-hint: "[PR]"
+---
+
 Squash-merge PR `$ARGUMENTS` (or, if no argument was given, the PR for the
 current branch) with a generated commit message, then clean up the branch.
 

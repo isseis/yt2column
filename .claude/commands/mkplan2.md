@@ -1,3 +1,8 @@
+---
+description: "Embed PR boundaries into an approved implementation plan"
+argument-hint: "<task>"
+---
+
 > **Project context (read first)**: Read `.claude/commands/_context.md` — it is
 > canonical for every project-specific value this command names, including the
 > green gate and the PR marker label/format conventions. Porting instructions live
