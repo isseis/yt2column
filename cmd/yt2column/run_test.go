@@ -1677,7 +1677,7 @@ func TestRunDefaultSteps(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read --out: %v", err)
 	}
-	for _, want := range []string{"\nshorten_model: \"fake-model\"\n", "\nreview_model: \"review-model\"\n"} {
+	for _, want := range []string{"\nshorten_model: \"fake-model\"\n", "\nreview_model: \"review-model\"\n", "channel: \"A channel\"\n", "\n# A long title\n\nA channel\n\n"} {
 		if !strings.Contains(string(data), want) {
 			t.Errorf("--out does not contain %q:\n%s", want, data)
 		}

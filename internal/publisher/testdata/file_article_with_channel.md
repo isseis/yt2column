@@ -14,7 +14,6 @@ estimated_cost_usd: "0.0023"
 
 Example Channel
 
-
 Lead paragraph.
 
 ## One

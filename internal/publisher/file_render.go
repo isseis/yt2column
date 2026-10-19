@@ -72,7 +72,7 @@ func writeFrontMatterValue(b *strings.Builder, key, value string) {
 
 // escapeLeadingMarkdown returns line such that a Markdown renderer cannot read
 // it as a block-level construct (heading, list, quote, code block, rule), and
-// renders as line.
+// shows the same text as line at block level.
 //
 // Contract: at most one backslash is inserted, and only at the start of the
 // content (or at the delimiter of an ordered-list marker, where escaping the

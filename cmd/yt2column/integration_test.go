@@ -245,7 +245,11 @@ func checkIntegrationArticle(t *testing.T, article string) {
 		return
 	}
 	var model string
+	hasChannel := false
 	for line := range strings.SplitSeq(frontMatter, "\n") {
+		if strings.HasPrefix(line, "channel: ") {
+			hasChannel = true
+		}
 		if value, ok := strings.CutPrefix(line, "model: "); ok {
 			model = strings.Trim(value, `"`)
 		}
@@ -256,6 +260,10 @@ func checkIntegrationArticle(t *testing.T, article string) {
 	header, body, _ := strings.Cut(rest, "\n\n")
 	if title, ok := strings.CutPrefix(header, "# "); !ok || strings.TrimSpace(title) == "" {
 		t.Error("the --out file has no non-empty title heading after the front matter")
+	}
+	if hasChannel {
+		// The channel name line is not generated text.
+		_, body, _ = strings.Cut(body, "\n\n")
 	}
 	// The article ends with the source line, an autolink to the video, which
 	// the writer appends itself; the generated text is what precedes it.

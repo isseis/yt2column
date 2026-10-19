@@ -143,6 +143,8 @@ func TestRenderFileArticleQuoting(t *testing.T) {
 		"del\x7f next-line\u0085",
 		"separators\u2028\u2029 bom\ufeff nbsp\u00a0 tab\t",
 		"\U0010ffff unassigned",
+		"line\nbreak",
+		"carriage\rreturn",
 	}
 	for _, value := range values {
 		t.Run(strconv.Quote(value), func(t *testing.T) {
@@ -150,10 +152,17 @@ func TestRenderFileArticleQuoting(t *testing.T) {
 			article.ChannelName = value
 			article.Model = value
 			article.ModelVersion = value
+			article.SourceURL = value
+			article.Shorten = &writer.StepModel{Model: value, ModelVersion: value}
+			article.Review = &writer.ReviewResult{Model: writer.StepModel{Model: value, ModelVersion: value}}
 			got := renderFileArticle(article)
+			front, _, _ := strings.Cut(got, "\n---\n\n")
+			if strings.Count(front, "\n") != 9 || strings.ContainsAny(front, "\r\u0085\u2028\u2029\ufeff") {
+				t.Fatalf("front matter has an extra line or a raw line break: %q", front)
+			}
 
 			lines := strings.Split(got, "\n")
-			wantKeys := []string{"---", "channel", "source", "model", "model_version", "estimated_cost_usd", "---"}
+			wantKeys := []string{"---", "channel", "source", "model", "model_version", "shorten_model", "shorten_model_version", "review_model", "review_model_version", "estimated_cost_usd", "---"}
 			if len(lines) < len(wantKeys) {
 				t.Fatalf("output has %d lines: %q", len(lines), got)
 			}
@@ -177,7 +186,7 @@ func TestRenderFileArticleQuoting(t *testing.T) {
 					t.Fatalf("line %d value %s is not a quoted string: %v", i, quoted, err)
 				}
 				switch key {
-				case "channel", "model", "model_version":
+				case "channel", "source", "model", "model_version", "shorten_model", "shorten_model_version", "review_model", "review_model_version":
 					if unquoted != value {
 						t.Fatalf("%s reads back as %q, want %q", key, unquoted, value)
 					}
@@ -225,6 +234,19 @@ func TestEscapeLeadingMarkdown(t *testing.T) {
 		{"less-than before a space", "< 3", "< 3"},
 		{"reference definition", "[a]: http://example.com", `\[a]: http://example.com`},
 		{"bracket without a definition", "[a] b", "[a] b"},
+		{"closing html tag", "</div>", `\</div>`},
+		{"processing instruction", "<?php", `\<?php`},
+		{"declaration", "<!DOCTYPE x", `\<!DOCTYPE x`},
+		{"less-than before a digit", "<3", "<3"},
+		{"heading with a tab", "#\tx", "\\#\tx"},
+		{"bullet with a tab", "-\tx", "\\-\tx"},
+		{"thematic break of stars", "***", `\***`},
+		{"thematic break of spaced dashes", "- - -", `\- - -`},
+		{"thematic break of spaced underscores", "_ _ _", `\_ _ _`},
+		{"stars then text is not a break", "***x", "***x"},
+		{"empty ordered list item", "1.", `1\.`},
+		{"zero is a list number", "0. x", `0\. x`},
+		{"footnote definition", "[^1]: x", `\[^1]: x`},
 		{"leading backslash", `\# x`, `\\# x`},
 		{"four leading spaces", "    code", "code"},
 		{"leading spaces before a heading", "  # x", `\# x`},
@@ -246,7 +268,7 @@ func TestEscapeLeadingMarkdown(t *testing.T) {
 func TestRenderFileArticleGolden(t *testing.T) {
 	withChannel := costedArticle()
 	withChannel.ChannelName = "Example Channel"
-	withChannel.Body = "\nLead paragraph.\n\n## One\n\nText.\n\n## Two\n\nText.\n\n## Three\n\nText.\n\n" +
+	withChannel.Body = "Lead paragraph.\n\n## One\n\nText.\n\n## Two\n\nText.\n\n## Three\n\nText.\n\n" +
 		"\u51fa\u5178: <https://www.youtube.com/watch?v=abcdefghijk>\n"
 	withChannel.Shorten = &writer.StepModel{Model: "claude-haiku-5-5", ModelVersion: "s1"}
 	withChannel.Review = &writer.ReviewResult{Model: writer.StepModel{Model: "claude-haiku-5-5"}}

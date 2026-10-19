@@ -7,7 +7,6 @@ estimated_cost_usd: "0.0023"
 
 # A title
 
-
 Lead paragraph.
 
 ## One
