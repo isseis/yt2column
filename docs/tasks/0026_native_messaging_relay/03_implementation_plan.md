@@ -345,7 +345,7 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 **判定理由**: ステップ 2-6・2-7 の `Install`・`Uninstall` は、ホストを起動できる拡張を決める manifest を書き、他人の manifest を守る関門である（mkplan のパネル方式の条件「security-gate」）。
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 -   [ ] **ステップ 2-9**: `internal/config` に `HostConfig`・`LoadHost`・`LoadHostHome` を加える（設計書 3.1）。`LoadHost` はステップ 1-6 の導出の関数を通る。テストを加える: `LoadHost` が `HOME` 以外を読まないこと（読んだ変数名を記録する `LookupFunc` で確かめる）、`LoadServer` と同じパスを返すこと、`LoadHostHome` がソケットのパスの長さに関わらず `HOME` を返し、未設定・空・相対で `VarError` を返すこと（設計書 7.1）。`internal/config/envaccess_test.go` の `allowedEnvRefs`（`:65-69`）に `cmd/yt2column-nmhost/main.go` の `value:os.LookupEnv` を 1 回だけ加え、`cmd/yt2column/main.go` と同じく観測した回数がちょうど 1 であることの確認（`:383-385` と同じ形）を加える。
