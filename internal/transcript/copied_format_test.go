@@ -1033,11 +1033,17 @@ const (
 	copiedParseDeadline   = 15 * time.Second
 )
 
-// TestParseCopiedLargeInputs parses three synthetic 4 MiB inputs: the shortest
-// form A line repeated (the most segments), one form A line nearly 4 MiB long,
-// and many textless form B timestamps followed by one text. Each must parse
-// within the deadline and allocate at most copiedParseAllocPerByte bytes per
-// input byte. The test does not run in parallel, so TotalAlloc around the parse
+// TestParseCopiedLargeInputs parses seven synthetic inputs of at most 4 MiB,
+// each driving one scan path: the shortest form A line repeated (the most
+// segments); one form A line nearly 4 MiB long (one long line); many textless
+// form B timestamps followed by one text (the form B timestamp position); one
+// segment followed by zero-length lines (the backward scan of the trailing
+// region, with the most lines); one-byte prefix lines before one segment (the
+// prefix scan); form A chapter headings alternating with segments (the form A
+// heading match); and one-byte headings after a form B text (the form B
+// heading skip at timestamp-expected positions). Form A and form B headings
+// cannot share an input, so each has its own. Each must parse within the
+// deadline and allocate at most copiedParseAllocPerByte bytes per input byte. The test does not run in parallel, so TotalAlloc around the parse
 // measures only this parse.
 func TestParseCopiedLargeInputs(t *testing.T) {
 	inputs := []struct {
@@ -1048,6 +1054,10 @@ func TestParseCopiedLargeInputs(t *testing.T) {
 		{"shortest form A lines", buildCopiedShortestFormALines(copiedLargeInputLimit), copiedLargeInputLimit / len("0:000 秒x\n")},
 		{"one long form A line", buildCopiedLongFormALine(copiedLargeInputLimit), 1},
 		{"textless form B timestamps", buildCopiedTextlessFormB(copiedLargeInputLimit), 1},
+		{"trailing zero-length lines", buildCopiedTrailingEmptyLines(copiedLargeInputLimit), 1},
+		{"one-byte prefix lines", buildCopiedOneBytePrefixLines(copiedLargeInputLimit), 1},
+		{"form A headings between segments", buildCopiedFormAHeadings(copiedLargeInputLimit), copiedLargeInputLimit / len(copiedFormAHeadingPair)},
+		{"one-byte form B headings", buildCopiedFormBHeadings(copiedLargeInputLimit), 1},
 	}
 	for _, tc := range inputs {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1094,6 +1104,30 @@ func buildCopiedTextlessFormB(limit int) string {
 	timestamp := "0:00\n"
 	tail := "0:05\nx"
 	return strings.Repeat(timestamp, (limit-len(tail))/len(timestamp)) + tail
+}
+
+func buildCopiedTrailingEmptyLines(limit int) string {
+	segment := "0:000 秒x\n"
+	return segment + strings.Repeat("\n", limit-len(segment))
+}
+
+func buildCopiedOneBytePrefixLines(limit int) string {
+	prefix := "x\n"
+	segment := "0:000 秒x"
+	return strings.Repeat(prefix, (limit-len(segment))/len(prefix)) + segment
+}
+
+// copiedFormAHeadingPair is one form A chapter heading and the segment after it.
+const copiedFormAHeadingPair = "チャプター 1: x\n0:000 秒x\n"
+
+func buildCopiedFormAHeadings(limit int) string {
+	return strings.Repeat(copiedFormAHeadingPair, limit/len(copiedFormAHeadingPair))
+}
+
+func buildCopiedFormBHeadings(limit int) string {
+	segment := "0:00\nx\n"
+	heading := "y\n"
+	return segment + strings.Repeat(heading, (limit-len(segment))/len(heading))
 }
 
 // FuzzNewCopiedSource checks six properties: it never panics; an accepted

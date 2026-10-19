@@ -244,9 +244,9 @@
 
 **変更するファイル:** `internal/transcript/copied_format_test.go`
 
--   [ ] **ステップ 5-1**: `TestParseCopiedLargeInputs` に設計書 7.3 の 4 つの入力（末尾の 0 文字の行、1 バイトの前置きの行、形 A の見出し行とセグメントの交互、形 B の本文の後の 1 バイトの見出し行）と、それぞれの組み立て関数を加える。各入力は 4 MiB 以下で、期待するセグメントの数を持つ。
--   [ ] **ステップ 5-2**: 関数のコメントの `parses three synthetic 4 MiB inputs: the shortest form A line repeated (the most segments), one form A line nearly 4 MiB long, and many textless form B timestamps followed by one text.` を、7 つの入力とそれぞれが走査する経路を述べる形に改める。
--   [ ] **ステップ 5-3**: `make test`（race あり、`copiedParseAllocPerByte` は 8192）と、race なしの `go test -tags test -run TestParseCopiedLargeInputs ./internal/transcript`（同 128）の両方で、既存の 3 つと新しい 4 つを合わせた 7 つの入力が期限とメモリの上限に収まることを確かめ、両方の `t.Logf` の値をコミットメッセージに書く。
+-   [x] **ステップ 5-1**: `TestParseCopiedLargeInputs` に設計書 7.3 の 4 つの入力（末尾の 0 文字の行、1 バイトの前置きの行、形 A の見出し行とセグメントの交互、形 B の本文の後の 1 バイトの見出し行）と、それぞれの組み立て関数を加える。各入力は 4 MiB 以下で、期待するセグメントの数を持つ。
+-   [x] **ステップ 5-2**: 関数のコメントの `parses three synthetic 4 MiB inputs: the shortest form A line repeated (the most segments), one form A line nearly 4 MiB long, and many textless form B timestamps followed by one text.` を、7 つの入力とそれぞれが走査する経路を述べる形に改める。
+-   [x] **ステップ 5-3**: `make test`（race あり、`copiedParseAllocPerByte` は 8192）と、race なしの `go test -tags test -run TestParseCopiedLargeInputs ./internal/transcript`（同 128）の両方で、既存の 3 つと新しい 4 つを合わせた 7 つの入力が期限とメモリの上限に収まることを確かめ、両方の `t.Logf` の値をコミットメッセージに書く。
 
 ### PR-6 作成ポイント: 4 MiB input tests
 
