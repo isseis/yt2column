@@ -9,7 +9,7 @@ import type {
 } from "./settings.ts";
 import type { RejectionReason } from "./types.ts";
 
-/** Optional members of the request body. #170 supplies them; this task passes none. */
+/** Optional members of the request body: the video metadata read from the page. */
 export interface ArticleMetadata {
   readonly title?: string | undefined;
   readonly channelName?: string | undefined;

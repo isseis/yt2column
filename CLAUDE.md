@@ -242,8 +242,10 @@ See [Test Organization Guide](docs/dev/developer_guide/test_organization.md) for
 - A change that touches only documents (`README.md`, `CLAUDE.md`, `docs/`) does
   not need `make ext-test`, except `README.md` and `docs/dev/security.md`: the
   extension's node tests read the README rejection-reason table
-  (`serverReasons.test.ts`) and the security.md 8.1 host-permissions item
-  (`manifest.test.ts`), so a change to either needs `make ext-test`. The other
+  (`serverReasons.test.ts`), the security.md 8.1 host-permissions item
+  (`manifest.test.ts`), and the video-metadata statements in the README
+  "Browser extension" section and security.md 8.1 (`metadataDocs.test.ts`), so
+  a change to either needs `make ext-test`. The other
   text-sync guards that read documents (the extension ID, the `ext-` targets in
   this file, the manifest permissions, the `project_overview.md` notes, the task
   records) are Go tests included in `make test` and need no node. The `doc-guard`

@@ -43,6 +43,11 @@
 | 共有トークン | shared token | 拡張を認証する値。設定ディレクトリのファイルに保存し、サーバの再起動をまたいで同じ値を使う（`internal/authtoken` の `Token`） |
 | 枠 | slot | localhost サーバが同時に処理するリクエストの数を数える単位（`maxInFlight`） |
 | 拒否の理由 | reject reason | 応答の本文の `reason` に載せる固定の値（`rejectReason`） |
+| 動画メタデータ | video metadata | 拡張が動画ページの DOM から読む動画タイトル・チャンネル名・概要欄の総称。API の任意フィールド `title`・`channelName`・`description` |
+| 動画タイトル | video title | 動画ページの DOM にある動画のタイトル。タブのタイトル（tab title）とは別 |
+| チャンネル名 | channel name | 動画を投稿したチャンネルの名前 |
+| 概要欄 | description | 動画の説明文。文脈が曖昧なときは "video description" とする |
+| 促しのメッセージ | expand prompt | 概要欄が折りたたまれているとき、ポップアップで「…もっと見る」（"...more"）を開いてから開き直すよう促す固定の文言（`expandPromptMessage`） |
 | リクエスト ID | request ID | サーバがリクエストごとに生成する 16 文字の識別子。応答・ログ・失敗の通知を結び付ける |
 | Unix ドメインソケット（UDS） | Unix domain socket (UDS) | ファイルシステム上のパスを介したプロセス間通信。localhost サーバの待ち受け手段。初出で「Unix ドメインソケット（UDS）」と書き、以降は「UDS」とする |
 | 片付け | cleanup | `/mergepr` のマージ後処理（base の更新、ローカル head ブランチの削除） |

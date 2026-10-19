@@ -6,21 +6,10 @@ import { describe, it } from "node:test";
 
 import { extensionIdFromManifestKey } from "./helpers/extensionId.ts";
 import { extensionDir } from "./helpers/paths.ts";
-import { readRepoFile } from "./helpers/repoFile.ts";
+import { markdownSection, readRepoFile } from "./helpers/repoFile.ts";
 
 /** The extension ID fixed for this extension and recorded in the design. */
 const recordedExtensionId = "clfmbbcdpnjcefbdihdoahomaifbabkk";
-
-/** The body of a Markdown section, from its heading to the next ### heading. */
-function section(markdown: string, heading: string): string {
-  const start = markdown.indexOf(heading);
-  if (start < 0) {
-    return "";
-  }
-  const rest = markdown.slice(start + heading.length);
-  const next = rest.indexOf("\n### ");
-  return next < 0 ? rest : rest.slice(0, next);
-}
 
 const manifest = JSON.parse(
   readFileSync(path.join(extensionDir, "static", "manifest.json"), "utf8"),
@@ -62,7 +51,7 @@ describe("host permissions", () => {
   it("is recorded in the extension section of security.md", () => {
     const hosts = manifest["host_permissions"];
     assert.ok(Array.isArray(hosts));
-    const body = section(
+    const body = markdownSection(
       readRepoFile("docs/dev/security.md"),
       "### 8.1. ブラウザ拡張（#110）",
     );
