@@ -309,9 +309,9 @@ var ErrAlreadyRunning = errors.New("another server holds the socket directory lo
 // although no server holds the start lock. The path is left as it is.
 var ErrInUse = errors.New("another process accepts connections on the socket path")
 
-// ErrUnsafe reports that the socket directory, its parent, the lock file, or
-// the name at the socket path does not meet the accepted form. Nothing is
-// repaired or removed. *UnsafeError carries the path and the fixed reason.
+// ErrUnsafe reports that the socket directory, its parent, or the name at the
+// socket path does not meet the accepted form. Nothing is repaired or removed.
+// *UnsafeError carries the path and the fixed reason.
 var ErrUnsafe = errors.New("the socket directory or the socket path is not in the accepted form")
 
 // UnsafeError names the path and one fixed reason. It wraps ErrUnsafe.
@@ -1061,7 +1061,7 @@ export function classifyResponse(
 | `internal/config` | `*VarError`（既存。`HOME` を名指す） | `HOME` がない・相対・導出したパスが OS の上限を超える | 含まない（変数名と固定の理由だけ） |
 | `internal/serversock` | `ErrAlreadyRunning` | 起動のロックが取れない（別のサーバが動いている、または終了の途中） | 番兵のエラー。ロックのファイルのパスとともに `%w` で包んで返す |
 | `internal/serversock` | `ErrInUse` | ロックを持つサーバがいないのに、ソケットのパスで接続を受け付けるプロセスがある | 番兵のエラー。ソケットのパスとともに `%w` で包んで返す |
-| `internal/serversock` | `*UnsafeError`（`ErrUnsafe` を包む） | ディレクトリ・親・ロックのファイル・ソケットのパスが受理する形でない | パスと固定の理由 |
+| `internal/serversock` | `*UnsafeError`（`ErrUnsafe` を包む） | ディレクトリ・親・ソケットのパスが受理する形でない（ロックのファイルが通常ファイルでない場合は、`cachelock.Acquire` のエラーをそのまま包んで返す。`run` が `0700` で自分の所有であることを確かめた後なので、ロックのファイルを置けるのは同一ユーザーだけである） | パスと固定の理由 |
 | `internal/nmhost` | `HostError`（列挙型） | ホストのエラー。Go のエラーとしては返さず、ホストの応答に載せる | - |
 | `internal/nmhost` | `ErrUnknownBrowser` | ブラウザ名が `chrome`・`brave` でない（使い方の誤り） | 含まない |
 | `internal/nmhost` | `ErrBrowserNotFound`・`ErrForeignManifest`・`ErrUnstableExecutable` | install/uninstall の拒否 | 番兵のエラー。対象のパス（`HOME` の下のパスで秘密ではない）とともに `%w` で包んで返す |
