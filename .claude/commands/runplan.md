@@ -25,6 +25,8 @@ Work in order.
    - Count `### フェーズ` headers in the plan. If there are 2 or more and no `### PR-` sections exist, stop and report: PR boundary design is missing. Ask the user to run `/mkplan2` manually and review its output before re-running `/runplan`. Do not invoke `/mkplan2` yourself.
    - If PR markers already exist, skip this step and continue.
 
+2.7. Ask once whether to run the CodeRabbit review (step 7.7). `coderabbit review` sends the diff to an external service, which `CLAUDE.md` ("Tool Execution Safety") forbids without explicit approval, so ask the user now: "CodeRabbit によるレビュー（差分を外部サービスへ送信）を、この /runplan の間は承認なしで実行してよいですか？". Record an explicit affirmative answer as `CODERABBIT=approved`; record no answer, or any other answer, as `CODERABBIT=declined`. Keep it for the rest of this `/runplan` run, including every pass through step 4 after a PR is merged. Do not ask again. A new `/runplan` invocation asks again.
+
 3. Read `01_requirements.md`, `02_architecture.md` (both in the target task directory), and `docs/dev/developer_guide/test_organization.md`.
 
 4. Select the next unit of work from `03_implementation_plan.md` checkboxes (`[ ]` not started, `[x]` done, `[-]` skipped).
@@ -32,7 +34,7 @@ Work in order.
 - Scan forward from the last completed item. If the next unchecked items are inside a `### PR-N 作成ポイント` section (PR checkpoint checkboxes), treat this as a PR checkpoint — go to step 5a instead of step 5.
 - Otherwise, select the next implementation group: use one phase by default unless it cannot pass `make test` alone (e.g. stub-only or tightly coupled); then extend the group until it can pass. Stop the group at the next `### PR-N 作成ポイント` boundary — do not include the PR checkpoint checkboxes in the implementation group. Briefly note the reason for any grouping before starting work.
 
-4.5. Record the starting commit of the phase group: `PHASE_START=$(git rev-parse HEAD)`. Keep it until the reviews in steps 7 and 7.5 are done, and pass `${PHASE_START}..HEAD` as their commit range, so the range covers exactly this phase group's commits and not the previous group's.
+4.5. Record the starting commit of the phase group: `PHASE_START=$(git rev-parse HEAD)`. Keep it until the reviews in steps 7, 7.5, and 7.7 are done, and pass `${PHASE_START}..HEAD` as their commit range (`coderabbit` takes it as `--base-commit`), so the range covers exactly this phase group's commits and not the previous group's.
 
 5. Implement the selected phase group.
 - Follow the design in `02_architecture.md`.
@@ -158,7 +160,33 @@ Test-review checklist (use verbatim as evaluation criteria in the step 7.5 promp
 - [ ] Each test asserts observable behavior rather than restating an
       implementation detail.
 
+7.7. CodeRabbit review and triage. Run it after step 7.5, so CodeRabbit reviews the code and tests as they stand after the subagent-review fixes. Run this step only if `CODERABBIT=approved` (step 2.7); otherwise skip it and say so in the step 8 summary.
+
+   - **a.** Confirm `git status --short` is empty (`--committed` ignores uncommitted changes), then run:
+
+      ```bash
+      coderabbit review --agent --committed --base-commit "${PHASE_START}" -c CLAUDE.md \
+        > "<scratchpad>/coderabbit-${PHASE_START}.txt"
+      ```
+
+      If the command fails (authentication, usage limit, network), do not retry and do not stop the run: skip the rest of this step and report the failure in step 8.
+
+   - **b.** Triage each finding yourself, in this session. Read the code at the cited location and classify it as `.claude/commands/_lib/triage-pattern.md` defines (`verdict`, `severity` with its calibration rule, `topic`, `replyBody`):
+      - When a finding concerns a process document under the task root (`docs/tasks/NNNN_<name>/`), including prose a phase of this run wrote there, also apply that file's abstraction-level check and use the `off-level` verdict where it applies; handle an `off-level` finding as `fixpr.md` "Shared rules" (R1-R5) describe. For any other file, the verdicts are `valid`, `invalid`, and `unclear`.
+      - A finding that repeats one already fixed in step 7 or 7.5 is closed as such; do not fix it twice.
+      - For a performance finding, measure the cost before adding a mechanism (`CLAUDE.md`, Performance).
+
+   - **c.** Act on the triage:
+      - Fix every `must-fix`. Fix `worth-fixing` at your discretion.
+      - Leave `no-harm` and `invalid` findings unchanged; note one line of reason for each.
+      - Apply the Convergence rules in `.claude/commands/_lib/review-subagent-pattern.md`: prefer deleting to adding when closing a finding, and do not chase a mirror case of a rule just fixed.
+      - After fixing, run the build checks (`_context.md`) and commit.
+
+   - **d.** Run `coderabbit review --agent ...` at most twice per phase group. Run the second time only if the first led to a fix; from the second run on, act on `must-fix` only. After the second run, stop once every remaining `must-fix` finding is addressed; record the remaining `worth-fixing` findings as `deferred` in the step 8 summary, and record the reason for each `no-harm` and `invalid` finding. The reviewer returns findings whenever it is asked, so "it found something" is not a reason for another run.
+
+   - **e.** After triage, run `coderabbit review findings --clear` so stored findings are not surfaced again. Record each rejected finding and its reason (a line in the commit message of the fix commit, or in the step 8 summary) so the later PR-side CodeRabbit review and `/fixpr` do not re-litigate it.
+
 8. Decide whether to continue or finish.
-- If implementation ran this iteration: summarize implementation, verified ACs, assumptions, and deferred items.
+- If implementation ran this iteration: summarize implementation, verified ACs, assumptions, and deferred items, plus the CodeRabbit result (run, declined, or failed; counts of fixed / rejected / deferred findings and the reason for each rejection).
 - If phases remain: ask "Shall I continue with the next phase group?" — return to step 4 if agreed, otherwise report status and stop.
 - If all phases are complete: verify every AC in `01_requirements.md` is satisfied by the implementation and has at least one test. Report the final status and any gaps.

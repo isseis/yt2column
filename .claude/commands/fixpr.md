@@ -173,25 +173,14 @@ Agent prompt (inline the fetched `threads` JSON from Phase 1):
 > those. Beyond it: source comments are English only, one line where possible, and
 > explain WHY rather than WHAT. Build checks are `make fmt && make test && make lint`.
 >
+> Before classifying, read `.claude/commands/_lib/triage-pattern.md` and follow
+> it exactly: it defines `verdict` (`valid|off-level|invalid|unclear`),
+> `severity` (`must-fix|worth-fixing|no-harm`) with its calibration rule,
+> `topic`, `replyBody`, and the abstraction-level check that yields `off-level`.
+>
 > For EACH thread: read the source file at `path:line` for context, then
-> classify two independent dimensions.
->
-> `verdict` — is the suggestion right for this codebase?
-> - `"valid"` — fix clearly improves correctness, clarity, or convention alignment
-> - `"off-level"` — the thread is on a process document and asks it to carry
->   detail that belongs to a later phase (see "Abstraction-level check" below)
-> - `"invalid"` — suggestion is wrong or inapplicable in this context
-> - `"unclear"` — genuinely uncertain
->
-> **Abstraction-level check — do this before choosing `valid`.** Process
-> documents live under the task root (`docs/tasks/NNNN_<name>/`, see
-> `.claude/commands/_context.md`). For a thread on one of them, apply the
-> shared rules R1 and R2 (inlined below) to decide whether the comment asks
-> the document to carry detail below its own level; if so, the verdict is
-> `"off-level"`, **not** `"valid"`, even when the comment is technically
-> correct — the fix is to raise the document's abstraction level (Phase 3).
-> The underlying concern still counts for `severity`; an off-level comment
-> can be `must-fix` if the concern is a real defect.
+> classify it as that file describes. For a thread on a process document, the
+> abstraction-level check uses the shared rules R1 and R2, inlined here:
 >
 > <inline the full "Shared rules" section (R1–R5) verbatim here>
 >
@@ -201,29 +190,6 @@ Agent prompt (inline the fetched `threads` JSON from Phase 1):
 > keeps the pipe open" behind a comment asking for `exec.Cmd.WaitDelay`);
 > `false` if it is purely about the means. Omit `behaviorGap` (or set
 > `false`) for other verdicts.
->
-> `severity` — how much does the raised issue actually matter? (judge the
-> underlying concern on its merits, not just whether you will act on it)
-> - `"must-fix"` — a real bug, or a correctness/security defect
-> - `"worth-fixing"` — a legitimate improvement (clarity, convention, robustness) but not a bug
-> - `"no-harm"` — cosmetic only, OR the comment is invalid/inapplicable: safe to ignore
->
-> Calibration: rate by the WORST outcome when the affected code path executes,
-> not by how often it executes. A defect that breaks shell/code syntax or makes
-> a command fail (e.g. an indented heredoc terminator, a malformed quote) is
-> `must-fix` even if its branch is rarely taken — rarity lowers likelihood, not
-> the kind of defect. Do not downgrade a real bug to `worth-fixing` just
-> because it sits in a guarded or seldom-run branch.
->
-> `topic` — one concise English phrase naming what the comment raised (e.g.
-> "heredoc terminator indentation", "stale Go version in prompt"). Used in the
-> post-run summary so the user sees what each comment was about at a glance.
->
-> Set `replyBody` to a concise English sentence:
-> - valid: describe the fix (used as the PR reply after applying)
-> - off-level: leave as empty string (Phase 3 writes it after applying)
-> - invalid: explain why the suggestion does not apply
-> - unclear: leave as empty string
 >
 > Also find CLUSTERS: groups of 3+ valid threads sharing a root cause where a
 > single structural change resolves all of them. Describe the structural change.
