@@ -660,6 +660,7 @@ func TestSlackPublishPrepareSendsNothing(t *testing.T) {
 	}{
 		{"invalid title", func(a *writer.Article) { a.Title = "" }, writer.ErrInvalidArticle},
 		{"invalid body", func(a *writer.Article) { a.Body = "x\x1b[2J" }, writer.ErrInvalidArticle},
+		{"invalid channel name", func(a *writer.Article) { a.ChannelName = "a\u202eb" }, writer.ErrInvalidChannelName},
 		{"mention in body", func(a *writer.Article) { a.Body = "@channel" }, ErrSlackMention},
 		{"mention in title", func(a *writer.Article) { a.Title = "<!here>" }, ErrSlackMention},
 		{"whitespace-only fragment", func(a *writer.Article) { a.Body = strings.Repeat(" ", 20000) + "x" }, ErrSlackUnsplittable},

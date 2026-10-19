@@ -40,26 +40,32 @@ func TestWriteRejectsInvalidTranscript(t *testing.T) {
 	cases := []struct {
 		name   string
 		modify func(tr *transcript.Transcript)
+		// channel is true when the rejection must also match
+		// ErrInvalidChannelName.
+		channel bool
 	}{
 		// The VideoURL of each invalid VideoID is the concatenated URL, so
 		// only the VideoID check can reject it.
-		{"empty VideoID", func(tr *transcript.Transcript) { tr.VideoID = ""; tr.VideoURL = watch }},
-		{"10-character VideoID", func(tr *transcript.Transcript) { tr.VideoID = "dQw4w9WgXc"; tr.VideoURL = watch + tr.VideoID }},
-		{"VideoID with slash", func(tr *transcript.Transcript) { tr.VideoID = "dQw4w/WgXcQ"; tr.VideoURL = watch + tr.VideoID }},
-		{"VideoID with dot-dot", func(tr *transcript.Transcript) { tr.VideoID = "dQw4..gXcQx"; tr.VideoURL = watch + tr.VideoID }},
-		{"youtu.be VideoURL", func(tr *transcript.Transcript) { tr.VideoURL = "https://youtu.be/" + testVideoID }},
-		{"http VideoURL", func(tr *transcript.Transcript) { tr.VideoURL = "http://www.youtube.com/watch?v=" + testVideoID }},
-		{"VideoURL with extra query", func(tr *transcript.Transcript) { tr.VideoURL = watch + testVideoID + "&t=1s" }},
-		{"VideoURL of another video", func(tr *transcript.Transcript) { tr.VideoURL = watch + "aaaaaaaaaaa" }},
-		{"empty VideoURL", func(tr *transcript.Transcript) { tr.VideoURL = "" }},
-		{"nil Segments", func(tr *transcript.Transcript) { tr.Segments = nil }},
-		{"empty Segments", func(tr *transcript.Transcript) { tr.Segments = []transcript.Segment{} }},
-		{"empty segment text", func(tr *transcript.Transcript) { tr.Segments[1].Text = "" }},
-		{"whitespace-only segment text", func(tr *transcript.Transcript) { tr.Segments[1].Text = " \t\n\u3000" }},
-		{"invalid UTF-8 Title", func(tr *transcript.Transcript) { tr.Title += "\xff" }},
-		{"invalid UTF-8 ChannelName", func(tr *transcript.Transcript) { tr.ChannelName += "\xff" }},
-		{"invalid UTF-8 Description", func(tr *transcript.Transcript) { tr.Description += "\xff" }},
-		{"invalid UTF-8 segment text", func(tr *transcript.Transcript) { tr.Segments[1].Text += "\xff" }},
+		{"empty VideoID", func(tr *transcript.Transcript) { tr.VideoID = ""; tr.VideoURL = watch }, false},
+		{"10-character VideoID", func(tr *transcript.Transcript) { tr.VideoID = "dQw4w9WgXc"; tr.VideoURL = watch + tr.VideoID }, false},
+		{"VideoID with slash", func(tr *transcript.Transcript) { tr.VideoID = "dQw4w/WgXcQ"; tr.VideoURL = watch + tr.VideoID }, false},
+		{"VideoID with dot-dot", func(tr *transcript.Transcript) { tr.VideoID = "dQw4..gXcQx"; tr.VideoURL = watch + tr.VideoID }, false},
+		{"youtu.be VideoURL", func(tr *transcript.Transcript) { tr.VideoURL = "https://youtu.be/" + testVideoID }, false},
+		{"http VideoURL", func(tr *transcript.Transcript) { tr.VideoURL = "http://www.youtube.com/watch?v=" + testVideoID }, false},
+		{"VideoURL with extra query", func(tr *transcript.Transcript) { tr.VideoURL = watch + testVideoID + "&t=1s" }, false},
+		{"VideoURL of another video", func(tr *transcript.Transcript) { tr.VideoURL = watch + "aaaaaaaaaaa" }, false},
+		{"empty VideoURL", func(tr *transcript.Transcript) { tr.VideoURL = "" }, false},
+		{"nil Segments", func(tr *transcript.Transcript) { tr.Segments = nil }, false},
+		{"empty Segments", func(tr *transcript.Transcript) { tr.Segments = []transcript.Segment{} }, false},
+		{"empty segment text", func(tr *transcript.Transcript) { tr.Segments[1].Text = "" }, false},
+		{"whitespace-only segment text", func(tr *transcript.Transcript) { tr.Segments[1].Text = " \t\n\u3000" }, false},
+		{"invalid UTF-8 Title", func(tr *transcript.Transcript) { tr.Title += "\xff" }, false},
+		{"invalid UTF-8 ChannelName", func(tr *transcript.Transcript) { tr.ChannelName += "\xff" }, true},
+		{"whitespace-only ChannelName", func(tr *transcript.Transcript) { tr.ChannelName = " \t" }, true},
+		{"control character in ChannelName", func(tr *transcript.Transcript) { tr.ChannelName += "\x1b" }, true},
+		{"bidirectional control in ChannelName", func(tr *transcript.Transcript) { tr.ChannelName += "\u202e" }, true},
+		{"invalid UTF-8 Description", func(tr *transcript.Transcript) { tr.Description += "\xff" }, false},
+		{"invalid UTF-8 segment text", func(tr *transcript.Transcript) { tr.Segments[1].Text += "\xff" }, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -73,6 +79,9 @@ func TestWriteRejectsInvalidTranscript(t *testing.T) {
 			}
 			if a != (Article{}) {
 				t.Errorf("Write article = %+v, want the zero value", a)
+			}
+			if got := errors.Is(err, ErrInvalidChannelName); got != tc.channel {
+				t.Errorf("Write error matches ErrInvalidChannelName = %v, want %v", got, tc.channel)
 			}
 			if len(client.Calls) != 0 {
 				t.Errorf("Generate called %d times, want 0", len(client.Calls))

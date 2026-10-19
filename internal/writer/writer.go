@@ -17,6 +17,7 @@ import (
 // the step results are pointers, nil when the step called no LLM.
 type Article struct {
 	Title        string
+	ChannelName  string // the video's channel; empty when there is none
 	Body         string // Markdown
 	SourceURL    string
 	Model        string        // the generation model
@@ -402,7 +403,7 @@ func (w *templateWriter) Write(ctx context.Context, t transcript.Transcript) (Ar
 			return Article{}, tokenUsageError(runUsage, stepError(StepReview, tooLongError(chars)))
 		}
 	}
-	return newArticle(title, body, sourceURL, generation.Model, generation.ModelVersion, shortenModel, reviewResult, runUsage), nil
+	return newArticle(title, t.ChannelName, body, sourceURL, generation.Model, generation.ModelVersion, shortenModel, reviewResult, runUsage), nil
 }
 
 // stageUsage is the usage of a stage that called Generate: OriginRun, the

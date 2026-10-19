@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // CheckPublishable reports whether a publisher may output a. It wraps
@@ -15,6 +16,9 @@ import (
 func (a Article) CheckPublishable() error {
 	if reason := displayStringProblem("title", a.Title); reason != "" {
 		return invalidArticle(reason)
+	}
+	if err := CheckChannelName(a.ChannelName); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidArticle, err)
 	}
 	if reason := displayStringProblem("model", a.Model); reason != "" {
 		return invalidArticle(reason)
@@ -49,6 +53,9 @@ func (a Article) CheckPublishable() error {
 	}
 	if a.SourceURL == "" {
 		return invalidArticle("source URL is empty")
+	}
+	if !utf8.ValidString(a.SourceURL) {
+		return invalidArticle("source URL is not valid UTF-8")
 	}
 	return nil
 }

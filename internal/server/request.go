@@ -8,6 +8,7 @@ import (
 
 	"github.com/isseis/yt2column/internal/strictjson"
 	"github.com/isseis/yt2column/internal/transcript"
+	"github.com/isseis/yt2column/internal/writer"
 )
 
 // maxBodyBytes bounds the request body. It is larger than the writer's prompt
@@ -76,6 +77,11 @@ func (s *Server) validateBody(body []byte, requestID string) (*jobInput, *reject
 	channelName, rej := optionalMember(members, "channelName")
 	if rej != nil {
 		return nil, rej
+	}
+	// Reject here, not later: the same violation found by validateTranscript
+	// surfaces as ErrInvalidTranscript, which the job classifies as internal.
+	if writer.CheckChannelName(channelName) != nil {
+		return nil, &rejection{reason: reasonInvalidBody, detail: detailInvalidBody}
 	}
 	description, rej := optionalMember(members, "description")
 	if rej != nil {

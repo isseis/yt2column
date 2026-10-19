@@ -14,6 +14,10 @@ const (
 	maxTextBytes = 1048576 // 1 MiB
 	// maxModelBytes caps Model and ModelVersion, each.
 	maxModelBytes = 256
+	// maxChannelNameRunes caps a channel name, in code points. YouTube
+	// documents no limit and secondary sources say 100, so the cap is twice
+	// that: a smaller cap than the real one would reject a legitimate name.
+	maxChannelNameRunes = 200
 	// titlePrefix starts the first line of the generated text: one "#" and
 	// one space, a level-1 ATX heading.
 	titlePrefix = "# "
@@ -142,14 +146,11 @@ func checkModelPair(model, version string) error {
 	return checkModelString("ModelVersion", version)
 }
 
-// checkModelString applies the size and UTF-8 rules of Model and
-// ModelVersion, then the rules shared with the title.
+// checkModelString applies the size rule of Model and ModelVersion, then the
+// rules shared with the title (which include valid UTF-8).
 func checkModelString(name, value string) error {
 	if len(value) > maxModelBytes {
 		return fmt.Errorf("%w: %s exceeds the limit of %d bytes", ErrMalformedOutput, name, maxModelBytes)
-	}
-	if !utf8.ValidString(value) {
-		return fmt.Errorf("%w: %s is not valid UTF-8", ErrMalformedOutput, name)
 	}
 	if reason := displayStringProblem(name, value); reason != "" {
 		return fmt.Errorf("%w: %s", ErrMalformedOutput, reason)
@@ -157,13 +158,17 @@ func checkModelString(name, value string) error {
 	return nil
 }
 
-// displayStringProblem applies the rules shared by the title, Model, and
-// ModelVersion, which are shown as-is on terminals and destinations: it has
-// a non-whitespace character, and no control character (Unicode Cc, which
-// includes tab, CR, LF, and ESC). It returns the broken rule, or "" when the
-// value is acceptable, and wraps no sentinel: the caller chooses whether the
-// rejection is a malformed LLM output or an unpublishable article.
+// displayStringProblem applies the rules shared by the title, Model,
+// ModelVersion, and channel name, which are shown as-is on terminals and
+// destinations: it is valid UTF-8, has a non-whitespace character, and has no
+// control character (Unicode Cc, which includes tab, CR, LF, and ESC). It
+// returns the broken rule, or "" when the value is acceptable, and wraps no
+// sentinel: the caller chooses whether the rejection is a malformed LLM output
+// or an unpublishable article.
 func displayStringProblem(name, value string) string {
+	if !utf8.ValidString(value) {
+		return name + " is not valid UTF-8"
+	}
 	if strings.TrimSpace(value) == "" {
 		return name + " is empty or whitespace only"
 	}
@@ -173,14 +178,45 @@ func displayStringProblem(name, value string) string {
 	return ""
 }
 
-// newArticle builds the article from validated values. Body is the body part
-// of the last checked text (from checkResponse or checkGeneratedText),
-// bodySeparator, then the source block, whose URL comes from the validated
-// VideoID, never from the generated text. model and modelVersion are the
-// generation model when it ran, or the reused generation artifact's values.
-func newArticle(title, body, sourceURL, model, modelVersion string, shorten *StepModel, review *ReviewResult, runUsage RunUsage) Article {
+// CheckChannelName returns nil for the empty name ("no channel name") and for
+// a name that passes the display-string rules and has no bidirectional control
+// character (U+202A to U+202E, U+2066 to U+2069, which reorder the displayed
+// text) and at most maxChannelNameRunes code points. Otherwise it wraps
+// ErrInvalidChannelName, names the broken rule only, and never puts the value
+// in the error. ZWJ, ZWNJ, and the left-to-right and right-to-left marks are
+// accepted: emoji and right-to-left names use them.
+func CheckChannelName(name string) error {
+	if name == "" {
+		return nil
+	}
+	if reason := displayStringProblem("channel name", name); reason != "" {
+		return fmt.Errorf("%w: %s", ErrInvalidChannelName, reason)
+	}
+	if strings.ContainsFunc(name, isBidiControl) {
+		return fmt.Errorf("%w: channel name contains a bidirectional control character", ErrInvalidChannelName)
+	}
+	if utf8.RuneCountInString(name) > maxChannelNameRunes {
+		return fmt.Errorf("%w: channel name exceeds the limit of %d code points", ErrInvalidChannelName, maxChannelNameRunes)
+	}
+	return nil
+}
+
+// isBidiControl reports whether r is a bidirectional embedding, override, or
+// isolate control: U+202A to U+202E and U+2066 to U+2069.
+func isBidiControl(r rune) bool {
+	return (r >= '\u202A' && r <= '\u202E') || (r >= '\u2066' && r <= '\u2069')
+}
+
+// newArticle builds the article from validated values. ChannelName is the
+// transcript's, unchanged. Body is the body part of the last checked text
+// (from checkResponse or checkGeneratedText), bodySeparator, then the source
+// block, whose URL comes from the validated VideoID, never from the generated
+// text. model and modelVersion are the generation model when it ran, or the
+// reused generation artifact's values.
+func newArticle(title, channelName, body, sourceURL, model, modelVersion string, shorten *StepModel, review *ReviewResult, runUsage RunUsage) Article {
 	return Article{
 		Title:        title,
+		ChannelName:  channelName,
 		Body:         body + bodySeparator + sourceBlock(sourceURL),
 		SourceURL:    sourceURL,
 		Model:        model,

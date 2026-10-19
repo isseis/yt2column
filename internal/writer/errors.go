@@ -13,6 +13,8 @@ var (
 	ErrMalformedOutput   = errors.New("malformed LLM output")
 	// ErrInvalidArticle is returned by Article.CheckPublishable.
 	ErrInvalidArticle = errors.New("invalid article")
+	// ErrInvalidChannelName is wrapped by CheckChannelName.
+	ErrInvalidChannelName = errors.New("invalid channel name")
 	// ErrInvalidReview is returned by ReviewResult.Check.
 	ErrInvalidReview = errors.New("invalid review result")
 	// ErrTooLong reports that the body is over the length limit after the

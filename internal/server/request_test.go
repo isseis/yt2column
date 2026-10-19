@@ -4,13 +4,22 @@ package server
 
 import (
 	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"regexp"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/isseis/yt2column/internal/failure"
+	"github.com/isseis/yt2column/internal/llm"
+	"github.com/isseis/yt2column/internal/llm/testutil"
+	"github.com/isseis/yt2column/internal/transcript"
+	"github.com/isseis/yt2column/internal/writer"
+	writertestutil "github.com/isseis/yt2column/internal/writer/testutil"
 )
 
 // requestIDShape is the request ID form the server generates.
@@ -305,4 +314,89 @@ func TestBodyTooLarge(t *testing.T) {
 			t.Errorf("notifier calls = %+v, want one KindBodyTooLarge", ts.notifier.Calls)
 		}
 	})
+}
+
+// TestChannelNameAgreesWithWriter feeds one table of channel names to the three
+// places that check one (the request, the writer before the LLM call, and
+// Article.CheckPublishable) and requires the same verdict from each. A request
+// the server accepts must reach a writer and a publisher that accept it too.
+func TestChannelNameAgreesWithWriter(t *testing.T) {
+	for _, tc := range writertestutil.ChannelNameCases() {
+		t.Run(tc.Name, func(t *testing.T) {
+			ts := newTestServer(t)
+			// The strict JSON layer rejects invalid UTF-8 for the whole body
+			// before the channel name check runs, so the request leg proves
+			// nothing about that check for such a value; the other legs
+			// still apply.
+			if utf8.ValidString(tc.Value) {
+				quoted, err := json.Marshal(tc.Value)
+				if err != nil {
+					t.Fatalf("Marshal: %v", err)
+				}
+				body := `{"videoUrl":"` + testValidVideoURL + `","transcript":"0:00\nHello\n","channelName":` + string(quoted) + `}`
+				requireChannelNameRequestVerdict(t, ts, body, tc)
+			}
+
+			article := writer.Article{
+				Title: "t", ChannelName: tc.Value, Body: "b", SourceURL: testValidVideoURL, Model: "m",
+			}
+			err := article.CheckPublishable()
+			if tc.Valid != (err == nil) {
+				t.Errorf("CheckPublishable() = %v, want valid = %v", err, tc.Valid)
+			}
+			if err != nil && (!errors.Is(err, writer.ErrInvalidArticle) || !errors.Is(err, writer.ErrInvalidChannelName)) {
+				t.Errorf("CheckPublishable() = %v, want ErrInvalidArticle and ErrInvalidChannelName", err)
+			}
+
+			client := &llmtestutil.FakeLLMClient{Result: llm.GenerateResponse{Text: "# t\nb\n", Model: "m"}}
+			w, err := writer.New(client, writer.Options{})
+			if err != nil {
+				t.Fatalf("writer.New: %v", err)
+			}
+			got, err := w.Write(context.Background(), transcript.Transcript{
+				VideoID:     testVideoID,
+				VideoURL:    testValidVideoURL,
+				ChannelName: tc.Value,
+				Segments:    []transcript.Segment{{Text: "Hello"}},
+			})
+			if tc.Valid != (err == nil) {
+				t.Errorf("Write() = %v, want valid = %v", err, tc.Valid)
+			}
+			if err == nil && got.ChannelName != tc.Value {
+				t.Errorf("Write() ChannelName = %q, want %q", got.ChannelName, tc.Value)
+			}
+			if err != nil && (!errors.Is(err, writer.ErrInvalidTranscript) || !errors.Is(err, writer.ErrInvalidChannelName)) {
+				t.Errorf("Write() = %v, want ErrInvalidTranscript and ErrInvalidChannelName", err)
+			}
+			if !tc.Valid && len(client.Calls) != 0 {
+				t.Errorf("LLM called %d times for a rejected channel name, want 0", len(client.Calls))
+			}
+		})
+	}
+}
+
+// requireChannelNameRequestVerdict posts body and checks the request is
+// accepted and its channel name reaches the writer, or is rejected as
+// invalid_body without a writer call.
+func requireChannelNameRequestVerdict(t *testing.T, ts *testServer, body string, tc writertestutil.ChannelNameCase) {
+	t.Helper()
+	rec := ts.serveAccepted(t, body)
+	if tc.Valid {
+		if rec.Code != http.StatusAccepted {
+			t.Fatalf("request status = %d, want 202 (body %q)", rec.Code, rec.Body.String())
+		}
+		if got := ts.writer.Calls[0].Transcript.ChannelName; got != tc.Value {
+			t.Errorf("channel name reaching the writer = %q, want %q", got, tc.Value)
+		}
+		return
+	}
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("request status = %d, want 400 (body %q)", rec.Code, rec.Body.String())
+	}
+	if got := decodeBody(t, rec); got.Reason != "invalid_body" {
+		t.Errorf("request reason = %q, want invalid_body", got.Reason)
+	}
+	if len(ts.writer.Calls) != 0 {
+		t.Errorf("writer called %d times for a rejected request, want 0", len(ts.writer.Calls))
+	}
 }

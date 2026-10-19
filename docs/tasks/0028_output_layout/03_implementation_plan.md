@@ -118,9 +118,9 @@ go test -run '^$' -tags test,integration ./...
 
 **対象:** `internal/writer/errors.go`・`internal/writer/output.go`
 
--   [ ] `ErrInvalidChannelName` を加える（設計書 3.1）。
--   [ ] `CheckChannelName` と `maxChannelNameRunes`（200）を `output.go` の `displayStringProblem` の隣に置く。規則は設計書 3.1 のとおり（有効な UTF-8、空白だけでない、制御文字なし、双方向の制御文字 U+202A〜U+202E・U+2066〜U+2069 なし、200 コードポイント以下）。空文字は受理する。エラーは規則の名前だけを示し、値を含めない。
--   [ ] `displayStringProblem` に有効な UTF-8 の検査を加える。
+-   [x] `ErrInvalidChannelName` を加える（設計書 3.1）。
+-   [x] `CheckChannelName` と `maxChannelNameRunes`（200）を `output.go` の `displayStringProblem` の隣に置く。規則は設計書 3.1 のとおり（有効な UTF-8、空白だけでない、制御文字なし、双方向の制御文字 U+202A〜U+202E・U+2066〜U+2069 なし、200 コードポイント以下）。空文字は受理する。エラーは規則の名前だけを示し、値を含めない。
+-   [x] `displayStringProblem` に有効な UTF-8 の検査を加える。
 
 **完了:** `go test -tags test ./internal/writer` が通る。
 
@@ -128,23 +128,23 @@ go test -run '^$' -tags test,integration ./...
 
 **対象:** `internal/writer/writer.go`・`internal/writer/output.go`
 
--   [ ] `Article` に `ChannelName string` を加える。`==` で比較できる構造を保つ。
--   [ ] `newArticle` に `channelName` を加え、`writer.go:405` の呼び出しで `t.ChannelName` を渡す。
+-   [x] `Article` に `ChannelName string` を加える。`==` で比較できる構造を保つ。
+-   [x] `newArticle` に `channelName` を加え、`writer.go:405` の呼び出しで `t.ChannelName` を渡す。
 
 **完了:** ステップ 1-6 の `Article.ChannelName` の受け渡しのテスト（`--after` なしと 3 つの再開）が通る。
 #### ステップ 1-3: 公開の直前の検査
 
 **対象:** `internal/writer/article.go`
 
--   [ ] `CheckPublishable` に `CheckChannelName` を加え、違反を `ErrInvalidArticle` と `ErrInvalidChannelName` の両方で包む（複数の `%w` は `article.go:37` に前例がある）。
--   [ ] `CheckPublishable` に `SourceURL` の UTF-8 の検査を加える（設計書 3.5）。
+-   [x] `CheckPublishable` に `CheckChannelName` を加え、違反を `ErrInvalidArticle` と `ErrInvalidChannelName` の両方で包む（複数の `%w` は `article.go:37` に前例がある）。
+-   [x] `CheckPublishable` に `SourceURL` の UTF-8 の検査を加える（設計書 3.5）。
 
 **完了:** ステップ 1-6 の `CheckPublishable` のテスト（チャンネル名と各値の UTF-8 の拒否）が通る。
 #### ステップ 1-4: LLM を呼ぶ前の検査
 
 **対象:** `internal/writer/prompt.go`
 
--   [ ] `validateTranscript` が `CheckChannelName` を呼び、違反を `ErrInvalidTranscript` と `ErrInvalidChannelName` の両方で包んで返す。UTF-8 の検査の表（`prompt.go:66-70`）から `ChannelName` の項目を外し、`Title`・`Description` の検査は残す。
+-   [x] `validateTranscript` が `CheckChannelName` を呼び、違反を `ErrInvalidTranscript` と `ErrInvalidChannelName` の両方で包んで返す。UTF-8 の検査の表（`prompt.go:66-70`）から `ChannelName` の項目を外し、`Title`・`Description` の検査は残す。
 
 **完了:** ステップ 1-6 の `validateTranscript` のテスト（`TestWriteRejectsInvalidTranscript` の行）が通る。
 
@@ -152,24 +152,26 @@ go test -run '^$' -tags test,integration ./...
 
 **対象:** `internal/server/request.go`
 
--   [ ] `parseRequest` が `channelName` を `CheckChannelName` で検査し、違反を `reasonInvalidBody`（HTTP 400）で拒否する。README の拒否の理由の表は変えない。
+-   [x] `parseRequest` が `channelName` を `CheckChannelName` で検査し、違反を `reasonInvalidBody`（HTTP 400）で拒否する。README の拒否の理由の表は変えない。
 
 **完了:** ステップ 1-6 の `parseRequest` のテストと、3 つの呼び出し元の一致を確かめるテストが通る。
 
 #### ステップ 1-6: テスト
 
--   [ ] `internal/writer/output_test.go` に `CheckChannelName` の表のテストを加える（空文字、通常の名前、空白だけ、制御文字、不正な UTF-8、双方向の制御文字、ZWJ を含む名前、200 と 201 コードポイントの境界）。
--   [ ] `internal/writer/article_test.go` に `CheckPublishable` のチャンネル名の拒否と、各値（`SourceURL` を含む）の不正な UTF-8 の拒否のテストを加える。エラーが値を含まないことも確かめる（既存の `TestArticleCheckPublishableOmitsValues:145` を拡張してよい）。
--   [ ] `internal/writer/steps_test.go` に、`Article.ChannelName` が、`--after` なしの実行と `--after generation`・`shorten`・`review` の再開のどれでも入力と同じであることを確かめるテストを加える。
--   [ ] `internal/writer/prompt_test.go` の `TestWriteRejectsInvalidTranscript:38` に、チャンネル名の拒否の行を加える。
--   [ ] `internal/server/request_test.go` に `parseRequest` のチャンネル名の拒否のテストを加える。
--   [ ] 3 つの呼び出し元の一致を確かめるテストを加える。同じ入力の表を `CheckPublishable`・`validateTranscript`・`parseRequest` に通し、受理と拒否が一致することを確かめる。表は 1 つにし、複数のパッケージのテストが使うので、既存の `internal/writer/testutil/` に置く（`docs/dev/developer_guide/test_organization.md` の分類 A。公開の API だけを使う）。`CheckPublishable` は直接、`validateTranscript` は `writer.Write`（fake の `LLMClient`）を通して、`parseRequest` は `server` のパッケージの中から、それぞれ呼ぶ。
--   [ ] 違反したチャンネル名の記事を書き出し・通信の前に拒否することを、既存の拒否の表（`file_test.go::TestFilePublisherRejectsArticle:320`、`slack_message_test.go::TestSlackPrepareRejectsInvalidArticle:327`、`slack_test.go` の送信 0 件の表）に行として加える。一時ファイルが残らないことと、リクエストが 0 件であることをその行で確かめる。
+-   [x] `internal/writer/output_test.go` に `CheckChannelName` の表のテストを加える（空文字、通常の名前、空白だけ、制御文字、不正な UTF-8、双方向の制御文字、ZWJ を含む名前、200 と 201 コードポイントの境界）。
+-   [x] `internal/writer/article_test.go` に `CheckPublishable` のチャンネル名の拒否と、各値（`SourceURL` を含む）の不正な UTF-8 の拒否のテストを加える。エラーが値を含まないことも確かめる（既存の `TestArticleCheckPublishableOmitsValues:145` を拡張してよい）。
+-   [x] `internal/writer/steps_test.go` に、`Article.ChannelName` が、`--after` なしの実行と `--after generation`・`shorten`・`review` の再開のどれでも入力と同じであることを確かめるテストを加える。
+-   [x] `internal/writer/prompt_test.go` の `TestWriteRejectsInvalidTranscript:38` に、チャンネル名の拒否の行を加える。
+-   [x] `internal/server/request_test.go` に `parseRequest` のチャンネル名の拒否のテストを加える。
+-   [x] 3 つの呼び出し元の一致を確かめるテストを加える。同じ入力の表を `CheckPublishable`・`validateTranscript`・`parseRequest` に通し、受理と拒否が一致することを確かめる。表は 1 つにし、複数のパッケージのテストが使うので、既存の `internal/writer/testutil/` に置く（`docs/dev/developer_guide/test_organization.md` の分類 A。公開の API だけを使う）。`CheckPublishable` は直接、`validateTranscript` は `writer.Write`（fake の `LLMClient`）を通して、`parseRequest` は `server` のパッケージの中から、それぞれ呼ぶ。
+    -   実装では、表を `internal/writer/testutil/helpers.go` の `ChannelNameCases` に置き、3 つの呼び出しをまとめて 1 つのテスト（`internal/server/request_test.go` の `TestChannelNameAgreesWithWriter`）で確かめた。`writer` の内部のテストは `writertestutil` を import できない（循環する）ので、`CheckChannelName` の個別の規則と境界（200・201 コードポイント）は `output_test.go` の `TestCheckChannelName` が別に持つ。
+-   [x] 違反したチャンネル名の記事を書き出し・通信の前に拒否することを、既存の拒否の表（`file_test.go::TestFilePublisherRejectsArticle:320`、`slack_message_test.go::TestSlackPrepareRejectsInvalidArticle:327`、`slack_test.go` の送信 0 件の表）に行として加える。一時ファイルが残らないことと、リクエストが 0 件であることをその行で確かめる。
+    -   `displayStringProblem` が UTF-8 を検査するようになったので、`TestSlackPrepareRejectsInvalidArticle` の `Body` 以外の不正な UTF-8 の行は `CheckPublishable` の段階で拒否される。行の `checkPublishableOK` を false に改めた。`prepareSlackMessages` 側の重複した検査は、ステップ 4-4 が `Body` だけに絞る。
 
 #### ステップ 1-7: フェーズ 1 の確認
 
--   [ ] `make fmt` → `make test` → `make lint` が通る。
--   [ ] 次の変更を 1 つずつ行い、ステップ 1-6 の対応するテストが失敗することを確かめ、コミットメッセージに記す: `newArticle` がチャンネル名を写さない（`steps_test.go` の 4 つの実行）、`CheckPublishable` の `CheckChannelName` の呼び出しを外す、`CheckPublishable` の `SourceURL` の UTF-8 の検査を外す、`displayStringProblem` の UTF-8 の検査を外す、`validateTranscript` の `CheckChannelName` の呼び出しを外して `ChannelName` を UTF-8 の表に戻す（制御文字のチャンネル名の拒否のテスト）、`parseRequest` の検査を外す、`CheckChannelName` の双方向の制御文字・長さの上限の規則を外す。
+-   [x] `make fmt` → `make test` → `make lint` が通る。
+-   [x] 次の変更を 1 つずつ行い、ステップ 1-6 の対応するテストが失敗することを確かめ、コミットメッセージに記す: `newArticle` がチャンネル名を写さない（`steps_test.go` の 4 つの実行）、`CheckPublishable` の `CheckChannelName` の呼び出しを外す、`CheckPublishable` の `SourceURL` の UTF-8 の検査を外す、`displayStringProblem` の UTF-8 の検査を外す、`validateTranscript` の `CheckChannelName` の呼び出しを外して `ChannelName` を UTF-8 の表に戻す（制御文字のチャンネル名の拒否のテスト）、`parseRequest` の検査を外す、`CheckChannelName` の双方向の制御文字・長さの上限の規則を外す。
 
 ### PR-1 作成ポイント: channel name carrying and validation
 
@@ -183,8 +185,8 @@ go test -run '^$' -tags test,integration ./...
 
 **判定理由**: 該当するトリガはない。新しい規則は設計書 3.1 が定めており、3 か所の呼び出しと一致を確かめるテストを加える変更である。
 
--   [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
--   [ ] PR を作成した
+-   [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+-   [x] PR を作成した
 -   [ ] PR がマージされた
 -   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 

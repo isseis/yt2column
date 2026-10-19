@@ -63,9 +63,11 @@ func validateTranscript(t transcript.Transcript) (string, error) {
 			return "", fmt.Errorf("%w: Segments[%d].Text is empty or whitespace only", ErrInvalidTranscript, i)
 		}
 	}
+	if err := CheckChannelName(t.ChannelName); err != nil {
+		return "", fmt.Errorf("%w: %w", ErrInvalidTranscript, err)
+	}
 	fields := []struct{ name, value string }{
 		{"Title", t.Title},
-		{"ChannelName", t.ChannelName},
 		{"Description", t.Description},
 	}
 	for _, f := range fields {

@@ -645,3 +645,57 @@ func TestWriteStepExpansionFailure(t *testing.T) {
 		}
 	})
 }
+
+// TestArticleCarriesChannelName checks that the article's channel name is the
+// transcript's on every path that builds an article: a full run and a resume
+// after each artifact stage.
+func TestArticleCarriesChannelName(t *testing.T) {
+	review := func() *llmtestutil.FakeLLMClient {
+		return &llmtestutil.FakeLLMClient{Result: llm.GenerateResponse{Text: reviewResponse(), Model: markReviewModel}}
+	}
+	revisions := []Revision{{Before: markShortBody, Action: ActionReplace, After: markShortBody + "-reused", Reason: ReasonMeaningChange, Evidence: markRevisionEvidence}}
+	cases := []struct {
+		name string
+		w    func(t *testing.T) ArticleWriter
+	}{
+		{"full run", func(t *testing.T) ArticleWriter {
+			return mustNew(t, newFakeClient(), Options{})
+		}},
+		{"resume after generation", func(t *testing.T) ArticleWriter {
+			store := &fakeArtifactStore{loadResult: resumeChainGeneration()}
+			return mustNew(t, newStepClient(t), Options{
+				Shorten:   ShortenOptions{Enabled: true},
+				Review:    ReviewOptions{Enabled: true, Client: review()},
+				Artifacts: ArtifactOptions{Store: store, Resume: StageGeneration},
+			})
+		}},
+		{"resume after shorten", func(t *testing.T) ArticleWriter {
+			store := &fakeArtifactStore{loadResult: resumeChainShorten()}
+			return mustNew(t, nil, Options{
+				Shorten:   ShortenOptions{Enabled: true},
+				Review:    ReviewOptions{Enabled: true, Client: review()},
+				Artifacts: ArtifactOptions{Store: store, Resume: StageShorten},
+			})
+		}},
+		{"resume after review", func(t *testing.T) ArticleWriter {
+			store := &fakeArtifactStore{loadResult: resumeChainReview(revisions)}
+			return mustNew(t, nil, Options{
+				Shorten:   ShortenOptions{Enabled: true},
+				Review:    ReviewOptions{Enabled: true},
+				Artifacts: ArtifactOptions{Store: store, Resume: StageReview},
+			})
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			tr := validTranscript()
+			a, err := tc.w(t).Write(context.Background(), tr)
+			if err != nil {
+				t.Fatalf("Write error = %v, want nil", err)
+			}
+			if tr.ChannelName == "" || a.ChannelName != tr.ChannelName {
+				t.Errorf("Article.ChannelName = %q, want the transcript's %q", a.ChannelName, tr.ChannelName)
+			}
+		})
+	}
+}
