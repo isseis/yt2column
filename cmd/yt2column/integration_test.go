@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -239,8 +240,9 @@ func checkIntegrationArticle(t *testing.T, article string) {
 		t.Error("the --out file is missing or empty")
 		return
 	}
-	frontMatter, rest, found := strings.Cut(strings.TrimPrefix(article, "---\n"), "\n---\n\n")
-	if !strings.HasPrefix(article, "---\n") || !found {
+	afterOpen, opened := strings.CutPrefix(article, "---\n")
+	frontMatter, rest, found := strings.Cut(afterOpen, "\n---\n\n")
+	if !opened || !found {
 		t.Error("the --out file does not start with YAML front matter")
 		return
 	}
@@ -251,7 +253,7 @@ func checkIntegrationArticle(t *testing.T, article string) {
 			hasChannel = true
 		}
 		if value, ok := strings.CutPrefix(line, "model: "); ok {
-			model = strings.Trim(value, `"`)
+			model, _ = strconv.Unquote(value)
 		}
 	}
 	if strings.TrimSpace(model) == "" {

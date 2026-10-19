@@ -225,7 +225,7 @@ go test -run '^$' -tags test,integration ./...
 
 #### ステップ 3-3: テストの更新と追加
 
--   [x] `file_test.go` の次のテストを新しい形に改める: `TestFilePublisherWritesArticle:76`・`TestFilePublisherWritesCostLine:108`（実装では `TestFilePublisherWritesCost` に改名）・`TestFilePublisherEmptyModelVersion:127`。`TestRenderArticleSteps:141`・`TestRenderArticleCost:179` は削除し、同じ不変条件を新しい `file_render_test.go`（`TestRenderFileArticleLayout`・`TestRenderFileArticleOnlyOneStep`・`TestRenderFileArticleCost`）が引き継ぐ。
+-   [x] `file_test.go` の次のテストを新しい形に改める: `TestFilePublisherWritesArticle:76`・`TestFilePublisherWritesCostLine:108`（実装では `TestFilePublisherWritesCost` に改名）・`TestFilePublisherEmptyModelVersion:127`。`TestRenderArticleSteps:141`・`TestRenderArticleCost:179` は削除し、同じ不変条件を新しい `file_render_test.go`（`TestRenderFileArticleLayout` の表の行）が引き継ぐ。
 -   [x] `internal/publisher/file_render_test.go`（新規）に `renderFileArticle` の新しいテストを加える: フロントマターの先頭と区切り、キーの名前と順序、条件付きのキーの有無、`(none)`、`estimated_cost_usd` の 2 つの形、見出しの下にモデル・コストの行がないこと、チャンネル名の行の有無、フロントマターの前に BOM や空行がないこと。
 -   [x] フロントマターの値のテストを加える: 引用符・バックスラッシュ・`:`・`#`・`---`・日本語を含む値で、行数とキーの並びが変わらず、`strconv.Unquote` で元の値に戻ること。出力に出るエスケープシーケンスの種類が、設計書 6.3 の集合（`\a \b \f \n \r \t \v \\ \"` と `\xNN`・`\uNNNN`・`\UNNNNNNNN`）に含まれること。後者の検査に使う値には、`\a \b \f \v`・DEL・U+0085・U+2028・U+2029・U+FEFF・非 BMP の非印字文字を入れる。
 -   [x] `escapeLeadingMarkdown` の表のテストを加える（ブロックの記法になる各場合と、ならない場合）。
@@ -571,7 +571,7 @@ PR は番号順にマージする。PR-1 のチャンネル名が PR-2 と PR-6 
 | AC-14f | test | `internal/failure/failure_test.go::TestKindConstants`、`internal/server/job_test.go::TestFailureClassification`、`internal/publisher/slack_failure_test.go::TestSlackFailureNotifyText` |
 | AC-15・AC-16・AC-20 | test | `internal/publisher/file_test.go::TestFilePublisherWritesArticle`（改めた）、`internal/publisher/file_render_test.go::TestRenderFileArticleLayout`・`TestRenderFileArticleOnlyOneStep`・`TestRenderFileArticleChannelLine`・`TestRenderFileArticleGolden`（先頭・区切り・キーの順序・条件付きのキー・チャンネル名の行の有無・見出しの下にメタデータがないこと） |
 | AC-18 | test | `internal/publisher/file_test.go::TestFilePublisherEmptyModelVersion`（改めた）、`file_render_test.go::TestRenderFileArticleLayout`（版が空の `review_model_version`） |
-| AC-19 | test | `internal/publisher/file_test.go::TestFilePublisherWritesCost`（改めた）、`file_render_test.go::TestRenderFileArticleCost` |
+| AC-19 | test | `internal/publisher/file_test.go::TestFilePublisherWritesCost`（改めた）、`file_render_test.go::TestRenderFileArticleLayout`（コストの 3 つの形） |
 | AC-17 | test | `internal/publisher/file_render_test.go::TestRenderFileArticleQuoting`（フロントマターの値の往復とエスケープの種類）、`TestEscapeLeadingMarkdown`（AC-15 も） |
 | AC-21・AC-22 | test | `internal/publisher/file_test.go::TestFilePublisherExistingPath`・`TestFilePublisherRejectsArticle`・`TestFilePublisherLinkFailure`（変更なしで通る）、AC-22 はチャンネル名の拒否のテスト（AC-04 の行） |
 | AC-23 | static | `cmd/yt2column/docs_test.go::TestCostDocsContract` と、ステップ 5-1 で加える出力の構成の文書のガード（追加。README の例を実際の出力と比べる）、`make ext-test` |
