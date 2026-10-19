@@ -682,7 +682,7 @@ AC-09・AC-10 は、確かめた結果を本計画に記録することを求め
 | token never leaks > keeps the token out of the logs, the store and the display（`:1318`） | 記録と表示にトークンの全体がない | token never leaks > keeps the token out of the logs and the display の同じ検査（残す）。対象に、ポップアップの送信のログ（受付と失敗）と、トークンを読み込んだうえで送らない場合（`port-invalid`）のログと表示を加え、`Error` の名前と文言も直列化する。メニューの記録とストアは R7・R1 |
 | 同上 | トークンの先頭の 4 文字がない | 同上 |
 | 同上 | トークンの末尾の 4 文字がない | 同上 |
-| `renderSend.test.ts`: renderResultView > shows the ${reason} block message（`:105`。2 行） | 送らない理由の文言を表示する | `renderSend.test.ts`: renderBlockReason > shows the ${reason} block message（ステップ 4-8 で `renderBlockReason` を呼ぶ形に改める） |
+| `renderSend.test.ts`: renderResultView > shows the ${reason} block message（`:105`。2 行） | 送らない理由の文言を表示する | `renderSend.test.ts`: renderBlockReason > shows the ${reason} block message（ステップ 4-8 で `renderBlockReason` を呼ぶ形に改めた） |
 | `renderSend.test.ts`: renderResultView > shows the sending notice with the close guidance and the summary（`:113`） | 送信中の文言（`sendingMessage`）を表示する | popup send > shows the sending notice and a disabled button while sending の `expectMessage` の検査（残す） |
 | 同上 | 表示が `close` を含む | 同上の、`Do not close this window until the result appears.` を文の全体で確かめる検査（加えた。AC-08） |
 | 同上 | 表示が `Slack` を含む | 同上の、`If you close it, check Slack before sending again.` を文の全体で確かめる検査（加えた。AC-08） |
@@ -691,8 +691,8 @@ AC-09・AC-10 は、確かめた結果を本計画に記録することを求め
 | 同上 | 表示が要約のタイトルを含む | R5（`summaryNode`） |
 | `renderSend.test.ts`: renderResultView > displays markup in the summary as text, not elements（`:136`） | 要約のマークアップを要素にしない | R5（`summaryNode`）。ポップアップの要約は display > renders the popup summary as text, not elements と `render.test.ts::renderSummary > displays markup in the title and preview as text, not elements` が確かめる |
 | 同上 | 要約のマークアップを文字列として表示する | 同上 |
-| `summary.test.ts`: parseSummary > accepts summarize output for a collected input（`:106`） | `parseSummary(summarize(o))` が要約と等しい（収集した要約のキーの集合を含む） | キーの集合は `summary.test.ts`: summarize に、収集した要約がちょうど 9 つのキーを持つことを値の全体で確かめる検査（ステップ 4-8 で加える）。`parseSummary` の受け入れは R5 |
-| `summary.test.ts`: parseSummary > accepts summarize output for every rejection reason（`:111`） | すべての拒否の理由で `parseSummary(summarize(o))` が要約と等しい（`cause` を落とす） | `cause` を持つ拒否が `kind`・`reason` だけの値になることを、すべての理由について確かめる検査（ステップ 4-8 で `summary.test.ts`: summarize に加える）。`parseSummary` の受け入れは R5 |
+| `summary.test.ts`: parseSummary > accepts summarize output for a collected input（`:106`） | `parseSummary(summarize(o))` が要約と等しい（収集した要約のキーの集合を含む） | キーの集合は `summary.test.ts`: summarize > reduces a collected input to exactly the nine summary members（ステップ 4-8 で加えた）。`parseSummary` の受け入れは R5 |
+| `summary.test.ts`: parseSummary > accepts summarize output for every rejection reason（`:111`） | すべての拒否の理由で `parseSummary(summarize(o))` が要約と等しい（`cause` を落とす） | `summary.test.ts`: summarize > drops the cause of every rejection, keeping only kind and reason（ステップ 4-8 で加えた）。`parseSummary` の受け入れは R5 |
 | `summary.test.ts`: parseSummary > rejects a non-object value（`:123`） | オブジェクトでない値を拒む | R5 |
 | `summary.test.ts`: parseSummary > rejects an unknown kind（`:129`） | 未知の `kind` を拒む | R5 |
 | `summary.test.ts`: parseSummary > rejects a missing field（`:133`） | 前提: 要約が `collected` | R5 |
