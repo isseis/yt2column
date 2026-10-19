@@ -167,6 +167,15 @@ the [README](README.md) and `docs/dev/security.md` §8.
   the copied-transcript parser in `internal/transcript` and the `Raw` parse in
   `CopiedSource`; an input that matches neither form is rejected, not accepted by
   widening the interpretation.
+  The parse also skips four kinds of panel line that are not segments: the
+  prefix before the first segment line, form A chapter heading lines
+  (`Chapter N: ` followed by a title), form B headings at a
+  timestamp-expected position, and the trailing region of blank lines and
+  operation labels such as `Sync to video time`. These skips keep the boundary:
+  the prefix ends where the timestamp grammar finds the first segment line; a
+  form B heading is identified by its position, not its content; and after the
+  first segment line only the explicitly defined lines are skipped, so any other
+  line that is not a segment is still rejected.
 - **Enforce invariants with the type, not with convention**: if a value must pass
   validation before use (e.g. a video ID), make the compiler the thing that
   guarantees it — unexported fields plus a mandatory constructor — rather than

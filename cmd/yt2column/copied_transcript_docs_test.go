@@ -178,7 +178,9 @@ func surveyHasCombination(table [][]string, language, kind string) bool {
 
 // TestClaudeMDCopiedTranscriptException checks the "Declare, don't infer" item
 // in CLAUDE.md states the copied-transcript exception's scope, reason, and
-// boundary.
+// boundary, including the four kinds of panel line the parse skips (the prefix,
+// form A and form B chapter headings, and the trailing region) and how each
+// skip stays inside the boundary.
 func TestClaudeMDCopiedTranscriptException(t *testing.T) {
 	item := claudeBullet(readDoc(t, claudePath), "Declare, don't infer")
 	if item == "" {
@@ -194,6 +196,13 @@ func TestClaudeMDCopiedTranscriptException(t *testing.T) {
 		"cannot express in a type",
 		"internal/transcript",
 		"rejected",
+		"prefix",
+		"Chapter N: ",
+		"chapter heading",
+		"timestamp-expected position",
+		"trailing",
+		"first segment line",
+		"explicitly defined",
 	} {
 		if !strings.Contains(item, want) {
 			t.Errorf("the 'Declare, don't infer' item does not mention %q", want)
