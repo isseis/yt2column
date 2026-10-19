@@ -602,7 +602,7 @@ AC-09・AC-10 は、確かめた結果を本計画に記録することを求め
 | 同上 | 同じ検査（ポップアップの記録） | 同上（残す） |
 | launch paths > treats a missing tab as collection-failed in both paths（`:635`） | ポップアップの収集の結果が `rejected` | launch paths > treats a missing tab as collection-failed（残す） |
 | 同上 | 拒否の理由が `collection-failed` | 同上（残す） |
-| 同上 | メニューの起動のログの `outcome` が `rejected` | 削除する `runMenuLaunch` の側の検査。ポップアップの起動のログは収集の結果によらず `outcome` をそのまま記録する（`launch.ts:338`）。記録することは launch paths > collects the selection and the tab title through the popup path のログの検査（加えた）が確かめ、`rejected` の値そのものは本テストの戻り値の検査が確かめる |
+| 同上 | メニューの起動のログの `outcome` が `rejected` | launch paths > treats a missing tab as collection-failed の、ポップアップの起動のログの `outcome` が戻り値の拒否と等しい検査（加えた） |
 | 同上 | メニューの起動のログの理由が `collection-failed` | 同上 |
 | launch paths > ignores info.selectionText and reads the selection itself（`:664`） | `info.selectionText` があっても収集が `collected` | R4。ポップアップの経路は `info` を持たない |
 | 同上 | 収集した選択範囲がページから読んだもの | R4。ページから読んだ選択範囲を収集することは launch paths > collects the selection and the tab title through the popup path が確かめる |
@@ -649,7 +649,7 @@ AC-09・AC-10 は、確かめた結果を本計画に記録することを求め
 | 同上 | 同じ検査（ポップアップの記録） | video metadata log > records ${name} at info（残す。補助 `metadataLogs` をポップアップの経路だけにする） |
 | 同上 | error のログがない（メニューの記録。メタデータのログのほか、受付の送信のログが error にないことも含む） | メタデータのログの部分は R7。受付の送信のログの部分は、popup send > sends once, disables the button and shows the result のログの検査（加えた） |
 | 同上 | 同じ検査（ポップアップの記録） | 同上（残す） |
-| video metadata log > keeps the read values and the read error out of the logs（`:1088`） | 読み取った値・省いた値・拒否した形・読み取りの失敗の文字列がログにない（メニューの記録。送信と送らない理由のログを含む） | メタデータのログの部分は R7。送信と送らない理由のログは、メタデータを受け取らない（`logSend`・`logBlocked` の引数にない）ので、確かめる必要がない |
+| video metadata log > keeps the read values and the read error out of the logs（`:1088`） | 読み取った値・省いた値・拒否した形・読み取りの失敗の文字列がログにない（メニューの記録。送信と送らない理由のログを含む） | メタデータのログの部分は R7。送信と送らない理由のログの部分は、同じテストの補助 `metadataLogs` がポップアップから送る場合と送らない場合（`token-missing`）のログも記録して確かめる（加えた） |
 | 同上 | 同じ検査（ポップアップの記録） | video metadata log > keeps the read values and the read error out of the logs（残す） |
 | result window > shows a sending view, then the sent result on a notification（`:1167`） | 送信中の文言を表示する | R3。ポップアップの送信中の表示は popup send > shows the sending notice and a disabled button while sending が確かめる |
 | 同上 | 通知の後に `.send-request-id` を表示する | R3 |
@@ -732,7 +732,7 @@ AC-09・AC-10 は、確かめた結果を本計画に記録することを求め
 | `checkDist.test.ts`: checkDist > rejects a manifest ${name} that is not in dist/（`:189`。3 行） | 参照先のない manifest の参照を、参照ごとに違反として報告する | `popup`・`options page` の行は同じテスト（ステップ 3-5 で `serviceWorker` のフィールドを除く）。`service worker` の行は、`check-dist.ts` から `background.service_worker` の項目を削除するので不要（設計書 3.3.2） |
 | `repository.test.ts`: build outputs are ignored > ignores ${file}（`:60` の行） | `extension/dist/background.js` が無視される | `repository.test.ts`: build outputs are ignored > ignores extension/dist/popup.js（ステップ 3-6 で入力を残る成果物の名前に改める） |
 
-設計書 3.10.2 の「加えるテスト」の表の 6 つの振る舞いと、上の表で見つけた 3 つ（受付の送信のログのレベル、ポップアップの起動のログの `outcome`、送らない理由のログの `reason`）の対応先は、次のとおりである。
+設計書 3.10.2 の「加えるテスト」の表の 6 つの振る舞いと、上の表で見つけた 5 つ（受付の送信のログのレベル、ポップアップの起動のログの `outcome`、送らない理由のログの `reason`、拒否した収集の起動のログ、送信と送らない理由のログの読み取った値）の対応先は、次のとおりである。
 
 | 振る舞い | 加えた検査 |
 |---|---|
@@ -745,6 +745,8 @@ AC-09・AC-10 は、確かめた結果を本計画に記録することを求め
 | 受付の送信を info に 1 件だけ記録し、error に記録しない | popup send > sends once, disables the button and shows the result |
 | ポップアップの起動のログが `outcome` を持つ | launch paths > collects the selection and the tab title through the popup path |
 | 送らない理由のログが `reason` を持つ | popup send > shows the ${reason} reason and no button without sending |
+| 拒否した収集のポップアップの起動のログが `outcome` を持つ | launch paths > treats a missing tab as collection-failed |
+| ポップアップの送信と送らない理由のログに、読み取った値とページの文字列が出ない | video metadata log > keeps the read values and the read error out of the logs |
 
 この段階（ステップ 2-2・2-3 の後）では、上の「改める」テストは、まだ元の名前とメニューの経路の部分を持つ。名前の変更とメニューの経路の部分の削除は、ステップ 3-12 で行う。
 

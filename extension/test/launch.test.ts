@@ -59,6 +59,7 @@ import {
 const watchUrl = "https://www.youtube.com/watch?v=abc";
 const malicious = "<img src=x onerror=alert(1)>";
 const metadataLabel = "yt2column video metadata";
+const popupLaunchLabel = "yt2column popup launch";
 const blockedLabel = "yt2column blocked";
 const sendLabel = "yt2column send result";
 const requestId = "0123456789abcdef" as RequestId;
@@ -665,6 +666,7 @@ describe("launch paths", () => {
     );
     assert.equal(popupOutcome.kind, "rejected");
     assert.equal(popupOutcome.reason, "collection-failed");
+    assert.deepEqual(loggedOutcome(popup.recorder), popupOutcome);
 
     const menu = menuHarness({ reader });
     await runMenuLaunch(menuInfo(), undefined, menu.deps);
@@ -1088,6 +1090,13 @@ describe("popup send", () => {
       error: false,
     },
     {
+      reason: "token-invalid",
+      settings: fixedSettings({ token: "not-a-token", port: undefined }).reader,
+      error: false,
+    },
+    {
+      // The popup counterpart of the menu row; the size count itself is
+      // prepare.test.ts's contract.
       reason: "body-too-large",
       when: "the selection takes the body over the limit",
       settings: readySettings().reader,
@@ -1139,14 +1148,37 @@ describe("popup send", () => {
 
 describe("video metadata log", () => {
   /** The metadata log entries of both paths for one read result. */
-  async function metadataLogs(
-    reader: MetadataReader,
-  ): Promise<{ menu: RecordingLogger; popup: RecordingLogger }> {
+  async function metadataLogs(reader: MetadataReader): Promise<{
+    menu: RecordingLogger;
+    popup: RecordingLogger;
+    send: RecordingLogger;
+    blocked: RecordingLogger;
+  }> {
     const menu = menuHarness({ metadataReader: reader });
     await runMenuLaunch(menuInfo(), fakeTab(), menu.deps);
     const popup = popupHarness({ metadataReader: reader });
-    await runPopupLaunch(container(), popup.deps);
-    return { menu: menu.recorder, popup: popup.recorder };
+    const result = await runPopupLaunch(container(), popup.deps);
+    // The send controls hold the metadata too: one sent and one blocked run.
+    const send = recordingLogger();
+    const sendRoot = container();
+    await runPopupSend(sendRoot, result, {
+      settings: readySettings().reader,
+      send: testSendDeps(acceptedFetch().fetchFn),
+      now: () => 1000,
+      log: send.log,
+    });
+    await clickSend(sendRoot);
+    const blocked = recordingLogger();
+    await runPopupSend(container(), result, {
+      settings: fixedSettings({ token: undefined, port: undefined }).reader,
+      send: testSendDeps(acceptedFetch().fetchFn),
+      now: () => 1000,
+      log: blocked.log,
+    });
+    // Precondition: both send-control logs were written.
+    assert.ok(send.infos.some((entry) => entry.label === sendLabel));
+    assert.ok(blocked.infos.some((entry) => entry.label === blockedLabel));
+    return { menu: menu.recorder, popup: popup.recorder, send, blocked };
   }
 
   const infoCases: {
@@ -1222,7 +1254,7 @@ describe("video metadata log", () => {
     ]);
     const serialized = JSON.stringify(
       runs.flatMap((run) =>
-        [run.menu, run.popup].map((recorder) => [
+        [run.menu, run.popup, run.send, run.blocked].map((recorder) => [
           recorder.infos,
           recorder.errors,
         ]),
@@ -1458,9 +1490,7 @@ describe("token never leaks", () => {
     await clickSend(failedRoot);
     // Precondition: each log under test was written.
     assert.ok(
-      popup.recorder.infos.some(
-        (entry) => entry.label === "yt2column popup launch",
-      ),
+      popup.recorder.infos.some((entry) => entry.label === popupLaunchLabel),
     );
     assert.ok(send.infos.some((entry) => entry.label === sendLabel));
     assert.ok(blocked.infos.some((entry) => entry.label === blockedLabel));
