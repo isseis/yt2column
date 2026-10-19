@@ -115,6 +115,29 @@ func TestExtensionDocumentation(t *testing.T) {
 		}
 	})
 
+	t.Run("security.md 8.1 has no trace of the removed menu path", func(t *testing.T) {
+		section := sectionByHeading(security, "### 8.1. ブラウザ拡張（#110）")
+		if section == "" {
+			t.Fatal("security.md has no 8.1 extension section")
+		}
+		// The extension sends only from the popup, so the section must not
+		// describe the result window, its session store, or the menu permission.
+		for _, unwanted := range []string{"結果のウィンドウ", "chrome.storage.session", "contextMenus"} {
+			if strings.Contains(section, unwanted) {
+				t.Errorf("security.md 8.1 still mentions %q", unwanted)
+			}
+		}
+		// The bullet, not the whole section: a later bullet also names
+		// chrome.storage.local when it explains where the token is kept.
+		permissions := markdownBullet(section, "- **要求する権限**")
+		if permissions == "" {
+			t.Fatal("security.md 8.1 has no 要求する権限 bullet")
+		}
+		if !strings.Contains(permissions, "`storage`（") || !strings.Contains(permissions, "chrome.storage.local") {
+			t.Error("security.md 8.1's 要求する権限 does not give chrome.storage.local as what storage is for")
+		}
+	})
+
 	t.Run("adds TypeScript and extension/ to the project overview", func(t *testing.T) {
 		policies := sectionByHeading(overview, "## 決定済みの方針")
 		if !strings.Contains(policies, "TypeScript") {
@@ -181,15 +204,33 @@ func TestExtensionSendDocumentation(t *testing.T) {
 		for _, want := range []string{
 			"shared token",
 			"Options",
-			"Context menu",
-			"Toolbar icon",
+			"Send to yt2column",
 			"check Slack",
 			"requestId",
 			"Site access",
 			"127.0.0.1",
+			// Rebuild before reloading: dist/ is not tracked, so an earlier
+			// build would keep running.
+			"make ext-build",
+			// The popup's console is the only log left.
+			"Inspect popup",
 		} {
 			if !strings.Contains(section, want) {
 				t.Errorf("README.md's Browser extension section does not mention %q", want)
+			}
+		}
+		// The extension sends only from the popup. Matched case-insensitively so
+		// a sentence-initial capital does not hide a leftover; a bare
+		// "right-click" stays allowed because opening the options page uses it.
+		lower := strings.ToLower(section)
+		for _, unwanted := range []string{
+			"context menu",
+			"choose the extension's item",
+			"result window",
+			"service worker",
+		} {
+			if strings.Contains(lower, unwanted) {
+				t.Errorf("README.md's Browser extension section still mentions %q", unwanted)
 			}
 		}
 	})

@@ -24,6 +24,14 @@ const syncPattern = "/^sync$/";
 const syncMessage =
   "Do not use chrome.storage.sync; store settings in chrome.storage.local.";
 
+// The extension sends only from the popup. These APIs served the removed
+// context-menu path (the menu, the result window, its session store and the
+// toolbar badge); storage.session, windows and action stay usable without a
+// manifest permission, so only this rule keeps them from coming back.
+const menuPathPattern = "/^(contextMenus|session|windows|setBadgeText)$/";
+const menuPathMessage =
+  "Do not use chrome.contextMenus, chrome.storage.session, chrome.windows or chrome.action.setBadgeText; the extension sends only from the popup.";
+
 // The branded types hide their brand symbol, so only the function named here
 // may assert the type to create a value. Every other reference form (an alias
 // import, a type alias, a nested reference, a namespace reference, a type
@@ -113,8 +121,9 @@ const restrictedSyntax = [
     message: htmlParsingMessage,
   },
   {
-    // A Manifest V3 service worker rejects import(); dist/ is also
-    // checked for it after the build.
+    // check-dist.ts follows only static imports when it checks that every module
+    // dist/ loads is in dist/, so import() is not allowed; dist/ is also checked
+    // for it after the build.
     selector: "ImportExpression",
     message: "Use a static import; import() is not allowed in the extension.",
   },
@@ -136,6 +145,25 @@ const restrictedSyntax = [
   {
     selector: `Property[key.name=${syncPattern}], Property[key.value=${syncPattern}]`,
     message: syncMessage,
+  },
+  {
+    // The removed menu-path APIs in the same four reference forms, by name like
+    // the sync rule above. Type positions (chrome.windows.Window) are type-only
+    // references and are not matched.
+    selector: `MemberExpression[computed=false][property.name=${menuPathPattern}]`,
+    message: menuPathMessage,
+  },
+  {
+    selector: `MemberExpression[computed=true][property.value=${menuPathPattern}]`,
+    message: menuPathMessage,
+  },
+  {
+    selector: `MemberExpression[computed=true][property.type="TemplateLiteral"][property.quasis.0.value.cooked=${menuPathPattern}]`,
+    message: menuPathMessage,
+  },
+  {
+    selector: `Property[key.name=${menuPathPattern}], Property[key.value=${menuPathPattern}]`,
+    message: menuPathMessage,
   },
 ];
 
