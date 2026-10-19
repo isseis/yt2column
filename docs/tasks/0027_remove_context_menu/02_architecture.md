@@ -245,6 +245,7 @@ manifest からの 2 本の矢印は、import ではなく「manifest がその�
 | `rejectionReasons` | `core/types.ts:13` | なし（`isRejectionReason` だけが使う） | `messages.test.ts:5`・`sendMessages.test.ts:20`（本タスクの後は `summary.test.ts` の `summarize` の拒否の検査も使う。実装計画のステップ 4-8） | 残す（3.2.3） |
 | `hasExactKeys` | `core/summary.ts:71` | `core/response.ts:190`・`:194` だけ | — | `core/response.ts` の export しない関数に移す（3.2.5） |
 | `unexpectedChecks` | `core/response.ts:90` | なし（`parseResultView` だけが使う） | なし | 削除 |
+| `UnexpectedCheck`（型） | `core/response.ts:78` | `core/response.ts` の中だけ（`SendOutcome`・`classifyResponse`）。`core/resultView.ts:12` の import は削除する | なし | export を外す（実装計画のステップ 6-1。0026 が `sendMessages.ts` から使うときは、その計画で export を戻す） |
 | `isServerRejectReason`・`parseRequestId` | `core/response.ts:40`・`:57` | `classifyResponse`（`core/response.ts:200`・`:211`、同じモジュール）。ほかのモジュールからの import は `core/resultView.ts:7-11` だけで、削除する | `response.test.ts` | export を残す |
 | `preflightReasons` | `core/prepare.ts:70` | なし（`core/resultView.ts:33` だけが使う） | `sendMessages.test.ts:35-37`・`resultView.test.ts` | 残す（3.2.3） |
 | `StorageChangeEvents`・`StorageChangeListener`・`WindowsApi`・`ActionApi`・`Badge` | `chromeDeps.ts:23-42`・`:251` | なし | `chromeDeps.test.ts` | 削除 |
