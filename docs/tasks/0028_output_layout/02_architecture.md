@@ -161,7 +161,8 @@ var ErrInvalidChannelName = errors.New("invalid channel name")
 
 // CheckChannelName returns nil for the empty name ("no channel name") and for
 // a name that passes the display-string rules: valid UTF-8, not whitespace
-// only, no control character, and at most maxChannelNameRunes code points.
+// only, no control character, no bidirectional control character (U+202A to
+// U+202E, U+2066 to U+2069), and at most maxChannelNameRunes code points.
 // Otherwise it wraps ErrInvalidChannelName,
 // names the broken rule only, and never puts the value in the error.
 func CheckChannelName(name string) error
@@ -175,6 +176,7 @@ func CheckChannelName(name string) error
 | `validateTranscript`（`prompt.go:50`） | `ErrInvalidTranscript` | LLM を呼ぶ前（CLI と、入口を通ったサーバ） |
 | `server.parseRequest`（`request.go:76`） | 既存の理由 `invalid_body`（HTTP 400） | 要求の入口（localhost サーバ） |
 
+-   **双方向の制御文字（U+202A〜U+202E、U+2066〜U+2069）を拒否する。** 含まれると、表示の順序を入れ替えて、チャンネル名を偽って見せることができる。ZWJ（U+200D）やゼロ幅の非接合子（U+200C）、左右のマーク（U+200E・U+200F）は、絵文字や右から左に書く言語の名前に正当に使われるので、拒否しない。
 -   **長さの上限は 200 コードポイントとする**（`maxChannelNameRunes`）。YouTube の公式ヘルプには、チャンネル名の長さの規定がない（2026-10-19 に確認）。二次情報は 100 文字としている（[Sortlist](https://www.sortlist.co.uk/blog/youtube-channel-name/)、[Tunepocket](https://www.tunepocket.com/youtube-channel-name-length/)）。上限を実際の値より小さくすると、正当な名前の記事を出せなくなるので、その 2 倍にする。数えるのはコードポイントで、書記素ではない。上限を超える名前は切り詰めず、拒否する。
 -   **規則の置き場所。** `CheckChannelName` は `displayStringProblem`（`output.go:166`）と同じファイルに置き、その規則を共有する。`displayStringProblem` に有効な UTF-8 の検査を加える（3.5 のとおり、`CheckPublishable` が UTF-8 を検査していないため）。既存の呼び出し元は 4 つある。`checkModelString` と `checkGeneratedText`（`output.go:57`）は UTF-8 の検査の後に呼ぶので、振る舞いは変わらない。`ReviewResult.Check`（`revision.go:28`）と `CheckPublishable` は、無効な UTF-8 のモデル名などを新しく拒否する。実際の応答は先に UTF-8 の検査を通るので、この拒否が実害を生むことはない。
 -   **検査の重複を作らない。** `validateTranscript` の UTF-8 の検査（`prompt.go:62-74`）から `ChannelName` の項目を外し、`CheckChannelName` に任せる。`Title` と `Description` の検査は残す。
@@ -292,10 +294,10 @@ estimated_cost_usd: "<amount or unknown>"
 func splitSlackText(post slackPost) ([]string, error)
 ```
 
-`splitSlackText`（`slack_message.go:75`）は、投稿の文字列を断片（Slack に送る 1 通のメッセージ）に分ける。現在の動作は、残りが容量に収まれば 1 つの断片にし、収まらなければ、容量の範囲で最も後ろの改行の後で切り、改行がなければ容量の位置で切る。この動作に、次の規則を加える。
+`splitSlackText`（`slack_message.go:75`）は、投稿の文字列を断片（Slack に送る 1 通のメッセージ）に分ける。この動作に、次の規則を加える。
 
--   **不変条件。** 各断片は空でなく、断片の長さは容量以下である。最後以外の断片の切る位置は、`keepTogetherFrom` 以前にある。位置は rune の添字である（`splitSlackText` が `[]rune` で扱うのと同じ）。空白だけの断片を拒否する既存の検査（`isWhitespaceOnly`）は、`keepTogetherFrom` で切った断片にも適用される。
--   最後以外の断片は、`keepTogetherFrom` 以前で切る。最後の領域（`keepTogetherFrom` 以降）が 1 通の容量を超えるときは、`ErrSlackUnsplittable` で拒否する（fail-secure）。探索の手順は [implementation_handoff.md](implementation_handoff.md) の I-04 に置く。
+-   **不変条件。** 各断片は空でなく、1 通の容量を超えない。最後以外の断片は、`keepTogetherFrom` 以前で切る。従来の拒否の条件（空白だけの断片、メッセージ数の上限）は、そのまま適用される。
+-   最後の領域（`keepTogetherFrom` 以降）が 1 通に収まらないときは、`ErrSlackUnsplittable` で拒否する（fail-secure）。切る位置の探索の手順は [implementation_handoff.md](implementation_handoff.md) の I-04 に置く。
 -   これにより、最後のメッセージは、本文の最後の行と脚注を必ず含み、脚注だけのメッセージは作られない（AC-12）。
 -   **受理される記事の集合は、わずかに狭まる。** 切る位置が `keepTogetherFrom` 以前に制限されるので、従来はちょうど 10 通に収まった記事が、11 通になって拒否されることがありうる。10 通の上限は約 16 万字で、字数の調整が有効な既定の実行では本文が 4,000 字以内（`maxBodyChars`）に収まるので、実際には起こらない見込みである。字数の調整を無効にした実行で本文が極端に長い場合に限り、従来から 10 通を超えて拒否される。
 -   見出し行と脚注の文字数は、`text` の一部なので、1 通の上限とメッセージ数の上限の計算に含まれる（AC-13）。`SlackMessageCount`（`slack_message.go:59`）は `prepareSlackMessages` を呼ぶので、実際に送る数と一致する。
@@ -460,7 +462,7 @@ flowchart LR
 -   **秘密を出力に出さない。** 出力に入る値は、記事の値だけで、API キー・Webhook URL・共有トークンを含まない。拒否のエラーは規則の名前だけを含み、値を含めない。
 -   **出典のブロックは変わらない。** 出典は、検証済みの動画 ID から `newArticle` が組み立てる（`output.go:202`）。チャンネル名にも、生成テキストにも依存しない。
 -   **残るリスク（拒否もエスケープもしない）。**
-    -   `displayStringProblem` は、書式制御文字（双方向制御 U+202A〜202E・U+2066〜2069、ゼロ幅文字）を通す。チャンネル名に含まれると、表示の順序を入れ替えて、名前を偽って見せることができる。タイトルが今も受けているのと同じリスクである。ZWJ（U+200D）は絵文字の連なりに正当に使われるので、書式制御文字を一律には拒否しない。
+    -   `displayStringProblem` は、書式制御文字（双方向の制御文字、ゼロ幅文字）を通す。チャンネル名は 3.1 で双方向の制御文字を拒否する。タイトルとモデル名は、従来どおり拒否しない（タイトルが今も受けているのと同じリスクで、本タスクでは広げない）。ゼロ幅文字は、絵文字の連なりに正当に使われるので、拒否しない。
     -   チャンネル名の行の途中の記法（`*強調*`、`www.` の自動リンク、インライン HTML）は、描画するビューアで有効になる。見出し行のタイトルと同じリスクである。
 
 `docs/dev/security.md` に、次を加える（AC-25）。チャンネル名が外部由来の表示用の文字列であること、入口・公開の直前・Slack の投稿での検査、ファイルでの引用符とエスケープ、上の残るリスク。
@@ -555,7 +557,7 @@ flowchart TD
 
 | 対象 | 内容 | AC |
 |---|---|---|
-| `CheckChannelName` | 空文字、通常の名前、空白だけ、制御文字（タブ・改行・ESC）、不正な UTF-8、200 コードポイントちょうどと 201 コードポイント（日本語と非 BMP の文字を含む） | AC-02、AC-03 |
+| `CheckChannelName` | 空文字、通常の名前、空白だけ、制御文字（タブ・改行・ESC）、不正な UTF-8、双方向の制御文字（U+202A〜U+202E・U+2066〜U+2069）、ZWJ を含む絵文字の名前（受理）、200 コードポイントちょうどと 201 コードポイント（日本語と非 BMP の文字を含む） | AC-02、AC-03 |
 | 3 つの呼び出し元の一致 | 同じ入力の表を、`CheckPublishable`・`validateTranscript`・`parseRequest` に通し、受理と拒否が一致する | AC-03 |
 | `newArticle` と `Write` | 生成の実行と、`--after generation`・`--after shorten`・`--after review` の再開で、`Article.ChannelName` が入力と同じ | AC-01 |
 | `CheckPublishable` | 違反したチャンネル名を `ErrInvalidArticle` で拒否し、エラーに値を含めない。`SourceURL` を含む各値の不正な UTF-8 を拒否する | AC-03 |
@@ -637,4 +639,4 @@ flowchart TD
 -   **R-3（長さの上限）。** 公式の規定がないので、二次情報の 100 文字の 2 倍である 200 コードポイントとした（3.1）。
 -   **R-5（チャンネル名の行）。** 要件 AC-15 の「チャンネル名だけの行」を「描画した行がチャンネル名と一致する」と読む。ブロックの記法で始まる名前に限り、生の行にエスケープが入る（3.4）。
 -   **R-6（本文の `@`）。** 本文の対象の `@` を拒否すると、利用者が失敗の理由を理解できず、回避策もない。そのため、コードの外を無効化し、拒否は稀な場合（コードの中、直前が `/`）に限り、理由を示す（3.7）。プロンプトで `@` の使用を避けさせる案は、拒否の頻度を測ってから判断する。
--   **R-4（見出し行の末尾の `#`）。** 実機で、Mattermost が末尾の `#` を取り除き、`\#` も効かないと分かった。チャンネル名を見出し行の末尾に置く案（` — ` 区切り）は採らず、全角の括弧で閉じる（3.3）。名前を見出し行の先頭に置く案は、要件 F-002（タイトルの後ろにチャンネル名）に反するため採らなかった。
+-   **R-4a（見出し行の末尾の `#`）。** 実機で、Mattermost が末尾の `#` を取り除き、`\#` も効かないと分かった。チャンネル名を見出し行の末尾に置く案（` — ` 区切り）は採らず、全角の括弧で閉じる（3.3）。名前を見出し行の先頭に置く案は、要件 F-002（タイトルの後ろにチャンネル名）に反するため採らなかった。
