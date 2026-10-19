@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-19 |
-| Review date | - |
-| Reviewer | - |
-| Comments | - |
+| Review date | 2026-10-19 |
+| Reviewer | isseis |
+| Comments | 編集上の訂正（2026-10-19。判断は変えていない）。8 章の優先順位 3 に、`docs/dev/security.md` §8.1 の「要求する権限」の改めを加え、優先順位 5 から除いた。3.9.3 の manifest の権限と §8.1 の一覧の一致の検査（既存の `TestExtensionDocumentation`）は両方向を確かめるので、manifest から `contextMenus` を除く段階で §8.1 の一覧も改めなければ `make test` が通らない。何を改めるか（3.9.2）は変えず、改める段階だけを合わせた（実装計画のレビューで見つかった）。判断の変更と見る場合は `draft` に戻してほしい |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `81cb30d` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指す。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-05）への対応は 3.12 にまとめる。0007・0020・0025・0026 などの 4 桁の番号は `docs/tasks/` の同じ番号のタスクを、#330 などは GitHub の issue の番号を指す。
 
@@ -691,9 +691,9 @@ Chrome と Brave のそれぞれで、次を確かめる（AC-04・AC-05・AC-07
 
 1.  **カバレッジの基準の取得:** `81cb30d` で lcov の報告を取る（3.11）。
 2.  **ポップアップの経路のテストの補強:** 3.10.2 の表の「加えるテスト」と、AC-08 の文言の検査を、削除の前に加える。削除の前に加えれば、加えたテストが現在のコードで通ることを確かめてから削除に進める。
-3.  **入口と経路の削除:** `background.ts`・`result.ts`・`result.html` と、`launch.ts` のメニューの経路と結果のウィンドウの処理、それらのテストを削除する。manifest とそのテスト、`check-dist.ts` とそのテストを改める（3.1・3.3）。
+3.  **入口と経路の削除:** `background.ts`・`result.ts`・`result.html` と、`launch.ts` のメニューの経路と結果のウィンドウの処理、それらのテストを削除する。manifest とそのテスト、`check-dist.ts` とそのテストを改める（3.1・3.3）。`docs/dev/security.md` §8.1 の「要求する権限」（3.9.2 の 1 つ目の項目）も、この段階で改める。manifest の権限と §8.1 の一覧の一致の検査（3.9.3）が、manifest から `contextMenus` を除いた段階で通るようにするためである。
 4.  **共有コードの整理:** `renderBlockReason` に置き換え、`core/resultView.ts` を削除し、3.2.1 の表で削除とした残りのシンボルとそのテストを削除する。`hasExactKeys` を移し、3.2.6 のコメントを改める（3.2・3.4）。
-5.  **lint の規則と文書:** 削除した API の再導入を禁止する規則、README・security.md・`eslint.config.js` のコメント、Go の文書の検査を改める（3.5.2・3.8・3.9）。
+5.  **lint の規則と文書:** 削除した API の再導入を禁止する規則、README・security.md（優先順位 3 で改めた「要求する権限」のほか）・`eslint.config.js` のコメント、Go の文書の検査を改める（3.5.2・3.8・3.9）。
 6.  **整理の確認:** 対象の export の参照の確認（3.2.7）、カバレッジの比較（3.11）、AC-05a の静的な確認を行い、記録する。
 7.  **手動確認:** 7.2 を行う。
 
