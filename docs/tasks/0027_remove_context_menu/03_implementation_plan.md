@@ -332,8 +332,8 @@
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した（#351）
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 5: lint の規則と文書
 
@@ -341,19 +341,19 @@
 -   変更: `extension/eslint.config.js`、`extension/test/lintRules.test.ts`、`README.md`、`docs/dev/security.md`、`cmd/yt2column/extension_docs_test.go`
 
 **タスク**
--   [ ] **ステップ 5-1**: `eslint.config.js` の `restrictedSyntax` に、`contextMenus`・`session`・`windows`・`setBadgeText` という名前のメンバの参照とキーを禁止する規則を加える。形は `chrome.storage.sync` の禁止と同じ 4 つの参照の形にする（設計書 3.5.2）。理由のコメントと `message` は英語で書く。`ImportExpression` の項目のコメント `// A Manifest V3 service worker rejects import(); dist/ is also` と `// checked for it after the build.` を、`// check-dist.ts follows only static imports when it checks that every module`、`// dist/ loads is in dist/, so import() is not allowed; dist/ is also checked`、`// for it after the build.` の 3 行に改める（設計書 3.8）。規則の `selector`・`message` は変えない。
+-   [x] **ステップ 5-1**: `eslint.config.js` の `restrictedSyntax` に、`contextMenus`・`session`・`windows`・`setBadgeText` という名前のメンバの参照とキーを禁止する規則を加える。形は `chrome.storage.sync` の禁止と同じ 4 つの参照の形にする（設計書 3.5.2）。理由のコメントと `message` は英語で書く。`ImportExpression` の項目のコメント `// A Manifest V3 service worker rejects import(); dist/ is also` と `// checked for it after the build.` を、`// check-dist.ts follows only static imports when it checks that every module`、`// dist/ loads is in dist/, so import() is not allowed; dist/ is also checked`、`// for it after the build.` の 3 行に改める（設計書 3.8）。規則の `selector`・`message` は変えない。
     -   **対象:** `extension/eslint.config.js`。**完了:** `make ext-lint` が通る（ステップ 5-6）。
--   [ ] **ステップ 5-2**: `lintRules.test.ts` に、加えた規則の describe を加える。4 つの名前のそれぞれについて、4 つの参照の形が `no-restricted-syntax` を報告することを、既存の `expectViolation` で確かめる。型の位置の参照（`chrome.windows.Window` など）が報告されないことも確かめる。
+-   [x] **ステップ 5-2**: `lintRules.test.ts` に、加えた規則の describe を加える。4 つの名前のそれぞれについて、4 つの参照の形が `no-restricted-syntax` を報告することを、既存の `expectViolation` で確かめる。型の位置の参照（`chrome.windows.Window` など）が報告されないことも確かめる。
     -   **対象:** `extension/test/lintRules.test.ts`。**完了:** `make ext-test` が通る（ステップ 5-6）。
--   [ ] **ステップ 5-3**: `README.md` の「Browser extension」節を設計書 3.9.1 のとおりに改める。2 つの起動の段落をポップアップだけの起動の段落にし、`:594` の文を削除し、`:615-617` から結果のウィンドウを除き、ログの見方と更新の手順を書き改める。更新の手順は `make ext-build` の語を、ログの見方は `Inspect popup` の語を含める（ステップ 5-5 が固定する）。節の中で `context menu`・`choose the extension's item`・`result window`・`service worker` を使わない（大文字と小文字を区別しない）。
+-   [x] **ステップ 5-3**: `README.md` の「Browser extension」節を設計書 3.9.1 のとおりに改める。2 つの起動の段落をポップアップだけの起動の段落にし、`:594` の文を削除し、`:615-617` から結果のウィンドウを除き、ログの見方と更新の手順を書き改める。更新の手順は `make ext-build` の語を、ログの見方は `Inspect popup` の語を含める（ステップ 5-5 が固定する）。節の中で `context menu`・`choose the extension's item`・`result window`・`service worker` を使わない（大文字と小文字を区別しない）。
     -   **対象:** `README.md`。**完了:** ステップ 5-5 の後に、`TestExtensionSendDocumentation` を含む `make test` と、`metadataDocs.test.ts`・`serverReasons.test.ts` を含む `make ext-test` が通る（ステップ 5-6、フェーズ 5 の完了条件）。
--   [ ] **ステップ 5-4**: `docs/dev/security.md` §8.1 の `:104` を設計書 3.9.2 の 2 つ目の項目のとおりに改める（`:102` はステップ 3-2 で改めた）。
+-   [x] **ステップ 5-4**: `docs/dev/security.md` §8.1 の `:104` を設計書 3.9.2 の 2 つ目の項目のとおりに改める（`:102` はステップ 3-2 で改めた）。
     -   **対象:** `docs/dev/security.md`。**完了:** ステップ 5-5 の後に、`TestExtensionDocumentation` を含む `make test` と、`manifest.test.ts`・`metadataDocs.test.ts` を含む `make ext-test` が通る（ステップ 5-6、フェーズ 5 の完了条件）。
--   [ ] **ステップ 5-5**: `cmd/yt2column/extension_docs_test.go` を設計書 3.9.3 のとおりに改める。
+-   [x] **ステップ 5-5**: `cmd/yt2column/extension_docs_test.go` を設計書 3.9.3 のとおりに改める。
     -   `TestExtensionSendDocumentation` の「README describes sending from the browser extension」で、求める語句から `Context menu`・`Toolbar icon` を除き、`Send to yt2column` を加える。ステップ 5-3 で加える更新の手順とログの見方の案内も、`make ext-build` と `Inspect popup` を求める語句に加えて固定する。節を小文字にした文字列に、ステップ 5-3 の 4 つの語句が含まれないことを確かめる検査を加える。
     -   `TestExtensionDocumentation` に、§8.1 に `結果のウィンドウ`・`chrome.storage.session`・`contextMenus` が含まれないことと、「要求する権限」の項目が `storage` の用途として `chrome.storage.local` を挙げることを確かめるサブテストを加える。
     -   **対象:** `cmd/yt2column/extension_docs_test.go`。**完了:** `make test` が通る（ステップ 5-6）。
--   [ ] **ステップ 5-6**: 壊して失敗することを確かめ、コミットのメッセージに記す。対象は次のとおりである。`src/` の 1 つのファイルに `chrome.contextMenus`・`chrome.storage.session`・`chrome.windows`・`chrome.action.setBadgeText` をそれぞれ書く（`make ext-lint`）。加えた規則から 1 つの名前（たとえば `session`）を外し、その名前の行だけが `lintRules.test.ts` で失敗することを確かめる。テンプレートの参照の形の項目を外し、その形の行が失敗することを確かめる。README に `Context menu` の項目を戻す。`service worker` の語を戻す。`Send to yt2column`・`make ext-build`・`Inspect popup` をそれぞれ消す（`TestExtensionSendDocumentation`）。§8.1 の「要求する権限」から `chrome.storage.local` を消す（加えたサブテスト）。§8.1 に `contextMenus` の権限を戻す（`TestExtensionDocumentation` の権限の一致と、加えたサブテスト）。§8.1 に `結果のウィンドウ` の語を戻す（加えたサブテスト）。続けて `make fmt` → `make ext-check` → `make test` → `make lint` を通す。
+-   [x] **ステップ 5-6**: 壊して失敗することを確かめ、コミットのメッセージに記す。対象は次のとおりである。`src/` の 1 つのファイルに `chrome.contextMenus`・`chrome.storage.session`・`chrome.windows`・`chrome.action.setBadgeText` をそれぞれ書く（`make ext-lint`）。加えた規則から 1 つの名前（たとえば `session`）を外し、その名前の行だけが `lintRules.test.ts` で失敗することを確かめる。テンプレートの参照の形の項目を外し、その形の行が失敗することを確かめる。README に `Context menu` の項目を戻す。`service worker` の語を戻す。`Send to yt2column`・`make ext-build`・`Inspect popup` をそれぞれ消す（`TestExtensionSendDocumentation`）。§8.1 の「要求する権限」から `chrome.storage.local` を消す（加えたサブテスト）。§8.1 に `contextMenus` の権限を戻す（`TestExtensionDocumentation` の権限の一致と、加えたサブテスト）。§8.1 に `結果のウィンドウ` の語を戻す（加えたサブテスト）。続けて `make fmt` → `make ext-check` → `make test` → `make lint` を通す。
     -   **対象:** なし（確認のみ）。**完了:** 各対象を壊すと名前を挙げた検査が失敗することを確かめ、コミットのメッセージに記した。
 
 **完了条件:** `make ext-check` → `make test` → `make lint` が通る。`README.md` と `docs/dev/security.md` を変えたので、`make ext-test`（`metadataDocs.test.ts`・`serverReasons.test.ts`・`manifest.test.ts`）も通す（CLAUDE.md「Development Notes」）。
@@ -370,8 +370,8 @@
 
 **判定理由**: どのトリガーにも当たらない（既存の `chrome.storage.sync` の規則と文書の検査の形を流用し、競合する実装の案がない。lint の規則は削除した API の再導入を禁止する検査だが、既存の規則と同じ形の項目を加えるだけで、新しい仕組みを持たないので security-gate の段階的な変更に当たらない）。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した（#353）
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
@@ -793,7 +793,7 @@ AC-09・AC-10 は、確かめた結果を本計画に記録することを求め
 -   [x] PR-1 マージ済み（対象ステップ: 1-1 / 2-1 / 2-2 / 2-3 / 2-4）
 -   [x] PR-2 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7）
 -   [x] PR-3 マージ済み（対象ステップ: 3-8 / 3-9 / 3-10 / 3-11 / 3-12 / 3-13）
--   [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7 / 4-8 / 4-9）
+-   [x] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7 / 4-8 / 4-9）
 -   [ ] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6）
 -   [ ] PR-6 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3 / 6-4 / 6-5 / 6-6）
 -   [ ] PR-7 マージ済み（対象ステップ: 7-1 / 7-2 / 7-3 / 7-4）

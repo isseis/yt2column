@@ -258,6 +258,75 @@ describe("storage.sync", () => {
   }
 });
 
+describe("removed menu-path APIs", () => {
+  const references: { api: string; name: string }[] = [
+    { api: "chrome", name: "contextMenus" },
+    { api: "chrome.storage", name: "session" },
+    { api: "chrome", name: "windows" },
+    { api: "chrome.action", name: "setBadgeText" },
+  ];
+  for (const { api, name } of references) {
+    const violations: { form: string; code: string }[] = [
+      {
+        form: "the dotted reference",
+        code: `export const p = ${api}.${name};\n`,
+      },
+      {
+        form: "the computed string reference",
+        code: `export const p = ${api}["${name}"];\n`,
+      },
+      {
+        form: "the computed template reference",
+        code: `export const p = ${api}[\`${name}\`];\n`,
+      },
+      {
+        form: "the destructured reference",
+        code: `export const { ${name} } = ${api};\n`,
+      },
+      {
+        form: "the string-keyed destructured reference",
+        code: `export const { "${name}": x } = ${api};\n`,
+      },
+    ];
+    for (const { form, code } of violations) {
+      expectViolation([
+        { name: `${name} as ${form}`, code, rule: "no-restricted-syntax" },
+      ]);
+    }
+  }
+
+  // The pattern is anchored at both ends: a longer name that only starts or
+  // ends with a forbidden one stays allowed.
+  const longerNames = [
+    "export const p = chrome.action.setBadgeTextColor;\n",
+    "export const { sessionId } = chrome.storage;\n",
+    "export const { usersession } = chrome.storage;\n",
+    "export const p = chrome.x.subwindows;\n",
+  ];
+  for (const code of longerNames) {
+    for (const filePath of paths) {
+      it(`allows ${code.trim()} in ${filePath}`, async () => {
+        assert.deepEqual(await ruleIds(code, filePath), []);
+      });
+    }
+  }
+
+  // A type-only reference does not call the API, so it stays allowed.
+  const typeReferences = [
+    "export type T = chrome.contextMenus.OnClickData;\n",
+    "export type T = typeof chrome.storage.session;\n",
+    "export type T = chrome.windows.Window;\n",
+    "export type T = typeof chrome.action.setBadgeText;\n",
+  ];
+  for (const code of typeReferences) {
+    for (const filePath of paths) {
+      it(`allows the type reference ${code.trim()} in ${filePath}`, async () => {
+        assert.deepEqual(await ruleIds(code, filePath), []);
+      });
+    }
+  }
+});
+
 describe("common selectors in creator files", () => {
   const violations: { name: string; code: string }[] = [
     {
@@ -268,6 +337,10 @@ describe("common selectors in creator files", () => {
     {
       name: "storage.sync",
       code: 'export const p = chrome.storage.sync.get("x");\n',
+    },
+    {
+      name: "storage.session",
+      code: 'export const p = chrome.storage.session.get("x");\n',
     },
   ];
   for (const creator of creatorFiles) {

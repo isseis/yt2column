@@ -554,6 +554,13 @@ Load the build in Chrome or Brave:
 2. Turn on **Developer mode**.
 3. Click **Load unpacked** and select the `extension/dist` directory.
 
+To update from an earlier build, run `make ext-build` to rebuild
+`extension/dist/` first, then click the extension's reload button on
+`chrome://extensions/` (Brave: `brave://extensions/`). `extension/dist/` is
+build output that pulling new source does not update, so reloading without
+rebuilding keeps running the earlier build, which may send without asking for
+confirmation.
+
 The extension ID is fixed to `clfmbbcdpnjcefbdihdoahomaifbabkk`, so it is the
 same on every machine and from every directory.
 
@@ -570,17 +577,11 @@ If you restricted the extension's site access, allow `127.0.0.1`: on
 a response from the server", which looks the same as a server that is not
 running.
 
-There are two ways to launch the extension, and both collect and send the same
-values:
-
-- **Context menu:** on a video page, open the transcript panel, select the
-  caption lines, right-click, and choose the extension's item. It sends without
-  another confirmation, and a window opens that shows "sending" and then the
-  result.
-- **Toolbar icon:** click the icon to open the popup, which shows what was
-  collected, the video metadata, and a **Send to yt2column** button. It sends
-  when you press the button. While sending the button is disabled, and after a
-  send (whatever the result) it stays disabled: reopen the popup to send again.
+To send, open the transcript panel on a video page, select the caption lines,
+and click the extension's toolbar icon to open the popup. The popup shows what
+was collected, the video metadata, and a **Send to yt2column** button. It sends
+when you press the button. While sending the button is disabled, and after a
+send (whatever the result) it stays disabled: reopen the popup to send again.
 
 The extension reads the video metadata from the page without changing it, so a
 collapsed description is read only up to what the page shows. When the
@@ -591,7 +592,6 @@ so only its beginning will be sent." with these steps:
 2. Reopen this popup, then send.
 
 The button stays usable: pressing it sends the beginning that the page shows.
-The context menu does not show this message and sends what the page shows.
 
 Some values may not be available: when a video title, channel name, or
 description is missing or blank on the page, that value is left out of the
@@ -612,9 +612,9 @@ How to read the result:
 The `requestId` matches the extension's display with the server log and with a
 failure notice in Slack. A successfully generated article carries no
 `requestId`, so match it by the video or the time; a failure with no `requestId`
-is matched by the time. Do not close the popup or the result window while it is
-sending: if you close it the result is not shown, and sending again could post
-the same article twice.
+is matched by the time. Do not close the popup while it is sending: if you
+close it the result is not shown, and sending again could post the same article
+twice.
 
 The selection is sent exactly as copied from the transcript panel; the extension
 does not trim it. You can select the whole panel: the server skips the lines the
@@ -629,9 +629,12 @@ character in any line, and, before the first timestamp or where a timestamp line
 is expected, a line containing an ASCII digit, a colon, and a digit in a row
 (such as a malformed timestamp).
 
-To see what was collected and the send result, open the console before
-launching: the service worker's console via the **service worker** link on
-`chrome://extensions/`, and the popup's console via right-click → **Inspect**.
+To see what was collected and the send result, open the popup's console from
+the moment the popup opens: right-click the toolbar icon and choose
+**Inspect popup** (shown while Developer mode is on; pin the extension first if
+its icon is in the Extensions menu). The log is lost when the popup closes, so
+after closing it, find the result of a send in Slack and in the server log by
+the time.
 
 ### Integration test
 

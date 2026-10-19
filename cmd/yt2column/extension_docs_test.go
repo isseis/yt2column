@@ -55,6 +55,7 @@ func TestExtensionDocumentation(t *testing.T) {
 	}
 	readme := readDoc(t, readmePath)
 	security := readDoc(t, securityPath)
+	extensionSection := sectionByHeading(security, "### 8.1. ブラウザ拡張（#110）")
 	claude := readDoc(t, claudePath)
 	makefile := readDoc(t, makefilePath)
 	overview := readDoc(t, projectOverviewPath)
@@ -87,7 +88,7 @@ func TestExtensionDocumentation(t *testing.T) {
 		if len(manifest.Permissions) == 0 {
 			t.Fatal("manifest.json requests no permissions")
 		}
-		section := sectionByHeading(security, "### 8.1. ブラウザ拡張（#110）")
+		section := extensionSection
 		if section == "" {
 			t.Fatal("security.md has no 8.1 extension section")
 		}
@@ -112,6 +113,30 @@ func TestExtensionDocumentation(t *testing.T) {
 			if _, ok := inManifest[permission]; !ok {
 				t.Errorf("security.md 8.1 lists %q, which the manifest does not request", permission)
 			}
+		}
+	})
+
+	t.Run("security.md 8.1 has no trace of the removed menu path", func(t *testing.T) {
+		section := extensionSection
+		if section == "" {
+			t.Fatal("security.md has no 8.1 extension section")
+		}
+		// The extension sends only from the popup, so the section must not
+		// describe the result window, its session store, or the menu permission.
+		for _, unwanted := range []string{"結果のウィンドウ", "storage.session", "contextMenus"} {
+			if strings.Contains(section, unwanted) {
+				t.Errorf("security.md 8.1 still mentions %q", unwanted)
+			}
+		}
+		// The bullet, not the whole section: a later bullet also names
+		// chrome.storage.local when it explains where the token is kept.
+		permissions := markdownBullet(section, "- **要求する権限**")
+		if permissions == "" {
+			t.Fatal("security.md 8.1 has no 要求する権限 bullet")
+		}
+		// The permission-match subtest already requires `storage` in this bullet.
+		if !strings.Contains(permissions, "chrome.storage.local") {
+			t.Error("security.md 8.1's 要求する権限 does not name chrome.storage.local")
 		}
 	})
 
@@ -181,15 +206,34 @@ func TestExtensionSendDocumentation(t *testing.T) {
 		for _, want := range []string{
 			"shared token",
 			"Options",
-			"Context menu",
-			"Toolbar icon",
+			"Send to yt2column",
 			"check Slack",
 			"requestId",
 			"Site access",
 			"127.0.0.1",
+			// Rebuild before reloading: dist/ is build output, so an earlier
+			// build would keep running. The install block also names
+			// make ext-build, so pin the update step's own wording.
+			"To update from an earlier build, run `make ext-build` to rebuild",
+			// The popup's console is the only log left.
+			"Inspect popup",
 		} {
 			if !strings.Contains(section, want) {
 				t.Errorf("README.md's Browser extension section does not mention %q", want)
+			}
+		}
+		// The extension sends only from the popup. Matched case-insensitively so
+		// a sentence-initial capital does not hide a leftover; a bare
+		// "right-click" stays allowed because opening the options page uses it.
+		lower := strings.ToLower(section)
+		for _, unwanted := range []string{
+			"context menu",
+			"choose the extension",
+			"result window",
+			"service worker",
+		} {
+			if strings.Contains(lower, unwanted) {
+				t.Errorf("README.md's Browser extension section still mentions %q", unwanted)
 			}
 		}
 	})
