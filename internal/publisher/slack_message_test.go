@@ -198,6 +198,167 @@ func TestSlackSplitRejects(t *testing.T) {
 	})
 }
 
+// fragmentsOf returns the fragments of messages with the position markers
+// removed.
+func fragmentsOf(messages []string) []string {
+	fragments := make([]string, len(messages))
+	for i := range messages {
+		fragments[i] = stripSlackDisplay(messages, i)
+	}
+	return fragments
+}
+
+func TestSlackSplitKeepTogether(t *testing.T) {
+	capacity := slackMaxMessageRunes - slackDisplayMaxRunes
+	a, b := strings.Repeat("a", 10), strings.Repeat("b", capacity)
+	full := strings.Repeat("a", capacity)
+
+	t.Run("cuts no later than keepTogetherFrom", func(t *testing.T) {
+		// Without the bound the first cut would fall at capacity.
+		messages, err := splitSlackText(slackPost{text: a + b, keepTogetherFrom: len(a)})
+		if err != nil {
+			t.Fatalf("splitSlackText: %v", err)
+		}
+		if got := fragmentsOf(messages); !slices.Equal(got, []string{a, b}) {
+			t.Fatalf("fragment lengths = %d, want [%d %d]", runeLens(got), len(a), len(b))
+		}
+	})
+
+	t.Run("front region exactly fills a fragment", func(t *testing.T) {
+		messages, err := splitSlackText(slackPost{text: full + b, keepTogetherFrom: capacity})
+		if err != nil {
+			t.Fatalf("splitSlackText: %v", err)
+		}
+		if got := fragmentsOf(messages); !slices.Equal(got, []string{full, b}) {
+			t.Fatalf("fragment lengths = %d, want [%d %d]", runeLens(got), capacity, capacity)
+		}
+	})
+
+	t.Run("last region exceeds a fragment", func(t *testing.T) {
+		post := slackPost{text: "a\n" + b + a, keepTogetherFrom: 2}
+		if utf8.RuneCountInString(post.text) <= slackMaxMessageRunes {
+			t.Fatal("the post fits in one message")
+		}
+		if _, err := splitSlackText(post); !errors.Is(err, ErrSlackUnsplittable) {
+			t.Fatalf("err = %v, want ErrSlackUnsplittable", err)
+		}
+	})
+
+	t.Run("whitespace-only fragment cut at keepTogetherFrom", func(t *testing.T) {
+		// The first cut falls after the newline; the second must stop at
+		// keepTogetherFrom, which leaves the ten spaces alone.
+		spaces := strings.Repeat(" ", 10)
+		post := slackPost{text: "a\n" + spaces + b, keepTogetherFrom: 2 + len(spaces)}
+		if _, err := splitSlackText(post); !errors.Is(err, ErrSlackUnsplittable) {
+			t.Fatalf("err = %v, want ErrSlackUnsplittable", err)
+		}
+	})
+}
+
+func runeLens(fragments []string) []int {
+	lens := make([]int, len(fragments))
+	for i, f := range fragments {
+		lens[i] = utf8.RuneCountInString(f)
+	}
+	return lens
+}
+
+// TestSlackSplitAvoidsMidWordAt checks that a cut falling between a letter or
+// a digit and an '@' moves back one rune, so the '@', which M2 accepts in the
+// post, does not start a message.
+func TestSlackSplitAvoidsMidWordAt(t *testing.T) {
+	capacity := slackMaxMessageRunes - slackDisplayMaxRunes
+	for _, word := range []string{"x@here", "1@here", "x＠here"} {
+		t.Run(word, func(t *testing.T) {
+			// The body has no newline, so the first fragment is the header
+			// and the body would be cut right before the '@'.
+			first, _ := utf8.DecodeRuneInString(word)
+			rest := word[utf8.RuneLen(first):]
+			article := validArticle()
+			article.Body = strings.Repeat("b", capacity-1) + word + "b"
+			posted := renderArticle(article)
+			if err := rejectMention(posted); err != nil {
+				t.Fatalf("the post itself is rejected: %v", err)
+			}
+			messages, err := prepareSlackMessages(article)
+			if err != nil {
+				t.Fatalf("prepareSlackMessages: %v", err)
+			}
+			checkSlackMessages(t, messages, posted)
+			if len(messages) != 3 {
+				t.Fatalf("got %d messages, want 3", len(messages))
+			}
+			if got := stripSlackDisplay(messages, 2); strings.HasPrefix(got, rest) || !strings.HasPrefix(got, word) {
+				t.Fatalf("the last fragment does not start with %q", word)
+			}
+			for i, message := range messages {
+				if err := rejectMention(message); err != nil {
+					t.Fatalf("message %d: %v", i, err)
+				}
+			}
+		})
+	}
+}
+
+// TestSlackSplitRefusesUnmovableCut covers a cut that cannot move back: the
+// fragment before it holds one rune. The cutting layer alone leaves the '@'
+// at the start of a fragment, and the check layer refuses the split.
+func TestSlackSplitRefusesUnmovableCut(t *testing.T) {
+	capacity := slackMaxMessageRunes - slackDisplayMaxRunes
+	// keepTogetherFrom sits on the '@', so after the cut that follows the
+	// newline the next fragment can hold only "x"; the region from the '@'
+	// exactly fills a fragment.
+	front := strings.Repeat("y", 10) + "\n"
+	post := slackPost{
+		text:             front + "x@here" + strings.Repeat("z", capacity-5),
+		keepTogetherFrom: len(front + "x"),
+	}
+	fragments, err := cutSlackFragments(post)
+	if err != nil {
+		t.Fatalf("cutSlackFragments: %v", err)
+	}
+	if want := []string{front, "x"}; len(fragments) != 3 || !slices.Equal(fragments[:2], want) ||
+		!strings.HasPrefix(fragments[2], "@here") {
+		t.Fatalf("fragment lengths = %d, want the cut right before the '@'", runeLens(fragments))
+	}
+	if _, err := splitSlackText(post); !errors.Is(err, ErrSlackUnsplittable) {
+		t.Fatalf("err = %v, want ErrSlackUnsplittable", err)
+	}
+}
+
+func TestCheckFragmentStarts(t *testing.T) {
+	cases := []struct {
+		name      string
+		fragments []string
+		wantErr   bool
+	}{
+		{"letter before the at sign", []string{"ab x", "@here c"}, true},
+		{"digit before the at sign", []string{"ab 1", "@here"}, true},
+		{"look-alike at sign", []string{"ab x", "＠here"}, true},
+		{"in a later fragment", []string{"a", "b", "x", "@y"}, true},
+
+		{"space before the at sign", []string{"ab ", "@here"}, false},
+		{"newline before the at sign", []string{"ab\n", "@here"}, false},
+		{"no name character after the at sign", []string{"ab x", "@ here"}, false},
+		{"lone at sign", []string{"ab x", "@"}, false},
+		{"at sign inside the fragment", []string{"ab x", "y@here"}, false},
+		{"at sign at the end of a fragment", []string{"ab x@", "here"}, false},
+		{"first fragment", []string{"@here x", "y"}, false},
+		{"one fragment", []string{"x@here"}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := checkFragmentStarts(tc.fragments)
+			if tc.wantErr && !errors.Is(err, ErrSlackUnsplittable) {
+				t.Fatalf("err = %v, want ErrSlackUnsplittable", err)
+			}
+			if !tc.wantErr && err != nil {
+				t.Fatalf("err = %v, want nil", err)
+			}
+		})
+	}
+}
+
 var slackMentionForms = []string{
 	"@channel",
 	"@all",
@@ -213,6 +374,8 @@ var slackMentionForms = []string{
 	"_@channel_",
 	"__@here",
 	":_@all",
+	"foo_@bar",
+	"x@@y",
 	"a\u200B@here",
 	"a\u00AD@here",
 	"a\\@here",
@@ -262,9 +425,9 @@ func TestSlackMentionRejected(t *testing.T) {
 		}
 	})
 
-	t.Run("at a fragment boundary", func(t *testing.T) {
+	t.Run("in a later fragment", func(t *testing.T) {
 		article := validArticle()
-		article.Body = strings.Repeat("\u3042", slackMaxMessageRunes) + "@here"
+		article.Body = strings.Repeat("\u3042", slackMaxMessageRunes) + " @here"
 		if _, err := prepareSlackMessages(article); !errors.Is(err, ErrSlackMention) {
 			t.Fatalf("err = %v, want ErrSlackMention", err)
 		}
@@ -282,15 +445,27 @@ func TestSlackMentionAccepted(t *testing.T) {
 		"The <algorithm> header is included.",
 		"Reach the maintainers through the issue tracker.",
 		"An empty link part: <|b> and <a|>.",
+		// An '@' right after a letter or a digit is inside a word, which
+		// Mattermost does not read as a mention.
+		"Tech@Work",
+		"Mail user@example.com today.",
+		"\u3055\u3093@xxx",
+		"a1@b",
 	}
-	for _, body := range accepted {
-		t.Run(body, func(t *testing.T) {
-			article := validArticle()
-			article.Body = body
-			if _, err := prepareSlackMessages(article); err != nil {
-				t.Fatalf("prepareSlackMessages: %v, want no error", err)
-			}
-		})
+	for _, text := range accepted {
+		for _, field := range []string{"Title", "Body"} {
+			t.Run(field+"/"+text, func(t *testing.T) {
+				article := validArticle()
+				if field == "Title" {
+					article.Title = text
+				} else {
+					article.Body = text
+				}
+				if _, err := prepareSlackMessages(article); err != nil {
+					t.Fatalf("prepareSlackMessages: %v, want no error", err)
+				}
+			})
+		}
 	}
 }
 
@@ -434,8 +609,9 @@ func TestSlackMentionPosition(t *testing.T) {
 		line, column int
 	}{
 		{"ab\ncd @here", ruleM2, 2, 4},
-		// V1 removes the backslash; the match is reported at its index.
-		{"x\n\\@here", ruleM2, 2, 1},
+		// M2 does not undo the escape: the backslash separates words, and the
+		// match is reported at the '@' itself.
+		{"x\n\\@here", ruleM2, 2, 2},
 		// V2 removes U+200B; the index still counts it.
 		{"\u200B<!here>", ruleM1, 1, 2},
 		{"a\nb\nc &#64;", ruleM3, 3, 3},
@@ -456,9 +632,10 @@ func TestSlackMentionPosition(t *testing.T) {
 }
 
 // TestSlackMentionMessagesFollowPosted pins the premise that lets
-// prepareSlackMessages check posted alone: when posted holds no M1-M4 match,
-// no message does either, even with a near-match cut at a fragment boundary
-// right after a position marker.
+// prepareSlackMessages check posted alone: when posted holds no M1, M3 or M4
+// match, no message does either, even with a near-match cut at a fragment
+// boundary right after a position marker. M2 at a fragment boundary is pinned
+// by TestSlackSplitAvoidsMidWordAt and TestCheckFragmentStarts.
 func TestSlackMentionMessagesFollowPosted(t *testing.T) {
 	capacity := slackMaxMessageRunes - slackDisplayMaxRunes
 	// Each case is the text just before and just after a fragment boundary.

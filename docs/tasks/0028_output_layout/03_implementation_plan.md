@@ -107,7 +107,7 @@ go test -run '^$' -tags test,integration ./...
 | `modelVersionOrNone`・`articleCostDecimals`（`file.go`） | 同名で `format.go` へ移す | 2 |
 | `splitSlackText(posted string)` | `splitSlackText(post slackPost)` | 4 |
 | `integrationHeader`（`testutil/integration.go`） | 新しい投稿の見出し行と脚注の長さを数える関数に置き換える（名前はコードで決める） | 4 |
-| `findInspectionMention` の M2 の分岐 | `mentionAts` の結果を使う分岐 | 4 |
+| `findInspectionMention` の M2 の分岐 | `mentionAts` の結果を使う分岐（`findMention` に置く。`findInspectionMention` は M1 だけを判定する） | 4 |
 | `TestRenderArticleSteps`・`TestRenderArticleCost`（`file_test.go`） | `renderFileArticle` を確かめるテストに改める（名前はコードで決める） | 3 |
 
 ### フェーズ 1: チャンネル名の受け渡しと検査（F-001）
@@ -304,14 +304,18 @@ go test -run '^$' -tags test,integration ./...
 
 **対象:** `internal/publisher/slack_message.go`・`internal/publisher/slack_render.go`
 
--   [ ] `slackPost`（`text`・`keepTogetherFrom`）の型を `slack_render.go` に加える。整形の関数はステップ 4-9 で加える。それまでの間、`prepareSlackMessages` は `renderArticle` の出力に `keepTogetherFrom` を投稿の長さとして渡す（最後の領域（`keepTogetherFrom` 以降）がなく、切る位置に制限がない）。
--   [ ] `splitSlackText` が `slackPost` を受け取る形にする。最後以外の断片は `keepTogetherFrom` 以前で切る。探索の上限を容量と `keepTogetherFrom` の小さいほうにし、最後の領域が容量を超えるときは `ErrSlackUnsplittable` で拒否する（I-04、設計書 3.5）。`isWhitespaceOnly` を `keepTogetherFrom` で切った断片にも適用する。
--   [ ] 改行の後以外の位置で切るとき、切る位置の直後が対象の `@` で、直前が文字または数字なら、切る位置を 1 文字前に動かす。動かすと断片が空になる場合は `ErrSlackUnsplittable` で拒否する（I-03）。
--   [ ] 分割の後に確認の層を加える。位置の記号 `(n/m)` を含む各メッセージの先頭の `@` について、投稿の全体では語の途中だったのにメッセージの中で対象になったものがあれば、`ErrSlackUnsplittable` で拒否する（I-03）。確認の層は独立した関数にし、手で作った断片の並びを直接渡してテストする。テストの入力には、切る位置の移動の規則を通った後にも残る形を選ぶ。先に、移動の規則だけではこの入力が変わらず拒否もされないことを確かめる。
--   [ ] `prepareSlackMessages` の UTF-8 の検査（`:29-41`）を、`Body` だけを対象にする形に絞る（設計書 3.5）。
--   [ ] `slack_message.go:47-49` のコメント（M1〜M4 の前提）を、M2 だけが成り立たなくなり、分割の規則と確認の層がそれを補うこと（設計書 3.7(3)）を述べる形に書き換える。
--   [ ] `splitSlackText` を呼ぶ既存のテストを、`slackPost` を渡す形に直す。
--   [ ] 分割と `@` のテストを `slack_message_test.go` に加える: 改行のない長い本文で、切る位置が `x` と `@` の間に来る入力で `@` が断片の先頭にならないこと。確認の層が `ErrSlackUnsplittable` を返す入力は、切る位置の移動の規則を通らない形（移動すると断片が空になる）で作る。最後の領域が容量を超える入力と、`keepTogetherFrom` の手前が容量にちょうど収まる入力（`keepTogetherFrom` を直接指定する）も加える。
+-   [x] `slackPost`（`text`・`keepTogetherFrom`）の型を `slack_render.go` に加える。整形の関数はステップ 4-9 で加える。それまでの間、`prepareSlackMessages` は `renderArticle` の出力に `keepTogetherFrom` を投稿の長さとして渡す（最後の領域（`keepTogetherFrom` 以降）がなく、切る位置に制限がない）。
+-   [x] `splitSlackText` が `slackPost` を受け取る形にする。最後以外の断片は `keepTogetherFrom` 以前で切る。探索の上限を容量と `keepTogetherFrom` の小さいほうにし、最後の領域が容量を超えるときは `ErrSlackUnsplittable` で拒否する（I-04、設計書 3.5）。`isWhitespaceOnly` を `keepTogetherFrom` で切った断片にも適用する。
+    -   実装では、切る位置を選ぶ層を `cutSlackFragments` に分け、`splitSlackText` はその結果に確認の層をかけてから位置の記号を付ける。
+-   [x] 改行の後以外の位置で切るとき、切る位置の直後が対象の `@` で、直前が文字または数字なら、切る位置を 1 文字前に動かす。動かすと断片が空になる場合は `ErrSlackUnsplittable` で拒否する（I-03）。
+    -   実装では、動かすと断片が空になる場合は動かさず、確認の層が `ErrSlackUnsplittable` で拒否する（結果は I-03 と同じ）。これにより、確認の層を通しで確かめる入力ができる。移動の規則と確認の層は、同じ判定 `cutStartsMention` を使う。
+-   [x] 分割の後に確認の層を加える。位置の記号 `(n/m)` を含む各メッセージの先頭の `@` について、投稿の全体では語の途中だったのにメッセージの中で対象になったものがあれば、`ErrSlackUnsplittable` で拒否する（I-03）。確認の層は独立した関数にし、手で作った断片の並びを直接渡してテストする。テストの入力には、切る位置の移動の規則を通った後にも残る形を選ぶ。先に、移動の規則だけではこの入力が変わらず拒否もされないことを確かめる。
+    -   実装では、確認の層は `checkFragmentStarts`（`TestCheckFragmentStarts` が断片の並びを直接渡す）。通しのテスト `TestSlackSplitRefusesUnmovableCut` は、先に `cutSlackFragments` だけでは断片の先頭に `@here` が残り拒否もされないことを確かめ、次に `splitSlackText` が拒否することを確かめる。
+-   [x] `prepareSlackMessages` の UTF-8 の検査（`:29-41`）を、`Body` だけを対象にする形に絞る（設計書 3.5）。
+-   [x] `slack_message.go:47-49` のコメント（M1〜M4 の前提）を、M2 だけが成り立たなくなり、分割の規則と確認の層がそれを補うこと（設計書 3.7(3)）を述べる形に書き換える。
+-   [x] `splitSlackText` を呼ぶ既存のテストを、`slackPost` を渡す形に直す。
+-   [x] 分割と `@` のテストを `slack_message_test.go` に加える: 改行のない長い本文で、切る位置が `x` と `@` の間に来る入力で `@` が断片の先頭にならないこと。確認の層が `ErrSlackUnsplittable` を返す入力は、切る位置の移動の規則を通らない形（移動すると断片が空になる）で作る。最後の領域が容量を超える入力と、`keepTogetherFrom` の手前が容量にちょうど収まる入力（`keepTogetherFrom` を直接指定する）も加える。
+    -   実装では、`TestSlackSplitAvoidsMidWordAt`（`x@here`・`1@here`・`x＠here`）、`TestSlackSplitRefusesUnmovableCut`、`TestSlackSplitKeepTogether` に置いた。既存のテストは `prepareSlackMessages` を通して呼ぶので、直す行はなかった。
 
 **完了:** この時点では M2 も整形も旧いままで、`make test` が通る。**ステップ 4-4 と 4-5 は同じ PR-4 に入れ、4-5 だけを先にマージしない。** 4-4 の分割の規則なしに M2 を緩めると、分割が語の途中の `@` を断片の先頭に置いた投稿が、全体の検査をすり抜けるためである。
 
@@ -321,16 +325,19 @@ go test -run '^$' -tags test,integration ./...
 
 **対象:** `internal/publisher/slack_message.go`
 
--   [ ] `findInspectionMention` の M2 の分岐を `mentionAts` の結果に置き換える。M1 の判定（`<!`・`<@`）と、`inspectMentionText` の V2 → V3 → V1 は変えない。M3・M4 は変えない。
--   [ ] `isMentionNameRune` を削除する（呼び出し元は M2 だけ。§1.3）。
--   [ ] `TestSlackMentionRejected:235`・`TestSlackMentionAccepted:273`・`TestSlackMentionPosition:428`・`TestSlackMentionMessagesFollowPosted:460` を、新しい M2 に合わせる。語の途中の `@`（`Tech@Work`、`user@example.com`、`さん@xxx`）が受理され、`foo_@bar`・`x@@y` のように直前が `_` や `@` の `@` が対象になることを確かめる行を加える。
+-   [x] `findInspectionMention` の M2 の分岐を `mentionAts` の結果に置き換える。M1 の判定（`<!`・`<@`）と、`inspectMentionText` の V2 → V3 → V1 は変えない。M3・M4 は変えない。
+    -   実装では、M2 は元の文字列に V3 だけを当てる（`mentionAtsOf`）ので、検査用の文字列を受け取る `findInspectionMention` から外し、`findMention` で判定する。`mentionAtsOf` は `slack_render.go` から `slack_message.go` に移した。
+-   [x] `isMentionNameRune` を削除する（呼び出し元は M2 だけ。§1.3）。
+-   [x] `TestSlackMentionRejected:235`・`TestSlackMentionAccepted:273`・`TestSlackMentionPosition:428`・`TestSlackMentionMessagesFollowPosted:460` を、新しい M2 に合わせる。語の途中の `@`（`Tech@Work`、`user@example.com`、`さん@xxx`）が受理され、`foo_@bar`・`x@@y` のように直前が `_` や `@` の `@` が対象になることを確かめる行を加える。
+    -   実装では、`TestSlackMentionRejected` の「at a fragment boundary」の行（`あ…@here`）は語の途中の `@` になるので、空白を挟んだ「in a later fragment」の行に改めた。`TestSlackMentionPosition` の `x\n\\@here` は、M2 がバックスラッシュを戻さないので、位置を `@` 自身（2 行目 2 列）に改めた。`TestSlackMentionAccepted` はタイトルと本文の両方で確かめる。
 
 **完了:** 整形はまだ旧い `renderArticle` で、分割と M2 が新しい。`make test` が通る。**PR-4 のマージから PR-7 のマージまでの間、`main` は緩めた M2 を持ち、実機の確認（R-4）は済んでいない。** この間に `main` から Slack へ公開することを避ける。R-4 の確認は、ステップ 4-14 で、語の途中の `@`（`Tech@Work`・`user@example.com`）が通知にならないことも対象にする。
 
 #### ステップ 4-6: PR-4 の確認
 
--   [ ] `make fmt` → `make test` → `make lint` が通る。
--   [ ] 次の変更を 1 つずつ行い、ステップ 4-4・4-5 の対応するテストが失敗することを確かめ、コミットメッセージに記す: `keepTogetherFrom` の上限を外す; `isWhitespaceOnly` を `keepTogetherFrom` で切った断片に適用しない; 切る位置の移動の規則を外す; 確認の層を外す; `prepareSlackMessages` の UTF-8 の検査を `Body` 以外にも広げる、または `Body` からも外す; `findInspectionMention` の M2 の分岐を旧い判定（直前を見ない）に戻す。切る位置の移動の規則と確認の層は、別々の入力のテストで確かめる。
+-   [x] `make fmt` → `make test` → `make lint` が通る。
+-   [x] 次の変更を 1 つずつ行い、ステップ 4-4・4-5 の対応するテストが失敗することを確かめ、コミットメッセージに記す: `keepTogetherFrom` の上限を外す; `isWhitespaceOnly` を `keepTogetherFrom` で切った断片に適用しない; 切る位置の移動の規則を外す; 確認の層を外す; `prepareSlackMessages` の UTF-8 の検査を `Body` 以外にも広げる、または `Body` からも外す; `findInspectionMention` の M2 の分岐を旧い判定（直前を見ない）に戻す。切る位置の移動の規則と確認の層は、別々の入力のテストで確かめる。
+    -   実装では、`Body` 以外へ広げる変更は、`CheckPublishable` が先に同じ値を拒否するので、どのテストも失敗しない（観測できない）。最後の領域の開始位置の拒否（`start >= keepTogetherFrom`）を外しても、空の断片がメッセージ数の上限に達して同じ `ErrSlackUnsplittable` になるので、テストでは区別できない。
 
 ### PR-4 作成ポイント: slack split rules and M2 replacement
 
