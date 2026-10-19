@@ -105,7 +105,7 @@ linters:
             - "**/internal/server/**"
           deny:
             - pkg: github.com/isseis/yt2column/internal/serversock
-              desc: "internal/server serves a listener it is given; only cmd/yt2column-server uses internal/serversock"
+              desc: "internal/server must not import internal/serversock; the entry point binds the socket and hands the listener over"
         publisher-no-log:
           list-mode: lax
           files:
