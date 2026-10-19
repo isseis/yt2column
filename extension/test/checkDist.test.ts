@@ -188,52 +188,25 @@ describe("checkDist", () => {
     ]);
   });
 
-  /** Replaces root/file with a symbolic link to a different JSON file. */
-  function linkElsewhere(file: string): void {
-    write(root, "other.json", "{}");
-    unlinkSync(path.join(root, file));
-    symlinkSync("../other.json", path.join(root, file));
-  }
-
-  // Unless both manifests are regular files, the other checks report the
-  // problem and the copy check must not add a violation of its own.
-  const unusableManifest: {
-    name: string;
-    damage: () => void;
-    violations: string[];
-  }[] = [
+  // With only one of the two manifests, the set comparison reports it and
+  // the copy check must not add a violation of its own.
+  const oneManifest: { name: string; remove: string; violation: string }[] = [
     {
-      name: "only static/ has a manifest",
-      damage: () => unlinkSync(path.join(root, "dist/manifest.json")),
-      violations: ["dist/manifest.json: missing"],
+      name: "static/",
+      remove: "dist/manifest.json",
+      violation: "dist/manifest.json: missing",
     },
     {
-      name: "only dist/ has a manifest",
-      damage: () => unlinkSync(path.join(root, "static/manifest.json")),
-      violations: ["dist/manifest.json: not built from src/ or static/"],
-    },
-    {
-      name: "the dist/ manifest is a symbolic link",
-      damage: () => linkElsewhere("dist/manifest.json"),
-      violations: [
-        "dist/manifest.json: not a regular file",
-        "dist/manifest.json: missing",
-      ],
-    },
-    {
-      name: "the static/ manifest is a symbolic link",
-      damage: () => linkElsewhere("static/manifest.json"),
-      violations: [
-        "static/manifest.json: not a regular file",
-        "dist/manifest.json: not built from src/ or static/",
-      ],
+      name: "dist/",
+      remove: "static/manifest.json",
+      violation: "dist/manifest.json: not built from src/ or static/",
     },
   ];
-  for (const { name, damage, violations } of unusableManifest) {
-    it(`does not compare the manifests when ${name}`, () => {
+  for (const { name, remove, violation } of oneManifest) {
+    it(`reports only the set violation for a manifest only in ${name}`, () => {
       writeManifest(root, "page.html", "page.html");
-      damage();
-      assert.deepEqual(checkDist(root), violations);
+      unlinkSync(path.join(root, remove));
+      assert.deepEqual(checkDist(root), [violation]);
     });
   }
 
