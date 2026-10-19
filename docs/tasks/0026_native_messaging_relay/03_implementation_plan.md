@@ -319,7 +319,7 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 **判定理由**: ステップ 2-2 の中継は、メッセージと応答の大きさの上限と標準出力の純度という、ブラウザとサーバの間のホストの関門を作る（mkplan のパネル方式の条件「security-gate」）。
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 -   [ ] **ステップ 2-6**: `internal/nmhost/manifest.go` に `HostName`・`ExtensionOrigin`・`Browser`・`ParseBrowser`・4 つのエラー・`Install`・`Uninstall` を置く（設計書 3.6）。OS とブラウザの組から 2 つのディレクトリを選ぶ処理は `runtime.GOOS` の値を受け取る非公開の関数にする。manifest の読み取りは `internal/strictjson` を使う。
