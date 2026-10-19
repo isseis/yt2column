@@ -1,23 +1,9 @@
 import type { CollectOutcome } from "./collect.ts";
-import { rejectionReasons } from "./types.ts";
-import type { OutcomeSummary, RejectionReason } from "./types.ts";
+import type { OutcomeSummary } from "./types.ts";
 
 const titleLimit = 1000;
 const urlLimit = 1000;
 const previewLimit = 200;
-
-const collectedKeys: readonly string[] = [
-  "kind",
-  "title",
-  "titleTruncated",
-  "url",
-  "urlTruncated",
-  "characterCount",
-  "lineCount",
-  "preview",
-  "previewTruncated",
-];
-const rejectedKeys: readonly string[] = ["kind", "reason"];
 
 /**
  * Cuts text to at most limit code points. Iterating the string yields code
@@ -65,71 +51,4 @@ export function summarize(outcome: CollectOutcome): OutcomeSummary {
     preview: shortenedPreview.value,
     previewTruncated: shortenedPreview.truncated,
   };
-}
-
-/** True when record has exactly the given keys, with no extras and none missing. */
-export function hasExactKeys(
-  record: Record<string, unknown>,
-  keys: readonly string[],
-): boolean {
-  const actual = Object.keys(record);
-  return (
-    actual.length === keys.length &&
-    keys.every((key) => Object.prototype.hasOwnProperty.call(record, key))
-  );
-}
-
-/** True when value is one of the declared rejection reasons. */
-export function isRejectionReason(value: unknown): value is RejectionReason {
-  return (
-    typeof value === "string" &&
-    Object.prototype.hasOwnProperty.call(rejectionReasons, value)
-  );
-}
-
-/**
- * Accepts only a value of exactly the OutcomeSummary shape; otherwise
- * undefined. The value is not repaired to fit.
- */
-export function parseSummary(value: unknown): OutcomeSummary | undefined {
-  if (typeof value !== "object" || value === null) {
-    return undefined;
-  }
-  const record = value as Record<string, unknown>;
-  if (record.kind === "rejected") {
-    if (
-      !hasExactKeys(record, rejectedKeys) ||
-      !isRejectionReason(record.reason)
-    ) {
-      return undefined;
-    }
-    return { kind: "rejected", reason: record.reason };
-  }
-  if (record.kind === "collected") {
-    if (
-      !hasExactKeys(record, collectedKeys) ||
-      typeof record.title !== "string" ||
-      typeof record.titleTruncated !== "boolean" ||
-      typeof record.url !== "string" ||
-      typeof record.urlTruncated !== "boolean" ||
-      typeof record.characterCount !== "number" ||
-      typeof record.lineCount !== "number" ||
-      typeof record.preview !== "string" ||
-      typeof record.previewTruncated !== "boolean"
-    ) {
-      return undefined;
-    }
-    return {
-      kind: "collected",
-      title: record.title,
-      titleTruncated: record.titleTruncated,
-      url: record.url,
-      urlTruncated: record.urlTruncated,
-      characterCount: record.characterCount,
-      lineCount: record.lineCount,
-      preview: record.preview,
-      previewTruncated: record.previewTruncated,
-    };
-  }
-  return undefined;
 }

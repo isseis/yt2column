@@ -18,7 +18,7 @@ import { sendArticle } from "./send.ts";
 import type { SendDeps } from "./send.ts";
 import { messageNodes, renderMetadata, renderSummary } from "./ui/render.ts";
 import {
-  renderResultView,
+  renderBlockReason,
   renderSendOutcome,
   sendingMessage,
 } from "./ui/renderSend.ts";
@@ -215,7 +215,7 @@ export async function runPopupSend(
   );
   if (prepared.kind === "blocked") {
     logBlocked(deps.log, prepared);
-    renderResultView(container, { kind: "blocked", reason: prepared.reason });
+    renderBlockReason(container, prepared.reason);
     return;
   }
   const doc = container.ownerDocument;

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import type { CollectedInput, CollectOutcome } from "../src/core/collect.ts";
-import { parseSummary, summarize } from "../src/core/summary.ts";
+import { summarize } from "../src/core/summary.ts";
 import { rejectionReasons } from "../src/core/types.ts";
 import type { OutcomeSummary, RejectionReason } from "../src/core/types.ts";
 
@@ -90,6 +90,38 @@ describe("summarize", () => {
     assert.equal(summary.urlTruncated, true);
   });
 
+  it("reduces a collected input to exactly the nine summary members", () => {
+    assert.deepEqual(summarize(collected("hello\nworld", "a title")), {
+      kind: "collected",
+      title: "a title",
+      titleTruncated: false,
+      url: watchUrl,
+      urlTruncated: false,
+      characterCount: 11,
+      lineCount: 2,
+      preview: "hello\nworld",
+      previewTruncated: false,
+    });
+  });
+
+  it("drops the cause of every rejection, keeping only kind and reason", () => {
+    const reasons = Object.keys(rejectionReasons) as RejectionReason[];
+    for (const reason of reasons) {
+      // Only collection-failed declares a cause; the cast gives every reason
+      // one, so a summary that copies extra members fails for each of them.
+      const outcome = {
+        kind: "rejected",
+        reason,
+        cause: new Error("test"),
+      } as CollectOutcome;
+      assert.deepEqual(
+        summarize(outcome),
+        { kind: "rejected", reason },
+        reason,
+      );
+    }
+  });
+
   it("passes a rejection reason through unchanged", () => {
     const outcome: CollectOutcome = {
       kind: "rejected",
@@ -99,78 +131,5 @@ describe("summarize", () => {
       kind: "rejected",
       reason: "empty-selection",
     });
-  });
-});
-
-describe("parseSummary", () => {
-  it("accepts summarize output for a collected input", () => {
-    const summary = summarize(collected("hello\nworld", "a title"));
-    assert.deepEqual(parseSummary(summary), summary);
-  });
-
-  it("accepts summarize output for every rejection reason", () => {
-    const reasons = Object.keys(rejectionReasons) as RejectionReason[];
-    for (const reason of reasons) {
-      const outcome: CollectOutcome =
-        reason === "collection-failed"
-          ? { kind: "rejected", reason, cause: new Error("test") }
-          : { kind: "rejected", reason };
-      const summary = summarize(outcome);
-      assert.deepEqual(parseSummary(summary), summary);
-    }
-  });
-
-  it("rejects a non-object value", () => {
-    for (const value of [undefined, null, 42, "x", true]) {
-      assert.equal(parseSummary(value), undefined);
-    }
-  });
-
-  it("rejects an unknown kind", () => {
-    assert.equal(parseSummary({ kind: "other" }), undefined);
-  });
-
-  it("rejects a missing field", () => {
-    const summary = summarize(collected("x"));
-    assert.ok(summary.kind === "collected");
-    const { preview, ...rest } = summary;
-    assert.equal(preview, "x");
-    assert.equal(parseSummary(rest), undefined);
-  });
-
-  it("rejects an extra field", () => {
-    const summary = summarize(collected("x"));
-    assert.equal(parseSummary({ ...summary, extra: 1 }), undefined);
-  });
-
-  const wrongTypes: { field: string; value: unknown }[] = [
-    { field: "title", value: 1 },
-    { field: "titleTruncated", value: "no" },
-    { field: "url", value: 1 },
-    { field: "urlTruncated", value: "no" },
-    { field: "characterCount", value: "5" },
-    { field: "lineCount", value: "5" },
-    { field: "preview", value: 1 },
-    { field: "previewTruncated", value: "no" },
-  ];
-  for (const { field, value } of wrongTypes) {
-    it(`rejects a collected summary whose ${field} has the wrong type`, () => {
-      const summary = summarize(collected("x"));
-      assert.equal(parseSummary({ ...summary, [field]: value }), undefined);
-    });
-  }
-
-  it("rejects an unknown reason", () => {
-    assert.equal(
-      parseSummary({ kind: "rejected", reason: "bogus" }),
-      undefined,
-    );
-  });
-
-  it("rejects a rejection with an extra field", () => {
-    assert.equal(
-      parseSummary({ kind: "rejected", reason: "empty-title", cause: "x" }),
-      undefined,
-    );
   });
 });

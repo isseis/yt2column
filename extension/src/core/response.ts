@@ -3,8 +3,6 @@
 // read below are own properties; no parsed method is called, no inherited
 // member is read, and the raw body text is never carried out of this module.
 
-import { hasExactKeys } from "./summary.ts";
-
 /** The reason values the server sends. */
 export type ServerRejectReason =
   | "forbidden_host"
@@ -86,20 +84,7 @@ export type UnexpectedCheck =
   | "status-pairing"
   | "classification-error";
 
-/** Runtime set of the unexpected checks; a Record, so it stays in step with the union. */
-export const unexpectedChecks: Record<UnexpectedCheck, true> = {
-  "body-over-limit": true,
-  encoding: true,
-  escape: true,
-  "json-shape": true,
-  "duplicate-member": true,
-  "member-set": true,
-  "request-id": true,
-  "status-pairing": true,
-  "classification-error": true,
-};
-
-/** A send result without the cause of "unknown": what is displayed and stored. */
+/** A send result without the cause of "unknown": what is displayed. */
 export type SendOutcome =
   | { readonly kind: "accepted"; readonly requestId: RequestId }
   | {
@@ -120,12 +105,24 @@ export type SendResult =
   | Exclude<SendOutcome, { kind: "unknown" }>
   | { readonly kind: "unknown"; readonly cause: unknown };
 
-/** Drops the cause of "unknown"; the only way a SendResult becomes a stored or displayed value. */
+/** Drops the cause of "unknown"; the only way a SendResult becomes a displayed value. */
 export function toSendOutcome(result: SendResult): SendOutcome {
   if (result.kind === "unknown") {
     return { kind: "unknown" };
   }
   return result;
+}
+
+/** True when record has exactly the given keys, with no extras and none missing. */
+function hasExactKeys(
+  record: Record<string, unknown>,
+  keys: readonly string[],
+): boolean {
+  const actual = Object.keys(record);
+  return (
+    actual.length === keys.length &&
+    keys.every((key) => Object.prototype.hasOwnProperty.call(record, key))
+  );
 }
 
 /** An unexpected response at a status: the status and the failed check, no body text. */

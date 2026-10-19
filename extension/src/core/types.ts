@@ -24,7 +24,7 @@ export interface LaunchContext {
   readonly title: string | undefined;
 }
 
-/** Display-only digest of an outcome; what the result window receives. */
+/** Display-only digest of an outcome; what the popup summary shows. */
 export type OutcomeSummary =
   | {
       readonly kind: "collected";
