@@ -16,7 +16,10 @@ const (
 	darwinSocketTail  = "/Library/Application Support/yt2column/run/server.sock"
 	unixSocketTail    = "/.local/state/yt2column/run/server.sock"
 	darwinSocketLimit = 103
-	unixSocketLimit   = 107
+	linuxSocketLimit  = 107
+	// otherUnixSocketLimit is the BSDs' limit, given to every Unix other than
+	// Linux and macOS.
+	otherUnixSocketLimit = 103
 )
 
 // homeMark is part of every HOME the tests build, so an error that carried
@@ -41,8 +44,10 @@ func homeOfLength(t *testing.T, n int) string {
 func TestSocketPath(t *testing.T) {
 	darwinAtLimit := homeOfLength(t, darwinSocketLimit-len(darwinSocketTail))
 	darwinOverLimit := homeOfLength(t, darwinSocketLimit-len(darwinSocketTail)+1)
-	unixAtLimit := homeOfLength(t, unixSocketLimit-len(unixSocketTail))
-	unixOverLimit := homeOfLength(t, unixSocketLimit-len(unixSocketTail)+1)
+	unixAtLimit := homeOfLength(t, linuxSocketLimit-len(unixSocketTail))
+	unixOverLimit := homeOfLength(t, linuxSocketLimit-len(unixSocketTail)+1)
+	otherAtLimit := homeOfLength(t, otherUnixSocketLimit-len(unixSocketTail))
+	otherOverLimit := homeOfLength(t, otherUnixSocketLimit-len(unixSocketTail)+1)
 
 	cases := []struct {
 		name    string
@@ -68,6 +73,8 @@ func TestSocketPath(t *testing.T) {
 		{name: "darwin one byte over", goos: "darwin", env: map[string]string{"HOME": darwinOverLimit}, wantErr: ErrInvalid},
 		{name: "linux at the limit", goos: "linux", env: map[string]string{"HOME": unixAtLimit}, want: unixAtLimit + unixSocketTail},
 		{name: "linux one byte over", goos: "linux", env: map[string]string{"HOME": unixOverLimit}, wantErr: ErrInvalid},
+		{name: "freebsd at the limit", goos: "freebsd", env: map[string]string{"HOME": otherAtLimit}, want: otherAtLimit + unixSocketTail},
+		{name: "freebsd one byte over", goos: "freebsd", env: map[string]string{"HOME": otherOverLimit}, wantErr: ErrInvalid},
 		{
 			name: "darwin ignores the XDG variables and TMPDIR",
 			goos: "darwin",

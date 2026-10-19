@@ -369,8 +369,8 @@ yours, is a symbolic link, or does not have exactly mode `0700`, and a name at
 the socket path that is not a socket, stop the start until you fix them by
 hand.
 
-The socket path must fit the operating system's limit (103 bytes on macOS, 107
-on other Unix). On macOS the part after `HOME` is 54 bytes, so `HOME` can be at
+The socket path must fit the operating system's limit (107 bytes on Linux, 103
+on macOS and other Unix). On macOS the part after `HOME` is 54 bytes, so `HOME` can be at
 most 49 bytes; a longer one stops the start with exit code `2`.
 
 Exit codes:

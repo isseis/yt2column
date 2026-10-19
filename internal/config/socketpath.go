@@ -3,12 +3,16 @@ package config
 import "path/filepath"
 
 // The longest socket path, in bytes, each operating system accepts: the size
-// of sockaddr_un's sun_path minus the terminating NUL. internal/config cannot
-// import net or the OS-specific syscall types, so the values are constants;
-// the internal/serversock tests check them against syscall.RawSockaddrUnix.
+// of sockaddr_un's sun_path minus the terminating NUL. Linux's sun_path is 108
+// bytes; macOS's and the BSDs' are 104, and any other Unix gets that shorter
+// limit too, so a path it accepts never fails at bind for its length.
+// internal/config cannot import net or the OS-specific syscall types, so the
+// values are constants; the internal/serversock tests check them against
+// syscall.RawSockaddrUnix.
 const (
-	darwinSocketPathMax = 103
-	unixSocketPathMax   = 107
+	darwinSocketPathMax    = 103
+	linuxSocketPathMax     = 107
+	otherUnixSocketPathMax = 103
 )
 
 // The parts of the socket path below HOME. The socket directory holds only the
@@ -27,10 +31,12 @@ func socketRule(goos string) (parts []string, limit int, ok bool) {
 	switch goos {
 	case "darwin":
 		return darwinSocketDirParts, darwinSocketPathMax, true
+	case "linux":
+		return unixSocketDirParts, linuxSocketPathMax, true
 	case "windows", "plan9", "js", "wasip1":
 		return nil, 0, false
 	default:
-		return unixSocketDirParts, unixSocketPathMax, true
+		return unixSocketDirParts, otherUnixSocketPathMax, true
 	}
 }
 

@@ -86,9 +86,9 @@ func TestStartupFailures(t *testing.T) {
 			// out so a change to the limit fails this row.
 			name: "socket path one byte over the limit",
 			setup: func(_ *testing.T, e *serverEnv, _ *deps) {
-				limit := 107
-				if runtime.GOOS == "darwin" {
-					limit = 103
+				limit := 103
+				if runtime.GOOS == "linux" {
+					limit = 107
 				}
 				homeLen := limit + 1 - len(config.SocketPathTailForTest(runtime.GOOS))
 				e.vars["HOME"] += "/" + strings.Repeat("h", homeLen-len(e.vars["HOME"])-1)
