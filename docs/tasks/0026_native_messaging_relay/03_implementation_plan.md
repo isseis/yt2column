@@ -344,7 +344,7 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 
 **判定理由**: ステップ 2-6・2-7 の `Install`・`Uninstall` は、ホストを起動できる拡張を決める manifest を書き、他人の manifest を守る関門である（mkplan のパネル方式の条件「security-gate」）。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
