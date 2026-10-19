@@ -1024,7 +1024,7 @@ func assertCopiedRejected(t *testing.T, input string, reason error) string {
 // The server caps the request body at 4 MiB; the parser must finish such an
 // input within a small part of the server's request window and without
 // allocating super-linearly. The deadline is generous because make test builds
-// with the race detector (measured about 3.2s for the 4 MiB inputs under -race)
+// with the race detector (measured at most about 2.9s for the 4 MiB inputs under -race)
 // and CI may run on a slower, contended runner; the parse budget on the server
 // is under 30s. copiedParseAllocPerByte is defined per build: the race
 // detector's runtime inflates TotalAlloc, so the race build uses a loose bound.
