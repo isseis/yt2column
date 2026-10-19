@@ -162,15 +162,15 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 
 他に依存しない `internal/serversock` とテストの補助 `internal/udstest` を先に作って単独で確かめ（設計書 8 章）、その後 `internal/config` → `internal/server` → `cmd/yt2column-server` → 文書とガードの順に進める。
 
--   [ ] **ステップ 1-1**: `internal/cachelock` のパッケージのコメントとエラーの文言を、キャッシュのディレクトリに限らない言い方に改める（設計書 3.2.2。`cachelock.go:3-5`・`:33`・`:73`）。振る舞いは変えない。`LockedError` の文言（`:45`）は `yt-dlp` に触れたまま残す（`serversock` はこれを利用者に見せない）。
+-   [x] **ステップ 1-1**: `internal/cachelock` のパッケージのコメントとエラーの文言を、キャッシュのディレクトリに限らない言い方に改める（設計書 3.2.2。`cachelock.go:3-5`・`:33`・`:73`）。振る舞いは変えない。`LockedError` の文言（`:45`）は `yt-dlp` に触れたまま残す（`serversock` はこれを利用者に見せない）。
     -   **対象:** `internal/cachelock/cachelock.go`。**完了:** 既存の `go test -tags test ./internal/cachelock` が通る（テストはエラーを `errors.Is` で判定し、文言に依存しない）。
--   [ ] **ステップ 1-2**: テスト専用のパッケージ `internal/udstest`（`//go:build test`）を作る。`os.MkdirTemp("/tmp", ...)` で実行のたびに異なる短いディレクトリを作り `t.Cleanup` で消す補助と、そこに UDS のリスナーを作り、作った時点で閉じる処理を `t.Cleanup` に登録する補助を置く（§1.3「UDS のテストの補助」）。補助自身のテストで、パスの長さの余裕（§1.3）と、2 回の呼び出しが別のディレクトリを返すことを確かめる。`internal/pipeline/pipeline_test.go` の `testOnlyPackageDirs` に `internal/udstest` を加え、`package_reference.md` に `internal/udstest` の行を加える（§1.3「UDS のテストの補助」）。
+-   [x] **ステップ 1-2**: テスト専用のパッケージ `internal/udstest`（`//go:build test`）を作る。`os.MkdirTemp("/tmp", ...)` で実行のたびに異なる短いディレクトリを作り `t.Cleanup` で消す補助と、そこに UDS のリスナーを作り、作った時点で閉じる処理を `t.Cleanup` に登録する補助を置く（§1.3「UDS のテストの補助」）。補助自身のテストで、パスの長さの余裕（§1.3）と、2 回の呼び出しが別のディレクトリを返すことを確かめる。`internal/pipeline/pipeline_test.go` の `testOnlyPackageDirs` に `internal/udstest` を加え、`package_reference.md` に `internal/udstest` の行を加える（§1.3「UDS のテストの補助」）。
     -   **対象:** `internal/udstest/udstest.go`・`udstest_test.go`・`internal/pipeline/pipeline_test.go`・`docs/dev/developer_guide/package_reference.md`。**完了:** `go test -tags test ./internal/udstest` と `go test -tags test -run 'TestFakesCarryBuildTag|TestPackageReferenceListsPackages' ./internal/pipeline` が通る。
--   [ ] **ステップ 1-3**: `internal/serversock`（`//go:build unix`）を設計書 3.2 のとおりに作る（`Acquire`・`Lock.Listen`・`Lock.Release`、`ErrAlreadyRunning`・`ErrInUse`・`ErrUnsafe`・`UnsafeError`・`UnsafeReason`）。検査の順序は設計書 3.2.1、ロックは 3.2.2、ソケットのパスの扱いは 3.2.3 の表に従う。所有者の検査は、`Lstat` の結果を受け取る非公開の関数に分け、他人の所有の場合をテストで作れるようにする（設計書 7.1）。`cachelock.ErrLocked` は `ErrAlreadyRunning` に読み替え、`LockedError` を `%w` で包まない。`package_reference.md` に `internal/serversock` の行を加え、`internal/cachelock` の行に起動のロックにも使うことを加える（`TestPackageReferenceListsPackages` は、パッケージを加えるのと同じ変更に行を求める。§1.3）。
+-   [x] **ステップ 1-3**: `internal/serversock`（`//go:build unix`）を設計書 3.2 のとおりに作る（`Acquire`・`Lock.Listen`・`Lock.Release`、`ErrAlreadyRunning`・`ErrInUse`・`ErrUnsafe`・`UnsafeError`・`UnsafeReason`）。検査の順序は設計書 3.2.1、ロックは 3.2.2、ソケットのパスの扱いは 3.2.3 の表に従う。所有者の検査は、`Lstat` の結果を受け取る非公開の関数に分け、他人の所有の場合をテストで作れるようにする（設計書 7.1）。`cachelock.ErrLocked` は `ErrAlreadyRunning` に読み替え、`LockedError` を `%w` で包まない。`package_reference.md` に `internal/serversock` の行を加え、`internal/cachelock` の行に起動のロックにも使うことを加える（`TestPackageReferenceListsPackages` は、パッケージを加えるのと同じ変更に行を求める。§1.3）。
     -   **対象:** `internal/serversock/serversock.go`・`docs/dev/developer_guide/package_reference.md`。**完了:** `go build ./internal/serversock` と `go test -tags test -run TestPackageReferenceListsPackages ./internal/pipeline` が通る。
--   [ ] **ステップ 1-4**: `internal/serversock` のテストを書く（設計書 7.1 の `internal/serversock` の行）。ディレクトリ（作成と `0700`、`0700` でない・symlink・他人の所有で中止し権限を変えないこと、親にグループかその他の書き込みのビットがあるときの中止）、ロック（取られているときの `ErrAlreadyRunning`、`Release` の後の再取得）、ソケット（stale の削除と bind、接続できるソケットでの `ErrInUse` と削除しないこと、通常ファイル・symlink・FIFO・ディレクトリでの中止と削除しないこと、作成後の `0600`、リスナーを閉じるとソケットが消えること）。所有者と権限に依存するテストは、root では `t.Skip` で飛ばす（設計書 7.1。補助を `internal/serversock/test_helpers.go` に置く。§1.3）。一時ディレクトリには `internal/udstest` を使う。
+-   [x] **ステップ 1-4**: `internal/serversock` のテストを書く（設計書 7.1 の `internal/serversock` の行）。ディレクトリ（作成と `0700`、`0700` でない・symlink・他人の所有で中止し権限を変えないこと、親にグループかその他の書き込みのビットがあるときの中止）、ロック（取られているときの `ErrAlreadyRunning`、`Release` の後の再取得）、ソケット（stale の削除と bind、接続できるソケットでの `ErrInUse` と削除しないこと、通常ファイル・symlink・FIFO・ディレクトリでの中止と削除しないこと、作成後の `0600`、リスナーを閉じるとソケットが消えること）。所有者と権限に依存するテストは、root では `t.Skip` で飛ばす（設計書 7.1。補助を `internal/serversock/test_helpers.go` に置く。§1.3）。一時ディレクトリには `internal/udstest` を使う。
     -   **対象:** `internal/serversock/serversock_test.go`・`test_helpers.go`。**完了:** `go test -tags test ./internal/serversock` が通る。
--   [ ] **ステップ 1-5**: ステップ 1-1〜1-4 のテストを壊して失敗することを確かめ、コミットメッセージに記録する（§1.2）。取り違えやすいもの: `serversock` の各検査（ディレクトリの権限・所有者・symlink・親の書き込みのビット、ロックの取得、stale の判定の各行、作成後の `chmod`）を 1 つずつ外す、`SetUnlinkOnClose(false)` を加える（閉じるとソケットが消えるテスト）、`internal/udstest` のディレクトリの名前を固定にする（2 回の呼び出しが別のディレクトリを返すことのテスト）。`internal/serversock` の公開の関数について、§4.4 の `go tool cover -func` の確認を行う。
+-   [x] **ステップ 1-5**: ステップ 1-1〜1-4 のテストを壊して失敗することを確かめ、コミットメッセージに記録する（§1.2）。取り違えやすいもの: `serversock` の各検査（ディレクトリの権限・所有者・symlink・親の書き込みのビット、ロックの取得、stale の判定の各行、作成後の `chmod`）を 1 つずつ外す、`SetUnlinkOnClose(false)` を加える（閉じるとソケットが消えるテスト）、`internal/udstest` のディレクトリの名前を固定にする（2 回の呼び出しが別のディレクトリを返すことのテスト）。`internal/serversock` の公開の関数について、§4.4 の `go tool cover -func` の確認を行う。
     -   **対象:** なし（確認のみ）。**完了:** 各対象で該当するテストが失敗することを確かめ、記録する。
 
 ### PR-1 作成ポイント: socket directory and start lock package
@@ -185,8 +185,8 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 
 **判定理由**: ステップ 1-3・1-4 は、トークンを削除した後にソケットへの接続を守る唯一の仕組み（ディレクトリの権限・所有者・symlink・stale の判定・起動のロック）を作るセキュリティの関門である（mkplan のパネル方式の条件「security-gate」）。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 -   [ ] **ステップ 1-6**: `internal/config/socketpath.go` を作り、`HOME` だけからソケットのパスを導出する非公開の関数（`runtime.GOOS` の値を引数に取る）と OS ごとの上限の定数を置く（設計書 3.1）。`ServerConfig` から `port`・`tokenPath` と `Port()`・`TokenPath()` を削除し、`SocketPath()` を加え、`LoadServer` が導出を呼ぶようにする。設計書 3.1「削除するもの」の関数・定数を削除する（`tokenFileName`・`configDirOverride`・`defaultConfigDir`・`reasonConfigDirAbsent` を含む）。`LoadServer` のコメント（`config.go:268-273`）から、ポートとトークンのパスの記述を除く。

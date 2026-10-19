@@ -743,8 +743,16 @@ func executionPathRows() []pathRow {
 			},
 			wantCode:   exitFailure,
 			untouched:  true,
-			wantStderr: []string{"the run failed: create the cache directory"},
-			check:      requireNotLocked,
+			wantStderr: []string{"the run failed: create the directory"},
+			check: func(t *testing.T, e *runEnv) {
+				requireNotLocked(t, e)
+				// The phrase and the path are matched together, ending at the
+				// colon, so a longer path under the cache directory (such as the
+				// lock file) or the path on another line does not satisfy it.
+				if want := "create the directory " + e.cacheDir + ":"; !strings.Contains(e.stderr.String(), want) {
+					t.Errorf("stderr does not contain %q:\n%s", want, e.stderr.String())
+				}
+			},
 		},
 		{
 			name: "lock file cannot be created",
@@ -762,7 +770,7 @@ func executionPathRows() []pathRow {
 			setup:      startHolder,
 			wantCode:   exitFailure,
 			untouched:  true,
-			wantStderr: []string{"another run holds the cache directory lock", "yt-dlp"},
+			wantStderr: []string{"another run holds the directory lock", "yt-dlp"},
 			check: func(t *testing.T, e *runEnv) {
 				if lockPath := filepath.Join(e.cacheDir, lockFileName); !strings.Contains(e.stderr.String(), lockPath) {
 					t.Errorf("stderr does not name the lock file %s:\n%s", lockPath, e.stderr.String())

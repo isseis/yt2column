@@ -1,8 +1,10 @@
 //go:build unix
 
-// Package cachelock serializes the runs that share one cache directory. The
-// lock is an flock(2) on a fixed file in that directory, so a run can hand the
-// file descriptor to yt-dlp and keep the lock while the child lives.
+// Package cachelock serializes the processes that share one directory. The lock
+// is an flock(2) on a fixed file in that directory, so a run can hand the file
+// descriptor to a child process (yt-dlp) and keep the lock while the child
+// lives. The CLI locks its cache directory; the server locks its socket
+// directory.
 package cachelock
 
 import (
@@ -18,24 +20,24 @@ import (
 // it.
 const lockFileName = ".yt2column.lock"
 
-// dirMode is the permission of a cache directory this package creates. An
+// dirMode is the permission of a directory this package creates. An
 // existing directory keeps its own mode.
 const dirMode = 0o700
 
 // fileMode is the permission of the lock file. It carries no content, only the
-// lock, but it is created 0o600 like the rest of the cache.
+// lock, but it is created 0o600 like the rest of the directory.
 const fileMode = 0o600
 
-// ErrLocked reports that another run holds the cache directory lock. A failure
+// ErrLocked reports that another run holds the directory lock. A failure
 // for any other reason does not wrap it, so a caller can tell a concurrent run
 // from an I/O or permission problem. The path of the lock file is carried by
 // *LockedError, not only by the message.
-var ErrLocked = errors.New("another run holds the cache directory lock")
+var ErrLocked = errors.New("another run holds the directory lock")
 
 // errNotRegularFile reports a lock name that is not a regular file.
 var errNotRegularFile = errors.New("the lock file is not a regular file")
 
-// LockedError reports that another run holds the cache directory lock. Path is
+// LockedError reports that another run holds the directory lock. Path is
 // the lock file. It wraps ErrLocked, so errors.Is(err, ErrLocked) is true.
 type LockedError struct {
 	Path string
@@ -48,7 +50,7 @@ func (e *LockedError) Error() string {
 
 func (e *LockedError) Unwrap() error { return e.Err }
 
-// Lock is an exclusive flock(2) lock on a file in the cache directory.
+// Lock is an exclusive flock(2) lock on a file in the locked directory.
 //
 // Contract: flock is attached to the open file description, so the lock is
 // held until every descriptor that references it is closed, including a
@@ -70,14 +72,14 @@ type Lock struct {
 // succeeds without manual cleanup.
 func Acquire(dir string) (*Lock, error) {
 	if err := os.MkdirAll(dir, dirMode); err != nil {
-		return nil, fmt.Errorf("create the cache directory %s: %w", dir, err)
+		return nil, fmt.Errorf("create the directory %s: %w", dir, err)
 	}
 	path := filepath.Join(dir, lockFileName)
 	// O_NOFOLLOW refuses a symbolic link at the name instead of locking its
 	// target; O_NONBLOCK makes opening a named pipe return at once instead of
 	// waiting for a writer. The type is still checked below, so the flags are
 	// relied on only for the open itself.
-	file, err := os.OpenFile(path, os.O_RDONLY|os.O_CREATE|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, fileMode) //nolint:gosec // opens the lock file inside the user's cache directory
+	file, err := os.OpenFile(path, os.O_RDONLY|os.O_CREATE|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, fileMode) //nolint:gosec // opens the lock file inside the directory the caller locks
 	if err != nil {
 		return nil, fmt.Errorf("open the lock file %s: %w", path, err)
 	}
