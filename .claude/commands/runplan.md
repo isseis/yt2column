@@ -171,9 +171,8 @@ Test-review checklist (use verbatim as evaluation criteria in the step 7.5 promp
 
       If the command fails (authentication, usage limit, network), do not retry and do not stop the run: skip the rest of this step and report the failure in step 8.
 
-   - **b.** Triage each finding yourself, in this session, on two independent dimensions (same scale as `fixpr.md` Phase 2). Read the code at the cited location and judge against `CLAUDE.md` (design principles, testing rules, Performance):
-      - `verdict`: `valid`, `invalid` (wrong or inapplicable here), or `unclear`.
-      - `severity`: `must-fix` (a bug, or a correctness or security defect), `worth-fixing` (a legitimate improvement), or `no-harm` (cosmetic, or invalid).
+   - **b.** Triage each finding yourself, in this session. Read the code at the cited location and classify it as `.claude/commands/_lib/triage-pattern.md` defines (`verdict`, `severity` with its calibration rule, `topic`, `replyBody`):
+      - When a finding concerns a process document under the task root (`docs/tasks/NNNN_<name>/`), including prose a phase of this run wrote there, also apply that file's abstraction-level check and use the `off-level` verdict where it applies; handle an `off-level` finding as `fixpr.md` "Shared rules" (R1-R5) describe. For any other file, the verdicts are `valid`, `invalid`, and `unclear`.
       - A finding that repeats one already fixed in step 7 or 7.5 is closed as such; do not fix it twice.
       - For a performance finding, measure the cost before adding a mechanism (`CLAUDE.md`, Performance).
 
