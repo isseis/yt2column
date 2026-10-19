@@ -6,7 +6,7 @@
 
 -   **事項:** メニューの経路とポップアップの経路が共有しているコードのうち、残すものと削除するものを決める。メニューの経路にだけ使う型・関数・定数が残っていないことの確かめ方を決める。
 -   **理由:** `extension/src/launch.ts` は両方の経路の処理を持つ。ポップアップは送らない理由の表示に `renderResultView`（`ui/renderSend.ts`）を使い、その引数の型 `ResultView` は `core/resultView.ts` にある。`core/resultView.ts` には、結果のウィンドウだけが使う `parseResultView` もある。`chromeDeps.ts` の `createResultViewStore`・`createResultWindowOpener`・`createBadge`・`schedule` と、その型（`StorageChangeEvents`・`WindowsApi`・`ActionApi` など）はメニューの経路だけが使う。ほかに、`launch.ts` の `runMenuLaunch`・`runResultWindow`・`MenuLaunchDeps`・`ResultWindowDeps`・`ResultViewStore`・`resultWaitMs` と、`core/sendMessages.ts` の `unreadableResultMessage` もメニューの経路（結果のウィンドウ）だけが使う。`launchContextFromTab` は両方の経路が使う。`make deadcode` は Go だけを対象にし、拡張の未使用の export は検出しない。
--   **候補の方針:** ポップアップから到達できる export だけを残す。未使用の export の検出は、ESLint・`tsc` の既存の設定で検出できるかを確かめ、できなければ削除の後に export ごとの参照を確かめて記録する。`ResultView` の型の名前と置き場所を、結果のウィンドウがなくなった後の用途に合うように変えるかを決める。`schedule` は、0026 の実装計画（ステップ 3-5）が `SendDeps` の `schedule` としてポップアップの経路で使う予定なので、削除して 0026 で加え直すか、残すかを決める。
+-   **候補の方針:** ポップアップから到達できる export だけを残す。未使用の export の検出は、ESLint・`tsc` の既存の設定で検出できるかを確かめ、できなければ削除の後に export ごとの参照を確かめて記録する。`ResultView` の型の名前と置き場所を、結果のウィンドウがなくなった後の用途に合うように変えるかを決める。`schedule` は、0026 が `SendDeps` の `schedule` としてポップアップの経路で使う予定である。0026 の実装計画（§1.3「0027 との順序」）は、本タスクが `schedule` を削除した場合はステップ 3-7 で加え直すとしている。削除するか残すかを決める。
 -   **関連:** F-001、F-002、§4.5
 
 ## H-02: ビルドの検査と manifest のテスト
@@ -27,7 +27,7 @@
 
 -   **事項:** 送信の時間の上限（`extension/src/send.ts` の `sendTimeoutMs`、25 秒）の値を選んだ理由の記述を、メニューの経路がない構成に合わせて改めるかを決める。
 -   **理由:** 0020 の設計（`02_architecture.md` §3.5）は、メニューの経路が service worker から送り、service worker が 30 秒を超えて応答を待つと停止されうることを、上限を 30 秒より短くした理由にしている。本タスクの後は、送信はポップアップからだけ行う。値は変えない（要件書 §2.3）。0026 は、ホストの 20 秒 < 拡張の 25 秒、という順序をこの値に依存させている（0026 `02_architecture.md` §3.5.5）。
--   **候補の方針:** 値を変えない。コード（`send.ts:11-12`）のコメントは上限の意味だけを述べ、30 秒の理由を持たないので、コードの変更は要らない見込みである。理由は 0020 の設計書にだけあり、完了したタスクの文書は書き換えない。本タスクの後に当てはまる理由（サーバの応答は通常は短い時間で返る、0026 のホストの上限との順序）を `02_architecture.md` に記録し、0026 の訂正（要件書 §5）で参照できるようにする。
+-   **候補の方針:** 値を変えない。コード（`send.ts:11-12`）のコメントは上限の意味だけを述べ、30 秒の理由を持たないので、コードの変更は要らない見込みである。理由は 0020 の設計書にだけあり、完了したタスクの文書は書き換えない。本タスクの後に当てはまる理由（サーバの応答は通常は短い時間で返る、0026 のホストの上限との順序）を `02_architecture.md` に記録する。0026 の設計（§3.5.5）は、[#338](https://github.com/isseis/yt2column/pull/338) で時間の順序から service worker の 30 秒を外し、25 秒を保つとしたので、本タスクの記録と整合する。
 -   **関連:** §2.3、§5
 
 ## H-05: 既存の `chrome.storage.session` の値

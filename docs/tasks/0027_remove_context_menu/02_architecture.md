@@ -280,8 +280,8 @@ export function renderBlockReason(container: HTMLElement, reason: BlockReason): 
 `schedule`（`chromeDeps.ts:289-292`）は結果のウィンドウの待ち時間の上限にだけ使う。本タスクで削除する。
 
 -   残すと、本タスクの後の拡張に、本番の参照元がない export が残り、要件書 §4.5 に反する。
--   0026 の設計は、`SendDeps` に新しいメンバとして `schedule` を加える（0026 `02_architecture.md` §3.7.2、`:781` の `SendDeps`）。加え直す量は数行で、残しておく利点が小さい。
--   0026 の訂正（要件書 §5）で、0026 の実装計画のステップ 3-5 が `schedule` の実装を加えることを明記する（9 章）。
+-   0026 の設計は、`SendDeps` に新しいメンバとして `schedule` を加える（0026 `02_architecture.md` §3.7.2）。加え直す量は数行で、残しておく利点が小さい。
+-   0026 の実装計画は、本タスクが `schedule` を削除した場合に、ステップ 3-7 で加え直すとしている（0026 `03_implementation_plan.md` §1.3「0027 との順序」。9 章）。
 
 #### 3.2.5. `hasExactKeys` を移す
 
@@ -371,7 +371,7 @@ AC-03 は、拡張のソースに `chrome.contextMenus`・`chrome.storage.sessio
 -   **0026 の時間の順序の前提である。** 0026 は「ホストの 20 秒 < 拡張の 25 秒」の順序をこの値に依存させ、同期のテストで確かめる（0026 `02_architecture.md` §3.5.5）。
 -   **待つ時間が長いほど、送信の途中でポップアップを閉じてしまう機会が増える。** 結果が表示されるまで閉じないよう案内しているので、上限を長くする理由はない。
 
-> **決定の経緯:** 0020 の設計（`0020_extension_send/02_architecture.md:614`）は、上限を 30 秒より短くした理由を「メニューの経路は service worker から送り、service worker が `fetch()` の応答を 30 秒を超えて待つと停止されうる」としていた。本タスクの後は service worker がないので、この理由は当てはまらない。完了したタスクの文書は書き換えない（要件書 §2.3）。0026 の設計の「service worker が停止されうる 30 秒より短い」（0026 `02_architecture.md:627`・`:632`）は、0026 の訂正で上の理由に改める（9 章）。
+> **決定の経緯:** 0020 の設計（`0020_extension_send/02_architecture.md:614`）は、上限を 30 秒より短くした理由を「メニューの経路は service worker から送り、service worker が `fetch()` の応答を 30 秒を超えて待つと停止されうる」としていた。本タスクの後は service worker がないので、この理由は当てはまらない。完了したタスクの文書は書き換えない（要件書 §2.3）。0026 の設計（§3.5.5）も、[#338](https://github.com/isseis/yt2column/pull/338) で時間の順序から service worker の 30 秒を外した。
 
 ### 3.7. 以前の版が残した状態（H-05）
 
@@ -433,7 +433,7 @@ ESLint の規則（`eslint.config.js:115-120`）と `check-dist.ts` の検査（
 | 動的な `import()` を禁止する理由は service worker | 0007 `02_architecture.md:708` | 3.8 のとおり、禁止は残し、理由を改める | 振る舞いは変えないので、更新するテストはない |
 | README の「Browser extension」節に `Context menu` を記す | 0020 の文書の検査 | AC-11 | `cmd/yt2column/extension_docs_test.go:184` |
 
-承認済みの 0026 の設計も、本タスクが削除する部分を前提にしている。0026 は本タスクの完了後に訂正する（要件書 §5）。引き継ぐ事項は 9 章にまとめる。
+0026 の文書は、本タスクが要件書のとおりに完了することを前提に、[#338](https://github.com/isseis/yt2column/pull/338) で改められた。0026 が本タスクに頼る事項は 9 章にまとめる。
 
 #### 3.10.2. テストの扱い
 
@@ -467,10 +467,10 @@ ESLint の規則（`eslint.config.js:115-120`）と `check-dist.ts` の検査（
 
 | 項目 | 採った方針 | 本書の節 |
 |---|---|---|
-| H-01 共有しているコードの切り分け | 本タスクが最後の本番の参照元を取り除くシンボルを、3.2.1 の 1 つの基準で削除する。`renderResultView` を `renderBlockReason` に置き換え、`ResultView` と `core/resultView.ts` を削除する。`schedule` は削除し、0026 で加え直す。未使用の export は既存の lint では検出できないので、対象の export の参照を削除の後に一度だけ確かめて記録する | 3.2 |
+| H-01 共有しているコードの切り分け | 本タスクが最後の本番の参照元を取り除くシンボルを、3.2.1 の 1 つの基準で削除する。`renderResultView` を `renderBlockReason` に置き換え、`ResultView` と `core/resultView.ts` を削除する。`schedule` は削除し、0026 のステップ 3-7 で加え直す。未使用の export は既存の lint では検出できないので、対象の export の参照を削除の後に一度だけ確かめて記録する | 3.2 |
 | H-02 ビルドの検査と manifest のテスト | `manifest.test.ts` の権限とキーの集合の期待値を改める。成果物にないことは既存のファイルの集合の比較で確かめ、ファイル名を列挙しない。`dist/manifest.json` の内容は、manifest の複製の同一性の検査を `check-dist.ts` に加えて確かめる。`background.service_worker` の参照の検査は削除する | 3.3 |
 | H-03 テストの削除の前後のカバレッジの比べ方 | 候補の方針（lcov の関数ごとの到達の比較）を広げ、行と分岐の到達も、ソースの差分で対応づけて比べる。カバレッジの比較は、検査ごとの対応の表（3.10.2）の補助とする | 3.10.2・3.11 |
-| H-04 `sendTimeoutMs` の理由の記述 | 値もコードも変えない。本タスクの後に当てはまる理由を 3.6 に記録し、0026 の訂正で参照する | 3.6・9 章 |
+| H-04 `sendTimeoutMs` の理由の記述 | 値もコードも変えない。本タスクの後に当てはまる理由を 3.6 に記録する。0026 の設計（§3.5.5）の時間の順序と整合する | 3.6・9 章 |
 | H-05 既存の `chrome.storage.session` の値 | 消す処理を加えない。以前の版で値とバッジを手で作り、再読み込みの後に消えることを手動で確かめる | 3.7・7.2 |
 
 ### 3.13. コンポーネント責務表
@@ -657,7 +657,7 @@ Chrome と Brave のそれぞれで、次を確かめる（AC-04・AC-05・AC-07
 4.  文字起こしパネルの行を選択して右クリックし、拡張の項目がないことを確かめる（AC-04・AC-05）。
 5.  ポップアップの検証のコンソールで `chrome.storage.session` が空であること、バッジがないことを確かめる（H-05、3.7）。
 6.  ブラウザを再起動し、手順 4 をもう一度確かめる。
-7.  ポップアップから送信し、受付（`202`）の表示を確かめる。共有トークンを削除し、送らない理由の表示を確かめる（AC-07）。この手順はサーバが LLM API を呼び、Webhook に投稿するので、実行の前に利用者の承認を得る（CLAUDE.md「Tool Execution Safety」）。
+7.  `main` のサーバが HTTP で待ち受けている間（0026 の PR-2 のマージの前。要件書 §5）に、ポップアップから送信し、受付（`202`）の表示を確かめる。共有トークンを削除し、送らない理由の表示を確かめる（AC-07）。この手順はサーバが LLM API を呼び、Webhook に投稿するので、実行の前に利用者の承認を得る（CLAUDE.md「Tool Execution Safety」）。
 
 ### 7.3. セキュリティテスト
 
@@ -701,15 +701,15 @@ Chrome と Brave のそれぞれで、次を確かめる（AC-04・AC-05・AC-07
 
 -   **#330（DOM からの文字起こしの読み取り）:** 本タスクの後、起動経路はポップアップだけなので、#330 はポップアップの経路の収集（`runPopupLaunch` と、注入する関数）だけを変えればよい。
 -   **新しい起動経路を加える場合:** 送信を始める入口を加える変更は、AC-05a と要件書 §4.2 の方針を変える判断なので、要件の段階から扱う。manifest の「undeclared keys」のテストが `background`・`content_scripts` の追加で失敗し、lint の規則が `contextMenus` などの使用で失敗するので、気付かずに加わることはない。
--   **0026 の訂正（要件書 §5）:** 本タスクの完了後に、0026 の要件・設計・実装計画からメニューの経路を外す。0026 の承認済みの文書は、本タスクが削除する次の部分を前提にしており、訂正で扱う必要がある。
+-   **0026 との関係:** 0026 の要件・設計・実装計画は、本タスクが要件書のとおりに完了することを前提に、[#338](https://github.com/isseis/yt2column/pull/338) で改められた（0026 `01_requirements.md` §1 の「0027 との関係」、`02_architecture.md` 8 章）。0026 が本タスクに頼る事項と、本書の対応は次のとおりである。
 
-| 0026 の前提 | 0026 の場所 | 本タスクの後 | 0026 の訂正で決めること |
-|---|---|---|---|
-| 以前の版の保存値（0026 の「旧版の保存値」。`sharedToken`・`serverPort`）を、`background.ts` の `chrome.runtime.onInstalled` で `chrome.storage.local` から削除する | 設計 §3.7.1（`02_architecture.md:719`・`:1047`・`:1108`）、実装計画のステップ 3-7（`03_implementation_plan.md:413-414`・`:552`）、AC-23 | service worker がなく、拡張の更新を契機に動く処理の置き場所がない。本タスクの「undeclared keys」のテストは `background` の宣言で失敗する | 次のどれを採るか。(a) ポップアップかオプションページを開いたときに削除する（利用者がページを開くまで、共有トークンがプロファイルに残る）。(b) 削除だけを行う service worker を宣言する（本タスクの F-001 の「service worker を持たない」と、manifest のテストを改める判断になり、0027 の要件の変更を伴う）。(c) 削除をやめる。いずれも 0026 の AC-23 の変更になるので、0026 の要件書を `draft` に戻して承認を受け直す |
-| `storage` の権限を `chrome.storage.session`（結果のウィンドウへの受け渡し）のために残す | 設計 §3.7.1（`02_architecture.md:717`） | `chrome.storage.session` を使わない | `storage` の権限を残す理由（旧版の保存値の削除に使うかどうか）を、上の判断に合わせて改める |
-| `core/resultView.ts` の `parseOutcome` と `ui/renderSend.ts` を、新しい `SendOutcome` に合わせる | 設計 `02_architecture.md:902`・`:1042`、実装計画のステップ 3-6 | `core/resultView.ts` はなく、`renderResultView` は `renderBlockReason` に置き換わる | 結果のウィンドウへ渡す値の検査の作業を削除する |
-| `SendDeps` の `schedule` を加え、25 秒の上限に使う | 設計 §3.7.2（`02_architecture.md:781`・`:798`）、実装計画のステップ 3-5 | `chromeDeps.ts` の `schedule` は削除済み（3.2.4） | ステップ 3-5 で、`schedule` の実装を `chromeDeps.ts` に加えることを明記する |
-| 時間の順序「ホストの 20 秒 < 拡張の 25 秒 < service worker の 30 秒」 | 設計 `02_architecture.md:627`・`:632` | service worker がない | 本書 3.6 の理由に改める |
-| メニューの経路を Native Messaging に対応させる | 設計の S-7 | メニューの経路がない | S-7 を削除する |
-| 実装計画が `background.ts` の行を引用する | 実装計画 `03_implementation_plan.md:150`（`background.ts:48-51`） | `background.ts` がない | 引用を削除する |
-| 上の表のほかに、メニューの経路・`contextMenus`・結果のウィンドウに触れる記述（`02_architecture.md:713`・`:800`・`:928`、実装計画 `03_implementation_plan.md:634` の AC-24 の行、AC-23 の結果のウィンドウの値など） | 0026 の要件・設計・実装計画 | メニューの経路がない | 訂正の作業で、0026 の 3 つの文書を `contextMenus`・`メニュー`・`結果のウィンドウ`・`background` で検索し、すべての該当箇所を扱う |
+| 0026 が頼る事項 | 0026 の場所 | 本書の対応 |
+|---|---|---|
+| 本タスクのすべての PR が、0026 の PR-2（サーバを UDS に移す変更）より前にマージされる | 実装計画 §1.3「0027 との順序」、要件書 §5 | 7.2 の手順 7（AC-07 の受付の表示）は、`main` のサーバが HTTP で待ち受けている間に行う。PR-2 のマージの後は、フェーズ 3 の前の拡張がサーバに届かない |
+| 送信はポップアップの経路だけから始まり、service worker・結果のウィンドウ・`chrome.storage.session`・`contextMenus` の権限がない | 要件書 F-004・AC-22・AC-24、設計 §3.7 | 3.1・3.3・3.5 のとおり削除する |
+| 以前の版が保存した共有トークンとポート（`sharedToken`・`serverPort`）を削除する処理を置かない。service worker がなく `onInstalled` を受け取れないため | 設計 §3.7.1 | 本書は `chrome.storage.local` の設定の保存を変えない（要件書 F-001）。削除の処理も加えない |
+| `chromeDeps.ts` の `schedule` が削除されていれば、ステップ 3-7 で `SendDeps` のために加え直す | 実装計画 §1.3「0027 との順序」・ステップ 3-7、設計 §3.7.2 | 3.2.4 のとおり削除する |
+| フェーズ 3 の前に、本タスクの後に残った名前（`schedule`・`ResultView` の扱い、`runPopupSend`・`logSend` の行番号）を確かめる | 実装計画 §1.3「0027 との順序」 | `ResultView` と `core/resultView.ts` は削除し、送らない理由の表示は `renderBlockReason` になる（3.2.2） |
+| 時間の順序は「ホストの 20 秒 < 拡張の 25 秒」で、拡張の 25 秒は変えない | 設計 §3.5.5 | 3.6 のとおり値を変えない |
+| ステップ 3-13 で、`chrome.storage.sync` の lint の規則を、`chrome.storage` の参照の禁止に置き換える | 実装計画 ステップ 3-13 | 本書が加える `contextMenus`・`session`・`windows`・`setBadgeText` の規則（3.5.2）は、`chrome.storage.sync` の規則とは別の項目として加える。0026 のステップ 3-13 は `sync` の項目を置き換え、本書の項目は残る（`session` の項目は `chrome.storage` の参照の禁止と重なるが、矛盾しない） |
+| `storage` の権限は、本タスクの後も残る（`chrome.storage.local` の設定のため）。0026 のフェーズ 3 がそれを削除する | 要件書 AC-22 | 3.3.1 のとおり `storage` を残す。2 つのタスクは順に行うので食い違わない |
