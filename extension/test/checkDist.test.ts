@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import {
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   rmSync,
   symlinkSync,
   unlinkSync,
@@ -173,17 +174,13 @@ describe("checkDist", () => {
 
   it("rejects a dist/ manifest whose bytes differ from static/", () => {
     writeManifest(root, "page.html", "page.html");
-    // Only whitespace changes, so the parsed JSON is the same and only a
-    // byte comparison can tell the two files apart.
-    const content = JSON.stringify(
-      {
-        manifest_version: 3,
-        action: { default_popup: "page.html" },
-        options_ui: { page: "page.html", open_in_tab: true },
-      },
-      null,
-      2,
+    // Re-indent the static manifest: the parsed JSON stays the same, so only
+    // a byte comparison can tell the two files apart.
+    const parsed: unknown = JSON.parse(
+      readFileSync(path.join(root, "static/manifest.json"), "utf8"),
     );
+    const content = JSON.stringify(parsed, null, 2);
+    assert.deepEqual(JSON.parse(content), parsed);
     write(root, "dist/manifest.json", content);
     assert.deepEqual(checkDist(root), [
       "dist/manifest.json: differs from static/manifest.json",
@@ -211,6 +208,17 @@ describe("checkDist", () => {
       assert.deepEqual(checkDist(root), [violation]);
     });
   }
+
+  it("does not compare a dist/ manifest that is a symbolic link", () => {
+    writeManifest(root, "page.html", "page.html");
+    write(root, "other.json", "{}");
+    unlinkSync(path.join(root, "dist/manifest.json"));
+    symlinkSync("../other.json", path.join(root, "dist/manifest.json"));
+    assert.deepEqual(checkDist(root), [
+      "dist/manifest.json: not a regular file",
+      "dist/manifest.json: missing",
+    ]);
+  });
 
   it("accepts an HTML page whose references exist", () => {
     write(root, "static/style.css");

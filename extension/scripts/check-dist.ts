@@ -163,16 +163,20 @@ function referenceViolations(root: string, actual: Set<string>): string[] {
 /**
  * Reports dist/manifest.json when its bytes differ from static/manifest.json,
  * so the checks on the static manifest hold for the one the browser loads.
- * Reports nothing when either file is absent: the missing and not-built
- * checks already cover that case.
+ * Reports nothing unless both are regular files: the missing, not-built and
+ * not-a-regular-file checks already cover the other cases.
  */
-function manifestCopyViolations(root: string): string[] {
-  const source = path.join(root, "static", "manifest.json");
-  const copy = path.join(root, "dist", "manifest.json");
-  if (!existsSync(source) || !existsSync(copy)) {
+function manifestCopyViolations(
+  root: string,
+  actual: Set<string>,
+  expected: Set<string>,
+): string[] {
+  if (!actual.has("manifest.json") || !expected.has("manifest.json")) {
     return [];
   }
-  if (readFileSync(source).equals(readFileSync(copy))) {
+  const source = readFileSync(path.join(root, "static", "manifest.json"));
+  const copy = readFileSync(path.join(root, "dist", "manifest.json"));
+  if (source.equals(copy)) {
     return [];
   }
   return ["dist/manifest.json: differs from static/manifest.json"];
@@ -232,7 +236,7 @@ export function checkDist(root: string): string[] {
       }
     }
   }
-  violations.push(...manifestCopyViolations(root));
+  violations.push(...manifestCopyViolations(root, actual, expected));
   violations.push(...referenceViolations(root, actual));
   return violations;
 }
