@@ -1453,6 +1453,8 @@ func TestRunSlackFailureHints(t *testing.T) {
 		reqID    = "request ID"
 		timedOut = "the webhook post timed out after the 30-second limit"
 		mention  = "the article was not posted and was discarded"
+		position = "The error above gives the line and column in the post as sent to Slack"
+		advice   = "Run again to generate a new article, or use --out to inspect what is generated"
 		rerun    = "running again generates a new article and posts all of it from the first message"
 	)
 	requestID := strings.Repeat("r", 26)
@@ -1486,7 +1488,7 @@ func TestRunSlackFailureHints(t *testing.T) {
 			&publisher.SlackPostError{Total: 1, Posted: 0, Attempted: true, Err: fmt.Errorf("webhook: the post timed out after 30s: %w", context.DeadlineExceeded)},
 			[]string{timedOut},
 		},
-		{"mention", fmt.Errorf("%w: rule M1 at line 3, column 6", publisher.ErrSlackMention), []string{mention}},
+		{"mention", fmt.Errorf("%w: rule M1 at line 3, column 6", publisher.ErrSlackMention), []string{mention, position, advice}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1503,6 +1505,10 @@ func TestRunSlackFailureHints(t *testing.T) {
 				if !strings.Contains(stderr, want) {
 					t.Errorf("stderr does not contain %q:\n%s", want, stderr)
 				}
+			}
+			if tc.name == "mention" && strings.Contains(stderr, "@") {
+				// The hint never quotes the text after the at sign.
+				t.Errorf("mention hint contains an at sign:\n%s", stderr)
 			}
 			for _, hint := range []string{stay, rejected, reqID, timedOut, mention} {
 				wanted := slices.ContainsFunc(tc.want, func(w string) bool { return strings.Contains(w, hint) })

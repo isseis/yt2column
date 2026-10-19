@@ -112,6 +112,8 @@ func failureSentence(kind failure.Kind) string {
 		return "the LLM call failed"
 	case failure.KindPublish:
 		return "posting the article failed; part of it may already be in the channel"
+	case failure.KindPublishMention:
+		return "part of the article could be treated as a mention, so it was not posted; sending it again generates a different article"
 	case failure.KindInternal:
 		return "an internal error occurred"
 	default:

@@ -21,8 +21,9 @@ const (
 	KindLLMTimeout
 	KindLLMEmpty
 	KindLLMTruncated
-	KindLLM     // any other failure of an LLM call in the write stage
-	KindPublish // the article post failed, possibly after some messages
+	KindLLM            // any other failure of an LLM call in the write stage
+	KindPublish        // the article post failed, possibly after some messages
+	KindPublishMention // the article was not posted because part of it could be treated as a mention
 	KindInternal
 )
 
