@@ -220,7 +220,7 @@ func TestSIGKILLWhileYtDlpRuns(t *testing.T) {
 	}
 	stderr := e.stderr.String()
 	lockPath := filepath.Join(setup.cacheDir, lockFileName)
-	for _, want := range []string{"another run holds the cache directory lock", lockPath, "yt-dlp was running", "lsof"} {
+	for _, want := range []string{"another run holds the directory lock", lockPath, "yt-dlp was running", "lsof"} {
 		if !strings.Contains(stderr, want) {
 			t.Errorf("stderr does not contain %q:\n%s", want, stderr)
 		}

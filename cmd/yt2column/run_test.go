@@ -743,7 +743,7 @@ func executionPathRows() []pathRow {
 			},
 			wantCode:   exitFailure,
 			untouched:  true,
-			wantStderr: []string{"the run failed: create the cache directory"},
+			wantStderr: []string{"the run failed: create the directory"},
 			check:      requireNotLocked,
 		},
 		{
@@ -762,7 +762,7 @@ func executionPathRows() []pathRow {
 			setup:      startHolder,
 			wantCode:   exitFailure,
 			untouched:  true,
-			wantStderr: []string{"another run holds the cache directory lock", "yt-dlp"},
+			wantStderr: []string{"another run holds the directory lock", "yt-dlp"},
 			check: func(t *testing.T, e *runEnv) {
 				if lockPath := filepath.Join(e.cacheDir, lockFileName); !strings.Contains(e.stderr.String(), lockPath) {
 					t.Errorf("stderr does not name the lock file %s:\n%s", lockPath, e.stderr.String())

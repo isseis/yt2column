@@ -162,7 +162,7 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 
 他に依存しない `internal/serversock` とテストの補助 `internal/udstest` を先に作って単独で確かめ（設計書 8 章）、その後 `internal/config` → `internal/server` → `cmd/yt2column-server` → 文書とガードの順に進める。
 
--   [ ] **ステップ 1-1**: `internal/cachelock` のパッケージのコメントとエラーの文言を、キャッシュのディレクトリに限らない言い方に改める（設計書 3.2.2。`cachelock.go:3-5`・`:33`・`:73`）。振る舞いは変えない。`LockedError` の文言（`:45`）は `yt-dlp` に触れたまま残す（`serversock` はこれを利用者に見せない）。
+-   [x] **ステップ 1-1**: `internal/cachelock` のパッケージのコメントとエラーの文言を、キャッシュのディレクトリに限らない言い方に改める（設計書 3.2.2。`cachelock.go:3-5`・`:33`・`:73`）。振る舞いは変えない。`LockedError` の文言（`:45`）は `yt-dlp` に触れたまま残す（`serversock` はこれを利用者に見せない）。
     -   **対象:** `internal/cachelock/cachelock.go`。**完了:** 既存の `go test -tags test ./internal/cachelock` が通る（テストはエラーを `errors.Is` で判定し、文言に依存しない）。
 -   [ ] **ステップ 1-2**: テスト専用のパッケージ `internal/udstest`（`//go:build test`）を作る。`os.MkdirTemp("/tmp", ...)` で実行のたびに異なる短いディレクトリを作り `t.Cleanup` で消す補助と、そこに UDS のリスナーを作り、作った時点で閉じる処理を `t.Cleanup` に登録する補助を置く（§1.3「UDS のテストの補助」）。補助自身のテストで、パスの長さの余裕（§1.3）と、2 回の呼び出しが別のディレクトリを返すことを確かめる。`internal/pipeline/pipeline_test.go` の `testOnlyPackageDirs` に `internal/udstest` を加え、`package_reference.md` に `internal/udstest` の行を加える（§1.3「UDS のテストの補助」）。
     -   **対象:** `internal/udstest/udstest.go`・`udstest_test.go`・`internal/pipeline/pipeline_test.go`・`docs/dev/developer_guide/package_reference.md`。**完了:** `go test -tags test ./internal/udstest` と `go test -tags test -run 'TestFakesCarryBuildTag|TestPackageReferenceListsPackages' ./internal/pipeline` が通る。
