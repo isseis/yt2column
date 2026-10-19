@@ -8,7 +8,7 @@
 | Created | 2026-10-19 |
 | Review date | 2026-10-19 |
 | Reviewer | isseis |
-| Comments | 承認の後に `/mkplan2` で PR の境界を加えた（2026-10-19。判断は変えていない）。フェーズ 3 を 2 つの PR に分けるため、ステップ 3-1〜3-12 の順を入れ替えて番号を付け直し（旧 3-1・3-4・3-5・3-9・3-10・3-11・3-12・3-2・3-3・3-6・3-8・3-7 → 新 3-1〜3-12）、PR-3 の確認のステップ 3-13 を加えた。ほかの節の番号の参照も合わせた |
+| Comments | 承認の後に `/mkplan2` で PR の境界を加えた（2026-10-19。判断は変えていない）。フェーズ 3 を 2 つの PR に分けるため、ステップ 3-1〜3-12 の順を入れ替えて番号を付け直し（旧 3-1・3-4・3-5・3-9・3-10・3-11・3-12・3-2・3-3・3-6・3-8・3-7 → 新 3-1〜3-12）、PR-3 の確認のステップ 3-13 を加えた。ほかの節の番号の参照も合わせた。PR のレビューを受けて、完了の行のないステップに、計画に既にある検査を述べ直す「対象」「完了」の行を加えた（2026-10-19。判断は変えていない） |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -185,15 +185,21 @@
     -   [ ] `extension/src/background.ts` を削除する。
     -   [ ] `extension/src/result.ts` を削除する。
     -   [ ] `extension/static/result.html` を削除する。
+    -   **対象:** `extension/src/background.ts`・`extension/src/result.ts`・`extension/static/result.html`（削除）。**完了:** 3 つのファイルがない。`make ext-build` の後の `extension/dist/` にそれらの成果物がないことは、PR-2 の完了条件としてステップ 3-7 で確かめる。
 -   [ ] **ステップ 3-2**: `static/manifest.json` から `background` のメンバを削除し、`permissions` を `["activeTab", "scripting", "storage"]` にする（設計書 3.3.1）。同じステップで、`docs/dev/security.md` §8.1 の「要求する権限」（`:102`）を設計書 3.9.2 の 1 つ目の項目のとおりに改める（設計書 8 章の優先順位 3）。`TestExtensionDocumentation` の権限の一致の検査（`extension_docs_test.go:86-115`）は manifest と §8.1 の一覧を両方向で比べるので、2 つを同じステップで改める。
+    -   **対象:** `extension/static/manifest.json`、`docs/dev/security.md`。**完了:** ステップ 3-4 の後に、`manifest.test.ts` の「permissions」と `TestExtensionDocumentation` の権限の一致が、ステップ 3-7 の `make ext-check` → `make test` で通る。
 -   [ ] **ステップ 3-3**: `scripts/check-dist.ts` を設計書 3.3.2 のとおりに改める。`referenceViolations` の `background.service_worker` の項目と、manifest の型の `background` のメンバを削除する。`static/manifest.json` と `dist/manifest.json` が両方あるときに、2 つのバイト列が同じでなければ違反を報告する検査を加える。どちらかがない場合は、この検査は何も報告しない。コメントを次のように改める。
     -   冒頭の 3 行目を、`// imports, with the manifest and HTML references resolving inside dist/.` から `// imports, with the manifest and HTML references resolving inside dist/ and` と `// dist/manifest.json a byte-for-byte copy of static/manifest.json.` の 2 行に改める。
     -   `referenceViolations` のコメントの `The manifest points at the service worker, the popup page and the options` と `page; an HTML page points at its scripts and stylesheets.` の 2 行を、`The manifest points at the popup page and the options page; an HTML page` と `points at its scripts and stylesheets.` に改める。
+    -   **対象:** `extension/scripts/check-dist.ts`。**完了:** ステップ 3-5 で改める `checkDist.test.ts` を含む `make ext-check` が、ステップ 3-7 で通る。
 -   [ ] **ステップ 3-4**: `manifest.test.ts` を設計書 3.3.1 のとおりに改める。「permissions」は 3 つの権限と完全に一致することを確かめ、名前を §2.1 の表のとおりに改める。「undeclared keys」の集合から `background` を除く。
     -   [ ] 「loads the service worker as a module」（`:87`）を削除する。
+    -   **対象:** `extension/test/manifest.test.ts`。**完了:** §5 の AC-01・AC-04 の行の manifest のテストが、ステップ 3-7 の `make ext-check` で通る。
 -   [ ] **ステップ 3-5**: `checkDist.test.ts` を設計書 3.3.2 のとおりに改める。`writeManifest` を §2.1 の表のとおりにし、`background` のメンバを書かないようにする。「accepts a manifest whose references exist」（`:137`）から `background.ts`・`background.js` を除く。manifest の複製の同一性の検査のテストを加える。`dist/manifest.json` の空白だけを変えたときに同一性の違反が 1 つだけ報告されること（バイト列で比べること）と、`static/manifest.json` だけ、または `dist/manifest.json` だけがある場合に、既存の `missing`・`not built from` の違反だけが報告され、同一性の違反が加わらないことを確かめる。
     -   [ ] `missingReferences` から `name: "service worker"` の行を削除し、残る行から `serviceWorker` のフィールドを除く。
+    -   **対象:** `extension/test/checkDist.test.ts`。**完了:** 加えた同一性のテストと既存の `checkDist.test.ts` のテストが、ステップ 3-7 の `make ext-check` で通る。
 -   [ ] **ステップ 3-6**: `repository.test.ts:60` の入力を §2.1 の表のとおりに改める。
+    -   **対象:** `extension/test/repository.test.ts`。**完了:** `make ext-test` が、ステップ 3-7 の `make ext-check` で通る。
 -   [ ] **ステップ 3-7**: 壊して失敗することを確かめ、コミットのメッセージに記す。対象は次のとおりである。`static/manifest.json` に `contextMenus` を戻す（`manifest.test.ts` の「permissions」）。`background` を戻す（「undeclared keys」）。§8.1 の一覧に `contextMenus` を戻す（`TestExtensionDocumentation` の権限の一致）。`check-dist.ts` の同一性の検査を外す。どちらかのファイルがない場合にも同一性の違反を報告させる（いずれもステップ 3-5 で加えたテストで確かめる）。AC-02 の集合の比較は、既存の `checkDist.test.ts` の「rejects an extra file」（`:87`）が確かめるので、新しく壊す対象にしない。続けて `make ext-check` → `make test` → `make lint` を通す。
     -   **対象:** なし（確認のみ）。**完了:** 各対象を壊すと名前を挙げた検査が失敗することを確かめ、コミットのメッセージに記した。`make ext-build` の後の `extension/dist/` に `background.js`・`result.js`・`result.html` がない（PR-2 の完了条件）。
 
@@ -217,7 +223,9 @@
 フェーズ 3 のタスクの続き（PR-3）:
 
 -   [ ] **ステップ 3-8**: `launch.ts` から、§1.3「削除するファイルと、メニューの経路の処理」に挙げた `launch.ts` の削除の対象を削除する。使われなくなった import を除く。`runPopupSend` の `renderResultView` の呼び出しは、フェーズ 4 まで残す。
+    -   **対象:** `extension/src/launch.ts`。**完了:** `make ext-typecheck` は同じ PR の後のステップ（3-10〜3-12）の後に通る。確かめるのはステップ 3-13 のグリーンゲートである。
 -   [ ] **ステップ 3-9**: `chromeDeps.ts` から、`StorageChangeEvents`・`StorageChangeListener`・`WindowsApi`・`ActionApi`・`createResultViewStore`・`createResultWindowOpener`・`Badge`・`createBadge` を削除し、`ResultViewStore` の import を除く（設計書 3.1）。`schedule` はフェーズ 4 で削除する。
+    -   **対象:** `extension/src/browser/chromeDeps.ts`。**完了:** `make ext-typecheck` はステップ 3-11 の後に通る。確かめるのはステップ 3-13 のグリーンゲートである。
 -   [ ] **ステップ 3-10**: `launch.test.ts` から、§1.3 の表で「削除」としたテストを削除する。
     -   [ ] does not read settings or send for a rejected collection（`:499`）
     -   [ ] ignores info.selectionText and reads the selection itself（`:664`）
@@ -229,9 +237,11 @@
     -   [ ] `menu send` の describe とその 7 つのテスト（`:743`・`:756`・`:792`・`:811`・`:833`・`:848`・`:860`）
     -   [ ] `result window` の describe とその 11 個のテスト（`:1167`〜`:1300`）
     -   [ ] メニューの経路と結果のウィンドウのテストだけが使う補助（§1.3 に挙げたもの。`flush` はポップアップのテストも使うので残す）と、使われなくなった import・定数（`acceptedOutcome` など）
+    -   **対象:** `extension/test/launch.test.ts`。**完了:** 上のチェックボックスがすべて済み、ステップ 3-12 の後に `make ext-check` が通る（ステップ 3-13）。
 -   [ ] **ステップ 3-11**: `chromeDeps.test.ts` から次を削除する。
     -   [ ] 「result view store」の describe とその 4 つのテスト（`:437`・`:448`・`:460`・`:474`）
     -   [ ] 補助の `EventRecorder`・`recordingEvents`・`resultView` と、使われなくなった import
+    -   **対象:** `extension/test/chromeDeps.test.ts`。**完了:** 上のチェックボックスがすべて済み、`make ext-check` が通る（ステップ 3-13）。
 -   [ ] **ステップ 3-12**: `launch.test.ts` の、§1.3 の表で「改める」としたテストから、メニューの経路の部分を削除する。ポップアップの経路の検査は期待値を変えずに残す（設計書 3.10.2「改めるテスト」）。テストの名前は §2.1 の表のとおりに改める。
     -   [ ] collects the same input through the menu and popup paths（`:417`）
     -   [ ] sends the same body and classification through both paths（`:442`）
@@ -242,6 +252,7 @@
     -   [ ] keeps untrusted text out of the fixed log labels（`:678`）
     -   [ ] `video metadata log` の補助 `metadataLogs` と、それを使う 2 つのテスト（`:1076`・`:1088`）
     -   [ ] keeps the token out of the logs, the store and the display（`:1318`。名前は §2.1 の表のとおりに改める）
+    -   **対象:** `extension/test/launch.test.ts`。**完了:** 上のチェックボックスがすべて済み、改めたテストが §2.1 の表の名前で `make ext-check` を通る（ステップ 3-13）。
 -   [ ] **ステップ 3-13**: `make ext-check` → `make test` → `make lint` を通す。ステップ 3-10〜3-12 で削除・改めたテストの検査が、§5.2 の対応先で確かめられていることを確かめる。改めたテストのポップアップの経路の検査は期待値を変えないので、新しく壊す対象は加えない（ポップアップの経路で加えた検査を壊して失敗することは、ステップ 2-4 で確かめた）。
     -   **対象:** なし（確認のみ）。**完了:** グリーンゲートが通り、§5.2 の対応先がすべて残っている。
 
@@ -275,17 +286,24 @@
     -   `ui/renderSend.ts:1` の `// Renders a send outcome and a result-view value as text-only elements. Every` を `// Renders a send outcome and a block reason as text-only elements. Every` に改める（`:2-3` は変えない）。
     -   `ui/renderSend.ts:55` の `renderResultView` のコメント（`a result view`）は、`renderBlockReason` のコメントとして書き直す（設計書 3.2.2 の宣言のコメント）。
     -   `ui/renderSend.ts:11` の `/** The "sending" notice; the popup and the result window both show it. */` を `/** The "sending" notice the popup shows while a send is in flight. */` に改める。
+    -   **対象:** `extension/src/ui/renderSend.ts`、`extension/src/launch.ts`。**完了:** `make ext-typecheck` は同じ PR の後のステップ（4-8）の後に通る。確かめるのはステップ 4-9 のグリーンゲートである。
 -   [ ] **ステップ 4-2**: `core/resultView.ts` と `test/resultView.test.ts` を削除する。
     -   [ ] `extension/src/core/resultView.ts` を削除する。
     -   [ ] `extension/test/resultView.test.ts` を削除する。
+    -   **対象:** `extension/src/core/resultView.ts`、`extension/test/resultView.test.ts`（削除）。**完了:** 2 つのファイルがない。`make ext-check` はステップ 4-9 で通す。
 -   [ ] **ステップ 4-3**: `core/summary.ts` から `parseSummary`・`collectedKeys`・`rejectedKeys`・`isRejectionReason` と、`rejectionReasons`・`RejectionReason` の使われなくなった import を削除する。`hasExactKeys` を `core/response.ts` の export しない関数に移し、`core/response.ts:6` の import を除く（設計書 3.2.5）。`core/response.ts` から `unexpectedChecks` を削除する。`UnexpectedCheck` の型は残す。
+    -   **対象:** `extension/src/core/summary.ts`、`extension/src/core/response.ts`。**完了:** `response.test.ts` の既存の検査を含む `make ext-test` が、ステップ 4-8 の後に通る（ステップ 4-9）。
 -   [ ] **ステップ 4-4**: `core/sendMessages.ts` から `unreadableResultMessage` を削除する。
+    -   **対象:** `extension/src/core/sendMessages.ts`。**完了:** `make ext-typecheck` はステップ 4-8 の後に通る（ステップ 4-9）。
 -   [ ] **ステップ 4-5**: `browser/chromeDeps.ts` から `schedule` を削除する（設計書 3.2.4）。`:15` のコメント `/** The chrome.storage area surface used (session for result views, local for settings). */` を `/** The chrome.storage area surface used (local, for settings). */` に改める。`StorageArea` の型は変えない（設計書 3.2.1）。
+    -   **対象:** `extension/src/browser/chromeDeps.ts`。**完了:** `make ext-check` が通る（ステップ 4-9）。
 -   [ ] **ステップ 4-6**: `static/style.css` から `.send-summary` の規則（`:85-87`）を削除する。
+    -   **対象:** `extension/static/style.css`。**完了:** `make ext-check` が通る（ステップ 4-9）。
 -   [ ] **ステップ 4-7**: コメントを改める（設計書 3.2.6）。
     -   `core/types.ts:27` の `/** Display-only digest of an outcome; what the result window receives. */` を `/** Display-only digest of an outcome; what the popup summary shows. */` に改める。
     -   `core/response.ts:102` の `/** A send result without the cause of "unknown": what is displayed and stored. */` を `/** A send result without the cause of "unknown": what is displayed. */` に改める。
     -   `core/response.ts:123` の `/** Drops the cause of "unknown"; the only way a SendResult becomes a stored or displayed value. */` を `/** Drops the cause of "unknown"; the only way a SendResult becomes a displayed value. */` に改める。
+    -   **対象:** `extension/src/core/types.ts`、`extension/src/core/response.ts`。**完了:** コメントだけの変更で、`make ext-check` が通る（ステップ 4-9）。
 -   [ ] **ステップ 4-8**: テストを改める。
     -   [ ] `summary.test.ts`: 「parseSummary」を削除する前に、「summarize」の describe に、収集した要約がちょうど 9 つのキーを持つことと、`cause` を持つ拒否（すべての拒否の理由）が `kind`・`reason` だけの値になることを、値の全体で確かめる検査を加える（§1.3）。
     -   [ ] `renderSend.test.ts`: describe を §2.1 の表のとおりにし、`blocked` の行（`:105`）を `renderBlockReason` を呼ぶ形に改める。
@@ -294,6 +312,7 @@
     -   [ ] `renderSend.test.ts`: 「displays markup in the summary as text, not elements」（`:136`）を削除する。使われなくなった `collected`・`malicious`・`sendingMessage` などの import と定数を除く。
     -   [ ] `summary.test.ts`: 「parseSummary」の describe と、その 9 つのテスト（`:106`・`:111`・`:123`・`:129`・`:133`・`:141`・`:157`・`:163`・`:170`）を削除し、使われなくなった import（`parseSummary`・`rejectionReasons`・`RejectionReason`）を除く。
     -   [ ] `sendMessages.test.ts`: 「tells the user to check Slack when a result cannot be displayed」（`:119`）を削除し、`unreadableResultMessage` の import を除く。
+    -   **対象:** `extension/test/summary.test.ts`、`extension/test/renderSend.test.ts`、`extension/test/sendMessages.test.ts`。**完了:** 上のチェックボックスがすべて済み、`make ext-check` が通る（ステップ 4-9）。
 -   [ ] **ステップ 4-9**: 壊して失敗することを確かめ、コミットのメッセージに記す。対象は次のとおりである。`renderBlockReason` が `blockMessage` 以外の文言を描く（`renderSend.test.ts` の `renderBlockReason`）。`runPopupSend` が `renderBlockReason` を呼ばない（`launch.test.ts` の `shows the ${reason} reason and no button without sending`）。`hasExactKeys` が余分なキーを許す（`response.test.ts` の member-set の検査）。`summarize` が収集した要約にキーを 1 つ加える、拒否の `cause` を残す（ステップ 4-8 で加えた `summarize` の検査）。続けて `make ext-check` → `make test` → `make lint` を通す。
     -   **対象:** なし（確認のみ）。**完了:** 各対象を壊すと名前を挙げた検査が失敗することを確かめ、コミットのメッセージに記した。
 
@@ -323,12 +342,17 @@
 
 **タスク**
 -   [ ] **ステップ 5-1**: `eslint.config.js` の `restrictedSyntax` に、`contextMenus`・`session`・`windows`・`setBadgeText` という名前のメンバの参照とキーを禁止する規則を加える。形は `chrome.storage.sync` の禁止と同じ 4 つの参照の形にする（設計書 3.5.2）。理由のコメントと `message` は英語で書く。`ImportExpression` の項目のコメント `// A Manifest V3 service worker rejects import(); dist/ is also` と `// checked for it after the build.` を、`// check-dist.ts follows only static imports when it checks that every module`、`// dist/ loads is in dist/, so import() is not allowed; dist/ is also checked`、`// for it after the build.` の 3 行に改める（設計書 3.8）。規則の `selector`・`message` は変えない。
+    -   **対象:** `extension/eslint.config.js`。**完了:** `make ext-lint` が通る（ステップ 5-6）。
 -   [ ] **ステップ 5-2**: `lintRules.test.ts` に、加えた規則の describe を加える。4 つの名前のそれぞれについて、4 つの参照の形が `no-restricted-syntax` を報告することを、既存の `expectViolation` で確かめる。型の位置の参照（`chrome.windows.Window` など）が報告されないことも確かめる。
+    -   **対象:** `extension/test/lintRules.test.ts`。**完了:** `make ext-test` が通る（ステップ 5-6）。
 -   [ ] **ステップ 5-3**: `README.md` の「Browser extension」節を設計書 3.9.1 のとおりに改める。2 つの起動の段落をポップアップだけの起動の段落にし、`:594` の文を削除し、`:615-617` から結果のウィンドウを除き、ログの見方と更新の手順を書き改める。更新の手順は `make ext-build` の語を、ログの見方は `Inspect popup` の語を含める（ステップ 5-5 が固定する）。節の中で `context menu`・`choose the extension's item`・`result window`・`service worker` を使わない（大文字と小文字を区別しない）。
+    -   **対象:** `README.md`。**完了:** ステップ 5-5 の後に、`TestExtensionSendDocumentation` を含む `make test` と、`metadataDocs.test.ts`・`serverReasons.test.ts` を含む `make ext-test` が通る（ステップ 5-6、フェーズ 5 の完了条件）。
 -   [ ] **ステップ 5-4**: `docs/dev/security.md` §8.1 の `:104` を設計書 3.9.2 の 2 つ目の項目のとおりに改める（`:102` はステップ 3-2 で改めた）。
+    -   **対象:** `docs/dev/security.md`。**完了:** ステップ 5-5 の後に、`TestExtensionDocumentation` を含む `make test` と、`manifest.test.ts`・`metadataDocs.test.ts` を含む `make ext-test` が通る（ステップ 5-6、フェーズ 5 の完了条件）。
 -   [ ] **ステップ 5-5**: `cmd/yt2column/extension_docs_test.go` を設計書 3.9.3 のとおりに改める。
     -   `TestExtensionSendDocumentation` の「README describes sending from the browser extension」で、求める語句から `Context menu`・`Toolbar icon` を除き、`Send to yt2column` を加える。ステップ 5-3 で加える更新の手順とログの見方の案内も、`make ext-build` と `Inspect popup` を求める語句に加えて固定する。節を小文字にした文字列に、ステップ 5-3 の 4 つの語句が含まれないことを確かめる検査を加える。
     -   `TestExtensionDocumentation` に、§8.1 に `結果のウィンドウ`・`chrome.storage.session`・`contextMenus` が含まれないことと、「要求する権限」の項目が `storage` の用途として `chrome.storage.local` を挙げることを確かめるサブテストを加える。
+    -   **対象:** `cmd/yt2column/extension_docs_test.go`。**完了:** `make test` が通る（ステップ 5-6）。
 -   [ ] **ステップ 5-6**: 壊して失敗することを確かめ、コミットのメッセージに記す。対象は次のとおりである。`src/` の 1 つのファイルに `chrome.contextMenus`・`chrome.storage.session`・`chrome.windows`・`chrome.action.setBadgeText` をそれぞれ書く（`make ext-lint`）。加えた規則から 1 つの名前（たとえば `session`）を外し、その名前の行だけが `lintRules.test.ts` で失敗することを確かめる。テンプレートの参照の形の項目を外し、その形の行が失敗することを確かめる。README に `Context menu` の項目を戻す。`service worker` の語を戻す。`Send to yt2column`・`make ext-build`・`Inspect popup` をそれぞれ消す（`TestExtensionSendDocumentation`）。§8.1 の「要求する権限」から `chrome.storage.local` を消す（加えたサブテスト）。§8.1 に `contextMenus` の権限を戻す（`TestExtensionDocumentation` の権限の一致と、加えたサブテスト）。§8.1 に `結果のウィンドウ` の語を戻す（加えたサブテスト）。続けて `make fmt` → `make ext-check` → `make test` → `make lint` を通す。
     -   **対象:** なし（確認のみ）。**完了:** 各対象を壊すと名前を挙げた検査が失敗することを確かめ、コミットのメッセージに記した。
 
@@ -358,11 +382,17 @@
 
 **タスク**
 -   [ ] **ステップ 6-1**: 設計書 3.2.7 の確認を行う。本タスクが本番の参照元を変えたモジュール（`launch.ts`・`browser/chromeDeps.ts`・`ui/renderSend.ts`・`core/summary.ts`・`core/response.ts`・`core/sendMessages.ts`・`core/prepare.ts`・`core/types.ts`・`send.ts`）の export について、本番の参照元とテストの利用を確かめる。結果が設計書 3.2.1 の表と一致することを確かめ、§5.1 の「設計書 3.2.7」の行に記録する。一致しない export があれば、設計書 3.2.1 の基準で扱いを決めてから進める。
+    -   **対象:** 本計画（§5.1・§5.4）。**完了:** §5.1 の「設計書 3.2.7」の行と、§5.4 の該当の記録を記入した。
 -   [ ] **ステップ 6-2**: AC-05a の静的な確認を行う（設計書 3.5.1）。`extension/src/` で次の 3 つを確かめ、§5.1 の「AC-05a」の行に記録する。`sendArticle` を呼ぶ箇所が `runPopupSend` の `click` の処理の中の 1 か所だけであること。`createSendDeps` を呼ぶ入口のモジュールが `popup.ts` だけであること。ネットワークを使う API（`fetch`・`XMLHttpRequest`・`sendBeacon`・`WebSocket`・`EventSource`）を使う箇所が `createSendDeps` の中の `fetch` の 1 か所だけであること。実行したコマンドとその出力とコミットは §5.4 に記録し、§5.1 の欄からは §5.4 を参照する（表の欄に `|` や改行を入れない）。
+    -   **対象:** 本計画（§5.1・§5.4）。**完了:** §5.1 の「AC-05a」の行と、§5.4 の該当の記録を記入した。
 -   [ ] **ステップ 6-3**: 削除の後の lcov の報告を、ステップ 1-1 と同じコマンドで取り、設計書 3.11 のとおりに比べる。比べるファイルは、設計書 3.11「行の対応」の 7 つと、2 つの報告の両方にあるほかのファイル（変更のないファイルは行をそのまま対応づける）である。行・分岐・関数の到達を、ソースの差分で対応づけて比べる。node の lcov は、同じソースでも実行ごとに `BRDA` の block の番号と名前のない関数の番号が変わり、到達しなかった分岐の `BRDA` を出さないことがある。このため、`DA` は対応づけた行で、`FN` は名前ではなく対応づけた開始行で、`BRDA` は対応づけた行と、その行の中の分岐の順で比べ、記録のない分岐は到達していないものとして数える。分岐だけが到達しなくなったと出た箇所は、ソースを読んで判断し、§5.3 に記録する。名前を変えた関数（`renderResultView` → `renderBlockReason`）と、移した関数（`hasExactKeys`）は、対応を明示する。削除の前に到達していて、削除の後に到達しなくなった行・分岐・関数があれば、ポップアップの経路のテストを加えて到達させ、§5.2 に加える。結果を §5.3 に記録する。
+    -   **対象:** 本計画（§5.3。テストを加えた場合は §5.2）、到達しなくなったものがあれば `extension/test/launch.test.ts` ほか。**完了:** §5.3 に比較の結果を記録し、§5.1 の「AC-09」の行を記入した。
 -   [ ] **ステップ 6-4**: 本タスクで Go のテストを削除していないことを確かめ、§5.1 の「AC-10」の行に記録する。本タスクの最初のコミットの親から HEAD までの Go のファイルの差分に、ファイルの削除とテスト関数の削除がないことを確かめ、実行したコマンドとその出力を §5.4 に記録する。
+    -   **対象:** 本計画（§5.1・§5.4）。**完了:** §5.1 の「AC-10」の行と、§5.4 の該当の記録を記入した。
 -   [ ] **ステップ 6-5**: §5.2 のすべての検査に、対応先か理由があることを確かめる。
+    -   **対象:** 本計画（§5.1・§5.2）。**完了:** §5.1 の「設計書 3.10.2」の行を記入した。
 -   [ ] **ステップ 6-6**: ステップ 6-3 でテストを加えた場合は、加えた検査について、対象を壊して失敗することを確かめ、コミットのメッセージに記す。続けて `make ext-check` → `make test` → `make lint` を通す。
+    -   **対象:** ステップ 6-3 で加えたテスト（加えた場合）。**完了:** 加えた検査について壊して失敗することをコミットのメッセージに記し、`make ext-check` → `make test` → `make lint` が通る。
 
 **完了条件:** §5.1 の「設計書 3.2.7」「AC-05a」「AC-09」「AC-10」「設計書 3.10.2」の行が埋まり、§5.2・§5.3 が完成している。`make ext-check` → `make test` → `make lint` が通る。
 
@@ -390,8 +420,11 @@
 
 **タスク**
 -   [ ] **ステップ 7-1**: 設計書 7.2 の手順 1〜6 を、macOS の Chrome と Brave の、作業時点で最新の安定版で行う。結果を §5.1 の「AC-04・AC-05」と「設計書 3.7」の行に記録する。手順 1 で `81cb30d` の作業ツリーに `make ext-install` を実行する場合は、ネットワークを使うので、事前に利用者の承認を得る（CLAUDE.md「Tool Execution Safety」）。
+    -   **対象:** 本計画（§5.1）。**完了:** §5.1 の「AC-04・AC-05」と「設計書 3.7」の行を記入した。
 -   [ ] **ステップ 7-2**: 設計書 7.2 の手順 7 を行い、§5.1 の「AC-07」の行に記録する。サーバが LLM API を呼び、Webhook に投稿するので、事前に利用者の承認を得る。`main` のサーバが HTTP で待ち受けている間（0026 の PR-2 のマージの前）に行う。
+    -   **対象:** 本計画（§5.1）。**完了:** §5.1 の「AC-07」の行を記入した。
 -   [ ] **ステップ 7-3**: `cmd/yt2column/extension_docs_test.go` に、本計画の §5.1 の表の各欄が埋まっていることを確かめるテスト `TestContextMenuRemovalRecords` を加える。既存の `checkManualCheckTable` を使い、本計画のパスの定数を加える。行の 1 列目の期待値は §5.1 の表の 8 行と同じ順にし、AC の行は `acLabel` で作る（`AC-05a` は `acLabel(5) + "a"`）。`設計書 …` の行は文字列のリテラルで書く。あわせて、§5.2・§5.3・§5.4 に「（実施のときに記入する）」が残っていないことを確かめる。このテストは設計書 7 章にない、本計画が加える記録の検査で、0007・0020 の計画の手動確認の表の検査（`TestExtensionDocumentation`・`TestExtensionSendDocumentation` の「fills every cell of the plan's manual-check table」）と同じ形である。
+    -   **対象:** `cmd/yt2column/extension_docs_test.go`。**完了:** `TestContextMenuRemovalRecords` を含む `make test` が通る（ステップ 7-4）。
 -   [ ] **ステップ 7-4**: 壊して失敗することを確かめ、コミットのメッセージに記す。対象は、§5.1 の 1 つの欄を空にすること、1 つの行を消すこと、2 つの行を入れ替えること、§5.2〜§5.4 のいずれかに「（実施のときに記入する）」を戻すことである（`TestContextMenuRemovalRecords`）。続けて `make fmt` → `make ext-check` → `make test` → `make lint` を通す。
     -   **対象:** なし（確認のみ）。**完了:** 各対象を壊すと `TestContextMenuRemovalRecords` が失敗することを確かめ、コミットのメッセージに記した。
 
