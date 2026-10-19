@@ -222,38 +222,38 @@
 
 フェーズ 3 のタスクの続き（PR-3）:
 
--   [ ] **ステップ 3-8**: `launch.ts` から、§1.3「削除するファイルと、メニューの経路の処理」に挙げた `launch.ts` の削除の対象を削除する。使われなくなった import を除く。`runPopupSend` の `renderResultView` の呼び出しは、フェーズ 4 まで残す。
+-   [x] **ステップ 3-8**: `launch.ts` から、§1.3「削除するファイルと、メニューの経路の処理」に挙げた `launch.ts` の削除の対象を削除する。使われなくなった import を除く。`runPopupSend` の `renderResultView` の呼び出しは、フェーズ 4 まで残す。
     -   **対象:** `extension/src/launch.ts`。**完了:** `make ext-typecheck` は同じ PR の後のステップ（3-10〜3-12）の後に通る。確かめるのはステップ 3-13 のグリーンゲートである。
--   [ ] **ステップ 3-9**: `chromeDeps.ts` から、`StorageChangeEvents`・`StorageChangeListener`・`WindowsApi`・`ActionApi`・`createResultViewStore`・`createResultWindowOpener`・`Badge`・`createBadge` を削除し、`ResultViewStore` の import を除く（設計書 3.1）。`schedule` はフェーズ 4 で削除する。
+-   [x] **ステップ 3-9**: `chromeDeps.ts` から、`StorageChangeEvents`・`StorageChangeListener`・`WindowsApi`・`ActionApi`・`createResultViewStore`・`createResultWindowOpener`・`Badge`・`createBadge` を削除し、`ResultViewStore` の import を除く（設計書 3.1）。`schedule` はフェーズ 4 で削除する。
     -   **対象:** `extension/src/browser/chromeDeps.ts`。**完了:** `make ext-typecheck` はステップ 3-11 の後に通る。確かめるのはステップ 3-13 のグリーンゲートである。
--   [ ] **ステップ 3-10**: `launch.test.ts` から、§1.3 の表で「削除」としたテストを削除する。
-    -   [ ] does not read settings or send for a rejected collection（`:499`）
-    -   [ ] ignores info.selectionText and reads the selection itself（`:664`）
-    -   [ ] clears the badge at the start of the menu path（`:688`）
-    -   [ ] signals the badge and does not throw when the key cannot be created（`:694`）
-    -   [ ] does not open a window and signals the badge when put fails（`:706`）
-    -   [ ] does not send when the result window cannot be opened（`:715`）
-    -   [ ] does not reject when the window and the removal both fail（`:727`）
-    -   [ ] `menu send` の describe とその 7 つのテスト（`:743`・`:756`・`:792`・`:811`・`:833`・`:848`・`:860`）
-    -   [ ] `result window` の describe とその 11 個のテスト（`:1167`〜`:1300`）
-    -   [ ] メニューの経路と結果のウィンドウのテストだけが使う補助（§1.3 に挙げたもの。`flush` はポップアップのテストも使うので残す）と、使われなくなった import・定数（`acceptedOutcome` など）
+-   [x] **ステップ 3-10**: `launch.test.ts` から、§1.3 の表で「削除」としたテストを削除する。
+    -   [x] does not read settings or send for a rejected collection（`:499`）
+    -   [x] ignores info.selectionText and reads the selection itself（`:664`）
+    -   [x] clears the badge at the start of the menu path（`:688`）
+    -   [x] signals the badge and does not throw when the key cannot be created（`:694`）
+    -   [x] does not open a window and signals the badge when put fails（`:706`）
+    -   [x] does not send when the result window cannot be opened（`:715`）
+    -   [x] does not reject when the window and the removal both fail（`:727`）
+    -   [x] `menu send` の describe とその 7 つのテスト（`:743`・`:756`・`:792`・`:811`・`:833`・`:848`・`:860`）
+    -   [x] `result window` の describe とその 11 個のテスト（`:1167`〜`:1300`）
+    -   [x] メニューの経路と結果のウィンドウのテストだけが使う補助（§1.3 に挙げたもの。`flush` はポップアップのテストも使うので残す）と、使われなくなった import・定数（`acceptedOutcome` など）
     -   **対象:** `extension/test/launch.test.ts`。**完了:** 上のチェックボックスがすべて済み、ステップ 3-12 の後に `make ext-check` が通る（ステップ 3-13）。
--   [ ] **ステップ 3-11**: `chromeDeps.test.ts` から次を削除する。
-    -   [ ] 「result view store」の describe とその 4 つのテスト（`:437`・`:448`・`:460`・`:474`）
-    -   [ ] 補助の `EventRecorder`・`recordingEvents`・`resultView` と、使われなくなった import
+-   [x] **ステップ 3-11**: `chromeDeps.test.ts` から次を削除する。
+    -   [x] 「result view store」の describe とその 4 つのテスト（`:437`・`:448`・`:460`・`:474`）
+    -   [x] 補助の `EventRecorder`・`recordingEvents`・`resultView` と、使われなくなった import
     -   **対象:** `extension/test/chromeDeps.test.ts`。**完了:** 上のチェックボックスがすべて済み、`make ext-check` が通る（ステップ 3-13）。
--   [ ] **ステップ 3-12**: `launch.test.ts` の、§1.3 の表で「改める」としたテストから、メニューの経路の部分を削除する。ポップアップの経路の検査は期待値を変えずに残す（設計書 3.10.2「改めるテスト」）。テストの名前は §2.1 の表のとおりに改める。
-    -   [ ] collects the same input through the menu and popup paths（`:417`）
-    -   [ ] sends the same body and classification through both paths（`:442`）
-    -   [ ] reads the metadata once, from the collected tab and URL（`:515`）
-    -   [ ] does not read the metadata for a ${name} collection（`:548`）
-    -   [ ] sends without metadata and logs an error when ${name}（`:599`）
-    -   [ ] treats a missing tab as collection-failed in both paths（`:635`）
-    -   [ ] keeps untrusted text out of the fixed log labels（`:678`）
-    -   [ ] `video metadata log` の補助 `metadataLogs` と、それを使う 2 つのテスト（`:1076`・`:1088`）
-    -   [ ] keeps the token out of the logs, the store and the display（`:1318`。名前は §2.1 の表のとおりに改める）
+-   [x] **ステップ 3-12**: `launch.test.ts` の、§1.3 の表で「改める」としたテストから、メニューの経路の部分を削除する。ポップアップの経路の検査は期待値を変えずに残す（設計書 3.10.2「改めるテスト」）。テストの名前は §2.1 の表のとおりに改める。
+    -   [x] collects the same input through the menu and popup paths（`:417`）
+    -   [x] sends the same body and classification through both paths（`:442`）
+    -   [x] reads the metadata once, from the collected tab and URL（`:515`）
+    -   [x] does not read the metadata for a ${name} collection（`:548`）
+    -   [x] sends without metadata and logs an error when ${name}（`:599`）
+    -   [x] treats a missing tab as collection-failed in both paths（`:635`）
+    -   [x] keeps untrusted text out of the fixed log labels（`:678`）
+    -   [x] `video metadata log` の補助 `metadataLogs` と、それを使う 2 つのテスト（`:1076`・`:1088`）
+    -   [x] keeps the token out of the logs, the store and the display（`:1318`。名前は §2.1 の表のとおりに改める）
     -   **対象:** `extension/test/launch.test.ts`。**完了:** 上のチェックボックスがすべて済み、改めたテストが §2.1 の表の名前で `make ext-check` を通る（ステップ 3-13）。
--   [ ] **ステップ 3-13**: `make ext-check` → `make test` → `make lint` を通す。ステップ 3-10〜3-12 で削除・改めたテストの検査が、§5.2 の対応先で確かめられていることを確かめる。改めたテストのポップアップの経路の検査は期待値を変えないので、新しく壊す対象は加えない（ポップアップの経路で加えた検査を壊して失敗することは、ステップ 2-4 で確かめた）。
+-   [x] **ステップ 3-13**: `make ext-check` → `make test` → `make lint` を通す。ステップ 3-10〜3-12 で削除・改めたテストの検査が、§5.2 の対応先で確かめられていることを確かめる。改めたテストのポップアップの経路の検査は期待値を変えないので、新しく壊す対象は加えない（ポップアップの経路で加えた検査を壊して失敗することは、ステップ 2-4 で確かめた）。
     -   **対象:** なし（確認のみ）。**完了:** グリーンゲートが通り、§5.2 の対応先がすべて残っている。
 
 **完了条件:** PR-2（ステップ 3-7）と PR-3（ステップ 3-13）のそれぞれで、`make ext-check` → `make test` → `make lint` が通る（PR-2 は `security.md` を変えるので `make ext-test` を含む `make ext-check` が要る）。`make ext-build` の後の `extension/dist/` に `background.js`・`result.js`・`result.html` がない。

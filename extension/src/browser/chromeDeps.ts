@@ -1,6 +1,6 @@
 import type { PageSelection, SelectionReader } from "../core/collect.ts";
 import type { SettingsStore } from "../core/settings.ts";
-import type { Logger, MetadataReader, ResultViewStore } from "../launch.ts";
+import type { Logger, MetadataReader } from "../launch.ts";
 import type { FetchFn, SendDeps } from "../send.ts";
 
 /** The chrome.scripting call used; the injected function's result is validated at runtime. */
@@ -17,28 +17,6 @@ export interface StorageArea {
   get(keys: string | string[]): Promise<Record<string, unknown>>;
   set(items: Record<string, unknown>): Promise<void>;
   remove(keys: string | string[]): Promise<void>;
-}
-
-/** The chrome.storage.onChanged surface used to follow a result view. */
-export interface StorageChangeEvents {
-  addListener(callback: StorageChangeListener): void;
-  removeListener(callback: StorageChangeListener): void;
-}
-
-export type StorageChangeListener = (
-  changes: Record<string, { readonly newValue?: unknown }>,
-  areaName: string,
-) => void;
-
-export interface WindowsApi {
-  create(data: {
-    readonly url: string;
-    readonly type: "popup";
-  }): Promise<unknown>;
-}
-
-export interface ActionApi {
-  setBadgeText(details: { readonly text: string }): Promise<void>;
 }
 
 export interface TabsApi {
@@ -194,70 +172,6 @@ export function createSettingsStore(area: StorageArea): SettingsStore {
     async savePort(port) {
       await area.set({ [portKey]: port });
     },
-  };
-}
-
-/**
- * The ResultViewStore backed by the given storage area (chrome.storage.session
- * in production) and change events (chrome.storage.onChanged). watch reports
- * only a value newly stored under the key in the "session" area; a removal or
- * a change in another area or key is not reported.
- */
-export function createResultViewStore(
-  area: StorageArea,
-  events: StorageChangeEvents,
-): ResultViewStore {
-  return {
-    async put(key, view) {
-      await area.set({ [key]: view });
-    },
-    async get(key) {
-      const values = await area.get(key);
-      return values[key];
-    },
-    async remove(key) {
-      await area.remove(key);
-    },
-    watch(key, listener) {
-      const callback: StorageChangeListener = (changes, areaName) => {
-        if (areaName !== "session") {
-          return;
-        }
-        const change = changes[key];
-        if (
-          change === undefined ||
-          !Object.prototype.hasOwnProperty.call(change, "newValue")
-        ) {
-          return;
-        }
-        listener(change.newValue);
-      };
-      events.addListener(callback);
-      return () => events.removeListener(callback);
-    },
-  };
-}
-
-/** Opens resultUrl with the summary key in the fragment, as a popup window. */
-export function createResultWindowOpener(
-  windows: WindowsApi,
-  resultUrl: string,
-): (key: string) => Promise<void> {
-  return async (key) => {
-    await windows.create({ url: `${resultUrl}#${key}`, type: "popup" });
-  };
-}
-
-export interface Badge {
-  signal(): Promise<void>;
-  clear(): Promise<void>;
-}
-
-/** The toolbar badge used as the visible fallback for a display failure. */
-export function createBadge(action: ActionApi): Badge {
-  return {
-    signal: () => action.setBadgeText({ text: "!" }),
-    clear: () => action.setBadgeText({ text: "" }),
   };
 }
 

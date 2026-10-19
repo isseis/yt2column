@@ -6,16 +6,12 @@ import { JSDOM } from "jsdom";
 
 import {
   createMetadataReader,
-  createResultViewStore,
   createSelectionReader,
   createSettingsStore,
   type ScriptingApi,
   type StorageArea,
-  type StorageChangeEvents,
-  type StorageChangeListener,
 } from "../src/browser/chromeDeps.ts";
 import type { PageSelection } from "../src/core/collect.ts";
-import type { ResultView } from "../src/core/resultView.ts";
 import type { ServerPort, SharedToken } from "../src/core/settings.ts";
 
 type Injection = {
@@ -400,87 +396,5 @@ describe("settings store", () => {
     await store.clearToken();
     assert.deepEqual(removes, ["sharedToken"]);
     assert.deepEqual(await store.load(), { token: undefined, port: "8765" });
-  });
-});
-
-interface EventRecorder {
-  readonly events: StorageChangeEvents;
-  fire(
-    changes: Record<string, { newValue?: unknown; oldValue?: unknown }>,
-    areaName: string,
-  ): void;
-}
-
-/** A StorageChangeEvents whose listeners can be fired by hand. */
-function recordingEvents(): EventRecorder {
-  const listeners = new Set<StorageChangeListener>();
-  return {
-    events: {
-      addListener: (callback) => {
-        listeners.add(callback);
-      },
-      removeListener: (callback) => {
-        listeners.delete(callback);
-      },
-    },
-    fire: (changes, areaName) => {
-      for (const callback of [...listeners]) {
-        callback(changes, areaName);
-      }
-    },
-  };
-}
-
-const resultView: ResultView = { kind: "blocked", reason: "empty-title" };
-
-describe("result view store", () => {
-  it("puts, gets and removes a value under the key", async () => {
-    const { area } = recordingArea(new Map());
-    const store = createResultViewStore(area, recordingEvents().events);
-    await store.put("key-1", resultView);
-    assert.deepEqual(await store.get("key-1"), resultView);
-    // get does not remove the value.
-    assert.deepEqual(await store.get("key-1"), resultView);
-    await store.remove("key-1");
-    assert.equal(await store.get("key-1"), undefined);
-  });
-
-  it("watch reports a value newly stored under the key in session", () => {
-    const events = recordingEvents();
-    const store = createResultViewStore(
-      recordingArea(new Map()).area,
-      events.events,
-    );
-    const seen: unknown[] = [];
-    store.watch("key-1", (value) => seen.push(value));
-    events.fire({ "key-1": { newValue: resultView } }, "session");
-    assert.deepEqual(seen, [resultView]);
-  });
-
-  it("watch ignores another area, another key, and a removal", () => {
-    const events = recordingEvents();
-    const store = createResultViewStore(
-      recordingArea(new Map()).area,
-      events.events,
-    );
-    const seen: unknown[] = [];
-    store.watch("key-1", (value) => seen.push(value));
-    events.fire({ "key-1": { newValue: resultView } }, "local");
-    events.fire({ "key-2": { newValue: resultView } }, "session");
-    events.fire({ "key-1": { oldValue: resultView } }, "session");
-    assert.deepEqual(seen, []);
-  });
-
-  it("watch stops after the returned function is called", () => {
-    const events = recordingEvents();
-    const store = createResultViewStore(
-      recordingArea(new Map()).area,
-      events.events,
-    );
-    const seen: unknown[] = [];
-    const stop = store.watch("key-1", (value) => seen.push(value));
-    stop();
-    events.fire({ "key-1": { newValue: resultView } }, "session");
-    assert.deepEqual(seen, []);
   });
 });
