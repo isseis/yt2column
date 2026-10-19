@@ -73,7 +73,7 @@ export type ReceivedResponse =
   | { readonly kind: "redirected" };
 
 /** Which check an unexpected response failed; for the developer log only. */
-export type UnexpectedCheck =
+type UnexpectedCheck =
   | "body-over-limit"
   | "encoding"
   | "escape"

@@ -372,8 +372,8 @@
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した（#353）
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 6: 整理の確認
 
@@ -381,15 +381,15 @@
 -   変更: 本計画（§5.1〜§5.4）。カバレッジの比較で到達しなくなったものがあれば `extension/test/launch.test.ts` ほか
 
 **タスク**
--   [ ] **ステップ 6-1**: 設計書 3.2.7 の確認を行う。本タスクが本番の参照元を変えたモジュール（`launch.ts`・`browser/chromeDeps.ts`・`ui/renderSend.ts`・`core/summary.ts`・`core/response.ts`・`core/sendMessages.ts`・`core/prepare.ts`・`core/types.ts`・`send.ts`）の export について、本番の参照元とテストの利用を確かめる。結果が設計書 3.2.1 の表と一致することを確かめ、§5.1 の「設計書 3.2.7」の行に記録する。一致しない export があれば、設計書 3.2.1 の基準で扱いを決めてから進める。
+-   [x] **ステップ 6-1**: 設計書 3.2.7 の確認を行う。本タスクが本番の参照元を変えたモジュール（`launch.ts`・`browser/chromeDeps.ts`・`ui/renderSend.ts`・`core/summary.ts`・`core/response.ts`・`core/sendMessages.ts`・`core/prepare.ts`・`core/types.ts`・`send.ts`）の export について、本番の参照元とテストの利用を確かめる。結果が設計書 3.2.1 の表と一致することを確かめ、§5.1 の「設計書 3.2.7」の行に記録する。一致しない export があれば、設計書 3.2.1 の基準で扱いを決めてから進める。
     -   **対象:** 本計画（§5.1・§5.4）。**完了:** §5.1 の「設計書 3.2.7」の行と、§5.4 の該当の記録を記入した。
--   [ ] **ステップ 6-2**: AC-05a の静的な確認を行う（設計書 3.5.1）。`extension/src/` で次の 3 つを確かめ、§5.1 の「AC-05a」の行に記録する。`sendArticle` を呼ぶ箇所が `runPopupSend` の `click` の処理の中の 1 か所だけであること。`createSendDeps` を呼ぶ入口のモジュールが `popup.ts` だけであること。ネットワークを使う API（`fetch`・`XMLHttpRequest`・`sendBeacon`・`WebSocket`・`EventSource`）を使う箇所が `createSendDeps` の中の `fetch` の 1 か所だけであること。実行したコマンドとその出力とコミットは §5.4 に記録し、§5.1 の欄からは §5.4 を参照する（表の欄に `|` や改行を入れない）。
+-   [x] **ステップ 6-2**: AC-05a の静的な確認を行う（設計書 3.5.1）。`extension/src/` で次の 3 つを確かめ、§5.1 の「AC-05a」の行に記録する。`sendArticle` を呼ぶ箇所が `runPopupSend` の `click` の処理の中の 1 か所だけであること。`createSendDeps` を呼ぶ入口のモジュールが `popup.ts` だけであること。ネットワークを使う API（`fetch`・`XMLHttpRequest`・`sendBeacon`・`WebSocket`・`EventSource`）を使う箇所が `createSendDeps` の中の `fetch` の 1 か所だけであること。実行したコマンドとその出力とコミットは §5.4 に記録し、§5.1 の欄からは §5.4 を参照する（表の欄に `|` や改行を入れない）。
     -   **対象:** 本計画（§5.1・§5.4）。**完了:** §5.1 の「AC-05a」の行と、§5.4 の該当の記録を記入した。
--   [ ] **ステップ 6-3**: 削除の後の lcov の報告を、ステップ 1-1 と同じコマンドで取り（`extension/` に変更したファイルも追跡していないファイルもないことを、ステップ 1-1 と同じ `git status` の検査で先に確かめる）、設計書 3.11 のとおりに比べる。比べるファイルは、設計書 3.11「行の対応」の 7 つと、2 つの報告の両方にあるほかのファイル（変更のないファイルは行をそのまま対応づける）である。行・分岐・関数の到達を、ソースの差分で対応づけて比べる。node の lcov は、同じソースでも実行ごとに `BRDA` の block の番号と名前のない関数の番号が変わり、到達しなかった分岐の `BRDA` を出さないことがある。このため、`DA` は対応づけた行で、`FN` は名前ではなく対応づけた開始行で、`BRDA` は対応づけた行と、その行の中の分岐の順で比べ、記録のない分岐は到達していないものとして数える。分岐だけが到達しなくなったと出た箇所は、ソースを読んで判断し、§5.3 に記録する。名前を変えた関数（`renderResultView` → `renderBlockReason`）と、移した関数（`hasExactKeys`）は、対応を明示する。削除の前に到達していて、削除の後に到達しなくなった行・分岐・関数があれば、ポップアップの経路のテストを加えて到達させ、§5.2 に加える。結果を §5.3 に記録する。
+-   [x] **ステップ 6-3**: 削除の後の lcov の報告を、ステップ 1-1 と同じコマンドで取り（`extension/` に変更したファイルも追跡していないファイルもないことを、ステップ 1-1 と同じ `git status` の検査で先に確かめる）、設計書 3.11 のとおりに比べる。比べるファイルは、設計書 3.11「行の対応」の 7 つと、2 つの報告の両方にあるほかのファイル（変更のないファイルは行をそのまま対応づける）である。行・分岐・関数の到達を、ソースの差分で対応づけて比べる。node の lcov は、同じソースでも実行ごとに `BRDA` の block の番号と名前のない関数の番号が変わり、到達しなかった分岐の `BRDA` を出さないことがある。このため、`DA` は対応づけた行で、`FN` は名前ではなく対応づけた開始行で、`BRDA` は対応づけた行と、その行の中の分岐の順で比べ、記録のない分岐は到達していないものとして数える。分岐だけが到達しなくなったと出た箇所は、ソースを読んで判断し、§5.3 に記録する。名前を変えた関数（`renderResultView` → `renderBlockReason`）と、移した関数（`hasExactKeys`）は、対応を明示する。削除の前に到達していて、削除の後に到達しなくなった行・分岐・関数があれば、ポップアップの経路のテストを加えて到達させ、§5.2 に加える。結果を §5.3 に記録する。
     -   **対象:** 本計画（§5.3。テストを加えた場合は §5.2）、到達しなくなったものがあれば `extension/test/launch.test.ts` ほか。**完了:** §5.3 に比較の結果を記録し、§5.1 の「AC-09」の行を記入した。
--   [ ] **ステップ 6-4**: 本タスクで Go のテストを削除していないことを確かめ、§5.1 の「AC-10」の行に記録する。本タスクの最初のコミットの親から HEAD までの Go のファイルの差分に、ファイルの削除とテスト関数の削除がないことを確かめ、実行したコマンドとその出力を §5.4 に記録する。
+-   [x] **ステップ 6-4**: 本タスクで Go のテストを削除していないことを確かめ、§5.1 の「AC-10」の行に記録する。本タスクの最初のコミットの親から HEAD までの Go のファイルの差分に、ファイルの削除とテスト関数の削除がないことを確かめ、実行したコマンドとその出力を §5.4 に記録する。
     -   **対象:** 本計画（§5.1・§5.4）。**完了:** §5.1 の「AC-10」の行と、§5.4 の該当の記録を記入した。
--   [ ] **ステップ 6-5**: §5.2 のすべての検査に、対応先か理由があることを確かめる。
+-   [x] **ステップ 6-5**: §5.2 のすべての検査に、対応先か理由があることを確かめる。
     -   **対象:** 本計画（§5.1・§5.2）。**完了:** §5.1 の「設計書 3.10.2」の行を記入した。
 -   [ ] **ステップ 6-6**: ステップ 6-3 でテストを加えた場合は、加えた検査について、対象を壊して失敗することを確かめ、コミットのメッセージに記す。続けて `make ext-check` → `make test` → `make lint` を通す。
     -   **対象:** ステップ 6-3 で加えたテスト（加えた場合）。**完了:** 加えた検査について壊して失敗することをコミットのメッセージに記し、`make ext-check` → `make test` → `make lint` が通る。
@@ -408,8 +408,8 @@
 
 **判定理由**: ステップ 6-3 は孤立した複雑な作業である（2 つの lcov の報告を、実行ごとに番号が変わる分岐と関数について、ソースの差分で対応づけて比べ、到達しなくなったものを判断する）。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した（#355）
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
@@ -548,11 +548,11 @@ AC-09・AC-10 は、確かめた結果を本計画に記録することを求め
 | AC-04・AC-05 | 以前の版を読み込み直した後と、ブラウザを再起動した後に、文字起こしパネルの行の右クリックメニューに拡張の項目がない（Chrome・Brave） | 設計書 7.2 の手順 1〜4・6 | | |
 | 設計書 3.7 | 読み込み直しの後に、`chrome.storage.session` が空で、バッジがない（Chrome・Brave。H-05） | 設計書 7.2 の手順 2・3・5 | | |
 | AC-07 | ポップアップから送って受付（`202`）が表示され、共有トークンを削除すると送らない理由が表示される（Chrome・Brave） | 設計書 7.2 の手順 7 | | |
-| AC-05a | 送信とネットワークの API の呼び出し箇所が、設計書 3.5.1 のとおり 1 か所ずつである | ステップ 6-2 | | |
-| 設計書 3.2.7 | 本番の参照元を変えたモジュールの export の参照が、設計書 3.2.1 の表と一致する。§4.4 の横断検索の結果 | ステップ 6-1 | | |
-| AC-09 | 削除の前に到達していた、残る行・分岐・関数が、削除の後も到達している | ステップ 1-1・6-3（詳細は §5.3） | | |
-| AC-10 | Go のテストを削除していない | ステップ 6-4 | | |
-| 設計書 3.10.2 | 削除・改めるテストのすべての検査に、対応先か理由がある | ステップ 2-1・6-5（詳細は §5.2） | | |
+| AC-05a | 送信とネットワークの API の呼び出し箇所が、設計書 3.5.1 のとおり 1 か所ずつである | ステップ 6-2 | 1 か所ずつだった（§5.4「ステップ 6-2」） | 2026-10-19、`6f603fc` |
+| 設計書 3.2.7 | 本番の参照元を変えたモジュールの export の参照が、設計書 3.2.1 の表と一致する。§4.4 の横断検索の結果 | ステップ 6-1 | 3.2.1 の表と一致した。一致しなかった `UnexpectedCheck` の export を外した。§4.4 の横断検索は `eslint.config.js` の規則のコメントだけが一致した（§5.4「ステップ 6-1」） | 2026-10-19、`6f603fc` |
+| AC-09 | 削除の前に到達していた、残る行・分岐・関数が、削除の後も到達している | ステップ 1-1・6-3（詳細は §5.3） | 到達しなくなった行・分岐・関数はなかった（§5.3） | 2026-10-19、`6f603fc` |
+| AC-10 | Go のテストを削除していない | ステップ 6-4 | ファイルの削除もテスト関数の削除もなかった（§5.4「ステップ 6-4」） | 2026-10-19、`6f603fc` |
+| 設計書 3.10.2 | 削除・改めるテストのすべての検査に、対応先か理由がある | ステップ 2-1・6-5（詳細は §5.2） | §5.2 の 159 行のすべてに対応先か理由がある（§5.4「ステップ 6-5」） | 2026-10-19、`6f603fc` |
 
 ### 5.2. 削除・改めるテストの検査の対応表
 
@@ -761,15 +761,44 @@ AC-09・AC-10 は、確かめた結果を本計画に記録することを求め
 -   コマンド（`extension/` で実行）: `node --test --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=<出力先> "test/**/*.test.ts"`。終了コードは 0 で、報告は 20 個の `SF:` を持つ。§1.3 で挙げた `logSend` の error の分岐は、`BRDA:217,23,0,1`・`DA:218,1` で到達回数 1 だった。
 -   保存場所: リポジトリの外の `~/.cache/yt2column-0027/lcov-before-81cb30d.info`（出力先をジョブの一時ディレクトリにして実行し、そこへ複製した）。報告は `81cb30d` の `extension/` で同じコマンドを実行すれば作り直せるので、コミットしない。
 
-**比較の結果（ステップ 6-3）**
+**比較の結果（ステップ 6-3、2026-10-19）**
 
-（実施のときに記入する）
+-   比べた 2 つ: 削除の前 `81cb30d`（上の基準の報告）と、削除の後 `6f603fc`（フェーズ 5 までの内容と、ステップ 6-1 の `UnexpectedCheck` の export の削除。`make ext-check` が通った状態）。node は `v24.21.0`（`extension/.node-version` と同じ）。
+-   コマンド: 基準と同じ（`extension/` で `node --test --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=<出力先> "test/**/*.test.ts"`）。終了コードは 0 で、報告は 19 個の `SF:` を持つ。基準の 20 個との差は、削除した `src/core/resultView.ts` だけである。比べる前に、`git status --short extension` が空であることを確かめた。
+-   比べ方: ファイルごとに `git diff -U0 81cb30d HEAD` の差分の塊で、削除の前の行番号を削除の後の行番号に対応づけた（塊の中の行は削除または書き換えた行として、対応づけない）。`DA` は対応づけた行で、`FN`・`FNDA` は名前でなく対応づけた開始行で、`BRDA` は対応づけた行と、その行の中の分岐の順で比べた。`BRDA` が出ていない分岐は到達していないものとして数えた。比べるファイルは、設計書 3.11 の 7 つ（`launch.ts`・`chromeDeps.ts`・`ui/renderSend.ts`・`core/summary.ts`・`core/response.ts`・`core/sendMessages.ts`・`scripts/check-dist.ts`）と、2 つの報告の両方にあるほかのすべてのファイル（`eslint.config.js`・`scripts/check-lockfile.ts`・`core/` と `ui/render.ts` ほか。ソースの差分のないファイルは行をそのまま対応づけた）である。比較に使ったスクリプトは一度きりの確認用で、コミットしない。
+-   結果: 削除の前に到達していて、削除の後の対応する行・関数・分岐が到達していないものは、どのファイルにも **なかった**。対応づけられた行、`FN` の開始行、`BRDA` の分岐のいずれでも、0 件だった。
+-   対応づけられなかったもの（削除または書き換えた塊の中にあったもの）: `launch.ts` はメニューの経路と結果のウィンドウの関数（`attempt`・`runMenuLaunch`・`openResultWindow`・`runResultWindow` とその中の関数）、`chromeDeps.ts` は `createResultViewStore` とその中の関数、`core/summary.ts` は `parseSummary`・`isRejectionReason`・`hasExactKeys`（移した）、`ui/renderSend.ts` は `summaryNode`・`renderResultView`（名前を変えた）、`core/response.ts` は `unexpectedChecks`、`core/sendMessages.ts` は `unreadableResultMessage` の部分、`eslint.config.js`・`scripts/check-dist.ts` は書き換えた行。このうち残るものは、次のとおり名前と開始行で対応を確かめた。書き換えた塊の中の行のうち残るもの（`launch.ts` の import の行と `renderBlockReason` を呼ぶ行など）は、削除の後の側の行がすべて到達している（塊の中の削除の後の行で `DA` が 0 のものは、どのファイルにもなかった）。
+    -   `renderResultView` → `renderBlockReason`: `ui/renderSend.ts:56`（到達 16 回）→ `:48`（15 回）。到達している。
+    -   `hasExactKeys`: `core/summary.ts:71`（187 回）→ `core/response.ts:117`（48 回）。到達している。
+    -   `logSend` の error の分岐（§1.3）: `BRDA:217,23,0,1`・`DA:218,1` → 削除の後は `launch.ts:155`〜`:157` で `BRDA:155,20,0,2`・`DA:157,2`。到達している。
+    -   ポップアップのボタンの `click` の処理（名前のない関数）: `anonymous_10`・`anonymous_11`（`launch.ts:390-391`、各 8 回）→ `anonymous_6`・`anonymous_7`（`launch.ts:231-232`、各 19 回）。到達している。
+    -   `launchContextFromTab`・`readMetadata`・`logBlocked`・`logSend`・`runPopupLaunch`・`runPopupSend`: 開始行が `:114`・`:143`・`:188`・`:202`・`:325`・`:359` から `:65`・`:81`・`:126`・`:140`・`:166`・`:200` に変わり、すべて到達している。
+-   削除の前から到達していなかったもの（比較の対象外。削除の後も同じ）: `chromeDeps.ts` の `readSelection`・`readPageMetadata`・`createLogger`・`createActiveTabQuery`・`createSendDeps`（`chrome` のオブジェクトを使う薄い部分。ユニットテストの対象外）、`core/sendMessages.ts` の `BRDA:57`・`:154`・`:196` の分岐（`DA:58-60`・`:155-157`・`:197-199`）、`core/response.ts` の `BRDA` の 1 つ（削除の前は `:185`、削除の後は `:182`）。削除の前に到達していなかった `createResultWindowOpener`・`createBadge`・`schedule` は、削除した。
+-   ポップアップの経路のテストを加える必要はなかった。このため、§5.2 に追記はない。
 
 ### 5.4. 確認のコマンドと出力
 
 ステップ 6-1・6-2・6-4 で実行したコマンド、その出力、実行したコミットを記録する。§5.1 の欄はこの節を参照する。
 
-（実施のときに記入する）
+**ステップ 6-1（設計書 3.2.7、2026-10-19、`6f603fc`）**
+
+-   対象の 9 つのモジュール（`launch.ts`・`browser/chromeDeps.ts`・`ui/renderSend.ts`・`core/summary.ts`・`core/response.ts`・`core/sendMessages.ts`・`core/prepare.ts`・`core/types.ts`・`send.ts`）の `export` について、`extension/` で `rg -lw <シンボル> src`（本番の参照元）と `rg -lw <シンボル> test`（テストの利用）を実行し、`81cb30d` の同じ結果（`git archive 81cb30d` で取り出して実行）と比べた。
+-   3.2.1 の表の「残す」「export を残す」のシンボルは、表のとおりだった。`isServerRejectReason`・`parseRequestId`（本番の参照元は `core/response.ts` の中だけ、テストは `response.test.ts`）、`sendTimeoutMs`（`send.ts` の中だけ、`send.test.ts`）、`launchContextFromTab`（`launch.ts` の中だけ、`launch.test.ts`）、`preflightReasons`・`rejectionReasons`（本番の参照元なし、テストが使う）である。表の「削除」のシンボルは、`rg -w` で `src`・`test`・`static`・`scripts` のどこにも残っていない（`attempt` は `launch.ts:136` のコメントの語で、関数ではない）。
+-   一致しなかった export が 1 つあった。`core/response.ts` の `UnexpectedCheck` は、`81cb30d` では `core/resultView.ts` が import していたが、削除の後は `core/response.ts` の中だけが参照し、テストも使わない。3.2.1 の基準（本番の参照元が同じモジュールの中だけになる export は、テストが使っていなければ export を外す）に従い、export を外した（コミット `6f603fc`）。`make ext-check` が通った。
+-   §4.4 の横断検索: `rg -n -i 'result window|result view|ResultView|service worker|context menu|menu path' extension --glob '!extension/node_modules/**' --glob '!extension/dist/**'` の一致は `extension/eslint.config.js:28` の規則のコメント 1 件だけで、これは §4.4 が除く、削除した API の再導入を禁止する理由のコメントである。
+
+**ステップ 6-2（AC-05a、2026-10-19、`6f603fc`、`extension/` で実行）**
+
+-   `rg -n 'sendArticle' src`: 呼び出しは `src/launch.ts:240` の 1 か所だけである（ほかは定義 `send.ts:98`・import `launch.ts:17`・コメント）。`launch.ts:231` の `button.addEventListener("click", …)` の処理の中にある。
+-   `rg -n 'createSendDeps' src`: 呼び出しは `src/popup.ts:27` だけである（ほかは定義 `chromeDeps.ts:194` と import `popup.ts:9`）。`options.ts`・`optionsPage.ts` は `createSendDeps` も `send.ts` も参照しない。
+-   `rg -n '\b(fetch|XMLHttpRequest|sendBeacon|WebSocket|EventSource)\b' src --glob '*.ts'`: 実際にネットワークを使う箇所は `src/browser/chromeDeps.ts:195` の `fetch(url, init)`（`createSendDeps` の中）の 1 か所だけである。ほかの一致は、`send.ts` の注入された `deps.fetch` の呼び出し（`:104`、`createSendDeps` が渡す関数）と型・コメントで、`XMLHttpRequest`・`sendBeacon`・`WebSocket`・`EventSource` の一致はなかった。設計書 3.5.1 の `chromeDeps.ts:281` は削除前の行番号で、現在は `:195` である。
+
+**ステップ 6-4（AC-10、2026-10-19、`6f603fc`）**
+
+-   本タスクの最初のコミットは `f06f396`（親 `a69dbc0`）である。
+-   `git diff --diff-filter=D --stat a69dbc0 HEAD -- '*.go'`: 出力なし（Go のファイルの削除なし）。
+-   `git diff -U0 a69dbc0 HEAD -- '*.go' | rg -n '^-\s*func (\([^)]*\) )?(Test|Benchmark|Fuzz|Example)\w*'`: 一致なし（終了コード 1）。`^-func` の一致（行頭の削除された関数宣言）も 0 件で、削除した関数は Go のどのファイルにもない（この差分には、本タスクの間に `main` へ入ったほかのタスクの変更も含まれる）。
+
 
 ## 6. リスク管理 (Risk Management)
 
@@ -794,10 +823,10 @@ AC-09・AC-10 は、確かめた結果を本計画に記録することを求め
 -   [x] PR-2 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7）
 -   [x] PR-3 マージ済み（対象ステップ: 3-8 / 3-9 / 3-10 / 3-11 / 3-12 / 3-13）
 -   [x] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7 / 4-8 / 4-9）
--   [ ] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6）
+-   [x] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6）
 -   [ ] PR-6 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3 / 6-4 / 6-5 / 6-6）
 -   [ ] PR-7 マージ済み（対象ステップ: 7-1 / 7-2 / 7-3 / 7-4）
--   [ ] §4.4 の横断検索を行った
+-   [x] §4.4 の横断検索を行った
 -   [ ] §5 のすべての AC の検証が通った
 -   [ ] 本タスクのすべての PR を、0026 の PR-2 を始める前にマージした
 
