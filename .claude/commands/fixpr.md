@@ -1,3 +1,8 @@
+---
+description: "Resolve unresolved PR review threads"
+argument-hint: "[PR]"
+---
+
 Fix unresolved PR review threads for PR `$ARGUMENTS` (or, if no argument was
 given, the PR for the current branch).
 

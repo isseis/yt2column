@@ -1,3 +1,8 @@
+---
+description: "Japanese prose-quality pass on a document"
+argument-hint: "<file>"
+---
+
 > **Project context**: this command reviews and improves the **Japanese prose
 > quality** of a document. It refers to "the document language" and "the
 > translation glossary", whose values are defined in

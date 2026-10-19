@@ -1,3 +1,8 @@
+---
+description: "Implement the next phase group of an approved implementation plan"
+argument-hint: "<task>"
+---
+
 > **Project context (read first)**: Read `.claude/commands/_context.md` — it is
 > canonical for every project-specific path, build check, green gate, and
 > test-helper placement this command names. Porting instructions live there too;

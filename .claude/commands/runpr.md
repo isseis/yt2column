@@ -1,3 +1,8 @@
+---
+description: "Drive a /runplan task PR through review, merge, and plan bookkeeping"
+argument-hint: "[PR | branch | task]"
+---
+
 > **Project context (read first)**: Read `.claude/commands/_context.md`. The
 > review, merge, and branch-switch mechanics are defined once in
 > `.claude/commands/_lib/pr-review-merge-loop.md`; this command follows that file

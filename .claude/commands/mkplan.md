@@ -1,3 +1,8 @@
+---
+description: "Create 03_implementation_plan.md for a task (requires approved architecture)"
+argument-hint: "<task>"
+---
+
 > **Project context (read first)**: Read `.claude/commands/_context.md` — it is
 > canonical for every project-specific path, document name, status value, build
 > check, and layout this command names. Porting instructions live there too; this

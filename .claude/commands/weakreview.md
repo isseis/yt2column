@@ -1,3 +1,8 @@
+---
+description: "Second-pass review of work done by a lower-capability model"
+argument-hint: "[range | PR]"
+---
+
 > **Project context (read first)**: Read `.claude/commands/_context.md`. It is the
 > single source of truth for the task root, guide paths, document/status
 > conventions, build checks (`make fmt`/`make test`/`make lint`/`make deadcode`),

@@ -1,3 +1,7 @@
+---
+description: "Internal: shared review-finding triage scales (not a command)"
+---
+
 # Shared pattern: review-finding triage
 
 `fixpr.md` (Phase 2) and `_lib/coderabbit-local-review.md` (used by `runplan.md` step 7.7 and `runchange.md`) both classify review findings

@@ -1,3 +1,8 @@
+---
+description: "Create 02_architecture.md for a task (requires approved requirements)"
+argument-hint: "<task>"
+---
+
 > **Project context (read first)**: Read `.claude/commands/_context.md` — it is
 > canonical for every project-specific path, document name, status value, and
 > layout this command names. Porting instructions live there too; this body's

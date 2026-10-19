@@ -1,3 +1,7 @@
+---
+description: "Internal: shared PR review/merge/branch-switch loop (not a command)"
+---
+
 # Shared pattern: the per-PR review, merge, and branch-switch loop
 
 `runpr.md` and `runchange.md` both drive one PR through CodeRabbit review,

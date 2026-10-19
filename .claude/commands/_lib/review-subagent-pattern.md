@@ -1,3 +1,7 @@
+---
+description: "Internal: shared critical-review subagent pattern (not a command)"
+---
+
 # Shared pattern: critical-review subagent
 
 Several commands end by spawning a subagent to critically review the artifact

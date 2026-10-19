@@ -1,3 +1,7 @@
+---
+description: "Internal: project-specific values the commands depend on (not a command)"
+---
+
 # Project Context for Claude Commands
 
 This file is the single source of truth for project-specific configuration values

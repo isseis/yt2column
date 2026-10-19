@@ -1,3 +1,8 @@
+---
+description: "Create a PR for a committed non-runplan change, review it, and merge it"
+argument-hint: "[PR | branch]"
+---
+
 > **Project context (read first)**: Read `.claude/commands/_context.md`. The PR
 > creation, review, merge, and branch-switch mechanics are defined once in
 > `.claude/commands/_lib/pr-review-merge-loop.md` and the local CodeRabbit review

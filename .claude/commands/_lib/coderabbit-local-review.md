@@ -1,3 +1,7 @@
+---
+description: "Internal: shared local CodeRabbit review pattern (not a command)"
+---
+
 # Shared pattern: local CodeRabbit CLI review and triage
 
 `runplan.md` (step 7.7) and `runchange.md` both review committed changes with the
