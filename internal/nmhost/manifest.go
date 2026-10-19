@@ -304,9 +304,13 @@ func readManifestState(path string) (manifestState, error) {
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		return manifestAbsent, nil
-	case errors.Is(err, syscall.ELOOP):
-		return manifestForeign, nil
 	case err != nil:
+		// O_NOFOLLOW reports a symbolic link as ELOOP on Linux and darwin
+		// but as EMLINK or EFTYPE on the BSDs, so the link is recognized by
+		// its type rather than by the error number.
+		if info, lerr := os.Lstat(path); lerr == nil && info.Mode()&fs.ModeSymlink != 0 {
+			return manifestForeign, nil
+		}
 		return manifestForeign, err
 	}
 	defer func() { _ = file.Close() }()
