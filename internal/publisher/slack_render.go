@@ -2,6 +2,7 @@ package publisher
 
 import (
 	"strings"
+	"unicode/utf8"
 
 	"github.com/isseis/yt2column/internal/writer"
 )
@@ -14,26 +15,9 @@ const zeroWidthSpace = "\xe2\x80\x8b"
 // follows '/': it may be part of a URL, which U+200B would break, and
 // rejectMention refuses it instead. A look-alike such as U+FF20 is treated as
 // '@' and keeps its own rune, followed by U+200B. A value with no such '@' is
-// returned unchanged.
+// returned unchanged. value must be valid UTF-8.
 func neutralizeMentions(value string) string {
-	runes := []rune(value)
-	ats := mentionAtsOf(runes)
-	if len(ats) == 0 {
-		return value
-	}
-	var b strings.Builder
-	b.Grow(len(value) + len(ats)*len(zeroWidthSpace))
-	next := 0
-	for i, r := range runes {
-		b.WriteRune(r)
-		if next < len(ats) && ats[next] == i {
-			next++
-			if !followsSlash(runes, i) {
-				b.WriteString(zeroWidthSpace)
-			}
-		}
-	}
-	return b.String()
+	return insertAfterAts(value, func(int) bool { return true })
 }
 
 // neutralizeProse does the same for a body, but only for the '@' characters
@@ -41,25 +25,33 @@ func neutralizeMentions(value string) string {
 // code. mentionAts reports rune indices of the V3-replaced body; each is
 // converted to the byte offset of the same rune in body before it is compared
 // with prose, because a look-alike such as U+FF20 takes three bytes in body
-// and one after replacement.
+// and one after replacement. body must be valid UTF-8. With ProseRanges
+// reporting false there is no range to pass: the caller leaves the body as it
+// is, and rejectMention refuses its targets.
 func neutralizeProse(body string, prose []writer.ByteRange) string {
-	runes := []rune(body)
+	return insertAfterAts(body, func(offset int) bool { return inRanges(prose, offset) })
+}
+
+// insertAfterAts inserts U+200B after each target '@' of value that does not
+// follow '/' and whose byte offset in value satisfies inScope.
+func insertAfterAts(value string, inScope func(offset int) bool) string {
+	runes := []rune(value)
 	ats := mentionAtsOf(runes)
 	if len(ats) == 0 {
-		return body
+		return value
 	}
 	var b strings.Builder
-	b.Grow(len(body) + len(ats)*len(zeroWidthSpace))
+	b.Grow(len(value) + len(ats)*len(zeroWidthSpace))
 	next, offset := 0, 0
 	for i, r := range runes {
 		b.WriteRune(r)
 		if next < len(ats) && ats[next] == i {
 			next++
-			if !followsSlash(runes, i) && inRanges(prose, offset) {
+			if !followsSlash(runes, i) && inScope(offset) {
 				b.WriteString(zeroWidthSpace)
 			}
 		}
-		offset += len(string(r))
+		offset += utf8.RuneLen(r)
 	}
 	return b.String()
 }

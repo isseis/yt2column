@@ -33,7 +33,8 @@ type ByteRange struct{ Start, End int }
 // ProseRanges returns the byte ranges of body outside fenced code blocks and
 // code spans, in order, and true. The fence lines themselves, and the text
 // inside fences and code spans, are not in any range. An empty slice with true
-// means the whole body is code. It returns false when the body cannot be
+// means the whole body is code; the ranges are nil whenever ok is false, so
+// a caller must branch on ok. It returns false when the body cannot be
 // judged: the checks that decide where code ends are not reliable for it
 // (an unclosed fence, a fence-like line CommonMark would nest, a backtick run
 // without a closing run on its line, which includes a code span across

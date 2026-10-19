@@ -3,7 +3,6 @@
 package publisher
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/isseis/yt2column/internal/writer"
@@ -33,9 +32,15 @@ func TestNeutralizeMentions(t *testing.T) {
 			if got != tc.want {
 				t.Errorf("neutralizeMentions(%q) = %q, want %q", tc.value, got, tc.want)
 			}
-			// Nothing but the exception may stay a target.
-			if left := mentionAtsOf([]rune(got)); len(left) > 0 && !strings.Contains(tc.value, "/@") {
-				t.Errorf("neutralizeMentions(%q) = %q still has targets at %v", tc.value, got, left)
+			// Only an '@' that follows a slash may stay a target.
+			gotRunes := []rune(got)
+			for _, i := range mentionAtsOf(gotRunes) {
+				if !followsSlash(gotRunes, i) {
+					t.Errorf("neutralizeMentions(%q) = %q still has a target at %d", tc.value, got, i)
+				}
+			}
+			if again := neutralizeMentions(got); again != got {
+				t.Errorf("neutralizeMentions is not idempotent: %q then %q", got, again)
 			}
 		})
 	}

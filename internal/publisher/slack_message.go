@@ -330,7 +330,7 @@ func mentionAts(text []rune) []int {
 // are included although Mattermost user names cannot start with them, to err
 // on the side of reporting.
 func isMentionNameChar(r rune) bool {
-	return r == '_' || r == '.' || r == '-' || unicode.IsLetter(r) || unicode.IsNumber(r)
+	return r == '.' || r == '-' || isMentionNameRune(r)
 }
 
 func isMentionNameRune(r rune) bool {

@@ -206,12 +206,20 @@ func TestProseRanges(t *testing.T) {
 		{"tilde fence", "a\n~~~\n@x\n~~~\nb", []string{"a", "b"}, true},
 		{"whole body is a fence", "```\n@x\n```", nil, true},
 		{"whole body is a code span", "`@x`", []string{"`", "`"}, true},
+		// Offsets count bytes: a multi-byte first line shifts every later start.
+		{"multi-byte line before a code span line", "あい\n`@x` y", []string{"あい", "`", "` y"}, true},
+		{"multi-byte line before a fence", "＠a\n```\n@x\n```\n＠b `c` d", []string{"＠a", "＠b `", "` d"}, true},
+		{"trailing newline", "a\n", []string{"a"}, true},
+		{"trailing newline after a fence", "```\n@x\n```\n", nil, true},
 		{"indented code block counts as prose", "    @x", []string{"    @x"}, true},
 
 		// Bodies that cannot be judged.
 		{"unclosed fence", "a\n```\n@x", nil, false},
 		{"indented fence", "a\n  ```\n@x\n  ```", nil, false},
 		{"fence in a list", "- ```\n  @x\n  ```", nil, false},
+		{"fence in a block quote", "> ```\n> @x\n> ```", nil, false},
+		{"closing bracket only", "a] `@b`", nil, false},
+		{"backtick runs of different lengths", "`a`` @b", nil, false},
 		{"unpaired backtick", "a ` b @c", nil, false},
 		{"code span across lines", "`a\n@b`", nil, false},
 		{"backslash in the body", "a \\` b `@c`", nil, false},

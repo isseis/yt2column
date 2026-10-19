@@ -523,6 +523,11 @@ func TestMentionAts(t *testing.T) {
 		{"after a zero-width space", "a" + zeroWidthSpace + "@here", []int{2}},
 		{"after a backslash", `a\@here`, []int{2}},
 		{"after a slash", "youtube.com/@name", []int{12}},
+		{"after a colon", "x:@y", []int{2}},
+		{"after a full-width colon", "a：@b", []int{2}},
+		{"after emphasis markup", "_a_@here", []int{3}},
+		{"after a newline", "a\n@x", []int{2}},
+		{"after a combining mark", "e\u0301@x", []int{2}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
