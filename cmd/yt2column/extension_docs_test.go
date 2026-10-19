@@ -676,7 +676,7 @@ func checkManualCheckTable(t *testing.T, plan string, want []string) {
 // acLabel builds a manual-check row label from acceptance-criterion numbers:
 // acLabel(2) returns the label for criterion 2 and acLabel(10, 11) joins two
 // labels with the Japanese middle dot. The labels are document data matched
-// against a plan's manual-check table (task 0007's or task 0020's), not
+// against a plan's manual-check table (task 0007's, 0020's or 0027's), not
 // references to source acceptance criteria. Building them from numbers keeps
 // the "AC-" prefix out of a literal followed by digits, which runplan's static
 // check rejects.
