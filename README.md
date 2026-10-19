@@ -591,6 +591,13 @@ channel name, and the description — from the video page. It sends the selectio
 the URL, and the video metadata to the localhost server, and shows the response.
 The tab title is shown for checking (and must not be empty); it is not sent.
 
+**Transitional note.** This section describes the extension as it is now,
+which sends over HTTP to `127.0.0.1` with the shared token. The server already
+listens only on its Unix socket and has no token (see
+[Localhost server](#localhost-server)), so this extension cannot reach it until
+the extension is switched to the native messaging host; that change rewrites
+this section and removes this note.
+
 Node.js 24 is required, and every `ext-*` target refuses to run when
 `node --version` does not match `extension/.node-version`. The version file sits
 inside `extension/`, so a version manager that reads the current directory (such
