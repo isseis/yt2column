@@ -157,12 +157,12 @@ func TestRunCostLinesAllStages(t *testing.T) {
 	if first, lastToken := strings.Index(e.stderr.String(), costPrefix), strings.LastIndex(e.stderr.String(), tokensPrefix); first < lastToken {
 		t.Errorf("cost lines appear before the token lines:\n%s", e.stderr.String())
 	}
-	// The --out file's cost line is the article cost rounded to four decimals.
+	// The --out file's front matter holds the article cost rounded to four decimals.
 	data, err := os.ReadFile(e.outPath)
 	if err != nil {
 		t.Fatalf("read --out: %v", err)
 	}
-	if want := "- Estimated cost: 0.0011 USD\n"; !strings.Contains(string(data), want) {
+	if want := "estimated_cost_usd: \"0.0011\"\n"; !strings.Contains(string(data), want) {
 		t.Errorf("--out has no line %q:\n%s", want, data)
 	}
 	requireSafeOutput(t, e.stdout.String(), e.stderr.String(), e.outPath)

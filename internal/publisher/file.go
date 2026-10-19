@@ -108,7 +108,7 @@ func (p *FilePublisher) Publish(ctx context.Context, article writer.Article) err
 		return err
 	}
 
-	tempPath, err := p.file.writeTemp(ctx, renderArticle(article))
+	tempPath, err := p.file.writeTemp(ctx, renderFileArticle(article))
 	if err != nil {
 		return err
 	}
@@ -196,8 +196,8 @@ func syncDir(dir string) {
 	_ = d.Close()
 }
 
-// renderArticle returns the text FilePublisher and SlackWebhookPublisher both
-// output for a; it ends with the article body. It adds one model line pair per
+// renderArticle returns the text SlackWebhookPublisher outputs for a; it ends
+// with the article body. It adds one model line pair per
 // step that ran, in order (shorten, then review); a nil step result contributes
 // no lines, so an article with no step output is rendered as before. It then
 // adds the article's estimated cost, rounded to four decimals, or the fixed

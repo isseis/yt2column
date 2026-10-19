@@ -1619,15 +1619,18 @@ func TestRunStepFlags(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read --out: %v", err)
 		}
-		if !strings.Contains(string(data), "# A title\n\n- Model: fake-model\n- Model version: v1\n") {
-			t.Errorf("--out does not have the pre-step model lines:\n%s", data)
+		if !strings.Contains(string(data), "model: \"fake-model\"\nmodel_version: \"v1\"\n") {
+			t.Errorf("--out does not have the pre-step model keys:\n%s", data)
+		}
+		if !strings.Contains(string(data), "\n---\n\n# A title\n\n") {
+			t.Errorf("--out does not have the title heading after the front matter:\n%s", data)
 		}
 		if !strings.Contains(string(data), "The body.") {
 			t.Errorf("--out does not hold the generated body:\n%s", data)
 		}
-		for _, line := range []string{"- Shorten model:", "- Review model:"} {
-			if strings.Contains(string(data), line) {
-				t.Errorf("--out holds the step line %q:\n%s", line, data)
+		for _, key := range []string{"shorten_model:", "review_model:"} {
+			if strings.Contains(string(data), key) {
+				t.Errorf("--out holds the step key %q:\n%s", key, data)
 			}
 		}
 		for _, line := range []string{"the shorten step ran", "the review step returned", "wrote the review log to"} {
@@ -1674,7 +1677,7 @@ func TestRunDefaultSteps(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read --out: %v", err)
 	}
-	for _, want := range []string{"- Shorten model: fake-model", "- Review model: review-model"} {
+	for _, want := range []string{"\nshorten_model: \"fake-model\"\n", "\nreview_model: \"review-model\"\n"} {
 		if !strings.Contains(string(data), want) {
 			t.Errorf("--out does not contain %q:\n%s", want, data)
 		}
@@ -1731,13 +1734,13 @@ func TestRunReviewLog(t *testing.T) {
 			t.Fatalf("read --out: %v", err)
 		}
 		// The body is short, so the shorten step did not run: --out has no
-		// shorten line, only the review line. The positive lines are checked in
+		// shorten key, only the review key. The positive lines are checked in
 		// TestRunDefaultSteps.
-		if strings.Contains(string(article), "- Shorten model:") {
-			t.Errorf("--out holds a shorten line although the shorten step did not run:\n%s", article)
+		if strings.Contains(string(article), "shorten_model:") {
+			t.Errorf("--out holds a shorten key although the shorten step did not run:\n%s", article)
 		}
-		if !strings.Contains(string(article), "- Review model: review-model") {
-			t.Errorf("--out does not hold the review line:\n%s", article)
+		if !strings.Contains(string(article), "review_model: \"review-model\"") {
+			t.Errorf("--out does not hold the review key:\n%s", article)
 		}
 		for _, want := range []string{"wrote the article to", "wrote the review log to " + logPath, "the review step returned 1 revision (meaning_change 1)"} {
 			if !strings.Contains(e.stderr.String(), want) {
@@ -2147,7 +2150,7 @@ func TestRunAfterShortenOutModelLines(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read --out: %v", err)
 	}
-	for _, want := range []string{"- Model: fake-model", "- Shorten model: fake-model", "- Review model: review-model"} {
+	for _, want := range []string{"\nmodel: \"fake-model\"\n", "\nshorten_model: \"fake-model\"\n", "\nreview_model: \"review-model\"\n"} {
 		if !strings.Contains(string(data), want) {
 			t.Errorf("--out does not contain %q:\n%s", want, data)
 		}
@@ -2578,7 +2581,7 @@ func TestRunAfterShortenEmptyModelVersion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read --out: %v", err)
 	}
-	if !strings.Contains(string(data), "- Shorten model version: (none)") {
+	if !strings.Contains(string(data), "shorten_model_version: \"(none)\"") {
 		t.Errorf("--out does not write the empty reused model version as (none):\n%s", data)
 	}
 }

@@ -230,23 +230,32 @@ func videoCacheEntries(t *testing.T, cacheDir string) []string {
 	return entries
 }
 
-// checkIntegrationArticle checks the --out file: a non-empty title heading, a
-// non-empty model name, a generated body, and the source link. The content itself is
-// never printed.
+// checkIntegrationArticle checks the --out file: YAML front matter with a
+// non-empty model name, a non-empty title heading, a generated body, and the
+// source link. The content itself is never printed.
 func checkIntegrationArticle(t *testing.T, article string) {
 	t.Helper()
 	if article == "" {
 		t.Error("the --out file is missing or empty")
 		return
 	}
-	header, rest, _ := strings.Cut(article, "\n\n")
-	if title, ok := strings.CutPrefix(header, "# "); !ok || strings.TrimSpace(title) == "" {
-		t.Error("the --out file does not start with a non-empty title heading")
+	frontMatter, rest, found := strings.Cut(strings.TrimPrefix(article, "---\n"), "\n---\n\n")
+	if !strings.HasPrefix(article, "---\n") || !found {
+		t.Error("the --out file does not start with YAML front matter")
+		return
 	}
-	metadata, body, _ := strings.Cut(rest, "\n\n")
-	modelLine, _, _ := strings.Cut(metadata, "\n")
-	if model, ok := strings.CutPrefix(modelLine, "- Model: "); !ok || strings.TrimSpace(model) == "" {
+	var model string
+	for line := range strings.SplitSeq(frontMatter, "\n") {
+		if value, ok := strings.CutPrefix(line, "model: "); ok {
+			model = strings.Trim(value, `"`)
+		}
+	}
+	if strings.TrimSpace(model) == "" {
 		t.Error("the --out file has no non-empty model name")
+	}
+	header, body, _ := strings.Cut(rest, "\n\n")
+	if title, ok := strings.CutPrefix(header, "# "); !ok || strings.TrimSpace(title) == "" {
+		t.Error("the --out file has no non-empty title heading after the front matter")
 	}
 	// The article ends with the source line, an autolink to the video, which
 	// the writer appends itself; the generated text is what precedes it.
