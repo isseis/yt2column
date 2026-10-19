@@ -130,6 +130,8 @@ extension/src/browser/chromeDeps.ts:130:      const results = await scripting.ex
 
 ## 2. 実装ステップ (Implementation Steps)
 
+各ステップの末尾に **対象:**（そのステップが触るファイル）と **完了:**（そのステップの検証）を記す。フェーズの「完了」は、そのフェーズのすべてのステップの後に確かめる。
+
 ### フェーズ 0: 観測のゲート（設計書 8.1）
 
 **対象ファイル:** `docs/tasks/0029_transcript_panel_read/02_architecture.md`（3.1 に記録を加える）、本計画
@@ -137,12 +139,19 @@ extension/src/browser/chromeDeps.ts:130:      const results = await scripting.ex
 Chrome と Brave の安定版で観測する。各記録に、動画 ID、ブラウザとその版、観測した日付、ログインの状態、表示言語を含める。観測用のスクリプトはリポジトリに入れない。ページ全体のスナップショットはリポジトリに保存しない（`docs/dev/security.md` §7）。
 
 -   [ ] **ステップ 0-1**: 形 B のページ（例: `Yoboo9g7saY`）でパネルを開き、パネルの `target-id`、セグメントの一覧・検索欄・読み込み中を示す要素を記録する（設計書 8.1 の表の 1 行目）。
+    -   **対象:** なし（観測。記録はステップ 0-6 で設計書 3.1 に書く）。**完了:** Chrome と Brave の両方について、パネルの `target-id`、セグメントの一覧・検索欄・読み込み中を示す要素の記録が、動画 ID・ブラウザとその版・日付・ログインの状態・表示言語とともに作業メモにある。
 -   [ ] **ステップ 0-2**: 検索欄に文字を入れ、`textarea` の `value` と一覧の変化を記録する（2 行目）。
+    -   **対象:** なし（観測。記録はステップ 0-6 で設計書 3.1 に書く）。**完了:** Chrome と Brave の両方について、`textarea` の `value` と一覧の変化の記録が、動画 ID・ブラウザとその版・日付・ログインの状態・表示言語とともに作業メモにある。
 -   [ ] **ステップ 0-3**: 2 時間を超える動画でパネルを開き、DOM のセグメントの数と最後の時刻を動画の長さと比べる。パネルをスクロールする前と後で比べる（3 行目）。
+    -   **対象:** なし（観測。記録はステップ 0-6 で設計書 3.1 に書く）。**完了:** Chrome と Brave の両方について、スクロールの前と後のセグメントの数・最後の時刻と動画の長さの記録が、動画 ID・ブラウザとその版・日付・ログインの状態・表示言語とともに作業メモにある。
 -   [ ] **ステップ 0-4**: 設計書 8.1「SPA の画面遷移の手順」のとおり、観測用のスクリプトで、遷移の方法 5 種 × 回線 2 種 × 各 3 回（各ブラウザ 30 回）の試行を記録する。失敗の定義（判定が「読める」なのに前の動画のセグメントである時点が 1 つでもある）に当たる試行の有無と、パネルの子孫の要素に中身と動画を結びつける信号があるかを記録する。遷移の方法ごとに数回、遷移の直後に手でポップアップを開き、そのときの判定をスクリプトの記録と照らす（設計書 8.1 の「実際のポップアップの経路」）。この時点ではパネルを読むコードがまだないので、見るのはポップアップを開く操作の間のパネルの状態であり、拡張の読み取りではない。拡張の読み取りはステップ 5-1 で確かめる。
+    -   **対象:** なし（観測。記録はステップ 0-6 で設計書 3.1 に書く）。**完了:** Chrome と Brave の両方について、30 回の試行ごとの結果、失敗の定義に当たる試行の有無、結びつける信号の有無、手で開いたポップアップの判定との照合の記録が、動画 ID・ブラウザとその版・日付・ログインの状態・表示言語とともに作業メモにある。
 -   [ ] **ステップ 0-5**: ログインした状態としていない状態、日本語と英語の表示、チャプターのある動画、シアターモード・狭いウィンドウで、パネルの要素の構成と読んだ文字列を記録する（5 行目）。
+    -   **対象:** なし（観測。記録はステップ 0-6 で設計書 3.1 に書く）。**完了:** Chrome と Brave の両方について、挙げた各条件でのパネルの要素の構成と読んだ文字列の記録が、動画 ID・ブラウザとその版・日付・ログインの状態・表示言語とともに作業メモにある。
 -   [ ] **ステップ 0-6**: 0-1〜0-5 の結果を設計書 3.1 に加え、設計書 8.1 の表の「本書を `draft` に戻す条件」に当たるかを行ごとに記す。SPA の画面遷移（0-4）は、信号の有無によらず設計書を `draft` に戻す（設計書 3.1.3）。信号がない場合、またはどれかの試行で前の動画の字幕を収集した場合は、要件のレビューに諮ることも記す。設計書の Status を `draft` にし、Comments に理由を書く。`make test`（設計書を読む文書の検査を含む）を通してからコミットする。
+    -   **対象:** `docs/tasks/0029_transcript_panel_read/02_architecture.md`（3.1 と Document Status）。**完了:** 設計書 3.1 に 0-1〜0-5 の記録と、設計書 8.1 の表の行ごとの判定があり、設計書の Status が `draft` で Comments に理由があり、`make test` が通る。
 -   [ ] **ステップ 0-7**: 設計書が改めて承認された後、本計画のフェーズ 1〜5 を改めた設計書に合わせる（例: 結びつける信号の照合をステップ 2-1・2-3 に加える）。タスクが変わる場合は本計画を `draft` に戻して承認を受ける。設計書の承認と本計画の承認が揃うまで、フェーズ 1 を始めない。
+    -   **対象:** 本計画（フェーズ 1〜5）。**完了:** 改めた設計書に本計画のフェーズ 1〜5 が合っており、設計書と本計画がともに `approved` である。
 
 **完了:** 設計書 3.1 に観測の記録があり、要件書・設計書・本計画がすべて `approved` である（要件のレビューで要件書が改められた場合を含む）。
 
@@ -151,14 +160,21 @@ Chrome と Brave の安定版で観測する。各記録に、動画 ID、ブラ
 **対象ファイル:** `extension/src/core/types.ts`・`collect.ts`・`messages.ts`・`sendMessages.ts`・`summary.ts`・`prepare.ts`、`extension/src/launch.ts`・`extension/src/browser/chromeDeps.ts`（§1.3.5 の暫定の処理）、`extension/test/collect.test.ts`・`messages.test.ts`・`sendMessages.test.ts`・`summary.test.ts`・`prepare.test.ts`・`render.test.ts`・`send.test.ts`・`launch.test.ts`・`chromeDeps.test.ts`
 
 -   [ ] **ステップ 1-1**: `core/types.ts` に設計書 3.5・3.6 の型を加える（`TranscriptOrigin`・`EmptySelectionDetail`・`OriginSummary`、`RejectionReason` と `rejectionReasons` の `transcript-unavailable`、`OutcomeSummary` の取得元と `detail`）。`PanelUnavailableReason` は `core/collect.ts` から `import type` で参照する。`RejectionReason` の `empty-selection` のコメントを `"empty-selection" // the selection is empty or whitespace only` から `"empty-selection" // the selection is blank and no open transcript panel was found` に改め、`transcript-unavailable` に設計書 3.5 のコメントを付ける。`collection-failed` のコメントは変えない。
+    -   **対象:** `extension/src/core/types.ts`。**完了:** 記したとおりの変更がある。型検査は、暫定の処理が入るステップ 1-7 の後にまとめて確かめる（それまでは本番のコードが型に合わない）。
 -   [ ] **ステップ 1-2**: `core/collect.ts` を設計書 3.2・3.4・3.5 のとおりにする。§1.3.1 の台帳の名前の変更、`PanelReadStep`・`PanelDomReason`・`PanelUnavailableReason`・`PanelRead`、許可する値の `Record`（`dom-error-<段階>` の 6 つを 1 つずつ列挙）、`parseTranscriptRead`、`CollectedInput` の `transcript`・`origin`、`CollectOutcome` の拒否の変種、`collect` の判定（設計書 3.5 の表の順 1〜11）。`collect` の文書コメント（`:47-52`）の順序の記述を、表の順序に合わせて改める。
+    -   **対象:** `extension/src/core/collect.ts`。**完了:** 記したとおりの変更がある。型検査は、暫定の処理が入るステップ 1-7 の後にまとめて確かめる（それまでは本番のコードが型に合わない）。
 -   [ ] **ステップ 1-3**: `core/messages.ts` の文言を改める。`empty-selection` の文言はステップ 2-2 で改める（§1.3.5）。
     -   `transcript-unavailable`（新規）: 文と 3 つの手順を、設計書 3.7 の表の `transcript-unavailable` の行のとおりにする。
     -   `collection-failed`: 文を `"The selection could not be read from this tab (the page may have changed)."` から `"The page could not be read from this tab (the page may have changed)."` にする。
+    -   **対象:** `extension/src/core/messages.ts`。**完了:** 記したとおりの変更がある。型検査は、暫定の処理が入るステップ 1-7 の後にまとめて確かめる（それまでは本番のコードが型に合わない）。
 -   [ ] **ステップ 1-4**: `core/sendMessages.ts` を改める。`blockMessage` の委譲の `case` に `"transcript-unavailable"` を加える。`body-too-large` の文を `"The selected text is too large (over 4 MiB)."` から `"The text to send is too large (over 4 MiB)."` に、手順を `"Select fewer caption lines and try again."` から `"Select fewer caption lines in the transcript panel and try again."` にする。`body_too_large` の 1 つ目の手順を同じく `"Select fewer caption lines in the transcript panel and try again."` にする（文と 2 つ目の手順は変えない）。`invalid_transcript` の文を `"The selected text is not in the transcript panel's caption format."` から `"The text sent is not in the transcript panel's caption format."` にする（手順は変えない）。
+    -   **対象:** `extension/src/core/sendMessages.ts`。**完了:** 記したとおりの変更がある。型検査は、暫定の処理が入るステップ 1-7 の後にまとめて確かめる（それまでは本番のコードが型に合わない）。
 -   [ ] **ステップ 1-5**: `core/summary.ts` に `truncateEnd` を加え、`summarize` を設計書 3.6 のとおりにする（取得元ごとの要約、`panel` のときの末尾 200 コードポイント、拒否の `detail` の引き継ぎ）。
+    -   **対象:** `extension/src/core/summary.ts`。**完了:** 記したとおりの変更がある。型検査は、暫定の処理が入るステップ 1-7 の後にまとめて確かめる（それまでは本番のコードが型に合わない）。
 -   [ ] **ステップ 1-6**: `core/prepare.ts` の `buildArticleBody` が `input.transcript` を読むようにする。文書コメント（`:27-31`）のうち `:28-29` では、`The URL` ／ `and selection are copied verbatim;` と行をまたいで書かれている。この `selection` を `transcript` にし、`The URL and transcript are copied verbatim;` とする。
+    -   **対象:** `extension/src/core/prepare.ts`。**完了:** 記したとおりの変更がある。型検査は、暫定の処理が入るステップ 1-7 の後にまとめて確かめる（それまでは本番のコードが型に合わない）。
 -   [ ] **ステップ 1-7**: フェーズの完了条件のための変更。`launch.ts` の `PopupLaunchDeps.reader` の型を `TranscriptReader` にする。`chromeDeps.ts` に §1.3.5 の暫定の処理を置く。
+    -   **対象:** `extension/src/launch.ts`・`extension/src/browser/chromeDeps.ts`。**完了:** `tsc --noEmit -p tsconfig.build.json`（`extension/` で実行。本番のコードだけを型検査する）が通る（テストの更新はステップ 1-8）。
 -   [ ] **ステップ 1-8**: テストを書く・改める（§1.3.3 のフィクスチャを含む）。
     -   `collect.test.ts::parseTranscriptRead`: 受理する形（設計書 3.4 の表の各行）と、拒否する形（未知のメンバ、欠けたメンバ、`kind` の未知の値、`kind` ごとのメンバの過不足、`segment-list-blank` を含む未知の `reason`、型の違い、配列、`null`、選択範囲と `skipped` の対応の食い違い）。受理した値が補正されないこと。
     -   `collect.test.ts::collect`: 設計書 3.5 の表の各行。既存の空の選択範囲の行（`:105-116`・`:156-162`）は、パネルが `absent` のときの `empty-selection`（`detail` は `panel-absent`）として残す。全角空白・改行だけの選択範囲でパネルが `read` なら取得元が `panel` になること。`skipped` なら字幕が選択範囲の文字列になり、取得元が `selection` になること。`unknown-visibility` が `transcript-unavailable` になること。
@@ -168,7 +184,9 @@ Chrome と Brave の安定版で観測する。各記録に、動画 ID、ブラ
     -   `sendMessages.test.ts`: 既存の網羅の検査（`:39-62`）は `rejectionReasons` から作るので、`transcript-unavailable` の委譲と文言の区別は自動で加わる。`body-too-large` の文言が 4 MiB を含むことは既存の `:64-68` が確かめる。
     -   `chromeDeps.test.ts::selection reader`: §1.3.5 の暫定の処理に合わせて、期待する値を `TranscriptRead` にする（空白だけの選択範囲は `absent`、それ以外は `skipped`）。この `describe` はステップ 2-3 で書き直す。
     -   `prepare.test.ts::buildArticleBody`・`::prepareSend`: 取得元が `panel` の入力から作る本文が `transcript` の値を持ち、メンバが選択範囲の場合と同じであること。`panel` の入力で 4,194,304 バイトを超える場合の `body-too-large`。
+    -   **対象:** `extension/test/collect.test.ts`・`summary.test.ts`・`messages.test.ts`・`sendMessages.test.ts`・`chromeDeps.test.ts`・`prepare.test.ts` と、§1.3.3 のフィクスチャを使うテスト。**完了:** `make ext-check` が通る。
 -   [ ] **ステップ 1-9**: 壊して失敗することを確かめ、壊し方ごとに失敗したテストの行をコミットメッセージに記録する。`parseTranscriptRead` の各検査を 1 つずつ外す（拒否する形の各行）。`documentUrl` の照合をパネルの判定の後に移す（URL の不一致とパネルの `absent` などを組み合わせた順序の行）。タイトルの検査をパネルの判定の前に移す（タイトルが空とパネルの拒否を組み合わせた順序の行）。`summarize` が `detail` を落とす、`truncateEnd` を先頭からの切り出しにする（`summary.test.ts`）。`buildArticleBody` に `origin` を加える（`prepare.test.ts`）。
+    -   **対象:** なし（確認のみ）。**完了:** 各対象を壊して失敗することを確かめ、コミットメッセージに記録している（壊し方ごとに失敗したテストの行を含む）。
 
 **完了:** `make ext-check` → `make test` → `make lint` が通る。
 
@@ -177,7 +195,9 @@ Chrome と Brave の安定版で観測する。各記録に、動画 ID、ブラ
 **対象ファイル:** `extension/src/browser/chromeDeps.ts`・`extension/src/popup.ts`・`extension/src/launch.ts`・`extension/src/core/messages.ts`、`extension/test/chromeDeps.test.ts`・`extension/test/launch.test.ts`・`extension/test/messages.test.ts`
 
 -   [ ] **ステップ 2-1**: `chromeDeps.ts` に `readTranscript` と `createTranscriptReader` を設計書 3.1.3・3.3 のとおりに作る。注入は外の名前を参照せず、パネルの変種の定義を関数の中に持つ。`createTranscriptReader` は注入の引数を `[whitespaceOnly.source, whitespaceOnly.flags]` とし、結果を `parseTranscriptRead` に通し、合わなければ固定の文言の `Error` で拒否する。`readSelection`・`isPageSelection`・`createSelectionReader` と §1.3.5 の暫定の処理を削除する。選択範囲だけを読むことを前提にした `launch.ts` の文書コメント 2 つを、取得元によらない語に改める（`:75` の `Reads the video metadata of the tab the selection was collected from` の `the selection` を `the transcript` に、`:161` の `Collects the active tab's selection` を `Collects the active tab's transcript (the selection or the transcript panel)` にする）。
+    -   **対象:** `extension/src/browser/chromeDeps.ts`・`extension/src/launch.ts`。**完了:** `tsc --noEmit -p tsconfig.build.json`（`extension/` で実行。本番のコードだけを型検査する）が通る（`chromeDeps.test.ts` の書き直しはステップ 2-3）。
 -   [ ] **ステップ 2-2**: `popup.ts` で `createTranscriptReader(chrome.scripting)` を渡す。`core/messages.ts` の `empty-selection` の文言を改める。文を `"No text is selected."` から `"No text is selected, and no open transcript panel was found."` に、手順を `['Open the transcript panel with "Show transcript".', "Select the caption lines.", "Launch yt2column again."]` から設計書 3.7 の表の `empty-selection` の行の 3 つの手順にする。`messages.test.ts::rejectionMessage` に、`empty-selection` の手順に、パネルを開けば選択が要らないことと、手で選択する手順が含まれることを加える（AC-12）。
+    -   **対象:** `extension/src/popup.ts`・`extension/src/core/messages.ts`・`extension/test/messages.test.ts`。**完了:** `tsc --noEmit -p tsconfig.build.json`（`extension/` で実行。本番のコードだけを型検査する）が通り、`messages.test.ts` が通る。
 -   [ ] **ステップ 2-3**: `chromeDeps.test.ts` を書く（H-05）。
     -   `::transcript reader`（`:48-107` の `selection reader` を書き直す）: 注入の引数が `whitespaceOnly` の `source` と `flags` であること、`tabId`、受理する形に合わない結果と注入の例外で `read` が拒否されること。
     -   `::transcript injection`: 設計書 3.1.2 の形を最小限に抜き出した DOM をテストの中で組み立て、記録した注入を、§1.3.3 で広げた `run` に記録した引数を渡して実行する。セグメントの一覧の要素と、見出し・検索欄・同期のボタンの要素に、それぞれ別の印（テストで識別するための固有の文字列。以下、印）を返す `innerText` を定義する。一覧の印には前後の空白・改行・全角空白・サロゲートペアの文字を含める。設計書 7.1 の表の `chromeDeps.test.ts` の行に挙がる各分岐の結果を確かめる。動画 ID の判定より後の分岐を確かめるテストでは、URL の `v` と一致する `video-id` を持つ `ytd-watch-flexy` の中にパネルを置いた DOM を使う。スピナーだけの開いた状態は、§1.3.3 のとおりテストの中で組み立てる。
@@ -186,8 +206,11 @@ Chrome と Brave の安定版で観測する。各記録に、動画 ID、ブラ
     -   パネルの処理の例外: 6 つの段階のそれぞれで例外を起こし、`dom-error-<段階>` が返り、選択範囲と URL がそのまま返ること。
     -   ページを操作しないこと: jsdom の `Selection` の範囲の数と各範囲の境界、直列化した DOM が注入の前後で変わらないこと。§1.3.3 で共有する一覧に、選択範囲を変える呼び出し（`addRange`・`removeAllRanges`・`selectAllChildren` など）とスクロールの呼び出しを加え、注入のソースがそれらを含まないこと。
     -   `::injection count`: `extension/src/` の `executeScript(` の呼び出しが 2 つであること（§1.3.4）。
+    -   **対象:** `extension/test/chromeDeps.test.ts`。**完了:** `make ext-typecheck` が通り、`chromeDeps.test.ts` が通る。
 -   [ ] **ステップ 2-4**: `launch.test.ts` を改める。`:315-333` の拒否の一覧に `transcript-unavailable` の行を加える（動画メタデータを読まないこと）。新しい `describe`「transcript panel path」で、パネルから収集したときに送信の本文の `transcript` がパネルの字幕と一致すること、`transcript-unavailable` と `empty-selection` の拒否でログの `outcome` に `detail` が残り、パネルに入れた識別できる印がログに現れないことを確かめる。
+    -   **対象:** `extension/test/launch.test.ts`。**完了:** `launch.test.ts` が通る。
 -   [ ] **ステップ 2-5**: 壊して失敗することを確かめる。注入の各判定を 1 つずつ外す（開閉・動画 ID・一覧の数・描画の途中・検索欄）、選択範囲が空でないときもパネルを読む、パネルの処理の例外を捕らえずに注入全体を失敗させる、`innerText` の値を `trim` する、見出しを含む外側の要素を読む、注入が引数を使わず `/^\s*$/` で判定する、ログの `outcome` に字幕を入れる、`empty-selection` の手順からパネルの手順を消す。最後に、§1.3.1 の古い名前と、選択範囲だけを前提にした文書コメントが `extension/` に残っていないことを `rg -n "PageSelection|SelectionReader|createSelectionReader|readSelection|isPageSelection|selection reader" extension` で確かめ、出力（0 件）をコミットメッセージに記録する。
+    -   **対象:** なし（確認のみ）。**完了:** 各対象を壊して失敗することを確かめ、コミットメッセージに記録している。最後の `rg` の出力が 0 件であることもコミットメッセージに記録している。
 
 **完了:** `make ext-check` → `make test` → `make lint` が通る。
 
@@ -196,9 +219,13 @@ Chrome と Brave の安定版で観測する。各記録に、動画 ID、ブラ
 **対象ファイル:** `extension/src/ui/render.ts`・`extension/static/style.css`、`extension/test/render.test.ts`・`extension/test/launch.test.ts`
 
 -   [ ] **ステップ 3-1**: `render.ts` に設計書 3.6 の表示を加える。欄の順序は Title・URL・Source・Characters・Lines・Preview・End。Source の値は `Record<TranscriptOrigin, string>`（`selection` は `Selected text`、`panel` は `Transcript panel`）で選ぶ。この `Record` と理由のコードのラベルは、ステップ 4-5 の文書の検査が import するので export する。End は取得元が `panel` のときだけ表示し、切り詰めたときは値の先頭に `…` を付け、クラス `summary-end-preview` と `dir="auto"` を持たせる。拒否の要約が `detail` を持つとき、メッセージの下に `Reason code: <値>` を `textContent` で表示する。
+    -   **対象:** `extension/src/ui/render.ts`。**完了:** `tsc --noEmit -p tsconfig.build.json`（`extension/` で実行。本番のコードだけを型検査する）が通る。
 -   [ ] **ステップ 3-2**: `style.css` の Preview の 2 つの規則（`unicode-bidi: plaintext` と `white-space: pre-wrap`）に `.summary-end-preview` を加え、`:41-42` のコメントの「the selection's」を取得元によらない語に改める。
+    -   **対象:** `extension/static/style.css`。**完了:** Preview の 2 つの規則のセレクタに `.summary-end-preview` があり、`:41-42` のコメントに「the selection's」が残っていない。
 -   [ ] **ステップ 3-3**: `render.test.ts::renderSummary` に、欄のラベルの並び（`panel` のときと `selection` のとき）、Source の値、`panel` のときだけ End があること、切り詰めたときの先頭の `…`、`<img src=x onerror=alert(1)>` を含む Preview と End で `img` が生まれず `textContent` に元の文字列が含まれること、End の `dir="auto"`、`detail` を持つ拒否で理由のコードが表示され、持たない拒否では表示されないことを加える。`launch.test.ts` の「transcript panel path」に、パネルから収集したときの要約に Source と End があり、`transcript-unavailable` の拒否で理由のコードが表示されることを加える。
+    -   **対象:** `extension/test/render.test.ts`・`extension/test/launch.test.ts`。**完了:** `render.test.ts` と `launch.test.ts` が通る。
 -   [ ] **ステップ 3-4**: 壊して失敗することを確かめる。End を `selection` のときも表示する、`…` を末尾に付ける、End を `textContent` 以外で設定する、End の `dir="auto"` を外す、Source の 2 つのラベルを入れ替える、End を Preview の前に置く、理由のコードを表示しない。
+    -   **対象:** なし（確認のみ）。**完了:** 各対象を壊して失敗することを確かめ、コミットメッセージに記録している。
 
 **完了:** `make ext-check` → `make test` → `make lint` が通る。
 
@@ -207,14 +234,20 @@ Chrome と Brave の安定版で観測する。各記録に、動画 ID、ブラ
 **対象ファイル:** `README.md`・`docs/dev/security.md`・`docs/dev/project_overview.md`・`docs/translation_glossary.md`、`extension/test/metadataDocs.test.ts`・`extension/test/transcriptDocs.test.ts`（新規）・`extension/test/helpers/repoFile.ts`、`cmd/yt2column/docs_test.go`
 
 -   [ ] **ステップ 4-1**: README の「Browser extension」節（`README.md:584-700`）に設計書 3.12 の内容を加える。改める段落は、冒頭の収集の説明（`:588-591`）、送る手順（`:643-647`）、取得できない値（`:659-664`。「since the selection was read」「The extension still sends the selection and the URL」を取得元によらない文にする）、送る文字列（`:682-693`）である。0026 PR-8 が先にマージされていれば、その後の節の構成に合わせる（§6.1）。
+    -   **対象:** `README.md`。**完了:** 挙げた 4 つの段落が改まり、「since the selection was read」と「The extension still sends the selection and the URL」が README に残っていない（句の検査はステップ 4-5）。
 -   [ ] **ステップ 4-2**: `docs/dev/security.md` §8（`:90`）と §8.1（`:102`・`:106`・`:113`・`:114`・`:116`）に要件書 F-007 の内容を加える。`:113` の「選択範囲はページの DOM の構造に依存せず」を、選択範囲が空のときだけパネルの DOM を読むことに合わせて改める。`:114` の「値を省略して選択範囲と URL を送る」を、取得元によらない語に改める。0026 PR-8 が先にマージされていれば、§8.1 の改める行を PR-8 の後の節で選び直す（§6.1）。
+    -   **対象:** `docs/dev/security.md`。**完了:** 挙げた行が改まり、「選択範囲はページの DOM の構造に依存せず」と「値を省略して選択範囲と URL を送る」が残っていない（句の検査はステップ 4-5）。
 -   [ ] **ステップ 4-3**: `docs/dev/project_overview.md` の「決定済みの方針」（`:7-17`）に、新しい項目を 1 つ加える。字幕の取得を利用者に任せる方針（#43。0007 の要件書 §1 で決めたもので、`project_overview.md` には現在書かれていない）を一部変えること、その理由（長い動画での選択の負担）、読めないときは手動の選択に戻るので DOM が変わっても機能を失わないことを書く。拡張がパネルから読んだ字幕も送るので、`:10` の「文字起こしパネルからコピーした字幕を受け取り」と `:26` の「コピーした字幕の文字列から作る `CopiedSource`」に、パネルから読んだ字幕も同じ書式で受け取ることを加える。`:101` の `extension/` の説明に、パネルからの読み取りを加える。
+    -   **対象:** `docs/dev/project_overview.md`。**完了:** 「決定済みの方針」に新しい項目があり、`:10`・`:26`・`:101` の 3 箇所にパネルから読んだ字幕のことが加わっている（句の検査はステップ 4-5）。
 -   [ ] **ステップ 4-4**: `docs/translation_glossary.md` に、取得元・末尾のプレビュー・拒否の詳細・理由のコードの訳語を加える。英語の訳語は、ソースの識別子と表示のラベル（`origin`・`End`・`detail`・`Reason code`）と矛盾しないものにする。
+    -   **対象:** `docs/translation_glossary.md`。**完了:** 取得元・末尾のプレビュー・拒否の詳細・理由のコードの 4 つの訳語が用語集にある。
 -   [ ] **ステップ 4-5**: 文書の検査を書く。
     -   `metadataDocs.test.ts:8-22` の `flatSection`・`expectPhrases` を `test/helpers/repoFile.ts` へ移す（§1.3.3）。`metadataDocs.test.ts:34` の句を、ステップ 4-1 で改めた文に合わせる。
     -   `transcriptDocs.test.ts`（新規）: README の「Browser extension」節と `security.md` の §8・§8.1 に要件書 F-007 の各項目の句があること。README が引用する表示の文字列（Source の値、理由のコードのラベル）は、`metadataDocs.test.ts` が `expandPromptMessage` を import するのと同じく、ソースから import した値と照合する。そのため、`render.ts` の Source のラベルの `Record` と理由のコードのラベルを export する。
     -   `cmd/yt2column/docs_test.go` に `TestTranscriptPanelReadDocs` を加え、`project_overview.md` に F-007 の 3 つの項目の句があることを確かめる。照合する句は日本語の文書の句なので、Go の文字列リテラルに日本語を含める。これは、日本語の文書の見出しや句と一致させる検査の文字列リテラルに限った例外で、既存の検査（`cmd/yt2column/docs_test.go:139-152` の `TestReviewEvaluationRecords` など）と同じ扱いである。
+    -   **対象:** `extension/test/helpers/repoFile.ts`・`extension/test/metadataDocs.test.ts`・`extension/test/transcriptDocs.test.ts`（新規）・`extension/src/ui/render.ts`（export のみ）・`cmd/yt2column/docs_test.go`。**完了:** `make ext-test` と `make test` が通る。
 -   [ ] **ステップ 4-6**: 書いた文が実装と一致することを確かめる。README と `security.md` の各文について、根拠になる実装の箇所（`readTranscript` の判定、`collect` の表、`render.ts` のラベル、`rejectionMessage` の文言）を突き合わせ、PR の説明に対応を書く。各検査から句を 1 つずつ消して失敗することを確かめ、コミットメッセージに記録する。
+    -   **対象:** なし（確認のみ。対応は PR の説明に書く）。**完了:** 各文と実装の箇所の対応が PR の説明にあり、各検査から句を 1 つずつ消して失敗することを確かめ、コミットメッセージに記録している。
 
 **完了:** `make ext-check`（`make ext-test` を含む）→ `make test` → `make lint` が通る。
 
@@ -223,7 +256,9 @@ Chrome と Brave の安定版で観測する。各記録に、動画 ID、ブラ
 **対象ファイル:** 本計画（§5.1）、`cmd/yt2column/extension_docs_test.go`
 
 -   [ ] **ステップ 5-1**: `make ext-build` で作った拡張を Chrome と Brave の安定版に読み込み、§5.1 の各行を設計書 7.2 のとおりに確かめ、記録する。
+    -   **対象:** 本計画 §5.1。**完了:** §5.1 のすべての行が §5.1 の完了の規則を満たす。
 -   [ ] **ステップ 5-2**: `cmd/yt2column/extension_docs_test.go` に `TestTranscriptPanelReadRecords` を加え、`checkManualCheckTable` と `acLabel` で §5.1 の表の行のラベルと、すべての欄が埋まっていることを確かめる。行のラベルは `acLabel(19) + "（形 A）"` のように組み立てる（日本語の部分は、ステップ 4-5 と同じく文書と一致させる検査の文字列リテラルである）。§5.1 の欄を 1 つ空にして失敗することを確かめ、コミットメッセージに記録する。
+    -   **対象:** `cmd/yt2column/extension_docs_test.go`。**完了:** `make test` が通り、§5.1 の欄を 1 つ空にして失敗することを確かめ、コミットメッセージに記録している。
 
 **完了:** §5.1 のすべての行が §5.1 の完了の規則を満たし、`make test` → `make lint` が通る。
 
