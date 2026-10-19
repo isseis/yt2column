@@ -320,8 +320,8 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 -   [ ] **ステップ 2-6**: `internal/nmhost/manifest.go` に `HostName`・`ExtensionOrigin`・`Browser`・`ParseBrowser`・4 つのエラー・`Install`・`Uninstall` を置く（設計書 3.6）。OS とブラウザの組から 2 つのディレクトリを選ぶ処理は `runtime.GOOS` の値を受け取る非公開の関数にする。manifest の読み取りは `internal/strictjson` を使う。
     -   **対象:** `internal/nmhost/manifest.go`。**完了:** `go build ./internal/nmhost` が通る。
 -   [ ] **ステップ 2-7**: manifest のテストを書く（設計書 7.1 の `internal/nmhost` の manifest の行）。
