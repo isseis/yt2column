@@ -238,7 +238,21 @@ go test -run '^$' -tags test,integration ./...
 -   [x] `make fmt` → `make test` → `make lint` が通る。
 -   [x] `go test -run '^$' -tags test,integration ./...` が通る（`integration_test.go` のコンパイルの確認。§1.3 に出力を記録した同じコマンド）。
 -   [x] 固定の入力から `renderFileArticle` の出力を `testdata/` の下のファイルに書き出す手順を用意する（`file_render_test.go` の `TestRenderFileArticleGolden` が同じ内容を期待値として持つ。`-update` を付けて実行すると書き直す）。そのファイルに `check_article.py` を実行して受理されることを、チャンネル名ありとなしの 2 つで確かめ、コマンドと出力を §5.3 に記録する。
+    -   ステップ 3-5 で、`TestRenderFileArticleGolden` を `golden_test.go` の `TestRenderGolden` に置き換え、2 つのファイルを `testdata/golden/` に移した（`same_model.md`・`without_channel.md`）。
 -   [x] 次の変更を 1 つずつ行い、ステップ 3-3 の対応するテストが失敗することを確かめ、コミットメッセージに記す: `FilePublisher` の切り替えを戻す、キーの順序の入れ替え、条件付きのキー（`channel`・`shorten_*`・`review_*`）を常に出す、`(none)` の置き換えを外す、コストの 2 つの形のそれぞれの出力を壊す、`strconv.Quote` を値をそのまま引用符で囲む書き出しに変える、`escapeLeadingMarkdown` の呼び出しを外す、チャンネル名の行の有無の分岐を外す、フロントマターの後の空行を 1 行減らす。
+
+#### ステップ 3-5: golden file のテスト（追加）
+
+PR-6 のマージの後に加えたステップである。§3.2 の PR 構成の外の PR で、ステップ 4-10a と一緒に入れる。設計は変えない（設計書 3.3・3.4 のとおり Go で整形し、テンプレートエンジンは使わない）。
+
+**対象:** `internal/publisher/golden_test.go`（新規）、`internal/publisher/testdata/golden/`（新規）、`internal/publisher/file_render_test.go`
+
+-   [x] 代表的な記事について、`renderFileArticle` の出力の全文を `testdata/golden/<case>.md` に置き、バイト単位で比べる（`TestRenderGolden`）。`go test -tags test ./internal/publisher -run Golden -update` で書き直せるようにする。`TestRenderFileArticleGolden` はこのテストに置き換え、その 2 つのファイルを移す。置き換えの前後で `go tool cover -func` の関数ごとの値が変わらないことを確かめる。
+-   [x] 場合は次のとおり（入力は架空の値。`docs/dev/security.md` §7）: チャンネル名ありで 3 つの段階が同じモデル・コストが既知（`same_model`）、チャンネル名なし（`without_channel`）、段階ごとにモデルが違う（`mixed_models`）、字数の調整を飛ばした（`shorten_skipped`）、コストが `unknown` で版が `(none)`（`cost_unknown`）、チャンネル名の先頭がブロックの記法（`channel_heading`・`channel_list`）、末尾が `#`（`channel_trailing_hash`）、タイトル・チャンネル名・本文のコードの外の対象の `@`（`mentions`）、語の途中の `@`（`mid_word_at`）。各場合の入力が `CheckPublishable` を通ることも確かめる。
+-   [x] golden file をツールに書き換えさせない: pre-commit の `trailing-whitespace`・`end-of-file-fixer` の対象から `internal/publisher/testdata/golden/` を外し、`.gitattributes` で `-text` にする。
+-   [x] `docs/dev/developer_guide/test_organization.md` に、golden file の場所と再生成の手順を加える。
+-   [x] golden file は人が読むための補助であり、ステップ 3-3 の要素ごとのテストは削らない。
+-   [x] フロントマターの後の空行を 1 行増やす、`source` と `model` のキーの順序を入れ替える、の 2 つの変更で `TestRenderGolden` が失敗することを確かめ、コミットメッセージに記す。
 
 ### PR-2 作成ポイント: shared formatting and front-matter file output
 
@@ -418,8 +432,19 @@ go test -run '^$' -tags test,integration ./...
 
 -   [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 -   [x] PR を作成した
--   [ ] PR がマージされた
--   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+-   [x] PR がマージされた
+-   [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
+#### ステップ 4-10a: golden file のテスト（追加）
+
+PR-6 のマージの後に加えたステップである。§3.2 の PR 構成の外の PR で、ステップ 3-5 と一緒に入れる。
+
+**対象:** `internal/publisher/golden_test.go`（ステップ 3-5 と同じファイル）、`internal/publisher/testdata/golden/`
+
+-   [x] ステップ 3-5 の各場合について、`renderSlackPost` の `text` を `testdata/golden/<case>.slack.txt` に置き、バイト単位で比べる（`TestRenderGolden`）。16,383 文字を超えて複数のメッセージに分かれる投稿は、人が読める大きさにならないので golden file にせず、分割のテスト（ステップ 4-4・4-13）に任せる。
+-   [x] U+200B は見えるように置き換えず、実際の出力のまま golden file に入れる。`mentions` の golden file に U+200B が入っていることをテストのコメントに書き、入るべき位置にあることと、`mid_word_at` に入っていないことを `TestRenderGoldenNeutralized` で確かめる。
+-   [x] golden file は人が読むための補助であり、ステップ 4-9 の要素ごとのテストは削らない。
+-   [x] 見出し行の `neutralizeMentions` の呼び出しを外す、脚注の前の空行を 1 行増やす、の 2 つの変更で `TestRenderGolden` が失敗することを確かめる。`mentions.slack.txt` から U+200B を 1 つ除くと `TestRenderGoldenNeutralized` が失敗することを確かめる。コミットメッセージに記す。
 
 #### ステップ 4-11: 切り替え
 
@@ -442,6 +467,7 @@ go test -run '^$' -tags test,integration ./...
 -   [ ] 分割のテストを `slack_message_test.go` に加える: 16,383 文字を超える記事で、見出し行が先頭のメッセージにだけ、脚注が最後のメッセージにだけ 1 回現れ、脚注だけのメッセージがないこと。入力は、本文の最後の改行の直後で切れる場合、10 通に脚注が加わる場合、容量を超える見出し行を含む場合。`SlackMessageCount` が送る数と一致すること（`TestSlackMessageCount:398` を拡張してよい）。見出し行が分割されるほど長い `Tech@Work` のタイトルでも、拒否されないこと。
 -   [ ] メンションの拒否と無効化のテストを、設計書 7.1 の該当行に従って加える。計画として足すのは次のとおり: 本文のコードの外の対象の `@name` は無効化されて拒否されない。コードスパン・コードブロックの中と、直前が `/` の対象の `@` は `ErrSlackMention` で拒否される。見出し行と脚注の対象の `@name` と `＠everyone` は無効化される。語の途中の `@` を含むタイトル・本文・チャンネル名は変更も拒否もされない。`<!`・`<@`、文字参照、`<a|b>` は見出し行・脚注・本文のどこにあっても拒否される。`ProseRanges` が false の本文で、対象の `@` が拒否される経路を `prepareSlackMessages` まで通すテストを加える（ステップ 4-9）。位置のテストも加える: 見出し行か本文に、無効化で U+200B が入る対象の `@` があり、その後ろに拒否される `@`（コードの中）がある投稿で、`rejectMention` が示す行と列が、Slack に送る形（無効化の後）の文字列で数えた値になること。
 -   [ ] `internal/publisher/slack_integration_test.go`（`integration` タグ）が、更新した `IntegrationArticles` と矛盾しないことを確かめる。
+-   [ ] `go test -tags test ./internal/publisher -run Golden -update` を実行し、`testdata/golden/` に差分が出ないことを確かめる（切り替えは `renderSlackPost` の出力を変えない）。出力の形を変える PR では、golden file の差分をレビューで確かめるよう PR の本文に書く。
 
 #### ステップ 4-14: PR-7 の確認
 
@@ -527,6 +553,8 @@ go test -run '^$' -tags test,integration ./...
 | PR-7 | 4-11 / 4-12 / 4-13 / 4-14 | Slack の公開を新しい整形に切り替え、`renderArticle` を削除し、統合テストの補助とテストを改める | frontier-recommended |
 | PR-8 | 5-1 / 5-2 | 文書とその文書のガードを新しい構成に合わせる | standard |
 
+ステップ 3-5・4-10a（golden file のテスト）は計画の承認の後に加えたもので、PR-6 と PR-7 の間に、この表の外の PR で入れる。
+
 PR は番号順にマージする。PR-1 のチャンネル名が PR-2 と PR-6 の整形の前提になり、PR-3 の部品を PR-4 と PR-6 が使い、PR-2 の `articleCost` を PR-6 が使う。PR-4 の分割の規則は、PR-4 の M2 の置き換えと同じ PR に入れる（ステップ 4-4 の完了の注記）。
 
 ### 3.3. 実装順序の根拠
@@ -566,7 +594,7 @@ PR は番号順にマージする。PR-1 のチャンネル名が PR-2 と PR-6 
 | AC-02 | test | `internal/writer/article_test.go::TestArticleCheckPublishable`（空のチャンネル名の行を加える） |
 | AC-03 | test | `internal/writer/output_test.go`（追加。`CheckChannelName` の表）、`internal/writer/article_test.go::TestArticleCheckPublishableOmitsValues`、`internal/writer/prompt_test.go::TestWriteRejectsInvalidTranscript`、`internal/server/request_test.go`（追加。`parseRequest` の拒否）、3 つの呼び出し元の一致を確かめるテスト（新規。ステップ 1-6） |
 | AC-04 | test | `internal/publisher/file_test.go::TestFilePublisherRejectsArticle`・`internal/publisher/slack_message_test.go::TestSlackPrepareRejectsInvalidArticle`（どちらもチャンネル名の行を拡張） |
-| AC-05〜AC-08 | test | `internal/publisher/slack_render_test.go`（新規。`renderSlackPost`）。AC-07 の複数メッセージの場合は AC-12 の行のテスト |
+| AC-05〜AC-08 | test | `internal/publisher/slack_render_test.go`（新規。`renderSlackPost`）、`internal/publisher/golden_test.go::TestRenderGolden`（`.slack.txt`。人が読むための補助）。AC-07 の複数メッセージの場合は AC-12 の行のテスト |
 | AC-09・AC-10 | test | `internal/publisher/slack_render_test.go`（新規。`stageModels`） |
 | AC-11 | test | `internal/publisher/slack_render_test.go`（新規。コストの 2 つの形）、`internal/publisher/slack_test.go::TestSlackPublishCostLine` |
 | AC-12・AC-13 | test | `internal/publisher/slack_message_test.go::TestSlackSplit`・`TestSlackSplitRejects`・`TestSlackMessageCount`（拡張）、`internal/publisher/slack_test.go::TestSlackPublishSplit`（拡張） |
@@ -577,7 +605,7 @@ PR は番号順にマージする。PR-1 のチャンネル名が PR-2 と PR-6 
 | AC-14d | test | `internal/publisher/slack_message_test.go`（追加。分割と `@`） |
 | AC-14e | test | `cmd/yt2column/run_test.go::TestRunSlackFailureHints` |
 | AC-14f | test | `internal/failure/failure_test.go::TestKindConstants`、`internal/server/job_test.go::TestFailureClassification`、`internal/publisher/slack_failure_test.go::TestSlackFailureNotifyText` |
-| AC-15・AC-16・AC-20 | test | `internal/publisher/file_test.go::TestFilePublisherWritesArticle`（改めた）、`internal/publisher/file_render_test.go::TestRenderFileArticleLayout`・`TestRenderFileArticleChannelLine`・`TestRenderFileArticleGolden`（先頭・区切り・キーの順序・条件付きのキー・チャンネル名の行の有無・見出しの下にメタデータがないこと） |
+| AC-15・AC-16・AC-20 | test | `internal/publisher/file_test.go::TestFilePublisherWritesArticle`（改めた）、`internal/publisher/file_render_test.go::TestRenderFileArticleLayout`・`TestRenderFileArticleChannelLine`、`internal/publisher/golden_test.go::TestRenderGolden`（`.md`。ステップ 3-5 で `TestRenderFileArticleGolden` を置き換えた）（先頭・区切り・キーの順序・条件付きのキー・チャンネル名の行の有無・見出しの下にメタデータがないこと） |
 | AC-18 | test | `internal/publisher/file_test.go::TestFilePublisherEmptyModelVersion`（改めた）、`file_render_test.go::TestRenderFileArticleLayout`（版が空の `review_model_version`） |
 | AC-19 | test | `internal/publisher/file_test.go::TestFilePublisherWritesCost`（改めた）、`file_render_test.go::TestRenderFileArticleLayout`（コストの 3 つの形） |
 | AC-17 | test | `internal/publisher/file_render_test.go::TestRenderFileArticleQuoting`（フロントマターの値の往復とエスケープの種類）、`TestEscapeLeadingMarkdown`（AC-15 も） |
@@ -628,6 +656,23 @@ $ python3 -I docs/tasks/0008_column_prompt/check_article.py <cache> abcdefghijk 
 ```
 
 `<cache>` は、`abcdefghijk.current`（`a`）と `abcdefghijk.a/abcdefghijk.info.json`（`{"title":"Video title","duration":300}`）だけを置いた作業用のディレクトリである。旧い `HEADER_RE` は同じファイルを `unrecognized --out format` として拒否した（比較のための実行）。
+
+**ステップ 3-5 の記録。** golden file を `testdata/golden/` に移して場合を増やした後、同じ `<cache>` で `.md` のすべてに実行した。
+
+```text
+$ python3 -I docs/tasks/0008_column_prompt/check_article.py <cache> abcdefghijk internal/publisher/testdata/golden/*.md
+| file | model | model version | title | sections | length | mechanical checks |
+| channel_heading.md | claude-haiku-5-5 | 2026-01-01 | A title | 3 | 50 | pass |
+| channel_list.md | claude-haiku-5-5 | 2026-01-01 | A title | 3 | 50 | pass |
+| channel_trailing_hash.md | claude-haiku-5-5 | 2026-01-01 | A title | 3 | 50 | pass |
+| cost_unknown.md | model-x | (none) | A title | 3 | 50 | pass |
+| mentions.md | claude-haiku-5-5 | 2026-01-01 | Notes for @alice | 3 | 83 | pass |
+| mid_word_at.md | claude-haiku-5-5 | 2026-01-01 | Inside Tech@Work | 3 | 77 | pass |
+| mixed_models.md | deepseek-flash | v4 | A title | 3 | 50 | pass |
+| same_model.md | claude-haiku-5-5 | 2026-01-01 | A title | 3 | 50 | pass |
+| shorten_skipped.md | deepseek-flash | v4 | A title | 3 | 50 | pass |
+| without_channel.md | claude-haiku-5-5 | 2026-01-01 | A title | 3 | 50 | pass |
+```
 
 -   ステップ 4-11 の `renderArticle` の削除の前後の `go tool cover -func` の比較。
 

@@ -1,1 +1,2 @@
 testdata/*.transcript_copy.txt -text
+internal/publisher/testdata/golden/** -text
