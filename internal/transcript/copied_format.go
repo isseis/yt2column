@@ -93,11 +93,12 @@ type copiedTimestamp struct {
 // parseCopiedTranscript parses a copied YouTube transcript into segments. It
 // accepts form A (a timestamp, a screen-reader label, and the text concatenated
 // on one line) or form B (a timestamp line followed by a text line), decides
-// which by the body's first line alone, and rejects every input that matches
-// neither. It skips the trailing region (blank lines and trailing operation
-// labels) but still rejects a control character there. It never repairs an
-// input, never returns a partial result, and includes no part of the input in
-// its errors.
+// which by the first segment line (the first line that starts with a
+// timestamp), and rejects every input that matches neither. It skips the prefix
+// before the first segment line and the trailing region (blank lines and
+// trailing operation labels), but still rejects a control character in either
+// and a digit-colon-digit run in the prefix. It never repairs an input, never
+// returns a partial result, and includes no part of the input in its errors.
 func parseCopiedTranscript(raw string) ([]Segment, error) {
 	if !utf8.ValidString(raw) {
 		return nil, copiedGlobalError(errCopiedInvalidUTF8)
@@ -111,14 +112,15 @@ func parseCopiedTranscript(raw string) ([]Segment, error) {
 	}
 	lines := splitCopiedLines(raw, separator)
 	bodyEnd := copiedTrailingStart(lines)
-	if bodyEnd == 0 {
-		return nil, copiedGlobalError(errCopiedNoText)
+	bodyStart, err := copiedPrefixEnd(lines, bodyEnd)
+	if err != nil {
+		return nil, err
 	}
 	var segments []Segment
-	if _, ok := parseTimestampLine(lines[0]); ok {
-		segments, err = parseCopiedFormB(lines, 0, bodyEnd)
+	if _, ok := parseTimestampLine(lines[bodyStart]); ok {
+		segments, err = parseCopiedFormB(lines, bodyStart, bodyEnd)
 	} else {
-		segments, err = parseCopiedFormA(lines, 0, bodyEnd)
+		segments, err = parseCopiedFormA(lines, bodyStart, bodyEnd)
 	}
 	if err != nil {
 		return nil, err
@@ -375,6 +377,48 @@ func copiedTimestampLineAt(lines []string, index int) bool {
 	return ok
 }
 
+// copiedPrefixEnd returns the index of the first segment line in lines[:end],
+// the first line that starts with a timestamp; the lines before it are the
+// prefix. The scan stops before the trailing region, so a trailing line never
+// becomes the first segment line. A prefix line is skipped whatever its content,
+// except that a control character is rejected and so is a digit-colon-digit run
+// (a timestamp the grammar rejects, or one with something in front of it),
+// because skipping it could silently drop a segment. The timestamp check comes
+// before the digit-colon-digit check, since every line that starts with a
+// timestamp also contains such a run. An input with no first segment line has no
+// segment with text.
+func copiedPrefixEnd(lines []string, end int) (int, error) {
+	for index := range end {
+		line := lines[index]
+		if hasCopiedControlChar(line) {
+			return 0, copiedLineError(index+1, errCopiedControlChar)
+		}
+		if _, _, ok := parseTimestampPrefix(line); ok {
+			return index, nil
+		}
+		if hasCopiedDigitColonDigit(line) {
+			return 0, copiedLineError(index+1, errCopiedNotTimestamp)
+		}
+	}
+	return 0, copiedGlobalError(errCopiedNoText)
+}
+
+// hasCopiedDigitColonDigit reports whether line contains an ASCII digit, an
+// ASCII colon, and an ASCII digit in a row anywhere, which is what every
+// timestamp, valid or not, looks like.
+func hasCopiedDigitColonDigit(line string) bool {
+	for i := 1; i+1 < len(line); i++ {
+		if line[i] == ':' && isASCIIDigit(line[i-1]) && isASCIIDigit(line[i+1]) {
+			return true
+		}
+	}
+	return false
+}
+
+func isASCIIDigit(b byte) bool {
+	return '0' <= b && b <= '9'
+}
+
 // checkCopiedTrailingLines rejects a control character in the trailing region.
 // The body is checked first, so an error in the body is reported before one in
 // the trailing region that follows it.
@@ -389,10 +433,11 @@ func checkCopiedTrailingLines(lines []string, start int) error {
 
 // parseCopiedFormA parses form A over the body range lines[start:end]: every
 // line is a timestamp, a screen-reader label, and the text concatenated without
-// separators. The label's language is fixed by the body's first line. A segment
-// without text is skipped; a line that is only a timestamp belongs to the other
-// form. Error line numbers are the original input's, so the range is not
-// renumbered. It rejects on the first error in the documented check order.
+// separators. The label's language is fixed by the body's first line, the first
+// segment line, so a prefix line never fixes it. A segment without text is
+// skipped; a line that is only a timestamp belongs to the other form. Error
+// line numbers are the original input's, so the range is not renumbered. It
+// rejects on the first error in the documented check order.
 func parseCopiedFormA(lines []string, start, end int) ([]Segment, error) {
 	language := labelNone
 	var segments []Segment

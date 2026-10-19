@@ -109,19 +109,19 @@
 
 -   [x] グリーンゲート（`make test && make lint`。`_context.md` の "Green gate"）がパスしていることを確認した
 -   [x] PR を作成した
--   [ ] PR がマージされた
--   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+-   [x] PR がマージされた
+-   [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
--   [ ] **ステップ 1-11**: 数字・`:`・数字の連続を含むかを返す非公開の述語を 1 つ加える（設計書 3.3）。前置きとステップ 3-1 の形 B の見出しの位置で共有する。
--   [ ] **ステップ 1-12**: 前置きを決める処理を、設計書 3.2.1 の (1)〜(4) の順で加える。最初のセグメントの行が見つからないときは `errCopiedNoText` で拒否する。
--   [ ] **ステップ 1-13**: `parseCopiedTranscript` に設計書 3.2.5 の手順 5（前置き）と手順 6（形の判定）を加える。前置きの走査は末尾の領域の直前で止める。形は最初のセグメントの行で判定する。
--   [ ] **ステップ 1-14**: 関数のコメントを改める。`parseCopiedTranscript` の `decides which by the first line alone` を「最初のセグメントの行で判定し、前置きと末尾の領域を読み飛ばす」旨に、`parseCopiedFormA` の `The label's language is fixed by the first line.` を「本体の最初の行で固定する」旨に変える。
--   [ ] **ステップ 1-15**: §2.7 の台帳のうち、ステップ 1-15 の行を書き換える。
--   [ ] **ステップ 1-16**: 新しいテストを加える。対象は AC-11・AC-24・AC-28〜AC-32 と、前置きのある入力での本体の拒否の行番号（AC-15）。拒否のテストは `assertCopiedRejected` を通す。AC-31 の `タイムライン\n` は、§2.7 で書き換える `leading display items` を §5 の確認に対応させ、同じ入力のケースを新しく作らない。
--   [ ] **ステップ 1-17**: `TestParseCopiedCheckOrder` に、前置きの走査が末尾の領域に入らないケース（`文字起こし\n\t\n` が `errCopiedControlChar` でなく `errCopiedNoText`）を加える。
--   [ ] **ステップ 1-18**: `TestParseCopiedErrorOmitsInput` に、前置きの拒否（数字・`:`・数字の連続の行、制御文字の行）で目印の文字列がメッセージに入らないケースを加える（AC-15）。
--   [ ] **ステップ 1-19**: `FuzzNewCopiedSource` に設計書 7.1 の性質 (b)（前置き）を加え、関数のコメントの性質の数を改める。種の入力に、前置きを含む入力を加える。足す行の区切りは入力の区切りに合わせ、区切りのない 1 行の入力には LF を使う。
--   [ ] **ステップ 1-20**: 次の壊し方をそれぞれ試し、名前を挙げたテストが失敗することを確かめて、結果をコミットメッセージに書く。
+-   [x] **ステップ 1-11**: 数字・`:`・数字の連続を含むかを返す非公開の述語を 1 つ加える（設計書 3.3）。前置きとステップ 3-1 の形 B の見出しの位置で共有する。
+-   [x] **ステップ 1-12**: 前置きを決める処理を、設計書 3.2.1 の (1)〜(4) の順で加える。最初のセグメントの行が見つからないときは `errCopiedNoText` で拒否する。
+-   [x] **ステップ 1-13**: `parseCopiedTranscript` に設計書 3.2.5 の手順 5（前置き）と手順 6（形の判定）を加える。前置きの走査は末尾の領域の直前で止める。形は最初のセグメントの行で判定する。
+-   [x] **ステップ 1-14**: 関数のコメントを改める。`parseCopiedTranscript` の `decides which by the first line alone` を「最初のセグメントの行で判定し、前置きと末尾の領域を読み飛ばす」旨に、`parseCopiedFormA` の `The label's language is fixed by the first line.` を「本体の最初の行で固定する」旨に変える。
+-   [x] **ステップ 1-15**: §2.7 の台帳のうち、ステップ 1-15 の行を書き換える。
+-   [x] **ステップ 1-16**: 新しいテストを加える。対象は AC-11・AC-24・AC-28〜AC-32 と、前置きのある入力での本体の拒否の行番号（AC-15）。拒否のテストは `assertCopiedRejected` を通す。AC-31 の `タイムライン\n` は、§2.7 で書き換える `leading display items` を §5 の確認に対応させ、同じ入力のケースを新しく作らない。
+-   [x] **ステップ 1-17**: `TestParseCopiedCheckOrder` に、前置きの走査が末尾の領域に入らないケース（`文字起こし\n\t\n` が `errCopiedControlChar` でなく `errCopiedNoText`）を加える。
+-   [x] **ステップ 1-18**: `TestParseCopiedErrorOmitsInput` に、前置きの拒否（数字・`:`・数字の連続の行、制御文字の行）で目印の文字列がメッセージに入らないケースを加える（AC-15）。
+-   [x] **ステップ 1-19**: `FuzzNewCopiedSource` に設計書 7.1 の性質 (b)（前置き）を加え、関数のコメントの性質の数を改める。種の入力に、前置きを含む入力を加える。足す行の区切りは入力の区切りに合わせ、区切りのない 1 行の入力には LF を使う。
+-   [x] **ステップ 1-20**: 次の壊し方をそれぞれ試し、名前を挙げたテストが失敗することを確かめて、結果をコミットメッセージに書く。
     -   (i) 前置きの処理の (2) と (3) の順を入れ替える → AC-28 のテスト。
     -   (ii) 数字・`:`・数字の述語が常に偽を返す → AC-30 と `leading BOM` などの時刻の文法の拒否のケース。
     -   (iii) 前置きの走査を末尾の領域まで進める → `TestParseCopiedCheckOrder` の `文字起こし\n\t\n` のケース。
@@ -141,8 +141,8 @@
 
 **判定理由**: ステップ 1-12・1-13 は、内容にかかわらず行を読み飛ばす前置きの範囲を時刻の文法から決める手順で、(2) と (3) の順や述語を誤るとセグメントを黙って失うため（設計書 5.4）。
 
--   [ ] グリーンゲート（`make test && make lint`。`_context.md` の "Green gate"）がパスしていることを確認した
--   [ ] PR を作成した
+-   [x] グリーンゲート（`make test && make lint`。`_context.md` の "Green gate"）がパスしていることを確認した
+-   [x] PR を作成した
 -   [ ] PR がマージされた
 -   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
@@ -319,7 +319,7 @@
 
 | ステップ | テスト | ケース | 変更 | 新しい名前 |
 |---|---|---|---|---|
-| 1-15 | `TestParseCopiedRejects` | `empty line at the start` | 受理のケースへ移す | - |
+| 1-15 | `TestParseCopiedRejects` | `empty line at the start` | 受理のケースへ移す | `TestParseCopiedAccepts` の `empty line at the start` |
 | 1-6 | `TestParseCopiedRejects` | `two trailing separators` | 受理のケースへ移す | `TestParseCopiedAccepts` の `form B two trailing separators` |
 | 1-6 | `TestParseCopiedRejects` | `three trailing separators` | 受理のケースへ移す | `TestParseCopiedAccepts` の `form B three trailing separators` |
 | 1-15 | `TestParseCopiedRejects` | `leading display items` | 理由を `errCopiedNoText`（行番号なし）にする | - |
@@ -411,7 +411,7 @@
 | AC-13 | test | `TestParseCopiedRejects`（形 A の本体の未知のラベル）、`TestParseCopiedFormBChapterHeadings`（形 B の側） | 2・3 |
 | AC-14 | test | 新しい拒否のテストすべてが通る `assertCopiedRejected`（`ErrCopiedTranscriptFormat` と `segments != nil` の確認） | 1〜3 |
 | AC-14 | static | `internal/transcript/json3_test.go::TestExportedSentinelErrorsUnchanged`（公開の番兵の集合） | 1 |
-| AC-15 | test | `TestParseCopiedErrorOmitsInput`（前置き・形 A の見出し・形 B の見出しの位置・本体の拒否の目印）、`TestParseCopiedPrefix`（前置きのある入力の行番号） | 1〜3 |
+| AC-15 | test | `TestParseCopiedErrorOmitsInput`（前置き・形 A の見出し・形 B の見出しの位置・本体の拒否の目印）、`TestParseCopiedRejects` の `body error line counts the prefix`（前置きのある入力の行番号） | 1〜3 |
 | AC-16 | test | `internal/transcript/copied_test.go::TestCopiedSourceRealSamples`（`testdata/` のサンプルの集合を `copiedSampleFiles` に固定し、`dsuNgos_kxA` を含まない） | 4 |
 | AC-17 | test | `cmd/yt2column/copied_transcript_docs_test.go::TestCopiedTranscriptSurveyRecords`（README のファイル名・URL・ライセンス・項目、要件書 §1.1 の「保存する」）、`internal/transcript/copied_test.go::TestCopiedSourceRealSamples`（バイト数） | 4 |
 | AC-17 | manual | PR のレビューで、`testdata/README.md` の値を動画のページと取得者の申告に照らす | 4 |
