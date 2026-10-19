@@ -28,7 +28,7 @@
 **決定事項:**
 
 - サーバは TCP をやめ、UDS だけを待ち受ける。ソケットは `0700` のディレクトリに置き、`0600` にする。
-- 共有トークン、ポート設定（`YT2COLUMN_SERVER_PORT`）、拡張の `host_permissions`、オプションページのトークン/ポートを削除する。
+- 共有トークン、ポート設定（`YT2COLUMN_SERVER_PORT`）、拡張の `host_permissions`・`storage` の権限、オプションページのトークン/ポートを削除する。
 - Native Messaging のホストは中継役に徹し、記事の JSON を解釈しない。接続できる拡張は manifest の `allowed_origins` で固定の拡張 ID に限定する。
 - ジョブはサーバ側で動かし、ホストは受付応答（`202` 相当）を返したら終了する。ブラウザを閉じてもジョブは続く。
 - タスクは 3 つに分けず、`0026_native_messaging_relay` の 3 フェーズ（サーバの UDS 化、ホスト、拡張）とする。

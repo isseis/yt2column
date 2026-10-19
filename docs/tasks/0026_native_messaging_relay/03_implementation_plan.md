@@ -146,7 +146,8 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 `0027_remove_context_menu`（右クリックメニューの経路の削除）は、拡張の service worker（`background.ts`）・結果のウィンドウ（`result.html`・`result.ts`）・`chrome.storage.session` の使用・ツールバーのバッジ・`contextMenus` の権限と、`launch.ts`・`chromeDeps.ts`・`core/resultView.ts`・`core/sendMessages.ts` のうちメニューの経路だけが使う部分を削除する。本計画のフェーズ 3 は、0027 の後の構成を前提にする（設計書 8 章）。
 
 -   **0027 のすべての PR がマージされた後にフェーズ 3 を始める。** フェーズ 3 を始める前に、0027 の設計（`design_handoff.md` の H-01 の決定）で次の名前が残ったかを確かめ、ステップ 3-6・3-7 の対象を合わせる: `chromeDeps.ts` の `schedule`（削除されていれば、ステップ 3-7 で `SendDeps` のために加え直す）、`core/resultView.ts` の `ResultView` の型の名前と置き場所、`launch.ts` の `runPopupSend`・`logSend` の行番号。
--   フェーズ 1・2 は 0027 の完了を待たない。ステップ 1-13 は `core/response.ts`・`core/sendMessages.ts` とそのテストを変え、0027 も `core/sendMessages.ts`（`unreadableResultMessage`）とそのテストを変える。同じファイルの別の部分なので、どちらかが先にマージされた後、後の側が取り込み直す。
+-   **0027 の手動確認と PR-2 の順序。** PR-2 のマージの後、`main` のサーバは UDS だけを待ち受けるので、フェーズ 3 の前の拡張（HTTP と共有トークンで送る）はサーバに届かない（設計書 8 章）。0027 の手動確認のうち、ポップアップから送って受付（`202`）の表示を確かめる行（0027 AC-07）は、届くサーバを要する。PR-2 のマージの前に 0027 の手動確認を終えるか、マージの後に行う場合は、PR-2 のマージの直前のコミットのサーバ（`git worktree` などで別に置いてビルドしたもの）を使う。0027 のほかの行（右クリックメニューの項目が消えること、共有トークンが未設定の場合の送らない理由の表示）はサーバを要しない。
+-   上の点を除き、フェーズ 1・2 は 0027 の完了を待たない。ステップ 1-13 は `core/response.ts`・`core/sendMessages.ts` とそのテストを変え、0027 も `core/sendMessages.ts`（`unreadableResultMessage`）とそのテストを変える。同じファイルの別の部分なので、どちらかが先にマージされた後、後の側が取り込み直す。
 
 **古くなるコメントと文書**
 
@@ -403,7 +404,7 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 
 ### フェーズ 3: 拡張
 
-**前提:** 0025 と 0027 のすべての PR がマージされている（§1.3「0025 との順序」「0027 との順序」）。フェーズ 3 を始める前に、`launch.ts`・`chromeDeps.ts` の行番号と、0025 が加えた `ArticleMetadata` の受け渡しと、0027 の後に残った名前（§1.3「0027 との順序」）を確かめ直す。
+**前提:** 0025 と 0027 のすべての PR がマージされている（§1.3「0025 との順序」「0027 との順序」）。フェーズ 3 を始める前に、拡張のファイルの行番号（`launch.ts`・`chromeDeps.ts` に加え、0027 が変える `scripts/check-dist.ts`・`test/manifest.test.ts`・`test/checkDist.test.ts` などの、本計画と設計書が引く `file:line`）と、0025 が加えた `ArticleMetadata` の受け渡しと、0027 の後に残った名前（§1.3「0027 との順序」）を確かめ直す。
 
 -   [ ] **ステップ 3-1**: `extension/static/manifest.json` を設計書 3.7.1 のとおりに改め、`static/options.html`・`src/options.ts`・`src/optionsPage.ts`・`src/core/settings.ts` を削除する。`scripts/check-dist.ts:117-133` の `options_ui.page` の確認を削除する。`static/style.css` からオプションページだけが使う規則（`style.css:52-66`）を削除する。
     -   **対象:** `extension/static/manifest.json`・削除する 4 ファイル・`extension/scripts/check-dist.ts`・`extension/static/style.css`。**完了:** ステップ 3-7 の後に `make ext-build` が通る。
@@ -662,6 +663,7 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 | 統合テストの `go build` が CI で遅い・失敗する | `make test` と `doc-guard` のジョブが遅くなる | ビルドは 1 回だけにし、`GOFLAGS` を空にする（設計書 7.2）。遅さは設計書 7.2 が受け入れている |
 | 所有者や権限のテストが root の環境で成り立たない | テストの誤った成功・失敗 | root では飛ばす（設計書 7.1） |
 | 0025 の残りの PR とフェーズ 3 が同じファイルを変える | 競合と、`ArticleMetadata` の受け渡しの取りこぼし | 0025 の完了の後にフェーズ 3 を始める（§1.3） |
+| PR-2 のマージの後、0027 の手動確認（受付の表示）を `main` のサーバで行えない | 0027 の AC-07 を確かめられない | PR-2 のマージの前に 0027 の手動確認を終えるか、PR-2 の直前のコミットのサーバを使う（§1.3「0027 との順序」） |
 | 0027 の設計で、本計画が前提にする名前（`schedule`・`ResultView`）の扱いが変わる | ステップ 3-6・3-7 の対象の食い違い | 0027 の完了の後にフェーズ 3 を始め、始める前に残った名前を確かめる（§1.3「0027 との順序」） |
 | フェーズ 1 の後の `main` で拡張がサーバに届かない | 開発中の利用者が送れない | フェーズ 1〜3 をそろえてから利用者に渡す（§3.3） |
 
