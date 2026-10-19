@@ -260,7 +260,7 @@
 
 **判定理由**: 既存の `TestParseCopiedLargeInputs` に入力を足すだけのテストの変更で、どの契機にも当たらない。
 
--   [ ] グリーンゲート（`make test && make lint`。`_context.md` の "Green gate"）がパスしていることを確認した
+-   [x] グリーンゲート（`make test && make lint`。`_context.md` の "Green gate"）がパスしていることを確認した
 -   [ ] PR を作成した
 -   [ ] PR がマージされた
 -   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
