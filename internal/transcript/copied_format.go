@@ -517,11 +517,15 @@ func parseCopiedFormA(lines []string, start, end int) ([]Segment, error) {
 
 // parseCopiedFormB parses form B over the body range lines[start:end]: a
 // timestamp line followed by zero or one text line, alternating. A timestamp
-// followed by another timestamp or the end has no text. The line after a text
-// line must be a timestamp, so a chapter heading there is rejected. A text line
-// that reads as a form A line is rejected as a mix of the forms. Error line
-// numbers are the original input's, so the range is not renumbered. It rejects
-// on the first error in the documented check order.
+// followed by another timestamp or the end has no text. After a text line, or
+// after a skipped heading, a timestamp is expected; a non-timestamp line there is
+// skipped as a chapter heading, which carries no prefix to recognize it by,
+// unless it is whitespace-only or contains a digit-colon-digit run, either of
+// which could be a damaged timestamp whose segment would be silently dropped. A
+// skipped heading leaves a timestamp still expected and takes no part in the
+// timestamp order. A text line that reads as a form A line is rejected as a mix
+// of the forms. Error line numbers are the original input's, so the range is
+// not renumbered. It rejects on the first error in the documented check order.
 func parseCopiedFormB(lines []string, start, end int) ([]Segment, error) {
 	var segments []Segment
 	previousMs := int64(-1)
@@ -543,7 +547,10 @@ func parseCopiedFormB(lines []string, start, end int) ([]Segment, error) {
 			continue
 		}
 		if !awaitingText {
-			return nil, copiedLineError(lineNumber, errCopiedNotTimestamp)
+			if copiedWhitespaceOnlyLine(line) || hasCopiedDigitColonDigit(line) {
+				return nil, copiedLineError(lineNumber, errCopiedNotTimestamp)
+			}
+			continue
 		}
 		if readableAsFormA(line) {
 			return nil, copiedLineError(lineNumber, errCopiedMixedForms)
