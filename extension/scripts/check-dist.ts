@@ -115,8 +115,8 @@ function htmlReferences(html: string): string[] {
 
 /**
  * References the manifest and HTML files make that must resolve inside dist/.
- * The manifest points at the popup page and the options page; an HTML page
- * points at its scripts and stylesheets.
+ * The manifest points at the popup page; an HTML page points at its scripts
+ * and stylesheets.
  */
 function referenceViolations(root: string, actual: Set<string>): string[] {
   const violations: string[] = [];
@@ -125,11 +125,9 @@ function referenceViolations(root: string, actual: Set<string>): string[] {
       readFileSync(path.join(root, "dist", "manifest.json"), "utf8"),
     ) as {
       action?: { default_popup?: unknown };
-      options_ui?: { page?: unknown };
     };
     const entries: [string, unknown][] = [
       ["action.default_popup", manifest.action?.default_popup],
-      ["options_ui.page", manifest.options_ui?.page],
     ];
     for (const [label, reference] of entries) {
       if (typeof reference === "string" && !actual.has(reference)) {

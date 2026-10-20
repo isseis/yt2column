@@ -7,10 +7,5 @@
   "action": {
     "default_popup": "popup.html"
   },
-  "permissions": ["activeTab", "scripting", "storage"],
-  "host_permissions": ["http://127.0.0.1/*"],
-  "options_ui": {
-    "page": "options.html",
-    "open_in_tab": true
-  }
+  "permissions": ["activeTab", "scripting", "nativeMessaging"]
 }
