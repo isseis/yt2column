@@ -320,15 +320,16 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
--   [ ] **ステップ 2-6**: `internal/nmhost/manifest.go` に `HostName`・`ExtensionOrigin`・`Browser`・`ParseBrowser`・4 つのエラー・`Install`・`Uninstall` を置く（設計書 3.6）。OS とブラウザの組から 2 つのディレクトリを選ぶ処理は `runtime.GOOS` の値を受け取る非公開の関数にする。manifest の読み取りは `internal/strictjson` を使う。
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+-   [x] **ステップ 2-6**: `internal/nmhost/manifest.go` に `HostName`・`ExtensionOrigin`・`Browser`・`ParseBrowser`・4 つのエラー・`Install`・`Uninstall` を置く（設計書 3.6）。OS とブラウザの組から 2 つのディレクトリを選ぶ処理は `runtime.GOOS` の値を受け取る非公開の関数にする。manifest の読み取りは `internal/strictjson` を使う。
     -   **対象:** `internal/nmhost/manifest.go`。**完了:** `go build ./internal/nmhost` が通る。
--   [ ] **ステップ 2-7**: manifest のテストを書く（設計書 7.1 の `internal/nmhost` の manifest の行）。
+-   [x] **ステップ 2-7**: manifest のテストを書く（設計書 7.1 の `internal/nmhost` の manifest の行）。
     -   `TestInstall`・`TestUninstall`・`TestManifestLocation`（AC-20）: 設計書 7.1 の manifest の行（中身、`0600`、一時ファイルが残らないこと、ブラウザのディレクトリがないときに何も作らないこと、macOS の Brave の置き場所と存在の判定、他人の manifest を上書きも削除もしないこと、自分の manifest の置き換えと削除、`path` が相対と一時ディレクトリの下のときの拒否、ブラウザ名の完全一致）。
+    -   `TestParseBrowser`（AC-20）: ブラウザ名の完全一致（大文字・前後の空白・別名を拒否する）。計画では上の 3 つに含めていたが、置き場所と無関係なので分けた（実装で加えた）。
     -   所有者と権限に依存するテストは root では `t.Skip` で飛ばす（設計書 7.1。§1.3）。
     -   **対象:** `internal/nmhost/manifest_test.go`。**完了:** `go test -tags test ./internal/nmhost` が通る。
--   [ ] **ステップ 2-8**: ステップ 2-6・2-7 のテストを壊して失敗することを確かめ、コミットメッセージに記録する（§1.2）。取り違えやすいもの: manifest の判定の各条件（他人の manifest、`path` が相対か一時ディレクトリの下、ブラウザ名の完全一致、ブラウザのディレクトリの存在）と macOS の Brave の置き場所を 1 つずつ外す、一時ファイルを経ずに直接書く（一時ファイルが残らないことのテスト）。`Install`・`Uninstall` について、§4.4 の `go tool cover -func` の確認を行う。
+-   [x] **ステップ 2-8**: ステップ 2-6・2-7 のテストを壊して失敗することを確かめ、コミットメッセージに記録する（§1.2）。取り違えやすいもの: manifest の判定の各条件（他人の manifest、`path` が相対か一時ディレクトリの下、ブラウザ名の完全一致、ブラウザのディレクトリの存在）と macOS の Brave の置き場所を 1 つずつ外す、一時ファイルを経ずに直接書く（一時ファイルが残らないことのテスト）。`Install`・`Uninstall` について、§4.4 の `go tool cover -func` の確認を行う。
     -   **対象:** なし（確認のみ）。**完了:** 各対象で該当するテストが失敗することを確かめ、記録する。
 
 ### PR-5 作成ポイント: native messaging host manifest
@@ -343,8 +344,8 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 
 **判定理由**: ステップ 2-6・2-7 の `Install`・`Uninstall` は、ホストを起動できる拡張を決める manifest を書き、他人の manifest を守る関門である（mkplan のパネル方式の条件「security-gate」）。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 -   [ ] **ステップ 2-9**: `internal/config` に `HostConfig`・`LoadHost`・`LoadHostHome` を加える（設計書 3.1）。`LoadHost` はステップ 1-6 の導出の関数を通る。テストを加える: `LoadHost` が `HOME` 以外を読まないこと（読んだ変数名を記録する `LookupFunc` で確かめる）、`LoadServer` と同じパスを返すこと、`LoadHostHome` がソケットのパスの長さに関わらず `HOME` を返し、未設定・空・相対で `VarError` を返すこと（設計書 7.1）。`internal/config/envaccess_test.go` の `allowedEnvRefs`（`:65-69`）に `cmd/yt2column-nmhost/main.go` の `value:os.LookupEnv` を 1 回だけ加え、`cmd/yt2column/main.go` と同じく観測した回数がちょうど 1 であることの確認（`:383-385` と同じ形）を加える。
@@ -606,7 +607,7 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 | AC-18 | test | `internal/config/socketpath_test.go`（`XDG_*`・`TMPDIR` で変わらないこと、`LoadHost` が `HOME` だけを読むこと）、`internal/config/envaccess_test.go`（既存のテストに許可を 1 行加える）、`internal/nmhost/relay_test.go::TestRelayForwardsOneRequest`（`TestMain` がプロキシの環境変数を設定する）、`cmd/yt2column-nmhost/main_test.go`（すべての役割で `HOME` だけを読むこと） | ステップ 1-6・2-2・2-9・2-10 |
 | | static | `make lint`（`depguard` の `os/exec` の規則）、`internal/pipeline/relay_guard_test.go::TestHostSpawnsNoProcess` | ステップ 2-4・2-13 |
 | AC-19 | test | `internal/nmhost/relay_test.go::TestRelayHostErrors`・`::TestExchangeFailurePrecedence`・`::TestOneUseTransportRefusesRedial`、`TestRelayEndToEnd` の (3) | ステップ 2-2・2-3 |
-| AC-20 | test | `internal/nmhost/manifest_test.go::TestInstall`・`::TestUninstall`・`::TestManifestLocation`、`cmd/yt2column-nmhost/main_test.go`（manifest のパスと macOS での共有の注記） | ステップ 2-6・2-7・2-10 |
+| AC-20 | test | `internal/nmhost/manifest_test.go::TestInstall`・`::TestUninstall`・`::TestManifestLocation`・`::TestParseBrowser`、`cmd/yt2column-nmhost/main_test.go`（manifest のパスと macOS での共有の注記） | ステップ 2-6・2-7・2-10 |
 | | static | `cmd/yt2column/makefile_test.go::TestMakeBuildBuildsEveryBinary`（ビルドが install を実行しない）、`cmd/yt2column/extension_docs_test.go::TestNativeHostContract`（`allowed_origins` の値が manifest の `key` から導出した ID と一致すること） | ステップ 2-11・2-13 |
 | | manual | §5.1（install・uninstall の後のブラウザでの起動の可否） | - |
 | AC-21 | static | `make build`、`make lint`（`depguard` の既存の `deps` の規則） | ステップ 2-10・2-11 |
@@ -684,7 +685,7 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 -   [x] 0027 のすべての PR がマージされたことを確かめた（PR-2 の前提。PR-8 の前提も兼ねる）
 -   [x] PR-2 マージ済み（対象ステップ: 1-6 / 1-7 / 1-8 / 1-9 / 1-10 / 1-11 / 1-12 / 1-13 / 1-14 / 1-15 / 1-16）
 -   [x] PR-3 マージ済み（対象ステップ: 1-17）
--   [ ] PR-4 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5）
+-   [x] PR-4 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5）
 -   [ ] PR-5 マージ済み（対象ステップ: 2-6 / 2-7 / 2-8）
 -   [ ] PR-6 マージ済み（対象ステップ: 2-9 / 2-10 / 2-11 / 2-12 / 2-13 / 2-14）
 -   [ ] PR-7 マージ済み（対象ステップ: 2-15 / 2-16）
