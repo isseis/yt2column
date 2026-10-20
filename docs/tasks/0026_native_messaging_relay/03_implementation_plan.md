@@ -379,7 +379,7 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 **判定理由**: ステップ 2-10 の呼び出し元のオリジンの照合は、ホストを起動した拡張を確かめるセキュリティの関門である（mkplan のパネル方式の条件「security-gate」。設計書 3.5.1）。
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 -   [ ] **ステップ 2-15**: `cmd/yt2column-server/relay_e2e_test.go`（`//go:build test`）を作る（設計書 7.2）。テストの中でホストを一時ディレクトリにビルドする（`GOOS`・`GOARCH` を実行中の値に、`GOFLAGS` を空にする）。`go` コマンドは `exec.LookPath` で探す（`make test` と CI はどちらも `go` から実行されるので `PATH` にある）。サーバは既存の `run` を `testDeps`・`loopbackDeps` で起動し、`HOME` は `internal/udstest` の短いディレクトリにする。`TestRelayEndToEnd` のサブテストで設計書 7.2 のシナリオ (1)〜(5) を確かめる。(1) では、受付応答を読み、ホストが終了したことを確かめてから fake の遅い LLM を解放し、記事が Webhook に届くことを確かめる。
