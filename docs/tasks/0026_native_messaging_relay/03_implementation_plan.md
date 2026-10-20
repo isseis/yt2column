@@ -482,7 +482,7 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 **判定理由**: 該当する条件はない。PR-8 の後のコードが既に満たす性質を lint の規則で確かめるだけで、振る舞いは変えない。
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 -   [ ] **ステップ 3-14**: 手動の確認を、macOS の Chrome と Brave の作業時点の安定版で行い、§5.1 に記録する（AC-36。設計書 7.2 の最後の項目）。確認は PR-8 のマージの前にそのブランチで行い（§3.2）、PR-9 の後にこのステップで記録する。受理の行（実際の LLM API と Slack Webhook を呼ぶもの）は、実行の前に利用者の承認を得る（CLAUDE.md「Tool Execution Safety」）。記録した後、`cmd/yt2column/extension_docs_test.go` に `TestNativeMessagingRelayDocumentation` を加え、`checkManualCheckTable` で §5.1 の表の各行の名前と、すべての欄が埋まっていることを確かめる（空の欄があると失敗するので、表を埋めた後に加える）。加えた後、表の 1 つの欄を空にして失敗することを確かめ、コミットメッセージに記録する。
