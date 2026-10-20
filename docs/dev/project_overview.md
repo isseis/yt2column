@@ -7,7 +7,7 @@ YouTube 動画の URL を受け取り、その文字起こしを元に LLM で�
 ## 決定済みの方針
 
 - **言語: Go**（ブラウザ拡張は TypeScript。詳細は §「想定ディレクトリ構成」と `docs/tasks/0007_browser_extension_skeleton/`）。依存関係を最小限にし、シングルバイナリで配布する。
-- **実行形式: ローカル実行の CLI と localhost サーバ**。コアロジックは `cmd/` から分離したパッケージとして実装し、両方の入口で共有する。localhost サーバ（`cmd/yt2column-server`・`internal/server`）は、ブラウザ拡張が YouTube の文字起こしパネルからコピーした字幕を受け取り、記事を生成して Slack へ投稿する（タスク `0011_localhost_server`）。サーバは TCP を待ち受けず、`HOME` だけから導出したパスの Unix ドメインソケットの上で HTTP を受ける（タスク `0026_native_messaging_relay`）。起動は手動とし、`yt-dlp` は呼ばない。
+- **実行形式: ローカル実行の CLI と localhost サーバ**。コアロジックは `cmd/` から分離したパッケージとして実装し、両方の入口で共有する。localhost サーバ（`cmd/yt2column-server`・`internal/server`）は、ブラウザ拡張が YouTube の文字起こしパネルからコピーした字幕を受け取り、記事を生成して Slack へ投稿する（タスク `0011_localhost_server`）。サーバは TCP を待ち受けず、`HOME` だけから導出したパスの Unix ドメインソケットの上で HTTP を受ける（タスク `0026_native_messaging_relay`）。拡張からの送信は、ブラウザが起動する Native Messaging のホスト（`cmd/yt2column-nmhost`・`internal/nmhost`）がソケットへ中継する。ホストの manifest は、利用者が `yt2column-nmhost install <browser>` で登録し、`yt2column-nmhost uninstall <browser>` で削除する（`<browser>` は `chrome` か `brave`。`make build` は登録しない）。起動は手動とし、`yt-dlp` は呼ばない。
 - **字幕取得: 外部コマンドの `yt-dlp` に委譲する**。YouTube の非公式な仕様に依存する最も壊れやすい部分を、保守が活発なツールに任せるため。Go で字幕取得を自前実装しないこと。例外として、利用者が YouTube の文字起こしパネルからコピーした字幕の文字列を解析するパーサ（`internal/transcript` で `CopiedSource` が `Raw` を解析する箇所）は、パネルが出力する書式に依存する。依存はそのパーサに限り（Go から YouTube のページやパネルを取得・解析しない）、書式が変わって拒否が続く間は `yt-dlp` の経路を代わりの手段として残す。
 - **LLM: 初期実装は DeepSeek**（DeepSeek 公式 API を直接契約して使う）。API は OpenAI 互換の Chat Completions 形式（`POST https://api.deepseek.com/chat/completions`）で単純なため、SDK は使わず標準ライブラリ（`net/http`・`encoding/json`）で呼び出す。
   - OpenCode Go 経由の利用は採用しない。利用条件が「コーディングエージェントのトラフィック」を前提としており、本ツールの用途に合わないため。
@@ -77,9 +77,11 @@ URL → TranscriptSource → Transcript → ArticleWriter → Article → Publis
 ```
 cmd/yt2column/main.go     # CLI エントリポイント
 cmd/yt2column-server/     # localhost サーバのエントリポイント（main.go・run.go）
+cmd/yt2column-nmhost/     # Native Messaging のホストのエントリポイント（中継・install・uninstall）
 internal/pipeline/        # 3段階を束ねるオーケストレーション
 internal/server/          # localhost サーバ（HTTP の受け口・検査・応答・ジョブ）
 internal/serversock/      # サーバの Unix ドメインソケット（ソケットのディレクトリの検査・起動のロック・stale の判定）
+internal/nmhost/          # Native Messaging のホスト（フレーム・ソケットへの中継・manifest の install/uninstall）
 internal/failure/         # 失敗の通知の型（Kind・Notice・Notifier）
 internal/redact/          # 出力の伏せ字（CLI とサーバが共有）
 internal/signalrun/       # シグナルの扱い（CLI とサーバが共有）
