@@ -592,6 +592,8 @@ PR は番号順にマージする。PR-1 のチャンネル名が PR-2 と PR-6 
 -   `- Estimated cost`、`- Model:`、`heading metadata`、`見出しのメタデータ` が、完了したタスクの文書（`docs/tasks/00*`）を除く文書に残っていない。
 -   M2 を「すべての `@name`」「`@` の後に名前の文字が続く語」とする記述が、`README.md`・`docs/dev/security.md`・`docs/dev/project_overview.md` に残っていない。
 
+**結果（PR-8 のマージ後、`main` の `845f62f`）。** `renderArticle`・`articleCostLine`・`integrationHeader` は、完了したタスクの文書（`docs/tasks/00*`）と本タスクの文書にだけ残り、コード・コメント・現行の文書にはない。`- Estimated cost`・`heading metadata`・`見出しのメタデータ` は現行の文書にない（README の `- Model: …` は旧形式を述べる箇所）。M2 を「すべての `@name`」とする記述は、README・`security.md`・`project_overview.md` にない。
+
 ## 5. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
 `test` は実行でき、誤った動作では失敗するテスト、`static` はガードのテスト・`make` のターゲット・コミットされたスクリプト、`manual` は PR や実機での観察を指す。「新規」は新しいテストまたはファイル、「追加」は既存のファイルに加えるテスト、「拡張」（ブラウザ拡張とは別）は既存のテストに行を加えるものである。名前はコードを書くときに調整してよい。調整したら、この表も同じコミットで直す。
@@ -742,9 +744,9 @@ R-4 の実機の確認は、通知を受けないテスト用のアカウント�
 -   [x] PR-6 マージ済み（対象ステップ: 4-9 / 4-10）
 -   [x] PR-7 マージ済み（対象ステップ: 4-11 / 4-12 / 4-13 / 4-14）
 -   [x] PR-8 マージ済み（対象ステップ: 5-1 / 5-2）
--   [ ] §4.4 の横断検索
--   [ ] すべての AC の検証が §5 の表のとおり実行され、手動の確認が §5.1・§5.4 に記録されている
--   [ ] `make test`・`make lint`・`make ext-test` が通る
+-   [x] §4.4 の横断検索（結果は §4.4 の末尾）
+-   [x] すべての AC の検証が §5 の表のとおり実行され、手動の確認が §5.1・§5.4 に記録されている
+-   [x] `make test`・`make lint`・`make ext-test` が通る
 
 ## 8. 成功基準 (Success Criteria)
 
