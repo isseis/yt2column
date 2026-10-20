@@ -130,9 +130,10 @@ func fullEnv(home string) map[string]string {
 
 // TestUsageErrors checks that every argument shape other than the extension's
 // origin alone, install <browser>, and uninstall <browser> is a usage error:
-// exit code 2, nothing on stdout, stdin unread, and a message on stderr. A
+// exit code 2, nothing on stdout, stdin unread, no variable read (HOME is
+// read only after the browser name is accepted), and a message on stderr. A
 // mismatched origin is one of them, so a caller the manifest did not name
-// gets no relay.
+// gets no relay. The browser-name grammar itself is TestParseBrowser's.
 func TestUsageErrors(t *testing.T) {
 	origin := nmhost.ExtensionOrigin
 	cases := []struct {
@@ -147,9 +148,8 @@ func TestUsageErrors(t *testing.T) {
 		{"origin and another argument", []string{origin, "--parent-window=0"}},
 		{"install without a browser", []string{"install"}},
 		{"install with an unknown browser", []string{"install", "firefox"}},
-		{"install with a browser in upper case", []string{"install", "Chrome"}},
 		{"install with two browsers", []string{"install", "chrome", "brave"}},
-		{"uninstall with a padded browser", []string{"uninstall", "brave "}},
+		{"uninstall with an unknown browser", []string{"uninstall", "safari"}},
 		{"unknown command", []string{"register", "chrome"}},
 	}
 	for _, tc := range cases {
@@ -164,6 +164,9 @@ func TestUsageErrors(t *testing.T) {
 			}
 			if stdin.consumed() != 0 {
 				t.Errorf("stdin: %d bytes read, want 0", stdin.consumed())
+			}
+			if len(inv.read) != 0 {
+				t.Errorf("read %q, want no variable", inv.read)
 			}
 			if !strings.Contains(inv.stderr, "usage:") {
 				t.Errorf("stderr = %q, want the usage", inv.stderr)
@@ -185,17 +188,30 @@ func TestRelayLengthUnreadable(t *testing.T) {
 }
 
 // TestRelayConfigFailure checks that when no socket path can be derived from
-// HOME, the relay replies server_unavailable, exits 0, and reads nothing of
-// stdin after the length, and that the log names HOME.
+// HOME, the relay replies server_unavailable to a message within the limits,
+// exits 0, and reads nothing of stdin after the length, and that the log names
+// HOME. The length checks still come first: an over-limit length is
+// message_too_large, which is also "not sent".
 func TestRelayConfigFailure(t *testing.T) {
-	for name, home := range map[string]string{"home unset": "", "home relative": "home/u"} {
-		t.Run(name, func(t *testing.T) {
-			stdin := message([]byte(`{"transcript":"MARK-BODY"}`))
+	overLimit := binary.NativeEndian.AppendUint32(nil, 32<<20+1)
+	cases := []struct {
+		name  string
+		home  string
+		stdin *stdinFake
+		want  nmhost.HostError
+	}{
+		{"home unset", "", message([]byte(`{"transcript":"MARK-BODY"}`)), nmhost.HostErrorServerUnavailable},
+		{"home relative", "home/u", message([]byte(`{"transcript":"MARK-BODY"}`)), nmhost.HostErrorServerUnavailable},
+		{"home unset, length over the limit", "", &stdinFake{data: append(overLimit, "MARK-BODY"...)}, nmhost.HostErrorMessageTooLarge},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			home, stdin := tc.home, tc.stdin
 			inv := invoke(t, []string{nmhost.ExtensionOrigin}, fullEnv(home), stdin, fixedExecutable(testExecutable))
 			if inv.code != exitOK {
 				t.Errorf("exit code = %d, want %d", inv.code, exitOK)
 			}
-			want := map[string]any{"v": float64(1), "kind": "error", "error": nmhost.HostErrorServerUnavailable.Value()}
+			want := map[string]any{"v": float64(1), "kind": "error", "error": tc.want.Value()}
 			if got := inv.reply(t); !maps.Equal(got, want) {
 				t.Errorf("reply = %v, want %v", got, want)
 			}
@@ -237,6 +253,11 @@ func TestRelayUsesDerivedSocket(t *testing.T) {
 	}
 	if got := inv.reply(t); !maps.Equal(got, want) {
 		t.Errorf("reply = %v, want %v", got, want)
+	}
+	// The log names the derived socket, so a user can compare it with the
+	// server's first log line when the browser passes a different HOME.
+	if !strings.Contains(inv.stderr, sock) {
+		t.Errorf("stderr = %q, want the derived socket path %s", inv.stderr, sock)
 	}
 }
 

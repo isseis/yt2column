@@ -8,7 +8,7 @@
 | Created | 2026-10-18 |
 | Review date | 2026-10-19 |
 | Reviewer | isseis |
-| Comments | 実装（PR-4）で、§3.5.2 のコードに `SocketDialer`（接続の時間の上限を持つ UDS の `Dialer`。中継のテストが実際のソケットで接続の失敗を確かめるのにも使う）を加え、§3.5.6 のログの errno の「名前」を「固定の説明（`syscall.Errno` の `Error()`）」に改めた（標準ライブラリは errno の名前を返す関数を持たないため）。§3.5.2 の時間の上限に、stdin が本文の途中で止まった場合は期限で打ち切れないことを、§3.5.3 の時間の上限の優先に、中継の `context` の期限による判定を加えた（どちらも `net/http` の振る舞いを確かめた結果）。`Relay` のコメントと §4.3 に、`RelayOptions` が欠けている場合を加えた。実装（PR-2）で、§3.1 の長さの上限を「`darwin` 以外の Unix で 107 バイト」から「`linux` で 107 バイト、`darwin` とそれ以外の Unix で 103 バイト」に編集上の訂正をした（FreeBSD などの `sun_path` は 104 バイトで、107 バイトの上限では bind に失敗するため）。 |
+| Comments | 実装（PR-6）で、§4.3 の注記に、`config.LoadHost` が失敗した場合も中継の長さの検査が先に行われること（上限を超える長さは `message_too_large`、長さ 0 は `protocol_error`、長さが読めなければ終了コード `1`）を加えた（ホストの応答を書くのを `Relay` の 1 か所に保つため、失敗する `Dialer` を渡す実装にした結果。どれも接続せず本文を読まない）。実装（PR-4）で、§3.5.2 のコードに `SocketDialer`（接続の時間の上限を持つ UDS の `Dialer`。中継のテストが実際のソケットで接続の失敗を確かめるのにも使う）を加え、§3.5.6 のログの errno の「名前」を「固定の説明（`syscall.Errno` の `Error()`）」に改めた（標準ライブラリは errno の名前を返す関数を持たないため）。§3.5.2 の時間の上限に、stdin が本文の途中で止まった場合は期限で打ち切れないことを、§3.5.3 の時間の上限の優先に、中継の `context` の期限による判定を加えた（どちらも `net/http` の振る舞いを確かめた結果）。`Relay` のコメントと §4.3 に、`RelayOptions` が欠けている場合を加えた。実装（PR-2）で、§3.1 の長さの上限を「`darwin` 以外の Unix で 107 バイト」から「`linux` で 107 バイト、`darwin` とそれ以外の Unix で 103 バイト」に編集上の訂正をした（FreeBSD などの `sun_path` は 104 バイトで、107 バイトの上限では bind に失敗するため）。 |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §3.11）を指す。I-NN は [implementation_handoff.md](implementation_handoff.md) の項目（対応は `03_implementation_plan.md`）を指す。既存のコードの行番号は、コミット `9e34229`（要件書の承認のコミット）で確かめたものである。
 
@@ -1098,7 +1098,7 @@ export function classifyResponse(
 | ホスト（install/uninstall） | 拒否・書き込みの失敗 | `1` |
 | ホスト（install/uninstall） | 成功（uninstall で manifest がなかった場合を含む） | `0` |
 
--   中継のときに `config.LoadHost` が失敗した場合（ブラウザが `HOME` を渡さない、`HOME` が長すぎる）は、接続を試みる前の失敗で、リクエストは確実に送られていない。ホストは stdin の本文を読まずに（§3.5.2）`server_unavailable` を返して終了コード `0` で終える（拡張の未送信の表示が、サーバの起動とホストの環境を確かめるよう案内する）。原因は標準エラー出力のログに書く。
+-   中継のときに `config.LoadHost` が失敗した場合（ブラウザが `HOME` を渡さない、`HOME` が長すぎる）は、接続を試みる前の失敗で、リクエストは確実に送られていない。ホストは stdin の本文を読まずに（§3.5.2）`server_unavailable` を返して終了コード `0` で終える（拡張の未送信の表示が、サーバの起動とホストの環境を確かめるよう案内する）。原因は標準エラー出力のログに書く。長さの検査（§3.5.2 の手順 1・2）はこれより先に行うので、上限を超える長さは `message_too_large`、長さ 0 は `protocol_error`、長さが読めなければ終了コード `1` になる。
 
 ### 4.4. 副作用の契約
 

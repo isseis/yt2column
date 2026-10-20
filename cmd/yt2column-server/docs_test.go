@@ -84,9 +84,23 @@ func TestServerDocsContract(t *testing.T) {
 			t.Error("README.md server section has no curl --unix-socket example for " + server.ArticlesPath)
 		}
 		// The host is registered and removed by the user, one command each.
-		for _, command := range []string{"./build/yt2column-nmhost install chrome", "./build/yt2column-nmhost uninstall chrome"} {
-			if !hasLineContainingAll(section, command) {
-				t.Errorf("README.md server section has no %q command", command)
+		for _, command := range []string{"install", "uninstall"} {
+			for _, browser := range []string{"chrome", "brave"} {
+				if line := "./build/yt2column-nmhost " + command + " " + browser; !hasLineContainingAll(section, line) {
+					t.Errorf("README.md server section has no %q command", line)
+				}
+			}
+		}
+		// The host's install/uninstall exit-code table must name every code
+		// the host defines; the host shares the values 0, 1, and 2 with the
+		// server's constants, which this package can reach.
+		hostTable := findTable(sectionByHeading(section, "### Installing the native messaging host"), "Code")
+		if hostTable == nil {
+			t.Fatal("README.md has no host exit-code table under '### Installing the native messaging host'")
+		}
+		for _, code := range []int{exitOK, exitFailure, exitUsage} {
+			if tableRow(hostTable, strconv.Itoa(code)) == nil {
+				t.Errorf("README.md host exit-code table has no code %d", code)
 			}
 		}
 		troubleshooting := sectionByHeading(section, "### Troubleshooting")

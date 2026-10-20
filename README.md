@@ -400,8 +400,11 @@ host reads one request from the browser, sends it to the server's socket,
 writes the server's response back to the browser, and exits; it starts nothing
 and keeps nothing. It reads `HOME` as the browser passes it and no other
 variable, so it derives the same socket path as a server started with the same
-`HOME`, and it never sees the API keys or the Webhook URL. Its standard output
+`HOME`, and it never reads the API keys or the Webhook URL. Its standard output
 is the channel to the browser; its log goes to standard error.
+
+The host exits with `0` once it has written its reply, a host error
+included, and with `1` when it could not write one.
 
 Register the host with each browser you use by running the built binary:
 
@@ -518,12 +521,17 @@ no job and post no failure notice.
   example by restoring mode `0700` on the socket directory, and start again.
 - **`HOME: the socket path derived from HOME exceeds the operating system's
   limit`.** `HOME` is too long for the socket path; see the limit above.
-- **The native messaging host is not found.** The browser reports
-  `Specified native messaging host not found.` when there is no manifest for
-  it, or the manifest's binary is gone. Run `yt2column-nmhost install` for that
-  browser from the binary you want it to start (see
+- **The native messaging host is not found.** The browser gives the extension
+  `Specified native messaging host not found.` (shown in the extension's
+  developer log) when there is no manifest for it, or the manifest's binary is
+  gone. Run `yt2column-nmhost install` for that browser from the binary you
+  want it to start (see
   [Installing the native messaging host](#installing-the-native-messaging-host)),
   again after moving the binary.
+- **Access to the host is forbidden.** The browser gives the extension
+  `Access to the specified native messaging host is forbidden.` when the
+  extension's ID is not the one the manifest allows. Load the extension built
+  from this repository's `extension/`, whose manifest key fixes its ID.
 - **Reading the host's log.** The host logs to standard error, which goes to
   the browser's own standard error, out of sight when the browser was started
   from the Dock or a menu. Quit the browser completely, then start its
