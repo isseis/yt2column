@@ -588,8 +588,8 @@ PR は番号順にマージする。PR-1 のチャンネル名が PR-2 と PR-6 
 
 `make lint` と `make test` が見つけられない残りだけを、フェーズ 5 の終わりに確かめる。
 
--   `renderArticle`、`articleCostLine`、`integrationHeader` が、コメント・文書・テストの名前に残っていない。
--   `- Estimated cost`、`- Model:`、`heading metadata`、`見出しのメタデータ` が、完了したタスクの文書（`docs/tasks/00*`）を除く文書に残っていない。
+-   `renderArticle`、`articleCostLine`、`integrationHeader` が、完了したタスクの文書（`docs/tasks/00*`）と本タスクの文書を除く、コード・コメント・文書・テストの名前に残っていない。
+-   `- Estimated cost`、`- Model:`、`heading metadata`、`見出しのメタデータ` が、完了したタスクの文書（`docs/tasks/00*`）を除く文書に残っていない。ただし README の `- Model: …` は旧形式を説明する箇所なので許容する。
 -   M2 を「すべての `@name`」「`@` の後に名前の文字が続く語」とする記述が、`README.md`・`docs/dev/security.md`・`docs/dev/project_overview.md` に残っていない。
 
 **結果（PR-8 のマージ後、`main` の `845f62f`）。** `renderArticle`・`articleCostLine`・`integrationHeader` は、完了したタスクの文書（`docs/tasks/00*`）と本タスクの文書にだけ残り、コード・コメント・現行の文書にはない。`- Estimated cost`・`heading metadata`・`見出しのメタデータ` は現行の文書にない（README の `- Model: …` は旧形式を述べる箇所）。M2 を「すべての `@name`」とする記述は、README・`security.md`・`project_overview.md` にない。
@@ -683,6 +683,10 @@ $ python3 -I docs/tasks/0008_column_prompt/check_article.py <cache> abcdefghijk 
 | shorten_skipped.md | deepseek-flash | v4 | A title | 3 | 50 | pass |
 | without_channel.md | claude-haiku-5-5 | 2026-01-01 | A title | 3 | 50 | pass |
 ```
+
+-   ステップ 5-2 と §7 の最終の `make test`・`make lint`・`make ext-test`。
+
+**最終ゲートの記録（PR-8 のマージ後、`main` の `845f62f`）。** `make test` は失敗なし、`make lint` は `0 issues.`、`make ext-test` は `pass 706`・`fail 0`（Node は `extension/.node-version` と同じ 24.21.0）で終了した。
 
 -   ステップ 4-11 の `renderArticle` の削除の前後の `go tool cover -func` の比較。
 
