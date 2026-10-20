@@ -26,7 +26,9 @@ creates the PR for it.
 network operations it names: `git fetch origin main`, `git pull --ff-only`,
 `git push` (including `-u`), `gh pr view`, `gh pr list`, `gh pr checkout`,
 `gh pr checks`, `gh pr create` (standalone change only), `gh pr comment` (the
-CodeRabbit request), `gh api graphql` (review threads), and `gh api user`. It
+CodeRabbit request), `gh api graphql` (review threads), `gh api user`, and, for
+the deferred findings the user moves to an issue in step 4, `gh issue create`
+and the thread replies and resolutions `fixpr.md` Phase 5 makes. It
 also covers what `fixpr.md` and `mergepr.md` authorize when run from here, and
 the next command (NEXT) when the user chooses to run it in step 4. It does
 **not** approve the merge itself: only the user's answer in step 4 does
@@ -174,10 +176,10 @@ Poll until CodeRabbit has finished and nothing is left to fix.
   re-reviews: keep polling.
 - When CodeRabbit's state is `SUCCESS`, wait for CI once every unresolved
   thread is one `fixpr` left by its convergence policy (`fixpr.md`): at the
-  severity floor (`no-harm`), past the round cap (not `must-fix`), or recorded
-  as accepted risk. List those threads in step 4's message. Stop rather than
-  merge when a `must-fix` thread is left unresolved, or when CodeRabbit's state
-  is `FAILURE` or `ERROR`.
+  severity floor (`no-harm`), or `deferred` past the round cap. Keep the
+  deferred threads for step 4. Stop rather than merge when a `must-fix` thread
+  or a thread a person opened is left unresolved, or when CodeRabbit's state is
+  `FAILURE` or `ERROR`.
 - If no `CodeRabbit` status context ever appears after a reasonable wait, report
   that and ask the user how to proceed rather than assuming green.
 - Wait for the PR's checks on the head commit to finish:
@@ -199,10 +201,17 @@ once rather than once per decision.
 2. Ask with `AskUserQuestion`. In your message, show what `mergepr.md` step 3
    requires (PR URL, base branch, CI result, the full subject and body), the
    PRE_MERGE change (which lines of which files, and for an approval the
-   reviewer name and date it writes), the threads `fixpr` left (step 3), and
-   NEXT (for `/runplan`, the next PR marker's `実装モデル要件`, so the user can
-   decide whether this session's model fits). Offer at most these options
-   (revising the message or stopping goes through the free-text answer):
+   reviewer name and date it writes), the `deferred` threads (each with its
+   topic, what fixing it would change, and its URL), and NEXT (for `/runplan`,
+   the next PR marker's `実装モデル要件`, so the user can decide whether this
+   session's model fits). Ask in the same `AskUserQuestion` call:
+   - when there are deferred threads, which of them to fix now
+     (`multiSelect`; with more than four, offer "fix all" and "fix none" and
+     take a subset by number in the free-text answer);
+   - the merge question below, which applies when nothing is chosen to fix.
+
+   Offer at most these options for the merge (revising the message or stopping
+   goes through the free-text answer):
    - record PRE_MERGE, merge, and run NEXT (recommended; only when NEXT is set);
    - record PRE_MERGE and merge, without running NEXT;
    - for a task-document PR only: merge without the approvals (the documents
@@ -213,6 +222,19 @@ once rather than once per decision.
    An answer that merges is the explicit approval `mergepr.md` step 3 asks for.
    Do not merge on anything less. When the answer does not merge, run
    `mergepr discard --state <state-file>` and stop.
+
+   When the answer chooses deferred threads to fix now, run
+   `mergepr discard --state <state-file>`, run `fixpr.md` naming those threads
+   as the caller override, and return to step 3; then ask step 4 again. Do not
+   merge on this answer: the fix changes the head, so the message and the
+   merge are confirmed again on the new head.
+
+   When the answer merges, first move the deferred threads not chosen to an
+   issue, so none is silently dropped: create one issue for this PR
+   (`gh issue create --title "Follow up review findings from PR #<number>"
+   --body-file <file>`, listing each finding's topic, the change it asks for,
+   and its thread URL), then reply to each of those threads with the issue URL
+   and resolve it, as `fixpr.md` Phase 5 does. Then continue below.
 3. When the answer records PRE_MERGE:
    - Note the prepared `headRefOid` and copy the approved subject and body files
      to the scratchpad, then run `mergepr discard --state <state-file>`.
