@@ -1,8 +1,8 @@
 // Interprets what one sendNativeMessage call delivered. The host's reply is
-// untrusted: its member set is checked with Object.keys before any member is
-// read, the server's response it wraps goes through classifyResponse, and no
-// string from the reply or the browser's error is carried into a displayed
-// value. A browser error is never told apart by its text: the text is a
+// untrusted: its version is read as an own property, its kind picks the
+// member set it must have exactly (checked with Object.keys), the server's
+// response it wraps goes through classifyResponse, and no string from the
+// reply or the browser's error is carried into a displayed value. A browser error is never told apart by its text: the text is a
 // browser-internal constant, not an API contract.
 
 import {
@@ -47,6 +47,14 @@ export type NativeReply =
   | { readonly kind: "message"; readonly value: unknown }
   | { readonly kind: "failed"; readonly lastError: string | undefined }
   | { readonly kind: "timed-out" };
+
+/** True when value is one of the two reply kinds. */
+function isHostReplyKind(value: unknown): value is HostReplyKind {
+  return (
+    typeof value === "string" &&
+    Object.prototype.hasOwnProperty.call(hostReplyKinds, value)
+  );
+}
 
 /** True when value is one of the host's fixed error values. */
 function isHostErrorValue(value: unknown): value is HostErrorValue {
@@ -120,36 +128,44 @@ export function classifyNativeReply(reply: NativeReply): SendResult {
   ) {
     return { kind: "unexpected", check: "envelope-version" };
   }
-  if (record.kind === "error") {
-    if (
-      !hasExactKeys(record, ["v", "kind", "error"]) ||
-      !isHostErrorValue(record.error)
-    ) {
-      return { kind: "unexpected", check: "envelope-shape" };
-    }
-    return hostErrorResult(record.error);
+  const kind = record.kind;
+  if (!isHostReplyKind(kind)) {
+    return { kind: "unexpected", check: "envelope-shape" };
   }
-  if (record.kind === "response") {
-    const status = record.status;
-    const body = record.body;
-    if (
-      !hasExactKeys(record, ["v", "kind", "status", "body"]) ||
-      typeof status !== "number" ||
-      !Number.isInteger(status) ||
-      status < 100 ||
-      status > 599 ||
-      typeof body !== "string"
-    ) {
-      return { kind: "unexpected", check: "envelope-shape" };
+  switch (kind) {
+    case "error":
+      if (
+        !hasExactKeys(record, ["v", "kind", "error"]) ||
+        !isHostErrorValue(record.error)
+      ) {
+        return { kind: "unexpected", check: "envelope-shape" };
+      }
+      return hostErrorResult(record.error);
+    case "response": {
+      const status = record.status;
+      const body = record.body;
+      if (
+        !hasExactKeys(record, ["v", "kind", "status", "body"]) ||
+        typeof status !== "number" ||
+        !Number.isInteger(status) ||
+        status < 100 ||
+        status > 599 ||
+        typeof body !== "string"
+      ) {
+        return { kind: "unexpected", check: "envelope-shape" };
+      }
+      const bytes = decodeBase64(body);
+      if (bytes === undefined) {
+        return { kind: "unexpected", check: "envelope-shape" };
+      }
+      if (bytes.byteLength > maxResponseBytes) {
+        return classifyResponse({ kind: "body-over-limit", status });
+      }
+      return classifyResponse({ kind: "body", status, bytes });
     }
-    const bytes = decodeBase64(body);
-    if (bytes === undefined) {
-      return { kind: "unexpected", check: "envelope-shape" };
+    default: {
+      const exhaustive: never = kind;
+      throw new Error(`Unhandled reply kind: ${String(exhaustive)}`);
     }
-    if (bytes.byteLength > maxResponseBytes) {
-      return classifyResponse({ kind: "body-over-limit", status });
-    }
-    return classifyResponse({ kind: "body", status, bytes });
   }
-  return { kind: "unexpected", check: "envelope-shape" };
 }

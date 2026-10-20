@@ -6,8 +6,9 @@
 
 /**
  * The reason values the extension shows with a fixed message. The server also
- * sends not_found and method_not_allowed for a wrong path or method; the host
- * never sends either, so they fail the status pairing and are unexpected.
+ * answers not_found and method_not_allowed to a wrong path or method; the host
+ * only ever sends POST /articles, so either one fails the status pairing and
+ * is unexpected.
  */
 export type ServerRejectReason =
   | "too_many_requests"

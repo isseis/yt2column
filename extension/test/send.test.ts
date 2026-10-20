@@ -91,6 +91,16 @@ describe("sendArticle", () => {
     );
   });
 
+  it("returns host-failed when sendNative throws against its contract", async () => {
+    const deps = testSendDeps(() => {
+      throw new Error("thrown");
+    });
+    assert.deepEqual(await sendArticle(request, deps), {
+      kind: "host-failed",
+      lastError: "Error: thrown",
+    });
+  });
+
   it("returns classification-error when the reply throws while it is read", async () => {
     // A getter cannot come from the browser's JSON parse; it stands in for
     // any classifier failure, which must not escape as a thrown error.

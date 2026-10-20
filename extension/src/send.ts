@@ -33,12 +33,18 @@ export async function sendArticle(
   const timedOut = new Promise<NativeReply>((resolve) => {
     cancel = deps.schedule(sendTimeoutMs, () => resolve({ kind: "timed-out" }));
   });
-  const sent = deps
-    .sendNative(request.body.message)
-    .catch((cause: unknown): NativeReply => ({
-      kind: "failed",
-      lastError: String(cause),
-    }));
+  // sendNative never rejects or throws by contract; a broken one is still a
+  // host failure, not a send that hangs with the button disabled.
+  const failed = (cause: unknown): NativeReply => ({
+    kind: "failed",
+    lastError: String(cause),
+  });
+  let sent: Promise<NativeReply>;
+  try {
+    sent = deps.sendNative(request.body.message).catch(failed);
+  } catch (cause) {
+    sent = Promise.resolve(failed(cause));
+  }
   const reply = await Promise.race([sent, timedOut]);
   cancel();
   try {

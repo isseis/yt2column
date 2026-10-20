@@ -43,7 +43,8 @@ type HostWireValuesForTest struct {
 
 // WireValuesForTest marshals one reply of each shape and one error reply per
 // HostError constant, and returns the members the extension must agree with.
-// The constants run from HostErrorProtocol to HostErrorMessageTooLarge.
+// The constants are found by counting up from the zero value until Value falls
+// back to protocol_error, so a constant added after the last one is included.
 func WireValuesForTest(t *testing.T) HostWireValuesForTest {
 	t.Helper()
 	type members struct {
@@ -60,7 +61,7 @@ func WireValuesForTest(t *testing.T) HostWireValuesForTest {
 	}
 	response := decode(newResponseReply(http.StatusAccepted, nil))
 	values := HostWireValuesForTest{Version: response.V, Kinds: []string{response.Kind}}
-	for e := HostErrorProtocol; e <= HostErrorMessageTooLarge; e++ {
+	for e := HostErrorProtocol; e == HostErrorProtocol || e.Value() != HostErrorProtocol.Value(); e++ {
 		reply := decode(newErrorReply(e))
 		if e == HostErrorProtocol {
 			values.Kinds = append(values.Kinds, reply.Kind)

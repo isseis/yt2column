@@ -130,6 +130,11 @@ describe("classifyNativeReply", () => {
       check: "envelope-shape",
     },
     {
+      name: "an inherited name as the kind",
+      reply: message({ v: 1, kind: "constructor" }),
+      check: "envelope-shape",
+    },
+    {
       name: "a reply without kind",
       reply: message({ v: 1, error: "server_timeout" }),
       check: "envelope-shape",

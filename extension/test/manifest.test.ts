@@ -31,10 +31,24 @@ describe("permissions", () => {
       "### 8.1. ブラウザ拡張（#110）",
     );
     assert.notEqual(body, "", "security.md has no 8.1 extension section");
-    const requested = body
+    const bullet = body
       .split("\n")
       .find((line) => line.startsWith("- **要求する権限**"));
-    assert.ok(requested !== undefined, "security.md 8.1 has no 要求する権限");
+    assert.ok(bullet !== undefined, "security.md 8.1 has no 要求する権限");
+    // Only the first sentence lists what is requested; the next one names
+    // what is not. A full stop inside a parenthesised reason does not end it.
+    let depth = 0;
+    let end = bullet.length;
+    for (let i = 0; i < bullet.length; i += 1) {
+      const c = bullet[i];
+      if (c === "（") depth += 1;
+      else if (c === "）") depth = Math.max(0, depth - 1);
+      else if (c === "。" && depth === 0) {
+        end = i;
+        break;
+      }
+    }
+    const requested = bullet.slice(0, end);
     const permissions = manifest["permissions"];
     assert.ok(Array.isArray(permissions));
     for (const permission of permissions) {

@@ -10,6 +10,7 @@ import type {
   RequestId,
   SendOutcome,
   ServerRejectReason,
+  UnexpectedCheck,
 } from "../src/core/response.ts";
 import {
   blockMessage,
@@ -170,15 +171,33 @@ describe("sendOutcomeMessage", () => {
     assert.ok(text.includes("yt2column-server"));
   });
 
+  // Every check, as a Record so that a new check must be listed here.
+  const unexpectedChecks: Record<UnexpectedCheck, true> = {
+    "extension-timeout": true,
+    "envelope-shape": true,
+    "envelope-version": true,
+    "host-protocol-error": true,
+    "body-over-limit": true,
+    encoding: true,
+    escape: true,
+    "json-shape": true,
+    "duplicate-member": true,
+    "member-set": true,
+    "request-id": true,
+    "status-pairing": true,
+    "classification-error": true,
+  };
+
   it("shows one message for every unexpected check", () => {
     const message = sendOutcomeMessage({
       kind: "unexpected",
       check: "extension-timeout",
     });
-    for (const check of ["host-protocol-error", "status-pairing"] as const) {
+    for (const check of Object.keys(unexpectedChecks) as UnexpectedCheck[]) {
       assert.deepEqual(
         sendOutcomeMessage({ kind: "unexpected", check }),
         message,
+        check,
       );
     }
   });
