@@ -623,7 +623,7 @@ PR は番号順にマージする。PR-1 のチャンネル名が PR-2 と PR-6 
 | AC-25 | static + manual | `TestOutputLayoutDocsContract`、`make test`（`doc-guard` の文書のガードを含む）。記述を設計書 5 章・3.7 と照合した記録は §5.4（manual） |
 | AC-26 | static | `make test`、`make lint`、`make ext-test` |
 
-AC-23〜AC-25 のガードは語句の有無だけを確かめ、記述が実装と合うことは確かめない。後者は §5.4 の照合の記録で補う。
+AC-23〜AC-25 のガードのうち、README の 2 つの例は実際の出力と比べるが、security.md と project_overview.md の記述は語句の有無だけを確かめ、実装と合うことは確かめない。後者は §5.4 の照合の記録で補う。
 
 ### 5.1. 手動の確認と記録
 
@@ -631,7 +631,7 @@ AC-23〜AC-25 のガードは語句の有無だけを確かめ、記述が実装
 
 | 確認 | 時期 | 結果 |
 |---|---|---|
-| 拡張が読む `channelName` に制御文字・前後の空白が混ざらないこと（実際の YouTube の動画ページ） | フェーズ 1 の前 | **未実施**（利用者の確認待ち。混ざるとサーバが `invalid_body` で要求全体を拒否する。README の拡張の節に記載済み） |
+| 拡張が読む `channelName` に制御文字・前後の空白が混ざらないこと（実際の YouTube の動画ページ） | フェーズ 1 の前 | **未実施**（利用者の確認待ち。制御文字が混ざるか 200 コードポイントを超えると、サーバが `invalid_body` で要求全体を拒否する（前後の空白だけでは拒否しない）。README の拡張の節に記載済み） |
 | `@`・U+200B・`name` が通知にならないこと（実際の Mattermost。版を記録する） | フェーズ 4 | 2026-10-20、Mattermost クライアントから投稿して確認。`@`+U+200B+`here`/`channel`/`all`/`everyone` は通知にならない。`Tech@Work` は通知にならず、`user@example.com` は mailto のリンクになるが Mattermost のユーザー名としては扱われない。Mattermost サーバ 11.11.2、デスクトップ 6.3.1 |
 | 見出し行と脚注の見え方（`make test-integration-slack`、利用者の承認の後） | フェーズ 4 | 2026-10-20 に実行して通った（single 1 通・split 3 通、マーカー `20261019T233134.424Z`）。目視で確認した: 見出し行は `<h1 class="markdown__heading">`（本文の `## Integration test body` は `<h2>`）、脚注は 1 つの `<p>`（`Models: … (generation) · Estimated cost: unknown`）として描画された |
 
