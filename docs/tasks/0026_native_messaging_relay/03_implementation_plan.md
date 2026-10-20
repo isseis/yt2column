@@ -382,12 +382,12 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 - [x] PR を作成した
 - [x] PR がマージされた
 - [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
--   [ ] **ステップ 2-15**: `cmd/yt2column-server/relay_e2e_test.go`（`//go:build test`）を作る（設計書 7.2）。テストの中でホストを一時ディレクトリにビルドする（`GOOS`・`GOARCH` を実行中の値に、`GOFLAGS` を空にする）。`go` コマンドは `exec.LookPath` で探す（`make test` と CI はどちらも `go` から実行されるので `PATH` にある）。サーバは既存の `run` を `testDeps`・`loopbackDeps` で起動し、`HOME` は `internal/udstest` の短いディレクトリにする。`TestRelayEndToEnd` のサブテストで設計書 7.2 のシナリオ (1)〜(5) を確かめる。(1) では、受付応答を読み、ホストが終了したことを確かめてから fake の遅い LLM を解放し、記事が Webhook に届くことを確かめる。
+-   [x] **ステップ 2-15**: `cmd/yt2column-server/relay_e2e_test.go`（`//go:build test`）を作る（設計書 7.2）。テストの中でホストを一時ディレクトリにビルドする（`GOOS`・`GOARCH` を実行中の値に、`GOFLAGS` を空にする）。`go` コマンドは `exec.LookPath` で探す（`make test` と CI はどちらも `go` から実行されるので `PATH` にある）。サーバは既存の `run` を `testDeps`・`loopbackDeps` で起動し、`HOME` は `internal/udstest` の短いディレクトリにする。`TestRelayEndToEnd` のサブテストで設計書 7.2 のシナリオ (1)〜(5) を確かめる。(1) では、受付応答を読み、ホストが終了したことを確かめてから fake の遅い LLM を解放し、記事が Webhook に届くことを確かめる。(5) は独立したサブテストにせず、ホストを起動する補助（`runHost`）が、(1)〜(4) のすべての実行で、終了コード `0` と標準出力がちょうど 1 つのフレームであることを確かめる（実装で変えた）。(3) は、サーバを起動して止めた後にホストを起動する。(1) の遅い LLM は、`run_test.go` の既存の `gatedLLM` を使う。
     -   `go build` の子プロセスには、親の環境を引き継いだうえで `GOOS`・`GOARCH`・`GOFLAGS` を上書きして渡す（`HOME`・`GOCACHE` のない最小の環境ではビルドが失敗する）。ホストの子プロセスには、ブラウザが起動する場合に近い最小の環境（`HOME` と、プロキシを無視することを確かめるための `HTTP_PROXY`）と、拡張のオリジンの引数を渡す（引数がなければ、設計書 3.5.1 のとおり標準出力に何も書かない）。
     -   ホストの子プロセスは、起動の時点で `t.Cleanup` に止めて待つ処理を登録し、`WaitDelay` を付ける（既存の `startServerChild` の `:643-646` と同じ形）。サーバの `run` は、`HOME` のディレクトリを消す前に止めて待つ。
     -   テストの結果の再利用（`go test` のキャッシュ）は、子プロセスの `go build` が読むソースを入力として数えない。テストは `cmd/yt2column-nmhost` と `internal/nmhost` の `.go` のファイルをすべて `os.Open` で開き、キャッシュの入力に含める（`go help test` の、テストが開いたファイルをキャッシュの判定に使うという説明）。
     -   **対象:** `cmd/yt2column-server/relay_e2e_test.go`（ビルドの `exec.Command` は `_test.go` の中に置く。§1.2）。**完了:** `go test -tags test -run TestRelayEndToEnd ./cmd/yt2column-server` が通る。
--   [ ] **ステップ 2-16**: ステップ 2-15 の統合テストを壊して失敗することを確かめ、コミットメッセージに記録する（§1.2。統合テストは `-count=1` で実行する）。取り違えやすいもの: サーバの失敗の通知を外す（`TestRelayEndToEnd` の (2)）、ホストの上限を 4 MiB にする（同 (4)）、サーバのハンドラが `202` を書く前にジョブの完了を待つように変える（同 (1)）。
+-   [x] **ステップ 2-16**: ステップ 2-15 の統合テストを壊して失敗することを確かめ、コミットメッセージに記録する（§1.2。統合テストは `-count=1` で実行する）。取り違えやすいもの: サーバの失敗の通知を外す（`TestRelayEndToEnd` の (2)）、ホストの上限を 4 MiB にする（同 (4)）、サーバのハンドラが `202` を書く前にジョブの完了を待つように変える（同 (1)）。
     -   **対象:** なし（確認のみ）。**完了:** 各対象で該当するテストが失敗することを確かめ、記録する。
 
 **完了条件:** `make fmt` → `make test` → `make lint` → `make ext-check` → `make build` が通る。`go test -run '^$' -tags test,integration ./...` が通る。
