@@ -113,11 +113,12 @@ Run this after the calling command's last commit, with a clean working tree.
      implemented (`/runpr` closes it with the final plan PR). A task whose
      requirements name no issue gets no such line.
 4. Run AFTER_CREATE, if supplied.
-5. Make sure CodeRabbit reviews the PR. It normally starts a review on its own
-   when a PR is opened or pushed to. Poll `gh pr view <number> --json
-   statusCheckRollup` for about two minutes; if no `CodeRabbit` status context
-   appears, ask for one with
-   `gh pr comment <number> --body "@coderabbitai review"`.
+5. Make sure CodeRabbit reviews the PR. Poll for about two minutes; if the
+   head commit is not reviewed and CodeRabbit's status is not `PENDING`
+   (`runpr.md` step 3, "Head reviewed": a skipped review also reports
+   `SUCCESS`), ask for a review with
+   `gh pr comment <number> --body "@coderabbitai review"`. Do not wait for it
+   to finish; `/runpr` does.
 6. Ping the human reviewer (`_context.md`, "Reviewer ping") in Japanese with the
    PR URL and the next action: review the PR, then run `/runpr <PR>`. If the ping tool is
    unavailable or the ping is not sent, the report in step 7 carries the same

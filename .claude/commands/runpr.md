@@ -139,26 +139,49 @@ head; a record already made counts as made, never as absent.
 
 ## 3. Wait for CodeRabbit and CI, running fixpr as comments appear
 
-First make sure CodeRabbit reviews the head commit, including commits the
-reviewer pushed after the PR was opened. CodeRabbit normally reviews each push
-on its own, so poll `statusCheckRollup` (below) for about two minutes; only if
-no `CodeRabbit` status context appears, ask for a review with
-`gh pr comment <number> --body "@coderabbitai review"`.
+Poll until CodeRabbit has **reviewed the head commit** and nothing is left to
+fix. A `SUCCESS` status alone does not mean a review ran: when CodeRabbit skips
+a review (for example "This repository does not receive automatic reviews"), it
+still reports `SUCCESS`, with no review behind it.
 
-Poll until CodeRabbit has finished and nothing is left to fix.
+- **Head reviewed.** CodeRabbit has reviewed the head commit only when both
+  hold:
+  - its status context is `SUCCESS`. Read it from the PR's status contexts, not
+    from `gh pr checks`:
 
-- Read CodeRabbit's status from the PR's **status contexts**, not from
-  `gh pr checks`:
+    ```bash
+    gh pr view <number> --json headRefOid,statusCheckRollup
+    ```
 
-  ```bash
-  gh pr view <number> --json statusCheckRollup
-  ```
+    Use only the `StatusContext` entry whose `context` is `CodeRabbit`, and
+    read its `state` (`PENDING` → `SUCCESS` / `FAILURE` / `ERROR`). Ignore a
+    `CheckRun` named `CodeRabbit`: it can report `pass` with the description
+    `Review skipped` while the review is still in progress, which is also why
+    `gh pr checks` is not the signal;
+  - CodeRabbit names the head commit as the end of the reviewed range, in the
+    line "Reviewing files that changed from the base of the PR and between
+    `<sha>` and `<headRefOid>`.". It writes the line in the body of its PR
+    review when the review has findings, and in its summary comment when it
+    has none, so search both:
 
-  Use only the `StatusContext` entry whose `context` is `CodeRabbit`, and read
-  its `state` (`PENDING` → `SUCCESS` / `FAILURE` / `ERROR`). Ignore a
-  `CheckRun` named `CodeRabbit`: it can report `pass` with the description
-  `Review skipped` while the review is still in progress, which is also why
-  `gh pr checks` is not the signal. Wait between polls rather than spinning.
+    ```bash
+    { gh api --paginate repos/<owner>/<repo>/pulls/<number>/reviews \
+        --jq '.[] | select(.user.login == "coderabbitai[bot]") | .body'
+      gh api --paginate repos/<owner>/<repo>/issues/<number>/comments \
+        --jq '.[] | select(.user.login == "coderabbitai[bot]") | .body'
+    } | grep -E "between [0-9a-f]{40} and <headRefOid>\."
+    ```
+
+  Re-read `headRefOid` on every poll; a push makes the earlier result stale.
+  Wait between polls rather than spinning.
+- **Requesting the review.** For each head commit — the one at the start of
+  this step, and each one a push (`fixpr`'s, the reviewer's) produces — poll
+  for about two minutes. If the status is not `PENDING` and the head is not
+  reviewed, ask for a review once for that head, with
+  `gh pr comment <number> --body "@coderabbitai review"`. If the head is still
+  not reviewed about fifteen minutes after the request (the status never
+  became `PENDING`, or it is `SUCCESS` with no line naming the head), stop
+  and report what CodeRabbit last posted, rather than assuming the review ran.
 - Fetch the unresolved review threads, following every page:
 
   ```bash
@@ -192,16 +215,15 @@ Poll until CodeRabbit has finished and nothing is left to fix.
   Record the set of unresolved thread IDs each time; re-run `fixpr` when the
   set holds an ID not seen before — not merely when the count rises, since
   resolving one thread while another is added keeps the count the same.
-  `fixpr` pushes a fix, so CodeRabbit re-reviews: keep polling.
-- When CodeRabbit's state is `SUCCESS` and no unseen thread is left, look at the
+  `fixpr` pushes a fix, which makes a new head: wait until that head is
+  reviewed (requesting the review as above), and keep polling.
+- When the head is reviewed and no unseen thread is left, look at the
   unresolved threads `fixpr` reported:
   - `deferred` (past its round cap): keep them for step 4;
   - anything else — `must-fix`, `unclear`, a valid fix not applied, a thread a
     person opened — stop rather than merge, and report each one with its URL
     and why it is open, so the user can fix, re-classify, or answer it.
   Also stop and report when CodeRabbit's state is `FAILURE` or `ERROR`.
-- If no `CodeRabbit` status context ever appears after a reasonable wait, report
-  that and ask the user how to proceed rather than assuming green.
 - Wait for the PR's checks on the head commit to finish:
   `gh pr checks <number> --watch --fail-fast`. If a check fails, report the
   failing check and its log URL and stop rather than merge. A fix pushed
@@ -280,8 +302,8 @@ rather than once per decision.
      already recorded.
    - Confirm that `git diff --name-only <noted headRefOid> HEAD` lists only the
      files PRE_MERGE changes; otherwise discard the preparation and stop.
-   - Wait for CodeRabbit's status context on the new head to reach `SUCCESS`
-     (step 3), then fetch the unresolved threads again. If a new thread
+   - Wait until the new head is reviewed (step 3, "Head reviewed", requesting
+     the review as step 3 says), then fetch the unresolved threads again. If a new thread
      appeared on the bookkeeping commit, do not merge: discard the preparation,
      return to step 2, and ask step 4 again.
    - Otherwise merge with the approved message files without asking again: the
