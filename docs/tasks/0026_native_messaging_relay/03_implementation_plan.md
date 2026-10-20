@@ -637,7 +637,7 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 
 ### 5.1. 手動の確認と記録
 
-実装のとき（ステップ 3-14）に埋める。macOS の Chrome と Brave の作業時点の安定版で、ブラウザごとに 1 行ずつ記録する（同時の送信は Chrome の 1 行だけ。設計書 7.2）。各行の最初の欄の名前は互いに異なる。`TestNativeMessagingRelayDocumentation`（ステップ 3-14）が、この表の最初の欄の名前を順に並べた一覧と照らして各行の名前を確かめ、すべての欄が埋まっていることを確かめる。受理の行は実際の LLM API と Slack Webhook を呼ぶので、実行の前に利用者の承認を得る。
+実装のとき（ステップ 3-14）に埋める。macOS の Chrome と Brave の作業時点の安定版で、ブラウザごとに 1 行ずつ記録する（同時の送信とブラウザの終了は Chrome の 1 行だけ。設計書 7.2）。各行の最初の欄の名前は互いに異なる。`TestNativeMessagingRelayDocumentation`（ステップ 3-14）が、この表の最初の欄の名前を順に並べた一覧と照らして各行の名前を確かめ、すべての欄が埋まっていることを確かめる。受理の行は実際の LLM API と Slack Webhook を呼ぶので、実行の前に利用者の承認を得る。
 
 | AC | 確認の内容（設計書 7.2） | ブラウザ・環境 | 日付 | 結果 |
 |---|---|---|---|---|
@@ -651,8 +651,7 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 | AC-26 拒否（Chrome） | 字幕の書式に合わない選択範囲で `invalid_transcript` の拒否が表示される | Chrome | | |
 | AC-26 拒否（Brave） | 同上 | Brave | | |
 | AC-26 同時の送信（Chrome） | 2 つのジョブが処理中に 3 つ目を送り、`too_many_requests` の拒否が表示される。Chrome だけで確かめる（ブラウザに依存する経路は「AC-26 拒否」の行と同じ。設計書 7.2） | Chrome | | |
-| AC-14 ブラウザの終了（Chrome） | 受付応答の後にブラウザを終了し、Slack に記事が届く | Chrome | | |
-| AC-14 ブラウザの終了（Brave） | 同上 | Brave | | |
+| AC-14 ブラウザの終了（Chrome） | 受付応答の後にブラウザを終了し、Slack に記事が届く。Chrome だけで確かめる（受付応答の後はホストが終了しており、ジョブはブラウザに依存しない。設計書 7.2） | Chrome | | |
 | AC-26 4 MiB 超（Chrome） | 4 MiB を超える本文で、拡張の送る前の確認（`body-too-large`）の表示になる | Chrome | | |
 | AC-26 4 MiB 超（Brave） | 同上 | Brave | | |
 | AC-20 再インストール（chrome を指定） | バイナリを移動した後にホストの失敗が表示され、`install chrome` をやり直すと送れる。`uninstall chrome` の後は Chrome と Brave の両方でホストの失敗になる（macOS での共有） | Chrome・Brave | | |
