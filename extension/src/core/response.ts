@@ -1,12 +1,15 @@
-// Interprets a received response as a trusted value. The response body is
-// untrusted: the member set is checked with Object.keys, so the fixed names
-// read below are own properties; no parsed method is called, no inherited
-// member is read, and the raw body text is never carried out of this module.
+// Interprets a received server response as a trusted value, and declares the
+// send results. The response body is untrusted: the member set is checked with
+// Object.keys, so the fixed names read below are own properties; no parsed
+// method is called, no inherited member is read, and the raw body text is
+// never carried out of this module.
 
-/** The reason values the server sends. */
+/**
+ * The reason values the extension shows with a fixed message. The server also
+ * sends not_found and method_not_allowed for a wrong path or method; the host
+ * never sends either, so they fail the status pairing and are unexpected.
+ */
 export type ServerRejectReason =
-  | "not_found"
-  | "method_not_allowed"
   | "too_many_requests"
   | "body_too_large"
   | "invalid_body"
@@ -16,8 +19,6 @@ export type ServerRejectReason =
 
 /** The status code each reason is sent with; a Record, so a missing reason fails the type check. */
 export const serverRejectStatus: Record<ServerRejectReason, number> = {
-  not_found: 404,
-  method_not_allowed: 405,
   too_many_requests: 429,
   body_too_large: 413,
   invalid_body: 400,
@@ -54,18 +55,24 @@ export function parseRequestId(value: unknown): RequestId | undefined {
 /** Upper bound for the response body; a valid response is under 100 bytes. */
 export const maxResponseBytes = 1_024;
 
-/** What sendArticle received, before interpretation. */
+/** The server response the host relayed, before interpretation. */
 export type ReceivedResponse =
   | {
       readonly kind: "body";
       readonly status: number;
       readonly bytes: Uint8Array;
     }
-  | { readonly kind: "body-over-limit"; readonly status: number }
-  | { readonly kind: "redirected" };
+  | { readonly kind: "body-over-limit"; readonly status: number };
 
-/** Which check an unexpected response failed; for the developer log only. */
-type UnexpectedCheck =
+/** Why a request is known not to have reached the server. */
+export type NotSentCause = "server-unavailable" | "message-too-large";
+
+/** Which check an unexpected reply failed; for the developer log only. */
+export type UnexpectedCheck =
+  | "extension-timeout"
+  | "envelope-shape"
+  | "envelope-version"
+  | "host-protocol-error"
   | "body-over-limit"
   | "encoding"
   | "escape"
@@ -76,7 +83,10 @@ type UnexpectedCheck =
   | "status-pairing"
   | "classification-error";
 
-/** A send result without the cause of "unknown": what is displayed. */
+/**
+ * A send result as displayed. "not-sent" is known not to have reached the
+ * server; "no-response", "host-failed" and "unexpected" may have reached it.
+ */
 export type SendOutcome =
   | { readonly kind: "accepted"; readonly requestId: RequestId }
   | {
@@ -84,29 +94,40 @@ export type SendOutcome =
       readonly reason: ServerRejectReason;
       readonly requestId: RequestId;
     }
-  | { readonly kind: "unknown" }
+  | { readonly kind: "not-sent"; readonly cause: NotSentCause }
+  | { readonly kind: "no-response" }
+  // Any browser error: the host did not start, or exited without a reply.
+  | { readonly kind: "host-failed" }
+  | { readonly kind: "unexpected"; readonly check: UnexpectedCheck };
+
+/**
+ * What sendArticle returns. "unexpected" also carries the server's status when
+ * a response was relayed, and "host-failed" the browser's error text, for the
+ * developer log only: the text is never compared, displayed or stored.
+ */
+export type SendResult =
+  | Exclude<SendOutcome, { kind: "unexpected" | "host-failed" }>
   | {
       readonly kind: "unexpected";
-      readonly status: number;
       readonly check: UnexpectedCheck;
+      readonly status?: number;
     }
-  | { readonly kind: "redirected" };
+  | { readonly kind: "host-failed"; readonly lastError: string | undefined };
 
-/** What sendArticle returns: "unknown" also carries the failure, for the developer log. */
-export type SendResult =
-  | Exclude<SendOutcome, { kind: "unknown" }>
-  | { readonly kind: "unknown"; readonly cause: unknown };
-
-/** Drops the cause of "unknown"; the only way a SendResult becomes a displayed value. */
+/** Drops the log-only members; the only way a SendResult becomes a displayed value. */
 export function toSendOutcome(result: SendResult): SendOutcome {
-  if (result.kind === "unknown") {
-    return { kind: "unknown" };
+  switch (result.kind) {
+    case "unexpected":
+      return { kind: "unexpected", check: result.check };
+    case "host-failed":
+      return { kind: "host-failed" };
+    default:
+      return result;
   }
-  return result;
 }
 
 /** True when record has exactly the given keys, with no extras and none missing. */
-function hasExactKeys(
+export function hasExactKeys(
   record: Record<string, unknown>,
   keys: readonly string[],
 ): boolean {
@@ -117,26 +138,23 @@ function hasExactKeys(
   );
 }
 
+/** The three results a server response can classify as. */
+export type ResponseResult = Extract<
+  SendResult,
+  { kind: "accepted" | "rejected" | "unexpected" }
+>;
+
 /** An unexpected response at a status: the status and the failed check, no body text. */
-function unexpected(
-  status: number,
-  check: UnexpectedCheck,
-): Extract<SendOutcome, { kind: "unexpected" }> {
+function unexpected(status: number, check: UnexpectedCheck): ResponseResult {
   return { kind: "unexpected", status, check };
 }
 
 /**
- * Interprets a received response in the fixed order. Never
- * returns "unknown" and never throws. The parsed members are read as own
- * properties only, so an attacker-chosen member name cannot run code or read
- * an inherited value.
+ * Interprets a received response in the fixed order. Never throws. The parsed
+ * members are read as own properties only, so an attacker-chosen member name
+ * cannot run code or read an inherited value.
  */
-export function classifyResponse(
-  received: ReceivedResponse,
-): Exclude<SendOutcome, { kind: "unknown" }> {
-  if (received.kind === "redirected") {
-    return { kind: "redirected" };
-  }
+export function classifyResponse(received: ReceivedResponse): ResponseResult {
   const status = received.status;
   if (received.kind === "body-over-limit") {
     return unexpected(status, "body-over-limit");
