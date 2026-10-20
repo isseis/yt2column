@@ -1201,7 +1201,7 @@ flowchart LR
 | サーバ → ホスト（応答） | 本文を 64 KiB + 1 バイトまで読み、超えれば転送しない。HTTP として読めなければ転送しない | `protocol_error` |
 | ホスト → 拡張（ホストの応答） | オブジェクトであること、`v`・`kind`、`kind` ごとのメンバの集合（`hasExactKeys`）、型、`status` の範囲、base64 の正規形、復号した長さ。その後に既存の `classifyResponse` | 想定外の応答 |
 | ソケットのパスと権限 | `HOME` の絶対パス、パスの長さ、ディレクトリと親の `Lstat`（種別・所有者・権限）、ソケットの `Lstat` と接続の試み | 起動を中止する |
-| install/uninstall の入力 | ブラウザ名の完全一致、`os.Executable` の絶対パス、既存の manifest の `Lstat` と `strictjson` の読み取り | 拒否し、書かない |
+| install/uninstall の入力 | ブラウザ名の完全一致、`os.Executable` の絶対パス、既存の manifest の `O_NOFOLLOW`・`O_NONBLOCK` でのオープン、開いたファイルが通常ファイルで 64 KiB 以下であることの確認、`strictjson` の読み取り（§3.6） | 拒否し、書かない |
 | 拡張が収集する値 | 既存のまま | 既存の理由 |
 
 -   標準ライブラリが黙って修復しうる箇所: Go の `encoding/json` は無効な UTF-8 を U+FFFD に置き換えて書くので、ホストはサーバの本文を JSON の文字列にせず base64 で包む（§3.5.4）。ブラウザの `JSON.parse` は重複したメンバの後の値を残すので、重複の検査は base64 の中のバイト列に対して行う（§3.5.4）。`atob` は空白を無視しうるので、base64 は再符号化して比べる（§3.7.3）。manifest の読み取りは `strictjson` を使い、重複したメンバ・無効な UTF-8・末尾の余分な値を拒否する（§3.6）。
