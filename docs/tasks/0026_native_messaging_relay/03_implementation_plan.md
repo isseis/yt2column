@@ -356,7 +356,7 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
     -   install/uninstall が、テストが渡した一時ディレクトリの外のパスで manifest を書き、manifest のパスと macOS での共有の注記を標準エラー出力に書くこと（AC-20）。
     -   すべての役割（中継・install・uninstall・使い方の誤り）で、読んだ変数名を記録する `LookupFunc` を渡し、`HOME` 以外を読まないこと（AC-18）。
     -   `package_reference.md` に `cmd/yt2column-nmhost` の行を加える（§1.3）。
-    -   **対象:** `cmd/yt2column-nmhost/main.go`・`main_test.go`・`docs/dev/developer_guide/package_reference.md`。**完了:** `go test -tags test ./cmd/yt2column-nmhost ./internal/config` と `go test -tags test -run TestPackageReferenceListsPackages ./internal/pipeline` が通る。
+    -   **対象:** `cmd/yt2column-nmhost/main.go`・`run.go`・`main_test.go`・`docs/dev/developer_guide/package_reference.md`（`main.go` には `main` と実行ファイルのパスを得る関数だけを置き、役割の処理は `run.go` に置く。`TestHostStdoutOnlyInMain` が `main.go` だけを除いて走査するので、役割の処理を走査の対象にするため。実装で変えた）。**完了:** `go test -tags test ./cmd/yt2column-nmhost ./internal/config` と `go test -tags test -run TestPackageReferenceListsPackages ./internal/pipeline` が通る。
 -   [x] **ステップ 2-11**: Makefile の `build` に `build/yt2column-nmhost` を加える（install/uninstall の目標は設けない）。`cmd/yt2column/makefile_test.go` に `TestMakeBuildBuildsEveryBinary` を加える（§1.3）。
     -   **対象:** `Makefile`・`cmd/yt2column/makefile_test.go`。**完了:** `make build` が 3 つのバイナリを作り、`go test -tags test -run TestMakeBuildBuildsEveryBinary ./cmd/yt2column` が通る。
 -   [x] **ステップ 2-12**: フェーズ 2 の文書を改める（§1.3「フェーズごとの文書とガードの割り当て」のフェーズ 2 の列）。README のトラブルシューティングには、ホストのログを見る手順（ブラウザを一度終了し、ターミナルからブラウザの実行ファイルを直接起動する）を書く（設計書 3.5.6）。README の「## Development」の独立したサーバの手順の節に、ホストの制約を加える（§1.3「開発者向けの独立したサーバの手順」）。
