@@ -346,8 +346,8 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 -   [ ] **ステップ 2-9**: `internal/config` に `HostConfig`・`LoadHost`・`LoadHostHome` を加える（設計書 3.1）。`LoadHost` はステップ 1-6 の導出の関数を通る。テストを加える: `LoadHost` が `HOME` 以外を読まないこと（読んだ変数名を記録する `LookupFunc` で確かめる）、`LoadServer` と同じパスを返すこと、`LoadHostHome` がソケットのパスの長さに関わらず `HOME` を返し、未設定・空・相対で `VarError` を返すこと（設計書 7.1）。`internal/config/envaccess_test.go` の `allowedEnvRefs`（`:65-69`）に `cmd/yt2column-nmhost/main.go` の `value:os.LookupEnv` を 1 回だけ加え、`cmd/yt2column/main.go` と同じく観測した回数がちょうど 1 であることの確認（`:383-385` と同じ形）を加える。
     -   **対象:** `internal/config/config.go`（設計書 3.12）・`socketpath_test.go`・`envaccess_test.go`。**完了:** `go test -tags test -skip TestEnvAccessConfined ./internal/config` が通る（`allowedEnvRefs` は上限なので先に加えても失敗しないが、観測した回数の確認はステップ 2-10 で `main.go` ができた後に通る）。
 -   [ ] **ステップ 2-10**: `cmd/yt2column-nmhost/main.go` を作る（設計書 3.5.1 の起動の形、設計書 4.3 の終了コード）。中継では `config.LoadHost` の失敗を `server_unavailable` の応答にする（設計書 4.3 の注記）。install/uninstall は `os.Executable` と `filepath.EvalSymlinks` で得たパスを渡し、manifest のパスと macOS での共有を標準エラー出力に書く（設計書 3.6）。`main` は `os.LookupEnv`・`os.Stdin`・`os.Stdout`・`os.Stderr` と、実行ファイルのパスを得る関数（`os.Executable` と `filepath.EvalSymlinks`）を渡すだけにし、処理は `run` 相当の関数に置いてテストする。実行ファイルのパスを関数で受け取るのは、`go test` のバイナリが `os.TempDir()` の下で動き、そのままでは `Install` が `ErrUnstableExecutable` で拒否するためである（設計書 3.6）。テスト `cmd/yt2column-nmhost/main_test.go`:
@@ -686,7 +686,7 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 -   [x] PR-2 マージ済み（対象ステップ: 1-6 / 1-7 / 1-8 / 1-9 / 1-10 / 1-11 / 1-12 / 1-13 / 1-14 / 1-15 / 1-16）
 -   [x] PR-3 マージ済み（対象ステップ: 1-17）
 -   [x] PR-4 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5）
--   [ ] PR-5 マージ済み（対象ステップ: 2-6 / 2-7 / 2-8）
+-   [x] PR-5 マージ済み（対象ステップ: 2-6 / 2-7 / 2-8）
 -   [ ] PR-6 マージ済み（対象ステップ: 2-9 / 2-10 / 2-11 / 2-12 / 2-13 / 2-14）
 -   [ ] PR-7 マージ済み（対象ステップ: 2-15 / 2-16）
 -   [ ] 0025 のすべての PR がマージされたことを確かめた（PR-8 の前提）
