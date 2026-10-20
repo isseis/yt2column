@@ -56,12 +56,14 @@ Include the following section at the top of `01_requirements.md`, `02_architectu
 
 | Item | Value |
 |---|---|
-| Status | `draft` or `approved` |
+| Status | `draft`, `approved`, or `withdrawn` |
 | Created | YYYY-MM-DD |
 | Review date | YYYY-MM-DD (or `-` when draft) |
 | Reviewer | Name (or `-` when draft) |
 | Comments | Review notes and changes (or `-` if none) |
 ```
+
+When a task is withdrawn after review (for example, a feasibility check shows the requirements cannot be met), set the status of every task document that exists to `withdrawn`, whatever its previous status, and record the date and the reason (or a link to the document that records it) in `Comments`. A `withdrawn` document is not `approved`, so the commands that require an approved document (`/mkarch`, `/mkplan`, `/runplan`) stop on it.
 
 ---
 
