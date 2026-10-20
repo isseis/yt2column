@@ -69,6 +69,7 @@ const (
 	reasonCacheDirAbsent       = "no absolute default could be derived from HOME or XDG_CACHE_HOME"
 	reasonSocketPathAbsent     = "no absolute socket path could be derived from HOME"
 	reasonSocketPathTooLong    = "the socket path derived from HOME exceeds the operating system's limit"
+	reasonHomeAbsent           = "must be set to an absolute path"
 )
 
 // LookupFunc has the signature of os.LookupEnv. Load reads every variable
@@ -277,6 +278,44 @@ func LoadServer(lookup LookupFunc) (ServerConfig, error) {
 	cfg.socketPath = sockPath
 	cfg.http2DebugEnabled = hasHTTP2Debug(lookup)
 	return cfg, nil
+}
+
+// HostConfig is the Native Messaging host's relay configuration. Its field is
+// unexported, so a non-zero HostConfig can only come from LoadHost.
+type HostConfig struct {
+	socketPath string // absolute, within the OS limit
+}
+
+// SocketPath returns the absolute path of the server's Unix domain socket,
+// derived from HOME alone with the same rule as ServerConfig.SocketPath.
+func (c HostConfig) SocketPath() string {
+	return c.socketPath
+}
+
+// LoadHost reads HOME, and nothing else, through lookup. Contract: it derives
+// the socket path with the same function as LoadServer, so a host the browser
+// starts and a server started from a shell reach one socket whenever they see
+// the same HOME. It returns a *VarError naming HOME, and the zero HostConfig,
+// when HOME is unusable or the derived path exceeds the OS limit.
+func LoadHost(lookup LookupFunc) (HostConfig, error) {
+	sockPath, err := socketPath(runtime.GOOS, lookup)
+	if err != nil {
+		return HostConfig{}, err
+	}
+	return HostConfig{socketPath: sockPath}, nil
+}
+
+// LoadHostHome reads HOME, and nothing else, through lookup, and returns it
+// when it is set and absolute. install and uninstall derive the browsers'
+// manifest directories from it. Contract: it never checks the socket path, so
+// a user whose socket path is too long can still remove the manifest. It
+// returns a *VarError naming HOME when HOME is unset, empty, or relative.
+func LoadHostHome(lookup LookupFunc) (string, error) {
+	home, ok := absoluteHome(lookup)
+	if !ok {
+		return "", missingVarWithReason("HOME", reasonHomeAbsent)
+	}
+	return home, nil
 }
 
 // Load reads and validates every variable through lookup. It joins every

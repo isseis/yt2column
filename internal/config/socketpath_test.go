@@ -121,3 +121,119 @@ func TestSocketPath(t *testing.T) {
 		})
 	}
 }
+
+// recordingLookup returns a LookupFunc over env that appends every name it is
+// asked for to *read, so a test can check which variables a loader reads.
+func recordingLookup(env map[string]string, read *[]string) LookupFunc {
+	return func(name string) (string, bool) {
+		*read = append(*read, name)
+		value, ok := env[name]
+		return value, ok
+	}
+}
+
+// requireReadOnlyHome fails the test unless read is non-empty and names HOME
+// only.
+func requireReadOnlyHome(t *testing.T, fn string, read []string) {
+	t.Helper()
+	if len(read) == 0 {
+		t.Fatalf("%s read no variable, want HOME", fn)
+	}
+	for _, name := range read {
+		if name != "HOME" {
+			t.Errorf("%s read %q, want only HOME", fn, name)
+		}
+	}
+}
+
+// TestLoadHost checks that LoadHost reads HOME and nothing else, derives the
+// same socket path as LoadServer from an environment that sets every variable
+// the server reads plus the XDG variables, and returns a *VarError naming HOME
+// and the zero HostConfig when no path can be derived. TestSocketPath fixes
+// the derivation itself.
+func TestLoadHost(t *testing.T) {
+	t.Run("valid", func(t *testing.T) {
+		env := validServerEnv()
+		env["XDG_STATE_HOME"] = "/xdg-state"
+		env["XDG_RUNTIME_DIR"] = "/run/user/1"
+		var read []string
+		cfg, err := LoadHost(recordingLookup(env, &read))
+		if err != nil {
+			t.Fatalf("LoadHost() error = %v, want nil", err)
+		}
+		requireReadOnlyHome(t, "LoadHost", read)
+		server, err := LoadServer(envLookup(env))
+		if err != nil {
+			t.Fatalf("LoadServer() error = %v, want nil", err)
+		}
+		if cfg.SocketPath() == "" || cfg.SocketPath() != server.SocketPath() {
+			t.Errorf("LoadHost().SocketPath() = %q, want LoadServer's %q", cfg.SocketPath(), server.SocketPath())
+		}
+	})
+	cases := []struct {
+		name     string
+		env      map[string]string
+		sentinel error
+	}{
+		{"home unset", map[string]string{}, ErrMissing},
+		{"home relative", map[string]string{"HOME": homeMark + "/rel"}, ErrMissing},
+		{"too long", map[string]string{"HOME": homeOfLength(t, linuxSocketLimit)}, ErrInvalid},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var read []string
+			cfg, err := LoadHost(recordingLookup(tc.env, &read))
+			assertVarError(t, err, tc.sentinel, "HOME")
+			requireReadOnlyHome(t, "LoadHost", read)
+			if strings.Contains(err.Error(), homeMark) {
+				t.Errorf("LoadHost() error = %q, contains HOME's value", err)
+			}
+			if cfg != (HostConfig{}) {
+				t.Errorf("LoadHost() returned a non-zero HostConfig on error: %+v", cfg)
+			}
+		})
+	}
+}
+
+// TestLoadHostHome checks that LoadHostHome reads HOME and nothing else,
+// returns it even when the socket path derived from it would exceed every OS
+// limit, and rejects an unset, empty, or relative HOME with an ErrMissing that
+// names HOME and does not hold its value.
+func TestLoadHostHome(t *testing.T) {
+	longHome := homeOfLength(t, linuxSocketLimit)
+	cases := []struct {
+		name    string
+		env     map[string]string
+		want    string
+		wantErr bool
+	}{
+		{name: "absolute", env: map[string]string{"HOME": "/home/u", "XDG_CONFIG_HOME": "/xdg"}, want: "/home/u"},
+		{name: "socket path too long", env: map[string]string{"HOME": longHome}, want: longHome},
+		{name: "unset", env: map[string]string{}, wantErr: true},
+		{name: "empty", env: map[string]string{"HOME": ""}, wantErr: true},
+		{name: "relative", env: map[string]string{"HOME": homeMark + "/rel"}, wantErr: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var read []string
+			got, err := LoadHostHome(recordingLookup(tc.env, &read))
+			requireReadOnlyHome(t, "LoadHostHome", read)
+			if !tc.wantErr {
+				if err != nil {
+					t.Fatalf("LoadHostHome() error = %v, want nil", err)
+				}
+				if got != tc.want {
+					t.Errorf("LoadHostHome() = %q, want %q", got, tc.want)
+				}
+				return
+			}
+			assertVarError(t, err, ErrMissing, "HOME")
+			if got != "" {
+				t.Errorf("LoadHostHome() = %q on error, want empty", got)
+			}
+			if strings.Contains(err.Error(), homeMark) {
+				t.Errorf("LoadHostHome() error = %q, contains HOME's value", err)
+			}
+		})
+	}
+}

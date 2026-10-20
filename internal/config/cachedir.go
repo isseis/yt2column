@@ -47,7 +47,7 @@ func defaultCacheDir(goos string, lookup LookupFunc) (string, bool) {
 func userDirBase(goos string, lookup LookupFunc, o dirOverride) (string, *VarError) {
 	switch goos {
 	case "darwin":
-		home, ok := absoluteEnv(lookup, "HOME")
+		home, ok := absoluteHome(lookup)
 		if !ok {
 			return "", missingVarWithReason("HOME", o.absent)
 		}
@@ -61,7 +61,7 @@ func userDirBase(goos string, lookup LookupFunc, o dirOverride) (string, *VarErr
 			}
 			return xdg, nil
 		}
-		home, ok := absoluteEnv(lookup, "HOME")
+		home, ok := absoluteHome(lookup)
 		if !ok {
 			return "", missingVarWithReason("HOME", o.absent)
 		}
@@ -69,10 +69,10 @@ func userDirBase(goos string, lookup LookupFunc, o dirOverride) (string, *VarErr
 	}
 }
 
-// absoluteEnv returns the absolute value of the named variable. An unset,
-// empty, or relative value reports false.
-func absoluteEnv(lookup LookupFunc, name string) (string, bool) {
-	value, ok := lookup(name)
+// absoluteHome returns HOME's value when it is absolute. An unset, empty, or
+// relative value reports false.
+func absoluteHome(lookup LookupFunc) (string, bool) {
+	value, ok := lookup("HOME")
 	if !ok || value == "" || !filepath.IsAbs(value) {
 		return "", false
 	}
