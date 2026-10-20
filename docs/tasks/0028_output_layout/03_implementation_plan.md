@@ -533,7 +533,7 @@ PR-6 のマージの後に加えたステップである。§3.2 の PR 構成�
 
 -   [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 -   [x] PR を作成した
--   [ ] PR がマージされた
+-   [x] PR がマージされた
 -   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
@@ -588,9 +588,11 @@ PR は番号順にマージする。PR-1 のチャンネル名が PR-2 と PR-6 
 
 `make lint` と `make test` が見つけられない残りだけを、フェーズ 5 の終わりに確かめる。
 
--   `renderArticle`、`articleCostLine`、`integrationHeader` が、コメント・文書・テストの名前に残っていない。
--   `- Estimated cost`、`- Model:`、`heading metadata`、`見出しのメタデータ` が、完了したタスクの文書（`docs/tasks/00*`）を除く文書に残っていない。
+-   `renderArticle`、`articleCostLine`、`integrationHeader` が、完了したタスクの文書（`docs/tasks/00*`）と本タスクの文書を除く、コード・コメント・文書・テストの名前に残っていない。
+-   `- Estimated cost`、`- Model:`、`heading metadata`、`見出しのメタデータ` が、完了したタスクの文書（`docs/tasks/00*`）を除く文書に残っていない。ただし README の `- Model: …` は旧形式を説明する箇所なので許容する。
 -   M2 を「すべての `@name`」「`@` の後に名前の文字が続く語」とする記述が、`README.md`・`docs/dev/security.md`・`docs/dev/project_overview.md` に残っていない。
+
+**結果（PR-8 のマージ後、`main` の `845f62f`）。** `renderArticle`・`articleCostLine`・`integrationHeader` は、完了したタスクの文書（`docs/tasks/00*`）と本タスクの文書にだけ残り、コード・コメント・現行の文書にはない。`- Estimated cost`・`heading metadata`・`見出しのメタデータ` は現行の文書にない（README の `- Model: …` は旧形式を述べる箇所）。M2 を「すべての `@name`」とする記述は、README・`security.md`・`project_overview.md` にない。
 
 ## 5. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -631,7 +633,7 @@ AC-23〜AC-25 のガードのうち、README の 2 つの例は実際の出力�
 
 | 確認 | 時期 | 結果 |
 |---|---|---|
-| 拡張が読む `channelName` に制御文字・前後の空白が混ざらないこと（実際の YouTube の動画ページ） | フェーズ 1 の前 | **未実施**（利用者の確認待ち。制御文字が混ざるか 200 コードポイントを超えると、サーバが `invalid_body` で要求全体を拒否する（前後の空白だけでは拒否しない）。README の拡張の節に記載済み） |
+| 拡張が読む `channelName` に制御文字・前後の空白が混ざらないこと（実際の YouTube の動画ページ） | フェーズ 1 の前 | **実施せずに閉じた**（2026-10-20、利用者の判断。YouTube が表示用のチャンネル名に制御文字を入れる正当な経路は想定されず、失敗しても要求が拒否されるだけで害が小さいため。実害が出た場合は拡張側で直す。制御文字が混ざるか 200 コードポイントを超えると、サーバが `invalid_body` で要求全体を拒否する（前後の空白だけでは拒否しない）。README の拡張の節に記載済み） |
 | `@`・U+200B・`name` が通知にならないこと（実際の Mattermost。版を記録する） | フェーズ 4 | 2026-10-20、Mattermost クライアントから投稿して確認。`@`+U+200B+`here`/`channel`/`all`/`everyone` は通知にならない。`Tech@Work` は通知にならず、`user@example.com` は mailto のリンクになるが Mattermost のユーザー名としては扱われない。Mattermost サーバ 11.11.2、デスクトップ 6.3.1 |
 | 見出し行と脚注の見え方（`make test-integration-slack`、利用者の承認の後） | フェーズ 4 | 2026-10-20 に実行して通った（single 1 通・split 3 通、マーカー `20261019T233134.424Z`）。目視で確認した: 見出し行は `<h1 class="markdown__heading">`（本文の `## Integration test body` は `<h2>`）、脚注は 1 つの `<p>`（`Models: … (generation) · Estimated cost: unknown`）として描画された |
 
@@ -681,6 +683,10 @@ $ python3 -I docs/tasks/0008_column_prompt/check_article.py <cache> abcdefghijk 
 | shorten_skipped.md | deepseek-flash | v4 | A title | 3 | 50 | pass |
 | without_channel.md | claude-haiku-5-5 | 2026-01-01 | A title | 3 | 50 | pass |
 ```
+
+-   ステップ 5-2 と §7 の最終の `make test`・`make lint`・`make ext-test`。
+
+**最終ゲートの記録（PR-8 のマージ後、`main` の `845f62f`）。** `make test` は失敗なし、`make lint` は `0 issues.`、`make ext-test` は `pass 706`・`fail 0`（Node は `extension/.node-version` と同じ 24.21.0）で終了した。
 
 -   ステップ 4-11 の `renderArticle` の削除の前後の `go tool cover -func` の比較。
 
@@ -733,18 +739,18 @@ R-4 の実機の確認は、通知を受けないテスト用のアカウント�
 
 ## 7. 実装チェックリスト (Implementation Checklist)
 
--   [ ] フェーズ 1 の前の手動の確認（§5.1）
--   [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7）
--   [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 3-1 / 3-2 / 3-3 / 3-4）
--   [ ] PR-3 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3）
--   [ ] PR-4 マージ済み（対象ステップ: 4-4 / 4-5 / 4-6）
--   [ ] PR-5 マージ済み（対象ステップ: 4-7 / 4-8）
--   [ ] PR-6 マージ済み（対象ステップ: 4-9 / 4-10）
--   [ ] PR-7 マージ済み（対象ステップ: 4-11 / 4-12 / 4-13 / 4-14）
--   [ ] PR-8 マージ済み（対象ステップ: 5-1 / 5-2）
--   [ ] §4.4 の横断検索
--   [ ] すべての AC の検証が §5 の表のとおり実行され、手動の確認が §5.1・§5.4 に記録されている
--   [ ] `make test`・`make lint`・`make ext-test` が通る
+-   [-] フェーズ 1 の前の手動の確認（§5.1。実施せずに閉じた。理由は §5.1）
+-   [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7）
+-   [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 3-1 / 3-2 / 3-3 / 3-4）
+-   [x] PR-3 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3）
+-   [x] PR-4 マージ済み（対象ステップ: 4-4 / 4-5 / 4-6）
+-   [x] PR-5 マージ済み（対象ステップ: 4-7 / 4-8）
+-   [x] PR-6 マージ済み（対象ステップ: 4-9 / 4-10）
+-   [x] PR-7 マージ済み（対象ステップ: 4-11 / 4-12 / 4-13 / 4-14）
+-   [x] PR-8 マージ済み（対象ステップ: 5-1 / 5-2）
+-   [x] §4.4 の横断検索（結果は §4.4 の末尾）
+-   [x] すべての AC の検証が §5 の表のとおり実行され、手動の確認が §5.1・§5.4 に記録されている
+-   [x] `make test`・`make lint`・`make ext-test` が通る
 
 ## 8. 成功基準 (Success Criteria)
 
