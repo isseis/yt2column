@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `withdrawn` |
 | Created | 2026-10-19 |
 | Review date | 2026-10-19 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 取り下げた（2026-10-20）。観測のゲートの結果、パネルの DOM を読む方式では要件（特に F-002 の「前の動画のパネルを送らない」）を確かめられず、保守の費用も続くと判断した。経緯は [observation_gate_review.md](observation_gate_review.md)、観測の記録は 02_architecture.md 3.1.4 にある |
 
 ## 1. 概要 (Overview)
 
