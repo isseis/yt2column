@@ -55,16 +55,18 @@ findings.
   criterion left unverified, a correctness or security gap — is `must-fix`,
   however small the change looks.
 - **Caller override**: when the caller names threads to fix regardless of the
-  cap (`runpr.md` step 4, the ones the user chose), fix them in this round.
+  cap (`runpr.md` step 4, the ones the user chose), fix them in this round. The
+  caller passes their thread IDs in its instructions in this session; the
+  command's own argument stays the PR number.
 - **Severity floor**: once every remaining finding is `no-harm` (cosmetic or
   invalid), the review has converged — stop editing and merge.
 - **Batch**: push once per round; a push per finding triggers a review per
   finding.
 - **Accept, don't chase**: a finding that is a mirror case of a rule already
   fixed is closed by generalizing that rule (Phase 3), not by another
-  per-instance patch. If it recurs after that, defer it (left unresolved and
-  listed as `deferred`, as the round cap does) so the human chooses between
-  fixing it and an issue; do not reopen the same rule again.
+  per-instance patch. If it recurs after that, the round cap handles it: from
+  round 3 it is deferred, so the human chooses between fixing it and an issue.
+  Do not reopen the same rule again.
 - The Final report states whether the round was substantive or recurring churn
   and whether the floor is reached.
 
@@ -242,10 +244,16 @@ Agent prompt (inline the fetched `threads` JSON from Phase 1):
 > "structuralChange": "..."}]}`
 
 Split the returned `threads` into `valid`, `off-level`, `invalid`, `unclear`
-by `verdict`. Then apply the Convergence policy: from round 3, move every `valid` or `off-level` thread with
-`authorType="Bot"` and `severity="worth-fixing"` into `deferred`, unless the
-caller named it to fix now. Report the counts (including `deferred`) and
-cluster count before continuing.
+by `verdict`. Then apply the Convergence policy from round 3, to `valid` and
+`off-level` threads with `authorType="Bot"` that the caller did not name to fix
+now:
+- `severity="worth-fixing"`: move to `deferred` (not fixed, not replied to).
+- `severity="no-harm"`: move to `answered`. They are not fixed; Phase 5 replies
+  to each with "軽微な指摘のため、ラウンド上限を超えた今回は変更しません。" and
+  resolves it, so a cosmetic fix does not trigger another review round.
+
+Report the counts (including `deferred` and `answered`) and cluster count before
+continuing.
 
 ## Phase 3 — Fix (model: default)
 
@@ -367,9 +375,9 @@ run Phase 5 or 6.
 
 Build the candidate list yourself (not via an agent) before invoking this phase:
 
-- Take every thread where `verdict="invalid"`, plus every thread where
-  `verdict` is `"valid"` or `"off-level"` AND `applied=true` in the Phase 3
-  fixes.
+- Take every thread where `verdict="invalid"`, every `answered` thread (Phase
+  2, with the reply given there), plus every thread where `verdict` is
+  `"valid"` or `"off-level"` AND `applied=true` in the Phase 3 fixes.
 - For each, resolve `replyBody`: use the Phase 3 fix's `replyBody` if present
   (for applied valid and off-level threads), else the Phase 2 triage
   `replyBody`.

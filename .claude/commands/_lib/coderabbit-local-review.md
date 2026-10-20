@@ -77,6 +77,10 @@ on every change, so run it without asking the user.
    something" is not a reason for another run.
 
 5. After triage, run `coderabbit review findings --clear` so stored findings are
-   not surfaced again. Record each rejected finding and its reason (a line in the
-   commit message of the fix commit, or in SUMMARY) so the later PR-side
-   CodeRabbit review and `/fixpr` do not re-litigate it.
+   not surfaced again. Record each rejected finding and its reason, and each
+   `deferred` or `unclear` finding, as a `CodeRabbit local review:` line in the
+   message of the fix commit, or of the next commit on the branch when there is
+   no fix commit (and in SUMMARY). The rejected ones are then not re-litigated
+   by the PR-side CodeRabbit review and `/fixpr`, and the open ones reach the PR
+   body even when the PR is opened in a later session
+   (`_lib/task-pr-handoff.md` Part B step 3).

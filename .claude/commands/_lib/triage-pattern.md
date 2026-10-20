@@ -64,9 +64,9 @@ it sits in a guarded or seldom-run branch.
 ### `topic`
 
 One concise Japanese phrase naming what the finding raised, since it appears in
-the report to the user (e.g. "heredoc
-terminator indentation", "stale Go version in prompt"), so the summary shows
-what each finding was about at a glance.
+the report to the user (e.g. 「ヒアドキュメント終端のインデント」、
+「プロンプト内の古い Go バージョン」), so the summary shows what each finding
+was about at a glance.
 
 ### `replyBody`
 

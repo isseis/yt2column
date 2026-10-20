@@ -35,7 +35,8 @@ procedure once. A calling command invokes it by saying "follow
    reason. Keep the question and option texts short; the explanation is in the
    message. For an unverified assumption, the options include verifying it
    first (an observation or a proof of concept) and say what that costs.
-3. Ask at most four questions per call. When an answer opens a new question, ask
+3. Ask at most four questions per call, each with two to four options (a
+   yes/no check still needs both options). When an answer opens a new question, ask
    it in a further round. Continue until no open decision within SCOPE remains.
 4. If nothing is open, say so in one line and continue.
 5. Record each decision at RECORD, with the date and the reason, so a reader of

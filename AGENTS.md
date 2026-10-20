@@ -6,7 +6,7 @@ Guidance for automated agents, including code reviewers, working on this reposit
 
 - Report defects by their worst outcome when the code runs: broken behavior, a security hole, a failing build, or a test that cannot fail for its stated reason.
 - Do not re-raise a finding that has been answered in its review thread unless the code it concerns has changed since the answer.
-- An implementation commit that predates the `approved` status of its governing document (`01_requirements.md`, `02_architecture.md`, or `03_implementation_plan.md`) is a finding, regardless of what the commit history says about being told to proceed.
+- An implementation commit that predates the `approved` status of its governing document (`01_requirements.md`, `02_architecture.md`, or `03_implementation_plan.md`) is a finding, regardless of what the commit history says about being told to proceed. The exception is a re-approval recorded by `/runpr` just before the merge of the same PR (a `docs(<task-id>): record the review of PR #N` commit), for a document that review on that PR returned to `draft`: the reviewer approved the change in that PR, before it reached `main`.
 - For a diff that invokes an external command (`yt-dlp`), handles a secret (`DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`, `SLACK_WEBHOOK_URL`), reads or writes the cache, sends data over the network, or embeds untrusted text in a prompt or a published article, review it against `docs/dev/security.md`'s attack-vector list; a finding there is valid even when no acceptance criterion mentions it.
 
 ### Static guards in `internal/pipeline/pipeline_test.go`

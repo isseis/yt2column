@@ -24,6 +24,7 @@ Work in the following order.
 
 3. Verify that architecture work is allowed.
 - Check the document status in `01_requirements.md`.
+- If `02_architecture.md` already exists, stop and report: revising it goes through its PR (`/fixpr`, `/runpr`), not this command.
 - If the status is not `approved`, do not create `02_architecture.md`.
 - In that case, stop and report that architecture work cannot begin until `01_requirements.md` is `approved`.
 

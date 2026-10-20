@@ -65,10 +65,10 @@ lands on, not from a stale checkout.
      if more was merged since); fast-forward it with
      `git merge --ff-only origin/main`; or
    - the calling command is `runplan.md`, the branch has commits beyond
-     `origin/main`, all of them made by `runplan.md` (implementation and
-     checkbox commits, not an unopened task-document change), and it has no PR
-     yet (`gh pr view <branch>` finds none): the PR group in progress, continued
-     with its next phase group.
+     `origin/main`, none of them a task-document command's commit (a subject
+     starting `docs(<task-id>): draft` or a PR-boundary commit of `mkplan2.md`),
+     and it has no PR yet (`gh pr view <branch>` finds none): the PR group in
+     progress, continued with its next phase group.
 
    A convention-named branch for TASK_DIR in any other state (commits beyond
    `origin/main` with a PR, or with no PR when the caller is a task-document
@@ -90,7 +90,8 @@ Run this after the calling command's last commit, with a clean working tree.
    follow `.claude/commands/_lib/coderabbit-local-review.md` with
    **BASE** = `$(git merge-base origin/main HEAD)`, **SCOPE** = branch,
    **SUMMARY** = REPORT.
-2. Run CHECKS. Fix and commit if they fail.
+2. Run CHECKS. If they fail, fix, commit, and run them again; do not go on to
+   the push until they pass.
 3. Push and create the PR for the current branch. Ignore the calling command's
    `$ARGUMENTS` here (it is a task or an issue, not a PR or a branch): run
    `git push -u origin <current-branch>` and
@@ -102,19 +103,23 @@ Run this after the calling command's last commit, with a clean working tree.
    - summarizes the change;
    - lists the decisions made with the reviewer during this run, if any;
    - names the points the reviewer should check (for `runplan.md`, the
-     `レビュー観点`), including any `unclear` or `deferred` findings of the local
-     review;
+     `レビュー観点`), including every `unclear` or `deferred` finding of the
+     local reviews: this run's, and those earlier sessions recorded in commit
+     messages on the branch (`git log origin/main..HEAD`, the
+     `CodeRabbit local review:` lines `_lib/coderabbit-local-review.md` step 5
+     writes);
    - contains `Refs #<issue>` for the issue the requirements document names as
      its own (`対応 issue`), never `Closes`: the issue stays open until the task is
-     implemented.
+     implemented (`/runpr` closes it with the final plan PR). A task whose
+     requirements name no issue gets no such line.
 4. Run AFTER_CREATE, if supplied.
 5. Make sure CodeRabbit reviews the PR. It normally starts a review on its own
    when a PR is opened or pushed to. Poll `gh pr view <number> --json
    statusCheckRollup` for about two minutes; if no `CodeRabbit` status context
    appears, ask for one with
    `gh pr comment <number> --body "@coderabbitai review"`.
-6. Ping the human reviewer (`_context.md`, "Reviewer ping") with the PR URL and
-   the next action: review the PR, then run `/runpr <PR>`. If the ping tool is
+6. Ping the human reviewer (`_context.md`, "Reviewer ping") in Japanese with the
+   PR URL and the next action: review the PR, then run `/runpr <PR>`. If the ping tool is
    unavailable or the ping is not sent, the report in step 7 carries the same
    message.
 7. In REPORT, give the PR URL, the review results, and the same next action.

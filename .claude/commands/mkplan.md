@@ -27,6 +27,7 @@ Work in the following order.
 
 3. Verify that implementation planning is allowed.
 - Check the document status in `01_requirements.md` and `02_architecture.md`.
+- If `03_implementation_plan.md` already exists, stop and report: revising it goes through its PR (`/fixpr`, `/runpr`), and adding PR boundaries to an older plan is `/mkplan2`.
 - If either status is not `approved`, do not create `03_implementation_plan.md`.
 - In that case, stop and report that implementation planning cannot begin until both `01_requirements.md` and `02_architecture.md` are `approved`, naming which one is not.
 

@@ -34,19 +34,23 @@ Work in the following order.
 1. Check the starting state.
    - Read the issue:
      `gh issue view <issue> --json number,title,body,state,url,comments`.
-     If it is closed, stop and report.
-   - `git fetch origin main`. Search the task root on `origin/main`
-     (`git grep -l '対応 issue: \[#<issue>\]' origin/main -- docs/tasks`) and the
-     open PRs (`gh pr list --state open --search "<issue> in:body"
-     --json number,headRefName,body`) for a requirements document that already
-     names this issue as its own. If one exists, stop and report it: revising an
+     If it is closed, stop and report. From here on, use the `number` it
+     returns (`N`) wherever the issue is named — searches, commits, the PR
+     body — never the raw argument, which may be `#330` or a URL.
+   - `git fetch origin`. Search for a requirements document that already names
+     issue `N` as its own (`対応 issue: [#N]`): on `origin/main` and on every
+     `origin` branch
+     (`git grep -l '対応 issue: \[#N\]' $(git for-each-ref --format='%(refname)' refs/remotes/origin) -- docs/tasks`),
+     which also finds a branch pushed by a run that stopped before opening its
+     PR, and in the open PRs (`gh pr list --state open --search "N in:body"
+     --json number,headRefName,body`). If one exists, stop and report it: revising an
      existing requirements document goes through its PR (`/fixpr`,
      `/runpr`), not this command.
 
 2. Resolve the task directory.
-   - With `[task]`: resolve it under the task root as
+   - With `[task]`: resolve it under the task root on `origin/main` as
      `docs/dev/developer_guide/task_identification.md` rule 1 describes. Stop if
-     it does not exist or already contains `01_requirements.md`.
+     it does not exist there or already contains `01_requirements.md`.
    - Without it: choose the name `NNNN_<name>` (the directory is created in
      step 3). `NNNN` is one above the highest task number in use, looking at
      `origin/main` (`git ls-tree -d --name-only origin/main docs/tasks/`), at
