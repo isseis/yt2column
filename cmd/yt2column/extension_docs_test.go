@@ -29,6 +29,7 @@ const (
 	extensionPlanPath         = repositoryRoot + "/docs/tasks/0007_browser_extension_skeleton/03_implementation_plan.md"
 	extensionSendPlanPath     = repositoryRoot + "/docs/tasks/0020_extension_send/03_implementation_plan.md"
 	menuRemovalPlanPath       = repositoryRoot + "/docs/tasks/0027_remove_context_menu/03_implementation_plan.md"
+	relayPlanPath             = repositoryRoot + "/docs/tasks/0026_native_messaging_relay/03_implementation_plan.md"
 	extensionSendPath         = repositoryRoot + "/extension/src/send.ts"
 	extensionNativePath       = repositoryRoot + "/extension/src/core/native.ts"
 )
@@ -358,6 +359,35 @@ func TestContextMenuRemovalRecords(t *testing.T) {
 				t.Errorf("section %s still holds %q", heading, pendingRecordMarker)
 			}
 		}
+	})
+}
+
+// TestNativeMessagingRelayDocumentation pins the manual Chrome and Brave
+// verification record in task 0026's plan: the rows are the checks the design
+// calls for, in order, and every cell is filled. The row labels are document
+// data matched against the plan's own table, not references to source
+// acceptance criteria.
+func TestNativeMessagingRelayDocumentation(t *testing.T) {
+	plan := readDoc(t, relayPlanPath)
+
+	t.Run("fills every cell of the plan's manual-check table", func(t *testing.T) {
+		checkManualCheckTable(t, plan, []string{
+			acLabel(1, 6) + " サーバ",
+			acLabel(26) + " 未インストール（Chrome）",
+			acLabel(26) + " 未インストール（Brave）",
+			acLabel(26) + " サーバ停止（Chrome）",
+			acLabel(26) + " サーバ停止（Brave）",
+			acLabel(24) + " 受理（Chrome）",
+			acLabel(24) + " 受理（Brave）",
+			acLabel(26) + " 拒否（Chrome）",
+			acLabel(26) + " 拒否（Brave）",
+			acLabel(26) + " 同時の送信（Chrome）",
+			acLabel(14) + " ブラウザの終了（Chrome）",
+			acLabel(26) + " 4 MiB 超（Chrome）",
+			acLabel(26) + " 4 MiB 超（Brave）",
+			acLabel(20) + " 再インストール（chrome を指定）",
+			acLabel(20) + " 再インストール（brave を指定）",
+		})
 	})
 }
 

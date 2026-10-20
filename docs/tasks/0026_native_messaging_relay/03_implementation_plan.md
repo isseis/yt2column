@@ -485,7 +485,7 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 - [x] PR を作成した
 - [x] PR がマージされた
 - [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
--   [ ] **ステップ 3-14**: 手動の確認を、macOS の Chrome と Brave の作業時点の安定版で行い、§5.1 に記録する（AC-36。設計書 7.2 の最後の項目）。確認は PR-8 のマージの前にそのブランチで行い（§3.2）、PR-9 の後にこのステップで記録する。受理の行（実際の LLM API と Slack Webhook を呼ぶもの）は、実行の前に利用者の承認を得る（CLAUDE.md「Tool Execution Safety」）。記録した後、`cmd/yt2column/extension_docs_test.go` に `TestNativeMessagingRelayDocumentation` を加え、`checkManualCheckTable` で §5.1 の表の各行の名前と、すべての欄が埋まっていることを確かめる（空の欄があると失敗するので、表を埋めた後に加える）。加えた後、表の 1 つの欄を空にして失敗することを確かめ、コミットメッセージに記録する。
+-   [x] **ステップ 3-14**: 手動の確認を、macOS の Chrome と Brave の作業時点の安定版で行い、§5.1 に記録する（AC-36。設計書 7.2 の最後の項目）。確認は PR-8 のマージの前にそのブランチで行い（§3.2）、PR-9 の後にこのステップで記録する。受理の行（実際の LLM API と Slack Webhook を呼ぶもの）は、実行の前に利用者の承認を得る（CLAUDE.md「Tool Execution Safety」）。記録した後、`cmd/yt2column/extension_docs_test.go` に `TestNativeMessagingRelayDocumentation` を加え、`checkManualCheckTable` で §5.1 の表の各行の名前と、すべての欄が埋まっていることを確かめる（空の欄があると失敗するので、表を埋めた後に加える）。加えた後、表の 1 つの欄を空にして失敗することを確かめ、コミットメッセージに記録する。
     -   **対象:** 本計画 §5.1・`cmd/yt2column/extension_docs_test.go`。**完了:** §5.1 のすべての欄が埋まり、`go test -tags test -run TestNativeMessagingRelayDocumentation ./cmd/yt2column` が通る。
 
 **完了条件:** `make fmt` → `make test` → `make lint` → `make ext-check` → `make build` が通り、§5.1 が埋まっている。
@@ -641,21 +641,21 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 
 | AC | 確認の内容（設計書 7.2） | ブラウザ・環境 | 日付 | 結果 |
 |---|---|---|---|---|
-| AC-01・AC-06 サーバ | サーバの起動中に `lsof -nP -a -p <サーバの pid> -iTCP` が何も表示しない（TCP のソケットを持たない）。`SIGKILL` で止めた後の次の起動が、stale なソケットを削除して起動する | ターミナル（macOS） | | |
-| AC-26 未インストール（Chrome） | ホストを install していない状態で送り、ホストの失敗（install の手順と Slack の確認）が表示される | Chrome | | |
-| AC-26 未インストール（Brave） | 同上 | Brave | | |
-| AC-26 サーバ停止（Chrome） | `install chrome` の後、サーバを止めた状態で送り、未送信（サーバの起動の案内、Slack の確認なし）が表示される | Chrome | | |
-| AC-26 サーバ停止（Brave） | `install brave` の後、同上 | Brave | | |
-| AC-24 受理（Chrome） | サーバの起動中に、ポップアップから受理される入力を送り、受付と `requestId`（選択してコピーできる。AC-28）が表示され、Slack に記事が 1 件届く（AC-25） | Chrome | | |
-| AC-24 受理（Brave） | 同上 | Brave | | |
-| AC-26 拒否（Chrome） | 字幕の書式に合わない選択範囲で `invalid_transcript` の拒否が表示される | Chrome | | |
-| AC-26 拒否（Brave） | 同上 | Brave | | |
-| AC-26 同時の送信（Chrome） | 2 つのジョブが処理中に 3 つ目を送り、`too_many_requests` の拒否が表示される。Chrome だけで確かめる（ブラウザに依存する経路は「AC-26 拒否」の行と同じ。設計書 7.2） | Chrome | | |
-| AC-14 ブラウザの終了（Chrome） | 受付応答の後にブラウザを終了し、Slack に記事が届く。Chrome だけで確かめる（受付応答の後はホストが終了しており、ジョブはブラウザに依存しない。設計書 7.2） | Chrome | | |
-| AC-26 4 MiB 超（Chrome） | 4 MiB を超える本文で、拡張の送る前の確認（`body-too-large`）の表示になる | Chrome | | |
-| AC-26 4 MiB 超（Brave） | 同上 | Brave | | |
-| AC-20 再インストール（chrome を指定） | バイナリを移動した後にホストの失敗が表示され、`install chrome` をやり直すと送れる。`uninstall chrome` の後は Chrome と Brave の両方でホストの失敗になる（macOS での共有） | Chrome・Brave | | |
-| AC-20 再インストール（brave を指定） | `install brave` の後に Chrome でも送れる。`uninstall brave` の後は両方のブラウザでホストの失敗になる | Chrome・Brave | | |
+| AC-01・AC-06 サーバ | サーバの起動中に `lsof -nP -a -p <サーバの pid> -iTCP` が何も表示しない（TCP のソケットを持たない）。`SIGKILL` で止めた後の次の起動が、stale なソケットを削除して起動する | macOS 26.6.2 (25G83) のターミナル | 2026-10-20 | OK |
+| AC-26 未インストール（Chrome） | ホストを install していない状態で送り、ホストの失敗（install の手順と Slack の確認）が表示される | Chrome 155.0.8059.85 (arm64), macOS 26.6.2 (25G83) | 2026-10-20 | OK。ホストの失敗の表示（The native messaging host could not be started, or it exited without replying.） |
+| AC-26 未インストール（Brave） | 同上 | Brave 1.97.59 (Chromium 155.0.8059.85, arm64), macOS 26.6.2 (25G83) | 2026-10-20 | OK。同上 |
+| AC-26 サーバ停止（Chrome） | `install chrome` の後、サーバを止めた状態で送り、未送信（サーバの起動の案内、Slack の確認なし）が表示される | Chrome 155.0.8059.85 (arm64), macOS 26.6.2 (25G83) | 2026-10-20 | OK。未送信の表示（Could not connect to the yt2column server, so nothing was sent.） |
+| AC-26 サーバ停止（Brave） | `install brave` の後、同上 | Brave 1.97.59 (Chromium 155.0.8059.85, arm64), macOS 26.6.2 (25G83) | 2026-10-20 | OK。同上 |
+| AC-24 受理（Chrome） | サーバの起動中に、ポップアップから受理される入力を送り、受付と `requestId`（選択してコピーできる。AC-28）が表示され、Slack に記事が 1 件届く（AC-25） | Chrome 155.0.8059.85 (arm64), macOS 26.6.2 (25G83) | 2026-10-20 | OK。受付の表示と requestId（0376d6dd2d8220e4） |
+| AC-24 受理（Brave） | 同上 | Brave 1.97.59 (Chromium 155.0.8059.85, arm64), macOS 26.6.2 (25G83) | 2026-10-20 | OK。受付の表示と requestId（3be7f87735637c31） |
+| AC-26 拒否（Chrome） | 字幕の書式に合わない選択範囲で `invalid_transcript` の拒否が表示される | Chrome 155.0.8059.85 (arm64), macOS 26.6.2 (25G83) | 2026-10-20 | OK。The selected text is not in the transcript panel's caption format. |
+| AC-26 拒否（Brave） | 同上 | Brave 1.97.59 (Chromium 155.0.8059.85, arm64), macOS 26.6.2 (25G83) | 2026-10-20 | OK。同上 |
+| AC-26 同時の送信（Chrome） | 2 つのジョブが処理中に 3 つ目を送り、`too_many_requests` の拒否が表示される。Chrome だけで確かめる（ブラウザに依存する経路は「AC-26 拒否」の行と同じ。設計書 7.2） | Chrome 155.0.8059.85 (arm64), macOS 26.6.2 (25G83) | 2026-10-20 | OK。The server is already processing another article. |
+| AC-14 ブラウザの終了（Chrome） | 受付応答の後にブラウザを終了し、Slack に記事が届く。Chrome だけで確かめる（受付応答の後はホストが終了しており、ジョブはブラウザに依存しない。設計書 7.2） | Chrome 155.0.8059.85 (arm64), macOS 26.6.2 (25G83) | 2026-10-20 | OK。ブラウザの終了の後も Slack に記事が届いた |
+| AC-26 4 MiB 超（Chrome） | 4 MiB を超える本文で、拡張の送る前の確認（`body-too-large`）の表示になる | Chrome 155.0.8059.85 (arm64), macOS 26.6.2 (25G83) | 2026-10-20 | OK。The selected text is too large (over 4 MiB). |
+| AC-26 4 MiB 超（Brave） | 同上 | Brave 1.97.59 (Chromium 155.0.8059.85, arm64), macOS 26.6.2 (25G83) | 2026-10-20 | OK。同上 |
+| AC-20 再インストール（chrome を指定） | バイナリを移動した後にホストの失敗が表示され、`install chrome` をやり直すと送れる。`uninstall chrome` の後は Chrome と Brave の両方でホストの失敗になる（macOS での共有） | Chrome 155.0.8059.85・Brave 1.97.59 (arm64), macOS 26.6.2 (25G83) | 2026-10-20 | OK。移動後はホストの失敗、移動先から install をやり直すと送れ、uninstall chrome の後は両方でホストの失敗 |
+| AC-20 再インストール（brave を指定） | `install brave` の後に Chrome でも送れる。`uninstall brave` の後は両方のブラウザでホストの失敗になる | Chrome 155.0.8059.85・Brave 1.97.59 (arm64), macOS 26.6.2 (25G83) | 2026-10-20 | OK。install brave の後に Chrome でも送れ、uninstall brave の後は両方でホストの失敗 |
 
 ## 6. リスク管理 (Risk Management)
 
