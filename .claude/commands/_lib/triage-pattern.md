@@ -63,13 +63,15 @@ it sits in a guarded or seldom-run branch.
 
 ### `topic`
 
-One concise English phrase naming what the finding raised (e.g. "heredoc
+One concise Japanese phrase naming what the finding raised, since it appears in
+the report to the user (e.g. "heredoc
 terminator indentation", "stale Go version in prompt"), so the summary shows
 what each finding was about at a glance.
 
 ### `replyBody`
 
-A concise English sentence:
+A concise Japanese sentence, since it is posted as the reply on GitHub
+(`CLAUDE.md`, "Language"):
 
 - valid: describe the fix (used as the reply after applying)
 - off-level: empty string (the fix phase writes it after applying)

@@ -96,8 +96,9 @@ Run this after the calling command's last commit, with a clean working tree.
    `git push -u origin <current-branch>` and
    `gh pr create --base main --head <current-branch> --title "<title>" --body-file <file>`,
    writing the body with the Write tool. Do not pause for the user to adjust the
-   title or body; the reviewer can edit them on GitHub. The title is PR_TEXT's.
-   The body:
+   title or body; the reviewer can edit them on GitHub. The title is PR_TEXT's,
+   in English (the squash commit subject is built from it). The body is in
+   Japanese (`CLAUDE.md`, "Language"):
    - summarizes the change;
    - lists the decisions made with the reviewer during this run, if any;
    - names the points the reviewer should check (for `runplan.md`, the

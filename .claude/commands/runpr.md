@@ -72,7 +72,8 @@ approval.
     ```
 
     Draft a conventional-commit title (`<type>(<scope>): <summary>`, matching
-    the style of `git log origin/main`) and a short body from the branch's
+    the style of `git log origin/main`; English, since the squash commit
+    subject is built from it) and a short Japanese body from the branch's
     commits, describing the final state, not the history. Write the body to a
     file with the Write tool. Do not pause for the user to adjust them; they can
     edit them on GitHub, and step 4 is the one question.
@@ -231,9 +232,9 @@ once rather than once per decision.
 
    When the answer merges, first move the deferred threads not chosen to an
    issue, so none is silently dropped: create one issue for this PR
-   (`gh issue create --title "Follow up review findings from PR #<number>"
-   --body-file <file>`, listing each finding's topic, the change it asks for,
-   and its thread URL), then reply to each of those threads with the issue URL
+   (`gh issue create --title "PR #<number> のレビュー指摘の追跡" --body-file
+   <file>`, written in Japanese, listing each finding's topic, the change it
+   asks for, and its thread URL), then reply to each of those threads with the issue URL
    and resolve it, as `fixpr.md` Phase 5 does. Then continue below.
 3. When the answer records PRE_MERGE:
    - Note the prepared `headRefOid` and copy the approved subject and body files

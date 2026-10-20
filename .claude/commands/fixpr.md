@@ -307,7 +307,7 @@ Agent prompt (inline `clusters` from Phase 2, the `valid` threads, and the
 >    re-approval.
 > 5. Do NOT run build checks — that happens in the next phase.
 > 6. For each thread, return `threadId`, `applied` (true/false), `replyBody`
->    (one English sentence describing exactly what was changed, for the PR
+>    (one Japanese sentence describing exactly what was changed, for the PR
 >    reply). If a cluster fix subsumed a thread, set `applied=true` and
 >    reference the structural change. For an off-level thread, the reply
 >    follows R4 (which later phase the detail belongs to, and where the
@@ -432,6 +432,8 @@ Agent prompt:
 >    <real body>
 >    EOF
 >    ```
+>    Keep the title an English conventional-commit title and write the body
+>    in Japanese (the project's language rule for GitHub).
 >    Never pass placeholder text — if you have not drafted concrete
 >    replacement text, skip the edit entirely so the real PR description is
 >    preserved.

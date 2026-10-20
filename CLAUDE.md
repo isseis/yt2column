@@ -37,6 +37,20 @@ structural consistency) and the glossary workflow live in
 [mktrans.md](.claude/commands/mktrans.md), which automates this; the glossary is
 [docs/translation_glossary.md](docs/translation_glossary.md).
 
+## Language
+
+- **Conversation in a Claude Code session: Japanese.** This includes the
+  explanation of test results, tool output, and review findings.
+- **What stays in the git repository: English** — source code, comments,
+  identifiers, string literals, and commit messages (including squash commit
+  messages). Documents under `docs/` follow "Documents" above.
+- **Prompts to AI: English** — subagent prompts, review prompts, and the
+  command definitions under `.claude/commands/`.
+- **What lives on GitHub: Japanese** — PR descriptions, issues, review replies,
+  and PR comments. The exceptions are the PR title, which stays an English
+  conventional-commit title because the squash commit subject is built from it,
+  and bot commands such as `@coderabbitai review`.
+
 ## Commands
 
 ### Build Commands
