@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `withdrawn` |
 | Created | 2026-10-20 |
 | Review date | 2026-10-20 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 本タスクの取り下げにより `withdrawn` にした（2026-10-20。[observation_gate_review.md](observation_gate_review.md)）。フェーズ 1〜5 は実装しない |
 
 ## 1. 実装の概要 (Implementation Overview)
 

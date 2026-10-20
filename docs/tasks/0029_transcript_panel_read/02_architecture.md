@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `withdrawn` |
 | Created | 2026-10-19 |
 | Review date | 2026-10-20 |
 | Reviewer | isseis |
-| Comments | 観測のゲートの結果により `draft` に戻した（2026-10-20）。形 B のページで古い版のパネルが開くこと、新しい版の一覧の `innerText` が手でコピーした形 A と違いサーバが誤った字幕をエラーなしで受理すること、長い動画で `target-id` を持たない別のパネルが開くこと、2 つの版のどちらにも動画と結びつける信号がないことが分かった（3.1.4）。本タスクを続けるかは要件のレビューで決める（[observation_gate_review.md](observation_gate_review.md)）。以前の編集上の訂正（2026-10-20。判断は変えていない）。2.2 の依存関係の図と箇条書きに、`core/types.ts` → `core/collect.ts` の型だけの import を加えた。3.6 の `OutcomeSummary` が 3.2 の `PanelUnavailableReason`（`core/collect.ts`）を参照することから既に決まっていた辺で、図が示していなかっただけである。型の置き場所は変えていない |
+| Comments | 本タスクの取り下げにより `withdrawn` にした（2026-10-20。[observation_gate_review.md](observation_gate_review.md)）。それに先立ち、観測のゲートの結果により `draft` に戻していた（2026-10-20）。形 B のページで古い版のパネルが開くこと、新しい版の一覧の `innerText` が手でコピーした形 A と違いサーバが誤った字幕をエラーなしで受理すること、長い動画で `target-id` を持たない別のパネルが開くこと、2 つの版のどちらにも動画と結びつける信号がないことが分かった（3.1.4）。本タスクを続けるかは要件のレビューで決める（[observation_gate_review.md](observation_gate_review.md)）。以前の編集上の訂正（2026-10-20。判断は変えていない）。2.2 の依存関係の図と箇条書きに、`core/types.ts` → `core/collect.ts` の型だけの import を加えた。3.6 の `OutcomeSummary` が 3.2 の `PanelUnavailableReason`（`core/collect.ts`）を参照することから既に決まっていた辺で、図が示していなかっただけである。型の置き場所は変えていない |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `9698b97` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指す。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-08）への対応は 3.11 にまとめる。
 
