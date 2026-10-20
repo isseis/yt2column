@@ -84,7 +84,10 @@ around it with your own shell commands. Work in order; do not skip a step.
    the Write tool; never through `echo`, a heredoc, or an inline argument.
 3. **Ask for approval.** Show the user the PR URL, the base branch, the CI
    result, and the full subject and body, and ask whether to merge with this
-   message. Revise it as asked. Do not merge without an explicit yes.
+   message. Revise it as asked. Do not merge without an explicit yes. When this
+   command runs inside `runpr.md`, its step 4 asks
+   this question together with the pre-merge bookkeeping and the next command,
+   and says how to re-prepare after the bookkeeping commit.
 4. **Merge.** Run
    `mergepr merge --state <state-file> --subject-file <subject-file> --body-file <body-file>`.
    It requires the PR to be still open on the prepared base, then merges with
@@ -101,8 +104,9 @@ around it with your own shell commands. Work in order; do not skip a step.
    merged, fix the reported cause and run
    `mergepr cleanup --state <state-file>`.
 5. **Report** the merge commit, what the cleanup did (including any note), and,
-   when the PR came from `/runplan`, that the next step is `/runplan`'s PR
-   checkpoint: create the next branch from the updated base branch.
+   when the PR came from `/runplan`, that the next step is to create the next
+   branch from the updated base branch (`runpr.md` step 5 does it when it
+   called this command).
 
 The PR that introduces this command must be merged by other means (for example
 `gh pr merge --squash`), because `main` does not yet contain `mergepr`.

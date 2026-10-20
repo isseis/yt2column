@@ -33,16 +33,40 @@ This loop has no natural end: a push triggers a fresh review, and a review
 returns findings whenever it is asked. Stop by policy, not by exhausting
 findings.
 
-- **Round cap**: apply at most two fixpr rounds to the same PR. From the third
-  round, act on `must-fix` only and leave the rest.
+- **Round**: one fixpr run on the PR. This run's round number is one more than
+  the number of fixpr commits already on the branch
+  (`git log --format=%s origin/main..HEAD`, counting the subjects equal to
+  `fix: address PR #NUMBER review comments`, the Phase 4 commit subject).
+- **Round cap**: it applies only to threads an automated reviewer opened (the
+  thread's first comment has a `Bot` author; Phase 1 records it as
+  `authorType`). Their findings are fixed in rounds 1 and 2. From round 3, only
+  their `must-fix` findings are fixed; their `worth-fixing` findings are
+  `deferred`: left unresolved, not replied to, and listed in the Final report,
+  so the human decides (`runpr.md` step 4 asks whether to fix each one now or
+  move it to an issue). The cap exists to stop the automated review from
+  feeding itself; it never silences a person.
+- **People are always answered**: a thread a person opened (`User` author) is
+  handled in every round. It is fixed when valid, or answered with the reason
+  when not, whatever the round.
+- **Calibrate before deferring**: from round 3, Phase 2 re-checks each
+  automated `worth-fixing` finding against the severity calibration in
+  `_lib/triage-pattern.md` before it is deferred. A finding whose worst outcome
+  is a defect — a test that cannot fail for its stated reason, an acceptance
+  criterion left unverified, a correctness or security gap — is `must-fix`,
+  however small the change looks.
+- **Caller override**: when the caller names threads to fix regardless of the
+  cap (`runpr.md` step 4, the ones the user chose), fix them in this round. The
+  caller passes their thread IDs in its instructions in this session; the
+  command's own argument stays the PR number.
 - **Severity floor**: once every remaining finding is `no-harm` (cosmetic or
   invalid), the review has converged — stop editing and merge.
 - **Batch**: push once per round; a push per finding triggers a review per
   finding.
 - **Accept, don't chase**: a finding that is a mirror case of a rule already
   fixed is closed by generalizing that rule (Phase 3), not by another
-  per-instance patch. If it recurs after that, record it as accepted risk or a
-  new issue and merge; do not reopen the same rule again.
+  per-instance patch. If it recurs after that, the round cap handles it: from
+  round 3 it is deferred, so the human chooses between fixing it and an issue.
+  Do not reopen the same rule again.
 - The Final report states whether the round was substantive or recurring churn
   and whether the floor is reached.
 
@@ -138,7 +162,7 @@ Agent prompt:
 >             id
 >             isResolved
 >             comments(first:10) {
->               nodes { id databaseId body path line url author { login } }
+>               nodes { id databaseId body path line url author { __typename login } }
 >             }
 >           }
 >         }
@@ -154,11 +178,15 @@ Agent prompt:
 >    `body` field, prefixing each with `@author: `. On busy threads there may be
 >    more than 10 comments; `body` will only contain the first 10 fetched.
 >    The `threadId` is the thread node's `id` (not the comment id).
+>    Set `authorType` to the FIRST comment's `author.__typename` (`"Bot"` or
+>    `"User"`; any other value, or a missing author, is `"User"`, so a thread
+>    whose author is unknown is never subject to the round cap).
 > 5. Set `capHit=true` if `pageInfo.hasNextPage` is true (more threads exist
 >    beyond the 100-node cap); otherwise `false`.
 > 6. Reply with only this JSON: `{"found": true, "owner": "...", "repo": "...",
 >    "number": N, "capHit": bool, "threads": [{"threadId": "...", "databaseId":
->    N, "body": "...", "path": "...", "line": N, "url": "..."}]}`
+>    N, "authorType": "Bot|User", "body": "...", "path": "...", "line": N,
+>    "url": "..."}]}`
 
 If `found=false`: report "No PR found" and stop — do not run further phases.
 If `threads` is empty: report "No unresolved review threads — nothing to do"
@@ -168,6 +196,14 @@ hit, so threads beyond it are invisible to this run; a re-run after resolving
 this batch will pick up the remainder.
 
 ## Phase 2 — Triage (model: default)
+
+Compute this run's round number first (Convergence policy). From round 3, add
+to the prompt below: "This is round <N> on this PR, past the round cap. For
+every thread with authorType Bot that you rate worth-fixing, re-check the
+rating against the calibration rule in `_lib/triage-pattern.md`: a finding
+whose worst outcome is a defect (a test that cannot fail for its stated reason,
+an acceptance criterion left unverified, a correctness or security gap) is
+must-fix."
 
 Agent prompt (inline the fetched `threads` JSON from Phase 1):
 
@@ -208,7 +244,16 @@ Agent prompt (inline the fetched `threads` JSON from Phase 1):
 > "structuralChange": "..."}]}`
 
 Split the returned `threads` into `valid`, `off-level`, `invalid`, `unclear`
-by `verdict`. Report the counts and cluster count before continuing.
+by `verdict`. Then apply the Convergence policy from round 3, to `valid` and
+`off-level` threads with `authorType="Bot"` that the caller did not name to fix
+now:
+- `severity="worth-fixing"`: move to `deferred` (not fixed, not replied to).
+- `severity="no-harm"`: move to `answered`. They are not fixed; Phase 5 replies
+  to each with "軽微な指摘のため、ラウンド上限を超えた今回は変更しません。" and
+  resolves it, so a cosmetic fix does not trigger another review round.
+
+Report the counts (including `deferred` and `answered`) and cluster count before
+continuing.
 
 ## Phase 3 — Fix (model: default)
 
@@ -270,7 +315,7 @@ Agent prompt (inline `clusters` from Phase 2, the `valid` threads, and the
 >    re-approval.
 > 5. Do NOT run build checks — that happens in the next phase.
 > 6. For each thread, return `threadId`, `applied` (true/false), `replyBody`
->    (one English sentence describing exactly what was changed, for the PR
+>    (one Japanese sentence describing exactly what was changed, for the PR
 >    reply). If a cluster fix subsumed a thread, set `applied=true` and
 >    reference the structural change. For an off-level thread, the reply
 >    follows R4 (which later phase the detail belongs to, and where the
@@ -330,12 +375,15 @@ run Phase 5 or 6.
 
 Build the candidate list yourself (not via an agent) before invoking this phase:
 
-- Take every thread where `verdict="invalid"`, plus every thread where
-  `verdict` is `"valid"` or `"off-level"` AND `applied=true` in the Phase 3
-  fixes.
-- For each, resolve `replyBody`: use the Phase 3 fix's `replyBody` if present
-  (for applied valid and off-level threads), else the Phase 2 triage
-  `replyBody`.
+- Take every thread where `verdict="invalid"`, every `answered` thread (Phase
+  2, with the reply given there), plus every thread where `verdict` is
+  `"valid"` or `"off-level"` AND `applied=true` in the Phase 3 fixes.
+- For each, resolve `replyBody`: for an `answered` thread it is always the
+  fixed sentence `軽微な指摘のため、ラウンド上限を超えた今回は変更しません。`,
+  overriding the Phase 2 `replyBody` (which may be empty or differ), so an
+  `answered` thread is never set aside as "skipped" for an empty `replyBody`;
+  otherwise use the Phase 3 fix's `replyBody` if present (for applied valid
+  and off-level threads), else the Phase 2 triage `replyBody`.
 - Look up each thread's `databaseId` and `url` from the Phase 1 fetch data.
 - Threads with no `databaseId` cannot be replied to automatically — set them
   aside for the "skipped" list in your final report; do not send them to the
@@ -395,6 +443,8 @@ Agent prompt:
 >    <real body>
 >    EOF
 >    ```
+>    Keep the title an English conventional-commit title and write the body
+>    in Japanese (the project's language rule for GitHub).
 >    Never pass placeholder text — if you have not drafted concrete
 >    replacement text, skip the edit entirely so the real PR description is
 >    preserved.
@@ -430,6 +480,10 @@ the user with **both** of the following — bare counts alone are not enough:
    documents and the later-phase documents reset with them), so the user knows
    it needs re-approval before the next phase proceeds.
 
-3. **Skipped threads**: list every thread left out of Phase 5 (unclear
+3. **Deferred threads**: list every `deferred` thread (round cap) with its
+   `threadId`, `topic`, and URL. A caller (`runpr.md`) puts them to the user;
+   run on its own, tell the user they wait for a decision.
+
+4. **Skipped threads**: list every other thread left out of Phase 5 (unclear
    verdict, valid- or off-level-but-unapplied, missing `databaseId`, or empty
    `replyBody`) with its URL so the user can resolve it manually.

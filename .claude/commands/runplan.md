@@ -1,5 +1,5 @@
 ---
-description: "Implement the next phase group of an approved implementation plan"
+description: "Implement the next phase group of an approved implementation plan and open its PR at a checkpoint"
 argument-hint: "<task>"
 ---
 
@@ -9,7 +9,8 @@ argument-hint: "<task>"
 > this body's parts that need editing are the domain-specific invariant examples
 > in step 5 (cache keys, `--dry-run` side effects, temporary-file
 > cleanup) and the Go test-helper rules. The review step follows
-> `.claude/commands/_lib/review-subagent-pattern.md`.
+> `.claude/commands/_lib/review-subagent-pattern.md`; the branch setup and the PR
+> handoff follow `.claude/commands/_lib/task-pr-handoff.md`.
 >
 > Before starting an implementation session, check the `**実装モデル要件**` field of
 > the `### PR-N 作成ポイント` marker covering the work you are about to pick up (see
@@ -24,17 +25,26 @@ Work in order.
 
 1. Identify the target task per `docs/dev/developer_guide/task_identification.md`.
 
+1.5. Prepare the branch before reading the plan, so it is read from the branch
+   the work lands on: follow
+   `.claude/commands/_lib/task-pr-handoff.md`, Part A, with **TASK_DIR** = the
+   target task directory and **REPORT** = the step 8 summary. On a branch that
+   already carries the earlier phase groups of the PR in progress, Part A keeps
+   it.
+
 2. Read `03_implementation_plan.md`. If the document status is not `approved`, stop and report.
 
 2.5. Check whether PR boundary design is needed.
-   - Count `### フェーズ` headers in the plan. If there are 2 or more and no `### PR-` sections exist, stop and report: PR boundary design is missing. Ask the user to run `/mkplan2` manually and review its output before re-running `/runplan`. Do not invoke `/mkplan2` yourself.
+   - Count `### フェーズ` headers in the plan. If there are 2 or more and no `### PR-` sections exist, stop and report: PR boundary design is missing (the plan predates `/mkplan` designing them). Ask the user to run `/mkplan2`, which opens a PR for the reviewer, before re-running `/runplan`. Do not invoke `/mkplan2` yourself.
    - If PR markers already exist, skip this step and continue.
 
 3. Read `01_requirements.md`, `02_architecture.md` (both in the target task directory), and `docs/dev/developer_guide/test_organization.md`.
 
 4. Select the next unit of work from `03_implementation_plan.md` checkboxes (`[ ]` not started, `[x]` done, `[-]` skipped).
 - If all phases and all PR markers are complete, skip to step 8 and follow the "If all phases are complete" bullet.
-- Scan forward from the last completed item. If the next unchecked items are inside a `### PR-N 作成ポイント` section (PR checkpoint checkboxes), treat this as a PR checkpoint — go to step 5a instead of step 5.
+- Scan forward from the last completed item. If the next unchecked items are inside a `### PR-N 作成ポイント` section (PR checkpoint checkboxes), treat this as a PR checkpoint:
+  - If its `PR を作成した` box is already checked, the PR exists (its URL is on that line). Check its state with `gh pr view <url> --json state`. If it is open, stop and tell the user to review it and run `/runpr`. If it is merged, `/runpr` has not done its bookkeeping on this branch: stop and report rather than open a second PR. If it is `CLOSED` (not merged), stop and report the cause to the user; do not create a PR, because a second PR from the same branch would leave the closed PR's URL in the plan.
+  - Otherwise go to step 5a instead of step 5.
 - Otherwise, select the next implementation group: use one phase by default unless it cannot pass `make test` alone (e.g. stub-only or tightly coupled); then extend the group until it can pass. Stop the group at the next `### PR-N 作成ポイント` boundary — do not include the PR checkpoint checkboxes in the implementation group. Briefly note the reason for any grouping before starting work.
 
 4.5. Record the starting commit of the phase group: `PHASE_START=$(git rev-parse HEAD)`. Keep it until the reviews in steps 7, 7.5, and 7.7 are done, and pass `${PHASE_START}..HEAD` as their commit range (`coderabbit` takes it as `--base-commit`), so the range covers exactly this phase group's commits and not the previous group's.
@@ -48,7 +58,9 @@ Work in order.
 - When removing multiple scattered code sites (e.g. several test functions), delete them one at a time using the exact text read from the file. Do not script bulk deletion (e.g. a brace-counting loop); nested literals make such heuristics over-consume adjacent code. After each removal, check IDE diagnostics for unintended breakage.
 - For any newly authored or substantially rewritten artifact in this group (runbook, command example, table, prose, translation, design-doc section), confirm it is correct before committing — do not rely on absence-search of removed terms. Run any documented command and check its exit code and output; cite the source implementation that prose describes; diff a translation against its source. For a design document such as an ADR, also keep the body on the current system and confine removed-design rationale to a bounded history note rather than interleaving it.
 - **Before committing each group, self-check** (catches common defects before the step 7 review):
-  - **If the implementation approach diverges from `02_architecture.md` or the plan step descriptions** (e.g., a simpler alternative is adopted, an API turns out to have compatibility issues): update (1) the plan step *description* text (not only the checkbox) and (2) any architecture document section that no longer matches in the same commit, and (3) the PR description if one exists for this group. A divergence that is only marked `[x]` without updating the description text will appear as a plan/code inconsistency to reviewers and generate stale review threads.
+  - **If the implementation approach diverges from `02_architecture.md`, `01_requirements.md`, or the plan step descriptions** (e.g., a simpler alternative is adopted, an API turns out to have compatibility issues), classify the divergence as `docs/dev/developer_guide/requirements_process.md` "Editing an approved document" does:
+    - **Editorial correction** (the documents say the same thing, but a name or a step description is stale): update (1) the plan step *description* text (not only the checkbox), (2) any architecture document section that no longer matches, and (3) the PR description if one exists, in the same commit, and record the correction in the document's `Comments`. A divergence that is only marked `[x]` without updating the description text will appear as a plan/code inconsistency to reviewers and generate stale review threads.
+    - **Decision change** (what to build or why changes): stop before implementing it, and settle it with the human: follow `.claude/commands/_lib/settle-decisions.md` with **SCOPE** = this divergence and **RECORD** = the changed document's `Comments` (the decision, the date, and that the reviewer approved it in this session). On the reviewer's answer, update the document, and the later task documents whose content depends on the changed decision, in the same commit; keep their status `approved` (the answer is the re-approval), record it in each changed document's `Comments`, and name the change in the PR body. Do not implement a decision change the reviewer has not approved.
   - No planning-doc references (`AC-01`, `F-001`) in source comments or strings — put the *why* in plain English.
   - Validators/parsers/env-checks have a happy-path test (all-valid → no error), not only failure cases.
   - A helper guarding a precondition calls its own guard internally; callers shouldn't have to.
@@ -61,16 +73,31 @@ Work in order.
 - When complete, update checkboxes (`[x]` done, `[-]` skipped with a note) and commit.
 
 5a. **PR checkpoint** (reached when step 4 directed you here instead of step 5).
+- Confirm the current branch is the PR group in progress (`_lib/task-pr-handoff.md`, Part A step 3, second bullet: a convention branch for this task with `/runplan` commits beyond `origin/main` and no PR). Otherwise stop and report; do not push or open a PR from another branch.
 - Verify the green gate (defined in `_context.md`) passes. Fix any failures before continuing.
+- If no later `### PR-N 作成ポイント` marker remains (the task's final PR), first do the end-of-task check of step 8 ("If all phases are complete"): every AC in `01_requirements.md` is satisfied by the implementation and has at least one `test` or `static` verification, as labeled in the plan. Fix any gap before opening the PR, and report what you checked.
 - Mark the first PR checkpoint checkbox (the green gate confirmation line) as `[x]` and commit.
-- Push the current branch with an upstream tracking reference (e.g. `git push -u origin HEAD`) so `gh pr create` does not prompt interactively for where to push.
-- Run `gh pr create --title "<推奨タイトル>" --body "<レビュー観点を含む本文>"`, using the `推奨タイトル` value from the `### PR-N 作成ポイント` section as `--title` and including the `レビュー観点` items in `--body`. Use explicit flags to avoid interactive prompts.
-- Output the PR URL, mark the second checkbox (`PR を作成した`) as `[x]`, commit, and `git push` so this update is included in the PR before it is merged.
-- Pause and ask the user: "PR-N を作成しました: <URL>。`/mergepr` でマージしたらお知らせください。" PRs are squash-merged (`_context.md`, "PR merge method").
-- Wait for the user to confirm the PR is merged. Then:
-  - Update the local base branch so it includes the merge (`/mergepr` already leaves it checked out and up to date; otherwise `git checkout main && git pull --ff-only`), then create a new branch for the next group of work from it (e.g. `git checkout -b <feature-branch>-<N+1>`). Do not branch from, or keep committing to, the merged branch: after a squash merge its commits are not ancestors of `main`, so a branch based on it carries the pre-squash commits into the next PR.
-  - Mark the remaining PR checkpoint checkboxes (`PR がマージされた` and `次のブランチへ切り替えた`) as `[x]` and commit.
-- Return to step 4.
+- Open the PR and hand it over: follow `.claude/commands/_lib/task-pr-handoff.md`,
+  Part B, with **TASK_DIR** and **REPORT** as in step 1.5, and:
+  - **CHECKS** = the green gate verified above (the checkbox commit after it
+    changes only the plan, so it needs no rerun);
+  - **LOCAL_REVIEW** = `done` — step 7.7 reviewed each phase group of this PR.
+    When step 7.7 could not run (the CodeRabbit CLI failed), it records
+    `CodeRabbit local review: not run` in that group's checkbox commit message.
+    If `git log origin/main..HEAD` shows that line, run
+    `.claude/commands/_lib/coderabbit-local-review.md` now with **BASE** =
+    `$(git merge-base origin/main HEAD)`, **SCOPE** = branch, **SUMMARY** =
+    REPORT;
+  - **PR_TEXT** = the PR marker's `推奨タイトル` as the title, and its
+    `レビュー観点` in the body;
+  - **AFTER_CREATE** = mark the second checkbox (`PR を作成した`) as `[x]` and
+    append the PR URL to that line, commit, and `git push`, so the update is in
+    the PR before it is merged.
+- Then stop. Do not wait for the merge: the reviewer runs `/runpr <PR>`, which
+  merges the PR, marks the remaining checkboxes (`PR がマージされた`,
+  `次のブランチへ切り替えた`), and switches to the next branch. Run `/runplan`
+  again for the next PR. PRs are squash-merged (`_context.md`, "PR merge
+  method").
 
 6. Run `make deadcode`. Remove functions made unreachable by this phase group; keep intentional scaffolding for future phases or tasks. If changes were made, run `make fmt && make test && make lint` and commit.
 
@@ -163,9 +190,9 @@ Test-review checklist (use verbatim as evaluation criteria in the step 7.5 promp
 - [ ] Each test asserts observable behavior rather than restating an
       implementation detail.
 
-7.7. CodeRabbit review and triage. Run it after step 7.5, so CodeRabbit reviews the code and tests as they stand after the subagent-review fixes. Follow `.claude/commands/_lib/coderabbit-local-review.md` with **BASE** = `${PHASE_START}`, **SCOPE** = phase group, **SUMMARY** = the step 8 summary.
+7.7. CodeRabbit review and triage. Run it after step 7.5, so CodeRabbit reviews the code and tests as they stand after the subagent-review fixes. Follow `.claude/commands/_lib/coderabbit-local-review.md` with **BASE** = `${PHASE_START}`, **SCOPE** = phase group, **SUMMARY** = the step 8 summary. If the CodeRabbit CLI fails and the review does not run, put the line `CodeRabbit local review: not run` in the next commit's message (step 5a reads it).
 
 8. Decide whether to continue or finish.
 - If implementation ran this iteration: summarize implementation, verified ACs, assumptions, and deferred items, plus the CodeRabbit result (run or failed; counts of fixed / rejected / deferred findings and the reason for each rejection).
-- If phases remain: ask "Shall I continue with the next phase group?" — return to step 4 if agreed, otherwise report status and stop.
-- If all phases are complete: verify every AC in `01_requirements.md` is satisfied by the implementation and has at least one test. Report the final status and any gaps.
+- If phases remain: return to step 4 without asking. The next unit is either another phase group of the same PR, or its PR checkpoint (step 5a), where this command opens the PR and stops; the reviewer's checkpoint is the PR review, not a question between phase groups.
+- If all phases are complete: verify every AC in `01_requirements.md` is satisfied by the implementation and has at least one `test` or `static` verification, as labeled in the plan's Acceptance Criteria Verification section. Report the final status and any gaps. If the plan has no PR markers (a single-phase plan), open the PR with `_lib/task-pr-handoff.md` Part B as step 5a does, with these differences: first check `gh pr view` and `git rev-list --count origin/main..HEAD`, and stop if the branch already has a PR or has no commits; the title is `feat(<task-id>): <concise English title>` and the body names the plan's main review points; **AFTER_CREATE** = append to the plan's checklist section (§6) the single-PR record `- [x] PR を作成した: <PR URL>` and `- [ ] PR がマージされた`, commit, and `git push`. `/runpr` reads that record: the PR is the task's final plan PR, so NEXT is none and the merge closes the issue.

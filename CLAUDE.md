@@ -37,6 +37,20 @@ structural consistency) and the glossary workflow live in
 [mktrans.md](.claude/commands/mktrans.md), which automates this; the glossary is
 [docs/translation_glossary.md](docs/translation_glossary.md).
 
+## Language
+
+- **Conversation in a Claude Code session: Japanese.** This includes the
+  explanation of test results, tool output, and review findings.
+- **What stays in the git repository: English** — source code, comments,
+  identifiers, string literals, and commit messages (including squash commit
+  messages). Documents under `docs/` follow "Documents" above.
+- **Prompts to AI: English** — subagent prompts, review prompts, and the
+  command definitions under `.claude/commands/`.
+- **What lives on GitHub: Japanese** — PR descriptions, issues, review replies,
+  and PR comments. The exceptions are the PR title, which stays an English
+  conventional-commit title because the squash commit subject is built from it,
+  and bot commands such as `@coderabbitai review`.
+
 ## Commands
 
 ### Build Commands
@@ -59,15 +73,28 @@ structural consistency) and the glossary workflow live in
 ### Claude Commands (`.claude/commands/`)
 Project-specific values these commands depend on are defined once in
 [_context.md](.claude/commands/_context.md).
-- `/mkarch <task>` - Create `02_architecture.md` (requires approved requirements)
-- `/mkplan <task>` - Create `03_implementation_plan.md` (requires approved architecture)
-- `/mkplan2 <task>` - Embed PR boundaries into an approved implementation plan
-- `/runplan <task>` - Implement the next phase group of an approved plan
+- `/mkreq <issue> [task]` - Create `01_requirements.md` from a GitHub issue and open its PR
+- `/mkarch <task>` - Create `02_architecture.md` (requires approved requirements) and open its PR
+- `/mkplan <task>` - Create `03_implementation_plan.md` with its PR boundaries (requires approved architecture) and open its PR
+- `/mkplan2 <task>` - Embed PR boundaries into an approved plan that lacks them (plans written before `/mkplan` did it) and open its PR
+- `/runplan <task>` - Implement the phase groups of an approved plan up to the next PR checkpoint, then open the PR
+- `/runpr [PR | branch | task]` - Drive a PR through CodeRabbit and CI, record its bookkeeping (a document's approval, a plan checkpoint), merge it, and run the next command; for a standalone change it also creates the PR
 - `/weakreview [range]` - Second-pass review of work done by a lower-capability model
 - `/fixpr [PR]` - Resolve unresolved PR review threads
 - `/mergepr [PR]` - Squash-merge a PR with a generated commit message and clean up its branch
 - `/japrose <file>` - Japanese prose-quality pass
 - `/mktrans <file>` - Japanese ⇄ English translation
+
+Each task PR is handled by two commands. The command that produces it —
+`/mkreq`, `/mkarch`, `/mkplan`, `/mkplan2`, or `/runplan` — works on its own
+feature branch, reviews its work (subagent review, `japrose` for documents,
+local CodeRabbit), opens the PR, pings the reviewer, and stops. `/mkreq`,
+`/mkarch`, and `/mkplan` first ask the human about the decisions their input
+leaves open; `/runplan` asks when implementation meets a decision change. After reviewing, the reviewer runs `/runpr`, which drives
+it: it waits for CodeRabbit and CI and resolves the threads with `/fixpr`. It
+then asks one question: record the bookkeeping (for a document, its
+`approved` status), merge with `/mergepr`, and run the next command, which opens
+the next PR and stops again.
 
 ### Extension Commands
 
@@ -332,7 +359,7 @@ Only the conventions a linter does not check are worth stating:
 When implementing new features, follow the process documented in [Requirements Process Guide](docs/dev/developer_guide/requirements_process.md).
 
 **Quick summary:**
-1. Create `01_requirements.md` with explicit acceptance criteria
+1. Create an issue, then run `/mkreq <issue>` to create `01_requirements.md` with explicit acceptance criteria
 2. Create `02_architecture.md` with high-level design (Mermaid diagrams)
 3. Create `03_implementation_plan.md` with progress tracking (checkboxes) and AC traceability
 4. Write tests for each acceptance criterion

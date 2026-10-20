@@ -4,7 +4,8 @@ description: "Internal: shared local CodeRabbit review pattern (not a command)"
 
 # Shared pattern: local CodeRabbit CLI review and triage
 
-`runplan.md` (step 7.7) and `runchange.md` both review committed changes with the
+`runplan.md` (step 7.7), `runpr.md` (step 1), and `_lib/task-pr-handoff.md` (Part B)
+review committed changes with the
 `coderabbit` CLI before the PR-side review, then triage and fix the findings.
 This file defines the procedure once. A calling command invokes it by saying
 "follow `_lib/coderabbit-local-review.md`" and supplying the inputs below.
@@ -76,6 +77,11 @@ on every change, so run it without asking the user.
    something" is not a reason for another run.
 
 5. After triage, run `coderabbit review findings --clear` so stored findings are
-   not surfaced again. Record each rejected finding and its reason (a line in the
-   commit message of the fix commit, or in SUMMARY) so the later PR-side
-   CodeRabbit review and `/fixpr` do not re-litigate it.
+   not surfaced again. Record each rejected finding and its reason, and each
+   `deferred` or `unclear` finding, as a `CodeRabbit local review:` line in the
+   message of the fix commit, or of the next commit on the branch when there is
+   no fix commit (and in SUMMARY). The record is not passed to the PR-side
+   CodeRabbit review or to `/fixpr`, so a finding rejected locally may be raised
+   again there and is reclassified there; the open ones reach the PR
+   body even when the PR is opened in a later session
+   (`_lib/task-pr-handoff.md` Part B step 3).

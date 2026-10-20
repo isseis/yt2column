@@ -1,5 +1,5 @@
 ---
-description: "Embed PR boundaries into an approved implementation plan"
+description: "Embed PR boundaries into an approved implementation plan that lacks them and open its PR for review"
 argument-hint: "<task>"
 ---
 
@@ -9,16 +9,24 @@ argument-hint: "<task>"
 > there too; this body's parts that need editing are the Go-specific design
 > principles (the `internal/`→`cmd/` ordering rule, the build-independence gate).
 > The review step follows `.claude/commands/_lib/review-subagent-pattern.md`.
+> The branch setup and the PR handoff follow `.claude/commands/_lib/task-pr-handoff.md`.
 
 Your goal is to design PR boundaries for an existing `03_implementation_plan.md` and embed them directly into the document.
+
+`mkplan.md` runs steps 4, 5, 6, 7, 8, and 9 of this command (not 8.5, 9.5, or later) as its step 8.5, so a plan it creates already has its PR boundaries. Run this command on its own only for an approved plan without them (one written before `mkplan.md` did this), or when the user asks to redesign them.
 
 Work in the following order.
 
 1. Identify the target task directory by following the rules in `docs/dev/developer_guide/task_identification.md`.
 
+1.5. Prepare the branch: follow `.claude/commands/_lib/task-pr-handoff.md`, Part A,
+   with **TASK_DIR** = the target task directory, **REPORT** = the step 12
+   report, and the task-document values of the other inputs.
+
 2. Read `03_implementation_plan.md` in the target task directory.
    - If the document status is not `approved`, stop and report. PR boundary design requires an approved plan.
    - If `### PR-` sections already exist, stop and report that PR boundaries are already defined. Do not overwrite them unless the user explicitly asks.
+   - If the plan has fewer than two `### フェーズ` headers, stop and report: a single-phase plan has no PR boundaries, and `/runplan` opens its one PR.
 
 3. Read `02_architecture.md` and `01_requirements.md` in the target task directory to understand the component structure and acceptance criteria.
 
@@ -94,13 +102,17 @@ Work in the following order.
    …
    ```
 
+8.5. Set the plan's status back to `draft`, with `Review date` and `Reviewer` `-` and the past approval kept in `Comments` as history (`docs/dev/developer_guide/requirements_process.md`, "Editing an approved document"): adding PR boundaries reorders and renumbers steps and splits the work, which is a decision the reviewer approves (`docs/dev/developer_guide/requirements_process.md`, "Editing an approved document"). Record in `Comments` that the PR boundaries were added on YYYY-MM-DD. Then commit the inserted PR boundaries (the first version) with a message that explains the PR grouping rationale, so the review fixes that follow are visible as their own diff. `/runpr` offers the approval and `/runplan` as the next command at the merge.
+
 9. Run the critical-review subagent procedure in `.claude/commands/_lib/review-subagent-pattern.md` with these inputs:
     - **ARTIFACT**: the PR boundary design.
     - **PERSONA**: an experienced senior engineer and senior SRE. Direct it to surface PRs that are too large to review, PRs that cannot be built independently, missing risk isolation, and cross-references that were not updated after renumbering. Also direct it to assess whether each PR's `実装モデル要件` label is justified by the steps that PR covers — both an over-labelled PR (frontier tier with no matching trigger) and an under-labelled one (a high-risk or unsettled step labelled `standard`).
     - **FILES**: the implementation plan document, the architecture document, and the requirements document (paths in `_context.md`), as resolved absolute-path strings.
     - **CRITERIA**: every item from the PR boundary review checklist below, copied verbatim.
 
-10. Commit the implementation plan document with a message that explains the PR grouping rationale, only after all review passes are complete and all Critical and Major issues are resolved.
+9.5. Run the Japanese prose-quality pass by invoking `japrose` (`.claude/commands/japrose.md`) on the implementation plan document, after step 9's Critical and Major issues are resolved. It covers the Japanese text this command adds (`レビュー観点`, `判定理由`, the `3.2 PR 構成` table). As a sub-step it does not commit.
+
+10. Commit the fixes from steps 9 and 9.5, only after all review passes are complete and all Critical and Major issues are resolved.
 
 **PR boundary review checklist (use verbatim as evaluation criteria in the subagent prompt above):**
 - [ ] Every `### PR-N 作成ポイント` section appears after all steps it covers.
@@ -117,4 +129,9 @@ Work in the following order.
 - [ ] `推奨タイトル` values are valid conventional commit titles in English.
 - [ ] `レビュー観点` items are specific and meaningful — not generic placeholders.
 
-When finished, provide a concise summary of the PR grouping decisions and any assumptions made.
+11. Open the PR and hand it over: follow `.claude/commands/_lib/task-pr-handoff.md`,
+    Part B, with the same inputs as step 1.5.
+
+12. Report: a concise summary of the PR grouping decisions and any assumptions
+    made, the PR URL, the review results, and the next action for the reviewer
+    (review the PR, then run `/runpr <PR>`).

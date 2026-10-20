@@ -46,6 +46,8 @@ what changes under which condition:
 | Design handoff document | `design_handoff.md` — design-level review concerns raised on the requirements document; the architecture document records how each item is handled (written by `fixpr.md`) |
 | Implementation handoff document | `implementation_handoff.md` — implementation-level review concerns raised on the requirements or architecture document; the implementation plan records how each item is handled (written by `fixpr.md`) |
 | Document status values | `draft` → `approved`; `withdrawn` for every document of a task withdrawn after review (see the requirements process guide, "Document Status Format") |
+| Feature branch name | `<GitHub user name>/<slug>-<NN>`, where `<slug>` is the task directory name with each `_` replaced by `-`, and `-<NN>` is appended once: a two-digit sequence number starting at `01` (e.g. `isseis/0027-remove-context-menu-01`). `_lib/task-pr-handoff.md` Part A chooses `NN` for the commands that open a task PR, and `runpr.md` step 5 names the next branch after a merge |
+| Reviewer ping | After a task-document command (`mkreq.md`, `mkarch.md`, `mkplan.md`, `mkplan2.md`) or `runplan.md` opens its PR (`_lib/task-pr-handoff.md` Part B), notify the human reviewer with the `PushNotification` tool (the PR author cannot be requested as a GitHub reviewer of their own PR) and repeat the PR URL and the next action in the final report, which is the only channel when the tool is unavailable or the notification is not sent |
 | PR merge method | Squash merge, run with `/mergepr`. The squash commit is the only commit of a PR that reaches `main`, so its message carries what CLAUDE.md requires commit messages to record |
 | Document language | Japanese |
 | Translation glossary | `docs/translation_glossary.md` |
@@ -58,7 +60,7 @@ PR boundary markers embedded in the implementation plan use these labels:
 - Section heading: `### PR-N 作成ポイント: <scope label in English>`
 - Fields: `**対象ステップ**`, `**推奨タイトル**`, `**レビュー観点**`, `**実装モデル要件**`, `**判定理由**`
 - Conventional commit scope format: `feat(<task-id>): <concise English title>`
-- Implementation model tiers (`**実装モデル要件**` values): `frontier-required`, `frontier-recommended`, `standard` — assigned by `mkplan2.md` (step 4, "Model requirement"), read by `runplan.md` when choosing the implementing model
+- Implementation model tiers (`**実装モデル要件**` values): `frontier-required`, `frontier-recommended`, `standard` — assigned by `mkplan2.md` (step 4, "Model requirement"; `mkplan.md` runs it as its step 8.5), read by `runplan.md` when choosing the implementing model and shown in the merge question when `/runpr` offers the next `/runplan`
 
 ---
 

@@ -4,7 +4,7 @@ description: "Internal: shared review-finding triage scales (not a command)"
 
 # Shared pattern: review-finding triage
 
-`fixpr.md` (Phase 2) and `_lib/coderabbit-local-review.md` (used by `runplan.md` step 7.7 and `runchange.md`) both classify review findings
+`fixpr.md` (Phase 2) and `_lib/coderabbit-local-review.md` (used by `runplan.md` step 7.7, `runpr.md`, and `_lib/task-pr-handoff.md`) both classify review findings
 on the same scales. This file defines the scales once. A calling command invokes
 it by saying "follow `_lib/triage-pattern.md`" and supplies the findings; it
 keeps its own input and output shapes (thread JSON, reply JSON, clusters).
@@ -63,13 +63,15 @@ it sits in a guarded or seldom-run branch.
 
 ### `topic`
 
-One concise English phrase naming what the finding raised (e.g. "heredoc
-terminator indentation", "stale Go version in prompt"), so the summary shows
-what each finding was about at a glance.
+One concise Japanese phrase naming what the finding raised, since it appears in
+the report to the user (e.g. 「ヒアドキュメント終端のインデント」、
+「プロンプト内の古い Go バージョン」), so the summary shows what each finding
+was about at a glance.
 
 ### `replyBody`
 
-A concise English sentence:
+A concise Japanese sentence, since it is posted as the reply on GitHub
+(`CLAUDE.md`, "Language"):
 
 - valid: describe the fix (used as the reply after applying)
 - off-level: empty string (the fix phase writes it after applying)
