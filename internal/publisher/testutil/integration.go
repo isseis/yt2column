@@ -145,7 +145,7 @@ const (
 func IntegrationArticles(at time.Time) (single, split writer.Article) {
 	marker := at.UTC().Format(integrationMarkerLayout)
 	single = integrationArticle("yt2column integration test " + marker + " (single message)")
-	single.Body = integrationBody(integrationMessageRunes - utf8.RuneCountInString(integrationHeader(single)))
+	single.Body = integrationBody(integrationMessageRunes - utf8.RuneCountInString(integrationFraming(single)))
 	split = integrationArticle("yt2column integration test " + marker + " (split)")
 	split.Body = integrationBody(integrationSplitBodyRunes)
 	return single, split
@@ -162,21 +162,28 @@ func integrationArticle(title string) writer.Article {
 	}
 }
 
-// integrationHeader is the text SlackWebhookPublisher puts before the body of
-// a, mirroring the unexported publisher.renderArticle for a non-empty
-// ModelVersion and no run usage (so the cost line is the unknown form).
-// TestIntegrationArticles fails if the two drift apart.
-func integrationHeader(a writer.Article) string {
-	return fmt.Sprintf("# %s\n\n- Model: %s\n- Model version: %s\n- Estimated cost: unknown\n\n", a.Title, a.Model, a.ModelVersion)
+// integrationFraming is the text SlackWebhookPublisher puts around the body of
+// a: the heading line and a blank line before it, and a blank line and the
+// footnote after it. It mirrors the unexported publisher.renderSlackPost for no
+// channel name, no step output, and no run usage (so the cost is the unknown
+// form). TestIntegrationArticles fails if the two drift apart.
+func integrationFraming(a writer.Article) string {
+	return fmt.Sprintf("# %s\n\n\n\nModels: %s (%s) \u00b7 Estimated cost: unknown", a.Title, a.Model, writer.StageGeneration)
 }
 
 // integrationBody returns a Markdown body of exactly n code points: a heading
-// followed by numbered lines, cut at n.
+// followed by numbered lines, cut at n. The body never ends with a newline,
+// which the post would drop, and its last line is short, so it fits in one
+// message together with the footnote.
 func integrationBody(n int) string {
 	runes := []rune("## Integration test body\n\n")
 	for i := 1; len(runes) < n; i++ {
 		// "Japanese sentence with U+1F600 and U+20BB7", in Japanese.
 		runes = append(runes, []rune(fmt.Sprintf("- Line %04d: \u65e5\u672c\u8a9e\u306e\u6587\u3068 \U0001F600 \U00020BB7 \u3092\u542b\u3080\u884c\u3067\u3059\u3002\n", i))...)
 	}
-	return string(runes[:n])
+	runes = runes[:n]
+	if runes[n-1] == '\n' {
+		runes[n-1] = '.'
+	}
+	return string(runes)
 }

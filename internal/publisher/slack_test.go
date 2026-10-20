@@ -466,7 +466,7 @@ func TestSlackPublishPayload(t *testing.T) {
 			t.Fatalf("got %d requests, want 1", len(requests))
 		}
 		requireSlackPayloadShape(t, requests[0])
-		if got, want := slackPayloadText(t, requests[0]), renderArticle(article); got != want {
+		if got, want := slackPayloadText(t, requests[0]), renderSlackPost(article).text; got != want {
 			t.Fatalf("text = %q, want the posted article", got)
 		}
 	})
@@ -484,7 +484,7 @@ func TestSlackPublishPayload(t *testing.T) {
 			t.Fatalf("got %d requests, want 1", len(requests))
 		}
 		requireSlackPayloadShape(t, requests[0])
-		if got, want := slackPayloadText(t, requests[0]), renderArticle(article); got != want {
+		if got, want := slackPayloadText(t, requests[0]), renderSlackPost(article).text; got != want {
 			t.Fatalf("text = %q, want the posted article", got)
 		}
 	})
@@ -501,23 +501,24 @@ func TestSlackPublishPayload(t *testing.T) {
 		if len(requests) != 1 {
 			t.Fatalf("got %d requests, want 1", len(requests))
 		}
-		if text := slackPayloadText(t, requests[0]); !strings.Contains(text, "(none)") {
-			t.Fatalf("text does not name the empty model version: %q", text)
+		// The footnote shows no model version, empty or not.
+		if text := slackPayloadText(t, requests[0]); strings.Contains(text, "(none)") {
+			t.Fatalf("text = %q, want the post with no model version", text)
 		}
 	})
 }
 
-// TestSlackPublishCostLine checks that the cost line is posted once, in the
-// known and the unknown form, and stays in the first message when the article
-// splits.
+// TestSlackPublishCostLine checks that the cost is posted once, in the known
+// and the unknown form, and that a split article carries it in the footnote of
+// the last message only.
 func TestSlackPublishCostLine(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
 		article  writer.Article
 		wantLine string
 	}{
-		{"known", costedArticle(), "- Estimated cost: 0.0023 USD\n"},
-		{"unknown", validArticle(), "- Estimated cost: unknown\n"},
+		{"known", costedArticle(), "Models: model-x (generation) \u00b7 Estimated cost: 0.0023 USD"},
+		{"unknown", validArticle(), "Models: model-x (generation) \u00b7 Estimated cost: unknown"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			server := newSlackOKServer(t)
@@ -526,8 +527,8 @@ func TestSlackPublishCostLine(t *testing.T) {
 				t.Fatalf("Publish: %v", err)
 			}
 			text := strings.Join(slackMessageTexts(t, server), "")
-			if !strings.Contains(text, tc.wantLine) {
-				t.Fatalf("the posted text has no line %q: %q", tc.wantLine, text)
+			if !strings.HasSuffix(text, tc.wantLine) {
+				t.Fatalf("the posted text does not end with the footnote %q: %q", tc.wantLine, text)
 			}
 			if n := strings.Count(text, "Estimated cost"); n != 1 {
 				t.Fatalf("the cost line appears %d times, want 1", n)
@@ -535,7 +536,7 @@ func TestSlackPublishCostLine(t *testing.T) {
 		})
 	}
 
-	t.Run("split article keeps the line in the first message", func(t *testing.T) {
+	t.Run("split article keeps the footnote in the last message", func(t *testing.T) {
 		server := newSlackOKServer(t)
 		p := newTestSlackPublisher(t, server, SlackTestOptions{})
 		if err := p.Publish(context.Background(), threeMessageArticle(t)); err != nil {
@@ -545,8 +546,8 @@ func TestSlackPublishCostLine(t *testing.T) {
 		if len(messages) < 2 {
 			t.Fatalf("got %d messages, want the article to split", len(messages))
 		}
-		if !strings.Contains(messages[0], "- Estimated cost: ") {
-			t.Fatalf("the first message has no cost line: %q", messages[0])
+		if !strings.Contains(messages[len(messages)-1], "Estimated cost: ") {
+			t.Fatalf("the last message has no footnote: %q", messages[len(messages)-1])
 		}
 		if n := strings.Count(strings.Join(messages, ""), "Estimated cost"); n != 1 {
 			t.Fatalf("the cost line appears %d times across the messages, want 1", n)
@@ -562,7 +563,7 @@ func TestSlackPublishSplit(t *testing.T) {
 		p := newTestSlackPublisher(t, server, SlackTestOptions{})
 		article := validArticle()
 		article.Body = strings.Repeat("lorem ipsum dolor\n", 4000)
-		posted := renderArticle(article)
+		posted := renderSlackPost(article).text
 		if err := p.Publish(context.Background(), article); err != nil {
 			t.Fatalf("Publish: %v", err)
 		}
@@ -587,8 +588,8 @@ func TestSlackPublishSplit(t *testing.T) {
 		server := newSlackOKServer(t)
 		p := newTestSlackPublisher(t, server, SlackTestOptions{})
 		article := validArticle()
-		article.Body = strings.Repeat("\u3042", 20000) + strings.Repeat("\U0001F600", 4000)
-		posted := renderArticle(article)
+		article.Body = strings.Repeat("\u3042", 20000) + strings.Repeat("\U0001F600", 4000) + shortLastLine
+		posted := renderSlackPost(article).text
 		if err := p.Publish(context.Background(), article); err != nil {
 			t.Fatalf("Publish: %v", err)
 		}
@@ -618,7 +619,7 @@ func TestSlackPublishSplit(t *testing.T) {
 			if tc.want == 1 && strings.HasPrefix(messages[0], "(") {
 				t.Fatalf("a single message carries a position marker: %q", messages[0])
 			}
-			checkSlackMessages(t, messages, renderArticle(article))
+			checkSlackMessages(t, messages, renderSlackPost(article).text)
 		}
 	})
 }
@@ -635,7 +636,7 @@ func TestSlackPublishWaitsBetweenMessages(t *testing.T) {
 	if got := server.recorder.count(); got != 3 {
 		t.Fatalf("server received %d requests, want 3", got)
 	}
-	checkSlackMessages(t, slackMessageTexts(t, server), renderArticle(article))
+	checkSlackMessages(t, slackMessageTexts(t, server), renderSlackPost(article).text)
 }
 
 // TestSlackMessagesForTest exercises the test-tag messages helper.
@@ -645,7 +646,7 @@ func TestSlackMessagesForTest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SlackMessagesForTest: %v", err)
 	}
-	if len(messages) != 1 || messages[0] != renderArticle(article) {
+	if len(messages) != 1 || messages[0] != renderSlackPost(article).text {
 		t.Fatalf("SlackMessagesForTest = %q, want the posted article", messages)
 	}
 }
@@ -661,11 +662,11 @@ func TestSlackPublishPrepareSendsNothing(t *testing.T) {
 		{"invalid title", func(a *writer.Article) { a.Title = "" }, writer.ErrInvalidArticle},
 		{"invalid body", func(a *writer.Article) { a.Body = "x\x1b[2J" }, writer.ErrInvalidArticle},
 		{"invalid channel name", func(a *writer.Article) { a.ChannelName = "a\u202eb" }, writer.ErrInvalidChannelName},
-		{"mention in body", func(a *writer.Article) { a.Body = "@channel" }, ErrSlackMention},
+		{"mention in body", func(a *writer.Article) { a.Body = "`@channel`" }, ErrSlackMention},
 		{"mention in title", func(a *writer.Article) { a.Title = "<!here>" }, ErrSlackMention},
 		{"whitespace-only fragment", func(a *writer.Article) { a.Body = strings.Repeat(" ", 20000) + "x" }, ErrSlackUnsplittable},
 		{"too many messages", func(a *writer.Article) {
-			a.Body = strings.Repeat("a", (slackMaxMessages+1)*(slackMaxMessageRunes-slackDisplayMaxRunes))
+			a.Body = strings.Repeat(strings.Repeat("a", slackMaxMessageRunes-slackDisplayMaxRunes-1)+"\n", slackMaxMessages+1)
 		}, ErrSlackUnsplittable},
 	}
 	for _, tc := range cases {
@@ -1196,7 +1197,7 @@ func TestSlackPublishErrorClasses(t *testing.T) {
 		}},
 		{"mention", func(t *testing.T) error {
 			article := validArticle()
-			article.Body = "@channel"
+			article.Body = "`@channel`"
 			return newTestSlackPublisher(t, newSlackOKServer(t), SlackTestOptions{}).Publish(context.Background(), article)
 		}},
 		{"invalid article", func(t *testing.T) error {

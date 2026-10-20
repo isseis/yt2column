@@ -33,11 +33,15 @@ func prepareSlackMessages(article writer.Article) ([]string, error) {
 		return nil, fmt.Errorf("%w: the body is not valid UTF-8", writer.ErrInvalidArticle)
 	}
 
-	posted := renderArticle(article)
-	messages, err := splitSlackText(slackPost{text: posted, keepTogetherFrom: utf8.RuneCountInString(posted)})
+	post := renderSlackPost(article)
+	posted := post.text
+	messages, err := splitSlackText(post)
 	if err != nil {
 		return nil, err
 	}
+	// posted is the text after neutralization, so a rejection position counts
+	// the characters of the form Publish sends.
+	//
 	// Checking posted alone is enough for M1, M3 and M4: the position marker
 	// adds none of the characters they look for, so a match in a message is
 	// also a match in posted. M2 also looks at the rune before an '@', which a

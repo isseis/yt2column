@@ -450,32 +450,38 @@ PR-6 のマージの後に加えたステップである。§3.2 の PR 構成�
 
 **対象:** `internal/publisher/slack_message.go`・`internal/publisher/file.go`
 
--   [ ] `prepareSlackMessages` が `renderSlackPost` を呼ぶ。分割の後にメンションを検査する順序を保つ。
--   [ ] `rejectMention` が示す位置（行と列）が、Slack に送る形（無効化の後）の投稿の文字列で数えたものになるようにする（設計書 3.7(2) の最後）。
--   [ ] 旧い `renderArticle`・`articleCostLine` を削除する（§2.1）。削除の前後で `go tool cover -func` の関数ごとの値を比べる（§5.2・§5.3）。
+-   [x] `prepareSlackMessages` が `renderSlackPost` を呼ぶ。分割の後にメンションを検査する順序を保つ。
+-   [x] `rejectMention` が示す位置（行と列）が、Slack に送る形（無効化の後）の投稿の文字列で数えたものになるようにする（設計書 3.7(2) の最後）。
+    -   実装では、`prepareSlackMessages` が `renderSlackPost` の `text`（無効化の後）をそのまま `rejectMention` に渡すので、コードの変更は要らない。`TestSlackMentionPositionAfterNeutralization` が、無効化で入った U+200B を数えた列を確かめる。
+-   [x] 旧い `renderArticle`・`articleCostLine` を削除する（§2.1）。削除の前後で `go tool cover -func` の関数ごとの値を比べる（§5.2・§5.3）。
+    -   `go tool cover -func` の関数ごとの値は、削除した 2 関数を除いて下がっていない（§5.3）。`cutSlackFragments` は、メッセージ数の上限の分岐を通す入力（1 行の長い本文）が最後の領域の拒否に変わったので、行ごとの入力に改めて 100% を保った。
 
 #### ステップ 4-12: 統合テストの補助
 
 **対象:** `internal/publisher/testutil/integration.go`
 
--   [ ] `integrationHeader` を、新しい投稿の見出し行（空行を含む）と脚注の長さを数える関数に置き換え、`IntegrationArticles` の本文の切り方を、投稿全体が `single` ではちょうど 16,383 コードポイントになる形に改める（§1.3）。`split` が複数のメッセージになり、10 通の上限に遠いことを保つ。
--   [ ] このファイルの変更は、タグ `test` と `integration` の両方でコンパイルされる（ファイル先頭の `//go:build test || integration`）。
+-   [x] `integrationHeader` を、新しい投稿の見出し行（空行を含む）と脚注の長さを数える関数に置き換え、`IntegrationArticles` の本文の切り方を、投稿全体が `single` ではちょうど 16,383 コードポイントになる形に改める（§1.3）。`split` が複数のメッセージになり、10 通の上限に遠いことを保つ。
+    -   実装では、`integrationFraming` に置き換えた。`integrationBody` は、末尾が改行で終わらないようにする（投稿が末尾の改行を落とすため）。
+-   [x] このファイルの変更は、タグ `test` と `integration` の両方でコンパイルされる（ファイル先頭の `//go:build test || integration`）。
 
 #### ステップ 4-13: テストの更新と追加
 
--   [ ] `file_test.go` に残る `renderArticle` を呼ぶ行はない（ステップ 3-3 で改めた）ことを確かめる。`slack_test.go`・`slack_message_test.go` の `renderArticle(article)` を、`renderSlackPost(article).text` を使う形に直す。期待値の中の `- Estimated cost: …` の行と、その行が 1 回だけ現れることを確かめるテスト（`TestSlackPublishCostLine:513`）は、脚注の形に直す。
--   [ ] 分割のテストを `slack_message_test.go` に加える: 16,383 文字を超える記事で、見出し行が先頭のメッセージにだけ、脚注が最後のメッセージにだけ 1 回現れ、脚注だけのメッセージがないこと。入力は、本文の最後の改行の直後で切れる場合、10 通に脚注が加わる場合、容量を超える見出し行を含む場合。`SlackMessageCount` が送る数と一致すること（`TestSlackMessageCount:398` を拡張してよい）。見出し行が分割されるほど長い `Tech@Work` のタイトルでも、拒否されないこと。
--   [ ] メンションの拒否と無効化のテストを、設計書 7.1 の該当行に従って加える。計画として足すのは次のとおり: 本文のコードの外の対象の `@name` は無効化されて拒否されない。コードスパン・コードブロックの中と、直前が `/` の対象の `@` は `ErrSlackMention` で拒否される。見出し行と脚注の対象の `@name` と `＠everyone` は無効化される。語の途中の `@` を含むタイトル・本文・チャンネル名は変更も拒否もされない。`<!`・`<@`、文字参照、`<a|b>` は見出し行・脚注・本文のどこにあっても拒否される。`ProseRanges` が false の本文で、対象の `@` が拒否される経路を `prepareSlackMessages` まで通すテストを加える（ステップ 4-9）。位置のテストも加える: 見出し行か本文に、無効化で U+200B が入る対象の `@` があり、その後ろに拒否される `@`（コードの中）がある投稿で、`rejectMention` が示す行と列が、Slack に送る形（無効化の後）の文字列で数えた値になること。
--   [ ] `internal/publisher/slack_integration_test.go`（`integration` タグ）が、更新した `IntegrationArticles` と矛盾しないことを確かめる。
--   [ ] `go test -tags test ./internal/publisher -run Golden -update` を実行し、`testdata/golden/` に差分が出ないことを確かめる（切り替えは `renderSlackPost` の出力を変えない）。出力の形を変える PR では、golden file の差分をレビューで確かめるよう PR の本文に書く。
+-   [x] `file_test.go` に残る `renderArticle` を呼ぶ行はない（ステップ 3-3 で改めた）ことを確かめる。`slack_test.go`・`slack_message_test.go` の `renderArticle(article)` を、`renderSlackPost(article).text` を使う形に直す。期待値の中の `- Estimated cost: …` の行と、その行が 1 回だけ現れることを確かめるテスト（`TestSlackPublishCostLine:513`）は、脚注の形に直す。
+-   [x] 分割のテストを `slack_message_test.go` に加える: 16,383 文字を超える記事で、見出し行が先頭のメッセージにだけ、脚注が最後のメッセージにだけ 1 回現れ、脚注だけのメッセージがないこと。入力は、本文の最後の改行の直後で切れる場合、10 通に脚注が加わる場合、容量を超える見出し行を含む場合。`SlackMessageCount` が送る数と一致すること（`TestSlackMessageCount:398` を拡張してよい）。見出し行が分割されるほど長い `Tech@Work` のタイトルでも、拒否されないこと。
+    -   実装では、`TestSlackSplitLayout`（境界付近の長さの掃引、10 通、容量を超える見出し行）に置いた。メッセージ数の上限のテストは、1 行の長い本文では最後の領域の拒否になるので、行ごとの入力に改めた。
+-   [x] メンションの拒否と無効化のテストを、設計書 7.1 の該当行に従って加える。計画として足すのは次のとおり: 本文のコードの外の対象の `@name` は無効化されて拒否されない。コードスパン・コードブロックの中と、直前が `/` の対象の `@` は `ErrSlackMention` で拒否される。見出し行と脚注の対象の `@name` と `＠everyone` は無効化される。語の途中の `@` を含むタイトル・本文・チャンネル名は変更も拒否もされない。`<!`・`<@`、文字参照、`<a|b>` は見出し行・脚注・本文のどこにあっても拒否される。`ProseRanges` が false の本文で、対象の `@` が拒否される経路を `prepareSlackMessages` まで通すテストを加える（ステップ 4-9）。位置のテストも加える: 見出し行か本文に、無効化で U+200B が入る対象の `@` があり、その後ろに拒否される `@`（コードの中）がある投稿で、`rejectMention` が示す行と列が、Slack に送る形（無効化の後）の文字列で数えた値になること。
+    -   実装では、`TestSlackMentionRejected`（M1・M3・M4）、`TestSlackMentionNeutralized`、`TestSlackMentionTargetsOutsideNeutralization`、`TestSlackMentionPositionAfterNeutralization` に置いた。ほかの `@channel` を本文の散文に置いていたテスト（`cmd/yt2column/run_test.go`、`slack_test.go`）は、コードスパンの中に置く形に改めた。
+-   [x] `internal/publisher/slack_integration_test.go`（`integration` タグ）が、更新した `IntegrationArticles` と矛盾しないことを確かめる。
+-   [x] `go test -tags test ./internal/publisher -run Golden -update` を実行し、`testdata/golden/` に差分が出ないことを確かめる（切り替えは `renderSlackPost` の出力を変えない）。出力の形を変える PR では、golden file の差分をレビューで確かめるよう PR の本文に書く。
 
 #### ステップ 4-14: PR-7 の確認
 
--   [ ] `make fmt` → `make test` → `make lint` → `make deadcode` が通る。
--   [ ] `go test -run '^$' -tags test,integration ./...` が通る。
--   [ ] 次の変更を 1 つずつ行い、ステップ 4-11〜4-13 の対応するテストが失敗することを確かめ、コミットメッセージに記す: `prepareSlackMessages` の `renderSlackPost` の呼び出しを旧い整形に戻す; 脚注を最後以外のメッセージにも出す; `rejectMention` の位置を無効化の前の文字列で数える。
--   [ ] **手動（実機）。** `@`・U+200B・`name` の投稿が、通知にならないことを実際の Mattermost で確かめる（設計書 10 章 R-4）。確かめた Mattermost の版と結果を §5.1 に記録する。確認が済むまでは、どの版でも通知を防ぐとは書かない。通知を受けないテスト用のアカウントか、`silent` に対応した版を使う。あわせて、語の途中の `@`（`Tech@Work`・`user@example.com`）を含む投稿が通知にならないことも確かめる（PR-4 が受理するようになった形）。
--   [ ] **手動（実機）。** 見出し行と脚注の見え方を、テスト用の Webhook に `make test-integration-slack` で投稿して確かめる（AC-05〜AC-07）。実行は利用者の承認を得てから行う（CLAUDE.md「Tool Execution Safety」）。
+-   [x] `make fmt` → `make test` → `make lint` → `make deadcode` が通る。
+-   [x] `go test -run '^$' -tags test,integration ./...` が通る。
+-   [x] 次の変更を 1 つずつ行い、ステップ 4-11〜4-13 の対応するテストが失敗することを確かめ、コミットメッセージに記す: `prepareSlackMessages` の `renderSlackPost` の呼び出しを旧い整形に戻す; 脚注を最後以外のメッセージにも出す; `rejectMention` の位置を無効化の前の文字列で数える。
+    -   実装では、旧い整形へ戻す変更は `renderArticle` の削除で不可能なので、割り当てた他の 3 つで確かめた: 脚注を最後以外のメッセージにも出す（`TestSlackSplit`・`TestSlackSplitLayout`・`TestSlackPublishCostLine` が失敗）、位置を U+200B なしで数える（`TestSlackMentionPositionAfterNeutralization` が失敗）、分割に整形前の本文を渡す（分割・メンション・ペイロードのテストが失敗）。
+-   [x] **手動（実機）。** `@`・U+200B・`name` の投稿が、通知にならないことを実際の Mattermost で確かめる（設計書 10 章 R-4）。確かめた Mattermost の版と結果を §5.1 に記録する。確認が済むまでは、どの版でも通知を防ぐとは書かない。通知を受けないテスト用のアカウントか、`silent` に対応した版を使う。あわせて、語の途中の `@`（`Tech@Work`・`user@example.com`）を含む投稿が通知にならないことも確かめる（PR-4 が受理するようになった形）。
+-   [x] **手動（実機）。** 見出し行と脚注の見え方を、テスト用の Webhook に `make test-integration-slack` で投稿して確かめる（AC-05〜AC-07）。実行は利用者の承認を得てから行う（CLAUDE.md「Tool Execution Safety」）。
 
 ### PR-7 作成ポイント: switch Slack to the new post
 
@@ -489,8 +495,8 @@ PR-6 のマージの後に加えたステップである。§3.2 の PR 構成�
 
 **判定理由**: ステップ 4-12 は投稿全体をちょうど 16,383 コードポイントにする計算をタグ付きのファイルで行い（ビルドタグのコンパイル確認に該当）、ステップ 4-11・4-13 は旧い整形の削除と多数のテストの移行を伴う。方式は設計書で定まっており、実機の確認は利用者が行うので、孤立した複雑なステップとして frontier-recommended とした。
 
--   [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
--   [ ] PR を作成した
+-   [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+-   [x] PR を作成した
 -   [ ] PR がマージされた
 -   [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
@@ -624,8 +630,8 @@ AC-23〜AC-25 のガードは語句の有無だけを確かめ、記述が実装
 | 確認 | 時期 | 結果 |
 |---|---|---|
 | 拡張が読む `channelName` に制御文字・前後の空白が混ざらないこと（実際の YouTube の動画ページ） | フェーズ 1 の前 | - |
-| `@`・U+200B・`name` が通知にならないこと（実際の Mattermost。版を記録する） | フェーズ 4 | - |
-| 見出し行と脚注の見え方（`make test-integration-slack`、利用者の承認の後） | フェーズ 4 | - |
+| `@`・U+200B・`name` が通知にならないこと（実際の Mattermost。版を記録する） | フェーズ 4 | 2026-10-20、Mattermost クライアントから投稿して確認。`@`+U+200B+`here`/`channel`/`all`/`everyone` は通知にならない。`Tech@Work` は通知にならず、`user@example.com` は mailto のリンクになるが Mattermost のユーザー名としては扱われない。Mattermost サーバ 11.11.2、デスクトップ 6.3.1 |
+| 見出し行と脚注の見え方（`make test-integration-slack`、利用者の承認の後） | フェーズ 4 | 2026-10-20 に実行して通った（single 1 通・split 3 通、マーカー `20261019T233134.424Z`）。目視で確認した: 見出し行は `<h1 class="markdown__heading">`（本文の `## Integration test body` は `<h2>`）、脚注は 1 つの `<p>`（`Models: … (generation) · Estimated cost: unknown`）として描画された |
 
 ### 5.2. 削除・改めるテストの対応
 
@@ -675,6 +681,16 @@ $ python3 -I docs/tasks/0008_column_prompt/check_article.py <cache> abcdefghijk 
 ```
 
 -   ステップ 4-11 の `renderArticle` の削除の前後の `go tool cover -func` の比較。
+
+**ステップ 4-11 の記録（PR-7 の作業ブランチ。削除の前は HEAD `e4c1b7b`）。** `go test -tags test -coverprofile … ./internal/publisher` の `go tool cover -func` を、削除の前後で行番号を除いて比べた。
+
+```text
+< file.go:  renderArticle      77.8%
+< file.go:  articleCostLine   100.0%
+  （上の 2 行が削除された関数。ほかの関数の値は同じ。cutSlackFragments は、
+   メッセージ数の上限のテストを行ごとの入力に改めて 100.0% を保った）
+< total: 95.9%    > total: 96.1%
+```
 
 ### 5.4. 文書の照合の記録
 

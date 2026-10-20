@@ -13,8 +13,13 @@ import (
 	"github.com/isseis/yt2column/internal/writer"
 )
 
+// shortLastLine ends a long body with a short last line. The last line of a
+// post stays in one message with the footnote, so a body of one long line
+// cannot be split.
+const shortLastLine = "\nEnd."
+
 // articleWithPostedRunes returns an article whose posted text is exactly total
-// code points long, padded with fill.
+// code points long, padded with fill and ending in shortLastLine.
 func articleWithPostedRunes(t *testing.T, total int, fill rune) writer.Article {
 	t.Helper()
 	article := writer.Article{
@@ -24,13 +29,14 @@ func articleWithPostedRunes(t *testing.T, total int, fill rune) writer.Article {
 		Model:        "model",
 		ModelVersion: "version",
 	}
-	base := renderArticle(article)
+	base := renderSlackPost(article).text
 	fixed := len([]rune(base)) - len([]rune(article.Body))
-	if total < fixed+1 {
+	tail := len([]rune(shortLastLine))
+	if total < fixed+tail+1 {
 		t.Fatalf("total %d is too small for a body", total)
 	}
-	article.Body = strings.Repeat(string(fill), total-fixed)
-	if got := len([]rune(renderArticle(article))); got != total {
+	article.Body = strings.Repeat(string(fill), total-fixed-tail) + shortLastLine
+	if got := len([]rune(renderSlackPost(article).text)); got != total {
 		t.Fatalf("built %d code points, want %d", got, total)
 	}
 	return article
@@ -85,7 +91,7 @@ func TestSlackSplit(t *testing.T) {
 	for _, fill := range []rune{'a', '\u3042', '\U0001F600'} {
 		t.Run(fmt.Sprintf("exactly the limit/%U", fill), func(t *testing.T) {
 			article := articleWithPostedRunes(t, slackMaxMessageRunes, fill)
-			posted := renderArticle(article)
+			posted := renderSlackPost(article).text
 			messages, err := prepareSlackMessages(article)
 			if err != nil {
 				t.Fatalf("prepareSlackMessages: %v", err)
@@ -101,7 +107,7 @@ func TestSlackSplit(t *testing.T) {
 
 		t.Run(fmt.Sprintf("one over the limit/%U", fill), func(t *testing.T) {
 			article := articleWithPostedRunes(t, slackMaxMessageRunes+1, fill)
-			posted := renderArticle(article)
+			posted := renderSlackPost(article).text
 			messages, err := prepareSlackMessages(article)
 			if err != nil {
 				t.Fatalf("prepareSlackMessages: %v", err)
@@ -116,7 +122,7 @@ func TestSlackSplit(t *testing.T) {
 	t.Run("many lines", func(t *testing.T) {
 		article := validArticle()
 		article.Body = strings.Repeat("lorem ipsum dolor\n", 4000)
-		posted := renderArticle(article)
+		posted := renderSlackPost(article).text
 		messages, err := prepareSlackMessages(article)
 		if err != nil {
 			t.Fatalf("prepareSlackMessages: %v", err)
@@ -134,8 +140,8 @@ func TestSlackSplit(t *testing.T) {
 
 	t.Run("one long line without newlines", func(t *testing.T) {
 		article := validArticle()
-		article.Body = strings.Repeat("\u3042", 20000) + strings.Repeat("\U0001F600", 4000)
-		posted := renderArticle(article)
+		article.Body = strings.Repeat("\u3042", 20000) + strings.Repeat("\U0001F600", 4000) + shortLastLine
+		posted := renderSlackPost(article).text
 		messages, err := prepareSlackMessages(article)
 		if err != nil {
 			t.Fatalf("prepareSlackMessages: %v", err)
@@ -148,8 +154,8 @@ func TestSlackSplit(t *testing.T) {
 
 	t.Run("avoids a whitespace-only fragment", func(t *testing.T) {
 		article := validArticle()
-		article.Body = "a" + strings.Repeat(" ", 20000) + "\n" + strings.Repeat("b", 20000)
-		posted := renderArticle(article)
+		article.Body = "a" + strings.Repeat(" ", 20000) + "\n" + strings.Repeat("b", 20000) + shortLastLine
+		posted := renderSlackPost(article).text
 		messages, err := prepareSlackMessages(article)
 		if err != nil {
 			t.Fatalf("prepareSlackMessages: %v", err)
@@ -158,13 +164,18 @@ func TestSlackSplit(t *testing.T) {
 	})
 
 	t.Run("keeps a rest that fits whole", func(t *testing.T) {
-		// The first fragment is cut after the header; the rest fits in one
-		// fragment and must not be cut again before its last line or its
-		// trailing whitespace.
+		// The first fragment is cut after the heading line; the rest is
+		// sized to fill exactly one fragment and must not be cut again before
+		// its last line or its trailing whitespace.
+		capacity := slackMaxMessageRunes - slackDisplayMaxRunes
 		for _, tail := range []string{"\nEnd.", "\n ", "\n\n"} {
 			article := validArticle()
-			article.Body = strings.Repeat("b", slackMaxMessageRunes-slackDisplayMaxRunes-10) + tail
-			posted := renderArticle(article)
+			article.Body = "b" + tail
+			post := renderSlackPost(article).text
+			heading := strings.Index(post, "\n\n") + 2
+			filler := capacity - (utf8.RuneCountInString(post) - heading)
+			article.Body = strings.Repeat("b", 1+filler) + tail
+			posted := renderSlackPost(article).text
 			messages, err := prepareSlackMessages(article)
 			if err != nil {
 				t.Fatalf("tail %q: prepareSlackMessages: %v", tail, err)
@@ -177,12 +188,95 @@ func TestSlackSplit(t *testing.T) {
 	})
 }
 
+// TestSlackSplitLayout checks where the heading line and the footnote land
+// when a post splits: the heading line starts the first message, the footnote
+// ends the last, and no message holds nothing else than the footnote.
+func TestSlackSplitLayout(t *testing.T) {
+	capacity := slackMaxMessageRunes - slackDisplayMaxRunes
+	article := validArticle()
+	footnote := slackFootnote(article)
+
+	check := func(t *testing.T, article writer.Article) []string {
+		t.Helper()
+		posted := renderSlackPost(article).text
+		messages, err := prepareSlackMessages(article)
+		if err != nil {
+			t.Fatalf("prepareSlackMessages: %v", err)
+		}
+		checkSlackMessages(t, messages, posted)
+		if len(messages) < 2 {
+			t.Fatalf("got %d messages, want the post to split", len(messages))
+		}
+		if first := stripSlackDisplay(messages, 0); !strings.HasPrefix(first, "# ") {
+			t.Fatalf("the first message does not start with the heading line")
+		}
+		for i, message := range messages {
+			if i > 0 && strings.HasPrefix(stripSlackDisplay(messages, i), "# ") {
+				t.Fatalf("message %d starts with a heading line", i)
+			}
+			fragment := stripSlackDisplay(messages, i)
+			if got, want := strings.Contains(fragment, footnote), i == len(messages)-1; got != want {
+				t.Fatalf("message %d holds the footnote = %v, want %v", i, got, want)
+			}
+			if strings.TrimSpace(strings.TrimSuffix(fragment, footnote)) == "" {
+				t.Fatalf("message %d (%d code points) holds nothing but the footnote", i, len([]rune(message)))
+			}
+		}
+		return messages
+	}
+
+	t.Run("body lengths around the boundary", func(t *testing.T) {
+		// The post first exceeds one message at some body length; sweeping
+		// across it covers a cut falling right after the last newline of the
+		// body, and every fragment boundary near it.
+		heading := len([]rune("# " + article.Title + "\n\n"))
+		for length := capacity - heading - 80; length <= capacity-heading+80; length++ {
+			article := validArticle()
+			article.Body = strings.Repeat("x", length) + shortLastLine
+			if len([]rune(renderSlackPost(article).text)) <= slackMaxMessageRunes {
+				continue
+			}
+			check(t, article)
+		}
+	})
+
+	t.Run("ten messages", func(t *testing.T) {
+		// The heading line is cut off on its own, then each full line fills a
+		// fragment, and the short last line shares the last one with the
+		// footnote.
+		line := strings.Repeat("a", capacity-1) + "\n"
+		article := validArticle()
+		article.Body = strings.Repeat(line, slackMaxMessages-2) + "End."
+		if got := len(check(t, article)); got != slackMaxMessages {
+			t.Fatalf("got %d messages, want %d", got, slackMaxMessages)
+		}
+		article.Body = strings.Repeat(line, slackMaxMessages-1) + "End."
+		if _, err := prepareSlackMessages(article); !errors.Is(err, ErrSlackUnsplittable) {
+			t.Fatalf("err = %v, want ErrSlackUnsplittable", err)
+		}
+	})
+
+	t.Run("heading line longer than a message", func(t *testing.T) {
+		// The cut falls between the 'x' and the '@' of a mid-word "@here" in
+		// the title; the post is accepted and no message starts with the '@'.
+		article := validArticle()
+		article.Title = strings.Repeat("a", capacity-3) + "x@here"
+		for _, message := range check(t, article) {
+			if err := rejectMention(message); err != nil {
+				t.Fatalf("message: %v", err)
+			}
+		}
+	})
+}
+
 func TestSlackSplitRejects(t *testing.T) {
 	t.Run("too many messages", func(t *testing.T) {
 		article := validArticle()
+		// Every line fills a fragment, so the cut is not what refuses the
+		// article: the number of fragments is.
 		article.Body = strings.Repeat(
-			"a",
-			(slackMaxMessages+1)*(slackMaxMessageRunes-slackDisplayMaxRunes),
+			strings.Repeat("a", slackMaxMessageRunes-slackDisplayMaxRunes-1)+"\n",
+			slackMaxMessages+1,
 		)
 		if _, err := prepareSlackMessages(article); !errors.Is(err, ErrSlackUnsplittable) {
 			t.Fatalf("err = %v, want ErrSlackUnsplittable", err)
@@ -265,11 +359,12 @@ func TestSlackSplitAvoidsMidWordAt(t *testing.T) {
 	capacity := slackMaxMessageRunes - slackDisplayMaxRunes
 	for _, word := range []string{"x@here", "1@here", "x\uFF20here"} {
 		t.Run(word, func(t *testing.T) {
-			// The body has no newline, so the first fragment is the header
-			// and the body would be cut right before the '@'.
+			// The body has no newline before its short last line, so the
+			// first fragment is the heading line and the body would be cut
+			// right before the '@'.
 			article := validArticle()
-			article.Body = strings.Repeat("b", capacity-1) + word + "b"
-			posted := renderArticle(article)
+			article.Body = strings.Repeat("b", capacity-1) + word + "b" + shortLastLine
+			posted := renderSlackPost(article).text
 			if err := rejectMention(posted); err != nil {
 				t.Fatalf("the post itself is rejected: %v", err)
 			}
@@ -352,18 +447,14 @@ func TestCheckFragmentStarts(t *testing.T) {
 	}
 }
 
-var slackMentionForms = []string{
+// slackNeutralizedForms hold a target '@' that renderSlackPost neutralizes in
+// the title and in the prose of the body, so the post is accepted.
+var slackNeutralizedForms = []string{
 	"@channel",
 	"@all",
 	"@here",
 	"@everyone",
 	"@someone",
-	"<!channel>",
-	"<!here>",
-	"<!all>",
-	"<!everyone>",
-	"<@U12345678>",
-	"<!subteam^S12345678>",
 	"_@channel_",
 	"__@here",
 	":_@all",
@@ -373,12 +464,23 @@ var slackMentionForms = []string{
 	"a\u00AD@here",
 	"a\\@here",
 	"\\@here",
+	"\uFF20here",
+	"\uFE6Bhere",
+}
+
+// slackRejectedForms hold what Mattermost or Slack may treat as a mention or
+// rewrite and that no neutralization covers: M1, M3 and M4.
+var slackRejectedForms = []string{
+	"<!channel>",
+	"<!here>",
+	"<!all>",
+	"<!everyone>",
+	"<@U12345678>",
+	"<!subteam^S12345678>",
 	"<\u200B!channel>",
 	"<\\\u200B!channel>",
 	"<\\!\u200Bchannel>",
 	"\uFF1C\\!channel>",
-	"\uFF20here",
-	"\uFE6Bhere",
 	"\uFF1C!channel>",
 	"&commat;everyone",
 	"&#64;here",
@@ -390,7 +492,7 @@ var slackMentionForms = []string{
 }
 
 func TestSlackMentionRejected(t *testing.T) {
-	for _, form := range slackMentionForms {
+	for _, form := range slackRejectedForms {
 		for _, field := range []string{"Title", "Body"} {
 			t.Run(field+"/"+form, func(t *testing.T) {
 				article := validArticle()
@@ -418,13 +520,134 @@ func TestSlackMentionRejected(t *testing.T) {
 		}
 	})
 
-	t.Run("in a later fragment", func(t *testing.T) {
+	t.Run("in the footnote", func(t *testing.T) {
 		article := validArticle()
-		article.Body = strings.Repeat("\u3042", slackMaxMessageRunes) + " @here"
+		article.Shorten = &writer.StepModel{Model: "<@U12345678>", ModelVersion: "v1"}
 		if _, err := prepareSlackMessages(article); !errors.Is(err, ErrSlackMention) {
 			t.Fatalf("err = %v, want ErrSlackMention", err)
 		}
 	})
+
+	t.Run("in a later fragment", func(t *testing.T) {
+		article := validArticle()
+		article.Body = strings.Repeat("\u3042", slackMaxMessageRunes) + "\n`@here`"
+		if _, err := prepareSlackMessages(article); !errors.Is(err, ErrSlackMention) {
+			t.Fatalf("err = %v, want ErrSlackMention", err)
+		}
+	})
+}
+
+// TestSlackMentionTargetsOutsideNeutralization checks the '@' characters that
+// stay rejected: those in code, which renderSlackPost does not touch, and
+// those right after a slash, which neutralization skips so a URL stays whole.
+// A body whose code the renderer cannot judge keeps its targets too.
+func TestSlackMentionTargetsOutsideNeutralization(t *testing.T) {
+	bodies := map[string]string{
+		"code span":               "Run `@here` now.",
+		"fenced code block":       "```\n@here\n```\nDone.",
+		"after a slash":           "See youtube.com/@name now.",
+		"unjudgeable: open fence": "```\n@here",
+		"unjudgeable: lone tick":  "It's a ` and @here.",
+	}
+	for name, body := range bodies {
+		t.Run("Body/"+name, func(t *testing.T) {
+			article := validArticle()
+			article.Body = body
+			if _, err := prepareSlackMessages(article); !errors.Is(err, ErrSlackMention) {
+				t.Fatalf("err = %v, want ErrSlackMention", err)
+			}
+		})
+	}
+	t.Run("Title/after a slash", func(t *testing.T) {
+		article := validArticle()
+		article.Title = "youtube.com/@name"
+		if _, err := prepareSlackMessages(article); !errors.Is(err, ErrSlackMention) {
+			t.Fatalf("err = %v, want ErrSlackMention", err)
+		}
+	})
+}
+
+// TestSlackMentionNeutralized checks that a target '@' in the title, the
+// channel name, the prose of the body and the footnote does not reject the
+// post: the posted text holds a zero-width space after it, and no message
+// still matches a mention rule.
+func TestSlackMentionNeutralized(t *testing.T) {
+	for _, form := range slackNeutralizedForms {
+		for _, field := range []string{"Title", "ChannelName", "Body", "Model"} {
+			t.Run(field+"/"+form, func(t *testing.T) {
+				article := validArticle()
+				switch field {
+				case "Title":
+					article.Title = form
+				case "ChannelName":
+					article.ChannelName = form
+				case "Body":
+					article.Body = form
+				case "Model":
+					article.Model = form
+				}
+				messages, err := prepareSlackMessages(article)
+				if err != nil {
+					t.Fatalf("prepareSlackMessages: %v", err)
+				}
+				// Some forms already hold a zero-width space, so count: the
+				// renderer must have added one.
+				if got, input := strings.Count(strings.Join(messages, ""), zeroWidthSpace), strings.Count(form, zeroWidthSpace); got <= input {
+					t.Fatalf("the posted text holds %d zero-width spaces, the input %d: %q", got, input, messages)
+				}
+			})
+		}
+	}
+}
+
+// TestSlackMentionNeutralizedExactly checks where the zero-width space lands,
+// including in the footnote names of the shorten and review models.
+func TestSlackMentionNeutralizedExactly(t *testing.T) {
+	article := validArticle()
+	article.Title = "\uFF20everyone"
+	article.Body = "Ping @alice."
+	article.Shorten = &writer.StepModel{Model: "@short", ModelVersion: "v1"}
+	article.Review = &writer.ReviewResult{Model: writer.StepModel{Model: "@rev", ModelVersion: "v1"}}
+	messages, err := prepareSlackMessages(article)
+	if err != nil {
+		t.Fatalf("prepareSlackMessages: %v", err)
+	}
+	joined := strings.Join(messages, "")
+	for _, want := range []string{
+		"# \uFF20" + zeroWidthSpace + "everyone",
+		"Ping @" + zeroWidthSpace + "alice.",
+		"@" + zeroWidthSpace + "short (shorten)",
+		"@" + zeroWidthSpace + "rev (review)",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("the post does not hold %q: %q", want, joined)
+		}
+	}
+	if got := strings.Count(joined, zeroWidthSpace); got != 4 {
+		t.Fatalf("the post holds %d zero-width spaces, want 4", got)
+	}
+}
+
+// TestSlackMentionPositionAfterNeutralization checks that a rejection names
+// the position in the text Publish sends: the zero-width space inserted after
+// the '@' of "@c" counts as a column before the rejected '@' in the code span.
+func TestSlackMentionPositionAfterNeutralization(t *testing.T) {
+	article := validArticle()
+	article.Body = "Hi @c and `@d`\n"
+	_, err := prepareSlackMessages(article)
+	if !errors.Is(err, ErrSlackMention) {
+		t.Fatalf("err = %v, want ErrSlackMention", err)
+	}
+	// Line 1 is the heading line and line 2 is blank. In the sent form the
+	// body line is "Hi @", U+200B, "c and `@d`", so the code span's '@' is in
+	// column 13; counted before neutralization it would be column 12. The
+	// wording is the observable contract of the position, so the message is
+	// compared.
+	// (TestSlackPrepareErrorsOmitContent below also matches text: it checks
+	// that the error leaks no content, which only the text can show.)
+	if want := "rule M2 at line 3, column 13"; !strings.Contains(err.Error(), want) {
+		t.Fatalf("err = %q, want it to name %q", err, want)
+	}
 }
 
 func TestSlackMentionAccepted(t *testing.T) {
@@ -448,16 +671,24 @@ func TestSlackMentionAccepted(t *testing.T) {
 	// Title and Body both reach the post verbatim today; the Title rows are
 	// kept because the Slack renderer treats the title on its own path.
 	for _, text := range accepted {
-		for _, field := range []string{"Title", "Body"} {
+		for _, field := range []string{"Title", "ChannelName", "Body"} {
 			t.Run(field+"/"+text, func(t *testing.T) {
 				article := validArticle()
-				if field == "Title" {
+				switch field {
+				case "Title":
 					article.Title = text
-				} else {
+				case "ChannelName":
+					article.ChannelName = text
+				default:
 					article.Body = text
 				}
-				if _, err := prepareSlackMessages(article); err != nil {
+				messages, err := prepareSlackMessages(article)
+				if err != nil {
 					t.Fatalf("prepareSlackMessages: %v, want no error", err)
+				}
+				// Neither changed nor rejected: the text arrives verbatim.
+				if joined := strings.Join(messages, ""); !strings.Contains(joined, text) || strings.Contains(joined, zeroWidthSpace) {
+					t.Fatalf("the post changed %q: %q", text, joined)
 				}
 			})
 		}
@@ -474,7 +705,7 @@ func TestCostLineHasNoMention(t *testing.T) {
 		"unknown": validArticle(),
 	} {
 		t.Run(name, func(t *testing.T) {
-			line := costLineIn(t, renderArticle(article))
+			line := costLineIn(t, renderSlackPost(article).text)
 			if match, ok := findMention(line); ok {
 				t.Fatalf("the cost line %q matches mention rule %s", line, match.rule)
 			}
@@ -544,7 +775,7 @@ func TestSlackPrepareErrorsOmitContent(t *testing.T) {
 		name   string
 		mutate func(*writer.Article)
 	}{
-		{"mention", func(a *writer.Article) { a.Body = marker + " @channel\n" }},
+		{"mention", func(a *writer.Article) { a.Body = marker + " `@channel`\n" }},
 		{"unsplittable", func(a *writer.Article) { a.Body = strings.Repeat(" ", 20000) + marker }},
 		{"invalid article", func(a *writer.Article) { a.Title = "" }},
 		{"invalid utf-8", func(a *writer.Article) { a.Model = marker + "\xff" }},
@@ -591,7 +822,7 @@ func TestSlackMessageCount(t *testing.T) {
 	}
 
 	mention := validArticle()
-	mention.Body = "@channel"
+	mention.Body = "`@channel`"
 	if _, err := SlackMessageCount(mention); !errors.Is(err, ErrSlackMention) {
 		t.Fatalf("err = %v, want ErrSlackMention", err)
 	}
@@ -636,8 +867,9 @@ func TestSlackMentionPosition(t *testing.T) {
 func TestSlackMentionMessagesFollowPosted(t *testing.T) {
 	capacity := slackMaxMessageRunes - slackDisplayMaxRunes
 	// Each case is the text just before and just after a fragment boundary.
-	// The body has no newline, so the first fragment is the header and the
-	// body is cut at exactly capacity code points.
+	// The body has no newline before its short last line, so the first
+	// fragment is the heading line and the body is cut at exactly capacity
+	// code points.
 	cases := []struct{ before, after string }{
 		{"a", `\!channel>`},
 		{"a", "here"},
@@ -649,7 +881,7 @@ func TestSlackMentionMessagesFollowPosted(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.before+"|"+tc.after, func(t *testing.T) {
 			article := validArticle()
-			article.Body = strings.Repeat("b", capacity-len([]rune(tc.before))) + tc.before + tc.after + "b"
+			article.Body = strings.Repeat("b", capacity-len([]rune(tc.before))) + tc.before + tc.after + "b" + shortLastLine
 			messages, err := prepareSlackMessages(article)
 			if err != nil {
 				t.Fatalf("prepareSlackMessages: %v", err)
