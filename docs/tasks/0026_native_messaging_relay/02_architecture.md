@@ -965,7 +965,7 @@ export function classifyResponse(
 | `TestExtensionSendDocumentation` の security.md のサブテスト（`:207-247`） | §8 の冒頭が `タイトルは送らない` を含み、§8.1 が `chrome.storage.local`・`開発者向けのログ`・`API キー`・`Webhook URL`・`再送しない`・`本文の文字列` を含む。§8.2 の見出しを読む | 変えない。§8.1 は、拡張が `chrome.storage` を使わず、旧版が `chrome.storage.local` に保存した値が残りうることを書くので、この語は残る。他の語の項目も残し、§8.2 の見出しも変えない |
 | （新規）同期のテスト | - | `nmhost.ExtensionOrigin` が manifest の `key` から導出した拡張 ID（既存の `extensionIDFromManifestKey`）のオリジンと一致すること。`extension/src/core/native.ts` の `nativeHostName`・`hostReplyVersion`・`hostReplyKinds`・`hostErrorValues` の宣言の行の値が、`nmhost` の定数と一致すること。`extension/src/send.ts` の `sendTimeoutMs` が `nmhost` の中継の時間の上限より大きいこと（要件書 F-003「`allowed_origins` は拡張の manifest の `key` から導出した ID と一致する」、§3.5.4・§3.5.5） |
 
--   `extension/test/serverReasons.test.ts` は、README の表のうち「拡張の表示」の列が固定の文言である行だけを `serverRejectStatus` と照合するように改める（§3.3.1）。`extension/test/manifest.test.ts` は、権限とキーの集合と、security.md §8.1 の記述の確認を改める（CLAUDE.md の「README.md と security.md の変更は `make ext-test` を要する」のとおり）。
+-   `extension/test/serverReasons.test.ts` は、README の表のうち「拡張の表示」の列が固定の文言である行だけを `serverRejectStatus` と照合するように改める（§3.3.1）。`extension/test/manifest.test.ts` は、権限とキーの集合の確認を改める。security.md §8.1 の権限の一覧との照合は、同じ照合を双方向に行う `TestExtensionDocumentation` の権限のサブテストに任せ、`manifest.test.ts` は security.md を読まない（実装での決定）。
 -   `0011`・`0020`・`0021` の文書は変更しない（要件書 F-005）。
 
 ### 3.10. 実機での確認（H-07）
