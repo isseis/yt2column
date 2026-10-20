@@ -34,8 +34,8 @@ function bytes(status: number, value: number[]): BodyResponse {
 const reasons = Object.keys(serverRejectStatus) as ServerRejectReason[];
 
 describe("serverRejectStatus", () => {
-  it("declares eight reasons", () => {
-    assert.equal(reasons.length, 8);
+  it("declares six reasons", () => {
+    assert.equal(reasons.length, 6);
   });
 
   it("is queried through isServerRejectReason", () => {
@@ -52,8 +52,6 @@ describe("serverRejectStatus", () => {
       ["invalid_video_url", 400],
       ["invalid_transcript", 400],
       ["internal_error", 500],
-      ["not_found", 404],
-      ["method_not_allowed", 405],
     ];
     for (const [reason, status] of pairs) {
       assert.equal(serverRejectStatus[reason], status, reason);
@@ -95,19 +93,9 @@ describe("classifyResponse", () => {
     });
   }
 
-  it("carries a redirect", () => {
-    assert.deepEqual(classifyResponse({ kind: "redirected" }), {
-      kind: "redirected",
-    });
-  });
-
-  type UnexpectedSource = Extract<
-    ReceivedResponse,
-    { kind: "body" | "body-over-limit" }
-  >;
   const unexpecteds: {
     name: string;
-    received: UnexpectedSource;
+    received: ReceivedResponse;
     check: string;
   }[] = [
     {
@@ -235,6 +223,32 @@ describe("classifyResponse", () => {
       check: "status-pairing",
     },
     {
+      // The server's answers to a wrong path and method: the host only ever
+      // sends to /articles with POST, so the extension shows neither reason.
+      name: "a not_found rejection",
+      received: body(
+        404,
+        '{"status":"rejected","reason":"not_found","requestId":"0123456789abcdef"}',
+      ),
+      check: "status-pairing",
+    },
+    {
+      name: "a method_not_allowed rejection",
+      received: body(
+        405,
+        '{"status":"rejected","reason":"method_not_allowed","requestId":"0123456789abcdef"}',
+      ),
+      check: "status-pairing",
+    },
+    {
+      name: "a redirect",
+      received: body(
+        302,
+        '{"status":"accepted","requestId":"0123456789abcdef"}',
+      ),
+      check: "status-pairing",
+    },
+    {
       name: "an inherited-name reason (__proto__)",
       received: body(
         400,
@@ -306,13 +320,34 @@ describe("classifyResponse", () => {
 });
 
 describe("toSendOutcome", () => {
-  it("drops the cause of an unknown result", () => {
-    const result: SendResult = { kind: "unknown", cause: new Error("boom") };
-    assert.deepEqual(toSendOutcome(result), { kind: "unknown" });
+  it("drops the status of an unexpected result", () => {
+    const result: SendResult = {
+      kind: "unexpected",
+      check: "status-pairing",
+      status: 404,
+    };
+    assert.deepEqual(toSendOutcome(result), {
+      kind: "unexpected",
+      check: "status-pairing",
+    });
   });
 
-  it("passes a known outcome through", () => {
-    const outcome: SendResult = { kind: "accepted", requestId };
-    assert.deepEqual(toSendOutcome(outcome), outcome);
+  it("drops the browser's error text of a host failure", () => {
+    const result: SendResult = {
+      kind: "host-failed",
+      lastError: "Native host has exited.",
+    };
+    assert.deepEqual(toSendOutcome(result), { kind: "host-failed" });
+  });
+
+  it("passes the other results through", () => {
+    const results: SendResult[] = [
+      { kind: "accepted", requestId },
+      { kind: "not-sent", cause: "server-unavailable" },
+      { kind: "no-response" },
+    ];
+    for (const result of results) {
+      assert.deepEqual(toSendOutcome(result), result);
+    }
   });
 });

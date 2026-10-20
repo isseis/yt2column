@@ -130,8 +130,6 @@ interface Brand {
 
 const brands: Brand[] = [
   { type: "CollectedInput", creator: "src/core/collect.ts" },
-  { type: "SharedToken", creator: "src/core/settings.ts" },
-  { type: "ServerPort", creator: "src/core/settings.ts" },
   { type: "PreparedRequest", creator: "src/core/prepare.ts" },
   { type: "RequestId", creator: "src/core/response.ts" },
 ];

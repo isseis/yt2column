@@ -11,11 +11,11 @@ import { expandPromptMessage } from "../src/core/messages.ts";
 import type { RejectionMessage } from "../src/core/messages.ts";
 import { emptyMetadataResult } from "../src/core/metadata.ts";
 import type { MetadataResult } from "../src/core/metadata.ts";
+import { nativeHostName } from "../src/core/native.ts";
+import type { NativeReply } from "../src/core/native.ts";
 import { maxBodyBytes } from "../src/core/prepare.ts";
-import type { PreflightReason } from "../src/core/prepare.ts";
 import type { RequestId, SendOutcome } from "../src/core/response.ts";
 import { blockMessage, sendOutcomeMessage } from "../src/core/sendMessages.ts";
-import type { SettingsReader } from "../src/core/settings.ts";
 import { metadataDisplayLimit } from "../src/ui/render.ts";
 import { sendingMessage } from "../src/ui/renderSend.ts";
 import {
@@ -29,26 +29,19 @@ import type {
   PopupLaunchResult,
   PopupSendDeps,
 } from "../src/launch.ts";
-import type { FetchFn, FetchResponse } from "../src/send.ts";
 import { container, query } from "./helpers/dom.ts";
 import { recordingLogger } from "./helpers/logger.ts";
 import type { RecordingLogger } from "./helpers/logger.ts";
 import {
-  identifiableToken,
-  fixedSettings,
-  failingSettings,
-} from "./helpers/settings.ts";
-import {
-  recordingFetch,
-  rejectingFetch,
+  deferredNative,
+  recordingNative,
+  responseReply,
   testSendDeps,
-  textResponse,
-} from "./helpers/fetch.ts";
+} from "./helpers/native.ts";
 
 const watchUrl = "https://www.youtube.com/watch?v=abc";
 const malicious = "<img src=x onerror=alert(1)>";
 const metadataLabel = "yt2column video metadata";
-const popupLaunchLabel = "yt2column popup launch";
 const blockedLabel = "yt2column blocked";
 const sendLabel = "yt2column send result";
 const requestId = "0123456789abcdef" as RequestId;
@@ -133,29 +126,17 @@ function launched(
   return { outcome, metadata };
 }
 
-/** Settings with a valid token and no stored port (the default 8765). */
-function readySettings() {
-  return fixedSettings({ token: identifiableToken, port: undefined });
+/** A recording sendNative whose reply wraps an accepted response. */
+function acceptedNative() {
+  return recordingNative(async () => responseReply(202, acceptedBody));
 }
 
-/** A recording fetch that returns an accepted response. */
-function acceptedFetch() {
-  return recordingFetch(async () => textResponse(202, acceptedBody));
-}
-
-/** A fetch whose response resolves only when the test calls resolve. */
-function deferredFetch(): {
-  fetchFn: FetchFn;
-  resolve(response: FetchResponse): void;
-} {
-  let settle: ((response: FetchResponse) => void) | undefined;
-  const pending = new Promise<FetchResponse>((resolve) => {
-    settle = resolve;
-  });
-  return {
-    fetchFn: async () => pending,
-    resolve: (response) => settle?.(response),
-  };
+/** A recording sendNative whose every call fails with lastError. */
+function failingNative(lastError: string) {
+  return recordingNative(async (): Promise<NativeReply> => ({
+    kind: "failed",
+    lastError,
+  }));
 }
 
 /** Waits for the queued microtasks and one macrotask to settle. */
@@ -266,7 +247,7 @@ describe("launch paths", () => {
     const metadata = metadataReader(metadataJson(values)).reader;
     const tab = fakeTab({ id: 7, url: watchUrl, title: tabTitle });
 
-    const popupFetch = acceptedFetch();
+    const popupNative = acceptedNative();
     const outcome = await runPopupLaunch(
       container(),
       popupHarness({
@@ -277,20 +258,19 @@ describe("launch paths", () => {
     );
     const popupRoot = container();
     await runPopupSend(popupRoot, outcome, {
-      settings: readySettings().reader,
-      send: testSendDeps(popupFetch.fetchFn),
+      send: testSendDeps(popupNative.sendNative),
       now: () => 1000,
       log: recordingLogger().log,
     });
     await clickSend(popupRoot);
 
-    const popupBody = popupFetch.calls[0]?.init.body;
-    assert.equal(typeof popupBody, "string");
-    assert.deepEqual(JSON.parse(popupBody as string), {
-      videoUrl: watchUrl,
-      transcript: selection,
-      ...values,
-    });
+    assert.deepEqual(popupNative.messages, [
+      {
+        videoUrl: watchUrl,
+        transcript: selection,
+        ...values,
+      },
+    ]);
     assert.equal(
       popupRoot.querySelector(".send-request-id")?.textContent,
       requestId,
@@ -381,19 +361,17 @@ describe("launch paths", () => {
       const result = await runPopupLaunch(container(), popup.deps);
       assert.equal(result.outcome.kind, "collected");
       assert.deepEqual(result.metadata.values, {});
-      const popupFetch = acceptedFetch();
+      const popupNative = acceptedNative();
       const popupRoot = container();
       await runPopupSend(popupRoot, result, {
-        settings: readySettings().reader,
-        send: testSendDeps(popupFetch.fetchFn),
+        send: testSendDeps(popupNative.sendNative),
         now: () => 1000,
         log: recordingLogger().log,
       });
       await clickSend(popupRoot);
-      assert.deepEqual(JSON.parse(popupFetch.calls[0]?.init.body as string), {
-        videoUrl: watchUrl,
-        transcript: "selection",
-      });
+      assert.deepEqual(popupNative.messages, [
+        { videoUrl: watchUrl, transcript: "selection" },
+      ]);
 
       const expected =
         check === undefined
@@ -445,8 +423,7 @@ describe("popup send", () => {
     const recorder = recordingLogger();
     return {
       deps: {
-        settings: readySettings().reader,
-        send: testSendDeps(acceptedFetch().fetchFn),
+        send: testSendDeps(acceptedNative().sendNative),
         now: () => 1000,
         log: recorder.log,
         ...overrides,
@@ -458,23 +435,23 @@ describe("popup send", () => {
   const collected = (): PopupLaunchResult => launched(collectedOutcome());
 
   it("shows a send button and does not send until it is clicked", async () => {
-    const fetch = acceptedFetch();
-    const { deps: popupDeps } = deps({ send: testSendDeps(fetch.fetchFn) });
+    const native = acceptedNative();
+    const { deps: popupDeps } = deps({ send: testSendDeps(native.sendNative) });
     const root = container();
     await runPopupSend(root, collected(), popupDeps);
     assert.ok(root.querySelector(".send-button") !== null);
-    assert.equal(fetch.calls.length, 0);
+    assert.equal(native.messages.length, 0);
   });
 
   it("sends once, disables the button and shows the result", async () => {
-    const fetch = acceptedFetch();
+    const native = acceptedNative();
     const { deps: popupDeps, recorder } = deps({
-      send: testSendDeps(fetch.fetchFn),
+      send: testSendDeps(native.sendNative),
     });
     const root = container();
     await runPopupSend(root, collected(), popupDeps);
     await clickSend(root);
-    assert.equal(fetch.calls.length, 1);
+    assert.equal(native.messages.length, 1);
     assert.equal(query<HTMLButtonElement>(root, ".send-button").disabled, true);
     expectMessage(root, sendOutcomeMessage(acceptedOutcome));
     assert.equal(
@@ -493,18 +470,20 @@ describe("popup send", () => {
   });
 
   it("sends only once when the button is clicked repeatedly", async () => {
-    const fetch = acceptedFetch();
-    const { deps: popupDeps } = deps({ send: testSendDeps(fetch.fetchFn) });
+    const native = acceptedNative();
+    const { deps: popupDeps } = deps({ send: testSendDeps(native.sendNative) });
     const root = container();
     await runPopupSend(root, collected(), popupDeps);
     await clickSend(root);
     await clickSend(root);
-    assert.equal(fetch.calls.length, 1);
+    assert.equal(native.messages.length, 1);
   });
 
   it("shows the sending notice and a disabled button while sending", async () => {
-    const deferred = deferredFetch();
-    const { deps: popupDeps } = deps({ send: testSendDeps(deferred.fetchFn) });
+    const deferred = deferredNative();
+    const { deps: popupDeps } = deps({
+      send: testSendDeps(deferred.sendNative),
+    });
     const root = container();
     await runPopupSend(root, collected(), popupDeps);
     const button = query<HTMLButtonElement>(root, ".send-button");
@@ -521,7 +500,7 @@ describe("popup send", () => {
     ]) {
       assert.ok(text.includes(sentence), sentence);
     }
-    deferred.resolve(textResponse(202, acceptedBody));
+    deferred.resolve(responseReply(202, acceptedBody));
     await flush();
     assert.equal(
       root.querySelector(".send-request-id")?.textContent,
@@ -530,8 +509,8 @@ describe("popup send", () => {
   });
 
   it("keeps the button under the expand prompt and sends the shown description", async () => {
-    const fetch = acceptedFetch();
-    const { deps: popupDeps } = deps({ send: testSendDeps(fetch.fetchFn) });
+    const native = acceptedNative();
+    const { deps: popupDeps } = deps({ send: testSendDeps(native.sendNative) });
     const summaryRoot = container();
     const sendRoot = container();
     const result = await runPopupLaunch(
@@ -546,17 +525,14 @@ describe("popup send", () => {
     expectMessage(summaryRoot, expandPromptMessage);
     assert.ok(sendRoot.querySelector(".send-button") !== null);
     await clickSend(sendRoot);
-    assert.equal(fetch.calls.length, 1);
-    const body = JSON.parse(fetch.calls[0]?.init.body as string) as {
-      description?: string;
-    };
-    assert.equal(body.description, "first lines");
+    assert.equal(native.messages.length, 1);
+    assert.equal(native.messages[0]?.["description"], "first lines");
   });
 
   it("sends the full description while the popup shows it truncated", async () => {
     const description = "x".repeat(metadataDisplayLimit + 50);
-    const fetch = acceptedFetch();
-    const { deps: popupDeps } = deps({ send: testSendDeps(fetch.fetchFn) });
+    const native = acceptedNative();
+    const { deps: popupDeps } = deps({ send: testSendDeps(native.sendNative) });
     const summaryRoot = container();
     const result = await runPopupLaunch(
       summaryRoot,
@@ -570,19 +546,12 @@ describe("popup send", () => {
     const root = container();
     await runPopupSend(root, result, popupDeps);
     await clickSend(root);
-    const body = JSON.parse(fetch.calls[0]?.init.body as string) as {
-      description?: string;
-    };
-    assert.equal(body.description, description);
+    assert.equal(native.messages[0]?.["description"], description);
   });
 
-  it("renders nothing and does not read settings for a rejected collection", async () => {
-    const settings = failingSettings(new Error("must not load"));
-    const fetch = acceptedFetch();
-    const { deps: popupDeps } = deps({
-      settings: settings.reader,
-      send: testSendDeps(fetch.fetchFn),
-    });
+  it("renders nothing and does not send for a rejected collection", async () => {
+    const native = acceptedNative();
+    const { deps: popupDeps } = deps({ send: testSendDeps(native.sendNative) });
     const root = container();
     root.append(root.ownerDocument.createElement("p"));
     await runPopupSend(
@@ -591,20 +560,19 @@ describe("popup send", () => {
       popupDeps,
     );
     assert.equal(root.childNodes.length, 0);
-    assert.equal(settings.loadCalls(), 0);
-    assert.equal(fetch.calls.length, 0);
+    assert.equal(native.messages.length, 0);
   });
 
-  it("logs a failed send at error and shows the unknown result", async () => {
-    const fetch = rejectingFetch(new TypeError("Failed to fetch"));
+  it("logs a host failure at error and shows the host-failed result", async () => {
+    const native = failingNative("Specified native messaging host not found.");
     const { deps: popupDeps, recorder } = deps({
-      send: testSendDeps(fetch.fetchFn),
+      send: testSendDeps(native.sendNative),
     });
     const root = container();
     await runPopupSend(root, collected(), popupDeps);
     await clickSend(root);
-    assert.equal(fetch.calls.length, 1);
-    expectMessage(root, sendOutcomeMessage({ kind: "unknown" }));
+    assert.equal(native.messages.length, 1);
+    expectMessage(root, sendOutcomeMessage({ kind: "host-failed" }));
     assert.deepEqual(
       recorder.errors.map((entry) => entry.label),
       [sendLabel],
@@ -616,79 +584,43 @@ describe("popup send", () => {
   });
 
   const popupBlocks: {
-    reason: PreflightReason;
-    // Tells apart rows that share a reason.
-    when?: string;
-    settings: SettingsReader;
-    result?: PopupLaunchResult;
-    // A settings read failure is a defect and is logged at error.
-    error: boolean;
+    // Tells apart rows that share the reason.
+    when: string;
+    result: PopupLaunchResult;
   }[] = [
     {
-      reason: "token-missing",
-      settings: fixedSettings({ token: undefined, port: undefined }).reader,
-      error: false,
-    },
-    {
-      reason: "settings-unreadable",
-      settings: failingSettings(new Error("storage failed")).reader,
-      error: true,
-    },
-    {
-      reason: "port-invalid",
-      settings: fixedSettings({ token: identifiableToken, port: "80" }).reader,
-      error: false,
-    },
-    {
-      reason: "token-invalid",
-      settings: fixedSettings({ token: "not-a-token", port: undefined }).reader,
-      error: false,
-    },
-    {
       // The size count itself is prepare.test.ts's contract.
-      reason: "body-too-large",
       when: "the selection takes the body over the limit",
-      settings: readySettings().reader,
       result: launched(collectedOutcome("a".repeat(maxBodyBytes))),
-      error: false,
     },
     {
       // The selection alone fits, so only the metadata can block the send.
-      reason: "body-too-large",
       when: "the metadata takes the body over the limit",
-      settings: readySettings().reader,
       result: launched(collectedOutcome(), {
         values: { description: "d".repeat(maxBodyBytes) },
         showExpandPrompt: false,
         omissions: [],
       }),
-      error: false,
     },
   ];
-  for (const { reason, when, settings, result, error } of popupBlocks) {
-    const suffix = when === undefined ? "" : ` when ${when}`;
-    it(`shows the ${reason} reason and no button without sending${suffix}`, async () => {
-      const fetch = acceptedFetch();
+  for (const { when, result } of popupBlocks) {
+    it(`shows the body-too-large reason and no button without sending when ${when}`, async () => {
+      const native = acceptedNative();
       const { deps: popupDeps, recorder } = deps({
-        settings,
-        send: testSendDeps(fetch.fetchFn),
+        send: testSendDeps(native.sendNative),
       });
       const root = container();
-      await runPopupSend(root, result ?? collected(), popupDeps);
+      await runPopupSend(root, result, popupDeps);
       assert.equal(root.querySelector(".send-button"), null);
-      expectMessage(root, blockMessage(reason));
-      assert.equal(fetch.calls.length, 0);
-      const [entries, others] = error
-        ? [recorder.errors, recorder.infos]
-        : [recorder.infos, recorder.errors];
+      expectMessage(root, blockMessage("body-too-large"));
+      assert.equal(native.messages.length, 0);
+      // A blocked launch is normal: logged at info, never at error.
       assert.deepEqual(
-        entries
-          .filter((entry) => entry.label === blockedLabel)
-          .map((entry) => (entry.data as { reason: unknown }).reason),
-        [reason],
+        recorder.infos.filter((entry) => entry.label === blockedLabel),
+        [{ label: blockedLabel, data: { reason: "body-too-large" } }],
       );
       assert.equal(
-        others.some((entry) => entry.label === blockedLabel),
+        recorder.errors.some((entry) => entry.label === blockedLabel),
         false,
       );
     });
@@ -708,19 +640,22 @@ describe("video metadata log", () => {
     const send = recordingLogger();
     const sendRoot = container();
     await runPopupSend(sendRoot, result, {
-      settings: readySettings().reader,
-      send: testSendDeps(acceptedFetch().fetchFn),
+      send: testSendDeps(acceptedNative().sendNative),
       now: () => 1000,
       log: send.log,
     });
     await clickSend(sendRoot);
+    // The same metadata with a selection over the body limit blocks the send.
     const blocked = recordingLogger();
-    await runPopupSend(container(), result, {
-      settings: fixedSettings({ token: undefined, port: undefined }).reader,
-      send: testSendDeps(acceptedFetch().fetchFn),
-      now: () => 1000,
-      log: blocked.log,
-    });
+    await runPopupSend(
+      container(),
+      { ...result, outcome: collectedOutcome("a".repeat(maxBodyBytes)) },
+      {
+        send: testSendDeps(acceptedNative().sendNative),
+        now: () => 1000,
+        log: blocked.log,
+      },
+    );
     // Precondition: both send-control logs were written.
     assert.ok(send.infos.some((entry) => entry.label === sendLabel));
     assert.ok(blocked.infos.some((entry) => entry.label === blockedLabel));
@@ -817,69 +752,73 @@ describe("video metadata log", () => {
   });
 });
 
-describe("token never leaks", () => {
-  it("keeps the token out of the logs and the display", async () => {
-    const popup = popupHarness();
+describe("send log", () => {
+  /** Sends once from a collected popup with sendNative; returns the log and the display. */
+  async function sendOnce(
+    native: ReturnType<typeof recordingNative>,
+  ): Promise<{ recorder: RecordingLogger; root: HTMLElement }> {
+    const recorder = recordingLogger();
     const root = container();
-    const outcome = await runPopupLaunch(root, popup.deps);
-    const send = recordingLogger();
-    await runPopupSend(root, outcome, {
-      settings: readySettings().reader,
-      send: testSendDeps(acceptedFetch().fetchFn),
+    await runPopupSend(root, launched(collectedOutcome()), {
+      send: testSendDeps(native.sendNative),
       now: () => 1000,
-      log: send.log,
+      log: recorder.log,
     });
     await clickSend(root);
-    // The block happens after the token is loaded, so the token is in reach.
-    const blocked = recordingLogger();
-    const blockedRoot = container();
-    await runPopupSend(blockedRoot, outcome, {
-      settings: fixedSettings({ token: identifiableToken, port: "80" }).reader,
-      send: testSendDeps(acceptedFetch().fetchFn),
-      now: () => 1000,
-      log: blocked.log,
-    });
-    // A failed send with the token loaded takes the error branch of the log.
-    const failed = recordingLogger();
-    const failedRoot = container();
-    await runPopupSend(failedRoot, outcome, {
-      settings: readySettings().reader,
-      send: testSendDeps(
-        rejectingFetch(new TypeError("Failed to fetch")).fetchFn,
-      ),
-      now: () => 1000,
-      log: failed.log,
-    });
-    await clickSend(failedRoot);
-    // Precondition: each log under test was written.
-    assert.ok(
-      popup.recorder.infos.some((entry) => entry.label === popupLaunchLabel),
-    );
-    assert.ok(send.infos.some((entry) => entry.label === sendLabel));
-    assert.ok(blocked.infos.some((entry) => entry.label === blockedLabel));
-    assert.ok(failed.errors.some((entry) => entry.label === sendLabel));
+    return { recorder, root };
+  }
 
-    const serialized = JSON.stringify(
-      {
-        popupInfos: popup.recorder.infos,
-        popupErrors: popup.recorder.errors,
-        sendInfos: send.infos,
-        sendErrors: send.errors,
-        blockedInfos: blocked.infos,
-        blockedErrors: blocked.errors,
-        failedInfos: failed.infos,
-        failedErrors: failed.errors,
-        text: root.textContent,
-        blockedText: blockedRoot.textContent,
-        failedText: failedRoot.textContent,
-      },
-      // JSON.stringify turns an Error into {}; keep its name and message.
-      (_key, value: unknown) =>
-        value instanceof Error ? `${value.name}: ${value.message}` : value,
+  /** The data of the one send log entry, at info or at error. */
+  function sendLog(recorder: RecordingLogger): Record<string, unknown> {
+    const entries = [...recorder.infos, ...recorder.errors].filter(
+      (entry) => entry.label === sendLabel,
     );
-    assert.equal(serialized.includes(identifiableToken), false);
-    assert.equal(serialized.includes(identifiableToken.slice(0, 4)), false);
-    assert.equal(serialized.includes(identifiableToken.slice(-4)), false);
+    assert.equal(entries.length, 1);
+    return entries[0]?.data as Record<string, unknown>;
+  }
+
+  it("records the host name, and no port or token", async () => {
+    const { recorder } = await sendOnce(acceptedNative());
+    const data = sendLog(recorder);
+    assert.deepEqual(Object.keys(data).sort(), [
+      "at",
+      "durationMs",
+      "host",
+      "result",
+    ]);
+    assert.equal(data["host"], nativeHostName);
+  });
+
+  it("logs the browser's error text but does not display it", async () => {
+    const lastError = "LASTERROR-TEXT-4c1d";
+    const { recorder, root } = await sendOnce(failingNative(lastError));
+    assert.deepEqual(sendLog(recorder)["result"], {
+      kind: "host-failed",
+      lastError,
+    });
+    assert.equal(root.textContent?.includes(lastError), false);
+  });
+
+  it("logs an unexpected reply's status but does not display it", async () => {
+    // The server's answer to a wrong path: a reason the extension does not show.
+    const body = JSON.stringify({
+      status: "rejected",
+      reason: "not_found",
+      requestId,
+    });
+    const { recorder, root } = await sendOnce(
+      recordingNative(async () => responseReply(404, body)),
+    );
+    assert.deepEqual(sendLog(recorder)["result"], {
+      kind: "unexpected",
+      check: "status-pairing",
+      status: 404,
+    });
+    expectMessage(
+      root,
+      sendOutcomeMessage({ kind: "unexpected", check: "status-pairing" }),
+    );
+    assert.equal(root.textContent?.includes("404"), false);
   });
 });
 

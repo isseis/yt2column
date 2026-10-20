@@ -8,15 +8,8 @@ import {
   prepareSend,
 } from "../src/core/prepare.ts";
 import type { PrepareOutcome } from "../src/core/prepare.ts";
-import { defaultPort } from "../src/core/settings.ts";
-import {
-  failingSettings,
-  fixedSettings,
-  identifiableToken,
-} from "./helpers/settings.ts";
 
 const watchUrl = "https://www.youtube.com/watch?v=abc";
-const validToken = "a".repeat(64);
 
 /** Builds a collected input; tests may assert the branded type. */
 function collectedInput(
@@ -42,7 +35,7 @@ describe("buildArticleBody", () => {
   it("has exactly videoUrl and transcript with the collected values", () => {
     const input = collectedInput("hello\nworld", watchUrl);
     const body = buildArticleBody(input, {});
-    assert.deepEqual(JSON.parse(body.json), {
+    assert.deepEqual(body.message, {
       videoUrl: watchUrl,
       transcript: "hello\nworld",
     });
@@ -63,7 +56,7 @@ describe("buildArticleBody", () => {
   for (const { name, selection, url } of roundTrips) {
     it(`preserves the ${name}`, () => {
       const body = buildArticleBody(collectedInput(selection, url), {});
-      assert.deepEqual(JSON.parse(body.json), {
+      assert.deepEqual(body.message, {
         videoUrl: url,
         transcript: selection,
       });
@@ -76,7 +69,7 @@ describe("buildArticleBody", () => {
       channelName: "Channel",
       description: "Text",
     });
-    assert.deepEqual(JSON.parse(body.json), {
+    assert.deepEqual(body.message, {
       videoUrl: watchUrl,
       transcript: "x",
       title: "Video",
@@ -90,7 +83,7 @@ describe("buildArticleBody", () => {
       title: "",
       description: undefined,
     });
-    const parsed = JSON.parse(body.json) as Record<string, unknown>;
+    const parsed: Record<string, unknown> = body.message;
     assert.deepEqual(Object.keys(parsed), ["videoUrl", "transcript"]);
     assert.equal("title" in parsed, false);
     assert.equal("description" in parsed, false);
@@ -101,7 +94,10 @@ describe("buildArticleBody", () => {
       collectedInput("x", watchUrl, "SECRET-TAB-TITLE"),
       {},
     );
-    assert.equal(body.json.includes("SECRET-TAB-TITLE"), false);
+    assert.equal(
+      JSON.stringify(body.message).includes("SECRET-TAB-TITLE"),
+      false,
+    );
   });
 
   it("writes markup in a metadata value as a JSON string", () => {
@@ -110,130 +106,68 @@ describe("buildArticleBody", () => {
       title: markup,
       description: markup,
     });
-    const parsed = JSON.parse(body.json) as Record<string, unknown>;
-    assert.equal(parsed.title, markup);
-    assert.equal(parsed.description, markup);
+    assert.equal(body.message["title"], markup);
+    assert.equal(body.message["description"], markup);
   });
 
-  it("counts the JSON in UTF-8 bytes, not UTF-16 length", () => {
+  it("counts the body's JSON text in UTF-8 bytes, not UTF-16 length", () => {
     const body = buildArticleBody(collectedInput("\u3042"), {});
-    assert.ok(body.byteLength > body.json.length);
+    const json = JSON.stringify(body.message);
+    assert.equal(body.byteLength, new TextEncoder().encode(json).length);
+    assert.ok(body.byteLength > json.length);
   });
 });
 
 describe("prepareSend", () => {
-  it("builds a request to the default port when none is stored", async () => {
-    const settings = fixedSettings({ token: validToken, port: undefined });
-    const outcome = await prepareSend(collected("x"), settings.reader, {});
+  it("builds the request from the collected values without reading anything else", () => {
+    const outcome = prepareSend(collected("x"), {});
+    // Synchronous: a send never waits on a stored setting.
+    assert.equal(outcome instanceof Promise, false);
     assert.ok(outcome.kind === "ready");
-    assert.equal(outcome.request.url, "http://127.0.0.1:8765/articles");
-    assert.equal(outcome.request.port, defaultPort);
-    assert.deepEqual(JSON.parse(outcome.request.body.json), {
+    assert.deepEqual(Object.keys(outcome.request), ["body"]);
+    assert.deepEqual(outcome.request.body.message, {
       videoUrl: watchUrl,
       transcript: "x",
     });
   });
 
-  it("uses the stored port in the URL", async () => {
-    const settings = fixedSettings({ token: validToken, port: "1024" });
-    const outcome = await prepareSend(collected("x"), settings.reader, {});
-    assert.ok(outcome.kind === "ready");
-    assert.equal(outcome.request.url, "http://127.0.0.1:1024/articles");
-    assert.equal(outcome.request.port, "1024");
-  });
-
-  it("does not read settings when the collection was rejected", async () => {
-    const settings = fixedSettings({ token: validToken, port: undefined });
-    const outcome: CollectOutcome = {
-      kind: "rejected",
-      reason: "empty-selection",
-    };
-    assert.equal(
-      blockedReason(await prepareSend(outcome, settings.reader, {})),
-      "empty-selection",
-    );
-    assert.equal(settings.loadCalls(), 0);
-  });
-
-  it("passes a collection-failed reason through without its cause", async () => {
-    const settings = fixedSettings({ token: validToken, port: undefined });
+  it("passes a collection reason through without its cause", () => {
     const outcome: CollectOutcome = {
       kind: "rejected",
       reason: "collection-failed",
       cause: new Error("boom"),
     };
-    const prepared = await prepareSend(outcome, settings.reader, {});
-    assert.deepEqual(prepared, {
+    assert.deepEqual(prepareSend(outcome, {}), {
       kind: "blocked",
       reason: "collection-failed",
     });
   });
 
-  it("blocks with settings-unreadable when loading fails", async () => {
-    const cause = new Error("storage failed");
-    const settings = failingSettings(cause);
-    const outcome = await prepareSend(collected("x"), settings.reader, {});
-    assert.deepEqual(outcome, {
-      kind: "blocked",
-      reason: "settings-unreadable",
-      cause,
-    });
-    assert.equal(settings.loadCalls(), 1);
-  });
-
-  it("blocks with token-missing when no token is stored", async () => {
-    const settings = fixedSettings({ token: undefined, port: undefined });
+  it("checks the collection before the body size", () => {
+    // Metadata alone over the limit: a rejected collection still wins.
+    const outcome: CollectOutcome = {
+      kind: "rejected",
+      reason: "empty-selection",
+    };
+    const metadata = { description: "d".repeat(maxBodyBytes) };
     assert.equal(
-      blockedReason(await prepareSend(collected("x"), settings.reader, {})),
-      "token-missing",
+      blockedReason(prepareSend(outcome, metadata)),
+      "empty-selection",
     );
   });
 
-  it("blocks with token-invalid when the stored token has the wrong form", async () => {
-    const settings = fixedSettings({ token: "nope", port: undefined });
-    assert.equal(
-      blockedReason(await prepareSend(collected("x"), settings.reader, {})),
-      "token-invalid",
-    );
-  });
-
-  it("blocks with port-invalid when the stored port has the wrong form", async () => {
-    const settings = fixedSettings({ token: validToken, port: "80" });
-    assert.equal(
-      blockedReason(await prepareSend(collected("x"), settings.reader, {})),
-      "port-invalid",
-    );
-  });
-
-  it("does not put the shared token in the body", async () => {
-    const settings = fixedSettings({
-      token: identifiableToken,
-      port: undefined,
-    });
-    const outcome = await prepareSend(collected("x"), settings.reader, {});
-    assert.ok(outcome.kind === "ready");
-    assert.equal(outcome.request.body.json.includes(identifiableToken), false);
-  });
-
-  it("counts the metadata toward the body limit", async () => {
+  it("counts the metadata toward the body limit", () => {
     const base = buildArticleBody(collectedInput(""), {}).byteLength;
     const input = collectedInput("a".repeat(maxBodyBytes - base));
-    const settings = fixedSettings({ token: validToken, port: undefined });
-    const without = await prepareSend(
+    assert.equal(prepareSend({ kind: "collected", input }, {}).kind, "ready");
+    const withMetadata = prepareSend(
       { kind: "collected", input },
-      settings.reader,
-      {},
-    );
-    assert.equal(without.kind, "ready");
-    const withMetadata = await prepareSend(
-      { kind: "collected", input },
-      settings.reader,
       { description: "d" },
     );
     assert.equal(blockedReason(withMetadata), "body-too-large");
   });
 
-  it("sends at exactly the body limit and blocks one byte over", async () => {
+  it("sends at exactly the body limit and blocks one byte over", () => {
     const base = buildArticleBody(collectedInput(""), {}).byteLength;
     const at = (size: number): CollectedInput => {
       const remaining = size - base;
@@ -250,20 +184,12 @@ describe("prepareSend", () => {
       maxBodyBytes + 1,
     );
 
-    const settings = fixedSettings({ token: validToken, port: undefined });
     assert.equal(
-      (
-        await prepareSend(
-          { kind: "collected", input: at(maxBodyBytes) },
-          settings.reader,
-          {},
-        )
-      ).kind,
+      prepareSend({ kind: "collected", input: at(maxBodyBytes) }, {}).kind,
       "ready",
     );
-    const over = await prepareSend(
+    const over = prepareSend(
       { kind: "collected", input: at(maxBodyBytes + 1) },
-      settings.reader,
       {},
     );
     assert.equal(blockedReason(over), "body-too-large");

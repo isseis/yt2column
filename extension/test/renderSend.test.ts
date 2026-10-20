@@ -34,48 +34,37 @@ describe("renderSendOutcome", () => {
       renderSendOutcome(root, outcome);
       expectMessage(root, sendOutcomeMessage(outcome));
       assert.equal(query(root, ".send-request-id").textContent, requestId);
-      assert.equal(root.querySelector(".send-status"), null);
     });
   }
 
-  it("shows the unknown message", () => {
-    const root = container();
-    renderSendOutcome(root, { kind: "unknown" });
-    expectMessage(root, sendOutcomeMessage({ kind: "unknown" }));
-  });
-
-  it("shows the unexpected message and the status number but not the check", () => {
-    const root = container();
-    renderSendOutcome(root, {
-      kind: "unexpected",
-      status: 500,
-      check: "json-shape",
+  const withoutRequestId: SendOutcome[] = [
+    { kind: "not-sent", cause: "server-unavailable" },
+    { kind: "no-response" },
+    { kind: "host-failed" },
+  ];
+  for (const outcome of withoutRequestId) {
+    it(`shows the ${outcome.kind} message and no request id`, () => {
+      const root = container();
+      renderSendOutcome(root, outcome);
+      expectMessage(root, sendOutcomeMessage(outcome));
+      assert.equal(root.querySelector(".send-request-id"), null);
     });
-    expectMessage(
-      root,
-      sendOutcomeMessage({
-        kind: "unexpected",
-        status: 500,
-        check: "json-shape",
-      }),
-    );
-    assert.equal(query(root, ".send-status").textContent, "500");
-    assert.equal((root.textContent ?? "").includes("json-shape"), false);
-  });
+  }
 
-  it("shows the redirected message and no status number", () => {
+  it("shows the unexpected message but not the check", () => {
     const root = container();
-    renderSendOutcome(root, { kind: "redirected" });
-    expectMessage(root, sendOutcomeMessage({ kind: "redirected" }));
-    assert.equal(root.querySelector(".send-status"), null);
+    const outcome: SendOutcome = { kind: "unexpected", check: "json-shape" };
+    renderSendOutcome(root, outcome);
+    expectMessage(root, sendOutcomeMessage(outcome));
+    assert.equal((root.textContent ?? "").includes("json-shape"), false);
   });
 
   it("replaces the previous content on each call", () => {
     const root = container();
     renderSendOutcome(root, accepted);
-    renderSendOutcome(root, { kind: "unknown" });
+    renderSendOutcome(root, { kind: "no-response" });
     assert.equal(root.querySelectorAll(".send-request-id").length, 0);
-    expectMessage(root, sendOutcomeMessage({ kind: "unknown" }));
+    expectMessage(root, sendOutcomeMessage({ kind: "no-response" }));
   });
 });
 
@@ -83,7 +72,7 @@ describe("renderBlockReason", () => {
   // The rendering does not vary by reason, so two reasons suffice here; the
   // popup's blocked display is covered per reason in launch.test.ts, and the
   // message content is sendMessages.test.ts's contract.
-  const blockReasons: BlockReason[] = ["empty-selection", "token-missing"];
+  const blockReasons: BlockReason[] = ["empty-selection", "body-too-large"];
   for (const reason of blockReasons) {
     it(`shows the ${reason} block message`, () => {
       const root = container();
