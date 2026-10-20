@@ -35,7 +35,7 @@ nothing. An LLM classifying its own edit as editorial must say so explicitly in
 ### Review Flow
 
 ```
-LLM creates 01_requirements.md (status: draft)
+LLM creates 01_requirements.md from an issue with /mkreq (status: draft)
   → Human review and revision
   → Reviewer updates status to approved
   → LLM creates 02_architecture.md (status: draft)

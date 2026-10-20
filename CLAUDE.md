@@ -59,6 +59,7 @@ structural consistency) and the glossary workflow live in
 ### Claude Commands (`.claude/commands/`)
 Project-specific values these commands depend on are defined once in
 [_context.md](.claude/commands/_context.md).
+- `/mkreq <issue> [task]` - Create `01_requirements.md` from a GitHub issue, review it, and open its PR for the human reviewer (who then runs `/runchange`)
 - `/mkarch <task>` - Create `02_architecture.md` (requires approved requirements)
 - `/mkplan <task>` - Create `03_implementation_plan.md` (requires approved architecture)
 - `/mkplan2 <task>` - Embed PR boundaries into an approved implementation plan
@@ -332,7 +333,7 @@ Only the conventions a linter does not check are worth stating:
 When implementing new features, follow the process documented in [Requirements Process Guide](docs/dev/developer_guide/requirements_process.md).
 
 **Quick summary:**
-1. Create `01_requirements.md` with explicit acceptance criteria
+1. Create an issue, then run `/mkreq <issue>` to create `01_requirements.md` with explicit acceptance criteria
 2. Create `02_architecture.md` with high-level design (Mermaid diagrams)
 3. Create `03_implementation_plan.md` with progress tracking (checkboxes) and AC traceability
 4. Write tests for each acceptance criterion

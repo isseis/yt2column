@@ -46,6 +46,8 @@ what changes under which condition:
 | Design handoff document | `design_handoff.md` — design-level review concerns raised on the requirements document; the architecture document records how each item is handled (written by `fixpr.md`) |
 | Implementation handoff document | `implementation_handoff.md` — implementation-level review concerns raised on the requirements or architecture document; the implementation plan records how each item is handled (written by `fixpr.md`) |
 | Document status values | `draft` → `approved`; `withdrawn` for every document of a task withdrawn after review (see the requirements process guide, "Document Status Format") |
+| Feature branch name | `<GitHub user name>/<task directory name with every _ replaced by ->-<NN>`, where `NN` is a two-digit sequence number starting at `01` (e.g. `isseis/0027-remove-context-menu-01`). `mkreq.md` creates `-01` |
+| Requirements reviewer ping | After `mkreq.md` opens the requirements PR, notify the human reviewer with the `PushNotification` tool (the PR author cannot be requested as a GitHub reviewer of their own PR) and repeat the PR URL and the next action in the final report |
 | PR merge method | Squash merge, run with `/mergepr`. The squash commit is the only commit of a PR that reaches `main`, so its message carries what CLAUDE.md requires commit messages to record |
 | Document language | Japanese |
 | Translation glossary | `docs/translation_glossary.md` |
