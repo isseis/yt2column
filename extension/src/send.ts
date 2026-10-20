@@ -35,12 +35,10 @@ export async function sendArticle(
   });
   const sent = deps
     .sendNative(request.body.message)
-    .catch(
-      (cause: unknown): NativeReply => ({
-        kind: "failed",
-        lastError: String(cause),
-      }),
-    );
+    .catch((cause: unknown): NativeReply => ({
+      kind: "failed",
+      lastError: String(cause),
+    }));
   const reply = await Promise.race([sent, timedOut]);
   cancel();
   try {
