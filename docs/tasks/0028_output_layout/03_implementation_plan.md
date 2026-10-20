@@ -504,18 +504,20 @@ PR-6 のマージの後に加えたステップである。§3.2 の PR 構成�
 
 #### ステップ 5-1: 文書の更新
 
--   [ ] `README.md`（英語で書く）: Estimated cost の節（`:241-245`）の「heading metadata の 1 行」を、フロントマターの `estimated_cost_usd` と Slack の脚注に書き直す。`--out` のファイルのフロントマターの例と、Slack の投稿の構成の例を、実際の出力と合う形で加える。メンションの拒否の説明（`:317-319`）を、AC-14〜AC-14f に合わせる（語の途中の `@` は拒否しないこと、見出し行・脚注・本文のコードの外の対象の `@` は U+200B で無効化すること、コードの中と直前が `/` の `@` は拒否すること）。保存済みの `info.json` に、制御文字を含むチャンネル名や空白だけのチャンネル名があると、LLM を呼ぶ前に拒否されるようになる。この互換性の変化を書く（設計書 4 章）。
--   [ ] `docs/dev/project_overview.md:36`: `Article` が持つ値と、料金の行の置き場所を新しい構成に合わせる。
--   [ ] `docs/dev/security.md`: チャンネル名が外部由来の表示用の文字列であること、検査の 3 か所、フロントマターの引用符、メンションの規則（`:74`）を、設計書 5 章と 3.7 に合わせる。
--   [ ] `docs/dev/developer_guide/package_reference.md:37`: `renderArticle` の説明を、`renderFileArticle`・`renderSlackPost` と共有の `format.go` の説明に直す。
--   [ ] `cmd/yt2column/docs_test.go` の `TestCostDocsContract:795` が、更新した README の Estimated cost の節に合うことを確かめる。合わない語があれば、文書を直す（テストの期待値を文書に合わせて緩めない）。
--   [ ] 出力の構成を確かめる文書のガードを `cmd/yt2column/docs_test.go` に加える（既存の `readDoc` を使う）。確かめる内容は次の 3 つである。(1) README のフロントマターの例と Slack の投稿の例の各コードブロックが、固定の `Article` を `FilePublisher`（一時ディレクトリ）と `publisher.SlackMessagesForTest`（既存の公開の補助）に通した実際の出力と一致すること。ガードが各ブロックを見つけられるように、README の例のコードブロックには見出しを付ける。(2) `security.md` がチャンネル名・U+200B による無効化・フロントマターの引用符を述べていること、`project_overview.md` が `Article` のチャンネル名と、脚注・フロントマターの料金を述べていること。(3) `README.md` と `project_overview.md` が旧い記述（`- Estimated cost:` の行、`heading metadata`、`見出しのメタデータ`）を含まないこと。(2)(3) で照合する語句は、コードを書くときに決める。
--   [ ] `docs/dev/developer_guide/package_reference.md` の `internal/writer` の行（`CheckPublishable` の規則）と `internal/failure` の行に、チャンネル名の検査・`ProseRanges`・`KindPublishMention` を加える。
+-   [x] `README.md`（英語で書く）: Estimated cost の節（`:241-245`）の「heading metadata の 1 行」を、フロントマターの `estimated_cost_usd` と Slack の脚注に書き直す。`--out` のファイルのフロントマターの例と、Slack の投稿の構成の例を、実際の出力と合う形で加える。メンションの拒否の説明（`:317-319`）を、AC-14〜AC-14f に合わせる（語の途中の `@` は拒否しないこと、見出し行・脚注・本文のコードの外の対象の `@` は U+200B で無効化すること、コードの中と直前が `/` の `@` は拒否すること）。保存済みの `info.json` に、制御文字を含むチャンネル名や空白だけのチャンネル名があると、LLM を呼ぶ前に拒否されるようになる。この互換性の変化を書く（設計書 4 章）。
+    -   実装では、README に「Output format」の節（見出し `### The \`--out\` file`・`### The Slack post` の下に例のコードブロック）を加え、互換性の変化は「Cache and concurrency」の節に書いた。
+-   [x] `docs/dev/project_overview.md:36`: `Article` が持つ値と、料金の行の置き場所を新しい構成に合わせる。
+-   [x] `docs/dev/security.md`: チャンネル名が外部由来の表示用の文字列であること、検査の 3 か所、フロントマターの引用符、メンションの規則（`:74`）を、設計書 5 章と 3.7 に合わせる。
+-   [x] `docs/dev/developer_guide/package_reference.md:37`: `renderArticle` の説明を、`renderFileArticle`・`renderSlackPost` と共有の `format.go` の説明に直す。
+-   [x] `cmd/yt2column/docs_test.go` の `TestCostDocsContract:795` が、更新した README の Estimated cost の節に合うことを確かめる。合わない語があれば、文書を直す（テストの期待値を文書に合わせて緩めない）。
+-   [x] 出力の構成を確かめる文書のガードを `cmd/yt2column/docs_test.go` に加える（既存の `readDoc` を使う）。確かめる内容は次の 3 つである。(1) README のフロントマターの例と Slack の投稿の例の各コードブロックが、固定の `Article` を `FilePublisher`（一時ディレクトリ）と `publisher.SlackMessagesForTest`（既存の公開の補助）に通した実際の出力と一致すること。ガードが各ブロックを見つけられるように、README の例のコードブロックには見出しを付ける。(2) `security.md` がチャンネル名・U+200B による無効化・フロントマターの引用符を述べていること、`project_overview.md` が `Article` のチャンネル名と、脚注・フロントマターの料金を述べていること。(3) `README.md` と `project_overview.md` が旧い記述（`- Estimated cost:` の行、`heading metadata`、`見出しのメタデータ`）を含まないこと。(2)(3) で照合する語句は、コードを書くときに決める。
+    -   実装では、`cmd/yt2column/output_layout_docs_test.go` の `TestOutputLayoutDocsContract` に置いた（コードブロックを見出しの後から取り出す `firstCodeBlockAfter` は、ブロックの中の `#` の行で節が切れる `sectionByHeading` を避けるための別の補助で、`TestFirstCodeBlockAfter` が確かめる）。README の例の料金は単価の表から算出されるので、単価の変更でガードが失敗する。`pricing_update.md` に、その場合に例を直すことを書いた。
+-   [x] `docs/dev/developer_guide/package_reference.md` の `internal/writer` の行（`CheckPublishable` の規則）と `internal/failure` の行に、チャンネル名の検査・`ProseRanges`・`KindPublishMention` を加える。
 
 #### ステップ 5-2: フェーズ 5 の確認
 
--   [ ] `make test` → `make lint` が通る。`README.md` と `docs/dev/security.md` を変えたので、`make ext-test` も通る（Node のバージョンが `extension/.node-version` と一致していること）。
--   [ ] `security.md`・`project_overview.md` の新しい記述を、設計書 5 章・3.7 と実装の `file:line` に照らして確かめ、§5.4 に記録する。README の例はステップ 5-1 のガードが確かめる。
+-   [x] `make test` → `make lint` が通る。`README.md` と `docs/dev/security.md` を変えたので、`make ext-test` も通る（Node のバージョンが `extension/.node-version` と一致していること）。
+-   [x] `security.md`・`project_overview.md` の新しい記述を、設計書 5 章・3.7 と実装の `file:line` に照らして確かめ、§5.4 に記録する。README の例はステップ 5-1 のガードが確かめる。
 
 ### PR-8 作成ポイント: documentation update
 
@@ -616,9 +618,9 @@ PR は番号順にマージする。PR-1 のチャンネル名が PR-2 と PR-6 
 | AC-19 | test | `internal/publisher/file_test.go::TestFilePublisherWritesCost`（改めた）、`file_render_test.go::TestRenderFileArticleLayout`（コストの 3 つの形） |
 | AC-17 | test | `internal/publisher/file_render_test.go::TestRenderFileArticleQuoting`（フロントマターの値の往復とエスケープの種類）、`TestEscapeLeadingMarkdown`（AC-15 も） |
 | AC-21・AC-22 | test | `internal/publisher/file_test.go::TestFilePublisherExistingPath`・`TestFilePublisherRejectsArticle`・`TestFilePublisherLinkFailure`（変更なしで通る）、AC-22 はチャンネル名の拒否のテスト（AC-04 の行） |
-| AC-23 | static | `cmd/yt2column/docs_test.go::TestCostDocsContract` と、ステップ 5-1 で加える出力の構成の文書のガード（追加。README の例を実際の出力と比べる）、`make ext-test` |
-| AC-24 | static + manual | ステップ 5-1 で加える出力の構成の文書のガード（追加）。記述を実装と照合した記録は §5.4（manual） |
-| AC-25 | static + manual | ステップ 5-1 で加える出力の構成の文書のガード（追加）、`make test`（`doc-guard` の文書のガードを含む）。記述を設計書 5 章・3.7 と照合した記録は §5.4（manual） |
+| AC-23 | static | `cmd/yt2column/docs_test.go::TestCostDocsContract` と、`cmd/yt2column/output_layout_docs_test.go::TestOutputLayoutDocsContract`（ステップ 5-1 の出力の構成の文書のガード。README の例を実際の出力と比べる）、`make ext-test` |
+| AC-24 | static + manual | `TestOutputLayoutDocsContract`（ステップ 5-1 の出力の構成の文書のガード）。記述を実装と照合した記録は §5.4（manual） |
+| AC-25 | static + manual | `TestOutputLayoutDocsContract`、`make test`（`doc-guard` の文書のガードを含む）。記述を設計書 5 章・3.7 と照合した記録は §5.4（manual） |
 | AC-26 | static | `make test`、`make lint`、`make ext-test` |
 
 AC-23〜AC-25 のガードは語句の有無だけを確かめ、記述が実装と合うことは確かめない。後者は §5.4 の照合の記録で補う。
@@ -694,7 +696,23 @@ $ python3 -I docs/tasks/0008_column_prompt/check_article.py <cache> abcdefghijk 
 
 ### 5.4. 文書の照合の記録
 
-ステップ 5-1・5-2 で、文書の記述と実装の照合を記録する。
+ステップ 5-1・5-2 で、文書の記述と実装の照合を記録する。HEAD は PR-7 のマージ後の `50bcc55` の上の作業ブランチである。
+
+| 文書の記述 | 照合した実装・設計 | 結果 |
+|---|---|---|
+| security.md: 対象の `@` の定義（名前の文字・直前の条件・`＠`） | 設計書 3.7(1)、`slack_message.go` の `mentionAts` | 一致 |
+| security.md: 無効化の範囲（見出し行・脚注・本文のコードの外）と例外（直前が `/`） | 設計書 3.7(2)、`slack_render.go` の `neutralizeMentions`・`neutralizeProse` | 一致 |
+| security.md: 拒否の範囲（コードの中・直前が `/`・判定できない本文・`<!`・`<@`・文字参照・`<a\|b>`） | `slack_message.go` の `findMention`・`rejectMention`、`writer.ProseRanges`（判定できない本文は false で無効化しない） | 一致 |
+| security.md: `KindPublishMention` と固定の文面 | `internal/failure/failure.go`、`internal/server/job.go` の `classify`、`slack_failure.go` | 一致 |
+| security.md: チャンネル名の規則と 3 か所の検査 | `writer/output.go` の `CheckChannelName`、`prompt.go`・`article.go`・`server/request.go` の呼び出し | 一致 |
+| security.md: フロントマターの `strconv.Quote` と `escapeLeadingMarkdown` | `file_render.go`、設計書 3.4・6.3 | 一致 |
+| security.md: 確かめた Mattermost の版 | §5.1（サーバ 11.11.2） | 一致 |
+| project_overview.md: `Article` のチャンネル名、料金の置き場所、整形の分担 | 設計書 3.2〜3.4、`format.go`・`file_render.go`・`slack_render.go` | 一致 |
+| README: 例の 2 つのコードブロック | `TestOutputLayoutDocsContract` が実際の出力と比べる | ガードが確かめる |
+| README: 互換性の変化（保存済みの `info.json` のチャンネル名） | 設計書 4 章、`validateTranscript`（`prompt.go:66`） | 一致 |
+| package_reference.md | `format.go`・`file_render.go`・`slack_render.go`・`CheckChannelName`・`ProseRanges`・`KindPublishMention` | 一致 |
+
+ガードを壊して失敗することを確かめた: README のフロントマターのキーの順序の入れ替え、脚注の金額の書き換え、`- Estimated cost:` の行の再導入、security.md から `U+200B` を除く、のそれぞれで `TestOutputLayoutDocsContract` が失敗した。
 
 ## 6. リスク管理 (Risk Management)
 

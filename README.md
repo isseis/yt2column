@@ -93,8 +93,9 @@ check are skipped; with `--no-review` the review step is skipped.
 `--no-shorten --no-review` restores the single-call behavior of earlier
 versions, including the `--out` format.
 
-An article's model lines start with the generation model and add one pair per
-step that ran, in the order shorten, review. For unattended runs, pass
+An article's model entries start with the generation model and add one entry per
+step that ran, in the order shorten, review (see [Output format](#output-format)).
+For unattended runs, pass
 `--review-log <path>` to record, in a separate file, what the review step
 changed; the log is written after the article is published, and if it cannot be
 written the run exits `1` with a message saying the article is already
@@ -186,6 +187,90 @@ the stage's LLM call returned, in UTC and whole seconds. The artifact format is
 version 3: a version 1 or version 2 file is rejected on resume, so after
 updating, use a new `--artifacts` directory or move the old one away.
 
+## Output format
+
+The article is the same text in both outputs, but each output arranges the
+information differently: the reader's part (title, channel name, body, source
+link) comes first, and the development part (models, estimated cost) comes last
+in a Slack post and in the front matter of a file.
+
+### The `--out` file
+
+The file starts with a YAML front matter, then the title, the channel name (when
+there is one), and the body:
+
+```text
+---
+channel: "Example Channel"
+source: "https://www.youtube.com/watch?v=abcdefghijk"
+model: "deepseek-flash"
+model_version: "v4"
+shorten_model: "deepseek-flash"
+shorten_model_version: "v4"
+review_model: "claude-haiku-5-5"
+review_model_version: "2026-01-01"
+estimated_cost_usd: "0.0094"
+---
+
+# Caching transcripts by video ID
+
+Example Channel
+
+The cache key comes from the video ID alone.
+
+## One key per video
+
+Two URLs for one video share one entry.
+
+出典: <https://www.youtube.com/watch?v=abcdefghijk>
+```
+
+- The keys appear in this order. `channel` appears only when the video has a
+  channel name; `shorten_*` only when the shorten step called the LLM;
+  `review_*` only when the review step ran.
+- Every value is a double-quoted string, quoted with Go's `strconv.Quote`, so a
+  value that contains a quote, a backslash, `:`, `#`, or `---` cannot change the
+  structure. `estimated_cost_usd` is a string too: four decimals, or `unknown`
+  (see [Estimated cost](#estimated-cost)). An empty model version is written as
+  `(none)`.
+- The channel name appears again under the title, so a Markdown viewer that
+  hides the front matter still shows it. A name that starts like a Markdown block
+  (`# `, `- `, `> `, and so on) gets a backslash before its first character so
+  that the rendered line is the name.
+- This format replaces the earlier one, which listed the models and the cost
+  under the title (`- Model: …`).
+
+### The Slack post
+
+The post starts with the title and the channel name, then the body, and ends
+with a one-line footnote:
+
+```text
+# Caching transcripts by video ID（Example Channel）
+
+The cache key comes from the video ID alone.
+
+## One key per video
+
+Two URLs for one video share one entry.
+
+出典: <https://www.youtube.com/watch?v=abcdefghijk>
+
+Models: deepseek-flash (generation, shorten) · claude-haiku-5-5 (review) · Estimated cost: 0.0094 USD
+```
+
+- Without a channel name, the first line is `# <title>` alone.
+- The footnote names each model once with the stages that used it, in the order
+  generation, shorten, review; a step that did not run (for example the shorten
+  step on a short body, or a disabled review) is not listed. It never shows the
+  model version. The cost is four decimals and `USD`, or
+  `Estimated cost: unknown`.
+- When the post is longer than one message (see
+  [Webhook publishing](#webhook-publishing)), the first line is in the first
+  message and the footnote is in the last. The last message always holds the
+  last line of the body together with the footnote, so no message is the footnote
+  alone.
+
 ## Estimated cost
 
 Every run that calls or reuses at least one LLM stage also reports an estimated
@@ -237,13 +322,16 @@ yt2column: cost-total: run unknown
 yt2column: cost-total: article unknown
 ```
 
-Both the `--out` file and the Slack post carry the article's cost as a line of
-the heading metadata, with four decimals and the word `USD`, or `unknown`:
+Both outputs carry the article's cost, with four decimals, or `unknown`: the
+`--out` file as the front matter key `estimated_cost_usd` (`"0.0023"` or
+`"unknown"`), and the Slack post as the end of its footnote:
 
 ```text
-- Estimated cost: 0.0023 USD
-- Estimated cost: unknown
+Estimated cost: 0.0023 USD
+Estimated cost: unknown
 ```
+
+See [Output format](#output-format) for both layouts.
 
 The estimate is an estimate, not the billed amount. It can differ from the
 provider's invoice:
@@ -293,6 +381,13 @@ If the cache is corrupt (for example a truncated transcript or `info.json`), the
 run fails with a message saying so. Run again with `--refresh` to fetch the
 transcript again and replace the cache.
 
+The channel name in a saved `info.json` is checked before the LLM is called: a
+name that is only whitespace, contains a control character (or a bidirectional
+control character such as U+202E), is not valid UTF-8, or is longer than 200
+code points makes the run fail, where earlier versions accepted it. Run with
+`--refresh` to fetch the video again and replace the cache. The localhost
+server rejects such a `channelName` with `invalid_body`.
+
 ## Webhook publishing
 
 With `--slack`, the article is posted to the Slack-compatible Incoming Webhook
@@ -304,7 +399,7 @@ ending in a control character — is rejected as a configuration error with exit
 code `2`, and because the variable is validated whenever it is set, this also
 stops an `--out` run.
 
-The article is posted as Markdown. A post longer than 16,383 code points — the
+The article is posted as Markdown, laid out as in [Output format](#output-format). A post longer than 16,383 code points — the
 limit Mattermost counts — is split into several messages, each at most 16,383
 code points and beginning with a `(k/N)` marker. An article that cannot be
 split — because a fragment would be only whitespace, or because it would need
@@ -314,12 +409,34 @@ sent with
 or a `New Messages` line; on a Mattermost version that predates `silent`,
 notifications can still appear.
 
-Before anything is sent, the article is rejected if it contains syntax a server
-would turn into a mention or rewrite: an `@` followed by a name character
-(which also rejects YouTube handles, email addresses, and words such as
-`@Override`), a `<!` or `<@` sequence, an HTML character reference such as
-`&#64;`, or a `<a|b>` link. Such an article is not posted at all; run with
-`--out` to inspect what the model generated.
+Before anything is sent, the post is checked for syntax a server would turn
+into a mention or rewrite. A *target `@`* is an `@` (or a look-alike such as the
+full-width `＠`) followed by a name character (a letter, a digit, `_`, `.`, or
+`-`) when the character before it is not a letter or a digit, so `@everyone`,
+`(@here)`, and `_@name` are targets but `Tech@Work` and `user@example.com` are
+not. What happens depends on where it is:
+
+- A target `@` in the first line (the title and the channel name), in the
+  footnote (the model names), or in the body outside code is posted with
+  U+200B (zero width space) inserted right after the `@`, which keeps the server
+  from reading it as a mention. The file written by `--out` and the article
+  itself are not changed. The U+200B is invisible but is copied with the text.
+- A target `@` inside a code span or a fenced code block of the body, or
+  directly after a `/` (it may belong to a URL such as `youtube.com/@name`), is
+  not changed: the article is rejected. So is a body whose code blocks cannot be
+  told apart reliably (for example an unclosed fence) if it has a target `@`.
+- A `<!` or `<@` sequence, an HTML character reference such as `&#64;`, and a
+  `<a|b>` link are rejected wherever they are.
+- A split never starts a message with the part of a word after an `@` that was
+  in the middle of a word (`x@here` is not cut into `x` and `@here`); when no
+  such cut exists, the post is rejected.
+
+A rejected article is not posted at all, and the error gives the line and column
+in the post (line 1 is the first line, which a file written by `--out` does not
+have, so the lines differ). Running again generates a different article, which
+may not have the problem; run with `--out` to inspect what the model generated.
+The localhost server reports this rejection in its failure notice as its own
+reason, separate from other publishing failures.
 
 If a post fails partway through a split article, the messages already sent stay
 in the channel. There is no retry or resume: running again generates a new
