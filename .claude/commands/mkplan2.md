@@ -26,6 +26,7 @@ Work in the following order.
 2. Read `03_implementation_plan.md` in the target task directory.
    - If the document status is not `approved`, stop and report. PR boundary design requires an approved plan.
    - If `### PR-` sections already exist, stop and report that PR boundaries are already defined. Do not overwrite them unless the user explicitly asks.
+   - If the plan has fewer than two `### フェーズ` headers, stop and report: a single-phase plan has no PR boundaries, and `/runplan` opens its one PR.
 
 3. Read `02_architecture.md` and `01_requirements.md` in the target task directory to understand the component structure and acceptance criteria.
 

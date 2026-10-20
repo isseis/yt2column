@@ -38,14 +38,13 @@ Work in the following order.
      returns (`N`) wherever the issue is named — searches, commits, the PR
      body — never the raw argument, which may be `#330` or a URL.
    - `git fetch origin`. Search for a requirements document that already names
-     issue `N` as its own (`対応 issue: [#N]`): on `origin/main` and on every
-     `origin` branch
-     (`git grep -l '対応 issue: \[#N\]' $(git for-each-ref --format='%(refname)' refs/remotes/origin) -- docs/tasks`),
-     which also finds a branch pushed by a run that stopped before opening its
-     PR, and in the open PRs (`gh pr list --state open --search "N in:body"
-     --json number,headRefName,body`). If one exists, stop and report it: revising an
-     existing requirements document goes through its PR (`/fixpr`,
-     `/runpr`), not this command.
+     issue `N` as its own (`対応 issue: [#N]`) on `origin/main`, on every
+     `origin` branch, and on every local branch
+     (`git grep -l '対応 issue: \[#N\]' $(git for-each-ref --format='%(refname)' refs/heads refs/remotes/origin) -- docs/tasks`).
+     The branches cover open PRs, a branch pushed by a run that stopped before
+     opening its PR, and an unpushed branch in another worktree. If one
+     exists, stop and report it: revising an existing requirements document
+     goes through its PR (`/fixpr`, `/runpr`), not this command.
 
 2. Resolve the task directory.
    - With `[task]`: resolve it under the task root on `origin/main` as
