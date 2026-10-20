@@ -225,41 +225,142 @@ describe("branded type assertions", () => {
   }
 });
 
-describe("storage.sync", () => {
-  const violations: { name: string; code: string }[] = [
+/** Declares one violation test per reference form of obj.name, in src and test files. */
+function expectReferenceForms(obj: string, name: string): void {
+  const forms: { form: string; code: string }[] = [
     {
-      name: "the dotted reference",
-      code: 'export const p = chrome.storage.sync.get("x");\n',
+      form: "the dotted reference",
+      code: `export const p = ${obj}.${name};\n`,
     },
     {
-      name: "the computed string reference",
-      code: 'export const p = chrome.storage["sync"].get("x");\n',
+      form: "the computed string reference",
+      code: `export const p = ${obj}["${name}"];\n`,
     },
     {
-      name: "the computed template reference",
-      code: 'export const p = chrome.storage[`sync`].get("x");\n',
+      form: "the computed template reference",
+      code: `export const p = ${obj}[\`${name}\`];\n`,
     },
     {
-      name: "the destructured reference",
-      code: "export const { sync } = chrome.storage;\n",
+      form: "the destructured reference",
+      code: `export const { ${name} } = ${obj};\n`,
+    },
+    {
+      form: "the string-keyed destructured reference",
+      code: `export const { "${name}": x } = ${obj};\n`,
     },
   ];
-  for (const { name, code } of violations) {
-    expectViolation([{ name, code, rule: "no-restricted-syntax" }]);
+  for (const { form, code } of forms) {
+    expectViolation([
+      { name: `${name} as ${form}`, code, rule: "no-restricted-syntax" },
+    ]);
+  }
+}
+
+describe("chrome.storage", () => {
+  // Every area is forbidden, not only sync: the extension has no storage
+  // permission.
+  for (const area of ["sync", "local", "managed"]) {
+    expectViolation([
+      {
+        name: `chrome.storage.${area}`,
+        code: `export const p = chrome.storage.${area}.get("x");\n`,
+        rule: "no-restricted-syntax",
+      },
+    ]);
+  }
+  expectReferenceForms("chrome", "storage");
+});
+
+describe("connections", () => {
+  for (const name of ["fetch", "XMLHttpRequest", "WebSocket", "EventSource"]) {
+    expectViolation([
+      {
+        name: `global ${name}`,
+        code: `export const p = ${name};\n`,
+        rule: "no-restricted-globals",
+      },
+    ]);
+    for (const obj of ["window", "self", "globalThis"]) {
+      expectViolation([
+        {
+          name: `${obj}.${name}`,
+          code: `declare const ${obj}: Record<string, unknown>;\nexport const p = ${obj}.${name};\n`,
+          rule: "no-restricted-syntax",
+        },
+        {
+          name: `computed ${obj}["${name}"]`,
+          code: `declare const ${obj}: Record<string, unknown>;\nexport const p = ${obj}["${name}"];\n`,
+          rule: "no-restricted-syntax",
+        },
+      ]);
+    }
   }
 
+  // The names are anchored: a property that only contains one stays allowed.
   for (const filePath of paths) {
-    it(`allows chrome.storage.local in ${filePath}`, async () => {
-      const code = 'export const p = chrome.storage.local.get("x");\n';
+    it(`allows an unrelated property named fetchAll in ${filePath}`, async () => {
+      const code =
+        "declare const o: { fetchAll: number };\nexport const p = o.fetchAll;\n";
       assert.deepEqual(await ruleIds(code, filePath), []);
     });
   }
 });
 
+describe("chrome.runtime.connectNative", () => {
+  expectReferenceForms("chrome.runtime", "connectNative");
+});
+
+describe("chrome.runtime.sendNativeMessage", () => {
+  const call =
+    'export const p = chrome.runtime.sendNativeMessage("h", {}, () => {});\n';
+
+  for (const filePath of [
+    "src/sample.ts",
+    "src/core/collect.ts",
+    "src/core/prepare.ts",
+    "src/core/response.ts",
+  ]) {
+    it(`forbids the call in ${filePath}`, async () => {
+      assert.ok(
+        (await ruleIds(call, filePath)).includes("no-restricted-syntax"),
+      );
+    });
+  }
+
+  for (const form of [
+    'export const p = chrome.runtime["sendNativeMessage"];\n',
+    "export const { sendNativeMessage } = chrome.runtime;\n",
+  ]) {
+    it(`forbids ${form.trim()} in src/sample.ts`, async () => {
+      assert.ok(
+        (await ruleIds(form, "src/sample.ts")).includes("no-restricted-syntax"),
+      );
+    });
+  }
+
+  it("allows the call in src/browser/chromeDeps.ts", async () => {
+    assert.deepEqual(await ruleIds(call, "src/browser/chromeDeps.ts"), []);
+  });
+
+  it("still applies the other rules in src/browser/chromeDeps.ts", async () => {
+    const code = 'export const p = chrome.storage.local.get("x");\n';
+    assert.ok(
+      (await ruleIds(code, "src/browser/chromeDeps.ts")).includes(
+        "no-restricted-syntax",
+      ),
+    );
+  });
+
+  it("allows a fake with the name in a test", async () => {
+    const code = "export const fake = { sendNativeMessage() {} };\n";
+    assert.deepEqual(await ruleIds(code, "test/sample.test.ts"), []);
+  });
+});
+
 describe("removed menu-path APIs", () => {
   const references: { api: string; name: string }[] = [
     { api: "chrome", name: "contextMenus" },
-    { api: "chrome.storage", name: "session" },
+    { api: "chrome.x", name: "session" },
     { api: "chrome", name: "windows" },
     { api: "chrome.action", name: "setBadgeText" },
   ];
@@ -297,8 +398,8 @@ describe("removed menu-path APIs", () => {
   // ends with a forbidden one stays allowed.
   const longerNames = [
     "export const p = chrome.action.setBadgeTextColor;\n",
-    "export const { sessionId } = chrome.storage;\n",
-    "export const { usersession } = chrome.storage;\n",
+    "export const { sessionId } = chrome.x;\n",
+    "export const { usersession } = chrome.x;\n",
     "export const p = chrome.x.subwindows;\n",
   ];
   for (const code of longerNames) {
@@ -312,7 +413,7 @@ describe("removed menu-path APIs", () => {
   // A type-only reference does not call the API, so it stays allowed.
   const typeReferences = [
     "export type T = chrome.contextMenus.OnClickData;\n",
-    "export type T = typeof chrome.storage.session;\n",
+    "export type T = typeof chrome.x.session;\n",
     "export type T = chrome.windows.Window;\n",
     "export type T = typeof chrome.action.setBadgeText;\n",
   ];
@@ -333,12 +434,16 @@ describe("common selectors in creator files", () => {
     },
     { name: "import()", code: 'export const m = import("./x.js");\n' },
     {
-      name: "storage.sync",
-      code: 'export const p = chrome.storage.sync.get("x");\n',
+      name: "chrome.storage",
+      code: 'export const p = chrome.storage.local.get("x");\n',
     },
     {
-      name: "storage.session",
-      code: 'export const p = chrome.storage.session.get("x");\n',
+      name: "connectNative",
+      code: 'export const p = chrome.runtime.connectNative("h");\n',
+    },
+    {
+      name: "sendNativeMessage",
+      code: "export const p = chrome.runtime.sendNativeMessage;\n",
     },
   ];
   for (const creator of creatorFiles) {
