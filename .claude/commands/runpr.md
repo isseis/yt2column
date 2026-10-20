@@ -1,16 +1,20 @@
 ---
-description: "Drive a /runplan task PR through review, merge, and plan bookkeeping"
+description: "Drive a /runplan task PR through CodeRabbit and CI, merge it, and update the plan"
 argument-hint: "[PR | branch | task]"
 ---
 
 > **Project context (read first)**: Read `.claude/commands/_context.md`. The
 > review, merge, and branch-switch mechanics are defined once in
 > `.claude/commands/_lib/pr-review-merge-loop.md`; this command follows that file
-> rather than restating it. The implementation steps and PR-checkpoint
-> bookkeeping are in `.claude/commands/runplan.md` (step 5a).
+> rather than restating it. The implementation steps and the PR checkpoint's
+> first two checkboxes are in `.claude/commands/runplan.md` (step 5a); the last
+> two are this command's POST_MERGE.
 
-Drive one already-created PR through review, merge, and the plan bookkeeping,
-then offer to continue with the next PR of the same task.
+Drive one already-created PR through CodeRabbit review and CI, merge it, and
+do the plan bookkeeping, then offer to continue with the next PR of the same
+task. `/runplan` opened the PR and handed it to the human reviewer; the reviewer
+runs this command after reviewing it. It is to `/runplan` what `/runchange` is
+to the task-document commands (`mkreq`, `mkarch`, `mkplan`, `mkplan2`).
 
 **Input.** `$ARGUMENTS`, when given, is a PR number, a branch name, or a task ID
 (e.g. `0015`); with no argument, use the current branch's PR. The PR is created
@@ -26,13 +30,13 @@ Follow `.claude/commands/_lib/pr-review-merge-loop.md` for the PR with:
     checked out a next work branch; on the task's final PR (no next change, the
     loop checks out the base branch) leave it unchecked.
 
-  This is the same bookkeeping `runplan.md` step 5a defines.
 
 Then ask the user whether to implement the next PR with `/runplan`:
 
 - If yes, run `.claude/commands/runplan.md` for the same task. It implements the
-  next phase group and creates the next PR (its step 5a); then follow the shared
-  loop again for that PR.
+  next phase groups up to the next PR checkpoint, opens that PR, and hands it to
+  the reviewer (its step 5a). Stop there: the reviewer reviews the new PR and
+  runs `/runpr` for it.
 - If the task has no next PR, report the final status and stop.
 
 ## Notes

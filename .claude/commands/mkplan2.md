@@ -9,7 +9,7 @@ argument-hint: "<task>"
 > there too; this body's parts that need editing are the Go-specific design
 > principles (the `internal/`→`cmd/` ordering rule, the build-independence gate).
 > The review step follows `.claude/commands/_lib/review-subagent-pattern.md`.
-> The branch setup and the PR handoff follow `.claude/commands/_lib/doc-pr-handoff.md`.
+> The branch setup and the PR handoff follow `.claude/commands/_lib/task-pr-handoff.md`.
 
 Your goal is to design PR boundaries for an existing `03_implementation_plan.md` and embed them directly into the document.
 
@@ -21,10 +21,12 @@ Work in the following order.
    - If the document status is not `approved`, stop and report. PR boundary design requires an approved plan.
    - If `### PR-` sections already exist, stop and report that PR boundaries are already defined. Do not overwrite them unless the user explicitly asks.
 
-2.5. Prepare the branch: follow `.claude/commands/_lib/doc-pr-handoff.md`, Part A,
+2.5. Prepare the branch: follow `.claude/commands/_lib/task-pr-handoff.md`, Part A,
    with **TASK_DIR** = the target task directory, **PREREQ** =
-   `03_implementation_plan.md`, and **REPORT** = the step 12 report. The reviewer's uncommitted approval of
-   PREREQ, if any, is committed together with this command's document.
+   `03_implementation_plan.md`, **REPORT** = the step 12 report, and the
+   task-document values of the other inputs. The reviewer's uncommitted
+   approval of PREREQ, if any, is committed together with this command's
+   document.
 
 3. Read `02_architecture.md` and `01_requirements.md` in the target task directory to understand the component structure and acceptance criteria.
 
@@ -123,7 +125,7 @@ Work in the following order.
 - [ ] `推奨タイトル` values are valid conventional commit titles in English.
 - [ ] `レビュー観点` items are specific and meaningful — not generic placeholders.
 
-11. Open the PR and hand it over: follow `.claude/commands/_lib/doc-pr-handoff.md`,
+11. Open the PR and hand it over: follow `.claude/commands/_lib/task-pr-handoff.md`,
     Part B, with the same inputs as step 2.5.
 
 12. Report: a concise summary of the PR grouping decisions and any assumptions

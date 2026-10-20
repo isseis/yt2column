@@ -7,7 +7,7 @@ argument-hint: "<issue> [task]"
 > canonical for every project-specific path, document name, status value, branch
 > name, and reviewer this command names. The review step follows
 > `.claude/commands/_lib/review-subagent-pattern.md`; the branch setup and the PR
-> handoff follow `.claude/commands/_lib/doc-pr-handoff.md`.
+> handoff follow `.claude/commands/_lib/task-pr-handoff.md`.
 
 Your goal is to turn one GitHub issue into the first version of a task's
 `01_requirements.md`, review it, open its PR, and hand the PR to the human
@@ -25,7 +25,7 @@ merge.
 
 **Authorization.** Invoking this command approves, for this issue and this PR
 only, `gh issue view` (also for the issues the issue references) and the
-network operations `_lib/doc-pr-handoff.md` names ("Authorization"). Nothing
+network operations `_lib/task-pr-handoff.md` names ("Authorization"). Nothing
 else that touches the network runs without asking.
 
 Work in the following order.
@@ -48,11 +48,12 @@ Work in the following order.
      the issue's subject, in the style of the existing directory names (e.g.
      `output_layout`, `native_messaging_relay`).
 
-3. Create the feature branch: follow `.claude/commands/_lib/doc-pr-handoff.md`,
-   Part A, with **TASK_DIR** = the step 2 directory, **PREREQ** = none, and
-   **REPORT** = the step 9 report. The branch is new, so its sequence number is
-   `01` (e.g. `isseis/0027-remove-context-menu-01`). Then create the task
-   directory (step 2) on it.
+3. Create the feature branch: follow `.claude/commands/_lib/task-pr-handoff.md`,
+   Part A, with **TASK_DIR** = the step 2 directory, **PREREQ** = none,
+   **REPORT** = the step 9 report, and the task-document values of the other
+   inputs. A new task's branch has sequence number `01`
+   (e.g. `isseis/0027-remove-context-menu-01`). Then create the task directory
+   (step 2) on it.
 
 4. Read the input material.
    - The requirements process guide, the requirements template
@@ -138,7 +139,7 @@ Work in the following order.
    - [ ] The security section applies the conditional guide when the trigger applies, and says `N/A` otherwise.
    - [ ] The same concept always uses the same Japanese term, consistent with the translation glossary.
 
-8. Open the PR and hand it over: follow `.claude/commands/_lib/doc-pr-handoff.md`,
+8. Open the PR and hand it over: follow `.claude/commands/_lib/task-pr-handoff.md`,
    Part B, with the same inputs as step 3.
 
 9. Report: the PR URL, the task directory, the decisions made in step 5, the

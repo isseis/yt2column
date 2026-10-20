@@ -63,19 +63,25 @@ Project-specific values these commands depend on are defined once in
 - `/mkarch <task>` - Create `02_architecture.md` (requires approved requirements) and open its PR
 - `/mkplan <task>` - Create `03_implementation_plan.md` (requires approved architecture) and open its PR
 - `/mkplan2 <task>` - Embed PR boundaries into an approved implementation plan and open its PR
-- `/runplan <task>` - Implement the next phase group of an approved plan
+- `/runplan <task>` - Implement the next phase group of an approved plan; at a PR checkpoint, open the PR
+- `/runchange [PR | branch]` - Drive a task-document PR (or a standalone change, creating its PR) through CodeRabbit and CI, and merge it
+- `/runpr [PR | branch | task]` - Drive a `/runplan` PR through CodeRabbit and CI, merge it, and update the plan
 - `/weakreview [range]` - Second-pass review of work done by a lower-capability model
 - `/fixpr [PR]` - Resolve unresolved PR review threads
 - `/mergepr [PR]` - Squash-merge a PR with a generated commit message and clean up its branch
 - `/japrose <file>` - Japanese prose-quality pass
 - `/mktrans <file>` - Japanese ⇄ English translation
 
-`/mkreq`, `/mkarch`, `/mkplan`, and `/mkplan2` each work on their own feature
-branch, run the local CodeRabbit review, open the PR, ask CodeRabbit to review it,
-and ping the reviewer, who reviews the PR and then runs `/runchange <PR>` by hand.
-To approve the previous document, set its status to `approved` in the working
-tree before running the next command; the approval is committed with the new
-document.
+Each task PR is handled by two commands. The command that produces it —
+`/mkreq`, `/mkarch`, `/mkplan`, `/mkplan2`, or `/runplan` — works on its own
+feature branch, runs the local CodeRabbit review, opens the PR, asks CodeRabbit
+to review it, pings the reviewer, and stops. After reviewing, the reviewer runs
+the command that drives it — `/runchange` for a task-document PR, `/runpr` for a
+`/runplan` PR — which asks CodeRabbit to review any later commits, waits for
+CodeRabbit and CI, resolves the threads with `/fixpr`, and merges with
+`/mergepr`. To approve the previous document, set its status to `approved` in
+the working tree before running the next command; the approval is committed
+with that command's first commit.
 
 ### Extension Commands
 

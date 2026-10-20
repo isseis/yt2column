@@ -29,7 +29,7 @@ Before the PR is created, review the change locally: follow
 with **BASE** = `$(git merge-base origin/main HEAD)`, **SCOPE** = branch,
 **SUMMARY** = the final status report. Skip this when the target branch already
 has a PR — a task-document command (`mkreq.md`, `mkarch.md`, `mkplan.md`,
-`mkplan2.md`) ran the same review before opening it (`_lib/doc-pr-handoff.md`
+`mkplan2.md`) ran the same review before opening it (`_lib/task-pr-handoff.md`
 Part B), and the PR-side CodeRabbit review covers commits pushed since — and
 when `$ARGUMENTS` names a PR or branch other than the checked-out one, since the
 review reads the local checkout.

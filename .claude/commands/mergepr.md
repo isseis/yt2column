@@ -101,8 +101,9 @@ around it with your own shell commands. Work in order; do not skip a step.
    merged, fix the reported cause and run
    `mergepr cleanup --state <state-file>`.
 5. **Report** the merge commit, what the cleanup did (including any note), and,
-   when the PR came from `/runplan`, that the next step is `/runplan`'s PR
-   checkpoint: create the next branch from the updated base branch.
+   when the PR came from `/runplan`, that the next step is to create the next
+   branch from the updated base branch (`_lib/pr-review-merge-loop.md` step 4
+   does it when `/runpr` or `/runchange` called this command).
 
 The PR that introduces this command must be merged by other means (for example
 `gh pr merge --squash`), because `main` does not yet contain `mergepr`.

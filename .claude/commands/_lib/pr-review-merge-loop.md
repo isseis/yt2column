@@ -5,8 +5,11 @@ description: "Internal: shared PR review/merge/branch-switch loop (not a command
 # Shared pattern: the per-PR review, merge, and branch-switch loop
 
 `runpr.md` and `runchange.md` both drive one PR through CodeRabbit review,
-`fixpr`, `mergepr`, and the post-merge branch switch; they differ only in how
-the PR is created and what the calling command does after the merge. This file
+CI, `fixpr`, `mergepr`, and the post-merge branch switch; they differ only in
+how the PR is created and what the calling command does after the merge. They
+are the second half of a task PR: the command that opened it (`runplan.md` or
+a task-document command, `_lib/task-pr-handoff.md`) reviewed it locally and
+handed it to the human reviewer, who runs one of them after reviewing. This file
 defines the common procedure once. A calling command invokes it by saying
 "follow `_lib/pr-review-merge-loop.md` for the PR" and supplying the inputs
 below.
@@ -19,8 +22,9 @@ files — follow them rather than copying their content here.
 ## Inputs the calling command must supply
 
 - **CREATE_PR** — `true` when the calling command should create the PR for the
-  target branch when none exists yet (`runchange.md`); `false` when the PR already
-  exists (`runpr.md`; `runplan.md` step 5a creates it).
+  target branch when none exists yet (`runchange.md`, for a change no command
+  opened a PR for); `false` when the PR already exists (`runpr.md`;
+  `runplan.md` step 5a creates it).
 - **POST_MERGE** — what the calling command does after the merge and branch
   switch, beyond the shared procedure (`runpr.md` updates the task plan's
   PR-checkpoint checkboxes; `runchange.md` nothing).
@@ -70,6 +74,13 @@ Repeat steps 1–4 for the PR.
   Do this in step 1, before the step 2 `fixpr`.
 
 ### 2. Wait for CodeRabbit, running fixpr as comments appear
+
+First make sure CodeRabbit reviews the head commit, including commits the
+reviewer pushed after the PR was opened: when `statusCheckRollup` (below) has no
+`CodeRabbit` status context (a `StatusContext` entry; a check run of that name
+does not count), ask for a review with
+`gh pr comment <number> --body "@coderabbitai review"`. An entry that already
+exists means a review of the head commit is running or done; do not ask again.
 
 Poll until CodeRabbit has finished and nothing is left to fix.
 
@@ -121,11 +132,19 @@ Poll until CodeRabbit has finished and nothing is left to fix.
   re-reviews: keep polling.
 - When CodeRabbit's state is `SUCCESS` and either no thread is unresolved or
   `fixpr` reported that every remaining thread is at its severity floor
-  (`no-harm`; `fixpr.md`'s convergence policy defines the floor), go to step 3.
+  (`no-harm`; `fixpr.md`'s convergence policy defines the floor), go to step 2a.
   If a remaining unresolved thread is not at the floor, report it and stop rather
   than merge. If its state is `FAILURE` or `ERROR`, report and stop.
 - If no `CodeRabbit` status context ever appears after a reasonable wait, report
   that and ask the user how to proceed rather than assuming green.
+
+### 2a. Wait for CI
+
+Wait for the PR's checks on the head commit to finish:
+`gh pr checks <number> --watch --fail-fast`. (Its `CodeRabbit` row is not the
+review signal; step 2 read that from the status context.) If a check fails,
+report the failing check and its log URL and stop rather than merge. A fix
+pushed afterwards starts a new review, so run the calling command again.
 
 ### 3. Merge
 
@@ -142,7 +161,10 @@ Once `mergepr.md` reports the merge:
   pending, in which case run `mergepr cleanup --state <state-file>` and only then
   continue.
 - Update the local base branch and create the next branch for the next change
-  from it. Never branch from, or keep committing to, the merged branch: after a
+  from it. When the merged branch followed the feature branch convention
+  (`_context.md`) and the next change belongs to the same task, name it with
+  the next sequence number (`-02` after `-01`); the next `/runplan` or
+  task-document command then works on it (`_lib/task-pr-handoff.md`, Part A). Never branch from, or keep committing to, the merged branch: after a
   squash merge its commits are not ancestors of the base. If there is no next
   change, check out the updated base branch instead.
 - Then apply the calling command's POST_MERGE action, if it was supplied.

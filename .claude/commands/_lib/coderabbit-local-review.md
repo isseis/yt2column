@@ -4,7 +4,7 @@ description: "Internal: shared local CodeRabbit review pattern (not a command)"
 
 # Shared pattern: local CodeRabbit CLI review and triage
 
-`runplan.md` (step 7.7), `runchange.md`, and `_lib/doc-pr-handoff.md` (Part B)
+`runplan.md` (step 7.7), `runchange.md`, and `_lib/task-pr-handoff.md` (Part B)
 review committed changes with the
 `coderabbit` CLI before the PR-side review, then triage and fix the findings.
 This file defines the procedure once. A calling command invokes it by saying

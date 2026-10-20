@@ -8,7 +8,7 @@ argument-hint: "<task>"
 > layout this command names. Porting instructions live there too; this body's
 > `cmd/`/`internal/` inspection (step 6) is one of the parts that needs editing.
 > The review step follows `.claude/commands/_lib/review-subagent-pattern.md`.
-> The branch setup and the PR handoff follow `.claude/commands/_lib/doc-pr-handoff.md`.
+> The branch setup and the PR handoff follow `.claude/commands/_lib/task-pr-handoff.md`.
 
 Your goal is to create `02_architecture.md` for one task under `docs/tasks/`.
 
@@ -23,10 +23,12 @@ Work in the following order.
 - If the status is not `approved`, do not create `02_architecture.md`.
 - In that case, stop and report that architecture work cannot begin until `01_requirements.md` is `approved`.
 
-3.5. Prepare the branch: follow `.claude/commands/_lib/doc-pr-handoff.md`, Part A,
+3.5. Prepare the branch: follow `.claude/commands/_lib/task-pr-handoff.md`, Part A,
    with **TASK_DIR** = the target task directory, **PREREQ** =
-   `01_requirements.md`, and **REPORT** = the step 11 report. The reviewer's uncommitted approval of
-   PREREQ, if any, is committed together with this command's document.
+   `01_requirements.md`, **REPORT** = the step 11 report, and the
+   task-document values of the other inputs. The reviewer's uncommitted
+   approval of PREREQ, if any, is committed together with this command's
+   document.
 
 4. Read the remaining required input documents.
 - `docs/dev/developer_guide/requirements_process.md`
@@ -123,7 +125,7 @@ Work in the following order.
      approval from step 3.5 if there is one (title e.g.
      `docs(NNNN): approve the requirements and draft the architecture for <summary>`).
 
-10. Open the PR and hand it over: follow `.claude/commands/_lib/doc-pr-handoff.md`,
+10. Open the PR and hand it over: follow `.claude/commands/_lib/task-pr-handoff.md`,
     Part B, with the same inputs as step 3.5.
 
 11. Report: a concise summary of what you created and any assumptions you had
