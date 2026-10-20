@@ -21,10 +21,11 @@ const sources = {
   // What src/core/ may use (types/core-url.d.ts) and what it may not.
   usesUrl:
     'export const ids: string[] = new URL("https://a/?v=1").searchParams.getAll("v");\n',
-  // What src/core/ may use (types/core-encoding.d.ts).
+  // What src/core/ may use (types/core-encoding.d.ts): text encoding and base64.
   usesTextEncoding:
     'export const n: number = new TextEncoder().encode("x").length;\n' +
-    'export const s: string = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(new Uint8Array());\n',
+    'export const s: string = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(new Uint8Array());\n' +
+    'export const b: string = btoa(atob("YQ=="));\n',
   usesDocument: "export const t: string = document.title;\n",
   usesChrome: "export const id: string = chrome.runtime.id;\n",
 };
