@@ -54,7 +54,7 @@ func outputLayoutArticle() writer.Article {
 }
 
 // firstCodeBlockAfter returns the content of the first fenced code block after
-// the line that equals heading, and whether there is one. It does not use
+// the line that equals heading, and whether there is one before the next heading. It does not use
 // sectionByHeading, because a '#' line inside the block would end that section.
 func firstCodeBlockAfter(doc, heading string) (string, bool) {
 	var b strings.Builder
@@ -68,6 +68,10 @@ func firstCodeBlockAfter(doc, heading string) (string, bool) {
 			b.WriteString(line)
 		case seenHeading && strings.HasPrefix(trimmed, "```"):
 			inBlock = true
+		case seenHeading && headingLevel(line) > 0:
+			// The next heading ends the search, so a deleted example does not
+			// pick up a later block.
+			return "", false
 		case strings.TrimSpace(trimmed) == heading:
 			seenHeading = true
 		}
@@ -120,9 +124,9 @@ func TestOutputLayoutDocsContract(t *testing.T) {
 	}{
 		// security.md: the channel name is untrusted display text, the
 		// mention neutralization, and the quoted front-matter values.
-		{"security.md", security, []string{"チャンネル名", "U+200B", "フロントマター", "二重引用符"}},
+		{"security.md", security, []string{"外部由来の表示用の文字列", "U+200B", "フロントマターの値", "二重引用符の文字列"}},
 		// project_overview.md: what Article carries and where the cost goes.
-		{"project_overview.md", overview, []string{"チャンネル名", "脚注", "フロントマター", "estimated_cost_usd"}},
+		{"project_overview.md", overview, []string{"チャンネル名の行", "脚注", "estimated_cost_usd", "フロントマター（"}},
 	} {
 		for _, phrase := range tc.phrases {
 			if !strings.Contains(tc.text, phrase) {
@@ -163,6 +167,9 @@ func TestFirstCodeBlockAfter(t *testing.T) {
 	}
 	if _, ok := firstCodeBlockAfter(doc, "### Missing"); ok {
 		t.Error("firstCodeBlockAfter found a block under a missing heading")
+	}
+	if _, ok := firstCodeBlockAfter("### Label\n### Next\n```text\nx\n```\n", "### Label"); ok {
+		t.Error("firstCodeBlockAfter ran past the next heading")
 	}
 	if _, ok := firstCodeBlockAfter("### Label\nno block\n", "### Label"); ok {
 		t.Error("firstCodeBlockAfter found a block where there is none")
