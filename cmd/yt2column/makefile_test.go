@@ -5,6 +5,8 @@ package main
 import (
 	"fmt"
 	"maps"
+	"os"
+	"os/exec"
 	"slices"
 	"strings"
 	"testing"
@@ -317,5 +319,49 @@ func TestCLISlackIntegrationSettings(t *testing.T) {
 func TestCLISlackIntegrationTestBuildTag(t *testing.T) {
 	if err := deepseektestutil.FirstLineIs("integration_slack_test.go", "//go:build integration"); err != nil {
 		t.Errorf("integration_slack_test.go must start with %q: %v", "//go:build integration", err)
+	}
+}
+
+// TestMakeBuildBuildsEveryBinary checks the recipes `make -n` expands for the
+// build and all targets: each builds the CLI, the server, and the Native
+// Messaging host, and no line runs the host binary with install or uninstall,
+// because registering the host is the user's explicit step. The recipes are
+// read after expansion, since the Makefile names the packages through
+// variables.
+func TestMakeBuildBuildsEveryBinary(t *testing.T) {
+	makePath, err := exec.LookPath("make")
+	if err != nil {
+		t.Fatalf("make is not on PATH: %v", err)
+	}
+	packages := []string{"./cmd/yt2column", "./cmd/yt2column-server", "./cmd/yt2column-nmhost"}
+	for _, target := range []string{"build", "all"} {
+		t.Run(target, func(t *testing.T) {
+			cmd := exec.Command(makePath, "-n", target) //nolint:gosec // make from PATH with a fixed target
+			cmd.Dir = repositoryRoot
+			// Only PATH and HOME, so the outer make's MAKEFLAGS and variables
+			// do not change the expansion.
+			cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=" + os.Getenv("HOME")}
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("make -n %s error = %v, output:\n%s", target, err, output)
+			}
+			built := map[string]bool{}
+			for line := range strings.Lines(string(output)) {
+				fields := strings.Fields(line)
+				if len(fields) >= 2 && fields[1] == "build" {
+					built[fields[len(fields)-1]] = true
+				}
+				for i, field := range fields[:max(len(fields)-1, 0)] {
+					if strings.HasSuffix(field, "yt2column-nmhost") && (fields[i+1] == "install" || fields[i+1] == "uninstall") {
+						t.Errorf("make -n %s runs the host with %s: %q", target, fields[i+1], strings.TrimSpace(line))
+					}
+				}
+			}
+			for _, pkg := range packages {
+				if !built[pkg] {
+					t.Errorf("make -n %s does not build %s; output:\n%s", target, pkg, output)
+				}
+			}
+		})
 	}
 }
