@@ -56,7 +56,7 @@ Work in the following order.
      `output_layout`, `native_messaging_relay`).
 
 3. Create the feature branch: follow `.claude/commands/_lib/task-pr-handoff.md`,
-   Part A, with **TASK_DIR** = the step 2 directory, **PREREQ** = none,
+   Part A, with **TASK_DIR** = the step 2 directory,
    **REPORT** = the step 9 report, and the task-document values of the other
    inputs. A new task's branch has sequence number `01`
    (e.g. `isseis/0027-remove-context-menu-01`). Then create the task directory
@@ -73,24 +73,15 @@ Work in the following order.
      states the current behavior correctly. A claim about current behavior cites
      `file:line` or the task document it comes from.
 
-5. Settle the open decisions with the human.
-   - List what the issue leaves undecided that the requirements must fix: scope
+5. Settle the open decisions with the human: follow
+   `.claude/commands/_lib/settle-decisions.md` with
+   - **SCOPE** = what the requirements must fix and the issue leaves open: scope
      and out-of-scope boundaries, observable behavior (normal, error, and edge
      cases), user-visible messages and rejection reasons, compatibility, and any
      exception to a policy in the project overview, `CLAUDE.md`, or an earlier
-     task. A choice of mechanism (API, data structure, test method) is a design
-     decision: do not ask it here; record it for `design_handoff.md` (step 6)
-     when it came up.
-   - Do not fill a gap with your own assumption. Each such gap is a question.
-   - Before each `AskUserQuestion` call, explain the background in your message,
-     enough that the reviewer can decide without re-reading the issue or the
-     code: the current behavior and where it lives, what the issue says, why the
-     point must be decided in the requirements rather than in the design, the
-     options and what each one leads to, and your recommendation with its reason.
-     The question and option texts stay short; the explanation is in the message.
-   - Ask at most four questions per call. When an answer opens a new question,
-     ask it in a further round. Continue until no open decision remains.
-   - If the issue already decides everything, say so and continue.
+     task. A choice of mechanism (API, data structure, test method) belongs to
+     the design: record it for `design_handoff.md` (step 6).
+   - **RECORD** = the `要件定義の際に決めたこと（YYYY-MM-DD）` list (step 6).
 
 6. Write the first version of `01_requirements.md`.
    - Start from the template. Write in Japanese. Status `draft`, `Created` today,

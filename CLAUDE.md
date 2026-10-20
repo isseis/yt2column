@@ -61,11 +61,11 @@ Project-specific values these commands depend on are defined once in
 [_context.md](.claude/commands/_context.md).
 - `/mkreq <issue> [task]` - Create `01_requirements.md` from a GitHub issue and open its PR
 - `/mkarch <task>` - Create `02_architecture.md` (requires approved requirements) and open its PR
-- `/mkplan <task>` - Create `03_implementation_plan.md` (requires approved architecture) and open its PR
-- `/mkplan2 <task>` - Embed PR boundaries into an approved implementation plan and open its PR
-- `/runplan <task>` - Implement the next phase group of an approved plan; at a PR checkpoint, open the PR
-- `/runchange [PR | branch]` - Drive a task-document PR (or a standalone change, creating its PR) through CodeRabbit and CI, and merge it
-- `/runpr [PR | branch | task]` - Drive a `/runplan` PR through CodeRabbit and CI, merge it, and update the plan
+- `/mkplan <task>` - Create `03_implementation_plan.md` with its PR boundaries (requires approved architecture) and open its PR
+- `/mkplan2 <task>` - Embed PR boundaries into an approved plan that lacks them (plans written before `/mkplan` did it) and open its PR
+- `/runplan <task>` - Implement the phase groups of an approved plan up to the next PR checkpoint, then open the PR
+- `/runchange [PR | branch]` - Drive a task-document PR (or a standalone change, creating its PR) through CodeRabbit and CI, approve and merge it, and run the next command
+- `/runpr [PR | branch | task]` - Drive a `/runplan` PR through CodeRabbit and CI, record it in the plan, merge it, and run the next `/runplan`
 - `/weakreview [range]` - Second-pass review of work done by a lower-capability model
 - `/fixpr [PR]` - Resolve unresolved PR review threads
 - `/mergepr [PR]` - Squash-merge a PR with a generated commit message and clean up its branch
@@ -73,15 +73,15 @@ Project-specific values these commands depend on are defined once in
 - `/mktrans <file>` - Japanese ⇄ English translation
 
 Each task PR is handled by two commands. The command that produces it —
-`/mkreq`, `/mkarch`, `/mkplan`, `/mkplan2`, or `/runplan` — works on its own
-feature branch, runs the local CodeRabbit review, opens the PR, asks CodeRabbit
-to review it, pings the reviewer, and stops. After reviewing, the reviewer runs
-the command that drives it — `/runchange` for a task-document PR, `/runpr` for a
-`/runplan` PR — which asks CodeRabbit to review any later commits, waits for
-CodeRabbit and CI, resolves the threads with `/fixpr`, and merges with
-`/mergepr`. To approve the previous document, set its status to `approved` in
-the working tree before running the next command; the approval is committed
-as its own first commit.
+`/mkreq`, `/mkarch`, `/mkplan`, or `/runplan` — asks the human about open
+decisions before writing, works on its own feature branch, reviews its work
+(subagent review, `japrose`, local CodeRabbit), opens the PR, pings the
+reviewer, and stops. After reviewing, the reviewer runs the command that drives
+it — `/runchange` for a task-document PR, `/runpr` for a `/runplan` PR. That
+command waits for CodeRabbit and CI and resolves the threads with `/fixpr`. It
+then asks one question: record the bookkeeping (for a document, its
+`approved` status), merge with `/mergepr`, and run the next command, which opens
+the next PR and stops again.
 
 ### Extension Commands
 

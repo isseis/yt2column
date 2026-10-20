@@ -7,6 +7,7 @@ When implementing new features or security-critical functionality, follow this p
 ### LLM Constraints (Critical)
 
 - LLMs must **always create `01_requirements.md`, `02_architecture.md`, and `03_implementation_plan.md` in draft status (`draft`)**. They must never be created as approved (`approved`).
+- A document becomes `approved` only on the reviewer's explicit instruction. Either the reviewer edits the status, or an LLM sets it when the reviewer chooses to approve the document in `/runchange`'s merge question (recording the reviewer's name and the date). An LLM never sets `approved` on its own judgment.
 - Do not begin creating `02_architecture.md` until the status of `01_requirements.md` is `approved`.
 - Do not begin creating `03_implementation_plan.md` until the status of `02_architecture.md` is `approved`.
 - Do not begin writing any implementation code until the status of `03_implementation_plan.md` is `approved`.
@@ -19,7 +20,10 @@ differently:
 
 - **Decision change** — the document now says something different about what to
   build or why. Set the status back to `draft` and ask the reviewer to approve
-  again.
+  again. Exception: when `/runplan` finds a decision change during
+  implementation, it asks the reviewer in the session; the reviewer's explicit
+  answer is the re-approval, so the status stays `approved` and `Comments`
+  records the decision, the date, and that the reviewer approved it.
 - **Editorial correction** — the document says the same thing, but a name, a
   cross-reference, a table cell, or a line number has gone stale (a function the
   same task renames, a test the plan reassigned, a phase summary that no longer
@@ -47,7 +51,7 @@ LLM creates 01_requirements.md from an issue with /mkreq (status: draft)
       → Proceed to writing implementation code
 ```
 
-Each document goes through its own PR: `/mkreq`, `/mkarch`, `/mkplan`, or `/mkplan2` opens it and pings the reviewer, and the reviewer merges it with `/runchange` after reviewing it. The reviewer approves a merged document by setting its status to `approved` in the working tree before running the next command, which commits the approval on its own (`.claude/commands/_lib/task-pr-handoff.md`, Part A).
+Each document goes through its own PR: `/mkreq`, `/mkarch`, or `/mkplan` (which also designs the PR boundaries) opens it and pings the reviewer. After reviewing it, the reviewer runs `/runchange`, which asks one question at the merge: approve the document, merge, and run the next command. On that answer it commits the approval, merges, and starts the next command (`.claude/commands/_lib/pr-review-merge-loop.md`, step 3).
 
 ### Document Status Format
 

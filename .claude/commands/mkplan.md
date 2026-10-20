@@ -1,5 +1,5 @@
 ---
-description: "Create 03_implementation_plan.md for a task (requires approved architecture) and open its PR for review"
+description: "Create 03_implementation_plan.md with its PR boundaries for a task (requires approved architecture) and open its PR for review"
 argument-hint: "<task>"
 ---
 
@@ -27,10 +27,8 @@ Work in the following order.
 - In that case, stop and report that implementation planning cannot begin until both `01_requirements.md` and `02_architecture.md` are `approved`, naming which one is not.
 
 3.5. Prepare the branch: follow `.claude/commands/_lib/task-pr-handoff.md`, Part A,
-   with **TASK_DIR** = the target task directory, **PREREQ** =
-   `01_requirements.md` and `02_architecture.md`, **REPORT** = the step 11 report, and the
-   task-document values of the other inputs. Part A commits the reviewer's
-   uncommitted approval of PREREQ, if any, on its own.
+   with **TASK_DIR** = the target task directory, **REPORT** = the step 11
+   report, and the task-document values of the other inputs.
 
 4. Read the remaining required input documents.
 - `01_requirements.md` in the target task directory
@@ -48,6 +46,19 @@ Work in the following order.
 - **Verify external-tool, platform, and environment assumptions against ground truth.** Every command, config snippet, build/test flag, container image, or CI service definition the plan prescribes must be checked against an authoritative source before being written: the image's actual Dockerfile/contents for installed binaries (`bash`/`nc` may be absent), the CI platform's schema for supported keys (GitHub Actions `services.<id>` supports `options:`, not Compose's `healthcheck:`), the tool's own `go help`/`--help` for flag semantics (`go test -c -o` writes one file and fails for multi-package patterns), and the relevant RFC/spec or server behavior for protocol constraints. Prefer runtimes already guaranteed by the project's dev/CI environment (Go) over introducing new dependencies (Ruby, bashisms). Note the verification source for each non-trivial external assumption.
 - **Enumerate analogous tasks, not just symbols.** The "all instances" rule above also applies to setup, teardown, suppressions, and constraints shared across analogous tasks: when sibling steps follow the same pattern (parallel tests, duplicated helpers, repeated CLI invocations), confirm each includes the same mandatory setup (e.g. a shared `loadXxxConfig(t)` first step), cleanup, and constraints, and apply any single-instance correctness fix to every instance (e.g. the same fix in both a Phase 2 and a Phase 4 helper).
 - **Enumerate every construction and mutation path of a concrete type.** When the design exempts or dispatches on a concrete type, check whether production code in the defining package can create or mutate it through composite literals, field writes, or a constructor alias. If the constructor can be made the only path by moving the type to a leaf package, prefer that; otherwise enumerate every construction form and plan a guard check plus a mutation for each. Record which choice the plan makes in `既存コード調査結果`.
+
+5.5. Settle the open planning decisions with the human before writing: follow
+   `.claude/commands/_lib/settle-decisions.md` with
+   - **SCOPE** = choices the approved architecture leaves open whose
+     consequences differ materially: a step with two or more competing
+     implementation approaches (the ones step 6 would list in
+     `既存コード調査結果`), and a phase order or split that trades risk against
+     review size. Choices the architecture already made are not reopened; a
+     mistaken architecture is handled as step 6 "When the architecture is
+     wrong" says.
+   - **RECORD** = a `計画の際に決めたこと（YYYY-MM-DD）` list in the
+     implementation overview of `03_implementation_plan.md`, each item with its
+     reason.
 
 6. Create `03_implementation_plan.md` in the same task directory.
 
@@ -85,6 +96,8 @@ Work in the following order.
 - If package-internal helpers are needed, plan them as `test_helpers.go` or `test_helpers_<category>.go` with `//go:build test`.
 - Do not add helper files in the plan unless they are actually needed.
 
+7.5. Commit the first version (`docs(NNNN): draft the implementation plan for <summary>`), so the review fixes that follow are visible as their own diff.
+
 8. Run the critical-review procedure in `.claude/commands/_lib/review-subagent-pattern.md` with these inputs:
    - **ARTIFACT**: the created implementation plan document (path in `_context.md`).
    - **PERSONA**: default to a **single reviewer** — an experienced senior engineer and senior SRE. A single reviewer is sufficient for routine plans, because the plan checklists below are already exhaustive and leave little room for a combined reviewer to under-cover one lens. Use **panel mode** (per `.claude/commands/_lib/review-subagent-pattern.md`, two partitioned reviewers run in parallel) only for **high-risk or large plans** — e.g. a heavy integration-test / CI / external-resource surface, or a security-gate / migration plan (staged rollout, simultaneous behavior raises and lowers, many test updates). When panel mode is warranted, partition by **what to build vs. how to verify it** (the natural seam of a plan), NOT engineer-vs-SRE (those overlap on a plan):
@@ -95,7 +108,7 @@ Work in the following order.
    - **CRITERIA**: every item from the Technical correctness checklist, the Conditional checks section, and the Readability and consistency checklist below, copied verbatim. For Conditional checks, evaluate each item that applies to the plan; mark inapplicable items N/A (N/A is not a finding). In panel mode, give both reviewers all of them as the shared floor (option (b) in `.claude/commands/_lib/review-subagent-pattern.md`), but each reports only items within its mandate, raising an out-of-mandate item ONLY as a one-line OUT-OF-LANE FLAG when it actually spots a potential issue there (it does not enumerate clean out-of-mandate items); the Conditional checks are Reviewer B's, except the phase-names/order item which is Reviewer A's (it is an architecture-alignment concern in A's mandate).
    - **Synthesis** (panel mode only): after the parallel panel returns, YOU (not a subagent) merge the two outputs per the Panel-mode "Synthesize" step in `.claude/commands/_lib/review-subagent-pattern.md` — dedup overlapping findings, reconcile conflicting severities to the higher, reconstruct the full AC→{task,test} matrix from both reviewers' AC checks (so no AC is dropped from either the build or the verify side), and promote any confirmed OUT-OF-LANE FLAG. Then run the fix / re-review loop on the merged findings.
 
-   Extra rule: do not commit yet. After this engineering review (in panel mode, after the Synthesis step above), a Japanese prose-quality pass runs (step 9 below); commit the implementation plan document only after BOTH passes are complete and all Critical and Major issues from both are resolved.
+   Extra rule: do not commit the review fixes yet. After this engineering review (in panel mode, after the Synthesis step above), the PR boundaries are designed (step 8.5) and a Japanese prose-quality pass runs (step 9 below); commit the fixes only after all of them are complete and all Critical and Major issues are resolved.
 
 **Technical correctness checklist (use verbatim as evaluation criteria in the subagent prompt above):**
 - [ ] `02_architecture.md` is `approved`.
@@ -144,6 +157,13 @@ Work in the following order.
 - [ ] Ambiguous or overly terse expressions are rewritten in direct, plain Japanese so readers do not need prior context to understand what is expected.
 - [ ] When a planning decision changes an artifact's name, extension, implementation language, or invocation, every reference to it (filename, section header, prose, completion/verification command) is updated consistently — no `.sh` filename paired with a `go run …go` description.
 
+8.5. Design the PR boundaries, so the reviewer reviews the plan and its PR split
+   in one PR. If the plan has two or more `### フェーズ` headers, follow
+   `.claude/commands/mkplan2.md` steps 4–9 on this draft plan (its step 2
+   approval check and its branch, commit, and PR steps do not apply). With one
+   phase, there are no PR markers: `/runplan` opens the single PR when the
+   phase is done.
+
 9. Run the Japanese prose-quality pass by invoking the `japrose` command
    (`.claude/commands/japrose.md`) on the created implementation plan document (path in
    `_context.md`). It runs a technical-editor review focused on natural Japanese —
@@ -157,8 +177,9 @@ Work in the following order.
      not polished on text that step 8 then rewrites.
    - `japrose`, when invoked as this sub-step, does not commit. After both step 8 and
      step 9 are complete and all Critical and Major issues from both passes are
-     resolved, commit the created implementation plan document (title e.g.
-     `docs(NNNN): draft the implementation plan for <summary>`).
+     resolved, commit the fixes to the implementation plan document (including
+     the PR boundaries of step 8.5, with the PR grouping rationale in the commit
+     message).
 
 10. Open the PR and hand it over: follow `.claude/commands/_lib/task-pr-handoff.md`,
     Part B, with the same inputs as step 3.5.

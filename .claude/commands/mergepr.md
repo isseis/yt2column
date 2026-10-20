@@ -84,7 +84,10 @@ around it with your own shell commands. Work in order; do not skip a step.
    the Write tool; never through `echo`, a heredoc, or an inline argument.
 3. **Ask for approval.** Show the user the PR URL, the base branch, the CI
    result, and the full subject and body, and ask whether to merge with this
-   message. Revise it as asked. Do not merge without an explicit yes.
+   message. Revise it as asked. Do not merge without an explicit yes. When this
+   command runs inside `_lib/pr-review-merge-loop.md`, that file's step 3 asks
+   this question together with the pre-merge bookkeeping and the next command,
+   and says how to re-prepare after the bookkeeping commit.
 4. **Merge.** Run
    `mergepr merge --state <state-file> --subject-file <subject-file> --body-file <body-file>`.
    It requires the PR to be still open on the prepared base, then merges with

@@ -25,9 +25,14 @@ files — follow them rather than copying their content here.
   target branch when none exists yet (`runchange.md`, for a change no command
   opened a PR for); `false` when the PR already exists (`runpr.md`;
   `runplan.md` step 5a creates it).
-- **POST_MERGE** — what the calling command does after the merge and branch
-  switch, beyond the shared procedure (`runpr.md` updates the task plan's
-  PR-checkpoint checkboxes; `runchange.md` nothing).
+- **PRE_MERGE** — the bookkeeping commit the calling command proposes to make
+  just before the merge, on the user's answer in step 3 (`runchange.md`: set
+  the PR's draft task documents to `approved`; `runpr.md`: mark the plan's PR
+  checkpoint as merged). None when there is nothing to record.
+- **NEXT** — the command the calling command offers to run after the merge, for
+  the same task (`runchange.md`: the next task-document command or `/runplan`;
+  `runpr.md`: `/runplan` for the next PR). None when the task has no next
+  step.
 
 The PR to operate on is `$ARGUMENTS` when given, otherwise the current branch's
 PR; the calling command states which argument forms it accepts.
@@ -146,13 +151,40 @@ review signal; step 2 read that from the status context.) If a check fails,
 report the failing check and its log URL and stop rather than merge. A fix
 pushed afterwards starts a new review, so run the calling command again.
 
-### 3. Merge
+### 3. Confirm, record, and merge
 
-Run `.claude/commands/mergepr.md` for the PR. It drafts the squash commit message
-from the PR material and pauses for the user's explicit approval before merging;
-never merge without that approval.
+Ask the user one question, so a reviewer who has already reviewed the PR answers
+once rather than once per decision.
 
-### 4. Switch branch, then apply POST_MERGE
+1. Run `.claude/commands/mergepr.md` steps 1–2 (prepare, draft the squash commit
+   message). When PRE_MERGE is set, the message says what it records (e.g.
+   "Approves 01_requirements.md").
+2. Ask with `AskUserQuestion`. In your message, show what `mergepr.md` step 3
+   requires (PR URL, base branch, CI result, the full subject and body), the
+   PRE_MERGE change (which lines of which file, and for an approval the
+   reviewer name and date it writes), and NEXT (for `/runplan`, the next PR
+   marker's `実装モデル要件`, so the user can decide whether this session's model
+   fits). Offer, as applicable:
+   - record PRE_MERGE, merge, and run NEXT (recommended);
+   - record PRE_MERGE and merge, without running NEXT;
+   - merge without PRE_MERGE (for an approval: the document stays `draft`, and
+     NEXT is not offered, since it requires the approval);
+   - revise the message, or stop.
+
+   An answer that merges is the explicit approval `mergepr.md` step 3 asks for.
+   Do not merge on anything less.
+3. When the answer records PRE_MERGE: copy the approved subject and body files
+   out of the prepared directory (to the scratchpad), run
+   `mergepr discard --state <state-file>`, make the PRE_MERGE commit, push it,
+   and run `mergepr prepare` again (it waits for CI on the new head). Confirm
+   that `git diff --name-only <previous headRefOid> <new headRefOid>` lists only
+   the files PRE_MERGE changes, then merge with the approved message files
+   without asking again: the answer approved this message for exactly this
+   head. Do not wait for a CodeRabbit review of that commit; it changes only
+   status or checkbox lines.
+4. Merge with `mergepr.md` step 4, and report as its step 5 says.
+
+### 4. Switch branch, then run NEXT
 
 Once `mergepr.md` reports the merge:
 
@@ -160,14 +192,12 @@ Once `mergepr.md` reports the merge:
   cleanup pending, in which case run `mergepr cleanup --state <state-file>` and
   only then continue. When another worktree has the base branch checked out,
   the cleanup leaves the local base branch stale; do not rely on it.
-- `git fetch origin main` and create the next branch from `origin/main`, never
-  from the local base branch or the merged branch (after a squash merge the
-  merged branch's commits are not ancestors of the base). When the merged
-  branch followed the feature branch convention (`_context.md`), the next
-  change belongs to the same task: name the branch by
-  `_lib/task-pr-handoff.md` Part A step 4; the next `/runplan` or
-  task-document command then works on it (Part A step 3). Otherwise, ask the
-  user for the next change's branch, or detach at `origin/main`
-  (`git switch --detach origin/main`) when there is none; do not check out the
-  base branch, which may be checked out in another worktree.
-- Then apply the calling command's POST_MERGE action, if it was supplied.
+- `git fetch origin main`. When NEXT is set, create the next branch from
+  `origin/main` and name it by `_lib/task-pr-handoff.md` Part A step 4; NEXT
+  (now or later) works on it (Part A step 3). Never branch from the local base
+  branch or the merged branch (after a squash merge the merged branch's
+  commits are not ancestors of the base). When NEXT is none, detach at
+  `origin/main` (`git switch --detach origin/main`); do not check out the base
+  branch, which may be checked out in another worktree.
+- If the answer in step 3 chose to run NEXT, run it now. It opens its own PR,
+  pings the reviewer, and stops; this loop ends there.

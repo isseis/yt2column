@@ -28,7 +28,7 @@ Work in order.
 2. Read `03_implementation_plan.md`. If the document status is not `approved`, stop and report.
 
 2.5. Check whether PR boundary design is needed.
-   - Count `### フェーズ` headers in the plan. If there are 2 or more and no `### PR-` sections exist, stop and report: PR boundary design is missing. Ask the user to run `/mkplan2` manually and review its output before re-running `/runplan`. Do not invoke `/mkplan2` yourself.
+   - Count `### フェーズ` headers in the plan. If there are 2 or more and no `### PR-` sections exist, stop and report: PR boundary design is missing (the plan predates `/mkplan` designing them). Ask the user to run `/mkplan2`, which opens a PR for the reviewer, before re-running `/runplan`. Do not invoke `/mkplan2` yourself.
    - If PR markers already exist, skip this step and continue.
 
 3. Read `01_requirements.md`, `02_architecture.md` (both in the target task directory), and `docs/dev/developer_guide/test_organization.md`.
@@ -43,10 +43,9 @@ Work in order.
 4.4. Prepare the branch (when step 4 selected an implementation group; a PR
    checkpoint stays on the current branch): follow
    `.claude/commands/_lib/task-pr-handoff.md`, Part A, with **TASK_DIR** = the
-   target task directory, **PREREQ** = `03_implementation_plan.md`, and
-   **REPORT** = the step 8 summary. On a branch that already carries the earlier
-   phase groups of the PR in progress, Part A keeps it. Part A commits the
-   reviewer's uncommitted approval of PREREQ, if any, on its own.
+   target task directory and **REPORT** = the step 8 summary. On a branch that
+   already carries the earlier phase groups of the PR in progress, Part A keeps
+   it.
 
 4.5. Record the starting commit of the phase group: `PHASE_START=$(git rev-parse HEAD)`. Keep it until the reviews in steps 7, 7.5, and 7.7 are done, and pass `${PHASE_START}..HEAD` as their commit range (`coderabbit` takes it as `--base-commit`), so the range covers exactly this phase group's commits and not the previous group's.
 
@@ -59,7 +58,9 @@ Work in order.
 - When removing multiple scattered code sites (e.g. several test functions), delete them one at a time using the exact text read from the file. Do not script bulk deletion (e.g. a brace-counting loop); nested literals make such heuristics over-consume adjacent code. After each removal, check IDE diagnostics for unintended breakage.
 - For any newly authored or substantially rewritten artifact in this group (runbook, command example, table, prose, translation, design-doc section), confirm it is correct before committing — do not rely on absence-search of removed terms. Run any documented command and check its exit code and output; cite the source implementation that prose describes; diff a translation against its source. For a design document such as an ADR, also keep the body on the current system and confine removed-design rationale to a bounded history note rather than interleaving it.
 - **Before committing each group, self-check** (catches common defects before the step 7 review):
-  - **If the implementation approach diverges from `02_architecture.md` or the plan step descriptions** (e.g., a simpler alternative is adopted, an API turns out to have compatibility issues): update (1) the plan step *description* text (not only the checkbox) and (2) any architecture document section that no longer matches in the same commit, and (3) the PR description if one exists for this group. A divergence that is only marked `[x]` without updating the description text will appear as a plan/code inconsistency to reviewers and generate stale review threads.
+  - **If the implementation approach diverges from `02_architecture.md`, `01_requirements.md`, or the plan step descriptions** (e.g., a simpler alternative is adopted, an API turns out to have compatibility issues), classify the divergence as `docs/dev/developer_guide/requirements_process.md` "Editing an approved document" does:
+    - **Editorial correction** (the documents say the same thing, but a name or a step description is stale): update (1) the plan step *description* text (not only the checkbox), (2) any architecture document section that no longer matches, and (3) the PR description if one exists, in the same commit, and record the correction in the document's `Comments`. A divergence that is only marked `[x]` without updating the description text will appear as a plan/code inconsistency to reviewers and generate stale review threads.
+    - **Decision change** (what to build or why changes): stop before implementing it, and settle it with the human: follow `.claude/commands/_lib/settle-decisions.md` with **SCOPE** = this divergence and **RECORD** = the changed document's `Comments` (the decision, the date, and that the reviewer approved it in this session). On the reviewer's answer, update the document, keep its status `approved` (the answer is the re-approval), and name the change in the PR body. Do not implement a decision change the reviewer has not approved.
   - No planning-doc references (`AC-01`, `F-001`) in source comments or strings — put the *why* in plain English.
   - Validators/parsers/env-checks have a happy-path test (all-valid → no error), not only failure cases.
   - A helper guarding a precondition calls its own guard internally; callers shouldn't have to.
@@ -76,7 +77,7 @@ Work in order.
 - Verify the green gate (defined in `_context.md`) passes. Fix any failures before continuing.
 - Mark the first PR checkpoint checkbox (the green gate confirmation line) as `[x]` and commit.
 - Open the PR and hand it over: follow `.claude/commands/_lib/task-pr-handoff.md`,
-  Part B, with **TASK_DIR**, **PREREQ**, and **REPORT** as in step 4.4, and:
+  Part B, with **TASK_DIR** and **REPORT** as in step 4.4, and:
   - **CHECKS** = the green gate (already verified above; rerun only if a commit
     followed it);
   - **LOCAL_REVIEW** = `done` — step 7.7 reviewed each phase group of this PR.
@@ -193,5 +194,5 @@ Test-review checklist (use verbatim as evaluation criteria in the step 7.5 promp
 
 8. Decide whether to continue or finish.
 - If implementation ran this iteration: summarize implementation, verified ACs, assumptions, and deferred items, plus the CodeRabbit result (run or failed; counts of fixed / rejected / deferred findings and the reason for each rejection).
-- If phases remain: ask "Shall I continue with the next phase group?" — return to step 4 if agreed, otherwise report status and stop.
-- If all phases are complete: verify every AC in `01_requirements.md` is satisfied by the implementation and has at least one test. Report the final status and any gaps. If the plan has no PR markers (a single-phase plan), open the PR with `_lib/task-pr-handoff.md` Part B as step 5a does, with these differences: there are no checkpoint boxes to mark and no AFTER_CREATE; the title is `feat(<task-id>): <concise English title>` and the body names the plan's main review points; first check `gh pr view` and `git rev-list --count origin/main..HEAD`, and stop if the branch already has a PR or has no commits. `/runpr`'s POST_MERGE then has no checkpoint to update; it only hands over the close-out bookkeeping, if the plan has any.
+- If phases remain: return to step 4 without asking. The next unit is either another phase group of the same PR, or its PR checkpoint (step 5a), where this command opens the PR and stops; the reviewer's checkpoint is the PR review, not a question between phase groups.
+- If all phases are complete: verify every AC in `01_requirements.md` is satisfied by the implementation and has at least one test. Report the final status and any gaps. If the plan has no PR markers (a single-phase plan), open the PR with `_lib/task-pr-handoff.md` Part B as step 5a does, with these differences: there are no checkpoint boxes to mark and no AFTER_CREATE; the title is `feat(<task-id>): <concise English title>` and the body names the plan's main review points; first check `gh pr view` and `git rev-list --count origin/main..HEAD`, and stop if the branch already has a PR or has no commits. `/runpr`'s PRE_MERGE and NEXT are then none.

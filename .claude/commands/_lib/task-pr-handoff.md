@@ -20,16 +20,14 @@ gate) are in `.claude/commands/_context.md`. The local review is
 These commands do not wait for the review or the merge. The reviewer reviews the
 PR and then runs, by hand, the command that drives it to the merge:
 `/runchange <PR>` for a task-document PR, `/runpr <PR>` for a `/runplan` PR.
-That command asks CodeRabbit to review the latest commits, waits for CodeRabbit
-and CI, resolves the threads, and merges.
+That command waits for CodeRabbit and CI, resolves the threads, and then asks
+one question that covers the merge, the bookkeeping committed just before it
+(for a task-document PR, setting the document to `approved`), and the next
+command to run (`_lib/pr-review-merge-loop.md` step 3).
 
 ## Inputs the calling command must supply
 
 - **TASK_DIR** — the target task directory under the task root.
-- **PREREQ** — the task documents whose `approved` status the command requires
-  (`mkreq.md`: none; `mkarch.md`: `01_requirements.md`; `mkplan.md`:
-  `01_requirements.md` and `02_architecture.md`; `mkplan2.md` and `runplan.md`:
-  `03_implementation_plan.md`).
 - **REPORT** — where the calling command gives its final report.
 - **CHECKS** — what runs before the push: for a task-document command, the
   documentation guards
@@ -57,11 +55,9 @@ first.
 
 ## Part A — prepare the branch
 
-1. Check the working tree with `git status --short`. The only uncommitted change
-   allowed is the reviewer's approval of PREREQ: the Document Status table of a
-   PREREQ document set to `approved`, with its review date, reviewer, and
-   comments. Any other change, or any change when PREREQ is none, is a reason
-   to stop and report. An allowed change is committed on its own in step 5.
+1. Check the working tree with `git status --short`. It must be clean; stop and
+   report otherwise. (Approving the previous document is not a working-tree
+   edit: `/runchange` commits it at the merge, on the reviewer's answer.)
 2. `git fetch origin main`.
 3. Use the current branch when its name follows the feature branch convention
    (`_context.md`) for TASK_DIR and either:
@@ -84,11 +80,7 @@ first.
      of all PRs (`gh pr list --state all --limit 1000 --json headRefName`); merged
      branches are deleted, so the PR list is what remembers them. With none,
      `NN` is `01`.
-   - `git switch -c <branch> origin/main`. The allowed uncommitted change from
-     step 1 comes along.
-5. If step 1 found the reviewer's approval, commit it alone
-   (`docs(NNNN): approve the <document>`), before any work that depends on it.
-   The approval then predates that work in the branch history.
+   - `git switch -c <branch> origin/main`.
 
 ## Part B — open the PR and hand it over
 
@@ -106,8 +98,7 @@ Run this after the calling command's last commit, with a clean working tree.
    writing the body with the Write tool. Do not pause for the user to adjust the
    title or body; the reviewer can edit them on GitHub. The title is PR_TEXT's.
    The body:
-   - summarizes the change, and states the approvals this PR commits (step 5 of
-     Part A), if any;
+   - summarizes the change;
    - lists the decisions made with the reviewer during this run, if any;
    - names the points the reviewer should check (for `runplan.md`, the
      `レビュー観点`), including any `unclear` or `deferred` findings of the local

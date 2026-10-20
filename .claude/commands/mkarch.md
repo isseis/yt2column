@@ -24,10 +24,8 @@ Work in the following order.
 - In that case, stop and report that architecture work cannot begin until `01_requirements.md` is `approved`.
 
 3.5. Prepare the branch: follow `.claude/commands/_lib/task-pr-handoff.md`, Part A,
-   with **TASK_DIR** = the target task directory, **PREREQ** =
-   `01_requirements.md`, **REPORT** = the step 11 report, and the
-   task-document values of the other inputs. Part A commits the reviewer's
-   uncommitted approval of PREREQ, if any, on its own.
+   with **TASK_DIR** = the target task directory, **REPORT** = the step 11
+   report, and the task-document values of the other inputs.
 
 4. Read the remaining required input documents.
 - `docs/dev/developer_guide/requirements_process.md`
@@ -48,6 +46,18 @@ Work in the following order.
 - **Before adopting any new feature of an external API** (e.g., a Slack Block Kit element, an IMAP extension, an RFC-defined capability), verify that it behaves correctly on **all target client environments** (listed in `_context.md`, Domain-specific). Record the verification result inline in the design document. If verification across all targets is not possible before the architecture is approved, document the risk explicitly and prefer a fallback that is known to work on all targets.
 - **Before introducing a new approach to replace existing behavior**, state briefly why the existing simpler approach cannot satisfy the requirements. If it can, use the simpler approach (YAGNI). This is required even when the new approach is technically superior — the question is whether the requirement demands it.
 
+6.5. Settle the open design decisions with the human before writing: follow
+   `.claude/commands/_lib/settle-decisions.md` with
+   - **SCOPE** = choices the approved requirements leave open whose
+     consequences differ materially (component placement, the approach to a
+     requirement when two or more are viable, a policy exception), and every
+     behavior of an external system the design relies on but nobody has
+     verified (e.g. a page's DOM, an API's undocumented behavior), for which the
+     options include verifying it first. Implementation-level choices (file
+     layout, test construction) belong to the plan.
+   - **RECORD** = a `設計の際に決めたこと（YYYY-MM-DD）` list in the design
+     overview section of `02_architecture.md`, each item with its reason.
+
 7. Create `02_architecture.md` in the same task directory.
 - Write in Japanese.
 - Set the document status to `draft`.
@@ -62,6 +72,8 @@ Work in the following order.
 - **Claims about existing behavior carry their evidence.** Statements that a code path is unreachable, that a construction is unique, or that two paths produce the same value must cite `file:line` and the commit read, or be written as a requirement the design imposes rather than as an observed fact. Such statements are the ones a reader will trust without rechecking, and on task 0172 the same reachability claim was wrong twice in a row.
 - Write the body for an engineer meeting the current system for the first time: describe how it works now. Confine the rationale for removed or superseded designs, and cross-task decision history, to a bounded "decision history" appendix or a short blockquote pointing to git history — do not interleave it with current-state description. When editing a design document that earlier tasks have appended to, preserve this separation so the body does not become a changelog.
 
+7.5. Commit the first version (`docs(NNNN): draft the architecture for <summary>`), so the review fixes that follow are visible as their own diff.
+
 8. Run the critical-review procedure in `.claude/commands/_lib/review-subagent-pattern.md` in **panel mode** (an architecture document is a high-stakes artifact; a single combined "architect + SRE" reviewer tends to satisfice and under-weight the operational lens). Supply these inputs:
    - **ARTIFACT**: the created architecture document (path in `_context.md`).
    - **PERSONA (a panel of two partitioned reviewers, run in parallel)**:
@@ -72,9 +84,10 @@ Work in the following order.
    - **CRITERIA**: give BOTH reviewers every item from the Technical correctness checklist and the Readability and consistency checklist below, copied verbatim, as the shared floor — but each reviewer reports only items within its mandate, raising an out-of-mandate item ONLY as a one-line OUT-OF-LANE FLAG when it actually spots a potential issue there (it does not enumerate clean out-of-mandate items). Reviewer B additionally applies its operational mandate above beyond the checklists.
    - **Synthesis**: after the parallel panel returns, YOU (not a subagent) merge the two outputs per the Panel-mode "Synthesize" step in `.claude/commands/_lib/review-subagent-pattern.md` — dedup overlapping findings, reconcile conflicting severities to the higher, and reconstruct any cross-cutting issue sitting in the seam between the two mandates (a structural choice with an operational consequence). Then run the fix / re-review loop on the merged findings.
 
-   Extra rule: do not commit yet. After this engineering review, a Japanese
-   prose-quality pass runs (step 9 below); commit only after BOTH passes are complete
-   and all Critical and Major issues from both are resolved.
+   Extra rule: do not commit the review fixes yet. After this engineering
+   review, a Japanese prose-quality pass runs (step 9 below); commit the fixes
+   only after BOTH passes are complete and all Critical and Major issues from
+   both are resolved.
 
 **Technical correctness checklist (use verbatim as evaluation criteria in the subagent prompt above):**
 - [ ] `01_requirements.md` is `approved`.
@@ -120,8 +133,7 @@ Work in the following order.
      not polished on text that step 8 then rewrites.
    - `japrose`, when invoked as this sub-step, does not commit. After both step 8 and
      step 9 are complete and all Critical and Major issues from both passes are
-     resolved, commit the created architecture document (title e.g.
-     `docs(NNNN): draft the architecture for <summary>`).
+     resolved, commit the fixes to the architecture document.
 
 10. Open the PR and hand it over: follow `.claude/commands/_lib/task-pr-handoff.md`,
     Part B, with the same inputs as step 3.5.

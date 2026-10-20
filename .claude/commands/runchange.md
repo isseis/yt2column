@@ -40,7 +40,18 @@ review reads the local checkout.
 Follow `.claude/commands/_lib/pr-review-merge-loop.md` for the PR with:
 
 - **CREATE_PR** = `true` — create the PR when the target branch has none.
-- **POST_MERGE** = none.
+- **PRE_MERGE** = for each task document the PR adds or changes
+  (`01_requirements.md`, `02_architecture.md`, `03_implementation_plan.md`)
+  whose status is `draft`: set its Document Status to `approved`, `Review date`
+  to today, `Reviewer` to the user's GitHub name (`gh api user --jq .login`),
+  and keep `Comments` (or `-`). Commit it alone as
+  `docs(<task-id>): approve the <document>`. This is the only way the commands
+  set a document to `approved`, and only on the user's answer
+  (`docs/dev/developer_guide/requirements_process.md`, "LLM Constraints"). None
+  for a PR without a draft task document.
+- **NEXT** = by the latest document this PR approves: `01_requirements.md` →
+  `/mkarch <task>`; `02_architecture.md` → `/mkplan <task>`;
+  `03_implementation_plan.md` → `/runplan <task>`. None when the PR approves no
+  task document.
 
-Then report the final status. There is no next-PR prompt: create the next change
-and run this command again when ready.
+Then report the final status.
