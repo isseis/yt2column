@@ -7,6 +7,8 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -52,7 +54,7 @@ func TestRelayEndToEnd(t *testing.T) {
 		gate := gatedLLM{entered: make(chan struct{}, 1), release: make(chan struct{})}
 		var once sync.Once
 		release := func() { once.Do(func() { close(gate.release) }) }
-		startServer(t, e, loopbackDeps(t, gate, webhookURL))
+		srv := startServer(t, e, loopbackDeps(t, gate, webhookURL))
 		// Registered after startServer, so it runs first and a failing test
 		// does not leave the server's stop waiting on the blocked job.
 		t.Cleanup(release)
@@ -72,6 +74,13 @@ func TestRelayEndToEnd(t *testing.T) {
 		}
 		release()
 		webhook.waitForMessage(t, "A title", testNormalizedURL)
+		// stop waits for the job, so a second article would be posted by now.
+		if code := srv.stop(t); code != exitOK {
+			t.Fatalf("run exit code = %d, want %d\nstderr:\n%s", code, exitOK, srv.stderr.String())
+		}
+		if got := webhook.messages(); len(got) != 1 {
+			t.Errorf("messages = %q, want the one article", got)
+		}
 	})
 
 	t.Run("invalid_transcript_notifies_failure", func(t *testing.T) {
@@ -81,16 +90,17 @@ func TestRelayEndToEnd(t *testing.T) {
 
 		reply := runHost(t, host, e, requestBody("not a copied transcript"))
 		rejected := requireServerReply(t, reply, 400)
-		if rejected.Reason != "invalid_transcript" || !requestIDPattern.MatchString(rejected.RequestID) {
-			t.Fatalf("rejected response = %+v, want reason invalid_transcript and a request ID", rejected)
+		if rejected.Status != "rejected" || rejected.Reason != "invalid_transcript" || !requestIDPattern.MatchString(rejected.RequestID) {
+			t.Fatalf("rejected response = %+v, want status rejected, reason invalid_transcript, and a request ID", rejected)
 		}
 		webhook.waitForMessage(t, "yt2column failure:", "request: "+rejected.RequestID)
 	})
 
 	t.Run("stopped_server_is_unavailable", func(t *testing.T) {
 		e := newServerEnv(t)
-		if code := startServer(t, e, testDeps(validResponseLLM())).stop(t); code != exitOK {
-			t.Fatalf("run exit code = %d, want %d", code, exitOK)
+		srv := startServer(t, e, testDeps(validResponseLLM()))
+		if code := srv.stop(t); code != exitOK {
+			t.Fatalf("run exit code = %d, want %d\nstderr:\n%s", code, exitOK, srv.stderr.String())
 		}
 
 		reply := runHost(t, host, e, requestBody(testValidRaw))
@@ -107,17 +117,17 @@ func TestRelayEndToEnd(t *testing.T) {
 
 		body := requestBody(testValidRaw + strings.Repeat("x", server.MaxBodyBytesForTest))
 		reply := runHost(t, host, e, body)
-		if rejected := requireServerReply(t, reply, 413); rejected.Reason != "body_too_large" {
-			t.Fatalf("rejected response = %+v, want reason body_too_large", rejected)
+		if rejected := requireServerReply(t, reply, 413); rejected.Status != "rejected" || rejected.Reason != "body_too_large" {
+			t.Fatalf("rejected response = %+v, want status rejected and reason body_too_large", rejected)
 		}
 	})
 }
 
 // buildHost builds the host binary into a temporary directory and returns its
 // path. GOOS and GOARCH are pinned to this process's and GOFLAGS is cleared,
-// so the developer's settings cannot build a binary this machine cannot run
-// or one that differs from make build's; the rest of the environment is
-// inherited because go build needs HOME, GOCACHE, and the like.
+// so the developer's settings cannot build a binary this machine cannot run;
+// the rest of the environment is inherited because go build needs HOME,
+// GOCACHE, and the like.
 func buildHost(t *testing.T) string {
 	t.Helper()
 	for _, dir := range hostSourceDirs {
@@ -205,8 +215,9 @@ func runHost(t *testing.T, host string, e *serverEnv, message string) hostReply 
 }
 
 // decodeOneFrame decodes out as exactly one Native Messaging frame holding a
-// host reply, failing the test on a short frame, trailing bytes, or a member
-// outside the two reply shapes.
+// host reply, failing the test on a short frame, bytes after the frame, a
+// second JSON value in it, or an unknown member. The exact member set of each
+// shape is internal/nmhost's test.
 func decodeOneFrame(t *testing.T, out []byte, stderr string) hostReply {
 	t.Helper()
 	if len(out) < 4 {
@@ -221,6 +232,9 @@ func decodeOneFrame(t *testing.T, out []byte, stderr string) hostReply {
 	var reply hostReply
 	if err := dec.Decode(&reply); err != nil {
 		t.Fatalf("decode the host reply %q: %v", out[4:], err)
+	}
+	if err := dec.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		t.Fatalf("the host reply %q holds more than one JSON value", out[4:])
 	}
 	if reply.V != 1 {
 		t.Fatalf("reply = %+v, want version 1", reply)
