@@ -7,7 +7,6 @@ import {
   createMetadataReader,
   createSelectionReader,
   createSendDeps,
-  createSettingsStore,
 } from "./browser/chromeDeps.ts";
 import { runPopupLaunch, runPopupSend } from "./launch.ts";
 
@@ -23,8 +22,7 @@ if (summaryRegion !== null && sendRegion !== null) {
       log,
     });
     await runPopupSend(sendRegion, launched, {
-      settings: createSettingsStore(chrome.storage.local),
-      send: createSendDeps(),
+      send: createSendDeps(chrome.runtime),
       now: () => Date.now(),
       log,
     });

@@ -1,7 +1,7 @@
 import type { PageSelection, SelectionReader } from "../core/collect.ts";
-import type { SettingsStore } from "../core/settings.ts";
+import { nativeHostName } from "../core/native.ts";
 import type { Logger, MetadataReader } from "../launch.ts";
-import type { FetchFn, SendDeps } from "../send.ts";
+import type { SendDeps } from "../send.ts";
 
 /** The chrome.scripting call used; the injected function's result is validated at runtime. */
 export interface ScriptingApi {
@@ -12,11 +12,14 @@ export interface ScriptingApi {
   }): Promise<Array<{ readonly result?: unknown }>>;
 }
 
-/** The chrome.storage area surface used (local, for settings). */
-export interface StorageArea {
-  get(keys: string | string[]): Promise<Record<string, unknown>>;
-  set(items: Record<string, unknown>): Promise<void>;
-  remove(keys: string | string[]): Promise<void>;
+/** The chrome.runtime surface used: the callback form of sendNativeMessage and its lastError. */
+export interface NativeMessagingApi {
+  sendNativeMessage(
+    application: string,
+    message: object,
+    callback: (response: unknown) => void,
+  ): void;
+  readonly lastError?: { readonly message?: string } | undefined;
 }
 
 export interface TabsApi {
@@ -149,32 +152,6 @@ export function createLogger(): Logger {
   };
 }
 
-const tokenKey = "sharedToken";
-const portKey = "serverPort";
-
-/**
- * The SettingsStore backed by the given storage area (chrome.storage.local in
- * production). The token and the port use separate keys, so saving or clearing
- * one never touches the other, and load reads both keys in one get.
- */
-export function createSettingsStore(area: StorageArea): SettingsStore {
-  return {
-    async load() {
-      const values = await area.get([tokenKey, portKey]);
-      return { token: values[tokenKey], port: values[portKey] };
-    },
-    async saveToken(token) {
-      await area.set({ [tokenKey]: token });
-    },
-    async clearToken() {
-      await area.remove(tokenKey);
-    },
-    async savePort(port) {
-      await area.set({ [portKey]: port });
-    },
-  };
-}
-
 /** Queries the active tab of the current window, for the popup path. */
 export function createActiveTabQuery(
   tabs: TabsApi,
@@ -186,15 +163,33 @@ export function createActiveTabQuery(
 }
 
 /**
- * The SendDeps backed by the global fetch and AbortSignal.timeout. fetch is
- * called through this wrapper, so the global stays an unbound reference;
- * calling the global as another object's method would throw "Illegal
- * invocation" and be read as an unknown result.
+ * The SendDeps backed by runtime (chrome.runtime in production) and the
+ * global timer. sendNative sends to the fixed host name only and never
+ * rejects: a lastError, whatever its text, and a synchronous throw (the
+ * browser throws instead of calling back for a message over its limit) both
+ * resolve as "failed", so the promise always settles.
  */
-export function createSendDeps(): SendDeps {
-  const fetchFn: FetchFn = (url, init) => fetch(url, init);
+export function createSendDeps(runtime: NativeMessagingApi): SendDeps {
   return {
-    fetch: fetchFn,
-    timeoutSignal: (ms) => AbortSignal.timeout(ms),
+    sendNative: (message) =>
+      new Promise((resolve) => {
+        try {
+          runtime.sendNativeMessage(nativeHostName, message, (response) => {
+            // Reading lastError in the callback also marks it as checked.
+            const lastError = runtime.lastError;
+            if (lastError !== undefined) {
+              resolve({ kind: "failed", lastError: lastError.message });
+              return;
+            }
+            resolve({ kind: "message", value: response });
+          });
+        } catch (error) {
+          resolve({ kind: "failed", lastError: String(error) });
+        }
+      }),
+    schedule: (ms, callback) => {
+      const id = setTimeout(callback, ms);
+      return () => clearTimeout(id);
+    },
   };
 }
