@@ -378,9 +378,12 @@ Build the candidate list yourself (not via an agent) before invoking this phase:
 - Take every thread where `verdict="invalid"`, every `answered` thread (Phase
   2, with the reply given there), plus every thread where `verdict` is
   `"valid"` or `"off-level"` AND `applied=true` in the Phase 3 fixes.
-- For each, resolve `replyBody`: use the Phase 3 fix's `replyBody` if present
-  (for applied valid and off-level threads), else the Phase 2 triage
-  `replyBody`.
+- For each, resolve `replyBody`: for an `answered` thread it is always the
+  fixed sentence `軽微な指摘のため、ラウンド上限を超えた今回は変更しません。`,
+  overriding the Phase 2 `replyBody` (which may be empty or differ), so an
+  `answered` thread is never set aside as "skipped" for an empty `replyBody`;
+  otherwise use the Phase 3 fix's `replyBody` if present (for applied valid
+  and off-level threads), else the Phase 2 triage `replyBody`.
 - Look up each thread's `databaseId` and `url` from the Phase 1 fetch data.
 - Threads with no `databaseId` cannot be replied to automatically — set them
   aside for the "skipped" list in your final report; do not send them to the

@@ -102,7 +102,7 @@ Work in the following order.
    …
    ```
 
-8.5. Set the plan's status back to `draft`: adding PR boundaries reorders and renumbers steps and splits the work, which is a decision the reviewer approves (`docs/dev/developer_guide/requirements_process.md`, "Editing an approved document"). Record in `Comments` that the PR boundaries were added on YYYY-MM-DD. Then commit the inserted PR boundaries (the first version) with a message that explains the PR grouping rationale, so the review fixes that follow are visible as their own diff. `/runpr` offers the approval and `/runplan` as the next command at the merge.
+8.5. Set the plan's status back to `draft`, with `Review date` and `Reviewer` `-` and the past approval kept in `Comments` as history (`docs/dev/developer_guide/requirements_process.md`, "Editing an approved document"): adding PR boundaries reorders and renumbers steps and splits the work, which is a decision the reviewer approves (`docs/dev/developer_guide/requirements_process.md`, "Editing an approved document"). Record in `Comments` that the PR boundaries were added on YYYY-MM-DD. Then commit the inserted PR boundaries (the first version) with a message that explains the PR grouping rationale, so the review fixes that follow are visible as their own diff. `/runpr` offers the approval and `/runplan` as the next command at the merge.
 
 9. Run the critical-review subagent procedure in `.claude/commands/_lib/review-subagent-pattern.md` with these inputs:
     - **ARTIFACT**: the PR boundary design.

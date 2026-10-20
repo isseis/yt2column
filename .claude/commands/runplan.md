@@ -43,7 +43,7 @@ Work in order.
 4. Select the next unit of work from `03_implementation_plan.md` checkboxes (`[ ]` not started, `[x]` done, `[-]` skipped).
 - If all phases and all PR markers are complete, skip to step 8 and follow the "If all phases are complete" bullet.
 - Scan forward from the last completed item. If the next unchecked items are inside a `### PR-N 作成ポイント` section (PR checkpoint checkboxes), treat this as a PR checkpoint:
-  - If its `PR を作成した` box is already checked, the PR exists (its URL is on that line). Check its state with `gh pr view <url> --json state`. If it is open, stop and tell the user to review it and run `/runpr`. If it is merged, `/runpr` has not done its bookkeeping on this branch: stop and report rather than open a second PR.
+  - If its `PR を作成した` box is already checked, the PR exists (its URL is on that line). Check its state with `gh pr view <url> --json state`. If it is open, stop and tell the user to review it and run `/runpr`. If it is merged, `/runpr` has not done its bookkeeping on this branch: stop and report rather than open a second PR. If it is `CLOSED` (not merged), stop and report the cause to the user; do not create a PR, because a second PR from the same branch would leave the closed PR's URL in the plan.
   - Otherwise go to step 5a instead of step 5.
 - Otherwise, select the next implementation group: use one phase by default unless it cannot pass `make test` alone (e.g. stub-only or tightly coupled); then extend the group until it can pass. Stop the group at the next `### PR-N 作成ポイント` boundary — do not include the PR checkpoint checkboxes in the implementation group. Briefly note the reason for any grouping before starting work.
 

@@ -7,7 +7,7 @@ When implementing new features or security-critical functionality, follow this p
 ### LLM Constraints (Critical)
 
 - LLMs must **always create `01_requirements.md`, `02_architecture.md`, and `03_implementation_plan.md` in draft status (`draft`)**. They must never be created as approved (`approved`).
-- A document becomes `approved` only on the reviewer's explicit instruction. Either the reviewer edits the status, or an LLM sets it when the reviewer chooses to approve the document in `/runpr`'s merge question (recording the reviewer's name and the date). An LLM never sets `approved` on its own judgment.
+- A document becomes `approved` only on the reviewer's explicit instruction. Approval is given through `/runpr`'s merge question: when the reviewer chooses to approve the document there, an LLM sets the status (recording the reviewer's name and the date). The reviewer does not edit the status to `approved` directly on the PR, because `/runpr` records the approval only for `draft` documents. An LLM never sets `approved` on its own judgment.
 - Do not begin creating `02_architecture.md` until the status of `01_requirements.md` is `approved`.
 - Do not begin creating `03_implementation_plan.md` until the status of `02_architecture.md` is `approved`.
 - Do not begin writing any implementation code until the status of `03_implementation_plan.md` is `approved`.
@@ -19,8 +19,9 @@ Two kinds of edit reach an already-approved document, and they are handled
 differently:
 
 - **Decision change** — the document now says something different about what to
-  build or why. Set the status back to `draft` and ask the reviewer to approve
-  again. Exception: when `/runplan` finds a decision change during
+  build or why. Set the status back to `draft` (which also sets `Review date`
+  and `Reviewer` to `-`, as the status format requires, and keeps the past
+  approval in `Comments` as history) and ask the reviewer to approve again. Exception: when `/runplan` finds a decision change during
   implementation, it asks the reviewer in the session; the reviewer's explicit
   answer is the re-approval, so the status stays `approved` and `Comments`
   records the decision, the date, and that the reviewer approved it.
