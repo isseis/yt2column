@@ -63,10 +63,20 @@ const networkGlobals = networkNames.map((name) => ({
   message: networkMessage,
 }));
 const networkPattern = `/^(${networkNames.join("|")})$/`;
+const globalObject = "/^(window|self|globalThis)$/";
 const networkSelectors = [
   {
     // window.fetch, self.fetch and globalThis.fetch, dotted or computed.
-    selector: `MemberExpression:matches([property.name=${networkPattern}], [property.value=${networkPattern}])[object.name=/^(window|self|globalThis)$/]`,
+    selector: `MemberExpression:matches([property.name=${networkPattern}], [property.value=${networkPattern}])[object.name=${globalObject}]`,
+    message: networkMessage,
+  },
+  {
+    selector: `MemberExpression[computed=true][property.type="TemplateLiteral"][property.quasis.0.value.cooked=${networkPattern}][object.name=${globalObject}]`,
+    message: networkMessage,
+  },
+  {
+    // const { fetch } = window;
+    selector: `VariableDeclarator[init.name=${globalObject}] > ObjectPattern > Property:matches([key.name=${networkPattern}], [key.value=${networkPattern}])`,
     message: networkMessage,
   },
 ];
@@ -88,7 +98,7 @@ const sendNativeSelectors = memberNameSelectors(
 // reuse, not deliberate evasion.
 const menuPathNames = ["contextMenus", "session", "windows", "setBadgeText"];
 const menuPathMessage =
-  "Do not use chrome.contextMenus, chrome.storage.session, chrome.windows or chrome.action.setBadgeText; the extension sends only from the popup.";
+  "Do not use chrome.contextMenus, chrome.windows or chrome.action.setBadgeText; the extension sends only from the popup.";
 
 // The branded types hide their brand symbol, so only the function named here
 // may assert the type to create a value. Every other reference form (an alias

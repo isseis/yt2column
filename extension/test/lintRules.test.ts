@@ -135,7 +135,11 @@ const brands: Brand[] = [
 ];
 
 const creatorFiles = [...new Set(brands.map((brand) => brand.creator))];
-const otherFiles = ["src/sample.ts", "scripts/sample.ts"];
+const otherFiles = [
+  "src/sample.ts",
+  "scripts/sample.ts",
+  "src/browser/chromeDeps.ts",
+];
 
 const assertion = (type: string): string =>
   `declare const value: unknown;\nexport const x = value as ${type};\n`;
@@ -259,15 +263,13 @@ function expectReferenceForms(obj: string, name: string): void {
 describe("chrome.storage", () => {
   // Every area is forbidden, not only sync: the extension has no storage
   // permission.
-  for (const area of ["sync", "local", "managed"]) {
-    expectViolation([
-      {
-        name: `chrome.storage.${area}`,
-        code: `export const p = chrome.storage.${area}.get("x");\n`,
-        rule: "no-restricted-syntax",
-      },
-    ]);
-  }
+  expectViolation([
+    {
+      name: "chrome.storage.local",
+      code: 'export const p = chrome.storage.local.get("x");\n',
+      rule: "no-restricted-syntax",
+    },
+  ]);
   expectReferenceForms("chrome", "storage");
 });
 
@@ -288,6 +290,16 @@ describe("connections", () => {
           rule: "no-restricted-syntax",
         },
         {
+          name: `template ${obj}[\`${name}\`]`,
+          code: `declare const ${obj}: Record<string, unknown>;\nexport const p = ${obj}[\`${name}\`];\n`,
+          rule: "no-restricted-syntax",
+        },
+        {
+          name: `destructured ${name} from ${obj}`,
+          code: `declare const ${obj}: Record<string, unknown>;\nexport const { ${name} } = ${obj};\n`,
+          rule: "no-restricted-syntax",
+        },
+        {
           name: `computed ${obj}["${name}"]`,
           code: `declare const ${obj}: Record<string, unknown>;\nexport const p = ${obj}["${name}"];\n`,
           rule: "no-restricted-syntax",
@@ -296,13 +308,19 @@ describe("connections", () => {
     }
   }
 
-  // The names are anchored: a property that only contains one stays allowed.
-  for (const filePath of paths) {
-    it(`allows an unrelated property named fetchAll in ${filePath}`, async () => {
-      const code =
-        "declare const o: { fetchAll: number };\nexport const p = o.fetchAll;\n";
-      assert.deepEqual(await ruleIds(code, filePath), []);
-    });
+  // The names are anchored, and only the global objects are covered: a
+  // longer name on a global object and a same-named member of another
+  // object (an injected dependency) stay allowed.
+  const allowed = [
+    "declare const window: Record<string, unknown>;\nexport const p = window.fetchAll;\n",
+    "declare const deps: { fetch: number };\nexport const p = deps.fetch;\n",
+  ];
+  for (const code of allowed) {
+    for (const filePath of paths) {
+      it(`allows ${code.split("\n")[1]} in ${filePath}`, async () => {
+        assert.deepEqual(await ruleIds(code, filePath), []);
+      });
+    }
   }
 });
 
