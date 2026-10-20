@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-20 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-20 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は、[02_architecture.md](02_architecture.md)（以下、設計書）8.1 の観測のゲートの結果を受けて、本タスク（[#330](https://github.com/isseis/yt2column/issues/330)）を続けるかを要件のレビューで検討するための資料である。観測の記録そのものは設計書 3.1.4 にあり、本書はそれに基づく判断の材料と提案をまとめる。[03_implementation_plan.md](03_implementation_plan.md) を実装計画と呼ぶ。F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番、H-NN は [design_handoff.md](design_handoff.md) の項番を指す。
