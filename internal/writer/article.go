@@ -61,7 +61,7 @@ func (a Article) CheckPublishable() error {
 }
 
 // checkStepModel applies the display-string rules to a step's model name and
-// its optional model version, both of which go into the output's model lines.
+// its optional model version, both of which go into the output's model entries.
 func checkStepModel(step, model, version string) error {
 	if reason := displayStringProblem(step+" model", model); reason != "" {
 		return invalidArticle(reason)

@@ -226,8 +226,8 @@ Two URLs for one video share one entry.
 ```
 
 - The keys appear in this order. `channel` appears only when the video has a
-  channel name; `shorten_*` only when the shorten step called the LLM;
-  `review_*` only when the review step ran.
+  channel name; `shorten_*` only when the article went through the shorten step (run now or
+  reused with `--after`); `review_*` only when it went through the review step.
 - Every value is a double-quoted string, quoted with Go's `strconv.Quote`, so a
   value that contains a quote, a backslash, `:`, `#`, or `---` cannot change the
   structure. `estimated_cost_usd` is a string too: four decimals, or `unknown`
@@ -235,8 +235,9 @@ Two URLs for one video share one entry.
   `(none)`.
 - The channel name appears again under the title, so a Markdown viewer that
   hides the front matter still shows it. A name that starts like a Markdown block
-  (`# `, `- `, `> `, and so on) gets a backslash before its first character so
-  that the rendered line is the name.
+  (`# `, `- `, `> `, and so on) gets a backslash at the start (after the digits
+  for a numbered-list marker) so that the rendered line is the name; leading
+  whitespace is dropped.
 - This format replaces the earlier one, which listed the models and the cost
   under the title (`- Model: …`).
 
@@ -261,8 +262,8 @@ Models: deepseek-flash (generation, shorten) · claude-haiku-5-5 (review) · Est
 
 - Without a channel name, the first line is `# <title>` alone.
 - The footnote names each model once with the stages that used it, in the order
-  generation, shorten, review; a step that did not run (for example the shorten
-  step on a short body, or a disabled review) is not listed. It never shows the
+  generation, shorten, review; a step the article did not go through (for example the
+  shorten step on a short body, or a disabled review) is not listed. It never shows the
   model version. The cost is four decimals and `USD`, or
   `Estimated cost: unknown`.
 - When the post is longer than one message (see
@@ -383,8 +384,8 @@ transcript again and replace the cache.
 
 The channel name in a saved `info.json` is checked before the LLM is called: a
 name that is only whitespace, contains a control character (or a bidirectional
-control character such as U+202E), is not valid UTF-8, or is longer than 200
-code points makes the run fail, where earlier versions accepted it. Run with
+control character such as U+202E), or is longer than 200 code points makes the
+run fail, where earlier versions accepted it. Run with
 `--refresh` to fetch the video again and replace the cache. The localhost
 server rejects such a `channelName` with `invalid_body`.
 
@@ -402,8 +403,9 @@ stops an `--out` run.
 The article is posted as Markdown, laid out as in [Output format](#output-format). A post longer than 16,383 code points — the
 limit Mattermost counts — is split into several messages, each at most 16,383
 code points and beginning with a `(k/N)` marker. An article that cannot be
-split — because a fragment would be only whitespace, or because it would need
-more than ten messages — is rejected before anything is sent. Each message is
+split — because a fragment would be only whitespace, because it would need
+more than ten messages, or because the last line of the body and the footnote
+together do not fit in one message — is rejected before anything is sent. Each message is
 sent with
 `silent` set, so Mattermost shows it without a notification, an unread marker,
 or a `New Messages` line; on a Mattermost version that predates `silent`,
@@ -432,8 +434,8 @@ not. What happens depends on where it is:
   such cut exists, the post is rejected.
 
 A rejected article is not posted at all, and the error gives the line and column
-in the post (line 1 is the first line, which a file written by `--out` does not
-have, so the lines differ). Running again generates a different article, which
+in the post (the lines differ from a file written by `--out`, which starts with front
+matter). Running again generates a different article, which
 may not have the problem; run with `--out` to inspect what the model generated.
 The localhost server reports this rejection in its failure notice as its own
 reason, separate from other publishing failures.
@@ -775,7 +777,9 @@ The button stays usable: pressing it sends the beginning that the page shows.
 
 Some values may not be available: when a video title, channel name, or
 description is missing or blank on the page, that value is left out of the
-request, and when the page cannot be read at all — or the tab has moved to
+request (a channel name that is not blank but has a control character or is
+longer than 200 code points is not left out: the server rejects the request with
+`invalid_body`), and when the page cannot be read at all — or the tab has moved to
 another video since the selection was read — all three are left out. The
 extension still sends the selection and the URL, and the article is generated
 from them.

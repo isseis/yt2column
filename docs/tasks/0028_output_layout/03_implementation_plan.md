@@ -631,7 +631,7 @@ AC-23〜AC-25 のガードは語句の有無だけを確かめ、記述が実装
 
 | 確認 | 時期 | 結果 |
 |---|---|---|
-| 拡張が読む `channelName` に制御文字・前後の空白が混ざらないこと（実際の YouTube の動画ページ） | フェーズ 1 の前 | - |
+| 拡張が読む `channelName` に制御文字・前後の空白が混ざらないこと（実際の YouTube の動画ページ） | フェーズ 1 の前 | **未実施**（利用者の確認待ち。混ざるとサーバが `invalid_body` で要求全体を拒否する。README の拡張の節に記載済み） |
 | `@`・U+200B・`name` が通知にならないこと（実際の Mattermost。版を記録する） | フェーズ 4 | 2026-10-20、Mattermost クライアントから投稿して確認。`@`+U+200B+`here`/`channel`/`all`/`everyone` は通知にならない。`Tech@Work` は通知にならず、`user@example.com` は mailto のリンクになるが Mattermost のユーザー名としては扱われない。Mattermost サーバ 11.11.2、デスクトップ 6.3.1 |
 | 見出し行と脚注の見え方（`make test-integration-slack`、利用者の承認の後） | フェーズ 4 | 2026-10-20 に実行して通った（single 1 通・split 3 通、マーカー `20261019T233134.424Z`）。目視で確認した: 見出し行は `<h1 class="markdown__heading">`（本文の `## Integration test body` は `<h2>`）、脚注は 1 つの `<p>`（`Models: … (generation) · Estimated cost: unknown`）として描画された |
 
@@ -709,7 +709,7 @@ $ python3 -I docs/tasks/0008_column_prompt/check_article.py <cache> abcdefghijk 
 | security.md: 確かめた Mattermost の版 | §5.1（サーバ 11.11.2） | 一致 |
 | project_overview.md: `Article` のチャンネル名、料金の置き場所、整形の分担 | 設計書 3.2〜3.4、`format.go`・`file_render.go`・`slack_render.go` | 一致 |
 | README: 例の 2 つのコードブロック | `TestOutputLayoutDocsContract` が実際の出力と比べる | ガードが確かめる |
-| README: 互換性の変化（保存済みの `info.json` のチャンネル名） | 設計書 4 章、`validateTranscript`（`prompt.go:66`） | 一致 |
+| README: 互換性の変化（保存済みの `info.json` のチャンネル名） | 設計書 4 章、`validateTranscript`（`prompt.go:66`）。不正な UTF-8 は従来から拒否されるので新しい拒否に数えない（レビューで訂正） | 一致 |
 | package_reference.md | `format.go`・`file_render.go`・`slack_render.go`・`CheckChannelName`・`ProseRanges`・`KindPublishMention` | 一致 |
 
 ガードを壊して失敗することを確かめた: README のフロントマターのキーの順序の入れ替え、脚注の金額の書き換え、`- Estimated cost:` の行の再導入、security.md から `U+200B` を除く、のそれぞれで `TestOutputLayoutDocsContract` が失敗した。
