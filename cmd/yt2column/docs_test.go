@@ -784,7 +784,7 @@ func TestTokenUsageDocsContract(t *testing.T) {
 // TestCostDocsContract checks the cost documents: the README's Estimated cost
 // section uses every word run.go's cost format defines, its example lines use
 // only those words and the stage names in the fixed positions, and it names the
-// heading word of the --out and Slack cost line; the rate-update procedure
+// heading word of the Slack footnote's cost; the rate-update procedure
 // names the rate table and the hand-calculated tests, is linked from CLAUDE.md,
 // and is pointed at from the rate table's leading comment; project_overview.md
 // and security.md describe the cost line and the artifact call_time.
@@ -842,9 +842,9 @@ func TestCostDocsContract(t *testing.T) {
 			t.Errorf("README Estimated cost section does not contain the reason word %q", word)
 		}
 	}
-	// The heading word of the --out and Slack cost line is an unexported
-	// publisher constant, so the guard writes the spelling; TestRenderArticleCost
-	// pins the same spelling in internal/publisher.
+	// The heading word of the Slack footnote's cost is an unexported publisher
+	// literal, so the guard writes the spelling; TestRenderSlackPostCost pins the
+	// same spelling in internal/publisher.
 	const estimatedCostHeading = "Estimated cost"
 	if !strings.Contains(section, estimatedCostHeading) {
 		t.Errorf("README Estimated cost section does not contain the heading word %q", estimatedCostHeading)
