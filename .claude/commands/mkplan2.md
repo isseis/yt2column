@@ -24,9 +24,8 @@ Work in the following order.
 2.5. Prepare the branch: follow `.claude/commands/_lib/task-pr-handoff.md`, Part A,
    with **TASK_DIR** = the target task directory, **PREREQ** =
    `03_implementation_plan.md`, **REPORT** = the step 12 report, and the
-   task-document values of the other inputs. The reviewer's uncommitted
-   approval of PREREQ, if any, is committed together with this command's
-   document.
+   task-document values of the other inputs. Part A commits the reviewer's
+   uncommitted approval of PREREQ, if any, on its own.
 
 3. Read `02_architecture.md` and `01_requirements.md` in the target task directory to understand the component structure and acceptance criteria.
 
@@ -108,7 +107,7 @@ Work in the following order.
     - **FILES**: the implementation plan document, the architecture document, and the requirements document (paths in `_context.md`), as resolved absolute-path strings.
     - **CRITERIA**: every item from the PR boundary review checklist below, copied verbatim.
 
-10. Commit the implementation plan document with a message that explains the PR grouping rationale, only after all review passes are complete and all Critical and Major issues are resolved. The commit includes the PREREQ approval from step 2.5 if there is one.
+10. Commit the implementation plan document with a message that explains the PR grouping rationale, only after all review passes are complete and all Critical and Major issues are resolved.
 
 **PR boundary review checklist (use verbatim as evaluation criteria in the subagent prompt above):**
 - [ ] Every `### PR-N 作成ポイント` section appears after all steps it covers.

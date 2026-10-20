@@ -1,5 +1,5 @@
 ---
-description: "Create a PR for a committed non-runplan change, review it, and merge it"
+description: "Drive a task-document PR, or a committed standalone change, through CodeRabbit and CI and merge it"
 argument-hint: "[PR | branch]"
 ---
 
@@ -9,28 +9,31 @@ argument-hint: "[PR | branch]"
 > in `.claude/commands/_lib/coderabbit-local-review.md`; this command follows
 > those files rather than restating them.
 
-Create a PR for a change already committed on the current branch, drive it
-through CodeRabbit review and merge, then switch to a fresh branch for the next
-change.
+Drive a PR through CodeRabbit review, CI, and merge, then switch to a fresh
+branch for the next change. Use it for:
 
-Use this for a change that is **not** a `/runplan` task — a document such as
-`01_requirements.md`, `02_architecture.md`, or `03_implementation_plan.md`, a
-standalone code change, a development-environment file, or any other change made
-without an implementation plan. There is no `/runplan` step and no
-implementation-plan checkbox to update (the plan file may not exist yet).
-`runpr.md` is the variant for a `/runplan` task PR, where runplan creates the PR
-and the plan's PR-checkpoint checkboxes are updated after the merge.
+- a task-document PR, which `mkreq.md`, `mkarch.md`, `mkplan.md`, or
+  `mkplan2.md` opened and handed to the reviewer (`_lib/task-pr-handoff.md`);
+  the reviewer runs this command after reviewing it;
+- a standalone change committed on the current branch without an
+  implementation plan (a code change, a development-environment file), for
+  which this command creates the PR.
+
+There is no implementation-plan checkbox to update. `runpr.md` is the variant
+for a `/runplan` task PR.
 
 **Input.** `$ARGUMENTS`, when given, is a PR number or a branch to operate on;
 with no argument, use the current branch.
 
-Before the PR is created, review the change locally: follow
-`.claude/commands/_lib/coderabbit-local-review.md`
-with **BASE** = `$(git merge-base origin/main HEAD)`, **SCOPE** = branch,
-**SUMMARY** = the final status report. Skip this when the target branch already
-has a PR — a task-document command (`mkreq.md`, `mkarch.md`, `mkplan.md`,
-`mkplan2.md`) ran the same review before opening it (`_lib/task-pr-handoff.md`
-Part B), and the PR-side CodeRabbit review covers commits pushed since — and
+First resolve whether the target branch has a PR (`gh pr view` as the shared
+loop's step 1 does). When it has none, review the change locally before the PR
+is created: follow `.claude/commands/_lib/coderabbit-local-review.md` with
+**BASE** = `$(git merge-base origin/main HEAD)`, **SCOPE** = branch,
+**SUMMARY** = the final status report. Skip this when the PR exists and its
+branch follows the feature branch convention (`_context.md`): a task-document
+command ran the same review before opening it (`_lib/task-pr-handoff.md`
+Part B), and the PR-side CodeRabbit review covers commits pushed since. A PR
+opened by hand gets the local review, with the fixes pushed to it. Also skip it
 when `$ARGUMENTS` names a PR or branch other than the checked-out one, since the
 review reads the local checkout.
 

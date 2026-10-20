@@ -81,7 +81,7 @@ the command that drives it — `/runchange` for a task-document PR, `/runpr` for
 CodeRabbit and CI, resolves the threads with `/fixpr`, and merges with
 `/mergepr`. To approve the previous document, set its status to `approved` in
 the working tree before running the next command; the approval is committed
-with that command's first commit.
+as its own first commit.
 
 ### Extension Commands
 

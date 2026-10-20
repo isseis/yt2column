@@ -76,11 +76,11 @@ Repeat steps 1–4 for the PR.
 ### 2. Wait for CodeRabbit, running fixpr as comments appear
 
 First make sure CodeRabbit reviews the head commit, including commits the
-reviewer pushed after the PR was opened: when `statusCheckRollup` (below) has no
-`CodeRabbit` status context (a `StatusContext` entry; a check run of that name
-does not count), ask for a review with
-`gh pr comment <number> --body "@coderabbitai review"`. An entry that already
-exists means a review of the head commit is running or done; do not ask again.
+reviewer pushed after the PR was opened. CodeRabbit normally reviews each push
+on its own, so poll `statusCheckRollup` (below) for about two minutes; only if
+no `CodeRabbit` status context appears (a `StatusContext` entry; a check run of
+that name does not count) ask for a review with
+`gh pr comment <number> --body "@coderabbitai review"`.
 
 Poll until CodeRabbit has finished and nothing is left to fix.
 
@@ -156,15 +156,18 @@ never merge without that approval.
 
 Once `mergepr.md` reports the merge:
 
-- Confirm its cleanup finished and the local base branch was updated before
-  creating the next branch. `mergepr.md` can stop after the merge with cleanup
-  pending, in which case run `mergepr cleanup --state <state-file>` and only then
-  continue.
-- Update the local base branch and create the next branch for the next change
-  from it. When the merged branch followed the feature branch convention
-  (`_context.md`) and the next change belongs to the same task, name it with
-  the next sequence number (`-02` after `-01`); the next `/runplan` or
-  task-document command then works on it (`_lib/task-pr-handoff.md`, Part A). Never branch from, or keep committing to, the merged branch: after a
-  squash merge its commits are not ancestors of the base. If there is no next
-  change, check out the updated base branch instead.
+- Confirm its cleanup finished. `mergepr.md` can stop after the merge with
+  cleanup pending, in which case run `mergepr cleanup --state <state-file>` and
+  only then continue. When another worktree has the base branch checked out,
+  the cleanup leaves the local base branch stale; do not rely on it.
+- `git fetch origin main` and create the next branch from `origin/main`, never
+  from the local base branch or the merged branch (after a squash merge the
+  merged branch's commits are not ancestors of the base). When the merged
+  branch followed the feature branch convention (`_context.md`), the next
+  change belongs to the same task: name the branch by
+  `_lib/task-pr-handoff.md` Part A step 4; the next `/runplan` or
+  task-document command then works on it (Part A step 3). Otherwise, ask the
+  user for the next change's branch, or detach at `origin/main`
+  (`git switch --detach origin/main`) when there is none; do not check out the
+  base branch, which may be checked out in another worktree.
 - Then apply the calling command's POST_MERGE action, if it was supplied.

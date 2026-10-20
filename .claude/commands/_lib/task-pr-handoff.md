@@ -31,8 +31,10 @@ and CI, resolves the threads, and merges.
   `01_requirements.md` and `02_architecture.md`; `mkplan2.md` and `runplan.md`:
   `03_implementation_plan.md`).
 - **REPORT** — where the calling command gives its final report.
-- **CHECKS** — what runs before the push: the documentation guards for a
-  task-document command, the green gate (`_context.md`) for `runplan.md`.
+- **CHECKS** — what runs before the push: for a task-document command, the
+  documentation guards
+  (`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./internal/pipeline`);
+  for `runplan.md`, the green gate (`_context.md`).
 - **LOCAL_REVIEW** — `run` for a task-document command; `done` for
   `runplan.md`, which reviews each phase group locally (its step 7.7).
 - **PR_TEXT** — the PR title and what the body must name: for a task-document
@@ -41,15 +43,15 @@ and CI, resolves the threads, and merges.
 - **DRIVER** — the command the reviewer runs next: `/runchange` for a
   task-document command, `/runpr` for `runplan.md`.
 - **AFTER_CREATE** (optional) — what the calling command does once the PR
-  exists, before CodeRabbit is asked (`runplan.md`: mark `PR を作成した`, commit,
-  and push).
+  exists, before CodeRabbit is asked (`runplan.md`: mark `PR を作成した` with the
+  PR URL, commit, and push).
 
 ## Authorization
 
 Invoking a calling command approves, for its task and its PR only, the network
 operations this file names: `gh api user`, `gh pr list`, `gh pr view`,
-`git fetch origin main`, `git push`, `gh pr create`, and `gh pr comment` for the
-CodeRabbit request. `coderabbit review` has standing approval (`CLAUDE.md`,
+`git fetch origin main`, `git push` (including `-u`), `gh pr create`, and
+`gh pr comment` for the CodeRabbit request. `coderabbit review` has standing approval (`CLAUDE.md`,
 "Tool Execution Safety"). Anything else that touches the network is asked for
 first.
 
@@ -59,17 +61,18 @@ first.
    allowed is the reviewer's approval of PREREQ: the Document Status table of a
    PREREQ document set to `approved`, with its review date, reviewer, and
    comments. Any other change, or any change when PREREQ is none, is a reason
-   to stop and report. An allowed change stays uncommitted for now: the calling
-   command commits it with its first commit, so the PR records the approval
-   together with the work that depends on it.
+   to stop and report. An allowed change is committed on its own in step 5.
 2. `git fetch origin main`.
 3. Use the current branch when its name follows the feature branch convention
    (`_context.md`) for TASK_DIR and either:
-   - `git rev-list --count origin/main..HEAD` is `0` (the branch the PR loop
-     switched to after the previous merge); or
+   - `HEAD` is `origin/main` (`git rev-parse HEAD` equals
+     `git rev-parse origin/main`: the branch the PR loop created after the
+     previous merge, with nothing merged since); or
    - the calling command is `runplan.md`, the branch has commits beyond
-     `origin/main`, and it has no PR yet (`gh pr view <branch>` finds none): the
-     PR group in progress, continued with its next phase group.
+     `origin/main`, all of them made by `runplan.md` (implementation and
+     checkbox commits, not an unopened task-document change), and it has no PR
+     yet (`gh pr view <branch>` finds none): the PR group in progress, continued
+     with its next phase group.
 
    A convention-named branch for TASK_DIR in any other state (commits beyond
    `origin/main` with a PR, or with no PR when the caller is a task-document
@@ -83,6 +86,9 @@ first.
      `NN` is `01`.
    - `git switch -c <branch> origin/main`. The allowed uncommitted change from
      step 1 comes along.
+5. If step 1 found the reviewer's approval, commit it alone
+   (`docs(NNNN): approve the <document>`), before any work that depends on it.
+   The approval then predates that work in the branch history.
 
 ## Part B — open the PR and hand it over
 
@@ -93,11 +99,15 @@ Run this after the calling command's last commit, with a clean working tree.
    **BASE** = `$(git merge-base origin/main HEAD)`, **SCOPE** = branch,
    **SUMMARY** = REPORT.
 2. Run CHECKS. Fix and commit if they fail.
-3. Push and create the PR as `.claude/commands/_lib/pr-review-merge-loop.md`
-   step 1 describes for `CREATE_PR`, without pausing for the user to adjust the
-   title or body (the reviewer can edit them on GitHub). The title is PR_TEXT's.
+3. Push and create the PR for the current branch. Ignore the calling command's
+   `$ARGUMENTS` here (it is a task or an issue, not a PR or a branch): run
+   `git push -u origin <current-branch>` and
+   `gh pr create --base main --head <current-branch> --title "<title>" --body-file <file>`,
+   writing the body with the Write tool. Do not pause for the user to adjust the
+   title or body; the reviewer can edit them on GitHub. The title is PR_TEXT's.
    The body:
-   - summarizes the change, and states which PREREQ documents the PR approves;
+   - summarizes the change, and states the approvals this PR commits (step 5 of
+     Part A), if any;
    - lists the decisions made with the reviewer during this run, if any;
    - names the points the reviewer should check (for `runplan.md`, the
      `レビュー観点`), including any `unclear` or `deferred` findings of the local
@@ -106,8 +116,14 @@ Run this after the calling command's last commit, with a clean working tree.
      its own (`対応 issue`), never `Closes`: the issue stays open until the task is
      implemented.
 4. Run AFTER_CREATE, if supplied.
-5. Ask CodeRabbit to review: `gh pr comment <number> --body "@coderabbitai review"`.
+5. Make sure CodeRabbit reviews the PR. It normally starts a review on its own
+   when a PR is opened or pushed to. Poll `gh pr view <number> --json
+   statusCheckRollup` for about two minutes; if no `CodeRabbit` status context
+   appears, ask for one with
+   `gh pr comment <number> --body "@coderabbitai review"`.
 6. Ping the human reviewer (`_context.md`, "Reviewer ping") with the PR URL and
-   the next action: review the PR, then run `DRIVER <PR>`.
+   the next action: review the PR, then run `DRIVER <PR>`. If the ping tool is
+   unavailable or the ping is not sent, the report in step 7 carries the same
+   message.
 7. In REPORT, give the PR URL, the review results, and the same next action.
    Then stop: do not wait for CodeRabbit and do not merge.

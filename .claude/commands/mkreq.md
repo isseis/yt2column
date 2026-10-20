@@ -24,7 +24,8 @@ merge.
   `0030_<name>`). Without it, a new task directory is created.
 
 **Authorization.** Invoking this command approves, for this issue and this PR
-only, `gh issue view` (also for the issues the issue references) and the
+only, `gh issue view` (also for the issues the issue references),
+`gh pr list` for the duplicate search, and the
 network operations `_lib/task-pr-handoff.md` names ("Authorization"). Nothing
 else that touches the network runs without asking.
 
@@ -34,17 +35,23 @@ Work in the following order.
    - Read the issue:
      `gh issue view <issue> --json number,title,body,state,url,comments`.
      If it is closed, stop and report.
-   - Search the task root for a requirements document that already names this
-     issue as its own (`対応 issue: [#<issue>]`). If one exists, stop and report
-     its path: revising an existing requirements document goes through its PR
-     (`/fixpr`, `/runchange`), not this command.
+   - `git fetch origin main`. Search the task root on `origin/main`
+     (`git grep -l '対応 issue: \[#<issue>\]' origin/main -- docs/tasks`) and the
+     open PRs (`gh pr list --state open --search "<issue> in:body"
+     --json number,headRefName,body`) for a requirements document that already
+     names this issue as its own. If one exists, stop and report it: revising an
+     existing requirements document goes through its PR (`/fixpr`,
+     `/runchange`), not this command.
 
 2. Resolve the task directory.
    - With `[task]`: resolve it under the task root as
      `docs/dev/developer_guide/task_identification.md` rule 1 describes. Stop if
      it does not exist or already contains `01_requirements.md`.
-   - Without it: create `docs/tasks/NNNN_<name>/`, where `NNNN` is the highest
-     existing number plus one and `<name>` is a short English snake_case name for
+   - Without it: choose the name `NNNN_<name>` (the directory is created in
+     step 3). `NNNN` is one above the highest task number in use, looking at
+     `origin/main` (`git ls-tree -d --name-only origin/main docs/tasks/`) and at
+     the head branches of open PRs (`<user>/NNNN-...`), so parallel worktrees do
+     not take the same number. `<name>` is a short English snake_case name for
      the issue's subject, in the style of the existing directory names (e.g.
      `output_layout`, `native_messaging_relay`).
 
@@ -53,7 +60,7 @@ Work in the following order.
    **REPORT** = the step 9 report, and the task-document values of the other
    inputs. A new task's branch has sequence number `01`
    (e.g. `isseis/0027-remove-context-menu-01`). Then create the task directory
-   (step 2) on it.
+   chosen in step 2 on it.
 
 4. Read the input material.
    - The requirements process guide, the requirements template

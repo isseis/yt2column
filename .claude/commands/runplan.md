@@ -35,7 +35,9 @@ Work in order.
 
 4. Select the next unit of work from `03_implementation_plan.md` checkboxes (`[ ]` not started, `[x]` done, `[-]` skipped).
 - If all phases and all PR markers are complete, skip to step 8 and follow the "If all phases are complete" bullet.
-- Scan forward from the last completed item. If the next unchecked items are inside a `### PR-N 作成ポイント` section (PR checkpoint checkboxes), treat this as a PR checkpoint — go to step 5a instead of step 5.
+- Scan forward from the last completed item. If the next unchecked items are inside a `### PR-N 作成ポイント` section (PR checkpoint checkboxes), treat this as a PR checkpoint:
+  - If its `PR を作成した` box is already checked, the PR exists (its URL is on that line). Check its state with `gh pr view <url> --json state`. If it is open, stop and tell the user to review it and run `/runpr`. If it is merged, `/runpr` has not done its bookkeeping on this branch: stop and report rather than open a second PR.
+  - Otherwise go to step 5a instead of step 5.
 - Otherwise, select the next implementation group: use one phase by default unless it cannot pass `make test` alone (e.g. stub-only or tightly coupled); then extend the group until it can pass. Stop the group at the next `### PR-N 作成ポイント` boundary — do not include the PR checkpoint checkboxes in the implementation group. Briefly note the reason for any grouping before starting work.
 
 4.4. Prepare the branch (when step 4 selected an implementation group; a PR
@@ -43,9 +45,8 @@ Work in order.
    `.claude/commands/_lib/task-pr-handoff.md`, Part A, with **TASK_DIR** = the
    target task directory, **PREREQ** = `03_implementation_plan.md`, and
    **REPORT** = the step 8 summary. On a branch that already carries the earlier
-   phase groups of the PR in progress, Part A keeps it. The reviewer's
-   uncommitted approval of PREREQ, if any, goes into the phase group's first
-   commit.
+   phase groups of the PR in progress, Part A keeps it. Part A commits the
+   reviewer's uncommitted approval of PREREQ, if any, on its own.
 
 4.5. Record the starting commit of the phase group: `PHASE_START=$(git rev-parse HEAD)`. Keep it until the reviews in steps 7, 7.5, and 7.7 are done, and pass `${PHASE_START}..HEAD` as their commit range (`coderabbit` takes it as `--base-commit`), so the range covers exactly this phase group's commits and not the previous group's.
 
@@ -71,6 +72,7 @@ Work in order.
 - When complete, update checkboxes (`[x]` done, `[-]` skipped with a note) and commit.
 
 5a. **PR checkpoint** (reached when step 4 directed you here instead of step 5).
+- Confirm the current branch is the PR group in progress (`_lib/task-pr-handoff.md`, Part A step 3, second bullet: a convention branch for this task with `/runplan` commits beyond `origin/main` and no PR). Otherwise stop and report; do not push or open a PR from another branch.
 - Verify the green gate (defined in `_context.md`) passes. Fix any failures before continuing.
 - Mark the first PR checkpoint checkbox (the green gate confirmation line) as `[x]` and commit.
 - Open the PR and hand it over: follow `.claude/commands/_lib/task-pr-handoff.md`,
@@ -78,14 +80,18 @@ Work in order.
   - **CHECKS** = the green gate (already verified above; rerun only if a commit
     followed it);
   - **LOCAL_REVIEW** = `done` — step 7.7 reviewed each phase group of this PR.
-    If step 7.7 could not run for one of them (the CodeRabbit CLI failed), run
+    When step 7.7 could not run (the CodeRabbit CLI failed), it records
+    `CodeRabbit local review: not run` in that group's checkbox commit message.
+    If `git log origin/main..HEAD` shows that line, run
     `.claude/commands/_lib/coderabbit-local-review.md` now with **BASE** =
-    `$(git merge-base origin/main HEAD)`, **SCOPE** = branch;
+    `$(git merge-base origin/main HEAD)`, **SCOPE** = branch, **SUMMARY** =
+    REPORT;
   - **PR_TEXT** = the PR marker's `推奨タイトル` as the title, and its
     `レビュー観点` in the body;
   - **DRIVER** = `/runpr`;
-  - **AFTER_CREATE** = mark the second checkbox (`PR を作成した`) as `[x]`,
-    commit, and `git push`, so the update is in the PR before it is merged.
+  - **AFTER_CREATE** = mark the second checkbox (`PR を作成した`) as `[x]` and
+    append the PR URL to that line, commit, and `git push`, so the update is in
+    the PR before it is merged.
 - Then stop. Do not wait for the merge: the reviewer runs `/runpr <PR>`, which
   merges the PR, marks the remaining checkboxes (`PR がマージされた`,
   `次のブランチへ切り替えた`), and switches to the next branch. Run `/runplan`
@@ -183,9 +189,9 @@ Test-review checklist (use verbatim as evaluation criteria in the step 7.5 promp
 - [ ] Each test asserts observable behavior rather than restating an
       implementation detail.
 
-7.7. CodeRabbit review and triage. Run it after step 7.5, so CodeRabbit reviews the code and tests as they stand after the subagent-review fixes. Follow `.claude/commands/_lib/coderabbit-local-review.md` with **BASE** = `${PHASE_START}`, **SCOPE** = phase group, **SUMMARY** = the step 8 summary.
+7.7. CodeRabbit review and triage. Run it after step 7.5, so CodeRabbit reviews the code and tests as they stand after the subagent-review fixes. Follow `.claude/commands/_lib/coderabbit-local-review.md` with **BASE** = `${PHASE_START}`, **SCOPE** = phase group, **SUMMARY** = the step 8 summary. If the CodeRabbit CLI fails and the review does not run, put the line `CodeRabbit local review: not run` in the next commit's message (step 5a reads it).
 
 8. Decide whether to continue or finish.
 - If implementation ran this iteration: summarize implementation, verified ACs, assumptions, and deferred items, plus the CodeRabbit result (run or failed; counts of fixed / rejected / deferred findings and the reason for each rejection).
 - If phases remain: ask "Shall I continue with the next phase group?" — return to step 4 if agreed, otherwise report status and stop.
-- If all phases are complete: verify every AC in `01_requirements.md` is satisfied by the implementation and has at least one test. Report the final status and any gaps. If the plan has no PR markers (a single-phase plan) and the work has no PR yet, open it as step 5a does, with a conventional-commit title `feat(<task-id>): <concise English title>` and the plan's main review points in the body.
+- If all phases are complete: verify every AC in `01_requirements.md` is satisfied by the implementation and has at least one test. Report the final status and any gaps. If the plan has no PR markers (a single-phase plan), open the PR with `_lib/task-pr-handoff.md` Part B as step 5a does, with these differences: there are no checkpoint boxes to mark and no AFTER_CREATE; the title is `feat(<task-id>): <concise English title>` and the body names the plan's main review points; first check `gh pr view` and `git rev-list --count origin/main..HEAD`, and stop if the branch already has a PR or has no commits. `/runpr`'s POST_MERGE then has no checkpoint to update; it only hands over the close-out bookkeeping, if the plan has any.

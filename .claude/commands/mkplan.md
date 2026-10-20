@@ -29,9 +29,8 @@ Work in the following order.
 3.5. Prepare the branch: follow `.claude/commands/_lib/task-pr-handoff.md`, Part A,
    with **TASK_DIR** = the target task directory, **PREREQ** =
    `01_requirements.md` and `02_architecture.md`, **REPORT** = the step 11 report, and the
-   task-document values of the other inputs. The reviewer's uncommitted
-   approval of PREREQ, if any, is committed together with this command's
-   document.
+   task-document values of the other inputs. Part A commits the reviewer's
+   uncommitted approval of PREREQ, if any, on its own.
 
 4. Read the remaining required input documents.
 - `01_requirements.md` in the target task directory
@@ -158,9 +157,8 @@ Work in the following order.
      not polished on text that step 8 then rewrites.
    - `japrose`, when invoked as this sub-step, does not commit. After both step 8 and
      step 9 are complete and all Critical and Major issues from both passes are
-     resolved, commit the created implementation plan document, together with the
-     PREREQ approval from step 3.5 if there is one (title e.g.
-     `docs(NNNN): approve the architecture and draft the implementation plan for <summary>`).
+     resolved, commit the created implementation plan document (title e.g.
+     `docs(NNNN): draft the implementation plan for <summary>`).
 
 10. Open the PR and hand it over: follow `.claude/commands/_lib/task-pr-handoff.md`,
     Part B, with the same inputs as step 3.5.

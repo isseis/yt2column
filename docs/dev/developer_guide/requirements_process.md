@@ -47,6 +47,8 @@ LLM creates 01_requirements.md from an issue with /mkreq (status: draft)
       → Proceed to writing implementation code
 ```
 
+Each document goes through its own PR: `/mkreq`, `/mkarch`, `/mkplan`, or `/mkplan2` opens it and pings the reviewer, and the reviewer merges it with `/runchange` after reviewing it. The reviewer approves a merged document by setting its status to `approved` in the working tree before running the next command, which commits the approval on its own (`.claude/commands/_lib/task-pr-handoff.md`, Part A).
+
 ### Document Status Format
 
 Include the following section at the top of `01_requirements.md`, `02_architecture.md`, and `03_implementation_plan.md`:

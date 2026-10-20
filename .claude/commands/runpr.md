@@ -23,12 +23,18 @@ by `runplan.md` step 5a, so this command does not create it.
 Follow `.claude/commands/_lib/pr-review-merge-loop.md` for the PR with:
 
 - **CREATE_PR** = `false` — `runplan.md` step 5a creates the PR.
-- **POST_MERGE** = in the task's `03_implementation_plan.md`, update the
-  just-completed PR checkpoint's checkboxes and then commit once:
-  - mark "PR がマージされた" as `[x]`;
-  - mark "次のブランチへ切り替えた" as `[x]` only when the shared loop created and
-    checked out a next work branch; on the task's final PR (no next change, the
-    loop checks out the base branch) leave it unchecked.
+- **POST_MERGE** = on the next branch the shared loop created (always the same
+  task, so it always creates one), update `03_implementation_plan.md` and commit
+  once:
+  - in the just-merged PR checkpoint, mark "PR がマージされた" and
+    "次のブランチへ切り替えた" as `[x]`;
+  - in the plan's PR checklist (§6), mark that PR's `PR-N マージ済み` as `[x]`.
+
+  The next `/runplan` PR carries this commit to `main`. On the task's final PR
+  there is no next `/runplan` PR, so hand the bookkeeping over as its own PR:
+  follow `.claude/commands/_lib/task-pr-handoff.md`, Part B, with the
+  task-document values of its inputs (title e.g.
+  `docs(<task-id>): close out the implementation plan`), and stop.
 
 
 Then ask the user whether to implement the next PR with `/runplan`:
