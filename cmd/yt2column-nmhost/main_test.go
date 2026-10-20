@@ -117,7 +117,7 @@ func (inv invocation) reply(t *testing.T) map[string]any {
 func fullEnv(home string) map[string]string {
 	env := map[string]string{
 		"YT2COLUMN_LLM_PROVIDER": "deepseek",
-		"YT2COLUMN_LLM_MODEL":    "deepseek-chat",
+		"YT2COLUMN_MODEL":        "deepseek-chat",
 		"DEEPSEEK_API_KEY":       "sk-test-key",
 		"SLACK_WEBHOOK_URL":      "https://hooks.slack.com/services/T000/B000/XXXX",
 		"XDG_STATE_HOME":         "/xdg-state",
@@ -318,14 +318,25 @@ func TestInstallAndUninstall(t *testing.T) {
 	}
 }
 
-// TestInstallFailures checks the exit codes of an install that cannot
-// proceed: HOME unusable is a usage error (2); an executable that cannot be
-// located, one under the temporary directory, and a browser whose user data
-// directory is missing are failures (1). None writes to stdout.
+// TestInstallFailures checks the exit codes of an install or uninstall that
+// cannot proceed: HOME unusable is a usage error (2); an executable that
+// cannot be located, one under the temporary directory, a browser whose user
+// data directory is missing, and a file at the manifest path this host did
+// not write are failures (1). None writes to stdout.
 func TestInstallFailures(t *testing.T) {
-	_, chromeDir := manifestRel(t)
+	manifest, chromeDir := manifestRel(t)
 	home := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(home, chromeDir), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	// foreignHome holds a file at the manifest path that this host did not
+	// write.
+	foreignHome := t.TempDir()
+	foreign := filepath.Join(foreignHome, filepath.FromSlash(manifest))
+	if err := os.MkdirAll(filepath.Dir(foreign), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(foreign, []byte(`{"name":"other.host"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	cases := []struct {
@@ -345,6 +356,7 @@ func TestInstallFailures(t *testing.T) {
 		},
 		{"executable under the temporary directory", []string{"install", "chrome"}, home, fixedExecutable(filepath.Join(os.TempDir(), "yt2column-nmhost")), exitFailure},
 		{"browser not found", []string{"install", "brave"}, home, fixedExecutable(testExecutable), exitFailure},
+		{"uninstall of a foreign manifest", []string{"uninstall", "chrome"}, foreignHome, fixedExecutable(testExecutable), exitFailure},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
