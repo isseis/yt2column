@@ -49,9 +49,10 @@ Work in the following order.
      it does not exist or already contains `01_requirements.md`.
    - Without it: choose the name `NNNN_<name>` (the directory is created in
      step 3). `NNNN` is one above the highest task number in use, looking at
-     `origin/main` (`git ls-tree -d --name-only origin/main docs/tasks/`) and at
-     the head branches of open PRs (`<user>/NNNN-...`), so parallel worktrees do
-     not take the same number. `<name>` is a short English snake_case name for
+     `origin/main` (`git ls-tree -d --name-only origin/main docs/tasks/`), at
+     local and `origin` branches (`git branch -a`), and at the head branches of
+     open PRs (`<user>/NNNN-...`), so parallel worktrees do not take the same
+     number. `<name>` is a short English snake_case name for
      the issue's subject, in the style of the existing directory names (e.g.
      `output_layout`, `native_messaging_relay`).
 

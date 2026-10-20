@@ -16,16 +16,16 @@ Work in the following order.
 
 1. Identify the target task directory by following the rules in `docs/dev/developer_guide/task_identification.md`.
 
+1.5. Prepare the branch: follow `.claude/commands/_lib/task-pr-handoff.md`, Part A,
+   with **TASK_DIR** = the target task directory, **REPORT** = the step 11
+   report, and the task-document values of the other inputs.
+
 2. Read `01_requirements.md` in the target task directory.
 
 3. Verify that architecture work is allowed.
 - Check the document status in `01_requirements.md`.
 - If the status is not `approved`, do not create `02_architecture.md`.
 - In that case, stop and report that architecture work cannot begin until `01_requirements.md` is `approved`.
-
-3.5. Prepare the branch: follow `.claude/commands/_lib/task-pr-handoff.md`, Part A,
-   with **TASK_DIR** = the target task directory, **REPORT** = the step 11
-   report, and the task-document values of the other inputs.
 
 4. Read the remaining required input documents.
 - `docs/dev/developer_guide/requirements_process.md`
@@ -136,7 +136,7 @@ Work in the following order.
      resolved, commit the fixes to the architecture document.
 
 10. Open the PR and hand it over: follow `.claude/commands/_lib/task-pr-handoff.md`,
-    Part B, with the same inputs as step 3.5.
+    Part B, with the same inputs as step 1.5.
 
 11. Report: a concise summary of what you created and any assumptions you had
     to make, the PR URL, the review results, and the next action for the reviewer

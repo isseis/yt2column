@@ -72,10 +72,11 @@ Project-specific values these commands depend on are defined once in
 - `/mktrans <file>` - Japanese ⇄ English translation
 
 Each task PR is handled by two commands. The command that produces it —
-`/mkreq`, `/mkarch`, `/mkplan`, or `/runplan` — asks the human about open
-decisions before writing, works on its own feature branch, reviews its work
-(subagent review, `japrose`, local CodeRabbit), opens the PR, pings the
-reviewer, and stops. After reviewing, the reviewer runs `/runpr`, which drives
+`/mkreq`, `/mkarch`, `/mkplan`, `/mkplan2`, or `/runplan` — works on its own
+feature branch, reviews its work (subagent review, `japrose` for documents,
+local CodeRabbit), opens the PR, pings the reviewer, and stops. `/mkreq`,
+`/mkarch`, and `/mkplan` first ask the human about the decisions their input
+leaves open; `/runplan` asks when implementation meets a decision change. After reviewing, the reviewer runs `/runpr`, which drives
 it: it waits for CodeRabbit and CI and resolves the threads with `/fixpr`. It
 then asks one question: record the bookkeeping (for a document, its
 `approved` status), merge with `/mergepr`, and run the next command, which opens

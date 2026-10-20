@@ -19,16 +19,16 @@ Work in the following order.
 
 1. Identify the target task directory by following the rules in `docs/dev/developer_guide/task_identification.md`.
 
+1.5. Prepare the branch: follow `.claude/commands/_lib/task-pr-handoff.md`, Part A,
+   with **TASK_DIR** = the target task directory, **REPORT** = the step 11
+   report, and the task-document values of the other inputs.
+
 2. Read `02_architecture.md` in the target task directory.
 
 3. Verify that implementation planning is allowed.
 - Check the document status in `01_requirements.md` and `02_architecture.md`.
 - If either status is not `approved`, do not create `03_implementation_plan.md`.
 - In that case, stop and report that implementation planning cannot begin until both `01_requirements.md` and `02_architecture.md` are `approved`, naming which one is not.
-
-3.5. Prepare the branch: follow `.claude/commands/_lib/task-pr-handoff.md`, Part A,
-   with **TASK_DIR** = the target task directory, **REPORT** = the step 11
-   report, and the task-document values of the other inputs.
 
 4. Read the remaining required input documents.
 - `01_requirements.md` in the target task directory
@@ -159,8 +159,9 @@ Work in the following order.
 
 8.5. Design the PR boundaries, so the reviewer reviews the plan and its PR split
    in one PR. If the plan has two or more `### フェーズ` headers, follow
-   `.claude/commands/mkplan2.md` steps 4–9 on this draft plan (its step 2
-   approval check and its branch, commit, and PR steps do not apply). With one
+   `.claude/commands/mkplan2.md` steps 4, 5, 6, 7, 8, and 9 on this draft plan
+   (its other steps — the approval check, branch, status, commit, japrose, and
+   PR steps — do not apply). With one
    phase, there are no PR markers: `/runplan` opens the single PR when the
    phase is done.
 
@@ -182,7 +183,7 @@ Work in the following order.
      message).
 
 10. Open the PR and hand it over: follow `.claude/commands/_lib/task-pr-handoff.md`,
-    Part B, with the same inputs as step 3.5.
+    Part B, with the same inputs as step 1.5.
 
 11. Report: a concise summary of what you created and any assumptions you had
     to make, the PR URL, the review results, and the next action for the reviewer

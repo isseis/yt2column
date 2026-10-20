@@ -40,18 +40,18 @@ nothing. An LLM classifying its own edit as editorial must say so explicitly in
 
 ```
 LLM creates 01_requirements.md from an issue with /mkreq (status: draft)
-  → Human review and revision
-  → Reviewer updates status to approved
-  → LLM creates 02_architecture.md (status: draft)
-    → Human review and revision
-    → Reviewer updates status to approved
-    → LLM creates 03_implementation_plan.md (status: draft)
-      → Human review and revision
-      → Reviewer updates status to approved
-      → Proceed to writing implementation code
+  → Human review and revision (PR review)
+  → Reviewer approves in /runpr's merge question; the LLM records approved
+  → LLM creates 02_architecture.md with /mkarch (status: draft)
+    → Human review and revision (PR review)
+    → Reviewer approves in /runpr's merge question; the LLM records approved
+    → LLM creates 03_implementation_plan.md with /mkplan (status: draft)
+      → Human review and revision (PR review)
+      → Reviewer approves in /runpr's merge question; the LLM records approved
+      → Proceed to writing implementation code with /runplan
 ```
 
-Each document goes through its own PR: `/mkreq`, `/mkarch`, or `/mkplan` (which also designs the PR boundaries) opens it and pings the reviewer. After reviewing it, the reviewer runs `/runpr`, which asks one question at the merge: approve the document, merge, and run the next command. On that answer it commits the approval, merges, and starts the next command (`.claude/commands/runpr.md`, step 4).
+Each document goes through its own PR: `/mkreq`, `/mkarch`, or `/mkplan` (which also designs the PR boundaries) opens it and pings the reviewer; `/mkplan2`, which adds PR boundaries to an older approved plan, returns the plan to `draft` and opens a PR the same way. After reviewing it, the reviewer runs `/runpr`, which asks one question at the merge: approve the document, merge, and run the next command. On that answer it commits the approval, merges, and starts the next command (`.claude/commands/runpr.md`, step 4).
 
 ### Document Status Format
 

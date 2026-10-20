@@ -22,79 +22,98 @@ creates the PR for it.
 **Input.** `$ARGUMENTS`, when given, is a PR number, a branch name, or a task ID
 (e.g. `0015`); with no argument, use the current branch.
 
-**Notes.** `fixpr.md` and `mergepr.md` each perform network operations; each has
-its own authorization note — follow it. In particular, `mergepr.md` requires the
-user's explicit approval of the squash commit message (step 4 below asks it).
+**Authorization.** Invoking this command approves, for this PR only, the
+network operations it names: `git fetch origin main`, `git pull --ff-only`,
+`git push` (including `-u`), `gh pr view`, `gh pr list`, `gh pr checkout`,
+`gh pr checks`, `gh pr create` (standalone change only), `gh pr comment` (the
+CodeRabbit request), `gh api graphql` (review threads), and `gh api user`. It
+also covers what `fixpr.md` and `mergepr.md` authorize when run from here, and
+the next command (NEXT) when the user chooses to run it in step 4. It does
+**not** approve the merge itself: only the user's answer in step 4 does
+(`CLAUDE.md`, "Tool Execution Safety"). `coderabbit review` has standing
+approval.
 
 ## 1. Resolve the PR, and create it for a standalone change
 
+- `git fetch origin main`.
 - Resolve `$ARGUMENTS`:
   - a PR number or a branch: `gh pr view "$ARGUMENTS" --json
-    number,url,headRefName`. Pass the argument only when it is set — an empty
-    argument would replace `gh pr view`'s current-branch default and fail;
+    number,url,state,headRefName`. Pass the argument only when it is set — an
+    empty argument would replace `gh pr view`'s current-branch default and fail;
   - a task ID: the current branch's PR, or the open PR whose head branch is
     named for that task (`gh pr list --state open --json number,headRefName,url`,
     then match).
 - With no argument, use the current branch:
-  `gh pr view --json number,url,headRefName`.
-- If a PR is open, use its number in the steps below.
-- If none exists, it is a standalone change. Unless `$ARGUMENTS` names a branch
-  other than the checked-out one (the review reads the local checkout), review
-  it locally first: follow `.claude/commands/_lib/coderabbit-local-review.md`
-  with **BASE** = `$(git merge-base origin/main HEAD)`, **SCOPE** = branch,
-  **SUMMARY** = the final report. Then set `<target-branch>` to the branch to
-  open the PR from (`$ARGUMENTS` when it names a branch, otherwise
-  `git rev-parse --abbrev-ref HEAD`), push it, and create the PR naming the head
-  branch explicitly (a branch argument other than the checked-out branch must
-  not be ignored):
+  `gh pr view --json number,url,state,headRefName`.
+- By the PR's `state`:
+  - `OPEN`: use its number in the steps below.
+  - `MERGED`: do not open another PR for the same commits. Report it; if
+    `mergepr` cleanup is pending, run `mergepr cleanup --state <state-file>`,
+    then continue at step 5 only to create the next branch, and report any
+    bookkeeping step 2 finds unrecorded on `origin/main`.
+  - `CLOSED`: report and stop.
+- If none exists, it is a standalone change:
+  - Stop and report when the branch to open it from (`$ARGUMENTS` when it names
+    a branch, otherwise the current branch) is `main`, a detached `HEAD`, or has
+    no commits beyond `origin/main` (`git rev-list --count origin/main..<branch>`).
+  - When that branch is the checked-out one, review it locally first: follow
+    `.claude/commands/_lib/coderabbit-local-review.md` with **BASE** =
+    `$(git merge-base origin/main HEAD)`, **SCOPE** = branch, **SUMMARY** = the
+    final report. (The review reads the local checkout, so skip it for another
+    branch.)
+  - Push it and create the PR naming the head branch explicitly, so a branch
+    argument other than the checked-out branch is not ignored:
 
-  ```bash
-  git push -u origin <target-branch>
-  gh pr create --base main --head <target-branch> --title "<title>" --body-file <body-file>
-  ```
+    ```bash
+    git push -u origin <target-branch>
+    gh pr create --base main --head <target-branch> --title "<title>" --body-file <body-file>
+    ```
 
-  Draft a conventional-commit title (`<type>(<scope>): <summary>`, matching the
-  style of `git log origin/main`) and a short body from the branch's commits,
-  describing the final state, not the history. Write the body to a file with
-  the Write tool. Report the URL; let the user adjust the title or body before
-  continuing.
-- An open PR whose branch does not follow the feature branch convention
-  (`_context.md`) was opened by hand, so no command reviewed it locally: run the
-  local review above on it too (when its branch is checked out), and push the
-  fixes to it.
-- Check out the PR's head branch before making any change, so `fixpr`'s commit
-  and push land on the PR instead of on whatever branch the worktree has out:
-  `gh pr checkout <number>`. (Skip it when the head branch is already current.)
+    Draft a conventional-commit title (`<type>(<scope>): <summary>`, matching
+    the style of `git log origin/main`) and a short body from the branch's
+    commits, describing the final state, not the history. Write the body to a
+    file with the Write tool. Do not pause for the user to adjust them; they can
+    edit them on GitHub, and step 4 is the one question.
+- Check out the PR's head branch and bring it up to date before making any
+  change, so `fixpr`'s and step 4's commits land on the PR's latest head:
+  `gh pr checkout <number>` (even when the branch is already checked out), then
+  `git pull --ff-only`. A reviewer may have pushed since the branch was last
+  checked out.
 
 ## 2. Decide the PR's bookkeeping and next command
 
-Read them from what the opening command recorded, not from guesses about the
-change:
+Read them from what the opening command recorded on the PR's branch, not from
+guesses about the change. A rerun after a partly recorded step 4 must reach the
+same result, so a record already made counts as made, never as absent.
 
-- **Plan PR** — a task's `03_implementation_plan.md` on the PR's branch has this
-  PR's URL on a checkpoint's `PR を作成した` line (`runplan.md` step 5a writes it):
-  - **PRE_MERGE** = mark that checkpoint's "PR がマージされた" and
-    "次のブランチへ切り替えた" as `[x]` (step 5 switches branch right after the
-    merge), and the PR's `PR-N マージ済み` in the plan's PR checklist (§6);
-    commit once as `docs(<task-id>): record PR-N as merged`. The bookkeeping
-    then reaches `main` with the merge, including on the task's final PR.
-  - **NEXT** = `/runplan <task>` when a later `### PR-N 作成ポイント` marker
-    remains unchecked; none on the task's final PR.
-- **Plan PR without markers** — a single-phase plan's PR (`runplan.md` step 8):
-  PRE_MERGE and NEXT are none.
-- **Task-document PR** — otherwise, when the PR adds or changes task documents
-  (`01_requirements.md`, `02_architecture.md`, `03_implementation_plan.md`)
-  whose status is `draft`:
-  - **PRE_MERGE** = for each of them, set its Document Status to `approved`,
-    `Review date` to today, `Reviewer` to the user's GitHub name
-    (`gh api user --jq .login`), and keep `Comments` (or `-`); commit alone as
-    `docs(<task-id>): approve the <document>`. This is the only way the commands
-    set a document to `approved`, and only on the user's answer
+- **Kind.**
+  - **Plan PR** — a task's `03_implementation_plan.md` has this PR's URL on a
+    checkpoint's `PR を作成した` line (`runplan.md` step 5a writes it).
+  - **Task-document PR** — not a plan PR, and the PR adds or changes a task
+    document (`01_requirements.md`, `02_architecture.md`,
+    `03_implementation_plan.md`), whatever its status.
+  - **Standalone change** — anything else.
+- **PRE_MERGE** — what step 4 commits just before the merge, in one commit
+  (`docs(<task-id>): record the review of PR #<number>`). It leaves out what is
+  already recorded; when nothing is left, it is none.
+  - **Approvals** (any kind): every task document the PR adds or changes whose
+    status is `draft` (including one `fixpr` returned to `draft` as a decision
+    change). Set its Document Status to `approved`, `Review date` to today,
+    `Reviewer` to the user's GitHub name (`gh api user --jq .login`), and keep
+    `Comments` (or `-`). This is the only way the commands set a document to
+    `approved`, and only on the user's answer
     (`docs/dev/developer_guide/requirements_process.md`, "LLM Constraints").
-  - **NEXT** = by the latest document approved: `01_requirements.md` →
-    `/mkarch <task>`; `02_architecture.md` → `/mkplan <task>`;
-    `03_implementation_plan.md` → `/runplan <task>`.
-- **Anything else** (a standalone change): PRE_MERGE and NEXT are none.
+  - **Checkpoint** (plan PR): in that checkpoint, "PR がマージされた", and
+    "次のブランチへ切り替えた" when NEXT is set (step 5 creates the next branch
+    only then); in the plan's PR checklist (§6), that PR's `PR-N マージ済み`.
+- **NEXT** — the command offered after the merge:
+  - plan PR: `/runplan <task>` when a later `### PR-N 作成ポイント` marker
+    remains unchecked; none on the task's final PR;
+  - task-document PR: by the latest task document in the PR that is approved
+    after step 4 (`01_requirements.md` → `/mkarch <task>`; `02_architecture.md`
+    → `/mkplan <task>`; `03_implementation_plan.md` → `/runplan <task>`); none
+    when the user leaves it `draft`;
+  - standalone change: none.
 
 ## 3. Wait for CodeRabbit and CI, running fixpr as comments appear
 
@@ -153,11 +172,12 @@ Poll until CodeRabbit has finished and nothing is left to fix.
   seen before — not merely when the count rises, since resolving one thread while
   another is added keeps the count the same. `fixpr` pushes a fix, so CodeRabbit
   re-reviews: keep polling.
-- When CodeRabbit's state is `SUCCESS` and either no thread is unresolved or
-  `fixpr` reported that every remaining thread is at its severity floor
-  (`no-harm`; `fixpr.md`'s convergence policy defines the floor), wait for CI.
-  If a remaining unresolved thread is not at the floor, report it and stop rather
-  than merge. If CodeRabbit's state is `FAILURE` or `ERROR`, report and stop.
+- When CodeRabbit's state is `SUCCESS`, wait for CI once every unresolved
+  thread is one `fixpr` left by its convergence policy (`fixpr.md`): at the
+  severity floor (`no-harm`), past the round cap (not `must-fix`), or recorded
+  as accepted risk. List those threads in step 4's message. Stop rather than
+  merge when a `must-fix` thread is left unresolved, or when CodeRabbit's state
+  is `FAILURE` or `ERROR`.
 - If no `CodeRabbit` status context ever appears after a reasonable wait, report
   that and ask the user how to proceed rather than assuming green.
 - Wait for the PR's checks on the head commit to finish:
@@ -173,30 +193,41 @@ once rather than once per decision.
 
 1. Run `.claude/commands/mergepr.md` steps 1–2 (prepare, draft the squash commit
    message). When PRE_MERGE is set, the message says what it records (e.g.
-   "Approves 01_requirements.md").
+   "Approves 01_requirements.md"). For a plan PR on the task's final PR, the
+   body ends with `Closes #<issue>` for the issue the requirements document
+   names as its own (`対応 issue`).
 2. Ask with `AskUserQuestion`. In your message, show what `mergepr.md` step 3
    requires (PR URL, base branch, CI result, the full subject and body), the
-   PRE_MERGE change (which lines of which file, and for an approval the
-   reviewer name and date it writes), and NEXT (for `/runplan`, the next PR
-   marker's `実装モデル要件`, so the user can decide whether this session's model
-   fits). Offer, as applicable:
-   - record PRE_MERGE, merge, and run NEXT (recommended);
+   PRE_MERGE change (which lines of which files, and for an approval the
+   reviewer name and date it writes), the threads `fixpr` left (step 3), and
+   NEXT (for `/runplan`, the next PR marker's `実装モデル要件`, so the user can
+   decide whether this session's model fits). Offer at most these options
+   (revising the message or stopping goes through the free-text answer):
+   - record PRE_MERGE, merge, and run NEXT (recommended; only when NEXT is set);
    - record PRE_MERGE and merge, without running NEXT;
-   - merge without PRE_MERGE (for an approval: the document stays `draft`, and
-     NEXT is not offered, since it requires the approval);
-   - revise the message, or stop.
+   - for a task-document PR only: merge without the approvals (the documents
+     stay `draft`, NEXT becomes none, and step 5 detaches). A plan PR is never
+     merged without its PRE_MERGE: its checkpoint would stay unrecorded on
+     `main`, and implementation would merge under a `draft` document.
 
    An answer that merges is the explicit approval `mergepr.md` step 3 asks for.
-   Do not merge on anything less.
-3. When the answer records PRE_MERGE: copy the approved subject and body files
-   out of the prepared directory (to the scratchpad), run
-   `mergepr discard --state <state-file>`, make the PRE_MERGE commit, push it,
-   and run `mergepr prepare` again (it waits for CI on the new head). Confirm
-   that `git diff --name-only <previous headRefOid> <new headRefOid>` lists only
-   the files PRE_MERGE changes, then merge with the approved message files
-   without asking again: the answer approved this message for exactly this
-   head. Do not wait for a CodeRabbit review of that commit; it changes only
-   status or checkbox lines.
+   Do not merge on anything less. When the answer does not merge, run
+   `mergepr discard --state <state-file>` and stop.
+3. When the answer records PRE_MERGE:
+   - Note the prepared `headRefOid` and copy the approved subject and body files
+     to the scratchpad, then run `mergepr discard --state <state-file>`.
+   - Make the PRE_MERGE commit and push it. Wait until
+     `gh pr view <number> --json headRefOid` reports the pushed commit
+     (`git rev-parse HEAD`), so `prepare` does not read the old head.
+   - Run `mergepr prepare` again. It waits for every check on the new head,
+     CodeRabbit's included.
+   - Confirm that `git diff --name-only <noted headRefOid> HEAD` lists only the
+     files PRE_MERGE changes, and fetch the unresolved threads again (step 3).
+     If a new thread appeared on the bookkeeping commit, do not merge: discard
+     the preparation, return to step 3, and ask step 4 again (step 2 then finds
+     PRE_MERGE already recorded).
+   - Otherwise merge with the approved message files without asking again: the
+     answer approved this message for exactly this head.
 4. Merge with `mergepr.md` step 4, and report as its step 5 says.
 
 ## 5. Switch branch, then run NEXT

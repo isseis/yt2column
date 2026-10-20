@@ -25,6 +25,13 @@ Work in order.
 
 1. Identify the target task per `docs/dev/developer_guide/task_identification.md`.
 
+1.5. Prepare the branch before reading the plan, so it is read from the branch
+   the work lands on: follow
+   `.claude/commands/_lib/task-pr-handoff.md`, Part A, with **TASK_DIR** = the
+   target task directory and **REPORT** = the step 8 summary. On a branch that
+   already carries the earlier phase groups of the PR in progress, Part A keeps
+   it.
+
 2. Read `03_implementation_plan.md`. If the document status is not `approved`, stop and report.
 
 2.5. Check whether PR boundary design is needed.
@@ -39,13 +46,6 @@ Work in order.
   - If its `PR を作成した` box is already checked, the PR exists (its URL is on that line). Check its state with `gh pr view <url> --json state`. If it is open, stop and tell the user to review it and run `/runpr`. If it is merged, `/runpr` has not done its bookkeeping on this branch: stop and report rather than open a second PR.
   - Otherwise go to step 5a instead of step 5.
 - Otherwise, select the next implementation group: use one phase by default unless it cannot pass `make test` alone (e.g. stub-only or tightly coupled); then extend the group until it can pass. Stop the group at the next `### PR-N 作成ポイント` boundary — do not include the PR checkpoint checkboxes in the implementation group. Briefly note the reason for any grouping before starting work.
-
-4.4. Prepare the branch (when step 4 selected an implementation group; a PR
-   checkpoint stays on the current branch): follow
-   `.claude/commands/_lib/task-pr-handoff.md`, Part A, with **TASK_DIR** = the
-   target task directory and **REPORT** = the step 8 summary. On a branch that
-   already carries the earlier phase groups of the PR in progress, Part A keeps
-   it.
 
 4.5. Record the starting commit of the phase group: `PHASE_START=$(git rev-parse HEAD)`. Keep it until the reviews in steps 7, 7.5, and 7.7 are done, and pass `${PHASE_START}..HEAD` as their commit range (`coderabbit` takes it as `--base-commit`), so the range covers exactly this phase group's commits and not the previous group's.
 
@@ -75,11 +75,12 @@ Work in order.
 5a. **PR checkpoint** (reached when step 4 directed you here instead of step 5).
 - Confirm the current branch is the PR group in progress (`_lib/task-pr-handoff.md`, Part A step 3, second bullet: a convention branch for this task with `/runplan` commits beyond `origin/main` and no PR). Otherwise stop and report; do not push or open a PR from another branch.
 - Verify the green gate (defined in `_context.md`) passes. Fix any failures before continuing.
+- If no later `### PR-N 作成ポイント` marker remains (the task's final PR), first do the end-of-task check of step 8 ("If all phases are complete"): every AC in `01_requirements.md` is satisfied by the implementation and has at least one test. Fix any gap before opening the PR, and report what you checked.
 - Mark the first PR checkpoint checkbox (the green gate confirmation line) as `[x]` and commit.
 - Open the PR and hand it over: follow `.claude/commands/_lib/task-pr-handoff.md`,
-  Part B, with **TASK_DIR** and **REPORT** as in step 4.4, and:
-  - **CHECKS** = the green gate (already verified above; rerun only if a commit
-    followed it);
+  Part B, with **TASK_DIR** and **REPORT** as in step 1.5, and:
+  - **CHECKS** = the green gate verified above (the checkbox commit after it
+    changes only the plan, so it needs no rerun);
   - **LOCAL_REVIEW** = `done` — step 7.7 reviewed each phase group of this PR.
     When step 7.7 could not run (the CodeRabbit CLI failed), it records
     `CodeRabbit local review: not run` in that group's checkbox commit message.

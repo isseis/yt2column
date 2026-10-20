@@ -50,15 +50,20 @@ first.
 
 ## Part A — prepare the branch
 
+The calling command runs Part A before it reads any task document, so it reads
+the documents (their status, the plan's checkboxes) from the branch the work
+lands on, not from a stale checkout.
+
 1. Check the working tree with `git status --short`. It must be clean; stop and
    report otherwise. (Approving the previous document is not a working-tree
    edit: `/runpr` commits it at the merge, on the reviewer's answer.)
 2. `git fetch origin main`.
 3. Use the current branch when its name follows the feature branch convention
    (`_context.md`) for TASK_DIR and either:
-   - `HEAD` is `origin/main` (`git rev-parse HEAD` equals
-     `git rev-parse origin/main`: the branch the PR loop created after the
-     previous merge, with nothing merged since); or
+   - the branch has no commits of its own (`HEAD` is an ancestor of
+     `origin/main`: the branch `/runpr` created after the previous merge, even
+     if more was merged since); fast-forward it with
+     `git merge --ff-only origin/main`; or
    - the calling command is `runplan.md`, the branch has commits beyond
      `origin/main`, all of them made by `runplan.md` (implementation and
      checkbox commits, not an unopened task-document change), and it has no PR
