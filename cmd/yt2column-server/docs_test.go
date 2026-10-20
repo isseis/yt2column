@@ -230,9 +230,11 @@ func TestServerDocsContract(t *testing.T) {
 		if !hasLineContainingAll(section, "`unlink`", "bind", "同一ユーザー") {
 			t.Error("security.md 8.2 does not name the residual risk of a same-user unlink and bind")
 		}
-		// The host's items: the one allowed origin, standard output as the
+		// The host's items: only the fixed extension with the nativeMessaging
+		// permission starts it, the one allowed origin, standard output as the
 		// channel, and the residual risk of a replaced binary or manifest.
 		for _, want := range [][]string{
+			{"`nativeMessaging`", "`allowed_origins`", "固定の拡張だけ"},
 			{"`allowed_origins`", nmhost.ExtensionOrigin},
 			{"標準出力が通信路である"},
 			{"ホストのバイナリと manifest を置き換えられ"},
@@ -285,6 +287,8 @@ func TestServerDocsContract(t *testing.T) {
 			"拒否の理由":  "reject reason",
 			"ホスト":    "host",
 			"ホスト名":   "host name",
+			"未送信":    "not sent",
+			"結果不明":   "result unknown",
 		} {
 			row := tableRow(table, term)
 			if row == nil {
