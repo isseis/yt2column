@@ -464,9 +464,9 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
--   [ ] **ステップ 3-13**: 拡張の接続先と `chrome.storage` を限る lint の規則を加える（設計書 7.3）。`extension/eslint.config.js` で `fetch`・`XMLHttpRequest`・`WebSocket`・`EventSource` の使用と `connectNative` の参照を禁止し、`sendNativeMessage` の参照を `src/browser/chromeDeps.ts` に限る。`chrome.storage.sync` の規則（`syncPattern`）を、`chrome.storage` の参照（ドット・計算されたメンバ・分割代入の形）を禁じる規則に置き換え、理由のコメントを、拡張が `storage` の権限を持たないことに改める（設計書 3.8）。`lintRules.test.ts`（AC-23・AC-24・AC-29）に、各規則が違反を検出し、`chromeDeps.ts` の `sendNativeMessage` を許すことの確認を加える。`storage.sync` の `describe` と、作成の関数のファイルの共通の規則の `storage.sync` の行を `chrome.storage` の参照の禁止に改め、`chrome.storage.local` を許す行を削除する。各規則を 1 つずつ外して `lintRules.test.ts` が失敗することを確かめ、コミットメッセージに記録する（§1.2）。
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+-   [x] **ステップ 3-13**: 拡張の接続先と `chrome.storage` を限る lint の規則を加える（設計書 7.3）。`extension/eslint.config.js` で `fetch`・`XMLHttpRequest`・`WebSocket`・`EventSource` の使用と `connectNative` の参照を禁止し、`sendNativeMessage` の参照を `src/browser/chromeDeps.ts` に限る。`chrome.storage.sync` の規則（`syncPattern`）を、`chrome.storage` の参照（ドット・計算されたメンバ・分割代入の形）を禁じる規則に置き換え、理由のコメントを、拡張が `storage` の権限を持たないことに改める（設計書 3.8）。`lintRules.test.ts`（AC-23・AC-24・AC-29）に、各規則が違反を検出し、`chromeDeps.ts` の `sendNativeMessage` を許すことの確認を加える。`storage.sync` の `describe` と、作成の関数のファイルの共通の規則の `storage.sync` の行を `chrome.storage` の参照の禁止に改め、`chrome.storage.local` を許す行を削除する。各規則を 1 つずつ外して `lintRules.test.ts` が失敗することを確かめ、コミットメッセージに記録する（§1.2）。
     -   **対象:** `extension/eslint.config.js`・`extension/test/lintRules.test.ts`。**完了:** `make ext-check` が通り、各規則を外すと `lintRules.test.ts` が失敗することを確かめた。
 
 ### PR-9 作成ポイント: extension connection and storage lint rules
@@ -481,8 +481,8 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 
 **判定理由**: 該当する条件はない。PR-8 の後のコードが既に満たす性質を lint の規則で確かめるだけで、振る舞いは変えない。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 -   [ ] **ステップ 3-14**: 手動の確認を、macOS の Chrome と Brave の作業時点の安定版で行い、§5.1 に記録する（AC-36。設計書 7.2 の最後の項目）。確認は PR-8 のマージの前にそのブランチで行い（§3.2）、PR-9 の後にこのステップで記録する。受理の行（実際の LLM API と Slack Webhook を呼ぶもの）は、実行の前に利用者の承認を得る（CLAUDE.md「Tool Execution Safety」）。記録した後、`cmd/yt2column/extension_docs_test.go` に `TestNativeMessagingRelayDocumentation` を加え、`checkManualCheckTable` で §5.1 の表の各行の名前と、すべての欄が埋まっていることを確かめる（空の欄があると失敗するので、表を埋めた後に加える）。加えた後、表の 1 つの欄を空にして失敗することを確かめ、コミットメッセージに記録する。

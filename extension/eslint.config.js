@@ -18,20 +18,87 @@ const documentWritePattern = "/^(write|writeln)$/";
 const htmlParsingMessage =
   "Do not parse strings as HTML; build elements and set textContent.";
 
-// chrome.storage.sync would sync the shared token off the device; the
-// extension stores it in chrome.storage.local only.
-const syncPattern = "/^sync$/";
-const syncMessage =
-  "Do not use chrome.storage.sync; store settings in chrome.storage.local.";
+/** Selectors that forbid a member name in the four reference forms: dotted, computed string, computed template and destructured. */
+function memberNameSelectors(names, message) {
+  const pattern = `/^(${names.join("|")})$/`;
+  return [
+    {
+      selector: `MemberExpression[computed=false][property.name=${pattern}]`,
+      message,
+    },
+    {
+      selector: `MemberExpression[computed=true][property.value=${pattern}]`,
+      message,
+    },
+    {
+      selector: `MemberExpression[computed=true][property.type="TemplateLiteral"][property.quasis.0.value.cooked=${pattern}]`,
+      message,
+    },
+    {
+      selector: `Property[key.name=${pattern}], Property[key.value=${pattern}]`,
+      message,
+    },
+  ];
+}
+
+// The extension has no storage permission and keeps no settings. The type
+// declarations still contain chrome.storage, so tsc would accept a reference
+// the browser then fails at run time; this rule rejects it. The destructuring
+// form matches any { storage } key by name, so the rule is intentionally
+// name-based and would also reject an unrelated property named storage.
+const storageSelectors = memberNameSelectors(
+  ["storage"],
+  "Do not use chrome.storage; the extension has no storage permission and keeps no settings.",
+);
+
+// The only connection the extension makes is one chrome.runtime.sendNativeMessage
+// call in browser/chromeDeps.ts. These are the other ways to reach a network
+// or a long-lived host connection. Like the storage rule, they guard against
+// accidental reuse, not deliberate evasion.
+const networkNames = ["fetch", "XMLHttpRequest", "WebSocket", "EventSource"];
+const networkMessage =
+  "Do not open connections; the extension only calls chrome.runtime.sendNativeMessage in browser/chromeDeps.ts.";
+const networkGlobals = networkNames.map((name) => ({
+  name,
+  message: networkMessage,
+}));
+const networkPattern = `/^(${networkNames.join("|")})$/`;
+const globalObject = "/^(window|self|globalThis)$/";
+const networkSelectors = [
+  {
+    // window.fetch, self.fetch and globalThis.fetch, dotted or computed.
+    selector: `MemberExpression:matches([property.name=${networkPattern}], [property.value=${networkPattern}])[object.name=${globalObject}]`,
+    message: networkMessage,
+  },
+  {
+    selector: `MemberExpression[computed=true][property.type="TemplateLiteral"][property.quasis.0.value.cooked=${networkPattern}][object.name=${globalObject}]`,
+    message: networkMessage,
+  },
+  {
+    // const { fetch } = window;
+    selector: `VariableDeclarator[init.name=${globalObject}] > ObjectPattern > Property:matches([key.name=${networkPattern}], [key.value=${networkPattern}])`,
+    message: networkMessage,
+  },
+];
+const connectNativeSelectors = memberNameSelectors(
+  ["connectNative"],
+  "Do not use chrome.runtime.connectNative; send with sendNativeMessage in browser/chromeDeps.ts.",
+);
+// Only browser/chromeDeps.ts may call sendNativeMessage; its config below
+// leaves this list out. Tests are not covered: they build fakes with the name.
+const sendNativeSelectors = memberNameSelectors(
+  ["sendNativeMessage"],
+  "Only browser/chromeDeps.ts may call chrome.runtime.sendNativeMessage.",
+);
 
 // The extension sends only from the popup. These APIs served the removed
 // context-menu path (the menu, the result window, its session store and the
 // toolbar badge). windows and action need no permission, so only this rule
-// keeps them from coming back. Like the sync rule, it guards against accidental
+// keeps them from coming back. Like the storage rule, it guards against accidental
 // reuse, not deliberate evasion.
-const menuPathPattern = "/^(contextMenus|session|windows|setBadgeText)$/";
+const menuPathNames = ["contextMenus", "session", "windows", "setBadgeText"];
 const menuPathMessage =
-  "Do not use chrome.contextMenus, chrome.storage.session, chrome.windows or chrome.action.setBadgeText; the extension sends only from the popup.";
+  "Do not use chrome.contextMenus, chrome.windows or chrome.action.setBadgeText; the extension sends only from the popup.";
 
 // The branded types hide their brand symbol, so only the function named here
 // may assert the type to create a value. Every other reference form (an alias
@@ -122,44 +189,10 @@ const restrictedSyntax = [
     selector: "ImportExpression",
     message: "Use a static import; import() is not allowed in the extension.",
   },
-  {
-    // chrome.storage.sync in the same four reference forms. The destructuring
-    // form matches any { sync } key by name, so the rule is intentionally
-    // name-based and would also reject an unrelated property named sync.
-    selector: `MemberExpression[computed=false][property.name=${syncPattern}]`,
-    message: syncMessage,
-  },
-  {
-    selector: `MemberExpression[computed=true][property.value=${syncPattern}]`,
-    message: syncMessage,
-  },
-  {
-    selector: `MemberExpression[computed=true][property.type="TemplateLiteral"][property.quasis.0.value.cooked=${syncPattern}]`,
-    message: syncMessage,
-  },
-  {
-    selector: `Property[key.name=${syncPattern}], Property[key.value=${syncPattern}]`,
-    message: syncMessage,
-  },
-  {
-    // The removed menu-path APIs in the same four reference forms, by name like
-    // the sync rule above. Type positions (chrome.windows.Window) are type-only
-    // references and are not matched.
-    selector: `MemberExpression[computed=false][property.name=${menuPathPattern}]`,
-    message: menuPathMessage,
-  },
-  {
-    selector: `MemberExpression[computed=true][property.value=${menuPathPattern}]`,
-    message: menuPathMessage,
-  },
-  {
-    selector: `MemberExpression[computed=true][property.type="TemplateLiteral"][property.quasis.0.value.cooked=${menuPathPattern}]`,
-    message: menuPathMessage,
-  },
-  {
-    selector: `Property[key.name=${menuPathPattern}], Property[key.value=${menuPathPattern}]`,
-    message: menuPathMessage,
-  },
+  ...storageSelectors,
+  ...networkSelectors,
+  ...connectNativeSelectors,
+  ...memberNameSelectors(menuPathNames, menuPathMessage),
 ];
 
 /** A config that forbids the listed brands (and the common selectors) in file. */
@@ -171,6 +204,7 @@ function creatorConfig(file, own) {
       "no-restricted-syntax": [
         "error",
         ...restrictedSyntax,
+        ...sendNativeSelectors,
         ...brandSelectors(forbidden),
       ],
     },
@@ -196,6 +230,7 @@ export default defineConfig(
       "no-eval": "error",
       "no-implied-eval": "error",
       "no-new-func": "error",
+      "no-restricted-globals": ["error", ...networkGlobals],
       "no-restricted-syntax": ["error", ...restrictedSyntax],
     },
   },
@@ -203,6 +238,18 @@ export default defineConfig(
     // Source and scripts must consume every branded value through its type;
     // only the creator file below may assert it. Tests may build fixtures.
     files: ["src/**/*.ts", "scripts/**/*.ts"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        ...restrictedSyntax,
+        ...sendNativeSelectors,
+        ...brandSelectors(brandNames),
+      ],
+    },
+  },
+  {
+    // The one file that calls chrome.runtime.sendNativeMessage.
+    files: ["src/browser/chromeDeps.ts"],
     rules: {
       "no-restricted-syntax": [
         "error",
