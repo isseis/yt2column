@@ -26,8 +26,7 @@ const syncMessage =
 
 // The extension sends only from the popup. These APIs served the removed
 // context-menu path (the menu, the result window, its session store and the
-// toolbar badge). storage.session works under the storage permission the
-// extension keeps, and windows and action need no permission, so only this rule
+// toolbar badge). windows and action need no permission, so only this rule
 // keeps them from coming back. Like the sync rule, it guards against accidental
 // reuse, not deliberate evasion.
 const menuPathPattern = "/^(contextMenus|session|windows|setBadgeText)$/";
@@ -80,13 +79,7 @@ function brandSelectors(names) {
   ];
 }
 
-const brandNames = [
-  "CollectedInput",
-  "SharedToken",
-  "ServerPort",
-  "PreparedRequest",
-  "RequestId",
-];
+const brandNames = ["CollectedInput", "PreparedRequest", "RequestId"];
 
 // Selectors shared by every file. The files-scoped config below reuses this
 // list because a later config with files/ignores replaces the whole rule.
@@ -219,7 +212,6 @@ export default defineConfig(
     },
   },
   creatorConfig("src/core/collect.ts", ["CollectedInput"]),
-  creatorConfig("src/core/settings.ts", ["SharedToken", "ServerPort"]),
   creatorConfig("src/core/prepare.ts", ["PreparedRequest"]),
   creatorConfig("src/core/response.ts", ["RequestId"]),
 );

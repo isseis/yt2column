@@ -7,11 +7,10 @@ import {
   readFailureResult,
 } from "./core/metadata.ts";
 import type { MetadataResult } from "./core/metadata.ts";
+import { nativeHostName } from "./core/native.ts";
 import { prepareSend } from "./core/prepare.ts";
-import type { PrepareOutcome } from "./core/prepare.ts";
 import { toSendOutcome } from "./core/response.ts";
 import type { SendResult } from "./core/response.ts";
-import type { SettingsReader } from "./core/settings.ts";
 import { summarize } from "./core/summary.ts";
 import type { LaunchContext } from "./core/types.ts";
 import { sendArticle } from "./send.ts";
@@ -49,7 +48,6 @@ export interface PopupLaunchResult {
 }
 
 export interface PopupSendDeps {
-  readonly settings: SettingsReader;
   readonly send: SendDeps;
   readonly now: () => number;
   readonly log: Logger;
@@ -116,38 +114,23 @@ async function readMetadata(
   return result;
 }
 
-/** A launch that ends without a request, after the collection and settings checks. */
-type BlockedPrepare = Extract<PrepareOutcome, { readonly kind: "blocked" }>;
-
 /**
- * Logs a blocked launch. Everything but a settings read failure is normal and
- * goes to info; a settings read failure is a defect and goes to error.
- */
-function logBlocked(log: Logger, prepared: BlockedPrepare): void {
-  const data = { reason: prepared.reason, cause: prepared.cause };
-  if (prepared.reason === "settings-unreadable") {
-    log.error(blockedLabel, data);
-  } else {
-    log.info(blockedLabel, data);
-  }
-}
-
-/**
- * Logs one send attempt: the start time, the duration, the port and the
- * result. A result that is a failure goes to error; accepted and rejected go
- * to info. The token is never part of the logged values.
+ * Logs one send attempt: the start time, the duration, the host name and the
+ * result. The result keeps what is dropped before display: the server's
+ * status of an unexpected reply and the browser's error text of a host
+ * failure, never a body's text. A result that is a failure goes to error;
+ * accepted and rejected go to info.
  */
 function logSend(
   log: Logger,
   now: () => number,
   startedAt: number,
-  port: string,
   result: SendResult,
 ): void {
   const data = {
     at: new Date(startedAt).toISOString(),
     durationMs: now() - startedAt,
-    port,
+    host: nativeHostName,
     result,
   };
   if (result.kind === "accepted" || result.kind === "rejected") {
@@ -208,13 +191,10 @@ export async function runPopupSend(
     container.replaceChildren();
     return;
   }
-  const prepared = await prepareSend(
-    outcome,
-    deps.settings,
-    result.metadata.values,
-  );
+  const prepared = prepareSend(outcome, result.metadata.values);
   if (prepared.kind === "blocked") {
-    logBlocked(deps.log, prepared);
+    // A blocked launch is normal, not a defect.
+    deps.log.info(blockedLabel, { reason: prepared.reason });
     renderBlockReason(container, prepared.reason);
     return;
   }
@@ -238,7 +218,7 @@ export async function runPopupSend(
       status.replaceChildren(...messageNodes(doc, sendingMessage));
       const startedAt = deps.now();
       const sendResult = await sendArticle(prepared.request, deps.send);
-      logSend(deps.log, deps.now, startedAt, prepared.request.port, sendResult);
+      logSend(deps.log, deps.now, startedAt, sendResult);
       state = "sent";
       renderSendOutcome(status, toSendOutcome(sendResult));
     })();

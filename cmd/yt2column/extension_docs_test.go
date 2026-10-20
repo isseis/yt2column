@@ -30,6 +30,7 @@ const (
 	extensionSendPlanPath     = repositoryRoot + "/docs/tasks/0020_extension_send/03_implementation_plan.md"
 	menuRemovalPlanPath       = repositoryRoot + "/docs/tasks/0027_remove_context_menu/03_implementation_plan.md"
 	extensionSendPath         = repositoryRoot + "/extension/src/send.ts"
+	extensionNativePath       = repositoryRoot + "/extension/src/core/native.ts"
 )
 
 // extTargetRE matches a make target definition for an extension target, such as
@@ -134,15 +135,15 @@ func TestExtensionDocumentation(t *testing.T) {
 				t.Errorf("security.md 8.1 still mentions %q", unwanted)
 			}
 		}
-		// The bullet, not the whole section: a later bullet also names
-		// chrome.storage.local when it explains where the token is kept.
+		// The bullet, not the whole section: a later bullet names
+		// chrome.storage.local for what an earlier version stored.
 		permissions := markdownBullet(section, "- **要求する権限**")
 		if permissions == "" {
 			t.Fatal("security.md 8.1 has no 要求する権限 bullet")
 		}
-		// The permission-match subtest already requires `storage` in this bullet.
-		if !strings.Contains(permissions, "chrome.storage.local") {
-			t.Error("security.md 8.1's 要求する権限 does not name chrome.storage.local")
+		// No permission is for storage any more, so none is explained by it.
+		if strings.Contains(permissions, "chrome.storage") {
+			t.Error("security.md 8.1's 要求する権限 still explains a permission by chrome.storage")
 		}
 	})
 
@@ -210,13 +211,12 @@ func TestExtensionSendDocumentation(t *testing.T) {
 			t.Error("README.md's Browser extension section still says it never sends")
 		}
 		for _, want := range []string{
-			"shared token",
-			"Options",
+			"yt2column-nmhost install",
+			// The guidance for the host failure the popup shows.
+			"the native messaging host could not be started",
 			"Send to yt2column",
 			"check Slack",
 			"requestId",
-			"Site access",
-			"127.0.0.1",
 			// Rebuild before reloading: dist/ is build output, so an earlier
 			// build would keep running. The install block also names
 			// make ext-build, so pin the update step's own wording.
@@ -228,15 +228,20 @@ func TestExtensionSendDocumentation(t *testing.T) {
 				t.Errorf("README.md's Browser extension section does not mention %q", want)
 			}
 		}
-		// The extension sends only from the popup. Matched case-insensitively so
-		// a sentence-initial capital does not hide a leftover; a bare
-		// "right-click" stays allowed because opening the options page uses it.
+		// The extension sends only from the popup, through the host, with
+		// nothing to set. Matched case-insensitively so a sentence-initial
+		// capital does not hide a leftover; a bare "right-click" stays allowed
+		// because opening the popup's console uses it.
 		lower := strings.ToLower(section)
 		for _, unwanted := range []string{
 			"context menu",
 			"choose the extension",
 			"result window",
 			"service worker",
+			"shared token",
+			"options",
+			"site access",
+			"127.0.0.1",
 		} {
 			if strings.Contains(lower, unwanted) {
 				t.Errorf("README.md's Browser extension section still mentions %q", unwanted)
@@ -264,6 +269,15 @@ func TestExtensionSendDocumentation(t *testing.T) {
 		}
 		if strings.Contains(send, "#111") {
 			t.Error("security.md 8.1 still defers to #111")
+		}
+		// Nothing is set in the extension, so no step pastes a token. Section
+		// 8's introduction gives the reason the token was removed and is not
+		// checked here.
+		lowerSend := strings.ToLower(send)
+		for _, unwanted := range []string{"shared token", "options", "オプションページ", "貼り付"} {
+			if strings.Contains(lowerSend, unwanted) {
+				t.Errorf("security.md 8.1 still mentions %q", unwanted)
+			}
 		}
 		for _, want := range []string{
 			"chrome.storage.local",
@@ -405,11 +419,35 @@ note body`
 // a send, in milliseconds, with optional digit separators.
 var sendTimeoutRE = regexp.MustCompile(`(?m)^export const sendTimeoutMs = ([0-9][0-9_]*);$`)
 
+// nativeHostNameRE, hostReplyVersionRE and recordDeclarationRE match the
+// declarations in extension/src/core/native.ts that the host must agree with.
+// recordDeclarationRE captures the name and the body of a Record<..., true>
+// constant; recordKeyRE matches one of its "key: true," lines.
+var (
+	nativeHostNameRE    = regexp.MustCompile(`(?m)^export const nativeHostName = "([^"]*)";$`)
+	hostReplyVersionRE  = regexp.MustCompile(`(?m)^export const hostReplyVersion = ([0-9]+);$`)
+	recordDeclarationRE = regexp.MustCompile(`(?ms)^export const (\w+): Record<\w+, true> = \{\n(.*?)^\};$`)
+	recordKeyRE         = regexp.MustCompile(`(?m)^  (\w+): true,$`)
+)
+
+// declaredRecordKeys returns the keys of the Record constant named name in
+// source, sorted, or nil when source declares no such constant.
+func declaredRecordKeys(source, name string) []string {
+	for _, m := range recordDeclarationRE.FindAllStringSubmatch(source, -1) {
+		if m[1] == name {
+			return sortedUnique(submatchAll(recordKeyRE, m[2], 1))
+		}
+	}
+	return nil
+}
+
 // TestNativeHostContract pins the values the Native Messaging host and the
 // extension must agree on: the only origin the host's manifest allows and its
-// relay accepts is the one derived from the extension manifest's key, and the
-// host gives up on the server before the extension gives up on the host, so
-// a reply the host writes is never one the extension has stopped waiting for.
+// relay accepts is the one derived from the extension manifest's key; the
+// extension sends to the host's name and reads the reply version, kinds and
+// host errors the host writes; and the host gives up on the server before the
+// extension gives up on the host, so a reply the host writes is never one the
+// extension has stopped waiting for.
 func TestNativeHostContract(t *testing.T) {
 	t.Run("extension origin", func(t *testing.T) {
 		id, err := extensionIDFromManifestKey(readExtensionManifest(t).Key)
@@ -418,6 +456,40 @@ func TestNativeHostContract(t *testing.T) {
 		}
 		if want := "chrome-extension://" + id + "/"; nmhost.ExtensionOrigin != want {
 			t.Errorf("nmhost.ExtensionOrigin = %q, want %q (from the extension manifest's key)", nmhost.ExtensionOrigin, want)
+		}
+	})
+	t.Run("host name and reply values", func(t *testing.T) {
+		source := readDoc(t, extensionNativePath)
+		name := nativeHostNameRE.FindStringSubmatch(source)
+		if name == nil {
+			t.Fatalf("%s has no nativeHostName declaration", extensionNativePath)
+		}
+		if name[1] != nmhost.HostName {
+			t.Errorf("nativeHostName = %q, want nmhost.HostName %q", name[1], nmhost.HostName)
+		}
+		wire := nmhost.WireValuesForTest(t)
+		version := hostReplyVersionRE.FindStringSubmatch(source)
+		if version == nil {
+			t.Fatalf("%s has no hostReplyVersion declaration", extensionNativePath)
+		}
+		if version[1] != strconv.Itoa(wire.Version) {
+			t.Errorf("hostReplyVersion = %s, want the host's %d", version[1], wire.Version)
+		}
+		for _, record := range []struct {
+			name string
+			want []string
+		}{
+			{"hostReplyKinds", wire.Kinds},
+			{"hostErrorValues", wire.HostErrors},
+		} {
+			got := declaredRecordKeys(source, record.name)
+			if got == nil {
+				t.Errorf("%s has no %s declaration", extensionNativePath, record.name)
+				continue
+			}
+			if want := sortedUnique(record.want); !slices.Equal(got, want) {
+				t.Errorf("%s = %v, want the host's %v", record.name, got, want)
+			}
 		}
 	})
 	t.Run("relay timeout", func(t *testing.T) {

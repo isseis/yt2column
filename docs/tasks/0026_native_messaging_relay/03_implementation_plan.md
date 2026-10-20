@@ -96,7 +96,7 @@ HEAD `1f80866` で確認した（2026-10-18）。設計書が記す既存のフ�
 |---|---|---|---|
 | README | 「## Localhost server」のポートとトークンの記述を削除し、ソケットのパス、起動、サーバが起動していない場合のトラブルシューティング、`curl --unix-socket` の例、終了コードを書く。古い版からの更新の手順は、独立した見出し「### Upgrading from the shared-token version」の節に書く（トークンのファイル `server-token` を削除してよいことを含む。この節だけが、ガードの禁止する語の例外になる）。トークンが不要になったことを述べる文を書く。`### The shared token` を削除する。拒否の理由の表を 8 行にする（列は 2 つのまま）。「## Configuration」の表から `YT2COLUMN_SERVER_PORT` を削除する。「## Development」に開発者向けの独立したサーバの手順の節を加える（下記） | ホストの install/uninstall（Chrome・Brave、macOS での共有）、バイナリの移動、TCC（macOS の、書類などのフォルダへのアクセスを制限する仕組み。設計書 2.2）、トラブルシューティング（ホストが見つからない場合、ホストのログの見方）。`README.md:332-333`・`:510` の「`make build` が 2 つのバイナリを作る」記述を 3 つに改める。「## Development」の独立したサーバの手順の節にホストの制約を加える（下記） | 「### Browser extension」からトークン・オプションページ・`Site access`・`127.0.0.1` を削除し、ホストの install とホストが見つからない場合の案内を書く。拒否の理由の表に「拡張の表示」の列を加える。「### Upgrading from the shared-token version」に、旧版の拡張が保存したトークンを消したい場合は拡張を一度削除してから読み込み直すことを加える（設計書 3.7.1） |
 | security.md | §8 の冒頭（UDS、相手ごとの排除の根拠、UDS の権限が同じ uid のプロセスを区別しないこと、同一ユーザーを信頼すること、共有トークンを削除した理由）、§8.2 のサーバの項目（ディレクトリ・起動のロック・stale）、残余リスク（設計書 5.4 のサーバの項目）。§6 の `--artifacts` の項目（`security.md:78`）から「共有トークン」を除く | §8.2 にホストの項目（標準出力が通信路、ログは標準エラー出力、秘密を読まない、上限、`allowed_origins`）と、ホストの残余リスク | §8.1（権限の一覧を `activeTab`・`scripting`・`nativeMessaging` にする、固定のホスト名、ホストの応答の検査、拡張が `chrome.storage` を使わないこと、旧版が `chrome.storage.local` に保存した値が残りうるが通用する相手がないこと）。§8.2 に、ホストを起動できるのは `nativeMessaging` の権限を持つ固定の拡張だけであることを加える（設計書 3.9 の表のガードが §8.2 の `nativeMessaging` を確かめる） |
-| `project_overview.md`・`package_reference.md`・CLAUDE.md | `project_overview.md` の実行形式の記述、ディレクトリ構成（`internal/authtoken` → `internal/serversock`）、設定の表から `YT2COLUMN_SERVER_PORT`（`:120`）を削除。`package_reference.md` の `cmd/yt2column-server`・`internal/config`・`internal/server` の行を改める。`internal/authtoken` の行は、ディレクトリを削除するステップ 1-10 で削除する。`internal/udstest`・`internal/serversock` の行は、パッケージを作るステップ 1-2・1-3 で加え、`internal/cachelock` の行（起動のロックにも使うこと）もステップ 1-3 で改める（`TestPackageReferenceListsPackages`）。CLAUDE.md の Architecture Overview の `internal/authtoken` → `internal/serversock` | `cmd/yt2column-nmhost`・`internal/nmhost` の記述（`package_reference.md` の行は、パッケージを作るステップ 2-1・2-10 で加える）、CLAUDE.md の Build Commands（`make build` が 3 つのバイナリを作ること、`yt2column-nmhost install`・`uninstall <browser>`）、`project_overview.md` の install/uninstall のコマンド | CLAUDE.md の「Development Notes」の、`manifest.test.ts` が security.md §8.1 のホストの権限の項目を読むという記述を、権限の一覧を読むという記述に改める |
+| `project_overview.md`・`package_reference.md`・CLAUDE.md | `project_overview.md` の実行形式の記述、ディレクトリ構成（`internal/authtoken` → `internal/serversock`）、設定の表から `YT2COLUMN_SERVER_PORT`（`:120`）を削除。`package_reference.md` の `cmd/yt2column-server`・`internal/config`・`internal/server` の行を改める。`internal/authtoken` の行は、ディレクトリを削除するステップ 1-10 で削除する。`internal/udstest`・`internal/serversock` の行は、パッケージを作るステップ 1-2・1-3 で加え、`internal/cachelock` の行（起動のロックにも使うこと）もステップ 1-3 で改める（`TestPackageReferenceListsPackages`）。CLAUDE.md の Architecture Overview の `internal/authtoken` → `internal/serversock` | `cmd/yt2column-nmhost`・`internal/nmhost` の記述（`package_reference.md` の行は、パッケージを作るステップ 2-1・2-10 で加える）、CLAUDE.md の Build Commands（`make build` が 3 つのバイナリを作ること、`yt2column-nmhost install`・`uninstall <browser>`）、`project_overview.md` の install/uninstall のコマンド | CLAUDE.md の「Development Notes」から、`manifest.test.ts` が security.md §8.1 のホストの権限の項目を読むという記述を削除する（§8.1 の権限の一覧は Go の `TestExtensionDocumentation` が双方向に照合するので、`manifest.test.ts` は security.md を読まなくなる） |
 | `translation_glossary.md` | 「共有トークン」の行を削除し、起動のロックを加える | ホスト・ホスト名・ホストの応答 | 未送信・結果不明 |
 | 拡張のコード | `ServerRejectReason` から `forbidden_host`・`unsupported_media_type`・`forbidden_origin`・`unauthorized` を削除する（`serverReasons.test.ts` の一致を保つため） | なし | 設計書 3.7 のすべて（`not_found`・`method_not_allowed` の削除を含む）。`static/style.css` のオプションページの規則（`.options-token`・`.options-port` など、`style.css:52-66`）の削除、`eslint.config.js` の `chrome.storage.sync` の規則（トークンを同期しないという理由）の、`chrome.storage` の参照の禁止への置き換え（ステップ 3-13） |
 
@@ -406,30 +406,30 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: 拡張
 
 **前提:** 0025 と 0027 のすべての PR がマージされている（§1.3「0025 との順序」「0027 との順序」）。フェーズ 3 を始める前に、拡張のファイルの行番号（`launch.ts`・`chromeDeps.ts` に加え、0027 が変える `scripts/check-dist.ts`・`test/manifest.test.ts`・`test/checkDist.test.ts` などの、本計画と設計書が引く `file:line`）と、0025 が加えた `ArticleMetadata` の受け渡しと、0027 の後に残った名前（§1.3「0027 との順序」）を確かめ直す。
 
--   [ ] **ステップ 3-1**: `extension/static/manifest.json` を設計書 3.7.1 のとおりに改め、`static/options.html`・`src/options.ts`・`src/optionsPage.ts`・`src/core/settings.ts` を削除する。`scripts/check-dist.ts:117-133` の `options_ui.page` の確認を削除する。`static/style.css` からオプションページだけが使う規則（`style.css:52-66`）を削除する。
+-   [x] **ステップ 3-1**: `extension/static/manifest.json` を設計書 3.7.1 のとおりに改め、`static/options.html`・`src/options.ts`・`src/optionsPage.ts`・`src/core/settings.ts` を削除する。`scripts/check-dist.ts:117-133` の `options_ui.page` の確認を削除する。`static/style.css` からオプションページだけが使う規則（`style.css:52-66`）を削除する。
     -   **対象:** `extension/static/manifest.json`・削除する 4 ファイル・`extension/scripts/check-dist.ts`・`extension/static/style.css`。**完了:** ステップ 3-7 の後に `make ext-build` が通る。
--   [ ] **ステップ 3-2**: `extension/src/core/native.ts` を設計書 3.7.2・3.7.3 のとおりに作る（`nativeHostName`・`hostReplyVersion`・`hostReplyKinds`・`HostErrorValue`・`hostErrorValues`・`NativeReply`・`classifyNativeReply`）。検査の順序は設計書 3.7.3 の 1〜8 に従い、lastError の文字列を見ない（設計書 3.7.5）。base64 は復号して再び符号化した文字列が元と一致するものだけを受理する。
-    -   **対象:** `extension/src/core/native.ts`。**完了:** `make ext-typecheck` が通る（ステップ 3-3 の後）。
--   [ ] **ステップ 3-3**: `extension/src/core/response.ts` を設計書 3.7.3・3.7.4 のとおりに改める（`not_found`・`method_not_allowed` の削除、`NotSentCause`・`UnexpectedCheck`・`SendOutcome`・`SendResult` の改定、`ReceivedResponse` と `SendOutcome` の `redirected` の削除、`toSendOutcome` が `unexpected` の `status` と `host-failed` の `lastError` を落とすこと、`classifyResponse` の戻り値の型）。
+-   [x] **ステップ 3-2**: `extension/src/core/native.ts` を設計書 3.7.2・3.7.3 のとおりに作る（`nativeHostName`・`hostReplyVersion`・`hostReplyKinds`・`HostErrorValue`・`hostErrorValues`・`NativeReply`・`classifyNativeReply`）。検査の順序は設計書 3.7.3 の 1〜8 に従い、lastError の文字列を見ない（設計書 3.7.5）。base64 は復号して再び符号化した文字列が元と一致するものだけを受理する（`atob` で復号し `btoa` で符号化し直す。`src/core/` を検査する `tsconfig.core.json` は DOM のライブラリを読まないので、`types/core-encoding.d.ts` に `atob`・`btoa` の宣言を加え、`test/typecheck.test.ts` の `usesTextEncoding` に使用を加える）。`hasExactKeys`（`response.ts` の非公開の関数）を export して使う。
+    -   **対象:** `extension/src/core/native.ts`・`extension/types/core-encoding.d.ts`・`extension/test/typecheck.test.ts`。**完了:** `make ext-typecheck` が通る（ステップ 3-3 の後）。
+-   [x] **ステップ 3-3**: `extension/src/core/response.ts` を設計書 3.7.3・3.7.4 のとおりに改める（`not_found`・`method_not_allowed` の削除、`NotSentCause`・`UnexpectedCheck`・`SendOutcome`・`SendResult` の改定、`ReceivedResponse` と `SendOutcome` の `redirected` の削除、`toSendOutcome` が `unexpected` の `status` と `host-failed` の `lastError` を落とすこと、`classifyResponse` の戻り値の型）。
     -   **対象:** `extension/src/core/response.ts`。**完了:** `make ext-typecheck` が通る（ステップ 3-7 の後）。
--   [ ] **ステップ 3-4**: `extension/src/core/prepare.ts` を設計書 3.7.2 のとおりに改める（設定の読み取りの削除、同期の関数、`ArticleBody.message` と `byteLength`、`PreflightReason` を `body-too-large` だけに、`PrepareOutcome` の `blocked` から `cause` を削除）。0025 が渡す `ArticleMetadata` の扱いは変えない。
+-   [x] **ステップ 3-4**: `extension/src/core/prepare.ts` を設計書 3.7.2 のとおりに改める（設定の読み取りの削除、同期の関数、`ArticleBody.message` と `byteLength`、`PreflightReason` を `body-too-large` だけに、`PrepareOutcome` の `blocked` から `cause` を削除）。0025 が渡す `ArticleMetadata` の扱いは変えない。
     -   **対象:** `extension/src/core/prepare.ts`。**完了:** `make ext-typecheck` が通る（ステップ 3-7 の後）。
--   [ ] **ステップ 3-5**: `extension/src/send.ts` を設計書 3.7.2 のとおりに改める（`SendDeps` の `sendNative`・`schedule`、`sendArticle` が `sendNative` を 1 回だけ呼び、25 秒の上限を `schedule` で設けること、`classifyNativeReply` で分類すること）。`readBody` などの `fetch` の処理を削除する。
+-   [x] **ステップ 3-5**: `extension/src/send.ts` を設計書 3.7.2 のとおりに改める（`SendDeps` の `sendNative`・`schedule`、`sendArticle` が `sendNative` を 1 回だけ呼び、25 秒の上限を `schedule` で設けること、`classifyNativeReply` で分類すること）。`readBody` などの `fetch` の処理を削除する。
     -   **対象:** `extension/src/send.ts`。**完了:** `make ext-typecheck` が通る（ステップ 3-7 の後）。
--   [ ] **ステップ 3-6**: 表示を改める。`core/sendMessages.ts` の文言を設計書 3.7.4 の表のとおりにし、削除する文言（設計書 3.7.4）を削除する。`NotSentCause`・`UnexpectedCheck` の分岐も網羅的な `switch` で書く。`ui/renderSend.ts` から `unexpected` の状態コードの表示（`send-status`）を削除する。
+-   [x] **ステップ 3-6**: 表示を改める。`core/sendMessages.ts` の文言を設計書 3.7.4 の表のとおりにし、削除する文言（設計書 3.7.4）を削除する。`NotSentCause`・`UnexpectedCheck` の分岐も網羅的な `switch` で書く。`ui/renderSend.ts` から `unexpected` の状態コードの表示（`send-status`）を削除する（`static/style.css` の `.send-status` の規則も、ステップ 3-1 で削除した）。
     -   **対象:** `extension/src/core/sendMessages.ts`・`ui/renderSend.ts`。**完了:** `make ext-typecheck` が通る（ステップ 3-7 の後）。
--   [ ] **ステップ 3-7**: 経路と配線を改める。`launch.ts` のポップアップの経路から `settings` の依存を削除し、`logSend` の `port` を `host: nativeHostName` にし、`unexpected` の状態コードと `host-failed` の lastError をログにだけ出す（設計書 3.7.6）。`browser/chromeDeps.ts` から `createSettingsStore` と `StorageArea` を削除し、`createSendDeps` を `chrome.runtime.sendNativeMessage` のコールバックの形と同期の例外の捕捉で実装し、`schedule` を `SendDeps` に渡す（0027 が `schedule` を削除していれば加え直す。§1.3「0027 との順序」。設計書 3.7.2）。`popup.ts` から `settings` を渡す配線を削除する。旧版の保存値を削除する処理は置かない（設計書 3.7.1）。§1.3「古くなるコメントと文書」の拡張の行を改める。
+-   [x] **ステップ 3-7**: 経路と配線を改める。`launch.ts` のポップアップの経路から `settings` の依存を削除し、`logSend` の `port` を `host: nativeHostName` にし、`unexpected` の状態コードと `host-failed` の lastError をログにだけ出す（設計書 3.7.6）。`browser/chromeDeps.ts` から `createSettingsStore` と `StorageArea` を削除し、`createSendDeps` を `chrome.runtime.sendNativeMessage` のコールバックの形と同期の例外の捕捉で実装し、`schedule` を `SendDeps` に渡す（0027 が `schedule` を削除していれば加え直す。§1.3「0027 との順序」。設計書 3.7.2）。`popup.ts` から `settings` を渡す配線を削除する。旧版の保存値を削除する処理は置かない（設計書 3.7.1）。§1.3「古くなるコメントと文書」の拡張の行を改める。
     -   **対象:** `extension/src/launch.ts`・`browser/chromeDeps.ts`・`popup.ts`。**完了:** `make ext-typecheck` と `make ext-build` が通る。
--   [ ] **ステップ 3-8**: `extension/eslint.config.js` を設計書 7.3 のとおりに改める。`SharedToken`・`ServerPort` のブランドの規則と `settings.ts` の `creatorConfig`（`:192`）を削除する。`chrome.storage.sync` の規則は、ステップ 3-13 で `chrome.storage` の参照の禁止に置き換えるまで残す。接続先を限る新しい規則も、ステップ 3-13 で加える。
+-   [x] **ステップ 3-8**: `extension/eslint.config.js` を設計書 7.3 のとおりに改める。`SharedToken`・`ServerPort` のブランドの規則と `settings.ts` の `creatorConfig`（`:192`）を削除する。`chrome.storage.sync` の規則は、ステップ 3-13 で `chrome.storage` の参照の禁止に置き換えるまで残す。接続先を限る新しい規則も、ステップ 3-13 で加える。
     -   **対象:** `extension/eslint.config.js`。**完了:** `make ext-lint` が通る。
--   [ ] **ステップ 3-9**: 拡張のテストを改める。設計書 3.8 の表の拡張の行（`send.test.ts` の書き直し、`helpers/fetch.ts` の削除、`launch.test.ts`・`chromeDeps.test.ts`、`settings.test.ts`・`optionsPage.test.ts`・`helpers/settings.ts` の削除、`prepare.test.ts`、`checkDist.test.ts:135-157`、`lintRules.test.ts`、`manifest.test.ts`、`sendMessages.test.ts`・`response.test.ts`・`renderSend.test.ts`）に従う。新しく次を作る・加える。
+-   [x] **ステップ 3-9**: 拡張のテストを改める。設計書 3.8 の表の拡張の行（`send.test.ts` の書き直し、`helpers/fetch.ts` の削除、`launch.test.ts`・`chromeDeps.test.ts`、`settings.test.ts`・`optionsPage.test.ts`・`helpers/settings.ts` の削除、`prepare.test.ts`、`checkDist.test.ts:135-157`、`lintRules.test.ts`、`manifest.test.ts`、`sendMessages.test.ts`・`response.test.ts`・`renderSend.test.ts`）に従う。新しく次を作る・加える。
     -   `extension/test/native.test.ts`（AC-26・AC-27）と `extension/test/helpers/native.ts`（`sendNative` の fake）: 設計書 6.3 のすべての葉、外側のメンバの未知・欠落・型の不一致、`v` の不一致、base64 の非正規形（余分なパディング、改行）、復号後の長さ超過、本文の既存の検査、lastError がどの文字列でも（`undefined` を含む）`host-failed` になること。
     -   `send.test.ts`（AC-24）: `sendNative` が 1 回だけ呼ばれ再送しないこと、`schedule` の上限が先なら `extension-timeout`、上限の後に届いた応答を使わないこと。
     -   `chromeDeps.test.ts`（AC-24）: `createSendDeps` が固定のホスト名で 1 回だけ呼ぶこと、lastError と同期の例外が `failed` になること。
@@ -437,17 +437,17 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
     -   `sendMessages.test.ts`（AC-25・AC-26）: 送信の結果ごとの文言が互いに異なること、未送信の文言が Slack に触れないこと、結果不明の 3 つの文言が Slack の確認を含むこと、`host-failed` の文言が install の手順を含むこと、どの文言もオプションページ・トークン・ポートに触れないこと。
     -   `secretsAbsent.test.ts`（AC-23・AC-29）: トークン・ポートの設定を名指す語が `src/`・`static/` にないこと（例外はない。旧版の保存値のキーも宣言しない）。
     -   `lintRules.test.ts`: ステップ 3-8 で削除した規則の行を削除する（新しい規則の行はステップ 3-13 で加える）。
-    -   `manifest.test.ts`（AC-22・AC-23）: 権限がちょうど `activeTab`・`scripting`・`nativeMessaging` の 3 つで（`storage` がない）、`host_permissions`・`options_ui` がなく、security.md §8.1 の「**要求する権限**」の一覧に `nativeMessaging` があること。`minimum_chrome_version` のテストの名前から `AbortSignal.timeout` を除く（§1.3）。
+    -   `manifest.test.ts`（AC-22・AC-23）: 権限がちょうど `activeTab`・`scripting`・`nativeMessaging` の 3 つで（`storage` がない）、`host_permissions`・`options_ui` がないこと。security.md §8.1 の「**要求する権限**」の一覧との照合は、同じ照合を双方向に行う `TestExtensionDocumentation` の権限のサブテストに任せ、`manifest.test.ts` からは §8.1 の `host_permissions` の確認を削除する（同じ照合を 2 つ持たないため）。`minimum_chrome_version` のテストの名前から `AbortSignal.timeout` を除く（§1.3）。
     -   **対象:** `extension/test/*`・`extension/test/helpers/*`。**完了:** `make ext-check` が通る（`serverReasons.test.ts` はステップ 3-10 の後）。
--   [ ] **ステップ 3-10**: フェーズ 3 の文書を改める（§1.3「フェーズごとの文書とガードの割り当て」のフェーズ 3 の列）。README の拒否の理由の表に「拡張の表示」の列を加える（設計書 3.3.1 の表の列）。security.md §8.2 に、ホストを起動できるのは `nativeMessaging` の権限を持ち `allowed_origins` に載った固定の拡張だけであることを加える。
+-   [x] **ステップ 3-10**: フェーズ 3 の文書を改める（§1.3「フェーズごとの文書とガードの割り当て」のフェーズ 3 の列）。README の拒否の理由の表に「拡張の表示」の列を加える（設計書 3.3.1 の表の列）。security.md §8.2 に、ホストを起動できるのは `nativeMessaging` の権限を持ち `allowed_origins` に載った固定の拡張だけであることを加える。
     -   **対象:** `README.md`・`docs/dev/security.md`・`CLAUDE.md`・`docs/translation_glossary.md`。**完了:** README の「拡張の表示」の列の各行が、ステップ 3-6 の `serverRejectMessage` と `classifyResponse` の扱い（固定の文言か想定外の応答か）と一致することを、`serverReasons.test.ts`（ステップ 3-11）で確かめる。
--   [ ] **ステップ 3-11**: フェーズ 3 のガードを改める・加える。
+-   [x] **ステップ 3-11**: フェーズ 3 のガードを改める・加える。
     -   `extension/test/serverReasons.test.ts`: README の表のうち「拡張の表示」の列が固定の文言である行だけを `serverRejectStatus` と照合する（設計書 3.9）。
-    -   `cmd/yt2column/extension_docs_test.go`: `TestExtensionSendDocumentation` の README のサブテストを設計書 3.9 の表のとおりに改め、トークンを貼り付ける手順（`shared token`・`Options` の語）が README の「### Browser extension」と security.md §8.1 に残っていないことの確認を加える。security.md §8 の冒頭は削除の理由として共有トークンに触れるので、この確認の対象にしない（§1.3 の `TestSharedTokenRemoved` の説明）。`TestNativeHostContract` に `native.ts` の値の照合を加える。
+    -   `cmd/yt2column/extension_docs_test.go`: `TestExtensionSendDocumentation` の README のサブテストを設計書 3.9 の表のとおりに改め、トークンを貼り付ける手順（`shared token`・`Options` の語）が README の「### Browser extension」と security.md §8.1 に残っていないことの確認を加える。security.md §8 の冒頭は削除の理由として共有トークンに触れるので、この確認の対象にしない（§1.3 の `TestSharedTokenRemoved` の説明）。`TestNativeHostContract` に `native.ts` の値の照合を加える（Go の側の値は、`internal/nmhost/test_helpers.go` の `WireValuesForTest` が、ホストが実際に作る応答を `encoding/json` で読み直して返す）。`TestExtensionDocumentation` の「security.md 8.1 has no trace of the removed menu path」のサブテストは、「**要求する権限**」の項目に `chrome.storage.local` があることを求めていた（`storage` の権限の理由）ので、どの権限も `chrome.storage` で説明しないことを求める形に改める。
     -   `cmd/yt2column-server/docs_test.go`: security.md §8.2 の `nativeMessaging` の確認を加える（設計書 3.9 の表）。用語集の未送信・結果不明の行の確認を加える。
     -   `internal/pipeline/relay_guard_test.go`: `TestSharedTokenRemoved` の走査の対象に `extension/src`・`extension/static` を加える。
     -   **対象:** 上記のファイル。**完了:** `make test`・`make ext-test` が通る。
--   [ ] **ステップ 3-12**: 壊して失敗することを確かめ、コミットメッセージに記録する（§1.2。§5 のフェーズ 3 のテストとガードのうち、ステップ 3-1〜3-11 が作る・改めるものが対象）。取り違えやすいもの: ポップアップの経路が `sendArticle` を 2 回呼ぶ・ログにポートを戻す（`launch.test.ts`）、`prepareSend` が設定を読む処理を戻す・理由の順序を入れ替える（`prepare.test.ts`）、`src/` に `sharedToken` を読む処理を加える（`secretsAbsent.test.ts`）、`not_found` を `ServerRejectReason` に戻す（`response.test.ts`）、`classifyNativeReply` の検査 1〜8 を 1 つずつ外す・lastError の文字列で分ける分岐を加える・base64 の再符号化の比較を外す・`body-over-limit` への受け渡しを外す（`native.test.ts`）、`sendArticle` が `timed-out` の後に届いた応答を使う・2 回呼ぶ（`send.test.ts`）、`createSendDeps` の同期の例外の捕捉を外す（`chromeDeps.test.ts`）、`host-failed` の文言から install の手順を外す・未送信の文言に Slack の確認を加える（`sendMessages.test.ts`）、manifest に `host_permissions` を戻す・`storage` を戻す（`manifest.test.ts`）、`nativeHostName` の 1 文字を変える（`TestNativeHostContract`）、README の表の「拡張の表示」の 1 行を誤らせる（`serverReasons.test.ts`）、README の「### Browser extension」に `shared token` を戻す（`TestExtensionSendDocumentation`）、`sendMessages.ts` に `YT2COLUMN_SERVER_PORT` を戻す（`TestSharedTokenRemoved`）。§4.4 の横断検索を行い、検索した語と結果をコミットメッセージに記録する。
+-   [x] **ステップ 3-12**: 壊して失敗することを確かめ、コミットメッセージに記録する（§1.2。§5 のフェーズ 3 のテストとガードのうち、ステップ 3-1〜3-11 が作る・改めるものが対象）。取り違えやすいもの: ポップアップの経路が `sendArticle` を 2 回呼ぶ・ログにポートを戻す（`launch.test.ts`）、`prepareSend` が設定を読む処理を戻す・理由の順序を入れ替える（`prepare.test.ts`）、`src/` に `sharedToken` を読む処理を加える（`secretsAbsent.test.ts`）、`not_found` を `ServerRejectReason` に戻す（`response.test.ts`）、`classifyNativeReply` の検査 1〜8 を 1 つずつ外す・lastError の文字列で分ける分岐を加える・base64 の再符号化の比較を外す・`body-over-limit` への受け渡しを外す（`native.test.ts`）、`sendArticle` が `timed-out` の後に届いた応答を使う・2 回呼ぶ（`send.test.ts`）、`createSendDeps` の同期の例外の捕捉を外す（`chromeDeps.test.ts`）、`host-failed` の文言から install の手順を外す・未送信の文言に Slack の確認を加える（`sendMessages.test.ts`）、manifest に `host_permissions` を戻す・`storage` を戻す（`manifest.test.ts`）、`nativeHostName` の 1 文字を変える（`TestNativeHostContract`）、README の表の「拡張の表示」の 1 行を誤らせる（`serverReasons.test.ts`）、README の「### Browser extension」に `shared token` を戻す（`TestExtensionSendDocumentation`）、`sendMessages.ts` に `YT2COLUMN_SERVER_PORT` を戻す（`TestSharedTokenRemoved`）。§4.4 の横断検索を行い、検索した語と結果をコミットメッセージに記録する。
     -   **対象:** なし（確認のみ）。**完了:** 各対象で該当するテストか lint が失敗することを確かめ、記録する。 PR-8 のマージの前に、このブランチでステップ 3-14 の手動の確認（§5.1）を行い、結果を PR-10 まで保持する（§3.2）。
 
 ### PR-8 作成ポイント: extension send through the native host
@@ -462,8 +462,8 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 
 **判定理由**: オプションページ・`fetch`・トークン・`storage` の権限の削除と Native Messaging の追加を同時に行う移行の段階で、拡張の多くのテストとガードを書き換える（mkplan のパネル方式の条件「振る舞いの追加と削除を同時に行う移行」）。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 -   [ ] **ステップ 3-13**: 拡張の接続先と `chrome.storage` を限る lint の規則を加える（設計書 7.3）。`extension/eslint.config.js` で `fetch`・`XMLHttpRequest`・`WebSocket`・`EventSource` の使用と `connectNative` の参照を禁止し、`sendNativeMessage` の参照を `src/browser/chromeDeps.ts` に限る。`chrome.storage.sync` の規則（`syncPattern`）を、`chrome.storage` の参照（ドット・計算されたメンバ・分割代入の形）を禁じる規則に置き換え、理由のコメントを、拡張が `storage` の権限を持たないことに改める（設計書 3.8）。`lintRules.test.ts`（AC-23・AC-24・AC-29）に、各規則が違反を検出し、`chromeDeps.ts` の `sendNativeMessage` を許すことの確認を加える。`storage.sync` の `describe` と、作成の関数のファイルの共通の規則の `storage.sync` の行を `chrome.storage` の参照の禁止に改め、`chrome.storage.local` を許す行を削除する。各規則を 1 つずつ外して `lintRules.test.ts` が失敗することを確かめ、コミットメッセージに記録する（§1.2）。
@@ -571,9 +571,9 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 
 -   `go tool cover -func` で、新しいパッケージ（`internal/serversock`・`internal/nmhost`・`cmd/yt2column-nmhost`）の公開の関数と、`internal/config` のソケットのパスの導出の関数に、テストで通らない分岐がないことを確かめる。
 -   次の項目は `make lint`・`make test` では検出できないので、各フェーズの文書を改める PR で検索で確かめ、検索した語・対象・結果をその PR の壊して確かめるステップ（PR-2 のステップ 1-16、PR-6 のステップ 2-14、PR-8 のステップ 3-12）のコミットメッセージに記録する。
-    -   [ ] 古くなるコメント（§1.3「古くなるコメントと文書」）: `internal/server`・`cmd/yt2column-server` の本番のコードのコメントに、`token`・`loopback`・`127.0.0.1`・`Origin`・`authenticated`・`port` の語が、本タスクの変更の後の振る舞いと食い違う形で残っていないこと（フェーズ 1）。拡張の `src/` のコメントに `AbortSignal.timeout`・`settings`・`options`・`chrome.storage` の語と、メニューの経路・結果のウィンドウ・service worker への言及（0027 の後に残ったもの）が残っていないこと（フェーズ 3）。
-    -   [ ] トークンの説明の語の残り: 「共有トークン」「shared token」「options page」が、削除の理由と古い版からの更新の手順を除いて残っていないこと（§1.3 の `TestSharedTokenRemoved` の説明）。フェーズ 1・2 では、そのフェーズが改めた範囲（README の「## Localhost server」、security.md §6・§8 の冒頭・§8.2、CLAUDE.md・`project_overview.md`・`package_reference.md`・用語集、`cmd/`・`internal/`）だけを調べる（README の「### Browser extension」と `extension/` には、フェーズ 3 まで正しく残る）。フェーズ 3 では、現在の文書のすべてと `extension/`（`node_modules`・`dist` を除く）を調べる。どのフェーズでも、ガードのテストが検査の値として持つ語（`docs_test.go`・`extension_docs_test.go`・`secretsAbsent.test.ts` など）は残りに数えない。
-    -   [ ] 用語の一致: 本計画・README・security.md・`project_overview.md` の新しい用語（ホスト、ホスト名、起動のロック、ホストの応答、未送信、結果不明）が `docs/translation_glossary.md` の行と一致すること（各フェーズ）。
+    -   [x] 古くなるコメント（§1.3「古くなるコメントと文書」）: `internal/server`・`cmd/yt2column-server` の本番のコードのコメントに、`token`・`loopback`・`127.0.0.1`・`Origin`・`authenticated`・`port` の語が、本タスクの変更の後の振る舞いと食い違う形で残っていないこと（フェーズ 1）。拡張の `src/` のコメントに `AbortSignal.timeout`・`settings`・`options`・`chrome.storage` の語と、メニューの経路・結果のウィンドウ・service worker への言及（0027 の後に残ったもの）が残っていないこと（フェーズ 3）。
+    -   [x] トークンの説明の語の残り: 「共有トークン」「shared token」「options page」が、削除の理由と古い版からの更新の手順を除いて残っていないこと（§1.3 の `TestSharedTokenRemoved` の説明）。フェーズ 1・2 では、そのフェーズが改めた範囲（README の「## Localhost server」、security.md §6・§8 の冒頭・§8.2、CLAUDE.md・`project_overview.md`・`package_reference.md`・用語集、`cmd/`・`internal/`）だけを調べる（README の「### Browser extension」と `extension/` には、フェーズ 3 まで正しく残る）。フェーズ 3 では、現在の文書のすべてと `extension/`（`node_modules`・`dist` を除く）を調べる。どのフェーズでも、ガードのテストが検査の値として持つ語（`docs_test.go`・`extension_docs_test.go`・`secretsAbsent.test.ts` など）は残りに数えない。
+    -   [x] 用語の一致: 本計画・README・security.md・`project_overview.md` の新しい用語（ホスト、ホスト名、起動のロック、ホストの応答、未送信、結果不明）が `docs/translation_glossary.md` の行と一致すること（各フェーズ）。
 
 ## 5. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -626,10 +626,10 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 | AC-29 | static | `extension/test/lintRules.test.ts`（`fetch`・`XMLHttpRequest`・`WebSocket`・`EventSource`・`connectNative` の禁止、`sendNativeMessage` の限定）、`make ext-lint` | ステップ 3-13 |
 | | test | `extension/test/secretsAbsent.test.ts` | 既存・ステップ 3-9 |
 | AC-30 | test | `extension/test/prepare.test.ts`、`extension/test/collect.test.ts`（既存） | ステップ 3-4 |
-| AC-31 | static | `cmd/yt2column-server/docs_test.go::TestServerDocsContract`（security.md のサブテスト。§8 の冒頭の相手ごとの排除の根拠、§8.2 の UDS の権限・ホストの標準出力・残余リスク）、`cmd/yt2column/extension_docs_test.go::TestExtensionSendDocumentation`（トークンの貼り付けの手順がないこと）、`extension/test/manifest.test.ts`（§8.1 の権限の一覧） | ステップ 1-15・2-13・3-11 |
+| AC-31 | static | `cmd/yt2column-server/docs_test.go::TestServerDocsContract`（security.md のサブテスト。§8 の冒頭の相手ごとの排除の根拠、§8.2 の UDS の権限・ホストの標準出力・残余リスク）、`cmd/yt2column/extension_docs_test.go::TestExtensionSendDocumentation`（トークンの貼り付けの手順がないこと）、`cmd/yt2column/extension_docs_test.go::TestExtensionDocumentation`（§8.1 の権限の一覧） | ステップ 1-15・2-13・3-11 |
 | AC-32 | static | `cmd/yt2column-server/docs_test.go::TestServerDocsContract`（README のサブテスト。ソケットのパス、install/uninstall、トークンが不要であること、ホスト未インストールとサーバ停止のトラブルシューティング、禁止する語句）、`cmd/yt2column/extension_docs_test.go::TestExtensionSendDocumentation`（README のサブテスト） | ステップ 1-15・2-13・3-11 |
 | AC-33 | static | `cmd/yt2column-server/docs_test.go::TestServerDocsContract`（`project_overview.md`・CLAUDE.md のサブテスト。パッケージ名、install/uninstall のコマンド、`make build` の 3 つのバイナリ）、`internal/pipeline/pipeline_test.go::TestPackageReferenceListsPackages`（既存）、`cmd/yt2column/makefile_test.go::TestMakeBuildBuildsEveryBinary` | ステップ 1-15・2-11・2-13 |
-| AC-34 | static | `make test`（`TestServerDocsContract`・`TestExtensionDocumentation`・`TestExtensionSendDocumentation`・`TestPackageReferenceListsPackages`・`TestNativeHostContract`）、`make ext-test`（`serverReasons.test.ts`・`manifest.test.ts`） | 各 PR |
+| AC-34 | static | `make test`（`TestServerDocsContract`・`TestExtensionDocumentation`・`TestExtensionSendDocumentation`・`TestPackageReferenceListsPackages`・`TestNativeHostContract`）、`make ext-test`（`serverReasons.test.ts`・`manifest.test.ts`・`metadataDocs.test.ts`） | 各 PR |
 | AC-35 | test | `cmd/yt2column-server/relay_e2e_test.go::TestRelayEndToEnd` | ステップ 2-15 |
 | AC-36 | static | `cmd/yt2column/extension_docs_test.go::TestNativeMessagingRelayDocumentation`（§5.1 の表のすべての欄が埋まっていること） | ステップ 3-14 |
 | | manual | §5.1 | ステップ 3-14 |
@@ -637,7 +637,7 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 
 ### 5.1. 手動の確認と記録
 
-実装のとき（ステップ 3-14）に埋める。macOS の Chrome と Brave の作業時点の安定版で、ブラウザごとに 1 行ずつ記録する。各行の最初の欄の名前は互いに異なる。`TestNativeMessagingRelayDocumentation`（ステップ 3-14）が、この表の最初の欄の名前を順に並べた一覧と照らして各行の名前を確かめ、すべての欄が埋まっていることを確かめる。受理の行は実際の LLM API と Slack Webhook を呼ぶので、実行の前に利用者の承認を得る。
+実装のとき（ステップ 3-14）に埋める。macOS の Chrome と Brave の作業時点の安定版で、ブラウザごとに 1 行ずつ記録する（同時の送信とブラウザの終了は Chrome の 1 行だけ。設計書 7.2）。各行の最初の欄の名前は互いに異なる。`TestNativeMessagingRelayDocumentation`（ステップ 3-14）が、この表の最初の欄の名前を順に並べた一覧と照らして各行の名前を確かめ、すべての欄が埋まっていることを確かめる。受理の行は実際の LLM API と Slack Webhook を呼ぶので、実行の前に利用者の承認を得る。
 
 | AC | 確認の内容（設計書 7.2） | ブラウザ・環境 | 日付 | 結果 |
 |---|---|---|---|---|
@@ -650,10 +650,8 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 | AC-24 受理（Brave） | 同上 | Brave | | |
 | AC-26 拒否（Chrome） | 字幕の書式に合わない選択範囲で `invalid_transcript` の拒否が表示される | Chrome | | |
 | AC-26 拒否（Brave） | 同上 | Brave | | |
-| AC-26 同時の送信（Chrome） | 2 つのジョブが処理中に 3 つ目を送り、`too_many_requests` の拒否が表示される | Chrome | | |
-| AC-26 同時の送信（Brave） | 同上 | Brave | | |
-| AC-14 ブラウザの終了（Chrome） | 受付応答の後にブラウザを終了し、Slack に記事が届く | Chrome | | |
-| AC-14 ブラウザの終了（Brave） | 同上 | Brave | | |
+| AC-26 同時の送信（Chrome） | 2 つのジョブが処理中に 3 つ目を送り、`too_many_requests` の拒否が表示される。Chrome だけで確かめる（ブラウザに依存する経路は「AC-26 拒否」の行と同じ。設計書 7.2） | Chrome | | |
+| AC-14 ブラウザの終了（Chrome） | 受付応答の後にブラウザを終了し、Slack に記事が届く。Chrome だけで確かめる（受付応答の後はホストが終了しており、ジョブはブラウザに依存しない。設計書 7.2） | Chrome | | |
 | AC-26 4 MiB 超（Chrome） | 4 MiB を超える本文で、拡張の送る前の確認（`body-too-large`）の表示になる | Chrome | | |
 | AC-26 4 MiB 超（Brave） | 同上 | Brave | | |
 | AC-20 再インストール（chrome を指定） | バイナリを移動した後にホストの失敗が表示され、`install chrome` をやり直すと送れる。`uninstall chrome` の後は Chrome と Brave の両方でホストの失敗になる（macOS での共有） | Chrome・Brave | | |
@@ -688,13 +686,13 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 -   [x] PR-4 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5）
 -   [x] PR-5 マージ済み（対象ステップ: 2-6 / 2-7 / 2-8）
 -   [x] PR-6 マージ済み（対象ステップ: 2-9 / 2-10 / 2-11 / 2-12 / 2-13 / 2-14）
--   [ ] PR-7 マージ済み（対象ステップ: 2-15 / 2-16）
--   [ ] 0025 のすべての PR がマージされたことを確かめた（PR-8 の前提）
+-   [x] PR-7 マージ済み（対象ステップ: 2-15 / 2-16）
+-   [x] 0025 のすべての PR がマージされたことを確かめた（PR-8 の前提）
 -   [ ] PR-8 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8 / 3-9 / 3-10 / 3-11 / 3-12）
 -   [ ] PR-9 マージ済み（対象ステップ: 3-13）
 -   [ ] PR-10 マージ済み（対象ステップ: 3-14）
 -   [ ] §5 のすべての AC の検証が通り、§5.1 が埋まっている
--   [ ] §4.4 の横断検索を PR-2・PR-6・PR-8 で確かめた
+-   [x] §4.4 の横断検索を PR-2・PR-6・PR-8 で確かめた
 
 ## 8. 成功基準 (Success Criteria)
 

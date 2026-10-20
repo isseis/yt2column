@@ -3,6 +3,8 @@
 package nmhost
 
 import (
+	"encoding/json"
+	"net/http"
 	"os"
 	"testing"
 )
@@ -28,4 +30,46 @@ func chmodForTest(t *testing.T, path string, mode os.FileMode) {
 		t.Fatalf("chmod %s: %v", path, err)
 	}
 	t.Cleanup(func() { _ = os.Chmod(path, original) })
+}
+
+// HostWireValuesForTest holds the wire values of the host's replies, read from
+// the replies the host marshals, for the guard that compares them with the
+// extension's declarations.
+type HostWireValuesForTest struct {
+	Version    int      // the "v" member
+	Kinds      []string // the "kind" member of each shape: response, then error
+	HostErrors []string // the "error" member of each HostError constant
+}
+
+// WireValuesForTest marshals one reply of each shape and one error reply per
+// HostError constant, and returns the members the extension must agree with.
+// The constants are found by counting up from the zero value until Value falls
+// back to protocol_error, so a constant added after the last one is included.
+func WireValuesForTest(t *testing.T) HostWireValuesForTest {
+	t.Helper()
+	type members struct {
+		V     int    `json:"v"`
+		Kind  string `json:"kind"`
+		Error string `json:"error"`
+	}
+	decode := func(reply any) members {
+		var m members
+		if err := json.Unmarshal(encodeReply(reply), &m); err != nil {
+			t.Fatalf("decode the host reply: %v", err)
+		}
+		return m
+	}
+	response := decode(newResponseReply(http.StatusAccepted, nil))
+	values := HostWireValuesForTest{Version: response.V, Kinds: []string{response.Kind}}
+	for e := HostErrorProtocol; e == HostErrorProtocol || e.Value() != HostErrorProtocol.Value(); e++ {
+		reply := decode(newErrorReply(e))
+		if reply.V != values.Version {
+			t.Fatalf("the %s error reply has version %d, the response reply %d", reply.Error, reply.V, values.Version)
+		}
+		if e == HostErrorProtocol {
+			values.Kinds = append(values.Kinds, reply.Kind)
+		}
+		values.HostErrors = append(values.HostErrors, reply.Error)
+	}
+	return values
 }

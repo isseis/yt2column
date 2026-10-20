@@ -6,7 +6,6 @@ import { describe, it } from "node:test";
 
 import { extensionIdFromManifestKey } from "./helpers/extensionId.ts";
 import { extensionDir } from "./helpers/paths.ts";
-import { markdownSection, readRepoFile } from "./helpers/repoFile.ts";
 
 /** The extension ID fixed for this extension and recorded in the design. */
 const recordedExtensionId = "clfmbbcdpnjcefbdihdoahomaifbabkk";
@@ -17,59 +16,28 @@ const manifest = JSON.parse(
 
 describe("permissions", () => {
   it("declares exactly the three permissions the design requires", () => {
+    // No storage: nothing is stored, so chrome.storage is never needed.
     assert.deepEqual(manifest["permissions"], [
       "activeTab",
       "scripting",
-      "storage",
+      "nativeMessaging",
     ]);
   });
 });
 
 describe("undeclared keys", () => {
   it("declares exactly the keys the design lists", () => {
+    // No host_permissions (the host is not reached over the network) and no
+    // options_ui (there is nothing to set).
     assert.deepEqual(Object.keys(manifest).sort(), [
       "action",
-      "host_permissions",
       "key",
       "manifest_version",
       "minimum_chrome_version",
       "name",
-      "options_ui",
       "permissions",
       "version",
     ]);
-  });
-});
-
-describe("host permissions", () => {
-  it("requests exactly the loopback host the design fixes", () => {
-    assert.deepEqual(manifest["host_permissions"], ["http://127.0.0.1/*"]);
-  });
-
-  it("is recorded in the extension section of security.md", () => {
-    const hosts = manifest["host_permissions"];
-    assert.ok(Array.isArray(hosts));
-    const body = markdownSection(
-      readRepoFile("docs/dev/security.md"),
-      "### 8.1. ブラウザ拡張（#110）",
-    );
-    assert.notEqual(body, "", "security.md has no 8.1 extension section");
-    for (const host of hosts) {
-      assert.ok(typeof host === "string");
-      assert.ok(
-        body.includes(host),
-        `security.md 8.1 does not record the host permission ${host}`,
-      );
-    }
-  });
-});
-
-describe("options page", () => {
-  it("opens options.html in a tab", () => {
-    assert.deepEqual(manifest["options_ui"], {
-      page: "options.html",
-      open_in_tab: true,
-    });
   });
 });
 
@@ -78,7 +46,7 @@ describe("fixed fields", () => {
     assert.equal(manifest["manifest_version"], 3);
   });
 
-  it("requires Chrome 103 for AbortSignal.timeout", () => {
+  it("requires Chrome 103", () => {
     assert.equal(manifest["minimum_chrome_version"], "103");
   });
 

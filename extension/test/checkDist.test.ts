@@ -23,16 +23,11 @@ function write(root: string, file: string, content = ""): void {
   writeFileSync(full, content);
 }
 
-/** Writes a manifest into static/ and its copy in dist/, pointing at files. */
-function writeManifest(
-  root: string,
-  defaultPopup: string,
-  optionsPage: string,
-): void {
+/** Writes a manifest into static/ and its copy in dist/, pointing at the popup. */
+function writeManifest(root: string, defaultPopup: string): void {
   const content = JSON.stringify({
     manifest_version: 3,
     action: { default_popup: defaultPopup },
-    options_ui: { page: optionsPage, open_in_tab: true },
   });
   write(root, "static/manifest.json", content);
   write(root, "dist/manifest.json", content);
@@ -136,44 +131,20 @@ describe("checkDist", () => {
   it("accepts a manifest whose references exist", () => {
     write(root, "static/popup.html");
     write(root, "dist/popup.html");
-    write(root, "static/options.html");
-    write(root, "dist/options.html");
-    writeManifest(root, "popup.html", "options.html");
+    writeManifest(root, "popup.html");
     assert.deepEqual(checkDist(root), []);
   });
 
-  // One row per manifest reference: the base tree has dist/main.js and
-  // dist/page.html, so each row leaves exactly one reference unresolved.
-  const missingReferences: {
-    name: string;
-    popup: string;
-    optionsPage: string;
-    violation: string;
-  }[] = [
-    {
-      name: "popup",
-      popup: "popup.html",
-      optionsPage: "page.html",
-      violation:
-        'manifest.json: action.default_popup "popup.html" is not in dist/',
-    },
-    {
-      name: "options page",
-      popup: "page.html",
-      optionsPage: "options.html",
-      violation:
-        'manifest.json: options_ui.page "options.html" is not in dist/',
-    },
-  ];
-  for (const { name, popup, optionsPage, violation } of missingReferences) {
-    it(`rejects a manifest ${name} that is not in dist/`, () => {
-      writeManifest(root, popup, optionsPage);
-      assert.deepEqual(checkDist(root), [violation]);
-    });
-  }
+  it("rejects a manifest popup that is not in dist/", () => {
+    // The base tree has dist/main.js and dist/page.html but no popup.html.
+    writeManifest(root, "popup.html");
+    assert.deepEqual(checkDist(root), [
+      'manifest.json: action.default_popup "popup.html" is not in dist/',
+    ]);
+  });
 
   it("rejects a dist/ manifest whose bytes differ from static/", () => {
-    writeManifest(root, "page.html", "page.html");
+    writeManifest(root, "page.html");
     // Re-indent the dist/ copy: the parsed JSON stays the same, so only a
     // byte comparison can tell the two files apart.
     const original = readFileSync(
@@ -204,7 +175,7 @@ describe("checkDist", () => {
   ];
   for (const { name, remove, violation } of oneManifest) {
     it(`reports only the set violation for a manifest only in ${name}`, () => {
-      writeManifest(root, "page.html", "page.html");
+      writeManifest(root, "page.html");
       unlinkSync(path.join(root, remove));
       assert.deepEqual(checkDist(root), [violation]);
     });

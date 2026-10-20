@@ -54,30 +54,8 @@ body {
   padding-left: 1.25rem;
 }
 
-/* Options page: the token and port fields stack under their labels. */
-.options-token,
-.options-port {
-  display: block;
-  box-sizing: border-box;
-  width: 100%;
-  margin: 0.25rem 0 0.5rem;
-}
-
-.options-token-clear {
-  margin-left: 0.5rem;
-}
-
-.options-token-status,
-.options-port-status {
-  margin: 0 0 1rem;
-}
-
 /* Send result: the request id is one click away from a full copy. */
 .send-request-id {
   font-family: ui-monospace, monospace;
   user-select: all;
-}
-
-.send-status {
-  font-weight: 600;
 }

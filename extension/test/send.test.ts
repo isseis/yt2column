@@ -2,34 +2,24 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import type { CollectedInput } from "../src/core/collect.ts";
+import type { NativeReply } from "../src/core/native.ts";
 import { buildArticleBody } from "../src/core/prepare.ts";
 import type { PreparedRequest } from "../src/core/prepare.ts";
-import { maxResponseBytes } from "../src/core/response.ts";
 import type { RequestId } from "../src/core/response.ts";
-import type { ServerPort, SharedToken } from "../src/core/settings.ts";
 import { sendArticle, sendTimeoutMs } from "../src/send.ts";
-import type { SendResult } from "../src/core/response.ts";
 import {
-  endlessStream,
-  endlessStreamWithRejectingCancel,
-  failingStream,
-  recordingFetch,
-  redirectResponse,
-  rejectingFetch,
-  streamOf,
+  deferredNative,
+  manualSchedule,
+  recordingNative,
+  responseReply,
   testSendDeps,
-  textResponse,
-} from "./helpers/fetch.ts";
-import { identifiableToken } from "./helpers/settings.ts";
+} from "./helpers/native.ts";
 
 const requestId = "0123456789abcdef" as RequestId;
 const accepted = JSON.stringify({ status: "accepted", requestId });
 
 // Tests may assert a branded type to build fixtures.
 const request: PreparedRequest = {
-  url: "http://127.0.0.1:8765/articles",
-  port: "8765" as ServerPort,
-  token: identifiableToken as SharedToken,
   body: buildArticleBody(
     {
       selection: "hello",
@@ -40,152 +30,90 @@ const request: PreparedRequest = {
   ),
 } as PreparedRequest;
 
+/** Waits for the queued microtasks and one macrotask to settle. */
+async function flush(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 describe("sendArticle", () => {
-  it("posts once with the fixed RequestInit and only the two headers", async () => {
-    const { fetchFn, calls } = recordingFetch(async () =>
-      textResponse(202, accepted),
+  it("sends the body once, bounds the exchange and cancels the bound", async () => {
+    const native = recordingNative(async () => responseReply(202, accepted));
+    const timer = manualSchedule();
+    const result = await sendArticle(
+      request,
+      testSendDeps(native.sendNative, timer.schedule),
     );
-    const returnedSignal = new AbortController().signal;
-    const timeouts: number[] = [];
-    const deps = testSendDeps(fetchFn, (ms) => {
-      timeouts.push(ms);
-      return returnedSignal;
-    });
-    const result = await sendArticle(request, deps);
 
     assert.deepEqual(result, { kind: "accepted", requestId });
-    assert.equal(calls.length, 1);
-    const call = calls[0];
-    assert.ok(call !== undefined);
-    assert.equal(call.url, "http://127.0.0.1:8765/articles");
-    assert.equal(call.init.method, "POST");
-    assert.deepEqual(call.init.headers, {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${identifiableToken}`,
-    });
-    assert.equal(call.init.body, request.body.json);
-    assert.equal(call.init.redirect, "manual");
-    assert.equal(call.init.credentials, "omit");
-    assert.equal(call.init.cache, "no-store");
-    assert.equal(call.init.signal, returnedSignal);
-    assert.deepEqual(timeouts, [sendTimeoutMs]);
+    assert.equal(native.messages.length, 1);
+    assert.equal(native.messages[0], request.body.message);
+    assert.deepEqual(timer.delays, [sendTimeoutMs]);
+    assert.equal(timer.cancelled(), 1);
   });
 
-  it("classifies a body delivered in several chunks", async () => {
-    const bytes = new TextEncoder().encode(accepted);
-    const body = streamOf([bytes.slice(0, 10), bytes.slice(10)]);
-    const { fetchFn } = recordingFetch(async () => ({
-      type: "basic",
-      status: 202,
-      body,
+  it("returns extension-timeout when the bound passes first and ignores a later reply", async () => {
+    const native = deferredNative();
+    const timer = manualSchedule();
+    const pending = sendArticle(
+      request,
+      testSendDeps(native.sendNative, timer.schedule),
+    );
+    await flush();
+    timer.fire();
+    native.resolve(responseReply(202, accepted));
+    assert.deepEqual(await pending, {
+      kind: "unexpected",
+      check: "extension-timeout",
+    });
+  });
+
+  it("does not resend after a host failure", async () => {
+    const native = recordingNative(async (): Promise<NativeReply> => ({
+      kind: "failed",
+      lastError: "Native host has exited.",
     }));
-    assert.deepEqual(await sendArticle(request, testSendDeps(fetchFn)), {
-      kind: "accepted",
-      requestId,
+    assert.deepEqual(
+      await sendArticle(request, testSendDeps(native.sendNative)),
+      { kind: "host-failed", lastError: "Native host has exited." },
+    );
+    assert.equal(native.messages.length, 1);
+  });
+
+  it("returns host-failed when sendNative rejects against its contract", async () => {
+    const native = recordingNative(async () => {
+      throw new Error("broken");
+    });
+    assert.deepEqual(
+      await sendArticle(request, testSendDeps(native.sendNative)),
+      { kind: "host-failed", lastError: "Error: broken" },
+    );
+  });
+
+  it("returns host-failed when sendNative throws against its contract", async () => {
+    const deps = testSendDeps(() => {
+      throw new Error("thrown");
+    });
+    assert.deepEqual(await sendArticle(request, deps), {
+      kind: "host-failed",
+      lastError: "Error: thrown",
     });
   });
 
-  const rejections: { name: string; cause: unknown }[] = [
-    { name: "a TypeError", cause: new TypeError("Failed to fetch") },
-    {
-      name: "a TimeoutError",
-      cause: new DOMException("timed out", "TimeoutError"),
-    },
-  ];
-  for (const { name, cause } of rejections) {
-    it(`returns unknown and calls fetch once when fetch rejects with ${name}`, async () => {
-      const { fetchFn, calls } = rejectingFetch(cause);
-      assert.deepEqual(await sendArticle(request, testSendDeps(fetchFn)), {
-        kind: "unknown",
-        cause,
-      });
-      assert.equal(calls.length, 1);
-    });
-  }
-
-  const limitCases: { name: string; pad: number; expected: SendResult }[] = [
-    {
-      name: "exactly at the limit",
-      pad: 0,
-      expected: { kind: "accepted", requestId },
-    },
-    {
-      name: "one byte over the limit",
-      pad: 1,
-      expected: {
-        kind: "unexpected",
-        status: 202,
-        check: "body-over-limit",
+  it("returns classification-error when the reply throws while it is read", async () => {
+    // A getter cannot come from the browser's JSON parse; it stands in for
+    // any classifier failure, which must not escape as a thrown error.
+    const value = {
+      get v(): number {
+        throw new Error("getter");
       },
-    },
-  ];
-  for (const { name, pad, expected } of limitCases) {
-    it(`reads a body ${name}`, async () => {
-      const padded =
-        accepted + " ".repeat(maxResponseBytes + pad - accepted.length);
-      const { fetchFn } = recordingFetch(async () => textResponse(202, padded));
-      assert.deepEqual(
-        await sendArticle(request, testSendDeps(fetchFn)),
-        expected,
-      );
-    });
-  }
-
-  it("cancels an endless body and stops reading", async () => {
-    const tracked = endlessStream(512);
-    const { fetchFn } = recordingFetch(async () => ({
-      type: "basic",
-      status: 202,
-      body: tracked.body,
+    };
+    const native = recordingNative(async (): Promise<NativeReply> => ({
+      kind: "message",
+      value,
     }));
-    const result = await sendArticle(request, testSendDeps(fetchFn));
-    assert.ok(result.kind === "unexpected");
-    assert.equal(result.check, "body-over-limit");
-    assert.equal(tracked.cancelled(), true);
-  });
-
-  it("reports an over-limit body even when cancel rejects", async () => {
-    const stream = endlessStreamWithRejectingCancel(512);
-    const { fetchFn } = recordingFetch(async () => ({
-      type: "basic",
-      status: 202,
-      body: stream.body,
-    }));
-    const result = await sendArticle(request, testSendDeps(fetchFn));
-    assert.ok(result.kind === "unexpected");
-    assert.equal(result.check, "body-over-limit");
-    assert.equal(stream.cancelCalls(), 1);
-  });
-
-  it("treats a null body as empty", async () => {
-    const { fetchFn } = recordingFetch(async () => ({
-      type: "basic",
-      status: 200,
-      body: null,
-    }));
-    const result = await sendArticle(request, testSendDeps(fetchFn));
-    assert.ok(result.kind === "unexpected");
-    assert.equal(result.check, "json-shape");
-  });
-
-  it("returns unknown when the body cannot be read", async () => {
-    const cause = new Error("connection lost");
-    const { fetchFn } = recordingFetch(async () => ({
-      type: "basic",
-      status: 200,
-      body: failingStream([new TextEncoder().encode("{")], cause),
-    }));
-    assert.deepEqual(await sendArticle(request, testSendDeps(fetchFn)), {
-      kind: "unknown",
-      cause,
-    });
-  });
-
-  it("does not read the body of an opaqueredirect response", async () => {
-    const { fetchFn, calls } = recordingFetch(async () => redirectResponse());
-    assert.deepEqual(await sendArticle(request, testSendDeps(fetchFn)), {
-      kind: "redirected",
-    });
-    assert.equal(calls.length, 1);
+    assert.deepEqual(
+      await sendArticle(request, testSendDeps(native.sendNative)),
+      { kind: "unexpected", check: "classification-error" },
+    );
   });
 });

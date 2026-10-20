@@ -10,6 +10,7 @@ import type {
   RequestId,
   SendOutcome,
   ServerRejectReason,
+  UnexpectedCheck,
 } from "../src/core/response.ts";
 import {
   blockMessage,
@@ -61,9 +62,7 @@ describe("blockMessage", () => {
     assert.equal(new Set(texts).size, blockReasons.length);
   });
 
-  it("names the next action for the preflight reasons", () => {
-    assert.ok(textOf(blockMessage("settings-unreadable")).includes("options"));
-    assert.ok(textOf(blockMessage("port-invalid")).includes("8765"));
+  it("names the limit for body-too-large", () => {
     assert.ok(textOf(blockMessage("body-too-large")).includes("4 MiB"));
   });
 });
@@ -96,22 +95,124 @@ describe("sendOutcomeMessage", () => {
     );
   });
 
-  const slackCases: { name: string; outcome: SendOutcome }[] = [
+  // One outcome per displayed kind and not-sent cause.
+  const outcomes: { name: string; outcome: SendOutcome }[] = [
     { name: "accepted", outcome: { kind: "accepted", requestId } },
-    { name: "unknown", outcome: { kind: "unknown" } },
+    {
+      name: "rejected",
+      outcome: { kind: "rejected", reason: "invalid_body", requestId },
+    },
+    {
+      name: "server-unavailable",
+      outcome: { kind: "not-sent", cause: "server-unavailable" },
+    },
+    {
+      name: "message-too-large",
+      outcome: { kind: "not-sent", cause: "message-too-large" },
+    },
+    { name: "no-response", outcome: { kind: "no-response" } },
+    { name: "host-failed", outcome: { kind: "host-failed" } },
     {
       name: "unexpected",
-      outcome: { kind: "unexpected", status: 500, check: "json-shape" },
-    },
-    { name: "redirected", outcome: { kind: "redirected" } },
-    {
-      name: "too_many_requests",
-      outcome: { kind: "rejected", reason: "too_many_requests", requestId },
+      outcome: { kind: "unexpected", check: "envelope-shape" },
     },
   ];
-  for (const { name, outcome } of slackCases) {
-    it(`tells the user to check Slack for ${name}`, () => {
-      assert.ok(textOf(sendOutcomeMessage(outcome)).includes("Slack"), name);
+
+  it("gives every outcome a distinct text", () => {
+    const texts = outcomes.map(
+      ({ outcome }) => sendOutcomeMessage(outcome).text,
+    );
+    assert.equal(new Set(texts).size, outcomes.length);
+  });
+
+  const notSent = ["server-unavailable", "message-too-large"];
+  for (const name of notSent) {
+    it(`does not ask to check Slack when nothing was sent (${name})`, () => {
+      const entry = outcomes.find((row) => row.name === name);
+      assert.ok(entry !== undefined);
+      assert.equal(
+        textOf(sendOutcomeMessage(entry.outcome)).includes("Slack"),
+        false,
+      );
     });
   }
+
+  const unknown = ["no-response", "host-failed", "unexpected"];
+  for (const name of unknown) {
+    it(`asks to check Slack before sending again when the result is unknown (${name})`, () => {
+      const entry = outcomes.find((row) => row.name === name);
+      assert.ok(entry !== undefined);
+      const text = textOf(sendOutcomeMessage(entry.outcome)).toLowerCase();
+      assert.ok(text.includes("check slack"), name);
+      assert.ok(text.includes("before sending again"), name);
+    });
+  }
+
+  it("tells the user to check Slack after an accepted send and too_many_requests", () => {
+    assert.ok(
+      textOf(sendOutcomeMessage({ kind: "accepted", requestId })).includes(
+        "Slack",
+      ),
+    );
+    assert.ok(
+      textOf(serverRejectMessage("too_many_requests")).includes("Slack"),
+    );
+  });
+
+  it("names the host install step for host-failed", () => {
+    const text = textOf(sendOutcomeMessage({ kind: "host-failed" }));
+    assert.ok(text.includes("yt2column-nmhost install"));
+  });
+
+  it("names the server start for server-unavailable", () => {
+    const text = textOf(
+      sendOutcomeMessage({ kind: "not-sent", cause: "server-unavailable" }),
+    );
+    assert.ok(text.includes("yt2column-server"));
+  });
+
+  // Every check, as a Record so that a new check must be listed here.
+  const unexpectedChecks: Record<UnexpectedCheck, true> = {
+    "extension-timeout": true,
+    "envelope-shape": true,
+    "envelope-version": true,
+    "host-protocol-error": true,
+    "body-over-limit": true,
+    encoding: true,
+    escape: true,
+    "json-shape": true,
+    "duplicate-member": true,
+    "member-set": true,
+    "request-id": true,
+    "status-pairing": true,
+    "classification-error": true,
+  };
+
+  it("shows one message for every unexpected check", () => {
+    const message = sendOutcomeMessage({
+      kind: "unexpected",
+      check: "extension-timeout",
+    });
+    for (const check of Object.keys(unexpectedChecks) as UnexpectedCheck[]) {
+      assert.deepEqual(
+        sendOutcomeMessage({ kind: "unexpected", check }),
+        message,
+        check,
+      );
+    }
+  });
+
+  it("never mentions an options page, a token or a port", () => {
+    const messages = [
+      ...outcomes.map(({ outcome }) => sendOutcomeMessage(outcome)),
+      ...(Object.keys(serverRejectStatus) as ServerRejectReason[]).map(
+        serverRejectMessage,
+      ),
+      ...[...rejectionReasonsList, ...preflightReasonsList].map(blockMessage),
+    ];
+    for (const message of messages) {
+      const text = textOf(message);
+      assert.doesNotMatch(text, /option|token|\bport\b/iu, text);
+    }
+  });
 });

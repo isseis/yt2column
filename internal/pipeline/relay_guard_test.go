@@ -391,6 +391,9 @@ func TestWithoutSection(t *testing.T) {
 	}
 }
 
+// TestSharedTokenRemoved checks that no production Go file, no current
+// document and no file the extension ships from (extension/src and
+// extension/static) names the shared-token version's identifiers or files.
 func TestSharedTokenRemoved(t *testing.T) {
 	// texts maps a repository-relative path to the text that must not name a
 	// removed word.
@@ -402,6 +405,28 @@ func TestSharedTokenRemoved(t *testing.T) {
 		}
 		return string(data)
 	}
+	// addTree adds every file under the repository-relative dir that keep
+	// accepts.
+	addTree := func(dir string, keep func(path string) bool) {
+		err := filepath.WalkDir(filepath.Join(repoRoot, filepath.FromSlash(dir)), func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() || !keep(path) {
+				return nil
+			}
+			rel, err := filepath.Rel(repoRoot, path)
+			if err != nil {
+				return err
+			}
+			rel = filepath.ToSlash(rel)
+			texts[rel] = read(rel)
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("walk %s: %v", dir, err)
+		}
+	}
 	for _, rel := range productionGoFiles(t) {
 		texts[rel] = read(rel)
 	}
@@ -409,23 +434,13 @@ func TestSharedTokenRemoved(t *testing.T) {
 	texts["README.md"] = withoutSection(readme, upgradeHeading)
 	texts["CLAUDE.md"] = read("CLAUDE.md")
 	texts["docs/translation_glossary.md"] = read("docs/translation_glossary.md")
-	err := filepath.WalkDir(filepath.Join(repoRoot, "docs", "dev"), func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() || !strings.HasSuffix(path, ".md") {
-			return nil
-		}
-		rel, err := filepath.Rel(repoRoot, path)
-		if err != nil {
-			return err
-		}
-		rel = filepath.ToSlash(rel)
-		texts[rel] = read(rel)
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("walk docs/dev: %v", err)
+	addTree("docs/dev", func(path string) bool { return strings.HasSuffix(path, ".md") })
+	beforeExtension := len(texts)
+	everyFile := func(string) bool { return true }
+	addTree("extension/src", everyFile)
+	addTree("extension/static", everyFile)
+	if len(texts) == beforeExtension {
+		t.Fatal("found no files under extension/src or extension/static")
 	}
 	_, upgrade := splitSection(readme, upgradeHeading)
 	if !strings.Contains(upgrade, "server-token") {

@@ -7,12 +7,12 @@ import { JSDOM } from "jsdom";
 import {
   createMetadataReader,
   createSelectionReader,
-  createSettingsStore,
+  createSendDeps,
+  type NativeMessagingApi,
   type ScriptingApi,
-  type StorageArea,
 } from "../src/browser/chromeDeps.ts";
 import type { PageSelection } from "../src/core/collect.ts";
-import type { ServerPort, SharedToken } from "../src/core/settings.ts";
+import { nativeHostName } from "../src/core/native.ts";
 
 type Injection = {
   readonly target: { readonly tabId: number };
@@ -302,99 +302,98 @@ describe("page metadata injection", () => {
   });
 });
 
-/** The keys of a StorageArea call as a list, whether one key or many. */
-function keyList(keys: string | string[]): string[] {
-  return typeof keys === "string" ? [keys] : keys;
+interface NativeCall {
+  readonly application: string;
+  readonly message: object;
 }
 
-/** An in-memory StorageArea backed by entries. */
-function memoryStorage(entries: Map<string, unknown>): StorageArea {
-  return {
-    get: async (keys) => {
-      const values: Record<string, unknown> = {};
-      for (const key of keyList(keys)) {
-        if (entries.has(key)) {
-          values[key] = entries.get(key);
+interface RuntimeRecorder {
+  readonly runtime: NativeMessagingApi;
+  readonly calls: NativeCall[];
+}
+
+/**
+ * A runtime whose sendNativeMessage records the call and then runs answer:
+ * answer may call back (setting lastError for the callback's duration, as the
+ * browser does) or throw instead of calling back.
+ */
+function recordingRuntime(
+  answer: (respond: (response: unknown, lastError?: string) => void) => void,
+): RuntimeRecorder {
+  const calls: NativeCall[] = [];
+  const runtime: { lastError?: { message?: string } | undefined } & Pick<
+    NativeMessagingApi,
+    "sendNativeMessage"
+  > = {
+    sendNativeMessage(application, message, callback) {
+      calls.push({ application, message });
+      answer((response, lastError) => {
+        runtime.lastError =
+          lastError === undefined ? undefined : { message: lastError };
+        try {
+          callback(response);
+        } finally {
+          runtime.lastError = undefined;
         }
-      }
-      return values;
-    },
-    set: async (items) => {
-      for (const [key, value] of Object.entries(items)) {
-        entries.set(key, value);
-      }
-    },
-    remove: async (keys) => {
-      for (const key of keyList(keys)) {
-        entries.delete(key);
-      }
+      });
     },
   };
+  return { runtime, calls };
 }
 
-interface AreaRecorder {
-  readonly area: StorageArea;
-  readonly gets: (string | string[])[];
-  readonly sets: Record<string, unknown>[];
-  readonly removes: (string | string[])[];
-}
+describe("send dependencies", () => {
+  const message = { videoUrl: "https://www.youtube.com/watch?v=abc" };
 
-/** A memoryStorage that also records each call's keys. */
-function recordingArea(entries: Map<string, unknown>): AreaRecorder {
-  const base = memoryStorage(entries);
-  const gets: (string | string[])[] = [];
-  const sets: Record<string, unknown>[] = [];
-  const removes: (string | string[])[] = [];
-  return {
-    area: {
-      get: async (keys) => {
-        gets.push(keys);
-        return base.get(keys);
-      },
-      set: async (items) => {
-        sets.push(items);
-        return base.set(items);
-      },
-      remove: async (keys) => {
-        removes.push(keys);
-        return base.remove(keys);
-      },
-    },
-    gets,
-    sets,
-    removes,
-  };
-}
-
-describe("settings store", () => {
-  it("loads both keys with one get", async () => {
-    const entries = new Map<string, unknown>([
-      ["sharedToken", "token"],
-      ["serverPort", "8765"],
-    ]);
-    const { area, gets } = recordingArea(entries);
-    const store = createSettingsStore(area);
-    assert.deepEqual(await store.load(), { token: "token", port: "8765" });
-    assert.deepEqual(gets, [["sharedToken", "serverPort"]]);
+  it("sends the message to the fixed host once and resolves its reply", async () => {
+    const reply = { v: 1, kind: "error", error: "server_timeout" };
+    const { runtime, calls } = recordingRuntime((respond) => respond(reply));
+    const result = await createSendDeps(runtime).sendNative(message);
+    assert.deepEqual(result, { kind: "message", value: reply });
+    assert.deepEqual(calls, [{ application: nativeHostName, message }]);
   });
 
-  it("saves the token and the port under separate keys", async () => {
-    const { area, sets } = recordingArea(new Map());
-    const store = createSettingsStore(area);
-    await store.saveToken("token" as SharedToken);
-    await store.savePort("8765" as ServerPort);
-    assert.deepEqual(sets, [{ sharedToken: "token" }, { serverPort: "8765" }]);
+  it("resolves a lastError as failed with its text, whatever the reply", async () => {
+    const { runtime } = recordingRuntime((respond) =>
+      respond(undefined, "Native host has exited."),
+    );
+    assert.deepEqual(await createSendDeps(runtime).sendNative(message), {
+      kind: "failed",
+      lastError: "Native host has exited.",
+    });
   });
 
-  it("clears only the token", async () => {
-    const entries = new Map<string, unknown>([
-      ["sharedToken", "token"],
-      ["serverPort", "8765"],
-    ]);
-    const { area, removes } = recordingArea(entries);
-    const store = createSettingsStore(area);
-    await store.clearToken();
-    assert.deepEqual(removes, ["sharedToken"]);
-    assert.deepEqual(await store.load(), { token: undefined, port: "8765" });
+  it("resolves a lastError without a message as failed", async () => {
+    const runtime: NativeMessagingApi = {
+      lastError: {},
+      sendNativeMessage: (_application, _message, callback) =>
+        callback(undefined),
+    };
+    assert.deepEqual(await createSendDeps(runtime).sendNative(message), {
+      kind: "failed",
+      lastError: undefined,
+    });
+  });
+
+  it("resolves a synchronous throw as failed instead of waiting", async () => {
+    const { runtime } = recordingRuntime(() => {
+      throw new TypeError("Message exceeded maximum allowed size of 64MiB.");
+    });
+    assert.deepEqual(await createSendDeps(runtime).sendNative(message), {
+      kind: "failed",
+      lastError: "TypeError: Message exceeded maximum allowed size of 64MiB.",
+    });
+  });
+
+  it("runs a scheduled callback after the delay unless it is cancelled", async () => {
+    const { runtime } = recordingRuntime(() => {});
+    const { schedule } = createSendDeps(runtime);
+    const ran: string[] = [];
+    schedule(50, () => ran.push("kept"));
+    const cancel = schedule(50, () => ran.push("cancelled"));
+    cancel();
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    assert.deepEqual(ran, [], "ran before the delay");
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.deepEqual(ran, ["kept"]);
   });
 });

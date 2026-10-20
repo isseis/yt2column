@@ -1,11 +1,18 @@
 // English messages for every way a send path ends: a launch that sends
 // nothing, a server rejection, and a send outcome. Each switch ends in never,
-// so adding a reason without a message fails the type check.
+// so adding a reason without a message fails the type check. A message for a
+// request known not to have reached the server never asks the user to check
+// Slack; every message for a result that is not known does.
 
 import { rejectionMessage } from "./messages.ts";
 import type { RejectionMessage } from "./messages.ts";
 import type { BlockReason } from "./prepare.ts";
-import type { SendOutcome, ServerRejectReason } from "./response.ts";
+import type {
+  NotSentCause,
+  SendOutcome,
+  ServerRejectReason,
+  UnexpectedCheck,
+} from "./response.ts";
 
 /** Message for a launch that ends without a request. Collection reasons use rejectionMessage. */
 export function blockMessage(reason: BlockReason): RejectionMessage {
@@ -15,40 +22,6 @@ export function blockMessage(reason: BlockReason): RejectionMessage {
     case "empty-selection":
     case "empty-title":
       return rejectionMessage(reason);
-    case "settings-unreadable":
-      return {
-        text: "The extension could not read its settings.",
-        steps: [
-          "Launch yt2column again.",
-          "If it keeps failing, open the options page and save the settings again.",
-        ],
-      };
-    case "token-missing":
-      return {
-        text: "No shared token is set.",
-        steps: [
-          "Right-click the toolbar icon and open Options.",
-          "Paste the token the server printed at startup (or the token file's contents) and save it.",
-          "Launch yt2column again.",
-        ],
-      };
-    case "token-invalid":
-      return {
-        text: "The stored shared token does not have the right form.",
-        steps: [
-          "Right-click the toolbar icon and open Options.",
-          "Paste the token the server printed at startup (or the token file's contents) and save it.",
-          "Launch yt2column again.",
-        ],
-      };
-    case "port-invalid":
-      return {
-        text: "The stored server port is not valid.",
-        steps: [
-          "Open the options page.",
-          "Enter the server port YT2COLUMN_SERVER_PORT uses (8765 if unchanged) and save it.",
-        ],
-      };
     case "body-too-large":
       return {
         text: "The selected text is too large (over 4 MiB).",
@@ -108,23 +81,62 @@ export function serverRejectMessage(
           "The server may also have posted a failure notice to Slack.",
         ],
       };
-    case "not_found":
-      return {
-        text: "No article endpoint was found at the server address.",
-        steps: [
-          "Check the port in the options page; the server may not be running.",
-        ],
-      };
-    case "method_not_allowed":
-      return {
-        text: "The server did not accept POST at the article endpoint.",
-        steps: [
-          "Check the port in the options page; another process may be using it.",
-        ],
-      };
     default: {
       const exhaustive: never = reason;
       throw new Error(`Unhandled server reject reason: ${String(exhaustive)}`);
+    }
+  }
+}
+
+/** Message for a request known not to have reached the server; no Slack check. */
+function notSentMessage(cause: NotSentCause): RejectionMessage {
+  switch (cause) {
+    case "server-unavailable":
+      return {
+        text: "Could not connect to the yt2column server, so nothing was sent.",
+        steps: [
+          "Start yt2column-server. A server that is stopping waits for its jobs, and a new one cannot start until they finish.",
+          "If the server is running, check that it runs as your user and that its socket directory has the permissions the README describes.",
+        ],
+      };
+    case "message-too-large":
+      return {
+        text: "The request is too large for the host, so nothing was sent.",
+        steps: ["Select fewer caption lines and try again."],
+      };
+    default: {
+      const exhaustive: never = cause;
+      throw new Error(`Unhandled not-sent cause: ${String(exhaustive)}`);
+    }
+  }
+}
+
+/** The one message for every unexpected reply; the check is for the developer log only. */
+function unexpectedMessage(check: UnexpectedCheck): RejectionMessage {
+  switch (check) {
+    case "extension-timeout":
+    case "envelope-shape":
+    case "envelope-version":
+    case "host-protocol-error":
+    case "body-over-limit":
+    case "encoding":
+    case "escape":
+    case "json-shape":
+    case "duplicate-member":
+    case "member-set":
+    case "request-id":
+    case "status-pairing":
+    case "classification-error":
+      return {
+        text: "Could not interpret the reply. The server may have received the request and be processing it.",
+        steps: [
+          "Check that the host, the server and the extension come from the same build; run yt2column-nmhost install again from the built binary.",
+          "Check Slack for the article or a failure notice before sending again.",
+        ],
+      };
+    default: {
+      const exhaustive: never = check;
+      throw new Error(`Unhandled unexpected check: ${String(exhaustive)}`);
     }
   }
 }
@@ -139,31 +151,26 @@ export function sendOutcomeMessage(outcome: SendOutcome): RejectionMessage {
       };
     case "rejected":
       return serverRejectMessage(outcome.reason);
-    case "unknown":
+    case "not-sent":
+      return notSentMessage(outcome.cause);
+    case "no-response":
       return {
-        text: "Could not get a response from the server. It may not be running, or it may have received and be processing the request.",
+        text: "The server did not respond in time. It may have received the request and be processing it.",
         steps: [
-          "Check Slack for the article or a failure notice.",
-          "If nothing arrived, make sure the server is running, then send again.",
-          "If it keeps failing, check the server log around this time.",
+          "Check Slack for the article or a failure notice before sending again.",
+          "If nothing arrives, check the server log around this time.",
+        ],
+      };
+    case "host-failed":
+      return {
+        text: "The native messaging host could not be started, or it exited without replying.",
+        steps: [
+          "Most often the host is not installed or its binary was moved: run yt2column-nmhost install chrome (or brave) from the built binary, and again after moving it.",
+          "The request may already have been sent: check Slack for the article or a failure notice before sending again.",
         ],
       };
     case "unexpected":
-      return {
-        text: "Could not interpret the server's response.",
-        steps: [
-          "Check that the server version matches the extension, and that the port in the options page is correct.",
-          "Check Slack before sending again.",
-        ],
-      };
-    case "redirected":
-      return {
-        text: "The server responded with a redirect.",
-        steps: [
-          "Check that the port in the options page is correct.",
-          "Check Slack before sending again.",
-        ],
-      };
+      return unexpectedMessage(outcome.check);
     default: {
       const exhaustive: never = outcome;
       throw new Error(`Unhandled send outcome: ${String(exhaustive)}`);

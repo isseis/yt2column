@@ -965,7 +965,7 @@ export function classifyResponse(
 | `TestExtensionSendDocumentation` の security.md のサブテスト（`:207-247`） | §8 の冒頭が `タイトルは送らない` を含み、§8.1 が `chrome.storage.local`・`開発者向けのログ`・`API キー`・`Webhook URL`・`再送しない`・`本文の文字列` を含む。§8.2 の見出しを読む | 変えない。§8.1 は、拡張が `chrome.storage` を使わず、旧版が `chrome.storage.local` に保存した値が残りうることを書くので、この語は残る。他の語の項目も残し、§8.2 の見出しも変えない |
 | （新規）同期のテスト | - | `nmhost.ExtensionOrigin` が manifest の `key` から導出した拡張 ID（既存の `extensionIDFromManifestKey`）のオリジンと一致すること。`extension/src/core/native.ts` の `nativeHostName`・`hostReplyVersion`・`hostReplyKinds`・`hostErrorValues` の宣言の行の値が、`nmhost` の定数と一致すること。`extension/src/send.ts` の `sendTimeoutMs` が `nmhost` の中継の時間の上限より大きいこと（要件書 F-003「`allowed_origins` は拡張の manifest の `key` から導出した ID と一致する」、§3.5.4・§3.5.5） |
 
--   `extension/test/serverReasons.test.ts` は、README の表のうち「拡張の表示」の列が固定の文言である行だけを `serverRejectStatus` と照合するように改める（§3.3.1）。`extension/test/manifest.test.ts` は、権限とキーの集合と、security.md §8.1 の記述の確認を改める（CLAUDE.md の「README.md と security.md の変更は `make ext-test` を要する」のとおり）。
+-   `extension/test/serverReasons.test.ts` は、README の表のうち「拡張の表示」の列が固定の文言である行だけを `serverRejectStatus` と照合するように改める（§3.3.1）。`extension/test/manifest.test.ts` は、権限とキーの集合の確認を改める。security.md §8.1 の権限の一覧との照合は、同じ照合を双方向に行う `TestExtensionDocumentation` の権限のサブテストに任せ、`manifest.test.ts` は security.md を読まない（実装での決定）。
 -   `0011`・`0020`・`0021` の文書は変更しない（要件書 F-005）。
 
 ### 3.10. 実機での確認（H-07）
@@ -1395,7 +1395,7 @@ flowchart LR
 -   テストの中で `go build` によりホスト（`./cmd/yt2column-nmhost`）を一時ディレクトリにビルドする。ビルドの環境では `GOOS`・`GOARCH` を実行中の値に固定し、`GOFLAGS` を空にして、利用者の環境変数でビルドが変わらないようにする。サーバは、既存の `run` を fake の LLM（`testDeps`）と loopback の Webhook（`loopbackDeps`）で起動する。実際の LLM API と Slack Webhook は呼ばない。既存のビルドタグ `integration`（実際の外部サービスを使うテストの方針）には入れない。外部サービスを使わないので `make test` で実行でき、既存の `TestServerEndToEnd` と同じ扱いである。`cmd/yt2column-server` の文書のガードを実行する CI の `doc-guard` のジョブ（`go test -tags test ./cmd/yt2column-server ...`）でも、このテストとホストのビルドが実行される。数秒の増加であり、受け入れる。
 -   `HOME` は短い一時ディレクトリにする。macOS の `t.TempDir()` のパス（`/var/folders/...`）にソケットのパスの 54 バイトを足すと 103 バイトを超えうるので、`/tmp` の下に短い名前のディレクトリを作り、`t.Cleanup` で消す補助関数を使う（`internal/serversock` と `cmd/yt2column-server` のテストも同じ）。
 -   シナリオ: (1) ホストの stdin にフレームを書き、受付応答が返り、ホストが終了し、その後で fake の遅い LLM を解放してから記事が Webhook に届く（応答の後にホストが終了してもジョブが続く。AC-14・AC-15）。(2) 字幕書式の誤りで `invalid_transcript` の応答と失敗の通知が届く（AC-13）。(3) サーバを止めた状態で `server_unavailable` が返る。(4) 4 MiB を超えホストの上限以下の本文で、`body_too_large` の応答が返る（AC-16）。(5) ホストの標準出力がフレーム 1 つだけである。
--   AC-14 の手動の確認と、§3.10 の S-1〜S-8 とは別に、`03_implementation_plan.md` の手動の確認の表（AC-36）で、Chrome と Brave のそれぞれについて、ホスト未インストール、サーバ停止、サーバ起動中、入力の拒否、同時の送信、応答の後のブラウザの終了、4 MiB を超える本文、ホストの再インストールを確かめる。
+-   AC-14 の手動の確認と、§3.10 の S-1〜S-8 とは別に、`03_implementation_plan.md` の手動の確認の表（AC-36）で、Chrome と Brave のそれぞれについて、ホスト未インストール、サーバ停止、サーバ起動中、入力の拒否、4 MiB を超える本文、ホストの再インストールを確かめる。同時の送信と応答の後のブラウザの終了は、Chrome だけで確かめる。どちらもサーバの振る舞いを確かめるもので、ブラウザに依存する部分がない。受付応答を返した時点でホストは終了しているので、3 つ目を送るときに同時に動くのはサーバのジョブだけであり、ブラウザを終了してもジョブには関わらない。また、`too_many_requests` の応答は、入力の拒否と同じ経路（ホストが応答をそのまま返し、拡張が拒否として表示する）を通り、その経路は入力の拒否で両方のブラウザについて確かめる。
 
 ### 7.3. セキュリティテスト
 
