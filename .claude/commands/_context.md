@@ -45,7 +45,7 @@ what changes under which condition:
 | Implementation plan document | `03_implementation_plan.md` |
 | Design handoff document | `design_handoff.md` — design-level review concerns raised on the requirements document; the architecture document records how each item is handled (written by `fixpr.md`) |
 | Implementation handoff document | `implementation_handoff.md` — implementation-level review concerns raised on the requirements or architecture document; the implementation plan records how each item is handled (written by `fixpr.md`) |
-| Document status values | `draft` → `approved` |
+| Document status values | `draft` → `approved`; `withdrawn` for every document of a task withdrawn after review (see the requirements process guide, "Document Status Format") |
 | PR merge method | Squash merge, run with `/mergepr`. The squash commit is the only commit of a PR that reaches `main`, so its message carries what CLAUDE.md requires commit messages to record |
 | Document language | Japanese |
 | Translation glossary | `docs/translation_glossary.md` |
