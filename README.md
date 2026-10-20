@@ -608,19 +608,20 @@ An accepted request answers `202` with `{"status":"accepted","requestId":"…"}`
 A rejected request answers a `4xx` or `5xx` with
 `{"status":"rejected","reason":"…","requestId":"…"}`, where `reason` is one of:
 
-| reason | status code |
-|---|---|
-| `not_found` | 404 |
-| `method_not_allowed` | 405 |
-| `too_many_requests` | 429 |
-| `body_too_large` | 413 |
-| `invalid_body` | 400 |
-| `invalid_video_url` | 400 |
-| `invalid_transcript` | 400 |
-| `internal_error` | 500 |
+| reason | status code | extension shows |
+|---|---|---|
+| `not_found` | 404 | unexpected reply |
+| `method_not_allowed` | 405 | unexpected reply |
+| `too_many_requests` | 429 | fixed message |
+| `body_too_large` | 413 | fixed message |
+| `invalid_body` | 400 | fixed message |
+| `invalid_video_url` | 400 | fixed message |
+| `invalid_transcript` | 400 | fixed message |
+| `internal_error` | 500 | fixed message (unexpected reply when `requestId` is empty) |
 
 `not_found` and `method_not_allowed` answer a wrong path or method; they start
-no job and post no failure notice.
+no job and post no failure notice. The host always sends `POST /articles`, so
+the extension shows either one as an unexpected reply.
 
 ### Troubleshooting
 
@@ -674,6 +675,12 @@ no job and post no failure notice.
   - other Unix: `${XDG_CONFIG_HOME:-$HOME/.config}/yt2column/server-token`
 - The server no longer reads the variable that chose its port; it can be
   removed from your environment.
+- The extension no longer has an options page or the storage permission, so it
+  cannot read or delete the token and port an earlier version saved in the
+  browser; nothing accepts them anymore. To remove them anyway, remove the
+  extension on `chrome://extensions/` (Brave: `brave://extensions/`) and load
+  `extension/dist` again. Its ID stays the same, so the host needs no new
+  `install`.
 
 ## Setting up yt-dlp
 
@@ -818,13 +825,6 @@ channel name, and the description — from the video page. It sends the selectio
 the URL, and the video metadata to the localhost server, and shows the response.
 The tab title is shown for checking (and must not be empty); it is not sent.
 
-**Transitional note.** This section describes the extension as it is now,
-which sends over HTTP to `127.0.0.1` with the shared token. The server already
-listens only on its Unix socket and has no token (see
-[Localhost server](#localhost-server)), so this extension cannot reach it until
-the extension is switched to the native messaging host; that change rewrites
-this section and removes this note.
-
 Node.js 24 is required, and every `ext-*` target refuses to run when
 `node --version` does not match `extension/.node-version`. The version file sits
 inside `extension/`, so a version manager that reads the current directory (such
@@ -854,18 +854,20 @@ confirmation.
 The extension ID is fixed to `clfmbbcdpnjcefbdihdoahomaifbabkk`, so it is the
 same on every machine and from every directory.
 
-Before sending, set the shared token on the extension's options page:
-right-click the toolbar icon, then **Options** (or **Details** → **Extension
-options** on `chrome://extensions/`). Paste the token the server printed at
-startup and save it; if you changed the server's port, set it on the same page
-too. Without a saved token the extension does not send and says how to set one.
-The value itself is never shown again, only whether one is set.
+The extension sends through the native messaging host, so before the first
+send start the server and register the host for your browser from the binary
+`make build` built (see
+[Installing the native messaging host](#installing-the-native-messaging-host)):
 
-If you restricted the extension's site access, allow `127.0.0.1`: on
-`chrome://extensions/` open **Details** → **Site access** and allow
-`127.0.0.1`. Without it the request fails and the extension shows "Could not get
-a response from the server", which looks the same as a server that is not
-running.
+```sh
+./build/yt2column-nmhost install chrome   # or: install brave
+```
+
+There is nothing to set in the extension: it has no settings page and stores
+nothing. If the popup says the native messaging host could not be started, the
+host is most often not installed for that browser, or its binary was moved
+since it was installed: run `yt2column-nmhost install` again from the built
+binary (see [Troubleshooting](#troubleshooting)).
 
 To send, open the transcript panel on a video page, select the caption lines,
 and click the extension's toolbar icon to open the popup. The popup shows what
@@ -897,9 +899,14 @@ How to read the result:
 - **Accepted** (`202`): the server took the request. It shows a `requestId` and
   says the result of generating and posting the article will arrive in Slack.
 - **Rejected**: it shows the reason and a `requestId`.
-- **Could not get a response** or **could not interpret the response**: it does
-  not resend automatically, and it tells you to check Slack before sending
-  again, because the server may already be processing the request.
+- **Not sent**: the server is not running, or the request is too large for the
+  host. The request did not reach the server, so it says what to fix and does
+  not ask you to check Slack.
+- **Result unknown**: the server did not respond in time, the host could not be
+  started or exited without replying, or the reply could not be interpreted.
+  The request may have reached the server. It does not resend automatically,
+  and it tells you to check Slack before sending again, because the server may
+  already be processing the request.
 
 The `requestId` matches the extension's display with the server log and with a
 failure notice in Slack. A successfully generated article carries no
@@ -924,9 +931,11 @@ is expected, a line containing an ASCII digit, a colon, and a digit in a row
 To see what was collected and the send result, open the popup's console from
 the moment the popup opens: right-click the toolbar icon and choose
 **Inspect popup** (shown while Developer mode is on; pin the extension first if
-its icon is in the Extensions menu). The log is lost when the popup closes, so
-after closing it, find the result of a send in Slack and in the server log by
-the time.
+its icon is in the Extensions menu). The send log names the host, and for a
+host that could not be started it records the browser's error text, such as
+`Specified native messaging host not found.`. The log is lost when the popup
+closes, so after closing it, find the result of a send in Slack and in the
+server log by the time.
 
 ### Integration test
 
