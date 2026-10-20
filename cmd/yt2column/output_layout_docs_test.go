@@ -39,7 +39,7 @@ func outputLayoutArticle() writer.Article {
 		Title:       "Caching transcripts by video ID",
 		ChannelName: "Example Channel",
 		Body: "The cache key comes from the video ID alone.\n\n## One key per video\n\nTwo URLs for one video share one entry.\n\n" +
-			"出典: <https://www.youtube.com/watch?v=abcdefghijk>\n",
+			"\u51fa\u5178: <https://www.youtube.com/watch?v=abcdefghijk>\n",
 		SourceURL:    "https://www.youtube.com/watch?v=abcdefghijk",
 		Model:        "deepseek-flash",
 		ModelVersion: "v4",
