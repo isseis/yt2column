@@ -54,12 +54,16 @@ from the table or the code:
 
 `TestCostDocsContract` checks the README's "Estimated cost" section against the
 code's format constants, not against any list in the document, so a rate change
-does not force an edit there. Two spots still depend on the table by hand and
-are not tied to it by a test, so update them yourself:
+does not force an edit there. Some spots still depend on the table by hand, so
+update them yourself:
 
 - the README's "Estimated cost" section states the DeepSeek peak window
   ("Monday through Friday during 01:00-04:00 and 06:00-10:00 UTC"); a window
   that moves makes that prose stale;
+- the README's "Output format" examples show an estimated cost computed from
+  the rate table (`0.0094`); `TestOutputLayoutDocsContract` compares them with
+  the real output, so a rate change fails that test until the two example
+  amounts are updated;
 - the README's configuration section and `project_overview.md` name the models,
   which change only when the set of models does.
 

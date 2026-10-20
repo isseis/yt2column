@@ -20,7 +20,7 @@ func articleCost(runUsage writer.RunUsage) (pricing.Amount, bool) {
 }
 
 // modelVersionOrNone returns version, or the "(none)" placeholder shown when a
-// provider reports no version, for the model lines of the output and the
+// provider reports no version, for the model entries of the output and the
 // review log.
 func modelVersionOrNone(version string) string {
 	if version == "" {
