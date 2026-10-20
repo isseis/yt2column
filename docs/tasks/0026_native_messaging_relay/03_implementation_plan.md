@@ -463,7 +463,7 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 **判定理由**: オプションページ・`fetch`・トークン・`storage` の権限の削除と Native Messaging の追加を同時に行う移行の段階で、拡張の多くのテストとガードを書き換える（mkplan のパネル方式の条件「振る舞いの追加と削除を同時に行う移行」）。
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 -   [ ] **ステップ 3-13**: 拡張の接続先と `chrome.storage` を限る lint の規則を加える（設計書 7.3）。`extension/eslint.config.js` で `fetch`・`XMLHttpRequest`・`WebSocket`・`EventSource` の使用と `connectNative` の参照を禁止し、`sendNativeMessage` の参照を `src/browser/chromeDeps.ts` に限る。`chrome.storage.sync` の規則（`syncPattern`）を、`chrome.storage` の参照（ドット・計算されたメンバ・分割代入の形）を禁じる規則に置き換え、理由のコメントを、拡張が `storage` の権限を持たないことに改める（設計書 3.8）。`lintRules.test.ts`（AC-23・AC-24・AC-29）に、各規則が違反を検出し、`chromeDeps.ts` の `sendNativeMessage` を許すことの確認を加える。`storage.sync` の `describe` と、作成の関数のファイルの共通の規則の `storage.sync` の行を `chrome.storage` の参照の禁止に改め、`chrome.storage.local` を許す行を削除する。各規則を 1 つずつ外して `lintRules.test.ts` が失敗することを確かめ、コミットメッセージに記録する（§1.2）。
