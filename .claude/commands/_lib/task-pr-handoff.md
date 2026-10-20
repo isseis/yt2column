@@ -14,16 +14,13 @@ supplies the inputs below.
 
 Project-specific values (feature branch name, reviewer ping, task root, green
 gate) are in `.claude/commands/_context.md`. The local review is
-`.claude/commands/_lib/coderabbit-local-review.md`; the PR creation mechanics are
-`.claude/commands/_lib/pr-review-merge-loop.md` step 1.
+`.claude/commands/_lib/coderabbit-local-review.md`.
 
 These commands do not wait for the review or the merge. The reviewer reviews the
-PR and then runs, by hand, the command that drives it to the merge:
-`/runchange <PR>` for a task-document PR, `/runpr <PR>` for a `/runplan` PR.
-That command waits for CodeRabbit and CI, resolves the threads, and then asks
+PR and then runs `/runpr <PR>` by hand, which drives it to the merge. It waits for CodeRabbit and CI, resolves the threads, and then asks
 one question that covers the merge, the bookkeeping committed just before it
 (for a task-document PR, setting the document to `approved`), and the next
-command to run (`_lib/pr-review-merge-loop.md` step 3).
+command to run (`runpr.md` steps 2 and 4).
 
 ## Inputs the calling command must supply
 
@@ -38,8 +35,6 @@ command to run (`_lib/pr-review-merge-loop.md` step 3).
 - **PR_TEXT** — the PR title and what the body must name: for a task-document
   command, the title of the commit that added the document; for `runplan.md`,
   the PR marker's `推奨タイトル` and its `レビュー観点`.
-- **DRIVER** — the command the reviewer runs next: `/runchange` for a
-  task-document command, `/runpr` for `runplan.md`.
 - **AFTER_CREATE** (optional) — what the calling command does once the PR
   exists, before CodeRabbit is asked (`runplan.md`: mark `PR を作成した` with the
   PR URL, commit, and push).
@@ -57,7 +52,7 @@ first.
 
 1. Check the working tree with `git status --short`. It must be clean; stop and
    report otherwise. (Approving the previous document is not a working-tree
-   edit: `/runchange` commits it at the merge, on the reviewer's answer.)
+   edit: `/runpr` commits it at the merge, on the reviewer's answer.)
 2. `git fetch origin main`.
 3. Use the current branch when its name follows the feature branch convention
    (`_context.md`) for TASK_DIR and either:
@@ -113,7 +108,7 @@ Run this after the calling command's last commit, with a clean working tree.
    appears, ask for one with
    `gh pr comment <number> --body "@coderabbitai review"`.
 6. Ping the human reviewer (`_context.md`, "Reviewer ping") with the PR URL and
-   the next action: review the PR, then run `DRIVER <PR>`. If the ping tool is
+   the next action: review the PR, then run `/runpr <PR>`. If the ping tool is
    unavailable or the ping is not sent, the report in step 7 carries the same
    message.
 7. In REPORT, give the PR URL, the review results, and the same next action.

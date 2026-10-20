@@ -89,7 +89,6 @@ Work in order.
     REPORT;
   - **PR_TEXT** = the PR marker's `推奨タイトル` as the title, and its
     `レビュー観点` in the body;
-  - **DRIVER** = `/runpr`;
   - **AFTER_CREATE** = mark the second checkbox (`PR を作成した`) as `[x]` and
     append the PR URL to that line, commit, and `git push`, so the update is in
     the PR before it is merged.

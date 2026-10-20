@@ -4,7 +4,7 @@ description: "Internal: shared review-finding triage scales (not a command)"
 
 # Shared pattern: review-finding triage
 
-`fixpr.md` (Phase 2) and `_lib/coderabbit-local-review.md` (used by `runplan.md` step 7.7, `runchange.md`, and `_lib/task-pr-handoff.md`) both classify review findings
+`fixpr.md` (Phase 2) and `_lib/coderabbit-local-review.md` (used by `runplan.md` step 7.7, `runpr.md`, and `_lib/task-pr-handoff.md`) both classify review findings
 on the same scales. This file defines the scales once. A calling command invokes
 it by saying "follow `_lib/triage-pattern.md`" and supplies the findings; it
 keeps its own input and output shapes (thread JSON, reply JSON, clusters).

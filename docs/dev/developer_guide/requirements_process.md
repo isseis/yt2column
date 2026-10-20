@@ -7,7 +7,7 @@ When implementing new features or security-critical functionality, follow this p
 ### LLM Constraints (Critical)
 
 - LLMs must **always create `01_requirements.md`, `02_architecture.md`, and `03_implementation_plan.md` in draft status (`draft`)**. They must never be created as approved (`approved`).
-- A document becomes `approved` only on the reviewer's explicit instruction. Either the reviewer edits the status, or an LLM sets it when the reviewer chooses to approve the document in `/runchange`'s merge question (recording the reviewer's name and the date). An LLM never sets `approved` on its own judgment.
+- A document becomes `approved` only on the reviewer's explicit instruction. Either the reviewer edits the status, or an LLM sets it when the reviewer chooses to approve the document in `/runpr`'s merge question (recording the reviewer's name and the date). An LLM never sets `approved` on its own judgment.
 - Do not begin creating `02_architecture.md` until the status of `01_requirements.md` is `approved`.
 - Do not begin creating `03_implementation_plan.md` until the status of `02_architecture.md` is `approved`.
 - Do not begin writing any implementation code until the status of `03_implementation_plan.md` is `approved`.
@@ -51,7 +51,7 @@ LLM creates 01_requirements.md from an issue with /mkreq (status: draft)
       → Proceed to writing implementation code
 ```
 
-Each document goes through its own PR: `/mkreq`, `/mkarch`, or `/mkplan` (which also designs the PR boundaries) opens it and pings the reviewer. After reviewing it, the reviewer runs `/runchange`, which asks one question at the merge: approve the document, merge, and run the next command. On that answer it commits the approval, merges, and starts the next command (`.claude/commands/_lib/pr-review-merge-loop.md`, step 3).
+Each document goes through its own PR: `/mkreq`, `/mkarch`, or `/mkplan` (which also designs the PR boundaries) opens it and pings the reviewer. After reviewing it, the reviewer runs `/runpr`, which asks one question at the merge: approve the document, merge, and run the next command. On that answer it commits the approval, merges, and starts the next command (`.claude/commands/runpr.md`, step 4).
 
 ### Document Status Format
 

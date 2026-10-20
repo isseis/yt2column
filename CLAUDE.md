@@ -64,8 +64,7 @@ Project-specific values these commands depend on are defined once in
 - `/mkplan <task>` - Create `03_implementation_plan.md` with its PR boundaries (requires approved architecture) and open its PR
 - `/mkplan2 <task>` - Embed PR boundaries into an approved plan that lacks them (plans written before `/mkplan` did it) and open its PR
 - `/runplan <task>` - Implement the phase groups of an approved plan up to the next PR checkpoint, then open the PR
-- `/runchange [PR | branch]` - Drive a task-document PR (or a standalone change, creating its PR) through CodeRabbit and CI, approve and merge it, and run the next command
-- `/runpr [PR | branch | task]` - Drive a `/runplan` PR through CodeRabbit and CI, record it in the plan, merge it, and run the next `/runplan`
+- `/runpr [PR | branch | task]` - Drive a PR through CodeRabbit and CI, record its bookkeeping (a document's approval, a plan checkpoint), merge it, and run the next command; for a standalone change it also creates the PR
 - `/weakreview [range]` - Second-pass review of work done by a lower-capability model
 - `/fixpr [PR]` - Resolve unresolved PR review threads
 - `/mergepr [PR]` - Squash-merge a PR with a generated commit message and clean up its branch
@@ -76,9 +75,8 @@ Each task PR is handled by two commands. The command that produces it —
 `/mkreq`, `/mkarch`, `/mkplan`, or `/runplan` — asks the human about open
 decisions before writing, works on its own feature branch, reviews its work
 (subagent review, `japrose`, local CodeRabbit), opens the PR, pings the
-reviewer, and stops. After reviewing, the reviewer runs the command that drives
-it — `/runchange` for a task-document PR, `/runpr` for a `/runplan` PR. That
-command waits for CodeRabbit and CI and resolves the threads with `/fixpr`. It
+reviewer, and stops. After reviewing, the reviewer runs `/runpr`, which drives
+it: it waits for CodeRabbit and CI and resolves the threads with `/fixpr`. It
 then asks one question: record the bookkeeping (for a document, its
 `approved` status), merge with `/mergepr`, and run the next command, which opens
 the next PR and stops again.

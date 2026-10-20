@@ -13,7 +13,7 @@ Your goal is to turn one GitHub issue into the first version of a task's
 `01_requirements.md`, review it, open its PR, and hand the PR to the human
 reviewer. The issue comes first: a requirements document is not written without
 one. This command does not wait for the merge. The reviewer reviews the PR and
-then runs `/runchange <PR>` by hand, which drives the CodeRabbit threads and the
+then runs `/runpr <PR>` by hand, which drives the CodeRabbit threads and the
 merge.
 
 **Input.** `$ARGUMENTS` is `<issue> [task]`:
@@ -41,7 +41,7 @@ Work in the following order.
      --json number,headRefName,body`) for a requirements document that already
      names this issue as its own. If one exists, stop and report it: revising an
      existing requirements document goes through its PR (`/fixpr`,
-     `/runchange`), not this command.
+     `/runpr`), not this command.
 
 2. Resolve the task directory.
    - With `[task]`: resolve it under the task root as
@@ -142,4 +142,4 @@ Work in the following order.
 
 9. Report: the PR URL, the task directory, the decisions made in step 5, the
    review results, and the next action for the reviewer (review the PR, then run
-   `/runchange <PR>`).
+   `/runpr <PR>`).

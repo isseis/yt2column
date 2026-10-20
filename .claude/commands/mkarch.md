@@ -140,4 +140,4 @@ Work in the following order.
 
 11. Report: a concise summary of what you created and any assumptions you had
     to make, the PR URL, the review results, and the next action for the reviewer
-    (review the PR, then run `/runchange <PR>`).
+    (review the PR, then run `/runpr <PR>`).

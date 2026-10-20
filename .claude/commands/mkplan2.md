@@ -133,4 +133,4 @@ Work in the following order.
 
 12. Report: a concise summary of the PR grouping decisions and any assumptions
     made, the PR URL, the review results, and the next action for the reviewer
-    (review the PR, then run `/runchange <PR>`).
+    (review the PR, then run `/runpr <PR>`).
