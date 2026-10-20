@@ -63,6 +63,9 @@ func WireValuesForTest(t *testing.T) HostWireValuesForTest {
 	values := HostWireValuesForTest{Version: response.V, Kinds: []string{response.Kind}}
 	for e := HostErrorProtocol; e == HostErrorProtocol || e.Value() != HostErrorProtocol.Value(); e++ {
 		reply := decode(newErrorReply(e))
+		if reply.V != values.Version {
+			t.Fatalf("the %s error reply has version %d, the response reply %d", reply.Error, reply.V, values.Version)
+		}
 		if e == HostErrorProtocol {
 			values.Kinds = append(values.Kinds, reply.Kind)
 		}

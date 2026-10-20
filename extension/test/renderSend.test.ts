@@ -70,7 +70,7 @@ describe("renderSendOutcome", () => {
 
 describe("renderBlockReason", () => {
   // The rendering does not vary by reason, so two reasons suffice here; the
-  // popup's blocked display is covered per reason in launch.test.ts, and the
+  // popup's body-too-large display is covered in launch.test.ts, and the
   // message content is sendMessages.test.ts's contract.
   const blockReasons: BlockReason[] = ["empty-selection", "body-too-large"];
   for (const reason of blockReasons) {

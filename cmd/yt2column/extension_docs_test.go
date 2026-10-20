@@ -273,8 +273,9 @@ func TestExtensionSendDocumentation(t *testing.T) {
 		// Nothing is set in the extension, so no step pastes a token. Section
 		// 8's introduction gives the reason the token was removed and is not
 		// checked here.
-		for _, unwanted := range []string{"shared token", "Options", "オプションページ", "貼り付"} {
-			if strings.Contains(send, unwanted) {
+		lowerSend := strings.ToLower(send)
+		for _, unwanted := range []string{"shared token", "options", "オプションページ", "貼り付"} {
+			if strings.Contains(lowerSend, unwanted) {
 				t.Errorf("security.md 8.1 still mentions %q", unwanted)
 			}
 		}

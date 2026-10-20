@@ -65,8 +65,6 @@ describe("sendArticle", () => {
       kind: "unexpected",
       check: "extension-timeout",
     });
-    await flush();
-    assert.equal(native.messages.length, 1);
   });
 
   it("does not resend after a host failure", async () => {

@@ -2,8 +2,9 @@
 // untrusted: its version is read as an own property, its kind picks the
 // member set it must have exactly (checked with Object.keys), the server's
 // response it wraps goes through classifyResponse, and no string from the
-// reply or the browser's error is carried into a displayed value. A browser error is never told apart by its text: the text is a
-// browser-internal constant, not an API contract.
+// reply or the browser's error is carried into a displayed value. A browser
+// error is never told apart by its text: the text is a browser-internal
+// constant, not an API contract.
 
 import {
   classifyResponse,

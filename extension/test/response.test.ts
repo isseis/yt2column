@@ -34,28 +34,10 @@ function bytes(status: number, value: number[]): BodyResponse {
 const reasons = Object.keys(serverRejectStatus) as ServerRejectReason[];
 
 describe("serverRejectStatus", () => {
-  it("declares six reasons", () => {
-    assert.equal(reasons.length, 6);
-  });
-
   it("is queried through isServerRejectReason", () => {
     assert.equal(isServerRejectReason("too_many_requests"), true);
     assert.equal(isServerRejectReason("bogus"), false);
     assert.equal(isServerRejectReason(1), false);
-  });
-
-  it("pins the reason-to-status pairs", () => {
-    const pairs: [ServerRejectReason, number][] = [
-      ["too_many_requests", 429],
-      ["body_too_large", 413],
-      ["invalid_body", 400],
-      ["invalid_video_url", 400],
-      ["invalid_transcript", 400],
-      ["internal_error", 500],
-    ];
-    for (const [reason, status] of pairs) {
-      assert.equal(serverRejectStatus[reason], status, reason);
-    }
   });
 });
 

@@ -388,10 +388,12 @@ describe("send dependencies", () => {
     const { runtime } = recordingRuntime(() => {});
     const { schedule } = createSendDeps(runtime);
     const ran: string[] = [];
-    schedule(1, () => ran.push("kept"));
-    const cancel = schedule(1, () => ran.push("cancelled"));
+    schedule(50, () => ran.push("kept"));
+    const cancel = schedule(50, () => ran.push("cancelled"));
     cancel();
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    assert.deepEqual(ran, [], "ran before the delay");
+    await new Promise((resolve) => setTimeout(resolve, 100));
     assert.deepEqual(ran, ["kept"]);
   });
 });

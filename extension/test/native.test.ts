@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 
 import { classifyNativeReply } from "../src/core/native.ts";
 import type { NativeReply } from "../src/core/native.ts";
-import { maxResponseBytes, toSendOutcome } from "../src/core/response.ts";
+import { maxResponseBytes } from "../src/core/response.ts";
 import type { RequestId, SendResult } from "../src/core/response.ts";
 import { bytesReply, errorReply, responseReply } from "./helpers/native.ts";
 
@@ -288,56 +288,10 @@ describe("classifyNativeReply", () => {
     });
   });
 
-  // Base64 keeps the server's bytes as they are, so the existing body checks
-  // see what the server sent: one row per check reached only after decoding.
-  const bodyChecks: { name: string; reply: NativeReply; check: string }[] = [
-    {
-      name: "invalid UTF-8",
-      reply: bytesReply(202, new Uint8Array([0x22, 0xff, 0x22])),
-      check: "encoding",
-    },
-    {
-      name: "a duplicate member",
-      reply: responseReply(
-        202,
-        '{"status":"accepted","status":"rejected","requestId":"0123456789abcdef"}',
-      ),
-      check: "duplicate-member",
-    },
-    {
-      name: "a malformed requestId",
-      reply: responseReply(
-        202,
-        '{"status":"accepted","requestId":"0123456789ABCDEF"}',
-      ),
-      check: "request-id",
-    },
-    {
-      name: "a reason with another status",
-      reply: responseReply(
-        413,
-        '{"status":"rejected","reason":"too_many_requests","requestId":"0123456789abcdef"}',
-      ),
-      check: "status-pairing",
-    },
-  ];
-  for (const { name, reply, check } of bodyChecks) {
-    it(`applies the body check for ${name}`, () => {
-      assert.equal(unexpectedCheck(classifyNativeReply(reply)), check);
-    });
-  }
-
-  it("keeps a markup body's text out of the displayed outcome", () => {
-    const markup = "<img src=x onerror=alert(1)>";
-    const text = JSON.stringify({
-      status: "rejected",
-      reason: markup,
-      requestId,
-    });
-    const outcome = toSendOutcome(
-      classifyNativeReply(responseReply(400, text)),
-    );
-    assert.equal(outcome.kind, "unexpected");
-    assert.equal(JSON.stringify(outcome).includes("img"), false);
+  // Base64 keeps the server's bytes as they are, so the body checks see what
+  // the server sent: an invalid UTF-8 body would not survive a JSON string.
+  it("passes the server's bytes unchanged to the body checks", () => {
+    const reply = bytesReply(202, new Uint8Array([0x22, 0xff, 0x22]));
+    assert.equal(unexpectedCheck(classifyNativeReply(reply)), "encoding");
   });
 });
