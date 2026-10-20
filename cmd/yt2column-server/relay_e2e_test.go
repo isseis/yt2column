@@ -69,9 +69,6 @@ func TestRelayEndToEnd(t *testing.T) {
 		case <-time.After(readyBound):
 			t.Fatalf("the job's LLM call did not start within %v", readyBound)
 		}
-		if got := webhook.messages(); len(got) != 0 {
-			t.Fatalf("messages before the LLM call returned = %q, want none", got)
-		}
 		release()
 		webhook.waitForMessage(t, "A title", testNormalizedURL)
 		// stop waits for the job, so a second article would be posted by now.

@@ -602,7 +602,7 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 | | manual | §5.1（応答の後にブラウザを終了しても Slack に記事が届く） | - |
 | AC-15 | test | `internal/nmhost/relay_test.go::TestRelayForwardsOneRequest`・`::TestRelayNoReplyFrame`、`TestRelayEndToEnd` の (1) | ステップ 2-2・2-3 |
 | AC-16 | test | `internal/nmhost/relay_test.go::TestRelayLengthChecks`・`::TestRelayServerRejectsWithoutBody`・`::TestRelayResponseOverLimit`、`TestRelayEndToEnd` の (4) | ステップ 2-2・2-3 |
-| AC-17 | test | `internal/nmhost/relay_test.go::TestRelayOutputs`、`TestRelayEndToEnd` の (5) | ステップ 2-2・2-3 |
+| AC-17 | test | `internal/nmhost/relay_test.go::TestRelayOutputs`、`TestRelayEndToEnd` の (5)（`runHost` がすべての実行で確かめる） | ステップ 2-2・2-3 |
 | | static | `internal/pipeline/relay_guard_test.go::TestHostStdoutOnlyInMain`・`::TestSelectorDetection` | ステップ 2-4・2-13 |
 | AC-18 | test | `internal/config/socketpath_test.go`（`XDG_*`・`TMPDIR` で変わらないこと、`LoadHost` が `HOME` だけを読むこと）、`internal/config/envaccess_test.go`（既存のテストに許可を 1 行加える）、`internal/nmhost/relay_test.go::TestRelayForwardsOneRequest`（`TestMain` がプロキシの環境変数を設定する）、`cmd/yt2column-nmhost/main_test.go`（すべての役割で `HOME` だけを読むこと） | ステップ 1-6・2-2・2-9・2-10 |
 | | static | `make lint`（`depguard` の `os/exec` の規則）、`internal/pipeline/relay_guard_test.go::TestHostSpawnsNoProcess` | ステップ 2-4・2-13 |
