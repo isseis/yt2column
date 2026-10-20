@@ -1,5 +1,5 @@
 ---
-description: "Embed PR boundaries into an approved implementation plan"
+description: "Embed PR boundaries into an approved implementation plan and open its PR for review"
 argument-hint: "<task>"
 ---
 
@@ -9,6 +9,7 @@ argument-hint: "<task>"
 > there too; this body's parts that need editing are the Go-specific design
 > principles (the `internal/`→`cmd/` ordering rule, the build-independence gate).
 > The review step follows `.claude/commands/_lib/review-subagent-pattern.md`.
+> The branch setup and the PR handoff follow `.claude/commands/_lib/doc-pr-handoff.md`.
 
 Your goal is to design PR boundaries for an existing `03_implementation_plan.md` and embed them directly into the document.
 
@@ -19,6 +20,11 @@ Work in the following order.
 2. Read `03_implementation_plan.md` in the target task directory.
    - If the document status is not `approved`, stop and report. PR boundary design requires an approved plan.
    - If `### PR-` sections already exist, stop and report that PR boundaries are already defined. Do not overwrite them unless the user explicitly asks.
+
+2.5. Prepare the branch: follow `.claude/commands/_lib/doc-pr-handoff.md`, Part A,
+   with **TASK_DIR** = the target task directory, **PREREQ** =
+   `03_implementation_plan.md`, and **REPORT** = the step 12 report. The reviewer's uncommitted approval of
+   PREREQ, if any, is committed together with this command's document.
 
 3. Read `02_architecture.md` and `01_requirements.md` in the target task directory to understand the component structure and acceptance criteria.
 
@@ -100,7 +106,7 @@ Work in the following order.
     - **FILES**: the implementation plan document, the architecture document, and the requirements document (paths in `_context.md`), as resolved absolute-path strings.
     - **CRITERIA**: every item from the PR boundary review checklist below, copied verbatim.
 
-10. Commit the implementation plan document with a message that explains the PR grouping rationale, only after all review passes are complete and all Critical and Major issues are resolved.
+10. Commit the implementation plan document with a message that explains the PR grouping rationale, only after all review passes are complete and all Critical and Major issues are resolved. The commit includes the PREREQ approval from step 2.5 if there is one.
 
 **PR boundary review checklist (use verbatim as evaluation criteria in the subagent prompt above):**
 - [ ] Every `### PR-N 作成ポイント` section appears after all steps it covers.
@@ -117,4 +123,9 @@ Work in the following order.
 - [ ] `推奨タイトル` values are valid conventional commit titles in English.
 - [ ] `レビュー観点` items are specific and meaningful — not generic placeholders.
 
-When finished, provide a concise summary of the PR grouping decisions and any assumptions made.
+11. Open the PR and hand it over: follow `.claude/commands/_lib/doc-pr-handoff.md`,
+    Part B, with the same inputs as step 2.5.
+
+12. Report: a concise summary of the PR grouping decisions and any assumptions
+    made, the PR URL, the review results, and the next action for the reviewer
+    (review the PR, then run `/runchange <PR>`).

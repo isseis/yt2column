@@ -59,16 +59,23 @@ structural consistency) and the glossary workflow live in
 ### Claude Commands (`.claude/commands/`)
 Project-specific values these commands depend on are defined once in
 [_context.md](.claude/commands/_context.md).
-- `/mkreq <issue> [task]` - Create `01_requirements.md` from a GitHub issue, review it, and open its PR for the human reviewer (who then runs `/runchange`)
-- `/mkarch <task>` - Create `02_architecture.md` (requires approved requirements)
-- `/mkplan <task>` - Create `03_implementation_plan.md` (requires approved architecture)
-- `/mkplan2 <task>` - Embed PR boundaries into an approved implementation plan
+- `/mkreq <issue> [task]` - Create `01_requirements.md` from a GitHub issue and open its PR
+- `/mkarch <task>` - Create `02_architecture.md` (requires approved requirements) and open its PR
+- `/mkplan <task>` - Create `03_implementation_plan.md` (requires approved architecture) and open its PR
+- `/mkplan2 <task>` - Embed PR boundaries into an approved implementation plan and open its PR
 - `/runplan <task>` - Implement the next phase group of an approved plan
 - `/weakreview [range]` - Second-pass review of work done by a lower-capability model
 - `/fixpr [PR]` - Resolve unresolved PR review threads
 - `/mergepr [PR]` - Squash-merge a PR with a generated commit message and clean up its branch
 - `/japrose <file>` - Japanese prose-quality pass
 - `/mktrans <file>` - Japanese ⇄ English translation
+
+`/mkreq`, `/mkarch`, `/mkplan`, and `/mkplan2` each work on their own feature
+branch, run the local CodeRabbit review, open the PR, ask CodeRabbit to review it,
+and ping the reviewer, who reviews the PR and then runs `/runchange <PR>` by hand.
+To approve the previous document, set its status to `approved` in the working
+tree before running the next command; the approval is committed with the new
+document.
 
 ### Extension Commands
 

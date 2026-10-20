@@ -1,5 +1,5 @@
 ---
-description: "Create 03_implementation_plan.md for a task (requires approved architecture)"
+description: "Create 03_implementation_plan.md for a task (requires approved architecture) and open its PR for review"
 argument-hint: "<task>"
 ---
 
@@ -11,6 +11,7 @@ argument-hint: "<task>"
 > example) and the Go test-helper rules (`testutil/`, `test_helpers.go`,
 > `//go:build test`). The review step follows
 > `.claude/commands/_lib/review-subagent-pattern.md`.
+> The branch setup and the PR handoff follow `.claude/commands/_lib/doc-pr-handoff.md`.
 
 Your goal is to create `03_implementation_plan.md` for one task under `docs/tasks/`.
 
@@ -24,6 +25,11 @@ Work in the following order.
 - Check the document status in `01_requirements.md` and `02_architecture.md`.
 - If either status is not `approved`, do not create `03_implementation_plan.md`.
 - In that case, stop and report that implementation planning cannot begin until both `01_requirements.md` and `02_architecture.md` are `approved`, naming which one is not.
+
+3.5. Prepare the branch: follow `.claude/commands/_lib/doc-pr-handoff.md`, Part A,
+   with **TASK_DIR** = the target task directory, **PREREQ** =
+   `01_requirements.md` and `02_architecture.md`, and **REPORT** = the step 11
+   report. The reviewer's uncommitted approval of PREREQ, if any, is committed together with this command's document.
 
 4. Read the remaining required input documents.
 - `01_requirements.md` in the target task directory
@@ -150,6 +156,13 @@ Work in the following order.
      not polished on text that step 8 then rewrites.
    - `japrose`, when invoked as this sub-step, does not commit. After both step 8 and
      step 9 are complete and all Critical and Major issues from both passes are
-     resolved, commit the created implementation plan document.
+     resolved, commit the created implementation plan document, together with the
+     PREREQ approval from step 3.5 if there is one (title e.g.
+     `docs(NNNN): approve the architecture and draft the implementation plan for <summary>`).
 
-When finished, provide a concise summary of what you created and any assumptions you had to make.
+10. Open the PR and hand it over: follow `.claude/commands/_lib/doc-pr-handoff.md`,
+    Part B, with the same inputs as step 3.5.
+
+11. Report: a concise summary of what you created and any assumptions you had
+    to make, the PR URL, the review results, and the next action for the reviewer
+    (review the PR, then run `/runchange <PR>`).

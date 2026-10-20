@@ -5,9 +5,9 @@ argument-hint: "<issue> [task]"
 
 > **Project context (read first)**: Read `.claude/commands/_context.md` — it is
 > canonical for every project-specific path, document name, status value, branch
-> name, and reviewer this command names. The review steps follow
-> `.claude/commands/_lib/review-subagent-pattern.md` and
-> `.claude/commands/_lib/coderabbit-local-review.md`.
+> name, and reviewer this command names. The review step follows
+> `.claude/commands/_lib/review-subagent-pattern.md`; the branch setup and the PR
+> handoff follow `.claude/commands/_lib/doc-pr-handoff.md`.
 
 Your goal is to turn one GitHub issue into the first version of a task's
 `01_requirements.md`, review it, open its PR, and hand the PR to the human
@@ -24,16 +24,13 @@ merge.
   `0030_<name>`). Without it, a new task directory is created.
 
 **Authorization.** Invoking this command approves, for this issue and this PR
-only, the network operations it names: `gh issue view` (also for the issues the
-issue references), `gh api user`, `git fetch origin main`, `git push`, `gh pr create`, and
-`gh pr comment` for the CodeRabbit request. `coderabbit review` has standing
-approval (`CLAUDE.md`, "Tool Execution Safety"). Nothing else that touches the
-network runs without asking.
+only, `gh issue view` (also for the issues the issue references) and the
+network operations `_lib/doc-pr-handoff.md` names ("Authorization"). Nothing
+else that touches the network runs without asking.
 
 Work in the following order.
 
 1. Check the starting state.
-   - `git status --short` must be empty; otherwise stop and report.
    - Read the issue:
      `gh issue view <issue> --json number,title,body,state,url,comments`.
      If it is closed, stop and report.
@@ -51,15 +48,11 @@ Work in the following order.
      the issue's subject, in the style of the existing directory names (e.g.
      `output_layout`, `native_messaging_relay`).
 
-3. Create the feature branch.
-   - `git fetch origin main`, then create the branch from `origin/main` with the
-     name the feature branch convention in `_context.md` gives, sequence number
-     `01` (e.g. `isseis/0027-remove-context-menu-01`):
-     `git switch -c <branch> origin/main`. Get the GitHub user name with
-     `gh api user --jq .login`.
-   - If the branch already exists locally or on `origin`, stop and report rather
-     than reuse it.
-   - Create the task directory now (step 2), on this branch.
+3. Create the feature branch: follow `.claude/commands/_lib/doc-pr-handoff.md`,
+   Part A, with **TASK_DIR** = the step 2 directory, **PREREQ** = none, and
+   **REPORT** = the step 9 report. The branch is new, so its sequence number is
+   `01` (e.g. `isseis/0027-remove-context-menu-01`). Then create the task
+   directory (step 2) on it.
 
 4. Read the input material.
    - The requirements process guide, the requirements template
@@ -145,25 +138,9 @@ Work in the following order.
    - [ ] The security section applies the conditional guide when the trigger applies, and says `N/A` otherwise.
    - [ ] The same concept always uses the same Japanese term, consistent with the translation glossary.
 
-8. Review the branch with the local CodeRabbit CLI: follow
-   `.claude/commands/_lib/coderabbit-local-review.md` with
-   **BASE** = `$(git merge-base origin/main HEAD)`, **SCOPE** = branch,
-   **SUMMARY** = the step 10 report.
+8. Open the PR and hand it over: follow `.claude/commands/_lib/doc-pr-handoff.md`,
+   Part B, with the same inputs as step 3.
 
-9. Open the PR and hand it over.
-   - Run the documentation guards:
-     `go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./internal/pipeline`.
-   - Push and create the PR as `.claude/commands/_lib/pr-review-merge-loop.md`
-     step 1 describes for `CREATE_PR` (title is the step 6 commit title; body in
-     a file via `--body-file`). The body summarizes the requirements, lists the
-     decisions made in step 5, names the open points the reviewer should check,
-     and contains `Refs #<issue>` (not `Closes`: the issue stays open until the
-     task is implemented).
-   - Ask CodeRabbit to review: `gh pr comment <number> --body "@coderabbitai review"`.
-   - Ping the human reviewer (`_context.md`, "Requirements reviewer ping") with
-     the PR URL and the next action: review the PR, then run `/runchange <PR>`.
-
-10. Report and stop. Give the PR URL, the task directory, the decisions made in
-    step 5, the review results (including any `unclear` or `deferred` CodeRabbit
-    findings from step 8), and the next action for the reviewer. Do not wait for
-    CodeRabbit and do not merge: `/runchange` does both.
+9. Report: the PR URL, the task directory, the decisions made in step 5, the
+   review results, and the next action for the reviewer (review the PR, then run
+   `/runchange <PR>`).
