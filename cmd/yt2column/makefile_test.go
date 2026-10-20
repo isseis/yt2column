@@ -345,11 +345,11 @@ func TestMakeBuildBuildsEveryBinary(t *testing.T) {
 			if err != nil {
 				t.Fatalf("make -n %s error = %v, output:\n%s", target, err, output)
 			}
-			built := map[string]bool{}
+			built := map[string]struct{}{}
 			for line := range strings.Lines(string(output)) {
 				fields := strings.Fields(line)
 				if len(fields) >= 2 && fields[1] == "build" {
-					built[fields[len(fields)-1]] = true
+					built[fields[len(fields)-1]] = struct{}{}
 				}
 				for i, field := range fields[:max(len(fields)-1, 0)] {
 					if strings.HasSuffix(field, "yt2column-nmhost") && (fields[i+1] == "install" || fields[i+1] == "uninstall") {
@@ -358,7 +358,7 @@ func TestMakeBuildBuildsEveryBinary(t *testing.T) {
 				}
 			}
 			for _, pkg := range packages {
-				if !built[pkg] {
+				if _, ok := built[pkg]; !ok {
 					t.Errorf("make -n %s does not build %s; output:\n%s", target, pkg, output)
 				}
 			}

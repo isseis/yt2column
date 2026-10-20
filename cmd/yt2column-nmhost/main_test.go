@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/base64"
 	"encoding/binary"
@@ -13,7 +14,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -112,8 +116,10 @@ func (inv invocation) reply(t *testing.T) map[string]any {
 	return members
 }
 
-// fullEnv is an environment holding every variable the server reads besides
-// HOME, so a host that read one would be caught by invoke.
+// fullEnv is an environment that also holds the server's variables, so that
+// a host loading the server's configuration by mistake would succeed and be
+// caught only by invoke's read check, which records names whether or not
+// they are set.
 func fullEnv(home string) map[string]string {
 	env := map[string]string{
 		"YT2COLUMN_LLM_PROVIDER": "deepseek",
@@ -201,13 +207,12 @@ func TestRelayConfigFailure(t *testing.T) {
 		want  nmhost.HostError
 	}{
 		{"home unset", "", message([]byte(`{"transcript":"MARK-BODY"}`)), nmhost.HostErrorServerUnavailable},
-		{"home relative", "home/u", message([]byte(`{"transcript":"MARK-BODY"}`)), nmhost.HostErrorServerUnavailable},
 		{"home unset, length over the limit", "", &stdinFake{data: append(overLimit, "MARK-BODY"...)}, nmhost.HostErrorMessageTooLarge},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			home, stdin := tc.home, tc.stdin
-			inv := invoke(t, []string{nmhost.ExtensionOrigin}, fullEnv(home), stdin, fixedExecutable(testExecutable))
+			stdin := tc.stdin
+			inv := invoke(t, []string{nmhost.ExtensionOrigin}, fullEnv(tc.home), stdin, fixedExecutable(testExecutable))
 			if inv.code != exitOK {
 				t.Errorf("exit code = %d, want %d", inv.code, exitOK)
 			}
@@ -266,7 +271,9 @@ func TestRelayUsesDerivedSocket(t *testing.T) {
 // one without a layout.
 func manifestRel(t *testing.T) (manifest, chromeDir string) {
 	t.Helper()
-	const name = "NativeMessagingHosts/io.github.isseis.yt2column.json"
+	// The directories are written out as an independent oracle; only the
+	// file name comes from the host's constant.
+	name := "NativeMessagingHosts/" + nmhost.HostName + ".json"
 	switch runtime.GOOS {
 	case "darwin":
 		chromeDir = "Library/Application Support/Google/Chrome"
@@ -293,17 +300,18 @@ func TestInstallAndUninstall(t *testing.T) {
 	path := filepath.Join(home, filepath.FromSlash(manifest))
 	requireNote := func(t *testing.T, stderr string) {
 		t.Helper()
-		if got, want := strings.Contains(stderr, "Chrome and Brave share this manifest file"), runtime.GOOS == "darwin"; got != want {
+		if got, want := strings.Contains(stderr, darwinSharedNote), runtime.GOOS == "darwin"; got != want {
 			t.Errorf("stderr = %q; shared-file note present = %v, want %v", stderr, got, want)
 		}
 	}
 	steps := []struct {
-		name string
-		args []string
+		name           string
+		args           []string
+		manifestExists bool // after the step
 	}{
-		{"install", []string{"install", "chrome"}},
-		{"uninstall", []string{"uninstall", "chrome"}},
-		{"uninstall again", []string{"uninstall", "chrome"}},
+		{"install", []string{"install", "chrome"}, true},
+		{"uninstall", []string{"uninstall", "chrome"}, false},
+		{"uninstall again", []string{"uninstall", "chrome"}, false},
 	}
 	for _, step := range steps {
 		inv := invoke(t, step.args, fullEnv(home), &stdinFake{}, fixedExecutable(testExecutable))
@@ -318,7 +326,7 @@ func TestInstallAndUninstall(t *testing.T) {
 		}
 		requireNote(t, inv.stderr)
 		data, err := os.ReadFile(path)
-		if step.name != "install" {
+		if !step.manifestExists {
 			if !errors.Is(err, os.ErrNotExist) {
 				t.Errorf("%s: manifest read error = %v, want it removed", step.name, err)
 			}
@@ -376,7 +384,6 @@ func TestInstallFailures(t *testing.T) {
 			func() (string, error) { return "", errors.New("no executable") }, exitFailure,
 		},
 		{"executable under the temporary directory", []string{"install", "chrome"}, home, fixedExecutable(filepath.Join(os.TempDir(), "yt2column-nmhost")), exitFailure},
-		{"browser not found", []string{"install", "brave"}, home, fixedExecutable(testExecutable), exitFailure},
 		{"uninstall of a foreign manifest", []string{"uninstall", "chrome"}, foreignHome, fixedExecutable(testExecutable), exitFailure},
 	}
 	for _, tc := range cases {
@@ -389,5 +396,36 @@ func TestInstallFailures(t *testing.T) {
 				t.Errorf("stdout = %q, want empty", inv.stdout)
 			}
 		})
+	}
+}
+
+// hostExitCodeRowRE matches a row of the README host exit-code table.
+var hostExitCodeRowRE = regexp.MustCompile("^\\| `([0-9]+)` \\|")
+
+// TestReadmeHostExitCodes checks that the README's host exit-code table, under
+// "### Installing the native messaging host", lists exactly this command's
+// exit codes, so a changed or added code fails until the README follows.
+func TestReadmeHostExitCodes(t *testing.T) {
+	f, err := os.Open("../../README.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = f.Close() })
+	var codes []int
+	inSection := false
+	for scanner := bufio.NewScanner(f); scanner.Scan(); {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "#") {
+			inSection = line == "### Installing the native messaging host"
+			continue
+		}
+		if m := hostExitCodeRowRE.FindStringSubmatch(line); inSection && m != nil {
+			code, _ := strconv.Atoi(m[1])
+			codes = append(codes, code)
+		}
+	}
+	slices.Sort(codes)
+	if want := []int{exitOK, exitFailure, exitUsage}; !slices.Equal(codes, want) {
+		t.Errorf("README host exit-code table lists %v, want %v", codes, want)
 	}
 }

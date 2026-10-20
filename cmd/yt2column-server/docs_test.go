@@ -91,18 +91,6 @@ func TestServerDocsContract(t *testing.T) {
 				}
 			}
 		}
-		// The host's install/uninstall exit-code table must name every code
-		// the host defines; the host shares the values 0, 1, and 2 with the
-		// server's constants, which this package can reach.
-		hostTable := findTable(sectionByHeading(section, "### Installing the native messaging host"), "Code")
-		if hostTable == nil {
-			t.Fatal("README.md has no host exit-code table under '### Installing the native messaging host'")
-		}
-		for _, code := range []int{exitOK, exitFailure, exitUsage} {
-			if tableRow(hostTable, strconv.Itoa(code)) == nil {
-				t.Errorf("README.md host exit-code table has no code %d", code)
-			}
-		}
 		troubleshooting := sectionByHeading(section, "### Troubleshooting")
 		for _, want := range []string{"The server is not running", "The native messaging host is not found", "Reading the host's log"} {
 			if !strings.Contains(troubleshooting, want) {
