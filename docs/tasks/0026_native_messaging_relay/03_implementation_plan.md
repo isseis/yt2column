@@ -346,24 +346,24 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
--   [ ] **ステップ 2-9**: `internal/config` に `HostConfig`・`LoadHost`・`LoadHostHome` を加える（設計書 3.1）。`LoadHost` はステップ 1-6 の導出の関数を通る。テストを加える: `LoadHost` が `HOME` 以外を読まないこと（読んだ変数名を記録する `LookupFunc` で確かめる）、`LoadServer` と同じパスを返すこと、`LoadHostHome` がソケットのパスの長さに関わらず `HOME` を返し、未設定・空・相対で `VarError` を返すこと（設計書 7.1）。`internal/config/envaccess_test.go` の `allowedEnvRefs`（`:65-69`）に `cmd/yt2column-nmhost/main.go` の `value:os.LookupEnv` を 1 回だけ加え、`cmd/yt2column/main.go` と同じく観測した回数がちょうど 1 であることの確認（`:383-385` と同じ形）を加える。
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+-   [x] **ステップ 2-9**: `internal/config` に `HostConfig`・`LoadHost`・`LoadHostHome` を加える（設計書 3.1）。`LoadHost` はステップ 1-6 の導出の関数を通る。テストを加える: `LoadHost` が `HOME` 以外を読まないこと（読んだ変数名を記録する `LookupFunc` で確かめる）、`LoadServer` と同じパスを返すこと、`LoadHostHome` がソケットのパスの長さに関わらず `HOME` を返し、未設定・空・相対で `VarError` を返すこと（設計書 7.1）。`internal/config/envaccess_test.go` の `allowedEnvRefs`（`:65-69`）に `cmd/yt2column-nmhost/main.go` の `value:os.LookupEnv` を 1 回だけ加え、`cmd/yt2column/main.go` と同じく観測した回数がちょうど 1 であることの確認（`:383-385` と同じ形）を加える。
     -   **対象:** `internal/config/config.go`（設計書 3.12）・`socketpath_test.go`・`envaccess_test.go`。**完了:** `go test -tags test -skip TestEnvAccessConfined ./internal/config` が通る（`allowedEnvRefs` は上限なので先に加えても失敗しないが、観測した回数の確認はステップ 2-10 で `main.go` ができた後に通る）。
--   [ ] **ステップ 2-10**: `cmd/yt2column-nmhost/main.go` を作る（設計書 3.5.1 の起動の形、設計書 4.3 の終了コード）。中継では `config.LoadHost` の失敗を `server_unavailable` の応答にする（設計書 4.3 の注記）。install/uninstall は `os.Executable` と `filepath.EvalSymlinks` で得たパスを渡し、manifest のパスと macOS での共有を標準エラー出力に書く（設計書 3.6）。`main` は `os.LookupEnv`・`os.Stdin`・`os.Stdout`・`os.Stderr` と、実行ファイルのパスを得る関数（`os.Executable` と `filepath.EvalSymlinks`）を渡すだけにし、処理は `run` 相当の関数に置いてテストする。実行ファイルのパスを関数で受け取るのは、`go test` のバイナリが `os.TempDir()` の下で動き、そのままでは `Install` が `ErrUnstableExecutable` で拒否するためである（設計書 3.6）。テスト `cmd/yt2column-nmhost/main_test.go`:
+-   [x] **ステップ 2-10**: `cmd/yt2column-nmhost/main.go` を作る（設計書 3.5.1 の起動の形、設計書 4.3 の終了コード）。中継では `config.LoadHost` の失敗を `server_unavailable` の応答にする（設計書 4.3 の注記）。実装では、`LoadHost` が失敗したとき、すぐに失敗する `Dialer` を `nmhost.Relay` に渡す。応答の書き込みを `Relay` の 1 か所に保つためである。長さの検査は接続の前に行われるので、上限を超える長さと長さ 0 は、それぞれ `message_too_large`・`protocol_error` になる（どちらも接続せず本文を読まない。実装で加えた）。install/uninstall は `os.Executable` と `filepath.EvalSymlinks` で得たパスを渡し、manifest のパスと macOS での共有を標準エラー出力に書く（設計書 3.6）。`main` は `os.LookupEnv`・`os.Stdin`・`os.Stdout`・`os.Stderr` と、実行ファイルのパスを得る関数（`os.Executable` と `filepath.EvalSymlinks`）を渡すだけにし、処理は `run` 相当の関数に置いてテストする。実行ファイルのパスを関数で受け取るのは、`go test` のバイナリが `os.TempDir()` の下で動き、そのままでは `Install` が `ErrUnstableExecutable` で拒否するためである（設計書 3.6）。テスト `cmd/yt2column-nmhost/main_test.go`:
     -   引数の各形と使い方の誤り（終了コード `2`、標準出力が空）、オリジンが一致しない起動で標準出力が空、長さが読めない場合に終了コード `1` で標準出力が空（設計書 4.3）。
     -   `LoadHost` の失敗（`HOME` を未設定か相対パスにする）で、`server_unavailable` の応答、終了コード `0`、stdin の本文が読まれないこと。
     -   install/uninstall が、テストが渡した一時ディレクトリの外のパスで manifest を書き、manifest のパスと macOS での共有の注記を標準エラー出力に書くこと（AC-20）。
     -   すべての役割（中継・install・uninstall・使い方の誤り）で、読んだ変数名を記録する `LookupFunc` を渡し、`HOME` 以外を読まないこと（AC-18）。
     -   `package_reference.md` に `cmd/yt2column-nmhost` の行を加える（§1.3）。
-    -   **対象:** `cmd/yt2column-nmhost/main.go`・`main_test.go`・`docs/dev/developer_guide/package_reference.md`。**完了:** `go test -tags test ./cmd/yt2column-nmhost ./internal/config` と `go test -tags test -run TestPackageReferenceListsPackages ./internal/pipeline` が通る。
--   [ ] **ステップ 2-11**: Makefile の `build` に `build/yt2column-nmhost` を加える（install/uninstall の目標は設けない）。`cmd/yt2column/makefile_test.go` に `TestMakeBuildBuildsEveryBinary` を加える（§1.3）。
+    -   **対象:** `cmd/yt2column-nmhost/main.go`・`run.go`・`main_test.go`・`docs/dev/developer_guide/package_reference.md`（`main.go` には `main` と実行ファイルのパスを得る関数だけを置き、役割の処理は `run.go` に置く。`TestHostStdoutOnlyInMain` が `main.go` だけを除いて走査するので、役割の処理を走査の対象にするため。実装で変えた）。**完了:** `go test -tags test ./cmd/yt2column-nmhost ./internal/config` と `go test -tags test -run TestPackageReferenceListsPackages ./internal/pipeline` が通る。
+-   [x] **ステップ 2-11**: Makefile の `build` に `build/yt2column-nmhost` を加える（install/uninstall の目標は設けない）。`cmd/yt2column/makefile_test.go` に `TestMakeBuildBuildsEveryBinary` を加える（§1.3）。
     -   **対象:** `Makefile`・`cmd/yt2column/makefile_test.go`。**完了:** `make build` が 3 つのバイナリを作り、`go test -tags test -run TestMakeBuildBuildsEveryBinary ./cmd/yt2column` が通る。
--   [ ] **ステップ 2-12**: フェーズ 2 の文書を改める（§1.3「フェーズごとの文書とガードの割り当て」のフェーズ 2 の列）。README のトラブルシューティングには、ホストのログを見る手順（ブラウザを一度終了し、ターミナルからブラウザの実行ファイルを直接起動する）を書く（設計書 3.5.6）。README の「## Development」の独立したサーバの手順の節に、ホストの制約を加える（§1.3「開発者向けの独立したサーバの手順」）。
+-   [x] **ステップ 2-12**: フェーズ 2 の文書を改める（§1.3「フェーズごとの文書とガードの割り当て」のフェーズ 2 の列）。README のトラブルシューティングには、ホストのログを見る手順（ブラウザを一度終了し、ターミナルからブラウザの実行ファイルを直接起動する）を書く（設計書 3.5.6）。README の「## Development」の独立したサーバの手順の節に、ホストの制約を加える（§1.3「開発者向けの独立したサーバの手順」）。
     -   **対象:** `README.md`・`docs/dev/security.md`・`docs/dev/project_overview.md`・`docs/dev/developer_guide/package_reference.md`・`CLAUDE.md`・`docs/translation_glossary.md`。**完了:** README の install/uninstall の手順を、ステップ 2-11 でビルドしたホスト（`/tmp` の外の作業ディレクトリの `build/` に置いたもの）で `HOME` を `/tmp` の下の短いディレクトリ（Chrome・Brave のユーザーデータのディレクトリを作ったもの）にして macOS で実行し、書いたとおりの manifest のパスと標準エラー出力の注記になることを確かめ、実行したコマンドと結果をコミットメッセージに記録する。README の他の Unix の置き場所は、手で実行せず `TestManifestLocation` の値と照らして確かめる（要件書 2.3）。
--   [ ] **ステップ 2-13**: フェーズ 2 のガードを改める・加える。`TestServerDocsContract` に、次の確認を加える（設計書 3.9 の表）。README の `yt2column-nmhost install`・`yt2column-nmhost uninstall`、ホストが見つからない場合のトラブルシューティング。`project_overview.md` の `yt2column-nmhost` と install/uninstall のコマンド。security.md §8.2 の `allowed_origins`・標準出力が通信路であること・ホストの残余リスク（ホストのバイナリと manifest の置き換え）。CLAUDE.md の `internal/nmhost`、`make build` が 3 つのバイナリを作ること、install/uninstall のコマンド。用語集のホスト・ホスト名の行。README の「## Development」の独立したサーバの手順の節が、拡張とホストからは届かないことと、manifest がブラウザごとに 1 つであることを述べること（語句は実装で決める）。`cmd/yt2column/extension_docs_test.go` に `TestNativeHostContract` のフェーズ 2 の部分を作る（§1.3）。`TestHostStdoutOnlyInMain`・`TestHostSpawnsNoProcess`（ステップ 2-4）の走査の対象に `cmd/yt2column-nmhost` を加える。`.golangci.yml` に `cmd/yt2column-nmhost` が `os/exec` を import しない depguard の規則を加える（§1.3）。
+-   [x] **ステップ 2-13**: フェーズ 2 のガードを改める・加える。`TestServerDocsContract` に、次の確認を加える（設計書 3.9 の表）。README の `yt2column-nmhost install`・`yt2column-nmhost uninstall`、ホストが見つからない場合のトラブルシューティング。`project_overview.md` の `yt2column-nmhost` と install/uninstall のコマンド。security.md §8.2 の `allowed_origins`・標準出力が通信路であること・ホストの残余リスク（ホストのバイナリと manifest の置き換え）。CLAUDE.md の `internal/nmhost`、`make build` が 3 つのバイナリを作ること、install/uninstall のコマンド。用語集のホスト・ホスト名の行。README の「## Development」の独立したサーバの手順の節が、拡張とホストからは届かないことと、manifest がブラウザごとに 1 つであることを述べること（語句は実装で決める）。`cmd/yt2column/extension_docs_test.go` に `TestNativeHostContract` のフェーズ 2 の部分を作る（§1.3）。`TestHostStdoutOnlyInMain`・`TestHostSpawnsNoProcess`（ステップ 2-4）の走査の対象に `cmd/yt2column-nmhost` を加える。`.golangci.yml` に `cmd/yt2column-nmhost` が `os/exec` を import しない depguard の規則を加える（§1.3）。
     -   **対象:** `cmd/yt2column-server/docs_test.go`・`cmd/yt2column/extension_docs_test.go`・`internal/pipeline/relay_guard_test.go`・`.golangci.yml`。**完了:** `make test`・`make lint` が通る。
--   [ ] **ステップ 2-14**: ステップ 2-9〜2-13 のテストとガードを壊して失敗することを確かめ、コミットメッセージに記録する（§1.2）。取り違えやすいもの: オリジンの照合を外す・`LoadHost` の失敗を終了コード `1` にする・macOS での共有の注記を外す・`config.LoadServer` を呼ぶ（`main_test.go`）、`cmd/yt2column-nmhost` に `os.StartProcess` の呼び出しを加える（`TestHostSpawnsNoProcess`）、`cmd/yt2column-nmhost` に `main.go` 以外の本番のファイルを置いて `fmt.Println` を書く（`TestHostStdoutOnlyInMain`）、`cmd/yt2column-nmhost/main.go` に `os/exec` の import を加える（`make lint`）、`ExtensionOrigin` の 1 文字を変える（`TestNativeHostContract`）、`RelayTimeout` を 25 秒にする（同）、README の「## Development」の独立したサーバの手順の節からホストの制約の文を外す（`TestServerDocsContract`）、Makefile の `build` からホストを外す・`build` に変数を通して `$(NMHOST_BINARY) install chrome` のような行を加える（`TestMakeBuildBuildsEveryBinary`）。`cmd/yt2column-nmhost` と `config.LoadHost`・`LoadHostHome` について、§4.4 の `go tool cover -func` の確認を行う。§4.4 の横断検索を行い、検索した語と結果をコミットメッセージに記録する。
+-   [x] **ステップ 2-14**: ステップ 2-9〜2-13 のテストとガードを壊して失敗することを確かめ、コミットメッセージに記録する（§1.2）。取り違えやすいもの: オリジンの照合を外す・`LoadHost` の失敗を終了コード `1` にする・macOS での共有の注記を外す・`config.LoadServer` を呼ぶ（`main_test.go`）、`cmd/yt2column-nmhost` に `os.StartProcess` の呼び出しを加える（`TestHostSpawnsNoProcess`）、`cmd/yt2column-nmhost` に `main.go` 以外の本番のファイルを置いて `fmt.Println` を書く（`TestHostStdoutOnlyInMain`）、`cmd/yt2column-nmhost/main.go` に `os/exec` の import を加える（`make lint`）、`ExtensionOrigin` の 1 文字を変える（`TestNativeHostContract`）、`RelayTimeout` を 25 秒にする（同）、README の「## Development」の独立したサーバの手順の節からホストの制約の文を外す（`TestServerDocsContract`）、Makefile の `build` からホストを外す・`build` に変数を通して `$(NMHOST_BINARY) install chrome` のような行を加える（`TestMakeBuildBuildsEveryBinary`）。`cmd/yt2column-nmhost` と `config.LoadHost`・`LoadHostHome` について、§4.4 の `go tool cover -func` の確認を行う。§4.4 の横断検索を行い、検索した語と結果をコミットメッセージに記録する。
     -   **対象:** なし（確認のみ）。**完了:** 各対象で該当するテストか lint が失敗することを確かめ、記録する。
 
 ### PR-6 作成ポイント: host command, build, and docs
@@ -378,8 +378,8 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 
 **判定理由**: ステップ 2-10 の呼び出し元のオリジンの照合は、ホストを起動した拡張を確かめるセキュリティの関門である（mkplan のパネル方式の条件「security-gate」。設計書 3.5.1）。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 -   [ ] **ステップ 2-15**: `cmd/yt2column-server/relay_e2e_test.go`（`//go:build test`）を作る（設計書 7.2）。テストの中でホストを一時ディレクトリにビルドする（`GOOS`・`GOARCH` を実行中の値に、`GOFLAGS` を空にする）。`go` コマンドは `exec.LookPath` で探す（`make test` と CI はどちらも `go` から実行されるので `PATH` にある）。サーバは既存の `run` を `testDeps`・`loopbackDeps` で起動し、`HOME` は `internal/udstest` の短いディレクトリにする。`TestRelayEndToEnd` のサブテストで設計書 7.2 のシナリオ (1)〜(5) を確かめる。(1) では、受付応答を読み、ホストが終了したことを確かめてから fake の遅い LLM を解放し、記事が Webhook に届くことを確かめる。
@@ -686,7 +686,7 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 -   [x] PR-2 マージ済み（対象ステップ: 1-6 / 1-7 / 1-8 / 1-9 / 1-10 / 1-11 / 1-12 / 1-13 / 1-14 / 1-15 / 1-16）
 -   [x] PR-3 マージ済み（対象ステップ: 1-17）
 -   [x] PR-4 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5）
--   [ ] PR-5 マージ済み（対象ステップ: 2-6 / 2-7 / 2-8）
+-   [x] PR-5 マージ済み（対象ステップ: 2-6 / 2-7 / 2-8）
 -   [ ] PR-6 マージ済み（対象ステップ: 2-9 / 2-10 / 2-11 / 2-12 / 2-13 / 2-14）
 -   [ ] PR-7 マージ済み（対象ステップ: 2-15 / 2-16）
 -   [ ] 0025 のすべての PR がマージされたことを確かめた（PR-8 の前提）

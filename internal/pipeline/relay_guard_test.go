@@ -448,7 +448,7 @@ func TestSharedTokenRemoved(t *testing.T) {
 
 // hostDirs are the repository-relative directories of the Native Messaging
 // host's production code.
-var hostDirs = []string{"internal/nmhost/"}
+var hostDirs = []string{"internal/nmhost/", "cmd/yt2column-nmhost/"}
 
 // hostStdoutMain is the one host file that may reference standard output: the
 // entry point wires it into the relay. No other host code writes to it, so the

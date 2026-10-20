@@ -14,6 +14,8 @@ BINARY=build/yt2column
 MAIN_PKG=./cmd/yt2column
 SERVER_BINARY=build/yt2column-server
 SERVER_PKG=./cmd/yt2column-server
+NMHOST_BINARY=build/yt2column-nmhost
+NMHOST_PKG=./cmd/yt2column-nmhost
 
 # Common gofumpt check and error message
 define check_gofumpt
@@ -52,10 +54,14 @@ endef
 
 all: build
 
+# build builds the three binaries and installs nothing: registering the
+# Native Messaging host is the user's explicit `yt2column-nmhost install
+# <browser>`, so there is no install target.
 build:
 	@mkdir -p build
 	$(GOBUILD) -trimpath -ldflags "-s -w" -o $(BINARY) $(MAIN_PKG)
 	$(GOBUILD) -trimpath -ldflags "-s -w" -o $(SERVER_BINARY) $(SERVER_PKG)
+	$(GOBUILD) -trimpath -ldflags "-s -w" -o $(NMHOST_BINARY) $(NMHOST_PKG)
 
 # Install the /mergepr developer tool into $(go env GOPATH)/bin. Run from an
 # up-to-date main checkout (docs/dev/developer_guide/mergepr_guide.md).

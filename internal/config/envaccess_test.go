@@ -65,6 +65,7 @@ var secretEnvNames = []string{"DEEPSEEK_API_KEY", "ANTHROPIC_API_KEY", "SLACK_WE
 var allowedEnvRefs = map[string]map[string]int{
 	"cmd/yt2column/main.go":        {"value:os.LookupEnv": 1},
 	"cmd/yt2column-server/main.go": {"value:os.LookupEnv": 1},
+	"cmd/yt2column-nmhost/main.go": {"value:os.LookupEnv": 1},
 	"internal/transcript/ytdlp.go": {"call:os.Environ": 1},
 }
 
@@ -382,6 +383,9 @@ func TestEnvAccessConfined(t *testing.T) {
 	}
 	if got := rep.observed["cmd/yt2column/main.go value:os.LookupEnv"]; got != 1 {
 		t.Errorf("observed cmd/yt2column/main.go os.LookupEnv = %d, want 1", got)
+	}
+	if got := rep.observed["cmd/yt2column-nmhost/main.go value:os.LookupEnv"]; got != 1 {
+		t.Errorf("observed cmd/yt2column-nmhost/main.go os.LookupEnv = %d, want 1", got)
 	}
 }
 

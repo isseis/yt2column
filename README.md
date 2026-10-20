@@ -448,8 +448,12 @@ of the old article and all of the new one.
 ## Localhost server
 
 `yt2column-server` accepts the transcript the browser extension collects and
-posts the generated article to the same Webhook as the CLI. `make build` builds
-both `build/yt2column` and `build/yt2column-server`.
+posts the generated article to the same Webhook as the CLI. The extension does
+not connect to the server itself: the browser starts the native messaging host,
+`yt2column-nmhost`, which relays the request to the server's socket (see
+[Installing the native messaging host](#installing-the-native-messaging-host)).
+`make build` builds `build/yt2column`, `build/yt2column-server`, and
+`build/yt2column-nmhost`; it installs nothing.
 
 It reads the same LLM variables as the CLI and requires `SLACK_WEBHOOK_URL`. It
 never calls `yt-dlp` and reads neither `YT2COLUMN_CACHE_DIR` nor
@@ -508,6 +512,79 @@ the socket, and lets the in-flight jobs finish, which can take up to about 45
 minutes (three LLM calls of 15 minutes each); a second signal exits at once.
 Until the jobs have finished, a new server refuses to start.
 
+### Installing the native messaging host
+
+The browser starts `yt2column-nmhost` for each send from the extension. The
+host reads one request from the browser, sends it to the server's socket,
+writes the server's response back to the browser, and exits; it starts nothing
+and keeps nothing. It reads `HOME` as the browser passes it and no other
+variable, so it derives the same socket path as a server started with the same
+`HOME`, and it never reads the API keys or the Webhook URL. Its standard output
+is the channel to the browser; its log goes to standard error.
+
+The host exits with `0` once it has written its reply, a host error
+included, and with `1` when it could not write one.
+
+Register the host with each browser you use by running the built binary:
+
+```sh
+./build/yt2column-nmhost install chrome
+./build/yt2column-nmhost install brave
+```
+
+`install` writes the host manifest `io.github.isseis.yt2column.json`, which
+names the binary's absolute path (symbolic links resolved) and allows only the
+yt2column extension to start the host. It writes the manifest path to standard
+error. The manifest goes to:
+
+- macOS, Chrome and Brave: `$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts/io.github.isseis.yt2column.json`
+- other Unix, Chrome: `$HOME/.config/google-chrome/NativeMessagingHosts/io.github.isseis.yt2column.json`
+- other Unix, Brave: `$HOME/.config/BraveSoftware/Brave-Browser/NativeMessagingHosts/io.github.isseis.yt2column.json`
+
+On macOS, Brave reads Chrome's manifest directory, so Chrome and Brave share
+one manifest file: `install chrome` and `install brave` write the same file,
+and `uninstall` for either browser removes the host from both. If you keep
+using the other browser, run `install` for it again. The host says this on
+standard error on macOS too.
+
+`install` refuses, changing nothing, when:
+
+- the browser's user data directory does not exist (macOS:
+  `$HOME/Library/Application Support/Google/Chrome` or
+  `$HOME/Library/Application Support/BraveSoftware/Brave-Browser`; other Unix:
+  `$HOME/.config/google-chrome` or `$HOME/.config/BraveSoftware/Brave-Browser`).
+  Start the browser once, then install again;
+- the binary is under the temporary directory, as with `go run`. Install from
+  the binary `make build` built;
+- a file at the manifest path was not written by this host. Check that file by
+  hand.
+
+Running `install` again replaces the manifest this host wrote. The manifest
+points at the binary where it was when you installed it: after moving or
+renaming the binary, run `install` again. On macOS, keep the binary outside the
+folders the system protects (TCC), such as `~/Desktop`, `~/Documents`, and
+`~/Downloads`: a host started from there can be refused access.
+
+To remove the host from a browser:
+
+```sh
+./build/yt2column-nmhost uninstall chrome
+./build/yt2column-nmhost uninstall brave
+```
+
+`uninstall` removes only a manifest this host wrote, and leaves the
+`NativeMessagingHosts` directory, which other hosts' manifests may share. With
+no manifest it does nothing and succeeds. Neither command touches the server,
+its socket, or its configuration.
+
+Host exit codes for `install` and `uninstall`:
+
+| Code | Meaning |
+|---|---|
+| `0` | The manifest was written or removed (or there was none to remove). |
+| `1` | `install` or `uninstall` refused, or writing or removing the file failed. |
+| `2` | The arguments are wrong (the browser is not exactly `chrome` or `brave`), or `HOME` is unset, empty, or relative. |
+
 ### Checking the server with curl
 
 Write a request body to `request.json` (a video URL and the copied transcript):
@@ -563,6 +640,30 @@ no job and post no failure notice.
   example by restoring mode `0700` on the socket directory, and start again.
 - **`HOME: the socket path derived from HOME exceeds the operating system's
   limit`.** `HOME` is too long for the socket path; see the limit above.
+- **The native messaging host is not found.** The browser gives the extension
+  `Specified native messaging host not found.` (shown in the extension's
+  developer log) when there is no manifest for it, or the manifest's binary is
+  gone. Run `yt2column-nmhost install` for that browser from the binary you
+  want it to start (see
+  [Installing the native messaging host](#installing-the-native-messaging-host)),
+  again after moving the binary.
+- **Access to the host is forbidden.** The browser gives the extension
+  `Access to the specified native messaging host is forbidden.` when the
+  extension's ID is not the one the manifest allows. Load the extension built
+  from this repository's `extension/`, whose manifest key fixes its ID.
+- **Reading the host's log.** The host logs to standard error, which goes to
+  the browser's own standard error, out of sight when the browser was started
+  from the Dock or a menu. Quit the browser completely, then start its
+  executable from a terminal; the host's log lines then appear in that
+  terminal:
+  - macOS Chrome: `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"`
+  - macOS Brave: `"/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"`
+  - other Unix: `google-chrome` or `brave-browser`
+
+  The host logs the socket path it derived, how far the relay got, and the
+  host error or the server's status code, never the request or the response.
+  If its socket path differs from the one in the server's first log line, the
+  browser and the server see different values of `HOME`.
 
 ### Upgrading from the shared-token version
 
@@ -646,7 +747,7 @@ Use `low` through `xhigh` for column generation.
 ## Development
 
 ```sh
-make build   # build both binaries into build/
+make build   # build the three binaries into build/
 make test    # unit tests (no network, no yt-dlp)
 make lint    # golangci-lint (pinned version)
 make fmt     # gofumpt on changed files
@@ -699,6 +800,13 @@ posts it. With fake values (any API key, and an `https` Webhook URL such as
 job starts, such as the wrong method above (`method_not_allowed`) or a wrong
 path (`not_found`); an accepted request would try to call the LLM API and post
 a failure notice.
+
+The extension cannot reach such a server. The browser starts the native
+messaging host with your real `HOME`, so the host connects only to the socket
+of a server started with your real `HOME`. The host manifest is one file per
+browser (on macOS, one file shared by Chrome and Brave), so installing the host
+from one worktree's build replaces the manifest another worktree installed;
+check a build from the extension one worktree at a time.
 
 ### Browser extension
 

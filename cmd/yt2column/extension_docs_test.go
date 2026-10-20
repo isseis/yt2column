@@ -10,9 +10,13 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
+
+	"github.com/isseis/yt2column/internal/nmhost"
 )
 
 // Paths from cmd/yt2column to the browser-extension artifacts and documents
@@ -25,6 +29,7 @@ const (
 	extensionPlanPath         = repositoryRoot + "/docs/tasks/0007_browser_extension_skeleton/03_implementation_plan.md"
 	extensionSendPlanPath     = repositoryRoot + "/docs/tasks/0020_extension_send/03_implementation_plan.md"
 	menuRemovalPlanPath       = repositoryRoot + "/docs/tasks/0027_remove_context_menu/03_implementation_plan.md"
+	extensionSendPath         = repositoryRoot + "/extension/src/send.ts"
 )
 
 // extTargetRE matches a make target definition for an extension target, such as
@@ -394,6 +399,40 @@ note body`
 			}
 		})
 	}
+}
+
+// sendTimeoutRE matches the extension's declaration of how long it waits for
+// a send, in milliseconds, with optional digit separators.
+var sendTimeoutRE = regexp.MustCompile(`(?m)^export const sendTimeoutMs = ([0-9][0-9_]*);$`)
+
+// TestNativeHostContract pins the values the Native Messaging host and the
+// extension must agree on: the only origin the host's manifest allows and its
+// relay accepts is the one derived from the extension manifest's key, and the
+// host gives up on the server before the extension gives up on the host, so
+// a reply the host writes is never one the extension has stopped waiting for.
+func TestNativeHostContract(t *testing.T) {
+	t.Run("extension origin", func(t *testing.T) {
+		id, err := extensionIDFromManifestKey(readExtensionManifest(t).Key)
+		if err != nil {
+			t.Fatalf("derive the extension ID: %v", err)
+		}
+		if want := "chrome-extension://" + id + "/"; nmhost.ExtensionOrigin != want {
+			t.Errorf("nmhost.ExtensionOrigin = %q, want %q (from the extension manifest's key)", nmhost.ExtensionOrigin, want)
+		}
+	})
+	t.Run("relay timeout", func(t *testing.T) {
+		m := sendTimeoutRE.FindStringSubmatch(readDoc(t, extensionSendPath))
+		if m == nil {
+			t.Fatalf("%s has no sendTimeoutMs declaration", extensionSendPath)
+		}
+		ms, err := strconv.Atoi(strings.ReplaceAll(m[1], "_", ""))
+		if err != nil {
+			t.Fatalf("parse sendTimeoutMs %q: %v", m[1], err)
+		}
+		if extension := time.Duration(ms) * time.Millisecond; nmhost.RelayTimeout >= extension {
+			t.Errorf("nmhost.RelayTimeout = %v, want it shorter than the extension's sendTimeoutMs (%v)", nmhost.RelayTimeout, extension)
+		}
+	})
 }
 
 // TestExtensionIDFromManifestKeyRejectsUnparseableKey checks that a value that

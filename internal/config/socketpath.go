@@ -51,7 +51,7 @@ func socketPath(goos string, lookup LookupFunc) (string, *VarError) {
 	if !ok {
 		return "", missingVarWithReason("HOME", reasonSocketPathAbsent)
 	}
-	home, ok := absoluteEnv(lookup, "HOME")
+	home, ok := absoluteHome(lookup)
 	if !ok {
 		return "", missingVarWithReason("HOME", reasonSocketPathAbsent)
 	}

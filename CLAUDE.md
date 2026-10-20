@@ -40,7 +40,8 @@ structural consistency) and the glossary workflow live in
 ## Commands
 
 ### Build Commands
-- `make build` - Build both binaries (`yt2column`, `yt2column-server`) into `build/`
+- `make build` - Build the three binaries (`yt2column`, `yt2column-server`, `yt2column-nmhost`) into `build/`; it installs nothing
+- `./build/yt2column-nmhost install <browser>` / `./build/yt2column-nmhost uninstall <browser>` - Register or remove the Native Messaging host manifest (`<browser>` is `chrome` or `brave`)
 - `make clean` - Clean build artifacts
 - `make all` - Default build target
 - `make install-mergepr` - Install the `/mergepr` developer tool (`go install ./cmd/mergepr`)
@@ -121,7 +122,11 @@ and posts the article to the Webhook. The server's supporting packages are
 `internal/serversock` (the socket directory, the start lock, and the socket
 itself), `internal/failure` (the `Kind`/`Notice`/`Notifier` contract it reports
 a failed request with), `internal/redact` (secret redaction for every output),
-and `internal/signalrun` (signal handling both entry points share).
+and `internal/signalrun` (signal handling both entry points share). The
+extension does not connect to the socket itself: the browser starts the Native
+Messaging host (`cmd/yt2column-nmhost` + `internal/nmhost`), which relays one
+request to the socket per send and manages its own manifest with `install` and
+`uninstall`.
 
 See [Project Overview](docs/dev/project_overview.md) for the decided policies and
 constraints, and [Package Reference](docs/dev/developer_guide/package_reference.md)

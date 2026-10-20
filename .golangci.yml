@@ -121,6 +121,15 @@ linters:
               desc: "internal/nmhost must not import internal/config; cmd/yt2column-nmhost passes the values it needs"
             - pkg: os/exec
               desc: "internal/nmhost starts no other program"
+        # The host's entry point only wires the relay and the manifest
+        # commands; like internal/nmhost, it starts no other program.
+        nmhost-cmd-no-exec:
+          list-mode: lax
+          files:
+            - "**/cmd/yt2column-nmhost/**"
+          deny:
+            - pkg: os/exec
+              desc: "cmd/yt2column-nmhost starts no other program"
         publisher-no-log:
           list-mode: lax
           files:
