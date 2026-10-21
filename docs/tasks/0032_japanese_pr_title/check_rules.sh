@@ -248,7 +248,7 @@ check_context_subject_regex() {
 subject_ok() {
 f=$1
 [ "$(awk 'END { print NR }' "$f")" = 1 ] &&
-	[ -z "$(LC_ALL=C tr -d '\n -~' <"$f")" ] &&
+	[ "$(LC_ALL=C tr -d '\n -~' <"$f" | wc -c)" -eq 0 ] &&
 	LC_ALL=C command grep -Eqx -- "$R" "$f"
 }
 
@@ -319,6 +319,8 @@ check_subject_regex_samples() {
 	sample reject 'docs(0032): (#1)\n'
 	sample reject 'docs(0032): draft (#)\n'
 	sample reject ' docs(0032): draft (#1)\n'
+	sample reject 'docs(0032): draft (#1)\000\n'
+	sample reject 'docs(0032): dr\000aft (#1)\n'
 	# The byte check alone: with a grep that accepts everything first on PATH
 	# (command grep finds it there), only the tr line can reject these.
 	mkdir "$tmp/stub" && printf '#!/bin/sh\nexit 0\n' >"$tmp/stub/grep" &&
@@ -337,6 +339,8 @@ check_subject_regex_samples() {
 	byte_sample reject 'docs(0032):\tdraft (#1)\n'
 	byte_sample reject 'docs(0032):\302\240draft (#1)\n'
 	byte_sample reject 'docs(0032):\343\200\200draft (#1)\n'
+	byte_sample reject 'docs(0032): draft (#1)\000\n'
+	byte_sample reject 'docs(0032): dr\000aft (#1)\n'
 	rm -rf "$tmp"
 }
 

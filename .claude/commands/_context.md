@@ -123,7 +123,7 @@ single quotes, and `f` to the subject file:
 R='<the squash subject regular expression>'
 f='<subject-file>'
 [ "$(awk 'END { print NR }' "$f")" = 1 ] &&
-	[ -z "$(LC_ALL=C tr -d '\n -~' <"$f")" ] &&
+	[ "$(LC_ALL=C tr -d '\n -~' <"$f" | wc -c)" -eq 0 ] &&
 	LC_ALL=C command grep -Eqx -- "$R" "$f"
 ```
 
