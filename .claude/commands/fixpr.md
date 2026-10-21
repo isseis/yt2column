@@ -459,8 +459,7 @@ Agent prompt:
 >    shifted) AND you have drafted a concrete final title and body from the
 >    actual PR content: first read the section "PR title and squash subject"
 >    of `.claude/commands/_context.md`, and write the new title in its PR
->    title form (a conventional-commit prefix, then a Japanese summary, no
->    backquotes). Write the body in Japanese (the project's language rule for
+>    title form. Write the body in Japanese (the project's language rule for
 >    GitHub). Write the title to a file in the scratchpad with the Write tool,
 >    then run:
 >    ```

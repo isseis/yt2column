@@ -82,12 +82,13 @@ Every `fixpr.md` and `mergepr.md` run below is given the resolved PR number
     gh pr create --base main --head <target-branch> --title "$(cat "<title-file>")" --body-file <body-file>
     ```
 
-    Draft a PR title in the form `_context.md`, "PR title and squash
-    subject", gives (a Japanese summary after a prefix whose `<type>(<scope>)`
-    matches the style of `git log origin/main`) and a short Japanese body from
-    the branch's commits, describing the final state, not the history. Write
-    the title and the body to files with the Write tool (`_context.md`,
-    "Passing a title to `gh`"). Do not pause for the user to adjust them; they can
+    Draft a PR title in the form that `_context.md`, "PR title and squash
+    subject", gives: an accepted prefix with a `<scope>`, its
+    `<type>(<scope>)` in the style of the scoped subjects in
+    `git log origin/main`, then a Japanese summary. Also draft a short Japanese
+    body from the branch's commits, describing the final state, not the
+    history. Write the title and the body to files in the scratchpad with the
+    Write tool (`_context.md`, "Passing a title to `gh`"). Do not pause for the user to adjust them; they can
     edit them on GitHub, and step 4 is the one question.
 - Check out the PR's head branch and bring it up to date before making any
   change, so `fixpr`'s and step 4's commits land on the PR's latest head:
@@ -104,7 +105,8 @@ head; a record already made counts as made, never as absent.
 
 - **Kind.**
   - **Plan PR** — a plan PR as `_context.md`, "Plan PR", defines it, judged
-    on the checkout step 1 brought up to date. That definition also says when
+    on the checkout step 1 brought up to date (in step 1's `MERGED` case, on
+    `origin/main`). That definition also says when
     it is the task's **final PR**, and when to stop and report instead of
     deciding.
   - **Task-document PR** — not a plan PR, and the PR adds or changes a task

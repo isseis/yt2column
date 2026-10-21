@@ -92,11 +92,16 @@ flat() {
 	echo
 }
 
-# sentences: print stdin one sentence (or table cell) per line: flat, then split
-# after a period, question mark, or exclamation mark followed by a space, and at
-# a table cell separator or a list item.
+# sentences: print stdin one sentence per line. Paragraphs (split at blank lines
+# and headings) are joined, then split after a period, question mark, or
+# exclamation mark followed by a space, at a table cell separator, and at a list
+# item.
 sentences() {
-	flat | awk '{ gsub(/[.!?] /, "&\n"); gsub(/ \| /, "\n"); gsub(/ - /, "\n"); print }'
+	awk '/^[ \t]*$/ || /^#/ { if (p != "") print p; p = ""; if (/^#/) print; next }
+		{ p = p " " $0 }
+		END { if (p != "") print p }' |
+		tr '\t' '  ' | tr -s ' ' |
+		awk '{ gsub(/[.!?] /, "&\n"); gsub(/ \| /, "\n"); gsub(/ - /, "\n"); print }'
 }
 
 # has TEXT ERE PROPERTY: fail with PROPERTY unless TEXT matches ERE.
@@ -204,7 +209,7 @@ check_context_title_section() {
 	# How a title is passed, and no backquotes.
 	has "$one" 'Write the title with the Write tool to a file' \
 		'the title is written to a file with the Write tool'
-	has "$one" '`--title "\$\(cat "<title-file>"\)"`' \
+	has "$one" "\`$(quote_ere "$TITLE_ARG")\`" \
 		'the title is passed by command substitution from the file'
 	has "$one" 'a PR title and a `推奨タイトル` never contain backquotes' \
 		'no backquotes in a PR title or a 推奨タイトル'
@@ -363,9 +368,14 @@ check_context_marker_conventions() {
 
 ALL_CHECKS="$ALL_CHECKS context_marker_conventions"
 
-# A sentence tying a title to English. A sentence ends at a period followed by
-# a space, so a path such as _context.md inside it does not end it.
-EN_TITLE='[Tt]itles?([^.]|\.[^ ])*English|English([^.]|\.[^ ])*[Tt]itles?'
+# A sentence tying a title to English.
+EN_TITLE='[Tt]itles?.*English|English.*[Tt]itles?'
+
+# lacks_en_title TEXT PROPERTY: fail with PROPERTY when a sentence of TEXT (see
+# sentences) ties a title to English.
+lacks_en_title() {
+	lacks "$(printf '%s\n' "$1" | sentences)" "$EN_TITLE" "$2"
+}
 
 check_claude_language() {
 	load_section CLAUDE.md '## Language' || return 0
@@ -375,7 +385,7 @@ check_claude_language() {
 		'PR titles are among the Japanese things on GitHub'
 	# No sentence of the GitHub bullet ties a title to English, and the old
 	# wording is gone from the whole section.
-	lacks "$gh" "$EN_TITLE" \
+	lacks_en_title "$gh" \
 		'no exception keeps the PR title in English'
 	lacks "$(printf '%s\n' "$sec" | flat)" 'PR title, which stays|stays an English|built from it' \
 		'the old English-title exception is gone'
@@ -421,7 +431,7 @@ check_handoff_pr_text() {
 		'PR_TEXT refers to the task-document PR title of the title section'
 	has "$def" 'for `runplan\.md`, the title its step 5a writes from the PR marker.s `推奨タイトル`' \
 		'PR_TEXT for runplan.md is the title step 5a writes from 推奨タイトル'
-	lacks "$b3" "$EN_TITLE" 'step 3 does not make the title English'
+	lacks_en_title "$b3" 'step 3 does not make the title English'
 	has "$b3" 'title and the body to files in the scratchpad with the Write tool' \
 		'step 3 writes the title to a file with the Write tool'
 	has "$b3" "$(quote_ere "$TITLE_ARG")" \
@@ -449,6 +459,11 @@ check_runplan_title() {
 		'step 5a: no accepted prefix gives <type>(<task-id>): '
 	has "$s5a" 'Write the summary in Japanese' 'step 5a writes the summary in Japanese'
 	has "$s5a" 'Do not rewrite the plan' 'step 5a does not rewrite the plan'
+	lacks_en_title "$s5a" 'step 5a does not make the title English'
+	lacks_en_title "$s8" 'step 8 does not make the title English'
+	lacks "$s8" 'concise English title|feat\(<task-id>\)' 'step 8 has no feat(<task-id>) title left'
+	has "$s5a" 'the text inside its code span, without the backquotes' \
+		'step 5a reads the value inside the code span'
 	has "$s8" 'the title is a plan PR title \(`_context\.md`, "PR title and squash subject"\)' \
 		'step 8 refers to the plan PR title of the title section'
 }
@@ -470,14 +485,16 @@ check_runpr_title() {
 		fail 'step 1, step 2, or step 4 item 2 not found'
 		return 0
 	}
-	has "$s1" 'Draft a PR title in the form `_context\.md`, "PR title and squash subject", gives' \
+	has "$s1" 'Draft a PR title in the form that `_context\.md`, "PR title and squash subject", gives' \
 		'step 1 writes the title in the PR title form of the title section'
-	has "$s1" 'Japanese summary after a prefix whose `<type>\(<scope>\)` matches the style of `git log origin/main`' \
-		'step 1: Japanese summary, <type>(<scope>) as in git log origin/main'
+	has "$s1" 'an accepted prefix with a `<scope>`, its `<type>\(<scope>\)` in the style of the scoped subjects in `git log origin/main`, then a Japanese summary' \
+		'step 1: a scoped prefix as in git log origin/main, then a Japanese summary'
+	has "$s1" 'title and the body to files in the scratchpad' 'step 1 writes the title file in the scratchpad'
 	has "$s1" "$(quote_ere "$TITLE_ARG")" 'step 1 passes the title from a file'
-	lacks "$s1" "$EN_TITLE" 'step 1 does not make the title English'
+	lacks_en_title "$s1" 'step 1 does not make the title English'
 	has "$s2" '\*\*Plan PR\*\* — a plan PR as `_context\.md`, "Plan PR", defines it' \
 		'step 2 refers to the plan PR judgment of _context.md'
+	has "$s2" 'in step 1.s `MERGED` case, on `origin/main`' 'step 2 names the tree of the MERGED case'
 	has "$s4" 'the record of which rule decided the subject.s prefix' \
 		'step 4 item 2 shows the record of the prefix rule'
 }
@@ -493,7 +510,7 @@ check_fixpr_title() {
 	has "$one" 'Only if the description is significantly stale' 'the stale-description condition stays'
 	has "$one" 'drafted a concrete final title and body' 'the concrete-text condition stays'
 	has "$one" "$(quote_ere "$TITLE_ARG")" 'gh pr edit takes the title from a file'
-	lacks "$one" "$EN_TITLE" 'the prompt does not keep the title English'
+	lacks_en_title "$one" 'the prompt does not keep the title English'
 }
 
 ALL_CHECKS="$ALL_CHECKS fixpr_title"
@@ -502,13 +519,14 @@ check_mkplan2_recommended_title() {
 	load .claude/commands/mkplan2.md || return 0
 	has "$ctx" '^   \*\*推奨タイトル\*\*: `<type>\(<task-id>\): <Japanese summary>`$' \
 		'the inserted marker template is <type>(<task-id>): <Japanese summary>'
-	has "$(printf '%s\n' "$ctx" | flat)" \
-		'- `\*\*推奨タイトル\*\*` is the Japanese title `runplan\.md` step 5a writes the PR title from, in the `推奨タイトル` form of `_context\.md`, "PR title and squash subject"' \
-		'the field description refers to the title section'
-	has "$ctx" '^- \[ \] `推奨タイトル` values match the `推奨タイトル` form of `_context\.md`, "PR title and squash subject", and contain no backquotes' \
-		'the review checklist checks the form and no backquotes'
-	lacks "$ctx" 'concise English title|conventional commit titles? in English' \
-		'no English 推奨タイトル remains'
+	desc=$(printf '%s\n' "$ctx" | between '^   - `\*\*推奨タイトル\*\*` ' '^   - ' | flat)
+	item=$(printf '%s\n' "$ctx" | command grep -E '^- \[ \] `推奨タイトル`')
+	has "$desc" '"PR title and squash subject"' 'the field description refers to the title section'
+	has "$desc" '`runplan\.md` step 5a' 'the field description names runplan.md step 5a'
+	has "$item" '"PR title and squash subject"' 'the review checklist checks the form of the title section'
+	has "$item" 'no backquotes' 'the review checklist checks no backquotes'
+	lacks_en_title "$ctx" 'no sentence of mkplan2.md makes a title English'
+	lacks "$ctx" 'concise English title' 'the old feat(<task-id>) template is gone'
 }
 
 ALL_CHECKS="$ALL_CHECKS mkplan2_recommended_title"
@@ -530,7 +548,7 @@ has_literal() {
 }
 
 check_commit_subjects_unchanged() {
-	has_literal .claude/commands/mkreq.md 'docs(NNNN): draft requirements for'
+	has_literal .claude/commands/mkreq.md 'docs(NNNN): draft requirements for <concise English summary>'
 	has_literal .claude/commands/mkarch.md 'docs(NNNN): draft the architecture for'
 	has_literal .claude/commands/mkplan.md 'docs(NNNN): draft the implementation plan for'
 	has_literal .claude/commands/fixpr.md 'fix: address PR #NUMBER review comments'
@@ -542,9 +560,10 @@ check_commit_subjects_unchanged() {
 	}
 	for file in $files; do
 		load "$file" || continue
+		# A quoted section name such as "PR title and squash subject" ends the match.
 		lacks "$(printf '%s\n' "$ctx" | sentences)" \
-			'[Cc]ommit messages?.*Japanese|Japanese.*[Cc]ommit messages?' \
-			"$file does not ask for a Japanese commit message"
+			'([Cc]ommit|[Ss]quash( commit)?) (messages?|subjects?|bod(y|ies))[^".;]*in Japanese|in Japanese[^".;]*([Cc]ommit|[Ss]quash( commit)?) (messages?|subjects?|bod(y|ies))' \
+			"$file does not ask for a Japanese commit message or subject"
 	done
 }
 

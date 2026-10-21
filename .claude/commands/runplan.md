@@ -90,7 +90,8 @@ Work in order.
     REPORT;
   - **PR_TEXT** = a plan PR title (`_context.md`, "PR title and squash
     subject") written from the PR marker's `推奨タイトル`, which is a draft,
-    and the marker's `レビュー観点` in the body. Write the title this way:
+    and the marker's `レビュー観点` in the body. The value is the text inside
+    its code span, without the backquotes. Write the title this way:
     - When the `推奨タイトル` starts with an accepted prefix that has a
       `<scope>`, keep that prefix; the draft summary is the rest of the value.
     - When it starts with an accepted prefix without a `<scope>` (such as
