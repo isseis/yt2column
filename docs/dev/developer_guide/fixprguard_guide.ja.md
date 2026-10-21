@@ -1,0 +1,276 @@
+# fixprguard 利用ガイド
+
+`fixprguard` は、`/fixpr` と `/runpr` が呼ぶ開発者向けのガードツールである。レビュースレッドの著者の判定、修正の変更範囲の判定、git の状態の比較、commit と push、GitHub への返信と PR の説明の更新を、手順書を読むセッションやエージェントに任せず、決定的なコードで行う。本書では、前提となる環境、インストール、各サブコマンドの使い方、範囲の規則、ツールが保証すること・しないこと、止まったときの対処を説明する。
+
+設計の経緯と根拠は、タスク 0030 の設計書（`docs/tasks/0030_fixpr_untrusted_threads/02_architecture.md`）にある。
+
+## 1. 位置付け
+
+レビュースレッドの本文は、PR に書き込める誰でも書けるので、信頼できないテキストである。`fixprguard` は、次の 3 つの守りの層をコードで強制する。
+
+1. **著者の判定。** すべてのコメントの著者が信頼する著者であるスレッドだけを処理する。信頼する著者は、自動レビュアー（`--reviewer` で渡す Bot）と、リポジトリへの書き込み権限（`role_name` が `write`・`maintain`・`admin`）を持つ人である。想定外の著者のスレッドの本文は取得しない。
+2. **区切りのブロック。** エージェントのプロンプトに埋め込む信頼できないテキストを、実行ごとの乱数（nonce）を含む区切りの行で囲む。
+3. **変更範囲と git の状態の確認。** 修正が、処理したスレッドの範囲の外のファイルや、git の hooks・config を変えていないことを、commit と push の前に確かめる。
+
+役割分担は次のとおり。
+
+| 担当 | 内容 |
+|---|---|
+| `fixprguard` バイナリ（`cmd/fixprguard`、`internal/fixprguard`） | 判定、取得、比較、commit・push、GitHub への書き込み |
+| `/fixpr`・`/runpr` コマンド（`.claude/commands/`） | サブコマンドを呼ぶ順序、利用者への確認、エージェントの起動 |
+| 開発者 | 範囲外の変更や想定外の著者のスレッドについての判断、ツールが止まったときの対処 |
+
+ツールは状態のファイルを持たない。サブコマンドが出力した基準値や判定した集合の識別子は、セッションが保持し、次のサブコマンドの引数で渡す。
+
+## 2. 前提条件
+
+| 項目 | 内容 |
+|---|---|
+| `git`、`gh`、`make` | `PATH` 上にあり、`gh auth login` 済みであること |
+| 作業ディレクトリ | 作業ツリーの最上位で実行すること |
+| `origin` | GitHub 上の本リポジトリを指していること。`gh repo view` がプロンプトなしで本リポジトリを返すこと |
+| `GH_REPO`・`GH_HOST` | 設定されていないこと。設定されていると、`gh` を呼ぶサブコマンドは `gh` を起動せずに終了コード `2` で止まる（`gh` が別のリポジトリを対象にするため） |
+
+## 3. インストール
+
+最新の `main` をチェックアウトした状態で、次を実行する。
+
+```sh
+make install-fixprguard
+```
+
+`$(go env GOPATH)/bin` に `PATH` が通っていることを確認する。
+
+ツールを変更した PR がマージされたら、`main` を更新してから再インストールする。コマンドの文書は `--protocol` で版を照合するが、同じ `protocol` の番号のまま規則が変わる変更は検出できない。インストール済みのバイナリが作られたコミットは、次のコマンドの `vcs.revision` で確かめられる。
+
+```sh
+go version -m "$(command -v fixprguard)"
+```
+
+1 つのバイナリが、同じ利用者のすべての worktree で共有される。
+
+## 4. 共通の約束
+
+| 項目 | 内容 |
+|---|---|
+| `--protocol N` | すべてのサブコマンドに必須。`N` がバイナリの番号と一致しなければ、終了コード `2` で止まる（古いバイナリが新しい文書の想定で判定するのを防ぐ）。現在の番号は `1` |
+| `--reviewer LOGIN` | `list`・`begin`・`inspect`・`reply` に必須で、ほかのサブコマンドには渡せない。自動レビュアーの GraphQL の `author.login`（例: `coderabbitai`）を渡す。既定値はない |
+| `[PR]` | 10 進数の PR 番号だけを受け付ける。URL やブランチ名は拒否する。省略すると、現在のブランチの PR を `gh pr view` で求める。GitHub を読まない `finish` は省略できない |
+| フラグの位置 | フラグは位置引数（`PR`・`FILE`）の前に書く。同じフラグを 2 回渡すと拒否する（`--accept` と `--thread` は複数回渡せる） |
+| 標準出力 | 1 行の JSON（`fence` だけは区切りのブロックそのもの）。すべての JSON に `protocol` が入る |
+| 標準エラー | 1 行の診断。拒否した規則の名前だけを示し、GitHub から来た値や外部コマンドの引数・標準エラーは含めない |
+
+終了コードは次のとおり。呼び出し側は、これ以外の終了コード、信号による終了、JSON として読めない出力を、すべて「止める」として扱う。
+
+| 終了コード | 意味 | 標準出力 |
+|---|---|---|
+| `0` | 続けてよい | サブコマンドの結果 |
+| `1` | 止める | `stop`（止まった種類）と、種類ごとの詳細（8 章） |
+| `2` | 使い方の誤り（フラグ、値の文法、`--protocol` の不一致、`GH_REPO`・`GH_HOST`） | なし |
+| `3` | 利用者に確かめる（`inspect` だけ。範囲外の変更がある） | `inspect` の結果 |
+
+## 5. サブコマンド
+
+各サブコマンドは単独でも実行できる。拒否の理由を調べるときは、コマンドの文書と同じ引数で、このとおりに実行する。
+
+### `head [PR]`
+
+PR の head がこのリポジトリのブランチであることを確かめる（`isCrossRepository` が真偽値の `false` で、`headRepository` があるときだけ）。fork の PR は `cross-repository` で止まる。`/runpr` は、`gh pr checkout` の前にこれを実行する。
+
+```sh
+fixprguard head --protocol 1 42
+```
+
+出力: `{"protocol":1,"sameRepository":true}`。副作用: GitHub の読み取りだけ。
+
+### `list --reviewer LOGIN [PR]`
+
+未解決のスレッドを全ページ取得し（最大 2000 件。超えると `thread-cap` で止まる）、スレッドごとの信頼の判定と理由、指紋を出力する。本文は取得も出力もしない。最初に `head` と同じ確認をする。
+
+```sh
+fixprguard list --protocol 1 --reviewer coderabbitai 42
+```
+
+出力: `threads`（各要素は `threadId`・`url`・`trusted`・`fingerprint`・`findings`）と `permissionLookups`（権限の照会の使用回数 `used` と残り `remaining`）。`findings` の `reason` は次のいずれかである。
+
+| `reason` | 意味 | 付く項目 |
+|---|---|---|
+| `no-write-permission` | 書き込み権限のない利用者 | `account` |
+| `other-bot` | 自動レビュアー以外の Bot | `account` |
+| `no-author-name` | 著者がない、名前が空、または名前の文法に合わない | `commentUrl` |
+| `permission-unavailable` | 権限を照会できなかった | `cause`（`not-found`・`forbidden`・`rate-limited`・`budget-exceeded`・`rejected-response`・`failed`） |
+| `incomplete-comments` | コメントが 100 件を超え、全部を取得できない | なし |
+| `unknown-author-kind` | 著者の種類が `User` でも `Bot` でもない | なし |
+
+### `begin --reviewer LOGIN [--accept ID=FINGERPRINT ...] [PR]`
+
+`/fixpr` のフェーズ 1。次の順に行う。(1) 作業ツリーに未コミットの変更（未追跡のファイルを含む）がないこと（あれば `dirty-work-tree` で止まり、GitHub に問い合わせない）。(2) `head` と同じ確認。(3) 基準値の採取。(4) 最初の 1 ページ（100 スレッド）の判定と、処理するスレッドの本文の取得。
+
+処理するスレッドは、信頼する著者のスレッドと、`--accept` で名指しされて指紋が現在と一致するスレッドである。`--accept` には、利用者に示した報告の出力にあるスレッド ID と指紋を渡す。
+
+```sh
+fixprguard begin --protocol 1 --reviewer coderabbitai 42
+```
+
+出力の項目:
+
+| 項目 | 内容 |
+|---|---|
+| `baseline` | 基準値。`inspect`・`finish`・`push` に `--baseline` で渡す |
+| `number`・`capHit` | PR 番号。`capHit` が真なら、2 ページ目以降のスレッドは今回の対象外 |
+| `processCount` | 処理するスレッドの数。`0` なら処理するものはない |
+| `untrusted` | 処理しない想定外の著者のスレッド（`threadId`・`url`・`fingerprint`・`findings`）。本文はない |
+| `changed` | コメントが変わったため処理しないスレッド（`stage` が `since-accept` なら名指しの後、`since-judgment` なら判定と本文の取得の間に変わった） |
+| `acceptNotFound` | 名指しされたが、未解決のスレッドに見つからなかった ID |
+| `permissionLookups` | 権限の照会の使用回数と残り |
+| `nonce`・`threads` | `threads` は、処理するスレッドの配列（`threadId`・`databaseId`・`authorType`・`body`・`path`・`line`・`url`・`fingerprint`・`named`）を 1 行の JSON にし、`BEGIN-UNTRUSTED-<nonce>` と `END-UNTRUSTED-<nonce>` の行で囲んだ文字列。エージェントのプロンプトにはこの文字列をそのまま埋め込む |
+
+副作用: GitHub と `git ls-remote` の読み取りだけ。
+
+### `fence FILE`
+
+ファイルの内容を区切りのブロックで囲んで、そのまま標準出力に書く（JSON ではない）。nonce は、ファイルに含まれない値を選び直す。通常のファイルで 16 MiB 以下のものだけを読む。`/fixpr` は、トリアージのエージェントの出力をファイルに書き、これで囲んでから修正のエージェントに渡す。
+
+```sh
+fixprguard fence --protocol 1 /path/to/triage.json
+```
+
+副作用: なし。
+
+### `inspect --reviewer LOGIN --baseline TOKEN [--thread ID=FINGERPRINT ...] [PR]`
+
+修正のフェーズの後に実行する。まず hooks・config・info を基準値と比べ、違えば `gh` を起動せずに `git-state-changed` で止まる。次に、`--thread` のスレッドを GitHub から取り直して `path` を求め（指紋が違えば `thread-changed`）、作業ツリーの変更を数え上げて、範囲（6 章）と照らす。
+
+```sh
+fixprguard inspect --protocol 1 --reviewer coderabbitai --baseline 'v1....' --thread 'PRRT_...=<指紋>' 42
+```
+
+出力: `judgedSet`（判定した集合の識別子。`finish` に渡す）、`changes`（変更のあったパスの数）、`outOfScope`（範囲外の変更。各要素は `position`・`path`・`kind`（`add`・`modify`・`delete`・`other`）・`added`・`deleted`・`binary`）。`outOfScope` が空でなければ終了コード `3` で、利用者に一覧を示して続けるかを確かめる。パスの検査（6 章）に通らないパスは `path` を出さず、`position` だけで示す。
+
+副作用: GitHub と git（`git ls-remote` を含む）の読み取りだけ。作業ツリーは変えない。
+
+### `finish --baseline TOKEN --judged-set ID PR`
+
+`/fixpr` のフェーズ 4。1 回の呼び出しで次の順序を強制する。(1) 作業ツリーが判定した集合と一致し、git の状態が基準値と同じ。(2) `make fmt`。(3) 整形後の集合を記録（変更のあるパスの集合が変わっていれば止まる）。(4) `make test`・`make lint`。(5) 整形後の集合と厳密に一致。(6) 判定したパスだけを、パスを文字どおりに解釈する指定で stage。(7) stage の内容を確認（違えば取り消す）。(8) commit。(9) commit のツリーが整形後の集合と一致することを確認。make のターゲットは `fmt`・`test`・`lint` の固定値で、引数からは受け取らない。commit の件名は `fix: address PR #<PR> review comments` である。
+
+```sh
+fixprguard finish --protocol 1 --baseline 'v1....' --judged-set '<judgedSet>' 42
+```
+
+出力: `committed`（判定した集合が空なら `false` で、何もしない）と `commit`（作った commit の SHA。`push` に渡す）。
+
+副作用: `make fmt` の整形、build checks が行う書き込み、stage と commit。push・ブランチの切り替え・reset はしない（stage の取り消しを除く）。
+
+### `push --baseline TOKEN --commit SHA`
+
+`finish` が返した SHA を push する。直前に、hooks・config・info が基準値と同じこと、HEAD がその SHA でその親が基準値の commit だけであること、push 先（現在のブランチについて git が解決するリモートの、同じ名前のブランチ）の OID が基準値と同じことを確かめる。明示した refspec で、タグとサブモジュールを伴わずに push する。
+
+```sh
+fixprguard push --protocol 1 --baseline 'v1....' --commit '<SHA>'
+```
+
+出力: `{"protocol":1,"pushed":true,"commit":"<SHA>"}`。
+
+### `reply --reviewer LOGIN --thread-id ID --comment-id N --fingerprint FP --body-file FILE [--accept ID=FINGERPRINT ...] [PR]`
+
+スレッドを現在の状態で判定し直し、信頼する著者のスレッド（または、`--accept` で名指しされて指紋が一致するスレッド）で、`--fingerprint` が現在の指紋と一致し、`--comment-id` がそのスレッドの最初のコメントのときだけ、返信を投稿する。本文は JSON として標準入力で `gh api` に渡すので、シェルを通らない。返信の後、スレッドを取り直して返信のほかに変化がないことを確かめてから、スレッドを解決する。
+
+本文のファイルは、通常のファイル（最後の要素がシンボリックリンクでない）で、64 KiB 以下、空白だけでなく、NUL を含まない有効な UTF-8 でなければならない。
+
+```sh
+fixprguard reply --protocol 1 --reviewer coderabbitai --thread-id 'PRRT_...' --comment-id 123 --fingerprint '<指紋>' --body-file /path/to/reply.md 42
+```
+
+出力: `{"protocol":1,"written":true}`。`reply-not-resolved` で止まったときは、返信が投稿された可能性があるので、同じ返信を再び投稿しない。
+
+### `edit-pr --title-file FILE --body-file FILE [PR]`
+
+PR のタイトルと本文を更新する。タイトルは `--title=<値>` の形で、本文は検査した内容を標準入力から渡す（`gh` にファイルを読み直させない）。タイトルのファイルは、本文のファイルと同じ検査に加えて、制御文字と行区切りを含まない 1 行であること。
+
+```sh
+fixprguard edit-pr --protocol 1 --title-file /path/to/title.txt --body-file /path/to/body.md 42
+```
+
+出力: `{"protocol":1,"written":true}`。
+
+## 6. 範囲の規則
+
+`inspect` は、`--thread` で渡したスレッドの `path`（GitHub から取り直したもの）ごとに、範囲に入るファイルを次の規則で決める。
+
+1. `path` そのもの。
+2. `path` と同じディレクトリのファイル（サブディレクトリの中は含まない）。
+3. `path` が `docs/tasks/NNNN_<name>/` の中にあれば、そのディレクトリの下のすべてのファイル（サブディレクトリの中を含む）。
+4. ただし、コマンドの実行に関わるファイル（下の表）は、`path` そのものでなければ範囲外とする。名指しされた想定外の著者のスレッドでは、`path` そのものでも範囲外とする。
+5. 名前を変えたファイルは、変える前の削除と変えた後の追加を、それぞれ判定する。
+6. 通常のファイル以外の変更（シンボリックリンク、サブモジュール、ファイルの種類の変更、FIFO やデバイス、8 MiB を超えるファイル）は、パスにかかわらず範囲外とする。
+
+`.go` のファイルは、規則 2 では、`path` が `.go` のファイルで同じディレクトリにあるときだけ範囲に入り（同じパッケージのテストの修正）、規則 3 では範囲に入らない。名指しされた想定外の著者のスレッドでは、`path` そのもの以外の `.go` のファイルは範囲外である。`make test` が範囲内の `.go` のファイルをコンパイルして実行するためである。
+
+**パスの検査。** 有効な UTF-8 で制御文字を含まず、絶対パスでなく、`..` の要素を含まず、正規化で変わらないパスだけを判定する。それ以外は範囲外とし、出力に `path` を出さない。ASCII でない文字を含むパスは、`path` とバイト単位で一致するときだけ範囲に入る。
+
+**コマンドの実行に関わるファイル。** build checks と CI が、設定として読む、またはコンパイル・実行するファイルである。照合は ASCII の大文字小文字を同一視して行う（大文字小文字を区別しないファイルシステムでは `makefile` と `Makefile` が同じファイルを指すため）。一覧は `internal/fixprguard/scope.go` の定義と同じである。
+
+| 形 | 項目 |
+|---|---|
+| どのディレクトリでも、この名前のファイル | `makefile`、`gnumakefile`、`go.mod`、`go.sum`、`go.work`、`go.work.sum`、`.tool-versions`、`.mise.toml` |
+| どのディレクトリでも、この拡張子のファイル | `*.mk` |
+| `.go` の規則（上記） | `*.go` |
+| この下のすべてのファイル | `.claude/`、`.github/`、`extension/scripts/` |
+| リポジトリの最上位のファイル | `/.*`（`.` で始まるすべてのファイル）、`/claude.md`、`/agents.md` |
+| `extension/` の直下のファイル | `extension/package.json`、`extension/package-lock.json`、`extension/.npmrc`、`extension/.node-version`、`extension/.prettierrc.json`、`extension/.prettierignore`、`extension/eslint.config.js`、`extension/tsconfig.json`、`extension/tsconfig.core.json`、`extension/tsconfig.build.json` |
+
+## 7. ツールが保証すること・しないこと
+
+### 7.1 保証すること
+
+| 保証 | 仕組み |
+|---|---|
+| 想定外の著者のスレッドの本文を取得しない | 判定は本文を含まない問い合わせで行い、本文は処理するスレッドについてだけ取得する。判定と本文の取得の間にコメントが変わったスレッドは、指紋の不一致で処理しない |
+| 区切りのブロックを本文が終わらせられない | nonce が本文に含まれないことを確かめる。`begin` の `threads` は 1 行の JSON なので、本文の改行や引用符は区切りの行を作れない |
+| 範囲外の変更を、利用者の確認なしに commit しない | `inspect` が範囲外を一覧にして終了コード `3` を返し、`finish` は判定した集合と一致する変更だけを commit する |
+| 判定の後に現れた変更を commit しない | `finish` が、判定した集合との厳密な一致を build checks の前と後で確かめ、判定したパスだけを stage する |
+| 書き換えられた hooks・config で git を起動しない | `inspect`・`finish`・`push` が、git や `gh` を起動する前に基準値と比べる |
+| 返信と PR の説明がシェルのコマンドにならない | `reply`・`edit-pr` はシェルを介さず、本文を標準入力で渡す |
+| fork の PR の head を扱わない | `head`・`list`・`begin` が最初に確かめる |
+
+### 7.2 保証しないこと
+
+- エージェントが区切りの内側の指示に従わないこと。区切りの偽造は防ぐが、LLM の振る舞いは保証できない。
+- `inspect` から `finish` までを呼ぶ順序、利用者への確認、名指しを直前の報告にあるスレッドに限ること。これらはコマンドの文書（セッション）に依存する。
+- 確認の時点の状態だけを保証する。確認から実行までの間に別のプロセスが hooks や config を書き換えること、修正のフェーズの間に変えて元に戻したことは検出しない。
+- 範囲内のテストのコードが build checks で実行されること。`finish` と `push` は、そのコードが範囲内のファイルや hooks を書き換えたことは検出する。
+- `.gitignore` が無視するファイル、作業ツリーの中の `.gitignore` やグローバルの除外のファイルで隠したファイル、index の stat の偽造で隠した変更。隠した変更は commit されないが、build checks が実行することは防げない。
+- hooks のディレクトリの外にあり、hook が実行するファイル（pre-commit のフレームワークのキャッシュなど）。
+- `--reviewer` の値が `_context.md` の値と同じであること。ツールは `_context.md` を読まない。
+- 同じ秒の内の再編集。指紋の時刻は秒の単位である。
+- 返信と PR の説明の本文の内容。ツールはファイルの種類・大きさ・文字コードだけを検査する。
+
+## 8. 止まったときの対処
+
+終了コード `1` の出力の `stop` が、止まった種類を示す。止まった場合はツールを回避せず、原因を取り除いてから、ラウンドを `begin` からやり直す。
+
+| `stop` | 原因 | 詳細の項目 | 対処 |
+|---|---|---|---|
+| `dirty-work-tree` | `begin` の時点で作業ツリーに未コミットの変更（未追跡のファイルを含む）がある | なし | `git status` で変更を調べ、捨てるか commit してからやり直す。範囲外の変更で前のラウンドを止めたときも、変更が残っているのでここで止まる |
+| `cross-repository` | PR の head が fork など別のリポジトリにある | なし | ツールでは扱わない。PR の内容を自分で確かめる |
+| `git-state-changed` | HEAD・ブランチ・push 先・hooks・config・info のどれかが基準値と違う | `parts`（`head`・`remote`・`hooks`・`config`・`info`） | 違う部分を調べる。意図しない hooks や config の変更なら取り除く。リモートが正当に進んだだけなら、作業ツリーを整理してやり直す |
+| `judged-set-changed` | 作業ツリーや commit が判定した集合と違う（判定の後に変更が現れた、build checks が範囲内のファイルを書き換えた、commit の hook が index を書き換えた、など） | `changes`（見つかった変更の一覧） | 一覧の変更を調べる。commit が作られた後に止まったときは、その commit を調べて取り消す |
+| `thread-cap` | `list` が読むスレッドが 2000 件を超える | なし | GitHub 上でスレッドを解決して減らす |
+| `change-cap` | 変更のあるファイルが 1000 個を超える | なし | 変更を調べて減らす |
+| `thread-changed` | `inspect` や `reply` の対象のスレッドのコメントが、指紋を採った後に変わった、または解決された | なし | 次のラウンドで拾う。`begin` からやり直す |
+| `thread-not-trusted` | `reply` の対象が、信頼する著者のスレッドでも、名指しされたスレッドでもない | なし | 返信しない。想定外の著者のスレッドの扱いは利用者が決める |
+| `reply-not-resolved` | 返信が投稿された（か、投稿されたか分からない）が、スレッドを解決できなかった | なし | 同じ返信を再び投稿しない。GitHub でスレッドを確かめ、必要なら手で解決する |
+| `response-rejected` | GitHub の呼び出しが失敗した、時間切れになった、または応答が厳格な検査や大きさの上限に通らなかった | なし | `gh auth status` と GitHub の状態を確かめてやり直す |
+| `build-checks-failed` | `make fmt`・`make test`・`make lint` のどれかが失敗した | `stage`（`fmt`・`test`・`lint`）と `output`（出力の末尾 8 KiB を区切りのブロックにしたもの） | 出力を確かめて原因を直す。`output` はコードの実行結果なので、信頼できないテキストとして扱う |
+| `git-failed` | git が失敗した、出力が想定の形でない、または git のメタデータを読めなかった（作業ツリーの最上位で実行していない、追跡済みのファイルを FIFO に置き換えた、など） | なし | 作業ツリーの最上位で実行しているか、`git status` が通るかを確かめる |
+| `failed` | 上のどれにも当たらない失敗（区切りの nonce を選べなかった、など） | なし | 標準エラーの診断を確かめる |
+
+範囲外の変更で利用者が「続けない」と答えたときは、変更は作業ツリーに残る。次の `/fixpr` は `dirty-work-tree` で止まるので、変更を調べて、捨てるか commit してからやり直す。
+
+## 9. ツールを変更する場合
+
+- 判定は `internal/fixprguard`、引数の解釈と呼び出しの順序は `cmd/fixprguard` にある。外部コマンドは `internal/cmdrunner` の `Runner`・`InputRunner` 越しに呼ぶ。テストでは、`gh` と `make` を `internal/cmdrunner/testutil` の fake に置き換え、git は一時ディレクトリの実際のリポジトリで試す。
+- 7.1 節の保証を変更する場合は、対応する実装を壊してテストが失敗することを確かめ、そのことをコミットメッセージに書く（CLAUDE.md の「Testing Strategy」）。
+- 出力や引数の契約を変える場合は、`internal/fixprguard` の `Protocol` を上げ、コマンドの文書が渡す `--protocol` も合わせて更新する。
+- `stop` の種類や実行に関わるファイルの一覧を変えたら、本書の 6 章と 8 章も更新する。`cmd/fixprguard/docs_test.go` が、本書（日英）にすべての種類と項目があることを確かめる。
+- マージの後は、`make install-fixprguard` で再インストールする（3 章）。
