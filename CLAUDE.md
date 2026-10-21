@@ -44,15 +44,14 @@ structural consistency) and the glossary workflow live in
 - **What stays in the git repository: English** — source code, comments,
   identifiers, string literals, and commit messages. A squash commit's subject
   and body are English too: `/mergepr` writes the subject from the PR material
-  (the commit messages, the diff, the PR description), not by copying the PR
-  title. Documents under `docs/` follow "Documents" above.
+  (`.claude/commands/mergepr.md` step 2), not by copying the PR title.
+  Documents under `docs/` follow "Documents" above.
 - **Prompts to AI: English** — subagent prompts, review prompts, and the
   command definitions under `.claude/commands/`.
 - **What lives on GitHub: Japanese** — PR titles, PR descriptions, issues,
-  review replies, and PR comments. A PR title is
-  `<type>(<scope>): <Japanese summary>`: its conventional-commit prefix stays in
-  ASCII before the Japanese summary (the forms are in
-  `.claude/commands/_context.md`, "PR title and squash subject"). The exception
+  review replies, and PR comments. A PR title keeps its conventional-commit
+  prefix in ASCII and writes the summary after it in Japanese; the forms are in
+  `.claude/commands/_context.md`, "PR title and squash subject". The exception
   is bot commands such as `@coderabbitai review`.
 
 ## Commands

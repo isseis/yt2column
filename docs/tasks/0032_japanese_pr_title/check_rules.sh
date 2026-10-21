@@ -360,16 +360,21 @@ check_claude_language() {
 	load_section CLAUDE.md '## Language' || return 0
 	gh=$(printf '%s\n' "$sec" | between '^- \*\*What lives on GitHub' '^- \*\*|^$' | flat)
 	repo=$(printf '%s\n' "$sec" | between '^- \*\*What stays in the git repository' '^- \*\*|^$' | flat)
-	has "$gh" '^- \*\*What lives on GitHub: Japanese\*\* — PR titles, PR descriptions' \
+	has "$gh" '^- \*\*What lives on GitHub: Japanese\*\* — [^.]*PR titles' \
 		'PR titles are among the Japanese things on GitHub'
-	lacks "$sec" 'PR title, which stays|stays an English|built from it' \
+	# Any sentence of the GitHub bullet tying a title to English, and the old
+	# wording anywhere in the section.
+	lacks "$gh" '[Tt]itles?[^.]*English|English[^.]*[Tt]itles?' \
 		'no exception keeps the PR title in English'
+	lacks "$(printf '%s\n' "$sec" | flat)" 'PR title, which stays|stays an English|built from it' \
+		'the old English-title exception is gone'
 	has "$gh" '`\.claude/commands/_context\.md`, "PR title and squash subject"' \
 		'refers to the title section'
 	has "$repo" 'squash commit.s subject and body are English' \
 		'the squash subject and body are English'
 	has "$repo" '`/mergepr` writes the subject from the PR material' \
 		'/mergepr writes the subject from the PR material'
+	has "$repo" 'not by copying the PR title' '/mergepr does not copy the PR title'
 	has "$gh" 'bot commands such as `@coderabbitai review`' 'the bot-command exception remains'
 }
 
@@ -381,7 +386,10 @@ check_glossary_terms() {
 	has "$ctx" '^\| 受け付ける接頭辞 \| accepted prefix \|' 'term: 受け付ける接頭辞 = accepted prefix'
 	has "$ctx" '^\| 要約 \| summary \|' 'term: 要約 = summary'
 	has "$ctx" '^\| プランの PR \| plan PR \|' 'term: プランの PR = plan PR'
-	has "$ctx" '^\| 材料 \| material \|.*diff' 'term: 材料 includes the diff read when needed'
+	has "$ctx" '^\| 材料 \| material \|.*と、必要なときに読む diff' \
+		'term: 材料 includes the diff read when needed'
+	has "$ctx" '^\| 材料 \| material \|.*PR のタイトルは含めない' \
+		'term: 材料 excludes the PR title'
 }
 
 ALL_CHECKS="$ALL_CHECKS glossary_terms"
