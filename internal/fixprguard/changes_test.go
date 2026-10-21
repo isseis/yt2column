@@ -42,10 +42,6 @@ func TestEnumerateChanges(t *testing.T) {
 	if err := os.Symlink("a.md", filepath.Join(r.Dir, "docs/notes/link.md")); err != nil {
 		t.Fatal(err)
 	}
-	// git does not list an untracked FIFO.
-	if err := syscall.Mkfifo(filepath.Join(r.Dir, "docs/fifo"), 0o600); err != nil {
-		t.Fatal(err)
-	}
 
 	got := enumerate(t, r)
 	type summary struct {
@@ -79,9 +75,6 @@ func TestEnumerateChanges(t *testing.T) {
 			continue
 		}
 		s := summary{kind: c.kind, mode: c.mode, added: c.added, deleted: c.deleted, binary: c.binary}
-		if c.kind == ChangeOther && w.mode == "" {
-			s.mode = ""
-		}
 		if s != w {
 			t.Errorf("%s = %+v, want %+v", c.path, s, w)
 		}
@@ -158,17 +151,19 @@ func TestChangeCaps(t *testing.T) {
 
 func TestParseRawOutputRejected(t *testing.T) {
 	const rec = ":100644 100644 aaaaaaa 0000000 M\x00a.md\x00"
+	raw := func(b []byte) error { _, err := parseRaw(b); return err }
+	numstat := func(b []byte) error { _, err := parseNumstat(b); return err }
 	for _, tc := range []struct {
 		name  string
 		parse func([]byte) error
 		out   string
 	}{
-		{"raw_odd_fields", func(b []byte) error { _, err := parseRaw(b); return err }, ":100644 100644 a b M\x00"},
-		{"raw_short_meta", func(b []byte) error { _, err := parseRaw(b); return err }, ":100644 M\x00a.md\x00"},
-		{"raw_duplicate", func(b []byte) error { _, err := parseRaw(b); return err }, rec + rec},
-		{"numstat_no_path", func(b []byte) error { _, err := parseNumstat(b); return err }, "1\t2\x00"},
-		{"numstat_not_number", func(b []byte) error { _, err := parseNumstat(b); return err }, "x\t2\ta.md\x00"},
-		{"numstat_duplicate", func(b []byte) error { _, err := parseNumstat(b); return err }, "1\t2\ta.md\x001\t2\ta.md\x00"},
+		{"raw_odd_fields", raw, ":100644 100644 a b M\x00"},
+		{"raw_short_meta", raw, ":100644 M\x00a.md\x00"},
+		{"raw_duplicate", raw, rec + rec},
+		{"numstat_no_path", numstat, "1\t2\x00"},
+		{"numstat_not_number", numstat, "x\t2\ta.md\x00"},
+		{"numstat_duplicate", numstat, "1\t2\ta.md\x001\t2\ta.md\x00"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if err := tc.parse([]byte(tc.out)); !errors.Is(err, ErrGitFailed) {

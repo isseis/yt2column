@@ -632,7 +632,7 @@ flowchart TD
 -   **commit。** 件名は、`<PR>` から `fix: address PR #<N> review comments` と組み立てる。ラウンドの数え方（`fixpr.md:36-39`）が依存する件名なので、ツールの 1 か所で持ち、文書の検査（7.4）が `fixpr.md` の記述との一致を確かめる。判定した集合が空なら、何もせず `committed: false` を返す。
 -   **出力。** build checks が失敗したときは、失敗した段階（`fmt`・`test`・`lint`）と、出力の末尾（8 KiB まで）を返す。出力はコードの実行結果であり、信頼できないテキストとして区切りのブロックで返す。
 
-**`push` の不変条件。** `finish` が返した SHA を受け取り、(1) HEAD がその SHA である。(2) hooks・config・info が基準値と同じである。(3) push 先（現在のブランチについて git が解決するリモートの、同じ名前のブランチ。upstream の `branch.<b>.merge` は読まない。`origin/main` から作ったブランチは、最初の push まで `main` を追跡しているためである）のブランチの OID が基準値と同じである（`inspect` の後にリモートが巻き戻されて、意図しない履歴が再導入されるのを防ぐ）。push 先の識別（リモートの名前と URL）は、config の比較が覆う。(4) 明示した refspec で、タグとサブモジュールを伴わずに push する。これにより、commit から push までの間に hooks や config が書き換えられても、書き換えられた hooks や config が実行されることはない。ただし、確認した時点の状態しか保証しない。確認から push の実行までの間に別のプロセスが書き換える場合は防げない（5.3）。push に失敗したときは、今までどおり、フェーズ 4 の失敗とする（`fixpr.md:354-361` の未 push の commit の確認も変えない）。
+**`push` の不変条件。** `finish` が返した SHA を受け取り、(1) HEAD がその SHA で、その親が基準値の commit だけである。(2) hooks・config・info が基準値と同じである。(3) push 先（現在のブランチについて git が解決するリモートの、同じ名前のブランチ。upstream の `branch.<b>.merge` は読まない。`origin/main` から作ったブランチは、最初の push まで `main` を追跡しているためである）のブランチの OID が基準値と同じである（`inspect` の後にリモートが巻き戻されて、意図しない履歴が再導入されるのを防ぐ）。push 先の識別（リモートの名前と URL）は、config の比較が覆う。(4) 明示した refspec で、タグとサブモジュールを伴わずに push する。これにより、commit から push までの間に hooks や config が書き換えられても、書き換えられた hooks や config が実行されることはない。ただし、確認した時点の状態しか保証しない。確認から push の実行までの間に別のプロセスが書き換える場合は防げない（5.3）。push に失敗したときは、今までどおり、フェーズ 4 の失敗とする（`fixpr.md:354-361` の未 push の commit の確認も変えない）。
 
 ### 3.7. git の状態の基準値（F-004・H-08）
 
@@ -641,7 +641,7 @@ flowchart TD
 | 値 | 求め方 | 比べる時点 |
 |---|---|---|
 | head | HEAD の OID と、HEAD がいるブランチ（同じ commit のブランチへの切り替えも検出する） | `inspect`・`finish`・`push` |
-| remote | push 先のリモートのブランチの OID（ブランチがなければ空）。push 先の識別は config が覆う | `inspect`・`push` |
+| remote | push 先のリモートのブランチの OID（ブランチがなければ `none`）。push 先の識別は config が覆う | `inspect`・`push` |
 | hooks | hooks のディレクトリの内容のダイジェスト | `inspect`・`finish`・`push` |
 | config | git のディレクトリの場所（`.git` ファイルと `commondir` が指す先）、リポジトリの config と worktree の config の内容のダイジェスト（ファイルの読み取りだけで求める）と、git が読むすべての設定の値（`git config --list --show-origin`。グローバル・システム・include 先を含む）のダイジェスト | `inspect`・`finish`・`push` |
 | info | `info/exclude`・`info/attributes` の内容のダイジェストと、index のフラグ（skip-worktree・assume-unchanged が立ったエントリがないこと） | `inspect`・`finish`・`push` |

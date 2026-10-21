@@ -360,8 +360,9 @@ func (w *Worktree) checkStaged(ctx context.Context, want []change) error {
 
 // undoStage resets the index to HEAD, leaving the work tree as it is, after
 // cause stopped the staging or the commit. Hooks may have run since the last
-// comparison, so the git state is compared first; if it changed, no further
-// git runs and the staging is left for the user to inspect.
+// comparison, so the git state is compared first; if the comparison fails
+// (a change, or git failing to answer), no further git runs and the staging
+// is left for the user to inspect.
 func (w *Worktree) undoStage(ctx context.Context, base Baseline, cause error) error {
 	if err := w.CheckState(ctx, base); err != nil {
 		return errors.Join(err, cause)

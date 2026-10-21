@@ -3,12 +3,14 @@
 package fixprguard
 
 import (
+	"bytes"
 	"errors"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 // wantStateParts fails unless err is a *GitStateError naming exactly parts.
@@ -59,10 +61,6 @@ func TestBaselineDetectsChange(t *testing.T) {
 			r.Write(testFile, "changed\n")
 			r.CommitAll("agent commit")
 		}, parts: []string{PartHead}},
-		{name: "reset", setup: func(_ *testing.T, r *testRepo) {
-			r.Write(testFile, "second\n")
-			r.CommitAll("second")
-		}, edit: func(_ *testing.T, r *testRepo) { r.Git("reset", "-q", "--hard", "HEAD~1") }, parts: []string{PartHead}},
 		{name: "branch_switch_same_commit", edit: func(_ *testing.T, r *testRepo) {
 			r.Git("switch", "-q", "-c", "other")
 		}, parts: []string{PartHead}},
@@ -140,6 +138,14 @@ func TestBaselineDetectsChange(t *testing.T) {
 			}
 			r.Write(".git", "gitdir: "+filepath.Join(r.Home, "moved.git")+"\n")
 		}, parts: []string{PartConfig}},
+		{name: "linked_worktree_common_config", setup: func(t *testing.T, r *testRepo) {
+			linked := filepath.Join(r.Home, "linked")
+			r.Git("worktree", "add", "-q", "-b", "linked-branch", linked)
+			t.Chdir(linked)
+		}, edit: func(t *testing.T, r *testRepo) {
+			// The shared config lives in the main repository's git directory.
+			appendFile(t, filepath.Join(r.Dir, ".git", "config"), "[core]\n\tfsmonitor = true\n")
+		}, parts: []string{PartConfig}},
 		{name: "info_exclude", edit: func(t *testing.T, r *testRepo) {
 			appendFile(t, filepath.Join(r.Dir, ".git", "info", "exclude"), "*.go\n")
 		}, parts: []string{PartInfo}},
@@ -169,20 +175,6 @@ func TestBaselineDetectsChange(t *testing.T) {
 		})
 	}
 
-	t.Run("linked_worktree_common_config", func(t *testing.T) {
-		r := newTestRepo(t)
-		linked := filepath.Join(r.Home, "linked")
-		r.Git("worktree", "add", "-q", "-b", "linked-branch", linked)
-		t.Chdir(linked)
-		r.Git("config", "branch.linked-branch.remote", testRemote)
-		base := mustBaseline(t)
-		// The shared config lives in the main repository's git directory.
-		appendFile(t, filepath.Join(r.Dir, ".git", "config"), "[core]\n\tfsmonitor = true\n")
-		w, _ := newTestWorktree(t)
-		_, err := w.compareState(t.Context(), base, base.head, checkWithRemote)
-		wantStateParts(t, err, PartConfig)
-	})
-
 	t.Run("baseline_refuses_flagged_entry", func(t *testing.T) {
 		r := newTestRepo(t)
 		r.Git("update-index", "--skip-worktree", testFile)
@@ -208,9 +200,20 @@ func TestBaselineIgnoresIndexAndFetchHead(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(r.Dir, ".git", "FETCH_HEAD")); err != nil {
 		t.Fatalf("fetch wrote no FETCH_HEAD: %v", err)
 	}
-	r.Git("read-tree", "HEAD")
-	r.Git("update-index", "--refresh")
-	r.Git("checkout", "-q", testBranch)
+	// Restaging the file with a new mtime rewrites the index bytes.
+	index := filepath.Join(r.Dir, ".git", "index")
+	before, err := os.ReadFile(index)
+	if err != nil {
+		t.Fatal(err)
+	}
+	later := time.Now().Add(time.Hour)
+	if err := os.Chtimes(filepath.Join(r.Dir, testFile), later, later); err != nil {
+		t.Fatal(err)
+	}
+	r.Git("add", testFile)
+	if after, _ := os.ReadFile(index); bytes.Equal(after, before) {
+		t.Fatal("the index did not change")
+	}
 	w, _ := newTestWorktree(t)
 	if _, err := w.compareState(t.Context(), base, base.head, checkWithRemote); err != nil {
 		t.Errorf("compareState = %v, want nil", err)

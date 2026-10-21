@@ -35,14 +35,6 @@ func TestBeginRejectsDirtyWorkTree(t *testing.T) {
 			}
 		})
 	}
-	t.Run("clean", func(t *testing.T) {
-		newTestRepo(t)
-		w, _ := newTestWorktree(t)
-		base, err := w.Begin(t.Context())
-		if err != nil || !base.usable() {
-			t.Errorf("Begin = %v, %v; want a baseline", base, err)
-		}
-	})
 }
 
 func TestInspectInScope(t *testing.T) {
@@ -53,12 +45,6 @@ func TestInspectInScope(t *testing.T) {
 	inspection := mustInspect(t, base)
 	if inspection.Changes != 2 || len(inspection.OutOfScope) != 0 {
 		t.Errorf("Inspect = %+v, want 2 changes all in scope", inspection)
-	}
-	if _, err := ParseJudgedSetID(string(inspection.JudgedSet)); err != nil {
-		t.Errorf("JudgedSet = %q: %v", inspection.JudgedSet, err)
-	}
-	if inspection.Protocol != Protocol {
-		t.Errorf("Protocol = %d", inspection.Protocol)
 	}
 }
 

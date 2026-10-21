@@ -72,12 +72,12 @@ func TestScopeRules(t *testing.T) {
 
 		// Path checks.
 		{"absolute", "/docs/a.md", ChangeModify, trusted("/docs/a.md"), false},
-		{"dot_dot", "docs/../docs/a.md", ChangeModify, trusted("docs/../docs/a.md"), false},
+		{"dot_dot", "../a.md", ChangeModify, trusted("../a.md"), false},
 		{"not_clean", "docs//a.md", ChangeModify, trusted("docs//a.md"), false},
 		{"control_character", "docs/a\x01.md", ChangeModify, trusted("docs/a\x01.md"), false},
 		{"c1_control_character", "docs/a\u0085.md", ChangeModify, trusted("docs/a\u0085.md"), false},
 		{"invalid_utf8", "docs/a\xff.md", ChangeModify, trusted("docs/a\xff.md"), false},
-		{"invalid_thread_path", "docs/b.md", ChangeModify, trusted("docs/../a.md"), false},
+		{"invalid_thread_path", "b.md", ChangeModify, trusted("../a.md"), false},
 		{"non_ascii_exact", "docs/é.md", ChangeModify, trusted("docs/é.md"), true},
 		{"non_ascii_beside_path", "docs/é.md", ChangeAdd, trusted("docs/a.md"), false},
 		// U+212A KELVIN SIGN folds to k on some file systems.

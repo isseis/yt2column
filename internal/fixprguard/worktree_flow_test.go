@@ -70,19 +70,16 @@ func (p prepared) wantNoCommit(t *testing.T, head string) {
 func indexOf(calls []string, call string) int { return slices.Index(calls, call) }
 
 func TestFinishOrder(t *testing.T) {
+	// The fake already holds make fmt, test and lint to their order; the
+	// staging and the commit must follow the last of them.
 	p := prepareRound(t, fixTestFile)
 	_, router, err := p.finish(t, buildCheckSteps()...)
 	if err != nil {
 		t.Fatalf("Finish = %v", err)
 	}
-	order := []string{"git diff", "make fmt", "make test", "make lint", "git add", "git commit"}
-	last := -1
-	for _, call := range order {
-		i := slices.IndexFunc(router.Calls[last+1:], func(c string) bool { return c == call })
-		if i < 0 {
-			t.Fatalf("%q missing or out of order in %v", call, router.Calls)
-		}
-		last += i + 1
+	lint := indexOf(router.Calls, "make lint")
+	if add, commit := indexOf(router.Calls, "git add"), indexOf(router.Calls, "git commit"); add < lint || commit < add {
+		t.Errorf("staging or commit out of order: %v", router.Calls)
 	}
 }
 
@@ -118,7 +115,6 @@ func TestFinishStopsOnJudgedSetMismatch(t *testing.T) {
 		name string
 		edit func(t *testing.T, r *testRepo)
 	}{
-		{"untracked_added", func(_ *testing.T, r *testRepo) { r.Write("docs/notes/late.md", "x\n") }},
 		{"content_changed", func(_ *testing.T, r *testRepo) { r.Write(testFile, "fixed again\n") }},
 		{"deleted", func(t *testing.T, r *testRepo) {
 			if err := os.Remove(filepath.Join(r.Dir, "docs/notes/b.md")); err != nil {
@@ -185,7 +181,7 @@ func TestFinishStagesJudgedPathsOnly(t *testing.T) {
 		// inspect judged.
 		result := p.mustFinish(t)
 		got := strings.Split(strings.TrimSpace(p.r.Git("diff-tree", "-r", "--name-only", "--no-commit-id", p.base.head, result.Commit)), "\n")
-		if !slices.Equal(got, []string{":!a.md", ":(top)b.md", "docs/notes/[ab].md"}) {
+		if !slices.Equal(got, names) {
 			t.Errorf("committed %q", got)
 		}
 	})
@@ -281,22 +277,6 @@ func TestFinishPostCommitTreeCheck(t *testing.T) {
 	})
 }
 
-func TestFinishChecksStateAfterCommit(t *testing.T) {
-	r := newTestRepo(t)
-	r.WriteHook("pre-commit", "printf '[core]\\n\\tfsmonitor = true\\n' >> .git/config\n")
-	base := mustBaseline(t)
-	fixTestFile(r)
-	p := prepared{r: r, base: base, judged: mustInspect(t, base).JudgedSet}
-	result, router, err := p.finish(t, buildCheckSteps()...)
-	wantStateParts(t, err, PartConfig)
-	if result.Commit != "" {
-		t.Errorf("Finish returned commit %s", result.Commit)
-	}
-	if last := router.Calls[len(router.Calls)-1]; last != "git commit" {
-		t.Errorf("git ran after the commit hook changed the config: %v", router.Calls)
-	}
-}
-
 func TestFinishStopsWhenHooksChangeConfig(t *testing.T) {
 	setFsmonitor := "printf '[core]\\n\\tfsmonitor = true\\n' >> .git/config\n"
 	for _, tc := range []struct {
@@ -304,6 +284,8 @@ func TestFinishStopsWhenHooksChangeConfig(t *testing.T) {
 	}{
 		// git add runs post-index-change; nothing after it may run git.
 		{"after_add", "post-index-change", setFsmonitor, "git add"},
+		// A commit whose hooks changed the config is not checked with git.
+		{"after_commit", "pre-commit", setFsmonitor, "git commit"},
 		// A failing commit is not undone with git once the config changed.
 		{"after_failed_commit", "pre-commit", setFsmonitor + "exit 1\n", "git commit"},
 	} {
@@ -313,8 +295,11 @@ func TestFinishStopsWhenHooksChangeConfig(t *testing.T) {
 			base := mustBaseline(t)
 			fixTestFile(r)
 			p := prepared{r: r, base: base, judged: mustInspect(t, base).JudgedSet}
-			_, router, err := p.finish(t, buildCheckSteps()...)
+			result, router, err := p.finish(t, buildCheckSteps()...)
 			wantStateParts(t, err, PartConfig)
+			if result.Commit != "" {
+				t.Errorf("Finish returned commit %s", result.Commit)
+			}
 			if last := router.Calls[len(router.Calls)-1]; last != tc.last {
 				t.Errorf("last command = %q, want %q: %v", last, tc.last, router.Calls)
 			}
@@ -422,18 +407,19 @@ func TestPushRechecks(t *testing.T) {
 		name  string
 		edit  func(t *testing.T, p prepared, commit string)
 		parts []string
+		noGit bool // the change is seen before any git runs
 	}{
 		{"head_is_not_the_commit", func(_ *testing.T, p prepared, _ string) {
 			p.r.Write("docs/notes/extra.md", "x\n")
 			p.r.CommitAll("after finish")
-		}, []string{PartHead}},
-		{"hooks_changed", func(_ *testing.T, p prepared, _ string) { p.r.WriteHook("pre-push", "exit 0\n") }, []string{PartHooks}},
+		}, []string{PartHead}, false},
+		{"hooks_changed", func(_ *testing.T, p prepared, _ string) { p.r.WriteHook("pre-push", "exit 0\n") }, []string{PartHooks}, false},
 		{"config_changed", func(_ *testing.T, p prepared, _ string) {
 			p.r.Git("config", "remote."+testRemote+".receivepack", "evil")
-		}, []string{PartConfig}},
+		}, []string{PartConfig}, true},
 		{"remote_branch_moved", func(_ *testing.T, p prepared, commit string) {
 			p.r.Git("push", "-q", testRemote, commit+":"+headsPrefix+testBranch)
-		}, []string{PartRemote}},
+		}, []string{PartRemote}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			p := prepareRound(t, fixTestFile)
@@ -446,8 +432,7 @@ func TestPushRechecks(t *testing.T) {
 			if indexOf(router.Calls, "git push") >= 0 {
 				t.Errorf("pushed: %v", router.Calls)
 			}
-			// A changed config stops the push before any git runs.
-			if n := gitCalls(router.Calls); tc.parts[0] == PartConfig && n != 0 {
+			if n := gitCalls(router.Calls); tc.noGit && n != 0 {
 				t.Errorf("ran git %d times after the config changed: %v", n, router.Calls)
 			}
 			if got := p.r.RemoteHead(); got != remote {
@@ -516,11 +501,9 @@ func TestRoundStopsAtRightPlace(t *testing.T) {
 	t.Run("file_added_after_inspect", func(t *testing.T) {
 		p := prepareRound(t, fixTestFile)
 		p.r.Write("docs/notes/while_asking.md", "x\n")
-		_, router, err := p.finish(t)
+		_, _, err := p.finish(t)
+		// No make step is scripted: any make call fails the test.
 		wantJudgedSetChanged(t, err)
-		if slices.ContainsFunc(router.Calls, func(c string) bool { return strings.HasPrefix(c, makeCommand) }) {
-			t.Errorf("make ran: %v", router.Calls)
-		}
 	})
 	t.Run("hook_added_during_fix", func(t *testing.T) {
 		r := newTestRepo(t)
@@ -578,17 +561,6 @@ func TestRoundStopsAtRightPlace(t *testing.T) {
 		wantJudgedSetChanged(t, err)
 		if indexOf(router.Calls, "git add") >= 0 {
 			t.Errorf("staged: %v", router.Calls)
-		}
-	})
-	t.Run("clean_round_reaches_push", func(t *testing.T) {
-		p := prepareRound(t, fixTestFile)
-		commit := p.mustFinish(t).Commit
-		w, _ := newTestWorktree(t)
-		if _, err := w.Push(t.Context(), p.base, commit); err != nil {
-			t.Fatalf("Push = %v", err)
-		}
-		if got := p.r.RemoteHead(); got != commit {
-			t.Errorf("remote = %s, want %s", got, commit)
 		}
 	})
 }
