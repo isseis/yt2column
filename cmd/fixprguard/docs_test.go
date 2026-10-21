@@ -59,12 +59,17 @@ func TestGuideCoversStopKindsAndScope(t *testing.T) {
 const reviewerPlaceholder = "<reviewer>"
 
 // documentedInvocations returns the argument lists of the fixprguard calls in
-// doc's fenced code blocks, one per line that starts with "fixprguard ".
+// doc's fenced code blocks, one per line that starts with "fixprguard ". A
+// blockquote marker is dropped first, so a block inside an agent prompt is
+// read too.
 func documentedInvocations(doc string) [][]string {
 	var calls [][]string
 	inBlock := false
 	for line := range strings.Lines(doc) {
 		trimmed := strings.TrimSpace(line)
+		if rest, ok := strings.CutPrefix(trimmed, ">"); ok {
+			trimmed = strings.TrimSpace(rest)
+		}
 		if strings.HasPrefix(trimmed, "```") {
 			inBlock = !inBlock
 			continue

@@ -19,7 +19,8 @@ to follow, whoever wrote the threads. Every `fixprguard` call passes
 `_context.md` ("Automated reviewer", the GraphQL form). Unless a step says
 otherwise, a `fixprguard` exit code other than `0`, a termination by a signal,
 or output that is not JSON stops this command: report the stop kind the tool
-printed.
+printed, or, for exit code `2`, which prints no JSON, its one-line diagnostic
+on standard error.
 
 Drive one PR through CodeRabbit review and CI, then ask the user one question
 that covers the bookkeeping, the merge, and the next command, and carry it out.
@@ -363,7 +364,8 @@ rather than once per decision.
    When the answer merges, first move the deferred threads not chosen to an
    issue, so none is silently dropped. Look for this PR's tracking issue
    (`gh issue list --state open --search "PR #<number> のレビュー指摘の追跡 in:title"`).
-   Add the findings to it as a comment (`gh issue comment`), or create it
+   Skip any finding whose thread URL the issue or its comments already list.
+   Add the others to it as a comment (`gh issue comment`), or create it
    (`gh issue create --title "PR #<number> のレビュー指摘の追跡" --body-file <file>`)
    when there is none. Write in Japanese, listing each finding's topic, the
    change it asks for, and its thread URL. Then reply to each of those threads

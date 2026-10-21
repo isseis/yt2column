@@ -481,11 +481,13 @@ change in the work tree, and checks each against the scope of those paths.
     The Final report says the run stopped for out-of-scope changes, lists them
     as above, and says that the next `/fixpr` stops with `dirty-work-tree`
     until the user examines the changes and discards or commits them.
-- A stop (exit code `1`, `2`, or anything else): stop without build checks,
+- A stop (exit code `1`, `2`, `3` in the skipped-Phase-3 case, or anything
+  else): stop without build checks,
   commit, push, reply, or resolve. Report the stop kind; for
   `git-state-changed`, name the `parts` that differ from the baseline (HEAD,
-  the remote branch, the hooks, the config, or the info). The changes stay in
-  the work tree.
+  the remote branch, the hooks, the config, or the info); for exit code `3`,
+  list `outOfScope` as the exit code `3` bullet does. The changes stay in the
+  work tree.
 
 Do not edit the work tree between this phase and Phase 4: `finish` stops on any
 change that appeared after the judgment.
