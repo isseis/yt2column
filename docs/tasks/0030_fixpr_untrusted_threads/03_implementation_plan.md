@@ -220,7 +220,7 @@
 **判定理由**: 本文を取得しないという安全の保証を担う判定のコードを含み、セキュリティの門にあたる（`mkplan.md` の panel mode の trigger）。
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/406
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
