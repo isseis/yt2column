@@ -8,7 +8,7 @@
 | Created | 2026-10-21 |
 | Review date | 2026-10-21 |
 | Reviewer | isseis |
-| Comments | 2026-10-21 (editorial): 3.2 の `cmdrunner.Options` に `Dir` と `Env` を加えた（計画書 1.3.2 の決定。3.7 の git の起動と一時リポジトリのテストに要る）。AC は変わらない |
+| Comments | 2026-10-21 (editorial): 3.2 の `cmdrunner.Options` に `Dir` と `Env` を加えた（計画書 1.3.2 の決定。3.7 の git の起動と一時リポジトリのテストに要る）。AC は変わらない。2026-10-21 (editorial): 3.4 に、2 段目の応答に入りうる本文の扱い、`authorType` の決め方、`begin` の出力の `untrusted`・`changed`・`acceptNotFound` を書き足した（実装に合わせた。AC は変わらない）。2026-10-21 (editorial): 3.2 の `Finding` に `CommentURL` を加え（3.3 の「コメントの URL を理由 (c) に付ける」の型の上の表現）、`ThreadPaths` の戻り値を `[]ThreadPath`（パスと、名指しされた想定外の著者のスレッドかどうか）にした（3.6 の規則 4 が名指しを区別するため）。AC は変わらない。2026-10-21 (decision): 3.7 に、`GH_REPO` または `GH_HOST` が設定されていれば `gh` を起動せずに止まる規則を加え、2 章の `owner/repo` の求め方から参照した（PR #406 のレビューの指摘。取り除いて進める案ではなく止める案を、このセッションでレビュアーが承認した）。AC は変わらない |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `911b535` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md) の項番を指す。申し送り H-01〜H-10 への対応は付録 A にまとめる。#395 などは GitHub の issue の番号を指す。
 
@@ -283,7 +283,7 @@ sequenceDiagram
 
 終了コードは、`0` が「続けてよい」、`1` が「止める」（理由は出力の `stop`）、`2` が使い方の誤り、`3` が「利用者に確かめる」（`inspect` だけ）である。呼び出し側は、これら以外の終了コード、信号による終了、JSON として読めない出力、途中で切れた出力を、すべて「止める」として扱う。
 
-PR を引数に取るサブコマンドの `<PR>` は、10 進数の PR 番号だけを受け付ける（省略すると現在のブランチの PR）。URL やブランチ名は拒否する。リポジトリの `owner/repo` は、呼び出し元の入力からでなく、ローカルのリポジトリ（`gh repo view`）から求める。
+PR を引数に取るサブコマンドの `<PR>` は、10 進数の PR 番号だけを受け付ける（省略すると現在のブランチの PR）。URL やブランチ名は拒否する。リポジトリの `owner/repo` は、呼び出し元の入力からでなく、ローカルのリポジトリ（`gh repo view`）から求める。`gh` の対象を変える環境変数が設定されていれば止まる（3.7）。
 
 | サブコマンド | 呼ぶ側 | 入力 | 出力 | 外部への副作用 |
 |---|---|---|---|---|
@@ -400,9 +400,10 @@ const (
 )
 
 type Finding struct {
-	Reason  Reason
-	Account Login // set for (a) and (b) only
-	Cause   Cause // set for (d) only
+	Reason     Reason
+	Account    Login  // set for (a) and (b) only
+	Cause      Cause  // set for (d) only
+	CommentURL string // set for (c) only
 }
 
 // Assessment is the zero value "not trusted"; Trusted is set only when every
@@ -432,7 +433,7 @@ func NewGitHub(run cmdrunner.InputRunner, reviewer Login) (*GitHub, error)
 func (g *GitHub) Head(ctx context.Context, pr PRNumber) (HeadInfo, error)
 func (g *GitHub) List(ctx context.Context, pr PRNumber) (ThreadList, error)
 func (g *GitHub) Begin(ctx context.Context, pr PRNumber, accept []Accept) (Round, error)
-func (g *GitHub) ThreadPaths(ctx context.Context, pr PRNumber, threads []Accept) ([]string, error)
+func (g *GitHub) ThreadPaths(ctx context.Context, pr PRNumber, threads []Accept) ([]ThreadPath, error)
 func (g *GitHub) Reply(ctx context.Context, req ReplyRequest) error
 func (g *GitHub) EditPR(ctx context.Context, req EditPRRequest) error
 
@@ -471,8 +472,9 @@ const (
 )
 
 // Inspection, FinishRequest, FinishResult, PushResult, Round, ThreadList,
-// HeadInfo, ReplyRequest, EditPRRequest and Block are plain result and request
-// types; their fields follow 3.1.
+// HeadInfo, ThreadPath, ReplyRequest, EditPRRequest and Block are plain result
+// and request types; their fields follow 3.1. ThreadPath carries the path and
+// whether the thread is a named untrusted one (rule 4 of 3.6).
 ```
 
 「宣言し、推測しない」（`CLAUDE.md`）に従い、著者の種類（`AuthorKind`）と理由（`Reason`）、失敗の原因（`Cause`）は列挙型にし、ゼロ値を最も仮定の少ない解釈にする。分岐は `switch` で行い、`default` は想定外（信頼しない）に倒す。`Login` の文法の検査は、権限の照会の URL に値を埋め込む前の入力の検査であり、著者の信頼の選択には使わない。
@@ -520,7 +522,7 @@ const (
 1.  **1 段目（メタデータ）。** PR の未解決のスレッドについて、コメントごとに `databaseId`・`url`・`path`・`line`・`author { __typename login }`・`createdAt`・`updatedAt`・`lastEditedAt` と、スレッドごとに `id`・`isResolved` を取得する。本文は取得しない。判定と指紋はここで作る。
 2.  **2 段目（本文）。** 判定の結果、処理するスレッド（信頼する著者のスレッドと、名指しされて指紋が一致したスレッド）についてだけ、スレッドの ID を指定して本文を含むコメントを取得する。2 段目の応答から指紋を作り直し、1 段目と同じことを確かめる。違うスレッドは、判定の後にコメントが変わったものとして処理せず、報告に載せる（AC-09）。
 
-想定外の著者のスレッドの本文は、取得しない。これにより、(1) 想定外の著者の本文が、ツールのプロセスにも入らない。(2) 想定外の著者が大きなコメントを大量に投稿しても、応答が大きくならない（妨害を受けない）。
+想定外の著者のスレッドの本文は、取得しない。これにより、(1) 1 段目で想定外と判定したスレッドの本文は、ツールのプロセスにも入らない。1 段目と 2 段目の間に想定外の著者が返信したスレッドは、2 段目の応答に本文が入るが、指紋の不一致で処理せず、出力にも含めない。(2) 想定外の著者が大きなコメントを大量に投稿しても、応答が大きくならない（妨害を受けない）。
 
 **スレッドの数。** `begin` は、今までどおり `reviewThreads(first:100)` の 1 ページを取得し、`hasNextPage` が真なら `capHit` を報告する（要件書 4.3、`fixpr.md:184-185`）。`list` は、今までの `runpr.md:207-210` と同じく全ページを取得して `isResolved=false` に絞る。ただし、取得するスレッドの総数に上限（2000 件）を設け、超えたら `stop` の種類 `thread-cap` で止まる。部分的な一覧を、全体の一覧として返さない。
 
@@ -532,7 +534,7 @@ const (
 
 **確認の後にコメントが変わったとき。** 信頼する著者（たとえば CodeRabbit）が、ラウンドの途中でコメントを足したスレッドは、`inspect`・`reply` が指紋の不一致を見つけ、修正を push した後でも返信も解決もしない（`ErrThreadChanged`）。要件書 4.4 の「信頼する著者のスレッドの処理は今までどおり」に対する、安全側の例外である。最終報告に「コメントが変わったスレッド」として挙げ、次のラウンドが拾う。
 
-**処理するスレッドの出力。** `begin` は、処理するスレッドを、今までと同じ形（`threadId`・`databaseId`・`authorType`・`body`・`path`・`line`・`url`）に、`fingerprint` を加えて出力する。`body` は、取得できたコメント（最大 100 件）を `@author: ` 付きで連結した、今までと同じ形の文字列である。`authorType` は最初のコメントの著者の種類で、処理するスレッドでは `Bot` は自動レビュアーだけである。これは今までの挙動との違いで、自動レビュアー以外の Bot（Copilot、Gemini、Sonar など）が開いたスレッドは、`Bot` として処理されるのではなく、想定外の著者のスレッドとして報告される。`/runpr` は、そのスレッドが未解決の間はマージせず、実行のたびに質問する。利用者が GitHub 上で解決するか、名指しして処理する。別の自動レビュアーを信頼するときは、`_context.md` と `NewGitHub` の変更が要る（第 9 章）。
+**処理するスレッドの出力。** `begin` は、処理するスレッドを、今までと同じ形（`threadId`・`databaseId`・`authorType`・`body`・`path`・`line`・`url`）に、`fingerprint` を加えて出力する。`body` は、取得できたコメント（最大 100 件）を `@author: ` 付きで連結した、今までと同じ形の文字列である。`authorType` は、最初のコメントの著者が自動レビュアーなら `Bot`、それ以外は `User` である（名指しされた、自動レビュアー以外の Bot のスレッドも `User` として、人のスレッドと同じく扱う）。出力には、ほかに、処理しないスレッドの一覧（想定外の著者のスレッド `untrusted`、コメントが変わったスレッド `changed`）と、名指しされたが未解決のスレッドに見つからなかった ID（`acceptNotFound`）を含める。これは今までの挙動との違いで、自動レビュアー以外の Bot（Copilot、Gemini、Sonar など）が開いたスレッドは、`Bot` として処理されるのではなく、想定外の著者のスレッドとして報告される。`/runpr` は、そのスレッドが未解決の間はマージせず、実行のたびに質問する。利用者が GitHub 上で解決するか、名指しして処理する。別の自動レビュアーを信頼するときは、`_context.md` と `NewGitHub` の変更が要る（第 9 章）。
 
 ### 3.5. 区切りのブロック（F-003・H-04）
 
@@ -642,6 +644,7 @@ flowchart TD
 -   **info。** `info/exclude` と `info/attributes` を書き換えると、`git status` から追加のファイルを隠せる。また、index のフラグ（`skip-worktree`・`assume-unchanged`）を立てると、変更したファイルを `git status` から隠せる。どちらも `git status` の数え上げ（3.6）を迂回する経路なので、基準値で確かめる。基準値を採る時点（`begin`）でフラグが立ったエントリがあれば、その時点で止まる。
 -   **index・`FETCH_HEAD`・reflog。** 上のフラグ以外の index の内容、`FETCH_HEAD`、reflog は、通常の git の操作で変わるので、異常として扱わない（AC-26）。
 -   **ツールが起動する git。** 設定が外部のコマンドを起動できないように固める。`core.fsmonitor`・`core.sshCommand`・`diff.external`・textconv など、設定でコマンドを起動できる項目を無効にし、外部の diff と textconv を使わない。継承した `GIT_*` の環境変数は取り除き、オプションのロックと端末の入力を無効にする。さらに、git または `gh`（`gh` も内部で git を起動する）を起動するすべてのサブコマンドは、起動する前に、hooks・config・info のダイジェストを（ファイルの読み取りだけで）求めて基準値と比べる。違えば、起動せずに止まる。`finish` は、build checks の後、変更の集合を数え直す git を起動する前にも、この比較を行う。`push` と `git commit` の前も同じである。`inspect` では、`main` がこの比較を済ませてから `GitHub.ThreadPaths`（`gh`）を呼ぶ。設定が書き換えられた後に、書き換えられた設定で git を起動すると、ツールのプロセスの中でコードが実行されるためである。基準値を採る `begin` だけは、比べる相手がないので、起動前の比較をしない。`begin` の時点で設定が書き換えられていない前提に立つ。
+-   **ツールが起動する `gh` の対象。** 環境変数 `GH_REPO` または `GH_HOST` が設定されていれば、`gh` を呼ぶすべてのサブコマンドは、`gh` を起動せずに使い方の誤りとして止まる（`ErrInvalidInput`、終了コード 2）。`GH_REPO` は、引数なしの `gh repo view` と `gh pr view <番号>` の対象を、作業ツリーのリポジトリから別のリポジトリに変える。`GH_HOST` は、対象のホストを変える。このまま進むと、別のリポジトリの同じ番号の PR を判定し、そのリポジトリの権限で著者を信頼したうえで、修正と push は作業ツリーに対して行う。取り除いて進めず止めるのは、利用者の設定の誤りを黙って補正すると、誤りに気づけないためである。
 -   **基準値の時点。** `begin` の時点（フェーズ 2 の前）であり、要件書の「修正のフェーズの前」より早い。フェーズ 2 のエージェントの異常も、同じ比較で検出できるためである。この間にリモートのブランチが正当に進んだ場合（利用者が別に push した場合）も異常として止まる。実行をやり直せば足りるので、受け入れる。
 -   **基準値の形。** 値を `.` で連結した 1 つの文字列（バージョンの接頭辞付き）で、約 300 バイトである。セッションが引数で渡す。形が合わない値は補正せず、使い方の誤りとして拒否する（`ErrInvalidInput`）。
 
