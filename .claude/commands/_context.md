@@ -62,6 +62,69 @@ PR boundary markers embedded in the implementation plan use these labels:
 - Conventional commit scope format: `feat(<task-id>): <concise English title>`
 - Implementation model tiers (`**実装モデル要件**` values): `frontier-required`, `frontier-recommended`, `standard` — assigned by `mkplan2.md` (step 4, "Model requirement"; `mkplan.md` runs it as its step 8.5), read by `runplan.md` when choosing the implementing model and shown in the merge question when `/runpr` offers the next `/runplan`
 
+### PR title and squash subject
+
+A PR title is written in Japanese, like everything else on GitHub
+(`CLAUDE.md`, "Language"). The squash commit is the only commit of a PR that
+reaches `main`, so its subject stays in English; `mergepr.md` step 2 writes it
+from the PR material and reads only the prefix from the PR title. This section
+is the one place that defines these forms: the commands refer to it by name
+instead of restating them.
+
+| Item | Form |
+|---|---|
+| PR title | `<type>(<scope>): <Japanese summary>`: an accepted prefix that has a `<scope>`, followed by a summary in Japanese. A PR title a command writes never uses the scope-less `<type>: ` form; that form exists only among accepted prefixes and squash subjects. The summary may contain command names, file names, and identifiers spelled as they are, without backquotes (see "Passing a title to `gh`") |
+| Accepted prefix | The prefix table below |
+| Task-document PR title | `docs(<task-id>): <Japanese summary>`, where the summary says what the documents the PR adds or changes contain. `mkreq.md`, `mkarch.md`, `mkplan.md`, and `mkplan2.md` use it through `_lib/task-pr-handoff.md` (PR_TEXT) |
+| Plan PR title | The prefix is the `推奨タイトル`'s own when that value starts with an accepted prefix that has a `<scope>`, and `<type>(<task-id>): ` otherwise; the summary is in Japanese. `runplan.md` step 5a (with a PR marker) and step 8 (without one) give the procedure |
+| `推奨タイトル` | The PR title `runplan.md` opens the PR with, not a squash subject. A value written now has the form `<type>(<task-id>): <Japanese summary>`, with `<type>` from the prefix table. A value an older plan wrote in another form stays valid input for `runplan.md` step 5a, which never rewrites the plan |
+| Squash subject | `<type>(<scope>): <English summary> (#<number>)` or `<type>: <English summary> (#<number>)`, made only of printable ASCII characters. `mergepr.md` step 2 decides it and checks it as "Checking a squash subject" says |
+
+The accepted prefix:
+
+| Part | Accepted value |
+|---|---|
+| Whole | `<type>(<scope>): ` or `<type>: `, all ASCII, with exactly one ASCII space (U+0020) right after the `:` |
+| `<type>` | `feat`, `fix`, `docs`, `refactor`, `test`, `perf`, `build`, `ci`, `chore`, `style`, `revert` |
+| `<scope>` | One or more ASCII lowercase letters, digits, and `-` |
+| Anything else | Not accepted. Do not repair it; treat the title as having no prefix. Examples: a `!` after the type or the scope; an uppercase letter or a Japanese character; no space after the `:`, or two or more; empty parentheses; a full-width `：`, `（`, `）`, digit, or letter; a full-width space (U+3000) or a no-break space (U+00A0) after the `:`; a non-ASCII look-alike such as the Cyrillic `е`, `‐`, or `−` |
+
+To add a `<type>`, change the `<type>` row above and the expression in
+"Checking a squash subject" together.
+
+#### Passing a title to `gh`
+
+`gh pr create` and `gh pr edit` have no flag that reads a title from a file.
+Write the title with the Write tool to a file in the scratchpad (outside the
+tracked tree), and pass it by command substitution:
+`--title "$(cat <title-file>)"`. The substituted text is not expanded again
+inside the double quotes, so a `$`, a backquote, a `"`, or a `\` in the title
+reaches GitHub as written instead of being expanded by the shell (which could
+publish an environment variable's value as the title). Never write the title
+text itself inside `--title "..."`.
+
+Separately, a PR title and a `推奨タイトル` never contain backquotes: a
+`推奨タイトル` sits inside a backquoted code span in the PR marker, which a
+backquote would break.
+
+#### Checking a squash subject
+
+After writing the subject file and before the approval question, `mergepr.md`
+step 2 checks that the file holds exactly one line (one line ending in a
+newline, or one line without one: no second line), and that this line matches
+the expression below in the C locale. A CR or any other byte outside printable
+ASCII makes it fail. With `R` set to the expression:
+
+```bash
+[ "$(awk 'END { print NR }' <subject-file>)" = 1 ] && LC_ALL=C grep -Eqx "$R" <subject-file>
+```
+
+Squash subject regular expression:
+
+```
+(feat|fix|docs|refactor|test|perf|build|ci|chore|style|revert)(\([a-z0-9-]+\))?: [!-~]([ -~]*[!-~])? \(#[0-9]+\)
+```
+
 ---
 
 ## Tech-stack convention
