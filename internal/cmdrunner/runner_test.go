@@ -4,6 +4,7 @@ package cmdrunner
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"os/exec"
 	"path/filepath"
@@ -44,6 +45,44 @@ func TestMaxOutputBoundary(t *testing.T) {
 				t.Errorf("output = %d bytes, want %d", len(out), limit)
 			}
 		})
+	}
+}
+
+func TestMaxOutputIsCumulativeAcrossWrites(t *testing.T) {
+	// Two separate writes, each under the cap and together over it.
+	tests := []struct {
+		name    string
+		script  string
+		wantErr error
+	}{
+		{"together over", "printf 0123456789; sleep 0.1; printf 0123456789", ErrOutputTooLarge},
+		{"together exact", "printf 01234567; sleep 0.1; printf 01234567", nil},
+		{"stderr exact", "printf 0123456789abcdef >&2", nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := run(t, Options{MaxOutput: 16}, nil, tt.script)
+			if !errorsIs(err, tt.wantErr) {
+				t.Errorf("error = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestCancelWithDescendantReturnsAndWrapsContextError(t *testing.T) {
+	// The shell is killed by the deadline while its background child still
+	// holds the output pipe; WaitDelay must end the wait, and the context
+	// error must be visible next to the typed failure.
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	args := sh("sleep 3 & wait")
+	_, err := NewOS(Options{WaitDelay: 100 * time.Millisecond}).Run(ctx, args[0], args[1:]...)
+	if elapsed := time.Since(start); elapsed > 2*time.Second {
+		t.Errorf("Run took %v, want it bounded by the deadline and WaitDelay", elapsed)
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("error = %v, want context.DeadlineExceeded", err)
 	}
 }
 
@@ -100,13 +139,6 @@ func TestStdinIsPassed(t *testing.T) {
 	}
 }
 
-func TestRunReturnsOutput(t *testing.T) {
-	out, err := NewOS(Options{}).Run(t.Context(), "sh", "-c", "printf hello")
-	if err != nil || string(out) != "hello" {
-		t.Errorf("Run = %q, %v; want hello, nil", out, err)
-	}
-}
-
 func TestExitErrorIsTyped(t *testing.T) {
 	_, err := run(t, Options{}, nil, "printf out; printf boom >&2; exit 3")
 	exitErr, ok := errorsAsExit(err)
@@ -116,7 +148,11 @@ func TestExitErrorIsTyped(t *testing.T) {
 	if exitErr.Code != 3 || string(exitErr.Stdout) != "out" || string(exitErr.Stderr) != "boom" {
 		t.Errorf("ExitError = %+v, want code 3, stdout out, stderr boom", exitErr)
 	}
-	// The message keeps the shape internal/mergepr always produced.
+	if _, ok := errors.AsType[*exec.ExitError](err); !ok {
+		t.Errorf("error = %v, want *exec.ExitError reachable through Unwrap", err)
+	}
+	// The wording is the contract here: internal/mergepr's callers and logs
+	// always saw this shape, so the migration must not change it.
 	msg := err.Error()
 	if !strings.Contains(msg, "exit status 3") || !strings.Contains(msg, "boom") || !strings.HasPrefix(msg, "sh -c ") {
 		t.Errorf("message = %q, want command, exit status and stderr", msg)

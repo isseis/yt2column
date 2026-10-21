@@ -94,21 +94,27 @@ func (r osRunner) RunInput(ctx context.Context, stdin []byte, name string, args 
 	}
 	if err != nil {
 		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
-			return nil, &ExitError{
+			typed := &ExitError{
 				Code:    exitErr.ExitCode(),
 				Stdout:  stdout.buf.Bytes(),
 				Stderr:  stderr.buf.Bytes(),
 				cmdline: cmdline,
 				cause:   err,
 			}
+			// A command killed by cancellation reports exit code -1; joining
+			// the context error lets a caller tell a timeout from a failure.
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return nil, errors.Join(ctxErr, typed)
+			}
+			return nil, typed
 		}
 		return nil, fmt.Errorf("%s: %w: %s", cmdline, err, strings.TrimSpace(stderr.buf.String()))
 	}
 	return stdout.buf.Bytes(), nil
 }
 
-// cappedBuffer keeps at most max bytes (no limit when max is 0) and discards
-// the rest while still accepting every write, so the child never blocks on a
+// cappedBuffer keeps at most max bytes (no limit when max is not positive)
+// and discards everything once the cap is crossed while still accepting every write, so the child never blocks on a
 // full pipe.
 type cappedBuffer struct {
 	max      int
@@ -120,11 +126,10 @@ func (c *cappedBuffer) Write(p []byte) (int, error) {
 	if c.max <= 0 {
 		return c.buf.Write(p)
 	}
-	if room := c.max - c.buf.Len(); len(p) > room {
+	if c.exceeded || len(p) > c.max-c.buf.Len() {
+		// Past the cap nothing is kept: the caller gets ErrOutputTooLarge, not
+		// a truncated prefix. Writes are still accepted so the child can finish.
 		c.exceeded = true
-		if room > 0 {
-			c.buf.Write(p[:room])
-		}
 		return len(p), nil
 	}
 	return c.buf.Write(p)
