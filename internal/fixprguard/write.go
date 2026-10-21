@@ -150,8 +150,9 @@ func (g *GitHub) Reply(ctx context.Context, req ReplyRequest) error {
 }
 
 // postReply posts body and returns the new comment's database ID. A failure
-// GitHub answered is ErrResponseRejected (nothing was posted); a timeout or an
-// unreadable success response is ErrReplyNotResolved, since the reply may exist.
+// GitHub answered is ErrResponseRejected (nothing was posted); a timeout, a
+// cancellation, or an unreadable success response is ErrReplyNotResolved, since
+// the reply may exist.
 func (g *GitHub) postReply(ctx context.Context, repo repository, pr PRNumber, commentID int64, body string) (int64, error) {
 	request, err := json.Marshal(map[string]string{"body": body})
 	if err != nil {
@@ -160,7 +161,7 @@ func (g *GitHub) postReply(ctx context.Context, repo repository, pr PRNumber, co
 	endpoint := "repos/" + repo.owner + "/" + repo.name + "/pulls/" + pr.String() + "/comments/" + strconv.FormatInt(commentID, 10) + "/replies"
 	out, err := g.runGH(ctx, request, "api", "--method", "POST", endpoint, "--input", "-")
 	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 			return 0, fmt.Errorf("%w: %w", ErrReplyNotResolved, ghFailure("reply", err))
 		}
 		return 0, ghFailure("reply", err)

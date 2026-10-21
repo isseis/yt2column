@@ -398,13 +398,15 @@ func TestReplyPostFailureSkipsResolve(t *testing.T) {
 			t.Errorf("Reply = %v, want ErrResponseRejected without ErrReplyNotResolved", err)
 		}
 	})
-	// A timeout or an unreadable success may leave a posted reply, so the
-	// caller must not post again.
+	// A timeout, a cancellation, or an unreadable success may leave a posted
+	// reply, so the caller must not post again.
 	timeout := postStep()
 	timeout.Err = context.DeadlineExceeded
+	cancelled := postStep()
+	cancelled.Err = context.Canceled
 	noID := postStep()
 	noID.Out = `{"body":"x"}`
-	for name, post := range map[string]cmdrunnertestutil.Step{"timed_out": timeout, "no_comment_id": noID} {
+	for name, post := range map[string]cmdrunnertestutil.Step{"timed_out": timeout, "cancelled": cancelled, "no_comment_id": noID} {
 		t.Run(name, func(t *testing.T) {
 			g, _ := newTestGitHub(t, append(replyLookupSteps(t, []testThread{th}), post)...)
 			if err := g.Reply(t.Context(), replyRequest(t, th, "reply")); !errors.Is(err, ErrReplyNotResolved) || StopKind(err) != StopReplyNotResolved {
