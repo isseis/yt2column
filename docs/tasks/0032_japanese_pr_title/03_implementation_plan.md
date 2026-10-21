@@ -192,11 +192,11 @@
 
 **変更するファイル**: `.claude/commands/_lib/task-pr-handoff.md`、`check_rules.sh`
 
--   [ ] 検査 `handoff_pr_text` を加える。次のことを確かめる。
+-   [x] 検査 `handoff_pr_text` を加える。次のことを確かめる。
     -   PR_TEXT の定義が、タイトルの規約の節のタスクの文書の PR のタイトルを参照する。
     -   Part B の step 3 が、タイトルを英語としない。
     -   Part B の step 3 が、タイトルを Write ツールでファイルに書き、コマンド置換で渡す。
--   [ ] 設計書 3.4 と 3.1.1 のとおりに改める。`runplan.md` についての PR_TEXT の記述も、設計書 3.4 のとおりに改める。
+-   [x] 設計書 3.4 と 3.1.1 のとおりに改める。`runplan.md` についての PR_TEXT の記述も、設計書 3.4 のとおりに改める。
 
 **完了条件**: 1.2 の 3 つ。
 

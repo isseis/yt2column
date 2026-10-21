@@ -356,16 +356,19 @@ check_context_marker_conventions() {
 
 ALL_CHECKS="$ALL_CHECKS context_marker_conventions"
 
+# A sentence tying a title to English. A sentence ends at a period followed by
+# a space, so a path such as _context.md inside it does not end it.
+EN_TITLE='[Tt]itles?([^.]|\.[^ ])*English|English([^.]|\.[^ ])*[Tt]itles?'
+
 check_claude_language() {
 	load_section CLAUDE.md '## Language' || return 0
 	gh=$(printf '%s\n' "$sec" | between '^- \*\*What lives on GitHub' '^- \*\*|^$' | flat)
 	repo=$(printf '%s\n' "$sec" | between '^- \*\*What stays in the git repository' '^- \*\*|^$' | flat)
 	has "$gh" '^- \*\*What lives on GitHub: Japanese\*\* — [^.]*PR titles' \
 		'PR titles are among the Japanese things on GitHub'
-	# Any sentence of the GitHub bullet tying a title to English (a sentence ends
-	# at a period followed by a space, so a path such as _context.md does not end
-	# it), and the old wording anywhere in the section.
-	lacks "$gh" '[Tt]itles?([^.]|\.[^ ])*English|English([^.]|\.[^ ])*[Tt]itles?' \
+	# No sentence of the GitHub bullet ties a title to English, and the old
+	# wording is gone from the whole section.
+	lacks "$gh" "$EN_TITLE" \
 		'no exception keeps the PR title in English'
 	lacks "$(printf '%s\n' "$sec" | flat)" 'PR title, which stays|stays an English|built from it' \
 		'the old English-title exception is gone'
@@ -394,6 +397,33 @@ check_glossary_terms() {
 }
 
 ALL_CHECKS="$ALL_CHECKS glossary_terms"
+
+# The way every gh call in the commands passes a title (_context.md,
+# "Passing a title to gh").
+TITLE_ARG='--title "$(cat "<title-file>")"'
+
+check_handoff_pr_text() {
+	load .claude/commands/_lib/task-pr-handoff.md || return 0
+	def=$(printf '%s\n' "$ctx" | between '^- \*\*PR_TEXT\*\*' '^- \*\*' | flat)
+	b3=$(printf '%s\n' "$ctx" | between '^3\. Push and create the PR' '^4\. ' | flat)
+	[ -n "$def" ] && [ -n "$b3" ] || {
+		fail 'PR_TEXT or Part B step 3 not found'
+		return 0
+	}
+	has "$def" 'for a task-document command, the "Task-document PR title" of `_context\.md`, "PR title and squash subject"' \
+		'PR_TEXT refers to the task-document PR title of the title section'
+	has "$def" 'for `runplan\.md`, the title its step 5a writes from the PR marker.s `推奨タイトル`' \
+		'PR_TEXT for runplan.md is the title step 5a writes from 推奨タイトル'
+	lacks "$b3" "$EN_TITLE" 'step 3 does not make the title English'
+	has "$b3" 'title and the body to files in the scratchpad with the Write tool' \
+		'step 3 writes the title to a file with the Write tool'
+	has "$b3" "$(printf '%s' "$TITLE_ARG" | sed 's/[][\.*^$()|+?{}]/\\&/g')" \
+		'step 3 passes the title by command substitution'
+	has "$b3" 'follows `_context\.md`, "PR title and squash subject"' \
+		'step 3 refers to the title section for the form'
+}
+
+ALL_CHECKS="$ALL_CHECKS handoff_pr_text"
 
 for name in "$@"; do
 	case $name in
