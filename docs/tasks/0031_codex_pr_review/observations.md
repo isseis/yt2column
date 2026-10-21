@@ -7,16 +7,16 @@
 | PR | 内容 | 観測した依頼 |
 |---|---|---|
 | [#407](https://github.com/isseis/yt2column/pull/407) | 本タスクの要件定義書 | PR を開いたときの自動レビュー（head `292db99`）、`@codex review`（head `15458c3`） |
-| [#411](https://github.com/isseis/yt2column/pull/411) | この観測の記録 | PR を開いたときの自動レビュー（head `c6406fd`）。数秒おきに取得して観測した |
+| [#411](https://github.com/isseis/yt2column/pull/411) | この観測の記録 | PR を開いたときの自動レビュー（head `c6406fd`）、`@codex review`（head `f7e6ef5`）。どちらも数秒おきに取得して観測した |
 
 ## AC-01 の各項目
 
 ### 1. 完了の印と、レビューの途中の投稿
 
--   **指摘があるとき（2026-10-21、PR #407・#411）:** PR レビュー（`chatgpt-codex-connector[bot]`、`state: COMMENTED`）が投稿された。その `commit_id` は、レビューの対象のコミットと一致した（`292db9940bd92564e769430c76f2aea00e13a3b9`、`15458c3db21106971154b4f586b5f4be6f5774ac`、`c6406fd20a47b026754f9a5ade98629f2b473df9`）。レビューの本文には `**Reviewed commit:** \`<SHA の先頭 10 桁>\`` の行がある。
--   **要約コメント:** PR の会話に、`<!-- codex-pull-request-review-summary -->` で始まるコメントが 1 件あり、レビューのたびに更新される（作成 06:14:44Z、更新 07:19:54Z）。その中の `<!-- codex-review-state:v1 {...} -->` に、`code_review.commit_sha`・`code_review.status`（`completed`）・`has_any_findings`・`has_unresolved_findings` がある（根拠: `gh api repos/isseis/yt2column/issues/407/comments`）。
+-   **指摘があるとき（2026-10-21、PR #407・#411）:** PR レビュー（`chatgpt-codex-connector[bot]`、`state: COMMENTED`）が投稿された。その `commit_id` は、レビューの対象のコミットと一致した（`292db9940bd92564e769430c76f2aea00e13a3b9`、`15458c3db21106971154b4f586b5f4be6f5774ac`、`c6406fd20a47b026754f9a5ade98629f2b473df9`、`f7e6ef57d9fb4d826a9b7062aa7642ed3b8dbd8e`）。レビューの本文には `**Reviewed commit:** \`<SHA の先頭 10 桁>\`` の行がある。
+-   **要約コメント:** PR の会話に、`<!-- codex-pull-request-review-summary -->` で始まるコメントが 1 件あり、レビューのたびに更新される（作成 06:14:44Z、更新 07:19:54Z）。その中の `<!-- codex-review-state:v1 {...} -->` に、`code_review.commit_sha`・`code_review.status`・`has_any_findings`・`has_unresolved_findings` がある（根拠: `gh api repos/isseis/yt2column/issues/407/comments`）。PR #411 の `@codex review` では、レビューの間は `status: running`・`commit_sha: f7e6ef5…`・`has_any_findings: null` で、完了すると `status: completed`・`has_any_findings: true` に変わった（9）。
 -   **指摘が 0 件のとき:** 未観測。レビューの本文の説明には、指摘がなければ 👍 のリアクションだけになるとある（PR #407 のレビューの本文「About Codex in GitHub」）。公式文書には書かれていない（[Codex GitHub integration](https://learn.chatgpt.com/docs/third-party/github)、2026-10-21 に確認）。
--   **レビューの途中の投稿:** PR に 👀 のリアクション（`chatgpt-codex-connector[bot]`）が付き、レビューの完了の後に外れた（PR #411。9）。公式文書にも「Codex が 👀 でリアクションしてからレビューを投稿する」とある（同上の「Request a Codex review」）。
+-   **レビューの途中の投稿:** PR に 👀 のリアクション（`chatgpt-codex-connector[bot]`）が付き、レビューの完了の後に外れた（PR #411。9）。`@codex review` のときは、依頼のコメントにも 👀 が付き、同じく完了の後に外れた。要約コメントは `status: running` に更新された（上記）。公式文書にも「Codex が 👀 でリアクションしてからレビューを投稿する」とある（同上の「Request a Codex review」）。
 
 ### 2. 依頼していない push での再レビュー
 
@@ -41,7 +41,7 @@ REST の名前は、GraphQL の名前に `[bot]` を付けた形である（Code
 
 ### 4. ステータスコンテキストとチェックラン
 
--   **観測（2026-10-21、PR #407・#411）:** Codex のステータスコンテキストもチェックランも付かなかった。`statusCheckRollup` にあったのは、CI のチェックランと CodeRabbit のステータスコンテキストだけだった（根拠: `gh pr view 407 --json statusCheckRollup`）。
+-   **観測（2026-10-21）:** Codex のステータスコンテキストもチェックランも付かなかった。Codex がレビューした 4 つのコミット（`292db99`・`15458c3`・`c6406fd`・`f7e6ef5`）のそれぞれで、チェックランは GitHub Actions の 6 件（Test、Code Quality & Lint、Browser extension、Documentation guard、Check changed files、Secret scan）だけ、ステータスコンテキストは `CodeRabbit` だけだった（根拠: `gh api repos/isseis/yt2column/commits/<SHA>/check-runs` と `.../commits/<SHA>/status`）。
 
 ### 5. 割り当て
 
@@ -61,6 +61,7 @@ REST の名前は、GraphQL の名前に `[bot]` を付けた形である（Code
 | PR を開いたとき（`292db99`） | 06:14:19Z（PR の `created_at`） | 06:17:33Z | 約 3 分 14 秒 |
 | `@codex review`（`15458c3`） | 07:17:00Z（コメントの `created_at`） | 07:19:50Z | 約 2 分 50 秒 |
 | PR #411 を開いたとき（`c6406fd`） | 07:44:15Z（`gh pr create` の完了） | 07:46:43Z | 約 2 分 28 秒 |
+| PR #411 の `@codex review`（`f7e6ef5`） | 11:00:51Z | 11:03:45Z | 約 2 分 54 秒 |
 
 ### 8. 書き込み権限のないアカウントで Codex が動くか
 
@@ -92,6 +93,13 @@ REST の名前は、GraphQL の名前に `[bot]` を付けた形である（Code
     -   07:44:38Z までに（23 秒以内）: PR に 👀 のリアクションが付いた。
     -   07:46:43Z: PR レビューが投稿された。
     -   07:46:56Z までに: 👀 が外れた。
+-   **`@codex review` のときの開始の印（PR #411、5 秒おきに取得）:**
+    -   11:00:51Z: 利用者が `@codex review` とコメントした（コメント 6314314542）。
+    -   11:01:04Z（13 秒後）: 依頼のコメントに 👀 が付いた。
+    -   11:01:08Z: 要約コメントが `status: running`・`commit_sha: f7e6ef5…` に更新された。
+    -   11:01:10Z: PR にも 👀 が付いた。
+    -   11:03:45Z: PR レビューが投稿された。11:03:49Z に要約コメントが `status: completed` に更新された。
+    -   11:03:58Z までに: 両方の 👀 が外れた。
 -   **PR #407:** PR を開いてから 25 秒後に要約コメントが作られた。リアクションは残っていなかった（PR #411 と同じく、完了の後に外れたと考えられる）。
 
 ## AC-05 に当たる点
