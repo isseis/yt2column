@@ -67,6 +67,9 @@ var allowedEnvRefs = map[string]map[string]int{
 	"cmd/yt2column-server/main.go": {"value:os.LookupEnv": 1},
 	"cmd/yt2column-nmhost/main.go": {"value:os.LookupEnv": 1},
 	"internal/transcript/ytdlp.go": {"call:os.Environ": 1},
+	// The fixprguard developer tool passes its environment, minus GIT_*, to
+	// git, and looks up GH_REPO and GH_HOST only to refuse them.
+	"cmd/fixprguard/main.go": {"call:os.Environ": 1, "value:os.LookupEnv": 1},
 }
 
 // envAccessReport is the result of one scan.

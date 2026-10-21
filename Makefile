@@ -50,7 +50,7 @@ define format_files_from_list
 	fi
 endef
 
-.PHONY: all build clean test test-ci test-integration test-integration-deepseek test-integration-claude test-integration-cli test-integration-slack test-integration-cli-slack lint fmt fmt-all deadcode tidy install-mergepr ext-install ext-typecheck ext-lint ext-fmt-check ext-fmt ext-test ext-build ext-check
+.PHONY: all build clean test test-ci test-integration test-integration-deepseek test-integration-claude test-integration-cli test-integration-slack test-integration-cli-slack lint fmt fmt-all deadcode tidy install-mergepr install-fixprguard ext-install ext-typecheck ext-lint ext-fmt-check ext-fmt ext-test ext-build ext-check
 
 all: build
 
@@ -67,6 +67,12 @@ build:
 # up-to-date main checkout (docs/dev/developer_guide/mergepr_guide.md).
 install-mergepr:
 	$(GOCMD) install ./cmd/mergepr
+
+# Install the fixprguard guard tool for /fixpr and /runpr into
+# $(go env GOPATH)/bin. Run from an up-to-date main checkout after every merge
+# that changes the tool (docs/dev/developer_guide/fixprguard_guide.md).
+install-fixprguard:
+	$(GOCMD) install ./cmd/fixprguard
 
 clean:
 	$(GOCLEAN)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -41,6 +42,25 @@ func NewGitHub(run cmdrunner.InputRunner, reviewer Login) (*GitHub, error) {
 		return nil, fmt.Errorf("%w: reviewer login", ErrInvalidInput)
 	}
 	return &GitHub{run: run, reviewer: reviewer}, nil
+}
+
+// NewGitHubWithoutReviewer returns a GitHub for the calls that judge no
+// thread: Head, CurrentPR and EditPR. Its reviewer is the zero Login, and the
+// calls that judge threads (List, Begin, ThreadPaths, Reply) refuse to run on
+// it, so a subcommand that takes no --reviewer cannot judge with none.
+func NewGitHubWithoutReviewer(run cmdrunner.InputRunner) (*GitHub, error) {
+	if run == nil {
+		return nil, fmt.Errorf("%w: no runner", ErrInvalidInput)
+	}
+	return &GitHub{run: run}, nil
+}
+
+// requireReviewer guards every call that judges threads.
+func (g *GitHub) requireReviewer() error {
+	if !g.reviewer.usable() {
+		return fmt.Errorf("%w: reviewer login", ErrInvalidInput)
+	}
+	return nil
 }
 
 // runGH runs gh under githubTimeout, feeding stdin when it is not nil.
@@ -158,6 +178,51 @@ func (g *GitHub) Head(ctx context.Context, pr PRNumber) (HeadInfo, error) {
 	return HeadInfo{Protocol: Protocol, SameRepository: true}, nil
 }
 
+// CurrentPR returns the PR of the current branch, as gh resolves it, for a
+// subcommand called without a PR number. The number passes the same check as
+// one given on the command line.
+func (g *GitHub) CurrentPR(ctx context.Context) (PRNumber, error) {
+	digits, err := g.currentPRDigits(ctx)
+	// ParsePRNumber is the only constructor; on a failure it returns the
+	// zero value, which no other call accepts.
+	pr, parseErr := ParsePRNumber(digits)
+	if err != nil {
+		return pr, err
+	}
+	if parseErr != nil {
+		return pr, rejected("PR number")
+	}
+	return pr, nil
+}
+
+// currentPRDigits reads the current branch's PR number in decimal.
+func (g *GitHub) currentPRDigits(ctx context.Context) (string, error) {
+	out, err := g.runGH(ctx, nil, "pr", "view", "--json", "number")
+	if err != nil {
+		return "", ghFailure("pr view", err)
+	}
+	if len(out) > maxResponseBytes {
+		return "", rejected("response size")
+	}
+	obj, err := strictjson.ParseObject(out)
+	if err != nil {
+		return "", rejected("pr view")
+	}
+	members, err := obj.Collect("number")
+	if err != nil {
+		return "", rejected("pr view")
+	}
+	value, err := strictjson.Required(members, "number")
+	if err != nil {
+		return "", rejected("pr view")
+	}
+	n, err := value.AsNonNegativeInt64()
+	if err != nil {
+		return "", rejected("pr view")
+	}
+	return strconv.FormatInt(n, 10), nil
+}
+
 // LookupBudget reports the permission lookups a call used and has left.
 type LookupBudget struct {
 	Used      int `json:"used"`
@@ -224,6 +289,9 @@ type Round struct {
 // whose comments differ between the judgment and the body fetch is reported as
 // changed and not processed. It checks the PR head first.
 func (g *GitHub) Begin(ctx context.Context, pr PRNumber, accept []Accept) (Round, error) {
+	if err := g.requireReviewer(); err != nil {
+		return Round{}, err
+	}
 	accepted, err := checkAccepts(accept)
 	if err != nil {
 		return Round{}, err
@@ -375,6 +443,9 @@ type ThreadList struct {
 // body. It checks the PR head first and refuses a PR with more than
 // maxListThreads threads.
 func (g *GitHub) List(ctx context.Context, pr PRNumber) (ThreadList, error) {
+	if err := g.requireReviewer(); err != nil {
+		return ThreadList{}, err
+	}
 	if _, err := g.Head(ctx, pr); err != nil {
 		return ThreadList{}, err
 	}
@@ -421,6 +492,9 @@ type ThreadPath struct {
 // returned as Named: holding its current fingerprint is the only proof of
 // naming the tool can check.
 func (g *GitHub) ThreadPaths(ctx context.Context, pr PRNumber, threads []Accept) ([]ThreadPath, error) {
+	if err := g.requireReviewer(); err != nil {
+		return nil, err
+	}
 	if _, err := checkAccepts(threads); err != nil {
 		return nil, err
 	}
