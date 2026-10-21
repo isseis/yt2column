@@ -25,6 +25,10 @@ die() {
 	exit 2
 }
 
+# This script's own path, read by check_context_title_section; resolved before
+# the cd below makes a relative $0 meaningless.
+self=$(cd "$(dirname "$0")" && pwd)/$(basename "$0")
+
 top=$(git rev-parse --show-toplevel 2>/dev/null) || die 'not inside a git repository'
 cd "$top" || die "cannot enter $top"
 
@@ -64,7 +68,7 @@ repo_grep() {
 section() {
 	H=$1 awk '
 		BEGIN { h = ENVIRON["H"]; n = index(h, " ") - 1 }
-		/^```/ { fence = !fence }
+		/^[ \t]*(```|~~~)/ { fence = !fence }
 		on && !fence && /^#+ / { if (index($0, " ") - 1 <= n) exit }
 		on { print }
 		!fence && $0 == h { on = 1 }'
@@ -94,11 +98,26 @@ has() {
 }
 
 # lacks TEXT ERE PROPERTY: fail with PROPERTY, and the matching lines, when
-# TEXT matches ERE.
+# TEXT matches ERE. An invalid ERE (grep status above 1) also fails.
 lacks() {
-	_found=$(printf '%s\n' "$1" | command grep -E -- "$2") || return 0
-	fail "$3"
-	printf '%s\n' "$_found" | sed 's/^/    /'
+	_found=$(printf '%s\n' "$1" | command grep -E -- "$2")
+	case $? in
+	0)
+		fail "$3"
+		printf '%s\n' "$_found" | sed 's/^/    /'
+		;;
+	1) ;;
+	*) fail "grep failed on the pattern for: $3" ;;
+	esac
+}
+
+# load FILE: set ctx to the text of FILE, or fail and return 1. It runs in the
+# caller's shell, so a failure is recorded.
+load() {
+	ctx=$(show "$1") || {
+		fail "cannot read $1"
+		return 1
+	}
 }
 
 CONTEXT=.claude/commands/_context.md
@@ -107,13 +126,15 @@ REGEX_LABEL='Squash subject regular expression:'
 # The accepted <type> values, as the requirements (AC-13) list them, sorted.
 TYPES='build chore ci docs feat fix perf refactor revert style test'
 
-# title_section: print the title section of _context.md, or fail.
-title_section() {
-	_ctx=$(show "$CONTEXT") || {
-		fail "cannot read $CONTEXT"
+# load_section FILE HEADING: set sec to the section HEADING of FILE, or fail and
+# return 1 when FILE cannot be read or has no such section.
+load_section() {
+	load "$1" || return 1
+	sec=$(printf '%s\n' "$ctx" | section "$2")
+	[ -n "$sec" ] || {
+		fail "no section '$2' in $1"
 		return 1
 	}
-	printf '%s\n' "$_ctx" | section "$TITLE_HEADING"
 }
 
 # subject_regex: print the squash-subject expression from the title section on
@@ -145,11 +166,7 @@ table_types() {
 }
 
 check_context_title_section() {
-	sec=$(title_section) || return
-	[ -n "$sec" ] || {
-		fail "no section '$TITLE_HEADING' in $CONTEXT"
-		return
-	}
+	load_section "$CONTEXT" "$TITLE_HEADING" || return 0
 	one=$(printf '%s\n' "$sec" | flat)
 	# The six items of the item table.
 	has "$sec" '^\| PR title \| `<type>\(<scope>\): <Japanese summary>`' \
@@ -179,14 +196,19 @@ check_context_title_section() {
 	# How a title is passed, and no backquotes.
 	has "$one" 'Write the title with the Write tool to a file' \
 		'the title is written to a file with the Write tool'
-	has "$one" '`--title "\$\(cat <title-file>\)"`' \
+	has "$one" '`--title "\$\(cat "<title-file>"\)"`' \
 		'the title is passed by command substitution from the file'
 	has "$one" 'a PR title and a `推奨タイトル` never contain backquotes' \
 		'no backquotes in a PR title or a 推奨タイトル'
+	# The documented subject check is the one subject_ok runs, line for line.
+	doc=$(printf '%s\n' "$sec" | between "^f='<subject-file>'\$" '^```$' | sed 1d)
+	run=$(between '^subject_ok\(\) \{$' '^}$' <"$self" | sed 1,2d)
+	[ -n "$doc" ] && [ "$doc" = "$run" ] ||
+		fail 'the documented subject check differs from the commands subject_ok runs'
 }
 
 check_context_subject_regex() {
-	sec=$(title_section) || return
+	load_section "$CONTEXT" "$TITLE_HEADING" || return 0
 	n=$(printf '%s\n' "$sec" | command grep -c '^(.*\\(#\[0-9\]+\\)$')
 	[ "$n" -eq 1 ] || fail "expected one subject expression in the title section, found $n"
 	re=$(printf '%s\n' "$sec" | subject_regex)
@@ -201,17 +223,21 @@ check_context_subject_regex() {
 	[ "$got" = "$TYPES" ] || fail "<type> alternatives are '$got', expected '$TYPES'"
 }
 
-# subject_ok FILE: the squash-subject check the title section describes: FILE
-# holds exactly one line, and it matches the expression in the C locale.
+# subject_ok FILE: the squash-subject check of "Checking a squash subject",
+# with R set to the expression. check_context_title_section compares the lines
+# after f=$1 with the documented commands, so keep them identical to that code
+# block, indentation included.
 subject_ok() {
-	[ "$(awk 'END { print NR }' "$1")" = 1 ] &&
-		LC_ALL=C command grep -Eqx -- "$re" "$1"
+f=$1
+[ "$(awk 'END { print NR }' "$f")" = 1 ] &&
+	[ -z "$(LC_ALL=C tr -d '\n -~' <"$f")" ] &&
+	LC_ALL=C command grep -Eqx -- "$R" "$f"
 }
 
 check_subject_regex_samples() {
-	sec=$(title_section) || return
-	re=$(printf '%s\n' "$sec" | subject_regex)
-	[ -n "$re" ] || {
+	load_section "$CONTEXT" "$TITLE_HEADING" || return 0
+	R=$(printf '%s\n' "$sec" | subject_regex)
+	[ -n "$R" ] || {
 		fail "no subject expression to try"
 		return
 	}
@@ -265,25 +291,30 @@ check_subject_regex_samples() {
 	sample reject 'docs(0032): draft (#1)\nsecond line\n'
 	sample reject 'docs(0032): draft (#1)\n\n'
 	sample reject 'docs(0032): draft\r (#1)\n'
+	sample reject 'docs(0032): draft (#1)\r\n'
+	sample reject '\357\273\277docs(0032): draft (#1)\n'
+	sample reject 'docs(0032):draft (#1)\n'
+	sample reject 'feat!: draft (#1)\n'
+	sample reject 'docs(0032):\343\200\200draft (#1)\n'
+	sample reject 'docs(\357\274\220032): draft (#1)\n'
+	sample reject 'docs(\343\201\202): draft (#1)\n'
+	sample reject 'docs(0032): (#1)\n'
+	sample reject 'docs(0032): draft (#)\n'
+	sample reject ' docs(0032): draft (#1)\n'
 	rm -rf "$tmp"
 }
 
 ALL_CHECKS="$ALL_CHECKS context_title_section context_subject_regex subject_regex_samples"
 
 check_context_plan_pr() {
-	_ctx=$(show "$CONTEXT") || {
-		fail "cannot read $CONTEXT"
-		return
-	}
-	sec=$(printf '%s\n' "$_ctx" | section '### Plan PR')
-	[ -n "$sec" ] || {
-		fail "no section '### Plan PR' in $CONTEXT"
-		return
-	}
+	load_section "$CONTEXT" '### Plan PR' || return 0
 	one=$(printf '%s\n' "$sec" | flat)
 	has "$one" '`03_implementation_plan\.md` has the PR.s URL on a `PR を作成した` line' \
 		'definition: the PR URL on a plan'"'"'s PR を作成した line'
 	has "$one" 'in the tree of the PR.s head' 'the tree read is the PR head'
+	has "$one" 'Its task ID is the number of the task directory that holds that plan' \
+		'the task ID is the number of the plan'"'"'s task directory'
+	has "$one" '\*\*No match\*\*: not a plan PR' 'no match means not a plan PR'
 	has "$one" 'Count only a line where the whole URL matches' 'only a whole-URL match counts'
 	has "$one" 'Stop[^.]*when the matching lines are in the plans of two or more tasks' \
 		'stop when two or more tasks'"'"' plans match'
@@ -294,15 +325,7 @@ check_context_plan_pr() {
 ALL_CHECKS="$ALL_CHECKS context_plan_pr"
 
 check_context_marker_conventions() {
-	_ctx=$(show "$CONTEXT") || {
-		fail "cannot read $CONTEXT"
-		return
-	}
-	sec=$(printf '%s\n' "$_ctx" | section '### PR marker conventions')
-	[ -n "$sec" ] || {
-		fail "no section '### PR marker conventions' in $CONTEXT"
-		return
-	}
+	load_section "$CONTEXT" '### PR marker conventions' || return 0
 	line=$(printf '%s\n' "$sec" | command grep -E '^- `\*\*推奨タイトル\*\*`')
 	has "$line" 'is a PR title, not a squash subject' \
 		'推奨タイトル is a PR title, not a squash subject'
@@ -312,6 +335,9 @@ check_context_marker_conventions() {
 ALL_CHECKS="$ALL_CHECKS context_marker_conventions"
 
 for name in "$@"; do
+	case $name in
+	'' | *[!a-z_]*) die "unknown check: '$name'" ;;
+	esac
 	case " $ALL_CHECKS " in
 	*" $name "*) ;;
 	*) die "unknown check: $name" ;;
@@ -324,7 +350,7 @@ failed=0
 for name in "$@"; do
 	current=$name
 	check_failed=0
-	"check_$name"
+	"check_$name" || fail "the check stopped with status $?"
 	if [ "$check_failed" -eq 0 ]; then
 		printf 'ok   %s\n' "$name"
 	else
