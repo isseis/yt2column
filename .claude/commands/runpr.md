@@ -404,7 +404,9 @@ rather than once per decision.
      confined it to the files PRE_MERGE changes, which carry nothing the review
      rations are for. Fetch the unresolved threads again with `fixprguard list`
      (step 3). If a new thread appeared, an untrusted one included, do not
-     merge: discard the preparation, return to step 2, and ask step 4 again.
+     merge: discard the preparation and return to step 3, which handles it
+     (`fixpr`, or the untrusted-thread question), then step 2, and ask step 4
+     again.
    - Otherwise merge with the approved message files without asking again: the
      answer approved this message for exactly this head.
 4. Merge with `mergepr.md` step 4, and report as its step 5 says. If the merge
