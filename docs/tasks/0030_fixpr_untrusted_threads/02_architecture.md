@@ -8,7 +8,7 @@
 | Created | 2026-10-21 |
 | Review date | 2026-10-21 |
 | Reviewer | isseis |
-| Comments | 2026-10-21 (editorial): 3.2 の `cmdrunner.Options` に `Dir` と `Env` を加えた（計画書 1.3.2 の決定。3.7 の git の起動と一時リポジトリのテストに要る）。AC は変わらない。2026-10-21 (editorial): 3.4 に、2 段目の応答に入りうる本文の扱い、`authorType` の決め方、`begin` の出力の `untrusted`・`changed`・`acceptNotFound` を書き足した（実装に合わせた。AC は変わらない）。2026-10-21 (editorial): 3.2 の `Finding` に `CommentURL` を加え（3.3 の「コメントの URL を理由 (c) に付ける」の型の上の表現）、`ThreadPaths` の戻り値を `[]ThreadPath`（パスと、名指しされた想定外の著者のスレッドかどうか）にした（3.6 の規則 4 が名指しを区別するため）。AC は変わらない。2026-10-21 (decision): 3.7 に、`GH_REPO` または `GH_HOST` が設定されていれば `gh` を起動せずに止まる規則を加え、2 章の `owner/repo` の求め方から参照した（PR #406 のレビューの指摘。取り除いて進める案ではなく止める案を、このセッションでレビュアーが承認した）。AC は変わらない |
+| Comments | 2026-10-21 (editorial): 3.2 の `cmdrunner.Options` に `Dir` と `Env` を加えた（計画書 1.3.2 の決定。3.7 の git の起動と一時リポジトリのテストに要る）。AC は変わらない。2026-10-21 (editorial): 3.4 に、2 段目の応答に入りうる本文の扱い、`authorType` の決め方、`begin` の出力の `untrusted`・`changed`・`acceptNotFound` を書き足した（実装に合わせた。AC は変わらない）。2026-10-21 (editorial): 3.2 の `Finding` に `CommentURL` を加え（3.3 の「コメントの URL を理由 (c) に付ける」の型の上の表現）、`ThreadPaths` の戻り値を `[]ThreadPath`（パスと、名指しされた想定外の著者のスレッドかどうか）にした（3.6 の規則 4 が名指しを区別するため）。AC は変わらない。2026-10-21 (decision): 3.7 に、`GH_REPO` または `GH_HOST` が設定されていれば `gh` を起動せずに止まる規則を加え、2 章の `owner/repo` の求め方から参照した（PR #406 のレビューの指摘。取り除いて進める案ではなく止める案を、このセッションでレビュアーが承認した）。AC は変わらない。2026-10-21 (editorial): フェーズ 3 の実装に合わせ、3.2 の `Worktree` に `CheckClean`・`Baseline`・`CheckState` を加え、`Inspect` の引数を `[]ThreadPath` にした（計画書のステップ 3-2・3-4 のとおり）。3.7 の head に HEAD がいるブランチを含め、比較する時点を実装の位置に合わせた。3.6 の規則 6 に、追跡済みのファイルを置き換えた FIFO では git が失敗して止まることを書き足した。AC は変わらない |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `911b535` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md) の項番を指す。申し送り H-01〜H-10 への対応は付録 A にまとめる。#395 などは GitHub の issue の番号を指す。
 
@@ -443,8 +443,14 @@ type Worktree struct{ /* unexported */ }
 
 func NewWorktree(run cmdrunner.Runner) *Worktree
 
+// CheckClean and Baseline are the two halves of Begin; the command calls them
+// with the fork check in between (3.1). CheckState is the comparison made
+// before git or gh is launched (3.7).
 func (w *Worktree) Begin(ctx context.Context) (Baseline, error)
-func (w *Worktree) Inspect(ctx context.Context, base Baseline, paths []string) (Inspection, error)
+func (w *Worktree) CheckClean(ctx context.Context) error
+func (w *Worktree) Baseline(ctx context.Context) (Baseline, error)
+func (w *Worktree) CheckState(ctx context.Context, base Baseline) error
+func (w *Worktree) Inspect(ctx context.Context, base Baseline, threads []ThreadPath) (Inspection, error)
 func (w *Worktree) Finish(ctx context.Context, base Baseline, judged JudgedSetID, req FinishRequest) (FinishResult, error)
 func (w *Worktree) Push(ctx context.Context, base Baseline, commit string) (PushResult, error)
 
@@ -558,7 +564,7 @@ nonce の値は、ガードツールが生成する。セッションが生成�
 3.  `path` が `docs/tasks/NNNN_<name>/`（`NNNN` は 4 桁の数字）の中にあれば、そのディレクトリの下のすべてのファイル（サブディレクトリの中を含む。既存のタスクにサブディレクトリがあるため。たとえば `docs/tasks/0008_column_prompt/v1/`）。
 4.  ただし、コマンドの実行に関わるファイル（下の定義）は、`path` そのものでなければ範囲外とする。名指しされた想定外の著者のスレッドでは、`path` は攻撃者が選べるので、この「そのもの」の例外を適用せず、実行に関わるファイルは常に範囲外とする。
 5.  名前を変えたファイルは、変える前と後の両方が範囲に入るときだけ範囲に入る。名前の変更の検出は無効にして数え上げるので（下記）、変更前の削除と変更後の追加の別々のエントリを、それぞれ判定すれば足りる。
-6.  通常のファイル以外の変更（シンボリックリンク、サブモジュール、ファイルの種類の変更、FIFO やデバイス）は、パスにかかわらず範囲外とする。パスの規則では、リンクの先を制限できないためである。
+6.  通常のファイル以外の変更（シンボリックリンク、サブモジュール、ファイルの種類の変更、FIFO やデバイス）は、パスにかかわらず範囲外とする。パスの規則では、リンクの先を制限できないためである。git は未追跡の FIFO を数えず、追跡済みのファイルを置き換えた FIFO では差分を求められずに失敗するので、後者は範囲の判定に進まず、git の失敗（`git-failed`）として止まる。
 
 **コマンドの実行に関わるファイルの定義（H-10）。** build checks（`make fmt`・`make test`・`make lint`）と CI が、設定として読む、またはコンパイル・実行するファイルである。コミット `911b535` のリポジトリを調べて決めた。定義は `scope.go` の 1 か所にあり、`fixprguard_guide.md` が一覧を載せる。`fixpr.md` は一覧を言い換えず、ガードツールの判定に委ねる（要件書 4.5）。
 
@@ -634,7 +640,7 @@ flowchart TD
 
 | 値 | 求め方 | 比べる時点 |
 |---|---|---|
-| head | HEAD の OID | `inspect`・`finish`・`push` |
+| head | HEAD の OID と、HEAD がいるブランチ（同じ commit のブランチへの切り替えも検出する） | `inspect`・`finish`・`push` |
 | remote | push 先のリモートのブランチの OID（ブランチがなければ空）と、push 先の識別 | `inspect`（OID と識別）、`push`（OID と識別） |
 | hooks | hooks のディレクトリの内容のダイジェスト | `inspect`・`finish`・`push` |
 | config | リポジトリの config と worktree の config の内容のダイジェスト | `inspect`・`finish`・`push` |
@@ -643,7 +649,7 @@ flowchart TD
 -   **hooks のディレクトリ。** `core.hooksPath` が設定されていればその先を使う。worktree では `.git` がファイルで、hooks と共有の config は共有の git のディレクトリにある。ダイジェストには、各エントリの相対パス、ファイルの種類、モード（実行ビット）、シンボリックリンクの先、通常ファイルの内容を入れる。既存の hook の実行ビットだけを変えても、次の `git commit` で実行されるようになるためである。
 -   **info。** `info/exclude` と `info/attributes` を書き換えると、`git status` から追加のファイルを隠せる。また、index のフラグ（`skip-worktree`・`assume-unchanged`）を立てると、変更したファイルを `git status` から隠せる。どちらも `git status` の数え上げ（3.6）を迂回する経路なので、基準値で確かめる。基準値を採る時点（`begin`）でフラグが立ったエントリがあれば、その時点で止まる。
 -   **index・`FETCH_HEAD`・reflog。** 上のフラグ以外の index の内容、`FETCH_HEAD`、reflog は、通常の git の操作で変わるので、異常として扱わない（AC-26）。
--   **ツールが起動する git。** 設定が外部のコマンドを起動できないように固める。`core.fsmonitor`・`core.sshCommand`・`diff.external`・textconv など、設定でコマンドを起動できる項目を無効にし、外部の diff と textconv を使わない。継承した `GIT_*` の環境変数は取り除き、オプションのロックと端末の入力を無効にする。さらに、git または `gh`（`gh` も内部で git を起動する）を起動するすべてのサブコマンドは、起動する前に、hooks・config・info のダイジェストを（ファイルの読み取りだけで）求めて基準値と比べる。違えば、起動せずに止まる。`finish` は、build checks の後、変更の集合を数え直す git を起動する前にも、この比較を行う。`push` と `git commit` の前も同じである。`inspect` では、`main` がこの比較を済ませてから `GitHub.ThreadPaths`（`gh`）を呼ぶ。設定が書き換えられた後に、書き換えられた設定で git を起動すると、ツールのプロセスの中でコードが実行されるためである。基準値を採る `begin` だけは、比べる相手がないので、起動前の比較をしない。`begin` の時点で設定が書き換えられていない前提に立つ。
+-   **ツールが起動する git。** 設定が外部のコマンドを起動できないように固める。`core.fsmonitor`・`core.sshCommand`・`diff.external`・textconv など、設定でコマンドを起動できる項目を無効にし、外部の diff と textconv を使わない。継承した `GIT_*` の環境変数は取り除き、オプションのロックと端末の入力を無効にする。さらに、git または `gh`（`gh` も内部で git を起動する）を起動するすべてのサブコマンドは、起動する前に、hooks・config・info のダイジェストを（ファイルの読み取りだけで）求めて基準値と比べる。違えば、起動せずに止まる。`finish` は、make の各ターゲットの後（次のターゲットと、変更の集合を数え直す git・stage・`git commit` の前）と、`git commit` の後（commit の hook もコードであるため）にも、この比較を行う。`push` は、最初の git を起動する前に比べる。同じ呼び出しの中で、前の比較がすでに覆う位置では比べ直さない。`inspect` では、`main` がこの比較を済ませてから `GitHub.ThreadPaths`（`gh`）を呼ぶ。設定が書き換えられた後に、書き換えられた設定で git を起動すると、ツールのプロセスの中でコードが実行されるためである。基準値を採る `begin` だけは、比べる相手がないので、起動前の比較をしない。`begin` の時点で設定が書き換えられていない前提に立つ。
 -   **ツールが起動する `gh` の対象。** 環境変数 `GH_REPO` または `GH_HOST` が設定されていれば、`gh` を呼ぶすべてのサブコマンドは、`gh` を起動せずに使い方の誤りとして止まる（`ErrInvalidInput`、終了コード 2）。`GH_REPO` は、引数なしの `gh repo view` と `gh pr view <番号>` の対象を、作業ツリーのリポジトリから別のリポジトリに変える。`GH_HOST` は、対象のホストを変える。このまま進むと、別のリポジトリの同じ番号の PR を判定し、そのリポジトリの権限で著者を信頼したうえで、修正と push は作業ツリーに対して行う。取り除いて進めず止めるのは、利用者の設定の誤りを黙って補正すると、誤りに気づけないためである。
 -   **基準値の時点。** `begin` の時点（フェーズ 2 の前）であり、要件書の「修正のフェーズの前」より早い。フェーズ 2 のエージェントの異常も、同じ比較で検出できるためである。この間にリモートのブランチが正当に進んだ場合（利用者が別に push した場合）も異常として止まる。実行をやり直せば足りるので、受け入れる。
 -   **基準値の形。** 値を `.` で連結した 1 つの文字列（バージョンの接頭辞付き）で、約 300 バイトである。セッションが引数で渡す。形が合わない値は補正せず、使い方の誤りとして拒否する（`ErrInvalidInput`）。

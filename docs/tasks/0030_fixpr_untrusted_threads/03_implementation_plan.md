@@ -8,7 +8,7 @@
 | Created | 2026-10-21 |
 | Review date | 2026-10-21 |
 | Reviewer | isseis |
-| Comments | 2026-10-21 (editorial): ステップ 2-2 の `hasNextPage` の扱いを理由 (e) に写す記述に直した。ステップ 2-4 の `TestFenceNonceAbsent` を `TestFenceBlockShape` に改め（乱数の nonce では nonce の確認を壊しても失敗しないため）、JSON のエスケープの層のテストをステップ 5-1 の `TestBeginOutputFenced` に移した。AC-18 の検証の行を合わせた。AC は変わらない。2026-10-21 (decision): 設計書 3.7 に加えた `GH_REPO`・`GH_HOST` の規則（設定されていれば `gh` を起動せずに止まる）を、ステップ 5-1 の作業とテスト `TestGhTargetEnvRejected` に加えた（PR #406 のレビューの指摘。このセッションでレビュアーが承認した）。AC は変わらない |
+| Comments | 2026-10-21 (editorial): ステップ 2-2 の `hasNextPage` の扱いを理由 (e) に写す記述に直した。ステップ 2-4 の `TestFenceNonceAbsent` を `TestFenceBlockShape` に改め（乱数の nonce では nonce の確認を壊しても失敗しないため）、JSON のエスケープの層のテストをステップ 5-1 の `TestBeginOutputFenced` に移した。AC-18 の検証の行を合わせた。AC は変わらない。2026-10-21 (decision): 設計書 3.7 に加えた `GH_REPO`・`GH_HOST` の規則（設定されていれば `gh` を起動せずに止まる）を、ステップ 5-1 の作業とテスト `TestGhTargetEnvRejected` に加えた（PR #406 のレビューの指摘。このセッションでレビュアーが承認した）。AC は変わらない。2026-10-21 (editorial): 1.3.4 でステップ 3-2 に委ねた決定（作業ディレクトリは現在のディレクトリで作業ツリーの最上位、環境は `GitEnv` を使う runner で渡す、システムの設定は残す）を実装し、コミットメッセージに記録した。ステップ 3-5 の停止の種類は `StopKind` として公開した。設計書 3.2・3.6・3.7 を実装に合わせた。AC は変わらない |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -230,58 +230,58 @@
 
 **変更するファイル**: `internal/fixprguard/scope.go`、`internal/fixprguard/scope_test.go`
 
--   [ ] 設計書 3.6 の規則 1〜6、パスの検査、コマンドの実行に関わるファイルの定義（H-10）を、1 か所（`scope.go`）に実装する。一覧は、ガイドの検査（ステップ 5-3）が読めるように公開する。名指しされた想定外の著者のスレッドでは、`path` そのものの例外を適用しない。
--   [ ] 照合は、ファイルシステムを使わない文字列だけの関数にする（大文字小文字を区別しない macOS と区別する Linux の CI で結果が変わらないため）。
--   [ ] テスト: `TestScopeRules`（設計書 7.1 の「範囲」の項目）。
+-   [x] 設計書 3.6 の規則 1〜6、パスの検査、コマンドの実行に関わるファイルの定義（H-10）を、1 か所（`scope.go`）に実装する。一覧は、ガイドの検査（ステップ 5-3）が読めるように公開する。名指しされた想定外の著者のスレッドでは、`path` そのものの例外を適用しない。
+-   [x] 照合は、ファイルシステムを使わない文字列だけの関数にする（大文字小文字を区別しない macOS と区別する Linux の CI で結果が変わらないため）。
+-   [x] テスト: `TestScopeRules`（設計書 7.1 の「範囲」の項目）。
 
 #### ステップ 3-2: 一時リポジトリの補助、git の基準値、起動する git の制限
 
 **変更するファイル**: `internal/fixprguard/test_helpers_git.go`（`//go:build test`）、`internal/fixprguard/gitstate.go`、`internal/fixprguard/gitstate_test.go`
 
--   [ ] 先に、一時ディレクトリに実際の git のリポジトリと、`git ls-remote` と push の相手になるローカルの bare リポジトリを作る補助を作る。`HOME` と `XDG_CONFIG_HOME` を一時ディレクトリにし（`t.Setenv`。並列にしない）、リポジトリ内の設定で署名を無効にする。hooks は、テストが明示的に置くものだけが存在する状態にする。git のコマンドだけを実際の実行に回し、`make` と `gh` を fake に回す実行の振り分けも、ここに置く。この補助を使うテストは、この後のすべてのステップで同じ補助を使う。
--   [ ] `Baseline` を作る。値は設計書 3.7 の表（head、remote の OID と push 先の識別、hooks、config、info とフラグ）。形式はバージョンの接頭辞付き。形が合わない値は `ErrInvalidInput` で拒否する。`Baseline` も、2-1 の構造のガードの対象に加える。
--   [ ] hooks・config・info のダイジェストと、skip-worktree・assume-unchanged のフラグの確認を作る。`core.hooksPath` と worktree の共有の git のディレクトリに対応する。
--   [ ] git の起動の制限（設定が起動する外部コマンドの無効化、`GIT_*` の除去、ロックと端末の無効化）と、git・`gh` を起動する前のダイジェストの比較を作る（設計書 3.7）。比較は、`main` が `GitHub.ThreadPaths` の前にも呼べるように、`Worktree` の公開のメソッドにする。
--   [ ] 1.3.4 の作業ディレクトリと環境の渡し方、システムの設定の扱いを決める。
--   [ ] テスト: `TestBaselineDetectsChange`（head・remote の移動・hooks の追加と削除と実行ビットとリンク先・config・worktree の config・`core.hooksPath` の先・`info/exclude`・skip-worktree・assume-unchanged）、`TestBaselineIgnoresIndexAndFetchHead`、`TestBaselineMalformedRejected`、`TestGitNotLaunchedAfterConfigChange`。
+-   [x] 先に、一時ディレクトリに実際の git のリポジトリと、`git ls-remote` と push の相手になるローカルの bare リポジトリを作る補助を作る。`HOME` と `XDG_CONFIG_HOME` を一時ディレクトリにし（`t.Setenv`。並列にしない）、リポジトリ内の設定で署名を無効にする。hooks は、テストが明示的に置くものだけが存在する状態にする。git のコマンドだけを実際の実行に回し、`make` と `gh` を fake に回す実行の振り分けも、ここに置く。この補助を使うテストは、この後のすべてのステップで同じ補助を使う。
+-   [x] `Baseline` を作る。値は設計書 3.7 の表（head、remote の OID と push 先の識別、hooks、config、info とフラグ）。形式はバージョンの接頭辞付き。形が合わない値は `ErrInvalidInput` で拒否する。`Baseline` も、2-1 の構造のガードの対象に加える。
+-   [x] hooks・config・info のダイジェストと、skip-worktree・assume-unchanged のフラグの確認を作る。`core.hooksPath` と worktree の共有の git のディレクトリに対応する。
+-   [x] git の起動の制限（設定が起動する外部コマンドの無効化、`GIT_*` の除去、ロックと端末の無効化）と、git・`gh` を起動する前のダイジェストの比較を作る（設計書 3.7）。比較は、`main` が `GitHub.ThreadPaths` の前にも呼べるように、`Worktree` の公開のメソッドにする。
+-   [x] 1.3.4 の作業ディレクトリと環境の渡し方、システムの設定の扱いを決める。
+-   [x] テスト: `TestBaselineDetectsChange`（head・remote の移動・hooks の追加と削除と実行ビットとリンク先・config・worktree の config・`core.hooksPath` の先・`info/exclude`・skip-worktree・assume-unchanged）、`TestBaselineIgnoresIndexAndFetchHead`、`TestBaselineMalformedRejected`、`TestGitNotLaunchedAfterConfigChange`。
 
 #### ステップ 3-3: 変更の数え上げ
 
 **変更するファイル**: `internal/fixprguard/changes.go`、`internal/fixprguard/changes_test.go`
 
--   [ ] 名前の変更の検出を無効にした数え上げ、変更の種類と行数（バイナリは行数の代わりにバイナリであること）、`lstat` による種類の判定、`JudgedSetID` を作る（設計書 3.6）。
--   [ ] 上限（1000 ファイル、8 MiB）と、超えたときの `change-cap` の停止を作る。上限の値は定数にする。
--   [ ] テスト: `TestEnumerateChanges`（追加・削除・名前の変更・未追跡・モード）、`TestChangeCaps`（1000 と 1001 ファイル、8 MiB と 8 MiB + 1）。
+-   [x] 名前の変更の検出を無効にした数え上げ、変更の種類と行数（バイナリは行数の代わりにバイナリであること）、`lstat` による種類の判定、`JudgedSetID` を作る（設計書 3.6）。
+-   [x] 上限（1000 ファイル、8 MiB）と、超えたときの `change-cap` の停止を作る。上限の値は定数にする。
+-   [x] テスト: `TestEnumerateChanges`（追加・削除・名前の変更・未追跡・モード）、`TestChangeCaps`（1000 と 1001 ファイル、8 MiB と 8 MiB + 1）。
 
 #### ステップ 3-4: `Worktree` の `Begin` と `Inspect`
 
 **変更するファイル**: `internal/fixprguard/worktree.go`、`internal/fixprguard/worktree_test.go`
 
--   [ ] `Begin`（作業ツリーの確認 AC-20、基準値の採取）と `Inspect`（基準値との比較、数え上げ、範囲との照合）を、設計書 3.2 の署名で作る。`Begin` は、`CheckClean`（作業ツリーの確認）と `Baseline`（基準値の採取）を順に呼ぶだけの形にし、この 2 つも公開する。設計書 3.1 の `begin` の順序（作業ツリー → fork → 基準値 → 取得）の間に fork の確認を挟めるようにするためである。`Inspect` の `paths` は、`main` が `GitHub.ThreadPaths` から取り直して渡す。
--   [ ] 範囲外の一覧に、ファイルごとの変更の種類と行数を含める（AC-23）。
--   [ ] テスト: `TestBeginRejectsDirtyWorkTree`（未追跡を含め `ErrDirtyWorkTree`。GitHub を呼ばないことは、`main` の層のテスト 5-1 `TestBeginOrder` が確かめる）、`TestInspectInScope`、`TestInspectListsOutOfScope`。
+-   [x] `Begin`（作業ツリーの確認 AC-20、基準値の採取）と `Inspect`（基準値との比較、数え上げ、範囲との照合）を、設計書 3.2 の署名で作る。`Begin` は、`CheckClean`（作業ツリーの確認）と `Baseline`（基準値の採取）を順に呼ぶだけの形にし、この 2 つも公開する。設計書 3.1 の `begin` の順序（作業ツリー → fork → 基準値 → 取得）の間に fork の確認を挟めるようにするためである。`Inspect` の `paths` は、`main` が `GitHub.ThreadPaths` から取り直して渡す。
+-   [x] 範囲外の一覧に、ファイルごとの変更の種類と行数を含める（AC-23）。
+-   [x] テスト: `TestBeginRejectsDirtyWorkTree`（未追跡を含め `ErrDirtyWorkTree`。GitHub を呼ばないことは、`main` の層のテスト 5-1 `TestBeginOrder` が確かめる）、`TestInspectInScope`、`TestInspectListsOutOfScope`。
 
 #### ステップ 3-5: `Finish`
 
 **変更するファイル**: `internal/fixprguard/worktree.go`、`internal/fixprguard/worktree_flow_test.go`
 
--   [ ] 設計書 3.6 の `finish` の順序と不変条件を、1 回の呼び出しの中で強制する（厳密な確認 → `make fmt` → 整形後の集合の記録 → `make test`・`make lint` → 厳密な比較 → stage → stage の確認と取り消し → commit → commit の後のツリーの確認）。`make` のターゲットは固定値で、引数から受け取らない。`make` の時間の上限は 30 分、`committed: false`、build checks の失敗の出力（失敗した段階と末尾 8 KiB を区切りのブロックで返す）も、設計書 3.6 のとおりに作る。
--   [ ] stage は、判定したパスだけを、パスを文字どおりに解釈する指定で行う。`git add -A` を使わない。
--   [ ] commit の件名の組み立て、`make` のターゲットの一覧、`protocol` の番号、`stop` の種類を、`internal/fixprguard` から公開する（1.3.4）。
--   [ ] テスト: `TestFinishOrder`（fake の手順の順序）、`TestFinishAbsorbsFormatting`、`TestFinishStopsOnJudgedSetMismatch`、`TestFinishStopsWhenBuildChecksRewrite`、`TestFinishStagesJudgedPathsOnly`（stage の層だけが防げる入力: 判定した集合にはグロブや pathspec の特殊な記法に見える名前のファイルを含め、先に、厳密な確認だけでは止まらないことを確かめる）、`TestFinishStageRollback`、`TestFinishPostCommitTreeCheck`（commit の hook が index を書き換える）、`TestFinishCommitSubject`、`TestFinishEmptyJudgedSet`、`TestFinishBuildCheckFailureOutput`、`TestFinishAfterOutOfScope`（範囲外を判定した集合でも `finish` が進む）、`TestInspectLeavesWorkTree`。
+-   [x] 設計書 3.6 の `finish` の順序と不変条件を、1 回の呼び出しの中で強制する（厳密な確認 → `make fmt` → 整形後の集合の記録 → `make test`・`make lint` → 厳密な比較 → stage → stage の確認と取り消し → commit → commit の後のツリーの確認）。`make` のターゲットは固定値で、引数から受け取らない。`make` の時間の上限は 30 分、`committed: false`、build checks の失敗の出力（失敗した段階と末尾 8 KiB を区切りのブロックで返す）も、設計書 3.6 のとおりに作る。
+-   [x] stage は、判定したパスだけを、パスを文字どおりに解釈する指定で行う。`git add -A` を使わない。
+-   [x] commit の件名の組み立て、`make` のターゲットの一覧、`protocol` の番号、`stop` の種類を、`internal/fixprguard` から公開する（1.3.4）。
+-   [x] テスト: `TestFinishOrder`（fake の手順の順序）、`TestFinishAbsorbsFormatting`、`TestFinishStopsOnJudgedSetMismatch`、`TestFinishStopsWhenBuildChecksRewrite`、`TestFinishStagesJudgedPathsOnly`（stage の層だけが防げる入力: 判定した集合にはグロブや pathspec の特殊な記法に見える名前のファイルを含め、先に、厳密な確認だけでは止まらないことを確かめる）、`TestFinishStageRollback`、`TestFinishPostCommitTreeCheck`（commit の hook が index を書き換える）、`TestFinishCommitSubject`、`TestFinishEmptyJudgedSet`、`TestFinishBuildCheckFailureOutput`、`TestFinishAfterOutOfScope`（範囲外を判定した集合でも `finish` が進む）、`TestInspectLeavesWorkTree`。
 
 #### ステップ 3-6: `Push`
 
 **変更するファイル**: `internal/fixprguard/worktree.go`、`internal/fixprguard/worktree_flow_test.go`
 
--   [ ] 設計書 3.6 の `push` の不変条件 (1)〜(4) を、push の直前の再確認と明示した refspec で実装する。
--   [ ] テスト: `TestPushRechecks`（HEAD が `finish` の SHA でない、hooks が変わった、config が変わった、push 先が変わった、リモートの OID が変わった。それぞれ別の入力で、push が実行されないこと）、`TestPushExplicitRefspec`、`TestPushFailure`。
+-   [x] 設計書 3.6 の `push` の不変条件 (1)〜(4) を、push の直前の再確認と明示した refspec で実装する。
+-   [x] テスト: `TestPushRechecks`（HEAD が `finish` の SHA でない、hooks が変わった、config が変わった、push 先が変わった、リモートの OID が変わった。それぞれ別の入力で、push が実行されないこと）、`TestPushExplicitRefspec`、`TestPushFailure`。
 
 #### ステップ 3-7: 通しの結合テスト
 
 **変更するファイル**: `internal/fixprguard/worktree_flow_test.go`
 
--   [ ] 設計書 7.3 のとおり、ステップ 3-2 の補助で `Begin` から `Push` の直前までを通して試す。判定の後にファイルを足す、hooks を足す、範囲外のファイルを変える、build checks が範囲内のファイルを書き換える、のそれぞれで、正しい場所で止まること。テスト名: `TestRoundStopsAtRightPlace`（4 つの場面）。
+-   [x] 設計書 7.3 のとおり、ステップ 3-2 の補助で `Begin` から `Push` の直前までを通して試す。判定の後にファイルを足す、hooks を足す、範囲外のファイルを変える、build checks が範囲内のファイルを書き換える、のそれぞれで、正しい場所で止まること。テスト名: `TestRoundStopsAtRightPlace`（4 つの場面）。
 
 **完了条件**: `make test && make lint`。壊して確かめる（設計書 7.2 から）: 範囲の規則で実行に関わるファイルの除外を外す（`TestScopeRules`）、`finish` が build checks の後の確認を省く（`TestFinishStopsWhenBuildChecksRewrite`）、`finish` が `git add -A` を使う（`TestFinishStagesJudgedPathsOnly`）、基準値の比較から hooks を外す（`TestBaselineDetectsChange`）、`push` が再確認を省く（`TestPushRechecks`）。
 
