@@ -59,7 +59,7 @@ Work in the following order.
 
    **対象ステップ**: X-Y / X-Z / …
 
-   **推奨タイトル**: `feat(<task-id>): <concise English title>`
+   **推奨タイトル**: `<type>(<task-id>): <Japanese summary>`
 
    **レビュー観点**: <key1> / <key2> / <key3>
 
@@ -77,7 +77,9 @@ Work in the following order.
    - `N` is a sequential integer starting from 1.
    - `<scope label>` is a short English description of the PR's concern (e.g. `internal API extensions`, `cmd boot layer`, `gc and reprocess subcommands`).
    - `**対象ステップ**` lists the step IDs covered by this PR, separated by ` / `.
-   - `**推奨タイトル**` is a conventional commit title in English.
+   - `**推奨タイトル**` is the Japanese title `runplan.md` step 5a writes the PR
+     title from, in the `推奨タイトル` form of `_context.md`, "PR title and squash subject"
+     (`<type>` from its prefix table, no backquotes).
    - `**レビュー観点**` lists 2–4 key review points in Japanese.
    - `**実装モデル要件**` is exactly one of `frontier-required`, `frontier-recommended`, or `standard`, chosen by applying the **Model requirement** principle in step 4 to the steps this PR covers. A PR takes the highest tier any of its steps requires.
    - `**判定理由**` is a one-line Japanese justification naming the specific trigger that decided the tier (e.g. the step ID and its unprecedented design decision, the panel-mode trigger it matches, the competing approaches in `既存コード調査結果`, or the Conditional checks it matches). For `standard`, state that no trigger matched.
@@ -126,7 +128,7 @@ Work in the following order.
 - [ ] The `### 3.2 PR 構成` table is present and consistent with the PR marker sections.
 - [ ] §6 checklist entries reference PRs (not phases) and are consistent with the PR markers.
 - [ ] All step-number cross-references in the document (§3, §4, §5, §6, step descriptions) reflect the final numbering after any reordering.
-- [ ] `推奨タイトル` values are valid conventional commit titles in English.
+- [ ] `推奨タイトル` values match the `推奨タイトル` form of `_context.md`, "PR title and squash subject", and contain no backquotes.
 - [ ] `レビュー観点` items are specific and meaningful — not generic placeholders.
 
 11. Open the PR and hand it over: follow `.claude/commands/_lib/task-pr-handoff.md`,

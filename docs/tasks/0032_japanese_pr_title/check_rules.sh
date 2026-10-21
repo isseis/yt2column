@@ -491,9 +491,24 @@ check_fixpr_title() {
 
 ALL_CHECKS="$ALL_CHECKS fixpr_title"
 
+check_mkplan2_recommended_title() {
+	load .claude/commands/mkplan2.md || return 0
+	has "$ctx" '^   \*\*推奨タイトル\*\*: `<type>\(<task-id>\): <Japanese summary>`$' \
+		'the inserted marker template is <type>(<task-id>): <Japanese summary>'
+	has "$(printf '%s\n' "$ctx" | flat)" \
+		'- `\*\*推奨タイトル\*\*` is the Japanese title `runplan\.md` step 5a writes the PR title from, in the `推奨タイトル` form of `_context\.md`, "PR title and squash subject"' \
+		'the field description refers to the title section'
+	has "$ctx" '^- \[ \] `推奨タイトル` values match the `推奨タイトル` form of `_context\.md`, "PR title and squash subject", and contain no backquotes' \
+		'the review checklist checks the form and no backquotes'
+	lacks "$ctx" 'concise English title|conventional commit titles? in English' \
+		'no English 推奨タイトル remains'
+}
+
+ALL_CHECKS="$ALL_CHECKS mkplan2_recommended_title"
+
 for name in "$@"; do
 	case $name in
-	'' | *[!a-z_]*) die "unknown check: '$name'" ;;
+	'' | *[!a-z0-9_]*) die "unknown check: '$name'" ;;
 	esac
 	case " $ALL_CHECKS " in
 	*" $name "*) ;;
