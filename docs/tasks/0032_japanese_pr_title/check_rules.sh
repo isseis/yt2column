@@ -375,6 +375,17 @@ check_claude_language() {
 
 ALL_CHECKS="$ALL_CHECKS claude_language"
 
+check_glossary_terms() {
+	load docs/translation_glossary.md || return 0
+	has "$ctx" '^\| 接頭辞 \| prefix \|' 'term: 接頭辞 = prefix'
+	has "$ctx" '^\| 受け付ける接頭辞 \| accepted prefix \|' 'term: 受け付ける接頭辞 = accepted prefix'
+	has "$ctx" '^\| 要約 \| summary \|' 'term: 要約 = summary'
+	has "$ctx" '^\| プランの PR \| plan PR \|' 'term: プランの PR = plan PR'
+	has "$ctx" '^\| 材料 \| material \|.*diff' 'term: 材料 includes the diff read when needed'
+}
+
+ALL_CHECKS="$ALL_CHECKS glossary_terms"
+
 for name in "$@"; do
 	case $name in
 	'' | *[!a-z_]*) die "unknown check: '$name'" ;;
