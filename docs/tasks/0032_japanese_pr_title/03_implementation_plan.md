@@ -155,8 +155,8 @@
 
 **変更するファイル**: `.claude/commands/_context.md`、`check_rules.sh`
 
--   [ ] 検査 `context_marker_conventions` を加える。「PR marker conventions」が、`推奨タイトル` は PR のタイトルであって squash のコミットの件名ではないと述べ、タイトルの規約の節を参照することを確かめる。
--   [ ] `_context.md:62` の行を、設計書 3.9 の表の 1 行目のとおりに改める。
+-   [x] 検査 `context_marker_conventions` を加える。「PR marker conventions」が、`推奨タイトル` は PR のタイトルであって squash のコミットの件名ではないと述べ、タイトルの規約の節を参照することを確かめる。
+-   [x] `_context.md:62` の行を、設計書 3.9 の表の 1 行目のとおりに改める。
 
 **完了条件**: 1.2 の 3 つ。フェーズの最後として `make test && make lint` が通る。
 

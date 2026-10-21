@@ -293,6 +293,24 @@ check_context_plan_pr() {
 
 ALL_CHECKS="$ALL_CHECKS context_plan_pr"
 
+check_context_marker_conventions() {
+	_ctx=$(show "$CONTEXT") || {
+		fail "cannot read $CONTEXT"
+		return
+	}
+	sec=$(printf '%s\n' "$_ctx" | section '### PR marker conventions')
+	[ -n "$sec" ] || {
+		fail "no section '### PR marker conventions' in $CONTEXT"
+		return
+	}
+	line=$(printf '%s\n' "$sec" | command grep -E '^- `\*\*推奨タイトル\*\*`')
+	has "$line" 'is a PR title, not a squash subject' \
+		'推奨タイトル is a PR title, not a squash subject'
+	has "$line" '"PR title and squash subject"' 'refers to the title section'
+}
+
+ALL_CHECKS="$ALL_CHECKS context_marker_conventions"
+
 for name in "$@"; do
 	case " $ALL_CHECKS " in
 	*" $name "*) ;;
