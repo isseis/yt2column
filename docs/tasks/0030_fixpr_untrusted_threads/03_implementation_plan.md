@@ -8,7 +8,7 @@
 | Created | 2026-10-21 |
 | Review date | 2026-10-21 |
 | Reviewer | isseis |
-| Comments | 2026-10-21 (editorial): ステップ 2-2 の `hasNextPage` の扱いを理由 (e) に写す記述に直した。ステップ 2-4 の `TestFenceNonceAbsent` を `TestFenceBlockShape` に改め（乱数の nonce では nonce の確認を壊しても失敗しないため）、JSON のエスケープの層のテストをステップ 5-1 の `TestBeginOutputFenced` に移した。AC-18 の検証の行を合わせた。AC は変わらない。2026-10-21 (decision): 設計書 3.7 に加えた `GH_REPO`・`GH_HOST` の規則（設定されていれば `gh` を起動せずに止まる）を、ステップ 5-1 の作業とテスト `TestGhTargetEnvRejected` に加えた（PR #406 のレビューの指摘。このセッションでレビュアーが承認した）。AC は変わらない。2026-10-21 (editorial): 1.3.4 でステップ 3-2 に委ねた決定（作業ディレクトリは現在のディレクトリで作業ツリーの最上位、環境は `GitEnv` を使う runner で渡す、システムの設定は残す）を実装し、コミットメッセージに記録した。ステップ 3-5 の停止の種類は `StopKind` として公開した。設計書 3.2・3.6・3.7 を実装に合わせた。AC は変わらない |
+| Comments | 2026-10-21 (editorial): ステップ 2-2 の `hasNextPage` の扱いを理由 (e) に写す記述に直した。ステップ 2-4 の `TestFenceNonceAbsent` を `TestFenceBlockShape` に改め（乱数の nonce では nonce の確認を壊しても失敗しないため）、JSON のエスケープの層のテストをステップ 5-1 の `TestBeginOutputFenced` に移した。AC-18 の検証の行を合わせた。AC は変わらない。2026-10-21 (decision): 設計書 3.7 に加えた `GH_REPO`・`GH_HOST` の規則（設定されていれば `gh` を起動せずに止まる）を、ステップ 5-1 の作業とテスト `TestGhTargetEnvRejected` に加えた（PR #406 のレビューの指摘。このセッションでレビュアーが承認した）。AC は変わらない。2026-10-21 (editorial): 1.3.4 でステップ 3-2 に委ねた決定（作業ディレクトリは現在のディレクトリで作業ツリーの最上位、環境は `GitEnv` を使う runner で渡す、システムの設定は残す）を実装し、コミットメッセージに記録した。ステップ 3-5 の停止の種類は `StopKind` として公開した。設計書 3.2・3.6・3.7 を実装に合わせた。AC は変わらない。2026-10-21 (decision): フェーズ 3 のレビューの指摘から、設計書の Comments に記録した 3 つの決定（config の比較をすべての設定の値に広げる、入れ子の `.gitignore` と index の stat の偽造を残余のリスクとする、push 先を同じ名前のブランチとする）を、ステップ 3-2 の基準値の記述に反映した（このセッションでレビュアーが承認した）。extension の TypeScript を実行に関わるファイルに加えるかは、別の issue で扱う。AC は変わらない |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -239,7 +239,7 @@
 **変更するファイル**: `internal/fixprguard/test_helpers_git.go`（`//go:build test`）、`internal/fixprguard/gitstate.go`、`internal/fixprguard/gitstate_test.go`
 
 -   [x] 先に、一時ディレクトリに実際の git のリポジトリと、`git ls-remote` と push の相手になるローカルの bare リポジトリを作る補助を作る。`HOME` と `XDG_CONFIG_HOME` を一時ディレクトリにし（`t.Setenv`。並列にしない）、リポジトリ内の設定で署名を無効にする。hooks は、テストが明示的に置くものだけが存在する状態にする。git のコマンドだけを実際の実行に回し、`make` と `gh` を fake に回す実行の振り分けも、ここに置く。この補助を使うテストは、この後のすべてのステップで同じ補助を使う。
--   [x] `Baseline` を作る。値は設計書 3.7 の表（head、remote の OID と push 先の識別、hooks、config、info とフラグ）。形式はバージョンの接頭辞付き。形が合わない値は `ErrInvalidInput` で拒否する。`Baseline` も、2-1 の構造のガードの対象に加える。
+-   [x] `Baseline` を作る。値は設計書 3.7 の表（head とブランチ、remote の OID、hooks、config（ファイルとすべての設定の値）、info とフラグ）。形式はバージョンの接頭辞付き。形が合わない値は `ErrInvalidInput` で拒否する。`Baseline` も、2-1 の構造のガードの対象に加える。
 -   [x] hooks・config・info のダイジェストと、skip-worktree・assume-unchanged のフラグの確認を作る。`core.hooksPath` と worktree の共有の git のディレクトリに対応する。
 -   [x] git の起動の制限（設定が起動する外部コマンドの無効化、`GIT_*` の除去、ロックと端末の無効化）と、git・`gh` を起動する前のダイジェストの比較を作る（設計書 3.7）。比較は、`main` が `GitHub.ThreadPaths` の前にも呼べるように、`Worktree` の公開のメソッドにする。
 -   [x] 1.3.4 の作業ディレクトリと環境の渡し方、システムの設定の扱いを決める。

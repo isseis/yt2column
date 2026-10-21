@@ -1,14 +1,17 @@
 package fixprguard
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/sha1" //nolint:gosec // git's object IDs are SHA-1 in a SHA-1 repository
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
+	"os"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/isseis/yt2column/internal/cmdrunner"
@@ -41,16 +44,20 @@ func CommitSubject(pr PRNumber) string {
 }
 
 // Worktree guards the work tree and the git state of the repository in the
-// current directory, which must be the top of the work tree. It runs git and
-// make through run, which must use the environment GitEnv returns.
+// current directory, which must be the top of the work tree. gitRun runs git
+// and must use the environment GitEnv returns and an output cap, so truncated
+// output cannot hide a change; makeRun runs the build checks and needs no
+// cap, since only the tail of a failed target's output is kept.
 type Worktree struct {
-	run  cmdrunner.Runner
-	rand io.Reader
+	gitRun  cmdrunner.Runner
+	makeRun cmdrunner.Runner
+	rand    io.Reader
 }
 
-// NewWorktree returns a Worktree over run.
-func NewWorktree(run cmdrunner.Runner) *Worktree {
-	return &Worktree{run: run, rand: rand.Reader}
+// NewWorktree returns a Worktree that runs git through gitRun and make
+// through makeRun.
+func NewWorktree(gitRun, makeRun cmdrunner.Runner) *Worktree {
+	return &Worktree{gitRun: gitRun, makeRun: makeRun, rand: rand.Reader}
 }
 
 // CheckClean fails with ErrDirtyWorkTree when there is any uncommitted change,
@@ -115,16 +122,15 @@ type Inspection struct {
 	OutOfScope []ScopedChange `json:"outOfScope"`
 }
 
-// Inspect compares the git state with the baseline (push target included),
-// lists every change against the baseline's HEAD, and judges each against the
-// scope of threads. threads comes from GitHub.ThreadPaths, never from the
-// caller's arguments. It changes nothing.
+// Inspect compares the git state with the baseline (the push target branch
+// included), lists every change against the baseline's commit, and judges
+// each against the scope of threads. threads comes from GitHub.ThreadPaths,
+// never from the caller's arguments. It changes nothing.
 func (w *Worktree) Inspect(ctx context.Context, base Baseline, threads []ThreadPath) (Inspection, error) {
-	head, err := w.compareState(ctx, base, checkWithRemote)
-	if err != nil {
+	if _, err := w.compareState(ctx, base, base.head, checkWithRemote); err != nil {
 		return Inspection{}, err
 	}
-	changes, err := w.enumerateChanges(ctx, head)
+	changes, err := w.changesAgainst(ctx, base)
 	if err != nil {
 		return Inspection{}, err
 	}
@@ -134,6 +140,15 @@ func (w *Worktree) Inspect(ctx context.Context, base Baseline, threads []ThreadP
 		Changes:    len(changes),
 		OutOfScope: scopedChanges(changes, func(c change) bool { return !inScope(c.path, c.kind, threads) }),
 	}, nil
+}
+
+// changesAgainst lists the changes against the tree of the baseline's commit.
+func (w *Worktree) changesAgainst(ctx context.Context, base Baseline) ([]change, error) {
+	tree, _, err := w.commitObject(ctx, base.head)
+	if err != nil {
+		return nil, err
+	}
+	return w.enumerateChanges(ctx, tree)
 }
 
 // JudgedSetError reports changes that differ from the judged set. Changes
@@ -185,9 +200,9 @@ type FinishResult struct {
 // make lint; the strict check that nothing changed since formatting; staging
 // only the judged paths, taken literally; the check that the index holds
 // exactly the formatted set, undoing the staging otherwise; the commit; and
-// the check that the commit's tree and the work tree are still the formatted
-// set. The git state is compared before every git command that follows code
-// the round could have changed. An empty judged set commits nothing.
+// the check that the commit's tree is the formatted set. The git state is
+// compared after every make target and after every git command that runs
+// hooks. An empty judged set commits nothing.
 func (w *Worktree) Finish(ctx context.Context, base Baseline, judged JudgedSetID, req FinishRequest) (FinishResult, error) {
 	if _, err := ParseJudgedSetID(string(judged)); err != nil {
 		return FinishResult{}, err
@@ -205,6 +220,11 @@ func (w *Worktree) Finish(ctx context.Context, base Baseline, judged JudgedSetID
 	if len(judgedChanges) == 0 {
 		return FinishResult{Protocol: Protocol}, nil
 	}
+	// A change whose content has no digest (a nested repository, say) could
+	// change after this check without changing the ID.
+	if slices.ContainsFunc(judgedChanges, func(c change) bool { return c.kind != ChangeDelete && c.digest == "" }) {
+		return FinishResult{}, judgedSetChanged(judgedChanges)
+	}
 	if err := w.runMake(ctx, StageFmt); err != nil {
 		return FinishResult{}, err
 	}
@@ -215,15 +235,16 @@ func (w *Worktree) Finish(ctx context.Context, base Baseline, judged JudgedSetID
 	if !samePaths(judgedChanges, formatted) {
 		return FinishResult{}, judgedSetChanged(formatted)
 	}
-	for _, stage := range []string{StageTest, StageLint} {
-		if err := w.runMake(ctx, stage); err != nil {
-			return FinishResult{}, err
-		}
-		// A target that rewrote the configuration stops the run before
-		// the next target or git command reads it.
-		if err := w.CheckState(ctx, base); err != nil {
-			return FinishResult{}, err
-		}
+	if err := w.runMake(ctx, StageTest); err != nil {
+		return FinishResult{}, err
+	}
+	// make test may have rewritten the configuration; stop before make lint
+	// runs git with it.
+	if err := w.CheckState(ctx, base); err != nil {
+		return FinishResult{}, err
+	}
+	if err := w.runMake(ctx, StageLint); err != nil {
+		return FinishResult{}, err
 	}
 	checked, err := w.checkedChanges(ctx, base)
 	if err != nil {
@@ -232,11 +253,11 @@ func (w *Worktree) Finish(ctx context.Context, base Baseline, judged JudgedSetID
 	if judgedSetID(checked) != judgedSetID(formatted) {
 		return FinishResult{}, judgedSetChanged(checked)
 	}
-	if err := w.stage(ctx, formatted); err != nil {
+	if err := w.stage(ctx, base, formatted); err != nil {
 		return FinishResult{}, err
 	}
 	if _, err := w.git(ctx, "commit", "commit", "-q", "-m", CommitSubject(req.PR)); err != nil {
-		return FinishResult{}, errors.Join(err, w.unstage(ctx))
+		return FinishResult{}, w.undoStage(ctx, base, err)
 	}
 	commit, err := w.checkCommit(ctx, base, formatted)
 	if err != nil {
@@ -246,14 +267,13 @@ func (w *Worktree) Finish(ctx context.Context, base Baseline, judged JudgedSetID
 }
 
 // checkedChanges compares the git state with the baseline (without the push
-// target, which finish does not touch) and lists the changes against the
-// baseline's HEAD.
+// target branch, which finish does not touch) and lists the changes against
+// the baseline's commit.
 func (w *Worktree) checkedChanges(ctx context.Context, base Baseline) ([]change, error) {
-	head, err := w.compareState(ctx, base, checkLocal)
-	if err != nil {
+	if _, err := w.compareState(ctx, base, base.head, checkLocal); err != nil {
 		return nil, err
 	}
-	return w.enumerateChanges(ctx, head)
+	return w.changesAgainst(ctx, base)
 }
 
 // samePaths reports whether a and b change the same paths with the same kinds
@@ -264,47 +284,56 @@ func samePaths(a, b []change) bool {
 	})
 }
 
-// runMake runs one fixed make target under makeTimeout. A failure keeps only
-// the stage and the fenced tail of the output.
+// runMake runs one fixed make target under makeTimeout. A target that exits
+// unsuccessfully, a timeout included, keeps only the stage and the fenced
+// tail of its output; one that did not run keeps the stage only.
 func (w *Worktree) runMake(ctx context.Context, stage string) error {
 	ctx, cancel := context.WithTimeout(ctx, makeTimeout)
 	defer cancel()
-	if _, err := w.run.Run(ctx, makeCommand, stage); err != nil {
-		var output []byte
-		if exitErr, ok := errors.AsType[*cmdrunner.ExitError](err); ok {
-			output = slices.Concat(exitErr.Stdout, exitErr.Stderr)
-			output = output[max(0, len(output)-maxBuildOutputTail):]
-		}
-		block, fenceErr := Fence(output, w.rand)
-		if fenceErr != nil {
-			return fmt.Errorf("%w: %s: %w", ErrBuildChecksFailed, stage, fenceErr)
-		}
-		return &BuildCheckError{Stage: stage, Output: block}
+	_, err := w.makeRun.Run(ctx, makeCommand, stage)
+	if err == nil {
+		return nil
 	}
-	return nil
+	exitErr, ok := errors.AsType[*cmdrunner.ExitError](err)
+	if !ok {
+		return fmt.Errorf("%w: %s did not run", ErrBuildChecksFailed, stage)
+	}
+	output := slices.Concat(exitErr.Stdout, exitErr.Stderr)
+	block, err := Fence(output[max(0, len(output)-maxBuildOutputTail):], w.rand)
+	if err != nil {
+		return fmt.Errorf("%w: %s output not fenced", ErrBuildChecksFailed, stage)
+	}
+	return &BuildCheckError{Stage: stage, Output: block}
+}
+
+func changePaths(changes []change) []string {
+	paths := make([]string, len(changes))
+	for i, c := range changes {
+		paths[i] = c.path
+	}
+	return paths
 }
 
 // stage adds exactly the paths of want with pathspec magic and globbing off,
-// then checks that the index differs from HEAD by want alone and that no
-// unstaged or untracked change remains. On a mismatch it undoes the staging.
-// The caller has just compared the git state with the baseline.
-func (w *Worktree) stage(ctx context.Context, want []change) error {
-	paths := make([]string, len(want))
-	for i, c := range want {
-		paths[i] = c.path
+// then, after comparing the git state again (git add can run a
+// post-index-change hook), checks that the index differs from HEAD by want
+// alone and that no unstaged or untracked change remains. On a mismatch it
+// undoes the staging. The caller has just compared the git state.
+func (w *Worktree) stage(ctx context.Context, base Baseline, want []change) error {
+	if _, err := w.git(ctx, "add", append([]string{"--literal-pathspecs", "add", "--"}, changePaths(want)...)...); err != nil {
+		return w.undoStage(ctx, base, err)
 	}
-	if _, err := w.git(ctx, "add", append([]string{"--literal-pathspecs", "add", "--"}, paths...)...); err != nil {
-		return errors.Join(err, w.unstage(ctx))
+	if err := w.CheckState(ctx, base); err != nil {
+		return err
 	}
 	if err := w.checkStaged(ctx, want); err != nil {
-		return errors.Join(err, w.unstage(ctx))
+		return w.undoStage(ctx, base, err)
 	}
 	return nil
 }
 
 // checkStaged checks that the index differs from HEAD in exactly the paths of
 // want and matches the work tree everywhere, with nothing untracked left.
-// Together with the work tree being want, the index then holds want.
 func (w *Worktree) checkStaged(ctx context.Context, want []change) error {
 	cached, err := w.git(ctx, "diff --cached", "diff", "--cached", "--name-only", "--no-renames", "-z", "HEAD", "--")
 	if err != nil {
@@ -312,19 +341,9 @@ func (w *Worktree) checkStaged(ctx context.Context, want []change) error {
 	}
 	staged := splitNUL(cached)
 	slices.Sort(staged)
-	paths := make([]string, len(want))
-	for i, c := range want {
-		paths[i] = c.path
-	}
-	if !slices.Equal(staged, paths) {
+	if !slices.Equal(staged, changePaths(want)) {
 		return judgedSetChanged(want)
 	}
-	return w.checkNoLooseChanges(ctx, want)
-}
-
-// checkNoLooseChanges fails unless the index matches the work tree and no
-// untracked file exists.
-func (w *Worktree) checkNoLooseChanges(ctx context.Context, want []change) error {
 	unstaged, err := w.git(ctx, "diff", "diff", "--name-only", "--no-renames", "--no-ext-diff", "--no-textconv", "-z", "--")
 	if err != nil {
 		return err
@@ -339,69 +358,126 @@ func (w *Worktree) checkNoLooseChanges(ctx context.Context, want []change) error
 	return nil
 }
 
-// unstage resets the index to HEAD, leaving the work tree as it is.
-func (w *Worktree) unstage(ctx context.Context) error {
+// undoStage resets the index to HEAD, leaving the work tree as it is, after
+// cause stopped the staging or the commit. Hooks may have run since the last
+// comparison, so the git state is compared first; if it changed, no further
+// git runs and the staging is left for the user to inspect.
+func (w *Worktree) undoStage(ctx context.Context, base Baseline, cause error) error {
+	if err := w.CheckState(ctx, base); err != nil {
+		return errors.Join(err, cause)
+	}
 	_, err := w.git(ctx, "reset", "reset", "-q", "--")
-	return err
+	return errors.Join(cause, err)
 }
 
 // checkCommit checks the commit just made, first comparing the git state
-// again since the commit ran hooks: its only parent is the baseline's HEAD, the work tree and index match it, and the work tree against the
-// baseline's HEAD is still want. A commit hook that rewrote the index or the
-// work tree fails here, and no SHA is returned.
+// again since the commit ran hooks. The commit must be HEAD on the
+// baseline's branch with the baseline's commit as its only parent, and its
+// tree, read from the objects as stored, must differ from the baseline's tree
+// in exactly want: each path with want's kind and mode and a blob whose
+// content is the work tree's, still the content want was judged with. A hook
+// that rewrote the index or the work tree, a filter that changed what was
+// stored, and a replaced object all fail here, and no SHA is returned.
 func (w *Worktree) checkCommit(ctx context.Context, base Baseline, want []change) (string, error) {
 	if err := w.CheckState(ctx, base); err != nil {
 		return "", err
 	}
-	commit, _, err := w.headState(ctx)
+	commit, branch, err := w.headState(ctx)
 	if err != nil {
 		return "", err
 	}
-	if err := w.checkParent(ctx, commit, base.head); err != nil {
-		return "", err
-	}
-	if err := w.checkNoLooseChanges(ctx, want); err != nil {
-		return "", err
-	}
-	cached, err := w.git(ctx, "diff --cached", "diff", "--cached", "--name-only", "-z", "HEAD", "--")
+	tree, parents, err := w.commitObject(ctx, commit)
 	if err != nil {
 		return "", err
 	}
-	if len(cached) != 0 {
+	if branch == "" || digestString(branch) != base.branch || !slices.Equal(parents, []string{base.head}) {
+		return "", &GitStateError{Parts: []string{PartHead}}
+	}
+	baseTree, _, err := w.commitObject(ctx, base.head)
+	if err != nil {
+		return "", err
+	}
+	out, err := w.git(ctx, "diff-tree", "diff-tree", "-r", "-z", "--raw", "--no-abbrev", "--no-renames", baseTree, tree, "--")
+	if err != nil {
+		return "", err
+	}
+	records, err := parseRawRecords(out)
+	if err != nil {
+		return "", err
+	}
+	if len(records) != len(want) {
 		return "", judgedSetChanged(want)
 	}
-	got, err := w.enumerateChanges(ctx, base.head)
-	if err != nil {
-		return "", err
+	byPath := make(map[string]rawRecord, len(records))
+	for _, r := range records {
+		byPath[r.path] = r
 	}
-	if judgedSetID(got) != judgedSetID(want) {
-		return "", judgedSetChanged(got)
+	for _, c := range want {
+		r, ok := byPath[c.path]
+		if !ok || !committedAs(r, c) {
+			return "", judgedSetChanged(want)
+		}
 	}
 	return commit, nil
 }
 
-// checkParent fails with ErrGitStateChanged unless commit has exactly one
-// parent and it is parent.
-func (w *Worktree) checkParent(ctx context.Context, commit, parent string) error {
-	out, err := w.git(ctx, "rev-list", "rev-list", "--parents", "-n", "1", commit, "--")
-	if err != nil {
-		return err
+// committedAs reports whether a diff-tree record stores change c: a deletion
+// for a deletion, and otherwise c's mode and a blob of the work tree's
+// content, which must still have c's digest.
+func committedAs(r rawRecord, c change) bool {
+	if c.kind == ChangeDelete {
+		return r.status == 'D'
 	}
-	fields := strings.Fields(string(out))
-	if len(fields) != 2 || fields[0] != commit || fields[1] != parent {
-		return &GitStateError{Parts: []string{PartHead}}
+	if r.status == 'D' || r.newMode != c.mode {
+		return false
 	}
-	return nil
+	blob, digest, err := blobOf(c.path, c.mode, len(r.newOID))
+	return err == nil && digest == c.digest && blob == r.newOID
 }
 
-func splitNUL(out []byte) []string {
-	var parts []string
-	for p := range bytes.SplitSeq(out, []byte{0}) {
-		if len(p) > 0 {
-			parts = append(parts, string(p))
-		}
+// blobOf returns the git blob ID (SHA-1 or SHA-256 by oidLength) of a work
+// tree path as git would store it unfiltered, and the digest examine records
+// for it: the content of a regular file, the target of a symbolic link.
+func blobOf(p, mode string, oidLength int) (blob, digest string, err error) {
+	var newHash func() hash.Hash
+	switch oidLength {
+	case sha1OIDLength:
+		newHash = sha1.New
+	case sha256OIDLength:
+		newHash = sha256.New
+	default:
+		return "", "", fmt.Errorf("%w: object ID length", ErrGitFailed)
 	}
-	return parts
+	if mode == modeSymlink {
+		target, err := os.Readlink(p)
+		if err != nil {
+			return "", "", err
+		}
+		return objectID(newHash(), []byte(target)), digestString(target), nil
+	}
+	f, err := openRegular(p, false)
+	if err != nil {
+		return "", "", err
+	}
+	defer func() { _ = f.Close() }()
+	info, err := f.Stat()
+	if err != nil {
+		return "", "", err
+	}
+	object, content := newHash(), sha256.New()
+	_, _ = fmt.Fprintf(object, "blob %d\x00", info.Size())
+	n, err := io.Copy(io.MultiWriter(object, content), f)
+	if err != nil || n != info.Size() {
+		return "", "", fmt.Errorf("%w: read a committed path", ErrGitFailed)
+	}
+	return hex.EncodeToString(object.Sum(nil)), hex.EncodeToString(content.Sum(nil)), nil
+}
+
+// objectID hashes data as a git blob.
+func objectID(h hash.Hash, data []byte) string {
+	_, _ = fmt.Fprintf(h, "blob %d\x00", len(data))
+	_, _ = h.Write(data)
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // PushResult is the output of push.
@@ -412,44 +488,27 @@ type PushResult struct {
 }
 
 // Push sends commit, the SHA finish returned, after checking right before it:
-// HEAD is commit and its only parent is the baseline's HEAD on the same
-// branch; the hooks, configuration and info match the baseline; and the push
-// target and its branch OID are the baseline's. It pushes with an explicit
-// refspec, so no configured push refspec decides what is sent. The check is
-// of one moment; a process that rewrites the hooks between the check and the
-// push is not stopped.
+// the hooks, configuration and info match the baseline; HEAD is commit on the
+// baseline's branch and its only parent is the baseline's commit; and the
+// push target branch still has the baseline's OID. It pushes with an explicit
+// refspec and without tags or submodules, so no configured refspec or push
+// option decides what is sent. The check is of one moment; a process that
+// rewrites the hooks between the check and the push is not stopped.
 func (w *Worktree) Push(ctx context.Context, base Baseline, commit string) (PushResult, error) {
 	if !validOID(commit) {
 		return PushResult{}, fmt.Errorf("%w: commit", ErrInvalidInput)
 	}
-	if err := w.CheckState(ctx, base); err != nil {
-		return PushResult{}, err
-	}
-	if err := w.checkIndexFlags(ctx); err != nil {
-		return PushResult{}, err
-	}
-	head, branch, err := w.headState(ctx)
+	target, err := w.compareState(ctx, base, commit, checkWithRemote)
 	if err != nil {
 		return PushResult{}, err
 	}
-	if head != commit || branch == "" || digestString(branch) != base.branch {
+	if _, parents, err := w.commitObject(ctx, commit); err != nil {
+		return PushResult{}, err
+	} else if !slices.Equal(parents, []string{base.head}) {
 		return PushResult{}, &GitStateError{Parts: []string{PartHead}}
 	}
-	if err := w.checkParent(ctx, commit, base.head); err != nil {
-		return PushResult{}, err
-	}
-	target, err := w.resolvePushTarget(ctx, branch)
-	if err != nil {
-		return PushResult{}, err
-	}
-	oid, err := w.remoteOID(ctx, target)
-	if err != nil {
-		return PushResult{}, err
-	}
-	if target.id() != base.remoteID || oid != base.remoteOID {
-		return PushResult{}, &GitStateError{Parts: []string{PartRemote}}
-	}
-	if _, err := w.git(ctx, "push", "push", "-q", "--", target.remote, commit+":"+headsPrefix+target.branch); err != nil {
+	refspec := commit + ":" + headsPrefix + target.branch
+	if _, err := w.git(ctx, "push", "push", "-q", "--no-follow-tags", "--recurse-submodules=no", "--", target.remote, refspec); err != nil {
 		return PushResult{}, err
 	}
 	return PushResult{Protocol: Protocol, Pushed: true, Commit: commit}, nil

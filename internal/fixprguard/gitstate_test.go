@@ -65,18 +65,28 @@ func TestBaselineDetectsChange(t *testing.T) {
 		}, edit: func(_ *testing.T, r *testRepo) { r.Git("reset", "-q", "--hard", "HEAD~1") }, parts: []string{PartHead}},
 		{name: "branch_switch_same_commit", edit: func(_ *testing.T, r *testRepo) {
 			r.Git("switch", "-q", "-c", "other")
-		}, parts: []string{PartHead, PartRemote}},
+		}, parts: []string{PartHead}},
 		{name: "remote_moved", edit: func(_ *testing.T, r *testRepo) {
 			r.Write(testFile, "remote\n")
 			r.CommitAll("pushed elsewhere")
 			r.Git("push", "-q", testRemote, "HEAD:"+headsPrefix+testBranch)
 			r.Git("reset", "-q", "--hard", "HEAD~1")
 		}, parts: []string{PartRemote}},
-		{name: "push_target_moved", edit: func(_ *testing.T, r *testRepo) {
-			// The global configuration is outside the config digest, so only
-			// the push target comparison sees this.
+		{name: "global_config", edit: func(_ *testing.T, r *testRepo) {
+			// Outside the repository's files; git config --list reads it.
 			r.Git("config", "--global", "url."+r.Remote+"-elsewhere.pushInsteadOf", r.Remote)
-		}, parts: []string{PartRemote}},
+		}, parts: []string{PartConfig}},
+		{name: "included_config", setup: func(_ *testing.T, r *testRepo) {
+			r.Git("config", "include.path", filepath.Join(r.Home, "included"))
+		}, edit: func(t *testing.T, r *testRepo) {
+			appendFile(t, filepath.Join(r.Home, "included"), "[filter \"x\"]\n\tclean = cat\n")
+		}, parts: []string{PartConfig}},
+		{name: "commondir_added", edit: func(t *testing.T, r *testRepo) {
+			// git reads commondir in a main checkout too; a copy keeps every
+			// file the digests read unchanged.
+			r.gitIn(r.Home, "clone", "-q", "--bare", r.Dir, filepath.Join(r.Home, "copy.git"))
+			appendFile(t, filepath.Join(r.Dir, ".git", "commondir"), filepath.Join(r.Home, "copy.git")+"\n")
+		}, parts: []string{PartConfig, PartInfo}},
 		{name: "hook_added", edit: func(_ *testing.T, r *testRepo) { r.WriteHook("pre-commit", "exit 0\n") }, parts: []string{PartHooks}},
 		{name: "hook_removed", setup: func(_ *testing.T, r *testRepo) { r.WriteHook("pre-commit", "exit 0\n") }, edit: func(t *testing.T, r *testRepo) {
 			if err := os.Remove(hook(r)); err != nil {
@@ -100,6 +110,17 @@ func TestBaselineDetectsChange(t *testing.T) {
 			if err := os.Symlink("two", hook(r)); err != nil {
 				t.Fatal(err)
 			}
+		}, parts: []string{PartHooks}},
+		{name: "hook_link_target_content", setup: func(t *testing.T, r *testRepo) {
+			appendFile(t, filepath.Join(r.Home, "hook.sh"), "#!/bin/sh\nexit 0\n")
+			if err := os.MkdirAll(filepath.Dir(hook(r)), testDirMode); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(filepath.Join(r.Home, "hook.sh"), hook(r)); err != nil {
+				t.Fatal(err)
+			}
+		}, edit: func(t *testing.T, r *testRepo) {
+			appendFile(t, filepath.Join(r.Home, "hook.sh"), "echo changed\n")
 		}, parts: []string{PartHooks}},
 		{name: "hooks_path_target", setup: func(t *testing.T, r *testRepo) {
 			if err := os.MkdirAll(filepath.Join(r.Home, "hooks"), testDirMode); err != nil {
@@ -139,11 +160,11 @@ func TestBaselineDetectsChange(t *testing.T) {
 			}
 			base := mustBaseline(t)
 			w, _ := newTestWorktree(t)
-			if _, err := w.compareState(t.Context(), base, checkWithRemote); err != nil {
+			if _, err := w.compareState(t.Context(), base, base.head, checkWithRemote); err != nil {
 				t.Fatalf("compareState before the edit = %v", err)
 			}
 			tc.edit(t, r)
-			_, err := w.compareState(t.Context(), base, checkWithRemote)
+			_, err := w.compareState(t.Context(), base, base.head, checkWithRemote)
 			wantStateParts(t, err, tc.parts...)
 		})
 	}
@@ -158,7 +179,7 @@ func TestBaselineDetectsChange(t *testing.T) {
 		// The shared config lives in the main repository's git directory.
 		appendFile(t, filepath.Join(r.Dir, ".git", "config"), "[core]\n\tfsmonitor = true\n")
 		w, _ := newTestWorktree(t)
-		_, err := w.compareState(t.Context(), base, checkWithRemote)
+		_, err := w.compareState(t.Context(), base, base.head, checkWithRemote)
 		wantStateParts(t, err, PartConfig)
 	})
 
@@ -191,7 +212,7 @@ func TestBaselineIgnoresIndexAndFetchHead(t *testing.T) {
 	r.Git("update-index", "--refresh")
 	r.Git("checkout", "-q", testBranch)
 	w, _ := newTestWorktree(t)
-	if _, err := w.compareState(t.Context(), base, checkWithRemote); err != nil {
+	if _, err := w.compareState(t.Context(), base, base.head, checkWithRemote); err != nil {
 		t.Errorf("compareState = %v, want nil", err)
 	}
 }

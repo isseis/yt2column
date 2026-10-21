@@ -10,6 +10,7 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 )
 
 // enumerate lists the changes against HEAD with a Worktree that runs no
@@ -153,6 +154,51 @@ func TestChangeCaps(t *testing.T) {
 			t.Errorf("kinds = %v, want exact add and over other", kinds)
 		}
 	})
+}
+
+func TestParseRawOutputRejected(t *testing.T) {
+	const rec = ":100644 100644 aaaaaaa 0000000 M\x00a.md\x00"
+	for _, tc := range []struct {
+		name  string
+		parse func([]byte) error
+		out   string
+	}{
+		{"raw_odd_fields", func(b []byte) error { _, err := parseRaw(b); return err }, ":100644 100644 a b M\x00"},
+		{"raw_short_meta", func(b []byte) error { _, err := parseRaw(b); return err }, ":100644 M\x00a.md\x00"},
+		{"raw_duplicate", func(b []byte) error { _, err := parseRaw(b); return err }, rec + rec},
+		{"numstat_no_path", func(b []byte) error { _, err := parseNumstat(b); return err }, "1\t2\x00"},
+		{"numstat_not_number", func(b []byte) error { _, err := parseNumstat(b); return err }, "x\t2\ta.md\x00"},
+		{"numstat_duplicate", func(b []byte) error { _, err := parseNumstat(b); return err }, "1\t2\ta.md\x001\t2\ta.md\x00"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := tc.parse([]byte(tc.out)); !errors.Is(err, ErrGitFailed) {
+				t.Errorf("parse = %v, want ErrGitFailed", err)
+			}
+		})
+	}
+}
+
+func TestOpenRegularRefusesFIFO(t *testing.T) {
+	fifo := filepath.Join(t.TempDir(), "fifo")
+	if err := syscall.Mkfifo(fifo, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		f, err := openRegular(fifo, true)
+		if err == nil {
+			_ = f.Close()
+		}
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if !errors.Is(err, ErrGitFailed) {
+			t.Errorf("openRegular(FIFO) = %v, want ErrGitFailed", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("openRegular blocked on a FIFO")
+	}
 }
 
 func TestParseJudgedSetID(t *testing.T) {

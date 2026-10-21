@@ -264,17 +264,7 @@ type Assessment struct {
 // moment: a hex-encoded SHA-256.
 type Fingerprint string
 
-func validFingerprint(f Fingerprint) bool {
-	if len(f) != fingerprintLength {
-		return false
-	}
-	for i := range len(f) {
-		if c := f[i]; (c < '0' || c > '9') && (c < 'a' || c > 'f') {
-			return false
-		}
-	}
-	return true
-}
+func validFingerprint(f Fingerprint) bool { return validHex(string(f), fingerprintLength) }
 
 // Accept names a thread together with the fingerprint the user saw. It is the
 // value of --accept (a named thread) and of --thread.

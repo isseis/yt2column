@@ -111,11 +111,13 @@ type rawEntry struct {
 	status  byte
 }
 
-// enumerateChanges lists every change of the work tree against the commit
-// against: tracked changes (index and work tree together) with rename
-// detection off, so a rename is a deletion and an addition, plus untracked
-// files git does not ignore. Each path is examined with lstat; only a regular
-// file is opened. It changes nothing in the index.
+// enumerateChanges lists every change of the work tree against the tree
+// against (a tree OID read from the commit object, so neither replace refs
+// nor the commit-graph can substitute another): tracked changes (index and
+// work tree together) with rename detection off, so a rename is a deletion
+// and an addition, plus untracked files git does not ignore. Each path is
+// examined with lstat; only a regular file is opened. It changes nothing in
+// the index.
 func (w *Worktree) enumerateChanges(ctx context.Context, against string) ([]change, error) {
 	diffArgs := []string{"--no-renames", "--no-ext-diff", "--no-textconv", "--ignore-submodules=none", "-z", against, "--"}
 	rawOut, err := w.git(ctx, "diff --raw", append([]string{"diff", "--raw"}, diffArgs...)...)
@@ -134,22 +136,24 @@ func (w *Worktree) enumerateChanges(ctx context.Context, against string) ([]chan
 	if err != nil {
 		return nil, err
 	}
+	if len(counts) != len(raw) {
+		return nil, fmt.Errorf("%w: diff --numstat output", ErrGitFailed)
+	}
 	untrackedOut, err := w.git(ctx, "ls-files", "ls-files", "--others", "--exclude-standard", "-z")
 	if err != nil {
 		return nil, err
 	}
-	var untracked []string
-	for p := range bytes.SplitSeq(untrackedOut, []byte{0}) {
-		if len(p) > 0 {
-			untracked = append(untracked, string(p))
-		}
-	}
+	untracked := splitNUL(untrackedOut)
 	if len(raw)+len(untracked) > maxChanges {
 		return nil, errChangeCap
 	}
 	changes := make([]change, 0, len(raw)+len(untracked))
 	for p, entry := range raw {
-		c, err := trackedChange(p, entry, counts[p])
+		lines, ok := counts[p]
+		if !ok {
+			return nil, fmt.Errorf("%w: diff --numstat output", ErrGitFailed)
+		}
+		c, err := trackedChange(p, entry, lines)
 		if err != nil {
 			return nil, err
 		}
@@ -169,27 +173,61 @@ func (w *Worktree) enumerateChanges(ctx context.Context, against string) ([]chan
 	return changes, nil
 }
 
-// parseRaw reads ":<old mode> <new mode> <old oid> <new oid> <status>\0<path>\0"
-// records; with rename detection off each has one path.
-func parseRaw(out []byte) (map[string]rawEntry, error) {
-	entries := map[string]rawEntry{}
+func splitNUL(out []byte) []string {
+	var parts []string
+	for p := range bytes.SplitSeq(out, []byte{0}) {
+		if len(p) > 0 {
+			parts = append(parts, string(p))
+		}
+	}
+	return parts
+}
+
+// rawFieldsPerRecord is the NUL-separated fields of one raw record: the
+// metadata and the path.
+const rawFieldsPerRecord = 2
+
+// rawRecord is one record of git diff --raw -z or diff-tree --raw -z.
+type rawRecord struct {
+	path string
+	rawEntry
+	newOID string
+}
+
+// parseRawRecords reads ":<old mode> <new mode> <old oid> <new oid>
+// <status>\0<path>\0" records; with rename detection off each has one path.
+func parseRawRecords(out []byte) ([]rawRecord, error) {
 	fields := bytes.Split(out, []byte{0})
 	if len(fields) > 0 && len(fields[len(fields)-1]) == 0 {
 		fields = fields[:len(fields)-1]
 	}
-	if len(fields)%2 != 0 {
-		return nil, fmt.Errorf("%w: diff --raw output", ErrGitFailed)
+	if len(fields)%rawFieldsPerRecord != 0 {
+		return nil, fmt.Errorf("%w: raw diff output", ErrGitFailed)
 	}
-	for i := 0; i < len(fields); i += 2 {
+	records := make([]rawRecord, 0, len(fields)/rawFieldsPerRecord)
+	for i := 0; i < len(fields); i += rawFieldsPerRecord {
 		meta := strings.Fields(strings.TrimPrefix(string(fields[i]), ":"))
 		p := string(fields[i+1])
 		if len(meta) != 5 || len(meta[4]) == 0 || p == "" {
-			return nil, fmt.Errorf("%w: diff --raw output", ErrGitFailed)
+			return nil, fmt.Errorf("%w: raw diff output", ErrGitFailed)
 		}
-		if _, dup := entries[p]; dup {
+		records = append(records, rawRecord{path: p, rawEntry: rawEntry{oldMode: meta[0], newMode: meta[1], status: meta[4][0]}, newOID: meta[3]})
+	}
+	return records, nil
+}
+
+// parseRaw indexes raw records by path, rejecting a path listed twice.
+func parseRaw(out []byte) (map[string]rawEntry, error) {
+	records, err := parseRawRecords(out)
+	if err != nil {
+		return nil, err
+	}
+	entries := make(map[string]rawEntry, len(records))
+	for _, r := range records {
+		if _, dup := entries[r.path]; dup {
 			return nil, fmt.Errorf("%w: path listed twice", ErrGitFailed)
 		}
-		entries[p] = rawEntry{oldMode: meta[0], newMode: meta[1], status: meta[4][0]}
+		entries[r.path] = r.rawEntry
 	}
 	return entries, nil
 }
@@ -201,17 +239,17 @@ type lineCount struct {
 }
 
 // parseNumstat reads "<added>\t<deleted>\t<path>\0" records; a binary file
-// has "-" for both counts.
+// has "-" for both counts. A path listed twice is rejected.
 func parseNumstat(out []byte) (map[string]lineCount, error) {
 	counts := map[string]lineCount{}
-	for record := range bytes.SplitSeq(out, []byte{0}) {
-		if len(record) == 0 {
-			continue
-		}
-		added, rest, ok1 := strings.Cut(string(record), "\t")
+	for _, record := range splitNUL(out) {
+		added, rest, ok1 := strings.Cut(record, "\t")
 		deleted, p, ok2 := strings.Cut(rest, "\t")
-		if !ok1 || !ok2 {
+		if !ok1 || !ok2 || p == "" {
 			return nil, fmt.Errorf("%w: diff --numstat output", ErrGitFailed)
+		}
+		if _, dup := counts[p]; dup {
+			return nil, fmt.Errorf("%w: path listed twice", ErrGitFailed)
 		}
 		if added == "-" && deleted == "-" {
 			counts[p] = lineCount{binary: true}
@@ -252,19 +290,17 @@ func trackedChange(p string, entry rawEntry, lines lineCount) (change, error) {
 		}
 		return c, nil
 	}
-	return examine(c)
+	c, _, err := examine(c)
+	return c, err
 }
 
 // untrackedChange classifies an untracked path; lines are counted from the
-// content. ls-files lists a nested repository as a directory ending in "/".
+// content examine read. ls-files lists a nested repository as a directory
+// ending in "/".
 func untrackedChange(p string) (change, error) {
-	c, err := examine(change{path: p, kind: ChangeAdd})
+	c, data, err := examine(change{path: p, kind: ChangeAdd})
 	if err != nil || c.kind != ChangeAdd {
 		return c, err
-	}
-	data, err := readRegular(p)
-	if err != nil {
-		return change{}, err
 	}
 	if bytes.IndexByte(data[:min(len(data), binarySniffBytes)], 0) >= 0 {
 		c.binary = true
@@ -277,40 +313,42 @@ func untrackedChange(p string) (change, error) {
 	return c, nil
 }
 
-// examine records the work tree's mode and digest for c with lstat, turning c
-// into ChangeOther unless it is a regular file of at most maxDigestBytes.
-func examine(c change) (change, error) {
+// examine records the work tree's mode and content digest for c with lstat
+// and returns the content when it is at most maxDigestBytes. A symbolic link
+// is digested by its target. A regular file over the cap is still digested in
+// full but becomes ChangeOther; anything else that is not a regular file is
+// ChangeOther with no digest.
+func examine(c change) (change, []byte, error) {
 	info, err := os.Lstat(strings.TrimSuffix(c.path, "/"))
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			c.kind = ChangeOther
-			return c, nil
+			return c, nil, nil
 		}
-		return change{}, fmt.Errorf("%w: lstat a changed path", ErrGitFailed)
+		return change{}, nil, fmt.Errorf("%w: lstat a changed path", ErrGitFailed)
 	}
 	mode := info.Mode()
 	switch {
 	case mode&fs.ModeSymlink != 0:
 		target, err := os.Readlink(c.path)
 		if err != nil {
-			return change{}, fmt.Errorf("%w: read a changed link", ErrGitFailed)
+			return change{}, nil, fmt.Errorf("%w: read a changed link", ErrGitFailed)
 		}
 		c.kind, c.mode, c.digest = ChangeOther, modeSymlink, digestString(target)
-		return c, nil
+		return c, nil, nil
 	case !mode.IsRegular() || strings.HasSuffix(c.path, "/"):
 		c.kind, c.mode = ChangeOther, mode.Type().String()
-		return c, nil
-	case info.Size() > maxDigestBytes:
-		c.kind, c.mode = ChangeOther, gitFileMode(mode)
-		return c, nil
+		return c, nil, nil
 	}
-	data, err := readRegular(c.path)
+	data, digest, whole, err := readChanged(c.path)
 	if err != nil {
-		return change{}, err
+		return change{}, nil, err
 	}
-	sum := sha256.Sum256(data)
-	c.mode, c.digest = gitFileMode(mode), hex.EncodeToString(sum[:])
-	return c, nil
+	c.mode, c.digest = gitFileMode(mode), digest
+	if !whole {
+		c.kind = ChangeOther
+	}
+	return c, data, nil
 }
 
 func gitFileMode(mode fs.FileMode) string {
@@ -320,17 +358,26 @@ func gitFileMode(mode fs.FileMode) string {
 	return modeRegular
 }
 
-// readRegular reads at most maxDigestBytes of a file lstat found regular. A
-// file that grew past the cap meanwhile is an error, not a truncated read.
-func readRegular(p string) ([]byte, error) {
-	f, err := os.Open(p) //nolint:gosec // a changed path of the current work tree, checked regular with lstat
+// readChanged hashes a changed regular file in full and returns its content
+// too when it is at most maxDigestBytes (whole is then true). It opens the
+// path without following a link and refuses anything but a regular file.
+func readChanged(p string) (data []byte, digest string, whole bool, err error) {
+	f, err := openRegular(p, false)
 	if err != nil {
-		return nil, fmt.Errorf("%w: open a changed path", ErrGitFailed)
+		return nil, "", false, fmt.Errorf("%w: open a changed path", ErrGitFailed)
 	}
 	defer func() { _ = f.Close() }()
-	data, err := io.ReadAll(io.LimitReader(f, maxDigestBytes+1))
-	if err != nil || len(data) > maxDigestBytes {
-		return nil, fmt.Errorf("%w: read a changed path", ErrGitFailed)
+	h := sha256.New()
+	data, err = io.ReadAll(io.LimitReader(f, maxDigestBytes+1))
+	if err != nil {
+		return nil, "", false, fmt.Errorf("%w: read a changed path", ErrGitFailed)
 	}
-	return data, nil
+	_, _ = h.Write(data)
+	if len(data) <= maxDigestBytes {
+		return data, hex.EncodeToString(h.Sum(nil)), true, nil
+	}
+	if _, err := io.Copy(h, f); err != nil {
+		return nil, "", false, fmt.Errorf("%w: read a changed path", ErrGitFailed)
+	}
+	return nil, hex.EncodeToString(h.Sum(nil)), false, nil
 }

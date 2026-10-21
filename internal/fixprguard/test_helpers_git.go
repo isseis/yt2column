@@ -178,7 +178,7 @@ func newTestWorktree(t *testing.T, steps ...cmdrunnertestutil.Step) (*Worktree, 
 		real: cmdrunner.NewOS(cmdrunner.Options{Env: GitEnv(os.Environ())}),
 		fake: cmdrunnertestutil.New(t, steps...),
 	}
-	return NewWorktree(router), router
+	return NewWorktree(router, router), router
 }
 
 // makeStep scripts one make target; effect, when set, stands for what the

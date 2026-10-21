@@ -84,10 +84,6 @@ func TestFinishOrder(t *testing.T) {
 		}
 		last += i + 1
 	}
-	// The strict check enumerates the work tree before make fmt runs.
-	if indexOf(router.Calls, "git diff") > indexOf(router.Calls, "make fmt") {
-		t.Errorf("no enumeration before make fmt: %v", router.Calls)
-	}
 }
 
 func TestFinishAbsorbsFormatting(t *testing.T) {
@@ -156,6 +152,15 @@ func TestFinishStopsWhenBuildChecksRewrite(t *testing.T) {
 		t.Errorf("staged after the build checks rewrote a file: %v", router.Calls)
 	}
 	p.wantNoCommit(t, head)
+	t.Run("oversized_file", func(t *testing.T) {
+		// Over the line-count cap the file is out of scope, but its content
+		// is still pinned.
+		big := strings.Repeat("x", maxDigestBytes+1)
+		p := prepareRound(t, func(r *testRepo) { r.Write("docs/notes/big.txt", big) })
+		rewrite := func() error { p.r.Write("docs/notes/big.txt", "y"+big[1:]); return nil }
+		_, _, err := p.finish(t, makeStep(StageFmt, nil), makeStep(StageTest, rewrite), makeStep(StageLint, nil))
+		wantJudgedSetChanged(t, err)
+	})
 	t.Run("formatting_changes_the_paths", func(t *testing.T) {
 		p := prepareRound(t, fixTestFile)
 		addFile := func() error { p.r.Write("docs/notes/fmt.md", "x\n"); return nil }
@@ -201,6 +206,15 @@ func TestFinishStagesJudgedPathsOnly(t *testing.T) {
 	})
 }
 
+func TestFinishRefusesUnpinnedChange(t *testing.T) {
+	// A nested repository is listed as a directory with no content digest.
+	p := prepareRound(t, func(r *testRepo) {
+		r.gitIn(r.Home, "init", "-q", filepath.Join(r.Dir, "docs", "nested"))
+	})
+	_, _, err := p.finish(t)
+	wantJudgedSetChanged(t, err)
+}
+
 func TestFinishStageRollback(t *testing.T) {
 	r := newTestRepo(t)
 	// git add runs this hook; the file it leaves behind makes the index check
@@ -236,6 +250,35 @@ func TestFinishPostCommitTreeCheck(t *testing.T) {
 	if indexOf(router.Calls, "git commit") < 0 {
 		t.Fatalf("no commit was made: %v", router.Calls)
 	}
+	t.Run("commit_inserted_by_hook", func(t *testing.T) {
+		// After the commit the hook moves HEAD to a commit of its own on top,
+		// with the same tree, so only the parent shows it.
+		r := newTestRepo(t)
+		r.WriteHook("post-commit", "c=$(git commit-tree HEAD^{tree} -p HEAD -m inserted) && git update-ref HEAD \"$c\"\n")
+		base := mustBaseline(t)
+		fixTestFile(r)
+		p := prepared{r: r, base: base, judged: mustInspect(t, base).JudgedSet}
+		result, _, err := p.finish(t, buildCheckSteps()...)
+		wantStateParts(t, err, PartHead)
+		if result.Commit != "" {
+			t.Errorf("Finish returned commit %s", result.Commit)
+		}
+	})
+	t.Run("clean_filter", func(t *testing.T) {
+		// The filter is configured before the baseline, so the state checks
+		// pass; only the committed blob differs from the work tree.
+		r := newTestRepo(t)
+		r.Git("config", "filter.x.clean", "sed s/fixed/EVIL/")
+		base := mustBaseline(t)
+		fixTestFile(r)
+		r.Write(".gitattributes", "*.md filter=x\n")
+		p := prepared{r: r, base: base, judged: mustInspect(t, base).JudgedSet}
+		result, _, err := p.finish(t, buildCheckSteps()...)
+		wantJudgedSetChanged(t, err)
+		if result.Commit != "" {
+			t.Errorf("Finish returned commit %s", result.Commit)
+		}
+	})
 }
 
 func TestFinishChecksStateAfterCommit(t *testing.T) {
@@ -251,6 +294,45 @@ func TestFinishChecksStateAfterCommit(t *testing.T) {
 	}
 	if last := router.Calls[len(router.Calls)-1]; last != "git commit" {
 		t.Errorf("git ran after the commit hook changed the config: %v", router.Calls)
+	}
+}
+
+func TestFinishStopsWhenHooksChangeConfig(t *testing.T) {
+	setFsmonitor := "printf '[core]\\n\\tfsmonitor = true\\n' >> .git/config\n"
+	for _, tc := range []struct {
+		name, hook, script, last string
+	}{
+		// git add runs post-index-change; nothing after it may run git.
+		{"after_add", "post-index-change", setFsmonitor, "git add"},
+		// A failing commit is not undone with git once the config changed.
+		{"after_failed_commit", "pre-commit", setFsmonitor + "exit 1\n", "git commit"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newTestRepo(t)
+			r.WriteHook(tc.hook, tc.script)
+			base := mustBaseline(t)
+			fixTestFile(r)
+			p := prepared{r: r, base: base, judged: mustInspect(t, base).JudgedSet}
+			_, router, err := p.finish(t, buildCheckSteps()...)
+			wantStateParts(t, err, PartConfig)
+			if last := router.Calls[len(router.Calls)-1]; last != tc.last {
+				t.Errorf("last command = %q, want %q: %v", last, tc.last, router.Calls)
+			}
+		})
+	}
+}
+
+func TestFinishBuildCheckRunnerFailure(t *testing.T) {
+	// make that did not run is a build check failure without output.
+	p := prepareRound(t, fixTestFile)
+	step := makeStep(StageFmt, nil)
+	step.Err = errors.New("exec: not found")
+	_, _, err := p.finish(t, step)
+	if !errors.Is(err, ErrBuildChecksFailed) {
+		t.Fatalf("Finish = %v, want ErrBuildChecksFailed", err)
+	}
+	if _, ok := errors.AsType[*BuildCheckError](err); ok {
+		t.Errorf("a runner failure carries target output: %v", err)
 	}
 }
 
@@ -349,9 +431,6 @@ func TestPushRechecks(t *testing.T) {
 		{"config_changed", func(_ *testing.T, p prepared, _ string) {
 			p.r.Git("config", "remote."+testRemote+".receivepack", "evil")
 		}, []string{PartConfig}},
-		{"push_target_changed", func(_ *testing.T, p prepared, _ string) {
-			p.r.Git("config", "--global", "url."+p.r.Remote+"-elsewhere.pushInsteadOf", p.r.Remote)
-		}, []string{PartRemote}},
 		{"remote_branch_moved", func(_ *testing.T, p prepared, commit string) {
 			p.r.Git("push", "-q", testRemote, commit+":"+headsPrefix+testBranch)
 		}, []string{PartRemote}},
@@ -390,12 +469,15 @@ func TestPushRechecks(t *testing.T) {
 
 func TestPushExplicitRefspec(t *testing.T) {
 	r := newTestRepo(t)
-	// A configured push refspec would send the branch elsewhere.
+	// A configured push refspec would send the branch elsewhere, and
+	// followTags would send a tag along.
 	r.Git("config", "remote."+testRemote+".push", headsPrefix+"*:"+headsPrefix+"other/*")
+	r.Git("config", "push.followTags", "true")
 	base := mustBaseline(t)
 	fixTestFile(r)
 	p := prepared{r: r, base: base, judged: mustInspect(t, base).JudgedSet}
 	commit := p.mustFinish(t).Commit
+	r.Git("tag", "-a", "-m", "agent tag", "agent-tag", commit)
 	w, _ := newTestWorktree(t)
 	result, err := w.Push(t.Context(), base, commit)
 	if err != nil || !result.Pushed || result.Commit != commit {
@@ -404,8 +486,8 @@ func TestPushExplicitRefspec(t *testing.T) {
 	if got := r.RemoteHead(); got != commit {
 		t.Errorf("remote branch = %s, want %s", got, commit)
 	}
-	if refs := r.gitIn(r.Remote, "for-each-ref", "--format=%(refname)", headsPrefix+"other/"); refs != "" {
-		t.Errorf("configured refspec used: %q", refs)
+	if refs := r.gitIn(r.Remote, "for-each-ref", "--format=%(refname)", headsPrefix+"other/", "refs/tags/"); refs != "" {
+		t.Errorf("pushed more than the branch: %q", refs)
 	}
 }
 
@@ -448,6 +530,37 @@ func TestRoundStopsAtRightPlace(t *testing.T) {
 		w, _ := newTestWorktree(t)
 		_, err := w.Inspect(t.Context(), base, threadAt(testFile))
 		wantStateParts(t, err, PartHooks)
+	})
+	t.Run("remote_moved_before_inspect", func(t *testing.T) {
+		r := newTestRepo(t)
+		base := mustBaseline(t)
+		fixTestFile(r)
+		r.Git("stash", "-q")
+		r.Write("docs/notes/b.md", "pushed elsewhere\n")
+		r.CommitAll("elsewhere")
+		r.Git("push", "-q", testRemote, "HEAD:"+headsPrefix+testBranch)
+		r.Git("reset", "-q", "--hard", "HEAD~1")
+		r.Git("stash", "pop", "-q")
+		w, _ := newTestWorktree(t)
+		_, err := w.Inspect(t.Context(), base, threadAt(testFile))
+		wantStateParts(t, err, PartRemote)
+	})
+	t.Run("replaced_base_commit", func(t *testing.T) {
+		// The agent stages a Makefile and replaces the baseline's commit
+		// with one whose tree holds it, so a diff through replace refs
+		// would not show the Makefile.
+		r := newTestRepo(t)
+		base := mustBaseline(t)
+		r.Write("Makefile", "all:\n\techo EVIL\n")
+		r.Git("add", "Makefile")
+		tree := strings.TrimSpace(r.Git("write-tree"))
+		forged := strings.TrimSpace(r.Git("commit-tree", tree, "-m", "initial"))
+		r.Git("replace", base.head, forged)
+		fixTestFile(r)
+		got := mustInspect(t, base).OutOfScope
+		if !slices.ContainsFunc(got, func(c ScopedChange) bool { return c.Path == "Makefile" }) {
+			t.Errorf("OutOfScope = %+v, want the Makefile", got)
+		}
 	})
 	t.Run("out_of_scope_change", func(t *testing.T) {
 		r := newTestRepo(t)

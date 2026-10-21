@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/isseis/yt2column/internal/cmdrunner"
@@ -54,16 +55,23 @@ const (
 	PartInfo   = "info"
 )
 
-// gitHardening comes before every git subcommand the tool runs. It turns off
-// the configuration that can launch a command during the operations the tool
-// performs, so a changed setting cannot run code inside this process: the
-// fsmonitor hook, a configured SSH command, the ext transport, and automatic
-// gc and maintenance (which run hooks of their own). A pager and colors are
-// off so output is parsed as git wrote it. Diff commands also pass
-// --no-ext-diff and --no-textconv. The hooks themselves still run on commit
-// and push; they are compared with the baseline before those commands.
+// gitHardening comes before every git subcommand the tool runs. It reads
+// objects as stored, never through refs/replace, so every tree the tool
+// compares is the real one. It also turns off configuration that would launch
+// a command during the read-only operations the tool performs: the fsmonitor
+// hook, a configured SSH command, the ext transport, and automatic gc and
+// maintenance (which run hooks of their own). Every other setting, from any
+// file git reads, is held to the baseline by CheckState before git runs. A
+// pager and colors are off so output is parsed as git wrote it, and diff
+// commands also pass --no-ext-diff and --no-textconv.
+//
+// The options and subcommands used here (--literal-pathspecs,
+// --no-replace-objects, rev-parse --git-path, config --show-origin, ls-files
+// -v, cat-file, diff-tree, push --no-follow-tags) all exist in git 2.5 and
+// later.
 var gitHardening = []string{
 	"--no-pager",
+	"--no-replace-objects",
 	"-c", "core.fsmonitor=false",
 	"-c", "core.sshCommand=ssh",
 	"-c", "protocol.ext.allow=never",
@@ -74,8 +82,8 @@ var gitHardening = []string{
 
 // GitEnv returns environ without any inherited GIT_* variable, which could
 // point git at another repository, index or configuration, and with optional
-// locks and terminal prompts turned off. The runner a Worktree is given must
-// run commands with this environment.
+// locks and terminal prompts turned off. The runner a Worktree is given for
+// git must run commands with this environment.
 func GitEnv(environ []string) []string {
 	added := []string{"GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0"}
 	env := make([]string, 0, len(environ)+len(added))
@@ -89,24 +97,25 @@ func GitEnv(environ []string) []string {
 
 // Baseline holds the git state taken at begin: the HEAD commit, a digest of
 // the branch HEAD is on, the push target's branch OID ("none" when the branch
-// does not exist there) and a digest of the push target, and digests of the
-// hooks, the configuration, and the info files. The session keeps it as a
-// token and passes it back; it is parsed strictly, never repaired. The zero
-// value is not usable.
+// does not exist there), and digests of the hooks, the repository and
+// worktree configuration files, every configuration value git reads (from
+// any file, so the push target is covered too), and the info files. The
+// session keeps it as a token and passes it back; it is parsed strictly,
+// never repaired. The zero value is not usable.
 type Baseline struct {
-	head      string
-	branch    string
-	remoteOID string
-	remoteID  string
-	hooks     string
-	config    string
-	info      string
+	head       string
+	branch     string
+	remoteOID  string
+	hooks      string
+	config     string
+	configList string
+	info       string
 }
 
 // newBaseline is the only constructor; ParseBaseline and Worktree.Baseline
 // both use it.
-func newBaseline(head, branch, remoteOID, remoteID, hooks, config, info string) Baseline {
-	return Baseline{head: head, branch: branch, remoteOID: remoteOID, remoteID: remoteID, hooks: hooks, config: config, info: info}
+func newBaseline(head, branch, remoteOID, hooks, config, configList, info string) Baseline {
+	return Baseline{head: head, branch: branch, remoteOID: remoteOID, hooks: hooks, config: config, configList: configList, info: info}
 }
 
 // ParseBaseline parses a token String produced, rejecting any other shape
@@ -120,7 +129,7 @@ func ParseBaseline(s string) (Baseline, error) {
 	if !validOID(b.head) || (b.remoteOID != noRemoteBranch && !validOID(b.remoteOID)) {
 		return Baseline{}, fmt.Errorf("%w: baseline object ID", ErrInvalidInput)
 	}
-	for _, d := range []string{b.branch, b.remoteID, b.hooks, b.config, b.info} {
+	for _, d := range []string{b.branch, b.hooks, b.config, b.configList, b.info} {
 		if !validHex(d, digestLength) {
 			return Baseline{}, fmt.Errorf("%w: baseline digest", ErrInvalidInput)
 		}
@@ -133,7 +142,7 @@ func (b Baseline) String() string {
 	if !b.usable() {
 		return ""
 	}
-	return strings.Join([]string{baselineVersion, b.head, b.branch, b.remoteOID, b.remoteID, b.hooks, b.config, b.info}, ".")
+	return strings.Join([]string{baselineVersion, b.head, b.branch, b.remoteOID, b.hooks, b.config, b.configList, b.info}, ".")
 }
 
 // MarshalText writes the token form.
@@ -173,7 +182,7 @@ func (e *GitStateError) Error() string {
 func (e *GitStateError) Unwrap() error { return ErrGitStateChanged }
 
 // gitDirs are the per-worktree git directory and the common one. They are
-// the same outside a linked worktree.
+// the same unless a commondir file names another.
 type gitDirs struct {
 	gitDir    string
 	commonDir string
@@ -181,33 +190,36 @@ type gitDirs struct {
 
 // locateGitDirs finds the git directories from the files alone, without
 // running git: a .git directory in the current directory, or a .git file
-// naming a linked worktree's directory, whose commondir file names the shared
-// one. The current directory must be the top of the work tree.
+// naming a linked worktree's directory; in either case a commondir file in it
+// names the shared directory, as git reads it. The current directory must be
+// the top of the work tree. A failure names the rule only.
 func locateGitDirs() (gitDirs, error) {
 	info, err := os.Lstat(".git")
 	if err != nil {
 		return gitDirs{}, fmt.Errorf("%w: not at the top of a work tree", ErrInvalidInput)
 	}
-	if info.IsDir() {
-		return gitDirs{gitDir: ".git", commonDir: ".git"}, nil
-	}
-	if !info.Mode().IsRegular() {
+	gitDir := ".git"
+	switch {
+	case info.IsDir():
+	case info.Mode().IsRegular():
+		content, err := readSmallFile(".git")
+		if err != nil {
+			return gitDirs{}, fmt.Errorf("%w: read .git file", ErrInvalidInput)
+		}
+		dir, ok := strings.CutPrefix(strings.TrimSuffix(content, "\n"), "gitdir: ")
+		if !ok || dir == "" || strings.ContainsAny(dir, "\n\x00") {
+			return gitDirs{}, fmt.Errorf("%w: .git file shape", ErrInvalidInput)
+		}
+		gitDir = dir
+	default:
 		return gitDirs{}, fmt.Errorf("%w: .git is not a directory or a file", ErrInvalidInput)
-	}
-	content, err := readSmallFile(".git")
-	if err != nil {
-		return gitDirs{}, err
-	}
-	gitDir, ok := strings.CutPrefix(strings.TrimSuffix(content, "\n"), "gitdir: ")
-	if !ok || gitDir == "" || strings.ContainsAny(gitDir, "\n\x00") {
-		return gitDirs{}, fmt.Errorf("%w: .git file shape", ErrInvalidInput)
 	}
 	dirs := gitDirs{gitDir: gitDir, commonDir: gitDir}
 	common, err := readSmallFile(filepath.Join(gitDir, "commondir"))
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 	case err != nil:
-		return gitDirs{}, err
+		return gitDirs{}, fmt.Errorf("%w: read commondir file", ErrInvalidInput)
 	default:
 		common = strings.TrimSuffix(common, "\n")
 		if common == "" || strings.ContainsAny(common, "\n\x00") {
@@ -221,20 +233,33 @@ func locateGitDirs() (gitDirs, error) {
 	return dirs, nil
 }
 
+// openRegular opens name for reading without blocking and fails unless the
+// opened file is a regular file, so a FIFO swapped in after an lstat cannot
+// hang the tool. follow false refuses a symbolic link.
+func openRegular(name string, follow bool) (*os.File, error) {
+	flags := os.O_RDONLY | syscall.O_NONBLOCK
+	if !follow {
+		flags |= syscall.O_NOFOLLOW
+	}
+	f, err := os.OpenFile(name, flags, 0) //nolint:gosec // a file of the current work tree or its git directory
+	if err != nil {
+		return nil, err
+	}
+	info, err := f.Stat()
+	if err != nil || !info.Mode().IsRegular() {
+		_ = f.Close()
+		return nil, fmt.Errorf("%w: not a regular file", ErrGitFailed)
+	}
+	return f, nil
+}
+
 // readSmallFile reads a regular file of at most maxGitFileBytes.
 func readSmallFile(name string) (string, error) {
-	f, err := os.Open(name) //nolint:gosec // a git metadata file of the current work tree
+	f, err := openRegular(name, true)
 	if err != nil {
 		return "", err
 	}
 	defer func() { _ = f.Close() }()
-	info, err := f.Stat()
-	if err != nil {
-		return "", err
-	}
-	if !info.Mode().IsRegular() {
-		return "", fmt.Errorf("%w: git metadata file is not a regular file", ErrInvalidInput)
-	}
 	data, err := io.ReadAll(io.LimitReader(f, maxGitFileBytes+1))
 	if err != nil {
 		return "", err
@@ -246,8 +271,9 @@ func readSmallFile(name string) (string, error) {
 }
 
 // configDigest covers where the git directories are and the repository and
-// worktree configuration files. Recording the locations means a .git file
-// rewritten to point at a copy of the repository is a config difference.
+// worktree configuration files. Recording the locations means a .git or
+// commondir file rewritten to point at a copy of the repository is a config
+// difference.
 func configDigest(dirs gitDirs) (string, error) {
 	h := sha256.New()
 	for _, dir := range []string{dirs.gitDir, dirs.commonDir} {
@@ -278,9 +304,10 @@ func infoDigest(dirs gitDirs) (string, error) {
 }
 
 // hooksDigest covers every entry under the hooks directory: its relative
-// path, type, permission bits, symbolic link target, and regular file
-// content. Changing only an existing hook's executable bit changes it, since
-// that alone makes git run the hook.
+// path, type, permission bits, and content; a symbolic link adds its target
+// and the content it resolves to, since git runs what the link points at.
+// Changing only an existing hook's executable bit changes it, since that
+// alone makes git run the hook.
 func hooksDigest(dir string) (string, error) {
 	h := sha256.New()
 	root := dir
@@ -317,36 +344,24 @@ func hooksDigest(dir string) (string, error) {
 		return digestEntry(h, name, entry)
 	})
 	if err != nil {
-		return "", fmt.Errorf("read hooks: %w", err)
+		return "", err
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 // digestEntry writes the type and permission bits of an entry WalkDir found
-// (without following a link), and its link target or content.
+// (without following a link), then what digestPath writes for it.
 func digestEntry(h hash.Hash, name string, entry fs.DirEntry) error {
 	info, err := entry.Info()
 	if err != nil {
 		return err
 	}
-	mode := info.Mode()
-	writeField(h, mode.Type().String())
-	writeField(h, strconv.FormatUint(uint64(mode.Perm()), 8))
-	switch {
-	case mode&fs.ModeSymlink != 0:
-		target, err := os.Readlink(name)
-		if err != nil {
-			return err
-		}
-		writeField(h, target)
-	case mode.IsRegular():
-		sum, err := fileSHA256(name)
-		if err != nil {
-			return err
-		}
-		writeField(h, sum)
+	writeField(h, info.Mode().Type().String())
+	writeField(h, strconv.FormatUint(uint64(info.Mode().Perm()), 8))
+	if info.IsDir() {
+		return nil
 	}
-	return nil
+	return digestPath(h, name)
 }
 
 // digestPath writes a marker for a missing file, or the link target and the
@@ -387,10 +402,9 @@ func digestPath(h hash.Hash, name string) error {
 	return nil
 }
 
-// fileSHA256 hashes a file's content. The caller has checked that it is a
-// regular file, so opening it cannot block on a FIFO.
+// fileSHA256 hashes a file's content, following a link.
 func fileSHA256(name string) (string, error) {
-	f, err := os.Open(name) //nolint:gosec // a git metadata file of the current work tree
+	f, err := openRegular(name, true)
 	if err != nil {
 		return "", err
 	}
@@ -424,7 +438,7 @@ func (w *Worktree) git(ctx context.Context, rule string, args ...string) ([]byte
 func (w *Worktree) gitRaw(ctx context.Context, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, gitTimeout)
 	defer cancel()
-	return w.run.Run(ctx, gitCommand, append(append([]string{}, gitHardening...), args...)...)
+	return w.gitRun.Run(ctx, gitCommand, append(append([]string{}, gitHardening...), args...)...)
 }
 
 func gitFailure(rule string, err error) error {
@@ -449,21 +463,33 @@ func (w *Worktree) gitConfig(ctx context.Context, key string) (value string, ok 
 	return strings.TrimSuffix(string(out), "\n"), true, nil
 }
 
-// fileDigests computes the config and info digests from the files alone.
+// fileDigests computes the config and info digests from the files alone. A
+// failure names the rule only, never a path.
 func fileDigests(dirs gitDirs) (config, info string, err error) {
 	if config, err = configDigest(dirs); err != nil {
-		return "", "", fmt.Errorf("%w: read config: %w", ErrGitFailed, err)
+		return "", "", fmt.Errorf("%w: read config", ErrGitFailed)
 	}
 	if info, err = infoDigest(dirs); err != nil {
-		return "", "", fmt.Errorf("%w: read info: %w", ErrGitFailed, err)
+		return "", "", fmt.Errorf("%w: read info", ErrGitFailed)
 	}
 	return config, info, nil
 }
 
-// hooksDir asks git where the hooks are (core.hooksPath or the common git
-// directory's hooks). rev-parse runs no hook, and CheckState calls it only
-// after the configuration that decides the answer matched the baseline.
-func (w *Worktree) hooksDir(ctx context.Context) (string, error) {
+// configListDigest covers every configuration value git reads, with the file
+// it came from: the global and system files, included files, and the
+// repository's own. git config launches no command.
+func (w *Worktree) configListDigest(ctx context.Context) (string, error) {
+	out, err := w.git(ctx, "config --list", "config", "--list", "--show-origin", "-z")
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(out)
+	return hex.EncodeToString(sum[:]), nil
+}
+
+// hooksState asks git where the hooks are (core.hooksPath or the common git
+// directory's hooks) and digests them. rev-parse runs no hook.
+func (w *Worktree) hooksState(ctx context.Context) (string, error) {
 	out, err := w.git(ctx, "rev-parse", "rev-parse", "--git-path", "hooks")
 	if err != nil {
 		return "", err
@@ -472,22 +498,29 @@ func (w *Worktree) hooksDir(ctx context.Context) (string, error) {
 	if dir == "" || strings.ContainsAny(dir, "\n\x00") {
 		return "", fmt.Errorf("%w: rev-parse output", ErrGitFailed)
 	}
-	return dir, nil
+	sum, err := hooksDigest(dir)
+	if err != nil {
+		return "", fmt.Errorf("%w: read hooks", ErrGitFailed)
+	}
+	return sum, nil
 }
 
 // CheckState compares the configuration, info and hooks with the baseline
-// before git or gh is launched. The configuration and info are read from the
-// files alone, so a changed setting stops the run before any git process
-// could read it; the hooks are compared next, before any command that could
-// run one. Every subcommand that launches git or gh after begin calls it
-// first.
+// before git or gh is launched for anything else. The repository and
+// worktree configuration files and the info files are read from the files
+// alone, so a changed setting there stops the run before any git process
+// could read it. Then git config lists every value git reads, which launches
+// nothing, and only after those match does git rev-parse locate the hooks to
+// compare, before any command that could run one. Every subcommand that
+// launches git or gh after begin calls it first.
 func (w *Worktree) CheckState(ctx context.Context, base Baseline) error {
 	if !base.usable() {
 		return fmt.Errorf("%w: baseline", ErrInvalidInput)
 	}
 	dirs, err := locateGitDirs()
 	if err != nil {
-		return err
+		// The work tree was located at begin; losing it now is a change.
+		return &GitStateError{Parts: []string{PartConfig}}
 	}
 	config, info, err := fileDigests(dirs)
 	if err != nil {
@@ -503,13 +536,16 @@ func (w *Worktree) CheckState(ctx context.Context, base Baseline) error {
 	if parts != nil {
 		return &GitStateError{Parts: parts}
 	}
-	dir, err := w.hooksDir(ctx)
+	list, err := w.configListDigest(ctx)
 	if err != nil {
 		return err
 	}
-	hooks, err := hooksDigest(dir)
+	if list != base.configList {
+		return &GitStateError{Parts: []string{PartConfig}}
+	}
+	hooks, err := w.hooksState(ctx)
 	if err != nil {
-		return fmt.Errorf("%w: %w", ErrGitFailed, err)
+		return err
 	}
 	if hooks != base.hooks {
 		return &GitStateError{Parts: []string{PartHooks}}
@@ -517,8 +553,8 @@ func (w *Worktree) CheckState(ctx context.Context, base Baseline) error {
 	return nil
 }
 
-// headState reads the HEAD commit and the branch HEAD is on. A detached HEAD
-// has no branch to push and is refused.
+// headState reads the HEAD commit and the branch HEAD is on; branch is empty
+// for a detached HEAD.
 func (w *Worktree) headState(ctx context.Context) (oid, branch string, err error) {
 	out, err := w.git(ctx, "rev-parse HEAD", "rev-parse", "--verify", "HEAD^{commit}")
 	if err != nil {
@@ -543,16 +579,45 @@ func (w *Worktree) headState(ctx context.Context) (oid, branch string, err error
 	return oid, branch, nil
 }
 
-// pushTarget is where push sends the branch: the remote git resolves for the
-// branch (branch.<b>.pushRemote, remote.pushDefault, branch.<b>.remote, then
-// origin), its push URL, and the branch of the same name there.
-type pushTarget struct {
-	remote string
-	url    string
-	branch string
+// commitObject reads a commit object as stored (gitHardening turns replace
+// refs off, and cat-file does not consult the commit-graph) and returns its
+// tree and parents.
+func (w *Worktree) commitObject(ctx context.Context, oid string) (tree string, parents []string, err error) {
+	out, err := w.git(ctx, "cat-file", "cat-file", "commit", oid)
+	if err != nil {
+		return "", nil, err
+	}
+	header, _, _ := bytes.Cut(out, []byte("\n\n"))
+	for line := range strings.Lines(string(header)) {
+		key, value, _ := strings.Cut(strings.TrimSuffix(line, "\n"), " ")
+		switch key {
+		case "tree":
+			if tree != "" || !validOID(value) {
+				return "", nil, fmt.Errorf("%w: commit object", ErrGitFailed)
+			}
+			tree = value
+		case "parent":
+			if !validOID(value) {
+				return "", nil, fmt.Errorf("%w: commit object", ErrGitFailed)
+			}
+			parents = append(parents, value)
+		}
+	}
+	if tree == "" {
+		return "", nil, fmt.Errorf("%w: commit object", ErrGitFailed)
+	}
+	return tree, parents, nil
 }
 
-func (p pushTarget) id() string { return digestString(p.remote, p.url, p.branch) }
+// pushTarget is where push sends the branch: the remote git resolves for the
+// branch (branch.<b>.pushRemote, remote.pushDefault, branch.<b>.remote, then
+// origin) and the branch of the same name there. The upstream branch
+// (branch.<b>.merge) is not read: a branch made from origin/main tracks main
+// until it is first pushed.
+type pushTarget struct {
+	remote string
+	branch string
+}
 
 func (w *Worktree) resolvePushTarget(ctx context.Context, branch string) (pushTarget, error) {
 	remote := ""
@@ -573,15 +638,7 @@ func (w *Worktree) resolvePushTarget(ctx context.Context, branch string) (pushTa
 	if remote == "." || strings.HasPrefix(remote, "-") || strings.ContainsAny(remote, "\n\x00") {
 		return pushTarget{}, fmt.Errorf("%w: push remote", ErrGitFailed)
 	}
-	out, err := w.git(ctx, "remote get-url", "remote", "get-url", "--push", remote)
-	if err != nil {
-		return pushTarget{}, err
-	}
-	url := strings.TrimSuffix(string(out), "\n")
-	if url == "" || strings.ContainsAny(url, "\n\x00") {
-		return pushTarget{}, fmt.Errorf("%w: push URL", ErrGitFailed)
-	}
-	return pushTarget{remote: remote, url: url, branch: branch}, nil
+	return pushTarget{remote: remote, branch: branch}, nil
 }
 
 // remoteOID reads the push target branch's OID with ls-remote, or
@@ -638,13 +695,13 @@ func (w *Worktree) Baseline(ctx context.Context) (Baseline, error) {
 	if err != nil {
 		return Baseline{}, err
 	}
-	dir, err := w.hooksDir(ctx)
+	list, err := w.configListDigest(ctx)
 	if err != nil {
 		return Baseline{}, err
 	}
-	hooks, err := hooksDigest(dir)
+	hooks, err := w.hooksState(ctx)
 	if err != nil {
-		return Baseline{}, fmt.Errorf("%w: %w", ErrGitFailed, err)
+		return Baseline{}, err
 	}
 	if err := w.checkIndexFlags(ctx); err != nil {
 		return Baseline{}, err
@@ -664,52 +721,50 @@ func (w *Worktree) Baseline(ctx context.Context) (Baseline, error) {
 	if err != nil {
 		return Baseline{}, err
 	}
-	return newBaseline(head, digestString(branch), remote, target.id(), hooks, config, info), nil
+	return newBaseline(head, digestString(branch), remote, hooks, config, list, info), nil
 }
 
-// stateCheck selects the parts compareState reads besides the files.
+// stateCheck selects the parts compareState reads besides the files. The zero
+// value is the stricter one.
 type stateCheck int
 
 const (
-	// checkLocal compares HEAD and the index flags.
-	checkLocal stateCheck = iota
-	// checkWithRemote also compares the push target and its branch OID.
-	checkWithRemote
+	// checkWithRemote also compares the push target branch's OID.
+	checkWithRemote stateCheck = iota
+	// checkLocal compares HEAD, the branch and the index flags only.
+	checkLocal
 )
 
-// compareState runs CheckState and then compares HEAD, the branch, and the
-// index flags, plus the push target when check asks for it. It returns the
-// HEAD commit.
-func (w *Worktree) compareState(ctx context.Context, base Baseline, check stateCheck) (string, error) {
+// compareState runs CheckState and then compares the index flags and the
+// branch, and HEAD with wantHead; unless check is checkLocal it also compares
+// the push target branch's OID. It returns the push target.
+func (w *Worktree) compareState(ctx context.Context, base Baseline, wantHead string, check stateCheck) (pushTarget, error) {
 	if err := w.CheckState(ctx, base); err != nil {
-		return "", err
+		return pushTarget{}, err
 	}
 	if err := w.checkIndexFlags(ctx); err != nil {
-		return "", err
+		return pushTarget{}, err
 	}
 	head, branch, err := w.headState(ctx)
 	if err != nil {
-		return "", err
+		return pushTarget{}, err
 	}
-	var parts []string
-	if head != base.head || branch == "" || digestString(branch) != base.branch {
-		parts = append(parts, PartHead)
+	if head != wantHead || branch == "" || digestString(branch) != base.branch {
+		return pushTarget{}, &GitStateError{Parts: []string{PartHead}}
 	}
-	if check == checkWithRemote && branch != "" {
-		target, err := w.resolvePushTarget(ctx, branch)
-		if err != nil {
-			return "", err
-		}
-		oid, err := w.remoteOID(ctx, target)
-		if err != nil {
-			return "", err
-		}
-		if target.id() != base.remoteID || oid != base.remoteOID {
-			parts = append(parts, PartRemote)
-		}
+	target, err := w.resolvePushTarget(ctx, branch)
+	if err != nil {
+		return pushTarget{}, err
 	}
-	if parts != nil {
-		return "", &GitStateError{Parts: parts}
+	if check == checkLocal {
+		return target, nil
 	}
-	return head, nil
+	oid, err := w.remoteOID(ctx, target)
+	if err != nil {
+		return pushTarget{}, err
+	}
+	if oid != base.remoteOID {
+		return pushTarget{}, &GitStateError{Parts: []string{PartRemote}}
+	}
+	return target, nil
 }
