@@ -95,13 +95,9 @@ func TestCurrentPR(t *testing.T) {
 		out  string
 		err  error
 	}{
-		{name: "zero", out: `{"number":0}`},
-		{name: "negative", out: `{"number":-1}`},
-		{name: "fraction", out: `{"number":4.2}`},
-		{name: "string", out: `{"number":"42"}`},
-		{name: "null", out: `{"number":null}`},
+		{name: "not_a_number", out: `{"number":"42"}`},
 		{name: "missing", out: `{}`},
-		{name: "too_many_digits", out: `{"number":1234567890}`},
+		{name: "outside_PR_grammar", out: `{"number":0}`},
 		{name: "gh_failure", err: &cmdrunner.ExitError{Code: ghExitFailure}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

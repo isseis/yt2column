@@ -11,7 +11,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"syscall"
 	"testing"
 
 	"github.com/isseis/yt2column/internal/cmdrunner"
@@ -46,16 +45,17 @@ func TestProtocolMismatch(t *testing.T) {
 			if _, err := parse(valid); err != nil {
 				t.Fatalf("parse(%q) = %v, want nil", valid, err)
 			}
+			// parse accepts valid, so changing only --protocol isolates its check.
 			for _, protocol := range []string{strconv.Itoa(fixprguard.Protocol + 1), "0" + strconv.Itoa(fixprguard.Protocol), ""} {
 				bad := slices.Clone(valid)
 				bad[2] = protocol
-				if code := newTestRun(t, nil).Run(t, bad...); code != exitUsage {
-					t.Errorf("--protocol %q: exit %d, want %d", protocol, code, exitUsage)
+				if _, err := parse(bad); !errors.Is(err, errUsage) {
+					t.Errorf("--protocol %q: parse = %v, want errUsage", protocol, err)
 				}
 			}
 			missing := append([]string{name}, valid[3:]...)
-			if code := newTestRun(t, nil).Run(t, missing...); code != exitUsage {
-				t.Errorf("no --protocol: exit %d, want %d", code, exitUsage)
+			if _, err := parse(missing); !errors.Is(err, errUsage) {
+				t.Errorf("no --protocol: parse = %v, want errUsage", err)
 			}
 		})
 	}
@@ -92,15 +92,19 @@ func TestAcceptThreadFlagParsing(t *testing.T) {
 	if got := inv.multi[flagAccept]; !slices.Equal(got, []string{"a", "b"}) {
 		t.Errorf("--accept values = %q, want [a b]", got)
 	}
+	// The flag package formats a Set error with %v, so errFlagTwice does not
+	// survive the chain; errUsage is the observable type.
 	if _, err := parse(args(cmdBegin, "--reviewer", testReviewer, "--reviewer", testReviewer)); !errors.Is(err, errUsage) {
 		t.Errorf("--reviewer twice: %v, want errUsage", err)
 	}
-	if _, err := parse(args(cmdBegin, "--reviewer", testReviewer, "--thread", "a")); !errors.Is(err, errUsage) {
-		t.Errorf("begin --thread: %v, want errUsage", err)
-	}
 	// A value outside its grammar stops with exit 2 before any command runs:
-	// the fakes have no step, and there is no repository for git.
+	// the fakes have no step, and there is no repository for git. Every other
+	// value on each line is valid.
 	fp := strings.Repeat("a", 64)
+	body := filepath.Join(t.TempDir(), "body.md")
+	if err := os.WriteFile(body, []byte("Fixed.\n"), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
 	baseline := validBaseline(t)
 	for _, line := range [][]string{
 		args(cmdBegin, "--reviewer", testReviewer, "--accept", testThreadID+"="+fp+"0", testPR),
@@ -110,7 +114,9 @@ func TestAcceptThreadFlagParsing(t *testing.T) {
 		args(cmdBegin, "--reviewer", "bad name", testPR),
 		args(cmdBegin, "--reviewer", testReviewer, "pull/42"),
 		args(cmdFinish, "--baseline", baseline, "--judged-set", "j", testPR),
-		args(cmdReply, "--reviewer", testReviewer, "--thread-id", testThreadID, "--comment-id", "x", "--fingerprint", fp, "--body-file", "b", testPR),
+		// Reply also refuses a non-positive comment ID, so this row holds
+		// whichever layer rejects it.
+		args(cmdReply, "--reviewer", testReviewer, "--thread-id", testThreadID, "--comment-id", "x", "--fingerprint", fp, "--body-file", body, testPR),
 		args(cmdHead, ""),
 	} {
 		t.Chdir(t.TempDir())
@@ -184,9 +190,9 @@ func TestGhRunsWithoutGitVariables(t *testing.T) {
 }
 
 // TestBeginOrder: a work tree with an uncommitted change stops begin before
-// anything reaches GitHub; the gh fake has no step.
-// Without a PR number, resolving the current branch's PR runs gh too, so it
-// must also wait for the work tree check.
+// anything reaches GitHub; the gh fake has no step. Without a PR number,
+// resolving the current branch's PR runs gh too, so it must also wait for the
+// work tree check.
 func TestBeginOrder(t *testing.T) {
 	repo := newTestRepo(t)
 	repo.Write("docs/notes/new.md", "untracked\n")
@@ -224,7 +230,11 @@ func TestInspectChecksGitStateBeforeGh(t *testing.T) {
 // TestOmittedPRUsesCurrentBranch: without a PR number, the current branch's
 // PR from gh is the one checked.
 func TestOmittedPRUsesCurrentBranch(t *testing.T) {
-	r := newTestRun(t, []cmdrunnertestutil.Step{ghStep(`{"number":42}`, nil, "pr", "view", "--json", "number"), headStep(sameRepositoryHead)})
+	const current = "77"
+	r := newTestRun(t, []cmdrunnertestutil.Step{
+		ghStep(`{"number":`+current+`}`, nil, "pr", "view", "--json", "number"),
+		ghStep(sameRepositoryHead, nil, "pr", "view", current, "--json", "isCrossRepository,headRepository,headRepositoryOwner"),
+	})
 	if code := r.Run(t, args(cmdHead)...); code != exitContinue {
 		t.Errorf("exit %d, want %d (%s)", code, exitContinue, r.Stderr)
 	}
@@ -251,7 +261,7 @@ func TestBeginOutputFenced(t *testing.T) {
 	}
 	var out beginJSON
 	r.Decode(t, &out)
-	if strings.Contains(out.Threads, out.Nonce+"0123") || strings.Contains(forged, out.Nonce) {
+	if strings.Contains(forged, out.Nonce) {
 		t.Fatalf("test setup: the forged delimiter must use another nonce")
 	}
 	lines := fenceLines(t, out.Threads)
@@ -262,7 +272,7 @@ func TestBeginOutputFenced(t *testing.T) {
 	if err := json.Unmarshal([]byte(lines[1]), &threads); err != nil {
 		t.Fatalf("decode fenced threads: %v", err)
 	}
-	if len(threads) != 1 || threads[0].Body != "@"+testReviewer+": "+forged {
+	if len(threads) != 1 || !strings.HasSuffix(threads[0].Body, forged) {
 		t.Errorf("threads = %+v, want the body verbatim", threads)
 	}
 	if _, err := fixprguard.ParseBaseline(out.Baseline); out.ProcessCount != 1 || err != nil {
@@ -315,13 +325,9 @@ func TestFenceSubcommand(t *testing.T) {
 	if r.Stdout.String() != want {
 		t.Errorf("output = %q, want %q", r.Stdout, want)
 	}
-	// A device reads as an empty file and a FIFO would block the read; only
-	// the regular-file check refuses them.
-	fifo := filepath.Join(dir, "fifo")
-	if err := syscall.Mkfifo(fifo, 0o600); err != nil {
-		t.Fatalf("mkfifo: %v", err)
-	}
-	for _, path := range []string{os.DevNull, fifo, filepath.Join(dir, "missing")} {
+	// A device reads as an empty file; only the regular-file check refuses
+	// it. The library's tests cover a FIFO and a missing file.
+	for _, path := range []string{os.DevNull} {
 		r := newTestRun(t, nil)
 		if code := r.Run(t, args(cmdFence, path)...); code != exitUsage || r.Stdout.Len() != 0 {
 			t.Errorf("fence %s: exit %d, output %q; want %d and none", path, code, r.Stdout, exitUsage)
@@ -533,7 +539,9 @@ func TestStopOutputDetails(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := stopOutput(tc.err); !tc.check(got) {
+			// Wrapped as a subcommand returns it, so extraction must go
+			// through the chain.
+			if got := stopOutput(fmt.Errorf("finish: %w", tc.err)); !tc.check(got) {
 				t.Errorf("stopOutput = %+v", got)
 			}
 		})

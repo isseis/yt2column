@@ -146,16 +146,16 @@ func main() {
 	os.Exit(run(context.Background(), os.Args[1:], osEnv()))
 }
 
-// osEnv runs every command with an output cap. gh and git run without the
-// inherited GIT_* variables: gh starts git too, and GIT_DIR or GIT_WORK_TREE
-// would point it at another repository than the one the tool checks and
-// pushes.
+// osEnv runs every command with an output cap and without the inherited
+// GIT_* variables: gh and the make targets start git too, and GIT_DIR or
+// GIT_WORK_TREE would point it at another repository than the one the tool
+// checks and pushes.
 func osEnv() env {
 	gitEnv := fixprguard.GitEnv(os.Environ())
 	return env{
 		gh:        cmdrunner.NewOS(cmdrunner.Options{MaxOutput: ghMaxOutput, WaitDelay: waitDelay, Env: gitEnv}),
 		git:       cmdrunner.NewOS(cmdrunner.Options{MaxOutput: gitMaxOutput, WaitDelay: waitDelay, Env: gitEnv}),
-		make:      cmdrunner.NewOS(cmdrunner.Options{MaxOutput: makeMaxOutput, WaitDelay: waitDelay}),
+		make:      cmdrunner.NewOS(cmdrunner.Options{MaxOutput: makeMaxOutput, WaitDelay: waitDelay, Env: gitEnv}),
 		stdout:    os.Stdout,
 		stderr:    os.Stderr,
 		rand:      rand.Reader,
