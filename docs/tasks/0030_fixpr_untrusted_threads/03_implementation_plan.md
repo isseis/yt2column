@@ -8,7 +8,7 @@
 | Created | 2026-10-21 |
 | Review date | 2026-10-21 |
 | Reviewer | isseis |
-| Comments | 2026-10-21 (editorial): ステップ 2-2 の `hasNextPage` の扱いを理由 (e) に写す記述に直した。ステップ 2-4 の `TestFenceNonceAbsent` を `TestFenceBlockShape` に改め（乱数の nonce では nonce の確認を壊しても失敗しないため）、JSON のエスケープの層のテストをステップ 5-1 の `TestBeginOutputFenced` に移した。AC-18 の検証の行を合わせた。AC は変わらない。2026-10-21 (decision): 設計書 3.7 に加えた `GH_REPO`・`GH_HOST` の規則（設定されていれば `gh` を起動せずに止まる）を、ステップ 5-1 の作業とテスト `TestGhTargetEnvRejected` に加えた（PR #406 のレビューの指摘。このセッションでレビュアーが承認した）。AC は変わらない。2026-10-21 (editorial): 1.3.4 でステップ 3-2 に委ねた決定（作業ディレクトリは現在のディレクトリで作業ツリーの最上位、環境は `GitEnv` を使う runner で渡す、システムの設定は残す）を実装し、コミットメッセージに記録した。ステップ 3-5 の停止の種類は `StopKind` として公開した。設計書 3.2・3.6・3.7 を実装に合わせた。AC は変わらない。2026-10-21 (decision): フェーズ 3 のレビューの指摘から、設計書の Comments に記録した 3 つの決定（config の比較をすべての設定の値に広げる、入れ子の `.gitignore` と index の stat の偽造を残余のリスクとする、push 先を同じ名前のブランチとする）を、ステップ 3-2 の基準値の記述に反映した（このセッションでレビュアーが承認した）。extension の TypeScript を実行に関わるファイルに加えるかは、別の issue で扱う。AC は変わらない。2026-10-21 (editorial): PR #409 のレビューの指摘で、index だけにある変更を数え上げに加えた（設計書 3.6）。これにより、判定の後の確認を通った作業ツリーでは `git add -A` と判定したパスの stage が同じ集合を stage するので、ステップ 3-7 の完了条件の「`finish` が `git add -A` を使う」は失敗するテストを持たない。パスを文字どおりに解釈する stage は、`TestFinishStagesJudgedPathsOnly` が引き続き確かめる。AC は変わらない。2026-10-21 (editorial): ステップ 4-1 の本文のファイルの種類の確認を、開く前の `lstat` から、リンクをたどらずに（`O_NOFOLLOW`）開いたファイルの stat に改めた（確認と読み取りの間にファイルを差し替えられないため。設計書 3.8 も合わせた）。空のファイルも拒否する。AC は変わらない。2026-10-21 (editorial): ステップ 4-2 で、`edit-pr` の本文を、検査した内容を標準入力から `--body-file -` で渡す形にした（`gh` がファイルを読み直すと、検査の後の差し替えを防げないため）。センチネルエラーに `ErrCommentNotInThread`（`ErrInvalidInput` を包む）と `ErrReplyNotResolved`（返信の後に解決できなかった。呼び出し元が返信を繰り返さないため）を、`stop` の種類に `thread-not-trusted` と `reply-not-resolved` を加えた（設計書 4 章も合わせた）。AC は変わらない。2026-10-21 (decision): ステップ 4-2 のレビューの指摘から、設計書の Comments に記録した 3 つの決定（返信するコメントを最初のコメントに限る、返信の後・解決の前にスレッドを取り直し、返信のほかに変化があれば解決しない（`TestReplyRechecksBeforeResolve`）、返信が投稿された可能性のある結果を取り消しも含めて `ErrReplyNotResolved` とする（`TestReplyPostFailureSkipsResolve`））をステップ 4-2 に反映した（このセッションでレビュアーが改めて承認した）。AC は変わらない。2026-10-21 (editorial): 同じ指摘で、本文のファイルの空白だけ・NUL・タイトルの制御文字の拒否を加えた（設計書 3.8 も合わせた）。AC は変わらない。2026-10-21 (editorial): ステップ 5-1 で、`--reviewer` を取らない `head`・`edit-pr` のために `NewGitHubWithoutReviewer` を、`<PR>` を省略したときのために `CurrentPR` を `internal/fixprguard` に加え（テスト `TestGitHubWithoutReviewerJudgesNothing`・`TestCurrentPR`）、`finish` は `<PR>` を必須にした。`begin` の出力の形を設計書 3.1 に書き足した。ステップ 5-2 で、`internal/config` の `TestEnvAccessConfined` の許可の一覧に `cmd/fixprguard/main.go`（`os.Environ` と `os.LookupEnv`）を加えた。AC は変わらない。2026-10-21 (editorial): フェーズ 5 のレビューの指摘で、`gh` にも `GIT_*` を取り除いた環境を渡し（`TestGhRunsWithoutGitVariables`）、`make` の出力に上限を設け、`fence` を FIFO で待たない開き方にし、空の位置引数を拒否した。設計書 3.7・5.3 の起動前の比較の記述を、このステップの扱いに合わせた。AC は変わらない。2026-10-21 (editorial): PR-5 のレビューの指摘で、`fixprguard_guide`（日英）に、フェーズ 6 の切り替えまでコマンドは従来の手順で動く旨の注記を加えたので、ステップ 6-2 にその注記を取り除く作業を加え、変更するファイルに両方のガイドを加えた。決定は変わらない。AC は変わらない |
+| Comments | 2026-10-21 (editorial): ステップ 2-2 の `hasNextPage` の扱いを理由 (e) に写す記述に直した。ステップ 2-4 の `TestFenceNonceAbsent` を `TestFenceBlockShape` に改め（乱数の nonce では nonce の確認を壊しても失敗しないため）、JSON のエスケープの層のテストをステップ 5-1 の `TestBeginOutputFenced` に移した。AC-18 の検証の行を合わせた。AC は変わらない。2026-10-21 (decision): 設計書 3.7 に加えた `GH_REPO`・`GH_HOST` の規則（設定されていれば `gh` を起動せずに止まる）を、ステップ 5-1 の作業とテスト `TestGhTargetEnvRejected` に加えた（PR #406 のレビューの指摘。このセッションでレビュアーが承認した）。AC は変わらない。2026-10-21 (editorial): 1.3.4 でステップ 3-2 に委ねた決定（作業ディレクトリは現在のディレクトリで作業ツリーの最上位、環境は `GitEnv` を使う runner で渡す、システムの設定は残す）を実装し、コミットメッセージに記録した。ステップ 3-5 の停止の種類は `StopKind` として公開した。設計書 3.2・3.6・3.7 を実装に合わせた。AC は変わらない。2026-10-21 (decision): フェーズ 3 のレビューの指摘から、設計書の Comments に記録した 3 つの決定（config の比較をすべての設定の値に広げる、入れ子の `.gitignore` と index の stat の偽造を残余のリスクとする、push 先を同じ名前のブランチとする）を、ステップ 3-2 の基準値の記述に反映した（このセッションでレビュアーが承認した）。extension の TypeScript を実行に関わるファイルに加えるかは、別の issue で扱う。AC は変わらない。2026-10-21 (editorial): PR #409 のレビューの指摘で、index だけにある変更を数え上げに加えた（設計書 3.6）。これにより、判定の後の確認を通った作業ツリーでは `git add -A` と判定したパスの stage が同じ集合を stage するので、ステップ 3-7 の完了条件の「`finish` が `git add -A` を使う」は失敗するテストを持たない。パスを文字どおりに解釈する stage は、`TestFinishStagesJudgedPathsOnly` が引き続き確かめる。AC は変わらない。2026-10-21 (editorial): ステップ 4-1 の本文のファイルの種類の確認を、開く前の `lstat` から、リンクをたどらずに（`O_NOFOLLOW`）開いたファイルの stat に改めた（確認と読み取りの間にファイルを差し替えられないため。設計書 3.8 も合わせた）。空のファイルも拒否する。AC は変わらない。2026-10-21 (editorial): ステップ 4-2 で、`edit-pr` の本文を、検査した内容を標準入力から `--body-file -` で渡す形にした（`gh` がファイルを読み直すと、検査の後の差し替えを防げないため）。センチネルエラーに `ErrCommentNotInThread`（`ErrInvalidInput` を包む）と `ErrReplyNotResolved`（返信の後に解決できなかった。呼び出し元が返信を繰り返さないため）を、`stop` の種類に `thread-not-trusted` と `reply-not-resolved` を加えた（設計書 4 章も合わせた）。AC は変わらない。2026-10-21 (decision): ステップ 4-2 のレビューの指摘から、設計書の Comments に記録した 3 つの決定（返信するコメントを最初のコメントに限る、返信の後・解決の前にスレッドを取り直し、返信のほかに変化があれば解決しない（`TestReplyRechecksBeforeResolve`）、返信が投稿された可能性のある結果を取り消しも含めて `ErrReplyNotResolved` とする（`TestReplyPostFailureSkipsResolve`））をステップ 4-2 に反映した（このセッションでレビュアーが改めて承認した）。AC は変わらない。2026-10-21 (editorial): 同じ指摘で、本文のファイルの空白だけ・NUL・タイトルの制御文字の拒否を加えた（設計書 3.8 も合わせた）。AC は変わらない。2026-10-21 (editorial): ステップ 5-1 で、`--reviewer` を取らない `head`・`edit-pr` のために `NewGitHubWithoutReviewer` を、`<PR>` を省略したときのために `CurrentPR` を `internal/fixprguard` に加え（テスト `TestGitHubWithoutReviewerJudgesNothing`・`TestCurrentPR`）、`finish` は `<PR>` を必須にした。`begin` の出力の形を設計書 3.1 に書き足した。ステップ 5-2 で、`internal/config` の `TestEnvAccessConfined` の許可の一覧に `cmd/fixprguard/main.go`（`os.Environ` と `os.LookupEnv`）を加えた。AC は変わらない。2026-10-21 (editorial): フェーズ 5 のレビューの指摘で、`gh` にも `GIT_*` を取り除いた環境を渡し（`TestGhRunsWithoutGitVariables`）、`make` の出力に上限を設け、`fence` を FIFO で待たない開き方にし、空の位置引数を拒否した。設計書 3.7・5.3 の起動前の比較の記述を、このステップの扱いに合わせた。AC は変わらない。2026-10-21 (editorial): PR-5 のレビューの指摘で、`fixprguard_guide`（日英）に、フェーズ 6 の切り替えまでコマンドは従来の手順で動く旨の注記を加えたので、ステップ 6-2 にその注記を取り除く作業を加え、変更するファイルに両方のガイドを加えた。決定は変わらない。AC は変わらない。2026-10-21 (editorial): フェーズ 6 で、`inspect` と利用者への確認を `fixpr.md` の Phase 3.5 として置き、Phase 4 の `finish`・`push` と Phase 5 の `reply` をセッションが実行する形にした（設計書 3.10 の冒頭の行。設計書 2.3・3.5・3.8 を合わせた）。ステップ 6-5 の文書のガードは、設計書 7.4 の (1)・(2)・(6) を、名前を付けた 3 つのテスト `TestRemovedCommandLiterals`・`TestFixprguardCallSites`・`TestFixprBuildChecksMatchTool` に分けて書いた。AC は変わらない |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -399,43 +399,43 @@
 
 **変更するファイル**: `.claude/commands/_context.md`
 
--   [ ] 自動レビュアーの名前（`coderabbitai`。GraphQL の `author.login` の形。REST の形は `coderabbitai[bot]`）とガードツール（`fixprguard`、`make install-fixprguard`）の 2 行を「Domain-specific」に加える（設計書 3.10、AC-35）。
+-   [x] 自動レビュアーの名前（`coderabbitai`。GraphQL の `author.login` の形。REST の形は `coderabbitai[bot]`）とガードツール（`fixprguard`、`make install-fixprguard`）の 2 行を「Domain-specific」に加える（設計書 3.10、AC-35）。
 
 #### ステップ 6-2: `fixpr.md`
 
 **変更するファイル**: `.claude/commands/fixpr.md`、`docs/dev/developer_guide/fixprguard_guide.ja.md`、`docs/dev/developer_guide/fixprguard_guide.md`
 
--   [ ] 設計書 3.10 の `fixpr.md` の表の各行を反映する（冒頭の説明、Authorization の新設、Convergence policy、Caller override、Shared rules の R6、Phase 1〜6、Final report）。
--   [ ] 1.3.2 の「コマンドの文書」の行に挙げた直書きを取り除く（`fixpr.md` の `git add -A`・`git commit -m`・Phase 4 の手順の `git push`・`REPLYBODY_EOF`・Phase 6 の `<<'EOF'` と `--title "`・`comments(first:10)`）。`runpr.md` の `git push -u` と `--title "`（自分の PR の作成）、`fixpr.md` の Authorization の `git push`・`gh pr edit` は、正当な記述なので残す。Phase 4 の commit の件名（`fix: address PR #NUMBER review comments`）は、ツールが組み立てる件名と一致させる。
--   [ ] コマンドの定義は英語で書く。
--   [ ] `fixprguard_guide.ja.md` と `fixprguard_guide.md`（日英）の冒頭にある、コマンドの文書がまだツールを呼ぶ形に切り替わっていない旨の注記を取り除く。
+-   [x] 設計書 3.10 の `fixpr.md` の表の各行を反映する（冒頭の説明、Authorization の新設、Convergence policy、Caller override、Shared rules の R6、Phase 1〜6、Final report）。
+-   [x] 1.3.2 の「コマンドの文書」の行に挙げた直書きを取り除く（`fixpr.md` の `git add -A`・`git commit -m`・Phase 4 の手順の `git push`・`REPLYBODY_EOF`・Phase 6 の `<<'EOF'` と `--title "`・`comments(first:10)`）。`runpr.md` の `git push -u` と `--title "`（自分の PR の作成）、`fixpr.md` の Authorization の `git push`・`gh pr edit` は、正当な記述なので残す。Phase 4 の commit の件名（`fix: address PR #NUMBER review comments`）は、ツールが組み立てる件名と一致させる。
+-   [x] コマンドの定義は英語で書く。
+-   [x] `fixprguard_guide.ja.md` と `fixprguard_guide.md`（日英）の冒頭にある、コマンドの文書がまだツールを呼ぶ形に切り替わっていない旨の注記を取り除く。
 
 #### ステップ 6-3: `runpr.md`
 
 **変更するファイル**: `.claude/commands/runpr.md`
 
--   [ ] 設計書 3.10 の `runpr.md` の表の各行を反映する（冒頭、Authorization、ステップ 1 の `head`、ステップ 3 の `list` と質問、ステップ 4）。
--   [ ] `coderabbitai[bot]` の直書き（`runpr.md:169,171`）を、`_context.md` の名前から作る形に替える。
--   [ ] `/fixpr` を自動で再実行する条件（`runpr.md:212-217`）の文面は変えない（AC-33）。
+-   [x] 設計書 3.10 の `runpr.md` の表の各行を反映する（冒頭、Authorization、ステップ 1 の `head`、ステップ 3 の `list` と質問、ステップ 4）。
+-   [x] `coderabbitai[bot]` の直書き（`runpr.md:169,171`）を、`_context.md` の名前から作る形に替える。
+-   [x] `/fixpr` を自動で再実行する条件（`runpr.md:212-217`）の文面は変えない（AC-33）。
 
 #### ステップ 6-4: 用語集
 
 **変更するファイル**: `docs/translation_glossary.md`
 
--   [ ] AC-37 の語（フェーズ・信頼する著者・想定外の著者のスレッド・範囲外の変更）と、設計書 3.10 の語（ガードツール・区切りのブロック・指紋・基準値・名指し）を、英訳とともに加える。「フェーズ」の備考に、「段階」（`stage`）との区別を書く。英訳は `/mktrans` の訳語の原則に従い、レビューで確かめる。
+-   [x] AC-37 の語（フェーズ・信頼する著者・想定外の著者のスレッド・範囲外の変更）と、設計書 3.10 の語（ガードツール・区切りのブロック・指紋・基準値・名指し）を、英訳とともに加える。「フェーズ」の備考に、「段階」（`stage`）との区別を書く。英訳は `/mktrans` の訳語の原則に従い、レビューで確かめる。
 
 #### ステップ 6-5: 文書のガード
 
 **変更するファイル**: `cmd/yt2column/fixpr_docs_test.go`、`cmd/fixprguard/docs_test.go`、`.github/workflows/ci.yml`、`CLAUDE.md`、`.claude/commands/_lib/task-pr-handoff.md`
 
--   [ ] `cmd/yt2column/fixpr_docs_test.go` に、設計書 7.4 の (1)〜(7) と、5 章の表の `static` の名前（`TestFixprDocContract`・`TestRunprDocContract` の部分テスト、`TestContextAndCommandsAgree`・`TestAuthorizationSections`・`TestGlossaryTerms`）を書く。ツール側の値は `internal/fixprguard` の公開した値から読み、文書に値を写さない。
+-   [x] `cmd/yt2column/fixpr_docs_test.go` に、設計書 7.4 の (1)〜(7) と、5 章の表の `static` の名前（`TestFixprDocContract`・`TestRunprDocContract` の部分テスト、`TestContextAndCommandsAgree`・`TestAuthorizationSections`・`TestGlossaryTerms`）を書く。ツール側の値は `internal/fixprguard` の公開した値から読み、文書に値を写さない。
     -   `static` の部分テストの名前: `TestFixprDocContract` は `final_report`・`accept_only_reported`・`nothing_to_process`・`round_counting`・`fenced_prompts`・`out_of_scope_stop`・`people_answered_scope`、`TestRunprDocContract` は `head_before_checkout`・`untrusted_question`・`stop_without_merge`・`no_body_fetch`・`auto_fixpr_condition`。
     -   `TestAuthorizationSections` は、`fixpr.md` と `runpr.md` の両方の Authorization が、新しいネットワークの操作を挙げていることを調べる（AC-36）。
     -   `TestContextAndCommandsAgree` は、`coderabbitai` の文字列が `_context.md` の外に現れる箇所を、レビュー済みの許可の一覧（`@coderabbitai review` の依頼など）だけにする（AC-35）。
     -   取り除いた直書きが残っていないことも調べる。調べる対象は、ファイルと形を限る。`fixpr.md` は `git add -A`・`git commit -m`・`REPLYBODY_EOF`・`<<'EOF'`・`gh pr edit` の行の `--title "`・`comments(first:10)`、Phase 4 の本文の `git push`（Authorization の節は除く）。`runpr.md` は `coderabbitai[bot]`・`comments(first:10)`。
     -   `TestGlossaryTerms` の日本語のリテラルは、用語集の語に一致させるための例外である（1.2）。
--   [ ] `cmd/fixprguard/docs_test.go::TestDocumentedInvocationsParse` を書く。`fixpr.md` と `runpr.md` に書かれた `fixprguard` の呼び出しのすべてを、実際の引数の解釈に通し、サブコマンド、フラグの名前、`--protocol` と `--reviewer` の有無が受け付けられることを調べる。
--   [ ] `doc-guard` ジョブの `go test` の対象に `./cmd/fixprguard` を加える。文書だけの PR は `check-changes` が非コードと分類してテストを飛ばすので、この対象に入れないと文書の変更でガードが働かない。`CLAUDE.md`（「Development Notes」の `doc-guard` の説明）と `_lib/task-pr-handoff.md` の CHECKS の記述の対象の一覧も、同じ値に揃える。
+-   [x] `cmd/fixprguard/docs_test.go::TestDocumentedInvocationsParse` を書く。`fixpr.md` と `runpr.md` に書かれた `fixprguard` の呼び出しのすべてを、実際の引数の解釈に通し、サブコマンド、フラグの名前、`--protocol` と `--reviewer` の有無が受け付けられることを調べる。
+-   [x] `doc-guard` ジョブの `go test` の対象に `./cmd/fixprguard` を加える。文書だけの PR は `check-changes` が非コードと分類してテストを飛ばすので、この対象に入れないと文書の変更でガードが働かない。`CLAUDE.md`（「Development Notes」の `doc-guard` の説明）と `_lib/task-pr-handoff.md` の CHECKS の記述の対象の一覧も、同じ値に揃える。
 
 #### ステップ 6-6: 手動の確認
 
@@ -579,7 +579,7 @@ PR ごとにまとめる。各ステップの詳細は 2 章のチェックボ�
 - [x] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7）
 - [x] PR-4 マージ済み（対象ステップ: 4-1 / 4-2）
 - [x] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4）
-- [ ] 利用者が `make install-fixprguard` を実行した
+- [x] 利用者が `make install-fixprguard` を実行した
 - [ ] PR-6 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3 / 6-4 / 6-5 / 6-6）
 - [ ] 要件書の AC-01〜AC-37 のすべてが、5 章の検証でカバーされている
 

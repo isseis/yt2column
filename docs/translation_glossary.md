@@ -60,3 +60,14 @@
 | 件名 | subject | コミットメッセージの 1 行目 |
 | 対処 | remedy | 問題が起きたときに開発者が取る手順。見出しでは "What to Do When ..." とする |
 | 高圧縮ファイル爆弾 | decompression bomb | 展開すると膨大なサイズになり、メモリなどを使い切らせる圧縮データ、およびそれを使った攻撃。HTTP 応答の gzip も含む。旧称: 圧縮爆弾 |
+| フェーズ | phase | `/fixpr` を構成する処理の単位（Phase 1〜6。取得・トリアージ・修正・build と push・返信と解決・PR の説明の確認）。パイプラインの「段階」（stage）とは区別する |
+| 信頼する著者 | trusted author | リポジトリへの書き込み権限を持つアカウントと、`_context.md` に名前を定めた自動レビュアーのアカウント |
+| 信頼する著者のスレッド | trusted thread | すべてのコメントの著者が信頼する著者であるレビュースレッド |
+| 想定外の著者のスレッド | untrusted thread | コメントの 1 件以上が信頼する著者のものでない、または著者を確かめられないレビュースレッド。本文を取得せず、名指しされるまで処理しない |
+| 範囲外の変更 | out-of-scope change | 修正のフェーズが変えたファイルのうち、処理したスレッドの `path` から決まる範囲に入らないもの |
+| ガードツール | guard tool | `/fixpr` と `/runpr` が判定と書き込みを任せる開発用ツール `fixprguard` |
+| 区切りのブロック | fenced block | 信頼できないテキストを、実行ごとの乱数（nonce）を含む `BEGIN-UNTRUSTED-<nonce>` と `END-UNTRUSTED-<nonce>` の行で囲んだもの |
+| 指紋 | fingerprint | スレッドのコメントの ID・著者・時刻から作る識別子。コメントの追加・編集・削除で変わる |
+| 基準値 | baseline | `fixprguard begin` が出力する git の状態の識別子の組。セッションが会話に持ち、後のサブコマンドに渡す |
+| 判定した集合 | judged set | `fixprguard inspect` が範囲と照らした変更の集合。その識別子は `judgedSet` |
+| 名指し | naming | 利用者が内容を確かめた想定外の著者のスレッドを、スレッド ID と指紋の組で指定して処理を求めること。動詞は "name"（例: a named thread） |

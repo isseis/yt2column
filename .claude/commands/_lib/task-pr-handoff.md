@@ -28,7 +28,7 @@ command to run (`runpr.md` steps 2 and 4).
 - **REPORT** — where the calling command gives its final report.
 - **CHECKS** — what runs before the push: for a task-document command, the
   documentation guards
-  (`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./internal/pipeline`);
+  (`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`);
   for `runplan.md`, the green gate (`_context.md`).
 - **LOCAL_REVIEW** — `run` for a task-document command; `done` for
   `runplan.md`, which reviews each phase group locally (its step 7.7).
