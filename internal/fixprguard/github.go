@@ -431,15 +431,9 @@ func (g *GitHub) ThreadPaths(ctx context.Context, pr PRNumber, threads []Accept)
 	if err != nil {
 		return nil, err
 	}
-	fetched, err := g.fetchAllThreads(ctx, repo, pr)
+	byID, err := g.unresolvedThreads(ctx, repo, pr)
 	if err != nil {
 		return nil, err
-	}
-	byID := map[string]thread{}
-	for _, t := range fetched {
-		if !t.resolved {
-			byID[t.id] = t
-		}
 	}
 	perms := newPermissionLookups(g, repo)
 	paths := make([]ThreadPath, 0, len(threads))
@@ -452,4 +446,21 @@ func (g *GitHub) ThreadPaths(ctx context.Context, pr PRNumber, threads []Accept)
 		paths = append(paths, ThreadPath{ThreadID: t.id, Path: t.comments[0].path, Named: !assessment.Trusted})
 	}
 	return paths, nil
+}
+
+// unresolvedThreads reads every page of the PR's threads without bodies and
+// returns the unresolved ones by ID, for the calls that judge given threads
+// afresh.
+func (g *GitHub) unresolvedThreads(ctx context.Context, repo repository, pr PRNumber) (map[string]thread, error) {
+	fetched, err := g.fetchAllThreads(ctx, repo, pr)
+	if err != nil {
+		return nil, err
+	}
+	byID := map[string]thread{}
+	for _, t := range fetched {
+		if !t.resolved {
+			byID[t.id] = t
+		}
+	}
+	return byID, nil
 }
