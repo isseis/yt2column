@@ -362,9 +362,10 @@ check_claude_language() {
 	repo=$(printf '%s\n' "$sec" | between '^- \*\*What stays in the git repository' '^- \*\*|^$' | flat)
 	has "$gh" '^- \*\*What lives on GitHub: Japanese\*\* — [^.]*PR titles' \
 		'PR titles are among the Japanese things on GitHub'
-	# Any sentence of the GitHub bullet tying a title to English, and the old
-	# wording anywhere in the section.
-	lacks "$gh" '[Tt]itles?[^.]*English|English[^.]*[Tt]itles?' \
+	# Any sentence of the GitHub bullet tying a title to English (a sentence ends
+	# at a period followed by a space, so a path such as _context.md does not end
+	# it), and the old wording anywhere in the section.
+	lacks "$gh" '[Tt]itles?([^.]|\.[^ ])*English|English([^.]|\.[^ ])*[Tt]itles?' \
 		'no exception keeps the PR title in English'
 	lacks "$(printf '%s\n' "$sec" | flat)" 'PR title, which stays|stays an English|built from it' \
 		'the old English-title exception is gone'
@@ -386,7 +387,7 @@ check_glossary_terms() {
 	has "$ctx" '^\| 受け付ける接頭辞 \| accepted prefix \|' 'term: 受け付ける接頭辞 = accepted prefix'
 	has "$ctx" '^\| 要約 \| summary \|' 'term: 要約 = summary'
 	has "$ctx" '^\| プランの PR \| plan PR \|' 'term: プランの PR = plan PR'
-	has "$ctx" '^\| 材料 \| material \|.*と、必要なときに読む diff' \
+	has "$ctx" '^\| 材料 \| material \|.*と、必要なときに読む diff）' \
 		'term: 材料 includes the diff read when needed'
 	has "$ctx" '^\| 材料 \| material \|.*PR のタイトルは含めない' \
 		'term: 材料 excludes the PR title'
