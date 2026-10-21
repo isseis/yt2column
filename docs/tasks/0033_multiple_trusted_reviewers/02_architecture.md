@@ -8,7 +8,7 @@
 | Created | 2026-10-22 |
 | Review date | 2026-10-22 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-22 (editorial): 7.4 の結合テストを「既存の流れのテストに場合を加える」から「新しいテストを加える」に改めた。`begin` から `reply` までを続けて実行する既存のテストが `cmd/fixprguard/main_test.go` にないことを、実装計画（`03_implementation_plan.md` 1.4）の調査で確かめたためである。加えるテストの内容は変わらず、決定は変わらない |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `e5db595` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md) の項番を指す。申し送り H-01〜H-04 への対応は付録 A にまとめる。
 
@@ -558,7 +558,7 @@ flowchart LR
 
 ### 7.4. 結合テストとセキュリティテスト
 
--   **結合テスト。** `cmd/fixprguard` の既存の流れのテスト（`begin` から `reply` まで）に、2 つの名前を渡して 2 つめの名前の `Bot` のスレッドを処理する場合を 1 つ加える。
+-   **結合テスト。** `cmd/fixprguard` に、2 つの名前を渡し、2 つめの名前の `Bot` のスレッドを `begin` から `reply` まで処理するテストを 1 つ加える。`begin` と `reply` を続けて実行する既存のテストはない（`cmd/fixprguard/main_test.go`、コミット `819011a`）。
 -   **セキュリティテスト。** 次が、要件書 4.2 の「信頼を広げるのは一覧の名前だけ」の検査にあたる。
     -   7.1 の判定の表の「一致しない `Bot`」「名前が一致する `User`」「大文字と小文字の違い」と、既存の `[bot]` 付きの行。
     -   引数の「重複・文法違反で GitHub にも git にも触れない」。
