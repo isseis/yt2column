@@ -439,7 +439,8 @@
 
 #### ステップ 6-6: 手動の確認
 
--   [ ] 切り替えの後、実際の `/fixpr` と `/runpr` の実行を観察する（フェーズ 1 の `begin` から最終報告までが文書のとおりに進むこと）。想定外の著者のスレッドの実例は、リポジトリの外の人が書かないと作れないので、実例がなければ、`fixprguard begin` の出力を使い、文書の流れを読み合わせる。結果を PR の説明に書く。
+-   [x] 切り替えの後、実際の `/fixpr` と `/runpr` の実行を観察する（フェーズ 1 の `begin` から最終報告までが文書のとおりに進むこと）。想定外の著者のスレッドの実例は、リポジトリの外の人が書かないと作れないので、実例がなければ、`fixprguard begin` の出力を使い、文書の流れを読み合わせる。結果を PR の説明に書く。
+    -   2026-10-21: 利用者の承認を得て、マージ済みの PR #402〜#416 に `fixprguard list` を、#416 に `fixprguard begin` を実行した（読み取りだけ）。どの PR にも未解決のスレッドはなく、`begin` は `processCount` が 0 の「処理するスレッドなし」の出力を返した（`threads` をデコードすると、区切りの行を含む 3 行）。想定外の著者のスレッドの実例はないので、この出力で Phase 1 の流れを読み合わせた。スレッドのある `/fixpr` と `/runpr` の流れは、この PR の `/runpr` で観察する。
 
 **完了条件**: `make test && make lint`。壊して確かめる: 文書のガードの検査対象を 1 つずつ元に戻し（`runpr.md` に `coderabbitai[bot]` を戻す、`fixpr.md` に `git add -A` を戻す、`_context.md` の名前を消す、`fixpr.md` の呼び出しのフラグ名を変える、用語集の行を 1 つ消す）、対応するテスト（`TestContextAndCommandsAgree`・`TestFixprDocContract`・`TestDocumentedInvocationsParse`・`TestGlossaryTerms`）が失敗すること。
 
