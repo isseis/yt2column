@@ -323,7 +323,7 @@
 
 **変更するファイル**: 指摘を受けたときだけ、ステップ 1-2〜4-3 で変えたファイル（`_context.md`・`CLAUDE.md`・`docs/translation_glossary.md`・`_lib/task-pr-handoff.md`・`runplan.md`・`runpr.md`・`fixpr.md`・`mkplan2.md`・`mergepr.md`・`mergepr` のガイド）
 
--   [ ] レビューのサブエージェントに、変えた各ファイルの新しい文を、設計書 3.1〜3.9 の規則と 1 文ずつ突き合わせさせる（`.claude/commands/_lib/review-subagent-pattern.md`）。検査のスクリプトは語の有無しか確かめないので、規則の意味（順序・例外・止まる条件）が設計書と一致することを、ここで確かめる。指摘を直し、直したことをコミットメッセージに書く。
+-   [x] レビューのサブエージェントに、変えた各ファイルの新しい文を、設計書 3.1〜3.9 の規則と 1 文ずつ突き合わせさせる（`.claude/commands/_lib/review-subagent-pattern.md`）。検査のスクリプトは語の有無しか確かめないので、規則の意味（順序・例外・止まる条件）が設計書と一致することを、ここで確かめる。指摘を直し、直したことをコミットメッセージに書く。
 
 **完了条件**: レビューに Critical と Major の指摘が残らない。
 

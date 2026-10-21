@@ -144,7 +144,8 @@ marker after that line is unchecked. `runpr.md` step 2 and `mergepr.md` step 2
 use this definition.
 
 - **Tree.** `runpr.md` reads its checkout of the PR's head branch, which its
-  step 1 brought up to date. `mergepr.md` reads the tree of the `headRefOid`
+  step 1 brought up to date (for a PR its step 1 finds merged, whose head
+  branch is gone, `origin/main`). `mergepr.md` reads the tree of the `headRefOid`
   that `prepare` recorded, the commit `merge` is pinned to with
   `--match-head-commit`, so the tree judged is the tree merged.
 - **Match.** Count only a line where the whole URL matches: looking for
