@@ -519,7 +519,9 @@ check_fixpr_title() {
 	has "$one" 'write the new title in its PR title form' 'the new title is in the PR title form'
 	has "$one" 'Only if the description is significantly stale' 'the stale-description condition stays'
 	has "$one" 'drafted a concrete final title and body' 'the concrete-text condition stays'
-	has "$one" "$(quote_ere "$TITLE_ARG")" 'gh pr edit takes the title from a file'
+	# Task 0030 moved the edit into fixprguard edit-pr, which reads the title
+	# from its file itself, so gh pr edit no longer appears here.
+	has "$one" 'fixprguard edit-pr --protocol 1 --title-file <title-file>' 'edit-pr takes the title from a file'
 	lacks_en_title "$one" 'the prompt does not keep the title English'
 }
 
@@ -696,9 +698,9 @@ check_no_stale_rules() {
 }
 
 # The number of lines in .claude/commands that create or edit a PR with a
-# title: _lib/task-pr-handoff.md, runpr.md, and fixpr.md Phase 6 (task 0030
-# PR-6, not merged here, would move the fixpr.md one into fixprguard).
-TITLE_LINES=3
+# title: _lib/task-pr-handoff.md and runpr.md. fixpr.md Phase 6 passes its
+# title through fixprguard edit-pr since task 0030 PR-6.
+TITLE_LINES=2
 
 check_title_via_file() {
 	lines=$(rev_grep .claude/commands -nE 'gh +pr +(create|edit).*--title')

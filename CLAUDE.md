@@ -302,9 +302,10 @@ See [Test Organization Guide](docs/dev/developer_guide/test_organization.md) for
   a change to either needs `make ext-test`. The other
   text-sync guards that read documents (the extension ID, the `ext-` targets in
   this file, the manifest permissions, the `project_overview.md` notes, the task
-  records) are Go tests included in `make test` and need no node. The `doc-guard`
+  records, the `/fixpr` and `/runpr` command documents) are Go tests included
+  in `make test` and need no node. The `doc-guard`
   CI job runs those guards
-  (`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./internal/pipeline`)
+  (`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`)
   on every pull request, so a documentation-only change is checked in CI even
   though `check-changes` classifies it as non-code.
 - A change that touches only `.gitignore` can still break the extension's
