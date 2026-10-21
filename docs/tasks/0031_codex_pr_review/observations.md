@@ -24,7 +24,8 @@
     -   Codex の PR レビューは、PR を開いたとき（`292db99`）と `@codex review` のとき（`15458c3`）の 2 回だけだった（根拠: `gh api repos/isseis/yt2column/pulls/407/reviews`）。
     -   PR #407 には Codex のリアクションが 1 件も残っていない（`gh api repos/isseis/yt2column/issues/407/reactions` が 0 件）。指摘が 0 件のレビューなら残るはずの 👍 もない。
     -   要約コメント（1）の最後の更新は 07:19:54Z で、`@codex review` のレビュー（07:19:50Z）の直後である。その後の 2 回の push（`d1cc2d1`・`3ba78e2`）では更新されていない。
--   **観測（PR #411）:** 未観測。この記録の修正を push した後に観測して追記する。
+-   **観測（2026-10-21、PR #411）:** 再レビューはなかった。07:47:42Z に `d49953c` を push し、その後 5 分間、5 秒おきに取得した。👀 も 👍 のリアクションも付かず、要約コメント（1）も更新されず（最後の更新は push の前の 07:46:47Z のまま）、Codex の PR レビューも増えなかった。
+    -   同じ間に PR レビューの一覧には 2 件が加わったが、どちらも利用者（`isseis`）のもので、スレッドへの返信が作ったものだった。PR レビューの一覧には Codex 以外の投稿も入る。
 -   レビューのタイミングの設定は「PR 作成時のみ」（9）。
 
 ### 3. スレッドの著者の値（AC-03）
@@ -68,6 +69,12 @@ REST の名前は、GraphQL の名前に `[bot]` を付けた形である（Code
     -   Read: checks、commit statuses、metadata
     -   Read and write: actions、code、issues、pull requests、workflows
 -   **公式文書（2026-10-21 に確認）:** 誰の `@codex` に応えるかは書かれていない。書かれているのは、自動レビューの設定に push か admin の権限が要ることだけである（[Codex GitHub integration](https://learn.chatgpt.com/docs/third-party/github) の「Set up Codex code review」）。
+-   **他のリポジトリでの報告（二次的な根拠）:** [Student-Team-Projects/Most-Overkilled-Whiteboard-for-ArchLinux#76](https://github.com/Student-Team-Projects/Most-Overkilled-Whiteboard-for-ArchLinux/issues/76) の 2026-10-16 のコメントによる。この PR では試していない。
+    -   自動レビューは、PR を開いた人が Codex のアカウントを GitHub に接続しているときだけ走る。
+    -   Codex のアカウントを接続していない人の `@codex` には、Codex は「To use Codex here, create a Codex account and connect to github」と返信するだけで、実行しない。
+    -   接続しているメンバーが `@codex review` と書くと、そのメンバーのアカウントと割り当てで実行される。
+    -   レビュー以外の依頼（修正の依頼など）には「To use Codex here, create an environment for this repo」と返信した。
+    -   この報告の投稿者たちは、そのリポジトリへの書き込み権限を持っていたとみられる。書き込み権限のない人での試行ではない。
 -   **書き込み権限のないアカウントで動くか:** 未確認。
 
 ### 9. 設定と、自動レビューの開始の印
