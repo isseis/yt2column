@@ -250,13 +250,13 @@ func (g *GitHub) Begin(ctx context.Context, pr PRNumber, accept []Accept) (Round
 	}
 	perms := newPermissionLookups(g, repo)
 	var selected []thread
-	named := map[string]bool{}
-	seen := map[string]bool{}
+	named := map[string]struct{}{}
+	seen := map[string]struct{}{}
 	for _, t := range page.threads {
 		if t.resolved {
 			continue
 		}
-		seen[t.id] = true
+		seen[t.id] = struct{}{}
 		assessment := assessThread(ctx, authorsOf(t), !t.moreComments, g.reviewer, perms.lookup)
 		fp := fingerprint(t)
 		acc, isNamed := accepted[t.id]
@@ -265,7 +265,7 @@ func (g *GitHub) Begin(ctx context.Context, pr PRNumber, accept []Accept) (Round
 			selected = append(selected, t)
 		case isNamed && acc.Fingerprint == fp && len(t.comments) > 0:
 			selected = append(selected, t)
-			named[t.id] = true
+			named[t.id] = struct{}{}
 		default:
 			round.Untrusted = append(round.Untrusted, UntrustedThread{
 				ThreadID: t.id, URL: threadURL(t), Fingerprint: fp, Findings: assessment.Findings,
@@ -276,7 +276,7 @@ func (g *GitHub) Begin(ctx context.Context, pr PRNumber, accept []Accept) (Round
 		}
 	}
 	for _, a := range accept {
-		if !seen[a.ThreadID] {
+		if _, ok := seen[a.ThreadID]; !ok {
 			round.AcceptNotFound = append(round.AcceptNotFound, a.ThreadID)
 		}
 	}
@@ -290,7 +290,7 @@ func (g *GitHub) Begin(ctx context.Context, pr PRNumber, accept []Accept) (Round
 // addBodies fetches the selected threads with their bodies and adds each to
 // round.Threads, or to round.Changed when its comments differ from the ones
 // judged.
-func (g *GitHub) addBodies(ctx context.Context, round *Round, selected []thread, named map[string]bool) error {
+func (g *GitHub) addBodies(ctx context.Context, round *Round, selected []thread, named map[string]struct{}) error {
 	if len(selected) == 0 {
 		return nil
 	}
@@ -308,7 +308,8 @@ func (g *GitHub) addBodies(ctx context.Context, round *Round, selected []thread,
 			round.Changed = append(round.Changed, ChangedThread{ThreadID: t.id, URL: threadURL(judged), Stage: changedSinceJudgment})
 			continue
 		}
-		round.Threads = append(round.Threads, processThread(t, named[t.id], g.reviewer))
+		_, isNamed := named[t.id]
+		round.Threads = append(round.Threads, processThread(t, isNamed, g.reviewer))
 	}
 	return nil
 }

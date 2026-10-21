@@ -17,7 +17,13 @@ import (
 var restrictedConstructors = map[string]string{
 	"Login":    "ParseLogin",
 	"PRNumber": "ParsePRNumber",
+	"Baseline": "newBaseline",
 }
+
+// zeroLiteralAllowed names the restricted types whose empty literal T{} may
+// appear anywhere: its zero value fails usable(), which every method checks,
+// so only a literal that sets fields could build a usable value.
+var zeroLiteralAllowed = map[string]struct{}{"Baseline": {}}
 
 // findRestrictedConstructions reports every composite literal (T{}, &T{}),
 // new(T), and var declaration of a restricted type outside its constructor.
@@ -33,7 +39,11 @@ func findRestrictedConstructions(fset *token.FileSet, file *ast.File) []string {
 		ast.Inspect(scope, func(node ast.Node) bool {
 			switch n := node.(type) {
 			case *ast.CompositeLit:
-				if name := restrictedName(n.Type); name != "" && restrictedConstructors[name] != owner {
+				name := restrictedName(n.Type)
+				if _, zeroOK := zeroLiteralAllowed[name]; zeroOK && len(n.Elts) == 0 {
+					return true
+				}
+				if name != "" && restrictedConstructors[name] != owner {
 					report(n, name)
 				}
 			case *ast.CallExpr:
@@ -119,6 +129,10 @@ func TestRestrictedTypesBuiltByConstructors(t *testing.T) {
 		{"other_constructor", "func ParsePRNumber(s string) (Login, error) { return Login{}, nil }", 1},
 		{"method_named_like_constructor", "func (x T) ParseLogin() Login { return Login{} }", 1},
 		{"field_not_reported", "type T struct{ l Login }", 0},
+		{"baseline_constructor", "func newBaseline(h string) Baseline { return Baseline{head: h} }", 0},
+		{"baseline_with_fields", "func ParseBaseline(h string) Baseline { return Baseline{head: h} }", 1},
+		{"baseline_zero_literal", "func (w *W) Baseline() (Baseline, error) { return Baseline{}, nil }", 0},
+		{"login_zero_literal_still_reported", "func (w *W) f() Login { return Login{} }", 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			fset := token.NewFileSet()
