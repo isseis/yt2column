@@ -75,7 +75,13 @@ REST の名前は、GraphQL の名前に `[bot]` を付けた形である（Code
     -   接続しているメンバーが `@codex review` と書くと、そのメンバーのアカウントと割り当てで実行される。
     -   レビュー以外の依頼（修正の依頼など）には「To use Codex here, create an environment for this repo」と返信した。
     -   この報告の投稿者たちは、そのリポジトリへの書き込み権限を持っていたとみられる。書き込み権限のない人での試行ではない。
--   **書き込み権限のないアカウントで動くか:** 未確認。
+-   **書き込み権限のないアカウントでの試行（2026-10-21、PR #411）:** `isseis-gh`（yt2column での権限は `read`。Codex のアカウントを GitHub に接続していない）で試した。
+    -   07:56:59Z: `isseis-gh` が `@codex review` とコメントした（コメント 6311012555）。
+    -   07:57:03Z（4 秒後）: `chatgpt-codex-connector[bot]`（`Bot`）が「To use Codex here, [create a Codex account and connect to github](https://chatgpt.com/codex/cloud/settings/connectors).」と返信した（コメント 6311013571）。
+    -   その後 08:04:12Z まで 5 秒おきに取得したが、👀 のリアクション、要約コメントの更新、Codex の PR レビューは、どれもなかった。
+    -   利用者（`isseis`）が ChatGPT の使用量の画面で確かめたところ、このコメントで割り当ては消費されていなかった。
+-   **結論:** Codex のアカウントを接続していない、書き込み権限のないアカウントの `@codex` では、Codex は実行されず、利用者の割り当ても消費されない。Codex は断りのコメントを返す。Codex のアカウントを接続している外部のアカウントの `@codex` は、確かめていない。
+-   **片付け:** 試行のコメント（6311012555）の削除は、利用者が行う。
 
 ### 9. 設定と、自動レビューの開始の印
 
