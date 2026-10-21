@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-21 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-21 |
+| Reviewer | isseis |
 | Comments | 2026-10-21: 方針を「比較してから切り替えるか決める」から「切り替える」に改めた（1 節の「要件定義の際に決めたこと」の最初の項目）。比較の期間と継続の判断の要件（旧 F-005、AC-16・AC-18〜AC-21・AC-23）は削除して欠番とした |
 
 ## 1. 概要 (Overview)
