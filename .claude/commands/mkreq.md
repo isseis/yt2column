@@ -61,7 +61,9 @@ Work in the following order.
 
 3. Create the feature branch: follow `.claude/commands/_lib/task-pr-handoff.md`,
    Part A, with **TASK_DIR** = the step 2 directory,
-   **REPORT** = the step 9 report, and the task-document values of the other
+   **REPORT** = the step 9 report, **ISSUE** = the issue number from step 1
+   (the requirements document that names it does not exist yet), and the
+   task-document values of the other
    inputs. A new task's branch has sequence number `01`
    (e.g. `isseis/0027-remove-context-menu-01`). Then create the task directory
    chosen in step 2 on it.

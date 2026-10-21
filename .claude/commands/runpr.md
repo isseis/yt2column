@@ -33,14 +33,18 @@ With no argument, use the current branch.
 network operations it names: `git fetch origin main`, `git pull --ff-only`,
 `git push` (including `-u`), `gh pr view`, `gh pr list`, `gh pr checkout`,
 `gh pr checks`, `gh pr create` (standalone change only), `gh pr comment` (the
-CodeRabbit request), `gh api graphql` (review threads), `gh api user`, and, for
-the deferred findings the user moves to an issue in step 4, `gh issue list`,
-`gh issue create`, `gh issue comment`, and the thread replies and resolutions
-`fixpr.md` Phase 5 makes. It also covers what `fixpr.md` and `mergepr.md`
-authorize when run from here, and the next command (NEXT) when the user chooses
-to run it in step 4. It does **not** approve the merge itself: only the user's
-answer in step 4 does (`CLAUDE.md`, "Tool Execution Safety"). `coderabbit
-review` has standing approval.
+CodeRabbit request), `gh api graphql` (review threads), `gh api user`, the
+issue operations `_lib/task-pr-handoff.md` Part A step 4 makes to link the
+next branch (step 5), and, for the deferred findings the user moves to an
+issue in step 4, `gh issue list`, `gh issue create`, `gh issue comment`, and
+the thread replies and resolutions `fixpr.md` Phase 5 makes. After the task's
+final plan PR merges, it also approves `gh issue view`, `gh api` (listing
+sub-issues), and `gh issue close` for its `対応 issue` and that issue's link
+sub-issues (step 5). It also covers what `fixpr.md` and `mergepr.md`
+authorize when run from here, and the next command (NEXT) when the user
+chooses to run it in step 4. It does **not** approve the merge itself: only
+the user's answer in step 4 does (`CLAUDE.md`, "Tool Execution Safety").
+`coderabbit review` has standing approval.
 
 Every `fixpr.md` and `mergepr.md` run below is given the resolved PR number
 (`<number>`), never `$ARGUMENTS`, which may be a task ID or a branch.
@@ -85,9 +89,14 @@ Every `fixpr.md` and `mergepr.md` run below is given the resolved PR number
     Draft a conventional-commit title (`<type>(<scope>): <summary>`, matching
     the style of `git log origin/main`; English, since the squash commit
     subject is built from it) and a short Japanese body from the branch's
-    commits, describing the final state, not the history. Write the body to a
-    file with the Write tool. Do not pause for the user to adjust them; they can
-    edit them on GitHub, and step 4 is the one question.
+    commits, describing the final state, not the history. When the branch is
+    named for a task (the feature branch convention in `_context.md`) or
+    changes files in a task directory, the body contains `Refs #<issue>` for
+    that task's `対応 issue`, as `_lib/task-pr-handoff.md` Part B step 3 says.
+    (A branch created by hand is not linked to the issue, so the PR does not
+    appear in its Development section.) Write the body to a file with the
+    Write tool. Do not pause for the user to adjust them; they can edit them
+    on GitHub, and step 4 is the one question.
 - Check out the PR's head branch and bring it up to date before making any
   change, so `fixpr`'s and step 4's commits land on the PR's latest head:
   `gh pr checkout <number>` (even when the branch is already checked out), then
@@ -360,12 +369,26 @@ Once `mergepr.md` reports the merge:
   only then continue. When another worktree has the base branch checked out,
   the cleanup leaves the local base branch stale; do not rely on it.
 - `git fetch origin main`. When NEXT is set, create the next branch from
-  `origin/main` and name it by `_lib/task-pr-handoff.md` Part A step 4; NEXT
+  `origin/main`, naming it and linking it to the task's issue by
+  `_lib/task-pr-handoff.md` Part A step 4 (`gh issue develop`); NEXT
   (now or later) works on it (Part A step 3). Never branch from the local base
   branch or the merged branch (after a squash merge the merged branch's
   commits are not ancestors of the base). When NEXT is none, detach at
   `origin/main` (`git switch --detach origin/main`); do not check out the base
   branch, which may be checked out in another worktree.
+- When the merged PR is the task's final plan PR and its requirements name an
+  issue (`対応 issue`), close that issue. Every task PR is linked to it through
+  its branch (`_lib/task-pr-handoff.md` Part A step 4), but the repository's
+  "Auto-close issues with merged linked pull requests" setting is off so that
+  the earlier PRs leave it open; whether the squash commit's `Closes` line
+  closes it is not relied on. First close its open link sub-issues
+  (`_lib/task-pr-handoff.md`, "Choosing the issue to link": the sub-issues
+  titled `#<issue> の PR リンク (<k>)`, listed with
+  `gh api repos/{owner}/{repo}/issues/<issue>/sub_issues --paginate`). Then
+  check `gh issue view <issue> --json state`, and when it is `OPEN`, close
+  it. Close each with
+  `gh issue close <number> --reason completed --comment "<comment>"` and a
+  Japanese comment naming the merged PR.
 - If the answer in step 4 chose to run NEXT, run it now. It opens its own PR,
   pings the reviewer, and stops; this command ends there. Otherwise report the
   final status.
