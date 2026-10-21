@@ -15,7 +15,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - [Package Reference](docs/dev/developer_guide/package_reference.md) - Detailed package structure
 - [Updating the Pricing Table](docs/dev/developer_guide/pricing_update.md) - How to update the LLM rate table in `internal/pricing`
 - [mergepr Guide](docs/dev/developer_guide/mergepr_guide.md) - Setup, usage, guarantees, and troubleshooting for the `/mergepr` tool
-- [fixprguard Guide](docs/dev/developer_guide/fixprguard_guide.md) - Setup, subcommands, guarantees, scope rules, and recovery for the `fixprguard` guard tool `/fixpr` and `/runpr` call
+- [fixprguard Guide](docs/dev/developer_guide/fixprguard_guide.md) - Setup, subcommands, guarantees, scope rules, and recovery for the `fixprguard` guard tool for `/fixpr` and `/runpr`
 
 ## Documents
 

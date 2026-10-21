@@ -68,7 +68,7 @@ build:
 install-mergepr:
 	$(GOCMD) install ./cmd/mergepr
 
-# Install the fixprguard guard tool /fixpr and /runpr call into
+# Install the fixprguard guard tool for /fixpr and /runpr into
 # $(go env GOPATH)/bin. Run from an up-to-date main checkout after every merge
 # that changes the tool (docs/dev/developer_guide/fixprguard_guide.md).
 install-fixprguard:

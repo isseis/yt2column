@@ -1,6 +1,8 @@
 # fixprguard Guide
 
-`fixprguard` is a developer guard tool that `/fixpr` and `/runpr` call. It judges the authors of review threads, judges the change scope of a fix, compares the git state, commits and pushes, and posts replies and updates the PR description on GitHub, with deterministic code instead of leaving these to the session or agent reading the procedure. This guide describes the prerequisite environment, installation, the usage of each subcommand, the scope rules, what the tool guarantees and does not, and what to do when it stops.
+`fixprguard` is a developer guard tool for `/fixpr` and `/runpr`. It judges the authors of review threads, judges the change scope of a fix, compares the git state, commits and pushes, and posts replies and updates the PR description on GitHub, with deterministic code instead of leaving these to the session or agent reading the procedure. This guide describes the prerequisite environment, installation, the usage of each subcommand, the scope rules, what the tool guarantees and does not, and what to do when it stops.
+
+Until the command documents are switched to call this tool (phase 6 of task 0030), `/fixpr` and `/runpr` run their previous procedure. The descriptions in this guide of how the commands use the tool describe the behavior after the switch.
 
 The background and rationale of the design are in the architecture document of task 0030 (`docs/tasks/0030_fixpr_untrusted_threads/02_architecture.md`).
 
