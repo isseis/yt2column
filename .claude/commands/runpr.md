@@ -301,7 +301,10 @@ rather than once per decision.
      - do not merge (revising the message goes through the free-text answer).
 
    An answer that merges is the explicit approval `mergepr.md` step 3 asks for.
-   Do not merge on anything less. When the answer does not merge, run
+   Do not merge on anything less. When the free-text answer revises the
+   message, rewrite the subject and body files, check the subject again as
+   `mergepr.md` step 2 does, and ask step 4 again with the revised message.
+   When the answer otherwise does not merge, run
    `mergepr discard --state <state-file>` and stop.
 
    When the answer requests a PR review first, run

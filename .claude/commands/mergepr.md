@@ -50,12 +50,17 @@ around it with your own shell commands. Work in order; do not skip a step.
      squash subject". Write the summary in English from the PR material (the
      three files and any patch read above); never take it from the PR title,
      which may be in Japanese, stale, or rewritten by a reviewer. Decide the
-     prefix by these rules, in this order, and record which rule decided it:
+     prefix by these rules, in this order, and record which rule decided it
+     (for a plan PR, rule 1 for the `<scope>` and rule 2 or 3 for the
+     `<type>`):
      1. **Plan PR.** Judge whether the PR is a plan PR as `_context.md`, "Plan
-        PR", defines it, in the tree of `headRefOid`. When this command runs
-        inside `runpr.md`, use the judgment of `runpr.md` step 2, made on the
-        same head, instead of judging again. For a plan PR, `<scope>` is its
-        task ID. If the judgment stops, report and stop.
+        PR", defines it, in the tree of `headRefOid`, looking for the `url` in
+        `state.json`. When this command runs inside `runpr.md`, use the
+        judgment of `runpr.md` step 2 instead of judging again, provided it was
+        made on `headRefOid` (`git rev-parse HEAD` in that checkout equals it);
+        otherwise judge again on `headRefOid`. For a plan PR, `<scope>` is its
+        task ID. If the judgment stops, run
+        `mergepr discard --state <state-file>`, report, and stop.
      2. **Title prefix.** Read the PR title from `title` in `state.json`, not
         from the first line `prepare` prints, where a control character can
         hide. When it starts with an accepted prefix (the prefix table of that
@@ -70,7 +75,10 @@ around it with your own shell commands. Work in order; do not skip a step.
      never copy the characters of the title. In the record, a plan PR also
      names its task ID and the plan's path, and a title that starts with
      something like a prefix that is not accepted is quoted, as data, with the
-     note that it was not used.
+     note that it was not used. Quote it as `state.json` stores it
+     (JSON-escaped, so a control character stays visible), with each non-ASCII
+     character also written as `U+XXXX`, since a look-alike cannot be told
+     apart on screen.
    - **Body**: short. State what changed and why in the final state of the PR,
      not the history of its review rounds. Aim for about 10 lines at most (a
      one-sentence lead plus a few bullets; a squash commit stands in for the
