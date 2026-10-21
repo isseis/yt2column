@@ -52,13 +52,15 @@ show() {
 	fi
 }
 
-# repo_grep ARGS...: git grep over the tracked files outside docs/tasks/, in
-# CHECK_REV's tree or the working tree.
-repo_grep() {
+# rev_grep PATHSPEC ARGS...: git grep ARGS over PATHSPEC, outside docs/tasks/,
+# in CHECK_REV's tree, or in the working tree including untracked files.
+rev_grep() {
+	_ps=$1
+	shift
 	if [ -n "${CHECK_REV:-}" ]; then
-		git grep "$@" "$CHECK_REV" -- . ':(exclude)docs/tasks'
+		git grep "$@" "$CHECK_REV" -- "$_ps" ':(exclude)docs/tasks'
 	else
-		git grep "$@" -- . ':(exclude)docs/tasks'
+		git grep --untracked "$@" -- "$_ps" ':(exclude)docs/tasks'
 	fi
 }
 
@@ -653,21 +655,40 @@ check_mergepr_guide_items() {
 
 ALL_CHECKS="$ALL_CHECKS mergepr_guide_items"
 
-# The wordings of the old rules: an English PR title, a squash subject built
-# from the PR title, and an English or feat-only 推奨タイトル. A commit subject
-# such as mkreq.md's <concise English summary> is not among them.
-STALE='concise English title|English conventional-commit title|conventional commit titles? in English|is built from it|squash commit subject is built from|PR title already fits|stays an English|feat\(<task-id>\)'
+# The old rules (an English PR title, a squash subject built from or copied as
+# the PR title, an English or feat-only 推奨タイトル), in the wordings they had
+# and the instruction shapes a rewording would take. Matched per sentence,
+# ignoring case. A commit subject such as mkreq.md's <concise English summary>
+# is not among them.
+STALE='concise English title|English conventional[- ]commit title|conventional[- ]commit titles? in English|subject[^.]*(built|derived|made|copied|taken) from (it|the PR title)|PR title (already )?fits|stays an English|feat\(<task-id>\)|(write|keep) (the|each|a) (PR )?titles? in English|PR titles? (is|are|stays?|must be) (written )?in English|use (the PR title|it) as the (squash )?subject|推奨タイトル[^.]*English|タイトルを英語で書|タイトルは英語'
+
+# The files no_stale_rules reads: those whose text has a word every old rule
+# needs.
+STALE_HINT='english|英語|subject|件名|fits'
 
 check_no_stale_rules() {
-	found=$(repo_grep -nE "$STALE")
-	case $? in
-	0)
-		fail 'a file outside docs/tasks/ still states an old rule'
-		printf '%s\n' "$found" | sed 's/^/    /'
-		;;
-	1) ;;
-	*) fail 'git grep failed' ;;
-	esac
+	files=$(rev_grep . -ilE "$STALE_HINT")
+	[ $? -le 1 ] || {
+		fail 'git grep failed'
+		return 0
+	}
+	[ -n "$files" ] || {
+		fail 'no file to read'
+		return 0
+	}
+	for file in $files; do
+		file=${file#"${CHECK_REV:-}:"}
+		load "$file" || continue
+		_found=$(printf '%s\n' "$ctx" | sentences | command grep -iE -- "$STALE")
+		case $? in
+		0)
+			fail "$file still states an old rule"
+			printf '%s\n' "$_found" | sed 's/^/    /'
+			;;
+		1) ;;
+		*) fail 'grep failed on STALE' ;;
+		esac
+	done
 }
 
 # The number of lines in .claude/commands that create or edit a PR with a
@@ -676,16 +697,20 @@ check_no_stale_rules() {
 TITLE_LINES=3
 
 check_title_via_file() {
-	if [ -n "${CHECK_REV:-}" ]; then
-		lines=$(git grep -nE 'gh pr (create|edit).*--title' "$CHECK_REV" -- .claude/commands)
-	else
-		lines=$(git grep -nE 'gh pr (create|edit).*--title' -- .claude/commands)
-	fi
-	n=$(printf '%s\n' "$lines" | command grep -c 'gh pr')
+	lines=$(rev_grep .claude/commands -nE 'gh +pr +(create|edit).*--title')
+	[ $? -le 1 ] || {
+		fail 'git grep failed'
+		return 0
+	}
+	n=$(printf '%s\n' "$lines" | command grep -c 'gh')
 	[ "$n" -ge "$TITLE_LINES" ] || fail "expected $TITLE_LINES gh pr lines with --title, found $n"
-	bad=$(printf '%s\n' "$lines" | command grep 'gh pr' | command grep -vF -- "$TITLE_ARG")
+	# Any other way of passing a title under .claude/commands: a quoted --title
+	# not starting with the command substitution (the prose placeholder
+	# `--title "..."` aside), -t, or a title on another line. The fixed issue title of runpr.md is not a PR title.
+	bad=$(rev_grep .claude/commands -nE -- '--title[= ]+"[^$.]|--title[= ]+[^" ]|[[:space:]]-t +["$]' |
+		command grep -v 'gh issue create')
 	[ -z "$bad" ] || {
-		fail "a gh pr line passes the title other than as $TITLE_ARG"
+		fail "a title is passed other than as $TITLE_ARG"
 		printf '%s\n' "$bad" | sed 's/^/    /'
 	}
 }
