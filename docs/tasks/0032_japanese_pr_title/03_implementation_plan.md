@@ -255,7 +255,7 @@
 
 **変更するファイル**: `check_rules.sh`
 
--   [ ] 検査 `commit_subjects_unchanged` を加える。`.claude/commands/` の下のすべてのファイルを対象に、次のことを確かめる（要件書 AC-10）。
+-   [x] 検査 `commit_subjects_unchanged` を加える。`.claude/commands/` の下のすべてのファイルを対象に、次のことを確かめる（要件書 AC-10）。
     -   各コマンドが作るコミットの件名の記述が残っている。対象は、`mkreq.md`・`mkarch.md`・`mkplan.md` の `docs(NNNN): draft ...`、`fixpr.md` の `fix: address PR #NUMBER review comments`、`runpr.md` の `docs(<task-id>): record the review of PR #<number>` である。
     -   コミットのメッセージを日本語で書く指示がない。
 

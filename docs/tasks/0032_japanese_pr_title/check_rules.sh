@@ -92,6 +92,13 @@ flat() {
 	echo
 }
 
+# sentences: print stdin one sentence (or table cell) per line: flat, then split
+# after a period, question mark, or exclamation mark followed by a space, and at
+# a table cell separator or a list item.
+sentences() {
+	flat | awk '{ gsub(/[.!?] /, "&\n"); gsub(/ \| /, "\n"); gsub(/ - /, "\n"); print }'
+}
+
 # has TEXT ERE PROPERTY: fail with PROPERTY unless TEXT matches ERE.
 has() {
 	printf '%s\n' "$1" | command grep -Eq -- "$2" || fail "$3"
@@ -505,6 +512,43 @@ check_mkplan2_recommended_title() {
 }
 
 ALL_CHECKS="$ALL_CHECKS mkplan2_recommended_title"
+
+# list_files DIR: print the tracked files under DIR, in CHECK_REV's tree or
+# the index.
+list_files() {
+	if [ -n "${CHECK_REV:-}" ]; then
+		git ls-tree -r --name-only "$CHECK_REV" -- "$1"
+	else
+		git ls-files -- "$1"
+	fi
+}
+
+# has_literal FILE TEXT: fail unless FILE contains TEXT.
+has_literal() {
+	load "$1" || return 0
+	has "$ctx" "$(quote_ere "$2")" "$1 keeps the commit subject $2"
+}
+
+check_commit_subjects_unchanged() {
+	has_literal .claude/commands/mkreq.md 'docs(NNNN): draft requirements for'
+	has_literal .claude/commands/mkarch.md 'docs(NNNN): draft the architecture for'
+	has_literal .claude/commands/mkplan.md 'docs(NNNN): draft the implementation plan for'
+	has_literal .claude/commands/fixpr.md 'fix: address PR #NUMBER review comments'
+	has_literal .claude/commands/runpr.md 'docs(<task-id>): record the review of PR #<number>'
+	files=$(list_files .claude/commands)
+	[ -n "$files" ] || {
+		fail 'no files under .claude/commands'
+		return 0
+	}
+	for file in $files; do
+		load "$file" || continue
+		lacks "$(printf '%s\n' "$ctx" | sentences)" \
+			'[Cc]ommit messages?.*Japanese|Japanese.*[Cc]ommit messages?' \
+			"$file does not ask for a Japanese commit message"
+	done
+}
+
+ALL_CHECKS="$ALL_CHECKS commit_subjects_unchanged"
 
 for name in "$@"; do
 	case $name in
