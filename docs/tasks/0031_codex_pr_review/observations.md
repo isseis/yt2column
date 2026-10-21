@@ -7,6 +7,7 @@
 | PR | 内容 | 観測した依頼 |
 |---|---|---|
 | [#407](https://github.com/isseis/yt2column/pull/407) | 本タスクの要件定義書 | PR を開いたときの自動レビュー（head `292db99`）、`@codex review`（head `15458c3`） |
+| [#413](https://github.com/isseis/yt2column/pull/413) | 指摘が 0 件のときの観測のための PR（文書に空行を 1 行加えるだけ。マージせずに閉じた） | PR を開いたときの自動レビュー（head `55d3ebb`）。3 秒おきに取得して観測した |
 | [#411](https://github.com/isseis/yt2column/pull/411) | この観測の記録 | PR を開いたときの自動レビュー（head `c6406fd`）、`@codex review`（head `f7e6ef5`）。どちらも数秒おきに取得して観測した |
 
 ## AC-01 の各項目
@@ -15,7 +16,8 @@
 
 -   **指摘があるとき（2026-10-21、PR #407・#411）:** PR レビュー（`chatgpt-codex-connector[bot]`、`state: COMMENTED`）が投稿された。その `commit_id` は、レビューの対象のコミットと一致した（`292db9940bd92564e769430c76f2aea00e13a3b9`、`15458c3db21106971154b4f586b5f4be6f5774ac`、`c6406fd20a47b026754f9a5ade98629f2b473df9`、`f7e6ef57d9fb4d826a9b7062aa7642ed3b8dbd8e`）。レビューの本文には `**Reviewed commit:** \`<SHA の先頭 10 桁>\`` の行がある。
 -   **要約コメント:** PR の会話に、`<!-- codex-pull-request-review-summary -->` で始まるコメントが 1 件あり、レビューのたびに更新される（作成 06:14:44Z、更新 07:19:54Z）。その中の `<!-- codex-review-state:v1 {...} -->` に、`code_review.commit_sha`・`code_review.status`・`has_any_findings`・`has_unresolved_findings` がある（根拠: `gh api repos/isseis/yt2column/issues/407/comments`）。PR #411 の `@codex review` では、レビューの間は `status: running`・`commit_sha: f7e6ef5…`・`has_any_findings: null` で、完了すると `status: completed`・`has_any_findings: true` に変わった（9）。
--   **指摘が 0 件のとき:** 未観測。レビューの本文の説明には、指摘がなければ 👍 のリアクションだけになるとある（PR #407 のレビューの本文「About Codex in GitHub」）。公式文書には書かれていない（[Codex GitHub integration](https://learn.chatgpt.com/docs/third-party/github)、2026-10-21 に確認）。
+-   **指摘が 0 件のとき（2026-10-21、PR #413）:** PR レビューは投稿されなかった（PR レビューの一覧も、行へのコメントも 0 件）。要約コメントが `status: completed`・`commit_sha: 55d3ebbe7e6d16ec9bca0e238428d1ff2e11f2f9`（レビューの対象のコミット）・`has_any_findings: false`・`has_unresolved_findings: false` に更新され、PR に 👍 のリアクションが付いた（9）。レビューの本文の説明にも、指摘がなければ 👍 のリアクションだけになるとある（PR #407 のレビューの本文「About Codex in GitHub」）。
+-   **完了の印の候補:** 指摘の有無にかかわらず残るのは、要約コメントの `codex-review-state` である。`commit_sha` が対象のコミットで、`status` が `completed` になる。PR レビューの `commit_id` は、指摘があるときにしか残らない。公式文書には書かれていない（[Codex GitHub integration](https://learn.chatgpt.com/docs/third-party/github)、2026-10-21 に確認）。
 -   **レビューの途中の投稿:** PR に 👀 のリアクション（`chatgpt-codex-connector[bot]`）が付き、レビューの完了の後に外れた（PR #411。9）。`@codex review` のときは、依頼のコメントにも 👀 が付き、同じく完了の後に外れた。要約コメントは `status: running` に更新された（上記）。公式文書にも「Codex が 👀 でリアクションしてからレビューを投稿する」とある（同上の「Request a Codex review」）。
 
 ### 2. 依頼していない push での再レビュー
@@ -62,6 +64,7 @@ REST の名前は、GraphQL の名前に `[bot]` を付けた形である（Code
 | `@codex review`（`15458c3`） | 07:17:00Z（コメントの `created_at`） | 07:19:50Z | 約 2 分 50 秒 |
 | PR #411 を開いたとき（`c6406fd`） | 07:44:15Z（`gh pr create` の完了） | 07:46:43Z | 約 2 分 28 秒 |
 | PR #411 の `@codex review`（`f7e6ef5`） | 11:00:51Z | 11:03:45Z | 約 2 分 54 秒 |
+| PR #413 を開いたとき（`55d3ebb`、指摘 0 件） | 11:22:47Z（`gh pr create` の完了） | 11:23:57Z（要約コメントの `completed`） | 約 1 分 10 秒 |
 
 ### 8. 書き込み権限のないアカウントで Codex が動くか
 
@@ -100,9 +103,18 @@ REST の名前は、GraphQL の名前に `[bot]` を付けた形である（Code
     -   11:01:10Z: PR にも 👀 が付いた。
     -   11:03:45Z: PR レビューが投稿された。11:03:49Z に要約コメントが `status: completed` に更新された。
     -   11:03:58Z までに: 両方の 👀 が外れた。
+-   **指摘が 0 件のときの開始と完了の印（PR #413、3 秒おきに取得）:**
+    -   11:22:47Z: PR を開いた。
+    -   11:22:59Z（12 秒後）: 要約コメントが `status: running`・`commit_sha: 55d3ebb…` で作られた。
+    -   11:23:01Z（14 秒後）: PR に 👀 が付いた。
+    -   11:23:57Z（70 秒後）: 要約コメントが `status: completed`・`has_any_findings: false` に更新された。
+    -   11:24:00Z（73 秒後）: 👀 が外れ、👍 が付いた。
 -   **PR #407:** PR を開いてから 25 秒後に要約コメントが作られた。リアクションは残っていなかった（PR #411 と同じく、完了の後に外れたと考えられる）。
 
 ## AC-05 に当たる点
 
 -   **項目 8:** 当たらない。Codex のアカウントを接続していない、書き込み権限のないアカウントの `@codex` では、Codex は動かず、割り当ても消費されなかった。ゲートの判定の範囲は、この観測を受けて要件定義書で絞った（01_requirements.md の 1 節の決定、2026-10-21）。
+-   **指摘が 0 件の完了の印（AC-05 の 2 つめ）:** 当たらない。要約コメントの `codex-review-state` が、対象のコミットと `status: completed` を持つ（1）。
+-   **AC-04:** 満たした。指摘が 0 件のレビュー（PR #413）と 1 件以上のレビュー（PR #407・#411）を観測した。
+-   **開始の印（AC-05 の 5 つめ）:** 当たらない。👀 のリアクションと、要約コメントの `status: running` がある（9）。
 -   **ほかの項目:** 未判定（残りの観測が終わってから判定する）。
