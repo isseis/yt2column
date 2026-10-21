@@ -137,15 +137,21 @@ head; a record already made counts as made, never as absent.
     nothing;
   - standalone change: none.
 
-## 3. Wait for CodeRabbit and CI, running fixpr as comments appear
+## 3. Wait for CodeRabbit's first review and CI, running fixpr as comments appear
 
-Poll until CodeRabbit has **reviewed the head commit** and nothing is left to
-fix. A `SUCCESS` status alone does not mean a review ran: when CodeRabbit skips
-a review (for example "This repository does not receive automatic reviews"), it
+CodeRabbit's PR review is rationed (a fixed number per hour per developer; a
+manual request counts too), and `.coderabbit.yaml` turns the automatic
+incremental review off. The PR is reviewed there **once, when it opens**. A
+push after that is reviewed locally by `fixpr` (Phase 4.5); another PR review is
+requested only by "Escalation" below or when the user asks for it in step 4.
+
+Poll until CodeRabbit has **reviewed the PR** and nothing is left to fix. A
+`SUCCESS` status alone does not mean a review ran: when CodeRabbit skips a
+review (for example "This repository does not receive automatic reviews"), it
 still reports `SUCCESS`, with no review behind it.
 
-- **Head reviewed.** CodeRabbit has reviewed the head commit only when both
-  hold:
+- **Reviewed.** CodeRabbit has reviewed a given commit (the head, for the first
+  review or a requested one) only when both hold:
   - its status context is `SUCCESS`. Read it from the PR's status contexts, not
     from `gh pr checks`:
 
@@ -172,16 +178,22 @@ still reports `SUCCESS`, with no review behind it.
     } | grep -E "between [0-9a-f]{40} and <headRefOid>\."
     ```
 
-  Re-read `headRefOid` on every poll; a push makes the earlier result stale.
+  Re-read `headRefOid` on every poll. **LAST_REVIEWED** is the commit CodeRabbit
+  last reviewed up to: of the `<headRefOid>` commits the lines above name, the one
+  every other is an ancestor of (`git merge-base --is-ancestor`); none when no
+  line exists. After a push that nothing reviewed, LAST_REVIEWED is behind the
+  head; that is expected, not a missing review.
   Wait between polls rather than spinning.
-- **Requesting the review.** For each head commit — the one at the start of
-  this step, and each one a push (`fixpr`'s, the reviewer's) produces — poll
-  for about two minutes. If the status is not `PENDING` and the head is not
-  reviewed, ask for a review once for that head, with
-  `gh pr comment <number> --body "@coderabbitai review"`. If the head is still
-  not reviewed about fifteen minutes after the request (the status never
-  became `PENDING`, or it is `SUCCESS` with no line naming the head), stop
-  and report what CodeRabbit last posted, rather than assuming the review ran.
+- **Requesting the review.** Only the first review is requested as a matter of
+  course. On arriving at this step, poll for about two minutes. If no line names
+  any range for this PR (LAST_REVIEWED is none) and the status is not
+  `PENDING`, ask for a review once, with
+  `gh pr comment <number> --body "@coderabbitai review"`. A later request comes
+  only from "Escalation" or step 4, which make it the same way. If the commit
+  asked about is still not reviewed about fifteen minutes after a request (the
+  status never became `PENDING`, or it is `SUCCESS` with no line naming it),
+  stop and report what CodeRabbit last posted, rather than assuming the review
+  ran.
 - Fetch the unresolved review threads, following every page:
 
   ```bash
@@ -215,19 +227,33 @@ still reports `SUCCESS`, with no review behind it.
   Record the set of unresolved thread IDs each time; re-run `fixpr` when the
   set holds an ID not seen before — not merely when the count rises, since
   resolving one thread while another is added keeps the count the same.
-  `fixpr` pushes a fix, which makes a new head: wait until that head is
-  reviewed (requesting the review as above), and keep polling.
-- When the head is reviewed and no unseen thread is left, look at the
+  `fixpr` pushes a fix, which makes a new head. It reviews the fix locally
+  itself (Phase 4.5), so do not wait for a PR review of the new head; keep
+  polling for threads CodeRabbit still posts for the review already under way.
+- **Escalation.** When the PR has been reviewed and no unseen thread is left,
+  follow `.claude/commands/_lib/pr-review-escalation.md` with **PR** =
+  `<number>`, **LAST_REVIEWED** as above, **HEAD** = the current head, and
+  **FINDINGS** = the threads handled since LAST_REVIEWED. It skips itself when
+  LAST_REVIEWED is the head. Report its reason whatever it decides, then:
+  - `request`: ask for a review of the head as above, wait until that head is
+    reviewed, and handle the threads it opens with `fixpr`. Do this at most once
+    per PR on this command's own judgement; a later `request` is treated as
+    `ask`, so the budget is spent only on the first and on what the user chooses;
+  - `skip`: continue;
+  - `ask`: continue, and carry the reason into step 4 (the PR-review question).
+- When the PR is reviewed and no unseen thread is left, look at the
   unresolved threads `fixpr` reported:
   - `deferred` (past its round cap): keep them for step 4;
   - anything else — `must-fix`, `unclear`, a valid fix not applied, a thread a
     person opened — stop rather than merge, and report each one with its URL
     and why it is open, so the user can fix, re-classify, or answer it.
-  Also stop and report when CodeRabbit's state is `FAILURE` or `ERROR`.
+  Also stop and report when the CodeRabbit status of a review being waited on
+  (the first, or one requested) is `FAILURE` or `ERROR`. The status of a head
+  nothing asked CodeRabbit to review says nothing; do not read it.
 - Wait for the PR's checks on the head commit to finish:
   `gh pr checks <number> --watch --fail-fast`. If a check fails, report the
   failing check and its log URL and stop rather than merge. A fix pushed
-  afterwards starts a new review, so run this command again.
+  afterwards is reviewed locally by `fixpr`, so run this command again.
 
 ## 4. Confirm, record, and merge
 
@@ -253,6 +279,11 @@ rather than once per decision.
      `multiSelect` with one option per thread plus "fix none"; with more,
      single-select "fix all" / "fix none", and a subset by number in the
      free-text answer.
+   - **PR review** (only when LAST_REVIEWED is behind the head, so changes exist
+     that CodeRabbit has not reviewed): single-select "merge without another PR
+     review" / "request a PR review first". Show the Escalation reason in the
+     message, and mark "request a PR review first" as recommended when
+     Escalation said `ask`. This is how the user asks for a review at will.
    - **Merge**, applying when nothing is chosen to fix. Offer those of these
      that apply, and always the last:
      - record PRE_MERGE, merge, and run NEXT (recommended; only when NEXT is
@@ -269,6 +300,12 @@ rather than once per decision.
    An answer that merges is the explicit approval `mergepr.md` step 3 asks for.
    Do not merge on anything less. When the answer does not merge, run
    `mergepr discard --state <state-file>` and stop.
+
+   When the answer requests a PR review first, run
+   `mergepr discard --state <state-file>`, ask CodeRabbit to review the head as
+   step 3 says (the user's request, so it does not count against Escalation's
+   one), handle what it opens as step 3 says, and return to step 2; then ask
+   step 4 again. Do not merge on this answer.
 
    When the answer chooses deferred threads to fix now, run
    `mergepr discard --state <state-file>`, run `fixpr.md` for `<number>` with
@@ -302,10 +339,11 @@ rather than once per decision.
      already recorded.
    - Confirm that `git diff --name-only <noted headRefOid> HEAD` lists only the
      files PRE_MERGE changes; otherwise discard the preparation and stop.
-   - Wait until the new head is reviewed (step 3, "Head reviewed", requesting
-     the review as step 3 says), then fetch the unresolved threads again. If a new thread
-     appeared on the bookkeeping commit, do not merge: discard the preparation,
-     return to step 2, and ask step 4 again.
+   - Do not request a PR review of the bookkeeping commit: the check above
+     confined it to the files PRE_MERGE changes, which carry nothing the review
+     rations are for. Fetch the unresolved threads again (step 3). If a new
+     thread appeared, do not merge: discard the preparation, return to step 2,
+     and ask step 4 again.
    - Otherwise merge with the approved message files without asking again: the
      answer approved this message for exactly this head.
 4. Merge with `mergepr.md` step 4, and report as its step 5 says. If the merge

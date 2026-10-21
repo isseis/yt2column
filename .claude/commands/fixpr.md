@@ -29,9 +29,11 @@ keep this in sync if that table changes): `make fmt && make test && make lint`
 
 ## Convergence policy
 
-This loop has no natural end: a push triggers a fresh review, and a review
-returns findings whenever it is asked. Stop by policy, not by exhausting
-findings.
+This loop has no natural end: a review returns findings whenever it is asked.
+Stop by policy, not by exhausting findings. A push no longer triggers a
+CodeRabbit PR review (`.coderabbit.yaml` turns the incremental review off);
+the fix is reviewed locally in Phase 4.5, and `runpr.md` requests a further PR
+review only when `_lib/pr-review-escalation.md` says so or the user asks.
 
 - **Round**: one fixpr run on the PR. This run's round number is one more than
   the number of fixpr commits already on the branch
@@ -60,8 +62,8 @@ findings.
   command's own argument stays the PR number.
 - **Severity floor**: once every remaining finding is `no-harm` (cosmetic or
   invalid), the review has converged — stop editing and merge.
-- **Batch**: push once per round; a push per finding triggers a review per
-  finding.
+- **Batch**: push once per round, so the local review (Phase 4.5) and any later
+  PR review see one coherent change rather than one fragment per finding.
 - **Accept, don't chase**: a finding that is a mirror case of a rule already
   fixed is closed by generalizing that rule (Phase 3), not by another
   per-instance patch. If it recurs after that, the round cap handles it: from
@@ -370,6 +372,24 @@ Agent prompt:
 If `success=false`: report the actual failed step and its error output
 (distinguishing build-check failures from push failures), and stop — do not
 run Phase 5 or 6.
+
+## Phase 4.5 — Local CodeRabbit review of the fix (model: default)
+
+Skip this phase when Phase 4 made no commit (`commitSha` is empty).
+
+The fix is not seen by a CodeRabbit PR review, so review it here with the
+`coderabbit` CLI, whose allowance is separate from the PR review's. Do it
+yourself in this session, not in a subagent: it follows
+`.claude/commands/_lib/coderabbit-local-review.md` with **BASE** =
+`$(git rev-parse <commitSha>^)` (the head before the fix), **SCOPE** = "fixpr
+round", and **SUMMARY** = the Final report. The procedure commits what it fixes;
+those commits keep their own messages, not the Phase 4 subject, so the round
+count in the Convergence policy is unaffected.
+
+When the procedure made commits, run `git push` once after it ends (a failed
+push stops here like a Phase 4 push failure: report it and do not run Phase 5
+or 6). The replies in Phase 5 name Phase 4's `commitSha`; they stay accurate
+because the later commits only refine that fix.
 
 ## Phase 5 — Reply + resolve (model: haiku)
 

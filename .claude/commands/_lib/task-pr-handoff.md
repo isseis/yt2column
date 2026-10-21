@@ -115,7 +115,7 @@ Run this after the calling command's last commit, with a clean working tree.
 4. Run AFTER_CREATE, if supplied.
 5. Make sure CodeRabbit reviews the PR. Poll for about two minutes; if the
    head commit is not reviewed and CodeRabbit's status is not `PENDING`
-   (`runpr.md` step 3, "Head reviewed": a skipped review also reports
+   (`runpr.md` step 3, "Reviewed": a skipped review also reports
    `SUCCESS`), ask for a review with
    `gh pr comment <number> --body "@coderabbitai review"`. Do not wait for it
    to finish; `/runpr` does.
