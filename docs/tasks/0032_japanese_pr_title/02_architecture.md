@@ -8,7 +8,7 @@
 | Created | 2026-10-21 |
 | Review date | 2026-10-21 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-21 (editorial): 3.7 の末尾と 3.11 の表で、`mergepr_guide.md`・`mergepr_guide.ja.md` の 93 行目（承認の質問で示す項目の列挙）に接頭辞を決めた規則の記録を加えるとした。3.7 が `mergepr.md` の step 3 に加えると決めた項目を、ガイドの同じ列挙にも写すだけで、決定は変わらない（実装プランのレビューの指摘）。2.1 の図、7.5 の表、8 章の順序は、ガイドを `mergepr.md` の変更（8 章の 4）に含めるものとして、改めない |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルについての記述は、コミット `8c3a680` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指す。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-05）への対応は 3.10 にまとめる。
 
@@ -302,7 +302,7 @@ PR のタイトルは、今は `gh pr create --title "<title>"`（`_lib/task-pr-
 -   **英語のタイトルの PR:** 本タスクの前に開いた PR も同じ規則で件名を書く（AC-12）。たとえば `docs(0031): draft requirements for ...` のタイトルでは、接頭辞 `docs(0031): ` を使い、要約は PR の材料から書く。
 -   **本文（AC-14）:** 英語で書く規則（`mergepr.md:48`）と、本文の長さ・記録の規則（`mergepr.md:53-82`）は変えない。
 
-`docs/dev/developer_guide/mergepr_guide.md` と `mergepr_guide.ja.md` は、PR のタイトルを件名に使うとは述べていない（`8c3a680` で確かめた。`title` の出現は `state.json` の説明だけ）ので変えない。
+`docs/dev/developer_guide/mergepr_guide.md` と `mergepr_guide.ja.md` は、PR のタイトルを件名に使うとは述べていない（`8c3a680` で確かめた。`title` の出現は `state.json` の説明だけ）。ただし、両方の 93 行目は承認の質問で示す項目（PR の URL、base ブランチ、CI の結果、件名と本文）を列挙しているので、この列挙に接頭辞を決めた規則の記録を加える。
 
 ### 3.8. 変えずに残す、コミットの件名に依存する箇所
 
@@ -353,6 +353,7 @@ AC-16 が挙げる 4 か所を、次のように改める。
 | `.claude/commands/fixpr.md` | Phase 6 のプロンプトでタイトルの規約の節を名指しして読ませ、書き直すタイトルを PR のタイトルの形の日本語にし、ファイルから渡す | AC-09・AC-10 |
 | `.claude/commands/mergepr.md` | step 2 の件名の規則を 3.7 の規則に置き換える。step 3 で見せる項目に、接頭辞を決めた規則を加える。step 2・step 5 のプランの PR の言い回しを、プランの PR の判定の参照にそろえる | AC-11〜AC-14 |
 | `.claude/commands/mkplan2.md` | PR マーカーの書式・欄の説明・チェックリストの `推奨タイトル` を改める | AC-16 |
+| `docs/dev/developer_guide/mergepr_guide.md`・`mergepr_guide.ja.md` | 93 行目の、承認の質問で示す項目の列挙に、接頭辞を決めた規則の記録を加える（3.7） | AC-12 |
 | `docs/translation_glossary.md` | 「接頭辞 (prefix)」「受け付ける接頭辞 (accepted prefix)」「要約 (summary)」「プランの PR (plan PR)」を加え、「材料」に必要なときに読む diff を含めると改める。コマンドの定義で使う英語の語と、文書の日本語の語を対応させるためである | （要件書 §6 の用語） |
 
 変えるテストはない（1.4）。

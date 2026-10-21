@@ -33,8 +33,9 @@ command to run (`runpr.md` steps 2 and 4).
 - **LOCAL_REVIEW** — `run` for a task-document command; `done` for
   `runplan.md`, which reviews each phase group locally (its step 7.7).
 - **PR_TEXT** — the PR title and what the body must name: for a task-document
-  command, the title of the commit that added the document; for `runplan.md`,
-  the PR marker's `推奨タイトル` and its `レビュー観点`.
+  command, the "Task-document PR title" of `_context.md`, "PR title and squash
+  subject"; for `runplan.md`, the title its step 5a writes from the PR marker's
+  `推奨タイトル`, and the marker's `レビュー観点`.
 - **ISSUE** (`mkreq.md` only) — the task's issue number. Every other caller
   leaves it out, and Part A reads it from the `対応 issue` line of TASK_DIR's
   `01_requirements.md` on `origin/main`
@@ -162,11 +163,12 @@ Run this after the calling command's last commit, with a clean working tree.
 3. Push and create the PR for the current branch. Ignore the calling command's
    `$ARGUMENTS` here (it is a task or an issue, not a PR or a branch): run
    `git push -u origin <current-branch>` and
-   `gh pr create --base main --head <current-branch> --title "<title>" --body-file <file>`,
-   writing the body with the Write tool. Do not pause for the user to adjust the
-   title or body; the reviewer can edit them on GitHub. The title is PR_TEXT's,
-   in English (the squash commit subject is built from it). The body is in
-   Japanese (`CLAUDE.md`, "Language"):
+   `gh pr create --base main --head <current-branch> --title "$(cat "<title-file>")" --body-file <file>`,
+   writing the title and the body to files in the scratchpad with the Write tool
+   (`_context.md`, "Passing a title to `gh`"). Do not pause for the user to
+   adjust the title or body; the reviewer can edit them on GitHub. The title is
+   PR_TEXT's and follows `_context.md`, "PR title and squash subject". The body
+   is in Japanese (`CLAUDE.md`, "Language"):
    - summarizes the change;
    - lists the decisions made with the reviewer during this run, if any;
    - names the points the reviewer should check (for `runplan.md`, the

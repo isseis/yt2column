@@ -83,20 +83,23 @@ Every `fixpr.md` and `mergepr.md` run below is given the resolved PR number
 
     ```bash
     git push -u origin <target-branch>
-    gh pr create --base main --head <target-branch> --title "<title>" --body-file <body-file>
+    gh pr create --base main --head <target-branch> --title "$(cat "<title-file>")" --body-file <body-file>
     ```
 
-    Draft a conventional-commit title (`<type>(<scope>): <summary>`, matching
-    the style of `git log origin/main`; English, since the squash commit
-    subject is built from it) and a short Japanese body from the branch's
-    commits, describing the final state, not the history. When the branch is
-    named for a task (the feature branch convention in `_context.md`) or
-    changes files in a task directory, the body contains `Refs #<issue>` for
-    that task's `対応 issue`, as `_lib/task-pr-handoff.md` Part B step 3 says.
-    (A branch created by hand is not linked to the issue, so the PR does not
-    appear in its Development section.) Write the body to a file with the
-    Write tool. Do not pause for the user to adjust them; they can edit them
-    on GitHub, and step 4 is the one question.
+    Draft a PR title in the form that `_context.md`, "PR title and squash
+    subject", gives: an accepted prefix with a `<scope>`, its
+    `<type>(<scope>)` in the style of the scoped subjects in
+    `git log origin/main`, then a Japanese summary. Also draft a short Japanese
+    body from the branch's commits, describing the final state, not the
+    history. When the branch is named for a task (the feature branch
+    convention in `_context.md`) or changes files in a task directory, the
+    body contains `Refs #<issue>` for that task's `対応 issue`, as
+    `_lib/task-pr-handoff.md` Part B step 3 says. (A branch created by hand is
+    not linked to the issue, so the PR does not appear in its Development
+    section.) Write the title and the body to files in the scratchpad with the
+    Write tool (`_context.md`, "Passing a title to `gh`"). Do not pause for the
+    user to adjust them; they can edit them on GitHub, and step 4 is the one
+    question.
 - Check out the PR's head branch and bring it up to date before making any
   change, so `fixpr`'s and step 4's commits land on the PR's latest head:
   `gh pr checkout <number>` (even when the branch is already checked out), then
@@ -111,10 +114,11 @@ guesses about the change. Run this step again whenever step 3 or 4 changes the
 head; a record already made counts as made, never as absent.
 
 - **Kind.**
-  - **Plan PR** — a task's `03_implementation_plan.md` has this PR's URL on a
-    `PR を作成した` line (`runplan.md` writes it, at a PR checkpoint or, for a
-    plan without PR markers, in its single-PR record). It is the task's
-    **final PR** when no `### PR-N 作成ポイント` marker after it is unchecked.
+  - **Plan PR** — a plan PR as `_context.md`, "Plan PR", defines it, judged
+    on the checkout step 1 brought up to date (in step 1's `MERGED` case, on
+    `origin/main`). That definition also says when
+    it is the task's **final PR**, and when to stop and report instead of
+    deciding.
   - **Task-document PR** — not a plan PR, and the PR adds or changes a task
     document (`01_requirements.md`, `02_architecture.md`,
     `03_implementation_plan.md`), whatever its status.
@@ -278,8 +282,8 @@ rather than once per decision.
    without one gets no such line.
 2. Ask with one `AskUserQuestion` call. In your message, show what
    `mergepr.md` step 3 requires (PR URL, base branch, CI result, the full
-   subject and body, and the version without the approval line when it
-   applies), the PRE_MERGE change (which lines of which files, and for an
+   subject and body, the record of which rule decided the subject's prefix,
+   and the version without the approval line when it applies), the PRE_MERGE change (which lines of which files, and for an
    approval the reviewer name and date it writes), the `deferred` threads (each
    with its number, topic, what fixing it would change, and its URL), and NEXT
    (for `/runplan`, the next PR marker's `実装モデル要件`, so the user can decide
@@ -307,7 +311,10 @@ rather than once per decision.
      - do not merge (revising the message goes through the free-text answer).
 
    An answer that merges is the explicit approval `mergepr.md` step 3 asks for.
-   Do not merge on anything less. When the answer does not merge, run
+   Do not merge on anything less. When the free-text answer revises the
+   message, rewrite the subject and body files, check the subject again as
+   `mergepr.md` step 2 does, and ask step 4 again with the revised message.
+   When the answer otherwise does not merge, run
    `mergepr discard --state <state-file>` and stop.
 
    When the answer requests a PR review first, run

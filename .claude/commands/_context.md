@@ -59,8 +59,104 @@ PR boundary markers embedded in the implementation plan use these labels:
 
 - Section heading: `### PR-N 作成ポイント: <scope label in English>`
 - Fields: `**対象ステップ**`, `**推奨タイトル**`, `**レビュー観点**`, `**実装モデル要件**`, `**判定理由**`
-- Conventional commit scope format: `feat(<task-id>): <concise English title>`
+- `**推奨タイトル**`: the source `runplan.md` step 5a writes the PR title from. It is a PR title, not a squash subject (`mergepr.md` writes that at the merge); its form is in "PR title and squash subject" below
 - Implementation model tiers (`**実装モデル要件**` values): `frontier-required`, `frontier-recommended`, `standard` — assigned by `mkplan2.md` (step 4, "Model requirement"; `mkplan.md` runs it as its step 8.5), read by `runplan.md` when choosing the implementing model and shown in the merge question when `/runpr` offers the next `/runplan`
+
+### PR title and squash subject
+
+A PR title is written in Japanese, like everything else on GitHub
+(`CLAUDE.md`, "Language"). The squash commit is the only commit of a PR that
+reaches `main`, so its subject stays in English; `mergepr.md` step 2 writes it
+from the PR material and reads only the prefix from the PR title. This section
+is the one place that defines these forms: the commands refer to it by name
+instead of restating them. The one exception is the PR marker template that
+`mkplan2.md` inserts into a plan, which spells out the `推奨タイトル` form.
+
+| Item | Form |
+|---|---|
+| PR title | `<type>(<scope>): <Japanese summary>`: an accepted prefix that has a `<scope>`, followed by a summary in Japanese. A PR title a command writes never uses the scope-less `<type>: ` form; that form exists only among accepted prefixes and squash subjects. The summary may contain command names, file names, and identifiers spelled as they are, without backquotes (see "Passing a title to `gh`") |
+| Accepted prefix | The prefix table below |
+| Task-document PR title | `docs(<task-id>): <Japanese summary>`, where the summary says what the documents the PR adds or changes contain. `mkreq.md`, `mkarch.md`, `mkplan.md`, and `mkplan2.md` use it through `_lib/task-pr-handoff.md` (PR_TEXT) |
+| Plan PR title | The prefix is the `推奨タイトル`'s own when that value starts with an accepted prefix that has a `<scope>`, and `<type>(<task-id>): ` otherwise; the summary is in Japanese. `runplan.md` step 5a (with a PR marker) and step 8 (without one) give the procedure |
+| `推奨タイトル` | The source `runplan.md` step 5a writes the PR title from: a PR title, not a squash subject. A value written now has the form `<type>(<task-id>): <Japanese summary>`, with `<type>` from the prefix table. A value an older plan wrote in another form stays valid input for `runplan.md` step 5a, which never rewrites the plan |
+| Squash subject | `<type>(<scope>): <English summary> (#<number>)` or `<type>: <English summary> (#<number>)`, made only of printable ASCII characters. `mergepr.md` step 2 decides it and checks it as "Checking a squash subject" says |
+
+The accepted prefix:
+
+| Part | Accepted value |
+|---|---|
+| Whole | `<type>(<scope>): ` or `<type>: `, all ASCII, with exactly one ASCII space (U+0020) right after the `:` |
+| `<type>` | `feat`, `fix`, `docs`, `refactor`, `test`, `perf`, `build`, `ci`, `chore`, `style`, `revert` |
+| `<scope>` | One or more ASCII lowercase letters, digits, and `-` |
+| Anything else | Not accepted. Do not repair it; treat the title as having no prefix. Examples: a `!` after the type or the scope; an uppercase letter or a Japanese character; no space after the `:`, or two or more; empty parentheses; a full-width `：`, `（`, `）`, digit, or letter; a full-width space (U+3000) or a no-break space (U+00A0) after the `:`; a non-ASCII look-alike such as the Cyrillic `е`, `‐`, or `−` |
+
+To add a `<type>`, change the `<type>` row above and the expression in
+"Checking a squash subject" together.
+
+#### Passing a title to `gh`
+
+`gh pr create` and `gh pr edit` have no flag that reads a title from a file.
+Write the title with the Write tool to a file in the scratchpad (outside the
+tracked tree), and pass it by command substitution:
+`--title "$(cat "<title-file>")"`. The substituted text is not expanded again
+inside the double quotes, so a `$`, a backquote, a `"`, or a `\` in the title
+reaches GitHub as written instead of being expanded by the shell (which could
+publish an environment variable's value as the title). Never write the title
+text itself inside `--title "..."`.
+
+Separately, a PR title and a `推奨タイトル` never contain backquotes: a
+`推奨タイトル` sits inside a backquoted code span in the PR marker, which a
+backquote would break.
+
+#### Checking a squash subject
+
+After writing the subject file and before the approval question, `mergepr.md`
+step 2 runs the commands below on it. They pass only when the file holds
+exactly one line (one line ending in a newline, or one line without one: no
+second line), when every byte is a newline or printable ASCII (a CR, a tab, a
+byte-order mark, or any other byte makes them fail), and when the line matches
+the expression below in the C locale. `command grep` bypasses a shell function
+named `grep`, which may run a different grep. Set `R` to the expression, in
+single quotes, and `f` to the subject file:
+
+```bash
+R='<the squash subject regular expression>'
+f='<subject-file>'
+[ "$(awk 'END { print NR }' "$f")" = 1 ] &&
+	[ "$(LC_ALL=C tr -d '\n -~' <"$f" | wc -c)" -eq 0 ] &&
+	LC_ALL=C command grep -Eqx -- "$R" "$f"
+```
+
+Squash subject regular expression:
+
+```
+(feat|fix|docs|refactor|test|perf|build|ci|chore|style|revert)(\([a-z0-9-]+\))?: [!-~]([ -~]*[!-~])? \(#[0-9]+\)
+```
+
+### Plan PR
+
+A PR is a **plan PR** when, in the tree of the PR's head, a task's
+`03_implementation_plan.md` has the PR's URL on a `PR を作成した` line
+(`runplan.md` writes it, at a PR checkpoint or, for a plan without PR markers,
+in its single-PR record). Its task ID is the number of the task directory that
+holds that plan. It is the task's **final PR** when no `### PR-N 作成ポイント`
+marker after that line is unchecked. `runpr.md` step 2 and `mergepr.md` step 2
+use this definition.
+
+- **Tree.** `runpr.md` reads its checkout of the PR's head branch, which its
+  step 1 brought up to date (for a PR its step 1 finds merged, whose head
+  branch is gone, `origin/main`). `mergepr.md` reads the tree of the `headRefOid`
+  that `prepare` recorded, the commit `merge` is pinned to with
+  `--match-head-commit`, so the tree judged is the tree merged.
+- **Match.** Count only a line where the whole URL matches: looking for
+  `.../pull/41` does not count a line with `.../pull/410`. For example,
+  `git grep -nE 'PR を作成した.*https://github\.com/<owner>/<repo>/pull/41([^0-9]|$)' <rev> -- 'docs/tasks/*/03_implementation_plan.md'`.
+- **No match**: not a plan PR.
+- **Stop**, report, and do not guess when the matching lines are in the plans
+  of two or more tasks.
+- **Stop**, report, and do not guess when the tree cannot be read (a `git`
+  failure, which is not the same as no match: `git grep` exits 1 for no match
+  and above 1 for a failure).
 
 ---
 

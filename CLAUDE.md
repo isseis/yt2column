@@ -15,6 +15,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - [Package Reference](docs/dev/developer_guide/package_reference.md) - Detailed package structure
 - [Updating the Pricing Table](docs/dev/developer_guide/pricing_update.md) - How to update the LLM rate table in `internal/pricing`
 - [mergepr Guide](docs/dev/developer_guide/mergepr_guide.md) - Setup, usage, guarantees, and troubleshooting for the `/mergepr` tool
+- [fixprguard Guide](docs/dev/developer_guide/fixprguard_guide.md) - Setup, subcommands, guarantees, scope rules, and recovery for the `fixprguard` guard tool for `/fixpr` and `/runpr`
 
 ## Documents
 
@@ -42,14 +43,17 @@ structural consistency) and the glossary workflow live in
 - **Conversation in a Claude Code session: Japanese.** This includes the
   explanation of test results, tool output, and review findings.
 - **What stays in the git repository: English** — source code, comments,
-  identifiers, string literals, and commit messages (including squash commit
-  messages). Documents under `docs/` follow "Documents" above.
+  identifiers, string literals, and commit messages. A squash commit's subject
+  and body are English too: `/mergepr` writes the subject from the PR material
+  (`.claude/commands/mergepr.md` step 2), not by copying the PR title.
+  Documents under `docs/` follow "Documents" above.
 - **Prompts to AI: English** — subagent prompts, review prompts, and the
   command definitions under `.claude/commands/`.
-- **What lives on GitHub: Japanese** — PR descriptions, issues, review replies,
-  and PR comments. The exceptions are the PR title, which stays an English
-  conventional-commit title because the squash commit subject is built from it,
-  and bot commands such as `@coderabbitai review`.
+- **What lives on GitHub: Japanese** — PR titles, PR descriptions, issues,
+  review replies, and PR comments. A PR title keeps its conventional-commit
+  prefix in ASCII and writes the summary after it in Japanese; the forms are in
+  `.claude/commands/_context.md`, "PR title and squash subject". The exception
+  is bot commands such as `@coderabbitai review`.
 
 ## Commands
 
@@ -59,6 +63,7 @@ structural consistency) and the glossary workflow live in
 - `make clean` - Clean build artifacts
 - `make all` - Default build target
 - `make install-mergepr` - Install the `/mergepr` developer tool (`go install ./cmd/mergepr`)
+- `make install-fixprguard` - Install the `fixprguard` guard tool (`go install ./cmd/fixprguard`); rerun it after a merge that changes the tool
 
 ### Test Commands
 - `make test` - Run all tests with race detection

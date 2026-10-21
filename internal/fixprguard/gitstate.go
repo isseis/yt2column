@@ -241,7 +241,7 @@ func openRegular(name string, follow bool) (*os.File, error) {
 	if !follow {
 		flags |= syscall.O_NOFOLLOW
 	}
-	f, err := os.OpenFile(name, flags, 0) //nolint:gosec // a file of the current work tree or its git directory
+	f, err := os.OpenFile(name, flags, 0) //nolint:gosec // a file of the work tree, its git directory, or a text file the caller names for posting
 	if err != nil {
 		return nil, err
 	}
@@ -252,6 +252,12 @@ func openRegular(name string, follow bool) (*os.File, error) {
 	}
 	return f, nil
 }
+
+// OpenRegularFile opens name for reading only if it is a regular file and its
+// last element is not a symbolic link. The type is checked on the opened
+// file, and the open does not block, so a FIFO is refused instead of waited
+// on.
+func OpenRegularFile(name string) (*os.File, error) { return openRegular(name, false) }
 
 // readSmallFile reads a regular file of at most maxGitFileBytes.
 func readSmallFile(name string) (string, error) {
