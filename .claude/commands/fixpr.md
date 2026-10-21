@@ -622,21 +622,24 @@ Agent prompt:
 > 3. Only if the description is significantly stale (approach changed, scope
 >    shifted) AND you have drafted a concrete final title and body from the
 >    actual PR content, reply with only this JSON:
->    `{"stale": true, "title": "...", "body": "..."}`. Keep the title an
->    English conventional-commit title on one line, and write the body in
->    Japanese (the project's language rule for GitHub). Never return
->    placeholder text. Otherwise reply with only `{"stale": false}`, so the
->    real PR description is preserved.
+>    `{"stale": true, "title": "...", "body": "..."}`. For the title, first
+>    read the section "PR title and squash subject" of
+>    `.claude/commands/_context.md`, and write the new title in its PR title
+>    form, on one line. Write the body in Japanese (the project's language rule
+>    for GitHub). Never return placeholder text. Otherwise reply with only
+>    `{"stale": false}`, so the real PR description is preserved.
 
 When the reply is `{"stale": true, ...}`, write its `title` and `body` to two
-files outside the work tree (the title file holds the title alone, with no
-trailing newline, which the tool rejects as a control character) and run:
+files outside the work tree with the Write tool (the title file holds the title
+alone, with no trailing newline, which the tool rejects as a control
+character) and run:
 
 ```
 fixprguard edit-pr --protocol 1 --title-file <title-file> --body-file <body-file> <number>
 ```
 
-The tool passes the title and body to `gh` without a shell. Report a stop.
+The tool passes the title and body to `gh` without a shell, reading the title
+from its file as `_context.md`, "Passing a title to `gh`", asks. Report a stop.
 
 ---
 

@@ -43,14 +43,17 @@ structural consistency) and the glossary workflow live in
 - **Conversation in a Claude Code session: Japanese.** This includes the
   explanation of test results, tool output, and review findings.
 - **What stays in the git repository: English** — source code, comments,
-  identifiers, string literals, and commit messages (including squash commit
-  messages). Documents under `docs/` follow "Documents" above.
+  identifiers, string literals, and commit messages. A squash commit's subject
+  and body are English too: `/mergepr` writes the subject from the PR material
+  (`.claude/commands/mergepr.md` step 2), not by copying the PR title.
+  Documents under `docs/` follow "Documents" above.
 - **Prompts to AI: English** — subagent prompts, review prompts, and the
   command definitions under `.claude/commands/`.
-- **What lives on GitHub: Japanese** — PR descriptions, issues, review replies,
-  and PR comments. The exceptions are the PR title, which stays an English
-  conventional-commit title because the squash commit subject is built from it,
-  and bot commands such as `@coderabbitai review`.
+- **What lives on GitHub: Japanese** — PR titles, PR descriptions, issues,
+  review replies, and PR comments. A PR title keeps its conventional-commit
+  prefix in ASCII and writes the summary after it in Japanese; the forms are in
+  `.claude/commands/_context.md`, "PR title and squash subject". The exception
+  is bot commands such as `@coderabbitai review`.
 
 ## Commands
 

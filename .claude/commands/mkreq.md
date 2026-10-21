@@ -25,7 +25,7 @@ merge.
 
 **Authorization.** Invoking this command approves, for this issue and this PR
 only, `gh issue view` (also for the issues the issue references),
-`gh pr list` for the duplicate search, and the
+`gh repo view`, `gh pr list` for the duplicate search, and the
 network operations `_lib/task-pr-handoff.md` names ("Authorization"). Nothing
 else that touches the network runs without asking.
 
@@ -34,8 +34,10 @@ Work in the following order.
 1. Check the starting state.
    - Read the issue:
      `gh issue view <issue> --json number,title,body,state,url,comments`.
-     If it is closed, stop and report. From here on, use the `number` it
-     returns (`N`) wherever the issue is named — searches, commits, the PR
+     If it is closed, stop and report. If its `url` is not under this
+     repository's (`gh repo view --json url`), another repository's issue URL
+     was given: stop and report rather than using its number. From here on,
+     use the `number` it returns (`N`) wherever the issue is named — searches, commits, the PR
      body — never the raw argument, which may be `#330` or a URL.
    - `git fetch origin`. Search for a requirements document that already names
      issue `N` as its own (`対応 issue: [#N]`) on `origin/main`, on every
@@ -61,7 +63,9 @@ Work in the following order.
 
 3. Create the feature branch: follow `.claude/commands/_lib/task-pr-handoff.md`,
    Part A, with **TASK_DIR** = the step 2 directory,
-   **REPORT** = the step 9 report, and the task-document values of the other
+   **REPORT** = the step 9 report, **ISSUE** = the issue number from step 1
+   (the requirements document that names it does not exist yet), and the
+   task-document values of the other
    inputs. A new task's branch has sequence number `01`
    (e.g. `isseis/0027-remove-context-menu-01`). Then create the task directory
    chosen in step 2 on it.
