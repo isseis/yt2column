@@ -5,6 +5,7 @@ package cmdrunnertestutil
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -18,18 +19,20 @@ func (r *recorder) Fatalf(format string, args ...any) {
 	panic(r)
 }
 
-func failsWith(f func(*recorder)) (failed bool) {
+// failure runs f and returns the message of the Fatalf it triggered, or "" when
+// none did.
+func failure(f func(*recorder)) (msg string) {
 	r := &recorder{}
 	defer func() {
 		if p := recover(); p != nil {
 			if p != any(r) {
 				panic(p)
 			}
-			failed = true
+			msg = r.failed
 		}
 	}()
 	f(r)
-	return r.failed != ""
+	return ""
 }
 
 func TestFakeReplaysInOrder(t *testing.T) {
@@ -51,26 +54,28 @@ func TestFakeFailsOnMisuse(t *testing.T) {
 	tests := []struct {
 		name string
 		do   func(r *recorder)
+		want string
 	}{
 		{"wrong order", func(r *recorder) {
 			New(r, Step{Name: "a"}, Step{Name: "b"}).Run(t.Context(), "b")
-		}},
+		}, "want a"},
 		{"wrong args", func(r *recorder) {
 			New(r, Step{Name: "a", Args: []string{"x"}}).Run(t.Context(), "a", "y")
-		}},
+		}, "want a"},
 		{"extra call", func(r *recorder) {
 			f := New(r, Step{Name: "a"})
 			f.Run(t.Context(), "a")
 			f.Run(t.Context(), "a")
-		}},
+		}, "unexpected call"},
 		{"missing call", func(r *recorder) {
 			New(r, Step{Name: "a"}).Done()
-		}},
+		}, "ran 0 of 1"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if !failsWith(tt.do) {
-				t.Error("fake did not fail the test")
+			// The wording distinguishes which check fired, so it is asserted.
+			if msg := failure(tt.do); !strings.Contains(msg, tt.want) {
+				t.Errorf("failure = %q, want it to contain %q", msg, tt.want)
 			}
 		})
 	}
@@ -87,8 +92,8 @@ func TestFakeEffectAndError(t *testing.T) {
 	if out, err := f.Run(t.Context(), "a"); err != nil || string(out) != "ok" || !ran {
 		t.Errorf("effect step = %q, %v, ran=%v", out, err, ran)
 	}
-	if _, err := f.Run(t.Context(), "b"); !errors.Is(err, boom) {
-		t.Errorf("error step = %v, want boom", err)
+	if out, err := f.Run(t.Context(), "b"); !errors.Is(err, boom) || out != nil {
+		t.Errorf("error step = %q, %v; want nil output and boom", out, err)
 	}
 	if _, err := f.Run(t.Context(), "c"); !errors.Is(err, boom) {
 		t.Errorf("effect error = %v, want boom", err)

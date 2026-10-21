@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -35,7 +36,7 @@ func TestMaxOutputBoundary(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			out, err := run(t, Options{MaxOutput: limit}, nil, tt.script)
-			if !errorsIs(err, tt.wantErr) {
+			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("error = %v, want %v", err, tt.wantErr)
 			}
 			if tt.wantErr != nil && out != nil {
@@ -62,7 +63,7 @@ func TestMaxOutputIsCumulativeAcrossWrites(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := run(t, Options{MaxOutput: 16}, nil, tt.script)
-			if !errorsIs(err, tt.wantErr) {
+			if !errors.Is(err, tt.wantErr) {
 				t.Errorf("error = %v, want %v", err, tt.wantErr)
 			}
 		})
@@ -76,7 +77,7 @@ func TestCancelWithDescendantReturnsAndWrapsContextError(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 	defer cancel()
 	start := time.Now()
-	args := sh("sleep 3 & wait")
+	args := sh("sleep 10 & wait")
 	_, err := NewOS(Options{WaitDelay: 100 * time.Millisecond}).Run(ctx, args[0], args[1:]...)
 	if elapsed := time.Since(start); elapsed > 2*time.Second {
 		t.Errorf("Run took %v, want it bounded by the deadline and WaitDelay", elapsed)
@@ -98,21 +99,16 @@ func TestZeroMaxOutputIsUnbounded(t *testing.T) {
 }
 
 func TestOverflowIsDrained(t *testing.T) {
-	// The output is far larger than a pipe buffer: a runner that stopped
-	// reading after the cap would leave the child blocked, and the test would
-	// run into its timeout instead of failing with ErrOutputTooLarge.
-	done := make(chan error, 1)
-	go func() {
-		_, err := run(t, Options{MaxOutput: 8}, nil, "head -c 4194304 /dev/zero")
-		done <- err
-	}()
-	select {
-	case err := <-done:
-		if !errorsIs(err, ErrOutputTooLarge) {
-			t.Errorf("error = %v, want ErrOutputTooLarge", err)
-		}
-	case <-time.After(30 * time.Second):
-		t.Fatal("runner blocked after the cap")
+	// The output is far larger than a pipe buffer. If the runner stopped
+	// reading after the cap, dd would die of SIGPIPE and never write the
+	// marker; draining lets it finish.
+	marker := filepath.Join(t.TempDir(), "finished")
+	_, err := run(t, Options{MaxOutput: 8}, nil, "dd if=/dev/zero bs=1048576 count=4 2>/dev/null && echo ok > "+marker)
+	if !errors.Is(err, ErrOutputTooLarge) {
+		t.Errorf("error = %v, want ErrOutputTooLarge", err)
+	}
+	if _, statErr := os.Stat(marker); statErr != nil {
+		t.Errorf("the child did not run to completion: %v", statErr)
 	}
 }
 
@@ -120,11 +116,11 @@ func TestWaitDelayBoundsInheritedPipe(t *testing.T) {
 	// The shell exits at once but its background child keeps the output pipe
 	// open for a few seconds; WaitDelay must end the wait first.
 	start := time.Now()
-	_, err := run(t, Options{WaitDelay: 100 * time.Millisecond}, nil, "sleep 3 & echo done")
+	_, err := run(t, Options{WaitDelay: 100 * time.Millisecond}, nil, "sleep 10 & echo done")
 	if elapsed := time.Since(start); elapsed > 2*time.Second {
 		t.Errorf("Run took %v, want it bounded by WaitDelay", elapsed)
 	}
-	if !errorsIs(err, exec.ErrWaitDelay) {
+	if !errors.Is(err, exec.ErrWaitDelay) {
 		t.Errorf("error = %v, want exec.ErrWaitDelay", err)
 	}
 }
@@ -141,7 +137,7 @@ func TestStdinIsPassed(t *testing.T) {
 
 func TestExitErrorIsTyped(t *testing.T) {
 	_, err := run(t, Options{}, nil, "printf out; printf boom >&2; exit 3")
-	exitErr, ok := errorsAsExit(err)
+	exitErr, ok := errors.AsType[*ExitError](err)
 	if !ok {
 		t.Fatalf("error = %v, want *ExitError", err)
 	}
@@ -164,7 +160,10 @@ func TestStartFailureIsNotExitError(t *testing.T) {
 	if err == nil {
 		t.Fatal("error = nil, want a failure")
 	}
-	if _, ok := errorsAsExit(err); ok {
+	if !errors.Is(err, exec.ErrNotFound) {
+		t.Errorf("error = %v, want exec.ErrNotFound", err)
+	}
+	if _, ok := errors.AsType[*ExitError](err); ok {
 		t.Errorf("error = %v, want a non-ExitError start failure", err)
 	}
 }
@@ -194,12 +193,3 @@ func TestDirAndEnv(t *testing.T) {
 		t.Errorf("HOME = %q, want the environment replaced, not extended", parts[2])
 	}
 }
-
-func errorsIs(err, target error) bool {
-	if target == nil {
-		return err == nil
-	}
-	return errors.Is(err, target)
-}
-
-func errorsAsExit(err error) (*ExitError, bool) { return errors.AsType[*ExitError](err) }
