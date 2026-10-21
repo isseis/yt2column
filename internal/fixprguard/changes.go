@@ -115,9 +115,11 @@ type rawEntry struct {
 // against (a tree OID read from the commit object, so neither replace refs
 // nor the commit-graph can substitute another): tracked changes (index and
 // work tree together) with rename detection off, so a rename is a deletion
-// and an addition, plus untracked files git does not ignore. Each path is
-// examined with lstat; only a regular file is opened. It changes nothing in
-// the index.
+// and an addition, plus untracked files git does not ignore. A path whose
+// index entry differs from against while its work tree copy does not (staged,
+// then restored) is a ChangeOther with no digest: the work tree diff cannot
+// see it, yet a commit would hold it. Each path is examined with lstat; only
+// a regular file is opened. It changes nothing in the index.
 func (w *Worktree) enumerateChanges(ctx context.Context, against string) ([]change, error) {
 	diffArgs := []string{"--no-renames", "--no-ext-diff", "--no-textconv", "--ignore-submodules=none", "-z", against, "--"}
 	rawOut, err := w.git(ctx, "diff --raw", append([]string{"diff", "--raw"}, diffArgs...)...)
@@ -144,10 +146,20 @@ func (w *Worktree) enumerateChanges(ctx context.Context, against string) ([]chan
 		return nil, err
 	}
 	untracked := splitNUL(untrackedOut)
-	if len(raw)+len(untracked) > maxChanges {
+	cachedOut, err := w.git(ctx, "diff --cached", "diff", "--cached", "--name-only", "--no-renames", "--ignore-submodules=none", "-z", against, "--")
+	if err != nil {
+		return nil, err
+	}
+	var stagedOnly []string
+	for _, p := range splitNUL(cachedOut) {
+		if _, inWorkTree := raw[p]; !inWorkTree {
+			stagedOnly = append(stagedOnly, p)
+		}
+	}
+	if len(raw)+len(untracked)+len(stagedOnly) > maxChanges {
 		return nil, errChangeCap
 	}
-	changes := make([]change, 0, len(raw)+len(untracked))
+	changes := make([]change, 0, len(raw)+len(untracked)+len(stagedOnly))
 	for p, entry := range raw {
 		lines, ok := counts[p]
 		if !ok {
@@ -168,6 +180,12 @@ func (w *Worktree) enumerateChanges(ctx context.Context, against string) ([]chan
 			return nil, err
 		}
 		changes = append(changes, c)
+	}
+	for _, p := range stagedOnly {
+		if slices.Contains(untracked, p) {
+			return nil, fmt.Errorf("%w: path listed twice", ErrGitFailed)
+		}
+		changes = append(changes, change{path: p, kind: ChangeOther})
 	}
 	slices.SortFunc(changes, func(a, b change) int { return strings.Compare(a.path, b.path) })
 	return changes, nil

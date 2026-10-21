@@ -185,30 +185,35 @@ func TestFinishStagesJudgedPathsOnly(t *testing.T) {
 			t.Errorf("committed %q", got)
 		}
 	})
-	t.Run("staged_change_outside_the_judged_set", func(t *testing.T) {
-		// A change only in the index is invisible to the work tree
-		// enumeration; staging the judged paths alone leaves it, and the
-		// check of the index finds it.
-		p := prepareRound(t, func(r *testRepo) {
-			r.Write("docs/notes/b.md", "staged only\n")
-			r.Git("add", "docs/notes/b.md")
-			r.Write("docs/notes/b.md", "b\n")
-			fixTestFile(r)
-		})
-		head := p.r.Head()
-		_, _, err := p.finish(t, buildCheckSteps()...)
-		wantJudgedSetChanged(t, err)
-		p.wantNoCommit(t, head)
-	})
 }
 
 func TestFinishRefusesUnpinnedChange(t *testing.T) {
-	// A nested repository is listed as a directory with no content digest.
-	p := prepareRound(t, func(r *testRepo) {
-		r.gitIn(r.Home, "init", "-q", filepath.Join(r.Dir, "docs", "nested"))
-	})
-	_, _, err := p.finish(t)
-	wantJudgedSetChanged(t, err)
+	for _, tc := range []struct {
+		name string
+		edit func(r *testRepo)
+	}{
+		// A nested repository is listed as a directory with no digest.
+		{"nested_repository", func(r *testRepo) {
+			r.gitIn(r.Home, "init", "-q", filepath.Join(r.Dir, "docs", "nested"))
+		}},
+		// A change staged and then restored in the work tree exists only in
+		// the index, which a commit would hold.
+		{"staged_only", func(r *testRepo) {
+			r.Write("docs/notes/b.md", "staged only\n")
+			r.Git("add", "docs/notes/b.md")
+			r.Write("docs/notes/b.md", "b\n")
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := prepareRound(t, tc.edit)
+			if got := mustInspect(t, p.base).OutOfScope; len(got) != 1 || got[0].Kind != ChangeOther {
+				t.Errorf("OutOfScope = %+v, want one other change", got)
+			}
+			// No make step is scripted: the refusal comes before them.
+			_, _, err := p.finish(t)
+			wantJudgedSetChanged(t, err)
+		})
+	}
 }
 
 func TestFinishStageRollback(t *testing.T) {
