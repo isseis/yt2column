@@ -88,8 +88,22 @@ Work in order.
     `.claude/commands/_lib/coderabbit-local-review.md` now with **BASE** =
     `$(git merge-base origin/main HEAD)`, **SCOPE** = branch, **SUMMARY** =
     REPORT;
-  - **PR_TEXT** = the PR marker's `推奨タイトル` as the title, and its
-    `レビュー観点` in the body;
+  - **PR_TEXT** = a plan PR title (`_context.md`, "PR title and squash
+    subject") written from the PR marker's `推奨タイトル`, which is a draft,
+    and the marker's `レビュー観点` in the body. Write the title this way:
+    - When the `推奨タイトル` starts with an accepted prefix that has a
+      `<scope>`, keep that prefix; the draft summary is the rest of the value.
+    - When it starts with an accepted prefix without a `<scope>` (such as
+      `feat: `), keep its `<type>` if it fits the change and otherwise choose
+      one from the prefix table that does; the prefix is `<type>(<task-id>): `,
+      and the draft summary is the rest of the value.
+    - When it starts with no accepted prefix, the prefix is
+      `<type>(<task-id>): `, with a `<type>` from the prefix table that fits
+      the change, and the whole value is the draft summary.
+    - Write the summary in Japanese with the same content as the draft,
+      whatever language the draft is in; a draft already in Japanese is the
+      summary itself. Do not rewrite the plan: an older plan's value stays as
+      written.
   - **AFTER_CREATE** = mark the second checkbox (`PR を作成した`) as `[x]` and
     append the PR URL to that line, commit, and `git push`, so the update is in
     the PR before it is merged.
@@ -195,4 +209,4 @@ Test-review checklist (use verbatim as evaluation criteria in the step 7.5 promp
 8. Decide whether to continue or finish.
 - If implementation ran this iteration: summarize implementation, verified ACs, assumptions, and deferred items, plus the CodeRabbit result (run or failed; counts of fixed / rejected / deferred findings and the reason for each rejection).
 - If phases remain: return to step 4 without asking. The next unit is either another phase group of the same PR, or its PR checkpoint (step 5a), where this command opens the PR and stops; the reviewer's checkpoint is the PR review, not a question between phase groups.
-- If all phases are complete: verify every AC in `01_requirements.md` is satisfied by the implementation and has at least one `test` or `static` verification, as labeled in the plan's Acceptance Criteria Verification section. Report the final status and any gaps. If the plan has no PR markers (a single-phase plan), open the PR with `_lib/task-pr-handoff.md` Part B as step 5a does, with these differences: first check `gh pr view` and `git rev-list --count origin/main..HEAD`, and stop if the branch already has a PR or has no commits; the title is `feat(<task-id>): <concise English title>` and the body names the plan's main review points; **AFTER_CREATE** = append to the plan's checklist section (§6) the single-PR record `- [x] PR を作成した: <PR URL>` and `- [ ] PR がマージされた`, commit, and `git push`. `/runpr` reads that record: the PR is the task's final plan PR, so NEXT is none and the merge closes the issue.
+- If all phases are complete: verify every AC in `01_requirements.md` is satisfied by the implementation and has at least one `test` or `static` verification, as labeled in the plan's Acceptance Criteria Verification section. Report the final status and any gaps. If the plan has no PR markers (a single-phase plan), open the PR with `_lib/task-pr-handoff.md` Part B as step 5a does, with these differences: first check `gh pr view` and `git rev-list --count origin/main..HEAD`, and stop if the branch already has a PR or has no commits; the title is a plan PR title (`_context.md`, "PR title and squash subject"): with no `推奨タイトル`, the prefix is `<type>(<task-id>): ` with a `<type>` from the prefix table that fits the change, and the summary is in Japanese; the body names the plan's main review points; **AFTER_CREATE** = append to the plan's checklist section (§6) the single-PR record `- [x] PR を作成した: <PR URL>` and `- [ ] PR がマージされた`, commit, and `git push`. `/runpr` reads that record: the PR is the task's final plan PR, so NEXT is none and the merge closes the issue.

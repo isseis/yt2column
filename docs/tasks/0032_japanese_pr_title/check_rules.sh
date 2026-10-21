@@ -425,6 +425,29 @@ check_handoff_pr_text() {
 
 ALL_CHECKS="$ALL_CHECKS handoff_pr_text"
 
+check_runplan_title() {
+	load .claude/commands/runplan.md || return 0
+	s5a=$(printf '%s\n' "$ctx" | between '^5a\. ' '^[0-9]' | flat)
+	s8=$(printf '%s\n' "$ctx" | between '^8\. ' '^[0-9]' | flat)
+	[ -n "$s5a" ] && [ -n "$s8" ] || {
+		fail 'step 5a or step 8 not found'
+		return 0
+	}
+	has "$s5a" 'the PR marker.s `推奨タイトル`, which is a draft' 'step 5a treats 推奨タイトル as a draft'
+	has "$s5a" 'starts with an accepted prefix that has a `<scope>`, keep that prefix' \
+		'step 5a: an accepted prefix with a <scope> is kept'
+	has "$s5a" 'starts with an accepted prefix without a `<scope>`[^.]*the prefix is `<type>\(<task-id>\): `' \
+		'step 5a: an accepted prefix without a <scope> becomes <type>(<task-id>): '
+	has "$s5a" 'starts with no accepted prefix, the prefix is `<type>\(<task-id>\): `' \
+		'step 5a: no accepted prefix gives <type>(<task-id>): '
+	has "$s5a" 'Write the summary in Japanese' 'step 5a writes the summary in Japanese'
+	has "$s5a" 'Do not rewrite the plan' 'step 5a does not rewrite the plan'
+	has "$s8" 'the title is a plan PR title \(`_context\.md`, "PR title and squash subject"\)' \
+		'step 8 refers to the plan PR title of the title section'
+}
+
+ALL_CHECKS="$ALL_CHECKS runplan_title"
+
 for name in "$@"; do
 	case $name in
 	'' | *[!a-z_]*) die "unknown check: '$name'" ;;
