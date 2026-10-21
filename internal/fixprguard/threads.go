@@ -126,13 +126,13 @@ func (g *GitHub) fetchAllThreads(ctx context.Context, repo repository, pr PRNumb
 		}
 		threads = append(threads, page.threads...)
 		if len(threads) > maxListThreads {
-			return nil, fmt.Errorf("%w: thread cap", ErrLimitExceeded)
+			return nil, errThreadCap
 		}
 		if !page.hasNextPage {
 			return threads, nil
 		}
 		if pages >= maxListPages {
-			return nil, fmt.Errorf("%w: page cap", ErrLimitExceeded)
+			return nil, errThreadCap
 		}
 		after = page.endCursor
 	}
