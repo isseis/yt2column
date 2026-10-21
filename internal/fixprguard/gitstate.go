@@ -241,7 +241,7 @@ func openRegular(name string, follow bool) (*os.File, error) {
 	if !follow {
 		flags |= syscall.O_NOFOLLOW
 	}
-	f, err := os.OpenFile(name, flags, 0) //nolint:gosec // a file of the current work tree or its git directory
+	f, err := os.OpenFile(name, flags, 0) //nolint:gosec // a file of the work tree, its git directory, or a text file the caller names for posting
 	if err != nil {
 		return nil, err
 	}

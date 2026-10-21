@@ -8,7 +8,7 @@
 | Created | 2026-10-21 |
 | Review date | 2026-10-21 |
 | Reviewer | isseis |
-| Comments | 2026-10-21 (editorial): ステップ 2-2 の `hasNextPage` の扱いを理由 (e) に写す記述に直した。ステップ 2-4 の `TestFenceNonceAbsent` を `TestFenceBlockShape` に改め（乱数の nonce では nonce の確認を壊しても失敗しないため）、JSON のエスケープの層のテストをステップ 5-1 の `TestBeginOutputFenced` に移した。AC-18 の検証の行を合わせた。AC は変わらない。2026-10-21 (decision): 設計書 3.7 に加えた `GH_REPO`・`GH_HOST` の規則（設定されていれば `gh` を起動せずに止まる）を、ステップ 5-1 の作業とテスト `TestGhTargetEnvRejected` に加えた（PR #406 のレビューの指摘。このセッションでレビュアーが承認した）。AC は変わらない。2026-10-21 (editorial): 1.3.4 でステップ 3-2 に委ねた決定（作業ディレクトリは現在のディレクトリで作業ツリーの最上位、環境は `GitEnv` を使う runner で渡す、システムの設定は残す）を実装し、コミットメッセージに記録した。ステップ 3-5 の停止の種類は `StopKind` として公開した。設計書 3.2・3.6・3.7 を実装に合わせた。AC は変わらない。2026-10-21 (decision): フェーズ 3 のレビューの指摘から、設計書の Comments に記録した 3 つの決定（config の比較をすべての設定の値に広げる、入れ子の `.gitignore` と index の stat の偽造を残余のリスクとする、push 先を同じ名前のブランチとする）を、ステップ 3-2 の基準値の記述に反映した（このセッションでレビュアーが承認した）。extension の TypeScript を実行に関わるファイルに加えるかは、別の issue で扱う。AC は変わらない。2026-10-21 (editorial): PR #409 のレビューの指摘で、index だけにある変更を数え上げに加えた（設計書 3.6）。これにより、判定の後の確認を通った作業ツリーでは `git add -A` と判定したパスの stage が同じ集合を stage するので、ステップ 3-7 の完了条件の「`finish` が `git add -A` を使う」は失敗するテストを持たない。パスを文字どおりに解釈する stage は、`TestFinishStagesJudgedPathsOnly` が引き続き確かめる。AC は変わらない |
+| Comments | 2026-10-21 (editorial): ステップ 2-2 の `hasNextPage` の扱いを理由 (e) に写す記述に直した。ステップ 2-4 の `TestFenceNonceAbsent` を `TestFenceBlockShape` に改め（乱数の nonce では nonce の確認を壊しても失敗しないため）、JSON のエスケープの層のテストをステップ 5-1 の `TestBeginOutputFenced` に移した。AC-18 の検証の行を合わせた。AC は変わらない。2026-10-21 (decision): 設計書 3.7 に加えた `GH_REPO`・`GH_HOST` の規則（設定されていれば `gh` を起動せずに止まる）を、ステップ 5-1 の作業とテスト `TestGhTargetEnvRejected` に加えた（PR #406 のレビューの指摘。このセッションでレビュアーが承認した）。AC は変わらない。2026-10-21 (editorial): 1.3.4 でステップ 3-2 に委ねた決定（作業ディレクトリは現在のディレクトリで作業ツリーの最上位、環境は `GitEnv` を使う runner で渡す、システムの設定は残す）を実装し、コミットメッセージに記録した。ステップ 3-5 の停止の種類は `StopKind` として公開した。設計書 3.2・3.6・3.7 を実装に合わせた。AC は変わらない。2026-10-21 (decision): フェーズ 3 のレビューの指摘から、設計書の Comments に記録した 3 つの決定（config の比較をすべての設定の値に広げる、入れ子の `.gitignore` と index の stat の偽造を残余のリスクとする、push 先を同じ名前のブランチとする）を、ステップ 3-2 の基準値の記述に反映した（このセッションでレビュアーが承認した）。extension の TypeScript を実行に関わるファイルに加えるかは、別の issue で扱う。AC は変わらない。2026-10-21 (editorial): PR #409 のレビューの指摘で、index だけにある変更を数え上げに加えた（設計書 3.6）。これにより、判定の後の確認を通った作業ツリーでは `git add -A` と判定したパスの stage が同じ集合を stage するので、ステップ 3-7 の完了条件の「`finish` が `git add -A` を使う」は失敗するテストを持たない。パスを文字どおりに解釈する stage は、`TestFinishStagesJudgedPathsOnly` が引き続き確かめる。AC は変わらない。2026-10-21 (editorial): ステップ 4-1 の本文のファイルの種類の確認を、開く前の `lstat` から、リンクをたどらずに（`O_NOFOLLOW`）開いたファイルの stat に改めた（確認と読み取りの間にファイルを差し替えられないため。設計書 3.8 も合わせた）。空のファイルも拒否する。AC は変わらない。2026-10-21 (editorial): ステップ 4-2 で、`edit-pr` の本文を、検査した内容を標準入力から `--body-file -` で渡す形にした（`gh` がファイルを読み直すと、検査の後の差し替えを防げないため）。センチネルエラーに `ErrCommentNotInThread`（`ErrInvalidInput` を包む）と `ErrReplyNotResolved`（返信の後に解決できなかった。呼び出し元が返信を繰り返さないため）を、`stop` の種類に `thread-not-trusted` と `reply-not-resolved` を加えた（設計書 4 章も合わせた）。AC は変わらない。2026-10-21 (decision): ステップ 4-2 のレビューの指摘から、設計書の Comments に記録した 3 つの決定（返信するコメントを最初のコメントに限る、返信の後・解決の前にスレッドを取り直し、返信のほかに変化があれば解決しない（`TestReplyRechecksBeforeResolve`）、返信が投稿された可能性のある結果を取り消しも含めて `ErrReplyNotResolved` とする（`TestReplyPostFailureSkipsResolve`））をステップ 4-2 に反映した（このセッションでレビュアーが改めて承認した）。AC は変わらない。2026-10-21 (editorial): 同じ指摘で、本文のファイルの空白だけ・NUL・タイトルの制御文字の拒否を加えた（設計書 3.8 も合わせた）。AC は変わらない |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -308,16 +308,16 @@
 
 **変更するファイル**: `internal/fixprguard/write.go`、`internal/fixprguard/write_test.go`
 
--   [ ] 本文のファイルの検査を作る（`lstat` で通常のファイル、64 KiB 以下、有効な UTF-8。タイトルは 1 行も確かめる。設計書 3.8）。ID の文法と `owner/repo` の取得は、ステップ 2-1 のものを使う。
--   [ ] テスト: `TestBodyFileChecks`（シンボリックリンク、64 KiB と 64 KiB + 1、不正な UTF-8、タイトルの複数行）。
+-   [x] 本文のファイルの検査を作る（リンクをたどらずに開いたファイルの stat で通常のファイル、64 KiB 以下、空でない有効な UTF-8。タイトルは 1 行も確かめる。設計書 3.8）。ID の文法と `owner/repo` の取得は、ステップ 2-1 のものを使う。
+-   [x] テスト: `TestBodyFileChecks`（シンボリックリンク、64 KiB と 64 KiB + 1、不正な UTF-8、タイトルの複数行）。
 
 #### ステップ 4-2: `Reply` と `EditPR`
 
 **変更するファイル**: `internal/fixprguard/github.go`、`internal/fixprguard/write.go`、各テスト
 
--   [ ] `Reply` を作る。現在の状態でスレッドを判定し直し（AC-07）、信頼する著者のスレッドか、名指しで指紋が一致するスレッドで、指紋が現在と一致し、コメント ID がそのスレッドのものであるときだけ書き込む。JSON の本文を組み立てて標準入力で渡し、成功した場合だけ解決する。
--   [ ] `EditPR` を作る。タイトルは `--title=<値>` の形で、本文は `--body-file` で渡す。シェルを介さない。
--   [ ] テスト: `TestReplyRefusesUntrustedThread`、`TestReplyReassesses`、`TestReplyRefusesChangedFingerprint`、`TestReplyRefusesForeignComment`（拒否の 4 つの条件は、それぞれ、その条件だけが満たされない入力にする）、`TestReplyBodyVerbatim`（終端の文字列だけの行、`$(...)`、バッククォート、引用符、`@file` の形、`true`・`null` の文字列を入れても、標準入力に渡る JSON の `body` が文面と一致すること）、`TestEditPRVerbatim`、`TestReplyPostFailureSkipsResolve`、`TestReplyResolveFailure`。
+-   [x] `Reply` を作る。現在の状態でスレッドを判定し直し（AC-07）、信頼する著者のスレッドか、名指しで指紋が一致するスレッドで、指紋が現在と一致し、コメント ID がそのスレッドの最初のコメントであるときだけ書き込む。JSON の本文を組み立てて標準入力で渡し、成功した場合だけ、スレッドを取り直して判定したコメントと返信だけがあることを確かめてから解決する。
+-   [x] `EditPR` を作る。タイトルは `--title=<値>` の形で、本文は検査した内容を標準入力から `--body-file -` で渡す（`gh` がファイルを読み直さない）。シェルを介さない。
+-   [x] テスト: `TestReplyRefusesUntrustedThread`、`TestReplyReassesses`、`TestReplyRefusesChangedFingerprint`、`TestReplyRefusesForeignComment`（拒否の 4 つの条件は、それぞれ、その条件だけが満たされない入力にする）、`TestReplyBodyVerbatim`（終端の文字列だけの行、`$(...)`、バッククォート、引用符、`@file` の形、`true`・`null` の文字列を入れても、標準入力に渡る JSON の `body` が文面と一致すること）、`TestEditPRVerbatim`、`TestReplyPostFailureSkipsResolve`、`TestReplyRechecksBeforeResolve`、`TestReplyResolveFailure`。
 
 **完了条件**: `make test && make lint`。壊して確かめる（設計書 7.2 から）: `reply` が信頼の判定を省く（`TestReplyRefusesUntrustedThread`）、`reply` が指紋の確認を省く（`TestReplyRefusesChangedFingerprint`）。
 
@@ -333,10 +333,10 @@
 
 **判定理由**: 書き込みの側の安全の門（信頼の判定の再確認、指紋の確認、他のスレッドのコメントの拒否）を担い、PR-2・PR-3 と同じセキュリティの門にあたる（`mkplan.md` の panel mode の trigger）。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/414
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 5: コマンドと文書（設計書 8 章の 5）
 
@@ -575,7 +575,7 @@ PR ごとにまとめる。各ステップの詳細は 2 章のチェックボ�
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3）
 - [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6）
 - [x] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7）
-- [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2）
+- [x] PR-4 マージ済み（対象ステップ: 4-1 / 4-2）
 - [ ] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4）
 - [ ] 利用者が `make install-fixprguard` を実行した
 - [ ] PR-6 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3 / 6-4 / 6-5 / 6-6）

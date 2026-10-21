@@ -18,6 +18,15 @@ var (
 	// ErrThreadChanged reports a thread whose comments changed after the
 	// fingerprint the caller holds was taken.
 	ErrThreadChanged = errors.New("thread comments changed")
+	// ErrThreadNotTrusted refuses a write to a thread that is neither trusted
+	// nor named with its current fingerprint.
+	ErrThreadNotTrusted = errors.New("thread is not trusted")
+	// ErrCommentNotInThread refuses a reply to a comment that is not the
+	// thread's first one.
+	ErrCommentNotInThread = fmt.Errorf("%w: comment is not the thread's first", ErrInvalidInput)
+	// ErrReplyNotResolved reports a reply that was, or may have been, posted to
+	// a thread that was then not resolved, so the caller does not post it again.
+	ErrReplyNotResolved = errors.New("reply may be posted but thread not resolved")
 	// ErrResponseRejected reports a GitHub call that failed or a response that
 	// failed the strict check or the size cap. No partial result is used.
 	ErrResponseRejected = errors.New("GitHub response rejected")
@@ -55,6 +64,8 @@ const (
 	StopThreadCap         = "thread-cap"
 	StopChangeCap         = "change-cap"
 	StopThreadChanged     = "thread-changed"
+	StopThreadNotTrusted  = "thread-not-trusted"
+	StopReplyNotResolved  = "reply-not-resolved"
 	StopResponseRejected  = "response-rejected"
 	StopBuildChecksFailed = "build-checks-failed"
 	StopGitFailed         = "git-failed"
@@ -66,13 +77,17 @@ const (
 func StopKinds() []string {
 	return []string{
 		StopDirtyWorkTree, StopCrossRepository, StopGitStateChanged, StopJudgedSetChanged, StopThreadCap,
-		StopChangeCap, StopThreadChanged, StopResponseRejected, StopBuildChecksFailed, StopGitFailed, StopFailed,
+		StopChangeCap, StopThreadChanged, StopThreadNotTrusted, StopReplyNotResolved, StopResponseRejected, StopBuildChecksFailed, StopGitFailed, StopFailed,
 	}
 }
 
 // StopKind names the stop kind of a subcommand's error.
 func StopKind(err error) string {
 	switch {
+	// First: a reply that may exist must be reported as such whatever else
+	// the error wraps, so the caller does not post it again.
+	case errors.Is(err, ErrReplyNotResolved):
+		return StopReplyNotResolved
 	case errors.Is(err, ErrDirtyWorkTree):
 		return StopDirtyWorkTree
 	case errors.Is(err, ErrCrossRepository):
@@ -87,6 +102,8 @@ func StopKind(err error) string {
 		return StopChangeCap
 	case errors.Is(err, ErrThreadChanged):
 		return StopThreadChanged
+	case errors.Is(err, ErrThreadNotTrusted):
+		return StopThreadNotTrusted
 	case errors.Is(err, ErrResponseRejected):
 		return StopResponseRejected
 	case errors.Is(err, ErrBuildChecksFailed):
