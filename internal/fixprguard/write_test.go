@@ -3,6 +3,7 @@
 package fixprguard
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -62,10 +63,16 @@ func TestBodyFileChecks(t *testing.T) {
 		{name: "missing", path: func(t *testing.T) string { return filepath.Join(t.TempDir(), "none") }, wantErr: true},
 		{name: "invalid_utf8", path: file("ok \xff"), wantErr: true},
 		{name: "empty", path: file(""), wantErr: true},
+		{name: "blank", path: file(" \n\t\n"), wantErr: true},
+		{name: "nul_byte", path: file("reply\x00more"), wantErr: true},
 		{name: "title_one_line", path: file("fix: a title"), title: true},
 		{name: "title_newline", path: file("fix: a title\n"), title: true, wantErr: true},
 		{name: "title_two_lines", path: file("fix: a title\nmore"), title: true, wantErr: true},
 		{name: "title_carriage_return", path: file("fix: a\rtitle"), title: true, wantErr: true},
+		{name: "title_escape", path: file("fix: \x1b[31mred"), title: true, wantErr: true},
+		{name: "title_c1_next_line", path: file("fix: a\u0085title"), title: true, wantErr: true},
+		{name: "title_line_separator", path: file("fix: a\u2028title"), title: true, wantErr: true},
+		{name: "title_blank", path: file("   "), title: true, wantErr: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			name := tc.path(t)
@@ -109,12 +116,32 @@ func replyLookupSteps(t *testing.T, threads []testThread, lookups ...cmdrunnerte
 	return append([]cmdrunnertestutil.Step{repoStep(), graphqlStep(stageOneResponse(t, threads, false, ""))}, lookups...)
 }
 
+// postedID is the database ID GitHub gives the reply in these tests.
+const postedID = 500
+
 // postStep is the reply to comment 1, the first comment of the threads the
-// reply tests script.
+// reply tests script; GitHub answers with the new comment.
 func postStep() cmdrunnertestutil.Step {
 	return cmdrunnertestutil.Step{Name: "gh", Args: []string{
 		"api", "--method", "POST", "repos/" + testOwner + "/" + testRepoName + "/pulls/" + testPR + "/comments/1/replies", "--input", "-",
-	}}
+	}, Out: `{"id":500,"body":"x"}`}
+}
+
+// withReply is th after the tool's reply was posted.
+func withReply(th testThread) testThread {
+	th.comments = append(slices.Clone(th.comments), userComment(postedID, testOwner))
+	return th
+}
+
+// writeSteps scripts the writes of a successful Reply to th: the post, the
+// fresh fetch showing only the reply added, and the resolve.
+func writeSteps(t *testing.T, th testThread) []cmdrunnertestutil.Step {
+	t.Helper()
+	return []cmdrunnertestutil.Step{
+		postStep(),
+		graphqlStep(stageOneResponse(t, []testThread{withReply(th)}, false, "")),
+		graphqlStep(resolvedResponse(t, th.id, true)),
+	}
 }
 
 // replyRequest replies to the first comment of th with the fingerprint the
@@ -141,8 +168,7 @@ func TestReplyRefusesUntrustedThread(t *testing.T) {
 		}
 	})
 	t.Run("named_with_current_fingerprint", func(t *testing.T) {
-		g, _ := newTestGitHub(t, append(replyLookupSteps(t, []testThread{th}),
-			postStep(), graphqlStep(resolvedResponse(t, th.id, true)))...)
+		g, _ := newTestGitHub(t, append(replyLookupSteps(t, []testThread{th}), writeSteps(t, th)...)...)
 		req := replyRequest(t, th, "reply")
 		req.Accept = []Accept{{ThreadID: th.id, Fingerprint: req.Fingerprint}}
 		if err := g.Reply(t.Context(), req); err != nil {
@@ -157,7 +183,7 @@ func TestReplyReassesses(t *testing.T) {
 	th := testThread{id: testThreadID(1), comments: []testComment{userComment(1, "alice")}}
 	g, _ := newTestGitHub(t, slices.Concat(
 		replyLookupSteps(t, []testThread{th}, roleStep("alice", "write")),
-		[]cmdrunnertestutil.Step{postStep(), graphqlStep(resolvedResponse(t, th.id, true))},
+		writeSteps(t, th),
 		replyLookupSteps(t, []testThread{th}, roleStep("alice", "read")),
 	)...)
 	if err := g.Reply(t.Context(), replyRequest(t, th, "first")); err != nil {
@@ -172,7 +198,8 @@ func TestReplyRefusesChangedFingerprint(t *testing.T) {
 	trusted := testThread{id: testThreadID(1), comments: []testComment{reviewerComment(1)}}
 	named := testThread{id: testThreadID(2), comments: []testComment{botComment(2, "other-bot")}}
 	resolved := testThread{id: testThreadID(3), resolved: true, comments: []testComment{reviewerComment(3)}}
-	threads := []testThread{trusted, named, resolved}
+	empty := testThread{id: testThreadID(4)}
+	threads := []testThread{trusted, named, resolved, empty}
 	for name, req := range map[string]func() ReplyRequest{
 		"trusted_fingerprint_differs": func() ReplyRequest {
 			req := replyRequest(t, trusted, "reply")
@@ -190,6 +217,12 @@ func TestReplyRefusesChangedFingerprint(t *testing.T) {
 			req.ThreadID = "PRRT_gone"
 			return req
 		},
+		// An unresolved thread with no comments: found, but nothing to answer.
+		"empty_thread": func() ReplyRequest {
+			req := replyRequest(t, trusted, "reply")
+			req.ThreadID, req.Fingerprint = empty.id, testFingerprint(t, empty)
+			return req
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			g, _ := newTestGitHub(t, replyLookupSteps(t, threads)...)
@@ -201,13 +234,21 @@ func TestReplyRefusesChangedFingerprint(t *testing.T) {
 }
 
 func TestReplyRefusesForeignComment(t *testing.T) {
-	th := testThread{id: testThreadID(1), comments: []testComment{reviewerComment(1)}}
+	th := testThread{id: testThreadID(1), comments: []testComment{reviewerComment(1), reviewerComment(3)}}
 	other := testThread{id: testThreadID(2), comments: []testComment{reviewerComment(2)}}
-	g, _ := newTestGitHub(t, replyLookupSteps(t, []testThread{th, other})...)
-	req := replyRequest(t, th, "reply")
-	req.CommentID = other.comments[0].id
-	if err := g.Reply(t.Context(), req); !errors.Is(err, ErrCommentNotInThread) {
-		t.Errorf("Reply = %v, want ErrCommentNotInThread", err)
+	for name, id := range map[string]int64{
+		"other_threads_comment": other.comments[0].id,
+		// GitHub's replies endpoint takes only a thread's first comment.
+		"not_first_comment": th.comments[1].id,
+	} {
+		t.Run(name, func(t *testing.T) {
+			g, _ := newTestGitHub(t, replyLookupSteps(t, []testThread{th, other})...)
+			req := replyRequest(t, th, "reply")
+			req.CommentID = id
+			if err := g.Reply(t.Context(), req); !errors.Is(err, ErrCommentNotInThread) {
+				t.Errorf("Reply = %v, want ErrCommentNotInThread", err)
+			}
+		})
 	}
 }
 
@@ -233,6 +274,17 @@ func TestReplyRejectsInputBeforeAnyCall(t *testing.T) {
 	}
 }
 
+func TestReplyReadFailureWritesNothing(t *testing.T) {
+	th := testThread{id: testThreadID(1), comments: []testComment{reviewerComment(1)}}
+	failed := graphqlStep("")
+	failed.Err = &cmdrunner.ExitError{Code: ghExitFailure}
+	// No write step is scripted, so a post after the failure fails the test.
+	g, _ := newTestGitHub(t, repoStep(), failed)
+	if err := g.Reply(t.Context(), replyRequest(t, th, "reply")); !errors.Is(err, ErrResponseRejected) {
+		t.Errorf("Reply = %v, want ErrResponseRejected", err)
+	}
+}
+
 // trickyTexts are texts a shell would execute or end early, and values gh's -F
 // would convert to another type.
 var trickyTexts = map[string]string{
@@ -250,12 +302,11 @@ func TestReplyBodyVerbatim(t *testing.T) {
 	th := testThread{id: testThreadID(1), comments: []testComment{reviewerComment(1)}}
 	for name, body := range trickyTexts {
 		t.Run(name, func(t *testing.T) {
-			g, fake := newTestGitHub(t, append(replyLookupSteps(t, []testThread{th}),
-				postStep(), graphqlStep(resolvedResponse(t, th.id, true)))...)
+			g, fake := newTestGitHub(t, append(replyLookupSteps(t, []testThread{th}), writeSteps(t, th)...)...)
 			if err := g.Reply(t.Context(), replyRequest(t, th, body)); err != nil {
 				t.Fatalf("Reply = %v", err)
 			}
-			posted := fake.Stdin[len(fake.Stdin)-2]
+			posted := fake.Stdin[len(fake.Stdin)-3]
 			var request map[string]any
 			if err := json.Unmarshal(posted, &request); err != nil {
 				t.Fatalf("reply request is not JSON: %v", err)
@@ -270,6 +321,11 @@ func TestReplyBodyVerbatim(t *testing.T) {
 	}
 }
 
+// editStep is the gh pr edit call for title.
+func editStep(title string) cmdrunnertestutil.Step {
+	return cmdrunnertestutil.Step{Name: "gh", Args: []string{"pr", "edit", testPR, "--title=" + title, "--body-file", "-"}}
+}
+
 func TestEditPRVerbatim(t *testing.T) {
 	for name, text := range trickyTexts {
 		if strings.Contains(text, "\n") {
@@ -277,11 +333,7 @@ func TestEditPRVerbatim(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			body := "## Summary\n" + text + "\nREPLYBODY_EOF\n"
-			fake := cmdrunnertestutil.New(t, cmdrunnertestutil.Step{Name: "gh", Args: []string{"pr", "edit", testPR, "--title=" + text, "--body-file", "-"}})
-			g, err := NewGitHub(fake, mustLogin(t, testReviewer))
-			if err != nil {
-				t.Fatal(err)
-			}
+			g, fake := newTestGitHub(t, editStep(text))
 			req := EditPRRequest{PR: mustPR(t), TitleFile: writeTextFile(t, text), BodyFile: writeTextFile(t, body)}
 			if err := g.EditPR(t.Context(), req); err != nil {
 				t.Fatalf("EditPR = %v", err)
@@ -304,13 +356,9 @@ func TestEditPRVerbatim(t *testing.T) {
 		}
 	})
 	t.Run("gh_failure", func(t *testing.T) {
-		fake := cmdrunnertestutil.New(t, cmdrunnertestutil.Step{
-			Name: "gh", Args: []string{"pr", "edit", testPR, "--title=title", "--body-file", "-"}, Err: &cmdrunner.ExitError{Code: ghExitFailure},
-		})
-		g, err := NewGitHub(fake, mustLogin(t, testReviewer))
-		if err != nil {
-			t.Fatal(err)
-		}
+		step := editStep("title")
+		step.Err = &cmdrunner.ExitError{Code: ghExitFailure}
+		g, _ := newTestGitHub(t, step)
 		req := EditPRRequest{PR: mustPR(t), TitleFile: writeTextFile(t, "title"), BodyFile: writeTextFile(t, "body")}
 		if err := g.EditPR(t.Context(), req); !errors.Is(err, ErrResponseRejected) {
 			t.Errorf("EditPR = %v, want ErrResponseRejected", err)
@@ -320,13 +368,56 @@ func TestEditPRVerbatim(t *testing.T) {
 
 func TestReplyPostFailureSkipsResolve(t *testing.T) {
 	th := testThread{id: testThreadID(1), comments: []testComment{reviewerComment(1)}}
-	post := postStep()
-	post.Err = &cmdrunner.ExitError{Code: ghExitFailure}
-	// No resolve step is scripted, so resolving after the failure fails the test.
-	g, _ := newTestGitHub(t, append(replyLookupSteps(t, []testThread{th}), post)...)
-	err := g.Reply(t.Context(), replyRequest(t, th, "reply"))
-	if !errors.Is(err, ErrResponseRejected) || errors.Is(err, ErrReplyNotResolved) {
-		t.Errorf("Reply = %v, want ErrResponseRejected without ErrReplyNotResolved", err)
+	// No step after the post is scripted, so fetching or resolving after the
+	// failure fails the test.
+	t.Run("github_refused", func(t *testing.T) {
+		post := postStep()
+		post.Err = &cmdrunner.ExitError{Code: ghExitFailure}
+		g, _ := newTestGitHub(t, append(replyLookupSteps(t, []testThread{th}), post)...)
+		err := g.Reply(t.Context(), replyRequest(t, th, "reply"))
+		if !errors.Is(err, ErrResponseRejected) || errors.Is(err, ErrReplyNotResolved) {
+			t.Errorf("Reply = %v, want ErrResponseRejected without ErrReplyNotResolved", err)
+		}
+	})
+	// A timeout or an unreadable success may leave a posted reply, so the
+	// caller must not post again.
+	timeout := postStep()
+	timeout.Err = context.DeadlineExceeded
+	noID := postStep()
+	noID.Out = `{"body":"x"}`
+	for name, post := range map[string]cmdrunnertestutil.Step{"timed_out": timeout, "no_comment_id": noID} {
+		t.Run(name, func(t *testing.T) {
+			g, _ := newTestGitHub(t, append(replyLookupSteps(t, []testThread{th}), post)...)
+			if err := g.Reply(t.Context(), replyRequest(t, th, "reply")); !errors.Is(err, ErrReplyNotResolved) {
+				t.Errorf("Reply = %v, want ErrReplyNotResolved", err)
+			}
+		})
+	}
+}
+
+func TestReplyRechecksBeforeResolve(t *testing.T) {
+	th := testThread{id: testThreadID(1), comments: []testComment{reviewerComment(1)}}
+	edited := withReply(th)
+	edited.comments[0].edited = testLaterAt
+	resolved := withReply(th)
+	resolved.resolved = true
+	for name, now := range map[string][]testThread{
+		"comment_arrived": {withReply(withReply(th))},
+		"comment_edited":  {edited},
+		"reply_missing":   {th},
+		"other_comment":   {{id: th.id, comments: append(slices.Clone(th.comments), userComment(postedID+1, "mallory"))}},
+		"thread_resolved": {resolved},
+		"thread_gone":     {},
+	} {
+		t.Run(name, func(t *testing.T) {
+			// No resolve step is scripted, so resolving fails the test.
+			g, _ := newTestGitHub(t, append(replyLookupSteps(t, []testThread{th}),
+				postStep(), graphqlStep(stageOneResponse(t, now, false, "")))...)
+			err := g.Reply(t.Context(), replyRequest(t, th, "reply"))
+			if !errors.Is(err, ErrReplyNotResolved) || !errors.Is(err, ErrThreadChanged) {
+				t.Errorf("Reply = %v, want ErrReplyNotResolved for a changed thread", err)
+			}
+		})
 	}
 }
 
@@ -335,13 +426,18 @@ func TestReplyResolveFailure(t *testing.T) {
 	failed := graphqlStep("")
 	failed.Err = &cmdrunner.ExitError{Code: ghExitFailure}
 	for name, resolve := range map[string]cmdrunnertestutil.Step{
-		"gh_fails":       failed,
-		"not_resolved":   graphqlStep(resolvedResponse(t, th.id, false)),
-		"other_thread":   graphqlStep(resolvedResponse(t, testThreadID(2), true)),
-		"graphql_errors": graphqlStep(`{"data":null,"errors":[{"message":"x"}]}`),
+		"gh_fails":            failed,
+		"not_resolved":        graphqlStep(resolvedResponse(t, th.id, false)),
+		"other_thread":        graphqlStep(resolvedResponse(t, testThreadID(2), true)),
+		"graphql_errors":      graphqlStep(`{"data":null,"errors":[{"message":"x"}]}`),
+		"mutation_null":       graphqlStep(`{"data":{"resolveReviewThread":null}}`),
+		"thread_null":         graphqlStep(`{"data":{"resolveReviewThread":{"thread":null}}}`),
+		"is_resolved_missing": graphqlStep(`{"data":{"resolveReviewThread":{"thread":{"id":"` + th.id + `"}}}}`),
 	} {
 		t.Run(name, func(t *testing.T) {
-			g, _ := newTestGitHub(t, append(replyLookupSteps(t, []testThread{th}), postStep(), resolve)...)
+			steps := writeSteps(t, th)
+			steps[len(steps)-1] = resolve
+			g, _ := newTestGitHub(t, append(replyLookupSteps(t, []testThread{th}), steps...)...)
 			err := g.Reply(t.Context(), replyRequest(t, th, "reply"))
 			if !errors.Is(err, ErrReplyNotResolved) || StopKind(err) != StopReplyNotResolved {
 				t.Errorf("Reply = %v, want ErrReplyNotResolved", err)

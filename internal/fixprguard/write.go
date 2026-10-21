@@ -3,11 +3,12 @@ package fixprguard
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
-	"slices"
 	"strconv"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/isseis/yt2column/internal/strictjson"
@@ -18,7 +19,8 @@ const maxTextFileBytes = 64 << 10
 
 // readTextFile reads a file the session wrote for reply or edit-pr. Contract:
 // only a regular file (not a symbolic link, FIFO or device) of at most
-// maxTextFileBytes holding non-empty valid UTF-8 is accepted; anything else is
+// maxTextFileBytes holding valid UTF-8 that is not blank and has no NUL is
+// accepted; anything else is
 // rejected, not repaired, so no other local file can be posted to GitHub. The
 // type is checked on the opened file (opened without following a link and
 // without blocking), not by a stat before opening, so a file swapped in between
@@ -36,23 +38,26 @@ func readTextFile(name string) (string, error) {
 	switch {
 	case len(data) > maxTextFileBytes:
 		return "", fmt.Errorf("%w: text file size", ErrInvalidInput)
-	case len(data) == 0:
+	case strings.TrimSpace(string(data)) == "":
 		return "", fmt.Errorf("%w: text file empty", ErrInvalidInput)
 	case !utf8.Valid(data):
 		return "", fmt.Errorf("%w: text file encoding", ErrInvalidInput)
+	case strings.ContainsRune(string(data), 0):
+		return "", fmt.Errorf("%w: text file has a NUL byte", ErrInvalidInput)
 	}
 	return string(data), nil
 }
 
 // readTitleFile reads a PR title file: a text file holding exactly one line
-// with no line terminator.
+// with no line terminator and no control character (C0, DEL, C1, or a Unicode
+// line or paragraph separator).
 func readTitleFile(name string) (string, error) {
 	title, err := readTextFile(name)
 	if err != nil {
 		return "", err
 	}
-	if strings.ContainsAny(title, "\r\n") {
-		return "", fmt.Errorf("%w: title is not one line", ErrInvalidInput)
+	if strings.ContainsFunc(title, func(r rune) bool { return unicode.IsControl(r) || r == '\u2028' || r == '\u2029' }) {
+		return "", fmt.Errorf("%w: title is not one plain line", ErrInvalidInput)
 	}
 	return title, nil
 }
@@ -81,11 +86,14 @@ type ReplyRequest struct {
 // thread. Contract: it writes only when, judged afresh now, the thread is
 // trusted or named with its current fingerprint (else ErrThreadNotTrusted), its
 // current fingerprint is req.Fingerprint (else ErrThreadChanged), and the
-// comment belongs to it (else ErrCommentNotInThread). The body travels as a
-// JSON request on standard input, never through a shell, a flag value or a
-// temporary file, so GitHub receives the file's text exactly. The thread is
-// resolved only after the reply succeeded; a failed resolve is
-// ErrReplyNotResolved.
+// comment is the thread's first one, the only one GitHub's replies endpoint
+// takes (else ErrCommentNotInThread). The body travels as a JSON request on
+// standard input, never through a shell, a flag value or a temporary file, so
+// GitHub receives the file's text exactly. The thread is resolved only after
+// the reply succeeded and a fresh fetch shows no comment beside the judged ones
+// and the reply, so a comment that arrived meanwhile is not hidden in a
+// resolved thread. Once the reply may have been posted, every failure is
+// ErrReplyNotResolved, so the caller does not post it again.
 func (g *GitHub) Reply(ctx context.Context, req ReplyRequest) error {
 	accepted, err := checkAccepts(req.Accept)
 	if err != nil {
@@ -106,8 +114,9 @@ func (g *GitHub) Reply(ctx context.Context, req ReplyRequest) error {
 	if err != nil {
 		return err
 	}
-	t, ok := threads[req.ThreadID]
-	if !ok || len(t.comments) == 0 {
+	// A thread not found is the zero thread, which has no comments.
+	t := threads[req.ThreadID]
+	if len(t.comments) == 0 {
 		return ErrThreadChanged
 	}
 	current := fingerprint(t)
@@ -124,11 +133,15 @@ func (g *GitHub) Reply(ctx context.Context, req ReplyRequest) error {
 	if req.Fingerprint != current {
 		return ErrThreadChanged
 	}
-	if !slices.ContainsFunc(t.comments, func(c comment) bool { return c.databaseID == req.CommentID }) {
+	if t.comments[0].databaseID != req.CommentID {
 		return ErrCommentNotInThread
 	}
-	if err := g.postReply(ctx, repo, req.PR, req.CommentID, body); err != nil {
+	replyID, err := g.postReply(ctx, repo, req.PR, req.CommentID, body)
+	if err != nil {
 		return err
+	}
+	if err := g.checkOnlyReplyAdded(ctx, repo, req.PR, t, replyID); err != nil {
+		return fmt.Errorf("%w: %w", ErrReplyNotResolved, err)
 	}
 	if err := g.resolveThread(ctx, t.id); err != nil {
 		return fmt.Errorf("%w: %w", ErrReplyNotResolved, err)
@@ -136,14 +149,70 @@ func (g *GitHub) Reply(ctx context.Context, req ReplyRequest) error {
 	return nil
 }
 
-func (g *GitHub) postReply(ctx context.Context, repo repository, pr PRNumber, commentID int64, body string) error {
+// postReply posts body and returns the new comment's database ID. A failure
+// GitHub answered is ErrResponseRejected (nothing was posted); a timeout or an
+// unreadable success response is ErrReplyNotResolved, since the reply may exist.
+func (g *GitHub) postReply(ctx context.Context, repo repository, pr PRNumber, commentID int64, body string) (int64, error) {
 	request, err := json.Marshal(map[string]string{"body": body})
 	if err != nil {
-		return fmt.Errorf("encode reply: %w", err)
+		return 0, fmt.Errorf("encode reply: %w", err)
 	}
 	endpoint := "repos/" + repo.owner + "/" + repo.name + "/pulls/" + pr.String() + "/comments/" + strconv.FormatInt(commentID, 10) + "/replies"
-	if _, err := g.runGH(ctx, request, "api", "--method", "POST", endpoint, "--input", "-"); err != nil {
-		return ghFailure("reply", err)
+	out, err := g.runGH(ctx, request, "api", "--method", "POST", endpoint, "--input", "-")
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return 0, fmt.Errorf("%w: %w", ErrReplyNotResolved, ghFailure("reply", err))
+		}
+		return 0, ghFailure("reply", err)
+	}
+	id, err := postedCommentID(out)
+	if err != nil {
+		return 0, fmt.Errorf("%w: %w", ErrReplyNotResolved, err)
+	}
+	return id, nil
+}
+
+// postedCommentID reads the id of the comment the replies endpoint created.
+func postedCommentID(out []byte) (int64, error) {
+	if len(out) > maxResponseBytes {
+		return 0, rejected("response size")
+	}
+	obj, err := strictjson.ParseObject(out)
+	if err != nil {
+		return 0, rejected("reply response")
+	}
+	members, err := obj.Collect("id")
+	if err != nil {
+		return 0, rejected("reply id")
+	}
+	value, err := strictjson.Required(members, "id")
+	if err != nil {
+		return 0, rejected("reply id")
+	}
+	id, err := value.AsNonNegativeInt64()
+	if err != nil || id == 0 {
+		return 0, rejected("reply id")
+	}
+	return id, nil
+}
+
+// checkOnlyReplyAdded fetches the thread again and confirms it is still
+// unresolved and holds exactly the judged comments followed by the reply.
+// Another comment, edit or deletion is ErrThreadChanged.
+func (g *GitHub) checkOnlyReplyAdded(ctx context.Context, repo repository, pr PRNumber, judged thread, replyID int64) error {
+	threads, err := g.unresolvedThreads(ctx, repo, pr)
+	if err != nil {
+		return err
+	}
+	// A thread not found is the zero thread, which has no comments.
+	now := threads[judged.id]
+	if len(now.comments) != len(judged.comments)+1 || now.comments[len(now.comments)-1].databaseID != replyID {
+		return ErrThreadChanged
+	}
+	before := now
+	before.comments = now.comments[:len(judged.comments)]
+	if fingerprint(before) != fingerprint(judged) {
+		return ErrThreadChanged
 	}
 	return nil
 }

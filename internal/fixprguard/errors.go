@@ -21,11 +21,12 @@ var (
 	// ErrThreadNotTrusted refuses a write to a thread that is neither trusted
 	// nor named with its current fingerprint.
 	ErrThreadNotTrusted = errors.New("thread is not trusted")
-	// ErrCommentNotInThread refuses a reply to a comment of another thread.
-	ErrCommentNotInThread = fmt.Errorf("%w: comment is not in the thread", ErrInvalidInput)
-	// ErrReplyNotResolved reports a reply that was posted to a thread that was
-	// then not resolved, so the caller does not post it again.
-	ErrReplyNotResolved = errors.New("reply posted but thread not resolved")
+	// ErrCommentNotInThread refuses a reply to a comment that is not the
+	// thread's first one.
+	ErrCommentNotInThread = fmt.Errorf("%w: comment is not the thread's first", ErrInvalidInput)
+	// ErrReplyNotResolved reports a reply that was, or may have been, posted to
+	// a thread that was then not resolved, so the caller does not post it again.
+	ErrReplyNotResolved = errors.New("reply may be posted but thread not resolved")
 	// ErrResponseRejected reports a GitHub call that failed or a response that
 	// failed the strict check or the size cap. No partial result is used.
 	ErrResponseRejected = errors.New("GitHub response rejected")
