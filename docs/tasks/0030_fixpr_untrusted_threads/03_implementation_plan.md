@@ -370,7 +370,7 @@
 
 #### ステップ 5-4: 手動の確認
 
--   [ ] 利用者の承認を得て、実際の PR に対し `fixprguard head`・`list`・`begin`（読み取りだけ。`begin` は作業ツリーに未コミットの変更がないときだけ進む）を実行し、判定と理由が GitHub 上の実際のコメントと合うことを確かめる（`CLAUDE.md`「Tool Execution Safety」。ネットワークを使うので、承認なしに実行しない）。結果を PR の説明に書く。
+-   [x] 利用者の承認を得て、実際の PR に対し `fixprguard head`・`list`・`begin`（読み取りだけ。`begin` は作業ツリーに未コミットの変更がないときだけ進む）を実行し、判定と理由が GitHub 上の実際のコメントと合うことを確かめる（`CLAUDE.md`「Tool Execution Safety」。ネットワークを使うので、承認なしに実行しない）。結果を PR の説明に書く。
 
 **完了条件**: `make test && make lint`、`make build` が成功する。壊して確かめる: `begin` の順序で fork の確認を作業ツリーの確認の前に入れ替える（`TestBeginOrder`）、`inspect` の起動前の比較を省く（`TestInspectChecksGitStateBeforeGh`）、`--protocol` の照合を省く（`TestProtocolMismatch`）、`GH_REPO`・`GH_HOST` の確認を省く（`TestGhTargetEnvRejected`）、ガイドから `stop` の種類を 1 つ消す（`TestGuideCoversStopKindsAndScope`）。
 
