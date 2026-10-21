@@ -128,7 +128,7 @@ Work in the following order.
 - [ ] The `### 3.2 PR 構成` table is present and consistent with the PR marker sections.
 - [ ] §6 checklist entries reference PRs (not phases) and are consistent with the PR markers.
 - [ ] All step-number cross-references in the document (§3, §4, §5, §6, step descriptions) reflect the final numbering after any reordering.
-- [ ] `推奨タイトル` values match the `推奨タイトル` form of `_context.md`, "PR title and squash subject", and contain no backquotes.
+- [ ] `推奨タイトル` values match the `推奨タイトル` form of `_context.md`, "PR title and squash subject", and the value inside the code span contains no backquotes.
 - [ ] `レビュー観点` items are specific and meaningful — not generic placeholders.
 
 11. Open the PR and hand it over: follow `.claude/commands/_lib/task-pr-handoff.md`,
