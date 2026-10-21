@@ -102,10 +102,15 @@ around it with your own shell commands. Work in order; do not skip a step.
    - End with the `Co-Authored-By:` trailer(s) that appear in the PR's commits,
      deduplicated.
    Write the subject and the body to two files in the prepared directory with
-   the Write tool; never through `echo`, a heredoc, or an inline argument.
+   the Write tool; never through `echo`, a heredoc, or an inline argument. Then
+   check the subject file as `_context.md`, "Checking a squash subject", says:
+   a person cannot tell look-alike characters apart in a terminal, so the
+   approval alone is not the check. If it fails, rewrite the subject and check
+   it again; never go on to step 3 with a subject that fails.
 3. **Ask for approval.** Show the user the PR URL, the base branch, the CI
    result, and the full subject and body, and ask whether to merge with this
-   message. Revise it as asked. Do not merge without an explicit yes. When this
+   message. Revise it as asked; after revising the subject, check it again as
+   step 2 does. Do not merge without an explicit yes. When this
    command runs inside `runpr.md`, its step 4 asks
    this question together with the pre-merge bookkeeping and the next command,
    and says how to re-prepare after the bookkeeping commit.

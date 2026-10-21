@@ -605,6 +605,14 @@ check_mergepr_subject() {
 	has "$s2" 'inside `runpr\.md`, use the judgment of `runpr\.md` step 2' 'inside runpr.md, its step 2 judgment is used'
 	has "$s2" 'If the judgment stops, report and stop' 'an undecidable judgment stops'
 	lacks "$s2" 'already fits' 'the title is never used as the subject as is'
+	# The subject check before the approval question.
+	s3=$(printf '%s\n' "$ctx" | between '^3\. \*\*Ask for approval' '^4\. ' | flat)
+	has "$s2" 'Write the subject and the body to two files[^.]*\. Then check the subject file as `_context\.md`, "Checking a squash subject", says' \
+		'step 2 checks the subject file after writing it'
+	has "$s2" 'rewrite the subject and check it again; never go on to step 3 with a subject that fails' \
+		'a failing subject is rewritten, never taken to step 3'
+	has "$s3" 'after revising the subject, check it again as step 2 does' \
+		'a subject revised in step 3 is checked again'
 }
 
 ALL_CHECKS="$ALL_CHECKS mergepr_subject"
