@@ -356,6 +356,25 @@ check_context_marker_conventions() {
 
 ALL_CHECKS="$ALL_CHECKS context_marker_conventions"
 
+check_claude_language() {
+	load_section CLAUDE.md '## Language' || return 0
+	gh=$(printf '%s\n' "$sec" | between '^- \*\*What lives on GitHub' '^- \*\*|^$' | flat)
+	repo=$(printf '%s\n' "$sec" | between '^- \*\*What stays in the git repository' '^- \*\*|^$' | flat)
+	has "$gh" '^- \*\*What lives on GitHub: Japanese\*\* — PR titles, PR descriptions' \
+		'PR titles are among the Japanese things on GitHub'
+	lacks "$sec" 'PR title, which stays|stays an English|built from it' \
+		'no exception keeps the PR title in English'
+	has "$gh" '`\.claude/commands/_context\.md`, "PR title and squash subject"' \
+		'refers to the title section'
+	has "$repo" 'squash commit.s subject and body are English' \
+		'the squash subject and body are English'
+	has "$repo" '`/mergepr` writes the subject from the PR material' \
+		'/mergepr writes the subject from the PR material'
+	has "$gh" 'bot commands such as `@coderabbitai review`' 'the bot-command exception remains'
+}
+
+ALL_CHECKS="$ALL_CHECKS claude_language"
+
 for name in "$@"; do
 	case $name in
 	'' | *[!a-z_]*) die "unknown check: '$name'" ;;
