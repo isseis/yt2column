@@ -27,7 +27,7 @@ func TestParseLogin(t *testing.T) {
 	}
 	for _, invalid := range []string{
 		"", "-a", "a_b", "a/b", "..", "a b", "a.b", strings.Repeat("a", 40),
-		"coderabbitai[bot]", "é", "a\n", "../../x",
+		"coderabbitai[bot]", "\u00e9", "a\n", "../../x",
 	} {
 		t.Run("invalid/"+invalid, func(t *testing.T) {
 			if _, err := ParseLogin(invalid); !errors.Is(err, ErrInvalidInput) {
@@ -51,7 +51,7 @@ func TestParsePRNumber(t *testing.T) {
 	}
 	for _, invalid := range []string{
 		"", "0", "042", "+1", "-1", "1.0", " 1", "1 ", "1234567890", "main",
-		"https://github.com/isseis/yt2column/pull/42", "#42", "٤٢",
+		"https://github.com/isseis/yt2column/pull/42", "#42", "\u0664\u0662",
 	} {
 		t.Run("invalid/"+invalid, func(t *testing.T) {
 			if _, err := ParsePRNumber(invalid); !errors.Is(err, ErrInvalidInput) {
