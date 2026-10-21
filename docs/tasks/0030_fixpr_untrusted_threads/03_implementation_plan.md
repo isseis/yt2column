@@ -161,6 +161,7 @@
 -   [ ] `owner/repo` をローカルのリポジトリ（`gh repo view`）から求める関数を作る（設計書 3.1。権限の照会の URL とフェーズ 4 の書き込みが使う）。
 -   [ ] `Login`・`PRNumber` はフィールドを非公開にし、ゼロ値を使えない値にする。構造のガードのテストを作る（1.3.4）: パッケージの非テストのソースを `go/parser` で読み、これらの型の複合リテラル（`T{}`・`&T{}`）・`new(T)`・`var x T` が、コンストラクタの中以外にないことを調べる。
 -   [ ] エラーの文面に、GitHub から来た値と外部コマンドの引数・標準エラーを含めない（設計書 4 章）。
+-   [ ] 外部コマンドの失敗は、`ExitError` を読んでセンチネルエラーか `Cause` に写し、`ExitError` のテキスト（引数・標準エラー）を `fixprguard` のエラーの文面と出力に残さない。テスト: `TestErrorsOmitCommandDetails`（失敗する fake の標準エラーと引数の文字列が、返ったエラーの文面にも出力にも現れない）。
 -   [ ] 構造のガードは、構造体のフィールドやスライスの要素としてのゼロ値を検出しない。その場合の守りは、ゼロ値を使えない値にすること（`NewGitHub` がゼロ値の `Login` を拒否する、など）とする。
 -   [ ] テスト: `TestParseLogin`・`TestParsePRNumber`・`TestIDGrammar`（URL やパスの形、`..` の拒否）・`TestParseAccept`、`construction_test.go::TestRestrictedTypesBuiltByConstructors`（検出する形ごとに、その形を 1 つ足した入力で失敗すること）。
 
@@ -172,7 +173,7 @@
 -   [ ] 指紋を作る（コメントの追加・編集・削除のそれぞれで変わる）。
 -   [ ] `begin` 用に 1 ページ（100 スレッド）と `capHit`、`list` 用に全ページ（上限 2000 スレッド、超えたら `thread-cap`）を作る。
 -   [ ] 外部コマンドの呼び出しに、時間の上限（GitHub は 2 分）を設ける。
--   [ ] テスト: `TestCommentCap`（100 件と 101 件、`hasNextPage`）、`TestThreadCap`（2000 件と 2001 件）、`TestResponseSizeCap`（16 MiB と 16 MiB + 1）、`TestResponseRejected`（`errors`、重複キー、`null`）、`TestFingerprintChanges`（追加・編集・削除）、`TestStageOneQueryHasNoBody`（1 段目の問い合わせに本文の項目がない。AC-08）、`gh` の失敗。
+-   [ ] テスト: `TestCommentCap`（100 件と 101 件、`hasNextPage`）、`TestThreadCap`（2000 件と 2001 件）、`TestResponseSizeCap`（16 MiB と 16 MiB + 1）、`TestResponseRejected`（`errors`、重複キー、必須の項目の `null`、応答全体の `null`。コメントの `author: null` は拒否せず、理由 (c) に写る側のテストとして `TestAssessUnverifiableAuthor` が受け持つ）、`TestFingerprintChanges`（追加・編集・削除）、`TestStageOneQueryHasNoBody`（1 段目の問い合わせに本文の項目がない。AC-08）、`gh` の失敗。
 
 #### ステップ 2-3: 信頼の判定
 
@@ -390,7 +391,7 @@
 
 ### フェーズ 6: コマンド文書の切り替え（設計書 8 章の 6）
 
-**前提（このフェーズに入る前に）**: PR-5 がマージされ、利用者が `main` で `make install-fixprguard` を実行している。`command -v fixprguard` が通り、`fixprguard` の `protocol` の番号がソースの値と一致することを、最初に確かめる。満たされていなければ、このフェーズを始めず、利用者に実行を求める。
+**前提（このフェーズに入る前に）**: PR-5 がマージされ、利用者が `main` で `make install-fixprguard` を実行している。`command -v fixprguard` が通り、`fixprguard` の `protocol` の番号がソースの値と一致し、`go version -m "$(command -v fixprguard)"` の `vcs.revision` が PR-5 のマージコミット以降であることを、最初に確かめる（`protocol` の番号が同じまま規則が変わっても、古いバイナリを見つけるため。インストール済みの `mergepr` で `vcs.revision` が出ることを 2026-10-21 に確かめた）。満たされていなければ、このフェーズを始めず、利用者に実行を求める。
 
 #### ステップ 6-1: `_context.md`
 
@@ -548,7 +549,7 @@
 | AC-36 | static | `TestAuthorizationSections`（`fixpr.md` と `runpr.md` の両方） |
 | AC-37 | static | `TestGlossaryTerms`（日本語の語と英訳の両方の存在。訳語の妥当性はレビューで確かめる） |
 
-`static` の名前はすべて `cmd/yt2column/fixpr_docs_test.go`（ステップ 6-5）にある。`manual` は `test` や `static` の代わりにしない。
+5 章の `static` の名前はすべて `cmd/yt2column/fixpr_docs_test.go`（ステップ 6-5）にある。ほかに、`cmd/fixprguard/docs_test.go` の `TestGuideCoversStopKindsAndScope`（ステップ 5-3）と `TestDocumentedInvocationsParse`（ステップ 6-5）が、ガイドと文書の呼び出しをツールの実際の挙動に照らして補う。`manual` は `test` や `static` の代わりにしない。
 
 ## 6. リスク管理 (Risk Management)
 
