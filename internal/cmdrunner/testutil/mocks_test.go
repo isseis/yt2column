@@ -11,9 +11,13 @@ import (
 
 // recorder turns a Fatalf into a panic the test can recover, so the fake's own
 // failure reports can be observed.
-type recorder struct{ failed string }
+type recorder struct {
+	failed   string
+	cleanups []func()
+}
 
-func (r *recorder) Helper() {}
+func (r *recorder) Helper()          {}
+func (r *recorder) Cleanup(f func()) { r.cleanups = append(r.cleanups, f) }
 func (r *recorder) Fatalf(format string, args ...any) {
 	r.failed = fmt.Sprintf(format, args...)
 	panic(r)
@@ -97,5 +101,40 @@ func TestFakeEffectAndError(t *testing.T) {
 	}
 	if _, err := f.Run(t.Context(), "c"); !errors.Is(err, boom) {
 		t.Errorf("effect error = %v, want boom", err)
+	}
+}
+
+func TestFakeRegistersDoneAsCleanup(t *testing.T) {
+	r := &recorder{}
+	New(r, Step{Name: "a"})
+	if len(r.cleanups) != 1 {
+		t.Fatalf("registered %d cleanups, want 1", len(r.cleanups))
+	}
+	// The registered cleanup is what fails a test that never ran the step.
+	func() {
+		defer func() {
+			if p := recover(); p != any(r) {
+				t.Errorf("cleanup panic = %v, want the recorder's failure", p)
+			}
+		}()
+		r.cleanups[0]()
+	}()
+	if !strings.Contains(r.failed, "ran 0 of 1") {
+		t.Errorf("cleanup failure = %q, want it to report the missing command", r.failed)
+	}
+}
+
+func TestFakeRecordsStdinCopy(t *testing.T) {
+	f := New(t, Step{Name: "a"}, Step{Name: "a"})
+	buf := []byte("first")
+	if _, err := f.RunInput(t.Context(), buf, "a"); err != nil {
+		t.Fatal(err)
+	}
+	copy(buf, "other")
+	if _, err := f.RunInput(t.Context(), buf, "a"); err != nil {
+		t.Fatal(err)
+	}
+	if string(f.Stdin[0]) != "first" || string(f.Stdin[1]) != "other" {
+		t.Errorf("Stdin = %q, want [first other]", f.Stdin)
 	}
 }

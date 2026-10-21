@@ -13,6 +13,7 @@ import (
 // TB is the part of testing.TB the fake needs; *testing.T satisfies it.
 type TB interface {
 	Helper()
+	Cleanup(func())
 	Fatalf(format string, args ...any)
 }
 
@@ -42,9 +43,12 @@ type Fake struct {
 
 var _ cmdrunner.InputRunner = (*Fake)(nil)
 
-// New returns a Fake that expects exactly steps, in order.
+// New returns a Fake that expects exactly steps, in order. Done also runs when
+// the test ends, so a forgotten call cannot hide a command that never ran.
 func New(t TB, steps ...Step) *Fake {
-	return &Fake{t: t, steps: steps}
+	f := &Fake{t: t, steps: steps}
+	t.Cleanup(f.Done)
+	return f
 }
 
 // Run implements cmdrunner.Runner.
@@ -64,7 +68,7 @@ func (f *Fake) RunInput(_ context.Context, stdin []byte, name string, args ...st
 	if step.Name != name || !slices.Equal(step.Args, args) {
 		f.t.Fatalf("command %d: got %s %q, want %s %q", f.index, name, args, step.Name, step.Args)
 	}
-	f.Stdin = append(f.Stdin, stdin)
+	f.Stdin = append(f.Stdin, slices.Clone(stdin))
 	if step.Effect != nil {
 		if err := step.Effect(); err != nil {
 			return nil, err
