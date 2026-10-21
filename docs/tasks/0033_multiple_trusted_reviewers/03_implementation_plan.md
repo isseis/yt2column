@@ -40,7 +40,7 @@
 | 箇所 | 今 | 変え方 | ステップ |
 |---|---|---|---|
 | `internal/fixprguard/types.go` | `Login` と `ParseLogin` だけがある | `Reviewers` と `ParseReviewers` を加える（設計書 3.2） | 1-1 |
-| `internal/fixprguard/construction_test.go:17-21`・`:28-71` | `restrictedConstructors` は `Login`・`PRNumber`・`Baseline`。検査はリテラル・`new`・`var` 宣言だけを報告する | `Reviewers`→`ParseReviewers` を加え、`Reviewers` の非公開のフィールドへの書き込みも報告する（1.3.3）。コメント（`:28-32`）を改める | 1-1 |
+| `internal/fixprguard/construction_test.go:17-21`・`:28-71` | `restrictedConstructors` は `Login`・`PRNumber`・`Baseline`。検査はリテラル・`new`・`var` 宣言だけを報告する | `Reviewers`→`ParseReviewers` を加え、`ParseReviewers` と `Reviewers` のメソッドの外での `logins` のフィールドの参照も報告する（1.3.3）。コメント（`:28-32`）を改める | 1-1 |
 | `internal/fixprguard/github.go:30-63` | `GitHub.reviewer Login`、`NewGitHub(run, reviewer Login)`、`requireReviewer` が `Login` を確かめる。`NewGitHubWithoutReviewer` のコメント（`:47-50`）が「the zero Login」と書く。エラーの文字列 `reviewer login`（`:42`・`:61`） | `Reviewers` に替える（設計書 2.2）。`NewGitHubWithoutReviewer` の処理は変えず、コメントとエラーの文字列だけを `Reviewers` に合わせる | 1-2 |
 | `internal/fixprguard/github.go:328`・`:466`・`:519`、`write.go:126` | `assessThread(..., g.reviewer, ...)` | `g.reviewers` を渡す | 1-2 |
 | `internal/fixprguard/github.go:380`・`:386-394` | `processThread(t, isNamed, g.reviewer)`。`ParseLogin` を通さない `first.loginRaw` を文字列で比べる | `Reviewers` を渡し、`ParseLogin` を通した名前で比べる（設計書 2.4・3.3）。コメントを改める | 1-2 |
@@ -92,7 +92,7 @@
 -   `Login`・`PRNumber`・`Baseline` が同じ仕組みで守られている。この検査は、パッケージの中のテストでないすべてのファイルのリテラル・`new`・`var` 宣言を報告する（`construction_test.go:33-71`・`:84-113`、`819011a`）。
 -   この検査が報告しない形は、構造体のフィールド、スライスの要素、関数の引数、名前付きの戻り値である（`construction_test.go:28-32`）。これらは宣言だけならゼロ値になり、`requireReviewer` が拒否する。
 
-ただし、宣言の後の書き込みは、今の検査には見えない。`Reviewers` は map を持つので、同じパッケージのコードが `ParseReviewers` を通さずに使える値を作る形は 2 つある。1 つは、名前付きの戻り値やフィールドの `logins` に map を代入する形である。もう 1 つは、既存の値の `logins` に要素を加えるか消す形で、map は値のコピー同士で共有されるので、すべてのコピーに影響する。これは信頼を広げる経路なので、ステップ 1-1 で検査を広げ、`ParseReviewers` の外で `logins` のフィールドへ代入すること、`logins` の要素へ代入すること、`delete` で `logins` から消すことも報告させる。各形には自己テストの行を置く。
+ただし、宣言の後の書き込みは、今の検査には見えない。`Reviewers` は map を持つので、同じパッケージのコードは `ParseReviewers` を通さずに使える値を作れる。名前付きの戻り値やフィールドの `logins` に map を代入する形と、既存の値の `logins` に要素を加えるか消す形である。map は値のコピー同士で共有されるので、後者はすべてのコピーに影響する。`m := r.logins` のように別名を取ってから書き換えると、書き込みの形だけを調べる検査では見つからない。これは信頼を広げる経路なので、ステップ 1-1 で検査を広げ、`logins` のフィールドを参照できるのは `ParseReviewers` と `Reviewers` のメソッド（名前を含むかを調べるメソッドと使えるかを調べるメソッド。どちらも読むだけ）だけとし、それ以外の参照をすべて報告させる。参照を禁じれば、代入・要素の書き換え・`delete`・別名の取得のどれも書けない。`logins` という名前のフィールドは、`internal/fixprguard` の中でほかに使われていない（`819011a`）。設計書 3.2 の表現（非公開の map）は変えない。
 
 `NewGitHubWithoutReviewer`（`github.go:51-56`）は、`GitHub` のリテラルで `Reviewers` のフィールドを省くので、検査に触れない（設計書 3.2）。
 
@@ -146,18 +146,19 @@
     -   多くの名前の並び（要件書 3.2 の「数の上限を設けない」）。
 
     エラーは `errors.Is(err, ErrInvalidInput)` で確かめる。エラーの文字列が入力の値を含まないことは、`TestErrorsOmitCommandDetails`（`github_test.go:517`）と同じく文字列で確かめる。
--   [ ] `restrictedConstructors` に `Reviewers`→`ParseReviewers` を加える。`findRestrictedConstructions` を広げ、`ParseReviewers` の外での `logins` のフィールドへの代入・`logins` の要素への代入・`delete` を報告させる（1.3.3）。コメントを改める。
+-   [ ] `restrictedConstructors` に `Reviewers`→`ParseReviewers` を加える。`findRestrictedConstructions` を広げ、`ParseReviewers` と `Reviewers` のメソッドの外での `logins` のフィールドの参照を報告させる（1.3.3）。コメントを改める。
 -   [ ] `TestRestrictedTypesBuiltByConstructors` の自己テストの表に、次の行を加える。
     -   `ParseReviewers` の中のリテラルは報告されない。
     -   外のゼロ値のリテラル、値を持つリテラル、`&` 付きのリテラル、`new`、`var` 宣言は報告される。
     -   別の構築関数（たとえば `ParseLogin`）の中の `Reviewers{}` は報告される。
-    -   名前付きの戻り値への `logins` の代入、フィールドを通した `logins` の要素への代入、`delete` は報告される。
+    -   `ParseReviewers` と `Reviewers` のメソッドの中の `logins` の参照は報告されない。
+    -   それ以外の関数・メソッドでの `logins` の参照（名前付きの戻り値への代入、要素への代入、`delete`、`m := r.logins` の別名の取得、読むだけの参照）は報告される。
 
 **壊して確かめる**: 次を確かめる。
 
 -   重複の確認を外す、空の一覧の確認を外す、2 つめ以降の名前の文法の確認を外す、比べる前に大文字と小文字をそろえる。それぞれで `TestParseReviewers` の該当の行が失敗すること。
 -   `restrictedConstructors` から `Reviewers` を外すと、自己テストのリテラルの行が失敗すること。
--   広げた検査のそれぞれの形を外すと、その形の自己テストの行が失敗すること。
+-   広げた検査を外すと、`logins` の参照の自己テストの行が失敗すること。
 
 **完了条件**: `go test -tags test ./internal/fixprguard` が通る。
 
@@ -262,7 +263,7 @@
 
 **推奨タイトル**: `feat(0033): fixprguard で --reviewer を繰り返し受け付け、どれかと一致する Bot を信頼する`
 
-**レビュー観点**: 判定の 4 か所（`list`・`begin`・`inspect`・`reply`）と `processThread` が同じ `Reviewers` を同じ比べ方で使うこと / `ParseReviewers` が唯一の構築関数で（フィールドへの書き込みの検査を含む）、重複・空・文法違反を拒否し、`githubFor` が GitHub と git に触れる前に呼ばれること / `--reviewer` を 1 回だけ渡す呼び出しの結果が変わらないこと（AC-04）と、`--protocol` を上げない例外についてのガイドの但し書き / マージの後、PR-2 に進む前に `make install-fixprguard` が要ること
+**レビュー観点**: 判定の 4 か所（`list`・`begin`・`inspect`・`reply`）と `processThread` が同じ `Reviewers` を同じ比べ方で使うこと / `ParseReviewers` が唯一の構築関数で（`logins` の参照の検査を含む）、重複・空・文法違反を拒否し、`githubFor` が GitHub と git に触れる前に呼ばれること / `--reviewer` を 1 回だけ渡す呼び出しの結果が変わらないこと（AC-04）と、`--protocol` を上げない例外についてのガイドの但し書き / マージの後、PR-2 に進む前に `make install-fixprguard` が要ること
 
 **実装モデル要件**: frontier-required
 
@@ -281,7 +282,7 @@
 
 **変更するファイル**: なし
 
--   [ ] `go version -m "$(command -v fixprguard)"` を実行し、`vcs.modified` が `false` であることと、`vcs.revision` が PR-1 のマージコミットかその子孫であることを確かめる。子孫かどうかは `git merge-base --is-ancestor <PR-1 のマージコミット> <vcs.revision>` で判定する。PR-1 のマージコミットは、`/runplan` が取得した `origin/main` の `git log` で、PR-1 の squash のコミットの件名から探す。`protocol` の番号は変わらないので、番号ではなく版で確かめる。
+-   [ ] `go version -m "$(command -v fixprguard)"` を実行し、`vcs.modified` が `false` であることと、`vcs.revision` が PR-1 のコミットかその子孫であることを確かめる。ここで「PR-1 のコミット」は、PR-1 の squash merge で `main` に入ったコミットを指す。子孫かどうかは `git merge-base --is-ancestor <PR-1 のコミット> <vcs.revision>` で判定する。PR-1 のコミットは、`/runplan` が取得した `origin/main` の `git log` で、件名の末尾の `(#<PR-1 の番号>)` から探す。`protocol` の番号は変わらないので、番号ではなく版で確かめる。
 -   [ ] 満たされていなければ、このフェーズを始めず、利用者に `make install-fixprguard` の実行を求めて止まる。
 
 **完了条件**: 上の確かめが通る。
@@ -459,7 +460,7 @@ AC-01〜AC-03・AC-10〜AC-13 は、`_context.md`・コマンドの文書・ガ�
 | PR-1 のマージの後、再インストールを忘れて PR-2 に進む | ステップ 2-0 で止まる。PR-1 の作成ポイントの「マージの後」と「レビュー観点」は案内にとどまり、順序を守らせるのはステップ 2-0 だけである。忘れても、PR-2 の `/runpr` が使い方のエラーで止まるだけで、誤った判定はしない（設計書 6.2） |
 | `--protocol` を上げないので、古いツールが番号の食い違いで止まらない | 古いツールは `flag given twice: --reviewer` で止まる（1.3.4）。ガイドの終了コード `2` の説明が再インストールを案内する（ステップ 1-5） |
 | 判定の 4 か所と `processThread` のどれかが 1 つの名前の比べ方のまま残る | `GitHub.reviewer` を消すので、残りはビルドで見つかる（1.3.2）。各箇所の 2 つめの名前のテストを、壊して確かめる（ステップ 1-2） |
-| 同じパッケージのコードが `ParseReviewers` を通さずに `Reviewers` を作るか広げる | 構築の検査をフィールドへの書き込みにも広げる（1.3.3、ステップ 1-1） |
+| 同じパッケージのコードが `ParseReviewers` を通さずに `Reviewers` を作るか広げる | 構築の検査を広げ、`logins` のフィールドを参照できる関数を限る（1.3.3、ステップ 1-1） |
 | 修正のフェーズが一覧と内容のガードの期待値を同時に書き換える | 設計書 5.3 のとおり受け入れ、マージの前の人のレビューで見つける |
 | 開いているブランチの文書が PR-2 の前のまま、Codex のスレッドを想定外の著者のスレッドとして報告する | 安全側の振る舞いである。ブランチに `main` を取り込めば解消する（設計書 5.3）。PR-2 の「レビュー観点」に書き、PR の本文に載せる |
 
