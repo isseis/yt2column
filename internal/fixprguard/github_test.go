@@ -3,11 +3,13 @@
 package fixprguard
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/isseis/yt2column/internal/cmdrunner"
 	"github.com/isseis/yt2column/internal/cmdrunner/testutil"
@@ -284,10 +286,74 @@ func TestBeginAcceptChangedFingerprint(t *testing.T) {
 	}
 }
 
+func TestBeginRefusesEmptyNamedThread(t *testing.T) {
+	empty := testThread{id: testThreadID(1)}
+	accept := []Accept{{ThreadID: empty.id, Fingerprint: testFingerprint(t, empty)}}
+	// No stage-two step: a thread without comments is never selected.
+	g, _ := newTestGitHub(t, beginSteps(stageOneResponse(t, []testThread{empty}, false, ""), nil, "")...)
+	round, err := g.Begin(t.Context(), mustPR(t), accept)
+	if err != nil {
+		t.Fatalf("Begin = %v", err)
+	}
+	if len(round.Threads) != 0 || len(round.Untrusted) != 1 {
+		t.Errorf("Begin = %+v, want the empty thread reported, not processed", round)
+	}
+}
+
+func TestBeginAuthorType(t *testing.T) {
+	reviewer := testThread{id: testThreadID(1), comments: []testComment{reviewerComment(1)}}
+	otherBot := testThread{id: testThreadID(2), comments: []testComment{botComment(2, "dependabot")}}
+	accept := []Accept{{ThreadID: otherBot.id, Fingerprint: testFingerprint(t, otherBot)}}
+	g, _ := newTestGitHub(t, beginSteps(stageOneResponse(t, []testThread{reviewer, otherBot}, false, ""), nil,
+		stageTwoResponse(t, reviewer, otherBot))...)
+	round, err := g.Begin(t.Context(), mustPR(t), accept)
+	if err != nil {
+		t.Fatalf("Begin = %v", err)
+	}
+	if len(round.Threads) != 2 || round.Threads[0].AuthorType != "Bot" || round.Threads[1].AuthorType != "User" {
+		t.Errorf("Threads = %+v, want Bot for the reviewer and User for a named other bot", round.Threads)
+	}
+}
+
+// deadlineRunner records the time left before each call's deadline (zero when
+// the context has none) and delegates to a scripted fake.
+type deadlineRunner struct {
+	*cmdrunnertestutil.Fake
+	deadlines []time.Duration
+}
+
+func (r *deadlineRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
+	return r.RunInput(ctx, nil, name, args...)
+}
+
+func (r *deadlineRunner) RunInput(ctx context.Context, stdin []byte, name string, args ...string) ([]byte, error) {
+	var left time.Duration
+	if deadline, ok := ctx.Deadline(); ok {
+		left = time.Until(deadline)
+	}
+	r.deadlines = append(r.deadlines, left)
+	return r.Fake.RunInput(ctx, stdin, name, args...)
+}
+
+func TestGitHubCallsHaveTimeout(t *testing.T) {
+	runner := &deadlineRunner{Fake: cmdrunnertestutil.New(t, headStep(sameRepositoryHead))}
+	g, err := NewGitHub(runner, mustLogin(t, testReviewer))
+	if err != nil {
+		t.Fatalf("NewGitHub = %v", err)
+	}
+	if _, err := g.Head(t.Context(), mustPR(t)); err != nil {
+		t.Fatalf("Head = %v", err)
+	}
+	if len(runner.deadlines) != 1 || runner.deadlines[0] <= 0 || runner.deadlines[0] > githubTimeout {
+		t.Errorf("deadlines = %v, want one within %v", runner.deadlines, githubTimeout)
+	}
+}
+
 func TestListOmitsBodies(t *testing.T) {
 	trusted := testThread{id: testThreadID(1), comments: []testComment{reviewerComment(1)}}
 	untrusted := testThread{id: testThreadID(2), comments: []testComment{userComment(2, "mallory")}}
-	g, _ := newTestGitHub(t, listSteps([]string{stageOneResponse(t, []testThread{trusted, untrusted}, false, "")},
+	resolved := testThread{id: testThreadID(3), resolved: true, comments: []testComment{reviewerComment(3)}}
+	g, _ := newTestGitHub(t, listSteps([]string{stageOneResponse(t, []testThread{trusted, untrusted, resolved}, false, "")},
 		roleStep("mallory", "read"))...)
 	list, err := g.List(t.Context(), mustPR(t))
 	if err != nil {

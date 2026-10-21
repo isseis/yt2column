@@ -207,6 +207,7 @@ func TestPermissionCause(t *testing.T) {
 		{name: "role_missing", out: ok + `{"permission":"admin"}`, want: permission{cause: CauseRejectedResponse}},
 		{name: "role_duplicate", out: ok + `{"role_name":"read","role_name":"admin"}`, want: permission{cause: CauseRejectedResponse}},
 		{name: "trailing_data", out: ok + `{"role_name":"admin"}{}`, want: permission{cause: CauseRejectedResponse}},
+		{name: "over_size_cap", out: ok + `{"role_name":"admin"}` + strings.Repeat(" ", maxResponseBytes), want: permission{cause: CauseRejectedResponse}},
 		{name: "unknown_members_ignored", out: ok + `{"role_name":"maintain","new_field":{"a":1}}`, want: permission{trusted: true}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

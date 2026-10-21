@@ -263,7 +263,7 @@ func (g *GitHub) Begin(ctx context.Context, pr PRNumber, accept []Accept) (Round
 		switch {
 		case assessment.Trusted:
 			selected = append(selected, t)
-		case isNamed && acc.Fingerprint == fp:
+		case isNamed && acc.Fingerprint == fp && len(t.comments) > 0:
 			selected = append(selected, t)
 			named[t.id] = true
 		default:
@@ -298,18 +298,20 @@ func (g *GitHub) Begin(ctx context.Context, pr PRNumber, accept []Accept) (Round
 			round.Changed = append(round.Changed, ChangedThread{ThreadID: t.id, URL: threadURL(judged), Stage: changedSinceJudgment})
 			continue
 		}
-		round.Threads = append(round.Threads, processThread(t, named[t.id]))
+		round.Threads = append(round.Threads, processThread(t, named[t.id], g.reviewer))
 	}
 	return round, nil
 }
 
 // processThread renders a fetched thread in the triage format. The first
-// comment gives the database ID, path, line and URL; authorType is "Bot" for a
-// bot first author and "User" otherwise, as /fixpr used before.
-func processThread(t thread, named bool) ProcessThread {
+// comment gives the database ID, path, line and URL. authorType is "Bot" only
+// when the first author is the reviewer bot and "User" otherwise, so another
+// bot's thread a user named is answered like a person's. Begin never selects a
+// thread without comments.
+func processThread(t thread, named bool, reviewer Login) ProcessThread {
 	first := t.comments[0]
 	authorType := typenameUser
-	if authorKindOf(first.kindRaw) == AuthorBot {
+	if authorKindOf(first.kindRaw) == AuthorBot && first.loginRaw == reviewer.String() {
 		authorType = typenameBot
 	}
 	parts := make([]string, 0, len(t.comments))

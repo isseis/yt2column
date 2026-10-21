@@ -100,6 +100,16 @@ func TestThreadCap(t *testing.T) {
 			t.Errorf("second page after = %v, want the first page's endCursor", after)
 		}
 	})
+	t.Run("pages_without_threads", func(t *testing.T) {
+		empty := make([]string, maxListPages)
+		for i := range empty {
+			empty[i] = stageOneResponse(t, nil, true, "same-cursor")
+		}
+		g, _ := newTestGitHub(t, listSteps(empty)...)
+		if _, err := g.List(t.Context(), mustPR(t)); !errors.Is(err, ErrLimitExceeded) {
+			t.Errorf("List = %v, want ErrLimitExceeded", err)
+		}
+	})
 	t.Run("2001", func(t *testing.T) {
 		g, _ := newTestGitHub(t, listSteps(pages(t, 2001))...)
 		if _, err := g.List(t.Context(), mustPR(t)); !errors.Is(err, ErrLimitExceeded) {
@@ -197,15 +207,18 @@ func TestResponseRejected(t *testing.T) {
 func TestFingerprintChanges(t *testing.T) {
 	base := testThread{id: testThreadID(1), comments: []testComment{reviewerComment(1), userComment(2, "alice")}}
 	variants := map[string]testThread{
-		"base":           base,
-		"other_thread":   {id: testThreadID(2), comments: base.comments},
-		"added":          {id: base.id, comments: append(slices.Clone(base.comments), reviewerComment(3))},
-		"deleted":        {id: base.id, comments: base.comments[:1]},
-		"edited":         {id: base.id, comments: []testComment{reviewerComment(1), {id: 2, kind: "User", login: "alice", edited: testLaterAt}}},
-		"updated":        {id: base.id, comments: []testComment{reviewerComment(1), {id: 2, kind: "User", login: "alice", updated: testLaterAt}}},
-		"author_changed": {id: base.id, comments: []testComment{reviewerComment(1), userComment(2, "mallory")}},
-		"author_deleted": {id: base.id, comments: []testComment{reviewerComment(1), {id: 2, noAuthor: true}}},
-		"more_comments":  {id: base.id, comments: base.comments, more: true},
+		"base":            base,
+		"other_thread":    {id: testThreadID(2), comments: base.comments},
+		"added":           {id: base.id, comments: append(slices.Clone(base.comments), reviewerComment(3))},
+		"deleted":         {id: base.id, comments: base.comments[:1]},
+		"edited":          {id: base.id, comments: []testComment{reviewerComment(1), {id: 2, kind: "User", login: "alice", edited: testLaterAt}}},
+		"updated":         {id: base.id, comments: []testComment{reviewerComment(1), {id: 2, kind: "User", login: "alice", updated: testLaterAt}}},
+		"author_changed":  {id: base.id, comments: []testComment{reviewerComment(1), userComment(2, "mallory")}},
+		"author_deleted":  {id: base.id, comments: []testComment{reviewerComment(1), {id: 2, noAuthor: true}}},
+		"more_comments":   {id: base.id, comments: base.comments, more: true},
+		"kind_changed":    {id: base.id, comments: []testComment{reviewerComment(1), botComment(2, "alice")}},
+		"created_changed": {id: base.id, comments: []testComment{reviewerComment(1), {id: 2, kind: "User", login: "alice", created: testLaterAt}}},
+		"author_emptied":  {id: base.id, comments: []testComment{reviewerComment(1), {id: 2, omitKind: true, omitLogin: true}}},
 	}
 	seen := map[Fingerprint]string{}
 	for name, th := range variants {

@@ -18,8 +18,10 @@ const (
 	maxThreadsPerPage    = 100
 	maxCommentsPerThread = 100
 	// maxListThreads caps the threads list reads over every page; a longer
-	// list is refused rather than returned in part.
+	// list is refused rather than returned in part. maxListPages also bounds
+	// the pages, so pages that keep reporting more without threads end too.
 	maxListThreads = 2000
+	maxListPages   = maxListThreads/maxThreadsPerPage + 1
 	// maxResponseBytes caps one GitHub response.
 	maxResponseBytes = 16 << 20
 
@@ -117,7 +119,7 @@ func (g *GitHub) fetchThreadPage(ctx context.Context, repo repository, pr PRNumb
 func (g *GitHub) fetchAllThreads(ctx context.Context, repo repository, pr PRNumber) ([]thread, error) {
 	var threads []thread
 	after := ""
-	for {
+	for pages := 1; ; pages++ {
 		page, err := g.fetchThreadPage(ctx, repo, pr, after)
 		if err != nil {
 			return nil, err
@@ -128,6 +130,9 @@ func (g *GitHub) fetchAllThreads(ctx context.Context, repo repository, pr PRNumb
 		}
 		if !page.hasNextPage {
 			return threads, nil
+		}
+		if pages >= maxListPages {
+			return nil, fmt.Errorf("%w: page cap", ErrLimitExceeded)
 		}
 		after = page.endCursor
 	}

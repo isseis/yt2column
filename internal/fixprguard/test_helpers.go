@@ -39,6 +39,7 @@ type testComment struct {
 	noAuthor  bool
 	omitKind  bool
 	omitLogin bool
+	created   string
 	updated   string
 	edited    string
 	body      string
@@ -81,6 +82,9 @@ func (c testComment) json(withBody bool) map[string]any {
 		"createdAt":    testTime,
 		"updatedAt":    testTime,
 		"lastEditedAt": nil,
+	}
+	if c.created != "" {
+		node["createdAt"] = c.created
 	}
 	if c.updated != "" {
 		node["updatedAt"] = c.updated

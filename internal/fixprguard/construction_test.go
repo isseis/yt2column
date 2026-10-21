@@ -21,8 +21,9 @@ var restrictedConstructors = map[string]string{
 
 // findRestrictedConstructions reports every composite literal (T{}, &T{}),
 // new(T), and var declaration of a restricted type outside its constructor.
-// A struct field or slice element of the type is not reported: those zero
-// values are made unusable instead (NewGitHub rejects a zero Login).
+// A struct field, a slice element, or a named result of the type is not
+// reported: those zero values are made unusable instead (NewGitHub rejects a
+// zero Login, and every use checks usable()).
 func findRestrictedConstructions(fset *token.FileSet, file *ast.File) []string {
 	var found []string
 	report := func(node ast.Node, typeName string) {

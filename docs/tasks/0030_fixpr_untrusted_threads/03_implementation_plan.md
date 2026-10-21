@@ -169,7 +169,7 @@
 
 **変更するファイル**: `internal/fixprguard/threads.go`、`internal/fixprguard/threads_test.go`
 
--   [x] 1 段目（本文なし）と 2 段目（処理するスレッドの本文）の問い合わせと応答の検査を作る（設計書 3.4）。検査は `internal/strictjson` を使い、`errors` を含む応答、16 MiB を超える応答、`hasNextPage` が真のコメント（上限 100 件）を拒否する。
+-   [x] 1 段目（本文なし）と 2 段目（処理するスレッドの本文）の問い合わせと応答の検査を作る（設計書 3.4）。検査は `internal/strictjson` を使い、`errors` を含む応答と 16 MiB を超える応答を拒否する。`hasNextPage` が真のコメント（上限 100 件）は、理由 (e) に写す。
 -   [x] 指紋を作る（コメントの追加・編集・削除のそれぞれで変わる）。
 -   [x] `begin` 用に 1 ページ（100 スレッド）と `capHit`、`list` 用に全ページ（上限 2000 スレッド、超えたら `thread-cap`）を作る。
 -   [x] 外部コマンドの呼び出しに、時間の上限（GitHub は 2 分）を設ける。
