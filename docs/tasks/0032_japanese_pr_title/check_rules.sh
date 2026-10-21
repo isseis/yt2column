@@ -171,7 +171,8 @@ check_context_title_section() {
 	# The six items of the item table.
 	has "$sec" '^\| PR title \| `<type>\(<scope>\): <Japanese summary>`' \
 		'item: PR title is <type>(<scope>): <Japanese summary>'
-	has "$sec" '^\| Accepted prefix \|' 'item: accepted prefix'
+	has "$sec" '^\| Accepted prefix \| The prefix table below \|' \
+		'item: accepted prefix refers to the prefix table'
 	has "$sec" '^\| Task-document PR title \| `docs\(<task-id>\): <Japanese summary>`' \
 		'item: task-document PR title is docs(<task-id>): <Japanese summary>'
 	has "$sec" '^\| Plan PR title \|.*`<type>\(<task-id>\): `' \
@@ -209,6 +210,8 @@ check_context_title_section() {
 
 check_context_subject_regex() {
 	load_section "$CONTEXT" "$TITLE_HEADING" || return 0
+	# A subject expression is recognized by its (#<number>) tail; if that tail
+	# is ever written differently, change this pattern with it.
 	n=$(printf '%s\n' "$sec" | command grep -c '^(.*\\(#\[0-9\]+\\)$')
 	[ "$n" -eq 1 ] || fail "expected one subject expression in the title section, found $n"
 	re=$(printf '%s\n' "$sec" | subject_regex)
@@ -220,7 +223,6 @@ check_context_subject_regex() {
 	want=$(printf '%s\n' "$sec" | table_types)
 	[ "$got" = "$want" ] ||
 		fail "<type> alternatives of the expression '$got' differ from the table '$want'"
-	[ "$got" = "$TYPES" ] || fail "<type> alternatives are '$got', expected '$TYPES'"
 }
 
 # subject_ok FILE: the squash-subject check of "Checking a squash subject",
@@ -301,6 +303,24 @@ check_subject_regex_samples() {
 	sample reject 'docs(0032): (#1)\n'
 	sample reject 'docs(0032): draft (#)\n'
 	sample reject ' docs(0032): draft (#1)\n'
+	# The byte check alone: with a grep that accepts everything first on PATH
+	# (command grep finds it there), only the tr line can reject these.
+	mkdir "$tmp/stub" && printf '#!/bin/sh\nexit 0\n' >"$tmp/stub/grep" &&
+		chmod +x "$tmp/stub/grep" || fail 'cannot write the stub grep'
+	# byte_sample accept|reject PRINTF-FORMAT: sample, with the stub grep.
+	byte_sample() {
+		_path=$PATH
+		PATH=$tmp/stub:$PATH
+		sample "$@"
+		PATH=$_path
+	}
+	byte_sample accept 'docs(0032): draft the plan (#413)\n'
+	byte_sample reject 'docs(0032): draft (#1)\r\n'
+	byte_sample reject 'docs(0032): draft\r (#1)\n'
+	byte_sample reject '\357\273\277docs(0032): draft (#1)\n'
+	byte_sample reject 'docs(0032):\tdraft (#1)\n'
+	byte_sample reject 'docs(0032):\302\240draft (#1)\n'
+	byte_sample reject 'docs(0032):\343\200\200draft (#1)\n'
 	rm -rf "$tmp"
 }
 
@@ -330,6 +350,8 @@ check_context_marker_conventions() {
 	has "$line" 'is a PR title, not a squash subject' \
 		'推奨タイトル is a PR title, not a squash subject'
 	has "$line" '"PR title and squash subject"' 'refers to the title section'
+	lacks "$sec" 'Conventional commit scope format|<concise English title>' \
+		'the old feat(<task-id>) marker line is gone'
 }
 
 ALL_CHECKS="$ALL_CHECKS context_marker_conventions"
