@@ -217,12 +217,12 @@
 
 **変更するファイル**: `.claude/commands/runpr.md`、`check_rules.sh`
 
--   [ ] 検査 `runpr_title` を加える。次のことを確かめる。
+-   [x] 検査 `runpr_title` を加える。次のことを確かめる。
     -   step 1 が、タイトルを PR のタイトルの形の日本語で書き、`<type>(<scope>)` を `git log origin/main` の形に合わせ、ファイルから渡す。
     -   step 2 が、`_context.md` のプランの PR の判定を参照する。
     -   step 4 の 2 の列挙が、接頭辞を決めた規則の記録を含む。
--   [ ] 設計書 3.6 の `runpr.md` の 3 項目のとおりに改める。step 2 の「Plan PR」の文は `_context.md` の参照に置き換え、PR の種類の判定の残り（Task-document PR・Standalone change）は変えない（設計書 3.8）。
--   [ ] タスク 0030 の PR-6 が先にマージされていれば、その後の `runpr.md` の該当の段落に同じ変更を加え、`make test` でそのガード（`cmd/yt2column/fixpr_docs_test.go`）が通ることを確かめる。ガードが本タスクの書き換える文を固定していて通らなければ、止まって利用者に尋ねる（1.4）。
+-   [x] 設計書 3.6 の `runpr.md` の 3 項目のとおりに改める。step 2 の「Plan PR」の文は `_context.md` の参照に置き換え、PR の種類の判定の残り（Task-document PR・Standalone change）は変えない（設計書 3.8）。
+-   [-] タスク 0030 の PR-6 が先にマージされていれば、その後の `runpr.md` の該当の段落に同じ変更を加え、`make test` でそのガード（`cmd/yt2column/fixpr_docs_test.go`）が通ることを確かめる。ガードが本タスクの書き換える文を固定していて通らなければ、止まって利用者に尋ねる（1.4）。（PR-6 は未マージだったので該当しない）
 
 **完了条件**: 1.2 の 3 つ。
 

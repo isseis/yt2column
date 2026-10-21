@@ -417,7 +417,7 @@ check_handoff_pr_text() {
 	lacks "$b3" "$EN_TITLE" 'step 3 does not make the title English'
 	has "$b3" 'title and the body to files in the scratchpad with the Write tool' \
 		'step 3 writes the title to a file with the Write tool'
-	has "$b3" "$(printf '%s' "$TITLE_ARG" | sed 's/[][\.*^$()|+?{}]/\\&/g')" \
+	has "$b3" "$(quote_ere "$TITLE_ARG")" \
 		'step 3 passes the title by command substitution'
 	has "$b3" 'follows `_context\.md`, "PR title and squash subject"' \
 		'step 3 refers to the title section for the form'
@@ -447,6 +447,35 @@ check_runplan_title() {
 }
 
 ALL_CHECKS="$ALL_CHECKS runplan_title"
+
+# quote_ere TEXT: print TEXT as an ERE matching it literally.
+quote_ere() {
+	printf '%s' "$1" | sed 's/[][\.*^$()|+?{}]/\\&/g'
+}
+
+check_runpr_title() {
+	load .claude/commands/runpr.md || return 0
+	s1=$(printf '%s\n' "$ctx" | section '## 1. Resolve the PR, and create it for a standalone change' | flat)
+	s2=$(printf '%s\n' "$ctx" | section "## 2. Decide the PR's bookkeeping and next command" | flat)
+	s4=$(printf '%s\n' "$ctx" | section '## 4. Confirm, record, and merge' |
+		between '^2\. Ask with one' '^3\. ' | flat)
+	[ -n "$s1" ] && [ -n "$s2" ] && [ -n "$s4" ] || {
+		fail 'step 1, step 2, or step 4 item 2 not found'
+		return 0
+	}
+	has "$s1" 'Draft a PR title in the form `_context\.md`, "PR title and squash subject", gives' \
+		'step 1 writes the title in the PR title form of the title section'
+	has "$s1" 'Japanese summary after a prefix whose `<type>\(<scope>\)` matches the style of `git log origin/main`' \
+		'step 1: Japanese summary, <type>(<scope>) as in git log origin/main'
+	has "$s1" "$(quote_ere "$TITLE_ARG")" 'step 1 passes the title from a file'
+	lacks "$s1" "$EN_TITLE" 'step 1 does not make the title English'
+	has "$s2" '\*\*Plan PR\*\* — a plan PR as `_context\.md`, "Plan PR", defines it' \
+		'step 2 refers to the plan PR judgment of _context.md'
+	has "$s4" 'the record of which rule decided the subject.s prefix' \
+		'step 4 item 2 shows the record of the prefix rule'
+}
+
+ALL_CHECKS="$ALL_CHECKS runpr_title"
 
 for name in "$@"; do
 	case $name in
