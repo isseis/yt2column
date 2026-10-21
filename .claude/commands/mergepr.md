@@ -78,7 +78,7 @@ around it with your own shell commands. Work in order; do not skip a step.
      recover from the diff, the subject, or `git log`: file lists, function
      names, per-file changes, and step-by-step narration. Do not reproduce the
      commits' details. When a detail is already recorded in a committed
-     document — the task's `03_implementation_plan.md` for a plan-driven PR, or
+     document — the task's `03_implementation_plan.md` for a plan PR, or
      another document the PR updates — refer to that document instead of copying
      the detail, as long as a reader can find it there. The records required
      by the next bullet are the only content that may exceed this size, and
@@ -108,7 +108,8 @@ around it with your own shell commands. Work in order; do not skip a step.
    approval alone is not the check. If it fails, rewrite the subject and check
    it again; never go on to step 3 with a subject that fails.
 3. **Ask for approval.** Show the user the PR URL, the base branch, the CI
-   result, and the full subject and body, and ask whether to merge with this
+   result, the full subject and body, and the record of which rule decided
+   the subject's prefix (step 2), and ask whether to merge with this
    message. Revise it as asked; after revising the subject, check it again as
    step 2 does. Do not merge without an explicit yes. When this
    command runs inside `runpr.md`, its step 4 asks
@@ -130,7 +131,7 @@ around it with your own shell commands. Work in order; do not skip a step.
    merged, fix the reported cause and run
    `mergepr cleanup --state <state-file>`.
 5. **Report** the merge commit, what the cleanup did (including any note), and,
-   when the PR came from `/runplan`, that the next step is to create the next
+   when the PR is a plan PR (step 2), that the next step is to create the next
    branch from the updated base branch (`runpr.md` step 5 does it when it
    called this command).
 

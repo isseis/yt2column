@@ -298,12 +298,12 @@
 
 **変更するファイル**: `.claude/commands/mergepr.md`、`docs/dev/developer_guide/mergepr_guide.md`、`docs/dev/developer_guide/mergepr_guide.ja.md`、`check_rules.sh`
 
--   [ ] 検査 `mergepr_subject` に、次のことを加える。
+-   [x] 検査 `mergepr_subject` に、次のことを加える。
     -   step 3 で見せる項目が、接頭辞を決めた規則の記録を含む。
     -   `mergepr.md` に、`plan-driven` と ``came from `/runplan` `` が残らない。
--   [ ] 検査 `mergepr_guide_items` を加える。両方のガイドの 93 行目の段落が、接頭辞を決めた規則の記録を含むことを確かめる。
--   [ ] 設計書 3.7 の「接頭辞を決めた規則を示す」のとおりに、step 2 に記録を書かせ、step 3 の項目に加える。`mergepr.md:51`・`:60`・`:107` の言い回しを「プランの PR」（`plan PR`）にそろえる（設計書 3.2）。
--   [ ] 両方のガイドの 93 行目の列挙に、接頭辞を決めた規則の記録を加える（設計書 3.7 の末尾）。日本語版を先に直し、英語版をそれに合わせる（`CLAUDE.md`「Translation Guidelines」）。
+-   [x] 検査 `mergepr_guide_items` を加える。両方のガイドの 93 行目の段落が、接頭辞を決めた規則の記録を含むことを確かめる。
+-   [x] 設計書 3.7 の「接頭辞を決めた規則を示す」のとおりに、step 2 に記録を書かせ、step 3 の項目に加える。`mergepr.md:51`・`:60`・`:107` の言い回しを「プランの PR」（`plan PR`）にそろえる（設計書 3.2）。
+-   [x] 両方のガイドの 93 行目の列挙に、接頭辞を決めた規則の記録を加える（設計書 3.7 の末尾）。日本語版を先に直し、英語版をそれに合わせる（`CLAUDE.md`「Translation Guidelines」）。
 
 **完了条件**: 1.2 の 3 つ。フェーズの最後として `make test && make lint` が通る。
 

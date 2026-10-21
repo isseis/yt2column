@@ -90,7 +90,7 @@ Run it in Claude Code as follows.
 /mergepr https://github.com/isseis/yt2column/pull/42
 ```
 
-Claude runs `prepare`, drafts the message, and requests approval, showing the PR URL, the base branch, the CI result, and the subject and body. If there is anything you want revised, say so. When you answer yes, the merge and cleanup are performed, and the merge commit and the cleanup result are reported.
+Claude runs `prepare`, drafts the message, and requests approval, showing the PR URL, the base branch, the CI result, the subject and body, and the record of which rule decided the subject's prefix. If there is anything you want revised, say so. When you answer yes, the merge and cleanup are performed, and the merge commit and the cleanup result are reported.
 
 ### 5.2 Using it manually
 

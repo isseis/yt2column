@@ -613,9 +613,24 @@ check_mergepr_subject() {
 		'a failing subject is rewritten, never taken to step 3'
 	has "$s3" 'after revising the subject, check it again as step 2 does' \
 		'a subject revised in step 3 is checked again'
+	# What step 3 shows, and the plan PR wording.
+	has "$s3" 'the full subject and body, and the record of which rule decided the subject.s prefix' \
+		'step 3 shows the record of the prefix rule'
+	lacks "$ctx" 'plan-driven|came from `/runplan`' 'mergepr.md says "plan PR" for a plan PR'
 }
 
 ALL_CHECKS="$ALL_CHECKS mergepr_subject"
+
+check_mergepr_guide_items() {
+	load docs/dev/developer_guide/mergepr_guide.ja.md || return 0
+	has "$ctx" '^Claude は `prepare` を実行して.*件名と本文、接頭辞を決めた規則の記録を示して承認を求める' \
+		'the Japanese guide lists the prefix-rule record in the approval question'
+	load docs/dev/developer_guide/mergepr_guide.md || return 0
+	has "$ctx" '^Claude runs `prepare`.*the subject and body, and the record of which rule decided the subject.s prefix' \
+		'the English guide lists the prefix-rule record in the approval question'
+}
+
+ALL_CHECKS="$ALL_CHECKS mergepr_guide_items"
 
 for name in "$@"; do
 	case $name in
