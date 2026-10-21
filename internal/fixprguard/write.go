@@ -95,6 +95,9 @@ type ReplyRequest struct {
 // resolved thread. Once the reply may have been posted, every failure is
 // ErrReplyNotResolved, so the caller does not post it again.
 func (g *GitHub) Reply(ctx context.Context, req ReplyRequest) error {
+	if err := g.requireReviewer(); err != nil {
+		return err
+	}
 	accepted, err := checkAccepts(req.Accept)
 	if err != nil {
 		return err

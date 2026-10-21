@@ -8,7 +8,7 @@
 | Created | 2026-10-21 |
 | Review date | 2026-10-21 |
 | Reviewer | isseis |
-| Comments | 2026-10-21 (editorial): 3.2 の `cmdrunner.Options` に `Dir` と `Env` を加えた（計画書 1.3.2 の決定。3.7 の git の起動と一時リポジトリのテストに要る）。AC は変わらない。2026-10-21 (editorial): 3.4 に、2 段目の応答に入りうる本文の扱い、`authorType` の決め方、`begin` の出力の `untrusted`・`changed`・`acceptNotFound` を書き足した（実装に合わせた。AC は変わらない）。2026-10-21 (editorial): 3.2 の `Finding` に `CommentURL` を加え（3.3 の「コメントの URL を理由 (c) に付ける」の型の上の表現）、`ThreadPaths` の戻り値を `[]ThreadPath`（パスと、名指しされた想定外の著者のスレッドかどうか）にした（3.6 の規則 4 が名指しを区別するため）。AC は変わらない。2026-10-21 (decision): 3.7 に、`GH_REPO` または `GH_HOST` が設定されていれば `gh` を起動せずに止まる規則を加え、2 章の `owner/repo` の求め方から参照した（PR #406 のレビューの指摘。取り除いて進める案ではなく止める案を、このセッションでレビュアーが承認した）。AC は変わらない。2026-10-21 (editorial): フェーズ 3 の実装に合わせ、3.2 の `Worktree` に `CheckClean`・`Baseline`・`CheckState` を加え、`Inspect` の引数を `[]ThreadPath` にした（計画書のステップ 3-2・3-4 のとおり）。3.7 の head に HEAD がいるブランチを含め、比較する時点を実装の位置に合わせた。3.6 の規則 6 に、追跡済みのファイルを置き換えた FIFO では git が失敗して止まることを書き足した。AC は変わらない。2026-10-21 (decision): フェーズ 3 のレビューの指摘から、次の 3 つを決めた（このセッションでレビュアーが承認した）。(1) 3.7 の config の比較を、git が読むすべての設定の値（`git config --list --show-origin`）に広げ、push 先の識別をその比較に委ねた。(2) 入れ子の `.gitignore` と index の stat の偽造で変更を隠すことを、5.3 の残余のリスクとして記録した。(3) 3.6 の push 先を、git が解決するリモートの同じ名前のブランチと明記した。あわせて、3.6・3.7 に、replace refs を使わないこと、commit のツリーを objects から読んで blob まで比べること、内容のダイジェストを持たない変更で止まること、`commondir` の扱いを書き足した。AC は変わらない。2026-10-21 (editorial): 3.6 の「変更の数え上げ」で基準値が確かめる隠蔽の範囲を、`info/exclude`・`info/attributes` の書き換えと index の skip-worktree・assume-unchanged のフラグに限り、残りは 5.3 の残余のリスクを参照するようにした（3.7・5.3 との食い違いの修正。決定は変わらない）。AC は変わらない。2026-10-21 (editorial): 3.8 の本文のファイルの確認を、開く前の `lstat` から、リンクをたどらずに開いたファイルでの確認に改め、空のファイルの拒否を加えた（ステップ 4-1 の実装に合わせた）。AC は変わらない。2026-10-21 (decision): ステップ 4-2 のレビューの指摘から、3.8 について次の 3 つを決めた（このセッションでレビュアーが改めて承認した）。(1) (3) で返信するコメントを、スレッドの最初のコメントに限る（GitHub の返信の API の制約）。(2) 返信の後・解決の前にスレッドを取り直し、返信のほかに変化があれば解決しない（判定の後に加わったコメントを解決で隠さないため。AC-10 を保つ）。(3) 返信が投稿された可能性のある結果（時間切れ、取り消し、応答から ID を読めない、取り直しで変化を見つけた、解決に失敗した）を `ErrReplyNotResolved`（`stop` の種類は `reply-not-resolved`）とし、呼び出し元が返信を繰り返さないようにする。4 章の表に 2 行を加え、`ErrReplyNotResolved` の行に取り消しを加えた。2026-10-21 (editorial): 同じ指摘で、本文のファイルの検査に空白だけ・NUL・タイトルの制御文字の拒否を加え、リンクの扱いの記述を実装に合わせた。AC は変わらない。2026-10-21 (editorial): ステップ 4-2 の実装に合わせ、3.8 の `edit-pr` の本文を標準入力から `--body-file -` で渡す形にし、4 章に `ErrCommentNotInThread`・`ErrReplyNotResolved` と `stop` の種類 `thread-not-trusted`・`reply-not-resolved` を加えた。AC は変わらない |
+| Comments | 2026-10-21 (editorial): 3.2 の `cmdrunner.Options` に `Dir` と `Env` を加えた（計画書 1.3.2 の決定。3.7 の git の起動と一時リポジトリのテストに要る）。AC は変わらない。2026-10-21 (editorial): 3.4 に、2 段目の応答に入りうる本文の扱い、`authorType` の決め方、`begin` の出力の `untrusted`・`changed`・`acceptNotFound` を書き足した（実装に合わせた。AC は変わらない）。2026-10-21 (editorial): 3.2 の `Finding` に `CommentURL` を加え（3.3 の「コメントの URL を理由 (c) に付ける」の型の上の表現）、`ThreadPaths` の戻り値を `[]ThreadPath`（パスと、名指しされた想定外の著者のスレッドかどうか）にした（3.6 の規則 4 が名指しを区別するため）。AC は変わらない。2026-10-21 (decision): 3.7 に、`GH_REPO` または `GH_HOST` が設定されていれば `gh` を起動せずに止まる規則を加え、2 章の `owner/repo` の求め方から参照した（PR #406 のレビューの指摘。取り除いて進める案ではなく止める案を、このセッションでレビュアーが承認した）。AC は変わらない。2026-10-21 (editorial): フェーズ 3 の実装に合わせ、3.2 の `Worktree` に `CheckClean`・`Baseline`・`CheckState` を加え、`Inspect` の引数を `[]ThreadPath` にした（計画書のステップ 3-2・3-4 のとおり）。3.7 の head に HEAD がいるブランチを含め、比較する時点を実装の位置に合わせた。3.6 の規則 6 に、追跡済みのファイルを置き換えた FIFO では git が失敗して止まることを書き足した。AC は変わらない。2026-10-21 (decision): フェーズ 3 のレビューの指摘から、次の 3 つを決めた（このセッションでレビュアーが承認した）。(1) 3.7 の config の比較を、git が読むすべての設定の値（`git config --list --show-origin`）に広げ、push 先の識別をその比較に委ねた。(2) 入れ子の `.gitignore` と index の stat の偽造で変更を隠すことを、5.3 の残余のリスクとして記録した。(3) 3.6 の push 先を、git が解決するリモートの同じ名前のブランチと明記した。あわせて、3.6・3.7 に、replace refs を使わないこと、commit のツリーを objects から読んで blob まで比べること、内容のダイジェストを持たない変更で止まること、`commondir` の扱いを書き足した。AC は変わらない。2026-10-21 (editorial): 3.6 の「変更の数え上げ」で基準値が確かめる隠蔽の範囲を、`info/exclude`・`info/attributes` の書き換えと index の skip-worktree・assume-unchanged のフラグに限り、残りは 5.3 の残余のリスクを参照するようにした（3.7・5.3 との食い違いの修正。決定は変わらない）。AC は変わらない。2026-10-21 (editorial): 3.8 の本文のファイルの確認を、開く前の `lstat` から、リンクをたどらずに開いたファイルでの確認に改め、空のファイルの拒否を加えた（ステップ 4-1 の実装に合わせた）。AC は変わらない。2026-10-21 (decision): ステップ 4-2 のレビューの指摘から、3.8 について次の 3 つを決めた（このセッションでレビュアーが改めて承認した）。(1) (3) で返信するコメントを、スレッドの最初のコメントに限る（GitHub の返信の API の制約）。(2) 返信の後・解決の前にスレッドを取り直し、返信のほかに変化があれば解決しない（判定の後に加わったコメントを解決で隠さないため。AC-10 を保つ）。(3) 返信が投稿された可能性のある結果（時間切れ、取り消し、応答から ID を読めない、取り直しで変化を見つけた、解決に失敗した）を `ErrReplyNotResolved`（`stop` の種類は `reply-not-resolved`）とし、呼び出し元が返信を繰り返さないようにする。4 章の表に 2 行を加え、`ErrReplyNotResolved` の行に取り消しを加えた。2026-10-21 (editorial): 同じ指摘で、本文のファイルの検査に空白だけ・NUL・タイトルの制御文字の拒否を加え、リンクの扱いの記述を実装に合わせた。AC は変わらない。2026-10-21 (editorial): ステップ 4-2 の実装に合わせ、3.8 の `edit-pr` の本文を標準入力から `--body-file -` で渡す形にし、4 章に `ErrCommentNotInThread`・`ErrReplyNotResolved` と `stop` の種類 `thread-not-trusted`・`reply-not-resolved` を加えた。AC は変わらない。2026-10-21 (editorial): ステップ 5-1 の実装に合わせ、3.2 に `NewGitHubWithoutReviewer`（`--reviewer` を取らない `head`・`edit-pr` 用。スレッドを判定する呼び出しは拒否する）と `CurrentPR`（`<PR>` を省略したときの解決）を加えた。3.1 に、GitHub を読まない `finish` は `<PR>` を省略できないことと、`begin` の出力の形（処理するスレッドを `threads` の区切りのブロックに入れ、本文を含まない項目をその外に置く）を書き足した。AC は変わらない |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `911b535` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md) の項番を指す。申し送り H-01〜H-10 への対応は付録 A にまとめる。#395 などは GitHub の issue の番号を指す。
 
@@ -283,7 +283,7 @@ sequenceDiagram
 
 終了コードは、`0` が「続けてよい」、`1` が「止める」（理由は出力の `stop`）、`2` が使い方の誤り、`3` が「利用者に確かめる」（`inspect` だけ）である。呼び出し側は、これら以外の終了コード、信号による終了、JSON として読めない出力、途中で切れた出力を、すべて「止める」として扱う。
 
-PR を引数に取るサブコマンドの `<PR>` は、10 進数の PR 番号だけを受け付ける（省略すると現在のブランチの PR）。URL やブランチ名は拒否する。リポジトリの `owner/repo` は、呼び出し元の入力からでなく、ローカルのリポジトリ（`gh repo view`）から求める。`gh` の対象を変える環境変数が設定されていれば止まる（3.7）。
+PR を引数に取るサブコマンドの `<PR>` は、10 進数の PR 番号だけを受け付ける（省略すると現在のブランチの PR）。URL やブランチ名は拒否する。GitHub を読まない `finish` は、現在のブランチの PR を求められないので、`<PR>` を省略できない。リポジトリの `owner/repo` は、呼び出し元の入力からでなく、ローカルのリポジトリ（`gh repo view`）から求める。`gh` の対象を変える環境変数が設定されていれば止まる（3.7）。
 
 | サブコマンド | 呼ぶ側 | 入力 | 出力 | 外部への副作用 |
 |---|---|---|---|---|
@@ -298,6 +298,8 @@ PR を引数に取るサブコマンドの `<PR>` は、10 進数の PR 番号�
 | `edit-pr` | `/fixpr` フェーズ 6 | `<PR>`、タイトルのファイル、本文のファイル | PR のタイトルと本文の更新 | GitHub への書き込み |
 
 `begin` は、次の順序で行う。(1) 作業ツリーの確認（AC-20）。(2) fork の確認（AC-27）。(3) 基準値の採取。(4) スレッドの取得と判定。作業ツリーが clean でなければ、スレッドを取得せずに止まる。
+
+`begin` の出力も JSON である。処理するスレッド（本文を含む。3.4 の形）の配列を JSON にして `Fence` で囲んだ文字列を `threads` に、その nonce を `nonce` に入れる。ほかの項目（`protocol`・`baseline`・`number`・`capHit`・`processCount`（処理するスレッドの数）・`untrusted`・`changed`・`acceptNotFound`・`permissionLookups`）は本文を含まないので、ブロックの外に置く。
 
 3.11 に、副作用の契約を表にまとめる。
 
@@ -429,6 +431,14 @@ type Accept struct {
 type GitHub struct{ /* unexported */ }
 
 func NewGitHub(run cmdrunner.InputRunner, reviewer Login) (*GitHub, error)
+
+// NewGitHubWithoutReviewer serves the subcommands that take no --reviewer
+// (head, edit-pr): Head, CurrentPR and EditPR work, and the calls that judge
+// threads (List, Begin, ThreadPaths, Reply) fail with ErrInvalidInput.
+func NewGitHubWithoutReviewer(run cmdrunner.InputRunner) (*GitHub, error)
+
+// CurrentPR resolves the current branch's PR when <PR> is omitted (3.1).
+func (g *GitHub) CurrentPR(ctx context.Context) (PRNumber, error)
 
 func (g *GitHub) Head(ctx context.Context, pr PRNumber) (HeadInfo, error)
 func (g *GitHub) List(ctx context.Context, pr PRNumber) (ThreadList, error)

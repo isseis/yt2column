@@ -6,6 +6,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -40,6 +42,74 @@ func TestNewGitHub(t *testing.T) {
 	}
 	if _, err := NewGitHub(nil, mustLogin(t, testReviewer)); !errors.Is(err, ErrInvalidInput) {
 		t.Errorf("NewGitHub(nil runner) = %v, want ErrInvalidInput", err)
+	}
+}
+
+// TestGitHubWithoutReviewerJudgesNothing: a GitHub built without a reviewer
+// answers Head but refuses every call that judges threads before running gh;
+// the fake has no step for them.
+func TestGitHubWithoutReviewerJudgesNothing(t *testing.T) {
+	if _, err := NewGitHubWithoutReviewer(nil); !errors.Is(err, ErrInvalidInput) {
+		t.Errorf("NewGitHubWithoutReviewer(nil) = %v, want ErrInvalidInput", err)
+	}
+	g, err := NewGitHubWithoutReviewer(cmdrunnertestutil.New(t, headStep(sameRepositoryHead)))
+	if err != nil {
+		t.Fatalf("NewGitHubWithoutReviewer = %v", err)
+	}
+	ctx, pr := t.Context(), mustPR(t)
+	if _, err := g.Head(ctx, pr); err != nil {
+		t.Errorf("Head = %v", err)
+	}
+	accept := []Accept{{ThreadID: testThreadID(1), Fingerprint: Fingerprint(strings.Repeat("a", fingerprintLength))}}
+	// A valid body file, so Reply can fail only for the missing reviewer.
+	bodyFile := filepath.Join(t.TempDir(), "body.md")
+	if err := os.WriteFile(bodyFile, []byte("Fixed.\n"), 0o600); err != nil {
+		t.Fatalf("write body: %v", err)
+	}
+	calls := map[string]func() error{
+		"List":        func() error { _, err := g.List(ctx, pr); return err },
+		"Begin":       func() error { _, err := g.Begin(ctx, pr, nil); return err },
+		"ThreadPaths": func() error { _, err := g.ThreadPaths(ctx, pr, accept); return err },
+		"Reply": func() error {
+			return g.Reply(ctx, ReplyRequest{PR: pr, ThreadID: accept[0].ThreadID, CommentID: 1, Fingerprint: accept[0].Fingerprint, BodyFile: bodyFile})
+		},
+	}
+	for name, call := range calls {
+		if err := call(); !errors.Is(err, ErrInvalidInput) {
+			t.Errorf("%s = %v, want ErrInvalidInput", name, err)
+		}
+	}
+}
+
+func TestCurrentPR(t *testing.T) {
+	step := func(out string, err error) cmdrunnertestutil.Step {
+		return cmdrunnertestutil.Step{Name: "gh", Args: []string{"pr", "view", "--json", "number"}, Out: out, Err: err}
+	}
+	g, _ := newTestGitHub(t, step(`{"number":42}`, nil))
+	pr, err := g.CurrentPR(t.Context())
+	if err != nil || pr.String() != testPR {
+		t.Errorf("CurrentPR = %v, %v, want %s", pr, err, testPR)
+	}
+	for _, tc := range []struct {
+		name string
+		out  string
+		err  error
+	}{
+		{name: "zero", out: `{"number":0}`},
+		{name: "negative", out: `{"number":-1}`},
+		{name: "fraction", out: `{"number":4.2}`},
+		{name: "string", out: `{"number":"42"}`},
+		{name: "null", out: `{"number":null}`},
+		{name: "missing", out: `{}`},
+		{name: "too_many_digits", out: `{"number":1234567890}`},
+		{name: "gh_failure", err: &cmdrunner.ExitError{Code: ghExitFailure}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g, _ := newTestGitHub(t, step(tc.out, tc.err))
+			if _, err := g.CurrentPR(t.Context()); !errors.Is(err, ErrResponseRejected) {
+				t.Errorf("CurrentPR = %v, want ErrResponseRejected", err)
+			}
+		})
 	}
 }
 
