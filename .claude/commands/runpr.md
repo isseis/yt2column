@@ -40,8 +40,8 @@ issue in step 4, `gh issue list`, `gh issue create`, `gh issue comment`, and
 the thread replies and resolutions `fixpr.md` Phase 5 makes. After the task's
 final plan PR merges, it also approves `gh issue view`, `gh api` (listing
 sub-issues), and `gh issue close` for its `対応 issue` and that issue's link
-sub-issues (step 5). It also covers what `fixpr.md` and `mergepr.md`
-authorize when run from here, and the next command (NEXT) when the user
+sub-issues (step 5, and step 1's `MERGED` case). It also covers what
+`fixpr.md` and `mergepr.md` authorize when run from here, and the next command (NEXT) when the user
 chooses to run it in step 4. It does **not** approve the merge itself: only
 the user's answer in step 4 does (`CLAUDE.md`, "Tool Execution Safety").
 `coderabbit review` has standing approval.
@@ -67,7 +67,10 @@ Every `fixpr.md` and `mergepr.md` run below is given the resolved PR number
   - `MERGED`: do not open another PR for the same commits. If `mergepr`
     cleanup is pending, run `mergepr cleanup --state <state-file>`. The head
     branch is gone, so read the bookkeeping from `origin/main`: report any step
-    2 record missing there (it can be added with a standalone PR), and stop.
+    2 record missing there (it can be added with a standalone PR). When it is
+    the task's final plan PR (step 2), run step 5's issue closure, which is
+    idempotent, so a run that stopped after the merge still closes the issue.
+    Then stop.
   - `CLOSED`: report and stop.
 - If none exists, it is a standalone change:
   - Stop and report when the branch to open it from (`$ARGUMENTS` when it names
