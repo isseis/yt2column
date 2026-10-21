@@ -736,8 +736,8 @@ var (
 	ErrJudgedSetChanged = errors.New("changes differ from the judged set")  // AC-21a
 	ErrThreadNotTrusted = errors.New("thread is not trusted")               // AC-10
 	ErrThreadChanged    = errors.New("thread comments changed")             // AC-09, AC-13
-	ErrCommentNotInThread = fmt.Errorf("%w: comment is not in the thread", ErrInvalidInput) // reply to another thread's comment
-	ErrReplyNotResolved = errors.New("reply posted but thread not resolved") // the caller must not post again
+	ErrCommentNotInThread = fmt.Errorf("%w: comment is not the thread's first", ErrInvalidInput) // reply to another comment
+	ErrReplyNotResolved = errors.New("reply may be posted but thread not resolved") // the caller must not post again; its stop kind wins over any error it wraps
 	ErrResponseRejected = errors.New("GitHub response rejected")            // strict check or size cap failed
 	ErrLimitExceeded    = errors.New("input exceeds a fixed limit")         // thread cap, change cap
 )

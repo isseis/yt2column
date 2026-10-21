@@ -84,6 +84,10 @@ func StopKinds() []string {
 // StopKind names the stop kind of a subcommand's error.
 func StopKind(err error) string {
 	switch {
+	// First: a reply that may exist must be reported as such whatever else
+	// the error wraps, so the caller does not post it again.
+	case errors.Is(err, ErrReplyNotResolved):
+		return StopReplyNotResolved
 	case errors.Is(err, ErrDirtyWorkTree):
 		return StopDirtyWorkTree
 	case errors.Is(err, ErrCrossRepository):
@@ -100,8 +104,6 @@ func StopKind(err error) string {
 		return StopThreadChanged
 	case errors.Is(err, ErrThreadNotTrusted):
 		return StopThreadNotTrusted
-	case errors.Is(err, ErrReplyNotResolved):
-		return StopReplyNotResolved
 	case errors.Is(err, ErrResponseRejected):
 		return StopResponseRejected
 	case errors.Is(err, ErrBuildChecksFailed):

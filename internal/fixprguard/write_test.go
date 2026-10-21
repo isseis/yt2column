@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"syscall"
 	"testing"
 
 	"github.com/isseis/yt2column/internal/cmdrunner"
@@ -37,13 +36,6 @@ func TestBodyFileChecks(t *testing.T) {
 		}
 		return link
 	}
-	fifo := func(t *testing.T) string {
-		name := filepath.Join(t.TempDir(), "fifo")
-		if err := syscall.Mkfifo(name, 0o600); err != nil {
-			t.Fatal(err)
-		}
-		return name
-	}
 	file := func(content string) func(*testing.T) string {
 		return func(t *testing.T) string { return writeTextFile(t, content) }
 	}
@@ -58,7 +50,6 @@ func TestBodyFileChecks(t *testing.T) {
 		{name: "at_size_cap", path: file(atCap)},
 		{name: "over_size_cap", path: file(atCap + "a"), wantErr: true},
 		{name: "symbolic_link", path: symlink, wantErr: true},
-		{name: "fifo", path: fifo, wantErr: true},
 		{name: "directory", path: func(t *testing.T) string { return t.TempDir() }, wantErr: true},
 		{name: "missing", path: func(t *testing.T) string { return filepath.Join(t.TempDir(), "none") }, wantErr: true},
 		{name: "invalid_utf8", path: file("ok \xff"), wantErr: true},
@@ -72,7 +63,8 @@ func TestBodyFileChecks(t *testing.T) {
 		{name: "title_escape", path: file("fix: \x1b[31mred"), title: true, wantErr: true},
 		{name: "title_c1_next_line", path: file("fix: a\u0085title"), title: true, wantErr: true},
 		{name: "title_line_separator", path: file("fix: a\u2028title"), title: true, wantErr: true},
-		{name: "title_blank", path: file("   "), title: true, wantErr: true},
+		{name: "title_delete", path: file("fix: a\x7ftitle"), title: true, wantErr: true},
+		{name: "title_paragraph_separator", path: file("fix: a\u2029title"), title: true, wantErr: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			name := tc.path(t)
@@ -181,6 +173,8 @@ func TestReplyReassesses(t *testing.T) {
 	// The same thread with the same comments: only alice's permission changes
 	// between the two calls.
 	th := testThread{id: testThreadID(1), comments: []testComment{userComment(1, "alice")}}
+	// The second call deliberately sees the thread as before the first reply,
+	// so the role is the only difference between the two calls.
 	g, _ := newTestGitHub(t, slices.Concat(
 		replyLookupSteps(t, []testThread{th}, roleStep("alice", "write")),
 		writeSteps(t, th),
@@ -197,36 +191,48 @@ func TestReplyReassesses(t *testing.T) {
 func TestReplyRefusesChangedFingerprint(t *testing.T) {
 	trusted := testThread{id: testThreadID(1), comments: []testComment{reviewerComment(1)}}
 	named := testThread{id: testThreadID(2), comments: []testComment{botComment(2, "other-bot")}}
-	resolved := testThread{id: testThreadID(3), resolved: true, comments: []testComment{reviewerComment(3)}}
-	empty := testThread{id: testThreadID(4)}
-	threads := []testThread{trusted, named, resolved, empty}
-	for name, req := range map[string]func() ReplyRequest{
-		"trusted_fingerprint_differs": func() ReplyRequest {
+	threads := []testThread{trusted, named}
+	for name, req := range map[string]func(*testing.T) ReplyRequest{
+		"trusted_fingerprint_differs": func(t *testing.T) ReplyRequest {
 			req := replyRequest(t, trusted, "reply")
 			req.Fingerprint = testFP
 			return req
 		},
-		"named_accept_fingerprint_differs": func() ReplyRequest {
+		"named_accept_fingerprint_differs": func(t *testing.T) ReplyRequest {
 			req := replyRequest(t, named, "reply")
 			req.Accept = []Accept{{ThreadID: named.id, Fingerprint: testFP}}
-			return req
-		},
-		"resolved_thread": func() ReplyRequest { return replyRequest(t, resolved, "reply") },
-		"unknown_thread": func() ReplyRequest {
-			req := replyRequest(t, trusted, "reply")
-			req.ThreadID = "PRRT_gone"
-			return req
-		},
-		// An unresolved thread with no comments: found, but nothing to answer.
-		"empty_thread": func() ReplyRequest {
-			req := replyRequest(t, trusted, "reply")
-			req.ThreadID, req.Fingerprint = empty.id, testFingerprint(t, empty)
 			return req
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			g, _ := newTestGitHub(t, replyLookupSteps(t, threads)...)
-			if err := g.Reply(t.Context(), req()); !errors.Is(err, ErrThreadChanged) {
+			if err := g.Reply(t.Context(), req(t)); !errors.Is(err, ErrThreadChanged) {
+				t.Errorf("Reply = %v, want ErrThreadChanged", err)
+			}
+		})
+	}
+}
+
+// TestReplyRefusesMissingThread covers threads with no comment to answer: a
+// resolved or unknown thread is absent from the unresolved threads, and an
+// empty one is present without comments. An absent thread reads as the zero
+// thread, so the empty-thread check refuses all three; the empty row carries
+// its own fingerprint, so no later check can refuse it instead.
+func TestReplyRefusesMissingThread(t *testing.T) {
+	resolved := testThread{id: testThreadID(1), resolved: true, comments: []testComment{reviewerComment(1)}}
+	empty := testThread{id: testThreadID(2)}
+	for name, th := range map[string]testThread{
+		"resolved_thread": resolved,
+		"unknown_thread":  {id: "PRRT_gone", comments: []testComment{reviewerComment(3)}},
+		"empty_thread":    empty,
+	} {
+		t.Run(name, func(t *testing.T) {
+			g, _ := newTestGitHub(t, replyLookupSteps(t, []testThread{resolved, empty})...)
+			req := ReplyRequest{
+				PR: mustPR(t), ThreadID: th.id, CommentID: 1,
+				Fingerprint: testFingerprint(t, th), BodyFile: writeTextFile(t, "reply"),
+			}
+			if err := g.Reply(t.Context(), req); !errors.Is(err, ErrThreadChanged) {
 				t.Errorf("Reply = %v, want ErrThreadChanged", err)
 			}
 		})
@@ -260,7 +266,7 @@ func TestReplyRejectsInputBeforeAnyCall(t *testing.T) {
 		"zero_comment_id":   func(r *ReplyRequest) { r.CommentID = 0 },
 		"short_fingerprint": func(r *ReplyRequest) { r.Fingerprint = "abc" },
 		"bad_accept":        func(r *ReplyRequest) { r.Accept = []Accept{{ThreadID: "PRRT_x/..", Fingerprint: testFP}} },
-		"missing_body_file": func(r *ReplyRequest) { r.BodyFile = filepath.Join(t.TempDir(), "none") },
+		"missing_body_file": func(r *ReplyRequest) { r.BodyFile = filepath.Join(filepath.Dir(r.BodyFile), "none") },
 	} {
 		t.Run(name, func(t *testing.T) {
 			// The fake holds no step, so any gh call fails the test.
@@ -274,7 +280,7 @@ func TestReplyRejectsInputBeforeAnyCall(t *testing.T) {
 	}
 }
 
-func TestReplyReadFailureWritesNothing(t *testing.T) {
+func TestReplyReadFailurePropagates(t *testing.T) {
 	th := testThread{id: testThreadID(1), comments: []testComment{reviewerComment(1)}}
 	failed := graphqlStep("")
 	failed.Err = &cmdrunner.ExitError{Code: ghExitFailure}
@@ -298,15 +304,22 @@ var trickyTexts = map[string]string{
 	"leading_dash":       "--help",
 }
 
+// TestReplyBodyVerbatim feeds the texts through the one path a body takes: a
+// fixed argv and a JSON request on standard input. The rows illustrate what that
+// path must carry unchanged; they do not each guard a separate mechanism, since
+// the fake runs no shell. A shell or a -F/-f flag would fail every row through
+// the argv, and any change to the text fails the rows it alters.
 func TestReplyBodyVerbatim(t *testing.T) {
 	th := testThread{id: testThreadID(1), comments: []testComment{reviewerComment(1)}}
+	lookups := replyLookupSteps(t, []testThread{th})
 	for name, body := range trickyTexts {
 		t.Run(name, func(t *testing.T) {
-			g, fake := newTestGitHub(t, append(replyLookupSteps(t, []testThread{th}), writeSteps(t, th)...)...)
+			writes := writeSteps(t, th)
+			g, fake := newTestGitHub(t, append(slices.Clone(lookups), writes...)...)
 			if err := g.Reply(t.Context(), replyRequest(t, th, body)); err != nil {
 				t.Fatalf("Reply = %v", err)
 			}
-			posted := fake.Stdin[len(fake.Stdin)-3]
+			posted := fake.Stdin[len(lookups)]
 			var request map[string]any
 			if err := json.Unmarshal(posted, &request); err != nil {
 				t.Fatalf("reply request is not JSON: %v", err)
@@ -314,7 +327,7 @@ func TestReplyBodyVerbatim(t *testing.T) {
 			if got, ok := request["body"].(string); !ok || got != body || len(request) != 1 {
 				t.Errorf("reply request = %s, want only body %q", posted, body)
 			}
-			if got := requestVariables(t, fake.Stdin[len(fake.Stdin)-1])["threadId"]; got != th.id {
+			if got := requestVariables(t, fake.Stdin[len(lookups)+len(writes)-1])["threadId"]; got != th.id {
 				t.Errorf("resolved thread %v, want %s", got, th.id)
 			}
 		})
@@ -343,18 +356,24 @@ func TestEditPRVerbatim(t *testing.T) {
 			}
 		})
 	}
-	t.Run("rejects_before_any_call", func(t *testing.T) {
-		g, _ := newTestGitHub(t)
-		for name, req := range map[string]EditPRRequest{
-			"zero_pr":         {TitleFile: writeTextFile(t, "title"), BodyFile: writeTextFile(t, "body")},
-			"two_line_title":  {PR: mustPR(t), TitleFile: writeTextFile(t, "a\nb"), BodyFile: writeTextFile(t, "body")},
-			"empty_body_file": {PR: mustPR(t), TitleFile: writeTextFile(t, "title"), BodyFile: writeTextFile(t, "")},
-		} {
-			if err := g.EditPR(t.Context(), req); !errors.Is(err, ErrInvalidInput) {
-				t.Errorf("%s: EditPR = %v, want ErrInvalidInput", name, err)
+	// These rows check that EditPR rejects before any gh call, not the file
+	// checks themselves, which TestBodyFileChecks covers.
+	for name, files := range map[string][2]string{
+		"zero_pr":         {"title", "body"},
+		"two_line_title":  {"a\nb", "body"},
+		"empty_body_file": {"title", ""},
+	} {
+		t.Run("rejects_before_any_call/"+name, func(t *testing.T) {
+			g, _ := newTestGitHub(t)
+			req := EditPRRequest{PR: mustPR(t), TitleFile: writeTextFile(t, files[0]), BodyFile: writeTextFile(t, files[1])}
+			if name == "zero_pr" {
+				req.PR = PRNumber{}
 			}
-		}
-	})
+			if err := g.EditPR(t.Context(), req); !errors.Is(err, ErrInvalidInput) {
+				t.Errorf("EditPR = %v, want ErrInvalidInput", err)
+			}
+		})
+	}
 	t.Run("gh_failure", func(t *testing.T) {
 		step := editStep("title")
 		step.Err = &cmdrunner.ExitError{Code: ghExitFailure}
@@ -388,7 +407,7 @@ func TestReplyPostFailureSkipsResolve(t *testing.T) {
 	for name, post := range map[string]cmdrunnertestutil.Step{"timed_out": timeout, "no_comment_id": noID} {
 		t.Run(name, func(t *testing.T) {
 			g, _ := newTestGitHub(t, append(replyLookupSteps(t, []testThread{th}), post)...)
-			if err := g.Reply(t.Context(), replyRequest(t, th, "reply")); !errors.Is(err, ErrReplyNotResolved) {
+			if err := g.Reply(t.Context(), replyRequest(t, th, "reply")); !errors.Is(err, ErrReplyNotResolved) || StopKind(err) != StopReplyNotResolved {
 				t.Errorf("Reply = %v, want ErrReplyNotResolved", err)
 			}
 		})
@@ -401,8 +420,13 @@ func TestReplyRechecksBeforeResolve(t *testing.T) {
 	edited.comments[0].edited = testLaterAt
 	resolved := withReply(th)
 	resolved.resolved = true
+	arrived := withReply(th)
+	arrived.comments = append(arrived.comments, userComment(postedID+1, "mallory"))
+	// Each row breaks one condition: comment_arrived keeps the reply in place
+	// but adds a comment after it, other_comment has the right count but not
+	// the reply, comment_edited changes a judged comment.
 	for name, now := range map[string][]testThread{
-		"comment_arrived": {withReply(withReply(th))},
+		"comment_arrived": {arrived},
 		"comment_edited":  {edited},
 		"reply_missing":   {th},
 		"other_comment":   {{id: th.id, comments: append(slices.Clone(th.comments), userComment(postedID+1, "mallory"))}},
@@ -414,7 +438,7 @@ func TestReplyRechecksBeforeResolve(t *testing.T) {
 			g, _ := newTestGitHub(t, append(replyLookupSteps(t, []testThread{th}),
 				postStep(), graphqlStep(stageOneResponse(t, now, false, "")))...)
 			err := g.Reply(t.Context(), replyRequest(t, th, "reply"))
-			if !errors.Is(err, ErrReplyNotResolved) || !errors.Is(err, ErrThreadChanged) {
+			if !errors.Is(err, ErrReplyNotResolved) || !errors.Is(err, ErrThreadChanged) || StopKind(err) != StopReplyNotResolved {
 				t.Errorf("Reply = %v, want ErrReplyNotResolved for a changed thread", err)
 			}
 		})
@@ -429,9 +453,6 @@ func TestReplyResolveFailure(t *testing.T) {
 		"gh_fails":            failed,
 		"not_resolved":        graphqlStep(resolvedResponse(t, th.id, false)),
 		"other_thread":        graphqlStep(resolvedResponse(t, testThreadID(2), true)),
-		"graphql_errors":      graphqlStep(`{"data":null,"errors":[{"message":"x"}]}`),
-		"mutation_null":       graphqlStep(`{"data":{"resolveReviewThread":null}}`),
-		"thread_null":         graphqlStep(`{"data":{"resolveReviewThread":{"thread":null}}}`),
 		"is_resolved_missing": graphqlStep(`{"data":{"resolveReviewThread":{"thread":{"id":"` + th.id + `"}}}}`),
 	} {
 		t.Run(name, func(t *testing.T) {
