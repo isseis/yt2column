@@ -103,12 +103,12 @@
 
 **変更するファイル**: `internal/cmdrunner/runner.go`、`internal/cmdrunner/runner_test.go`
 
--   [ ] `Runner`・`InputRunner`・`Options`（`MaxOutput`・`WaitDelay`・`Dir`・`Env`）・`ExitError`・`ErrOutputTooLarge`・`NewOS` を作る（設計書 3.2、1.3.2 の `Dir`・`Env`）。
--   [ ] `MaxOutput` を超えた出力は、切り詰めた出力を返さず `ErrOutputTooLarge` で失敗する。上限を超えた後も、子プロセスがブロックしないように読み捨てて待つ。
--   [ ] `WaitDelay` を、キャンセルの後の待ちの上限に使う（子孫のプロセスがパイプを持ち続けても待ちが終わる）。
--   [ ] `Options` がゼロ値のとき、エラーの文面は `internal/mergepr/runner.go:24` と同じ形（コマンド・引数・終了の状態・標準エラー）で、かつ `errors.AsType[*ExitError]` で取り出せる。
--   [ ] `exec.CommandContext` に、`runner.go:19` と同じ理由の `//nolint:gosec` を付ける。
--   [ ] テスト（`runner_test.go`）: `MaxOutput` がちょうどの大きさと 1 バイト超過、ゼロ値が上限なしであること（`mergepr` の既存のテストは短い出力しか試さない）、上限を超えた後の読み捨て、`WaitDelay`（子孫のプロセスは `internal/transcript/exec_test.go:462` と同じくテストのバイナリを再実行して作る）、標準入力、`ExitError`、`Dir`、`Env`。
+-   [x] `Runner`・`InputRunner`・`Options`（`MaxOutput`・`WaitDelay`・`Dir`・`Env`）・`ExitError`・`ErrOutputTooLarge`・`NewOS` を作る（設計書 3.2、1.3.2 の `Dir`・`Env`）。
+-   [x] `MaxOutput` を超えた出力は、切り詰めた出力を返さず `ErrOutputTooLarge` で失敗する。上限を超えた後も、子プロセスがブロックしないように読み捨てて待つ。
+-   [x] `WaitDelay` を、キャンセルの後の待ちの上限に使う（子孫のプロセスがパイプを持ち続けても待ちが終わる）。
+-   [x] `Options` がゼロ値のとき、エラーの文面は `internal/mergepr/runner.go:24` と同じ形（コマンド・引数・終了の状態・標準エラー）で、かつ `errors.AsType[*ExitError]` で取り出せる。
+-   [x] `exec.CommandContext` に、`runner.go:19` と同じ理由の `//nolint:gosec` を付ける。
+-   [x] テスト（`runner_test.go`）: `MaxOutput` がちょうどの大きさと 1 バイト超過、ゼロ値が上限なしであること（`mergepr` の既存のテストは短い出力しか試さない）、上限を超えた後の読み捨て、`WaitDelay`（子孫のプロセスは `internal/transcript/exec_test.go:462` と同じくテストのバイナリを再実行して作る）、標準入力、`ExitError`、`Dir`、`Env`。
 
 **完了条件**: `go test -tags test ./internal/cmdrunner` が通る。
 
@@ -116,9 +116,9 @@
 
 **変更するファイル**: `internal/mergepr/mergepr.go`、`internal/mergepr/runner.go`、`docs/dev/developer_guide/mergepr_guide.ja.md`、`docs/dev/developer_guide/mergepr_guide.md`
 
--   [ ] `Runner` を `cmdrunner.Runner` の別名にし、`NewOSRunner` が `cmdrunner.NewOS(cmdrunner.Options{})` を返すようにする（1.3.1 の台帳）。`osRunner` を取り除く。
--   [ ] `internal/mergepr` の既存のテスト（`runner_test.go` の `TestOSRunnerReturnsOutput`・`TestOSRunnerReportsFailure` を含む）を変えずに通す。これらが、既定の挙動（短い出力の成功と、終了の状態と標準エラーを含む失敗の文面）が変わらないことの確認になる。cmdrunner 側に同じ内容のテストを重ねない（上限なしの大きな出力はステップ 1-1 が試す）。
--   [ ] `mergepr_guide.ja.md:235` と `mergepr_guide.md:236` の `Runner` の説明に、所在が `internal/cmdrunner` であることを加える。
+-   [x] `Runner` を `cmdrunner.Runner` の別名にし、`NewOSRunner` が `cmdrunner.NewOS(cmdrunner.Options{})` を返すようにする（1.3.1 の台帳）。`osRunner` を取り除く。
+-   [x] `internal/mergepr` の既存のテスト（`runner_test.go` の `TestOSRunnerReturnsOutput`・`TestOSRunnerReportsFailure` を含む）を変えずに通す。これらが、既定の挙動（短い出力の成功と、終了の状態と標準エラーを含む失敗の文面）が変わらないことの確認になる。cmdrunner 側に同じ内容のテストを重ねない（上限なしの大きな出力はステップ 1-1 が試す）。
+-   [x] `mergepr_guide.ja.md:235` と `mergepr_guide.md:236` の `Runner` の説明に、所在が `internal/cmdrunner` であることを加える。
 
 **完了条件**: `go test -tags test ./internal/mergepr ./cmd/mergepr` が、テストを変えずに通る。
 
@@ -126,10 +126,10 @@
 
 **変更するファイル**: `internal/cmdrunner/testutil/mocks.go`、`internal/cmdrunner/testutil/mocks_test.go`（ともに `package cmdrunnertestutil`、`//go:build test`）、`internal/pipeline/pipeline_test.go`、`docs/dev/developer_guide/package_reference.md`
 
--   [ ] 期待するコマンドの列を順に再生し、順序の違いと余分な呼び出しで失敗する fake を作る。`InputRunner` も実装し、標準入力の内容を記録する。各手順に、実行時の副作用を行う任意の関数を持てるようにする（`make` の fake が範囲内のファイルや git の設定を書き換える場面を、ステップ 3-5・3-7 のテストが作るため）。`internal/mergepr` の `fakeRunner`（`test_helpers.go:48`）は置き換えない。`Run` だけを実装する別の型で、移すと `mergepr` のテストの書き換えが増えるだけである。
--   [ ] `mocks_test.go` に、fake 自身のテスト（順序の違い、余分な呼び出し、標準入力の記録、副作用の関数）を書く（`test_organization.md` の分類 A）。
--   [ ] `TestFakesCarryBuildTag` の `21` を `23` にする（`pipeline_test.go:619`。1.3.2）。
--   [ ] `package_reference.md` に `internal/cmdrunner` と `internal/cmdrunner/testutil` の行を加える。
+-   [x] 期待するコマンドの列を順に再生し、順序の違いと余分な呼び出しで失敗する fake を作る。`InputRunner` も実装し、標準入力の内容を記録する。各手順に、実行時の副作用を行う任意の関数を持てるようにする（`make` の fake が範囲内のファイルや git の設定を書き換える場面を、ステップ 3-5・3-7 のテストが作るため）。`internal/mergepr` の `fakeRunner`（`test_helpers.go:48`）は置き換えない。`Run` だけを実装する別の型で、移すと `mergepr` のテストの書き換えが増えるだけである。
+-   [x] `mocks_test.go` に、fake 自身のテスト（順序の違い、余分な呼び出し、標準入力の記録、副作用の関数）を書く（`test_organization.md` の分類 A）。
+-   [x] `TestFakesCarryBuildTag` の `21` を `23` にする（`pipeline_test.go:619`。1.3.2）。
+-   [x] `package_reference.md` に `internal/cmdrunner` と `internal/cmdrunner/testutil` の行を加える。
 
 **完了条件**: `make test && make lint`。壊して確かめる: ステップ 1-1 の上限の確認を外すと、上限のテストが失敗する。
 

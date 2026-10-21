@@ -15,6 +15,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/isseis/yt2column/internal/cmdrunner"
 )
 
 const (
@@ -43,9 +45,7 @@ const (
 
 // Runner runs an external command without a shell and returns its standard
 // output. Tests substitute a scripted fake; production uses NewOSRunner.
-type Runner interface {
-	Run(ctx context.Context, name string, args ...string) ([]byte, error)
-}
+type Runner = cmdrunner.Runner
 
 // Tool implements the /mergepr mechanics against the repository in the current
 // working directory.
