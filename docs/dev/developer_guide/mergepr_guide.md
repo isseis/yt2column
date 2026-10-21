@@ -233,6 +233,6 @@ When `mergepr` finds a problem, it prints the reason and the remedy and stops. W
 
 ## 8. Changing the Tool
 
-- The implementation is in `internal/mergepr`, and the CLI is in `cmd/mergepr`. External commands are called through the `Runner` interface. Tests use `fakeRunner` (`internal/mergepr/test_helpers.go`), which replays an expected sequence of commands in order, and do not run `git` or `gh`.
+- The implementation is in `internal/mergepr`, and the CLI is in `cmd/mergepr`. External commands are called through the `Runner` interface (defined in `internal/cmdrunner`; `mergepr.Runner` is an alias for it). Tests use `fakeRunner` (`internal/mergepr/test_helpers.go`), which replays an expected sequence of commands in order, and do not run `git` or `gh`.
 - When changing a guarantee in Section 6.1, confirm that the corresponding test fails when the code it covers is broken, and state that in the commit message (CLAUDE.md, "Testing Strategy").
 - When you change the procedure or the prerequisites, update this document and `.claude/commands/mergepr.md` together.
