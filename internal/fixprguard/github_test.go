@@ -61,14 +61,13 @@ func TestHeadRequiresSameRepository(t *testing.T) {
 		{name: "head_repository_string", out: `{"isCrossRepository":false,"headRepository":"yt2column"}`, want: ErrCrossRepository},
 		{name: "cross_duplicate", out: `{"isCrossRepository":false,"isCrossRepository":true,` + repo + `}`, want: ErrResponseRejected},
 		{name: "not_json", out: `false`, want: ErrResponseRejected},
-		{name: "gh_failure", err: &cmdrunner.ExitError{Code: 1}, want: ErrResponseRejected},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			step := headStep(tc.out)
 			step.Err = tc.err
 			g, _ := newTestGitHub(t, step)
 			info, err := g.Head(t.Context(), mustPR(t))
-			if !errors.Is(err, tc.want) || (tc.want == nil && err != nil) {
+			if !errors.Is(err, tc.want) {
 				t.Fatalf("Head = %v, want %v", err, tc.want)
 			}
 			if tc.want == nil && info != (HeadInfo{Protocol: Protocol, SameRepository: true}) {
@@ -144,8 +143,8 @@ func TestBeginNeverFetchesUntrustedBody(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Begin = %v", err)
 		}
-		ids := requestVariables(t, fake.Stdin[len(fake.Stdin)-1])["ids"]
-		if !slices.Equal(ids.([]any), []any{trusted.id}) {
+		ids, _ := requestVariables(t, fake.Stdin[len(fake.Stdin)-1])["ids"].([]any)
+		if !slices.Equal(ids, []any{trusted.id}) {
 			t.Errorf("stage-two ids = %v, want only %s", ids, trusted.id)
 		}
 		if len(round.Threads) != 1 || round.Threads[0].Body != "@coderabbitai: please fix\n\n@alice: please fix" {
@@ -165,6 +164,16 @@ func TestBeginNeverFetchesUntrustedBody(t *testing.T) {
 		if len(round.Threads) != 0 || len(round.Untrusted) != 1 {
 			t.Errorf("Begin = %+v", round)
 		}
+		// Empty lists are arrays, not null, for the commands that read the output.
+		out, err := json.Marshal(round)
+		if err != nil {
+			t.Fatalf("Marshal = %v", err)
+		}
+		for _, member := range []string{`"threads":[]`, `"changed":[]`, `"acceptNotFound":[]`} {
+			if !strings.Contains(string(out), member) {
+				t.Errorf("begin output lacks %s: %s", member, out)
+			}
+		}
 	})
 }
 
@@ -173,7 +182,7 @@ func TestBeginStageTwoFingerprintMismatch(t *testing.T) {
 	stageOne := stageOneResponse(t, []testThread{th}, false, "")
 	for name, later := range map[string]testThread{
 		"comment_added":  {id: th.id, comments: []testComment{reviewerComment(1), userComment(2, "mallory")}},
-		"comment_edited": {id: th.id, comments: []testComment{{id: 1, kind: "Bot", login: testReviewer, edited: testLaterAt}}},
+		"comment_edited": {id: th.id, comments: []testComment{{id: 1, kind: typenameBot, login: testReviewer, edited: testLaterAt}}},
 		"resolved":       {id: th.id, resolved: true, comments: th.comments},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -254,7 +263,7 @@ func TestBeginAcceptsNamedThread(t *testing.T) {
 	if !slices.Equal(round.AcceptNotFound, []string{"PRRT_gone"}) {
 		t.Errorf("AcceptNotFound = %v", round.AcceptNotFound)
 	}
-	if ids := requestVariables(t, fake.Stdin[len(fake.Stdin)-1])["ids"]; !slices.Equal(ids.([]any), []any{th.id}) {
+	if ids, _ := requestVariables(t, fake.Stdin[len(fake.Stdin)-1])["ids"].([]any); !slices.Equal(ids, []any{th.id}) {
 		t.Errorf("stage-two ids = %v", ids)
 	}
 }
@@ -264,7 +273,7 @@ func TestBeginAcceptChangedFingerprint(t *testing.T) {
 	accept := []Accept{{ThreadID: seen.id, Fingerprint: testFingerprint(t, seen)}}
 	for name, now := range map[string]testThread{
 		"comment_added":   {id: seen.id, comments: append(slices.Clone(seen.comments), userComment(3, "mallory"))},
-		"comment_edited":  {id: seen.id, comments: []testComment{userComment(1, "mallory"), {id: 2, kind: "User", login: "mallory", edited: testLaterAt}}},
+		"comment_edited":  {id: seen.id, comments: []testComment{userComment(1, "mallory"), {id: 2, kind: typenameUser, login: "mallory", edited: testLaterAt}}},
 		"comment_deleted": {id: seen.id, comments: seen.comments[:1]},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -295,8 +304,8 @@ func TestBeginRefusesEmptyNamedThread(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Begin = %v", err)
 	}
-	if len(round.Threads) != 0 || len(round.Untrusted) != 1 {
-		t.Errorf("Begin = %+v, want the empty thread reported, not processed", round)
+	if len(round.Threads) != 0 || len(round.Untrusted) != 1 || len(round.Changed) != 0 {
+		t.Errorf("Begin = %+v, want the empty thread reported as untrusted only, not processed", round)
 	}
 }
 
@@ -366,6 +375,11 @@ func TestListOmitsBodies(t *testing.T) {
 	if strings.Contains(string(out), `"body"`) {
 		t.Errorf("list output has a body member: %s", out)
 	}
+	// A trusted thread's findings are an empty array, not null, for the
+	// commands that read the output.
+	if !strings.Contains(string(out), `"findings":[]`) {
+		t.Errorf("list output lacks an empty findings array: %s", out)
+	}
 	want := []ListedThread{
 		{ThreadID: trusted.id, URL: testCommentURL(1), Trusted: true, Fingerprint: testFingerprint(t, trusted), Findings: []Finding{}},
 		{
@@ -389,7 +403,8 @@ func TestThreadPathsRequiresTrustedOrNamed(t *testing.T) {
 	trusted := testThread{id: testThreadID(1), comments: []testComment{reviewerComment(1)}}
 	untrusted := testThread{id: testThreadID(2), comments: []testComment{userComment(2, "mallory")}}
 	resolved := testThread{id: testThreadID(3), resolved: true, comments: []testComment{reviewerComment(3)}}
-	stageOne := stageOneResponse(t, []testThread{trusted, untrusted, resolved}, false, "")
+	empty := testThread{id: testThreadID(4)}
+	stageOne := stageOneResponse(t, []testThread{trusted, untrusted, resolved, empty}, false, "")
 	pathSteps := func(lookups ...cmdrunnertestutil.Step) []cmdrunnertestutil.Step {
 		return append([]cmdrunnertestutil.Step{repoStep(), graphqlStep(stageOne)}, lookups...)
 	}
@@ -413,6 +428,7 @@ func TestThreadPathsRequiresTrustedOrNamed(t *testing.T) {
 		"fingerprint_differs": {ThreadID: trusted.id, Fingerprint: testFP},
 		"unknown_thread":      {ThreadID: "PRRT_gone", Fingerprint: testFP},
 		"resolved_thread":     accept(resolved),
+		"empty_thread":        accept(empty),
 	} {
 		t.Run(name, func(t *testing.T) {
 			g, _ := newTestGitHub(t, pathSteps()...)
@@ -429,6 +445,9 @@ func TestThreadPathsRequiresTrustedOrNamed(t *testing.T) {
 	})
 }
 
+// TestErrorsOmitCommandDetails matches the error text because its content is
+// the contract: no standard output or error of the failed command (secret) and
+// no argument (the --input and --json flags) may reach it.
 func TestErrorsOmitCommandDetails(t *testing.T) {
 	const secret = "SECRET-DETAIL"
 	failure := &cmdrunner.ExitError{Code: 1, Stdout: []byte(secret), Stderr: []byte(secret)}

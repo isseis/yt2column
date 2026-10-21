@@ -57,12 +57,22 @@ func TestCommentCap(t *testing.T) {
 			t.Errorf("thread with more comments = %+v, want untrusted (e)", got)
 		}
 	})
-	t.Run("comment_past_the_tenth_is_judged", func(t *testing.T) {
+	t.Run("comment_past_the_fiftieth_is_judged", func(t *testing.T) {
 		comments := append(reviewerComments(50), userComment(51, "mallory"))
 		got := listOne(t, testThread{id: testThreadID(1), comments: comments}, roleStep("mallory", "read"))
 		want := []Finding{{Reason: ReasonNoWritePermission, Account: mustLogin(t, "mallory")}}
 		if got.Trusted || !slices.Equal(got.Findings, want) {
 			t.Errorf("thread with an untrusted 51st comment = %+v, want untrusted (a)", got)
+		}
+	})
+	t.Run("page_over_100_threads_rejected", func(t *testing.T) {
+		threads := make([]testThread, maxThreadsPerPage+1)
+		for i := range threads {
+			threads[i] = testThread{id: testThreadID(i), comments: reviewerComments(1)}
+		}
+		g, _ := newTestGitHub(t, listSteps([]string{stageOneResponse(t, threads, false, "")})...)
+		if _, err := g.List(t.Context(), mustPR(t)); !errors.Is(err, ErrResponseRejected) {
+			t.Errorf("List = %v, want ErrResponseRejected", err)
 		}
 	})
 	t.Run("page_over_100_comments_rejected", func(t *testing.T) {
@@ -133,6 +143,8 @@ func TestResponseSizeCap(t *testing.T) {
 			t.Errorf("List = %v, want ErrResponseRejected", err)
 		}
 	})
+	// The runner's own cap (set by the command) fails the call with
+	// ErrOutputTooLarge before any output reaches the parser.
 	t.Run("runner_cap", func(t *testing.T) {
 		step := graphqlStep("")
 		step.Err = cmdrunner.ErrOutputTooLarge
@@ -194,14 +206,6 @@ func TestResponseRejected(t *testing.T) {
 			t.Errorf("List(base) = %v", err)
 		}
 	})
-	t.Run("gh_failure", func(t *testing.T) {
-		step := graphqlStep("")
-		step.Err = &cmdrunner.ExitError{Code: 1, Stderr: []byte("gh: Bad credentials (HTTP 401)")}
-		g, _ := newTestGitHub(t, headStep(sameRepositoryHead), repoStep(), step)
-		if _, err := g.List(t.Context(), mustPR(t)); !errors.Is(err, ErrResponseRejected) {
-			t.Errorf("List = %v, want ErrResponseRejected", err)
-		}
-	})
 }
 
 func TestFingerprintChanges(t *testing.T) {
@@ -211,13 +215,13 @@ func TestFingerprintChanges(t *testing.T) {
 		"other_thread":    {id: testThreadID(2), comments: base.comments},
 		"added":           {id: base.id, comments: append(slices.Clone(base.comments), reviewerComment(3))},
 		"deleted":         {id: base.id, comments: base.comments[:1]},
-		"edited":          {id: base.id, comments: []testComment{reviewerComment(1), {id: 2, kind: "User", login: "alice", edited: testLaterAt}}},
-		"updated":         {id: base.id, comments: []testComment{reviewerComment(1), {id: 2, kind: "User", login: "alice", updated: testLaterAt}}},
+		"edited":          {id: base.id, comments: []testComment{reviewerComment(1), {id: 2, kind: typenameUser, login: "alice", edited: testLaterAt}}},
+		"updated":         {id: base.id, comments: []testComment{reviewerComment(1), {id: 2, kind: typenameUser, login: "alice", updated: testLaterAt}}},
 		"author_changed":  {id: base.id, comments: []testComment{reviewerComment(1), userComment(2, "mallory")}},
 		"author_deleted":  {id: base.id, comments: []testComment{reviewerComment(1), {id: 2, noAuthor: true}}},
 		"more_comments":   {id: base.id, comments: base.comments, more: true},
 		"kind_changed":    {id: base.id, comments: []testComment{reviewerComment(1), botComment(2, "alice")}},
-		"created_changed": {id: base.id, comments: []testComment{reviewerComment(1), {id: 2, kind: "User", login: "alice", created: testLaterAt}}},
+		"created_changed": {id: base.id, comments: []testComment{reviewerComment(1), {id: 2, kind: typenameUser, login: "alice", created: testLaterAt}}},
 		"author_emptied":  {id: base.id, comments: []testComment{reviewerComment(1), {id: 2, omitKind: true, omitLogin: true}}},
 	}
 	seen := map[Fingerprint]string{}

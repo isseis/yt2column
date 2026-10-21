@@ -8,7 +8,7 @@
 | Created | 2026-10-21 |
 | Review date | 2026-10-21 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-21 (editorial): ステップ 2-2 の `hasNextPage` の扱いを理由 (e) に写す記述に直した。ステップ 2-4 の `TestFenceNonceAbsent` を `TestFenceBlockShape` に改め（乱数の nonce では nonce の確認を壊しても失敗しないため）、JSON のエスケープの層のテストをステップ 5-1 の `TestBeginOutputFenced` に移した。AC-18 の検証の行を合わせた。AC は変わらない |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -188,7 +188,7 @@
 **変更するファイル**: `internal/fixprguard/fence.go`、`internal/fixprguard/fence_test.go`
 
 -   [x] `Fence(data, rand)` を作る（設計書 3.5）。nonce がデータに含まれていたら選び直し、使い果たしたら失敗する。
--   [x] テスト: 設計書 7.2 の最後の段落に従い、nonce の確認だけが防げる入力（nonce と同じ文字列を含む本文）と、JSON のエスケープだけが防げる入力（改行と引用符で行頭の区切りを作ろうとする本文）を、別々のテストにする。`TestFenceNonceAbsent`・`TestFenceRetriesOnCollision`・`TestFenceGivesUp`。
+-   [x] テスト: 設計書 7.2 の最後の段落に従い、nonce の確認だけが防げる入力（nonce と同じ文字列を含む本文）と、JSON のエスケープだけが防げる入力（改行と引用符で行頭の区切りを作ろうとする本文）を、別々のテストにする。nonce の確認は `TestFenceRetriesOnCollision`・`TestFenceGivesUp` が試し、ブロックの形は `TestFenceBlockShape` が試す。JSON のエスケープの層は、`Round` を JSON にして `Fence` で囲む処理を持つステップ 5-1 の `TestBeginOutputFenced` が試す（このステップには、その層を壊して失敗させられるコードがないため）。
 
 #### ステップ 2-5: `GitHub` 型
 
@@ -347,7 +347,7 @@
 -   [ ] 設計書 3.1 のサブコマンド（`head`・`list`・`begin`・`fence`・`inspect`・`finish`・`push`・`reply`・`edit-pr`）の引数の解釈、JSON の出力、`protocol` の照合、終了コード（0・1・2・3）を `cmd/mergepr/main.go` と同じ構成で作る。
 -   [ ] 順序の組み立てを `main` に置く（設計書 3.1・3.5・3.7）: `begin` は `Worktree.CheckClean` → `GitHub.Head`（fork の確認）→ `Worktree.Baseline` → `GitHub.Begin`（取得。ここでも fork を確かめる）の順に呼び、出力を `Fence` で囲む。`list`・`head`・`reply`・`edit-pr` は基準値の入力を持たないので、起動前の比較は `inspect` と `finish`・`push` だけが行う（設計書 3.7 が全サブコマンドに求める比較との差。基準値を渡さないサブコマンドは比べる相手がない）。`inspect` は `Worktree` の起動前の比較 → `GitHub.ThreadPaths` → `Inspect`。`--accept`・`--thread`・基準値・`JudgedSetID` の形が合わなければ、`ErrInvalidInput`（終了コード 2）で止まる。
 -   [ ] `--protocol` が合わなければ終了コード 2 で止まる。`--reviewer` は `list`・`begin`・`inspect`・`reply` だけが受け取り、なければ止まる。
--   [ ] テスト（毎回の呼び出しに、必要な `--protocol` と `--reviewer` を渡す）: `TestBeginOrder`（作業ツリーに未コミットの変更があるとき、`gh` を呼んだら失敗する fake で、`gh` が呼ばれないこと。AC-20）、`TestInspectChecksGitStateBeforeGh`、`TestBeginOutputFenced`、`TestFenceSubcommand`、`TestAcceptThreadFlagParsing`、`TestProtocolMismatch`、`TestReviewerFlag`、`TestInspectExitCode`（範囲外で 3）、`TestBeginNothingToProcess`、`TestStopKinds`（`stop` の種類ごとに、その種類を起こす実際の場面から出力を得る。種類の文字列を表に書き写さない）。
+-   [ ] テスト（毎回の呼び出しに、必要な `--protocol` と `--reviewer` を渡す）: `TestBeginOrder`（作業ツリーに未コミットの変更があるとき、`gh` を呼んだら失敗する fake で、`gh` が呼ばれないこと。AC-20）、`TestInspectChecksGitStateBeforeGh`、`TestBeginOutputFenced`（改行と引用符で行頭の区切りを作ろうとする本文が、区切りの外に出ないこと。nonce と異なる区切りを使い、nonce の確認が働かない入力にする。ステップ 2-4 から移した）、`TestFenceSubcommand`、`TestAcceptThreadFlagParsing`、`TestProtocolMismatch`、`TestReviewerFlag`、`TestInspectExitCode`（範囲外で 3）、`TestBeginNothingToProcess`、`TestStopKinds`（`stop` の種類ごとに、その種類を起こす実際の場面から出力を得る。種類の文字列を表に書き写さない）。
 
 #### ステップ 5-2: `Makefile` と案内
 
@@ -532,7 +532,7 @@
 | AC-14 | test + static | `cmd/fixprguard/main_test.go::TestBeginNothingToProcess`。`TestFixprDocContract/nothing_to_process` |
 | AC-15 | test + static | `internal/fixprguard/worktree_flow_test.go::TestFinishCommitSubject`（件名がラウンドの数え方と同じ形）、`internal/fixprguard/worktree_flow_test.go::TestFinishEmptyJudgedSet`（判定した集合が空のとき commit が作られない）、`cmd/fixprguard/main_test.go::TestBeginNothingToProcess`（処理するスレッドがないことの報告）。`TestFixprDocContract/round_counting` |
 | AC-16・AC-17 | static | `cmd/yt2column/fixpr_docs_test.go::TestFixprDocContract/fenced_prompts`（区切りのブロックを埋め込むプロンプトの記述の有無。区切りの出力そのものは `cmd/fixprguard/main_test.go::TestBeginOutputFenced`） |
-| AC-18 | test | `internal/fixprguard/fence_test.go::TestFenceNonceAbsent`、`::TestFenceRetriesOnCollision`、`::TestFenceGivesUp` |
+| AC-18 | test | `internal/fixprguard/fence_test.go::TestFenceRetriesOnCollision`、`::TestFenceGivesUp` |
 | AC-19 | test | `internal/fixprguard/write_test.go::TestReplyBodyVerbatim`、`::TestEditPRVerbatim` |
 | AC-20 | test | `cmd/fixprguard/main_test.go::TestBeginOrder`（`gh` を呼ばない）、`internal/fixprguard/worktree_test.go::TestBeginRejectsDirtyWorkTree` |
 | AC-21 | test | `internal/fixprguard/changes_test.go::TestEnumerateChanges`、`internal/fixprguard/scope_test.go::TestScopeRules`、`internal/fixprguard/worktree_flow_test.go::TestFinishAbsorbsFormatting` |

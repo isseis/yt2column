@@ -190,7 +190,6 @@ func TestPermissionCause(t *testing.T) {
 		err  error
 		want permission
 	}{
-		{name: "write", out: permissionResponse("write"), want: permission{trusted: true}},
 		{name: "lf_headers", out: "HTTP/2.0 200 OK\nContent-Type: application/json\n\n{\"role_name\":\"admin\"}", want: permission{trusted: true}},
 		{name: "not_found", err: permissionFailure(404), want: permission{cause: CauseNotFound}},
 		{name: "forbidden", err: permissionFailure(403), want: permission{cause: CauseForbidden}},
@@ -226,6 +225,34 @@ func TestPermissionCause(t *testing.T) {
 			t.Errorf("thread = %+v, want untrusted with %+v", got, want)
 		}
 	})
+}
+
+// TestAuthorFieldsNotStrings checks that a non-string __typename or login is
+// judged like a missing one rather than rejecting the whole response.
+func TestAuthorFieldsNotStrings(t *testing.T) {
+	th := testThread{id: testThreadID(1), comments: []testComment{userComment(1, "alice")}}
+	base := stageOneResponse(t, []testThread{th}, false, "")
+	for name, tc := range map[string]struct {
+		old, new string
+		want     Finding
+	}{
+		"login_number":    {`"login":"alice"`, `"login":5`, Finding{Reason: ReasonNoAuthorName, CommentURL: testCommentURL(1)}},
+		"typename_number": {`"__typename":"User"`, `"__typename":5`, Finding{Reason: ReasonUnknownAuthorKind}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if !strings.Contains(base, tc.old) {
+				t.Fatalf("base response does not contain %q", tc.old)
+			}
+			g, _ := newTestGitHub(t, listSteps([]string{strings.Replace(base, tc.old, tc.new, 1)})...)
+			list, err := g.List(t.Context(), mustPR(t))
+			if err != nil {
+				t.Fatalf("List = %v", err)
+			}
+			if got := list.Threads[0]; got.Trusted || !slices.Equal(got.Findings, []Finding{tc.want}) {
+				t.Errorf("thread = %+v, want untrusted with %+v", got, tc.want)
+			}
+		})
+	}
 }
 
 func TestUnusableLoginNotPrinted(t *testing.T) {

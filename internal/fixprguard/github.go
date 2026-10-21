@@ -270,7 +270,7 @@ func (g *GitHub) Begin(ctx context.Context, pr PRNumber, accept []Accept) (Round
 			round.Untrusted = append(round.Untrusted, UntrustedThread{
 				ThreadID: t.id, URL: threadURL(t), Fingerprint: fp, Findings: assessment.Findings,
 			})
-			if isNamed {
+			if isNamed && acc.Fingerprint != fp {
 				round.Changed = append(round.Changed, ChangedThread{ThreadID: t.id, URL: threadURL(t), Stage: changedSinceAccept})
 			}
 		}
@@ -281,8 +281,18 @@ func (g *GitHub) Begin(ctx context.Context, pr PRNumber, accept []Accept) (Round
 		}
 	}
 	round.PermissionLookups = perms.budget()
+	if err := g.addBodies(ctx, &round, selected, named); err != nil {
+		return Round{}, err
+	}
+	return round, nil
+}
+
+// addBodies fetches the selected threads with their bodies and adds each to
+// round.Threads, or to round.Changed when its comments differ from the ones
+// judged.
+func (g *GitHub) addBodies(ctx context.Context, round *Round, selected []thread, named map[string]bool) error {
 	if len(selected) == 0 {
-		return round, nil
+		return nil
 	}
 	ids := make([]string, len(selected))
 	for i, t := range selected {
@@ -290,7 +300,7 @@ func (g *GitHub) Begin(ctx context.Context, pr PRNumber, accept []Accept) (Round
 	}
 	withBodies, err := g.fetchBodies(ctx, ids)
 	if err != nil {
-		return Round{}, err
+		return err
 	}
 	for i, t := range withBodies {
 		judged := selected[i]
@@ -300,7 +310,7 @@ func (g *GitHub) Begin(ctx context.Context, pr PRNumber, accept []Accept) (Round
 		}
 		round.Threads = append(round.Threads, processThread(t, named[t.id], g.reviewer))
 	}
-	return round, nil
+	return nil
 }
 
 // processThread renders a fetched thread in the triage format. The first

@@ -84,9 +84,9 @@ func TestIDGrammar(t *testing.T) {
 			t.Errorf("validThreadID(%q) = %v, want %v", tc.id, got, tc.want)
 		}
 	}
-	for _, valid := range []string{"1", "2553061234", "999999999999999999"} {
-		if _, err := ParseCommentID(valid); err != nil {
-			t.Errorf("ParseCommentID(%q) = %v", valid, err)
+	for valid, want := range map[string]int64{"1": 1, "2553061234": 2553061234, "999999999999999999": 999999999999999999} {
+		if got, err := ParseCommentID(valid); err != nil || got != want {
+			t.Errorf("ParseCommentID(%q) = %d, %v, want %d", valid, got, err, want)
 		}
 	}
 	for _, invalid := range []string{"", "0", "01", "-1", "1e3", "../1", "1/2", "9999999999999999999", "https://github.com/x/y/pull/1#discussion_r1"} {
@@ -151,6 +151,7 @@ func TestResolveRepository(t *testing.T) {
 	})
 	for name, out := range map[string]string{
 		"no_slash":         `{"nameWithOwner":"isseis"}`,
+		"dot_name":         `{"nameWithOwner":"isseis/."}`,
 		"extra_slash":      `{"nameWithOwner":"isseis/yt2column/x"}`,
 		"dot_dot_name":     `{"nameWithOwner":"isseis/.."}`,
 		"dot_dot_owner":    `{"nameWithOwner":"../yt2column"}`,
@@ -175,10 +176,17 @@ func TestFindingJSON(t *testing.T) {
 		finding Finding
 		want    string
 	}{
-		{"account", Finding{Reason: ReasonNoWritePermission, Account: mustLogin(t, "alice")}, `{"reason":"no-write-permission","account":"alice"}`},
-		{"cause", Finding{Reason: ReasonPermissionUnavailable, Cause: CauseRateLimited}, `{"reason":"permission-unavailable","cause":"rate-limited"}`},
-		{"comment_url", Finding{Reason: ReasonNoAuthorName, CommentURL: testCommentURL(1)}, `{"reason":"no-author-name","commentUrl":"` + testCommentURL(1) + `"}`},
-		{"bare", Finding{Reason: ReasonIncompleteComments}, `{"reason":"incomplete-comments"}`},
+		{"no_write_permission", Finding{Reason: ReasonNoWritePermission, Account: mustLogin(t, "alice")}, `{"reason":"no-write-permission","account":"alice"}`},
+		{"other_bot", Finding{Reason: ReasonOtherBot, Account: mustLogin(t, "dependabot")}, `{"reason":"other-bot","account":"dependabot"}`},
+		{"no_author_name", Finding{Reason: ReasonNoAuthorName, CommentURL: testCommentURL(1)}, `{"reason":"no-author-name","commentUrl":"` + testCommentURL(1) + `"}`},
+		{"incomplete_comments", Finding{Reason: ReasonIncompleteComments}, `{"reason":"incomplete-comments"}`},
+		{"unknown_author_kind", Finding{Reason: ReasonUnknownAuthorKind}, `{"reason":"unknown-author-kind"}`},
+		{"not_found", Finding{Reason: ReasonPermissionUnavailable, Cause: CauseNotFound}, `{"reason":"permission-unavailable","cause":"not-found"}`},
+		{"forbidden", Finding{Reason: ReasonPermissionUnavailable, Cause: CauseForbidden}, `{"reason":"permission-unavailable","cause":"forbidden"}`},
+		{"rate_limited", Finding{Reason: ReasonPermissionUnavailable, Cause: CauseRateLimited}, `{"reason":"permission-unavailable","cause":"rate-limited"}`},
+		{"budget_exceeded", Finding{Reason: ReasonPermissionUnavailable, Cause: CauseBudgetExceeded}, `{"reason":"permission-unavailable","cause":"budget-exceeded"}`},
+		{"rejected_response", Finding{Reason: ReasonPermissionUnavailable, Cause: CauseRejectedResponse}, `{"reason":"permission-unavailable","cause":"rejected-response"}`},
+		{"failed", Finding{Reason: ReasonPermissionUnavailable, Cause: CauseFailed}, `{"reason":"permission-unavailable","cause":"failed"}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := json.Marshal(tc.finding)
