@@ -477,6 +477,20 @@ check_runpr_title() {
 
 ALL_CHECKS="$ALL_CHECKS runpr_title"
 
+check_fixpr_title() {
+	load_section .claude/commands/fixpr.md '## Phase 6 — Wrap: PR description (model: haiku)' || return 0
+	one=$(printf '%s\n' "$sec" | sed 's/^> \{0,1\}//' | flat)
+	has "$one" 'read the section "PR title and squash subject" of `\.claude/commands/_context\.md`' \
+		'the prompt names the title section of _context.md to read'
+	has "$one" 'write the new title in its PR title form' 'the new title is in the PR title form'
+	has "$one" 'Only if the description is significantly stale' 'the stale-description condition stays'
+	has "$one" 'drafted a concrete final title and body' 'the concrete-text condition stays'
+	has "$one" "$(quote_ere "$TITLE_ARG")" 'gh pr edit takes the title from a file'
+	lacks "$one" "$EN_TITLE" 'the prompt does not keep the title English'
+}
+
+ALL_CHECKS="$ALL_CHECKS fixpr_title"
+
 for name in "$@"; do
 	case $name in
 	'' | *[!a-z_]*) die "unknown check: '$name'" ;;

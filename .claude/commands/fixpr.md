@@ -457,14 +457,17 @@ Agent prompt:
 > 2. `git log --oneline -10`
 > 3. Only if the description is significantly stale (approach changed, scope
 >    shifted) AND you have drafted a concrete final title and body from the
->    actual PR content, run:
+>    actual PR content: first read the section "PR title and squash subject"
+>    of `.claude/commands/_context.md`, and write the new title in its PR
+>    title form (a conventional-commit prefix, then a Japanese summary, no
+>    backquotes). Write the body in Japanese (the project's language rule for
+>    GitHub). Write the title to a file in the scratchpad with the Write tool,
+>    then run:
 >    ```
->    gh pr edit NUMBER --title "<real title>" --body-file - <<'EOF'
+>    gh pr edit NUMBER --title "$(cat "<title-file>")" --body-file - <<'EOF'
 >    <real body>
 >    EOF
 >    ```
->    Keep the title an English conventional-commit title and write the body
->    in Japanese (the project's language rule for GitHub).
 >    Never pass placeholder text — if you have not drafted concrete
 >    replacement text, skip the edit entirely so the real PR description is
 >    preserved.
