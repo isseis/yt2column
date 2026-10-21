@@ -8,7 +8,7 @@
 | Created | 2026-10-21 |
 | Review date | 2026-10-21 |
 | Reviewer | isseis |
-| Comments | 2026-10-21 (editorial): ステップ 2-2 の `hasNextPage` の扱いを理由 (e) に写す記述に直した。ステップ 2-4 の `TestFenceNonceAbsent` を `TestFenceBlockShape` に改め（乱数の nonce では nonce の確認を壊しても失敗しないため）、JSON のエスケープの層のテストをステップ 5-1 の `TestBeginOutputFenced` に移した。AC-18 の検証の行を合わせた。AC は変わらない |
+| Comments | 2026-10-21 (editorial): ステップ 2-2 の `hasNextPage` の扱いを理由 (e) に写す記述に直した。ステップ 2-4 の `TestFenceNonceAbsent` を `TestFenceBlockShape` に改め（乱数の nonce では nonce の確認を壊しても失敗しないため）、JSON のエスケープの層のテストをステップ 5-1 の `TestBeginOutputFenced` に移した。AC-18 の検証の行を合わせた。AC は変わらない。2026-10-21 (decision): 設計書 3.7 に加えた `GH_REPO`・`GH_HOST` の規則（設定されていれば `gh` を起動せずに止まる）を、ステップ 5-1 の作業とテスト `TestGhTargetEnvRejected` に加えた（PR #406 のレビューの指摘。このセッションでレビュアーが承認した）。AC は変わらない |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -346,8 +346,9 @@
 
 -   [ ] 設計書 3.1 のサブコマンド（`head`・`list`・`begin`・`fence`・`inspect`・`finish`・`push`・`reply`・`edit-pr`）の引数の解釈、JSON の出力、`protocol` の照合、終了コード（0・1・2・3）を `cmd/mergepr/main.go` と同じ構成で作る。
 -   [ ] 順序の組み立てを `main` に置く（設計書 3.1・3.5・3.7）: `begin` は `Worktree.CheckClean` → `GitHub.Head`（fork の確認）→ `Worktree.Baseline` → `GitHub.Begin`（取得。ここでも fork を確かめる）の順に呼び、出力を `Fence` で囲む。`list`・`head`・`reply`・`edit-pr` は基準値の入力を持たないので、起動前の比較は `inspect` と `finish`・`push` だけが行う（設計書 3.7 が全サブコマンドに求める比較との差。基準値を渡さないサブコマンドは比べる相手がない）。`inspect` は `Worktree` の起動前の比較 → `GitHub.ThreadPaths` → `Inspect`。`--accept`・`--thread`・基準値・`JudgedSetID` の形が合わなければ、`ErrInvalidInput`（終了コード 2）で止まる。
+-   [ ] 環境変数 `GH_REPO` または `GH_HOST` が設定されていれば、`gh` を呼ぶサブコマンドは `gh` を起動せずに `ErrInvalidInput`（終了コード 2）で止まる（設計書 3.7）。値を取り除いて進めることはしない。
 -   [ ] `--protocol` が合わなければ終了コード 2 で止まる。`--reviewer` は `list`・`begin`・`inspect`・`reply` だけが受け取り、なければ止まる。
--   [ ] テスト（毎回の呼び出しに、必要な `--protocol` と `--reviewer` を渡す）: `TestBeginOrder`（作業ツリーに未コミットの変更があるとき、`gh` を呼んだら失敗する fake で、`gh` が呼ばれないこと。AC-20）、`TestInspectChecksGitStateBeforeGh`、`TestBeginOutputFenced`（改行と引用符で行頭の区切りを作ろうとする本文が、区切りの外に出ないこと。nonce と異なる区切りを使い、nonce の確認が働かない入力にする。ステップ 2-4 から移した）、`TestFenceSubcommand`、`TestAcceptThreadFlagParsing`、`TestProtocolMismatch`、`TestReviewerFlag`、`TestInspectExitCode`（範囲外で 3）、`TestBeginNothingToProcess`、`TestStopKinds`（`stop` の種類ごとに、その種類を起こす実際の場面から出力を得る。種類の文字列を表に書き写さない）。
+-   [ ] テスト（毎回の呼び出しに、必要な `--protocol` と `--reviewer` を渡す）: `TestBeginOrder`（作業ツリーに未コミットの変更があるとき、`gh` を呼んだら失敗する fake で、`gh` が呼ばれないこと。AC-20）、`TestInspectChecksGitStateBeforeGh`、`TestBeginOutputFenced`（改行と引用符で行頭の区切りを作ろうとする本文が、区切りの外に出ないこと。nonce と異なる区切りを使い、nonce の確認が働かない入力にする。ステップ 2-4 から移した）、`TestFenceSubcommand`、`TestAcceptThreadFlagParsing`、`TestProtocolMismatch`、`TestReviewerFlag`、`TestGhTargetEnvRejected`（`GH_REPO` と `GH_HOST` のそれぞれを `t.Setenv` で設定し、`gh` を呼んだら失敗する fake で、`gh` が呼ばれずに終了コード 2 になること）、`TestInspectExitCode`（範囲外で 3）、`TestBeginNothingToProcess`、`TestStopKinds`（`stop` の種類ごとに、その種類を起こす実際の場面から出力を得る。種類の文字列を表に書き写さない）。
 
 #### ステップ 5-2: `Makefile` と案内
 
@@ -370,7 +371,7 @@
 
 -   [ ] 利用者の承認を得て、実際の PR に対し `fixprguard head`・`list`・`begin`（読み取りだけ。`begin` は作業ツリーに未コミットの変更がないときだけ進む）を実行し、判定と理由が GitHub 上の実際のコメントと合うことを確かめる（`CLAUDE.md`「Tool Execution Safety」。ネットワークを使うので、承認なしに実行しない）。結果を PR の説明に書く。
 
-**完了条件**: `make test && make lint`、`make build` が成功する。壊して確かめる: `begin` の順序で fork の確認を作業ツリーの確認の前に入れ替える（`TestBeginOrder`）、`inspect` の起動前の比較を省く（`TestInspectChecksGitStateBeforeGh`）、`--protocol` の照合を省く（`TestProtocolMismatch`）、ガイドから `stop` の種類を 1 つ消す（`TestGuideCoversStopKindsAndScope`）。
+**完了条件**: `make test && make lint`、`make build` が成功する。壊して確かめる: `begin` の順序で fork の確認を作業ツリーの確認の前に入れ替える（`TestBeginOrder`）、`inspect` の起動前の比較を省く（`TestInspectChecksGitStateBeforeGh`）、`--protocol` の照合を省く（`TestProtocolMismatch`）、`GH_REPO`・`GH_HOST` の確認を省く（`TestGhTargetEnvRejected`）、ガイドから `stop` の種類を 1 つ消す（`TestGuideCoversStopKindsAndScope`）。
 
 ### PR-5 作成ポイント: fixprguard command, Makefile and guide
 
