@@ -8,7 +8,7 @@
 | Created | 2026-10-21 |
 | Review date | 2026-10-21 |
 | Reviewer | isseis |
-| Comments | 2026-10-21 (editorial): 3.2 の `cmdrunner.Options` に `Dir` と `Env` を加えた（計画書 1.3.2 の決定。3.7 の git の起動と一時リポジトリのテストに要る）。AC は変わらない。2026-10-21 (editorial): 3.4 に、2 段目の応答に入りうる本文の扱い、`authorType` の決め方、`begin` の出力の `untrusted`・`changed`・`acceptNotFound` を書き足した（実装に合わせた。AC は変わらない）。2026-10-21 (editorial): 3.2 の `Finding` に `CommentURL` を加え（3.3 の「コメントの URL を理由 (c) に付ける」の型の上の表現）、`ThreadPaths` の戻り値を `[]ThreadPath`（パスと、名指しされた想定外の著者のスレッドかどうか）にした（3.6 の規則 4 が名指しを区別するため）。AC は変わらない。2026-10-21 (decision): 3.7 に、`GH_REPO` または `GH_HOST` が設定されていれば `gh` を起動せずに止まる規則を加え、2 章の `owner/repo` の求め方から参照した（PR #406 のレビューの指摘。取り除いて進める案ではなく止める案を、このセッションでレビュアーが承認した）。AC は変わらない。2026-10-21 (editorial): フェーズ 3 の実装に合わせ、3.2 の `Worktree` に `CheckClean`・`Baseline`・`CheckState` を加え、`Inspect` の引数を `[]ThreadPath` にした（計画書のステップ 3-2・3-4 のとおり）。3.7 の head に HEAD がいるブランチを含め、比較する時点を実装の位置に合わせた。3.6 の規則 6 に、追跡済みのファイルを置き換えた FIFO では git が失敗して止まることを書き足した。AC は変わらない。2026-10-21 (decision): フェーズ 3 のレビューの指摘から、次の 3 つを決めた（このセッションでレビュアーが承認した）。(1) 3.7 の config の比較を、git が読むすべての設定の値（`git config --list --show-origin`）に広げ、push 先の識別をその比較に委ねた。(2) 入れ子の `.gitignore` と index の stat の偽造で変更を隠すことを、5.3 の残余のリスクとして記録した。(3) 3.6 の push 先を、git が解決するリモートの同じ名前のブランチと明記した。あわせて、3.6・3.7 に、replace refs を使わないこと、commit のツリーを objects から読んで blob まで比べること、内容のダイジェストを持たない変更で止まること、`commondir` の扱いを書き足した。AC は変わらない。2026-10-21 (editorial): 3.6 の「変更の数え上げ」で基準値が確かめる隠蔽の範囲を、`info/exclude`・`info/attributes` の書き換えと index の skip-worktree・assume-unchanged のフラグに限り、残りは 5.3 の残余のリスクを参照するようにした（3.7・5.3 との食い違いの修正。決定は変わらない）。AC は変わらない。2026-10-21 (editorial): 3.8 の本文のファイルの確認を、開く前の `lstat` から、リンクをたどらずに開いたファイルでの確認に改め、空のファイルの拒否を加えた（ステップ 4-1 の実装に合わせた）。AC は変わらない |
+| Comments | 2026-10-21 (editorial): 3.2 の `cmdrunner.Options` に `Dir` と `Env` を加えた（計画書 1.3.2 の決定。3.7 の git の起動と一時リポジトリのテストに要る）。AC は変わらない。2026-10-21 (editorial): 3.4 に、2 段目の応答に入りうる本文の扱い、`authorType` の決め方、`begin` の出力の `untrusted`・`changed`・`acceptNotFound` を書き足した（実装に合わせた。AC は変わらない）。2026-10-21 (editorial): 3.2 の `Finding` に `CommentURL` を加え（3.3 の「コメントの URL を理由 (c) に付ける」の型の上の表現）、`ThreadPaths` の戻り値を `[]ThreadPath`（パスと、名指しされた想定外の著者のスレッドかどうか）にした（3.6 の規則 4 が名指しを区別するため）。AC は変わらない。2026-10-21 (decision): 3.7 に、`GH_REPO` または `GH_HOST` が設定されていれば `gh` を起動せずに止まる規則を加え、2 章の `owner/repo` の求め方から参照した（PR #406 のレビューの指摘。取り除いて進める案ではなく止める案を、このセッションでレビュアーが承認した）。AC は変わらない。2026-10-21 (editorial): フェーズ 3 の実装に合わせ、3.2 の `Worktree` に `CheckClean`・`Baseline`・`CheckState` を加え、`Inspect` の引数を `[]ThreadPath` にした（計画書のステップ 3-2・3-4 のとおり）。3.7 の head に HEAD がいるブランチを含め、比較する時点を実装の位置に合わせた。3.6 の規則 6 に、追跡済みのファイルを置き換えた FIFO では git が失敗して止まることを書き足した。AC は変わらない。2026-10-21 (decision): フェーズ 3 のレビューの指摘から、次の 3 つを決めた（このセッションでレビュアーが承認した）。(1) 3.7 の config の比較を、git が読むすべての設定の値（`git config --list --show-origin`）に広げ、push 先の識別をその比較に委ねた。(2) 入れ子の `.gitignore` と index の stat の偽造で変更を隠すことを、5.3 の残余のリスクとして記録した。(3) 3.6 の push 先を、git が解決するリモートの同じ名前のブランチと明記した。あわせて、3.6・3.7 に、replace refs を使わないこと、commit のツリーを objects から読んで blob まで比べること、内容のダイジェストを持たない変更で止まること、`commondir` の扱いを書き足した。AC は変わらない。2026-10-21 (editorial): 3.6 の「変更の数え上げ」で基準値が確かめる隠蔽の範囲を、`info/exclude`・`info/attributes` の書き換えと index の skip-worktree・assume-unchanged のフラグに限り、残りは 5.3 の残余のリスクを参照するようにした（3.7・5.3 との食い違いの修正。決定は変わらない）。AC は変わらない。2026-10-21 (editorial): 3.8 の本文のファイルの確認を、開く前の `lstat` から、リンクをたどらずに開いたファイルでの確認に改め、空のファイルの拒否を加えた（ステップ 4-1 の実装に合わせた）。AC は変わらない。2026-10-21 (editorial): ステップ 4-2 の実装に合わせ、3.8 の `edit-pr` の本文を標準入力から `--body-file -` で渡す形にし、4 章に `ErrCommentNotInThread`・`ErrReplyNotResolved` と `stop` の種類 `thread-not-trusted`・`reply-not-resolved` を加えた。AC は変わらない |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `911b535` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md) の項番を指す。申し送り H-01〜H-10 への対応は付録 A にまとめる。#395 などは GitHub の issue の番号を指す。
 
@@ -664,7 +664,7 @@ flowchart TD
 -   **返信。** `reply` は、`{"body": <文面>}` の JSON を自分で組み立て、標準入力で `gh api --method POST repos/<owner>/<repo>/pulls/<number>/comments/<id>/replies --input -` に渡す。`-F body=@file` や `-f` は使わない。`-F` は値の型変換（`true`・`null`・数字）を行うので、文面の全体が文字列として送られる保証にならないためである。返信が成功した場合だけ、`resolveReviewThread` の mutation を、スレッド ID を変数として渡して実行する。文面は heredoc も引数も通らないので、終端の文字列、`$(...)`、バッククォート、引用符はただの文字である（AC-19）。
 -   **引数の検査。** スレッド ID（`PRRT_` で始まる英数字と `-`・`_` の並び）、コメント ID と `<PR>`（10 進数）は、文法を検査してから使う。URL やパスの形の値は拒否する。`owner/repo` は呼び出し元から受け取らない（3.1）。
 -   **返信を許す条件。** `reply` は、スレッドを現在の状態で取得して判定し直す（AC-07）。(1) スレッドが信頼する著者のスレッドである、または名指しされて指紋が一致する。(2) 指定された指紋が、現在の指紋と一致する（`begin` の後にコメントが変わっていれば、返信も解決もせず `ErrThreadChanged` を返す）。(3) 指定されたコメント ID が、そのスレッドのコメントである。フェーズ 5 のエージェントが想定外の著者のスレッドへの返信を誤って指示されても、ツールは返信も解決も受け付けない（AC-10、`ErrThreadNotTrusted`）。
--   **PR の説明。** フェーズ 6 のエージェントは、現在の説明が古いかを確かめ、古い場合は案（タイトルと本文）を JSON で返すだけで、`gh pr edit` を実行しない。セッションが案をファイルに書き、`edit-pr` を呼ぶ。`edit-pr` は、`gh pr edit <number> --title=<タイトル> --body-file <file>` をシェルなしで実行する（タイトルは `--title=` の形で渡すので、先頭が `-` でもフラグとして解釈されない）。タイトルのファイルは本文と同じ検査を通し、1 行であることも確かめる。
+-   **PR の説明。** フェーズ 6 のエージェントは、現在の説明が古いかを確かめ、古い場合は案（タイトルと本文）を JSON で返すだけで、`gh pr edit` を実行しない。セッションが案をファイルに書き、`edit-pr` を呼ぶ。`edit-pr` は、`gh pr edit <number> --title=<タイトル> --body-file -` をシェルなしで実行し、検査した本文を標準入力で渡す（タイトルは `--title=` の形で渡すので、先頭が `-` でもフラグとして解釈されない。本文のファイルを `gh` に読み直させないので、検査の後に差し替えられても、検査した内容が送られる）。タイトルのファイルは本文と同じ検査を通し、1 行であることも確かめる。
 -   **フェーズ 5 のエージェント。** 返信の文面を受け取らない。スレッド ID、コメント ID、指紋、本文のファイルのパスだけを受け取り、`reply` を順番に実行する。
 
 ### 3.9. fork の PR の判定（F-005・H-09）
@@ -736,6 +736,8 @@ var (
 	ErrJudgedSetChanged = errors.New("changes differ from the judged set")  // AC-21a
 	ErrThreadNotTrusted = errors.New("thread is not trusted")               // AC-10
 	ErrThreadChanged    = errors.New("thread comments changed")             // AC-09, AC-13
+	ErrCommentNotInThread = fmt.Errorf("%w: comment is not in the thread", ErrInvalidInput) // reply to another thread's comment
+	ErrReplyNotResolved = errors.New("reply posted but thread not resolved") // the caller must not post again
 	ErrResponseRejected = errors.New("GitHub response rejected")            // strict check or size cap failed
 	ErrLimitExceeded    = errors.New("input exceeds a fixed limit")         // thread cap, change cap
 )
@@ -751,7 +753,7 @@ var (
 | 想定外の著者のスレッドへの `reply`、指紋の不一致 | `ErrThreadNotTrusted`、`ErrThreadChanged`。何も書き込まない |
 | `fixprguard` が `PATH` にない | コマンドの文書が止まる（コマンドが見つからないエラー）。ツールなしで判定を続けない |
 
-出力の JSON の `stop` は、止まる種類（`dirty-work-tree`・`cross-repository`・`git-state-changed`・`judged-set-changed`・`thread-cap`・`change-cap` など）を機械が読める名前で示す。診断（標準エラー）は 1 行で、規則と位置だけを書く。
+出力の JSON の `stop` は、止まる種類（`dirty-work-tree`・`cross-repository`・`git-state-changed`・`judged-set-changed`・`thread-cap`・`change-cap`・`thread-not-trusted`・`reply-not-resolved` など）を機械が読める名前で示す。診断（標準エラー）は 1 行で、規則と位置だけを書く。
 
 ## 5. セキュリティ考慮事項 (Security Considerations)
 
