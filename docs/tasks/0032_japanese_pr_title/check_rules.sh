@@ -270,6 +270,29 @@ check_subject_regex_samples() {
 
 ALL_CHECKS="$ALL_CHECKS context_title_section context_subject_regex subject_regex_samples"
 
+check_context_plan_pr() {
+	_ctx=$(show "$CONTEXT") || {
+		fail "cannot read $CONTEXT"
+		return
+	}
+	sec=$(printf '%s\n' "$_ctx" | section '### Plan PR')
+	[ -n "$sec" ] || {
+		fail "no section '### Plan PR' in $CONTEXT"
+		return
+	}
+	one=$(printf '%s\n' "$sec" | flat)
+	has "$one" '`03_implementation_plan\.md` has the PR.s URL on a `PR を作成した` line' \
+		'definition: the PR URL on a plan'"'"'s PR を作成した line'
+	has "$one" 'in the tree of the PR.s head' 'the tree read is the PR head'
+	has "$one" 'Count only a line where the whole URL matches' 'only a whole-URL match counts'
+	has "$one" 'Stop[^.]*when the matching lines are in the plans of two or more tasks' \
+		'stop when two or more tasks'"'"' plans match'
+	has "$one" 'Stop[^.]*when the tree cannot be read' 'stop when the tree cannot be read'
+	has "$one" 'final PR\*\* when no `### PR-N 作成ポイント` marker after' 'the final-PR rule'
+}
+
+ALL_CHECKS="$ALL_CHECKS context_plan_pr"
+
 for name in "$@"; do
 	case " $ALL_CHECKS " in
 	*" $name "*) ;;

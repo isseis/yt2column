@@ -125,6 +125,29 @@ Squash subject regular expression:
 (feat|fix|docs|refactor|test|perf|build|ci|chore|style|revert)(\([a-z0-9-]+\))?: [!-~]([ -~]*[!-~])? \(#[0-9]+\)
 ```
 
+### Plan PR
+
+A PR is a **plan PR** when, in the tree of the PR's head, a task's
+`03_implementation_plan.md` has the PR's URL on a `PR を作成した` line
+(`runplan.md` writes it, at a PR checkpoint or, for a plan without PR markers,
+in its single-PR record). Its task ID is the number of the task directory that
+holds that plan. It is the task's **final PR** when no `### PR-N 作成ポイント`
+marker after that line is unchecked. `runpr.md` step 2 and `mergepr.md` step 2
+use this definition.
+
+- **Tree.** `runpr.md` reads its checkout of the PR's head branch, which its
+  step 1 brought up to date. `mergepr.md` reads the tree of the `headRefOid`
+  that `prepare` recorded, the commit `merge` is pinned to with
+  `--match-head-commit`, so the tree judged is the tree merged.
+- **Match.** Count only a line where the whole URL matches: looking for
+  `.../pull/41` does not count a line with `.../pull/410`.
+- **No match**: not a plan PR.
+- **Stop**, report, and do not guess when the matching lines are in the plans
+  of two or more tasks.
+- **Stop**, report, and do not guess when the tree cannot be read (a `git`
+  failure, which is not the same as no match: `git grep` exits 1 for no match
+  and above 1 for a failure).
+
 ---
 
 ## Tech-stack convention
