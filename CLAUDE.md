@@ -96,6 +96,13 @@ then asks one question: record the bookkeeping (for a document, its
 `approved` status), merge with `/mergepr`, and run the next command, which opens
 the next PR and stops again.
 
+CodeRabbit's PR review is rationed per hour, so a PR gets one when it opens
+(`.coderabbit.yaml` turns the incremental review off). Later changes are
+reviewed with the local CLI, and `/runpr` requests another PR review only when
+the changes are of a kind the local review cannot stand in for
+([pr-review-escalation.md](.claude/commands/_lib/pr-review-escalation.md)) or
+when the user asks in its one question.
+
 ### Extension Commands
 
 The Chrome/Brave extension lives in `extension/` (TypeScript). Its Node.js
