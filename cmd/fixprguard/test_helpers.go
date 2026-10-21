@@ -354,3 +354,16 @@ func fenceLines(t *testing.T, block string) []string {
 	}
 	return strings.Split(rest, "\n")
 }
+
+// validBaseline is a baseline token that fits the grammar, for a command
+// line that must fail for another reason.
+func validBaseline(t *testing.T) string {
+	t.Helper()
+	const hexDigest, hexOID = 64, 40
+	digest := strings.Repeat("a", hexDigest)
+	token := strings.Join([]string{"v1", strings.Repeat("1", hexOID), digest, "none", digest, digest, digest, digest}, ".")
+	if _, err := fixprguard.ParseBaseline(token); err != nil {
+		t.Fatalf("test setup: baseline %q: %v", token, err)
+	}
+	return token
+}

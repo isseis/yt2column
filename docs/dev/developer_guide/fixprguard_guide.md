@@ -27,8 +27,9 @@ The tool keeps no state file. The session holds the baseline and the judged set 
 | Item | Requirement |
 |---|---|
 | `git`, `gh`, `make` | On `PATH`, with `gh auth login` done |
-| Working directory | Run at the top level of the work tree |
+| Working directory | Run at the top level of the work tree, with HEAD on a branch. Elsewhere than the top level, `begin` stops with exit code `2`, and `inspect`, `finish`, and `push` stop with `git-state-changed` (`config`). With a detached HEAD, `begin` stops with exit code `2` |
 | `origin` | Points at this repository on GitHub. `gh repo view` returns this repository without a prompt |
+| `GIT_*` environment variables | The tool removes them from the git and `gh` it starts |
 | `GH_REPO`, `GH_HOST` | Not set. If set, the subcommands that call `gh` stop with exit code `2` without starting `gh` (because `gh` would target another repository) |
 
 ## 3. Installation
@@ -66,7 +67,7 @@ The exit codes are as follows. The caller treats any other exit code, terminatio
 |---|---|---|
 | `0` | Continue | The subcommand's result |
 | `1` | Stop | `stop` (the stop kind) and the details of each kind (chapter 8) |
-| `2` | Usage error (flags, value grammar, `--protocol` mismatch, `GH_REPO`/`GH_HOST`) | None |
+| `2` | Usage error (flags, value grammar, `--protocol` mismatch, `GH_REPO`/`GH_HOST`, an empty positional argument). Running elsewhere than the top level of the work tree, a detached HEAD, or a malformed `.git` file (`begin`), and a `--comment-id` that is not the thread's first comment (`reply`; found only after reading GitHub) also give `2` | None |
 | `3` | Ask the user (`inspect` only; there are out-of-scope changes) | The result of `inspect` |
 
 ## 5. Subcommands
@@ -129,7 +130,7 @@ Side effects: reads GitHub and `git ls-remote` only.
 
 ### `fence FILE`
 
-Writes the file's content, enclosed in a fenced block, to standard output as it is (not JSON). The nonce is redrawn until it is a value the file does not contain. Only a regular file of at most 16 MiB is read. `/fixpr` writes the triage agent's output to a file, encloses it with this, and then passes it to the fix agent.
+Writes the file's content, enclosed in a fenced block, to standard output as it is (not JSON). The nonce is redrawn until it is a value the file does not contain. Only a regular file (not a symbolic link, FIFO, or device) of at most 16 MiB is read. `/fixpr` writes the triage agent's output to a file, encloses it with this, and then passes it to the fix agent.
 
 ```sh
 fixprguard fence --protocol 1 /path/to/triage.json
@@ -238,6 +239,7 @@ A `.go` file is in scope under rule 2 only when `path` is a `.go` file in the sa
 - That an agent does not follow instructions inside the fenced block. Forging the delimiter lines is prevented, but the behavior of an LLM cannot be guaranteed.
 - The order in which `inspect` through `finish` are called, the confirmation with the user, and limiting naming to the threads in the immediately preceding report. These depend on the command documents (the session).
 - Only the state at the time of a check is guaranteed. Another process rewriting the hooks or config between the check and the execution, and something changed and changed back during the fix phase, are not detected.
+- A comparison before `head`, `list`, `reply`, and `edit-pr`, which take no baseline, start `gh`. `/fixpr` calls them after `finish` and `push`, so the comparisons up to then detect a rewrite, but a rewrite after `push` is not detected.
 - Preventing in-scope test code from being run by the build checks. `finish` and `push` do detect that code rewriting in-scope files or hooks.
 - Files ignored by `.gitignore`, files hidden by a `.gitignore` inside the work tree or by the global exclude file, and changes hidden by forging the stat information of the index. Hidden changes are not committed, but the build checks running them cannot be prevented.
 - Files outside the hooks directory that a hook runs (such as the cache of the pre-commit framework).
@@ -261,8 +263,8 @@ The `stop` field of the exit code `1` output gives the stop kind. When the tool 
 | `thread-not-trusted` | The target of `reply` is neither a trusted thread nor a named thread | None | Do not reply. The user decides how to handle the untrusted thread |
 | `reply-not-resolved` | The reply was posted (or it is unknown whether it was), but the thread could not be resolved | None | Do not post the same reply again. Check the thread on GitHub and resolve it by hand if needed |
 | `response-rejected` | A GitHub call failed or timed out, or the response failed the strict check or the size cap | None | Check `gh auth status` and the state of GitHub, then redo |
-| `build-checks-failed` | One of `make fmt`, `make test`, or `make lint` failed | `stage` (`fmt`, `test`, `lint`) and `output` (the last 8 KiB of the output, as a fenced block) | Check the output and fix the cause. `output` is the result of running code, so treat it as untrusted text |
-| `git-failed` | git failed, its output was not in the expected shape, or git's metadata could not be read (not run at the top level of the work tree, a tracked file replaced by a FIFO, and so on) | None | Check that you are at the top level of the work tree and that `git status` works |
+| `build-checks-failed` | One of `make fmt`, `make test`, or `make lint` failed (including output over 64 MiB, in which case there is no `output`) | `stage` (`fmt`, `test`, `lint`) and `output` (the last 8 KiB of the output, as a fenced block) | Check the output and fix the cause. `output` is the result of running code, so treat it as untrusted text |
+| `git-failed` | git failed, its output was not in the expected shape, or git's metadata could not be read (a tracked file replaced by a FIFO, run outside a git repository, and so on) | None | Check that `git status` works |
 | `failed` | A failure that matches none of the above (no nonce for the fenced block could be chosen, and so on) | None | Check the diagnostic on standard error |
 
 When the user answers "do not continue" about out-of-scope changes, the changes remain in the work tree. The next `/fixpr` stops with `dirty-work-tree`, so examine the changes, discard or commit them, and redo.

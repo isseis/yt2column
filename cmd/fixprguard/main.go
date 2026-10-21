@@ -43,6 +43,10 @@ const (
 	// gitMaxOutput caps git's output; Worktree needs a cap so truncated output
 	// cannot hide a change, and over it the run stops.
 	gitMaxOutput = 64 << 20
+	// makeMaxOutput caps a build check's output, which comes from code the
+	// round may have changed; over it the target counts as failed without
+	// output. Only the tail of a failed target is reported.
+	makeMaxOutput = 64 << 20
 	// waitDelay bounds the wait for a cancelled command's pipes.
 	waitDelay = 10 * time.Second
 	// maxFenceInput caps the file fence reads.
@@ -142,13 +146,16 @@ func main() {
 	os.Exit(run(context.Background(), os.Args[1:], osEnv()))
 }
 
-// osEnv runs gh and git with an output cap, git with the GIT_* variables
-// removed, and make uncapped (only the tail of a failed target is kept).
+// osEnv runs every command with an output cap. gh and git run without the
+// inherited GIT_* variables: gh starts git too, and GIT_DIR or GIT_WORK_TREE
+// would point it at another repository than the one the tool checks and
+// pushes.
 func osEnv() env {
+	gitEnv := fixprguard.GitEnv(os.Environ())
 	return env{
-		gh:        cmdrunner.NewOS(cmdrunner.Options{MaxOutput: ghMaxOutput, WaitDelay: waitDelay}),
-		git:       cmdrunner.NewOS(cmdrunner.Options{MaxOutput: gitMaxOutput, WaitDelay: waitDelay, Env: fixprguard.GitEnv(os.Environ())}),
-		make:      cmdrunner.NewOS(cmdrunner.Options{WaitDelay: waitDelay}),
+		gh:        cmdrunner.NewOS(cmdrunner.Options{MaxOutput: ghMaxOutput, WaitDelay: waitDelay, Env: gitEnv}),
+		git:       cmdrunner.NewOS(cmdrunner.Options{MaxOutput: gitMaxOutput, WaitDelay: waitDelay, Env: gitEnv}),
+		make:      cmdrunner.NewOS(cmdrunner.Options{MaxOutput: makeMaxOutput, WaitDelay: waitDelay}),
 		stdout:    os.Stdout,
 		stderr:    os.Stderr,
 		rand:      rand.Reader,
@@ -231,6 +238,11 @@ func parse(args []string) (invocation, error) {
 			return invocation{}, errUsage
 		}
 		inv.arg = flags.Arg(0)
+	}
+	// An empty argument is not an omitted one: it is refused, not read as
+	// the current branch's PR.
+	if flags.NArg() == 1 && inv.arg == "" {
+		return invocation{}, fmt.Errorf("%w: empty argument", errUsage)
 	}
 	return inv, nil
 }
@@ -499,17 +511,15 @@ func begin(ctx context.Context, inv invocation, e env, w *fixprguard.Worktree) (
 	}, exitContinue, nil
 }
 
-// fence prints the file's content in a fenced block. Only a regular file of
-// at most maxFenceInput bytes is read.
+// fence prints the file's content in a fenced block. Only a regular file
+// (not a symbolic link, FIFO or device) of at most maxFenceInput bytes is
+// read.
 func fence(inv invocation, e env) (any, int, error) {
-	f, err := os.Open(inv.arg)
+	f, err := fixprguard.OpenRegularFile(inv.arg)
 	if err != nil {
-		return nil, 0, fmt.Errorf("%w: fence file not readable", fixprguard.ErrInvalidInput)
+		return nil, 0, fmt.Errorf("%w: fence file is not a readable regular file", fixprguard.ErrInvalidInput)
 	}
 	defer func() { _ = f.Close() }()
-	if info, err := f.Stat(); err != nil || !info.Mode().IsRegular() {
-		return nil, 0, fmt.Errorf("%w: fence file is not a regular file", fixprguard.ErrInvalidInput)
-	}
 	data, err := io.ReadAll(io.LimitReader(f, maxFenceInput+1))
 	if err != nil {
 		return nil, 0, fmt.Errorf("%w: fence file not readable", fixprguard.ErrInvalidInput)

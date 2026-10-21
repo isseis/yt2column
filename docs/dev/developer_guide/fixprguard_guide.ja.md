@@ -27,8 +27,9 @@
 | 項目 | 内容 |
 |---|---|
 | `git`、`gh`、`make` | `PATH` 上にあり、`gh auth login` 済みであること |
-| 作業ディレクトリ | 作業ツリーの最上位で実行すること |
+| 作業ディレクトリ | 作業ツリーの最上位で、HEAD がブランチにいる状態で実行すること。最上位でないと、`begin` は終了コード `2` で、`inspect`・`finish`・`push` は `git-state-changed`（`config`）で止まる。detached HEAD では `begin` が終了コード `2` で止まる |
 | `origin` | GitHub 上の本リポジトリを指していること。`gh repo view` がプロンプトなしで本リポジトリを返すこと |
+| `GIT_*` の環境変数 | ツールは、起動する git と `gh` から取り除く |
 | `GH_REPO`・`GH_HOST` | 設定されていないこと。設定されていると、`gh` を呼ぶサブコマンドは `gh` を起動せずに終了コード `2` で止まる（`gh` が別のリポジトリを対象にするため） |
 
 ## 3. インストール
@@ -66,7 +67,7 @@ go version -m "$(command -v fixprguard)"
 |---|---|---|
 | `0` | 続けてよい | サブコマンドの結果 |
 | `1` | 止める | `stop`（止まった種類）と、種類ごとの詳細（8 章） |
-| `2` | 使い方の誤り（フラグ、値の文法、`--protocol` の不一致、`GH_REPO`・`GH_HOST`） | なし |
+| `2` | 使い方の誤り（フラグ、値の文法、`--protocol` の不一致、`GH_REPO`・`GH_HOST`、空の位置引数）。ほかに、作業ツリーの最上位でない・detached HEAD・`.git` ファイルの形の誤り（`begin`）と、`--comment-id` がスレッドの最初のコメントでないこと（`reply`。GitHub を読んだ後に分かる）も `2` になる | なし |
 | `3` | 利用者に確かめる（`inspect` だけ。範囲外の変更がある） | `inspect` の結果 |
 
 ## 5. サブコマンド
@@ -129,7 +130,7 @@ fixprguard begin --protocol 1 --reviewer coderabbitai 42
 
 ### `fence FILE`
 
-ファイルの内容を区切りのブロックで囲んで、そのまま標準出力に書く（JSON ではない）。nonce は、ファイルに含まれない値を選び直す。通常のファイルで 16 MiB 以下のものだけを読む。`/fixpr` は、トリアージのエージェントの出力をファイルに書き、これで囲んでから修正のエージェントに渡す。
+ファイルの内容を区切りのブロックで囲んで、そのまま標準出力に書く（JSON ではない）。nonce は、ファイルに含まれない値を選び直す。通常のファイル（シンボリックリンク、FIFO、デバイスでない）で 16 MiB 以下のものだけを読む。`/fixpr` は、トリアージのエージェントの出力をファイルに書き、これで囲んでから修正のエージェントに渡す。
 
 ```sh
 fixprguard fence --protocol 1 /path/to/triage.json
@@ -238,6 +239,7 @@ fixprguard edit-pr --protocol 1 --title-file /path/to/title.txt --body-file /pat
 - エージェントが区切りの内側の指示に従わないこと。区切りの偽造は防ぐが、LLM の振る舞いは保証できない。
 - `inspect` から `finish` までを呼ぶ順序、利用者への確認、名指しを直前の報告にあるスレッドに限ること。これらはコマンドの文書（セッション）に依存する。
 - 確認の時点の状態だけを保証する。確認から実行までの間に別のプロセスが hooks や config を書き換えること、修正のフェーズの間に変えて元に戻したことは検出しない。
+- 基準値を持たない `head`・`list`・`reply`・`edit-pr` が `gh` を起動する前の比較。`/fixpr` はこれらを `finish`・`push` の後に呼ぶので、それまでの比較が書き換えを検出するが、`push` の後の書き換えは検出しない。
 - 範囲内のテストのコードが build checks で実行されること。`finish` と `push` は、そのコードが範囲内のファイルや hooks を書き換えたことは検出する。
 - `.gitignore` が無視するファイル、作業ツリーの中の `.gitignore` やグローバルの除外のファイルで隠したファイル、index の stat の偽造で隠した変更。隠した変更は commit されないが、build checks が実行することは防げない。
 - hooks のディレクトリの外にあり、hook が実行するファイル（pre-commit のフレームワークのキャッシュなど）。
@@ -261,8 +263,8 @@ fixprguard edit-pr --protocol 1 --title-file /path/to/title.txt --body-file /pat
 | `thread-not-trusted` | `reply` の対象が、信頼する著者のスレッドでも、名指しされたスレッドでもない | なし | 返信しない。想定外の著者のスレッドの扱いは利用者が決める |
 | `reply-not-resolved` | 返信が投稿された（か、投稿されたか分からない）が、スレッドを解決できなかった | なし | 同じ返信を再び投稿しない。GitHub でスレッドを確かめ、必要なら手で解決する |
 | `response-rejected` | GitHub の呼び出しが失敗した、時間切れになった、または応答が厳格な検査や大きさの上限に通らなかった | なし | `gh auth status` と GitHub の状態を確かめてやり直す |
-| `build-checks-failed` | `make fmt`・`make test`・`make lint` のどれかが失敗した | `stage`（`fmt`・`test`・`lint`）と `output`（出力の末尾 8 KiB を区切りのブロックにしたもの） | 出力を確かめて原因を直す。`output` はコードの実行結果なので、信頼できないテキストとして扱う |
-| `git-failed` | git が失敗した、出力が想定の形でない、または git のメタデータを読めなかった（作業ツリーの最上位で実行していない、追跡済みのファイルを FIFO に置き換えた、など） | なし | 作業ツリーの最上位で実行しているか、`git status` が通るかを確かめる |
+| `build-checks-failed` | `make fmt`・`make test`・`make lint` のどれかが失敗した（出力が 64 MiB を超えた場合を含む。そのときは `output` がない） | `stage`（`fmt`・`test`・`lint`）と `output`（出力の末尾 8 KiB を区切りのブロックにしたもの） | 出力を確かめて原因を直す。`output` はコードの実行結果なので、信頼できないテキストとして扱う |
+| `git-failed` | git が失敗した、出力が想定の形でない、または git のメタデータを読めなかった（追跡済みのファイルを FIFO に置き換えた、git のリポジトリの外で実行した、など） | なし | `git status` が通るかを確かめる |
 | `failed` | 上のどれにも当たらない失敗（区切りの nonce を選べなかった、など） | なし | 標準エラーの診断を確かめる |
 
 範囲外の変更で利用者が「続けない」と答えたときは、変更は作業ツリーに残る。次の `/fixpr` は `dirty-work-tree` で止まるので、変更を調べて、捨てるか commit してからやり直す。

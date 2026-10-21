@@ -5,11 +5,13 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/isseis/yt2column/internal/cmdrunner"
@@ -99,10 +101,7 @@ func TestAcceptThreadFlagParsing(t *testing.T) {
 	// A value outside its grammar stops with exit 2 before any command runs:
 	// the fakes have no step, and there is no repository for git.
 	fp := strings.Repeat("a", 64)
-	baseline := strings.Join([]string{"v1", strings.Repeat("1", 40), fp, "none", fp, fp, fp, fp}, ".")
-	if _, err := fixprguard.ParseBaseline(baseline); err != nil {
-		t.Fatalf("test setup: baseline %q: %v", baseline, err)
-	}
+	baseline := validBaseline(t)
 	for _, line := range [][]string{
 		args(cmdBegin, "--reviewer", testReviewer, "--accept", testThreadID+"="+fp+"0", testPR),
 		args(cmdBegin, "--reviewer", testReviewer, "--accept", "https://example.com/x="+fp, testPR),
@@ -112,6 +111,7 @@ func TestAcceptThreadFlagParsing(t *testing.T) {
 		args(cmdBegin, "--reviewer", testReviewer, "pull/42"),
 		args(cmdFinish, "--baseline", baseline, "--judged-set", "j", testPR),
 		args(cmdReply, "--reviewer", testReviewer, "--thread-id", testThreadID, "--comment-id", "x", "--fingerprint", fp, "--body-file", "b", testPR),
+		args(cmdHead, ""),
 	} {
 		t.Chdir(t.TempDir())
 		r := newTestRun(t, nil)
@@ -123,37 +123,81 @@ func TestAcceptThreadFlagParsing(t *testing.T) {
 }
 
 // TestGhTargetEnvRejected: with GH_REPO or GH_HOST set, every subcommand that
-// runs gh stops with exit 2 before gh runs; the fake has no step.
+// runs gh stops with exit 2 before gh runs; the fake has no step. Each line
+// is otherwise valid (files exist, values fit their grammar), so only the
+// variable check can stop it, and the diagnostic must name the variable: exit
+// 2 alone would not tell the check from another usage error.
 func TestGhTargetEnvRejected(t *testing.T) {
+	dir := t.TempDir()
+	text := filepath.Join(dir, "text.md")
+	if err := os.WriteFile(text, []byte("Fixed.\n"), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	fp := strings.Repeat("a", 64)
+	lines := map[string][]string{
+		cmdHead:    args(cmdHead, testPR),
+		cmdList:    args(cmdList, "--reviewer", testReviewer, testPR),
+		cmdBegin:   args(cmdBegin, "--reviewer", testReviewer, testPR),
+		cmdInspect: args(cmdInspect, "--reviewer", testReviewer, "--baseline", validBaseline(t), "--thread", testThreadID+"="+fp, testPR),
+		cmdReply: args(cmdReply, "--reviewer", testReviewer, "--thread-id", testThreadID, "--comment-id", "1",
+			"--fingerprint", fp, "--body-file", text, testPR),
+		cmdEditPR: args(cmdEditPR, "--title-file", text, "--body-file", text, testPR),
+	}
+	for name, sp := range specs {
+		if _, ok := lines[name]; sp.usesGH != ok {
+			t.Fatalf("%s: usesGH = %t, but a line is scripted: %t", name, sp.usesGH, ok)
+		}
+	}
 	for _, variable := range ghTargetVariables {
-		for name, line := range validArgs() {
-			if !specs[name].usesGH {
-				continue
-			}
+		for name, line := range lines {
 			t.Run(variable+"/"+name, func(t *testing.T) {
 				t.Setenv(variable, "example.com/other")
 				r := newTestRun(t, nil)
 				r.lookupEnv = os.LookupEnv
 				r.git = cmdrunnertestutil.New(t)
-				if code := r.Run(t, line...); code != exitUsage {
-					t.Errorf("exit %d, want %d (%s)", code, exitUsage, r.Stderr)
+				if code := r.Run(t, line...); code != exitUsage || !strings.Contains(r.Stderr.String(), variable) {
+					t.Errorf("exit %d, stderr %q; want %d naming %s", code, r.Stderr, exitUsage, variable)
 				}
 			})
 		}
 	}
 }
 
+// TestGhRunsWithoutGitVariables: the production gh runner, like git's, drops
+// the inherited GIT_* variables, since gh starts git and GIT_DIR would point
+// it at another repository. A stand-in gh on PATH prints its environment.
+func TestGhRunsWithoutGitVariables(t *testing.T) {
+	bin := t.TempDir()
+	script := "#!/bin/sh\nenv\n"
+	if err := os.WriteFile(filepath.Join(bin, "gh"), []byte(script), 0o700); err != nil { //nolint:gosec // a stand-in executable in the test's directory
+		t.Fatalf("write gh: %v", err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("GIT_DIR", "/elsewhere/.git")
+	out, err := osEnv().gh.Run(t.Context(), "gh")
+	if err != nil {
+		t.Fatalf("run gh: %v", err)
+	}
+	if strings.Contains(string(out), "GIT_DIR=") {
+		t.Errorf("gh saw GIT_DIR: %s", out)
+	}
+}
+
 // TestBeginOrder: a work tree with an uncommitted change stops begin before
 // anything reaches GitHub; the gh fake has no step.
+// Without a PR number, resolving the current branch's PR runs gh too, so it
+// must also wait for the work tree check.
 func TestBeginOrder(t *testing.T) {
 	repo := newTestRepo(t)
 	repo.Write("docs/notes/new.md", "untracked\n")
-	r := newTestRun(t, nil)
-	if code := r.Run(t, args(cmdBegin, "--reviewer", testReviewer, testPR)...); code != exitStop {
-		t.Fatalf("exit %d, want %d (%s)", code, exitStop, r.Stderr)
-	}
-	if got := r.StopKind(t); got != fixprguard.StopDirtyWorkTree {
-		t.Errorf("stop = %q, want %q", got, fixprguard.StopDirtyWorkTree)
+	for _, pr := range [][]string{{testPR}, nil} {
+		r := newTestRun(t, nil)
+		if code := r.Run(t, args(cmdBegin, append([]string{"--reviewer", testReviewer}, pr...)...)...); code != exitStop {
+			t.Fatalf("PR %q: exit %d, want %d (%s)", pr, code, exitStop, r.Stderr)
+		}
+		if got := r.StopKind(t); got != fixprguard.StopDirtyWorkTree {
+			t.Errorf("PR %q: stop = %q, want %q", pr, got, fixprguard.StopDirtyWorkTree)
+		}
 	}
 }
 
@@ -164,14 +208,25 @@ func TestInspectChecksGitStateBeforeGh(t *testing.T) {
 	repo := newTestRepo(t)
 	base := repo.Baseline()
 	repo.Git("config", "core.pager", "cat")
-	r := newTestRun(t, nil)
-	if code := r.Run(t, args(cmdInspect, "--reviewer", testReviewer, "--baseline", base.String(), testPR)...); code != exitStop {
-		t.Fatalf("exit %d, want %d (%s)", code, exitStop, r.Stderr)
+	for _, pr := range [][]string{{testPR}, nil} {
+		r := newTestRun(t, nil)
+		if code := r.Run(t, args(cmdInspect, append([]string{"--reviewer", testReviewer, "--baseline", base.String()}, pr...)...)...); code != exitStop {
+			t.Fatalf("PR %q: exit %d, want %d (%s)", pr, code, exitStop, r.Stderr)
+		}
+		var out stopJSON
+		r.Decode(t, &out)
+		if out.Stop != fixprguard.StopGitStateChanged || !slices.Contains(out.Parts, fixprguard.PartConfig) {
+			t.Errorf("PR %q: output = %+v, want %s naming %s", pr, out, fixprguard.StopGitStateChanged, fixprguard.PartConfig)
+		}
 	}
-	var out stopJSON
-	r.Decode(t, &out)
-	if out.Stop != fixprguard.StopGitStateChanged || !slices.Contains(out.Parts, fixprguard.PartConfig) {
-		t.Errorf("output = %+v, want %s naming %s", out, fixprguard.StopGitStateChanged, fixprguard.PartConfig)
+}
+
+// TestOmittedPRUsesCurrentBranch: without a PR number, the current branch's
+// PR from gh is the one checked.
+func TestOmittedPRUsesCurrentBranch(t *testing.T) {
+	r := newTestRun(t, []cmdrunnertestutil.Step{ghStep(`{"number":42}`, nil, "pr", "view", "--json", "number"), headStep(sameRepositoryHead)})
+	if code := r.Run(t, args(cmdHead)...); code != exitContinue {
+		t.Errorf("exit %d, want %d (%s)", code, exitContinue, r.Stderr)
 	}
 }
 
@@ -260,8 +315,13 @@ func TestFenceSubcommand(t *testing.T) {
 	if r.Stdout.String() != want {
 		t.Errorf("output = %q, want %q", r.Stdout, want)
 	}
-	// A device reads as an empty file; only the regular-file check refuses it.
-	for _, path := range []string{os.DevNull, filepath.Join(dir, "missing")} {
+	// A device reads as an empty file and a FIFO would block the read; only
+	// the regular-file check refuses them.
+	fifo := filepath.Join(dir, "fifo")
+	if err := syscall.Mkfifo(fifo, 0o600); err != nil {
+		t.Fatalf("mkfifo: %v", err)
+	}
+	for _, path := range []string{os.DevNull, fifo, filepath.Join(dir, "missing")} {
 		r := newTestRun(t, nil)
 		if code := r.Run(t, args(cmdFence, path)...); code != exitUsage || r.Stdout.Len() != 0 {
 			t.Errorf("fence %s: exit %d, output %q; want %d and none", path, code, r.Stdout, exitUsage)
@@ -477,5 +537,16 @@ func TestStopOutputDetails(t *testing.T) {
 				t.Errorf("stopOutput = %+v", got)
 			}
 		})
+	}
+}
+
+// TestStopReplyNotResolvedWins: a reply that may have been posted stops with
+// its own kind and exit 1 even when the error also wraps a usage error, so
+// the caller never reads it as a command line to fix and post again.
+func TestStopReplyNotResolvedWins(t *testing.T) {
+	r := newTestRun(t, nil)
+	err := fmt.Errorf("%w: %w", fixprguard.ErrReplyNotResolved, fixprguard.ErrInvalidInput)
+	if code := stop(r.env, err); code != exitStop || r.StopKind(t) != fixprguard.StopReplyNotResolved {
+		t.Errorf("exit %d, output %q; want %d and %s", code, r.Stdout, exitStop, fixprguard.StopReplyNotResolved)
 	}
 }
