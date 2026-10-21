@@ -48,7 +48,7 @@
 設計で決めたこと:
 
 -   **ガードツールは状態のファイルを持たない。** 基準値と判定した集合の識別子はサブコマンドの出力で返し、セッションが次のサブコマンドの引数で渡す（1.1）。
--   **build checks と commit は、ツールの `finish` が一続きで行う。** `finish` は、判定した集合の厳密な確認、`make fmt`、整形後の集合の記録、`make test`・`make lint`、整形後の集合との厳密な比較、stage、commit を、この順に行う。build checks の後の確認を緩めると、範囲内の `.go` ファイルが build checks の間に書き換えられても気づかない。また、確認を呼ぶ順序が文書に依存してしまう。これを避けるため、build checks と commit を `finish` が一続きで行う。整形は、`make fmt` の直後の集合を新しい基準にして吸収するので、`.go` の内容を例外にする必要がない。`make fmt` の前に判定するのは、範囲外の Makefile を `make fmt` が利用者の確認の前に実行してしまうのを避けるためである。
+-   **build checks と commit は、ツールの `finish` が一続きで行う。** 実行する make のターゲットは `fmt`・`test`・`lint` の固定値で、引数から受け取らない（`-f`・`-C` や任意のターゲットを渡せないようにする）。`_context.md` の build checks を変えるときは、ツールも変える。 `finish` は、判定した集合の厳密な確認、`make fmt`、整形後の集合の記録、`make test`・`make lint`、整形後の集合との厳密な比較、stage、commit を、この順に行う。build checks の後の確認を緩めると、範囲内の `.go` ファイルが build checks の間に書き換えられても気づかない。また、確認を呼ぶ順序が文書に依存してしまう。これを避けるため、build checks と commit を `finish` が一続きで行う。整形は、`make fmt` の直後の集合を新しい基準にして吸収するので、`.go` の内容を例外にする必要がない。`make fmt` の前に判定するのは、範囲外の Makefile を `make fmt` が利用者の確認の前に実行してしまうのを避けるためである。
 -   **push は、ツールの `push` が直前に再確認して行う。** HEAD が `finish` の commit であること、hooks と config が基準値と同じであること、push 先が基準値のものであることを確かめてから、明示した refspec で push する（3.6）。commit から push までの間に hooks や config が書き換えられても、書き換えられた hooks や config が実行されるのを防ぐためである。
 -   **取得は 2 段階にする。** 1 段目は本文を含まない問い合わせで判定し、2 段目は処理するスレッドの本文だけを取得して、1 段目の指紋と同じであることを確かめる（3.4）。想定外の著者が大きな本文を大量に書いて応答を巨大にする妨害を受けず、想定外の著者の本文を取得すらしない。判定の後に追加されたコメントも指紋の不一致で検出して、そのスレッドを処理しない（AC-09）。
 -   **`inspect` はスレッドの ID から `path` を求める。** 呼び出し元が `path` を引数に書くと、セッションが範囲を広げられる。ツールが GitHub から `path` を取り直し、そのスレッドが信頼する著者のスレッドか名指しされたスレッドであることも確かめる（3.6）。
@@ -292,7 +292,7 @@ PR を引数に取るサブコマンドの `<PR>` は、10 進数の PR 番号�
 | `begin` | `/fixpr` フェーズ 1 | `<PR>`、`--reviewer`、`--accept <ID>=<指紋>`（複数可） | 作業ツリーの確認（AC-20）、fork の確認、判定、処理するスレッドの本文（区切りのブロック）と指紋、基準値 | GitHub と `git ls-remote` の読み取り |
 | `fence` | `/fixpr` フェーズ 3 | ファイル | ファイルの内容を囲んだ区切りのブロック | なし |
 | `inspect` | `/fixpr` フェーズ 3 の後 | `<PR>`、`--reviewer`、基準値、`--thread <ID>=<指紋>`（複数可） | git の状態の異常、`JudgedSetID`、範囲外の一覧 | GitHub と git（`git ls-remote` を含む）の読み取り |
-| `finish` | `/fixpr` フェーズ 4 | 基準値、`JudgedSetID`、`<PR>`、実行する make のターゲット | 厳密な確認、整形、build checks、stage、commit | ローカルの commit。ファイルの整形と、build checks が行う書き込み |
+| `finish` | `/fixpr` フェーズ 4 | 基準値、`JudgedSetID`、`<PR>` | 厳密な確認、整形、build checks、stage、commit | ローカルの commit。ファイルの整形と、build checks が行う書き込み |
 | `push` | `/fixpr` フェーズ 4 | 基準値、`finish` が返した SHA | 再確認の後の push | リモートのブランチへの書き込み |
 | `reply` | `/fixpr` フェーズ 5 | `<PR>`、スレッド ID、コメント ID、指紋、本文のファイル、`--reviewer`、`--accept` | 返信の投稿とスレッドの解決 | GitHub への書き込み |
 | `edit-pr` | `/fixpr` フェーズ 6 | `<PR>`、タイトルのファイル、本文のファイル | PR のタイトルと本文の更新 | GitHub への書き込み |
@@ -484,8 +484,8 @@ const (
 | `Bot` で、`login` が自動レビュアーの名前と一致 | 信頼する。権限の照会はしない（AC-02・AC-03） | - |
 | `Bot` で、`login` が自動レビュアーと違う | 信頼しない。書き込み権限の照会もしない | (b) |
 | `User` | `login` を検査して REST で権限を照会する。`role_name` が `write`・`maintain`・`admin` のいずれかなら信頼する。それ以外は信頼しない | (a)、照会できなければ (d) |
-| それ以外の値、空、欠け | 信頼しない | (f) |
-| 著者がない（`author` が `null`）、名前が空、名前が `login` の文法に合わない（文法は次の段落で定める） | 信頼しない | (c) |
+| 著者はあるが、`__typename` が `User`・`Bot` 以外、空、欠けのとき | 信頼しない | (f) |
+| 著者がない（`author` が `null`）、`login` が空、`login` が文法に合わない（文法は次の段落で定める）。(f) とは重ならず、著者の欠落と名前の不備は常に (c) | 信頼しない | (c) |
 
 名前が `login` の文法に合わないものを (c) にまとめるのは、要件書 AC-11 の (c)「著者がない、または名前が空」を「名前が使えない」に広げる設計上の判断である。権限の照会の URL に名前を埋め込むので、`/` や `..` を含む値を通さないためである。文法は、英数字とハイフンの並び（先頭は英数字）とする。GitHub の Enterprise Managed Users が使う `_` を含む名前は、この文法に合わないので信頼されない（安全側）。この文法を満たさない名前は、出力にも書かず、そのコメントの URL を理由 (c) に付ける。
 
@@ -618,10 +618,11 @@ flowchart TD
 -   **整形の吸収。** `make fmt` の直後に変更の集合を再び数え、整形後の集合を記録する。整形されるのは判定した集合の中のファイルに限る（`make fmt` は HEAD との差分と未追跡の Go のファイルだけを整形し、作業ツリーが clean から始まる。`Makefile:206-215`）。整形によってパスの集合が変わっていれば止まる。
 -   **build checks の後の確認。** `make test` と `make lint` の後の変更の集合が、整形後の集合と、内容を含めて厳密に一致する。基準値の hooks・config・info も同じである。build checks のコードが、範囲内のファイルや git の設定を書き換えると、ここで止まる（AC-21a）。この確認は、整形後の集合の記録の後であり、`.go` の内容の例外を持たない。
 -   **stage。** 判定したパスだけを、パスを文字どおりに解釈する指定（グロブや pathspec の特殊な記法を無効にした指定）で stage する。stage の内容が整形後の集合と一致し、未 stage・未追跡の変更が残らないことを確かめる。一致しなければ、stage を取り消して止まる（`ErrJudgedSetChanged`）。
+-   **commit の後の確認。** `git commit` の後、作られた commit のツリーの変更が、整形後の集合と一致することを確かめる。commit の hook が index を書き換えて別の内容を commit できるためである。一致しなければ、SHA を返さずに止まる（`push` は呼ばれない）。作られた commit は、利用者が調べて取り消す。
 -   **commit。** 件名は、`<PR>` から `fix: address PR #<N> review comments` と組み立てる。ラウンドの数え方（`fixpr.md:36-39`）が依存する件名なので、ツールの 1 か所で持ち、文書の検査（7.4）が `fixpr.md` の記述との一致を確かめる。判定した集合が空なら、何もせず `committed: false` を返す。
 -   **出力。** build checks が失敗したときは、失敗した段階（`fmt`・`test`・`lint`）と、出力の末尾（8 KiB まで）を返す。出力はコードの実行結果であり、信頼できないテキストとして区切りのブロックで返す。
 
-**`push` の不変条件。** `finish` が返した SHA を受け取り、(1) HEAD がその SHA である。(2) hooks・config・info が基準値と同じである。(3) push 先（現在のブランチの push 先として git が解決するリモートとブランチ）が、基準値を採ったときのものと同じである。(4) 明示した refspec で push する。これにより、commit から push までの間に hooks や config が書き換えられても、書き換えられた hooks や config が実行されることはない。ただし、確認した時点の状態しか保証しない。確認から push の実行までの間に別のプロセスが書き換える場合は防げない（5.3）。push に失敗したときは、今までどおり、フェーズ 4 の失敗とする（`fixpr.md:354-361` の未 push の commit の確認も変えない）。
+**`push` の不変条件。** `finish` が返した SHA を受け取り、(1) HEAD がその SHA である。(2) hooks・config・info が基準値と同じである。(3) push 先（現在のブランチの push 先として git が解決するリモートとブランチ）が、基準値を採ったときのものと同じで、リモートのブランチの OID も基準値と同じである（`inspect` の後にリモートが巻き戻されて、意図しない履歴が再導入されるのを防ぐ）。(4) 明示した refspec で push する。これにより、commit から push までの間に hooks や config が書き換えられても、書き換えられた hooks や config が実行されることはない。ただし、確認した時点の状態しか保証しない。確認から push の実行までの間に別のプロセスが書き換える場合は防げない（5.3）。push に失敗したときは、今までどおり、フェーズ 4 の失敗とする（`fixpr.md:354-361` の未 push の commit の確認も変えない）。
 
 ### 3.7. git の状態の基準値（F-004・H-08）
 
@@ -630,7 +631,7 @@ flowchart TD
 | 値 | 求め方 | 比べる時点 |
 |---|---|---|
 | head | HEAD の OID | `inspect`・`finish`・`push` |
-| remote | push 先のリモートのブランチの OID（ブランチがなければ空）と、push 先の識別 | `inspect`（OID と識別）、`push`（識別） |
+| remote | push 先のリモートのブランチの OID（ブランチがなければ空）と、push 先の識別 | `inspect`（OID と識別）、`push`（OID と識別） |
 | hooks | hooks のディレクトリの内容のダイジェスト | `inspect`・`finish`・`push` |
 | config | リポジトリの config と worktree の config の内容のダイジェスト | `inspect`・`finish`・`push` |
 | info | `info/exclude`・`info/attributes` の内容のダイジェストと、index のフラグ（skip-worktree・assume-unchanged が立ったエントリがないこと） | `inspect`・`finish`・`push` |
@@ -672,7 +673,7 @@ flowchart TD
 | Shared rules | 区切りのブロックの取り扱い（3.5）を R6 として加え、フェーズ 2・3・6 から参照する。既存の R1〜R5 は変えない |
 | フェーズ 1 | `begin` の実行に置き換える。作業ツリーの確認（AC-20）、fork の判定（AC-27）、想定外の著者のスレッドの一覧、基準値がここで決まる |
 | フェーズ 2・3 | プロンプトに区切りのブロックを埋め込み、データであることを書く（AC-16）。フェーズ 3 の後、フェーズ 4 の前に、`inspect` と利用者への確認を置く |
-| フェーズ 4 | `make fmt && make test && make lint`、`git add -A`、`git commit` を `fixprguard finish` に置き換える（make のターゲットは、`_context.md` の build checks と同じ値を渡す）。`git push` を `fixprguard push` に置き換える。未 push の commit の確認（`fixpr.md:354-361`）は変えない |
+| フェーズ 4 | `make fmt && make test && make lint`、`git add -A`、`git commit` を `fixprguard finish` に置き換える（make のターゲットはツールが固定で持つ。`_context.md` の build checks と同じ値であることを、文書の検査（7.4）が確かめる）。`git push` を `fixprguard push` に置き換える。未 push の commit の確認（`fixpr.md:354-361`）は変えない |
 | フェーズ 5 | 返信のブロック（`fixpr.md:398-403`）を `reply` に置き換える。heredoc `REPLYBODY_EOF` を取り除く |
 | フェーズ 6 | 説明の更新の案をエージェントが返し、セッションが `edit-pr` で反映する。PR のテキストがデータであることを書く（AC-17） |
 | Final report | 想定外の著者のスレッドを、「Skipped threads」と区別した一覧で挙げる（URL と理由。AC-11）。処理するスレッドがないとき（AC-14）、範囲外の変更で止めたとき（AC-25）、判定の後に変更が現れたとき（AC-21a）、git の状態の異常（AC-26）、作業ツリーの変更（AC-20）、fork（AC-27）の停止の種類を、最初の行に示す。範囲外の変更で止めたときは、作業ツリーに変更が残っていて次の `/fixpr` が止まること、回復の手順（変更を調べて、捨てるか commit する）を示す |
@@ -821,6 +822,8 @@ flowchart TD
 
 -   **範囲内のテストのコードが build checks で実行される。** 信頼する著者のスレッドでは、同じディレクトリの `_test.go` は、`path` が `.go` のファイルのとき範囲に入る（3.6。名指しされた想定外の著者のスレッドでは入らない）。`make test` はそれを実行するので、修正のフェーズが書いた範囲内のテストのコードは、利用者の確認なしに、このマシンで実行される。実行できる操作は、修正のフェーズのエージェントが Bash で直接行える操作を超えない。`finish` が build checks の後に変更の集合と git の状態を再確認し、`push` が直前に再確認するので、テストのコードが範囲内のファイルや hooks を書き換えれば、commit や push の前に止まる。
 -   **確認と実行の間のずれ。** `push` の再確認はある時点だけの確認であり、確認から実行までの間に、別のプロセス（修正のフェーズのエージェントが起動した、切り離されたプロセス）が hooks や config を書き換える場合は防げない。このリスクは、要件書 4.2 の「変えて元に戻す」より広い。残余として受け入れる。
+-   **`--reviewer` の値。** ツールは `--reviewer` の値を呼び出し元から受け取り、`_context.md` の値と一致することを検証しない（ツールは `_context.md` を読まない。値の置き場を 1 か所にするため、1.2）。セッションが別の Bot の名前を渡すと、その Bot が信頼される。文書の検査（7.4）が、`fixpr.md`・`runpr.md` が `_context.md` の値を渡す記述を持つことを確かめるにとどめる。
+-   **無視されるファイル。** `.gitignore` が無視するファイルは、変更の集合に入らない（要件書 4.2 の残余のリスク）。無視される `_test.go` を作られて `make test` が実行することは、検出できない。基準値は、無視の規則を書き換える操作だけを確かめる（3.7）。
 -   **名指しの検証。** 名指しの対象を、直前の報告にあるスレッドに限ること（AC-12）は、ツールに検証できない。セッションの手順に依存する。
 -   **指紋の分解能。** 時刻が秒の単位なので、同じ秒の内の再編集は検出しないことがある。
 -   **自動レビュアーの同一性。** `__typename` が `Bot` で `login` が `coderabbitai` であることだけで判定する。GitHub 上で同じ名前の別の Bot を作れないことに依存する。Bot のノード ID を固定する案は、`_context.md` の値を増やすので採らない（YAGNI）。
@@ -951,7 +954,7 @@ flowchart TD
 
 ### 7.4. 文書のガード
 
-`cmd/yt2column/fixpr_docs_test.go` が、`fixpr.md`・`runpr.md`・`_context.md` を読み、次を検査する。(1) `git add -A`、`REPLYBODY_EOF`、`comments(first:10)`、`coderabbitai[bot]` の直書きが残っていない。(2) `fixprguard` の各サブコマンドの呼び出しが、定めた場所にある。(3) `_context.md` が自動レビュアーの名前を定めている。(4) `fixpr.md` に Authorization の節がある。(5) `fixpr.md` のラウンドの数え方の件名が、ツールが組み立てる commit の件名と一致する。文書の記述を検査する静的な確認なので、文面の正しさは保証しない。レビューで確かめる。
+`cmd/yt2column/fixpr_docs_test.go` が、`fixpr.md`・`runpr.md`・`_context.md` を読み、次を検査する。(1) `git add -A`、`REPLYBODY_EOF`、`comments(first:10)`、`coderabbitai[bot]` の直書きが残っていない。(2) `fixprguard` の各サブコマンドの呼び出しが、定めた場所にある。(3) `_context.md` が自動レビュアーの名前を定めている。(4) `fixpr.md` に Authorization の節がある。(5) `fixpr.md` のラウンドの数え方の件名が、ツールが組み立てる commit の件名と一致する。(6) `fixpr.md` と `_context.md` の build checks が、ツールが固定で持つ make のターゲット（`fmt`・`test`・`lint`）と一致する。(7) `fixpr.md`・`runpr.md` が、`--reviewer` に `_context.md` の自動レビュアーの名前を渡す記述を持つ。文書の記述を検査する静的な確認なので、文面の正しさは保証しない。レビューで確かめる。
 
 ### 7.5. セキュリティテスト
 
