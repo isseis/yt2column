@@ -156,54 +156,54 @@
 
 **変更するファイル**: `internal/fixprguard/errors.go`、`internal/fixprguard/types.go`（名前は実装で決めてよい）、`internal/fixprguard/types_test.go`、`internal/fixprguard/construction_test.go`
 
--   [ ] 設計書 3.2・4 章の型（`Login`・`PRNumber`・`AuthorKind`・`Reason`・`Cause`・`Finding`・`Assessment`・`Fingerprint`・`Accept`）とセンチネルエラーを作る。ゼロ値は最も仮定の少ない解釈にし、`switch` の `default` は想定外（信頼しない）に倒す。
--   [ ] `ParseLogin`（文法は設計書 3.3）、`ParsePRNumber`（10 進数だけ。設計書 3.1）、スレッド ID・コメント ID の文法の検査（設計書 3.8。フェーズ 2 の `--accept` と、フェーズ 3 の `--thread` が使うので、ここで作る）を、補正せずに拒否する形で作る。`--accept`・`--thread` の `<ID>=<指紋>` の解析も、ここで作る。
--   [ ] `owner/repo` をローカルのリポジトリ（`gh repo view`）から求める関数を作る（設計書 3.1。権限の照会の URL とフェーズ 4 の書き込みが使う）。
--   [ ] `Login`・`PRNumber` はフィールドを非公開にし、ゼロ値を使えない値にする。構造のガードのテストを作る（1.3.4）: パッケージの非テストのソースを `go/parser` で読み、これらの型の複合リテラル（`T{}`・`&T{}`）・`new(T)`・`var x T` が、コンストラクタの中以外にないことを調べる。
--   [ ] エラーの文面に、GitHub から来た値と外部コマンドの引数・標準エラーを含めない（設計書 4 章）。
--   [ ] 外部コマンドの失敗は、`ExitError` を読んでセンチネルエラーか `Cause` に写し、`ExitError` のテキスト（引数・標準エラー）を `fixprguard` のエラーの文面と出力に残さない。テスト: `TestErrorsOmitCommandDetails`（失敗する fake の標準エラーと引数の文字列が、返ったエラーの文面にも出力にも現れない）。
--   [ ] 構造のガードは、構造体のフィールドやスライスの要素としてのゼロ値を検出しない。その場合の守りは、ゼロ値を使えない値にすること（`NewGitHub` がゼロ値の `Login` を拒否する、など）とする。
--   [ ] テスト: `TestParseLogin`・`TestParsePRNumber`・`TestIDGrammar`（URL やパスの形、`..` の拒否）・`TestParseAccept`、`construction_test.go::TestRestrictedTypesBuiltByConstructors`（検出する形ごとに、その形を 1 つ足した入力で失敗すること）。
+-   [x] 設計書 3.2・4 章の型（`Login`・`PRNumber`・`AuthorKind`・`Reason`・`Cause`・`Finding`・`Assessment`・`Fingerprint`・`Accept`）とセンチネルエラーを作る。ゼロ値は最も仮定の少ない解釈にし、`switch` の `default` は想定外（信頼しない）に倒す。
+-   [x] `ParseLogin`（文法は設計書 3.3）、`ParsePRNumber`（10 進数だけ。設計書 3.1）、スレッド ID・コメント ID の文法の検査（設計書 3.8。フェーズ 2 の `--accept` と、フェーズ 3 の `--thread` が使うので、ここで作る）を、補正せずに拒否する形で作る。`--accept`・`--thread` の `<ID>=<指紋>` の解析も、ここで作る。
+-   [x] `owner/repo` をローカルのリポジトリ（`gh repo view`）から求める関数を作る（設計書 3.1。権限の照会の URL とフェーズ 4 の書き込みが使う）。
+-   [x] `Login`・`PRNumber` はフィールドを非公開にし、ゼロ値を使えない値にする。構造のガードのテストを作る（1.3.4）: パッケージの非テストのソースを `go/parser` で読み、これらの型の複合リテラル（`T{}`・`&T{}`）・`new(T)`・`var x T` が、コンストラクタの中以外にないことを調べる。
+-   [x] エラーの文面に、GitHub から来た値と外部コマンドの引数・標準エラーを含めない（設計書 4 章）。
+-   [x] 外部コマンドの失敗は、`ExitError` を読んでセンチネルエラーか `Cause` に写し、`ExitError` のテキスト（引数・標準エラー）を `fixprguard` のエラーの文面と出力に残さない。テスト: `TestErrorsOmitCommandDetails`（失敗する fake の標準エラーと引数の文字列が、返ったエラーの文面にも出力にも現れない）。
+-   [x] 構造のガードは、構造体のフィールドやスライスの要素としてのゼロ値を検出しない。その場合の守りは、ゼロ値を使えない値にすること（`NewGitHub` がゼロ値の `Login` を拒否する、など）とする。
+-   [x] テスト: `TestParseLogin`・`TestParsePRNumber`・`TestIDGrammar`（URL やパスの形、`..` の拒否）・`TestParseAccept`、`construction_test.go::TestRestrictedTypesBuiltByConstructors`（検出する形ごとに、その形を 1 つ足した入力で失敗すること）。
 
 #### ステップ 2-2: スレッドの取得と指紋
 
 **変更するファイル**: `internal/fixprguard/threads.go`、`internal/fixprguard/threads_test.go`
 
--   [ ] 1 段目（本文なし）と 2 段目（処理するスレッドの本文）の問い合わせと応答の検査を作る（設計書 3.4）。検査は `internal/strictjson` を使い、`errors` を含む応答、16 MiB を超える応答、`hasNextPage` が真のコメント（上限 100 件）を拒否する。
--   [ ] 指紋を作る（コメントの追加・編集・削除のそれぞれで変わる）。
--   [ ] `begin` 用に 1 ページ（100 スレッド）と `capHit`、`list` 用に全ページ（上限 2000 スレッド、超えたら `thread-cap`）を作る。
--   [ ] 外部コマンドの呼び出しに、時間の上限（GitHub は 2 分）を設ける。
--   [ ] テスト: `TestCommentCap`（100 件と 101 件、`hasNextPage`）、`TestThreadCap`（2000 件と 2001 件）、`TestResponseSizeCap`（16 MiB と 16 MiB + 1）、`TestResponseRejected`（`errors`、重複キー、必須の項目の `null`、応答全体の `null`。コメントの `author: null` は拒否せず、理由 (c) に写る側のテストとして `TestAssessUnverifiableAuthor` が受け持つ）、`TestFingerprintChanges`（追加・編集・削除）、`TestStageOneQueryHasNoBody`（1 段目の問い合わせに本文の項目がない。AC-08）、`gh` の失敗。
+-   [x] 1 段目（本文なし）と 2 段目（処理するスレッドの本文）の問い合わせと応答の検査を作る（設計書 3.4）。検査は `internal/strictjson` を使い、`errors` を含む応答、16 MiB を超える応答、`hasNextPage` が真のコメント（上限 100 件）を拒否する。
+-   [x] 指紋を作る（コメントの追加・編集・削除のそれぞれで変わる）。
+-   [x] `begin` 用に 1 ページ（100 スレッド）と `capHit`、`list` 用に全ページ（上限 2000 スレッド、超えたら `thread-cap`）を作る。
+-   [x] 外部コマンドの呼び出しに、時間の上限（GitHub は 2 分）を設ける。
+-   [x] テスト: `TestCommentCap`（100 件と 101 件、`hasNextPage`）、`TestThreadCap`（2000 件と 2001 件）、`TestResponseSizeCap`（16 MiB と 16 MiB + 1）、`TestResponseRejected`（`errors`、重複キー、必須の項目の `null`、応答全体の `null`。コメントの `author: null` は拒否せず、理由 (c) に写る側のテストとして `TestAssessUnverifiableAuthor` が受け持つ）、`TestFingerprintChanges`（追加・編集・削除）、`TestStageOneQueryHasNoBody`（1 段目の問い合わせに本文の項目がない。AC-08）、`gh` の失敗。
 
 #### ステップ 2-3: 信頼の判定
 
 **変更するファイル**: `internal/fixprguard/trust.go`、`internal/fixprguard/trust_test.go`
 
--   [ ] 設計書 3.3 の判定の表を実装する。権限の照会は、設計書 3.3 の予算（`login` ごとに 1 回、全体で 100 回）と順序の規則に従う。失敗は `Cause` に写す。応答は `internal/strictjson` で検査し、`role_name` だけを読む。
--   [ ] 理由は該当するものをすべて集める（AC-11）。判定は著者と権限の情報だけを入力にし、本文を受け取らない形にする（AC-08）。文法に合わない名前は出力に書かず、コメントの URL を理由 (c) に付ける（設計書 3.3）。
--   [ ] テスト: `TestAssessAuthors`（著者の種類・権限・混在・名前の違う Bot・名前が同じ User）、`TestAssessUnverifiableAuthor`（著者なし・名前の不備・種類の不明・`author: null`）、`TestPermissionBudget`（100 回と 101 回、同じ `login` は 1 回）、`TestPermissionCause`（`Cause` ごと）、`TestUnusableLoginNotPrinted`。
+-   [x] 設計書 3.3 の判定の表を実装する。権限の照会は、設計書 3.3 の予算（`login` ごとに 1 回、全体で 100 回）と順序の規則に従う。失敗は `Cause` に写す。応答は `internal/strictjson` で検査し、`role_name` だけを読む。
+-   [x] 理由は該当するものをすべて集める（AC-11）。判定は著者と権限の情報だけを入力にし、本文を受け取らない形にする（AC-08）。文法に合わない名前は出力に書かず、コメントの URL を理由 (c) に付ける（設計書 3.3）。
+-   [x] テスト: `TestAssessAuthors`（著者の種類・権限・混在・名前の違う Bot・名前が同じ User）、`TestAssessUnverifiableAuthor`（著者なし・名前の不備・種類の不明・`author: null`）、`TestPermissionBudget`（100 回と 101 回、同じ `login` は 1 回）、`TestPermissionCause`（`Cause` ごと）、`TestUnusableLoginNotPrinted`。
 
 #### ステップ 2-4: 区切りのブロック
 
 **変更するファイル**: `internal/fixprguard/fence.go`、`internal/fixprguard/fence_test.go`
 
--   [ ] `Fence(data, rand)` を作る（設計書 3.5）。nonce がデータに含まれていたら選び直し、使い果たしたら失敗する。
--   [ ] テスト: 設計書 7.2 の最後の段落に従い、nonce の確認だけが防げる入力（nonce と同じ文字列を含む本文）と、JSON のエスケープだけが防げる入力（改行と引用符で行頭の区切りを作ろうとする本文）を、別々のテストにする。`TestFenceNonceAbsent`・`TestFenceRetriesOnCollision`・`TestFenceGivesUp`。
+-   [x] `Fence(data, rand)` を作る（設計書 3.5）。nonce がデータに含まれていたら選び直し、使い果たしたら失敗する。
+-   [x] テスト: 設計書 7.2 の最後の段落に従い、nonce の確認だけが防げる入力（nonce と同じ文字列を含む本文）と、JSON のエスケープだけが防げる入力（改行と引用符で行頭の区切りを作ろうとする本文）を、別々のテストにする。`TestFenceNonceAbsent`・`TestFenceRetriesOnCollision`・`TestFenceGivesUp`。
 
 #### ステップ 2-5: `GitHub` 型
 
 **変更するファイル**: `internal/fixprguard/github.go`、`internal/fixprguard/github_test.go`
 
--   [ ] `NewGitHub`（`--reviewer` が使えない名前、またはゼロ値の `Login` なら失敗）、`Head`（設計書 3.9）、`List`、`Begin`（`accept` の指紋の照合を含む）、`ThreadPaths`（設計書 1.2・3.6。そのスレッドが信頼する著者のスレッドか名指しされたスレッドであることも確かめる）を作る。`Begin` と `List` は最初に fork の判定をする。
--   [ ] `begin` の出力の形（設計書 3.4）と、`list` が本文を含まないことを、型の上で表す。出力は設計書 5.4 の項目（`protocol`、権限の照会の使用回数と残り）を含む。`protocol` の番号は、ここで `internal/fixprguard` の定数として定め、公開する（1.3.4）。
--   [ ] テスト: `TestHeadRequiresSameRepository`（`true`・`null`・欠け・文字列）、`TestBeginAndListCheckForkFirst`、`TestBeginAssessesEveryCall`、`TestBeginNeverFetchesUntrustedBody`（想定外の著者のスレッドの本文を取得する問い合わせが fake に届かない）、`TestBeginStageTwoFingerprintMismatch`、`TestBeginReportsAllReasons`、`TestBeginAcceptsNamedThread`、`TestBeginAcceptChangedFingerprint`（追加・編集・削除）、`TestListOmitsBodies`、`TestThreadPathsRequiresTrustedOrNamed`、`gh` の失敗。
+-   [x] `NewGitHub`（`--reviewer` が使えない名前、またはゼロ値の `Login` なら失敗）、`Head`（設計書 3.9）、`List`、`Begin`（`accept` の指紋の照合を含む）、`ThreadPaths`（設計書 1.2・3.6。そのスレッドが信頼する著者のスレッドか名指しされたスレッドであることも確かめる）を作る。`Begin` と `List` は最初に fork の判定をする。
+-   [x] `begin` の出力の形（設計書 3.4）と、`list` が本文を含まないことを、型の上で表す。出力は設計書 5.4 の項目（`protocol`、権限の照会の使用回数と残り）を含む。`protocol` の番号は、ここで `internal/fixprguard` の定数として定め、公開する（1.3.4）。
+-   [x] テスト: `TestHeadRequiresSameRepository`（`true`・`null`・欠け・文字列）、`TestBeginAndListCheckForkFirst`、`TestBeginAssessesEveryCall`、`TestBeginNeverFetchesUntrustedBody`（想定外の著者のスレッドの本文を取得する問い合わせが fake に届かない）、`TestBeginStageTwoFingerprintMismatch`、`TestBeginReportsAllReasons`、`TestBeginAcceptsNamedThread`、`TestBeginAcceptChangedFingerprint`（追加・編集・削除）、`TestListOmitsBodies`、`TestThreadPathsRequiresTrustedOrNamed`、`gh` の失敗。
 
 #### ステップ 2-6: テストの補助と文書のガード（作業は 2-2 の前に始める。2-2〜2-5 のテストが使う）
 
 **変更するファイル**: `internal/fixprguard/test_helpers.go`（`//go:build test`）、`docs/dev/developer_guide/package_reference.md`
 
--   [ ] GitHub の応答の組み立て（スレッド・コメント・権限）をまとめた補助を、`internal/cmdrunner/testutil` の fake の上に作る。
--   [ ] `package_reference.md` に `internal/fixprguard` の行を加え、`internal/strictjson` の行の共有先に `internal/fixprguard` を加える。
+-   [x] GitHub の応答の組み立て（スレッド・コメント・権限）をまとめた補助を、`internal/cmdrunner/testutil` の fake の上に作る。
+-   [x] `package_reference.md` に `internal/fixprguard` の行を加え、`internal/strictjson` の行の共有先に `internal/fixprguard` を加える。
 
 **完了条件**: `make test && make lint`。壊して確かめる（設計書 7.2 から）: 権限の判定を常に信頼にする、`role_name` の許可の一覧に `read` を加える、`Fence` の nonce の確認を外す、2 段目の指紋の確認を外す。それぞれ、名指しした 2-1〜2-5 のテストのうち、その経路を通るものが失敗することを確かめる。
 

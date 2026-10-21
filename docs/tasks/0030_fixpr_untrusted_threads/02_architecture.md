@@ -8,7 +8,7 @@
 | Created | 2026-10-21 |
 | Review date | 2026-10-21 |
 | Reviewer | isseis |
-| Comments | 2026-10-21 (editorial): 3.2 の `cmdrunner.Options` に `Dir` と `Env` を加えた（計画書 1.3.2 の決定。3.7 の git の起動と一時リポジトリのテストに要る）。AC は変わらない |
+| Comments | 2026-10-21 (editorial): 3.2 の `cmdrunner.Options` に `Dir` と `Env` を加えた（計画書 1.3.2 の決定。3.7 の git の起動と一時リポジトリのテストに要る）。AC は変わらない。2026-10-21 (editorial): 3.2 の `Finding` に `CommentURL` を加え（3.3 の「コメントの URL を理由 (c) に付ける」の型の上の表現）、`ThreadPaths` の戻り値を `[]ThreadPath`（パスと、名指しされた想定外の著者のスレッドかどうか）にした（3.6 の規則 4 が名指しを区別するため）。AC は変わらない |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `911b535` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md) の項番を指す。申し送り H-01〜H-10 への対応は付録 A にまとめる。#395 などは GitHub の issue の番号を指す。
 
@@ -400,9 +400,10 @@ const (
 )
 
 type Finding struct {
-	Reason  Reason
-	Account Login // set for (a) and (b) only
-	Cause   Cause // set for (d) only
+	Reason     Reason
+	Account    Login  // set for (a) and (b) only
+	Cause      Cause  // set for (d) only
+	CommentURL string // set for (c) only
 }
 
 // Assessment is the zero value "not trusted"; Trusted is set only when every
@@ -432,7 +433,7 @@ func NewGitHub(run cmdrunner.InputRunner, reviewer Login) (*GitHub, error)
 func (g *GitHub) Head(ctx context.Context, pr PRNumber) (HeadInfo, error)
 func (g *GitHub) List(ctx context.Context, pr PRNumber) (ThreadList, error)
 func (g *GitHub) Begin(ctx context.Context, pr PRNumber, accept []Accept) (Round, error)
-func (g *GitHub) ThreadPaths(ctx context.Context, pr PRNumber, threads []Accept) ([]string, error)
+func (g *GitHub) ThreadPaths(ctx context.Context, pr PRNumber, threads []Accept) ([]ThreadPath, error)
 func (g *GitHub) Reply(ctx context.Context, req ReplyRequest) error
 func (g *GitHub) EditPR(ctx context.Context, req EditPRRequest) error
 
@@ -471,8 +472,9 @@ const (
 )
 
 // Inspection, FinishRequest, FinishResult, PushResult, Round, ThreadList,
-// HeadInfo, ReplyRequest, EditPRRequest and Block are plain result and request
-// types; their fields follow 3.1.
+// HeadInfo, ThreadPath, ReplyRequest, EditPRRequest and Block are plain result
+// and request types; their fields follow 3.1. ThreadPath carries the path and
+// whether the thread is a named untrusted one (rule 4 of 3.6).
 ```
 
 「宣言し、推測しない」（`CLAUDE.md`）に従い、著者の種類（`AuthorKind`）と理由（`Reason`）、失敗の原因（`Cause`）は列挙型にし、ゼロ値を最も仮定の少ない解釈にする。分岐は `switch` で行い、`default` は想定外（信頼しない）に倒す。`Login` の文法の検査は、権限の照会の URL に値を埋め込む前の入力の検査であり、著者の信頼の選択には使わない。
