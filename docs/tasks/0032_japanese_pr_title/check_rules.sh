@@ -653,6 +653,45 @@ check_mergepr_guide_items() {
 
 ALL_CHECKS="$ALL_CHECKS mergepr_guide_items"
 
+# The wordings of the old rules: an English PR title, a squash subject built
+# from the PR title, and an English or feat-only 推奨タイトル. A commit subject
+# such as mkreq.md's <concise English summary> is not among them.
+STALE='concise English title|English conventional-commit title|conventional commit titles? in English|is built from it|squash commit subject is built from|PR title already fits|stays an English|feat\(<task-id>\)'
+
+check_no_stale_rules() {
+	found=$(repo_grep -nE "$STALE")
+	case $? in
+	0)
+		fail 'a file outside docs/tasks/ still states an old rule'
+		printf '%s\n' "$found" | sed 's/^/    /'
+		;;
+	1) ;;
+	*) fail 'git grep failed' ;;
+	esac
+}
+
+# The number of lines in .claude/commands that create or edit a PR with a
+# title: _lib/task-pr-handoff.md, runpr.md, and fixpr.md Phase 6 (task 0030
+# PR-6, not merged here, would move the fixpr.md one into fixprguard).
+TITLE_LINES=3
+
+check_title_via_file() {
+	if [ -n "${CHECK_REV:-}" ]; then
+		lines=$(git grep -nE 'gh pr (create|edit).*--title' "$CHECK_REV" -- .claude/commands)
+	else
+		lines=$(git grep -nE 'gh pr (create|edit).*--title' -- .claude/commands)
+	fi
+	n=$(printf '%s\n' "$lines" | command grep -c 'gh pr')
+	[ "$n" -ge "$TITLE_LINES" ] || fail "expected $TITLE_LINES gh pr lines with --title, found $n"
+	bad=$(printf '%s\n' "$lines" | command grep 'gh pr' | command grep -vF -- "$TITLE_ARG")
+	[ -z "$bad" ] || {
+		fail "a gh pr line passes the title other than as $TITLE_ARG"
+		printf '%s\n' "$bad" | sed 's/^/    /'
+	}
+}
+
+ALL_CHECKS="$ALL_CHECKS no_stale_rules title_via_file"
+
 for name in "$@"; do
 	case $name in
 	'' | *[!a-z0-9_]*) die "unknown check: '$name'" ;;
