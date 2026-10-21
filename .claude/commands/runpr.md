@@ -268,6 +268,10 @@ still reports `SUCCESS`, with no review behind it.
   - `deferred` (past its round cap): keep them for step 4;
   - untrusted (`trusted` false in the latest `list`): see "Untrusted threads"
     below;
+  - changed (`fixpr` reports that the thread's comments changed during its
+    round): run `fixpr.md` for `<number>` once more for them, at most once per
+    thread ID in this command; a thread still changed after that counts as
+    anything else below;
   - anything else — `must-fix`, `unclear`, a valid fix not applied, a thread a
     person opened — stop rather than merge, and report each one with its URL
     and why it is open, so the user can fix, re-classify, or answer it.
@@ -365,16 +369,19 @@ rather than once per decision.
    change it asks for, and its thread URL. Then reply to each of those threads
    in Japanese with the issue URL and resolve it, as `fixpr.md` Phase 5 does:
    write the reply to a file outside the work tree and run, with the
-   `databaseId` and `fingerprint` `fixpr` reported for the thread,
+   `databaseId` and `fingerprint` the latest `fixpr` report gave for the
+   thread,
 
    ```
    fixprguard reply --protocol 1 --reviewer <reviewer> --thread-id <threadId> --comment-id <databaseId> --fingerprint <fingerprint> --body-file <reply-file> <number>
    ```
 
-   A thread it does not reply to (`thread-changed` and the other stops) stays
-   unresolved: discard the preparation, return to step 2, and ask step 4 again.
-   Never run `reply` again for a `reply-not-resolved` thread; ask the user to
-   resolve it by hand. Then continue below.
+   If `reply` stops for any thread, do not merge: run
+   `mergepr discard --state <state-file>`, stop, and report each such thread
+   with its URL and stop kind. The tracking issue already lists it, so a rerun
+   of this command must not add it to the issue again. For
+   `reply-not-resolved`, the reply may be posted: ask the user to resolve the
+   thread by hand, never replying again. Otherwise continue below.
 3. When the answer records PRE_MERGE:
    - Note the prepared `headRefOid`, and copy the approved subject and body
      files to the scratchpad (`mergepr.md` keeps them in the prepared

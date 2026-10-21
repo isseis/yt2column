@@ -166,6 +166,10 @@ func TestFixprDocContract(t *testing.T) {
 		requirePhrases(t, "fixpr.md Convergence policy", convergence,
 			"counting the subjects equal to "+subject,
 			"Untrusted threads (see \"Untrusted threads\") do not change the count",
+			"whatever its `authorType`: the round cap never defers it",
+		)
+		requirePhrases(t, "fixpr.md Phase 2", requireSection(t, "fixpr.md", doc, fixprPhase2),
+			"that are not named untrusted threads (`named` false)",
 		)
 		requirePhrases(t, "fixpr.md Phase 4", requireSection(t, "fixpr.md", doc, fixprPhase4),
 			"with the subject "+subject,
@@ -198,6 +202,7 @@ func TestFixprDocContract(t *testing.T) {
 			"Exit code `3`: some changes are out of scope. Ask the user once, with `AskUserQuestion`, whether to continue.",
 			"\"do not continue\": stop. Run no build checks, commit, push, reply, or resolve, and leave the changes in the work tree",
 			"the next `/fixpr` stops with `dirty-work-tree`",
+			"When Phase 3 was skipped, still run the call below, with no `--thread`",
 		)
 	})
 
@@ -390,6 +395,7 @@ func TestRemovedCommandLiterals(t *testing.T) {
 		{"fixpr.md", fixpr, "REPLYBODY_EOF"},
 		{"fixpr.md", fixpr, "<<'EOF'"},
 		{"fixpr.md", fixpr, "comments(first:10)"},
+		{"fixpr.md", fixpr, "reviewThreads"},
 		{"runpr.md", runpr, "coderabbitai[bot]"},
 		{"runpr.md", runpr, "comments(first:10)"},
 	} {
