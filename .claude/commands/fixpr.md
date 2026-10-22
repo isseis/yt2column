@@ -89,9 +89,9 @@ this session). `coderabbit review` (Phase 4.5) has standing approval
 ## Convergence policy
 
 This loop has no natural end: a review returns findings whenever it is asked.
-Stop by policy, not by exhausting findings. A push no longer triggers a
-CodeRabbit PR review (`.coderabbit.yaml` turns the incremental review off);
-the fix is reviewed locally in Phase 4.5, and `runpr.md` requests a further PR
+Stop by policy, not by exhausting findings. A push does not trigger a PR
+review: Codex reviews a PR only when it is created; the fix is reviewed
+locally in Phase 4.5, and `runpr.md` requests a further PR
 review only when `_lib/pr-review-escalation.md` says so or the user asks.
 
 - **Round**: one fixpr run on the PR. This run's round number is one more than
@@ -563,7 +563,7 @@ failures), and stop — do not run Phase 4.5, 5, or 6.
 
 Skip this phase when Phase 4 made no commit (`commitSha` is empty).
 
-The fix is not seen by a CodeRabbit PR review, so review it here with the
+The fix is not seen by a PR review, so review it here with the
 `coderabbit` CLI, whose allowance is separate from the PR review's. Do it
 yourself in this session, not in a subagent: it follows
 `.claude/commands/_lib/coderabbit-local-review.md` with **BASE** =

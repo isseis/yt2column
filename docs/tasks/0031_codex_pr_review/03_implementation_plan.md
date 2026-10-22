@@ -319,8 +319,8 @@
 
 **変更するファイル**: `.coderabbit.yaml`
 
-- [ ] 1 行目のスキーマで `reviews.auto_review.enabled` のキーと意味を確かめる（ネットワークの操作なので、実行の前に利用者の承認を得る）。
-- [ ] 設計書 3.9 のとおり、`reviews.auto_review` に `enabled: false` を加え、`auto_incremental_review: false` を消し、コメントを PR レビューを行わない理由の説明に改める。`pre_merge_checks.docstrings` とその説明は変えない。
+- [x] 1 行目のスキーマで `reviews.auto_review.enabled` のキーと意味を確かめる（ネットワークの操作なので、実行の前に利用者の承認を得る）。
+- [x] 設計書 3.9 のとおり、`reviews.auto_review` に `enabled: false` を加え、`auto_incremental_review: false` を消し、コメントを PR レビューを行わない理由の説明に改める。`pre_merge_checks.docstrings` とその説明は変えない。
 - [ ] 変更の後に `coderabbit review` を実行し、指摘か「指摘なし」の結果が返ってローカルの CLI レビューが動くことを確かめる（設計書 3.9・7.3）。動かなければ、実装を止めて利用者に報告する。
 
 **完了の条件**: ローカルの CLI レビューが動く。ステップ 4-5 の `.coderabbit.yaml` の確認が通る。
@@ -329,10 +329,10 @@
 
 **変更するファイル**: `AGENTS.md`、`CLAUDE.md`、`.claude/commands/mkreq.md`、`.claude/commands/fixpr.md`、`.claude/commands/_lib/coderabbit-local-review.md`、`docs/translation_glossary.md`
 
-- [ ] `AGENTS.md` の見出しを 1.5 の一覧のとおりに改め、節の最初に `CLAUDE.md` を参照する文を置く。今の箇条と `### Static guards …` の節は変えない（設計書 3.10）。
-- [ ] `CLAUDE.md` を設計書 3.10 の 1 つめの箇条のとおりに改める。ローカルの CLI レビューの記述（`:96` の「local CodeRabbit」、`:392-394`）は残す。
-- [ ] `mkreq.md:16`、`fixpr.md:86-89`・`557-558`、`_lib/coderabbit-local-review.md:83-84` を設計書 3.10 の箇条のとおりに改める。
-- [ ] `docs/translation_glossary.md` に、割り当て / quota、指摘 / finding、スレッド / thread の 3 行を設計書 3.10 のとおりに加える。
+- [x] `AGENTS.md` の見出しを 1.5 の一覧のとおりに改め、節の最初に `CLAUDE.md` を参照する文を置く。今の箇条と `### Static guards …` の節は変えない（設計書 3.10）。
+- [x] `CLAUDE.md` を設計書 3.10 の 1 つめの箇条のとおりに改める。ローカルの CLI レビューの記述（`:96` の「local CodeRabbit」、`:392-394`）は残す。
+- [x] `mkreq.md:16`、`fixpr.md:86-89`・`557-558`、`_lib/coderabbit-local-review.md:83-84` を設計書 3.10 の箇条のとおりに改める。
+- [x] `docs/translation_glossary.md` に、割り当て / quota、指摘 / finding、スレッド / thread の 3 行を設計書 3.10 のとおりに加える。
 
 **完了の条件**: ステップ 4-3〜4-5 の確認が通る。
 
@@ -340,28 +340,28 @@
 
 **変更するファイル**: `cmd/yt2column/fixpr_docs_test.go`
 
-- [ ] `TestGlossaryTerms` に 3 つの用語を加え、割り当ての行が「枠」と区別していることを確かめる（設計書 3.10）。
+- [x] `TestGlossaryTerms` に 3 つの用語を加え、割り当ての行が「枠」と区別していることを確かめる（設計書 3.10）。
 
 #### ステップ 4-4: CodeRabbit の PR レビューが残らないことのガード
 
 **変更するファイル**: `cmd/yt2column/codex_review_docs_test.go`
 
-- [ ] `TestNoCodeRabbitPRReview`: 設計書 3.11 の新しいファイルの 2 つめの確認（`@coderabbitai review`、`runpr.md` の `StatusContext` と `between [0-9a-f]{40}`、`CodeRabbit PR review`・`CodeRabbit's PR review` がないこと）に加えて、1.4 の「改めるもの」の各行で PR レビューを CodeRabbit として述べている今の文（「waits for CodeRabbit and CI」「the PR-side CodeRabbit review」「CodeRabbit has not reviewed」など）が残らないことを、`flat` で読んで確かめる。
-- [ ] `TestLocalCodeRabbitReviewKept`: 1.4 の「残すもの（ローカルの CLI レビュー）」のうち、`fixpr.md` フェーズ 4.5 の見出し、`_lib/task-pr-handoff.md` Part B step 1、`CLAUDE.md` の `coderabbit review` の項目が、CodeRabbit のローカルの CLI レビューとして残ることを確かめる（AC-24 の後半）。
-- [ ] `TestDocsDescribeCodexReview`: `runpr.md` と `_lib/pr-review-escalation.md` の `description`、`_lib/task-pr-handoff.md` の冒頭と Part B step 7、`CLAUDE.md` の `/runpr` の説明が PR レビューを Codex として説明すること（AC-24）、`CLAUDE.md` が Codex の設定（レビューのタイミングは PR 作成時のみ、徹底的なコードレビューは無効）を書いていること（AC-07）を確かめる。
+- [x] `TestNoCodeRabbitPRReview`: 設計書 3.11 の新しいファイルの 2 つめの確認（`@coderabbitai review`、`runpr.md` の `StatusContext` と `between [0-9a-f]{40}`、`CodeRabbit PR review`・`CodeRabbit's PR review` がないこと）に加えて、1.4 の「改めるもの」の各行で PR レビューを CodeRabbit として述べている今の文（「waits for CodeRabbit and CI」「the PR-side CodeRabbit review」「CodeRabbit has not reviewed」など）が残らないことを、`flat` で読んで確かめる。
+- [x] `TestLocalCodeRabbitReviewKept`: 1.4 の「残すもの（ローカルの CLI レビュー）」のうち、`fixpr.md` フェーズ 4.5 の見出し、`_lib/task-pr-handoff.md` Part B step 1、`CLAUDE.md` の `coderabbit review` の項目が、CodeRabbit のローカルの CLI レビューとして残ることを確かめる（AC-24 の後半）。
+- [x] `TestDocsDescribeCodexReview`: `runpr.md` と `_lib/pr-review-escalation.md` の `description`、`_lib/task-pr-handoff.md` の冒頭と Part B step 7、`CLAUDE.md` の `/runpr` の説明が PR レビューを Codex として説明すること（AC-24）、`CLAUDE.md` が Codex の設定（レビューのタイミングは PR 作成時のみ、徹底的なコードレビューは無効）を書いていること（AC-07）を確かめる。
 
 #### ステップ 4-5: 設定・規則・観測の記録のガード
 
 **変更するファイル**: `cmd/yt2column/codex_review_docs_test.go`、`docs/tasks/0031_codex_pr_review/observations.md`
 
-- [ ] `TestCodeRabbitConfigStopsReview`: `.coderabbit.yaml` の `reviews` → `auto_review` → `enabled: false` の並びを、テキストを受け取る純粋な関数で確かめる。標準ライブラリに YAML の解析はないので、字下げとキーで読み、コメントの行は飛ばす（`CLAUDE.md` の「Dependencies」）。本物のファイルの写しを 1 か所ずつ壊した表（`TestContextReviewerRowsMalformed` の形。壊さない対照の行を含む）でこの関数を確かめる。壊し方は、`enabled: false` をコメントにする、`true` にする、`reviews` の直下に移す、`pre_merge_checks` の下に移す、`auto_review` を 2 つにする、を含める。あわせて、コメントが PR レビューを行わない理由（Codex が行う、ローカルの CLI レビューは続ける）を述べることを確かめる（AC-22 の 3 つめの文）。
-- [ ] `TestAgentsCodeReviewRules`: `AGENTS.md` に `## Code Review Rules` の見出しがちょうど 1 つあり、`## Review guidelines` がなく、`sectionByHeading` で取り出したその節の中で `CLAUDE.md` を参照することを確かめる（AC-26。`AGENTS.md:3` の参照は節の外なので数えない）。
-- [ ] `observations.md` の PR での観測のうち、依頼したコミットの SHA がないもの（たとえば項目 3・5・6・8 の PR での観測）を洗い出し、GitHub の記録から SHA を補う。記録は読み取りだけの `gh api` で取り出す（ネットワークの操作なので、実行の前に利用者の承認を得る）。SHA を決められない観測には、その理由を項目に書く。観測の内容と結論は変えない。
-- [ ] `TestCodexObservationRecord`: `observations.md` の「AC-01 の各項目」の項目 1〜9 がそれぞれ、日付と根拠（PR の番号、`gh api`、URL のいずれか）と、観測の結果を述べる文を持つこと（AC-01・AC-02）、PR での観測のそれぞれが PR の番号と、依頼したコミットの SHA（または SHA を決められない理由）を持つこと（AC-02）、項目 3 が GraphQL の `__typename`・`login` と REST の `type`・`login` の値を持つこと（AC-03。今の記録は表の形で書いている）、項目 1 が指摘 0 件と 1 件以上の両方の観測を持つこと（AC-04）、「AC-05 に当たる点」の節があること（AC-05）を確かめる。
+- [x] `TestCodeRabbitConfigStopsReview`: `.coderabbit.yaml` の `reviews` → `auto_review` → `enabled: false` の並びを、テキストを受け取る純粋な関数で確かめる。標準ライブラリに YAML の解析はないので、字下げとキーで読み、コメントの行は飛ばす（`CLAUDE.md` の「Dependencies」）。本物のファイルの写しを 1 か所ずつ壊した表（`TestContextReviewerRowsMalformed` の形。壊さない対照の行を含む）でこの関数を確かめる。壊し方は、`enabled: false` をコメントにする、`true` にする、`reviews` の直下に移す、`pre_merge_checks` の下に移す、`auto_review` を 2 つにする、を含める。あわせて、コメントが PR レビューを行わない理由（Codex が行う、ローカルの CLI レビューは続ける）を述べることを確かめる（AC-22 の 3 つめの文）。
+- [x] `TestAgentsCodeReviewRules`: `AGENTS.md` に `## Code Review Rules` の見出しがちょうど 1 つあり、`## Review guidelines` がなく、`sectionByHeading` で取り出したその節の中で `CLAUDE.md` を参照することを確かめる（AC-26。`AGENTS.md:3` の参照は節の外なので数えない）。
+- [x] `observations.md` の PR での観測のうち、依頼したコミットの SHA がないもの（たとえば項目 3・5・6・8 の PR での観測）を洗い出し、GitHub の記録から SHA を補う。記録は読み取りだけの `gh api` で取り出す（ネットワークの操作なので、実行の前に利用者の承認を得る）。SHA を決められない観測には、その理由を項目に書く。観測の内容と結論は変えない。
+- [x] `TestCodexObservationRecord`: `observations.md` の「AC-01 の各項目」の項目 1〜9 がそれぞれ、日付と根拠（PR の番号、`gh api`、URL のいずれか）と、観測の結果を述べる文を持つこと（AC-01・AC-02）、PR での観測のそれぞれが PR の番号と、依頼したコミットの SHA（または SHA を決められない理由）を持つこと（AC-02）、項目 3 が GraphQL の `__typename`・`login` と REST の `type`・`login` の値を持つこと（AC-03。今の記録は表の形で書いている）、項目 1 が指摘 0 件と 1 件以上の両方の観測を持つこと（AC-04）、「AC-05 に当たる点」の節があること（AC-05）を確かめる。
 
 #### ステップ 4-6: 壊して失敗を確かめる
 
-- [ ] 次のそれぞれで、該当するガードが失敗することを確かめ、コミットメッセージに書く。
+- [x] 次のそれぞれで、該当するガードが失敗することを確かめ、コミットメッセージに書く。
     -   設計書 7.2 の 2 つめの箇条の残り（`AGENTS.md` の見出しを戻す、`.coderabbit.yaml` の `enabled: false` を消す、用語集の行を消す）。
     -   「waits for CodeRabbit and CI」を `CLAUDE.md` に戻す、「the PR-side CodeRabbit review」を戻す。
     -   `fixpr.md` フェーズ 4.5 の見出しの CodeRabbit を Codex に変える。

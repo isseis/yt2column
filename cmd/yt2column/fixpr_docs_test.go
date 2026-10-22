@@ -1001,6 +1001,9 @@ func TestGlossaryTerms(t *testing.T) {
 		{"自動レビュアー", "automated reviewer"},
 		{"自動レビュアーの一覧", "automated reviewer list"},
 		{"完了を待つ PR レビュアー", "awaited PR reviewer"},
+		{"割り当て", "quota"},
+		{"指摘", "finding"},
+		{"スレッド", "thread"},
 	} {
 		row := tableRow(table, term.ja)
 		if len(row) < 2 || row[1] != term.en {
@@ -1012,5 +1015,8 @@ func TestGlossaryTerms(t *testing.T) {
 	}
 	if row := tableRow(table, "信頼する著者"); len(row) < 3 || !strings.Contains(row[2], "自動レビュアーの一覧") {
 		t.Error("the glossary row for 信頼する著者 does not refer to the automated reviewer list")
+	}
+	if row := tableRow(table, "割り当て"); len(row) < 3 || !strings.Contains(row[2], "枠") {
+		t.Error("the glossary row for 割り当て does not distinguish it from 枠")
 	}
 }

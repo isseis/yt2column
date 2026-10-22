@@ -80,8 +80,8 @@ on every change, so run it without asking the user.
    not surfaced again. Record each rejected finding and its reason, and each
    `deferred` or `unclear` finding, as a `CodeRabbit local review:` line in the
    message of the fix commit, or of the next commit on the branch when there is
-   no fix commit (and in SUMMARY). The record is not passed to the PR-side
-   CodeRabbit review or to `/fixpr`, so a finding rejected locally may be raised
+   no fix commit (and in SUMMARY). The record is not passed to the PR
+   review or to `/fixpr`, so a finding rejected locally may be raised
    again there and is reclassified there; the open ones reach the PR
    body even when the PR is opened in a later session
    (`_lib/task-pr-handoff.md` Part B step 3).

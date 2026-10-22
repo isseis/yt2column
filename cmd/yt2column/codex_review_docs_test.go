@@ -125,18 +125,8 @@ const (
 // _context.md's "PR review request" row: a document that wrote it would lead
 // a session to post it from the user's account.
 func TestCodexMentionOnlyInRequestRow(t *testing.T) {
-	paths := []string{claudePath}
-	err := filepath.WalkDir(commandsDir, func(path string, d fs.DirEntry, err error) error {
-		if err == nil && !d.IsDir() && strings.HasSuffix(path, ".md") {
-			paths = append(paths, path)
-		}
-		return err
-	})
-	if err != nil {
-		t.Fatalf("walk %s: %v", commandsDir, err)
-	}
 	rows := 0
-	for _, path := range paths {
+	for _, path := range append(commandDocs(t), claudePath) {
 		for i, line := range strings.Split(readDoc(t, path), "\n") {
 			if !strings.Contains(strings.ToLower(line), strings.ToLower(fixprguard.CodexMention)) {
 				continue
@@ -274,10 +264,7 @@ func TestPostingCommandsInventory(t *testing.T) {
 	}
 
 	posts := 0
-	err := filepath.WalkDir(commandsDir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".md") {
-			return err
-		}
+	for _, path := range commandDocs(t) {
 		doc := readDoc(t, path)
 		key := filepath.Clean(path)
 		for _, m := range postingCommand.FindAllStringIndex(doc, -1) {
@@ -305,10 +292,6 @@ func TestPostingCommandsInventory(t *testing.T) {
 				t.Errorf("%s:%d posts with %q %s", path, line, command, where)
 			}
 		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("walk %s: %v", commandsDir, err)
 	}
 	// A matcher that stopped matching would pass every document.
 	if posts == 0 {
@@ -346,4 +329,307 @@ func TestIsPost(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Paths of the files only the PR-review guards read.
+const (
+	escalationPath   = commandsDir + "/_lib/pr-review-escalation.md"
+	agentsPath       = repositoryRoot + "/AGENTS.md"
+	coderabbitPath   = repositoryRoot + "/.coderabbit.yaml"
+	observationsPath = repositoryRoot + "/docs/tasks/0031_codex_pr_review/observations.md"
+)
+
+// commandDocs returns the paths of every command document, _lib/ included.
+func commandDocs(t *testing.T) []string {
+	t.Helper()
+	var paths []string
+	err := filepath.WalkDir(commandsDir, func(path string, d fs.DirEntry, err error) error {
+		if err == nil && !d.IsDir() && strings.HasSuffix(path, ".md") {
+			paths = append(paths, path)
+		}
+		return err
+	})
+	if err != nil {
+		t.Fatalf("walk %s: %v", commandsDir, err)
+	}
+	return paths
+}
+
+// removedPRReviewPhrases are the phrases that described CodeRabbit as the PR
+// reviewer before the switch to Codex. The local CLI review keeps the name
+// CodeRabbit, so the name alone is not forbidden.
+var removedPRReviewPhrases = []string{
+	"@coderabbitai review",
+	"CodeRabbit PR review",
+	"CodeRabbit's PR review",
+	"waits for CodeRabbit and CI",
+	"Drive a PR through CodeRabbit",
+	"the PR-side CodeRabbit review",
+	"CodeRabbit has not reviewed",
+	"ask CodeRabbit to review",
+	"CodeRabbit is still `PENDING`",
+	"threads CodeRabbit still posts",
+	"the CodeRabbit request",
+	"CodeRabbit's reviews and comments",
+	"Make sure CodeRabbit reviews the PR",
+	"before CodeRabbit is asked",
+	"do not wait for CodeRabbit",
+	"the CodeRabbit threads",
+	"CodeRabbit's last PR review",
+}
+
+// TestNoCodeRabbitPRReview checks that no command document and not CLAUDE.md
+// still asks CodeRabbit for a PR review, waits for one, or names CodeRabbit as
+// the PR reviewer, and that runpr.md no longer judges a review by CodeRabbit's
+// status context or its reviewed-range line.
+func TestNoCodeRabbitPRReview(t *testing.T) {
+	for _, path := range append(commandDocs(t), claudePath) {
+		doc := flat(readDoc(t, path))
+		for _, phrase := range removedPRReviewPhrases {
+			if strings.Contains(doc, phrase) {
+				t.Errorf("%s still says %q", path, phrase)
+			}
+		}
+	}
+	runpr := readDoc(t, runprPath)
+	if strings.Contains(runpr, "StatusContext") {
+		t.Error("runpr.md still reads a StatusContext")
+	}
+	if regexp.MustCompile(`between \[0-9a-f\]\{40\}`).MatchString(runpr) {
+		t.Error("runpr.md still searches for CodeRabbit's reviewed range")
+	}
+}
+
+// TestLocalCodeRabbitReviewKept checks that the local CLI review is still
+// called CodeRabbit where the documents run it: the switch moved only the PR
+// review to Codex.
+func TestLocalCodeRabbitReviewKept(t *testing.T) {
+	requireSection(t, "fixpr.md", readDoc(t, fixprPath), "## Phase 4.5 — Local CodeRabbit review of the fix (model: default)")
+	requirePhrases(t, "_lib/task-pr-handoff.md Part B step 1", readDoc(t, handoffPath),
+		"1. When LOCAL_REVIEW is `run`, review the branch with the local CodeRabbit CLI:")
+	requirePhrases(t, "CLAUDE.md", readDoc(t, claudePath),
+		"`coderabbit review` (the local CodeRabbit CLI,",
+		"Later changes are reviewed with the local CodeRabbit CLI",
+	)
+}
+
+// description returns the description line of a command document's front
+// matter.
+func description(t *testing.T, path string) string {
+	t.Helper()
+	for line := range strings.Lines(readDoc(t, path)) {
+		if rest, ok := strings.CutPrefix(line, "description: "); ok {
+			return strings.TrimSpace(rest)
+		}
+	}
+	t.Fatalf("%s has no description", path)
+	return ""
+}
+
+// TestDocsDescribeCodexReview checks that the documents that describe the PR
+// review name Codex as the reviewer, and that CLAUDE.md records the Codex
+// settings the user keeps outside the repository: a review only when a PR is
+// created, with the thorough code review off.
+func TestDocsDescribeCodexReview(t *testing.T) {
+	requirePhrases(t, "runpr.md description", description(t, runprPath), "Drive a PR through Codex's PR review and CI")
+	requirePhrases(t, "_lib/pr-review-escalation.md description", description(t, escalationPath),
+		"when to request a further Codex PR review after the first")
+	handoff := readDoc(t, handoffPath)
+	requirePhrases(t, "_lib/task-pr-handoff.md", handoff,
+		"It waits for Codex's PR review and CI, resolves the threads",
+		"Then stop: do not wait for Codex and do not merge.",
+	)
+	requirePhrases(t, "CLAUDE.md", readDoc(t, claudePath),
+		"`/runpr [PR | branch | task]` - Drive a PR through Codex's PR review and CI",
+		"it waits for Codex's PR review and CI and resolves the threads with `/fixpr`",
+		"Codex is set up outside the repository, by the user: it reviews only when a PR is created, "+
+			"never on a push, and its thorough code review is off.",
+	)
+}
+
+// autoReviewDisabled reports whether the .coderabbit.yaml text sets
+// reviews.auto_review.enabled to false, with exactly one auto_review under
+// reviews. The standard library has no YAML parser, so it reads the nesting
+// from the indentation and skips comment lines; it accepts only the block
+// style the file uses.
+func autoReviewDisabled(text string) bool {
+	type key struct {
+		indent int
+		name   string
+	}
+	var stack []key
+	reviews, enabled := 0, []string{}
+	for line := range strings.Lines(text) {
+		line = strings.TrimRight(line, "\n")
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		name, value, found := strings.Cut(trimmed, ":")
+		if !found {
+			continue
+		}
+		indent := len(line) - len(strings.TrimLeft(line, " "))
+		for len(stack) > 0 && stack[len(stack)-1].indent >= indent {
+			stack = stack[:len(stack)-1]
+		}
+		var path []string
+		for _, k := range stack {
+			path = append(path, k.name)
+		}
+		path = append(path, name)
+		stack = append(stack, key{indent, name})
+		value, _, _ = strings.Cut(value, " #")
+		switch strings.Join(path, ".") {
+		case "reviews.auto_review":
+			reviews++
+		case "reviews.auto_review.enabled":
+			enabled = append(enabled, strings.TrimSpace(value))
+		}
+	}
+	return reviews == 1 && len(enabled) == 1 && enabled[0] == "false"
+}
+
+// TestCodeRabbitConfigStopsReview checks that .coderabbit.yaml turns
+// CodeRabbit's automatic PR review off and says why, and that
+// autoReviewDisabled tells the real file from copies broken in one place.
+func TestCodeRabbitConfigStopsReview(t *testing.T) {
+	doc := readDoc(t, coderabbitPath)
+	requirePhrases(t, ".coderabbit.yaml", doc,
+		"CodeRabbit does not review PRs: Codex does the PR review",
+		"The local CLI review (`coderabbit review`) is still used",
+	)
+	const enabled = "  auto_review:\n    enabled: false\n"
+	for _, tc := range []struct {
+		name, old, new string
+		want           bool
+	}{
+		{"real", enabled, enabled, true},
+		{"commented_out", enabled, "  auto_review:\n    # enabled: false\n", false},
+		{"enabled_true", enabled, "  auto_review:\n    enabled: true\n", false},
+		{"directly_under_reviews", enabled, "  enabled: false\n", false},
+		{"under_pre_merge_checks", enabled, "", false},
+		{"auto_review_twice", enabled, enabled + enabled, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if strings.Count(doc, tc.old) != 1 {
+				t.Fatalf(".coderabbit.yaml holds %q %d times, want once", tc.old, strings.Count(doc, tc.old))
+			}
+			broken := strings.Replace(doc, tc.old, tc.new, 1)
+			if tc.name == "under_pre_merge_checks" {
+				broken = strings.Replace(broken, "  pre_merge_checks:\n", "  pre_merge_checks:\n    auto_review:\n      enabled: false\n", 1)
+			}
+			if got := autoReviewDisabled(broken); got != tc.want {
+				t.Errorf("autoReviewDisabled = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestAgentsCodeReviewRules checks that AGENTS.md holds the section Codex reads
+// its review rules from, under the heading its documentation names, and that
+// the section refers to CLAUDE.md rather than copying it.
+func TestAgentsCodeReviewRules(t *testing.T) {
+	doc := readDoc(t, agentsPath)
+	const heading = "## Code Review Rules"
+	if n := strings.Count(doc, "\n"+heading+"\n"); n != 1 {
+		t.Errorf("AGENTS.md has %d %q headings, want 1", n, heading)
+	}
+	if strings.Contains(doc, "## Review guidelines") {
+		t.Error("AGENTS.md still has the old \"## Review guidelines\" heading")
+	}
+	if !strings.Contains(sectionByHeading(doc, heading), "CLAUDE.md") {
+		t.Errorf("AGENTS.md %q does not refer to CLAUDE.md", heading)
+	}
+}
+
+var (
+	// observationDate and observationBasis are what every observation item
+	// must carry: a date, and a PR, an API call, or a URL as its basis.
+	observationDate  = regexp.MustCompile(`2026-\d\d-\d\d`)
+	observationBasis = regexp.MustCompile(`PR #\d+|gh api|https://`)
+	prNumber         = regexp.MustCompile(`PR #\d+`)
+	hexRun           = regexp.MustCompile(`\b[0-9a-f]{7,40}\b`)
+)
+
+// observationResults are, for each item of the observation record, a
+// sentence that states its result. The literals match the Japanese record, so
+// they are the exception to the English-only literal rule.
+var observationResults = map[string]string{
+	"### 1.": "**完了の印の候補:**",
+	"### 2.": "再レビューはなかった",
+	"### 3.": "REST の名前は、GraphQL の名前に `[bot]` を付けた形である",
+	"### 4.": "Codex のステータスコンテキストもチェックランも付かなかった",
+	"### 5.": "どれも上限に達しなかった",
+	"### 6.": "見出しは `## Code Review Rules` である",
+	"### 7.": "| 所要時間 |",
+	"### 8.": "**結論:**",
+	"### 9.": "レビューのタイミングは「PR 作成時のみ」、徹底的なコードレビューは無効",
+}
+
+// observationBlocks splits an item of the observation record into its
+// observations: each top-level bullet with its sub-bullets, and each other
+// line on its own.
+func observationBlocks(item string) []string {
+	var blocks []string
+	for line := range strings.Lines(item) {
+		switch {
+		case strings.TrimSpace(line) == "":
+		case strings.HasPrefix(line, " ") && len(blocks) > 0:
+			blocks[len(blocks)-1] += line
+		default:
+			blocks = append(blocks, line)
+		}
+	}
+	return blocks
+}
+
+// hasCommitSHA reports whether block names a commit: a run of 7 to 40
+// hexadecimal digits with a letter in it, so an all-digit ID is not taken
+// for one.
+func hasCommitSHA(block string) bool {
+	for _, run := range hexRun.FindAllString(block, -1) {
+		if strings.ContainsAny(run, "abcdef") {
+			return true
+		}
+	}
+	return false
+}
+
+// TestCodexObservationRecord checks that the observation record the design
+// was based on holds what the requirements ask of it: each of the nine items
+// with a date, a basis, and its result; each observation on a PR with the PR
+// and its requested commit, or why that commit cannot be told; the four author
+// values of a thread; both a review with findings and one without; and the
+// section on what would have stopped the design.
+func TestCodexObservationRecord(t *testing.T) {
+	doc := readDoc(t, observationsPath)
+	items := sectionByHeading(doc, "## AC-01 の各項目")
+	for prefix, result := range observationResults {
+		var item string
+		for line := range strings.Lines(items) {
+			if strings.HasPrefix(line, prefix+" ") {
+				item = sectionByHeading(items, strings.TrimSpace(line))
+			}
+		}
+		if strings.TrimSpace(item) == "" {
+			t.Errorf("observations.md has no item %q", prefix)
+			continue
+		}
+		if !observationDate.MatchString(item) || !observationBasis.MatchString(item) {
+			t.Errorf("observations.md item %q lacks a date or a basis", prefix)
+		}
+		requirePhrases(t, "observations.md item "+prefix, item, result)
+		for _, block := range observationBlocks(item) {
+			if prNumber.MatchString(block) && !hasCommitSHA(block) && !strings.Contains(block, "決められない") {
+				t.Errorf("observations.md item %q observes a PR without its requested commit: %q", prefix, strings.TrimSpace(block))
+			}
+		}
+	}
+	requirePhrases(t, "observations.md item 3", items,
+		"`__typename`: `Bot`", "`login`: `chatgpt-codex-connector`",
+		"`type`: `Bot`", "`login`: `chatgpt-codex-connector[bot]`",
+	)
+	requirePhrases(t, "observations.md item 1", items, "**指摘があるとき", "**指摘が 0 件のとき")
+	requireSection(t, "observations.md", doc, "## AC-05 に当たる点")
 }

@@ -2,7 +2,9 @@
 
 Guidance for automated agents, including code reviewers, working on this repository. The project's conventions, design principles and testing rules are in [CLAUDE.md](CLAUDE.md); follow them. The review-relevant guides are [requirements_process.md](docs/dev/developer_guide/requirements_process.md) (approval gates, AC traceability), [test_organization.md](docs/dev/developer_guide/test_organization.md), and [security.md](docs/dev/security.md).
 
-## Review guidelines
+## Code Review Rules
+
+Besides the rules below, follow the conventions, design principles, and testing rules in [CLAUDE.md](CLAUDE.md); they are not repeated here.
 
 - Report defects by their worst outcome when the code runs: broken behavior, a security hole, a failing build, or a test that cannot fail for its stated reason.
 - Do not re-raise a finding that has been answered in its review thread unless the code it concerns has changed since the answer.

@@ -13,7 +13,7 @@ Your goal is to turn one GitHub issue into the first version of a task's
 `01_requirements.md`, review it, open its PR, and hand the PR to the human
 reviewer. The issue comes first: a requirements document is not written without
 one. This command does not wait for the merge. The reviewer reviews the PR and
-then runs `/runpr <PR>` by hand, which drives the CodeRabbit threads and the
+then runs `/runpr <PR>` by hand, which drives the review threads and the
 merge.
 
 **Input.** `$ARGUMENTS` is `<issue> [task]`:
