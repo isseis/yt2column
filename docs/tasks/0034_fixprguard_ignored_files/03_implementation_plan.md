@@ -372,7 +372,7 @@
 
 **変更するファイル**: `docs/dev/developer_guide/package_reference.md`
 
--   [ ] `internal/cmdrunner` の行に `StderrIsFailure` と `ErrUnexpectedStderr` を、`internal/fixprguard` の行に、基準値が監視の一覧に当たる無視されるファイルの状態を含むこと、`CheckState` がそれを比べること、記録のファイルを書くことを加える。書いた内容を `runner.go`・`ignored.go` のコードと突き合わせる。
+-   [x] `internal/cmdrunner` の行に `StderrIsFailure` と `ErrUnexpectedStderr` を、`internal/fixprguard` の行に、基準値が監視の一覧に当たる無視されるファイルの状態を含むこと、`CheckState` がそれを比べること、記録のファイルを書くことを加える。書いた内容を `runner.go`・`ignored.go` のコードと突き合わせる。
 
 #### ステップ 7-6: PR-2 の確かめ
 
