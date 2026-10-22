@@ -169,6 +169,16 @@ func TestReplyRefusesUntrustedThread(t *testing.T) {
 	})
 }
 
+// TestReplyTrustsEveryReviewer: with two reviewers, the second reviewer's
+// thread is answered without being named.
+func TestReplyTrustsEveryReviewer(t *testing.T) {
+	th := testThread{id: testThreadID(1), comments: []testComment{botComment(1, testSecondReviewer)}}
+	g, _ := newTestGitHubWith(t, bothReviewers, append(replyLookupSteps(t, []testThread{th}), writeSteps(t, th)...)...)
+	if err := g.Reply(t.Context(), replyRequest(t, th, "reply")); err != nil {
+		t.Errorf("Reply = %v, want the second reviewer's thread answered", err)
+	}
+}
+
 func TestReplyReassesses(t *testing.T) {
 	// The same thread with the same comments: only alice's permission changes
 	// between the two calls.

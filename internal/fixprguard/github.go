@@ -28,26 +28,26 @@ const (
 // calls: every call judges threads afresh from the current comments and
 // permissions.
 type GitHub struct {
-	run      cmdrunner.InputRunner
-	reviewer Login
+	run       cmdrunner.InputRunner
+	reviewers Reviewers
 }
 
-// NewGitHub fails when reviewer is not a usable Login, so a missing --reviewer
-// stops the run instead of trusting no bot or a default one.
-func NewGitHub(run cmdrunner.InputRunner, reviewer Login) (*GitHub, error) {
+// NewGitHub fails when reviewers is not usable, so a missing --reviewer stops
+// the run instead of trusting no bot or a default one.
+func NewGitHub(run cmdrunner.InputRunner, reviewers Reviewers) (*GitHub, error) {
 	if run == nil {
 		return nil, fmt.Errorf("%w: no runner", ErrInvalidInput)
 	}
-	if !reviewer.usable() {
-		return nil, fmt.Errorf("%w: reviewer login", ErrInvalidInput)
+	if !reviewers.usable() {
+		return nil, fmt.Errorf("%w: reviewer list", ErrInvalidInput)
 	}
-	return &GitHub{run: run, reviewer: reviewer}, nil
+	return &GitHub{run: run, reviewers: reviewers}, nil
 }
 
 // NewGitHubWithoutReviewer returns a GitHub for the calls that judge no
-// thread: Head, CurrentPR and EditPR. Its reviewer is the zero Login, and the
-// calls that judge threads (List, Begin, ThreadPaths, Reply) refuse to run on
-// it, so a subcommand that takes no --reviewer cannot judge with none.
+// thread: Head, CurrentPR and EditPR. Its reviewers are the zero Reviewers,
+// and the calls that judge threads (List, Begin, ThreadPaths, Reply) refuse to
+// run on it, so a subcommand that takes no --reviewer cannot judge with none.
 func NewGitHubWithoutReviewer(run cmdrunner.InputRunner) (*GitHub, error) {
 	if run == nil {
 		return nil, fmt.Errorf("%w: no runner", ErrInvalidInput)
@@ -57,8 +57,8 @@ func NewGitHubWithoutReviewer(run cmdrunner.InputRunner) (*GitHub, error) {
 
 // requireReviewer guards every call that judges threads.
 func (g *GitHub) requireReviewer() error {
-	if !g.reviewer.usable() {
-		return fmt.Errorf("%w: reviewer login", ErrInvalidInput)
+	if !g.reviewers.usable() {
+		return fmt.Errorf("%w: reviewer list", ErrInvalidInput)
 	}
 	return nil
 }
@@ -325,7 +325,7 @@ func (g *GitHub) Begin(ctx context.Context, pr PRNumber, accept []Accept) (Round
 			continue
 		}
 		seen[t.id] = struct{}{}
-		assessment := assessThread(ctx, authorsOf(t), !t.moreComments, g.reviewer, perms.lookup)
+		assessment := assessThread(ctx, authorsOf(t), !t.moreComments, g.reviewers, perms.lookup)
 		fp := fingerprint(t)
 		acc, isNamed := accepted[t.id]
 		switch {
@@ -377,20 +377,21 @@ func (g *GitHub) addBodies(ctx context.Context, round *Round, selected []thread,
 			continue
 		}
 		_, isNamed := named[t.id]
-		round.Threads = append(round.Threads, processThread(t, isNamed, g.reviewer))
+		round.Threads = append(round.Threads, processThread(t, isNamed, g.reviewers))
 	}
 	return nil
 }
 
 // processThread renders a fetched thread in the triage format. The first
 // comment gives the database ID, path, line and URL. authorType is "Bot" only
-// when the first author is the reviewer bot and "User" otherwise, so another
-// bot's thread a user named is answered like a person's. Begin never selects a
-// thread without comments.
-func processThread(t thread, named bool, reviewer Login) ProcessThread {
+// when the first author is a Bot of the reviewers, judged by the trustsBot
+// that assessThread uses, and "User" otherwise, so another bot's thread a user
+// named is answered like a person's. Begin never selects a thread without
+// comments.
+func processThread(t thread, named bool, reviewers Reviewers) ProcessThread {
 	first := t.comments[0]
 	authorType := typenameUser
-	if authorKindOf(first.kindRaw) == AuthorBot && first.loginRaw == reviewer.String() {
+	if reviewers.trustsBot(authorsOf(t)[0]) {
 		authorType = typenameBot
 	}
 	parts := make([]string, 0, len(t.comments))
@@ -463,7 +464,7 @@ func (g *GitHub) List(ctx context.Context, pr PRNumber) (ThreadList, error) {
 		if t.resolved {
 			continue
 		}
-		assessment := assessThread(ctx, authorsOf(t), !t.moreComments, g.reviewer, perms.lookup)
+		assessment := assessThread(ctx, authorsOf(t), !t.moreComments, g.reviewers, perms.lookup)
 		findings := assessment.Findings
 		if findings == nil {
 			findings = []Finding{}
@@ -516,7 +517,7 @@ func (g *GitHub) ThreadPaths(ctx context.Context, pr PRNumber, threads []Accept)
 		if !ok || fingerprint(t) != want.Fingerprint || len(t.comments) == 0 {
 			return nil, ErrThreadChanged
 		}
-		assessment := assessThread(ctx, authorsOf(t), !t.moreComments, g.reviewer, perms.lookup)
+		assessment := assessThread(ctx, authorsOf(t), !t.moreComments, g.reviewers, perms.lookup)
 		paths = append(paths, ThreadPath{ThreadID: t.id, Path: t.comments[0].path, Named: !assessment.Trusted})
 	}
 	return paths, nil

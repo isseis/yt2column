@@ -8,7 +8,7 @@
 | Created | 2026-10-22 |
 | Review date | 2026-10-22 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-22 (editorial): ステップ 1-3 の `test_helpers.go` の項目を、`replyArgs` だけが `--reviewer` の並びを指定できる形に改めた。指紋は `--reviewer` によらないので、`fingerprintOf`・`accept` を変える必要がないことを実装で確かめたためである。同じステップの「壊して確かめる」の 1 つめの項目の、失敗するテストを実際の結果に改めた（表の `--reviewer` がない行は、`ParseReviewers` が空の一覧を拒否するので失敗しない）。確かめる内容と決定は変わらない |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -143,16 +143,16 @@
 
 **変更するファイル**: `internal/fixprguard/types.go`、`types_test.go`、`construction_test.go`
 
--   [ ] `Reviewers` と `ParseReviewers` を、設計書 3.2 の型とコメントのとおりに加える。名前を含むかを調べるメソッドと使えるかを調べるメソッドは、パッケージの外に出さない。
--   [ ] `types_test.go` に `TestParseReviewers` を加える。設計書 7.1 の `ParseReviewers` の項目の場合に加え、次を確かめる。
+-   [x] `Reviewers` と `ParseReviewers` を、設計書 3.2 の型とコメントのとおりに加える。名前を含むかを調べるメソッドと使えるかを調べるメソッドは、パッケージの外に出さない。
+-   [x] `types_test.go` に `TestParseReviewers` を加える。設計書 7.1 の `ParseReviewers` の項目の場合に加え、次を確かめる。
     -   正しい名前の後に正しくない名前が続く並び。
     -   隣り合わない重複。
     -   `nil`・空のスライス・空の文字列 1 つ。
     -   多くの名前の並び（要件書 3.2 の「数の上限を設けない」）。
 
     エラーは `errors.Is(err, ErrInvalidInput)` で確かめる。エラーの文字列が入力の値を含まないことは、`TestErrorsOmitCommandDetails`（`github_test.go:517`）と同じく文字列で確かめる。
--   [ ] `restrictedConstructors` に `Reviewers`→`ParseReviewers` を加える。`findRestrictedConstructions` を広げ、`ParseReviewers` と `Reviewers` のメソッドの外での `logins` のフィールドの参照を報告させる（1.3.3）。コメントを改める。
--   [ ] `TestRestrictedTypesBuiltByConstructors` の自己テストの表に、次の行を加える。
+-   [x] `restrictedConstructors` に `Reviewers`→`ParseReviewers` を加える。`findRestrictedConstructions` を広げ、`ParseReviewers` と `Reviewers` のメソッドの外での `logins` のフィールドの参照を報告させる（1.3.3）。コメントを改める。
+-   [x] `TestRestrictedTypesBuiltByConstructors` の自己テストの表に、次の行を加える。
     -   `ParseReviewers` の中のリテラルは報告されない。
     -   外のゼロ値のリテラル、値を持つリテラル、`&` 付きのリテラル、`new`、`var` 宣言は報告される。
     -   別の構築関数（たとえば `ParseLogin`）の中の `Reviewers{}` は報告される。
@@ -171,14 +171,14 @@
 
 **変更するファイル**: `internal/fixprguard/github.go`、`trust.go`、`write.go`、`test_helpers.go`、`trust_test.go`、`github_test.go`、`write_test.go`
 
--   [ ] `GitHub`・`NewGitHub`・`requireReviewer`・`assessThread`・`processThread`・`Reply` の判定を、設計書 2.2 の表と 3.3 のとおりに `Reviewers` に替える。コメント（`github.go:35-36`・`:47-50`・`:386-389`、`trust.go:62-65`）とエラーの文字列（`github.go:42`・`:61`）を改める。
--   [ ] `test_helpers.go` の `newTestGitHub` は、今と同じ 1 つの名前の `Reviewers` で作る。既存のテストが変更なしで通ることで、1 つの名前の判定が今と同じであることを確かめる（AC-04）。2 つめのテスト用の名前と、名前の並びを指定して作るヘルパーを加える。
--   [ ] `TestNewGitHub` を、ゼロ値の `Reviewers` を拒否する形に改める。
--   [ ] `TestAssessAuthors` に、2 つの名前の `Reviewers` で、設計書 7.1 の判定の表の 6 つの場合を確かめる行を加える。既存の `reviewer_bot_without_lookup`・`user_named_like_reviewer` の行と重なる場合は、新しい行を足さず、既存の行を 2 つの名前で確かめる形に改める。あわせて、1 つの名前の `Reviewers` で、渡さなかった 2 つめの名前の `Bot` が理由 (b) になり `account` にその名前が入ることを確かめる（設計書 5.2 の「渡し忘れは安全側」）。
--   [ ] `TestAssessUnverifiableAuthor` の `bot_login_outside_grammar` を、2 つの名前の `Reviewers` で確かめる形にする。`chatgpt-codex-connector[bot]` の行を加える。
--   [ ] `TestBeginAuthorType` を、2 つの名前の `Reviewers` で、設計書 7.1 の `authorType` の 3 つの場合と、一覧の名前と一致する `User`（書き込み権限で信頼される）のスレッドが `User` になる場合を確かめる形にする（AC-08）。
--   [ ] `TestThreadPathsRequiresTrustedOrNamed` に、2 つめの名前の `Bot` のスレッドが `Named` でない場合を加える。
--   [ ] `write_test.go` に、2 つの名前の `Reviewers` で、2 つめの名前の `Bot` のスレッドに名指しなしで返信できることを確かめるテストを加える。一覧にない `Bot` のスレッドに書き込まないことは、既存の `TestReplyRefusesUntrustedThread`（`write_test.go:152-161`、`819011a`。`other-bot` の Bot で `ErrThreadNotTrusted`）が確かめる。
+-   [x] `GitHub`・`NewGitHub`・`requireReviewer`・`assessThread`・`processThread`・`Reply` の判定を、設計書 2.2 の表と 3.3 のとおりに `Reviewers` に替える。コメント（`github.go:35-36`・`:47-50`・`:386-389`、`trust.go:62-65`）とエラーの文字列（`github.go:42`・`:61`）を改める。
+-   [x] `test_helpers.go` の `newTestGitHub` は、今と同じ 1 つの名前の `Reviewers` で作る。既存のテストが変更なしで通ることで、1 つの名前の判定が今と同じであることを確かめる（AC-04）。2 つめのテスト用の名前と、名前の並びを指定して作るヘルパーを加える。
+-   [x] `TestNewGitHub` を、ゼロ値の `Reviewers` を拒否する形に改める。
+-   [x] `TestAssessAuthors` に、2 つの名前の `Reviewers` で、設計書 7.1 の判定の表の 6 つの場合を確かめる行を加える。既存の `reviewer_bot_without_lookup`・`user_named_like_reviewer` の行と重なる場合は、新しい行を足さず、既存の行を 2 つの名前で確かめる形に改める。あわせて、1 つの名前の `Reviewers` で、渡さなかった 2 つめの名前の `Bot` が理由 (b) になり `account` にその名前が入ることを確かめる（設計書 5.2 の「渡し忘れは安全側」）。
+-   [x] `TestAssessUnverifiableAuthor` の `bot_login_outside_grammar` を、2 つの名前の `Reviewers` で確かめる形にする。`chatgpt-codex-connector[bot]` の行を加える。
+-   [x] `TestBeginAuthorType` を、2 つの名前の `Reviewers` で、設計書 7.1 の `authorType` の 3 つの場合と、一覧の名前と一致する `User`（書き込み権限で信頼される）のスレッドが `User` になる場合を確かめる形にする（AC-08）。
+-   [x] `TestThreadPathsRequiresTrustedOrNamed` に、2 つめの名前の `Bot` のスレッドが `Named` でない場合を加える。
+-   [x] `write_test.go` に、2 つの名前の `Reviewers` で、2 つめの名前の `Bot` のスレッドに名指しなしで返信できることを確かめるテストを加える。一覧にない `Bot` のスレッドに書き込まないことは、既存の `TestReplyRefusesUntrustedThread`（`write_test.go:152-161`、`819011a`。`other-bot` の Bot で `ErrThreadNotTrusted`）が確かめる。
 
 **壊して確かめる**: 次の 4 つで、それぞれ括弧の中のテストが失敗すること。どの壊し方も、比べる名前をテスト用の 1 つめの名前に固定して書く（1.2）。
 
@@ -193,12 +193,12 @@
 
 **変更するファイル**: `cmd/fixprguard/main.go`、`main_test.go`、`test_helpers.go`
 
--   [ ] 最初に、`TestAcceptThreadFlagParsing` の「`--reviewer` twice」の行を、値を 1 つだけ持つフラグを 2 回渡す行に置き換える。たとえば `inspect` の `--baseline` を、ほかの引数を正しい値にして 2 回渡す。この置き換えは、`main.go` を変える前に、それだけのコミットにする。置き換えの前後で、`go tool cover -func` のパッケージ全体の関数ごとのカバレッジが変わらないことを確かめ、コミットメッセージに書く（`CLAUDE.md`「Deleting a test is a claim that must be checked」。1.3.4）。
--   [ ] `--reviewer` を値を集めるフラグにし、値を集めるフラグにも必須の確認が働くようにする。`flagValue` のコメントを改める（設計書 2.2 の `main.go` の行）。
--   [ ] `githubFor` が `ParseReviewers` にすべての `--reviewer` の値を渡し、エラーに `--reviewer` を付けるようにする（設計書 4 章）。`githubFor` のコメントを改める。
--   [ ] `test_helpers.go` に 2 つめのテスト用の名前を加え、`fingerprintOf`・`accept`（`test_helpers.go:342`）・`replyArgs` が渡す `--reviewer` の並びを指定できるようにする。
--   [ ] 違う名前の `--reviewer` を 2 回渡すと `parse` が受け付け、2 つの値を集めることを確かめるテストを加える。
--   [ ] 「コマンドを起動しない」表（`main_test.go:100-128`）を、行ごとの `t.Run` にする。`list`・`begin`・`inspect`・`reply` のそれぞれについて、次の 4 行を加える。各行のほかの引数は正しい値にする。
+-   [x] 最初に、`TestAcceptThreadFlagParsing` の「`--reviewer` twice」の行を、値を 1 つだけ持つフラグを 2 回渡す行に置き換える。たとえば `inspect` の `--baseline` を、ほかの引数を正しい値にして 2 回渡す。この置き換えは、`main.go` を変える前に、それだけのコミットにする。置き換えの前後で、`go tool cover -func` のパッケージ全体の関数ごとのカバレッジが変わらないことを確かめ、コミットメッセージに書く（`CLAUDE.md`「Deleting a test is a claim that must be checked」。1.3.4）。
+-   [x] `--reviewer` を値を集めるフラグにし、値を集めるフラグにも必須の確認が働くようにする。`flagValue` のコメントを改める（設計書 2.2 の `main.go` の行）。
+-   [x] `githubFor` が `ParseReviewers` にすべての `--reviewer` の値を渡し、エラーに `--reviewer` を付けるようにする（設計書 4 章）。`githubFor` のコメントを改める。
+-   [x] `test_helpers.go` に 2 つめのテスト用の名前と、名前の並びから `--reviewer` を並べるヘルパーを加え、`replyArgs` が渡す `--reviewer` の並びを指定できるようにする。`fingerprintOf`・`accept` は変えない。指紋はコメントの ID・著者・時刻だけから決まり、`--reviewer` によらないので、1 つの名前の `list` で得た値をそのまま使える。
+-   [x] 違う名前の `--reviewer` を 2 回渡すと `parse` が受け付け、2 つの値を集めることを確かめるテストを加える。
+-   [x] 「コマンドを起動しない」表（`main_test.go:100-128`）を、行ごとの `t.Run` にする。`list`・`begin`・`inspect`・`reply` のそれぞれについて、次の 4 行を加える。各行のほかの引数は正しい値にする。
     -   `--reviewer` がない。
     -   同じ名前を 2 回渡す。
     -   正しくない値を渡す。
@@ -207,13 +207,13 @@
     あわせて、`list` に違う 2 つの正しい名前と文法に合わない PR 番号 `x` を渡す行を加える。この行は、ステップ 2-0 の確かめの振る舞いを固定する。終了コードが `2` で、標準エラーが PR 番号の文法の診断であり、`flag given twice` を含まないことを確かめる。
 
     上の 16 行では、終了コード `2` に加えて、標準エラーが 1 行で、`--reviewer` を含み、渡した値を含まないことも確かめる。`--reviewer` を 2 回以上渡す行では、`parse` が成功すること（拒否するのは `ParseReviewers` だけであること。設計書 7.2）と、標準エラーが `flag given twice` を含まないことも確かめる。既存の `begin` の `bad name` の行は、加える行に含める。表のほかの既存の行（`--accept`・`--baseline`・`finish`・`head` など）は残す。
--   [ ] `list` と `begin` を、`--reviewer` の 2 つの順序で同じリポジトリに対して実行するテストを加える。スレッドは、2 つの名前の `Bot` のスレッドと一覧にない `Bot` のスレッドを用意する。2 つの順序で標準出力が同じであることに加え、2 つの名前のスレッドが処理され、一覧にない `Bot` のスレッドが処理されないことを確かめる（設計書 7.1 の「順序によらないこと」）。
--   [ ] 2 つの名前を渡し、2 つめの名前の `Bot` のスレッドを `begin` で処理し、`begin` の出力の指紋で `reply` するテストを加える（設計書 7.4 の結合テスト。1.4）。`begin` と `reply` の両方に、同じ 2 つの `--reviewer` を渡す。
--   [ ] `TestReviewerFlag` と、`--reviewer` を 1 回だけ渡す既存のテストが、変更なしで通ることを確かめる（AC-04・AC-09）。
+-   [x] `list` と `begin` を、`--reviewer` の 2 つの順序で同じリポジトリに対して実行するテストを加える。スレッドは、2 つの名前の `Bot` のスレッドと一覧にない `Bot` のスレッドを用意する。2 つの順序で標準出力が同じであることに加え、2 つの名前のスレッドが処理され、一覧にない `Bot` のスレッドが処理されないことを確かめる（設計書 7.1 の「順序によらないこと」）。
+-   [x] 2 つの名前を渡し、2 つめの名前の `Bot` のスレッドを `begin` で処理し、`begin` の出力の指紋で `reply` するテストを加える（設計書 7.4 の結合テスト。1.4）。`begin` と `reply` の両方に、同じ 2 つの `--reviewer` を渡す。
+-   [x] `TestReviewerFlag` と、`--reviewer` を 1 回だけ渡す既存のテストが、変更なしで通ることを確かめる（AC-04・AC-09）。
 
 **壊して確かめる**: 次の 5 つで、それぞれ括弧の中のテストが失敗すること。
 
--   必須の確認が値を集めるフラグを確かめない（`TestReviewerFlag` の `--reviewer` を消した行と、表の `--reviewer` がない行）。
+-   必須の確認が値を集めるフラグを確かめない（`TestReviewerFlag` の `--reviewer` を消した行）。表の `--reviewer` がない行は、この壊し方では失敗しない。必須の確認を外しても、`githubFor` の `ParseReviewers` が空の一覧を拒否し、終了コード `2` と `--reviewer` を含む診断になるためである。
 -   `githubFor` が最初の `--reviewer` の値だけを `ParseReviewers` に渡す（結合テストと順序のテスト）。
 -   `githubFor` がエラーに `--reviewer` を付けない、または渡した値をエラーに含める（表の標準エラーの確かめ）。
 -   `inspect` では `githubFor` の呼び出しを `CheckState` の後ろへ、`begin` では `CheckClean` の後ろへ移す（それぞれのサブコマンドの重複の行。fake の git が呼ばれる）。`list` と `reply` は、`githubFor` が作る `GitHub` を使ってから GitHub と git に触れるので、この壊し方の対象にならない。
@@ -225,8 +225,8 @@
 
 **変更するファイル**: `cmd/fixprguard/docs_test.go`
 
--   [ ] `TestDocumentedInvocationsParse` の `--reviewer` の確かめを、呼び出しの引数を受け取って問題を返す関数に切り出す。関数は、`--reviewer` を取る各呼び出しで、`inv.multi` の `--reviewer` の値がちょうど 1 つで、それが `<reviewer>` であることを確かめる（設計書 3.4 の呼び出しのガード）。テストのコメントと `reviewerPlaceholder` のコメントを改める。
--   [ ] この関数を、合成した呼び出しの表で確かめるテストを加える（1.4）。表は、`<reviewer>` が 2 つ、名前そのもの、`<reviewer>` 1 つ（問題なし）の場合を含む。
+-   [x] `TestDocumentedInvocationsParse` の `--reviewer` の確かめを、呼び出しの引数を受け取って問題を返す関数に切り出す。関数は、`--reviewer` を取る各呼び出しで、`inv.multi` の `--reviewer` の値がちょうど 1 つで、それが `<reviewer>` であることを確かめる（設計書 3.4 の呼び出しのガード）。テストのコメントと `reviewerPlaceholder` のコメントを改める。
+-   [x] この関数を、合成した呼び出しの表で確かめるテストを加える（1.4）。表は、`<reviewer>` が 2 つ、名前そのもの、`<reviewer>` 1 つ（問題なし）の場合を含む。
 
 **壊して確かめる**: 「ちょうど 1 つ」の確かめと「`<reviewer>` である」の確かめを 1 つずつ外し、表の該当の行が失敗すること。
 
@@ -236,10 +236,10 @@
 
 **変更するファイル**: `docs/dev/developer_guide/fixprguard_guide.ja.md`、`fixprguard_guide.md`、`package_reference.md`、`cmd/fixprguard/docs_test.go`、`cmd/yt2column/docs_test.go`
 
--   [ ] 日本語版のガイドを、設計書 3.5 のガイドの PR-1 の項目のとおりに改める。`_context.md` の行の名前には触れない。終了コード `2` の説明には、1.3.4 で確かめた古いツールの診断の文字列 `flag given twice: --reviewer` と、`go version -m "$(command -v fixprguard)"` の `vcs.revision` での確かめ方を書く。
--   [ ] 日本語版をコミットしてから、英語版を `.claude/commands/mktrans.md` の原則で翻訳する（`CLAUDE.md`「Translation Guidelines」）。
--   [ ] `package_reference.md` の `internal/fixprguard` の行を、設計書 3.5 の `package_reference.md` の項目のとおりに改める。
--   [ ] `cmd/fixprguard/docs_test.go` に、両方のガイドについて次を確かめるテストを加える。
+-   [x] 日本語版のガイドを、設計書 3.5 のガイドの PR-1 の項目のとおりに改める。`_context.md` の行の名前には触れない。終了コード `2` の説明には、1.3.4 で確かめた古いツールの診断の文字列 `flag given twice: --reviewer` と、`go version -m "$(command -v fixprguard)"` の `vcs.revision` での確かめ方を書く。
+-   [x] 日本語版をコミットしてから、英語版を `.claude/commands/mktrans.md` の原則で翻訳する（`CLAUDE.md`「Translation Guidelines」）。
+-   [x] `package_reference.md` の `internal/fixprguard` の行を、設計書 3.5 の `package_reference.md` の項目のとおりに改める。
+-   [x] `cmd/fixprguard/docs_test.go` に、両方のガイドについて次を確かめるテストを加える。
     -   サブコマンドの見出しのうち、`--reviewer LOGIN ...` を含むものが、`specs` で `--reviewer` を取るサブコマンドとちょうど一致すること。
     -   フラグの表の `--reviewer` の行が、繰り返せること、1 つもないときと同じ名前を 2 回以上渡したときは使い方のエラーになることを述べていること。
     -   `other-bot` の行が、渡したどの名前とも一致しない Bot を述べていること。
@@ -247,8 +247,8 @@
     -   §9 が `Protocol` の規則の但し書きを含むこと。
 
     行の中の確かめは、表の行を取り出して行う。日本語版を確かめるリテラルは日本語で書く（1.2）。固定する語は、書いた文から選ぶ。
--   [ ] `cmd/yt2column/docs_test.go` に、`package_reference.md` の `internal/fixprguard` の行が、語として `ParseReviewers` と `Reviewers` を含み、`reviewer bot` を含まないことを確かめるテストを加える。既存の `findTable`・`tableRow`・`containsToken`（`cmd/yt2column/docs_test.go:377-400`・`:623`）を使う。
--   [ ] ガイドの記述をツールの振る舞いと突き合わせる。サブコマンドの見出しは `specs` と、終了コード `2` と重複の説明はステップ 1-3 のテストと、§9 の但し書きは設計書 1.4 の 3 つの条件と比べる。
+-   [x] `cmd/yt2column/docs_test.go` に、`package_reference.md` の `internal/fixprguard` の行が、語として `ParseReviewers` と `Reviewers` を含み、`reviewer bot` を含まないことを確かめるテストを加える。既存の `findTable`・`tableRow`・`containsToken`（`cmd/yt2column/docs_test.go:377-400`・`:623`）を使う。
+-   [x] ガイドの記述をツールの振る舞いと突き合わせる。サブコマンドの見出しは `specs` と、終了コード `2` と重複の説明はステップ 1-3 のテストと、§9 の但し書きは設計書 1.4 の 3 つの条件と比べる。
 
 **壊して確かめる**: ガイドの日本語版と英語版のそれぞれで、固定した文を 1 つずつ一時的に消すと、テストが失敗すること。`reply` の見出しから `...` を消すと、見出しの確かめが失敗すること。
 
@@ -258,9 +258,9 @@
 
 **変更するファイル**: なし
 
--   [ ] `.claude/` を変えていないことを、`git diff --stat "$(git merge-base origin/main HEAD)" -- .claude` の出力が空であることで確かめる（設計書 8 章の 1。PR-1 の `/runpr`・`/fixpr` が今のツールで動くため）。`origin/main` は、`/runplan` が作業の初めに取得したものを使う（`_lib/task-pr-handoff.md` の Part A の 2）。
--   [ ] `make test && make lint` を実行する。
--   [ ] 文書のガード（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`）を実行する。
+-   [x] `.claude/` を変えていないことを、`git diff --stat "$(git merge-base origin/main HEAD)" -- .claude` の出力が空であることで確かめる（設計書 8 章の 1。PR-1 の `/runpr`・`/fixpr` が今のツールで動くため）。`origin/main` は、`/runplan` が作業の初めに取得したものを使う（`_lib/task-pr-handoff.md` の Part A の 2）。
+-   [x] `make test && make lint` を実行する。
+-   [x] 文書のガード（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`）を実行する。
 
 **完了条件**: 上の 3 つ。
 
@@ -276,10 +276,10 @@
 
 **判定理由**: ステップ 1-2 は、信頼の判定を広げるセキュリティのゲートの変更である。この判定は、どのスレッドを名指しなしで修正のフェーズに渡すかを決める（`mkplan.md` step 8 の panel mode の契機）。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/434
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 **マージの後**: 利用者は、PR-1 のマージの後の `origin/main` を含む作業ツリーで `make install-fixprguard` を実行する。`/runpr` がマージの後に作るブランチでもよい。設計書 8 章の 2 がこの申し送りを本書に求めている。今の `/runpr` と `/mergepr` はこの案内を示さない。そのため、PR-1 の `/runpr` で「マージして次を実行する」を選ぶと、再インストールの前に `/runplan 0033` が始まる。その場合はステップ 2-0 で止まる。
 
@@ -447,7 +447,7 @@
 | AC-07 | test | `internal/fixprguard/types_test.go::TestParseReviewers`、`cmd/fixprguard/main_test.go::TestAcceptThreadFlagParsing`（4 つのサブコマンドそれぞれの、`--reviewer` がない・重複・文法違反の行。標準エラーも確かめる）、`::TestReviewerFlag` |
 | AC-08 | test | `internal/fixprguard/github_test.go::TestBeginAuthorType` |
 | AC-09 | test | `cmd/fixprguard/main_test.go::TestReviewerFlag` |
-| AC-10 | static | `cmd/yt2column/fixpr_docs_test.go::TestContextAndCommandsAgree`（定義の文）、`cmd/fixprguard/docs_test.go::TestDocumentedInvocationsParse`（ちょうど 1 つの `<reviewer>`）、`::TestReviewerInvocationCheck`（合成した呼び出しの表。ステップ 1-4） |
+| AC-10 | static | `cmd/yt2column/fixpr_docs_test.go::TestContextAndCommandsAgree`（定義の文）、`cmd/fixprguard/docs_test.go::TestDocumentedInvocationsParse`（ちょうど 1 つの `<reviewer>`）、`::TestCheckDocumentedReviewer`（合成した呼び出しの表。ステップ 1-4） |
 | AC-11 | static | `cmd/yt2column/fixpr_docs_test.go::TestContextAndCommandsAgree`（名前が依頼のコメントの外に現れない。`<awaited-reviewer>` の定義の文）、`::TestRunprDocContract`（step 3 の「Reviewed」の部分）、`::TestRemovedCommandLiterals`（`<reviewer>[bot]` と `"Automated reviewer"`） |
 | AC-12 | static | `cmd/yt2column/fixpr_docs_test.go::TestFixprDocContract`（`fixpr.md`）、`cmd/fixprguard/docs_test.go::TestGuideDescribesReviewerList`（ガイドの両方の版。ステップ 1-5・2-3）、`cmd/yt2column/docs_test.go::TestPackageReferenceFixprguard`（`package_reference.md`） |
 | AC-13 | static | `cmd/yt2column/fixpr_docs_test.go::TestGlossaryTerms` |
@@ -457,7 +457,7 @@ AC-01〜AC-03・AC-10〜AC-13 は、`_context.md`・コマンドの文書・ガ�
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
-- [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6）
+- [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6）
 - [ ] PR-2 マージ済み（対象ステップ: 2-0 / 2-1 / 2-2 / 2-3 / 2-4）
 
 ## 7. リスク管理 (Risk Management)

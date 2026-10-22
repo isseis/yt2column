@@ -15,16 +15,42 @@ import (
 	"github.com/isseis/yt2column/internal/cmdrunner/testutil"
 )
 
+// TestAssessAuthors judges with the test reviewer alone unless a row sets
+// reviewers; the rows with both reviewers cover each name separately.
 func TestAssessAuthors(t *testing.T) {
 	alice := func(t *testing.T) Login { return mustLogin(t, "alice") }
 	for _, tc := range []struct {
-		name     string
-		comments []testComment
-		lookups  []cmdrunnertestutil.Step
-		trusted  bool
-		findings func(t *testing.T) []Finding
+		name      string
+		reviewers []string
+		comments  []testComment
+		lookups   []cmdrunnertestutil.Step
+		trusted   bool
+		findings  func(t *testing.T) []Finding
 	}{
-		{name: "reviewer_bot_without_lookup", comments: []testComment{reviewerComment(1)}, trusted: true},
+		{name: "reviewer_bot_without_lookup", reviewers: bothReviewers, comments: []testComment{reviewerComment(1)}, trusted: true},
+		{
+			name: "second_reviewer_bot_without_lookup", reviewers: bothReviewers,
+			comments: []testComment{botComment(1, testSecondReviewer)}, trusted: true,
+		},
+		{
+			name: "both_reviewer_bots_mixed", reviewers: bothReviewers,
+			comments: []testComment{reviewerComment(1), botComment(2, testSecondReviewer), reviewerComment(3)}, trusted: true,
+		},
+		{
+			// The match is exact: a name differing only in case is another bot.
+			name: "reviewer_case_differs", reviewers: bothReviewers, comments: []testComment{botComment(1, "CodeRabbitAI")},
+			findings: func(t *testing.T) []Finding {
+				return []Finding{{Reason: ReasonOtherBot, Account: mustLogin(t, "CodeRabbitAI")}}
+			},
+		},
+		{
+			// A reviewer the caller did not pass is another bot, named in the
+			// finding, so a name left out fails safe and shows in the output.
+			name: "second_reviewer_not_passed", comments: []testComment{botComment(1, testSecondReviewer)},
+			findings: func(t *testing.T) []Finding {
+				return []Finding{{Reason: ReasonOtherBot, Account: mustLogin(t, testSecondReviewer)}}
+			},
+		},
 		{name: "write", comments: []testComment{userComment(1, "alice")}, lookups: []cmdrunnertestutil.Step{roleStep("alice", "write")}, trusted: true},
 		{name: "maintain", comments: []testComment{userComment(1, "alice")}, lookups: []cmdrunnertestutil.Step{roleStep("alice", "maintain")}, trusted: true},
 		{name: "admin", comments: []testComment{userComment(1, "alice")}, lookups: []cmdrunnertestutil.Step{roleStep("alice", "admin")}, trusted: true},
@@ -49,16 +75,24 @@ func TestAssessAuthors(t *testing.T) {
 			findings: func(t *testing.T) []Finding { return []Finding{{Reason: ReasonNoWritePermission, Account: alice(t)}} },
 		},
 		{
-			// A user who shares the reviewer's name is judged by permission.
-			name: "user_named_like_reviewer", comments: []testComment{userComment(1, testReviewer)}, lookups: []cmdrunnertestutil.Step{roleStep(testReviewer, "")},
+			// A user who shares a reviewer's name is judged by permission.
+			name: "user_named_like_reviewer", reviewers: bothReviewers,
+			comments: []testComment{userComment(1, testReviewer)}, lookups: []cmdrunnertestutil.Step{roleStep(testReviewer, "")},
 			findings: func(t *testing.T) []Finding {
 				return []Finding{{Reason: ReasonNoWritePermission, Account: mustLogin(t, testReviewer)}}
 			},
 		},
 		{
+			name: "user_named_like_second_reviewer", reviewers: bothReviewers,
+			comments: []testComment{userComment(1, testSecondReviewer)}, lookups: []cmdrunnertestutil.Step{roleStep(testSecondReviewer, "")},
+			findings: func(t *testing.T) []Finding {
+				return []Finding{{Reason: ReasonNoWritePermission, Account: mustLogin(t, testSecondReviewer)}}
+			},
+		},
+		{
 			// Another bot is not trusted and is never looked up, even if it
 			// could have write access.
-			name: "other_bot", comments: []testComment{botComment(1, "github-actions")},
+			name: "other_bot", reviewers: bothReviewers, comments: []testComment{botComment(1, "github-actions")},
 			findings: func(t *testing.T) []Finding {
 				return []Finding{{Reason: ReasonOtherBot, Account: mustLogin(t, "github-actions")}}
 			},
@@ -85,7 +119,11 @@ func TestAssessAuthors(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got := listOne(t, testThread{id: testThreadID(1), comments: tc.comments}, tc.lookups...)
+			reviewers := tc.reviewers
+			if reviewers == nil {
+				reviewers = []string{testReviewer}
+			}
+			got := listOneWith(t, reviewers, testThread{id: testThreadID(1), comments: tc.comments}, tc.lookups...)
 			if got.Trusted != tc.trusted {
 				t.Errorf("Trusted = %v, want %v (findings %+v)", got.Trusted, tc.trusted, got.Findings)
 			}
@@ -114,6 +152,7 @@ func TestAssessUnverifiableAuthor(t *testing.T) {
 		{"missing_login", []testComment{{id: 1, kind: "User", omitLogin: true}}, []Finding{noName}},
 		{"login_outside_grammar", []testComment{userComment(1, "evil_name")}, []Finding{noName}},
 		{"bot_login_outside_grammar", []testComment{botComment(1, "coderabbitai[bot]")}, []Finding{noName}},
+		{"second_bot_login_outside_grammar", []testComment{botComment(1, "chatgpt-codex-connector[bot]")}, []Finding{noName}},
 		{"kind_organization", []testComment{{id: 1, kind: "Organization", login: "alice"}}, []Finding{unknownKind}},
 		{"kind_empty", []testComment{{id: 1, kind: "", login: "alice"}}, []Finding{unknownKind}},
 		{"kind_missing", []testComment{{id: 1, omitKind: true, login: "alice"}}, []Finding{unknownKind}},
@@ -121,7 +160,9 @@ func TestAssessUnverifiableAuthor(t *testing.T) {
 		{"no_comments", nil, []Finding{{Reason: ReasonIncompleteComments}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got := listOne(t, testThread{id: testThreadID(1), comments: tc.comments})
+			// Both reviewers are passed: a [bot] suffix on either name fails
+			// the login grammar before any comparison with the list.
+			got := listOneWith(t, bothReviewers, testThread{id: testThreadID(1), comments: tc.comments})
 			if got.Trusted || !slices.Equal(got.Findings, tc.want) {
 				t.Errorf("thread = %+v, want untrusted with %+v", got, tc.want)
 			}

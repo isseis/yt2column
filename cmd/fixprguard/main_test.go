@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -94,8 +95,9 @@ func TestAcceptThreadFlagParsing(t *testing.T) {
 	}
 	// The flag package formats a Set error with %v, so errFlagTwice does not
 	// survive the chain; errUsage is the observable type.
-	if _, err := parse(args(cmdBegin, "--reviewer", testReviewer, "--reviewer", testReviewer)); !errors.Is(err, errUsage) {
-		t.Errorf("--reviewer twice: %v, want errUsage", err)
+	baseline := validBaseline(t)
+	if _, err := parse(args(cmdInspect, "--reviewer", testReviewer, "--baseline", baseline, "--baseline", baseline, testPR)); !errors.Is(err, errUsage) {
+		t.Errorf("--baseline twice: %v, want errUsage", err)
 	}
 	// A value outside its grammar stops with exit 2 before any command runs:
 	// the fakes have no step, and there is no repository for git. Every other
@@ -105,26 +107,98 @@ func TestAcceptThreadFlagParsing(t *testing.T) {
 	if err := os.WriteFile(body, []byte("Fixed.\n"), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	baseline := validBaseline(t)
-	for _, line := range [][]string{
-		args(cmdBegin, "--reviewer", testReviewer, "--accept", testThreadID+"="+fp+"0", testPR),
-		args(cmdBegin, "--reviewer", testReviewer, "--accept", "https://example.com/x="+fp, testPR),
-		args(cmdInspect, "--reviewer", testReviewer, "--baseline", baseline, "--thread", testThreadID, testPR),
-		args(cmdInspect, "--reviewer", testReviewer, "--baseline", baseline+"0", testPR),
-		args(cmdBegin, "--reviewer", "bad name", testPR),
-		args(cmdBegin, "--reviewer", testReviewer, "pull/42"),
-		args(cmdFinish, "--baseline", baseline, "--judged-set", "j", testPR),
+	type usageRow struct {
+		name string
+		line []string
+		// stderr, when set, is a word the one-line diagnostic must contain;
+		// hidden is a value it must not echo.
+		stderr string
+		hidden string
+		// parses is set for the lines parse must accept, so only a later
+		// check (ParseReviewers, validatePR) can refuse them.
+		parses bool
+	}
+	rows := []usageRow{
+		{name: "begin_accept_fingerprint", line: args(cmdBegin, "--reviewer", testReviewer, "--accept", testThreadID+"="+fp+"0", testPR)},
+		{name: "begin_accept_url", line: args(cmdBegin, "--reviewer", testReviewer, "--accept", "https://example.com/x="+fp, testPR)},
+		{name: "inspect_thread", line: args(cmdInspect, "--reviewer", testReviewer, "--baseline", baseline, "--thread", testThreadID, testPR)},
+		{name: "inspect_baseline", line: args(cmdInspect, "--reviewer", testReviewer, "--baseline", baseline+"0", testPR)},
+		{name: "begin_pr", line: args(cmdBegin, "--reviewer", testReviewer, "pull/42")},
+		{name: "finish_judged_set", line: args(cmdFinish, "--baseline", baseline, "--judged-set", "j", testPR)},
 		// Reply also refuses a non-positive comment ID, so this row holds
 		// whichever layer rejects it.
-		args(cmdReply, "--reviewer", testReviewer, "--thread-id", testThreadID, "--comment-id", "x", "--fingerprint", fp, "--body-file", body, testPR),
-		args(cmdHead, ""),
-	} {
-		t.Chdir(t.TempDir())
-		r := newTestRun(t, nil)
-		r.git = cmdrunnertestutil.New(t)
-		if code := r.Run(t, line...); code != exitUsage {
-			t.Errorf("%q: exit %d, want %d (%s)", line, code, exitUsage, r.Stderr)
-		}
+		{name: "reply_comment_id", line: args(cmdReply, "--reviewer", testReviewer, "--thread-id", testThreadID, "--comment-id", "x", "--fingerprint", fp, "--body-file", body, testPR)},
+		{name: "head_empty_pr", line: args(cmdHead, "")},
+		// Two valid names reach validatePR, which refuses the PR number
+		// before git or GitHub is touched. The PR-number wording is checked
+		// because an installed tool is identified by this diagnostic: a tool
+		// that predates repeated --reviewer says "flag given twice" instead.
+		{
+			name: "list_two_reviewers_bad_pr", line: args(cmdList, append(reviewerFlags(testReviewer, testSecondReviewer), "x")...),
+			stderr: "PR number grammar", parses: true,
+		},
+	}
+	// Each subcommand that takes --reviewer, with every other value valid.
+	reviewerLines := map[string]func(reviewers ...string) []string{
+		cmdList:  func(r ...string) []string { return args(cmdList, append(reviewerFlags(r...), testPR)...) },
+		cmdBegin: func(r ...string) []string { return args(cmdBegin, append(reviewerFlags(r...), testPR)...) },
+		cmdInspect: func(r ...string) []string {
+			return args(cmdInspect, append(reviewerFlags(r...), "--baseline", baseline, testPR)...)
+		},
+		cmdReply: func(r ...string) []string {
+			return args(cmdReply, append(reviewerFlags(r...), "--thread-id", testThreadID, "--comment-id", "1",
+				"--fingerprint", fp, "--body-file", body, testPR)...)
+		},
+	}
+	// The diagnostics below name the flag; they are matched as text because
+	// naming --reviewer, and never the value, is the contract.
+	for name, line := range reviewerLines {
+		rows = append(rows,
+			usageRow{name: name + "_no_reviewer", line: line(), stderr: "--reviewer"},
+			usageRow{name: name + "_same_reviewer_twice", line: line(testReviewer, testReviewer), stderr: "--reviewer", hidden: testReviewer, parses: true},
+			usageRow{name: name + "_invalid_reviewer", line: line("bad name"), stderr: "--reviewer", hidden: "bad name", parses: true},
+			usageRow{name: name + "_valid_and_invalid_reviewer", line: line(testReviewer, "bad name"), stderr: "--reviewer", hidden: "bad name", parses: true},
+		)
+	}
+	for _, row := range rows {
+		t.Run(row.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			if row.parses {
+				if _, err := parse(row.line); err != nil {
+					t.Fatalf("parse(%q) = %v, want nil", row.line, err)
+				}
+			}
+			r := newTestRun(t, nil)
+			r.git = cmdrunnertestutil.New(t)
+			if code := r.Run(t, row.line...); code != exitUsage {
+				t.Errorf("%q: exit %d, want %d (%s)", row.line, code, exitUsage, r.Stderr)
+			}
+			if row.stderr == "" {
+				return
+			}
+			diag := r.Stderr.String()
+			if strings.Count(diag, "\n") != 1 || !strings.HasSuffix(diag, "\n") {
+				t.Errorf("stderr = %q, want one line", diag)
+			}
+			if !strings.Contains(diag, row.stderr) || strings.Contains(diag, "flag given twice") {
+				t.Errorf("stderr = %q, want %q and not the old tool's \"flag given twice\"", diag, row.stderr)
+			}
+			if row.hidden != "" && strings.Contains(diag, row.hidden) {
+				t.Errorf("stderr = %q echoes the value %q", diag, row.hidden)
+			}
+		})
+	}
+}
+
+// TestReviewerFlagRepeats: --reviewer is repeatable and collects every value
+// in order; checking the list is left to fixprguard.ParseReviewers.
+func TestReviewerFlagRepeats(t *testing.T) {
+	inv, err := parse(args(cmdList, append(reviewerFlags(testReviewer, testSecondReviewer), testPR)...))
+	if err != nil {
+		t.Fatalf("parse = %v", err)
+	}
+	if got := inv.multi[flagReviewer]; !slices.Equal(got, []string{testReviewer, testSecondReviewer}) {
+		t.Errorf("--reviewer values = %q, want both names in order", got)
 	}
 }
 
@@ -436,7 +510,7 @@ func TestStopKinds(t *testing.T) {
 			th := userThread("mallory")
 			fingerprint := fingerprintOf(t, th, roleStep("mallory", "read"))
 			r := newTestRun(t, []cmdrunnertestutil.Step{repoStep(), graphqlStep(threadsPage(t, false, th)), roleStep("mallory", "read")})
-			r.Run(t, replyArgs(t, th, fingerprint)...)
+			r.Run(t, replyArgs(t, []string{testReviewer}, th, fingerprint)...)
 			return r
 		},
 		fixprguard.StopReplyNotResolved: func(t *testing.T) *testRun {
@@ -448,7 +522,7 @@ func TestStopKinds(t *testing.T) {
 				ghStep(`{"id":99}`, nil, "api", "--method", "POST", "repos/isseis/yt2column/pulls/42/comments/1/replies", "--input", "-"),
 				ghStep("", ghFailure, "api", "graphql", "--input", "-"),
 			})
-			r.Run(t, replyArgs(t, th, fingerprint)...)
+			r.Run(t, replyArgs(t, []string{testReviewer}, th, fingerprint)...)
 			return r
 		},
 		fixprguard.StopResponseRejected: func(t *testing.T) *testRun {
@@ -500,15 +574,17 @@ func TestStopKinds(t *testing.T) {
 	}
 }
 
-// replyArgs replies to th's first comment with a valid body file.
-func replyArgs(t *testing.T, th ghThread, fingerprint string) []string {
+// replyArgs replies to th's first comment with a valid body file, passing one
+// --reviewer per name of reviewers.
+func replyArgs(t *testing.T, reviewers []string, th ghThread, fingerprint string) []string {
 	t.Helper()
 	body := filepath.Join(t.TempDir(), "reply.md")
 	if err := os.WriteFile(body, []byte("Fixed.\n"), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	return args(cmdReply, "--reviewer", testReviewer, "--thread-id", th.id, "--comment-id", strconv.FormatInt(th.comments[0].id, 10),
+	rest := append(reviewerFlags(reviewers...), "--thread-id", th.id, "--comment-id", strconv.FormatInt(th.comments[0].id, 10),
 		"--fingerprint", fingerprint, "--body-file", body, testPR)
+	return args(cmdReply, rest...)
 }
 
 // TestStopOutputDetails: the stop output carries the parts of a git state
@@ -556,5 +632,102 @@ func TestStopReplyNotResolvedWins(t *testing.T) {
 	err := fmt.Errorf("%w: %w", fixprguard.ErrReplyNotResolved, fixprguard.ErrInvalidInput)
 	if code := stop(r.env, err); code != exitStop || r.StopKind(t) != fixprguard.StopReplyNotResolved {
 		t.Errorf("exit %d, output %q; want %d and %s", code, r.Stdout, exitStop, fixprguard.StopReplyNotResolved)
+	}
+}
+
+// TestReviewerOrderIrrelevant: list and begin print the same output whichever
+// order the two --reviewer flags come in. Both reviewers' threads are trusted
+// and processed; another bot's thread is not.
+func TestReviewerOrderIrrelevant(t *testing.T) {
+	newTestRepo(t)
+	first, second, other := botThread(1, testReviewer), botThread(2, testSecondReviewer), botThread(3, "other-bot")
+	page := threadsPage(t, false, first, second, other)
+	orders := [][]string{{testReviewer, testSecondReviewer}, {testSecondReviewer, testReviewer}}
+	runBoth := func(t *testing.T, subcommand string, steps func() []cmdrunnertestutil.Step) []string {
+		t.Helper()
+		var outs []string
+		for _, order := range orders {
+			r := newTestRun(t, steps())
+			if code := r.Run(t, args(subcommand, append(reviewerFlags(order...), testPR)...)...); code != exitContinue {
+				t.Fatalf("%s %q: exit %d (%s)", subcommand, order, code, r.Stderr)
+			}
+			outs = append(outs, r.Stdout.String())
+		}
+		if outs[0] != outs[1] {
+			t.Errorf("%s output depends on the --reviewer order:\n%s\n%s", subcommand, outs[0], outs[1])
+		}
+		return outs
+	}
+	t.Run(cmdList, func(t *testing.T) {
+		outs := runBoth(t, cmdList, func() []cmdrunnertestutil.Step {
+			return []cmdrunnertestutil.Step{headStep(sameRepositoryHead), repoStep(), graphqlStep(page)}
+		})
+		var out struct {
+			Threads []struct {
+				ThreadID string `json:"threadId"`
+				Trusted  bool   `json:"trusted"`
+			} `json:"threads"`
+		}
+		if err := json.Unmarshal([]byte(outs[0]), &out); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		trusted := map[string]bool{}
+		for _, th := range out.Threads {
+			trusted[th.ThreadID] = th.Trusted
+		}
+		if want := map[string]bool{first.id: true, second.id: true, other.id: false}; !maps.Equal(trusted, want) {
+			t.Errorf("trusted = %v, want %v", trusted, want)
+		}
+	})
+	t.Run(cmdBegin, func(t *testing.T) {
+		outs := runBoth(t, cmdBegin, func() []cmdrunnertestutil.Step {
+			return beginSteps(page, graphqlStep(threadBodies(t, first, second)))
+		})
+		var out beginJSON
+		if err := json.Unmarshal([]byte(outs[0]), &out); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if out.ProcessCount != 2 || len(out.Untrusted) != 1 {
+			t.Errorf("processCount = %d, untrusted = %d; want 2 and 1", out.ProcessCount, len(out.Untrusted))
+		}
+	})
+}
+
+// TestSecondReviewerBeginReply runs a round's two ends with both reviewers:
+// begin processes the second reviewer's thread without it being named, and
+// reply answers it with the fingerprint begin printed. It is the one test of
+// the command line's reply path with two names.
+func TestSecondReviewerBeginReply(t *testing.T) {
+	newTestRepo(t)
+	th := botThread(1, testSecondReviewer)
+	reviewers := []string{testReviewer, testSecondReviewer}
+	begin := newTestRun(t, beginSteps(threadsPage(t, false, th), graphqlStep(threadBodies(t, th))))
+	if code := begin.Run(t, args(cmdBegin, append(reviewerFlags(reviewers...), testPR)...)...); code != exitContinue {
+		t.Fatalf("begin: exit %d (%s)", code, begin.Stderr)
+	}
+	var out beginJSON
+	begin.Decode(t, &out)
+	lines := fenceLines(t, out.Threads)
+	var threads []fixprguard.ProcessThread
+	if len(lines) != 3 || json.Unmarshal([]byte(lines[1]), &threads) != nil {
+		t.Fatalf("begin threads block = %q", lines)
+	}
+	if len(threads) != 1 || threads[0].ThreadID != th.id || threads[0].Named || threads[0].AuthorType != "Bot" {
+		t.Fatalf("begin threads = %+v, want the second reviewer's thread, not named, authorType Bot", threads)
+	}
+
+	replied := th
+	replied.comments = append(slices.Clone(th.comments), ghComment{id: 99, kind: "User", login: "isseis"})
+	reply := newTestRun(t, []cmdrunnertestutil.Step{
+		repoStep(),
+		graphqlStep(threadsPage(t, false, th)),
+		ghStep(`{"id":99}`, nil, "api", "--method", "POST", "repos/isseis/yt2column/pulls/42/comments/1/replies", "--input", "-"),
+		graphqlStep(threadsPage(t, false, replied)),
+		graphqlStep(mustJSON(t, map[string]any{"data": map[string]any{"resolveReviewThread": map[string]any{
+			"thread": map[string]any{"id": th.id, "isResolved": true},
+		}}})),
+	})
+	if code := reply.Run(t, replyArgs(t, reviewers, th, string(threads[0].Fingerprint))...); code != exitContinue {
+		t.Errorf("reply: exit %d (%s %s)", code, reply.Stdout, reply.Stderr)
 	}
 }

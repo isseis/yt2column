@@ -20,8 +20,11 @@ import (
 const (
 	testPR       = "42"
 	testReviewer = "coderabbitai"
-	testBranch   = "feature"
-	testTime     = "2026-10-21T00:00:00Z"
+	// testSecondReviewer is the second automated reviewer of the tests that
+	// pass two --reviewer flags.
+	testSecondReviewer = "chatgpt-codex-connector"
+	testBranch         = "feature"
+	testTime           = "2026-10-21T00:00:00Z"
 	// testFile is the file the initial commit holds and the threads point at.
 	testFile = "docs/notes/a.md"
 
@@ -246,6 +249,20 @@ type ghThread struct {
 // reviewerThread is thread 1, opened by the reviewer bot with body.
 func reviewerThread(body string) ghThread {
 	return ghThread{id: testThreadID, comments: []ghComment{{id: 1, kind: "Bot", login: testReviewer, body: body}}}
+}
+
+// botThread is thread n, opened by the bot login with comment n.
+func botThread(n int, login string) ghThread {
+	return ghThread{id: "PRRT_t" + strconv.Itoa(n), comments: []ghComment{{id: int64(n), kind: "Bot", login: login}}}
+}
+
+// reviewerFlags is one --reviewer flag per name, in order.
+func reviewerFlags(names ...string) []string {
+	var flags []string
+	for _, name := range names {
+		flags = append(flags, "--"+flagReviewer, name)
+	}
+	return flags
 }
 
 // userThread is thread 1, opened by the user login.

@@ -5,6 +5,7 @@ package fixprguard
 import (
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -32,6 +33,69 @@ func TestParseLogin(t *testing.T) {
 		t.Run("invalid/"+invalid, func(t *testing.T) {
 			if _, err := ParseLogin(invalid); !errors.Is(err, ErrInvalidInput) {
 				t.Errorf("ParseLogin(%q) = %v, want ErrInvalidInput", invalid, err)
+			}
+		})
+	}
+}
+
+func TestParseReviewers(t *testing.T) {
+	many := make([]string, 100)
+	for i := range many {
+		many[i] = "bot-" + strconv.Itoa(i)
+	}
+	for _, tc := range []struct {
+		name  string
+		names []string
+	}{
+		{"one", []string{"coderabbitai"}},
+		{"two", []string{"coderabbitai", "chatgpt-codex-connector"}},
+		// Case is not folded, so names differing only in case are distinct.
+		{"case_differs", []string{"coderabbitai", "CodeRabbitAI"}},
+		// The number of names has no cap.
+		{"many", many},
+	} {
+		t.Run("valid/"+tc.name, func(t *testing.T) {
+			r, err := ParseReviewers(tc.names)
+			if err != nil {
+				t.Fatalf("ParseReviewers = %v", err)
+			}
+			if !r.usable() {
+				t.Fatal("ParseReviewers returned an unusable value")
+			}
+			for _, name := range tc.names {
+				if !r.contains(mustLogin(t, name)) {
+					t.Errorf("ParseReviewers lost %q", name)
+				}
+			}
+		})
+	}
+	// Each invalid list carries a distinctive value, so the error text can be
+	// checked for it: an error names the rule only, never a value.
+	for _, tc := range []struct {
+		name  string
+		names []string
+		value string
+	}{
+		{"nil", nil, ""},
+		{"empty_slice", []string{}, ""},
+		{"empty_name", []string{""}, ""},
+		{"bot_suffix", []string{"coderabbitai[bot]"}, "coderabbitai[bot]"},
+		{"space", []string{"code rabbit"}, "code rabbit"},
+		{"invalid_after_valid", []string{"coderabbitai", "bad/name"}, "bad/name"},
+		{"duplicate", []string{"dup-name", "dup-name"}, "dup-name"},
+		{"duplicate_not_adjacent", []string{"dup-name", "coderabbitai", "dup-name"}, "dup-name"},
+	} {
+		t.Run("invalid/"+tc.name, func(t *testing.T) {
+			r, err := ParseReviewers(tc.names)
+			if !errors.Is(err, ErrInvalidInput) {
+				t.Fatalf("ParseReviewers = %v, want ErrInvalidInput", err)
+			}
+			if r.usable() {
+				t.Error("ParseReviewers returned a usable value with its error")
+			}
+			// The error text is the contract here: it must not echo a value.
+			if tc.value != "" && strings.Contains(err.Error(), tc.value) {
+				t.Errorf("error %q carries the input value", err)
 			}
 		})
 	}

@@ -33,7 +33,13 @@ func reviewerComments(n int) []testComment {
 
 func listOne(t *testing.T, th testThread, lookups ...cmdrunnertestutil.Step) ListedThread {
 	t.Helper()
-	g, _ := newTestGitHub(t, listSteps([]string{stageOneResponse(t, []testThread{th}, false, "")}, lookups...)...)
+	return listOneWith(t, []string{testReviewer}, th, lookups...)
+}
+
+// listOneWith is listOne with the given reviewer names.
+func listOneWith(t *testing.T, reviewers []string, th testThread, lookups ...cmdrunnertestutil.Step) ListedThread {
+	t.Helper()
+	g, _ := newTestGitHubWith(t, reviewers, listSteps([]string{stageOneResponse(t, []testThread{th}, false, "")}, lookups...)...)
 	list, err := g.List(t.Context(), mustPR(t))
 	if err != nil {
 		t.Fatalf("List = %v", err)

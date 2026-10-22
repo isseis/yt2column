@@ -8,7 +8,7 @@ The background and rationale of the design are in the architecture document of t
 
 The body of a review thread can be written by anyone who can write on the PR, so it is untrusted text. `fixprguard` enforces the following three layers of defense in code.
 
-1. **Author judgment.** Only threads in which the author of every comment is a trusted author are processed. Trusted authors are the automated reviewer (the Bot passed with `--reviewer`) and people with write permission on the repository (`role_name` is `write`, `maintain`, or `admin`). The bodies of untrusted threads are not fetched.
+1. **Author judgment.** Only threads in which the author of every comment is a trusted author are processed. Trusted authors are the automated reviewers (a Bot with any of the names passed with `--reviewer`) and people with write permission on the repository (`role_name` is `write`, `maintain`, or `admin`). The bodies of untrusted threads are not fetched.
 2. **Fenced block.** Untrusted text embedded in an agent's prompt is enclosed in delimiter lines that contain a per-run random value (nonce).
 3. **Change scope and git state checks.** Before the commit and the push, the tool checks that the fix did not change files outside the scope of the processed threads, or git's hooks and config.
 
@@ -55,9 +55,9 @@ One binary is shared by all worktrees of the same user.
 | Item | Convention |
 |---|---|
 | `--protocol N` | Required by every subcommand. If `N` does not match the binary's number, the tool stops with exit code `2` (this keeps an old binary from judging by the assumptions of newer documents). The current number is `1` |
-| `--reviewer LOGIN` | Required by `list`, `begin`, `inspect`, and `reply`, and not accepted by the other subcommands. Pass the automated reviewer's GraphQL `author.login` (for example `coderabbitai`). There is no default |
+| `--reviewer LOGIN` | Required at least once by `list`, `begin`, `inspect`, and `reply`, and not accepted by the other subcommands. Pass the GraphQL `author.login` of each trusted automated reviewer (for example `coderabbitai`), repeating the flag once per name (for example `--reviewer coderabbitai --reviewer chatgpt-codex-connector`). The order does not affect the judgment. When none is given, when the same name is given twice or more, or when a name does not fit the grammar, it is a usage error (exit code `2`). There is no default |
 | `[PR]` | Only a decimal PR number is accepted. URLs and branch names are rejected. When omitted, the current branch's PR is resolved with `gh pr view`. `finish`, which does not read GitHub, cannot omit it |
-| Flag position | Flags go before the positional argument (`PR`, `FILE`). Passing the same flag twice is rejected (`--accept` and `--thread` may be passed more than once) |
+| Flag position | Flags go before the positional argument (`PR`, `FILE`). Passing the same flag twice is rejected (`--accept`, `--thread`, and `--reviewer` may be passed more than once; but passing the same name to `--reviewer` twice is rejected) |
 | Standard output | One line of JSON (only `fence` prints the fenced block itself). Every JSON output contains `protocol` |
 | Standard error | A one-line diagnostic. It names only the rule that rejected the input, and contains no value from GitHub and no arguments or standard error of an external command |
 
@@ -67,7 +67,7 @@ The exit codes are as follows. The caller treats any other exit code, terminatio
 |---|---|---|
 | `0` | Continue | The subcommand's result |
 | `1` | Stop | `stop` (the stop kind) and the details of each kind (chapter 8) |
-| `2` | Usage error (flags, value grammar, `--protocol` mismatch, `GH_REPO`/`GH_HOST`, an empty positional argument). Running elsewhere than the top level of the work tree, a detached HEAD, or a malformed `.git` file (`begin`), and a `--comment-id` that is not the thread's first comment (`reply`; found only after reading GitHub) also give `2` | None |
+| `2` | Usage error (flags, value grammar, `--protocol` mismatch, `GH_REPO`/`GH_HOST`, an empty positional argument). Running elsewhere than the top level of the work tree, a detached HEAD, or a malformed `.git` file (`begin`), and a `--comment-id` that is not the thread's first comment (`reply`; found only after reading GitHub) also give `2`. When the diagnostic contains `flag given twice: --reviewer`, the installed tool predates repeated `--reviewer`; reinstalling it with `make install-fixprguard` fixes it. The commit the installed tool was built from can be checked with the `vcs.revision` of `go version -m "$(command -v fixprguard)"` (chapter 3) | None |
 | `3` | Ask the user (`inspect` only; there are out-of-scope changes) | The result of `inspect` |
 
 ## 5. Subcommands
@@ -84,7 +84,7 @@ fixprguard head --protocol 1 42
 
 Output: `{"protocol":1,"sameRepository":true}`. Side effects: reads GitHub only.
 
-### `list --reviewer LOGIN [PR]`
+### `list --reviewer LOGIN ... [PR]`
 
 Fetches every page of unresolved threads (at most 2000; beyond that it stops with `thread-cap`) and prints, for each thread, the trust judgment, the reasons, and the fingerprint. It neither fetches nor prints any body. It first makes the same check as `head`.
 
@@ -97,13 +97,13 @@ Output: `threads` (each element has `threadId`, `url`, `trusted`, `fingerprint`,
 | `reason` | Meaning | Extra field |
 |---|---|---|
 | `no-write-permission` | A user without write permission | `account` |
-| `other-bot` | A Bot other than the automated reviewer | `account` |
+| `other-bot` | A Bot matching none of the names passed with `--reviewer` | `account` |
 | `no-author-name` | No author, an empty name, or a name outside the login grammar | `commentUrl` |
 | `permission-unavailable` | The permission could not be looked up | `cause` (`not-found`, `forbidden`, `rate-limited`, `budget-exceeded`, `rejected-response`, `failed`) |
 | `incomplete-comments` | The thread has more than 100 comments, so not all of them can be fetched | None |
 | `unknown-author-kind` | The author's kind is neither `User` nor `Bot` | None |
 
-### `begin --reviewer LOGIN [--accept ID=FINGERPRINT ...] [PR]`
+### `begin --reviewer LOGIN ... [--accept ID=FINGERPRINT ...] [PR]`
 
 Phase 1 of `/fixpr`. It runs in this order: (1) the work tree has no uncommitted change, untracked files included (if it has one, it stops with `dirty-work-tree` without querying GitHub); (2) the same check as `head`; (3) recording the baseline; (4) judging the first page (100 threads) and fetching the bodies of the threads to process.
 
@@ -138,7 +138,7 @@ fixprguard fence --protocol 1 /path/to/triage.json
 
 Side effects: none.
 
-### `inspect --reviewer LOGIN --baseline TOKEN [--thread ID=FINGERPRINT ...] [PR]`
+### `inspect --reviewer LOGIN ... --baseline TOKEN [--thread ID=FINGERPRINT ...] [PR]`
 
 Run after the fix phase. It first compares the hooks, config, and info with the baseline, and if they differ, stops with `git-state-changed` without starting `gh`. It then fetches the `--thread` threads again from GitHub to get their `path` (a different fingerprint gives `thread-changed`), enumerates the changes in the work tree, and checks them against the scope (chapter 6).
 
@@ -172,7 +172,7 @@ fixprguard push --protocol 1 --baseline 'v1....' --commit '<SHA>'
 
 Output: `{"protocol":1,"pushed":true,"commit":"<SHA>"}`.
 
-### `reply --reviewer LOGIN --thread-id ID --comment-id N --fingerprint FP --body-file FILE [--accept ID=FINGERPRINT ...] [PR]`
+### `reply --reviewer LOGIN ... --thread-id ID --comment-id N --fingerprint FP --body-file FILE [--accept ID=FINGERPRINT ...] [PR]`
 
 Judges the thread again in its current state, and posts the reply only when it is a trusted thread (or a thread named with `--accept` whose fingerprint matches), `--fingerprint` matches the current fingerprint, and `--comment-id` is the ID of the thread's first comment. The body is passed to `gh api` as JSON on standard input, so it never goes through a shell. After the reply, it fetches the thread again and checks that nothing changed besides the reply before resolving the thread.
 
@@ -243,7 +243,7 @@ A `.go` file is in scope under rule 2 only when `path` is a `.go` file in the sa
 - Preventing in-scope test code from being run by the build checks. `finish` and `push` do detect that code rewriting in-scope files or hooks.
 - Files ignored by `.gitignore`, files hidden by a `.gitignore` inside the work tree or by the global exclude file, and changes hidden by forging the stat information of the index. Hidden changes are not committed, but the build checks running them cannot be prevented.
 - Files outside the hooks directory that a hook runs (such as the cache of the pre-commit framework).
-- That the value of `--reviewer` is the same as the value in `_context.md`. The tool does not read `_context.md`.
+- That the set of names passed with `--reviewer` is the same as the automated reviewer names defined in `_context.md`. The tool does not read `_context.md`. A name left out only makes that Bot's threads untrusted as `other-bot`.
 - Re-edits within the same second. The times in the fingerprint have a resolution of one second.
 - The content of reply and PR description bodies. The tool checks only the file's type, size, and encoding.
 
@@ -273,6 +273,11 @@ When the user answers "do not continue" about out-of-scope changes, the changes 
 
 - The judgment is in `internal/fixprguard`, and the argument parsing and the call order are in `cmd/fixprguard`. External commands are called through the `Runner` and `InputRunner` of `internal/cmdrunner`. In tests, `gh` and `make` are replaced with the fake in `internal/cmdrunner/testutil`, and git is exercised in a real repository in a temporary directory.
 - When changing a guarantee in section 7.1, break the corresponding implementation, confirm that a test fails, and write that in the commit message (CLAUDE.md, "Testing Strategy").
-- When changing the contract of the output or the arguments, raise `Protocol` in `internal/fixprguard` and update the `--protocol` the command documents pass.
+- When changing the contract of the output or the arguments, raise `Protocol` in `internal/fixprguard` and update the `--protocol` the command documents pass. However, only a change that meets all three conditions below may leave `Protocol` unchanged. The change that accepts repeated `--reviewer` (task 0033) is one.
+    1. An old tool rejects the calls of the new documents when parsing the arguments (exit code `2`) and does not judge by the old rules.
+    2. A new tool judges the calls of the old documents by the same rules as before.
+    3. The shape of the output does not change.
+
+  In that case, write the old tool's diagnostic when it stops and the guidance to reinstall in the description of exit code `2` in chapter 4.
 - When changing the stop kinds or the list of execution-related files, also update chapters 6 and 8 of this guide. `cmd/fixprguard/docs_test.go` checks that this guide (Japanese and English) contains every kind and every item.
 - After the merge, reinstall with `make install-fixprguard` (chapter 3).
