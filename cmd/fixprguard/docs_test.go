@@ -477,26 +477,32 @@ func (c configScope) phrases() []string {
 	return []string{c.otherBranches, c.unchangedValues, c.residualRisk}
 }
 
-// passage is one place of a document that makes the points a guard checks:
-// its text, phrases it must hold besides the ones every passage of the check
-// shares, and phrases of the wording it replaced, which must be gone.
+// passage is one place of a document that states the config scope: its text,
+// phrases it must hold besides the scope's three, and phrases of the wording
+// it replaced, which must be gone. risk, when set, replaces the scope's
+// residual-risk phrase for a passage that words it differently.
 type passage struct {
 	name  string
 	text  string
+	risk  string
 	more  []string
 	stale []string
 }
 
-// checkPassages fails for a passage that is missing, lacks one of phrases or
-// of its own more, or still holds stale wording.
-func checkPassages(t *testing.T, rel string, phrases []string, passages []passage) {
+// checkPassages fails for a passage that is missing, lacks a phrase, or
+// still holds stale wording.
+func checkPassages(t *testing.T, rel string, scope configScope, passages []passage) {
 	t.Helper()
 	for _, p := range passages {
 		if p.text == "" {
 			t.Errorf("%s: %s not found", rel, p.name)
 			continue
 		}
-		for _, want := range append(slices.Clone(phrases), p.more...) {
+		phrases := scope.phrases()
+		if p.risk != "" {
+			phrases[2] = p.risk
+		}
+		for _, want := range append(phrases, p.more...) {
 			if !strings.Contains(p.text, want) {
 				t.Errorf("%s: %s does not say %q", rel, p.name, want)
 			}
@@ -554,48 +560,14 @@ func TestGuideDescribesConfigScope(t *testing.T) {
 	} {
 		t.Run(filepath.Base(tc.rel), func(t *testing.T) {
 			guide := readRepoFile(t, tc.rel)
-			checkPassages(t, tc.rel, tc.scope.phrases(), []passage{
+			checkPassages(t, tc.rel, tc.scope, []passage{
 				{name: "layer (3)", text: singleLine(t, tc.rel, guide, "3. **")},
 				{name: "inspect", text: subsection(guide, "### `inspect"), stale: []string{tc.inspectOld}},
 				{name: "push", text: subsection(guide, "### `push")},
 				{name: "the 7.1 row", text: singleLine(t, tc.rel, guide, tc.row71), more: tc.row71More, stale: []string{tc.row71Old}},
+				{name: "7.2", text: subsection(guide, "### 7.2"), risk: tc.risk72},
 				{name: "the git-state-changed row", text: singleLine(t, tc.rel, guide, "| `git-state-changed` |")},
 			})
-			// 7.2 words the residual risk its own way.
-			risk72 := tc.scope
-			risk72.residualRisk = tc.risk72
-			checkPassages(t, tc.rel, risk72.phrases(), []passage{{name: "7.2", text: subsection(guide, "### 7.2")}})
-		})
-	}
-}
-
-// TestGuideListsScopeResidualRisks: 7.2 of both guides names the four
-// residual risks the scope rules leave: .md documents read as instructions,
-// files under testdata, files in scope under rule 1, and files read or run
-// that are not on the deny list. Each phrase opens a list item of 7.2, so a
-// risk folded into another item's prose does not count. The phrases are each
-// guide's own, Japanese for the Japanese guide.
-func TestGuideListsScopeResidualRisks(t *testing.T) {
-	for _, tc := range []struct {
-		rel   string
-		risks []string
-	}{
-		{rel: guideFiles[0], risks: []string{
-			"\n- 指示として読まれる `.md` の文書",
-			"\n- `testdata` の下のファイル",
-			"\n- 規則 1 で範囲に入るファイル",
-			"\n- 拒否リストに載らず読まれる・実行されるファイル",
-		}},
-		{rel: guideFiles[1], risks: []string{
-			"\n- Rewrites of `.md` documents read as instructions",
-			"\n- Files under `testdata`",
-			"\n- Files in scope under rule 1",
-			"\n- Files read or run that are not on the deny list",
-		}},
-	} {
-		t.Run(filepath.Base(tc.rel), func(t *testing.T) {
-			guide := readRepoFile(t, tc.rel)
-			checkPassages(t, tc.rel, tc.risks, []passage{{name: "7.2", text: subsection(guide, "### 7.2")}})
 		})
 	}
 }

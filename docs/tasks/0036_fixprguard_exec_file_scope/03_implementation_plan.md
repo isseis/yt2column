@@ -8,7 +8,7 @@
 | Created | 2026-10-22 |
 | Review date | 2026-10-22 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-22 (decision): AC-20 の確かめを `static + manual` から `manual` だけに改め、ステップ 3-4 の AC-20 のガードを取りやめた（1.4・5 章。理由: 7.2 の項目は自然言語の文で、ガードが固定できるのは項目の書き出しの語句だけである。語句を固定すると、言い回しを直すたびに失敗し、中身が誤っていても通るので、確かめとしての信頼性が低い）。PR-2 の実装の際に、このセッションでレビュアーが決めた。設計書 7.4 も同じ commit で改めた。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -18,7 +18,7 @@
 
 -   **フェーズ 1（設計書 8 章の 1）:** タスク 0034 の状態を確かめて申し送る。`scope.go` の拒否リスト・許可リスト・判定の順序を改め、`scope_test.go` に行を加える。ガイド 6 章（日英）と `TestGuideCoversStopKindsAndScope` を改める。
 -   **フェーズ 2（設計書 8 章の 2）:** `Protocol` を `3` に上げ、`fixpr.md`・`runpr.md`・ガイド・`check_rules.sh` の番号と、ガイド 9 章を合わせる。
--   **フェーズ 3（設計書 8 章の 3）:** ガイド 7.2・8 章（日英）、用語集、0030 の文書の注記と、それらの記述を確かめるガード（AC-18・AC-20・AC-21）を加える。
+-   **フェーズ 3（設計書 8 章の 3）:** ガイド 7.2・8 章（日英）、用語集、0030 の文書の注記と、それらの記述を確かめるガード（AC-18・AC-21）を加える。AC-20 はガードを置かず、PR のレビューで確かめる（1.4）。
 
 用語は、要件書 6 章と設計書の冒頭の定義に従う（実行関連ファイル、拒否リスト、許可リスト、指示ファイル、Go のビルドの入力、規則 2・3 の位置、規則 1 の位置）。「規則 1〜6」はガイド 6 章の範囲の規則の番号を、「層」は拒否リストと許可リストのそれぞれを指す。許可リストの (a)〜(c) は設計書 1.5 の項目を、「順 1」〜「順 6」は設計書 3.3 の判定の順序を指す。本書の「フェーズ」は実装の区切りを指し、`/fixpr` の「修正のフェーズ」とは別である。「ガイド」は `docs/dev/developer_guide/fixprguard_guide.ja.md`（日本語版）と `fixprguard_guide.md`（英語版）を指す。
 
@@ -63,7 +63,7 @@
 | `docs/translation_glossary.md:74-75` の近く | 本タスクの 5 つの用語がない | 設計書 3.7 の表の 5 行を加える | 3-2 |
 | 0030 `02_architecture.md:564`・`01_requirements.md:136` | 0030 の時点の規則 | 設計書 3.7「0030 の文書」の注記を加え、`Comments` に記録する | 3-3 |
 | `cmd/yt2column/fixpr_docs_test.go:702-735` | `TestGlossaryTerms` が fixprguard の用語の行（`範囲外の変更`・`ガードツール` など）を確かめる | 5 つの用語を加える（AC-21。1.4） | 3-4 |
-| `cmd/fixprguard/docs_test.go:408-444` | `passage` と `checkPassages` が、節の語の有無と、消すべき語（`stale`）を確かめる。0030 の文書を読むガードはない | AC-20 は `passage`・`checkPassages` を使ってガイド 7.2 の語を確かめる。AC-18 のガードを加える（1.4） | 3-4 |
+| `cmd/fixprguard/docs_test.go:408-444` | `passage` と `checkPassages` が、節の語の有無と、消すべき語（`stale`）を確かめる。0030 の文書を読むガードはない | AC-18 のガードを加える（1.4）。AC-20 にはガードを置かない（1.4） | 3-4 |
 
 変えない箇所は次のとおりである。
 
@@ -89,7 +89,7 @@
 -   拒否リストと許可リストのデータの変数名と、許可リストを照合する非公開の関数の名前。
 -   `scope_test.go` の行の名前と並べ方。設計書 7.1 の表の各行の入力を使う。
 -   ガイドの表を切り出す関数の形（1.4 の方針の範囲で）。
--   AC-18・AC-20 のガードが固定する語と、箇所を取り出す鍵。語は書いた文から選ぶ。鍵は、本タスクで書き換えない見出しやセルを選ぶ。
+-   AC-18 のガードが固定する語と、箇所を取り出す鍵。語は書いた文から選ぶ。鍵は、本タスクで書き換えない見出しやセルを選ぶ。
 -   新しいテストの関数の名前。5 章の表に書いた名前と変えたときは、同じ PR で本書の表を改める。
 
 ### 1.4. 計画の際に決めたこと（2026-10-22）
@@ -99,7 +99,8 @@
 -   **ガイド 8 章の段落は、フェーズ 3 に置く:** 設計書 8 章の優先順位は、ガイド 8 章を挙げていない。ガイド 8 章の段落（設計書 3.5「ガイド 8 章」）は、範囲外の変更が残ったときの利用者の手順であり、ガイド 7.2 の残余のリスクと同じく利用者への案内なので、7.2 と同じフェーズにする。
 -   **ガイドの表は、太字の見出しの後の最初の表だけを切り出す（設計書 3.5 が実装計画に委ねた切り出し方）:** 6 章を `section` で切り出し、そこから、目印の太字の見出しの行の後に続く、`|` で始まる行の最初のまとまりを表とする。理由: 見出しから次の見出しまでを切り出すと、表の前後の文に項目のコードスパンがあるだけでガードが通る。表の行だけを読めば、表から項目を落としたときに失敗する。切り出しの関数には、`TestCutSection`（`docs_test.go:506`）にならって、表の終わりで止まること、見出しがないときに空を返すことを確かめるテストを付ける。`cmd/yt2column/docs_test.go:377` の `findTable` は使わない。別の `main` パッケージにあるので import できず、表を見出しの行で探すので、見出しが同じ形（`| 形 | 項目 |`）の 2 つの表を区別できないためである。
 -   **AC-21 は、既存の `TestGlossaryTerms`（`cmd/yt2column/fixpr_docs_test.go:702`）に行を加えて確かめる（設計書 7.4 が実装計画に委ねた選択）:** このテストは、fixprguard の用語（`範囲外の変更`・`ガードツール` など）の日本語と英語の組をすでに確かめている。同じ形の確かめを `cmd/fixprguard` に作ると、用語集の読み方が 2 か所に分かれる。
--   **AC-18・AC-20 のガードは `cmd/fixprguard/docs_test.go` に置き、既存の部品を使う:** ガイド 7.2 は、すでに `TestGuideDescribesConfigScope` が `subsection(guide, "### 7.2")` で読んでいる（`docs_test.go:496`、`d90437c`）。AC-20 のガードは、同じファイルの `passage`・`checkPassages`（`:408-444`）で 7.2 の語を確かめる。既存の 7.2 の語（`risk72`。`:473`・`:486`）はそのまま残す。0030 の文書の `Status`・`Comments` を確かめる既存のガードはない（`cmd/` と `internal/` の `*_test.go` を `0030_fixpr_untrusted_threads` で探して確かめた）。節は `section`・`subsection`・`cutSection`・`singleLine`（`:180-217`）で取り出す。0030 の F-004 は `####` の見出しなので、`subsection` では F-005 以降まで続く。`cutSection` に `\n#### ` も終わりとして渡す。
+-   **AC-18 のガードは `cmd/fixprguard/docs_test.go` に置き、既存の部品を使う:** 0030 の文書の `Status`・`Comments` を確かめる既存のガードはない（`cmd/` と `internal/` の `*_test.go` を `0030_fixpr_untrusted_threads` で探して確かめた）。節は `section`・`subsection`・`cutSection`・`singleLine`（`:180-217`）で取り出す。0030 の F-004 は `####` の見出しなので、`subsection` では F-005 以降まで続く。`cutSection` に `\n#### ` も終わりとして渡す。
+-   **AC-20 は、ガードを置かず `manual` だけで確かめる（2026-10-22、PR-2 の実装の際にレビュアーが決めた）:** 理由: 7.2 の項目は自然言語の文で、ガードが固定できるのは項目の書き出しの語句だけである。語句を固定すると、言い回しを直すたびに失敗し、中身が誤っていても通るので、確かめとしての信頼性が低い。受け入れる影響: AC-20 は、要件定義のプロセスのガイドの「各 AC に `test` か `static` を 1 つ以上」の例外になる。ガイド 7.2 から項目を落としても CI では検出せず、PR のレビューの読み合わせに頼る。PR-2 で加えた `TestGuideListsScopeResidualRisks` と、そのための `checkPassages` の一般化は、同じ PR で取り除いた。
 -   **AC-14 の確かめに、既存の 2 つのテストの行を加える:** 既存の範囲外の行は、今の規則でも範囲外の場所である。新しい規則でだけ範囲外になる変更が、今までと同じ形で `outOfScope` に入ることを確かめるため、`TestInspectListsOutOfScope`（`worktree_test.go:51`。`ScopedChange` の全体を比べる）の `want` に、そのようなファイルを加える。終了コード `3` は、`TestInspectExitCode`（`main_test.go:495`）に、`testFile`（`docs/notes/a.md`）と同じディレクトリの、許可リストに当たらないファイルの行と、指示ファイルの行を加えて確かめる。範囲外になった理由を出力しないことは、`ScopedChange` の型（`internal/fixprguard/types.go`）と出力の組み立てを変えないことを PR-1 の差分で確かめる（`manual`）。設計書 7.5 は「結合テストは加えない」とし、AC-14 を既存のテストで確かめるとしていた。既存のテストの表に行を加えるだけで、設計の決定は変えないので、設計書 7.5 を editorial correction として改めた（この計画の PR。設計書の `Comments`）。
 -   **フェーズ 1 のコミットの分け方:** 設計書 8 章の 1 は、`ExecutionFilePatterns`・`AllowListPatterns` の変更とガイドの表を同じコミットに入れるとする。英語版のガイドは日本語版のコミットの後に翻訳する（`CLAUDE.md`「Translation Guidelines」）ので、次のとおり分ける。`scope.go`・`scope_test.go` の行・日本語版の 6 章・ガードの改訂を 1 つのコミットにし、英語版の 6 章を次のコミットにする。その間は、英語版を対象にしたガードだけが失敗する。PR は squash merge なので、`main` に失敗するコミットは入らない。設計書 8 章の 1 に、英語版がこの順で続くことを editorial correction として書き足した（この計画の PR）。
 
@@ -280,13 +281,13 @@
 **変更するファイル**: `cmd/yt2column/fixpr_docs_test.go`、`cmd/fixprguard/docs_test.go`
 
 -   [x] AC-21: `TestGlossaryTerms` に、設計書 3.7 の 5 つの用語の日本語と英語の組を加える（1.4）。日本語のリテラルは用語集のセルと一致させる（1.2）。
--   [x] AC-20: 両方のガイドの 7.2 に、要件書 4.2 の残余のリスクの 4 項目を述べる語があることを確かめるガードを、`passage`・`checkPassages` で加える（1.4）。`checkPassages` は `configScope` の 3 つの語を必ず求めるので、確かめる語の一覧を渡せる形に改めて使う。`TestGuideDescribesConfigScope` が確かめる語は変えない。
+-   [-] AC-20: （取りやめた。1.4 の 2026-10-22 の決定により、ガードを置かず PR のレビューで確かめる）両方のガイドの 7.2 に、要件書 4.2 の残余のリスクの 4 項目を述べる語があることを確かめるガードを、`passage`・`checkPassages` で加える（1.4）。`checkPassages` は `configScope` の 3 つの語を必ず求めるので、確かめる語の一覧を渡せる形に改めて使う。`TestGuideDescribesConfigScope` が確かめる語は変えない。
 -   [x] AC-18: 0030 の 2 か所（`02_architecture.md` の 3.6、`01_requirements.md` の F-004。F-004 は `####` の見出しで止める。1.4）のそれぞれに、本タスクの文書への参照を含む注記があり、両文書の `Status` が `approved` であることを確かめるガードを加える。`Comments` は、`(editorial)` と本タスクへの参照を同じ 1 つの記録に含むことを確かめる（0030 `02_architecture.md` の `Comments` には、ほかのタスクの `(editorial)` の記録がすでにある）。
 
 **壊して確かめる**: 次で、それぞれのガードが失敗すること。一時的に書き換えて確かめ、戻す。
 
 -   用語集から 5 つの用語の行を 1 つずつ消す。
--   どちらかの版の 7.2 から 4 項目を 1 つずつ消す。同じ文を 7.1 に移す。同じ文を 8 章に移す（節の取り出しの始まりと終わりの確かめ）。
+-   （AC-20 のガードを取りやめたので対象外。1.4）どちらかの版の 7.2 から 4 項目を 1 つずつ消す。同じ文を 7.1 に移す。同じ文を 8 章に移す（節の取り出しの始まりと終わりの確かめ）。
 -   0030 のどちらかの文書の注記を消す。注記を次の節（3.7、F-005）に移す。`Status` を `draft` にする。本タスクの記録を消す。本タスクの記録の `(editorial)` だけを `(decision)` に替える。
 
 **完了条件**: 文書のガード（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`）が通る。
@@ -333,7 +334,7 @@
 | PR | 対象ステップ | 主な変更内容 | 実装モデル要件 |
 |---|---|---|---|
 | PR-1 | 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 2-1 / 2-2 | 0034 への申し送り、`scope.go` の拒否リスト・許可リスト・判定の順序、`TestScopeRules`・`TestInspectExitCode` の行、ガイド 6 章と表のガード、`Protocol` 3 と文書の番号、ガイド 9 章 | frontier-required |
-| PR-2 | 3-1 / 3-2 / 3-3 / 3-4 / 3-5 | ガイド 7.2・8 章、用語集、0030 の注記、AC-18・AC-20・AC-21 のガード | standard |
+| PR-2 | 3-1 / 3-2 / 3-3 / 3-4 / 3-5 | ガイド 7.2・8 章、用語集、0030 の注記、AC-18・AC-21 のガード | standard |
 
 ### 3.3. 実装順序の根拠
 
@@ -391,7 +392,7 @@
 | AC-17 | static + manual | `docs_test.go::TestGuideCoversStopKindsAndScope`（表の項目）。説明の文は PR-1 のレビューで読み合わせる |
 | AC-18 | static + manual | `docs_test.go::TestTask0030NotesScopeChange`（注記・`Status`・`Comments`）。注記の中身は PR-2 のレビューで読み合わせる |
 | AC-19 | static | `docs_test.go::TestGuideCoversStopKindsAndScope`、`docs_test.go::TestGuideTable`（表の切り出しの関数のテスト）、`internal/fixprguard/scope_test.go::TestPatternRuleLiterals`（`.*`・`*.go` の出力。ステップ 1-2） |
-| AC-20 | static + manual | `docs_test.go::TestGuideListsScopeResidualRisks`。各項目の説明は PR-2 のレビューで読み合わせる |
+| AC-20 | manual | ガイド（日英）の 7.2 に 4 項目があることと、各項目の説明を、PR-2 のレビューで読み合わせる。`test`・`static` を持たない例外（1.4） |
 | AC-21 | static + manual | `cmd/yt2column/fixpr_docs_test.go::TestGlossaryTerms`（5 つの用語の行を加える）。訳語と説明は PR-2 のレビューで読み合わせる |
 
 -   AC-17 の説明の文（3 つの部分の説明、大文字小文字の扱い）は自然言語の記述なので、`manual` で確かめる（設計書 3.5・7.4）。表の項目は AC-19 のガードが確かめる。ただし、ガードは `ExecutionFilePatterns` の出力だけを読むので、設計書 1.2 でデータから消し、表に例として残す項目（`.tool-versions`・`.claude/`・最上位の `CLAUDE.md` など）が表に載ることも `manual` で確かめる（設計書 3.5 は逆向きのガードを置かない）。
