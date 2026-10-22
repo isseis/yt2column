@@ -207,8 +207,9 @@ func section(doc, heading string) string {
 // "--reviewer LOGIN ..." are exactly the subcommands whose spec takes
 // --reviewer; the flag row says the flag repeats once per name and that none
 // or a name given twice is a usage error; other-bot is a Bot matching none of
-// the names; the exit code 2 row identifies a tool that predates the change
-// and how to check its version; and section 9 states the Protocol proviso.
+// the names; the flag-position row lists --reviewer as repeatable; the exit
+// code 2 row identifies a tool that predates the change and how to check its
+// version; and section 9 states the Protocol proviso.
 // The phrases are the guides' own wording, Japanese for the Japanese guide.
 func TestGuideDescribesReviewerList(t *testing.T) {
 	takesReviewer := map[string]struct{}{}
@@ -218,22 +219,25 @@ func TestGuideDescribesReviewerList(t *testing.T) {
 		}
 	}
 	for _, tc := range []struct {
-		rel      string
-		flagRow  []string
-		otherBot string
-		proviso  string
+		rel         string
+		flagRow     []string
+		positionRow string
+		otherBot    string
+		proviso     string
 	}{
 		{
-			rel:      guideFiles[0],
-			flagRow:  []string{"名前ごとに 1 回ずつ繰り返して渡す", "1 つもないとき", "同じ名前を 2 回以上渡したとき", "使い方の誤り"},
-			otherBot: "`--reviewer` で渡したどの名前とも一致しない Bot",
-			proviso:  "次の 3 つの条件がすべて成り立つ変更に限り、`Protocol` を上げなくてよい",
+			rel:         guideFiles[0],
+			positionRow: "| フラグの位置 |",
+			flagRow:     []string{"名前ごとに 1 回ずつ繰り返して渡す", "1 つもないとき", "同じ名前を 2 回以上渡したとき", "使い方の誤り"},
+			otherBot:    "`--reviewer` で渡したどの名前とも一致しない Bot",
+			proviso:     "次の 3 つの条件がすべて成り立つ変更に限り、`Protocol` を上げなくてよい",
 		},
 		{
-			rel:      guideFiles[1],
-			flagRow:  []string{"repeating the flag once per name", "When none is given", "when the same name is given twice or more", "usage error"},
-			otherBot: "A Bot matching none of the names passed with `--reviewer`",
-			proviso:  "only a change that meets all three conditions below may leave `Protocol` unchanged",
+			rel:         guideFiles[1],
+			positionRow: "| Flag position |",
+			flagRow:     []string{"repeating the flag once per name", "When none is given", "when the same name is given twice or more", "usage error"},
+			otherBot:    "A Bot matching none of the names passed with `--reviewer`",
+			proviso:     "only a change that meets all three conditions below may leave `Protocol` unchanged",
 		},
 	} {
 		t.Run(filepath.Base(tc.rel), func(t *testing.T) {
@@ -256,6 +260,10 @@ func TestGuideDescribesReviewerList(t *testing.T) {
 				if !strings.Contains(flagRow, want) {
 					t.Errorf("the --reviewer row does not say %q", want)
 				}
+			}
+			// The flag-position row lists --reviewer among the repeatable flags.
+			if row := singleLine(t, tc.rel, guide, tc.positionRow); !strings.Contains(row, "`--reviewer`") {
+				t.Errorf("the flag-position row does not list --reviewer as repeatable")
 			}
 			if row := singleLine(t, tc.rel, guide, "| `other-bot` |"); !strings.Contains(row, tc.otherBot) {
 				t.Errorf("the other-bot row does not say %q", tc.otherBot)

@@ -111,6 +111,13 @@ func (r Reviewers) contains(login Login) bool {
 
 func (r Reviewers) usable() bool { return len(r.logins) > 0 }
 
+// trustsBot reports whether a is a Bot whose login passed the grammar and is
+// one of the reviewers. assessThread and processThread both decide with it,
+// so the trust judgment and authorType cannot drift apart.
+func (r Reviewers) trustsBot(a author) bool {
+	return a.kind == AuthorBot && a.login.usable() && r.contains(a.login)
+}
+
 func isASCIIAlnum(c byte) bool {
 	return ('0' <= c && c <= '9') || ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z')
 }

@@ -42,7 +42,9 @@ var reviewersFieldAccessors = map[string]struct{}{
 
 // findRestrictedConstructions reports every composite literal (T{}, &T{}),
 // new(T), and var declaration of a restricted type outside its constructor,
-// and every reference to the Reviewers field outside its accessors. A struct
+// every reference to the Reviewers field outside its accessors, every alias
+// or type defined from a restricted type, and every other field named like
+// the Reviewers field (a same-shape struct converts to Reviewers). A struct
 // field, a slice element, or a named result of the type is not reported:
 // those zero values are made unusable instead (NewGitHub rejects a zero
 // Reviewers, and every use checks usable()).
@@ -83,6 +85,24 @@ func findRestrictedConstructions(fset *token.FileSet, file *ast.File) []string {
 			case *ast.ValueSpec:
 				if name := restrictedName(n.Type); name != "" && restrictedConstructors[name] != owner {
 					report(n, name)
+				}
+			case *ast.TypeSpec:
+				// The declaration of Reviewers is where its field lives.
+				if n.Name.Name == "Reviewers" {
+					return false
+				}
+				// An alias or a type defined from a restricted type would
+				// let a literal of the new name slip past restrictedName.
+				if name := restrictedName(n.Type); name != "" {
+					report(n, name)
+				}
+			case *ast.Field:
+				// A struct of the same shape converts to Reviewers, so no
+				// other declaration may have a field of the same name.
+				for _, ident := range n.Names {
+					if ident.Name == reviewersFieldName && !fieldOK {
+						report(n, "Reviewers."+reviewersFieldName)
+					}
 				}
 			}
 			return true
@@ -196,6 +216,11 @@ func TestRestrictedTypesBuiltByConstructors(t *testing.T) {
 		{"reviewers_field_read", "func f(r Reviewers) int { return len(r.logins) }", 1},
 		{"reviewers_field_other_method", "func (r Reviewers) add(l Login) { r.logins[l] = struct{}{} }", 1},
 		{"reviewers_field_method_of_other_type", "func (w W) contains(r Reviewers) int { return len(r.logins) }", 1},
+		{"reviewers_declaration", "type Reviewers struct{ logins map[Login]struct{} }", 0},
+		{"reviewers_alias", "type rv = Reviewers", 1},
+		{"reviewers_defined_type", "type rv Reviewers", 1},
+		{"login_alias", "type name = Login", 1},
+		{"same_shape_struct", "type shape struct{ logins map[Login]struct{} }", 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			fset := token.NewFileSet()

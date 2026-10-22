@@ -45,9 +45,9 @@ func NewGitHub(run cmdrunner.InputRunner, reviewers Reviewers) (*GitHub, error) 
 }
 
 // NewGitHubWithoutReviewer returns a GitHub for the calls that judge no
-// thread: Head, CurrentPR and EditPR. Its reviewers are the zero Reviewers, and the
-// calls that judge threads (List, Begin, ThreadPaths, Reply) refuse to run on
-// it, so a subcommand that takes no --reviewer cannot judge with none.
+// thread: Head, CurrentPR and EditPR. Its reviewers are the zero Reviewers,
+// and the calls that judge threads (List, Begin, ThreadPaths, Reply) refuse to
+// run on it, so a subcommand that takes no --reviewer cannot judge with none.
 func NewGitHubWithoutReviewer(run cmdrunner.InputRunner) (*GitHub, error) {
 	if run == nil {
 		return nil, fmt.Errorf("%w: no runner", ErrInvalidInput)
@@ -384,14 +384,14 @@ func (g *GitHub) addBodies(ctx context.Context, round *Round, selected []thread,
 
 // processThread renders a fetched thread in the triage format. The first
 // comment gives the database ID, path, line and URL. authorType is "Bot" only
-// when the first author is a Bot whose login passes the grammar and is one of
-// the reviewers, compared as assessThread compares it, and "User" otherwise, so
-// another bot's thread a user named is answered like a person's. Begin never
-// selects a thread without comments.
+// when the first author is a Bot of the reviewers, judged by the trustsBot
+// that assessThread uses, and "User" otherwise, so another bot's thread a user
+// named is answered like a person's. Begin never selects a thread without
+// comments.
 func processThread(t thread, named bool, reviewers Reviewers) ProcessThread {
 	first := t.comments[0]
 	authorType := typenameUser
-	if login, err := ParseLogin(first.loginRaw); err == nil && authorKindOf(first.kindRaw) == AuthorBot && reviewers.contains(login) {
+	if reviewers.trustsBot(authorsOf(t)[0]) {
 		authorType = typenameBot
 	}
 	parts := make([]string, 0, len(t.comments))

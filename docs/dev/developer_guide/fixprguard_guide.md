@@ -57,7 +57,7 @@ One binary is shared by all worktrees of the same user.
 | `--protocol N` | Required by every subcommand. If `N` does not match the binary's number, the tool stops with exit code `2` (this keeps an old binary from judging by the assumptions of newer documents). The current number is `1` |
 | `--reviewer LOGIN` | Required at least once by `list`, `begin`, `inspect`, and `reply`, and not accepted by the other subcommands. Pass the GraphQL `author.login` of each trusted automated reviewer (for example `coderabbitai`), repeating the flag once per name (for example `--reviewer coderabbitai --reviewer chatgpt-codex-connector`). The order does not affect the judgment. When none is given, when the same name is given twice or more, or when a name does not fit the grammar, it is a usage error (exit code `2`). There is no default |
 | `[PR]` | Only a decimal PR number is accepted. URLs and branch names are rejected. When omitted, the current branch's PR is resolved with `gh pr view`. `finish`, which does not read GitHub, cannot omit it |
-| Flag position | Flags go before the positional argument (`PR`, `FILE`). Passing the same flag twice is rejected (`--accept`, `--thread`, and `--reviewer` may be passed more than once; passing the same name to `--reviewer` twice is still rejected) |
+| Flag position | Flags go before the positional argument (`PR`, `FILE`). Passing the same flag twice is rejected (`--accept`, `--thread`, and `--reviewer` may be passed more than once; but passing the same name to `--reviewer` twice is rejected) |
 | Standard output | One line of JSON (only `fence` prints the fenced block itself). Every JSON output contains `protocol` |
 | Standard error | A one-line diagnostic. It names only the rule that rejected the input, and contains no value from GitHub and no arguments or standard error of an external command |
 
@@ -243,7 +243,7 @@ A `.go` file is in scope under rule 2 only when `path` is a `.go` file in the sa
 - Preventing in-scope test code from being run by the build checks. `finish` and `push` do detect that code rewriting in-scope files or hooks.
 - Files ignored by `.gitignore`, files hidden by a `.gitignore` inside the work tree or by the global exclude file, and changes hidden by forging the stat information of the index. Hidden changes are not committed, but the build checks running them cannot be prevented.
 - Files outside the hooks directory that a hook runs (such as the cache of the pre-commit framework).
-- That the set of names passed with `--reviewer` is the same as the automated reviewer list in `_context.md`. The tool does not read `_context.md`. A name left out only makes that Bot's threads untrusted as `other-bot`.
+- That the set of names passed with `--reviewer` is the same as the automated reviewer names defined in `_context.md`. The tool does not read `_context.md`. A name left out only makes that Bot's threads untrusted as `other-bot`.
 - Re-edits within the same second. The times in the fingerprint have a resolution of one second.
 - The content of reply and PR description bodies. The tool checks only the file's type, size, and encoding.
 

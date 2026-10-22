@@ -83,7 +83,7 @@ func assessThread(ctx context.Context, authors []author, complete bool, reviewer
 		}
 		switch a.kind {
 		case AuthorBot:
-			if a.login.usable() && !reviewers.contains(a.login) {
+			if a.login.usable() && !reviewers.trustsBot(a) {
 				add(Finding{Reason: ReasonOtherBot, Account: a.login})
 			}
 		case AuthorUser:
