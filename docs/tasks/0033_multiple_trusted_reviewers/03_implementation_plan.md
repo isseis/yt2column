@@ -236,10 +236,10 @@
 
 **変更するファイル**: `docs/dev/developer_guide/fixprguard_guide.ja.md`、`fixprguard_guide.md`、`package_reference.md`、`cmd/fixprguard/docs_test.go`、`cmd/yt2column/docs_test.go`
 
--   [ ] 日本語版のガイドを、設計書 3.5 のガイドの PR-1 の項目のとおりに改める。`_context.md` の行の名前には触れない。終了コード `2` の説明には、1.3.4 で確かめた古いツールの診断の文字列 `flag given twice: --reviewer` と、`go version -m "$(command -v fixprguard)"` の `vcs.revision` での確かめ方を書く。
--   [ ] 日本語版をコミットしてから、英語版を `.claude/commands/mktrans.md` の原則で翻訳する（`CLAUDE.md`「Translation Guidelines」）。
--   [ ] `package_reference.md` の `internal/fixprguard` の行を、設計書 3.5 の `package_reference.md` の項目のとおりに改める。
--   [ ] `cmd/fixprguard/docs_test.go` に、両方のガイドについて次を確かめるテストを加える。
+-   [x] 日本語版のガイドを、設計書 3.5 のガイドの PR-1 の項目のとおりに改める。`_context.md` の行の名前には触れない。終了コード `2` の説明には、1.3.4 で確かめた古いツールの診断の文字列 `flag given twice: --reviewer` と、`go version -m "$(command -v fixprguard)"` の `vcs.revision` での確かめ方を書く。
+-   [x] 日本語版をコミットしてから、英語版を `.claude/commands/mktrans.md` の原則で翻訳する（`CLAUDE.md`「Translation Guidelines」）。
+-   [x] `package_reference.md` の `internal/fixprguard` の行を、設計書 3.5 の `package_reference.md` の項目のとおりに改める。
+-   [x] `cmd/fixprguard/docs_test.go` に、両方のガイドについて次を確かめるテストを加える。
     -   サブコマンドの見出しのうち、`--reviewer LOGIN ...` を含むものが、`specs` で `--reviewer` を取るサブコマンドとちょうど一致すること。
     -   フラグの表の `--reviewer` の行が、繰り返せること、1 つもないときと同じ名前を 2 回以上渡したときは使い方のエラーになることを述べていること。
     -   `other-bot` の行が、渡したどの名前とも一致しない Bot を述べていること。
@@ -247,8 +247,8 @@
     -   §9 が `Protocol` の規則の但し書きを含むこと。
 
     行の中の確かめは、表の行を取り出して行う。日本語版を確かめるリテラルは日本語で書く（1.2）。固定する語は、書いた文から選ぶ。
--   [ ] `cmd/yt2column/docs_test.go` に、`package_reference.md` の `internal/fixprguard` の行が、語として `ParseReviewers` と `Reviewers` を含み、`reviewer bot` を含まないことを確かめるテストを加える。既存の `findTable`・`tableRow`・`containsToken`（`cmd/yt2column/docs_test.go:377-400`・`:623`）を使う。
--   [ ] ガイドの記述をツールの振る舞いと突き合わせる。サブコマンドの見出しは `specs` と、終了コード `2` と重複の説明はステップ 1-3 のテストと、§9 の但し書きは設計書 1.4 の 3 つの条件と比べる。
+-   [x] `cmd/yt2column/docs_test.go` に、`package_reference.md` の `internal/fixprguard` の行が、語として `ParseReviewers` と `Reviewers` を含み、`reviewer bot` を含まないことを確かめるテストを加える。既存の `findTable`・`tableRow`・`containsToken`（`cmd/yt2column/docs_test.go:377-400`・`:623`）を使う。
+-   [x] ガイドの記述をツールの振る舞いと突き合わせる。サブコマンドの見出しは `specs` と、終了コード `2` と重複の説明はステップ 1-3 のテストと、§9 の但し書きは設計書 1.4 の 3 つの条件と比べる。
 
 **壊して確かめる**: ガイドの日本語版と英語版のそれぞれで、固定した文を 1 つずつ一時的に消すと、テストが失敗すること。`reply` の見出しから `...` を消すと、見出しの確かめが失敗すること。
 

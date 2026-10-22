@@ -781,6 +781,29 @@ func TestTokenUsageDocsContract(t *testing.T) {
 	}
 }
 
+// TestPackageReferenceFixprguard: the internal/fixprguard row describes the
+// automated reviewer list the tool trusts (Reviewers, built by ParseReviewers),
+// not a single reviewer bot.
+func TestPackageReferenceFixprguard(t *testing.T) {
+	table := findTable(readDoc(t, packageReferencePath), "Package")
+	if table == nil {
+		t.Fatal("package_reference.md has no package table")
+	}
+	cells := tableRow(table, "internal/fixprguard")
+	if cells == nil {
+		t.Fatal("package_reference.md has no internal/fixprguard row")
+	}
+	row := strings.Join(cells, " ")
+	for _, want := range []string{"ParseReviewers", "Reviewers"} {
+		if !containsToken(row, want) {
+			t.Errorf("the internal/fixprguard row does not mention %s", want)
+		}
+	}
+	if strings.Contains(row, "reviewer bot") {
+		t.Error("the internal/fixprguard row still describes a single reviewer bot")
+	}
+}
+
 // TestCostDocsContract checks the cost documents: the README's Estimated cost
 // section uses every word run.go's cost format defines, its example lines use
 // only those words and the stage names in the fixed positions, and it names the
