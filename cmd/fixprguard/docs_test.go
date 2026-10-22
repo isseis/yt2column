@@ -608,8 +608,13 @@ var task0036Docs = []string{
 // and its kind.
 var commentRecord = regexp.MustCompile(`\d{4}-\d{2}-\d{2} \(([a-z]+)\): `)
 
-// TestTask0030NotesScopeChange: task 0030's architecture 3.6 and
-// requirements F-004, which state the scope rules as 0030 decided them, each
+// scopeRequirement ends the level-4 heading of task 0030's requirements that
+// states the change scope. The guard finds the heading by its title.
+const scopeRequirement = ": 変更範囲と作業ツリーの確認\n"
+
+// TestTask0030NotesScopeChange: task 0030's architecture 3.6 and the change
+// scope requirement of its requirements, which state the scope rules as 0030
+// decided them, each
 // carry a quoted note linking task 0036's requirements and architecture; both
 // documents stay approved; and each Comments cell has one editorial record
 // that names #425, the issue of task 0036.
@@ -621,8 +626,13 @@ func TestTask0030NotesScopeChange(t *testing.T) {
 		section func(doc string) string
 	}{
 		{rel: dir + "02_architecture.md", name: "3.6", section: func(doc string) string { return subsection(doc, "### 3.6.") }},
-		{rel: dir + "01_requirements.md", name: "F-004", section: func(doc string) string {
-			return cutSection(doc, "#### F-004", "\n## ", "\n### ", "\n#### ")
+		{rel: dir + "01_requirements.md", name: "the change scope requirement", section: func(doc string) string {
+			for line := range strings.Lines(doc) {
+				if strings.HasPrefix(line, "#### ") && strings.HasSuffix(line, scopeRequirement) {
+					return cutSection(doc, line, "\n## ", "\n### ", "\n#### ")
+				}
+			}
+			return ""
 		}},
 	} {
 		t.Run(filepath.Base(tc.rel), func(t *testing.T) {
