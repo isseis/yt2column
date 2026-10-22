@@ -34,12 +34,27 @@ type configListResult struct {
 // gitRouter runs git for real and every other command (make, gh) through the
 // fake. Calls records each command's name and first argument in order, so a
 // test can see where a run stopped. ConfigList, when set, answers git config
-// --list without running git; the call is still recorded.
+// --list without running git; the call is still recorded. List runs the
+// listing of ignored files, which reaches it through ListRunner; a test may
+// replace it.
 type gitRouter struct {
 	real       cmdrunner.Runner
+	List       cmdrunner.Runner
 	fake       *cmdrunnertestutil.Fake
 	Calls      []string
 	ConfigList *configListResult
+}
+
+// ListRunner returns the runner a Worktree lists ignored files with: it
+// records the call in Calls, as the git runner does, and runs it through
+// List.
+func (r *gitRouter) ListRunner() cmdrunner.Runner { return listRoute{r} }
+
+type listRoute struct{ r *gitRouter }
+
+func (l listRoute) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
+	l.r.Calls = append(l.r.Calls, name+" "+gitSubcommand(args))
+	return l.r.List.Run(ctx, name, args...)
 }
 
 func (r *gitRouter) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
@@ -114,6 +129,7 @@ func newTestRepo(t *testing.T) *testRepo {
 	r.gitIn(root, "init", "-q", "--bare", "--template=", r.Remote)
 	r.gitIn(root, "init", "-q", "--template=", "-b", testBranch, r.Dir)
 	t.Chdir(r.Dir)
+	r.pinIgnoreConfig()
 	r.Git("config", "user.name", "Test")
 	r.Git("config", "user.email", "test@example.com")
 	r.Git("config", "commit.gpgSign", "false")
@@ -127,6 +143,21 @@ func newTestRepo(t *testing.T) *testRepo {
 	r.CommitAll("initial")
 	r.Git("push", "-q", "-u", testRemote, testBranch)
 	return r
+}
+
+// pinIgnoreConfig makes which files git ignores, and how it compares their
+// names, the same on every machine: the global excludes file is an empty
+// file under Home, and case and Unicode composition are significant, as on a
+// Linux CI file system, even on a case-insensitive macOS volume.
+func (r *testRepo) pinIgnoreConfig() {
+	r.t.Helper()
+	excludes := filepath.Join(r.Home, "excludes")
+	if err := os.WriteFile(excludes, nil, 0o600); err != nil {
+		r.t.Fatalf("write excludes: %v", err)
+	}
+	r.Git("config", "core.excludesFile", excludes)
+	r.Git("config", "core.ignorecase", "false")
+	r.Git("config", "core.precomposeunicode", "false")
 }
 
 // Git runs git in the work tree for the test's own setup, outside the tool.
@@ -218,9 +249,38 @@ func newTestWorktree(t *testing.T, steps ...cmdrunnertestutil.Step) (*Worktree, 
 	t.Helper()
 	router := &gitRouter{
 		real: cmdrunner.NewOS(cmdrunner.Options{Env: GitEnv(os.Environ())}),
+		List: cmdrunner.NewOS(cmdrunner.Options{Env: GitEnv(os.Environ()), StderrIsFailure: true}),
 		fake: cmdrunnertestutil.New(t, steps...),
 	}
-	return NewWorktree(router, router), router
+	return NewWorktree(router, router.ListRunner(), router), router
+}
+
+// requireNonRoot fails the test when it runs as root, where permission
+// failures cannot be produced. Such a run is an unsupported environment, so it
+// fails instead of being skipped silently.
+func requireNonRoot(t *testing.T) {
+	t.Helper()
+	if os.Geteuid() == 0 {
+		t.Fatal("unsupported test environment: permission-failure tests require a non-root user")
+	}
+}
+
+// chmodForTest changes path's mode and restores the original mode at cleanup,
+// registered after any t.TempDir of the caller, so the directory can be
+// removed afterwards.
+func chmodForTest(t *testing.T, path string, mode os.FileMode) {
+	t.Helper()
+	info, err := os.Lstat(path)
+	if err != nil {
+		t.Fatalf("stat %s: %v", path, err)
+	}
+	original := info.Mode().Perm()
+	if err := os.Chmod(path, mode); err != nil { //nolint:gosec // a path inside the test's temporary directory, made unreadable on purpose
+		t.Fatalf("chmod %s: %v", path, err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(path, original) //nolint:gosec // restores the mode the test changed
+	})
 }
 
 // makeStep scripts one make target; effect, when set, stands for what the

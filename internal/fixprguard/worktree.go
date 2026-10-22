@@ -46,18 +46,23 @@ func CommitSubject(pr PRNumber) string {
 // Worktree guards the work tree and the git state of the repository in the
 // current directory, which must be the top of the work tree. gitRun runs git
 // and must use the environment GitEnv returns and an output cap, so truncated
-// output cannot hide a change; makeRun runs the build checks and needs no
-// cap, since only the tail of a failed target's output is kept.
+// output cannot hide a change; listRun runs the listing of ignored files with
+// the same environment and cap and must also set StderrIsFailure, since git
+// skips an unreadable directory with only a warning on standard error; the
+// other git calls cannot, since git add and git commit write there when they
+// succeed. makeRun runs the build checks and needs no cap, since only the
+// tail of a failed target's output is kept.
 type Worktree struct {
 	gitRun  cmdrunner.Runner
+	listRun cmdrunner.Runner
 	makeRun cmdrunner.Runner
 	rand    io.Reader
 }
 
-// NewWorktree returns a Worktree that runs git through gitRun and make
-// through makeRun.
-func NewWorktree(gitRun, makeRun cmdrunner.Runner) *Worktree {
-	return &Worktree{gitRun: gitRun, makeRun: makeRun, rand: rand.Reader}
+// NewWorktree returns a Worktree that runs git through gitRun, the listing of
+// ignored files through listRun, and make through makeRun.
+func NewWorktree(gitRun, listRun, makeRun cmdrunner.Runner) *Worktree {
+	return &Worktree{gitRun: gitRun, listRun: listRun, makeRun: makeRun, rand: rand.Reader}
 }
 
 // CheckClean fails with ErrDirtyWorkTree when there is any uncommitted change,
