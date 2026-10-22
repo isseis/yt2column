@@ -5,10 +5,13 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -275,6 +278,182 @@ func TestGuideDescribesReviewerList(t *testing.T) {
 			if !strings.Contains(section(guide, "## 9."), tc.proviso) {
 				t.Errorf("section 9 does not state the Protocol proviso %q", tc.proviso)
 			}
+		})
+	}
+}
+
+// subsection returns the text of doc from the line that starts with heading
+// up to the next heading of level 2 or 3, or "" when there is no such line.
+func subsection(doc, heading string) string {
+	_, rest, ok := strings.Cut(doc, "\n"+heading)
+	if !ok {
+		return ""
+	}
+	end := len(rest)
+	for _, next := range []string{"\n## ", "\n### "} {
+		if i := strings.Index(rest, next); i >= 0 && i < end {
+			end = i
+		}
+	}
+	return rest[:end]
+}
+
+var (
+	protocolFlag   = regexp.MustCompile("--protocol ([0-9]+)")
+	protocolOutput = regexp.MustCompile(`"protocol":([0-9]+)`)
+)
+
+// TestDocumentedProtocolMatches: every protocol number the documents write
+// is the binary's Protocol: each --protocol N in both guides and in every
+// command document under .claude/commands (prose included, not only code
+// blocks), each "protocol":N of the guides' output examples, and the current
+// number chapter 4 of each guide states. The guides and fixpr.md and runpr.md
+// must write at least one --protocol, so a document that stops writing it is
+// not read as agreeing.
+func TestDocumentedProtocolMatches(t *testing.T) {
+	want := strconv.Itoa(fixprguard.Protocol)
+	check := func(rel, doc string, re *regexp.Regexp, required bool) {
+		t.Helper()
+		found := re.FindAllStringSubmatch(doc, -1)
+		if required && len(found) == 0 {
+			t.Errorf("%s has no %s", rel, re)
+		}
+		for _, m := range found {
+			if m[1] != want {
+				t.Errorf("%s: %q, want %s", rel, m[0], want)
+			}
+		}
+	}
+	var commandDocs []string
+	err := filepath.WalkDir(filepath.Join(repoRoot, ".claude", "commands"), func(path string, d fs.DirEntry, err error) error {
+		if err == nil && !d.IsDir() && strings.HasSuffix(path, ".md") {
+			rel, relErr := filepath.Rel(repoRoot, path)
+			commandDocs = append(commandDocs, filepath.ToSlash(rel))
+			return relErr
+		}
+		return err
+	})
+	if err != nil {
+		t.Fatalf("walk command documents: %v", err)
+	}
+	for _, rel := range commandDocs {
+		required := rel == ".claude/commands/fixpr.md" || rel == ".claude/commands/runpr.md"
+		check(rel, readRepoFile(t, rel), protocolFlag, required)
+	}
+	for _, tc := range []struct {
+		rel     string
+		current *regexp.Regexp
+	}{
+		{guideFiles[0], regexp.MustCompile("現在の番号は `([0-9]+)`")},
+		{guideFiles[1], regexp.MustCompile("The current number is `([0-9]+)`")},
+	} {
+		guide := readRepoFile(t, tc.rel)
+		check(tc.rel, guide, protocolFlag, true)
+		check(tc.rel, guide, protocolOutput, true)
+		check(tc.rel, singleLine(t, tc.rel, guide, "| `--protocol N` |"), tc.current, true)
+	}
+}
+
+// configScope is how a document states the config comparison scope: the
+// phrases of the three points every such passage makes, (a) other branches'
+// branch settings are not compared (the current branch's and main's are),
+// (b) edits that leave the listed values unchanged are not detected, and
+// (c) a rewrite of other branches' settings is a residual risk.
+type configScope struct {
+	otherBranches, unchangedValues, residualRisk string
+}
+
+func (c configScope) phrases() []string {
+	return []string{c.otherBranches, c.unchangedValues, c.residualRisk}
+}
+
+// passage is one place of a document that states the config scope: its text,
+// phrases it must hold besides the scope's three, and phrases of the wording
+// it replaced, which must be gone.
+type passage struct {
+	name  string
+	text  string
+	more  []string
+	stale []string
+}
+
+// checkPassages fails for a passage that is missing, lacks a phrase, or
+// still holds stale wording.
+func checkPassages(t *testing.T, rel string, scope configScope, passages []passage) {
+	t.Helper()
+	for _, p := range passages {
+		if p.text == "" {
+			t.Errorf("%s: %s not found", rel, p.name)
+			continue
+		}
+		for _, want := range append(scope.phrases(), p.more...) {
+			if !strings.Contains(p.text, want) {
+				t.Errorf("%s: %s does not say %q", rel, p.name, want)
+			}
+		}
+		for _, old := range p.stale {
+			if strings.Contains(p.text, old) {
+				t.Errorf("%s: %s still says %q", rel, p.name, old)
+			}
+		}
+	}
+}
+
+// TestGuideDescribesConfigScope: in both guides, every passage on the config
+// comparison scope makes the three points of configScope: layer (3) of
+// chapter 1, inspect and push in chapter 5, the 7.1 row on rewritten hooks
+// and config, 7.2, and the git-state-changed row of chapter 8. The 7.1 row
+// also says the listing is compared without other branches' settings and
+// that git config --list is the only git run before the comparison, and the
+// rewritten passages no longer hold the wording they replaced. The phrases
+// are the guides' own, Japanese for the Japanese guide.
+func TestGuideDescribesConfigScope(t *testing.T) {
+	for _, tc := range []struct {
+		rel                                  string
+		scope                                configScope
+		row71, row71Old, inspectOld, pushOld string
+		row71More                            []string
+		row8Old                              string
+	}{
+		{
+			rel: guideFiles[0],
+			scope: configScope{
+				otherBranches:   "今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*`",
+				unchangedValues: "設定の値の一覧を変えない編集",
+				residualRisk:    "残余のリスク",
+			},
+			row71:      "| 書き換えられた hooks・config で git を起動しない |",
+			row71More:  []string{"を除いた設定の値の一覧を基準値と比べる", "比べる前に起動する git は `git config --list` だけ"},
+			row71Old:   "git や `gh` を起動する前に基準値と比べる",
+			inspectOld: "まず hooks・config・info を基準値と比べ",
+			pushOld:    "hooks・config・info が基準値と同じこと、",
+			row8Old:    "info のどれかが基準値と違う |",
+		},
+		{
+			rel: guideFiles[1],
+			scope: configScope{
+				otherBranches:   "the `branch.<name>.*` settings of other branches (every branch except the current branch and `main`)",
+				unchangedValues: "leave the listed values unchanged",
+				residualRisk:    "residual risk",
+			},
+			row71:      "| git is not started with rewritten hooks or config |",
+			row71More:  []string{"compare the list of configuration values without", "The only git started before the comparison is `git config --list`"},
+			row71Old:   "compare with the baseline before starting git or `gh`",
+			inspectOld: "It first compares the hooks, config, and info with the baseline",
+			pushOld:    "the hooks, config, and info match the baseline;",
+			row8Old:    "the info differs from the baseline |",
+		},
+	} {
+		t.Run(filepath.Base(tc.rel), func(t *testing.T) {
+			guide := readRepoFile(t, tc.rel)
+			checkPassages(t, tc.rel, tc.scope, []passage{
+				{name: "layer (3)", text: singleLine(t, tc.rel, guide, "3. **")},
+				{name: "inspect", text: subsection(guide, "### `inspect"), stale: []string{tc.inspectOld}},
+				{name: "push", text: subsection(guide, "### `push"), stale: []string{tc.pushOld}},
+				{name: "the 7.1 row", text: singleLine(t, tc.rel, guide, tc.row71), more: tc.row71More, stale: []string{tc.row71Old}},
+				{name: "7.2", text: subsection(guide, "### 7.2")},
+				{name: "the git-state-changed row", text: singleLine(t, tc.rel, guide, "| `git-state-changed` |"), stale: []string{tc.row8Old}},
+			})
 		})
 	}
 }
