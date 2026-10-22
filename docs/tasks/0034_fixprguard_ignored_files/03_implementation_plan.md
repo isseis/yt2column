@@ -311,8 +311,8 @@
 
 **変更するファイル**: `internal/fixprguard/types.go`、`.claude/commands/fixpr.md`、`.claude/commands/runpr.md`、`docs/dev/developer_guide/fixprguard_guide.ja.md`、`fixprguard_guide.md`、`docs/tasks/0032_japanese_pr_title/check_rules.sh`
 
--   [ ] `Protocol` を `4` にする。コメントは変えない（`types.go:17-20` は契約と範囲の規則の版と述べており、基準値の形と `parts` は契約に含まれる）。
--   [ ] 1.3.1 の表の箇所の番号を、すべて `4` にする。ガイドの基準値の例 `'v2....'` を `'v3....'` にする。1.3.2 の `git grep` が 0 行になることと、`check_rules.sh fixpr_title` が通ることを確かめ、結果をコミットメッセージに書く。
+-   [x] `Protocol` を `4` にする。コメントは変えない（`types.go:17-20` は契約と範囲の規則の版と述べており、基準値の形と `parts` は契約に含まれる）。
+-   [x] 1.3.1 の表の箇所の番号を、すべて `4` にする。ガイドの基準値の例 `'v2....'` を `'v3....'` にする。1.3.2 の `git grep` が 0 行になることと、`check_rules.sh fixpr_title` が通ることを確かめ、結果をコミットメッセージに書く。
 
 **壊して確かめる**: ガイドの `--protocol 4` の 1 か所を一時的に `3` に戻して、`TestDocumentedProtocolMatches` が失敗すること。
 

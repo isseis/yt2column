@@ -521,7 +521,7 @@ check_fixpr_title() {
 	has "$one" 'drafted a concrete final title and body' 'the concrete-text condition stays'
 	# Task 0030 moved the edit into fixprguard edit-pr, which reads the title
 	# from its file itself, so gh pr edit no longer appears here.
-	has "$one" 'fixprguard edit-pr --protocol 3 --title-file <title-file>' 'edit-pr takes the title from a file'
+	has "$one" 'fixprguard edit-pr --protocol 4 --title-file <title-file>' 'edit-pr takes the title from a file'
 	lacks_en_title "$one" 'the prompt does not keep the title English'
 }
 
