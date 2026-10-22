@@ -477,32 +477,26 @@ func (c configScope) phrases() []string {
 	return []string{c.otherBranches, c.unchangedValues, c.residualRisk}
 }
 
-// passage is one place of a document that states the config scope: its text,
-// phrases it must hold besides the scope's three, and phrases of the wording
-// it replaced, which must be gone. risk, when set, replaces the scope's
-// residual-risk phrase for a passage that words it differently.
+// passage is one place of a document that makes the points a guard checks:
+// its text, phrases it must hold besides the ones every passage of the check
+// shares, and phrases of the wording it replaced, which must be gone.
 type passage struct {
 	name  string
 	text  string
-	risk  string
 	more  []string
 	stale []string
 }
 
-// checkPassages fails for a passage that is missing, lacks a phrase, or
-// still holds stale wording.
-func checkPassages(t *testing.T, rel string, scope configScope, passages []passage) {
+// checkPassages fails for a passage that is missing, lacks one of phrases or
+// of its own more, or still holds stale wording.
+func checkPassages(t *testing.T, rel string, phrases []string, passages []passage) {
 	t.Helper()
 	for _, p := range passages {
 		if p.text == "" {
 			t.Errorf("%s: %s not found", rel, p.name)
 			continue
 		}
-		phrases := scope.phrases()
-		if p.risk != "" {
-			phrases[2] = p.risk
-		}
-		for _, want := range append(phrases, p.more...) {
+		for _, want := range append(slices.Clone(phrases), p.more...) {
 			if !strings.Contains(p.text, want) {
 				t.Errorf("%s: %s does not say %q", rel, p.name, want)
 			}
@@ -560,16 +554,122 @@ func TestGuideDescribesConfigScope(t *testing.T) {
 	} {
 		t.Run(filepath.Base(tc.rel), func(t *testing.T) {
 			guide := readRepoFile(t, tc.rel)
-			checkPassages(t, tc.rel, tc.scope, []passage{
+			checkPassages(t, tc.rel, tc.scope.phrases(), []passage{
 				{name: "layer (3)", text: singleLine(t, tc.rel, guide, "3. **")},
 				{name: "inspect", text: subsection(guide, "### `inspect"), stale: []string{tc.inspectOld}},
 				{name: "push", text: subsection(guide, "### `push")},
 				{name: "the 7.1 row", text: singleLine(t, tc.rel, guide, tc.row71), more: tc.row71More, stale: []string{tc.row71Old}},
-				{name: "7.2", text: subsection(guide, "### 7.2"), risk: tc.risk72},
 				{name: "the git-state-changed row", text: singleLine(t, tc.rel, guide, "| `git-state-changed` |")},
 			})
+			// 7.2 words the residual risk its own way.
+			risk72 := tc.scope
+			risk72.residualRisk = tc.risk72
+			checkPassages(t, tc.rel, risk72.phrases(), []passage{{name: "7.2", text: subsection(guide, "### 7.2")}})
 		})
 	}
+}
+
+// TestGuideListsScopeResidualRisks: 7.2 of both guides names the four
+// residual risks the scope rules leave: .md documents read as instructions,
+// files under testdata, files in scope under rule 1, and files read or run
+// that are not on the deny list. The phrases are the item openings of each
+// guide, Japanese for the Japanese guide.
+func TestGuideListsScopeResidualRisks(t *testing.T) {
+	for _, tc := range []struct {
+		rel   string
+		risks []string
+	}{
+		{rel: guideFiles[0], risks: []string{
+			"指示として読まれる `.md` の文書",
+			"`testdata` の下のファイル",
+			"規則 1 で範囲に入るファイル",
+			"拒否リストに載らず読まれる・実行されるファイル",
+		}},
+		{rel: guideFiles[1], risks: []string{
+			"`.md` documents read as instructions",
+			"Files under `testdata`",
+			"Files in scope under rule 1",
+			"Files read or run that are not on the deny list",
+		}},
+	} {
+		guide := readRepoFile(t, tc.rel)
+		checkPassages(t, tc.rel, tc.risks, []passage{{name: "7.2", text: subsection(guide, "### 7.2")}})
+	}
+}
+
+// task0036Docs are the links a note in task 0030's documents gives to the
+// task that changed the scope rules, relative to 0030's directory.
+var task0036Docs = []string{
+	"../0036_fixprguard_exec_file_scope/01_requirements.md",
+	"../0036_fixprguard_exec_file_scope/02_architecture.md",
+}
+
+// commentRecord matches the start of one record in a Comments cell: its date
+// and its kind.
+var commentRecord = regexp.MustCompile(`\d{4}-\d{2}-\d{2} \(([a-z]+)\): `)
+
+// TestTask0030NotesScopeChange: task 0030's architecture 3.6 and
+// requirements F-004, which state the scope rules as 0030 decided them, each
+// carry a quoted note linking task 0036's requirements and architecture; both
+// documents stay approved; and each Comments cell has one editorial record
+// that names #425, the issue of task 0036.
+func TestTask0030NotesScopeChange(t *testing.T) {
+	const dir = "docs/tasks/0030_fixpr_untrusted_threads/"
+	for _, tc := range []struct {
+		rel     string
+		name    string
+		section func(doc string) string
+	}{
+		{rel: dir + "02_architecture.md", name: "3.6", section: func(doc string) string { return subsection(doc, "### 3.6.") }},
+		{rel: dir + "01_requirements.md", name: "F-004", section: func(doc string) string {
+			return cutSection(doc, "#### F-004", "\n## ", "\n### ", "\n#### ")
+		}},
+	} {
+		t.Run(filepath.Base(tc.rel), func(t *testing.T) {
+			doc := readRepoFile(t, tc.rel)
+			text := tc.section(doc)
+			if text == "" {
+				t.Fatalf("%s: %s not found", tc.rel, tc.name)
+			}
+			noted := false
+			for line := range strings.Lines(text) {
+				if strings.HasPrefix(line, "> ") && containsAll(line, task0036Docs) {
+					noted = true
+				}
+			}
+			if !noted {
+				t.Errorf("%s: %s has no quoted note linking %v", tc.rel, tc.name, task0036Docs)
+			}
+			if status := singleLine(t, tc.rel, doc, "| Status |"); !strings.Contains(status, "`approved`") {
+				t.Errorf("%s: status is not approved: %q", tc.rel, status)
+			}
+			comments := singleLine(t, tc.rel, doc, "| Comments |")
+			starts := commentRecord.FindAllStringSubmatchIndex(comments, -1)
+			found := 0
+			for i, m := range starts {
+				end := len(comments)
+				if i+1 < len(starts) {
+					end = starts[i+1][0]
+				}
+				if comments[m[2]:m[3]] == "editorial" && strings.Contains(comments[m[1]:end], "#425") {
+					found++
+				}
+			}
+			if found != 1 {
+				t.Errorf("%s: Comments has %d editorial records naming #425, want 1", tc.rel, found)
+			}
+		})
+	}
+}
+
+// containsAll reports whether s contains every one of subs.
+func containsAll(s string, subs []string) bool {
+	for _, sub := range subs {
+		if !strings.Contains(s, sub) {
+			return false
+		}
+	}
+	return true
 }
 
 // TestCutSection: the extraction the guards read through stops where it
