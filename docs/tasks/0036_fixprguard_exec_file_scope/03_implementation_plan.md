@@ -115,6 +115,7 @@
 -   **0034 の状態:** 要件定義書を改める PR #443 はマージされた（`9f83469`）。`origin/main` の `docs/tasks/0034_fixprguard_ignored_files/` には `01_requirements.md`（`approved`）と `design_handoff.md` だけがあり、設計書も実装もない。0034 の開いている PR はない。issue #424 は開いている。
 -   **設計書 3.8 の前提との違い:** 0034 の対象は、実行関連ファイルの定義全体から「監視の一覧」（0034 要件書 3 章）に改められ、0034 は範囲の規則の定義に依らなくなった（0034 要件書 2.3）。そのため、設計書 3.8 の「定義の中身」の 3 つの食い違い（`.vscode/settings.json`・`.DS_Store` とスワップファイル・`extension/node_modules/` の下の `.bin/`）は該当しない。0034 の要件書 4.5 は、Go のビルドの入力の拡張子の一覧を「先に実装するほうが置き、後のほうが再利用する」とした。監視の一覧は `claude.md` と Go のビルドの入力をどの階層でも含むので、設計書 5.3 の「自分自身を無視させる `.gitignore`」のうち、これらのファイルについては 0034 が閉じる。
 -   **申し送り:** `Protocol` の `3` は本タスクが使い、0034 は `4` 以上を使うこと、Go のビルドの入力の拡張子は本タスクが `scope.go` の `goBuildInputSuffixes` に置き 0034 が再利用すること、0034 の要件書が引く `scope.go` の行番号が変わること、用語（実行関連ファイル、`.go` の規則の許可リストの (c) への移動）を、利用者の承認を得て issue #424 にコメントした: https://github.com/isseis/yt2column/issues/424#issuecomment-6337255297
+-   **ステップ 2-2 の確かめ直し（2026-10-22、`origin/main` は `ad45375` の後に 0031 の計画書の PR #445 だけが入った）:** 0034 の実装は `main` に入っていない。0034 の設計書の PR #447（ブランチ `isseis/0034-fixprguard-ignored-files-03`、`draft`）が開いた。設計書は `Protocol` を `4` にし、Go のビルドの入力の拡張子に本タスクが `scope.go` に置く変数を使い、`scope.go` の行番号が変わることを書いている（同 1.2・3.2・3.9）。申し送りの内容と食い違わないので、追加の申し送りはしない。
 
 ## 2. 実装ステップ (Implementation Steps)
 
@@ -201,10 +202,10 @@
 
 **変更するファイル**: `internal/fixprguard/types.go`、`.claude/commands/fixpr.md`、`.claude/commands/runpr.md`、`docs/dev/developer_guide/fixprguard_guide.ja.md`、`fixprguard_guide.md`、`docs/tasks/0032_japanese_pr_title/check_rules.sh`
 
--   [ ] `Protocol` を `3` にし、コメントに判定の規則を加える（設計書 3.6「上げる値」）。コメントは、`// Protocol is the version of the tool's input and output contract. The command` / `// documents pass it back with --protocol, so an installed binary that predates` / `// the documents stops instead of judging by older rules.` から、`// Protocol is the version of the tool's input and output contract and of the` / `// scope rules inspect applies. The command documents pass it back with` / `// --protocol, so an installed binary that predates the documents stops instead` / `// of judging by older rules.` に改める（` / ` は行の区切り）。
--   [ ] 設計書 3.6 の表の箇所の番号を、すべて `3` にする。そのうえで、設計書 3.6 の 2 つの正規表現でリポジトリ全体を `git grep` し、`2` が残るのが設計書 3.6「変えないもの」の箇所だけであることを確かめる（設計書 3.6「番号を固定している箇所の探し方」）。
--   [ ] `sh docs/tasks/0032_japanese_pr_title/check_rules.sh fixpr_title` が通ることを確かめる。
--   [ ] ガイド 9 章（日本語版をコミットしてから英語版）を、設計書 1.2 の 4 つめの項目と 3.5「ガイド 9 章」のとおり改める。番号を上げる条件に「範囲の規則を変える場合」を加え、一覧の更新の項目に許可リストを加えて、用語を「実行関連ファイル」にする。`TestGuideDescribesReviewerList` が確かめる但し書きの文（1.3.1）は変えない。英語版は日本語版と節ごとに突き合わせる。9 章の文の中身は PR-1 のレビューで読み合わせる（`manual`）。
+-   [x] `Protocol` を `3` にし、コメントに判定の規則を加える（設計書 3.6「上げる値」）。コメントは、`// Protocol is the version of the tool's input and output contract. The command` / `// documents pass it back with --protocol, so an installed binary that predates` / `// the documents stops instead of judging by older rules.` から、`// Protocol is the version of the tool's input and output contract and of the` / `// scope rules inspect applies. The command documents pass it back with` / `// --protocol, so an installed binary that predates the documents stops instead` / `// of judging by older rules.` に改める（` / ` は行の区切り）。
+-   [x] 設計書 3.6 の表の箇所の番号を、すべて `3` にする。そのうえで、設計書 3.6 の 2 つの正規表現でリポジトリ全体を `git grep` し、`2` が残るのが設計書 3.6「変えないもの」の箇所だけであることを確かめる（設計書 3.6「番号を固定している箇所の探し方」）。
+-   [x] `sh docs/tasks/0032_japanese_pr_title/check_rules.sh fixpr_title` が通ることを確かめる。
+-   [x] ガイド 9 章（日本語版をコミットしてから英語版）を、設計書 1.2 の 4 つめの項目と 3.5「ガイド 9 章」のとおり改める。番号を上げる条件に「範囲の規則を変える場合」を加え、一覧の更新の項目に許可リストを加えて、用語を「実行関連ファイル」にする。`TestGuideDescribesReviewerList` が確かめる但し書きの文（1.3.1）は変えない。英語版は日本語版と節ごとに突き合わせる。9 章の文の中身は PR-1 のレビューで読み合わせる（`manual`）。
 
 **壊して確かめる**: ガイドの `--protocol 3` の 1 か所を一時的に `2` に戻して、`TestDocumentedProtocolMatches` が失敗すること。
 
@@ -214,10 +215,10 @@
 
 **変更するファイル**: なし
 
--   [ ] `make test && make lint` を実行する。
--   [ ] 文書のガード（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`）を実行する。
--   [ ] 本タスクの前のツールで、PR-1 のブランチの `fixpr.md` に書いた形の `--protocol 3` の呼び出しが終了コード `2` で止まることを確かめる（AC-16 の `manual`。1.3.2）。まず `go version -m "$(command -v fixprguard)"` の `vcs.revision` が PR-1 の前の `origin/main` のコミットであることを確かめる。そうでなければ、PR-1 の前の `origin/main` の `cmd/fixprguard` をスクラッチのディレクトリにビルドして使う。
--   [ ] PR を開く前に、利用者の承認を得て 0034 の状態を確かめ直す（設計書 3.8。ステップ 1-1 と同じ読み取り）。0034 の実装が `main` に入っていたら、止まって利用者と決め直す。ステップ 1-1 の後に 0034 の文書が設計書 3.8 にかかわる形で変わっていたら、違いを本書 1.6 に記録し、追加の申し送りの要否を利用者に確かめる。
+-   [x] `make test && make lint` を実行する。
+-   [x] 文書のガード（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`）を実行する。
+-   [x] 本タスクの前のツールで、PR-1 のブランチの `fixpr.md` に書いた形の `--protocol 3` の呼び出しが終了コード `2` で止まることを確かめる（AC-16 の `manual`。1.3.2）。まず `go version -m "$(command -v fixprguard)"` の `vcs.revision` が PR-1 の前の `origin/main` のコミットであることを確かめる。そうでなければ、PR-1 の前の `origin/main` の `cmd/fixprguard` をスクラッチのディレクトリにビルドして使う。
+-   [x] PR を開く前に、利用者の承認を得て 0034 の状態を確かめ直す（設計書 3.8。ステップ 1-1 と同じ読み取り）。0034 の実装が `main` に入っていたら、止まって利用者と決め直す。ステップ 1-1 の後に 0034 の文書が設計書 3.8 にかかわる形で変わっていたら、違いを本書 1.6 に記録し、追加の申し送りの要否を利用者に確かめる。
 
 **完了条件**: 上の 4 つが済んでいる。
 
@@ -400,9 +401,9 @@
 
 `make test`・`make lint` とガードが検出しないものだけを挙げる。どれも `manual` で、実行した検索とその結果を、そのステップのコミットメッセージに書く。
 
--   [ ] ステップ 2-1 の `git grep`（設計書 3.6 の 2 つの正規表現）で、`2` の番号が設計書 3.6「変えないもの」の箇所にだけ残っている。
--   [ ] ガイドの日本語版で、「コマンドの実行に関わるファイル」と「実行に関わるファイル」が 6 章の初出の併記にだけ残り、ほかは「実行関連ファイル」になっている（設計書 3.5 の「用語」の行）。英語版は今の "execution-related file" のままでよい。
--   [ ] `.claude/commands/` と `docs/dev/` に、消した表記（`/.*`・`/claude.md`・`/agents.md`）と「`.go` の規則を実行関連ファイルの一覧に含める」記述が残っていない。
+-   [x] ステップ 2-1 の `git grep`（設計書 3.6 の 2 つの正規表現）で、`2` の番号が設計書 3.6「変えないもの」の箇所にだけ残っている。
+-   [x] ガイドの日本語版で、「コマンドの実行に関わるファイル」と「実行に関わるファイル」が 6 章の初出の併記にだけ残り、ほかは「実行関連ファイル」になっている（設計書 3.5 の「用語」の行）。英語版は今の "execution-related file" のままでよい。
+-   [x] `.claude/commands/` と `docs/dev/` に、消した表記（`/.*`・`/claude.md`・`/agents.md`）と「`.go` の規則を実行関連ファイルの一覧に含める」記述が残っていない。
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
