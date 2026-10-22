@@ -225,8 +225,8 @@
 
 **変更するファイル**: `cmd/fixprguard/docs_test.go`
 
--   [ ] `TestDocumentedInvocationsParse` の `--reviewer` の確かめを、呼び出しの引数を受け取って問題を返す関数に切り出す。関数は、`--reviewer` を取る各呼び出しで、`inv.multi` の `--reviewer` の値がちょうど 1 つで、それが `<reviewer>` であることを確かめる（設計書 3.4 の呼び出しのガード）。テストのコメントと `reviewerPlaceholder` のコメントを改める。
--   [ ] この関数を、合成した呼び出しの表で確かめるテストを加える（1.4）。表は、`<reviewer>` が 2 つ、名前そのもの、`<reviewer>` 1 つ（問題なし）の場合を含む。
+-   [x] `TestDocumentedInvocationsParse` の `--reviewer` の確かめを、呼び出しの引数を受け取って問題を返す関数に切り出す。関数は、`--reviewer` を取る各呼び出しで、`inv.multi` の `--reviewer` の値がちょうど 1 つで、それが `<reviewer>` であることを確かめる（設計書 3.4 の呼び出しのガード）。テストのコメントと `reviewerPlaceholder` のコメントを改める。
+-   [x] この関数を、合成した呼び出しの表で確かめるテストを加える（1.4）。表は、`<reviewer>` が 2 つ、名前そのもの、`<reviewer>` 1 つ（問題なし）の場合を含む。
 
 **壊して確かめる**: 「ちょうど 1 つ」の確かめと「`<reviewer>` である」の確かめを 1 つずつ外し、表の該当の行が失敗すること。
 
@@ -447,7 +447,7 @@
 | AC-07 | test | `internal/fixprguard/types_test.go::TestParseReviewers`、`cmd/fixprguard/main_test.go::TestAcceptThreadFlagParsing`（4 つのサブコマンドそれぞれの、`--reviewer` がない・重複・文法違反の行。標準エラーも確かめる）、`::TestReviewerFlag` |
 | AC-08 | test | `internal/fixprguard/github_test.go::TestBeginAuthorType` |
 | AC-09 | test | `cmd/fixprguard/main_test.go::TestReviewerFlag` |
-| AC-10 | static | `cmd/yt2column/fixpr_docs_test.go::TestContextAndCommandsAgree`（定義の文）、`cmd/fixprguard/docs_test.go::TestDocumentedInvocationsParse`（ちょうど 1 つの `<reviewer>`）、`::TestReviewerInvocationCheck`（合成した呼び出しの表。ステップ 1-4） |
+| AC-10 | static | `cmd/yt2column/fixpr_docs_test.go::TestContextAndCommandsAgree`（定義の文）、`cmd/fixprguard/docs_test.go::TestDocumentedInvocationsParse`（ちょうど 1 つの `<reviewer>`）、`::TestCheckDocumentedReviewer`（合成した呼び出しの表。ステップ 1-4） |
 | AC-11 | static | `cmd/yt2column/fixpr_docs_test.go::TestContextAndCommandsAgree`（名前が依頼のコメントの外に現れない。`<awaited-reviewer>` の定義の文）、`::TestRunprDocContract`（step 3 の「Reviewed」の部分）、`::TestRemovedCommandLiterals`（`<reviewer>[bot]` と `"Automated reviewer"`） |
 | AC-12 | static | `cmd/yt2column/fixpr_docs_test.go::TestFixprDocContract`（`fixpr.md`）、`cmd/fixprguard/docs_test.go::TestGuideDescribesReviewerList`（ガイドの両方の版。ステップ 1-5・2-3）、`cmd/yt2column/docs_test.go::TestPackageReferenceFixprguard`（`package_reference.md`） |
 | AC-13 | static | `cmd/yt2column/fixpr_docs_test.go::TestGlossaryTerms` |

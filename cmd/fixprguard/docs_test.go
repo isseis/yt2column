@@ -3,8 +3,11 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -54,9 +57,34 @@ func TestGuideCoversStopKindsAndScope(t *testing.T) {
 	}
 }
 
-// reviewerPlaceholder is the --reviewer value the command documents write: the
-// automated reviewer's name is defined in _context.md alone.
+// reviewerPlaceholder is the --reviewer value the command documents write.
+// The documents write it once per call and define it as one --reviewer per
+// name of the automated reviewer list in _context.md, so the names live in
+// _context.md alone and the list can change without editing a call.
 const reviewerPlaceholder = "<reviewer>"
+
+var (
+	errReviewerCount = errors.New("--reviewer not given exactly once")
+	errReviewerValue = errors.New("--reviewer is not the placeholder")
+)
+
+// checkDocumentedReviewer checks a parsed documented call of a subcommand that
+// takes --reviewer: its collected --reviewer values must be exactly one, the
+// placeholder. A call of another subcommand has nothing to check (parse
+// refuses --reviewer there).
+func checkDocumentedReviewer(inv invocation) error {
+	if !slices.Contains(specs[inv.name].flags, flagReviewer) {
+		return nil
+	}
+	values := inv.multi[flagReviewer]
+	if len(values) != 1 {
+		return fmt.Errorf("%w: %d values", errReviewerCount, len(values))
+	}
+	if values[0] != reviewerPlaceholder {
+		return fmt.Errorf("%w: %q", errReviewerValue, values[0])
+	}
+	return nil
+}
 
 // documentedInvocations returns the argument lists of the fixprguard calls in
 // doc's fenced code blocks, one per line that starts with "fixprguard ". A
@@ -84,8 +112,9 @@ func documentedInvocations(doc string) [][]string {
 // TestDocumentedInvocationsParse runs every fixprguard call written in
 // fixpr.md and runpr.md through the tool's own command-line parser: the
 // subcommand, the flag names, the positional argument, and --protocol must be
-// what this binary accepts, and --reviewer must be the placeholder for the
-// name in _context.md. Each document must also call the subcommands it uses.
+// what this binary accepts, and --reviewer must be given once, as the
+// placeholder for the names in _context.md. Each document must also call the
+// subcommands it uses.
 func TestDocumentedInvocationsParse(t *testing.T) {
 	for _, tc := range []struct {
 		rel  string
@@ -103,8 +132,8 @@ func TestDocumentedInvocationsParse(t *testing.T) {
 				continue
 			}
 			seen[inv.name] = struct{}{}
-			if reviewer, ok := inv.values[flagReviewer]; ok && reviewer != reviewerPlaceholder {
-				t.Errorf("%s: fixprguard %s passes --reviewer %q, want %q", tc.rel, inv.name, reviewer, reviewerPlaceholder)
+			if err := checkDocumentedReviewer(inv); err != nil {
+				t.Errorf("%s: fixprguard %s: %v", tc.rel, inv.name, err)
 			}
 		}
 		for _, name := range tc.want {
@@ -112,5 +141,34 @@ func TestDocumentedInvocationsParse(t *testing.T) {
 				t.Errorf("%s has no fixprguard %s call", tc.rel, name)
 			}
 		}
+	}
+}
+
+// TestCheckDocumentedReviewer runs the documented-call check on synthesized
+// calls, so a check loosened later fails here and not only when a document
+// happens to break it.
+func TestCheckDocumentedReviewer(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		args []string
+		want error
+	}{
+		{"one_placeholder", args(cmdList, "--reviewer", reviewerPlaceholder, testPR), nil},
+		{"one_placeholder_reply", args(cmdReply, "--reviewer", reviewerPlaceholder, "--thread-id", "<id>", "--comment-id", "<n>",
+			"--fingerprint", "<f>", "--body-file", "<file>", testPR), nil},
+		{"no_reviewer_subcommand", args(cmdHead, testPR), nil},
+		{"two_placeholders", args(cmdBegin, "--reviewer", reviewerPlaceholder, "--reviewer", reviewerPlaceholder, testPR), errReviewerCount},
+		{"placeholder_and_name", args(cmdBegin, "--reviewer", reviewerPlaceholder, "--reviewer", testReviewer, testPR), errReviewerCount},
+		{"name_itself", args(cmdInspect, "--reviewer", testReviewer, "--baseline", "<b>", testPR), errReviewerValue},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			inv, err := parse(tc.args)
+			if err != nil {
+				t.Fatalf("parse(%q) = %v", tc.args, err)
+			}
+			if err := checkDocumentedReviewer(inv); !errors.Is(err, tc.want) {
+				t.Errorf("checkDocumentedReviewer = %v, want %v", err, tc.want)
+			}
+		})
 	}
 }
