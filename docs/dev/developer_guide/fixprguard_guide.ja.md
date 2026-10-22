@@ -10,7 +10,7 @@
 
 1. **著者の判定。** すべてのコメントの著者が信頼する著者であるスレッドだけを処理する。信頼する著者は、自動レビュアー（`--reviewer` で渡した名前のどれかの Bot。`/fixpr`・`/runpr` は、`.claude/commands/_context.md` の `Automated reviewer list` のすべての名前を渡す）と、リポジトリへの書き込み権限（`role_name` が `write`・`maintain`・`admin`）を持つ人である。想定外の著者のスレッドの本文は取得しない。
 2. **区切りのブロック。** エージェントのプロンプトに埋め込む信頼できないテキストを、実行ごとの乱数（nonce）を含む区切りの行で囲む。
-3. **変更範囲と git の状態の確認。** 修正が、処理したスレッドの範囲の外のファイルや、git の hooks・config を変えていないことを、commit と push の前に確かめる。config では、今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*` の設定は比べない。並行するセッションがほかの worktree でブランチを操作しても止まらないようにするためである。設定の値の一覧を変えない編集（コメント・空行・字下げだけの編集）も検出しない。ほかのブランチの設定の書き換えは、残余のリスクである（7.2）。
+3. **変更範囲と git の状態の確認。** 修正が、処理したスレッドの範囲の外のファイルや、git の hooks・config、git が無視するファイルのうち監視の一覧（7.1）に当たるもの（対象のファイル）を変えていないことを、commit と push の前に確かめる。config では、今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*` の設定は比べない。並行するセッションがほかの worktree でブランチを操作しても止まらないようにするためである。設定の値の一覧を変えない編集（コメント・空行・字下げだけの編集）も検出しない。ほかのブランチの設定の書き換えは、残余のリスクである（7.2）。
 
 役割分担は次のとおり。
 
@@ -112,7 +112,7 @@ fixprguard list --protocol 4 --reviewer coderabbitai 42
 
 ### `begin --reviewer LOGIN ... [--accept ID=FINGERPRINT ...] [PR]`
 
-`/fixpr` のフェーズ 1。次の順に行う。(1) 作業ツリーに未コミットの変更（未追跡のファイルを含む）がないこと（あれば `dirty-work-tree` で止まり、GitHub に問い合わせない）。(2) `head` と同じ確認。(3) 基準値の採取。(4) 最初の 1 ページ（100 スレッド）の判定と、処理するスレッドの本文の取得。
+`/fixpr` のフェーズ 1。次の順に行う。(1) 作業ツリーに未コミットの変更（未追跡のファイルを含む）がないこと（あれば `dirty-work-tree` で止まり、GitHub に問い合わせない）。(2) `head` と同じ確認。(3) 基準値の採取（対象のファイルの状態を含む）と、`begin` の記録のファイルの書き込み。(4) 最初の 1 ページ（100 スレッド）の判定と、処理するスレッドの本文の取得。
 
 処理するスレッドは、信頼する著者のスレッドと、`--accept` で名指しされて指紋が現在と一致するスレッドである。`--accept` には、利用者に示した報告の出力にあるスレッド ID と指紋を渡す。
 
@@ -124,7 +124,7 @@ fixprguard begin --protocol 4 --reviewer coderabbitai 42
 
 | 項目 | 内容 |
 |---|---|
-| `baseline` | 基準値。`inspect`・`finish`・`push` に `--baseline` で渡す |
+| `baseline` | 基準値。`inspect`・`finish`・`push` に `--baseline` で渡す。`.` で分けた 9 番目の欄は対象のファイルの状態をまとめた digest、10 番目の欄は `begin` の記録のファイルの SHA-256 である（8.1） |
 | `number`・`capHit` | PR 番号。`capHit` が真なら、2 ページ目以降のスレッドは今回の対象外 |
 | `processCount` | 処理するスレッドの数。`0` なら処理するものはない |
 | `untrusted` | 処理しない想定外の著者のスレッド（`threadId`・`url`・`fingerprint`・`findings`）。本文はない |
@@ -133,7 +133,7 @@ fixprguard begin --protocol 4 --reviewer coderabbitai 42
 | `permissionLookups` | 権限の照会の使用回数と残り |
 | `nonce`・`threads` | `threads` は、処理するスレッドの配列（`threadId`・`databaseId`・`authorType`・`body`・`path`・`line`・`url`・`fingerprint`・`named`）を 1 行の JSON にし、`BEGIN-UNTRUSTED-<nonce>` と `END-UNTRUSTED-<nonce>` の行で囲んだ文字列。エージェントのプロンプトにはこの文字列をそのまま埋め込む |
 
-副作用: GitHub と `git ls-remote` の読み取りだけ。
+副作用: GitHub と `git ls-remote` の読み取りと、作業ツリーごとの git のディレクトリ（main のチェックアウトでは `.git`、linked worktree では `.git/worktrees/<name>`）への `begin` の記録のファイル `fixprguard-ignored-begin` の書き込み（置き換え）。前のラウンドの止まった時点の記録のファイル `fixprguard-ignored-stop` は消す。記録のファイルは、対象のファイルごとに、そのファイルの状態の digest と、ASCII に引用したパスを 1 行に書く。基準値を求めた後に対象のファイルが変わっていれば、記録を書かずに `git-state-changed`（`ignored`）で止まる。作業ツリーと対象のファイルは変えない。
 
 ### `fence FILE`
 
@@ -147,7 +147,7 @@ fixprguard fence --protocol 4 /path/to/triage.json
 
 ### `inspect --reviewer LOGIN ... --baseline TOKEN [--thread ID=FINGERPRINT ...] [PR]`
 
-修正のフェーズの後に実行する。まず config・info・hooks を基準値と比べ、違えば `gh` を起動せずに `git-state-changed` で止まる。比べる順序は次のとおりである。(1) git のディレクトリの場所、config のファイルの種類、info を、git を起動せずにファイルだけで比べる。(2) `git config --list` で git が読む設定の値の一覧を読み、今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*` の設定を除いて比べる。(3) hooks を比べる。設定の値の一覧を変えない編集（コメント・空行・字下げだけの編集）は検出しない。ほかのブランチの設定の書き換えは、残余のリスクである（7.2）。次に、`--thread` のスレッドを GitHub から取り直して `path` を求め（指紋が違えば `thread-changed`）、作業ツリーの変更を数え上げて、範囲（6 章）と照らす。
+修正のフェーズの後に実行する。まず config・info・hooks と対象のファイルを基準値と比べ、違えば `gh` を起動せずに `git-state-changed` で止まる。比べる順序は次のとおりである。(1) git のディレクトリの場所、config のファイルの種類、info を、git を起動せずにファイルだけで比べる。(2) `git config --list` で git が読む設定の値の一覧を読み、今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*` の設定を除いて比べる。(3) hooks を比べる。(4) 対象のファイル（7.1）の状態を比べる。列挙の git が config を読むので、config と hooks が一致した後に比べる。違えば `parts` は `ignored` だけである。設定の値の一覧を変えない編集（コメント・空行・字下げだけの編集）は検出しない。ほかのブランチの設定の書き換えは、残余のリスクである（7.2）。次に、`--thread` のスレッドを GitHub から取り直して `path` を求め（指紋が違えば `thread-changed`）、作業ツリーの変更を数え上げて、範囲（6 章）と照らす。
 
 ```sh
 fixprguard inspect --protocol 4 --reviewer coderabbitai --baseline 'v3....' --thread 'PRRT_...=<指紋>' 42
@@ -155,11 +155,11 @@ fixprguard inspect --protocol 4 --reviewer coderabbitai --baseline 'v3....' --th
 
 出力: `judgedSet`（判定した集合の識別子。`finish` に渡す）、`changes`（変更のあったパスの数）、`outOfScope`（範囲外の変更。各要素は `position`・`path`・`kind`（`add`・`modify`・`delete`・`other`）・`added`・`deleted`・`binary`）。`outOfScope` が空でなければ終了コード `3` で、利用者に一覧を示して続けるかを確かめる。パスの検査（6 章）に通らないパスは `path` を出さず、`position` だけで示す。
 
-副作用: GitHub と git（`git ls-remote` を含む）の読み取りだけ。作業ツリーは変えない。
+副作用: GitHub と git（`git ls-remote` を含む）の読み取りだけ。作業ツリーは変えない。`ignored` で止まったときだけ、git のディレクトリに止まった時点の記録のファイル `fixprguard-ignored-stop` を書く（置き換える）。
 
 ### `finish --baseline TOKEN --judged-set ID PR`
 
-`/fixpr` のフェーズ 4。1 回の呼び出しで次の順序を強制する。(1) 作業ツリーが判定した集合と一致し、git の状態が基準値と同じ。(2) `make fmt`。(3) 整形後の集合を記録（変更のあるパスの集合が変わっていれば止まる）。(4) `make test`・`make lint`。(5) 整形後の集合と厳密に一致。(6) 判定したパスだけを、パスを文字どおりに解釈する指定で stage。(7) stage の内容を確認（違えば取り消す）。(8) commit。(9) commit のツリーが整形後の集合と一致することを確認。make のターゲットは `fmt`・`test`・`lint` の固定値で、引数からは受け取らない。commit の件名は `fix: address PR #<PR> review comments` である。
+`/fixpr` のフェーズ 4。1 回の呼び出しで次の順序を強制する。(1) 作業ツリーが判定した集合と一致し、git の状態（対象のファイルを含む）が基準値と同じ。(2) `make fmt`。(3) 整形後の集合を記録（変更のあるパスの集合が変わっていれば止まる）。(4) `make test`・`make lint`（`make test` の後にも git の状態を比べる）。(5) 整形後の集合と厳密に一致。(6) 判定したパスだけを、パスを文字どおりに解釈する指定で stage。(7) stage の内容を確認（違えば取り消す）。(8) commit。(9) commit のツリーが整形後の集合と一致することを確認。make のターゲットは `fmt`・`test`・`lint` の固定値で、引数からは受け取らない。commit の件名は `fix: address PR #<PR> review comments` である。
 
 ```sh
 fixprguard finish --protocol 4 --baseline 'v3....' --judged-set '<judgedSet>' 42
@@ -167,17 +167,17 @@ fixprguard finish --protocol 4 --baseline 'v3....' --judged-set '<judgedSet>' 42
 
 出力: `committed`（判定した集合が空なら `false` で、何もしない）と `commit`（作った commit の SHA。`push` に渡す）。
 
-副作用: `make fmt` の整形、build checks が行う書き込み、stage と commit。push・ブランチの切り替え・reset はしない（stage の取り消しを除く）。
+副作用: `make fmt` の整形、build checks が行う書き込み、stage と commit。push・ブランチの切り替え・reset はしない（stage の取り消しを除く）。`ignored` で止まったときは、止まった時点の記録のファイルを書く。
 
 ### `push --baseline TOKEN --commit SHA`
 
-`finish` が返した SHA を push する。直前に、hooks・config・info が基準値と同じこと、HEAD がその SHA でその親が基準値の commit だけであること、push 先（現在のブランチについて git が解決するリモートの、同じ名前のブランチ）の OID が基準値と同じことを確かめる。明示した refspec で、タグとサブモジュールを伴わずに push する。config の比べ方は `inspect` と同じである。今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*` の設定は比べず、設定の値の一覧を変えない編集は検出しない。ほかのブランチの設定の書き換えは、残余のリスクである（7.2）。
+`finish` が返した SHA を push する。直前に、hooks・config・info と対象のファイルが基準値と同じこと、HEAD がその SHA でその親が基準値の commit だけであること、push 先（現在のブランチについて git が解決するリモートの、同じ名前のブランチ）の OID が基準値と同じことを確かめる。明示した refspec で、タグとサブモジュールを伴わずに push する。config の比べ方は `inspect` と同じである。今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*` の設定は比べず、設定の値の一覧を変えない編集は検出しない。ほかのブランチの設定の書き換えは、残余のリスクである（7.2）。
 
 ```sh
 fixprguard push --protocol 4 --baseline 'v3....' --commit '<SHA>'
 ```
 
-出力: `{"protocol":4,"pushed":true,"commit":"<SHA>"}`。
+出力: `{"protocol":4,"pushed":true,"commit":"<SHA>"}`。`ignored` で止まったときは、止まった時点の記録のファイルを書く。
 
 ### `reply --reviewer LOGIN ... --thread-id ID --comment-id N --fingerprint FP --body-file FILE [--accept ID=FINGERPRINT ...] [PR]`
 
@@ -267,6 +267,18 @@ fixprguard edit-pr --protocol 4 --title-file /path/to/title.txt --body-file /pat
 | メンションを含む文面を GitHub に送らない | `reply` の本文と `edit-pr` のタイトル・本文が `@codex` を（ASCII の範囲で大文字と小文字を区別せず、語の一部でも）含めば、GitHub に書き込む前に終了コード `2` で拒否する。利用者のアカウントの投稿が Codex を動かすのを防ぐ。コマンドの文書が投稿の前に行う確認（タスク 0031 で加える）に重ねる裏の守りである |
 | 返信と PR の説明がシェルのコマンドにならない | `reply`・`edit-pr` はシェルを介さず、本文を標準入力で渡す |
 | fork の PR の head を扱わない | `head`・`list`・`begin` が最初に確かめる |
+| git が無視するファイルのうち監視の一覧に当たるものの作成・書き換え・削除を、`inspect`・`finish`・`push` が基準値と比べて検出する | `begin` が、`git ls-files --others --ignored --exclude-standard` で列挙した無視されるファイル（git が 1 つの項目として示す入れ子のリポジトリは、ツールが中をたどる）のうち、下の監視の一覧に当たるもの（対象のファイル）と、必ず含める `.claude/settings.local.json` の状態を基準値に記録する。`inspect`・`finish`（build checks の後を含む）・`push` は、config と hooks の後に同じ手順で状態を求めて比べ、違えば `git-state-changed`（`ignored`）で止まる。状態は、有無・種類・内容・実行の許可・シンボリックリンクの文字列とたどる先である。パス・名前・内容は出力せず、git のディレクトリの記録のファイルにだけ書く |
+
+**監視の一覧。** 対象のファイルは、git が無視するファイル（`.gitignore`・`info/exclude`・グローバルの除外のファイルのどれで無視されてもよい）のうち、作業ツリーの最上位からのパスが次の表に当たるものである。表の項目は `internal/fixprguard/ignored.go` の定義と同じで、`cmd/fixprguard/docs_test.go` が一致を確かめる。
+
+| 形 | 項目 |
+|---|---|
+| 最上位のこのディレクトリの下のすべて（ディレクトリそのものを含む） | `.claude/` |
+| 最上位のこの名前のファイル（先頭の `/` は最上位だけで当たる印） | `/.env`、`/.envrc`、`/claude.local.md` |
+| どの階層でも、この名前のファイル | `claude.md`、`makefile`、`gnumakefile`、`go.mod`、`go.work` |
+| どの階層でも、名前がこの文字列で終わるファイル（名前がその文字列だけのものを含む） | `*.go`、`*.mk`、`*.c`、`*.h`、`*.cc`、`*.cpp`、`*.cxx`、`*.hh`、`*.hpp`、`*.hxx`、`*.m`、`*.s`、`*.sx`、`*.f`、`*.for`、`*.f90`、`*.swig`、`*.swigcxx`、`*.syso` |
+
+照合は、すべての行で Unicode の単純な大文字小文字の変換で同一視する（KELVIN SIGN と `k`、LONG S と `s` を含む）。不正な UTF-8 のバイトは、同じバイトだけを同一視する。パスは正規化しない。範囲の規則（6 章）とは別の一覧で、共有するのは Go のビルドの入力の拡張子だけである。通常のファイルでないもの（FIFO など）は、git が無視されるファイルとして示さないので対象にならない（`.claude/settings.local.json` は例外で、種類を記録する）。最上位の `.claude/` の下に名前が `.git` と同一視できるものがあれば、git がその下を列挙しないので `git-failed` で止まる（git が無視されるものとして示す入れ子のリポジトリのものを除く）。
 
 ### 7.2 保証しないこと
 
@@ -285,8 +297,10 @@ fixprguard edit-pr --protocol 4 --title-file /path/to/title.txt --body-file /pat
 
 **隠された変更。**
 
-- `.gitignore` が無視するファイル、作業ツリーの中の `.gitignore` やグローバルの除外のファイルで隠したファイル、index の stat の偽造で隠した変更。隠した変更は commit されないが、build checks が実行することは防げない。
-- 自分自身を無視させる `.gitignore`（上の項目の一部）。下の階層に、自分自身と別のファイル（`foo.syso`・`CLAUDE.md` など）を無視させる `.gitignore` を置くと、どちらも変更の集合に現れないので、範囲の規則（6 章）は判定しない。無視されたファイルは commit されないが、作業ツリーに残る。`finish` の `make test` は無視された `.syso` をリンクし（Go は `.gitignore` を読まない）、後のセッションは無視された指示ファイルを読む。git が無視するファイルへの書き込みは、タスク 0034（#424）で扱う。
+- 監視の一覧（7.1）に当たらない、git が無視するファイルの書き換え。7.2.5 の残余のリスクである。監視の一覧に当たるものは、`inspect`・`finish`・`push` が検出する（7.1）。
+- 作業ツリーの中の `.gitignore` やグローバルの除外のファイルで隠したファイルのうち、対象のファイルでないもの。隠したファイルは無視されるファイルとして列挙されるので、監視の一覧に当たれば検出する。当たらなければ、変更の集合にも現れない。隠した変更は commit されないが、build checks が実行することは防げない。
+- index の stat の偽造で隠した変更。
+- 自分自身を無視させる `.gitignore`（2 つ前の項目の一部）。下の階層に、自分自身と別のファイル（`foo.syso`・`CLAUDE.md` など）を無視させる `.gitignore` を置くと、どちらも変更の集合に現れないので、範囲の規則（6 章）は判定しない。無視されたファイルは commit されないが、作業ツリーに残る。`foo.syso`・`CLAUDE.md` のように監視の一覧に当たるものは、対象のファイルとして検出する（7.1）。`AGENTS.md` など一覧に当たらない指示ファイルは、無視されると GitHub に届かないが、ローカルのセッションが読むことは防げない（7.2.5）。
 
 **範囲内として commit・push されるもの。**
 
@@ -313,6 +327,27 @@ fixprguard edit-pr --protocol 4 --title-file /path/to/title.txt --body-file /pat
 - 基準値を持たない `head`・`list`・`reply`・`edit-pr` が `gh` を起動する前の比較。`/fixpr` はこれらを `finish`・`push` の後に呼ぶので、それまでの比較が書き換えを検出するが、`push` の後の書き換えは検出しない。
 - hooks のディレクトリの外にあり、hook が実行するファイル（pre-commit のフレームワークのキャッシュなど）。
 
+#### 7.2.5 git が無視するファイル
+
+次のことは検出しない。どれも Claude Code の権限の確認（利用者の設定）に依存する。
+
+- 監視の一覧に当たらない、git が無視するファイルを変えること。後で実行されるか、設定として読まれるものを含む。例: 一覧に当たらない名前のドットファイル（`.tool-versions`・`.mise.toml`・`.npmrc`、下の階層の `.envrc` など）、`go.sum`・`go.work.sum`、`extension/` の下の設定のファイルとスクリプト、`.github/` の下のファイル、`build/` の下のバイナリ（`yt2column-nmhost install` が登録した Native Messaging host は、ブラウザが次の送信で起動する）、`extension/node_modules/` の下の JavaScript（`make ext-check` が実行する）、`.vscode/` の下の設定、下の階層の `CLAUDE.local.md`、`AGENTS.md`・`GEMINI.md` など `CLAUDE.md` でない名前の指示ファイル。
+- この作業ツリーの外のファイルを変えること。同じリポジトリのほかの worktree と main のチェックアウトを含む。
+- `begin` の後に、監視の一覧に当たるパスへ、通常のファイルでないもの（FIFO・ソケット・デバイスなど）を新しく作ること。`.claude/settings.local.json` は例外で、検出する。すでにある対象のファイルを通常のファイルでないものに置き換えた場合も検出する。
+- 完全な大文字小文字の変換だけで監視の一覧の項目と同じになる名前のファイルを置くこと。例: 合字 `ﬁ`（U+FB01）を含む `GNUmakeﬁle`。大文字小文字を区別しない macOS の APFS は、これを `GNUmakefile` として解決するので `make` が読むが、照合は 1 つの文字を複数の文字に展開する変換（`ﬁ` → `fi`、`ß` → `ss` など）を同一視しない。
+- 対象のファイルを変えて、確認の前に元に戻すこと。確認の後に書き込むこと（修正のフェーズのエージェントや `make test` が残したプロセスによるものを含む）と、`push` の後に変えること。
+- 検出の前に効く書き込み。`.claude/settings.local.json` への書き込みが、実行中のセッションに、ツールが止まる前から効く場合がある。
+- まとめた値からの推測。ほかの対象のファイルの内容が分かっていて、`.env` の内容の候補が少なければ、基準値の 9 番目の欄から内容を推測できる。基準値を読めるエージェントは `.env` を直接読むこともできる。
+- 記録のファイルの削除と書き換え。修正のフェーズのエージェントが git のディレクトリに書けるかどうかは確かめていない。`begin` の記録の書き換えは基準値との照合で、削除は記録がないことで分かるが（8.1）、そのときは変わったファイルを記録から特定できない。止まった時点の記録は基準値と結び付けていないので、書いた後の書き換えは分からない。
+- 止まった後のやり直しで、利用者が中身を確かめずに `begin` を実行すること。正当な書き込みでも止まるので、止まることに慣れて確かめなくなるおそれがある。やり直した `begin` は、その時点の対象のファイルを新しい基準値として受け入れる。
+
+次の場合は、正当な書き込みや置き方でも止まる。
+
+- 利用者が修正のフェーズの間に Claude Code の許可の確認に「今後は確認しない」と答えた（`.claude/settings.local.json` が書き換わる）場合や、`.claude/` の下に Claude Code の実行時のファイル（`scheduled_tasks.lock` など）、エディタのスワップファイル、`.DS_Store` ができた場合。
+- 対象のファイルがディレクトリを指すシンボリックリンクである場合と、`.claude/worktrees/` の下に worktree がある場合。`begin` も止まり続けるので、原因を取り除くまで `/fixpr` を使えない。worktree は `.claude/` の外に置く。
+
+既存の clean の検査と変更の集合は、読めないディレクトリを git の警告だけで飛ばす（#446）。対象のファイルの列挙は、git が標準エラーに何か書けば止まる。
+
 ## 8. 止まったときの対処
 
 終了コード `1` の出力の `stop` が、止まった種類を示す。止まった場合はツールを回避せず、原因を取り除いてから、ラウンドを `begin` からやり直す。
@@ -321,7 +356,7 @@ fixprguard edit-pr --protocol 4 --title-file /path/to/title.txt --body-file /pat
 |---|---|---|---|
 | `dirty-work-tree` | `begin` の時点で作業ツリーに未コミットの変更（未追跡のファイルを含む）がある | なし | `git status` で変更を調べ、捨てるか commit してからやり直す。範囲外の変更で前のラウンドを止めたときも、変更が残っているのでここで止まる |
 | `cross-repository` | PR の head が fork など別のリポジトリにある | なし | ツールでは扱わない。PR の内容を自分で確かめる |
-| `git-state-changed` | HEAD・ブランチ・push 先・hooks・config・info のどれかが基準値と違う。config は、今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*` の設定を除いた設定の値の一覧、git のディレクトリの場所、config のファイルの種類を比べる。`begin` の後に設定の値の一覧が読めなくなった場合（構文の誤り、include の先の FIFO による時間切れなど）も含む。設定の値の一覧を変えない編集では止まらない。ほかのブランチの設定の書き換えは、残余のリスクである（7.2） | `parts`（`head`・`remote`・`hooks`・`config`・`info`） | 違う部分を調べる。`config` なら `git config --list --show-origin` で設定を調べ、意図しない hooks や config の変更なら取り除く。リモートが正当に進んだだけなら、作業ツリーを整理してやり直す |
+| `git-state-changed` | HEAD・ブランチ・push 先・hooks・config・info・対象のファイル（7.1 の監視の一覧に当たる、git が無視するファイル）のどれかが基準値と違う。config は、今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*` の設定を除いた設定の値の一覧、git のディレクトリの場所、config のファイルの種類を比べる。`begin` の後に設定の値の一覧が読めなくなった場合（構文の誤り、include の先の FIFO による時間切れなど）も含む。設定の値の一覧を変えない編集では止まらない。ほかのブランチの設定の書き換えは、残余のリスクである（7.2） | `parts`（`head`・`remote`・`hooks`・`config`・`info`・`ignored`）。`ignored` は対象のファイルで、前の部分がすべて一致したときだけ並ぶ | 違う部分を調べる。`ignored` なら 8.1 の手順に従う。どのファイルが変わったかは出力しないので、セッションに調べさせない。`config` なら `git config --list --show-origin` で設定を調べ、意図しない hooks や config の変更なら取り除く。リモートが正当に進んだだけなら、作業ツリーを整理してやり直す |
 | `judged-set-changed` | 作業ツリーや commit が判定した集合と違う（判定の後に変更が現れた、build checks が範囲内のファイルを書き換えた、commit の hook が index を書き換えた、など） | `changes`（見つかった変更の一覧） | 一覧の変更を調べる。commit が作られた後に止まったときは、その commit を調べて取り消す |
 | `thread-cap` | `list` が読むスレッドが 2000 件を超える | なし | GitHub 上でスレッドを解決して減らす |
 | `change-cap` | 変更のあるファイルが 1000 個を超える | なし | 変更を調べて減らす |
@@ -330,16 +365,73 @@ fixprguard edit-pr --protocol 4 --title-file /path/to/title.txt --body-file /pat
 | `reply-not-resolved` | 返信が投稿された（か、投稿されたか分からない）が、スレッドを解決できなかった | なし | 同じ返信を再び投稿しない。GitHub でスレッドを確かめ、必要なら手で解決する |
 | `response-rejected` | GitHub の呼び出しが失敗した、時間切れになった、または応答が厳格な検査や大きさの上限に通らなかった。`gh` の中の `git remote -v` が、ほかのブランチの値のない設定や `[branch ""]` の節（`git-failed` の行）で失敗した場合も含む | なし | `gh auth status` と GitHub の状態を確かめてやり直す。`git remote -v` が失敗するなら、`git-failed` の行の対処をする |
 | `build-checks-failed` | `make fmt`・`make test`・`make lint` のどれかが失敗した（出力が 64 MiB を超えた場合を含む。そのときは `output` がない） | `stage`（`fmt`・`test`・`lint`）と `output`（出力の末尾 8 KiB を区切りのブロックにしたもの） | 出力を確かめて原因を直す。`output` はコードの実行結果なので、信頼できないテキストとして扱う |
-| `git-failed` | git が失敗した、出力が想定の形でない、または git のメタデータを読めなかった（追跡済みのファイルを FIFO に置き換えた、git のリポジトリの外で実行した、など）。ほかのブランチの `branch.<name>.remote`・`merge`・`pushRemote` が値なしで書かれた、`[branch ""]` の節がある、設定の値の一覧が出力の上限（64 MiB）を超えた、の各場合も含む | なし | `git status` が通るかを確かめる。`git config --list --show-origin` が動くかとその大きさを確かめ、値のない設定や `[branch ""]` の節があれば取り除く |
+| `git-failed` | git が失敗した、出力が想定の形でない、または git のメタデータを読めなかった（追跡済みのファイルを FIFO に置き換えた、git のリポジトリの外で実行した、など）。ほかのブランチの `branch.<name>.remote`・`merge`・`pushRemote` が値なしで書かれた、`[branch ""]` の節がある、設定の値の一覧が出力の上限（64 MiB）を超えた、の各場合も含む。対象のファイルの状態を求められない場合（列挙の上限、1 つのファイルの大きさの上限、読み取る内容の合計の上限、対象のファイルやディレクトリを読み取れない、など）も含み、標準エラーの規則の名前で分かる（8.2） | なし | `git status` が通るかを確かめる。`git config --list --show-origin` が動くかとその大きさを確かめ、値のない設定や `[branch ""]` の節があれば取り除く。規則の名前が 8.2 の表にあれば、8.2 の対処をする |
 | `failed` | 上のどれにも当たらない失敗（区切りの nonce を選べなかった、など） | なし | 標準エラーの診断を確かめる |
 
 範囲外の変更で利用者が「続けない」と答えたときは、変更は作業ツリーに残る。次の `/fixpr` は `dirty-work-tree` で止まるので、変更を調べて、捨てるか commit してからやり直す。残った変更は、git の表示で調べる（`git status --untracked-files=all`・`git diff`、未追跡のファイルの中身は `git diff --no-index /dev/null <path>`。自分自身を無視させる `.gitignore`（7.2）で隠したファイルは `git status --ignored --untracked-files=all` で探す）。調べ終えるまで、`make`・`go test` を実行したり、そのディレクトリで Claude Code のセッションを始めたりしない。今のセッションにも、そのディレクトリのファイルを読ませない。下の階層の指示ファイルや Go のビルドの入力は、置かれているだけで読まれる、またはリンクされるためである。
+
+### 8.1 `ignored` で止まったとき
+
+ツールは、どの対象のファイルが変わったかを出力しない。ファイルの名前は書いた者が選べるので、セッションに届けないためである。次の手順は、Claude Code のセッションの外の端末で、作業ツリーの最上位で実行する。セッションには対象のファイルを一覧にさせたり読ませたりしない。更新時刻は偽造できるので、確認するファイルを更新時刻で絞り込まない。
+
+**(a) 記録の照合と (b) 変わったファイルの特定。** `begin` の記録のファイルは、`begin` の時点の対象のファイルごとに、状態の digest と ASCII に引用したパスを 1 行に書いたものである。止まった時点の記録のファイルは、止まった時点の同じ一覧である。`begin` が出力した `baseline`（セッションに残る `begin` の出力にある）を変数 `token` に入れてから（`token='v3....'`）、次を実行する。`begin` の記録の SHA-256 が基準値の 10 番目の欄と一致すれば、2 つの記録を `diff` で比べる。
+
+```sh
+gitdir=.git
+if [ -f .git ]; then gitdir=$(sed -n 's/^gitdir: //p' .git); fi
+want=$(printf '%s\n' "$token" | cut -d. -f10)
+if command -v sha256sum >/dev/null 2>&1; then
+  got=$(sha256sum < "$gitdir/fixprguard-ignored-begin" | cut -d' ' -f1)
+else
+  got=$(shasum -a 256 < "$gitdir/fixprguard-ignored-begin" | cut -d' ' -f1)
+fi
+if [ -n "$got" ] && [ "$got" = "$want" ]; then
+  echo 'begin record: matches the baseline'
+  diff "$gitdir/fixprguard-ignored-begin" "$gitdir/fixprguard-ignored-stop"
+else
+  echo 'begin record: does not match the baseline, do not trust it'
+fi
+```
+
+Linux では `sha256sum` を、macOS では `shasum -a 256` を使う。`diff` の `<` の行は `begin` の時点にだけある行、`>` の行は止まった時点にだけある行である。同じパスが両方にあればそのファイルが変わり、`<` だけなら消え、`>` だけなら増えた。止まった時点の記録の各行のパスが、今の対象のファイルの一覧である。照合が一致しない、または記録のファイルがない場合は、侵害を強く疑う。`.claude/settings.local.json`・`.envrc`・`.env` を、利用者が別に保管している信頼できる写しから戻し、止まった時点の記録のすべてのファイルを確かめる。
+
+**(c) 内容を確かめるファイル。** 変わったファイルに加えて、一覧のすべてのファイルの内容を確かめる。特に `.claude/settings.local.json` の `hooks`・`permissions`、`.envrc`・`.env`、無視される場所の `.go`・Go のビルドの入力・`Makefile`・`*.mk` である。意図しない変更は取り除く。
+
+**(d) 作業ツリーに残った変更。** 修正のフェーズが作業ツリーに残した変更は、調べたうえで捨てて `/fixpr` をやり直すか、利用者が確かめて手で commit する。変更を残したまま `begin` を実行すると `dirty-work-tree` で止まる。
+
+**(e) 正当な原因の場合。** 利用者が許可の確認に答えたことや、Claude Code の実行時のファイル（`.claude/scheduled_tasks.lock`、`.claude/worktrees/` の下の worktree など）が原因でも、内容を確かめてからやり直す。worktree は `.claude/` の外に置く。やり直した `begin` は、その時点の対象のファイルを新しい基準値として受け入れる。
+
+### 8.2 対象のファイルの状態を求められないとき
+
+`git-failed` の標準エラーの診断 `fixprguard: git command failed: <規則の名前>` の規則の名前が、原因を示す。対処は、Claude Code のセッションの外の端末で行う。
+
+| 規則の名前 | 原因 | 対処 |
+|---|---|---|
+| `list ignored files failed` | 無視されるファイルを列挙する git が失敗した、または標準エラーに何か書いた（読めないディレクトリの警告など） | 端末で `git -c core.fsmonitor=false ls-files --others --ignored --exclude-standard -z > /dev/null` を実行し、警告のディレクトリの読み取りの許可を戻すか、ディレクトリを取り除く |
+| `list ignored files output over the cap` | 列挙の出力が 64 MiB を超えた | 無視されるファイルを減らす |
+| `list ignored files output shape` | 列挙の出力が受理する形でない | git の版と、作業ツリーのファイル名を確かめる |
+| `ignored target count over the cap` | 対象のファイルが 10,000 個を超えた | 監視の一覧に当たる無視されるファイルを減らす |
+| `ignored directory entries over the cap` | 入れ子のリポジトリと `.claude/` の下でたどったエントリが 100,000 個を超えた | 無視される場所の入れ子のリポジトリと、`.claude/worktrees/` の下の worktree を取り除く |
+| `ignored file over the size cap` | 1 つの対象のファイルの大きさが 16 MiB を超えた | 下のコマンドで探し、取り除く |
+| `ignored read total over the cap` | 1 回で読む対象のファイルの内容の合計が 64 MiB を超えた（同じ内容を指す多数のリンクを含む） | 下のコマンドで大きなファイルを探し、不要なものとリンクを取り除く |
+| `read ignored files timed out` | 状態を求める処理が 2 分を超えた（応答しないファイルシステムを指すリンクなど） | 作業ツリーの外を指すシンボリックリンクを確かめる |
+| `read ignored directory` | 入れ子のリポジトリか `.claude/` の下のディレクトリを読めない | 読み取りの許可を戻す |
+| `read ignored file` | 対象のファイル（リンクのたどる先を含む）を読めない | 読み取りの許可を戻すか、ファイルを取り除く |
+| `ignored link to a directory` | 対象のファイルが、ディレクトリを指すシンボリックリンクである | リンクを取り除く |
+| `.git name below .claude` | 最上位の `.claude/` の下に `.git` という名前のものがある | 取り除く。`.claude/worktrees/` の下の worktree なら `.claude/` の外に移す |
+| `write ignored begin record` | `begin` の記録のファイルを書けない、または前のラウンドの止まった時点の記録を消せない | git のディレクトリの `fixprguard-ignored-begin`・`fixprguard-ignored-stop` の種類と許可を確かめる |
+
+大きなファイルは、次のコマンドで探す。出力のパスは `sed -n l` が制御文字をエスケープするので、端末を制御しない。
+
+```sh
+find . -path ./.git -prune -o -type f -size +16M -print | LC_ALL=C sed -n l
+```
 
 ## 9. ツールを変更する場合
 
 - 判定は `internal/fixprguard`、引数の解釈と呼び出しの順序は `cmd/fixprguard` にある。外部コマンドは `internal/cmdrunner` の `Runner`・`InputRunner` 越しに呼ぶ。テストでは、`gh` と `make` を `internal/cmdrunner/testutil` の fake に置き換え、git は一時ディレクトリの実際のリポジトリで試す。
 - 7.1 節の保証を変更する場合は、対応する実装を壊してテストが失敗することを確かめ、そのことをコミットメッセージに書く（CLAUDE.md の「Testing Strategy」）。
-- 出力や引数の契約、または範囲の規則（6 章）を変える場合は、`internal/fixprguard` の `Protocol` を上げ、コマンドの文書が渡す `--protocol` も合わせて更新する。ただし、次の 3 つの条件がすべて成り立つ変更に限り、`Protocol` を上げなくてよい。`--reviewer` を繰り返し受け付ける変更（タスク 0033）はこれに当たる。
+- 出力や引数の契約、または範囲の規則（6 章）を変える場合は、`internal/fixprguard` の `Protocol` を上げ、コマンドの文書が渡す `--protocol` も合わせて更新する。番号は上げるだけで、一度使った番号を再び使ったり、下げたりしない。並行する 2 つのブランチが同じ番号を使うと、片方のブランチで作ったバイナリが、もう片方の文書の `--protocol` を受け付け、違う規則で黙って判定するためである（タスク 0036 が `3` を使ったので、タスク 0034 は `4` を使った）。ただし、次の 3 つの条件がすべて成り立つ変更に限り、`Protocol` を上げなくてよい。`--reviewer` を繰り返し受け付ける変更（タスク 0033）はこれに当たる。
     1. 古いツールは、新しい文書の呼び出しを引数の解析で拒否し（終了コード `2`）、古い規則で判定しない。
     2. 新しいツールは、古い文書の呼び出しを今までと同じ規則で判定する。
     3. 出力の形は変えない。
@@ -354,5 +446,5 @@ fixprguard edit-pr --protocol 4 --title-file /path/to/title.txt --body-file /pat
 
   期待する名前の確認を「解析に通って空でない」程度に緩めない。一覧だけが書き換えられたことを、内容のガードが検出できなくなるためである。
 - 一覧から外した名前の Bot は、すぐには信頼されなくならない。各セッションは作業しているブランチの `_context.md` を読むので、`main` を取り込んでいない開いたブランチでは、その Bot のスレッドの信頼が続く。急いで信頼をやめるときは、外す変更を `main` に入れたうえで、開いている PR のブランチに `main` を取り込む。取り込むまでは、そのブランチで `/fixpr`・`/runpr` を使わない。
-- `stop` の種類、実行関連ファイルの一覧、許可リストを変えたら、本書の 6 章と 8 章も更新する。`cmd/fixprguard/docs_test.go` が、本書（日英）にすべての種類と項目があることを確かめる。
+- `stop` の種類、実行関連ファイルの一覧、許可リストを変えたら、本書の 6 章と 8 章も更新する。監視の一覧を変えたら、7.1 の監視の一覧の表も更新する。`cmd/fixprguard/docs_test.go` が、本書（日英）にすべての種類と項目があることを確かめる。
 - マージの後は、`make install-fixprguard` で再インストールする（3 章）。
