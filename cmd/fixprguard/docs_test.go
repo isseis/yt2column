@@ -656,6 +656,22 @@ func containsAll(s string, subs []string) bool {
 	return true
 }
 
+// TestGuideDescribesMentionCheck: both guides name, in 7.1 and 7.2, the
+// mention reply and edit-pr reject, taking the value from internal/fixprguard,
+// so changing the constant without the guides fails here. Whether the prose
+// around it is right is checked by review, not pinned by wording.
+func TestGuideDescribesMentionCheck(t *testing.T) {
+	mention := "`" + fixprguard.CodexMention + "`"
+	for _, rel := range guideFiles {
+		guide := readRepoFile(t, rel)
+		for _, heading := range []string{"### 7.1", "### 7.2"} {
+			if !strings.Contains(subsection(guide, heading), mention) {
+				t.Errorf("%s %s does not name %s", rel, heading, mention)
+			}
+		}
+	}
+}
+
 // TestCutSection: the extraction the guards read through stops where it
 // should. A section that ran on would let a later passage supply a phrase
 // the checked one lacks.

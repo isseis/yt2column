@@ -74,7 +74,7 @@ go version -m "$(command -v fixprguard)"
 |---|---|---|
 | `0` | 続けてよい | サブコマンドの結果 |
 | `1` | 止める | `stop`（止まった種類）と、種類ごとの詳細（8 章） |
-| `2` | 使い方の誤り（フラグ、値の文法、`--protocol` の不一致、`GH_REPO`・`GH_HOST`、空の位置引数）。ほかに、作業ツリーの最上位でない・detached HEAD・`.git` ファイルの形の誤り（`begin`）と、`--comment-id` がスレッドの最初のコメントでないこと（`reply`。GitHub を読んだ後に分かる）も `2` になる。診断が `flag given twice: --reviewer` を含むときは、インストール済みのツールが `--reviewer` の繰り返しに対応する前のものである。`make install-fixprguard` で再インストールすれば直る。インストール済みのツールが作られたコミットは、`go version -m "$(command -v fixprguard)"` の `vcs.revision` で確かめられる（3 章） | なし |
+| `2` | 使い方の誤り（フラグ、値の文法、`--protocol` の不一致、`GH_REPO`・`GH_HOST`、空の位置引数）。ほかに、作業ツリーの最上位でない・detached HEAD・`.git` ファイルの形の誤り（`begin`）と、`--comment-id` がスレッドの最初のコメントでないこと（`reply`。GitHub を読んだ後に分かる）も `2` になる。`reply` の本文、`edit-pr` のタイトルか本文が `@codex` のメンションを含むことも `2` になる（GitHub に書き込む前に分かる。5 章）。診断が `flag given twice: --reviewer` を含むときは、インストール済みのツールが `--reviewer` の繰り返しに対応する前のものである。`make install-fixprguard` で再インストールすれば直る。インストール済みのツールが作られたコミットは、`go version -m "$(command -v fixprguard)"` の `vcs.revision` で確かめられる（3 章） | なし |
 | `3` | 利用者に確かめる（`inspect` だけ。範囲外の変更がある） | `inspect` の結果 |
 
 ## 5. サブコマンド
@@ -183,7 +183,7 @@ fixprguard push --protocol 3 --baseline 'v2....' --commit '<SHA>'
 
 スレッドを現在の状態で判定し直し、信頼する著者のスレッド（または、`--accept` で名指しされて指紋が一致するスレッド）で、`--fingerprint` が現在の指紋と一致し、`--comment-id` がそのスレッドの最初のコメントのときだけ、返信を投稿する。本文は JSON として標準入力で `gh api` に渡すので、シェルを通らない。返信の後、スレッドを取り直して返信のほかに変化がないことを確かめてから、スレッドを解決する。
 
-本文のファイルは、通常のファイル（最後の要素がシンボリックリンクでない）で、64 KiB 以下、空白だけでなく、NUL を含まない有効な UTF-8 でなければならない。
+本文のファイルは、通常のファイル（最後の要素がシンボリックリンクでない）で、64 KiB 以下、空白だけでなく、NUL を含まない有効な UTF-8 でなければならない。また、`@codex` のメンションを含んではならない。比べ方は ASCII の範囲で大文字と小文字を区別しない部分文字列の一致で、語の境界を求めない（`@codexbot` や `a@codex.example` も拒否する）。メンションの検査はファイルの検査の後、スレッドを読む前に行い、含むときは終了コード `2` で拒否する。利用者のアカウントの投稿が Codex を動かさないためである。
 
 ```sh
 fixprguard reply --protocol 3 --reviewer coderabbitai --thread-id 'PRRT_...' --comment-id 123 --fingerprint '<指紋>' --body-file /path/to/reply.md 42
@@ -193,7 +193,7 @@ fixprguard reply --protocol 3 --reviewer coderabbitai --thread-id 'PRRT_...' --c
 
 ### `edit-pr --title-file FILE --body-file FILE [PR]`
 
-PR のタイトルと本文を更新する。タイトルは `--title=<値>` の形で、本文は検査した内容を標準入力から渡す（`gh` にファイルを読み直させない）。タイトルのファイルは、本文のファイルと同じ検査に加えて、制御文字と行区切りを含まない 1 行であること。
+PR のタイトルと本文を更新する。タイトルは `--title=<値>` の形で、本文は検査した内容を標準入力から渡す（`gh` にファイルを読み直させない）。タイトルのファイルは、本文のファイルと同じ検査に加えて、制御文字と行区切りを含まない 1 行であること。タイトルと本文のどちらかが `@codex` のメンションを含むときは、`reply` の本文と同じ規則で、`gh pr edit` を起動する前に終了コード `2` で拒否する。
 
 ```sh
 fixprguard edit-pr --protocol 3 --title-file /path/to/title.txt --body-file /path/to/body.md 42
@@ -264,6 +264,7 @@ fixprguard edit-pr --protocol 3 --title-file /path/to/title.txt --body-file /pat
 | 範囲外の変更を、利用者の確認なしに commit しない | `inspect` が範囲外を一覧にして終了コード `3` を返し、`finish` は判定した集合と一致する変更だけを commit する |
 | 判定の後に現れた変更を commit しない | `finish` が、判定した集合との厳密な一致を build checks の前と後で確かめ、判定したパスだけを stage する |
 | 書き換えられた hooks・config で git を起動しない | `inspect`・`finish`・`push` が、まず git のディレクトリの場所と config のファイルの種類を、git を起動せずにファイルだけで比べる。次に、コマンドを起動しない `git config --list` だけを起動し、今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*` の設定を除いた設定の値の一覧を基準値と比べる。config を比べる前に起動する git は `git config --list` だけで、違えば、ほかの git・`gh`・make を起動しない。hooks は、設定の値の一覧が一致した後に `git rev-parse --git-path hooks` で場所を求めて比べる。hook を実行しうるコマンドより前である。設定の値の一覧を変えない編集は検出しない。ほかのブランチの設定の書き換えは、残余のリスクである（7.2） |
+| メンションを含む文面を GitHub に送らない | `reply` の本文と `edit-pr` のタイトル・本文が `@codex` を（ASCII の範囲で大文字と小文字を区別せず、語の一部でも）含めば、GitHub に書き込む前に終了コード `2` で拒否する。利用者のアカウントの投稿が Codex を動かすのを防ぐ。コマンドの文書が投稿の前に行う確認（タスク 0031 で加える）に重ねる裏の守りである |
 | 返信と PR の説明がシェルのコマンドにならない | `reply`・`edit-pr` はシェルを介さず、本文を標準入力で渡す |
 | fork の PR の head を扱わない | `head`・`list`・`begin` が最初に確かめる |
 
@@ -273,7 +274,7 @@ fixprguard edit-pr --protocol 3 --title-file /path/to/title.txt --body-file /pat
 
 - `--reviewer` で渡した名前の集合が、`.claude/commands/_context.md` の `Automated reviewer list` の名前と同じであること。ツールは `_context.md` を読まない。名前を渡し忘れても、その Bot のスレッドは `other-bot` で信頼されないだけである。
 - 同じ秒の内の再編集。指紋の時刻は秒の単位である。
-- 返信と PR の説明の本文の内容。ツールはファイルの種類・大きさ・文字コードだけを検査する。
+- 返信と PR の説明の本文の内容のうち、メンションのほかのもの。ツールが検査するのは、ファイルの種類・大きさ・文字コードと、`@codex` のメンションだけである。全角の `＠codex` や、`@` と `codex` の間に幅のない文字を挟んだ形は、GitHub のメンションにならないので検査しない（Codex が本文を独自に解釈するかは確かめていない）。また、セッションは Bash で `gh` を直接実行できるので、メンションの検査は抜け道のない境界ではない。
 
 #### 7.2.2 区切りのブロックとコマンドの文書
 
@@ -344,6 +345,8 @@ fixprguard edit-pr --protocol 3 --title-file /path/to/title.txt --body-file /pat
     3. 出力の形は変えない。
 
   この場合は、古いツールが止まったときの診断と再インストールの案内を、4 章の終了コード `2` の説明に書く。
+
+  また、本文とタイトルのファイルの受け付ける内容を狭めるだけの変更は、狭めた分がコマンドの文書の送らない内容に限って、上の 3 つの条件によらず `Protocol` を上げなくてよい。古いツールはその内容を受け付けるが、文書はそれを送らないので誤った投稿にはならず、新しいツールが古い文書の呼び出しで拒否するのは送ってはならない内容だけだからである。`@codex` のメンションの拒否（タスク 0031）はこれに当たる。
 - 自動レビュアーを一覧に加えるとき、または一覧から外すときは、次のものを同じコミットで変え、そのコミットで文書のガード（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`）を実行する。`fixpr.md`・`runpr.md` は名前も数も書かず、ツールは名前の数に上限を設けないので、どちらも変えなくてよい。
     1. `.claude/commands/_context.md` の `Automated reviewer list` の行。
     2. 内容のガード（`cmd/yt2column/fixpr_docs_test.go`）の、期待する名前（`wantReviewers`）。
