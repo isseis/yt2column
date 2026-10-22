@@ -61,7 +61,7 @@ In either case, the tool never judges by the old rules (fail-closed).
 
 | Item | Convention |
 |---|---|
-| `--protocol N` | Required by every subcommand. If `N` does not match the binary's number, the tool stops with exit code `2` (this keeps an old binary from judging by the assumptions of newer documents). The current number is `2` |
+| `--protocol N` | Required by every subcommand. If `N` does not match the binary's number, the tool stops with exit code `2` (this keeps an old binary from judging by the assumptions of newer documents). The current number is `3` |
 | `--reviewer LOGIN` | Required at least once by `list`, `begin`, `inspect`, and `reply`, and not accepted by the other subcommands. Pass the GraphQL `author.login` of each trusted automated reviewer (for example `coderabbitai`), repeating the flag once per name (for example `--reviewer <login-1> --reviewer <login-2>`). The names `/fixpr` and `/runpr` pass are every name on `Automated reviewer list` in `.claude/commands/_context.md`. The order does not affect the judgment. When none is given, when the same name is given twice or more, or when a name does not fit the grammar, it is a usage error (exit code `2`). There is no default |
 | `[PR]` | Only a decimal PR number is accepted. URLs and branch names are rejected. When omitted, the current branch's PR is resolved with `gh pr view`. `finish`, which does not read GitHub, cannot omit it |
 | Flag position | Flags go before the positional argument (`PR`, `FILE`). Passing the same flag twice is rejected (`--accept`, `--thread`, and `--reviewer` may be passed more than once; but passing the same name to `--reviewer` twice is rejected) |
@@ -86,17 +86,17 @@ Each subcommand can also be run on its own. To investigate why something was rej
 Checks that the PR's head is a branch of this repository (only when `isCrossRepository` is the boolean `false` and `headRepository` exists). A fork PR stops with `cross-repository`. `/runpr` runs this before `gh pr checkout`.
 
 ```sh
-fixprguard head --protocol 2 42
+fixprguard head --protocol 3 42
 ```
 
-Output: `{"protocol":2,"sameRepository":true}`. Side effects: reads GitHub only.
+Output: `{"protocol":3,"sameRepository":true}`. Side effects: reads GitHub only.
 
 ### `list --reviewer LOGIN ... [PR]`
 
 Fetches every page of unresolved threads (at most 2000; beyond that it stops with `thread-cap`) and prints, for each thread, the trust judgment, the reasons, and the fingerprint. It neither fetches nor prints any body. It first makes the same check as `head`.
 
 ```sh
-fixprguard list --protocol 2 --reviewer coderabbitai 42
+fixprguard list --protocol 3 --reviewer coderabbitai 42
 ```
 
 Output: `threads` (each element has `threadId`, `url`, `trusted`, `fingerprint`, and `findings`) and `permissionLookups` (`used`, the permission lookups used, and `remaining`, the lookups left). The `reason` of a finding is one of the following.
@@ -117,7 +117,7 @@ Phase 1 of `/fixpr`. It runs in this order: (1) the work tree has no uncommitted
 The threads to process are the trusted threads and the threads named with `--accept` whose fingerprint matches the current one. Pass to `--accept` the thread ID and fingerprint from the report output shown to the user.
 
 ```sh
-fixprguard begin --protocol 2 --reviewer coderabbitai 42
+fixprguard begin --protocol 3 --reviewer coderabbitai 42
 ```
 
 Output fields:
@@ -140,7 +140,7 @@ Side effects: reads GitHub and `git ls-remote` only.
 Writes the file's content, enclosed in a fenced block, to standard output as it is (not JSON). The nonce is redrawn until it is a value the file does not contain. Only a regular file (not a symbolic link, FIFO, or device) of at most 16 MiB is read. `/fixpr` writes the triage agent's output to a file, encloses it with this, and then passes it to the fix agent.
 
 ```sh
-fixprguard fence --protocol 2 /path/to/triage.json
+fixprguard fence --protocol 3 /path/to/triage.json
 ```
 
 Side effects: none.
@@ -150,7 +150,7 @@ Side effects: none.
 Run after the fix phase. It first compares the config, info, and hooks with the baseline, and if they differ, stops with `git-state-changed` without starting `gh`. The comparison runs in this order. (1) Where the git directories are, the type of the config files, and the info are compared from the files alone, without starting git. (2) `git config --list` reads the list of the configuration values git reads, and it is compared without the `branch.<name>.*` settings of other branches (every branch except the current branch and `main`). (3) The hooks are compared. Edits that leave the list of configuration values unchanged (edits of only comments, blank lines, or indentation) are not detected. A rewrite of another branch's settings is a residual risk (7.2). It then fetches the `--thread` threads again from GitHub to get their `path` (a different fingerprint gives `thread-changed`), enumerates the changes in the work tree, and checks them against the scope (chapter 6).
 
 ```sh
-fixprguard inspect --protocol 2 --reviewer coderabbitai --baseline 'v2....' --thread 'PRRT_...=<fingerprint>' 42
+fixprguard inspect --protocol 3 --reviewer coderabbitai --baseline 'v2....' --thread 'PRRT_...=<fingerprint>' 42
 ```
 
 Output: `judgedSet` (the judged set ID; pass it to `finish`), `changes` (the number of changed paths), and `outOfScope` (the out-of-scope changes; each element has `position`, `path`, `kind` (`add`, `modify`, `delete`, `other`), `added`, `deleted`, and `binary`). If `outOfScope` is not empty, the exit code is `3`, and the user is shown the list and asked whether to continue. A path that fails the path checks (chapter 6) is not printed in `path`; it is shown by `position` only.
@@ -162,7 +162,7 @@ Side effects: reads GitHub and git (including `git ls-remote`) only. The work tr
 Phase 4 of `/fixpr`. It enforces the following order within one call: (1) the work tree matches the judged set and the git state matches the baseline; (2) `make fmt`; (3) recording the formatted set (it stops if the set of changed paths changed); (4) `make test` and `make lint`; (5) a strict match with the formatted set; (6) staging only the judged paths, using literal pathspecs; (7) checking what was staged (undoing the staging on a mismatch); (8) the commit; (9) checking that the commit's tree matches the formatted set. The make targets are the fixed values `fmt`, `test`, and `lint`, and are never taken from an argument. The commit subject is `fix: address PR #<PR> review comments`.
 
 ```sh
-fixprguard finish --protocol 2 --baseline 'v2....' --judged-set '<judgedSet>' 42
+fixprguard finish --protocol 3 --baseline 'v2....' --judged-set '<judgedSet>' 42
 ```
 
 Output: `committed` (`false` when the judged set is empty, in which case nothing is done) and `commit` (the SHA of the commit made; pass it to `push`).
@@ -174,10 +174,10 @@ Side effects: the formatting by `make fmt`, the writes the build checks make, st
 Pushes the SHA that `finish` returned. Right before that, it checks that the hooks, config, and info match the baseline; that HEAD is that SHA and its only parent is the baseline's commit; and that the OID of the push target (the branch of the same name on the remote that git resolves for the current branch) matches the baseline. It pushes with an explicit refspec, without tags or submodules. The config is compared as in `inspect`. The `branch.<name>.*` settings of other branches (every branch except the current branch and `main`) are not compared, and edits that leave the list of configuration values unchanged are not detected. A rewrite of another branch's settings is a residual risk (7.2).
 
 ```sh
-fixprguard push --protocol 2 --baseline 'v2....' --commit '<SHA>'
+fixprguard push --protocol 3 --baseline 'v2....' --commit '<SHA>'
 ```
 
-Output: `{"protocol":2,"pushed":true,"commit":"<SHA>"}`.
+Output: `{"protocol":3,"pushed":true,"commit":"<SHA>"}`.
 
 ### `reply --reviewer LOGIN ... --thread-id ID --comment-id N --fingerprint FP --body-file FILE [--accept ID=FINGERPRINT ...] [PR]`
 
@@ -186,20 +186,20 @@ Judges the thread again in its current state, and posts the reply only when it i
 The body file must be a regular file (whose last element is not a symbolic link) of at most 64 KiB holding valid UTF-8 that is not only whitespace and contains no NUL.
 
 ```sh
-fixprguard reply --protocol 2 --reviewer coderabbitai --thread-id 'PRRT_...' --comment-id 123 --fingerprint '<fingerprint>' --body-file /path/to/reply.md 42
+fixprguard reply --protocol 3 --reviewer coderabbitai --thread-id 'PRRT_...' --comment-id 123 --fingerprint '<fingerprint>' --body-file /path/to/reply.md 42
 ```
 
-Output: `{"protocol":2,"written":true}`. When it stops with `reply-not-resolved`, the reply may have been posted, so do not post the same reply again.
+Output: `{"protocol":3,"written":true}`. When it stops with `reply-not-resolved`, the reply may have been posted, so do not post the same reply again.
 
 ### `edit-pr --title-file FILE --body-file FILE [PR]`
 
 Updates the PR's title and body. The title is passed in the form `--title=<value>`, and the body is passed as the checked content on standard input (`gh` does not read the file again). The title file must pass the same checks as the body file and also be one line with no control character and no line separator.
 
 ```sh
-fixprguard edit-pr --protocol 2 --title-file /path/to/title.txt --body-file /path/to/body.md 42
+fixprguard edit-pr --protocol 3 --title-file /path/to/title.txt --body-file /path/to/body.md 42
 ```
 
-Output: `{"protocol":2,"written":true}`.
+Output: `{"protocol":3,"written":true}`.
 
 ## 6. Scope rules
 
