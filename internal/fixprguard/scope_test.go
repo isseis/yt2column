@@ -53,7 +53,10 @@ func TestScopeRules(t *testing.T) {
 		{"no_threads", "docs/a.md", ChangeModify, nil, false},
 		{"second_thread", "internal/b.md", ChangeModify, []ThreadPath{{Path: "docs/a.md"}, {Path: "internal/a.md"}}, true},
 
-		// Rule 4: execution-related files.
+		// Rule 4: execution-related files. A row whose input is not a .md
+		// is also outside the allow list, so it is a requirement example that
+		// both layers reject; the single-layer checks are the rows at the
+		// thread's path itself below (denyListAtPathItself) and the .md rows.
 		{"makefile_is_path", "Makefile", ChangeModify, trusted("Makefile"), true},
 		{"makefile_beside_path", "docs/Makefile", ChangeAdd, trusted("docs/a.md"), false},
 		{"makefile_lowercase", "docs/makefile", ChangeAdd, trusted("docs/a.md"), false},
@@ -70,7 +73,7 @@ func TestScopeRules(t *testing.T) {
 		{"extension_scripts", "extension/scripts/b.mjs", ChangeModify, trusted("extension/scripts/a.mjs"), false},
 		{"root_dotfile", ".golangci.yml", ChangeModify, trusted("README.md"), false},
 		{"root_claude_md", "CLAUDE.md", ChangeModify, trusted("README.md"), false},
-		{"root_agents_md_case", "agents.MD", ChangeAdd, trusted("README.md"), false},
+		{"root_agents_md_case", "Agents.md", ChangeAdd, trusted("README.md"), false},
 		{"nested_dotfile_not_root_rule", "docs/.keep", ChangeAdd, trusted("docs/a.md"), false},
 		{"extension_package_json", "extension/package.json", ChangeModify, trusted("extension/README.md"), false},
 		{"extension_tsconfig", "extension/tsconfig.build.json", ChangeModify, trusted("extension/README.md"), false},
@@ -78,7 +81,9 @@ func TestScopeRules(t *testing.T) {
 		{"named_execution_path_itself", "Makefile", ChangeModify, named("Makefile"), false},
 		{"task_directory_makefile", "docs/tasks/0030_x/Makefile", ChangeAdd, trusted("docs/tasks/0030_x/a.md"), false},
 
-		// The .go rule.
+		// The .go rule. go_under_task_directory and go_upper_case_suffix are
+		// also outside the allow list; go_under_task_testdata and
+		// go_upper_case_same_package below are their single-layer rows.
 		{"go_same_package", "internal/x/x_test.go", ChangeAdd, trusted("internal/x/x.go"), true},
 		{"go_beside_non_go_path", "docs/x_test.go", ChangeAdd, trusted("docs/a.md"), false},
 		{"go_under_task_directory", "docs/tasks/0030_x/v1/x.go", ChangeAdd, trusted("docs/tasks/0030_x/a.md"), false},
@@ -107,8 +112,9 @@ func TestScopeRules(t *testing.T) {
 
 		// Instruction files: each name as a .md beside or under the thread's
 		// path, which the allow list alone would admit.
-		{"instruction_claude_md", "internal/writer/CLAUDE.md", ChangeAdd, trusted("internal/writer/README.md"), false},
-		{"instruction_agents_md", "internal/writer/AGENTS.md", ChangeAdd, trusted("internal/writer/README.md"), false},
+		// Also rows of issue #425.
+		{"instruction_claude_md", "internal/writer/CLAUDE.md", ChangeAdd, trusted("internal/writer/writer.go"), false},
+		{"instruction_agents_md", "internal/writer/AGENTS.md", ChangeAdd, trusted("internal/writer/writer.go"), false},
 		{"instruction_gemini_md", "internal/writer/Gemini.md", ChangeAdd, trusted("internal/writer/README.md"), false},
 		{"instruction_agent_md", "internal/writer/agent.md", ChangeAdd, trusted("internal/writer/README.md"), false},
 		// Also a row of issue #425.
@@ -160,10 +166,10 @@ func TestScopeRules(t *testing.T) {
 		{"go_upper_case_same_package", "internal/x/y.GO", ChangeAdd, trusted("internal/x/x.go"), true},
 		{"go_upper_case_under_testdata", "internal/x/testdata/gen.GO", ChangeAdd, trusted("internal/x/testdata/a.json"), false},
 
-		// The rows of issue #425 (the CLAUDE.local.md and .claude/ rows are
-		// above).
-		{"issue_claude_md", "internal/writer/CLAUDE.md", ChangeAdd, trusted("internal/writer/writer.go"), false},
-		{"issue_agents_md", "internal/writer/AGENTS.md", ChangeAdd, trusted("internal/writer/writer.go"), false},
+		// The rows of issue #425 (the CLAUDE.md, AGENTS.md, CLAUDE.local.md and
+		// .claude/ rows are above). The rows that are not a .md are also
+		// outside the allow list; their deny-list checks are the rows at the
+		// thread's path itself below.
 		{"issue_named_claude_md_under_task", "docs/tasks/0030_x/CLAUDE.md", ChangeAdd, named("docs/tasks/0030_x/01_requirements.md"), false},
 		{"issue_syso", "internal/writer/foo.syso", ChangeAdd, trusted("internal/writer/writer.go"), false},
 		{"issue_asm", "internal/writer/foo_amd64.s", ChangeAdd, trusted("internal/writer/writer.go"), false},
@@ -189,10 +195,10 @@ func TestScopeRules(t *testing.T) {
 			"internal/writer/foo.swigcxx", "internal/writer/foo.syso",
 			"internal/writer/foo.HPP", "internal/writer/foo.S", "internal/writer/foo.F",
 		),
-		// The definitions kept from before, and examples of the ones the "."
+		// The definitions kept from before (Makefile is in the rows above), and examples of the ones the "."
 		// rule and the instruction-file names now cover.
 		denyListAtPathItself(
-			"Makefile", "docs/GNUmakefile", "internal/x/go.mod", "go.sum", "go.work", "go.work.sum",
+			"docs/GNUmakefile", "internal/x/go.mod", "go.sum", "go.work", "go.work.sum",
 			"build/rules.mk", "extension/scripts/has-extension-changes.sh",
 			"extension/package.json", "extension/package-lock.json", "extension/eslint.config.js",
 			"extension/tsconfig.json", "extension/tsconfig.core.json", "extension/tsconfig.build.json",

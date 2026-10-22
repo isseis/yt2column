@@ -111,22 +111,23 @@ func guideTable(doc, marker string) string {
 func TestGuideTable(t *testing.T) {
 	doc := "## 6\n**A.** a `p`\n\n| h |\n|---|\n| `x` |\nafter `y`\n\n| `w` |\n**B.** b\n**C.** c\n\n| `z` |\n"
 	for _, tc := range []struct {
-		name string
-		got  string
-		want string
+		name   string
+		doc    string
+		marker string
+		want   string
 	}{
-		{"stops_at_table_end", guideTable(doc, "**A.**"), "| h |\n|---|\n| `x` |\n"},
-		{"table_after_prose", guideTable(doc, "**C.**"), "| `z` |\n"},
+		{"stops_at_table_end", doc, "**A.**", "| h |\n|---|\n| `x` |\n"},
+		{"table_after_prose", doc, "**C.**", "| `z` |\n"},
 		// Bullets and a paragraph between the marker and the table, as in
 		// the guide.
-		{"table_after_bullets", guideTable("x\n**E.** e\n- bullet `q`\npara\n\n| `v` |\n", "**E.**"), "| `v` |\n"},
+		{"table_after_bullets", "x\n**E.** e\n- bullet `q`\npara\n\n| `v` |\n", "**E.**", "| `v` |\n"},
 		// The next bold heading comes before any table.
-		{"no_table_before_next_heading", guideTable(doc, "**B.**"), ""},
-		{"missing_marker", guideTable(doc, "**D.**"), ""},
+		{"no_table_before_next_heading", doc, "**B.**", ""},
+		{"missing_marker", doc, "**D.**", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if tc.got != tc.want {
-				t.Errorf("got %q, want %q", tc.got, tc.want)
+			if got := guideTable(tc.doc, tc.marker); got != tc.want {
+				t.Errorf("got %q, want %q", got, tc.want)
 			}
 		})
 	}
