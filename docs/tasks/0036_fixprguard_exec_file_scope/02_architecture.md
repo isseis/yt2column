@@ -8,7 +8,7 @@
 | Created | 2026-10-22 |
 | Review date | 2026-10-22 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-22 (editorial): 7.5 の `TestInspectExitCode` の行番号を `:493-520` から `:495-527` に直し、`TestInspectExitCode`・`TestInspectListsOutOfScope` の表に新しい規則でだけ範囲外になる入力を加えることを書き足した（実装計画 1.4。既存のテストの表に行を加えるだけで、結合テストは加えない）。8 章の 1 に、英語版のガイドは日本語版の commit の後の commit に入れることを書き足した（CLAUDE.md の翻訳の順序）。決定は変えていない。 |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `3ed049b` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md) の項番を指す。申し送り H-01〜H-06 への対応は付録 A にまとめる。「ガイド」は `docs/dev/developer_guide/fixprguard_guide.md`（と日本語版の `fixprguard_guide.ja.md`）を指す。行番号は日本語版のものである。
 
@@ -653,7 +653,7 @@ CLAUDE.md「Every test must be able to fail for its stated reason」に従い、
 
 ### 7.5. 結合テスト
 
-範囲の判定は `inspect` の中の純粋な関数なので、結合テストは加えない。`inspect` が範囲外の変更で終了コード `3` を返すこと（AC-14）は、今の `TestInspectExitCode`（`cmd/fixprguard/main_test.go:493-520`）と `TestInspectListsOutOfScope`（`worktree_test.go:51-74`）が確かめる。AC-15 の `/fixpr`・`/runpr` の扱いは、手順書を変えないので、0030 の確かめのまま変わらない。
+範囲の判定は `inspect` の中の純粋な関数なので、結合テストは加えない。`inspect` が範囲外の変更で終了コード `3` を返すこと（AC-14）は、今の `TestInspectExitCode`（`cmd/fixprguard/main_test.go:495-527`）と `TestInspectListsOutOfScope`（`worktree_test.go:51-74`）が確かめる。2 つのテストの範囲外の入力は今の規則でも範囲外の場所なので、新しい規則でだけ範囲外になる入力を、それぞれのテストの表に加える（実装計画 1.4）。AC-15 の `/fixpr`・`/runpr` の扱いは、手順書を変えないので、0030 の確かめのまま変わらない。
 
 ### 7.6. セキュリティテスト
 
@@ -661,7 +661,7 @@ CLAUDE.md「Every test must be able to fail for its stated reason」に従い、
 
 ## 8. 実装の優先順位 (Implementation Priorities)
 
-1.  `scope.go` のデータと判定の順序（3.1〜3.4）、`scope_test.go` の行（7.1）、ガイド 6 章の 2 つの表と規則の説明、`TestGuideCoversStopKindsAndScope` の改訂（3.5）。`ExecutionFilePatterns` と `AllowListPatterns` の出力が変わると、ガードがガイドとの一致を求めるので、ガイドの表も同じ commit に入れる。
+1.  `scope.go` のデータと判定の順序（3.1〜3.4）、`scope_test.go` の行（7.1）、ガイド 6 章の 2 つの表と規則の説明、`TestGuideCoversStopKindsAndScope` の改訂（3.5）。`ExecutionFilePatterns` と `AllowListPatterns` の出力が変わると、ガードがガイドとの一致を求めるので、ガイドの表も同じ commit に入れる。英語版のガイドは、日本語版の commit の後に翻訳する（CLAUDE.md「Translation Guidelines」）ので、次の commit に入れる。
 2.  `Protocol` の引き上げと、`fixpr.md`・`runpr.md`・ガイドの番号、`check_rules.sh`、ガイド 9 章（3.6）。ガードが一致を求めるので、同じ commit に入れる。
 3.  ガイド 7.2 の残余のリスク（3.5）、用語集（3.7）、0030 の文書の注記（3.7）。英語版のガイドは日本語版から訳す（CLAUDE.md「Translation Guidelines」）。
 
