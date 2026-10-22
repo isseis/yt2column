@@ -592,8 +592,10 @@ func TestGuideListsScopeResidualRisks(t *testing.T) {
 			"Files read or run that are not on the deny list",
 		}},
 	} {
-		guide := readRepoFile(t, tc.rel)
-		checkPassages(t, tc.rel, tc.risks, []passage{{name: "7.2", text: subsection(guide, "### 7.2")}})
+		t.Run(filepath.Base(tc.rel), func(t *testing.T) {
+			guide := readRepoFile(t, tc.rel)
+			checkPassages(t, tc.rel, tc.risks, []passage{{name: "7.2", text: subsection(guide, "### 7.2")}})
+		})
 	}
 }
 
