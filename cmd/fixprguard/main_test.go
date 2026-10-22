@@ -303,8 +303,9 @@ func TestInspectChecksGitStateBeforeGh(t *testing.T) {
 
 // TestPreviousBaselineRejected: a baseline token of the version before the
 // current one stops inspect, finish and push with exit 2 before any command
-// runs. Every other value on each line is valid, and the same token with the
-// current version parses, so only the version can be refused.
+// runs. Every other value on each line is valid, and validBaseline checks
+// that the same token with the current version parses, so only the version
+// can be refused.
 func TestPreviousBaselineRejected(t *testing.T) {
 	current := validBaseline(t)
 	rest, ok := strings.CutPrefix(current, "v2.")
@@ -341,7 +342,8 @@ func TestPreviousBaselineRejected(t *testing.T) {
 // TestConfigStopOmitsNames: a stop for a changed setting of the current
 // branch names the part only. The branch names, the setting's name and
 // value, and the file it came from appear in neither the baseline token nor
-// the stop output nor standard error.
+// the stop output nor standard error. The setting is in the repository's
+// config, which git lists with the origin "file:.git/config".
 func TestConfigStopOmitsNames(t *testing.T) {
 	const (
 		current = "zqcurrentbranch"
@@ -354,8 +356,8 @@ func TestConfigStopOmitsNames(t *testing.T) {
 	base := repo.Baseline()
 	repo.Git("config", "branch."+current+".description", value)
 	listing := repo.Git("config", "--list", "--show-origin")
-	hidden := []string{current, other, value, "description", repo.Dir}
-	for _, h := range hidden[:4] {
+	hidden := []string{current, other, value, "description", "file:.git/config"}
+	for _, h := range hidden {
 		if !strings.Contains(listing, h) {
 			t.Fatalf("test setup: %q is not in git config --list", h)
 		}

@@ -151,7 +151,14 @@ func (r *testRepo) gitIn(dir string, args ...string) string {
 // so a test can tell whether a change reached the listed values.
 func (r *testRepo) ConfigList() string {
 	r.t.Helper()
-	return r.Git(append(append([]string{}, gitHardening...), "config", "--list", "--show-origin", "-z")...)
+	cmd := exec.Command(gitCommand, append(append([]string{}, gitHardening...), "config", "--list", "--show-origin", "-z")...) //nolint:gosec // test setup runs git with fixed arguments
+	cmd.Dir = r.Dir
+	cmd.Env = GitEnv(os.Environ())
+	out, err := cmd.Output()
+	if err != nil {
+		r.t.Fatalf("git config --list: %v", err)
+	}
+	return string(out)
 }
 
 // AddWorktree adds a linked worktree at dir on a new branch made from the

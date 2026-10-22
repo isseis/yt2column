@@ -62,7 +62,7 @@ const (
 	layerUnchecked stopLayer = iota
 	// layerFiles sees it from the files alone: no git runs.
 	layerFiles
-	// layerList sees it in git config --list: no git rev-parse runs.
+	// layerList sees it in git config --list, the only git that runs.
 	layerList
 )
 
@@ -76,8 +76,8 @@ func wantLayer(t *testing.T, layer stopLayer, calls []string) {
 			t.Errorf("ran git %d times, want none: %v", n, calls)
 		}
 	case layerList:
-		if !slices.Contains(calls, gitConfigList) || slices.Contains(calls, gitCommand+" rev-parse") {
-			t.Errorf("calls = %v, want git config --list and no git rev-parse", calls)
+		if !slices.Equal(calls, []string{gitConfigList}) {
+			t.Errorf("calls = %v, want git config --list only", calls)
 		}
 	default:
 		t.Fatalf("unknown layer %d", layer)
@@ -226,6 +226,11 @@ func TestBaselineDetectsChange(t *testing.T) {
 		}, edit: func(t *testing.T, r *testRepo) {
 			appendFile(t, filepath.Join(r.Dir, ".git", "config.worktree"), "[core]\n\tsshCommand = evil\n")
 		}, parts: []string{PartConfig}, layer: layerList},
+		// A worktree config file that did not exist at begin is a type
+		// change, seen from the files alone whatever it holds.
+		{name: "worktree_config_created", edit: func(t *testing.T, r *testRepo) {
+			appendFile(t, filepath.Join(r.Dir, ".git", "config.worktree"), "")
+		}, parts: []string{PartConfig}, layer: layerFiles},
 		{name: "git_file_points_elsewhere", edit: func(t *testing.T, r *testRepo) {
 			if err := os.Rename(filepath.Join(r.Dir, ".git"), filepath.Join(r.Home, "moved.git")); err != nil {
 				t.Fatal(err)
@@ -242,10 +247,10 @@ func TestBaselineDetectsChange(t *testing.T) {
 		}, parts: []string{PartConfig}, layer: layerList},
 		{name: "info_exclude", edit: func(t *testing.T, r *testRepo) {
 			appendFile(t, filepath.Join(r.Dir, ".git", "info", "exclude"), "*.go\n")
-		}, parts: []string{PartInfo}},
+		}, parts: []string{PartInfo}, layer: layerFiles},
 		{name: "info_attributes", edit: func(t *testing.T, r *testRepo) {
 			appendFile(t, filepath.Join(r.Dir, ".git", "info", "attributes"), "*.md -diff\n")
-		}, parts: []string{PartInfo}},
+		}, parts: []string{PartInfo}, layer: layerFiles},
 		{name: "skip_worktree", edit: func(_ *testing.T, r *testRepo) {
 			r.Git("update-index", "--skip-worktree", testFile)
 		}, parts: []string{PartInfo}},
@@ -461,8 +466,7 @@ func TestOtherBranchConfigIgnored(t *testing.T) {
 			r.Git("config", "--remove-section", "branch.x")
 		}},
 		// git lists [branch ""] but every other git command stops on it with
-		// "bad config variable", so the run stops as a git failure later,
-		// never as a config change.
+		// "bad config variable", so only CheckState is compared here.
 		{name: "empty_subsection_section_added", edit: func(t *testing.T, r *testRepo) {
 			appendFile(t, repoConfig(r), "[branch \"\"]\n\tremote = "+testRemote+"\n")
 		}, checkOnly: true},
@@ -559,7 +563,8 @@ func TestConfigListFailureKinds(t *testing.T) {
 		result  configListResult
 		changed bool // a config change in CheckState rather than a git failure
 	}{
-		{name: "output_over_cap", result: configListResult{Err: fmt.Errorf("git: %w", cmdrunner.ErrOutputTooLarge)}},
+		// Joined with an exit error, so the cap is what keeps it a git failure.
+		{name: "output_over_cap", result: configListResult{Err: errors.Join(fmt.Errorf("git: %w", cmdrunner.ErrOutputTooLarge), exit(1))}},
 		{name: "cancelled", result: configListResult{Err: errors.Join(context.Canceled, exit(-1))}},
 		{name: "timed_out", result: configListResult{Err: errors.Join(context.DeadlineExceeded, exit(-1))}, changed: true},
 		{name: "nonzero_exit", result: configListResult{Err: exit(128)}, changed: true},

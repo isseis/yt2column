@@ -516,7 +516,9 @@ func (w *Worktree) configList(ctx context.Context) ([]byte, error) {
 // configuration became unreadable (a syntax error, an include of a FIFO), a
 // config change; an output over the cap, a cancellation, or git not starting
 // is a git failure. The context error is checked before the exit error,
-// since a cancelled or timed-out command reports both.
+// since a cancelled or timed-out command reports both. A deadline is read as
+// gitTimeout's: a caller that sets its own would see its expiry here as a
+// config change.
 func configListFailure(err error) error {
 	switch {
 	case errors.Is(err, cmdrunner.ErrOutputTooLarge), errors.Is(err, context.Canceled):
@@ -554,7 +556,8 @@ func (w *Worktree) hooksState(ctx context.Context) (string, error) {
 // info files are read from the files alone, never by git. Then git config
 // lists every value git reads, which launches nothing even with a rewritten
 // configuration; the values except other branches' branch settings are
-// compared, and a listing that cannot be read or parsed is a config change.
+// compared, and a listing git fails to produce (a nonzero exit, a timeout) or
+// that is not in the accepted shape is a config change.
 // Only after those match does git rev-parse locate the hooks to compare,
 // before any command that could run one. Every subcommand that launches git
 // or gh after begin calls it first.
