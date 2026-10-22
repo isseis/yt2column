@@ -206,26 +206,52 @@ fixprguard edit-pr --protocol 2 --title-file /path/to/title.txt --body-file /pat
 `inspect` は、`--thread` で渡したスレッドの `path`（GitHub から取り直したもの）ごとに、範囲に入るファイルを次の規則で決める。
 
 1. `path` そのもの。
-2. `path` と同じディレクトリのファイル（サブディレクトリの中は含まない）。
-3. `path` が `docs/tasks/NNNN_<name>/` の中にあれば、そのディレクトリの下のすべてのファイル（サブディレクトリの中を含む）。
-4. ただし、コマンドの実行に関わるファイル（下の表）は、`path` そのものでなければ範囲外とする。名指しされた想定外の著者のスレッドでは、`path` そのものでも範囲外とする。
+2. `path` と同じディレクトリのファイル（サブディレクトリの中は含まない）。ただし、許可リスト（下の表）に当たるファイルだけ。
+3. `path` が `docs/tasks/NNNN_<name>/` の中にあれば、そのディレクトリの下のファイル（サブディレクトリの中を含む）。ただし、許可リストに当たるファイルだけ。
+4. ただし、コマンドの実行に関わるファイル（実行関連ファイル。下の表）は、`path` そのものでなければ範囲外とする。名指しされた想定外の著者のスレッドでは、`path` そのものでも範囲外とする。
 5. 名前を変えたファイルは、変える前の削除と変えた後の追加を、それぞれ判定する。
 6. 通常のファイル以外の変更（シンボリックリンク、サブモジュール、ファイルの種類の変更、FIFO やデバイス、8 MiB を超えるファイル）は、パスにかかわらず範囲外とする。
 
-`.go` のファイルは、規則 2 では、`path` が `.go` のファイルで同じディレクトリにあるときだけ範囲に入り（同じパッケージのテストの修正）、規則 3 では範囲に入らない。名指しされた想定外の著者のスレッドでは、`path` そのもの以外の `.go` のファイルは範囲外である。`make test` が範囲内の `.go` のファイルをコンパイルして実行するためである。
+規則 1 には許可リストを当てない。実行関連ファイルでないファイルは、`path` そのものなら種類を問わず範囲に入る。
 
 **パスの検査。** 有効な UTF-8 で制御文字を含まず、絶対パスでなく、`..` の要素を含まず、正規化で変わらないパスだけを判定する。それ以外は範囲外とし、出力に `path` を出さない。ASCII でない文字を含むパスは、`path` とバイト単位で一致するときだけ範囲に入る。
 
-**コマンドの実行に関わるファイル。** build checks と CI が、設定として読む、またはコンパイル・実行するファイルである。照合は ASCII の大文字小文字を同一視して行う（大文字小文字を区別しないファイルシステムでは `makefile` と `Makefile` が同じファイルを指すため）。一覧は `internal/fixprguard/scope.go` の定義と同じである。
+**実行関連ファイル。** 規則 4 で、`path` そのものでなければ範囲外とするファイル（拒否リスト）である。次の 3 つの部分からなる。
+
+- build checks と CI が、設定として読む、またはコンパイル・実行するファイル。Go のビルドの入力（Go がパッケージのビルドで、`.go` のファイルのほかに扱うファイル）を含む。
+- 指示ファイル。Claude Code や自動レビュアーが、置かれたディレクトリへの指示として自動で読むファイルである。最上位の `CLAUDE.md`・`AGENTS.md` も含む。
+- `.` で始まる要素（ディレクトリの名前またはファイルの名前）を含むパス。`.claude/`・`.github/` の下のファイルや、`.gitignore`・`.gitattributes` は、どの階層にあってもこれに当たる。
+
+照合は ASCII の大文字小文字を同一視して行う（大文字小文字を区別しないファイルシステムでは `makefile` と `Makefile` が同じファイルを指すため）。一覧は `internal/fixprguard/scope.go` の定義と同じである。
 
 | 形 | 項目 |
 |---|---|
-| どのディレクトリでも、この名前のファイル | `makefile`、`gnumakefile`、`go.mod`、`go.sum`、`go.work`、`go.work.sum`、`.tool-versions`、`.mise.toml` |
-| どのディレクトリでも、この拡張子のファイル | `*.mk` |
-| `.go` の規則（上記） | `*.go` |
-| この下のすべてのファイル | `.claude/`、`.github/`、`extension/scripts/` |
-| リポジトリの最上位のファイル | `/.*`（`.` で始まるすべてのファイル）、`/claude.md`、`/agents.md` |
-| `extension/` の直下のファイル | `extension/package.json`、`extension/package-lock.json`、`extension/.npmrc`、`extension/.node-version`、`extension/.prettierrc.json`、`extension/.prettierignore`、`extension/eslint.config.js`、`extension/tsconfig.json`、`extension/tsconfig.core.json`、`extension/tsconfig.build.json` |
+| どの階層でも、この名前のファイル | `makefile`、`gnumakefile`、`go.mod`、`go.sum`、`go.work`、`go.work.sum` |
+| どの階層でも、この名前の指示ファイル | `claude.md`、`agents.md`、`claude.local.md`、`agent.md`、`gemini.md`、`agents.override.md` |
+| どの階層でも、この拡張子のファイル | `*.mk` |
+| どの階層でも、この拡張子の Go のビルドの入力 | `*.c`、`*.h`、`*.cc`、`*.cpp`、`*.cxx`、`*.hh`、`*.hpp`、`*.hxx`、`*.m`、`*.s`、`*.sx`、`*.f`、`*.for`、`*.f90`、`*.swig`、`*.swigcxx`、`*.syso` |
+| どの階層でも、`.` で始まる要素を含むパス | `.*`（例: `.claude/`・`.github/` の下のすべてのファイル、`.golangci.yml`・`.gitignore`・`.gitattributes`・`.tool-versions`・`.mise.toml`、`extension/.npmrc`・`extension/.node-version`・`extension/.prettierrc.json`・`extension/.prettierignore`） |
+| この下のすべてのファイル | `extension/scripts/` |
+| `extension/` の直下のファイル | `extension/package.json`、`extension/package-lock.json`、`extension/eslint.config.js`、`extension/tsconfig.json`、`extension/tsconfig.core.json`、`extension/tsconfig.build.json` |
+
+**許可リスト。** 規則 2・3 で範囲に入りうるファイルの種類である。実行関連ファイルでなく、次のどれかに当たるファイルだけが、規則 2・3 で範囲に入る。(a)・(b) は大文字と小文字を区別して照合する（`README.MD` や `TestData/` の下のファイルは当たらない）。(c) は、実行関連ファイルと同じく大文字小文字を同一視する。
+
+| 形 | 項目 |
+|---|---|
+| (a) 名前がこの拡張子で終わる（大文字小文字を区別する） | `*.md`、`*.txt` |
+| (b) ディレクトリの要素のどれかがこの名前（大文字小文字を区別する） | `testdata/` |
+| (c) `.go` の規則（下記。大文字小文字を同一視する） | `*.go` |
+
+`.go` の規則: `.go` のファイルは、規則 2 では、`path` が `.go` のファイルで同じディレクトリにあるときだけ範囲に入り（同じパッケージのテストの修正）、規則 3 では範囲に入らない。名指しされた想定外の著者のスレッドでは、`path` そのもの以外の `.go` のファイルは範囲外である。`make test` が範囲内の `.go` のファイルをコンパイルして実行するためである。`.go` のファイルには、(b) にかかわらずこの規則だけを当てる（`testdata` の下の `.go` のファイルも、この規則で判定する）。
+
+**判定の順序。** `inspect` は、範囲外になった理由を出力しない。一覧のパスを次の順序と上の 2 つの表に照らせば、理由が分かる。規則 6 に当たる変更と、パスの検査に通らないパスは、この順序の前に範囲外になる。それ以外の変更したパスを、1 つのスレッドの `path` について、次の順に調べる。どれかのスレッドで範囲内になれば、その変更は範囲内である。
+
+1. 実行関連ファイルなら、名指しのスレッドでなく、変更したパスが `path` そのもののときだけ範囲内。それ以外は範囲外。
+2. 変更したパスが `path` そのものなら範囲内（規則 1）。
+3. 変更したパスが ASCII でない文字を含めば範囲外。
+4. `.go` のファイルなら、`.go` の規則で決める。
+5. 規則 2・3 のどちらの場所にもなければ範囲外。
+6. 許可リストの (a) または (b) に当たれば範囲内。当たらなければ範囲外。
 
 ## 7. ツールが保証すること・しないこと
 
