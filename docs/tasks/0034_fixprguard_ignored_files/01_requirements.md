@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-22 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-22 |
+| Reviewer | isseis |
 | Comments | 2026-10-22 (decision): 対象のファイルの範囲を、コマンドの実行に関わるファイルの定義全体（`fixprguard_guide.md` 6 章）から、監視の一覧（3 章）に改めた。`/mkarch 0034` の検討で、定義全体では、`.DS_Store` やエディタのスワップファイルで誤検出し、タスク 0036 で定義が広がると `.venv/` の全体が対象になると分かったためである（1 章の決定）。決定を変えたので、状態を `draft` に戻した。以前の承認: 2026-10-22、isseis。 |
 
 ## 1. 概要 (Overview)
