@@ -52,6 +52,10 @@ var (
 	errNonceExhausted = errors.New("no fence nonce absent from the data")
 	errUnknownEnum    = errors.New("enum value has no name")
 	errThreadCap      = fmt.Errorf("%w: thread cap", ErrLimitExceeded)
+	// errConfigList reports git config output that is not in the accepted
+	// shape. It never carries a name, a value, or an origin. It is a git
+	// failure at begin; CheckState reports it as a config change.
+	errConfigList = fmt.Errorf("%w: config list shape", ErrGitFailed)
 )
 
 // The stop kinds: the machine-readable name of why a subcommand stopped, as
