@@ -12,7 +12,10 @@ import (
 // is kept apart from the deny list of the scope rules, which decides what a
 // round may change, and shares only goBuildInputSuffixes with it. Matching
 // reads the repository-relative path alone, never the file system, and folds
-// case the way a case-insensitive macOS volume resolves a name (foldEqual).
+// case with Unicode simple folding (foldEqual). A case-insensitive macOS
+// volume also applies the full folding that expands one rune into several
+// (U+FB01 to "fi"); a name equal to an item only under that expansion is not
+// matched, a residual risk the guide records.
 var (
 	// watchTopDir matches every path whose first element it is, the element
 	// itself included.
@@ -25,6 +28,8 @@ var (
 	// that is only the suffix included; goBuildInputSuffixes are matched the
 	// same way.
 	watchSuffixes = []string{".go", ".mk"}
+	// watchAllSuffixes is every suffix the watch list matches.
+	watchAllSuffixes = slices.Concat(watchSuffixes, goBuildInputSuffixes)
 )
 
 // WatchListPatterns lists the watch list in the form the guide prints it:
@@ -38,15 +43,16 @@ func WatchListPatterns() []string {
 		patterns = append(patterns, "/"+f)
 	}
 	patterns = append(patterns, watchNames...)
-	for _, s := range slices.Concat(watchSuffixes, goBuildInputSuffixes) {
+	for _, s := range watchAllSuffixes {
 		patterns = append(patterns, "*"+s)
 	}
 	return patterns
 }
 
 // isWatched reports whether a repository-relative slash path is on the watch
-// list. The path is matched as it is, never cleaned or normalized, so no
-// byte sequence an attacker picks for a name takes a path off the list.
+// list. The path is matched as it is, never cleaned or normalized: an
+// invalid byte or a control character in a name does not take a path off the
+// list.
 func isWatched(p string) bool {
 	elems := strings.Split(p, "/")
 	if foldEqual(elems[0], watchTopDir) {
@@ -62,13 +68,13 @@ func isWatched(p string) bool {
 	if slices.ContainsFunc(watchNames, equalTo(name)) {
 		return true
 	}
-	return slices.ContainsFunc(slices.Concat(watchSuffixes, goBuildInputSuffixes), func(s string) bool {
+	return slices.ContainsFunc(watchAllSuffixes, func(s string) bool {
 		return hasFoldSuffix(name, s)
 	})
 }
 
-// foldUnit is one unit of a string as foldEqual compares it: a rune of valid
-// UTF-8 (zero or more), or an invalid byte b as -1-b.
+// foldUnit is one unit of a string as foldEqual compares it: a valid rune as
+// its code point, which is not negative, or an invalid byte b as -1-b.
 type foldUnit int32
 
 // foldUnits splits s into its valid runes and its invalid bytes.

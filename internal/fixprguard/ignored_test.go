@@ -31,6 +31,8 @@ func TestIsWatched(t *testing.T) {
 		{"env_not_top", "a/.env", false},
 		{"envrc_not_top", "extension/.envrc", false},
 		{"claude_local_md_not_top", "docs/CLAUDE.local.md", false},
+		{"envrc_upper", ".ENVRC", true},
+		{"claude_local_md_upper", "CLAUDE.local.md", true},
 
 		// Names in any directory.
 		{"claude_md", "docs/CLAUDE.md", true},
@@ -40,6 +42,8 @@ func TestIsWatched(t *testing.T) {
 		{"go_work", "go.work", true},
 		{"go_sum", "go.sum", false},
 		{"agents_md", "AGENTS.md", false},
+		{"name_as_suffix", "build/xmakefile", false},
+		{"name_with_more_after", "go.mod.bak", false},
 
 		// Suffixes in any directory.
 		{"go", "build/x_test.go", true},
@@ -125,6 +129,19 @@ func TestWatchListPatternsMatch(t *testing.T) {
 	for _, pattern := range patterns {
 		if p := watchSamplePath(pattern); !isWatched(p) {
 			t.Errorf("WatchListPatterns lists %q, but %q is not watched", pattern, p)
+		}
+		// A leading or trailing "/" marks an item that matches at the top
+		// level only, so the same path one directory down must not match.
+		if strings.HasPrefix(pattern, "/") || strings.HasSuffix(pattern, "/") {
+			if p := "a/" + watchSamplePath(pattern); isWatched(p) {
+				t.Errorf("WatchListPatterns lists %q as top level only, but %q is watched", pattern, p)
+			}
+		}
+		// A leading "/" marks a file, so nothing below it matches.
+		if strings.HasPrefix(pattern, "/") {
+			if p := watchSamplePath(pattern) + "/x"; isWatched(p) {
+				t.Errorf("WatchListPatterns lists %q as a file, but %q below it is watched", pattern, p)
+			}
 		}
 	}
 }
