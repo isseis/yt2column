@@ -16,7 +16,7 @@
 
 **背景:**
 
-`fixprguard inspect` は、`/fixpr` の修正のフェーズが変えたファイルを、処理したスレッドの `path` から決まる範囲と照らす。範囲外の変更があれば、終了コード `3` で利用者の確認に回す（`docs/dev/developer_guide/fixprguard_guide.md:149`）。範囲の規則は、タスク 0030（[#395](https://github.com/isseis/yt2column/issues/395)）で決まった（0030 `02_architecture.md` 3.6）。次の 3 つのどれかに当たる変更が範囲に入る（`internal/fixprguard/scope.go:16-28`）。
+`fixprguard inspect` は、`/fixpr` の修正のフェーズが変えたファイルを、処理したスレッドの `path` から決まる範囲と照らす。範囲外の変更があれば、終了コード `3` で利用者の確認に回す（`docs/dev/developer_guide/fixprguard_guide.md:156`）。範囲の規則は、タスク 0030（[#395](https://github.com/isseis/yt2column/issues/395)）で決まった（0030 `02_architecture.md` 3.6）。次の 3 つのどれかに当たる変更が範囲に入る（`internal/fixprguard/scope.go:16-28`）。
 
 1.  `path` そのもの。
 2.  `path` と同じディレクトリのファイル（サブディレクトリの中は含まない）。
@@ -60,7 +60,7 @@ issue #425 によれば、影響は次のとおりである。Claude Code はサ
 -   **指示ファイルと git の設定を、どの階層でも実行関連とする:** `claude.md`・`agents.md`・`claude.local.md`・`.claude/`（ディレクトリの名前として）・`.gitattributes`・`.gitignore` を、どの階層でもコマンドの実行に関わるファイルとする。
     -   理由: Claude Code はサブディレクトリの指示ファイルを読む。下の階層の `.gitignore` は、以後の変更を隠せる。
 -   **定義を変えたら、一覧・ガイド・ガードを合わせる:** `ExecutionFilePatterns`（`internal/fixprguard/scope.go:60-75`）、`fixprguard_guide.md` 6 章の表、`cmd/fixprguard/docs_test.go` のガードを更新する。
-    -   理由: ガイドは定義と同じ一覧を載せると約束している（`docs/dev/developer_guide/fixprguard_guide.md:212`）。
+    -   理由: ガイドは定義と同じ一覧を載せると約束している（`docs/dev/developer_guide/fixprguard_guide.md:219`）。
 -   **表の各行をテストに入れる:** 壊して失敗を確かめる（`CLAUDE.md`「Testing Strategy」）。
 
 **要件定義の際に決めたこと（2026-10-22）:**
@@ -77,7 +77,7 @@ issue #425 によれば、影響は次のとおりである。Claude Code はサ
     -   理由: issue の 7 種類だけでは、`.cpp`・`.hpp` などで同じ迂回ができる。拡張子の一覧は `go help filetype` と、`go/build` の `Package` の `FFiles`（Fortran）による。
 -   **`.` で始まる要素を、どの階層でも実行関連とする:** issue が挙げた `.claude/`・`.gitattributes`・`.gitignore` に限らない。パスのどの要素（ファイルの名前またはディレクトリの名前）でも、`.` で始まれば実行関連とする。
     -   理由: ツールは、下の階層の `.` で始まるファイルも読む。たとえば direnv は、下のディレクトリの `.envrc` を読む。`.npmrc` も下の階層に置ける。最上位で `.` で始まるファイルを実行関連とする今の規則（`internal/fixprguard/scope.go:119`）を、どの階層にも広げる。
--   **`inspect` の出力の形は変えない:** 範囲外になった理由（拒否リストか、許可リストに当たらないか）は出力しない。`outOfScope` の要素は今の項目のままである（`docs/dev/developer_guide/fixprguard_guide.md:149`）。
+-   **`inspect` の出力の形は変えない:** 範囲外になった理由（拒否リストか、許可リストに当たらないか）は出力しない。`outOfScope` の要素は今の項目のままである（`docs/dev/developer_guide/fixprguard_guide.md:156`）。
     -   理由: 利用者は、一覧を見て続けるかを判断できる。出力の契約を変えずに済む。
 -   **コマンドが読むよう指示する文書は、実行関連にしない:** `.claude/commands/` の手順書は、`docs/dev/developer_guide/` の文書などを読んで従うよう指示している。これらの文書は実行関連とせず、残余のリスクとして記録する（4.2）。
     -   理由: これらの文書は、正当な修正でもよく変わる。変更は PR の diff として人が確かめる。
@@ -154,7 +154,7 @@ issue #425 によれば、影響は次のとおりである。Claude Code はサ
     -   `internal/x/x.go` のときの `internal/x/x_test.go`（名指しなし）
 - **AC-09**: AC-06 (a)・(b) の照合は、大文字と小文字を区別する。例: スレッドの `path` が `docs/a.md` のとき、`docs/B.MD` は範囲外になる。`internal/x/x.go` のとき、`internal/x/TestData/a.json` は範囲外になる。
 - **AC-10**: 規則 1 には許可リストを適用しない。コマンドの実行に関わるファイルでない変更は、スレッドの `path` そのものなら、種類にかかわらず範囲に入る。名指しの有無は問わない。例: 変更したパスとスレッドの `path` がどちらも `extension/src/a.ts` のとき。
-- **AC-11**: 範囲の規則のうち、本書が変えないものは今までどおりである。パスの検査、ASCII でない文字を含むパスはバイト単位で `path` と一致するときだけ範囲に入ること、名前の変更を変更前の削除と変更後の追加として別々に判定すること、通常のファイル以外の変更を範囲外とすることである（`docs/dev/developer_guide/fixprguard_guide.md:201-210`）。
+- **AC-11**: 範囲の規則のうち、本書が変えないものは今までどおりである。パスの検査、ASCII でない文字を含むパスはバイト単位で `path` と一致するときだけ範囲に入ること、名前の変更を変更前の削除と変更後の追加として別々に判定すること、通常のファイル以外の変更を範囲外とすることである（`docs/dev/developer_guide/fixprguard_guide.md:208-217`）。
 
 #### F-003: issue の表の各行を範囲外にする
 
@@ -179,7 +179,7 @@ issue #425 によれば、影響は次のとおりである。Claude Code はサ
 #### F-004: 出力と終了コードを保つ
 
 **Acceptance Criteria**:
-- **AC-14**: `inspect` の出力の項目と終了コードの意味は変わらない（`docs/dev/developer_guide/fixprguard_guide.md:66-71`・`:149`）。新しい規則で範囲外になった変更も、今までの範囲外の変更と同じ形で `outOfScope` に入る。範囲外になった理由は出力しない。
+- **AC-14**: `inspect` の出力の項目と終了コードの意味は変わらない（`docs/dev/developer_guide/fixprguard_guide.md:73-78`・`:156`）。新しい規則で範囲外になった変更も、今までの範囲外の変更と同じ形で `outOfScope` に入る。範囲外になった理由は出力しない。
 - **AC-15**: `/fixpr` と `/runpr` での範囲外の変更の扱い（利用者に一覧を示して続けるかを確かめる、続けないと答えたら変更を作業ツリーに残して止まる）は変わらない（0030 `01_requirements.md` AC-23・AC-25・AC-31）。
 
 #### F-005: 文書とガード
@@ -194,7 +194,7 @@ issue #425 によれば、影響は次のとおりである。Claude Code はサ
 
 ### 4.1. 性能 (Performance)
 
--   N/A。判定はパスの文字列だけを見る関数で、変更のあるファイルは 1000 個まで（`docs/dev/developer_guide/fixprguard_guide.md:261`）なので、実行時間は問題にならない。
+-   N/A。判定はパスの文字列だけを見る関数で、変更のあるファイルは 1000 個まで（`docs/dev/developer_guide/fixprguard_guide.md:272`）なので、実行時間は問題にならない。
 
 ### 4.2. セキュリティ (Security)
 
@@ -215,7 +215,7 @@ issue #425 によれば、影響は次のとおりである。Claude Code はサ
 
 -   **確認が増える:** 今まで規則 2・3 で確認なしに通った変更のうち、許可リストに当たらないものは、利用者の確認に回る。例: 同じディレクトリの `.ts` のテスト、プロンプトのテンプレート（`.tmpl`）、タスクのディレクトリのスクリプト（`.sh`・`.py`）、`testdata` の外の `.json`（AC-07）。確認が増えることは、0030 で受け入れ済みである（0030 `01_requirements.md` 4.4）。
 -   **以前の規則の例外:** 0030 は「範囲は、スレッドの `path` と同じディレクトリまでとする」と決め、規則 2・3 で同じディレクトリとタスクのディレクトリのファイルを範囲に入れた（0030 `01_requirements.md` 1 章「要件定義の際に決めたこと」と F-004）。本書は、規則 2・3 で範囲に入るファイルを、許可リストに当たるものに限る。理由は 1 章「要件定義の際に決めたこと」の 1 つめのとおりで、拒否リストでは網羅できないからである。範囲を狭める変更なので、0030 が守ろうとしたこと（範囲外の変更を確認なしに commit しない）は弱まらない。
--   **インストール済みのツール:** 規則を変えたツールは、マージの後に `make install-fixprguard` で入れ直すまで使われない（`docs/dev/developer_guide/fixprguard_guide.md:45`）。古いツールが新しい文書から呼ばれたときの振る舞い（`protocol` の番号を上げるか）は、設計で決める（H-01）。
+-   **インストール済みのツール:** 規則を変えたツールは、マージの後に `make install-fixprguard` で入れ直すまで使われない（`docs/dev/developer_guide/fixprguard_guide.md:46`）。古いツールが新しい文書から呼ばれたときの振る舞い（`protocol` の番号を上げるか）は、設計で決める（H-01）。
 -   **タスク 0034 との関係:** 0034 の要件定義書（PR #429、`draft`）は、git が無視するファイルのうち、コマンドの実行に関わるファイルの定義に当たるものを基準値の対象にする。本タスクで定義が広がると、0034 の対象も広がる。たとえば、`.` で始まる要素の規則（AC-02）は、無視される `extension/node_modules/` の下の `.bin/` なども対象にする。後から実装するほうのタスクが、両者を合わせる（H-04）。
 
 ### 4.5. 保守性 (Maintainability)
