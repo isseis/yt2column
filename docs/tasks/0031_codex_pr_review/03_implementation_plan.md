@@ -36,7 +36,7 @@
 
 -   **PR-2 を 3 つのフェーズに分ける（フェーズ 2〜4）。** PR は 1 つのままとし、各フェーズの終わりで `make test`・`make lint` が通る単位に分ける。理由: `TestContextAndCommandsAgree`（`cmd/yt2column/fixpr_docs_test.go:527-570`）は、`Awaited PR reviewer` の値と、`runpr.md` が名前を書いてよい唯一の文字列 `"@" + 名前 + " review"`（同 `549`）を結びつけている。そのため、`_context.md` の値の変更と `runpr.md` step 3 の書き換えは、同じフェーズに入れないと途中でガードが失敗する。投稿の前の確認（設計書 3.8）と、PR レビューを名指しするその他の文書（設計書 3.9・3.10）は、判定の切り替えと独立に書けるので、別のフェーズにしてレビューしやすくする。
 -   **設計書の取りこぼしを、編集上の訂正で直した。** `_lib/coderabbit-local-review.md:83-84` は「the PR-side CodeRabbit review」と、PR レビューを CodeRabbit として述べる（AC-24 の対象）。設計書 2.2 はこのファイルを変えないものに挙げていた。ローカルの CLI レビューを変えないという決定は変わらないので、設計書の 2.2・3.10 にこの文だけを改めることを書き加え、承認を保った（設計書の Comments）。
--   **AC-01〜AC-04 は観測の記録の内容を確かめるガードで検証し、AC-05 は手続きの記録で検証する。** 観測は設計の前に済み、[observations.md](observations.md) に記録されている。実装の作業はない。AC-01〜AC-04 には、記録が AC の求める値を持つことを確かめる確認を置く（ステップ 4-5）。AC-05 は「設計を始めない」という手続きの条件なので、記録の「AC-05 に当たる点」の節と、要件書・設計書の承認の順序（各文書の Document Status）を根拠とする。
+-   **AC-01〜AC-04 は観測の記録の内容を確かめるガードで検証し、AC-05 は手続きの記録で検証する。** 観測は設計の前に済み、[observations.md](observations.md) に記録されている。新しい観測はしない。ただし、PR での観測のうち依頼したコミットの SHA（AC-02）が書かれていないものは、ステップ 4-5 で GitHub の記録から補う。AC-01〜AC-04 には、記録が AC の求める値を持つことを確かめる確認を置く（ステップ 4-5）。AC-05 は「設計を始めない」という手続きの条件なので、記録の「AC-05 に当たる点」の節と、要件書・設計書の承認の順序（各文書の Document Status）を根拠とする。
 -   **設計書 3.11 の確認を、次のとおり強める。** どれも設計書の確認と同じファイルに置き、設計書と矛盾しない。
     -   CodeRabbit の PR レビューの語の確認は、設計書 3.11 の語に加えて、今の文書で PR レビューを CodeRabbit として述べている文（1.4 の一覧）がすべて消えたことを確かめる。あわせて、ローカルの CLI レビューを CodeRabbit と呼ぶ記述が残ることを確かめる（AC-24 の後半）。
     -   投稿の前の確認は、1.4 の表の 7 か所の節のそれぞれに、決まった文と、設計書 3.8 の表の「含まれていたときの扱い」があることを確かめる。さらに、`.claude/commands/` の下の投稿のコマンドが、確認のある節の外に加えられたら失敗する確認を置く。
@@ -297,7 +297,7 @@
 
 - [ ] `TestContextAndCommandsAgree` に、`fixpr.md` が `<review-mention>` の定義の文（`runpr.md` と同じ定数）を持つことを加える。
 - [ ] `TestCodexMentionOnlyInRequestRow`（新しいファイル）: 設計書 3.11 の新しいファイルの 1 つめの確認。`.claude/commands/` の下（`_lib/` を含む）のすべての文書と `CLAUDE.md` で、`@codex` が大文字と小文字を区別せずに現れるのは `_context.md` の `PR review request` の行だけであることを確かめる。
-- [ ] `TestPostingPathsCheckMention`（新しいファイル）: 1.4 の表の 7 か所の節のそれぞれが、投稿の前の確認の決まった文（定数で持つ）と、その節の「含まれていたときの扱い」（設計書 3.8 の表）を述べることを確かめる。`runpr.md` step 4 は issue・コメントと返信の両方について確かめる。
+- [ ] `TestPostingPathsCheckMention`（新しいファイル）: 1.4 の表の 7 か所の節のそれぞれが、投稿の前の確認の決まった文（定数で持つ）と、その節の「含まれていたときの扱い」（設計書 3.8 の表）を述べることを確かめる。各節で、確認の文がその節の投稿のコマンドより前にあることも、`head_before_checkout` と同じく位置の比較で確かめる。`runpr.md` step 4 は issue・コメントと返信の両方について確かめる。
 - [ ] `TestPostingCommandsInventory`（新しいファイル）: 新しい投稿の経路が確認なしに加わったら失敗する、棚卸しのテストである。`.claude/commands/` の下で GitHub に投稿するコマンドの呼び出し（コードのブロックの中の行と、バッククォートで囲んだ呼び出しのうち `--body`・`--body-file`・`--title`・`--comment` か `fixprguard reply`・`edit-pr` の引数を伴うもの）が、7 か所の節の中にあるか、依頼のコメントか、`mergepr.md` の squash のマージであることを確かめる。名前だけを挙げる文（1.4 の Authorization の節などの一致）は呼び出しとして数えない。どちらの形で数えるかは、今の文書で 1.4 の一致がすべて分類されること（呼び出しは 7 か所と例外、名前だけの文は数えない）を最初に確かめて決める。
 - [ ] `/fixpr` のフェーズ 2・3・6 のエージェントへの規則（メンションを書かない、引用でも写さない）と、`/fixpr` のフェーズ 5 の終了コード `2` の扱いの文を、`TestFixprDocContract` に固定する。
 
@@ -306,6 +306,7 @@
 - [ ] 次のそれぞれで、該当するガードが失敗することを確かめ、コミットメッセージに書く。
     -   `fixpr.md` に `@codex` を書く、`_lib/` の下の文書に `@Codex` を書く、`_context.md` のほかの行に書く、`CLAUDE.md` に書く。
     -   7 か所の節のそれぞれについて、確認の文を消す（7 回）。
+    -   1 か所の節で、確認の文を投稿のコマンドの後に移す。
     -   `runpr.md` step 5 の扱い（コメントを付けずに閉じない）を消す。
     -   7 か所の外の節に `gh issue comment` の行を加える。
     -   `fixpr.md` の `<review-mention>` の定義を消す、`/fixpr` のフェーズ 2 の規則を消す。
@@ -351,11 +352,12 @@
 
 #### ステップ 4-5: 設定・規則・観測の記録のガード
 
-**変更するファイル**: `cmd/yt2column/codex_review_docs_test.go`
+**変更するファイル**: `cmd/yt2column/codex_review_docs_test.go`、`docs/tasks/0031_codex_pr_review/observations.md`
 
 - [ ] `TestCodeRabbitConfigStopsReview`: `.coderabbit.yaml` の `reviews` → `auto_review` → `enabled: false` の並びを、テキストを受け取る純粋な関数で確かめる。標準ライブラリに YAML の解析はないので、字下げとキーで読み、コメントの行は飛ばす（`CLAUDE.md` の「Dependencies」）。本物のファイルの写しを 1 か所ずつ壊した表（`TestContextReviewerRowsMalformed` の形。壊さない対照の行を含む）でこの関数を確かめる。壊し方は、`enabled: false` をコメントにする、`true` にする、`reviews` の直下に移す、`pre_merge_checks` の下に移す、`auto_review` を 2 つにする、を含める。あわせて、コメントが PR レビューを行わない理由（Codex が行う、ローカルの CLI レビューは続ける）を述べることを確かめる（AC-22 の 3 つめの文）。
 - [ ] `TestAgentsCodeReviewRules`: `AGENTS.md` に `## Code Review Rules` の見出しがちょうど 1 つあり、`## Review guidelines` がなく、`sectionByHeading` で取り出したその節の中で `CLAUDE.md` を参照することを確かめる（AC-26。`AGENTS.md:3` の参照は節の外なので数えない）。
-- [ ] `TestCodexObservationRecord`: `observations.md` の「AC-01 の各項目」の項目 1〜9 がそれぞれ日付と根拠（PR の番号、`gh api`、URL のいずれか）を持つこと（AC-01・AC-02）、項目 3 が GraphQL の `__typename`・`login` と REST の `type`・`login` の値を持つこと（AC-03。今の記録は表の形で書いている）、項目 1 が指摘 0 件と 1 件以上の両方の観測を持つこと（AC-04）、「AC-05 に当たる点」の節があること（AC-05）を確かめる。
+- [ ] `observations.md` の PR での観測のうち、依頼したコミットの SHA がないもの（たとえば項目 3・5・6・8 の PR での観測）を洗い出し、GitHub の記録から SHA を補う。記録は読み取りだけの `gh api` で取り出す（ネットワークの操作なので、実行の前に利用者の承認を得る）。SHA を決められない観測には、その理由を項目に書く。観測の内容と結論は変えない。
+- [ ] `TestCodexObservationRecord`: `observations.md` の「AC-01 の各項目」の項目 1〜9 がそれぞれ、日付と根拠（PR の番号、`gh api`、URL のいずれか）と、観測の結果を述べる文を持つこと（AC-01・AC-02）、PR での観測のそれぞれが PR の番号と、依頼したコミットの SHA（または SHA を決められない理由）を持つこと（AC-02）、項目 3 が GraphQL の `__typename`・`login` と REST の `type`・`login` の値を持つこと（AC-03。今の記録は表の形で書いている）、項目 1 が指摘 0 件と 1 件以上の両方の観測を持つこと（AC-04）、「AC-05 に当たる点」の節があること（AC-05）を確かめる。
 
 #### ステップ 4-6: 壊して失敗を確かめる
 
@@ -366,6 +368,7 @@
     -   `AGENTS.md` の節の中の `CLAUDE.md` の参照を消す（`:3` は残す）。
     -   `CLAUDE.md` から Codex の設定の文を消す。
     -   観測の記録の項目 3 の表から REST の `type` の値を消す。
+    -   観測の記録の項目 8 の結論の文を消す。PR での観測の 1 つから依頼したコミットの SHA を消す。
 
 **フェーズ 4 の完了の条件**: `make test`・`make lint` と、文書のガード（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`）が通る。
 
@@ -471,8 +474,8 @@ PR-1 を先にするのは、PR-2 の `/fixpr` を、メンションを拒否す
 
 | AC | 実装のステップ | 検証 | 種別 |
 |---|---|---|---|
-| AC-01 | なし（観測は実施済み） | `cmd/yt2column/codex_review_docs_test.go::TestCodexObservationRecord`（項目 1〜9 と各項目の日付・根拠） | static |
-| AC-02 | なし（同上） | 同上（日付と根拠） | static |
+| AC-01 | なし（観測は実施済み） | `cmd/yt2column/codex_review_docs_test.go::TestCodexObservationRecord`（項目 1〜9 と各項目の日付・根拠・観測の結果） | static |
+| AC-02 | 4-5（依頼したコミットの SHA を補う） | 同上（日付と根拠。PR での観測の PR の番号と、依頼したコミットの SHA または決められない理由） | static |
 | AC-03 | なし（同上） | 同上（項目 3 の 4 つの値） | static |
 | AC-04 | なし（同上） | 同上（指摘 0 件と 1 件以上の観測） | static |
 | AC-05 | なし（同上） | 同上（「AC-05 に当たる点」の節）。要件書の承認（PR #407 と Comments の再承認）の後に設計書が書かれ承認されたこと（各文書の Document Status） | static、manual |
