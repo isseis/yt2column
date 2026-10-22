@@ -310,7 +310,7 @@ fixprguard edit-pr --protocol 3 --title-file /path/to/title.txt --body-file /pat
 
 - 判定は `internal/fixprguard`、引数の解釈と呼び出しの順序は `cmd/fixprguard` にある。外部コマンドは `internal/cmdrunner` の `Runner`・`InputRunner` 越しに呼ぶ。テストでは、`gh` と `make` を `internal/cmdrunner/testutil` の fake に置き換え、git は一時ディレクトリの実際のリポジトリで試す。
 - 7.1 節の保証を変更する場合は、対応する実装を壊してテストが失敗することを確かめ、そのことをコミットメッセージに書く（CLAUDE.md の「Testing Strategy」）。
-- 出力や引数の契約を変える場合は、`internal/fixprguard` の `Protocol` を上げ、コマンドの文書が渡す `--protocol` も合わせて更新する。ただし、次の 3 つの条件がすべて成り立つ変更に限り、`Protocol` を上げなくてよい。`--reviewer` を繰り返し受け付ける変更（タスク 0033）はこれに当たる。
+- 出力や引数の契約、または範囲の規則（6 章）を変える場合は、`internal/fixprguard` の `Protocol` を上げ、コマンドの文書が渡す `--protocol` も合わせて更新する。ただし、次の 3 つの条件がすべて成り立つ変更に限り、`Protocol` を上げなくてよい。`--reviewer` を繰り返し受け付ける変更（タスク 0033）はこれに当たる。
     1. 古いツールは、新しい文書の呼び出しを引数の解析で拒否し（終了コード `2`）、古い規則で判定しない。
     2. 新しいツールは、古い文書の呼び出しを今までと同じ規則で判定する。
     3. 出力の形は変えない。
@@ -323,5 +323,5 @@ fixprguard edit-pr --protocol 3 --title-file /path/to/title.txt --body-file /pat
 
   期待する名前の確認を「解析に通って空でない」程度に緩めない。一覧だけが書き換えられたことを、内容のガードが検出できなくなるためである。
 - 一覧から外した名前の Bot は、すぐには信頼されなくならない。各セッションは作業しているブランチの `_context.md` を読むので、`main` を取り込んでいない開いたブランチでは、その Bot のスレッドの信頼が続く。急いで信頼をやめるときは、外す変更を `main` に入れたうえで、開いている PR のブランチに `main` を取り込む。取り込むまでは、そのブランチで `/fixpr`・`/runpr` を使わない。
-- `stop` の種類や実行に関わるファイルの一覧を変えたら、本書の 6 章と 8 章も更新する。`cmd/fixprguard/docs_test.go` が、本書（日英）にすべての種類と項目があることを確かめる。
+- `stop` の種類、実行関連ファイルの一覧、許可リストを変えたら、本書の 6 章と 8 章も更新する。`cmd/fixprguard/docs_test.go` が、本書（日英）にすべての種類と項目があることを確かめる。
 - マージの後は、`make install-fixprguard` で再インストールする（3 章）。
