@@ -8,7 +8,7 @@
 | Created | 2026-10-22 |
 | Review date | 2026-10-22 |
 | Reviewer | isseis |
-| Comments | 7.2 の検索の語 `and the next command` が、3.5 で変えない `runpr.md:66` の Authorization の文にも一致していたため、`pre-merge bookkeeping and the next command` に絞った（編集上の訂正。決定は変えていない） |
+| Comments | 7.2 の検索の語 `and the next command` が、3.5 で変えない `runpr.md:66` の Authorization の文にも一致していたため、`pre-merge bookkeeping and the next command` に絞った（編集上の訂正。決定は変えていない）。2026-10-23: `e529b68` の後に入った #454 が、`cmd/yt2column/codex_review_docs_test.go:119` で step 5 の見出しを定数として固定し、step 5 の節を読むようになった。そのため、1.1・1.4・3.8・7.1・9 章の「step 5 の見出しはどのテストも読まない」「変えるテストはない」という記述を改め、この定数が 3.5 の見出しの変更に従うことを記した（編集上の訂正。見出しを改める決定（3.5、AC-11）を含め、決定は変えていない。レビュアーが確認した） |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルについての記述は、コミット `e529b68` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指す。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-03）への対応は 3.7 にまとめる。
 
@@ -30,7 +30,7 @@
 -   **NEXT を始める場所は次のブランチに限る。** `/clear` の案内は、step 5 が次のブランチを作り終えた後にだけ示し、そのブランチの名前と worktree を添える。作り終える前に止まったときは、案内の代わりに再開の方法を示す（AC-07）。案内どおりに同じ worktree で NEXT を実行したとき、NEXT は次のブランチで始まる（`_lib/task-pr-handoff.md` Part A step 3、`.claude/commands/_lib/task-pr-handoff.md:69-74`）。
 -   **報告は、実際にある状態を述べる。** 止まったときの最終報告は、次のブランチがどこまでできたか（ない、`origin` にだけある、チェックアウトされている）を確かめて述べる。推測で「作っていない」と書かない（3.4）。
 -   **利用者が見た値を報告する。** `/clear` の案内に添える `実装モデル要件` は、マージを決めた step 4 の質問で示した値をそのまま使う。マージの後に読み直さない（1.2）。
--   **実行時のコードを変えない。** 変えるのは、コマンドの定義と、`CLAUDE.md`・`docs/dev/developer_guide/requirements_process.md` の記述だけである。Go のコード・テスト・拡張のコードは変えない。
+-   **実行時のコードを変えない。** 変えるのは、コマンドの定義と、`CLAUDE.md`・`docs/dev/developer_guide/requirements_process.md` の記述だけである。Go のコード・拡張のコードは変えない。Go のテストは、step 5 の見出しの定数（1.4）が見出しの変更に従うだけである。
 
 ### 1.2. 設計の際に決めたこと（2026-10-22）
 
@@ -91,7 +91,7 @@ flowchart LR
 
 ### 1.4. 既存の仕組みとの関係
 
--   **文書のガードのテスト:** `cmd/yt2column/fixpr_docs_test.go:36-38` は、`runpr.md` の step 1・step 3・step 4 の見出しを定数として読む。本タスクは step 4 の見出しを変えないので、この定数は変わらない。step 5 の見出し（`runpr.md:443`）は変えるが、どのテストも読まない。`e529b68` で、`*_test.go` と `extension/` の `*.ts` に、本タスクが書き換える文言（`run the next command`、`starts the next command`、`run NEXT`、`carry it out`、`recommended`）を固定する箇所がないことを `git grep` で確かめた。そのため、本タスクで直す既存のテストはない。
+-   **文書のガードのテスト:** `cmd/yt2column/fixpr_docs_test.go:36-38` は、`runpr.md` の step 1・step 3・step 4 の見出しを定数として読む。本タスクは step 4 の見出しを変えないので、この定数は変わらない。step 5 の見出し（`runpr.md:443`）は変える。この見出しは、#454 の後は `cmd/yt2column/codex_review_docs_test.go:119` の定数が固定し、その節を読む（`7b26533` で確かめた）。この定数は、3.5 の見出しの変更に合わせて改める。`e529b68` で、`*_test.go` と `extension/` の `*.ts` に、本タスクが書き換える文言（`run the next command`、`starts the next command`、`run NEXT`、`carry it out`、`recommended`）を固定する箇所がないことを `git grep` で確かめた。そのため、本タスクで直す既存のテストは、上の step 5 の見出しの定数だけである。
 -   **`AskUserQuestion` の慣習:** `AskUserQuestion` のツールの説明は、推奨する選択肢を先頭に置き、ラベルに「(Recommended)」を付けるよう求める。今の step 4 も推奨を先頭に置いている（`runpr.md:359`）。本タスクの後も、推奨（マージだけの選択肢）を先頭に置くので、この慣習と食い違わない。
 -   **PR レビューの質問の推奨:** Escalation（PR レビューをもう一度求めるかの判定。`.claude/commands/_lib/pr-review-escalation.md`）が `ask` のとき、PR レビューの質問は「request a PR review first」を推奨にする（`runpr.md:352-356`）。これは「Merge」とは別の質問なので、同じ `AskUserQuestion` の呼び出しで、「まだマージしない」と「マージする」の両方に推奨が付くことがある。今は NEXT があるときだけ起きるが、本タスクの後はマージだけの選択肢が常に推奨になるので、standalone change でも起きる。「request a PR review first」を選ぶとマージしないので（`runpr.md:377-381`）、両方の質問に推奨が付いても、振る舞いは今と同じく一意に決まる。本タスクはこの質問を変えず（要件書 2.3）、この重なりを受け入れる（4.4）。
 
@@ -317,7 +317,7 @@ step 5 が次のブランチを作り終える前に止まる場合は、たと�
 | `.claude/commands/mergepr.md` | step 3 の、`runpr.md` の中で実行するときの説明（3.6） | AC-12・AC-14 |
 | `.claude/commands/_context.md` | 「PR marker conventions」の `実装モデル要件`（3.6） | AC-13・AC-14 |
 
-変えるテストはない（1.4）。
+変えるテストは、`codex_review_docs_test.go` の step 5 の見出しの定数だけである（1.4）。
 
 ## 4. エラーハンドリング設計 (Error Handling Design)
 
@@ -398,7 +398,7 @@ sequenceDiagram
 
 ### 7.1. ユニットテスト
 
-追加しない。本タスクは Go のコードと拡張のコードを変えない。文書のガードのテストも加えない（1.2）。`make test`・`make lint` と、CI の `doc-guard` のジョブ（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`）は、変更の前後で同じく通ることを確かめる（AC-15）。`fixpr_docs_test.go` が読む step 4 の見出しは変えないので（1.4）、通ることが期待される。
+追加しない。本タスクは Go のコードと拡張のコードを変えない。文書のガードのテストも加えない（1.2）。`make test`・`make lint` と、CI の `doc-guard` のジョブ（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`）は、変更の前後で同じく通ることを確かめる（AC-15）。`fixpr_docs_test.go` が読む step 4 の見出しは変えず、`codex_review_docs_test.go` が読む step 5 の見出しの定数は見出しの変更に合わせて改める（1.4）。
 
 ### 7.2. 静的な確認
 
@@ -456,6 +456,6 @@ N/A（5.1）。
 ## 9. 将来の拡張性 (Future Extensibility)
 
 -   **推奨を変える場合:** `runpr.md` の step 4 の選択肢の一覧だけを改める（1.1）。ほかの文書は推奨に触れないので変えない。
--   **推奨を機械的に固定したくなった場合:** `TestRunprDocContract` に、step 4 の推奨と step 5 の案内を確かめるサブテストを加える（1.2 で採らなかった案）。step 5 を読むときは、step 5 の見出しの定数を `fixpr_docs_test.go` に加える。
+-   **推奨を機械的に固定したくなった場合:** `TestRunprDocContract` に、step 4 の推奨と step 5 の案内を確かめるサブテストを加える（1.2 で採らなかった案）。step 5 を読むときは、`codex_review_docs_test.go` にある step 5 の見出しの定数を使う。
 -   **使われないブランチや子 issue を片付ける場合:** 4.4 のリスクが実際に問題になれば、Part A step 4 が途中で失敗したときに作ったものを戻す手順を加える。本タスクの範囲外である。
 -   **`/runpr` が自分で `/clear` 相当のことをする場合:** 要件書 2.3 のとおり本タスクの範囲外である。行うなら、NEXT を新しいセッションで始める手段が要り、step 5 の続けて実行する選択肢の扱いを改めることになる。
