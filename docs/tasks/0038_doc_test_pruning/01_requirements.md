@@ -8,7 +8,7 @@
 | Created | 2026-10-23 |
 | Review date | 2026-10-23 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-23: 設計の際に `80c17a8` で確かめた事実に合わせ、`fixprguard_guide` の章番号（10 章 → 9 章。1 章・AC-22）、`ciChanges.test.ts`・`has-extension-changes.sh` の行番号（1 章）、2.3 のタスク 0010 の古いパスの例（このテストは本タスクで削除するので F-005 の対象になる）を直した（編集上の訂正。決定は変えていない） |
 
 ## 1. 概要 (Overview)
 
@@ -38,7 +38,7 @@
 2026-10-23 の `7b26533` で調べた、文書のテストのあるファイルは次のとおりである。issue #455 の一覧にないものには「（追加）」と記す。
 
 -   Go: `cmd/fixprguard/docs_test.go`、`cmd/yt2column/docs_test.go`、`cmd/yt2column/copied_transcript_docs_test.go`、`cmd/yt2column/extension_docs_test.go`、`cmd/yt2column/fixpr_docs_test.go`、`cmd/yt2column/output_layout_docs_test.go`、`cmd/yt2column/codex_review_docs_test.go`（追加）、`cmd/yt2column/run_test.go` の `TestRunEvaluationProcedureFlags`（`:2614`。追加）、`cmd/yt2column-server/docs_test.go`、`cmd/yt2column-nmhost/main_test.go` の `TestReadmeHostExitCodes`（`:408`）、`internal/pipeline/pipeline_test.go` の `TestPackageReferenceListsPackages`（`:671`）・`TestPromptsREADMEMatchesContract`（`:755`）、`internal/pipeline/relay_guard_test.go` の `TestSharedTokenRemoved`（`:397`。追加）
--   拡張（node）: `extension/test/metadataDocs.test.ts`、`extension/test/serverReasons.test.ts`。`extension/test/ciChanges.test.ts` は文書を読まないが、拡張の CI ジョブを起動する条件として `README.md`・`docs/dev/security.md` を確かめている（`:27-28`）。この条件は、node のテストがこの 2 つの文書を読むことに対応する（`extension/scripts/has-extension-changes.sh:8-10`・`:17`）。
+-   拡張（node）: `extension/test/metadataDocs.test.ts`、`extension/test/serverReasons.test.ts`。`extension/test/ciChanges.test.ts` は文書を読まないが、拡張の CI ジョブを起動する条件として `README.md`・`docs/dev/security.md` を確かめている（`:28-29`）。この条件は、node のテストがこの 2 つの文書を読むことに対応する（`extension/scripts/has-extension-changes.sh:8-10`・`:18`）。
 
 同じ時点で、これらのテストを検証方法として挙げている行は、`docs/tasks/*/02_architecture.md`・`03_implementation_plan.md` の AC の表に 120 行あった（24 の承認済みのタスクと、取り下げたタスク 0029）。
 
@@ -48,7 +48,7 @@
 
 -   `CLAUDE.md`「Development Notes」の、node のテストが読む文書と text-sync guards の一覧（`CLAUDE.md:302-315`）
 -   `doc-guard` CI ジョブの対象パッケージ（`.github/workflows/ci.yml:183-184`、`CLAUDE.md:311-315`）
--   `fixprguard_guide.md`・`fixprguard_guide.ja.md` の 10 章で、文書のテストに言及する箇所（`fixprguard_guide.ja.md:350-357`）
+-   `fixprguard_guide.md`・`fixprguard_guide.ja.md` の 9 章で、文書のテストに言及する箇所（`fixprguard_guide.ja.md:350-357`）
 
 `docs/dev/developer_guide/test_organization.md` の節の見出しは、`testutil/`・`test_helpers.go`・新しい補助の指針・golden files である（同 `:5`・`:43`・`:65`・`:107`）。文書のテストは扱っていない。
 
@@ -107,7 +107,7 @@
 -   **`doc-guard` CI ジョブの対象パッケージを増やすこと。** `cmd/yt2column-nmhost` の `TestReadmeHostExitCodes` は `doc-guard` ジョブの対象外である（`.github/workflows/ci.yml:184`）。この欠けは本タスクの削除とは関わりがないので扱わない。
 -   **取り下げたタスク 0029 の文書の書き換え。** 取り下げた文書は記録として残す。
 -   **過去のタスクの文書の、AC の検証方法を述べる箇所以外の本文。** 本文の作業の記録（実装のステップ、経緯）は記録として残す（F-005）。
--   **本タスクが削除しない確認を指す、以前からある古い参照。** たとえばタスク 0010 の計画の `cmd/docs_test.go::TestReviewEvaluationRecords` のような古いパスの行は、本タスクの削除と関わる場合にだけ改める。
+-   **本タスクが削除しない確認を指す、以前からある古い参照。** 古いパスの行は、本タスクの削除と関わる場合にだけ改める。たとえばタスク 0010 の計画の `cmd/docs_test.go::TestReviewEvaluationRecords` の行は、このテストを削除するので F-005 で改める。
 -   **用語集（`docs/translation_glossary.md`）の既存の行の変更・削除。** 用語集の行を確かめるテストを削除しても、その行は変えない。本書が定める「確認」の行は、本書とともに加えた。
 
 ## 3. 機能要件 (Functional Requirements)
@@ -211,7 +211,7 @@
 
 -   **AC-20**: `CLAUDE.md`「Development Notes」の、node のテストが読む文書と text-sync guards の一覧は、本タスクの完了後に残っている文書のテストと一致している。
 -   **AC-21**: `.github/workflows/ci.yml` の `doc-guard` ジョブの対象パッケージと、`CLAUDE.md`・`fixprguard_guide.md`・`fixprguard_guide.ja.md` が挙げる文書のテストのコマンドの対象パッケージは同じである。あるパッケージが対象から外れるのは、そのパッケージに文書のテストが残っていない場合に限る。
--   **AC-22**: 本タスクの完了後、`docs/tasks/` 以外の文書（`CLAUDE.md`、`README.md`、`docs/dev/`、`.claude/commands/`）に、本タスクが削除したテスト・補助の名前や、削除した確認を、現にあるものとして述べる記述はない。K4 の手順（`fixprguard_guide.md`・`fixprguard_guide.ja.md` 10 章の、自動レビュアーの一覧を変えるときの手順）は残り、残るテストと補助の名前と一致している。
+-   **AC-22**: 本タスクの完了後、`docs/tasks/` 以外の文書（`CLAUDE.md`、`README.md`、`docs/dev/`、`.claude/commands/`）に、本タスクが削除したテスト・補助の名前や、削除した確認を、現にあるものとして述べる記述はない。K4 の手順（`fixprguard_guide.md`・`fixprguard_guide.ja.md` 9 章の、自動レビュアーの一覧を変えるときの手順）は残り、残るテストと補助の名前と一致している。
 -   **AC-23**: `CLAUDE.md` の「Testing Strategy」に、文書のテストについての一項がある。その項は、文書のテストで確かめてよいもの（F-001 の K1〜K3）と、確かめないもの（D1〜D4）を述べ、自然言語の記述は PR のレビューでの読み合わせで確かめる、と述べている。K4・K5 の例外とその理由も述べている。
 -   **AC-24**: 1 章の背景に挙げた `mkplan.md`・`runplan.md`・`requirements_process.md` の規則と確認項目は、文書の自然言語の記述を定める AC について、`manual` だけの検証方法を認めている。そのような AC に、語の有無を確かめる文書のテストや `rg` の確認を求めていない。
 -   **AC-25**: AC-24 の改訂の後も、文書の自然言語の記述以外を定める AC（振る舞い、値、構造）には、今までどおり `test` か `static` の検証方法を 1 つ以上求めている。
