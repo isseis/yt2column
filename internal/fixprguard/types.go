@@ -17,7 +17,7 @@ import (
 // Protocol is the version of the tool's input and output contract. The command
 // documents pass it back with --protocol, so an installed binary that predates
 // the documents stops instead of judging by older rules.
-const Protocol = 1
+const Protocol = 2
 
 const (
 	// maxLoginLength is GitHub's limit on an account name.

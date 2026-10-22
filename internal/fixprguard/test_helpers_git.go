@@ -42,13 +42,20 @@ func (r *gitRouter) Run(ctx context.Context, name string, args ...string) ([]byt
 	return r.real.Run(ctx, name, args...)
 }
 
-// gitSubcommand skips the global options gitHardening and Worktree add.
+// gitConfigList is how Calls records git config --list, apart from the
+// git config --get calls that read one value.
+const gitConfigList = gitCommand + " config --list"
+
+// gitSubcommand skips the global options gitHardening and Worktree add. It
+// names config --list in full, so a test can tell it from config --get.
 func gitSubcommand(args []string) string {
 	for i := 0; i < len(args); i++ {
 		switch {
 		case args[i] == "-c":
 			i++
 		case strings.HasPrefix(args[i], "--"):
+		case args[i] == "config" && i+1 < len(args) && args[i+1] == "--list":
+			return "config --list"
 		default:
 			return args[i]
 		}

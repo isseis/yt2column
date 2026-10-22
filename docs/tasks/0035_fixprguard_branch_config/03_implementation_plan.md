@@ -157,7 +157,7 @@
 
 **変更するファイル**: `internal/fixprguard/test_helpers_git.go`
 
--   [ ] `gitRouter` の記録で、`git config --list` を `git config --get` と区別できるようにする（1.3.5）。ほかのサブコマンドの記録は変えない（既存のテストが `"git add"`・`"git commit"`・`"git push"` で比べている。`worktree_flow_test.go:291-295`・`:437`）。
+-   [x] `gitRouter` の記録で、`git config --list` を `git config --get` と区別できるようにする（1.3.5）。ほかのサブコマンドの記録は変えない（既存のテストが `"git add"`・`"git commit"`・`"git push"` で比べている。`worktree_flow_test.go:291-295`・`:437`）。
 
 **完了条件**: `go test -tags test ./internal/fixprguard` が通る（この時点では既存のテストの期待値を変えない）。
 
@@ -167,16 +167,16 @@
 
 **変更するファイル**: `internal/fixprguard/gitstate.go`、`types.go`、`gitstate_test.go`、`worktree_flow_test.go`、`cmd/fixprguard/main_test.go`、`cmd/fixprguard/test_helpers.go`、`.claude/commands/fixpr.md`、`.claude/commands/runpr.md`、`docs/tasks/0032_japanese_pr_title/check_rules.sh`
 
--   [ ] `baselineVersion` を `v2` にする（設計書 3.1）。
--   [ ] `configDigest` を `gitDirsDigest` に改め、1.3.3 のとおりファイルの種類だけを含める（設計書 3.1・3.3）。
--   [ ] `Worktree.configListDigest` を `Worktree.configList` に改める（設計書 3.3）。
--   [ ] `CheckState` を、設計書 3.4 の手順 1〜4 と 4 章の表のとおりにする。`configListDigest` が返す `errConfigList` は `ErrGitFailed` を包むので、そのまま返さず `config` の変化にする（4 章の表の 6 行）。
--   [ ] `Baseline` を、設計書 3.4 の「`Baseline`（`begin`）」のとおりにする。`begin` での一覧の読み取りの失敗は、今の `gitFailure` の規則の名前で `git-failed` にする（設計書 4 章）。
--   [ ] `gitHardening`・`Baseline` の型・`CheckState` のコメントを、設計書 3.5「コードのコメント」のとおり改める。
--   [ ] `Protocol` を `2` にし、`fixpr.md`・`runpr.md` の `--protocol 1` を、コードブロックの外の文（`fixpr.md:44`・`runpr.md:18`）も含めてすべて `--protocol 2` にする（設計書 3.5）。`check_rules.sh:524` も合わせ、`sh docs/tasks/0032_japanese_pr_title/check_rules.sh fixpr_title` が通ることを確かめる。
--   [ ] `cmd/fixprguard/main_test.go:25` と `cmd/fixprguard/test_helpers.go` の `validBaseline` の版を `v2` にする（1.3.1）。
--   [ ] 設計書 7.3 の表の 6 つの既存のテストを、表の「改訂」のとおりに改める。`TestBaselineMalformedRejected` の `version` の行は、前の版の `v1` を拒否する行にする（AC-15）。`worktree_config` の行は、`begin` の前に `extensions.worktreeConfig` を真にし、`config.worktree` も作っておく（1.3.3）。
--   [ ] `rg -n 'w\.configListDigest|\) configListDigest' internal/fixprguard` が何も返さないことを確かめる（1.3.2）。
+-   [x] `baselineVersion` を `v2` にする（設計書 3.1）。
+-   [x] `configDigest` を `gitDirsDigest` に改め、1.3.3 のとおりファイルの種類だけを含める（設計書 3.1・3.3）。
+-   [x] `Worktree.configListDigest` を `Worktree.configList` に改める（設計書 3.3）。
+-   [x] `CheckState` を、設計書 3.4 の手順 1〜4 と 4 章の表のとおりにする。`configListDigest` が返す `errConfigList` は `ErrGitFailed` を包むので、そのまま返さず `config` の変化にする（4 章の表の 6 行）。
+-   [x] `Baseline` を、設計書 3.4 の「`Baseline`（`begin`）」のとおりにする。`begin` での一覧の読み取りの失敗は、今の `gitFailure` の規則の名前で `git-failed` にする（設計書 4 章）。
+-   [x] `gitHardening`・`Baseline` の型・`CheckState` のコメントを、設計書 3.5「コードのコメント」のとおり改める。
+-   [x] `Protocol` を `2` にし、`fixpr.md`・`runpr.md` の `--protocol 1` を、コードブロックの外の文（`fixpr.md:44`・`runpr.md:18`）も含めてすべて `--protocol 2` にする（設計書 3.5）。`check_rules.sh:524` も合わせ、`sh docs/tasks/0032_japanese_pr_title/check_rules.sh fixpr_title` が通ることを確かめる。
+-   [x] `cmd/fixprguard/main_test.go:25` と `cmd/fixprguard/test_helpers.go` の `validBaseline` の版を `v2` にする（1.3.1）。
+-   [x] 設計書 7.3 の表の 6 つの既存のテストを、表の「改訂」のとおりに改める。`TestBaselineMalformedRejected` の `version` の行は、前の版の `v1` を拒否する行にする（AC-15）。`worktree_config` の行は、`begin` の前に `extensions.worktreeConfig` を真にし、`config.worktree` も作っておく（1.3.3）。
+-   [x] `rg -n 'w\.configListDigest|\) configListDigest' internal/fixprguard` が何も返さないことを確かめる（1.3.2）。
 
 **壊して確かめる**: 次で、それぞれ括弧の中のテストが失敗すること。ステップ 2-3 のテストを加えた後にもう一度行う。
 

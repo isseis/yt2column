@@ -305,8 +305,11 @@ func TestFinishStopsWhenHooksChangeConfig(t *testing.T) {
 			if result.Commit != "" {
 				t.Errorf("Finish returned commit %s", result.Commit)
 			}
-			if last := router.Calls[len(router.Calls)-1]; last != tc.last {
-				t.Errorf("last command = %q, want %q: %v", last, tc.last, router.Calls)
+			// The hook's change is seen by git config --list, and nothing runs
+			// after it.
+			n := len(router.Calls)
+			if n < 2 || router.Calls[n-2] != tc.last || router.Calls[n-1] != gitConfigList {
+				t.Errorf("calls = %v, want %q then git config --list last", router.Calls, tc.last)
 			}
 		})
 	}
@@ -409,10 +412,10 @@ func TestInspectLeavesWorkTree(t *testing.T) {
 
 func TestPushRechecks(t *testing.T) {
 	for _, tc := range []struct {
-		name  string
-		edit  func(t *testing.T, p prepared, commit string)
-		parts []string
-		noGit bool // the change is seen before any git runs
+		name     string
+		edit     func(t *testing.T, p prepared, commit string)
+		parts    []string
+		listOnly bool // the change is seen before any git but git config --list runs
 	}{
 		{"head_is_not_the_commit", func(_ *testing.T, p prepared, _ string) {
 			p.r.Write("docs/notes/extra.md", "x\n")
@@ -437,8 +440,8 @@ func TestPushRechecks(t *testing.T) {
 			if indexOf(router.Calls, "git push") >= 0 {
 				t.Errorf("pushed: %v", router.Calls)
 			}
-			if n := gitCalls(router.Calls); tc.noGit && n != 0 {
-				t.Errorf("ran git %d times after the config changed: %v", n, router.Calls)
+			if tc.listOnly && !slices.Equal(router.Calls, []string{gitConfigList}) {
+				t.Errorf("calls after the config changed = %v, want git config --list only", router.Calls)
 			}
 			if got := p.r.RemoteHead(); got != remote {
 				t.Errorf("remote moved to %s", got)

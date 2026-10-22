@@ -27,7 +27,7 @@ const (
 
 	// baselineVersion prefixes the baseline token, so a token of another
 	// shape is rejected rather than misread.
-	baselineVersion = "v1"
+	baselineVersion = "v2"
 	// baselineFields is the number of "."-separated fields after the version.
 	baselineFields = 7
 	// noRemoteBranch stands for a push target branch that does not exist yet.
@@ -61,14 +61,19 @@ const (
 // a command during the read-only operations the tool performs: the fsmonitor
 // hook, a configured SSH command, the ext transport, and automatic gc and
 // maintenance (which run hooks of their own). Every other setting, from any
-// file git reads, is held to the baseline by CheckState before git runs. A
-// pager and colors are off so output is parsed as git wrote it, and diff
-// commands also pass --no-ext-diff and --no-textconv.
+// file git reads, is held to the baseline by CheckState before any git but
+// git config --list runs, except the branch settings of branches other than
+// main and the baseline branch, which no git the tool runs uses to pick a
+// destination or a command. A pager and colors are off so output is parsed
+// as git wrote it, and diff commands also pass --no-ext-diff and
+// --no-textconv.
 //
-// The options and subcommands used here (--literal-pathspecs,
-// --no-replace-objects, rev-parse --git-path, config --show-origin, ls-files
-// -v, cat-file, diff-tree, push --no-follow-tags) all exist in git 2.5 and
-// later.
+// git 2.12 or later is required: it is the first to read
+// protocol.<name>.allow, without which protocol.ext.allow=never is silently
+// ignored. The other options and subcommands used here
+// (--literal-pathspecs, --no-replace-objects, config --show-origin -z, status
+// --porcelain=v1, rev-parse --git-path, ls-files -v, cat-file, diff-tree,
+// push --no-follow-tags) exist by then.
 var gitHardening = []string{
 	"--no-pager",
 	"--no-replace-objects",
@@ -97,9 +102,11 @@ func GitEnv(environ []string) []string {
 
 // Baseline holds the git state taken at begin: the HEAD commit, a digest of
 // the branch HEAD is on, the push target's branch OID ("none" when the branch
-// does not exist there), and digests of the hooks, the repository and
-// worktree configuration files, every configuration value git reads (from
-// any file, so the push target is covered too), and the info files. The
+// does not exist there), and digests of the hooks, of where the git
+// directories are and the type (never the content) of the repository and
+// worktree configuration files, of every configuration value git reads (from
+// any file, so the push target is covered too) except other branches' branch
+// settings, and of the info files. The
 // session keeps it as a token and passes it back; it is parsed strictly,
 // never repaired. The zero value is not usable.
 type Baseline struct {
@@ -276,11 +283,14 @@ func readSmallFile(name string) (string, error) {
 	return string(data), nil
 }
 
-// configDigest covers where the git directories are and the repository and
-// worktree configuration files. Recording the locations means a .git or
-// commondir file rewritten to point at a copy of the repository is a config
-// difference.
-func configDigest(dirs gitDirs) (string, error) {
+// gitDirsDigest covers where the git directories are and the type of the
+// repository and worktree configuration files, never their content.
+// Recording the locations means a .git or commondir file rewritten to point
+// at a copy of the repository is a config difference; recording the type
+// means a configuration file swapped for a FIFO, which could feed each git
+// that opens it different content, is one too. The values git reads from the
+// files are compared through git config --list instead.
+func gitDirsDigest(dirs gitDirs) (string, error) {
 	h := sha256.New()
 	for _, dir := range []string{dirs.gitDir, dirs.commonDir} {
 		abs, err := filepath.Abs(dir)
@@ -290,7 +300,7 @@ func configDigest(dirs gitDirs) (string, error) {
 		writeField(h, abs)
 	}
 	for _, name := range []string{filepath.Join(dirs.commonDir, "config"), filepath.Join(dirs.gitDir, "config.worktree")} {
-		if err := digestPath(h, name); err != nil {
+		if _, err := digestPathType(h, name); err != nil {
 			return "", err
 		}
 	}
@@ -370,35 +380,12 @@ func digestEntry(h hash.Hash, name string, entry fs.DirEntry) error {
 	return digestPath(h, name)
 }
 
-// digestPath writes a marker for a missing file, or the link target and the
-// content of a file, following a link.
+// digestPath writes what digestPathType writes and then the content of a
+// regular file.
 func digestPath(h hash.Hash, name string) error {
-	info, err := os.Lstat(name)
-	if errors.Is(err, fs.ErrNotExist) {
-		writeField(h, "absent")
-		return nil
-	}
-	if err != nil {
+	regular, err := digestPathType(h, name)
+	if err != nil || !regular {
 		return err
-	}
-	if info.Mode()&fs.ModeSymlink != 0 {
-		target, err := os.Readlink(name)
-		if err != nil {
-			return err
-		}
-		writeField(h, "link")
-		writeField(h, target)
-		if info, err = os.Stat(name); err != nil {
-			if errors.Is(err, fs.ErrNotExist) {
-				writeField(h, "dangling")
-				return nil
-			}
-			return err
-		}
-	}
-	writeField(h, info.Mode().Type().String())
-	if !info.Mode().IsRegular() {
-		return nil
 	}
 	sum, err := fileSHA256(name)
 	if err != nil {
@@ -406,6 +393,37 @@ func digestPath(h hash.Hash, name string) error {
 	}
 	writeField(h, sum)
 	return nil
+}
+
+// digestPathType writes a marker for a missing file, or the link target and
+// the type of a file, following a link. regular reports a regular file, whose
+// content it does not write.
+func digestPathType(h hash.Hash, name string) (regular bool, err error) {
+	info, err := os.Lstat(name)
+	if errors.Is(err, fs.ErrNotExist) {
+		writeField(h, "absent")
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if info.Mode()&fs.ModeSymlink != 0 {
+		target, err := os.Readlink(name)
+		if err != nil {
+			return false, err
+		}
+		writeField(h, "link")
+		writeField(h, target)
+		if info, err = os.Stat(name); err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				writeField(h, "dangling")
+				return false, nil
+			}
+			return false, err
+		}
+	}
+	writeField(h, info.Mode().Type().String())
+	return info.Mode().IsRegular(), nil
 }
 
 // fileSHA256 hashes a file's content, following a link.
@@ -469,10 +487,10 @@ func (w *Worktree) gitConfig(ctx context.Context, key string) (value string, ok 
 	return strings.TrimSuffix(string(out), "\n"), true, nil
 }
 
-// fileDigests computes the config and info digests from the files alone. A
-// failure names the rule only, never a path.
+// fileDigests computes the git directories and info digests from the files
+// alone. A failure names the rule only, never a path.
 func fileDigests(dirs gitDirs) (config, info string, err error) {
-	if config, err = configDigest(dirs); err != nil {
+	if config, err = gitDirsDigest(dirs); err != nil {
 		return "", "", fmt.Errorf("%w: read config", ErrGitFailed)
 	}
 	if info, err = infoDigest(dirs); err != nil {
@@ -481,16 +499,35 @@ func fileDigests(dirs gitDirs) (config, info string, err error) {
 	return config, info, nil
 }
 
-// configListDigest covers every configuration value git reads, with the file
-// it came from: the global and system files, included files, and the
-// repository's own. git config launches no command.
-func (w *Worktree) configListDigest(ctx context.Context) (string, error) {
-	out, err := w.git(ctx, "config --list", "config", "--list", "--show-origin", "-z")
-	if err != nil {
-		return "", err
+// configListRule names git config --list in a failure.
+const configListRule = "config --list"
+
+// configList runs git config --list --show-origin -z and returns its output,
+// or the runner's error unchanged so the caller can classify it. The output
+// lists every configuration value git reads, with the file it came from: the
+// global and system files, included files, and the repository's own. git
+// config launches no command.
+func (w *Worktree) configList(ctx context.Context) ([]byte, error) {
+	return w.gitRaw(ctx, "config", "--list", "--show-origin", "-z")
+}
+
+// configListFailure classifies a failure to list the configuration in
+// CheckState, after begin listed it. A timeout or a nonzero exit means the
+// configuration became unreadable (a syntax error, an include of a FIFO), a
+// config change; an output over the cap, a cancellation, or git not starting
+// is a git failure. The context error is checked before the exit error,
+// since a cancelled or timed-out command reports both.
+func configListFailure(err error) error {
+	switch {
+	case errors.Is(err, cmdrunner.ErrOutputTooLarge), errors.Is(err, context.Canceled):
+		return gitFailure(configListRule, err)
+	case errors.Is(err, context.DeadlineExceeded):
+		return &GitStateError{Parts: []string{PartConfig}}
 	}
-	sum := sha256.Sum256(out)
-	return hex.EncodeToString(sum[:]), nil
+	if _, ok := errors.AsType[*cmdrunner.ExitError](err); ok {
+		return &GitStateError{Parts: []string{PartConfig}}
+	}
+	return gitFailure(configListRule, err)
 }
 
 // hooksState asks git where the hooks are (core.hooksPath or the common git
@@ -512,13 +549,15 @@ func (w *Worktree) hooksState(ctx context.Context) (string, error) {
 }
 
 // CheckState compares the configuration, info and hooks with the baseline
-// before git or gh is launched for anything else. The repository and
-// worktree configuration files and the info files are read from the files
-// alone, so a changed setting there stops the run before any git process
-// could read it. Then git config lists every value git reads, which launches
-// nothing, and only after those match does git rev-parse locate the hooks to
-// compare, before any command that could run one. Every subcommand that
-// launches git or gh after begin calls it first.
+// before git or gh is launched for anything else. Where the git directories
+// are, the type of the repository and worktree configuration files, and the
+// info files are read from the files alone, never by git. Then git config
+// lists every value git reads, which launches nothing even with a rewritten
+// configuration; the values except other branches' branch settings are
+// compared, and a listing that cannot be read or parsed is a config change.
+// Only after those match does git rev-parse locate the hooks to compare,
+// before any command that could run one. Every subcommand that launches git
+// or gh after begin calls it first.
 func (w *Worktree) CheckState(ctx context.Context, base Baseline) error {
 	if !base.usable() {
 		return fmt.Errorf("%w: baseline", ErrInvalidInput)
@@ -542,11 +581,12 @@ func (w *Worktree) CheckState(ctx context.Context, base Baseline) error {
 	if parts != nil {
 		return &GitStateError{Parts: parts}
 	}
-	list, err := w.configListDigest(ctx)
+	out, err := w.configList(ctx)
 	if err != nil {
-		return err
+		return configListFailure(err)
 	}
-	if list != base.configList {
+	// A listing that is not in the accepted shape is a config change too.
+	if list, err := configListDigest(out, base.branch); err != nil || list != base.configList {
 		return &GitStateError{Parts: []string{PartConfig}}
 	}
 	hooks, err := w.hooksState(ctx)
@@ -701,9 +741,9 @@ func (w *Worktree) Baseline(ctx context.Context) (Baseline, error) {
 	if err != nil {
 		return Baseline{}, err
 	}
-	list, err := w.configListDigest(ctx)
+	listOut, err := w.configList(ctx)
 	if err != nil {
-		return Baseline{}, err
+		return Baseline{}, gitFailure(configListRule, err)
 	}
 	hooks, err := w.hooksState(ctx)
 	if err != nil {
@@ -719,6 +759,15 @@ func (w *Worktree) Baseline(ctx context.Context) (Baseline, error) {
 	if branch == "" {
 		return Baseline{}, fmt.Errorf("%w: HEAD is not on a branch", ErrInvalidInput)
 	}
+	// The listing is digested once the branch is known, since its digest
+	// leaves out the branch settings of other branches. A listing that is not
+	// in the accepted shape is a git failure here: errConfigList wraps
+	// ErrGitFailed.
+	branchDigest := digestString(branch)
+	list, err := configListDigest(listOut, branchDigest)
+	if err != nil {
+		return Baseline{}, err
+	}
 	target, err := w.resolvePushTarget(ctx, branch)
 	if err != nil {
 		return Baseline{}, err
@@ -727,7 +776,7 @@ func (w *Worktree) Baseline(ctx context.Context) (Baseline, error) {
 	if err != nil {
 		return Baseline{}, err
 	}
-	return newBaseline(head, digestString(branch), remote, hooks, config, list, info), nil
+	return newBaseline(head, branchDigest, remote, hooks, config, list, info), nil
 }
 
 // stateCheck selects the parts compareState reads besides the files. The zero

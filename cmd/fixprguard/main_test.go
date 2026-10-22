@@ -23,7 +23,7 @@ import (
 // --protocol first.
 func validArgs() map[string][]string {
 	const (
-		baseline    = "v1.x"
+		baseline    = "v2.x"
 		fingerprint = "f"
 	)
 	return map[string][]string{

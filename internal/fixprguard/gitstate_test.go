@@ -129,7 +129,13 @@ func TestBaselineDetectsChange(t *testing.T) {
 			appendFile(t, filepath.Join(r.Home, "hooks", "pre-push"), "exit 0\n")
 		}, parts: []string{PartHooks}},
 		{name: "config", edit: func(_ *testing.T, r *testRepo) { r.Git("config", "core.fsmonitor", "true") }, parts: []string{PartConfig}},
-		{name: "worktree_config", edit: func(t *testing.T, r *testRepo) {
+		{name: "worktree_config", setup: func(t *testing.T, r *testRepo) {
+			// git reads config.worktree only with worktreeConfig on, and the
+			// file exists at begin, so the change is in the listed values,
+			// not in the file's type.
+			r.Git("config", "extensions.worktreeConfig", "true")
+			appendFile(t, filepath.Join(r.Dir, ".git", "config.worktree"), "")
+		}, edit: func(t *testing.T, r *testRepo) {
 			appendFile(t, filepath.Join(r.Dir, ".git", "config.worktree"), "[core]\n\tsshCommand = evil\n")
 		}, parts: []string{PartConfig}},
 		{name: "git_file_points_elsewhere", edit: func(t *testing.T, r *testRepo) {
@@ -235,7 +241,8 @@ func TestBaselineMalformedRejected(t *testing.T) {
 	}
 	for _, tc := range []struct{ name, token string }{
 		{"empty", ""},
-		{"version", with(0, "v2")},
+		// The version before this baseline shape was introduced.
+		{"previous_version", with(0, "v1")},
 		{"missing_field", strings.Join(fields[:len(fields)-1], ".")},
 		{"extra_field", token + ".00"},
 		{"head_upper_case", with(1, strings.ToUpper(fields[1]))},
@@ -270,8 +277,8 @@ func TestGitNotLaunchedAfterConfigChange(t *testing.T) {
 		w, router := newTestWorktree(t)
 		_, err := w.Inspect(t.Context(), base, threadAt(testFile))
 		wantStateParts(t, err, PartConfig)
-		if n := gitCalls(router.Calls); n != 0 {
-			t.Errorf("ran git %d times after the config changed: %v", n, router.Calls)
+		if !slices.Equal(router.Calls, []string{gitConfigList}) {
+			t.Errorf("calls after the config changed = %v, want git config --list only", router.Calls)
 		}
 	})
 	t.Run("finish_after_make_test", func(t *testing.T) {
@@ -286,8 +293,11 @@ func TestGitNotLaunchedAfterConfigChange(t *testing.T) {
 		w, router := newTestWorktree(t, makeStep(StageFmt, nil), makeStep(StageTest, rewrite))
 		_, err := w.Finish(t.Context(), base, judged, FinishRequest{PR: mustPR(t)})
 		wantStateParts(t, err, PartConfig)
-		if last := router.Calls[len(router.Calls)-1]; last != makeCommand+" "+StageTest {
-			t.Errorf("last command = %q, want make test: %v", last, router.Calls)
+		// After make test changed the config, only git config --list runs:
+		// not make lint, and no other git.
+		test := indexOf(router.Calls, makeCommand+" "+StageTest)
+		if test < 0 || !slices.Equal(router.Calls[test+1:], []string{gitConfigList}) {
+			t.Errorf("calls = %v, want git config --list only after make test", router.Calls)
 		}
 	})
 }
