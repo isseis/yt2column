@@ -49,6 +49,11 @@ GitHub. Its subcommands, outputs, and stop kinds are in
   `inspect`, and `reply`; the other subcommands do not take the flag): do not
   re-read `_context.md` to rebuild it during the run, since a fix may change that file. `<number>` is the PR number
   `begin` printed, except in the `begin` call itself (Phase 1).
+- `<review-mention>` is the mention: the first word of the value of
+  `_context.md`'s "PR review request" row. No text this command posts to
+  GitHub contains it, compared case-insensitively: a mention posted from the
+  user's account can make Codex change code or create a branch. In the agent
+  prompts below, write its value in place of the placeholder.
 - Exit codes: `0` continue; `1` stop, and the output's `stop` names the kind;
   `2` a usage error, which also stops; `3` ask the user (`inspect` only). Treat
   any other exit code, a termination by a signal, or output that is not JSON
@@ -330,6 +335,8 @@ Agent prompt (inline `begin`'s `threads` block from Phase 1 unchanged):
 >
 > <inline begin's threads block verbatim here>
 >
+> Never write `<review-mention>` in a `replyBody`, in any letter case, even when quoting: write `Codex` without the `@` instead.
+>
 > Reply with only this JSON: `{"threads": [{"threadId": "...", "verdict":
 > "valid|off-level|invalid|unclear", "severity":
 > "must-fix|worth-fixing|no-harm", "topic": "...", "behaviorGap": bool,
@@ -440,7 +447,8 @@ blocks, the thread IDs to fix):
 >    reply). If a cluster fix subsumed a thread, set `applied=true` and
 >    reference the structural change. For an off-level thread, the reply
 >    follows R4 (which later phase the detail belongs to, and where the
->    concern was recorded or retained).
+>    concern was recorded or retained). Never write `<review-mention>` in a
+>    `replyBody`, in any letter case, even when quoting: write `Codex` without the `@` instead.
 >
 > <inline begin's threads block verbatim here>
 >
@@ -590,7 +598,15 @@ Build the candidate list:
   "actionable". If there are none, skip this phase entirely.
 
 For each actionable thread in turn (not in parallel, which avoids the API rate
-limits), write its `replyBody` to its own file outside the work tree, then run:
+limits), write its `replyBody` to its own file outside the work tree.
+
+**Mention check.** Before posting, run `grep -qiF -- '<review-mention>' <file>`
+on each file of text to post. Post only when it exits `1` for every file: exit
+code `0` means the text contains the mention, and any other code means the
+check failed. Never rewrite the text to get past the check. When the check fails, do not run `reply` for that thread: list it under
+"Skipped threads", as for an empty `replyBody`, and go on with the next thread.
+
+Otherwise run:
 
 ```
 fixprguard reply --protocol 3 --reviewer <reviewer> --thread-id <threadId> --comment-id <databaseId> --fingerprint <fingerprint> --body-file <reply-file> --accept <threadId>=<fingerprint> <number>
@@ -607,8 +623,9 @@ and resolves the thread. Then:
 - `reply-not-resolved`: the reply may have been posted but the thread is not
   resolved. Never run `reply` for that thread again; list it so the user
   resolves it by hand.
-- Any other stop: not replied to; list it with the stop kind under "Skipped
-  threads", and go on with the next thread.
+- Any other stop, exit code `2` included: not replied to; list it under
+  "Skipped threads" with the stop kind, or for exit code `2` its one-line
+  diagnostic, and go on with the next thread.
 
 ## Phase 6 — Wrap: PR description (model: haiku)
 
@@ -631,13 +648,22 @@ Agent prompt:
 >    read the section "PR title and squash subject" of
 >    `.claude/commands/_context.md`, and write the new title in its PR title
 >    form, on one line. Write the body in Japanese (the project's language rule
->    for GitHub). Never return placeholder text. Otherwise reply with only
+>    for GitHub). Never write `<review-mention>` in the title or the body,
+>    in any letter case, even when quoting: write `Codex` without the `@` instead. Never return placeholder text. Otherwise reply with only
 >    `{"stale": false}`, so the real PR description is preserved.
 
 When the reply is `{"stale": true, ...}`, write its `title` and `body` to two
 files outside the work tree with the Write tool (the title file holds the title
 alone, with no trailing newline, which the tool rejects as a control
-character) and run:
+character).
+
+**Mention check.** Before posting, run `grep -qiF -- '<review-mention>' <file>`
+on each file of text to post. Post only when it exits `1` for every file: exit
+code `0` means the text contains the mention, and any other code means the
+check failed. Never rewrite the text to get past the check. When the check fails, do not run `edit-pr`: leave the PR description as
+it is, and list it in the Final report.
+
+Otherwise run:
 
 ```
 fixprguard edit-pr --protocol 3 --title-file <title-file> --body-file <body-file> <number>

@@ -115,6 +115,13 @@ Every `fixpr.md` and `mergepr.md` run below is given the resolved PR number
     `$(git merge-base origin/main HEAD)`, **SCOPE** = branch, **SUMMARY** = the
     final report. (The review reads the local checkout, so skip it for another
     branch.)
+  - Write the PR title and body to files first, as the paragraph after the
+    commands says, then run the mention check on both files:
+    **Mention check.** Before posting, run `grep -qiF -- '<review-mention>' <file>`
+    on each file of text to post. Post only when it exits `1` for every file: exit
+    code `0` means the text contains the mention, and any other code means the
+    check failed. Never rewrite the text to get past the check.
+    When the check fails, do not create the PR: stop and report.
   - Push it and create the PR naming the head branch explicitly, so a branch
     argument other than the checked-out branch is not ignored:
 
@@ -360,8 +367,10 @@ finished review observed had and every review in progress lacked, so that a
 - **Requesting the review.** Post a request with
   `gh pr comment <number> --body "<review-request>"`, reading `headRefOid` just
   before posting and keeping it as that request's pre-request head, and the
-  URL the command prints as that request's URL. Every
-  request (the first review, Escalation, and step 4) is posted this way. Poll
+  URL the command prints as that request's URL. The request is the one text a
+  command posts that contains the mention, so the mention check does not apply
+  to it. Every request (the first review, Escalation, and step 4) is posted
+  this way. Poll
   about every thirty seconds: each poll reads every list to its last page, so
   do not poll faster. Wait between polls rather than spinning.
   - **On arriving at this step**, judge the latest request once:
@@ -556,7 +565,17 @@ rather than once per decision.
    issue, so none is silently dropped. Look for this PR's tracking issue
    (`gh issue list --state open --search "PR #<number> のレビュー指摘の追跡 in:title"`).
    Skip any finding whose thread URL the issue or its comments already list.
-   Add the others to it as a comment (`gh issue comment`), or create it
+   Before posting anything, write the issue comment or body to a file outside
+   the work tree, and each thread's reply (below) to its own file, and run the
+   mention check on all of them:
+   **Mention check.** Before posting, run `grep -qiF -- '<review-mention>' <file>`
+   on each file of text to post. Post only when it exits `1` for every file: exit
+   code `0` means the text contains the mention, and any other code means the
+   check failed. Never rewrite the text to get past the check.
+   When the check fails, do not post: run `mergepr discard --state <state-file>`,
+   stop, and report, without merging.
+   Add the others to the issue as a comment
+   (`gh issue comment <issue> --body-file <file>`), or create it
    (`gh issue create --title "PR #<number> のレビュー指摘の追跡" --body-file <file>`)
    when there is none. Write in Japanese, listing each finding's topic, the
    change it asks for, and its thread URL. Then reply to each of those threads
@@ -631,9 +650,15 @@ Once `mergepr.md` reports the merge:
   titled `#<issue> の PR リンク (<k>)`, listed with
   `gh api repos/{owner}/{repo}/issues/<issue>/sub_issues --paginate`). Then
   check `gh issue view <issue> --json state`, and when it is `OPEN`, close
-  it. Close each with
-  `gh issue close <number> --reason completed --comment "<comment>"` and a
-  Japanese comment naming the merged PR.
+  it. For each, write a Japanese comment naming the merged PR to a file, and
+  run the mention check on it:
+  **Mention check.** Before posting, run `grep -qiF -- '<review-mention>' <file>`
+  on each file of text to post. Post only when it exits `1` for every file: exit
+  code `0` means the text contains the mention, and any other code means the
+  check failed. Never rewrite the text to get past the check.
+  When the check fails, do not close the issue without its comment: stop and
+  report. Otherwise close it with
+  `gh issue close <number> --reason completed --comment "$(cat "<comment-file>")"`.
 - If the answer in step 4 chose to run NEXT, run it now. It opens its own PR,
   pings the reviewer, and stops; this command ends there. Otherwise report the
   final status.

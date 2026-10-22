@@ -79,7 +79,7 @@ const (
 
 // The sentences that define the placeholders for the _context.md values a
 // command document must not write itself. runpr.md and _lib/task-pr-handoff.md
-// define all three.
+// define all three; fixpr.md defines reviewMentionSentence.
 const (
 	awaitedReviewerSentence = "`<awaited-reviewer>[bot]` is the REST form of the awaited PR " +
 		"reviewer's name (`_context.md`, \"Awaited PR reviewer\"): that name followed by `[bot]`."
@@ -336,6 +336,26 @@ func TestFixprDocContract(t *testing.T) {
 			"\"do not continue\": stop. Run no build checks, commit, push, reply, or resolve, and leave the changes in the work tree",
 			"the next `/fixpr` stops with `"+fixprguard.StopDirtyWorkTree+"`",
 			"When Phase 3 was skipped, still run the call below, with no `--thread`",
+		)
+	})
+
+	t.Run("no_mention_in_agent_text", func(t *testing.T) {
+		// The agents that write replies and the PR description are told to
+		// keep the mention out, even when quoting a thread.
+		const rule = "in any letter case, even when quoting: write `Codex` without the `@` instead."
+		for _, tc := range []struct{ heading, phrase string }{
+			{fixprPhase2, "Never write `<review-mention>` in a `replyBody`, " + rule},
+			{fixprPhase3, "Never write `<review-mention>` in a `replyBody`, " + rule},
+			{fixprPhase6, "Never write `<review-mention>` in the title or the body, " + rule},
+		} {
+			requirePhrases(t, "fixpr.md "+tc.heading, requireSection(t, "fixpr.md", doc, tc.heading), tc.phrase)
+		}
+	})
+
+	t.Run("reply_usage_error_skips", func(t *testing.T) {
+		requirePhrases(t, "fixpr.md Phase 5", requireSection(t, "fixpr.md", doc, fixprPhase5),
+			"Any other stop, exit code `2` included: not replied to; list it under \"Skipped threads\" "+
+				"with the stop kind, or for exit code `2` its one-line diagnostic, and go on with the next thread.",
 		)
 	})
 
@@ -797,7 +817,7 @@ func TestContextAndCommandsAgree(t *testing.T) {
 		name, path string
 		phrases    []string
 	}{
-		{"fixpr.md", fixprPath, []string{reviewerSentence, fixprBuildOnce}},
+		{"fixpr.md", fixprPath, []string{reviewerSentence, fixprBuildOnce, reviewMentionSentence}},
 		{"runpr.md", runprPath, append([]string{reviewerSentence, runprBuildOnce}, placeholders...)},
 		{"_lib/task-pr-handoff.md", handoffPath, placeholders},
 	} {

@@ -146,7 +146,14 @@ holding them (a **link sub-issue**), not to ISSUE itself.
    LINK_ISSUE is the one with the highest `<k>` when it has fewer than ten
    links (step 1).
 4. When there is none, or that one is full, create the next one with `<k>` one
-   above the highest (`2` for the first) and add it as a sub-issue of ISSUE:
+   above the highest (`2` for the first) and add it as a sub-issue of ISSUE.
+   Write its body (below) to `<file>` first, and run the mention check on it:
+   **Mention check.** Before posting, run `grep -qiF -- '<review-mention>' <file>`
+   on each file of text to post. Post only when it exits `1` for every file: exit
+   code `0` means the text contains the mention, and any other code means the
+   check failed. Never rewrite the text to get past the check.
+   When the check fails, do not create the link sub-issue: stop and report.
+   Otherwise run:
 
    ```bash
    gh issue create --title "#<issue> の PR リンク (<k>)" --body-file <file>
@@ -171,7 +178,14 @@ Run this after the calling command's last commit, with a clean working tree.
 2. Run CHECKS. If they fail, fix, commit, and run them again; do not go on to
    the push until they pass.
 3. Push and create the PR for the current branch. Ignore the calling command's
-   `$ARGUMENTS` here (it is a task or an issue, not a PR or a branch): run
+   `$ARGUMENTS` here (it is a task or an issue, not a PR or a branch). First
+   write the title and the body to files, as below, and run the mention check
+   on both files:
+   **Mention check.** Before posting, run `grep -qiF -- '<review-mention>' <file>`
+   on each file of text to post. Post only when it exits `1` for every file: exit
+   code `0` means the text contains the mention, and any other code means the
+   check failed. Never rewrite the text to get past the check.
+   When the check fails, do not create the PR: stop and report. Otherwise run
    `git push -u origin <current-branch>` and
    `gh pr create --base main --head <current-branch> --title "$(cat "<title-file>")" --body-file <file>`,
    writing the title and the body to files in the scratchpad with the Write tool
@@ -215,8 +229,10 @@ Run this after the calling command's last commit, with a clean working tree.
    such a comment updated after the PR was opened (its `updated_at` strictly
    later than `createdAt`). When one appears, do not ask. When none has
    appeared after about two minutes, ask once, with
-   `gh pr comment <number> --body "<review-request>"`. Do not check the state
-   line's form, and do not wait for the review to finish; `/runpr` judges it.
+   `gh pr comment <number> --body "<review-request>"`. The request is the one
+   text a command posts that contains the mention, so the mention check does
+   not apply to it. Do not check the state line's form, and do not wait for the
+   review to finish; `/runpr` judges it.
 6. Ping the human reviewer (`_context.md`, "Reviewer ping") in Japanese with the
    PR URL and the next action: review the PR, then run `/runpr <PR>`. If the ping tool is
    unavailable or the ping is not sent, the report in step 7 carries the same
