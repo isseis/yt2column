@@ -203,6 +203,24 @@ var (
 	errWriteBeginRecord   = fmt.Errorf("%w: write ignored begin record", ErrGitFailed)
 )
 
+// ignoredFailures is every reason above; IgnoredFailureRules names them.
+var ignoredFailures = []error{
+	errListIgnoredFailed, errListIgnoredCap, errListIgnoredShape, errIgnoredTargetCount,
+	errIgnoredWalkEntries, errIgnoredFileSize, errIgnoredReadTotal, errIgnoredTimeout,
+	errReadIgnoredDir, errReadIgnoredFile, errIgnoredLinkToDir, errClaudeGitName, errWriteBeginRecord,
+}
+
+// IgnoredFailureRules lists the rule names the git-failed diagnostic prints
+// for the target files, in the order the guide's table lists them, so the
+// guide and the fixpr document can be checked against them.
+func IgnoredFailureRules() []string {
+	rules := make([]string, 0, len(ignoredFailures))
+	for _, err := range ignoredFailures {
+		rules = append(rules, strings.TrimPrefix(err.Error(), ErrGitFailed.Error()+": "))
+	}
+	return rules
+}
+
 // targetState is what one pass over the target files yields: digest covers
 // every target file's path and state, and record has one line per target
 // file, its entry digest and its quoted path. Neither is printed; record is

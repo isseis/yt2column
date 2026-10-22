@@ -274,7 +274,7 @@ fixprguard edit-pr --protocol 4 --title-file /path/to/title.txt --body-file /pat
 | 形 | 項目 |
 |---|---|
 | 最上位のこのディレクトリの下のすべて（ディレクトリそのものを含む） | `.claude/` |
-| 最上位のこの名前のファイル（先頭の `/` は最上位だけで当たる印） | `/.env`、`/.envrc`、`/claude.local.md` |
+| 最上位のこの名前のファイル（先頭のスラッシュは最上位だけで当たる印） | `/.env`、`/.envrc`、`/claude.local.md` |
 | どの階層でも、この名前のファイル | `claude.md`、`makefile`、`gnumakefile`、`go.mod`、`go.work` |
 | どの階層でも、名前がこの文字列で終わるファイル（名前がその文字列だけのものを含む） | `*.go`、`*.mk`、`*.c`、`*.h`、`*.cc`、`*.cpp`、`*.cxx`、`*.hh`、`*.hpp`、`*.hxx`、`*.m`、`*.s`、`*.sx`、`*.f`、`*.for`、`*.f90`、`*.swig`、`*.swigcxx`、`*.syso` |
 

@@ -274,7 +274,7 @@ The `.go` rule: a `.go` file is in scope under rule 2 only when `path` is a `.go
 | Form | Items |
 |---|---|
 | Everything below this top-level directory (the directory itself included) | `.claude/` |
-| A file of this name at the top level (the leading `/` marks a match at the top level only) | `/.env`, `/.envrc`, `/claude.local.md` |
+| A file of this name at the top level (the leading slash marks a match at the top level only) | `/.env`, `/.envrc`, `/claude.local.md` |
 | A file of this name at any level | `claude.md`, `makefile`, `gnumakefile`, `go.mod`, `go.work` |
 | A file at any level whose name ends with this string (a name that is only the string included) | `*.go`, `*.mk`, `*.c`, `*.h`, `*.cc`, `*.cpp`, `*.cxx`, `*.hh`, `*.hpp`, `*.hxx`, `*.m`, `*.s`, `*.sx`, `*.f`, `*.for`, `*.f90`, `*.swig`, `*.swigcxx`, `*.syso` |
 

@@ -353,11 +353,11 @@
 
 **変更するファイル**: `cmd/fixprguard/docs_test.go`
 
--   [ ] `TestGuideListsWatchList` を加える。日英の 7.1 の「監視の一覧」の小見出しの後の表を `guideTable` で切り出し、表のコードスパンの集合が `WatchListPatterns` の集合と一致することを確かめる（足りない項目も、余分な項目も失敗にする）。7.1 の保証の行があることも確かめる（AC-17）。
--   [ ] `TestGuideNamesGitStateParts` を加える。日英の 8 章の `git-state-changed` の行を `singleLine` で取り出し、`GitStateParts` のすべての値がコードスパンであることを確かめる。
--   [ ] `TestGuideDescribesIgnoredFiles` を加える。`passage`・`checkPassages` の形で、日英の 7.2 の分けた項目（AC-18）、8 章の小見出しの (a)〜(e) の語と 2 つの SHA-256 のコマンド（AC-19）、`git-failed` の行の原因の語（AC-19a）を確かめる。`checkPassages` は `configScope` の 3 つの語を必ず求めるので、0036 の PR-2 が同じ関数を改めていればその形を使い、そうでなければ確かめる語の一覧を渡せる形に改めて使う（`TestGuideDescribesConfigScope` の語は変えない）。
--   [ ] `TestGuideIgnoredCommands` を加える（1.4）。日英の 8 章の小見出しのコードブロックを取り出し、両版で同じであることを確かめる。`gh` を fake にした `begin` と、対象のファイルを変えた後の `inspect` で 2 つの記録のファイルを作り、ブロックのコマンドを `sh` で実行する。照合が一致し、`diff` が変えたパスを示すこと、`begin` の記録を書き換えると照合が一致しないことを確かめる。`shasum` と `sha256sum` のうち使える方で実行し、どちらも使えなければ失敗させる。
--   [ ] `fixpr.md` の `parts` を列挙する文に `` `ignored` `` があることを、`TestGuideNamesGitStateParts` か別の小さなテストで確かめる（設計書 3.10）。
+-   [x] `TestGuideListsWatchList` を加える。日英の 7.1 の「監視の一覧」の小見出しの後の表を `guideTable` で切り出し、表のコードスパンの集合が `WatchListPatterns` の集合と一致することを確かめる（足りない項目も、余分な項目も失敗にする）。7.1 の保証の行があることも確かめる（AC-17）。
+-   [x] `TestGuideNamesGitStateParts` を加える。日英の 8 章の `git-state-changed` の行を `singleLine` で取り出し、`GitStateParts` のすべての値がコードスパンであることを確かめる。
+-   [x] `TestGuideDescribesIgnoredFiles` を加える。`passage`・`checkPassages` の形で、日英の 7.2 の分けた項目（AC-18）、8 章の小見出しの (a)〜(e) の語と 2 つの SHA-256 のコマンド（AC-19）、`git-failed` の行の原因の語（AC-19a）を確かめる。`checkPassages` は `configScope` の 3 つの語を必ず求めるので、0036 の PR-2 が同じ関数を改めていればその形を使い、そうでなければ確かめる語の一覧を渡せる形に改めて使う（`TestGuideDescribesConfigScope` の語は変えない）。
+-   [x] `TestGuideIgnoredCommands` を加える（1.4）。日英の 8 章の小見出しのコードブロックを取り出し、両版で同じであることを確かめる。`gh` を fake にした `begin` と、対象のファイルを変えた後の `inspect` で 2 つの記録のファイルを作り、ブロックのコマンドを `sh` で実行する。照合が一致し、`diff` が変えたパスを示すこと、`begin` の記録を書き換えると照合が一致しないことを確かめる。`shasum` と `sha256sum` のうち使える方で実行し、どちらも使えなければ失敗させる。
+-   [x] `fixpr.md` の `parts` を列挙する文に `` `ignored` `` があることを、`TestGuideNamesGitStateParts` か別の小さなテストで確かめる（設計書 3.10）。
 
 **壊して確かめる**: 次の変更を 1 つずつ加えると、それぞれのガードが失敗すること。一時的に書き換えて確かめ、戻す。
 
