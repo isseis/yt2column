@@ -8,7 +8,7 @@
 | Created | 2026-10-22 |
 | Review date | 2026-10-22 |
 | Reviewer | isseis |
-| Comments | 2026-10-22 (editorial): ステップ 3-4 に、0033 の PR-2（#436）がステップ 2-0 を完了したので 0033 の計画の変更を取り下げたことを記録した。2026-10-22 (editorial): ステップ 3-4 の 2 つめの項目の前提を直した（0035 のツールは 0033 の PR-1 を含み、`--reviewer` の繰り返しを受け付ける）。1.3.4 の `[branch ""]` の観察を、失敗するコマンドに限って直した。2026-10-22 (editorial): ステップ 2-3 のテストの配置と名前を実装に合わせた（AC-01 の別の worktree の操作は流れのテストだけに置く。AC-11 の git を起動しないことは `TestBaselineDetectsChange` の層の確かめで、FIFO の行は `TestConfigFileTypeCheckedBeforeGit` で、タイムアウトは `TestConfigListFailureKinds` で確かめる）。1.3.4 に `[branch ""]` の観察を記録した。決定は変えていない。 |
+| Comments | 2026-10-22 (decision): AC-17 の確かめを、ガードのテスト（`static`）から PR のレビューでの読み合わせ（`manual`）に改めた。自然言語の記述はテストで保証できない（必須の語を含んでいても、否定を反転した文が通る。PR #438 のレビューの指摘）ため、ガードを書かない。PR #438 で、このセッションでレビュアーが指示し、承認した。AC-18 のガード（PR-1 でマージ済み）は変えていない。 2026-10-22 (editorial): ステップ 3-4 に、0033 の PR-2（#436）がステップ 2-0 を完了したので 0033 の計画の変更を取り下げたことを記録した。2026-10-22 (editorial): ステップ 3-4 の 2 つめの項目の前提を直した（0035 のツールは 0033 の PR-1 を含み、`--reviewer` の繰り返しを受け付ける）。1.3.4 の `[branch ""]` の観察を、失敗するコマンドに限って直した。2026-10-22 (editorial): ステップ 2-3 のテストの配置と名前を実装に合わせた（AC-01 の別の worktree の操作は流れのテストだけに置く。AC-11 の git を起動しないことは `TestBaselineDetectsChange` の層の確かめで、FIFO の行は `TestConfigFileTypeCheckedBeforeGit` で、タイムアウトは `TestConfigListFailureKinds` で確かめる）。1.3.4 に `[branch ""]` の観察を記録した。決定は変えていない。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -117,7 +117,7 @@
 -   **I-02 は、通常の PR だけを実際に確かめる:** fork の PR は確かめない。理由: 設計の安全性はこの確認によらず、外れても止まりすぎる方向だけである（設計書 1.3 の表の後の段落）。fork の PR の確認には、公開リポジトリの大きな clone とネットワークを要する。確かめていないことは、ガイド 7.2 に書く（ステップ 3-2）。
 -   **PR-1 の `/runpr` の前に、PR-1 のブランチで `make install-fixprguard` を実行する:** PR-1 のブランチの `fixpr.md`・`runpr.md` は `--protocol 2` を渡すので、インストール済みのツールでは終了コード `2` で止まる。再インストールしてからマージされるまでの間、`main` を取り込んでいないほかの worktree の `/fixpr`・`/runpr` は終了コード `2` で止まる（fail-closed）。PR-1 の作成ポイントと 7 章に書く。
 -   **`--protocol` の番号は、ガードのテストで確かめる（設計書 7.5 の 1 つめの項目）:** `cmd/fixprguard/docs_test.go` に、ガイドの現在の番号、ガイドと `.claude/commands/` のすべての文書のすべての `--protocol N`（コードブロックの外の文を含む）、ガイドの出力の例の `"protocol":N` が `Protocol` と一致することを確かめるテストを加える。理由: 今の `TestDocumentedInvocationsParse` は `fixpr.md`・`runpr.md` のコードブロックの中しか読まない。そのため、両文書の文の 2 か所と、ガイドの各版の 14 か所（両版で 28 か所）が食い違っても通る。文書に書いただけの確認は、誰も実行しないので守られない（`mkplan.md` step 6）。基準値の例の `'v2....'` は、版の文字列が公開されていないのでガードでは確かめず、ステップ 3-2 で `baselineVersion` と突き合わせる。
--   **AC-17・AC-18 も、ガードのテストで確かめる:** 対象の記述ごとに、要件書 AC-17 の (a)〜(c)（(a) 外す対象のブランチの設定は比べないこと、(b) 設定の値の一覧を変えない編集は検出しないこと、(c) 外す対象のブランチの設定の書き換えは残余のリスクであること）を述べる語が含まれ、書き改める前の範囲の記述（たとえばガイド 7.1 の今の文、0030 設計書 3.7 のファイルの内容のダイジェストの記述）が残っていないことを確かめる。文書の節や表の行を取り出して語を確かめる先例は、`cmd/yt2column/docs_test.go` の `sectionByHeading`・`bulletContaining`（`:730-747` で使う）と、`cmd/yt2column/fixpr_docs_test.go` の `requireSection`・`requirePhrases` である。これらは別の `main` パッケージにあり、import できないので、`cmd/fixprguard/docs_test.go` に取り出しの関数を置き、ステップ 3-3 と 4-2 で共有する。
+-   **AC-18 も、ガードのテストで確かめる（AC-17 は 2026-10-22 の決定で `manual` に改めた。5 章）:** 対象の記述ごとに、要件書 AC-17 の (a)〜(c)（(a) 外す対象のブランチの設定は比べないこと、(b) 設定の値の一覧を変えない編集は検出しないこと、(c) 外す対象のブランチの設定の書き換えは残余のリスクであること）を述べる語が含まれ、書き改める前の範囲の記述（たとえばガイド 7.1 の今の文、0030 設計書 3.7 のファイルの内容のダイジェストの記述）が残っていないことを確かめる。文書の節や表の行を取り出して語を確かめる先例は、`cmd/yt2column/docs_test.go` の `sectionByHeading`・`bulletContaining`（`:730-747` で使う）と、`cmd/yt2column/fixpr_docs_test.go` の `requireSection`・`requirePhrases` である。これらは別の `main` パッケージにあり、import できないので、`cmd/fixprguard/docs_test.go` に取り出しの関数を置く。
 -   **0033 の計画の確かめの番号は、PR-1 で合わせる（ステップ 3-4）:** 0033 の計画の 1.3.4 とステップ 2-0 は、インストール済みのツールに `--protocol 1` を渡す確かめを、`protocol` の番号が変わらない前提で書いている。PR-1 のマージの後に 0033 のステップ 2-0 を実行すると、番号の不一致で違う診断が出る。再インストールを求める案内が繰り返されるだけで、先に進めなくなる。`--protocol` のガードは `docs/tasks/` を読まないので、この食い違いを見つけない。PR-1 が番号を変えるので、PR-1 で 0033 の計画を editorial correction で直す。
 -   **設計書 2.2 の表に `cmd/fixprguard/test_helpers.go` を加えた（editorial correction、この計画の PR）:** `validBaseline`（`:358-369`）は `"v1"` のトークンを `ParseBaseline` に通すので、版を上げると変えなければならない。設計書は `main_test.go:25` だけを挙げていた。決定は変わらないので、`Status` を `approved` のまま、`Comments` に記録した（`docs/dev/developer_guide/requirements_process.md`「Editing an approved document」）。
 
@@ -262,7 +262,7 @@
 **変更するファイル**: `cmd/fixprguard/docs_test.go`
 
 -   [x] `--protocol` の番号のガードを加える（1.4）。両方のガイドと `.claude/commands/` の下のすべての Markdown の `--protocol <数字>`、ガイドの `"protocol":<数字>`、ガイド 4 章の現在の番号が、`fixprguard.Protocol` と一致することを確かめる。両方のガイドと `fixpr.md`・`runpr.md` では、1 つ以上見つかることも確かめる。
--   [x] 文書の節や表の行を取り出す関数を置く（1.4）。ステップ 4-2 でも使う。
+-   [x] 文書の節や表の行を取り出す関数を置く（1.4）。
 -   [x] AC-18 のガードを加える。両方のガイドの、要件書 AC-18 が挙げる箇所（1 章の層 (3)、5 章の `inspect`・`push`、7.1 の行、7.2、8 章の `git-state-changed` の行）のそれぞれが、(a)〜(c) を述べる語を含み、書き改める前の範囲の記述を含まないことを確かめる。7.1 の行は、外す対象を除いた config を比べること、比べる前に起動する git が `git config --list` だけであることを述べる語を含むことも確かめる。日本語版を確かめるリテラルは日本語で書く（1.2）。
 
 **壊して確かめる**: 次で、それぞれのガードが失敗すること。一時的に書き換えて確かめ、戻す。
@@ -317,19 +317,17 @@
 
 **変更するファイル**: `docs/tasks/0030_fixpr_untrusted_threads/01_requirements.md`、`02_architecture.md`
 
--   [ ] 設計書 3.5「0030 の文書」の表のすべての箇所を、要件書 AC-17 の (a)〜(c) を述べる形に改める。0030 `02_architecture.md` 2 章ではなく 1.2 の push の決定を対象とすることは、設計書 3.5 の表の後の段落のとおりである。
--   [ ] 両文書の `Status` を `approved` のままにし、`Comments` に `YYYY-MM-DD (decision): タスク 0035（#431）の要件で決めた変更` の形で記録する（設計書 3.5、要件書 5 章）。日付は改訂した日にする。
--   [ ] 改めた記述を、ガイド（フェーズ 3）と設計書 3.4・5 章と突き合わせ、比べる範囲と残余のリスクの述べ方が一致することを確かめる。
+-   [x] 設計書 3.5「0030 の文書」の表のすべての箇所を、要件書 AC-17 の (a)〜(c) を述べる形に改める。0030 `02_architecture.md` 2 章ではなく 1.2 の push の決定を対象とすることは、設計書 3.5 の表の後の段落のとおりである。
+-   [x] 両文書の `Status` を `approved` のままにし、`Comments` に `YYYY-MM-DD (decision): タスク 0035（#431）の要件で決めた変更` の形で記録する（設計書 3.5、要件書 5 章）。日付は改訂した日にする。
+-   [x] 改めた記述を、ガイド（フェーズ 3）と設計書 3.4・5 章と突き合わせ、比べる範囲と残余のリスクの述べ方が一致することを確かめる。
 
-**完了条件**: 設計書 3.5 の表のすべての箇所が改まっている（ステップ 4-2 のガードで確かめる）。
+**完了条件**: 設計書 3.5 の表のすべての箇所が改まっている（PR のレビューで読み合わせて確かめる。5 章）。
 
 #### ステップ 4-2: 0030 の文書のガード
 
-**変更するファイル**: `cmd/fixprguard/docs_test.go`
+**変更するファイル**: なし（取りやめた）
 
--   [ ] 0030 の両文書の、設計書 3.5 の表の箇所のそれぞれが (a)〜(c) を述べる語を含み、書き改める前の範囲の記述を含まないこと、両文書の `Comments` が `(decision)` とタスク 0035 を含むこと、`Status` が `approved` であることを確かめるガードを加える。箇所の取り出しには、ステップ 3-3 の関数を使う。
-
-**壊して確かめる**: 両文書のそれぞれで、箇所の (a)・(b)・(c) の文を 1 つずつ消す、書き改める前の文を戻す、`Comments` の記録を消す、のそれぞれでガードが失敗すること。
+-   [-] （2026-10-22 の決定で取りやめた。自然言語の記述はテストで保証できないので、AC-17 は PR のレビューで読み合わせて確かめる。5 章）0030 の両文書の、設計書 3.5 の表の箇所のそれぞれが (a)〜(c) を述べる語を含み、書き改める前の範囲の記述を含まないこと、両文書の `Comments` が `(decision)` とタスク 0035 を含むこと、`Status` が `approved` であることを確かめるガードを加える。箇所の取り出しには、ステップ 3-3 の関数を使う。
 
 **完了条件**: 文書のガード（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`）が通る。
 
@@ -337,7 +335,7 @@
 
 **変更するファイル**: なし
 
--   [ ] `make test && make lint` を実行する。
+-   [x] `make test && make lint` を実行する。
 
 **完了条件**: 上が通る。
 
@@ -353,10 +351,10 @@
 
 **判定理由**: 文書と、その記述を確かめるガードだけの変更で、`mkplan2.md` step 4 の契機のどれにも当たらない。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/438
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）（最後の PR なので該当しない）
 
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
 
@@ -375,7 +373,7 @@
 | PR | 対象ステップ | 主な変更内容 | 実装モデル要件 |
 |---|---|---|---|
 | PR-1 | 1-1 / 2-1 / 2-2 / 2-3 / 3-1 / 3-2 / 3-3 / 3-4 / 3-5 | `configlist.go`、`gitstate.go` の比較の順序と振り分け、基準値 `v2`、`Protocol` 2、コマンドの文書の `--protocol`、結合テスト、I-01・I-02 の確かめ、ガイド、番号と AC-18 のガード、0033 の計画の番号 | frontier-required |
-| PR-2 | 4-1 / 4-2 / 4-3 | 0030 の要件書と設計書の改訂、AC-17 のガード | standard |
+| PR-2 | 4-1 / 4-2 / 4-3 | 0030 の要件書と設計書の改訂 | standard |
 
 ### 3.3. 実装順序の根拠
 
@@ -402,7 +400,7 @@
 
 ### 4.4. 文書のガード
 
-ステップ 3-3 と 4-2 のガードは `cmd/fixprguard/docs_test.go` に置き、CI の `doc-guard` のジョブが実行する。
+ステップ 3-3 のガードは `cmd/fixprguard/docs_test.go` に置き、CI の `doc-guard` のジョブが実行する。
 
 ### 4.5. 後方互換性
 
@@ -430,18 +428,18 @@
 | AC-14 | test | `gitstate_test.go::TestGitNotLaunchedAfterConfigChange`（改訂した 2 行）・`::TestConfigFileTypeCheckedBeforeGit`（FIFO）、`worktree_flow_test.go::TestFinishStopsWhenHooksChangeConfig`・`::TestPushRechecks`（`config_changed`）、`cmd/fixprguard/main_test.go::TestInspectChecksGitStateBeforeGh`（既存） |
 | AC-15 | test | `gitstate_test.go::TestBaselineMalformedRejected`（前の版の行）、`cmd/fixprguard/main_test.go::TestPreviousBaselineRejected`（終了コード `2`。`v2` のトークンの対照の行） |
 | AC-16 | test + static + manual | `cmd/fixprguard/main_test.go::TestConfigStopOmitsNames`、`configlist_test.go`（エラーの文字列）、`cmd/fixprguard/docs_test.go::TestGuideCoversStopKindsAndScope`（既存。止まり方の種類） |
-| AC-17 | static | `cmd/fixprguard/docs_test.go::TestTask0030DocsDescribeConfigScope` |
+| AC-17 | manual | PR-2 のレビューで、設計書 3.5 の表の箇所を読み合わせる |
 | AC-18 | static | `cmd/fixprguard/docs_test.go::TestGuideDescribesConfigScope` |
 | AC-19 | static + test | `cmd/fixprguard/docs_test.go::TestDocumentedInvocationsParse`（既存）・`::TestDocumentedProtocolMatches`（ガイドとコマンドの文書のすべての番号）、`cmd/fixprguard/main_test.go::TestProtocolMismatch`（既存） |
 
--   AC-17・AC-18 は、文書が何を述べるかを定めるので、`static` で確かめる。
+-   AC-18 は、文書が何を述べるかを定めるので、`static` で確かめる。AC-17 は、自然言語の記述をテストで保証できないので、`manual` で確かめる（2026-10-22 の決定）。
 -   AC-16 の「`parts` の値の集合は変わらない」は、`Part*` の定数を加えも消しもしないことを、PR-1 の差分で確かめる（`manual`）。ステップ 2-3 のテストは、止まったときの `parts` を既存の値で確かめる。
 -   AC-19 のうち「前の版の値より大きい」ことは、PR-1 の差分で `1` から `2` への変更を見て確かめる（`manual`）。定数をそれ自身のリテラルと比べるテストは書かない（`CLAUDE.md`「Testing Strategy」）。
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 2-1 / 2-2 / 2-3 / 3-1 / 3-2 / 3-3 / 3-4 / 3-5）
-- [ ] PR-2 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3）
+- [x] PR-2 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3）
 
 ## 7. リスク管理 (Risk Management)
 
