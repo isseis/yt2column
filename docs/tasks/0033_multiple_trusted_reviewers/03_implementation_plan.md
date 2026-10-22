@@ -327,8 +327,8 @@
 
 **変更するファイル**: `docs/translation_glossary.md`、`cmd/yt2column/fixpr_docs_test.go`
 
--   [ ] 「信頼する著者」の定義を、自動レビュアーの一覧を指す形に改める。「自動レビュアー」（automated reviewer）、「自動レビュアーの一覧」（automated reviewer list）、「待つ PR レビュアー」（awaited PR reviewer）の 3 行を加える。定義は要件書 6 節に合わせる。
--   [ ] `TestGlossaryTerms` に 3 行を加え、「信頼する著者」の定義のセルが「自動レビュアーの一覧」を含むことを確かめる。
+-   [x] 「信頼する著者」の定義を、自動レビュアーの一覧を指す形に改める。「自動レビュアー」（automated reviewer）、「自動レビュアーの一覧」（automated reviewer list）、「待つ PR レビュアー」（awaited PR reviewer）の 3 行を加える。定義は要件書 6 節に合わせる。
+-   [x] `TestGlossaryTerms` に 3 行を加え、「信頼する著者」の定義のセルが「自動レビュアーの一覧」を含むことを確かめる。
 
 **壊して確かめる**: 用語集の 3 行のどれかを消す、「信頼する著者」の定義を元に戻す、のそれぞれでテストが失敗すること。
 
