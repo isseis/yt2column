@@ -8,7 +8,7 @@
 | Created | 2026-10-22 |
 | Review date | 2026-10-22 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 7.2 の検索の語 `and the next command` が、3.5 で変えない `runpr.md:66` の Authorization の文にも一致していたため、`pre-merge bookkeeping and the next command` に絞った（編集上の訂正。決定は変えていない） |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルについての記述は、コミット `e529b68` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指す。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-03）への対応は 3.7 にまとめる。
 
@@ -404,7 +404,7 @@ sequenceDiagram
 
 各 AC を、変更後のファイルの記述を読んで確かめる（7.5）。あわせて、`docs/tasks/` を除く追跡中のファイルに、次の記述が残っていないことを `git grep` で確かめる。`git grep` で確かめられるのは古い記述がないことだけで、新しい記述があることは読んで確かめる。
 
--   `/runpr` がマージの後に次のコマンドを必ず実行すると読める記述。3.5・3.6 が置き換える今の文言を、少なくとも含める: `and run the next command`（`runpr.md:2`、`CLAUDE.md:86`、`requirements_process.md:55`）、`and carry it out`（`runpr.md:31`）、`starts the next command`（`requirements_process.md:55`）、`the next command to run`（`_lib/task-pr-handoff.md:22-23`。行をまたぐので、改行を空白と同じに扱って検索する）、`and the next command`（`mergepr.md:124`）、`then run NEXT`（`runpr.md:443`）。
+-   `/runpr` がマージの後に次のコマンドを必ず実行すると読める記述。3.5・3.6 が置き換える今の文言を、少なくとも含める: `and run the next command`（`runpr.md:2`、`CLAUDE.md:86`、`requirements_process.md:55`）、`and carry it out`（`runpr.md:31`）、`starts the next command`（`requirements_process.md:55`）、`the next command to run`（`_lib/task-pr-handoff.md:22-23`。行をまたぐので、改行を空白と同じに扱って検索する）、`pre-merge bookkeeping and the next command`（`mergepr.md:124`。3.5 で変えない `runpr.md:66` の文に一致しないよう、前の語を含める）、`then run NEXT`（`runpr.md:443`）。
 -   続けて実行する選択肢に推奨を付ける記述（`run NEXT (recommended`）。
 
 検索の語の一覧は、実装プランで確定する。
