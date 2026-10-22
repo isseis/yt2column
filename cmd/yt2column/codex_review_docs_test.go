@@ -418,12 +418,14 @@ func TestLocalCodeRabbitReviewKept(t *testing.T) {
 func description(t *testing.T, path string) string {
 	t.Helper()
 	doc := readDoc(t, path)
-	if rest, ok := strings.CutPrefix(doc, "---\n"); ok {
-		front, _, _ := strings.Cut(rest, "\n---\n")
-		for line := range strings.Lines(front) {
-			if value, ok := strings.CutPrefix(line, "description: "); ok {
-				return strings.TrimSpace(value)
-			}
+	rest, ok := strings.CutPrefix(doc, "---\n")
+	front, _, closed := strings.Cut(rest, "\n---\n")
+	if !ok || !closed {
+		t.Fatalf("%s has no front matter", path)
+	}
+	for line := range strings.Lines(front) {
+		if value, ok := strings.CutPrefix(line, "description: "); ok {
+			return strings.TrimSpace(value)
 		}
 	}
 	t.Fatalf("%s has no description", path)
@@ -439,10 +441,13 @@ func TestDocsDescribeCodexReview(t *testing.T) {
 	requirePhrases(t, "_lib/pr-review-escalation.md description", description(t, escalationPath),
 		"when to request a further Codex PR review after the first")
 	handoff := readDoc(t, handoffPath)
-	requirePhrases(t, "_lib/task-pr-handoff.md", handoff,
-		"It waits for Codex's PR review and CI, resolves the threads",
-		"Then stop: do not wait for Codex and do not merge.",
-	)
+	opening, _, _ := strings.Cut(handoff, "\n## ")
+	requirePhrases(t, "_lib/task-pr-handoff.md opening", opening, "It waits for Codex's PR review and CI, resolves the threads")
+	_, step7, found := strings.Cut(handoff, "\n7. In REPORT, give the PR URL")
+	if !found {
+		t.Fatal("_lib/task-pr-handoff.md has no Part B step 7")
+	}
+	requirePhrases(t, "_lib/task-pr-handoff.md Part B step 7", step7, "Then stop: do not wait for Codex and do not merge.")
 	requirePhrases(t, "CLAUDE.md", readDoc(t, claudePath),
 		"`/runpr [PR | branch | task]` - Drive a PR through Codex's PR review and CI",
 		"it waits for Codex's PR review and CI and resolves the threads with `/fixpr`",
@@ -517,6 +522,12 @@ func TestCodeRabbitConfigStopsReview(t *testing.T) {
 		{"directly_under_reviews", enabled, "  auto_review:\n    drafts: false\n  enabled: false\n", false},
 		{"under_pre_merge_checks", enabled + premerge, "  auto_review:\n    drafts: false\n" + premerge + "    auto_review:\n      enabled: false\n", false},
 		{"auto_review_twice", enabled, enabled + enabled, false},
+		// Each of these rows only one mechanism of the helper decides: the
+		// count of auto_review keys, the inline-comment strip, and the
+		// comment-line skip.
+		{"second_auto_review_without_enabled", enabled, enabled + "  auto_review:\n    drafts: true\n", false},
+		{"inline_comment", enabled, "  auto_review:\n    enabled: false # PR review is Codex's\n", true},
+		{"comment_line_between", enabled, "  auto_review:\n# note: kept\n    enabled: false\n", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if strings.Count(doc, tc.old) != 1 {
@@ -543,9 +554,11 @@ func TestAgentsCodeReviewRules(t *testing.T) {
 		t.Error("AGENTS.md still has the old \"## Review guidelines\" heading")
 	}
 	// The reference is the section's opening, before its rules.
-	requirePhrases(t, "AGENTS.md "+heading, sectionByHeading(doc, heading),
-		"Besides the rules below, follow the conventions, design principles, and testing rules in "+
-			"[CLAUDE.md](CLAUDE.md); they are not repeated here.")
+	const opening = "Besides the rules below, follow the conventions, design principles, and testing rules in " +
+		"[CLAUDE.md](CLAUDE.md); they are not repeated here."
+	if !strings.HasPrefix(flat(sectionByHeading(doc, heading)), opening) {
+		t.Errorf("AGENTS.md %q does not open with %q", heading, opening)
+	}
 }
 
 var (
@@ -568,7 +581,7 @@ var observationResults = map[string]string{
 	"### 5.": "どれも上限に達しなかった",
 	"### 6.": "見出しは `## Code Review Rules` である",
 	"### 7.": "| 約 1 分 10 秒 |",
-	"### 8.": "**結論:**",
+	"### 8.": "では、Codex は実行されず、利用者の割り当ても消費されない。Codex は断りのコメントを返す。",
 	"### 9.": "レビューのタイミングは「PR 作成時のみ」、徹底的なコードレビューは無効",
 }
 
@@ -610,7 +623,7 @@ func hasCommitSHA(block string) bool {
 func TestCodexObservationRecord(t *testing.T) {
 	doc := readDoc(t, observationsPath)
 	items := sectionByHeading(doc, "## AC-01 の各項目")
-	item := func(prefix string) string {
+	itemSection := func(prefix string) string {
 		for line := range strings.Lines(items) {
 			if strings.HasPrefix(line, prefix+" ") {
 				return sectionByHeading(items, strings.TrimSpace(line))
@@ -620,7 +633,7 @@ func TestCodexObservationRecord(t *testing.T) {
 	}
 	prObservations := 0
 	for prefix, result := range observationResults {
-		item := item(prefix)
+		item := itemSection(prefix)
 		if strings.TrimSpace(item) == "" {
 			t.Errorf("observations.md has no item %q", prefix)
 			continue
@@ -643,10 +656,13 @@ func TestCodexObservationRecord(t *testing.T) {
 	if prObservations == 0 {
 		t.Error("observations.md has no observation on a PR")
 	}
-	requirePhrases(t, "observations.md item 3", item("### 3."),
+	requirePhrases(t, "observations.md item 3", itemSection("### 3."),
 		"`__typename`: `Bot`", "`login`: `chatgpt-codex-connector`",
 		"`type`: `Bot`", "`login`: `chatgpt-codex-connector[bot]`",
 	)
-	requirePhrases(t, "observations.md item 1", item("### 1."), "**指摘があるとき", "**指摘が 0 件のとき")
+	requirePhrases(t, "observations.md item 1", itemSection("### 1."),
+		"PR レビュー（`chatgpt-codex-connector[bot]`、`state: COMMENTED`）が投稿された",
+		"**指摘が 0 件のとき（2026-10-21、PR #413）:** PR レビューは投稿されなかった",
+	)
 	requireSection(t, "observations.md", doc, "## AC-05 に当たる点")
 }
