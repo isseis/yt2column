@@ -38,10 +38,60 @@ const (
 	runprStep4       = "## 4. Confirm, record, and merge"
 )
 
+// Names of the two _context.md rows that hold the automated reviewers, and of
+// the single row they replaced, which must not come back.
+const (
+	reviewerListRow = "Automated reviewer list"
+	awaitedRow      = "Awaited PR reviewer"
+	oldReviewerRow  = "Automated reviewer"
+)
+
+// wantReviewers is the automated reviewer list the task decided on, in sorted
+// order, since the list's names are sorted before they are compared with it.
+// Adding or removing a reviewer changes _context.md and this value in the same
+// commit.
+var wantReviewers = []string{"chatgpt-codex-connector", "coderabbitai"}
+
 // reviewerSentence is how both command documents define the <reviewer>
-// placeholder they pass to fixprguard --reviewer: the automated reviewer's
-// name from _context.md, never a literal name of their own.
-const reviewerSentence = "`<reviewer>` is the automated reviewer's name from `_context.md` (\"Automated reviewer\""
+// placeholder they pass to fixprguard --reviewer: one flag per name on
+// _context.md's list, never a literal name of their own.
+const reviewerSentence = "`--reviewer <reviewer>` stands for one `--reviewer` per name in " +
+	"`_context.md`'s \"Automated reviewer list\": pass every name on that list, each once, " +
+	"in the GraphQL form (without `[bot]`)."
+
+// reviewerOnceSentence is how both command documents keep the --reviewer
+// sequence fixed for a run, so list, begin, inspect, and reply judge threads
+// against the same list even if a fix rewrites _context.md, and passes it only
+// to the subcommands that take --reviewer (fixprguard rejects the flag on the
+// others with exit code 2). Each document first says when it builds the
+// sequence: fixprBuildOnce and runprBuildOnce.
+const reviewerOnceSentence = "and pass the same one to every `fixprguard` call written with " +
+	"`--reviewer <reviewer>` (`list`, `begin`, `inspect`, and `reply`; the other subcommands " +
+	"do not take the flag): do not re-read `_context.md` to rebuild it during the run"
+
+const (
+	fixprBuildOnce = "Build that sequence once, before Phase 1, " + reviewerOnceSentence
+	runprBuildOnce = "Build that sequence once, before the first `fixprguard` call, " + reviewerOnceSentence
+)
+
+// awaitedReviewerSentence is how runpr.md defines the <awaited-reviewer>
+// placeholder step 3 filters PR reviews and comments by.
+const awaitedReviewerSentence = "`<awaited-reviewer>[bot]` is the REST form of the awaited PR " +
+	"reviewer's name (`_context.md`, \"Awaited PR reviewer\"): that name followed by `[bot]`."
+
+// reviewedCheck is runpr.md step 3's search for the range CodeRabbit last
+// reviewed and how LAST_REVIEWED follows from it. Only the reviewer it
+// filters by changed when the automated reviewer became a list.
+const reviewedCheck = "{ gh api --paginate repos/<owner>/<repo>/pulls/<number>/reviews \\ " +
+	"--jq '.[] | select(.user.login == \"<awaited-reviewer>[bot]\") | .body' " +
+	"gh api --paginate repos/<owner>/<repo>/issues/<number>/comments \\ " +
+	"--jq '.[] | select(.user.login == \"<awaited-reviewer>[bot]\") | .body' " +
+	"} | grep -E \"between [0-9a-f]{40} and <headRefOid>\\.\""
+
+// lastReviewedRule is runpr.md step 3's definition of LAST_REVIEWED.
+const lastReviewedRule = "**LAST_REVIEWED** is the commit CodeRabbit last reviewed up to: of the " +
+	"`<headRefOid>` commits the lines above name, the one every other is an ancestor of " +
+	"(`git merge-base --is-ancestor`); none when no line exists."
 
 // autoFixprCondition is runpr.md's condition for re-running fixpr, copied
 // before the switch to fixprguard: the switch must leave it unchanged.
@@ -205,6 +255,15 @@ func TestFixprDocContract(t *testing.T) {
 		)
 	})
 
+	t.Run("trusted_reviewer_list", func(t *testing.T) {
+		requirePhrases(t, "fixpr.md Untrusted threads", requireSection(t, "fixpr.md", doc, fixprUntrusted),
+			"A trusted author is a person with write permission on the repository, or a Bot whose login is any name on `_context.md`'s \"Automated reviewer list\"",
+		)
+		requirePhrases(t, "fixpr.md Convergence policy", convergence,
+			"**Round cap**: it applies only to threads opened by any automated reviewer on `_context.md`'s \"Automated reviewer list\"",
+		)
+	})
+
 	t.Run("people_answered_scope", func(t *testing.T) {
 		requirePhrases(t, "fixpr.md Convergence policy", convergence,
 			"**People are always answered**: a trusted thread a person opened",
@@ -276,6 +335,10 @@ func TestRunprDocContract(t *testing.T) {
 	t.Run("auto_fixpr_condition", func(t *testing.T) {
 		requirePhrases(t, "runpr.md step 3", step3, autoFixprCondition)
 	})
+
+	t.Run("reviewed_check", func(t *testing.T) {
+		requirePhrases(t, "runpr.md step 3", step3, reviewedCheck, lastReviewedRule)
+	})
 }
 
 // TestFixprguardCallSites checks that each fixprguard subcommand is called in
@@ -333,33 +396,247 @@ func TestFixprBuildChecksMatchTool(t *testing.T) {
 	}
 }
 
+// reviewerRowProblem is a kind of defect checkContextReviewers finds in the
+// reviewer rows of _context.md. Each check has its own kind, so a test can
+// tell which check caught a broken copy.
+type reviewerRowProblem string
+
+const (
+	// problemRowCount: a reviewer row is missing or repeated, or the old
+	// single-reviewer row is still there.
+	problemRowCount reviewerRowProblem = "row count"
+	// problemListShape: the list value before the first " — " is not
+	// backquoted names separated by ", ".
+	problemListShape reviewerRowProblem = "list shape"
+	// problemListParse: fixprguard.ParseReviewers rejects the names.
+	problemListParse reviewerRowProblem = "list parse"
+	// problemListNames: the list is not exactly wantReviewers.
+	problemListNames reviewerRowProblem = "list names"
+	// problemAwaitedShape: the awaited value before the first " — " is not
+	// exactly one backquoted name.
+	problemAwaitedShape reviewerRowProblem = "awaited shape"
+	// problemAwaitedParse: fixprguard.ParseLogin rejects the awaited name.
+	problemAwaitedParse reviewerRowProblem = "awaited parse"
+)
+
+// valueSeparator ends the names part of a reviewer row's value; the
+// description follows it.
+const valueSeparator = " — "
+
+var (
+	// reviewerListShape is the strict form of the list's names part: backquoted
+	// names joined by a comma and exactly one space.
+	reviewerListShape = regexp.MustCompile("^`[^`]+`(, `[^`]+`)*$")
+	// awaitedShape is the strict form of the awaited reviewer's names part.
+	awaitedShape = regexp.MustCompile("^`([^`]+)`$")
+	backquoted   = regexp.MustCompile("`([^`]+)`")
+)
+
+// contextReviewers is what checkContextReviewers reads from _context.md: the
+// list's names and description, and the awaited reviewer's name and
+// description. A field is empty when its check failed before reaching it.
+type contextReviewers struct {
+	names       []string
+	listDesc    string
+	awaited     string
+	awaitedDesc string
+	problems    []reviewerRowProblem
+}
+
+// checkContextReviewers reads the reviewer rows of the _context.md text doc
+// and reports every defect it finds. Only the part of a value before the
+// first " — " is read as names, so code in the description such as `[bot]`
+// is never taken for a name. The list goes through fixprguard.ParseReviewers,
+// the function the tool itself parses --reviewer with, so the guard and the
+// tool accept the same names.
+func checkContextReviewers(doc string) contextReviewers {
+	var got contextReviewers
+	count := map[string][][]string{}
+	for _, table := range markdownTables(doc) {
+		if len(table) == 0 || len(table[0]) == 0 || table[0][0] != "Name" {
+			continue
+		}
+		for _, name := range []string{reviewerListRow, awaitedRow, oldReviewerRow} {
+			count[name] = append(count[name], tableRowsWithFirstCell(table, name)...)
+		}
+	}
+	if len(count[reviewerListRow]) != 1 || len(count[awaitedRow]) != 1 || len(count[oldReviewerRow]) != 0 {
+		got.problems = append(got.problems, problemRowCount)
+	}
+
+	// A row without a value cell is checked as an empty value, so it fails
+	// the shape check instead of being skipped.
+	if rows := count[reviewerListRow]; len(rows) == 1 {
+		got.checkList(valueCell(rows[0]))
+	}
+	if rows := count[awaitedRow]; len(rows) == 1 {
+		got.checkAwaited(valueCell(rows[0]))
+	}
+	return got
+}
+
+// valueCell returns row's second cell, or "" when the row has none.
+func valueCell(row []string) string {
+	if len(row) < 2 {
+		return ""
+	}
+	return row[1]
+}
+
+// checkList checks the list row's value and records its names.
+func (c *contextReviewers) checkList(value string) {
+	names, desc, found := strings.Cut(value, valueSeparator)
+	if !found || !reviewerListShape.MatchString(names) {
+		c.problems = append(c.problems, problemListShape)
+		return
+	}
+	var list []string
+	for _, m := range backquoted.FindAllStringSubmatch(names, -1) {
+		list = append(list, m[1])
+	}
+	if _, err := fixprguard.ParseReviewers(list); err != nil {
+		c.problems = append(c.problems, problemListParse)
+		return
+	}
+	if sorted := slices.Sorted(slices.Values(list)); !slices.Equal(sorted, wantReviewers) {
+		c.problems = append(c.problems, problemListNames)
+	}
+	c.names, c.listDesc = list, desc
+}
+
+// checkAwaited checks the awaited reviewer row's value and records its name.
+func (c *contextReviewers) checkAwaited(value string) {
+	name, desc, found := strings.Cut(value, valueSeparator)
+	m := awaitedShape.FindStringSubmatch(name)
+	if !found || m == nil {
+		c.problems = append(c.problems, problemAwaitedShape)
+		return
+	}
+	if _, err := fixprguard.ParseLogin(m[1]); err != nil {
+		c.problems = append(c.problems, problemAwaitedParse)
+		return
+	}
+	c.awaited, c.awaitedDesc = m[1], desc
+}
+
 // TestContextAndCommandsAgree checks that _context.md is the one place the
-// automated reviewer's name is written: fixpr.md and runpr.md pass it as the
-// <reviewer> placeholder and name it only in the review request comment. It
-// also checks the guard tool row.
+// automated reviewers' names are written: fixpr.md and runpr.md pass the list
+// as the <reviewer> placeholder, refer to the awaited reviewer as
+// <awaited-reviewer>, and name a reviewer only in the review request comment.
+// It also checks the guard tool row.
 func TestContextAndCommandsAgree(t *testing.T) {
-	row := contextRow(t, "Automated reviewer")
-	_, rest, _ := strings.Cut(row[1], "`")
-	name, _, _ := strings.Cut(rest, "`")
-	if _, err := fixprguard.ParseLogin(name); err != nil {
-		t.Fatalf("_context.md Automated reviewer %q is not a usable login: %v", name, err)
+	got := checkContextReviewers(readDoc(t, contextPath))
+	if len(got.problems) > 0 {
+		t.Fatalf("_context.md reviewer rows have problems %v", got.problems)
+	}
+	if got.awaited != "coderabbitai" {
+		t.Errorf("_context.md %s = %q, want coderabbitai", awaitedRow, got.awaited)
+	}
+	requirePhrases(t, "_context.md "+awaitedRow, got.awaitedDesc, "REST `user.login`", "followed by `[bot]`")
+	requirePhrases(t, "_context.md "+reviewerListRow, got.listDesc,
+		"GraphQL `author.login`", "each as its own `--reviewer`", "trusted when its login is any name on this list")
+	// A tripwire for the replaced row's "It is the only Bot whose review
+	// threads are trusted".
+	if containsToken(got.listDesc, "only") {
+		t.Errorf("_context.md %s says a single Bot is trusted: %q", reviewerListRow, got.listDesc)
 	}
 	guard := contextRow(t, "Guard tool")
 	requirePhrases(t, "_context.md Guard tool", guard[1], "`fixprguard`", "`make install-fixprguard`")
 
 	// The review request is a comment addressed to the bot, not a judgment of
-	// who wrote a thread, so it is the only use allowed outside _context.md.
-	allowed := "@" + name + " review"
-	for _, tc := range []struct{ name, path string }{
-		{"fixpr.md", fixprPath},
-		{"runpr.md", runprPath},
+	// who wrote a thread, so it is the only use allowed outside _context.md. A
+	// name followed by [bot] contains the name, so this rejects that form too.
+	allowed := "@" + got.awaited + " review"
+	for _, tc := range []struct {
+		name, path string
+		phrases    []string
+	}{
+		{"fixpr.md", fixprPath, []string{reviewerSentence, fixprBuildOnce}},
+		{"runpr.md", runprPath, []string{reviewerSentence, runprBuildOnce, awaitedReviewerSentence}},
 	} {
 		doc := readDoc(t, tc.path)
-		if rest := strings.ReplaceAll(doc, allowed, ""); strings.Contains(rest, name) {
-			t.Errorf("%s writes the automated reviewer's name %q outside %q", tc.name, name, allowed)
+		rest := strings.ReplaceAll(doc, allowed, "")
+		for _, name := range append(slices.Clone(got.names), got.awaited) {
+			if strings.Contains(rest, name) {
+				t.Errorf("%s writes the reviewer name %q outside %q", tc.name, name, allowed)
+			}
 		}
-		requirePhrases(t, tc.name, doc, reviewerSentence)
+		requirePhrases(t, tc.name, doc, tc.phrases...)
 	}
+}
+
+// TestContextReviewerRowsMalformed checks that checkContextReviewers reports
+// each kind of broken reviewer row, on copies of the real _context.md with one
+// row edited, and that it reads exactly two names from a description holding
+// backquoted code and a second separator.
+func TestContextReviewerRowsMalformed(t *testing.T) {
+	doc := readDoc(t, contextPath)
+	listLine := contextLine(t, doc, reviewerListRow)
+	awaitedLine := contextLine(t, doc, awaitedRow)
+	listRow := func(value string) string { return "| " + reviewerListRow + " | " + value + " |" }
+	awaitedRowLine := func(value string) string { return "| " + awaitedRow + " | " + value + " |" }
+	const desc = " — the automated reviewers"
+
+	for _, tc := range []struct {
+		name     string
+		old, new string
+		want     []reviewerRowProblem
+	}{
+		// The control row: the unedited file has no problem.
+		{"real", listLine, listLine, nil},
+		{
+			"description_with_code_and_separator", listLine,
+			listRow("`coderabbitai`, `chatgpt-codex-connector` — named in `[bot]`-less form — see `fixpr.md`"), nil,
+		},
+		{"list_row_missing", listLine + "\n", "", []reviewerRowProblem{problemRowCount}},
+		{"awaited_row_missing", awaitedLine + "\n", "", []reviewerRowProblem{problemRowCount}},
+		{"list_row_twice", listLine, listLine + "\n" + listLine, []reviewerRowProblem{problemRowCount}},
+		{"awaited_row_twice", awaitedLine, awaitedLine + "\n" + awaitedLine, []reviewerRowProblem{problemRowCount}},
+		{"old_row_left", awaitedLine, awaitedLine + "\n| " + oldReviewerRow + " | `coderabbitai` — the reviewer |", []reviewerRowProblem{problemRowCount}},
+		{"list_no_value_cell", listLine, "| " + reviewerListRow + " |", []reviewerRowProblem{problemListShape}},
+		{"list_value_only_description", listLine, listRow(desc), []reviewerRowProblem{problemListShape}},
+		{"no_separator", listLine, listRow("`coderabbitai`, `chatgpt-codex-connector`"), []reviewerRowProblem{problemListShape}},
+		{"no_backquotes", listLine, listRow("coderabbitai, chatgpt-codex-connector" + desc), []reviewerRowProblem{problemListShape}},
+		{"no_space_after_comma", listLine, listRow("`coderabbitai`,`chatgpt-codex-connector`" + desc), []reviewerRowProblem{problemListShape}},
+		{"two_spaces_after_comma", listLine, listRow("`coderabbitai`,  `chatgpt-codex-connector`" + desc), []reviewerRowProblem{problemListShape}},
+		{"trailing_separator", listLine, listRow("`coderabbitai`, `chatgpt-codex-connector`," + desc), []reviewerRowProblem{problemListShape}},
+		{"name_outside_grammar", listLine, listRow("`coderabbitai[bot]`, `chatgpt-codex-connector`" + desc), []reviewerRowProblem{problemListParse}},
+		{"name_twice", listLine, listRow("`coderabbitai`, `chatgpt-codex-connector`, `coderabbitai`" + desc), []reviewerRowProblem{problemListParse}},
+		{"third_name", listLine, listRow("`coderabbitai`, `chatgpt-codex-connector`, `other-bot`" + desc), []reviewerRowProblem{problemListNames}},
+		{"name_replaced", listLine, listRow("`coderabbitai`, `other-bot`" + desc), []reviewerRowProblem{problemListNames}},
+		{"awaited_two_names", awaitedLine, awaitedRowLine("`coderabbitai`, `chatgpt-codex-connector`" + desc), []reviewerRowProblem{problemAwaitedShape}},
+		{"awaited_no_value_cell", awaitedLine, "| " + awaitedRow + " |", []reviewerRowProblem{problemAwaitedShape}},
+		{"awaited_value_only_description", awaitedLine, awaitedRowLine(desc), []reviewerRowProblem{problemAwaitedShape}},
+		{"awaited_no_separator", awaitedLine, awaitedRowLine("`coderabbitai`"), []reviewerRowProblem{problemAwaitedShape}},
+		{"awaited_outside_grammar", awaitedLine, awaitedRowLine("`coderabbitai[bot]`" + desc), []reviewerRowProblem{problemAwaitedParse}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if strings.Count(doc, tc.old) != 1 {
+				t.Fatalf("_context.md holds %q %d times, want once", tc.old, strings.Count(doc, tc.old))
+			}
+			got := checkContextReviewers(strings.Replace(doc, tc.old, tc.new, 1))
+			if !slices.Equal(got.problems, tc.want) {
+				t.Errorf("problems = %v, want %v", got.problems, tc.want)
+			}
+			if tc.want == nil && len(got.names) != len(wantReviewers) {
+				t.Errorf("names = %q, want %d names", got.names, len(wantReviewers))
+			}
+		})
+	}
+}
+
+// contextLine returns the line of the _context.md text doc that holds the
+// table row whose first cell is name.
+func contextLine(t *testing.T, doc, name string) string {
+	t.Helper()
+	for line := range strings.Lines(doc) {
+		line = strings.TrimSuffix(line, "\n")
+		if strings.HasPrefix(line, "| "+name+" | ") {
+			return line
+		}
+	}
+	t.Fatalf("_context.md has no %q row", name)
+	return ""
 }
 
 // TestAuthorizationSections checks that both command documents authorize the
@@ -384,9 +661,11 @@ func TestAuthorizationSections(t *testing.T) {
 }
 
 // TestRemovedCommandLiterals checks that the hand-written commands the guard
-// tool replaced are gone from the command documents.
+// tool replaced, and the references to the single-reviewer _context.md row,
+// are gone from the command documents.
 func TestRemovedCommandLiterals(t *testing.T) {
 	fixpr := readDoc(t, fixprPath)
+	runpr := readDoc(t, runprPath)
 	for _, tc := range []struct{ name, doc, literal string }{
 		{"fixpr.md", fixpr, "git add -A"},
 		{"fixpr.md", fixpr, "git commit -m"},
@@ -394,6 +673,10 @@ func TestRemovedCommandLiterals(t *testing.T) {
 		{"fixpr.md", fixpr, "<<'EOF'"},
 		{"fixpr.md", fixpr, "comments(first:10)"},
 		{"fixpr.md", fixpr, "reviewThreads"},
+		{"fixpr.md", fixpr, `"Automated reviewer"`},
+		{"fixpr.md", fixpr, "<reviewer>[bot]"},
+		{"runpr.md", runpr, `"Automated reviewer"`},
+		{"runpr.md", runpr, "<reviewer>[bot]"},
 	} {
 		if strings.Contains(tc.doc, tc.literal) {
 			t.Errorf("%s still contains %q", tc.name, tc.literal)
@@ -433,6 +716,9 @@ func TestGlossaryTerms(t *testing.T) {
 		{"基準値", "baseline"},
 		{"判定した集合", "judged set"},
 		{"名指し", "naming"},
+		{"自動レビュアー", "automated reviewer"},
+		{"自動レビュアーの一覧", "automated reviewer list"},
+		{"完了を待つ PR レビュアー", "awaited PR reviewer"},
 	} {
 		row := tableRow(table, term.ja)
 		if len(row) < 2 || row[1] != term.en {
@@ -441,5 +727,8 @@ func TestGlossaryTerms(t *testing.T) {
 	}
 	if row := tableRow(table, "フェーズ"); len(row) < 3 || !strings.Contains(row[2], "段階") {
 		t.Error("the glossary row for フェーズ does not distinguish it from 段階")
+	}
+	if row := tableRow(table, "信頼する著者"); len(row) < 3 || !strings.Contains(row[2], "自動レビュアーの一覧") {
+		t.Error("the glossary row for 信頼する著者 does not refer to the automated reviewer list")
 	}
 }

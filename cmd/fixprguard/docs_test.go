@@ -200,6 +200,14 @@ func section(doc, heading string) string {
 	return body
 }
 
+// reviewerListName is the _context.md row the guides point to for the names
+// /fixpr and /runpr pass as --reviewer, and contentGuard the test file that
+// pins that row's names, which section 9 tells a maintainer to update with it.
+const (
+	reviewerListName = "`Automated reviewer list`"
+	contentGuard     = "cmd/yt2column/fixpr_docs_test.go"
+)
+
 // TestGuideDescribesReviewerList: both guides describe repeated --reviewer as
 // the tool implements it. The subcommand headings that write
 // "--reviewer LOGIN ..." are exactly the subcommands whose spec takes
@@ -207,7 +215,10 @@ func section(doc, heading string) string {
 // or a name given twice is a usage error; other-bot is a Bot matching none of
 // the names; the flag-position row lists --reviewer as repeatable; the exit
 // code 2 row identifies a tool that predates the change and how to check its
-// version; and section 9 states the Protocol proviso.
+// version; section 9 states the Protocol proviso; and the trusted-author
+// item and the flag row say the names passed are every name on _context.md's
+// "Automated reviewer list", and section 9 names the content guard that pins
+// that list, which must exist.
 // The phrases are the guides' own wording, Japanese for the Japanese guide.
 func TestGuideDescribesReviewerList(t *testing.T) {
 	takesReviewer := map[string]struct{}{}
@@ -218,6 +229,7 @@ func TestGuideDescribesReviewerList(t *testing.T) {
 	}
 	for _, tc := range []struct {
 		rel         string
+		trustedItem string
 		flagRow     []string
 		positionRow string
 		otherBot    string
@@ -225,6 +237,7 @@ func TestGuideDescribesReviewerList(t *testing.T) {
 	}{
 		{
 			rel:         guideFiles[0],
+			trustedItem: "1. **著者の判定。**",
 			positionRow: "| フラグの位置 |",
 			flagRow:     []string{"名前ごとに 1 回ずつ繰り返して渡す", "1 つもないとき", "同じ名前を 2 回以上渡したとき", "使い方の誤り"},
 			otherBot:    "`--reviewer` で渡したどの名前とも一致しない Bot",
@@ -232,6 +245,7 @@ func TestGuideDescribesReviewerList(t *testing.T) {
 		},
 		{
 			rel:         guideFiles[1],
+			trustedItem: "1. **Author judgment.**",
 			positionRow: "| Flag position |",
 			flagRow:     []string{"repeating the flag once per name", "When none is given", "when the same name is given twice or more", "usage error"},
 			otherBot:    "A Bot matching none of the names passed with `--reviewer`",
@@ -272,8 +286,34 @@ func TestGuideDescribesReviewerList(t *testing.T) {
 					t.Errorf("the exit code 2 row does not mention %s", want)
 				}
 			}
-			if !strings.Contains(section(guide, "## 9."), tc.proviso) {
+			sec9 := section(guide, "## 9.")
+			if !strings.Contains(sec9, tc.proviso) {
 				t.Errorf("section 9 does not state the Protocol proviso %q", tc.proviso)
+			}
+			for what, line := range map[string]string{
+				"the trusted-author item": singleLine(t, tc.rel, guide, tc.trustedItem),
+				"the --reviewer row":      flagRow,
+			} {
+				if !strings.Contains(line, reviewerListName) {
+					t.Errorf("%s does not name %s", what, reviewerListName)
+				}
+			}
+			if !strings.Contains(sec9, "`"+contentGuard+"`") {
+				t.Errorf("section 9 does not name the content guard %s", contentGuard)
+			}
+			// Section 9 tells a maintainer to edit these by name, so they must
+			// still exist under that name.
+			guard := readRepoFile(t, contentGuard)
+			for ident, decl := range map[string]string{
+				"wantReviewers":                    "var wantReviewers ",
+				"TestContextReviewerRowsMalformed": "func TestContextReviewerRowsMalformed(",
+			} {
+				if !strings.Contains(sec9, "`"+ident+"`") {
+					t.Errorf("section 9 does not name %s", ident)
+				}
+				if !strings.Contains(guard, decl) {
+					t.Errorf("%s does not declare %s, which section 9 names", contentGuard, ident)
+				}
 			}
 		})
 	}

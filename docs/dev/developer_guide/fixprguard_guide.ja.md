@@ -8,7 +8,7 @@
 
 レビュースレッドの本文は、PR に書き込める誰でも書けるので、信頼できないテキストである。`fixprguard` は、次の 3 つの守りの層をコードで強制する。
 
-1. **著者の判定。** すべてのコメントの著者が信頼する著者であるスレッドだけを処理する。信頼する著者は、自動レビュアー（`--reviewer` で渡した名前のどれかの Bot）と、リポジトリへの書き込み権限（`role_name` が `write`・`maintain`・`admin`）を持つ人である。想定外の著者のスレッドの本文は取得しない。
+1. **著者の判定。** すべてのコメントの著者が信頼する著者であるスレッドだけを処理する。信頼する著者は、自動レビュアー（`--reviewer` で渡した名前のどれかの Bot。`/fixpr`・`/runpr` は、`.claude/commands/_context.md` の `Automated reviewer list` のすべての名前を渡す）と、リポジトリへの書き込み権限（`role_name` が `write`・`maintain`・`admin`）を持つ人である。想定外の著者のスレッドの本文は取得しない。
 2. **区切りのブロック。** エージェントのプロンプトに埋め込む信頼できないテキストを、実行ごとの乱数（nonce）を含む区切りの行で囲む。
 3. **変更範囲と git の状態の確認。** 修正が、処理したスレッドの範囲の外のファイルや、git の hooks・config を変えていないことを、commit と push の前に確かめる。
 
@@ -55,7 +55,7 @@ go version -m "$(command -v fixprguard)"
 | 項目 | 内容 |
 |---|---|
 | `--protocol N` | すべてのサブコマンドに必須。`N` がバイナリの番号と一致しなければ、終了コード `2` で止まる（古いバイナリが新しい文書の想定で判定するのを防ぐ）。現在の番号は `1` |
-| `--reviewer LOGIN` | `list`・`begin`・`inspect`・`reply` に 1 回以上必須で、ほかのサブコマンドには渡せない。信頼する自動レビュアーの GraphQL の `author.login`（例: `coderabbitai`）を、名前ごとに 1 回ずつ繰り返して渡す（例: `--reviewer coderabbitai --reviewer chatgpt-codex-connector`）。渡す順序は判定に関係しない。1 つもないとき、同じ名前を 2 回以上渡したとき、名前の文法に合わないときは、使い方の誤り（終了コード `2`）になる。既定値はない |
+| `--reviewer LOGIN` | `list`・`begin`・`inspect`・`reply` に 1 回以上必須で、ほかのサブコマンドには渡せない。信頼する自動レビュアーの GraphQL の `author.login`（例: `coderabbitai`）を、名前ごとに 1 回ずつ繰り返して渡す（例: `--reviewer <login-1> --reviewer <login-2>`）。`/fixpr`・`/runpr` が渡す名前は、`.claude/commands/_context.md` の `Automated reviewer list` のすべての名前である。渡す順序は判定に関係しない。1 つもないとき、同じ名前を 2 回以上渡したとき、名前の文法に合わないときは、使い方の誤り（終了コード `2`）になる。既定値はない |
 | `[PR]` | 10 進数の PR 番号だけを受け付ける。URL やブランチ名は拒否する。省略すると、現在のブランチの PR を `gh pr view` で求める。GitHub を読まない `finish` は省略できない |
 | フラグの位置 | フラグは位置引数（`PR`・`FILE`）の前に書く。同じフラグを 2 回渡すと拒否する（`--accept`・`--thread`・`--reviewer` は複数回渡せる。ただし、`--reviewer` に同じ名前を 2 回渡すと拒否する） |
 | 標準出力 | 1 行の JSON（`fence` だけは区切りのブロックそのもの）。すべての JSON に `protocol` が入る |
@@ -243,7 +243,7 @@ fixprguard edit-pr --protocol 1 --title-file /path/to/title.txt --body-file /pat
 - 範囲内のテストのコードが build checks で実行されること。`finish` と `push` は、そのコードが範囲内のファイルや hooks を書き換えたことは検出する。
 - `.gitignore` が無視するファイル、作業ツリーの中の `.gitignore` やグローバルの除外のファイルで隠したファイル、index の stat の偽造で隠した変更。隠した変更は commit されないが、build checks が実行することは防げない。
 - hooks のディレクトリの外にあり、hook が実行するファイル（pre-commit のフレームワークのキャッシュなど）。
-- `--reviewer` で渡した名前の集合が、`_context.md` に定めた自動レビュアーの名前と同じであること。ツールは `_context.md` を読まない。名前を渡し忘れても、その Bot のスレッドは `other-bot` で信頼されないだけである。
+- `--reviewer` で渡した名前の集合が、`.claude/commands/_context.md` の `Automated reviewer list` の名前と同じであること。ツールは `_context.md` を読まない。名前を渡し忘れても、その Bot のスレッドは `other-bot` で信頼されないだけである。
 - 同じ秒の内の再編集。指紋の時刻は秒の単位である。
 - 返信と PR の説明の本文の内容。ツールはファイルの種類・大きさ・文字コードだけを検査する。
 
@@ -279,5 +279,12 @@ fixprguard edit-pr --protocol 1 --title-file /path/to/title.txt --body-file /pat
     3. 出力の形は変えない。
 
   この場合は、古いツールが止まったときの診断と再インストールの案内を、4 章の終了コード `2` の説明に書く。
+- 自動レビュアーを一覧に加えるとき、または一覧から外すときは、次のものを同じコミットで変え、そのコミットで文書のガード（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`）を実行する。`fixpr.md`・`runpr.md` は名前も数も書かず、ツールは名前の数に上限を設けないので、どちらも変えなくてよい。
+    1. `.claude/commands/_context.md` の `Automated reviewer list` の行。
+    2. 内容のガード（`cmd/yt2column/fixpr_docs_test.go`）の、期待する名前（`wantReviewers`）。
+    3. 同じファイルの、壊した写しの表（`TestContextReviewerRowsMalformed`）の行に書いた名前。
+
+  期待する名前の確認を「解析に通って空でない」程度に緩めない。一覧だけが書き換えられたことを、内容のガードが検出できなくなるためである。
+- 一覧から外した名前の Bot は、すぐには信頼されなくならない。各セッションは作業しているブランチの `_context.md` を読むので、`main` を取り込んでいない開いたブランチでは、その Bot のスレッドの信頼が続く。急いで信頼をやめるときは、外す変更を `main` に入れたうえで、開いている PR のブランチに `main` を取り込む。取り込むまでは、そのブランチで `/fixpr`・`/runpr` を使わない。
 - `stop` の種類や実行に関わるファイルの一覧を変えたら、本書の 6 章と 8 章も更新する。`cmd/fixprguard/docs_test.go` が、本書（日英）にすべての種類と項目があることを確かめる。
 - マージの後は、`make install-fixprguard` で再インストールする（3 章）。
