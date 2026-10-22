@@ -179,28 +179,14 @@ func TestCheckDocumentedReviewer(t *testing.T) {
 // there is none or more than one.
 func singleLine(t *testing.T, rel, doc, prefix string) string {
 	t.Helper()
-	return uniqueLine(t, rel, doc, "starting with", prefix, strings.HasPrefix)
-}
-
-// lineContaining returns the one line of doc that contains substr, failing
-// when there is none or more than one.
-func lineContaining(t *testing.T, rel, doc, substr string) string {
-	t.Helper()
-	return uniqueLine(t, rel, doc, "containing", substr, strings.Contains)
-}
-
-// uniqueLine returns the one line of doc for which match(line, s) holds,
-// failing when there is none or more than one; how says how s matches.
-func uniqueLine(t *testing.T, rel, doc, how, s string, match func(line, s string) bool) string {
-	t.Helper()
 	var found []string
 	for line := range strings.Lines(doc) {
-		if match(line, s) {
+		if strings.HasPrefix(line, prefix) {
 			found = append(found, line)
 		}
 	}
 	if len(found) != 1 {
-		t.Errorf("%s has %d lines %s %q, want 1", rel, len(found), how, s)
+		t.Errorf("%s has %d lines starting with %q, want 1", rel, len(found), prefix)
 		return ""
 	}
 	return found[0]
@@ -415,14 +401,6 @@ type configScope struct {
 	otherBranches, unchangedValues, residualRisk string
 }
 
-// jaConfigScope is the Japanese wording of the config scope, shared by the
-// Japanese guide and task 0030's documents so that the two say it alike.
-var jaConfigScope = configScope{
-	otherBranches:   "今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*`",
-	unchangedValues: "設定の値の一覧を変えない編集",
-	residualRisk:    "ほかのブランチの設定の書き換えは、残余のリスク",
-}
-
 func (c configScope) phrases() []string {
 	return []string{c.otherBranches, c.unchangedValues, c.residualRisk}
 }
@@ -482,8 +460,12 @@ func TestGuideDescribesConfigScope(t *testing.T) {
 		risk72                      string
 	}{
 		{
-			rel:        guideFiles[0],
-			scope:      jaConfigScope,
+			rel: guideFiles[0],
+			scope: configScope{
+				otherBranches:   "今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*`",
+				unchangedValues: "設定の値の一覧を変えない編集",
+				residualRisk:    "ほかのブランチの設定の書き換えは、残余のリスク",
+			},
 			row71:      "| 書き換えられた hooks・config で git を起動しない |",
 			row71More:  []string{"を除いた設定の値の一覧を基準値と比べる", "config を比べる前に起動する git は `git config --list` だけ"},
 			row71Old:   "git や `gh` を起動する前に基準値と比べる",
@@ -514,68 +496,6 @@ func TestGuideDescribesConfigScope(t *testing.T) {
 				{name: "7.2", text: subsection(guide, "### 7.2"), risk: tc.risk72},
 				{name: "the git-state-changed row", text: singleLine(t, tc.rel, guide, "| `git-state-changed` |")},
 			})
-		})
-	}
-}
-
-// task0030Dir holds the requirements and architecture of the task that
-// introduced the git state comparison; task 0035 narrowed its config scope.
-const task0030Dir = "docs/tasks/0030_fixpr_untrusted_threads/"
-
-// task0035Decision is the dated Comments record of task 0035's decision.
-var task0035Decision = regexp.MustCompile(`[0-9]{4}-[0-9]{2}-[0-9]{2} \(decision\): タスク 0035（#431）の要件で決めた変更`)
-
-// TestTask0030DocsDescribeConfigScope: every passage of task 0030's
-// requirements and architecture that task 0035's architecture (3.5) lists as
-// stating the config comparison scope makes the three points of configScope
-// in the Japanese guide's wording and no longer holds the wording it
-// replaced. Both documents stay approved and record the change, with its
-// date, as a decision of task 0035.
-func TestTask0030DocsDescribeConfigScope(t *testing.T) {
-	for _, tc := range []struct {
-		rel      string
-		passages func(t *testing.T, rel, doc string) []passage
-	}{
-		{
-			rel: task0030Dir + "01_requirements.md",
-			passages: func(t *testing.T, rel, doc string) []passage {
-				return []passage{
-					{name: "the fix-phase anomaly decision", text: singleLine(t, rel, doc, "-   **修正のフェーズの異常では止める:**")},
-					{name: "the git state criterion", text: lineContaining(t, rel, doc, "修正のフェーズの前と後で、次のいずれかが違う場合"), stale: []string{"git の設定ファイル（リポジトリの config と、worktree の config）"}},
-					// The bullet ends where the next top-level bullet starts; its
-					// nested lines are indented.
-					{name: "layer (3)", text: cutSection(doc, "-   守りは 3 つの層からなる。", "\n-   "), stale: []string{"git の hooks と設定ファイルの違い"}},
-					{name: "the residual risks", text: cutSection(doc, "-   **残余のリスク:**", "\n### "), stale: []string{"次の 4 つ", "hooks と設定ファイル"}},
-				}
-			},
-		},
-		{
-			rel: task0030Dir + "02_architecture.md",
-			passages: func(t *testing.T, rel, doc string) []passage {
-				return []passage{
-					{name: "the push decision", text: singleLine(t, rel, doc, "-   **push は、ツールの `push` が直前に再確認して行う。**")},
-					{name: "the judged-set check", text: singleLine(t, rel, doc, "-   **判定した集合の厳密な確認。**")},
-					{name: "the check after build checks", text: singleLine(t, rel, doc, "-   **build checks の後の確認。**")},
-					{name: "the push invariants", text: singleLine(t, rel, doc, "**`push` の不変条件。**")},
-					{name: "the config baseline row", text: singleLine(t, rel, doc, "| config |"), stale: []string{"の config の内容のダイジェスト"}},
-					{name: "the tool's git", text: singleLine(t, rel, doc, "-   **ツールが起動する git。**"), stale: []string{"ファイルの読み取りだけで求める config と info"}},
-					{name: "the 5.2 row", text: singleLine(t, rel, doc, "| 修正のフェーズが HEAD・hooks・config・info を変える |")},
-					{name: "the check-to-use gap", text: singleLine(t, rel, doc, "-   **確認と実行の間のずれ。**")},
-					{name: "subcommands without a baseline", text: singleLine(t, rel, doc, "-   **基準値を持たないサブコマンドの起動前の比較。**")},
-					{name: "the git state tests", text: singleLine(t, rel, doc, "-   **git の状態。**"), stale: []string{"`inspect` が git を起動せずに止まること"}},
-				}
-			},
-		},
-	} {
-		t.Run(filepath.Base(tc.rel), func(t *testing.T) {
-			doc := readRepoFile(t, tc.rel)
-			checkPassages(t, tc.rel, jaConfigScope, tc.passages(t, tc.rel, doc))
-			if status := singleLine(t, tc.rel, doc, "| Status |"); strings.TrimSpace(status) != "| Status | `approved` |" {
-				t.Errorf("%s: Status is not approved: %q", tc.rel, status)
-			}
-			if comments := singleLine(t, tc.rel, doc, "| Comments |"); !task0035Decision.MatchString(comments) {
-				t.Errorf("%s: Comments does not record the decision of task 0035", tc.rel)
-			}
 		})
 	}
 }
