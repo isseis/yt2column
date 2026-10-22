@@ -8,7 +8,7 @@
 | Created | 2026-10-22 |
 | Review date | 2026-10-22 |
 | Reviewer | isseis |
-| Comments | 2026-10-22 (decision): `/runplan 0034` のフェーズ 1 のレビューで、APFS が完全な大文字小文字の変換（`ﬁ` → `fi`、`ß` → `ss`）で名前を解決すると分かった。照合は単純な変換のままとし、展開する変換で同じになる名前を要件書 4.2・設計書 5.3 の残余のリスクに加えた。ステップ 7-1 のガイド 7.2 は、この項目も含めて要件書 4.2 と突き合わせる。2026-10-22 (editorial): 同じレビューで、不正なバイトの同一視の行を `TestIsWatched` から `TestFoldEqual` に移した（ステップ 1-1）。一覧の項目が ASCII だけなので、`isWatched` では観測できないためである。2026-10-22 (editorial): ステップ 4-2 の「壊して確かめる」を、実際に区別できる壊し方（種類の印と値の数を両方外す、`writeField` の引用を外す）に改めた。印と値の数は、どちらか一方だけでもエントリの境目を一意にするためである。レビュアーがこのセッションで選んだので、`Status` は `approved` のままとする。 |
+| Comments | 2026-10-22 (decision): `/runplan 0034` のフェーズ 1 のレビューで、APFS が完全な大文字小文字の変換（`ﬁ` → `fi`、`ß` → `ss`）で名前を解決すると分かった。照合は単純な変換のままとし、展開する変換で同じになる名前を要件書 4.2・設計書 5.3 の残余のリスクに加えた。ステップ 7-1 のガイド 7.2 は、この項目も含めて要件書 4.2 と突き合わせる。2026-10-22 (editorial): 同じレビューで、不正なバイトの同一視の行を `TestIsWatched` から `TestFoldEqual` に移した（ステップ 1-1）。一覧の項目が ASCII だけなので、`isWatched` では観測できないためである。2026-10-22 (editorial): ステップ 4-2 の「壊して確かめる」を、実際に区別できる壊し方（種類の印と値の数を両方外す、`writeField` の引用を外す）に改めた。印と値の数は、どちらか一方だけでもエントリの境目を一意にするためである。レビュアーがこのセッションで選んだので、`Status` は `approved` のままとする。2026-10-23 (decision): `/runplan 0034` のフェーズ 3・4 のレビューで、最上位の `.claude/` の下の `.git` という名前で止めることを加えた（ステップ 3-3、5 章の AC-16）。要件書・設計書の決定と同じで、レビュアーがこのセッションで選んだ。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -191,6 +191,7 @@
 -   [x] ディレクトリの項目の下を、設計書 3.3「ディレクトリの項目」のとおりたどる。
 -   [x] 列挙の結果を監視の一覧で選び、それとは別に `.claude/settings.local.json` を必ず加える（設計書 3.3）。対象のファイルをパスのバイト列の順に並べる。
 -   [x] `TestCollectTargetsWalk` を加える。入れ子のリポジトリの中の `.go` が対象になること、入れ子のリポジトリの中の FIFO と監視の一覧に当たらないファイルが対象にならないこと、`.claude/settings.local.json` が無視されていなくても（存在しなくても）必ず含まれ、列挙にも現れたときに 1 つになること、入れ子のリポジトリの中の読めないディレクトリで止まること。
+-   [x] 最上位の `.claude/` の下の `.git` という名前で止まる走査を加え（設計書 3.3）、`TestCollectTargetsClaudeGitNames` を加える。`.git`・`.GIT` のディレクトリと `.git` のファイルで止まり、`a.git` と、入れ子のリポジトリの `.git` では止まらないこと。
 
 **壊して確かめる**: たどりを外すと入れ子のリポジトリの `.go` の行が、`.claude/settings.local.json` を必ず加える処理を外すと存在しない場合の行が、`TestCollectTargetsWalk` で失敗すること。
 
@@ -553,7 +554,7 @@
 | AC-13 | test | `ignored_test.go::TestCheckStateIgnoredChanges`（最上位と下の階層の新しい `.gitignore`、`core.excludesFile` のファイルへの追記の 3 つの行） |
 | AC-14 | test | `ignored_test.go::TestCheckStateIgnoredChanges`（`parts` が `ignored` だけ。同時に変わる行では、先に比べる config か hooks だけ）、`worktree_flow_test.go` の 2 つのテスト、`main_test.go::TestIgnoredOutputOmitsNames`（出力の `parts`） |
 | AC-15 | test + static | `main_test.go::TestIgnoredOutputOmitsNames`（`ignored` と `git-failed`。名前・内容とファイルごとのエントリの digest）、`ignored_test.go::TestIgnoredRecordFiles`、`internal/cmdrunner/runner_test.go::TestStderrIsFailure`（エラーに標準エラーを含めない）。`cmd/yt2column/fixpr_docs_test.go::TestFixprDocContract`（`fixpr.md` の禁止。ステップ 6-2） |
-| AC-16 | test | `ignored_test.go::TestParseIgnoredListing`・`::TestCollectTargetsGitFailures`（ステップ 3-2）、`::TestCollectTargetsWalk`（ステップ 3-3）、`::TestCollectTargetsLimits`（ステップ 3-4）、`::TestTargetEntries`（ステップ 4-1）、`::TestBaselineIgnoredFailures`（ステップ 5-3）、`runner_test.go::TestStderrIsFailure`（ステップ 2-1）、`main_test.go::TestListRunnerRejectsStderr`（ステップ 3-1） |
+| AC-16 | test | `ignored_test.go::TestParseIgnoredListing`・`::TestCollectTargetsGitFailures`（ステップ 3-2）、`::TestCollectTargetsWalk`（ステップ 3-3）、`::TestCollectTargetsLimits`（ステップ 3-4）、`::TestCollectTargetsClaudeGitNames`（ステップ 3-3）、`::TestTargetEntries`・`::TestHashCapped`（ステップ 4-1）、`::TestBaselineIgnoredFailures`（ステップ 5-3）、`runner_test.go::TestStderrIsFailure`（ステップ 2-1）、`main_test.go::TestListRunnerRejectsStderr`（ステップ 3-1） |
 | AC-17 | static + manual | `cmd/fixprguard/docs_test.go::TestGuideListsWatchList`（ステップ 7-4）、`ignored_test.go::TestWatchListPatternsMatch`（ステップ 1-1）。説明の文は PR-2 のレビューで読み合わせる |
 | AC-18 | static + manual | `docs_test.go::TestGuideDescribesIgnoredFiles`（7.2 の分けた項目の語）。各項目の範囲は PR-2 のレビューで要件書 4.2 と読み合わせる |
 | AC-19 | test + static + manual | `docs_test.go::TestGuideIgnoredCommands`（コマンドの実行）、`::TestGuideNamesGitStateParts`、`::TestGuideDescribesIgnoredFiles`（(a)〜(e) の語）、`main_test.go::TestBeginWritesRecord`（記録と 10 番目の欄）。手順の中身は PR-2 のレビューで読み合わせる |

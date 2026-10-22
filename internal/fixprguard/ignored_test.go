@@ -331,6 +331,7 @@ func TestCollectTargetsWalk(t *testing.T) {
 		r.Write("build/nested/sub/y.go", "package y\n")
 		r.Write("build/nested/readme.txt", "not watched\n")
 		mkfifo(t, filepath.Join(r.Dir, "build/nested/pipe.go"))
+		symlink(t, "x.go", filepath.Join(r.Dir, "build/nested/link.go"))
 		return r
 	}
 	t.Run("nested_repository", func(t *testing.T) {
@@ -340,8 +341,8 @@ func TestCollectTargetsWalk(t *testing.T) {
 			t.Fatalf("collectTargets: %v", err)
 		}
 		// settings.local.json is in although it does not exist and git does
-		// not ignore it; the FIFO and readme.txt are not.
-		want := []string{settingsLocalPath, "build/nested/sub/y.go", "build/nested/x.go"}
+		// not ignore it, and so is the link; the FIFO and readme.txt are not.
+		want := []string{settingsLocalPath, "build/nested/link.go", "build/nested/sub/y.go", "build/nested/x.go"}
 		if got := recordPaths(t, state.record); !slices.Equal(got, want) {
 			t.Errorf("targets = %q, want %q", got, want)
 		}
@@ -358,6 +359,19 @@ func TestCollectTargetsWalk(t *testing.T) {
 			t.Errorf("targets = %q, want settings.local.json once", got)
 		}
 	})
+	t.Run("directory_item_replaced", func(t *testing.T) {
+		t.Chdir(t.TempDir())
+		writeFile(t, "file", "x")
+		mkdir(t, "dir")
+		symlink(t, "dir", "link")
+		walked := 0
+		for _, item := range []string{"file", "link"} {
+			err := walkIgnoredDir(t.Context(), item, &walked, wideLimits(), func(string) error { return nil })
+			if !errors.Is(err, errReadIgnoredDir) {
+				t.Errorf("%s: error = %v, want %v", item, err, errReadIgnoredDir)
+			}
+		}
+	})
 	t.Run("unreadable_directory_in_nested_repository", func(t *testing.T) {
 		requireNonRoot(t)
 		r := setup(t)
@@ -365,6 +379,45 @@ func TestCollectTargetsWalk(t *testing.T) {
 		chmodForTest(t, filepath.Join(r.Dir, "build/nested/locked"), 0)
 		if _, err := collect(t, wideLimits()); !errors.Is(err, errReadIgnoredDir) {
 			t.Errorf("error = %v, want %v", err, errReadIgnoredDir)
+		}
+	})
+}
+
+// TestCollectTargetsClaudeGitNames: git lists nothing below an entry named
+// .git, so one below .claude stops the pass, unless it belongs to a nested
+// repository git listed.
+func TestCollectTargetsClaudeGitNames(t *testing.T) {
+	tests := []struct {
+		name    string
+		file    string
+		wantErr error
+	}{
+		{"git_directory", ".claude/commands/.git/x.md", errClaudeGitName},
+		{"git_directory_upper", ".claude/skills/.GIT/SKILL.md", errClaudeGitName},
+		{"git_file", ".claude/agents/.git", errClaudeGitName},
+		{"git_suffix_only", ".claude/commands/a.git/x.md", nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newTestRepo(t)
+			r.ignore(".claude/")
+			r.Write(tt.file, "x\n")
+			if _, err := collect(t, wideLimits()); !errors.Is(err, tt.wantErr) {
+				t.Errorf("error = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+	t.Run("nested_repository", func(t *testing.T) {
+		r := newTestRepo(t)
+		r.ignore(".claude/")
+		r.gitIn(r.Dir, "init", "-q", "--template=", ".claude/worktrees/w")
+		r.Write(".claude/worktrees/w/x.go", "package x\n")
+		state, err := collect(t, wideLimits())
+		if err != nil {
+			t.Fatalf("collectTargets: %v", err)
+		}
+		if got := recordPaths(t, state.record); !slices.Contains(got, ".claude/worktrees/w/x.go") {
+			t.Errorf("targets = %q, want the nested repository's file", got)
 		}
 	})
 }
@@ -467,6 +520,28 @@ func stateOf(t *testing.T, lim targetLimits, paths ...string) (targetState, erro
 	return targetStateOf(t.Context(), paths, lim, os.Lstat)
 }
 
+// stateWithin is stateOf, failing the test instead of hanging if the pass
+// blocks on a special file.
+func stateWithin(t *testing.T, paths ...string) (targetState, error) {
+	t.Helper()
+	type result struct {
+		state targetState
+		err   error
+	}
+	done := make(chan result, 1)
+	go func() {
+		state, err := targetStateOf(t.Context(), paths, wideLimits(), os.Lstat)
+		done <- result{state, err}
+	}()
+	select {
+	case r := <-done:
+		return r.state, r.err
+	case <-time.After(5 * time.Second):
+		t.Fatal("the pass blocked")
+		return targetState{}, nil
+	}
+}
+
 // writeFile writes name in the current directory.
 func writeFile(t *testing.T, name, content string) {
 	t.Helper()
@@ -518,8 +593,36 @@ func TestTargetEntries(t *testing.T) {
 		symlink(t, "loop_b.go", "loop_a.go")
 		symlink(t, "loop_a.go", "loop_b.go")
 		symlink(t, "regular/x", "enotdir.go")
-		if _, err := stateOf(t, wideLimits(), "enoent.go", "enotdir.go", "loop_a.go"); err != nil {
-			t.Errorf("error = %v, want the links recorded as unresolved", err)
+		links := []string{"enoent.go", "enotdir.go", "loop_a.go"}
+		before, err := stateOf(t, wideLimits(), links...)
+		if err != nil {
+			t.Fatalf("error = %v, want the links recorded as unresolved", err)
+		}
+		// Once the link resolves, its record line changes.
+		writeFile(t, "missing", "x")
+		after, err := stateOf(t, wideLimits(), links...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if before.digest == after.digest {
+			t.Errorf("a link that came to resolve left the digest unchanged")
+		}
+	})
+
+	// A special file is recorded by type, never opened: a link to a FIFO,
+	// settings.local.json as a FIFO, and settings.local.json below a .claude
+	// that is a regular file (recorded as absent).
+	t.Run("special_files_recorded", func(t *testing.T) {
+		for _, setup := range []func(t *testing.T){
+			func(t *testing.T) { mkfifo(t, "pipe"); symlink(t, "pipe", "x.go") },
+			func(t *testing.T) { mkdir(t, ".claude"); mkfifo(t, settingsLocalPath) },
+			func(t *testing.T) { writeFile(t, ".claude", "not a directory") },
+		} {
+			t.Chdir(t.TempDir())
+			setup(t)
+			if _, err := stateWithin(t, "x.go", settingsLocalPath); err != nil {
+				t.Errorf("error = %v, want the file recorded", err)
+			}
 		}
 	})
 
@@ -605,6 +708,36 @@ func TestTargetEntries(t *testing.T) {
 			t.Errorf("error = %v, want %v", err, errReadIgnoredFile)
 		}
 	})
+}
+
+// TestHashCapped: content longer than the size the file reported (a file
+// extended after the check, a file system that reports 0) is not read past
+// either cap.
+func TestHashCapped(t *testing.T) {
+	content := strings.Repeat("x", 1000)
+	tests := []struct {
+		name      string
+		fileBytes int64
+		read      int64 // already read in this pass
+		wantErr   error
+	}{
+		{"within_both_caps", 1000, 0, nil},
+		{"over_the_file_cap", 9, 0, errIgnoredFileSize},
+		{"over_the_total", 1000, 1, errIgnoredReadTotal},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lim := wideLimits()
+			lim.fileBytes, lim.totalBytes = tt.fileBytes, 1000
+			total := tt.read
+			if _, err := hashCapped(strings.NewReader(content), 0, lim, &total); !errors.Is(err, tt.wantErr) {
+				t.Errorf("error = %v, want %v", err, tt.wantErr)
+			}
+			if read, bound := total-tt.read, min(lim.fileBytes, lim.totalBytes-tt.read)+1; read > bound {
+				t.Errorf("read %d bytes, want at most %d (one past the smaller cap)", read, bound)
+			}
+		})
+	}
 }
 
 // TestTargetStateDigest: the same state gives the same digest, and a value
@@ -701,13 +834,21 @@ func TestTargetRecordLines(t *testing.T) {
 }
 
 // TestDefaultLimitsAcceptDependencyTree: an ignored dependency tree of
-// thousands of files that are not on the watch list, with C headers and a
-// Makefile that are, stays within the default limits.
+// thousands of files that are not on the watch list, one nested repository
+// among them, with C headers and a Makefile that are, stays within the
+// default limits. The listing's own output cap is osEnv's runner's, not
+// exercised here.
 func TestDefaultLimitsAcceptDependencyTree(t *testing.T) {
 	r := newTestRepo(t)
 	r.ignore("node_modules/")
 	for i := range 3000 {
 		r.Write("node_modules/pkg"+strconv.Itoa(i%100)+"/f"+strconv.Itoa(i)+".js", "module.exports = 1;\n")
+	}
+	// A dependency cloned with its history is a nested repository: git
+	// lists it as one item and the tool walks it.
+	r.gitIn(r.Dir, "init", "-q", "--template=", "node_modules/cloned")
+	for i := range 2000 {
+		r.Write("node_modules/cloned/lib/f"+strconv.Itoa(i)+".js", "module.exports = 1;\n")
 	}
 	for i := range 20 {
 		r.Write("node_modules/native"+strconv.Itoa(i)+"/include/x.h", "#define X 1\n")

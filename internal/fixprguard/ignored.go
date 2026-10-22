@@ -199,6 +199,7 @@ var (
 	errReadIgnoredDir     = fmt.Errorf("%w: read ignored directory", ErrGitFailed)
 	errReadIgnoredFile    = fmt.Errorf("%w: read ignored file", ErrGitFailed)
 	errIgnoredLinkToDir   = fmt.Errorf("%w: ignored link to a directory", ErrGitFailed)
+	errClaudeGitName      = fmt.Errorf("%w: .git name below .claude", ErrGitFailed)
 )
 
 // targetState is what one pass over the target files yields: digest covers
@@ -345,7 +346,49 @@ func selectTargets(ctx context.Context, files, dirs []string, lim targetLimits) 
 			return nil, err
 		}
 	}
+	if err := checkClaudeGitNames(ctx, dirs, &walked, lim); err != nil {
+		return nil, err
+	}
 	return slices.Sorted(maps.Keys(targets)), nil
+}
+
+// checkClaudeGitNames walks the top-level .claude directory, counting each
+// entry against lim.walkEntries, and stops at any entry whose name folds to
+// .git, unless its parent is a directory item (a nested repository the walk
+// above covered, which it skips). git lists nothing below an entry so named,
+// in any case when core.ignorecase is on, so a file there would be on the
+// watch list and yet in no listing. A .claude that is not a directory is
+// left to the listing.
+func checkClaudeGitNames(ctx context.Context, dirs []string, walked *int, lim targetLimits) error {
+	info, err := os.Lstat(watchTopDir)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return nil
+	case err != nil:
+		return errReadIgnoredDir
+	case !info.IsDir():
+		return nil
+	}
+	return filepath.WalkDir(watchTopDir, func(p string, d fs.DirEntry, err error) error {
+		switch {
+		case err != nil:
+			return errReadIgnoredDir
+		case p == watchTopDir:
+			return nil
+		case ctx.Err() != nil:
+			return errIgnoredTimeout
+		case slices.Contains(dirs, p):
+			return filepath.SkipDir
+		}
+		*walked++
+		if *walked > lim.walkEntries {
+			return errIgnoredWalkEntries
+		}
+		if foldEqual(d.Name(), ".git") {
+			return errClaudeGitName
+		}
+		return nil
+	})
 }
 
 // walkIgnoredDir visits everything below a directory item (a nested
@@ -354,12 +397,12 @@ func selectTargets(ctx context.Context, files, dirs []string, lim targetLimits) 
 // watch list. A FIFO or another special file is left out, as git leaves it
 // out of the listing.
 func walkIgnoredDir(ctx context.Context, dir string, walked *int, lim targetLimits, add func(string) error) error {
-	return filepath.WalkDir(dir, func(p string, entry fs.DirEntry, err error) error {
+	return filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return errReadIgnoredDir
 		}
 		if p == dir {
-			if !entry.IsDir() {
+			if !d.IsDir() {
 				return errReadIgnoredDir
 			}
 			return nil
@@ -371,7 +414,7 @@ func walkIgnoredDir(ctx context.Context, dir string, walked *int, lim targetLimi
 		if *walked > lim.walkEntries {
 			return errIgnoredWalkEntries
 		}
-		if t := entry.Type(); (t.IsRegular() || t&fs.ModeSymlink != 0) && isWatched(p) {
+		if t := d.Type(); (t.IsRegular() || t&fs.ModeSymlink != 0) && isWatched(p) {
 			return add(p)
 		}
 		return nil
@@ -419,18 +462,20 @@ func entry(kind string, values ...string) []string {
 func targetEntry(p string, lim targetLimits, total *int64, lstat lstatFunc) ([]string, error) {
 	info, err := lstat(p)
 	switch {
-	case errors.Is(err, fs.ErrNotExist):
+	case errors.Is(err, fs.ErrNotExist), errors.Is(err, syscall.ENOTDIR):
+		// Removed after the listing, or settingsLocalPath below a .claude
+		// that is not a directory.
 		return entry("absent", p), nil
 	case err != nil:
 		return nil, errReadIgnoredFile
 	}
 	switch mode := info.Mode(); {
 	case mode.IsRegular():
-		sum, err := readTarget(p, false, lim, total)
+		perm, sum, err := readTarget(p, false, lim, total)
 		if err != nil {
 			return nil, err
 		}
-		return entry("file", p, execBits(mode), sum), nil
+		return entry("file", p, perm, sum), nil
 	case mode&fs.ModeSymlink != 0:
 		text, err := os.Readlink(p)
 		if err != nil {
@@ -462,11 +507,11 @@ func linkTarget(p string, lim targetLimits, total *int64) ([]string, error) {
 	case info.IsDir():
 		return nil, errIgnoredLinkToDir
 	case info.Mode().IsRegular():
-		sum, err := readTarget(p, true, lim, total)
+		perm, sum, err := readTarget(p, true, lim, total)
 		if err != nil {
 			return nil, err
 		}
-		return []string{"file", execBits(info.Mode()), sum}, nil
+		return []string{"file", perm, sum}, nil
 	default:
 		return []string{"other", info.Mode().Type().String()}, nil
 	}
@@ -476,31 +521,42 @@ func execBits(mode fs.FileMode) string {
 	return strconv.FormatUint(uint64(mode.Perm()&execPermBits), 8)
 }
 
-// readTarget hashes a regular file's content. openRegular opens without
-// blocking and checks the opened file, so a FIFO swapped in after lstat
-// fails instead of hanging. The size the opened file reports is checked
-// against both caps before reading, and the read stops one byte past the
-// smaller remaining cap, so a file that grows meanwhile is not read on.
-// total adds the bytes read, however many paths reach the same content.
-func readTarget(p string, follow bool, lim targetLimits, total *int64) (string, error) {
+// readTarget returns the executable bits and the SHA-256 of a regular
+// file, both from the opened file, so a file swapped in after lstat cannot
+// pair the old bits with new content. openRegular opens without blocking and
+// checks the opened file, so a FIFO swapped in fails instead of hanging.
+func readTarget(p string, follow bool, lim targetLimits, total *int64) (perm, sum string, err error) {
 	f, err := openRegular(p, follow)
 	if err != nil {
-		return "", errReadIgnoredFile
+		return "", "", errReadIgnoredFile
 	}
 	defer func() { _ = f.Close() }()
 	info, err := f.Stat()
 	if err != nil {
-		return "", errReadIgnoredFile
+		return "", "", errReadIgnoredFile
 	}
+	sum, err = hashCapped(f, info.Size(), lim, total)
+	if err != nil {
+		return "", "", err
+	}
+	return execBits(info.Mode()), sum, nil
+}
+
+// hashCapped hashes r, whose reported size is size. The size is checked
+// against both caps before reading, and the read stops one byte past the
+// smaller remaining cap, so content that grows past the reported size (a
+// file extended meanwhile, a file system that reports 0) is not read on.
+// total adds the bytes read, however many paths reach the same content.
+func hashCapped(r io.Reader, size int64, lim targetLimits, total *int64) (string, error) {
 	remaining := lim.totalBytes - *total
 	switch {
-	case info.Size() > lim.fileBytes:
+	case size > lim.fileBytes:
 		return "", errIgnoredFileSize
-	case info.Size() > remaining:
+	case size > remaining:
 		return "", errIgnoredReadTotal
 	}
 	h := sha256.New()
-	n, err := io.Copy(h, io.LimitReader(f, min(lim.fileBytes, remaining)+1))
+	n, err := io.Copy(h, io.LimitReader(r, min(lim.fileBytes, remaining)+1))
 	*total += n
 	switch {
 	case err != nil:
