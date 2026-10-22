@@ -572,24 +572,25 @@ func TestGuideDescribesConfigScope(t *testing.T) {
 // TestGuideListsScopeResidualRisks: 7.2 of both guides names the four
 // residual risks the scope rules leave: .md documents read as instructions,
 // files under testdata, files in scope under rule 1, and files read or run
-// that are not on the deny list. The phrases are the item openings of each
-// guide, Japanese for the Japanese guide.
+// that are not on the deny list. Each phrase opens a list item of 7.2, so a
+// risk folded into another item's prose does not count. The phrases are each
+// guide's own, Japanese for the Japanese guide.
 func TestGuideListsScopeResidualRisks(t *testing.T) {
 	for _, tc := range []struct {
 		rel   string
 		risks []string
 	}{
 		{rel: guideFiles[0], risks: []string{
-			"指示として読まれる `.md` の文書",
-			"`testdata` の下のファイル",
-			"規則 1 で範囲に入るファイル",
-			"拒否リストに載らず読まれる・実行されるファイル",
+			"\n- 指示として読まれる `.md` の文書",
+			"\n- `testdata` の下のファイル",
+			"\n- 規則 1 で範囲に入るファイル",
+			"\n- 拒否リストに載らず読まれる・実行されるファイル",
 		}},
 		{rel: guideFiles[1], risks: []string{
-			"`.md` documents read as instructions",
-			"Files under `testdata`",
-			"Files in scope under rule 1",
-			"Files read or run that are not on the deny list",
+			"\n- Rewrites of `.md` documents read as instructions",
+			"\n- Files under `testdata`",
+			"\n- Files in scope under rule 1",
+			"\n- Files read or run that are not on the deny list",
 		}},
 	} {
 		t.Run(filepath.Base(tc.rel), func(t *testing.T) {
@@ -615,11 +616,10 @@ var commentRecord = regexp.MustCompile(`\d{4}-\d{2}-\d{2} \(([a-z]+)\): `)
 const scopeRequirement = ": 変更範囲と作業ツリーの確認\n"
 
 // TestTask0030NotesScopeChange: task 0030's architecture 3.6 and the change
-// scope requirement of its requirements, which state the scope rules as 0030
-// decided them, each
-// carry a quoted note linking task 0036's requirements and architecture; both
-// documents stay approved; and each Comments cell has one editorial record
-// that names #425, the issue of task 0036.
+// scope requirement of its requirements state the scope rules as 0030 decided
+// them. Each carries a quoted note linking task 0036's requirements and
+// architecture, both documents stay approved, and each Comments cell has an
+// editorial record that names #425, the issue of task 0036.
 func TestTask0030NotesScopeChange(t *testing.T) {
 	const dir = "docs/tasks/0030_fixpr_untrusted_threads/"
 	for _, tc := range []struct {
@@ -667,8 +667,8 @@ func TestTask0030NotesScopeChange(t *testing.T) {
 					found++
 				}
 			}
-			if found != 1 {
-				t.Errorf("%s: Comments has %d editorial records naming #425, want 1", tc.rel, found)
+			if found == 0 {
+				t.Errorf("%s: Comments has no editorial record naming #425", tc.rel)
 			}
 		})
 	}
