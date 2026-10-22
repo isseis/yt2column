@@ -8,7 +8,7 @@
 | Created | 2026-10-22 |
 | Review date | 2026-10-22 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-22 (editorial): ステップ 1-5 の `TestGuideDescribesMentionCheck` を、定数の値がガイドの 7.1・7.2 節にあることの確認だけに絞った。9 章の但し書きと 7.2 節の古い文の言い回しを固定する確認は、意味の正しさを確かめられないので外し、読み合わせに任せた。検証する AC と方針は変わらないので、承認を保つ（isseis がこのセッションで了承した） |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の、H-NN は [design_handoff.md](design_handoff.md) の項番を指す。設計書の「n.n」は設計書の節を指す。既存のファイルに関する記述は、コミット `419dec0` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。設計書が確かめたコミット `3ed049b` から `419dec0` までの差分は `docs/tasks/` の下だけなので（`git diff --stat 3ed049b 419dec0`。2026-10-22 に実行）、設計書の行番号もそのまま使える。
 
@@ -162,7 +162,7 @@
 
 - [x] 日本語版を設計書 3.8 の「ガイド」のとおりに改める: 5 章の `reply`・`edit-pr` の本文とタイトルの条件、4 章の終了コード `2` の説明、7.1 の保証の表に「メンションを含む文面を GitHub に送らない」行、7.2 の「本文の内容」の項目（内容はメンションだけを検査する。全角や幅のない文字を挟んだ形は検査しない）、9 章の `Protocol` の但し書き（設計書 1.4 の 2 行目）。9 章の既存の但し書きの文は残す。
 - [x] 英語版を、日本語版の翻訳として同じ構造で改める（`.claude/commands/mktrans.md` の原則と `docs/translation_glossary.md` に従う）。日英の見出しと表の行が対応していることを読み合わせる。
-- [x] `TestGuideDescribesMentionCheck`（`cmd/fixprguard/docs_test.go`）: `guideFiles` の日英のそれぞれで、7.1 節と 7.2 節が `fixprguard.CodexMention` の値を含むこと、9 章が新しい但し書きを述べること、7.2 節に古い「種類・大きさ・文字コードだけを検査する」の文が残らないこと（`stale` の形）を確かめる。文言はそれぞれの言語のガイドの文から選ぶ。
+- [x] `TestGuideDescribesMentionCheck`（`cmd/fixprguard/docs_test.go`）: `guideFiles` の日英のそれぞれで、7.1 節と 7.2 節が `fixprguard.CodexMention` の値を含むことを確かめる。コードの定数とガイドの食い違いを検出するためである。9 章の但し書きと 7.2 節の古い文は、言い回しを固定しても意味の正しさを確かめられないので固定せず、読み合わせ（次の項目）で確かめる。
 - [x] 書いた記述を実装と照らし合わせる: 拒否の条件、終了コード、拒否しないもの、検査の順序（GitHub に触れる前）が、ステップ 1-2 のコードと一致することを読み合わせ、結果をコミットメッセージに書く。
 
 #### ステップ 1-6: 壊して失敗を確かめる
@@ -174,7 +174,7 @@
     -   `@codex` の後に語の境界を求める（`@codexbot` の行）。
     -   `checkPostText` を `readTextFile` より前に動かす（順序の行）。
     -   診断に文面を含める（1-4 の目印の確認）。
-    -   ガイドの片方の 7.2 節から定数の値を消す、古い文を戻す（1-5 の確認）。
+    -   ガイドの片方の 7.2 節から定数の値を消す（1-5 の確認）。
 
 **フェーズ 1 の完了の条件**: `make fmt`・`make test`・`make lint` が通る。`Protocol` は上げない（設計書 1.4）。
 
