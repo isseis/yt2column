@@ -243,7 +243,7 @@ fixprguard edit-pr --protocol 1 --title-file /path/to/title.txt --body-file /pat
 - 範囲内のテストのコードが build checks で実行されること。`finish` と `push` は、そのコードが範囲内のファイルや hooks を書き換えたことは検出する。
 - `.gitignore` が無視するファイル、作業ツリーの中の `.gitignore` やグローバルの除外のファイルで隠したファイル、index の stat の偽造で隠した変更。隠した変更は commit されないが、build checks が実行することは防げない。
 - hooks のディレクトリの外にあり、hook が実行するファイル（pre-commit のフレームワークのキャッシュなど）。
-- `--reviewer` で渡した名前の集合が、`_context.md` に定めた自動レビュアーの名前と同じであること。ツールは `_context.md` を読まない。名前を渡し忘れても、その Bot のスレッドは `other-bot` で信頼されないだけである。
+- `--reviewer` で渡した名前の集合が、`.claude/commands/_context.md` の `Automated reviewer list` の名前と同じであること。ツールは `_context.md` を読まない。名前を渡し忘れても、その Bot のスレッドは `other-bot` で信頼されないだけである。
 - 同じ秒の内の再編集。指紋の時刻は秒の単位である。
 - 返信と PR の説明の本文の内容。ツールはファイルの種類・大きさ・文字コードだけを検査する。
 

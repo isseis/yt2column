@@ -243,7 +243,7 @@ A `.go` file is in scope under rule 2 only when `path` is a `.go` file in the sa
 - Preventing in-scope test code from being run by the build checks. `finish` and `push` do detect that code rewriting in-scope files or hooks.
 - Files ignored by `.gitignore`, files hidden by a `.gitignore` inside the work tree or by the global exclude file, and changes hidden by forging the stat information of the index. Hidden changes are not committed, but the build checks running them cannot be prevented.
 - Files outside the hooks directory that a hook runs (such as the cache of the pre-commit framework).
-- That the set of names passed with `--reviewer` is the same as the automated reviewer names defined in `_context.md`. The tool does not read `_context.md`. A name left out only makes that Bot's threads untrusted as `other-bot`.
+- That the set of names passed with `--reviewer` is the same as the names on `Automated reviewer list` in `.claude/commands/_context.md`. The tool does not read `_context.md`. A name left out only makes that Bot's threads untrusted as `other-bot`.
 - Re-edits within the same second. The times in the fingerprint have a resolution of one second.
 - The content of reply and PR description bodies. The tool checks only the file's type, size, and encoding.
 

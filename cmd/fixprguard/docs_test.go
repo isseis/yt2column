@@ -300,7 +300,20 @@ func TestGuideDescribesReviewerList(t *testing.T) {
 			if !strings.Contains(section(guide, "## 9."), "`"+contentGuard+"`") {
 				t.Errorf("section 9 does not name the content guard %s", contentGuard)
 			}
-			readRepoFile(t, contentGuard)
+			// Section 9 tells a maintainer to edit these by name, so they must
+			// still exist under that name.
+			guard := readRepoFile(t, contentGuard)
+			for ident, decl := range map[string]string{
+				"wantReviewers":                    "var wantReviewers ",
+				"TestContextReviewerRowsMalformed": "func TestContextReviewerRowsMalformed(",
+			} {
+				if !strings.Contains(section(guide, "## 9."), "`"+ident+"`") {
+					t.Errorf("section 9 does not name %s", ident)
+				}
+				if !strings.Contains(guard, decl) {
+					t.Errorf("%s does not declare %s, which section 9 names", contentGuard, ident)
+				}
+			}
 		})
 	}
 }

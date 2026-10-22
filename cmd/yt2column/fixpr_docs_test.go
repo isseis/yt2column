@@ -46,8 +46,10 @@ const (
 	oldReviewerRow  = "Automated reviewer"
 )
 
-// wantReviewers is the automated reviewer list the task decided on. Adding or
-// removing a reviewer changes _context.md and this value in the same commit.
+// wantReviewers is the automated reviewer list the task decided on, in sorted
+// order, since the list's names are sorted before they are compared with it.
+// Adding or removing a reviewer changes _context.md and this value in the same
+// commit.
 var wantReviewers = []string{"chatgpt-codex-connector", "coderabbitai"}
 
 // reviewerSentence is how both command documents define the <reviewer>
@@ -59,9 +61,15 @@ const reviewerSentence = "`--reviewer <reviewer>` stands for one `--reviewer` pe
 
 // reviewerOnceSentence is how both command documents keep the --reviewer
 // sequence fixed for a run, so begin, inspect, and reply judge threads against
-// the same list even if a fix rewrites _context.md.
+// the same list even if a fix rewrites _context.md. Each document first says
+// when it builds the sequence: fixprBuildOnce and runprBuildOnce.
 const reviewerOnceSentence = "and pass the same one to every `fixprguard` call of the run: " +
 	"do not re-read `_context.md` to rebuild it during the run"
+
+const (
+	fixprBuildOnce = "Build that sequence once, before Phase 1, " + reviewerOnceSentence
+	runprBuildOnce = "Build that sequence once, before the first `fixprguard` call, " + reviewerOnceSentence
+)
 
 // awaitedReviewerSentence is how runpr.md defines the <awaited-reviewer>
 // placeholder step 3 filters PR reviews and comments by.
@@ -453,13 +461,23 @@ func checkContextReviewers(doc string) contextReviewers {
 		got.problems = append(got.problems, problemRowCount)
 	}
 
-	if rows := count[reviewerListRow]; len(rows) == 1 && len(rows[0]) >= 2 {
-		got.checkList(rows[0][1])
+	// A row without a value cell is checked as an empty value, so it fails
+	// the shape check instead of being skipped.
+	if rows := count[reviewerListRow]; len(rows) == 1 {
+		got.checkList(valueCell(rows[0]))
 	}
-	if rows := count[awaitedRow]; len(rows) == 1 && len(rows[0]) >= 2 {
-		got.checkAwaited(rows[0][1])
+	if rows := count[awaitedRow]; len(rows) == 1 {
+		got.checkAwaited(valueCell(rows[0]))
 	}
 	return got
+}
+
+// valueCell returns row's second cell, or "" when the row has none.
+func valueCell(row []string) string {
+	if len(row) < 2 {
+		return ""
+	}
+	return row[1]
 }
 
 // checkList checks the list row's value and records its names.
@@ -512,6 +530,8 @@ func TestContextAndCommandsAgree(t *testing.T) {
 		t.Errorf("_context.md %s = %q, want coderabbitai", awaitedRow, got.awaited)
 	}
 	requirePhrases(t, "_context.md "+awaitedRow, got.awaitedDesc, "REST `user.login`", "followed by `[bot]`")
+	requirePhrases(t, "_context.md "+reviewerListRow, got.listDesc,
+		"GraphQL `author.login`", "each as its own `--reviewer`", "trusted when its login is any name on this list")
 	if containsToken(got.listDesc, "only") {
 		t.Errorf("_context.md %s says a single Bot is trusted: %q", reviewerListRow, got.listDesc)
 	}
@@ -522,9 +542,9 @@ func TestContextAndCommandsAgree(t *testing.T) {
 	// who wrote a thread, so it is the only use allowed outside _context.md. A
 	// name followed by [bot] contains the name, so this rejects that form too.
 	allowed := "@" + got.awaited + " review"
-	for _, tc := range []struct{ name, path string }{
-		{"fixpr.md", fixprPath},
-		{"runpr.md", runprPath},
+	for _, tc := range []struct{ name, path, buildOnce string }{
+		{"fixpr.md", fixprPath, fixprBuildOnce},
+		{"runpr.md", runprPath, runprBuildOnce},
 	} {
 		doc := readDoc(t, tc.path)
 		rest := strings.ReplaceAll(doc, allowed, "")
@@ -533,7 +553,7 @@ func TestContextAndCommandsAgree(t *testing.T) {
 				t.Errorf("%s writes the reviewer name %q outside %q", tc.name, name, allowed)
 			}
 		}
-		requirePhrases(t, tc.name, doc, reviewerSentence, reviewerOnceSentence)
+		requirePhrases(t, tc.name, doc, reviewerSentence, tc.buildOnce)
 	}
 	requirePhrases(t, "runpr.md", readDoc(t, runprPath), awaitedReviewerSentence)
 }
@@ -565,7 +585,8 @@ func TestContextReviewerRowsMalformed(t *testing.T) {
 		{"list_row_twice", listLine, listLine + "\n" + listLine, []reviewerRowProblem{problemRowCount}},
 		{"awaited_row_twice", awaitedLine, awaitedLine + "\n" + awaitedLine, []reviewerRowProblem{problemRowCount}},
 		{"old_row_left", awaitedLine, awaitedLine + "\n| " + oldReviewerRow + " | `coderabbitai` — the reviewer |", []reviewerRowProblem{problemRowCount}},
-		{"list_empty", listLine, listRow(desc), []reviewerRowProblem{problemListShape}},
+		{"list_no_value_cell", listLine, "| " + reviewerListRow + " |", []reviewerRowProblem{problemListShape}},
+		{"list_value_only_description", listLine, listRow(desc), []reviewerRowProblem{problemListShape}},
 		{"no_separator", listLine, listRow("`coderabbitai`, `chatgpt-codex-connector`"), []reviewerRowProblem{problemListShape}},
 		{"no_backquotes", listLine, listRow("coderabbitai, chatgpt-codex-connector" + desc), []reviewerRowProblem{problemListShape}},
 		{"no_space_after_comma", listLine, listRow("`coderabbitai`,`chatgpt-codex-connector`" + desc), []reviewerRowProblem{problemListShape}},
@@ -576,7 +597,8 @@ func TestContextReviewerRowsMalformed(t *testing.T) {
 		{"third_name", listLine, listRow("`coderabbitai`, `chatgpt-codex-connector`, `other-bot`" + desc), []reviewerRowProblem{problemListNames}},
 		{"name_replaced", listLine, listRow("`coderabbitai`, `other-bot`" + desc), []reviewerRowProblem{problemListNames}},
 		{"awaited_two_names", awaitedLine, awaitedRowLine("`coderabbitai`, `chatgpt-codex-connector`" + desc), []reviewerRowProblem{problemAwaitedShape}},
-		{"awaited_empty", awaitedLine, awaitedRowLine(desc), []reviewerRowProblem{problemAwaitedShape}},
+		{"awaited_no_value_cell", awaitedLine, "| " + awaitedRow + " |", []reviewerRowProblem{problemAwaitedShape}},
+		{"awaited_value_only_description", awaitedLine, awaitedRowLine(desc), []reviewerRowProblem{problemAwaitedShape}},
 		{"awaited_no_separator", awaitedLine, awaitedRowLine("`coderabbitai`"), []reviewerRowProblem{problemAwaitedShape}},
 		{"awaited_outside_grammar", awaitedLine, awaitedRowLine("`coderabbitai[bot]`" + desc), []reviewerRowProblem{problemAwaitedParse}},
 	} {

@@ -96,8 +96,8 @@ review only when `_lib/pr-review-escalation.md` says so or the user asks.
   to them.
 - **Round cap**: it applies only to threads opened by any automated reviewer on
   `_context.md`'s "Automated reviewer list" (the thread's first comment is by a
-  Bot whose login is on that list; `begin` records it as `authorType` `Bot`). Their findings are fixed in rounds 1 and 2. From round
-  3, only their `must-fix` findings are fixed; their `worth-fixing` findings
+  Bot whose login is on that list; `begin` records it as `authorType` `Bot`).
+  Their findings are fixed in rounds 1 and 2. From round 3, only their `must-fix` findings are fixed; their `worth-fixing` findings
   are `deferred`: left unresolved, not replied to, and listed in the Final
   report, so the human decides (`runpr.md` step 4 asks whether to fix each one
   now or move it to an issue). The cap exists to stop the automated review from
