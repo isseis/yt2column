@@ -772,8 +772,9 @@ func (w *Worktree) checkIndexFlags(ctx context.Context) error {
 // Baseline takes the git state the later subcommands compare with. It stops
 // when HEAD is not on a branch or an index entry hides changes, because the
 // later checks could not see past either. The target files come last, as in
-// CheckState. It only reads: begin writes the begin record file afterwards
-// with WriteBeginRecord.
+// CheckState. It only reads: a caller that prints the token calls
+// WriteBeginRecord first, as begin and Begin do, so no token names a record
+// that was never written.
 func (w *Worktree) Baseline(ctx context.Context) (Baseline, error) {
 	dirs, err := locateGitDirs()
 	if err != nil {

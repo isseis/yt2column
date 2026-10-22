@@ -609,7 +609,7 @@ func TestRoundIgnoresOtherBranchConfig(t *testing.T) {
 }
 
 // prepareIgnoringRound is prepareRound in a repository that ignores build/,
-// where the target file build/x.go is written later.
+// where the caller writes a target file later.
 func prepareIgnoringRound(t *testing.T) prepared {
 	t.Helper()
 	r := ignoringRepo(t, "build/")

@@ -8,7 +8,7 @@
 | Created | 2026-10-22 |
 | Review date | 2026-10-22 |
 | Reviewer | isseis |
-| Comments | 2026-10-22 (decision): `/runplan 0034` のフェーズ 1 のレビューで、APFS が完全な大文字小文字の変換（`ﬁ` → `fi`、`ß` → `ss`）で名前を解決すると分かった。照合は単純な変換のままとし、展開する変換で同じになる名前を要件書 4.2・設計書 5.3 の残余のリスクに加えた。ステップ 7-1 のガイド 7.2 は、この項目も含めて要件書 4.2 と突き合わせる。2026-10-22 (editorial): 同じレビューで、不正なバイトの同一視の行を `TestIsWatched` から `TestFoldEqual` に移した（ステップ 1-1）。一覧の項目が ASCII だけなので、`isWatched` では観測できないためである。2026-10-22 (editorial): ステップ 4-2 の「壊して確かめる」を、実際に区別できる壊し方（種類の印と値の数を両方外す、`writeField` の引用を外す）に改めた。印と値の数は、どちらか一方だけでもエントリの境目を一意にするためである。レビュアーがこのセッションで選んだので、`Status` は `approved` のままとする。2026-10-23 (decision): `/runplan 0034` のフェーズ 3・4 のレビューで、最上位の `.claude/` の下の `.git` という名前で止めることを加えた（ステップ 3-3、5 章の AC-16）。要件書・設計書の決定と同じで、レビュアーがこのセッションで選んだ。 |
+| Comments | 2026-10-22 (decision): `/runplan 0034` のフェーズ 1 のレビューで、APFS が完全な大文字小文字の変換（`ﬁ` → `fi`、`ß` → `ss`）で名前を解決すると分かった。照合は単純な変換のままとし、展開する変換で同じになる名前を要件書 4.2・設計書 5.3 の残余のリスクに加えた。ステップ 7-1 のガイド 7.2 は、この項目も含めて要件書 4.2 と突き合わせる。2026-10-22 (editorial): 同じレビューで、不正なバイトの同一視の行を `TestIsWatched` から `TestFoldEqual` に移した（ステップ 1-1）。一覧の項目が ASCII だけなので、`isWatched` では観測できないためである。2026-10-22 (editorial): ステップ 4-2 の「壊して確かめる」を、実際に区別できる壊し方（種類の印と値の数を両方外す、`writeField` の引用を外す）に改めた。印と値の数は、どちらか一方だけでもエントリの境目を一意にするためである。レビュアーがこのセッションで選んだので、`Status` は `approved` のままとする。2026-10-23 (decision): `/runplan 0034` のフェーズ 3・4 のレビューで、最上位の `.claude/` の下の `.git` という名前で止めることを加えた（ステップ 3-3、5 章の AC-16）。要件書・設計書の決定と同じで、レビュアーがこのセッションで選んだ。2026-10-23 (editorial): フェーズ 5 のレビューで、ステップ 5-2 に、`WriteBeginRecord` が前のラウンドの止まった時点の記録を消すことを加えた（設計書 3.8 の editorial correction と同じ）。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -275,7 +275,7 @@
 
 **変更するファイル**: `internal/fixprguard/ignored.go`、`internal/fixprguard/worktree.go`、`cmd/fixprguard/main.go`
 
--   [x] `WriteBeginRecord` を、設計書 3.8「`begin` の記録と基準値の結び付け」のとおり実装する。一致しなければ書かずに `git-state-changed`（`ignored`）を、書けなければ `write ignored begin record` の sentinel を返す。
+-   [x] `WriteBeginRecord` を、設計書 3.8「`begin` の記録と基準値の結び付け」のとおり実装する。一致しなければ書かずに `git-state-changed`（`ignored`）を、書けなければ `write ignored begin record` の sentinel を返す。書く前に、前のラウンドの止まった時点の記録を消す（設計書 3.8「止まった時点の記録」。消せなければ同じ sentinel）。
 -   [x] `Worktree.Begin` と `main.go` の `begin` で、`Baseline` の後に `WriteBeginRecord` を呼ぶ。`begin` は記録を書き終えてから基準値を出力する（設計書 3.8「書き方」）。
 
 #### ステップ 5-3: 組み込みのテスト

@@ -969,6 +969,10 @@ func TestBeginWritesRecord(t *testing.T) {
 		if got := r.StopKind(t); got != fixprguard.StopGitFailed || out.Baseline != "" {
 			t.Errorf("stop = %q, baseline = %q; want %s and no baseline", got, out.Baseline, fixprguard.StopGitFailed)
 		}
+		// The diagnostic's rule is what the guide documents for this stop.
+		if !strings.Contains(r.Stderr.String(), "write ignored begin record") {
+			t.Errorf("stderr %q does not name the begin record rule", r.Stderr)
+		}
 	})
 }
 
@@ -1049,6 +1053,7 @@ func TestIgnoredOutputOmitsNames(t *testing.T) {
 		name   string
 		mutate func(t *testing.T, repo *testRepo)
 		stop   string
+		rule   string // the diagnostic's rule for a git-failed stop
 	}{
 		{name: "target_changed", mutate: func(_ *testing.T, repo *testRepo) {
 			repo.Write(secret, contentMark+" changed\n")
@@ -1056,7 +1061,7 @@ func TestIgnoredOutputOmitsNames(t *testing.T) {
 		{name: "unreadable_file", mutate: func(t *testing.T, _ *testRepo) {
 			requireNonRoot(t)
 			chmodForTest(t, secret, 0)
-		}, stop: fixprguard.StopGitFailed},
+		}, stop: fixprguard.StopGitFailed, rule: "read ignored file"},
 		// git skips it with a warning naming the directory.
 		{name: "unreadable_directory", mutate: func(t *testing.T, _ *testRepo) {
 			requireNonRoot(t)
@@ -1065,7 +1070,7 @@ func TestIgnoredOutputOmitsNames(t *testing.T) {
 				t.Fatal(err)
 			}
 			chmodForTest(t, dir, 0o311)
-		}, stop: fixprguard.StopGitFailed},
+		}, stop: fixprguard.StopGitFailed, rule: "list ignored files failed"},
 		{name: "unreadable_directory_in_nested_repository", mutate: func(t *testing.T, _ *testRepo) {
 			requireNonRoot(t)
 			dir := filepath.Join("build", "nested", nameMark+"-dir")
@@ -1073,17 +1078,17 @@ func TestIgnoredOutputOmitsNames(t *testing.T) {
 				t.Fatal(err)
 			}
 			chmodForTest(t, dir, 0)
-		}, stop: fixprguard.StopGitFailed},
+		}, stop: fixprguard.StopGitFailed, rule: "read ignored directory"},
 		{name: "link_to_directory", mutate: func(t *testing.T, _ *testRepo) {
 			if err := os.Symlink(".", filepath.Join("build", dirMark, nameMark+"-link.go")); err != nil {
 				t.Fatal(err)
 			}
-		}, stop: fixprguard.StopGitFailed},
+		}, stop: fixprguard.StopGitFailed, rule: "ignored link to a directory"},
 		{name: "over_the_size_cap", mutate: func(t *testing.T, _ *testRepo) {
 			if err := os.Truncate(secret, 16<<20+1); err != nil {
 				t.Fatal(err)
 			}
-		}, stop: fixprguard.StopGitFailed},
+		}, stop: fixprguard.StopGitFailed, rule: "ignored file over the size cap"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1102,6 +1107,11 @@ func TestIgnoredOutputOmitsNames(t *testing.T) {
 			r.Decode(t, &out)
 			if out.Stop != tc.stop || (tc.stop == fixprguard.StopGitStateChanged && !slices.Equal(out.Parts, []string{fixprguard.PartIgnored})) {
 				t.Errorf("output = %+v, want %s", out, tc.stop)
+			}
+			// The rule shows the row reached the failure it is named after;
+			// the diagnostic's wording is the contract the guide documents.
+			if tc.rule != "" && !strings.Contains(r.Stderr.String(), tc.rule) {
+				t.Errorf("stderr %q does not name %q", r.Stderr, tc.rule)
 			}
 			hidden := append([]string{dirMark, nameMark, contentMark}, entryDigests(t, beginRecordName, filepath.Join(".git", "fixprguard-ignored-stop"))...)
 			for _, text := range []string{base.String(), r.Stdout.String(), r.Stderr.String()} {

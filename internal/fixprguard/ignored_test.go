@@ -933,12 +933,10 @@ func ignoringRepo(t *testing.T, lines ...string) *testRepo {
 	return r
 }
 
-// replaceLink points the link name at target, as one rename would.
+// replaceLink removes name and makes it a link to target.
 func replaceLink(t *testing.T, target, name string) {
 	t.Helper()
-	if err := os.Remove(name); err != nil {
-		t.Fatal(err)
-	}
+	removeFile(t, name)
 	symlink(t, target, name)
 }
 
@@ -1006,6 +1004,17 @@ func TestCheckStateIgnoredChanges(t *testing.T) {
 		}, after: func(_ *testing.T, r *testRepo) {
 			r.Write("build/nested/x.go", "package x\n")
 		}, stops: true},
+		// git does not list a FIFO, so the target is gone.
+		{name: "file_replaced_by_fifo", ignore: ignored, before: func(_ *testing.T, r *testRepo) {
+			r.Write("build/x.go", "package x\n")
+		}, after: func(t *testing.T, r *testRepo) {
+			removeFile(t, filepath.Join(r.Dir, "build/x.go"))
+			mkfifo(t, filepath.Join(r.Dir, "build/x.go"))
+		}, stops: true},
+		{name: "nested_repository_created", ignore: ignored, after: func(_ *testing.T, r *testRepo) {
+			r.gitIn(r.Dir, "init", "-q", "--template=", "build/nested")
+			r.Write("build/nested/x.go", "package x\n")
+		}, stops: true},
 		{name: "file_replaced_by_link", ignore: ignored, before: func(_ *testing.T, r *testRepo) {
 			r.Write("build/x.go", "package x\n")
 			r.Write("build/same.txt", "package x\n")
@@ -1042,8 +1051,12 @@ func TestCheckStateIgnoredChanges(t *testing.T) {
 			r.ignore("hidden/")
 			r.Write("hidden/x.go", "package x\n")
 		}, stops: true},
-		// The .gitignore ignores itself, so it hides from git status too.
 		{name: "new_lower_gitignore", after: func(_ *testing.T, r *testRepo) {
+			r.Write("docs/hidden/.gitignore", "x.go\n")
+			r.Write("docs/hidden/x.go", "package x\n")
+		}, stops: true},
+		// The .gitignore ignores itself, so it hides from git status too.
+		{name: "new_lower_gitignore_ignoring_itself", after: func(_ *testing.T, r *testRepo) {
 			r.Write("docs/hidden/.gitignore", ".gitignore\nx.go\n")
 			r.Write("docs/hidden/x.go", "package x\n")
 		}, stops: true},
@@ -1128,9 +1141,6 @@ func TestBaselineIgnoredFailures(t *testing.T) {
 			}
 			if base, err := w.Begin(t.Context()); !errors.Is(err, tc.want) || base.usable() {
 				t.Errorf("Begin = %q, %v; want no baseline and %v", base.String(), err, tc.want)
-			}
-			if _, err := os.Lstat(filepath.Join(r.Dir, ".git", ignoredBeginRecord)); !errors.Is(err, fs.ErrNotExist) {
-				t.Errorf("begin record: %v, want none written", err)
 			}
 		})
 	}
@@ -1229,6 +1239,16 @@ func TestIgnoredRecordFiles(t *testing.T) {
 			t.Errorf("stop record paths = %q", got)
 		}
 	})
+	// A stop record of an earlier round would pair with the new begin
+	// record in the guide's diff and name the wrong paths.
+	t.Run("begin_removes_earlier_stop_record", func(t *testing.T) {
+		r := ignoringRepo(t, "build/")
+		writeFile(t, gitDir(r, ignoredStopRecord), "earlier round\n")
+		mustBaseline(t)
+		if _, err := os.Lstat(gitDir(r, ignoredStopRecord)); !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("stop record after begin: %v, want removed", err)
+		}
+	})
 	t.Run("rename_fails", func(t *testing.T) {
 		r := ignoringRepo(t, "build/")
 		w, _ := newTestWorktree(t)
@@ -1236,14 +1256,16 @@ func TestIgnoredRecordFiles(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Baseline: %v", err)
 		}
-		// A non-empty directory at each record's name fails the rename.
-		for _, name := range []string{ignoredBeginRecord, ignoredStopRecord} {
+		// A non-empty directory at a record's name fails the rename.
+		blockName := func(name string) {
 			mkdir(t, gitDir(r, name))
 			writeFile(t, filepath.Join(gitDir(r, name), "keep"), "x")
 		}
+		blockName(ignoredBeginRecord)
 		if err := w.WriteBeginRecord(t.Context(), base); !errors.Is(err, errWriteBeginRecord) {
 			t.Errorf("WriteBeginRecord = %v, want %v", err, errWriteBeginRecord)
 		}
+		blockName(ignoredStopRecord)
 		r.Write("build/x.go", "package x\n")
 		wantStateParts(t, w.CheckState(t.Context(), base), PartIgnored)
 		if temps := recordTemps(t, filepath.Join(r.Dir, ".git")); len(temps) != 0 {

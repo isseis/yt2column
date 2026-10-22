@@ -602,9 +602,13 @@ func recordDigest(record []byte) string {
 // WriteBeginRecord writes the begin record file once the target files still
 // match base: it takes the state again, and when the record's digest is not
 // base's (a target file changed after Baseline read it) it writes nothing and
-// returns a GitStateError naming ignored. begin calls it after Baseline and
-// prints the baseline only after it returns, so no baseline reaches the
-// session without its record.
+// returns a GitStateError naming ignored. It first removes a stop record left
+// by an earlier round, so a stop record present later was written against
+// this begin record; one this round fails to write is then missing, not
+// stale. begin calls it after Baseline and prints the baseline only after it
+// returns, so no baseline reaches the session without its record. It locates
+// the git directories again: nothing runs between the two calls that could
+// move them, and CheckState holds their location to the baseline later.
 func (w *Worktree) WriteBeginRecord(ctx context.Context, base Baseline) error {
 	if !base.usable() {
 		return fmt.Errorf("%w: baseline", ErrInvalidInput)
@@ -619,6 +623,9 @@ func (w *Worktree) WriteBeginRecord(ctx context.Context, base Baseline) error {
 	}
 	if recordDigest(state.record) != base.ignoredRecord {
 		return &GitStateError{Parts: []string{PartIgnored}}
+	}
+	if err := os.Remove(filepath.Join(dirs.gitDir, ignoredStopRecord)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return errWriteBeginRecord
 	}
 	if err := writeRecordFile(dirs.gitDir, ignoredBeginRecord, state.record); err != nil {
 		return errWriteBeginRecord
