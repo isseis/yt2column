@@ -179,14 +179,28 @@ func TestCheckDocumentedReviewer(t *testing.T) {
 // there is none or more than one.
 func singleLine(t *testing.T, rel, doc, prefix string) string {
 	t.Helper()
+	return uniqueLine(t, rel, doc, "starting with", prefix, strings.HasPrefix)
+}
+
+// lineContaining returns the one line of doc that contains substr, failing
+// when there is none or more than one.
+func lineContaining(t *testing.T, rel, doc, substr string) string {
+	t.Helper()
+	return uniqueLine(t, rel, doc, "containing", substr, strings.Contains)
+}
+
+// uniqueLine returns the one line of doc for which match(line, s) holds,
+// failing when there is none or more than one; how says how s matches.
+func uniqueLine(t *testing.T, rel, doc, how, s string, match func(line, s string) bool) string {
+	t.Helper()
 	var found []string
 	for line := range strings.Lines(doc) {
-		if strings.HasPrefix(line, prefix) {
+		if match(line, s) {
 			found = append(found, line)
 		}
 	}
 	if len(found) != 1 {
-		t.Errorf("%s has %d lines starting with %q, want 1", rel, len(found), prefix)
+		t.Errorf("%s has %d lines %s %q, want 1", rel, len(found), how, s)
 		return ""
 	}
 	return found[0]
@@ -507,8 +521,8 @@ const task0030Dir = "docs/tasks/0030_fixpr_untrusted_threads/"
 // TestTask0030DocsDescribeConfigScope: in task 0030's requirements and
 // architecture, every passage on the config comparison scope makes the three
 // points of configScope and no longer holds the wording it replaced: in the
-// requirements, the chapter 1 decision on fix-phase anomalies, AC-26, layer
-// (3) of 4.2, and the residual risks of 4.2; in the architecture, the push
+// requirements, the chapter 1 decision on fix-phase anomalies, the acceptance
+// criterion on git state differences, layer (3) of 4.2, and the residual risks of 4.2; in the architecture, the push
 // decision of 1.2, the finish checks and push invariants of 3.6, the config
 // row and the tool's git of 3.7, the 5.2 row, two items of 5.3, and the git
 // state tests of 7.1. Both documents stay approved and record the change as a
@@ -528,7 +542,7 @@ func TestTask0030DocsDescribeConfigScope(t *testing.T) {
 			passages: func(t *testing.T, rel, doc string) []passage {
 				return []passage{
 					{name: "the fix-phase anomaly decision", text: singleLine(t, rel, doc, "-   **修正のフェーズの異常では止める:**")},
-					{name: "AC-26", text: singleLine(t, rel, doc, "- **AC-26**:"), stale: []string{"git の設定ファイル（リポジトリの config と、worktree の config）"}},
+					{name: "the git state criterion", text: lineContaining(t, rel, doc, "修正のフェーズの前と後で、次のいずれかが違う場合"), stale: []string{"git の設定ファイル（リポジトリの config と、worktree の config）"}},
 					// The bullet ends where the next top-level bullet starts; its
 					// nested lines are indented.
 					{name: "layer (3)", text: cutSection(doc, "-   守りは 3 つの層からなる。", "\n-   "), stale: []string{"git の hooks と設定ファイルの違い"}},
