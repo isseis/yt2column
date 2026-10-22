@@ -295,6 +295,8 @@ func TestGuideDescribesReviewerList(t *testing.T) {
 	}
 }
 
+// protocolFlag and protocolOutput match the spellings the documents use:
+// --protocol N or --protocol=N, and "protocol":N with optional space.
 var (
 	protocolFlag   = regexp.MustCompile("--protocol[ =]([0-9]+)")
 	protocolOutput = regexp.MustCompile(`"protocol":\s*([0-9]+)`)
@@ -304,9 +306,9 @@ var (
 // is the binary's Protocol: each --protocol N in both guides and in every
 // command document under .claude/commands (prose included, not only code
 // blocks), each "protocol":N of the guides' output examples, and the current
-// number chapter 4 of each guide states. The guides and fixpr.md and runpr.md
-// must write at least one --protocol, so a document that stops writing it is
-// not read as agreeing.
+// number chapter 4 of each guide states. The guides must write each at least
+// once, so a guide that stops writing them is not read as agreeing; that
+// fixpr.md and runpr.md write them is TestDocumentedInvocationsParse's check.
 func TestDocumentedProtocolMatches(t *testing.T) {
 	want := strconv.Itoa(fixprguard.Protocol)
 	check := func(rel, doc string, re *regexp.Regexp, required bool) {
@@ -334,8 +336,7 @@ func TestDocumentedProtocolMatches(t *testing.T) {
 		t.Fatalf("walk command documents: %v", err)
 	}
 	for _, rel := range commandDocs {
-		required := rel == ".claude/commands/fixpr.md" || rel == ".claude/commands/runpr.md"
-		check(rel, readRepoFile(t, rel), protocolFlag, required)
+		check(rel, readRepoFile(t, rel), protocolFlag, false)
 	}
 	for _, tc := range []struct {
 		rel     string
@@ -366,10 +367,12 @@ func (c configScope) phrases() []string {
 
 // passage is one place of a document that states the config scope: its text,
 // phrases it must hold besides the scope's three, and phrases of the wording
-// it replaced, which must be gone.
+// it replaced, which must be gone. risk, when set, replaces the scope's
+// residual-risk phrase for a passage that words it differently.
 type passage struct {
 	name  string
 	text  string
+	risk  string
 	more  []string
 	stale []string
 }
@@ -383,7 +386,11 @@ func checkPassages(t *testing.T, rel string, scope configScope, passages []passa
 			t.Errorf("%s: %s not found", rel, p.name)
 			continue
 		}
-		for _, want := range append(scope.phrases(), p.more...) {
+		phrases := scope.phrases()
+		if p.risk != "" {
+			phrases[2] = p.risk
+		}
+		for _, want := range append(phrases, p.more...) {
 			if !strings.Contains(p.text, want) {
 				t.Errorf("%s: %s does not say %q", rel, p.name, want)
 			}
@@ -410,30 +417,33 @@ func TestGuideDescribesConfigScope(t *testing.T) {
 		scope                       configScope
 		row71, row71Old, inspectOld string
 		row71More                   []string
+		risk72                      string
 	}{
 		{
 			rel: guideFiles[0],
 			scope: configScope{
 				otherBranches:   "今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*`",
 				unchangedValues: "設定の値の一覧を変えない編集",
-				residualRisk:    "残余のリスク",
+				residualRisk:    "ほかのブランチの設定の書き換えは、残余のリスク",
 			},
 			row71:      "| 書き換えられた hooks・config で git を起動しない |",
 			row71More:  []string{"を除いた設定の値の一覧を基準値と比べる", "config を比べる前に起動する git は `git config --list` だけ"},
 			row71Old:   "git や `gh` を起動する前に基準値と比べる",
 			inspectOld: "まず hooks・config・info を基準値と比べ",
+			risk72:     "の設定の書き換え（残余のリスク）",
 		},
 		{
 			rel: guideFiles[1],
 			scope: configScope{
 				otherBranches:   "`branch.<name>.*` settings of other branches (every branch except the current branch and `main`)",
 				unchangedValues: "leave the list of configuration values unchanged",
-				residualRisk:    "residual risk",
+				residualRisk:    "A rewrite of another branch's settings is a residual risk",
 			},
 			row71:      "| git is not started with rewritten hooks or config |",
 			row71More:  []string{"compare the list of configuration values without", "The only git started before the config comparison is `git config --list`"},
 			row71Old:   "compare with the baseline before starting git or `gh`",
 			inspectOld: "It first compares the hooks, config, and info with the baseline",
+			risk72:     "and `main`). This is a residual risk",
 		},
 	} {
 		t.Run(filepath.Base(tc.rel), func(t *testing.T) {
@@ -443,9 +453,34 @@ func TestGuideDescribesConfigScope(t *testing.T) {
 				{name: "inspect", text: subsection(guide, "### `inspect"), stale: []string{tc.inspectOld}},
 				{name: "push", text: subsection(guide, "### `push")},
 				{name: "the 7.1 row", text: singleLine(t, tc.rel, guide, tc.row71), more: tc.row71More, stale: []string{tc.row71Old}},
-				{name: "7.2", text: subsection(guide, "### 7.2")},
+				{name: "7.2", text: subsection(guide, "### 7.2"), risk: tc.risk72},
 				{name: "the git-state-changed row", text: singleLine(t, tc.rel, guide, "| `git-state-changed` |")},
 			})
+		})
+	}
+}
+
+// TestCutSection: the extraction the guards read through stops where it
+// should. A section that ran on would let a later passage supply a phrase
+// the checked one lacks.
+func TestCutSection(t *testing.T) {
+	doc := "intro\n## A\na\n### B\nb\n### C\nc\n## D\nd\n### E\ne\n"
+	for _, tc := range []struct {
+		name string
+		got  string
+		want string
+	}{
+		{"section_runs_past_level_3", section(doc, "## A"), "\na\n### B\nb\n### C\nc"},
+		{"subsection_stops_at_level_3", subsection(doc, "### B"), "\nb"},
+		// A level-3 heading follows, but the level-2 one comes first.
+		{"subsection_stops_at_level_2", subsection(doc, "### C"), "\nc"},
+		{"section_runs_to_the_end", section(doc, "## D"), "\nd\n### E\ne\n"},
+		{"missing_heading", subsection(doc, "### F"), ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.got != tc.want {
+				t.Errorf("got %q, want %q", tc.got, tc.want)
+			}
 		})
 	}
 }
