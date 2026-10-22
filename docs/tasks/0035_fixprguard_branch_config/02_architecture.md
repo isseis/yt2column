@@ -8,7 +8,7 @@
 | Created | 2026-10-22 |
 | Review date | 2026-10-22 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-22 (editorial): 2.2 の表に `cmd/fixprguard/test_helpers.go` の行を加えた（実装計画の調査で見つけた漏れ）。決定は変えていない。 |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `b8038b4` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md) の項番を、I-NN は [implementation_handoff.md](implementation_handoff.md)（実装計画への申し送り）の項番を指す。申し送り H-01〜H-09 への対応は付録 A にまとめる。「ガイド」は `docs/dev/developer_guide/fixprguard_guide.md`（と日本語版の `fixprguard_guide.ja.md`）を指す。
 
@@ -209,6 +209,7 @@ flowchart LR
 | `internal/fixprguard/worktree_flow_test.go` | 変更 | 7.3 の既存のテストの改訂（config の変化の後に起動する git が `git config --list` だけであること） |
 | `internal/fixprguard/test_helpers_git.go` | 変更 | git の呼び出しの記録で `git config --list` を `git config --get` と区別する（今の記録はサブコマンドの名前だけである）。加えて、`git config --list` だけを失敗させる差し替え（AC-12 のタイムアウトのテスト。今の `gitRouter.Run`（`test_helpers_git.go:36-43`）はすべての git を実物に渡す）と、別の worktree の作成などの補助を加える |
 | `cmd/fixprguard/main_test.go` | 変更 | AC-15 の、前の版の基準値で終了コード `2` になるテスト。`:25` の解析だけに使う `"v1.x"` を `"v2.x"` にする（そのままでも通るが、誤解を招く） |
+| `cmd/fixprguard/test_helpers.go` | 変更 | `validBaseline`（`:358-369`）が作るトークンの版の `"v1"` を `"v2"` にする。このヘルパーは作ったトークンを `ParseBaseline` に通し、受け付けられなければテストの準備で失敗する |
 | `.claude/commands/fixpr.md`・`.claude/commands/runpr.md` | 変更 | `--protocol 1` をすべて `--protocol 2` にする（AC-19）。手順は変えない |
 | `docs/dev/developer_guide/fixprguard_guide.md`・`fixprguard_guide.ja.md` | 変更 | 3.5 の箇所（AC-18・AC-19・H-08） |
 | `docs/tasks/0030_fixpr_untrusted_threads/01_requirements.md`・`02_architecture.md` | 変更 | 3.5 の箇所（AC-17）。`Status` は `approved` のまま、`Comments` に `(decision)` を記録する |
