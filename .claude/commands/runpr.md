@@ -70,8 +70,8 @@ resolving a thread), `gh api` (the authors' permission lookups and posting a
 reply), and `git ls-remote` — the issue operations
 `_lib/task-pr-handoff.md` Part A step 4 makes to link the next branch (step
 5), `git ls-remote` to check whether the next branch exists on `origin` when
-step 5 stops before it is ready, and, for the deferred findings the user moves to an issue in step 4,
-`gh issue list`, `gh issue create`, `gh issue comment`, and the thread replies
+step 5 stops before it is ready, and, for the deferred findings the user
+moves to an issue in step 4, `gh issue list`, `gh issue create`, `gh issue comment`, and the thread replies
 and resolutions. After the task's final plan PR merges, it also approves
 `gh issue view`, `gh api` (listing sub-issues), and `gh issue close` for its
 `対応 issue` and that issue's link sub-issues (step 5, and step 1's `MERGED`
@@ -518,8 +518,9 @@ rather than once per decision.
    with its number, topic, what fixing it would change, and its URL), and NEXT.
    When NEXT is `/runplan`, also show the `実装モデル要件` of the next PR
    marker: the `### PR-N 作成ポイント` marker of the PR that NEXT will open,
-   which for a plan PR is the marker after this PR's own, and for a
-   task-document PR that approves the plan is the plan's first marker. When
+   which is the plan's first marker whose `PR を作成した` box is unchecked
+   (for a plan PR, a marker after this PR's own; for a task-document PR that
+   first approves the plan, its first marker). When
    there is no value, say so and, as far as known, why (the plan has no PR
    marker, which happens for a single-phase plan, or the marker has no
    `実装モデル要件` field). The value lets the user decide whether this
@@ -686,7 +687,8 @@ Once `mergepr.md` reports the merge:
     report as "Stopping before the next branch is ready" below says, whichever
     Merge option the answer chose, and do not run NEXT.
 
-  The final report is in Japanese. The `/clear` guidance in it gives:
+  Every final report of this step, the stop report below included, is in
+  Japanese. The `/clear` guidance gives:
   1. that the user should run `/clear` and then NEXT;
   2. NEXT with its arguments, ready to run as written (for example
      `/runplan 0015`);
@@ -709,30 +711,37 @@ no `/clear` guidance. Instead it gives:
    `git ls-remote --exit-code origin refs/heads/<branch>` (exit code `0`: it
    exists; `2`: it does not; any other: unknown, and say so) rather than by the
    local `origin/<branch>` ref, which is missing when `gh issue develop`
-   created the branch on `origin` and then failed; whether it exists locally;
-   and which branch is checked out now. When it exists nowhere, say that the
-   next branch was not created;
+   created the branch on `origin` and then failed; whether it exists locally
+   (`git show-ref --verify --quiet refs/heads/<branch>`); and which branch is
+   checked out now. When it exists nowhere, say that the next branch was not
+   created;
 3. for a plan PR, that PRE_MERGE has already recorded
    "次のブランチへ切り替えた" as `[x]` in the plan on `main` although the
    switch did not happen, and that this is expected and needs no fix;
 4. how to resume. First remove the cause; for pending `mergepr` cleanup, give
+   the action its error names, which for a cleanup that can be retried is
    `mergepr cleanup --state <state-file>` with the actual path of the state
-   file, since the working directory it leaves in the work tree would stop
-   NEXT at Part A step 1. Then, by the next branch's state, give one of these,
-   followed by running NEXT with its arguments:
+   file (in a linked worktree, the working directory it leaves in the work
+   tree would stop NEXT at Part A step 1). Then, by the next branch's state,
+   give one of these, followed by running NEXT with its arguments:
    - checked out: nothing more. Part A step 3 uses a convention-named branch
      with no commits of its own;
+   - exists locally but not checked out: `git switch <branch>`. Part A step
+     3 then uses it, as above;
    - only on `origin`: `git fetch origin <branch>`, then `git switch <branch>`,
      which creates a local branch tracking `origin/<branch>` once the fetch has
      made that ref. Part A step 3 then uses it, as above;
    - absent: when the merged branch is still checked out, leave it with
      `git switch --detach origin/main`. NEXT then creates the next branch with
      Part A step 4. Leaving matters because Part A step 3 stops on a
-     convention-named branch with commits beyond `origin/main`, and after a
-     squash merge the merged branch's commits are not ancestors of
-     `origin/main`.
+     convention-named branch that has commits beyond `origin/main` and a PR,
+     which the merged branch has after a squash merge;
+   - unknown (the check on `origin` failed): give the
+     `git ls-remote --exit-code origin refs/heads/<branch>` to run once the
+     cause is removed, and the states above to follow by its result.
 
 Do not offer running this command again as a way to resume: for a merged PR,
 step 1 finishes pending cleanup and stops without creating the next branch.
+
 When NEXT is none, a cleanup, `git fetch`, or detach that fails is reported
 with its reason, as for any other stop.
