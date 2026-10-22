@@ -90,7 +90,7 @@ this session). `coderabbit review` (Phase 4.5) has standing approval
 
 This loop has no natural end: a review returns findings whenever it is asked.
 Stop by policy, not by exhausting findings. A push does not trigger a PR
-review: Codex reviews a PR only when it is created; the fix is reviewed
+review: Codex reviews a PR automatically only when it is created; the fix is reviewed
 locally in Phase 4.5, and `runpr.md` requests a further PR
 review only when `_lib/pr-review-escalation.md` says so or the user asks.
 

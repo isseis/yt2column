@@ -384,9 +384,9 @@ var removedPRReviewPhrases = []string{
 // status context or its reviewed-range line.
 func TestNoCodeRabbitPRReview(t *testing.T) {
 	for _, path := range append(commandDocs(t), claudePath) {
-		doc := flat(readDoc(t, path))
+		doc := strings.ToLower(flat(readDoc(t, path)))
 		for _, phrase := range removedPRReviewPhrases {
-			if strings.Contains(doc, phrase) {
+			if strings.Contains(doc, strings.ToLower(phrase)) {
 				t.Errorf("%s still says %q", path, phrase)
 			}
 		}
@@ -417,9 +417,13 @@ func TestLocalCodeRabbitReviewKept(t *testing.T) {
 // matter.
 func description(t *testing.T, path string) string {
 	t.Helper()
-	for line := range strings.Lines(readDoc(t, path)) {
-		if rest, ok := strings.CutPrefix(line, "description: "); ok {
-			return strings.TrimSpace(rest)
+	doc := readDoc(t, path)
+	if rest, ok := strings.CutPrefix(doc, "---\n"); ok {
+		front, _, _ := strings.Cut(rest, "\n---\n")
+		for line := range strings.Lines(front) {
+			if value, ok := strings.CutPrefix(line, "description: "); ok {
+				return strings.TrimSpace(value)
+			}
 		}
 	}
 	t.Fatalf("%s has no description", path)
@@ -442,8 +446,8 @@ func TestDocsDescribeCodexReview(t *testing.T) {
 	requirePhrases(t, "CLAUDE.md", readDoc(t, claudePath),
 		"`/runpr [PR | branch | task]` - Drive a PR through Codex's PR review and CI",
 		"it waits for Codex's PR review and CI and resolves the threads with `/fixpr`",
-		"Codex is set up outside the repository, by the user: it reviews only when a PR is created, "+
-			"never on a push, and its thorough code review is off.",
+		"Codex is set up outside the repository, by the user: it reviews automatically only when a PR "+
+			"is created, never on a push, and its thorough code review is off.",
 	)
 }
 
@@ -458,7 +462,7 @@ func autoReviewDisabled(text string) bool {
 		name   string
 	}
 	var stack []key
-	reviews, enabled := 0, []string{}
+	autoReviews, enabled := 0, []string{}
 	for line := range strings.Lines(text) {
 		line = strings.TrimRight(line, "\n")
 		trimmed := strings.TrimSpace(line)
@@ -482,12 +486,12 @@ func autoReviewDisabled(text string) bool {
 		value, _, _ = strings.Cut(value, " #")
 		switch strings.Join(path, ".") {
 		case "reviews.auto_review":
-			reviews++
+			autoReviews++
 		case "reviews.auto_review.enabled":
 			enabled = append(enabled, strings.TrimSpace(value))
 		}
 	}
-	return reviews == 1 && len(enabled) == 1 && enabled[0] == "false"
+	return autoReviews == 1 && len(enabled) == 1 && enabled[0] == "false"
 }
 
 // TestCodeRabbitConfigStopsReview checks that .coderabbit.yaml turns
@@ -499,16 +503,19 @@ func TestCodeRabbitConfigStopsReview(t *testing.T) {
 		"CodeRabbit does not review PRs: Codex does the PR review",
 		"The local CLI review (`coderabbit review`) is still used",
 	)
+	// Each broken copy keeps a reviews.auto_review key, so only where
+	// enabled sits decides the result.
 	const enabled = "  auto_review:\n    enabled: false\n"
+	const premerge = "  pre_merge_checks:\n"
 	for _, tc := range []struct {
 		name, old, new string
 		want           bool
 	}{
 		{"real", enabled, enabled, true},
-		{"commented_out", enabled, "  auto_review:\n    # enabled: false\n", false},
+		{"commented_out", enabled, "  auto_review:\n    drafts: false\n    # enabled: false\n", false},
 		{"enabled_true", enabled, "  auto_review:\n    enabled: true\n", false},
-		{"directly_under_reviews", enabled, "  enabled: false\n", false},
-		{"under_pre_merge_checks", enabled, "", false},
+		{"directly_under_reviews", enabled, "  auto_review:\n    drafts: false\n  enabled: false\n", false},
+		{"under_pre_merge_checks", enabled + premerge, "  auto_review:\n    drafts: false\n" + premerge + "    auto_review:\n      enabled: false\n", false},
 		{"auto_review_twice", enabled, enabled + enabled, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -516,9 +523,6 @@ func TestCodeRabbitConfigStopsReview(t *testing.T) {
 				t.Fatalf(".coderabbit.yaml holds %q %d times, want once", tc.old, strings.Count(doc, tc.old))
 			}
 			broken := strings.Replace(doc, tc.old, tc.new, 1)
-			if tc.name == "under_pre_merge_checks" {
-				broken = strings.Replace(broken, "  pre_merge_checks:\n", "  pre_merge_checks:\n    auto_review:\n      enabled: false\n", 1)
-			}
 			if got := autoReviewDisabled(broken); got != tc.want {
 				t.Errorf("autoReviewDisabled = %v, want %v", got, tc.want)
 			}
@@ -538,9 +542,10 @@ func TestAgentsCodeReviewRules(t *testing.T) {
 	if strings.Contains(doc, "## Review guidelines") {
 		t.Error("AGENTS.md still has the old \"## Review guidelines\" heading")
 	}
-	if !strings.Contains(sectionByHeading(doc, heading), "CLAUDE.md") {
-		t.Errorf("AGENTS.md %q does not refer to CLAUDE.md", heading)
-	}
+	// The reference is the section's opening, before its rules.
+	requirePhrases(t, "AGENTS.md "+heading, sectionByHeading(doc, heading),
+		"Besides the rules below, follow the conventions, design principles, and testing rules in "+
+			"[CLAUDE.md](CLAUDE.md); they are not repeated here.")
 }
 
 var (
@@ -562,7 +567,7 @@ var observationResults = map[string]string{
 	"### 4.": "Codex のステータスコンテキストもチェックランも付かなかった",
 	"### 5.": "どれも上限に達しなかった",
 	"### 6.": "見出しは `## Code Review Rules` である",
-	"### 7.": "| 所要時間 |",
+	"### 7.": "| 約 1 分 10 秒 |",
 	"### 8.": "**結論:**",
 	"### 9.": "レビューのタイミングは「PR 作成時のみ」、徹底的なコードレビューは無効",
 }
@@ -605,13 +610,17 @@ func hasCommitSHA(block string) bool {
 func TestCodexObservationRecord(t *testing.T) {
 	doc := readDoc(t, observationsPath)
 	items := sectionByHeading(doc, "## AC-01 の各項目")
-	for prefix, result := range observationResults {
-		var item string
+	item := func(prefix string) string {
 		for line := range strings.Lines(items) {
 			if strings.HasPrefix(line, prefix+" ") {
-				item = sectionByHeading(items, strings.TrimSpace(line))
+				return sectionByHeading(items, strings.TrimSpace(line))
 			}
 		}
+		return ""
+	}
+	prObservations := 0
+	for prefix, result := range observationResults {
+		item := item(prefix)
 		if strings.TrimSpace(item) == "" {
 			t.Errorf("observations.md has no item %q", prefix)
 			continue
@@ -621,15 +630,23 @@ func TestCodexObservationRecord(t *testing.T) {
 		}
 		requirePhrases(t, "observations.md item "+prefix, item, result)
 		for _, block := range observationBlocks(item) {
-			if prNumber.MatchString(block) && !hasCommitSHA(block) && !strings.Contains(block, "決められない") {
+			if !prNumber.MatchString(block) {
+				continue
+			}
+			prObservations++
+			if !hasCommitSHA(block) && !strings.Contains(block, "決められない") {
 				t.Errorf("observations.md item %q observes a PR without its requested commit: %q", prefix, strings.TrimSpace(block))
 			}
 		}
 	}
-	requirePhrases(t, "observations.md item 3", items,
+	// A record whose PR numbers stopped matching would pass the loop above.
+	if prObservations == 0 {
+		t.Error("observations.md has no observation on a PR")
+	}
+	requirePhrases(t, "observations.md item 3", item("### 3."),
 		"`__typename`: `Bot`", "`login`: `chatgpt-codex-connector`",
 		"`type`: `Bot`", "`login`: `chatgpt-codex-connector[bot]`",
 	)
-	requirePhrases(t, "observations.md item 1", items, "**指摘があるとき", "**指摘が 0 件のとき")
+	requirePhrases(t, "observations.md item 1", item("### 1."), "**指摘があるとき", "**指摘が 0 件のとき")
 	requireSection(t, "observations.md", doc, "## AC-05 に当たる点")
 }

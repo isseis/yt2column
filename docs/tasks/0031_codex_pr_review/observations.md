@@ -43,7 +43,7 @@ REST の名前は、GraphQL の名前に `[bot]` を付けた形である（Code
 
 ### 4. ステータスコンテキストとチェックラン
 
--   **観測（2026-10-21）:** Codex のステータスコンテキストもチェックランも付かなかった。Codex がレビューした 4 つのコミット（`292db99`・`15458c3`・`c6406fd`・`f7e6ef5`）のそれぞれで、チェックランは GitHub Actions の 6 件（Test、Code Quality & Lint、Browser extension、Documentation guard、Check changed files、Secret scan）だけ、ステータスコンテキストは `CodeRabbit` だけだった（根拠: `gh api repos/isseis/yt2column/commits/<SHA>/check-runs` と `.../commits/<SHA>/status`）。
+-   **観測（2026-10-21、PR #407・#411）:** Codex のステータスコンテキストもチェックランも付かなかった。Codex がレビューした 4 つのコミット（PR #407 の `292db99`・`15458c3`、PR #411 の `c6406fd`・`f7e6ef5`）のそれぞれで、チェックランは GitHub Actions の 6 件（Test、Code Quality & Lint、Browser extension、Documentation guard、Check changed files、Secret scan）だけ、ステータスコンテキストは `CodeRabbit` だけだった（根拠: `gh api repos/isseis/yt2column/commits/<SHA>/check-runs` と `.../commits/<SHA>/status`）。
 
 ### 5. 割り当て
 
@@ -59,12 +59,12 @@ REST の名前は、GraphQL の名前に `[bot]` を付けた形である（Code
 
 ### 7. 依頼からレビューの完了までの時間
 
-観測は 2026-10-21 に行った。各行に、依頼の種類と依頼したコミットを書く（根拠: 各 PR の `gh api` の応答の時刻）。
+観測は 2026-10-21 に行った。各行に、PR と依頼の種類と依頼したコミットを書く。時刻の根拠は各 PR の `gh api` の応答である。ただし、依頼の時点が「`gh pr create` の完了」の行は、手元で `gh pr create` が終わった時刻である。
 
 | 依頼 | 依頼の時点 | 完了（PR レビューの `submitted_at`） | 所要時間 |
 |---|---|---|---|
-| PR を開いたとき（`292db99`） | 06:14:19Z（PR の `created_at`） | 06:17:33Z | 約 3 分 14 秒 |
-| `@codex review`（`15458c3`） | 07:17:00Z（コメントの `created_at`） | 07:19:50Z | 約 2 分 50 秒 |
+| PR #407 を開いたとき（`292db99`） | 06:14:19Z（PR の `created_at`） | 06:17:33Z | 約 3 分 14 秒 |
+| PR #407 の `@codex review`（`15458c3`） | 07:17:00Z（コメントの `created_at`） | 07:19:50Z | 約 2 分 50 秒 |
 | PR #411 を開いたとき（`c6406fd`） | 07:44:15Z（`gh pr create` の完了） | 07:46:43Z | 約 2 分 28 秒 |
 | PR #411 の `@codex review`（`f7e6ef5`） | 11:00:51Z | 11:03:45Z | 約 2 分 54 秒 |
 | PR #413 を開いたとき（`55d3ebb`、指摘 0 件） | 11:22:47Z（`gh pr create` の完了） | 11:23:57Z（要約コメントの `completed`） | 約 1 分 10 秒 |
@@ -87,7 +87,7 @@ REST の名前は、GraphQL の名前に `[bot]` を付けた形である（Code
     -   07:57:03Z（4 秒後）: `chatgpt-codex-connector[bot]`（`Bot`）が「To use Codex here, [create a Codex account and connect to github](https://chatgpt.com/codex/cloud/settings/connectors).」と返信した（コメント 6311013571）。
     -   その後 08:04:12Z まで 5 秒おきに取得したが、👀 のリアクション、要約コメントの更新、Codex の PR レビューは、どれもなかった。
     -   利用者（`isseis`）が ChatGPT の使用量の画面で確かめたところ、このコメントで割り当ては消費されていなかった。
-    -   依頼したコミットの SHA は決められない。GitHub には push の時刻を返す API がなく、コメントの時点の head を求められないためである。コミットの時刻からは `9387aeb`（07:54:48Z）とみられる（根拠: `gh api repos/isseis/yt2column/pulls/411/commits`。2026-10-22 に確認）。Codex は実行されなかったので、観測の結論には影響しない。
+    -   コメントの時点の head は `9387aeb` だった。07:54:51Z に push され、次の push は 08:04:28Z である（根拠: `gh api repos/isseis/yt2column/activity?ref=refs/heads/isseis/0031-codex-pr-review-02&activity_type=push`。2026-10-22 に確認）。Codex は実行されなかったので、観測の結論には影響しない。
 -   **結論:** Codex のアカウントを接続していない、書き込み権限のないアカウントの `@codex` では、Codex は実行されず、利用者の割り当ても消費されない。Codex は断りのコメントを返す。Codex のアカウントを接続している外部のアカウントの `@codex` は、確かめていない。
 -   **片付け:** 試行のコメント（6311012555）の削除は、利用者が行う。
 

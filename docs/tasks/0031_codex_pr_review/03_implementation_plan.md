@@ -321,7 +321,7 @@
 
 - [x] 1 行目のスキーマで `reviews.auto_review.enabled` のキーと意味を確かめる（ネットワークの操作なので、実行の前に利用者の承認を得る）。
 - [x] 設計書 3.9 のとおり、`reviews.auto_review` に `enabled: false` を加え、`auto_incremental_review: false` を消し、コメントを PR レビューを行わない理由の説明に改める。`pre_merge_checks.docstrings` とその説明は変えない。
-- [ ] 変更の後に `coderabbit review` を実行し、指摘か「指摘なし」の結果が返ってローカルの CLI レビューが動くことを確かめる（設計書 3.9・7.3）。動かなければ、実装を止めて利用者に報告する。
+- [x] 変更の後に `coderabbit review` を実行し、指摘か「指摘なし」の結果が返ってローカルの CLI レビューが動くことを確かめる（設計書 3.9・7.3）。動かなければ、実装を止めて利用者に報告する。
 
 **完了の条件**: ローカルの CLI レビューが動く。ステップ 4-5 の `.coderabbit.yaml` の確認が通る。
 

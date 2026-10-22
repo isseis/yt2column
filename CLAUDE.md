@@ -104,8 +104,9 @@ the next PR and stops again.
 
 Codex does the PR review. Its allowance is shared with the user's other
 ChatGPT use and its size is not published, so a PR gets one PR review, when it
-opens. Codex is set up outside the repository, by the user: it reviews only
-when a PR is created, never on a push, and its thorough code review is off.
+opens. Codex is set up outside the repository, by the user: it reviews
+automatically only when a PR is created, never on a push, and its thorough
+code review is off.
 `.coderabbit.yaml` turns CodeRabbit's automatic review off, so the PR is not
 reviewed twice. Later changes are reviewed with the local CodeRabbit CLI, and `/runpr` requests another PR review only when
 the changes are of a kind the local review cannot stand in for
