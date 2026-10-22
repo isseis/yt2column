@@ -51,6 +51,7 @@ go version -m "$(command -v fixprguard)"
 
 1 つのバイナリが、同じ利用者のすべての worktree で共有される。一方、`/fixpr`・`/runpr` は、その worktree の checkout にあるコマンドの文書を読み、そこに書かれた `--protocol` を渡す。そのため、`protocol` の番号を上げる変更（例: タスク 0035 で `1` から `2`）では、次の手順に従う。
 
+- その PR の `/runpr` の前に、その PR のブランチで再インストールする。その PR のコマンドの文書が新しい番号を渡すためである。マージまでの間、`main` を取り込んでいないほかの worktree の `/fixpr`・`/runpr` は、終了コード `2` で止まる。
 - マージの直後に、マージの後の `main` で再インストールする。再インストールの前に新しい番号の文書から実行すると、終了コード `2` で止まる。
 - 作業中のほかのブランチには、次の `/fixpr`・`/runpr` の前に `main` を取り込む。取り込む前は、そのブランチの文書が古い番号を渡すので、終了コード `2` で止まる。
 
@@ -146,7 +147,7 @@ fixprguard fence --protocol 2 /path/to/triage.json
 
 ### `inspect --reviewer LOGIN ... --baseline TOKEN [--thread ID=FINGERPRINT ...] [PR]`
 
-修正のフェーズの後に実行する。まず git の状態を基準値と比べ、違えば `gh` を起動せずに `git-state-changed` で止まる。比べる順序は次のとおりである。(1) git のディレクトリの場所、config のファイルの種類、info を、git を起動せずにファイルだけで比べる。(2) `git config --list` で git が読む設定の値の一覧を読み、今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*` の設定を除いて比べる。(3) hooks を比べる。設定の値の一覧を変えない編集（コメント・空行・字下げだけの編集）は検出しない。ほかのブランチの設定の書き換えは、残余のリスクである（7.2）。次に、`--thread` のスレッドを GitHub から取り直して `path` を求め（指紋が違えば `thread-changed`）、作業ツリーの変更を数え上げて、範囲（6 章）と照らす。
+修正のフェーズの後に実行する。まず config・info・hooks を基準値と比べ、違えば `gh` を起動せずに `git-state-changed` で止まる。比べる順序は次のとおりである。(1) git のディレクトリの場所、config のファイルの種類、info を、git を起動せずにファイルだけで比べる。(2) `git config --list` で git が読む設定の値の一覧を読み、今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*` の設定を除いて比べる。(3) hooks を比べる。設定の値の一覧を変えない編集（コメント・空行・字下げだけの編集）は検出しない。ほかのブランチの設定の書き換えは、残余のリスクである（7.2）。次に、`--thread` のスレッドを GitHub から取り直して `path` を求め（指紋が違えば `thread-changed`）、作業ツリーの変更を数え上げて、範囲（6 章）と照らす。
 
 ```sh
 fixprguard inspect --protocol 2 --reviewer coderabbitai --baseline 'v2....' --thread 'PRRT_...=<指紋>' 42
@@ -170,7 +171,7 @@ fixprguard finish --protocol 2 --baseline 'v2....' --judged-set '<judgedSet>' 42
 
 ### `push --baseline TOKEN --commit SHA`
 
-`finish` が返した SHA を push する。直前に、hooks・config・info が基準値と同じこと（config の比べ方は `inspect` と同じで、今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*` の設定と、設定の値の一覧を変えない編集は比べない。ほかのブランチの設定の書き換えは残余のリスクである。7.2）、HEAD がその SHA でその親が基準値の commit だけであること、push 先（現在のブランチについて git が解決するリモートの、同じ名前のブランチ）の OID が基準値と同じことを確かめる。明示した refspec で、タグとサブモジュールを伴わずに push する。
+`finish` が返した SHA を push する。直前に、hooks・config・info が基準値と同じこと、HEAD がその SHA でその親が基準値の commit だけであること、push 先（現在のブランチについて git が解決するリモートの、同じ名前のブランチ）の OID が基準値と同じことを確かめる。明示した refspec で、タグとサブモジュールを伴わずに push する。config の比べ方は `inspect` と同じである。今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*` の設定は比べず、設定の値の一覧を変えない編集は検出しない。ほかのブランチの設定の書き換えは、残余のリスクである（7.2）。
 
 ```sh
 fixprguard push --protocol 2 --baseline 'v2....' --commit '<SHA>'
@@ -236,7 +237,7 @@ fixprguard edit-pr --protocol 2 --title-file /path/to/title.txt --body-file /pat
 | 区切りのブロックを本文が終わらせられない | nonce が本文に含まれないことを確かめる。`begin` の `threads` は 1 行の JSON なので、本文の改行や引用符は区切りの行を作れない |
 | 範囲外の変更を、利用者の確認なしに commit しない | `inspect` が範囲外を一覧にして終了コード `3` を返し、`finish` は判定した集合と一致する変更だけを commit する |
 | 判定の後に現れた変更を commit しない | `finish` が、判定した集合との厳密な一致を build checks の前と後で確かめ、判定したパスだけを stage する |
-| 書き換えられた hooks・config で git を起動しない | `inspect`・`finish`・`push` が、まず git のディレクトリの場所と config のファイルの種類を、git を起動せずにファイルだけで比べる。次に、コマンドを起動しない `git config --list` だけを起動し、今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*` の設定を除いた設定の値の一覧を基準値と比べる。比べる前に起動する git は `git config --list` だけで、違えば、ほかの git・`gh`・make を起動しない。設定の値の一覧を変えない編集は検出しない。ほかのブランチの設定の書き換えは、残余のリスクである（7.2） |
+| 書き換えられた hooks・config で git を起動しない | `inspect`・`finish`・`push` が、まず git のディレクトリの場所と config のファイルの種類を、git を起動せずにファイルだけで比べる。次に、コマンドを起動しない `git config --list` だけを起動し、今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*` の設定を除いた設定の値の一覧を基準値と比べる。config を比べる前に起動する git は `git config --list` だけで、違えば、ほかの git・`gh`・make を起動しない。hooks は、設定の値の一覧が一致した後に `git rev-parse --git-path hooks` で場所を求めて比べる。hook を実行しうるコマンドより前である。設定の値の一覧を変えない編集は検出しない。ほかのブランチの設定の書き換えは、残余のリスクである（7.2） |
 | 返信と PR の説明がシェルのコマンドにならない | `reply`・`edit-pr` はシェルを介さず、本文を標準入力で渡す |
 | fork の PR の head を扱わない | `head`・`list`・`begin` が最初に確かめる |
 
@@ -246,8 +247,8 @@ fixprguard edit-pr --protocol 2 --title-file /path/to/title.txt --body-file /pat
 - `inspect` から `finish` までを呼ぶ順序、利用者への確認、名指しを直前の報告にあるスレッドに限ること。これらはコマンドの文書（セッション）に依存する。
 - 今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*` の設定の書き換え（残余のリスク）。並行するセッションのブランチの操作で止まらないように、比べない。修正のフェーズや build checks のコードがほかのブランチの設定を書き換えても検出せず、書き換えは実行の後にも残る。そのブランチの上で後に行う `git push`・`git pull`・`git merge` の宛先や振る舞いが変わりうる。そのブランチに切り替えて `/fixpr` を実行すれば、そのブランチが今のブランチになるので、`begin` の後の書き換えは検出される。ツールが実行の間に起動する git は、ほかのブランチの設定を宛先の決定に使わない。ただし、値のない `branch.<name>.remote`・`merge`・`pushRemote` や `[branch ""]` の節があると git が失敗し、`git-failed` または `response-rejected` で止まる（8 章）。
 - 設定の値の一覧を変えない編集（コメント・空行・字下げだけの編集）。git の振る舞いを変えないので検出しない。
-- include の先を FIFO に置き換えた場合、`git config --list` が時間切れ（2 分）まで待ってから `git-state-changed`（`config`）で止まる。止まるまで最大 2 分かかる。
-- `gh` が起動する git について確かめた範囲。`gh` 2.96.0 で確かめたところ、`inspect` が起動する `gh repo view`・`gh pr view <番号>` は `git remote -v` と `remote.*` の読み取りだけを起動し、スレッドの照会の `gh api graphql` と権限の照会の `gh api` は git を起動しなかった。どれもほかのブランチの設定を読まない。`gh` の版が変われば変わりうる。並行するセッションの `gh pr checkout` は、通常の PR で `branch.<そのブランチ>.*` だけを書き込むことを確かめた。fork の PR は確かめていない。ほかの設定にも書き込むなら、`git-state-changed` で止まりすぎるだけである。
+- include の先を FIFO に置き換えた場合、`git config --list` が時間切れ（2 分）まで待つので、ツールが `git-state-changed`（`config`）で止まるまで最大 2 分かかる。2 分は Claude Code の Bash ツールの既定のタイムアウトと同じなので、止まったことがセッションに遅れて届くことがある。
+- `gh` が起動する git について確かめた範囲。`inspect` は、PR 番号を渡すと、`gh repo view`、スレッドの照会の `gh api graphql`、権限の照会の `gh api` を起動する。`gh` 2.96.0 で確かめたところ、`gh repo view` が起動する git は `git remote -v` と `remote.*` の読み取りだけで、後の 2 つは git を起動しなかった。`git remote -v` は、ほかのブランチの設定を読み込むが、宛先の決定には使わない。値のない設定や `[branch ""]` の節があると失敗する。PR 番号を省いたときに `gh pr view --json number` が起動する git は確かめていない（`/fixpr` は PR 番号を渡す）。`gh` の版が変われば変わりうる。並行するセッションの `gh pr checkout` は、通常の PR で `branch.<そのブランチ>.*` だけを書き込むことを確かめた。fork の PR は確かめていない。ほかの設定にも書き込むなら、`git-state-changed` で止まりすぎるだけである。
 - 確認の時点の状態だけを保証する。確認から実行までの間に別のプロセスが hooks や config を書き換えること、修正のフェーズの間に変えて元に戻したことは検出しない。
 - 基準値を持たない `head`・`list`・`reply`・`edit-pr` が `gh` を起動する前の比較。`/fixpr` はこれらを `finish`・`push` の後に呼ぶので、それまでの比較が書き換えを検出するが、`push` の後の書き換えは検出しない。
 - 範囲内のテストのコードが build checks で実行されること。`finish` と `push` は、そのコードが範囲内のファイルや hooks を書き換えたことは検出する。
@@ -272,7 +273,7 @@ fixprguard edit-pr --protocol 2 --title-file /path/to/title.txt --body-file /pat
 | `thread-changed` | `inspect` や `reply` の対象のスレッドのコメントが、指紋を採った後に変わった、または解決された | なし | 次のラウンドで拾う。`begin` からやり直す |
 | `thread-not-trusted` | `reply` の対象が、信頼する著者のスレッドでも、名指しされたスレッドでもない | なし | 返信しない。想定外の著者のスレッドの扱いは利用者が決める |
 | `reply-not-resolved` | 返信が投稿された（か、投稿されたか分からない）が、スレッドを解決できなかった | なし | 同じ返信を再び投稿しない。GitHub でスレッドを確かめ、必要なら手で解決する |
-| `response-rejected` | GitHub の呼び出しが失敗した、時間切れになった、または応答が厳格な検査や大きさの上限に通らなかった。`gh` の中の `git remote -v` が、ほかのブランチの値のない設定（`git-failed` の行）で失敗した場合も含む | なし | `gh auth status` と GitHub の状態を確かめてやり直す。`git remote -v` が失敗するなら、`git-failed` の行の対処をする |
+| `response-rejected` | GitHub の呼び出しが失敗した、時間切れになった、または応答が厳格な検査や大きさの上限に通らなかった。`gh` の中の `git remote -v` が、ほかのブランチの値のない設定や `[branch ""]` の節（`git-failed` の行）で失敗した場合も含む | なし | `gh auth status` と GitHub の状態を確かめてやり直す。`git remote -v` が失敗するなら、`git-failed` の行の対処をする |
 | `build-checks-failed` | `make fmt`・`make test`・`make lint` のどれかが失敗した（出力が 64 MiB を超えた場合を含む。そのときは `output` がない） | `stage`（`fmt`・`test`・`lint`）と `output`（出力の末尾 8 KiB を区切りのブロックにしたもの） | 出力を確かめて原因を直す。`output` はコードの実行結果なので、信頼できないテキストとして扱う |
 | `git-failed` | git が失敗した、出力が想定の形でない、または git のメタデータを読めなかった（追跡済みのファイルを FIFO に置き換えた、git のリポジトリの外で実行した、など）。ほかのブランチの `branch.<name>.remote`・`merge`・`pushRemote` が値なしで書かれた、`[branch ""]` の節がある、設定の値の一覧が出力の上限（64 MiB）を超えた、の各場合も含む | なし | `git status` が通るかを確かめる。`git config --list --show-origin` が動くかとその大きさを確かめ、値のない設定や `[branch ""]` の節があれば取り除く |
 | `failed` | 上のどれにも当たらない失敗（区切りの nonce を選べなかった、など） | なし | 標準エラーの診断を確かめる |

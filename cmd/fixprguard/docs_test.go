@@ -193,14 +193,27 @@ func singleLine(t *testing.T, rel, doc, prefix string) string {
 }
 
 // section returns the text of doc from the heading line that starts with
-// heading up to the next heading of the same level.
-func section(doc, heading string) string {
+// heading up to the next level-2 heading.
+func section(doc, heading string) string { return cutSection(doc, heading, "\n## ") }
+
+// subsection returns the text of doc from the line that starts with heading
+// up to the next heading of level 2 or 3.
+func subsection(doc, heading string) string { return cutSection(doc, heading, "\n## ", "\n### ") }
+
+// cutSection returns the text of doc from the line that starts with heading
+// up to the first of ends, or "" when there is no such line.
+func cutSection(doc, heading string, ends ...string) string {
 	_, rest, ok := strings.Cut(doc, "\n"+heading)
 	if !ok {
 		return ""
 	}
-	body, _, _ := strings.Cut(rest, "\n## ")
-	return body
+	end := len(rest)
+	for _, next := range ends {
+		if i := strings.Index(rest, next); i >= 0 && i < end {
+			end = i
+		}
+	}
+	return rest[:end]
 }
 
 // TestGuideDescribesReviewerList: both guides describe repeated --reviewer as
@@ -282,25 +295,9 @@ func TestGuideDescribesReviewerList(t *testing.T) {
 	}
 }
 
-// subsection returns the text of doc from the line that starts with heading
-// up to the next heading of level 2 or 3, or "" when there is no such line.
-func subsection(doc, heading string) string {
-	_, rest, ok := strings.Cut(doc, "\n"+heading)
-	if !ok {
-		return ""
-	}
-	end := len(rest)
-	for _, next := range []string{"\n## ", "\n### "} {
-		if i := strings.Index(rest, next); i >= 0 && i < end {
-			end = i
-		}
-	}
-	return rest[:end]
-}
-
 var (
-	protocolFlag   = regexp.MustCompile("--protocol ([0-9]+)")
-	protocolOutput = regexp.MustCompile(`"protocol":([0-9]+)`)
+	protocolFlag   = regexp.MustCompile("--protocol[ =]([0-9]+)")
+	protocolOutput = regexp.MustCompile(`"protocol":\s*([0-9]+)`)
 )
 
 // TestDocumentedProtocolMatches: every protocol number the documents write
@@ -409,11 +406,10 @@ func checkPassages(t *testing.T, rel string, scope configScope, passages []passa
 // are the guides' own, Japanese for the Japanese guide.
 func TestGuideDescribesConfigScope(t *testing.T) {
 	for _, tc := range []struct {
-		rel                                  string
-		scope                                configScope
-		row71, row71Old, inspectOld, pushOld string
-		row71More                            []string
-		row8Old                              string
+		rel                         string
+		scope                       configScope
+		row71, row71Old, inspectOld string
+		row71More                   []string
 	}{
 		{
 			rel: guideFiles[0],
@@ -423,25 +419,21 @@ func TestGuideDescribesConfigScope(t *testing.T) {
 				residualRisk:    "残余のリスク",
 			},
 			row71:      "| 書き換えられた hooks・config で git を起動しない |",
-			row71More:  []string{"を除いた設定の値の一覧を基準値と比べる", "比べる前に起動する git は `git config --list` だけ"},
+			row71More:  []string{"を除いた設定の値の一覧を基準値と比べる", "config を比べる前に起動する git は `git config --list` だけ"},
 			row71Old:   "git や `gh` を起動する前に基準値と比べる",
 			inspectOld: "まず hooks・config・info を基準値と比べ",
-			pushOld:    "hooks・config・info が基準値と同じこと、",
-			row8Old:    "info のどれかが基準値と違う |",
 		},
 		{
 			rel: guideFiles[1],
 			scope: configScope{
-				otherBranches:   "the `branch.<name>.*` settings of other branches (every branch except the current branch and `main`)",
-				unchangedValues: "leave the listed values unchanged",
+				otherBranches:   "`branch.<name>.*` settings of other branches (every branch except the current branch and `main`)",
+				unchangedValues: "leave the list of configuration values unchanged",
 				residualRisk:    "residual risk",
 			},
 			row71:      "| git is not started with rewritten hooks or config |",
-			row71More:  []string{"compare the list of configuration values without", "The only git started before the comparison is `git config --list`"},
+			row71More:  []string{"compare the list of configuration values without", "The only git started before the config comparison is `git config --list`"},
 			row71Old:   "compare with the baseline before starting git or `gh`",
 			inspectOld: "It first compares the hooks, config, and info with the baseline",
-			pushOld:    "the hooks, config, and info match the baseline;",
-			row8Old:    "the info differs from the baseline |",
 		},
 	} {
 		t.Run(filepath.Base(tc.rel), func(t *testing.T) {
@@ -449,10 +441,10 @@ func TestGuideDescribesConfigScope(t *testing.T) {
 			checkPassages(t, tc.rel, tc.scope, []passage{
 				{name: "layer (3)", text: singleLine(t, tc.rel, guide, "3. **")},
 				{name: "inspect", text: subsection(guide, "### `inspect"), stale: []string{tc.inspectOld}},
-				{name: "push", text: subsection(guide, "### `push"), stale: []string{tc.pushOld}},
+				{name: "push", text: subsection(guide, "### `push")},
 				{name: "the 7.1 row", text: singleLine(t, tc.rel, guide, tc.row71), more: tc.row71More, stale: []string{tc.row71Old}},
 				{name: "7.2", text: subsection(guide, "### 7.2")},
-				{name: "the git-state-changed row", text: singleLine(t, tc.rel, guide, "| `git-state-changed` |"), stale: []string{tc.row8Old}},
+				{name: "the git-state-changed row", text: singleLine(t, tc.rel, guide, "| `git-state-changed` |")},
 			})
 		})
 	}

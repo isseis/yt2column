@@ -465,8 +465,9 @@ func TestOtherBranchConfigIgnored(t *testing.T) {
 		{name: "section_removed", setup: func(t *testing.T, r *testRepo) { appendFile(t, repoConfig(r), section) }, edit: func(_ *testing.T, r *testRepo) {
 			r.Git("config", "--remove-section", "branch.x")
 		}},
-		// git lists [branch ""] but every other git command stops on it with
-		// "bad config variable", so only CheckState is compared here.
+		// git lists [branch ""], but the commands that read the remote
+		// settings (ls-remote, remote -v, push) stop on it with "bad config
+		// variable", so only CheckState is compared here.
 		{name: "empty_subsection_section_added", edit: func(t *testing.T, r *testRepo) {
 			appendFile(t, repoConfig(r), "[branch \"\"]\n\tremote = "+testRemote+"\n")
 		}, checkOnly: true},
