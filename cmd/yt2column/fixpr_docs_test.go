@@ -719,6 +719,11 @@ func TestGlossaryTerms(t *testing.T) {
 		{"自動レビュアー", "automated reviewer"},
 		{"自動レビュアーの一覧", "automated reviewer list"},
 		{"完了を待つ PR レビュアー", "awaited PR reviewer"},
+		{"実行関連ファイル", "execution-related file"},
+		{"拒否リスト", "deny list"},
+		{"許可リスト", "allow list"},
+		{"指示ファイル", "instruction file"},
+		{"Go のビルドの入力", "Go build input"},
 	} {
 		row := tableRow(table, term.ja)
 		if len(row) < 2 || row[1] != term.en {

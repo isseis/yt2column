@@ -8,7 +8,7 @@
 | Created | 2026-10-22 |
 | Review date | 2026-10-22 |
 | Reviewer | isseis |
-| Comments | 2026-10-22 (editorial): 7.5 の `TestInspectExitCode` の行番号を `:493-520` から `:495-527` に直し、`TestInspectExitCode`・`TestInspectListsOutOfScope` の表に新しい規則でだけ範囲外になる入力を加えることを書き足した（実装計画 1.4。既存のテストの表に行を加えるだけで、結合テストは加えない）。8 章の 1 に、英語版のガイドは日本語版の commit の後の commit に入れることを書き足した（CLAUDE.md の翻訳の順序）。決定は変えていない。 |
+| Comments | 2026-10-22 (editorial): 7.5 の `TestInspectExitCode` の行番号を `:493-520` から `:495-527` に直し、`TestInspectExitCode`・`TestInspectListsOutOfScope` の表に新しい規則でだけ範囲外になる入力を加えることを書き足した（実装計画 1.4。既存のテストの表に行を加えるだけで、結合テストは加えない）。8 章の 1 に、英語版のガイドは日本語版の commit の後の commit に入れることを書き足した（CLAUDE.md の翻訳の順序）。決定は変えていない。2026-10-22 (decision): 7.4 の AC-20 の確かめを、文書のガード（`static`）から PR のレビューでの読み合わせ（`manual`）だけに改めた（理由: 7.2 の項目は自然言語の文で、ガードが固定できるのは項目の書き出しの語句だけである。語句を固定すると、言い回しを直すたびに失敗し、中身が誤っていても通るので、確かめとしての信頼性が低い）。要件定義のプロセスのガイドの「各 AC に `test` か `static` を 1 つ以上」の例外になる。PR-2 の実装の際に、このセッションでレビュアーが決めた。実装計画 1.4・5 章も同じ commit で改めた。 |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `3ed049b` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md) の項番を指す。申し送り H-01〜H-06 への対応は付録 A にまとめる。「ガイド」は `docs/dev/developer_guide/fixprguard_guide.md`（と日本語版の `fixprguard_guide.ja.md`）を指す。行番号は日本語版のものである。
 
@@ -172,7 +172,7 @@ flowchart LR
 | `internal/fixprguard/scope.go` | 変更 | 拒否リストのデータを改め（3.1）、許可リストのデータと `AllowListPatterns` を加え（3.2）、`inScopeOf` の判定の順序を改める（3.3）。ファイルの冒頭のコメント（`:11-28`）と、データのコメント（`:36-38`・`:56-59`）を新しい規則に合わせる |
 | `internal/fixprguard/scope_test.go` | 変更 | AC-01〜AC-13 の例と H-06 の行を加える。`nested_dotfile_not_root_rule`（`:52`）は、期待を `true` から `false` に改める（7.3） |
 | `internal/fixprguard/types.go` | 変更 | `Protocol` を `2` から `3` に上げ（`:20`）、コメント（`:17-19`）に判定の規則を加える（3.6） |
-| `cmd/fixprguard/docs_test.go` | 変更 | `TestGuideCoversStopKindsAndScope`（`:45-62`）が、`AllowListPatterns` の項目も確かめ、範囲を 6 章に限る（3.5）。文書の AC の記述の有無と構造を確かめるガードを加える（AC-18・AC-20・AC-21。7.4） |
+| `cmd/fixprguard/docs_test.go` | 変更 | `TestGuideCoversStopKindsAndScope`（`:45-62`）が、`AllowListPatterns` の項目も確かめ、範囲を 6 章に限る（3.5）。文書の AC の記述の有無と構造を確かめるガードを加える（AC-18・AC-21。7.4） |
 | `.claude/commands/fixpr.md`・`.claude/commands/runpr.md` | 変更 | `--protocol 2` をすべて `--protocol 3` にする（3.6）。手順は変えない |
 | `docs/tasks/0032_japanese_pr_title/check_rules.sh` | 変更 | `:524` の `--protocol 2` を `3` にする（3.6） |
 | `docs/dev/developer_guide/fixprguard_guide.ja.md`・`fixprguard_guide.md` | 変更 | 4 章・5 章の番号、6 章の規則と表、7.2 の残余のリスク、9 章（3.5・3.6） |
@@ -644,12 +644,14 @@ CLAUDE.md「Every test must be able to fail for its stated reason」に従い、
 | AC-17 | 表の項目は AC-19 のガード（`static`）。説明の文は PR のレビューで読み合わせる（`manual`。3.5） |
 | AC-18 | 0030 の 2 つの文書（`02_architecture.md` 3.6・`01_requirements.md` F-004）に本タスクへの参照を含む注記があること、`Status` が `approved` のままであること、`Comments` に editorial correction の記録があることを、文書のガード（`static`）で確かめる。注記の中身が正しいことは、PR のレビューで読み合わせる（`manual`） |
 | AC-19 | `TestGuideCoversStopKindsAndScope`（`static`。`doc-guard` の CI のジョブが実行する） |
-| AC-20 | ガイド（日英の両方）の 7.2 に、要件書 4.2 の残余のリスクの 4 項目があることを、文書のガード（`static`）で確かめる。各項目の説明が正しいことは、PR のレビューで読み合わせる（`manual`） |
+| AC-20 | ガイド（日英の両方）の 7.2 に、要件書 4.2 の残余のリスクの 4 項目があることと、各項目の説明が正しいことを、PR のレビューで読み合わせる（`manual`）。文書のガードは置かない（下の段落） |
 | AC-21 | 用語集に、要件書 6 章の 5 つの用語（3.7 の表）の行があることを、文書のガード（`static`）で確かめる。訳語と説明が正しいことは、PR のレビューで読み合わせる（`manual`） |
 
-要件定義のプロセスのガイド 4 章は、各 AC に `test` か `static` の確かめを 1 つ以上求め、文書の AC は `static` だけでもよいとする。AC-18・AC-20・AC-21 のガードが確かめるのは、記述の有無と構造（どの文書のどの節に、どの項目があるか、`Status` と `Comments` の形）である。記述を落としたり、別の節に置いたりすると、CI で失敗する。ガードは `cmd/fixprguard/docs_test.go` に加える。0030 の文書の `Status` と `Comments` のように、既存の文書のガード（コマンドの文書やタスクの記録を読むもの）が同じ形をすでに確かめている場合は、それを使う。どちらにするかは実装計画で決める。
+要件定義のプロセスのガイド 4 章は、各 AC に `test` か `static` の確かめを 1 つ以上求め、文書の AC は `static` だけでもよいとする。AC-18・AC-21 のガードが確かめるのは、記述の有無と構造（どの文書のどの節に、どの項目があるか、`Status` と `Comments` の形）である。記述を落としたり、別の節に置いたりすると、CI で失敗する。ガードは `cmd/fixprguard/docs_test.go` に加える。0030 の文書の `Status` と `Comments` のように、既存の文書のガード（コマンドの文書やタスクの記録を読むもの）が同じ形をすでに確かめている場合は、それを使う。どちらにするかは実装計画で決める。
 
 ただし、テストで確かめられるのは文字列の有無だけで、否定の文でも通る。そのため、中身が正しいことは、どの AC も PR のレビューで読み合わせる（`manual`）。AC-17 の説明の文は、自然言語の記述そのものを求めるので、`manual` だけとする。AC-17 のうち表の項目は、AC-19 のガードが確かめる（3.5）。これは 0035 の判断と同じである。0035 は、自然言語の説明を求める AC-17 だけを `manual` にし、記述の有無を求める AC-18 はガードで確かめたままにした（0035 `02_architecture.md` の `Comments` と 7.5）。
+
+AC-20 は、この規則の例外として `manual` だけで確かめる。7.2 の項目は自然言語の文で、ガードが固定できるのは項目の書き出しの語句だけである。語句を固定すると、言い回しを直すたびに失敗し、中身が誤っていても通るので、確かめとしての信頼性が低い。
 
 ### 7.5. 結合テスト
 
