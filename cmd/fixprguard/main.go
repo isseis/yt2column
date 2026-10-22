@@ -135,6 +135,7 @@ const guidePath = "docs/dev/developer_guide/fixprguard_guide.md"
 type env struct {
 	gh        cmdrunner.InputRunner
 	git       cmdrunner.Runner
+	gitList   cmdrunner.Runner
 	make      cmdrunner.Runner
 	stdout    io.Writer
 	stderr    io.Writer
@@ -149,12 +150,15 @@ func main() {
 // osEnv runs every command with an output cap and without the inherited
 // GIT_* variables: gh and the make targets start git too, and GIT_DIR or
 // GIT_WORK_TREE would point it at another repository than the one the tool
-// checks and pushes.
+// checks and pushes. The git that lists ignored files also fails on any
+// standard error output: git skips an unreadable directory with only a
+// warning there.
 func osEnv() env {
 	gitEnv := fixprguard.GitEnv(os.Environ())
 	return env{
 		gh:        cmdrunner.NewOS(cmdrunner.Options{MaxOutput: ghMaxOutput, WaitDelay: waitDelay, Env: gitEnv}),
 		git:       cmdrunner.NewOS(cmdrunner.Options{MaxOutput: gitMaxOutput, WaitDelay: waitDelay, Env: gitEnv}),
+		gitList:   cmdrunner.NewOS(cmdrunner.Options{MaxOutput: gitMaxOutput, WaitDelay: waitDelay, Env: gitEnv, StderrIsFailure: true}),
 		make:      cmdrunner.NewOS(cmdrunner.Options{MaxOutput: makeMaxOutput, WaitDelay: waitDelay, Env: gitEnv}),
 		stdout:    os.Stdout,
 		stderr:    os.Stderr,
@@ -347,7 +351,7 @@ func execute(ctx context.Context, inv invocation, e env) (any, int, error) {
 			}
 		}
 	}
-	w := fixprguard.NewWorktree(e.git, e.make)
+	w := fixprguard.NewWorktree(e.git, e.gitList, e.make)
 	switch inv.name {
 	case cmdHead:
 		return head(ctx, inv, e)

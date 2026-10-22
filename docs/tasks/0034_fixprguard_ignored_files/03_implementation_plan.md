@@ -8,7 +8,7 @@
 | Created | 2026-10-22 |
 | Review date | 2026-10-22 |
 | Reviewer | isseis |
-| Comments | 2026-10-22 (decision): `/runplan 0034` のフェーズ 1 のレビューで、APFS が完全な大文字小文字の変換（`ﬁ` → `fi`、`ß` → `ss`）で名前を解決すると分かった。照合は単純な変換のままとし、展開する変換で同じになる名前を要件書 4.2・設計書 5.3 の残余のリスクに加えた。ステップ 7-1 のガイド 7.2 は、この項目も含めて要件書 4.2 と突き合わせる。2026-10-22 (editorial): 同じレビューで、不正なバイトの同一視の行を `TestIsWatched` から `TestFoldEqual` に移した（ステップ 1-1）。一覧の項目が ASCII だけなので、`isWatched` では観測できないためである。レビュアーがこのセッションで選んだので、`Status` は `approved` のままとする。 |
+| Comments | 2026-10-22 (decision): `/runplan 0034` のフェーズ 1 のレビューで、APFS が完全な大文字小文字の変換（`ﬁ` → `fi`、`ß` → `ss`）で名前を解決すると分かった。照合は単純な変換のままとし、展開する変換で同じになる名前を要件書 4.2・設計書 5.3 の残余のリスクに加えた。ステップ 7-1 のガイド 7.2 は、この項目も含めて要件書 4.2 と突き合わせる。2026-10-22 (editorial): 同じレビューで、不正なバイトの同一視の行を `TestIsWatched` から `TestFoldEqual` に移した（ステップ 1-1）。一覧の項目が ASCII だけなので、`isWatched` では観測できないためである。2026-10-22 (editorial): ステップ 4-2 の「壊して確かめる」を、実際に区別できる壊し方（種類の印と値の数を両方外す、`writeField` の引用を外す）に改めた。印と値の数は、どちらか一方だけでもエントリの境目を一意にするためである。レビュアーがこのセッションで選んだので、`Status` は `approved` のままとする。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -164,12 +164,12 @@
 
 **変更するファイル**: `internal/fixprguard/worktree.go`、`cmd/fixprguard/main.go`、`internal/fixprguard/test_helpers_git.go`、`cmd/fixprguard/test_helpers.go`、`cmd/fixprguard/main_test.go`
 
--   [ ] `Worktree` に列挙の runner の欄を加え、`NewWorktree` の引数にする（設計書 3.3）。
--   [ ] `env` に列挙の runner の欄を加える。`osEnv` で `StderrIsFailure`・`MaxOutput: gitMaxOutput`・`WaitDelay`・`Env: gitEnv` で作り、`NewWorktree` に渡す。ほかの git の runner には `StderrIsFailure` を付けない（設計書 3.3）。
--   [ ] 1.3.1 の表のテストの呼び出し（`NewWorktree`・`newTestRun`・`main_test.go` の 3 か所）を直す。列挙の runner は `gitRouter` を通す（1.4）。
--   [ ] 1.2 の 3 つの git の設定を `newTestRepo`（両パッケージ）で固定し、権限のテストの補助（`requireNonRoot`・`chmodForTest`）を `test_helpers_git.go` に加える（1.2）。
--   [ ] `TestListRunnerRejectsStderr` を `cmd/fixprguard/main_test.go` に加える。`TestGhRunsWithoutGitVariables`（`main_test.go:249`）にならい、`PATH` に置いた代わりの `git` で 2 つの場合を確かめる。(1) 標準エラーに 1 バイト書いて `0` で終わると、`osEnv()` の列挙の runner が `ErrUnexpectedStderr` を返すこと。(2) 代わりの `git` が環境変数を標準出力にだけ書いたとき、`osEnv()` の列挙の runner の出力に `GIT_DIR=` がないこと。
--   [ ] `gitRouter` に、列挙のための 2 つめの実際の runner（`StderrIsFailure` 付き）を持たせ、`git ls-files` はそれで動かす。テストはこの runner を差し替えられる（ステップ 3-2 の上限の行）。
+-   [x] `Worktree` に列挙の runner の欄を加え、`NewWorktree` の引数にする（設計書 3.3）。
+-   [x] `env` に列挙の runner の欄を加える。`osEnv` で `StderrIsFailure`・`MaxOutput: gitMaxOutput`・`WaitDelay`・`Env: gitEnv` で作り、`NewWorktree` に渡す。ほかの git の runner には `StderrIsFailure` を付けない（設計書 3.3）。
+-   [x] 1.3.1 の表のテストの呼び出し（`NewWorktree`・`newTestRun`・`main_test.go` の 3 か所）を直す。列挙の runner は `gitRouter` を通す（1.4）。
+-   [x] 1.2 の 3 つの git の設定を `newTestRepo`（両パッケージ）で固定し、権限のテストの補助（`requireNonRoot`・`chmodForTest`）を `test_helpers_git.go` に加える（1.2）。
+-   [x] `TestListRunnerRejectsStderr` を `cmd/fixprguard/main_test.go` に加える。`TestGhRunsWithoutGitVariables`（`main_test.go:249`）にならい、`PATH` に置いた代わりの `git` で 2 つの場合を確かめる。(1) 標準エラーに 1 バイト書いて `0` で終わると、`osEnv()` の列挙の runner が `ErrUnexpectedStderr` を返すこと。(2) 代わりの `git` が環境変数を標準出力にだけ書いたとき、`osEnv()` の列挙の runner の出力に `GIT_DIR=` がないこと。
+-   [x] `gitRouter` に、列挙のための 2 つめの実際の runner（`StderrIsFailure` 付き）を持たせ、`git ls-files` はそれで動かす。テストはこの runner を差し替えられる（ステップ 3-2 の上限の行）。
 
 **壊して確かめる**: `osEnv` の列挙の runner から `StderrIsFailure` を外すと (1) が、`Env: gitEnv` を外すと (2) が、`TestListRunnerRejectsStderr` で失敗すること。
 
@@ -177,10 +177,10 @@
 
 **変更するファイル**: `internal/fixprguard/ignored.go`、`ignored_test.go`
 
--   [ ] 列挙を設計書 3.3「列挙の手段」のとおり、`gitHardening` を付けて列挙の runner で起動する。失敗と出力の上限は `gitFailure` の分け方にならうが、エラーは規則ごとの sentinel にする（1.2）。時間切れは `read ignored files timed out` にする（設計書 4 章。`gitRaw` は git の runner と `gitTimeout` を使うので使わない）。
--   [ ] 受理する形の検査を、設計書 3.3「受理する形」のとおり、出力のバイト列に対して行う。`splitNUL` は使わない（設計書 1.3）。
--   [ ] `TestParseIgnoredListing` を加える。設計書 7.1「列挙の形の検査」の各例と、正しい出力・ディレクトリの項目の受け付けを、git を起動せずにバイト列で確かめる。
--   [ ] `TestCollectTargetsGitFailures` を加える。`build/` の下と `.claude/` の下にモード `0311` のディレクトリを置くと、警告の規則の sentinel で止まること（設計書 7.1「git の警告」。`.claude/` はテスト用のリポジトリの `.gitignore` で無視させてから置く）。列挙の git が 0 でない終了コードで終わる場合、起動できない場合、出力が runner の上限を超える場合（小さな `MaxOutput` の runner を渡す）も、それぞれ対応する規則の sentinel で止まること。
+-   [x] 列挙を設計書 3.3「列挙の手段」のとおり、`gitHardening` を付けて列挙の runner で起動する。失敗と出力の上限は `gitFailure` の分け方にならうが、エラーは規則ごとの sentinel にする（1.2）。時間切れは `read ignored files timed out` にする（設計書 4 章。`gitRaw` は git の runner と `gitTimeout` を使うので使わない）。
+-   [x] 受理する形の検査を、設計書 3.3「受理する形」のとおり、出力のバイト列に対して行う。`splitNUL` は使わない（設計書 1.3）。
+-   [x] `TestParseIgnoredListing` を加える。設計書 7.1「列挙の形の検査」の各例と、正しい出力・ディレクトリの項目の受け付けを、git を起動せずにバイト列で確かめる。
+-   [x] `TestCollectTargetsGitFailures` を加える。`build/` の下と `.claude/` の下にモード `0311` のディレクトリを置くと、警告の規則の sentinel で止まること（設計書 7.1「git の警告」。`.claude/` はテスト用のリポジトリの `.gitignore` で無視させてから置く）。列挙の git が 0 でない終了コードで終わる場合、起動できない場合、出力が runner の上限を超える場合（小さな `MaxOutput` の runner を渡す）も、それぞれ対応する規則の sentinel で止まること。
 
 **壊して確かめる**: 形の検査の各条件を 1 つずつ外すと、`TestParseIgnoredListing` の対応する行が失敗すること。テストの列挙の runner から `StderrIsFailure` を外すと、`TestCollectTargetsGitFailures` の警告の行が失敗すること。
 
@@ -188,9 +188,9 @@
 
 **変更するファイル**: `internal/fixprguard/ignored.go`、`ignored_test.go`
 
--   [ ] ディレクトリの項目の下を、設計書 3.3「ディレクトリの項目」のとおりたどる。
--   [ ] 列挙の結果を監視の一覧で選び、それとは別に `.claude/settings.local.json` を必ず加える（設計書 3.3）。対象のファイルをパスのバイト列の順に並べる。
--   [ ] `TestCollectTargetsWalk` を加える。入れ子のリポジトリの中の `.go` が対象になること、入れ子のリポジトリの中の FIFO と監視の一覧に当たらないファイルが対象にならないこと、`.claude/settings.local.json` が無視されていなくても（存在しなくても）必ず含まれ、列挙にも現れたときに 1 つになること、入れ子のリポジトリの中の読めないディレクトリで止まること。
+-   [x] ディレクトリの項目の下を、設計書 3.3「ディレクトリの項目」のとおりたどる。
+-   [x] 列挙の結果を監視の一覧で選び、それとは別に `.claude/settings.local.json` を必ず加える（設計書 3.3）。対象のファイルをパスのバイト列の順に並べる。
+-   [x] `TestCollectTargetsWalk` を加える。入れ子のリポジトリの中の `.go` が対象になること、入れ子のリポジトリの中の FIFO と監視の一覧に当たらないファイルが対象にならないこと、`.claude/settings.local.json` が無視されていなくても（存在しなくても）必ず含まれ、列挙にも現れたときに 1 つになること、入れ子のリポジトリの中の読めないディレクトリで止まること。
 
 **壊して確かめる**: たどりを外すと入れ子のリポジトリの `.go` の行が、`.claude/settings.local.json` を必ず加える処理を外すと存在しない場合の行が、`TestCollectTargetsWalk` で失敗すること。
 
@@ -198,9 +198,9 @@
 
 **変更するファイル**: `internal/fixprguard/ignored.go`、`ignored_test.go`
 
--   [ ] `targetLimits` と `defaultTargetLimits` を設計書 3.1・3.5 の表の値で置く。対象のファイルの数と、ディレクトリの項目の下の走査したエントリの数の上限を、列挙とたどりに当てはめる。列挙の出力の上限は、ステップ 3-1 の runner の `MaxOutput` である。
--   [ ] 状態を求める処理の全体が終わるのを、時間の上限まで待つ（設計書 3.5「時間の上限」）。結果を受け取るチャネルはバッファ付きにし、待ちを打ち切った後に goroutine が詰まらないようにする。
--   [ ] `TestCollectTargetsLimits` を加える。各上限の行は、ほかの上限を十分に大きくし、入力がほかの上限の内にあることを先に確かめる（1.2）。時間の上限の行は、処理の中で待つ関数を差し込む（差し込み方は 1.2）。待つ関数は `t.Cleanup` で閉じるチャネルを待ち、自身でも数秒で戻る。時間の上限の sentinel が返ることを確かめ、経過時間は緩く確かめる。
+-   [x] `targetLimits` と `defaultTargetLimits` を設計書 3.1・3.5 の表の値で置く。対象のファイルの数と、ディレクトリの項目の下の走査したエントリの数の上限を、列挙とたどりに当てはめる。列挙の出力の上限は、ステップ 3-1 の runner の `MaxOutput` である。
+-   [x] 状態を求める処理の全体が終わるのを、時間の上限まで待つ（設計書 3.5「時間の上限」）。結果を受け取るチャネルはバッファ付きにし、待ちを打ち切った後に goroutine が詰まらないようにする。
+-   [x] `TestCollectTargetsLimits` を加える。各上限の行は、ほかの上限を十分に大きくし、入力がほかの上限の内にあることを先に確かめる（1.2）。時間の上限の行は、処理の中で待つ関数を差し込む（差し込み方は 1.2）。待つ関数は `t.Cleanup` で閉じるチャネルを待ち、自身でも数秒で戻る。時間の上限の sentinel が返ることを確かめ、経過時間は緩く確かめる。
 
 **壊して確かめる**: 各上限の検査を 1 つずつ外すと、`TestCollectTargetsLimits` の対応する行が失敗すること。時間の上限の待ちを外すと、時間の上限の行が（差し込んだ関数が戻るまで数秒待って）失敗すること。
 
@@ -210,10 +210,10 @@
 
 **変更するファイル**: `internal/fixprguard/ignored.go`、`ignored_test.go`
 
--   [ ] 設計書 3.4 の 2 つの表のとおり、対象のファイルとリンクのたどる先のエントリを作る。値は `writeField`（`threads.go`）で区切る。内容は `openRegular`（`gitstate.go:246`）で開き（対象のファイルは `follow` なし、たどる先は `follow` あり）、返るエラーは規則の sentinel に置き換える（1.2）。上限に 1 を足した量までしか読まない（設計書 3.4「内容の読み方」）。
--   [ ] 1 つのファイルの大きさと、読み取る内容の合計の上限を、読み取りに当てはめる（設計書 3.5）。合計は、読んだバイト数をそのまま足す。
--   [ ] `TestTargetEntries` を加える（設計書 7.1「上限と読み取り」）。読めないファイル、ディレクトリを指すリンク、`EACCES` で調べられないたどる先（親のディレクトリのモードを 0 にする）、大きさの上限、同じ疎ファイルを指す多数のリンクで合計の上限を超える場合。いずれも、対応する規則の sentinel が返ることを確かめる。`ENOENT`・`ELOOP`・`ENOTDIR` のたどれないリンクは、エラーにならず `unresolved` として記録されることを確かめる。
--   [ ] `lstat` と開く間の置き換えの行を加える。`lstat` の後、開く前に呼ぶ関数を差し込み（差し込み方は 1.2）、通常のファイルを FIFO に置き換える。時間の上限を短く設定して実行し、`read ignored file` の sentinel が返ること（時間の上限の sentinel でないこと）を確かめる。`t.Cleanup` で FIFO の書く側を開き、壊したときに読み取りが戻るようにする。
+-   [x] 設計書 3.4 の 2 つの表のとおり、対象のファイルとリンクのたどる先のエントリを作る。値は `writeField`（`threads.go`）で区切る。内容は `openRegular`（`gitstate.go:246`）で開き（対象のファイルは `follow` なし、たどる先は `follow` あり）、返るエラーは規則の sentinel に置き換える（1.2）。上限に 1 を足した量までしか読まない（設計書 3.4「内容の読み方」）。
+-   [x] 1 つのファイルの大きさと、読み取る内容の合計の上限を、読み取りに当てはめる（設計書 3.5）。合計は、読んだバイト数をそのまま足す。
+-   [x] `TestTargetEntries` を加える（設計書 7.1「上限と読み取り」）。読めないファイル、ディレクトリを指すリンク、`EACCES` で調べられないたどる先（親のディレクトリのモードを 0 にする）、大きさの上限、同じ疎ファイルを指す多数のリンクで合計の上限を超える場合。いずれも、対応する規則の sentinel が返ることを確かめる。`ENOENT`・`ELOOP`・`ENOTDIR` のたどれないリンクは、エラーにならず `unresolved` として記録されることを確かめる。
+-   [x] `lstat` と開く間の置き換えの行を加える。`lstat` の後、開く前に呼ぶ関数を差し込み（差し込み方は 1.2）、通常のファイルを FIFO に置き換える。時間の上限を短く設定して実行し、`read ignored file` の sentinel が返ること（時間の上限の sentinel でないこと）を確かめる。`t.Cleanup` で FIFO の書く側を開き、壊したときに読み取りが戻るようにする。
 
 **壊して確かめる**: 次の変更を 1 つずつ加えると、`TestTargetEntries` の括弧の中の行が失敗すること。
 
@@ -225,14 +225,14 @@
 
 **変更するファイル**: `internal/fixprguard/ignored.go`、`ignored_test.go`
 
--   [ ] `collectTargets` を、設計書 6.2 の流れのとおり、`targetState`（まとめた digest と記録の内容）を返すメソッドにまとめる（設計書 3.1・3.4）。
--   [ ] 記録の内容を設計書 3.8「形」のとおり作る。パスは `strconv.QuoteToASCII` で引用する。
--   [ ] `TestTargetStateDigest` を加える。エントリの境目（リンクの文字列やパスに、ほかのエントリの値に見える文字列を入れても digest が衝突しない）と、同じ状態からは同じ digest になること。状態の変化ごとの行はステップ 5-3 の `TestCheckStateIgnoredChanges` に置き、ここでは繰り返さない。
--   [ ] `TestTargetRecordLines` を加える。各行が、64 文字の 16 進数、空白、引用したパス（ASCII の印字できる文字だけ）からなり、パスのバイト列の順に並ぶこと。改行・制御文字を含むパス（ディスクに作る）と、不正な UTF-8 のパス（行の組み立てをバイト列で直接確かめる。1.2）も 1 行になること。1 つの対象のファイルの内容を変えると、その行の digest だけが変わること。
--   [ ] `TestDefaultLimitsAcceptDependencyTree` を加える。既定の上限で、依存のパッケージに似た無視されるディレクトリ（監視の一覧に当たらないファイル数千個と、C のヘッダ・`Makefile`）が止まらないこと（AC-01a。1.4）。
--   [ ] 本書 5 章の表の、フェーズ 1〜4 のテストの名前を、実際の名前に合わせる。
+-   [x] `collectTargets` を、設計書 6.2 の流れのとおり、`targetState`（まとめた digest と記録の内容）を返すメソッドにまとめる（設計書 3.1・3.4）。
+-   [x] 記録の内容を設計書 3.8「形」のとおり作る。パスは `strconv.QuoteToASCII` で引用する。
+-   [x] `TestTargetStateDigest` を加える。エントリの境目（リンクの文字列やパスに、ほかのエントリの値に見える文字列を入れても digest が衝突しない）と、同じ状態からは同じ digest になること。状態の変化ごとの行はステップ 5-3 の `TestCheckStateIgnoredChanges` に置き、ここでは繰り返さない。
+-   [x] `TestTargetRecordLines` を加える。各行が、64 文字の 16 進数、空白、引用したパス（ASCII の印字できる文字だけ）からなり、パスのバイト列の順に並ぶこと。改行・制御文字を含むパス（ディスクに作る）と、不正な UTF-8 のパス（行の組み立てをバイト列で直接確かめる。1.2）も 1 行になること。1 つの対象のファイルの内容を変えると、その行の digest だけが変わること。
+-   [x] `TestDefaultLimitsAcceptDependencyTree` を加える。既定の上限で、依存のパッケージに似た無視されるディレクトリ（監視の一覧に当たらないファイル数千個と、C のヘッダ・`Makefile`）が止まらないこと（AC-01a。1.4）。
+-   [x] 本書 5 章の表の、フェーズ 1〜4 のテストの名前を、実際の名前に合わせる。
 
-**壊して確かめる**: エントリから種類の印か値の数を外し、その印だけが区別する入力の行で、`TestTargetStateDigest` が失敗すること。記録のパスを `strconv.Quote` に替えると、`TestTargetRecordLines` の不正な UTF-8 と制御文字の行が失敗すること。
+**壊して確かめる**: エントリから種類の印と値の数を外すと、ダングリングのリンクと 3 つの存在しないパスを比べる行で、`writeField` の引用を外すと、値の中の改行が境目に見える行で、`TestTargetStateDigest` が失敗すること（印と値の数は、どちらか一方だけでもこの行を区別する）。記録のパスを `strconv.Quote` に替えると、`TestTargetRecordLines` の不正な UTF-8 と制御文字の行が失敗すること。
 
 ### PR-1 作成ポイント: ignored-file state machinery
 

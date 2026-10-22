@@ -170,6 +170,7 @@ func TestAcceptThreadFlagParsing(t *testing.T) {
 			}
 			r := newTestRun(t, nil)
 			r.git = cmdrunnertestutil.New(t)
+			r.gitList = cmdrunnertestutil.New(t)
 			if code := r.Run(t, row.line...); code != exitUsage {
 				t.Errorf("%q: exit %d, want %d (%s)", row.line, code, exitUsage, r.Stderr)
 			}
@@ -235,6 +236,7 @@ func TestGhTargetEnvRejected(t *testing.T) {
 				r := newTestRun(t, nil)
 				r.lookupEnv = os.LookupEnv
 				r.git = cmdrunnertestutil.New(t)
+				r.gitList = cmdrunnertestutil.New(t)
 				if code := r.Run(t, line...); code != exitUsage || !strings.Contains(r.Stderr.String(), variable) {
 					t.Errorf("exit %d, stderr %q; want %d naming %s", code, r.Stderr, exitUsage, variable)
 				}
@@ -261,6 +263,37 @@ func TestGhRunsWithoutGitVariables(t *testing.T) {
 	if strings.Contains(string(out), "GIT_DIR=") {
 		t.Errorf("gh saw GIT_DIR: %s", out)
 	}
+}
+
+// TestListRunnerRejectsStderr: the production runner for the listing of
+// ignored files fails a git that exits 0 after writing to standard error, as
+// git does when it skips an unreadable directory, and like the other runners
+// drops the inherited GIT_* variables. A stand-in git on PATH plays each part.
+func TestListRunnerRejectsStderr(t *testing.T) {
+	run := func(t *testing.T, script string) ([]byte, error) {
+		t.Helper()
+		bin := t.TempDir()
+		if err := os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0o700); err != nil { //nolint:gosec // a stand-in executable in the test's directory
+			t.Fatalf("write git: %v", err)
+		}
+		t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+		t.Setenv("GIT_DIR", "/elsewhere/.git")
+		return osEnv().gitList.Run(t.Context(), "git")
+	}
+	t.Run("warning", func(t *testing.T) {
+		if _, err := run(t, "#!/bin/sh\nprintf w >&2\n"); !errors.Is(err, cmdrunner.ErrUnexpectedStderr) {
+			t.Errorf("error = %v, want cmdrunner.ErrUnexpectedStderr", err)
+		}
+	})
+	t.Run("env", func(t *testing.T) {
+		out, err := run(t, "#!/bin/sh\nenv\n")
+		if err != nil {
+			t.Fatalf("run git: %v", err)
+		}
+		if strings.Contains(string(out), "GIT_DIR=") {
+			t.Errorf("git saw GIT_DIR: %s", out)
+		}
+	})
 }
 
 // TestBeginOrder: a work tree with an uncommitted change stops begin before
@@ -332,6 +365,7 @@ func TestPreviousBaselineRejected(t *testing.T) {
 			}
 			r := newTestRun(t, nil)
 			r.git = cmdrunnertestutil.New(t)
+			r.gitList = cmdrunnertestutil.New(t)
 			if code := r.Run(t, line(previous)...); code != exitUsage {
 				t.Errorf("exit %d, want %d (%s)", code, exitUsage, r.Stderr)
 			}

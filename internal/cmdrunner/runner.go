@@ -70,7 +70,9 @@ var ErrOutputTooLarge = errors.New("command output exceeds the cap")
 
 // ErrUnexpectedStderr reports that a command run with
 // Options.StderrIsFailure exited successfully but wrote to standard error.
-// The error does not carry what the command wrote.
+// The error does not carry what the command wrote; a command that exits
+// unsuccessfully still fails with *ExitError, which does, so a caller that
+// must not print standard error must not wrap or format that error either.
 var ErrUnexpectedStderr = errors.New("command wrote to standard error")
 
 // NewOS returns the production runner.

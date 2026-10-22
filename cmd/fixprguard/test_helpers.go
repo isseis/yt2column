@@ -64,12 +64,28 @@ func newTestRepo(t *testing.T) *testRepo {
 	r.Git("config", "user.name", "Test")
 	r.Git("config", "user.email", "test@example.com")
 	r.Git("config", "commit.gpgSign", "false")
+	pinIgnoreConfig(t, r.Git, home)
 	r.Git("remote", "add", "origin", remote)
 	r.Write(testFile, "one\n")
 	r.Git("add", "-A")
 	r.Git("commit", "-q", "-m", "initial")
 	r.Git("push", "-q", "-u", "origin", testBranch)
 	return r
+}
+
+// pinIgnoreConfig makes which files git ignores, and how it compares their
+// names, the same on every machine: the global excludes file is an empty
+// file under home, and case and Unicode composition are significant, as on a
+// Linux CI file system, even on a case-insensitive macOS volume.
+func pinIgnoreConfig(t *testing.T, gitCmd func(...string) string, home string) {
+	t.Helper()
+	excludes := filepath.Join(home, "excludes")
+	if err := os.WriteFile(excludes, nil, 0o600); err != nil {
+		t.Fatalf("write excludes: %v", err)
+	}
+	gitCmd("config", "core.excludesFile", excludes)
+	gitCmd("config", "core.ignorecase", "false")
+	gitCmd("config", "core.precomposeunicode", "false")
 }
 
 // Git runs git in the work tree for the test's own setup, outside the tool,
@@ -108,10 +124,16 @@ func realGit() cmdrunner.Runner {
 	return cmdrunner.NewOS(cmdrunner.Options{Env: fixprguard.GitEnv(os.Environ())})
 }
 
+// realGitList runs git for real as osEnv's runner for the listing of ignored
+// files does: standard error output fails it.
+func realGitList() cmdrunner.Runner {
+	return cmdrunner.NewOS(cmdrunner.Options{Env: fixprguard.GitEnv(os.Environ()), StderrIsFailure: true})
+}
+
 // Baseline takes a baseline of the repository as begin would.
 func (r *testRepo) Baseline() fixprguard.Baseline {
 	r.t.Helper()
-	base, err := fixprguard.NewWorktree(realGit(), nil).Baseline(r.t.Context())
+	base, err := fixprguard.NewWorktree(realGit(), realGitList(), nil).Baseline(r.t.Context())
 	if err != nil {
 		r.t.Fatalf("Baseline: %v", err)
 	}
@@ -122,7 +144,7 @@ func (r *testRepo) Baseline() fixprguard.Baseline {
 // print it.
 func (r *testRepo) JudgedSet(base fixprguard.Baseline) fixprguard.JudgedSetID {
 	r.t.Helper()
-	inspection, err := fixprguard.NewWorktree(realGit(), nil).Inspect(r.t.Context(), base, nil)
+	inspection, err := fixprguard.NewWorktree(realGit(), realGitList(), nil).Inspect(r.t.Context(), base, nil)
 	if err != nil {
 		r.t.Fatalf("Inspect: %v", err)
 	}
@@ -154,6 +176,7 @@ func newTestRun(t *testing.T, gh []cmdrunnertestutil.Step, makeSteps ...cmdrunne
 	r.env = env{
 		gh:        cmdrunnertestutil.New(t, gh...),
 		git:       realGit(),
+		gitList:   realGitList(),
 		make:      cmdrunnertestutil.New(t, makeSteps...),
 		stdout:    r.Stdout,
 		stderr:    r.Stderr,

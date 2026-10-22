@@ -1,10 +1,26 @@
 package fixprguard
 
 import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"io"
+	"io/fs"
+	"maps"
+	"os"
+	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
+	"syscall"
+	"time"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/isseis/yt2column/internal/cmdrunner"
 )
 
 // The watch list: the files git ignores that the tool still compares with
@@ -124,4 +140,375 @@ func foldEqual(a, b string) bool {
 func hasFoldSuffix(name, suffix string) bool {
 	n, s := foldUnits(name), foldUnits(suffix)
 	return len(n) >= len(s) && slices.EqualFunc(n[len(n)-len(s):], s, sameFold)
+}
+
+// settingsLocalPath is always a target file, whether git ignores it, lists
+// it, or it exists at all: the next Claude Code session runs its hooks.
+const settingsLocalPath = ".claude/settings.local.json"
+
+// listIgnoredArgs lists every ignored file, NUL separated. Without
+// --directory git names each file of an ignored directory, so a .go file
+// inside one is a path of its own; only a nested repository stays one item,
+// with a trailing "/". --exclude-standard reads every .gitignore,
+// info/exclude, and core.excludesFile, so a file hidden by a new ignore rule
+// is listed too. ls-files runs no hook.
+var listIgnoredArgs = []string{"ls-files", "--others", "--ignored", "--exclude-standard", "-z"}
+
+// targetLimits bounds one pass over the target files. Production passes
+// defaultTargetLimits; tests pass smaller values.
+type targetLimits struct {
+	files       int           // target files, settingsLocalPath included
+	walkEntries int           // entries visited under directory items
+	fileBytes   int64         // one regular file
+	totalBytes  int64         // bytes read in one pass
+	timeout     time.Duration // the whole pass, the listing included
+}
+
+// defaultTargetLimits leave room above what a work tree with
+// extension/node_modules holds (a few target files, under 10 KB read), and
+// above a single amalgamated C source (SQLite is about 9 MB) for one file.
+var defaultTargetLimits = targetLimits{
+	files:       maxTargetFiles,
+	walkEntries: maxWalkEntries,
+	fileBytes:   maxTargetFileBytes,
+	totalBytes:  maxTargetReadBytes,
+	timeout:     gitTimeout,
+}
+
+const (
+	maxTargetFiles     = 10_000
+	maxWalkEntries     = 100_000
+	maxTargetFileBytes = 16 << 20
+	maxTargetReadBytes = 64 << 20
+	// execPermBits are the permission bits an entry records.
+	execPermBits = 0o111
+)
+
+// The reasons a pass cannot record every target file. Each names its rule
+// only, never a path, a name, or a value: stop prints the whole error chain,
+// and a name is chosen by whoever wrote the file.
+var (
+	errListIgnoredFailed  = fmt.Errorf("%w: list ignored files failed", ErrGitFailed)
+	errListIgnoredCap     = fmt.Errorf("%w: list ignored files output over the cap", ErrGitFailed)
+	errListIgnoredShape   = fmt.Errorf("%w: list ignored files output shape", ErrGitFailed)
+	errIgnoredTargetCount = fmt.Errorf("%w: ignored target count over the cap", ErrGitFailed)
+	errIgnoredWalkEntries = fmt.Errorf("%w: ignored directory entries over the cap", ErrGitFailed)
+	errIgnoredFileSize    = fmt.Errorf("%w: ignored file over the size cap", ErrGitFailed)
+	errIgnoredReadTotal   = fmt.Errorf("%w: ignored read total over the cap", ErrGitFailed)
+	errIgnoredTimeout     = fmt.Errorf("%w: read ignored files timed out", ErrGitFailed)
+	errReadIgnoredDir     = fmt.Errorf("%w: read ignored directory", ErrGitFailed)
+	errReadIgnoredFile    = fmt.Errorf("%w: read ignored file", ErrGitFailed)
+	errIgnoredLinkToDir   = fmt.Errorf("%w: ignored link to a directory", ErrGitFailed)
+)
+
+// targetState is what one pass over the target files yields: digest covers
+// every target file's path and state, and record has one line per target
+// file, its entry digest and its quoted path. Neither is printed; record is
+// written only to a file in the git directory.
+type targetState struct {
+	digest string
+	record []byte
+}
+
+// lstatFunc is the lstat a pass calls on each target file before it opens
+// it; production passes os.Lstat.
+type lstatFunc func(name string) (fs.FileInfo, error)
+
+// collectTargets records the state of every target file, or stops with
+// ErrGitFailed when it cannot record all of them; it never returns a partial
+// state.
+func (w *Worktree) collectTargets(ctx context.Context, lim targetLimits) (targetState, error) {
+	return w.collectTargetsWith(ctx, lim, os.Lstat)
+}
+
+// collectTargetsWith runs the pass on its own goroutine and waits at most
+// lim.timeout for it. A read that cannot be cancelled (a link into a hung
+// network file system) keeps its goroutine after the wait ends; the result
+// channel is buffered so that goroutine can still finish, and the process
+// ends soon after. A cancelled ctx ends the wait the same way.
+func (w *Worktree) collectTargetsWith(ctx context.Context, lim targetLimits, lstat lstatFunc) (targetState, error) {
+	ctx, cancel := context.WithTimeout(ctx, lim.timeout)
+	defer cancel()
+	type result struct {
+		state targetState
+		err   error
+	}
+	done := make(chan result, 1)
+	go func() {
+		state, err := w.scanTargets(ctx, lim, lstat)
+		done <- result{state, err}
+	}()
+	select {
+	case r := <-done:
+		return r.state, r.err
+	case <-ctx.Done():
+		return targetState{}, errIgnoredTimeout
+	}
+}
+
+func (w *Worktree) scanTargets(ctx context.Context, lim targetLimits, lstat lstatFunc) (targetState, error) {
+	out, err := w.listRun.Run(ctx, gitCommand, slices.Concat(gitHardening, listIgnoredArgs)...)
+	if err != nil {
+		return targetState{}, listIgnoredFailure(err)
+	}
+	files, dirs, err := parseIgnoredListing(out)
+	if err != nil {
+		return targetState{}, err
+	}
+	paths, err := selectTargets(ctx, files, dirs, lim)
+	if err != nil {
+		return targetState{}, err
+	}
+	return targetStateOf(ctx, paths, lim, lstat)
+}
+
+// listIgnoredFailure classifies a failed listing. A warning on standard
+// error is a failure too: the runner sets StderrIsFailure.
+func listIgnoredFailure(err error) error {
+	switch {
+	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
+		return errIgnoredTimeout
+	case errors.Is(err, cmdrunner.ErrOutputTooLarge):
+		return errListIgnoredCap
+	default:
+		return errListIgnoredFailed
+	}
+}
+
+// parseIgnoredListing accepts only the listing shape: items that each end in
+// NUL, none empty and none twice, each a relative path whose elements are
+// neither empty nor "." nor "..". An item with one trailing "/" is a
+// directory item. Anything else fails the whole listing; nothing is
+// repaired or skipped.
+func parseIgnoredListing(out []byte) (files, dirs []string, err error) {
+	if len(out) == 0 {
+		return nil, nil, nil
+	}
+	if out[len(out)-1] != 0 {
+		return nil, nil, errListIgnoredShape
+	}
+	seen := make(map[string]struct{})
+	for item := range strings.SplitSeq(string(out[:len(out)-1]), "\x00") {
+		if _, dup := seen[item]; dup {
+			return nil, nil, errListIgnoredShape
+		}
+		seen[item] = struct{}{}
+		p, isDir := strings.CutSuffix(item, "/")
+		if !validListedPath(p) {
+			return nil, nil, errListIgnoredShape
+		}
+		if isDir {
+			dirs = append(dirs, p)
+		} else {
+			files = append(files, p)
+		}
+	}
+	return files, dirs, nil
+}
+
+// validListedPath accepts a relative path with no empty, ".", or ".."
+// element; an empty path, a leading "/", and "//" each make an empty element.
+func validListedPath(p string) bool {
+	for elem := range strings.SplitSeq(p, "/") {
+		if elem == "" || elem == "." || elem == ".." {
+			return false
+		}
+	}
+	return true
+}
+
+// selectTargets keeps the listed files on the watch list, walks every
+// directory item for more, adds settingsLocalPath, and returns the paths in
+// byte order.
+func selectTargets(ctx context.Context, files, dirs []string, lim targetLimits) ([]string, error) {
+	targets := map[string]struct{}{settingsLocalPath: {}}
+	add := func(p string) error {
+		if _, ok := targets[p]; ok {
+			return nil
+		}
+		if len(targets) >= lim.files {
+			return errIgnoredTargetCount
+		}
+		targets[p] = struct{}{}
+		return nil
+	}
+	for _, p := range files {
+		if isWatched(p) {
+			if err := add(p); err != nil {
+				return nil, err
+			}
+		}
+	}
+	walked := 0
+	for _, dir := range dirs {
+		if err := walkIgnoredDir(ctx, dir, &walked, lim, add); err != nil {
+			return nil, err
+		}
+	}
+	return slices.Sorted(maps.Keys(targets)), nil
+}
+
+// walkIgnoredDir visits everything below a directory item (a nested
+// repository git lists as one item) without following a link, counting each
+// entry against lim.walkEntries, and adds the regular files and links on the
+// watch list. A FIFO or another special file is left out, as git leaves it
+// out of the listing.
+func walkIgnoredDir(ctx context.Context, dir string, walked *int, lim targetLimits, add func(string) error) error {
+	return filepath.WalkDir(dir, func(p string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return errReadIgnoredDir
+		}
+		if p == dir {
+			if !entry.IsDir() {
+				return errReadIgnoredDir
+			}
+			return nil
+		}
+		if ctx.Err() != nil {
+			return errIgnoredTimeout
+		}
+		*walked++
+		if *walked > lim.walkEntries {
+			return errIgnoredWalkEntries
+		}
+		if t := entry.Type(); (t.IsRegular() || t&fs.ModeSymlink != 0) && isWatched(p) {
+			return add(p)
+		}
+		return nil
+	})
+}
+
+// targetStateOf builds each target file's entry in path order. The digest
+// covers every entry; each record line has the digest of one entry and the
+// path quoted with strconv.QuoteToASCII, so a path with a newline, a control
+// character, or invalid UTF-8 stays on one printable line.
+func targetStateOf(ctx context.Context, paths []string, lim targetLimits, lstat lstatFunc) (targetState, error) {
+	all := sha256.New()
+	var record bytes.Buffer
+	var total int64
+	for _, p := range paths {
+		if ctx.Err() != nil {
+			return targetState{}, errIgnoredTimeout
+		}
+		fields, err := targetEntry(p, lim, &total, lstat)
+		if err != nil {
+			return targetState{}, err
+		}
+		one := sha256.New()
+		for _, f := range fields {
+			writeField(all, f)
+			writeField(one, f)
+		}
+		record.WriteString(hex.EncodeToString(one.Sum(nil)) + " " + strconv.QuoteToASCII(p) + "\n")
+	}
+	return targetState{digest: hex.EncodeToString(all.Sum(nil)), record: record.Bytes()}, nil
+}
+
+// entry starts with a kind marker and the number of values that follow, so
+// no path or link text can make one entry read as another or move a
+// boundary between entries.
+func entry(kind string, values ...string) []string {
+	return append([]string{kind, strconv.Itoa(len(values))}, values...)
+}
+
+// targetEntry is one target file's entry: "absent" and the path; "file", the
+// path, the executable bits, and the content's SHA-256; "link", the path, the
+// link text, and what the link resolves to (linkTarget); or "other", the
+// path, and the type. Modification time, owner, and the read and write bits
+// are left out: they change without changing what runs.
+func targetEntry(p string, lim targetLimits, total *int64, lstat lstatFunc) ([]string, error) {
+	info, err := lstat(p)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return entry("absent", p), nil
+	case err != nil:
+		return nil, errReadIgnoredFile
+	}
+	switch mode := info.Mode(); {
+	case mode.IsRegular():
+		sum, err := readTarget(p, false, lim, total)
+		if err != nil {
+			return nil, err
+		}
+		return entry("file", p, execBits(mode), sum), nil
+	case mode&fs.ModeSymlink != 0:
+		text, err := os.Readlink(p)
+		if err != nil {
+			return nil, errReadIgnoredFile
+		}
+		resolved, err := linkTarget(p, lim, total)
+		if err != nil {
+			return nil, err
+		}
+		return entry("link", append([]string{p, text}, resolved...)...), nil
+	default:
+		return entry("other", p, mode.Type().String()), nil
+	}
+}
+
+// linkTarget is what a link resolves to, following every link on the way: a
+// regular file's "file", executable bits, and SHA-256 read through the link;
+// "other" and the type; or "unresolved" when nothing is there, the links
+// loop, or an element is not a directory, so a later target is still a
+// change. A directory stops the pass rather than recording what is below it,
+// and so does any other failure.
+func linkTarget(p string, lim targetLimits, total *int64) ([]string, error) {
+	info, err := os.Stat(p)
+	switch {
+	case errors.Is(err, fs.ErrNotExist), errors.Is(err, syscall.ELOOP), errors.Is(err, syscall.ENOTDIR):
+		return []string{"unresolved"}, nil
+	case err != nil:
+		return nil, errReadIgnoredFile
+	case info.IsDir():
+		return nil, errIgnoredLinkToDir
+	case info.Mode().IsRegular():
+		sum, err := readTarget(p, true, lim, total)
+		if err != nil {
+			return nil, err
+		}
+		return []string{"file", execBits(info.Mode()), sum}, nil
+	default:
+		return []string{"other", info.Mode().Type().String()}, nil
+	}
+}
+
+func execBits(mode fs.FileMode) string {
+	return strconv.FormatUint(uint64(mode.Perm()&execPermBits), 8)
+}
+
+// readTarget hashes a regular file's content. openRegular opens without
+// blocking and checks the opened file, so a FIFO swapped in after lstat
+// fails instead of hanging. The size the opened file reports is checked
+// against both caps before reading, and the read stops one byte past the
+// smaller remaining cap, so a file that grows meanwhile is not read on.
+// total adds the bytes read, however many paths reach the same content.
+func readTarget(p string, follow bool, lim targetLimits, total *int64) (string, error) {
+	f, err := openRegular(p, follow)
+	if err != nil {
+		return "", errReadIgnoredFile
+	}
+	defer func() { _ = f.Close() }()
+	info, err := f.Stat()
+	if err != nil {
+		return "", errReadIgnoredFile
+	}
+	remaining := lim.totalBytes - *total
+	switch {
+	case info.Size() > lim.fileBytes:
+		return "", errIgnoredFileSize
+	case info.Size() > remaining:
+		return "", errIgnoredReadTotal
+	}
+	h := sha256.New()
+	n, err := io.Copy(h, io.LimitReader(f, min(lim.fileBytes, remaining)+1))
+	*total += n
+	switch {
+	case err != nil:
+		return "", errReadIgnoredFile
+	case n > lim.fileBytes:
+		return "", errIgnoredFileSize
+	case *total > lim.totalBytes:
+		return "", errIgnoredReadTotal
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
