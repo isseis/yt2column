@@ -8,7 +8,7 @@
 | Created | 2026-10-22 |
 | Review date | 2026-10-22 |
 | Reviewer | isseis |
-| Comments | 2026-10-22 (editorial): ステップ 3-4 の 2 つめの項目の前提を直した（0035 のツールは 0033 の PR-1 を含み、`--reviewer` の繰り返しを受け付ける）。1.3.4 の `[branch ""]` の観察を、失敗するコマンドに限って直した。2026-10-22 (editorial): ステップ 2-3 のテストの配置と名前を実装に合わせた（AC-01 の別の worktree の操作は流れのテストだけに置く。AC-11 の git を起動しないことは `TestBaselineDetectsChange` の層の確かめで、FIFO の行は `TestConfigFileTypeCheckedBeforeGit` で、タイムアウトは `TestConfigListFailureKinds` で確かめる）。1.3.4 に `[branch ""]` の観察を記録した。決定は変えていない。 |
+| Comments | 2026-10-22 (editorial): ステップ 3-4 に、0033 の PR-2（#436）がステップ 2-0 を完了したので 0033 の計画の変更を取り下げたことを記録した。2026-10-22 (editorial): ステップ 3-4 の 2 つめの項目の前提を直した（0035 のツールは 0033 の PR-1 を含み、`--reviewer` の繰り返しを受け付ける）。1.3.4 の `[branch ""]` の観察を、失敗するコマンドに限って直した。2026-10-22 (editorial): ステップ 2-3 のテストの配置と名前を実装に合わせた（AC-01 の別の worktree の操作は流れのテストだけに置く。AC-11 の git を起動しないことは `TestBaselineDetectsChange` の層の確かめで、FIFO の行は `TestConfigFileTypeCheckedBeforeGit` で、タイムアウトは `TestConfigListFailureKinds` で確かめる）。1.3.4 に `[branch ""]` の観察を記録した。決定は変えていない。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -276,7 +276,7 @@
 
 **変更するファイル**: `docs/tasks/0033_multiple_trusted_reviewers/03_implementation_plan.md`
 
--   [x] この時点で 0033 のステップ 2-0 が完了していなければ、ステップ 2-0（`:292`）の手順の `--protocol 1` を、実行の時点の `Protocol` の番号を渡す形に改め、「`protocol` の番号は変わらない」の前提の文を、0035 で番号が変わったことに合わせる（1.4）。1.3.4（`:101-113`）の観察の記録（当時のツールの出力）は、記録として残し、書き換えない。0033 の計画の `Status` は保ち、`Comments` に editorial correction として記録する。完了していれば、何もしない。
+-   [x] この時点で 0033 のステップ 2-0 が完了していなければ、ステップ 2-0（`:292`）の手順の `--protocol 1` を、実行の時点の `Protocol` の番号を渡す形に改め、「`protocol` の番号は変わらない」の前提の文を、0035 で番号が変わったことに合わせる（1.4）。1.3.4（`:101-113`）の観察の記録（当時のツールの出力）は、記録として残し、書き換えない。0033 の計画の `Status` は保ち、`Comments` に editorial correction として記録する。完了していれば、何もしない。（記録: このブランチでは、いったん未完了として 0033 の計画を改めた。その後、0033 の PR-2（#436）がステップ 2-0 を完了した状態で `main` にマージされた。そのため、`main` を取り込んだときに、0033 の計画は `main` の版に戻した。完了した確かめの記録は、当時のツールに渡した番号のまま残す。）
 -   [x] 0033 のステップ 2-0 の確かめ（`--reviewer` の繰り返しを受け付けるか）の意味は、番号を合わせても変わらないことを確かめる。0033 の PR-1（#434）は本タスクのブランチの起点より前にマージされているので、0035 のツールは `--reviewer` の繰り返しを受け付ける。0033 の PR-1 の後のツールとして、PR 番号の文法の診断を返す（`list --protocol 2 --reviewer coderabbitai --reviewer chatgpt-codex-connector x` で終了コード `2`、`fixprguard: invalid input: PR number grammar`。`--protocol 1` では番号の不一致の診断になる。2026-10-22、このブランチでビルドしたツールで確かめた）。0033 の設計書の番号の記述（`02_architecture.md:65`）は、設計書 9 章のとおり 0033 の実装の PR が合わせるので、ここでは変えない。
 
 **完了条件**: 0033 の計画が、未実行の確かめで `Protocol` と違う番号を渡していない。

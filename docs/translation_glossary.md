@@ -65,7 +65,10 @@
 | 対処 | remedy | 問題が起きたときに開発者が取る手順。見出しでは "What to Do When ..." とする |
 | 高圧縮ファイル爆弾 | decompression bomb | 展開すると膨大なサイズになり、メモリなどを使い切らせる圧縮データ、およびそれを使った攻撃。HTTP 応答の gzip も含む。旧称: 圧縮爆弾 |
 | フェーズ | phase | `/fixpr` を構成する処理の単位（Phase 1〜6 と、その間の Phase 3.5・4.5。取得・トリアージ・修正・範囲の確認・build と push・ローカルのレビュー・返信と解決・PR の説明の確認）。パイプラインの「段階」（stage）とは区別する |
-| 信頼する著者 | trusted author | リポジトリへの書き込み権限（write・maintain・admin）を持つ、Bot でないアカウントと、`_context.md` に名前を定めた自動レビュアーのアカウント |
+| 信頼する著者 | trusted author | リポジトリへの書き込み権限（write・maintain・admin）を持つ、Bot でないアカウントと、自動レビュアーの一覧のどれかの名前の Bot のアカウント |
+| 自動レビュアー | automated reviewer | PR にレビューのスレッドを投稿する Bot |
+| 自動レビュアーの一覧 | automated reviewer list | `.claude/commands/_context.md` の「Automated reviewer list」に定める、スレッドを信頼する自動レビュアーの名前（GraphQL の `author.login` の形）の一覧。`fixprguard` には `--reviewer` で 1 つずつ渡す |
+| 完了を待つ PR レビュアー | awaited PR reviewer | `/runpr` がレビュー済みの判定に使う Bot。承認を待つのではなく、レビューがそのコミットまで完了したことを待つ。`.claude/commands/_context.md` の「Awaited PR reviewer」に、自動レビュアーの一覧とは別に定める |
 | 信頼する著者のスレッド | trusted thread | すべてのコメントを取得でき、そのすべての著者が信頼する著者と確かめられたレビュースレッド |
 | 想定外の著者のスレッド | untrusted thread | コメントの 1 件以上が信頼する著者のものでない、または著者を確かめられないレビュースレッド。本文を取得せず、名指しされるまで処理しない |
 | 範囲外の変更 | out-of-scope change | 修正のフェーズが変えたファイルのうち、処理したスレッドの `path` から決まる範囲に入らないもの |
