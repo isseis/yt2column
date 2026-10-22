@@ -60,7 +60,7 @@ PR boundary markers embedded in the implementation plan use these labels:
 - Section heading: `### PR-N 作成ポイント: <scope label in English>`
 - Fields: `**対象ステップ**`, `**推奨タイトル**`, `**レビュー観点**`, `**実装モデル要件**`, `**判定理由**`
 - `**推奨タイトル**`: the source `runplan.md` step 5a writes the PR title from. It is a PR title, not a squash subject (`mergepr.md` writes that at the merge); its form is in "PR title and squash subject" below
-- Implementation model tiers (`**実装モデル要件**` values): `frontier-required`, `frontier-recommended`, `standard` — assigned by `mkplan2.md` (step 4, "Model requirement"; `mkplan.md` runs it as its step 8.5), read by `runplan.md` when choosing the implementing model and shown in the merge question when `/runpr` offers the next `/runplan`
+- Implementation model tiers (`**実装モデル要件**` values): `frontier-required`, `frontier-recommended`, `standard` — assigned by `mkplan2.md` (step 4, "Model requirement"; `mkplan.md` runs it as its step 8.5), read by `runplan.md` when choosing the implementing model and shown both in the merge question when `/runpr` offers the next `/runplan` and in the `/clear` guidance of `runpr.md` step 5, which says when that guidance is given
 
 ### PR title and squash subject
 

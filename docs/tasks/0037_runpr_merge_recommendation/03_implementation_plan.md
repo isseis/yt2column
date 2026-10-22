@@ -161,9 +161,9 @@ done
 
 **変更するファイル**: `.claude/commands/runpr.md`、`cmd/yt2column/codex_review_docs_test.go`
 
--   [ ] `runpr.md:2` の `description`、`:41-42` の冒頭の説明、`:627` の step 5 の見出しを、設計書 3.5 の表の「改めた後に述べること」のとおりに改める（AC-11）。`description` の「Drive a PR through Codex's PR review and CI」は残す（1.3.3）。
--   [ ] `cmd/yt2column/codex_review_docs_test.go:119` の定数 `runprStep5` を、新しい step 5 の見出しに改める（設計書 1.4）。`make fmt` を実行する。
--   [ ] `runpr.md:78` の Authorization の文は変えない（設計書 3.5、1.3.2）。
+-   [x] `runpr.md:2` の `description`、`:41-42` の冒頭の説明、`:627` の step 5 の見出しを、設計書 3.5 の表の「改めた後に述べること」のとおりに改める（AC-11）。`description` の「Drive a PR through Codex's PR review and CI」は残す（1.3.3）。
+-   [x] `cmd/yt2column/codex_review_docs_test.go:119` の定数 `runprStep5` を、新しい step 5 の見出しに改める（設計書 1.4）。`make fmt` を実行する。
+-   [x] `runpr.md:78` の Authorization の文は変えない（設計書 3.5、1.3.2）。
 
 **完了条件**: 3 か所が、NEXT を示し、利用者が選んだときに実行すると述べ、NEXT を必ず実行するとは述べていないことを読んで確かめた。`go test -tags test ./cmd/yt2column` が通る（`codex_review_docs_test.go` の定数と見出しが一致する）。
 
@@ -175,32 +175,32 @@ done
 
 **変更するファイル**: `CLAUDE.md`
 
--   [ ] 「Claude Commands」の `/runpr` の行（`CLAUDE.md:87`）を、設計書 3.6 の表の 1 行目のとおりに改める（AC-12）。
--   [ ] タスクの PR の流れの段落（`CLAUDE.md:99-103`）を、設計書 3.6 の表の 2 行目のとおりに改める（AC-12）。
+-   [x] 「Claude Commands」の `/runpr` の行（`CLAUDE.md:87`）を、設計書 3.6 の表の 1 行目のとおりに改める（AC-12）。
+-   [x] タスクの PR の流れの段落（`CLAUDE.md:99-103`）を、設計書 3.6 の表の 2 行目のとおりに改める（AC-12）。
 
 #### ステップ 4-2: `_lib/task-pr-handoff.md`
 
 **変更するファイル**: `.claude/commands/_lib/task-pr-handoff.md`
 
--   [ ] 冒頭の説明（`:27-31`）を、設計書 3.6 の表の 3 行目のとおりに改める（AC-12）。Part A は変えない（設計書 2.1）。
+-   [x] 冒頭の説明（`:27-31`）を、設計書 3.6 の表の 3 行目のとおりに改める（AC-12）。Part A は変えない（設計書 2.1）。
 
 #### ステップ 4-3: `requirements_process.md`
 
 **変更するファイル**: `docs/dev/developer_guide/requirements_process.md`
 
--   [ ] 「Review Flow」の段落（`:55`）を、設計書 3.6 の表の 4 行目のとおりに改める（AC-12）。図（`:41-53`）は変えない。
+-   [x] 「Review Flow」の段落（`:55`）を、設計書 3.6 の表の 4 行目のとおりに改める（AC-12）。図（`:41-53`）は変えない。
 
 #### ステップ 4-4: `mergepr.md`
 
 **変更するファイル**: `.claude/commands/mergepr.md`
 
--   [ ] step 3 の、`runpr.md` の中で実行するときの説明（`:122-125`）を、設計書 3.6 の表の 5 行目のとおりに改める（AC-12）。
+-   [x] step 3 の、`runpr.md` の中で実行するときの説明（`:122-125`）を、設計書 3.6 の表の 5 行目のとおりに改める（AC-12）。
 
 #### ステップ 4-5: `_context.md`
 
 **変更するファイル**: `.claude/commands/_context.md`
 
--   [ ] 「PR marker conventions」の `実装モデル要件` の説明（`:63`）を、設計書 3.6 の表の 6 行目のとおりに改める（AC-13）。案内を示す条件は書かず、`runpr.md` の step 5 を参照する。
+-   [x] 「PR marker conventions」の `実装モデル要件` の説明（`:63`）を、設計書 3.6 の表の 6 行目のとおりに改める（AC-13）。案内を示す条件は書かず、`runpr.md` の step 5 を参照する。
 
 **完了条件（フェーズ 4 の全体。ステップ 4-1〜4-5 に共通）**: 5 つのファイルの変更箇所を読み、設計書 3.6 の表の各行が述べることと一致し、英語で書かれ、推奨に触れていないことを確かめた。
 

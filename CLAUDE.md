@@ -84,7 +84,7 @@ Project-specific values these commands depend on are defined once in
 - `/mkplan <task>` - Create `03_implementation_plan.md` with its PR boundaries (requires approved architecture) and open its PR
 - `/mkplan2 <task>` - Embed PR boundaries into an approved plan that lacks them (plans written before `/mkplan` did it) and open its PR
 - `/runplan <task>` - Implement the phase groups of an approved plan up to the next PR checkpoint, then open the PR
-- `/runpr [PR | branch | task]` - Drive a PR through Codex's PR review and CI, record its bookkeeping (a document's approval, a plan checkpoint), merge it, and run the next command; for a standalone change it also creates the PR
+- `/runpr [PR | branch | task]` - Drive a PR through Codex's PR review and CI, record its bookkeeping (a document's approval, a plan checkpoint), merge it, and offer the next command, which it runs only when the user chooses; for a standalone change it also creates the PR
 - `/weakreview [range]` - Second-pass review of work done by a lower-capability model
 - `/fixpr [PR]` - Resolve unresolved PR review threads
 - `/mergepr [PR]` - Squash-merge a PR with a generated commit message and clean up its branch
@@ -98,9 +98,10 @@ local CodeRabbit), opens the PR, pings the reviewer, and stops. `/mkreq`,
 `/mkarch`, and `/mkplan` first ask the human about the decisions their input
 leaves open; `/runplan` asks when implementation meets a decision change. After reviewing, the reviewer runs `/runpr`, which drives
 it: it waits for Codex's PR review and CI and resolves the threads with `/fixpr`. It
-then asks one question: record the bookkeeping (for a document, its
-`approved` status), merge with `/mergepr`, and run the next command, which opens
-the next PR and stops again.
+then asks one question that decides the bookkeeping (for a document, its
+`approved` status) and the merge with `/mergepr`, and offers the next command.
+When the user chooses to run it, it runs now, opens the next PR, and stops
+again; otherwise the final report says which command to run after `/clear`.
 
 Codex does the PR review. Its allowance is shared with the user's other
 ChatGPT use and its size is not published, so a PR gets one PR review, when it
