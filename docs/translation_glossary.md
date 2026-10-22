@@ -84,6 +84,9 @@
 | 区切りのブロック | fenced block | 信頼できないテキストを、実行ごとの乱数（nonce）を含む `BEGIN-UNTRUSTED-<nonce>` と `END-UNTRUSTED-<nonce>` の行で囲んだもの |
 | 指紋 | fingerprint | スレッドの ID と、コメントの ID・著者・時刻、コメントの数、続きのページの有無から作る識別子。コメントの追加・編集・削除で変わる |
 | 基準値 | baseline | `fixprguard begin` が出力する git の状態の識別子の組。セッションが会話に持ち、後のサブコマンドに渡す |
+| 監視の一覧 | watch list | `fixprguard` が、git が無視していても基準値と比べるファイルの、パスの形の一覧。範囲の規則の拒否リストとは別に持つ |
+| 対象のファイル | target file | git が無視するファイルのうち監視の一覧に当たるもの。`.claude/settings.local.json` は必ず含める |
+| 記録のファイル | record file | `fixprguard` が git のディレクトリに書く、対象のファイルごとに状態の digest と引用したパスを 1 行に書いたファイル。`begin` の記録と止まった時点の記録がある |
 | 判定した集合 | judged set | `fixprguard inspect` が範囲と照らした変更の集合。その識別子は `judgedSet` |
 | 名指し | naming | 利用者が内容を確かめた想定外の著者のスレッドを、スレッド ID と指紋の組で指定して処理を求めること。動詞は "name"（例: a named thread） |
 | バックグラウンド | background | 端末の前面でなく裏で動くプロセスやジョブ（例: バックグラウンドのプロセス）。「背景」とは訳さない |

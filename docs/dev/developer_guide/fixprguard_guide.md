@@ -10,7 +10,7 @@ The body of a review thread can be written by anyone who can write on the PR, so
 
 1. **Author judgment.** Only threads in which the author of every comment is a trusted author are processed. Trusted authors are the automated reviewers (a Bot with any of the names passed with `--reviewer`; `/fixpr` and `/runpr` pass every name on `Automated reviewer list` in `.claude/commands/_context.md`) and people with write permission on the repository (`role_name` is `write`, `maintain`, or `admin`). The bodies of untrusted threads are not fetched.
 2. **Fenced block.** Untrusted text embedded in an agent's prompt is enclosed in delimiter lines that contain a per-run random value (nonce).
-3. **Change scope and git state checks.** Before the commit and the push, the tool checks that the fix did not change files outside the scope of the processed threads, or git's hooks and config. For the config, the `branch.<name>.*` settings of other branches (every branch except the current branch and `main`) are not compared. This is so that a concurrent session operating on branches in another worktree does not stop the run. Edits that leave the list of configuration values unchanged (edits of only comments, blank lines, or indentation) are not detected either. A rewrite of another branch's settings is a residual risk (7.2).
+3. **Change scope and git state checks.** Before the commit and the push, the tool checks that the fix did not change files outside the scope of the processed threads, git's hooks and config, or the files git ignores that are on the watch list (7.1), the target files. For the config, the `branch.<name>.*` settings of other branches (every branch except the current branch and `main`) are not compared. This is so that a concurrent session operating on branches in another worktree does not stop the run. Edits that leave the list of configuration values unchanged (edits of only comments, blank lines, or indentation) are not detected either. A rewrite of another branch's settings is a residual risk (7.2).
 
 The division of responsibilities is as follows.
 
@@ -112,7 +112,7 @@ Output: `threads` (each element has `threadId`, `url`, `trusted`, `fingerprint`,
 
 ### `begin --reviewer LOGIN ... [--accept ID=FINGERPRINT ...] [PR]`
 
-Phase 1 of `/fixpr`. It runs in this order: (1) the work tree has no uncommitted change, untracked files included (if it has one, it stops with `dirty-work-tree` without querying GitHub); (2) the same check as `head`; (3) recording the baseline; (4) judging the first page (100 threads) and fetching the bodies of the threads to process.
+Phase 1 of `/fixpr`. It runs in this order: (1) the work tree has no uncommitted change, untracked files included (if it has one, it stops with `dirty-work-tree` without querying GitHub); (2) the same check as `head`; (3) recording the baseline (the state of the target files included) and writing the begin record file; (4) judging the first page (100 threads) and fetching the bodies of the threads to process.
 
 The threads to process are the trusted threads and the threads named with `--accept` whose fingerprint matches the current one. Pass to `--accept` the thread ID and fingerprint from the report output shown to the user.
 
@@ -124,7 +124,7 @@ Output fields:
 
 | Field | Content |
 |---|---|
-| `baseline` | The baseline. Pass it to `inspect`, `finish`, and `push` with `--baseline` |
+| `baseline` | The baseline. Pass it to `inspect`, `finish`, and `push` with `--baseline`. Split at `.`, its ninth field is the digest summarizing the state of the target files, and its tenth field is the SHA-256 of the begin record file (8.1) |
 | `number`, `capHit` | The PR number. When `capHit` is true, threads on the second page and later are not covered this time |
 | `processCount` | The number of threads to process. `0` means there is nothing to process |
 | `untrusted` | The untrusted threads that are not processed (`threadId`, `url`, `fingerprint`, `findings`). No body |
@@ -133,7 +133,7 @@ Output fields:
 | `permissionLookups` | The number of permission lookups used and left |
 | `nonce`, `threads` | `threads` is a string: the array of threads to process (`threadId`, `databaseId`, `authorType`, `body`, `path`, `line`, `url`, `fingerprint`, `named`) as one line of JSON, enclosed in `BEGIN-UNTRUSTED-<nonce>` and `END-UNTRUSTED-<nonce>` lines. Embed this string unchanged in an agent's prompt |
 
-Side effects: reads GitHub and `git ls-remote` only.
+Side effects: reads GitHub and `git ls-remote`, and writes (replaces) the begin record file `fixprguard-ignored-begin` in the per-worktree git directory (`.git` in the main checkout, `.git/worktrees/<name>` in a linked worktree). It removes the stop record file `fixprguard-ignored-stop` of the previous round. A record file has one line per target file: the digest of that file's state and its path quoted in ASCII. If a target file changed after the baseline was taken, it writes no record and stops with `git-state-changed` (`ignored`). The work tree and the target files are not changed.
 
 ### `fence FILE`
 
@@ -147,7 +147,7 @@ Side effects: none.
 
 ### `inspect --reviewer LOGIN ... --baseline TOKEN [--thread ID=FINGERPRINT ...] [PR]`
 
-Run after the fix phase. It first compares the config, info, and hooks with the baseline, and if they differ, stops with `git-state-changed` without starting `gh`. The comparison runs in this order. (1) Where the git directories are, the type of the config files, and the info are compared from the files alone, without starting git. (2) `git config --list` reads the list of the configuration values git reads, and it is compared without the `branch.<name>.*` settings of other branches (every branch except the current branch and `main`). (3) The hooks are compared. Edits that leave the list of configuration values unchanged (edits of only comments, blank lines, or indentation) are not detected. A rewrite of another branch's settings is a residual risk (7.2). It then fetches the `--thread` threads again from GitHub to get their `path` (a different fingerprint gives `thread-changed`), enumerates the changes in the work tree, and checks them against the scope (chapter 6).
+Run after the fix phase. It first compares the config, info, hooks, and target files with the baseline, and if they differ, stops with `git-state-changed` without starting `gh`. The comparison runs in this order. (1) Where the git directories are, the type of the config files, and the info are compared from the files alone, without starting git. (2) `git config --list` reads the list of the configuration values git reads, and it is compared without the `branch.<name>.*` settings of other branches (every branch except the current branch and `main`). (3) The hooks are compared. (4) The state of the target files (7.1) is compared. The git that lists them reads the config, so they are compared after the config and the hooks match. If they differ, `parts` is `ignored` alone. Edits that leave the list of configuration values unchanged (edits of only comments, blank lines, or indentation) are not detected. A rewrite of another branch's settings is a residual risk (7.2). It then fetches the `--thread` threads again from GitHub to get their `path` (a different fingerprint gives `thread-changed`), enumerates the changes in the work tree, and checks them against the scope (chapter 6).
 
 ```sh
 fixprguard inspect --protocol 4 --reviewer coderabbitai --baseline 'v3....' --thread 'PRRT_...=<fingerprint>' 42
@@ -155,11 +155,11 @@ fixprguard inspect --protocol 4 --reviewer coderabbitai --baseline 'v3....' --th
 
 Output: `judgedSet` (the judged set ID; pass it to `finish`), `changes` (the number of changed paths), and `outOfScope` (the out-of-scope changes; each element has `position`, `path`, `kind` (`add`, `modify`, `delete`, `other`), `added`, `deleted`, and `binary`). If `outOfScope` is not empty, the exit code is `3`, and the user is shown the list and asked whether to continue. A path that fails the path checks (chapter 6) is not printed in `path`; it is shown by `position` only.
 
-Side effects: reads GitHub and git (including `git ls-remote`) only. The work tree is not changed.
+Side effects: reads GitHub and git (including `git ls-remote`) only. The work tree is not changed. Only when it stops with `ignored`, it writes (replaces) the stop record file `fixprguard-ignored-stop` in the git directory.
 
 ### `finish --baseline TOKEN --judged-set ID PR`
 
-Phase 4 of `/fixpr`. It enforces the following order within one call: (1) the work tree matches the judged set and the git state matches the baseline; (2) `make fmt`; (3) recording the formatted set (it stops if the set of changed paths changed); (4) `make test` and `make lint`; (5) a strict match with the formatted set; (6) staging only the judged paths, using literal pathspecs; (7) checking what was staged (undoing the staging on a mismatch); (8) the commit; (9) checking that the commit's tree matches the formatted set. The make targets are the fixed values `fmt`, `test`, and `lint`, and are never taken from an argument. The commit subject is `fix: address PR #<PR> review comments`.
+Phase 4 of `/fixpr`. It enforces the following order within one call: (1) the work tree matches the judged set and the git state (the target files included) matches the baseline; (2) `make fmt`; (3) recording the formatted set (it stops if the set of changed paths changed); (4) `make test` and `make lint` (the git state is compared after `make test` too); (5) a strict match with the formatted set; (6) staging only the judged paths, using literal pathspecs; (7) checking what was staged (undoing the staging on a mismatch); (8) the commit; (9) checking that the commit's tree matches the formatted set. The make targets are the fixed values `fmt`, `test`, and `lint`, and are never taken from an argument. The commit subject is `fix: address PR #<PR> review comments`.
 
 ```sh
 fixprguard finish --protocol 4 --baseline 'v3....' --judged-set '<judgedSet>' 42
@@ -167,17 +167,17 @@ fixprguard finish --protocol 4 --baseline 'v3....' --judged-set '<judgedSet>' 42
 
 Output: `committed` (`false` when the judged set is empty, in which case nothing is done) and `commit` (the SHA of the commit made; pass it to `push`).
 
-Side effects: the formatting by `make fmt`, the writes the build checks make, staging, and the commit. No push, branch switch, or reset (except undoing the staging).
+Side effects: the formatting by `make fmt`, the writes the build checks make, staging, and the commit. No push, branch switch, or reset (except undoing the staging). When it stops with `ignored`, it writes the stop record file.
 
 ### `push --baseline TOKEN --commit SHA`
 
-Pushes the SHA that `finish` returned. Right before that, it checks that the hooks, config, and info match the baseline; that HEAD is that SHA and its only parent is the baseline's commit; and that the OID of the push target (the branch of the same name on the remote that git resolves for the current branch) matches the baseline. It pushes with an explicit refspec, without tags or submodules. The config is compared as in `inspect`. The `branch.<name>.*` settings of other branches (every branch except the current branch and `main`) are not compared, and edits that leave the list of configuration values unchanged are not detected. A rewrite of another branch's settings is a residual risk (7.2).
+Pushes the SHA that `finish` returned. Right before that, it checks that the hooks, config, info, and target files match the baseline; that HEAD is that SHA and its only parent is the baseline's commit; and that the OID of the push target (the branch of the same name on the remote that git resolves for the current branch) matches the baseline. It pushes with an explicit refspec, without tags or submodules. The config is compared as in `inspect`. The `branch.<name>.*` settings of other branches (every branch except the current branch and `main`) are not compared, and edits that leave the list of configuration values unchanged are not detected. A rewrite of another branch's settings is a residual risk (7.2).
 
 ```sh
 fixprguard push --protocol 4 --baseline 'v3....' --commit '<SHA>'
 ```
 
-Output: `{"protocol":4,"pushed":true,"commit":"<SHA>"}`.
+Output: `{"protocol":4,"pushed":true,"commit":"<SHA>"}`. When it stops with `ignored`, it writes the stop record file.
 
 ### `reply --reviewer LOGIN ... --thread-id ID --comment-id N --fingerprint FP --body-file FILE [--accept ID=FINGERPRINT ...] [PR]`
 
@@ -267,6 +267,18 @@ The `.go` rule: a `.go` file is in scope under rule 2 only when `path` is a `.go
 | Text that contains the mention is not sent to GitHub | When a `reply` body or an `edit-pr` title or body contains `@codex` (ASCII letters compared case-insensitively, even as part of a word), the tool rejects it with exit code `2` before anything is written to GitHub. This keeps a post from the user's account from making Codex act. It is a backstop layered on the check the command documents make before posting (added in task 0031) |
 | Replies and the PR description do not become shell commands | `reply` and `edit-pr` do not go through a shell, and pass the body on standard input |
 | The head of a fork PR is not handled | `head`, `list`, and `begin` check it first |
+| The creation, rewrite, or removal of a file git ignores that is on the watch list is detected by `inspect`, `finish`, and `push` comparing with the baseline | `begin` records in the baseline the state of the ignored files listed by `git ls-files --others --ignored --exclude-standard` (the tool walks a nested repository git shows as one item) that are on the watch list below (the target files), and of `.claude/settings.local.json`, which is always included. `inspect`, `finish` (after the build checks included), and `push` take the state the same way after the config and the hooks and compare it, and if it differs, stop with `git-state-changed` (`ignored`). The state is presence, type, content, executable permission, and a symbolic link's text and what it resolves to. Paths, names, and content are not printed; they are written only to the record files in the git directory |
+
+**Watch list.** The target files are the files git ignores (by `.gitignore`, `info/exclude`, or the global exclude file) whose path from the top of the work tree matches the table below. The items of the table are the same as the definition in `internal/fixprguard/ignored.go`, and `cmd/fixprguard/docs_test.go` checks that they match.
+
+| Form | Items |
+|---|---|
+| Everything below this top-level directory (the directory itself included) | `.claude/` |
+| A file of this name at the top level (the leading `/` marks a match at the top level only) | `/.env`, `/.envrc`, `/claude.local.md` |
+| A file of this name at any level | `claude.md`, `makefile`, `gnumakefile`, `go.mod`, `go.work` |
+| A file at any level whose name ends with this string (a name that is only the string included) | `*.go`, `*.mk`, `*.c`, `*.h`, `*.cc`, `*.cpp`, `*.cxx`, `*.hh`, `*.hpp`, `*.hxx`, `*.m`, `*.s`, `*.sx`, `*.f`, `*.for`, `*.f90`, `*.swig`, `*.swigcxx`, `*.syso` |
+
+Matching folds case on every row with Unicode simple case folding (KELVIN SIGN and `k`, LONG S and `s` included). An invalid UTF-8 byte is equal only to the same byte. Paths are not normalized. This list is separate from the scope rules (chapter 6); they share only the extensions of the Go build inputs. Something that is not a regular file (a FIFO and so on) is not a target, since git does not show it as an ignored file (`.claude/settings.local.json` is the exception, whose type is recorded). If something whose name folds to `.git` is below the top-level `.claude/`, git lists nothing below it, so the run stops with `git-failed` (except below a nested repository git shows as ignored).
 
 ### 7.2 Not guaranteed
 
@@ -285,8 +297,10 @@ The `.go` rule: a `.go` file is in scope under rule 2 only when `path` is a `.go
 
 **Hidden changes.**
 
-- Files ignored by `.gitignore`, files hidden by a `.gitignore` inside the work tree or by the global exclude file, and changes hidden by forging the stat information of the index. Hidden changes are not committed, but the build checks running them cannot be prevented.
-- A `.gitignore` that ignores itself (part of the item above). When a `.gitignore` placed in a lower directory ignores itself and another file (such as `foo.syso` or `CLAUDE.md`), neither appears in the set of changes, so the scope rules (chapter 6) do not judge them. The ignored files are not committed, but they remain in the work tree. `finish`'s `make test` links an ignored `.syso` (Go does not read `.gitignore`), and later sessions read an ignored instruction file. Writes to files git ignores are handled by task 0034 (#424).
+- Rewrites of files git ignores that are not on the watch list (7.1). This is a residual risk of 7.2.5. Those on the watch list are detected by `inspect`, `finish`, and `push` (7.1).
+- Files hidden by a `.gitignore` inside the work tree or by the global exclude file that are not target files. A hidden file is listed as an ignored file, so it is detected if it is on the watch list. If it is not, it does not appear in the set of changes either. Hidden changes are not committed, but the build checks running them cannot be prevented.
+- Changes hidden by forging the stat information of the index.
+- A `.gitignore` that ignores itself (part of the item two above). When a `.gitignore` placed in a lower directory ignores itself and another file (such as `foo.syso` or `CLAUDE.md`), neither appears in the set of changes, so the scope rules (chapter 6) do not judge them. The ignored files are not committed, but they remain in the work tree. Those on the watch list, such as `foo.syso` and `CLAUDE.md`, are detected as target files (7.1). An instruction file not on the list, such as `AGENTS.md`, does not reach GitHub when ignored, but a local session reading it is not prevented (7.2.5).
 
 **What is committed and pushed as in scope.**
 
@@ -313,6 +327,27 @@ The `.go` rule: a `.go` file is in scope under rule 2 only when `path` is a `.go
 - A comparison before `head`, `list`, `reply`, and `edit-pr`, which take no baseline, start `gh`. `/fixpr` calls them after `finish` and `push`, so the comparisons up to then detect a rewrite, but a rewrite after `push` is not detected.
 - Files outside the hooks directory that a hook runs (such as the cache of the pre-commit framework).
 
+#### 7.2.5 Files git ignores
+
+The following are not detected. Each depends on Claude Code's permission prompts (the user's settings).
+
+- Changing a file git ignores that is not on the watch list. This includes files that are run later or read as configuration. For example: dotfiles whose names are not on the list (`.tool-versions`, `.mise.toml`, `.npmrc`, an `.envrc` in a lower directory, and so on), `go.sum` and `go.work.sum`, configuration files and scripts under `extension/`, files under `.github/`, binaries under `build/` (the Native Messaging host `yt2column-nmhost install` registered is started by the browser on the next send), JavaScript under `extension/node_modules/` (`make ext-check` runs it), settings under `.vscode/`, a `CLAUDE.local.md` in a lower directory, and instruction files not named `CLAUDE.md`, such as `AGENTS.md` and `GEMINI.md`.
+- Changing files outside this work tree, including other worktrees of the same repository and the main checkout.
+- Creating, after `begin`, something that is not a regular file (a FIFO, a socket, a device, and so on) at a path on the watch list. `.claude/settings.local.json` is the exception and is detected. Replacing an existing target file with something that is not a regular file is detected too.
+- Placing a file whose name equals an item of the watch list only under full case folding. For example, `GNUmakeﬁle` with the ligature `ﬁ` (U+FB01). The case-insensitive APFS of macOS resolves it as `GNUmakefile`, so `make` reads it, but the matching does not fold a conversion that expands one character into several (`ﬁ` to `fi`, `ß` to `ss`, and so on).
+- Changing a target file and changing it back before the check. Writing after the check (including by processes the fix phase's agent or `make test` left running), and changing after `push`.
+- A write that takes effect before the detection. A write to `.claude/settings.local.json` can take effect in the running session before the tool stops.
+- Inference from the summarized value. If the content of the other target files is known and `.env` has few candidate contents, its content can be inferred from the ninth field of the baseline. An agent that can read the baseline can also read `.env` directly.
+- Removing or rewriting a record file. Whether the fix phase's agent can write to the git directory has not been checked. A rewrite of the begin record shows in the check against the baseline, and a removal shows as a missing record (8.1), but then the changed files cannot be identified from the records. The stop record is not tied to the baseline, so a rewrite after it is written does not show.
+- The user running `begin` on a redo without examining the contents. Legitimate writes stop the run too, so the user may get used to the stops and stop examining. A redone `begin` accepts the target files at that time as the new baseline.
+
+The run also stops on the following legitimate writes and placements.
+
+- When the user answers "don't ask again" to a Claude Code permission prompt during the fix phase (which rewrites `.claude/settings.local.json`), or when a Claude Code runtime file (such as `scheduled_tasks.lock`), an editor's swap file, or a `.DS_Store` appears below `.claude/`.
+- When a target file is a symbolic link to a directory, and when a worktree is below `.claude/worktrees/`. `begin` keeps stopping too, so `/fixpr` cannot be used until the cause is removed. Put worktrees outside `.claude/`.
+
+The existing clean check and the set of changes skip an unreadable directory with only git's warning (#446). The listing of the target files stops if git writes anything to standard error.
+
 ## 8. What to Do When the Tool Stops
 
 The `stop` field of the exit code `1` output gives the stop kind. When the tool stops, do not work around it; remove the cause, then redo the round from `begin`.
@@ -321,7 +356,7 @@ The `stop` field of the exit code `1` output gives the stop kind. When the tool 
 |---|---|---|---|
 | `dirty-work-tree` | At `begin`, the work tree has uncommitted changes (untracked files included) | None | Examine the changes with `git status`, discard or commit them, and redo. When the previous round was stopped by out-of-scope changes, the changes remain, so the run stops here too |
 | `cross-repository` | The PR's head is in another repository, such as a fork | None | The tool does not handle it. Check the PR's content yourself |
-| `git-state-changed` | One of HEAD, the branch, the push target, the hooks, the config, or the info differs from the baseline. For the config, the list of configuration values without the `branch.<name>.*` settings of other branches (every branch except the current branch and `main`), where the git directories are, and the type of the config files are compared. This includes the case where the list of configuration values can no longer be read after `begin` (a syntax error, a timeout on a FIFO include target, and so on). Edits that leave the list of configuration values unchanged do not stop the run. A rewrite of another branch's settings is a residual risk (7.2) | `parts` (`head`, `remote`, `hooks`, `config`, `info`) | Examine the parts that differ. For `config`, examine the settings with `git config --list --show-origin`, and remove an unintended change to the hooks or config. If the remote only advanced legitimately, clean up the work tree and redo |
+| `git-state-changed` | One of HEAD, the branch, the push target, the hooks, the config, the info, or the target files (the files git ignores that are on the watch list of 7.1) differs from the baseline. For the config, the list of configuration values without the `branch.<name>.*` settings of other branches (every branch except the current branch and `main`), where the git directories are, and the type of the config files are compared. This includes the case where the list of configuration values can no longer be read after `begin` (a syntax error, a timeout on a FIFO include target, and so on). Edits that leave the list of configuration values unchanged do not stop the run. A rewrite of another branch's settings is a residual risk (7.2) | `parts` (`head`, `remote`, `hooks`, `config`, `info`, `ignored`). `ignored` is the target files, listed only when every earlier part matches | Examine the parts that differ. For `ignored`, follow the steps of 8.1. The tool does not print which file changed, so do not let the session look for it. For `config`, examine the settings with `git config --list --show-origin`, and remove an unintended change to the hooks or config. If the remote only advanced legitimately, clean up the work tree and redo |
 | `judged-set-changed` | The work tree or the commit differs from the judged set (a change appeared after the judgment, the build checks rewrote an in-scope file, a commit hook rewrote the index, and so on) | `changes` (the list of changes found) | Examine the listed changes. If the run stopped after a commit was made, examine that commit and undo it |
 | `thread-cap` | `list` would read more than 2000 threads | None | Resolve threads on GitHub to reduce them |
 | `change-cap` | More than 1000 files have changes | None | Examine the changes and reduce them |
@@ -330,16 +365,73 @@ The `stop` field of the exit code `1` output gives the stop kind. When the tool 
 | `reply-not-resolved` | The reply was posted (or it is unknown whether it was), but the thread could not be resolved | None | Do not post the same reply again. Check the thread on GitHub and resolve it by hand if needed |
 | `response-rejected` | A GitHub call failed or timed out, or the response failed the strict check or the size cap. This includes the case where `git remote -v` inside `gh` failed on another branch's setting without a value or on a `[branch ""]` section (the `git-failed` row) | None | Check `gh auth status` and the state of GitHub, then redo. If `git remote -v` fails, follow the `git-failed` row |
 | `build-checks-failed` | One of `make fmt`, `make test`, or `make lint` failed (including output over 64 MiB, in which case there is no `output`) | `stage` (`fmt`, `test`, `lint`) and `output` (the last 8 KiB of the output, as a fenced block) | Check the output and fix the cause. `output` is the result of running code, so treat it as untrusted text |
-| `git-failed` | git failed, its output was not in the expected shape, or git's metadata could not be read (a tracked file replaced by a FIFO, run outside a git repository, and so on). This includes the cases where another branch's `branch.<name>.remote`, `merge`, or `pushRemote` is written without a value, where a `[branch ""]` section exists, and where the list of configuration values exceeded the output cap (64 MiB) | None | Check that `git status` works. Check that `git config --list --show-origin` works and how large its output is, and if there is a setting without a value or a `[branch ""]` section, remove it |
+| `git-failed` | git failed, its output was not in the expected shape, or git's metadata could not be read (a tracked file replaced by a FIFO, run outside a git repository, and so on). This includes the cases where another branch's `branch.<name>.remote`, `merge`, or `pushRemote` is written without a value, where a `[branch ""]` section exists, and where the list of configuration values exceeded the output cap (64 MiB). It also includes the cases where the state of the target files cannot be taken (the listing cap, the size cap of one file, the cap on the total content read, a target file or directory that cannot be read, and so on), which the rule name on standard error shows (8.2) | None | Check that `git status` works. Check that `git config --list --show-origin` works and how large its output is, and if there is a setting without a value or a `[branch ""]` section, remove it. If the rule name is in the table of 8.2, do what 8.2 says |
 | `failed` | A failure that matches none of the above (no nonce for the fenced block could be chosen, and so on) | None | Check the diagnostic on standard error |
 
 When the user answers "do not continue" about out-of-scope changes, the changes remain in the work tree. The next `/fixpr` stops with `dirty-work-tree`, so examine the changes, discard or commit them, and redo. Examine the remaining changes with what git shows (`git status --untracked-files=all` and `git diff`; for the content of an untracked file, `git diff --no-index /dev/null <path>`; look for files hidden by a `.gitignore` that ignores itself (7.2) with `git status --ignored --untracked-files=all`). Until you have examined them, do not run `make` or `go test`, and do not start a Claude Code session in that directory. Do not let the current session read files in that directory either. An instruction file or a Go build input in a lower directory is read or linked just by being there.
+
+### 8.1 When the tool stops with `ignored`
+
+The tool does not print which target file changed. Whoever wrote the files chose their names, so they are kept from the session. Run the following steps in a terminal outside the Claude Code session, at the top of the work tree. Do not let the session list or read the target files. Modification times can be forged, so do not narrow the files to check by modification time.
+
+**(a) Checking the record and (b) finding the changed files.** The begin record file has one line per target file at `begin`: the digest of its state and its path quoted in ASCII. The stop record file is the same list at the stop. Put the `baseline` `begin` printed (it is in `begin`'s output, which stays in the session) into the variable `token` (`token='v3....'`), then run the following. If the SHA-256 of the begin record matches the tenth field of the baseline, it compares the two records with `diff`.
+
+```sh
+gitdir=.git
+if [ -f .git ]; then gitdir=$(sed -n 's/^gitdir: //p' .git); fi
+want=$(printf '%s\n' "$token" | cut -d. -f10)
+if command -v sha256sum >/dev/null 2>&1; then
+  got=$(sha256sum < "$gitdir/fixprguard-ignored-begin" | cut -d' ' -f1)
+else
+  got=$(shasum -a 256 < "$gitdir/fixprguard-ignored-begin" | cut -d' ' -f1)
+fi
+if [ -n "$got" ] && [ "$got" = "$want" ]; then
+  echo 'begin record: matches the baseline'
+  diff "$gitdir/fixprguard-ignored-begin" "$gitdir/fixprguard-ignored-stop"
+else
+  echo 'begin record: does not match the baseline, do not trust it'
+fi
+```
+
+Use `sha256sum` on Linux and `shasum -a 256` on macOS. In the `diff` output, a `<` line is only in the record at `begin` and a `>` line only in the record at the stop. A path on both sides is a file that changed, one only on the `<` side was removed, and one only on the `>` side was added. The paths of the stop record's lines are the current list of target files. If the check does not match, or a record file is missing, strongly suspect a compromise. Restore `.claude/settings.local.json`, `.envrc`, and `.env` from trusted copies the user keeps elsewhere, and examine every file in the stop record.
+
+**(c) Files whose content to examine.** Besides the files that changed, examine the content of every file on the list. In particular, the `hooks` and `permissions` of `.claude/settings.local.json`, `.envrc` and `.env`, and `.go` files, Go build inputs, `Makefile`s, and `*.mk` files in ignored places. Remove unintended changes.
+
+**(d) Changes left in the work tree.** Examine the changes the fix phase left in the work tree, then either discard them and redo `/fixpr`, or have the user examine them and commit by hand. Running `begin` with the changes still there stops with `dirty-work-tree`.
+
+**(e) When the cause is legitimate.** Even when the cause is the user answering a permission prompt, or a Claude Code runtime file (`.claude/scheduled_tasks.lock`, a worktree below `.claude/worktrees/`, and so on), examine the contents before redoing. Put worktrees outside `.claude/`. A redone `begin` accepts the target files at that time as the new baseline.
+
+### 8.2 When the state of the target files cannot be taken
+
+The rule name of the `git-failed` diagnostic on standard error, `fixprguard: git command failed: <rule name>`, shows the cause. Act on it in a terminal outside the Claude Code session.
+
+| Rule name | Cause | What to do |
+|---|---|---|
+| `list ignored files failed` | The git that lists the ignored files failed or wrote anything to standard error (a warning about an unreadable directory, and so on) | Run `git -c core.fsmonitor=false ls-files --others --ignored --exclude-standard -z > /dev/null` in the terminal, and restore read permission on the directory the warning names or remove the directory |
+| `list ignored files output over the cap` | The listing's output exceeded 64 MiB | Reduce the ignored files |
+| `list ignored files output shape` | The listing's output is not in the accepted shape | Check the git version and the file names in the work tree |
+| `ignored target count over the cap` | There are more than 10,000 target files | Reduce the ignored files on the watch list |
+| `ignored directory entries over the cap` | More than 100,000 entries were walked below nested repositories and `.claude/` | Remove nested repositories in ignored places and worktrees below `.claude/worktrees/` |
+| `ignored file over the size cap` | One target file is larger than 16 MiB | Find it with the command below and remove it |
+| `ignored read total over the cap` | The total content of the target files read in one pass exceeded 64 MiB (including many links to the same content) | Find large files with the command below, and remove the unneeded ones and the links |
+| `read ignored files timed out` | Taking the state took more than 2 minutes (a link into an unresponsive file system, and so on) | Check symbolic links that point outside the work tree |
+| `read ignored directory` | A directory below a nested repository or below `.claude/` cannot be read | Restore read permission |
+| `read ignored file` | A target file (a link's target included) cannot be read | Restore read permission or remove the file |
+| `ignored link to a directory` | A target file is a symbolic link to a directory | Remove the link |
+| `.git name below .claude` | Something named `.git` is below the top-level `.claude/` | Remove it. If it is a worktree below `.claude/worktrees/`, move it outside `.claude/` |
+| `write ignored begin record` | The begin record file cannot be written, or the stop record of the previous round cannot be removed | Check the type and permissions of `fixprguard-ignored-begin` and `fixprguard-ignored-stop` in the git directory |
+
+Find large files with the following command. `sed -n l` escapes control characters in the paths it prints, so they do not control the terminal.
+
+```sh
+find . -path ./.git -prune -o -type f -size +16M -print | LC_ALL=C sed -n l
+```
 
 ## 9. Changing the tool
 
 - The judgment is in `internal/fixprguard`, and the argument parsing and the call order are in `cmd/fixprguard`. External commands are called through the `Runner` and `InputRunner` of `internal/cmdrunner`. In tests, `gh` and `make` are replaced with the fake in `internal/cmdrunner/testutil`, and git is exercised in a real repository in a temporary directory.
 - When changing a guarantee in section 7.1, break the corresponding implementation, confirm that a test fails, and write that in the commit message (CLAUDE.md, "Testing Strategy").
-- When changing the contract of the output or the arguments, or when changing the scope rules (chapter 6), raise `Protocol` in `internal/fixprguard` and update the `--protocol` the command documents pass. However, only a change that meets all three conditions below may leave `Protocol` unchanged. The change that accepts repeated `--reviewer` (task 0033) is one.
+- When changing the contract of the output or the arguments, or when changing the scope rules (chapter 6), raise `Protocol` in `internal/fixprguard` and update the `--protocol` the command documents pass. The number only goes up: a number once used is never used again or lowered. If two concurrent branches used the same number, a binary built on one would accept the `--protocol` of the other's documents and silently judge by different rules (task 0036 used `3`, so task 0034 used `4`). However, only a change that meets all three conditions below may leave `Protocol` unchanged. The change that accepts repeated `--reviewer` (task 0033) is one.
     1. An old tool rejects the calls of the new documents when parsing the arguments (exit code `2`) and does not judge by the old rules.
     2. A new tool judges the calls of the old documents by the same rules as before.
     3. The shape of the output does not change.
@@ -354,5 +446,5 @@ When the user answers "do not continue" about out-of-scope changes, the changes 
 
   Do not loosen the check of the expected names to something like "parses and is not empty". The content guard would then no longer detect a rewrite of the list alone.
 - A Bot whose name is removed from the list does not stop being trusted at once. Each session reads the `_context.md` of the branch it works on, so on an open branch that has not merged `main`, that Bot's threads are still trusted. To withdraw trust quickly, put the removal into `main`, then merge `main` into the branch of each open PR. Until it is merged, do not use `/fixpr` or `/runpr` on that branch.
-- When changing the stop kinds, the list of execution-related files, or the allow list, also update chapters 6 and 8 of this guide. `cmd/fixprguard/docs_test.go` checks that this guide (Japanese and English) contains every kind and every item.
+- When changing the stop kinds, the list of execution-related files, or the allow list, also update chapters 6 and 8 of this guide. When changing the watch list, also update the watch list table of 7.1. `cmd/fixprguard/docs_test.go` checks that this guide (Japanese and English) contains every kind and every item.
 - After the merge, reinstall with `make install-fixprguard` (chapter 3).
