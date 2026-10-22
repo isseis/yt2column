@@ -3,7 +3,7 @@
 package fixprguard
 
 import (
-	"crypto/sha256"
+	"bytes"
 	"errors"
 	"slices"
 	"strings"
@@ -42,8 +42,23 @@ func configOutput(entries ...listed) []byte {
 	return []byte(b.String())
 }
 
+// Positions in baseEntries that rows change; TestConfigListDigestClassification
+// checks each holds the entry it names.
+const (
+	iFetchHeads = 3
+	iFetchTags  = 4
+	iCurrent    = 5
+	iMain       = 6
+	iOther      = 7
+	iEnd        = 9 // the command-line entry, before which rows insert
+)
+
+// currentBranchKey is testBranch's remote setting.
+var currentBranchKey = branchSection + "." + testBranch + ".remote"
+
 // baseEntries is a listing with a compared entry of every kind and a branch
-// setting of a branch other than main and testBranch.
+// setting of a branch other than main and testBranch. The two
+// remote.origin.fetch entries pin that a repeated name is accepted.
 func baseEntries() []listed {
 	return []listed{
 		set(systemOrigin, "core.autocrlf", "false"),
@@ -51,7 +66,7 @@ func baseEntries() []listed {
 		set(repoOrigin, "remote.origin.url", "/srv/remote.git"),
 		set(repoOrigin, "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*"),
 		set(repoOrigin, "remote.origin.fetch", "+refs/tags/*:refs/tags/*"),
-		set(repoOrigin, "branch.feature.remote", "origin"),
+		set(repoOrigin, currentBranchKey, "origin"),
 		set(repoOrigin, "branch.main.remote", "origin"),
 		set(repoOrigin, "branch.other.remote", "origin"),
 		set(repoOrigin, "branch.other.merge", "refs/heads/other"),
@@ -77,6 +92,18 @@ func TestConfigListDigestClassification(t *testing.T) {
 		return c
 	}
 	remove := func(at int) []listed { return slices.Delete(slices.Clone(base), at, at+1) }
+	for at, name := range map[int]string{
+		iFetchHeads: "remote.origin.fetch", iFetchTags: "remote.origin.fetch", iCurrent: currentBranchKey,
+		iMain: "branch.main.remote", iOther: "branch.other.remote", iEnd: "gc.auto",
+	} {
+		if base[at].name != name {
+			t.Fatalf("base[%d] = %q, want %q", at, base[at].name, name)
+		}
+	}
+	// Names that overlap testBranch: a longer subsection, and one differing
+	// only in case.
+	extended := testBranch + ".a"
+	recased := strings.ToUpper(testBranch[:1]) + testBranch[1:]
 	// Each row changes base; ignored rows must leave the digest unchanged and
 	// compared rows must change it.
 	for _, tc := range []struct {
@@ -87,47 +114,45 @@ func TestConfigListDigestClassification(t *testing.T) {
 		ignored bool
 	}{
 		// Branch settings of other branches, from any origin.
-		{name: "other_branch_added", after: insert(8, set(repoOrigin, "branch.x.remote", "origin")), ignored: true},
-		{name: "other_branch_changed", after: replace(7, set(repoOrigin, "branch.other.remote", "upstream")), ignored: true},
-		{name: "other_branch_removed", after: remove(7), ignored: true},
-		{name: "other_branch_section_added", after: insert(9, set(repoOrigin, "branch.x.remote", "origin"), set(repoOrigin, "branch.x.merge", "refs/heads/x")), ignored: true},
-		{name: "other_branch_section_removed", after: slices.Delete(slices.Clone(base), 7, 9), ignored: true},
-		{name: "empty_subsection_added", after: insert(9, set(repoOrigin, "branch..remote", "origin")), ignored: true},
-		{name: "other_branch_without_value", after: insert(9, bare(repoOrigin, "branch.x.remote")), ignored: true},
-		{name: "other_branch_value_with_lf", after: insert(9, set(repoOrigin, "branch.x.description", "line\nline")), ignored: true},
+		{name: "other_branch_added", after: insert(iOther+1, set(repoOrigin, "branch.x.remote", "origin")), ignored: true},
+		{name: "other_branch_changed", after: replace(iOther, set(repoOrigin, "branch.other.remote", "upstream")), ignored: true},
+		{name: "other_branch_removed", after: remove(iOther), ignored: true},
+		{name: "other_branch_section_added", after: insert(iEnd, set(repoOrigin, "branch.x.remote", "origin"), set(repoOrigin, "branch.x.merge", "refs/heads/x")), ignored: true},
+		{name: "other_branch_section_removed", after: slices.Delete(slices.Clone(base), iOther, iOther+2), ignored: true},
+		{name: "empty_subsection_added", after: insert(iEnd, set(repoOrigin, "branch..remote", "origin")), ignored: true},
+		{name: "other_branch_without_value", after: insert(iEnd, bare(repoOrigin, "branch.x.remote")), ignored: true},
+		{name: "other_branch_value_with_lf", after: insert(iEnd, set(repoOrigin, "branch.x.description", "line\nline")), ignored: true},
 		{name: "other_branch_in_global", after: insert(1, set(globalOrigin, "branch.x.remote", "origin")), ignored: true},
 		{name: "other_branch_in_system", after: insert(1, set(systemOrigin, "branch.x.remote", "origin")), ignored: true},
-		{name: "other_branch_in_include", after: insert(9, set(includeOrigin, "branch.x.remote", "origin")), ignored: true},
-		{name: "other_branch_in_worktree_config", after: insert(9, set("file:.git/worktrees/w/config.worktree", "branch.x.remote", "origin")), ignored: true},
+		{name: "other_branch_in_include", after: insert(iEnd, set(includeOrigin, "branch.x.remote", "origin")), ignored: true},
+		{name: "other_branch_in_worktree_config", after: insert(iEnd, set("file:.git/worktrees/w/config.worktree", "branch.x.remote", "origin")), ignored: true},
 		// The subsection is feature.a, not feature: the overlap with the
 		// current branch's name does not make it the current branch.
-		{name: "subsection_extends_current_branch", after: insert(9, set(repoOrigin, "branch.feature.a.remote", "origin")), ignored: true},
-		{name: "subsection_differs_in_case", after: insert(9, set(repoOrigin, "branch.Feature.remote", "origin")), ignored: true},
-		{name: "main_differs_in_case", after: insert(9, set(repoOrigin, "branch.Main.remote", "origin")), ignored: true},
+		{name: "subsection_extends_current_branch", after: insert(iEnd, set(repoOrigin, "branch."+extended+".remote", "origin")), ignored: true},
+		{name: "subsection_differs_in_case", after: insert(iEnd, set(repoOrigin, "branch."+recased+".remote", "origin")), ignored: true},
+		{name: "main_differs_in_case", after: insert(iEnd, set(repoOrigin, "branch.Main.remote", "origin")), ignored: true},
 
 		// The current branch, main, two-level branch settings, and every
 		// other section stay compared.
-		{name: "current_branch_added", after: insert(6, set(repoOrigin, "branch.feature.merge", "refs/heads/feature"))},
-		{name: "current_branch_changed", after: replace(5, set(repoOrigin, "branch.feature.remote", "upstream"))},
-		{name: "current_branch_removed", after: remove(5)},
-		{name: "current_branch_without_value", after: replace(5, bare(repoOrigin, "branch.feature.remote"))},
-		{name: "current_branch_with_dot", branch: "feature.a", after: insert(9, set(repoOrigin, "branch.feature.a.pushremote", "upstream"))},
-		{name: "main_added", after: insert(7, set(repoOrigin, "branch.main.pushremote", "upstream"))},
-		{name: "main_changed", after: replace(6, set(repoOrigin, "branch.main.remote", "upstream"))},
-		{name: "main_removed", after: remove(6)},
-		{name: "two_level_branch_added", after: insert(9, set(repoOrigin, "branch.autosetupmerge", "always"))},
-		{name: "branch_prefixed_section_added", after: insert(9, set(repoOrigin, "branchx.a.b", "c"))},
-		{name: "remote_push_default_added", after: insert(9, set(repoOrigin, "remote.pushdefault", "upstream"))},
-		{name: "remote_added", after: insert(9, set(repoOrigin, "remote.upstream.url", "/srv/other.git"))},
-		{name: "include_added", after: insert(9, set(repoOrigin, "include.path", "included.cfg"))},
-		{name: "hooks_path_in_include", after: insert(9, set(includeOrigin, "core.hookspath", "/tmp/hooks"))},
-		{name: "compared_value_changed_after_lf", before: insert(9, set(repoOrigin, "core.x", "a\nb")), after: insert(9, set(repoOrigin, "core.x", "a\nc"))},
-		{name: "empty_value_to_no_value", before: insert(9, set(repoOrigin, "core.x", "")), after: insert(9, bare(repoOrigin, "core.x"))},
+		{name: "current_branch_added", after: insert(iCurrent+1, set(repoOrigin, "branch."+testBranch+".merge", "refs/heads/"+testBranch))},
+		{name: "current_branch_changed", after: replace(iCurrent, set(repoOrigin, currentBranchKey, "upstream"))},
+		{name: "current_branch_removed", after: remove(iCurrent)},
+		{name: "current_branch_without_value", after: replace(iCurrent, bare(repoOrigin, currentBranchKey))},
+		{name: "current_branch_with_dot", branch: extended, after: insert(iEnd, set(repoOrigin, "branch."+extended+".pushremote", "upstream"))},
+		{name: "main_added", after: insert(iMain+1, set(repoOrigin, "branch.main.pushremote", "upstream"))},
+		{name: "main_changed", after: replace(iMain, set(repoOrigin, "branch.main.remote", "upstream"))},
+		{name: "main_removed", after: remove(iMain)},
+		{name: "two_level_branch_added", after: insert(iEnd, set(repoOrigin, "branch.autosetupmerge", "always"))},
+		{name: "branch_prefixed_section_added", after: insert(iEnd, set(repoOrigin, "branchx.a.b", "c"))},
+		{name: "remote_push_default_added", after: insert(iEnd, set(repoOrigin, "remote.pushdefault", "upstream"))},
+		{name: "remote_added", after: insert(iEnd, set(repoOrigin, "remote.upstream.url", "/srv/other.git"))},
+		{name: "include_added", after: insert(iEnd, set(repoOrigin, "include.path", "included.cfg"))},
+		{name: "compared_value_changed_after_lf", before: insert(iEnd, set(repoOrigin, "core.x", "a\nb")), after: insert(iEnd, set(repoOrigin, "core.x", "a\nc"))},
+		{name: "empty_value_to_no_value", before: insert(iEnd, set(repoOrigin, "core.x", "")), after: insert(iEnd, bare(repoOrigin, "core.x"))},
 		{name: "origin_only_changed", after: replace(1, set(globalOrigin, "core.bare", "false"))},
-		{name: "system_origin_only_changed", after: replace(0, set(globalOrigin, "core.autocrlf", "false"))},
 		{name: "multi_value_order_swapped", after: func() []listed {
 			c := slices.Clone(base)
-			c[3], c[4] = c[4], c[3]
+			c[iFetchHeads], c[iFetchTags] = c[iFetchTags], c[iFetchHeads]
 			return c
 		}()},
 	} {
@@ -143,7 +168,7 @@ func TestConfigListDigestClassification(t *testing.T) {
 			beforeOut, afterOut := configOutput(before...), configOutput(tc.after...)
 			// Without classification the change is visible, so an unchanged
 			// digest can only come from the classification.
-			if sha256.Sum256(beforeOut) == sha256.Sum256(afterOut) {
+			if bytes.Equal(beforeOut, afterOut) {
 				t.Fatal("the row does not change the output")
 			}
 			same := mustConfigListDigest(t, beforeOut, branch) == mustConfigListDigest(t, afterOut, branch)

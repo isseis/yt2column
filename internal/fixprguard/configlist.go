@@ -39,7 +39,7 @@ func configListDigest(out []byte, branchDigest string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if comparedSetting(name, branchDigest) {
+		if name.compared(branchDigest) {
 			_, _ = h.Write(entry)
 		}
 		rest = next
@@ -47,30 +47,39 @@ func configListDigest(out []byte, branchDigest string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
+// configName is a setting's name split at its first and last ".": the
+// section is before the first, the subsection between the two (it may hold
+// "." or be empty), and the variable after the last. hasSubsection is false
+// for a name with a single ".".
+type configName struct {
+	section, subsection []byte
+	hasSubsection       bool
+}
+
 // nextConfigEntry splits the first entry off out and returns it whole, its
 // name, and the rest. A missing delimiter, an empty origin, or a name that is
 // not <section>.<variable> or <section>.<subsection>.<variable> with a
 // non-empty section and variable is rejected.
-func nextConfigEntry(out []byte) (entry, name, rest []byte, err error) {
-	// Without a NUL after the origin nothing follows it, which the name check
-	// below rejects.
+func nextConfigEntry(out []byte) (entry []byte, name configName, rest []byte, err error) {
+	// Without a NUL after the origin nothing follows it, which the name-end
+	// check below rejects.
 	origin, afterOrigin, _ := bytes.Cut(out, []byte{0})
 	if len(origin) == 0 {
-		return nil, nil, nil, errConfigList
+		return nil, configName{}, nil, errConfigList
 	}
 	end := indexNameEnd(afterOrigin)
 	if end < 0 {
-		return nil, nil, nil, errConfigList
+		return nil, configName{}, nil, errConfigList
 	}
-	name = afterOrigin[:end]
-	if _, _, _, ok := splitConfigName(name); !ok {
-		return nil, nil, nil, errConfigList
+	name, ok := splitConfigName(afterOrigin[:end])
+	if !ok {
+		return nil, configName{}, nil, errConfigList
 	}
 	rest = afterOrigin[end+1:]
 	if afterOrigin[end] == '\n' {
 		_, after, ok := bytes.Cut(rest, []byte{0})
 		if !ok {
-			return nil, nil, nil, errConfigList
+			return nil, configName{}, nil, errConfigList
 		}
 		rest = after
 	}
@@ -87,36 +96,30 @@ func indexNameEnd(b []byte) int {
 	return -1
 }
 
-// splitConfigName splits a name at its first and last ".": the section is
-// before the first, the subsection between the two (it may hold "." or be
-// empty), and the variable after the last. hasSubsection is false for a name
-// with a single ".". ok is false for a name without "." or with an empty
-// section or variable.
-func splitConfigName(name []byte) (section, subsection []byte, hasSubsection, ok bool) {
+// splitConfigName splits a name into a configName. ok is false for a name
+// without "." or with an empty section or variable.
+func splitConfigName(name []byte) (configName, bool) {
 	first := bytes.IndexByte(name, '.')
 	last := bytes.LastIndexByte(name, '.')
 	switch {
 	case first < 0: // no "." at all, an empty name included
-		return nil, nil, false, false
+		return configName{}, false
 	case first == 0: // empty section
-		return nil, nil, false, false
+		return configName{}, false
 	case last == len(name)-1: // empty variable
-		return nil, nil, false, false
+		return configName{}, false
+	case first == last:
+		return configName{section: name[:first]}, true
 	}
-	if first == last {
-		return name[:first], nil, false, true
-	}
-	return name[:first], name[first+1 : last], true, true
+	return configName{section: name[:first], subsection: name[first+1 : last], hasSubsection: true}, true
 }
 
-// comparedSetting reports whether the setting named name is compared: every
-// setting except a branch setting whose subsection, as bytes, is neither
-// mainBranch nor the branch whose name digest is branchDigest. name has
-// passed splitConfigName.
-func comparedSetting(name []byte, branchDigest string) bool {
-	section, subsection, hasSubsection, _ := splitConfigName(name)
-	if string(section) != branchSection || !hasSubsection {
+// compared reports whether the setting is compared: every setting except a
+// branch setting whose subsection, as bytes, is neither mainBranch nor the
+// branch whose name digest is branchDigest.
+func (n configName) compared(branchDigest string) bool {
+	if string(n.section) != branchSection || !n.hasSubsection {
 		return true
 	}
-	return string(subsection) == mainBranch || digestString(string(subsection)) == branchDigest
+	return string(n.subsection) == mainBranch || digestString(string(n.subsection)) == branchDigest
 }
