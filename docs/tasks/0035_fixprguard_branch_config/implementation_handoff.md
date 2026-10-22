@@ -1,0 +1,6 @@
+# 実装計画への申し送り（0035）
+
+要件定義と設計（[02_architecture.md](02_architecture.md)）のレビューで挙がった事項のうち、実装計画とその検証で扱う事項をまとめる。`03_implementation_plan.md` は、各項目について採った方法か、当たらない理由を記録する。
+
+-   **I-01: `inspect` の `ThreadPaths` が起動する `gh` の中の git の確認。** 設計では、`gh repo view` と `gh pr view <番号>` が起動する git だけを `GIT_TRACE` で確かめた（`02_architecture.md` 1.3 の V-6）。`GitHub.ThreadPaths` が起動する `gh api graphql`（`internal/fixprguard/threads.go:180`）と `gh api` の権限の照会（`internal/fixprguard/trust.go:140`）は、ネットワークを要するので確かめていない。理由: 設計の安全性はこの確認に依存しない（V-6 の後の段落の fail-closed の根拠）。ただし、外す対象の設定がこれらの経路で失敗を起こすか（`response-rejected` で止まるか）は、利用者向けの案内（ガイド 8 章）の正しさに関わる。候補の方法: 実装のときに、実際の PR に対して `GIT_TRACE` に出力先のファイルを指定して `inspect` を実行し、起動された git と、それが読む設定を記録する。ほかのブランチの `branch.<name>.*` を読む git があれば、その結果をガイド 8 章の `response-rejected` の行に反映する。関連: F-001、AC-01、AC-14、H-02。
+-   **I-02: `gh pr checkout` が書き込む設定の範囲の確認。** 設計では、`gh pr checkout` が書き込む設定を実際の動作でも文書でも確かめていない（`02_architecture.md` 1.3 の表の後の段落）。理由: 設計の安全性はこの確認に依存しない（外れても止まりすぎる方向にしか外れない）。ただし、通常の PR の checkout で `branch.main.*` や `remote.*` に書くなら、並行するセッションの checkout で不要に止まり、AC-01 が意図する利用の場面で止まりすぎる。候補の方法: 実装のときに、通常の PR と fork の PR のそれぞれについて、別の worktree で `gh pr checkout` を実行する前後の `git config --list --show-origin` を比べ、書き込まれた設定の名前を記録する。`branch.<そのブランチ>.*` のほかに書き込む場合は、計画でその扱い（受け入れるか、要件に戻すか）を決める。関連: F-001、AC-01、AC-06、AC-08、H-09。
