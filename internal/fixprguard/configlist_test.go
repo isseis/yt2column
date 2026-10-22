@@ -27,7 +27,7 @@ type listed struct {
 
 func set(origin, name, value string) listed { return listed{origin, name, &value} }
 
-func bare(origin, name string) listed { return listed{origin: origin, name: name} }
+func bare(name string) listed { return listed{origin: repoOrigin, name: name} }
 
 // configOutput renders entries as git config --list --show-origin -z does.
 func configOutput(entries ...listed) []byte {
@@ -45,11 +45,13 @@ func configOutput(entries ...listed) []byte {
 // Positions in baseEntries that rows change; TestConfigListDigestClassification
 // checks each holds the entry it names.
 const (
+	iCoreBare   = 1
 	iFetchHeads = 3
 	iFetchTags  = 4
 	iCurrent    = 5
 	iMain       = 6
 	iOther      = 7
+	iOtherMerge = 8
 	iEnd        = 9 // the command-line entry, before which rows insert
 )
 
@@ -94,7 +96,8 @@ func TestConfigListDigestClassification(t *testing.T) {
 	remove := func(at int) []listed { return slices.Delete(slices.Clone(base), at, at+1) }
 	for at, name := range map[int]string{
 		iFetchHeads: "remote.origin.fetch", iFetchTags: "remote.origin.fetch", iCurrent: currentBranchKey,
-		iMain: "branch.main.remote", iOther: "branch.other.remote", iEnd: "gc.auto",
+		iMain: "branch.main.remote", iOther: "branch.other.remote", iOtherMerge: "branch.other.merge",
+		iCoreBare: "core.bare", iEnd: "gc.auto",
 	} {
 		if base[at].name != name {
 			t.Fatalf("base[%d] = %q, want %q", at, base[at].name, name)
@@ -113,14 +116,16 @@ func TestConfigListDigestClassification(t *testing.T) {
 		after   []listed
 		ignored bool
 	}{
-		// Branch settings of other branches, from any origin.
-		{name: "other_branch_added", after: insert(iOther+1, set(repoOrigin, "branch.x.remote", "origin")), ignored: true},
+		// Branch settings of other branches, from any origin. The origin rows
+		// share one path (the origin is never classified); they name the
+		// origins the requirements list.
+		{name: "other_branch_added", after: insert(iOtherMerge, set(repoOrigin, "branch.x.remote", "origin")), ignored: true},
 		{name: "other_branch_changed", after: replace(iOther, set(repoOrigin, "branch.other.remote", "upstream")), ignored: true},
 		{name: "other_branch_removed", after: remove(iOther), ignored: true},
 		{name: "other_branch_section_added", after: insert(iEnd, set(repoOrigin, "branch.x.remote", "origin"), set(repoOrigin, "branch.x.merge", "refs/heads/x")), ignored: true},
-		{name: "other_branch_section_removed", after: slices.Delete(slices.Clone(base), iOther, iOther+2), ignored: true},
+		{name: "other_branch_section_removed", after: slices.Delete(slices.Clone(base), iOther, iOtherMerge+1), ignored: true},
 		{name: "empty_subsection_added", after: insert(iEnd, set(repoOrigin, "branch..remote", "origin")), ignored: true},
-		{name: "other_branch_without_value", after: insert(iEnd, bare(repoOrigin, "branch.x.remote")), ignored: true},
+		{name: "other_branch_without_value", after: insert(iEnd, bare("branch.x.remote")), ignored: true},
 		{name: "other_branch_value_with_lf", after: insert(iEnd, set(repoOrigin, "branch.x.description", "line\nline")), ignored: true},
 		{name: "other_branch_in_global", after: insert(1, set(globalOrigin, "branch.x.remote", "origin")), ignored: true},
 		{name: "other_branch_in_system", after: insert(1, set(systemOrigin, "branch.x.remote", "origin")), ignored: true},
@@ -137,7 +142,7 @@ func TestConfigListDigestClassification(t *testing.T) {
 		{name: "current_branch_added", after: insert(iCurrent+1, set(repoOrigin, "branch."+testBranch+".merge", "refs/heads/"+testBranch))},
 		{name: "current_branch_changed", after: replace(iCurrent, set(repoOrigin, currentBranchKey, "upstream"))},
 		{name: "current_branch_removed", after: remove(iCurrent)},
-		{name: "current_branch_without_value", after: replace(iCurrent, bare(repoOrigin, currentBranchKey))},
+		{name: "current_branch_without_value", after: replace(iCurrent, bare(currentBranchKey))},
 		{name: "current_branch_with_dot", branch: extended, after: insert(iEnd, set(repoOrigin, "branch."+extended+".pushremote", "upstream"))},
 		{name: "main_added", after: insert(iMain+1, set(repoOrigin, "branch.main.pushremote", "upstream"))},
 		{name: "main_changed", after: replace(iMain, set(repoOrigin, "branch.main.remote", "upstream"))},
@@ -148,8 +153,13 @@ func TestConfigListDigestClassification(t *testing.T) {
 		{name: "remote_added", after: insert(iEnd, set(repoOrigin, "remote.upstream.url", "/srv/other.git"))},
 		{name: "include_added", after: insert(iEnd, set(repoOrigin, "include.path", "included.cfg"))},
 		{name: "compared_value_changed_after_lf", before: insert(iEnd, set(repoOrigin, "core.x", "a\nb")), after: insert(iEnd, set(repoOrigin, "core.x", "a\nc"))},
-		{name: "empty_value_to_no_value", before: insert(iEnd, set(repoOrigin, "core.x", "")), after: insert(iEnd, bare(repoOrigin, "core.x"))},
-		{name: "origin_only_changed", after: replace(1, set(globalOrigin, "core.bare", "false"))},
+		{name: "empty_value_to_no_value", before: insert(iEnd, set(repoOrigin, "core.x", "")), after: insert(iEnd, bare("core.x"))},
+		{name: "origin_only_changed", after: func() []listed {
+			e := base[iCoreBare]
+			e.origin = globalOrigin
+			return replace(iCoreBare, e)
+		}()},
+		{name: "compared_without_value_added", after: insert(iEnd, bare("core.x"))},
 		{name: "multi_value_order_swapped", after: func() []listed {
 			c := slices.Clone(base)
 			c[iFetchHeads], c[iFetchTags] = c[iFetchTags], c[iFetchHeads]
@@ -182,9 +192,10 @@ func TestConfigListDigestClassification(t *testing.T) {
 func TestConfigListDigestRejects(t *testing.T) {
 	valid := string(configOutput(set(repoOrigin, "core.bare", "false")))
 	// Each input carries "secret" in its origin, name or value, so the error
-	// text can be checked for it. Each row breaks one rule only, but two pairs
-	// share a check: an empty name has no "." either, and output with no NUL
-	// after an origin ends after it.
+	// text can be checked for it. Each row breaks one rule only, with two
+	// exceptions: an empty name fails both the "." check and the
+	// empty-variable check, so removing either alone leaves the row passing,
+	// and output with no NUL after an origin fails the name-end check.
 	for _, tc := range []struct {
 		name string
 		out  string
@@ -225,8 +236,8 @@ func TestConfigListDigestRejects(t *testing.T) {
 	} {
 		t.Run("branch_digest/"+tc.name, func(t *testing.T) {
 			got, err := configListDigest([]byte(valid), tc.digest)
-			if !errors.Is(err, errConfigList) {
-				t.Fatalf("configListDigest = %v, want errConfigList", err)
+			if !errors.Is(err, errConfigList) || !errors.Is(err, ErrGitFailed) {
+				t.Fatalf("configListDigest = %v, want errConfigList wrapping ErrGitFailed", err)
 			}
 			if got != "" {
 				t.Errorf("digest = %q, want none on rejection", got)
