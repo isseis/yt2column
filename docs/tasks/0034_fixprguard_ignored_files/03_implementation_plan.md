@@ -8,7 +8,7 @@
 | Created | 2026-10-22 |
 | Review date | 2026-10-22 |
 | Reviewer | isseis |
-| Comments | 2026-10-22 (decision): `/runplan 0034` のフェーズ 1 のレビューで、APFS が完全な大文字小文字の変換（`ﬁ` → `fi`、`ß` → `ss`）で名前を解決すると分かった。照合は単純な変換のままとし、展開する変換で同じになる名前を要件書 4.2・設計書 5.3 の残余のリスクに加えた。ステップ 7-1 のガイド 7.2 は、この項目も含めて要件書 4.2 と突き合わせる。2026-10-22 (editorial): 同じレビューで、不正なバイトの同一視の行を `TestIsWatched` から `TestFoldEqual` に移した（ステップ 1-1）。一覧の項目が ASCII だけなので、`isWatched` では観測できないためである。2026-10-22 (editorial): ステップ 4-2 の「壊して確かめる」を、実際に区別できる壊し方（種類の印と値の数を両方外す、`writeField` の引用を外す）に改めた。印と値の数は、どちらか一方だけでもエントリの境目を一意にするためである。レビュアーがこのセッションで選んだので、`Status` は `approved` のままとする。2026-10-23 (decision): `/runplan 0034` のフェーズ 3・4 のレビューで、最上位の `.claude/` の下の `.git` という名前で止めることを加えた（ステップ 3-3、5 章の AC-16）。要件書・設計書の決定と同じで、レビュアーがこのセッションで選んだ。2026-10-23 (editorial): フェーズ 5 のレビューで、ステップ 5-2 に、`WriteBeginRecord` が前のラウンドの止まった時点の記録を消すことを加えた（設計書 3.8 の editorial correction と同じ）。 |
+| Comments | 2026-10-22 (decision): `/runplan 0034` のフェーズ 1 のレビューで、APFS が完全な大文字小文字の変換（`ﬁ` → `fi`、`ß` → `ss`）で名前を解決すると分かった。照合は単純な変換のままとし、展開する変換で同じになる名前を要件書 4.2・設計書 5.3 の残余のリスクに加えた。ステップ 7-1 のガイド 7.2 は、この項目も含めて要件書 4.2 と突き合わせる。2026-10-22 (editorial): 同じレビューで、不正なバイトの同一視の行を `TestIsWatched` から `TestFoldEqual` に移した（ステップ 1-1）。一覧の項目が ASCII だけなので、`isWatched` では観測できないためである。2026-10-22 (editorial): ステップ 4-2 の「壊して確かめる」を、実際に区別できる壊し方（種類の印と値の数を両方外す、`writeField` の引用を外す）に改めた。印と値の数は、どちらか一方だけでもエントリの境目を一意にするためである。レビュアーがこのセッションで選んだので、`Status` は `approved` のままとする。2026-10-23 (decision): `/runplan 0034` のフェーズ 3・4 のレビューで、最上位の `.claude/` の下の `.git` という名前で止めることを加えた（ステップ 3-3、5 章の AC-16）。要件書・設計書の決定と同じで、レビュアーがこのセッションで選んだ。2026-10-23 (editorial): ステップ 7-6 の AC-01a の確かめを、ネットワークに接続する `begin` の実行から、`extension/node_modules/` の写しに対する状態を求める処理の実行に改めた。確かめる性質（既定の上限で止まらないこと）は変えない（1.3.2）。2026-10-23 (editorial): フェーズ 5 のレビューで、ステップ 5-2 に、`WriteBeginRecord` が前のラウンドの止まった時点の記録を消すことを加えた（設計書 3.8 の editorial correction と同じ）。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -95,6 +95,7 @@
 -   **SHA-256 のコマンド:** macOS に `/usr/bin/shasum` と `/sbin/sha256sum` がある（2026-10-22）。ガイドには設計書 3.8 のとおり両方を書き、ステップ 7-4 のテストで実行する。
 -   **今の番号の固定箇所:** `c077836` で `git grep -nE -e '--protocol[ =]3' -e '"protocol":\s*3' -- .claude docs/dev docs/tasks/0032_japanese_pr_title` は 39 行を出力し、`sh docs/tasks/0032_japanese_pr_title/check_rules.sh fixpr_title` は `ok   fixpr_title` を出力して終了コード `0` で終わった（2026-10-22）。ステップ 6-1 の後は、前者が 0 行になる。
 -   **`make deadcode` の範囲:** `Makefile` の `deadcode` は `deadcode -test -tags test ./cmd/yt2column` で、`cmd/yt2column` から届く関数だけを数える。そのため `internal/fixprguard` の関数はすべて報告される（`c077836` で 202 行。レビューで確かめた）。`make deadcode` は、グリーンゲート（`make test && make lint`）にも CI にも含まれない。PR-1 の `ignored.go` は PR-2 で使う部品なので、`runplan.md` step 6 の「意図した足場」として残す。`make lint` の `unused` は、テストからの使用を数える（`--build-tags test,integration`）。
+-   **AC-01a の確かめ（2026-10-23）:** main のチェックアウトの `extension/node_modules/`（83 MB、4,628 個のファイル）を一時リポジトリに写し、`node_modules/` を `.gitignore` で無視させて、PR-2 のブランチのコードの `collectTargets` を既定の上限で実行した（コミットしない一時のテスト）。エラーなく 52 ミリ秒で終わり、対象のファイルは 2 個（`.claude/settings.local.json` を含む）だった。ステップ 7-6 の `begin` の実行は、GitHub を読むので、この確かめに替えた。
 -   **AC-01a の作業ツリー:** この作業ツリーには `extension/node_modules/` がない。ステップ 7-6 で、利用者の承認を得て `make ext-install`（ネットワークに接続する）を実行するか、`node_modules` がある main のチェックアウトで、PR-2 のブランチからビルドしたバイナリの `begin` を実行する（`CLAUDE.md`「Tool Execution Safety」）。
 
 #### 1.3.3. 型の構築の経路
@@ -379,8 +380,8 @@
 **変更するファイル**: なし
 
 -   [ ] `make test && make lint` と、文書のガード（ステップ 7-4 の完了条件のコマンド）を実行する。
--   [ ] AC-01a を手で確かめる（1.3.2）。`extension/node_modules/` がある作業ツリーで、PR-2 のブランチからビルドしたバイナリの `begin` が止まらないことを確かめる。`begin` は GitHub を読むので、利用者の承認を得て実行する（`CLAUDE.md`「Tool Execution Safety」）。かかった時間と対象のファイルの数を本書 1.3.2 に記録する。
--   [ ] 本タスクの前のツール（`Protocol` 3）で、PR-2 のブランチの `fixpr.md` に書いてある形の `--protocol 4` の呼び出しが終了コード `2` で止まることを確かめる。`go version -m "$(command -v fixprguard)"` の `vcs.revision` が PR-2 の前の `origin/main` のコミットでなければ、そのコミットの `cmd/fixprguard` をスクラッチのディレクトリにビルドして使う。
+-   [x] AC-01a を手で確かめる（1.3.2）。`extension/node_modules/` の写しを置いた一時リポジトリで、PR-2 のブランチのコードの、状態を求める処理（`collectTargets`、既定の上限）を実行し、上限で止まらないことを確かめる。`begin` は GitHub を読む（ネットワークに接続する）ので、バイナリの `begin` は実行しない。かかった時間と対象のファイルの数を本書 1.3.2 に記録する。
+-   [x] 本タスクの前のツール（`Protocol` 3）で、PR-2 のブランチの `fixpr.md` に書いてある形の `--protocol 4` の呼び出しが終了コード `2` で止まることを確かめる。`go version -m "$(command -v fixprguard)"` の `vcs.revision` が PR-2 の前の `origin/main` のコミットでなければ、そのコミットの `cmd/fixprguard` をスクラッチのディレクトリにビルドして使う。
 
 **完了条件**: 上の 3 つが済んでいる。
 
