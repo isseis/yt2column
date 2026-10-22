@@ -250,9 +250,9 @@
 
 **変更するファイル**: `docs/dev/developer_guide/fixprguard_guide.ja.md`、`fixprguard_guide.md`
 
--   [ ] 日本語版を、設計書 3.5 の「ガイド（英語・日本語）」の表のすべての箇所について改める。8 章の `response-rejected` の行と 7.2 には、ステップ 3-1 の I-01・I-02 の結果（確かめた範囲と、fork の PR を確かめていないこと）を反映する。
--   [ ] 書いた記述を、ツールの振る舞いと突き合わせる。比べる範囲は `configListDigest`、止まり方は設計書 4 章の表とステップ 2-3 のテスト、最低の版はステップ 3-1 の結果、基準値の例の `'v2....'` は `baselineVersion` と比べる。
--   [ ] 日本語版をコミットしてから、英語版を `.claude/commands/mktrans.md` の原則で翻訳する（`CLAUDE.md`「Translation Guidelines」）。
+-   [x] 日本語版を、設計書 3.5 の「ガイド（英語・日本語）」の表のすべての箇所について改める。8 章の `response-rejected` の行と 7.2 には、ステップ 3-1 の I-01・I-02 の結果（確かめた範囲と、fork の PR を確かめていないこと）を反映する。
+-   [x] 書いた記述を、ツールの振る舞いと突き合わせる。比べる範囲は `configListDigest`、止まり方は設計書 4 章の表とステップ 2-3 のテスト、最低の版はステップ 3-1 の結果、基準値の例の `'v2....'` は `baselineVersion` と比べる。
+-   [x] 日本語版をコミットしてから、英語版を `.claude/commands/mktrans.md` の原則で翻訳する（`CLAUDE.md`「Translation Guidelines」）。
 
 **完了条件**: 両方の版の、設計書 3.5 の表のすべての箇所が改まっている（ステップ 3-3 のガードで確かめる）。
 
