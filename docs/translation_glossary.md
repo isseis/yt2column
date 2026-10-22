@@ -75,3 +75,4 @@
 | 基準値 | baseline | `fixprguard begin` が出力する git の状態の識別子の組。セッションが会話に持ち、後のサブコマンドに渡す |
 | 判定した集合 | judged set | `fixprguard inspect` が範囲と照らした変更の集合。その識別子は `judgedSet` |
 | 名指し | naming | 利用者が内容を確かめた想定外の著者のスレッドを、スレッド ID と指紋の組で指定して処理を求めること。動詞は "name"（例: a named thread） |
+| バックグラウンド | background | 端末の前面でなく裏で動くプロセスやジョブ（例: バックグラウンドのプロセス）。「背景」とは訳さない |
