@@ -140,6 +140,24 @@ func (r *testRepo) Baseline() fixprguard.Baseline {
 	return base
 }
 
+// Begin takes a baseline and writes the begin record file, as begin does.
+func (r *testRepo) Begin() fixprguard.Baseline {
+	r.t.Helper()
+	base, err := fixprguard.NewWorktree(realGit(), realGitList(), nil).Begin(r.t.Context())
+	if err != nil {
+		r.t.Fatalf("Begin: %v", err)
+	}
+	return base
+}
+
+// Ignore commits a .gitignore with lines, so the work tree stays clean.
+func (r *testRepo) Ignore(lines ...string) {
+	r.t.Helper()
+	r.Write(".gitignore", strings.Join(lines, "\n")+"\n")
+	r.Git("add", "-A")
+	r.Git("commit", "-q", "-m", "ignore")
+}
+
 // JudgedSet is the judged set ID of the current changes, as inspect would
 // print it.
 func (r *testRepo) JudgedSet(base fixprguard.Baseline) fixprguard.JudgedSetID {
@@ -410,4 +428,32 @@ func validBaseline(t *testing.T) string {
 		t.Fatalf("test setup: baseline %q: %v", token, err)
 	}
 	return token
+}
+
+// requireNonRoot fails the test when it runs as root, where permission
+// failures cannot be produced. Such a run is an unsupported environment, so it
+// fails instead of being skipped silently.
+func requireNonRoot(t *testing.T) {
+	t.Helper()
+	if os.Geteuid() == 0 {
+		t.Fatal("unsupported test environment: permission-failure tests require a non-root user")
+	}
+}
+
+// chmodForTest changes path's mode and restores the original mode at cleanup,
+// registered after any t.TempDir of the caller, so the directory can be
+// removed afterwards.
+func chmodForTest(t *testing.T, path string, mode os.FileMode) {
+	t.Helper()
+	info, err := os.Lstat(path)
+	if err != nil {
+		t.Fatalf("stat %s: %v", path, err)
+	}
+	original := info.Mode().Perm()
+	if err := os.Chmod(path, mode); err != nil { //nolint:gosec // a path inside the test's temporary directory, made unreadable on purpose
+		t.Fatalf("chmod %s: %v", path, err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(path, original) //nolint:gosec // restores the mode the test changed
+	})
 }

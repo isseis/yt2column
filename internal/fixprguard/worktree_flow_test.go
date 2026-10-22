@@ -607,3 +607,60 @@ func TestRoundIgnoresOtherBranchConfig(t *testing.T) {
 		t.Errorf("remote = %s, want %s", got, commit)
 	}
 }
+
+// prepareIgnoringRound is prepareRound in a repository that ignores build/,
+// where the target file build/x.go is written later.
+func prepareIgnoringRound(t *testing.T) prepared {
+	t.Helper()
+	r := ignoringRepo(t, "build/")
+	base := mustBaseline(t)
+	fixTestFile(r)
+	return prepared{r: r, base: base, judged: mustInspect(t, base).JudgedSet}
+}
+
+// TestFinishStopsOnIgnoredChange: a target file written before finish stops
+// it before any build check, and one written by make test stops it before
+// make lint; neither commits. The make fake fails any target it has no step
+// for.
+func TestFinishStopsOnIgnoredChange(t *testing.T) {
+	t.Run("before_finish", func(t *testing.T) {
+		p := prepareIgnoringRound(t)
+		head := p.r.Head()
+		p.r.Write("build/x_test.go", "package x\n")
+		_, router, err := p.finish(t)
+		wantStateParts(t, err, PartIgnored)
+		if slices.ContainsFunc(router.Calls, func(c string) bool { return strings.HasPrefix(c, makeCommand+" ") }) {
+			t.Errorf("ran a build check: %v", router.Calls)
+		}
+		p.wantNoCommit(t, head)
+	})
+	t.Run("written_by_make_test", func(t *testing.T) {
+		p := prepareIgnoringRound(t)
+		head := p.r.Head()
+		write := func() error {
+			p.r.Write("build/x_test.go", "package x\n")
+			return nil
+		}
+		_, _, err := p.finish(t, makeStep(StageFmt, nil), makeStep(StageTest, write))
+		wantStateParts(t, err, PartIgnored)
+		p.wantNoCommit(t, head)
+	})
+}
+
+// TestPushStopsOnIgnoredChange: a target file written after finish stops
+// push before it pushes.
+func TestPushStopsOnIgnoredChange(t *testing.T) {
+	p := prepareIgnoringRound(t)
+	commit := p.mustFinish(t).Commit
+	remote := p.r.RemoteHead()
+	p.r.Write("build/x_test.go", "package x\n")
+	w, router := newTestWorktree(t)
+	_, err := w.Push(t.Context(), p.base, commit)
+	wantStateParts(t, err, PartIgnored)
+	if indexOf(router.Calls, "git push") >= 0 {
+		t.Errorf("pushed: %v", router.Calls)
+	}
+	if got := p.r.RemoteHead(); got != remote {
+		t.Errorf("remote moved to %s", got)
+	}
+}

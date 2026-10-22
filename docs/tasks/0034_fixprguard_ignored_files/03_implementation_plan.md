@@ -282,13 +282,13 @@
 
 **変更するファイル**: `internal/fixprguard/ignored_test.go`、`internal/fixprguard/worktree_flow_test.go`、`cmd/fixprguard/main_test.go`
 
--   [ ] `TestCheckStateIgnoredChanges` を加える。設計書 7.1「状態の比較」の各変化で `parts` が `ignored` だけであること、変化しない 2 つの場合で止まらないこと。AC-13 は 3 つの行にする: 新しい最上位の `.gitignore`、下の階層の `.gitignore`（自分自身を無視するものを含む）、`core.excludesFile` のファイルへの追記。いずれもそこで無視される `.go` を作る。
--   [ ] 同じテストに、hooks（または config）と対象のファイルが同時に変わる行を加え、`parts` が `hooks` だけで、止まった時点の記録が書かれず、`router.Calls` に `git ls-files` がないことを確かめる（設計書 3.7）。
--   [ ] `TestBaselineIgnoredFailures` を加える。`Baseline` の中で状態を求められないとき（読めない対象のファイルなど）、規則の sentinel を返し、基準値を返さないこと。
--   [ ] `TestBeginWithTargets` を加える（設計書 7.1「`begin` が止まらないこと」）。
--   [ ] `TestIgnoredRecordFiles` を加える（設計書 7.1「記録のファイル」）。`Baseline` の後に対象のファイルが変わると `WriteBeginRecord` が書かずに止まること。止まった時点の記録が書かれること。記録の名前にディレクトリを置いて `rename` を失敗させると、`WriteBeginRecord` は `write ignored begin record` の sentinel を返し、`CheckState` は `parts` が `ignored` のままで、どちらも一時ファイルを残さないこと。記録の名前にシンボリックリンクを置くと、リンクの先が変わらないこと。linked worktree（`r.AddWorktree`、`test_helpers_git.go:167`）では記録が `.git/worktrees/<name>` に書かれること。
--   [ ] `worktree_flow_test.go` に `TestFinishStopsOnIgnoredChange` と `TestPushStopsOnIgnoredChange` を加える（設計書 7.2）。`finish` の前に書くと build checks を 1 つも実行しないこと（AC-09）。make の fake に `fmt` と `test` だけを手順として置き、`test` の `Effect` で対象のファイルを書くと、`make lint` を呼ばずに止まり、commit を作らないこと（AC-10）。`finish` の後に書くと `push` が push しないこと（AC-11）。どれも `parts` が `ignored` だけであること。
--   [ ] `cmd/fixprguard/main_test.go` に次のテストを加える。
+-   [x] `TestCheckStateIgnoredChanges` を加える。設計書 7.1「状態の比較」の各変化で `parts` が `ignored` だけであること、変化しない 2 つの場合で止まらないこと。AC-13 は 3 つの行にする: 新しい最上位の `.gitignore`、下の階層の `.gitignore`（自分自身を無視するものを含む）、`core.excludesFile` のファイルへの追記。いずれもそこで無視される `.go` を作る。
+-   [x] 同じテストに、hooks（または config）と対象のファイルが同時に変わる行を加え、`parts` が `hooks` だけで、止まった時点の記録が書かれず、`router.Calls` に `git ls-files` がないことを確かめる（設計書 3.7）。
+-   [x] `TestBaselineIgnoredFailures` を加える。`Baseline` の中で状態を求められないとき（読めない対象のファイルなど）、規則の sentinel を返し、基準値を返さないこと。
+-   [x] `TestBeginWithTargets` を加える（設計書 7.1「`begin` が止まらないこと」）。
+-   [x] `TestIgnoredRecordFiles` を加える（設計書 7.1「記録のファイル」）。`Baseline` の後に対象のファイルが変わると `WriteBeginRecord` が書かずに止まること。止まった時点の記録が書かれること。記録の名前にディレクトリを置いて `rename` を失敗させると、`WriteBeginRecord` は `write ignored begin record` の sentinel を返し、`CheckState` は `parts` が `ignored` のままで、どちらも一時ファイルを残さないこと。記録の名前にシンボリックリンクを置くと、リンクの先が変わらないこと。linked worktree（`r.AddWorktree`、`test_helpers_git.go:167`）では記録が `.git/worktrees/<name>` に書かれること。
+-   [x] `worktree_flow_test.go` に `TestFinishStopsOnIgnoredChange` と `TestPushStopsOnIgnoredChange` を加える（設計書 7.2）。`finish` の前に書くと build checks を 1 つも実行しないこと（AC-09）。make の fake に `fmt` と `test` だけを手順として置き、`test` の `Effect` で対象のファイルを書くと、`make lint` を呼ばずに止まり、commit を作らないこと（AC-10）。`finish` の後に書くと `push` が push しないこと（AC-11）。どれも `parts` が `ignored` だけであること。
+-   [x] `cmd/fixprguard/main_test.go` に次のテストを加える。
     -   `TestBeginWritesRecord`: `gh` を fake にした `begin` の後、`.git/fixprguard-ignored-begin` があり、その SHA-256 が出力の基準値を `.` で分けた 10 番目と一致すること。記録を書けないとき（記録の名前にディレクトリ）、`begin` が終了コード `1` で止まり、基準値を出力しないこと。
     -   `TestRoundWithUnchangedTargets`: 対象のファイルがあり変わらないとき、`inspect`・`finish`・`push` の出力の JSON が、対象のファイルがないときの同じ実行と、基準値・commit の SHA を除いて同じ欄と値を持つこと（AC-02）。
     -   `TestIgnoredOutputOmitsNames`: 名前と内容に識別できる文字列を入れた対象のファイルで、`ignored` で止まる場合と、`git-failed` で止まる各場合（読めないファイル、読めないディレクトリ、ディレクトリを指すリンク、大きさの上限、git の警告）に、標準出力・標準エラー・基準値に、その文字列も、対象のファイルごとのエントリの digest（記録のファイルに書く値をテストで求めたもの）も現れないこと（AC-15。`TestConfigStopOmitsNames`（`main_test.go:347`）にならう）。

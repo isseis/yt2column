@@ -920,3 +920,363 @@ func TestDefaultLimitsAcceptDependencyTree(t *testing.T) {
 		t.Errorf("targets = %d, want 41 (40 files and settings.local.json)", got)
 	}
 }
+
+// ignoringRepo is a test repository whose committed .gitignore ignores
+// lines, so the work tree is clean for begin.
+func ignoringRepo(t *testing.T, lines ...string) *testRepo {
+	t.Helper()
+	r := newTestRepo(t)
+	if len(lines) > 0 {
+		r.ignore(lines...)
+		r.CommitAll("ignore")
+	}
+	return r
+}
+
+// replaceLink points the link name at target, as one rename would.
+func replaceLink(t *testing.T, target, name string) {
+	t.Helper()
+	if err := os.Remove(name); err != nil {
+		t.Fatal(err)
+	}
+	symlink(t, target, name)
+}
+
+func removeFile(t *testing.T, name string) {
+	t.Helper()
+	if err := os.Remove(name); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestCheckStateIgnoredChanges: each change to a target file after begin
+// stops CheckState with parts naming ignored only, and a change git does not
+// list as a target does not. Every row's repository ignores the paths it
+// writes before the baseline, except the rows where a new ignore rule hides a
+// new file.
+func TestCheckStateIgnoredChanges(t *testing.T) {
+	ignored := []string{".claude/", ".env", ".envrc", "build/", "coverage.out"}
+	tests := []struct {
+		name   string
+		ignore []string
+		before func(t *testing.T, r *testRepo)
+		after  func(t *testing.T, r *testRepo)
+		stops  bool
+	}{
+		{name: "settings_local_created", ignore: ignored, after: func(_ *testing.T, r *testRepo) {
+			r.Write(settingsLocalPath, `{"hooks":{}}`)
+		}, stops: true},
+		{name: "settings_local_rewritten", ignore: ignored, before: func(_ *testing.T, r *testRepo) {
+			r.Write(settingsLocalPath, "{}")
+		}, after: func(_ *testing.T, r *testRepo) {
+			r.Write(settingsLocalPath, `{"permissions":{"allow":["Bash"]}}`)
+		}, stops: true},
+		// git does not ignore settings.local.json here, and it is still
+		// compared.
+		{name: "settings_local_not_ignored_created", after: func(_ *testing.T, r *testRepo) {
+			r.Write(settingsLocalPath, "{}")
+		}, stops: true},
+		{name: "target_removed", ignore: ignored, before: func(_ *testing.T, r *testRepo) {
+			r.Write("build/x.go", "package x\n")
+		}, after: func(t *testing.T, r *testRepo) {
+			removeFile(t, filepath.Join(r.Dir, "build/x.go"))
+		}, stops: true},
+		{name: "envrc_created", ignore: ignored, after: func(_ *testing.T, r *testRepo) {
+			r.Write(".envrc", "export A=1\n")
+		}, stops: true},
+		{name: "env_rewritten", ignore: ignored, before: func(_ *testing.T, r *testRepo) {
+			r.Write(".env", "A=1\n")
+		}, after: func(_ *testing.T, r *testRepo) {
+			r.Write(".env", "A=2\n")
+		}, stops: true},
+		{name: "ignored_go_created", ignore: ignored, after: func(_ *testing.T, r *testRepo) {
+			r.Write("build/x_test.go", "package x\n")
+		}, stops: true},
+		{name: "ignored_makefile_rewritten", ignore: ignored, before: func(_ *testing.T, r *testRepo) {
+			r.Write("build/pkg/Makefile", "all:\n")
+		}, after: func(_ *testing.T, r *testRepo) {
+			r.Write("build/pkg/Makefile", "all:\n\ttouch x\n")
+		}, stops: true},
+		{name: "ignored_mk_created", ignore: ignored, after: func(_ *testing.T, r *testRepo) {
+			r.Write("build/rules.mk", "x:\n")
+		}, stops: true},
+		{name: "nested_repository_go_created", ignore: ignored, before: func(_ *testing.T, r *testRepo) {
+			r.gitIn(r.Dir, "init", "-q", "--template=", "build/nested")
+			r.Write("build/nested/readme.txt", "x\n")
+		}, after: func(_ *testing.T, r *testRepo) {
+			r.Write("build/nested/x.go", "package x\n")
+		}, stops: true},
+		{name: "file_replaced_by_link", ignore: ignored, before: func(_ *testing.T, r *testRepo) {
+			r.Write("build/x.go", "package x\n")
+			r.Write("build/same.txt", "package x\n")
+		}, after: func(t *testing.T, r *testRepo) {
+			replaceLink(t, "same.txt", filepath.Join(r.Dir, "build/x.go"))
+		}, stops: true},
+		{name: "executable_bit", ignore: ignored, before: func(_ *testing.T, r *testRepo) {
+			r.Write("build/x.go", "package x\n")
+		}, after: func(t *testing.T, r *testRepo) {
+			chmod(t, filepath.Join(r.Dir, "build/x.go"), 0o700)
+		}, stops: true},
+		{name: "link_text", ignore: ignored, before: func(t *testing.T, r *testRepo) {
+			r.Write("build/a.txt", "same\n")
+			r.Write("build/b.txt", "same\n")
+			symlink(t, "a.txt", filepath.Join(r.Dir, "build/l.go"))
+		}, after: func(t *testing.T, r *testRepo) {
+			replaceLink(t, "b.txt", filepath.Join(r.Dir, "build/l.go"))
+		}, stops: true},
+		// The link target is not a target file itself.
+		{name: "link_target_rewritten", ignore: ignored, before: func(t *testing.T, r *testRepo) {
+			r.Write("build/payload", "{}")
+			mkdir(t, filepath.Join(r.Dir, ".claude"))
+			symlink(t, "../build/payload", filepath.Join(r.Dir, settingsLocalPath))
+		}, after: func(_ *testing.T, r *testRepo) {
+			r.Write("build/payload", `{"hooks":{}}`)
+		}, stops: true},
+		{name: "unresolved_link_resolves", ignore: ignored, before: func(t *testing.T, r *testRepo) {
+			mkdir(t, filepath.Join(r.Dir, "build"))
+			symlink(t, "missing", filepath.Join(r.Dir, "build/l.go"))
+		}, after: func(_ *testing.T, r *testRepo) {
+			r.Write("build/missing", "package x\n")
+		}, stops: true},
+		{name: "new_top_gitignore", after: func(_ *testing.T, r *testRepo) {
+			r.ignore("hidden/")
+			r.Write("hidden/x.go", "package x\n")
+		}, stops: true},
+		// The .gitignore ignores itself, so it hides from git status too.
+		{name: "new_lower_gitignore", after: func(_ *testing.T, r *testRepo) {
+			r.Write("docs/hidden/.gitignore", ".gitignore\nx.go\n")
+			r.Write("docs/hidden/x.go", "package x\n")
+		}, stops: true},
+		{name: "global_excludes_appended", after: func(t *testing.T, r *testRepo) {
+			appendFile(t, filepath.Join(r.Home, "excludes"), "hidden.go\n")
+			r.Write("hidden.go", "package x\n")
+		}, stops: true},
+		{name: "modification_time_only", ignore: ignored, before: func(_ *testing.T, r *testRepo) {
+			r.Write("build/x.go", "package x\n")
+		}, after: func(t *testing.T, r *testRepo) {
+			later := time.Now().Add(time.Hour)
+			if err := os.Chtimes(filepath.Join(r.Dir, "build/x.go"), later, later); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "unwatched_ignored_file", ignore: ignored, after: func(_ *testing.T, r *testRepo) {
+			r.Write("coverage.out", "mode: set\n")
+			r.Write("build/notes.txt", "x\n")
+		}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := ignoringRepo(t, tc.ignore...)
+			if tc.before != nil {
+				tc.before(t, r)
+			}
+			base := mustBaseline(t)
+			tc.after(t, r)
+			w, _ := newTestWorktree(t)
+			err := w.CheckState(t.Context(), base)
+			if !tc.stops {
+				if err != nil {
+					t.Errorf("CheckState = %v, want nil", err)
+				}
+				return
+			}
+			wantStateParts(t, err, PartIgnored)
+		})
+	}
+	// A part compared earlier wins: the target files are not even listed.
+	t.Run("hooks_and_target_changed", func(t *testing.T) {
+		r := ignoringRepo(t, ignored...)
+		base := mustBaseline(t)
+		r.WriteHook("pre-commit", "exit 0\n")
+		r.Write(settingsLocalPath, "{}")
+		w, router := newTestWorktree(t)
+		wantStateParts(t, w.CheckState(t.Context(), base), PartHooks)
+		if slices.Contains(router.Calls, gitCommand+" ls-files") {
+			t.Errorf("calls = %v, want no listing of ignored files", router.Calls)
+		}
+		if _, err := os.Lstat(filepath.Join(r.Dir, ".git", ignoredStopRecord)); !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("stop record: %v, want none written", err)
+		}
+	})
+}
+
+// TestBaselineIgnoredFailures: a target file the pass cannot record stops
+// Baseline with its rule, and begin with it, before any record is written.
+func TestBaselineIgnoredFailures(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(t *testing.T, r *testRepo)
+		want  error
+	}{
+		{name: "unreadable_file", setup: func(t *testing.T, r *testRepo) {
+			requireNonRoot(t)
+			r.Write("build/x.go", "package x\n")
+			chmodForTest(t, filepath.Join(r.Dir, "build/x.go"), 0)
+		}, want: errReadIgnoredFile},
+		{name: "link_to_directory", setup: func(t *testing.T, r *testRepo) {
+			mkdir(t, filepath.Join(r.Dir, "build/hooks"))
+			symlink(t, "hooks", filepath.Join(r.Dir, "build/l.go"))
+		}, want: errIgnoredLinkToDir},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := ignoringRepo(t, "build/")
+			tc.setup(t, r)
+			w, _ := newTestWorktree(t)
+			if base, err := w.Baseline(t.Context()); !errors.Is(err, tc.want) || base.usable() {
+				t.Errorf("Baseline = %q, %v; want no baseline and %v", base.String(), err, tc.want)
+			}
+			if base, err := w.Begin(t.Context()); !errors.Is(err, tc.want) || base.usable() {
+				t.Errorf("Begin = %q, %v; want no baseline and %v", base.String(), err, tc.want)
+			}
+			if _, err := os.Lstat(filepath.Join(r.Dir, ".git", ignoredBeginRecord)); !errors.Is(err, fs.ErrNotExist) {
+				t.Errorf("begin record: %v, want none written", err)
+			}
+		})
+	}
+}
+
+// TestBeginWithTargets: target files the user placed, and FIFOs at watched
+// paths, do not stop begin; the FIFOs git does not list are not targets.
+func TestBeginWithTargets(t *testing.T) {
+	r := ignoringRepo(t, ".claude/", ".envrc", "build/")
+	r.Write(settingsLocalPath, `{"permissions":{}}`)
+	r.Write(".envrc", "export A=1\n")
+	mkdir(t, filepath.Join(r.Dir, "build"))
+	mkfifo(t, filepath.Join(r.Dir, "build/pipe.go"))
+	r.gitIn(r.Dir, "init", "-q", "--template=", "build/nested")
+	mkfifo(t, filepath.Join(r.Dir, "build/nested/pipe.go"))
+	w, _ := newTestWorktree(t)
+	base, err := w.Begin(t.Context())
+	if err != nil {
+		t.Fatalf("Begin: %v", err)
+	}
+	record, err := os.ReadFile(filepath.Join(r.Dir, ".git", ignoredBeginRecord))
+	if err != nil {
+		t.Fatalf("read begin record: %v", err)
+	}
+	if got, want := recordPaths(t, record), []string{settingsLocalPath, ".envrc"}; !slices.Equal(got, want) {
+		t.Errorf("record paths = %q, want %q", got, want)
+	}
+	if err := w.CheckState(t.Context(), base); err != nil {
+		t.Errorf("CheckState right after begin = %v, want nil", err)
+	}
+}
+
+// recordTemps lists the temporary files writeRecordFile leaves in dir.
+func recordTemps(t *testing.T, dir string) []string {
+	t.Helper()
+	temps, err := filepath.Glob(filepath.Join(dir, "fixprguard-ignored-*.tmp"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return temps
+}
+
+// TestIgnoredRecordFiles: begin writes the record the baseline names, and
+// only while the target files still match it; a stop on a difference writes
+// the stop record; a record is written through a rename in the per-worktree
+// git directory, so a failed write leaves no temporary file and a link at the
+// record's name is replaced, not followed.
+func TestIgnoredRecordFiles(t *testing.T) {
+	gitDir := func(r *testRepo, name string) string { return filepath.Join(r.Dir, ".git", name) }
+	t.Run("begin_record_matches_baseline", func(t *testing.T) {
+		r := ignoringRepo(t, "build/")
+		r.Write("build/x.go", "package x\n")
+		base := mustBaseline(t)
+		record, err := os.ReadFile(gitDir(r, ignoredBeginRecord))
+		if err != nil {
+			t.Fatalf("read begin record: %v", err)
+		}
+		if recordDigest(record) != base.ignoredRecord {
+			t.Errorf("record digest is not the baseline's")
+		}
+		if got := recordPaths(t, record); !slices.Equal(got, []string{settingsLocalPath, "build/x.go"}) {
+			t.Errorf("record paths = %q", got)
+		}
+	})
+	t.Run("target_changed_after_baseline", func(t *testing.T) {
+		r := ignoringRepo(t, "build/")
+		w, _ := newTestWorktree(t)
+		base, err := w.Baseline(t.Context())
+		if err != nil {
+			t.Fatalf("Baseline: %v", err)
+		}
+		r.Write("build/x.go", "package x\n")
+		wantStateParts(t, w.WriteBeginRecord(t.Context(), base), PartIgnored)
+		if _, err := os.Lstat(gitDir(r, ignoredBeginRecord)); !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("begin record: %v, want none written", err)
+		}
+	})
+	t.Run("stop_record", func(t *testing.T) {
+		r := ignoringRepo(t, "build/")
+		base := mustBaseline(t)
+		r.Write("build/x.go", "package x\n")
+		w, _ := newTestWorktree(t)
+		wantStateParts(t, w.CheckState(t.Context(), base), PartIgnored)
+		begin, err := os.ReadFile(gitDir(r, ignoredBeginRecord))
+		if err != nil {
+			t.Fatal(err)
+		}
+		stop, err := os.ReadFile(gitDir(r, ignoredStopRecord))
+		if err != nil {
+			t.Fatalf("read stop record: %v", err)
+		}
+		if got := recordPaths(t, begin); !slices.Equal(got, []string{settingsLocalPath}) {
+			t.Errorf("begin record paths = %q", got)
+		}
+		if got := recordPaths(t, stop); !slices.Equal(got, []string{settingsLocalPath, "build/x.go"}) {
+			t.Errorf("stop record paths = %q", got)
+		}
+	})
+	t.Run("rename_fails", func(t *testing.T) {
+		r := ignoringRepo(t, "build/")
+		w, _ := newTestWorktree(t)
+		base, err := w.Baseline(t.Context())
+		if err != nil {
+			t.Fatalf("Baseline: %v", err)
+		}
+		// A non-empty directory at each record's name fails the rename.
+		for _, name := range []string{ignoredBeginRecord, ignoredStopRecord} {
+			mkdir(t, gitDir(r, name))
+			writeFile(t, filepath.Join(gitDir(r, name), "keep"), "x")
+		}
+		if err := w.WriteBeginRecord(t.Context(), base); !errors.Is(err, errWriteBeginRecord) {
+			t.Errorf("WriteBeginRecord = %v, want %v", err, errWriteBeginRecord)
+		}
+		r.Write("build/x.go", "package x\n")
+		wantStateParts(t, w.CheckState(t.Context(), base), PartIgnored)
+		if temps := recordTemps(t, filepath.Join(r.Dir, ".git")); len(temps) != 0 {
+			t.Errorf("temporary files left: %q", temps)
+		}
+	})
+	t.Run("link_at_record_name", func(t *testing.T) {
+		r := ignoringRepo(t, "build/")
+		outside := filepath.Join(t.TempDir(), "outside")
+		writeFile(t, outside, "untouched")
+		symlink(t, outside, gitDir(r, ignoredBeginRecord))
+		mustBaseline(t)
+		if got, err := os.ReadFile(outside); err != nil || string(got) != "untouched" {
+			t.Errorf("link target = %q, %v; want it untouched", got, err)
+		}
+		if info, err := os.Lstat(gitDir(r, ignoredBeginRecord)); err != nil || !info.Mode().IsRegular() {
+			t.Errorf("begin record = %v, %v; want a regular file replacing the link", info, err)
+		}
+	})
+	t.Run("linked_worktree", func(t *testing.T) {
+		r := ignoringRepo(t, "build/")
+		dir := filepath.Join(t.TempDir(), "linked")
+		r.AddWorktree(dir, "linked-branch")
+		t.Chdir(dir)
+		w, _ := newTestWorktree(t)
+		if _, err := w.Begin(t.Context()); err != nil {
+			t.Fatalf("Begin in the linked worktree: %v", err)
+		}
+		if _, err := os.Lstat(filepath.Join(r.Dir, ".git", "worktrees", "linked", ignoredBeginRecord)); err != nil {
+			t.Errorf("record in the worktree's git directory: %v", err)
+		}
+		if _, err := os.Lstat(gitDir(r, ignoredBeginRecord)); !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("record in the main git directory: %v, want none", err)
+		}
+	})
+}
