@@ -8,7 +8,7 @@
 | Created | 2026-10-22 |
 | Review date | 2026-10-22 |
 | Reviewer | isseis |
-| Comments | 2026-10-22 (editorial): 実装計画の際に、`_lib/coderabbit-local-review.md:83-84` が PR レビューを CodeRabbit として述べていることが分かった（AC-24 の対象）。2.2 の「変えないもの」と 3.10 に、この文だけを改めることを書き加えた。ローカルの CLI レビューを変えないという決定は変わらないので、承認を保つ |
+| Comments | 2026-10-22 (editorial): 実装計画の際に、`_lib/coderabbit-local-review.md:83-84` が PR レビューを CodeRabbit として述べていることが分かった（AC-24 の対象）。2.2 の表と「変えないもの」と 3.10 に、この文だけを改めることを書き加えた。ローカルの CLI レビューを変えないという決定は変わらないので、承認を保つ |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。要件書の AC-10・AC-11 と 4.2 の「受け入れる形」は、本書を書く際に改めた（要件書の Comments）。本書は改めた後の要件書に従う。既存のファイルに関する記述は、コミット `3ed049b` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md) の項番を指す。Codex の振る舞いに関する記述は、[observations.md](observations.md)（観測の記録。以下、観測の記録）の項目番号で根拠を示す。申し送りへの対応は付録 A に、受け入れ基準との対応は付録 B にまとめる。
 
@@ -225,6 +225,7 @@ flowchart TD
 | `.claude/commands/_lib/pr-review-escalation.md` | `description`、割り当ての説明、LAST_REVIEWED の説明（3.7） | PR-2 |
 | `.claude/commands/fixpr.md` | 「Convergence policy」の PR レビューの説明（`fixpr.md:86-89`）、フェーズ 4.5 の PR レビューの説明（`fixpr.md:557-558`）、プレースホルダーの定義、フェーズ 2・3・6 のエージェントへの文面の規則、フェーズ 5・6 の投稿の前の確認（3.8・3.10） | PR-2 |
 | `.claude/commands/mkreq.md` | PR レビューの Bot の説明（`mkreq.md:16`）（3.10） | PR-2 |
+| `.claude/commands/_lib/coderabbit-local-review.md` | PR レビューを CodeRabbit として述べる文（`:83-84`）だけ。手順は変えない（3.10） | PR-2 |
 | `.coderabbit.yaml` | 自動レビューを止め、コメントで理由を説明する（3.9） | PR-2 |
 | `AGENTS.md` | `## Review guidelines` を `## Code Review Rules` に改め、節の中で `CLAUDE.md` を参照する（3.10） | PR-2 |
 | `CLAUDE.md` | PR レビューの Bot の説明（`CLAUDE.md:56`・`86`・`96-106`）と Codex の設定（3.10） | PR-2 |
@@ -234,7 +235,7 @@ flowchart TD
 
 次のものは変えない。
 
--   `_lib/coderabbit-local-review.md` と、ローカルの CLI レビューの呼び出し（`runplan.md` step 7.7、`fixpr.md` フェーズ 4.5 の手順、`task-pr-handoff.md` Part B step 1）。ローカルの CLI レビューは CodeRabbit のまま残す（要件書 2.3）。フェーズ 4.5 では、PR レビューを名指しする説明の文（`fixpr.md:557-558`）だけを改める。`_lib/coderabbit-local-review.md` でも、PR レビューを CodeRabbit として述べる文（`:83-84` の「the PR-side CodeRabbit review」）だけを改める（3.10）。
+-   ローカルの CLI レビューの手順（`_lib/coderabbit-local-review.md`）と呼び出し（`runplan.md` step 7.7、`fixpr.md` フェーズ 4.5 の手順、`task-pr-handoff.md` Part B step 1）。ローカルの CLI レビューは CodeRabbit のまま残す（要件書 2.3）。PR レビューを名指しする説明の文（`fixpr.md:557-558`、`_lib/coderabbit-local-review.md:83-84`）は変更の対象であり、上の表に挙げる。
 -   `mergepr.md` と `cmd/mergepr`。CodeRabbit にも PR レビューにも触れない（`git grep -n -i coderabbit -- cmd/mergepr .claude/commands/mergepr.md` は 0 件。2026-10-22）。squash のコミットメッセージは、メンションの規則の対象にしない（3.8）。
 -   `fixprguard_guide` の使用例の `--reviewer coderabbitai`（`fixprguard_guide.ja.md:99` など）。`coderabbitai` は自動レビュアーの一覧に残る（1.2）。
 
