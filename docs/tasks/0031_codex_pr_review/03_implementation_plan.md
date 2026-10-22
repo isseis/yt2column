@@ -201,7 +201,7 @@
 
 #### ステップ 2-0: 再インストールの確認
 
-- [ ] PR-1 のマージのコミットを `gh pr view <PR-1> --json mergeCommit` で求め、`go version -m "$(command -v fixprguard)"` の `vcs.revision` がそのコミットまたはその子孫であること（`git merge-base --is-ancestor`）と、`vcs.modified` が `false` であることを確かめる。違えば、利用者に再インストールを頼み、先に進まない（設計書 1.2・5.3）。
+- [x] PR-1 のマージのコミットを `gh pr view <PR-1> --json mergeCommit` で求め、`go version -m "$(command -v fixprguard)"` の `vcs.revision` がそのコミットまたはその子孫であること（`git merge-base --is-ancestor`）と、`vcs.modified` が `false` であることを確かめる。違えば、利用者に再インストールを頼み、先に進まない（設計書 1.2・5.3）。
 
 **完了の条件**: 両方の確認が通る。
 
@@ -209,8 +209,8 @@
 
 **変更するファイル**: `.claude/commands/_context.md`
 
-- [ ] 設計書 3.1 の表のとおり、`Awaited PR reviewer` の値を `chatgpt-codex-connector` にし、説明の文を改める。説明には、`TestContextAndCommandsAgree` が求める「REST `user.login`」と「followed by `[bot]`」を残す（1.4）。
-- [ ] `PR review request` の行を、設計書 3.1 の表の説明の文とともに加える。行の形は `Awaited PR reviewer` の行と同じにする。
+- [x] 設計書 3.1 の表のとおり、`Awaited PR reviewer` の値を `chatgpt-codex-connector` にし、説明の文を改める。説明には、`TestContextAndCommandsAgree` が求める「REST `user.login`」と「followed by `[bot]`」を残す（1.4）。
+- [x] `PR review request` の行を、設計書 3.1 の表の説明の文とともに加える。行の形は `Awaited PR reviewer` の行と同じにする。
 
 **完了の条件**: ステップ 2-5 の `_context.md` の確認が通る。
 
@@ -218,8 +218,8 @@
 
 **変更するファイル**: `.claude/commands/runpr.md`
 
-- [ ] 設計書 3.5 の次の箇条のとおりに改める: `description` と冒頭、Authorization、冒頭のスレッドの読み方の文（設計書 1.4 の 3 行目の例外）、プレースホルダーの定義（設計書 3.1 の 3 つ）、step 3 の見出し（1.5 の一覧）と冒頭、`fixpr` を再び実行する条件の語、CodeRabbit のステータスによる停止の削除、step 4 の PR レビューの質問と依頼。
-- [ ] 1.4 の「変えずに保つ文を固定しているガード」の文を残す。
+- [x] 設計書 3.5 の次の箇条のとおりに改める: `description` と冒頭、Authorization、冒頭のスレッドの読み方の文（設計書 1.4 の 3 行目の例外）、プレースホルダーの定義（設計書 3.1 の 3 つ）、step 3 の見出し（1.5 の一覧）と冒頭、`fixpr` を再び実行する条件の語、CodeRabbit のステータスによる停止の削除、step 4 の PR レビューの質問と依頼。
+- [x] 1.4 の「変えずに保つ文を固定しているガード」の文を残す。
 
 **完了の条件**: 1.4 に挙げた既存のガードが通る。
 
@@ -227,9 +227,9 @@
 
 **変更するファイル**: `.claude/commands/runpr.md`
 
-- [ ] 「Reviewed」を、設計書 3.2（読む値と受け入れる形、状態の行の受け入れる形、読み方の制約、時点と時間の測り方、前提とする運用）と 3.3（依頼の一覧、依頼したコミット、最新の依頼の状態の規則 1〜6 を上からこの順で当てはめること、使わない投稿の表、断りのコメント、LAST_REVIEWED）のとおりに、エージェントが従える手順として書く。要約コメントは 1 行目と 2 行目だけを取り出す `--jq` の絞り込みで読む。
-- [ ] 「Requesting the review」を、設計書 3.4（依頼を投稿する条件と、待っていた依頼が完了した後の確かめ直し）、4 章（停止の表、止まり続けるとき）、6.1・6.2 の流れのとおりに書く。依頼は `gh pr comment <number> --body "<review-request>"` で、初回・エスカレーション・step 4 のどれも同じ書き方にする。
-- [ ] `Date` ヘッダーを読む呼び出し（設計書 3.2）を、読み取りだけの `gh api -i` で一度実行し、`Date` の行が出ることを確かめる（ネットワークの操作なので、実行の前に利用者の承認を得る）。
+- [x] 「Reviewed」を、設計書 3.2（読む値と受け入れる形、状態の行の受け入れる形、読み方の制約、時点と時間の測り方、前提とする運用）と 3.3（依頼の一覧、依頼したコミット、最新の依頼の状態の規則 1〜6 を上からこの順で当てはめること、使わない投稿の表、断りのコメント、LAST_REVIEWED）のとおりに、エージェントが従える手順として書く。要約コメントは 1 行目と 2 行目だけを取り出す `--jq` の絞り込みで読む。
+- [x] 「Requesting the review」を、設計書 3.4（依頼を投稿する条件と、待っていた依頼が完了した後の確かめ直し）、4 章（停止の表、止まり続けるとき）、6.1・6.2 の流れのとおりに書く。依頼は `gh pr comment <number> --body "<review-request>"` で、初回・エスカレーション・step 4 のどれも同じ書き方にする。
+- [x] `Date` ヘッダーを読む呼び出し（設計書 3.2）を、読み取りだけの `gh api -i` で一度実行し、`Date` の行が出ることを確かめる（ネットワークの操作なので、実行の前に利用者の承認を得る）。
 
 **完了の条件**: 書いた手順を、設計書 3.2〜3.4・4 章・6 章と 1 項目ずつ読み合わせ、落ちた規則がないことを確かめる。ステップ 2-5 の `TestRunprDocContract` が通る。
 
@@ -237,8 +237,8 @@
 
 **変更するファイル**: `.claude/commands/_lib/task-pr-handoff.md`、`.claude/commands/_lib/pr-review-escalation.md`
 
-- [ ] `_lib/task-pr-handoff.md` を、設計書 3.6 の箇条のうち「投稿の前の確認」を除くすべてに従って改める（冒頭・AFTER_CREATE・Part B step 7 の語、Authorization、プレースホルダーの定義、Part B step 5）。プレースホルダーの定義は `runpr.md` と同じ文にする。
-- [ ] `_lib/pr-review-escalation.md` を設計書 3.7 のとおりに改める。判断の基準と手順は変えない。`_lib/pr-review-escalation.md:9` の `@coderabbitai review` を消す。
+- [x] `_lib/task-pr-handoff.md` を、設計書 3.6 の箇条のうち「投稿の前の確認」を除くすべてに従って改める（冒頭・AFTER_CREATE・Part B step 7 の語、Authorization、プレースホルダーの定義、Part B step 5）。プレースホルダーの定義は `runpr.md` と同じ文にする。
+- [x] `_lib/pr-review-escalation.md` を設計書 3.7 のとおりに改める。判断の基準と手順は変えない。`_lib/pr-review-escalation.md:9` の `@coderabbitai review` を消す。
 
 **完了の条件**: ステップ 2-5 の確認が通る。
 
@@ -246,21 +246,21 @@
 
 **変更するファイル**: `cmd/yt2column/fixpr_docs_test.go`
 
-- [ ] `TestContextAndCommandsAgree` を設計書 3.11 の 1 つめの箇条のとおりに改める: 期待値を `chatgpt-codex-connector` にする、確かめる文書に `_lib/task-pr-handoff.md` を加える、許す文字列をなくす、`runpr.md` と `_lib/task-pr-handoff.md` が `<awaited-reviewer>`・`<review-request>`・`<review-mention>` の定義の文を持つことを確かめる。定義の文は、`awaitedReviewerSentence` と同じく定数で持ち、2 つの文書で同じ文を求める。
-- [ ] `PR review request` の行の検査を、設計書 3.11 の 2 つめの箇条のとおりに加える。値の最初の語が `fixprguard.CodexMention` と一致することも確かめる。`TestContextReviewerRowsMalformed` に、この行が欠ける・2 行ある・値の形が違う・最初の語が違う、の行を加える。
-- [ ] `TestRunprDocContract` を設計書 3.11 の 3 つめの箇条のとおりに改める（`no_body_fetch`、`runprStep3`、`reviewedCheck`、`lastReviewedRule`、`autoFixprCondition`）。`autoFixprCondition` のコメントの「the switch must leave it unchanged」は、条件を変えず語だけを改めたことが分かる文にする。
-- [ ] `TestRunprDocContract` に次の文を固定するサブテストを加える（設計書 7.3 の「停止と再実行」）。どの文を固定するかは書いた文書から選ぶ。
+- [x] `TestContextAndCommandsAgree` を設計書 3.11 の 1 つめの箇条のとおりに改める: 期待値を `chatgpt-codex-connector` にする、確かめる文書に `_lib/task-pr-handoff.md` を加える、許す文字列をなくす、`runpr.md` と `_lib/task-pr-handoff.md` が `<awaited-reviewer>`・`<review-request>`・`<review-mention>` の定義の文を持つことを確かめる。定義の文は、`awaitedReviewerSentence` と同じく定数で持ち、2 つの文書で同じ文を求める。
+- [x] `PR review request` の行の検査を、設計書 3.11 の 2 つめの箇条のとおりに加える。値の最初の語が `fixprguard.CodexMention` と一致することも確かめる。`TestContextReviewerRowsMalformed` に、この行が欠ける・2 行ある・値の形が違う・最初の語が違う、の行を加える。
+- [x] `TestRunprDocContract` を設計書 3.11 の 3 つめの箇条のとおりに改める（`no_body_fetch`、`runprStep3`、`reviewedCheck`、`lastReviewedRule`、`autoFixprCondition`）。`autoFixprCondition` のコメントの「the switch must leave it unchanged」は、条件を変えず語だけを改めたことが分かる文にする。
+- [x] `TestRunprDocContract` に次の文を固定するサブテストを加える（設計書 7.3 の「停止と再実行」）。どの文を固定するかは書いた文書から選ぶ。
     -   規則 1〜6 と、断りのコメントの但し書き。規則の順序は `head_before_checkout` と同じく位置の比較で固定する。
     -   依頼したコミットの 2 つの祖先の判定（向きが依頼の種類で逆になる）、`0`・`1` 以外の終了コードの扱い、判定の前の `git fetch origin`。
     -   依頼のコメントの絞り込み（`user.type` が `User`、`login` が `gh api user` の値、本文が `<review-request>` と一致）。
     -   依頼の書き方（`gh pr comment <number> --body "<review-request>"`）が step 3 と step 4 にあること、最新の依頼が「待っている」か「判定できない」の間は投稿しないこと、待っていた依頼が完了した後に確かめ直して 1 回投稿すること。
     -   時間切れと想定外の投稿と判定できない状態で止まって step 4 に進まないこと、再実行で終わった依頼を依頼し直すこと。
     -   step 4 の PR レビューの質問が Codex を名指しすること。
-- [ ] `TestHandoffStartMarker`（同じファイル、新規）: `_lib/task-pr-handoff.md` Part B step 5 が、約 2 分間、約 30 秒おきに読むこと、要約コメントを `Bot` の種類と `<awaited-reviewer>[bot]` と 1 行目で絞ること、PR を開いた時点より後の書き換えを開始の印とすること、ないときに `<review-request>` で 1 回依頼すること、完了を待たないことを述べていることを確かめる（設計書 3.6・5.2）。範囲は step 5 の中に限る。
+- [x] `TestHandoffStartMarker`（同じファイル、新規）: `_lib/task-pr-handoff.md` Part B step 5 が、約 2 分間、約 30 秒おきに読むこと、要約コメントを `Bot` の種類と `<awaited-reviewer>[bot]` と 1 行目で絞ること、PR を開いた時点より後の書き換えを開始の印とすること、ないときに `<review-request>` で 1 回依頼すること、完了を待たないことを述べていることを確かめる（設計書 3.6・5.2）。範囲は step 5 の中に限る。
 
 #### ステップ 2-6: 壊して失敗を確かめる
 
-- [ ] 次のそれぞれで、該当するガードが失敗することを確かめ、コミットメッセージに書く。
+- [x] 次のそれぞれで、該当するガードが失敗することを確かめ、コミットメッセージに書く。
     -   設計書 7.2 の 2 つめの箇条のうち、このフェーズの確認に当たるもの（`runpr.md` に `@coderabbitai review` を戻す、`task-pr-handoff.md` に `chatgpt-codex-connector` を書く、`PR review request` の行を消す・2 行にする・最初の語を変える）。
     -   規則 1 と規則 2 の順序を入れ替える。
     -   祖先の判定の引数の順序を入れ替える。
@@ -460,7 +460,7 @@ PR-1 を先にするのは、PR-2 の `/fixpr` を、メンションを拒否す
 ## 6. 実装チェックリスト
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6）
-- [ ] 利用者が `make install-fixprguard` を実行した（ステップ 2-0 で確かめた）
+- [x] 利用者が `make install-fixprguard` を実行した（ステップ 2-0 で確かめた）
 - [ ] PR-2 マージ済み（対象ステップ: 2-0 / 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 3-1 / 3-2 / 3-3 / 3-4 / 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6）
 - [ ] PR-2 のブランチで `/runpr` を実行し、4.2 の切り替えの PR 自身の確かめを済ませた
 - [ ] 切り替えの後の最初の PR で、4.2 の確かめを済ませた
