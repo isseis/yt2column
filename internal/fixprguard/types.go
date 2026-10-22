@@ -72,6 +72,45 @@ func validLogin(s string) bool {
 	return true
 }
 
+// Reviewers is the set of automated reviewer logins whose Bot comments are
+// trusted without a permission lookup. It is never empty and holds no name
+// twice. The zero value is "no reviewers": NewGitHub rejects it and the calls
+// that judge threads refuse to run with it. Only ParseReviewers builds a
+// usable one.
+type Reviewers struct {
+	logins map[Login]struct{}
+}
+
+// ParseReviewers checks every name against the login grammar and rejects an
+// empty list and a name given twice (compared as exact strings, with no case
+// folding and no [bot] handling). Its errors wrap ErrInvalidInput and name the
+// rule only, never a value.
+func ParseReviewers(names []string) (Reviewers, error) {
+	if len(names) == 0 {
+		return Reviewers{}, fmt.Errorf("%w: reviewer list empty", ErrInvalidInput)
+	}
+	logins := make(map[Login]struct{}, len(names))
+	for _, name := range names {
+		login, err := ParseLogin(name)
+		if err != nil {
+			return Reviewers{}, err
+		}
+		if _, dup := logins[login]; dup {
+			return Reviewers{}, fmt.Errorf("%w: reviewer named twice", ErrInvalidInput)
+		}
+		logins[login] = struct{}{}
+	}
+	return Reviewers{logins: logins}, nil
+}
+
+// contains reports whether login is one of the reviewers, by exact match.
+func (r Reviewers) contains(login Login) bool {
+	_, ok := r.logins[login]
+	return ok
+}
+
+func (r Reviewers) usable() bool { return len(r.logins) > 0 }
+
 func isASCIIAlnum(c byte) bool {
 	return ('0' <= c && c <= '9') || ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z')
 }

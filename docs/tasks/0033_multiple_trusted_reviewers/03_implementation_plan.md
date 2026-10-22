@@ -143,16 +143,16 @@
 
 **変更するファイル**: `internal/fixprguard/types.go`、`types_test.go`、`construction_test.go`
 
--   [ ] `Reviewers` と `ParseReviewers` を、設計書 3.2 の型とコメントのとおりに加える。名前を含むかを調べるメソッドと使えるかを調べるメソッドは、パッケージの外に出さない。
--   [ ] `types_test.go` に `TestParseReviewers` を加える。設計書 7.1 の `ParseReviewers` の項目の場合に加え、次を確かめる。
+-   [x] `Reviewers` と `ParseReviewers` を、設計書 3.2 の型とコメントのとおりに加える。名前を含むかを調べるメソッドと使えるかを調べるメソッドは、パッケージの外に出さない。
+-   [x] `types_test.go` に `TestParseReviewers` を加える。設計書 7.1 の `ParseReviewers` の項目の場合に加え、次を確かめる。
     -   正しい名前の後に正しくない名前が続く並び。
     -   隣り合わない重複。
     -   `nil`・空のスライス・空の文字列 1 つ。
     -   多くの名前の並び（要件書 3.2 の「数の上限を設けない」）。
 
     エラーは `errors.Is(err, ErrInvalidInput)` で確かめる。エラーの文字列が入力の値を含まないことは、`TestErrorsOmitCommandDetails`（`github_test.go:517`）と同じく文字列で確かめる。
--   [ ] `restrictedConstructors` に `Reviewers`→`ParseReviewers` を加える。`findRestrictedConstructions` を広げ、`ParseReviewers` と `Reviewers` のメソッドの外での `logins` のフィールドの参照を報告させる（1.3.3）。コメントを改める。
--   [ ] `TestRestrictedTypesBuiltByConstructors` の自己テストの表に、次の行を加える。
+-   [x] `restrictedConstructors` に `Reviewers`→`ParseReviewers` を加える。`findRestrictedConstructions` を広げ、`ParseReviewers` と `Reviewers` のメソッドの外での `logins` のフィールドの参照を報告させる（1.3.3）。コメントを改める。
+-   [x] `TestRestrictedTypesBuiltByConstructors` の自己テストの表に、次の行を加える。
     -   `ParseReviewers` の中のリテラルは報告されない。
     -   外のゼロ値のリテラル、値を持つリテラル、`&` 付きのリテラル、`new`、`var` 宣言は報告される。
     -   別の構築関数（たとえば `ParseLogin`）の中の `Reviewers{}` は報告される。
