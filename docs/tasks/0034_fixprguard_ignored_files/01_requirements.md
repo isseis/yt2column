@@ -22,7 +22,7 @@
 
 -   clean の検査は、`git status --porcelain=v1 -z --untracked-files=all` の出力が空であることを確かめる（`internal/fixprguard/worktree.go:63-75`）。
 -   commit の前の検査で、追跡されていないファイルを数えるのは `git ls-files --others --exclude-standard` である（`internal/fixprguard/worktree.go:351`）。
--   基準値が持つのは次の 7 つである（`internal/fixprguard/gitstate.go:98-113`）。HEAD、ブランチ、push 先のブランチの OID、hooks、config のファイル、git が読む config の値の一覧、info のファイル（`info/exclude`・`info/attributes`）。作業ツリーのファイルは入っていない。
+-   基準値が持つのは次の 7 つである（`internal/fixprguard/gitstate.go:103-120`）。HEAD、ブランチ、push 先のブランチの OID、hooks、git のディレクトリの場所と config のファイルの種類（内容は含まない）、git が読む config の値の一覧（ほかのブランチの `branch` の設定を除く）、info のファイル（`info/exclude`・`info/attributes`）。作業ツリーのファイルは入っていない。
 
 このため、`.gitignore` が無視するファイルは、どの検査にも映らない。修正のフェーズのエージェント（信頼できないテキストを読んだ主体）が無視されるファイルに書き込んでも、ツールは止まらない。書き込まれたファイルは commit も push もされないので、利用者に報告されることもない。
 
@@ -39,7 +39,7 @@
 -   無視されるファイルを列挙する手段と、基準値にその状態を持たせる手段（トークンの形を含む）
 -   比較の順序
 -   シンボリックリンクのたどり方
--   `protocol` の番号の扱い
+-   上げた後の `protocol` の番号と、コマンド定義の文書が渡す `--protocol` の揃え方
 -   テストの手段
 
 要件のレビューで挙がった設計事項は [design_handoff.md](design_handoff.md) に申し送る。
@@ -59,7 +59,7 @@
     -   定義に当たらないファイルは、実行に関わるものであっても対象の外である。それらは残余のリスクとして列挙する（4.2）。
 -   **利用者自身の正当な書き込みでも止まる:** 修正のフェーズの間に、利用者が Claude Code の許可の確認に「今後は確認しない」と答えると、Claude Code が `.claude/settings.local.json` を書き換える。この場合も `git-state-changed` で止まり、ガイドの 8 章で対処の手順を案内する。理由: ツールには、この書き込みと攻撃による書き込みを区別できない。区別できない変化は安全側に倒す（0030 `01_requirements.md` 4.2 の方針）。
 -   **止まったときの出力は部分の名前だけ:** `git-state-changed` の `parts` に新しい値 `ignored` を加える。どのファイルが違うかは出力しない。
-    -   理由: 既存の `parts` も部分の名前だけを示す（`internal/fixprguard/gitstate.go:170-182`）。
+    -   理由: 既存の `parts` も部分の名前だけを示す（`internal/fixprguard/gitstate.go:177-189`）。
     -   ファイル名は攻撃者が選べるので、出力に入れるとセッションに指示文を届ける経路になる（0030 `02_architecture.md` 5.3「ファイル名による出力の汚染」）。
     -   どのファイルが変わったかは、利用者がガイドの手順で、ツールの外で調べる（AC-19）。
 
@@ -89,7 +89,7 @@
 
 -   **コマンドの実行に関わるファイルの定義に当たらない、無視されるファイル。** 理由: 対象を定義と同じにすることは決定による（1 章）。定義の外には、実行に関わるものも含まれる。それらは残余のリスクとして列挙する（4.2）。
 -   **コマンドの実行に関わるファイルの定義そのものの変更。** 定義は範囲の規則と共有し、本タスクでは変えない。
--   **この作業ツリーの外のファイル。** 同じリポジトリのほかの worktree や main のチェックアウトの中のファイル、`~/.claude/settings.json`、シェルの起動ファイルなどである。理由: ツールが守るのは、ツールを実行している作業ツリーとその git の状態である。これらのファイルを修正のフェーズのエージェントが書き換えられるかどうかは、Claude Code の権限の確認（利用者の設定）で決まる。git の設定のファイルは、既存の config の値の一覧の比較で検出できる（`internal/fixprguard/gitstate.go:484-494`）。
+-   **この作業ツリーの外のファイル。** 同じリポジトリのほかの worktree や main のチェックアウトの中のファイル、`~/.claude/settings.json`、シェルの起動ファイルなどである。理由: ツールが守るのは、ツールを実行している作業ツリーとその git の状態である。これらのファイルを修正のフェーズのエージェントが書き換えられるかどうかは、Claude Code の権限の確認（利用者の設定）で決まる。git の設定のファイルは、既存の config の値の一覧の比較で検出できる（`internal/fixprguard/configlist.go:17-48`）。ただし、ほかのブランチの `branch` の設定は比べない。
 -   **変えて元に戻すこと、確認と実行の間の書き換え。** 0030 と同じく、ある時点だけの確認である（0030 `02_architecture.md` 5.3「確認と実行の間のずれ」）。
 -   **`head`・`list`・`fence`・`reply`・`edit-pr`。** 基準値を入力に持たないので、比較しない（0030 `02_architecture.md` 5.3「基準値を持たないサブコマンドの起動前の比較」）。`push` の後の書き込みは検出しない。
 -   **`begin` の時点で既にある対象のファイルの内容の検査。** 利用者が自分で置いた `.claude/settings.local.json` や `.envrc` を、`begin` は拒否しない。記録するだけである。
@@ -221,7 +221,7 @@
 ### 4.4. 互換性 (Compatibility)
 
 -   古い版の基準値は受け付けない（AC-03）。ツールを変える PR のマージの後には再インストールが要る（`fixprguard_guide.md` 3 章・9 章）。
--   止まった種類の一覧は変えない。`git-state-changed` の `parts` の値に `ignored` が加わる。出力の契約が変わるので、`protocol` の番号と、コマンド定義の文書（`.claude/commands/`）が渡す `--protocol` の扱いは、設計で決める（H-03）。
+-   止まった種類の一覧は変えない。`git-state-changed` の `parts` の値に `ignored` が加わる。出力の契約が変わるので、`protocol` の番号を上げる（`fixprguard_guide.md` 9 章）。新しい番号と、コマンド定義の文書（`.claude/commands/`）が渡す `--protocol` をそれに揃える手段は、設計で決める（H-03）。
 -   macOS と Linux で、同じファイルに対して同じ判定をする。定義の照合は、範囲の規則と同じく大文字と小文字を区別しない（`internal/fixprguard/scope.go:103-128`）。
 
 ### 4.5. 保守性 (Maintainability)
@@ -232,7 +232,7 @@
 ## 5. 制約条件 (Constraints)
 
 -   `docs/dev/project_overview.md` の「決定済みの方針」「前提・制約」に従う。
--   `CLAUDE.md` の「Reject, don't normalize」「Declare, don't infer」「Enforce invariants with the type, not with convention」に従う。基準値は厳密に解析し、補正しない（`internal/fixprguard/gitstate.go:121-138`）。
+-   `CLAUDE.md` の「Reject, don't normalize」「Declare, don't infer」「Enforce invariants with the type, not with convention」に従う。基準値は厳密に解析し、補正しない（`internal/fixprguard/gitstate.go:128-145`）。
 -   標準ライブラリ以外のモジュールを加えない（`CLAUDE.md`「Dependencies」）。
 -   0030 の要件定義書とアーキテクチャ設計書は承認済みの文書である。改めるときは `docs/dev/developer_guide/requirements_process.md`「Editing an approved document」に従う（H-06）。
 

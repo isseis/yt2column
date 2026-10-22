@@ -19,14 +19,14 @@
 
 ## H-03: 基準値の形と protocol
 
--   基準値のトークンの版（`baselineVersion = "v1"`、`internal/fixprguard/gitstate.go:30`）と欄の数を変えるか決める。古い基準値を拒否すること（AC-03）を、形の検査でどう保証するか決める。
--   `parts` に `ignored` を加えることは出力の契約の変更なので、`Protocol`（`internal/fixprguard/types.go:20`）を上げるかを決める。上げる場合は、`/fixpr`・`/runpr` の文書が渡す `--protocol 1`（`.claude/commands/fixpr.md` など）と、ガイド 4 章の「現在の番号」を合わせて改める。
+-   基準値のトークンの版（`baselineVersion = "v2"`、`internal/fixprguard/gitstate.go:30`）と欄の数を変えるか決める。古い基準値を拒否すること（AC-03）を、形の検査でどう保証するか決める。
+-   `parts` に `ignored` を加えることは出力の契約の変更なので、`Protocol`（`internal/fixprguard/types.go:20`）を上げる（ガイド 9 章「出力または引数の契約を変えるときは `Protocol` を上げる」、要件定義書 4.4）。設計では、新しい番号と、`/fixpr`・`/runpr` の文書が渡す `--protocol 2`（`.claude/commands/fixpr.md` など）とガイド 4 章の「現在の番号」をその番号に揃えて改める手段を決める。
 -   ガイドの `parts` の一覧を検査する文書のテスト（`cmd/fixprguard/docs_test.go`）に、`ignored` を加えるか決める。
 
 ## H-04: シンボリックリンクと、通常のファイルでないもの
 
--   対象のファイルがシンボリックリンクのとき、リンクの先の文字列と、リンクがたどる先の内容のどちらを状態に含めるか決める（AC-08）。hooks の digest（`internal/fixprguard/gitstate.go:312-356`）は両方を含める。リンクの先が作業ツリーの外を指す場合も扱う。
--   FIFO・デバイスなど通常のファイルでないものは、内容を読まずに種類として記録する（要件定義書 1 章の決定、AC-08・AC-16）。種類を確かめてから開くまでの間に置き換えられても、読み取りで待ち続けない手段を決める（`openRegular`。`internal/fixprguard/gitstate.go:236-254`）。
+-   対象のファイルがシンボリックリンクのとき、リンクの先の文字列と、リンクがたどる先の内容のどちらを状態に含めるか決める（AC-08）。hooks の digest（`internal/fixprguard/gitstate.go:322-366`）は両方を含める。リンクの先が作業ツリーの外を指す場合も扱う。
+-   FIFO・デバイスなど通常のファイルでないものは、内容を読まずに種類として記録する（要件定義書 1 章の決定、AC-08・AC-16）。種類を確かめてから開くまでの間に置き換えられても、読み取りで待ち続けない手段を決める（`openRegular`。`internal/fixprguard/gitstate.go:243-261`）。
 
 ## H-07: 基準値に置く値の形
 
@@ -34,7 +34,7 @@
 
 ## H-05: 比較の順序
 
--   `CheckState`（`internal/fixprguard/gitstate.go:514-560`）は、ファイルだけから読める config・info を先に比べ、git を起動するのはその後である。対象のファイルの列挙には git を起動するので、config の比較の後のどこで比べるかを決める。
+-   `CheckState`（`internal/fixprguard/gitstate.go:557-607`）は、ファイルだけから読める git のディレクトリの場所・config のファイルの種類・info を先に比べ、git を起動するのはその後である（最初に起動するのは、コマンドを起動しない `git config --list`）。対象のファイルの列挙には git を起動するので、config の比較の後のどこで比べるかを決める。
 -   ほかの部分と対象のファイルが同時に違う場合に `parts` に何を並べるかを決める（AC-14 は、対象のファイルだけが違う場合だけを定める）。
 
 ## H-06: 0030 の承認済みの文書を改める手順
