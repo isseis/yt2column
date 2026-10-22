@@ -346,7 +346,7 @@ func TestFixprDocContract(t *testing.T) {
 			"start no agent to do it",
 			"Tell the user instead to follow the `git-state-changed` or `git-failed` row of chapter 8 of the guide, in a terminal outside the Claude Code session",
 		)
-		for _, heading := range []string{fixprPhase1, fixprPhase35, fixprPhase4} {
+		for _, heading := range []string{fixprPhase1, fixprPhase35} {
 			requirePhrases(t, "fixpr.md "+heading, requireSection(t, "fixpr.md", doc, heading), rule)
 		}
 		// Phase 4 refers to it twice: from the finish step and the push step.

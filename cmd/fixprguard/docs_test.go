@@ -878,7 +878,7 @@ func TestGuideDescribesIgnoredFiles(t *testing.T) {
 			guide := readRepoFile(t, tc.rel)
 			requireAll(t, tc.rel, "7.2.3", cutSection(guide, "#### 7.2.3", "\n## ", "\n### ", "\n#### "), tc.hidden...)
 			requireAll(t, tc.rel, "7.2.5", cutSection(guide, "#### 7.2.5", "\n## ", "\n### ", "\n#### "), tc.risks...)
-			requireAll(t, tc.rel, "8.1", subsection(guide, "### 8.1"), append(tc.steps, "sha256sum", "shasum -a 256")...)
+			requireAll(t, tc.rel, "8.1", subsection(guide, "### 8.1"), tc.steps...)
 			requireAll(t, tc.rel, "the git-failed row", singleLine(t, tc.rel, guide, "| `git-failed` |"), tc.gitFailedRef)
 			table := guideTable(subsection(guide, "### 8.2"), tc.failedTable)
 			// A "|" inside a cell, even in a code span, splits the cell and
@@ -913,15 +913,36 @@ func guideBlock(t *testing.T, rel, heading string) string {
 // on records begin and inspect wrote: the block is the same in both guides;
 // with the token begin printed it reports a match and diff names the path
 // that changed; with the begin record rewritten it reports no match and runs
-// no diff. The block picks sha256sum or shasum, and one must be installed.
+// no diff. The block prefers sha256sum and falls back to shasum, so it is run
+// once with each alone on PATH; each installed tool runs, and at least one
+// must be installed.
 func TestGuideIgnoredCommands(t *testing.T) {
 	block := guideBlock(t, guideFiles[0], "### 8.1")
 	if en := guideBlock(t, guideFiles[1], "### 8.1"); en != block {
 		t.Fatalf("the 8.1 code blocks differ:\n%s\n%s", block, en)
 	}
-	_, sha256sumErr := exec.LookPath("sha256sum")
-	_, shasumErr := exec.LookPath("shasum")
-	if sha256sumErr != nil && shasumErr != nil {
+	// pathWith is a PATH directory holding the block's tools and one of
+	// the two SHA-256 commands, so the block takes that command's branch.
+	pathWith := func(sha string) (string, bool) {
+		dir := t.TempDir()
+		for _, tool := range []string{sha, "sed", "cut", "diff"} {
+			target, err := exec.LookPath(tool)
+			if err != nil {
+				return "", false
+			}
+			if err := os.Symlink(target, filepath.Join(dir, tool)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return dir, true
+	}
+	var paths []string
+	for _, sha := range []string{"sha256sum", "shasum"} {
+		if dir, ok := pathWith(sha); ok {
+			paths = append(paths, dir)
+		}
+	}
+	if len(paths) == 0 {
 		t.Fatal("unsupported test environment: neither sha256sum nor shasum is installed")
 	}
 	repo := newTestRepo(t)
@@ -939,11 +960,11 @@ func TestGuideIgnoredCommands(t *testing.T) {
 	if code := inspect.Run(t, args(cmdInspect, "--reviewer", testReviewer, "--baseline", out.Baseline, testPR)...); code != exitStop {
 		t.Fatalf("inspect: exit %d, want %d (%s)", code, exitStop, inspect.Stderr)
 	}
-	runBlock := func() string {
+	runBlock := func(path string) string {
 		t.Helper()
 		cmd := exec.Command("sh", "-c", block) //nolint:gosec // the guide's own code block, run in the test's repository
 		cmd.Dir = repo.Dir
-		cmd.Env = append(os.Environ(), "token="+out.Baseline)
+		cmd.Env = append(os.Environ(), "token="+out.Baseline, "PATH="+path)
 		got, err := cmd.Output()
 		// diff exits 1 when the records differ; any other failure is one.
 		if exitErr, ok := errors.AsType[*exec.ExitError](err); err != nil && (!ok || exitErr.ExitCode() != 1) {
@@ -951,11 +972,13 @@ func TestGuideIgnoredCommands(t *testing.T) {
 		}
 		return string(got)
 	}
-	got := runBlock()
-	if !strings.HasPrefix(got, "begin record: matches the baseline\n") || !strings.Contains(got, `"build/changed.go"`) || strings.Contains(got, `"build/kept.go"`) {
-		t.Errorf("block output = %q, want the match and a diff naming build/changed.go only", got)
+	for _, path := range paths {
+		got := runBlock(path)
+		if !strings.HasPrefix(got, "begin record: matches the baseline\n") || !strings.Contains(got, `"build/changed.go"`) || strings.Contains(got, `"build/kept.go"`) {
+			t.Errorf("PATH %s: block output = %q, want the match and a diff naming build/changed.go only", path, got)
+		}
 	}
-	f, err := os.OpenFile(filepath.Join(".git", "fixprguard-ignored-begin"), os.O_APPEND|os.O_WRONLY, 0)
+	f, err := os.OpenFile(beginRecordName, os.O_APPEND|os.O_WRONLY, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -965,7 +988,9 @@ func TestGuideIgnoredCommands(t *testing.T) {
 	if err := f.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if got := runBlock(); got != "begin record: does not match the baseline, do not trust it\n" {
-		t.Errorf("block output with the begin record rewritten = %q", got)
+	for _, path := range paths {
+		if got := runBlock(path); got != "begin record: does not match the baseline, do not trust it\n" {
+			t.Errorf("PATH %s: block output with the begin record rewritten = %q", path, got)
+		}
 	}
 }

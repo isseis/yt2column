@@ -1211,7 +1211,7 @@ func TestIgnoredRecordFiles(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Baseline: %v", err)
 		}
-		// Records of an earlier round, which the earlier token matches.
+		// Records left by an earlier round.
 		writeFile(t, gitDir(r, ignoredBeginRecord), "earlier round\n")
 		writeFile(t, gitDir(r, ignoredStopRecord), "earlier round\n")
 		r.Write("build/x.go", "package x\n")
@@ -1253,7 +1253,25 @@ func TestIgnoredRecordFiles(t *testing.T) {
 			t.Errorf("stop record after begin: %v, want removed", err)
 		}
 	})
-	t.Run("rename_fails", func(t *testing.T) {
+	// Removing an absent record succeeds in a read-only git directory, so
+	// only writing the begin record fails.
+	t.Run("begin_record_not_writable", func(t *testing.T) {
+		requireNonRoot(t)
+		r := ignoringRepo(t, "build/")
+		w, _ := newTestWorktree(t)
+		base, err := w.Baseline(t.Context())
+		if err != nil {
+			t.Fatalf("Baseline: %v", err)
+		}
+		chmodForTest(t, filepath.Join(r.Dir, ".git"), 0o555)
+		if err := w.WriteBeginRecord(t.Context(), base); !errors.Is(err, errWriteBeginRecord) {
+			t.Errorf("WriteBeginRecord = %v, want %v", err, errWriteBeginRecord)
+		}
+		if _, err := os.Lstat(gitDir(r, ignoredBeginRecord)); !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("begin record: %v, want none written", err)
+		}
+	})
+	t.Run("record_name_blocked", func(t *testing.T) {
 		r := ignoringRepo(t, "build/")
 		w, _ := newTestWorktree(t)
 		base, err := w.Baseline(t.Context())

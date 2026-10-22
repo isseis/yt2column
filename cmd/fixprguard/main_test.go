@@ -956,7 +956,7 @@ func TestBeginWritesRecord(t *testing.T) {
 	})
 	t.Run("not_writable", func(t *testing.T) {
 		newTestRepo(t)
-		// A non-empty directory at the record's name fails the rename.
+		// A non-empty directory at the record's name cannot be removed.
 		if err := os.MkdirAll(filepath.Join(beginRecordName, "keep"), testDirMode); err != nil {
 			t.Fatal(err)
 		}
