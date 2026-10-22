@@ -8,7 +8,7 @@
 | Created | 2026-10-22 |
 | Review date | 2026-10-22 |
 | Reviewer | isseis |
-| Comments | 2026-10-22 (decision): `/runplan 0034` のフェーズ 1 のレビューで、APFS が完全な大文字小文字の変換（`ﬁ` → `fi`、`ß` → `ss`）で名前を解決すると分かった。照合は単純な変換のままとし、展開する変換で同じになる名前を要件書 4.2・設計書 5.3 の残余のリスクに加えた。ステップ 7-1 のガイド 7.2 は、この項目も含めて要件書 4.2 と突き合わせる。レビュアーがこのセッションで選んだので、`Status` は `approved` のままとする。 |
+| Comments | 2026-10-22 (decision): `/runplan 0034` のフェーズ 1 のレビューで、APFS が完全な大文字小文字の変換（`ﬁ` → `fi`、`ß` → `ss`）で名前を解決すると分かった。照合は単純な変換のままとし、展開する変換で同じになる名前を要件書 4.2・設計書 5.3 の残余のリスクに加えた。ステップ 7-1 のガイド 7.2 は、この項目も含めて要件書 4.2 と突き合わせる。2026-10-22 (editorial): 同じレビューで、不正なバイトの同一視の行を `TestIsWatched` から `TestFoldEqual` に移した（ステップ 1-1）。一覧の項目が ASCII だけなので、`isWatched` では観測できないためである。レビュアーがこのセッションで選んだので、`Status` は `approved` のままとする。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -137,7 +137,7 @@
 -   [x] 監視の一覧のデータを設計書 3.2 の表のとおり置く。Go のビルドの入力の拡張子は `scope.go` の `goBuildInputSuffixes` を参照する。
 -   [x] `isWatched` を、設計書 3.2「同一視の仕方」のとおり実装する。`strings.EqualFold` と `strings.ToLower` は使わない。
 -   [x] `WatchListPatterns` を設計書 3.2「ガイドの表記」の形で返す。判定と同じデータから組み立てる。
--   [x] `TestIsWatched` を加える。行は設計書 7.1「監視の一覧の照合」の項目に従い、要件書 3 章の当たる例と当たらない例を 1 つずつ行にする（1.2）。不正な UTF-8 の行はバイト列で書く。
+-   [x] `TestIsWatched` を加える。行は設計書 7.1「監視の一覧の照合」の項目に従い、要件書 3 章の当たる例と当たらない例を 1 つずつ行にする（1.2）。不正な UTF-8 の行はバイト列で書く。不正なバイトの同一視は、監視の一覧の項目が ASCII だけなので `isWatched` からは観測できない。`foldEqual` を直接確かめる `TestFoldEqual` に置く。
 -   [x] `TestWatchListPatternsMatch` を加える。`WatchListPatterns` の各項目から作ったパスが `isWatched` に当たること（先例: `scope_test.go:229` の `samplePath`）と、項目の数が要件書 3 章の表の数（1 + 3 + 5 + 2 + 17 = 28）であることを確かめる。
 
 **壊して確かめる**: 次の変更を 1 つずつ加えると、括弧の中のテストが失敗すること。
@@ -145,7 +145,7 @@
 -   データから 1 つの項目を消す。`.claude`・最上位のファイル・名前・拡張子・Go のビルドの入力の拡張子のそれぞれで 1 つずつ（`TestIsWatched`）。
 -   `WatchListPatterns` から 1 つの項目を落とす（`TestWatchListPatternsMatch`）。
 -   同一視を ASCII だけにする（`TestIsWatched` の KELVIN SIGN と LONG S の行）。
--   不正なバイトを U+FFFD とみなす（`TestIsWatched` の不正なバイトだけが違う 2 つのパスの行）。
+-   不正なバイトを U+FFFD とみなす（`TestFoldEqual` の不正なバイトだけが違う 2 つの文字列の行）。
 
 ### フェーズ 2: `cmdrunner` の標準エラーの設定（設計書 8 章の 2）
 

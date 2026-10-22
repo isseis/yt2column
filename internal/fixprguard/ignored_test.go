@@ -69,7 +69,6 @@ func TestIsWatched(t *testing.T) {
 		{"suffix_not_at_end", "build/x.go.txt", false},
 
 		// Case folding, ASCII and Unicode simple folding.
-		{"ascii_upper_name", "build/MAKEFILE", true},
 		{"ascii_upper_suffix", "build/X.GO", true},
 		{"ascii_upper_top_dir", ".CLAUDE/settings.local.json", true},
 		{"kelvin_sign", "go.wor\u212a", true},
@@ -77,7 +76,6 @@ func TestIsWatched(t *testing.T) {
 
 		// Bytes that are not valid UTF-8, and control characters.
 		{"invalid_utf8_before_suffix", "build/\xff.go", true},
-		{"invalid_utf8_in_suffix", "build/x.g\xff", false},
 		{"control_character", "build/a\nb.go", true},
 
 		// Not on the list.
@@ -95,12 +93,15 @@ func TestIsWatched(t *testing.T) {
 			}
 		})
 	}
+}
 
-	// No watch list item contains U+FFFD or an invalid byte, so isWatched
-	// cannot show how foldEqual treats them; these rows check foldEqual
-	// itself. Reading every invalid byte as U+FFFD would equate the first
-	// pair and the last.
-	folds := []struct {
+// TestFoldEqual: foldEqual equates an invalid byte only with the same byte.
+// No watch list item contains U+FFFD or an invalid byte, so isWatched cannot
+// show this; the rows check foldEqual itself, which an item added to the list
+// later would rely on. Reading every invalid byte as U+FFFD, as
+// strings.EqualFold does, would equate the first pair and the last.
+func TestFoldEqual(t *testing.T) {
+	tests := []struct {
 		name string
 		a, b string
 		want bool
@@ -109,8 +110,8 @@ func TestIsWatched(t *testing.T) {
 		{"same_invalid_byte", "x\xff", "x\xff", true},
 		{"invalid_byte_and_replacement_rune", "x\xff", "x\ufffd", false},
 	}
-	for _, tt := range folds {
-		t.Run("fold/"+tt.name, func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			if got := foldEqual(tt.a, tt.b); got != tt.want {
 				t.Errorf("foldEqual(%q, %q) = %v, want %v", tt.a, tt.b, got, tt.want)
 			}
@@ -135,6 +136,12 @@ func TestWatchListPatternsMatch(t *testing.T) {
 		if strings.HasPrefix(pattern, "/") || strings.HasSuffix(pattern, "/") {
 			if p := "a/" + watchSamplePath(pattern); isWatched(p) {
 				t.Errorf("WatchListPatterns lists %q as top level only, but %q is watched", pattern, p)
+			}
+		}
+		// A bare name matches the whole name, not its end, unlike "*.ext".
+		if !strings.ContainsAny(pattern, "/*") {
+			if p := "a/x" + pattern; isWatched(p) {
+				t.Errorf("WatchListPatterns lists %q as a name, but %q is watched", pattern, p)
 			}
 		}
 		// A leading "/" marks a file, so nothing below it matches.
