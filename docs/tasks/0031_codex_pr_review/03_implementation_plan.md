@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-22 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-22 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の、H-NN は [design_handoff.md](design_handoff.md) の項番を指す。設計書の「n.n」は設計書の節を指す。既存のファイルに関する記述は、コミット `419dec0` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。設計書が確かめたコミット `3ed049b` から `419dec0` までの差分は `docs/tasks/` の下だけなので（`git diff --stat 3ed049b 419dec0`。2026-10-22 に実行）、設計書の行番号もそのまま使える。
