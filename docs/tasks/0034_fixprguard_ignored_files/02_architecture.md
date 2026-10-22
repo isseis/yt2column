@@ -8,7 +8,7 @@
 | Created | 2026-10-22 |
 | Review date | 2026-10-22 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-22 (editorial): `/mkplan 0034` で、2.2 の表を実際のコードに合わせた。`internal/cmdrunner/testutil/mocks.go` は変えないこと、`NewWorktree` の呼び出しのあるファイル（`worktree_flow_test.go` ではなくテストの補助のファイル）、cmd 側のテスト用のリポジトリにも同じ設定を固定すること、`package_reference.md` と用語集の行を加えた。作るものと理由は変えないので、決定の変更ではなく、`Status` は `approved` のままとする。同じ `/mkplan 0034` の計画のレビューで、次の editorial correction も加えた。2.2 の表の `check_rules.sh` の今の番号（0036 の後は `3`）、`main.go` の行の `env` の欄、3.1 の「`Baseline` だけを呼ぶテスト」の例（`mustBaseline` は `Worktree.Begin` を呼ぶので書く）、3.10 の 0034 の要件書の行（設計書の PR #447 で変更済み）、3.10 のガイド 8 章の対処の置き場所（1 行の表のセルに複数行のコマンドが入らないので、表の後の小見出しに置く。レビュアーが選んだ。中身は変えない）。2026-10-22 (decision): 同じレビューで、`fixpr.md` がセッションに無視されるファイルを調べさせない範囲を、`ignored` で止まった場合から、無視されるファイルにかかわるすべての止まり方（`begin` の `ignored` と、4 章の無視されるファイルの規則の `git-failed` を含む）に広げた（2.2・3.10 の `fixpr.md` の行）。どの止まり方でも、調べるとファイル名がセッションに届くためである。レビュアーがこのセッションで選んだので、`Status` は `approved` のままとする。 |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `9f83469` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。`internal/fixprguard/scope.go` の行番号は、タスク 0036 の実装で変わる。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md) の項番を指す。申し送り H-01〜H-08 への対応は付録 A にまとめる。#424 などは GitHub の issue の番号を指す。
 
@@ -197,20 +197,22 @@ flowchart LR
 | `internal/fixprguard/ignored_test.go` | 新規 | 7 章の単体テスト |
 | `internal/fixprguard/gitstate.go` | 変更 | `Baseline` に `ignored`・`ignoredRecord` を加え、トークンの版を `v3`、欄の数を 9 にする（`:28-32`・`:112-153`。3.6）。`PartIgnored` と `GitStateParts` を加える（`:50-56`）。`Baseline`（`:742-787`）で対象のファイルの状態を求め、`CheckState`（`:568-607`）の最後で比べる（3.7） |
 | `internal/fixprguard/worktree.go` | 変更 | `Worktree` に、列挙のための git の runner を加える（`:51-61`。3.3）。`Begin`（`:80-85`）が、`Baseline` の後に `begin` の記録のファイルを書く（3.8） |
-| `internal/fixprguard/test_helpers_git.go` | 変更 | テスト用のリポジトリで、`core.excludesFile`・`core.ignorecase`・`core.precomposeunicode` と `HOME`・`XDG_CONFIG_HOME` を固定する（7 章） |
+| `internal/fixprguard/test_helpers_git.go`・`cmd/fixprguard/test_helpers.go` | 変更 | テスト用のリポジトリで、`core.excludesFile`・`core.ignorecase`・`core.precomposeunicode` と `HOME`・`XDG_CONFIG_HOME` を固定する（7 章）。`NewWorktree` の呼び出しに列挙のための runner を加える |
 | `internal/fixprguard/scope.go` | 変更なし、または変更 | Go のビルドの入力の拡張子の一覧は、0036 が置く変数を使う。0036 がまだ入っていなければ、本タスクが置く（3.2） |
 | `internal/fixprguard/types.go` | 変更 | `Protocol` を `4` にする（`:20`。3.9） |
-| `internal/cmdrunner/runner.go`・`internal/cmdrunner/testutil/mocks.go` | 変更 | 成功しても標準エラーに出力があれば失敗とする設定（`Options` の新しい欄）と、そのエラー（3.3・4 章） |
-| `cmd/fixprguard/main.go` | 変更 | 列挙のための git の runner を、標準エラーを失敗とする設定で作って `NewWorktree` に渡す（`:149-` の `osEnv`）。`begin` が記録のファイルを書く呼び出しを、`Baseline` の後に加える（`:494` 付近。3.8） |
+| `internal/cmdrunner/runner.go` | 変更 | 成功しても標準エラーに出力があれば失敗とする設定（`Options` の新しい欄）と、そのエラー（3.3・4 章）。`internal/cmdrunner/testutil/mocks.go` の `Fake` は `Options` を持たず、`Step.Err` で失敗を再現できるので変えない |
+| `cmd/fixprguard/main.go` | 変更 | `env`（`:135-143`）に列挙のための git の runner の欄を加え、標準エラーを失敗とする設定で作って `NewWorktree` に渡す（`:149-` の `osEnv`）。テストの `newTestRun`（`cmd/fixprguard/test_helpers.go:151-163`）もこの欄を設ける。`begin` が記録のファイルを書く呼び出しを、`Baseline` の後に加える（`:494` 付近。3.8） |
 | `cmd/fixprguard/test_helpers.go` | 変更 | `validBaseline`（`:381-390`）を `v3` と 9 つの欄にする |
 | `cmd/fixprguard/docs_test.go` | 変更 | ガイドの監視の一覧の表と `git-state-changed` の行、`fixpr.md` の `parts` の列挙を確かめるガードを加える（3.10） |
-| `.claude/commands/fixpr.md` | 変更 | `--protocol` を `4` にする。`parts` の列挙に `ignored` を加え、`ignored` で止まったときにセッションが無視されるファイルを一覧にしたり読んだりせず、利用者にガイド 8 章の手順を案内するよう書く（`:492-493`・`:524-525`・`:663-664`。3.9・3.10） |
+| `.claude/commands/fixpr.md` | 変更 | `--protocol` を `4` にする。`parts` の列挙に `ignored` を加え、無視されるファイルにかかわる止まり方（`begin`・`inspect`・`finish`・`push` の `ignored` と、4 章の無視されるファイルの規則の `git-failed`）では、セッションが無視されるファイルを一覧にしたり読んだりせず、利用者にガイド 8 章の手順を案内するよう書く（`:255-262`・`:492-493`・`:524-525`・`:663-664`。3.9・3.10） |
 | `.claude/commands/runpr.md` | 変更 | `--protocol` を `4` にする（3.9）。`git-state-changed` の扱い（`:273-278`）は `fixpr` の報告を示して止まるだけなので変えない |
-| `docs/tasks/0032_japanese_pr_title/check_rules.sh` | 変更 | `:524` の `--protocol 2` を `4` にする（3.9） |
+| `docs/tasks/0032_japanese_pr_title/check_rules.sh` | 変更 | `:524` の `--protocol` の番号（タスク 0036 の後は `3`）を `4` にする（3.9） |
 | `docs/dev/developer_guide/fixprguard_guide.ja.md`・`fixprguard_guide.md` | 変更 | 1 章・4 章・5 章・7 章・8 章・9 章（3.10） |
-| `docs/tasks/0034_fixprguard_ignored_files/01_requirements.md` | 変更（本 PR） | 3 章と 4.4 の照合の記述、AC-19 と 4.2 の記録と基準値の記述、`Comments`（1.2 の照合と記録の決定。3.10） |
+| `docs/tasks/0034_fixprguard_ignored_files/01_requirements.md` | 変更済み（設計書の PR #447） | 3 章と 4.4 の照合の記述、AC-19 と 4.2 の記録と基準値の記述、`Comments`（1.2 の照合と記録の決定。3.10） |
 | `docs/tasks/0030_fixpr_untrusted_threads/01_requirements.md` | 変更 | 4.2 の残余のリスクの項目（AC-20a。3.10） |
 | `docs/tasks/0030_fixpr_untrusted_threads/02_architecture.md` | 変更 | 5.3「無視されるファイル」（AC-20。3.10） |
+| `docs/dev/developer_guide/package_reference.md` | 変更 | `internal/cmdrunner` の行に新しい設定とエラーを、`internal/fixprguard` の行に対象のファイルの比較と記録のファイルを加える |
+| `docs/translation_glossary.md` | 変更 | ガイドの翻訳で使った本タスクの用語を加える（`.claude/commands/mktrans.md`「Update Glossary」） |
 
 本タスクの変更で直す既存のテストと、満たし続けるガードは次のとおりである。
 
@@ -222,7 +224,7 @@ flowchart LR
 | `cmd/fixprguard/main_test.go:305-330`（`TestPreviousBaselineRejected`） | 前の版を `v1.` と今の欄で作ること | 前の版を `v2` と 7 つの欄の形にする（AC-03） |
 | `cmd/fixprguard/docs_test.go:122`・`:352`（`TestDocumentedInvocationsParse`・`TestDocumentedProtocolMatches`） | 文書の `--protocol` がバイナリの番号と一致すること | テストは変えず、文書を直す |
 | `cmd/fixprguard/docs_test.go:454-503`（`TestGuideDescribesConfigScope`） | ガイドの 1 章の層 (3)、5 章の `inspect`・`push`、7.1 の行、7.2、8 章の `git-state-changed` の行が、config の比較の範囲の 3 つの点を述べること | テストは変えない。本タスクが書き換える段落も、この 3 つの点を残す |
-| `internal/fixprguard/worktree_flow_test.go` などの `NewWorktree` の呼び出し | `NewWorktree(gitRun, makeRun)` の 2 つの引数 | 列挙のための runner を加える |
+| `NewWorktree` の呼び出し（`internal/fixprguard/test_helpers_git.go:223`、`cmd/fixprguard/test_helpers.go:114`・`:125`） | `NewWorktree(gitRun, makeRun)` の 2 つの引数 | 列挙のための runner を加える |
 
 ### 2.3. データフロー
 
@@ -317,7 +319,7 @@ func WatchListPatterns() []string
 ```
 
 -   `Baseline` の欄は、今までどおり非公開で、`newBaseline` だけが組み立てる（`gitstate.go:122-126`、`construction_test.go:20`）。
--   `Worktree.Baseline` は、今までどおり読み取りだけを行う。記録のファイルを書くのは `WriteBeginRecord` で、`begin` の呼び出し（`main.go` と `Worktree.Begin`）が `Baseline` の後に呼ぶ。そのため、基準値を求めるだけのテスト（`cmd/fixprguard/test_helpers.go:114` の `mustBaseline` など）は、git のディレクトリに書かない。
+-   `Worktree.Baseline` は、今までどおり読み取りだけを行う。記録のファイルを書くのは `WriteBeginRecord` で、`begin` の呼び出し（`main.go` と `Worktree.Begin`）が `Baseline` の後に呼ぶ。そのため、`Baseline` だけを呼ぶテスト（`cmd/fixprguard/test_helpers.go:111-119` の `testRepo.Baseline`）は、git のディレクトリに書かない。`Worktree.Begin` を呼ぶ `internal/fixprguard/test_helpers_git.go:237-246` の `mustBaseline` は書く。
 -   止まった時点の記録のファイルは、`CheckState` が `ignored` の違いを見つけたときに `ignored.go` の非公開の関数で書く（3.8）。
 
 ### 3.2. 監視の一覧のデータと照合（要件書 3 章・4.5、H-01）
@@ -443,15 +445,15 @@ func WatchListPatterns() []string
 | ガイド 5 章 `inspect`・`finish`・`push` | 比べる順序の (3) の後に、(4) 対象のファイルの状態を加える（`inspect` は `:150`。`finish`・`push` も、比べるものの列挙に加える）。基準値の例を `'v3....'` にする。副作用に、`ignored` で止まったときに止まった時点の記録のファイルを書くことを加える |
 | ガイド 7.1 | 行を 1 つ加える。保証は「git が無視するファイルのうち監視の一覧に当たるものの作成・書き換え・削除を、`inspect`・`finish`・`push` が基準値と比べて検出する」、仕組みは列挙と状態の比較（AC-17）。その下に「監視の一覧」の小見出しと表を置き、`WatchListPatterns` と同じ表記で載せる |
 | ガイド 7.2 | 今の「`.gitignore` が無視するファイル、…」の項目（`fixprguard_guide.ja.md:255`）を分ける（AC-18）。(1) 監視の一覧に当たらない無視されるファイルと、要件書 4.2 の残余のリスクの各項目。(2) `.gitignore` やグローバルの除外のファイルで隠したファイルのうち、対象のファイルでないもの。(3) index の stat の偽造。ほかに、ディレクトリを指すシンボリックリンクと `.claude/worktrees/` の下の worktree で止まること、`push` の後や確認の後の書き込み（5.3）を書く |
-| ガイド 8 章 `git-state-changed` の行 | `parts` に `ignored` を加え、意味と対処を書く（AC-19）。対処は次の (a)〜(e) である。コマンドは、Claude Code のセッションの外の端末で実行するよう書く |
+| ガイド 8 章 `git-state-changed` の行と、表の後の小見出し | 行の `parts` に `ignored` を加え、意味と、表の後の小見出しへの参照を書く。対処の (a)〜(e) とコマンドは、その小見出しに書く（AC-19。行は 1 行の表のセルなので、複数行のコマンドを入れない）。コマンドは、Claude Code のセッションの外の端末で実行するよう書く |
 | ガイド 8 章 `git-failed` の行 | AC-16 の原因（4 章の表の規則の名前ごと）と対処を書く（AC-19a）。上限を超えた対象のファイルを探すコマンドは、出力のパスをエスケープする |
 | ガイド 9 章 | 監視の一覧を変えたら 7 章の表も変えることを、「`stop` の種類や…一覧を変えたら」の項目（`fixprguard_guide.ja.md:300` 付近）に加える。`Protocol` の番号は上げるだけで、再び使わないことを書く（3.9） |
-| `fixpr.md` | `parts` の列挙（`:492-493`）に `ignored` を加える。`ignored` で止まったときは、セッションは無視されるファイルを一覧にしたり読んだりせず（`git status --ignored`・`git ls-files -o -i`・`ls .claude` などを実行しない）、利用者にガイド 8 章の手順を案内するよう書く（`:524-525`・`:663-664`）。理由: ファイル名は攻撃者が選べるので、セッションに届けない（AC-15 の目的） |
-| 0034 `01_requirements.md` | 3 章の照合の段落と 4.4 の「ASCII の大文字小文字を同一視」を、1.2 の照合の決定に合わせる。AC-19 と 4.2 の「修正のフェーズが書き換えられない記録」を「書き換えれば分かる記録」に、4.2 の「基準値に置くのは…まとめた値だけ」に記録のファイルの digest を加える（1.2 の記録の決定）。`Comments` に、どちらも本設計のレビューでレビュアーが選んだ決定に合わせた変更なので `approved` のままとすることを記録する（本 PR で記録済み） |
+| `fixpr.md` | `parts` の列挙（`:492-493`）に `ignored` を加える。無視されるファイルにかかわる止まり方（`begin`・`inspect`・`finish`・`push` の `git-state-changed` の `ignored` と、4 章の無視されるファイルの規則の `git-failed`）では、セッションは無視されるファイルを一覧にしたり読んだりせず（`git status --ignored`・`git ls-files -o -i`・`ls .claude` などを実行しない）、利用者にガイド 8 章の手順を案内するよう書く（`:255-262`・`:524-525`・`:663-664`）。理由: ファイル名は攻撃者が選べるので、セッションに届けない（AC-15 の目的）。`begin` も記録の不一致で `ignored` で止まり、`git-failed` の原因を調べてもファイル名が届くので、`ignored` だけに限らない |
+| 0034 `01_requirements.md` | 3 章の照合の段落と 4.4 の「ASCII の大文字小文字を同一視」を、1.2 の照合の決定に合わせる。AC-19 と 4.2 の「修正のフェーズが書き換えられない記録」を「書き換えれば分かる記録」に、4.2 の「基準値に置くのは…まとめた値だけ」に記録のファイルの digest を加える（1.2 の記録の決定）。`Comments` に、どちらも本設計のレビューでレビュアーが選んだ決定に合わせた変更なので `approved` のままとすることを記録する（設計書の PR #447 で記録済み） |
 | 0030 `02_architecture.md` 5.3「無視されるファイル」 | 本タスクで検出するようになった範囲と、なお残る範囲（要件書 4.2 の残余のリスクと同じ）を書く（AC-20）。`Comments` に、決定は本タスクの要件書の承認で得たので `approved` のままとすることを記録する（1.2） |
 | 0030 `01_requirements.md` 4.2 | 残余のリスクの「git が無視するファイル（`.envrc` など）を変えること、またはネットワークに接続すること」（`:201`）のうち、無視されるファイルの部分だけを AC-20 と同じ内容にする（AC-20a）。ネットワークに接続することは、残余のリスクのまま残す。`Comments` は上と同じ |
 
-**ガイド 8 章 `git-state-changed` の行の対処（`ignored` の場合）。**
+**ガイド 8 章の、表の後の小見出しに書く対処（`ignored` の場合）。**
 
 -   (a) 記録の照合: `begin` の記録のファイルの SHA-256 を、基準値のトークンの 10 番目の欄と比べるコマンド（3.8）。
 -   (b) 変わったファイルの特定: 照合が一致すれば、2 つの記録のファイルを `diff` で比べるコマンド。変わった・増えた・消えたパスが分かる。一致しない、記録がない場合は、侵害を強く疑う。`.claude/settings.local.json`・`.envrc`・`.env` を、利用者が別に保管している信頼できる写しから戻し、止まった時点の記録のすべてのファイルを確かめる。更新時刻では絞り込まない。

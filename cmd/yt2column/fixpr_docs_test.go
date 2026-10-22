@@ -1004,6 +1004,11 @@ func TestGlossaryTerms(t *testing.T) {
 		{"割り当て", "quota"},
 		{"指摘", "finding"},
 		{"スレッド", "thread"},
+		{"実行関連ファイル", "execution-related file"},
+		{"拒否リスト", "deny list"},
+		{"許可リスト", "allow list"},
+		{"指示ファイル", "instruction file"},
+		{"Go のビルドの入力", "Go build input"},
 	} {
 		row := tableRow(table, term.ja)
 		if len(row) < 2 || row[1] != term.en {

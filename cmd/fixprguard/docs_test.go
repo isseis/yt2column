@@ -572,6 +572,90 @@ func TestGuideDescribesConfigScope(t *testing.T) {
 	}
 }
 
+// task0036Docs are the links a note in task 0030's documents gives to the
+// task that changed the scope rules, relative to 0030's directory.
+var task0036Docs = []string{
+	"../0036_fixprguard_exec_file_scope/01_requirements.md",
+	"../0036_fixprguard_exec_file_scope/02_architecture.md",
+}
+
+// commentRecord matches the start of one record in a Comments cell: its date
+// and its kind.
+var commentRecord = regexp.MustCompile(`\d{4}-\d{2}-\d{2} \(([a-z]+)\): `)
+
+// scopeRequirement ends the level-4 heading of task 0030's requirements that
+// states the change scope. The guard finds the heading by its title.
+const scopeRequirement = ": 変更範囲と作業ツリーの確認\n"
+
+// TestTask0030NotesScopeChange: task 0030's architecture 3.6 and the change
+// scope requirement of its requirements state the scope rules as 0030 decided
+// them. Each carries a quoted note linking task 0036's requirements and
+// architecture, both documents stay approved, and each Comments cell has an
+// editorial record that names #425, the issue of task 0036.
+func TestTask0030NotesScopeChange(t *testing.T) {
+	const dir = "docs/tasks/0030_fixpr_untrusted_threads/"
+	for _, tc := range []struct {
+		rel     string
+		name    string
+		section func(doc string) string
+	}{
+		{rel: dir + "02_architecture.md", name: "3.6", section: func(doc string) string { return subsection(doc, "### 3.6.") }},
+		{rel: dir + "01_requirements.md", name: "the change scope requirement", section: func(doc string) string {
+			for line := range strings.Lines(doc) {
+				if strings.HasPrefix(line, "#### ") && strings.HasSuffix(line, scopeRequirement) {
+					return cutSection(doc, line, "\n## ", "\n### ", "\n#### ")
+				}
+			}
+			return ""
+		}},
+	} {
+		t.Run(filepath.Base(tc.rel), func(t *testing.T) {
+			doc := readRepoFile(t, tc.rel)
+			text := tc.section(doc)
+			if text == "" {
+				t.Fatalf("%s: %s not found", tc.rel, tc.name)
+			}
+			noted := false
+			for line := range strings.Lines(text) {
+				if strings.HasPrefix(line, "> ") && containsAll(line, task0036Docs) {
+					noted = true
+				}
+			}
+			if !noted {
+				t.Errorf("%s: %s has no quoted note linking %v", tc.rel, tc.name, task0036Docs)
+			}
+			if status := singleLine(t, tc.rel, doc, "| Status |"); !strings.Contains(status, "`approved`") {
+				t.Errorf("%s: status is not approved: %q", tc.rel, status)
+			}
+			comments := singleLine(t, tc.rel, doc, "| Comments |")
+			starts := commentRecord.FindAllStringSubmatchIndex(comments, -1)
+			found := 0
+			for i, m := range starts {
+				end := len(comments)
+				if i+1 < len(starts) {
+					end = starts[i+1][0]
+				}
+				if comments[m[2]:m[3]] == "editorial" && strings.Contains(comments[m[1]:end], "#425") {
+					found++
+				}
+			}
+			if found == 0 {
+				t.Errorf("%s: Comments has no editorial record naming #425", tc.rel)
+			}
+		})
+	}
+}
+
+// containsAll reports whether s contains every one of subs.
+func containsAll(s string, subs []string) bool {
+	for _, sub := range subs {
+		if !strings.Contains(s, sub) {
+			return false
+		}
+	}
+	return true
+}
+
 // TestGuideDescribesMentionCheck: both guides name, in 7.1 and 7.2, the
 // mention reply and edit-pr reject, taking the value from internal/fixprguard,
 // so changing the constant without the guides fails here. Whether the prose
