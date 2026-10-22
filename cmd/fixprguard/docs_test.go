@@ -525,16 +525,12 @@ const task0030Dir = "docs/tasks/0030_fixpr_untrusted_threads/"
 // task0035Decision is the dated Comments record of task 0035's decision.
 var task0035Decision = regexp.MustCompile(`[0-9]{4}-[0-9]{2}-[0-9]{2} \(decision\): タスク 0035（#431）の要件で決めた変更`)
 
-// TestTask0030DocsDescribeConfigScope: in task 0030's requirements and
-// architecture, every passage on the config comparison scope makes the three
-// points of configScope in the Japanese guide's wording and no longer holds
-// the wording it replaced: in the requirements, the chapter 1 decision on
-// fix-phase anomalies, the acceptance criterion on git state differences,
-// layer (3) of 4.2, and the residual risks of 4.2; in the architecture, the
-// push decision of 1.2, the finish checks and push invariants of 3.6, the
-// config row and the tool's git of 3.7, the 5.2 row, two items of 5.3, and
-// the git state tests of 7.1. Both documents stay approved and record the
-// change, with its date, as a decision of task 0035.
+// TestTask0030DocsDescribeConfigScope: every passage of task 0030's
+// requirements and architecture that task 0035's architecture (3.5) lists as
+// stating the config comparison scope makes the three points of configScope
+// in the Japanese guide's wording and no longer holds the wording it
+// replaced. Both documents stay approved and record the change, with its
+// date, as a decision of task 0035.
 func TestTask0030DocsDescribeConfigScope(t *testing.T) {
 	for _, tc := range []struct {
 		rel      string
@@ -549,7 +545,7 @@ func TestTask0030DocsDescribeConfigScope(t *testing.T) {
 					// The bullet ends where the next top-level bullet starts; its
 					// nested lines are indented.
 					{name: "layer (3)", text: cutSection(doc, "-   守りは 3 つの層からなる。", "\n-   "), stale: []string{"git の hooks と設定ファイルの違い"}},
-					{name: "the residual risks", text: cutSection(doc, "-   **残余のリスク:**", "\n### "), stale: []string{"次の 4 つ"}},
+					{name: "the residual risks", text: cutSection(doc, "-   **残余のリスク:**", "\n### "), stale: []string{"次の 4 つ", "hooks と設定ファイル"}},
 				}
 			},
 		},
@@ -574,7 +570,7 @@ func TestTask0030DocsDescribeConfigScope(t *testing.T) {
 		t.Run(filepath.Base(tc.rel), func(t *testing.T) {
 			doc := readRepoFile(t, tc.rel)
 			checkPassages(t, tc.rel, jaConfigScope, tc.passages(t, tc.rel, doc))
-			if status := singleLine(t, tc.rel, doc, "| Status |"); !strings.Contains(status, "`approved`") {
+			if status := singleLine(t, tc.rel, doc, "| Status |"); strings.TrimSpace(status) != "| Status | `approved` |" {
 				t.Errorf("%s: Status is not approved: %q", tc.rel, status)
 			}
 			if comments := singleLine(t, tc.rel, doc, "| Comments |"); !task0035Decision.MatchString(comments) {
