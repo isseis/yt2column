@@ -134,11 +134,11 @@
 
 **変更するファイル**: `internal/fixprguard/ignored.go`（新規）、`internal/fixprguard/ignored_test.go`（新規）
 
--   [ ] 監視の一覧のデータを設計書 3.2 の表のとおり置く。Go のビルドの入力の拡張子は `scope.go` の `goBuildInputSuffixes` を参照する。
--   [ ] `isWatched` を、設計書 3.2「同一視の仕方」のとおり実装する。`strings.EqualFold` と `strings.ToLower` は使わない。
--   [ ] `WatchListPatterns` を設計書 3.2「ガイドの表記」の形で返す。判定と同じデータから組み立てる。
--   [ ] `TestIsWatched` を加える。行は設計書 7.1「監視の一覧の照合」の項目に従い、要件書 3 章の当たる例と当たらない例を 1 つずつ行にする（1.2）。不正な UTF-8 の行はバイト列で書く。
--   [ ] `TestWatchListPatternsMatch` を加える。`WatchListPatterns` の各項目から作ったパスが `isWatched` に当たること（先例: `scope_test.go:229` の `samplePath`）と、項目の数が要件書 3 章の表の数（1 + 3 + 5 + 2 + 17 = 28）であることを確かめる。
+-   [x] 監視の一覧のデータを設計書 3.2 の表のとおり置く。Go のビルドの入力の拡張子は `scope.go` の `goBuildInputSuffixes` を参照する。
+-   [x] `isWatched` を、設計書 3.2「同一視の仕方」のとおり実装する。`strings.EqualFold` と `strings.ToLower` は使わない。
+-   [x] `WatchListPatterns` を設計書 3.2「ガイドの表記」の形で返す。判定と同じデータから組み立てる。
+-   [x] `TestIsWatched` を加える。行は設計書 7.1「監視の一覧の照合」の項目に従い、要件書 3 章の当たる例と当たらない例を 1 つずつ行にする（1.2）。不正な UTF-8 の行はバイト列で書く。
+-   [x] `TestWatchListPatternsMatch` を加える。`WatchListPatterns` の各項目から作ったパスが `isWatched` に当たること（先例: `scope_test.go:229` の `samplePath`）と、項目の数が要件書 3 章の表の数（1 + 3 + 5 + 2 + 17 = 28）であることを確かめる。
 
 **壊して確かめる**: 次の変更を 1 つずつ加えると、括弧の中のテストが失敗すること。
 
