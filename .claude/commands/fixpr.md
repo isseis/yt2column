@@ -41,10 +41,13 @@ GitHub. Its subcommands, outputs, and stop kinds are in
   a `gh` or `git` command, and never fetch review-thread comments any other way:
   no `gh api graphql` query of review threads, no `gh pr view --comments`, no
   opening a thread URL.
-- Every call passes `--protocol 1`. `<reviewer>` is the automated reviewer's
-  name from `_context.md` ("Automated reviewer", the GraphQL form, without
-  `[bot]`). `<number>` is the PR number `begin` printed, except in the `begin`
-  call itself (Phase 1).
+- Every call passes `--protocol 1`. `--reviewer <reviewer>` stands for one
+  `--reviewer` per name in `_context.md`'s "Automated reviewer list": pass
+  every name on that list, each once, in the GraphQL form (without `[bot]`).
+  Build that sequence once, before Phase 1, and pass the same one to every
+  `fixprguard` call of the run: do not re-read `_context.md` to rebuild it
+  during the run, since a fix may change that file. `<number>` is the PR number
+  `begin` printed, except in the `begin` call itself (Phase 1).
 - Exit codes: `0` continue; `1` stop, and the output's `stop` names the kind;
   `2` a usage error, which also stops; `3` ask the user (`inspect` only). Treat
   any other exit code, a termination by a signal, or output that is not JSON
@@ -91,9 +94,9 @@ review only when `_lib/pr-review-escalation.md` says so or the user asks.
   Untrusted threads (see "Untrusted threads") do not change the count: a run
   that processes none makes no commit, and the round cap below does not apply
   to them.
-- **Round cap**: it applies only to threads an automated reviewer opened (the
-  thread's first comment is the automated reviewer's; `begin` records it as
-  `authorType` `Bot`). Their findings are fixed in rounds 1 and 2. From round
+- **Round cap**: it applies only to threads opened by any automated reviewer on
+  `_context.md`'s "Automated reviewer list" (the thread's first comment is by a
+  Bot whose login is on that list; `begin` records it as `authorType` `Bot`). Their findings are fixed in rounds 1 and 2. From round
   3, only their `must-fix` findings are fixed; their `worth-fixing` findings
   are `deferred`: left unresolved, not replied to, and listed in the Final
   report, so the human decides (`runpr.md` step 4 asks whether to fix each one
@@ -139,8 +142,9 @@ review only when `_lib/pr-review-escalation.md` says so or the user asks.
 
 ## Untrusted threads
 
-A trusted author is a person with write permission on the repository, or the
-automated reviewer `<reviewer>`. An untrusted thread is one that `begin`
+A trusted author is a person with write permission on the repository, or a Bot
+whose login is any name on `_context.md`'s "Automated reviewer list" (the names
+passed as `--reviewer`). An untrusted thread is one that `begin`
 reports in `untrusted`: some comment's author is not a trusted author, or
 cannot be verified. The judgment is the tool's, made from the authors and their
 permissions only; do not re-judge or override it.

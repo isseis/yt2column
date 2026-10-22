@@ -289,8 +289,8 @@
 
 **変更するファイル**: なし
 
--   [ ] インストール済みの `fixprguard` に `list --protocol 1 --reviewer coderabbitai --reviewer chatgpt-codex-connector x` を渡し、終了コードが `2` で、標準エラーが PR 番号の文法の診断の 1 行であり、`flag given twice` を含まないことを確かめる（1.3.4）。PR 番号 `x` は文法に合わないので、ツールは GitHub にも git にも触れずに止まる。`protocol` の番号は変わらないので、番号ではなく振る舞いで確かめる。コミットの祖先では確かめない（1.3.4）。
--   [ ] 満たされていなければ、このフェーズを始めず、利用者に `make install-fixprguard` の実行を求めて止まる。
+-   [x] インストール済みの `fixprguard` に `list --protocol 1 --reviewer coderabbitai --reviewer chatgpt-codex-connector x` を渡し、終了コードが `2` で、標準エラーが PR 番号の文法の診断の 1 行であり、`flag given twice` を含まないことを確かめる（1.3.4）。PR 番号 `x` は文法に合わないので、ツールは GitHub にも git にも触れずに止まる。`protocol` の番号は変わらないので、番号ではなく振る舞いで確かめる。コミットの祖先では確かめない（1.3.4）。
+-   [x] 満たされていなければ、このフェーズを始めず、利用者に `make install-fixprguard` の実行を求めて止まる。
 
 **完了条件**: 上の確かめが通る。
 
@@ -300,11 +300,11 @@
 
 **変更するファイル**: `.claude/commands/_context.md`、`fixpr.md`、`runpr.md`、`cmd/yt2column/fixpr_docs_test.go`
 
--   [ ] `_context.md` の `Automated reviewer` の行を、設計書 1.2 と 3.4 の形の `Automated reviewer list` と `Awaited PR reviewer` の 2 行に置き換える。説明の文は AC-01・AC-03 が求めることを述べ、1 つの Bot だけを信頼するとは述べない。
--   [ ] `fixpr.md`・`runpr.md` の `<reviewer>` の定義、`fixpr.md` の「Untrusted threads」とラウンド上限、`runpr.md` step 3 の `<awaited-reviewer>[bot]` と `<awaited-reviewer>` の定義を、設計書 3.5 のとおりに改める。名前そのものは書かない。照合の行、LAST_REVIEWED の決め方、`@coderabbitai review` の依頼のコメントは変えない（AC-11）。
--   [ ] 内容のガードの `_context.md` の検査（設計書 3.4 の行の数の検査と 1〜4）を、`_context.md` の本文を受け取って問題の一覧を返す関数に切り出す（1.4）。問題は、検査ごとに区別できる種類を持たせる（1.3.5）。行の数え上げには既存の `markdownTables`・`tableRowsWithFirstCell`（`cmd/yt2column/docs_test.go:325`・`:405`）を使う。
--   [ ] `TestContextAndCommandsAgree` は、本物の `_context.md` でこの関数が問題を返さないことを確かめる。あわせて、待つ PR レビュアーが `coderabbitai` であること、その説明が REST の `user.login` の形と `[bot]` を述べること、一覧の説明が 1 つの Bot だけを信頼するとは述べないことを確かめる（AC-01・AC-03）。続けて、設計書 3.4 の 5・6 の検査を行う。`reviewerSentence` を新しい定義の文に替え、`<awaited-reviewer>` の定義の文の定数を加える。
--   [ ] 同じファイルに、本物の `_context.md` から作った写しの表で、この関数が期待した種類の問題を返すことを確かめるテストを加える。写しの壊し方は、設計書 7.3 の列挙に次を加える。
+-   [x] `_context.md` の `Automated reviewer` の行を、設計書 1.2 と 3.4 の形の `Automated reviewer list` と `Awaited PR reviewer` の 2 行に置き換える。説明の文は AC-01・AC-03 が求めることを述べ、1 つの Bot だけを信頼するとは述べない。
+-   [x] `fixpr.md`・`runpr.md` の `<reviewer>` の定義、`fixpr.md` の「Untrusted threads」とラウンド上限、`runpr.md` step 3 の `<awaited-reviewer>[bot]` と `<awaited-reviewer>` の定義を、設計書 3.5 のとおりに改める。名前そのものは書かない。照合の行、LAST_REVIEWED の決め方、`@coderabbitai review` の依頼のコメントは変えない（AC-11）。
+-   [x] 内容のガードの `_context.md` の検査（設計書 3.4 の行の数の検査と 1〜4）を、`_context.md` の本文を受け取って問題の一覧を返す関数に切り出す（1.4）。問題は、検査ごとに区別できる種類を持たせる（1.3.5）。行の数え上げには既存の `markdownTables`・`tableRowsWithFirstCell`（`cmd/yt2column/docs_test.go:325`・`:405`）を使う。
+-   [x] `TestContextAndCommandsAgree` は、本物の `_context.md` でこの関数が問題を返さないことを確かめる。あわせて、待つ PR レビュアーが `coderabbitai` であること、その説明が REST の `user.login` の形と `[bot]` を述べること、一覧の説明が 1 つの Bot だけを信頼するとは述べないことを確かめる（AC-01・AC-03）。続けて、設計書 3.4 の 5・6 の検査を行う。`reviewerSentence` を新しい定義の文に替え、`<awaited-reviewer>` の定義の文の定数を加える。
+-   [x] 同じファイルに、本物の `_context.md` から作った写しの表で、この関数が期待した種類の問題を返すことを確かめるテストを加える。写しの壊し方は、設計書 7.3 の列挙に次を加える。
     -   どちらかの行がない。
     -   名前の 1 つを別の正しい名前に替える。
     -   区切りの違いの各形（バッククォートがない、`,` の後に空白がない、空白が 2 つ、末尾に区切りがある）。
@@ -312,9 +312,9 @@
     -   待つ PR レビュアーの名前が 2 つ、空、文法違反。
 
     問題を返さない行も置く。説明の文に `` `[bot]` `` などのバッククォートの語や 2 つめの ` — ` を含む写しが、ちょうど 2 つの名前に読まれることを確かめる（H-02）。
--   [ ] `TestRunprDocContract` に、step 3 の「Reviewed」の部分（2 つの `jq` の絞り込み、照合の `grep` の行、LAST_REVIEWED の段落）を、`autoFixprCondition`（`fixpr_docs_test.go:46-56`）と同じく定数で固定する確かめを加える。今のガードは、この部分を固定していない（`fixpr_docs_test.go` に `between` と `[bot]` の語はない。`819011a`）。
--   [ ] `TestFixprDocContract` に、「Untrusted threads」の信頼する著者の説明とラウンド上限の説明が、一覧のどれかの自動レビュアーを指すことを確かめる行を加える（AC-12）。
--   [ ] `TestRemovedCommandLiterals` に、`fixpr.md`・`runpr.md` が `"Automated reviewer"`（前後の引用符を含む）と `<reviewer>[bot]` を含まないことの行を加える（1.3.2）。
+-   [x] `TestRunprDocContract` に、step 3 の「Reviewed」の部分（2 つの `jq` の絞り込み、照合の `grep` の行、LAST_REVIEWED の段落）を、`autoFixprCondition`（`fixpr_docs_test.go:46-56`）と同じく定数で固定する確かめを加える。今のガードは、この部分を固定していない（`fixpr_docs_test.go` に `between` と `[bot]` の語はない。`819011a`）。
+-   [x] `TestFixprDocContract` に、「Untrusted threads」の信頼する著者の説明とラウンド上限の説明が、一覧のどれかの自動レビュアーを指すことを確かめる行を加える（AC-12）。
+-   [x] `TestRemovedCommandLiterals` に、`fixpr.md`・`runpr.md` が `"Automated reviewer"`（前後の引用符を含む）と `<reviewer>[bot]` を含まないことの行を加える（1.3.2）。
 
 **壊して確かめる**: 次で、それぞれ括弧の中のテストが失敗すること。
 

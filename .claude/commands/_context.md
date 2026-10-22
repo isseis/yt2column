@@ -182,7 +182,8 @@ use this definition.
 | Conditional security guide | `docs/dev/security.md` |
 | Conditional-guide trigger | the feature invokes an external command (`yt-dlp`), handles API keys or the Webhook URL (`SLACK_WEBHOOK_URL`), reads or writes the cache directory, sends data over the network (LLM API, Webhook), or embeds untrusted text (transcript, video metadata) into a prompt or a published article |
 | Target client environments | Mattermost (Slack-compatible Incoming Webhook, Markdown `text` posted with `silent`). Slack is best effort and not a verification target |
-| Automated reviewer | `coderabbitai` — the GraphQL `author.login` form, which `fixpr.md` and `runpr.md` pass to `fixprguard` as `--reviewer`. The REST `user.login` form is this name followed by `[bot]`. It is the only Bot whose review threads are trusted |
+| Automated reviewer list | `coderabbitai`, `chatgpt-codex-connector` — the automated reviewers, each in the GraphQL `author.login` form (without `[bot]`). `fixpr.md` and `runpr.md` pass every name on this list to `fixprguard`, each as its own `--reviewer`. A Bot's review-thread comments are trusted when its login is any name on this list |
+| Awaited PR reviewer | `coderabbitai` — the automated reviewer whose PR review `runpr.md` step 3 waits for, in the GraphQL `author.login` form. The REST `user.login` form is this name followed by `[bot]`, which step 3 filters PR reviews and comments by |
 | Guard tool | `fixprguard`, installed with `make install-fixprguard` ([fixprguard_guide.md](../../docs/dev/developer_guide/fixprguard_guide.md)). `fixpr.md` and `runpr.md` call it for every author judgment, review-thread fetch, scope and git-state check, the fix round's commit and push, and every write to a review thread or the PR description |
 
 ### Domain examples referenced by commands
