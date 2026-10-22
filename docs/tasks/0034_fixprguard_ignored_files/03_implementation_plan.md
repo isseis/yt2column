@@ -153,8 +153,8 @@
 
 **変更するファイル**: `internal/cmdrunner/runner.go`、`internal/cmdrunner/runner_test.go`
 
--   [ ] `Options` に `StderrIsFailure` を加え、成功したコマンドが標準エラーに書いたら `ErrUnexpectedStderr` を返す（設計書 3.3・4 章）。エラーの文言に標準エラーの内容を入れない。ゼロ値の振る舞い（今の振る舞い）は変えない。
--   [ ] `TestStderrIsFailure` を加える。設定ありで標準エラーに書いて成功するコマンドが `ErrUnexpectedStderr` になり、エラーの文言に標準エラーのバイト列がないこと。標準エラーが空なら標準出力を返すこと。設定ありで終了コードが 0 でなければ、今までどおり `*ExitError` になること。上限を超えれば `ErrOutputTooLarge` になること。設定なしなら今までどおり成功すること。
+-   [x] `Options` に `StderrIsFailure` を加え、成功したコマンドが標準エラーに書いたら `ErrUnexpectedStderr` を返す（設計書 3.3・4 章）。エラーの文言に標準エラーの内容を入れない。ゼロ値の振る舞い（今の振る舞い）は変えない。
+-   [x] `TestStderrIsFailure` を加える。設定ありで標準エラーに書いて成功するコマンドが `ErrUnexpectedStderr` になり、エラーの文言に標準エラーのバイト列がないこと。標準エラーが空なら標準出力を返すこと。設定ありで終了コードが 0 でなければ、今までどおり `*ExitError` になること。上限を超えれば `ErrOutputTooLarge` になること。設定なしなら今までどおり成功すること。
 
 **壊して確かめる**: 標準エラーの検査を外すと、`TestStderrIsFailure` の該当の行が失敗すること。
 

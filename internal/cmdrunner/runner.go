@@ -29,13 +29,17 @@ type InputRunner interface {
 // Options bound and place a command. MaxOutput caps each of the captured
 // standard output and standard error while still draining the rest, WaitDelay
 // bounds the wait after cancellation, Dir is the working directory, and Env is
-// the child's whole environment as KEY=VALUE entries. The zero value means no
-// bound, the current directory, and the inherited environment.
+// the child's whole environment as KEY=VALUE entries. StderrIsFailure makes a
+// command that exits successfully but writes to standard error fail with
+// ErrUnexpectedStderr, for a command that reports a skipped input only as a
+// warning. The zero value means no bound, the current directory, the inherited
+// environment, and standard error discarded on success.
 type Options struct {
-	MaxOutput int
-	WaitDelay time.Duration
-	Dir       string
-	Env       []string
+	MaxOutput       int
+	WaitDelay       time.Duration
+	Dir             string
+	Env             []string
+	StderrIsFailure bool
 }
 
 // ExitError is the typed failure of a command that ran and exited unsuccessfully.
@@ -63,6 +67,11 @@ func (e *ExitError) Unwrap() error { return e.cause }
 // ErrOutputTooLarge reports that a command wrote more than Options.MaxOutput
 // bytes to standard output or standard error.
 var ErrOutputTooLarge = errors.New("command output exceeds the cap")
+
+// ErrUnexpectedStderr reports that a command run with
+// Options.StderrIsFailure exited successfully but wrote to standard error.
+// The error does not carry what the command wrote.
+var ErrUnexpectedStderr = errors.New("command wrote to standard error")
 
 // NewOS returns the production runner.
 func NewOS(opts Options) InputRunner { return osRunner{opts: opts} }
@@ -109,6 +118,9 @@ func (r osRunner) RunInput(ctx context.Context, stdin []byte, name string, args 
 			return nil, typed
 		}
 		return nil, fmt.Errorf("%s: %w: %s", cmdline, err, strings.TrimSpace(stderr.buf.String()))
+	}
+	if r.opts.StderrIsFailure && stderr.buf.Len() > 0 {
+		return nil, fmt.Errorf("%s: %w", cmdline, ErrUnexpectedStderr)
 	}
 	return stdout.buf.Bytes(), nil
 }

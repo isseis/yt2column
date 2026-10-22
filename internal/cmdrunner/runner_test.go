@@ -193,3 +193,47 @@ func TestDirAndEnv(t *testing.T) {
 		t.Errorf("HOME = %q, want the environment replaced, not extended", parts[2])
 	}
 }
+
+func TestStderrIsFailure(t *testing.T) {
+	// The script writes secret without spelling it, since the error names the
+	// command line.
+	const secret = "stderr-secret"
+	const writeSecret = "printf '%s-%s' stderr secret >&2"
+	tests := []struct {
+		name    string
+		opts    Options
+		script  string
+		wantErr error
+		wantOut string
+	}{
+		{"set_stderr_on_success", Options{StderrIsFailure: true}, "printf out; " + writeSecret, ErrUnexpectedStderr, ""},
+		{"set_empty_stderr", Options{StderrIsFailure: true}, "printf out", nil, "out"},
+		{"set_over_the_cap", Options{StderrIsFailure: true, MaxOutput: 4}, "printf 0123456789 >&2", ErrOutputTooLarge, ""},
+		{"unset_stderr_on_success", Options{}, "printf out; " + writeSecret, nil, "out"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out, err := run(t, tt.opts, nil, tt.script)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("error = %v, want %v", err, tt.wantErr)
+			}
+			if string(out) != tt.wantOut {
+				t.Errorf("output = %q, want %q", out, tt.wantOut)
+			}
+			// The bytes a command wrote to standard error never reach the
+			// error: a caller may print the error chain.
+			if err != nil && strings.Contains(err.Error(), secret) {
+				t.Errorf("error = %q carries the standard error", err)
+			}
+		})
+	}
+	t.Run("set_nonzero_exit", func(t *testing.T) {
+		_, err := run(t, Options{StderrIsFailure: true}, nil, "printf boom >&2; exit 3")
+		if exitErr, ok := errors.AsType[*ExitError](err); !ok || exitErr.Code != 3 {
+			t.Errorf("error = %v, want *ExitError with code 3", err)
+		}
+		if errors.Is(err, ErrUnexpectedStderr) {
+			t.Errorf("error = %v, want a failed exit, not ErrUnexpectedStderr", err)
+		}
+	})
+}
