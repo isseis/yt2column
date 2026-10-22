@@ -8,7 +8,7 @@
 | Created | 2026-10-22 |
 | Review date | 2026-10-22 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-22 (editorial): 実装計画の際に、`_lib/coderabbit-local-review.md:83-84` が PR レビューを CodeRabbit として述べていることが分かった（AC-24 の対象）。2.2 の「変えないもの」と 3.10 に、この文だけを改めることを書き加えた。ローカルの CLI レビューを変えないという決定は変わらないので、承認を保つ |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。要件書の AC-10・AC-11 と 4.2 の「受け入れる形」は、本書を書く際に改めた（要件書の Comments）。本書は改めた後の要件書に従う。既存のファイルに関する記述は、コミット `3ed049b` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md) の項番を指す。Codex の振る舞いに関する記述は、[observations.md](observations.md)（観測の記録。以下、観測の記録）の項目番号で根拠を示す。申し送りへの対応は付録 A に、受け入れ基準との対応は付録 B にまとめる。
 
@@ -234,7 +234,7 @@ flowchart TD
 
 次のものは変えない。
 
--   `_lib/coderabbit-local-review.md` と、ローカルの CLI レビューの呼び出し（`runplan.md` step 7.7、`fixpr.md` フェーズ 4.5 の手順、`task-pr-handoff.md` Part B step 1）。ローカルの CLI レビューは CodeRabbit のまま残す（要件書 2.3）。フェーズ 4.5 では、PR レビューを名指しする説明の文（`fixpr.md:557-558`）だけを改める。
+-   `_lib/coderabbit-local-review.md` と、ローカルの CLI レビューの呼び出し（`runplan.md` step 7.7、`fixpr.md` フェーズ 4.5 の手順、`task-pr-handoff.md` Part B step 1）。ローカルの CLI レビューは CodeRabbit のまま残す（要件書 2.3）。フェーズ 4.5 では、PR レビューを名指しする説明の文（`fixpr.md:557-558`）だけを改める。`_lib/coderabbit-local-review.md` でも、PR レビューを CodeRabbit として述べる文（`:83-84` の「the PR-side CodeRabbit review」）だけを改める（3.10）。
 -   `mergepr.md` と `cmd/mergepr`。CodeRabbit にも PR レビューにも触れない（`git grep -n -i coderabbit -- cmd/mergepr .claude/commands/mergepr.md` は 0 件。2026-10-22）。squash のコミットメッセージは、メンションの規則の対象にしない（3.8）。
 -   `fixprguard_guide` の使用例の `--reviewer coderabbitai`（`fixprguard_guide.ja.md:99` など）。`coderabbitai` は自動レビュアーの一覧に残る（1.2）。
 
@@ -480,6 +480,7 @@ sequenceDiagram
 
 -   **`CLAUDE.md`:** `:56` の Bot のコマンドの例を、`_context.md` の `PR review request` を指す書き方にする（3.1）。`:86` の `/runpr` の説明と、`:96-106` の PR の流れの説明で、PR レビューを Codex として説明する（AC-24）。`:104-106` の割り当ての説明は、3.7 と同じ趣旨にする。ローカルの CLI レビュー（`:96` の「local CodeRabbit」、`:392-394` の `coderabbit review`）は CodeRabbit のまま残す。Codex の設定（レビューのタイミングは「PR 作成時のみ」、徹底的なコードレビューは無効）を、利用者が行うリポジトリの外の設定として書く（AC-07）。
 -   **`mkreq.md:16`:** 「the CodeRabbit threads」を「the review threads」の趣旨に改める。
+-   **`_lib/coderabbit-local-review.md:83-84`:** 「the PR-side CodeRabbit review」を「the PR review」の趣旨に改める。手順は変えない。
 -   **`fixpr.md:86-89`・`557-558`:** 「A push no longer triggers a CodeRabbit PR review」を Codex のレビューのタイミング（PR 作成時のみ）の説明に、フェーズ 4.5 の「The fix is not seen by a CodeRabbit PR review」を「not seen by a PR review」の趣旨に改める。ローカルの CLI レビューの割り当てが PR レビューと別であることは残す。
 -   **`AGENTS.md`:** 見出し `## Review guidelines` を `## Code Review Rules` に改める（観測の記録の項目 6）。節の最初に、この節の規則に加えて `CLAUDE.md` の規約・設計原則・テストの規則に従うことを書き、`CLAUDE.md` の内容は写さない（AC-26）。今の箇条（重大度、回答済みの指摘、承認の順序、セキュリティ）は、`CLAUDE.md` の写しではないので残す。下位の `### Static guards …` の節は変えない。
 -   **`docs/translation_glossary.md`:** 次の 3 行を加える（AC-27）。
