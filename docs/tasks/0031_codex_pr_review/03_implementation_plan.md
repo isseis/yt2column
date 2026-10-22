@@ -191,7 +191,7 @@
 **判定理由**: ステップ 1-2 は、利用者のアカウントの投稿が Codex を動かすのを防ぐセキュリティの守り（mkplan の panel mode の「security-gate」）に当たる。
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/448
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
