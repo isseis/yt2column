@@ -415,6 +415,14 @@ type configScope struct {
 	otherBranches, unchangedValues, residualRisk string
 }
 
+// jaConfigScope is the Japanese wording of the config scope, shared by the
+// Japanese guide and task 0030's documents so that the two say it alike.
+var jaConfigScope = configScope{
+	otherBranches:   "今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*`",
+	unchangedValues: "設定の値の一覧を変えない編集",
+	residualRisk:    "ほかのブランチの設定の書き換えは、残余のリスク",
+}
+
 func (c configScope) phrases() []string {
 	return []string{c.otherBranches, c.unchangedValues, c.residualRisk}
 }
@@ -474,12 +482,8 @@ func TestGuideDescribesConfigScope(t *testing.T) {
 		risk72                      string
 	}{
 		{
-			rel: guideFiles[0],
-			scope: configScope{
-				otherBranches:   "今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*`",
-				unchangedValues: "設定の値の一覧を変えない編集",
-				residualRisk:    "ほかのブランチの設定の書き換えは、残余のリスク",
-			},
+			rel:        guideFiles[0],
+			scope:      jaConfigScope,
 			row71:      "| 書き換えられた hooks・config で git を起動しない |",
 			row71More:  []string{"を除いた設定の値の一覧を基準値と比べる", "config を比べる前に起動する git は `git config --list` だけ"},
 			row71Old:   "git や `gh` を起動する前に基準値と比べる",
@@ -518,21 +522,20 @@ func TestGuideDescribesConfigScope(t *testing.T) {
 // introduced the git state comparison; task 0035 narrowed its config scope.
 const task0030Dir = "docs/tasks/0030_fixpr_untrusted_threads/"
 
+// task0035Decision is the dated Comments record of task 0035's decision.
+var task0035Decision = regexp.MustCompile(`[0-9]{4}-[0-9]{2}-[0-9]{2} \(decision\): タスク 0035（#431）の要件で決めた変更`)
+
 // TestTask0030DocsDescribeConfigScope: in task 0030's requirements and
 // architecture, every passage on the config comparison scope makes the three
-// points of configScope and no longer holds the wording it replaced: in the
-// requirements, the chapter 1 decision on fix-phase anomalies, the acceptance
-// criterion on git state differences, layer (3) of 4.2, and the residual risks of 4.2; in the architecture, the push
-// decision of 1.2, the finish checks and push invariants of 3.6, the config
-// row and the tool's git of 3.7, the 5.2 row, two items of 5.3, and the git
-// state tests of 7.1. Both documents stay approved and record the change as a
-// decision of task 0035. The phrases are the documents' own Japanese wording.
+// points of configScope in the Japanese guide's wording and no longer holds
+// the wording it replaced: in the requirements, the chapter 1 decision on
+// fix-phase anomalies, the acceptance criterion on git state differences,
+// layer (3) of 4.2, and the residual risks of 4.2; in the architecture, the
+// push decision of 1.2, the finish checks and push invariants of 3.6, the
+// config row and the tool's git of 3.7, the 5.2 row, two items of 5.3, and
+// the git state tests of 7.1. Both documents stay approved and record the
+// change, with its date, as a decision of task 0035.
 func TestTask0030DocsDescribeConfigScope(t *testing.T) {
-	scope := configScope{
-		otherBranches:   "今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*`",
-		unchangedValues: "設定の値の一覧を変えない編集",
-		residualRisk:    "ほかのブランチの設定の書き換えは、残余のリスク",
-	}
 	for _, tc := range []struct {
 		rel      string
 		passages func(t *testing.T, rel, doc string) []passage
@@ -570,11 +573,11 @@ func TestTask0030DocsDescribeConfigScope(t *testing.T) {
 	} {
 		t.Run(filepath.Base(tc.rel), func(t *testing.T) {
 			doc := readRepoFile(t, tc.rel)
-			checkPassages(t, tc.rel, scope, tc.passages(t, tc.rel, doc))
+			checkPassages(t, tc.rel, jaConfigScope, tc.passages(t, tc.rel, doc))
 			if status := singleLine(t, tc.rel, doc, "| Status |"); !strings.Contains(status, "`approved`") {
 				t.Errorf("%s: Status is not approved: %q", tc.rel, status)
 			}
-			if comments := singleLine(t, tc.rel, doc, "| Comments |"); !strings.Contains(comments, "(decision): タスク 0035（#431）の要件で決めた変更") {
+			if comments := singleLine(t, tc.rel, doc, "| Comments |"); !task0035Decision.MatchString(comments) {
 				t.Errorf("%s: Comments does not record the decision of task 0035", tc.rel)
 			}
 		})
