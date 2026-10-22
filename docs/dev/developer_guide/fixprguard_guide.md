@@ -10,7 +10,7 @@ The body of a review thread can be written by anyone who can write on the PR, so
 
 1. **Author judgment.** Only threads in which the author of every comment is a trusted author are processed. Trusted authors are the automated reviewers (a Bot with any of the names passed with `--reviewer`; `/fixpr` and `/runpr` pass every name on `Automated reviewer list` in `.claude/commands/_context.md`) and people with write permission on the repository (`role_name` is `write`, `maintain`, or `admin`). The bodies of untrusted threads are not fetched.
 2. **Fenced block.** Untrusted text embedded in an agent's prompt is enclosed in delimiter lines that contain a per-run random value (nonce).
-3. **Change scope and git state checks.** Before the commit and the push, the tool checks that the fix did not change files outside the scope of the processed threads, or git's hooks and config.
+3. **Change scope and git state checks.** Before the commit and the push, the tool checks that the fix did not change files outside the scope of the processed threads, or git's hooks and config. For the config, the `branch.<name>.*` settings of other branches (every branch except the current branch and `main`) are not compared. This is so that a concurrent session operating on branches in another worktree does not stop the run. Edits that leave the list of configuration values unchanged (edits of only comments, blank lines, or indentation) are not detected either. A rewrite of another branch's settings is a residual risk (7.2).
 
 The division of responsibilities is as follows.
 
@@ -27,6 +27,7 @@ The tool keeps no state file. The session holds the baseline and the judged set 
 | Item | Requirement |
 |---|---|
 | `git`, `gh`, `make` | On `PATH`, with `gh auth login` done |
+| git version | 2.12 or later. 2.12 is the first version that reads `protocol.<name>.allow`; an older git silently ignores the `-c protocol.ext.allow=never` the tool passes |
 | Working directory | Run at the top level of the work tree, with HEAD on a branch. Elsewhere than the top level, `begin` stops with exit code `2`, and `inspect`, `finish`, and `push` stop with `git-state-changed` (`config`). With a detached HEAD, `begin` stops with exit code `2` |
 | `origin` | Points at this repository on GitHub. `gh repo view` returns this repository without a prompt |
 | `GIT_*` environment variables | The tool removes them from the git and `gh` it starts |
@@ -48,13 +49,19 @@ After a PR that changes the tool is merged, update `main` and reinstall. The com
 go version -m "$(command -v fixprguard)"
 ```
 
-One binary is shared by all worktrees of the same user.
+One binary is shared by all worktrees of the same user. On the other hand, `/fixpr` and `/runpr` read the command documents in that worktree's checkout and pass the `--protocol` written there. Therefore, for a change that raises the `protocol` number (for example, from `1` to `2` in task 0035), follow these steps.
+
+- Before that PR's `/runpr`, reinstall from that PR's branch, because that PR's command documents pass the new number. Until the merge, `/fixpr` and `/runpr` in other worktrees that have not merged `main` stop with exit code `2`.
+- Right after the merge, reinstall from the updated `main`. Running from documents with the new number before reinstalling stops with exit code `2`.
+- Merge `main` into other branches in progress before the next `/fixpr` or `/runpr`. Until then, that branch's documents pass the old number, so the run stops with exit code `2`.
+
+In either case, the tool never judges by the old rules (fail-closed).
 
 ## 4. Common conventions
 
 | Item | Convention |
 |---|---|
-| `--protocol N` | Required by every subcommand. If `N` does not match the binary's number, the tool stops with exit code `2` (this keeps an old binary from judging by the assumptions of newer documents). The current number is `1` |
+| `--protocol N` | Required by every subcommand. If `N` does not match the binary's number, the tool stops with exit code `2` (this keeps an old binary from judging by the assumptions of newer documents). The current number is `2` |
 | `--reviewer LOGIN` | Required at least once by `list`, `begin`, `inspect`, and `reply`, and not accepted by the other subcommands. Pass the GraphQL `author.login` of each trusted automated reviewer (for example `coderabbitai`), repeating the flag once per name (for example `--reviewer <login-1> --reviewer <login-2>`). The names `/fixpr` and `/runpr` pass are every name on `Automated reviewer list` in `.claude/commands/_context.md`. The order does not affect the judgment. When none is given, when the same name is given twice or more, or when a name does not fit the grammar, it is a usage error (exit code `2`). There is no default |
 | `[PR]` | Only a decimal PR number is accepted. URLs and branch names are rejected. When omitted, the current branch's PR is resolved with `gh pr view`. `finish`, which does not read GitHub, cannot omit it |
 | Flag position | Flags go before the positional argument (`PR`, `FILE`). Passing the same flag twice is rejected (`--accept`, `--thread`, and `--reviewer` may be passed more than once; but passing the same name to `--reviewer` twice is rejected) |
@@ -79,17 +86,17 @@ Each subcommand can also be run on its own. To investigate why something was rej
 Checks that the PR's head is a branch of this repository (only when `isCrossRepository` is the boolean `false` and `headRepository` exists). A fork PR stops with `cross-repository`. `/runpr` runs this before `gh pr checkout`.
 
 ```sh
-fixprguard head --protocol 1 42
+fixprguard head --protocol 2 42
 ```
 
-Output: `{"protocol":1,"sameRepository":true}`. Side effects: reads GitHub only.
+Output: `{"protocol":2,"sameRepository":true}`. Side effects: reads GitHub only.
 
 ### `list --reviewer LOGIN ... [PR]`
 
 Fetches every page of unresolved threads (at most 2000; beyond that it stops with `thread-cap`) and prints, for each thread, the trust judgment, the reasons, and the fingerprint. It neither fetches nor prints any body. It first makes the same check as `head`.
 
 ```sh
-fixprguard list --protocol 1 --reviewer coderabbitai 42
+fixprguard list --protocol 2 --reviewer coderabbitai 42
 ```
 
 Output: `threads` (each element has `threadId`, `url`, `trusted`, `fingerprint`, and `findings`) and `permissionLookups` (`used`, the permission lookups used, and `remaining`, the lookups left). The `reason` of a finding is one of the following.
@@ -110,7 +117,7 @@ Phase 1 of `/fixpr`. It runs in this order: (1) the work tree has no uncommitted
 The threads to process are the trusted threads and the threads named with `--accept` whose fingerprint matches the current one. Pass to `--accept` the thread ID and fingerprint from the report output shown to the user.
 
 ```sh
-fixprguard begin --protocol 1 --reviewer coderabbitai 42
+fixprguard begin --protocol 2 --reviewer coderabbitai 42
 ```
 
 Output fields:
@@ -133,17 +140,17 @@ Side effects: reads GitHub and `git ls-remote` only.
 Writes the file's content, enclosed in a fenced block, to standard output as it is (not JSON). The nonce is redrawn until it is a value the file does not contain. Only a regular file (not a symbolic link, FIFO, or device) of at most 16 MiB is read. `/fixpr` writes the triage agent's output to a file, encloses it with this, and then passes it to the fix agent.
 
 ```sh
-fixprguard fence --protocol 1 /path/to/triage.json
+fixprguard fence --protocol 2 /path/to/triage.json
 ```
 
 Side effects: none.
 
 ### `inspect --reviewer LOGIN ... --baseline TOKEN [--thread ID=FINGERPRINT ...] [PR]`
 
-Run after the fix phase. It first compares the hooks, config, and info with the baseline, and if they differ, stops with `git-state-changed` without starting `gh`. It then fetches the `--thread` threads again from GitHub to get their `path` (a different fingerprint gives `thread-changed`), enumerates the changes in the work tree, and checks them against the scope (chapter 6).
+Run after the fix phase. It first compares the config, info, and hooks with the baseline, and if they differ, stops with `git-state-changed` without starting `gh`. The comparison runs in this order. (1) Where the git directories are, the type of the config files, and the info are compared from the files alone, without starting git. (2) `git config --list` reads the list of the configuration values git reads, and it is compared without the `branch.<name>.*` settings of other branches (every branch except the current branch and `main`). (3) The hooks are compared. Edits that leave the list of configuration values unchanged (edits of only comments, blank lines, or indentation) are not detected. A rewrite of another branch's settings is a residual risk (7.2). It then fetches the `--thread` threads again from GitHub to get their `path` (a different fingerprint gives `thread-changed`), enumerates the changes in the work tree, and checks them against the scope (chapter 6).
 
 ```sh
-fixprguard inspect --protocol 1 --reviewer coderabbitai --baseline 'v1....' --thread 'PRRT_...=<fingerprint>' 42
+fixprguard inspect --protocol 2 --reviewer coderabbitai --baseline 'v2....' --thread 'PRRT_...=<fingerprint>' 42
 ```
 
 Output: `judgedSet` (the judged set ID; pass it to `finish`), `changes` (the number of changed paths), and `outOfScope` (the out-of-scope changes; each element has `position`, `path`, `kind` (`add`, `modify`, `delete`, `other`), `added`, `deleted`, and `binary`). If `outOfScope` is not empty, the exit code is `3`, and the user is shown the list and asked whether to continue. A path that fails the path checks (chapter 6) is not printed in `path`; it is shown by `position` only.
@@ -155,7 +162,7 @@ Side effects: reads GitHub and git (including `git ls-remote`) only. The work tr
 Phase 4 of `/fixpr`. It enforces the following order within one call: (1) the work tree matches the judged set and the git state matches the baseline; (2) `make fmt`; (3) recording the formatted set (it stops if the set of changed paths changed); (4) `make test` and `make lint`; (5) a strict match with the formatted set; (6) staging only the judged paths, using literal pathspecs; (7) checking what was staged (undoing the staging on a mismatch); (8) the commit; (9) checking that the commit's tree matches the formatted set. The make targets are the fixed values `fmt`, `test`, and `lint`, and are never taken from an argument. The commit subject is `fix: address PR #<PR> review comments`.
 
 ```sh
-fixprguard finish --protocol 1 --baseline 'v1....' --judged-set '<judgedSet>' 42
+fixprguard finish --protocol 2 --baseline 'v2....' --judged-set '<judgedSet>' 42
 ```
 
 Output: `committed` (`false` when the judged set is empty, in which case nothing is done) and `commit` (the SHA of the commit made; pass it to `push`).
@@ -164,13 +171,13 @@ Side effects: the formatting by `make fmt`, the writes the build checks make, st
 
 ### `push --baseline TOKEN --commit SHA`
 
-Pushes the SHA that `finish` returned. Right before that, it checks that the hooks, config, and info match the baseline; that HEAD is that SHA and its only parent is the baseline's commit; and that the OID of the push target (the branch of the same name on the remote that git resolves for the current branch) matches the baseline. It pushes with an explicit refspec, without tags or submodules.
+Pushes the SHA that `finish` returned. Right before that, it checks that the hooks, config, and info match the baseline; that HEAD is that SHA and its only parent is the baseline's commit; and that the OID of the push target (the branch of the same name on the remote that git resolves for the current branch) matches the baseline. It pushes with an explicit refspec, without tags or submodules. The config is compared as in `inspect`. The `branch.<name>.*` settings of other branches (every branch except the current branch and `main`) are not compared, and edits that leave the list of configuration values unchanged are not detected. A rewrite of another branch's settings is a residual risk (7.2).
 
 ```sh
-fixprguard push --protocol 1 --baseline 'v1....' --commit '<SHA>'
+fixprguard push --protocol 2 --baseline 'v2....' --commit '<SHA>'
 ```
 
-Output: `{"protocol":1,"pushed":true,"commit":"<SHA>"}`.
+Output: `{"protocol":2,"pushed":true,"commit":"<SHA>"}`.
 
 ### `reply --reviewer LOGIN ... --thread-id ID --comment-id N --fingerprint FP --body-file FILE [--accept ID=FINGERPRINT ...] [PR]`
 
@@ -179,20 +186,20 @@ Judges the thread again in its current state, and posts the reply only when it i
 The body file must be a regular file (whose last element is not a symbolic link) of at most 64 KiB holding valid UTF-8 that is not only whitespace and contains no NUL.
 
 ```sh
-fixprguard reply --protocol 1 --reviewer coderabbitai --thread-id 'PRRT_...' --comment-id 123 --fingerprint '<fingerprint>' --body-file /path/to/reply.md 42
+fixprguard reply --protocol 2 --reviewer coderabbitai --thread-id 'PRRT_...' --comment-id 123 --fingerprint '<fingerprint>' --body-file /path/to/reply.md 42
 ```
 
-Output: `{"protocol":1,"written":true}`. When it stops with `reply-not-resolved`, the reply may have been posted, so do not post the same reply again.
+Output: `{"protocol":2,"written":true}`. When it stops with `reply-not-resolved`, the reply may have been posted, so do not post the same reply again.
 
 ### `edit-pr --title-file FILE --body-file FILE [PR]`
 
 Updates the PR's title and body. The title is passed in the form `--title=<value>`, and the body is passed as the checked content on standard input (`gh` does not read the file again). The title file must pass the same checks as the body file and also be one line with no control character and no line separator.
 
 ```sh
-fixprguard edit-pr --protocol 1 --title-file /path/to/title.txt --body-file /path/to/body.md 42
+fixprguard edit-pr --protocol 2 --title-file /path/to/title.txt --body-file /path/to/body.md 42
 ```
 
-Output: `{"protocol":1,"written":true}`.
+Output: `{"protocol":2,"written":true}`.
 
 ## 6. Scope rules
 
@@ -230,7 +237,7 @@ A `.go` file is in scope under rule 2 only when `path` is a `.go` file in the sa
 | A body cannot end the fenced block | The tool checks that the nonce does not occur in the body. `begin`'s `threads` is one line of JSON, so newlines and quotes in a body cannot form a delimiter line |
 | Out-of-scope changes are not committed without the user's confirmation | `inspect` lists the out-of-scope changes and returns exit code `3`, and `finish` commits only the changes that match the judged set |
 | Changes that appear after the judgment are not committed | `finish` checks the strict match with the judged set before and after the build checks, and stages only the judged paths |
-| git is not started with rewritten hooks or config | `inspect`, `finish`, and `push` compare with the baseline before starting git or `gh` |
+| git is not started with rewritten hooks or config | `inspect`, `finish`, and `push` first compare where the git directories are and the type of the config files from the files alone, without starting git. Next, they start only `git config --list`, which starts no command, and compare the list of configuration values without the `branch.<name>.*` settings of other branches (every branch except the current branch and `main`) with the baseline. The only git started before the config comparison is `git config --list`; if they differ, no other git, `gh`, or make is started. The hooks are compared after the list of configuration values matches, by locating them with `git rev-parse --git-path hooks`, before any command that could run a hook. Edits that leave the list of configuration values unchanged are not detected. A rewrite of another branch's settings is a residual risk (7.2) |
 | Replies and the PR description do not become shell commands | `reply` and `edit-pr` do not go through a shell, and pass the body on standard input |
 | The head of a fork PR is not handled | `head`, `list`, and `begin` check it first |
 
@@ -238,6 +245,10 @@ A `.go` file is in scope under rule 2 only when `path` is a `.go` file in the sa
 
 - That an agent does not follow instructions inside the fenced block. Forging the delimiter lines is prevented, but the behavior of an LLM cannot be guaranteed.
 - The order in which `inspect` through `finish` are called, the confirmation with the user, and limiting naming to the threads in the immediately preceding report. These depend on the command documents (the session).
+- A rewrite of the `branch.<name>.*` settings of other branches (every branch except the current branch and `main`). This is a residual risk. These settings are not compared, so that branch operations of concurrent sessions do not stop the run. A rewrite of another branch's settings by the fix phase or by code that build checks run is not detected, and it remains after the run. It can change the destination or behavior of `git push`, `git pull`, or `git merge` run later on that branch. Running `/fixpr` after switching to that branch makes it the current branch, so a rewrite after `begin` is detected. The git the tool starts during a run does not use other branches' settings to decide a destination. However, a `branch.<name>.remote`, `merge`, or `pushRemote` without a value, or a `[branch ""]` section, makes git fail, and the run stops with `git-failed` or `response-rejected` (chapter 8).
+- Edits that leave the list of configuration values unchanged (edits of only comments, blank lines, or indentation). They do not change git's behavior, so they are not detected.
+- When an include target is replaced by a FIFO, `git config --list` waits until it times out (2 minutes), so it takes up to 2 minutes until the tool stops with `git-state-changed` (`config`). The 2 minutes equal the default timeout of Claude Code's Bash tool, so the stop can reach the session late.
+- The extent to which the git started by `gh` was checked. Given a PR number, `inspect` starts `gh repo view`, the `gh api graphql` of the thread query, and the `gh api` of the permission lookup. Checked with `gh` 2.96.0: the git that `gh repo view` starts is only `git remote -v` and a read of `remote.*`, and the latter two started no git. `git remote -v` reads other branches' settings but does not use them to decide a destination. It fails on a setting without a value or a `[branch ""]` section. The git started by `gh pr view --json number` when the PR number is omitted was not checked (`/fixpr` passes the PR number). This can change with a different `gh` version. A concurrent session's `gh pr checkout` was checked to write only `branch.<that branch>.*` for a regular PR. A fork's PR was not checked. If it also writes other settings, the run only stops too often with `git-state-changed`.
 - Only the state at the time of a check is guaranteed. Another process rewriting the hooks or config between the check and the execution, and something changed and changed back during the fix phase, are not detected.
 - A comparison before `head`, `list`, `reply`, and `edit-pr`, which take no baseline, start `gh`. `/fixpr` calls them after `finish` and `push`, so the comparisons up to then detect a rewrite, but a rewrite after `push` is not detected.
 - Preventing in-scope test code from being run by the build checks. `finish` and `push` do detect that code rewriting in-scope files or hooks.
@@ -255,16 +266,16 @@ The `stop` field of the exit code `1` output gives the stop kind. When the tool 
 |---|---|---|---|
 | `dirty-work-tree` | At `begin`, the work tree has uncommitted changes (untracked files included) | None | Examine the changes with `git status`, discard or commit them, and redo. When the previous round was stopped by out-of-scope changes, the changes remain, so the run stops here too |
 | `cross-repository` | The PR's head is in another repository, such as a fork | None | The tool does not handle it. Check the PR's content yourself |
-| `git-state-changed` | One of HEAD, the branch, the push target, the hooks, the config, or the info differs from the baseline | `parts` (`head`, `remote`, `hooks`, `config`, `info`) | Examine the parts that differ. Remove an unintended change to the hooks or config. If the remote only advanced legitimately, clean up the work tree and redo |
+| `git-state-changed` | One of HEAD, the branch, the push target, the hooks, the config, or the info differs from the baseline. For the config, the list of configuration values without the `branch.<name>.*` settings of other branches (every branch except the current branch and `main`), where the git directories are, and the type of the config files are compared. This includes the case where the list of configuration values can no longer be read after `begin` (a syntax error, a timeout on a FIFO include target, and so on). Edits that leave the list of configuration values unchanged do not stop the run. A rewrite of another branch's settings is a residual risk (7.2) | `parts` (`head`, `remote`, `hooks`, `config`, `info`) | Examine the parts that differ. For `config`, examine the settings with `git config --list --show-origin`, and remove an unintended change to the hooks or config. If the remote only advanced legitimately, clean up the work tree and redo |
 | `judged-set-changed` | The work tree or the commit differs from the judged set (a change appeared after the judgment, the build checks rewrote an in-scope file, a commit hook rewrote the index, and so on) | `changes` (the list of changes found) | Examine the listed changes. If the run stopped after a commit was made, examine that commit and undo it |
 | `thread-cap` | `list` would read more than 2000 threads | None | Resolve threads on GitHub to reduce them |
 | `change-cap` | More than 1000 files have changes | None | Examine the changes and reduce them |
 | `thread-changed` | The comments of a thread `inspect` or `reply` targets changed after the fingerprint was taken, or the thread was resolved | None | The next round picks it up. Redo from `begin` |
 | `thread-not-trusted` | The target of `reply` is neither a trusted thread nor a named thread | None | Do not reply. The user decides how to handle the untrusted thread |
 | `reply-not-resolved` | The reply was posted (or it is unknown whether it was), but the thread could not be resolved | None | Do not post the same reply again. Check the thread on GitHub and resolve it by hand if needed |
-| `response-rejected` | A GitHub call failed or timed out, or the response failed the strict check or the size cap | None | Check `gh auth status` and the state of GitHub, then redo |
+| `response-rejected` | A GitHub call failed or timed out, or the response failed the strict check or the size cap. This includes the case where `git remote -v` inside `gh` failed on another branch's setting without a value or on a `[branch ""]` section (the `git-failed` row) | None | Check `gh auth status` and the state of GitHub, then redo. If `git remote -v` fails, follow the `git-failed` row |
 | `build-checks-failed` | One of `make fmt`, `make test`, or `make lint` failed (including output over 64 MiB, in which case there is no `output`) | `stage` (`fmt`, `test`, `lint`) and `output` (the last 8 KiB of the output, as a fenced block) | Check the output and fix the cause. `output` is the result of running code, so treat it as untrusted text |
-| `git-failed` | git failed, its output was not in the expected shape, or git's metadata could not be read (a tracked file replaced by a FIFO, run outside a git repository, and so on) | None | Check that `git status` works |
+| `git-failed` | git failed, its output was not in the expected shape, or git's metadata could not be read (a tracked file replaced by a FIFO, run outside a git repository, and so on). This includes the cases where another branch's `branch.<name>.remote`, `merge`, or `pushRemote` is written without a value, where a `[branch ""]` section exists, and where the list of configuration values exceeded the output cap (64 MiB) | None | Check that `git status` works. Check that `git config --list --show-origin` works and how large its output is, and if there is a setting without a value or a `[branch ""]` section, remove it |
 | `failed` | A failure that matches none of the above (no nonce for the fenced block could be chosen, and so on) | None | Check the diagnostic on standard error |
 
 When the user answers "do not continue" about out-of-scope changes, the changes remain in the work tree. The next `/fixpr` stops with `dirty-work-tree`, so examine the changes, discard or commit them, and redo.
