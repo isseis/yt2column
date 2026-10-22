@@ -10,7 +10,7 @@
 | Reviewer | - |
 | Comments | - |
 
-本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `b8038b4` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md) の項番を指す。申し送り H-01〜H-09 への対応は付録 A にまとめる。「ガイド」は `docs/dev/developer_guide/fixprguard_guide.md`（と日本語版の `fixprguard_guide.ja.md`）を指す。
+本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `b8038b4` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md) の項番を、I-NN は [implementation_handoff.md](implementation_handoff.md)（実装計画への申し送り）の項番を指す。申し送り H-01〜H-09 への対応は付録 A にまとめる。「ガイド」は `docs/dev/developer_guide/fixprguard_guide.md`（と日本語版の `fixprguard_guide.ja.md`）を指す。
 
 本書は、要件書 3.1 で定義した次の用語を同じ意味で使う: ブランチの設定、今のブランチ、外す対象のブランチの設定、設定の値の一覧。「基準値」「ガードツール」「ダイジェスト」は、0030 の文書と同じ意味で使う。ほかに次の用語を定義して使う。
 
@@ -36,7 +36,7 @@
 -   **基準値のトークンは `v2` にし、要素の数は 7 のままにする（H-05・H-06。トークンは 3.1）。** `config` の要素を場所と種類のダイジェストに、`configList` の要素を一覧のダイジェストに変える。理由: 前の版の `v1` のトークンは、版の不一致で必ず拒否される（AC-15）。場所と種類のダイジェストを別の要素として残すと、git を起動する前に比べる部分を、トークンの中でも分けておける。要素の数を変えないので、`ParseBaseline` と `String` の変更は版の文字列だけで済み、0034 が要素を足すときも、版をもう一度上げて足すだけで済む。
 -   **FIFO を指す include は、今のタイムアウト（`gitTimeout`、2 分）で止める。** 比較の時点で `git config --list` がタイムアウトしたら、`git-state-changed`（`config`）で止まる（AC-12）。`config --list` だけに短いタイムアウトを設ける案は採らない。理由: この経路は、修正のフェーズのエージェントか build checks のコードが、故意または誤りで include の先を FIFO にしたときにしか起きない。そのときも、2 分待った後に止まるので、保証は弱まらない。正常な実行は数ミリ秒で終わり、短いタイムアウトを足しても守りは増えない（CLAUDE.md「Performance」・YAGNI）。
 -   **ほかのブランチの値のない設定による git の失敗は、`git-failed` として受け入れる。** ほかのブランチの `branch.<name>.remote`・`merge`・`pushRemote` を値なしで書くと、`git ls-remote`・`git push`・`git remote -v` が失敗する（1.3 の V-4）。外す対象の設定なので比較では止まらず、その後の git の失敗として `git-failed`（`gh` の中の git なら `response-rejected`）で止まる。値のない項目だけを比べ続ける案は採らない。理由: 値のない項目では push 先などの宛先を変えられず、効くのは失敗する方向だけである（fail-closed）。並行するセッションのブランチの操作は、値のない項目を書かない（1.3 の V-5）。外す対象に例外を作ると、規則が複雑になり、AC-01 の範囲も変わる。この場合の利用者向けの案内は、ガイド 8 章の `git-failed` の行に書き足す（3.5）。
--   **`gh` が起動する git を、実際の動作で確かめた。** `inspect` が文書の手順で起動する `gh` のうち、`gh repo view` と `gh pr view <番号>` が、ほかのブランチの設定を読まないことを `GIT_TRACE` で確かめた（1.3 の V-6）。確かめた範囲と確かめていない範囲は V-6 に書く。
+-   **`gh` が起動する git を、実際の動作で確かめた。** `inspect` が文書の手順で起動する `gh` のうち、`gh repo view` と `gh pr view <番号>` が、ほかのブランチの設定を読まないことを `GIT_TRACE` で確かめた（1.3 の V-6）。確かめた範囲と確かめていない範囲は V-6 に書く。確かめていない `gh` の経路でも、外す対象の設定が効くのは失敗する方向だけであり、その根拠は確かめた結果によらない（V-6 の後の段落）。
 
 ### 1.3. 確かめた git と `gh` の振る舞い
 
@@ -49,10 +49,18 @@
 | V-3 | 出力の形（H-04） | 各項目は `<読み込み元>` NUL `<名前>` LF `<値>` NUL である。値を持たない項目（`[core]` の下の `bare`）は `<読み込み元>` NUL `<名前>` NUL で、LF がない。空の値（`empty =`）は `<名前>` LF NUL で、両者は区別できる。セクションと変数の名前は小文字で出る（`[BRANCH "X.Y"] ReMote` は `branch.X.Y.remote`）。サブセクションは、`[branch "Feature"]` ならそのまま `branch.Feature.*`、古い書き方の `[branch.Feature]` なら小文字の `branch.feature.*`、`[branch ""]` なら `branch..*` で出る。引用符の中のエスケープは外して出る（`[branch "a\"b\\c"]` は `branch.a"b\c.remote`）。`include.path` の項目そのものも一覧に現れ、include 先の項目は include 先のファイルを読み込み元とする。`gitHardening` の `-c` は `command line:` を読み込み元として最後に並ぶ。ファイルの中の NUL は値に入らない（NUL の手前で値が切れる） |
 | V-4 | 外す対象の設定が、ツールの起動する git に効くか（H-02） | ほかのブランチの `branch.other.remote`・`merge`・`pushRemote` を値なしで書くと、`git ls-remote`・`git push`・`git remote -v` は `missing value for 'branch.other.remote'` というエラーを出し、終了コード 128 で終わる。git は、リモートの設定を読むときに、すべてのブランチの `branch.<name>.remote`・`merge`・`pushRemote` を読み込むためである。`branch.other.remote = -x` や `branch.other.rebase = bogus` のように値があれば、`ls-remote`・`push` は成功し、push 先は今のブランチの設定だけで決まる。ツールが起動するほかの git（`status`・`add`・`diff`・`diff-tree`・`ls-files`・`commit`・`rev-parse`・`symbolic-ref`・`cat-file`・`reset`・`config --get`）は、値のない項目があっても成功した |
 | V-5 | issue #431 の表の git の操作が書き込む設定（H-09 (2)） | `git worktree add -b X origin/main` は `branch.X.remote`・`branch.X.merge` を加える。別の worktree での `git push -u` は `branch.X.merge` を変える。`git worktree remove` と `git branch -D X` は `[branch "X"]` の項目を消す。どれも `branch.X.*` のほかには書き込まず、`main` の設定にも書き込まない |
-| V-6 | `inspect` が起動する `gh` が起動する git（H-02） | `GIT_TRACE` に出力先のファイルを指定して、`gh repo view --json nameWithOwner` と `gh pr view 432 --json number,headRefName` を実行した。どちらも、起動した git は `git remote -v` と `git config --get-regexp '^remote\..*\.gh-resolved$'` だけで、ブランチの設定を読む git は起動しなかった。ただし `git remote -v` は、V-4 の値のない項目があると失敗する。**確かめていないもの:** `GitHub.ThreadPaths` が起動する `gh api graphql`（`threads.go:180`）と、PR の番号を省いたときに `CurrentPR` が起動する `gh pr view --json number`（`github.go:200`）。後者は今のブランチから PR を求めるので、今のブランチの `branch.*` を読む。`/fixpr` の手順は `inspect` に PR の番号を渡す（`.claude/commands/fixpr.md:463`）ので、文書の手順では後者は起動されない。結果は `gh` 2.96.0 のものであり、`gh` の版が変われば変わりうる |
+| V-6 | `inspect` が起動する `gh` が起動する git（H-02） | `GIT_TRACE` に出力先のファイルを指定して、`gh repo view --json nameWithOwner` と `gh pr view 432 --json number,headRefName` を実行した。どちらも、起動した git は `git remote -v` と `git config --get-regexp '^remote\..*\.gh-resolved$'` だけで、ブランチの設定を読む git は起動しなかった。ただし `git remote -v` は、V-4 の値のない項目があると失敗する。**確かめていないもの:** `GitHub.ThreadPaths`（`cmd/fixprguard/main.go:564`）が起動する `gh api graphql`（`threads.go:180`）と `gh api` の権限の照会（`trust.go:140`）、PR の番号を省いたときに `CurrentPR` が起動する `gh pr view --json number`（`github.go:200`）。後者は今のブランチから PR を求めるので、今のブランチの `branch.*` を読む。`/fixpr` の手順は `inspect` に PR の番号を渡す（`.claude/commands/fixpr.md:463`）ので、文書の手順では後者は起動されない。前者はネットワークを要するので、実装のときに確かめる（I-01）。設計はこの確認に依存しない（表の後の段落）。結果は `gh` 2.96.0 のものであり、`gh` の版が変われば変わりうる |
 | V-7 | リポジトリの config のファイルを FIFO に置き換えたとき | 本書のレビューで再現した。手順: 基準値を取った後に `.git/config` を消して `mkfifo` で FIFO を作り、開かれた回数を数えながら書き込む背景のプロセスを置く。4 回目までは元の内容を、それ以降は `core.hooksPath` を加えた内容を書く。その後に `git config --list`・`git rev-parse --git-path hooks`・`git add`・`git commit` を順に実行した。git はリポジトリの config が FIFO でも読み、1 つのプロセスの中で何度も開く。書き手が FIFO の開かれた回数を数えていれば、`git config --list` と `git rev-parse` には基準値と同じ内容を、次の git には `core.hooksPath` を書き換えた内容を渡せる。この場合、内容を比べるだけでは、次の `git commit` が書き換えた先の hook を実行する。今のコードは、ファイルの種類を含むダイジェスト（`gitstate.go:375-409` の `digestPath`）で、git を起動する前にこれを止めている |
 
-`gh pr checkout` は、ツールが起動しない（ツールの外で並行するセッションが起動する）ので、書き込む設定は実際の動作で確かめていない。特に確かめていないのは、`main` の設定に書き込まないこと（要件書 1 章の決定の前提）である。`gh pr checkout` は、checkout するブランチの upstream を設定するために `branch.<そのブランチ>.*` を書く。`main` を checkout するのでない限り、`main` の設定に書く理由はない。fork の PR で `remote.*` を加える場合は、要件書 AC-08 のとおり止まる。いずれの場合も、要件が止めるとする変更を止め損ねる側には外れない。
+**確かめていない `gh` の経路でも安全である理由（V-6）。** `gh api graphql` などが起動する git を確かめていなくても、外す対象の設定が `gh` に効くのは失敗する方向だけである。根拠は次の 3 つで、どれも V-6 の確認の結果によらない。
+
+-   **外す対象のほかは、`gh` の前にすべて比べる。** `inspect` は `CheckState` を通った後にだけ `gh` を起動する（`cmd/fixprguard/main.go:557`・`564`）。`gh` の中の git が読む設定のうち、外す対象でないものは、すべて基準値と同じである。
+-   **外す対象のキーは、コマンドを起動させない。** git が `branch.<name>.*` に定めるキー（`remote`・`pushRemote`・`merge`・`mergeOptions`・`rebase`・`description`）は、どれも起動するコマンドを値に持たない。`mergeOptions` と `rebase` は、merge・pull のときにエディタや署名のプログラムを起動させうるが、そのプログラムを名指すのは比べる項目（`core.editor`・`gpg.program` など）である。しかも、git はこれらのキーを、名前が完全に一致するブランチの操作にしか使わない（V-4、H-09 (1)）。
+-   **問い合わせる先のリポジトリは、`branch.*` から決まらない。** `ThreadPaths` は、owner と name を `gh repo view` で求め（`github.go:96`・`504`）、GraphQL の変数（`threads.go:106`）と REST のパス（`trust.go:140-141`）に明示して渡す。`gh repo view` が起動する git は、`branch.*` を読まない（V-6）。
+
+よって、`gh` の中の git が外す対象を読んでも、宛先を変えることも、コマンドを起動させることもできない。効くのは、V-4 の値のない項目による失敗だけであり、`response-rejected` で止まる（4 章）。実際に起動される git の確認は、実装のときに行う（I-01）。
+
+**`gh pr checkout` が書き込む設定（H-09 (2)）。** `gh pr checkout` は、ツールが起動しない（ツールの外で並行するセッションが起動する）ので、書き込む設定は実際の動作でも文書でも確かめていない。書き込む範囲が `branch.<そのブランチ>.*` だけでなく、`branch.main.*` や `remote.*` に及んでも、要件書 AC-01 の但し書きと AC-06・AC-08 のとおり `git-state-changed` で止まる。誤りうる方向は止まりすぎ（fail-closed）だけであり、止めるべき変更を通すことはない。外れたときの影響は、並行するセッションの checkout で不要に止まることだけである。通常の PR と fork の PR で書き込む範囲は、ネットワークを要するので、実装のときに確かめる（I-02）。
 
 **git の最低の版（H-08）。** 次の 3 つのうち最も新しい版である。
 
@@ -484,7 +492,7 @@ flowchart LR
 |---|---|---|
 | 経路 1: コマンドを起動させる設定（`core.hooksPath`・`core.fsmonitor` など。どのファイルにあっても） | 一覧のダイジェストの比較。`git config --list` はコマンドを起動しない（V-1）。違えば `git rev-parse` の前に止まる（3.4） | 今と同じ。確認の時点だけの保証 |
 | 経路 2: 今のブランチと `main` の設定（push 先・merge の設定） | 一覧のダイジェストの比較（AC-05・AC-06） | 今と同じ |
-| 経路 3: ほかのブランチの設定 | 比べない（F-001）。ツールが起動する git と、確かめた範囲の `gh` は、ほかのブランチの設定を push 先などの決定に使わない。値のない項目は git を失敗させるが、宛先を変えない（V-4・V-6） | 実行の間は、失敗の方向にしか効かない。実行の後は 5.3 |
+| 経路 3: ほかのブランチの設定 | 比べない（F-001）。ツールが起動する git は、ほかのブランチの設定を push 先などの決定に使わない。`gh` は、外す対象のほかを比べた後にだけ起動し、問い合わせる先を明示して渡す。外す対象のキーはコマンドを起動させない。値のない項目は git を失敗させるが、宛先を変えない（V-4・V-6 と表の後の段落） | 実行の間は、失敗の方向にしか効かない。実行の後は 5.3 |
 | 経路 4: include 先の FIFO・端末 | `gitTimeout` の後に `config` の変化として止まる（1.2） | 止まるまで最大 2 分 |
 | 経路 5: リポジトリ・worktree の config のファイルを FIFO などに置き換え、開くたびに違う内容を読ませる | 場所と種類のダイジェストの比較。git を起動する前に止まる（V-7・3.4） | 今と同じ |
 | `.git` ファイルや `commondir` の書き換え | 場所と種類のダイジェストの比較。git を起動する前に止まる（AC-11） | 今と同じ |
@@ -498,7 +506,7 @@ flowchart LR
 -   **include 先の FIFO・端末による遅延。** 経路 4 では、止まるまで最大 2 分かかる（1.2）。今は、リポジトリの config への include の追加は、ファイルの内容の比較で即座に止まる。include 先のファイルを FIFO に書き換えた場合は、今も `git config --list` が待つ。`gitTimeout` の 2 分は Claude Code の Bash ツールの既定のタイムアウトと同じなので、止まったことがセッションに遅れて届くことがある。fixprguard がシグナルで強制終了され、`context` が取り消されない場合、待っている git の子プロセスが残りうる。
 -   **include 先とグローバルの config の FIFO。** 経路 5 の種類の確認の対象は、リポジトリと worktree の config のファイルだけである。グローバルの config や include 先のファイルを、書き手のいる FIFO に置き換えると、開くたびに違う内容を git に読ませることができる。これは今のコードでも同じで、本タスクで新たに生じるものではない。
 -   **種類の確認と git の起動の間のずれ。** 手順 2 で通常のファイルであることを確かめた後、手順 3 の git が開くまでの間に FIFO に置き換えられる場合は防げない。0030 `02_architecture.md` 5.3 の「確認と実行の間のずれ」の一種として受け入れる。
--   **git と `gh` の振る舞いへの依存。** V-1 の「`git config --list` はコマンドを起動しない」は、手元の git 2.50.1 で確かめた。今のコードも、同じ前提で `git config --list` を `git rev-parse` の前に起動している（`gitstate.go:545-551`）。ただし、本タスクの後は、書き換えられたリポジトリの config の内容を、ファイルの比較で止めずに git に読ませる。そのため、この前提に依存する範囲が広がる。7.2 のテストが、この前提を CI の git でも確かめ続ける。V-6 の `gh` の振る舞いは `gh` 2.96.0 のものであり、`gh` の更新で、ほかのブランチの設定を読むようになる可能性は残る。
+-   **git と `gh` の振る舞いへの依存。** V-1 の「`git config --list` はコマンドを起動しない」は、手元の git 2.50.1 で確かめた。今のコードも、同じ前提で `git config --list` を `git rev-parse` の前に起動している（`gitstate.go:545-551`）。ただし、本タスクの後は、書き換えられたリポジトリの config の内容を、ファイルの比較で止めずに git に読ませる。そのため、この前提に依存する範囲が広がる。7.2 のテストが、この前提を CI の git でも確かめ続ける。V-6 の `gh` の振る舞いは `gh` 2.96.0 のものであり、`gh api` の経路は確かめていない（I-01）。`gh` の更新で、ほかのブランチの設定を読むようになる可能性は残る。そうなっても、効くのは失敗する方向だけである（1.3 の V-6 の後の段落）。
 -   **確認と実行の間のずれ**（0030 `02_architecture.md` 5.3）は変わらない。
 
 ### 5.4. 観測のしやすさ
@@ -647,14 +655,14 @@ PR の分け方は計画で決める。1 と 2 は、比較の振る舞いを変
 | 項目 | 対応 |
 |---|---|
 | H-01（バイト列の比較をやめた後の起動の順序の保証） | 確かめた。`gitHardening` の `-c` が上書きしない設定を含む config でも、`git config --list` はコマンドを起動しない（V-1）。`include.path`・`includeIf` の読み込みも起動しない（V-1）。壊れた config ではすぐに失敗し、FIFO を指す include では `gitTimeout` まで待つ（V-2）。失敗とタイムアウトは `config` の変化として止まる（4 章）。FIFO の待ちは受け入れる（1.2）。リポジトリの config のファイルの FIFO への置き換え（V-7）は、ファイルの種類の比較を git の起動の前に残して止める。順序は 3.4 |
-| H-02（外す対象の設定を読む git の有無） | 確かめた。ツールが起動する git は、ほかのブランチの設定を push 先などの決定に使わない。ただし、値のない `branch.<name>.remote`・`merge`・`pushRemote` は、`ls-remote`・`push`・`remote -v` を失敗させる（V-4）。`gh repo view` と `gh pr view <番号>` が起動する git は `git remote -v` と `remote.*` の読み取りだけである（V-6）。`gh api graphql` と番号なしの `gh pr view` は確かめていない（V-6）。失敗する方向は受け入れる（1.2・5.3） |
+| H-02（外す対象の設定を読む git の有無） | 確かめた。ツールが起動する git は、ほかのブランチの設定を push 先などの決定に使わない。ただし、値のない `branch.<name>.remote`・`merge`・`pushRemote` は、`ls-remote`・`push`・`remote -v` を失敗させる（V-4）。`gh repo view` と `gh pr view <番号>` が起動する git は `git remote -v` と `remote.*` の読み取りだけである（V-6）。`gh api graphql`・`gh api` の権限の照会と、番号なしの `gh pr view` は確かめていない（V-6）。確かめていない経路でも、外す対象の設定は宛先を変えず、コマンドを起動させないので、効くのは失敗する方向だけである（1.3 の V-6 の後の段落）。実際の確認は実装のときに行う（I-01）。失敗する方向は受け入れる（1.2・5.3） |
 | H-03（今のブランチと `main` の名前の求め方） | サブセクションのダイジェストを基準値のブランチのダイジェストと比べる。比較の前に git を起動しない。`main` は定数 `mainBranch` とする。AC-13 の `parts` は、基準値のブランチと `main` の設定が変わっていなければ `head`、変わっていれば `config` である（1.5・3.4） |
 | H-04（一覧の形と名前の分解） | git 2.50.1 で確かめた（V-3）。受理する形と分解は 3.2。Linux の git では CI が確かめる（1.3） |
 | H-05（トークンの形と `Protocol`） | `v2` にし、要素の数は 7 のままにする。`Protocol` を `2` に上げる（1.2・3.1・3.5） |
 | H-06（0034 との順序） | 0034 は版を上げて要素を足せばよい。行番号の引用は 0034 の側で合わせる（9 章） |
 | H-07（テストの構成） | 7.1〜7.3。分類の有無の両方で入力を確かめ、層を区別する。場所と種類の比較は、git を 1 回も起動しないことで、一覧の比較と区別する（AC-11・AC-14） |
 | H-08（git の最低の版） | 2.12（`protocol.ext.allow` を読む版）。`gitHardening` のコメントとガイド 2 章を合わせる（1.3・3.5） |
-| H-09（git と `gh` の前提） | (1) git は、`branch.<name>.*` を名前の完全な一致で使う。値のある項目では、ほかのブランチの値は使われなかった（V-4）。(2) issue #431 の表の git の操作は、そのブランチの設定だけを書く（V-5）。`gh pr checkout` は、実際の動作では確かめていない。外れても要件と違う方向には外れない（1.3） |
+| H-09（git と `gh` の前提） | (1) git は、`branch.<name>.*` を名前の完全な一致で使う。値のある項目では、ほかのブランチの値は使われなかった（V-4）。(2) issue #431 の表の git の操作は、そのブランチの設定だけを書く（V-5）。`gh pr checkout` は、実際の動作でも文書でも確かめていない。ほかの設定に書き込んでも AC-01 の但し書きと AC-06・AC-08 のとおり止まり、誤りうる方向は止まりすぎだけである（1.3 の表の後の段落）。実際の確認は実装のときに行う（I-02） |
 
 ## 付録 B: 受け入れ基準との対応
 
