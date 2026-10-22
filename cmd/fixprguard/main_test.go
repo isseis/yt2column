@@ -501,6 +501,10 @@ func TestInspectExitCode(t *testing.T) {
 	}{
 		{name: "in_scope", file: testFile, want: exitContinue},
 		{name: "out_of_scope", file: "other/b.md", want: exitAsk},
+		// Beside testFile, so only the allow list or the deny list puts them
+		// out of scope.
+		{name: "outside_allow_list", file: "docs/notes/b.ts", want: exitAsk},
+		{name: "instruction_file", file: "docs/notes/CLAUDE.md", want: exitAsk},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			repo := newTestRepo(t)
