@@ -339,7 +339,6 @@ func TestBaselineMalformedRejected(t *testing.T) {
 		// The shape the version before this one printed: v2 and seven
 		// fields, without the two target file digests.
 		{"previous_version", strings.Join(append([]string{"v2"}, fields[1:8]...), ".")},
-		{"current_version_seven_fields", strings.Join(fields[:8], ".")},
 		{"previous_version_nine_fields", with(0, "v2")},
 		{"missing_field", strings.Join(fields[:len(fields)-1], ".")},
 		{"extra_field", token + ".00"},

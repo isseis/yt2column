@@ -969,7 +969,8 @@ func TestBeginWritesRecord(t *testing.T) {
 		if got := r.StopKind(t); got != fixprguard.StopGitFailed || out.Baseline != "" {
 			t.Errorf("stop = %q, baseline = %q; want %s and no baseline", got, out.Baseline, fixprguard.StopGitFailed)
 		}
-		// The diagnostic's rule is what the guide documents for this stop.
+		// This package cannot reach the unexported sentinel; the rule in the
+		// one-line diagnostic is the only sign the stop came from the record.
 		if !strings.Contains(r.Stderr.String(), "write ignored begin record") {
 			t.Errorf("stderr %q does not name the begin record rule", r.Stderr)
 		}
@@ -1062,7 +1063,8 @@ func TestIgnoredOutputOmitsNames(t *testing.T) {
 			requireNonRoot(t)
 			chmodForTest(t, secret, 0)
 		}, stop: fixprguard.StopGitFailed, rule: "read ignored file"},
-		// git skips it with a warning naming the directory.
+		// git skips it with a warning on standard error naming the
+		// directory; the row guards against the tool passing that warning on.
 		{name: "unreadable_directory", mutate: func(t *testing.T, _ *testRepo) {
 			requireNonRoot(t)
 			dir := filepath.Join("build", dirMark, nameMark+"-dir")
@@ -1108,8 +1110,9 @@ func TestIgnoredOutputOmitsNames(t *testing.T) {
 			if out.Stop != tc.stop || (tc.stop == fixprguard.StopGitStateChanged && !slices.Equal(out.Parts, []string{fixprguard.PartIgnored})) {
 				t.Errorf("output = %+v, want %s", out, tc.stop)
 			}
-			// The rule shows the row reached the failure it is named after;
-			// the diagnostic's wording is the contract the guide documents.
+			// The rule shows the row reached the failure it is named after.
+			// This package cannot reach the unexported sentinels, so the rule
+			// in the one-line diagnostic is the only way to tell.
 			if tc.rule != "" && !strings.Contains(r.Stderr.String(), tc.rule) {
 				t.Errorf("stderr %q does not name %q", r.Stderr, tc.rule)
 			}

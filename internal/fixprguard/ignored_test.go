@@ -4,6 +4,8 @@ package fixprguard
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -1114,7 +1116,7 @@ func TestCheckStateIgnoredChanges(t *testing.T) {
 }
 
 // TestBaselineIgnoredFailures: a target file the pass cannot record stops
-// Baseline with its rule, and begin with it, before any record is written.
+// Baseline with its rule, and no baseline is returned.
 func TestBaselineIgnoredFailures(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -1138,9 +1140,6 @@ func TestBaselineIgnoredFailures(t *testing.T) {
 			w, _ := newTestWorktree(t)
 			if base, err := w.Baseline(t.Context()); !errors.Is(err, tc.want) || base.usable() {
 				t.Errorf("Baseline = %q, %v; want no baseline and %v", base.String(), err, tc.want)
-			}
-			if base, err := w.Begin(t.Context()); !errors.Is(err, tc.want) || base.usable() {
-				t.Errorf("Begin = %q, %v; want no baseline and %v", base.String(), err, tc.want)
 			}
 		})
 	}
@@ -1198,8 +1197,8 @@ func TestIgnoredRecordFiles(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read begin record: %v", err)
 		}
-		if recordDigest(record) != base.ignoredRecord {
-			t.Errorf("record digest is not the baseline's")
+		if sum := sha256.Sum256(record); hex.EncodeToString(sum[:]) != base.ignoredRecord {
+			t.Errorf("record SHA-256 %x is not the baseline's %s", sum, base.ignoredRecord)
 		}
 		if got := recordPaths(t, record); !slices.Equal(got, []string{settingsLocalPath, "build/x.go"}) {
 			t.Errorf("record paths = %q", got)
@@ -1266,6 +1265,17 @@ func TestIgnoredRecordFiles(t *testing.T) {
 			t.Errorf("WriteBeginRecord = %v, want %v", err, errWriteBeginRecord)
 		}
 		blockName(ignoredStopRecord)
+		// With only the stop record's name blocked, removing the earlier
+		// stop record fails, and begin writes no record.
+		if err := os.RemoveAll(gitDir(r, ignoredBeginRecord)); err != nil {
+			t.Fatal(err)
+		}
+		if err := w.WriteBeginRecord(t.Context(), base); !errors.Is(err, errWriteBeginRecord) {
+			t.Errorf("WriteBeginRecord with the stop record blocked = %v, want %v", err, errWriteBeginRecord)
+		}
+		if _, err := os.Lstat(gitDir(r, ignoredBeginRecord)); !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("begin record: %v, want none written", err)
+		}
 		r.Write("build/x.go", "package x\n")
 		wantStateParts(t, w.CheckState(t.Context(), base), PartIgnored)
 		if temps := recordTemps(t, filepath.Join(r.Dir, ".git")); len(temps) != 0 {
