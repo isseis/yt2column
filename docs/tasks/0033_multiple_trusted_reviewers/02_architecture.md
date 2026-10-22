@@ -8,11 +8,11 @@
 | Created | 2026-10-22 |
 | Review date | 2026-10-22 |
 | Reviewer | isseis |
-| Comments | 2026-10-22 (editorial): 7.4 の結合テストを「既存の流れのテストに場合を加える」から「新しいテストを加える」に改めた。`begin` から `reply` までを続けて実行する既存のテストが `cmd/fixprguard/main_test.go` にないことを、実装計画（`03_implementation_plan.md` 1.4）の調査で確かめたためである。加えるテストの内容は変わらず、決定は変わらない |
+| Comments | 2026-10-22 (editorial): 7.4 の結合テストを「既存の流れのテストに場合を加える」から「新しいテストを加える」に改めた。`begin` から `reply` までを続けて実行する既存のテストが `cmd/fixprguard/main_test.go` にないことを、実装計画（`03_implementation_plan.md` 1.4）の調査で確かめたためである。加えるテストの内容は変わらず、決定は変わらない。2026-10-22 (editorial): 用語「待つ PR レビュアー」を「完了を待つ PR レビュアー」に改め、定義に、承認ではなくレビューの完了を待つことを書き足した。何を待つかが名前から読み取れるようにするためである。英語の awaited PR reviewer と `_context.md` の行の名前は変えない。内容と決定は変わらないので、承認を保つ（isseis がこのセッションで指示した） |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `e5db595` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md) の項番を指す。申し送り H-01〜H-04 への対応は付録 A にまとめる。
 
-本書は次の用語を、要件書 6 節と `docs/translation_glossary.md` と同じ意味で使う: 自動レビュアー、自動レビュアーの一覧、待つ PR レビュアー、信頼する著者、信頼する著者のスレッド、想定外の著者のスレッド、名指し、ガードツール（`fixprguard`）、セッション、フェーズ。ほかに次の用語を使う。
+本書は次の用語を、要件書 6 節と `docs/translation_glossary.md` と同じ意味で使う: 自動レビュアー、自動レビュアーの一覧、完了を待つ PR レビュアー、信頼する著者、信頼する著者のスレッド、想定外の著者のスレッド、名指し、ガードツール（`fixprguard`）、セッション、フェーズ。ほかに次の用語を使う。
 
 -   **文書のガード:** コマンドの文書と `_context.md` を読んで検査するテストの総称（要件書 AC-02 の「文書のガードのテスト」）。本書では次の 2 つを区別する。
     -   **内容のガード:** `cmd/yt2column/fixpr_docs_test.go`。`_context.md`・`fixpr.md`・`runpr.md`・用語集の記述を検査する。
@@ -25,7 +25,7 @@
 -   **信頼の判定の規則は変えず、比べる相手だけを 1 つの名前から自動レビュアーの一覧に変える。** 判定の表（`docs/tasks/0030_fixpr_untrusted_threads/02_architecture.md` 3.3）の `Bot` の行の「`login` が自動レビュアーの名前と一致」を、「一覧のどれかと一致」に変えるだけにする。理由 (a)〜(f)、権限の照会、照会の上限、取得の 2 段階は変えない。
 -   **一覧の不変条件は型で保証する。** 空でないこと、各名前が `login` の文法に合うこと、重複がないことを、`fixprguard` パッケージの新しい型 `Reviewers` の唯一の構築関数 `ParseReviewers` が保証する（3.2）。「唯一」であることは、既存の `TestRestrictedTypesBuiltByConstructors`（`internal/fixprguard/construction_test.go`）に `Reviewers` を登録して機械的に確かめる。`cmd/fixprguard` のフラグの解析と内容のガードは、どちらもこの関数を通す。同じ検査を 2 か所に書かない（`CLAUDE.md`「Enforce invariants with the type, not with convention」「DRY」）。
 -   **ツールは `_context.md` を読まない。** 名前は呼び出し元が `--reviewer` で渡す（0030 の `02_architecture.md` 1.2・5.3。要件書 2.3・5 節）。
--   **自動レビュアーの一覧と待つ PR レビュアーは、別々の値として `_context.md` に置く。** 一覧は「誰のスレッドを信頼するか」を、待つ PR レビュアーは「`/runpr` が何をもってレビュー済みとするか」を決める（要件書 1 節）。
+-   **自動レビュアーの一覧と完了を待つ PR レビュアーは、別々の値として `_context.md` に置く。** 一覧は「誰のスレッドを信頼するか」を、完了を待つ PR レビュアーは「`/runpr` が何をもってレビュー済みとするか」を決める（要件書 1 節）。
 -   **古いツールと新しい文書の組み合わせは、誤った判定をせずに止まる。** `protocol` の番号は上げない。ツールの変更を先にマージして再インストールし、その後に文書を切り替える（1.2・6.2・8 章）。
 
 ### 1.2. 設計の際に決めたこと（2026-10-22）
@@ -43,8 +43,8 @@
 設計で決めたこと:
 
 -   **`_context.md` の一覧は、表の 1 行に置く（H-02）。** 行の名前（1 列目）は `Automated reviewer list` とする。値のセルは、バッククォートで囲んだ名前を `, `（カンマと空白 1 つ）で区切った並び、` — `（前後に空白のある em ダッシュ）、説明の文の順に書く。内容のガードは、最初の ` — ` より前だけを名前の並びとして読む。その部分がこの形に厳密に合わなければ、ガードは失敗する（3.4）。説明の文の中のコード（`[bot]` など）は、名前として読まない。
--   **待つ PR レビュアーは、別の行 `Awaited PR reviewer` に置く（AC-03）。** 値のセルは、バッククォートで囲んだ名前ちょうど 1 つ、` — `、説明の文の順に書く。説明の文は、REST の `user.login` の形がその名前に `[bot]` を付けたものであることを述べる。今の `Automated reviewer` の行（`.claude/commands/_context.md:185`）は、この 2 行に置き換えてなくす。
--   **`runpr.md` step 3 は、待つ PR レビュアーを新しいプレースホルダー `<awaited-reviewer>` で参照する（AC-11）。** 今の `<reviewer>[bot]`（`.claude/commands/runpr.md:216-224`）を `<awaited-reviewer>[bot]` に変える。`<reviewer>` は `--reviewer` の値だけを指すので、2 つの役割を 1 つのプレースホルダーで兼ねない。
+-   **完了を待つ PR レビュアーは、別の行 `Awaited PR reviewer` に置く（AC-03）。** 値のセルは、バッククォートで囲んだ名前ちょうど 1 つ、` — `、説明の文の順に書く。説明の文は、REST の `user.login` の形がその名前に `[bot]` を付けたものであることを述べる。今の `Automated reviewer` の行（`.claude/commands/_context.md:185`）は、この 2 行に置き換えてなくす。
+-   **`runpr.md` step 3 は、完了を待つ PR レビュアーを新しいプレースホルダー `<awaited-reviewer>` で参照する（AC-11）。** 今の `<reviewer>[bot]`（`.claude/commands/runpr.md:216-224`）を `<awaited-reviewer>[bot]` に変える。`<reviewer>` は `--reviewer` の値だけを指すので、2 つの役割を 1 つのプレースホルダーで兼ねない。
 -   **名前の重複の拒否は `ParseReviewers` だけで行い、フラグの解析では行わない（H-03）。** `--reviewer` は `--accept`・`--thread` と同じく、値を集めるフラグにする（`cmd/fixprguard/main.go:213`）。文法・重複・空の検査は、`githubFor` が `ParseReviewers` を呼んで行う。`githubFor` は、`list`・`begin`・`inspect`・`reply` の中で、GitHub にも git にも触れる前に呼ばれる（`cmd/fixprguard/main.go:427`・`465`・`545`・`616`。それより前に呼ばれる `validatePR` は値の検査だけで、外部のコマンドを起動しない）。そのため、AC-07 の「GitHub にも git にも触れずに止まる」が成り立つ。この順序は型では強制されないので、4 つのサブコマンドのそれぞれについてテストで確かめる（7.1）。
 -   **セッションは、1 回の実行で使う `--reviewer` の並びを最初に 1 度だけ作り、その実行のすべての呼び出しで同じものを使う。** `/fixpr` では Phase 1 の `begin` の前、`/runpr` では最初の `fixprguard` の呼び出しの前に作る。修正のフェーズが `_context.md` を書き換えうる（要件書 4.2）ので、実行の途中で `_context.md` を読み直して作り直すと、`begin` と `inspect`・`reply` の判定に使う一覧が食い違いうる。とくに、`inspect` の一覧が `begin` より広いと、名指しで処理したスレッドが `inspect` で信頼する著者のスレッドと判定され、名指しされたスレッドの狭い範囲の規則ではなく、信頼する著者のスレッドの広い範囲の規則が、判定の後で適用される（0030 の `02_architecture.md` 3.6 の規則 4）。この定めは `<reviewer>` の定義の文に含める（3.5）。
 
@@ -183,7 +183,7 @@ flowchart TD
 | `.claude/commands/fixpr.md` | `<reviewer>` の定義の文、「Untrusted threads」の信頼する著者の説明、ラウンド上限の説明（AC-10・AC-12） | PR-2 |
 | `.claude/commands/runpr.md` | `<reviewer>` の定義の文、step 3 の `<awaited-reviewer>`（AC-10・AC-11） | PR-2 |
 | `docs/dev/developer_guide/fixprguard_guide.ja.md`・`fixprguard_guide.md` | `_context.md` の一覧を参照する記述（3.5 のガイドの PR-2 の項目） | PR-2 |
-| `docs/translation_glossary.md` | 「信頼する著者」の定義を改め、「自動レビュアー」「自動レビュアーの一覧」「待つ PR レビュアー」を加える（AC-13） | PR-2 |
+| `docs/translation_glossary.md` | 「信頼する著者」の定義を改め、「自動レビュアー」「自動レビュアーの一覧」「完了を待つ PR レビュアー」を加える（AC-13） | PR-2 |
 | `cmd/yt2column/fixpr_docs_test.go` | `reviewerSentence`、`TestContextAndCommandsAgree`、`TestGlossaryTerms` を一覧に合わせる（3.4。AC-02・AC-03・AC-10・AC-11・AC-13） | PR-2 |
 
 ガイドの英語版は、日本語版から翻訳する（`CLAUDE.md`「Translation Guidelines」。ガイドは developer_guide の例外で、両方の版を持つ）。
@@ -315,10 +315,10 @@ func NewGitHub(run cmdrunner.InputRunner, reviewers Reviewers) (*GitHub, error)
 2.  取り出した名前を `fixprguard.ParseReviewers` に通す。空の一覧、文法に合わない名前、重複は、ここで失敗する（AC-02）。ツールと同じ関数なので、ガードとツールの受け入れる形が食い違わない。
 3.  自動レビュアーの一覧がちょうど `coderabbitai` と `chatgpt-codex-connector` の 2 つであることを確かめる（AC-01）。この確認は、一覧の書き換え（要件書 4.2 の残るリスク）を検出する場合があるが、書き換えを止める保証にはならない（5.2）。
 4.  `Awaited PR reviewer` の行の値のセルを最初の ` — ` で切り、前の部分がバッククォートで囲んだ名前ちょうど 1 つであることを確かめる。2 つ以上の名前、`, ` を含む並び、空は失敗する。取り出した名前を `fixprguard.ParseLogin` に通す（AC-03）。
-5.  `fixpr.md` と `runpr.md` の本文から、許す文字列 `@<待つ PR レビュアー> review` を取り除いた残りに、一覧のどの名前も、待つ PR レビュアーの名前も現れないことを確かめる（AC-11）。名前に `[bot]` を付けた形はその名前を含むので、この検査で同時に拒否される。
+5.  `fixpr.md` と `runpr.md` の本文から、許す文字列 `@<完了を待つ PR レビュアー> review` を取り除いた残りに、一覧のどの名前も、完了を待つ PR レビュアーの名前も現れないことを確かめる（AC-11）。名前に `[bot]` を付けた形はその名前を含むので、この検査で同時に拒否される。
 6.  両方の文書が、`<reviewer>` の定義の文（`--reviewer <reviewer>` を一覧の名前ごとに 1 回ずつ繰り返すこと、1 回の実行の中で同じ並びを使うことを定める文）を含むことを確かめる（AC-10）。`runpr.md` は、`<awaited-reviewer>` の定義の文も含む（AC-11）。
 
-`TestGlossaryTerms` に、「自動レビュアー」（automated reviewer）、「自動レビュアーの一覧」（automated reviewer list）、「待つ PR レビュアー」（awaited PR reviewer）の 3 行を加える（AC-13）。
+`TestGlossaryTerms` に、「自動レビュアー」（automated reviewer）、「自動レビュアーの一覧」（automated reviewer list）、「完了を待つ PR レビュアー」（awaited PR reviewer）の 3 行を加える（AC-13）。
 
 **呼び出しのガード（`cmd/fixprguard/docs_test.go`）。** `--reviewer` を取る各呼び出しで、`--reviewer` の値がちょうど 1 つで、それがプレースホルダー `<reviewer>` であることを確かめる（1.2 の 2 つめの項目の定めを機械的に保つ）。プレースホルダーは名前の文法に合わないので、文書の呼び出しは `parse` には受け入れられるが、`ParseReviewers` には受け入れられない。このガードは今と同じく `parse` だけを使う。
 
@@ -578,7 +578,7 @@ flowchart LR
 
 -   **自動レビュアーの追加と削除。** `_context.md` の `Automated reviewer list` と、内容のガードの期待する名前（3.4 の 3）を、同じコミットで変える。文書は名前の数を書かず（1.2）、ツールは値の数に上限を設けない（3.1）。内容のガードの「ちょうど決めた名前」の確認を「解析に通って空でない」程度に緩めると、一覧だけを書き換えた場合の検出（5.2）もなくなるので、緩めない。CodeRabbit の PR レビューを止めた後（0031 の F-004）に `coderabbitai` を外すかは、本タスクでは決めない（要件書 2.3）。
 -   **急いで信頼をやめるとき。** 削除は、ブランチごとに `main` を取り込んだ時点で効く（5.3）。急ぐときは、上の変更を `main` に入れたうえで、開いている PR のブランチに `main` を取り込むか、取り込むまでそのブランチで `/fixpr` を使わない。手順はガイドに書く（3.5 の PR-2 の項目）。
--   **待つ PR レビュアーの変更（0031）。** 0031 は `Awaited PR reviewer` の値を `chatgpt-codex-connector` に変え、`runpr.md` step 3 の判定の方法と、依頼のコメントを Codex 用に変える。依頼のコメント（`@codex review`）は名前から作れないので、内容のガードの「許す文字列」（3.4 の 5）も 0031 で変える。
+-   **完了を待つ PR レビュアーの変更（0031）。** 0031 は `Awaited PR reviewer` の値を `chatgpt-codex-connector` に変え、`runpr.md` step 3 の判定の方法と、依頼のコメントを Codex 用に変える。依頼のコメント（`@codex review`）は名前から作れないので、内容のガードの「許す文字列」（3.4 の 5）も 0031 で変える。
 -   **Bot のノード ID による特定。** 0030 と同じく採らない（要件書 2.3）。一覧の名前の数が増えても、`__typename` と `login` で判定する前提（要件書 4.2 の「Bot の同一性」）は変わらない。
 
 ## 付録 A: 申し送り（design_handoff.md）への対応
@@ -586,7 +586,7 @@ flowchart LR
 | 項目 | 対応 |
 |---|---|
 | H-01 ツールと文書の変更の順序と `protocol` の番号 | 番号は上げない（ガイド §9 の規則に加える但し書きの 3 つの条件に当たる。条件は 1.4）。PR-1（ツール）をマージして再インストールした後に、PR-2（文書）を入れる。古いツールは `flag given twice: --reviewer` の使い方のエラーで止まり、ガイドの終了コード `2` の説明が再インストールと `go version -m` での確かめ方を案内する（1.2・1.4・6.2・8 章） |
-| H-02 `_context.md` の一覧の書き方と、文書のガードの読み方 | `Automated reviewer list` の 1 行に、バッククォートの名前を `, ` で区切って並べ、` — ` の後に説明を書く。内容のガードは ` — ` より前を厳密な形で読み、`ParseReviewers` に通す。待つ PR レビュアーは `Awaited PR reviewer` の別の行に、名前ちょうど 1 つで置く（1.2・3.4） |
+| H-02 `_context.md` の一覧の書き方と、文書のガードの読み方 | `Automated reviewer list` の 1 行に、バッククォートの名前を `, ` で区切って並べ、` — ` の後に説明を書く。内容のガードは ` — ` より前を厳密な形で読み、`ParseReviewers` に通す。完了を待つ PR レビュアーは `Awaited PR reviewer` の別の行に、名前ちょうど 1 つで置く（1.2・3.4） |
 | H-03 名前の一覧の型と、空の一覧を通さない保証 | `Reviewers`（フィールドは非公開の集合）と、唯一の構築関数 `ParseReviewers` を加える。空・文法違反・重複を構築の時点で拒否する。「唯一」は `construction_test.go` の `restrictedConstructors` で機械的に確かめる。`NewGitHub` は `Reviewers` を受け取り、ゼロ値を拒否する。重複の拒否は `ParseReviewers` だけで行い、フラグの解析では行わない（1.2・3.2） |
 | H-04 判定の表のテストと、壊して失敗を確かめる対象 | 1 つめの名前だけ・2 つめの名前だけ・両方が混ざったスレッド・どちらにも一致しない `Bot`・大文字と小文字だけが違う `Bot`・名前が一致する `User` を別々の行にする。`processThread` の `authorType` と `Reply` も同じ `Reviewers` を使うことをテストする。壊し方の候補は 7.2 に挙げ、どの行が失敗するかは実装の後に確かめる（7.1・7.2） |
 

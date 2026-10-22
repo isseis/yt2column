@@ -8,7 +8,7 @@
 | Created | 2026-10-22 |
 | Review date | 2026-10-22 |
 | Reviewer | isseis |
-| Comments | 2026-10-22 (editorial): ステップ 1-3 の `test_helpers.go` の項目を、`replyArgs` だけが `--reviewer` の並びを指定できる形に改めた。指紋は `--reviewer` によらないので、`fingerprintOf`・`accept` を変える必要がないことを実装で確かめたためである。同じステップの「壊して確かめる」の 1 つめの項目の、失敗するテストを実際の結果に改めた（表の `--reviewer` がない行は、`ParseReviewers` が空の一覧を拒否するので失敗しない）。確かめる内容と決定は変わらない。2026-10-22 (editorial): 5 章の AC-02 の行で、空の一覧を `ParseReviewers` の種類の問題としていたのを、名前の並びの形の種類の問題に改めた。空の一覧は、`ParseReviewers` に届く前に形の確認で失敗することを実装で確かめたためである。確かめる内容と決定は変わらない |
+| Comments | 2026-10-22 (editorial): ステップ 1-3 の `test_helpers.go` の項目を、`replyArgs` だけが `--reviewer` の並びを指定できる形に改めた。指紋は `--reviewer` によらないので、`fingerprintOf`・`accept` を変える必要がないことを実装で確かめたためである。同じステップの「壊して確かめる」の 1 つめの項目の、失敗するテストを実際の結果に改めた（表の `--reviewer` がない行は、`ParseReviewers` が空の一覧を拒否するので失敗しない）。確かめる内容と決定は変わらない。2026-10-22 (editorial): 5 章の AC-02 の行で、空の一覧を `ParseReviewers` の種類の問題としていたのを、名前の並びの形の種類の問題に改めた。空の一覧は、`ParseReviewers` に届く前に形の確認で失敗することを実装で確かめたためである。確かめる内容と決定は変わらない。2026-10-22 (editorial): 用語「待つ PR レビュアー」を「完了を待つ PR レビュアー」に改め、定義に、承認ではなくレビューの完了を待つことを書き足した。何を待つかが名前から読み取れるようにするためである。英語の awaited PR reviewer と `_context.md` の行の名前は変えない。内容と決定は変わらないので、承認を保つ（isseis がこのセッションで指示した） |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -303,13 +303,13 @@
 -   [x] `_context.md` の `Automated reviewer` の行を、設計書 1.2 と 3.4 の形の `Automated reviewer list` と `Awaited PR reviewer` の 2 行に置き換える。説明の文は AC-01・AC-03 が求めることを述べ、1 つの Bot だけを信頼するとは述べない。
 -   [x] `fixpr.md`・`runpr.md` の `<reviewer>` の定義、`fixpr.md` の「Untrusted threads」とラウンド上限、`runpr.md` step 3 の `<awaited-reviewer>[bot]` と `<awaited-reviewer>` の定義を、設計書 3.5 のとおりに改める。名前そのものは書かない。照合の行、LAST_REVIEWED の決め方、`@coderabbitai review` の依頼のコメントは変えない（AC-11）。
 -   [x] 内容のガードの `_context.md` の検査（設計書 3.4 の行の数の検査と 1〜4）を、`_context.md` の本文を受け取って問題の一覧を返す関数に切り出す（1.4）。問題は、検査ごとに区別できる種類を持たせる（1.3.5）。行の数え上げには既存の `markdownTables`・`tableRowsWithFirstCell`（`cmd/yt2column/docs_test.go:325`・`:405`）を使う。
--   [x] `TestContextAndCommandsAgree` は、本物の `_context.md` でこの関数が問題を返さないことを確かめる。あわせて、待つ PR レビュアーが `coderabbitai` であること、その説明が REST の `user.login` の形と `[bot]` を述べること、一覧の説明が 1 つの Bot だけを信頼するとは述べないことを確かめる（AC-01・AC-03）。続けて、設計書 3.4 の 5・6 の検査を行う。`reviewerSentence` を新しい定義の文に替え、`<awaited-reviewer>` の定義の文の定数を加える。
+-   [x] `TestContextAndCommandsAgree` は、本物の `_context.md` でこの関数が問題を返さないことを確かめる。あわせて、完了を待つ PR レビュアーが `coderabbitai` であること、その説明が REST の `user.login` の形と `[bot]` を述べること、一覧の説明が 1 つの Bot だけを信頼するとは述べないことを確かめる（AC-01・AC-03）。続けて、設計書 3.4 の 5・6 の検査を行う。`reviewerSentence` を新しい定義の文に替え、`<awaited-reviewer>` の定義の文の定数を加える。
 -   [x] 同じファイルに、本物の `_context.md` から作った写しの表で、この関数が期待した種類の問題を返すことを確かめるテストを加える。写しの壊し方は、設計書 7.3 の列挙に次を加える。
     -   どちらかの行がない。
     -   名前の 1 つを別の正しい名前に替える。
     -   区切りの違いの各形（バッククォートがない、`,` の後に空白がない、空白が 2 つ、末尾に区切りがある）。
     -   ` — ` の前が空、または ` — ` がない。
-    -   待つ PR レビュアーの名前が 2 つ、空、文法違反。
+    -   完了を待つ PR レビュアーの名前が 2 つ、空、文法違反。
 
     問題を返さない行も置く。説明の文に `` `[bot]` `` などのバッククォートの語や 2 つめの ` — ` を含む写しが、ちょうど 2 つの名前に読まれることを確かめる（H-02）。
 -   [x] `TestRunprDocContract` に、step 3 の「Reviewed」の部分（2 つの `jq` の絞り込み、照合の `grep` の行、LAST_REVIEWED の段落）を、`autoFixprCondition`（`fixpr_docs_test.go:46-56`）と同じく定数で固定する確かめを加える。今のガードは、この部分を固定していない（`fixpr_docs_test.go` に `between` と `[bot]` の語はない。`819011a`）。
@@ -327,7 +327,7 @@
 
 **変更するファイル**: `docs/translation_glossary.md`、`cmd/yt2column/fixpr_docs_test.go`
 
--   [x] 「信頼する著者」の定義を、自動レビュアーの一覧を指す形に改める。「自動レビュアー」（automated reviewer）、「自動レビュアーの一覧」（automated reviewer list）、「待つ PR レビュアー」（awaited PR reviewer）の 3 行を加える。定義は要件書 6 節に合わせる。
+-   [x] 「信頼する著者」の定義を、自動レビュアーの一覧を指す形に改める。「自動レビュアー」（automated reviewer）、「自動レビュアーの一覧」（automated reviewer list）、「完了を待つ PR レビュアー」（awaited PR reviewer）の 3 行を加える。定義は要件書 6 節に合わせる。
 -   [x] `TestGlossaryTerms` に 3 行を加え、「信頼する著者」の定義のセルが「自動レビュアーの一覧」を含むことを確かめる。
 
 **壊して確かめる**: 用語集の 3 行のどれかを消す、「信頼する著者」の定義を元に戻す、のそれぞれでテストが失敗すること。
@@ -362,7 +362,7 @@
 
 **対象ステップ**: 2-0 / 2-1 / 2-2 / 2-3 / 2-4
 
-**推奨タイトル**: `feat(0033): _context.md に自動レビュアーの一覧と待つ PR レビュアーを置き、コマンドの文書から一覧を渡す`
+**推奨タイトル**: `feat(0033): _context.md に自動レビュアーの一覧と完了を待つ PR レビュアーを置き、コマンドの文書から一覧を渡す`
 
 **レビュー観点**: `_context.md` の 2 行の形と、内容のガードがその形を厳密に読み、壊れた写しの表で検査ごとに失敗すること / `fixpr.md`・`runpr.md` が名前を書かずに一覧を参照し、実行の最初に 1 度だけ並びを作ると定めること / `runpr.md` step 3 が `<awaited-reviewer>[bot]` だけを変え、照合の行・LAST_REVIEWED・依頼のコメントを変えないこと / このブランチの `/runpr`・`/fixpr` には PR-1 の後のツールが必要なこと（マージの前の `make install-fixprguard`）と、`main` を取り込んでいない開いたブランチでは Codex のスレッドが想定外の著者のスレッドとして報告されること（設計書 5.3）
 
@@ -440,7 +440,7 @@
 |---|---|---|
 | AC-01 | static | `cmd/yt2column/fixpr_docs_test.go::TestContextAndCommandsAgree`（行の数、ちょうど 2 つの名前、説明の文）、`::TestContextReviewerRowsMalformed`（写しの表。ステップ 2-1） |
 | AC-02 | static | `cmd/yt2column/fixpr_docs_test.go::TestContextReviewerRowsMalformed`（空の行は名前の並びの形の種類の問題、文法違反と重複の行は `ParseReviewers` の種類の問題） |
-| AC-03 | static | `cmd/yt2column/fixpr_docs_test.go::TestContextAndCommandsAgree`（値と説明の文）、`::TestContextReviewerRowsMalformed`（待つ PR レビュアーの行） |
+| AC-03 | static | `cmd/yt2column/fixpr_docs_test.go::TestContextAndCommandsAgree`（値と説明の文）、`::TestContextReviewerRowsMalformed`（完了を待つ PR レビュアーの行） |
 | AC-04 | test | `cmd/fixprguard/main_test.go::TestReviewerFlagRepeats`（違う名前の 2 回。ステップ 1-3）、`::TestReviewerOrderIrrelevant`（順序）、`::TestReviewerFlag` と `--reviewer` を 1 回だけ渡す既存のテスト、`internal/fixprguard` の 1 つの名前の `newTestGitHub` を使う既存のテスト |
 | AC-05 | test | `internal/fixprguard/trust_test.go::TestAssessAuthors`（1 つめ・2 つめ・混ざったスレッド・大文字と小文字）、`internal/fixprguard/github_test.go::TestThreadPathsRequiresTrustedOrNamed`、`internal/fixprguard/write_test.go::TestReplyTrustsEveryReviewer`、`cmd/fixprguard/main_test.go::TestSecondReviewerBeginReply` |
 | AC-06 | test | `internal/fixprguard/trust_test.go::TestAssessAuthors`（一致しない `Bot`、名前が一致する `User`、渡し忘れ）、`::TestAssessUnverifiableAuthor`（`bot_login_outside_grammar`）、`internal/fixprguard/write_test.go::TestReplyRefusesUntrustedThread` |

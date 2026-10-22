@@ -715,7 +715,7 @@ func TestGlossaryTerms(t *testing.T) {
 		{"名指し", "naming"},
 		{"自動レビュアー", "automated reviewer"},
 		{"自動レビュアーの一覧", "automated reviewer list"},
-		{"待つ PR レビュアー", "awaited PR reviewer"},
+		{"完了を待つ PR レビュアー", "awaited PR reviewer"},
 	} {
 		row := tableRow(table, term.ja)
 		if len(row) < 2 || row[1] != term.en {
