@@ -275,8 +275,8 @@
 
 **変更するファイル**: `docs/tasks/0033_multiple_trusted_reviewers/03_implementation_plan.md`
 
--   [ ] この時点で 0033 のステップ 2-0 が完了していなければ、ステップ 2-0（`:292`）の手順の `--protocol 1` を、実行の時点の `Protocol` の番号を渡す形に改め、「`protocol` の番号は変わらない」の前提の文を、0035 で番号が変わったことに合わせる（1.4）。1.3.4（`:101-113`）の観察の記録（当時のツールの出力）は、記録として残し、書き換えない。0033 の計画の `Status` は保ち、`Comments` に editorial correction として記録する。完了していれば、何もしない。
--   [ ] 0033 のステップ 2-0 の確かめ（`--reviewer` の繰り返しを受け付けるか）の意味は、番号を合わせても変わらないことを確かめる。0035 のツールも `--reviewer` の繰り返しを受け付けないので、0033 の PR-1 の前のツールとして同じ診断を返す。0033 の設計書の番号の記述（`02_architecture.md:65`）は、設計書 9 章のとおり 0033 の実装の PR が合わせるので、ここでは変えない。
+-   [x] この時点で 0033 のステップ 2-0 が完了していなければ、ステップ 2-0（`:292`）の手順の `--protocol 1` を、実行の時点の `Protocol` の番号を渡す形に改め、「`protocol` の番号は変わらない」の前提の文を、0035 で番号が変わったことに合わせる（1.4）。1.3.4（`:101-113`）の観察の記録（当時のツールの出力）は、記録として残し、書き換えない。0033 の計画の `Status` は保ち、`Comments` に editorial correction として記録する。完了していれば、何もしない。
+-   [x] 0033 のステップ 2-0 の確かめ（`--reviewer` の繰り返しを受け付けるか）の意味は、番号を合わせても変わらないことを確かめる。0033 の PR-1（#434）は本タスクのブランチの起点より前にマージされているので、0035 のツールは `--reviewer` の繰り返しを受け付ける。0033 の PR-1 の後のツールとして、PR 番号の文法の診断を返す（`list --protocol 2 --reviewer coderabbitai --reviewer chatgpt-codex-connector x` で終了コード `2`、`fixprguard: invalid input: PR number grammar`。`--protocol 1` では番号の不一致の診断になる。2026-10-22、このブランチでビルドしたツールで確かめた）。0033 の設計書の番号の記述（`02_architecture.md:65`）は、設計書 9 章のとおり 0033 の実装の PR が合わせるので、ここでは変えない。
 
 **完了条件**: 0033 の計画が、未実行の確かめで `Protocol` と違う番号を渡していない。
 
@@ -284,8 +284,8 @@
 
 **変更するファイル**: なし
 
--   [ ] `make test && make lint` を実行する。
--   [ ] 文書のガード（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`）を実行する。
+-   [x] `make test && make lint` を実行する。
+-   [x] 文書のガード（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`）を実行する。
 
 **完了条件**: 上の 2 つが通る。
 

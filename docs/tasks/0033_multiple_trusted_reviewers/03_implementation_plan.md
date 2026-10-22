@@ -8,7 +8,7 @@
 | Created | 2026-10-22 |
 | Review date | 2026-10-22 |
 | Reviewer | isseis |
-| Comments | 2026-10-22 (editorial): ステップ 1-3 の `test_helpers.go` の項目を、`replyArgs` だけが `--reviewer` の並びを指定できる形に改めた。指紋は `--reviewer` によらないので、`fingerprintOf`・`accept` を変える必要がないことを実装で確かめたためである。同じステップの「壊して確かめる」の 1 つめの項目の、失敗するテストを実際の結果に改めた（表の `--reviewer` がない行は、`ParseReviewers` が空の一覧を拒否するので失敗しない）。確かめる内容と決定は変わらない |
+| Comments | 2026-10-22 (editorial): ステップ 1-3 の `test_helpers.go` の項目を、`replyArgs` だけが `--reviewer` の並びを指定できる形に改めた。指紋は `--reviewer` によらないので、`fingerprintOf`・`accept` を変える必要がないことを実装で確かめたためである。同じステップの「壊して確かめる」の 1 つめの項目の、失敗するテストを実際の結果に改めた（表の `--reviewer` がない行は、`ParseReviewers` が空の一覧を拒否するので失敗しない）。確かめる内容と決定は変わらない。2026-10-22 (editorial): タスク 0035 が `Protocol` を `2` に上げたので、ステップ 2-0 の呼び出しが渡す番号を、実行の時点の `Protocol` にした（0035 の計画のステップ 3-4）。1.3.4 の観察の記録は当時のツールの出力なので変えない。確かめる振る舞いは変わらない |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -289,7 +289,7 @@
 
 **変更するファイル**: なし
 
--   [ ] インストール済みの `fixprguard` に `list --protocol 1 --reviewer coderabbitai --reviewer chatgpt-codex-connector x` を渡し、終了コードが `2` で、標準エラーが PR 番号の文法の診断の 1 行であり、`flag given twice` を含まないことを確かめる（1.3.4）。PR 番号 `x` は文法に合わないので、ツールは GitHub にも git にも触れずに止まる。`protocol` の番号は変わらないので、番号ではなく振る舞いで確かめる。コミットの祖先では確かめない（1.3.4）。
+-   [ ] インストール済みの `fixprguard` に `list --protocol <N> --reviewer coderabbitai --reviewer chatgpt-codex-connector x` を渡し、終了コードが `2` で、標準エラーが PR 番号の文法の診断の 1 行であり、`flag given twice` を含まないことを確かめる（1.3.4）。`<N>` は、実行の時点の `main` の `internal/fixprguard/types.go` の `Protocol` の値である。番号が違うと、`--protocol` の不一致の診断になり、この確かめにならない。PR 番号 `x` は文法に合わないので、ツールは GitHub にも git にも触れずに止まる。本タスクは `protocol` の番号を変えないが、タスク 0035 が `1` から `2` に上げた。この確かめは、番号ではなく振る舞いで行う。コミットの祖先では確かめない（1.3.4）。
 -   [ ] 満たされていなければ、このフェーズを始めず、利用者に `make install-fixprguard` の実行を求めて止まる。
 
 **完了条件**: 上の確かめが通る。
