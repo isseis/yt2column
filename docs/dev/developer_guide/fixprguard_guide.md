@@ -310,7 +310,7 @@ When the user answers "do not continue" about out-of-scope changes, the changes 
 
 - The judgment is in `internal/fixprguard`, and the argument parsing and the call order are in `cmd/fixprguard`. External commands are called through the `Runner` and `InputRunner` of `internal/cmdrunner`. In tests, `gh` and `make` are replaced with the fake in `internal/cmdrunner/testutil`, and git is exercised in a real repository in a temporary directory.
 - When changing a guarantee in section 7.1, break the corresponding implementation, confirm that a test fails, and write that in the commit message (CLAUDE.md, "Testing Strategy").
-- When changing the contract of the output or the arguments, or the scope rules (chapter 6), raise `Protocol` in `internal/fixprguard` and update the `--protocol` the command documents pass. However, only a change that meets all three conditions below may leave `Protocol` unchanged. The change that accepts repeated `--reviewer` (task 0033) is one.
+- When changing the contract of the output or the arguments, or when changing the scope rules (chapter 6), raise `Protocol` in `internal/fixprguard` and update the `--protocol` the command documents pass. However, only a change that meets all three conditions below may leave `Protocol` unchanged. The change that accepts repeated `--reviewer` (task 0033) is one.
     1. An old tool rejects the calls of the new documents when parsing the arguments (exit code `2`) and does not judge by the old rules.
     2. A new tool judges the calls of the old documents by the same rules as before.
     3. The shape of the output does not change.
