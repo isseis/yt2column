@@ -69,7 +69,8 @@ comments, and PR reviews, and, with `gh api -i`, the `Date` header),
 resolving a thread), `gh api` (the authors' permission lookups and posting a
 reply), and `git ls-remote` — the issue operations
 `_lib/task-pr-handoff.md` Part A step 4 makes to link the next branch (step
-5), and, for the deferred findings the user moves to an issue in step 4,
+5), `git ls-remote` to check whether the next branch exists on `origin` when
+step 5 stops before it is ready, and, for the deferred findings the user moves to an issue in step 4,
 `gh issue list`, `gh issue create`, `gh issue comment`, and the thread replies
 and resolutions. After the task's final plan PR merges, it also approves
 `gh issue view`, `gh api` (listing sub-issues), and `gh issue close` for its
@@ -514,9 +515,19 @@ rather than once per decision.
    subject and body, the record of which rule decided the subject's prefix,
    and the version without the approval line when it applies), the PRE_MERGE change (which lines of which files, and for an
    approval the reviewer name and date it writes), the `deferred` threads (each
-   with its number, topic, what fixing it would change, and its URL), and NEXT
-   (for `/runplan`, the next PR marker's `実装モデル要件`, so the user can decide
-   whether this session's model fits). Each question has two to four options:
+   with its number, topic, what fixing it would change, and its URL), and NEXT.
+   When NEXT is `/runplan`, also show the `実装モデル要件` of the next PR
+   marker: the `### PR-N 作成ポイント` marker of the PR that NEXT will open,
+   which for a plan PR is the marker after this PR's own, and for a
+   task-document PR that approves the plan is the plan's first marker. When
+   there is no value, say so and, as far as known, why (the plan has no PR
+   marker, which happens for a single-phase plan, or the marker has no
+   `実装モデル要件` field). The value lets the user decide whether this
+   session's model fits and, since step 5 suggests `/clear` before NEXT, which
+   model to start the new session with. Step 5 reuses the value (or its
+   absence) shown here, without reading the plan again; when step 4 is asked
+   more than once, it uses the one shown in the question that decided the
+   merge. Each question has two to four options:
    - **Deferred threads** (only when there are some): with one to three,
      `multiSelect` with one option per thread plus "fix none"; with more,
      single-select "fix all" / "fix none", and a subset by number in the
@@ -527,11 +538,12 @@ rather than once per decision.
      message, and mark "request a PR review first" as recommended when
      Escalation said `ask`. This is how the user asks for a review at will.
    - **Merge**, applying when nothing is chosen to fix. Offer those of these
-     that apply, and always the last:
-     - record PRE_MERGE, merge, and run NEXT (recommended; only when NEXT is
-       set);
+     that apply, in this order, and always the last:
      - record PRE_MERGE and merge, without running NEXT (or "merge" when
-       PRE_MERGE is none);
+       PRE_MERGE is none). Mark this option, and no other Merge option, as
+       recommended, whether NEXT is set or not and whatever the PR's kind;
+     - record PRE_MERGE, merge, and run NEXT in this session (only when NEXT is
+       set);
      - merge without the approvals (only for a task-document PR whose PRE_MERGE
        has approvals): the documents stay `draft`, the message without the
        approval line is used, NEXT is none, and step 5 detaches. A plan PR is
@@ -659,6 +671,68 @@ Once `mergepr.md` reports the merge:
   When the check fails, do not close the issue without its comment: stop and
   report. Otherwise close it with
   `gh issue close <number> --reason completed --comment "$(cat "<comment-file>")"`.
-- If the answer in step 4 chose to run NEXT, run it now. It opens its own PR,
-  pings the reviewer, and stops; this command ends there. Otherwise report the
-  final status.
+- End by the answer in step 4 and how this step went. The next branch is
+  **ready** once `_lib/task-pr-handoff.md` Part A step 4 has run to its end; a
+  branch that exists on `origin` or locally is not ready by that alone. (An
+  answer that does not merge stopped in step 4, so this step does not run.)
+  - NEXT is set, the next branch is ready, and the answer chose to run NEXT:
+    run it now. It opens its own PR, pings the reviewer, and stops; this
+    command ends there.
+  - NEXT is set, the next branch is ready, and the answer merged without
+    running NEXT: report the final status with the `/clear` guidance below.
+  - NEXT is none (including a merge without the approvals): report the final
+    status, without the `/clear` guidance.
+  - NEXT is set, but this step stopped before the next branch was ready:
+    report as "Stopping before the next branch is ready" below says, whichever
+    Merge option the answer chose, and do not run NEXT.
+
+  The final report is in Japanese. The `/clear` guidance in it gives:
+  1. that the user should run `/clear` and then NEXT;
+  2. NEXT with its arguments, ready to run as written (for example
+     `/runplan 0015`);
+  3. the next branch's name and the path of this worktree: NEXT is to run in
+     this worktree with that branch checked out. Run anywhere else, NEXT would
+     create another branch with Part A step 4 and leave this one unused;
+  4. when NEXT is `/runplan`, the `実装モデル要件` shown in step 4, or that
+     there is none and why, as step 4 showed it.
+
+**Stopping before the next branch is ready.** When NEXT is set and this step
+stops before the next branch is ready (the cleanup cannot finish,
+`git fetch origin main` fails, or any operation of Part A step 4 fails, such
+as `gh issue develop` or the check of `HEAD` after it), the final report gives
+no `/clear` guidance. Instead it gives:
+
+1. the reason it stopped;
+2. the next branch's state, as checked rather than assumed: the name it was to
+   have, or that this step stopped before choosing it; whether a branch of that
+   name exists on `origin`, checked with
+   `git ls-remote --exit-code origin refs/heads/<branch>` (exit code `0`: it
+   exists; `2`: it does not; any other: unknown, and say so) rather than by the
+   local `origin/<branch>` ref, which is missing when `gh issue develop`
+   created the branch on `origin` and then failed; whether it exists locally;
+   and which branch is checked out now. When it exists nowhere, say that the
+   next branch was not created;
+3. for a plan PR, that PRE_MERGE has already recorded
+   "次のブランチへ切り替えた" as `[x]` in the plan on `main` although the
+   switch did not happen, and that this is expected and needs no fix;
+4. how to resume. First remove the cause; for pending `mergepr` cleanup, give
+   `mergepr cleanup --state <state-file>` with the actual path of the state
+   file, since the working directory it leaves in the work tree would stop
+   NEXT at Part A step 1. Then, by the next branch's state, give one of these,
+   followed by running NEXT with its arguments:
+   - checked out: nothing more. Part A step 3 uses a convention-named branch
+     with no commits of its own;
+   - only on `origin`: `git fetch origin <branch>`, then `git switch <branch>`,
+     which creates a local branch tracking `origin/<branch>` once the fetch has
+     made that ref. Part A step 3 then uses it, as above;
+   - absent: when the merged branch is still checked out, leave it with
+     `git switch --detach origin/main`. NEXT then creates the next branch with
+     Part A step 4. Leaving matters because Part A step 3 stops on a
+     convention-named branch with commits beyond `origin/main`, and after a
+     squash merge the merged branch's commits are not ancestors of
+     `origin/main`.
+
+Do not offer running this command again as a way to resume: for a merged PR,
+step 1 finishes pending cleanup and stops without creating the next branch.
+When NEXT is none, a cleanup, `git fetch`, or detach that fails is reported
+with its reason, as for any other stop.
