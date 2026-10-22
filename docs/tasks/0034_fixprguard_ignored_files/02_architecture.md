@@ -8,7 +8,7 @@
 | Created | 2026-10-22 |
 | Review date | 2026-10-22 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-22 (editorial): `/mkplan 0034` で、2.2 の表を実際のコードに合わせた。`internal/cmdrunner/testutil/mocks.go` は変えないこと、`NewWorktree` の呼び出しのあるファイル（`worktree_flow_test.go` ではなくテストの補助のファイル）、cmd 側のテスト用のリポジトリにも同じ設定を固定すること、`package_reference.md` と用語集の行を加えた。作るものと理由は変えないので、決定の変更ではなく、`Status` は `approved` のままとする。 |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `9f83469` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。`internal/fixprguard/scope.go` の行番号は、タスク 0036 の実装で変わる。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md) の項番を指す。申し送り H-01〜H-08 への対応は付録 A にまとめる。#424 などは GitHub の issue の番号を指す。
 
@@ -197,10 +197,10 @@ flowchart LR
 | `internal/fixprguard/ignored_test.go` | 新規 | 7 章の単体テスト |
 | `internal/fixprguard/gitstate.go` | 変更 | `Baseline` に `ignored`・`ignoredRecord` を加え、トークンの版を `v3`、欄の数を 9 にする（`:28-32`・`:112-153`。3.6）。`PartIgnored` と `GitStateParts` を加える（`:50-56`）。`Baseline`（`:742-787`）で対象のファイルの状態を求め、`CheckState`（`:568-607`）の最後で比べる（3.7） |
 | `internal/fixprguard/worktree.go` | 変更 | `Worktree` に、列挙のための git の runner を加える（`:51-61`。3.3）。`Begin`（`:80-85`）が、`Baseline` の後に `begin` の記録のファイルを書く（3.8） |
-| `internal/fixprguard/test_helpers_git.go` | 変更 | テスト用のリポジトリで、`core.excludesFile`・`core.ignorecase`・`core.precomposeunicode` と `HOME`・`XDG_CONFIG_HOME` を固定する（7 章） |
+| `internal/fixprguard/test_helpers_git.go`・`cmd/fixprguard/test_helpers.go` | 変更 | テスト用のリポジトリで、`core.excludesFile`・`core.ignorecase`・`core.precomposeunicode` と `HOME`・`XDG_CONFIG_HOME` を固定する（7 章）。`NewWorktree` の呼び出しに列挙のための runner を加える |
 | `internal/fixprguard/scope.go` | 変更なし、または変更 | Go のビルドの入力の拡張子の一覧は、0036 が置く変数を使う。0036 がまだ入っていなければ、本タスクが置く（3.2） |
 | `internal/fixprguard/types.go` | 変更 | `Protocol` を `4` にする（`:20`。3.9） |
-| `internal/cmdrunner/runner.go`・`internal/cmdrunner/testutil/mocks.go` | 変更 | 成功しても標準エラーに出力があれば失敗とする設定（`Options` の新しい欄）と、そのエラー（3.3・4 章） |
+| `internal/cmdrunner/runner.go` | 変更 | 成功しても標準エラーに出力があれば失敗とする設定（`Options` の新しい欄）と、そのエラー（3.3・4 章）。`internal/cmdrunner/testutil/mocks.go` の `Fake` は `Options` を持たず、`Step.Err` で失敗を再現できるので変えない |
 | `cmd/fixprguard/main.go` | 変更 | 列挙のための git の runner を、標準エラーを失敗とする設定で作って `NewWorktree` に渡す（`:149-` の `osEnv`）。`begin` が記録のファイルを書く呼び出しを、`Baseline` の後に加える（`:494` 付近。3.8） |
 | `cmd/fixprguard/test_helpers.go` | 変更 | `validBaseline`（`:381-390`）を `v3` と 9 つの欄にする |
 | `cmd/fixprguard/docs_test.go` | 変更 | ガイドの監視の一覧の表と `git-state-changed` の行、`fixpr.md` の `parts` の列挙を確かめるガードを加える（3.10） |
@@ -211,6 +211,8 @@ flowchart LR
 | `docs/tasks/0034_fixprguard_ignored_files/01_requirements.md` | 変更（本 PR） | 3 章と 4.4 の照合の記述、AC-19 と 4.2 の記録と基準値の記述、`Comments`（1.2 の照合と記録の決定。3.10） |
 | `docs/tasks/0030_fixpr_untrusted_threads/01_requirements.md` | 変更 | 4.2 の残余のリスクの項目（AC-20a。3.10） |
 | `docs/tasks/0030_fixpr_untrusted_threads/02_architecture.md` | 変更 | 5.3「無視されるファイル」（AC-20。3.10） |
+| `docs/dev/developer_guide/package_reference.md` | 変更 | `internal/cmdrunner` の行に新しい設定とエラーを、`internal/fixprguard` の行に対象のファイルの比較と記録のファイルを加える |
+| `docs/translation_glossary.md` | 変更 | ガイドの翻訳で使った本タスクの用語を加える（`.claude/commands/mktrans.md`「Update Glossary」） |
 
 本タスクの変更で直す既存のテストと、満たし続けるガードは次のとおりである。
 
@@ -222,7 +224,7 @@ flowchart LR
 | `cmd/fixprguard/main_test.go:305-330`（`TestPreviousBaselineRejected`） | 前の版を `v1.` と今の欄で作ること | 前の版を `v2` と 7 つの欄の形にする（AC-03） |
 | `cmd/fixprguard/docs_test.go:122`・`:352`（`TestDocumentedInvocationsParse`・`TestDocumentedProtocolMatches`） | 文書の `--protocol` がバイナリの番号と一致すること | テストは変えず、文書を直す |
 | `cmd/fixprguard/docs_test.go:454-503`（`TestGuideDescribesConfigScope`） | ガイドの 1 章の層 (3)、5 章の `inspect`・`push`、7.1 の行、7.2、8 章の `git-state-changed` の行が、config の比較の範囲の 3 つの点を述べること | テストは変えない。本タスクが書き換える段落も、この 3 つの点を残す |
-| `internal/fixprguard/worktree_flow_test.go` などの `NewWorktree` の呼び出し | `NewWorktree(gitRun, makeRun)` の 2 つの引数 | 列挙のための runner を加える |
+| `NewWorktree` の呼び出し（`internal/fixprguard/test_helpers_git.go:221`、`cmd/fixprguard/test_helpers.go:114`・`:125`） | `NewWorktree(gitRun, makeRun)` の 2 つの引数 | 列挙のための runner を加える |
 
 ### 2.3. データフロー
 
