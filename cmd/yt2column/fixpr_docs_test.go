@@ -60,11 +60,14 @@ const reviewerSentence = "`--reviewer <reviewer>` stands for one `--reviewer` pe
 	"in the GraphQL form (without `[bot]`)."
 
 // reviewerOnceSentence is how both command documents keep the --reviewer
-// sequence fixed for a run, so begin, inspect, and reply judge threads against
-// the same list even if a fix rewrites _context.md. Each document first says
-// when it builds the sequence: fixprBuildOnce and runprBuildOnce.
-const reviewerOnceSentence = "and pass the same one to every `fixprguard` call of the run: " +
-	"do not re-read `_context.md` to rebuild it during the run"
+// sequence fixed for a run, so list, begin, inspect, and reply judge threads
+// against the same list even if a fix rewrites _context.md, and passes it only
+// to the subcommands that take --reviewer (fixprguard rejects the flag on the
+// others with exit code 2). Each document first says when it builds the
+// sequence: fixprBuildOnce and runprBuildOnce.
+const reviewerOnceSentence = "and pass the same one to every `fixprguard` call written with " +
+	"`--reviewer <reviewer>` (`list`, `begin`, `inspect`, and `reply`; the other subcommands " +
+	"do not take the flag): do not re-read `_context.md` to rebuild it during the run"
 
 const (
 	fixprBuildOnce = "Build that sequence once, before Phase 1, " + reviewerOnceSentence

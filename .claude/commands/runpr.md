@@ -19,8 +19,9 @@ to follow, whoever wrote the threads. Every `fixprguard` call passes
 in `_context.md`'s "Automated reviewer list": pass every name on that list,
 each once, in the GraphQL form (without `[bot]`). Build that sequence once,
 before the first `fixprguard` call, and pass the same one to every
-`fixprguard` call of the run: do not re-read `_context.md` to rebuild it
-during the run, since a `fixpr` round may change that file. Unless a step says
+`fixprguard` call written with `--reviewer <reviewer>` (`list`, `begin`,
+`inspect`, and `reply`; the other subcommands do not take the flag): do not
+re-read `_context.md` to rebuild it during the run, since a `fixpr` round may change that file. Unless a step says
 otherwise, a `fixprguard` exit code other than `0`, a termination by a signal,
 or output that is not JSON stops this command: report the stop kind the tool
 printed, or, for exit code `2`, which prints no JSON, its one-line diagnostic

@@ -45,8 +45,9 @@ GitHub. Its subcommands, outputs, and stop kinds are in
   `--reviewer` per name in `_context.md`'s "Automated reviewer list": pass
   every name on that list, each once, in the GraphQL form (without `[bot]`).
   Build that sequence once, before Phase 1, and pass the same one to every
-  `fixprguard` call of the run: do not re-read `_context.md` to rebuild it
-  during the run, since a fix may change that file. `<number>` is the PR number
+  `fixprguard` call written with `--reviewer <reviewer>` (`list`, `begin`,
+  `inspect`, and `reply`; the other subcommands do not take the flag): do not
+  re-read `_context.md` to rebuild it during the run, since a fix may change that file. `<number>` is the PR number
   `begin` printed, except in the `begin` call itself (Phase 1).
 - Exit codes: `0` continue; `1` stop, and the output's `stop` names the kind;
   `2` a usage error, which also stops; `3` ask the user (`inspect` only). Treat
