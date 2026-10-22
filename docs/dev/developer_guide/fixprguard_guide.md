@@ -416,13 +416,13 @@ The rule name of the `git-failed` diagnostic on standard error, `fixprguard: git
 
 | Rule name | Cause | What to do |
 |---|---|---|
-| `list ignored files failed` | The git that lists the ignored files failed or wrote anything to standard error (a warning about an unreadable directory, and so on) | Run `git -c core.fsmonitor=false ls-files --others --ignored --exclude-standard -z 2>&1 >/dev/null | LC_ALL=C sed -n l` in the terminal (the paths in the warnings are escaped), and restore read permission on the directory the warning names or remove the directory |
+| `list ignored files failed` | The git that lists the ignored files failed or wrote anything to standard error (a warning about an unreadable directory, and so on) | Show git's warnings with the first line of the commands below, and restore read permission on the directory the warning names or remove the directory |
 | `list ignored files output over the cap` | The listing's output exceeded 64 MiB | Reduce the ignored files |
 | `list ignored files output shape` | The listing's output is not in the accepted shape | Check the git version and the file names in the work tree |
 | `ignored target count over the cap` | There are more than 10,000 target files | Reduce the ignored files on the watch list |
 | `ignored directory entries over the cap` | More than 100,000 entries were walked below nested repositories and `.claude/` | Remove nested repositories in ignored places and worktrees below `.claude/worktrees/` |
-| `ignored file over the size cap` | One target file is larger than 16 MiB | Find it with the command below and remove it |
-| `ignored read total over the cap` | The total content of the target files read in one pass exceeded 64 MiB (including many links to the same content; every file is 16 MiB or less) | Find large files through links with the second command below and symbolic links with the third, and remove the unneeded ones |
+| `ignored file over the size cap` | One target file is larger than 16 MiB | Find it with the second line of the commands below and remove it |
+| `ignored read total over the cap` | The total content of the target files read in one pass exceeded 64 MiB (including many links to the same content; every file is 16 MiB or less) | Find large files through links with the third line of the commands below and symbolic links with the fourth, and remove the unneeded ones |
 | `read ignored files timed out` | Taking the state took more than 2 minutes (a link into an unresponsive file system, and so on) | Check symbolic links that point outside the work tree |
 | `read ignored directory` | A directory below a nested repository or below `.claude/` cannot be read | Restore read permission |
 | `read ignored file` | A target file (a link's target included) cannot be read | Restore read permission or remove the file |
@@ -430,9 +430,10 @@ The rule name of the `git-failed` diagnostic on standard error, `fixprguard: git
 | `.git name below .claude` | Something named `.git` is below the top-level `.claude/` | Remove it. If it is a worktree below `.claude/worktrees/`, move it outside `.claude/` |
 | `write ignored begin record` | The begin record file cannot be written, or the stop record of the previous round cannot be removed | Check the type and permissions of `fixprguard-ignored-begin` and `fixprguard-ignored-stop` in the git directory |
 
-Find large files and symbolic links with the following commands. The first line shows files over 16 MiB, the second files over 1 MiB with links followed, and the third symbolic links. `sed -n l` escapes control characters in the paths it prints, so they do not control the terminal.
+The first line of the following commands shows only the warnings of the git that lists the ignored files. The second line shows files over 16 MiB, the third files over 1 MiB with links followed, and the fourth symbolic links. `sed -n l` escapes control characters in the paths it prints, so they do not control the terminal.
 
 ```sh
+git -c core.fsmonitor=false ls-files --others --ignored --exclude-standard -z 2>&1 >/dev/null | LC_ALL=C sed -n l
 find . -path ./.git -prune -o -type f -size +16M -print | LC_ALL=C sed -n l
 find -L . -path ./.git -prune -o -type f -size +1M -print | LC_ALL=C sed -n l
 find . -path ./.git -prune -o -type l -print | LC_ALL=C sed -n l

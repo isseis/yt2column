@@ -881,6 +881,13 @@ func TestGuideDescribesIgnoredFiles(t *testing.T) {
 			requireAll(t, tc.rel, "8.1", subsection(guide, "### 8.1"), append(tc.steps, "sha256sum", "shasum -a 256")...)
 			requireAll(t, tc.rel, "the git-failed row", singleLine(t, tc.rel, guide, "| `git-failed` |"), tc.gitFailedRef)
 			table := guideTable(subsection(guide, "### 8.2"), tc.failedTable)
+			// A "|" inside a cell, even in a code span, splits the cell and
+			// drops the rest of a command from the rendered table.
+			for line := range strings.Lines(table) {
+				if n := strings.Count(line, "|"); n != 4 {
+					t.Errorf("%s: 8.2 table row has %d pipes, want 4 (three cells): %q", tc.rel, n, line)
+				}
+			}
 			spans := codeSpans(table)
 			for _, rule := range fixprguard.IgnoredFailureRules() {
 				if _, ok := spans[rule]; !ok {

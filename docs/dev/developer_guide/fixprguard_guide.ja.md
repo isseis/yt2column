@@ -416,13 +416,13 @@ find .claude | LC_ALL=C sed -n l
 
 | 規則の名前 | 原因 | 対処 |
 |---|---|---|
-| `list ignored files failed` | 無視されるファイルを列挙する git が失敗した、または標準エラーに何か書いた（読めないディレクトリの警告など） | 端末で `git -c core.fsmonitor=false ls-files --others --ignored --exclude-standard -z 2>&1 >/dev/null | LC_ALL=C sed -n l` を実行し（警告のパスはエスケープされる）、警告のディレクトリの読み取りの許可を戻すか、ディレクトリを取り除く |
+| `list ignored files failed` | 無視されるファイルを列挙する git が失敗した、または標準エラーに何か書いた（読めないディレクトリの警告など） | 下のコマンドの 1 行目で git の警告を表示し、警告のディレクトリの読み取りの許可を戻すか、ディレクトリを取り除く |
 | `list ignored files output over the cap` | 列挙の出力が 64 MiB を超えた | 無視されるファイルを減らす |
 | `list ignored files output shape` | 列挙の出力が受理する形でない | git の版と、作業ツリーのファイル名を確かめる |
 | `ignored target count over the cap` | 対象のファイルが 10,000 個を超えた | 監視の一覧に当たる無視されるファイルを減らす |
 | `ignored directory entries over the cap` | 入れ子のリポジトリと `.claude/` の下でたどったエントリが 100,000 個を超えた | 無視される場所の入れ子のリポジトリと、`.claude/worktrees/` の下の worktree を取り除く |
-| `ignored file over the size cap` | 1 つの対象のファイルの大きさが 16 MiB を超えた | 下のコマンドで探し、取り除く |
-| `ignored read total over the cap` | 1 回で読む対象のファイルの内容の合計が 64 MiB を超えた（同じ内容を指す多数のリンクを含む。どのファイルも 16 MiB 以下である） | 下の 2 番目のコマンドでリンクをたどって大きなファイルを、3 番目のコマンドでシンボリックリンクを探し、不要なものを取り除く |
+| `ignored file over the size cap` | 1 つの対象のファイルの大きさが 16 MiB を超えた | 下のコマンドの 2 行目で探し、取り除く |
+| `ignored read total over the cap` | 1 回で読む対象のファイルの内容の合計が 64 MiB を超えた（同じ内容を指す多数のリンクを含む。どのファイルも 16 MiB 以下である） | 下のコマンドの 3 行目でリンクをたどって大きなファイルを、4 行目でシンボリックリンクを探し、不要なものを取り除く |
 | `read ignored files timed out` | 状態を求める処理が 2 分を超えた（応答しないファイルシステムを指すリンクなど） | 作業ツリーの外を指すシンボリックリンクを確かめる |
 | `read ignored directory` | 入れ子のリポジトリか `.claude/` の下のディレクトリを読めない | 読み取りの許可を戻す |
 | `read ignored file` | 対象のファイル（リンクのたどる先を含む）を読めない | 読み取りの許可を戻すか、ファイルを取り除く |
@@ -430,9 +430,10 @@ find .claude | LC_ALL=C sed -n l
 | `.git name below .claude` | 最上位の `.claude/` の下に `.git` という名前のものがある | 取り除く。`.claude/worktrees/` の下の worktree なら `.claude/` の外に移す |
 | `write ignored begin record` | `begin` の記録のファイルを書けない、または前のラウンドの止まった時点の記録を消せない | git のディレクトリの `fixprguard-ignored-begin`・`fixprguard-ignored-stop` の種類と許可を確かめる |
 
-大きなファイルとシンボリックリンクは、次のコマンドで探す。1 行目は 16 MiB を超えるファイル、2 行目はリンクをたどって 1 MiB を超えるファイル、3 行目はシンボリックリンクを示す。出力のパスは `sed -n l` が制御文字をエスケープするので、端末を制御しない。
+次のコマンドの 1 行目は、無視されるファイルを列挙する git の警告だけを示す。2 行目は 16 MiB を超えるファイル、3 行目はリンクをたどって 1 MiB を超えるファイル、4 行目はシンボリックリンクを示す。出力のパスは `sed -n l` が制御文字をエスケープするので、端末を制御しない。
 
 ```sh
+git -c core.fsmonitor=false ls-files --others --ignored --exclude-standard -z 2>&1 >/dev/null | LC_ALL=C sed -n l
 find . -path ./.git -prune -o -type f -size +16M -print | LC_ALL=C sed -n l
 find -L . -path ./.git -prune -o -type f -size +1M -print | LC_ALL=C sed -n l
 find . -path ./.git -prune -o -type l -print | LC_ALL=C sed -n l
