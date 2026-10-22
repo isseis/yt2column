@@ -500,6 +500,73 @@ func TestGuideDescribesConfigScope(t *testing.T) {
 	}
 }
 
+// task0030Dir holds the requirements and architecture of the task that
+// introduced the git state comparison; task 0035 narrowed its config scope.
+const task0030Dir = "docs/tasks/0030_fixpr_untrusted_threads/"
+
+// TestTask0030DocsDescribeConfigScope: in task 0030's requirements and
+// architecture, every passage on the config comparison scope makes the three
+// points of configScope and no longer holds the wording it replaced: in the
+// requirements, the chapter 1 decision on fix-phase anomalies, AC-26, layer
+// (3) of 4.2, and the residual risks of 4.2; in the architecture, the push
+// decision of 1.2, the finish checks and push invariants of 3.6, the config
+// row and the tool's git of 3.7, the 5.2 row, two items of 5.3, and the git
+// state tests of 7.1. Both documents stay approved and record the change as a
+// decision of task 0035. The phrases are the documents' own Japanese wording.
+func TestTask0030DocsDescribeConfigScope(t *testing.T) {
+	scope := configScope{
+		otherBranches:   "今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*`",
+		unchangedValues: "設定の値の一覧を変えない編集",
+		residualRisk:    "ほかのブランチの設定の書き換えは、残余のリスク",
+	}
+	for _, tc := range []struct {
+		rel      string
+		passages func(t *testing.T, rel, doc string) []passage
+	}{
+		{
+			rel: task0030Dir + "01_requirements.md",
+			passages: func(t *testing.T, rel, doc string) []passage {
+				return []passage{
+					{name: "the fix-phase anomaly decision", text: singleLine(t, rel, doc, "-   **修正のフェーズの異常では止める:**")},
+					{name: "AC-26", text: singleLine(t, rel, doc, "- **AC-26**:"), stale: []string{"git の設定ファイル（リポジトリの config と、worktree の config）"}},
+					// The bullet ends where the next top-level bullet starts; its
+					// nested lines are indented.
+					{name: "layer (3)", text: cutSection(doc, "-   守りは 3 つの層からなる。", "\n-   "), stale: []string{"git の hooks と設定ファイルの違い"}},
+					{name: "the residual risks", text: cutSection(doc, "-   **残余のリスク:**", "\n### "), stale: []string{"次の 4 つ"}},
+				}
+			},
+		},
+		{
+			rel: task0030Dir + "02_architecture.md",
+			passages: func(t *testing.T, rel, doc string) []passage {
+				return []passage{
+					{name: "the push decision", text: singleLine(t, rel, doc, "-   **push は、ツールの `push` が直前に再確認して行う。**")},
+					{name: "the judged-set check", text: singleLine(t, rel, doc, "-   **判定した集合の厳密な確認。**")},
+					{name: "the check after build checks", text: singleLine(t, rel, doc, "-   **build checks の後の確認。**")},
+					{name: "the push invariants", text: singleLine(t, rel, doc, "**`push` の不変条件。**")},
+					{name: "the config baseline row", text: singleLine(t, rel, doc, "| config |"), stale: []string{"の config の内容のダイジェスト"}},
+					{name: "the tool's git", text: singleLine(t, rel, doc, "-   **ツールが起動する git。**"), stale: []string{"ファイルの読み取りだけで求める config と info"}},
+					{name: "the 5.2 row", text: singleLine(t, rel, doc, "| 修正のフェーズが HEAD・hooks・config・info を変える |")},
+					{name: "the check-to-use gap", text: singleLine(t, rel, doc, "-   **確認と実行の間のずれ。**")},
+					{name: "subcommands without a baseline", text: singleLine(t, rel, doc, "-   **基準値を持たないサブコマンドの起動前の比較。**")},
+					{name: "the git state tests", text: singleLine(t, rel, doc, "-   **git の状態。**"), stale: []string{"`inspect` が git を起動せずに止まること"}},
+				}
+			},
+		},
+	} {
+		t.Run(filepath.Base(tc.rel), func(t *testing.T) {
+			doc := readRepoFile(t, tc.rel)
+			checkPassages(t, tc.rel, scope, tc.passages(t, tc.rel, doc))
+			if status := singleLine(t, tc.rel, doc, "| Status |"); !strings.Contains(status, "`approved`") {
+				t.Errorf("%s: Status is not approved: %q", tc.rel, status)
+			}
+			if comments := singleLine(t, tc.rel, doc, "| Comments |"); !strings.Contains(comments, "(decision): タスク 0035（#431）の要件で決めた変更") {
+				t.Errorf("%s: Comments does not record the decision of task 0035", tc.rel)
+			}
+		})
+	}
+}
+
 // TestCutSection: the extraction the guards read through stops where it
 // should. A section that ran on would let a later passage supply a phrase
 // the checked one lacks.
