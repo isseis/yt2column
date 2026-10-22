@@ -5,6 +5,7 @@ package fixprguard
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -862,6 +863,30 @@ func TestTargetRecordLines(t *testing.T) {
 		if (lines[i] != after[i]) != (paths[i] == "b.go") {
 			t.Errorf("line %d: before %q, after %q; want only b.go's line changed", i, lines[i], after[i])
 		}
+	}
+}
+
+// TestSelectTargetsSorted: watched files given in reverse byte order come
+// back in byte order, with settings.local.json added. The sort is what makes
+// the digest and the record independent of map order; enough paths are given
+// that an unsorted map iteration would almost never come out in order.
+func TestSelectTargetsSorted(t *testing.T) {
+	t.Chdir(t.TempDir())
+	var files []string
+	for i := 29; i >= 0; i-- {
+		files = append(files, fmt.Sprintf("build/f%02d.go", i))
+	}
+	got, err := selectTargets(t.Context(), files, nil, wideLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.IsSorted(got) {
+		t.Errorf("selectTargets = %q, want byte order", got)
+	}
+	want := append(slices.Clone(files), settingsLocalPath)
+	slices.Sort(want)
+	if !slices.Equal(slices.Sorted(slices.Values(got)), want) {
+		t.Errorf("selectTargets = %q, want the paths %q", got, want)
 	}
 }
 
