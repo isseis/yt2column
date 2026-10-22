@@ -672,6 +672,76 @@ func replyArgs(t *testing.T, reviewers []string, th ghThread, fingerprint string
 	return args(cmdReply, rest...)
 }
 
+// TestPostTextMentionExitsUsage: a reply body, PR title, or PR body that
+// mentions Codex stops with exit 2 before gh runs, with no output and a
+// diagnostic that names the rule but not the text. The control rows, with no
+// mention, reach gh, so the files and every other value pass.
+func TestPostTextMentionExitsUsage(t *testing.T) {
+	// marker is a word of the text the diagnostic must not echo.
+	const marker = "marker-7f3a"
+	mention := "Thanks; @Codex " + marker + " flagged this.\n"
+	plain := "Thanks; Codex " + marker + " flagged this.\n"
+	textFile := func(t *testing.T, content string) string {
+		t.Helper()
+		name := filepath.Join(t.TempDir(), "text.md")
+		if err := os.WriteFile(name, []byte(content), 0o600); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+		return name
+	}
+	// replyLine replies with body; the fingerprint only has to fit its
+	// grammar, since the body is refused before any thread is read.
+	replyLine := func(t *testing.T, body string) []string {
+		line := replyArgs(t, []string{testReviewer}, reviewerThread(""), strings.Repeat("a", 64))
+		i := slices.Index(line, "--"+flagBodyFile)
+		if i < 0 {
+			t.Fatalf("replyArgs has no --%s", flagBodyFile)
+		}
+		line[i+1] = textFile(t, body)
+		return line
+	}
+	editLine := func(t *testing.T, title, body string) []string {
+		return args(cmdEditPR, "--title-file", textFile(t, title), "--body-file", textFile(t, body), testPR)
+	}
+	oneLine := strings.TrimSuffix(plain, "\n")
+	for name, line := range map[string]func(*testing.T) []string{
+		"reply_body":    func(t *testing.T) []string { return replyLine(t, mention) },
+		"edit_pr_title": func(t *testing.T) []string { return editLine(t, strings.TrimSuffix(mention, "\n"), plain) },
+		"edit_pr_body":  func(t *testing.T) []string { return editLine(t, oneLine, mention) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			// The fake holds no step, so any gh call fails the test.
+			r := newTestRun(t, nil)
+			if code := r.Run(t, line(t)...); code != exitUsage {
+				t.Errorf("exit %d, want %d (%s)", code, exitUsage, r.Stderr)
+			}
+			if r.Stdout.Len() != 0 {
+				t.Errorf("stdout = %q, want none", r.Stdout)
+			}
+			// The diagnostic is matched as text because naming the rule,
+			// and never the text, is its contract.
+			diag := r.Stderr.String()
+			if !strings.Contains(diag, "mentions Codex") || strings.Contains(diag, marker) {
+				t.Errorf("stderr = %q, want the mention rule without the text", diag)
+			}
+		})
+	}
+	t.Run("control/reply_body", func(t *testing.T) {
+		// The repository lookup is the first gh call; failing it ends the
+		// reply there.
+		r := newTestRun(t, []cmdrunnertestutil.Step{ghStep("", &cmdrunner.ExitError{Code: 1}, "repo", "view", "--json", "nameWithOwner")})
+		if code := r.Run(t, replyLine(t, plain)...); code != exitStop {
+			t.Errorf("exit %d, want %d (%s)", code, exitStop, r.Stderr)
+		}
+	})
+	t.Run("control/edit_pr", func(t *testing.T) {
+		r := newTestRun(t, []cmdrunnertestutil.Step{ghStep("", nil, "pr", "edit", testPR, "--title="+oneLine, "--body-file", "-")})
+		if code := r.Run(t, editLine(t, oneLine, plain)...); code != exitContinue {
+			t.Errorf("exit %d, want %d (%s)", code, exitContinue, r.Stderr)
+		}
+	})
+}
+
 // TestStopOutputDetails: the stop output carries the parts of a git state
 // change, the changes found against the judged set, and the stage and fenced
 // output of a failed build check.

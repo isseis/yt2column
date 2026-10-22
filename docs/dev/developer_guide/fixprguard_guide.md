@@ -74,7 +74,7 @@ The exit codes are as follows. The caller treats any other exit code, terminatio
 |---|---|---|
 | `0` | Continue | The subcommand's result |
 | `1` | Stop | `stop` (the stop kind) and the details of each kind (chapter 8) |
-| `2` | Usage error (flags, value grammar, `--protocol` mismatch, `GH_REPO`/`GH_HOST`, an empty positional argument). Running elsewhere than the top level of the work tree, a detached HEAD, or a malformed `.git` file (`begin`), and a `--comment-id` that is not the thread's first comment (`reply`; found only after reading GitHub) also give `2`. When the diagnostic contains `flag given twice: --reviewer`, the installed tool predates repeated `--reviewer`; reinstalling it with `make install-fixprguard` fixes it. The commit the installed tool was built from can be checked with the `vcs.revision` of `go version -m "$(command -v fixprguard)"` (chapter 3) | None |
+| `2` | Usage error (flags, value grammar, `--protocol` mismatch, `GH_REPO`/`GH_HOST`, an empty positional argument). Running elsewhere than the top level of the work tree, a detached HEAD, or a malformed `.git` file (`begin`), and a `--comment-id` that is not the thread's first comment (`reply`; found only after reading GitHub) also give `2`. A `reply` body, or an `edit-pr` title or body, that contains the `@codex` mention also gives `2` (found before anything is written to GitHub; chapter 5). When the diagnostic contains `flag given twice: --reviewer`, the installed tool predates repeated `--reviewer`; reinstalling it with `make install-fixprguard` fixes it. The commit the installed tool was built from can be checked with the `vcs.revision` of `go version -m "$(command -v fixprguard)"` (chapter 3) | None |
 | `3` | Ask the user (`inspect` only; there are out-of-scope changes) | The result of `inspect` |
 
 ## 5. Subcommands
@@ -183,7 +183,7 @@ Output: `{"protocol":3,"pushed":true,"commit":"<SHA>"}`.
 
 Judges the thread again in its current state, and posts the reply only when it is a trusted thread (or a thread named with `--accept` whose fingerprint matches), `--fingerprint` matches the current fingerprint, and `--comment-id` is the ID of the thread's first comment. The body is passed to `gh api` as JSON on standard input, so it never goes through a shell. After the reply, it fetches the thread again and checks that nothing changed besides the reply before resolving the thread.
 
-The body file must be a regular file (whose last element is not a symbolic link) of at most 64 KiB holding valid UTF-8 that is not only whitespace and contains no NUL.
+The body file must be a regular file (whose last element is not a symbolic link) of at most 64 KiB holding valid UTF-8 that is not only whitespace and contains no NUL. It must also not contain the `@codex` mention. The comparison is a substring match with ASCII letters compared case-insensitively, and it requires no word boundary (`@codexbot` and `a@codex.example` are rejected too). The mention check runs after the file checks and before the thread is read, and a body that contains it is rejected with exit code `2`. This keeps a post from the user's account from making Codex act.
 
 ```sh
 fixprguard reply --protocol 3 --reviewer coderabbitai --thread-id 'PRRT_...' --comment-id 123 --fingerprint '<fingerprint>' --body-file /path/to/reply.md 42
@@ -193,7 +193,7 @@ Output: `{"protocol":3,"written":true}`. When it stops with `reply-not-resolved`
 
 ### `edit-pr --title-file FILE --body-file FILE [PR]`
 
-Updates the PR's title and body. The title is passed in the form `--title=<value>`, and the body is passed as the checked content on standard input (`gh` does not read the file again). The title file must pass the same checks as the body file and also be one line with no control character and no line separator.
+Updates the PR's title and body. The title is passed in the form `--title=<value>`, and the body is passed as the checked content on standard input (`gh` does not read the file again). The title file must pass the same checks as the body file and also be one line with no control character and no line separator. When either the title or the body contains the `@codex` mention, it is rejected with exit code `2` before `gh pr edit` is started, by the same rule as the `reply` body.
 
 ```sh
 fixprguard edit-pr --protocol 3 --title-file /path/to/title.txt --body-file /path/to/body.md 42
@@ -264,6 +264,7 @@ The `.go` rule: a `.go` file is in scope under rule 2 only when `path` is a `.go
 | Out-of-scope changes are not committed without the user's confirmation | `inspect` lists the out-of-scope changes and returns exit code `3`, and `finish` commits only the changes that match the judged set |
 | Changes that appear after the judgment are not committed | `finish` checks the strict match with the judged set before and after the build checks, and stages only the judged paths |
 | git is not started with rewritten hooks or config | `inspect`, `finish`, and `push` first compare where the git directories are and the type of the config files from the files alone, without starting git. Next, they start only `git config --list`, which starts no command, and compare the list of configuration values without the `branch.<name>.*` settings of other branches (every branch except the current branch and `main`) with the baseline. The only git started before the config comparison is `git config --list`; if they differ, no other git, `gh`, or make is started. The hooks are compared after the list of configuration values matches, by locating them with `git rev-parse --git-path hooks`, before any command that could run a hook. Edits that leave the list of configuration values unchanged are not detected. A rewrite of another branch's settings is a residual risk (7.2) |
+| Text that contains the mention is not sent to GitHub | When a `reply` body or an `edit-pr` title or body contains `@codex` (ASCII letters compared case-insensitively, even as part of a word), the tool rejects it with exit code `2` before anything is written to GitHub. This keeps a post from the user's account from making Codex act. It is a backstop layered on the check the command documents make before posting (added in task 0031) |
 | Replies and the PR description do not become shell commands | `reply` and `edit-pr` do not go through a shell, and pass the body on standard input |
 | The head of a fork PR is not handled | `head`, `list`, and `begin` check it first |
 
@@ -282,7 +283,7 @@ The `.go` rule: a `.go` file is in scope under rule 2 only when `path` is a `.go
 - Files outside the hooks directory that a hook runs (such as the cache of the pre-commit framework).
 - That the set of names passed with `--reviewer` is the same as the names on `Automated reviewer list` in `.claude/commands/_context.md`. The tool does not read `_context.md`. A name left out only makes that Bot's threads untrusted as `other-bot`.
 - Re-edits within the same second. The times in the fingerprint have a resolution of one second.
-- The content of reply and PR description bodies. The tool checks only the file's type, size, and encoding.
+- The content of reply and PR description bodies other than the mention. The tool checks only the file's type, size, and encoding, and the `@codex` mention. A full-width `＠codex`, or a form with a zero-width character between `@` and `codex`, is not a GitHub mention, so it is not checked (whether Codex interprets a body in its own way was not checked). The session can also run `gh` directly with Bash, so the mention check is not a boundary without a way around it.
 
 ## 8. What to Do When the Tool Stops
 
@@ -316,6 +317,8 @@ When the user answers "do not continue" about out-of-scope changes, the changes 
     3. The shape of the output does not change.
 
   In that case, write the old tool's diagnostic when it stops and the guidance to reinstall in the description of exit code `2` in chapter 4.
+
+  Also, a change that only narrows the content a body or title file accepts may leave `Protocol` unchanged regardless of the three conditions above, provided the narrowed part is content the command documents do not send. An old tool accepts that content, but the documents do not send it, so no wrong post results; and the only calls of the old documents that a new tool rejects are those with content that must not be sent. The rejection of the `@codex` mention (task 0031) is one.
 - When adding an automated reviewer to the list or removing one from it, change the following in the same commit, and run the document guards (`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`) on that commit. `fixpr.md` and `runpr.md` write neither the names nor their number, and the tool sets no upper limit on the number of names, so neither needs to change.
     1. The `Automated reviewer list` row of `.claude/commands/_context.md`.
     2. The expected names (`wantReviewers`) of the content guard (`cmd/yt2column/fixpr_docs_test.go`).

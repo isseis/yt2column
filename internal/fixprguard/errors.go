@@ -9,8 +9,10 @@ import (
 // error adds only the name of the rule that was broken, never a value from
 // GitHub or the arguments and standard error of an external command.
 var (
-	// ErrInvalidInput rejects a malformed flag value: a login, a PR number, a
-	// thread or comment ID, a fingerprint, or an accept pair.
+	// ErrInvalidInput rejects a malformed flag value (a login, a PR number, a
+	// thread or comment ID, a fingerprint, or an accept pair) and a text file
+	// reply or edit-pr refuses to post (readTextFile, readTitleFile, and
+	// checkPostText give the rules).
 	ErrInvalidInput = errors.New("invalid input")
 	// ErrCrossRepository reports a PR whose head is not a branch of this
 	// repository.
@@ -49,6 +51,10 @@ var (
 	// in the expected shape, and a git metadata file that could not be read.
 	ErrGitFailed = errors.New("git command failed")
 
+	// errCodexMention rejects post text that contains CodexMention: a post
+	// from the user's account must not invoke Codex.
+	errCodexMention = fmt.Errorf("%w: text mentions Codex", ErrInvalidInput)
+
 	errNonceExhausted = errors.New("no fence nonce absent from the data")
 	errUnknownEnum    = errors.New("enum value has no name")
 	errThreadCap      = fmt.Errorf("%w: thread cap", ErrLimitExceeded)
@@ -57,6 +63,11 @@ var (
 	// failure at begin; CheckState reports it as a config change.
 	errConfigList = fmt.Errorf("%w: config list shape", ErrGitFailed)
 )
+
+// CodexMention is the mention that makes Codex act on a comment. A reply
+// body, PR title, or PR body that contains it, compared case-insensitively
+// in ASCII, is rejected. It is lower case, the form checkPostText compares.
+const CodexMention = "@codex"
 
 // The stop kinds: the machine-readable name of why a subcommand stopped, as
 // the output's stop field and the command documents name it.
