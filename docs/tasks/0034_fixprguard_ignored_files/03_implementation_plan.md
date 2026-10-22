@@ -320,9 +320,9 @@
 
 **変更するファイル**: `.claude/commands/fixpr.md`、`cmd/yt2column/fixpr_docs_test.go`
 
--   [ ] `parts` を列挙する 3 か所（1.3.1）に `ignored` を加える。
--   [ ] `begin`・`inspect`・`finish`・`push` が `git-state-changed`（`parts` に `ignored`）か、無視されるファイルの規則の `git-failed` で止まったとき、セッションは無視されるファイルを一覧にしたり読んだりしない（`git status --ignored`・`git ls-files -o -i`・`ls .claude` などを実行しない）と書く。代わりに、利用者にガイド 8 章の手順を案内するよう書く（1.4）。`begin` の止まり方（`:258-262`）にも同じ内容を書く。`git-failed` のうち無視されるファイルにかかわるものは、標準エラーの診断の規則の名前（設計書 4 章の `ignored` を含む名前と `list ignored files` で始まる名前）で見分けると書く。文は英語で書く。
--   [ ] `TestFixprDocContract`（`cmd/yt2column/fixpr_docs_test.go:180`）に、この指示の語を `requirePhrases` で確かめる行を加える。
+-   [x] `parts` を列挙する 3 か所（1.3.1）に `ignored` を加える。
+-   [x] `begin`・`inspect`・`finish`・`push` が `git-state-changed`（`parts` に `ignored`）か、無視されるファイルの規則の `git-failed` で止まったとき、セッションは無視されるファイルを一覧にしたり読んだりしない（`git status --ignored`・`git ls-files -o -i`・`ls .claude` などを実行しない）と書く。代わりに、利用者にガイド 8 章の手順を案内するよう書く（1.4）。`begin` の止まり方（`:258-262`）にも同じ内容を書く。`git-failed` のうち無視されるファイルにかかわるものは、標準エラーの診断の規則の名前（設計書 4 章の `ignored` を含む名前と `list ignored files` で始まる名前）で見分けると書く。文は英語で書く。
+-   [x] `TestFixprDocContract`（`cmd/yt2column/fixpr_docs_test.go:180`）に、この指示の語を `requirePhrases` で確かめる行を加える。
 
 **壊して確かめる**: `fixpr.md` から禁止の文を消すと、`TestFixprDocContract` が失敗すること。
 
