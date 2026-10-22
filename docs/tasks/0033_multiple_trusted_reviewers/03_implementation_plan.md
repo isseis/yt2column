@@ -105,7 +105,12 @@
     ```
 
     設計書 1.2 の 3 つめの項目が使う文字列 `flag given twice: --reviewer` が含まれる。ガイドの案内（ステップ 1-5）は、この文字列で古いツールを見分ける。新しいツールの診断がこの文字列を含まないことは、ステップ 1-3 のテストで確かめる。
--   **ツールの版の確かめ:** `go version -m` は `vcs.revision` と `vcs.modified` を表示する。上のとおり確かめた。ステップ 2-0 で使う。
+-   **ツールの版の確かめ:** `go version -m` は `vcs.revision` と `vcs.modified` を表示する。上のとおり確かめた。ガイドの案内（ステップ 1-5）で使う。
+-   **インストール済みのツールの振る舞いの確かめ:** `list` は、`--reviewer` を読む前に PR 番号の文法を確かめる（`cmd/fixprguard/main.go:423-426` の `validatePR`、`5b54919`）。文法に合わない PR 番号を渡すと、`gh` も git も呼ばずに止まる。`5b54919` のソースから作ったツールに、作業ツリーの外で次の 2 つを渡した（2026-10-22）。どちらも終了コード `2` である。
+    -   `list --protocol 1 --reviewer coderabbitai x` の標準エラーは `fixprguard: invalid input: PR number grammar` だった。
+    -   `list --protocol 1 --reviewer coderabbitai --reviewer chatgpt-codex-connector x` の標準エラーは、上の古いツールの診断と同じ 1 行だった。
+
+    PR-1 の後のツールは、2 つめの呼び出しでもフラグを受け付け、PR 番号の診断を返さなければならない。ステップ 2-0 はこの違いで版を確かめ、ステップ 1-3 の表の行がこの振る舞いを固定する。コミットの祖先では確かめない。PR-1 が revert されても、revert のコミットは PR-1 のコミットの子孫なので、祖先の判定は通ってしまうからである。
 -   **fake が呼ばれたときの失敗:** `cmdrunnertestutil.Fake` は、手順にない呼び出しで `Fatalf` する（`internal/cmdrunner/testutil/mocks.go:64`、`819011a`）。AC-07 の「GitHub にも git にも触れない」は、手順を持たない fake の `gh` と git を渡して確かめる。既存の表（`cmd/fixprguard/main_test.go:100-128`）と同じ方法である。
 -   **`go tool cover -func`:** `go test -tags test -coverprofile=<file> ./cmd/fixprguard` の後に `go tool cover -func=<file>` で関数ごとのカバレッジを表示する。ステップ 1-3 で、行の置き換えの前後を比べるのに使う。
 -   **`make deadcode`:** `deadcode -test -tags test ./cmd/yt2column` だけを実行する（`Makefile:228-229`）。`internal/fixprguard` の関数はもともと到達できないものとして報告されるので、フェーズ 1 の確かめには使わない。
@@ -199,7 +204,9 @@
     -   正しくない値を渡す。
     -   正しい値と正しくない値を渡す。
 
-    この 16 行では、終了コード `2` に加えて、標準エラーが 1 行で、`--reviewer` を含み、渡した値を含まないことも確かめる。`--reviewer` を 2 回以上渡す行では、`parse` が成功すること（拒否するのは `ParseReviewers` だけであること。設計書 7.2）と、標準エラーが `flag given twice` を含まないことも確かめる。既存の `begin` の `bad name` の行は、加える行に含める。表のほかの既存の行（`--accept`・`--baseline`・`finish`・`head` など）は残す。
+    あわせて、`list` に違う 2 つの正しい名前と文法に合わない PR 番号 `x` を渡す行を加える。この行は、ステップ 2-0 の確かめの振る舞いを固定する。終了コードが `2` で、標準エラーが PR 番号の文法の診断であり、`flag given twice` を含まないことを確かめる。
+
+    上の 16 行では、終了コード `2` に加えて、標準エラーが 1 行で、`--reviewer` を含み、渡した値を含まないことも確かめる。`--reviewer` を 2 回以上渡す行では、`parse` が成功すること（拒否するのは `ParseReviewers` だけであること。設計書 7.2）と、標準エラーが `flag given twice` を含まないことも確かめる。既存の `begin` の `bad name` の行は、加える行に含める。表のほかの既存の行（`--accept`・`--baseline`・`finish`・`head` など）は残す。
 -   [ ] `list` と `begin` を、`--reviewer` の 2 つの順序で同じリポジトリに対して実行するテストを加える。スレッドは、2 つの名前の `Bot` のスレッドと一覧にない `Bot` のスレッドを用意する。2 つの順序で標準出力が同じであることに加え、2 つの名前のスレッドが処理され、一覧にない `Bot` のスレッドが処理されないことを確かめる（設計書 7.1 の「順序によらないこと」）。
 -   [ ] 2 つの名前を渡し、2 つめの名前の `Bot` のスレッドを `begin` で処理し、`begin` の出力の指紋で `reply` するテストを加える（設計書 7.4 の結合テスト。1.4）。`begin` と `reply` の両方に、同じ 2 つの `--reviewer` を渡す。
 -   [ ] `TestReviewerFlag` と、`--reviewer` を 1 回だけ渡す既存のテストが、変更なしで通ることを確かめる（AC-04・AC-09）。
@@ -282,7 +289,7 @@
 
 **変更するファイル**: なし
 
--   [ ] `go version -m "$(command -v fixprguard)"` を実行し、`vcs.modified` が `false` であることと、`vcs.revision` が PR-1 のコミットかその子孫であることを確かめる。ここで「PR-1 のコミット」は、PR-1 の squash merge で `main` に入ったコミットを指す。子孫かどうかは `git merge-base --is-ancestor <PR-1 のコミット> <vcs.revision>` で判定する。PR-1 のコミットは、`/runplan` が取得した `origin/main` の `git log` で、件名の末尾の `(#<PR-1 の番号>)` から探す。`protocol` の番号は変わらないので、番号ではなく版で確かめる。
+-   [ ] インストール済みの `fixprguard` に `list --protocol 1 --reviewer coderabbitai --reviewer chatgpt-codex-connector x` を渡し、終了コードが `2` で、標準エラーが PR 番号の文法の診断の 1 行であり、`flag given twice` を含まないことを確かめる（1.3.4）。PR 番号 `x` は文法に合わないので、ツールは GitHub にも git にも触れずに止まる。`protocol` の番号は変わらないので、番号ではなく振る舞いで確かめる。コミットの祖先では確かめない（1.3.4）。
 -   [ ] 満たされていなければ、このフェーズを始めず、利用者に `make install-fixprguard` の実行を求めて止まる。
 
 **完了条件**: 上の確かめが通る。
