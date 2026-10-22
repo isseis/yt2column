@@ -395,11 +395,11 @@ fi
 
 Linux では `sha256sum` を、macOS では `shasum -a 256` を使う。`diff` の `<` の行は `begin` の時点にだけある行、`>` の行は止まった時点にだけある行である。同じパスが両方にあればそのファイルが変わり、`<` だけなら消え、`>` だけなら増えた。`diff` の出力は `sed -n l` が制御文字をエスケープし、各行の末尾に `$` を付ける。止まった時点の記録の各行のパスが、止まった時点の対象のファイルの一覧である。止まった時点の記録は基準値と結び付いていないので、内容を信頼しすぎない。止まった時点の記録だけがない場合は、書けなかったことがある。`inspect` をやり直せば、同じ比較で書き直される。
 
-照合が一致しない、または `begin` の記録がない場合は、侵害を強く疑う。`.claude/settings.local.json`・`.envrc`・`.env` を、利用者が別に保管している信頼できる写しから戻す。記録に頼らず、次のコマンドで無視されるファイルと `.claude/` の下を一覧にし、監視の一覧（7.1）に当たるすべてのファイルを確かめる。出力のパスはエスケープされる。
+照合が一致しない、または `begin` の記録がない場合は、侵害を強く疑う。`.claude/settings.local.json`・`.envrc`・`.env` を、利用者が別に保管している信頼できる写しから戻す。記録に頼らず、次のコマンドで無視されるファイルと `.claude/` の下を一覧にし、監視の一覧（7.1）に当たるすべてのファイルを確かめる。出力のパスはエスケープされ、名前の中の改行は `\001` と示される。
 
 ```sh
-git -c core.fsmonitor=false ls-files --others --ignored --exclude-standard -z | tr '\0' '\n' | LC_ALL=C sed -n l
-find .claude | LC_ALL=C sed -n l
+git -c core.fsmonitor=false ls-files --others --ignored --exclude-standard -z | tr '\n\0' '\001\n' | LC_ALL=C sed -n l
+find .claude -print0 | tr '\n\0' '\001\n' | LC_ALL=C sed -n l
 ```
 
 `begin` が `ignored` で止まったときは、このラウンドの記録はない（`begin` は、状態を求め直す前に前のラウンドの記録を消す）。上のブロックは実行せず、このコマンドで一覧にしたファイルを (c) のとおり確かめてから、やり直す。
