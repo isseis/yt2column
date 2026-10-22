@@ -502,13 +502,17 @@ func fileDigests(dirs gitDirs) (config, info string, err error) {
 // configListRule names git config --list in a failure.
 const configListRule = "config --list"
 
+// configListArgs lists the configuration with each value's origin, NUL
+// separated.
+var configListArgs = []string{"config", "--list", "--show-origin", "-z"}
+
 // configList runs git config --list --show-origin -z and returns its output,
 // or the runner's error unchanged so the caller can classify it. The output
 // lists every configuration value git reads, with the file it came from: the
 // global and system files, included files, and the repository's own. git
 // config launches no command.
 func (w *Worktree) configList(ctx context.Context) ([]byte, error) {
-	return w.gitRaw(ctx, "config", "--list", "--show-origin", "-z")
+	return w.gitRaw(ctx, configListArgs...)
 }
 
 // configListFailure classifies a failure to list the configuration in

@@ -151,7 +151,7 @@ func (r *testRepo) gitIn(dir string, args ...string) string {
 // so a test can tell whether a change reached the listed values.
 func (r *testRepo) ConfigList() string {
 	r.t.Helper()
-	cmd := exec.Command(gitCommand, append(append([]string{}, gitHardening...), "config", "--list", "--show-origin", "-z")...) //nolint:gosec // test setup runs git with fixed arguments
+	cmd := exec.Command(gitCommand, append(append([]string{}, gitHardening...), configListArgs...)...) //nolint:gosec // test setup runs git with fixed arguments
 	cmd.Dir = r.Dir
 	cmd.Env = GitEnv(os.Environ())
 	out, err := cmd.Output()

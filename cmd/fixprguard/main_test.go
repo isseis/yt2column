@@ -371,6 +371,8 @@ func TestConfigStopOmitsNames(t *testing.T) {
 	if out.Stop != fixprguard.StopGitStateChanged || !slices.Equal(out.Parts, []string{fixprguard.PartConfig}) {
 		t.Errorf("output = %+v, want %s naming %s", out, fixprguard.StopGitStateChanged, fixprguard.PartConfig)
 	}
+	// The token's grammar (digests and object IDs only) already keeps names
+	// out of it; it is checked with the outputs because the contract names it.
 	for _, text := range []string{base.String(), r.Stdout.String(), r.Stderr.String()} {
 		for _, h := range hidden {
 			if strings.Contains(text, h) {

@@ -493,7 +493,8 @@ func TestOtherBranchConfigIgnored(t *testing.T) {
 			r.Git("config", "branch."+testBranch+".a.remote", testRemote)
 		}},
 		{name: "subsection_differs_in_case", edit: func(t *testing.T, r *testRepo) {
-			appendFile(t, repoConfig(r), "[branch \"Feature\"]\n\tpushRemote = elsewhere\n")
+			recased := strings.ToUpper(testBranch[:1]) + testBranch[1:]
+			appendFile(t, repoConfig(r), "[branch \""+recased+"\"]\n\tpushRemote = elsewhere\n")
 		}},
 		{name: "comment_blank_and_indent", edit: func(t *testing.T, r *testRepo) {
 			appendFile(t, repoConfig(r), "# a comment\n\n\t\n; another\n")
