@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/isseis/yt2column/internal/fixprguard"
 )
 
 // commandsDir is the directory of the command documents, _lib/ included.
@@ -136,7 +138,7 @@ func TestCodexMentionOnlyInRequestRow(t *testing.T) {
 	rows := 0
 	for _, path := range paths {
 		for i, line := range strings.Split(readDoc(t, path), "\n") {
-			if !strings.Contains(strings.ToLower(line), "@codex") {
+			if !strings.Contains(strings.ToLower(line), strings.ToLower(fixprguard.CodexMention)) {
 				continue
 			}
 			if filepath.Clean(path) == filepath.Clean(contextPath) && strings.HasPrefix(line, "| "+requestRow+" | ") {
@@ -152,8 +154,9 @@ func TestCodexMentionOnlyInRequestRow(t *testing.T) {
 }
 
 // TestPostingPathsCheckMention checks that each section that posts text to
-// GitHub states the mention check before its posting commands, and what it
-// does when the text holds the mention.
+// GitHub states the mention check, runs its posting commands after it, and
+// says what it does when the text holds the mention. Whether any invocation
+// comes before the check is TestPostingCommandsInventory's to judge.
 func TestPostingPathsCheckMention(t *testing.T) {
 	for _, ps := range postingSections {
 		t.Run(ps.name, func(t *testing.T) {
@@ -163,11 +166,8 @@ func TestPostingPathsCheckMention(t *testing.T) {
 				t.Fatalf("%s does not state the mention check", ps.name)
 			}
 			for _, command := range ps.commands {
-				at := strings.Index(section, command)
-				if at < 0 {
-					t.Errorf("%s does not run %q", ps.name, command)
-				} else if at < check {
-					t.Errorf("%s runs %q before the mention check", ps.name, command)
+				if !strings.Contains(section[check:], command) {
+					t.Errorf("%s does not run %q after the mention check", ps.name, command)
 				}
 			}
 			requirePhrases(t, ps.name, section, ps.handling...)
@@ -192,13 +192,15 @@ var (
 	postingCommand = regexp.MustCompile(`gh (issue (create|comment|close|edit)|pr (comment|create|edit|review|merge)|api)\b|fixprguard (reply|edit-pr)\b`)
 	// textFlag marks a match as an invocation: a sentence that only names a
 	// command passes none of these.
-	textFlag = regexp.MustCompile(`(^|\s)(--(body|body-file|title|title-file|comment|protocol|field|raw-field|input)|-[bFtcf])(\s|=|$)`)
-	// writeMethod marks a gh api invocation as a write.
-	writeMethod = regexp.MustCompile(`(-X|--method)[ =](POST|PATCH|PUT)\b`)
+	textFlag = regexp.MustCompile(`(^|\s)(--(body|body-file|title|title-file|subject|comment|protocol|field|raw-field|input)|-[bFtcf])(\s|=|$)`)
+	// readMethod marks a gh api invocation as a read: with a text flag and no
+	// method, gh api sends a POST.
+	readMethod = regexp.MustCompile(`(?i)(-X|--method)[ =]?GET\b`)
 )
 
 // readOnlyInvocations are the gh api invocations inside a posting section that
-// pass a text flag but write nothing: the link count query.
+// pass a text flag but write nothing: the link count query. Its query follows
+// on later lines, so the code block it opens must hold no mutation.
 var readOnlyInvocations = []string{
 	`gh api graphql -F owner='{owner}' -F repo='{repo}' -F n=<issue> -f query='`,
 }
@@ -221,14 +223,25 @@ func invocation(doc string, at int) string {
 	return command
 }
 
+// isReadOnly reports whether command, starting at doc[at:], is one of
+// readOnlyInvocations with no mutation in the rest of its code block.
+func isReadOnly(doc string, at int, command string) bool {
+	if !slices.ContainsFunc(readOnlyInvocations, func(c string) bool { return strings.HasPrefix(command, c) }) {
+		return false
+	}
+	block, _, _ := strings.Cut(doc[at:], "```")
+	return !strings.Contains(block, "mutation")
+}
+
 // isPost reports whether command, an invocation postingCommand matched,
-// writes text to GitHub.
+// writes text to GitHub: it passes a text flag, and a gh api call does not
+// ask for GET.
 func isPost(command string) bool {
 	if !textFlag.MatchString(command) {
 		return false
 	}
 	if strings.HasPrefix(command, "gh api") {
-		return writeMethod.MatchString(command) || strings.HasPrefix(command, "gh api graphql")
+		return !readMethod.MatchString(command)
 	}
 	return true
 }
@@ -270,7 +283,7 @@ func TestPostingCommandsInventory(t *testing.T) {
 		for _, m := range postingCommand.FindAllStringIndex(doc, -1) {
 			command := invocation(doc, m[0])
 			if !isPost(command) || strings.HasPrefix(command, `gh pr comment <number> --body "<review-request>"`) ||
-				slices.ContainsFunc(readOnlyInvocations, func(c string) bool { return strings.HasPrefix(command, c) }) ||
+				isReadOnly(doc, m[0], command) ||
 				(filepath.Base(path) == "mergepr.md" && strings.HasPrefix(command, "gh pr merge")) {
 				continue
 			}
@@ -300,5 +313,37 @@ func TestPostingCommandsInventory(t *testing.T) {
 	// A matcher that stopped matching would pass every document.
 	if posts == 0 {
 		t.Error("found no posting command in the command documents")
+	}
+}
+
+// TestIsPost checks the classifier the inventory relies on, on invocations
+// written in each form a command document may use, so a change to the
+// matchers that stops recognizing one form fails here even while the real
+// documents still hold other posts.
+func TestIsPost(t *testing.T) {
+	for _, tc := range []struct {
+		name, doc string
+		want      bool
+	}{
+		{"long_body_file", "gh pr comment <n> --body-file <f>", true},
+		{"short_body", `gh pr comment <n> -b "$(cat <f>)"`, true},
+		{"short_body_file", "gh pr comment <n> -F <f>", true},
+		{"continuation", "gh issue comment <n> \\\n  --body-file <f>", true},
+		{"api_explicit_post", "gh api -X POST repos/o/r/issues/1/comments -f body=x", true},
+		{"api_implicit_post", "gh api repos/o/r/issues/1/comments -f body=x", true},
+		{"graphql_mutation", "gh api graphql -f query='mutation { x }'", true},
+		{"review_body", "gh pr review <n> -b x", true},
+		{"merge_subject", "gh pr merge <n> --subject x", true},
+		{"guard_reply", "fixprguard reply --protocol 3 <n>", true},
+		{"name_only", "gh issue comment`, and", false},
+		{"api_read", "gh api --paginate repos/o/r/issues/1/comments --jq '.[]'", false},
+		{"api_get_with_field", "gh api -X GET repos/o/r/issues -f state=open", false},
+		{"backquote_ends_command", "gh pr comment` (the request) --body-file", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isPost(invocation(tc.doc, 0)); got != tc.want {
+				t.Errorf("isPost(%q) = %v, want %v", invocation(tc.doc, 0), got, tc.want)
+			}
+		})
 	}
 }
