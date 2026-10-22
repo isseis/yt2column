@@ -301,6 +301,83 @@ func TestInspectChecksGitStateBeforeGh(t *testing.T) {
 	}
 }
 
+// TestPreviousBaselineRejected: a baseline token of the version before the
+// current one stops inspect, finish and push with exit 2 before any command
+// runs. Every other value on each line is valid, and the same token with the
+// current version parses, so only the version can be refused.
+func TestPreviousBaselineRejected(t *testing.T) {
+	current := validBaseline(t)
+	rest, ok := strings.CutPrefix(current, "v2.")
+	if !ok {
+		t.Fatalf("test setup: baseline %q is not version v2", current)
+	}
+	previous := "v1." + rest
+	lines := map[string]func(baseline string) []string{
+		cmdInspect: func(b string) []string {
+			return args(cmdInspect, "--reviewer", testReviewer, "--baseline", b, testPR)
+		},
+		cmdFinish: func(b string) []string {
+			return args(cmdFinish, "--baseline", b, "--judged-set", strings.Repeat("a", 64), testPR)
+		},
+		cmdPush: func(b string) []string {
+			return args(cmdPush, "--baseline", b, "--commit", strings.Repeat("1", 40))
+		},
+	}
+	for name, line := range lines {
+		t.Run(name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			if _, err := parse(line(previous)); err != nil {
+				t.Fatalf("parse = %v, want nil", err)
+			}
+			r := newTestRun(t, nil)
+			r.git = cmdrunnertestutil.New(t)
+			if code := r.Run(t, line(previous)...); code != exitUsage {
+				t.Errorf("exit %d, want %d (%s)", code, exitUsage, r.Stderr)
+			}
+		})
+	}
+}
+
+// TestConfigStopOmitsNames: a stop for a changed setting of the current
+// branch names the part only. The branch names, the setting's name and
+// value, and the file it came from appear in neither the baseline token nor
+// the stop output nor standard error.
+func TestConfigStopOmitsNames(t *testing.T) {
+	const (
+		current = "zqcurrentbranch"
+		other   = "zqotherbranch"
+		value   = "zqsettingvalue"
+	)
+	repo := newTestRepo(t)
+	repo.Git("switch", "-q", "-c", current)
+	repo.Git("config", "branch."+other+".description", value)
+	base := repo.Baseline()
+	repo.Git("config", "branch."+current+".description", value)
+	listing := repo.Git("config", "--list", "--show-origin")
+	hidden := []string{current, other, value, "description", repo.Dir}
+	for _, h := range hidden[:4] {
+		if !strings.Contains(listing, h) {
+			t.Fatalf("test setup: %q is not in git config --list", h)
+		}
+	}
+	r := newTestRun(t, nil)
+	if code := r.Run(t, args(cmdInspect, "--reviewer", testReviewer, "--baseline", base.String(), testPR)...); code != exitStop {
+		t.Fatalf("exit %d, want %d (%s)", code, exitStop, r.Stderr)
+	}
+	var out stopJSON
+	r.Decode(t, &out)
+	if out.Stop != fixprguard.StopGitStateChanged || !slices.Equal(out.Parts, []string{fixprguard.PartConfig}) {
+		t.Errorf("output = %+v, want %s naming %s", out, fixprguard.StopGitStateChanged, fixprguard.PartConfig)
+	}
+	for _, text := range []string{base.String(), r.Stdout.String(), r.Stderr.String()} {
+		for _, h := range hidden {
+			if strings.Contains(text, h) {
+				t.Errorf("%q carries %q", text, h)
+			}
+		}
+	}
+}
+
 // TestOmittedPRUsesCurrentBranch: without a PR number, the current branch's
 // PR from gh is the one checked.
 func TestOmittedPRUsesCurrentBranch(t *testing.T) {

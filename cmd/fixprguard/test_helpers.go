@@ -72,20 +72,23 @@ func newTestRepo(t *testing.T) *testRepo {
 	return r
 }
 
-// Git runs git in the work tree for the test's own setup, outside the tool.
-func (r *testRepo) Git(args ...string) {
+// Git runs git in the work tree for the test's own setup, outside the tool,
+// and returns its output.
+func (r *testRepo) Git(args ...string) string {
 	r.t.Helper()
-	r.gitIn(r.Dir, args...)
+	return r.gitIn(r.Dir, args...)
 }
 
-func (r *testRepo) gitIn(dir string, args ...string) {
+func (r *testRepo) gitIn(dir string, args ...string) string {
 	r.t.Helper()
 	cmd := exec.Command("git", args...) //nolint:gosec // test setup runs git with fixed arguments
 	cmd.Dir = dir
 	cmd.Env = fixprguard.GitEnv(os.Environ())
-	if out, err := cmd.CombinedOutput(); err != nil {
+	out, err := cmd.CombinedOutput()
+	if err != nil {
 		r.t.Fatalf("git %v: %v: %s", args, err, out)
 	}
+	return string(out)
 }
 
 // Write writes a file in the work tree, creating its directory.

@@ -572,3 +572,38 @@ func TestRoundStopsAtRightPlace(t *testing.T) {
 		}
 	})
 }
+
+// TestRoundIgnoresOtherBranchConfig: another session working in its own
+// worktree adds a branch, pushes it, and removes both between inspect,
+// finish and push. Each step rewrites the shared configuration's branch
+// settings of that branch only, and none stops the round.
+func TestRoundIgnoresOtherBranchConfig(t *testing.T) {
+	r := newTestRepo(t)
+	base := mustBaseline(t)
+	other := filepath.Join(r.Home, "other")
+	const branch = "x"
+	elsewhere := func(step func()) {
+		t.Helper()
+		before := r.ConfigList()
+		step()
+		if r.ConfigList() == before {
+			t.Fatal("the step does not change the listing")
+		}
+	}
+	elsewhere(func() { r.AddWorktree(other, branch) })
+	fixTestFile(r)
+	p := prepared{r: r, base: base, judged: mustInspect(t, base).JudgedSet}
+	elsewhere(func() { r.gitIn(other, "push", "-q", "-u", testRemote, branch) })
+	commit := p.mustFinish(t).Commit
+	elsewhere(func() {
+		r.Git("worktree", "remove", other)
+		r.Git("branch", "-d", branch)
+	})
+	w, _ := newTestWorktree(t)
+	if _, err := w.Push(t.Context(), base, commit); err != nil {
+		t.Fatalf("Push = %v", err)
+	}
+	if got := r.RemoteHead(); got != commit {
+		t.Errorf("remote = %s, want %s", got, commit)
+	}
+}

@@ -24,13 +24,22 @@ const (
 	testDirMode = 0o750
 )
 
+// configListResult is what git config --list returns when a test replaces
+// it: its output and error, which the test builds.
+type configListResult struct {
+	Out []byte
+	Err error
+}
+
 // gitRouter runs git for real and every other command (make, gh) through the
 // fake. Calls records each command's name and first argument in order, so a
-// test can see where a run stopped.
+// test can see where a run stopped. ConfigList, when set, answers git config
+// --list without running git; the call is still recorded.
 type gitRouter struct {
-	real  cmdrunner.Runner
-	fake  *cmdrunnertestutil.Fake
-	Calls []string
+	real       cmdrunner.Runner
+	fake       *cmdrunnertestutil.Fake
+	Calls      []string
+	ConfigList *configListResult
 }
 
 func (r *gitRouter) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
@@ -38,7 +47,11 @@ func (r *gitRouter) Run(ctx context.Context, name string, args ...string) ([]byt
 		r.Calls = append(r.Calls, name+" "+strings.Join(args, " "))
 		return r.fake.Run(ctx, name, args...)
 	}
-	r.Calls = append(r.Calls, gitCommand+" "+gitSubcommand(args))
+	call := gitCommand + " " + gitSubcommand(args)
+	r.Calls = append(r.Calls, call)
+	if r.ConfigList != nil && call == gitConfigList {
+		return r.ConfigList.Out, r.ConfigList.Err
+	}
 	return r.real.Run(ctx, name, args...)
 }
 
@@ -132,6 +145,21 @@ func (r *testRepo) gitIn(dir string, args ...string) string {
 		r.t.Fatalf("git %v: %v: %s", args, err, out)
 	}
 	return string(out)
+}
+
+// ConfigList returns git config --list --show-origin -z as the tool reads it,
+// so a test can tell whether a change reached the listed values.
+func (r *testRepo) ConfigList() string {
+	r.t.Helper()
+	return r.Git(append(append([]string{}, gitHardening...), "config", "--list", "--show-origin", "-z")...)
+}
+
+// AddWorktree adds a linked worktree at dir on a new branch made from the
+// remote's feature branch, as another session's git worktree add -b does;
+// starting from the remote-tracking branch writes branch.<branch>.*.
+func (r *testRepo) AddWorktree(dir, branch string) {
+	r.t.Helper()
+	r.Git("worktree", "add", "-q", "-b", branch, dir, testRemote+"/"+testBranch)
 }
 
 // Write writes a file in the work tree, creating its directory.
