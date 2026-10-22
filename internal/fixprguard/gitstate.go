@@ -27,9 +27,9 @@ const (
 
 	// baselineVersion prefixes the baseline token, so a token of another
 	// shape is rejected rather than misread.
-	baselineVersion = "v2"
+	baselineVersion = "v3"
 	// baselineFields is the number of "."-separated fields after the version.
-	baselineFields = 7
+	baselineFields = 9
 	// noRemoteBranch stands for a push target branch that does not exist yet.
 	noRemoteBranch = "none"
 	// digestLength is the length of a hex-encoded SHA-256.
@@ -53,7 +53,15 @@ const (
 	PartHooks  = "hooks"
 	PartConfig = "config"
 	PartInfo   = "info"
+	// PartIgnored names the target files: the files git ignores that are on
+	// the watch list.
+	PartIgnored = "ignored"
 )
+
+// GitStateParts lists every value GitStateError.Parts can hold.
+func GitStateParts() []string {
+	return []string{PartHead, PartRemote, PartHooks, PartConfig, PartInfo, PartIgnored}
+}
 
 // gitHardening comes before every git subcommand the tool runs. It reads
 // objects as stored, never through refs/replace, so every tree the tool
@@ -106,23 +114,30 @@ func GitEnv(environ []string) []string {
 // directories are and the type (never the content) of the repository and
 // worktree configuration files, of every configuration value git reads (from
 // any file, so the push target is covered too) except other branches' branch
-// settings, and of the info files. The
-// session keeps it as a token and passes it back; it is parsed strictly,
-// never repaired. The zero value is not usable.
+// settings, and of the info files. Last come two digests of the target
+// files: one over the state of every target file, and one of the begin
+// record file, which lists each target file's path and entry digest; neither
+// names a file. The session keeps it as a token and passes it back; it is
+// parsed strictly, never repaired. The zero value is not usable.
 type Baseline struct {
-	head       string
-	branch     string
-	remoteOID  string
-	hooks      string
-	config     string
-	configList string
-	info       string
+	head          string
+	branch        string
+	remoteOID     string
+	hooks         string
+	config        string
+	configList    string
+	info          string
+	ignored       string
+	ignoredRecord string
 }
 
 // newBaseline is the only constructor; ParseBaseline and Worktree.Baseline
 // both use it.
-func newBaseline(head, branch, remoteOID, hooks, config, configList, info string) Baseline {
-	return Baseline{head: head, branch: branch, remoteOID: remoteOID, hooks: hooks, config: config, configList: configList, info: info}
+func newBaseline(head, branch, remoteOID, hooks, config, configList, info, ignored, ignoredRecord string) Baseline {
+	return Baseline{
+		head: head, branch: branch, remoteOID: remoteOID, hooks: hooks, config: config, configList: configList, info: info,
+		ignored: ignored, ignoredRecord: ignoredRecord,
+	}
 }
 
 // ParseBaseline parses a token String produced, rejecting any other shape
@@ -132,11 +147,11 @@ func ParseBaseline(s string) (Baseline, error) {
 	if len(parts) != baselineFields+1 || parts[0] != baselineVersion {
 		return Baseline{}, fmt.Errorf("%w: baseline shape", ErrInvalidInput)
 	}
-	b := newBaseline(parts[1], parts[2], parts[3], parts[4], parts[5], parts[6], parts[7])
+	b := newBaseline(parts[1], parts[2], parts[3], parts[4], parts[5], parts[6], parts[7], parts[8], parts[9])
 	if !validOID(b.head) || (b.remoteOID != noRemoteBranch && !validOID(b.remoteOID)) {
 		return Baseline{}, fmt.Errorf("%w: baseline object ID", ErrInvalidInput)
 	}
-	for _, d := range []string{b.branch, b.hooks, b.config, b.configList, b.info} {
+	for _, d := range []string{b.branch, b.hooks, b.config, b.configList, b.info, b.ignored, b.ignoredRecord} {
 		if !validHex(d, digestLength) {
 			return Baseline{}, fmt.Errorf("%w: baseline digest", ErrInvalidInput)
 		}
@@ -149,7 +164,9 @@ func (b Baseline) String() string {
 	if !b.usable() {
 		return ""
 	}
-	return strings.Join([]string{baselineVersion, b.head, b.branch, b.remoteOID, b.hooks, b.config, b.configList, b.info}, ".")
+	return strings.Join([]string{
+		baselineVersion, b.head, b.branch, b.remoteOID, b.hooks, b.config, b.configList, b.info, b.ignored, b.ignoredRecord,
+	}, ".")
 }
 
 // MarshalText writes the token form.
@@ -563,8 +580,13 @@ func (w *Worktree) hooksState(ctx context.Context) (string, error) {
 // compared, and a listing git fails to produce (a nonzero exit, a timeout) or
 // that is not in the accepted shape is a config change.
 // Only after those match does git rev-parse locate the hooks to compare,
-// before any command that could run one. Every subcommand that launches git
-// or gh after begin calls it first.
+// before any command that could run one. The target files come last: the
+// git that lists them reads the configuration (core.excludesFile among it),
+// so it runs only once the configuration matches, and though it runs no
+// hook it keeps the order of comparing before launching. So parts names
+// ignored only when everything else matches. A target file differing writes
+// the stop record file for the user to compare with the begin record. Every
+// subcommand that launches git or gh after begin calls it first.
 func (w *Worktree) CheckState(ctx context.Context, base Baseline) error {
 	if !base.usable() {
 		return fmt.Errorf("%w: baseline", ErrInvalidInput)
@@ -602,6 +624,17 @@ func (w *Worktree) CheckState(ctx context.Context, base Baseline) error {
 	}
 	if hooks != base.hooks {
 		return &GitStateError{Parts: []string{PartHooks}}
+	}
+	state, err := w.collectTargets(ctx, defaultTargetLimits)
+	if err != nil {
+		return err
+	}
+	if state.digest != base.ignored {
+		// The stop is the same whether or not the record is written: it only
+		// helps the user find what changed, and the next inspect writes it
+		// again.
+		_ = writeRecordFile(dirs.gitDir, ignoredStopRecord, state.record)
+		return &GitStateError{Parts: []string{PartIgnored}}
 	}
 	return nil
 }
@@ -738,7 +771,9 @@ func (w *Worktree) checkIndexFlags(ctx context.Context) error {
 
 // Baseline takes the git state the later subcommands compare with. It stops
 // when HEAD is not on a branch or an index entry hides changes, because the
-// later checks could not see past either.
+// later checks could not see past either. The target files come last, as in
+// CheckState. It only reads: begin writes the begin record file afterwards
+// with WriteBeginRecord.
 func (w *Worktree) Baseline(ctx context.Context) (Baseline, error) {
 	dirs, err := locateGitDirs()
 	if err != nil {
@@ -783,7 +818,11 @@ func (w *Worktree) Baseline(ctx context.Context) (Baseline, error) {
 	if err != nil {
 		return Baseline{}, err
 	}
-	return newBaseline(head, branchDigest, remote, hooks, config, list, info), nil
+	state, err := w.collectTargets(ctx, defaultTargetLimits)
+	if err != nil {
+		return Baseline{}, err
+	}
+	return newBaseline(head, branchDigest, remote, hooks, config, list, info, state.digest, recordDigest(state.record)), nil
 }
 
 // stateCheck selects the parts compareState reads besides the files. The zero

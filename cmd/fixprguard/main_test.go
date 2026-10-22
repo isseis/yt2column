@@ -23,7 +23,7 @@ import (
 // --protocol first.
 func validArgs() map[string][]string {
 	const (
-		baseline    = "v2.x"
+		baseline    = "v3.x"
 		fingerprint = "f"
 	)
 	return map[string][]string{
@@ -334,18 +334,18 @@ func TestInspectChecksGitStateBeforeGh(t *testing.T) {
 	}
 }
 
-// TestPreviousBaselineRejected: a baseline token of the version before the
-// current one stops inspect, finish and push with exit 2 before any command
+// TestPreviousBaselineRejected: a baseline token in the shape the version
+// before the current one printed (v2 and seven fields, without the target
+// file digests) stops inspect, finish and push with exit 2 before any command
 // runs. Every other value on each line is valid, and validBaseline checks
-// that the same token with the current version parses, so only the version
-// can be refused.
+// that the current shape with the same values parses.
 func TestPreviousBaselineRejected(t *testing.T) {
 	current := validBaseline(t)
-	rest, ok := strings.CutPrefix(current, "v2.")
-	if !ok {
-		t.Fatalf("test setup: baseline %q is not version v2", current)
+	fields := strings.Split(current, ".")
+	if fields[0] != "v3" || len(fields) != 10 {
+		t.Fatalf("test setup: baseline %q is not version v3 with nine fields", current)
 	}
-	previous := "v1." + rest
+	previous := strings.Join(append([]string{"v2"}, fields[1:8]...), ".")
 	lines := map[string]func(baseline string) []string{
 		cmdInspect: func(b string) []string {
 			return args(cmdInspect, "--reviewer", testReviewer, "--baseline", b, testPR)

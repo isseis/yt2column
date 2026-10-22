@@ -262,12 +262,12 @@
 
 **変更するファイル**: `internal/fixprguard/gitstate.go`、`internal/fixprguard/ignored.go`、`internal/fixprguard/gitstate_test.go`、`internal/fixprguard/worktree_flow_test.go`、`cmd/fixprguard/test_helpers.go`、`cmd/fixprguard/main_test.go`
 
--   [ ] `baselineVersion` を `v3`、`baselineFields` を 9 にし、`Baseline`・`newBaseline`・`ParseBaseline`・`String` に `ignored`・`ignoredRecord` を加える（設計書 3.6）。`PartIgnored` と `GitStateParts` を加える（設計書 3.1）。
--   [ ] `Baseline` の最後で `collectTargets` を呼び、`ignored` と `ignoredRecord`（記録の内容の SHA-256）を基準値に入れる（設計書 3.6・3.8）。
--   [ ] `CheckState` の hooks の比較の後で `collectTargets` を呼び、`ignored` と比べる（設計書 3.7）。違えば止まった時点の記録のファイルを書き、`GitStateError{Parts: []string{PartIgnored}}` を返す。記録を書けなくても `stop` は変えない（設計書 3.8）。状態を求められなければ、規則の sentinel を返す。
--   [ ] 記録のファイルの書き込みを、設計書 3.8「書き方」のとおり実装する。置き場所は `locateGitDirs` の作業ツリーごとの git のディレクトリ（設計書 1.2）。
--   [ ] `CheckState` と `Baseline` のコメントに、対象のファイルを最後に比べることと、その理由（設計書 3.7「順序の理由」）を英語で書く。
--   [ ] 1.3.1 の表のステップ 5-1 の既存のテストを直す。期待の変え方は表のとおりで、ほかの期待は変えない。
+-   [x] `baselineVersion` を `v3`、`baselineFields` を 9 にし、`Baseline`・`newBaseline`・`ParseBaseline`・`String` に `ignored`・`ignoredRecord` を加える（設計書 3.6）。`PartIgnored` と `GitStateParts` を加える（設計書 3.1）。
+-   [x] `Baseline` の最後で `collectTargets` を呼び、`ignored` と `ignoredRecord`（記録の内容の SHA-256）を基準値に入れる（設計書 3.6・3.8）。
+-   [x] `CheckState` の hooks の比較の後で `collectTargets` を呼び、`ignored` と比べる（設計書 3.7）。違えば止まった時点の記録のファイルを書き、`GitStateError{Parts: []string{PartIgnored}}` を返す。記録を書けなくても `stop` は変えない（設計書 3.8）。状態を求められなければ、規則の sentinel を返す。
+-   [x] 記録のファイルの書き込みを、設計書 3.8「書き方」のとおり実装する。置き場所は `locateGitDirs` の作業ツリーごとの git のディレクトリ（設計書 1.2）。
+-   [x] `CheckState` と `Baseline` のコメントに、対象のファイルを最後に比べることと、その理由（設計書 3.7「順序の理由」）を英語で書く。
+-   [x] 1.3.1 の表のステップ 5-1 の既存のテストを直す。期待の変え方は表のとおりで、ほかの期待は変えない。
 
 **壊して確かめる**: `TestBaselineMalformedRejected` の新しい欄の行が、`ParseBaseline` の新しい欄の検査を外すと失敗すること。
 
@@ -275,8 +275,8 @@
 
 **変更するファイル**: `internal/fixprguard/ignored.go`、`internal/fixprguard/worktree.go`、`cmd/fixprguard/main.go`
 
--   [ ] `WriteBeginRecord` を、設計書 3.8「`begin` の記録と基準値の結び付け」のとおり実装する。一致しなければ書かずに `git-state-changed`（`ignored`）を、書けなければ `write ignored begin record` の sentinel を返す。
--   [ ] `Worktree.Begin` と `main.go` の `begin` で、`Baseline` の後に `WriteBeginRecord` を呼ぶ。`begin` は記録を書き終えてから基準値を出力する（設計書 3.8「書き方」）。
+-   [x] `WriteBeginRecord` を、設計書 3.8「`begin` の記録と基準値の結び付け」のとおり実装する。一致しなければ書かずに `git-state-changed`（`ignored`）を、書けなければ `write ignored begin record` の sentinel を返す。
+-   [x] `Worktree.Begin` と `main.go` の `begin` で、`Baseline` の後に `WriteBeginRecord` を呼ぶ。`begin` は記録を書き終えてから基準値を出力する（設計書 3.8「書き方」）。
 
 #### ステップ 5-3: 組み込みのテスト
 

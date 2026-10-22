@@ -79,14 +79,22 @@ func (w *Worktree) CheckClean(ctx context.Context) error {
 	return nil
 }
 
-// Begin checks that the work tree is clean and then takes the baseline. The
-// command runs the fork check between the two, so it calls CheckClean and
-// Baseline itself; Begin is the order without it.
+// Begin checks that the work tree is clean, takes the baseline, and writes
+// the begin record file. The command runs the fork check between the first
+// two, so it calls CheckClean, Baseline and WriteBeginRecord itself; Begin is
+// the order without it.
 func (w *Worktree) Begin(ctx context.Context) (Baseline, error) {
 	if err := w.CheckClean(ctx); err != nil {
 		return Baseline{}, err
 	}
-	return w.Baseline(ctx)
+	base, err := w.Baseline(ctx)
+	if err != nil {
+		return Baseline{}, err
+	}
+	if err := w.WriteBeginRecord(ctx, base); err != nil {
+		return Baseline{}, err
+	}
+	return base, nil
 }
 
 // ScopedChange is a changed path as inspect reports it. Path is empty when the

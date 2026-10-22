@@ -405,7 +405,7 @@ func validBaseline(t *testing.T) string {
 	t.Helper()
 	const hexDigest, hexOID = 64, 40
 	digest := strings.Repeat("a", hexDigest)
-	token := strings.Join([]string{"v2", strings.Repeat("1", hexOID), digest, "none", digest, digest, digest, digest}, ".")
+	token := strings.Join([]string{"v3", strings.Repeat("1", hexOID), digest, "none", digest, digest, digest, digest, digest, digest}, ".")
 	if _, err := fixprguard.ParseBaseline(token); err != nil {
 		t.Fatalf("test setup: baseline %q: %v", token, err)
 	}
