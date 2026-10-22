@@ -53,7 +53,8 @@ structural consistency) and the glossary workflow live in
   review replies, and PR comments. A PR title keeps its conventional-commit
   prefix in ASCII and writes the summary after it in Japanese; the forms are in
   `.claude/commands/_context.md`, "PR title and squash subject". The exception
-  is bot commands such as `@coderabbitai review`.
+  is a bot command, such as the PR review request (`_context.md`, "PR review
+  request").
 
 ## Commands
 
@@ -83,7 +84,7 @@ Project-specific values these commands depend on are defined once in
 - `/mkplan <task>` - Create `03_implementation_plan.md` with its PR boundaries (requires approved architecture) and open its PR
 - `/mkplan2 <task>` - Embed PR boundaries into an approved plan that lacks them (plans written before `/mkplan` did it) and open its PR
 - `/runplan <task>` - Implement the phase groups of an approved plan up to the next PR checkpoint, then open the PR
-- `/runpr [PR | branch | task]` - Drive a PR through CodeRabbit and CI, record its bookkeeping (a document's approval, a plan checkpoint), merge it, and run the next command; for a standalone change it also creates the PR
+- `/runpr [PR | branch | task]` - Drive a PR through Codex's PR review and CI, record its bookkeeping (a document's approval, a plan checkpoint), merge it, and run the next command; for a standalone change it also creates the PR
 - `/weakreview [range]` - Second-pass review of work done by a lower-capability model
 - `/fixpr [PR]` - Resolve unresolved PR review threads
 - `/mergepr [PR]` - Squash-merge a PR with a generated commit message and clean up its branch
@@ -96,14 +97,18 @@ feature branch, reviews its work (subagent review, `japrose` for documents,
 local CodeRabbit), opens the PR, pings the reviewer, and stops. `/mkreq`,
 `/mkarch`, and `/mkplan` first ask the human about the decisions their input
 leaves open; `/runplan` asks when implementation meets a decision change. After reviewing, the reviewer runs `/runpr`, which drives
-it: it waits for CodeRabbit and CI and resolves the threads with `/fixpr`. It
+it: it waits for Codex's PR review and CI and resolves the threads with `/fixpr`. It
 then asks one question: record the bookkeeping (for a document, its
 `approved` status), merge with `/mergepr`, and run the next command, which opens
 the next PR and stops again.
 
-CodeRabbit's PR review is rationed per hour, so a PR gets one when it opens
-(`.coderabbit.yaml` turns the incremental review off). Later changes are
-reviewed with the local CLI, and `/runpr` requests another PR review only when
+Codex does the PR review. Its allowance is shared with the user's other
+ChatGPT use and its size is not published, so a PR gets one PR review, when it
+opens. Codex is set up outside the repository, by the user: it reviews
+automatically only when a PR is created, never on a push, and its thorough
+code review is off.
+`.coderabbit.yaml` turns CodeRabbit's automatic review off, so the PR is not
+reviewed twice. Later changes are reviewed with the local CodeRabbit CLI, and `/runpr` requests another PR review only when
 the changes are of a kind the local review cannot stand in for
 ([pr-review-escalation.md](.claude/commands/_lib/pr-review-escalation.md)) or
 when the user asks in its one question.

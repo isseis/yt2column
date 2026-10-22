@@ -6,12 +6,12 @@
 # `inheritance: true` keeps the existing organization/repository UI settings.
 inheritance: true
 reviews:
-  # CodeRabbit's PR review is rationed per developer per hour, and each push
-  # would spend one review. The PR is reviewed once when it opens; later changes
-  # are reviewed locally with the CLI, and `/runpr` requests a further PR review
-  # only when `.claude/commands/_lib/pr-review-escalation.md` says so.
+  # CodeRabbit does not review PRs: Codex does the PR review, and a second
+  # automatic review of the same PR would spend both allowances for one
+  # review. The local CLI review (`coderabbit review`) is still used for the
+  # changes after the PR opens.
   auto_review:
-    auto_incremental_review: false
+    enabled: false
   pre_merge_checks:
     docstrings:
       mode: "off"

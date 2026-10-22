@@ -201,7 +201,7 @@
 
 #### ステップ 2-0: 再インストールの確認
 
-- [ ] PR-1 のマージのコミットを `gh pr view <PR-1> --json mergeCommit` で求め、`go version -m "$(command -v fixprguard)"` の `vcs.revision` がそのコミットまたはその子孫であること（`git merge-base --is-ancestor`）と、`vcs.modified` が `false` であることを確かめる。違えば、利用者に再インストールを頼み、先に進まない（設計書 1.2・5.3）。
+- [x] PR-1 のマージのコミットを `gh pr view <PR-1> --json mergeCommit` で求め、`go version -m "$(command -v fixprguard)"` の `vcs.revision` がそのコミットまたはその子孫であること（`git merge-base --is-ancestor`）と、`vcs.modified` が `false` であることを確かめる。違えば、利用者に再インストールを頼み、先に進まない（設計書 1.2・5.3）。
 
 **完了の条件**: 両方の確認が通る。
 
@@ -209,8 +209,8 @@
 
 **変更するファイル**: `.claude/commands/_context.md`
 
-- [ ] 設計書 3.1 の表のとおり、`Awaited PR reviewer` の値を `chatgpt-codex-connector` にし、説明の文を改める。説明には、`TestContextAndCommandsAgree` が求める「REST `user.login`」と「followed by `[bot]`」を残す（1.4）。
-- [ ] `PR review request` の行を、設計書 3.1 の表の説明の文とともに加える。行の形は `Awaited PR reviewer` の行と同じにする。
+- [x] 設計書 3.1 の表のとおり、`Awaited PR reviewer` の値を `chatgpt-codex-connector` にし、説明の文を改める。説明には、`TestContextAndCommandsAgree` が求める「REST `user.login`」と「followed by `[bot]`」を残す（1.4）。
+- [x] `PR review request` の行を、設計書 3.1 の表の説明の文とともに加える。行の形は `Awaited PR reviewer` の行と同じにする。
 
 **完了の条件**: ステップ 2-5 の `_context.md` の確認が通る。
 
@@ -218,8 +218,8 @@
 
 **変更するファイル**: `.claude/commands/runpr.md`
 
-- [ ] 設計書 3.5 の次の箇条のとおりに改める: `description` と冒頭、Authorization、冒頭のスレッドの読み方の文（設計書 1.4 の 3 行目の例外）、プレースホルダーの定義（設計書 3.1 の 3 つ）、step 3 の見出し（1.5 の一覧）と冒頭、`fixpr` を再び実行する条件の語、CodeRabbit のステータスによる停止の削除、step 4 の PR レビューの質問と依頼。
-- [ ] 1.4 の「変えずに保つ文を固定しているガード」の文を残す。
+- [x] 設計書 3.5 の次の箇条のとおりに改める: `description` と冒頭、Authorization、冒頭のスレッドの読み方の文（設計書 1.4 の 3 行目の例外）、プレースホルダーの定義（設計書 3.1 の 3 つ）、step 3 の見出し（1.5 の一覧）と冒頭、`fixpr` を再び実行する条件の語、CodeRabbit のステータスによる停止の削除、step 4 の PR レビューの質問と依頼。
+- [x] 1.4 の「変えずに保つ文を固定しているガード」の文を残す。
 
 **完了の条件**: 1.4 に挙げた既存のガードが通る。
 
@@ -227,9 +227,9 @@
 
 **変更するファイル**: `.claude/commands/runpr.md`
 
-- [ ] 「Reviewed」を、設計書 3.2（読む値と受け入れる形、状態の行の受け入れる形、読み方の制約、時点と時間の測り方、前提とする運用）と 3.3（依頼の一覧、依頼したコミット、最新の依頼の状態の規則 1〜6 を上からこの順で当てはめること、使わない投稿の表、断りのコメント、LAST_REVIEWED）のとおりに、エージェントが従える手順として書く。要約コメントは 1 行目と 2 行目だけを取り出す `--jq` の絞り込みで読む。
-- [ ] 「Requesting the review」を、設計書 3.4（依頼を投稿する条件と、待っていた依頼が完了した後の確かめ直し）、4 章（停止の表、止まり続けるとき）、6.1・6.2 の流れのとおりに書く。依頼は `gh pr comment <number> --body "<review-request>"` で、初回・エスカレーション・step 4 のどれも同じ書き方にする。
-- [ ] `Date` ヘッダーを読む呼び出し（設計書 3.2）を、読み取りだけの `gh api -i` で一度実行し、`Date` の行が出ることを確かめる（ネットワークの操作なので、実行の前に利用者の承認を得る）。
+- [x] 「Reviewed」を、設計書 3.2（読む値と受け入れる形、状態の行の受け入れる形、読み方の制約、時点と時間の測り方、前提とする運用）と 3.3（依頼の一覧、依頼したコミット、最新の依頼の状態の規則 1〜6 を上からこの順で当てはめること、使わない投稿の表、断りのコメント、LAST_REVIEWED）のとおりに、エージェントが従える手順として書く。要約コメントは 1 行目と 2 行目だけを取り出す `--jq` の絞り込みで読む。
+- [x] 「Requesting the review」を、設計書 3.4（依頼を投稿する条件と、待っていた依頼が完了した後の確かめ直し）、4 章（停止の表、止まり続けるとき）、6.1・6.2 の流れのとおりに書く。依頼は `gh pr comment <number> --body "<review-request>"` で、初回・エスカレーション・step 4 のどれも同じ書き方にする。
+- [x] `Date` ヘッダーを読む呼び出し（設計書 3.2）を、読み取りだけの `gh api -i` で一度実行し、`Date` の行が出ることを確かめる（ネットワークの操作なので、実行の前に利用者の承認を得る）。
 
 **完了の条件**: 書いた手順を、設計書 3.2〜3.4・4 章・6 章と 1 項目ずつ読み合わせ、落ちた規則がないことを確かめる。ステップ 2-5 の `TestRunprDocContract` が通る。
 
@@ -237,8 +237,8 @@
 
 **変更するファイル**: `.claude/commands/_lib/task-pr-handoff.md`、`.claude/commands/_lib/pr-review-escalation.md`
 
-- [ ] `_lib/task-pr-handoff.md` を、設計書 3.6 の箇条のうち「投稿の前の確認」を除くすべてに従って改める（冒頭・AFTER_CREATE・Part B step 7 の語、Authorization、プレースホルダーの定義、Part B step 5）。プレースホルダーの定義は `runpr.md` と同じ文にする。
-- [ ] `_lib/pr-review-escalation.md` を設計書 3.7 のとおりに改める。判断の基準と手順は変えない。`_lib/pr-review-escalation.md:9` の `@coderabbitai review` を消す。
+- [x] `_lib/task-pr-handoff.md` を、設計書 3.6 の箇条のうち「投稿の前の確認」を除くすべてに従って改める（冒頭・AFTER_CREATE・Part B step 7 の語、Authorization、プレースホルダーの定義、Part B step 5）。プレースホルダーの定義は `runpr.md` と同じ文にする。
+- [x] `_lib/pr-review-escalation.md` を設計書 3.7 のとおりに改める。判断の基準と手順は変えない。`_lib/pr-review-escalation.md:9` の `@coderabbitai review` を消す。
 
 **完了の条件**: ステップ 2-5 の確認が通る。
 
@@ -246,21 +246,21 @@
 
 **変更するファイル**: `cmd/yt2column/fixpr_docs_test.go`
 
-- [ ] `TestContextAndCommandsAgree` を設計書 3.11 の 1 つめの箇条のとおりに改める: 期待値を `chatgpt-codex-connector` にする、確かめる文書に `_lib/task-pr-handoff.md` を加える、許す文字列をなくす、`runpr.md` と `_lib/task-pr-handoff.md` が `<awaited-reviewer>`・`<review-request>`・`<review-mention>` の定義の文を持つことを確かめる。定義の文は、`awaitedReviewerSentence` と同じく定数で持ち、2 つの文書で同じ文を求める。
-- [ ] `PR review request` の行の検査を、設計書 3.11 の 2 つめの箇条のとおりに加える。値の最初の語が `fixprguard.CodexMention` と一致することも確かめる。`TestContextReviewerRowsMalformed` に、この行が欠ける・2 行ある・値の形が違う・最初の語が違う、の行を加える。
-- [ ] `TestRunprDocContract` を設計書 3.11 の 3 つめの箇条のとおりに改める（`no_body_fetch`、`runprStep3`、`reviewedCheck`、`lastReviewedRule`、`autoFixprCondition`）。`autoFixprCondition` のコメントの「the switch must leave it unchanged」は、条件を変えず語だけを改めたことが分かる文にする。
-- [ ] `TestRunprDocContract` に次の文を固定するサブテストを加える（設計書 7.3 の「停止と再実行」）。どの文を固定するかは書いた文書から選ぶ。
+- [x] `TestContextAndCommandsAgree` を設計書 3.11 の 1 つめの箇条のとおりに改める: 期待値を `chatgpt-codex-connector` にする、確かめる文書に `_lib/task-pr-handoff.md` を加える、許す文字列をなくす、`runpr.md` と `_lib/task-pr-handoff.md` が `<awaited-reviewer>`・`<review-request>`・`<review-mention>` の定義の文を持つことを確かめる。定義の文は、`awaitedReviewerSentence` と同じく定数で持ち、2 つの文書で同じ文を求める。
+- [x] `PR review request` の行の検査を、設計書 3.11 の 2 つめの箇条のとおりに加える。値の最初の語が `fixprguard.CodexMention` と一致することも確かめる。`TestContextReviewerRowsMalformed` に、この行が欠ける・2 行ある・値の形が違う・最初の語が違う、の行を加える。
+- [x] `TestRunprDocContract` を設計書 3.11 の 3 つめの箇条のとおりに改める（`no_body_fetch`、`runprStep3`、`reviewedCheck`、`lastReviewedRule`、`autoFixprCondition`）。`autoFixprCondition` のコメントの「the switch must leave it unchanged」は、条件を変えず語だけを改めたことが分かる文にする。
+- [x] `TestRunprDocContract` に次の文を固定するサブテストを加える（設計書 7.3 の「停止と再実行」）。どの文を固定するかは書いた文書から選ぶ。
     -   規則 1〜6 と、断りのコメントの但し書き。規則の順序は `head_before_checkout` と同じく位置の比較で固定する。
     -   依頼したコミットの 2 つの祖先の判定（向きが依頼の種類で逆になる）、`0`・`1` 以外の終了コードの扱い、判定の前の `git fetch origin`。
     -   依頼のコメントの絞り込み（`user.type` が `User`、`login` が `gh api user` の値、本文が `<review-request>` と一致）。
     -   依頼の書き方（`gh pr comment <number> --body "<review-request>"`）が step 3 と step 4 にあること、最新の依頼が「待っている」か「判定できない」の間は投稿しないこと、待っていた依頼が完了した後に確かめ直して 1 回投稿すること。
     -   時間切れと想定外の投稿と判定できない状態で止まって step 4 に進まないこと、再実行で終わった依頼を依頼し直すこと。
     -   step 4 の PR レビューの質問が Codex を名指しすること。
-- [ ] `TestHandoffStartMarker`（同じファイル、新規）: `_lib/task-pr-handoff.md` Part B step 5 が、約 2 分間、約 30 秒おきに読むこと、要約コメントを `Bot` の種類と `<awaited-reviewer>[bot]` と 1 行目で絞ること、PR を開いた時点より後の書き換えを開始の印とすること、ないときに `<review-request>` で 1 回依頼すること、完了を待たないことを述べていることを確かめる（設計書 3.6・5.2）。範囲は step 5 の中に限る。
+- [x] `TestHandoffStartMarker`（同じファイル、新規）: `_lib/task-pr-handoff.md` Part B step 5 が、約 2 分間、約 30 秒おきに読むこと、要約コメントを `Bot` の種類と `<awaited-reviewer>[bot]` と 1 行目で絞ること、PR を開いた時点より後の書き換えを開始の印とすること、ないときに `<review-request>` で 1 回依頼すること、完了を待たないことを述べていることを確かめる（設計書 3.6・5.2）。範囲は step 5 の中に限る。
 
 #### ステップ 2-6: 壊して失敗を確かめる
 
-- [ ] 次のそれぞれで、該当するガードが失敗することを確かめ、コミットメッセージに書く。
+- [x] 次のそれぞれで、該当するガードが失敗することを確かめ、コミットメッセージに書く。
     -   設計書 7.2 の 2 つめの箇条のうち、このフェーズの確認に当たるもの（`runpr.md` に `@coderabbitai review` を戻す、`task-pr-handoff.md` に `chatgpt-codex-connector` を書く、`PR review request` の行を消す・2 行にする・最初の語を変える）。
     -   規則 1 と規則 2 の順序を入れ替える。
     -   祖先の判定の引数の順序を入れ替える。
@@ -276,10 +276,10 @@
 
 **変更するファイル**: `.claude/commands/fixpr.md`
 
-- [ ] プレースホルダー `<review-mention>` の定義の文を、`runpr.md` と同じ文で加える（設計書 3.1）。
-- [ ] `/fixpr` のフェーズ 2・3 でエージェントに渡す返信の文面の規則と、`/fixpr` のフェーズ 6 でエージェントに渡す PR の説明の規則に、メンションを書かないこと（スレッドの本文を引用するときも写さないこと）を加える。指示はプレースホルダーで書く（設計書 3.8）。
-- [ ] `/fixpr` のフェーズ 5 とフェーズ 6 に、投稿の前の確認と、含まれていたときの扱いを、設計書 3.8 の表のとおりに加える。
-- [ ] `/fixpr` のフェーズ 5 の「ほかの止まり方」に終了コード `2` を含め、停止の種類の代わりに診断を挙げることを明記する（設計書 3.8 の箇条の `fixpr.md` フェーズ 5）。
+- [x] プレースホルダー `<review-mention>` の定義の文を、`runpr.md` と同じ文で加える（設計書 3.1）。
+- [x] `/fixpr` のフェーズ 2・3 でエージェントに渡す返信の文面の規則と、`/fixpr` のフェーズ 6 でエージェントに渡す PR の説明の規則に、メンションを書かないこと（スレッドの本文を引用するときも写さないこと）を加える。指示はプレースホルダーで書く（設計書 3.8）。
+- [x] `/fixpr` のフェーズ 5 とフェーズ 6 に、投稿の前の確認と、含まれていたときの扱いを、設計書 3.8 の表のとおりに加える。
+- [x] `/fixpr` のフェーズ 5 の「ほかの止まり方」に終了コード `2` を含め、停止の種類の代わりに診断を挙げることを明記する（設計書 3.8 の箇条の `fixpr.md` フェーズ 5）。
 
 **完了の条件**: ステップ 3-3 の確認が通る。
 
@@ -287,7 +287,7 @@
 
 **変更するファイル**: `.claude/commands/runpr.md`、`.claude/commands/_lib/task-pr-handoff.md`
 
-- [ ] 1.4 の表の残りの 5 か所の節（`runpr.md` の step 1・step 4・step 5、`_lib/task-pr-handoff.md` の Part A step 4・Part B step 3）に、投稿の前の確認と、含まれていたときの扱いを設計書 3.8 の表のとおりに加える。`runpr.md` step 4 では、issue・コメントと返信の両方を対象にする。step 5 では、`--comment` に渡すコメントの文面を書いた時点で確かめる（1.4）。依頼のコメントは対象外であることを書く。
+- [x] 1.4 の表の残りの 5 か所の節（`runpr.md` の step 1・step 4・step 5、`_lib/task-pr-handoff.md` の Part A step 4・Part B step 3）に、投稿の前の確認と、含まれていたときの扱いを設計書 3.8 の表のとおりに加える。`runpr.md` step 4 では、issue・コメントと返信の両方を対象にする。step 5 では、`--comment` に渡すコメントの文面を書いた時点で確かめる（1.4）。依頼のコメントは対象外であることを書く。
 
 **完了の条件**: ステップ 3-3 の確認が通る。
 
@@ -295,15 +295,15 @@
 
 **変更するファイル**: `cmd/yt2column/fixpr_docs_test.go`、`cmd/yt2column/codex_review_docs_test.go`（新規）
 
-- [ ] `TestContextAndCommandsAgree` に、`fixpr.md` が `<review-mention>` の定義の文（`runpr.md` と同じ定数）を持つことを加える。
-- [ ] `TestCodexMentionOnlyInRequestRow`（新しいファイル）: 設計書 3.11 の新しいファイルの 1 つめの確認。`.claude/commands/` の下（`_lib/` を含む）のすべての文書と `CLAUDE.md` で、`@codex` が大文字と小文字を区別せずに現れるのは `_context.md` の `PR review request` の行だけであることを確かめる。
-- [ ] `TestPostingPathsCheckMention`（新しいファイル）: 1.4 の表の 7 か所の節のそれぞれが、投稿の前の確認の決まった文（定数で持つ）と、その節の「含まれていたときの扱い」（設計書 3.8 の表）を述べることを確かめる。各節で、確認の文がその節の投稿のコマンドより前にあることも、`head_before_checkout` と同じく位置の比較で確かめる。`runpr.md` step 4 は issue・コメントと返信の両方について確かめる。
-- [ ] `TestPostingCommandsInventory`（新しいファイル）: 新しい投稿の経路が確認なしに加わったら失敗する、棚卸しのテストである。`.claude/commands/` の下で GitHub に投稿するコマンドの呼び出し（コードのブロックの中の行と、バッククォートで囲んだ呼び出しのうち `--body`・`--body-file`・`--title`・`--comment` か `fixprguard reply`・`edit-pr` の引数を伴うもの）が、7 か所の節の中にあるか、依頼のコメントか、`mergepr.md` の squash のマージであることを確かめる。名前だけを挙げる文（1.4 の Authorization の節などの一致）は呼び出しとして数えない。どちらの形で数えるかは、今の文書で 1.4 の一致がすべて分類されること（呼び出しは 7 か所と例外、名前だけの文は数えない）を最初に確かめて決める。
-- [ ] `/fixpr` のフェーズ 2・3・6 のエージェントへの規則（メンションを書かない、引用でも写さない）と、`/fixpr` のフェーズ 5 の終了コード `2` の扱いの文を、`TestFixprDocContract` に固定する。
+- [x] `TestContextAndCommandsAgree` に、`fixpr.md` が `<review-mention>` の定義の文（`runpr.md` と同じ定数）を持つことを加える。
+- [x] `TestCodexMentionOnlyInRequestRow`（新しいファイル）: 設計書 3.11 の新しいファイルの 1 つめの確認。`.claude/commands/` の下（`_lib/` を含む）のすべての文書と `CLAUDE.md` で、`@codex` が大文字と小文字を区別せずに現れるのは `_context.md` の `PR review request` の行だけであることを確かめる。
+- [x] `TestPostingPathsCheckMention`（新しいファイル）: 1.4 の表の 7 か所の節のそれぞれが、投稿の前の確認の決まった文（定数で持つ）と、その節の「含まれていたときの扱い」（設計書 3.8 の表）を述べることを確かめる。各節で、確認の文がその節の投稿のコマンドより前にあることも、`head_before_checkout` と同じく位置の比較で確かめる。`runpr.md` step 4 は issue・コメントと返信の両方について確かめる。
+- [x] `TestPostingCommandsInventory`（新しいファイル）: 新しい投稿の経路が確認なしに加わったら失敗する、棚卸しのテストである。`.claude/commands/` の下で GitHub に投稿するコマンドの呼び出し（コードのブロックの中の行と、バッククォートで囲んだ呼び出しのうち `--body`・`--body-file`・`--title`・`--comment` か `fixprguard reply`・`edit-pr` の引数を伴うもの）が、7 か所の節の中にあるか、依頼のコメントか、`mergepr.md` の squash のマージであることを確かめる。名前だけを挙げる文（1.4 の Authorization の節などの一致）は呼び出しとして数えない。どちらの形で数えるかは、今の文書で 1.4 の一致がすべて分類されること（呼び出しは 7 か所と例外、名前だけの文は数えない）を最初に確かめて決める。
+- [x] `/fixpr` のフェーズ 2・3・6 のエージェントへの規則（メンションを書かない、引用でも写さない）と、`/fixpr` のフェーズ 5 の終了コード `2` の扱いの文を、`TestFixprDocContract` に固定する。
 
 #### ステップ 3-4: 壊して失敗を確かめる
 
-- [ ] 次のそれぞれで、該当するガードが失敗することを確かめ、コミットメッセージに書く。
+- [x] 次のそれぞれで、該当するガードが失敗することを確かめ、コミットメッセージに書く。
     -   `fixpr.md` に `@codex` を書く、`_lib/` の下の文書に `@Codex` を書く、`_context.md` のほかの行に書く、`CLAUDE.md` に書く。
     -   7 か所の節のそれぞれについて、確認の文を消す（7 回）。
     -   1 か所の節で、確認の文を投稿のコマンドの後に移す。
@@ -319,9 +319,9 @@
 
 **変更するファイル**: `.coderabbit.yaml`
 
-- [ ] 1 行目のスキーマで `reviews.auto_review.enabled` のキーと意味を確かめる（ネットワークの操作なので、実行の前に利用者の承認を得る）。
-- [ ] 設計書 3.9 のとおり、`reviews.auto_review` に `enabled: false` を加え、`auto_incremental_review: false` を消し、コメントを PR レビューを行わない理由の説明に改める。`pre_merge_checks.docstrings` とその説明は変えない。
-- [ ] 変更の後に `coderabbit review` を実行し、指摘か「指摘なし」の結果が返ってローカルの CLI レビューが動くことを確かめる（設計書 3.9・7.3）。動かなければ、実装を止めて利用者に報告する。
+- [x] 1 行目のスキーマで `reviews.auto_review.enabled` のキーと意味を確かめる（ネットワークの操作なので、実行の前に利用者の承認を得る）。
+- [x] 設計書 3.9 のとおり、`reviews.auto_review` に `enabled: false` を加え、`auto_incremental_review: false` を消し、コメントを PR レビューを行わない理由の説明に改める。`pre_merge_checks.docstrings` とその説明は変えない。
+- [x] 変更の後に `coderabbit review` を実行し、指摘か「指摘なし」の結果が返ってローカルの CLI レビューが動くことを確かめる（設計書 3.9・7.3）。動かなければ、実装を止めて利用者に報告する。
 
 **完了の条件**: ローカルの CLI レビューが動く。ステップ 4-5 の `.coderabbit.yaml` の確認が通る。
 
@@ -329,10 +329,10 @@
 
 **変更するファイル**: `AGENTS.md`、`CLAUDE.md`、`.claude/commands/mkreq.md`、`.claude/commands/fixpr.md`、`.claude/commands/_lib/coderabbit-local-review.md`、`docs/translation_glossary.md`
 
-- [ ] `AGENTS.md` の見出しを 1.5 の一覧のとおりに改め、節の最初に `CLAUDE.md` を参照する文を置く。今の箇条と `### Static guards …` の節は変えない（設計書 3.10）。
-- [ ] `CLAUDE.md` を設計書 3.10 の 1 つめの箇条のとおりに改める。ローカルの CLI レビューの記述（`:96` の「local CodeRabbit」、`:392-394`）は残す。
-- [ ] `mkreq.md:16`、`fixpr.md:86-89`・`557-558`、`_lib/coderabbit-local-review.md:83-84` を設計書 3.10 の箇条のとおりに改める。
-- [ ] `docs/translation_glossary.md` に、割り当て / quota、指摘 / finding、スレッド / thread の 3 行を設計書 3.10 のとおりに加える。
+- [x] `AGENTS.md` の見出しを 1.5 の一覧のとおりに改め、節の最初に `CLAUDE.md` を参照する文を置く。今の箇条と `### Static guards …` の節は変えない（設計書 3.10）。
+- [x] `CLAUDE.md` を設計書 3.10 の 1 つめの箇条のとおりに改める。ローカルの CLI レビューの記述（`:96` の「local CodeRabbit」、`:392-394`）は残す。
+- [x] `mkreq.md:16`、`fixpr.md:86-89`・`557-558`、`_lib/coderabbit-local-review.md:83-84` を設計書 3.10 の箇条のとおりに改める。
+- [x] `docs/translation_glossary.md` に、割り当て / quota、指摘 / finding、スレッド / thread の 3 行を設計書 3.10 のとおりに加える。
 
 **完了の条件**: ステップ 4-3〜4-5 の確認が通る。
 
@@ -340,28 +340,28 @@
 
 **変更するファイル**: `cmd/yt2column/fixpr_docs_test.go`
 
-- [ ] `TestGlossaryTerms` に 3 つの用語を加え、割り当ての行が「枠」と区別していることを確かめる（設計書 3.10）。
+- [x] `TestGlossaryTerms` に 3 つの用語を加え、割り当ての行が「枠」と区別していることを確かめる（設計書 3.10）。
 
 #### ステップ 4-4: CodeRabbit の PR レビューが残らないことのガード
 
 **変更するファイル**: `cmd/yt2column/codex_review_docs_test.go`
 
-- [ ] `TestNoCodeRabbitPRReview`: 設計書 3.11 の新しいファイルの 2 つめの確認（`@coderabbitai review`、`runpr.md` の `StatusContext` と `between [0-9a-f]{40}`、`CodeRabbit PR review`・`CodeRabbit's PR review` がないこと）に加えて、1.4 の「改めるもの」の各行で PR レビューを CodeRabbit として述べている今の文（「waits for CodeRabbit and CI」「the PR-side CodeRabbit review」「CodeRabbit has not reviewed」など）が残らないことを、`flat` で読んで確かめる。
-- [ ] `TestLocalCodeRabbitReviewKept`: 1.4 の「残すもの（ローカルの CLI レビュー）」のうち、`fixpr.md` フェーズ 4.5 の見出し、`_lib/task-pr-handoff.md` Part B step 1、`CLAUDE.md` の `coderabbit review` の項目が、CodeRabbit のローカルの CLI レビューとして残ることを確かめる（AC-24 の後半）。
-- [ ] `TestDocsDescribeCodexReview`: `runpr.md` と `_lib/pr-review-escalation.md` の `description`、`_lib/task-pr-handoff.md` の冒頭と Part B step 7、`CLAUDE.md` の `/runpr` の説明が PR レビューを Codex として説明すること（AC-24）、`CLAUDE.md` が Codex の設定（レビューのタイミングは PR 作成時のみ、徹底的なコードレビューは無効）を書いていること（AC-07）を確かめる。
+- [x] `TestNoCodeRabbitPRReview`: 設計書 3.11 の新しいファイルの 2 つめの確認（`@coderabbitai review`、`runpr.md` の `StatusContext` と `between [0-9a-f]{40}`、`CodeRabbit PR review`・`CodeRabbit's PR review` がないこと）に加えて、1.4 の「改めるもの」の各行で PR レビューを CodeRabbit として述べている今の文（「waits for CodeRabbit and CI」「the PR-side CodeRabbit review」「CodeRabbit has not reviewed」など）が残らないことを、`flat` で読んで確かめる。
+- [x] `TestLocalCodeRabbitReviewKept`: 1.4 の「残すもの（ローカルの CLI レビュー）」のうち、`fixpr.md` フェーズ 4.5 の見出し、`_lib/task-pr-handoff.md` Part B step 1、`CLAUDE.md` の `coderabbit review` の項目が、CodeRabbit のローカルの CLI レビューとして残ることを確かめる（AC-24 の後半）。
+- [x] `TestDocsDescribeCodexReview`: `runpr.md` と `_lib/pr-review-escalation.md` の `description`、`_lib/task-pr-handoff.md` の冒頭と Part B step 7、`CLAUDE.md` の `/runpr` の説明が PR レビューを Codex として説明すること（AC-24）、`CLAUDE.md` が Codex の設定（レビューのタイミングは PR 作成時のみ、徹底的なコードレビューは無効）を書いていること（AC-07）を確かめる。
 
 #### ステップ 4-5: 設定・規則・観測の記録のガード
 
 **変更するファイル**: `cmd/yt2column/codex_review_docs_test.go`、`docs/tasks/0031_codex_pr_review/observations.md`
 
-- [ ] `TestCodeRabbitConfigStopsReview`: `.coderabbit.yaml` の `reviews` → `auto_review` → `enabled: false` の並びを、テキストを受け取る純粋な関数で確かめる。標準ライブラリに YAML の解析はないので、字下げとキーで読み、コメントの行は飛ばす（`CLAUDE.md` の「Dependencies」）。本物のファイルの写しを 1 か所ずつ壊した表（`TestContextReviewerRowsMalformed` の形。壊さない対照の行を含む）でこの関数を確かめる。壊し方は、`enabled: false` をコメントにする、`true` にする、`reviews` の直下に移す、`pre_merge_checks` の下に移す、`auto_review` を 2 つにする、を含める。あわせて、コメントが PR レビューを行わない理由（Codex が行う、ローカルの CLI レビューは続ける）を述べることを確かめる（AC-22 の 3 つめの文）。
-- [ ] `TestAgentsCodeReviewRules`: `AGENTS.md` に `## Code Review Rules` の見出しがちょうど 1 つあり、`## Review guidelines` がなく、`sectionByHeading` で取り出したその節の中で `CLAUDE.md` を参照することを確かめる（AC-26。`AGENTS.md:3` の参照は節の外なので数えない）。
-- [ ] `observations.md` の PR での観測のうち、依頼したコミットの SHA がないもの（たとえば項目 3・5・6・8 の PR での観測）を洗い出し、GitHub の記録から SHA を補う。記録は読み取りだけの `gh api` で取り出す（ネットワークの操作なので、実行の前に利用者の承認を得る）。SHA を決められない観測には、その理由を項目に書く。観測の内容と結論は変えない。
-- [ ] `TestCodexObservationRecord`: `observations.md` の「AC-01 の各項目」の項目 1〜9 がそれぞれ、日付と根拠（PR の番号、`gh api`、URL のいずれか）と、観測の結果を述べる文を持つこと（AC-01・AC-02）、PR での観測のそれぞれが PR の番号と、依頼したコミットの SHA（または SHA を決められない理由）を持つこと（AC-02）、項目 3 が GraphQL の `__typename`・`login` と REST の `type`・`login` の値を持つこと（AC-03。今の記録は表の形で書いている）、項目 1 が指摘 0 件と 1 件以上の両方の観測を持つこと（AC-04）、「AC-05 に当たる点」の節があること（AC-05）を確かめる。
+- [x] `TestCodeRabbitConfigStopsReview`: `.coderabbit.yaml` の `reviews` → `auto_review` → `enabled: false` の並びを、テキストを受け取る純粋な関数で確かめる。標準ライブラリに YAML の解析はないので、字下げとキーで読み、コメントの行は飛ばす（`CLAUDE.md` の「Dependencies」）。本物のファイルの写しを 1 か所ずつ壊した表（`TestContextReviewerRowsMalformed` の形。壊さない対照の行を含む）でこの関数を確かめる。壊し方は、`enabled: false` をコメントにする、`true` にする、`reviews` の直下に移す、`pre_merge_checks` の下に移す、`auto_review` を 2 つにする、を含める。あわせて、コメントが PR レビューを行わない理由（Codex が行う、ローカルの CLI レビューは続ける）を述べることを確かめる（AC-22 の 3 つめの文）。
+- [x] `TestAgentsCodeReviewRules`: `AGENTS.md` に `## Code Review Rules` の見出しがちょうど 1 つあり、`## Review guidelines` がなく、`sectionByHeading` で取り出したその節の中で `CLAUDE.md` を参照することを確かめる（AC-26。`AGENTS.md:3` の参照は節の外なので数えない）。
+- [x] `observations.md` の PR での観測のうち、依頼したコミットの SHA がないもの（たとえば項目 3・5・6・8 の PR での観測）を洗い出し、GitHub の記録から SHA を補う。記録は読み取りだけの `gh api` で取り出す（ネットワークの操作なので、実行の前に利用者の承認を得る）。SHA を決められない観測には、その理由を項目に書く。観測の内容と結論は変えない。
+- [x] `TestCodexObservationRecord`: `observations.md` の「AC-01 の各項目」の項目 1〜9 がそれぞれ、日付と根拠（PR の番号、`gh api`、URL のいずれか）と、観測の結果を述べる文を持つこと（AC-01・AC-02）、PR での観測のそれぞれが PR の番号と、依頼したコミットの SHA（または SHA を決められない理由）を持つこと（AC-02）、項目 3 が GraphQL の `__typename`・`login` と REST の `type`・`login` の値を持つこと（AC-03。今の記録は表の形で書いている）、項目 1 が指摘 0 件と 1 件以上の両方の観測を持つこと（AC-04）、「AC-05 に当たる点」の節があること（AC-05）を確かめる。
 
 #### ステップ 4-6: 壊して失敗を確かめる
 
-- [ ] 次のそれぞれで、該当するガードが失敗することを確かめ、コミットメッセージに書く。
+- [x] 次のそれぞれで、該当するガードが失敗することを確かめ、コミットメッセージに書く。
     -   設計書 7.2 の 2 つめの箇条の残り（`AGENTS.md` の見出しを戻す、`.coderabbit.yaml` の `enabled: false` を消す、用語集の行を消す）。
     -   「waits for CodeRabbit and CI」を `CLAUDE.md` に戻す、「the PR-side CodeRabbit review」を戻す。
     -   `fixpr.md` フェーズ 4.5 の見出しの CodeRabbit を Codex に変える。
@@ -384,10 +384,10 @@
 
 **判定理由**: ステップ 2-3 は依頼の状態の規則（設計書 3.3）とレビュー済みの判定というセキュリティの境界（要件書 4.2）を含み、PR-2 全体が PR レビューの移行（mkplan の panel mode の「security-gate / migration」）に当たる。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/454
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装の順序とマイルストーン
 
@@ -460,8 +460,8 @@ PR-1 を先にするのは、PR-2 の `/fixpr` を、メンションを拒否す
 ## 6. 実装チェックリスト
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6）
-- [ ] 利用者が `make install-fixprguard` を実行した（ステップ 2-0 で確かめた）
-- [ ] PR-2 マージ済み（対象ステップ: 2-0 / 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 3-1 / 3-2 / 3-3 / 3-4 / 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6）
+- [x] 利用者が `make install-fixprguard` を実行した（ステップ 2-0 で確かめた）
+- [x] PR-2 マージ済み（対象ステップ: 2-0 / 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 3-1 / 3-2 / 3-3 / 3-4 / 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6）
 - [ ] PR-2 のブランチで `/runpr` を実行し、4.2 の切り替えの PR 自身の確かめを済ませた
 - [ ] 切り替えの後の最初の PR で、4.2 の確かめを済ませた
 - [ ] #403 を閉じた

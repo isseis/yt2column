@@ -1,15 +1,15 @@
 ---
-description: "Internal: when to request a further CodeRabbit PR review after the first (not a command)"
+description: "Internal: when to request a further Codex PR review after the first (not a command)"
 ---
 
 # Shared pattern: PR review escalation
 
-CodeRabbit's PR review is rationed: the plan allows a fixed number of PR reviews
-per hour per developer, and every review counts against it, including a manual
-`@coderabbitai review`. `.coderabbit.yaml` therefore turns the automatic
-incremental review off. The PR is reviewed there once, when it opens; changes
-after that are reviewed locally with the `coderabbit` CLI (`fixpr.md` Phase 4.5,
-`_lib/coderabbit-local-review.md`), whose allowance is separate.
+Codex does the PR review, and its allowance is rationed: it is shared with the
+user's other ChatGPT use, and its size is not published, so after the review
+made when the PR opens, a PR review is requested only when it is needed. Codex
+is set to review only when the PR is created, never on a push (`CLAUDE.md`).
+Changes after that are reviewed locally with the `coderabbit` CLI (`fixpr.md`
+Phase 4.5, `_lib/coderabbit-local-review.md`), whose allowance is separate.
 
 A further PR review is requested in exactly two cases: the user asks for it
 (`runpr.md` step 4 offers it), or this file's judgement says the changes since
@@ -19,7 +19,9 @@ step 3 invokes this file.
 ## Inputs the calling command must supply
 
 - **PR** — the PR number.
-- **LAST_REVIEWED** — the commit CodeRabbit's last PR review ended at.
+- **LAST_REVIEWED** — the commit Codex's last completed PR review was for, as
+  `runpr.md` step 3, "LAST_REVIEWED", defines it. When it is none, `runpr.md`
+  takes the decision as `ask` without running this file.
 - **HEAD** — the PR's current head commit.
 - **FINDINGS** — the review threads handled since LAST_REVIEWED (their topics and
   how each was closed), or "none".
