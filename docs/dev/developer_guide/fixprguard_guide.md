@@ -269,29 +269,48 @@ The `.go` rule: a `.go` file is in scope under rule 2 only when `path` is a `.go
 
 ### 7.2 Not guaranteed
 
+#### 7.2.1 Author judgment and writes to GitHub
+
+- That the set of names passed with `--reviewer` is the same as the names on `Automated reviewer list` in `.claude/commands/_context.md`. The tool does not read `_context.md`. A name left out only makes that Bot's threads untrusted as `other-bot`.
+- Re-edits within the same second. The times in the fingerprint have a resolution of one second.
+- The content of reply and PR description bodies. The tool checks only the file's type, size, and encoding.
+
+#### 7.2.2 The fenced block and the command documents
+
 - That an agent does not follow instructions inside the fenced block. Forging the delimiter lines is prevented, but the behavior of an LLM cannot be guaranteed.
 - The order in which `inspect` through `finish` are called, the confirmation with the user, and limiting naming to the threads in the immediately preceding report. These depend on the command documents (the session).
-- A rewrite of the `branch.<name>.*` settings of other branches (every branch except the current branch and `main`). This is a residual risk. These settings are not compared, so that branch operations of concurrent sessions do not stop the run. A rewrite of another branch's settings by the fix phase or by code that build checks run is not detected, and it remains after the run. It can change the destination or behavior of `git push`, `git pull`, or `git merge` run later on that branch. Running `/fixpr` after switching to that branch makes it the current branch, so a rewrite after `begin` is detected. The git the tool starts during a run does not use other branches' settings to decide a destination. However, a `branch.<name>.remote`, `merge`, or `pushRemote` without a value, or a `[branch ""]` section, makes git fail, and the run stops with `git-failed` or `response-rejected` (chapter 8).
-- Edits that leave the list of configuration values unchanged (edits of only comments, blank lines, or indentation). They do not change git's behavior, so they are not detected.
-- When an include target is replaced by a FIFO, `git config --list` waits until it times out (2 minutes), so it takes up to 2 minutes until the tool stops with `git-state-changed` (`config`). The 2 minutes equal the default timeout of Claude Code's Bash tool, so the stop can reach the session late.
-- The extent to which the git started by `gh` was checked. Given a PR number, `inspect` starts `gh repo view`, the `gh api graphql` of the thread query, and the `gh api` of the permission lookup. Checked with `gh` 2.96.0: the git that `gh repo view` starts is only `git remote -v` and a read of `remote.*`, and the latter two started no git. `git remote -v` reads other branches' settings but does not use them to decide a destination. It fails on a setting without a value or a `[branch ""]` section. The git started by `gh pr view --json number` when the PR number is omitted was not checked (`/fixpr` passes the PR number). This can change with a different `gh` version. A concurrent session's `gh pr checkout` was checked to write only `branch.<that branch>.*` for a regular PR. A fork's PR was not checked. If it also writes other settings, the run only stops too often with `git-state-changed`.
-- Only the state at the time of a check is guaranteed. Another process rewriting the hooks or config between the check and the execution, and something changed and changed back during the fix phase, are not detected.
-- A comparison before `head`, `list`, `reply`, and `edit-pr`, which take no baseline, start `gh`. `/fixpr` calls them after `finish` and `push`, so the comparisons up to then detect a rewrite, but a rewrite after `push` is not detected.
-- Preventing in-scope test code from being run by the build checks. `finish` and `push` do detect that code rewriting in-scope files or hooks.
+
+#### 7.2.3 The change scope
+
+**Hidden changes.**
+
 - Files ignored by `.gitignore`, files hidden by a `.gitignore` inside the work tree or by the global exclude file, and changes hidden by forging the stat information of the index. Hidden changes are not committed, but the build checks running them cannot be prevented.
 - A `.gitignore` that ignores itself (part of the item above). When a `.gitignore` placed in a lower directory ignores itself and another file (such as `foo.syso` or `CLAUDE.md`), neither appears in the set of changes, so the scope rules (chapter 6) do not judge them. The ignored files are not committed, but they remain in the work tree. `finish`'s `make test` links an ignored `.syso` (Go does not read `.gitignore`), and later sessions read an ignored instruction file. Writes to files git ignores are handled by task 0034 (#424).
+
+**What is committed and pushed as in scope.**
+
+- Preventing in-scope test code from being run by the build checks. `finish` and `push` do detect that code rewriting in-scope files or hooks.
 - Rewrites of `.md` documents read as instructions. Documents that a command document tells the session to read and follow (this guide, which `/fixpr` reads, the requirements process guide, and so on), the documents `AGENTS.md` points the automated reviewers to, and `docs/dev/security.md`, which PR-Agent reads, are not instruction files, so they are in scope under rules 2 and 3. Instructions written there are committed and pushed, and later sessions on the same branch and the automated reviewers read them. The change appears in the PR diff, so a human checks it before the merge.
 - Files under `testdata`. Except for execution-related files and `.go` files (judged by the `.go` rule), they are in scope under rules 2 and 3 whatever their kind ((b) of the allow list). Tests read them, but they do not become code that runs unless a test runs them.
 - Files in scope under rule 1. A file that is not an execution-related file is in scope when it is the `path` itself, whatever its kind. For example, when a thread's `path` is a `.sh` file, a rewrite of it is in scope.
 - Files read or run that are not on the deny list. The deny list cannot be exhaustive. A file that is in scope under rule 1 and is not an execution-related file can still be read as configuration or instructions by another tool, and this is not prevented. An instruction file whose name is not in the table of chapter 6 but ends in `.md`, and a file read under a `.txt` name (such as `vendor/modules.txt` or `CMakeLists.txt`; none exists in the repository today), match (a) of the allow list, so they are in scope under rules 2 and 3.
 - `.go` files of the same package. For a trusted thread whose `path` is a `.go` file, the `.go` rule puts the `.go` files in the same directory in scope, and a cgo preamble (the C code and the `#cgo` directives before `import "C"`) can be written there too. Even for a named thread, a cgo preamble can be written into the `.go` file that is the `path` itself, under rule 1.
 - Aliases from the file system's Unicode folding. Matching against the deny list only lowercases the path with `strings.ToLower`, which does not match the folding of a case-insensitive macOS volume. On APFS, `agentſ.md` (U+017F) opens as `AGENTS.md`, and `makeﬁle` (U+FB01) as `makefile`. Under rules 2 and 3, a path containing a non-ASCII character is out of scope, so the effect is limited to rule 1. That path must already be in the PR diff with a thread on it.
+
+**What the user can miss in the out-of-scope list.**
+
 - Disguising a path with bidirectional format characters. The path checks reject control characters but not format characters such as U+202E. In the list of out-of-scope changes `/fixpr` shows, a `.syso` path can look like a `.go` path. The reason a change is out of scope is not printed, so the user judges by looking at the name.
 - Habituation to the confirmation. A legitimate change outside the allow list (such as a `.ts` test) goes to the confirmation as out of scope every time. A user who gets used to answering "continue" can miss a dangerous path (an instruction file or a Go build input) in a long list. Check each listed path against the order of judgment and the two tables of chapter 6 to see why it is out of scope.
+
+#### 7.2.4 The git state comparison
+
+- A rewrite of the `branch.<name>.*` settings of other branches (every branch except the current branch and `main`). This is a residual risk. These settings are not compared, so that branch operations of concurrent sessions do not stop the run. A rewrite of another branch's settings by the fix phase or by code that build checks run is not detected, and it remains after the run. It can change the destination or behavior of `git push`, `git pull`, or `git merge` run later on that branch. Running `/fixpr` after switching to that branch makes it the current branch, so a rewrite after `begin` is detected. The git the tool starts during a run does not use other branches' settings to decide a destination. However, a `branch.<name>.remote`, `merge`, or `pushRemote` without a value, or a `[branch ""]` section, makes git fail, and the run stops with `git-failed` or `response-rejected` (chapter 8).
+- Edits that leave the list of configuration values unchanged (edits of only comments, blank lines, or indentation). They do not change git's behavior, so they are not detected.
+- When an include target is replaced by a FIFO, `git config --list` waits until it times out (2 minutes), so it takes up to 2 minutes until the tool stops with `git-state-changed` (`config`). The 2 minutes equal the default timeout of Claude Code's Bash tool, so the stop can reach the session late.
+- The extent to which the git started by `gh` was checked. Given a PR number, `inspect` starts `gh repo view`, the `gh api graphql` of the thread query, and the `gh api` of the permission lookup. Checked with `gh` 2.96.0: the git that `gh repo view` starts is only `git remote -v` and a read of `remote.*`, and the latter two started no git. `git remote -v` reads other branches' settings but does not use them to decide a destination. It fails on a setting without a value or a `[branch ""]` section. The git started by `gh pr view --json number` when the PR number is omitted was not checked (`/fixpr` passes the PR number). This can change with a different `gh` version. A concurrent session's `gh pr checkout` was checked to write only `branch.<that branch>.*` for a regular PR. A fork's PR was not checked. If it also writes other settings, the run only stops too often with `git-state-changed`.
+- Only the state at the time of a check is guaranteed. Another process rewriting the hooks or config between the check and the execution, and something changed and changed back during the fix phase, are not detected.
+- A comparison before `head`, `list`, `reply`, and `edit-pr`, which take no baseline, start `gh`. `/fixpr` calls them after `finish` and `push`, so the comparisons up to then detect a rewrite, but a rewrite after `push` is not detected.
 - Files outside the hooks directory that a hook runs (such as the cache of the pre-commit framework).
-- That the set of names passed with `--reviewer` is the same as the names on `Automated reviewer list` in `.claude/commands/_context.md`. The tool does not read `_context.md`. A name left out only makes that Bot's threads untrusted as `other-bot`.
-- Re-edits within the same second. The times in the fingerprint have a resolution of one second.
-- The content of reply and PR description bodies. The tool checks only the file's type, size, and encoding.
 
 ## 8. What to Do When the Tool Stops
 
