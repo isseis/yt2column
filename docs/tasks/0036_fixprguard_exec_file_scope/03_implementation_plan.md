@@ -110,7 +110,12 @@
 
 ### 1.6. ステップ 1-1 の確かめの結果
 
-（ステップ 1-1 の実装のときに記録する。）
+確かめた日: 2026-10-22（`origin/main` は `ad45375`）。
+
+-   **0034 の状態:** 要件定義書を改める PR #443 はマージされた（`9f83469`）。`origin/main` の `docs/tasks/0034_fixprguard_ignored_files/` には `01_requirements.md`（`approved`）と `design_handoff.md` だけがあり、設計書も実装もない。0034 の開いている PR はない。issue #424 は開いている。
+-   **設計書 3.8 の前提との違い:** 0034 の対象は、実行関連ファイルの定義全体から「監視の一覧」（0034 要件書 3 章）に改められ、0034 は範囲の規則の定義に依らなくなった（0034 要件書 2.3）。そのため、設計書 3.8 の「定義の中身」の 3 つの食い違い（`.vscode/settings.json`・`.DS_Store` とスワップファイル・`extension/node_modules/` の下の `.bin/`）は該当しない。0034 の要件書 4.5 は、Go のビルドの入力の拡張子の一覧を「先に実装するほうが置き、後のほうが再利用する」とした。監視の一覧は `claude.md` と Go のビルドの入力をどの階層でも含むので、設計書 5.3 の「自分自身を無視させる `.gitignore`」のうち、これらのファイルについては 0034 が閉じる。
+-   **申し送り:** `Protocol` の `3` は本タスクが使い、0034 は `4` 以上を使うこと、Go のビルドの入力の拡張子は本タスクが `scope.go` の `goBuildInputSuffixes` に置き 0034 が再利用すること、0034 の要件書が引く `scope.go` の行番号が変わること、用語（実行関連ファイル、`.go` の規則の許可リストの (c) への移動）を、利用者の承認を得て issue #424 にコメントした: https://github.com/isseis/yt2column/issues/424#issuecomment-6337255297
+-   **ステップ 2-2 の確かめ直し（2026-10-22、`origin/main` は `ad45375` の後に 0031 の計画書の PR #445 だけが入った）:** 0034 の実装は `main` に入っていない。0034 の設計書の PR #447（ブランチ `isseis/0034-fixprguard-ignored-files-03`、`draft`）が開いた。設計書は `Protocol` を `4` にし、Go のビルドの入力の拡張子に本タスクが `scope.go` に置く変数を使い、`scope.go` の行番号が変わることを書いている（同 1.2・3.2・3.9）。申し送りの内容と食い違わないので、追加の申し送りはしない（利用者が確認した）。
 
 ## 2. 実装ステップ (Implementation Steps)
 
@@ -120,11 +125,11 @@
 
 **変更するファイル**: `docs/tasks/0036_fixprguard_exec_file_scope/03_implementation_plan.md`（結果の記録）
 
--   [ ] 利用者の承認を得て `git fetch` と `gh pr list`・`gh pr view` を実行し、`origin/main` の `docs/tasks/0034_fixprguard_ignored_files/` と、0034 の開いている PR（1.3.2 の時点では #443）の文書を読む（`CLAUDE.md`「Tool Execution Safety」）。
--   [ ] 0034 の実装が `main` に入っていたら、止まって、0034 が拒否リストをどう使っているかを調べ、扱いを利用者と決め直す（設計書 3.8）。
--   [ ] 設計書 3.8 の項目を確認項目の一覧として使い、その時点の 0034 の文書に当てはめて、issue #424 へのコメントの案を日本語で書く。少なくとも次を含める: `Protocol` の `3` は本タスクが使い、0034 は `4` 以上を使うこと。0034 の文書が参照する `scope.go` の行番号が変わること。0034 が Go のビルドの入力の一覧を持つなら、AC-03 の一覧（できれば `scope.go` のデータ）と揃える必要があること。設計書 3.8 への参照も含める。0034 の文書が設計書 3.8 の前提から変わっていたら、違いを本書 1.6 に記録する。
--   [ ] コメントの案を利用者に示し、承認を得てから `gh issue comment 424 --body-file <file>` で投稿する（1.4）。
--   [ ] 確かめた 0034 の状態と、コメントの URL を本書 1.6 に記録する。記録は実装の記録なので、`Status` は変えない。
+-   [x] 利用者の承認を得て `git fetch` と `gh pr list`・`gh pr view` を実行し、`origin/main` の `docs/tasks/0034_fixprguard_ignored_files/` と、0034 の開いている PR（1.3.2 の時点では #443）の文書を読む（`CLAUDE.md`「Tool Execution Safety」）。
+-   [x] 0034 の実装が `main` に入っていたら、止まって、0034 が拒否リストをどう使っているかを調べ、扱いを利用者と決め直す（設計書 3.8）。
+-   [x] 設計書 3.8 の項目を確認項目の一覧として使い、その時点の 0034 の文書に当てはめて、issue #424 へのコメントの案を日本語で書く。少なくとも次を含める: `Protocol` の `3` は本タスクが使い、0034 は `4` 以上を使うこと。0034 の文書が参照する `scope.go` の行番号が変わること。0034 が Go のビルドの入力の一覧を持つなら、AC-03 の一覧（できれば `scope.go` のデータ）と揃える必要があること。設計書 3.8 への参照も含める。0034 の文書が設計書 3.8 の前提から変わっていたら、違いを本書 1.6 に記録する。
+-   [x] コメントの案を利用者に示し、承認を得てから `gh issue comment 424 --body-file <file>` で投稿する（1.4）。
+-   [x] 確かめた 0034 の状態と、コメントの URL を本書 1.6 に記録する。記録は実装の記録なので、`Status` は変えない。
 
 **完了条件**: 0034 の実装が `main` に入っていないことを確かめ、コメントの URL が本書に記録されている。
 
@@ -132,11 +137,11 @@
 
 **変更するファイル**: `internal/fixprguard/scope.go`
 
--   [ ] 拒否リストのデータを設計書 3.1 の表のとおりにし、`.` で始まる要素の照合を加える。照合は今のとおり `strings.ToLower` の後に行う。
--   [ ] 許可リストのデータ（設計書 3.2）と、(a)・(b) を大文字小文字を区別して照合する非公開の関数を加える。
--   [ ] `inScopeOf` を設計書 3.3 の順 1〜6 にする。`inScope` は変えない。
--   [ ] `ExecutionFilePatterns` を設計書 3.4 の項目を出力するように改め、`AllowListPatterns` を加える。コメントは設計書 3.4 のとおりにする。どちらも、判定の関数が照合に使うのと同じパッケージ変数から組み立てる（今の `ExecutionFilePatterns` も `isExecutionRelated` と同じ変数を使っている。`scope.go:60-75`・`:103-126`）。ただし、データを持たない `.*`（`ExecutionFilePatterns`）と `*.go`（`AllowListPatterns`）だけはリテラルで出力する。ガイドのガードは、出力した項目がガイドにあることしか確かめないので、出力からこのリテラルを消しても通ってしまう。そこで、2 つの関数の出力にこの 2 つが含まれることを確かめる小さなテストを `scope_test.go` に置く。
--   [ ] ファイルの冒頭のコメント（`:11-28`）とデータのコメント（`:36-38`・`:56-59`）を、新しい規則に合わせて英語で書き直す。
+-   [x] 拒否リストのデータを設計書 3.1 の表のとおりにし、`.` で始まる要素の照合を加える。照合は今のとおり `strings.ToLower` の後に行う。
+-   [x] 許可リストのデータ（設計書 3.2）と、(a)・(b) を大文字小文字を区別して照合する非公開の関数を加える。
+-   [x] `inScopeOf` を設計書 3.3 の順 1〜6 にする。`inScope` は変えない。
+-   [x] `ExecutionFilePatterns` を設計書 3.4 の項目を出力するように改め、`AllowListPatterns` を加える。コメントは設計書 3.4 のとおりにする。どちらも、判定の関数が照合に使うのと同じパッケージ変数から組み立てる（今の `ExecutionFilePatterns` も `isExecutionRelated` と同じ変数を使っている。`scope.go:60-75`・`:103-126`）。ただし、データを持たない `.*`（`ExecutionFilePatterns`）と `*.go`（`AllowListPatterns`）だけはリテラルで出力する。ガイドのガードは、出力した項目がガイドにあることしか確かめないので、出力からこのリテラルを消しても通ってしまう。そこで、2 つの関数の出力にこの 2 つが含まれることを確かめる小さなテストを `scope_test.go` に置く。
+-   [x] ファイルの冒頭のコメント（`:11-28`）とデータのコメント（`:36-38`・`:56-59`）を、新しい規則に合わせて英語で書き直す。
 
 **完了条件**: `go build ./...` が通る（テストの期待はステップ 1-3 で改める）。
 
@@ -144,11 +149,11 @@
 
 **変更するファイル**: `internal/fixprguard/scope_test.go`、`internal/fixprguard/worktree_test.go`、`cmd/fixprguard/main_test.go`
 
--   [ ] `TestScopeRules` に、設計書 7.1 の表の各行の入力を加える。AC-01 の 6 つの名前と AC-03 の 17 種類の拡張子は、要件書の値から 1 つずつ行にする（1.2）。AC-12 の表の 10 行と、各行を規則 1 の位置にした組（信頼する著者のスレッドと名指しのスレッド）を含める（AC-13）。
--   [ ] 設計書 3.1 の表の拒否リストの項目のうち、片方の層だけが働く行をまだ持たないすべての項目（1.3.1 の `scope_test.go:36-62` の行の項目。`gnumakefile`・`go.sum`・`go.work`・`go.work.sum`・`extension/` の直下の 6 つなど）に、規則 1 の位置の組（信頼する著者のスレッドなら範囲内、名指しなら範囲外）を加える。値は設計書 3.1 の表から取る。
--   [ ] 順 4 だけで範囲外になる行（規則 3 の位置の `testdata` の下の `.go` のファイル）と、`.` で始まる要素の規則だけで範囲外になる行（規則 2 の位置の `.` で始まる `.md`）を加える。`nested_dotfile_not_root_rule`（`:52`）の期待は `false` にする（設計書 7.3）。ほかの既存の行の期待は変えない。
--   [ ] 新しい照合の境界の行を加える。(b): `testdata` を部分に含むだけの要素、ファイルの名前が `testdata`、`testdata` が深い位置の要素。(a): `.md` に似た拡張子（`.mdx`、`.md.sh` など）。(c): 大文字の `.GO` が同じディレクトリの `.go` の `path` で範囲内になること、`testdata` の下の `.GO` が範囲外になること。
--   [ ] `TestInspectListsOutOfScope` の `want` に、新しい規則でだけ範囲外になるファイルを加える（変更の数と既存の要素の `Position` も合わせて改める）。`TestInspectExitCode` に、`testFile` と同じディレクトリの、許可リストに当たらないファイル（たとえば `.ts`）と指示ファイル（たとえば `CLAUDE.md`）の行を加え、終了コード `3` を確かめる（1.4）。
+-   [x] `TestScopeRules` に、設計書 7.1 の表の各行の入力を加える。AC-01 の 6 つの名前と AC-03 の 17 種類の拡張子は、要件書の値から 1 つずつ行にする（1.2）。AC-12 の表の 10 行と、各行を規則 1 の位置にした組（信頼する著者のスレッドと名指しのスレッド）を含める（AC-13）。
+-   [x] 設計書 3.1 の表の拒否リストの項目のうち、片方の層だけが働く行をまだ持たないすべての項目（1.3.1 の `scope_test.go:36-62` の行の項目。`gnumakefile`・`go.sum`・`go.work`・`go.work.sum`・`extension/` の直下の 6 つなど）に、規則 1 の位置の組（信頼する著者のスレッドなら範囲内、名指しなら範囲外）を加える。値は設計書 3.1 の表から取る。
+-   [x] 順 4 だけで範囲外になる行（規則 3 の位置の `testdata` の下の `.go` のファイル）と、`.` で始まる要素の規則だけで範囲外になる行（規則 2 の位置の `.` で始まる `.md`）を加える。`nested_dotfile_not_root_rule`（`:52`）の期待は `false` にする（設計書 7.3）。ほかの既存の行の期待は変えない。
+-   [x] 新しい照合の境界の行を加える。(b): `testdata` を部分に含むだけの要素、ファイルの名前が `testdata`、`testdata` が深い位置の要素。(a): `.md` に似た拡張子（`.mdx`、`.md.sh` など）。(c): 大文字の `.GO` が同じディレクトリの `.go` の `path` で範囲内になること、`testdata` の下の `.GO` が範囲外になること。
+-   [x] `TestInspectListsOutOfScope` の `want` に、新しい規則でだけ範囲外になるファイルを加える（変更の数と既存の要素の `Position` も合わせて改める）。`TestInspectExitCode` に、`testFile` と同じディレクトリの、許可リストに当たらないファイル（たとえば `.ts`）と指示ファイル（たとえば `CLAUDE.md`）の行を加え、終了コード `3` を確かめる（1.4）。
 
 **壊して確かめる**: 次で、それぞれ括弧の中の行が失敗すること。
 
@@ -166,10 +171,10 @@
 
 **変更するファイル**: `docs/dev/developer_guide/fixprguard_guide.ja.md`、`fixprguard_guide.md`
 
--   [ ] 日本語版の 6 章を、設計書 3.5「ガイド 6 章」の表のすべての行のとおり改める。実行関連ファイルの表と許可リストの表は、設計書 3.5 の例の構成にし、項目は `ExecutionFilePatterns`・`AllowListPatterns` の出力と突き合わせる。判定の順序は、ステップ 1-2 の `inScopeOf` と突き合わせる。
--   [ ] 6 章の用語を「実行関連ファイル」にそろえ、初出に「コマンドの実行に関わるファイル（実行関連ファイル）」と書く（設計書 3.5 の「用語」の行）。7 章・9 章の用語はフェーズ 2・3 でそろえる。英語版はすでに "execution-related file" を使っている（`fixprguard_guide.md:211`・`:219`・`:300`）。
--   [ ] 判定の順序の箇条書きは、`3. **` で始まる行を作らない形にする（`TestGuideDescribesConfigScope` がその行を 1 つだけ求める。1.3.1）。
--   [ ] 日本語版をコミットしてから、英語版を翻訳し、節ごとに突き合わせる（1.2・1.4）。
+-   [x] 日本語版の 6 章を、設計書 3.5「ガイド 6 章」の表のすべての行のとおり改める。実行関連ファイルの表と許可リストの表は、設計書 3.5 の例の構成にし、項目は `ExecutionFilePatterns`・`AllowListPatterns` の出力と突き合わせる。判定の順序は、ステップ 1-2 の `inScopeOf` と突き合わせる。
+-   [x] 6 章の用語を「実行関連ファイル」にそろえ、初出に「コマンドの実行に関わるファイル（実行関連ファイル）」と書く（設計書 3.5 の「用語」の行）。7 章・9 章の用語はフェーズ 2・3 でそろえる。英語版はすでに "execution-related file" を使っている（`fixprguard_guide.md:211`・`:219`・`:300`）。
+-   [x] 判定の順序の箇条書きは、`3. **` で始まる行を作らない形にする（`TestGuideDescribesConfigScope` がその行を 1 つだけ求める。1.3.1）。
+-   [x] 日本語版をコミットしてから、英語版を翻訳し、節ごとに突き合わせる（1.2・1.4）。
 
 **完了条件**: 両方の版の 6 章が、設計書 3.5「ガイド 6 章」の表のすべての行のとおりになっている（表の項目はステップ 1-5 のガードで確かめる）。
 
@@ -177,8 +182,8 @@
 
 **変更するファイル**: `cmd/fixprguard/docs_test.go`
 
--   [ ] 6 章から表を切り出す関数と、そのテストを加える（1.4）。
--   [ ] `TestGuideCoversStopKindsAndScope` を設計書 3.5「文書のガード」のとおり改める。`ExecutionFilePatterns` の項目は実行関連ファイルの表に、`AllowListPatterns` の項目は許可リストの表にあり、`*.go` が実行関連ファイルの表にないことを、両方の版で確かめる。`stop` の種類は今までどおりガイドの全体から探す。テストのコメントも改める。
+-   [x] 6 章から表を切り出す関数と、そのテストを加える（1.4）。
+-   [x] `TestGuideCoversStopKindsAndScope` を設計書 3.5「文書のガード」のとおり改める。`ExecutionFilePatterns` の項目は実行関連ファイルの表に、`AllowListPatterns` の項目は許可リストの表にあり、`*.go` が実行関連ファイルの表にないことを、両方の版で確かめる。`stop` の種類は今までどおりガイドの全体から探す。テストのコメントも改める。
 
 **壊して確かめる**: 次で、それぞれ `TestGuideCoversStopKindsAndScope` が失敗すること。一時的に書き換えて確かめ、戻す。
 
@@ -197,10 +202,10 @@
 
 **変更するファイル**: `internal/fixprguard/types.go`、`.claude/commands/fixpr.md`、`.claude/commands/runpr.md`、`docs/dev/developer_guide/fixprguard_guide.ja.md`、`fixprguard_guide.md`、`docs/tasks/0032_japanese_pr_title/check_rules.sh`
 
--   [ ] `Protocol` を `3` にし、コメントに判定の規則を加える（設計書 3.6「上げる値」）。コメントは、`// Protocol is the version of the tool's input and output contract. The command` / `// documents pass it back with --protocol, so an installed binary that predates` / `// the documents stops instead of judging by older rules.` から、`// Protocol is the version of the tool's input and output contract and of the` / `// scope rules inspect applies. The command documents pass it back with` / `// --protocol, so an installed binary that predates the documents stops instead` / `// of judging by older rules.` に改める（` / ` は行の区切り）。
--   [ ] 設計書 3.6 の表の箇所の番号を、すべて `3` にする。そのうえで、設計書 3.6 の 2 つの正規表現でリポジトリ全体を `git grep` し、`2` が残るのが設計書 3.6「変えないもの」の箇所だけであることを確かめる（設計書 3.6「番号を固定している箇所の探し方」）。
--   [ ] `sh docs/tasks/0032_japanese_pr_title/check_rules.sh fixpr_title` が通ることを確かめる。
--   [ ] ガイド 9 章（日本語版をコミットしてから英語版）を、設計書 1.2 の 4 つめの項目と 3.5「ガイド 9 章」のとおり改める。番号を上げる条件に「範囲の規則を変える場合」を加え、一覧の更新の項目に許可リストを加えて、用語を「実行関連ファイル」にする。`TestGuideDescribesReviewerList` が確かめる但し書きの文（1.3.1）は変えない。英語版は日本語版と節ごとに突き合わせる。9 章の文の中身は PR-1 のレビューで読み合わせる（`manual`）。
+-   [x] `Protocol` を `3` にし、コメントに判定の規則を加える（設計書 3.6「上げる値」）。コメントは、`// Protocol is the version of the tool's input and output contract. The command` / `// documents pass it back with --protocol, so an installed binary that predates` / `// the documents stops instead of judging by older rules.` から、`// Protocol is the version of the tool's input and output contract and of the` / `// scope rules inspect applies. The command documents pass it back with` / `// --protocol, so an installed binary that predates the documents stops instead` / `// of judging by older rules.` に改める（` / ` は行の区切り）。
+-   [x] 設計書 3.6 の表の箇所の番号を、すべて `3` にする。そのうえで、設計書 3.6 の 2 つの正規表現でリポジトリ全体を `git grep` し、`2` が残るのが設計書 3.6「変えないもの」の箇所だけであることを確かめる（設計書 3.6「番号を固定している箇所の探し方」）。
+-   [x] `sh docs/tasks/0032_japanese_pr_title/check_rules.sh fixpr_title` が通ることを確かめる。
+-   [x] ガイド 9 章（日本語版をコミットしてから英語版）を、設計書 1.2 の 4 つめの項目と 3.5「ガイド 9 章」のとおり改める。番号を上げる条件に「範囲の規則を変える場合」を加え、一覧の更新の項目に許可リストを加えて、用語を「実行関連ファイル」にする。`TestGuideDescribesReviewerList` が確かめる但し書きの文（1.3.1）は変えない。英語版は日本語版と節ごとに突き合わせる。9 章の文の中身は PR-1 のレビューで読み合わせる（`manual`）。
 
 **壊して確かめる**: ガイドの `--protocol 3` の 1 か所を一時的に `2` に戻して、`TestDocumentedProtocolMatches` が失敗すること。
 
@@ -210,10 +215,10 @@
 
 **変更するファイル**: なし
 
--   [ ] `make test && make lint` を実行する。
--   [ ] 文書のガード（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`）を実行する。
--   [ ] 本タスクの前のツールで、PR-1 のブランチの `fixpr.md` に書いた形の `--protocol 3` の呼び出しが終了コード `2` で止まることを確かめる（AC-16 の `manual`。1.3.2）。まず `go version -m "$(command -v fixprguard)"` の `vcs.revision` が PR-1 の前の `origin/main` のコミットであることを確かめる。そうでなければ、PR-1 の前の `origin/main` の `cmd/fixprguard` をスクラッチのディレクトリにビルドして使う。
--   [ ] PR を開く前に、利用者の承認を得て 0034 の状態を確かめ直す（設計書 3.8。ステップ 1-1 と同じ読み取り）。0034 の実装が `main` に入っていたら、止まって利用者と決め直す。ステップ 1-1 の後に 0034 の文書が設計書 3.8 にかかわる形で変わっていたら、違いを本書 1.6 に記録し、追加の申し送りの要否を利用者に確かめる。
+-   [x] `make test && make lint` を実行する。
+-   [x] 文書のガード（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`）を実行する。
+-   [x] 本タスクの前のツールで、PR-1 のブランチの `fixpr.md` に書いた形の `--protocol 3` の呼び出しが終了コード `2` で止まることを確かめる（AC-16 の `manual`。1.3.2）。まず `go version -m "$(command -v fixprguard)"` の `vcs.revision` が PR-1 の前の `origin/main` のコミットであることを確かめる。そうでなければ、PR-1 の前の `origin/main` の `cmd/fixprguard` をスクラッチのディレクトリにビルドして使う。
+-   [x] PR を開く前に、利用者の承認を得て 0034 の状態を確かめ直す（設計書 3.8。ステップ 1-1 と同じ読み取り）。0034 の実装が `main` に入っていたら、止まって利用者と決め直す。ステップ 1-1 の後に 0034 の文書が設計書 3.8 にかかわる形で変わっていたら、違いを本書 1.6 に記録し、追加の申し送りの要否を利用者に確かめる。
 
 **完了条件**: 上の 4 つが済んでいる。
 
@@ -229,10 +234,10 @@
 
 **判定理由**: ステップ 1-2 は、0030 の守りの層 (3) にあたる範囲の規則を変える、セキュリティのゲートの変更である（`mkplan.md` step 8 の panel mode の契機）。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/449
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 **`/runpr` の前**: 利用者は、PR-1 のブランチの作業ツリーで `make install-fixprguard` を実行してから `/runpr` を実行する（設計書 3.6「マージと入れ直しの順序」）。マージまでの間、`main` を取り込んでいないほかの worktree の `/fixpr`・`/runpr` は終了コード `2` で止まる。
 
@@ -396,13 +401,13 @@
 
 `make test`・`make lint` とガードが検出しないものだけを挙げる。どれも `manual` で、実行した検索とその結果を、そのステップのコミットメッセージに書く。
 
--   [ ] ステップ 2-1 の `git grep`（設計書 3.6 の 2 つの正規表現）で、`2` の番号が設計書 3.6「変えないもの」の箇所にだけ残っている。
--   [ ] ガイドの日本語版で、「コマンドの実行に関わるファイル」と「実行に関わるファイル」が 6 章の初出の併記にだけ残り、ほかは「実行関連ファイル」になっている（設計書 3.5 の「用語」の行）。英語版は今の "execution-related file" のままでよい。
--   [ ] `.claude/commands/` と `docs/dev/` に、消した表記（`/.*`・`/claude.md`・`/agents.md`）と「`.go` の規則を実行関連ファイルの一覧に含める」記述が残っていない。
+-   [x] ステップ 2-1 の `git grep`（設計書 3.6 の 2 つの正規表現）で、`2` の番号が設計書 3.6「変えないもの」の箇所にだけ残っている。
+-   [x] ガイドの日本語版で、「コマンドの実行に関わるファイル」と「実行に関わるファイル」が 6 章の初出の併記にだけ残り、ほかは「実行関連ファイル」になっている（設計書 3.5 の「用語」の行）。英語版は今の "execution-related file" のままでよい。
+-   [x] `.claude/commands/` と `docs/dev/` に、消した表記（`/.*`・`/claude.md`・`/agents.md`）と「`.go` の規則を実行関連ファイルの一覧に含める」記述が残っていない。
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
-- [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 2-1 / 2-2）
+- [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 2-1 / 2-2）
 - [ ] PR-2 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5）
 
 ## 7. リスク管理 (Risk Management)

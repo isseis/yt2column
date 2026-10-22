@@ -55,14 +55,20 @@ func TestInspectListsOutOfScope(t *testing.T) {
 	r.Write("internal/x/x.go", "package x\n\nfunc F() {}\n")
 	r.Write("docs/other/data.bin", "\x00\x01")
 	r.Write("docs/other/bad\x01name.md", "x\n")
+	// Beside the thread's file, but an instruction file and a file outside
+	// the allow list.
+	r.Write("docs/notes/CLAUDE.md", "x\n")
+	r.Write("docs/notes/b.ts", "x\n")
 	inspection := mustInspect(t, base)
 	want := []ScopedChange{
-		{Position: 2, Kind: ChangeAdd, Added: 1},
-		{Position: 3, Path: "docs/other/data.bin", Kind: ChangeAdd, Binary: true},
-		{Position: 4, Path: "internal/x/x.go", Kind: ChangeModify, Added: 2},
+		{Position: 1, Path: "docs/notes/CLAUDE.md", Kind: ChangeAdd, Added: 1},
+		{Position: 3, Path: "docs/notes/b.ts", Kind: ChangeAdd, Added: 1},
+		{Position: 4, Kind: ChangeAdd, Added: 1},
+		{Position: 5, Path: "docs/other/data.bin", Kind: ChangeAdd, Binary: true},
+		{Position: 6, Path: "internal/x/x.go", Kind: ChangeModify, Added: 2},
 	}
-	if inspection.Changes != 4 {
-		t.Errorf("Changes = %d, want 4", inspection.Changes)
+	if inspection.Changes != 6 {
+		t.Errorf("Changes = %d, want 6", inspection.Changes)
 	}
 	if len(inspection.OutOfScope) != len(want) {
 		t.Fatalf("OutOfScope = %+v, want %+v", inspection.OutOfScope, want)

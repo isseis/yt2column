@@ -38,26 +38,98 @@ func readRepoFile(t *testing.T, rel string) string {
 }
 
 // TestGuideCoversStopKindsAndScope: both guides name, in code spans, every
-// stop kind the tool can print and every execution-related file definition
-// the scope rules use, and CLAUDE.md links to the guide. The values come from
-// internal/fixprguard, so a kind or a definition added there without the
-// guide fails here.
+// stop kind the tool can print, and CLAUDE.md links to the guide. In chapter
+// 6, every deny-list item is in the execution-related file table and every
+// allow-list item in the allow-list table, and *.go is not in the
+// execution-related file table. The values come from internal/fixprguard, so
+// a kind or an item added there without the guide fails here. Reading the
+// tables alone keeps a code span in the prose around them from standing in
+// for a row.
 func TestGuideCoversStopKindsAndScope(t *testing.T) {
-	for _, rel := range guideFiles {
-		guide := readRepoFile(t, rel)
+	for _, tc := range []struct {
+		rel             string
+		execMark, allow string
+	}{
+		{rel: guideFiles[0], execMark: "**実行関連ファイル。**", allow: "**許可リスト。**"},
+		{rel: guideFiles[1], execMark: "**Execution-related files.**", allow: "**Allow list.**"},
+	} {
+		guide := readRepoFile(t, tc.rel)
 		for _, kind := range fixprguard.StopKinds() {
 			if !strings.Contains(guide, "`"+kind+"`") {
-				t.Errorf("%s does not name stop kind `%s`", rel, kind)
+				t.Errorf("%s does not name stop kind `%s`", tc.rel, kind)
 			}
 		}
-		for _, pattern := range fixprguard.ExecutionFilePatterns() {
-			if !strings.Contains(guide, "`"+pattern+"`") {
-				t.Errorf("%s does not list execution-related file `%s`", rel, pattern)
+		scope := section(guide, "## 6.")
+		execTable := guideTable(scope, tc.execMark)
+		allowTable := guideTable(scope, tc.allow)
+		for _, table := range []struct {
+			name, text string
+			patterns   []string
+		}{
+			{"execution-related file", execTable, fixprguard.ExecutionFilePatterns()},
+			{"allow-list", allowTable, fixprguard.AllowListPatterns()},
+		} {
+			for _, pattern := range table.patterns {
+				if !strings.Contains(table.text, "`"+pattern+"`") {
+					t.Errorf("%s: the %s table in chapter 6 does not list `%s`", tc.rel, table.name, pattern)
+				}
 			}
+		}
+		if strings.Contains(execTable, "`*.go`") {
+			t.Errorf("%s: the execution-related file table lists `*.go`, which is on the allow list", tc.rel)
 		}
 	}
 	if claude := readRepoFile(t, "CLAUDE.md"); !strings.Contains(claude, "](docs/dev/developer_guide/fixprguard_guide.md)") {
 		t.Error("CLAUDE.md does not link to the fixprguard guide")
+	}
+}
+
+// guideTable returns the lines of the first table after the line of doc that
+// starts with marker. It returns "" when there is no such line or another
+// bold heading comes before a table, so a missing table never borrows the
+// next one.
+func guideTable(doc, marker string) string {
+	_, rest, ok := strings.Cut(doc, "\n"+marker)
+	if !ok {
+		return ""
+	}
+	_, rest, _ = strings.Cut(rest, "\n")
+	var table strings.Builder
+	for line := range strings.Lines(rest) {
+		switch {
+		case strings.HasPrefix(line, "|"):
+			table.WriteString(line)
+		case table.Len() > 0, strings.HasPrefix(line, "**"):
+			return table.String()
+		}
+	}
+	return table.String()
+}
+
+// TestGuideTable: guideTable takes the table's lines only, stops where the
+// table ends, and finds nothing for a missing marker or table.
+func TestGuideTable(t *testing.T) {
+	doc := "## 6\n**A.** a `p`\n\n| h |\n|---|\n| `x` |\nafter `y`\n\n| `w` |\n**B.** b\n**C.** c\n\n| `z` |\n"
+	for _, tc := range []struct {
+		name   string
+		doc    string
+		marker string
+		want   string
+	}{
+		{"stops_at_table_end", doc, "**A.**", "| h |\n|---|\n| `x` |\n"},
+		{"table_after_prose", doc, "**C.**", "| `z` |\n"},
+		// Bullets and a paragraph between the marker and the table, as in
+		// the guide.
+		{"table_after_bullets", "x\n**E.** e\n- bullet `q`\npara\n\n| `v` |\n", "**E.**", "| `v` |\n"},
+		// The next bold heading comes before any table.
+		{"no_table_before_next_heading", doc, "**B.**", ""},
+		{"missing_marker", doc, "**D.**", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := guideTable(tc.doc, tc.marker); got != tc.want {
+				t.Errorf("got %q, want %q", got, tc.want)
+			}
+		})
 	}
 }
 
