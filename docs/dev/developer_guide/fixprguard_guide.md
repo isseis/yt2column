@@ -310,7 +310,7 @@ When the user answers "do not continue" about out-of-scope changes, the changes 
 
 - The judgment is in `internal/fixprguard`, and the argument parsing and the call order are in `cmd/fixprguard`. External commands are called through the `Runner` and `InputRunner` of `internal/cmdrunner`. In tests, `gh` and `make` are replaced with the fake in `internal/cmdrunner/testutil`, and git is exercised in a real repository in a temporary directory.
 - When changing a guarantee in section 7.1, break the corresponding implementation, confirm that a test fails, and write that in the commit message (CLAUDE.md, "Testing Strategy").
-- When changing the contract of the output or the arguments, raise `Protocol` in `internal/fixprguard` and update the `--protocol` the command documents pass. However, only a change that meets all three conditions below may leave `Protocol` unchanged. The change that accepts repeated `--reviewer` (task 0033) is one.
+- When changing the contract of the output or the arguments, or the scope rules (chapter 6), raise `Protocol` in `internal/fixprguard` and update the `--protocol` the command documents pass. However, only a change that meets all three conditions below may leave `Protocol` unchanged. The change that accepts repeated `--reviewer` (task 0033) is one.
     1. An old tool rejects the calls of the new documents when parsing the arguments (exit code `2`) and does not judge by the old rules.
     2. A new tool judges the calls of the old documents by the same rules as before.
     3. The shape of the output does not change.
@@ -323,5 +323,5 @@ When the user answers "do not continue" about out-of-scope changes, the changes 
 
   Do not loosen the check of the expected names to something like "parses and is not empty". The content guard would then no longer detect a rewrite of the list alone.
 - A Bot whose name is removed from the list does not stop being trusted at once. Each session reads the `_context.md` of the branch it works on, so on an open branch that has not merged `main`, that Bot's threads are still trusted. To withdraw trust quickly, put the removal into `main`, then merge `main` into the branch of each open PR. Until it is merged, do not use `/fixpr` or `/runpr` on that branch.
-- When changing the stop kinds or the list of execution-related files, also update chapters 6 and 8 of this guide. `cmd/fixprguard/docs_test.go` checks that this guide (Japanese and English) contains every kind and every item.
+- When changing the stop kinds, the list of execution-related files, or the allow list, also update chapters 6 and 8 of this guide. `cmd/fixprguard/docs_test.go` checks that this guide (Japanese and English) contains every kind and every item.
 - After the merge, reinstall with `make install-fixprguard` (chapter 3).
