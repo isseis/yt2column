@@ -73,7 +73,8 @@ GitHub. Its subcommands, outputs, and stop kinds are in
   agent to do it. Whoever wrote those files chose their names, and listing
   them brings that text into this session. Tell the user instead to follow the
   `git-state-changed` or `git-failed` row of chapter 8 of the guide, in a
-  terminal outside the Claude Code session, and stop.
+  terminal outside the Claude Code session, and stop. When `finish` stopped,
+  still check, as Phase 4 says, whether a commit was made, and report it.
 - The tool prints no thread body except inside the fenced block of `begin`'s
   `threads`, and only for the threads to process.
 - Files this session writes for the tool (the triage output for `fence`, reply
@@ -549,8 +550,8 @@ on the remote branch (not the pre-fix revision).
      `parts`. For a stop on the ignored files, follow "Stops on the ignored
      files" under "The guard tool". To tell whether the stop came after a
      commit was made, compare `git log -1 --format=%s` with the round's
-     subject and HEAD with the baseline's commit; if a commit was made, tell the user to examine that
-     commit and undo it.
+     subject and HEAD with the baseline's commit; if a commit was made, tell
+     the user to examine that commit and undo it.
 2. Only if a commit was made, push it:
 
    ```
@@ -558,9 +559,11 @@ on the remote branch (not the pre-fix revision).
    ```
 
    It checks again, just before pushing, that HEAD is that commit on top of the
-   baseline's commit and that the hooks, config, and remote branch match the
-   baseline, then pushes with an explicit refspec. If it stops, treat the phase
-   as failed (`success=false`) so the reply phase does not run against an
+   baseline's commit and that the hooks, config, info, target files, and
+   remote branch match the baseline, then pushes with an explicit refspec. If
+   it stops (for a stop on the ignored files, also follow "Stops on the
+   ignored files" under "The guard tool"), treat the phase as failed
+   (`success=false`) so the reply phase does not run against an
    unpushed fix.
 3. If no commit was made, use the empty string as `commitSha` and do not push,
    but first run `git fetch --prune`, then

@@ -276,7 +276,7 @@
 
 **変更するファイル**: `internal/fixprguard/ignored.go`、`internal/fixprguard/worktree.go`、`cmd/fixprguard/main.go`
 
--   [x] `WriteBeginRecord` を、設計書 3.8「`begin` の記録と基準値の結び付け」のとおり実装する。一致しなければ書かずに `git-state-changed`（`ignored`）を、書けなければ `write ignored begin record` の sentinel を返す。書く前に、前のラウンドの止まった時点の記録を消す（設計書 3.8「止まった時点の記録」。消せなければ同じ sentinel）。
+-   [x] `WriteBeginRecord` を、設計書 3.8「`begin` の記録と基準値の結び付け」のとおり実装する。一致しなければ書かずに `git-state-changed`（`ignored`）を、書けなければ `write ignored begin record` の sentinel を返す。状態を求め直す前に、前のラウンドの 2 つの記録を消す（設計書 3.8「止まった時点の記録」。消せなければ同じ sentinel）。
 -   [x] `Worktree.Begin` と `main.go` の `begin` で、`Baseline` の後に `WriteBeginRecord` を呼ぶ。`begin` は記録を書き終えてから基準値を出力する（設計書 3.8「書き方」）。
 
 #### ステップ 5-3: 組み込みのテスト

@@ -349,6 +349,12 @@ func TestFixprDocContract(t *testing.T) {
 		for _, heading := range []string{fixprPhase1, fixprPhase35, fixprPhase4} {
 			requirePhrases(t, "fixpr.md "+heading, requireSection(t, "fixpr.md", doc, heading), rule)
 		}
+		// Phase 4 refers to it twice: from the finish step and the push step.
+		if n := strings.Count(flat(requireSection(t, "fixpr.md", doc, fixprPhase4)), flat(rule)); n != 2 {
+			t.Errorf("fixpr.md Phase 4 refers to the rule %d times, want 2 (finish and push)", n)
+		}
+		requirePhrases(t, "fixpr.md The guard tool", requireSection(t, "fixpr.md", doc, fixprGuardTool),
+			"When `finish` stopped, still check, as Phase 4 says, whether a commit was made, and report it.")
 	})
 
 	t.Run("out_of_scope_stop", func(t *testing.T) {

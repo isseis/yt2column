@@ -20,7 +20,7 @@
 | `/fixpr`・`/runpr` コマンド（`.claude/commands/`） | サブコマンドを呼ぶ順序、利用者への確認、エージェントの起動 |
 | 開発者 | 範囲外の変更や想定外の著者のスレッドについての判断、ツールが止まったときの対処 |
 
-ツールは状態のファイルを持たない。サブコマンドが出力した基準値や判定した集合の識別子は、セッションが保持し、次のサブコマンドの引数で渡す。
+ツールは状態のファイルを持たない（`begin`・`inspect`・`finish`・`push` が git のディレクトリに書く記録のファイル（8.1）は利用者のためのもので、ツールは読み返さない）。サブコマンドが出力した基準値や判定した集合の識別子は、セッションが保持し、次のサブコマンドの引数で渡す。
 
 ## 2. 前提条件
 
@@ -133,7 +133,7 @@ fixprguard begin --protocol 4 --reviewer coderabbitai 42
 | `permissionLookups` | 権限の照会の使用回数と残り |
 | `nonce`・`threads` | `threads` は、処理するスレッドの配列（`threadId`・`databaseId`・`authorType`・`body`・`path`・`line`・`url`・`fingerprint`・`named`）を 1 行の JSON にし、`BEGIN-UNTRUSTED-<nonce>` と `END-UNTRUSTED-<nonce>` の行で囲んだ文字列。エージェントのプロンプトにはこの文字列をそのまま埋め込む |
 
-副作用: GitHub と `git ls-remote` の読み取りと、作業ツリーごとの git のディレクトリ（main のチェックアウトでは `.git`、linked worktree では `.git/worktrees/<name>`）への `begin` の記録のファイル `fixprguard-ignored-begin` の書き込み（置き換え）。前のラウンドの止まった時点の記録のファイル `fixprguard-ignored-stop` は消す。記録のファイルは、対象のファイルごとに、そのファイルの状態の digest と、ASCII に引用したパスを 1 行に書く。基準値を求めた後に対象のファイルが変わっていれば、記録を書かずに `git-state-changed`（`ignored`）で止まる。作業ツリーと対象のファイルは変えない。
+副作用: GitHub と `git ls-remote` の読み取りと、作業ツリーごとの git のディレクトリ（main のチェックアウトでは `.git`、linked worktree では、その `.git` ファイルの `gitdir:` の行が示すディレクトリ（`<main のチェックアウト>/.git/worktrees/<name>`））への `begin` の記録のファイル `fixprguard-ignored-begin` の書き込み（置き換え）。前のラウンドの記録のファイル（`fixprguard-ignored-begin` と止まった時点の記録 `fixprguard-ignored-stop`）は、対象のファイルの状態を求め直す前に消す。記録のファイルは、対象のファイルごとに、そのファイルの状態の digest と、ASCII に引用したパスを 1 行に書く。基準値を求めた後に対象のファイルが変わっていれば、記録を書かずに `git-state-changed`（`ignored`）で止まる。作業ツリーと対象のファイルは変えない。
 
 ### `fence FILE`
 
@@ -278,7 +278,7 @@ fixprguard edit-pr --protocol 4 --title-file /path/to/title.txt --body-file /pat
 | どの階層でも、この名前のファイル | `claude.md`、`makefile`、`gnumakefile`、`go.mod`、`go.work` |
 | どの階層でも、名前がこの文字列で終わるファイル（名前がその文字列だけのものを含む） | `*.go`、`*.mk`、`*.c`、`*.h`、`*.cc`、`*.cpp`、`*.cxx`、`*.hh`、`*.hpp`、`*.hxx`、`*.m`、`*.s`、`*.sx`、`*.f`、`*.for`、`*.f90`、`*.swig`、`*.swigcxx`、`*.syso` |
 
-照合は、すべての行で Unicode の単純な大文字小文字の変換で同一視する（KELVIN SIGN と `k`、LONG S と `s` を含む）。不正な UTF-8 のバイトは、同じバイトだけを同一視する。パスは正規化しない。範囲の規則（6 章）とは別の一覧で、共有するのは Go のビルドの入力の拡張子だけである。通常のファイルでないもの（FIFO など）は、git が無視されるファイルとして示さないので対象にならない（`.claude/settings.local.json` は例外で、種類を記録する）。最上位の `.claude/` の下に名前が `.git` と同一視できるものがあれば、git がその下を列挙しないので `git-failed` で止まる（git が無視されるものとして示す入れ子のリポジトリのものを除く）。
+照合は、すべての行で Unicode の単純な大文字小文字の変換で同一視する（KELVIN SIGN と `k`、LONG S と `s` を含む）。不正な UTF-8 のバイトは、同じバイトだけを同一視する。パスは正規化しない。範囲の規則（6 章）とは別の一覧で、共有するのは Go のビルドの入力の拡張子だけである。FIFO・ソケット・デバイスは、git が無視されるファイルとして示さないので対象にならない（`.claude/settings.local.json` は例外で、種類を記録する）。最上位の `.claude/` の下に名前が `.git` と同一視できるものがあれば、git がその下を列挙しないので `git-failed` で止まる（git が無視されるものとして示す入れ子のリポジトリのものを除く）。
 
 ### 7.2 保証しないこと
 
@@ -356,7 +356,7 @@ fixprguard edit-pr --protocol 4 --title-file /path/to/title.txt --body-file /pat
 |---|---|---|---|
 | `dirty-work-tree` | `begin` の時点で作業ツリーに未コミットの変更（未追跡のファイルを含む）がある | なし | `git status` で変更を調べ、捨てるか commit してからやり直す。範囲外の変更で前のラウンドを止めたときも、変更が残っているのでここで止まる |
 | `cross-repository` | PR の head が fork など別のリポジトリにある | なし | ツールでは扱わない。PR の内容を自分で確かめる |
-| `git-state-changed` | HEAD・ブランチ・push 先・hooks・config・info・対象のファイル（7.1 の監視の一覧に当たる、git が無視するファイル）のどれかが基準値と違う。config は、今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*` の設定を除いた設定の値の一覧、git のディレクトリの場所、config のファイルの種類を比べる。`begin` の後に設定の値の一覧が読めなくなった場合（構文の誤り、include の先の FIFO による時間切れなど）も含む。設定の値の一覧を変えない編集では止まらない。ほかのブランチの設定の書き換えは、残余のリスクである（7.2） | `parts`（`head`・`remote`・`hooks`・`config`・`info`・`ignored`）。`ignored` は対象のファイルで、前の部分がすべて一致したときだけ並ぶ | 違う部分を調べる。`ignored` なら 8.1 の手順に従う。どのファイルが変わったかは出力しないので、セッションに調べさせない。`config` なら `git config --list --show-origin` で設定を調べ、意図しない hooks や config の変更なら取り除く。リモートが正当に進んだだけなら、作業ツリーを整理してやり直す |
+| `git-state-changed` | HEAD・ブランチ・push 先・hooks・config・info・対象のファイル（7.1 の監視の一覧に当たる、git が無視するファイル）のどれかが基準値と違う。config は、今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*` の設定を除いた設定の値の一覧、git のディレクトリの場所、config のファイルの種類を比べる。`begin` の後に設定の値の一覧が読めなくなった場合（構文の誤り、include の先の FIFO による時間切れなど）も含む。設定の値の一覧を変えない編集では止まらない。ほかのブランチの設定の書き換えは、残余のリスクである（7.2） | `parts`（`head`・`remote`・`hooks`・`config`・`info`・`ignored`）。`ignored` は対象のファイルで、config・info・hooks が一致したときだけ並ぶ。`inspect`・`finish`・`push` は HEAD と push 先をその後に比べるので、`ignored` で止まったときは、それらを比べていない | 違う部分を調べる。`ignored` なら 8.1 の手順に従う。どのファイルが変わったかは出力しないので、セッションに調べさせない。`config` なら `git config --list --show-origin` で設定を調べ、意図しない hooks や config の変更なら取り除く。リモートが正当に進んだだけなら、作業ツリーを整理してやり直す |
 | `judged-set-changed` | 作業ツリーや commit が判定した集合と違う（判定の後に変更が現れた、build checks が範囲内のファイルを書き換えた、commit の hook が index を書き換えた、など） | `changes`（見つかった変更の一覧） | 一覧の変更を調べる。commit が作られた後に止まったときは、その commit を調べて取り消す |
 | `thread-cap` | `list` が読むスレッドが 2000 件を超える | なし | GitHub 上でスレッドを解決して減らす |
 | `change-cap` | 変更のあるファイルが 1000 個を超える | なし | 変更を調べて減らす |
@@ -387,17 +387,26 @@ else
 fi
 if [ -n "$got" ] && [ "$got" = "$want" ]; then
   echo 'begin record: matches the baseline'
-  diff "$gitdir/fixprguard-ignored-begin" "$gitdir/fixprguard-ignored-stop"
+  diff "$gitdir/fixprguard-ignored-begin" "$gitdir/fixprguard-ignored-stop" | LC_ALL=C sed -n l
 else
   echo 'begin record: does not match the baseline, do not trust it'
 fi
 ```
 
-Linux では `sha256sum` を、macOS では `shasum -a 256` を使う。`diff` の `<` の行は `begin` の時点にだけある行、`>` の行は止まった時点にだけある行である。同じパスが両方にあればそのファイルが変わり、`<` だけなら消え、`>` だけなら増えた。止まった時点の記録の各行のパスが、今の対象のファイルの一覧である。照合が一致しない、または記録のファイルがない場合は、侵害を強く疑う。`.claude/settings.local.json`・`.envrc`・`.env` を、利用者が別に保管している信頼できる写しから戻し、止まった時点の記録のすべてのファイルを確かめる。
+Linux では `sha256sum` を、macOS では `shasum -a 256` を使う。`diff` の `<` の行は `begin` の時点にだけある行、`>` の行は止まった時点にだけある行である。同じパスが両方にあればそのファイルが変わり、`<` だけなら消え、`>` だけなら増えた。`diff` の出力は `sed -n l` が制御文字をエスケープし、各行の末尾に `$` を付ける。止まった時点の記録の各行のパスが、止まった時点の対象のファイルの一覧である。止まった時点の記録は基準値と結び付いていないので、内容を信頼しすぎない。止まった時点の記録だけがない場合は、書けなかったことがある。`inspect` をやり直せば、同じ比較で書き直される。
+
+照合が一致しない、または `begin` の記録がない場合は、侵害を強く疑う。`.claude/settings.local.json`・`.envrc`・`.env` を、利用者が別に保管している信頼できる写しから戻す。記録に頼らず、次のコマンドで無視されるファイルと `.claude/` の下を一覧にし、監視の一覧（7.1）に当たるすべてのファイルを確かめる。出力のパスはエスケープされる。
+
+```sh
+git -c core.fsmonitor=false ls-files --others --ignored --exclude-standard -z | tr '\0' '\n' | LC_ALL=C sed -n l
+find .claude | LC_ALL=C sed -n l
+```
+
+`begin` が `ignored` で止まったときは、このラウンドの記録はない（`begin` は、状態を求め直す前に前のラウンドの記録を消す）。上のブロックは実行せず、このコマンドで一覧にしたファイルを (c) のとおり確かめてから、やり直す。
 
 **(c) 内容を確かめるファイル。** 変わったファイルに加えて、一覧のすべてのファイルの内容を確かめる。特に `.claude/settings.local.json` の `hooks`・`permissions`、`.envrc`・`.env`、無視される場所の `.go`・Go のビルドの入力・`Makefile`・`*.mk` である。意図しない変更は取り除く。
 
-**(d) 作業ツリーに残った変更。** 修正のフェーズが作業ツリーに残した変更は、調べたうえで捨てて `/fixpr` をやり直すか、利用者が確かめて手で commit する。変更を残したまま `begin` を実行すると `dirty-work-tree` で止まる。
+**(d) 作業ツリーに残った変更と、作られた commit。** 修正のフェーズが作業ツリーに残した変更は、調べたうえで捨てて `/fixpr` をやり直すか、利用者が確かめて手で commit する。`finish` は commit の後にも比べるので、commit が作られてから、または stage したまま止まることがある。HEAD が基準値の commit でなく、その件名が `fix: address PR #<PR> review comments` なら、その commit を調べて取り消す。変更を残したまま `begin` を実行すると `dirty-work-tree` で止まる。
 
 **(e) 正当な原因の場合。** 利用者が許可の確認に答えたことや、Claude Code の実行時のファイル（`.claude/scheduled_tasks.lock`、`.claude/worktrees/` の下の worktree など）が原因でも、内容を確かめてからやり直す。worktree は `.claude/` の外に置く。やり直した `begin` は、その時点の対象のファイルを新しい基準値として受け入れる。
 
@@ -407,13 +416,13 @@ Linux では `sha256sum` を、macOS では `shasum -a 256` を使う。`diff` �
 
 | 規則の名前 | 原因 | 対処 |
 |---|---|---|
-| `list ignored files failed` | 無視されるファイルを列挙する git が失敗した、または標準エラーに何か書いた（読めないディレクトリの警告など） | 端末で `git -c core.fsmonitor=false ls-files --others --ignored --exclude-standard -z > /dev/null` を実行し、警告のディレクトリの読み取りの許可を戻すか、ディレクトリを取り除く |
+| `list ignored files failed` | 無視されるファイルを列挙する git が失敗した、または標準エラーに何か書いた（読めないディレクトリの警告など） | 端末で `git -c core.fsmonitor=false ls-files --others --ignored --exclude-standard -z 2>&1 >/dev/null | LC_ALL=C sed -n l` を実行し（警告のパスはエスケープされる）、警告のディレクトリの読み取りの許可を戻すか、ディレクトリを取り除く |
 | `list ignored files output over the cap` | 列挙の出力が 64 MiB を超えた | 無視されるファイルを減らす |
 | `list ignored files output shape` | 列挙の出力が受理する形でない | git の版と、作業ツリーのファイル名を確かめる |
 | `ignored target count over the cap` | 対象のファイルが 10,000 個を超えた | 監視の一覧に当たる無視されるファイルを減らす |
 | `ignored directory entries over the cap` | 入れ子のリポジトリと `.claude/` の下でたどったエントリが 100,000 個を超えた | 無視される場所の入れ子のリポジトリと、`.claude/worktrees/` の下の worktree を取り除く |
 | `ignored file over the size cap` | 1 つの対象のファイルの大きさが 16 MiB を超えた | 下のコマンドで探し、取り除く |
-| `ignored read total over the cap` | 1 回で読む対象のファイルの内容の合計が 64 MiB を超えた（同じ内容を指す多数のリンクを含む） | 下のコマンドで大きなファイルを探し、不要なものとリンクを取り除く |
+| `ignored read total over the cap` | 1 回で読む対象のファイルの内容の合計が 64 MiB を超えた（同じ内容を指す多数のリンクを含む。どのファイルも 16 MiB 以下である） | 下の 2 番目のコマンドでリンクをたどって大きなファイルを、3 番目のコマンドでシンボリックリンクを探し、不要なものを取り除く |
 | `read ignored files timed out` | 状態を求める処理が 2 分を超えた（応答しないファイルシステムを指すリンクなど） | 作業ツリーの外を指すシンボリックリンクを確かめる |
 | `read ignored directory` | 入れ子のリポジトリか `.claude/` の下のディレクトリを読めない | 読み取りの許可を戻す |
 | `read ignored file` | 対象のファイル（リンクのたどる先を含む）を読めない | 読み取りの許可を戻すか、ファイルを取り除く |
@@ -421,10 +430,12 @@ Linux では `sha256sum` を、macOS では `shasum -a 256` を使う。`diff` �
 | `.git name below .claude` | 最上位の `.claude/` の下に `.git` という名前のものがある | 取り除く。`.claude/worktrees/` の下の worktree なら `.claude/` の外に移す |
 | `write ignored begin record` | `begin` の記録のファイルを書けない、または前のラウンドの止まった時点の記録を消せない | git のディレクトリの `fixprguard-ignored-begin`・`fixprguard-ignored-stop` の種類と許可を確かめる |
 
-大きなファイルは、次のコマンドで探す。出力のパスは `sed -n l` が制御文字をエスケープするので、端末を制御しない。
+大きなファイルとシンボリックリンクは、次のコマンドで探す。1 行目は 16 MiB を超えるファイル、2 行目はリンクをたどって 1 MiB を超えるファイル、3 行目はシンボリックリンクを示す。出力のパスは `sed -n l` が制御文字をエスケープするので、端末を制御しない。
 
 ```sh
 find . -path ./.git -prune -o -type f -size +16M -print | LC_ALL=C sed -n l
+find -L . -path ./.git -prune -o -type f -size +1M -print | LC_ALL=C sed -n l
+find . -path ./.git -prune -o -type l -print | LC_ALL=C sed -n l
 ```
 
 ## 9. ツールを変更する場合

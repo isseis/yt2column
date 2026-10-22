@@ -1211,10 +1211,15 @@ func TestIgnoredRecordFiles(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Baseline: %v", err)
 		}
+		// Records of an earlier round, which the earlier token matches.
+		writeFile(t, gitDir(r, ignoredBeginRecord), "earlier round\n")
+		writeFile(t, gitDir(r, ignoredStopRecord), "earlier round\n")
 		r.Write("build/x.go", "package x\n")
 		wantStateParts(t, w.WriteBeginRecord(t.Context(), base), PartIgnored)
-		if _, err := os.Lstat(gitDir(r, ignoredBeginRecord)); !errors.Is(err, fs.ErrNotExist) {
-			t.Errorf("begin record: %v, want none written", err)
+		for _, name := range []string{ignoredBeginRecord, ignoredStopRecord} {
+			if _, err := os.Lstat(gitDir(r, name)); !errors.Is(err, fs.ErrNotExist) {
+				t.Errorf("%s: %v, want none left", name, err)
+			}
 		}
 	})
 	t.Run("stop_record", func(t *testing.T) {
@@ -1255,7 +1260,9 @@ func TestIgnoredRecordFiles(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Baseline: %v", err)
 		}
-		// A non-empty directory at a record's name fails the rename.
+		// A non-empty directory at a record's name can be neither removed
+		// nor replaced by the rename: WriteBeginRecord fails on removing it,
+		// and CheckState on the rename.
 		blockName := func(name string) {
 			mkdir(t, gitDir(r, name))
 			writeFile(t, filepath.Join(gitDir(r, name), "keep"), "x")
@@ -1265,8 +1272,8 @@ func TestIgnoredRecordFiles(t *testing.T) {
 			t.Errorf("WriteBeginRecord = %v, want %v", err, errWriteBeginRecord)
 		}
 		blockName(ignoredStopRecord)
-		// With only the stop record's name blocked, removing the earlier
-		// stop record fails, and begin writes no record.
+		// With only the stop record's name blocked, removing it fails too,
+		// and begin writes no record.
 		if err := os.RemoveAll(gitDir(r, ignoredBeginRecord)); err != nil {
 			t.Fatal(err)
 		}

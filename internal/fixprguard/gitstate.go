@@ -584,7 +584,8 @@ func (w *Worktree) hooksState(ctx context.Context) (string, error) {
 // git that lists them reads the configuration (core.excludesFile among it),
 // so it runs only once the configuration matches, and though it runs no
 // hook it keeps the order of comparing before launching. So parts names
-// ignored only when everything else matches. A target file differing writes
+// ignored only when the configuration, info and hooks match; compareState
+// compares HEAD and the push target only after CheckState. A target file differing writes
 // the stop record file for the user to compare with the begin record. Every
 // subcommand that launches git or gh after begin calls it first.
 func (w *Worktree) CheckState(ctx context.Context, base Baseline) error {

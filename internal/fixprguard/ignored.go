@@ -620,10 +620,10 @@ func recordDigest(record []byte) string {
 // WriteBeginRecord writes the begin record file once the target files still
 // match base: it takes the state again, and when the record's digest is not
 // base's (a target file changed after Baseline read it) it writes nothing and
-// returns a GitStateError naming ignored. It first removes a stop record left
-// by an earlier round, so a stop record present later was written against
-// this begin record; one this round fails to write is then missing, not
-// stale. begin calls it after Baseline and prints the baseline only after it
+// returns a GitStateError naming ignored. It first removes both records an
+// earlier round left, so a record present later belongs to this round: a
+// stop record pairs with this begin record, and a begin that stops leaves
+// none that the previous token would still match. begin calls it after Baseline and prints the baseline only after it
 // returns, so no baseline reaches the session without its record. It locates
 // the git directories again: nothing runs between the two calls that could
 // move them, and CheckState holds their location to the baseline later.
@@ -635,15 +635,17 @@ func (w *Worktree) WriteBeginRecord(ctx context.Context, base Baseline) error {
 	if err != nil {
 		return err
 	}
+	for _, name := range []string{ignoredStopRecord, ignoredBeginRecord} {
+		if err := os.Remove(filepath.Join(dirs.gitDir, name)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return errWriteBeginRecord
+		}
+	}
 	state, err := w.collectTargets(ctx, defaultTargetLimits)
 	if err != nil {
 		return err
 	}
 	if recordDigest(state.record) != base.ignoredRecord {
 		return &GitStateError{Parts: []string{PartIgnored}}
-	}
-	if err := os.Remove(filepath.Join(dirs.gitDir, ignoredStopRecord)); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return errWriteBeginRecord
 	}
 	if err := writeRecordFile(dirs.gitDir, ignoredBeginRecord, state.record); err != nil {
 		return errWriteBeginRecord

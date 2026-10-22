@@ -20,7 +20,7 @@ The division of responsibilities is as follows.
 | `/fixpr` and `/runpr` commands (`.claude/commands/`) | The order in which subcommands are called, confirmation with the user, launching agents |
 | Developer | Decisions about out-of-scope changes and untrusted threads, what to do when the tool stops |
 
-The tool keeps no state file. The session holds the baseline and the judged set ID that a subcommand prints, and passes them to the next subcommand as arguments.
+The tool keeps no state file (the record files `begin`, `inspect`, `finish`, and `push` write into the git directory (8.1) are for the user, and the tool never reads them back). The session holds the baseline and the judged set ID that a subcommand prints, and passes them to the next subcommand as arguments.
 
 ## 2. Prerequisites
 
@@ -133,7 +133,7 @@ Output fields:
 | `permissionLookups` | The number of permission lookups used and left |
 | `nonce`, `threads` | `threads` is a string: the array of threads to process (`threadId`, `databaseId`, `authorType`, `body`, `path`, `line`, `url`, `fingerprint`, `named`) as one line of JSON, enclosed in `BEGIN-UNTRUSTED-<nonce>` and `END-UNTRUSTED-<nonce>` lines. Embed this string unchanged in an agent's prompt |
 
-Side effects: reads GitHub and `git ls-remote`, and writes (replaces) the begin record file `fixprguard-ignored-begin` in the per-worktree git directory (`.git` in the main checkout, `.git/worktrees/<name>` in a linked worktree). It removes the stop record file `fixprguard-ignored-stop` of the previous round. A record file has one line per target file: the digest of that file's state and its path quoted in ASCII. If a target file changed after the baseline was taken, it writes no record and stops with `git-state-changed` (`ignored`). The work tree and the target files are not changed.
+Side effects: reads GitHub and `git ls-remote`, and writes (replaces) the begin record file `fixprguard-ignored-begin` in the per-worktree git directory (`.git` in the main checkout; in a linked worktree, the directory the `gitdir:` line of its `.git` file names, `<main checkout>/.git/worktrees/<name>`). It removes the record files of the previous round (`fixprguard-ignored-begin` and the stop record `fixprguard-ignored-stop`) before taking the state of the target files again. A record file has one line per target file: the digest of that file's state and its path quoted in ASCII. If a target file changed after the baseline was taken, it writes no record and stops with `git-state-changed` (`ignored`). The work tree and the target files are not changed.
 
 ### `fence FILE`
 
@@ -278,7 +278,7 @@ The `.go` rule: a `.go` file is in scope under rule 2 only when `path` is a `.go
 | A file of this name at any level | `claude.md`, `makefile`, `gnumakefile`, `go.mod`, `go.work` |
 | A file at any level whose name ends with this string (a name that is only the string included) | `*.go`, `*.mk`, `*.c`, `*.h`, `*.cc`, `*.cpp`, `*.cxx`, `*.hh`, `*.hpp`, `*.hxx`, `*.m`, `*.s`, `*.sx`, `*.f`, `*.for`, `*.f90`, `*.swig`, `*.swigcxx`, `*.syso` |
 
-Matching folds case on every row with Unicode simple case folding (KELVIN SIGN and `k`, LONG S and `s` included). An invalid UTF-8 byte is equal only to the same byte. Paths are not normalized. This list is separate from the scope rules (chapter 6); they share only the extensions of the Go build inputs. Something that is not a regular file (a FIFO and so on) is not a target, since git does not show it as an ignored file (`.claude/settings.local.json` is the exception, whose type is recorded). If something whose name folds to `.git` is below the top-level `.claude/`, git lists nothing below it, so the run stops with `git-failed` (except below a nested repository git shows as ignored).
+Matching folds case on every row with Unicode simple case folding (KELVIN SIGN and `k`, LONG S and `s` included). An invalid UTF-8 byte is equal only to the same byte. Paths are not normalized. This list is separate from the scope rules (chapter 6); they share only the extensions of the Go build inputs. A FIFO, a socket, or a device is not a target, since git does not show it as an ignored file (`.claude/settings.local.json` is the exception, whose type is recorded). If something whose name folds to `.git` is below the top-level `.claude/`, git lists nothing below it, so the run stops with `git-failed` (except below a nested repository git shows as ignored).
 
 ### 7.2 Not guaranteed
 
@@ -356,7 +356,7 @@ The `stop` field of the exit code `1` output gives the stop kind. When the tool 
 |---|---|---|---|
 | `dirty-work-tree` | At `begin`, the work tree has uncommitted changes (untracked files included) | None | Examine the changes with `git status`, discard or commit them, and redo. When the previous round was stopped by out-of-scope changes, the changes remain, so the run stops here too |
 | `cross-repository` | The PR's head is in another repository, such as a fork | None | The tool does not handle it. Check the PR's content yourself |
-| `git-state-changed` | One of HEAD, the branch, the push target, the hooks, the config, the info, or the target files (the files git ignores that are on the watch list of 7.1) differs from the baseline. For the config, the list of configuration values without the `branch.<name>.*` settings of other branches (every branch except the current branch and `main`), where the git directories are, and the type of the config files are compared. This includes the case where the list of configuration values can no longer be read after `begin` (a syntax error, a timeout on a FIFO include target, and so on). Edits that leave the list of configuration values unchanged do not stop the run. A rewrite of another branch's settings is a residual risk (7.2) | `parts` (`head`, `remote`, `hooks`, `config`, `info`, `ignored`). `ignored` is the target files, listed only when every earlier part matches | Examine the parts that differ. For `ignored`, follow the steps of 8.1. The tool does not print which file changed, so do not let the session look for it. For `config`, examine the settings with `git config --list --show-origin`, and remove an unintended change to the hooks or config. If the remote only advanced legitimately, clean up the work tree and redo |
+| `git-state-changed` | One of HEAD, the branch, the push target, the hooks, the config, the info, or the target files (the files git ignores that are on the watch list of 7.1) differs from the baseline. For the config, the list of configuration values without the `branch.<name>.*` settings of other branches (every branch except the current branch and `main`), where the git directories are, and the type of the config files are compared. This includes the case where the list of configuration values can no longer be read after `begin` (a syntax error, a timeout on a FIFO include target, and so on). Edits that leave the list of configuration values unchanged do not stop the run. A rewrite of another branch's settings is a residual risk (7.2) | `parts` (`head`, `remote`, `hooks`, `config`, `info`, `ignored`). `ignored` is the target files, listed only when the config, info, and hooks match. `inspect`, `finish`, and `push` compare HEAD and the push target after that, so on an `ignored` stop they were not compared | Examine the parts that differ. For `ignored`, follow the steps of 8.1. The tool does not print which file changed, so do not let the session look for it. For `config`, examine the settings with `git config --list --show-origin`, and remove an unintended change to the hooks or config. If the remote only advanced legitimately, clean up the work tree and redo |
 | `judged-set-changed` | The work tree or the commit differs from the judged set (a change appeared after the judgment, the build checks rewrote an in-scope file, a commit hook rewrote the index, and so on) | `changes` (the list of changes found) | Examine the listed changes. If the run stopped after a commit was made, examine that commit and undo it |
 | `thread-cap` | `list` would read more than 2000 threads | None | Resolve threads on GitHub to reduce them |
 | `change-cap` | More than 1000 files have changes | None | Examine the changes and reduce them |
@@ -387,17 +387,26 @@ else
 fi
 if [ -n "$got" ] && [ "$got" = "$want" ]; then
   echo 'begin record: matches the baseline'
-  diff "$gitdir/fixprguard-ignored-begin" "$gitdir/fixprguard-ignored-stop"
+  diff "$gitdir/fixprguard-ignored-begin" "$gitdir/fixprguard-ignored-stop" | LC_ALL=C sed -n l
 else
   echo 'begin record: does not match the baseline, do not trust it'
 fi
 ```
 
-Use `sha256sum` on Linux and `shasum -a 256` on macOS. In the `diff` output, a `<` line is only in the record at `begin` and a `>` line only in the record at the stop. A path on both sides is a file that changed, one only on the `<` side was removed, and one only on the `>` side was added. The paths of the stop record's lines are the current list of target files. If the check does not match, or a record file is missing, strongly suspect a compromise. Restore `.claude/settings.local.json`, `.envrc`, and `.env` from trusted copies the user keeps elsewhere, and examine every file in the stop record.
+Use `sha256sum` on Linux and `shasum -a 256` on macOS. In the `diff` output, a `<` line is only in the record at `begin` and a `>` line only in the record at the stop. A path on both sides is a file that changed, one only on the `<` side was removed, and one only on the `>` side was added. `sed -n l` escapes control characters in the `diff` output and adds `$` at the end of each line. The paths of the stop record's lines are the list of target files at the stop. The stop record is not tied to the baseline, so do not trust its content too far. If only the stop record is missing, it may have failed to be written. Redoing `inspect` writes it again from the same comparison.
+
+If the check does not match, or the begin record is missing, strongly suspect a compromise. Restore `.claude/settings.local.json`, `.envrc`, and `.env` from trusted copies the user keeps elsewhere. Without relying on the records, list the ignored files and what is below `.claude/` with the following commands, and examine every file on the watch list (7.1). The paths in the output are escaped.
+
+```sh
+git -c core.fsmonitor=false ls-files --others --ignored --exclude-standard -z | tr '\0' '\n' | LC_ALL=C sed -n l
+find .claude | LC_ALL=C sed -n l
+```
+
+When `begin` stops with `ignored`, this round has no records (`begin` removes the previous round's records before taking the state again). Do not run the block above; examine the files these commands list as (c) says, then redo.
 
 **(c) Files whose content to examine.** Besides the files that changed, examine the content of every file on the list. In particular, the `hooks` and `permissions` of `.claude/settings.local.json`, `.envrc` and `.env`, and `.go` files, Go build inputs, `Makefile`s, and `*.mk` files in ignored places. Remove unintended changes.
 
-**(d) Changes left in the work tree.** Examine the changes the fix phase left in the work tree, then either discard them and redo `/fixpr`, or have the user examine them and commit by hand. Running `begin` with the changes still there stops with `dirty-work-tree`.
+**(d) Changes left in the work tree, and a commit made.** Examine the changes the fix phase left in the work tree, then either discard them and redo `/fixpr`, or have the user examine them and commit by hand. `finish` compares after the commit too, so it can stop after a commit was made, or with the staging left. If HEAD is not the baseline's commit and its subject is `fix: address PR #<PR> review comments`, examine that commit and undo it. Running `begin` with the changes still there stops with `dirty-work-tree`.
 
 **(e) When the cause is legitimate.** Even when the cause is the user answering a permission prompt, or a Claude Code runtime file (`.claude/scheduled_tasks.lock`, a worktree below `.claude/worktrees/`, and so on), examine the contents before redoing. Put worktrees outside `.claude/`. A redone `begin` accepts the target files at that time as the new baseline.
 
@@ -407,13 +416,13 @@ The rule name of the `git-failed` diagnostic on standard error, `fixprguard: git
 
 | Rule name | Cause | What to do |
 |---|---|---|
-| `list ignored files failed` | The git that lists the ignored files failed or wrote anything to standard error (a warning about an unreadable directory, and so on) | Run `git -c core.fsmonitor=false ls-files --others --ignored --exclude-standard -z > /dev/null` in the terminal, and restore read permission on the directory the warning names or remove the directory |
+| `list ignored files failed` | The git that lists the ignored files failed or wrote anything to standard error (a warning about an unreadable directory, and so on) | Run `git -c core.fsmonitor=false ls-files --others --ignored --exclude-standard -z 2>&1 >/dev/null | LC_ALL=C sed -n l` in the terminal (the paths in the warnings are escaped), and restore read permission on the directory the warning names or remove the directory |
 | `list ignored files output over the cap` | The listing's output exceeded 64 MiB | Reduce the ignored files |
 | `list ignored files output shape` | The listing's output is not in the accepted shape | Check the git version and the file names in the work tree |
 | `ignored target count over the cap` | There are more than 10,000 target files | Reduce the ignored files on the watch list |
 | `ignored directory entries over the cap` | More than 100,000 entries were walked below nested repositories and `.claude/` | Remove nested repositories in ignored places and worktrees below `.claude/worktrees/` |
 | `ignored file over the size cap` | One target file is larger than 16 MiB | Find it with the command below and remove it |
-| `ignored read total over the cap` | The total content of the target files read in one pass exceeded 64 MiB (including many links to the same content) | Find large files with the command below, and remove the unneeded ones and the links |
+| `ignored read total over the cap` | The total content of the target files read in one pass exceeded 64 MiB (including many links to the same content; every file is 16 MiB or less) | Find large files through links with the second command below and symbolic links with the third, and remove the unneeded ones |
 | `read ignored files timed out` | Taking the state took more than 2 minutes (a link into an unresponsive file system, and so on) | Check symbolic links that point outside the work tree |
 | `read ignored directory` | A directory below a nested repository or below `.claude/` cannot be read | Restore read permission |
 | `read ignored file` | A target file (a link's target included) cannot be read | Restore read permission or remove the file |
@@ -421,10 +430,12 @@ The rule name of the `git-failed` diagnostic on standard error, `fixprguard: git
 | `.git name below .claude` | Something named `.git` is below the top-level `.claude/` | Remove it. If it is a worktree below `.claude/worktrees/`, move it outside `.claude/` |
 | `write ignored begin record` | The begin record file cannot be written, or the stop record of the previous round cannot be removed | Check the type and permissions of `fixprguard-ignored-begin` and `fixprguard-ignored-stop` in the git directory |
 
-Find large files with the following command. `sed -n l` escapes control characters in the paths it prints, so they do not control the terminal.
+Find large files and symbolic links with the following commands. The first line shows files over 16 MiB, the second files over 1 MiB with links followed, and the third symbolic links. `sed -n l` escapes control characters in the paths it prints, so they do not control the terminal.
 
 ```sh
 find . -path ./.git -prune -o -type f -size +16M -print | LC_ALL=C sed -n l
+find -L . -path ./.git -prune -o -type f -size +1M -print | LC_ALL=C sed -n l
+find . -path ./.git -prune -o -type l -print | LC_ALL=C sed -n l
 ```
 
 ## 9. Changing the tool
