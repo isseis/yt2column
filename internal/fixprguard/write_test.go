@@ -416,11 +416,11 @@ func TestCheckPostText(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			err := checkPostText(tc.text)
-			if tc.reject != errors.Is(err, errCodexMention) {
-				t.Errorf("checkPostText(%q) = %v, want rejection %v", tc.text, err, tc.reject)
+			if tc.reject && !errors.Is(err, errCodexMention) {
+				t.Errorf("checkPostText(%q) = %v, want errCodexMention", tc.text, err)
 			}
-			if tc.reject && !errors.Is(err, ErrInvalidInput) {
-				t.Errorf("checkPostText(%q) = %v, want it to wrap ErrInvalidInput", tc.text, err)
+			if !tc.reject && err != nil {
+				t.Errorf("checkPostText(%q) = %v, want nil", tc.text, err)
 			}
 		})
 	}
@@ -474,6 +474,15 @@ func TestEditPRRejectsCodexMention(t *testing.T) {
 			}
 		})
 	}
+	// A title readTitleFile rejects is reported as such even when it also
+	// mentions Codex.
+	t.Run("file_rejected_first", func(t *testing.T) {
+		g, _ := newTestGitHub(t)
+		req := EditPRRequest{PR: mustPR(t), TitleFile: writeTextFile(t, mentionText+"\nmore"), BodyFile: writeTextFile(t, "body")}
+		if err := g.EditPR(t.Context(), req); !errors.Is(err, ErrInvalidInput) || errors.Is(err, errCodexMention) {
+			t.Errorf("EditPR = %v, want a file rejection, not errCodexMention", err)
+		}
+	})
 	t.Run("no_mention_edits", func(t *testing.T) {
 		title := "fix: what Codex flagged"
 		g, _ := newTestGitHub(t, editStep(title))

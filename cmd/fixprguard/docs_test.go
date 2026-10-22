@@ -518,6 +518,8 @@ func TestGuideDescribesMentionCheck(t *testing.T) {
 		{
 			rel:     guideFiles[1],
 			proviso: "regardless of the three conditions above, provided the narrowed part is content the command documents do not send",
+			// The period tells the old sentence from the new one, which
+			// goes on to name the mention after a comma.
 			stale72: "checks only the file's type, size, and encoding.",
 		},
 	} {
