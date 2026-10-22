@@ -8,7 +8,7 @@
 | Created | 2026-10-22 |
 | Review date | 2026-10-22 |
 | Reviewer | isseis |
-| Comments | 2026-10-22 (editorial): ステップ 2-3 のテストの配置と名前を実装に合わせた（AC-01 の別の worktree の操作は流れのテストだけに置く。AC-11 の git を起動しないことは `TestBaselineDetectsChange` の層の確かめで、FIFO の行は `TestConfigFileTypeCheckedBeforeGit` で、タイムアウトは `TestConfigListFailureKinds` で確かめる）。1.3.4 に `[branch ""]` の観察を記録した。決定は変えていない。 |
+| Comments | - |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -100,7 +100,6 @@
 -   **lint と、テストからだけ使われる関数:** `make lint` は `golangci-lint run --build-tags test,integration` を実行する（`Makefile:10`・`:208-210`）。`.golangci.yml` は `run.tests` を指定しないので、既定の `true` でテストのファイルも読む。フェーズ 1 の `configListDigest` はテストからだけ使われるが、`unused` に報告されない。ただし `test_helpers_git.go` はテストのファイル（`_test.go`）ではないので、そこに加える補助は、加えた時点でテストから使われていなければ `unused` に報告される。また、`_test.go` だけに効く linter の除外は、このファイルには当たらない。
 -   **FIFO の作り方:** テストでは `syscall.Mkfifo` を使う。先例は `internal/fixprguard/changes_test.go:113`・`:178` である。
 -   **テストのリポジトリのリモート:** `newTestRepo` は `feature` を `origin` に `push -u` する（`test_helpers_git.go:108`）ので、`origin/feature` はあるが `origin/main` はない。別の worktree で `git worktree add -b X` を試すときは、`origin/feature` から作る（ローカルのブランチから作ると `branch.X.*` が書かれない）。
--   **`[branch ""]` の節（実装の際に確かめた、2026-10-22、git 2.50.1）:** `git config --list` は `branch..remote` として出力し、終了コード 0 で終わる。一方、`git status`・`git ls-remote`・`git remote -v`・`git push` は `fatal: bad config variable 'branch..remote'` で、終了コード 128 で終わる。要件書 1 章の「git がこれを使うことはない」とは違い、git はこの節があると動かない。比較から外す決定（要件書 AC-02）はそのまま実装した。外した後も、ツールが次に起動する git が失敗して `git-failed` で止まるので、誤りうる方向は止まりすぎだけであり、設計書 1.2 の値のない設定と同じ扱いになる。ステップ 2-3 のテストは、この行だけ `CheckState` を通ることを確かめる。ガイドの `git-failed` の行に、この場合も書く（ステップ 3-2）。
 -   **ネットワークを要する確かめ（I-01・I-02）と git の最低の版:** ステップ 3-1 で、実装のときに利用者の承認を得て行う（`CLAUDE.md`「Tool Execution Safety」）。
 
 #### 1.3.5. 実装時に決めること
@@ -126,6 +125,24 @@
 -   `design_handoff.md` の H-01〜H-09 は、すべて設計書の付録 A に記録されている。
 -   `implementation_handoff.md` の I-01: ステップ 3-1 で、`ThreadPaths` が起動するのと同じ `gh api graphql` と権限の照会（`threads.go:180`・`trust.go:140`）を、`GIT_TRACE` に出力先のファイルを指定して直接実行する。そして、起動された git と、その git がブランチの設定を読むかどうかを記録する。`fixprguard` を通して実行しない理由は 1.3.4 の「環境変数」である。ほかのブランチの `branch.<name>.*` を読む git があれば、ガイド 8 章の `response-rejected` の行に反映する（ステップ 3-2）。
 -   `implementation_handoff.md` の I-02: ステップ 3-1 で、通常の PR について確かめる（1.4）。`branch.<そのブランチ>.*` のほかに書き込む場合は、そこで止まり、扱い（受け入れるか、要件に戻すか）を利用者に尋ねる。fork の PR は確かめない（1.4）。
+
+### 1.6. ステップ 3-1 の確かめの結果（2026-10-22）
+
+手元の版は git 2.50.1（Apple Git-155）、`gh` 2.96.0 である。利用者の承認を得て行った。
+
+-   **I-01:** このリポジトリの worktree で、`GIT_TRACE` に出力先のファイルを指定して、次の 3 つを直接実行した。
+    -   対照: `gh repo view --json nameWithOwner`。trace に `git remote -v` と `git config --get-regexp '^remote\..*\.gh-resolved$'` が出た。
+    -   `ThreadPaths` と同じ形の `gh api graphql --input -`（owner・name・PR #429 を変数に明示したスレッドの照会）。応答は成功した。
+    -   `gh api --include repos/isseis/yt2column/collaborators/coderabbitai/permission`。HTTP 200 で成功した。
+
+    後の 2 つは、trace のファイルを作らなかった。つまり git を 1 回も起動しなかった。そのため、ブランチの設定を読む git はない。ガイド 8 章の `response-rejected` の行には、`gh` の中の git（`gh repo view` の `git remote -v`）が値のない設定で失敗する場合だけを書く。
+-   **I-02:** スクラッチのディレクトリに `gh repo clone isseis/yt2column` で新しく clone し、その clone で `gh pr checkout 429`（通常の PR）を実行した。前後の `git config --list --show-origin` の違いは、`file:.git/config` の `branch.isseis/0034-fixprguard-ignored-files-01.remote=origin` と `.merge=refs/heads/isseis/0034-fixprguard-ignored-files-01` の 2 行だけだった。`branch.<そのブランチ>.*` のほかには書き込まなかったので、利用者に尋ねる場合に当たらない。clone は消した。開いている PR は #429 だけで、そのブランチは手元の別の worktree で checkout されている。ステップ 3-1 の「手元のどの worktree でも checkout されていないブランチ」には当たらないが、新しい clone の中だけで checkout するので手元の worktree に影響しないとして、利用者が #429 を選んだ。fork の PR は確かめていない（1.4）。
+-   **git の最低の版:** git のリポジトリの `Documentation/RelNotes/2.8.0.adoc`・`2.11.0.adoc`・`2.12.0.adoc` と、各タグの文書で確かめた。
+    -   `git config --show-origin`: 2.8.0 のリリースノートに「"git config" learnt a new "--show-origin" option」とある。`v2.8.0` の `git-config.txt` に `--show-origin` があり、`v2.7.0` にはない。
+    -   `git status --porcelain=v1`: `v2.11.0` の `git-status.txt` に `--porcelain[=<version>]` と `--porcelain=v1` があり、`v2.10.0` にはない。
+    -   `protocol.<name>.allow`: 2.12.0 のリリースノートに「Finer-grained control of what protocols are allowed for transports ... via a new configuration mechanism」とある。`v2.12.0` の `config.txt` に `protocol.allow`・`protocol.<name>.allow` があり、`v2.11.0` にはない。
+
+    よって、設計書 1.3 の最低の版 2.12 は変わらない。
 
 ## 2. 実装ステップ (Implementation Steps)
 
@@ -190,16 +207,16 @@
 
 **変更するファイル**: `internal/fixprguard/test_helpers_git.go`、`gitstate_test.go`、`worktree_flow_test.go`、`cmd/fixprguard/main_test.go`
 
--   [x] `test_helpers_git.go` に、`git config --list` の呼び出しだけを、テストが渡した出力とエラーの組で差し替え、ほかの git は実物に渡す仕組みを加える（設計書 2.2）。差し替えは、呼び出しを記録してから結果を返し、git を起動しない。エラーの値は、テストが作って渡す（このファイルは `_test.go` でないので、linter の除外が当たらない。1.3.4）。別の worktree と、`testBranch` でない名前のブランチ（`.` を含む名前、見分けやすい名前）を作る補助も加える。
--   [x] 設計書 7.2 の表の各行の入力で、`begin` の後に設定を変え、`compareState` の結果を確かめる。止まる行（AC-05〜AC-09・AC-11・AC-13）は `TestBaselineDetectsChange` に加え、止まらない行（AC-01〜AC-04・AC-10）は別のテストにまとめる。AC-03 には `includeIf` で読まれるファイルの行も置き、worktree の config の行は `begin` の前に `config.worktree` を作っておく（1.3.3）。AC-08 の読み込み元を移す行は、読み込みの順序も変わることをテストのコメントに書く（読み込み元だけの違いはステップ 1-1 で確かめる）。
--   [x] `TestBaselineDetectsChange` で git の記録を受け取り、行ごとに止まった層を確かめる（1.2）。場所と種類の行（`git_file_points_elsewhere`・`commondir_added` など）では git が 1 回も起動されないこと、一覧の行では `git config --list` が起動され、`git rev-parse` が起動されないことを確かめる。
--   [x] 止まらない行は、1.2 の層の区別に従う。AC-01〜AC-04 は、変更の前後で `git config --list --show-origin -z` の出力が変わったことを先に確かめる。AC-10 は、config のファイルのバイト列が変わり、一覧の出力が変わらないことを先に確かめる。
--   [x] AC-01 の流れのテストを `worktree_flow_test.go` に加える。別の worktree での操作（`origin/feature` からの `git worktree add -b X`、`git push -u`、`git worktree remove` と `git branch -d X`）を、1 つの回の `inspect`・`finish`・`push` の間に 1 つずつはさみ、どれも止まらないことを確かめる。各操作の後に、一覧の出力が変わったことも確かめる。
--   [x] AC-12 のテストを加える。`begin` の後の構文の誤りは、実物の git で確かめる（`TestConfigListUnreadable`）。タイムアウトは、差し替えで `errors.Join(context.DeadlineExceeded, &cmdrunner.ExitError{…})` を返して確かめる（次の項目の振り分けのテストの 3 行）。どちらも `config` で止まり、`git rev-parse` を起動しないことを、記録で確かめる。
--   [x] 設計書 4 章の表の振り分けを、差し替えで確かめる。`CheckState` では、1 行（上限超過）・2 行（`errors.Join(context.Canceled, &cmdrunner.ExitError{…})`）・5 行が `git-failed`（`errors.Is(err, ErrGitFailed)` で、`*GitStateError` でない）、3 行・4 行・6 行（終了コード 0 で受理する形でない出力）が `config` になること。`begin` では 3・4・6 行も `git-failed` になり、基準値を返さないこと。
--   [x] AC-14 の、リポジトリの config を FIFO に置き換えると git を 1 回も起動せずに `config` で止まるテスト（`TestConfigFileTypeCheckedBeforeGit`）を加える（設計書 V-7）。このテストは、差し替えで `git config --list` をすぐに失敗させておく。種類の確かめを外して壊したときに、実物の git が FIFO の読み取りで `gitTimeout`（2 分）まで待たないようにするためである。AC-11 の `.git` ファイルの書き換えで git を 1 回も起動しないことは、上の `TestBaselineDetectsChange` の層の確かめで確かめる。
--   [x] AC-15: `cmd/fixprguard/main_test.go` に、`inspect`・`finish`・`push` について、`validBaseline` の版だけを `v1` に替えたトークンを渡すと終了コード `2` になる行を加える。ほかの引数は `parse` が受け付ける値にし、同じ行を `v2` のトークンで渡すと `parse` が受け付けることも確かめる（先例: `TestProtocolMismatch`、`main_test.go:42-62`）。git と `gh` の fake には手順を持たせない（先例: `TestAcceptThreadFlagParsing`、`main_test.go:100-128`）。
--   [x] AC-16: `cmd/fixprguard/main_test.go` に、今のブランチと外す対象のブランチに見分けやすい名前を付け、今のブランチの設定を変えて `inspect` を止めるテストを加える。まず、終了コードが `1`、`stop` が `git-state-changed`、`parts` が `config` を含むこと、見分けやすい名前が `git config --list` の出力に現れることを確かめる。そのうえで、基準値のトークン、止まったときの標準出力、標準エラーが、ブランチの名前、設定の名前と値、読み込み元のパスを含まないことを確かめる。
+-   [ ] `test_helpers_git.go` に、`git config --list` の呼び出しだけを、テストが渡した出力とエラーの組で差し替え、ほかの git は実物に渡す仕組みを加える（設計書 2.2）。差し替えは、呼び出しを記録してから結果を返し、git を起動しない。エラーの値は、テストが作って渡す（このファイルは `_test.go` でないので、linter の除外が当たらない。1.3.4）。別の worktree と、`testBranch` でない名前のブランチ（`.` を含む名前、見分けやすい名前）を作る補助も加える。
+-   [ ] 設計書 7.2 の表の各行の入力で、`begin` の後に設定を変え、`compareState` の結果を確かめる。止まる行（AC-05〜AC-09・AC-11・AC-13）は `TestBaselineDetectsChange` に加え、止まらない行（AC-01〜AC-04・AC-10）は別のテストにまとめる。AC-03 には `includeIf` で読まれるファイルの行も置き、worktree の config の行は `begin` の前に `config.worktree` を作っておく（1.3.3）。AC-08 の読み込み元を移す行は、読み込みの順序も変わることをテストのコメントに書く（読み込み元だけの違いはステップ 1-1 で確かめる）。
+-   [ ] `TestBaselineDetectsChange` で git の記録を受け取り、行ごとに止まった層を確かめる（1.2）。場所と種類の行（`git_file_points_elsewhere`・`commondir_added` など）では git が 1 回も起動されないこと、一覧の行では `git config --list` が起動され、`git rev-parse` が起動されないことを確かめる。
+-   [ ] 止まらない行は、1.2 の層の区別に従う。AC-01〜AC-04 は、変更の前後で `git config --list --show-origin -z` の出力が変わったことを先に確かめる。AC-10 は、config のファイルのバイト列が変わり、一覧の出力が変わらないことを先に確かめる。
+-   [ ] AC-01 の流れのテストを `worktree_flow_test.go` に加える。別の worktree での操作（`origin/feature` からの `git worktree add -b X`、`git push -u`、`git worktree remove` と `git branch -d X`）を、1 つの回の `inspect`・`finish`・`push` の間に 1 つずつはさみ、どれも止まらないことを確かめる。各操作の後に、一覧の出力が変わったことも確かめる。
+-   [ ] AC-12 のテストを加える。`begin` の後の構文の誤りは実物の git で確かめる。タイムアウトは、差し替えで `errors.Join(context.DeadlineExceeded, &cmdrunner.ExitError{…})` を返して確かめる。どちらも `config` で止まり、`git rev-parse` を起動しないことを、記録で確かめる。
+-   [ ] 設計書 4 章の表の振り分けを、差し替えで確かめる。`CheckState` では、1 行（上限超過）・2 行（`errors.Join(context.Canceled, &cmdrunner.ExitError{…})`）・5 行が `git-failed`（`errors.Is(err, ErrGitFailed)` で、`*GitStateError` でない）、3 行・4 行・6 行（終了コード 0 で受理する形でない出力）が `config` になること。`begin` では 3・4・6 行も `git-failed` になり、基準値を返さないこと。
+-   [ ] AC-14 の、リポジトリの config を FIFO に置き換えると git を 1 回も起動せずに `config` で止まる行を、`TestGitNotLaunchedAfterConfigChange` に加える（設計書 V-7）。この行は、差し替えで `git config --list` をすぐに失敗させておく。種類の確かめを外して壊したときに、実物の git が FIFO の読み取りで `gitTimeout`（2 分）まで待たないようにするためである。AC-11 の `.git` ファイルの書き換えにも、git を 1 回も起動しないことの確かめを加える。
+-   [ ] AC-15: `cmd/fixprguard/main_test.go` に、`inspect`・`finish`・`push` について、`validBaseline` の版だけを `v1` に替えたトークンを渡すと終了コード `2` になる行を加える。ほかの引数は `parse` が受け付ける値にし、同じ行を `v2` のトークンで渡すと `parse` が受け付けることも確かめる（先例: `TestProtocolMismatch`、`main_test.go:42-62`）。git と `gh` の fake には手順を持たせない（先例: `TestAcceptThreadFlagParsing`、`main_test.go:100-128`）。
+-   [ ] AC-16: `cmd/fixprguard/main_test.go` に、今のブランチと外す対象のブランチに見分けやすい名前を付け、今のブランチの設定を変えて `inspect` を止めるテストを加える。まず、終了コードが `1`、`stop` が `git-state-changed`、`parts` が `config` を含むこと、見分けやすい名前が `git config --list` の出力に現れることを確かめる。そのうえで、基準値のトークン、止まったときの標準出力、標準エラーが、ブランチの名前、設定の名前と値、読み込み元のパスを含まないことを確かめる。
 
 **壊して確かめる**: 次で、それぞれ括弧の中のテストが失敗すること。
 
@@ -220,12 +237,12 @@
 
 **変更するファイル**: `docs/tasks/0035_fixprguard_branch_config/03_implementation_plan.md`（結果の記録）、必要なら `internal/fixprguard/gitstate.go`
 
--   [ ] 利用者の承認を得てから行う（`CLAUDE.md`「Tool Execution Safety」）。
--   [ ] I-01: `GIT_TRACE` に出力先のファイルを指定して、`ThreadPaths` と同じ `gh api graphql`（スレッドの照会）と権限の照会の `gh api` を直接実行する（1.5）。2 つの呼び出しは owner と name を明示して渡すので、`gh` が git を一度も起動しないこともありうる。そのため、まず同じ出力先で git を起動することが分かっている `gh repo view`（設計書 V-6）を実行し、trace に git の記録が出ることを確かめる（対照）。そのうえで、2 つの呼び出しが成功したこと（出力があること）と、起動された git とそれがブランチの設定を読むかを記録する。git の記録がなければ、「git を起動しなかった」を結果とする。
--   [ ] I-02: スクラッチのディレクトリに、このリポジトリを新しく clone する。手元のどの worktree でも checkout されていないブランチの PR を選び、その clone で `gh pr checkout` を実行する。前後の、その clone の `git config --list --show-origin` を比べて、書き込まれた設定の名前を記録する。共有の `.git/config` には書き込まない（ほかのセッションの `fixprguard` が止まるため）。`branch.<そのブランチ>.*` のほかに書き込む場合は、止まって利用者に尋ねる（1.5）。終わったら clone を消す。
--   [ ] git の最低の版（2.12）の根拠（設計書 1.3「git の最低の版」の 3 つの機能が入った版）を、git のリリースノートで確かめ直す。違えば、最低の版を変えることは設計書の決定の変更なので、止まって `.claude/commands/runplan.md` の決定の変更の手順（`docs/dev/developer_guide/requirements_process.md`「Editing an approved document」）に従う。利用者の承認を得てから、設計書と、ステップ 2-2 で書いた `gitHardening` のコメントを直し、ステップ 3-2 に進む。
--   [ ] 結果を本書の 1.5 に追記する（コマンド、`gh`・git の版、日付）。追記は実装の記録なので、`Status` は変えない。
--   [ ] I-02 で前提が外れ、利用者が要件に戻すと決めた場合は、ステップ 2-3 の AC-01 のテストを見直す。I-01 の結果は、ガイドの記述だけに効く（1.5）。
+-   [x] 利用者の承認を得てから行う（`CLAUDE.md`「Tool Execution Safety」）。
+-   [x] I-01: `GIT_TRACE` に出力先のファイルを指定して、`ThreadPaths` と同じ `gh api graphql`（スレッドの照会）と権限の照会の `gh api` を直接実行する（1.5）。2 つの呼び出しは owner と name を明示して渡すので、`gh` が git を一度も起動しないこともありうる。そのため、まず同じ出力先で git を起動することが分かっている `gh repo view`（設計書 V-6）を実行し、trace に git の記録が出ることを確かめる（対照）。そのうえで、2 つの呼び出しが成功したこと（出力があること）と、起動された git とそれがブランチの設定を読むかを記録する。git の記録がなければ、「git を起動しなかった」を結果とする。
+-   [x] I-02: スクラッチのディレクトリに、このリポジトリを新しく clone する。手元のどの worktree でも checkout されていないブランチの PR を選び、その clone で `gh pr checkout` を実行する。前後の、その clone の `git config --list --show-origin` を比べて、書き込まれた設定の名前を記録する。共有の `.git/config` には書き込まない（ほかのセッションの `fixprguard` が止まるため）。`branch.<そのブランチ>.*` のほかに書き込む場合は、止まって利用者に尋ねる（1.5）。終わったら clone を消す。
+-   [x] git の最低の版（2.12）の根拠（設計書 1.3「git の最低の版」の 3 つの機能が入った版）を、git のリリースノートで確かめ直す。違えば、最低の版を変えることは設計書の決定の変更なので、止まって `.claude/commands/runplan.md` の決定の変更の手順（`docs/dev/developer_guide/requirements_process.md`「Editing an approved document」）に従う。利用者の承認を得てから、設計書と、ステップ 2-2 で書いた `gitHardening` のコメントを直し、ステップ 3-2 に進む。
+-   [x] 結果を本書に追記する（1.6）（コマンド、`gh`・git の版、日付）。追記は実装の記録なので、`Status` は変えない。
+-   [-] （前提は外れなかったので不要）I-02 で前提が外れ、利用者が要件に戻すと決めた場合は、ステップ 2-3 の AC-01 のテストを見直す。I-01 の結果は、ガイドの記述だけに効く（1.5）。
 
 **完了条件**: 3 つの確かめの結果が本書に記録されている。
 
@@ -396,7 +413,7 @@
 
 | AC | 検証 | 場所 |
 |---|---|---|
-| AC-01 | test | `internal/fixprguard/configlist_test.go::TestConfigListDigestClassification`、`internal/fixprguard/gitstate_test.go::TestOtherBranchConfigIgnored`（`git config`）、`internal/fixprguard/worktree_flow_test.go::TestRoundIgnoresOtherBranchConfig`（`git worktree add -b`・`git push -u`・`git worktree remove`・`git branch -d`） |
+| AC-01 | test | `internal/fixprguard/configlist_test.go::TestConfigListDigestClassification`、`internal/fixprguard/gitstate_test.go::TestOtherBranchConfigIgnored`（`git worktree add -b`・`git push -u`・`git worktree remove`・`git branch -d`・`git config`）、`internal/fixprguard/worktree_flow_test.go::TestRoundIgnoresOtherBranchConfig` |
 | AC-02 | test | `configlist_test.go::TestConfigListDigestClassification`、`gitstate_test.go::TestOtherBranchConfigIgnored`（節の追加と削除、`[branch ""]`） |
 | AC-03 | test | `configlist_test.go::TestConfigListDigestClassification`（システムの config を含む読み込み元）、`gitstate_test.go::TestOtherBranchConfigIgnored`（グローバル、worktree の config、`include.path`・`includeIf` の先） |
 | AC-04 | test | `configlist_test.go::TestConfigListDigestClassification`、`gitstate_test.go::TestOtherBranchConfigIgnored`（`branch.<b>.a.remote`、大文字・小文字だけが違う名前） |
@@ -406,10 +423,10 @@
 | AC-08 | test | `configlist_test.go::TestConfigListDigestClassification`（読み込み元だけの変化）、`gitstate_test.go::TestBaselineDetectsChange`（既存の `config`・`global_config`・`included_config`・`linked_worktree_common_config` と、加える `remote.pushDefault`・`remote.<name>.*`・`include.path`・読み込み元の移動の行） |
 | AC-09 | test | `configlist_test.go::TestConfigListDigestClassification`、`gitstate_test.go::TestBaselineDetectsChange`（複数の値の順序） |
 | AC-10 | test | `gitstate_test.go::TestOtherBranchConfigIgnored`（コメント・空行・字下げだけの追加。ファイルのバイト列が変わり、一覧の出力が変わらないことを先に確かめる） |
-| AC-11 | test | `gitstate_test.go::TestBaselineDetectsChange`（既存の `git_file_points_elsewhere`・`commondir_added`。git を起動しない） |
-| AC-12 | test | `gitstate_test.go::TestConfigListUnreadable`（構文の誤り。`git rev-parse` を起動しない）、`::TestConfigListFailureKinds`（設計書 4 章の表の 1〜6 行の振り分け。タイムアウトを含む。`CheckState` と `begin`） |
+| AC-11 | test | `gitstate_test.go::TestBaselineDetectsChange`（既存の `git_file_points_elsewhere`・`commondir_added`。git を起動しない）、`::TestGitNotLaunchedAfterConfigChange`（`.git` ファイルの行） |
+| AC-12 | test | `gitstate_test.go::TestConfigListUnreadable`（構文の誤り、タイムアウト。`git rev-parse` を起動しない）、`::TestConfigListFailureKinds`（設計書 4 章の表の 1〜6 行の振り分け。`CheckState` と `begin`） |
 | AC-13 | test | `gitstate_test.go::TestBaselineDetectsChange`（既存の `branch_switch_same_commit` と、加える detached HEAD の行） |
-| AC-14 | test | `gitstate_test.go::TestGitNotLaunchedAfterConfigChange`（改訂した 2 行）・`::TestConfigFileTypeCheckedBeforeGit`（FIFO）、`worktree_flow_test.go::TestFinishStopsWhenHooksChangeConfig`・`::TestPushRechecks`（`config_changed`）、`cmd/fixprguard/main_test.go::TestInspectChecksGitStateBeforeGh`（既存） |
+| AC-14 | test | `gitstate_test.go::TestGitNotLaunchedAfterConfigChange`（改訂した 2 行と FIFO の行）、`worktree_flow_test.go::TestFinishStopsWhenHooksChangeConfig`・`::TestPushRechecks`（`config_changed`）、`cmd/fixprguard/main_test.go::TestInspectChecksGitStateBeforeGh`（既存） |
 | AC-15 | test | `gitstate_test.go::TestBaselineMalformedRejected`（前の版の行）、`cmd/fixprguard/main_test.go::TestPreviousBaselineRejected`（終了コード `2`。`v2` のトークンの対照の行） |
 | AC-16 | test + static + manual | `cmd/fixprguard/main_test.go::TestConfigStopOmitsNames`、`configlist_test.go`（エラーの文字列）、`cmd/fixprguard/docs_test.go::TestGuideCoversStopKindsAndScope`（既存。止まり方の種類） |
 | AC-17 | static | `cmd/fixprguard/docs_test.go::TestTask0030DocsDescribeConfigScope` |
