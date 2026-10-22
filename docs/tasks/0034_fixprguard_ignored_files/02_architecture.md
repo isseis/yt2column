@@ -8,7 +8,7 @@
 | Created | 2026-10-22 |
 | Review date | 2026-10-22 |
 | Reviewer | isseis |
-| Comments | 2026-10-22 (editorial): `/mkplan 0034` で、2.2 の表を実際のコードに合わせた。`internal/cmdrunner/testutil/mocks.go` は変えないこと、`NewWorktree` の呼び出しのあるファイル（`worktree_flow_test.go` ではなくテストの補助のファイル）、cmd 側のテスト用のリポジトリにも同じ設定を固定すること、`package_reference.md` と用語集の行を加えた。作るものと理由は変えないので、決定の変更ではなく、`Status` は `approved` のままとする。同じ `/mkplan 0034` の計画のレビューで、次の editorial correction も加えた。2.2 の表の `check_rules.sh` の今の番号（0036 の後は `3`）、`main.go` の行の `env` の欄、3.1 の「`Baseline` だけを呼ぶテスト」の例（`mustBaseline` は `Worktree.Begin` を呼ぶので書く）、3.10 のガイド 8 章の対処の置き場所（1 行の表のセルに複数行のコマンドが入らないので、表の後の小見出しに置く。レビュアーが選んだ。中身は変えない）。2026-10-22 (decision): 同じレビューで、`fixpr.md` がセッションに無視されるファイルを調べさせない範囲を、`ignored` で止まった場合から、無視されるファイルにかかわるすべての止まり方（`begin` の `ignored` と、4 章の無視されるファイルの規則の `git-failed` を含む）に広げた（2.2・3.10 の `fixpr.md` の行）。どの止まり方でも、調べるとファイル名がセッションに届くためである。レビュアーがこのセッションで選んだので、`Status` は `approved` のままとする。 |
+| Comments | 2026-10-22 (editorial): `/mkplan 0034` で、2.2 の表を実際のコードに合わせた。`internal/cmdrunner/testutil/mocks.go` は変えないこと、`NewWorktree` の呼び出しのあるファイル（`worktree_flow_test.go` ではなくテストの補助のファイル）、cmd 側のテスト用のリポジトリにも同じ設定を固定すること、`package_reference.md` と用語集の行を加えた。作るものと理由は変えないので、決定の変更ではなく、`Status` は `approved` のままとする。同じ `/mkplan 0034` の計画のレビューで、次の editorial correction も加えた。2.2 の表の `check_rules.sh` の今の番号（0036 の後は `3`）、`main.go` の行の `env` の欄、3.1 の「`Baseline` だけを呼ぶテスト」の例（`mustBaseline` は `Worktree.Begin` を呼ぶので書く）、3.10 の 0034 の要件書の行（設計書の PR #447 で変更済み）、3.10 のガイド 8 章の対処の置き場所（1 行の表のセルに複数行のコマンドが入らないので、表の後の小見出しに置く。レビュアーが選んだ。中身は変えない）。2026-10-22 (decision): 同じレビューで、`fixpr.md` がセッションに無視されるファイルを調べさせない範囲を、`ignored` で止まった場合から、無視されるファイルにかかわるすべての止まり方（`begin` の `ignored` と、4 章の無視されるファイルの規則の `git-failed` を含む）に広げた（2.2・3.10 の `fixpr.md` の行）。どの止まり方でも、調べるとファイル名がセッションに届くためである。レビュアーがこのセッションで選んだので、`Status` は `approved` のままとする。 |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `9f83469` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。`internal/fixprguard/scope.go` の行番号は、タスク 0036 の実装で変わる。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md) の項番を指す。申し送り H-01〜H-08 への対応は付録 A にまとめる。#424 などは GitHub の issue の番号を指す。
 
@@ -208,7 +208,7 @@ flowchart LR
 | `.claude/commands/runpr.md` | 変更 | `--protocol` を `4` にする（3.9）。`git-state-changed` の扱い（`:273-278`）は `fixpr` の報告を示して止まるだけなので変えない |
 | `docs/tasks/0032_japanese_pr_title/check_rules.sh` | 変更 | `:524` の `--protocol` の番号（タスク 0036 の後は `3`）を `4` にする（3.9） |
 | `docs/dev/developer_guide/fixprguard_guide.ja.md`・`fixprguard_guide.md` | 変更 | 1 章・4 章・5 章・7 章・8 章・9 章（3.10） |
-| `docs/tasks/0034_fixprguard_ignored_files/01_requirements.md` | 変更（本 PR） | 3 章と 4.4 の照合の記述、AC-19 と 4.2 の記録と基準値の記述、`Comments`（1.2 の照合と記録の決定。3.10） |
+| `docs/tasks/0034_fixprguard_ignored_files/01_requirements.md` | 変更済み（設計書の PR #447） | 3 章と 4.4 の照合の記述、AC-19 と 4.2 の記録と基準値の記述、`Comments`（1.2 の照合と記録の決定。3.10） |
 | `docs/tasks/0030_fixpr_untrusted_threads/01_requirements.md` | 変更 | 4.2 の残余のリスクの項目（AC-20a。3.10） |
 | `docs/tasks/0030_fixpr_untrusted_threads/02_architecture.md` | 変更 | 5.3「無視されるファイル」（AC-20。3.10） |
 | `docs/dev/developer_guide/package_reference.md` | 変更 | `internal/cmdrunner` の行に新しい設定とエラーを、`internal/fixprguard` の行に対象のファイルの比較と記録のファイルを加える |
@@ -449,7 +449,7 @@ func WatchListPatterns() []string
 | ガイド 8 章 `git-failed` の行 | AC-16 の原因（4 章の表の規則の名前ごと）と対処を書く（AC-19a）。上限を超えた対象のファイルを探すコマンドは、出力のパスをエスケープする |
 | ガイド 9 章 | 監視の一覧を変えたら 7 章の表も変えることを、「`stop` の種類や…一覧を変えたら」の項目（`fixprguard_guide.ja.md:300` 付近）に加える。`Protocol` の番号は上げるだけで、再び使わないことを書く（3.9） |
 | `fixpr.md` | `parts` の列挙（`:492-493`）に `ignored` を加える。無視されるファイルにかかわる止まり方（`begin`・`inspect`・`finish`・`push` の `git-state-changed` の `ignored` と、4 章の無視されるファイルの規則の `git-failed`）では、セッションは無視されるファイルを一覧にしたり読んだりせず（`git status --ignored`・`git ls-files -o -i`・`ls .claude` などを実行しない）、利用者にガイド 8 章の手順を案内するよう書く（`:255-262`・`:524-525`・`:663-664`）。理由: ファイル名は攻撃者が選べるので、セッションに届けない（AC-15 の目的）。`begin` も記録の不一致で `ignored` で止まり、`git-failed` の原因を調べてもファイル名が届くので、`ignored` だけに限らない |
-| 0034 `01_requirements.md` | 3 章の照合の段落と 4.4 の「ASCII の大文字小文字を同一視」を、1.2 の照合の決定に合わせる。AC-19 と 4.2 の「修正のフェーズが書き換えられない記録」を「書き換えれば分かる記録」に、4.2 の「基準値に置くのは…まとめた値だけ」に記録のファイルの digest を加える（1.2 の記録の決定）。`Comments` に、どちらも本設計のレビューでレビュアーが選んだ決定に合わせた変更なので `approved` のままとすることを記録する（本 PR で記録済み） |
+| 0034 `01_requirements.md` | 3 章の照合の段落と 4.4 の「ASCII の大文字小文字を同一視」を、1.2 の照合の決定に合わせる。AC-19 と 4.2 の「修正のフェーズが書き換えられない記録」を「書き換えれば分かる記録」に、4.2 の「基準値に置くのは…まとめた値だけ」に記録のファイルの digest を加える（1.2 の記録の決定）。`Comments` に、どちらも本設計のレビューでレビュアーが選んだ決定に合わせた変更なので `approved` のままとすることを記録する（設計書の PR #447 で記録済み） |
 | 0030 `02_architecture.md` 5.3「無視されるファイル」 | 本タスクで検出するようになった範囲と、なお残る範囲（要件書 4.2 の残余のリスクと同じ）を書く（AC-20）。`Comments` に、決定は本タスクの要件書の承認で得たので `approved` のままとすることを記録する（1.2） |
 | 0030 `01_requirements.md` 4.2 | 残余のリスクの「git が無視するファイル（`.envrc` など）を変えること、またはネットワークに接続すること」（`:201`）のうち、無視されるファイルの部分だけを AC-20 と同じ内容にする（AC-20a）。ネットワークに接続することは、残余のリスクのまま残す。`Comments` は上と同じ |
 
