@@ -229,7 +229,7 @@ done
 -   [x] `sh docs/tasks/0032_japanese_pr_title/check_rules.sh` を実行して、`7b26533` と同じ結果（`FAIL` は本タスクの前からある `claude_language` だけ）であることを確かめる（1.3.3）。
 -   [x] `make test`・`make lint` と、文書のガード（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`）を実行して通ることを確かめる（AC-15）。Go のコードと `README.md`・`docs/dev/security.md` は変えないので、`make ext-test` は要らない（`CLAUDE.md`「Development Notes」）。
 -   [x] 5.1 の横断の検索を行う。
--   [ ] PR の本文に、設計書 8 章の「移行の注意」（古い定義のままの worktree とセッションの扱い）を書く。
+-   [x] PR の本文に、設計書 8 章の「移行の注意」（古い定義のままの worktree とセッションの扱い）を書く。
 
 **完了条件**: 上がすべて終わり、`make test && make lint` が通る。
 
@@ -246,7 +246,7 @@ done
 **判定理由**: ステップ 2-2 は、マージの後に止まったときの報告と再開の方法を定める回復の手順（recovery flows）で、high-risk/complex step の契機に当たる。設計書 8 章の単一 PR・固定順序の制約により、PR の中で分離も末尾への配置もできないので、レビュー観点の 2 つめで重点的に確かめる。Authorization に加えるのは読み取りの `git ls-remote` だけで（設計書 4.3・5.1）、移行はマージの振る舞いを変えない（設計書 8 章）ので、panel mode の契機には当たらない。
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/459
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
