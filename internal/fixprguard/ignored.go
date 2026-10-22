@@ -158,7 +158,7 @@ var listIgnoredArgs = []string{"ls-files", "--others", "--ignored", "--exclude-s
 // defaultTargetLimits; tests pass smaller values.
 type targetLimits struct {
 	files       int           // target files, settingsLocalPath included
-	walkEntries int           // entries visited under directory items
+	walkEntries int           // entries visited under directory items and .claude
 	fileBytes   int64         // one regular file
 	totalBytes  int64         // bytes read in one pass
 	timeout     time.Duration // the whole pass, the listing included
@@ -354,8 +354,11 @@ func selectTargets(ctx context.Context, files, dirs []string, lim targetLimits) 
 
 // checkClaudeGitNames walks the top-level .claude directory, counting each
 // entry against lim.walkEntries, and stops at any entry whose name folds to
-// .git, unless its parent is a directory item (a nested repository the walk
-// above covered, which it skips). git lists nothing below an entry so named,
+// .git, unless its parent is a directory item (a nested repository git
+// lists as ignored, which the walk above covered and this one skips). A
+// nested repository git does not ignore is not skipped, so its .git stops
+// the pass; git status shows it as untracked but not what changes inside.
+// The literal name .claude is walked, the one Claude Code reads. git lists nothing below an entry so named,
 // in any case when core.ignorecase is on, so a file there would be on the
 // watch list and yet in no listing. A .claude that is not a directory is
 // left to the listing.
@@ -366,7 +369,8 @@ func checkClaudeGitNames(ctx context.Context, dirs []string, walked *int, lim ta
 		return nil
 	case err != nil:
 		return errReadIgnoredDir
-	case !info.IsDir():
+	case !info.IsDir(), slices.Contains(dirs, watchTopDir):
+		// Not a directory, or a nested repository walked above.
 		return nil
 	}
 	return filepath.WalkDir(watchTopDir, func(p string, d fs.DirEntry, err error) error {
@@ -378,6 +382,11 @@ func checkClaudeGitNames(ctx context.Context, dirs []string, walked *int, lim ta
 		case ctx.Err() != nil:
 			return errIgnoredTimeout
 		case slices.Contains(dirs, p):
+			// Walked above; a directory item replaced since then fails, as
+			// in walkIgnoredDir.
+			if !d.IsDir() {
+				return errReadIgnoredDir
+			}
 			return filepath.SkipDir
 		}
 		*walked++

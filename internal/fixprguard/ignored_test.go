@@ -253,6 +253,8 @@ func TestParseIgnoredListing(t *testing.T) {
 		{"files_and_directory", "a.go\x00build/x.go\x00build/nested/\x00", []string{"a.go", "build/x.go"}, []string{"build/nested"}, nil},
 		{"any_bytes_in_a_name", "a\nb\x00\xff.go\x00", []string{"a\nb", "\xff.go"}, nil, nil},
 		{"no_final_nul", "a.go\x00b.go", nil, nil, errListIgnoredShape},
+		// The rows from empty_item to slash_only all reach the one check for
+		// an empty element; each is a shape the design lists.
 		{"empty_item", "a.go\x00\x00", nil, nil, errListIgnoredShape},
 		{"only_nul", "\x00", nil, nil, errListIgnoredShape},
 		{"duplicate", "a.go\x00a.go\x00", nil, nil, errListIgnoredShape},
@@ -347,6 +349,7 @@ func TestCollectTargetsWalk(t *testing.T) {
 			t.Errorf("targets = %q, want %q", got, want)
 		}
 	})
+	// A guard against building the targets as a list that keeps duplicates.
 	t.Run("settings_listed_once", func(t *testing.T) {
 		r := newTestRepo(t)
 		r.ignore(".claude/")
@@ -411,19 +414,31 @@ func TestCollectTargetsClaudeGitNames(t *testing.T) {
 		r := newTestRepo(t)
 		r.ignore(".claude/")
 		r.gitIn(r.Dir, "init", "-q", "--template=", ".claude/worktrees/w")
-		r.Write(".claude/worktrees/w/x.go", "package x\n")
-		state, err := collect(t, wideLimits())
-		if err != nil {
-			t.Fatalf("collectTargets: %v", err)
+		if _, err := collect(t, wideLimits()); err != nil {
+			t.Errorf("collectTargets: %v, want a listed nested repository's .git allowed", err)
 		}
-		if got := recordPaths(t, state.record); !slices.Contains(got, ".claude/worktrees/w/x.go") {
-			t.Errorf("targets = %q, want the nested repository's file", got)
+	})
+	t.Run("linked_worktree", func(t *testing.T) {
+		r := newTestRepo(t)
+		r.ignore(".claude/")
+		r.AddWorktree(filepath.Join(r.Dir, ".claude/worktrees/w"), "other")
+		if _, err := collect(t, wideLimits()); err != nil {
+			t.Errorf("collectTargets: %v, want an ignored worktree's .git file allowed", err)
+		}
+	})
+	t.Run("claude_is_a_nested_repository", func(t *testing.T) {
+		r := newTestRepo(t)
+		r.ignore(".claude/")
+		r.gitIn(r.Dir, "init", "-q", "--template=", ".claude")
+		if _, err := collect(t, wideLimits()); err != nil {
+			t.Errorf("collectTargets: %v, want .claude/.git allowed when git lists .claude", err)
 		}
 	})
 }
 
 // blockingRunner stands for a listing that does not return: it ignores the
-// context and waits until the test ends, or a few seconds at most.
+// context and waits until the test ends, or a few seconds at most, and then
+// fails, so the abandoned pass ends without touching the file system.
 type blockingRunner struct{ release <-chan struct{} }
 
 func (b blockingRunner) Run(context.Context, string, ...string) ([]byte, error) {
@@ -431,7 +446,7 @@ func (b blockingRunner) Run(context.Context, string, ...string) ([]byte, error) 
 	case <-b.release:
 	case <-time.After(5 * time.Second):
 	}
-	return nil, nil
+	return nil, context.Canceled
 }
 
 // TestCollectTargetsLimits: each count limit stops the pass at its cap and
@@ -553,7 +568,6 @@ func writeFile(t *testing.T, name, content string) {
 // TestTargetEntries: what a target file's entry cannot record stops the
 // pass with its rule, and a link that resolves to nothing is recorded.
 func TestTargetEntries(t *testing.T) {
-	requireNonRoot(t)
 	t.Run("stops", func(t *testing.T) {
 		tests := []struct {
 			name    string
@@ -561,6 +575,7 @@ func TestTargetEntries(t *testing.T) {
 			wantErr error
 		}{
 			{"unreadable_file", func(t *testing.T) {
+				requireNonRoot(t)
 				writeFile(t, "x.go", "package x\n")
 				chmodForTest(t, "x.go", 0)
 			}, errReadIgnoredFile},
@@ -569,6 +584,7 @@ func TestTargetEntries(t *testing.T) {
 				symlink(t, "dir", "x.go")
 			}, errIgnoredLinkToDir},
 			{"link_target_not_searchable", func(t *testing.T) {
+				requireNonRoot(t)
 				mkdir(t, "locked")
 				writeFile(t, "locked/target", "x")
 				symlink(t, "locked/target", "x.go")
@@ -612,19 +628,23 @@ func TestTargetEntries(t *testing.T) {
 	// A special file is recorded by type, never opened: a link to a FIFO,
 	// settings.local.json as a FIFO, and settings.local.json below a .claude
 	// that is a regular file (recorded as absent).
-	t.Run("special_files_recorded", func(t *testing.T) {
-		for _, setup := range []func(t *testing.T){
-			func(t *testing.T) { mkfifo(t, "pipe"); symlink(t, "pipe", "x.go") },
-			func(t *testing.T) { mkdir(t, ".claude"); mkfifo(t, settingsLocalPath) },
-			func(t *testing.T) { writeFile(t, ".claude", "not a directory") },
-		} {
+	special := []struct {
+		name  string
+		setup func(t *testing.T)
+	}{
+		{"link_to_fifo", func(t *testing.T) { mkfifo(t, "pipe"); symlink(t, "pipe", "x.go") }},
+		{"settings_fifo", func(t *testing.T) { mkdir(t, ".claude"); mkfifo(t, settingsLocalPath) }},
+		{"claude_is_a_file", func(t *testing.T) { writeFile(t, ".claude", "not a directory") }},
+	}
+	for _, tt := range special {
+		t.Run("recorded/"+tt.name, func(t *testing.T) {
 			t.Chdir(t.TempDir())
-			setup(t)
+			tt.setup(t)
 			if _, err := stateWithin(t, "x.go", settingsLocalPath); err != nil {
 				t.Errorf("error = %v, want the file recorded", err)
 			}
-		}
-	})
+		})
+	}
 
 	// A sparse file of size bytes reached through five links: the file cap
 	// counts one file, the total cap every read of it.
@@ -740,7 +760,8 @@ func TestHashCapped(t *testing.T) {
 	}
 }
 
-// TestTargetStateDigest: the same state gives the same digest, and a value
+// TestTargetStateDigest: what does not change what runs leaves the digest
+// unchanged, and a value
 // cannot pass for an entry boundary. The one path below, unquoted, would
 // write the same bytes as the absent entries of m and n.
 func TestTargetStateDigest(t *testing.T) {
@@ -750,12 +771,20 @@ func TestTargetStateDigest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The modification time and the read and write bits are not recorded.
+	old := time.Now().Add(-time.Hour)
+	if err := os.Chtimes("a.go", old, old); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod("a.go", 0o644); err != nil { //nolint:gosec // a file in the test's temporary directory
+		t.Fatal(err)
+	}
 	again, err := stateOf(t, wideLimits(), "a.go")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first.digest != again.digest || len(first.digest) != digestLength {
-		t.Errorf("digests = %q, %q; want one 64-digit digest", first.digest, again.digest)
+	if first.digest != again.digest {
+		t.Errorf("a change of time or read and write bits changed the digest")
 	}
 	two, err := stateOf(t, wideLimits(), "m", "n")
 	if err != nil {
@@ -786,8 +815,8 @@ func TestTargetStateDigest(t *testing.T) {
 }
 
 // TestTargetRecordLines: each line is a 64-digit hex digest, a space, and
-// the path quoted in printable ASCII, in path order; a change to one file
-// changes its line only.
+// the path quoted in printable ASCII; a change to one file changes its line
+// only.
 func TestTargetRecordLines(t *testing.T) {
 	t.Chdir(t.TempDir())
 	// A name that is not valid UTF-8 cannot be created on APFS, so the last
@@ -826,6 +855,9 @@ func TestTargetRecordLines(t *testing.T) {
 		t.Fatal(err)
 	}
 	after := slices.Collect(strings.Lines(string(changed.record)))
+	if len(after) != len(lines) {
+		t.Fatalf("record has %d lines after the change, want %d", len(after), len(lines))
+	}
 	for i := range lines {
 		if (lines[i] != after[i]) != (paths[i] == "b.go") {
 			t.Errorf("line %d: before %q, after %q; want only b.go's line changed", i, lines[i], after[i])
@@ -836,8 +868,9 @@ func TestTargetRecordLines(t *testing.T) {
 // TestDefaultLimitsAcceptDependencyTree: an ignored dependency tree of
 // thousands of files that are not on the watch list, one nested repository
 // among them, with C headers and a Makefile that are, stays within the
-// default limits. The listing's own output cap is osEnv's runner's, not
-// exercised here.
+// default limits. It is a smoke test with a wide margin: the walk cap would
+// have to drop below about 2,000 to fail it. The listing's own output cap is
+// osEnv's runner's, not exercised here.
 func TestDefaultLimitsAcceptDependencyTree(t *testing.T) {
 	r := newTestRepo(t)
 	r.ignore("node_modules/")

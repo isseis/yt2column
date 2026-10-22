@@ -191,9 +191,9 @@
 -   [x] ディレクトリの項目の下を、設計書 3.3「ディレクトリの項目」のとおりたどる。
 -   [x] 列挙の結果を監視の一覧で選び、それとは別に `.claude/settings.local.json` を必ず加える（設計書 3.3）。対象のファイルをパスのバイト列の順に並べる。
 -   [x] `TestCollectTargetsWalk` を加える。入れ子のリポジトリの中の `.go` が対象になること、入れ子のリポジトリの中の FIFO と監視の一覧に当たらないファイルが対象にならないこと、`.claude/settings.local.json` が無視されていなくても（存在しなくても）必ず含まれ、列挙にも現れたときに 1 つになること、入れ子のリポジトリの中の読めないディレクトリで止まること。
--   [x] 最上位の `.claude/` の下の `.git` という名前で止まる走査を加え（設計書 3.3）、`TestCollectTargetsClaudeGitNames` を加える。`.git`・`.GIT` のディレクトリと `.git` のファイルで止まり、`a.git` と、入れ子のリポジトリの `.git` では止まらないこと。
+-   [x] 最上位の `.claude/` の下の `.git` という名前で止まる走査を加え（設計書 3.3）、`TestCollectTargetsClaudeGitNames` を加える。`.git`・`.GIT` のディレクトリと `.git` のファイルで止まり、`a.git` と、無視される入れ子のリポジトリ・linked worktree・入れ子のリポジトリである `.claude` の `.git` では止まらないこと。
 
-**壊して確かめる**: たどりを外すと入れ子のリポジトリの `.go` の行が、`.claude/settings.local.json` を必ず加える処理を外すと存在しない場合の行が、`TestCollectTargetsWalk` で失敗すること。
+**壊して確かめる**: たどりを外すと入れ子のリポジトリの `.go` の行が、`.claude/settings.local.json` を必ず加える処理を外すと存在しない場合の行が、`TestCollectTargetsWalk` で失敗すること。`.claude` の走査を外すと `.git` の行が、入れ子のリポジトリを飛ばす処理を外すと入れ子のリポジトリと worktree の行が、`.git` の照合を大文字小文字を区別するものにすると `.GIT` の行が、`TestCollectTargetsClaudeGitNames` で失敗すること。
 
 #### ステップ 3-4: 上限と時間の上限
 
