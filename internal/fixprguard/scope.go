@@ -29,7 +29,7 @@ import (
 // takes every .go file before the rest of the allow list: a .go file is in
 // scope beside p only when p is a .go file in the same directory (a test of
 // the same package) and the thread is not named. Deny-list matching folds
-// ASCII case and allow-list matching does not, so neither direction widens
+// case with strings.ToLower and allow-list matching does not, so neither direction widens
 // the scope through case. A change that is not a regular file, and a path
 // that fails validScopePath, is always out of scope.
 
@@ -42,8 +42,8 @@ const taskNumberDigits = 4
 // The deny list, the execution-related files: what make fmt, make test, make
 // lint and CI read as configuration, compile or run; the instruction files
 // Claude Code and the automated reviewers read; and every path with an element
-// that starts with ".". Matching folds ASCII case, because a case-insensitive
-// file system resolves makefile to Makefile.
+// that starts with ".". Matching folds case with strings.ToLower, because a
+// case-insensitive file system resolves makefile to Makefile.
 var (
 	// execNames match a base name in any directory.
 	execNames = []string{"makefile", "gnumakefile", "go.mod", "go.sum", "go.work", "go.work.sum"}

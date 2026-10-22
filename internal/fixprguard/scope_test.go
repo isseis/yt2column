@@ -4,6 +4,7 @@ package fixprguard
 
 import (
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -110,14 +111,16 @@ func TestScopeRules(t *testing.T) {
 		{"instruction_agents_md", "internal/writer/AGENTS.md", ChangeAdd, trusted("internal/writer/README.md"), false},
 		{"instruction_gemini_md", "internal/writer/Gemini.md", ChangeAdd, trusted("internal/writer/README.md"), false},
 		{"instruction_agent_md", "internal/writer/agent.md", ChangeAdd, trusted("internal/writer/README.md"), false},
+		// Also a row of issue #425.
 		{"instruction_claude_local_md", "CLAUDE.local.md", ChangeAdd, trusted("README.md"), false},
 		{"instruction_agents_override_md", "docs/tasks/0030_x/sub/agents.override.md", ChangeAdd, trusted("docs/tasks/0030_x/01_requirements.md"), false},
-		// Folded for the deny list, which ends the judgment before the
-		// case-sensitive allow list is reached.
-		{"instruction_mixed_case", "internal/x/Claude.MD", ChangeAdd, trusted("internal/x/README.md"), false},
+		// Folded for the deny list; the lower-case .md would pass the
+		// case-sensitive allow list.
+		{"instruction_mixed_case", "internal/x/Claude.md", ChangeAdd, trusted("internal/x/README.md"), false},
 
 		// Paths with an element that starts with ".", as a .md beside or under
 		// the thread's path.
+		// Also a row of issue #425.
 		{"dot_directory_under_task", "docs/tasks/0030_x/.claude/commands/evil.md", ChangeAdd, trusted("docs/tasks/0030_x/01_requirements.md"), false},
 		{"dot_file_under_task", "docs/tasks/0030_x/.notes.md", ChangeAdd, trusted("docs/tasks/0030_x/01_requirements.md"), false},
 		{"dot_file_same_directory", "docs/.notes.md", ChangeAdd, trusted("docs/a.md"), false},
@@ -157,11 +160,10 @@ func TestScopeRules(t *testing.T) {
 		{"go_upper_case_same_package", "internal/x/y.GO", ChangeAdd, trusted("internal/x/x.go"), true},
 		{"go_upper_case_under_testdata", "internal/x/testdata/gen.GO", ChangeAdd, trusted("internal/x/testdata/a.json"), false},
 
-		// The rows of issue #425.
+		// The rows of issue #425 (the CLAUDE.local.md and .claude/ rows are
+		// above).
 		{"issue_claude_md", "internal/writer/CLAUDE.md", ChangeAdd, trusted("internal/writer/writer.go"), false},
 		{"issue_agents_md", "internal/writer/AGENTS.md", ChangeAdd, trusted("internal/writer/writer.go"), false},
-		{"issue_claude_local_md", "CLAUDE.local.md", ChangeAdd, trusted("README.md"), false},
-		{"issue_claude_dir_under_task", "docs/tasks/0030_x/.claude/commands/evil.md", ChangeAdd, trusted("docs/tasks/0030_x/01_requirements.md"), false},
 		{"issue_named_claude_md_under_task", "docs/tasks/0030_x/CLAUDE.md", ChangeAdd, named("docs/tasks/0030_x/01_requirements.md"), false},
 		{"issue_syso", "internal/writer/foo.syso", ChangeAdd, trusted("internal/writer/writer.go"), false},
 		{"issue_asm", "internal/writer/foo_amd64.s", ChangeAdd, trusted("internal/writer/writer.go"), false},
@@ -216,12 +218,49 @@ func TestScopeRules(t *testing.T) {
 // TestPatternRuleLiterals: ".*" and "*.go" stand for rules that hold no data,
 // so the pattern functions write them as literals. The guide guard only checks
 // that what the functions print is in the guide, and would pass if a literal
-// went missing.
+// went missing. Every printed pattern must also be one the matchers enforce,
+// so the printed lists cannot drift from the rules.
 func TestPatternRuleLiterals(t *testing.T) {
 	if !slices.Contains(ExecutionFilePatterns(), ".*") {
 		t.Errorf("ExecutionFilePatterns() = %q, want it to list .*", ExecutionFilePatterns())
 	}
 	if !slices.Contains(AllowListPatterns(), "*.go") {
 		t.Errorf("AllowListPatterns() = %q, want it to list *.go", AllowListPatterns())
+	}
+	for _, pattern := range ExecutionFilePatterns() {
+		if p := samplePath(pattern); !isExecutionRelated(p) {
+			t.Errorf("ExecutionFilePatterns lists %q, but %q is not execution-related", pattern, p)
+		}
+	}
+	for _, pattern := range AllowListPatterns() {
+		p := samplePath(pattern)
+		if pattern == "*.go" {
+			if !isGoFile(p) {
+				t.Errorf("AllowListPatterns lists *.go, but %q is not a .go file", p)
+			}
+			continue
+		}
+		if !inAllowList(p) {
+			t.Errorf("AllowListPatterns lists %q, but %q is not on the allow list", pattern, p)
+		}
+	}
+}
+
+// samplePath returns a path below the repository root that pattern, in the
+// guide's notation, describes.
+func samplePath(pattern string) string {
+	switch {
+	case pattern == ".*":
+		return "a/.x"
+	case strings.HasPrefix(pattern, "*"):
+		return "a/b" + strings.TrimPrefix(pattern, "*")
+	case strings.HasSuffix(pattern, "/") && strings.Contains(strings.TrimSuffix(pattern, "/"), "/"):
+		return pattern + "x"
+	case strings.HasSuffix(pattern, "/"):
+		return "a/" + pattern + "x"
+	case strings.Contains(pattern, "/"):
+		return pattern
+	default:
+		return "a/" + pattern
 	}
 }

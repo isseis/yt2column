@@ -117,6 +117,9 @@ func TestGuideTable(t *testing.T) {
 	}{
 		{"stops_at_table_end", guideTable(doc, "**A.**"), "| h |\n|---|\n| `x` |\n"},
 		{"table_after_prose", guideTable(doc, "**C.**"), "| `z` |\n"},
+		// Bullets and a paragraph between the marker and the table, as in
+		// the guide.
+		{"table_after_bullets", guideTable("x\n**E.** e\n- bullet `q`\npara\n\n| `v` |\n", "**E.**"), "| `v` |\n"},
 		// The next bold heading comes before any table.
 		{"no_table_before_next_heading", guideTable(doc, "**B.**"), ""},
 		{"missing_marker", guideTable(doc, "**D.**"), ""},
