@@ -258,9 +258,9 @@
 
 **変更するファイル**: なし
 
--   [ ] `.claude/` を変えていないことを、`git diff --stat "$(git merge-base origin/main HEAD)" -- .claude` の出力が空であることで確かめる（設計書 8 章の 1。PR-1 の `/runpr`・`/fixpr` が今のツールで動くため）。`origin/main` は、`/runplan` が作業の初めに取得したものを使う（`_lib/task-pr-handoff.md` の Part A の 2）。
--   [ ] `make test && make lint` を実行する。
--   [ ] 文書のガード（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`）を実行する。
+-   [x] `.claude/` を変えていないことを、`git diff --stat "$(git merge-base origin/main HEAD)" -- .claude` の出力が空であることで確かめる（設計書 8 章の 1。PR-1 の `/runpr`・`/fixpr` が今のツールで動くため）。`origin/main` は、`/runplan` が作業の初めに取得したものを使う（`_lib/task-pr-handoff.md` の Part A の 2）。
+-   [x] `make test && make lint` を実行する。
+-   [x] 文書のガード（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`）を実行する。
 
 **完了条件**: 上の 3 つ。
 
