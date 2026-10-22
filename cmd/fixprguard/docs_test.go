@@ -155,8 +155,6 @@ func TestCheckDocumentedReviewer(t *testing.T) {
 		want error
 	}{
 		{"one_placeholder", args(cmdList, "--reviewer", reviewerPlaceholder, testPR), nil},
-		{"one_placeholder_reply", args(cmdReply, "--reviewer", reviewerPlaceholder, "--thread-id", "<id>", "--comment-id", "<n>",
-			"--fingerprint", "<f>", "--body-file", "<file>", testPR), nil},
 		{"no_reviewer_subcommand", args(cmdHead, testPR), nil},
 		{"two_placeholders", args(cmdBegin, "--reviewer", reviewerPlaceholder, "--reviewer", reviewerPlaceholder, testPR), errReviewerCount},
 		{"placeholder_and_name", args(cmdBegin, "--reviewer", reviewerPlaceholder, "--reviewer", testReviewer, testPR), errReviewerCount},

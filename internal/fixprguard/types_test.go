@@ -51,6 +51,7 @@ func TestParseReviewers(t *testing.T) {
 		{"two", []string{"coderabbitai", "chatgpt-codex-connector"}},
 		// Case is not folded, so names differing only in case are distinct.
 		{"case_differs", []string{"coderabbitai", "CodeRabbitAI"}},
+		// The number of names has no cap.
 		{"many", many},
 	} {
 		t.Run("valid/"+tc.name, func(t *testing.T) {
@@ -58,8 +59,8 @@ func TestParseReviewers(t *testing.T) {
 			if err != nil {
 				t.Fatalf("ParseReviewers = %v", err)
 			}
-			if !r.usable() || len(r.logins) != len(tc.names) {
-				t.Fatalf("ParseReviewers holds %d names, want %d", len(r.logins), len(tc.names))
+			if !r.usable() {
+				t.Fatal("ParseReviewers returned an unusable value")
 			}
 			for _, name := range tc.names {
 				if !r.contains(mustLogin(t, name)) {

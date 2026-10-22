@@ -209,6 +209,8 @@ func TestRestrictedTypesBuiltByConstructors(t *testing.T) {
 		{"reviewers_in_other_constructor", "func ParseLogin(s string) (Login, error) { _ = Reviewers{}; return Login{name: s}, nil }", 1},
 		{"reviewers_field_contains", "func (r Reviewers) contains(l Login) bool { _, ok := r.logins[l]; return ok }", 0},
 		{"reviewers_field_usable", "func (r *Reviewers) usable() bool { return len(r.logins) > 0 }", 0},
+		// The field rows below share one check; they list the ways of
+		// filling or widening the set that it must keep closed.
 		{"reviewers_field_named_result", "func f() (r Reviewers) { r.logins = map[Login]struct{}{}; return }", 1},
 		{"reviewers_field_element", "func f(r Reviewers, l Login) { r.logins[l] = struct{}{} }", 1},
 		{"reviewers_field_delete", "func f(r Reviewers, l Login) { delete(r.logins, l) }", 1},

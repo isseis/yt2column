@@ -695,7 +695,8 @@ func TestReviewerOrderIrrelevant(t *testing.T) {
 
 // TestSecondReviewerBeginReply runs a round's two ends with both reviewers:
 // begin processes the second reviewer's thread without it being named, and
-// reply answers it with the fingerprint begin printed.
+// reply answers it with the fingerprint begin printed. It is the one test of
+// the command line's reply path with two names.
 func TestSecondReviewerBeginReply(t *testing.T) {
 	newTestRepo(t)
 	th := botThread(1, testSecondReviewer)

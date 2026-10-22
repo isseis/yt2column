@@ -160,8 +160,8 @@ func TestAssessUnverifiableAuthor(t *testing.T) {
 		{"no_comments", nil, []Finding{{Reason: ReasonIncompleteComments}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			// Both reviewers are passed, so a [bot] suffix on either name is
-			// rejected by the grammar, not missed by the comparison.
+			// Both reviewers are passed: a [bot] suffix on either name fails
+			// the login grammar before any comparison with the list.
 			got := listOneWith(t, bothReviewers, testThread{id: testThreadID(1), comments: tc.comments})
 			if got.Trusted || !slices.Equal(got.Findings, tc.want) {
 				t.Errorf("thread = %+v, want untrusted with %+v", got, tc.want)
