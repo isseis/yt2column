@@ -37,10 +37,10 @@ func withBody(th testThread, body string) testThread {
 
 func TestNewGitHub(t *testing.T) {
 	fake := cmdrunnertestutil.New(t)
-	if _, err := NewGitHub(fake, Login{}); !errors.Is(err, ErrInvalidInput) {
-		t.Errorf("NewGitHub(zero reviewer) = %v, want ErrInvalidInput", err)
+	if _, err := NewGitHub(fake, Reviewers{}); !errors.Is(err, ErrInvalidInput) {
+		t.Errorf("NewGitHub(zero reviewers) = %v, want ErrInvalidInput", err)
 	}
-	if _, err := NewGitHub(nil, mustLogin(t, testReviewer)); !errors.Is(err, ErrInvalidInput) {
+	if _, err := NewGitHub(nil, mustReviewers(t, testReviewer)); !errors.Is(err, ErrInvalidInput) {
 		t.Errorf("NewGitHub(nil runner) = %v, want ErrInvalidInput", err)
 	}
 }
@@ -375,18 +375,30 @@ func TestBeginRefusesEmptyNamedThread(t *testing.T) {
 	}
 }
 
+// TestBeginAuthorType: with two reviewers, a thread opened by either reviewer
+// bot is "Bot"; a named other bot's thread and a thread opened by a user who
+// shares a reviewer's name (trusted by write permission) are "User".
 func TestBeginAuthorType(t *testing.T) {
-	reviewer := testThread{id: testThreadID(1), comments: []testComment{reviewerComment(1)}}
-	otherBot := testThread{id: testThreadID(2), comments: []testComment{botComment(2, "dependabot")}}
+	first := testThread{id: testThreadID(1), comments: []testComment{reviewerComment(1)}}
+	second := testThread{id: testThreadID(2), comments: []testComment{botComment(2, testSecondReviewer)}}
+	otherBot := testThread{id: testThreadID(3), comments: []testComment{botComment(3, "dependabot")}}
+	namesake := testThread{id: testThreadID(4), comments: []testComment{userComment(4, testSecondReviewer)}}
+	all := []testThread{first, second, otherBot, namesake}
 	accept := []Accept{{ThreadID: otherBot.id, Fingerprint: testFingerprint(t, otherBot)}}
-	g, _ := newTestGitHub(t, beginSteps(stageOneResponse(t, []testThread{reviewer, otherBot}, false, ""), nil,
-		stageTwoResponse(t, reviewer, otherBot))...)
+	g, _ := newTestGitHubWith(t, bothReviewers, beginSteps(stageOneResponse(t, all, false, ""),
+		[]cmdrunnertestutil.Step{roleStep(testSecondReviewer, "write")}, stageTwoResponse(t, all...))...)
 	round, err := g.Begin(t.Context(), mustPR(t), accept)
 	if err != nil {
 		t.Fatalf("Begin = %v", err)
 	}
-	if len(round.Threads) != 2 || round.Threads[0].AuthorType != "Bot" || round.Threads[1].AuthorType != "User" {
-		t.Errorf("Threads = %+v, want Bot for the reviewer and User for a named other bot", round.Threads)
+	want := map[string]string{first.id: "Bot", second.id: "Bot", otherBot.id: "User", namesake.id: "User"}
+	if len(round.Threads) != len(want) {
+		t.Fatalf("Threads = %+v, want %d threads", round.Threads, len(want))
+	}
+	for _, th := range round.Threads {
+		if th.AuthorType != want[th.ThreadID] {
+			t.Errorf("thread %s authorType = %q, want %q", th.ThreadID, th.AuthorType, want[th.ThreadID])
+		}
 	}
 }
 
@@ -412,7 +424,7 @@ func (r *deadlineRunner) RunInput(ctx context.Context, stdin []byte, name string
 
 func TestGitHubCallsHaveTimeout(t *testing.T) {
 	runner := &deadlineRunner{Fake: cmdrunnertestutil.New(t, headStep(sameRepositoryHead))}
-	g, err := NewGitHub(runner, mustLogin(t, testReviewer))
+	g, err := NewGitHub(runner, mustReviewers(t, testReviewer))
 	if err != nil {
 		t.Fatalf("NewGitHub = %v", err)
 	}
@@ -503,6 +515,19 @@ func TestThreadPathsRequiresTrustedOrNamed(t *testing.T) {
 			}
 		})
 	}
+	// The second reviewer's thread is trusted, not named, so inspect applies
+	// the trusted-thread scope rule to it.
+	t.Run("second_reviewer_not_named", func(t *testing.T) {
+		second := testThread{id: testThreadID(5), comments: []testComment{botComment(5, testSecondReviewer)}}
+		g, _ := newTestGitHubWith(t, bothReviewers, repoStep(), graphqlStep(stageOneResponse(t, []testThread{second}, false, "")))
+		paths, err := g.ThreadPaths(t.Context(), mustPR(t), []Accept{accept(second)})
+		if err != nil {
+			t.Fatalf("ThreadPaths = %v", err)
+		}
+		if want := []ThreadPath{{ThreadID: second.id, Path: "internal/fixprguard/github.go"}}; !slices.Equal(paths, want) {
+			t.Errorf("ThreadPaths = %+v, want %+v", paths, want)
+		}
+	})
 	t.Run("named_twice", func(t *testing.T) {
 		g, _ := newTestGitHub(t)
 		if _, err := g.ThreadPaths(t.Context(), mustPR(t), []Accept{accept(trusted), accept(trusted)}); !errors.Is(err, ErrInvalidInput) {

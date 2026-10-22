@@ -172,9 +172,15 @@ type invocation struct {
 	arg    string
 }
 
-// flagValue stores one flag of an invocation. A multi flag (--accept,
-// --thread) collects every value; any other flag given twice is an error, so
-// a later value cannot silently replace an earlier one.
+// multiFlags are the flags that may be given more than once; each collects
+// every value in order. --reviewer is one of them: a name given twice is
+// refused by fixprguard.ParseReviewers, not here, so the one check of the
+// list covers both the command line and the documents' guard.
+var multiFlags = map[string]struct{}{flagAccept: {}, flagThread: {}, flagReviewer: {}}
+
+// flagValue stores one flag of an invocation. A multi flag (multiFlags)
+// collects every value; any other flag given twice is an error, so a later
+// value cannot silently replace an earlier one.
 type flagValue struct {
 	inv   *invocation
 	name  string
@@ -210,13 +216,16 @@ func parse(args []string) (invocation, error) {
 	flags := flag.NewFlagSet(inv.name, flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	for _, name := range append([]string{flagProtocol}, sp.flags...) {
-		flags.Var(flagValue{inv: &inv, name: name, multi: name == flagAccept || name == flagThread}, name, "")
+		_, multi := multiFlags[name]
+		flags.Var(flagValue{inv: &inv, name: name, multi: multi}, name, "")
 	}
 	if err := flags.Parse(args[1:]); err != nil {
 		return invocation{}, fmt.Errorf("%w: %w", errUsage, err)
 	}
+	// A required flag is present when it has a value, single or collected.
 	for _, name := range append([]string{flagProtocol}, sp.required...) {
-		if _, ok := inv.values[name]; !ok {
+		_, single := inv.values[name]
+		if !single && len(inv.multi[name]) == 0 {
 			return invocation{}, fmt.Errorf("%w: --%s is required", errUsage, name)
 		}
 	}
@@ -372,14 +381,16 @@ func prNumber(ctx context.Context, g *fixprguard.GitHub, arg string) (fixprguard
 	return fixprguard.ParsePRNumber(arg)
 }
 
-// githubFor builds the GitHub of a subcommand that judges threads, from its
-// --reviewer value.
+// githubFor builds the GitHub of a subcommand that judges threads, from every
+// --reviewer value. Each subcommand calls it before touching git or GitHub,
+// so an empty, malformed, or repeated name stops the run there. The error
+// names the flag and the rule, never a value.
 func githubFor(inv invocation, e env) (*fixprguard.GitHub, error) {
-	reviewer, err := fixprguard.ParseLogin(inv.values[flagReviewer])
+	reviewers, err := fixprguard.ParseReviewers(inv.multi[flagReviewer])
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("--%s: %w", flagReviewer, err)
 	}
-	return fixprguard.NewGitHub(e.gh, reviewer)
+	return fixprguard.NewGitHub(e.gh, reviewers)
 }
 
 func accepts(raw []string) ([]fixprguard.Accept, error) {

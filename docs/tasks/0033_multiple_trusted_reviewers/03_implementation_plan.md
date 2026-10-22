@@ -8,7 +8,7 @@
 | Created | 2026-10-22 |
 | Review date | 2026-10-22 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-22 (editorial): ステップ 1-3 の `test_helpers.go` の項目を、`replyArgs` だけが `--reviewer` の並びを指定できる形に改めた。指紋は `--reviewer` によらないので、`fingerprintOf`・`accept` を変える必要がないことを実装で確かめたためである。同じステップの「壊して確かめる」の 1 つめの項目の、失敗するテストを実際の結果に改めた（表の `--reviewer` がない行は、`ParseReviewers` が空の一覧を拒否するので失敗しない）。確かめる内容と決定は変わらない |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -171,14 +171,14 @@
 
 **変更するファイル**: `internal/fixprguard/github.go`、`trust.go`、`write.go`、`test_helpers.go`、`trust_test.go`、`github_test.go`、`write_test.go`
 
--   [ ] `GitHub`・`NewGitHub`・`requireReviewer`・`assessThread`・`processThread`・`Reply` の判定を、設計書 2.2 の表と 3.3 のとおりに `Reviewers` に替える。コメント（`github.go:35-36`・`:47-50`・`:386-389`、`trust.go:62-65`）とエラーの文字列（`github.go:42`・`:61`）を改める。
--   [ ] `test_helpers.go` の `newTestGitHub` は、今と同じ 1 つの名前の `Reviewers` で作る。既存のテストが変更なしで通ることで、1 つの名前の判定が今と同じであることを確かめる（AC-04）。2 つめのテスト用の名前と、名前の並びを指定して作るヘルパーを加える。
--   [ ] `TestNewGitHub` を、ゼロ値の `Reviewers` を拒否する形に改める。
--   [ ] `TestAssessAuthors` に、2 つの名前の `Reviewers` で、設計書 7.1 の判定の表の 6 つの場合を確かめる行を加える。既存の `reviewer_bot_without_lookup`・`user_named_like_reviewer` の行と重なる場合は、新しい行を足さず、既存の行を 2 つの名前で確かめる形に改める。あわせて、1 つの名前の `Reviewers` で、渡さなかった 2 つめの名前の `Bot` が理由 (b) になり `account` にその名前が入ることを確かめる（設計書 5.2 の「渡し忘れは安全側」）。
--   [ ] `TestAssessUnverifiableAuthor` の `bot_login_outside_grammar` を、2 つの名前の `Reviewers` で確かめる形にする。`chatgpt-codex-connector[bot]` の行を加える。
--   [ ] `TestBeginAuthorType` を、2 つの名前の `Reviewers` で、設計書 7.1 の `authorType` の 3 つの場合と、一覧の名前と一致する `User`（書き込み権限で信頼される）のスレッドが `User` になる場合を確かめる形にする（AC-08）。
--   [ ] `TestThreadPathsRequiresTrustedOrNamed` に、2 つめの名前の `Bot` のスレッドが `Named` でない場合を加える。
--   [ ] `write_test.go` に、2 つの名前の `Reviewers` で、2 つめの名前の `Bot` のスレッドに名指しなしで返信できることを確かめるテストを加える。一覧にない `Bot` のスレッドに書き込まないことは、既存の `TestReplyRefusesUntrustedThread`（`write_test.go:152-161`、`819011a`。`other-bot` の Bot で `ErrThreadNotTrusted`）が確かめる。
+-   [x] `GitHub`・`NewGitHub`・`requireReviewer`・`assessThread`・`processThread`・`Reply` の判定を、設計書 2.2 の表と 3.3 のとおりに `Reviewers` に替える。コメント（`github.go:35-36`・`:47-50`・`:386-389`、`trust.go:62-65`）とエラーの文字列（`github.go:42`・`:61`）を改める。
+-   [x] `test_helpers.go` の `newTestGitHub` は、今と同じ 1 つの名前の `Reviewers` で作る。既存のテストが変更なしで通ることで、1 つの名前の判定が今と同じであることを確かめる（AC-04）。2 つめのテスト用の名前と、名前の並びを指定して作るヘルパーを加える。
+-   [x] `TestNewGitHub` を、ゼロ値の `Reviewers` を拒否する形に改める。
+-   [x] `TestAssessAuthors` に、2 つの名前の `Reviewers` で、設計書 7.1 の判定の表の 6 つの場合を確かめる行を加える。既存の `reviewer_bot_without_lookup`・`user_named_like_reviewer` の行と重なる場合は、新しい行を足さず、既存の行を 2 つの名前で確かめる形に改める。あわせて、1 つの名前の `Reviewers` で、渡さなかった 2 つめの名前の `Bot` が理由 (b) になり `account` にその名前が入ることを確かめる（設計書 5.2 の「渡し忘れは安全側」）。
+-   [x] `TestAssessUnverifiableAuthor` の `bot_login_outside_grammar` を、2 つの名前の `Reviewers` で確かめる形にする。`chatgpt-codex-connector[bot]` の行を加える。
+-   [x] `TestBeginAuthorType` を、2 つの名前の `Reviewers` で、設計書 7.1 の `authorType` の 3 つの場合と、一覧の名前と一致する `User`（書き込み権限で信頼される）のスレッドが `User` になる場合を確かめる形にする（AC-08）。
+-   [x] `TestThreadPathsRequiresTrustedOrNamed` に、2 つめの名前の `Bot` のスレッドが `Named` でない場合を加える。
+-   [x] `write_test.go` に、2 つの名前の `Reviewers` で、2 つめの名前の `Bot` のスレッドに名指しなしで返信できることを確かめるテストを加える。一覧にない `Bot` のスレッドに書き込まないことは、既存の `TestReplyRefusesUntrustedThread`（`write_test.go:152-161`、`819011a`。`other-bot` の Bot で `ErrThreadNotTrusted`）が確かめる。
 
 **壊して確かめる**: 次の 4 つで、それぞれ括弧の中のテストが失敗すること。どの壊し方も、比べる名前をテスト用の 1 つめの名前に固定して書く（1.2）。
 
@@ -193,12 +193,12 @@
 
 **変更するファイル**: `cmd/fixprguard/main.go`、`main_test.go`、`test_helpers.go`
 
--   [ ] 最初に、`TestAcceptThreadFlagParsing` の「`--reviewer` twice」の行を、値を 1 つだけ持つフラグを 2 回渡す行に置き換える。たとえば `inspect` の `--baseline` を、ほかの引数を正しい値にして 2 回渡す。この置き換えは、`main.go` を変える前に、それだけのコミットにする。置き換えの前後で、`go tool cover -func` のパッケージ全体の関数ごとのカバレッジが変わらないことを確かめ、コミットメッセージに書く（`CLAUDE.md`「Deleting a test is a claim that must be checked」。1.3.4）。
--   [ ] `--reviewer` を値を集めるフラグにし、値を集めるフラグにも必須の確認が働くようにする。`flagValue` のコメントを改める（設計書 2.2 の `main.go` の行）。
--   [ ] `githubFor` が `ParseReviewers` にすべての `--reviewer` の値を渡し、エラーに `--reviewer` を付けるようにする（設計書 4 章）。`githubFor` のコメントを改める。
--   [ ] `test_helpers.go` に 2 つめのテスト用の名前を加え、`fingerprintOf`・`accept`（`test_helpers.go:342`）・`replyArgs` が渡す `--reviewer` の並びを指定できるようにする。
--   [ ] 違う名前の `--reviewer` を 2 回渡すと `parse` が受け付け、2 つの値を集めることを確かめるテストを加える。
--   [ ] 「コマンドを起動しない」表（`main_test.go:100-128`）を、行ごとの `t.Run` にする。`list`・`begin`・`inspect`・`reply` のそれぞれについて、次の 4 行を加える。各行のほかの引数は正しい値にする。
+-   [x] 最初に、`TestAcceptThreadFlagParsing` の「`--reviewer` twice」の行を、値を 1 つだけ持つフラグを 2 回渡す行に置き換える。たとえば `inspect` の `--baseline` を、ほかの引数を正しい値にして 2 回渡す。この置き換えは、`main.go` を変える前に、それだけのコミットにする。置き換えの前後で、`go tool cover -func` のパッケージ全体の関数ごとのカバレッジが変わらないことを確かめ、コミットメッセージに書く（`CLAUDE.md`「Deleting a test is a claim that must be checked」。1.3.4）。
+-   [x] `--reviewer` を値を集めるフラグにし、値を集めるフラグにも必須の確認が働くようにする。`flagValue` のコメントを改める（設計書 2.2 の `main.go` の行）。
+-   [x] `githubFor` が `ParseReviewers` にすべての `--reviewer` の値を渡し、エラーに `--reviewer` を付けるようにする（設計書 4 章）。`githubFor` のコメントを改める。
+-   [x] `test_helpers.go` に 2 つめのテスト用の名前と、名前の並びから `--reviewer` を並べるヘルパーを加え、`replyArgs` が渡す `--reviewer` の並びを指定できるようにする。`fingerprintOf`・`accept` は変えない。指紋はコメントの ID・著者・時刻だけから決まり、`--reviewer` によらないので、1 つの名前の `list` で得た値をそのまま使える。
+-   [x] 違う名前の `--reviewer` を 2 回渡すと `parse` が受け付け、2 つの値を集めることを確かめるテストを加える。
+-   [x] 「コマンドを起動しない」表（`main_test.go:100-128`）を、行ごとの `t.Run` にする。`list`・`begin`・`inspect`・`reply` のそれぞれについて、次の 4 行を加える。各行のほかの引数は正しい値にする。
     -   `--reviewer` がない。
     -   同じ名前を 2 回渡す。
     -   正しくない値を渡す。
@@ -207,13 +207,13 @@
     あわせて、`list` に違う 2 つの正しい名前と文法に合わない PR 番号 `x` を渡す行を加える。この行は、ステップ 2-0 の確かめの振る舞いを固定する。終了コードが `2` で、標準エラーが PR 番号の文法の診断であり、`flag given twice` を含まないことを確かめる。
 
     上の 16 行では、終了コード `2` に加えて、標準エラーが 1 行で、`--reviewer` を含み、渡した値を含まないことも確かめる。`--reviewer` を 2 回以上渡す行では、`parse` が成功すること（拒否するのは `ParseReviewers` だけであること。設計書 7.2）と、標準エラーが `flag given twice` を含まないことも確かめる。既存の `begin` の `bad name` の行は、加える行に含める。表のほかの既存の行（`--accept`・`--baseline`・`finish`・`head` など）は残す。
--   [ ] `list` と `begin` を、`--reviewer` の 2 つの順序で同じリポジトリに対して実行するテストを加える。スレッドは、2 つの名前の `Bot` のスレッドと一覧にない `Bot` のスレッドを用意する。2 つの順序で標準出力が同じであることに加え、2 つの名前のスレッドが処理され、一覧にない `Bot` のスレッドが処理されないことを確かめる（設計書 7.1 の「順序によらないこと」）。
--   [ ] 2 つの名前を渡し、2 つめの名前の `Bot` のスレッドを `begin` で処理し、`begin` の出力の指紋で `reply` するテストを加える（設計書 7.4 の結合テスト。1.4）。`begin` と `reply` の両方に、同じ 2 つの `--reviewer` を渡す。
--   [ ] `TestReviewerFlag` と、`--reviewer` を 1 回だけ渡す既存のテストが、変更なしで通ることを確かめる（AC-04・AC-09）。
+-   [x] `list` と `begin` を、`--reviewer` の 2 つの順序で同じリポジトリに対して実行するテストを加える。スレッドは、2 つの名前の `Bot` のスレッドと一覧にない `Bot` のスレッドを用意する。2 つの順序で標準出力が同じであることに加え、2 つの名前のスレッドが処理され、一覧にない `Bot` のスレッドが処理されないことを確かめる（設計書 7.1 の「順序によらないこと」）。
+-   [x] 2 つの名前を渡し、2 つめの名前の `Bot` のスレッドを `begin` で処理し、`begin` の出力の指紋で `reply` するテストを加える（設計書 7.4 の結合テスト。1.4）。`begin` と `reply` の両方に、同じ 2 つの `--reviewer` を渡す。
+-   [x] `TestReviewerFlag` と、`--reviewer` を 1 回だけ渡す既存のテストが、変更なしで通ることを確かめる（AC-04・AC-09）。
 
 **壊して確かめる**: 次の 5 つで、それぞれ括弧の中のテストが失敗すること。
 
--   必須の確認が値を集めるフラグを確かめない（`TestReviewerFlag` の `--reviewer` を消した行と、表の `--reviewer` がない行）。
+-   必須の確認が値を集めるフラグを確かめない（`TestReviewerFlag` の `--reviewer` を消した行）。表の `--reviewer` がない行は、この壊し方では失敗しない。必須の確認を外しても、`githubFor` の `ParseReviewers` が空の一覧を拒否し、終了コード `2` と `--reviewer` を含む診断になるためである。
 -   `githubFor` が最初の `--reviewer` の値だけを `ParseReviewers` に渡す（結合テストと順序のテスト）。
 -   `githubFor` がエラーに `--reviewer` を付けない、または渡した値をエラーに含める（表の標準エラーの確かめ）。
 -   `inspect` では `githubFor` の呼び出しを `CheckState` の後ろへ、`begin` では `CheckClean` の後ろへ移す（それぞれのサブコマンドの重複の行。fake の git が呼ばれる）。`list` と `reply` は、`githubFor` が作る `GitHub` を使ってから GitHub と git に触れるので、この壊し方の対象にならない。

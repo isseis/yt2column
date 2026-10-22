@@ -17,8 +17,11 @@ const (
 	testRepoName = "yt2column"
 	testPR       = "42"
 	testReviewer = "coderabbitai"
-	testTime     = "2026-10-21T00:00:00Z"
-	testLaterAt  = "2026-10-21T01:00:00Z"
+	// testSecondReviewer is the second automated reviewer of the tests that
+	// pass two names; newTestGitHub does not trust it.
+	testSecondReviewer = "chatgpt-codex-connector"
+	testTime           = "2026-10-21T00:00:00Z"
+	testLaterAt        = "2026-10-21T01:00:00Z"
 
 	nodesKey = "nodes"
 
@@ -202,15 +205,33 @@ func roleStep(login, role string) cmdrunnertestutil.Step {
 }
 
 // newTestGitHub returns a GitHub over a fake that expects exactly steps, with
-// the test reviewer.
+// the test reviewer as the only reviewer.
 func newTestGitHub(t *testing.T, steps ...cmdrunnertestutil.Step) (*GitHub, *cmdrunnertestutil.Fake) {
 	t.Helper()
+	return newTestGitHubWith(t, []string{testReviewer}, steps...)
+}
+
+// newTestGitHubWith is newTestGitHub with the given reviewer names.
+func newTestGitHubWith(t *testing.T, reviewers []string, steps ...cmdrunnertestutil.Step) (*GitHub, *cmdrunnertestutil.Fake) {
+	t.Helper()
 	fake := cmdrunnertestutil.New(t, steps...)
-	g, err := NewGitHub(fake, mustLogin(t, testReviewer))
+	g, err := NewGitHub(fake, mustReviewers(t, reviewers...))
 	if err != nil {
 		t.Fatalf("NewGitHub: %v", err)
 	}
 	return g, fake
+}
+
+// bothReviewers is the two-name list of the tests that trust both reviewers.
+var bothReviewers = []string{testReviewer, testSecondReviewer}
+
+func mustReviewers(t testing.TB, names ...string) Reviewers {
+	t.Helper()
+	r, err := ParseReviewers(names)
+	if err != nil {
+		t.Fatalf("ParseReviewers(%q): %v", names, err)
+	}
+	return r
 }
 
 func mustLogin(t testing.TB, s string) Login {

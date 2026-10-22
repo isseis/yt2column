@@ -60,10 +60,10 @@ type permission struct {
 type permissionFunc func(ctx context.Context, login Login) permission
 
 // assessThread judges a thread from its authors alone. The thread is trusted
-// only when it is complete and every author is the reviewer bot or a user with
-// write permission; otherwise every applicable reason is collected, in comment
-// order, without duplicates.
-func assessThread(ctx context.Context, authors []author, complete bool, reviewer Login, lookup permissionFunc) Assessment {
+// only when it is complete and every author is a Bot whose login is one of the
+// reviewers (exact match) or a user with write permission; otherwise every
+// applicable reason is collected, in comment order, without duplicates.
+func assessThread(ctx context.Context, authors []author, complete bool, reviewers Reviewers, lookup permissionFunc) Assessment {
 	var findings []Finding
 	add := func(f Finding) {
 		if !slices.Contains(findings, f) {
@@ -83,7 +83,7 @@ func assessThread(ctx context.Context, authors []author, complete bool, reviewer
 		}
 		switch a.kind {
 		case AuthorBot:
-			if a.login.usable() && a.login != reviewer {
+			if a.login.usable() && !reviewers.contains(a.login) {
 				add(Finding{Reason: ReasonOtherBot, Account: a.login})
 			}
 		case AuthorUser:

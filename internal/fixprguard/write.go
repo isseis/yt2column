@@ -123,7 +123,7 @@ func (g *GitHub) Reply(ctx context.Context, req ReplyRequest) error {
 		return ErrThreadChanged
 	}
 	current := fingerprint(t)
-	assessment := assessThread(ctx, authorsOf(t), !t.moreComments, g.reviewer, newPermissionLookups(g, repo).lookup)
+	assessment := assessThread(ctx, authorsOf(t), !t.moreComments, g.reviewers, newPermissionLookups(g, repo).lookup)
 	if !assessment.Trusted {
 		acc, named := accepted[t.id]
 		if !named {
