@@ -217,7 +217,9 @@ type lstatFunc func(name string) (fs.FileInfo, error)
 
 // collectTargets records the state of every target file, or stops with
 // ErrGitFailed when it cannot record all of them; it never returns a partial
-// state.
+// state. Like every Worktree method it runs at the top of the work tree,
+// which its callers check first with locateGitDirs: the listing and every
+// path it reads are relative to the current directory.
 func (w *Worktree) collectTargets(ctx context.Context, lim targetLimits) (targetState, error) {
 	return w.collectTargetsWith(ctx, lim, os.Lstat)
 }
