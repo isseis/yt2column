@@ -94,8 +94,9 @@ func TestAcceptThreadFlagParsing(t *testing.T) {
 	}
 	// The flag package formats a Set error with %v, so errFlagTwice does not
 	// survive the chain; errUsage is the observable type.
-	if _, err := parse(args(cmdBegin, "--reviewer", testReviewer, "--reviewer", testReviewer)); !errors.Is(err, errUsage) {
-		t.Errorf("--reviewer twice: %v, want errUsage", err)
+	baseline := validBaseline(t)
+	if _, err := parse(args(cmdInspect, "--reviewer", testReviewer, "--baseline", baseline, "--baseline", baseline, testPR)); !errors.Is(err, errUsage) {
+		t.Errorf("--baseline twice: %v, want errUsage", err)
 	}
 	// A value outside its grammar stops with exit 2 before any command runs:
 	// the fakes have no step, and there is no repository for git. Every other
@@ -105,7 +106,6 @@ func TestAcceptThreadFlagParsing(t *testing.T) {
 	if err := os.WriteFile(body, []byte("Fixed.\n"), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	baseline := validBaseline(t)
 	for _, line := range [][]string{
 		args(cmdBegin, "--reviewer", testReviewer, "--accept", testThreadID+"="+fp+"0", testPR),
 		args(cmdBegin, "--reviewer", testReviewer, "--accept", "https://example.com/x="+fp, testPR),
