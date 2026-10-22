@@ -8,7 +8,7 @@ The background and rationale of the design are in the architecture document of t
 
 The body of a review thread can be written by anyone who can write on the PR, so it is untrusted text. `fixprguard` enforces the following three layers of defense in code.
 
-1. **Author judgment.** Only threads in which the author of every comment is a trusted author are processed. Trusted authors are the automated reviewers (a Bot with any of the names passed with `--reviewer`) and people with write permission on the repository (`role_name` is `write`, `maintain`, or `admin`). The bodies of untrusted threads are not fetched.
+1. **Author judgment.** Only threads in which the author of every comment is a trusted author are processed. Trusted authors are the automated reviewers (a Bot with any of the names passed with `--reviewer`; `/fixpr` and `/runpr` pass every name on `Automated reviewer list` in `.claude/commands/_context.md`) and people with write permission on the repository (`role_name` is `write`, `maintain`, or `admin`). The bodies of untrusted threads are not fetched.
 2. **Fenced block.** Untrusted text embedded in an agent's prompt is enclosed in delimiter lines that contain a per-run random value (nonce).
 3. **Change scope and git state checks.** Before the commit and the push, the tool checks that the fix did not change files outside the scope of the processed threads, or git's hooks and config.
 
@@ -55,7 +55,7 @@ One binary is shared by all worktrees of the same user.
 | Item | Convention |
 |---|---|
 | `--protocol N` | Required by every subcommand. If `N` does not match the binary's number, the tool stops with exit code `2` (this keeps an old binary from judging by the assumptions of newer documents). The current number is `1` |
-| `--reviewer LOGIN` | Required at least once by `list`, `begin`, `inspect`, and `reply`, and not accepted by the other subcommands. Pass the GraphQL `author.login` of each trusted automated reviewer (for example `coderabbitai`), repeating the flag once per name (for example `--reviewer coderabbitai --reviewer chatgpt-codex-connector`). The order does not affect the judgment. When none is given, when the same name is given twice or more, or when a name does not fit the grammar, it is a usage error (exit code `2`). There is no default |
+| `--reviewer LOGIN` | Required at least once by `list`, `begin`, `inspect`, and `reply`, and not accepted by the other subcommands. Pass the GraphQL `author.login` of each trusted automated reviewer (for example `coderabbitai`), repeating the flag once per name (for example `--reviewer coderabbitai --reviewer chatgpt-codex-connector`). The names `/fixpr` and `/runpr` pass are every name on `Automated reviewer list` in `.claude/commands/_context.md`. The order does not affect the judgment. When none is given, when the same name is given twice or more, or when a name does not fit the grammar, it is a usage error (exit code `2`). There is no default |
 | `[PR]` | Only a decimal PR number is accepted. URLs and branch names are rejected. When omitted, the current branch's PR is resolved with `gh pr view`. `finish`, which does not read GitHub, cannot omit it |
 | Flag position | Flags go before the positional argument (`PR`, `FILE`). Passing the same flag twice is rejected (`--accept`, `--thread`, and `--reviewer` may be passed more than once; but passing the same name to `--reviewer` twice is rejected) |
 | Standard output | One line of JSON (only `fence` prints the fenced block itself). Every JSON output contains `protocol` |
@@ -279,5 +279,12 @@ When the user answers "do not continue" about out-of-scope changes, the changes 
     3. The shape of the output does not change.
 
   In that case, write the old tool's diagnostic when it stops and the guidance to reinstall in the description of exit code `2` in chapter 4.
+- When adding an automated reviewer to the list or removing one from it, change the following in the same commit, and run the document guards (`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`) on that commit. `fixpr.md` and `runpr.md` write neither the names nor their number, and the tool sets no upper limit on the number of names, so neither needs to change.
+    1. The `Automated reviewer list` row of `.claude/commands/_context.md`.
+    2. The expected names (`wantReviewers`) of the content guard (`cmd/yt2column/fixpr_docs_test.go`).
+    3. The names written in the rows of the table of broken copies (`TestContextReviewerRowsMalformed`) in the same file.
+
+  Do not loosen the check of the expected names to something like "parses and is not empty". The content guard would then no longer detect a rewrite of the list alone.
+- A Bot whose name is removed from the list does not stop being trusted at once. Each session reads the `_context.md` of the branch it works on, so on an open branch that has not merged `main`, that Bot's threads are still trusted. To withdraw trust quickly, put the removal into `main`, then merge `main` into the branch of each open PR. Until it is merged, do not use `/fixpr` or `/runpr` on that branch.
 - When changing the stop kinds or the list of execution-related files, also update chapters 6 and 8 of this guide. `cmd/fixprguard/docs_test.go` checks that this guide (Japanese and English) contains every kind and every item.
 - After the merge, reinstall with `make install-fixprguard` (chapter 3).

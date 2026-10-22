@@ -340,8 +340,8 @@
 
 -   [x] 日本語版のガイドの信頼する著者の説明と `--reviewer` の行に、渡す名前は `_context.md` の `Automated reviewer list` のすべての名前であることを加える。
 -   [x] §9 に、自動レビュアーを一覧に加えるときと外すときの手順、急いで信頼をやめるときの手順を加える（設計書 3.5 のガイドの PR-2 の項目、9 章の 1・2 つめの項目）。一覧に加える手順と外す手順には、同じコミットで変えるものをすべて挙げる。`_context.md` の行、内容のガードの期待する名前、写しの表の名前がこれに当たる。そのうえで、文書のガードをそのコミットで実行すると書く。
--   [ ] 日本語版をコミットしてから、英語版を翻訳する。
--   [ ] ステップ 1-5 のガイドのテストに、次の確かめを加える（AC-12 の「一覧の名前を 1 つずつ `--reviewer` で渡す」）。
+-   [x] 日本語版をコミットしてから、英語版を翻訳する。
+-   [x] ステップ 1-5 のガイドのテストに、次の確かめを加える（AC-12 の「一覧の名前を 1 つずつ `--reviewer` で渡す」）。
     -   信頼する著者の説明と、フラグの表の `--reviewer` の行が `Automated reviewer list` を名指すこと。
     -   §9 の手順が `cmd/yt2column/fixpr_docs_test.go` を名指し、そのファイルが実在すること。
 
@@ -353,8 +353,8 @@
 
 **変更するファイル**: なし
 
--   [ ] `make test && make lint` を実行する。
--   [ ] 文書のガード（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`）を実行する。
+-   [x] `make test && make lint` を実行する。
+-   [x] 文書のガード（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`）を実行する。
 
 **完了条件**: 上の 2 つ。PR を作った後の観察は 4.3 に書く。
 
