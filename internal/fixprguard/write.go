@@ -62,6 +62,27 @@ func readTitleFile(name string) (string, error) {
 	return title, nil
 }
 
+// checkPostText rejects text that would make Codex act when posted from the
+// user's account. Contract: text containing CodexMention anywhere, with ASCII
+// letters compared case-insensitively and no word boundary required (so
+// "@codexbot" and "a@codex.example" are rejected too), is ErrInvalidInput;
+// nothing else is. Non-ASCII look-alikes (a full-width at sign, a zero-width
+// character inside the word) are not GitHub mentions and are not normalized.
+// It checks content only, so it runs after readTextFile and before any call
+// to GitHub.
+func checkPostText(text string) error {
+	folded := strings.Map(func(r rune) rune {
+		if 'A' <= r && r <= 'Z' {
+			return r + ('a' - 'A')
+		}
+		return r
+	}, text)
+	if strings.Contains(folded, CodexMention) {
+		return errCodexMention
+	}
+	return nil
+}
+
 // resolveMutation resolves one review thread; the thread ID is a variable, never
 // part of the query text.
 const resolveMutation = `mutation($threadId: ID!) {
@@ -93,7 +114,8 @@ type ReplyRequest struct {
 // the reply succeeded and a fresh fetch shows no comment beside the judged ones
 // and the reply, so a comment that arrived meanwhile is not hidden in a
 // resolved thread. Once the reply may have been posted, every failure is
-// ErrReplyNotResolved, so the caller does not post it again.
+// ErrReplyNotResolved, so the caller does not post it again. A body that
+// mentions Codex (checkPostText) is rejected before any call to GitHub.
 func (g *GitHub) Reply(ctx context.Context, req ReplyRequest) error {
 	if err := g.requireReviewer(); err != nil {
 		return err
@@ -107,6 +129,9 @@ func (g *GitHub) Reply(ctx context.Context, req ReplyRequest) error {
 	}
 	body, err := readTextFile(req.BodyFile)
 	if err != nil {
+		return err
+	}
+	if err := checkPostText(body); err != nil {
 		return err
 	}
 	repo, err := g.resolveRepository(ctx)
@@ -267,7 +292,8 @@ type EditPRRequest struct {
 // EditPR sets the PR's title and body from the two files, without a shell. The
 // title is passed as --title=<value>, so a title starting with '-' is not read
 // as a flag, and the body is passed on standard input (--body-file -), so gh
-// reads the text that was checked, not the file again.
+// reads the text that was checked, not the file again. A title or body that
+// mentions Codex (checkPostText) is rejected before gh runs.
 func (g *GitHub) EditPR(ctx context.Context, req EditPRRequest) error {
 	if !req.PR.usable() {
 		return fmt.Errorf("%w: PR number", ErrInvalidInput)
@@ -278,6 +304,12 @@ func (g *GitHub) EditPR(ctx context.Context, req EditPRRequest) error {
 	}
 	body, err := readTextFile(req.BodyFile)
 	if err != nil {
+		return err
+	}
+	if err := checkPostText(title); err != nil {
+		return err
+	}
+	if err := checkPostText(body); err != nil {
 		return err
 	}
 	if _, err := g.runGH(ctx, []byte(body), "pr", "edit", req.PR.String(), "--title="+title, "--body-file", "-"); err != nil {

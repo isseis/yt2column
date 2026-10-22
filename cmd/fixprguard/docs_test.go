@@ -500,6 +500,44 @@ func TestGuideDescribesConfigScope(t *testing.T) {
 	}
 }
 
+// TestGuideDescribesMentionCheck: both guides state, in 7.1 and 7.2, the
+// mention reply and edit-pr reject, taking the value from internal/fixprguard;
+// state in chapter 9 why that rejection leaves Protocol unchanged; and no
+// longer say in 7.2 that the content of a body goes unchecked. The phrases
+// are the guides' own, Japanese for the Japanese guide.
+func TestGuideDescribesMentionCheck(t *testing.T) {
+	mention := "`" + fixprguard.CodexMention + "`"
+	for _, tc := range []struct {
+		rel, proviso, stale72 string
+	}{
+		{
+			rel:     guideFiles[0],
+			proviso: "狭めた分がコマンドの文書の送らない内容に限って、上の 3 つの条件によらず `Protocol` を上げなくてよい",
+			stale72: "文字コードだけを検査する",
+		},
+		{
+			rel:     guideFiles[1],
+			proviso: "regardless of the three conditions above, provided the narrowed part is content the command documents do not send",
+			stale72: "checks only the file's type, size, and encoding.",
+		},
+	} {
+		t.Run(filepath.Base(tc.rel), func(t *testing.T) {
+			guide := readRepoFile(t, tc.rel)
+			for _, heading := range []string{"### 7.1", "### 7.2"} {
+				if !strings.Contains(subsection(guide, heading), mention) {
+					t.Errorf("%s %s does not name %s", tc.rel, heading, mention)
+				}
+			}
+			if sec72 := subsection(guide, "### 7.2"); strings.Contains(sec72, tc.stale72) {
+				t.Errorf("%s 7.2 still says %q", tc.rel, tc.stale72)
+			}
+			if !strings.Contains(section(guide, "## 9."), tc.proviso) {
+				t.Errorf("%s section 9 does not state the mention proviso %q", tc.rel, tc.proviso)
+			}
+		})
+	}
+}
+
 // TestCutSection: the extraction the guards read through stops where it
 // should. A section that ran on would let a later passage supply a phrase
 // the checked one lacks.

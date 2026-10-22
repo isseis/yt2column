@@ -395,6 +395,95 @@ func TestEditPRVerbatim(t *testing.T) {
 	})
 }
 
+func TestCheckPostText(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		text   string
+		reject bool
+	}{
+		{name: "lower_case", text: "see @codex", reject: true},
+		{name: "title_case", text: "see @Codex", reject: true},
+		{name: "upper_case", text: "see @CODEX", reject: true},
+		{name: "line_start", text: "first line\n@codex please look", reject: true},
+		{name: "request_text", text: "@codex review", reject: true},
+		// No word boundary is required, so a longer name is rejected too.
+		{name: "longer_name", text: "ask @codexbot", reject: true},
+		{name: "email_address", text: "mail a@codex.example", reject: true},
+		{name: "name_without_at", text: "Codex and codex flagged this"},
+		{name: "other_mention", text: "@coderabbitai flagged this"},
+		{name: "full_width_at", text: "\uff20codex"},
+		{name: "zero_width_inside", text: "@\u200bcodex"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := checkPostText(tc.text)
+			if tc.reject != errors.Is(err, errCodexMention) {
+				t.Errorf("checkPostText(%q) = %v, want rejection %v", tc.text, err, tc.reject)
+			}
+			if tc.reject && !errors.Is(err, ErrInvalidInput) {
+				t.Errorf("checkPostText(%q) = %v, want it to wrap ErrInvalidInput", tc.text, err)
+			}
+		})
+	}
+}
+
+// mentionText is a post text that mentions Codex in the middle of a line.
+const mentionText = "Thanks; @Codex flagged this too."
+
+func TestReplyRejectsCodexMention(t *testing.T) {
+	th := testThread{id: testThreadID(1), comments: []testComment{reviewerComment(1)}}
+	t.Run("mention", func(t *testing.T) {
+		// The fake holds no step, so any gh call fails the test.
+		g, _ := newTestGitHub(t)
+		if err := g.Reply(t.Context(), replyRequest(t, th, mentionText)); !errors.Is(err, errCodexMention) {
+			t.Errorf("Reply = %v, want errCodexMention", err)
+		}
+	})
+	// A body readTextFile rejects is reported as such even when it also
+	// mentions Codex: the file is checked before its content.
+	for name, body := range map[string]string{
+		"over_size_cap": mentionText + strings.Repeat("a", maxTextFileBytes),
+		"invalid_utf8":  mentionText + "\xff",
+	} {
+		t.Run("file_rejected_first/"+name, func(t *testing.T) {
+			g, _ := newTestGitHub(t)
+			err := g.Reply(t.Context(), replyRequest(t, th, body))
+			if !errors.Is(err, ErrInvalidInput) || errors.Is(err, errCodexMention) {
+				t.Errorf("Reply = %v, want a file rejection, not errCodexMention", err)
+			}
+		})
+	}
+	t.Run("no_mention_posts", func(t *testing.T) {
+		g, _ := newTestGitHub(t, append(replyLookupSteps(t, []testThread{th}), writeSteps(t, th)...)...)
+		if err := g.Reply(t.Context(), replyRequest(t, th, "Codex and @coderabbitai agree.")); err != nil {
+			t.Errorf("Reply = %v", err)
+		}
+	})
+}
+
+func TestEditPRRejectsCodexMention(t *testing.T) {
+	for name, files := range map[string][2]string{
+		"title": {"fix: " + mentionText, "## Summary\nbody"},
+		"body":  {"fix: a title", "## Summary\n" + mentionText},
+	} {
+		t.Run(name, func(t *testing.T) {
+			// The fake holds no step, so any gh call fails the test.
+			g, _ := newTestGitHub(t)
+			req := EditPRRequest{PR: mustPR(t), TitleFile: writeTextFile(t, files[0]), BodyFile: writeTextFile(t, files[1])}
+			if err := g.EditPR(t.Context(), req); !errors.Is(err, errCodexMention) {
+				t.Errorf("EditPR = %v, want errCodexMention", err)
+			}
+		})
+	}
+	t.Run("no_mention_edits", func(t *testing.T) {
+		title := "fix: what Codex flagged"
+		g, _ := newTestGitHub(t, editStep(title))
+		req := EditPRRequest{PR: mustPR(t), TitleFile: writeTextFile(t, title), BodyFile: writeTextFile(t, "Codex and @coderabbitai agree.")}
+		if err := g.EditPR(t.Context(), req); err != nil {
+			t.Errorf("EditPR = %v", err)
+		}
+	})
+}
+
 func TestReplyPostFailureSkipsResolve(t *testing.T) {
 	th := testThread{id: testThreadID(1), comments: []testComment{reviewerComment(1)}}
 	// No step after the post is scripted, so fetching or resolving after the

@@ -125,8 +125,8 @@
 
 **変更するファイル**: `internal/fixprguard/errors.go`
 
-- [ ] 設計書 4 章のとおり、公開の定数 `CodexMention` と非公開のエラー値 `errCodexMention`（`ErrInvalidInput` を包む）を加える。
-- [ ] `ErrInvalidInput` のコメントを、フラグの値の誤りに加えて、`reply`・`edit-pr` が拒否するテキストのファイル（種類・大きさ・文字コード・内容）も含む説明に改める。
+- [x] 設計書 4 章のとおり、公開の定数 `CodexMention` と非公開のエラー値 `errCodexMention`（`ErrInvalidInput` を包む）を加える。
+- [x] `ErrInvalidInput` のコメントを、フラグの値の誤りに加えて、`reply`・`edit-pr` が拒否するテキストのファイル（種類・大きさ・文字コード・内容）も含む説明に改める。
 
 **完了の条件**: ステップ 1-2 と同じコミットで `make lint` が通る（`errCodexMention` は 1-2 で使う）。
 
@@ -134,10 +134,10 @@
 
 **変更するファイル**: `internal/fixprguard/write.go`
 
-- [ ] `checkPostText` を加える。拒否する条件と拒否しないものは設計書 3.8 の箇条のとおりで、比べ方は ASCII の範囲で大文字と小文字を区別しない部分文字列の一致である（語の境界を求めない。Unicode の正規化はしない）。
-- [ ] `Reply` で、本文を `readTextFile` で読んだ直後、`resolveRepository` より前に、本文に適用する。
-- [ ] `EditPR` で、タイトルと本文を読んだ後、`runGH` より前に、両方に適用する。
-- [ ] `readTextFile`・`readTitleFile` には加えない（設計書 3.8）。
+- [x] `checkPostText` を加える。拒否する条件と拒否しないものは設計書 3.8 の箇条のとおりで、比べ方は ASCII の範囲で大文字と小文字を区別しない部分文字列の一致である（語の境界を求めない。Unicode の正規化はしない）。
+- [x] `Reply` で、本文を `readTextFile` で読んだ直後、`resolveRepository` より前に、本文に適用する。
+- [x] `EditPR` で、タイトルと本文を読んだ後、`runGH` より前に、両方に適用する。
+- [x] `readTextFile`・`readTitleFile` には加えない（設計書 3.8）。
 
 **完了の条件**: ステップ 1-3・1-4 のテストが通る。
 
@@ -145,29 +145,29 @@
 
 **変更するファイル**: `internal/fixprguard/write_test.go`
 
-- [ ] `TestCheckPostText`: `checkPostText` の範囲の境界を 1 つの表で固定する。拒否する行は、設計書 7.1 の入力（大文字と小文字の違い、行頭と文の途中、`@codex review`）と、設計書 3.8 が拒否するとした語の一部（`@codexbot`、`a@codex.example`）。受け付ける行は、`@` のない `Codex`・`codex`、`@coderabbitai`、全角の `＠codex`、`@` と `codex` の間に幅のない文字を挟んだもの。
-- [ ] `TestReplyRejectsCodexMention`・`TestEditPRRejectsCodexMention`: `Reply` の本文、`EditPR` のタイトル、`EditPR` の本文のそれぞれについて、メンションを含む文面が `errCodexMention` で拒否され（`errors.Is`）、手順を持たない fake で `gh` が一度も呼ばれないことを確かめる。`EditPR` の行は、メンションをタイトルと本文の一方だけに置き、他方はメンションのない文面にする。受け付けの側は、メンションのない文面で `Reply`・`EditPR` が投稿まで進む行を各 1 つ置く（範囲の境界は `TestCheckPostText` が持つ）。
-- [ ] 検査の順序を固定する行を置く: メンションを含み、かつ `readTextFile` で拒否される本文（大きさの上限を超える、または UTF-8 でない）は、`errCodexMention` ではなくファイルの拒否になる。
+- [x] `TestCheckPostText`: `checkPostText` の範囲の境界を 1 つの表で固定する。拒否する行は、設計書 7.1 の入力（大文字と小文字の違い、行頭と文の途中、`@codex review`）と、設計書 3.8 が拒否するとした語の一部（`@codexbot`、`a@codex.example`）。受け付ける行は、`@` のない `Codex`・`codex`、`@coderabbitai`、全角の `＠codex`、`@` と `codex` の間に幅のない文字を挟んだもの。
+- [x] `TestReplyRejectsCodexMention`・`TestEditPRRejectsCodexMention`: `Reply` の本文、`EditPR` のタイトル、`EditPR` の本文のそれぞれについて、メンションを含む文面が `errCodexMention` で拒否され（`errors.Is`）、手順を持たない fake で `gh` が一度も呼ばれないことを確かめる。`EditPR` の行は、メンションをタイトルと本文の一方だけに置き、他方はメンションのない文面にする。受け付けの側は、メンションのない文面で `Reply`・`EditPR` が投稿まで進む行を各 1 つ置く（範囲の境界は `TestCheckPostText` が持つ）。
+- [x] 検査の順序を固定する行を置く: メンションを含み、かつ `readTextFile` で拒否される本文（大きさの上限を超える、または UTF-8 でない）は、`errCodexMention` ではなくファイルの拒否になる。
 
 #### ステップ 1-4: コマンドのテスト
 
 **変更するファイル**: `cmd/fixprguard/main_test.go`
 
-- [ ] `TestPostTextMentionExitsUsage`: `replyArgs` で作った引数の検査を通る `reply` の行（実在する本文のファイル）と、実在するタイトル・本文のファイルを渡す `edit-pr` の行について、メンションを含む文面で終了コード `2`（`exitUsage`）、標準出力が空、標準エラーの診断がメンションの拒否を示すこと、診断に文面の中の目印の文字列が出ないこと（`hidden` の形）を確かめる。`edit-pr` は、タイトルだけと本文だけの 2 行にする。
-- [ ] 対照の行として、メンションのない文面で `gh` の fake に届くことを確かめる行を置く。
+- [x] `TestPostTextMentionExitsUsage`: `replyArgs` で作った引数の検査を通る `reply` の行（実在する本文のファイル）と、実在するタイトル・本文のファイルを渡す `edit-pr` の行について、メンションを含む文面で終了コード `2`（`exitUsage`）、標準出力が空、標準エラーの診断がメンションの拒否を示すこと、診断に文面の中の目印の文字列が出ないこと（`hidden` の形）を確かめる。`edit-pr` は、タイトルだけと本文だけの 2 行にする。
+- [x] 対照の行として、メンションのない文面で `gh` の fake に届くことを確かめる行を置く。
 
 #### ステップ 1-5: ガイド（日英）
 
 **変更するファイル**: `docs/dev/developer_guide/fixprguard_guide.ja.md`、`docs/dev/developer_guide/fixprguard_guide.md`、`cmd/fixprguard/docs_test.go`
 
-- [ ] 日本語版を設計書 3.8 の「ガイド」のとおりに改める: 5 章の `reply`・`edit-pr` の本文とタイトルの条件、4 章の終了コード `2` の説明、7.1 の保証の表に「メンションを含む文面を GitHub に送らない」行、7.2 の「本文の内容」の項目（内容はメンションだけを検査する。全角や幅のない文字を挟んだ形は検査しない）、9 章の `Protocol` の但し書き（設計書 1.4 の 2 行目）。9 章の既存の但し書きの文は残す。
-- [ ] 英語版を、日本語版の翻訳として同じ構造で改める（`.claude/commands/mktrans.md` の原則と `docs/translation_glossary.md` に従う）。日英の見出しと表の行が対応していることを読み合わせる。
-- [ ] `TestGuideDescribesMentionCheck`（`cmd/fixprguard/docs_test.go`）: `guideFiles` の日英のそれぞれで、7.1 節と 7.2 節が `fixprguard.CodexMention` の値を含むこと、9 章が新しい但し書きを述べること、7.2 節に古い「種類・大きさ・文字コードだけを検査する」の文が残らないこと（`stale` の形）を確かめる。文言はそれぞれの言語のガイドの文から選ぶ。
-- [ ] 書いた記述を実装と照らし合わせる: 拒否の条件、終了コード、拒否しないもの、検査の順序（GitHub に触れる前）が、ステップ 1-2 のコードと一致することを読み合わせ、結果をコミットメッセージに書く。
+- [x] 日本語版を設計書 3.8 の「ガイド」のとおりに改める: 5 章の `reply`・`edit-pr` の本文とタイトルの条件、4 章の終了コード `2` の説明、7.1 の保証の表に「メンションを含む文面を GitHub に送らない」行、7.2 の「本文の内容」の項目（内容はメンションだけを検査する。全角や幅のない文字を挟んだ形は検査しない）、9 章の `Protocol` の但し書き（設計書 1.4 の 2 行目）。9 章の既存の但し書きの文は残す。
+- [x] 英語版を、日本語版の翻訳として同じ構造で改める（`.claude/commands/mktrans.md` の原則と `docs/translation_glossary.md` に従う）。日英の見出しと表の行が対応していることを読み合わせる。
+- [x] `TestGuideDescribesMentionCheck`（`cmd/fixprguard/docs_test.go`）: `guideFiles` の日英のそれぞれで、7.1 節と 7.2 節が `fixprguard.CodexMention` の値を含むこと、9 章が新しい但し書きを述べること、7.2 節に古い「種類・大きさ・文字コードだけを検査する」の文が残らないこと（`stale` の形）を確かめる。文言はそれぞれの言語のガイドの文から選ぶ。
+- [x] 書いた記述を実装と照らし合わせる: 拒否の条件、終了コード、拒否しないもの、検査の順序（GitHub に触れる前）が、ステップ 1-2 のコードと一致することを読み合わせ、結果をコミットメッセージに書く。
 
 #### ステップ 1-6: 壊して失敗を確かめる
 
-- [ ] 次のそれぞれで、対応するテストが失敗することを確かめ、コミットメッセージに書く。
+- [x] 次のそれぞれで、対応するテストが失敗することを確かめ、コミットメッセージに書く。
     -   `Reply` から `checkPostText` の呼び出しを外す（1-3 の `Reply` の行、1-4 の `reply` の行）。
     -   `EditPR` のタイトルへの適用だけを外す、本文への適用だけを外す（1-3・1-4 の該当する行）。
     -   比べ方を大文字と小文字を区別するものにする（大文字を含む行）。
