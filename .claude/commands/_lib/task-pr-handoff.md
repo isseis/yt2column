@@ -29,7 +29,7 @@ PR and then runs `/runpr <PR>` by hand, which drives it to the merge. It waits f
 one question that covers the merge, the bookkeeping committed just before it
 (for a task-document PR, setting the document to `approved`), and the next
 command offered after the merge, which `/runpr` runs only when the user
-chooses to (`runpr.md` steps 2 and 4).
+chooses to (`runpr.md` steps 2, 4, and 5).
 
 ## Inputs the calling command must supply
 

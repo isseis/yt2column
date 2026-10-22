@@ -1,5 +1,5 @@
 ---
-description: "Drive a PR through Codex's PR review and CI, record its bookkeeping, merge it, and offer the next command, run only when the user chooses"
+description: "Drive a PR through Codex's PR review and CI, record its bookkeeping, merge it, and offer the next command, which it runs only when the user chooses"
 argument-hint: "[#PR | branch | task]"
 ---
 
@@ -39,8 +39,8 @@ body of the comment that asks the awaited PR reviewer for a PR review.
 this command's own text; read them from `_context.md` when you run it.
 
 Drive one PR through Codex's PR review and CI, then ask the user one question
-that decides the bookkeeping and the merge and offers the next command (NEXT),
-which this command runs only when the user chooses to.
+that decides the bookkeeping and the merge and offers the next command (NEXT)
+when there is one, which this command runs only when the user chooses to.
 
 This is the second half of a task PR. The command that opened it (`mkreq`,
 `mkarch`, `mkplan`, `mkplan2`, or `runplan`; `_lib/task-pr-handoff.md`)
