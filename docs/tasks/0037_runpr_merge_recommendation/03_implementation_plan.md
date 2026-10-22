@@ -225,10 +225,10 @@ done
 
 **変更するファイル**: `03_implementation_plan.md`（チェックボックスの更新。以下の結果は、このコミットのメッセージに書く）
 
--   [ ] `sh docs/tasks/0037_runpr_merge_recommendation/check_wording.sh` を実行して 0 で終わることを確かめる。
--   [ ] `sh docs/tasks/0032_japanese_pr_title/check_rules.sh` を実行して、`7b26533` と同じ結果（`FAIL` は本タスクの前からある `claude_language` だけ）であることを確かめる（1.3.3）。
--   [ ] `make test`・`make lint` と、文書のガード（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`）を実行して通ることを確かめる（AC-15）。Go のコードと `README.md`・`docs/dev/security.md` は変えないので、`make ext-test` は要らない（`CLAUDE.md`「Development Notes」）。
--   [ ] 5.1 の横断の検索を行う。
+-   [x] `sh docs/tasks/0037_runpr_merge_recommendation/check_wording.sh` を実行して 0 で終わることを確かめる。
+-   [x] `sh docs/tasks/0032_japanese_pr_title/check_rules.sh` を実行して、`7b26533` と同じ結果（`FAIL` は本タスクの前からある `claude_language` だけ）であることを確かめる（1.3.3）。
+-   [x] `make test`・`make lint` と、文書のガード（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`）を実行して通ることを確かめる（AC-15）。Go のコードと `README.md`・`docs/dev/security.md` は変えないので、`make ext-test` は要らない（`CLAUDE.md`「Development Notes」）。
+-   [x] 5.1 の横断の検索を行う。
 -   [ ] PR の本文に、設計書 8 章の「移行の注意」（古い定義のままの worktree とセッションの扱い）を書く。
 
 **完了条件**: 上がすべて終わり、`make test && make lint` が通る。
@@ -326,8 +326,8 @@ done
 
 `make test`・`make lint`・`check_wording.sh` が検出しないものだけを挙げる。どれも `manual` で、行った検索とその結果を、ステップ 5-2 のコミットメッセージに書く。
 
--   [ ] フェーズ 4 で変えた 5 つのファイルと、`runpr.md` の step 4 以外の箇所が、「Merge」の選択肢の推奨（`recommended` など）に触れていない（設計書 1.1）。
--   [ ] `docs/tasks/` を除くファイルに、`/runpr` がマージの後に NEXT を必ず実行する、または既定で実行すると読める記述が、1.3.4 の語のほかに残っていない。`git grep -n -i -e 'next command' -e 'NEXT' -- ':!docs/tasks/'` の一致を、1.3.1 で書き換えた箇所と 1.3.2 の変えない箇所に照らし合わせ、どちらにも当たらない一致がないことを確かめる。
+-   [x] フェーズ 4 で変えた 5 つのファイルと、`runpr.md` の step 4 以外の箇所が、「Merge」の選択肢の推奨（`recommended` など）に触れていない（設計書 1.1）。
+-   [x] `docs/tasks/` を除くファイルに、`/runpr` がマージの後に NEXT を必ず実行する、または既定で実行すると読める記述が、1.3.4 の語のほかに残っていない。`git grep -n -i -e 'next command' -e 'NEXT' -- ':!docs/tasks/'` の一致を、1.3.1 で書き換えた箇所と 1.3.2 の変えない箇所に照らし合わせ、どちらにも当たらない一致がないことを確かめる。
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
