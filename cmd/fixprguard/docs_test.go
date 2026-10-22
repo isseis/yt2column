@@ -286,7 +286,8 @@ func TestGuideDescribesReviewerList(t *testing.T) {
 					t.Errorf("the exit code 2 row does not mention %s", want)
 				}
 			}
-			if !strings.Contains(section(guide, "## 9."), tc.proviso) {
+			sec9 := section(guide, "## 9.")
+			if !strings.Contains(sec9, tc.proviso) {
 				t.Errorf("section 9 does not state the Protocol proviso %q", tc.proviso)
 			}
 			for what, line := range map[string]string{
@@ -297,7 +298,7 @@ func TestGuideDescribesReviewerList(t *testing.T) {
 					t.Errorf("%s does not name %s", what, reviewerListName)
 				}
 			}
-			if !strings.Contains(section(guide, "## 9."), "`"+contentGuard+"`") {
+			if !strings.Contains(sec9, "`"+contentGuard+"`") {
 				t.Errorf("section 9 does not name the content guard %s", contentGuard)
 			}
 			// Section 9 tells a maintainer to edit these by name, so they must
@@ -307,7 +308,7 @@ func TestGuideDescribesReviewerList(t *testing.T) {
 				"wantReviewers":                    "var wantReviewers ",
 				"TestContextReviewerRowsMalformed": "func TestContextReviewerRowsMalformed(",
 			} {
-				if !strings.Contains(section(guide, "## 9."), "`"+ident+"`") {
+				if !strings.Contains(sec9, "`"+ident+"`") {
 					t.Errorf("section 9 does not name %s", ident)
 				}
 				if !strings.Contains(guard, decl) {

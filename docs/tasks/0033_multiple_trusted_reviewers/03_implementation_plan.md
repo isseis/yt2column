@@ -8,7 +8,7 @@
 | Created | 2026-10-22 |
 | Review date | 2026-10-22 |
 | Reviewer | isseis |
-| Comments | 2026-10-22 (editorial): ステップ 1-3 の `test_helpers.go` の項目を、`replyArgs` だけが `--reviewer` の並びを指定できる形に改めた。指紋は `--reviewer` によらないので、`fingerprintOf`・`accept` を変える必要がないことを実装で確かめたためである。同じステップの「壊して確かめる」の 1 つめの項目の、失敗するテストを実際の結果に改めた（表の `--reviewer` がない行は、`ParseReviewers` が空の一覧を拒否するので失敗しない）。確かめる内容と決定は変わらない |
+| Comments | 2026-10-22 (editorial): ステップ 1-3 の `test_helpers.go` の項目を、`replyArgs` だけが `--reviewer` の並びを指定できる形に改めた。指紋は `--reviewer` によらないので、`fingerprintOf`・`accept` を変える必要がないことを実装で確かめたためである。同じステップの「壊して確かめる」の 1 つめの項目の、失敗するテストを実際の結果に改めた（表の `--reviewer` がない行は、`ParseReviewers` が空の一覧を拒否するので失敗しない）。確かめる内容と決定は変わらない。2026-10-22 (editorial): 5 章の AC-02 の行で、空の一覧を `ParseReviewers` の種類の問題としていたのを、名前の並びの形の種類の問題に改めた。空の一覧は、`ParseReviewers` に届く前に形の確認で失敗することを実装で確かめたためである。確かめる内容と決定は変わらない |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -439,7 +439,7 @@
 | AC | 検証 | 場所 |
 |---|---|---|
 | AC-01 | static | `cmd/yt2column/fixpr_docs_test.go::TestContextAndCommandsAgree`（行の数、ちょうど 2 つの名前、説明の文）、`::TestContextReviewerRowsMalformed`（写しの表。ステップ 2-1） |
-| AC-02 | static | `cmd/yt2column/fixpr_docs_test.go::TestContextReviewerRowsMalformed`（空、文法違反、重複の行。`ParseReviewers` の種類の問題） |
+| AC-02 | static | `cmd/yt2column/fixpr_docs_test.go::TestContextReviewerRowsMalformed`（空の行は名前の並びの形の種類の問題、文法違反と重複の行は `ParseReviewers` の種類の問題） |
 | AC-03 | static | `cmd/yt2column/fixpr_docs_test.go::TestContextAndCommandsAgree`（値と説明の文）、`::TestContextReviewerRowsMalformed`（待つ PR レビュアーの行） |
 | AC-04 | test | `cmd/fixprguard/main_test.go::TestReviewerFlagRepeats`（違う名前の 2 回。ステップ 1-3）、`::TestReviewerOrderIrrelevant`（順序）、`::TestReviewerFlag` と `--reviewer` を 1 回だけ渡す既存のテスト、`internal/fixprguard` の 1 つの名前の `newTestGitHub` を使う既存のテスト |
 | AC-05 | test | `internal/fixprguard/trust_test.go::TestAssessAuthors`（1 つめ・2 つめ・混ざったスレッド・大文字と小文字）、`internal/fixprguard/github_test.go::TestThreadPathsRequiresTrustedOrNamed`、`internal/fixprguard/write_test.go::TestReplyTrustsEveryReviewer`、`cmd/fixprguard/main_test.go::TestSecondReviewerBeginReply` |

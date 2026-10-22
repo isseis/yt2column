@@ -532,6 +532,8 @@ func TestContextAndCommandsAgree(t *testing.T) {
 	requirePhrases(t, "_context.md "+awaitedRow, got.awaitedDesc, "REST `user.login`", "followed by `[bot]`")
 	requirePhrases(t, "_context.md "+reviewerListRow, got.listDesc,
 		"GraphQL `author.login`", "each as its own `--reviewer`", "trusted when its login is any name on this list")
+	// A tripwire for the replaced row's "It is the only Bot whose review
+	// threads are trusted".
 	if containsToken(got.listDesc, "only") {
 		t.Errorf("_context.md %s says a single Bot is trusted: %q", reviewerListRow, got.listDesc)
 	}
@@ -542,9 +544,12 @@ func TestContextAndCommandsAgree(t *testing.T) {
 	// who wrote a thread, so it is the only use allowed outside _context.md. A
 	// name followed by [bot] contains the name, so this rejects that form too.
 	allowed := "@" + got.awaited + " review"
-	for _, tc := range []struct{ name, path, buildOnce string }{
-		{"fixpr.md", fixprPath, fixprBuildOnce},
-		{"runpr.md", runprPath, runprBuildOnce},
+	for _, tc := range []struct {
+		name, path string
+		phrases    []string
+	}{
+		{"fixpr.md", fixprPath, []string{reviewerSentence, fixprBuildOnce}},
+		{"runpr.md", runprPath, []string{reviewerSentence, runprBuildOnce, awaitedReviewerSentence}},
 	} {
 		doc := readDoc(t, tc.path)
 		rest := strings.ReplaceAll(doc, allowed, "")
@@ -553,9 +558,8 @@ func TestContextAndCommandsAgree(t *testing.T) {
 				t.Errorf("%s writes the reviewer name %q outside %q", tc.name, name, allowed)
 			}
 		}
-		requirePhrases(t, tc.name, doc, reviewerSentence, tc.buildOnce)
+		requirePhrases(t, tc.name, doc, tc.phrases...)
 	}
-	requirePhrases(t, "runpr.md", readDoc(t, runprPath), awaitedReviewerSentence)
 }
 
 // TestContextReviewerRowsMalformed checks that checkContextReviewers reports
@@ -575,6 +579,7 @@ func TestContextReviewerRowsMalformed(t *testing.T) {
 		old, new string
 		want     []reviewerRowProblem
 	}{
+		// The control row: the unedited file has no problem.
 		{"real", listLine, listLine, nil},
 		{
 			"description_with_code_and_separator", listLine,
