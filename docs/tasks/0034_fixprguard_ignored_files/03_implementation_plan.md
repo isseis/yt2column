@@ -289,7 +289,7 @@
 -   [ ] `cmd/fixprguard/main_test.go` に次のテストを加える。
     -   `TestBeginWritesRecord`: `gh` を fake にした `begin` の後、`.git/fixprguard-ignored-begin` があり、その SHA-256 が出力の基準値を `.` で分けた 10 番目と一致すること。記録を書けないとき（記録の名前にディレクトリ）、`begin` が終了コード `1` で止まり、基準値を出力しないこと。
     -   `TestRoundWithUnchangedTargets`: 対象のファイルがあり変わらないとき、`inspect`・`finish`・`push` の出力の JSON が、対象のファイルがないときの同じ実行と、基準値・commit の SHA を除いて同じ欄と値を持つこと（AC-02）。
-    -   `TestIgnoredOutputOmitsNames`: 名前と内容に識別できる文字列を入れた対象のファイルで、`ignored` で止まる場合と、`git-failed` で止まる各場合（読めないファイル、読めないディレクトリ、ディレクトリを指すリンク、大きさの上限、git の警告）に、標準出力・標準エラー・基準値に、その文字列が現れないこと（AC-15。`TestConfigStopOmitsNames`（`main_test.go:347`）にならう）。
+    -   `TestIgnoredOutputOmitsNames`: 名前と内容に識別できる文字列を入れた対象のファイルで、`ignored` で止まる場合と、`git-failed` で止まる各場合（読めないファイル、読めないディレクトリ、ディレクトリを指すリンク、大きさの上限、git の警告）に、標準出力・標準エラー・基準値に、その文字列も、対象のファイルごとのエントリの digest（記録のファイルに書く値をテストで求めたもの）も現れないこと（AC-15。`TestConfigStopOmitsNames`（`main_test.go:347`）にならう）。
 
 **壊して確かめる**: 次の変更を 1 つずつ加えると、括弧の中のテストが失敗すること。
 
@@ -551,7 +551,7 @@
 | AC-12 | test | `ignored_test.go::TestCheckStateIgnoredChanges`（監視の一覧に当たらない無視されるファイルの行）、`::TestIsWatched`（当たらない例の行） |
 | AC-13 | test | `ignored_test.go::TestCheckStateIgnoredChanges`（最上位と下の階層の新しい `.gitignore`、`core.excludesFile` のファイルへの追記の 3 つの行） |
 | AC-14 | test | `ignored_test.go::TestCheckStateIgnoredChanges`（`parts` が `ignored` だけ。同時に変わる行では、先に比べる config か hooks だけ）、`worktree_flow_test.go` の 2 つのテスト、`main_test.go::TestIgnoredOutputOmitsNames`（出力の `parts`） |
-| AC-15 | test + static | `main_test.go::TestIgnoredOutputOmitsNames`（`ignored` と `git-failed`）、`ignored_test.go::TestIgnoredRecordFiles`、`internal/cmdrunner/runner_test.go::TestStderrIsFailure`（エラーに標準エラーを含めない）。`cmd/yt2column/fixpr_docs_test.go::TestFixprDocContract`（`fixpr.md` の禁止。ステップ 6-2） |
+| AC-15 | test + static | `main_test.go::TestIgnoredOutputOmitsNames`（`ignored` と `git-failed`。名前・内容とファイルごとのエントリの digest）、`ignored_test.go::TestIgnoredRecordFiles`、`internal/cmdrunner/runner_test.go::TestStderrIsFailure`（エラーに標準エラーを含めない）。`cmd/yt2column/fixpr_docs_test.go::TestFixprDocContract`（`fixpr.md` の禁止。ステップ 6-2） |
 | AC-16 | test | `ignored_test.go::TestParseIgnoredListing`・`::TestCollectTargetsGitFailures`（ステップ 3-2）、`::TestCollectTargetsWalk`（ステップ 3-3）、`::TestCollectTargetsLimits`（ステップ 3-4）、`::TestTargetEntries`（ステップ 4-1）、`::TestBaselineIgnoredFailures`（ステップ 5-3）、`runner_test.go::TestStderrIsFailure`（ステップ 2-1）、`main_test.go::TestListRunnerRejectsStderr`（ステップ 3-1） |
 | AC-17 | static + manual | `cmd/fixprguard/docs_test.go::TestGuideListsWatchList`（ステップ 7-4）、`ignored_test.go::TestWatchListPatternsMatch`（ステップ 1-1）。説明の文は PR-2 のレビューで読み合わせる |
 | AC-18 | static + manual | `docs_test.go::TestGuideDescribesIgnoredFiles`（7.2 の分けた項目の語）。各項目の範囲は PR-2 のレビューで要件書 4.2 と読み合わせる |
