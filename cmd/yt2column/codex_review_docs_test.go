@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -68,8 +69,11 @@ var postingSections = []postingSection{
 	{
 		"fixpr.md Phase 6", fixprPath, headingSection(fixprPhase6),
 		[]string{"fixprguard edit-pr "},
-		[]string{"When the check fails, do not run `edit-pr`: leave the PR description as it is, " +
-			"and list it in the Final report."},
+		[]string{
+			"and run the mention check on both files.",
+			"When the check fails, do not run `edit-pr`: leave the PR description as it is, " +
+				"and list it in the Final report.",
+		},
 	},
 	{
 		"runpr.md step 1", runprPath, headingSection(runprStep1),
@@ -80,10 +84,13 @@ var postingSections = []postingSection{
 		"runpr.md step 4", runprPath, headingSection(runprStep4),
 		[]string{"gh issue comment <issue> --body-file", "gh issue create ", "fixprguard reply "},
 		[]string{
-			"write the issue comment or body to a file outside the work tree, and each thread's reply " +
-				"(below) to its own file, and run the mention check on all of them",
+			"Write the issue comment or body to a file outside the work tree, and run the mention check " +
+				"on it before posting it",
 			"When the check fails, do not post: run `mergepr discard --state <state-file>`, stop, and " +
 				"report, without merging.",
+			"write the reply to a file outside the work tree, run the mention check on it, and only when " +
+				"it passes run",
+			"If `reply` stops for any thread, or a reply fails the mention check, do not merge",
 		},
 	},
 	{
@@ -93,7 +100,7 @@ var postingSections = []postingSection{
 	},
 	{
 		"_lib/task-pr-handoff.md Part A step 4", handoffPath, headingSection(handoffLinkIssue),
-		[]string{"gh issue create "},
+		[]string{"gh issue create ", "gh api -X POST "},
 		[]string{"When the check fails, do not create the link sub-issue: stop and report."},
 	},
 	{
@@ -168,55 +175,130 @@ func TestPostingPathsCheckMention(t *testing.T) {
 	}
 }
 
+// requestExemption is how the documents that post the PR review request say
+// it is the one text exempt from the mention check.
+const requestExemption = "The request is the one text a command posts that contains the mention, " +
+	"so the mention check does not apply to it."
+
+// TestRequestExemptFromMentionCheck checks that both documents that post the
+// PR review request say why the mention check does not apply to it.
+func TestRequestExemptFromMentionCheck(t *testing.T) {
+	requirePhrases(t, "runpr.md step 3", requireSection(t, "runpr.md", readDoc(t, runprPath), runprStep3), requestExemption)
+	requirePhrases(t, "_lib/task-pr-handoff.md Part B step 5", handoffStep5(t), requestExemption)
+}
+
 var (
-	// postingCommand matches a command that writes text to GitHub.
-	postingCommand = regexp.MustCompile(`gh (issue (create|comment|close|edit)|pr (comment|create|edit|review|merge))\b|fixprguard (reply|edit-pr)\b`)
+	// postingCommand matches a command that can write text to GitHub.
+	postingCommand = regexp.MustCompile(`gh (issue (create|comment|close|edit)|pr (comment|create|edit|review|merge)|api)\b|fixprguard (reply|edit-pr)\b`)
 	// textFlag marks a match as an invocation: a sentence that only names a
 	// command passes none of these.
-	textFlag = regexp.MustCompile(`--(body|body-file|title|title-file|comment|protocol)\b`)
+	textFlag = regexp.MustCompile(`(^|\s)(--(body|body-file|title|title-file|comment|protocol|field|raw-field|input)|-[bFtcf])(\s|=|$)`)
+	// writeMethod marks a gh api invocation as a write.
+	writeMethod = regexp.MustCompile(`(-X|--method)[ =](POST|PATCH|PUT)\b`)
 )
 
-// TestPostingCommandsInventory checks that every invocation of a posting
-// command in the command documents lies in one of the sections that run the
-// mention check, or is a PR review request, which is the one text that holds
-// the mention, or is in mergepr.md, whose squash merge is not a comment. A new
-// posting path added without the check fails here.
+// readOnlyInvocations are the gh api invocations inside a posting section that
+// pass a text flag but write nothing: the link count query.
+var readOnlyInvocations = []string{
+	`gh api graphql -F owner='{owner}' -F repo='{repo}' -F n=<issue> -f query='`,
+}
+
+// invocation returns the command line that starts at doc[at:], with the
+// backslash continuations joined, cut at the end of a backquoted span.
+func invocation(doc string, at int) string {
+	var b strings.Builder
+	rest := doc[at:]
+	for {
+		line, next, _ := strings.Cut(rest, "\n")
+		cont, isCont := strings.CutSuffix(line, "\\")
+		b.WriteString(cont)
+		if !isCont || next == "" {
+			break
+		}
+		rest = next
+	}
+	command, _, _ := strings.Cut(b.String(), "`")
+	return command
+}
+
+// isPost reports whether command, an invocation postingCommand matched,
+// writes text to GitHub.
+func isPost(command string) bool {
+	if !textFlag.MatchString(command) {
+		return false
+	}
+	if strings.HasPrefix(command, "gh api") {
+		return writeMethod.MatchString(command) || strings.HasPrefix(command, "gh api graphql")
+	}
+	return true
+}
+
+// TestPostingCommandsInventory checks every invocation of a posting command in
+// the command documents: it must be a PR review request, which is the one text
+// that holds the mention, or the squash merge in mergepr.md, which is not a
+// comment, or one of a posting section's listed commands, after that
+// section's mention check. A new posting command added without the check
+// fails here, inside a posting section too. A post the documents describe in
+// prose, without a command, is out of its reach.
 func TestPostingCommandsInventory(t *testing.T) {
-	type span struct{ start, end int }
+	// span is a posting section's place in its document: where it starts,
+	// where its first mention check starts, and where it ends.
+	type span struct {
+		start, check, end int
+		commands          []string
+	}
 	sections := map[string][]span{}
 	for _, ps := range postingSections {
 		doc := readDoc(t, ps.path)
 		section := ps.section(t, doc)
 		at := strings.Index(doc, section)
-		sections[filepath.Clean(ps.path)] = append(sections[filepath.Clean(ps.path)], span{at, at + len(section)})
+		check := strings.Index(section, "**Mention check.**")
+		if check < 0 {
+			t.Fatalf("%s has no mention check", ps.name)
+		}
+		key := filepath.Clean(ps.path)
+		sections[key] = append(sections[key], span{at, at + check, at + len(section), ps.commands})
 	}
 
+	posts := 0
 	err := filepath.WalkDir(commandsDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".md") {
 			return err
 		}
-		if filepath.Base(path) == "mergepr.md" {
-			return nil
-		}
 		doc := readDoc(t, path)
+		key := filepath.Clean(path)
 		for _, m := range postingCommand.FindAllStringIndex(doc, -1) {
-			rest, _, _ := strings.Cut(doc[m[1]:], "\n")
-			rest, _, _ = strings.Cut(rest, "`")
-			if !textFlag.MatchString(rest) || strings.HasPrefix(rest, ` <number> --body "<review-request>"`) {
+			command := invocation(doc, m[0])
+			if !isPost(command) || strings.HasPrefix(command, `gh pr comment <number> --body "<review-request>"`) ||
+				slices.ContainsFunc(readOnlyInvocations, func(c string) bool { return strings.HasPrefix(command, c) }) ||
+				(filepath.Base(path) == "mergepr.md" && strings.HasPrefix(command, "gh pr merge")) {
 				continue
 			}
-			inSection := false
-			for _, s := range sections[filepath.Clean(path)] {
-				inSection = inSection || (s.start <= m[0] && m[0] < s.end)
+			posts++
+			line := strings.Count(doc[:m[0]], "\n") + 1
+			where := "outside the sections that run the mention check"
+			for _, s := range sections[key] {
+				switch {
+				case m[0] < s.start || s.end <= m[0]:
+				case m[0] < s.check:
+					where = "before its section's mention check"
+				case !slices.ContainsFunc(s.commands, func(c string) bool { return strings.HasPrefix(command, c) }):
+					where = "in a posting section that does not list it"
+				default:
+					where = ""
+				}
 			}
-			if !inSection {
-				line := strings.Count(doc[:m[0]], "\n") + 1
-				t.Errorf("%s:%d posts with %q outside the sections that run the mention check", path, line, doc[m[0]:m[1]])
+			if where != "" {
+				t.Errorf("%s:%d posts with %q %s", path, line, command, where)
 			}
 		}
 		return nil
 	})
 	if err != nil {
 		t.Fatalf("walk %s: %v", commandsDir, err)
+	}
+	// A matcher that stopped matching would pass every document.
+	if posts == 0 {
+		t.Error("found no posting command in the command documents")
 	}
 }

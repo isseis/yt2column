@@ -52,8 +52,9 @@ GitHub. Its subcommands, outputs, and stop kinds are in
 - `<review-mention>` is the mention: the first word of the value of
   `_context.md`'s "PR review request" row. No text this command posts to
   GitHub contains it, compared case-insensitively: a mention posted from the
-  user's account can make Codex change code or create a branch. In the agent
-  prompts below, write its value in place of the placeholder.
+  user's account can make Codex change code or create a branch. Read its
+  value once, before Phase 1, and write it in place of the placeholder
+  everywhere below, in the agent prompts and in the mention check alike.
 - Exit codes: `0` continue; `1` stop, and the output's `stop` names the kind;
   `2` a usage error, which also stops; `3` ask the user (`inspect` only). Treat
   any other exit code, a termination by a signal, or output that is not JSON
@@ -655,7 +656,7 @@ Agent prompt:
 When the reply is `{"stale": true, ...}`, write its `title` and `body` to two
 files outside the work tree with the Write tool (the title file holds the title
 alone, with no trailing newline, which the tool rejects as a control
-character).
+character), and run the mention check on both files.
 
 **Mention check.** Before posting, run `grep -qiF -- '<review-mention>' <file>`
 on each file of text to post. Post only when it exits `1` for every file: exit
@@ -716,8 +717,10 @@ the user with **all** of the following — bare counts alone are not enough:
 
 4. **Skipped threads**: list every other thread left out of Phase 5 (unclear
    verdict, valid- or off-level-but-unapplied, missing `databaseId`, empty
-   `replyBody`, or a `reply` stop) with its URL so the user can resolve it
-   manually.
+   `replyBody`, a reply that failed the mention check, or a `reply` stop) with
+   its URL so the user can resolve it manually. When Phase 6 left the PR
+   description as it is because the new title or body failed the mention
+   check, say so here too.
 
 5. **Untrusted threads**: list, separately from the skipped threads, every
    thread in `begin`'s `untrusted`, with its URL, `threadId`, `fingerprint`, and

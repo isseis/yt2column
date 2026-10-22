@@ -565,9 +565,8 @@ rather than once per decision.
    issue, so none is silently dropped. Look for this PR's tracking issue
    (`gh issue list --state open --search "PR #<number> のレビュー指摘の追跡 in:title"`).
    Skip any finding whose thread URL the issue or its comments already list.
-   Before posting anything, write the issue comment or body to a file outside
-   the work tree, and each thread's reply (below) to its own file, and run the
-   mention check on all of them:
+   Write the issue comment or body to a file outside the work tree, and run
+   the mention check on it before posting it:
    **Mention check.** Before posting, run `grep -qiF -- '<review-mention>' <file>`
    on each file of text to post. Post only when it exits `1` for every file: exit
    code `0` means the text contains the mention, and any other code means the
@@ -580,15 +579,16 @@ rather than once per decision.
    when there is none. Write in Japanese, listing each finding's topic, the
    change it asks for, and its thread URL. Then reply to each of those threads
    in Japanese with the issue URL and resolve it, as `fixpr.md` Phase 5 does:
-   write the reply to a file outside the work tree and run, with the
-   `databaseId` and `fingerprint` the latest `fixpr` report gave for the
-   thread,
+   write the reply to a file outside the work tree, run the mention check on
+   it, and only when it passes run, with the `databaseId` and `fingerprint` the
+   latest `fixpr` report gave for the thread,
 
    ```
    fixprguard reply --protocol 3 --reviewer <reviewer> --thread-id <threadId> --comment-id <databaseId> --fingerprint <fingerprint> --body-file <reply-file> <number>
    ```
 
-   If `reply` stops for any thread, do not merge: run
+   If `reply` stops for any thread, or a reply fails the mention check, do not
+   merge: run
    `mergepr discard --state <state-file>`, stop, and report each such thread
    with its URL and stop kind. The tracking issue already lists it, so a rerun
    of this command must not add it to the issue again. For

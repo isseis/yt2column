@@ -350,6 +350,12 @@ func TestFixprDocContract(t *testing.T) {
 		} {
 			requirePhrases(t, "fixpr.md "+tc.heading, requireSection(t, "fixpr.md", doc, tc.heading), tc.phrase)
 		}
+		// The value is read once and used in the session's own check too, so
+		// a placeholder left in the grep pattern cannot pass the check.
+		requirePhrases(t, "fixpr.md", doc,
+			"Read its value once, before Phase 1, and write it in place of the placeholder everywhere below, "+
+				"in the agent prompts and in the mention check alike.",
+		)
 	})
 
 	t.Run("reply_usage_error_skips", func(t *testing.T) {
