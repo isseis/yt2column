@@ -206,26 +206,52 @@ Output: `{"protocol":2,"written":true}`.
 For each `path` of the threads passed with `--thread` (as fetched again from GitHub), `inspect` decides which files are in scope with the following rules.
 
 1. The `path` itself.
-2. Files in the same directory as `path` (not inside subdirectories).
-3. If `path` is inside `docs/tasks/NNNN_<name>/`, every file under that directory (including inside subdirectories).
-4. However, an execution-related file (the table below) is out of scope unless it is the `path` itself. For a named untrusted thread, it is out of scope even when it is the `path` itself.
+2. Files in the same directory as `path` (not inside subdirectories). However, only files that match the allow list (the table below).
+3. If `path` is inside `docs/tasks/NNNN_<name>/`, files under that directory (including inside subdirectories). However, only files that match the allow list.
+4. However, a file involved in running commands (an execution-related file; the table below) is out of scope unless it is the `path` itself. For a named untrusted thread, it is out of scope even when it is the `path` itself.
 5. For a renamed file, the deletion before the rename and the addition after it are each judged.
 6. A change that is not to a regular file (a symbolic link, a submodule, a file type change, a FIFO or device, a file over 8 MiB) is out of scope regardless of its path.
 
-A `.go` file is in scope under rule 2 only when `path` is a `.go` file in the same directory (fixing a test of the same package), and never under rule 3. For a named untrusted thread, every `.go` file other than the `path` itself is out of scope. This is because `make test` compiles and runs the in-scope `.go` files.
+The allow list does not apply to rule 1. A file that is not an execution-related file is in scope when it is the `path` itself, whatever its kind.
 
 **Path checks.** Only paths that are valid UTF-8 with no control character, not absolute, with no `..` element, and unchanged by normalization are judged. Any other path is out of scope, and its `path` is not printed in the output. A path containing a non-ASCII character is in scope only when it matches `path` byte for byte.
 
-**Execution-related files.** The files that the build checks and CI read as configuration, compile, or run. Matching treats ASCII upper and lower case as the same (because on a case-insensitive file system `makefile` and `Makefile` refer to the same file). The list is the same as the definition in `internal/fixprguard/scope.go`.
+**Execution-related files.** The files that rule 4 puts out of scope unless they are the `path` itself (the deny list). They consist of the following three parts.
+
+- The files that the build checks and CI read as configuration, compile, or run. These include the Go build inputs (the files other than `.go` files that Go handles when it builds a package).
+- Instruction files: the files that Claude Code and the automated reviewers automatically read as instructions for the directory they are in. These include `CLAUDE.md` and `AGENTS.md` at the repository root.
+- Paths with an element (a directory name or a file name) that starts with `.`. Files under `.claude/` and `.github/`, and `.gitignore` and `.gitattributes`, match this in any directory.
+
+Matching treats ASCII upper and lower case as the same (because on a case-insensitive file system `makefile` and `Makefile` refer to the same file). The list is the same as the definition in `internal/fixprguard/scope.go`.
 
 | Form | Items |
 |---|---|
-| A file with this name in any directory | `makefile`, `gnumakefile`, `go.mod`, `go.sum`, `go.work`, `go.work.sum`, `.tool-versions`, `.mise.toml` |
+| A file with this name in any directory | `makefile`, `gnumakefile`, `go.mod`, `go.sum`, `go.work`, `go.work.sum` |
+| An instruction file with this name in any directory | `claude.md`, `agents.md`, `claude.local.md`, `agent.md`, `gemini.md`, `agents.override.md` |
 | A file with this extension in any directory | `*.mk` |
-| The `.go` rule (above) | `*.go` |
-| Every file under this directory | `.claude/`, `.github/`, `extension/scripts/` |
-| A file at the repository root | `/.*` (every file whose name starts with `.`), `/claude.md`, `/agents.md` |
-| A file directly under `extension/` | `extension/package.json`, `extension/package-lock.json`, `extension/.npmrc`, `extension/.node-version`, `extension/.prettierrc.json`, `extension/.prettierignore`, `extension/eslint.config.js`, `extension/tsconfig.json`, `extension/tsconfig.core.json`, `extension/tsconfig.build.json` |
+| A Go build input with this extension in any directory | `*.c`, `*.h`, `*.cc`, `*.cpp`, `*.cxx`, `*.hh`, `*.hpp`, `*.hxx`, `*.m`, `*.s`, `*.sx`, `*.f`, `*.for`, `*.f90`, `*.swig`, `*.swigcxx`, `*.syso` |
+| A path with an element that starts with `.`, in any directory | `.*` (for example: every file under `.claude/` and `.github/`; `.golangci.yml`, `.gitignore`, `.gitattributes`, `.tool-versions`, `.mise.toml`; `extension/.npmrc`, `extension/.node-version`, `extension/.prettierrc.json`, `extension/.prettierignore`) |
+| Every file under this directory | `extension/scripts/` |
+| A file directly under `extension/` | `extension/package.json`, `extension/package-lock.json`, `extension/eslint.config.js`, `extension/tsconfig.json`, `extension/tsconfig.core.json`, `extension/tsconfig.build.json` |
+
+**Allow list.** The kinds of files that can be in scope under rules 2 and 3. Only a file that is not an execution-related file and matches one of the following is in scope under rules 2 and 3. (a) and (b) are matched case-sensitively (a file named `README.MD` or under `TestData/` does not match). (c) treats upper and lower case as the same, as execution-related files do.
+
+| Form | Items |
+|---|---|
+| (a) The name ends with this extension (case-sensitive) | `*.md`, `*.txt` |
+| (b) A directory element has this name (case-sensitive) | `testdata/` |
+| (c) The `.go` rule (below; upper and lower case are treated as the same) | `*.go` |
+
+The `.go` rule: a `.go` file is in scope under rule 2 only when `path` is a `.go` file in the same directory (fixing a test of the same package), and never under rule 3. For a named untrusted thread, every `.go` file other than the `path` itself is out of scope. This is because `make test` compiles and runs the in-scope `.go` files. Only this rule applies to a `.go` file, regardless of (b) (a `.go` file under `testdata` is judged by this rule too).
+
+**Order of judgment.** `inspect` does not print why a change is out of scope. Checking a listed path against the order below and the two tables above tells you why. A change that falls under rule 6 and a path that fails the path checks are out of scope before this order. Every other changed path is checked, for the `path` of one thread, in the following order. If it is in scope for any thread, the change is in scope.
+
+1. If it is an execution-related file, it is in scope only when the thread is not a named one and the changed path is the `path` itself. Otherwise it is out of scope.
+2. If the changed path is the `path` itself, it is in scope (rule 1).
+3. If the changed path contains a non-ASCII character, it is out of scope.
+4. If it is a `.go` file, the `.go` rule decides.
+5. If it is in neither the place of rule 2 nor that of rule 3, it is out of scope.
+6. If it matches (a) or (b) of the allow list, it is in scope. Otherwise it is out of scope.
 
 ## 7. What the tool guarantees and does not
 
