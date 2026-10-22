@@ -280,10 +280,10 @@ func run(ctx context.Context, args []string, e env) int {
 	return code
 }
 
-// stop reports err: a usage error (a value outside its grammar) exits 2 with
-// the diagnostic only; any other error exits 1 with the stop output. A reply
-// that may have been posted is a stop whatever it wraps, so the caller does
-// not post it again.
+// stop reports err: a usage error (a value outside its grammar, or a text
+// file reply or edit-pr refuses) exits 2 with the diagnostic only; any other
+// error exits 1 with the stop output. A reply that may have been posted is a
+// stop whatever it wraps, so the caller does not post it again.
 func stop(e env, err error) int {
 	_, _ = fmt.Fprintln(e.stderr, "fixprguard:", err)
 	if !errors.Is(err, fixprguard.ErrReplyNotResolved) &&

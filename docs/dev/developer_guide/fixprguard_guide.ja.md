@@ -193,7 +193,7 @@ fixprguard reply --protocol 2 --reviewer coderabbitai --thread-id 'PRRT_...' --c
 
 ### `edit-pr --title-file FILE --body-file FILE [PR]`
 
-PR のタイトルと本文を更新する。タイトルは `--title=<値>` の形で、本文は検査した内容を標準入力から渡す（`gh` にファイルを読み直させない）。タイトルのファイルは、本文のファイルと同じ検査に加えて、制御文字と行区切りを含まない 1 行であること。タイトルと本文のどちらかが `@codex` のメンションを含むときは、`reply` の本文と同じ規則で、`gh` を起動する前に終了コード `2` で拒否する。
+PR のタイトルと本文を更新する。タイトルは `--title=<値>` の形で、本文は検査した内容を標準入力から渡す（`gh` にファイルを読み直させない）。タイトルのファイルは、本文のファイルと同じ検査に加えて、制御文字と行区切りを含まない 1 行であること。タイトルと本文のどちらかが `@codex` のメンションを含むときは、`reply` の本文と同じ規則で、`gh pr edit` を起動する前に終了コード `2` で拒否する。
 
 ```sh
 fixprguard edit-pr --protocol 2 --title-file /path/to/title.txt --body-file /path/to/body.md 42
@@ -238,7 +238,7 @@ fixprguard edit-pr --protocol 2 --title-file /path/to/title.txt --body-file /pat
 | 範囲外の変更を、利用者の確認なしに commit しない | `inspect` が範囲外を一覧にして終了コード `3` を返し、`finish` は判定した集合と一致する変更だけを commit する |
 | 判定の後に現れた変更を commit しない | `finish` が、判定した集合との厳密な一致を build checks の前と後で確かめ、判定したパスだけを stage する |
 | 書き換えられた hooks・config で git を起動しない | `inspect`・`finish`・`push` が、まず git のディレクトリの場所と config のファイルの種類を、git を起動せずにファイルだけで比べる。次に、コマンドを起動しない `git config --list` だけを起動し、今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*` の設定を除いた設定の値の一覧を基準値と比べる。config を比べる前に起動する git は `git config --list` だけで、違えば、ほかの git・`gh`・make を起動しない。hooks は、設定の値の一覧が一致した後に `git rev-parse --git-path hooks` で場所を求めて比べる。hook を実行しうるコマンドより前である。設定の値の一覧を変えない編集は検出しない。ほかのブランチの設定の書き換えは、残余のリスクである（7.2） |
-| メンションを含む文面を GitHub に送らない | `reply` の本文と `edit-pr` のタイトル・本文が `@codex` を（ASCII の範囲で大文字と小文字を区別せず、語の一部でも）含めば、GitHub に書き込む前に終了コード `2` で拒否する。利用者のアカウントの投稿が Codex を動かすのを防ぐ。コマンドの文書が投稿の前に行う確認に重ねる裏の守りである |
+| メンションを含む文面を GitHub に送らない | `reply` の本文と `edit-pr` のタイトル・本文が `@codex` を（ASCII の範囲で大文字と小文字を区別せず、語の一部でも）含めば、GitHub に書き込む前に終了コード `2` で拒否する。利用者のアカウントの投稿が Codex を動かすのを防ぐ。コマンドの文書が投稿の前に行う確認（タスク 0031 で加える）に重ねる裏の守りである |
 | 返信と PR の説明がシェルのコマンドにならない | `reply`・`edit-pr` はシェルを介さず、本文を標準入力で渡す |
 | fork の PR の head を扱わない | `head`・`list`・`begin` が最初に確かめる |
 

@@ -11,8 +11,8 @@ import (
 var (
 	// ErrInvalidInput rejects a malformed flag value (a login, a PR number, a
 	// thread or comment ID, a fingerprint, or an accept pair) and a text file
-	// reply or edit-pr refuses to post: one of the wrong type, size, or
-	// encoding, or one whose content mentions Codex.
+	// reply or edit-pr refuses to post (readTextFile, readTitleFile, and
+	// checkPostText give the rules).
 	ErrInvalidInput = errors.New("invalid input")
 	// ErrCrossRepository reports a PR whose head is not a branch of this
 	// repository.
