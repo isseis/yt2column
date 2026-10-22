@@ -8,7 +8,7 @@
 
 レビュースレッドの本文は、PR に書き込める誰でも書けるので、信頼できないテキストである。`fixprguard` は、次の 3 つの守りの層をコードで強制する。
 
-1. **著者の判定。** すべてのコメントの著者が信頼する著者であるスレッドだけを処理する。信頼する著者は、自動レビュアー（`--reviewer` で渡す Bot）と、リポジトリへの書き込み権限（`role_name` が `write`・`maintain`・`admin`）を持つ人である。想定外の著者のスレッドの本文は取得しない。
+1. **著者の判定。** すべてのコメントの著者が信頼する著者であるスレッドだけを処理する。信頼する著者は、自動レビュアー（`--reviewer` で渡した名前のどれかの Bot）と、リポジトリへの書き込み権限（`role_name` が `write`・`maintain`・`admin`）を持つ人である。想定外の著者のスレッドの本文は取得しない。
 2. **区切りのブロック。** エージェントのプロンプトに埋め込む信頼できないテキストを、実行ごとの乱数（nonce）を含む区切りの行で囲む。
 3. **変更範囲と git の状態の確認。** 修正が、処理したスレッドの範囲の外のファイルや、git の hooks・config を変えていないことを、commit と push の前に確かめる。
 
@@ -55,9 +55,9 @@ go version -m "$(command -v fixprguard)"
 | 項目 | 内容 |
 |---|---|
 | `--protocol N` | すべてのサブコマンドに必須。`N` がバイナリの番号と一致しなければ、終了コード `2` で止まる（古いバイナリが新しい文書の想定で判定するのを防ぐ）。現在の番号は `1` |
-| `--reviewer LOGIN` | `list`・`begin`・`inspect`・`reply` に必須で、ほかのサブコマンドには渡せない。自動レビュアーの GraphQL の `author.login`（例: `coderabbitai`）を渡す。既定値はない |
+| `--reviewer LOGIN` | `list`・`begin`・`inspect`・`reply` に 1 回以上必須で、ほかのサブコマンドには渡せない。信頼する自動レビュアーの GraphQL の `author.login`（例: `coderabbitai`）を、名前ごとに 1 回ずつ繰り返して渡す（例: `--reviewer coderabbitai --reviewer chatgpt-codex-connector`）。渡す順序は判定に関係しない。1 つもないとき、同じ名前を 2 回以上渡したとき、名前の文法に合わないときは、使い方の誤り（終了コード `2`）になる。既定値はない |
 | `[PR]` | 10 進数の PR 番号だけを受け付ける。URL やブランチ名は拒否する。省略すると、現在のブランチの PR を `gh pr view` で求める。GitHub を読まない `finish` は省略できない |
-| フラグの位置 | フラグは位置引数（`PR`・`FILE`）の前に書く。同じフラグを 2 回渡すと拒否する（`--accept` と `--thread` は複数回渡せる） |
+| フラグの位置 | フラグは位置引数（`PR`・`FILE`）の前に書く。同じフラグを 2 回渡すと拒否する（`--accept`・`--thread`・`--reviewer` は複数回渡せる。ただし、`--reviewer` に同じ名前を 2 回渡すと拒否する） |
 | 標準出力 | 1 行の JSON（`fence` だけは区切りのブロックそのもの）。すべての JSON に `protocol` が入る |
 | 標準エラー | 1 行の診断。拒否した規則の名前だけを示し、GitHub から来た値や外部コマンドの引数・標準エラーは含めない |
 
@@ -67,7 +67,7 @@ go version -m "$(command -v fixprguard)"
 |---|---|---|
 | `0` | 続けてよい | サブコマンドの結果 |
 | `1` | 止める | `stop`（止まった種類）と、種類ごとの詳細（8 章） |
-| `2` | 使い方の誤り（フラグ、値の文法、`--protocol` の不一致、`GH_REPO`・`GH_HOST`、空の位置引数）。ほかに、作業ツリーの最上位でない・detached HEAD・`.git` ファイルの形の誤り（`begin`）と、`--comment-id` がスレッドの最初のコメントでないこと（`reply`。GitHub を読んだ後に分かる）も `2` になる | なし |
+| `2` | 使い方の誤り（フラグ、値の文法、`--protocol` の不一致、`GH_REPO`・`GH_HOST`、空の位置引数）。ほかに、作業ツリーの最上位でない・detached HEAD・`.git` ファイルの形の誤り（`begin`）と、`--comment-id` がスレッドの最初のコメントでないこと（`reply`。GitHub を読んだ後に分かる）も `2` になる。診断が `flag given twice: --reviewer` を含むときは、インストール済みのツールが `--reviewer` の繰り返しに対応する前のものである。`make install-fixprguard` で再インストールすれば直る。インストール済みのツールが作られたコミットは、`go version -m "$(command -v fixprguard)"` の `vcs.revision` で確かめられる（3 章） | なし |
 | `3` | 利用者に確かめる（`inspect` だけ。範囲外の変更がある） | `inspect` の結果 |
 
 ## 5. サブコマンド
@@ -84,7 +84,7 @@ fixprguard head --protocol 1 42
 
 出力: `{"protocol":1,"sameRepository":true}`。副作用: GitHub の読み取りだけ。
 
-### `list --reviewer LOGIN [PR]`
+### `list --reviewer LOGIN ... [PR]`
 
 未解決のスレッドを全ページ取得し（最大 2000 件。超えると `thread-cap` で止まる）、スレッドごとの信頼の判定と理由、指紋を出力する。本文は取得も出力もしない。最初に `head` と同じ確認をする。
 
@@ -97,13 +97,13 @@ fixprguard list --protocol 1 --reviewer coderabbitai 42
 | `reason` | 意味 | 付く項目 |
 |---|---|---|
 | `no-write-permission` | 書き込み権限のない利用者 | `account` |
-| `other-bot` | 自動レビュアー以外の Bot | `account` |
+| `other-bot` | `--reviewer` で渡したどの名前とも一致しない Bot | `account` |
 | `no-author-name` | 著者がない、名前が空、または名前の文法に合わない | `commentUrl` |
 | `permission-unavailable` | 権限を照会できなかった | `cause`（`not-found`・`forbidden`・`rate-limited`・`budget-exceeded`・`rejected-response`・`failed`） |
 | `incomplete-comments` | コメントが 100 件を超え、全部を取得できない | なし |
 | `unknown-author-kind` | 著者の種類が `User` でも `Bot` でもない | なし |
 
-### `begin --reviewer LOGIN [--accept ID=FINGERPRINT ...] [PR]`
+### `begin --reviewer LOGIN ... [--accept ID=FINGERPRINT ...] [PR]`
 
 `/fixpr` のフェーズ 1。次の順に行う。(1) 作業ツリーに未コミットの変更（未追跡のファイルを含む）がないこと（あれば `dirty-work-tree` で止まり、GitHub に問い合わせない）。(2) `head` と同じ確認。(3) 基準値の採取。(4) 最初の 1 ページ（100 スレッド）の判定と、処理するスレッドの本文の取得。
 
@@ -138,7 +138,7 @@ fixprguard fence --protocol 1 /path/to/triage.json
 
 副作用: なし。
 
-### `inspect --reviewer LOGIN --baseline TOKEN [--thread ID=FINGERPRINT ...] [PR]`
+### `inspect --reviewer LOGIN ... --baseline TOKEN [--thread ID=FINGERPRINT ...] [PR]`
 
 修正のフェーズの後に実行する。まず hooks・config・info を基準値と比べ、違えば `gh` を起動せずに `git-state-changed` で止まる。次に、`--thread` のスレッドを GitHub から取り直して `path` を求め（指紋が違えば `thread-changed`）、作業ツリーの変更を数え上げて、範囲（6 章）と照らす。
 
@@ -172,7 +172,7 @@ fixprguard push --protocol 1 --baseline 'v1....' --commit '<SHA>'
 
 出力: `{"protocol":1,"pushed":true,"commit":"<SHA>"}`。
 
-### `reply --reviewer LOGIN --thread-id ID --comment-id N --fingerprint FP --body-file FILE [--accept ID=FINGERPRINT ...] [PR]`
+### `reply --reviewer LOGIN ... --thread-id ID --comment-id N --fingerprint FP --body-file FILE [--accept ID=FINGERPRINT ...] [PR]`
 
 スレッドを現在の状態で判定し直し、信頼する著者のスレッド（または、`--accept` で名指しされて指紋が一致するスレッド）で、`--fingerprint` が現在の指紋と一致し、`--comment-id` がそのスレッドの最初のコメントのときだけ、返信を投稿する。本文は JSON として標準入力で `gh api` に渡すので、シェルを通らない。返信の後、スレッドを取り直して返信のほかに変化がないことを確かめてから、スレッドを解決する。
 
@@ -243,7 +243,7 @@ fixprguard edit-pr --protocol 1 --title-file /path/to/title.txt --body-file /pat
 - 範囲内のテストのコードが build checks で実行されること。`finish` と `push` は、そのコードが範囲内のファイルや hooks を書き換えたことは検出する。
 - `.gitignore` が無視するファイル、作業ツリーの中の `.gitignore` やグローバルの除外のファイルで隠したファイル、index の stat の偽造で隠した変更。隠した変更は commit されないが、build checks が実行することは防げない。
 - hooks のディレクトリの外にあり、hook が実行するファイル（pre-commit のフレームワークのキャッシュなど）。
-- `--reviewer` の値が `_context.md` の値と同じであること。ツールは `_context.md` を読まない。
+- `--reviewer` で渡した名前の集合が、`_context.md` の自動レビュアーの一覧と同じであること。ツールは `_context.md` を読まない。名前を渡し忘れても、その Bot のスレッドは `other-bot` で信頼されないだけである。
 - 同じ秒の内の再編集。指紋の時刻は秒の単位である。
 - 返信と PR の説明の本文の内容。ツールはファイルの種類・大きさ・文字コードだけを検査する。
 
@@ -273,6 +273,11 @@ fixprguard edit-pr --protocol 1 --title-file /path/to/title.txt --body-file /pat
 
 - 判定は `internal/fixprguard`、引数の解釈と呼び出しの順序は `cmd/fixprguard` にある。外部コマンドは `internal/cmdrunner` の `Runner`・`InputRunner` 越しに呼ぶ。テストでは、`gh` と `make` を `internal/cmdrunner/testutil` の fake に置き換え、git は一時ディレクトリの実際のリポジトリで試す。
 - 7.1 節の保証を変更する場合は、対応する実装を壊してテストが失敗することを確かめ、そのことをコミットメッセージに書く（CLAUDE.md の「Testing Strategy」）。
-- 出力や引数の契約を変える場合は、`internal/fixprguard` の `Protocol` を上げ、コマンドの文書が渡す `--protocol` も合わせて更新する。
+- 出力や引数の契約を変える場合は、`internal/fixprguard` の `Protocol` を上げ、コマンドの文書が渡す `--protocol` も合わせて更新する。ただし、次の 3 つの条件がすべて成り立つ変更に限り、`Protocol` を上げなくてよい。`--reviewer` を繰り返し受け付ける変更（タスク 0033）はこれに当たる。
+    1. 古いツールは、新しい文書の呼び出しを引数の解析で拒否し（終了コード `2`）、古い規則で判定しない。
+    2. 新しいツールは、古い文書の呼び出しを今までと同じ規則で判定する。
+    3. 出力の形は変えない。
+
+  この場合は、古いツールが止まったときの診断と再インストールの案内を、4 章の終了コード `2` の説明に書く。
 - `stop` の種類や実行に関わるファイルの一覧を変えたら、本書の 6 章と 8 章も更新する。`cmd/fixprguard/docs_test.go` が、本書（日英）にすべての種類と項目があることを確かめる。
 - マージの後は、`make install-fixprguard` で再インストールする（3 章）。
