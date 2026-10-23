@@ -8,7 +8,7 @@
 | Created | 2026-10-23 |
 | Review date | 2026-10-23 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-23 (editorial): §1.4 の「拡張のテスト」の行を「変えない」から、一時ディレクトリの接頭辞を改めることに直した。PR-3 の CI で、`make -n` が出力する `$(MAKE)` の行の一時ディレクトリのパスが、テストの `node` の確認に一致したためである。テストが確かめる性質（レシピが `node`・`npm`・`npx` を呼ばないこと）は変えていない |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「要件書」）の項番を指す。節番号は [02_architecture.md](02_architecture.md)（以下「設計書」）の節を指し、本計画自身の節は「本計画 §N」と書く。用語は設計書の冒頭と要件書 6 章の用語（大きな入力のテスト、時間の確認、時間以外の確認、`-race` なしの確認のターゲット、レシピのガード、計測のワークフロー、調査の記録など）を同じ意味で使う。既存のファイルの行番号は、断りがない限りコミット `d6ea458`（`main`）で確かめた。
 
@@ -54,7 +54,7 @@
 | `make` のターゲットを確かめる補助 | `internal/maketestutil.RunTarget`（`internal/maketestutil/make.go:105`）。`//go:build test` のパッケージ。`MakeInvocation.Args` に最後の呼び出しの引数を返す。パッケージのコメント（`make.go:3-8`）は、対象を課金のある結合テストのターゲットとしている。`test-ci` は `$(GOCMD) tool cover` を直接呼ぶ（`Makefile:89`）ので、`RunTarget` では実行できない | 関数はそのまま使い、新しい補助は作らない。パッケージのコメントを、課金のないターゲットにも使うことがわかる形に改める（ステップ 5-5）。`test-ci` の `-count=1` はガードで確かめず、AC-16 の `(cached)` の確認で確かめる |
 | `ci.yml` を読むテストの先例 | `TestLintTagsIncludeIntegration`（`internal/transcript/ytdlp_test.go:1746`）。リポジトリのルートを `filepath.Join("..", "..")` で求め、行で読む | 同じ方法でレシピのガードの CI の確認を書く |
 | `make` の結合テストの先例 | `cmd/yt2column/makefile_test.go` は結合テストのターゲットと `make build` を確かめ（`:41`・`:55`・`:68`・`:331`）、`test`・`test-ci` は確かめない | 変えない |
-| 拡張のテスト | `extension/test/repository.test.ts:230-260` が `node`・`npm` のない `PATH` で `make -n build test lint deadcode` を実行する。`make -n` は `$(MAKE)` の行を実行して下位の `make` にも `-n` を渡す（本計画の作成時に確かめた） | 変えない。`Makefile` を変えるので `make ext-test` で確かめる（設計書 3.2） |
+| 拡張のテスト | `extension/test/repository.test.ts:230-260` が `node`・`npm` のない `PATH` で `make -n build test lint deadcode` を実行する。`make -n` は `$(MAKE)` の行を実行して下位の `make` にも `-n` を渡す（本計画の作成時に確かめた） | 一時ディレクトリの名前の接頭辞だけを `no-node-bin-` から `go-only-bin-` に改める。`make -n` は `$(MAKE)` の行を出力し、CI の GNU Make 4.x はその行に一時ディレクトリの中の `make` のパスを書く。そのため、接頭辞の `node` がテストの `\b(node\|npm\|npx)\b` に一致する（手元の GNU Make 3.81 は実体のパスを書くので一致しない）。`Makefile` を変えるので `make ext-test` で確かめる（設計書 3.2） |
 | 拡張の CI ジョブの起動 | `extension/scripts/has-extension-changes.sh` は `Makefile` と `.github/workflows/*` の変更で拡張のジョブを起動する | 変えない。PR-3 では拡張のジョブも走る |
 | `CLAUDE.md` | 「Test Commands」（`CLAUDE.md:69-72`）。`make test` は「Run all tests with race detection」 | `make test-parse-norace` の行を加え、`make test` の説明を改める（設計書 2.2） |
 | 0015 の文書 | 設計書の `Comments`（`docs/tasks/0015_copied_transcript_source/02_architecture.md:11`）、実装計画の `Comments`（同 `03_implementation_plan.md:11`、今は `-`） | それぞれに `(decision)` の注記を加える（設計書 3.9） |
