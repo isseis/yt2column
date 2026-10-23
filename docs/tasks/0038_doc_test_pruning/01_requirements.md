@@ -8,7 +8,7 @@
 | Created | 2026-10-23 |
 | Review date | 2026-10-23 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-23: isseis が承認した（承認の履歴）。2026-10-23: 設計の際に `80c17a8` で確かめた事実に合わせ、`fixprguard_guide` の章番号（10 章 → 9 章。1 章・AC-22）、`ciChanges.test.ts`・`has-extension-changes.sh` の行番号（1 章）、2.3 のタスク 0010 の古いパスの例（このテストは本タスクで削除するので F-005 の対象になる）、タスク 0034 の計画の行番号（`fa65bd4` で 1 行ずれた。1 章・AC-17）を直した (editorial)（決定は変えていない）。2026-10-23: 設計のレビューで、F-001 の K5 に、エージェントが信頼の境界で実行するコマンドの中身（言及の確認のコマンド、`runpr.md` の step 3 で読むたびに実行する一覧の `--jq` のフィルタが本文もその一部も出力しないこと）を含めると読むことを、1 章の K5 の理由に従って明記した。あわせて、1 章と 4.2 の `TestPostingPathsCheckMention` の扱いを、文は削除し、言及の確認のコマンドの確認と step 3 の一覧の `--jq` のフィルタが本文もその一部も出力しないことの確認は残す、と改めた。残す確認を広げるので決定の変更であり、Status を `draft` に戻して再承認を求める (decision) |
 
 ## 1. 概要 (Overview)
 
@@ -38,17 +38,17 @@
 2026-10-23 の `7b26533` で調べた、文書のテストのあるファイルは次のとおりである。issue #455 の一覧にないものには「（追加）」と記す。
 
 -   Go: `cmd/fixprguard/docs_test.go`、`cmd/yt2column/docs_test.go`、`cmd/yt2column/copied_transcript_docs_test.go`、`cmd/yt2column/extension_docs_test.go`、`cmd/yt2column/fixpr_docs_test.go`、`cmd/yt2column/output_layout_docs_test.go`、`cmd/yt2column/codex_review_docs_test.go`（追加）、`cmd/yt2column/run_test.go` の `TestRunEvaluationProcedureFlags`（`:2614`。追加）、`cmd/yt2column-server/docs_test.go`、`cmd/yt2column-nmhost/main_test.go` の `TestReadmeHostExitCodes`（`:408`）、`internal/pipeline/pipeline_test.go` の `TestPackageReferenceListsPackages`（`:671`）・`TestPromptsREADMEMatchesContract`（`:755`）、`internal/pipeline/relay_guard_test.go` の `TestSharedTokenRemoved`（`:397`。追加）
--   拡張（node）: `extension/test/metadataDocs.test.ts`、`extension/test/serverReasons.test.ts`。`extension/test/ciChanges.test.ts` は文書を読まないが、拡張の CI ジョブを起動する条件として `README.md`・`docs/dev/security.md` を確かめている（`:27-28`）。この条件は、node のテストがこの 2 つの文書を読むことに対応する（`extension/scripts/has-extension-changes.sh:8-10`・`:17`）。
+-   拡張（node）: `extension/test/metadataDocs.test.ts`、`extension/test/serverReasons.test.ts`。`extension/test/ciChanges.test.ts` は文書を読まないが、拡張の CI ジョブを起動する条件として `README.md`・`docs/dev/security.md` を確かめている（`:28-29`）。この条件は、node のテストがこの 2 つの文書を読むことに対応する（`extension/scripts/has-extension-changes.sh:8-10`・`:18`）。
 
 同じ時点で、これらのテストを検証方法として挙げている行は、`docs/tasks/*/02_architecture.md`・`03_implementation_plan.md` の AC の表に 120 行あった（24 の承認済みのタスクと、取り下げたタスク 0029）。
 
-承認済みでまだ実装していない計画にも、文書のテストを加えると定めたものがある。タスク 0034 の `03_implementation_plan.md` は、次の 3 つを定めている。`passage`・`checkPassages` で語の有無を確かめる `TestGuideDescribesIgnoredFiles` を加えること（`:357`）。`TestFixprDocContract` に `requirePhrases` の行を加えること（`:324`）。`TestGuideDescribesConfigScope` が確かめる語句を保つこと（`:335`）。
+承認済みでまだ実装していない計画にも、文書のテストを加えると定めたものがある。タスク 0034 の `03_implementation_plan.md` は、次の 3 つを定めている。`passage`・`checkPassages` で語の有無を確かめる `TestGuideDescribesIgnoredFiles` を加えること（`:358`）。`TestFixprDocContract` に `requirePhrases` の行を加えること（`:325`）。`TestGuideDescribesConfigScope` が確かめる語句を保つこと（`:336`）。
 
 文書のテストを述べる記述には、次のものがある。
 
 -   `CLAUDE.md`「Development Notes」の、node のテストが読む文書と text-sync guards の一覧（`CLAUDE.md:302-315`）
 -   `doc-guard` CI ジョブの対象パッケージ（`.github/workflows/ci.yml:183-184`、`CLAUDE.md:311-315`）
--   `fixprguard_guide.md`・`fixprguard_guide.ja.md` の 10 章で、文書のテストに言及する箇所（`fixprguard_guide.ja.md:350-357`）
+-   `fixprguard_guide.md`・`fixprguard_guide.ja.md` の 9 章で、文書のテストに言及する箇所（`fixprguard_guide.ja.md:350-357`）
 
 `docs/dev/developer_guide/test_organization.md` の節の見出しは、`testutil/`・`test_helpers.go`・新しい補助の指針・golden files である（同 `:5`・`:43`・`:65`・`:107`）。文書のテストは扱っていない。
 
@@ -73,7 +73,7 @@
 -   **タスクの記録の確認は削除する:** 手動の確認の表が埋まっている、記入待ちの印が残っていない、評価の記録の行が揃っている、`Status`・`Comments` の記録やほかの文書へのリンクがある、といったタスクの記録の確認は削除する。記録はタスクの完了後に変わらず、確認に意味があるのは実施の間だけだからである（F-001 の D4）。
 -   **文書の側の不在の確認は削除する:** 削除した識別子・古い語・使わなくなったコマンドが文書に含まれないことを確かめるものは削除する。「〜は使わない」という禁止の文と、本当に使っている箇所を区別できないためである。Go のコードや拡張のソースに識別子が含まれないことを確かめる、コードの確認は残す（F-001 の D3）。ただし、エージェントが実行する手順についての例外（K5）がある。
 -   **自動レビュアーの一覧の確認は例外として残す:** `.claude/commands/_context.md` の自動レビュアーの一覧と、完了を待つ PR レビュアーの名前を、テストに直書きした期待値（`cmd/yt2column/fixpr_docs_test.go` の `wantReviewers` など）と照合する確認は、直書きの期待値でも残す。この一覧は、`/fixpr`・`/runpr` がどの著者のスレッドを信頼するかを決める、設定に当たる値である。`fixprguard_guide.ja.md:350-355` は、一覧を変えるときは `_context.md` とテストの期待値を同じコミットで変え、期待値の確認を緩めないよう定めている。本タスクはこの手順を保つ（F-001 の K4）。
--   **エージェントが実行する手順を守る確認は例外として残す:** `.claude/commands/` の手順について、次の 2 つの確認は、直書きのリテラルや文書の側の不在に当たる場合でも残す。1 つは、ガードツール `fixprguard` の呼び出しが決められた場所にあることの確認である（`TestFixprguardCallSites`、`TestDocumentedInvocationsParse` の呼び出しの一覧）。もう 1 つは、ガードツールを迂回するコマンド（`git commit -m`、`git add -A` など）がないことの確認である（`TestRemovedCommandLiterals` の該当する部分）。これらは自然言語の説明ではなく、エージェントが実行する手順の中身である。誤って消えると、`/fixpr`・`/runpr` の信頼の境界が実行時に働かなくなる。一方、手順の中の文の固定（`TestPostingPathsCheckMention` の文など）と、`Authorization` の節のコマンド名の一覧は削除する（F-001 の K5）。
+-   **エージェントが実行する手順を守る確認は例外として残す:** `.claude/commands/` の手順について、次の 2 つの確認は、直書きのリテラルや文書の側の不在に当たる場合でも残す。1 つは、ガードツール `fixprguard` の呼び出しが決められた場所にあることの確認である（`TestFixprguardCallSites`、`TestDocumentedInvocationsParse` の呼び出しの一覧）。もう 1 つは、ガードツールを迂回するコマンド（`git commit -m`、`git add -A` など）がないことの確認である（`TestRemovedCommandLiterals` の該当する部分）。これらは自然言語の説明ではなく、エージェントが実行する手順の中身である。誤って消えると、`/fixpr`・`/runpr` の信頼の境界が実行時に働かなくなる。同じ理由で、エージェントが信頼の境界で実行するコマンドの中身を確かめる確認も残す。投稿する各節の言及の確認のコマンドの確認（`TestPostingPathsCheckMention` のうちコマンドの部分）と、`runpr.md` の step 3 で読むたびに実行する一覧の `--jq` のフィルタが本文もその一部も出力しないことの確認である。一方、手順の中の文の固定（`TestPostingPathsCheckMention` の文など。言及の確認のコマンドの確認は残す）と、`Authorization` の節のコマンド名の一覧は削除する（F-001 の K5）。
 -   **手順の規則を改める:** 背景に挙げた `mkplan.md`・`runplan.md`・`requirements_process.md` の規則を改め、文書の自然言語の記述を定める AC は、`manual` だけで確かめてよいとする。今の規則のままでは、これからの計画でも同じ種類の文書のテストが書かれ、過去のタスクの文書を `manual` に改めることとも矛盾するためである（F-007）。
 -   **承認済みの文書は `approved` のまま記録する:** タスクの文書で AC の検証方法を `manual` に改めるときは、Status を `approved` のまま変えず、`Comments` に `(decision)` として本タスクでの変更を記録する。検証方法を変える決定は本タスクの要件で定め、本書の承認がその再承認に当たるためである。0035 の 2026-10-22 の記録が先例である。取り下げたタスク 0029 の文書は書き換えない（F-005）。
 -   **承認済みで未実装の計画は、本タスクの実装の時点で扱う:** 本タスクの実装の時点で、承認済みの計画が次のどちらかを定めている場合を扱う。(a) F-001 の D1〜D4 だけに当たる文書のテストを加える。(b) 本タスクが削除するテストを保つ（今はタスク 0034）。そのテストがすでに実装されていれば、削除の対象に含める。まだ実装されていなければ、その計画から当該の作業を除き、対応する AC の検証方法を F-005 と同じく改めて（除いた確認だけで確かめていた AC は `manual` にし、残す確認もあわせて挙げていた AC は残す確認だけを挙げる）、`Comments` に `(decision)` を記録する。F-001 の K1〜K5 と D1〜D4 の両方に当たるテストは、D の部分を除いた形で加える。作ってすぐ削除する手間と、承認済みの計画が実行できなくなることの両方を避けるためである（F-006）。
@@ -107,7 +107,7 @@
 -   **`doc-guard` CI ジョブの対象パッケージを増やすこと。** `cmd/yt2column-nmhost` の `TestReadmeHostExitCodes` は `doc-guard` ジョブの対象外である（`.github/workflows/ci.yml:184`）。この欠けは本タスクの削除とは関わりがないので扱わない。
 -   **取り下げたタスク 0029 の文書の書き換え。** 取り下げた文書は記録として残す。
 -   **過去のタスクの文書の、AC の検証方法を述べる箇所以外の本文。** 本文の作業の記録（実装のステップ、経緯）は記録として残す（F-005）。
--   **本タスクが削除しない確認を指す、以前からある古い参照。** たとえばタスク 0010 の計画の `cmd/docs_test.go::TestReviewEvaluationRecords` のような古いパスの行は、本タスクの削除と関わる場合にだけ改める。
+-   **本タスクが削除しない確認を指す、以前からある古い参照。** 古いパスの行は、本タスクの削除と関わる場合にだけ改める。たとえばタスク 0010 の計画の `cmd/docs_test.go::TestReviewEvaluationRecords` の行は、このテストを削除するので F-005 で改める。
 -   **用語集（`docs/translation_glossary.md`）の既存の行の変更・削除。** 用語集の行を確かめるテストを削除しても、その行は変えない。本書が定める「確認」の行は、本書とともに加えた。
 
 ## 3. 機能要件 (Functional Requirements)
@@ -131,7 +131,7 @@
 -   (K2) **見出しの構造:** 見出しのレベルと、文書にあるべき見出し・表の列の見出しを確かめるもの。ただし、ほかの確認の対象の位置を探すためだけに見出しを使う場合、その見出しの確認は、対象の確認と同じ扱いにする。タスクの文書の記録の表の見出しは、D4 として扱う。
 -   (K3) **実行可能な例:** 文書からコマンドの呼び出し例・出力の例・コードの断片を取り出し、製品のパーサやプログラムで解析・実行・生成して確かめるもの。
 -   (K4) **自動レビュアーの一覧:** `_context.md` の自動レビュアーの一覧と完了を待つ PR レビュアーの名前を、テストに直書きした期待値と照合する確認。および、一覧の行をわざと壊した写しを使い、その照合が働くことを確かめるもの（`TestContextReviewerRowsMalformed`）。
--   (K5) **エージェントが実行する手順:** `.claude/commands/` の手順に、ガードツールの呼び出しが決められた場所にあることと、ガードツールを迂回するコマンドがないことの確認。
+-   (K5) **エージェントが実行する手順:** `.claude/commands/` の手順に、ガードツールの呼び出しが決められた場所にあることと、ガードツールを迂回するコマンドがないことの確認。エージェントが信頼の境界で実行するコマンドの中身（投稿の前の言及の確認のコマンド、`runpr.md` の step 3 で読むたびに実行する一覧の `--jq` のフィルタが本文もその一部も出力しないこと。要約のコメントの状態の行を検査して導いた値は、本文の一部に当たらない）を確かめるものも、同じ理由でここに含める。
 
 **削除する確認:**
 
@@ -199,7 +199,7 @@
 
 **Acceptance Criteria**:
 
--   **AC-17**: 本タスクの実装の時点で、承認済みの計画が D1〜D4 だけに当たる文書のテストを加えると定めていて、そのテストがまだ実装されていない場合、その計画は、そのテストを加える作業を含まない。本タスクが削除するテストを保つ作業（たとえばタスク 0034 の計画の `:335`）も含まない。K1〜K5 と D1〜D4 の両方に当たるテストは、D の部分を除いた形で加えると定めている。対応する AC の検証方法は、AC-13 と同じく改めている（除いた確認だけで確かめていた AC は `manual`、残す確認もあわせて挙げていた AC は残す確認だけ）。計画の Status は `approved` のままで、`Comments` に、日付、`(decision)`、本タスクで改めたことが記録されている。
+-   **AC-17**: 本タスクの実装の時点で、承認済みの計画が D1〜D4 だけに当たる文書のテストを加えると定めていて、そのテストがまだ実装されていない場合、その計画は、そのテストを加える作業を含まない。本タスクが削除するテストを保つ作業（たとえばタスク 0034 の計画の `:336`）も含まない。K1〜K5 と D1〜D4 の両方に当たるテストは、D の部分を除いた形で加えると定めている。対応する AC の検証方法は、AC-13 と同じく改めている（除いた確認だけで確かめていた AC は `manual`、残す確認もあわせて挙げていた AC は残す確認だけ）。計画の Status は `approved` のままで、`Comments` に、日付、`(decision)`、本タスクで改めたことが記録されている。
 -   **AC-18**: AC-17 の計画が定めるテストがすでに実装されている場合、そのテストは AC-05 の一覧に含まれ、F-001 の基準を当てはめている。
 -   **AC-19**: AC-17 の計画が加えると定めている K1〜K5 に当たるテストは、その計画に残っている。
 
@@ -211,7 +211,7 @@
 
 -   **AC-20**: `CLAUDE.md`「Development Notes」の、node のテストが読む文書と text-sync guards の一覧は、本タスクの完了後に残っている文書のテストと一致している。
 -   **AC-21**: `.github/workflows/ci.yml` の `doc-guard` ジョブの対象パッケージと、`CLAUDE.md`・`fixprguard_guide.md`・`fixprguard_guide.ja.md` が挙げる文書のテストのコマンドの対象パッケージは同じである。あるパッケージが対象から外れるのは、そのパッケージに文書のテストが残っていない場合に限る。
--   **AC-22**: 本タスクの完了後、`docs/tasks/` 以外の文書（`CLAUDE.md`、`README.md`、`docs/dev/`、`.claude/commands/`）に、本タスクが削除したテスト・補助の名前や、削除した確認を、現にあるものとして述べる記述はない。K4 の手順（`fixprguard_guide.md`・`fixprguard_guide.ja.md` 10 章の、自動レビュアーの一覧を変えるときの手順）は残り、残るテストと補助の名前と一致している。
+-   **AC-22**: 本タスクの完了後、`docs/tasks/` 以外の文書（`CLAUDE.md`、`README.md`、`docs/dev/`、`.claude/commands/`）に、本タスクが削除したテスト・補助の名前や、削除した確認を、現にあるものとして述べる記述はない。K4 の手順（`fixprguard_guide.md`・`fixprguard_guide.ja.md` 9 章の、自動レビュアーの一覧を変えるときの手順）は残り、残るテストと補助の名前と一致している。
 -   **AC-23**: `CLAUDE.md` の「Testing Strategy」に、文書のテストについての一項がある。その項は、文書のテストで確かめてよいもの（F-001 の K1〜K3）と、確かめないもの（D1〜D4）を述べ、自然言語の記述は PR のレビューでの読み合わせで確かめる、と述べている。K4・K5 の例外とその理由も述べている。
 -   **AC-24**: 1 章の背景に挙げた `mkplan.md`・`runplan.md`・`requirements_process.md` の規則と確認項目は、文書の自然言語の記述を定める AC について、`manual` だけの検証方法を認めている。そのような AC に、語の有無を確かめる文書のテストや `rg` の確認を求めていない。
 -   **AC-25**: AC-24 の改訂の後も、文書の自然言語の記述以外を定める AC（振る舞い、値、構造）には、今までどおり `test` か `static` の検証方法を 1 つ以上求めている。
@@ -247,8 +247,8 @@
 
 ただし、削除する確認の中には、エージェントが実行する手順（`.claude/commands/`）の安全の性質を述べる文書の確認がある。その扱いは次のとおりである。
 
--   **残す:** `fixprguard.CodexMention` が `_context.md` の PR レビュー依頼の行にだけ現れることの確認（`TestCodexMentionOnlyInRequestRow`。K1）、投稿のコマンドが言及の確認の後にあることの確認（`TestPostingCommandsInventory`。K3）、自動レビュアーの一覧の確認（K4）、ガードツールの呼び出しと迂回するコマンドの確認（K5）。
--   **削除して読み合わせに任せる:** 手順の中の安全の性質を述べる文の固定（`TestPostingPathsCheckMention` の文、`TestRequestExemptFromMentionCheck`）、`Authorization` の節のコマンド名の一覧（`TestAuthorizationSections`）。これらの文が書き換えられても、テストでは気づけなくなる。この残余のリスクは、PR のレビューでの読み合わせで扱うものとして受け入れる（2026-10-23 の決定）。
+-   **残す:** `fixprguard.CodexMention` が `_context.md` の PR レビュー依頼の行にだけ現れることの確認（`TestCodexMentionOnlyInRequestRow`。K1）、投稿のコマンドが言及の確認の後にあることの確認（`TestPostingCommandsInventory`。K3）、自動レビュアーの一覧の確認（K4）、ガードツールの呼び出しと迂回するコマンドの確認、投稿する各節の言及の確認がそのコマンドを含むことの確認（`TestPostingPathsCheckMention` のうちコマンドの部分）、`runpr.md` の step 3 で読むたびに実行する一覧の `--jq` のフィルタが本文もその一部も出力しないことの確認（K5）。
+-   **削除して読み合わせに任せる:** 手順の中の安全の性質を述べる文の固定（`TestPostingPathsCheckMention` の文。言及の確認のコマンドの確認は K5 として残す。`TestRequestExemptFromMentionCheck`）、`Authorization` の節のコマンド名の一覧（`TestAuthorizationSections`）。これらの文が書き換えられても、テストでは気づけなくなる。この残余のリスクは、PR のレビューでの読み合わせで扱うものとして受け入れる（2026-10-23 の決定）。
 
 ### 4.3. 信頼性・可用性 (Reliability/Availability)
 
