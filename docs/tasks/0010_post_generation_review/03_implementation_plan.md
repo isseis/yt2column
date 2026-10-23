@@ -483,7 +483,7 @@ architecture §7.3 に従う。計画固有の事項は次のとおり。
 
 ## 5. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
-`test` は実行可能なテスト、`static` は guard テスト・`make` ターゲットを指す。`manual` は補助的な確認であり、`test` または `static` を置き換えない。パスは `internal/writer/` を `writer/`、`cmd/yt2column/` を `cmd/` と略す。
+`test` は実行可能なテスト、`static` は guard テスト・`make` ターゲットを指す。`manual` は補助的な確認であり、`test` または `static` を置き換えない。ただし、文書の自然言語の記述だけを定める AC は、タスク 0038 の規則により `manual` だけで確かめてよい（AC-28〜AC-30）。パスは `internal/writer/` を `writer/`、`cmd/yt2column/` を `cmd/` と略す。
 
 | AC | 内容 | 種別 | 検証の実行場所 |
 |---|---|---|---|

@@ -530,8 +530,8 @@ PR はフェーズと対応させ、次の 3 か所だけ変える。フェー�
 | AC-08 | test | `extension/test/launch.test.ts::popup send > shows the sending notice and a disabled button while sending`（2 つの文の全体の検査） | 2-3 |
 | AC-09 | manual | §5.3 のカバレッジの比較 | 1-1・6-3 |
 | AC-10 | manual | §5.1 の「AC-10」の行（タスク 0038 で `TestContextMenuRemovalRecords` を削除した） | 6-4・7-3 |
-| AC-11 | static | `extension/test/metadataDocs.test.ts::video metadata documentation`。README の語句は PR のレビューで読み合わせる（タスク 0038 で `TestExtensionSendDocumentation` を削除した） | 5-3・5-5 |
-| AC-12 | static | `cmd/yt2column/extension_docs_test.go::TestExtensionDocumentation`（manifest の権限と §8.1 の一覧の一致）、`extension/test/manifest.test.ts::host permissions > is recorded in the extension section of security.md`。加えた §8.1 の語句の禁止は PR のレビューで読み合わせる（タスク 0038 でその確認を削除した） | 3-2・5-4・5-5 |
+| AC-11 | static / manual | `extension/test/metadataDocs.test.ts::video metadata documentation`。README の語句は PR のレビューで読み合わせる（タスク 0038 で `TestExtensionSendDocumentation` を削除した） | 5-3・5-5 |
+| AC-12 | static / manual | `cmd/yt2column/extension_docs_test.go::TestExtensionDocumentation`（manifest の権限と §8.1 の一覧の一致）、`extension/test/manifest.test.ts::host permissions > is recorded in the extension section of security.md`。加えた §8.1 の語句の禁止は PR のレビューで読み合わせる（タスク 0038 でその確認を削除した） | 3-2・5-4・5-5 |
 | AC-13 | static | `make ext-check`・`make test`・`make lint`（各フェーズの完了条件）と、`doc-guard` の CI ジョブ | 全フェーズ |
 
 AC-02 は、ソースを削除したことで成り立つ。`static/result.html` や `src/result.ts` を戻せば、集合の比較はそれを成果物として受け入れる。これはファイル名を列挙しない設計の選択による（設計書 1.1・3.3.2）。
