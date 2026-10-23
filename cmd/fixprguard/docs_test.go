@@ -39,13 +39,11 @@ func readRepoFile(t *testing.T, rel string) string {
 }
 
 // TestGuideCoversStopKindsAndScope: both guides name, in code spans, every
-// stop kind the tool can print, and CLAUDE.md links to the guide. In chapter
-// 6, every deny-list item is in the execution-related file table and every
-// allow-list item in the allow-list table, and *.go is not in the
-// execution-related file table. The values come from internal/fixprguard, so
-// a kind or an item added there without the guide fails here. Reading the
-// tables alone keeps a code span in the prose around them from standing in
-// for a row.
+// stop kind the tool can print. In chapter 6, every deny-list item is in the
+// execution-related file table and every allow-list item in the allow-list
+// table. The values come from internal/fixprguard, so a kind or an item added
+// there without the guide fails here. Reading the tables alone keeps a code
+// span in the prose around them from standing in for a row.
 func TestGuideCoversStopKindsAndScope(t *testing.T) {
 	for _, tc := range []struct {
 		rel             string
@@ -76,12 +74,6 @@ func TestGuideCoversStopKindsAndScope(t *testing.T) {
 				}
 			}
 		}
-		if strings.Contains(execTable, "`*.go`") {
-			t.Errorf("%s: the execution-related file table lists `*.go`, which is on the allow list", tc.rel)
-		}
-	}
-	if claude := readRepoFile(t, "CLAUDE.md"); !strings.Contains(claude, "](docs/dev/developer_guide/fixprguard_guide.md)") {
-		t.Error("CLAUDE.md does not link to the fixprguard guide")
 	}
 }
 
@@ -289,26 +281,10 @@ func cutSection(doc, heading string, ends ...string) string {
 	return rest[:end]
 }
 
-// reviewerListName is the _context.md row the guides point to for the names
-// /fixpr and /runpr pass as --reviewer, and contentGuard the test file that
-// pins that row's names, which section 9 tells a maintainer to update with it.
-const (
-	reviewerListName = "`Automated reviewer list`"
-	contentGuard     = "cmd/yt2column/fixpr_docs_test.go"
-)
-
-// TestGuideDescribesReviewerList: both guides describe repeated --reviewer as
-// the tool implements it. The subcommand headings that write
-// "--reviewer LOGIN ..." are exactly the subcommands whose spec takes
-// --reviewer; the flag row says the flag repeats once per name and that none
-// or a name given twice is a usage error; other-bot is a Bot matching none of
-// the names; the flag-position row lists --reviewer as repeatable; the exit
-// code 2 row identifies a tool that predates the change and how to check its
-// version; section 9 states the Protocol proviso; and the trusted-author
-// item and the flag row say the names passed are every name on _context.md's
-// "Automated reviewer list", and section 9 names the content guard that pins
-// that list, which must exist.
-// The phrases are the guides' own wording, Japanese for the Japanese guide.
+// TestGuideDescribesReviewerList: the subcommand headings that write
+// "--reviewer LOGIN ..." in either guide are exactly the subcommands whose
+// spec takes --reviewer, so a subcommand that starts or stops taking the flag
+// fails here until the guide changes too.
 func TestGuideDescribesReviewerList(t *testing.T) {
 	takesReviewer := map[string]struct{}{}
 	for name, sp := range specs {
@@ -316,35 +292,10 @@ func TestGuideDescribesReviewerList(t *testing.T) {
 			takesReviewer[name] = struct{}{}
 		}
 	}
-	for _, tc := range []struct {
-		rel         string
-		trustedItem string
-		flagRow     []string
-		positionRow string
-		otherBot    string
-		proviso     string
-	}{
-		{
-			rel:         guideFiles[0],
-			trustedItem: "1. **著者の判定。**",
-			positionRow: "| フラグの位置 |",
-			flagRow:     []string{"名前ごとに 1 回ずつ繰り返して渡す", "1 つもないとき", "同じ名前を 2 回以上渡したとき", "使い方の誤り"},
-			otherBot:    "`--reviewer` で渡したどの名前とも一致しない Bot",
-			proviso:     "次の 3 つの条件がすべて成り立つ変更に限り、`Protocol` を上げなくてよい",
-		},
-		{
-			rel:         guideFiles[1],
-			trustedItem: "1. **Author judgment.**",
-			positionRow: "| Flag position |",
-			flagRow:     []string{"repeating the flag once per name", "When none is given", "when the same name is given twice or more", "usage error"},
-			otherBot:    "A Bot matching none of the names passed with `--reviewer`",
-			proviso:     "only a change that meets all three conditions below may leave `Protocol` unchanged",
-		},
-	} {
-		t.Run(filepath.Base(tc.rel), func(t *testing.T) {
-			guide := readRepoFile(t, tc.rel)
+	for _, rel := range guideFiles {
+		t.Run(filepath.Base(rel), func(t *testing.T) {
 			headed := map[string]struct{}{}
-			for line := range strings.Lines(guide) {
+			for line := range strings.Lines(readRepoFile(t, rel)) {
 				rest, ok := strings.CutPrefix(line, "### `")
 				if !ok {
 					continue
@@ -355,54 +306,6 @@ func TestGuideDescribesReviewerList(t *testing.T) {
 			}
 			if !maps.Equal(headed, takesReviewer) {
 				t.Errorf("headings with --reviewer LOGIN ... are %v, want the subcommands taking --reviewer %v", slices.Sorted(maps.Keys(headed)), slices.Sorted(maps.Keys(takesReviewer)))
-			}
-			flagRow := singleLine(t, tc.rel, guide, "| `--reviewer LOGIN` |")
-			for _, want := range tc.flagRow {
-				if !strings.Contains(flagRow, want) {
-					t.Errorf("the --reviewer row does not say %q", want)
-				}
-			}
-			// The flag-position row lists --reviewer among the repeatable flags.
-			if row := singleLine(t, tc.rel, guide, tc.positionRow); !strings.Contains(row, "`--reviewer`") {
-				t.Errorf("the flag-position row does not list --reviewer as repeatable")
-			}
-			if row := singleLine(t, tc.rel, guide, "| `other-bot` |"); !strings.Contains(row, tc.otherBot) {
-				t.Errorf("the other-bot row does not say %q", tc.otherBot)
-			}
-			exit2 := singleLine(t, tc.rel, guide, "| `2` |")
-			for _, want := range []string{"`flag given twice: --reviewer`", "go version -m", "make install-fixprguard"} {
-				if !strings.Contains(exit2, want) {
-					t.Errorf("the exit code 2 row does not mention %s", want)
-				}
-			}
-			sec9 := section(guide, "## 9.")
-			if !strings.Contains(sec9, tc.proviso) {
-				t.Errorf("section 9 does not state the Protocol proviso %q", tc.proviso)
-			}
-			for what, line := range map[string]string{
-				"the trusted-author item": singleLine(t, tc.rel, guide, tc.trustedItem),
-				"the --reviewer row":      flagRow,
-			} {
-				if !strings.Contains(line, reviewerListName) {
-					t.Errorf("%s does not name %s", what, reviewerListName)
-				}
-			}
-			if !strings.Contains(sec9, "`"+contentGuard+"`") {
-				t.Errorf("section 9 does not name the content guard %s", contentGuard)
-			}
-			// Section 9 tells a maintainer to edit these by name, so they must
-			// still exist under that name.
-			guard := readRepoFile(t, contentGuard)
-			for ident, decl := range map[string]string{
-				"wantReviewers":                    "var wantReviewers ",
-				"TestContextReviewerRowsMalformed": "func TestContextReviewerRowsMalformed(",
-			} {
-				if !strings.Contains(sec9, "`"+ident+"`") {
-					t.Errorf("section 9 does not name %s", ident)
-				}
-				if !strings.Contains(guard, decl) {
-					t.Errorf("%s does not declare %s, which section 9 names", contentGuard, ident)
-				}
 			}
 		})
 	}
@@ -465,198 +368,6 @@ func TestDocumentedProtocolMatches(t *testing.T) {
 	}
 }
 
-// configScope is how a document states the config comparison scope: the
-// phrases of the three points every such passage makes, (a) other branches'
-// branch settings are not compared (the current branch's and main's are),
-// (b) edits that leave the listed values unchanged are not detected, and
-// (c) a rewrite of other branches' settings is a residual risk.
-type configScope struct {
-	otherBranches, unchangedValues, residualRisk string
-}
-
-func (c configScope) phrases() []string {
-	return []string{c.otherBranches, c.unchangedValues, c.residualRisk}
-}
-
-// passage is one place of a document that states the config scope: its text,
-// phrases it must hold besides the scope's three, and phrases of the wording
-// it replaced, which must be gone. risk, when set, replaces the scope's
-// residual-risk phrase for a passage that words it differently.
-type passage struct {
-	name  string
-	text  string
-	risk  string
-	more  []string
-	stale []string
-}
-
-// checkPassages fails for a passage that is missing, lacks a phrase, or
-// still holds stale wording.
-func checkPassages(t *testing.T, rel string, scope configScope, passages []passage) {
-	t.Helper()
-	for _, p := range passages {
-		if p.text == "" {
-			t.Errorf("%s: %s not found", rel, p.name)
-			continue
-		}
-		phrases := scope.phrases()
-		if p.risk != "" {
-			phrases[2] = p.risk
-		}
-		for _, want := range append(phrases, p.more...) {
-			if !strings.Contains(p.text, want) {
-				t.Errorf("%s: %s does not say %q", rel, p.name, want)
-			}
-		}
-		for _, old := range p.stale {
-			if strings.Contains(p.text, old) {
-				t.Errorf("%s: %s still says %q", rel, p.name, old)
-			}
-		}
-	}
-}
-
-// TestGuideDescribesConfigScope: in both guides, every passage on the config
-// comparison scope makes the three points of configScope: layer (3) of
-// chapter 1, inspect and push in chapter 5, the 7.1 row on rewritten hooks
-// and config, 7.2, and the git-state-changed row of chapter 8. The 7.1 row
-// also says the listing is compared without other branches' settings and
-// that git config --list is the only git run before the comparison, and the
-// rewritten passages no longer hold the wording they replaced. The phrases
-// are the guides' own, Japanese for the Japanese guide.
-func TestGuideDescribesConfigScope(t *testing.T) {
-	for _, tc := range []struct {
-		rel                         string
-		scope                       configScope
-		row71, row71Old, inspectOld string
-		row71More                   []string
-		risk72                      string
-	}{
-		{
-			rel: guideFiles[0],
-			scope: configScope{
-				otherBranches:   "今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*`",
-				unchangedValues: "設定の値の一覧を変えない編集",
-				residualRisk:    "ほかのブランチの設定の書き換えは、残余のリスク",
-			},
-			row71:      "| 書き換えられた hooks・config で git を起動しない |",
-			row71More:  []string{"を除いた設定の値の一覧を基準値と比べる", "config を比べる前に起動する git は `git config --list` だけ"},
-			row71Old:   "git や `gh` を起動する前に基準値と比べる",
-			inspectOld: "まず hooks・config・info を基準値と比べ",
-			risk72:     "の設定の書き換え（残余のリスク）",
-		},
-		{
-			rel: guideFiles[1],
-			scope: configScope{
-				otherBranches:   "`branch.<name>.*` settings of other branches (every branch except the current branch and `main`)",
-				unchangedValues: "leave the list of configuration values unchanged",
-				residualRisk:    "A rewrite of another branch's settings is a residual risk",
-			},
-			row71:      "| git is not started with rewritten hooks or config |",
-			row71More:  []string{"compare the list of configuration values without", "The only git started before the config comparison is `git config --list`"},
-			row71Old:   "compare with the baseline before starting git or `gh`",
-			inspectOld: "It first compares the hooks, config, and info with the baseline",
-			risk72:     "and `main`). This is a residual risk",
-		},
-	} {
-		t.Run(filepath.Base(tc.rel), func(t *testing.T) {
-			guide := readRepoFile(t, tc.rel)
-			checkPassages(t, tc.rel, tc.scope, []passage{
-				{name: "layer (3)", text: singleLine(t, tc.rel, guide, "3. **")},
-				{name: "inspect", text: subsection(guide, "### `inspect"), stale: []string{tc.inspectOld}},
-				{name: "push", text: subsection(guide, "### `push")},
-				{name: "the 7.1 row", text: singleLine(t, tc.rel, guide, tc.row71), more: tc.row71More, stale: []string{tc.row71Old}},
-				{name: "7.2", text: subsection(guide, "### 7.2"), risk: tc.risk72},
-				{name: "the git-state-changed row", text: singleLine(t, tc.rel, guide, "| `git-state-changed` |")},
-			})
-		})
-	}
-}
-
-// task0036Docs are the links a note in task 0030's documents gives to the
-// task that changed the scope rules, relative to 0030's directory.
-var task0036Docs = []string{
-	"../0036_fixprguard_exec_file_scope/01_requirements.md",
-	"../0036_fixprguard_exec_file_scope/02_architecture.md",
-}
-
-// commentRecord matches the start of one record in a Comments cell: its date
-// and its kind.
-var commentRecord = regexp.MustCompile(`\d{4}-\d{2}-\d{2} \(([a-z]+)\): `)
-
-// scopeRequirement ends the level-4 heading of task 0030's requirements that
-// states the change scope. The guard finds the heading by its title.
-const scopeRequirement = ": 変更範囲と作業ツリーの確認\n"
-
-// TestTask0030NotesScopeChange: task 0030's architecture 3.6 and the change
-// scope requirement of its requirements state the scope rules as 0030 decided
-// them. Each carries a quoted note linking task 0036's requirements and
-// architecture, both documents stay approved, and each Comments cell has an
-// editorial record that names #425, the issue of task 0036.
-func TestTask0030NotesScopeChange(t *testing.T) {
-	const dir = "docs/tasks/0030_fixpr_untrusted_threads/"
-	for _, tc := range []struct {
-		rel     string
-		name    string
-		section func(doc string) string
-	}{
-		{rel: dir + "02_architecture.md", name: "3.6", section: func(doc string) string { return subsection(doc, "### 3.6.") }},
-		{rel: dir + "01_requirements.md", name: "the change scope requirement", section: func(doc string) string {
-			for line := range strings.Lines(doc) {
-				if strings.HasPrefix(line, "#### ") && strings.HasSuffix(line, scopeRequirement) {
-					return cutSection(doc, line, "\n## ", "\n### ", "\n#### ")
-				}
-			}
-			return ""
-		}},
-	} {
-		t.Run(filepath.Base(tc.rel), func(t *testing.T) {
-			doc := readRepoFile(t, tc.rel)
-			text := tc.section(doc)
-			if text == "" {
-				t.Fatalf("%s: %s not found", tc.rel, tc.name)
-			}
-			noted := false
-			for line := range strings.Lines(text) {
-				if strings.HasPrefix(line, "> ") && containsAll(line, task0036Docs) {
-					noted = true
-				}
-			}
-			if !noted {
-				t.Errorf("%s: %s has no quoted note linking %v", tc.rel, tc.name, task0036Docs)
-			}
-			if status := singleLine(t, tc.rel, doc, "| Status |"); !strings.Contains(status, "`approved`") {
-				t.Errorf("%s: status is not approved: %q", tc.rel, status)
-			}
-			comments := singleLine(t, tc.rel, doc, "| Comments |")
-			starts := commentRecord.FindAllStringSubmatchIndex(comments, -1)
-			found := 0
-			for i, m := range starts {
-				end := len(comments)
-				if i+1 < len(starts) {
-					end = starts[i+1][0]
-				}
-				if comments[m[2]:m[3]] == "editorial" && strings.Contains(comments[m[1]:end], "#425") {
-					found++
-				}
-			}
-			if found == 0 {
-				t.Errorf("%s: Comments has no editorial record naming #425", tc.rel)
-			}
-		})
-	}
-}
-
-// containsAll reports whether s contains every one of subs.
-func containsAll(s string, subs []string) bool {
-	for _, sub := range subs {
-		if !strings.Contains(s, sub) {
-			return false
-		}
-	}
-	return true
-}
-
 // TestGuideDescribesMentionCheck: both guides name, in 7.1 and 7.2, the
 // mention reply and edit-pr reject, taking the value from internal/fixprguard,
 // so changing the constant without the guides fails here. Whether the prose
@@ -712,25 +423,22 @@ func codeSpans(text string) map[string]struct{} {
 
 // TestGuideListsWatchList: in both guides, the table after the watch list
 // marker in 7.1 lists exactly the patterns WatchListPatterns returns, no
-// more and no fewer, and 7.1 has the row stating the guarantee. Only the
-// table is read: most items also appear in chapter 6 and in prose, which
-// would hide an item missing from the table.
+// more and no fewer. Only the table is read: most items also appear in
+// chapter 6 and in prose, which would hide an item missing from the table.
 func TestGuideListsWatchList(t *testing.T) {
 	want := map[string]struct{}{}
 	for _, p := range fixprguard.WatchListPatterns() {
 		want[p] = struct{}{}
 	}
-	for _, tc := range []struct{ rel, marker, row string }{
-		{guideFiles[0], "**監視の一覧。**", "| git が無視するファイルのうち監視の一覧に当たるものの作成・書き換え・削除を、`inspect`・`finish`・`push` が基準値と比べて検出する |"},
-		{guideFiles[1], "**Watch list.**", "| The creation, rewrite, or removal of a file git ignores that is on the watch list is detected by `inspect`, `finish`, and `push` comparing with the baseline |"},
+	for _, tc := range []struct{ rel, marker string }{
+		{guideFiles[0], "**監視の一覧。**"},
+		{guideFiles[1], "**Watch list.**"},
 	} {
 		t.Run(filepath.Base(tc.rel), func(t *testing.T) {
-			guarantees := subsection(readRepoFile(t, tc.rel), "### 7.1")
-			table := guideTable(guarantees, tc.marker)
+			table := guideTable(subsection(readRepoFile(t, tc.rel), "### 7.1"), tc.marker)
 			if got := codeSpans(table); !maps.Equal(got, want) {
 				t.Errorf("the watch list table lists %v, want %v", slices.Sorted(maps.Keys(got)), slices.Sorted(maps.Keys(want)))
 			}
-			singleLine(t, tc.rel, guarantees, tc.row)
 		})
 	}
 }
@@ -769,28 +477,10 @@ func TestGuideNamesGitStateParts(t *testing.T) {
 	}
 }
 
-// requireAll fails for each phrase text lacks; an empty text fails once.
-func requireAll(t *testing.T, rel, name, text string, phrases ...string) {
-	t.Helper()
-	if text == "" {
-		t.Errorf("%s: %s not found", rel, name)
-		return
-	}
-	for _, p := range phrases {
-		if !strings.Contains(text, p) {
-			t.Errorf("%s: %s does not say %q", rel, name, p)
-		}
-	}
-}
-
-// TestGuideDescribesIgnoredFiles: both guides state, in 7.2, the hidden-file
-// items split as the requirements ask and the residual risks of the target
-// files; in 8.1, steps (a) to (e) with both SHA-256 commands; and in 8.2
-// every rule IgnoredFailureRules names, which the git-failed row points to.
-// fixpr.md recognizes an ignored-file rule by "contains ignored, or is .git
-// name below .claude", so every rule must fit that. The guards check that the
-// words are there; whether the prose is right is checked in review. The
-// phrases are the guides' own, Japanese for the Japanese guide.
+// TestGuideDescribesIgnoredFiles: in 8.2 both guides list every rule
+// IgnoredFailureRules names. fixpr.md recognizes an ignored-file rule by
+// "contains ignored, or is .git name below .claude", so every rule must fit
+// that.
 func TestGuideDescribesIgnoredFiles(t *testing.T) {
 	const claudeGitRule = ".git name below .claude"
 	for _, rule := range fixprguard.IgnoredFailureRules() {
@@ -798,97 +488,13 @@ func TestGuideDescribesIgnoredFiles(t *testing.T) {
 			t.Errorf("rule %q contains neither %q nor is %q, so fixpr.md would not recognize it", rule, fixprguard.PartIgnored, claudeGitRule)
 		}
 	}
-	for _, tc := range []struct {
-		rel                       string
-		hidden, risks, steps      []string
-		gitFailedRef, failedTable string
-	}{
-		{
-			rel: guideFiles[0],
-			hidden: []string{
-				"監視の一覧（7.1）に当たらない、git が無視するファイルの書き換え",
-				"グローバルの除外のファイルで隠したファイルのうち、対象のファイルでないもの",
-				"index の stat の偽造で隠した変更",
-			},
-			risks: []string{
-				"監視の一覧に当たらない、git が無視するファイルを変えること",
-				"この作業ツリーの外のファイルを変えること",
-				"通常のファイルでないもの（FIFO・ソケット・デバイスなど）を新しく作ること",
-				"完全な大文字小文字の変換だけで監視の一覧の項目と同じになる名前",
-				"確認の前に元に戻すこと",
-				"検出の前に効く書き込み",
-				"まとめた値からの推測",
-				"記録のファイルの削除と書き換え",
-				"利用者が中身を確かめずに `begin` を実行すること",
-				"ディレクトリを指すシンボリックリンク",
-				"`.claude/worktrees/`",
-			},
-			steps: []string{
-				"**(a) 記録の照合と (b) 変わったファイルの特定。**",
-				"**(c) 内容を確かめるファイル。**",
-				"**(d) 作業ツリーに残った変更と、作られた commit。**",
-				"**(e) 正当な原因の場合。**",
-				"Claude Code のセッションの外の端末",
-				"更新時刻で絞り込まない",
-				"侵害を強く疑う",
-				"信頼できる写しから戻す",
-				"このラウンドの記録はない",
-				"その commit を調べて取り消す",
-			},
-			gitFailedRef: "標準エラーの規則の名前で分かる（8.2）",
-			failedTable:  "| 規則の名前 | 原因 | 対処 |",
-		},
-		{
-			rel: guideFiles[1],
-			hidden: []string{
-				"Rewrites of files git ignores that are not on the watch list (7.1)",
-				"or by the global exclude file that are not target files",
-				"Changes hidden by forging the stat information of the index",
-			},
-			risks: []string{
-				"Changing a file git ignores that is not on the watch list",
-				"Changing files outside this work tree",
-				"something that is not a regular file (a FIFO, a socket, a device, and so on)",
-				"equals an item of the watch list only under full case folding",
-				"changing it back before the check",
-				"A write that takes effect before the detection",
-				"Inference from the summarized value",
-				"Removing or rewriting a record file",
-				"The user running `begin` on a redo without examining the contents",
-				"a symbolic link to a directory",
-				"`.claude/worktrees/`",
-			},
-			steps: []string{
-				"**(a) Checking the record and (b) finding the changed files.**",
-				"**(c) Files whose content to examine.**",
-				"**(d) Changes left in the work tree, and a commit made.**",
-				"**(e) When the cause is legitimate.**",
-				"a terminal outside the Claude Code session",
-				"do not narrow the files to check by modification time",
-				"strongly suspect a compromise",
-				"Restore `.claude/settings.local.json`, `.envrc`, and `.env` from trusted copies",
-				"this round has no records",
-				"examine that commit and undo it",
-			},
-			gitFailedRef: "which the rule name on standard error shows (8.2)",
-			failedTable:  "| Rule name | Cause | What to do |",
-		},
+	for _, tc := range []struct{ rel, failedTable string }{
+		{guideFiles[0], "| 規則の名前 | 原因 | 対処 |"},
+		{guideFiles[1], "| Rule name | Cause | What to do |"},
 	} {
 		t.Run(filepath.Base(tc.rel), func(t *testing.T) {
 			guide := readRepoFile(t, tc.rel)
-			requireAll(t, tc.rel, "7.2.3", cutSection(guide, "#### 7.2.3", "\n## ", "\n### ", "\n#### "), tc.hidden...)
-			requireAll(t, tc.rel, "7.2.5", cutSection(guide, "#### 7.2.5", "\n## ", "\n### ", "\n#### "), tc.risks...)
-			requireAll(t, tc.rel, "8.1", subsection(guide, "### 8.1"), tc.steps...)
-			requireAll(t, tc.rel, "the git-failed row", singleLine(t, tc.rel, guide, "| `git-failed` |"), tc.gitFailedRef)
-			table := guideTable(subsection(guide, "### 8.2"), tc.failedTable)
-			// A "|" inside a cell, even in a code span, splits the cell and
-			// drops the rest of a command from the rendered table.
-			for line := range strings.Lines(table) {
-				if n := strings.Count(line, "|"); n != 4 {
-					t.Errorf("%s: 8.2 table row has %d pipes, want 4 (three cells): %q", tc.rel, n, line)
-				}
-			}
-			spans := codeSpans(table)
+			spans := codeSpans(guideTable(subsection(guide, "### 8.2"), tc.failedTable))
 			for _, rule := range fixprguard.IgnoredFailureRules() {
 				if _, ok := spans[rule]; !ok {
 					t.Errorf("%s: the 8.2 table does not list `%s`", tc.rel, rule)
@@ -913,18 +519,16 @@ func guideBlock(t *testing.T, rel, heading string) string {
 	return block + "\n"
 }
 
-// TestGuideIgnoredCommands runs the record check of 8.1 as the user would,
-// on records begin and inspect wrote: the block is the same in both guides;
-// with the token begin printed it reports a match and diff names the path
-// that changed; with the begin record rewritten it reports no match and runs
-// no diff. The block prefers sha256sum and falls back to shasum, so it is run
-// once with each alone on PATH; each installed tool runs, and at least one
-// must be installed.
+// TestGuideIgnoredCommands runs the Japanese guide's record check of 8.1 as
+// the user would, on records begin and inspect wrote: with the token begin
+// printed it reports a match and diff names the path that changed; with the
+// begin record rewritten it reports no match and runs no diff. The English
+// guide's block is neither compared with it nor run. The block prefers
+// sha256sum and falls
+// back to shasum, so it is run once with each alone on PATH; each installed
+// tool runs, and at least one must be installed.
 func TestGuideIgnoredCommands(t *testing.T) {
 	block := guideBlock(t, guideFiles[0], "### 8.1")
-	if en := guideBlock(t, guideFiles[1], "### 8.1"); en != block {
-		t.Fatalf("the 8.1 code blocks differ:\n%s\n%s", block, en)
-	}
 	// pathWith is a PATH directory holding the block's tools and one of
 	// the two SHA-256 commands, so the block takes that command's branch.
 	pathWith := func(sha string) (string, bool) {

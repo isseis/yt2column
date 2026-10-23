@@ -201,10 +201,10 @@
 
 **変更するファイル**: なし（足りないものがあれば、0034 の計画）
 
--   [ ] タスク 0034・0037 の実装の PR がすべてマージされたことを、両タスクの計画の PR マーカーで確かめる。マージされていなければ、本フェーズを始めない（設計書 3.4）。
--   [ ] 1.4 の 1 つめの 0034 の計画の改訂（ステップ 8-4 の取り下げ、AC-20・AC-20a の `manual`、`:123`・ステップ 8-5・`:607` の改訂、`Comments` の `(decision)`）が `main` にあることを確かめる。足りなければ、本 PR で改める（AC-17）。
--   [ ] `TestTask0030DescribesIgnoredFiles` が `main` にないことを確かめる。あれば、`pruned_names.txt` に加え、ステップ 2-2 で削除する（AC-18）。
--   [ ] 今の `main` で、`cmd/fixprguard` の文書のテストを数え直し、`pruned_names.txt` にないテストがあれば、判定して書き足す。
+-   [x] タスク 0034・0037 の実装の PR がすべてマージされたことを、両タスクの計画の PR マーカーで確かめる。マージされていなければ、本フェーズを始めない（設計書 3.4）。
+-   [x] 1.4 の 1 つめの 0034 の計画の改訂（ステップ 8-4 の取り下げ、AC-20・AC-20a の `manual`、`:123`・ステップ 8-5・`:607` の改訂、`Comments` の `(decision)`）が `main` にあることを確かめる。足りなければ、本 PR で改める（AC-17）。
+-   [x] `TestTask0030DescribesIgnoredFiles` が `main` にないことを確かめる。あれば、`pruned_names.txt` に加え、ステップ 2-2 で削除する（AC-18）。
+-   [x] 今の `main` で、`cmd/fixprguard` の文書のテストを数え直し、`pruned_names.txt` にないテストがあれば、判定して書き足す。
 
 **完了条件**: 上の 4 つが済み、本フェーズを始められる。
 
@@ -212,8 +212,8 @@
 
 **変更するファイル**: `cmd/fixprguard/docs_test.go`
 
--   [ ] `TestGuideDescribesConfigScope` を削除する（AC-03、#440）。
--   [ ] `TestTask0030NotesScopeChange` を削除する。
+-   [x] `TestGuideDescribesConfigScope` を削除する（AC-03、#440）。
+-   [x] `TestTask0030NotesScopeChange` を削除する。
 
 **完了条件**: 2 つがなく、`make test` が通る。
 
@@ -221,11 +221,11 @@
 
 **変更するファイル**: `cmd/fixprguard/docs_test.go`
 
--   [ ] `TestGuideCoversStopKindsAndScope`: 設計書 3.1.1 の削除する確認を取り除く。
--   [ ] `TestGuideDescribesReviewerList`: 同上。
--   [ ] `TestGuideListsWatchList`: 1.3.2 の削除する確認を取り除く。
--   [ ] `TestGuideDescribesIgnoredFiles`: 同上。
--   [ ] `TestGuideIgnoredCommands`: 同上。
+-   [x] `TestGuideCoversStopKindsAndScope`: 設計書 3.1.1 の削除する確認を取り除く。
+-   [x] `TestGuideDescribesReviewerList`: 同上。
+-   [x] `TestGuideListsWatchList`: 1.3.2 の削除する確認を取り除く。
+-   [x] `TestGuideDescribesIgnoredFiles`: 同上。
+-   [x] `TestGuideIgnoredCommands`: 同上。
 
 **完了条件**: 残す確認だけが残り、`make test` が通る。
 
@@ -233,9 +233,9 @@
 
 **変更するファイル**: `cmd/fixprguard/docs_test.go`
 
--   [ ] 設計書 3.2 の `cmd/fixprguard` の行の補助（`configScope`・`passage`・`checkPassages`・`containsAll`・`reviewerListName`・`contentGuard`・`task0036Docs`・`commentRecord`・`scopeRequirement`）と、1.3.2 の `requireAll` を、使い手がなくなったものから削除する。単体テストを持つ補助（`cutSection`・`guideTable`・`checkDocumentedReviewer`）は、単体テスト以外の使い手を `git grep` で数え、設計書 3.2 と違えば PR の説明に記す。
--   [ ] 中身を変えたテストの残す確認を、1 つずつ壊して落ちることを確かめる（設計書 7.2）。
--   [ ] 削除の各コミットで、検査のスクリプトの `coverage` を実行し、差分が空であることをコミットメッセージに記す（AC-10）。差分が `//go:build test` の補助のファイルだけなら、使われなくなった補助として AC-06 で扱う。製品のコードに差分があれば、設計書 6.1 のとおり製品のコードを通る部分を残し、例外として判定の一覧に記す（AC-11）。
+-   [x] 設計書 3.2 の `cmd/fixprguard` の行の補助（`configScope`・`passage`・`checkPassages`・`containsAll`・`reviewerListName`・`contentGuard`・`task0036Docs`・`commentRecord`・`scopeRequirement`）と、1.3.2 の `requireAll` を、使い手がなくなったものから削除する。単体テストを持つ補助（`cutSection`・`guideTable`・`checkDocumentedReviewer`）は、単体テスト以外の使い手を `git grep` で数え、設計書 3.2 と違えば PR の説明に記す。
+-   [x] 中身を変えたテストの残す確認を、1 つずつ壊して落ちることを確かめる（設計書 7.2）。
+-   [x] 削除の各コミットで、検査のスクリプトの `coverage` を実行し、差分が空であることをコミットメッセージに記す（AC-10）。差分が `//go:build test` の補助のファイルだけなら、使われなくなった補助として AC-06 で扱う。製品のコードに差分があれば、設計書 6.1 のとおり製品のコードを通る部分を残し、例外として判定の一覧に記す（AC-11）。
 
 **完了条件**: `check_pruning.sh removed 2 <PR の前の origin/main>` と `make lint` が通る。
 
@@ -243,9 +243,9 @@
 
 **変更するファイル**: 設計書 3.3.2 の表で PR-2 が担当するタスクの文書（0030 の注記の `cmd/fixprguard` の分、0033、0034、0035、0036）、`fixprguard_guide.md`・`.ja.md`（必要な場合）
 
--   [ ] 各文書の AC の検証の行を、設計書 3.3.2 の規則で改め、`Comments` に記録する（AC-13・AC-14）。
--   [ ] タスク 0035 の AC-18 を、計画の 5 章の表と注記、設計書の 7.5 の両方で `manual` にする（AC-15）。
--   [ ] `fixprguard_guide`（日英）9 章で、削除したテストを述べる箇所がないことを確かめる（1.3.5）。
+-   [x] 各文書の AC の検証の行を、設計書 3.3.2 の規則で改め、`Comments` に記録する（AC-13・AC-14）。
+-   [x] タスク 0035 の AC-18 を、計画の 5 章の表と注記、設計書の 7.5 の両方で `manual` にする（AC-15）。
+-   [x] `fixprguard_guide`（日英）9 章で、削除したテストを述べる箇所がないことを確かめる（1.3.5）。
 
 **完了条件**: `check_pruning.sh records <PR-2 の前の origin/main>` が通る。
 
@@ -253,10 +253,10 @@
 
 **変更するファイル**: なし
 
--   [ ] `main` を取り込み、`cmd/fixprguard` の文書のテストを数え直す。増えていれば、ステップ 2-1 の 4 つめと同じく扱う（設計書 3.4）。
--   [ ] `check_pruning.sh` の `removed 2 <PR の前の origin/main>`・`kept`・`unchanged <PR の前の origin/main>`・`records <PR の前の origin/main>` を実行し、結果を PR の説明に記す。
--   [ ] `make test && make lint` を実行する。
--   [ ] PR の説明に、判定の一覧（AC-09）と `Refs #440`（AC-26）を書く。判定の一覧には、英語のガイドの 8.1 のブロックが実行されなくなることを、残余のリスクとして挙げる（7.1）。
+-   [x] `main` を取り込み、`cmd/fixprguard` の文書のテストを数え直す。増えていれば、ステップ 2-1 の 4 つめと同じく扱う（設計書 3.4）。
+-   [x] `check_pruning.sh` の `removed 2 <PR の前の origin/main>`・`kept`・`unchanged <PR の前の origin/main>`・`records <PR の前の origin/main>` を実行し、結果を PR の説明に記す。
+-   [x] `make test && make lint` を実行する。
+-   [x] PR の説明に、判定の一覧（AC-09）と `Refs #440`（AC-26）を書く。判定の一覧には、英語のガイドの 8.1 のブロックが実行されなくなることを、残余のリスクとして挙げる（7.1）。
 
 **完了条件**: 上の 4 つが済んでいる。
 
@@ -272,10 +272,10 @@
 
 **判定理由**: テストと過去のタスクの文書の削除・改訂で、判定は設計書と本書で決まっており、`mkplan2.md` step 4 の契機のどれにも当たらない。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/471
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: `cmd/yt2column` の `/fixpr`・`/runpr`・Codex のテスト（設計書 8 章の PR-3）
 
@@ -647,7 +647,7 @@
 ## 6. 実装チェックリスト (Implementation Checklist)
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5）
-- [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6）
+- [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6）
 - [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7）
 - [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6）
 - [ ] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6）

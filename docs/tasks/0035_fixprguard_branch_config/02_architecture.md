@@ -8,7 +8,7 @@
 | Created | 2026-10-22 |
 | Review date | 2026-10-22 |
 | Reviewer | isseis |
-| Comments | 2026-10-22 (editorial): 2.2 の表に `cmd/fixprguard/test_helpers.go` の行を加えた（実装計画の調査で見つけた漏れ）。決定は変えていない。2026-10-22 (decision): AC-17 の確かめを、ガードのテスト（`static`）から PR のレビューでの読み合わせ（`manual`）に改めた。自然言語の記述はテストで保証できない（必須の語を含んでいても、否定を反転した文が通る。PR #438 のレビューの指摘）ため、7.5 の AC-17 を `manual` にした。PR #438 で、このセッションでレビュアーが指示し、承認した。AC-18 のガード（PR-1 でマージ済み）は変えていない。 |
+| Comments | 2026-10-22 (editorial): 2.2 の表に `cmd/fixprguard/test_helpers.go` の行を加えた（実装計画の調査で見つけた漏れ）。決定は変えていない。2026-10-22 (decision): AC-17 の確かめを、ガードのテスト（`static`）から PR のレビューでの読み合わせ（`manual`）に改めた。自然言語の記述はテストで保証できない（必須の語を含んでいても、否定を反転した文が通る。PR #438 のレビューの指摘）ため、7.5 の AC-17 を `manual` にした。PR #438 で、このセッションでレビュアーが指示し、承認した。AC-18 のガード（PR-1 でマージ済み）は変えていない。2026-10-23 (decision): タスク 0038 の F-005 により、7.5 の AC-18 を `manual` に改めた（`TestGuideDescribesConfigScope` を削除したため）。決定はタスク 0038 の要件の承認で得たので、`Status` は `approved` のままとする。 |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `b8038b4` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md) の項番を、I-NN は [implementation_handoff.md](implementation_handoff.md)（実装計画への申し送り）の項番を指す。申し送り H-01〜H-09 への対応は付録 A にまとめる。「ガイド」は `docs/dev/developer_guide/fixprguard_guide.md`（と日本語版の `fixprguard_guide.ja.md`）を指す。
 
@@ -636,7 +636,7 @@ V-4 の振る舞い（値のない項目で `git ls-remote` が失敗するこ�
 ### 7.5. 文書のガード
 
 -   AC-19 は、`TestDocumentedInvocationsParse`（`cmd/fixprguard/docs_test.go:84-116`）が、コマンドの文書の `--protocol` とバイナリの `Protocol` の一致を確かめる。ガイドの例と 4 章の現在の番号は、今のテストでは確かめていない。計画で、テストを加えるか、`static` の確認にするかを決める。
--   AC-18 は、文書の記述の有無なので、`static` の確認（計画の受け入れ基準の確認の節）で足りる（要件定義のガイド 4 章）。AC-17 は、PR のレビューで読み合わせる（`manual`）。自然言語の記述はテストで保証できないためである（2026-10-22 の決定）。
+-   AC-18 は、ガイドの記述の意味を定める自然言語の AC なので、タスク 0038 の F-001・F-005 により PR のレビューで読み合わせる（`manual`。`TestGuideDescribesConfigScope` を削除した）。AC-17 は、PR のレビューで読み合わせる（`manual`）。自然言語の記述はテストで保証できないためである（2026-10-22 の決定）。
 
 ### 7.6. セキュリティテスト
 
