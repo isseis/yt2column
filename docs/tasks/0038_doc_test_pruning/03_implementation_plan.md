@@ -8,7 +8,7 @@
 | Created | 2026-10-23 |
 | Review date | 2026-10-23 |
 | Reviewer | isseis |
-| Comments | 2026-10-23 (decision): PR-1 のレビューで、`check_pruning.sh removed` の行のファイルの列の誤り（`escalationPath`・`observationsPath`）が、何にも一致しないまま通っていたことがわかった。そこで `removed` に `<base>` を必須の引数として加え、その PR 自身の行が `<base>` との分岐点で宣言されていることも確かめるよう改め、1.4・各フェーズの完了条件・AC の検証の表を合わせた。あわせて、まだ加えられていない `TestTask0030DescribesIgnoredFiles` の行を `pruned_names.txt` から外した（ステップ 2-1 のとおり、`main` にあれば加える）。検証方法を変える決定の変更であり、isseis がセッションで承認した。 2026-10-23 (editorial): PR-1 の実装の自己点検で、1.4 の 7 つめが挙げた追補の箇所に `requirements_process.md` の AC traceability の雛形と `CLAUDE.md` の要約を加え、設計書 2.3・3.5・3.9・8 章の一覧を合わせた。決定は変えていない。 |
+| Comments | 2026-10-23 (decision): PR-1 のレビューで、`check_pruning.sh removed` の行のファイルの列の誤り（`escalationPath`・`observationsPath`）が、何にも一致しないまま通っていたことがわかった。そこで `removed` に `<base>` を必須の引数として加え、その PR 自身の行が `<base>` との分岐点で宣言されていることも確かめるよう改め、1.4・各フェーズの完了条件・AC の検証の表を合わせた。あわせて、まだ加えられていない `TestTask0030DescribesIgnoredFiles` の行を `pruned_names.txt` から外した（ステップ 2-1 のとおり、`main` にあれば加える）。検証方法を変える決定の変更であり、isseis がセッションで承認した。 2026-10-23 (editorial): PR-1 の実装の自己点検で、1.4 の 7 つめが挙げた追補の箇所に `requirements_process.md` の AC traceability の雛形と `CLAUDE.md` の要約を加え、設計書 2.3・3.5・3.9・8 章の一覧を合わせた。決定は変えていない。 2026-10-23 (decision): PR-3 の実装のレビューで、`_lib/task-pr-handoff.md` Part B step 5 の開始の印を探す一覧（`gh api --paginate ... --jq`）も、PR を開いたコマンドが約 30 秒ごとに実行し、本文をセッションに入れないことを担うのに、その守りが `TestHandoffStartMarker`（削除する）の全文の固定だけだったことがわかった。そこで、K5 の一覧の確認の対象にこの一覧を加え、`runpr.md` step 3 と同じく `jq` で実行して確かめる（新しいテスト `TestHandoffListingPrintsNoBody`）。残す確認を広げる決定の変更であり、isseis がセッションで承認した。要件書の K5 も同じ commit で改めた。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -96,7 +96,7 @@
 レビュアーが決めたもの:
 
 1.  **タスク 0034 の PR-3 には `TestTask0030DescribesIgnoredFiles` を加えさせない。** 作ってすぐ削除する手間を避けるためである（要件書 1 章）。PR-3 の実装が進んでいるので、実装の側には、理由（D4、要件書 F-006・AC-17）を添えて次の 5 点を伝える（伝えるプロンプトはレビュアーに渡した）。(a) このテストを加えない（加えていれば取り除く）。(b) 0034 の計画のステップ 8-4 を取り下げる。(c) AC-20・AC-20a の検証方法を `manual` に改める。(d) これと矛盾する `:123` の注記、ステップ 8-5 の確かめ、`:607` の成功基準を改める。(e) `Comments` に `(decision)` を記録する。本タスクは、PR-2 の始めに、これらが `main` に入ったことを確かめる（ステップ 2-1）。
-2.  **step 3 の一覧のフィルタが本文を出力しないことは、`jq` で実行して確かめる**（設計書 3.1.8 で計画に委ねられた点）。フィルタを文字列として調べる方法では、要約のコメントの状態を本文の 2 行め（`$l[1]`）から導く部分を例外として扱う規則が要り、壊れやすい。`jq` がない環境では、`TestGuideIgnoredCommands` と同じく、飛ばさずに失敗させる。
+2.  **step 3 の一覧のフィルタが本文を出力しないことは、`jq` で実行して確かめる**（設計書 3.1.8 で計画に委ねられた点）。フィルタを文字列として調べる方法では、要約のコメントの状態を本文の 2 行め（`$l[1]`）から導く部分を例外として扱う規則が要り、壊れやすい。`jq` がない環境では、`TestGuideIgnoredCommands` と同じく、飛ばさずに失敗させる。`_lib/task-pr-handoff.md` Part B step 5 の開始の印を探す一覧にも、同じ確認を当てる（2026-10-23 の決定。`Comments`）。
 3.  **`TestArtifactDocsContract` の残る部分は、`run_test.go` に移す**（設計書 3.1.4 で計画に委ねられた点）。削除の後は文書を読まないので、`docs_test.go` に置く理由がない。移す先は、同じ `run -h` を実行して使い方の文字列を確かめる `TestRunHelp` の一覧とする。別のテストにすると、同じ実行と確認を繰り返すことになるからである（1.3.3 の対応表）。
 4.  **削除した名前の不在は、検査のスクリプトで確かめる**（AC-03・AC-06・AC-07・AC-22）。タスク 0037 の `check_wording.sh` にならって本タスクのディレクトリに置き、各削除の PR の終わりに実行して結果を記録する。`make test` と CI では実行しない。不在の確認を恒久のテストにすると、それ自体が D3 になるためである。
 
@@ -301,6 +301,7 @@
     -   `jq` が終了コード `0` で終わり、標準エラーが空であること。
 
     なお、プレースホルダの置き換えの値と、フィルタの取り出しの方法は、実装で決める。
+-   [x] `_lib/task-pr-handoff.md` Part B step 5 の開始の印を探す一覧にも、同じ確認を `cmd/yt2column/fixpr_docs_test.go::TestHandoffListingPrintsNoBody` として当てる（1.4 の 2 つめ）。偽の JSON は、要約のコメント、Codex のほかのコメント、著者の種類と名前の違い、本文が `null` のものを含む。
 -   [ ] 設計書 3.1.2 の残す確認（`fixprguard head` の順序、`reviewThreads`・`comments(first:` の不在、`StopJudgedSetChanged`・`StopGitStateChanged`）を残し、フィルタの全文の確認とほかを取り除く。
 -   [ ] このコミットで、検査のスクリプトの `coverage` を実行し、結果をコミットメッセージに記す（AC-10）。
 -   [ ] 壊して確かめる（結果をコミットメッセージに記す）。次のそれぞれで確認が失敗すること。(a) issue のコメントの一覧のうち、Codex のほかのコメント・依頼・言及の各分かれ道の出力に `body` を加えた写し。(b) 行のコメントの一覧の出力に `body` を加えた写し。(c) レビューの一覧の出力に `body` を加えた写し。(d) 要約のコメントの `running` の分かれ道の出力に `$l[1]` を加えた写し。(e) step 3 に 4 つめの一覧を加えた写し。(f) `jq` を `PATH` から外した環境。

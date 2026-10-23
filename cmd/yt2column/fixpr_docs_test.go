@@ -148,7 +148,7 @@ func TestFixprDocContract(t *testing.T) {
 // TestRunprDocContract checks what runpr.md must hold for its trust boundary:
 // step 1 runs fixprguard head before gh pr checkout, the document never
 // queries review threads itself, step 3 names the stops fixpr reports, and
-// step 3's listings print no comment body (see checkRunprListings).
+// step 3's listings print no comment body (see checkListings).
 func TestRunprDocContract(t *testing.T) {
 	doc := readDoc(t, runprPath)
 	step3 := requireSection(t, "runpr.md", doc, runprStep3)
@@ -178,8 +178,16 @@ func TestRunprDocContract(t *testing.T) {
 	})
 
 	t.Run("listings_print_no_body", func(t *testing.T) {
-		checkRunprListings(t, step3)
+		checkListings(t, "runpr.md step 3", step3, runprListingFixtures(), step3ReadCalls)
 	})
+}
+
+// TestHandoffListingPrintsNoBody checks that the listing
+// _lib/task-pr-handoff.md Part B step 5 polls for Codex's start marker prints
+// no comment body, as runpr.md step 3's listings do (see checkListings).
+func TestHandoffListingPrintsNoBody(t *testing.T) {
+	step5 := itemSection("5. Make sure Codex starts reviewing the PR.", "\n6. ")(t, readDoc(t, handoffPath))
+	checkListings(t, "_lib/task-pr-handoff.md Part B step 5", step5, handoffListingFixtures(), handoffReadCalls)
 }
 
 // The values the listing filters' placeholders are replaced with before the
@@ -197,17 +205,17 @@ const (
 const bodyMarker = "zq7mark"
 
 var (
-	// runprListing is one of runpr.md step 3's listings: the endpoint under
+	// paginatedListing is a gh api --paginate listing: the endpoint under
 	// repos/<owner>/<repo>/ and the --jq filter, which holds no single quote.
-	runprListing = regexp.MustCompile(`gh api --paginate repos/<owner>/<repo>/(\S+) --jq '([^']*)'`)
+	paginatedListing = regexp.MustCompile(`gh api --paginate repos/<owner>/<repo>/(\S+) --jq '([^']*)'`)
 	// leftPlaceholder is a placeholder the replacement did not cover.
 	leftPlaceholder = regexp.MustCompile(`<[a-z][a-z-]*>`)
 )
 
-// listingKeys are the keys each kind of output object may hold. None of them
-// carries a body: state is derived from a summary comment's state line, never
-// copied from it.
-var listingKeys = map[string][]string{
+// runprListingKeys are the keys each kind of object runpr.md step 3's
+// listings print may hold. None of them carries a body: state is derived from
+// a summary comment's state line, never copied from it.
+var runprListingKeys = map[string][]string{
 	"summary": {"kind", "url", "updated_at", "state"},
 	"codex":   {"kind", "url", "created_at"},
 	"request": {"kind", "url", "created_at"},
@@ -223,11 +231,23 @@ type listingItem struct {
 	kind, state     string
 }
 
-// listingFixture is the fake response for one listing: its items, and the
-// field of an item each output key other than kind and state must equal.
+// listingFixture is the fake response for one listing: its items, the field
+// of an item each output key other than kind and state must equal, and the
+// keys each kind of output object may hold. An object without a kind key is
+// of kind kindless, when that is set.
 type listingFixture struct {
-	items  []listingItem
-	source map[string]string
+	items    []listingItem
+	source   map[string]string
+	keys     map[string][]string
+	kindless string
+}
+
+// kindOf returns the kind of obj, an object the listing printed.
+func (f listingFixture) kindOf(obj map[string]any) any {
+	if kind, ok := obj["kind"]; ok || f.kindless == "" {
+		return kind
+	}
+	return f.kindless
 }
 
 // marked wraps line in bodyMarker at its start and end.
@@ -258,7 +278,7 @@ func runprListingFixtures() map[string]listingFixture {
 	awaited := fakeAwaited + "[bot]"
 	comments := map[string]string{"url": "html_url", "created_at": "created_at", "updated_at": "updated_at"}
 	return map[string]listingFixture{
-		"issues/<number>/comments": {source: comments, items: []listingItem{
+		"issues/<number>/comments": {source: comments, keys: runprListingKeys, items: []listingItem{
 			{bot, awaited, summaryBody(stateLine(completed)), "summary", "completed " + sha},
 			{bot, awaited, summaryBody(stateLine(reviewState(`"completed"`, `,"has_any_findings":false`))), "summary", "completed " + sha},
 			{bot, awaited, summaryBody(stateLine(reviewState(`"running"`, `,"note":"`+bodyMarker+`"`))), "summary", "running " + sha},
@@ -292,7 +312,7 @@ func runprListingFixtures() map[string]listingFixture {
 			{bot, "other-bot[bot]", marked(fixprguard.CodexMention + " from another Bot"), "mention", ""},
 			{user, "other-user", nil, "", ""},
 		}},
-		"pulls/<number>/comments": {source: comments, items: []listingItem{
+		"pulls/<number>/comments": {source: comments, keys: runprListingKeys, items: []listingItem{
 			{bot, awaited, marked(fixprguard.CodexMention + " from Codex"), "", ""},
 			{user, "other-user", marked("No mention here."), "", ""},
 			{user, "other-user", marked("Ask "+strings.ToUpper(fixprguard.CodexMention)) + "\n" + marked("again"), "mention", ""},
@@ -300,7 +320,7 @@ func runprListingFixtures() map[string]listingFixture {
 			{bot, "other-bot[bot]", marked(fixprguard.CodexMention + " from another Bot"), "mention", ""},
 			{user, "other-user", nil, "", ""},
 		}},
-		"pulls/<number>/reviews": {source: map[string]string{"url": "html_url", "created_at": "submitted_at"}, items: []listingItem{
+		"pulls/<number>/reviews": {source: map[string]string{"url": "html_url", "created_at": "submitted_at"}, keys: runprListingKeys, items: []listingItem{
 			{bot, awaited, marked(fixprguard.CodexMention + " from Codex"), "", ""},
 			{user, "other-user", "", "", ""},
 			{user, "other-user", marked("Ask "+fixprguard.CodexMention) + "\n" + marked("again"), "mention", ""},
@@ -308,6 +328,36 @@ func runprListingFixtures() map[string]listingFixture {
 			{user, "other-user", nil, "", ""},
 		}},
 	}
+}
+
+// handoffListingFixtures is the fake response for the start-marker listing,
+// which prints a kindless {url, updated_at} for each Codex summary comment:
+// the summary, Codex's other comments, the author checks, and a null body.
+func handoffListingFixtures() map[string]listingFixture {
+	awaited := fakeAwaited + "[bot]"
+	summary := summaryBody(stateLine(`{"code_review":{"status":"running"},"note":"` + bodyMarker + `"}`))
+	return map[string]listingFixture{
+		"issues/<number>/comments": {
+			source:   map[string]string{"url": "html_url", "updated_at": "updated_at", "created_at": "created_at"},
+			keys:     map[string][]string{"start": {"url", "updated_at"}},
+			kindless: "start",
+			items: []listingItem{
+				{"Bot", awaited, summary, "start", ""},
+				{"Bot", awaited, marked("A note.") + "\n" + marked("Another line."), "", ""},
+				{"Bot", awaited, nil, "", ""},
+				{"User", awaited, summary, "", ""},
+				{"Bot", "other-bot[bot]", summary, "", ""},
+				{"User", "other-user", marked(fixprguard.CodexMention + " please look"), "", ""},
+			},
+		},
+	}
+}
+
+// handoffReadCalls are the gh api calls of _lib/task-pr-handoff.md Part B
+// step 5: the listing and the Date header.
+var handoffReadCalls = []string{
+	"gh api --paginate ",
+	"gh api -i repos/<owner>/<repo>/pulls/<number> | grep -i -m 1 '^date:'",
 }
 
 // timeFieldSeconds gives each time field its own second, so a value copied
@@ -338,23 +388,24 @@ func (f listingFixture) response() []map[string]any {
 	return out
 }
 
-// checkRunprListings runs each of step 3's three listings with jq on its fake
-// response and checks that it prints no body: no output holds bodyMarker, every
-// object holds only its kind's keys, and every value is the item's own
-// non-body field or, for state, the state the item's state line yields. jq
-// must be installed: a missing jq fails the test instead of skipping it, so
-// the check never passes unrun.
-func checkRunprListings(t *testing.T, step3 string) {
+// checkListings runs each gh api --paginate listing of section, which where
+// names, with jq on its fake response from fixtures, and checks that it prints
+// no body: every object the filter builds holds only its kind's keys, no
+// output holds bodyMarker, and every printed value is the item's own non-body
+// field or, for state, the state the item's state line yields. Every other
+// gh api call of section must be one of readCalls. jq must be installed: a
+// missing jq fails the test instead of skipping it, so the check never passes
+// unrun.
+func checkListings(t *testing.T, where, section string, fixtures map[string]listingFixture, readCalls []string) {
 	jq, err := exec.LookPath("jq")
 	if err != nil {
 		t.Fatal("unsupported test environment: jq is not installed")
 	}
-	checkStep3GhAPICalls(t, step3)
-	fixtures := runprListingFixtures()
-	matches := runprListing.FindAllStringSubmatch(step3, -1)
-	if n := strings.Count(step3, "gh api --paginate"); n != len(matches) || n != len(fixtures) {
-		t.Fatalf("runpr.md step 3 has %d gh api --paginate listings, %d of them in the expected form; want %d",
-			n, len(matches), len(fixtures))
+	checkGhAPICalls(t, where, section, readCalls)
+	matches := paginatedListing.FindAllStringSubmatch(section, -1)
+	if n := strings.Count(section, "gh api --paginate"); n != len(matches) || n != len(fixtures) {
+		t.Fatalf("%s has %d gh api --paginate listings, %d of them in the expected form; want %d",
+			where, n, len(matches), len(fixtures))
 	}
 	replacer := strings.NewReplacer(
 		"<awaited-reviewer>", fakeAwaited,
@@ -367,11 +418,11 @@ func checkRunprListings(t *testing.T, step3 string) {
 		endpoint, filter := m[1], replacer.Replace(m[2])
 		fixture, ok := fixtures[endpoint]
 		if !ok {
-			t.Errorf("runpr.md step 3 lists %s, which has no fake response", endpoint)
+			t.Errorf("%s lists %s, which has no fake response", where, endpoint)
 			continue
 		}
 		if _, dup := seen[endpoint]; dup {
-			t.Errorf("runpr.md step 3 lists %s twice", endpoint)
+			t.Errorf("%s lists %s twice", where, endpoint)
 		}
 		seen[endpoint] = struct{}{}
 		if left := leftPlaceholder.FindString(filter); left != "" {
@@ -379,7 +430,7 @@ func checkRunprListings(t *testing.T, step3 string) {
 			continue
 		}
 		t.Run(endpoint, func(t *testing.T) {
-			checkListingConstructors(t, filter)
+			checkListingConstructors(t, filter, fixture)
 			checkListingOutput(t, fixture, runJQ(t, jq, filter, fixture.response()))
 		})
 	}
@@ -397,32 +448,32 @@ var step3ReadCalls = []string{
 	`gh api repos/<owner>/<repo>/issues/comments/<id> --jq '(.body // "" | split("\n"))[1] // "" | .[:500]'`,
 }
 
-// checkStep3GhAPICalls fails t for a gh api call in step 3 that is neither a
-// listing nor one of step3ReadCalls, so a read that prints whole responses
-// cannot be added beside the listings unchecked.
-func checkStep3GhAPICalls(t *testing.T, step3 string) {
+// checkGhAPICalls fails t for a gh api call in section that does not start
+// with one of allowed, so a read that prints whole responses cannot be added
+// beside the listings unchecked.
+func checkGhAPICalls(t *testing.T, where, section string, allowed []string) {
 	t.Helper()
-	rest := step3
+	rest := section
 	for {
 		at := strings.Index(rest, "gh api ")
 		if at < 0 {
 			return
 		}
 		call := rest[at:]
-		if !slices.ContainsFunc(step3ReadCalls, func(c string) bool { return strings.HasPrefix(call, c) }) {
+		if !slices.ContainsFunc(allowed, func(c string) bool { return strings.HasPrefix(call, c) }) {
 			line, _, _ := strings.Cut(call, "\n")
-			t.Errorf("runpr.md step 3 runs %q, which is neither a listing nor a known read", line)
+			t.Errorf("%s runs %q, which is neither a listing nor a known read", where, line)
 		}
 		rest = call[len("gh api "):]
 	}
 }
 
 // checkListingConstructors checks every object a filter builds, whether or
-// not a fake item reaches it: each starts with a kind of listingKeys and holds
-// only keys that kind may hold, so a branch added to a filter later is checked
-// before any fixture takes it. A "{" followed by a digit is a regex
-// quantifier, not an object.
-func checkListingConstructors(t *testing.T, filter string) {
+// not a fake item reaches it: each starts with a kind of fixture.keys, or has
+// no kind when fixture.kindless is set, and holds only keys that kind may
+// hold, so a branch added to a filter later is checked before any fixture
+// takes it. A "{" followed by a digit is a regex quantifier, not an object.
+func checkListingConstructors(t *testing.T, filter string, fixture listingFixture) {
 	t.Helper()
 	for i := 0; i+1 < len(filter); i++ {
 		if filter[i] != '{' || '0' <= filter[i+1] && filter[i+1] <= '9' {
@@ -435,8 +486,12 @@ func checkListingConstructors(t *testing.T, filter string) {
 		}
 		entries := splitTopLevel(body)
 		kind, isKind := strings.CutPrefix(strings.TrimSpace(entries[0]), "kind: ")
-		allowed, known := listingKeys[strings.Trim(kind, `"`)]
-		if !isKind || !known {
+		kind = strings.Trim(kind, `"`)
+		if !isKind {
+			kind = fixture.kindless
+		}
+		allowed, known := fixture.keys[kind]
+		if kind == "" || !known {
 			t.Errorf("the filter builds {%s}, which does not start with a known kind", body)
 			continue
 		}
@@ -555,12 +610,12 @@ func checkListingOutput(t *testing.T, fixture listingFixture, out string) {
 		}
 		printed[i]++
 		item := fixture.items[i]
-		if obj["kind"] != item.kind {
-			t.Errorf("item %d: printed kind %v, want %q", i, obj["kind"], item.kind)
+		if kind := fixture.kindOf(obj); kind != item.kind {
+			t.Errorf("item %d: printed kind %v, want %q", i, kind, item.kind)
 		}
 		for key, value := range obj {
 			switch {
-			case !slices.Contains(listingKeys[item.kind], key):
+			case !slices.Contains(fixture.keys[item.kind], key):
 				t.Errorf("item %d: printed the key %q, which a %q may not hold", i, key, item.kind)
 			case key == "kind":
 			case key == "state":
