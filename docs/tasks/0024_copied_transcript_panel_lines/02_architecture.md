@@ -8,7 +8,7 @@
 | Created | 2026-10-18 |
 | Review date | 2026-10-18 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | - 2026-10-23 (decision): タスク 0038 の F-005 により、AC-17・AC-27 の確かめ方を改めた（`TestCopiedTranscriptSurveyRecords` の調査の記録の確認と `TestClaudeMDCopiedTranscriptException` を削除したため）。決定はタスク 0038 の承認済みの要件で決めたので、`Status` は `approved` のままとする。 |
 
 ## 1. 設計の全体像 (Design Overview)
 
@@ -725,12 +725,12 @@ flowchart LR
 | AC-12・AC-13 | §3.2.2（形 A の拒否）、§3.2.3（形 B の側） | テスト |
 | AC-14・AC-15 | §4.1・§4.2 | テスト・静的な確認 |
 | AC-16 | §7.1 | 静的な確認 |
-| AC-17 | §3.5・§7.2 | テスト（`TestCopiedTranscriptSurveyRecords`）・静的な確認 |
+| AC-17 | §3.5・§7.2 | テスト（`TestCopiedTranscriptSurveyRecords` のファイル名と URL）と、ライセンス・項目・要件書 §1.1 の「保存する」の PR のレビューでの読み合わせ（タスク 0038 でそれらの確認を削除した） |
 | AC-18 | §3.6 | テスト |
 | AC-19 | §7.5 | 手動 |
 | AC-20 | §3.4・§7.3 | テスト |
 | AC-21〜AC-26 | §3.2.4・§3.2.5 | テスト |
-| AC-27 | §1.3.1（CLAUDE.md への記載）、§3.5 | テスト（`TestClaudeMDCopiedTranscriptException`） |
+| AC-27 | §1.3.1（CLAUDE.md への記載）、§3.5 | PR のレビューでの読み合わせ（タスク 0038 で `TestClaudeMDCopiedTranscriptException` を削除した） |
 | AC-28〜AC-32 | §3.2.1・§3.3 | テスト |
 | AC-34 | §7.2 | テスト |
 | AC-35〜AC-38 | §3.2.3・§3.3 | テスト |

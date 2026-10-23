@@ -8,7 +8,7 @@
 | Created | 2026-10-15 |
 | Review date | 2026-10-15 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | - 2026-10-23 (decision): タスク 0038 の F-005 により、AC-29 の検証方法を改めた（`TestTokenUsageDocsContract` の `project_overview.md`・`security.md`・`package_reference.md` の確認を削除したため）。決定はタスク 0038 の承認済みの要件で決めたので、`Status` は `approved` のままとする。 |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「requirements」）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目、節番号は [02_architecture.md](02_architecture.md)（以下「architecture」）の節を指す。既存のファイルの行番号は、断りがない限り HEAD `6a92cb4` で確かめた。architecture の行番号はコミット `593c696` のものだが、`593c696..6a92cb4` の Go のファイルの差分はテストの補助（`internal/config/test_helpers.go`・`internal/server/test_helpers.go`・`cmd/yt2column-server/docs_test.go`）だけで、本計画が変える Go のソースは同じである（`git diff --stat 593c696 6a92cb4 -- '*.go'` で確認）。Go のソースのコメント・識別子・文字列リテラルは英語で書き（`_context.md`）、`AC-NN`・`F-NNN`・`H-NN` は Go のソースに書かず本計画にだけ記録する（`requirements_process.md` §4）。
 
@@ -406,7 +406,7 @@ requirements AC-27 が認める変更は、architecture §1.3「要件 AC-27 と
 | AC-26 | test | AC-10〜AC-21 の `internal/writer`・`internal/pipeline`・`cmd/yt2column` のテスト。fake の `LLMClient`・`TranscriptSource`・`Publisher` と `t.TempDir` を使う。`make test` で実行する |
 | AC-27 | static / manual | `make test` が既存のテストを通す（static）。§4.5 の一覧の外の既存のテストを変えていないことを、各 PR の差分で確認する（manual） |
 | AC-28 | static / test | `make test` が `internal/server` の既存のテスト（`internal/server/job_test.go::TestFailureClassification` など）を変えずに通す（static）。`internal/writer/usage_test.go::TestTokenUsageErrorTransparent`（test） |
-| AC-29 | static / manual | `cmd/yt2column/docs_test.go::TestTokenUsageDocsContract`（README の書式・区分・再利用の印・不明の表し方と、`project_overview.md`・`security.md`・`package_reference.md` の記述の存在）。記述の内容が architecture と一致することは PR で確認する |
+| AC-29 | static / manual | `cmd/yt2column/docs_test.go::TestTokenUsageDocsContract`（README の書式・区分・再利用の印・不明の表し方）。`project_overview.md`・`security.md`・`package_reference.md` の記述と、記述の内容が architecture と一致することは PR で読み合わせる（タスク 0038 でそれらの確認を削除した） |
 
 ## 6. リスク管理 (Risk Management)
 

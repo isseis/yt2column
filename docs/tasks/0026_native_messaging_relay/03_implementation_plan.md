@@ -8,7 +8,7 @@
 | Created | 2026-10-18 |
 | Review date | 2026-10-19 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | - 2026-10-23 (decision): タスク 0038 の F-005 により、AC-31・AC-32・AC-34・AC-36 の検証方法を改めた（`TestExtensionSendDocumentation` と `TestNativeMessagingRelayDocumentation` を削除したため）。決定はタスク 0038 の承認済みの要件で決めたので、`Status` は `approved` のままとする。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -626,13 +626,12 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 | AC-29 | static | `extension/test/lintRules.test.ts`（`fetch`・`XMLHttpRequest`・`WebSocket`・`EventSource`・`connectNative` の禁止、`sendNativeMessage` の限定）、`make ext-lint` | ステップ 3-13 |
 | | test | `extension/test/secretsAbsent.test.ts` | 既存・ステップ 3-9 |
 | AC-30 | test | `extension/test/prepare.test.ts`、`extension/test/collect.test.ts`（既存） | ステップ 3-4 |
-| AC-31 | static | `cmd/yt2column-server/docs_test.go::TestServerDocsContract`（security.md のサブテスト。§8 の冒頭の相手ごとの排除の根拠、§8.2 の UDS の権限・ホストの標準出力・残余リスク）、`cmd/yt2column/extension_docs_test.go::TestExtensionSendDocumentation`（トークンの貼り付けの手順がないこと）、`cmd/yt2column/extension_docs_test.go::TestExtensionDocumentation`（§8.1 の権限の一覧） | ステップ 1-15・2-13・3-11 |
-| AC-32 | static | `cmd/yt2column-server/docs_test.go::TestServerDocsContract`（README のサブテスト。ソケットのパス、install/uninstall、トークンが不要であること、ホスト未インストールとサーバ停止のトラブルシューティング、禁止する語句）、`cmd/yt2column/extension_docs_test.go::TestExtensionSendDocumentation`（README のサブテスト） | ステップ 1-15・2-13・3-11 |
+| AC-31 | static / manual | `cmd/yt2column-server/docs_test.go::TestServerDocsContract`（security.md のサブテスト。§8 の冒頭の相手ごとの排除の根拠、§8.2 の UDS の権限・ホストの標準出力・残余リスク）、`cmd/yt2column/extension_docs_test.go::TestExtensionDocumentation`（§8.1 の権限の一覧）。トークンの貼り付けの手順がないことは PR のレビューで読み合わせる（タスク 0038 で `TestExtensionSendDocumentation` を削除した） | ステップ 1-15・2-13 |
+| AC-32 | static / manual | `cmd/yt2column-server/docs_test.go::TestServerDocsContract`（README のサブテスト。ソケットのパス、install/uninstall、トークンが不要であること、ホスト未インストールとサーバ停止のトラブルシューティング、禁止する語句）。README の「Browser extension」節の記述は PR のレビューで読み合わせる（タスク 0038 で `TestExtensionSendDocumentation` を削除した） | ステップ 1-15・2-13 |
 | AC-33 | static | `cmd/yt2column-server/docs_test.go::TestServerDocsContract`（`project_overview.md`・CLAUDE.md のサブテスト。パッケージ名、install/uninstall のコマンド、`make build` の 3 つのバイナリ）、`internal/pipeline/pipeline_test.go::TestPackageReferenceListsPackages`（既存）、`cmd/yt2column/makefile_test.go::TestMakeBuildBuildsEveryBinary` | ステップ 1-15・2-11・2-13 |
-| AC-34 | static | `make test`（`TestServerDocsContract`・`TestExtensionDocumentation`・`TestExtensionSendDocumentation`・`TestPackageReferenceListsPackages`・`TestNativeHostContract`）、`make ext-test`（`serverReasons.test.ts`・`manifest.test.ts`・`metadataDocs.test.ts`） | 各 PR |
+| AC-34 | static | `make test`（`TestServerDocsContract`・`TestExtensionDocumentation`・`TestPackageReferenceListsPackages`・`TestNativeHostContract`）、`make ext-test`（`serverReasons.test.ts`・`manifest.test.ts`・`metadataDocs.test.ts`） | 各 PR |
 | AC-35 | test | `cmd/yt2column-server/relay_e2e_test.go::TestRelayEndToEnd` | ステップ 2-15 |
-| AC-36 | static | `cmd/yt2column/extension_docs_test.go::TestNativeMessagingRelayDocumentation`（§5.1 の表のすべての欄が埋まっていること） | ステップ 3-14 |
-| | manual | §5.1 | ステップ 3-14 |
+| AC-36 | manual | §5.1（Chrome と Brave の手動の確認の記録）。タスク 0038 で `TestNativeMessagingRelayDocumentation` を削除した | ステップ 3-14 |
 | AC-37 | static | `make test`・`make lint`・`make ext-check` | 各 PR |
 
 ### 5.1. 手動の確認と記録

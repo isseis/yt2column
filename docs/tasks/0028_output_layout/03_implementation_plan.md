@@ -8,7 +8,7 @@
 | Created | 2026-10-19 |
 | Review date | 2026-10-19 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | - 2026-10-23 (decision): タスク 0038 の F-005 により、AC-24・AC-25 の検証方法を `manual` に改めた（`TestOutputLayoutDocsContract` の `project_overview.md`・`security.md` の語句の確認を削除したため）。決定はタスク 0038 の承認済みの要件で決めたので、`Status` は `approved` のままとする。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -621,11 +621,11 @@ PR は番号順にマージする。PR-1 のチャンネル名が PR-2 と PR-6 
 | AC-17 | test | `internal/publisher/file_render_test.go::TestRenderFileArticleQuoting`（フロントマターの値の往復とエスケープの種類）、`TestEscapeLeadingMarkdown`（AC-15 も） |
 | AC-21・AC-22 | test | `internal/publisher/file_test.go::TestFilePublisherExistingPath`・`TestFilePublisherRejectsArticle`・`TestFilePublisherLinkFailure`（変更なしで通る）、AC-22 はチャンネル名の拒否のテスト（AC-04 の行） |
 | AC-23 | static | `cmd/yt2column/docs_test.go::TestCostDocsContract` と、`cmd/yt2column/output_layout_docs_test.go::TestOutputLayoutDocsContract`（ステップ 5-1 の出力の構成の文書のガード。README の例を実際の出力と比べる）、`make ext-test` |
-| AC-24 | static + manual | `TestOutputLayoutDocsContract`（ステップ 5-1 の出力の構成の文書のガード）。記述を実装と照合した記録は §5.4（manual） |
-| AC-25 | static + manual | `TestOutputLayoutDocsContract`、`make test`（`doc-guard` の文書のガードを含む）。記述を設計書 5 章・3.7 と照合した記録は §5.4（manual） |
+| AC-24 | manual | `project_overview.md` の出力に関する記述を PR のレビューで読み合わせる（タスク 0038 で `TestOutputLayoutDocsContract` の語句の確認を削除した）。記述を実装と照合した記録は §5.4 |
+| AC-25 | manual | `security.md` の記述を PR のレビューで読み合わせる（タスク 0038 で `TestOutputLayoutDocsContract` の語句の確認を削除した）。記述を設計書 5 章・3.7 と照合した記録は §5.4 |
 | AC-26 | static | `make test`、`make lint`、`make ext-test` |
 
-AC-23〜AC-25 のガードのうち、README の 2 つの例は実際の出力と比べるが、security.md と project_overview.md の記述は語句の有無だけを確かめ、実装と合うことは確かめない。後者は §5.4 の照合の記録で補う。
+AC-23 のガードのうち、README の 2 つの例は実際の出力と比べる。security.md と project_overview.md の記述を確かめるガードはタスク 0038 で削除したので、AC-24・AC-25 は PR のレビューでの読み合わせと §5.4 の照合の記録で確かめる。
 
 ### 5.1. 手動の確認と記録
 

@@ -8,7 +8,7 @@
 | Created | 2026-10-16 |
 | Review date | 2026-10-16 |
 | Reviewer | isseis |
-| Comments | AC-15a/AC-15b の対応表に launch.test.ts の経路テストを加えた編集上の訂正で、判断は変わっていない |
+| Comments | AC-15a/AC-15b の対応表に launch.test.ts の経路テストを加えた編集上の訂正で、判断は変わっていない 2026-10-23 (decision): タスク 0038 の F-005 により、AC-30 の検証方法を `manual` に改めた（`TestExtensionSendDocumentation` を削除したため）。決定はタスク 0038 の承認済みの要件で決めたので、`Status` は `approved` のままとする。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -477,7 +477,7 @@ PR は、フェーズ 4 を 2 つに分け、そのほかはフェーズと 1 �
 | AC-27 | test・manual | `send.test.ts::sendArticle`（`fetch` の `TypeError` で `unknown`）、`renderSend.test.ts::renderSendOutcome`（`unknown` の表示）、§5.1 | ステップ 2-1・2-3・4-1 |
 | AC-28 | test | `response.test.ts::classifyResponse`、`renderSend.test.ts::renderSendOutcome` | ステップ 1-4・1-6・4-1 |
 | AC-29 | test | `renderSend.test.ts::renderSendOutcome` | ステップ 4-1 |
-| AC-30 | static・manual | `cmd/yt2column/extension_docs_test.go::TestExtensionSendDocumentation`、§5.1（ステップ 5-4 の照合） | ステップ 3-2・5-2・5-3・5-4・5-5 |
+| AC-30 | manual | §5.1（ステップ 5-4 の照合）。タスク 0038 で `TestExtensionSendDocumentation` を削除した | ステップ 3-2・5-2・5-3・5-4 |
 | AC-31 | test | `manifest.test.ts::permissions`・`undeclared keys`・`host permissions`・`options page` | ステップ 3-1・3-2 |
 | AC-32 | test | `launch.test.ts::token never leaks`、`optionsPage.test.ts::runOptionsPage`、`resultView.test.ts::parseResultView`（`unknown` の `cause` を拒否） | ステップ 1-5・1-6・3-3・4-2・4-5 |
 | AC-33 | static | `secretsAbsent.test.ts::no API key or Webhook settings` | ステップ 4-6 |

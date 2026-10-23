@@ -8,7 +8,7 @@
 | Created | 2026-10-18 |
 | Review date | 2026-10-18 |
 | Reviewer | isseis |
-| Comments | 2026-10-19、§5.1 の手動の確認の記録で、`202` の根拠の記述を正した（editorial correction。決定は変えていない）。`request accepted` の行は `202` の応答の書き込みに失敗したときにも出力されるので、根拠を拡張の受理の表示と、`accepted response write failed` の行がないことに改め、表の結果の欄もそれに合わせた。 |
+| Comments | 2026-10-19、§5.1 の手動の確認の記録で、`202` の根拠の記述を正した（editorial correction。決定は変えていない）。`request accepted` の行は `202` の応答の書き込みに失敗したときにも出力されるので、根拠を拡張の受理の表示と、`accepted response write failed` の行がないことに改め、表の結果の欄もそれに合わせた。 2026-10-23 (decision): タスク 0038 の F-005 により、AC-17・AC-27 の検証方法を改めた（`TestCopiedTranscriptSurveyRecords` の調査の記録の確認と `TestClaudeMDCopiedTranscriptException` を削除したため）。決定はタスク 0038 の承認済みの要件で決めたので、`Status` は `approved` のままとする。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -413,7 +413,7 @@
 | AC-14 | static | `internal/transcript/json3_test.go::TestExportedSentinelErrorsUnchanged`（公開の番兵の集合） | 1 |
 | AC-15 | test | `TestParseCopiedErrorOmitsInput`（前置き・形 A の見出し・形 B の見出しの位置・本体の拒否の目印）、`TestParseCopiedRejects` の `body error line counts the prefix`（前置きのある入力の行番号） | 1〜3 |
 | AC-16 | test | `internal/transcript/copied_test.go::TestCopiedSourceRealSamples`（`testdata/` のサンプルの集合を `copiedSampleFiles` に固定し、`dsuNgos_kxA` を含まない） | 4 |
-| AC-17 | test | `cmd/yt2column/copied_transcript_docs_test.go::TestCopiedTranscriptSurveyRecords`（README のファイル名・URL・ライセンス・項目、要件書 §1.1 の「保存する」）、`internal/transcript/copied_test.go::TestCopiedSourceRealSamples`（バイト数） | 4 |
+| AC-17 | test / manual | `cmd/yt2column/copied_transcript_docs_test.go::TestCopiedTranscriptSurveyRecords`（README のファイル名・URL）、`internal/transcript/copied_test.go::TestCopiedSourceRealSamples`（バイト数）。ライセンス・項目と要件書 §1.1 の「保存する」は、タスク 0038 で確認を削除したので PR で読み合わせる（manual） | 4 |
 | AC-17 | manual | PR のレビューで、`testdata/README.md` の値を動画のページと取得者の申告に照らす | 4 |
 | AC-18 | test | `make test`（§2.7 の台帳以外の既存のケース、`internal/writer/prompt_test.go::TestValidateTranscriptAcceptsCopiedSamples`、パイプラインの guard） | 1〜6 |
 | AC-19 | test | `TestParseCopiedFormBChapterHeadings`（パネル全体の選択）、`TestParseCopiedFormAChapterHeadings`（前置き・見出し・末尾を含む形 A のパネル全体の選択）、`internal/transcript/copied_test.go::TestCopiedSourceRealSamples/BkaUHsH_mkw` | 2〜4 |
@@ -425,7 +425,7 @@
 | AC-24 | test | `TestParseCopiedRejects`（本体の空行）、`TestParseCopiedPrefix`（先頭の空行を受理） | 1 |
 | AC-25 | test | `TestParseCopiedRejects` の `blank newline` と `TestParseCopiedCheckOrder` の `blank before empty line`（既存。`\n`・`\n\n` の `errCopiedBlank`） | 1 |
 | AC-26 | test | `TestParseCopiedRejects`（末尾のタブの行の `errCopiedControlChar`）、`TestParseCopiedCheckOrder`（手順 8 と手順 9 の順序） | 1 |
-| AC-27 | test | `cmd/yt2column/copied_transcript_docs_test.go::TestClaudeMDCopiedTranscriptException` | 6 |
+| AC-27 | manual | `CLAUDE.md` の「Declare, don't infer」の記述を PR のレビューで読み合わせる（タスク 0038 で `TestClaudeMDCopiedTranscriptException` を削除した） | 6 |
 | AC-28 | test | `TestParseCopiedPrefix`（観測した前置きと形 A） | 1 |
 | AC-29 | test | `TestParseCopiedPrefix`（前置きと形 B） | 1 |
 | AC-30 | test | `TestParseCopiedRejects`（前置きの数字・`:`・数字の行、制御文字の行） | 1 |

@@ -8,7 +8,7 @@
 | Created | 2026-10-19 |
 | Review date | 2026-10-19 |
 | Reviewer | isseis |
-| Comments | 編集上の訂正（2026-10-19。判断は変えていない）。8 章の優先順位 3 に、`docs/dev/security.md` §8.1 の「要求する権限」の改めを加え、優先順位 5 から除いた。3.9.3 の manifest の権限と §8.1 の一覧の一致の検査（既存の `TestExtensionDocumentation`）は両方向を確かめるので、manifest から `contextMenus` を除く段階で §8.1 の一覧も改めなければ `make test` が通らない。何を改めるか（3.9.2）は変えず、改める段階だけを合わせた（実装計画のレビューで見つかった）。判断の変更と見る場合は `draft` に戻してほしい |
+| Comments | 編集上の訂正（2026-10-19。判断は変えていない）。8 章の優先順位 3 に、`docs/dev/security.md` §8.1 の「要求する権限」の改めを加え、優先順位 5 から除いた。3.9.3 の manifest の権限と §8.1 の一覧の一致の検査（既存の `TestExtensionDocumentation`）は両方向を確かめるので、manifest から `contextMenus` を除く段階で §8.1 の一覧も改めなければ `make test` が通らない。何を改めるか（3.9.2）は変えず、改める段階だけを合わせた（実装計画のレビューで見つかった）。判断の変更と見る場合は `draft` に戻してほしい 2026-10-23 (decision): タスク 0038 の F-005 により、AC-11・AC-12 の確かめ方を改めた（`TestExtensionSendDocumentation` と §8.1 の語句の確認を削除したため）。決定はタスク 0038 の承認済みの要件で決めたので、`Status` は `approved` のままとする。 |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `81cb30d` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指す。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-05）への対応は 3.12 にまとめる。0007・0020・0025・0026 などの 4 桁の番号は `docs/tasks/` の同じ番号のタスクを、#330 などは GitHub の issue の番号を指す。
 
@@ -682,8 +682,8 @@ Chrome と Brave のそれぞれで、次を確かめる（AC-04・AC-05・AC-07
 | AC-08 | 3.4 | ポップアップの送信中のテストに加える、2 つの文の検査 |
 | AC-09 | 3.11 | 行・分岐・関数の到達の比較を実装計画に記録する |
 | AC-10 | 3.11 | Go のテストを削除しないことを実装計画に記録する |
-| AC-11 | 3.9.1・3.9.3 | `cmd/yt2column/extension_docs_test.go` の README の検査 |
-| AC-12 | 3.9.2・3.9.3 | `extension_docs_test.go` の権限の一致の既存の検査と、§8.1 の言及がないことの検査 |
+| AC-11 | 3.9.1・3.9.3 | PR のレビューでの読み合わせ（タスク 0038 で `TestExtensionSendDocumentation` を削除した） |
+| AC-12 | 3.9.2・3.9.3 | `extension_docs_test.go` の権限の一致の既存の検査。§8.1 の言及がないことは PR のレビューで読み合わせる（タスク 0038 でその検査を削除した） |
 | AC-13 | 3.9 | `make ext-check`・`make test`・`make lint` と、`doc-guard` の CI ジョブ |
 
 ## 8. 実装優先順位 (Implementation Priorities)

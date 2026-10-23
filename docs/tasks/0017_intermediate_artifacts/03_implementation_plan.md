@@ -8,7 +8,7 @@
 | Created | 2026-10-14 |
 | Review date | 2026-10-14 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | - 2026-10-23 (decision): タスク 0038 の F-005 により、AC-28・AC-33・AC-34 の検証方法を改めた（`TestArtifactDocsContract` を削除し、その確認を `TestRunHelp` と PR のレビューでの読み合わせに移したため）。決定はタスク 0038 の承認済みの要件で決めたので、`Status` は `approved` のままとする。 |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「requirements」）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目、節番号は [02_architecture.md](02_architecture.md)（以下「architecture」）の節を指す。既存のファイルの行番号は、断りがない限り HEAD `65868ea` で確かめた。Go のソースのコメント・識別子・文字列リテラルは英語で書き（`_context.md`）、`AC-NN`・`F-NNN`・`H-NN` は Go ソースに書かず本計画にだけ記録する（`requirements_process.md` §4）。
 
@@ -375,13 +375,13 @@ architecture §7.3 の検査を、フェーズ 1 の `internal/artifact` のテ�
 | AC-25 | test | `cmd/yt2column/run_test.go::TestRunAfterInvalidValue`（3 つの値以外で終了コード 2。メッセージに拒否した値） |
 | AC-26 | test | `cmd/yt2column/run_test.go::TestRunAfterRejectsGenerationFlags`（`--system-prompt`・`--user-prompt` と `--after` で終了コード 2） |
 | AC-27 | test | `internal/writer/artifact_test.go::TestResumeAfterGeneration`（再利用した生成の `Model`・`ModelVersion`）と `::TestResumeAfterShorten`（再利用した `Shorten` と、実行した検証・推敲の `Model`・`ModelVersion` が `Article` に入る）と `cmd/yt2column/run_test.go::TestRunAfterShortenOutModelLines`（`--out` のモデルの行に段階の区別が付く形で出る）・`::TestRunAfterShortenEmptyModelVersion`（再利用した段階の空の ModelVersion は `(none)` として書く） |
-| AC-28 | static | `cmd/yt2column/run_test.go::TestRunHelp`（`-h`/`--help` の使い方の表示に `--artifacts`・`--after`）と `cmd/yt2column/docs_test.go::TestREADMEDocumentsFlags`（README のフラグの表）と `::TestArtifactDocsContract`（`--after` が `--artifacts` を要すること、`--after review` が `--review-log` を使えないこと） |
+| AC-28 | static | `cmd/yt2column/run_test.go::TestRunHelp`（`-h`/`--help` の使い方の表示に `--artifacts`・`--after`、`--after` が `--artifacts` を要すること、`--after review` が `--review-log` を使えないこと）と `cmd/yt2column/docs_test.go::TestREADMEDocumentsFlags`（README のフラグの表） |
 | AC-29 | test | `internal/writer/artifact_test.go::TestWriteSaveFailure`（保存の失敗が段階を示し、記事を公開しない）と `internal/artifact/store_test.go::TestLoadMissing`・`::TestLoadRejectsSymlinkAndFIFO`（読み込みの失敗が番兵で判定でき、公開しない） |
 | AC-30 | test | `cmd/yt2column/run_test.go::TestRunArtifactExitCodes`（引数の形だけの誤りは 2、ファイルシステムの状態の誤りは 1。`--artifacts` のディレクトリを実際に開く 1 回の確認で判定する。成果物が壊れている場合と入力の識別子が食い違う場合も終了コード 1 になることを含める） |
 | AC-31 | test | ユニットテストが LLM の API もネットワークも呼ばない。`internal/writer/artifact_test.go`（fake の `ArtifactStore` と `llmtestutil` の fake。`t.TempDir` はテンプレートの上書きだけ）、`internal/artifact/format_test.go`・`store_test.go`・`chain_test.go`（`t.TempDir` の実ディレクトリ。LLM は呼ばない）、`internal/config/config_test.go::TestLoadFor`（`envLookup` の fake）、`cmd/yt2column/run_test.go`（fake の `LLMClient`・`TranscriptSource`・`Publisher` と `t.TempDir`）。`make test` の実行で確かめる |
 | AC-32 | static | `make test` が `--artifacts`・`--after` を付けない既存の CLI・`internal/writer`・`internal/job` のテストを内容を変えずに通す（テストの引数と期待を変えないことを同じ PR の差分で確認する） |
-| AC-33 | static / test | `cmd/yt2column/docs_test.go::TestREADMEDocumentsFlags`・`::TestArtifactDocsContract`（README・`project_overview.md`・`security.md` の該当の節の記述の存在）と、記述が述べる振る舞いを固定する実行されるテスト（`security.md` の権限は `internal/artifact/store_test.go::TestSaveFileMode`、保存先は `cmd/yt2column/run_test.go::TestRunArtifactsInsideCacheDir`） |
-| AC-34 | static / test | `cmd/yt2column/docs_test.go::TestArtifactDocsContract`（`02_evaluation.md` §2 に `--artifacts`・`--after`・`--keep-cache` があること）と `cmd/yt2column/run_test.go::TestRunEvaluationProcedureFlags`（手順の**すべての**実行が受理されること。基準となる正解） |
+| AC-33 | test / manual | `cmd/yt2column/docs_test.go::TestREADMEDocumentsFlags`（README のフラグの表）と、記述が述べる振る舞いを固定する実行されるテスト（`security.md` の権限は `internal/artifact/store_test.go::TestSaveFileMode`、保存先は `cmd/yt2column/run_test.go::TestRunArtifactsInsideCacheDir`）。README・`project_overview.md`・`security.md` の記述は PR のレビューで読み合わせる（タスク 0038 で `TestArtifactDocsContract` を削除した） |
+| AC-34 | test / manual | `cmd/yt2column/run_test.go::TestRunEvaluationProcedureFlags`（手順の**すべての**実行が受理されること。基準となる正解）。`02_evaluation.md` §2 の記述は PR のレビューで読み合わせる（タスク 0038 で `TestArtifactDocsContract` を削除した） |
 
 - 各フェーズの完了時に `make fmt`・`make test`・`make lint` を実行する（§1.2）。
 - AC-32 は「既存のテストを内容を変えない」という差分の性質である。実行される検証は `make test` が既存のテスト（`internal/writer/writer_test.go`・`steps_test.go`、`internal/job/job_test.go`、`cmd/yt2column/run_test.go`）を無変更で通すことで、テストの引数と期待を変えていないことは同じ PR の差分で確認する。
