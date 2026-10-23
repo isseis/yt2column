@@ -328,6 +328,7 @@ LLM の API を呼ぶ実行（本番の CLI と試作の両方）は、実行の
 |---|---|---|
 | B1 | `d207cab`（2026-10-23 にビルド） | 同じ（`git diff 7728815 d207cab -- internal/pricing/rates.go` が空） |
 | B1-r2 | `0826513`（2026-10-23 にビルド。`d207cab` から `prompts/`・`internal/`・`cmd/` の差分はない） | 同じ（`git diff 7728815 0826513 -- internal/pricing/rates.go` が空） |
+| B2（C01） | `b99a016`（2026-10-23 にビルド。`d207cab` からの `prompts/`・`internal/`・`cmd/` の差分は `cmd/fixprguard/docs_test.go` だけ） | 同じ（`git diff 7728815 b99a016 -- internal/pricing/rates.go` が空） |
 
 ### 4.2. 基準の集合（ステップ 2）
 
