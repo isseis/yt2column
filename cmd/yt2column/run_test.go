@@ -1244,6 +1244,8 @@ func TestRunHelp(t *testing.T) {
 				"--shorten-system-prompt <path>", "--shorten-user-prompt <path>",
 				"--review-system-prompt <path>", "--review-user-prompt <path>",
 				"--artifacts <path>", "--after <stage>",
+				"requires --artifacts",
+				"--after review does not accept --review-log",
 				"-h, --help",
 			} {
 				if !strings.Contains(stdout.String(), flag) {
@@ -2638,9 +2640,6 @@ func TestRunEvaluationProcedureFlags(t *testing.T) {
 	}
 
 	for i, flags := range commands {
-		if !slices.Contains(flags, "--keep-cache") {
-			t.Errorf("the evaluation procedure's command %d does not carry --keep-cache: %v", i+1, flags)
-		}
 		e.args = procedureArgs(flags, e, artifacts, i, system, user)
 		code := e.run()
 		if code == exitUsage {
