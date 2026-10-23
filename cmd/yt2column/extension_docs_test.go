@@ -57,7 +57,6 @@ func TestExtensionDocumentation(t *testing.T) {
 	}
 	readme := readDoc(t, readmePath)
 	security := readDoc(t, securityPath)
-	extensionSection := sectionByHeading(security, "### 8.1. ブラウザ拡張（#110）")
 	claude := readDoc(t, claudePath)
 	makefile := readDoc(t, makefilePath)
 
@@ -87,7 +86,7 @@ func TestExtensionDocumentation(t *testing.T) {
 		if len(manifest.Permissions) == 0 {
 			t.Fatal("manifest.json requests no permissions")
 		}
-		section := extensionSection
+		section := sectionByHeading(security, "### 8.1. ブラウザ拡張（#110）")
 		if section == "" {
 			t.Fatal("security.md has no 8.1 extension section")
 		}

@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-// Paths from cmd/yt2column to the copied-transcript survey documents.
+// Path from cmd/yt2column to the copied-transcript sample records.
 const copiedTranscriptReadmePath = repositoryRoot + "/testdata/README.md"
 
 // TestCopiedTranscriptSurveyRecords checks that testdata/README.md names each
@@ -32,7 +32,7 @@ func TestCopiedTranscriptSurveyRecords(t *testing.T) {
 
 // copiedTranscriptSampleIDs returns the video IDs of the committed
 // copied-transcript samples. It reads the directory rather than a fixed list,
-// so a newly saved sample without a survey record fails the guard.
+// so a newly saved sample without a record fails the guard.
 func copiedTranscriptSampleIDs(t *testing.T) []string {
 	t.Helper()
 	paths, err := filepath.Glob(repositoryRoot + "/testdata/*.transcript_copy.txt")

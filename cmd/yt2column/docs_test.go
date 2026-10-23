@@ -88,9 +88,8 @@ func TestSlackDocsContract(t *testing.T) {
 }
 
 // TestClaudeDocsContract pins the machine-checkable contract values of the
-// Claude provider: the integration test's environment variables and make target.
-// The environment variables come from the claude test package's exported
-// constants, not from the documents.
+// Claude provider: the integration test's environment variables. They come
+// from the claude test package's exported constants, not from the documents.
 func TestClaudeDocsContract(t *testing.T) {
 	values := []string{
 		claudetestutil.APIKeyEnv,
