@@ -82,6 +82,14 @@ lastReviewedRule	const	cmd/yt2column/fixpr_docs_test.go	yes	3	delete
 requestRules	var	cmd/yt2column/fixpr_docs_test.go	yes	3	delete
 arrivalRules	var	cmd/yt2column/fixpr_docs_test.go	yes	3	delete
 autoFixprCondition	const	cmd/yt2column/fixpr_docs_test.go	yes	3	delete
+reviewerSentence	const	cmd/yt2column/fixpr_docs_test.go	yes	3	delete
+reviewerOnceSentence	const	cmd/yt2column/fixpr_docs_test.go	yes	3	delete
+fixprBuildOnce	const	cmd/yt2column/fixpr_docs_test.go	yes	3	delete
+runprBuildOnce	const	cmd/yt2column/fixpr_docs_test.go	yes	3	delete
+awaitedReviewerSentence	const	cmd/yt2column/fixpr_docs_test.go	yes	3	delete
+reviewRequestSentence	const	cmd/yt2column/fixpr_docs_test.go	yes	3	delete
+reviewMentionSentence	const	cmd/yt2column/fixpr_docs_test.go	yes	3	delete
+glossaryPath	const	cmd/yt2column/fixpr_docs_test.go	yes	3	delete
 TestCodexMentionOnlyInRequestRow	func	cmd/yt2column/codex_review_docs_test.go	yes	3	keep
 TestPostingPathsCheckMention	func	cmd/yt2column/codex_review_docs_test.go	yes	3	keep
 TestRequestExemptFromMentionCheck	func	cmd/yt2column/codex_review_docs_test.go	yes	3	delete
@@ -105,6 +113,11 @@ hasCommitSHA	func	cmd/yt2column/codex_review_docs_test.go	yes	3	delete
 mentionCheck	const	cmd/yt2column/codex_review_docs_test.go	no	3	delete
 requestExemption	const	cmd/yt2column/codex_review_docs_test.go	yes	3	delete
 removedPRReviewPhrases	var	cmd/yt2column/codex_review_docs_test.go	yes	3	delete
+observationDate	var	cmd/yt2column/codex_review_docs_test.go	yes	3	delete
+observationBasis	var	cmd/yt2column/codex_review_docs_test.go	yes	3	delete
+prNumber	var	cmd/yt2column/codex_review_docs_test.go	no	3	delete
+hexRun	var	cmd/yt2column/codex_review_docs_test.go	no	3	delete
+observationResults	var	cmd/yt2column/codex_review_docs_test.go	yes	3	delete
 
 # PR-4: cmd/yt2column/docs_test.go, output_layout_docs_test.go, run_test.go,
 # copied_transcript_docs_test.go, extension_docs_test.go
@@ -157,6 +170,18 @@ checkManualCheckTable	func	cmd/yt2column/extension_docs_test.go	yes	4	delete
 acLabel	func	cmd/yt2column/extension_docs_test.go	no	4	delete
 pendingRecordMarker	const	cmd/yt2column/extension_docs_test.go	yes	4	delete
 sectionByHeadingPrefix	func	cmd/yt2column/extension_docs_test.go	yes	4	delete
+reviewPlanPath	const	cmd/yt2column/docs_test.go	yes	4	delete
+columnArticlesPath	const	cmd/yt2column/docs_test.go	yes	4	delete
+pricingUpdatePath	const	cmd/yt2column/docs_test.go	yes	4	delete
+packageReferencePath	const	cmd/yt2column/copied_transcript_docs_test.go	yes	4	delete
+copiedTranscriptArchitecturePath	const	cmd/yt2column/copied_transcript_docs_test.go	yes	4	delete
+panelLinesRequirementsPath	const	cmd/yt2column/copied_transcript_docs_test.go	yes	4	delete
+translationGlossaryPath	const	cmd/yt2column/copied_transcript_docs_test.go	yes	4	delete
+extensionArchitecturePath	const	cmd/yt2column/extension_docs_test.go	yes	4	delete
+extensionPlanPath	const	cmd/yt2column/extension_docs_test.go	yes	4	delete
+extensionSendPlanPath	const	cmd/yt2column/extension_docs_test.go	yes	4	delete
+menuRemovalPlanPath	const	cmd/yt2column/extension_docs_test.go	yes	4	delete
+relayPlanPath	const	cmd/yt2column/extension_docs_test.go	yes	4	delete
 
 # PR-5: cmd/yt2column-server, internal/pipeline, extension
 TestServerDocsContract	func	cmd/yt2column-server/docs_test.go	yes	5	keep

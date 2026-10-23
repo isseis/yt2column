@@ -37,7 +37,7 @@ usage() {
 	sed -n '5,13p' "$0" >&2
 }
 
-here=$(dirname "$0")
+here=$(cd "$(dirname "$0")" 2>/dev/null && pwd) || die 'cannot resolve the script directory'
 top=$(cd "$here" 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null) ||
 	die 'not inside a git repository'
 cd "$top" || die "cannot enter $top"
@@ -54,12 +54,18 @@ cleanup_tmp() { rm -rf "$tmp"; }
 trap cleanup_tmp EXIT
 trap 'exit 2' HUP INT TERM
 
-# show_file FILE: print FILE from CHECK_REV's tree or the working tree.
+# show_file FILE: print FILE from CHECK_REV's tree or the working tree. The
+# status is 0 when it exists, 1 when it does not, and 2 when git fails.
 show_file() {
 	if [ -n "${CHECK_REV:-}" ]; then
-		git show "${CHECK_REV}:$1" 2>/dev/null
+		git cat-file -e "${CHECK_REV}:$1" 2>/dev/null
+		case $? in
+		0) git show "${CHECK_REV}:$1" 2>/dev/null || return 2 ;;
+		1) return 1 ;;
+		*) return 2 ;;
+		esac
 	elif [ -f "$1" ]; then
-		cat -- "$1"
+		cat -- "$1" || return 2
 	else
 		return 1
 	fi
@@ -70,20 +76,28 @@ decl_present() {
 	name=$1
 	kind=$2
 	file=$3
+	content=$(show_file "$file")
+	rc=$?
+	case $rc in
+	0) ;;
+	1) return 1 ;;
+	*) die "cannot read $file" ;;
+	esac
 	case $kind in
 	func)
-		show_file "$file" | LC_ALL=C grep -Eq -- "^func[[:space:]]+$name\\("
+		printf '%s\n' "$content" |
+			LC_ALL=C grep -E -- "^func[[:space:]]+$name\\(" >/dev/null
 		;;
 	var | const)
-		show_file "$file" |
-			LC_ALL=C grep -Eq -- "^(var|const)[[:space:]]+$name([[:space:]=])|^[[:space:]]+$name[[:space:]]*="
+		printf '%s\n' "$content" |
+			LC_ALL=C grep -E -- "^(var|const)[[:space:]]+$name([[:space:]=])|^[[:space:]]+$name[[:space:]]*=" >/dev/null
 		;;
 	type)
-		show_file "$file" |
-			LC_ALL=C grep -Eq -- "^type[[:space:]]+$name([[:space:]]|$)"
+		printf '%s\n' "$content" |
+			LC_ALL=C grep -E -- "^type[[:space:]]+$name([[:space:]]|$)" >/dev/null
 		;;
 	node | subtest | text)
-		show_file "$file" | LC_ALL=C grep -Fq -- "$name"
+		printf '%s\n' "$content" | LC_ALL=C grep -F -- "$name" >/dev/null
 		;;
 	*)
 		die "unknown kind in pruned_names.txt: $kind"
@@ -185,12 +199,22 @@ cmd_kept() {
 }
 
 # docguard_line REV: print the one doc-guard go test line of that revision.
-docguard_line() {
+docguard_text() {
 	if [ -n "$1" ]; then
-		git show "$1:.github/workflows/ci.yml" 2>/dev/null
+		git show "$1:.github/workflows/ci.yml" 2>/dev/null || return 2
 	else
-		cat -- .github/workflows/ci.yml
-	fi |
+		cat -- .github/workflows/ci.yml || return 2
+	fi
+}
+
+docguard_line() {
+	text=$(docguard_text "$1") || return 2
+	printf '%s\n' "$text" |
+		LC_ALL=C awk '
+			/^  doc-guard:/ { on = 1 }
+			on && /^  [A-Za-z0-9_-]+:/ && !/^  doc-guard:/ { exit }
+			on { print }
+		' |
 		LC_ALL=C grep -E 'go test -tags test \./cmd/yt2column \./cmd/yt2column-server \./cmd/fixprguard \./internal/pipeline'
 }
 
@@ -221,12 +245,14 @@ cmd_unchanged() {
 	else
 		docguard_line "$CHECK_REV" >"$tmp/target-ci"
 	fi
+	rc=$?
+	[ "$rc" -le 1 ] || die 'cannot read the target .github/workflows/ci.yml'
 	base_count=$(LC_ALL=C grep -c . "$tmp/base-ci")
 	target_count=$(LC_ALL=C grep -c . "$tmp/target-ci")
 	if [ "$base_count" -ne 1 ] || [ "$target_count" -ne 1 ]; then
-		die 'cannot find exactly one doc-guard go test line'
-	fi
-	if ! cmp -s "$tmp/base-ci" "$tmp/target-ci"; then
+		echo 'FAIL unchanged: cannot find exactly one doc-guard go test line'
+		fail=1
+	elif ! cmp -s "$tmp/base-ci" "$tmp/target-ci"; then
 		echo 'FAIL unchanged: the doc-guard go test line changed'
 		diff -u "$tmp/base-ci" "$tmp/target-ci"
 		fail=1
@@ -339,7 +365,8 @@ cmd_survey() {
 			printf '%s\n' "$f" >>"$tmp/candidates"
 			;;
 		*)
-			if show_file "$f" | head -n 1 | LC_ALL=C grep -q '^//go:build test'; then
+			if show_file "$f" | head -n 1 |
+				LC_ALL=C grep -Eq '^//go:build (.*[[:space:]])?test([[:space:]].*)?$'; then
 				printf '%s\n' "$f" >>"$tmp/candidates"
 			fi
 			;;
@@ -370,7 +397,7 @@ cmd_coverage() {
 	cleanup_cov() {
 		git worktree remove --force "$wt_before" >/dev/null 2>&1
 		git worktree remove --force "$wt_after" >/dev/null 2>&1
-		rm -rf "$cov"
+		rm -rf "$cov" "$tmp"
 	}
 	trap cleanup_cov EXIT
 	trap 'exit 2' HUP INT TERM

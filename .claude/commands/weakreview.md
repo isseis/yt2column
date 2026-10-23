@@ -220,8 +220,9 @@ and the thing it builds is rarely load-bearing)
       still names real test locations (`path::TestName`) or real static
       commands for every AC this range claims to close — not a placeholder
       or a description of a test that does not exist under that name. An AC
-      that specifies the natural-language content of a document may name a
-      `manual` reading in the PR review instead.
+      that specifies only the natural-language content of a document may name
+      a `manual` reading in the PR review instead; a mixed AC still needs the
+      test or static verification for its value or structure.
 
 **Approval-gate integrity**
 - [ ] No implementation commit in this range is dated/ordered before its
