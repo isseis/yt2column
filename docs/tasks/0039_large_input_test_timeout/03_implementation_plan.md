@@ -352,15 +352,15 @@ PR-1・PR-4 は文書だけの PR なので、CI の `Test` ジョブは走ら�
 
 ### AC-16 の記録
 
-PR-3 のコメントに控えたフェーズ 6 の記録による。3 回とも同じ実行 39955835942 の試行で、どれも同じヘッドで続けて成功し、数え直しはなかった。
+以下は、PR-3 のコメントに控えたフェーズ 6 の記録に基づく。3 回はいずれも実行 39955835942 の試行 1〜3 で、同じヘッドで続けて成功し、数え直しはなかった。このヘッドはステップ 6-3 の記録のコミットで、PR-3（#475）はこのヘッドのままマージされた（squash のコミット c5b5cbe1c1126e5b9e03d870c6bb404a4636c645 の内容は、このヘッドの内容に、先に `main` に入った #474 の変更を加えたものと一致する）。
 
-| 実行 | 試行の URL | 試行の番号 | ヘッドのコミット | `(cached)` がない |
+| 回 | 試行の URL | 試行の番号 | ヘッドのコミット | `(cached)` がない |
 |---|---|---|---|---|
 | 1 | https://github.com/isseis/yt2column/actions/runs/39955835942/attempts/1 | 1 | 6b558c5a9f643bc04dd9ea21894bfe59e212f7af | はい（`make test-ci`・`make test-parse-norace` の両方） |
 | 2 | https://github.com/isseis/yt2column/actions/runs/39955835942/attempts/2 | 2 | 6b558c5a9f643bc04dd9ea21894bfe59e212f7af | はい（`make test-ci`・`make test-parse-norace` の両方） |
 | 3 | https://github.com/isseis/yt2column/actions/runs/39955835942/attempts/3 | 3 | 6b558c5a9f643bc04dd9ea21894bfe59e212f7af | はい（`make test-ci`・`make test-parse-norace` の両方） |
 
-AC-09 の確かめ（ステップ 6-2）の実行: https://github.com/isseis/yt2column/actions/runs/39955148759（`Test` ジョブ: https://github.com/isseis/yt2column/actions/runs/39955148759/job/120419083484）。一時的なコミット 2b7c8bf の `Test` ジョブで、「Check parse deadline (no race, alone)」が 7 つの入力すべての `want under 1ms` で失敗した。
+AC-09 の確かめ（ステップ 6-2）の実行: https://github.com/isseis/yt2column/actions/runs/39955148759（`Test` ジョブ: https://github.com/isseis/yt2column/actions/runs/39955148759/job/120419083484）。この実行は一時的なコミット 2b7c8bf82e20dc61a267e4f8ef3776ecdc094ee1 のもので、`Test` ジョブの「Check parse deadline (no race, alone)」が、7 つの入力すべてで `want under 1ms` と報告して失敗した。取り消しのコミットは 2da707bb0d3a86a11376060f76e0e3bdfbce4963 である。
 
 ## 9. 次のステップ (Next Steps)
 
