@@ -27,7 +27,7 @@ describe("has-extension-changes", () => {
     ["go.mod"],
     ["README.md"],
     ["internal/server/response.go"],
-    ["docs/dev/project_overview.md", "extension/package.json"],
+    ["extension/package.json"],
   ];
   for (const files of triggering) {
     it(`runs the extension job for ${files.join(", ")}`, () => {

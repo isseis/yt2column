@@ -8,7 +8,7 @@
 | Created | 2026-10-23 |
 | Review date | 2026-10-23 |
 | Reviewer | isseis |
-| Comments | 2026-10-23 (editorial): PR-1 の実装の自己点検で、同じ決定の及ぶ箇所として `weakreview.md`、`mkplan.md:71`・`:79`・`:106`、`requirements_process.md:227`・`:245`・`:278`、`CLAUDE.md:398` を 2.3・3.5・3.9・8 章に足した。決定は変えていない。 2026-10-23 (decision): PR-3 の実装のレビューで、`_lib/task-pr-handoff.md` Part B step 5 の開始の印を探す一覧（`gh api --paginate ... --jq`）も、PR を開いたコマンドが約 30 秒ごとに実行し、本文をセッションに入れないことを担うのに、その守りが `TestHandoffStartMarker`（削除する）の全文の固定だけだったことがわかった。そこで、K5 の一覧の確認の対象にこの一覧を加え、`runpr.md` step 3 と同じく `jq` で実行して確かめる（新しいテスト `TestHandoffListingPrintsNoBody`）。残す確認を広げる決定の変更であり、isseis がセッションで承認した。要件書の K5 も同じ commit で改めた。 |
+| Comments | 2026-10-23 (editorial): PR-1 の実装の自己点検で、同じ決定の及ぶ箇所として `weakreview.md`、`mkplan.md:71`・`:79`・`:106`、`requirements_process.md:227`・`:245`・`:278`、`CLAUDE.md:398` を 2.3・3.5・3.9・8 章に足した。決定は変えていない。 2026-10-23 (decision): PR-3 の実装のレビューで、`_lib/task-pr-handoff.md` Part B step 5 の開始の印を探す一覧（`gh api --paginate ... --jq`）も、PR を開いたコマンドが約 30 秒ごとに実行し、本文をセッションに入れないことを担うのに、その守りが `TestHandoffStartMarker`（削除する）の全文の固定だけだったことがわかった。そこで、K5 の一覧の確認の対象にこの一覧を加え、`runpr.md` step 3 と同じく `jq` で実行して確かめる（新しいテスト `TestHandoffListingPrintsNoBody`）。残す確認を広げる決定の変更であり、isseis がセッションで承認した。要件書の K5 も同じ commit で改めた。 2026-10-24 (editorial): PR-5 の実装の自己点検で、3.3.2 の 0026 の行が挙げる設計書の範囲に AC-05 の行（`:1415`）を加えた。`TestSharedTokenRemoved` の文書の検査を削除したので、AC-05 も PR-5 で改める対象になった。決定は変えていない。 |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルについての記述は、コミット `80c17a8` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。タスク 0034・0037 の進捗は、2026-10-23 の本書の作成時点のものである（タスク 0037 の PR #459 は `f326ce6` でマージ済み、タスク 0034 の PR-2 は PR #461 として開いている）。
 
@@ -473,7 +473,7 @@ AC-05 の調べ: 要件書 1 章の一覧にないファイルに、文書を読
 | 0022 | 計画 | `:410`・`:429-431` | `TestCostDocsContract`、`TestTokenUsageDocsContract` | PR-4 |
 | 0024 | 設計書・計画 | 設計書 `:728`・`:733`、計画 `:416`・`:428` | `TestCopiedTranscriptSurveyRecords`、`TestClaudeMDCopiedTranscriptException` | PR-4 |
 | 0025 | 設計書・計画 | 設計書 `:853`、計画 `:379`（AC-18） | `metadataDocs.test.ts` | PR-5 |
-| 0026 | 設計書・計画 | 設計書 `:1422-1443`、計画 `:590-634` | `TestExtensionDocumentation`、`TestExtensionSendDocumentation`、`TestServerDocsContract`、`TestSharedTokenRemoved`、`TestNativeMessagingRelayDocumentation` | PR-4・PR-5 |
+| 0026 | 設計書・計画 | 設計書 `:1415-1443`、計画 `:590-634` | `TestExtensionDocumentation`、`TestExtensionSendDocumentation`、`TestServerDocsContract`、`TestSharedTokenRemoved`、`TestNativeMessagingRelayDocumentation` | PR-4・PR-5 |
 | 0027 | 設計書・計画 | 設計書 `:685-686`、計画 `:521-535` | `TestContextMenuRemovalRecords`、`TestExtensionSendDocumentation`、`TestExtensionDocumentation`、`metadataDocs.test.ts`（計画 `:534`） | PR-4・PR-5 |
 | 0028 | 計画 | `:623-625`（AC-23〜AC-25） | `TestOutputLayoutDocsContract`、`TestCostDocsContract` | PR-4 |
 | 0030 | 計画 | `:533-554` と注記 `:556` | `TestFixprDocContract`、`TestRunprDocContract`、`TestAuthorizationSections`、`TestGlossaryTerms` ほか | PR-3（注記の `cmd/fixprguard` の分は PR-2） |

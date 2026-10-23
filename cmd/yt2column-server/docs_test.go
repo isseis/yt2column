@@ -48,6 +48,9 @@ func TestServerDocsContract(t *testing.T) {
 		section := whole
 		if upgrade := sectionByHeading(whole, upgradeHeading); upgrade != "" {
 			section = strings.Replace(whole, upgradeHeading+"\n"+upgrade, "", 1)
+			if section == whole {
+				t.Fatal("README.md server section: the upgrade notes were not excluded")
+			}
 		}
 		if !strings.Contains(section, slackEnv) {
 			t.Errorf("README.md server section does not mention %q", slackEnv)

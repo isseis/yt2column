@@ -503,7 +503,7 @@
 
 **変更するファイル**: `CLAUDE.md`、設計書 3.3.2 の表で PR-5 が担当するタスクの文書（0011 の分、0021、0025、0026 の分、0027 の分）
 
--   [x] `CLAUDE.md`「Development Notes」の、node のテストが読む文書を README.md だけにし、README で読むものを、残る確認（拒否理由の表と、展開の案内の文）に合わせる。`cmd/yt2column-nmhost` の `TestReadmeHostExitCodes` は `doc-guard` ジョブでなく、ローカルの `make test` と CI の `test` ジョブが走らせる、と記す（設計書 3.6、AC-20・AC-30）。`doc-guard` のコマンドは変えない（AC-21）。
+-   [x] `CLAUDE.md`「Development Notes」の、node のテストが読む文書を README.md だけにし、README で読むものを、残る確認（拒否理由の表と、展開の案内の文）に合わせる。`cmd/yt2column-nmhost` の `TestReadmeHostExitCodes` は `doc-guard` ジョブでなく、ローカルの `make test` と、コードの変更のときに走る CI の `test` ジョブが走らせる（文書だけの変更では、どちらの CI ジョブもこのテストを走らせない）、と記す（設計書 3.6、AC-20・AC-30）。`doc-guard` のコマンドは変えない（AC-21）。
 -   [x] 各文書の AC の検証の行を、設計書 3.3.2 の規則で改め、`Comments` に記録する（AC-13・AC-14）。
 
 **完了条件**: `check_pruning.sh records <PR-5 の前の origin/main>` が通る。

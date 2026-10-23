@@ -8,7 +8,7 @@
 | Created | 2026-10-18 |
 | Review date | 2026-10-19 |
 | Reviewer | isseis |
-| Comments | - 2026-10-23 (decision): タスク 0038 の F-005 により、AC-31・AC-32・AC-34・AC-36 の検証方法を改めた（`TestExtensionSendDocumentation` と `TestNativeMessagingRelayDocumentation` を削除したため）。決定はタスク 0038 の承認済みの要件で決めたので、`Status` は `approved` のままとする。 2026-10-24 (decision): タスク 0038 の F-005 により、AC-31・AC-32・AC-33 の検証方法を改めた（`TestServerDocsContract` の README と security.md の語句の検査と、CLAUDE.md のサブテストを削除したため）。決定はタスク 0038 の承認済みの要件で決めたので、`Status` は `approved` のままとする。 |
+| Comments | - 2026-10-23 (decision): タスク 0038 の F-005 により、AC-31・AC-32・AC-34・AC-36 の検証方法を改めた（`TestExtensionSendDocumentation` と `TestNativeMessagingRelayDocumentation` を削除したため）。決定はタスク 0038 の承認済みの要件で決めたので、`Status` は `approved` のままとする。 2026-10-24 (decision): タスク 0038 の F-005 により、AC-05・AC-31・AC-32・AC-33 の検証方法を改めた（`TestSharedTokenRemoved` の文書の検査、`TestServerDocsContract` の README と security.md の語句の検査、CLAUDE.md のサブテストを削除したため）。決定はタスク 0038 の承認済みの要件で決めたので、`Status` は `approved` のままとする。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -587,7 +587,7 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 | AC-02 | test | `internal/serversock/serversock_test.go`（ディレクトリの作成と `0700`、`0700` でない・symlink・他人の所有・親の書き込みのビットでの中止、作成後のソケットの `0600`） | ステップ 1-3・1-4 |
 | AC-03 | test | `internal/serversock/serversock_test.go`（stale の削除、`ErrInUse` と削除しないこと、通常ファイル・symlink・FIFO・ディレクトリの中止、`ErrAlreadyRunning`） | ステップ 1-3・1-4 |
 | AC-04 | test | `internal/config/socketpath_test.go`（パスの長さの境界、`HOME` の不備、値を含まないエラー）、`cmd/yt2column-server/run_test.go::TestStartupFailures`、`::TestRunLogsListeningAndStop`、`internal/serversock/serversock_test.go`（上限の定数と `RawSockaddrUnix` の一致） | ステップ 1-6・1-7・1-11・1-12 |
-| AC-05 | static | `internal/pipeline/relay_guard_test.go::TestSharedTokenRemoved` | ステップ 1-10・1-14・1-17・3-11 |
+| AC-05 | static / manual | `internal/pipeline/relay_guard_test.go::TestSharedTokenRemoved`（コードと拡張のソース）。現在の文書に語がないことは PR のレビューで読み合わせる（タスク 0038 で文書の検査を削除した） | ステップ 1-10・1-14・1-17・3-11 |
 | | test | `cmd/yt2column-server/signal_test.go::TestSignalStopsServer`（標準出力が空）、`internal/config/socketpath_test.go`（`HOME` の値がエラーに現れない）、`cmd/yt2column-server/run_test.go::TestOutputsOmitSecrets`（秘密の値が出力に現れない） | ステップ 1-6・1-7・1-11・1-12 |
 | AC-06 | test | `cmd/yt2column-server/signal_test.go::TestSignalWaitsForJob`、`cmd/yt2column-server/run_test.go::TestStartDuringShutdownRefused`、`internal/serversock/serversock_test.go`（閉じるとソケットが消えること、stale の削除） | ステップ 1-3・1-4・1-11・1-12 |
 | | manual | §5.1（`SIGKILL` で止めたサーバの次の起動） | - |

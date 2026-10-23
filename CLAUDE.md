@@ -326,11 +326,12 @@ See [Test Organization Guide](docs/dev/developer_guide/test_organization.md) for
   `16,383`), the `/fixpr` and `/runpr` command documents) are Go tests included
   in `make test` and need no node. `cmd/yt2column-nmhost`'s
   `TestReadmeHostExitCodes` reads the README too, but the `doc-guard` job does
-  not run it: the local `make test` and the CI `test` job do. The `doc-guard`
-  CI job runs the other guards
+  not run it: the local `make test`, and the CI `test` job when the change
+  includes code, do. A README-only change is therefore checked by neither CI
+  job for this test. The `doc-guard` CI job runs the other guards
   (`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`)
-  on every pull request, so a documentation-only change is checked in CI even
-  though `check-changes` classifies it as non-code.
+  on every pull request, so a documentation-only change is checked in CI by
+  those guards even though `check-changes` classifies it as non-code.
 - A change that touches only `.gitignore` can still break the extension's
   ignore-rule check, which stays in its node tests. Run `make ext-test` locally
   before committing such a change.
