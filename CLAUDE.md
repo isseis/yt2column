@@ -291,6 +291,21 @@ info.json parsers with real samples under `testdata/`.
   same rows with the same literals, one table is enough.
 - **Deleting a test is a claim that must be checked**: confirm `go tool cover -func`
   is unchanged function by function afterwards, and say so.
+- **Document tests check values, structure, and executable examples, never prose.**
+  A test that reads a document may compare a value in it with the code or
+  configuration that defines it (flags, exit codes, protocol numbers, extension
+  IDs and permissions, `make` targets, rejection tables), check the heading
+  structure, or parse or run a command example. It must not try to establish the
+  meaning of a sentence by matching words, pin a literal copied into the test,
+  assert that an old name is absent from a document, or check a task's own
+  record. A change to a document's wording is checked by reading it in the PR
+  review (`manual`), because a test cannot tell a reworded sentence from a
+  reversed one. A change to a documented value or structure still needs the
+  matching test. Two exceptions stay tested: the automated-reviewer list, and the
+  commands the agents run at their trust boundary (the `fixprguard` call sites,
+  the commands that would bypass it, the mention check, and the `--jq` filters
+  that must not print a body). A mistake there disables a guard at run time, so
+  a test is worth its brittleness.
 
 See [Test Organization Guide](docs/dev/developer_guide/test_organization.md) for test helper file structure.
 
@@ -381,8 +396,8 @@ When implementing new features, follow the process documented in [Requirements P
 1. Create an issue, then run `/mkreq <issue>` to create `01_requirements.md` with explicit acceptance criteria
 2. Create `02_architecture.md` with high-level design (Mermaid diagrams)
 3. Create `03_implementation_plan.md` with progress tracking (checkboxes) and AC traceability
-4. Write tests for each acceptance criterion
-5. Link tests to acceptance criteria in the implementation plan
+4. Verify each acceptance criterion with a test, a static check, or a manual reading for an AC that specifies prose alone
+5. Link each verification to its acceptance criterion in the implementation plan
 
 Each document is created as `draft`; the next one is not started until a human
 reviewer sets the previous one to `approved`.

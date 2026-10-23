@@ -8,7 +8,7 @@
 | Created | 2026-10-23 |
 | Review date | 2026-10-23 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-23 (editorial): PR-1 の実装の自己点検で、同じ決定の及ぶ箇所として `weakreview.md`、`mkplan.md:71`・`:79`・`:106`、`requirements_process.md:227`・`:245`・`:278`、`CLAUDE.md:398` を 2.3・3.5・3.9・8 章に足した。決定は変えていない。 |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルについての記述は、コミット `80c17a8` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。タスク 0034・0037 の進捗は、2026-10-23 の本書の作成時点のものである（タスク 0037 の PR #459 は `f326ce6` でマージ済み、タスク 0034 の PR-2 は PR #461 として開いている）。
 
@@ -261,7 +261,7 @@ flowchart LR
 | Go の文書のテスト | `cmd/fixprguard/docs_test.go`、`cmd/yt2column/docs_test.go`・`copied_transcript_docs_test.go`・`extension_docs_test.go`・`fixpr_docs_test.go`・`output_layout_docs_test.go`・`codex_review_docs_test.go`・`run_test.go`、`cmd/yt2column-server/docs_test.go`、`internal/pipeline/relay_guard_test.go` |
 | node のテスト | `extension/test/metadataDocs.test.ts`、`extension/test/ciChanges.test.ts` |
 | 起動条件 | `extension/scripts/has-extension-changes.sh` |
-| 方針・手順の規則 | `CLAUDE.md`、`.claude/commands/mkplan.md`・`runplan.md`、`docs/dev/developer_guide/requirements_process.md` |
+| 方針・手順の規則 | `CLAUDE.md`、`.claude/commands/mkplan.md`・`runplan.md`・`weakreview.md`、`docs/dev/developer_guide/requirements_process.md` |
 | 文書のテストを述べる文書 | `CLAUDE.md`、`docs/dev/developer_guide/pricing_update.md`、`docs/dev/developer_guide/fixprguard_guide.md`・`fixprguard_guide.ja.md`（必要な場合） |
 | タスクの文書 | 3.3.2 の 23 のタスクの `02_architecture.md`・`03_implementation_plan.md`、3.4 の未実装の計画、本タスクの `01_requirements.md`（1.4 の訂正） |
 
@@ -526,6 +526,7 @@ AC-05 の調べ: 要件書 1 章の一覧にないファイルに、文書を読
 -   **`mkplan.md:74`:** 「Every AC must have at least one `test` or `static` entry」に、文書の自然言語の記述を定める AC は `manual` だけでよい、という例外を加える。それ以外の AC（振る舞い、値、構造）には、今までどおり `test` か `static` を 1 つ以上求める（AC-25）。
 -   **`mkplan.md:88`:** 文書だけの AC に `rg` の確認の作業を求める項目を改め、自然言語の記述は読み合わせ、値・構造は K1〜K3 の文書のテストで確かめる、とする。
 -   **`mkplan.md:122`、`runplan.md:78`・`:158`・`:213`、`requirements_process.md:239`:** 同じ例外を反映する。
+-   **同じ規則のその他の箇所:** `mkplan.md:71`・`:79`・`:106`、`requirements_process.md:227`・`:245`・`:278`、`weakreview.md:219-222`、`CLAUDE.md:398` にも同じ例外を反映する。計画 1.4 の 7 つめが同じ決定の及ぶ箇所として挙げ、実装の自己点検で `requirements_process.md` の AC traceability の雛形と `CLAUDE.md` の要約も足した（editorial）。
 
 これらの規則の文言そのものは、自然言語の記述である。そのため、PR-1 の AC（AC-23〜AC-25）の検証方法は、改めた規則に従って `manual` とする（要件書 5 章）。
 
@@ -560,7 +561,7 @@ AC-05 の調べ: 要件書 1 章の一覧にないファイルに、文書を読
 | ファイル | 変更 | 責務・変更の内容 | 担当 |
 |---|---|---|---|
 | `CLAUDE.md` | 変更 | 「Testing Strategy」に文書のテストの方針（AC-23）。「Development Notes」の文書のテストの説明（AC-20・AC-30） | PR-1・PR-4・PR-5 |
-| `.claude/commands/mkplan.md`・`runplan.md` | 変更 | 自然言語の記述を定める AC に `manual` だけを認める（AC-24・AC-25） | PR-1 |
+| `.claude/commands/mkplan.md`・`runplan.md`・`weakreview.md` | 変更 | 自然言語の記述を定める AC に `manual` だけを認める（AC-24・AC-25） | PR-1 |
 | `docs/dev/developer_guide/requirements_process.md` | 変更 | 同上（`:239`） | PR-1 |
 | `cmd/fixprguard/docs_test.go` | 変更 | 3.1.1 の削除と、3.2 の補助の削除 | PR-2 |
 | `docs/dev/developer_guide/fixprguard_guide.md`・`.ja.md` | 確認（必要なら変更） | 9 章の記述が残るテストと一致することを確かめる | PR-2 |
@@ -772,7 +773,7 @@ PR は次の順に作る。各 PR の範囲と順序の細目は、実装計画�
 
 **前提:** PR-1 は、タスク 0037 の実装の PR がマージされた後に始める。PR-2〜PR-5 は、タスク 0034・0037 の実装の PR がすべてマージされた後に始める（1.2、3.4）。
 
-1.  **PR-1 規則と方針:** `CLAUDE.md`「Testing Strategy」、`mkplan.md`・`runplan.md`・`requirements_process.md`（3.5）。後の PR がタスクの文書を `manual` に改めるとき、改めた規則に従うようにするため、最初に置く。
+1.  **PR-1 規則と方針:** `CLAUDE.md`「Testing Strategy」、`mkplan.md`・`runplan.md`・`weakreview.md`・`requirements_process.md`（3.5、計画 1.4 の 7 つめ）。後の PR がタスクの文書を `manual` に改めるとき、改めた規則に従うようにするため、最初に置く。
 2.  **PR-2 `cmd/fixprguard`:** 3.1.1 の削除と、タスク 0034 が `cmd/fixprguard/docs_test.go` に加えたテストの判定（3.4）、補助、タスク 0033・0034・0035・0036 などの文書（3.3.2）、`Refs #440`（3.7）。
 3.  **PR-3 `cmd/yt2column` の `/fixpr`・`/runpr`・Codex のテスト:** 3.1.2・3.1.3 の削除と、タスク 0034 が加えた行の判定（3.4）、補助、タスク 0030・0031・0033・0034・0036 の文書。
 4.  **PR-4 `cmd/yt2column` のほかのテスト:** 3.1.4・3.1.5 の削除、補助、`pricing_update.md`、`CLAUDE.md` のタスクの記録の記述、該当のタスクの文書。
