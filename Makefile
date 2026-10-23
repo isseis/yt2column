@@ -50,7 +50,7 @@ define format_files_from_list
 	fi
 endef
 
-.PHONY: all build clean test test-ci test-integration test-integration-deepseek test-integration-claude test-integration-cli test-integration-slack test-integration-cli-slack lint fmt fmt-all deadcode tidy install-mergepr install-fixprguard ext-install ext-typecheck ext-lint ext-fmt-check ext-fmt ext-test ext-build ext-check
+.PHONY: all build clean test test-ci test-parse-norace test-integration test-integration-deepseek test-integration-claude test-integration-cli test-integration-slack test-integration-cli-slack lint fmt fmt-all deadcode tidy install-mergepr install-fixprguard ext-install ext-typecheck ext-lint ext-fmt-check ext-fmt ext-test ext-build ext-check
 
 all: build
 
@@ -80,13 +80,28 @@ clean:
 	rm -f coverage.out coverage.html
 
 # Unit tests. Never reach yt-dlp, an LLM API, or a Webhook (fakes only).
+# After the -race run, test-parse-norace checks the copied-transcript parse
+# deadline, which the -race build does not check.
 test:
 	$(GOTEST) -tags test -race -v ./...
+	@$(MAKE) --no-print-directory test-parse-norace
 
-# CI variant: same tests plus a coverage profile.
+# CI variant: same tests plus a coverage profile. -count=1 keeps a rerun on the
+# same commit from reusing a cached result restored by actions/setup-go.
 test-ci:
-	$(GOTEST) -tags test -race -coverprofile=coverage.out ./...
+	$(GOTEST) -tags test -race -count=1 -coverprofile=coverage.out ./...
 	@$(GOCMD) tool cover -func=coverage.out | tail -1
+
+# Parse-time check of the copied-transcript parser: runs only
+# TestParseCopiedLargeInputs, without -race and without coverage, so the parse
+# is timed as the server builds it and with no other package's tests running
+# alongside. The build without the race detector is the only one that compares
+# the parse time with the deadline. -count=1 keeps a rerun from reusing a
+# cached result. `make test` calls this from its recipe after the -race run
+# rather than listing it as a prerequisite, which `make -j` would run in
+# parallel with the -race run and so slow down the timed parse.
+test-parse-norace:
+	$(GOTEST) -tags test -count=1 -v -timeout 5m -run '^TestParseCopiedLargeInputs$$' ./internal/transcript
 
 # Integration test. Runs the real yt-dlp against the network, so it is kept
 # out of `make test` by the `integration` build tag. The video defaults below

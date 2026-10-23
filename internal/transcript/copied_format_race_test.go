@@ -10,7 +10,16 @@ package transcript
 // build uses a loose bound that still catches a super-linear (quadratic) number
 // of allocations.
 //
-// This file is built by `make test` (-race) but not by `make lint`, which
-// passes only the test,integration build tags; the non-race bound lives in
-// copied_format_norace_test.go and is checked by lint.
-const copiedParseAllocPerByte = 8192
+// copiedParseChecksDeadline is false: the race build does not compare the
+// parse time with copiedParseDeadline. The server is built without the race
+// detector, whose instrumentation slows the parse by an amount unrelated to the
+// server's parse time, so the deadline is checked only by the non-race build.
+//
+// This file is built by the -race runs (`make test` and `make test-ci`) but not
+// by `make lint`, which passes only the test,integration build tags. The
+// non-race constants live in copied_format_norace_test.go, which lint compiles
+// and `make test-parse-norace` (run by `make test` and by CI) builds and runs.
+const (
+	copiedParseAllocPerByte   = 8192
+	copiedParseChecksDeadline = false
+)
