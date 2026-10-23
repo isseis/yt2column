@@ -528,6 +528,10 @@ LLM の API を呼ぶ実行（本番の CLI と試作の両方）は、実行の
 -   **検証・推敲の推定コスト:** 10 件の合計は 1.089792 USD（B1 の 10 件は 1.093472 USD）。
 -   **検証・推敲が直した件数（CLI の要約）:** roNZ-rLxhUE-1 は 3 件（meaning_change 2、misrecognition 1）、roNZ-rLxhUE-2 は 1 件（meaning_change 1）、18tbwwPM91A-1 は 8 件（meaning_change 2、speaker 6）、18tbwwPM91A-2 は 6 件（meaning_change 2、speaker 4）、zW1RBacSqjk-1 は 0 件、zW1RBacSqjk-2 は 2 件（meaning_change 2）、leE02uqgaKg-1 は 2 件（unsupported 1、meaning_change 1）、leE02uqgaKg-2 は 3 件（unsupported 2、meaning_change 1）、EqnGQDU71-Y-1 は 1 件（unsupported 1）、EqnGQDU71-Y-2 は 1 件（meaning_change 1）。
 
+#### 4.4.2. 人の判断（2026-10-23）
+
+-   **roNZ-rLxhUE-1 の根拠「小賢しいだけの場合もあります」（人が不合格と判断、2026-10-23）:** B1-r2 の第 1 節「建前を反故にすることがリアリズムと見られがちですが、小賢しいだけの場合もあります」。字幕（15:21〜15:24）は「ただ小るいだけじゃないか」「小ずるさがリアズムである場合もある」で、語は「小ずるい」である。LLM は、話者の評価の向き（リアリズムではない）は保たれるとして合格を推薦した。人は、「ずるい」（不誠実）と「賢しい」（生意気な利口さ）は意味が違うので、意味の変わる言い換え（AC-20）として不合格とした。由来は生成で、B1 の検証・推敲（項目 1）は「ただ小ずるいだけ」に直し、B1-r2 の検証・推敲は直さなかった。
+
 ### 4.5. 字幕だけからの話者の特定（ステップ 5）
 
 （AC-30: 話者に関わる原因ごとに、字幕だけからの判断とその根拠、動画で確かめた話者、判断と判定が一致したか）
