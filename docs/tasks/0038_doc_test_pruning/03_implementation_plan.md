@@ -119,16 +119,16 @@
 
 **変更するファイル**: `docs/tasks/0038_doc_test_pruning/check_pruning.sh`（新規）、`docs/tasks/0038_doc_test_pruning/pruned_names.txt`（新規）
 
--   [ ] `pruned_names.txt` を、設計書 3.1・3.2 と本書 1.3.2 の全体から書く（1.1 の名前の一覧の各欄）。`docs/tasks/` 以外の文書でも探すのは、テストの名前と、ほかの語と紛れない補助の名前だけにする。node のテストの確認は、題（`it("...")` の文字列）で挙げる。
--   [ ] POSIX `sh` で、次のサブコマンドを持つスクリプトを書く。終了コードは、確認が通れば `0`、通らなければ `1`、使い方の誤り・知らないリビジョン・`git` の失敗は `2` とする。既定は作業ツリーを読み、`CHECK_REV` でリビジョンを選べる形は `check_wording.sh` にならう。
+-   [x] `pruned_names.txt` を、設計書 3.1・3.2 と本書 1.3.2 の全体から書く（1.1 の名前の一覧の各欄）。`docs/tasks/` 以外の文書でも探すのは、テストの名前と、ほかの語と紛れない補助の名前だけにする。node のテストの確認は、題（`it("...")` の文字列）で挙げる。
+-   [x] POSIX `sh` で、次のサブコマンドを持つスクリプトを書く。終了コードは、確認が通れば `0`、通らなければ `1`、使い方の誤り・知らないリビジョン・`git` の失敗は `2` とする。既定は作業ツリーを読み、`CHECK_REV` でリビジョンを選べる形は `check_wording.sh` にならう。
     -   `removed <PR>`: その PR までに削除する行の名前が、置き場所のファイルに残っていないこと（Go は宣言、node は題。AC-03・AC-06・AC-07）。また、`docs/tasks/` 以外の文書でも探す行の名前が、その文書（`CLAUDE.md`・`README.md`・`AGENTS.md`・`docs/dev/`・`.claude/commands/`）に現れないこと（AC-22）。
     -   `kept`: 残す行のテストが、置き場所のファイルに宣言されていること（AC-01・AC-19）。
     -   `unchanged <base>`: 取り下げたタスク 0029 の文書と、`.github/workflows/ci.yml` の `doc-guard` ジョブの `go test` の行が、`<base>`（その PR の前の `origin/main`）から変わっていないこと（AC-16・AC-21）。ほかのタスクが `ci.yml` のほかの行を変えても失敗しない。
     -   `records <base>`: `<base>` から変わった `docs/tasks/` のほかのタスクの `02_architecture.md`・`03_implementation_plan.md` が、`Status` を `approved` のままとし、`Comments` に `(decision)` と `0038` を含むこと（AC-14）。タスク 0035 の計画 5 章と設計書 7.5 の AC-18 の行が `manual` であること（AC-15）。
     -   `survey`: `_test.go`、`//go:build test` のファイル、`extension/test/` のうち、文書のパスや名前（`.md`、`docs/`、`.claude/`、`README`、`CLAUDE`、`AGENTS`、`prompts/`）を含むファイルを挙げること（AC-05 の調べの元）。
     -   `coverage <before> <after>`: 2 つのリビジョンを SHA に解決し、一時ディレクトリの `--detach` の作業ツリーで設計書 7.1 のコマンドで測り、`go tool cover -func` の差分を出すこと。どちらかの `go test` が失敗したら、差分を出さずに `2` で終える。成功しても失敗しても、作った作業ツリーを取り除く（AC-10・AC-11）。
--   [ ] `28cb00c` に対して、`removed 1`・`kept`・`unchanged 28cb00c` が通り、`coverage 28cb00c 28cb00c` の差分が空であることを確かめる。`coverage` の自己比較は 2 回行う。実行ごとに揺れる関数があれば、比較から外さずに止まり、7.1 のリスクの対策をとる。
--   [ ] 壊して確かめる（結果をコミットメッセージに記す）:
+-   [x] `28cb00c` に対して、`removed 1`・`kept`・`unchanged 28cb00c` が通り、`coverage 28cb00c 28cb00c` の差分が空であることを確かめる。`coverage` の自己比較は 2 回行う。実行ごとに揺れる関数があれば、比較から外さずに止まり、7.1 のリスクの対策をとる。
+-   [x] 壊して確かめる（結果をコミットメッセージに記す）:
     -   `removed`: 削除の行に、今あるテストの名前を書いた写しで `1`。
     -   `kept`: 残す行に、ない名前を書いた写しで `1`。
     -   `unchanged`: `doc-guard` の `go test` の行を変えた作業ツリーで `1`、`ci.yml` のほかの行を変えた作業ツリーで `0`。
@@ -141,7 +141,7 @@
 
 **変更するファイル**: `CLAUDE.md`
 
--   [ ] 「Testing Strategy」（`CLAUDE.md:267-`）に、文書のテストについての一項を英語で加える（設計書 3.5、AC-23）。K1〜K3 は確かめてよいもの、D1〜D4 は確かめないもの、自然言語の記述は PR のレビューでの読み合わせで確かめること、K4・K5 の例外とその理由（`/fixpr`・`/runpr` の信頼の境界）を述べる。
+-   [x] 「Testing Strategy」（`CLAUDE.md:267-`）に、文書のテストについての一項を英語で加える（設計書 3.5、AC-23）。K1〜K3 は確かめてよいもの、D1〜D4 は確かめないもの、自然言語の記述は PR のレビューでの読み合わせで確かめること、K4・K5 の例外とその理由（`/fixpr`・`/runpr` の信頼の境界）を述べる。
 
 **完了条件**: 項が加わり、`make test` が通る。
 
@@ -149,11 +149,11 @@
 
 **変更するファイル**: `.claude/commands/mkplan.md`
 
--   [ ] `:74` の「Every AC must have at least one `test` or `static` entry」に、文書の自然言語の記述を定める AC は `manual` だけでよい、という例外を加える。それ以外の AC には、今までどおり `test` か `static` を求める（AC-24・AC-25）。
--   [ ] `:71` の、AC ごとに実行される検証を挙げる項目と、`:106` の Reviewer B の役目に、同じ例外を反映する（1.3.3）。
--   [ ] `:79` の横断の検索の項目の「doc/glossary consistency」を、文書のテストにせず読み合わせで確かめるものにする（1.3.3）。
--   [ ] `:88` の「Documentation-only ACs」の項目を、自然言語の記述は読み合わせ（`manual`）、値と構造は K1〜K3 の文書のテストで確かめる、という形に改める（AC-24）。`rg` で語の有無を確かめる作業を求める例を除く。
--   [ ] `:122` の確認項目に、同じ例外を反映する。
+-   [x] `:74` の「Every AC must have at least one `test` or `static` entry」に、文書の自然言語の記述を定める AC は `manual` だけでよい、という例外を加える。それ以外の AC には、今までどおり `test` か `static` を求める（AC-24・AC-25）。
+-   [x] `:71` の、AC ごとに実行される検証を挙げる項目と、`:106` の Reviewer B の役目に、同じ例外を反映する（1.3.3）。
+-   [x] `:79` の横断の検索の項目の「doc/glossary consistency」を、文書のテストにせず読み合わせで確かめるものにする（1.3.3）。
+-   [x] `:88` の「Documentation-only ACs」の項目を、自然言語の記述は読み合わせ（`manual`）、値と構造は K1〜K3 の文書のテストで確かめる、という形に改める（AC-24）。`rg` で語の有無を確かめる作業を求める例を除く。
+-   [x] `:122` の確認項目に、同じ例外を反映する。
 
 **完了条件**: 6 か所が改まり、`make test` が通る。
 
@@ -161,9 +161,9 @@
 
 **変更するファイル**: `.claude/commands/runplan.md`、`.claude/commands/weakreview.md`、`docs/dev/developer_guide/requirements_process.md`
 
--   [ ] `runplan.md` の `:78`・`:158`・`:213` に、ステップ 1-3 と同じ例外を反映する（AC-24・AC-25）。
--   [ ] `weakreview.md` の `:219-222` に、同じ例外を反映する（1.3.3）。
--   [ ] `requirements_process.md` の `:227`・`:239`・`:278` に、同じ例外を反映する（AC-24・AC-25）。
+-   [x] `runplan.md` の `:78`・`:158`・`:213` に、ステップ 1-3 と同じ例外を反映する（AC-24・AC-25）。
+-   [x] `weakreview.md` の `:219-222` に、同じ例外を反映する（1.3.3）。
+-   [x] `requirements_process.md` の `:227`・`:239`・`:278` に、同じ例外を反映する（AC-24・AC-25）。
 
 **完了条件**: 7 か所が改まり、`make test` が通る。
 
@@ -171,10 +171,10 @@
 
 **変更するファイル**: なし
 
--   [ ] `make test && make lint` を実行する。`.claude/commands/` と `CLAUDE.md` を読むテスト（`TestCodexMentionOnlyInRequestRow`・`TestPostingCommandsInventory` など）が、加えた文を受け入れることも、これで確かめる。
--   [ ] `.claude/commands/`・`docs/dev/`・`CLAUDE.md` を、AC ごとに `test` か `static` の検証を求める言い回しで検索し、ステップ 1-3・1-4 で改めていない箇所がないことを確かめる。
--   [ ] `pruned_names.txt` の行を、設計書 3.1・3.2 と本書 1.3.2 の表と 1 行ずつ突き合わせ、漏れと余りがないことを確かめる。
--   [ ] ステップ 1-2〜1-4 の差分に、要件書 F-001 の K1〜K5・D1〜D4 と同じ区別が書かれていること、文書の自然言語の記述以外の AC に `test` か `static` を求め続けていることを、読み合わせで確かめる（AC-23〜AC-25）。
+-   [x] `make test && make lint` を実行する。`.claude/commands/` と `CLAUDE.md` を読むテスト（`TestCodexMentionOnlyInRequestRow`・`TestPostingCommandsInventory` など）が、加えた文を受け入れることも、これで確かめる。
+-   [x] `.claude/commands/`・`docs/dev/`・`CLAUDE.md` を、AC ごとに `test` か `static` の検証を求める言い回しで検索し、ステップ 1-3・1-4 で改めていない箇所がないことを確かめる。
+-   [x] `pruned_names.txt` の行を、設計書 3.1・3.2 と本書 1.3.2 の表と 1 行ずつ突き合わせ、漏れと余りがないことを確かめる。
+-   [x] ステップ 1-2〜1-4 の差分に、要件書 F-001 の K1〜K5・D1〜D4 と同じ区別が書かれていること、文書の自然言語の記述以外の AC に `test` か `static` を求め続けていることを、読み合わせで確かめる（AC-23〜AC-25）。
 
 **完了条件**: 上の 4 つが済んでいる。
 
