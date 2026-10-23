@@ -41,9 +41,10 @@ func TestServerDocsContract(t *testing.T) {
 		if whole == "" {
 			t.Fatal("README.md has no '## Localhost server' section")
 		}
-		// The upgrade notes name the retired token file on purpose, so the
-		// checks below read the section without them. The heading is used only
-		// to find the range to exclude; the notes themselves are not checked.
+		// The upgrade notes describe retired leftovers, not the current server,
+		// so the checks below read the section without them, as before. The
+		// heading is used only to find the range to exclude; the notes
+		// themselves are not checked.
 		const upgradeHeading = "### Upgrading from the shared-token version"
 		section := whole
 		if upgrade := sectionByHeading(whole, upgradeHeading); upgrade != "" {
@@ -61,7 +62,7 @@ func TestServerDocsContract(t *testing.T) {
 			!hasLineContainingAll(section, "other Unix:", "$HOME"+config.SocketPathTailForTest("linux")) {
 			t.Error("README.md server section does not state the socket path for macOS and for other Unix")
 		}
-		// The curl example sends to the socket.
+		// The curl example names the articles endpoint.
 		if !hasLineContainingAll(section, "curl", server.ArticlesPath) {
 			t.Error("README.md server section has no curl example for " + server.ArticlesPath)
 		}
