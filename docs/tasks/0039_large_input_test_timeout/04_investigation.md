@@ -1,6 +1,6 @@
 # 調査の記録：大きな入力の解析のテストが CI で時間の上限を超える原因
 
-本書は、タスク 0039 の調査の記録である（[02_architecture.md](02_architecture.md)（以下「設計書」）3.8）。[01_requirements.md](01_requirements.md)（以下「要件書」）の AC-01〜AC-04・AC-06・AC-08・AC-13 の記録を置く。承認ではなく PR のレビューで中身を確かめる文書なので、`Document Status` を持たない。用語は要件書 6 章と設計書の冒頭の用語を同じ意味で使う。
+本書は、タスク 0039 の調査の記録である（[02_architecture.md](02_architecture.md)（以下「設計書」）3.8）。[01_requirements.md](01_requirements.md)（以下「要件書」）の AC-01〜AC-04・AC-06・AC-08・AC-13（パーサを改善した場合は AC-15）の記録を置く。承認ではなく PR のレビューで中身を確かめる文書なので、`Document Status` を持たない。用語は要件書 6 章と設計書の冒頭の用語を同じ意味で使う。
 
 値はすべて `TestParseCopiedLargeInputs` の `t.Logf` の行（`internal/transcript/copied_format_test.go:1088`。時間、メモリの確保量、1 バイトあたりの確保量）から読んだ。入力の名前は、サブテストの名前（`go test -v` の出力の形）で書く。
 
@@ -14,7 +14,7 @@
 | CPU とコア数 | Apple M3 Pro、12 コア（性能コア 6、効率コア 6。`sysctl hw.ncpu hw.perflevel0.physicalcpu hw.perflevel1.physicalcpu`） |
 | Go の版 | go1.26.5 darwin/arm64（`go.mod:3` の版。`GOTOOLCHAIN=go1.26.5` で指定した。手元の既定は go1.27.1） |
 | 計測したコミット | `fddb4f7`（`main`。本タスクの変更の前） |
-| 計測した日時 | 2026-10-23 07:01〜07:22（UTC） |
+| 計測した日時 | 2026-10-23 07:01〜07:22（UTC）。プロファイル（3 章）は 07:22〜07:24（UTC） |
 
 ## 2. 手元の計測（AC-01）
 
@@ -28,7 +28,7 @@
 | (b) `make test` の中 | `go clean -testcache` の後に `make test` |
 | (c) (a) にカバレッジ | `go test -tags test -race -count=1 -v -coverprofile=<一時ファイル> -run '^TestParseCopiedLargeInputs$' ./internal/transcript` |
 | (d) `make test-ci` と同じ条件 | `go test -tags test -race -count=1 -v -coverprofile=<一時ファイル> ./...` |
-| (e) pre-commit のフックと同じ条件（AC-01 の外。本計画 §6 のリスクの判断に使う） | `go test -tags test -count=1 -v ./...` |
+| (e) pre-commit のフックと同じ条件（AC-01 の外。実装計画 §6 のリスクの判断に使う） | `go test -tags test -count=1 -v ./...` |
 
 (b) では、3 回とも `internal/transcript` の行が `ok  	github.com/isseis/yt2column/internal/transcript	34.843s` のように時間を示し、`(cached)` でなかった（3 回めは 2.4 のとおり `FAIL` の行）。どの条件の出力にも `internal/transcript` の `(cached)` はなかった。
 
@@ -96,18 +96,18 @@
 | `form_A_headings_between_segments` | 0.050 / 0.050 / 0.051 | 6.58 / 6.58 / 6.58 |
 | `one-byte_form_B_headings` | 0.051 / 0.052 / 0.052 | 8.00 / 8.01 / 8.01 |
 
-参考として、`-race` なし・単独（`go test -tags test -count=1 -v -run '^TestParseCopiedLargeInputs$' ./internal/transcript`）も各巡の最後に 1 回ずつ実行した。`shortest_form_A_lines` は 0.099 / 0.108 / 0.113 秒、`textless_form_B_timestamps` は 0.096 / 0.098 / 0.098 秒で、ほかの 5 つは 0.05 秒以下だった。
+参考として、`-race` なし・単独（`go test -tags test -count=1 -v -run '^TestParseCopiedLargeInputs$' ./internal/transcript`）も各巡の最後に 1 回ずつ実行した。`shortest_form_A_lines` は 0.099 / 0.108 / 0.113 秒、`textless_form_B_timestamps` は 0.096 / 0.098 / 0.098 秒で、ほかの 5 つは 0.06 秒未満だった。
 
 ### 2.3. 手元の計測から分かること
 
 -   メモリの確保量は、同じビルドの中では条件に依らない。どの入力でも、(a)〜(d) の中央の値の差は 1% 未満である。`-race` 付きと `-race` なしの差は、`shortest_form_A_lines` で約 92 倍（1715.92 ÷ 18.67）、`textless_form_B_timestamps` で約 146 倍（1869.03 ÷ 12.81）、`form_A_headings_between_segments` で約 90 倍（590.20 ÷ 6.58）である。ほかの 4 つの入力は、両方のビルドで同じ程度（1 バイトあたり 0〜16 バイト）である。
--   時間は、カバレッジで増える。(c) ÷ (a) の中央の値は、`shortest_form_A_lines` で 1.38、`textless_form_B_timestamps` で 1.41 だが、時間の短い入力では大きく、`trailing_zero-length_lines` で 16.6、`one_long_form_A_line` で 13.6 である。カバレッジの負担は入力の行数や照合の回数より、解析で通る文の数に比例すると見られる。
--   全パッケージの並行（(d)）は、(c) よりさらに時間を増やす。(d) ÷ (c) の中央の値は、`shortest_form_A_lines` で 1.12、`textless_form_B_timestamps` で 1.09 である。
+-   時間は、カバレッジで増える。(c) ÷ (a) の中央の値は、`shortest_form_A_lines` で 1.38、`textless_form_B_timestamps` で 1.41 だが、時間の短い入力では大きく、`trailing_zero-length_lines` で 16.6、`one_long_form_A_line` で 13.6 である。理由は計測していない。仮説としては、`-race` 付きの `-coverprofile` の既定の `covermode=atomic` により、文ごとの計数がアトミックな操作となって検出器を通ることが考えられる。要因の切り分けは結論（AC-04）で扱う。
+-   (d) は (c) よりさらに時間がかかる。(d) ÷ (c) の中央の値は、`shortest_form_A_lines` で 1.12、`textless_form_B_timestamps` で 1.09 である。この比は、同じパッケージの先行のテスト（(d) では大きな入力のテストより前に同じプロセスで動く）と、ほかのパッケージとの並行の両方を含む。(b) ÷ (a) も同じである。2 つの切り分けは、CI の `race-cover-package` の計測と結論（AC-04）で行う。
 -   `-race` なしでは、全パッケージの並行（(e)）でも単独（参考の値）とほとんど変わらず、最大は `shortest_form_A_lines` の 0.107 秒である。
 
 ### 2.4. 計測の間の機械の負荷
 
-計測の間、同じ機械では Spotlight の索引作り（`mds_stores`）がおよそ 2〜3 コアを使っていた。各実行の開始時の 1 分の負荷の平均は 2.9〜10.1 で、3 巡めの (c)〜(e) は 6.5〜7.2 と高かった。3 巡めの (b)・(d)・(e) では、本タスクの対象外のテスト `TestCommandExecutorDrainsStderr`（`internal/transcript/exec_test.go`。2 秒の時間の上限を持つ。要件書 2.3）が `signal: killed` で失敗し、`internal/transcript` の行が `FAIL` になった。大きな入力のテストは、この 3 回を含むすべての実行で成功し、値をログに出した。(b) と (d) の `shortest_form_A_lines` の最大（4.826 秒・6.635 秒）は、この 3 巡めの値である。
+1 巡めの (b) の実行中（07:03 ごろ）に `ps` で見たとき、同じ機械では Spotlight の索引作り（`mds_stores`）が CPU を約 270%（約 2.7 コア分）使っていた。ほかの時刻には確かめていない。各実行の開始時の 1 分の負荷の平均は 2.9〜10.1 で、3 巡めの (c)〜(e) は 6.5〜7.2 と高かった。3 巡めの (b)・(d)・(e) では、本タスクの対象外のテスト `TestCommandExecutorDrainsStderr`（`internal/transcript/exec_test.go`。2 秒の時間の上限を持つ。要件書 2.3）が `signal: killed` で失敗し、`internal/transcript` の行が `FAIL` になった。大きな入力のテストは、この 3 回を含むすべての実行で成功し、値をログに出した。(b) と (d) の `shortest_form_A_lines` の最大（4.826 秒・6.635 秒）は、この 3 巡めの値である。
 
 ## 3. プロファイル（AC-03）
 
@@ -151,27 +151,27 @@ GOTOOLCHAIN=go1.26.5 go tool pprof -sample_index=alloc_space -focus=parseCopiedT
 
 | 入力 | ビルド | サブテストの解析の時間 | サンプルの合計 | 上位（割合） |
 |---|---|---|---|---|
-| `shortest_form_A_lines` | `-race` 付き | 2.76 秒 | 3.65 秒 | `__tsan_read` 29.6%、`__tsan::MemoryAccessRangeT` 18.1%、`runtime.pthread_cond_wait` 12.1%、`runtime.usleep` 7.7%、`runtime.pthread_cond_signal` 6.0%、`__tsan::MemoryRangeSet` 3.8%、`runtime.findObject` 3.0% |
+| `shortest_form_A_lines` | `-race` 付き | 2.76 秒 | 3.65 秒 | `__tsan_read` 29.6%、`__tsan::MemoryAccessRangeT` 18.1%、`runtime.pthread_cond_wait` 12.1%、`runtime.usleep` 7.7%、`runtime.pthread_cond_signal` 6.0%、`runtime.kevent` 4.4%、`__tsan::MemoryRangeSet` 3.8%、`runtime.findObject` 3.0% |
 | `shortest_form_A_lines` | `-race` なし | 0.10 秒 | 0.12 秒 | `parseCopiedFormA` 25%（累積 67%）、`runtime.madvise` 17%、ほかは 1 サンプルずつ |
 | `textless_form_B_timestamps` | `-race` 付き | 2.92 秒 | 4.17 秒 | `__tsan_read` 46.3%、`runtime.pthread_cond_signal` 9.6%、`runtime.pthread_cond_wait` 8.4%、`runtime.usleep` 7.9%、`runtime.findObject` 7.0%、`__tsan::MemoryRangeSet` 3.4%、`runtime.scanObject`（累積）12.7% |
 | `textless_form_B_timestamps` | `-race` なし | 0.12 秒 | 0.12 秒 | `runtime.madvise` 33%、`parseCopiedFormB`（累積）50%、`regexp.(*Regexp).tryBacktrack`（累積）25% |
 
-`-race` 付きのビルドの CPU の時間の大半は、データ競合の検出器の実行時（`__tsan_*`。Go のスタックを持たず、`runtime._System` に数えられる）と、GC（`runtime.findObject`・`runtime.scanObject`）と、それらのスレッドの待ち合わせ（`pthread_cond_*`・`usleep`）である。パーサ自身の関数は、どちらの入力でも上位に現れない。`-race` なしのビルドは、サンプルが 12 個しかなく、関数ごとの割合の精度は低い。
+`-race` 付きのビルドの CPU の時間の大半は、データ競合の検出器の実行時（`__tsan_*`。Go のスタックを持たず、`runtime._System` に数えられる）と、GC（`runtime.findObject`・`runtime.scanObject`）と、それらのスレッドの待ち合わせ（`pthread_cond_*`・`usleep`）である。`runtime._System` の累積は 54.5%（`shortest_form_A_lines`）・50.6%（`textless_form_B_timestamps`）で、`parseCopiedTranscript` の累積は 6.0%・5.5% しか見えない。ただし `__tsan_read` は、計装された読み出しのたびに呼ばれるので、パーサと `regexp` 自身の読み出しの検出器の負担も `runtime._System` に数えられる。このプロファイルからは、検出器の時間のうち、確保（3.2）による分と、読み出しの計装による分を分けられない。`-race` なしのビルドは、サンプルが 12 個しかなく、関数ごとの割合の精度は低い。
 
 ### 3.4. H-04 の仮説の成否
 
 **成り立つ。** H-04 の仮説は、`regexp` の照合の状態が `-race` の下では `sync.Pool` で再利用されず、照合のたびに確保されるというものである（設計書 3.6.3）。根拠は次のとおりである。
 
 -   **標準ライブラリ（go1.26.5）:** `regexp` のバックトラックの照合は、照合の状態 `bitState` を `sync.Pool` の `bitStatePool` から取り出し、照合の後に戻す（`regexp/backtrack.go:47-60`）。`sync.Pool.Put` は、`race.Enabled` のとき、戻された値を 4 回に 1 回、無作為に捨てる（`sync/pool.go:103-107`。コメントは「Randomly drop x on floor」）。捨てられた後の照合は `new(bitState)` から始め、`reset` で `b.visited` を、必要な長さに依らず容量 `maxBacktrackVector/visitedBits`（256 × 1024 ÷ 32 = 8192 個の `uint32`、32 KiB）で確保し（`regexp/backtrack.go:33`・`:91`）、`b.jobs` を容量 256 で確保する（同 `:84`）。
--   **プロファイル:** `-race` 付きのビルドでは `bitState.reset` の確保が解析の中の確保量の 98% を占め、確保の回数は入力の行数の 4 分の 1〜2 分の 1 に当たる（3.2）。`-race` なしのビルドでは、同じ関数の確保は 1 回だけで、`sync.Pool` による再利用が働いている。
--   **時間:** `-race` 付きのビルドの CPU の時間は、検出器の実行時と GC に費やされている（3.3）。32 KiB の確保が照合のたびに起こると、検出器はその範囲の記録（`MemoryRangeSet` など）を、GC はその回収を行う。
+-   **プロファイル:** `-race` 付きのビルドでは `bitState.reset` の確保が解析の中の確保量の 98% を占め、確保の回数はバックトラックの照合の回数の約 4 分の 1 に当たる（3.2）。確保の回数は、バックトラックの照合の回数の約 4 分の 1 に当たり、`sync.Pool.Put` が `runtime_randn(4) == 0` のときに捨てる割合（`sync/pool.go:104`）と合う。`shortest_form_A_lines` の行（10 バイト）は 2 つの正規表現の最小の入力の長さ以上なので、1 行あたり 2 回照合する（381,300 × 2 ÷ 4 = 190,650。観測 190,905）。`textless_form_B_timestamps` の行（`0:00`、4 バイト）は時・分・秒の正規表現の最小の入力の長さ（7 バイト）より短く、照合の前に除かれる（`regexp/exec.go:527`）ので、1 行あたり 1 回である（838,861 ÷ 4 = 209,715。観測 209,806）。`-race` なしのビルドでは、同じ関数の確保は 1 回だけで、`sync.Pool` による再利用が働いている。
+-   **時間:** 確保の仕組みは上の 2 項目で確かめた。`-race` 付きのビルドの CPU の時間は検出器の実行時と GC に費やされている（3.3）が、そのうち確保による分は定量していない。時間の増加が `-race` に固有であること（`-race` なしのビルドでは同じ入力が約 0.1 秒）は、3.3 と 2.2 の値で確かめた。
 
 ### 3.5. `-race` 付きの確保量の妥当性
 
 **`-race` 付きのビルドに固有の、妥当な確保量であり、本番の解析を表さない。** 理由は次のとおりである。
 
 -   同じ入力の `-race` なしのビルドの確保量は、1 バイトあたり 18.67（`shortest_form_A_lines`）・12.81（`textless_form_B_timestamps`）である（2.2 の (e) と参考の値）。`-race` 付きの 1 バイトあたり約 1,710〜1,875 バイトとの差の 98% は、3.4 の標準ライブラリの仕組み（`-race` のときだけ `sync.Pool` が値を捨てる）による。パーサのコードは、両方のビルドで同じ回数の照合を行っている。
--   本番の `yt2column-server` は `-race` なしでビルドされる（`Makefile:60-64`）。`-race` なしの解析は、4 MiB の入力を手元で 0.12 秒未満、確保量 1 バイトあたり 19 バイト以下（4 MiB で約 78 MB）で終える。0015 の解析の予算（30 秒未満、目標 1 秒未満）に対して、時間は目標の約 9 分の 1 である。
+-   本番の `yt2column-server` は `-race` なしでビルドされる（`Makefile:60-64`）。`-race` なしの解析は、4 MiB 以下の入力を手元で 0.12 秒程度以下（計測の実行の最大は 0.113 秒）、確保量 1 バイトあたり 19 バイト以下（`shortest_form_A_lines` で約 75 MB。pprof の単位）で終える。0015 の解析の予算（30 秒未満、目標 1 秒未満）に対して、時間は目標の約 9 分の 1 である。
 -   `-race` 付きの確保量の上限（1 バイトあたり 8192。`copied_format_race_test.go:16`）は、観測した最大（1879.72）の約 4.4 倍で、超過していない。
 
 ## 4. パーサの改善の見込み
@@ -182,7 +182,7 @@ GOTOOLCHAIN=go1.26.5 go tool pprof -sample_index=alloc_space -focus=parseCopiedT
 
 -   **プロファイルでの位置:** `-race` 付きのビルドの確保量の 98%（3.2）と、時間の大半（3.3 の検出器と GC の時間）の原因である。`-race` なしのビルドでも、確保量の 23%（`shortest_form_A_lines`）・75%（`textless_form_B_timestamps`）を占める。
 -   **改善の方法の案:** 2 つの正規表現（`copied_format.go:87-88`）による照合を、バイトを先頭から読む手書きの照合に置き換える。文法は固定の長さの数字とコロンの並びなので、正規表現の機械は要らない。部分一致の位置のスライスも作らない。
--   **見込める効果:** `-race` 付きのビルドでは、`bitState` の確保がなくなるので、確保量は 1 バイトあたり約 1,710〜1,875 から、`-race` なしの値に近い 10〜20 程度に下がり、時間も検出器と GC の負担の分だけ短くなると見込む（数倍。CI の失敗した入力でも、上限 15 秒を大きく下回る見込み）。`-race` なしのビルドでは、確保量が `shortest_form_A_lines` で 1 バイトあたり約 4、`textless_form_B_timestamps` で約 10 減り、時間は照合の分（0.1 秒のうち数十ミリ秒）だけ短くなると見込む。本番の解析の時間は、0015 の目標（1 秒）に対してすでに約 9 分の 1 であり、予算の面で得るものは小さい。
+-   **見込める効果:** `-race` 付きのビルドでは、`bitState` の確保がなくなるので、確保量は 1 バイトあたり約 1,710〜1,875 から、`-race` なしの値に近い 10〜20 程度に下がり、時間も短くなると見込む。時間の見込みは、確保量が 1 バイトあたり 8 バイト程度の入力の、`-race` 付き ÷ `-race` なしの比（手元の (a) と参考の値の中央で、`one-byte_prefix_lines` 0.289 ÷ 0.041 ≈ 7.0、`one-byte_form_B_headings` 0.424 ÷ 0.049 ≈ 8.7）を、確保のない場合の検出器の負担と見て求める。`shortest_form_A_lines` の今の比は 2.809 ÷ 0.108 ≈ 26 なので、この比が 7〜9 になれば、手元の `-race` 付きの時間は約 0.8〜0.95 秒、今の約 3 分の 1 になる。読み出しの計装の負担は入力ごとに違うので、この値は目安であり、計測した値ではない。`-race` なしのビルドでは、確保量が `shortest_form_A_lines` で 1 バイトあたり約 4、`textless_form_B_timestamps` で約 10 減り、時間は照合の分（0.1 秒のうち数十ミリ秒）だけ短くなると見込む。本番の解析の時間は、0015 の目標（1 秒）に対してすでに約 9 分の 1 であり、予算の面で得るものは小さい。
 -   **AC-14 を保つうえでの危険:** 時刻の文法（時の範囲 1〜99 と分の範囲 0〜59 で先頭の 0 を許さないこと、分と秒が 2 桁であること、`m:ss` の後に `:` が続く行を時刻と読まないこと。`copied_format.go:220-223`・`:234`）を、手書きの照合が正規表現と完全に同じに受け入れ、拒否しなければならない。一致しない入力の位置（`consumed`）も同じでなければならない。食い違うと、受理と拒否の判定、セグメントの `StartMs`、拒否の理由と行番号が変わる。
 -   **確かめ方:** 既存の 0015・0024 のテスト（fuzz のテストの種を含む）を変更なしで通す（AC-14）。加えて、正規表現の照合と手書きの照合の結果（受理か、時・分・秒、`consumed`）を任意の文字列で比べる差分の fuzz のテストを、改善の PR の間だけ置いて実行する。
 
