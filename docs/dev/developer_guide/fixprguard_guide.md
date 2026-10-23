@@ -387,19 +387,19 @@ else
 fi
 if [ -n "$got" ] && [ "$got" = "$want" ]; then
   echo 'begin record: matches the baseline'
-  diff "$gitdir/fixprguard-ignored-begin" "$gitdir/fixprguard-ignored-stop" | LC_ALL=C cat -vt
+  diff "$gitdir/fixprguard-ignored-begin" "$gitdir/fixprguard-ignored-stop" | LC_ALL=C sed 's/\^/^^/g' | LC_ALL=C cat -vt
 else
   echo 'begin record: does not match the baseline, do not trust it'
 fi
 ```
 
-Use `sha256sum` on Linux and `shasum -a 256` on macOS. In the `diff` output, a `<` line is only in the record at `begin` and a `>` line only in the record at the stop. A path on both sides is a file that changed, one only on the `<` side was removed, and one only on the `>` side was added. `cat -vt` shows control characters in the `diff` output in a form starting with `^` (without wrapping lines). The paths of the stop record's lines are the list of target files at the stop. The stop record is not tied to the baseline, so do not trust its content too far. If only the stop record is missing, it may have failed to be written. Redoing `inspect` writes it again from the same comparison.
+Use `sha256sum` on Linux and `shasum -a 256` on macOS. In the `diff` output, a `<` line is only in the record at `begin` and a `>` line only in the record at the stop. A path on both sides is a file that changed, one only on the `<` side was removed, and one only on the `>` side was added. `cat -vt` shows control characters and tabs in the `diff` output in a form starting with `^` (without wrapping lines). Before it, `sed` turns each literal `^` into `^^`, so `^A` is a control character and `^^A` is the two characters `^` and `A`. The paths of the stop record's lines are the list of target files at the stop. The stop record is not tied to the baseline, so do not trust its content too far. If only the stop record is missing, it may have failed to be written. Redoing `inspect` writes it again from the same comparison.
 
-If the check does not match, or the begin record is missing, strongly suspect a compromise. Restore `.claude/settings.local.json`, `.envrc`, and `.env` from trusted copies the user keeps elsewhere. Without relying on the records, list the ignored files and what is below `.claude/` with the following commands, and examine every file on the watch list (7.1). The paths in the output are escaped, and a newline inside a name shows as `^A`.
+If the check does not match, or the begin record is missing, strongly suspect a compromise. Restore `.claude/settings.local.json`, `.envrc`, and `.env` from trusted copies the user keeps elsewhere. Without relying on the records, list the ignored files and what is below `.claude/` with the following commands, and examine every file on the watch list (7.1). The paths in the output are escaped, and a newline inside a name shows as `^A` and a literal `^` as `^^`.
 
 ```sh
-git -c core.fsmonitor=false ls-files --others --ignored --exclude-standard -z | tr '\n\0' '\001\n' | LC_ALL=C cat -vt
-find .claude -print0 | tr '\n\0' '\001\n' | LC_ALL=C cat -vt
+git -c core.fsmonitor=false ls-files --others --ignored --exclude-standard -z | tr '\n\0' '\001\n' | LC_ALL=C sed 's/\^/^^/g' | LC_ALL=C cat -vt
+find .claude -print0 | tr '\n\0' '\001\n' | LC_ALL=C sed 's/\^/^^/g' | LC_ALL=C cat -vt
 ```
 
 When `begin` stops with `ignored`, this round has no records (`begin` removes the previous round's records before taking the state again). Do not run the block above; examine the files these commands list as (c) says, then redo.
@@ -433,10 +433,10 @@ The rule name of the `git-failed` diagnostic on standard error, `fixprguard: git
 The first line of the following commands shows only the warnings of the git that lists the ignored files. The second line shows files over 16 MiB, the third files over 1 MiB with links followed, and the fourth symbolic links. `cat -vt` shows control characters in the paths it prints in a form starting with `^`, so they do not control the terminal.
 
 ```sh
-git -c core.fsmonitor=false ls-files --others --ignored --exclude-standard -z 2>&1 >/dev/null | LC_ALL=C cat -vt
-find . -path ./.git -prune -o -type f -size +16M -print | LC_ALL=C cat -vt
-find -L . -path ./.git -prune -o -type f -size +1M -print | LC_ALL=C cat -vt
-find . -path ./.git -prune -o -type l -print | LC_ALL=C cat -vt
+git -c core.fsmonitor=false ls-files --others --ignored --exclude-standard -z 2>&1 >/dev/null | LC_ALL=C sed 's/\^/^^/g' | LC_ALL=C cat -vt
+find . -path ./.git -prune -o -type f -size +16M -print | LC_ALL=C sed 's/\^/^^/g' | LC_ALL=C cat -vt
+find -L . -path ./.git -prune -o -type f -size +1M -print | LC_ALL=C sed 's/\^/^^/g' | LC_ALL=C cat -vt
+find . -path ./.git -prune -o -type l -print | LC_ALL=C sed 's/\^/^^/g' | LC_ALL=C cat -vt
 ```
 
 ## 9. Changing the tool
