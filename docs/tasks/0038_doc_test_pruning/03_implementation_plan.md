@@ -254,9 +254,9 @@
 **変更するファイル**: なし
 
 -   [x] `main` を取り込み、`cmd/fixprguard` の文書のテストを数え直す。増えていれば、ステップ 2-1 の 4 つめと同じく扱う（設計書 3.4）。
--   [ ] `check_pruning.sh` の `removed 2 <PR の前の origin/main>`・`kept`・`unchanged <PR の前の origin/main>`・`records <PR の前の origin/main>` を実行し、結果を PR の説明に記す。
+-   [x] `check_pruning.sh` の `removed 2 <PR の前の origin/main>`・`kept`・`unchanged <PR の前の origin/main>`・`records <PR の前の origin/main>` を実行し、結果を PR の説明に記す。
 -   [x] `make test && make lint` を実行する。
--   [ ] PR の説明に、判定の一覧（AC-09）と `Refs #440`（AC-26）を書く。判定の一覧には、英語のガイドの 8.1 のブロックが実行されなくなることを、残余のリスクとして挙げる（7.1）。
+-   [x] PR の説明に、判定の一覧（AC-09）と `Refs #440`（AC-26）を書く。判定の一覧には、英語のガイドの 8.1 のブロックが実行されなくなることを、残余のリスクとして挙げる（7.1）。
 
 **完了条件**: 上の 4 つが済んでいる。
 
@@ -272,7 +272,7 @@
 
 **判定理由**: テストと過去のタスクの文書の削除・改訂で、判定は設計書と本書で決まっており、`mkplan2.md` step 4 の契機のどれにも当たらない。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
