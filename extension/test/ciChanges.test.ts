@@ -25,7 +25,6 @@ describe("has-extension-changes", () => {
     [".github/workflows/ci.yml"],
     [".github/workflows/release.yml"],
     ["go.mod"],
-    ["docs/dev/security.md"],
     ["README.md"],
     ["internal/server/response.go"],
     ["docs/dev/project_overview.md", "extension/package.json"],
@@ -64,10 +63,10 @@ describe("has-extension-changes", () => {
     // The document and server paths match whole paths only.
     ["docs/README.md"],
     ["README.md.bak"],
-    ["x/docs/dev/security.md"],
-    ["docs/dev/security.md.orig"],
     ["x/internal/server/response.go"],
     ["internal/server/response.go.orig"],
+    // security.md is no longer a document the extension tests read.
+    ["docs/dev/security.md"],
     // Another file in a scanned directory.
     ["docs/dev/project_overview.md"],
     ["internal/server/handler.go"],
