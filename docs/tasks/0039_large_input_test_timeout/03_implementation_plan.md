@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-23 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-23 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「要件書」）の項番を指す。節番号は [02_architecture.md](02_architecture.md)（以下「設計書」）の節を指し、本計画自身の節は「本計画 §N」と書く。用語は設計書の冒頭と要件書 6 章の用語（大きな入力のテスト、時間の確認、時間以外の確認、`-race` なしの確認のターゲット、レシピのガード、計測のワークフロー、調査の記録など）を同じ意味で使う。既存のファイルの行番号は、断りがない限りコミット `d6ea458`（`main`）で確かめた。
