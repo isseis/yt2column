@@ -397,6 +397,7 @@ func (f listingFixture) response() []map[string]any {
 // missing jq fails the test instead of skipping it, so the check never passes
 // unrun.
 func checkListings(t *testing.T, where, section string, fixtures map[string]listingFixture, readCalls []string) {
+	t.Helper()
 	jq, err := exec.LookPath("jq")
 	if err != nil {
 		t.Fatal("unsupported test environment: jq is not installed")
@@ -431,7 +432,8 @@ func checkListings(t *testing.T, where, section string, fixtures map[string]list
 		}
 		t.Run(endpoint, func(t *testing.T) {
 			checkListingConstructors(t, filter, fixture)
-			checkListingOutput(t, fixture, runJQ(t, jq, filter, fixture.response()))
+			response := fixture.response()
+			checkListingOutput(t, fixture, response, runJQ(t, jq, filter, response))
 		})
 	}
 }
@@ -468,11 +470,13 @@ func checkGhAPICalls(t *testing.T, where, section string, allowed []string) {
 	}
 }
 
-// checkListingConstructors checks every object a filter builds, whether or
-// not a fake item reaches it: each starts with a kind of fixture.keys, or has
-// no kind when fixture.kindless is set, and holds only keys that kind may
-// hold, so a branch added to a filter later is checked before any fixture
-// takes it. A "{" followed by a digit is a regex quantifier, not an object.
+// checkListingConstructors checks the keys of every object a filter builds,
+// whether or not a fake item reaches it: each starts with a kind of
+// fixture.keys, or has no kind when fixture.kindless is set, and holds only
+// keys that kind may hold. It does not read the values, nor a branch whose
+// result is not an object: those are checked only by running the filter on
+// the items that reach them. A "{" followed by a digit is a regex quantifier,
+// not an object.
 func checkListingConstructors(t *testing.T, filter string, fixture listingFixture) {
 	t.Helper()
 	for i := 0; i+1 < len(filter); i++ {
@@ -583,16 +587,15 @@ func runJQ(t *testing.T, jq, filter string, input any) string {
 }
 
 // checkListingOutput checks what a listing printed for fixture.
-func checkListingOutput(t *testing.T, fixture listingFixture, out string) {
+func checkListingOutput(t *testing.T, fixture listingFixture, response []map[string]any, out string) {
 	t.Helper()
 	if strings.Contains(strings.ToLower(out), bodyMarker) {
 		t.Errorf("the filter printed a body or a part of one:\n%s", out)
 	}
 	byURL := map[string]int{}
-	for i := range fixture.items {
-		byURL[fmt.Sprintf("https://github.test/item/%d", i)] = i
+	for i, obj := range response {
+		byURL[obj["html_url"].(string)] = i
 	}
-	response := fixture.response()
 	printed := map[int]int{}
 	dec := json.NewDecoder(strings.NewReader(out))
 	for {
@@ -965,7 +968,7 @@ func contextLine(t *testing.T, doc, name string) string {
 // inline.
 func TestRemovedCommandLiterals(t *testing.T) {
 	fixpr := readDoc(t, fixprPath)
-	for _, literal := range []string{"git add -A", "git commit -m", "comments(first:10)", "reviewThreads"} {
+	for _, literal := range []string{"git add -A", "git commit -m", "comments(first:", "reviewThreads"} {
 		if strings.Contains(fixpr, literal) {
 			t.Errorf("fixpr.md still contains %q", literal)
 		}
