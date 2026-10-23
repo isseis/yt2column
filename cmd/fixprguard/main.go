@@ -470,7 +470,8 @@ type beginOutput struct {
 
 // begin runs in this order: the work tree must be clean (before anything
 // reaches GitHub), the PR head must be in this repository, then the baseline
-// is taken and the threads are judged and fetched. The threads to process are
+// is taken, the begin record file is written, and the threads are judged and
+// fetched. The threads to process are
 // encoded as JSON, which escapes every newline and quote in a body, and then
 // fenced, so no body can end the block.
 func begin(ctx context.Context, inv invocation, e env, w *fixprguard.Worktree) (any, int, error) {
@@ -497,6 +498,11 @@ func begin(ctx context.Context, inv invocation, e env, w *fixprguard.Worktree) (
 	}
 	base, err := w.Baseline(ctx)
 	if err != nil {
+		return nil, 0, err
+	}
+	// The record is written before the baseline is printed, so no baseline
+	// reaches the session without the record it names.
+	if err := w.WriteBeginRecord(ctx, base); err != nil {
 		return nil, 0, err
 	}
 	round, err := g.Begin(ctx, pr, named)

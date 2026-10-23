@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"maps"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -694,5 +695,313 @@ func TestCutSection(t *testing.T) {
 				t.Errorf("got %q, want %q", tc.got, tc.want)
 			}
 		})
+	}
+}
+
+// codeSpan matches one inline code span.
+var codeSpan = regexp.MustCompile("`([^`]+)`")
+
+// codeSpans returns the set of code spans in text.
+func codeSpans(text string) map[string]struct{} {
+	spans := map[string]struct{}{}
+	for _, m := range codeSpan.FindAllStringSubmatch(text, -1) {
+		spans[m[1]] = struct{}{}
+	}
+	return spans
+}
+
+// TestGuideListsWatchList: in both guides, the table after the watch list
+// marker in 7.1 lists exactly the patterns WatchListPatterns returns, no
+// more and no fewer, and 7.1 has the row stating the guarantee. Only the
+// table is read: most items also appear in chapter 6 and in prose, which
+// would hide an item missing from the table.
+func TestGuideListsWatchList(t *testing.T) {
+	want := map[string]struct{}{}
+	for _, p := range fixprguard.WatchListPatterns() {
+		want[p] = struct{}{}
+	}
+	for _, tc := range []struct{ rel, marker, row string }{
+		{guideFiles[0], "**監視の一覧。**", "| git が無視するファイルのうち監視の一覧に当たるものの作成・書き換え・削除を、`inspect`・`finish`・`push` が基準値と比べて検出する |"},
+		{guideFiles[1], "**Watch list.**", "| The creation, rewrite, or removal of a file git ignores that is on the watch list is detected by `inspect`, `finish`, and `push` comparing with the baseline |"},
+	} {
+		t.Run(filepath.Base(tc.rel), func(t *testing.T) {
+			guarantees := subsection(readRepoFile(t, tc.rel), "### 7.1")
+			table := guideTable(guarantees, tc.marker)
+			if got := codeSpans(table); !maps.Equal(got, want) {
+				t.Errorf("the watch list table lists %v, want %v", slices.Sorted(maps.Keys(got)), slices.Sorted(maps.Keys(want)))
+			}
+			singleLine(t, tc.rel, guarantees, tc.row)
+		})
+	}
+}
+
+// TestGuideNamesGitStateParts: the list of parts in the git-state-changed
+// row of chapter 8 in both guides names every value parts can hold, and
+// fixpr.md's list of the parts a git-state-changed stop names includes
+// ignored. Only the list is read, since the row's other cells name parts
+// too. fixpr.md words the other parts (HEAD, the remote branch, ...), so only
+// ignored is pinned there.
+func TestGuideNamesGitStateParts(t *testing.T) {
+	for _, tc := range []struct{ rel, open, closing string }{
+		{guideFiles[0], "`parts`（", "）"},
+		{guideFiles[1], "`parts` (", ")"},
+	} {
+		row := singleLine(t, tc.rel, readRepoFile(t, tc.rel), "| `git-state-changed` |")
+		_, rest, ok := strings.Cut(row, tc.open)
+		list, _, closed := strings.Cut(rest, tc.closing)
+		if !ok || !closed {
+			t.Errorf("%s: the git-state-changed row has no list after %q", tc.rel, tc.open)
+			continue
+		}
+		spans := codeSpans(list)
+		for _, part := range fixprguard.GitStateParts() {
+			if _, ok := spans[part]; !ok {
+				t.Errorf("%s: the git-state-changed row's parts do not name `%s`", tc.rel, part)
+			}
+		}
+	}
+	const fixprDoc = ".claude/commands/fixpr.md"
+	const partsList = "name the `parts` that differ from the baseline ("
+	_, rest, ok := strings.Cut(readRepoFile(t, fixprDoc), partsList)
+	list, _, closed := strings.Cut(rest, ")")
+	if !ok || !closed || !strings.Contains(list, "`"+fixprguard.PartIgnored+"`") {
+		t.Errorf("%s: the list after %q does not name `%s`", fixprDoc, partsList, fixprguard.PartIgnored)
+	}
+}
+
+// requireAll fails for each phrase text lacks; an empty text fails once.
+func requireAll(t *testing.T, rel, name, text string, phrases ...string) {
+	t.Helper()
+	if text == "" {
+		t.Errorf("%s: %s not found", rel, name)
+		return
+	}
+	for _, p := range phrases {
+		if !strings.Contains(text, p) {
+			t.Errorf("%s: %s does not say %q", rel, name, p)
+		}
+	}
+}
+
+// TestGuideDescribesIgnoredFiles: both guides state, in 7.2, the hidden-file
+// items split as the requirements ask and the residual risks of the target
+// files; in 8.1, steps (a) to (e) with both SHA-256 commands; and in 8.2
+// every rule IgnoredFailureRules names, which the git-failed row points to.
+// fixpr.md recognizes an ignored-file rule by "contains ignored, or is .git
+// name below .claude", so every rule must fit that. The guards check that the
+// words are there; whether the prose is right is checked in review. The
+// phrases are the guides' own, Japanese for the Japanese guide.
+func TestGuideDescribesIgnoredFiles(t *testing.T) {
+	const claudeGitRule = ".git name below .claude"
+	for _, rule := range fixprguard.IgnoredFailureRules() {
+		if !strings.Contains(rule, fixprguard.PartIgnored) && rule != claudeGitRule {
+			t.Errorf("rule %q contains neither %q nor is %q, so fixpr.md would not recognize it", rule, fixprguard.PartIgnored, claudeGitRule)
+		}
+	}
+	for _, tc := range []struct {
+		rel                       string
+		hidden, risks, steps      []string
+		gitFailedRef, failedTable string
+	}{
+		{
+			rel: guideFiles[0],
+			hidden: []string{
+				"監視の一覧（7.1）に当たらない、git が無視するファイルの書き換え",
+				"グローバルの除外のファイルで隠したファイルのうち、対象のファイルでないもの",
+				"index の stat の偽造で隠した変更",
+			},
+			risks: []string{
+				"監視の一覧に当たらない、git が無視するファイルを変えること",
+				"この作業ツリーの外のファイルを変えること",
+				"通常のファイルでないもの（FIFO・ソケット・デバイスなど）を新しく作ること",
+				"完全な大文字小文字の変換だけで監視の一覧の項目と同じになる名前",
+				"確認の前に元に戻すこと",
+				"検出の前に効く書き込み",
+				"まとめた値からの推測",
+				"記録のファイルの削除と書き換え",
+				"利用者が中身を確かめずに `begin` を実行すること",
+				"ディレクトリを指すシンボリックリンク",
+				"`.claude/worktrees/`",
+			},
+			steps: []string{
+				"**(a) 記録の照合と (b) 変わったファイルの特定。**",
+				"**(c) 内容を確かめるファイル。**",
+				"**(d) 作業ツリーに残った変更と、作られた commit。**",
+				"**(e) 正当な原因の場合。**",
+				"Claude Code のセッションの外の端末",
+				"更新時刻で絞り込まない",
+				"侵害を強く疑う",
+				"信頼できる写しから戻す",
+				"このラウンドの記録はない",
+				"その commit を調べて取り消す",
+			},
+			gitFailedRef: "標準エラーの規則の名前で分かる（8.2）",
+			failedTable:  "| 規則の名前 | 原因 | 対処 |",
+		},
+		{
+			rel: guideFiles[1],
+			hidden: []string{
+				"Rewrites of files git ignores that are not on the watch list (7.1)",
+				"or by the global exclude file that are not target files",
+				"Changes hidden by forging the stat information of the index",
+			},
+			risks: []string{
+				"Changing a file git ignores that is not on the watch list",
+				"Changing files outside this work tree",
+				"something that is not a regular file (a FIFO, a socket, a device, and so on)",
+				"equals an item of the watch list only under full case folding",
+				"changing it back before the check",
+				"A write that takes effect before the detection",
+				"Inference from the summarized value",
+				"Removing or rewriting a record file",
+				"The user running `begin` on a redo without examining the contents",
+				"a symbolic link to a directory",
+				"`.claude/worktrees/`",
+			},
+			steps: []string{
+				"**(a) Checking the record and (b) finding the changed files.**",
+				"**(c) Files whose content to examine.**",
+				"**(d) Changes left in the work tree, and a commit made.**",
+				"**(e) When the cause is legitimate.**",
+				"a terminal outside the Claude Code session",
+				"do not narrow the files to check by modification time",
+				"strongly suspect a compromise",
+				"Restore `.claude/settings.local.json`, `.envrc`, and `.env` from trusted copies",
+				"this round has no records",
+				"examine that commit and undo it",
+			},
+			gitFailedRef: "which the rule name on standard error shows (8.2)",
+			failedTable:  "| Rule name | Cause | What to do |",
+		},
+	} {
+		t.Run(filepath.Base(tc.rel), func(t *testing.T) {
+			guide := readRepoFile(t, tc.rel)
+			requireAll(t, tc.rel, "7.2.3", cutSection(guide, "#### 7.2.3", "\n## ", "\n### ", "\n#### "), tc.hidden...)
+			requireAll(t, tc.rel, "7.2.5", cutSection(guide, "#### 7.2.5", "\n## ", "\n### ", "\n#### "), tc.risks...)
+			requireAll(t, tc.rel, "8.1", subsection(guide, "### 8.1"), tc.steps...)
+			requireAll(t, tc.rel, "the git-failed row", singleLine(t, tc.rel, guide, "| `git-failed` |"), tc.gitFailedRef)
+			table := guideTable(subsection(guide, "### 8.2"), tc.failedTable)
+			// A "|" inside a cell, even in a code span, splits the cell and
+			// drops the rest of a command from the rendered table.
+			for line := range strings.Lines(table) {
+				if n := strings.Count(line, "|"); n != 4 {
+					t.Errorf("%s: 8.2 table row has %d pipes, want 4 (three cells): %q", tc.rel, n, line)
+				}
+			}
+			spans := codeSpans(table)
+			for _, rule := range fixprguard.IgnoredFailureRules() {
+				if _, ok := spans[rule]; !ok {
+					t.Errorf("%s: the 8.2 table does not list `%s`", tc.rel, rule)
+				}
+			}
+		})
+	}
+}
+
+// diffLine is one line of the 8.1 block's diff of two records: a change
+// command, the separator, or a whole record line on either side.
+var diffLine = regexp.MustCompile(`^([0-9,]+[acd][0-9,]+|---|[<>] [0-9a-f]{64} "[ -~]*")$`)
+
+// guideBlock returns the first sh code block of the guide's subsection.
+func guideBlock(t *testing.T, rel, heading string) string {
+	t.Helper()
+	_, rest, ok := strings.Cut(subsection(readRepoFile(t, rel), heading), "\n```sh\n")
+	block, _, closed := strings.Cut(rest, "\n```\n")
+	if !ok || !closed {
+		t.Fatalf("%s %s has no sh code block", rel, heading)
+	}
+	return block + "\n"
+}
+
+// TestGuideIgnoredCommands runs the record check of 8.1 as the user would,
+// on records begin and inspect wrote: the block is the same in both guides;
+// with the token begin printed it reports a match and diff names the path
+// that changed; with the begin record rewritten it reports no match and runs
+// no diff. The block prefers sha256sum and falls back to shasum, so it is run
+// once with each alone on PATH; each installed tool runs, and at least one
+// must be installed.
+func TestGuideIgnoredCommands(t *testing.T) {
+	block := guideBlock(t, guideFiles[0], "### 8.1")
+	if en := guideBlock(t, guideFiles[1], "### 8.1"); en != block {
+		t.Fatalf("the 8.1 code blocks differ:\n%s\n%s", block, en)
+	}
+	// pathWith is a PATH directory holding the block's tools and one of
+	// the two SHA-256 commands, so the block takes that command's branch.
+	pathWith := func(sha string) (string, bool) {
+		dir := t.TempDir()
+		for _, tool := range []string{sha, "sed", "cut", "diff", "cat"} {
+			target, err := exec.LookPath(tool)
+			if err != nil {
+				return "", false
+			}
+			if err := os.Symlink(target, filepath.Join(dir, tool)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return dir, true
+	}
+	var paths []string
+	for _, sha := range []string{"sha256sum", "shasum"} {
+		if dir, ok := pathWith(sha); ok {
+			paths = append(paths, dir)
+		}
+	}
+	if len(paths) == 0 {
+		t.Fatal("unsupported test environment: neither sha256sum nor shasum is installed")
+	}
+	repo := newTestRepo(t)
+	repo.Ignore("build/")
+	repo.Write("build/kept.go", "package x\n")
+	repo.Write("build/changed.go", "package x\n")
+	r := newTestRun(t, beginSteps(threadsPage(t, false)))
+	if code := r.Run(t, args(cmdBegin, "--reviewer", testReviewer, testPR)...); code != exitContinue {
+		t.Fatalf("begin: exit %d (%s)", code, r.Stderr)
+	}
+	var out beginJSON
+	r.Decode(t, &out)
+	repo.Write("build/changed.go", "package y\n")
+	inspect := newTestRun(t, nil)
+	if code := inspect.Run(t, args(cmdInspect, "--reviewer", testReviewer, "--baseline", out.Baseline, testPR)...); code != exitStop {
+		t.Fatalf("inspect: exit %d, want %d (%s)", code, exitStop, inspect.Stderr)
+	}
+	runBlock := func(path string) string {
+		t.Helper()
+		cmd := exec.Command("sh", "-c", block) //nolint:gosec // the guide's own code block, run in the test's repository
+		cmd.Dir = repo.Dir
+		cmd.Env = append(os.Environ(), "token="+out.Baseline, "PATH="+path)
+		got, err := cmd.Output()
+		// diff exits 1 when the records differ; any other failure is one.
+		if exitErr, ok := errors.AsType[*exec.ExitError](err); err != nil && (!ok || exitErr.ExitCode() != 1) {
+			t.Fatalf("run the block: %v\n%s", err, got)
+		}
+		return string(got)
+	}
+	for _, path := range paths {
+		got := runBlock(path)
+		if !strings.HasPrefix(got, "begin record: matches the baseline\n") || !strings.Contains(got, `"build/changed.go"`) || strings.Contains(got, `"build/kept.go"`) {
+			t.Errorf("PATH %s: block output = %q, want the match and a diff naming build/changed.go only", path, got)
+		}
+		// Each diff line is whole: a tool that wraps long lines (GNU sed's
+		// l does) would split a record line inside its path.
+		for _, line := range strings.Split(strings.TrimSuffix(got, "\n"), "\n")[1:] {
+			if !diffLine.MatchString(line) {
+				t.Errorf("PATH %s: diff line %q is not a whole diff or record line", path, line)
+			}
+		}
+	}
+	f, err := os.OpenFile(beginRecordName, os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.WriteString("0 \"forged\"\n"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range paths {
+		if got := runBlock(path); got != "begin record: does not match the baseline, do not trust it\n" {
+			t.Errorf("PATH %s: block output with the begin record rewritten = %q", path, got)
+		}
 	}
 }

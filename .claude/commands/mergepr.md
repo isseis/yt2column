@@ -121,8 +121,9 @@ around it with your own shell commands. Work in order; do not skip a step.
    message. Revise it as asked; after revising the subject, check it again as
    step 2 does. Do not merge without an explicit yes. When this
    command runs inside `runpr.md`, its step 4 asks
-   this question together with the pre-merge bookkeeping and the next command,
-   and says how to re-prepare after the bookkeeping commit.
+   this question together with the pre-merge bookkeeping and whether to run
+   the next command `runpr.md` offers (when there is one), and says how to
+   re-prepare after the bookkeeping commit.
 4. **Merge.** Run
    `mergepr merge --state <state-file> --subject-file <subject-file> --body-file <body-file>`.
    It requires the PR to be still open on the prepared base, then merges with

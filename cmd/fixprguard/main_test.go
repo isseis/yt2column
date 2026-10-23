@@ -3,12 +3,16 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -23,7 +27,7 @@ import (
 // --protocol first.
 func validArgs() map[string][]string {
 	const (
-		baseline    = "v2.x"
+		baseline    = "v3.x"
 		fingerprint = "f"
 	)
 	return map[string][]string{
@@ -334,18 +338,18 @@ func TestInspectChecksGitStateBeforeGh(t *testing.T) {
 	}
 }
 
-// TestPreviousBaselineRejected: a baseline token of the version before the
-// current one stops inspect, finish and push with exit 2 before any command
+// TestPreviousBaselineRejected: a baseline token in the shape the version
+// before the current one printed (v2 and seven fields, without the target
+// file digests) stops inspect, finish and push with exit 2 before any command
 // runs. Every other value on each line is valid, and validBaseline checks
-// that the same token with the current version parses, so only the version
-// can be refused.
+// that the current shape with the same values parses.
 func TestPreviousBaselineRejected(t *testing.T) {
 	current := validBaseline(t)
-	rest, ok := strings.CutPrefix(current, "v2.")
-	if !ok {
-		t.Fatalf("test setup: baseline %q is not version v2", current)
+	fields := strings.Split(current, ".")
+	if fields[0] != "v3" || len(fields) != 10 {
+		t.Fatalf("test setup: baseline %q is not version v3 with nine fields", current)
 	}
-	previous := "v1." + rest
+	previous := strings.Join(append([]string{"v2"}, fields[1:8]...), ".")
 	lines := map[string]func(baseline string) []string{
 		cmdInspect: func(b string) []string {
 			return args(cmdInspect, "--reviewer", testReviewer, "--baseline", b, testPR)
@@ -919,4 +923,230 @@ func TestSecondReviewerBeginReply(t *testing.T) {
 	if code := reply.Run(t, replyArgs(t, reviewers, th, string(threads[0].Fingerprint))...); code != exitContinue {
 		t.Errorf("reply: exit %d (%s %s)", code, reply.Stdout, reply.Stderr)
 	}
+}
+
+// beginRecordName is the begin record file in the git directory of a main
+// checkout.
+var beginRecordName = filepath.Join(".git", "fixprguard-ignored-begin")
+
+// TestBeginWritesRecord: begin writes the begin record file, whose SHA-256 is
+// the tenth "."-separated field of the baseline it prints, as the guide's
+// check reads it. A record it cannot write stops begin with git-failed
+// before any baseline is printed.
+func TestBeginWritesRecord(t *testing.T) {
+	t.Run("written", func(t *testing.T) {
+		repo := newTestRepo(t)
+		repo.Ignore("build/")
+		repo.Write("build/x.go", "package x\n")
+		r := newTestRun(t, beginSteps(threadsPage(t, false)))
+		if code := r.Run(t, args(cmdBegin, "--reviewer", testReviewer, testPR)...); code != exitContinue {
+			t.Fatalf("exit %d, want %d (%s)", code, exitContinue, r.Stderr)
+		}
+		var out beginJSON
+		r.Decode(t, &out)
+		record, err := os.ReadFile(beginRecordName)
+		if err != nil {
+			t.Fatalf("read begin record: %v", err)
+		}
+		sum := sha256.Sum256(record)
+		fields := strings.Split(out.Baseline, ".")
+		if len(fields) != 10 || fields[9] != hex.EncodeToString(sum[:]) {
+			t.Errorf("baseline %q: tenth field is not the record's SHA-256 %x", out.Baseline, sum)
+		}
+	})
+	t.Run("not_writable", func(t *testing.T) {
+		newTestRepo(t)
+		// A non-empty directory at the record's name cannot be removed.
+		if err := os.MkdirAll(filepath.Join(beginRecordName, "keep"), testDirMode); err != nil {
+			t.Fatal(err)
+		}
+		r := newTestRun(t, []cmdrunnertestutil.Step{headStep(sameRepositoryHead)})
+		if code := r.Run(t, args(cmdBegin, "--reviewer", testReviewer, testPR)...); code != exitStop {
+			t.Fatalf("exit %d, want %d (%s)", code, exitStop, r.Stderr)
+		}
+		var out beginJSON
+		r.Decode(t, &out)
+		if got := r.StopKind(t); got != fixprguard.StopGitFailed || out.Baseline != "" {
+			t.Errorf("stop = %q, baseline = %q; want %s and no baseline", got, out.Baseline, fixprguard.StopGitFailed)
+		}
+		// This package cannot reach the unexported sentinel; the rule in the
+		// one-line diagnostic is the only sign the stop came from the record.
+		if !strings.Contains(r.Stderr.String(), "write ignored begin record") {
+			t.Errorf("stderr %q does not name the begin record rule", r.Stderr)
+		}
+	})
+}
+
+// roundOutputs runs inspect, finish and push through the command line after
+// the fix phase changed testFile, and returns each output decoded, without
+// the commit SHA, which differs between repositories.
+func roundOutputs(t *testing.T, repo *testRepo) []map[string]any {
+	t.Helper()
+	th := reviewerThread("")
+	thread := accept(t, th)
+	base := repo.Begin()
+	repo.Write(testFile, "fixed\n")
+	inspect := newTestRun(t, []cmdrunnertestutil.Step{repoStep(), graphqlStep(threadsPage(t, false, th))})
+	finish := newTestRun(t, nil,
+		cmdrunnertestutil.Step{Name: "make", Args: []string{fixprguard.StageFmt}},
+		cmdrunnertestutil.Step{Name: "make", Args: []string{fixprguard.StageTest}},
+		cmdrunnertestutil.Step{Name: "make", Args: []string{fixprguard.StageLint}})
+	push := newTestRun(t, nil)
+	var outs []map[string]any
+	decode := func(r *testRun) map[string]any {
+		var out map[string]any
+		r.Decode(t, &out)
+		delete(out, "commit")
+		outs = append(outs, out)
+		return out
+	}
+	if code := inspect.Run(t, args(cmdInspect, "--reviewer", testReviewer, "--baseline", base.String(), "--thread", thread, testPR)...); code != exitContinue {
+		t.Fatalf("inspect: exit %d (%s)", code, inspect.Stderr)
+	}
+	judged, _ := decode(inspect)["judgedSet"].(string)
+	if code := finish.Run(t, args(cmdFinish, "--baseline", base.String(), "--judged-set", judged, testPR)...); code != exitContinue {
+		t.Fatalf("finish: exit %d (%s)", code, finish.Stderr)
+	}
+	var committed struct {
+		Commit string `json:"commit"`
+	}
+	finish.Decode(t, &committed)
+	decode(finish)
+	if code := push.Run(t, args(cmdPush, "--baseline", base.String(), "--commit", committed.Commit)...); code != exitContinue {
+		t.Fatalf("push: exit %d (%s)", code, push.Stderr)
+	}
+	decode(push)
+	return outs
+}
+
+// TestRoundWithUnchangedTargets: target files that do not change during the
+// round leave inspect, finish and push printing what they print with no
+// target file, every field and value the same but the commit SHA.
+func TestRoundWithUnchangedTargets(t *testing.T) {
+	ignore := []string{".claude/", ".envrc", "build/"}
+	repo := newTestRepo(t)
+	repo.Ignore(ignore...)
+	without := roundOutputs(t, repo)
+	repo = newTestRepo(t)
+	repo.Ignore(ignore...)
+	repo.Write(".claude/settings.local.json", `{"permissions":{}}`)
+	repo.Write(".envrc", "export A=1\n")
+	repo.Write("build/x_test.go", "package x\n")
+	if with := roundOutputs(t, repo); len(with) != 3 || !reflect.DeepEqual(with, without) {
+		t.Errorf("outputs with targets = %v, want %v", with, without)
+	}
+}
+
+// TestIgnoredOutputOmitsNames: whether a target file's change stops a
+// subcommand with git-state-changed or a target the pass cannot record stops
+// it with git-failed, neither standard output, standard error, nor the
+// baseline carries a target file's name, its content, or its entry digest
+// (the first field of its line in the record files). The secret file's
+// directory and name carry the identifiers.
+func TestIgnoredOutputOmitsNames(t *testing.T) {
+	const (
+		dirMark     = "zqdirsecret"
+		nameMark    = "zqnamesecret"
+		contentMark = "zqcontentsecret"
+	)
+	secret := filepath.Join("build", dirMark, nameMark+".go")
+	tests := []struct {
+		name   string
+		mutate func(t *testing.T, repo *testRepo)
+		stop   string
+		rule   string // the diagnostic's rule for a git-failed stop
+	}{
+		{name: "target_changed", mutate: func(_ *testing.T, repo *testRepo) {
+			repo.Write(secret, contentMark+" changed\n")
+		}, stop: fixprguard.StopGitStateChanged},
+		{name: "unreadable_file", mutate: func(t *testing.T, _ *testRepo) {
+			requireNonRoot(t)
+			chmodForTest(t, secret, 0)
+		}, stop: fixprguard.StopGitFailed, rule: "read ignored file"},
+		// git skips it with a warning on standard error naming the
+		// directory; the row guards against the tool passing that warning on.
+		{name: "unreadable_directory", mutate: func(t *testing.T, _ *testRepo) {
+			requireNonRoot(t)
+			dir := filepath.Join("build", dirMark, nameMark+"-dir")
+			if err := os.MkdirAll(dir, testDirMode); err != nil {
+				t.Fatal(err)
+			}
+			chmodForTest(t, dir, 0o311)
+		}, stop: fixprguard.StopGitFailed, rule: "list ignored files failed"},
+		{name: "unreadable_directory_in_nested_repository", mutate: func(t *testing.T, _ *testRepo) {
+			requireNonRoot(t)
+			dir := filepath.Join("build", "nested", nameMark+"-dir")
+			if err := os.MkdirAll(dir, testDirMode); err != nil {
+				t.Fatal(err)
+			}
+			chmodForTest(t, dir, 0)
+		}, stop: fixprguard.StopGitFailed, rule: "read ignored directory"},
+		{name: "link_to_directory", mutate: func(t *testing.T, _ *testRepo) {
+			if err := os.Symlink(".", filepath.Join("build", dirMark, nameMark+"-link.go")); err != nil {
+				t.Fatal(err)
+			}
+		}, stop: fixprguard.StopGitFailed, rule: "ignored link to a directory"},
+		{name: "over_the_size_cap", mutate: func(t *testing.T, _ *testRepo) {
+			if err := os.Truncate(secret, 16<<20+1); err != nil {
+				t.Fatal(err)
+			}
+		}, stop: fixprguard.StopGitFailed, rule: "ignored file over the size cap"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newTestRepo(t)
+			repo.Ignore("build/")
+			repo.Write(secret, contentMark+"\n")
+			repo.gitIn(repo.Dir, "init", "-q", "--template=", "build/nested")
+			repo.Write("build/nested/x.go", "package x\n")
+			base := repo.Begin()
+			tc.mutate(t, repo)
+			r := newTestRun(t, nil)
+			if code := r.Run(t, args(cmdInspect, "--reviewer", testReviewer, "--baseline", base.String(), testPR)...); code != exitStop {
+				t.Fatalf("exit %d, want %d (%s)", code, exitStop, r.Stderr)
+			}
+			var out stopJSON
+			r.Decode(t, &out)
+			if out.Stop != tc.stop || (tc.stop == fixprguard.StopGitStateChanged && !slices.Equal(out.Parts, []string{fixprguard.PartIgnored})) {
+				t.Errorf("output = %+v, want %s", out, tc.stop)
+			}
+			// The rule shows the row reached the failure it is named after.
+			// This package cannot reach the unexported sentinels, so the rule
+			// in the one-line diagnostic is the only way to tell.
+			if tc.rule != "" && !strings.Contains(r.Stderr.String(), tc.rule) {
+				t.Errorf("stderr %q does not name %q", r.Stderr, tc.rule)
+			}
+			hidden := append([]string{dirMark, nameMark, contentMark}, entryDigests(t, beginRecordName, filepath.Join(".git", "fixprguard-ignored-stop"))...)
+			for _, text := range []string{base.String(), r.Stdout.String(), r.Stderr.String()} {
+				for _, h := range hidden {
+					if strings.Contains(text, h) {
+						t.Errorf("%q carries %q", text, h)
+					}
+				}
+			}
+		})
+	}
+}
+
+// entryDigests returns the entry digests of the record files that exist.
+func entryDigests(t *testing.T, records ...string) []string {
+	t.Helper()
+	var digests []string
+	for _, name := range records {
+		data, err := os.ReadFile(name)
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		for line := range strings.Lines(string(data)) {
+			digest, _, _ := strings.Cut(line, " ")
+			digests = append(digests, digest)
+		}
+	}
+	if len(digests) == 0 {
+		t.Fatal("test setup: no record file to read entry digests from")
+	}
+	return digests
 }
