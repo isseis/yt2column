@@ -96,7 +96,22 @@ decl_present() {
 		printf '%s\n' "$content" |
 			LC_ALL=C grep -E -- "^type[[:space:]]+$name([[:space:]]|$)" >/dev/null
 		;;
-	node | subtest | text)
+	node)
+		found=1
+		for q in '"' "'" '`'; do
+			if printf '%s\n' "$content" |
+				LC_ALL=C grep -F -- "it($q$name$q" >/dev/null; then
+				found=0
+				break
+			fi
+		done
+		return "$found"
+		;;
+	subtest)
+		printf '%s\n' "$content" |
+			LC_ALL=C grep -F -- "t.Run(\"$name\"" >/dev/null
+		;;
+	text)
 		printf '%s\n' "$content" | LC_ALL=C grep -F -- "$name" >/dev/null
 		;;
 	*)
@@ -325,12 +340,14 @@ cmd_records() {
 		if [ -n "${CHECK_REV:-}" ] && ! git cat-file -e "${CHECK_REV}:$f" 2>/dev/null; then
 			continue
 		fi
-		if ! show_file "$f" | LC_ALL=C grep -q -- 'AC-18'; then
-			printf 'FAIL records: %s has no AC-18 line\n' "$f"
+		section=$(section_body "$f" "$start" "$stop")
+		n=$(printf '%s\n' "$section" | LC_ALL=C grep -c -- 'AC-18')
+		if [ "$n" -eq 0 ]; then
+			printf 'FAIL records: %s has no AC-18 line in the checked section\n' "$f"
 			fail=1
 			continue
 		fi
-		bad=$(section_body "$f" "$start" "$stop" |
+		bad=$(printf '%s\n' "$section" |
 			LC_ALL=C grep -- 'AC-18' | LC_ALL=C grep -v 'manual')
 		if [ -n "$bad" ]; then
 			printf 'FAIL records: %s does not check AC-18 by manual:\n%s\n' "$f" "$bad"
