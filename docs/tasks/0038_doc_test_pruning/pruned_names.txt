@@ -29,7 +29,6 @@ TestGuideListsWatchList	func	cmd/fixprguard/docs_test.go	yes	2	keep
 TestGuideNamesGitStateParts	func	cmd/fixprguard/docs_test.go	yes	2	keep
 TestGuideDescribesIgnoredFiles	func	cmd/fixprguard/docs_test.go	yes	2	keep
 TestGuideIgnoredCommands	func	cmd/fixprguard/docs_test.go	yes	2	keep
-TestTask0030DescribesIgnoredFiles	func	cmd/fixprguard/docs_test.go	yes	2	delete
 configScope	type	cmd/fixprguard/docs_test.go	yes	2	delete
 passage	type	cmd/fixprguard/docs_test.go	no	2	delete
 checkPassages	func	cmd/fixprguard/docs_test.go	yes	2	delete
@@ -71,8 +70,8 @@ contextRow	func	cmd/yt2column/fixpr_docs_test.go	no	3	keep
 commitSubjectTemplate	func	cmd/yt2column/fixpr_docs_test.go	yes	3	keep
 postingSections	var	cmd/yt2column/codex_review_docs_test.go	yes	3	keep
 requestCommand	const	cmd/yt2column/fixpr_docs_test.go	yes	3	delete
-escalationPath	const	cmd/yt2column/fixpr_docs_test.go	yes	3	delete
-observationsPath	const	cmd/yt2column/fixpr_docs_test.go	yes	3	delete
+escalationPath	const	cmd/yt2column/codex_review_docs_test.go	yes	3	delete
+observationsPath	const	cmd/yt2column/codex_review_docs_test.go	yes	3	delete
 fixprAuth	const	cmd/yt2column/fixpr_docs_test.go	yes	3	delete
 reviewedCheck	var	cmd/yt2column/fixpr_docs_test.go	yes	3	delete
 reviewedRules	var	cmd/yt2column/fixpr_docs_test.go	yes	3	delete

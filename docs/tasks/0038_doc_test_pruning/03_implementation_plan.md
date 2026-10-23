@@ -8,7 +8,7 @@
 | Created | 2026-10-23 |
 | Review date | 2026-10-23 |
 | Reviewer | isseis |
-| Comments | 2026-10-23 (editorial): PR-1 の実装の自己点検で、1.4 の 7 つめが挙げた追補の箇所に `requirements_process.md` の AC traceability の雛形と `CLAUDE.md` の要約を加え、設計書 2.3・3.5・3.9・8 章の一覧を合わせた。決定は変えていない。 |
+| Comments | 2026-10-23 (decision): PR-1 のレビューで、`check_pruning.sh removed` の行のファイルの列の誤り（`escalationPath`・`observationsPath`）が、何にも一致しないまま通っていたことがわかった。そこで `removed` に `<base>` を必須の引数として加え、その PR 自身の行が `<base>` との分岐点で宣言されていることも確かめるよう改め、1.4・各フェーズの完了条件・AC の検証の表を合わせた。あわせて、まだ加えられていない `TestTask0030DescribesIgnoredFiles` の行を `pruned_names.txt` から外した（ステップ 2-1 のとおり、`main` にあれば加える）。検証方法を変える決定の変更であり、isseis がセッションで承認した。 2026-10-23 (editorial): PR-1 の実装の自己点検で、1.4 の 7 つめが挙げた追補の箇所に `requirements_process.md` の AC traceability の雛形と `CLAUDE.md` の要約を加え、設計書 2.3・3.5・3.9・8 章の一覧を合わせた。決定は変えていない。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -121,7 +121,7 @@
 
 -   [x] `pruned_names.txt` を、設計書 3.1・3.2 と本書 1.3.2 の全体から書く（1.1 の名前の一覧の各欄）。`docs/tasks/` 以外の文書でも探すのは、テストの名前と、ほかの語と紛れない補助の名前だけにする。node のテストの確認は、題（`it("...")` の文字列）で挙げる。
 -   [x] POSIX `sh` で、次のサブコマンドを持つスクリプトを書く。終了コードは、確認が通れば `0`、通らなければ `1`、使い方の誤り・知らないリビジョン・`git` の失敗は `2` とする。既定は作業ツリーを読み、`CHECK_REV` でリビジョンを選べる形は `check_wording.sh` にならう。
-    -   `removed <PR>`: その PR までに削除する行の名前が、置き場所のファイルに残っていないこと（Go は宣言、node は題。AC-03・AC-06・AC-07）。また、`docs/tasks/` 以外の文書でも探す行の名前が、その文書（`CLAUDE.md`・`README.md`・`AGENTS.md`・`docs/dev/`・`.claude/commands/`）に現れないこと（AC-22）。
+    -   `removed <PR> <base>`: その PR までに削除する行の名前が、置き場所のファイルに残っていないこと（Go は宣言、node は題。AC-03・AC-06・AC-07）。その PR 自身の行は、`<base>` との分岐点で宣言されていることも確かめる。名前・種類・ファイルの列の誤りで何にも一致せず、削除を確かめないまま通ることを防ぐためである。また、`docs/tasks/` 以外の文書でも探す行の名前が、その文書（`CLAUDE.md`・`README.md`・`AGENTS.md`・`docs/dev/`・`.claude/commands/`）に現れないこと（AC-22）。
     -   `kept`: 残す行のテストが、置き場所のファイルに宣言されていること（AC-01・AC-19）。
     -   `unchanged <base>`: 取り下げたタスク 0029 の文書と、`.github/workflows/ci.yml` の `doc-guard` ジョブの `go test` の行が、`<base>`（その PR の前の `origin/main`）から変わっていないこと（AC-16・AC-21）。ほかのタスクが `ci.yml` のほかの行を変えても失敗しない。
     -   `records <base>`: `<base>` から変わった `docs/tasks/` のほかのタスクの `02_architecture.md`・`03_implementation_plan.md` が、`Status` を `approved` のままとし、`Comments` に `(decision)` と `0038` を含むこと（AC-14）。タスク 0035 の計画 5 章と設計書 7.5 の AC-18 の行が `manual` であること（AC-15）。
@@ -237,7 +237,7 @@
 -   [ ] 中身を変えたテストの残す確認を、1 つずつ壊して落ちることを確かめる（設計書 7.2）。
 -   [ ] 削除の各コミットで、検査のスクリプトの `coverage` を実行し、差分が空であることをコミットメッセージに記す（AC-10）。差分が `//go:build test` の補助のファイルだけなら、使われなくなった補助として AC-06 で扱う。製品のコードに差分があれば、設計書 6.1 のとおり製品のコードを通る部分を残し、例外として判定の一覧に記す（AC-11）。
 
-**完了条件**: `check_pruning.sh removed 2` と `make lint` が通る。
+**完了条件**: `check_pruning.sh removed 2 <PR の前の origin/main>` と `make lint` が通る。
 
 #### ステップ 2-5: 文書
 
@@ -254,7 +254,7 @@
 **変更するファイル**: なし
 
 -   [ ] `main` を取り込み、`cmd/fixprguard` の文書のテストを数え直す。増えていれば、ステップ 2-1 の 4 つめと同じく扱う（設計書 3.4）。
--   [ ] `check_pruning.sh` の `removed 2`・`kept`・`unchanged <PR の前の origin/main>`・`records <PR の前の origin/main>` を実行し、結果を PR の説明に記す。
+-   [ ] `check_pruning.sh` の `removed 2 <PR の前の origin/main>`・`kept`・`unchanged <PR の前の origin/main>`・`records <PR の前の origin/main>` を実行し、結果を PR の説明に記す。
 -   [ ] `make test && make lint` を実行する。
 -   [ ] PR の説明に、判定の一覧（AC-09）と `Refs #440`（AC-26）を書く。判定の一覧には、英語のガイドの 8.1 のブロックが実行されなくなることを、残余のリスクとして挙げる（7.1）。
 
@@ -341,7 +341,7 @@
 -   [ ] 設計書 3.2 の `handoffStep5` などの行の補助・定数・フィールドを、使い手がなくなったものから削除する。ステップ 3-2 で使わなくなったフィルタの定数（`reviewedCheck`・`reviewedRules`・`mentionListings`・`requestCommentFilter`・`requestCommand`・`lastReviewedRule`・`requestRules`・`arrivalRules`・`autoFixprCondition`）も含む。`runprStep5` は `TestPostingCommandsInventory` が読むので残す（設計書 3.4）。単体テストを持つ補助（`isPost` など）は、ステップ 2-4 と同じく使い手を数える。
 -   [ ] ステップ 2-4 の 2 つめと 3 つめ（壊した確かめ、カバレッジの比較）を行う。K4・K5 の確認は、設計書 7.2 の例（`fixpr.md` にレビュアーの名前を書く、`git commit -m` を加える、`fixprguard head` の呼び出しを消す、言及の確認のコマンドを消す）で壊して確かめる。
 
-**完了条件**: `check_pruning.sh removed 3` と `make lint` が通る。
+**完了条件**: `check_pruning.sh removed 3 <PR の前の origin/main>` と `make lint` が通る。
 
 #### ステップ 3-6: 文書
 
@@ -356,7 +356,7 @@
 
 **変更するファイル**: なし
 
--   [ ] ステップ 2-6 の 1〜3 つめを、`fixpr_docs_test.go`・`codex_review_docs_test.go` と `removed 3` について行う。
+-   [ ] ステップ 2-6 の 1〜3 つめを、`fixpr_docs_test.go`・`codex_review_docs_test.go` と `removed 3 <PR の前の origin/main>` について行う。
 -   [ ] PR の説明に判定の一覧を書く（AC-09）。`ignored_file_stops` と `TestRequestExemptFromMentionCheck` などで読み合わせに任せる手順の文を、残余のリスクとして挙げる（7.1、設計書 5.1）。
 -   [ ] CI の `test` ジョブと `doc-guard` ジョブの両方で、ステップ 3-2 の確認が `jq` を見つけて通ったことを確かめ、`jq` の版を記す（1.3.4）。見つからずに失敗したら、止まって利用者と扱いを決める。
 
@@ -428,7 +428,7 @@
 -   [ ] 設計書 3.2 の `markdownBullet`・`sectionByHeadingPrefix`・`claudeBullet`・`stepBlock` などの行、`sampleRecordedSaved` などの行、`checkManualCheckTable` などの行の補助と定数を、使い手がなくなったものから削除する。単体テストを持つ補助（`sectionByHeading`・`firstCodeBlockAfter` など）は、ステップ 2-4 と同じく使い手を数える。
 -   [ ] ステップ 2-4 の 2 つめと 3 つめを行う。`TestRunHelp` は、`run.go` の `--after` の説明から 2 つの文字列をそれぞれ消すと落ちることを確かめる。
 
-**完了条件**: `check_pruning.sh removed 4` と `make lint` が通る。
+**完了条件**: `check_pruning.sh removed 4 <PR の前の origin/main>` と `make lint` が通る。
 
 #### ステップ 4-5: 文書
 
@@ -444,7 +444,7 @@
 
 **変更するファイル**: なし
 
--   [ ] ステップ 2-6 の 1〜3 つめを、本フェーズのファイルと `removed 4` について行う。
+-   [ ] ステップ 2-6 の 1〜3 つめを、本フェーズのファイルと `removed 4 <PR の前の origin/main>` について行う。
 -   [ ] PR の説明に判定の一覧を書く（AC-09）。
 
 **完了条件**: 上の 2 つが済んでいる。
@@ -496,7 +496,7 @@
 -   [ ] 同じコミットで、`has-extension-changes.sh` の冒頭の説明とパターンから `docs/dev/security.md` を外し、`ciChanges.test.ts` の `docs/dev/security.md` を `quiet` に移し、`x/docs/dev/security.md`・`docs/dev/security.md.orig` の行を取り除く（設計書 2.2、AC-28〜AC-30）。
 -   [ ] `make ext-check` を通し、削除した確認が `extension/src` を読み込まないことを判定の一覧に記す（AC-12）。
 
-**完了条件**: `check_pruning.sh removed 5` と `make ext-check` が通る。
+**完了条件**: `check_pruning.sh removed 5 <PR の前の origin/main>` と `make ext-check` が通る。
 
 #### ステップ 5-4: 文書
 
@@ -520,7 +520,7 @@
 
 **変更するファイル**: なし
 
--   [ ] ステップ 2-6 の 1〜3 つめを、本フェーズのファイルと `removed 5` について行い、`make ext-check` を実行する（AC-08）。
+-   [ ] ステップ 2-6 の 1〜3 つめを、本フェーズのファイルと `removed 5 <PR の前の origin/main>` について行い、`make ext-check` を実行する（AC-08）。
 -   [ ] PR の説明に判定の一覧を書く（AC-09）。
 -   [ ] 本書 5 章の表のすべての行の検証を実行した、または記録したことを確かめる（最後の PR の確かめ）。
 
@@ -603,13 +603,13 @@
 
 | AC | ラベル | 検証 | 担当 |
 |---|---|---|---|
-| AC-01 | static + manual | `check_pruning.sh kept` と `check_pruning.sh removed <PR>`（名前の一覧の削除と残すテストの有無）。確認ごとの分類は、各 PR の判定の一覧と差分を読み合わせる | PR-2〜PR-5 |
+| AC-01 | static + manual | `check_pruning.sh kept` と `check_pruning.sh removed <PR> <base>`（名前の一覧の削除と残すテストの有無）。確認ごとの分類は、各 PR の判定の一覧と差分を読み合わせる | PR-2〜PR-5 |
 | AC-02 | test + manual | `make test`（残す確認が通ること）。残す確認ごとに、読む文書・位置と値の出どころが同じであることを判定の一覧に記し、壊して落ちることをコミットメッセージに記す（4.2） | PR-2〜PR-5 |
-| AC-03 | static | `check_pruning.sh removed 2`（`TestGuideDescribesConfigScope` の行） | PR-2 |
+| AC-03 | static | `check_pruning.sh removed 2 <PR の前の origin/main>`（`TestGuideDescribesConfigScope` の行） | PR-2 |
 | AC-04 | static + test + manual | `check_pruning.sh coverage`、`make test`。文書を読まない確認の差分を読み合わせる | PR-2〜PR-5 |
 | AC-05 | static + manual | `check_pruning.sh survey` の出力と判定の一覧を比べる（ステップ 5-5） | PR-5 |
-| AC-06 | static + manual | `make lint`（`unused`）、`check_pruning.sh removed <PR>`。単体テストだけが使う補助とフィールドは `git grep` で数える | PR-2〜PR-5 |
-| AC-07 | static | `check_pruning.sh removed <PR>`（削除した補助の単体テスト）と `check_pruning.sh kept`（残す補助の単体テスト） | PR-2〜PR-5 |
+| AC-06 | static + manual | `make lint`（`unused`）、`check_pruning.sh removed <PR> <base>`。単体テストだけが使う補助とフィールドは `git grep` で数える | PR-2〜PR-5 |
+| AC-07 | static | `check_pruning.sh removed <PR> <base>`（削除した補助の単体テスト）と `check_pruning.sh kept`（残す補助の単体テスト） | PR-2〜PR-5 |
 | AC-08 | test | `make test`、`make lint`、`make ext-check` | PR-1〜PR-5 |
 | AC-09 | manual | 各 PR の説明の判定の一覧 | PR-2〜PR-5 |
 | AC-10 | static + manual | `check_pruning.sh coverage`。結果をコミットメッセージに記す | PR-2〜PR-5 |
@@ -620,11 +620,11 @@
 | AC-15 | static | `check_pruning.sh records <base>`（タスク 0035 の AC-18 の 2 か所） | PR-2 |
 | AC-16 | static | `check_pruning.sh unchanged <base>`（タスク 0029 の文書） | PR-2〜PR-5 |
 | AC-17 | static + manual | `check_pruning.sh records <base>`（0034 の計画を本 PR で改めた場合）。0034 の計画の差分（ステップ 2-1）と、ステップ 5-5 の見直しの結果 | PR-2・PR-5 |
-| AC-18 | static + manual | `check_pruning.sh removed 2`（`TestTask0030DescribesIgnoredFiles` が加えられていた場合）。判定の一覧（1.3.2） | PR-2・PR-3 |
+| AC-18 | static + manual | `check_pruning.sh removed 2 <PR の前の origin/main>`（`TestTask0030DescribesIgnoredFiles` が加えられていた場合）。判定の一覧（1.3.2） | PR-2・PR-3 |
 | AC-19 | static + manual | `check_pruning.sh kept`（`TestGuideNamesGitStateParts` などの残すテスト）。判定の一覧（1.3.2） | PR-2 |
 | AC-20 | manual | `CLAUDE.md`「Development Notes」の差分の読み合わせ | PR-4・PR-5 |
 | AC-21 | static + manual | `check_pruning.sh unchanged <base>`（`.github/workflows/ci.yml` の `doc-guard` の行）。`CLAUDE.md`・ガイドのコマンドの差分の読み合わせ | PR-2〜PR-5 |
-| AC-22 | static + manual | `check_pruning.sh removed <PR>`（`docs/tasks/` 以外の文書）。K4 の手順の読み合わせ | PR-2〜PR-5 |
+| AC-22 | static + manual | `check_pruning.sh removed <PR> <base>`（`docs/tasks/` 以外の文書）。K4 の手順の読み合わせ | PR-2〜PR-5 |
 | AC-23 | manual | `CLAUDE.md`「Testing Strategy」の差分の読み合わせ | PR-1 |
 | AC-24 | manual | 規則の差分の読み合わせ | PR-1 |
 | AC-25 | manual | 同上 | PR-1 |
@@ -642,7 +642,7 @@
 
 ### 5.1. 横断の検索
 
-削除・名前の変更の残りは、`check_pruning.sh removed <PR>` が確かめる（AC-03・AC-06・AC-22）。`docs/tasks/` の本文の作業の記録に残る名前は、要件書 2.3 のとおり変えないので、検索の対象にしない。
+削除・名前の変更の残りは、`check_pruning.sh removed <PR> <base>` が確かめる（AC-03・AC-06・AC-22）。`docs/tasks/` の本文の作業の記録に残る名前は、要件書 2.3 のとおり変えないので、検索の対象にしない。
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
@@ -678,7 +678,7 @@
 -   残る文書のテストの確認が、すべて K1〜K5 に当たる（AC-01）。
 -   `make test`・`make lint`・`make ext-check` が通る（AC-08）。
 -   削除のコミットごとに、カバレッジの比較の差分が空である（AC-10）。
--   `check_pruning.sh` の `removed 5`・`kept`・`unchanged <base>` が、PR-5 のブランチで通る。
+-   `check_pruning.sh` の `removed 5 <PR の前の origin/main>`・`kept`・`unchanged <base>` が、PR-5 のブランチで通る。
 -   手順の規則と `CLAUDE.md` が、文書の自然言語の記述を定める AC に `manual` だけを認め、ほかの AC には `test` か `static` を求める（AC-24・AC-25）。
 
 ## 9. 次のステップ (Next Steps)

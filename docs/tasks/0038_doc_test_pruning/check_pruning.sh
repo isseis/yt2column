@@ -4,7 +4,7 @@
 # that read documents, and a coverage comparison across two revisions.
 #
 # Usage:
-#   sh docs/tasks/0038_doc_test_pruning/check_pruning.sh removed <PR>
+#   sh docs/tasks/0038_doc_test_pruning/check_pruning.sh removed <PR> <base>
 #   sh docs/tasks/0038_doc_test_pruning/check_pruning.sh kept
 #   sh docs/tasks/0038_doc_test_pruning/check_pruning.sh unchanged <base>
 #   sh docs/tasks/0038_doc_test_pruning/check_pruning.sh records <base>
@@ -19,10 +19,13 @@
 # CHECK_REV=<revision> reads the files of that revision's tree instead of the
 # working tree; it does not change the two revisions coverage takes.
 #
-# pruned_names.txt holds one tab-separated row per name. A "removed <PR>" run
-# checks the delete rows whose PR is at or before <PR>: the name is gone from
-# its file, and for a row marked outside=yes it is gone from the documents
-# outside docs/tasks/. A "kept" run checks that every keep row is declared.
+# pruned_names.txt holds one tab-separated row per name. A "removed <PR> <base>"
+# run checks the delete rows whose PR is at or before <PR>: the name is gone
+# from its file, and for a row marked outside=yes it is gone from the documents
+# outside docs/tasks/. For the rows of <PR> itself it also checks that the name
+# is declared at the merge base of <base>, so that a row whose name, kind, or
+# file is wrong fails instead of passing because nothing matched. A "kept" run
+# checks that every keep row is declared.
 # Text read from the files is only matched (grep -F / grep -E); it is never
 # run as a shell command.
 
@@ -72,6 +75,17 @@ show_file() {
 }
 
 # decl_present NAME KIND FILE: succeed when the declaration is present.
+#
+# The match is a line regex, not a parse, and is known to be loose. Every row
+# in pruned_names.txt is matched correctly; a new row must be checked by hand
+# against these limits:
+#   - func matches only a plain function ("func name("); a method
+#     ("func (r T) name(") or a generic function ("func name[T any](") is
+#     never found.
+#   - var and const also match any indented "name =" line, including an
+#     assignment inside a function body, and miss a typed spec in a grouped
+#     block ("\tname T = ...") or a spec without a value.
+# A miss makes removed pass and kept fail; a false match does the opposite.
 decl_present() {
 	name=$1
 	kind=$2
@@ -136,7 +150,7 @@ read_names() {
 		case $r_name in
 		'' | '#'*) continue ;;
 		esac
-		if [ -z "$r_name" ] || [ -z "$r_kind" ] || [ -z "$r_file" ] ||
+		if [ -z "$r_kind" ] || [ -z "$r_file" ] ||
 			[ -z "$r_outside" ] || [ -z "$r_pr" ] || [ -z "$r_action" ]; then
 			die "malformed row in pruned_names.txt: $r_name"
 		fi
@@ -155,11 +169,12 @@ read_names() {
 }
 
 cmd_removed() {
-	[ $# -eq 1 ] || die 'usage: removed <PR>'
+	[ $# -eq 2 ] || die 'usage: removed <PR> <base>'
 	limit=$1
 	case $limit in
 	'' | *[!0-9]*) die "invalid PR: $limit" ;;
 	esac
+	base=$(merge_base "$2") || exit 2
 	read_names
 	fail=0
 	while IFS="$(printf '\t')" read -r r_name r_kind r_file r_outside r_pr r_action; do
@@ -168,6 +183,19 @@ cmd_removed() {
 		esac
 		[ "$r_action" = delete ] || continue
 		[ "$r_pr" -le "$limit" ] || continue
+		if [ "$r_pr" -eq "$limit" ]; then
+			(CHECK_REV=$base decl_present "$r_name" "$r_kind" "$r_file")
+			rc=$?
+			case $rc in
+			0) ;;
+			1)
+				printf 'FAIL removed %s: %s is not declared in %s at the base, so the row cannot show its deletion\n' \
+					"$limit" "$r_name" "$r_file"
+				fail=1
+				;;
+			*) die "cannot read $r_file at the base" ;;
+			esac
+		fi
 		if decl_present "$r_name" "$r_kind" "$r_file"; then
 			printf 'FAIL removed %s: %s is still declared in %s\n' \
 				"$limit" "$r_name" "$r_file"
@@ -213,7 +241,8 @@ cmd_kept() {
 	return "$fail"
 }
 
-# docguard_line REV: print the one doc-guard go test line of that revision.
+# docguard_text REV: print .github/workflows/ci.yml of REV, or of the working
+# tree when REV is empty.
 docguard_text() {
 	if [ -n "$1" ]; then
 		git show "$1:.github/workflows/ci.yml" 2>/dev/null || return 2
@@ -222,6 +251,7 @@ docguard_text() {
 	fi
 }
 
+# docguard_line REV: print the one doc-guard go test line of that revision.
 docguard_line() {
 	text=$(docguard_text "$1") || return 2
 	printf '%s\n' "$text" |
@@ -233,10 +263,20 @@ docguard_line() {
 		LC_ALL=C grep -E 'go test -tags test \./cmd/yt2column \./cmd/yt2column-server \./cmd/fixprguard \./internal/pipeline'
 }
 
+# merge_base BASE: print the merge base of BASE and the checked revision
+# (CHECK_REV, or HEAD for the working tree), so that a BASE that moved on after
+# the branch forked (another task merged into main) does not count that task's
+# changes as this branch's.
+merge_base() {
+	b=$(git rev-parse --verify --quiet "$1^{commit}") ||
+		die "unknown revision: $1"
+	git merge-base "$b" "${CHECK_REV:-HEAD}" 2>/dev/null ||
+		die "no merge base between $1 and ${CHECK_REV:-HEAD}"
+}
+
 cmd_unchanged() {
 	[ $# -eq 1 ] || die 'usage: unchanged <base>'
-	base=$(git rev-parse --verify --quiet "$1^{commit}") ||
-		die "unknown revision: $1"
+	base=$(merge_base "$1") || exit 2
 	fail=0
 	if [ -n "${CHECK_REV:-}" ]; then
 		changed=$(git diff --name-only "$base" "$CHECK_REV" -- \
@@ -289,8 +329,7 @@ section_body() {
 
 cmd_records() {
 	[ $# -eq 1 ] || die 'usage: records <base>'
-	base=$(git rev-parse --verify --quiet "$1^{commit}") ||
-		die "unknown revision: $1"
+	base=$(merge_base "$1") || exit 2
 	if [ -n "${CHECK_REV:-}" ]; then
 		changed=$(git diff --name-only "$base" "$CHECK_REV" -- docs/tasks)
 	else
@@ -331,8 +370,8 @@ cmd_records() {
 	done <"$tmp/changed"
 
 	for pair in \
-		'docs/tasks/0035_fixprguard_branch_config/03_implementation_plan.md|^## 5\.|^## ' \
-		'docs/tasks/0035_fixprguard_branch_config/02_architecture.md|^### 7\.5\.|^## |^### '; do
+		'docs/tasks/0035_fixprguard_branch_config/03_implementation_plan.md|^## 5[.]|^## ' \
+		'docs/tasks/0035_fixprguard_branch_config/02_architecture.md|^### 7[.]5[.]|^## |^### '; do
 		f=${pair%%|*}
 		rest=${pair#*|}
 		start=${rest%%|*}
