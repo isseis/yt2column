@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-23 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-23 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルについての記述は、コミット `80c17a8` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。タスク 0034・0037 の進捗は、2026-10-23 の本書の作成時点のものである（タスク 0037 の PR #459 は `f326ce6` でマージ済み、タスク 0034 の PR-2 は PR #461 として開いている）。

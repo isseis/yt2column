@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-23 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-23 |
+| Reviewer | isseis |
 | Comments | 2026-10-23: isseis が承認した（承認の履歴）。2026-10-23: 設計の際に `80c17a8` で確かめた事実に合わせ、`fixprguard_guide` の章番号（10 章 → 9 章。1 章・AC-22）、`ciChanges.test.ts`・`has-extension-changes.sh` の行番号（1 章）、2.3 のタスク 0010 の古いパスの例（このテストは本タスクで削除するので F-005 の対象になる）、タスク 0034 の計画の行番号（`fa65bd4` で 1 行ずれた。1 章・AC-17）を直した (editorial)（決定は変えていない）。2026-10-23: 設計のレビューで、F-001 の K5 に、エージェントが信頼の境界で実行するコマンドの中身（言及の確認のコマンド、`runpr.md` の step 3 で読むたびに実行する一覧の `--jq` のフィルタが本文もその一部も出力しないこと）を含めると読むことを、1 章の K5 の理由に従って明記した。あわせて、1 章と 4.2 の `TestPostingPathsCheckMention` の扱いを、文は削除し、言及の確認のコマンドの確認と step 3 の一覧の `--jq` のフィルタが本文もその一部も出力しないことの確認は残す、と改めた。残す確認を広げるので決定の変更であり、Status を `draft` に戻して再承認を求める (decision) |
 
 ## 1. 概要 (Overview)
