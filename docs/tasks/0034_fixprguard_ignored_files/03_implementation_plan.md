@@ -8,7 +8,7 @@
 | Created | 2026-10-22 |
 | Review date | 2026-10-22 |
 | Reviewer | isseis |
-| Comments | 2026-10-22 (decision): `/runplan 0034` のフェーズ 1 のレビューで、APFS が完全な大文字小文字の変換（`ﬁ` → `fi`、`ß` → `ss`）で名前を解決すると分かった。照合は単純な変換のままとし、展開する変換で同じになる名前を要件書 4.2・設計書 5.3 の残余のリスクに加えた。ステップ 7-1 のガイド 7.2 は、この項目も含めて要件書 4.2 と突き合わせる。2026-10-22 (editorial): 同じレビューで、不正なバイトの同一視の行を `TestIsWatched` から `TestFoldEqual` に移した（ステップ 1-1）。一覧の項目が ASCII だけなので、`isWatched` では観測できないためである。2026-10-22 (editorial): ステップ 4-2 の「壊して確かめる」を、実際に区別できる壊し方（種類の印と値の数を両方外す、`writeField` の引用を外す）に改めた。印と値の数は、どちらか一方だけでもエントリの境目を一意にするためである。レビュアーがこのセッションで選んだので、`Status` は `approved` のままとする。2026-10-23 (decision): `/runplan 0034` のフェーズ 3・4 のレビューで、最上位の `.claude/` の下の `.git` という名前で止めることを加えた（ステップ 3-3、5 章の AC-16）。要件書・設計書の決定と同じで、レビュアーがこのセッションで選んだ。 |
+| Comments | 2026-10-22 (decision): `/runplan 0034` のフェーズ 1 のレビューで、APFS が完全な大文字小文字の変換（`ﬁ` → `fi`、`ß` → `ss`）で名前を解決すると分かった。照合は単純な変換のままとし、展開する変換で同じになる名前を要件書 4.2・設計書 5.3 の残余のリスクに加えた。ステップ 7-1 のガイド 7.2 は、この項目も含めて要件書 4.2 と突き合わせる。2026-10-22 (editorial): 同じレビューで、不正なバイトの同一視の行を `TestIsWatched` から `TestFoldEqual` に移した（ステップ 1-1）。一覧の項目が ASCII だけなので、`isWatched` では観測できないためである。2026-10-22 (editorial): ステップ 4-2 の「壊して確かめる」を、実際に区別できる壊し方（種類の印と値の数を両方外す、`writeField` の引用を外す）に改めた。印と値の数は、どちらか一方だけでもエントリの境目を一意にするためである。レビュアーがこのセッションで選んだので、`Status` は `approved` のままとする。2026-10-23 (decision): `/runplan 0034` のフェーズ 3・4 のレビューで、最上位の `.claude/` の下の `.git` という名前で止めることを加えた（ステップ 3-3、5 章の AC-16）。要件書・設計書の決定と同じで、レビュアーがこのセッションで選んだ。2026-10-23 (editorial): ステップ 7-6 の AC-01a の確かめを、ネットワークに接続する `begin` の実行から、`extension/node_modules/` の写しに対する状態を求める処理の実行に改めた。確かめる性質（既定の上限で止まらないこと）は変えない（1.3.2）。2026-10-23 (editorial): フェーズ 5 のレビューで、ステップ 5-2 に、`WriteBeginRecord` が前のラウンドの止まった時点の記録を消すことを加えた（設計書 3.8 の editorial correction と同じ）。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -95,6 +95,7 @@
 -   **SHA-256 のコマンド:** macOS に `/usr/bin/shasum` と `/sbin/sha256sum` がある（2026-10-22）。ガイドには設計書 3.8 のとおり両方を書き、ステップ 7-4 のテストで実行する。
 -   **今の番号の固定箇所:** `c077836` で `git grep -nE -e '--protocol[ =]3' -e '"protocol":\s*3' -- .claude docs/dev docs/tasks/0032_japanese_pr_title` は 39 行を出力し、`sh docs/tasks/0032_japanese_pr_title/check_rules.sh fixpr_title` は `ok   fixpr_title` を出力して終了コード `0` で終わった（2026-10-22）。ステップ 6-1 の後は、前者が 0 行になる。
 -   **`make deadcode` の範囲:** `Makefile` の `deadcode` は `deadcode -test -tags test ./cmd/yt2column` で、`cmd/yt2column` から届く関数だけを数える。そのため `internal/fixprguard` の関数はすべて報告される（`c077836` で 202 行。レビューで確かめた）。`make deadcode` は、グリーンゲート（`make test && make lint`）にも CI にも含まれない。PR-1 の `ignored.go` は PR-2 で使う部品なので、`runplan.md` step 6 の「意図した足場」として残す。`make lint` の `unused` は、テストからの使用を数える（`--build-tags test,integration`）。
+-   **AC-01a の確かめ（2026-10-23）:** main のチェックアウトの `extension/node_modules/`（83 MB、4,628 個のファイル）を一時リポジトリに写し、`node_modules/` を `.gitignore` で無視させて、PR-2 のブランチのコードの `collectTargets` を既定の上限で実行した（コミットしない一時のテスト）。エラーなく 52 ミリ秒で終わり、対象のファイルは 2 個（`.claude/settings.local.json` を含む）だった。ステップ 7-6 の `begin` の実行は、GitHub を読むので、この確かめに替えた。
 -   **AC-01a の作業ツリー:** この作業ツリーには `extension/node_modules/` がない。ステップ 7-6 で、利用者の承認を得て `make ext-install`（ネットワークに接続する）を実行するか、`node_modules` がある main のチェックアウトで、PR-2 のブランチからビルドしたバイナリの `begin` を実行する（`CLAUDE.md`「Tool Execution Safety」）。
 
 #### 1.3.3. 型の構築の経路
@@ -262,12 +263,12 @@
 
 **変更するファイル**: `internal/fixprguard/gitstate.go`、`internal/fixprguard/ignored.go`、`internal/fixprguard/gitstate_test.go`、`internal/fixprguard/worktree_flow_test.go`、`cmd/fixprguard/test_helpers.go`、`cmd/fixprguard/main_test.go`
 
--   [ ] `baselineVersion` を `v3`、`baselineFields` を 9 にし、`Baseline`・`newBaseline`・`ParseBaseline`・`String` に `ignored`・`ignoredRecord` を加える（設計書 3.6）。`PartIgnored` と `GitStateParts` を加える（設計書 3.1）。
--   [ ] `Baseline` の最後で `collectTargets` を呼び、`ignored` と `ignoredRecord`（記録の内容の SHA-256）を基準値に入れる（設計書 3.6・3.8）。
--   [ ] `CheckState` の hooks の比較の後で `collectTargets` を呼び、`ignored` と比べる（設計書 3.7）。違えば止まった時点の記録のファイルを書き、`GitStateError{Parts: []string{PartIgnored}}` を返す。記録を書けなくても `stop` は変えない（設計書 3.8）。状態を求められなければ、規則の sentinel を返す。
--   [ ] 記録のファイルの書き込みを、設計書 3.8「書き方」のとおり実装する。置き場所は `locateGitDirs` の作業ツリーごとの git のディレクトリ（設計書 1.2）。
--   [ ] `CheckState` と `Baseline` のコメントに、対象のファイルを最後に比べることと、その理由（設計書 3.7「順序の理由」）を英語で書く。
--   [ ] 1.3.1 の表のステップ 5-1 の既存のテストを直す。期待の変え方は表のとおりで、ほかの期待は変えない。
+-   [x] `baselineVersion` を `v3`、`baselineFields` を 9 にし、`Baseline`・`newBaseline`・`ParseBaseline`・`String` に `ignored`・`ignoredRecord` を加える（設計書 3.6）。`PartIgnored` と `GitStateParts` を加える（設計書 3.1）。
+-   [x] `Baseline` の最後で `collectTargets` を呼び、`ignored` と `ignoredRecord`（記録の内容の SHA-256）を基準値に入れる（設計書 3.6・3.8）。
+-   [x] `CheckState` の hooks の比較の後で `collectTargets` を呼び、`ignored` と比べる（設計書 3.7）。違えば止まった時点の記録のファイルを書き、`GitStateError{Parts: []string{PartIgnored}}` を返す。記録を書けなくても `stop` は変えない（設計書 3.8）。状態を求められなければ、規則の sentinel を返す。
+-   [x] 記録のファイルの書き込みを、設計書 3.8「書き方」のとおり実装する。置き場所は `locateGitDirs` の作業ツリーごとの git のディレクトリ（設計書 1.2）。
+-   [x] `CheckState` と `Baseline` のコメントに、対象のファイルを最後に比べることと、その理由（設計書 3.7「順序の理由」）を英語で書く。
+-   [x] 1.3.1 の表のステップ 5-1 の既存のテストを直す。期待の変え方は表のとおりで、ほかの期待は変えない。
 
 **壊して確かめる**: `TestBaselineMalformedRejected` の新しい欄の行が、`ParseBaseline` の新しい欄の検査を外すと失敗すること。
 
@@ -275,20 +276,20 @@
 
 **変更するファイル**: `internal/fixprguard/ignored.go`、`internal/fixprguard/worktree.go`、`cmd/fixprguard/main.go`
 
--   [ ] `WriteBeginRecord` を、設計書 3.8「`begin` の記録と基準値の結び付け」のとおり実装する。一致しなければ書かずに `git-state-changed`（`ignored`）を、書けなければ `write ignored begin record` の sentinel を返す。
--   [ ] `Worktree.Begin` と `main.go` の `begin` で、`Baseline` の後に `WriteBeginRecord` を呼ぶ。`begin` は記録を書き終えてから基準値を出力する（設計書 3.8「書き方」）。
+-   [x] `WriteBeginRecord` を、設計書 3.8「`begin` の記録と基準値の結び付け」のとおり実装する。一致しなければ書かずに `git-state-changed`（`ignored`）を、書けなければ `write ignored begin record` の sentinel を返す。状態を求め直す前に、前のラウンドの 2 つの記録を消す（設計書 3.8「止まった時点の記録」。消せなければ同じ sentinel）。
+-   [x] `Worktree.Begin` と `main.go` の `begin` で、`Baseline` の後に `WriteBeginRecord` を呼ぶ。`begin` は記録を書き終えてから基準値を出力する（設計書 3.8「書き方」）。
 
 #### ステップ 5-3: 組み込みのテスト
 
 **変更するファイル**: `internal/fixprguard/ignored_test.go`、`internal/fixprguard/worktree_flow_test.go`、`cmd/fixprguard/main_test.go`
 
--   [ ] `TestCheckStateIgnoredChanges` を加える。設計書 7.1「状態の比較」の各変化で `parts` が `ignored` だけであること、変化しない 2 つの場合で止まらないこと。AC-13 は 3 つの行にする: 新しい最上位の `.gitignore`、下の階層の `.gitignore`（自分自身を無視するものを含む）、`core.excludesFile` のファイルへの追記。いずれもそこで無視される `.go` を作る。
--   [ ] 同じテストに、hooks（または config）と対象のファイルが同時に変わる行を加え、`parts` が `hooks` だけで、止まった時点の記録が書かれず、`router.Calls` に `git ls-files` がないことを確かめる（設計書 3.7）。
--   [ ] `TestBaselineIgnoredFailures` を加える。`Baseline` の中で状態を求められないとき（読めない対象のファイルなど）、規則の sentinel を返し、基準値を返さないこと。
--   [ ] `TestBeginWithTargets` を加える（設計書 7.1「`begin` が止まらないこと」）。
--   [ ] `TestIgnoredRecordFiles` を加える（設計書 7.1「記録のファイル」）。`Baseline` の後に対象のファイルが変わると `WriteBeginRecord` が書かずに止まること。止まった時点の記録が書かれること。記録の名前にディレクトリを置いて `rename` を失敗させると、`WriteBeginRecord` は `write ignored begin record` の sentinel を返し、`CheckState` は `parts` が `ignored` のままで、どちらも一時ファイルを残さないこと。記録の名前にシンボリックリンクを置くと、リンクの先が変わらないこと。linked worktree（`r.AddWorktree`、`test_helpers_git.go:167`）では記録が `.git/worktrees/<name>` に書かれること。
--   [ ] `worktree_flow_test.go` に `TestFinishStopsOnIgnoredChange` と `TestPushStopsOnIgnoredChange` を加える（設計書 7.2）。`finish` の前に書くと build checks を 1 つも実行しないこと（AC-09）。make の fake に `fmt` と `test` だけを手順として置き、`test` の `Effect` で対象のファイルを書くと、`make lint` を呼ばずに止まり、commit を作らないこと（AC-10）。`finish` の後に書くと `push` が push しないこと（AC-11）。どれも `parts` が `ignored` だけであること。
--   [ ] `cmd/fixprguard/main_test.go` に次のテストを加える。
+-   [x] `TestCheckStateIgnoredChanges` を加える。設計書 7.1「状態の比較」の各変化で `parts` が `ignored` だけであること、変化しない 2 つの場合で止まらないこと。AC-13 は 3 つの行にする: 新しい最上位の `.gitignore`、下の階層の `.gitignore`（自分自身を無視するものを含む）、`core.excludesFile` のファイルへの追記。いずれもそこで無視される `.go` を作る。
+-   [x] 同じテストに、hooks（または config）と対象のファイルが同時に変わる行を加え、`parts` が `hooks` だけで、止まった時点の記録が書かれず、`router.Calls` に `git ls-files` がないことを確かめる（設計書 3.7）。
+-   [x] `TestBaselineIgnoredFailures` を加える。`Baseline` の中で状態を求められないとき（読めない対象のファイルなど）、規則の sentinel を返し、基準値を返さないこと。
+-   [x] `TestBeginWithTargets` を加える（設計書 7.1「`begin` が止まらないこと」）。
+-   [x] `TestIgnoredRecordFiles` を加える（設計書 7.1「記録のファイル」）。`Baseline` の後に対象のファイルが変わると `WriteBeginRecord` が書かずに止まること。止まった時点の記録が書かれること。記録の名前にディレクトリを置いて `rename` を失敗させると、`WriteBeginRecord` は `write ignored begin record` の sentinel を返し、`CheckState` は `parts` が `ignored` のままで、どちらも一時ファイルを残さないこと。記録の名前にシンボリックリンクを置くと、リンクの先が変わらないこと。linked worktree（`r.AddWorktree`、`test_helpers_git.go:167`）では記録が `.git/worktrees/<name>` に書かれること。
+-   [x] `worktree_flow_test.go` に `TestFinishStopsOnIgnoredChange` と `TestPushStopsOnIgnoredChange` を加える（設計書 7.2）。`finish` の前に書くと build checks を 1 つも実行しないこと（AC-09）。make の fake に `fmt` と `test` だけを手順として置き、`test` の `Effect` で対象のファイルを書くと、`make lint` を呼ばずに止まり、commit を作らないこと（AC-10）。`finish` の後に書くと `push` が push しないこと（AC-11）。どれも `parts` が `ignored` だけであること。
+-   [x] `cmd/fixprguard/main_test.go` に次のテストを加える。
     -   `TestBeginWritesRecord`: `gh` を fake にした `begin` の後、`.git/fixprguard-ignored-begin` があり、その SHA-256 が出力の基準値を `.` で分けた 10 番目と一致すること。記録を書けないとき（記録の名前にディレクトリ）、`begin` が終了コード `1` で止まり、基準値を出力しないこと。
     -   `TestRoundWithUnchangedTargets`: 対象のファイルがあり変わらないとき、`inspect`・`finish`・`push` の出力の JSON が、対象のファイルがないときの同じ実行と、基準値・commit の SHA を除いて同じ欄と値を持つこと（AC-02）。
     -   `TestIgnoredOutputOmitsNames`: 名前と内容に識別できる文字列を入れた対象のファイルで、`ignored` で止まる場合と、`git-failed` で止まる各場合（読めないファイル、読めないディレクトリ、ディレクトリを指すリンク、大きさの上限、git の警告）に、標準出力・標準エラー・基準値に、その文字列も、対象のファイルごとのエントリの digest（記録のファイルに書く値をテストで求めたもの）も現れないこと（AC-15。`TestConfigStopOmitsNames`（`main_test.go:347`）にならう）。
@@ -311,8 +312,8 @@
 
 **変更するファイル**: `internal/fixprguard/types.go`、`.claude/commands/fixpr.md`、`.claude/commands/runpr.md`、`docs/dev/developer_guide/fixprguard_guide.ja.md`、`fixprguard_guide.md`、`docs/tasks/0032_japanese_pr_title/check_rules.sh`
 
--   [ ] `Protocol` を `4` にする。コメントは変えない（`types.go:17-20` は契約と範囲の規則の版と述べており、基準値の形と `parts` は契約に含まれる）。
--   [ ] 1.3.1 の表の箇所の番号を、すべて `4` にする。ガイドの基準値の例 `'v2....'` を `'v3....'` にする。1.3.2 の `git grep` が 0 行になることと、`check_rules.sh fixpr_title` が通ることを確かめ、結果をコミットメッセージに書く。
+-   [x] `Protocol` を `4` にする。コメントは変えない（`types.go:17-20` は契約と範囲の規則の版と述べており、基準値の形と `parts` は契約に含まれる）。
+-   [x] 1.3.1 の表の箇所の番号を、すべて `4` にする。ガイドの基準値の例 `'v2....'` を `'v3....'` にする。1.3.2 の `git grep` が 0 行になることと、`check_rules.sh fixpr_title` が通ることを確かめ、結果をコミットメッセージに書く。
 
 **壊して確かめる**: ガイドの `--protocol 4` の 1 か所を一時的に `3` に戻して、`TestDocumentedProtocolMatches` が失敗すること。
 
@@ -320,9 +321,9 @@
 
 **変更するファイル**: `.claude/commands/fixpr.md`、`cmd/yt2column/fixpr_docs_test.go`
 
--   [ ] `parts` を列挙する 3 か所（1.3.1）に `ignored` を加える。
--   [ ] `begin`・`inspect`・`finish`・`push` が `git-state-changed`（`parts` に `ignored`）か、無視されるファイルの規則の `git-failed` で止まったとき、セッションは無視されるファイルを一覧にしたり読んだりしない（`git status --ignored`・`git ls-files -o -i`・`ls .claude` などを実行しない）と書く。代わりに、利用者にガイド 8 章の手順を案内するよう書く（1.4）。`begin` の止まり方（`:258-262`）にも同じ内容を書く。`git-failed` のうち無視されるファイルにかかわるものは、標準エラーの診断の規則の名前（設計書 4 章の `ignored` を含む名前と `list ignored files` で始まる名前）で見分けると書く。文は英語で書く。
--   [ ] `TestFixprDocContract`（`cmd/yt2column/fixpr_docs_test.go:180`）に、この指示の語を `requirePhrases` で確かめる行を加える。
+-   [x] `parts` を列挙する 3 か所（1.3.1）に `ignored` を加える。
+-   [x] `begin`・`inspect`・`finish`・`push` が `git-state-changed`（`parts` に `ignored`）か、無視されるファイルの規則の `git-failed` で止まったとき、セッションは無視されるファイルを一覧にしたり読んだりしない（`git status --ignored`・`git ls-files -o -i`・`ls .claude` などを実行しない）と書く。代わりに、利用者にガイド 8 章の手順を案内するよう書く（1.4）。`begin` の止まり方（`:258-262`）にも同じ内容を書く。`git-failed` のうち無視されるファイルにかかわるものは、標準エラーの診断の規則の名前（設計書 4 章の `ignored` を含む名前と `list ignored files` で始まる名前）で見分けると書く。文は英語で書く。
+-   [x] `TestFixprDocContract`（`cmd/yt2column/fixpr_docs_test.go:180`）に、この指示の語を `requirePhrases` で確かめる行を加える。
 
 **壊して確かめる**: `fixpr.md` から禁止の文を消すと、`TestFixprDocContract` が失敗すること。
 
@@ -332,32 +333,32 @@
 
 **変更するファイル**: `docs/dev/developer_guide/fixprguard_guide.ja.md`
 
--   [ ] 設計書 3.10 の表の、ガイドの 1 章・5 章・7.1・7.2・8 章の各行のとおり改める。7.1 の「監視の一覧」の小見出しの下の表は、`WatchListPatterns` と同じ表記にする。8 章の `git-state-changed` の行には `ignored` の意味と小見出しへの参照を書き、(a)〜(e) とコマンドは表の後の小見出しに置く（1.4）。(a)・(b) のコマンドは 1 つのコードブロックにまとめる（ステップ 7-4 のテストが取り出す）。`git-failed` の行は、設計書 4 章の規則の名前ごとの原因と対処を書く。
--   [ ] `TestGuideDescribesConfigScope` が確かめる語と、`3. **` で始まる行が 1 つであることを保つ（1.3.1）。
--   [ ] 書いた 7.2 の項目を、要件書 4.2 の残余のリスクと設計書 5.3 と突き合わせる。
+-   [x] 設計書 3.10 の表の、ガイドの 1 章・5 章・7.1・7.2・8 章の各行のとおり改める。7.1 の「監視の一覧」の小見出しの下の表は、`WatchListPatterns` と同じ表記にする。8 章の `git-state-changed` の行には `ignored` の意味と小見出しへの参照を書き、(a)〜(e) とコマンドは表の後の小見出しに置く（1.4）。(a)・(b) のコマンドは 1 つのコードブロックにまとめる（ステップ 7-4 のテストが取り出す）。`git-failed` の行は、設計書 4 章の規則の名前ごとの原因と対処を書く。
+-   [x] `TestGuideDescribesConfigScope` が確かめる語と、`3. **` で始まる行が 1 つであることを保つ（1.3.1）。
+-   [x] 書いた 7.2 の項目を、要件書 4.2 の残余のリスクと設計書 5.3 と突き合わせる。
 
 #### ステップ 7-2: 9 章の `Protocol` の規則
 
 **変更するファイル**: `docs/dev/developer_guide/fixprguard_guide.ja.md`
 
--   [ ] 9 章に、`Protocol` の番号は上げるだけで、使った番号を再び使ったり下げたりしないことを書く（設計書 3.9・3.10）。監視の一覧を変えたら 7 章の表も変えることを、一覧の更新の項目（`:326`）に加える。`TestGuideDescribesReviewerList` が確かめる 9 章の但し書きは変えない。
+-   [x] 9 章に、`Protocol` の番号は上げるだけで、使った番号を再び使ったり下げたりしないことを書く（設計書 3.9・3.10）。監視の一覧を変えたら 7 章の表も変えることを、一覧の更新の項目（`:326`）に加える。`TestGuideDescribesReviewerList` が確かめる 9 章の但し書きは変えない。
 
 #### ステップ 7-3: ガイドの英語版と用語集
 
 **変更するファイル**: `docs/dev/developer_guide/fixprguard_guide.md`、`docs/translation_glossary.md`、`cmd/yt2column/fixpr_docs_test.go`
 
--   [ ] ステップ 7-1・7-2 の日本語版をコミットしてから、英語版の同じ節を翻訳する（1.2）。翻訳の後に、日本語版と節ごとに突き合わせる。8 章のコードブロックは日本語版と同じバイト列にする。
--   [ ] 翻訳で使った用語のうち、用語集にないもの（監視の一覧、対象のファイル、記録のファイル）を用語集に加え、`TestGlossaryTerms`（`cmd/yt2column/fixpr_docs_test.go:702`）に日英の組を加える。
+-   [x] ステップ 7-1・7-2 の日本語版をコミットしてから、英語版の同じ節を翻訳する（1.2）。翻訳の後に、日本語版と節ごとに突き合わせる。8 章のコードブロックは日本語版と同じバイト列にする。
+-   [x] 翻訳で使った用語のうち、用語集にないもの（監視の一覧、対象のファイル、記録のファイル）を用語集に加え、`TestGlossaryTerms`（`cmd/yt2column/fixpr_docs_test.go:702`）に日英の組を加える。
 
 #### ステップ 7-4: 文書のガード
 
 **変更するファイル**: `cmd/fixprguard/docs_test.go`
 
--   [ ] `TestGuideListsWatchList` を加える。日英の 7.1 の「監視の一覧」の小見出しの後の表を `guideTable` で切り出し、表のコードスパンの集合が `WatchListPatterns` の集合と一致することを確かめる（足りない項目も、余分な項目も失敗にする）。7.1 の保証の行があることも確かめる（AC-17）。
--   [ ] `TestGuideNamesGitStateParts` を加える。日英の 8 章の `git-state-changed` の行を `singleLine` で取り出し、`GitStateParts` のすべての値がコードスパンであることを確かめる。
--   [ ] `TestGuideDescribesIgnoredFiles` を加える。`passage`・`checkPassages` の形で、日英の 7.2 の分けた項目（AC-18）、8 章の小見出しの (a)〜(e) の語と 2 つの SHA-256 のコマンド（AC-19）、`git-failed` の行の原因の語（AC-19a）を確かめる。`checkPassages` は `configScope` の 3 つの語を必ず求めるので、0036 の PR-2 が同じ関数を改めていればその形を使い、そうでなければ確かめる語の一覧を渡せる形に改めて使う（`TestGuideDescribesConfigScope` の語は変えない）。
--   [ ] `TestGuideIgnoredCommands` を加える（1.4）。日英の 8 章の小見出しのコードブロックを取り出し、両版で同じであることを確かめる。`gh` を fake にした `begin` と、対象のファイルを変えた後の `inspect` で 2 つの記録のファイルを作り、ブロックのコマンドを `sh` で実行する。照合が一致し、`diff` が変えたパスを示すこと、`begin` の記録を書き換えると照合が一致しないことを確かめる。`shasum` と `sha256sum` のうち使える方で実行し、どちらも使えなければ失敗させる。
--   [ ] `fixpr.md` の `parts` を列挙する文に `` `ignored` `` があることを、`TestGuideNamesGitStateParts` か別の小さなテストで確かめる（設計書 3.10）。
+-   [x] `TestGuideListsWatchList` を加える。日英の 7.1 の「監視の一覧」の小見出しの後の表を `guideTable` で切り出し、表のコードスパンの集合が `WatchListPatterns` の集合と一致することを確かめる（足りない項目も、余分な項目も失敗にする）。7.1 の保証の行があることも確かめる（AC-17）。
+-   [x] `TestGuideNamesGitStateParts` を加える。日英の 8 章の `git-state-changed` の行を `singleLine` で取り出し、`GitStateParts` のすべての値がコードスパンであることを確かめる。
+-   [x] `TestGuideDescribesIgnoredFiles` を加える。`passage`・`checkPassages` の形で、日英の 7.2 の分けた項目（AC-18）、8 章の小見出しの (a)〜(e) の語と 2 つの SHA-256 のコマンド（AC-19）、`git-failed` の行の原因の語（AC-19a）を確かめる。`checkPassages` は `configScope` の 3 つの語を必ず求めるので、0036 の PR-2 が同じ関数を改めていればその形を使い、そうでなければ確かめる語の一覧を渡せる形に改めて使う（`TestGuideDescribesConfigScope` の語は変えない）。
+-   [x] `TestGuideIgnoredCommands` を加える（1.4）。日英の 8 章の小見出しのコードブロックを取り出し、両版で同じであることを確かめる。`gh` を fake にした `begin` と、対象のファイルを変えた後の `inspect` で 2 つの記録のファイルを作り、ブロックのコマンドを `sh` で実行する。照合が一致し、`diff` が変えたパスを示すこと、`begin` の記録を書き換えると照合が一致しないことを確かめる。`shasum` と `sha256sum` のうち使える方で実行し、どちらも使えなければ失敗させる。
+-   [x] `fixpr.md` の `parts` を列挙する文に `` `ignored` `` があることを、`TestGuideNamesGitStateParts` か別の小さなテストで確かめる（設計書 3.10）。
 
 **壊して確かめる**: 次の変更を 1 つずつ加えると、それぞれのガードが失敗すること。一時的に書き換えて確かめ、戻す。
 
@@ -372,15 +373,15 @@
 
 **変更するファイル**: `docs/dev/developer_guide/package_reference.md`
 
--   [ ] `internal/cmdrunner` の行に `StderrIsFailure` と `ErrUnexpectedStderr` を、`internal/fixprguard` の行に、基準値が監視の一覧に当たる無視されるファイルの状態を含むこと、`CheckState` がそれを比べること、記録のファイルを書くことを加える。書いた内容を `runner.go`・`ignored.go` のコードと突き合わせる。
+-   [x] `internal/cmdrunner` の行に `StderrIsFailure` と `ErrUnexpectedStderr` を、`internal/fixprguard` の行に、基準値が監視の一覧に当たる無視されるファイルの状態を含むこと、`CheckState` がそれを比べること、記録のファイルを書くことを加える。書いた内容を `runner.go`・`ignored.go` のコードと突き合わせる。
 
 #### ステップ 7-6: PR-2 の確かめ
 
 **変更するファイル**: なし
 
--   [ ] `make test && make lint` と、文書のガード（ステップ 7-4 の完了条件のコマンド）を実行する。
--   [ ] AC-01a を手で確かめる（1.3.2）。`extension/node_modules/` がある作業ツリーで、PR-2 のブランチからビルドしたバイナリの `begin` が止まらないことを確かめる。`begin` は GitHub を読むので、利用者の承認を得て実行する（`CLAUDE.md`「Tool Execution Safety」）。かかった時間と対象のファイルの数を本書 1.3.2 に記録する。
--   [ ] 本タスクの前のツール（`Protocol` 3）で、PR-2 のブランチの `fixpr.md` に書いてある形の `--protocol 4` の呼び出しが終了コード `2` で止まることを確かめる。`go version -m "$(command -v fixprguard)"` の `vcs.revision` が PR-2 の前の `origin/main` のコミットでなければ、そのコミットの `cmd/fixprguard` をスクラッチのディレクトリにビルドして使う。
+-   [x] `make test && make lint` と、文書のガード（ステップ 7-4 の完了条件のコマンド）を実行する。
+-   [x] AC-01a を手で確かめる（1.3.2）。`extension/node_modules/` の写しを置いた一時リポジトリで、PR-2 のブランチのコードの、状態を求める処理（`collectTargets`、既定の上限）を実行し、上限で止まらないことを確かめる。`begin` は GitHub を読む（ネットワークに接続する）ので、バイナリの `begin` は実行しない。かかった時間と対象のファイルの数を本書 1.3.2 に記録する。
+-   [x] 本タスクの前のツール（`Protocol` 3）で、PR-2 のブランチの `fixpr.md` に書いてある形の `--protocol 4` の呼び出しが終了コード `2` で止まることを確かめる。`go version -m "$(command -v fixprguard)"` の `vcs.revision` が PR-2 の前の `origin/main` のコミットでなければ、そのコミットの `cmd/fixprguard` をスクラッチのディレクトリにビルドして使う。
 
 **完了条件**: 上の 3 つが済んでいる。
 
@@ -396,8 +397,8 @@
 
 **判定理由**: ステップ 5-1・5-2 は、0030 の守りの層 (3) の比較と基準値の形を変える、セキュリティのゲートの変更である（`mkplan.md` step 8 の panel mode の契機）。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/461
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
@@ -568,9 +569,9 @@
 
 `make test`・`make lint` とガードが検出しないものだけを挙げる。どれも `manual` で、実行した検索とその結果を、そのステップのコミットメッセージに書く。
 
--   [ ] ステップ 6-1 の `git grep` で、`.claude/`・`docs/dev/`・`check_rules.sh` に `--protocol 3`・`"protocol":3` が残っていない。`docs/tasks/` の下の `.md` の文書の番号は、当時の記録として変えない。
--   [ ] ガイドの日英で、基準値の例が `'v3....'` になっている。
--   [ ] ガイド 7.2 の、今の「`.gitignore` が無視するファイル、…」の項目（`:281`）の古い文が、分けた項目の後に残っていない。
+-   [x] ステップ 6-1 の `git grep` で、`.claude/`・`docs/dev/`・`check_rules.sh` に `--protocol 3`・`"protocol":3` が残っていない。`docs/tasks/` の下の `.md` の文書の番号は、当時の記録として変えない。
+-   [x] ガイドの日英で、基準値の例が `'v3....'` になっている。
+-   [x] ガイド 7.2 の、今の「`.gitignore` が無視するファイル、…」の項目（`:281`）の古い文が、分けた項目の後に残っていない。
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 

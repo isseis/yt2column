@@ -336,8 +336,10 @@ func TestBaselineMalformedRejected(t *testing.T) {
 	}
 	for _, tc := range []struct{ name, token string }{
 		{"empty", ""},
-		// The version before this baseline shape was introduced.
-		{"previous_version", with(0, "v1")},
+		// The shape the version before this one printed: v2 and seven
+		// fields, without the two target file digests.
+		{"previous_version", strings.Join(append([]string{"v2"}, fields[1:8]...), ".")},
+		{"previous_version_nine_fields", with(0, "v2")},
 		{"missing_field", strings.Join(fields[:len(fields)-1], ".")},
 		{"extra_field", token + ".00"},
 		{"head_upper_case", with(1, strings.ToUpper(fields[1]))},
@@ -345,6 +347,10 @@ func TestBaselineMalformedRejected(t *testing.T) {
 		{"remote_word", with(3, "absent")},
 		{"digest_short", with(5, fields[5][1:])},
 		{"digest_not_hex", with(6, strings.Repeat("g", digestLength))},
+		{"ignored_short", with(8, fields[8][1:])},
+		{"ignored_upper_case", with(8, strings.ToUpper(fields[8]))},
+		{"ignored_record_not_hex", with(9, strings.Repeat("g", digestLength))},
+		{"ignored_record_empty", with(9, "")},
 		{"surrounding_space", " " + token},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

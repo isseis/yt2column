@@ -200,7 +200,26 @@ var (
 	errReadIgnoredFile    = fmt.Errorf("%w: read ignored file", ErrGitFailed)
 	errIgnoredLinkToDir   = fmt.Errorf("%w: ignored link to a directory", ErrGitFailed)
 	errClaudeGitName      = fmt.Errorf("%w: .git name below .claude", ErrGitFailed)
+	errWriteBeginRecord   = fmt.Errorf("%w: write ignored begin record", ErrGitFailed)
 )
+
+// ignoredFailures is every reason above; IgnoredFailureRules names them.
+var ignoredFailures = []error{
+	errListIgnoredFailed, errListIgnoredCap, errListIgnoredShape, errIgnoredTargetCount,
+	errIgnoredWalkEntries, errIgnoredFileSize, errIgnoredReadTotal, errIgnoredTimeout,
+	errReadIgnoredDir, errReadIgnoredFile, errIgnoredLinkToDir, errClaudeGitName, errWriteBeginRecord,
+}
+
+// IgnoredFailureRules lists the rule names the git-failed diagnostic prints
+// for the target files, in the order the guide's table lists them, so the
+// guide and the fixpr document can be checked against them.
+func IgnoredFailureRules() []string {
+	rules := make([]string, 0, len(ignoredFailures))
+	for _, err := range ignoredFailures {
+		rules = append(rules, strings.TrimPrefix(err.Error(), ErrGitFailed.Error()+": "))
+	}
+	return rules
+}
 
 // targetState is what one pass over the target files yields: digest covers
 // every target file's path and state, and record has one line per target
@@ -578,4 +597,83 @@ func hashCapped(r io.Reader, size int64, lim targetLimits, total *int64) (string
 		return "", errIgnoredReadTotal
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// The record files, in the per-worktree git directory: outside the work
+// tree, where git lists nothing, and apart for each worktree. Each holds a
+// pass's record (targetState.record). begin writes the begin record and the
+// baseline holds its digest, so a record rewritten or removed later shows;
+// a stop on a target file difference writes the stop record. The user
+// compares the two outside the session to find the paths that changed.
+const (
+	ignoredBeginRecord = "fixprguard-ignored-begin"
+	ignoredStopRecord  = "fixprguard-ignored-stop"
+)
+
+// recordDigest is the SHA-256 of a record, as a shell's sha256sum or
+// shasum -a 256 prints it for the record file.
+func recordDigest(record []byte) string {
+	sum := sha256.Sum256(record)
+	return hex.EncodeToString(sum[:])
+}
+
+// WriteBeginRecord writes the begin record file once the target files still
+// match base: it takes the state again, and when the record's digest is not
+// base's (a target file changed after Baseline read it) it writes nothing and
+// returns a GitStateError naming ignored. It first removes both records an
+// earlier round left, so a record present later belongs to this round: a
+// stop record pairs with this begin record, and a begin that stops leaves
+// none that the previous token would still match. begin calls it after Baseline and prints the baseline only after it
+// returns, so no baseline reaches the session without its record. It locates
+// the git directories again: nothing runs between the two calls that could
+// move them, and CheckState holds their location to the baseline later.
+func (w *Worktree) WriteBeginRecord(ctx context.Context, base Baseline) error {
+	if !base.usable() {
+		return fmt.Errorf("%w: baseline", ErrInvalidInput)
+	}
+	dirs, err := locateGitDirs()
+	if err != nil {
+		return err
+	}
+	for _, name := range []string{ignoredStopRecord, ignoredBeginRecord} {
+		if err := os.Remove(filepath.Join(dirs.gitDir, name)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return errWriteBeginRecord
+		}
+	}
+	state, err := w.collectTargets(ctx, defaultTargetLimits)
+	if err != nil {
+		return err
+	}
+	if recordDigest(state.record) != base.ignoredRecord {
+		return &GitStateError{Parts: []string{PartIgnored}}
+	}
+	if err := writeRecordFile(dirs.gitDir, ignoredBeginRecord, state.record); err != nil {
+		return errWriteBeginRecord
+	}
+	return nil
+}
+
+// writeRecordFile replaces dir/name with content through a temporary file of
+// a random name, created exclusively with mode 0600 in dir, and a rename,
+// which replaces a link at name rather than following it. The temporary file
+// is removed on any failure. The error is the OS's; callers replace it, since
+// it holds a path.
+func writeRecordFile(dir, name string, content []byte) (err error) {
+	f, err := os.CreateTemp(dir, name+"-*.tmp")
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			_ = os.Remove(f.Name())
+		}
+	}()
+	_, err = f.Write(content)
+	if closeErr := f.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		return err
+	}
+	return os.Rename(f.Name(), filepath.Join(dir, name))
 }
