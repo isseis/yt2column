@@ -291,6 +291,20 @@ info.json parsers with real samples under `testdata/`.
   same rows with the same literals, one table is enough.
 - **Deleting a test is a claim that must be checked**: confirm `go tool cover -func`
   is unchanged function by function afterwards, and say so.
+- **Document tests check values, structure, and executable examples, never prose.**
+  A test that reads a document may compare a value in it with the code or
+  configuration that defines it (flags, exit codes, protocol numbers, extension
+  IDs and permissions, `make` targets, rejection tables), check the heading
+  structure, or parse or run a command example. It must not try to establish the
+  meaning of a sentence by matching words, pin a literal copied into the test,
+  assert that an old name is absent from a document, or check a task's own
+  record. A change to a document's wording is checked by reading it in the PR
+  review (`manual`), because a test cannot tell a reworded sentence from a
+  reversed one. Two exceptions stay tested: the automated-reviewer list, and the
+  commands the agents run at their trust boundary (the `fixprguard` call sites,
+  the commands that would bypass it, the mention check, and the `--jq` filters
+  that must not print a body). A mistake there disables a guard at run time, so
+  a test is worth its brittleness.
 
 See [Test Organization Guide](docs/dev/developer_guide/test_organization.md) for test helper file structure.
 
