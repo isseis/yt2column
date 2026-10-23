@@ -674,7 +674,11 @@ var remainingIgnoredRisks = []string{
 // architecture 5.3 and the ignored-file residual risk of its requirements 4.2
 // link task 0034's requirements, name its issue #424, and list each residual
 // risk 0034 leaves; the requirements item still names the network risk, and
-// the architecture item no longer says an ignored _test.go goes undetected.
+// the architecture item no longer says an ignored _test.go or a file hidden
+// by the global exclude file goes undetected. The other passage each
+// document states the ignored-file scope in, layer (3) of the requirements
+// 4.2 and the change count of the architecture 3.6, says 0034 detects the
+// watch-listed files.
 // Both documents stay approved, and each Comments cell has a decision record
 // naming #424. The guard checks that the words are there; whether the scope
 // matches 0034's requirements 4.2 is checked in review.
@@ -686,6 +690,10 @@ func TestTask0030DescribesIgnoredFiles(t *testing.T) {
 		item  func(doc string) string
 		more  []string
 		stale []string
+		// other is the other passage on the ignored-file scope, and
+		// otherSays the phrase it must hold.
+		other     func(doc string) string
+		otherSays string
 	}{
 		{
 			rel:  dir + "02_architecture.md",
@@ -695,7 +703,12 @@ func TestTask0030DescribesIgnoredFiles(t *testing.T) {
 			item: func(doc string) string {
 				return cutSection(subsection(doc, "### 5.3."), "-   **無視されるファイル。**", "\n-   ")
 			},
-			stale: []string{"`make test` が実行することは、検出できない"},
+			stale: []string{
+				"`make test` が実行することは、検出できない",
+				"グローバルの除外のファイルで新しいファイルを隠すことは、検出しない",
+			},
+			other:     func(doc string) string { return subsection(doc, "### 3.6.") },
+			otherSays: "監視の一覧に当たるものはタスク 0034 が検出する",
 		},
 		{
 			rel:  dir + "01_requirements.md",
@@ -711,8 +724,10 @@ func TestTask0030DescribesIgnoredFiles(t *testing.T) {
 				}
 				return ""
 			},
-			more:  []string{"ネットワークに接続すること"},
-			stale: []string{"git が無視するファイル（`.envrc` など）を変えること"},
+			more:      []string{"ネットワークに接続すること"},
+			stale:     []string{"git が無視するファイル（`.envrc` など）を変えること"},
+			other:     func(doc string) string { return subsection(doc, "### 4.2.") },
+			otherSays: "タスク 0034 の後は、git が無視するファイルのうち監視の一覧に当たるものの変化も検出する",
 		},
 	} {
 		t.Run(filepath.Base(tc.rel), func(t *testing.T) {
@@ -724,6 +739,7 @@ func TestTask0030DescribesIgnoredFiles(t *testing.T) {
 					t.Errorf("%s: %s still says %q", tc.rel, tc.name, old)
 				}
 			}
+			requireAll(t, tc.rel, "the other ignored-file passage", tc.other(doc), tc.otherSays)
 			if status := singleLine(t, tc.rel, doc, "| Status |"); !strings.Contains(status, "`approved`") {
 				t.Errorf("%s: status is not approved: %q", tc.rel, status)
 			}
