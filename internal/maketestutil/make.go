@@ -1,11 +1,12 @@
 //go:build test
 
-// Package maketestutil checks make targets that run charged integration tests.
-// A test hands a target to these helpers, which run it with GOTEST replaced by
-// a stub, so the target is exercised without running go test, calling an API,
-// or touching the network. The provider-specific variable names, defaults, and
-// notices are the caller's; the stub, the child environment, and the checks
-// against the go test command line live here.
+// Package maketestutil checks the go test command lines of make targets, both
+// those that run charged integration tests and uncharged ones such as
+// test-parse-norace. A test hands a target to these helpers, which run it with
+// GOTEST replaced by a stub, so the target is exercised without running go
+// test, calling an API, or touching the network. The provider-specific
+// variable names, defaults, and notices are the caller's; the stub, the child
+// environment, and the checks against the go test command line live here.
 package maketestutil
 
 import (
