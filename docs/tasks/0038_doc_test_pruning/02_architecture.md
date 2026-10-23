@@ -43,7 +43,7 @@
 -   **コマンドの定義がレビュアーの名前を書かないことの確認は K4 とする:** `TestContextAndCommandsAgree`（`cmd/yt2column/fixpr_docs_test.go:796`）のうち、`fixpr.md`・`runpr.md`・`_lib/task-pr-handoff.md` が `_context.md` の自動レビュアーの名前を含まないことの確認は、文書の側の不在（D3）にも見えるが、K4 として残す。名前は古い語ではなく、`_context.md` から解析し `wantReviewers` と照合した今の値である。この確認があるので、信頼する自動レビュアーを決める場所が `_context.md` の 1 つに限られる。
 -   **コードとの一致を別のテストが確かめているリテラルは D2 とする:** 要件書 F-001 の「テストがコードの値と等しいことを確かめたリテラル」は、そのテスト自身がコードの値と比べたリテラルに限る。たとえば `TestClaudeDocsContract` の `"test-integration-claude"` は、`cmd/yt2column/makefile_test.go:31` の定数と同じ値だが、`TestClaudeDocsContract` はその定数と比べていないので D2 として削除する。別のテストがコードの値を固定していても、このテストのリテラルは単独で古くなりうるからである。
 -   **PR は、規則を先に、続いてパッケージごとに分ける:** 8 章のとおり、PR-1 で規則と方針を改め、PR-2〜PR-5 でパッケージ（またはテストの群）ごとに削除する。各削除の PR は、そのテストを挙げるタスクの文書も改める。
--   **K5 は、エージェントが信頼の境界で実行するコマンドの中身を含む:** 要件書 F-001 の K5 は、ガードツールの呼び出しの場所と、ガードツールを迂回するコマンドを挙げる。要件書 1 章は K5 を残す理由を「自然言語の説明ではなく、エージェントが実行する手順の中身である。誤って消えると、`/fixpr`・`/runpr` の信頼の境界が実行時に働かなくなる」とする。同じ理由が当たる次の 2 つも K5 として残す。1 つは、投稿する各節の言及の確認（`**Mention check.**`）が、`grep -qiF -- '<review-mention>' <file>` のコマンドを含むことの確認である。`fixprguard` を通らない投稿の経路（`gh pr create`、`gh issue comment`・`create`・`close`、`gh api -X POST`）では、このコマンドだけが実行時に言及を止める（`fixprguard` が本文を確かめるのは `reply` と `edit-pr` だけである。`internal/fixprguard/write.go:73-83`・`:134`・`:309-312`）。もう 1 つは、`runpr.md` の step 3 で読むたびに実行する一覧の `--jq` のフィルタ（要約のコメントを読むものと、言及を含むコメント・レビューを挙げるもの）が、本文（`body`）の全体を出力しないことの確認である。要約のコメントを読むフィルタは、本文から導いた状態だけを出力する。これらのフィルタが、信頼しないコメントの本文をセッションに入れないことを担う（`runpr.md:12-17`・`:229-292`）。フィルタの中で `.body` を読んで選ぶことと、止まったときの報告のために本文を読む箇所（`runpr.md:395` の `--jq .body` と、`:408` の 2 行めの先頭 500 文字だけを読むフィルタ）は、この確認の対象にしない。K5 として残すこの 2 つの確認は、どちらも文の言い回しではなく、コマンドの中身だけを確かめる。要件書の K5 の項は、同じ PR で 1 行を加えて直す（レビュアーがセッションで承認した）。
+-   **K5 は、エージェントが信頼の境界で実行するコマンドの中身を含む:** 要件書 F-001 の K5 は、ガードツールの呼び出しの場所と、ガードツールを迂回するコマンドを挙げる。要件書 1 章は K5 を残す理由を「自然言語の説明ではなく、エージェントが実行する手順の中身である。誤って消えると、`/fixpr`・`/runpr` の信頼の境界が実行時に働かなくなる」とする。同じ理由が当たる次の 2 つも K5 として残す。1 つは、投稿する各節の言及の確認（`**Mention check.**`）が、`grep -qiF -- '<review-mention>' <file>` のコマンドを含むことの確認である。`fixprguard` を通らない投稿の経路（`gh pr create`、`gh issue comment`・`create`・`close`、`gh api -X POST`）では、このコマンドだけが実行時に言及を止める（`fixprguard` が本文を確かめるのは `reply` と `edit-pr` だけである。`internal/fixprguard/write.go:73-83`・`:134`・`:309-312`）。もう 1 つは、`runpr.md` の step 3 で読むたびに実行する一覧の `--jq` のフィルタ（要約のコメントを読むものと、言及を含むコメント・レビューを挙げるもの）が、本文（`body`）の全体を出力しないことの確認である。要約のコメントを読むフィルタは、本文から導いた状態だけを出力する。これらのフィルタが、信頼しないコメントの本文をセッションに入れないことを担う（`runpr.md:12-17`・`:229-292`）。フィルタの中で `.body` を読んで選ぶことと、止まったときの報告のために本文を読む箇所（`runpr.md:395` の `--jq .body` と、`:408` の 2 行めの先頭 500 文字だけを読むフィルタ）は、この確認の対象にしない。K5 として残すこの 2 つの確認は、どちらも文の言い回しではなく、コマンドの中身だけを確かめる。要件書の K5 の項は、同じ PR で 1 行を加えて直す。残す確認を広げる決定の変更なので、要件書は Status を `draft` に戻し、再承認を求める（`requirements_process.md`「Editing an approved document」）。
 -   **0038 の削除の PR は、タスク 0034・0037 の実装のマージの後に始める:** タスク 0034 の PR-2 は PR #461 として開いており、`TestGuideDescribesIgnoredFiles` などの文書のテストを加えている。タスク 0037 の PR-1 は PR #459 として `f326ce6` でマージされ、`runprStep5` を変えた。本タスクの削除の PR（PR-2〜PR-5）は、両タスクの実装の PR がすべて `main` にマージされた後に始める。そうすれば、両タスクが加えたテストは実装済みのものとして判定の一覧に入る（AC-18）。作業中のブランチと衝突する計画の書き換えも、削除の PR のマージの後に D1〜D4 だけに当たるテストが `main` に入ることも避けられる。PR-1 は手順の規則と `CLAUDE.md` を変え、タスク 0037 の PR-1 も `CLAUDE.md`・`requirements_process.md` を変えるので、PR-1 もタスク 0037 のマージの後に始める（3.4）。
 
 設計で決めたもの（レビュアーに諮らず、理由とともに記す）:
@@ -107,7 +107,7 @@ Q2 を Q3 より先に置くのは、1.2 の 1 つめの決定（タスクの文
 
 ### 1.4. 要件書の記述との差異
 
-`80c17a8` で確かめた事実のうち、要件書の記述と異なるものを記す。いずれも判定を変えない。要件書は、本書と同じ PR で編集上の訂正として直す（Status は `approved` のまま、`Comments` に記録する）。同じ PR で、1.2 の K5 の読み方を要件書の K5 の項に加える。
+`80c17a8` で確かめた事実のうち、要件書の記述と異なるものを記す。いずれも判定を変えない。要件書は、本書と同じ PR で直し、これらは編集上の訂正として `Comments` に記録する。同じ PR で、1.2 の K5 の読み方を要件書の K5 の項に加える。こちらは決定の変更なので、要件書は Status を `draft` に戻し、再承認を求める（1.2）。
 
 -   **タスク 0034・0037 の進み具合:** 要件書 1 章は、タスク 0034 の計画が加えると定めたテストを未実装として扱う。2026-10-23 の本書の作成時点で、タスク 0034 の PR-2（PR #461）がそれらのテストを加えており、タスク 0037 の PR-1（PR #459）はマージ済みである（1.2、3.4）。
 
@@ -362,7 +362,7 @@ AC-05 の調べ: 要件書 1 章の一覧にないファイルに、文書を読
 
 | テスト | 判定 | 残す確認 | 削除する確認 | 製品のコード |
 |---|---|---|---|---|
-| `TestServerDocsContract`（`cmd/yt2column-server/docs_test.go:32`） | 一部を削除する | README の `slackEnv`、macOS とほかの Unix のソケットのパス、`curl` と `server.ArticlesPath` の行、終了コードの表（`exitOK`・`exitFailure`・`exitUsage`）、拒否理由のサブテスト全体（K1）。`project_overview.md` の、2 つの環境変数の名前を含む行（K1。`読まない` を外す）。`security.md` 8.2 の `枠（`N`）`、MiB の上限、`allowed_origins` と `nmhost.ExtensionOrigin`（K1） | README の開発用サーバの節、`CLAUDE.md`、用語集のサブテスト（D1・D2）、`security.md` 8 章の冒頭（D1）、廃止した語の不在（D3）、`0700`・`0600`・バイナリとパッケージの名前・インストールのコマンド・トラブルシューティングの見出し・`--unix-socket "$socket"`・`needs no shared token`（D1・D2）。README の更新の節（`### Upgrading from the shared-token version`）があること、その節が `server-token` と `can be deleted` を含むこと（D2）、その節を除いてから確かめる仕組み（D3 の確認のためのもの。`cmd/yt2column-server/docs_test.go:46-58`） | あり（残す部分。`socketRule`・`server.RejectReasonsForTest`） |
+| `TestServerDocsContract`（`cmd/yt2column-server/docs_test.go:32`） | 一部を削除する | README の `slackEnv`、macOS とほかの Unix のソケットのパス、`curl` と `server.ArticlesPath` の行、終了コードの表（`exitOK`・`exitFailure`・`exitUsage`）、拒否理由のサブテスト全体（K1）。`project_overview.md` の、2 つの環境変数の名前を含む行（K1。`読まない` を外す）。`security.md` 8.2 の `枠（`N`）`、MiB の上限、`allowed_origins` と `nmhost.ExtensionOrigin`（K1）。README の残す確認は、今と同じく更新の節（`### Upgrading from the shared-token version`）を除いた節で確かめる（AC-02）。見出しは除く範囲を探すためだけに使う（K2 のただし書き） | README の開発用サーバの節、`CLAUDE.md`、用語集のサブテスト（D1・D2）、`security.md` 8 章の冒頭（D1）、廃止した語の不在（D3）、`0700`・`0600`・バイナリとパッケージの名前・インストールのコマンド・トラブルシューティングの見出し・`--unix-socket "$socket"`・`needs no shared token`（D1・D2）。README の更新の節がないときに失敗させる確認と、その節が `server-token` と `can be deleted` を含むこと（D2。`cmd/yt2column-server/docs_test.go:46-58`） | あり（残す部分。`socketRule`・`server.RejectReasonsForTest`） |
 | `TestSectionByHeading`（`:322`） | 残す | 補助の単体テスト | - | なし |
 | `TestReadmeHostExitCodes`（`cmd/yt2column-nmhost/main_test.go:408`） | 残す | 終了コードの定数（K1） | - | なし（定数） |
 | `TestPackageReferenceListsPackages`（`internal/pipeline/pipeline_test.go:671`） | 残す | パッケージの一覧（K1） | - | なし |
@@ -370,7 +370,7 @@ AC-05 の調べ: 要件書 1 章の一覧にないファイルに、文書を読
 | `TestSharedTokenRemoved`（`internal/pipeline/relay_guard_test.go:397`） | 一部を削除する | 製品の Go のファイルと `extension/src`・`extension/static` を調べる部分（文書を読まない確認。H-07） | README・`CLAUDE.md`・用語集・`docs/dev/` の不在（D3）、更新の節が `server-token` を挙げること（D2）、更新の節の除外（D3） | なし |
 | `TestWithoutSection`（`:368`） | 削除する | - | 補助（`withoutSection`）が使われなくなる | なし |
 
-**README の更新の節の除外:** 今の README のサブテストは、`## Localhost server` の節から更新の節を除き、残りで値を確かめる。除外は、更新の節が廃止した語（`server-token`）を挙げるので、不在の確認（D3）から外すためのものである。D3 の確認を削除すると除外も要らなくなるので、残す確認は `## Localhost server` の節の全体を読む。更新の節は、残す確認の値（ソケットのパス、`curl` の行、終了コードの表）を含まない（`80c17a8` の README で確かめた）。そのため、確かめる位置は節の全体に広がるが、値が一致する箇所は変わらない。AC-02 の一覧には、この広がりを記す。
+**README の更新の節の除外:** 今の README のサブテストは、`## Localhost server` の節から更新の節を除き、残りで値を確かめる。除外は、更新の節が廃止した語（`server-token`）を挙げるので、不在の確認（D3）から外すために設けられた。D3 の確認を削除した後も、残す確認は更新の節を除いた節で確かめ、確かめる位置を変えない（AC-02）。節の全体を読むと、本来の手順の記述が値を欠いても、更新の節にある値で確認が通りうるためである。更新の節の見出しは、除く範囲を探すためだけに使うので、その見出しの扱いは残す確認と同じになる（要件書 F-001 の K2 のただし書き）。一方、更新の節があること自体と、その節が `server-token` と `can be deleted` を含むことは確かめない（D2）。更新の節がなければ除く範囲はなく、節の全体がそのまま除いた後の節に当たる。
 
 **`project_overview.md` の行（H-01）:** 今の確認は、同じ行に `cacheDirEnv`・`ytDlpEnv` の値と `読まない` の語があることを確かめる。`読まない` は否定の主張であり D1 に当たるので外し、2 つの値が同じ行にあることの確認（K1）を残す。2 つの名前が同じ行に並ぶのは `docs/dev/project_overview.md:125` だけで、設定の表（`:120`・`:121`）では別の行にある。そのため、値を探す位置は今と同じである。
 
@@ -398,7 +398,7 @@ AC-05 の調べ: 要件書 1 章の一覧にないファイルに、文書を読
 | `TestRunprDocContract` | step 3 の jq のフィルタの全文 | step 3 の一覧の `--jq` のフィルタ（要約のコメントと、言及を含むコメント・レビュー）が、出力する値に本文の全体を含めないこと（K5、1.2）。何をもって含めないとみなすかは実装計画で決める | - |
 | `TestPostingPathsCheckMention` | 言及の確認の文の全文（`mentionCheck`） | 投稿する各節の `**Mention check.**` の行が `grep -qiF -- '<review-mention>' <file>` を含むこと（K5、1.2） | `**Mention check.**`（各節の確認の位置を示す） |
 | `TestServerDocsContract` の README | `curl` の行（`--unix-socket "$socket"` と `server.ArticlesPath`） | `curl` と `server.ArticlesPath` が同じ行にあること | `curl`（`ArticlesPath` だけでは、README のほかの箇所にも一致する） |
-| `TestServerDocsContract` の README | 更新の節を除いた節 | 節の全体（3.1.6） | - |
+| `TestServerDocsContract` の README | 更新の節があること、その節が `server-token` と `can be deleted` を含むこと | 更新の節を除いた節で確かめることは変えない。更新の節がないときに失敗させる確認だけを外す（3.1.6） | `### Upgrading from the shared-token version`（除く範囲を探すためだけに使う） |
 | `TestServerDocsContract` の `project_overview.md` | 2 つの環境変数の名前と `読まない` が同じ行にあること | 2 つの名前が同じ行にあること（3.1.6） | 残さない |
 | `TestServerDocsContract` の `security.md` 8.2 | `枠（`N`）` | 変えない（3.1.6） | `枠`（値だけでは 8.2 のほかの `` `2` `` にも一致する） |
 
@@ -573,7 +573,7 @@ AC-05 の調べ: 要件書 1 章の一覧にないファイルに、文書を読
 | `extension/scripts/has-extension-changes.sh`・`extension/test/ciChanges.test.ts` | 変更 | 起動条件から `docs/dev/security.md` を外す（2.2） | PR-5 |
 | 3.3.2 のタスクの文書 | 変更 | AC の検証の行と `Comments` | PR-2〜PR-5 |
 | `docs/tasks/0034_*/02_architecture.md`・`03_implementation_plan.md` | 変更 | マージの後に、AC の検証の行と `Comments` を改める（3.3.2・3.4） | PR-2・PR-3 |
-| `docs/tasks/0038_doc_test_pruning/01_requirements.md` | 変更 | 1.4 の編集上の訂正と、K5 の項への 1 行の追加（1.2） | 本書の PR |
+| `docs/tasks/0038_doc_test_pruning/01_requirements.md` | 変更 | 1.4 の編集上の訂正と、K5 の項への 1 行の追加（1.2）。K5 の追加は決定の変更なので、Status を `draft` に戻して再承認を求める | 本書の PR |
 
 ## 4. エラーハンドリング設計 (Error Handling Design)
 
