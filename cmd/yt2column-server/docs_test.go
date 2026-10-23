@@ -116,8 +116,8 @@ func TestServerDocsContract(t *testing.T) {
 			t.Fatal("security.md has no 8.2 server section")
 		}
 		bodyMiB := fmt.Sprintf("%d MiB", server.MaxBodyBytesForTest>>20)
-		// 枠 is kept as the hint word: the slots' number alone also matches
-		// other small values in 8.2.
+		// The Japanese word for "slot" is kept as the hint word: the slots'
+		// number alone also matches other small values in 8.2.
 		for _, want := range []string{
 			"枠（`" + strconv.Itoa(server.MaxInFlightForTest) + "`）",
 			bodyMiB,
