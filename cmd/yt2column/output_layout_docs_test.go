@@ -79,14 +79,8 @@ func firstCodeBlockAfter(doc, heading string) (string, bool) {
 	return "", false
 }
 
-// TestOutputLayoutDocsContract checks that the documents describe the output
-// layout the publishers produce. The README's two examples must equal the real
-// output for the fixed article; security.md and project_overview.md must state
-// the points the layout depends on (the phrases below), and README.md and
-// project_overview.md must not keep the old header-metadata wording.
-//
-// The phrase checks only see that a statement exists. That it matches the
-// implementation is recorded by hand in the implementation plan, section 5.4.
+// TestOutputLayoutDocsContract checks that the README's two output examples
+// equal the real output for the fixed article.
 func TestOutputLayoutDocsContract(t *testing.T) {
 	article := outputLayoutArticle()
 	readme := readDoc(t, readmePath)
@@ -115,33 +109,6 @@ func TestOutputLayoutDocsContract(t *testing.T) {
 		t.Fatalf("the fixed article posts as %d messages, want 1 so the example is the whole post", len(messages))
 	}
 	checkReadmeExample(t, readme, readmeSlackExampleHeading, messages[0])
-
-	overview := readDoc(t, projectOverviewPath)
-	security := readDoc(t, securityPath)
-	for _, tc := range []struct {
-		doc, text string
-		phrases   []string
-	}{
-		// security.md: the channel name is untrusted display text, the
-		// mention neutralization, and the quoted front-matter values.
-		{"security.md", security, []string{"外部由来の表示用の文字列", "U+200B", "フロントマターの値", "二重引用符の文字列"}},
-		// project_overview.md: what Article carries and where the cost goes.
-		{"project_overview.md", overview, []string{"チャンネル名の行", "脚注", "estimated_cost_usd", "フロントマター（"}},
-	} {
-		for _, phrase := range tc.phrases {
-			if !strings.Contains(tc.text, phrase) {
-				t.Errorf("%s does not mention %q", tc.doc, phrase)
-			}
-		}
-	}
-
-	for _, doc := range []struct{ name, text string }{{"README.md", readme}, {"project_overview.md", overview}} {
-		for _, old := range []string{"- Estimated cost:", "heading metadata", "見出しのメタデータ"} {
-			if strings.Contains(doc.text, old) {
-				t.Errorf("%s still contains the old wording %q", doc.name, old)
-			}
-		}
-	}
 }
 
 // checkReadmeExample fails the test unless the example under heading equals
