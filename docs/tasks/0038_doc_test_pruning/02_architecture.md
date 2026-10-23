@@ -752,7 +752,7 @@ node のテストを削除するコミット（PR-5）では、カバレッジ�
 | AC | 設計 | 確かめ方 |
 |---|---|---|
 | AC-01・AC-02・AC-04 | 3.1・3.1.8 | 判定の一覧（PR の説明）と、残す確認の差分の読み合わせ。`TestPostingCommandsInventory` は要件書 4.2 が名指しで残すテストとして記す（1.2） |
-| AC-03 | 3.1.1・3.7 | `TestGuideDescribesConfigScope` がないこと |
+| AC-03 | 3.1.1・3.7 | テストの名前の検索で、`TestGuideDescribesConfigScope` がないこと（方法は実装計画で決める） |
 | AC-05 | 3.1 の AC-05 の調べ | 判定の一覧 |
 | AC-06・AC-07 | 3.2 | `make lint`（`unused`）、補助の表 |
 | AC-08 | 7.3 | `make test`・`make lint`・`make ext-check` |
