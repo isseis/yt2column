@@ -8,7 +8,7 @@
 | Created | 2026-10-22 |
 | Review date | 2026-10-22 |
 | Reviewer | isseis |
-| Comments | 2026-10-22 (decision): AC-20 の確かめを `static + manual` から `manual` だけに改め、ステップ 3-4 の AC-20 のガードを取りやめた（1.4・5 章。理由: 7.2 の項目は自然言語の文で、ガードが固定できるのは項目の書き出しの語句だけである。語句を固定すると、言い回しを直すたびに失敗し、中身が誤っていても通るので、確かめとしての信頼性が低い）。PR-2 の実装の際に、このセッションでレビュアーが決めた。設計書 7.4 も同じ commit で改めた。2026-10-23 (decision): タスク 0038 の F-005 により、AC-18 の検証方法を `manual` に改めた（`TestTask0030NotesScopeChange` を削除したため）。決定はタスク 0038 の要件の承認で得たので、`Status` は `approved` のままとする。 |
+| Comments | 2026-10-22 (decision): AC-20 の確かめを `static + manual` から `manual` だけに改め、ステップ 3-4 の AC-20 のガードを取りやめた（1.4・5 章。理由: 7.2 の項目は自然言語の文で、ガードが固定できるのは項目の書き出しの語句だけである。語句を固定すると、言い回しを直すたびに失敗し、中身が誤っていても通るので、確かめとしての信頼性が低い）。PR-2 の実装の際に、このセッションでレビュアーが決めた。設計書 7.4 も同じ commit で改めた。2026-10-23 (decision): タスク 0038 の F-005 により、AC-18 の検証方法を `manual` に改めた（`TestTask0030NotesScopeChange` を削除したため）。決定はタスク 0038 の要件の承認で得たので、`Status` は `approved` のままとする。 2026-10-23 (decision): タスク 0038 の F-005 により、AC-15・AC-21 の検証方法を `manual` に改めた（`TestFixprDocContract`・`TestRunprDocContract` の手順の語句の確認と `TestGlossaryTerms` を削除したため）。決定はタスク 0038 の要件の承認で得たので、`Status` は `approved` のままとする。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -387,13 +387,13 @@
 | AC-12 | test | `scope_test.go::TestScopeRules`（要件書 AC-12 の表の 10 行） |
 | AC-13 | test | `scope_test.go::TestScopeRules`（AC-12 の各行を規則 1 の位置にした組） |
 | AC-14 | test + manual | `internal/fixprguard/worktree_test.go::TestInspectListsOutOfScope`（新しい規則でだけ範囲外になるファイルを加えた `want`。`ScopedChange` の全体を比べる）、`main_test.go::TestInspectExitCode`（加える 2 行。終了コード `3`）。理由を出力しないことは、PR-1 の差分で `ScopedChange` と出力の組み立てが変わらないことを確かめる（1.4） |
-| AC-15 | static | `cmd/yt2column/fixpr_docs_test.go::TestFixprDocContract/out_of_scope_stop`・`::TestRunprDocContract/stop_without_merge`（どちらも既存。`fixpr.md`・`runpr.md` の手順を変えないことを確かめる） |
+| AC-15 | manual | `fixpr.md`・`runpr.md` の範囲外の変更の手順が変わらないことを、PR のレビューで読み合わせる（タスク 0038 で `TestFixprDocContract/out_of_scope_stop` と `TestRunprDocContract/stop_without_merge` の手順の語句の確認を削除した） |
 | AC-16 | test + static + manual | `main_test.go::TestProtocolMismatch`（既存）、`cmd/fixprguard/docs_test.go::TestDocumentedInvocationsParse`・`::TestDocumentedProtocolMatches`（既存）、`docs/tasks/0032_japanese_pr_title/check_rules.sh fixpr_title`（ステップ 2-1 で実行）。インストール済みの前のツールでの確認（ステップ 2-2） |
 | AC-17 | static + manual | `docs_test.go::TestGuideCoversStopKindsAndScope`（表の項目）。説明の文は PR-1 のレビューで読み合わせる |
 | AC-18 | manual | 0030 の 2 つの文書の注記・`Status`・`Comments` を、PR のレビューで読み合わせる（タスク 0038 で `TestTask0030NotesScopeChange` を削除した） |
 | AC-19 | static | `docs_test.go::TestGuideCoversStopKindsAndScope`、`docs_test.go::TestGuideTable`（表の切り出しの関数のテスト）、`internal/fixprguard/scope_test.go::TestPatternRuleLiterals`（`.*`・`*.go` の出力。ステップ 1-2） |
 | AC-20 | manual | ガイド（日英）の 7.2 に 4 項目があることと、各項目の説明を、PR-2 のレビューで読み合わせる。`test`・`static` を持たない例外（1.4） |
-| AC-21 | static + manual | `cmd/yt2column/fixpr_docs_test.go::TestGlossaryTerms`（5 つの用語の行を加える）。訳語と説明は PR-2 のレビューで読み合わせる |
+| AC-21 | manual | 5 つの用語の行、訳語、説明を、PR のレビューで読み合わせる（タスク 0038 で `TestGlossaryTerms` を削除した） |
 
 -   AC-17 の説明の文（3 つの部分の説明、大文字小文字の扱い）は自然言語の記述なので、`manual` で確かめる（設計書 3.5・7.4）。表の項目は AC-19 のガードが確かめる。ただし、ガードは `ExecutionFilePatterns` の出力だけを読むので、設計書 1.2 でデータから消し、表に例として残す項目（`.tool-versions`・`.claude/`・最上位の `CLAUDE.md` など）が表に載ることも `manual` で確かめる（設計書 3.5 は逆向きのガードを置かない）。
 -   AC-16 のうち「番号が上がる」ことは、PR-1 の差分で `2` から `3` への変更を見て確かめる（`manual`）。定数をそれ自身のリテラルと比べるテストは書かない（`CLAUDE.md`「Testing Strategy」）。

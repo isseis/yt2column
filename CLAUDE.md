@@ -334,6 +334,9 @@ See [Test Organization Guide](docs/dev/developer_guide/test_organization.md) for
   before committing such a change.
 - `yt-dlp` must be on `PATH` (or set `YT2COLUMN_YTDLP_PATH`) to run the CLI; it is
   not needed for `make test`.
+- `make test` needs `jq` on `PATH`: `TestRunprDocContract` runs the `--jq`
+  filters of `runpr.md` step 3 with it, and fails instead of skipping when it
+  is missing. The `doc-guard` CI job runs that test too.
 - Secrets (`DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`, `SLACK_WEBHOOK_URL`, ...) go in `.envrc` / `.env`,
   which are git-ignored. Never commit them and never print them.
 - Real captured data committed under `testdata/` must come from a video licensed
