@@ -16,22 +16,19 @@ import (
 // commandsDir is the directory of the command documents, _lib/ included.
 const commandsDir = repositoryRoot + "/.claude/commands"
 
-// mentionCheck is the sentence every section that posts text to GitHub states
-// before its posting command, so the user's account never posts the mention.
-const mentionCheck = "**Mention check.** Before posting, run `grep -qiF -- '<review-mention>' <file>` " +
-	"on each file of text to post. Post only when it exits `1` for every file: exit code `0` means " +
-	"the text contains the mention, and any other code means the check failed. Never rewrite the " +
-	"text to get past the check."
+// mentionCheckCommand is the command every section that posts text to GitHub
+// runs in its mention check before its posting command, so the user's account
+// never posts the mention. The guard tool checks the text only for reply and
+// edit-pr, so on every other posting path this command is what stops it.
+const mentionCheckCommand = "`grep -qiF -- '<review-mention>' <file>`"
 
 // postingSection is a section of a command document that posts text to
-// GitHub: where it is, the posting commands it runs, and what it does when
-// the text holds the mention.
+// GitHub: where it is and the posting commands it runs.
 type postingSection struct {
 	name     string
 	path     string
 	section  func(t *testing.T, doc string) string
 	commands []string
-	handling []string
 }
 
 // headingSection returns a section finder for the section under heading.
@@ -59,57 +56,24 @@ func itemSection(first, next string) func(t *testing.T, doc string) string {
 	}
 }
 
-// postingSections are the seven sections that post text to GitHub, each with
-// the handling the architecture assigns it when the text holds the mention.
+// postingSections are the seven sections that post text to GitHub.
 var postingSections = []postingSection{
-	{
-		"fixpr.md Phase 5", fixprPath, headingSection(fixprPhase5),
-		[]string{"fixprguard reply "},
-		[]string{"When the check fails, do not run `reply` for that thread: list it under \"Skipped threads\", " +
-			"as for an empty `replyBody`, and go on with the next thread."},
-	},
-	{
-		"fixpr.md Phase 6", fixprPath, headingSection(fixprPhase6),
-		[]string{"fixprguard edit-pr "},
-		[]string{
-			"and run the mention check on both files.",
-			"When the check fails, do not run `edit-pr`: leave the PR description as it is, " +
-				"and list it in the Final report.",
-		},
-	},
-	{
-		"runpr.md step 1", runprPath, headingSection(runprStep1),
-		[]string{"gh pr create "},
-		[]string{"When the check fails, do not create the PR: stop and report."},
-	},
+	{"fixpr.md Phase 5", fixprPath, headingSection(fixprPhase5), []string{"fixprguard reply "}},
+	{"fixpr.md Phase 6", fixprPath, headingSection(fixprPhase6), []string{"fixprguard edit-pr "}},
+	{"runpr.md step 1", runprPath, headingSection(runprStep1), []string{"gh pr create "}},
 	{
 		"runpr.md step 4", runprPath, headingSection(runprStep4),
 		[]string{"gh issue comment <issue> --body-file", "gh issue create ", "fixprguard reply "},
-		[]string{
-			"Write the issue comment or body to a file outside the work tree, and run the mention check " +
-				"on it before posting it",
-			"When the check fails, do not post: run `mergepr discard --state <state-file>`, stop, and " +
-				"report, without merging.",
-			"write the reply to a file outside the work tree, run the mention check on it, and only when " +
-				"it passes run",
-			"If `reply` stops for any thread, or a reply fails the mention check, do not merge",
-		},
 	},
-	{
-		"runpr.md step 5", runprPath, headingSection(runprStep5),
-		[]string{"gh issue close "},
-		[]string{"When the check fails, do not close the issue without its comment: stop and report."},
-	},
+	{"runpr.md step 5", runprPath, headingSection(runprStep5), []string{"gh issue close "}},
 	{
 		"_lib/task-pr-handoff.md Part A step 4", handoffPath, headingSection(handoffLinkIssue),
 		[]string{"gh issue create ", "gh api -X POST "},
-		[]string{"When the check fails, do not create the link sub-issue: stop and report."},
 	},
 	{
 		"_lib/task-pr-handoff.md Part B step 3", handoffPath,
 		itemSection("3. Push and create the PR for the current branch.", "\n4. Run AFTER_CREATE"),
 		[]string{"gh pr create "},
-		[]string{"When the check fails, do not create the PR: stop and report."},
 	},
 }
 
@@ -144,37 +108,22 @@ func TestCodexMentionOnlyInRequestRow(t *testing.T) {
 }
 
 // TestPostingPathsCheckMention checks that each section that posts text to
-// GitHub states the mention check, runs its posting commands after it, and
-// says what it does when the text holds the mention. Whether any invocation
-// comes before the check is TestPostingCommandsInventory's to judge.
+// GitHub runs the mention check's command: the first sentence after its
+// "**Mention check.**" label holds mentionCheckCommand. Whether any posting
+// command comes before the check is TestPostingCommandsInventory's to judge.
 func TestPostingPathsCheckMention(t *testing.T) {
+	const label = "**Mention check.**"
 	for _, ps := range postingSections {
 		t.Run(ps.name, func(t *testing.T) {
-			section := flat(ps.section(t, readDoc(t, ps.path)))
-			check := strings.Index(section, flat(mentionCheck))
-			if check < 0 {
-				t.Fatalf("%s does not state the mention check", ps.name)
+			_, rest, found := strings.Cut(flat(ps.section(t, readDoc(t, ps.path))), label)
+			if !found {
+				t.Fatalf("%s has no %s", ps.name, label)
 			}
-			for _, command := range ps.commands {
-				if !strings.Contains(section[check:], command) {
-					t.Errorf("%s does not run %q after the mention check", ps.name, command)
-				}
+			if sentence, _, _ := strings.Cut(rest, ". "); !strings.Contains(sentence, mentionCheckCommand) {
+				t.Errorf("%s %s does not run %s: %q", ps.name, label, mentionCheckCommand, sentence)
 			}
-			requirePhrases(t, ps.name, section, ps.handling...)
 		})
 	}
-}
-
-// requestExemption is how the documents that post the PR review request say
-// it is the one text exempt from the mention check.
-const requestExemption = "The request is the one text a command posts that contains the mention, " +
-	"so the mention check does not apply to it."
-
-// TestRequestExemptFromMentionCheck checks that both documents that post the
-// PR review request say why the mention check does not apply to it.
-func TestRequestExemptFromMentionCheck(t *testing.T) {
-	requirePhrases(t, "runpr.md step 3", requireSection(t, "runpr.md", readDoc(t, runprPath), runprStep3), requestExemption)
-	requirePhrases(t, "_lib/task-pr-handoff.md Part B step 5", handoffStep5(t), requestExemption)
 }
 
 var (
@@ -333,10 +282,8 @@ func TestIsPost(t *testing.T) {
 
 // Paths of the files only the PR-review guards read.
 const (
-	escalationPath   = commandsDir + "/_lib/pr-review-escalation.md"
-	agentsPath       = repositoryRoot + "/AGENTS.md"
-	coderabbitPath   = repositoryRoot + "/.coderabbit.yaml"
-	observationsPath = repositoryRoot + "/docs/tasks/0031_codex_pr_review/observations.md"
+	agentsPath     = repositoryRoot + "/AGENTS.md"
+	coderabbitPath = repositoryRoot + "/.coderabbit.yaml"
 )
 
 // commandDocs returns the paths of every command document, _lib/ included.
@@ -353,107 +300,6 @@ func commandDocs(t *testing.T) []string {
 		t.Fatalf("walk %s: %v", commandsDir, err)
 	}
 	return paths
-}
-
-// removedPRReviewPhrases are the phrases that described CodeRabbit as the PR
-// reviewer before the switch to Codex. The local CLI review keeps the name
-// CodeRabbit, so the name alone is not forbidden.
-var removedPRReviewPhrases = []string{
-	"@coderabbitai review",
-	"CodeRabbit PR review",
-	"CodeRabbit's PR review",
-	"waits for CodeRabbit and CI",
-	"Drive a PR through CodeRabbit",
-	"the PR-side CodeRabbit review",
-	"CodeRabbit has not reviewed",
-	"ask CodeRabbit to review",
-	"CodeRabbit is still `PENDING`",
-	"threads CodeRabbit still posts",
-	"the CodeRabbit request",
-	"CodeRabbit's reviews and comments",
-	"Make sure CodeRabbit reviews the PR",
-	"before CodeRabbit is asked",
-	"do not wait for CodeRabbit",
-	"the CodeRabbit threads",
-	"CodeRabbit's last PR review",
-}
-
-// TestNoCodeRabbitPRReview checks that no command document and not CLAUDE.md
-// still asks CodeRabbit for a PR review, waits for one, or names CodeRabbit as
-// the PR reviewer, and that runpr.md no longer judges a review by CodeRabbit's
-// status context or its reviewed-range line.
-func TestNoCodeRabbitPRReview(t *testing.T) {
-	for _, path := range append(commandDocs(t), claudePath) {
-		doc := strings.ToLower(flat(readDoc(t, path)))
-		for _, phrase := range removedPRReviewPhrases {
-			if strings.Contains(doc, strings.ToLower(phrase)) {
-				t.Errorf("%s still says %q", path, phrase)
-			}
-		}
-	}
-	runpr := readDoc(t, runprPath)
-	if strings.Contains(runpr, "StatusContext") {
-		t.Error("runpr.md still reads a StatusContext")
-	}
-	if regexp.MustCompile(`between \[0-9a-f\]\{40\}`).MatchString(runpr) {
-		t.Error("runpr.md still searches for CodeRabbit's reviewed range")
-	}
-}
-
-// TestLocalCodeRabbitReviewKept checks that the local CLI review is still
-// called CodeRabbit where the documents run it: the switch moved only the PR
-// review to Codex.
-func TestLocalCodeRabbitReviewKept(t *testing.T) {
-	requireSection(t, "fixpr.md", readDoc(t, fixprPath), "## Phase 4.5 — Local CodeRabbit review of the fix (model: default)")
-	requirePhrases(t, "_lib/task-pr-handoff.md Part B step 1", readDoc(t, handoffPath),
-		"1. When LOCAL_REVIEW is `run`, review the branch with the local CodeRabbit CLI:")
-	requirePhrases(t, "CLAUDE.md", readDoc(t, claudePath),
-		"`coderabbit review` (the local CodeRabbit CLI,",
-		"Later changes are reviewed with the local CodeRabbit CLI",
-	)
-}
-
-// description returns the description line of a command document's front
-// matter.
-func description(t *testing.T, path string) string {
-	t.Helper()
-	doc := readDoc(t, path)
-	rest, ok := strings.CutPrefix(doc, "---\n")
-	front, _, closed := strings.Cut(rest, "\n---\n")
-	if !ok || !closed {
-		t.Fatalf("%s has no front matter", path)
-	}
-	for line := range strings.Lines(front) {
-		if value, ok := strings.CutPrefix(line, "description: "); ok {
-			return strings.TrimSpace(value)
-		}
-	}
-	t.Fatalf("%s has no description", path)
-	return ""
-}
-
-// TestDocsDescribeCodexReview checks that the documents that describe the PR
-// review name Codex as the reviewer, and that CLAUDE.md records the Codex
-// settings the user keeps outside the repository: a review only when a PR is
-// created, with the thorough code review off.
-func TestDocsDescribeCodexReview(t *testing.T) {
-	requirePhrases(t, "runpr.md description", description(t, runprPath), "Drive a PR through Codex's PR review and CI")
-	requirePhrases(t, "_lib/pr-review-escalation.md description", description(t, escalationPath),
-		"when to request a further Codex PR review after the first")
-	handoff := readDoc(t, handoffPath)
-	opening, _, _ := strings.Cut(handoff, "\n## ")
-	requirePhrases(t, "_lib/task-pr-handoff.md opening", opening, "It waits for Codex's PR review and CI, resolves the threads")
-	_, step7, found := strings.Cut(handoff, "\n7. In REPORT, give the PR URL")
-	if !found {
-		t.Fatal("_lib/task-pr-handoff.md has no Part B step 7")
-	}
-	requirePhrases(t, "_lib/task-pr-handoff.md Part B step 7", step7, "Then stop: do not wait for Codex and do not merge.")
-	requirePhrases(t, "CLAUDE.md", readDoc(t, claudePath),
-		"`/runpr [PR | branch | task]` - Drive a PR through Codex's PR review and CI",
-		"it waits for Codex's PR review and CI and resolves the threads with `/fixpr`",
-		"Codex is set up outside the repository, by the user: it reviews automatically only when a PR "+
-			"is created, never on a push, and its thorough code review is off.",
-	)
 }
 
 // autoReviewDisabled reports whether the .coderabbit.yaml text sets
@@ -541,128 +387,12 @@ func TestCodeRabbitConfigStopsReview(t *testing.T) {
 	}
 }
 
-// TestAgentsCodeReviewRules checks that AGENTS.md holds the section Codex reads
-// its review rules from, under the heading its documentation names, and that
-// the section refers to CLAUDE.md rather than copying it.
+// TestAgentsCodeReviewRules checks that AGENTS.md holds exactly one heading of
+// the section Codex reads its review rules from.
 func TestAgentsCodeReviewRules(t *testing.T) {
 	doc := readDoc(t, agentsPath)
 	const heading = "## Code Review Rules"
 	if n := strings.Count(doc, "\n"+heading+"\n"); n != 1 {
 		t.Errorf("AGENTS.md has %d %q headings, want 1", n, heading)
 	}
-	if strings.Contains(doc, "## Review guidelines") {
-		t.Error("AGENTS.md still has the old \"## Review guidelines\" heading")
-	}
-	// The reference is the section's opening, before its rules.
-	const opening = "Besides the rules below, follow the conventions, design principles, and testing rules in " +
-		"[CLAUDE.md](CLAUDE.md); they are not repeated here."
-	if !strings.HasPrefix(flat(sectionByHeading(doc, heading)), opening) {
-		t.Errorf("AGENTS.md %q does not open with %q", heading, opening)
-	}
-}
-
-var (
-	// observationDate and observationBasis are what every observation item
-	// must carry: a date, and a PR, an API call, or a URL as its basis.
-	observationDate  = regexp.MustCompile(`2026-\d\d-\d\d`)
-	observationBasis = regexp.MustCompile(`PR #\d+|gh api|https://`)
-	prNumber         = regexp.MustCompile(`PR #\d+`)
-	hexRun           = regexp.MustCompile(`\b[0-9a-f]{7,40}\b`)
-)
-
-// observationResults are, for each item of the observation record, a
-// sentence that states its result. The literals match the Japanese record, so
-// they are the exception to the English-only literal rule.
-var observationResults = map[string]string{
-	"### 1.": "**完了の印の候補:**",
-	"### 2.": "再レビューはなかった",
-	"### 3.": "REST の名前は、GraphQL の名前に `[bot]` を付けた形である",
-	"### 4.": "Codex のステータスコンテキストもチェックランも付かなかった",
-	"### 5.": "どれも上限に達しなかった",
-	"### 6.": "見出しは `## Code Review Rules` である",
-	"### 7.": "| 約 1 分 10 秒 |",
-	"### 8.": "では、Codex は実行されず、利用者の割り当ても消費されない。Codex は断りのコメントを返す。",
-	"### 9.": "レビューのタイミングは「PR 作成時のみ」、徹底的なコードレビューは無効",
-}
-
-// observationBlocks splits an item of the observation record into its
-// observations: each top-level bullet with its sub-bullets, and each other
-// line on its own.
-func observationBlocks(item string) []string {
-	var blocks []string
-	for line := range strings.Lines(item) {
-		switch {
-		case strings.TrimSpace(line) == "":
-		case strings.HasPrefix(line, " ") && len(blocks) > 0:
-			blocks[len(blocks)-1] += line
-		default:
-			blocks = append(blocks, line)
-		}
-	}
-	return blocks
-}
-
-// hasCommitSHA reports whether block names a commit: a run of 7 to 40
-// hexadecimal digits with a letter in it, so an all-digit ID is not taken
-// for one.
-func hasCommitSHA(block string) bool {
-	for _, run := range hexRun.FindAllString(block, -1) {
-		if strings.ContainsAny(run, "abcdef") {
-			return true
-		}
-	}
-	return false
-}
-
-// TestCodexObservationRecord checks that the observation record the design
-// was based on holds what the requirements ask of it: each of the nine items
-// with a date, a basis, and its result; each observation on a PR with the PR
-// and its requested commit, or why that commit cannot be told; the four author
-// values of a thread; both a review with findings and one without; and the
-// section on what would have stopped the design.
-func TestCodexObservationRecord(t *testing.T) {
-	doc := readDoc(t, observationsPath)
-	items := sectionByHeading(doc, "## AC-01 の各項目")
-	itemSection := func(prefix string) string {
-		for line := range strings.Lines(items) {
-			if strings.HasPrefix(line, prefix+" ") {
-				return sectionByHeading(items, strings.TrimSpace(line))
-			}
-		}
-		return ""
-	}
-	prObservations := 0
-	for prefix, result := range observationResults {
-		item := itemSection(prefix)
-		if strings.TrimSpace(item) == "" {
-			t.Errorf("observations.md has no item %q", prefix)
-			continue
-		}
-		if !observationDate.MatchString(item) || !observationBasis.MatchString(item) {
-			t.Errorf("observations.md item %q lacks a date or a basis", prefix)
-		}
-		requirePhrases(t, "observations.md item "+prefix, item, result)
-		for _, block := range observationBlocks(item) {
-			if !prNumber.MatchString(block) {
-				continue
-			}
-			prObservations++
-			if !hasCommitSHA(block) && !strings.Contains(block, "決められない") {
-				t.Errorf("observations.md item %q observes a PR without its requested commit: %q", prefix, strings.TrimSpace(block))
-			}
-		}
-	}
-	// A record whose PR numbers stopped matching would pass the loop above.
-	if prObservations == 0 {
-		t.Error("observations.md has no observation on a PR")
-	}
-	requirePhrases(t, "observations.md item 3", itemSection("### 3."),
-		"`__typename`: `Bot`", "`login`: `chatgpt-codex-connector`",
-		"`type`: `Bot`", "`login`: `chatgpt-codex-connector[bot]`",
-	)
-	requirePhrases(t, "observations.md item 1", itemSection("### 1."),
-		"PR レビュー（`chatgpt-codex-connector[bot]`、`state: COMMENTED`）が投稿された",
-		"**指摘が 0 件のとき（2026-10-21、PR #413）:** PR レビューは投稿されなかった",
-	)
-	requireSection(t, "observations.md", doc, "## AC-05 に当たる点")
 }

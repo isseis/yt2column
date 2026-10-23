@@ -8,7 +8,7 @@
 | Created | 2026-10-23 |
 | Review date | 2026-10-23 |
 | Reviewer | isseis |
-| Comments | 2026-10-23 (decision): PR-1 のレビューで、`check_pruning.sh removed` の行のファイルの列の誤り（`escalationPath`・`observationsPath`）が、何にも一致しないまま通っていたことがわかった。そこで `removed` に `<base>` を必須の引数として加え、その PR 自身の行が `<base>` との分岐点で宣言されていることも確かめるよう改め、1.4・各フェーズの完了条件・AC の検証の表を合わせた。あわせて、まだ加えられていない `TestTask0030DescribesIgnoredFiles` の行を `pruned_names.txt` から外した（ステップ 2-1 のとおり、`main` にあれば加える）。検証方法を変える決定の変更であり、isseis がセッションで承認した。 2026-10-23 (editorial): PR-1 の実装の自己点検で、1.4 の 7 つめが挙げた追補の箇所に `requirements_process.md` の AC traceability の雛形と `CLAUDE.md` の要約を加え、設計書 2.3・3.5・3.9・8 章の一覧を合わせた。決定は変えていない。 |
+| Comments | 2026-10-23 (decision): PR-1 のレビューで、`check_pruning.sh removed` の行のファイルの列の誤り（`escalationPath`・`observationsPath`）が、何にも一致しないまま通っていたことがわかった。そこで `removed` に `<base>` を必須の引数として加え、その PR 自身の行が `<base>` との分岐点で宣言されていることも確かめるよう改め、1.4・各フェーズの完了条件・AC の検証の表を合わせた。あわせて、まだ加えられていない `TestTask0030DescribesIgnoredFiles` の行を `pruned_names.txt` から外した（ステップ 2-1 のとおり、`main` にあれば加える）。検証方法を変える決定の変更であり、isseis がセッションで承認した。 2026-10-23 (editorial): PR-1 の実装の自己点検で、1.4 の 7 つめが挙げた追補の箇所に `requirements_process.md` の AC traceability の雛形と `CLAUDE.md` の要約を加え、設計書 2.3・3.5・3.9・8 章の一覧を合わせた。決定は変えていない。 2026-10-23 (decision): PR-3 の実装のレビューで、`_lib/task-pr-handoff.md` Part B step 5 の開始の印を探す一覧（`gh api --paginate ... --jq`）も、PR を開いたコマンドが約 30 秒ごとに実行し、本文をセッションに入れないことを担うのに、その守りが `TestHandoffStartMarker`（削除する）の全文の固定だけだったことがわかった。そこで、K5 の一覧の確認の対象にこの一覧を加え、`runpr.md` step 3 と同じく `jq` で実行して確かめる（新しいテスト `TestHandoffListingPrintsNoBody`）。残す確認を広げる決定の変更であり、isseis がセッションで承認した。要件書の K5 も同じ commit で改めた。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -96,7 +96,7 @@
 レビュアーが決めたもの:
 
 1.  **タスク 0034 の PR-3 には `TestTask0030DescribesIgnoredFiles` を加えさせない。** 作ってすぐ削除する手間を避けるためである（要件書 1 章）。PR-3 の実装が進んでいるので、実装の側には、理由（D4、要件書 F-006・AC-17）を添えて次の 5 点を伝える（伝えるプロンプトはレビュアーに渡した）。(a) このテストを加えない（加えていれば取り除く）。(b) 0034 の計画のステップ 8-4 を取り下げる。(c) AC-20・AC-20a の検証方法を `manual` に改める。(d) これと矛盾する `:123` の注記、ステップ 8-5 の確かめ、`:607` の成功基準を改める。(e) `Comments` に `(decision)` を記録する。本タスクは、PR-2 の始めに、これらが `main` に入ったことを確かめる（ステップ 2-1）。
-2.  **step 3 の一覧のフィルタが本文を出力しないことは、`jq` で実行して確かめる**（設計書 3.1.8 で計画に委ねられた点）。フィルタを文字列として調べる方法では、要約のコメントの状態を本文の 2 行め（`$l[1]`）から導く部分を例外として扱う規則が要り、壊れやすい。`jq` がない環境では、`TestGuideIgnoredCommands` と同じく、飛ばさずに失敗させる。
+2.  **step 3 の一覧のフィルタが本文を出力しないことは、`jq` で実行して確かめる**（設計書 3.1.8 で計画に委ねられた点）。フィルタを文字列として調べる方法では、要約のコメントの状態を本文の 2 行め（`$l[1]`）から導く部分を例外として扱う規則が要り、壊れやすい。`jq` がない環境では、`TestGuideIgnoredCommands` と同じく、飛ばさずに失敗させる。`_lib/task-pr-handoff.md` Part B step 5 の開始の印を探す一覧にも、同じ確認を当てる（2026-10-23 の決定。`Comments`）。
 3.  **`TestArtifactDocsContract` の残る部分は、`run_test.go` に移す**（設計書 3.1.4 で計画に委ねられた点）。削除の後は文書を読まないので、`docs_test.go` に置く理由がない。移す先は、同じ `run -h` を実行して使い方の文字列を確かめる `TestRunHelp` の一覧とする。別のテストにすると、同じ実行と確認を繰り返すことになるからである（1.3.3 の対応表）。
 4.  **削除した名前の不在は、検査のスクリプトで確かめる**（AC-03・AC-06・AC-07・AC-22）。タスク 0037 の `check_wording.sh` にならって本タスクのディレクトリに置き、各削除の PR の終わりに実行して結果を記録する。`make test` と CI では実行しない。不在の確認を恒久のテストにすると、それ自体が D3 になるためである。
 
@@ -283,7 +283,7 @@
 
 **変更するファイル**: なし
 
--   [ ] ステップ 2-1 の 1 つめと 4 つめを、`fixpr_docs_test.go`・`codex_review_docs_test.go` について行う。
+-   [x] ステップ 2-1 の 1 つめと 4 つめを、`fixpr_docs_test.go`・`codex_review_docs_test.go` について行う。
 
 **完了条件**: 本フェーズを始められる。
 
@@ -293,7 +293,7 @@
 
 1.4 の 8 つめのとおり、このステップのコミットを、ほかの削除より先に置く。
 
--   [ ] step 3 の `gh api --paginate ... --jq '...'` のすべての一覧のフィルタを取り出し、`jq` で実行する確認を加える（1.4 の 2 つめ）。確かめる性質は次のとおりである。
+-   [x] step 3 の `gh api --paginate ... --jq '...'` のすべての一覧のフィルタを取り出し、`jq` で実行する確認を加える（1.4 の 2 つめ）。確かめる性質は次のとおりである。
     -   一覧がちょうど 3 つ（issue のコメント、行のコメント、レビュー）であること。
     -   偽の JSON の各項目について、出力の有無と `kind` が期待どおりであること。偽の JSON は、各フィルタのすべての分かれ道を通る内容にする。要約のコメントは、状態の出力のすべての分かれ道（`completed`・`running`・状態の行の形の誤り・JSON として読めない・欄の型の誤り・知らない状態）を通る。行のコメントとレビューの一覧は、Codex の投稿、言及を含まない投稿、言及を含む投稿を含む。
     -   出力の各オブジェクトの鍵が、その `kind` に許した鍵（`kind`・`url`・`created_at`・`updated_at`・`state`）だけで、値が、偽の JSON の同じ項目の本文以外の欄の値と等しく、`state` が状態の形（`completed <sha>`・`running <sha>`・`indeterminate`）であること。
@@ -301,9 +301,10 @@
     -   `jq` が終了コード `0` で終わり、標準エラーが空であること。
 
     なお、プレースホルダの置き換えの値と、フィルタの取り出しの方法は、実装で決める。
--   [ ] 設計書 3.1.2 の残す確認（`fixprguard head` の順序、`reviewThreads`・`comments(first:` の不在、`StopJudgedSetChanged`・`StopGitStateChanged`）を残し、フィルタの全文の確認とほかを取り除く。
--   [ ] このコミットで、検査のスクリプトの `coverage` を実行し、結果をコミットメッセージに記す（AC-10）。
--   [ ] 壊して確かめる（結果をコミットメッセージに記す）。次のそれぞれで確認が失敗すること。(a) issue のコメントの一覧のうち、Codex のほかのコメント・依頼・言及の各分かれ道の出力に `body` を加えた写し。(b) 行のコメントの一覧の出力に `body` を加えた写し。(c) レビューの一覧の出力に `body` を加えた写し。(d) 要約のコメントの `running` の分かれ道の出力に `$l[1]` を加えた写し。(e) step 3 に 4 つめの一覧を加えた写し。(f) `jq` を `PATH` から外した環境。
+-   [x] `_lib/task-pr-handoff.md` Part B step 5 の開始の印を探す一覧にも、同じ確認を `cmd/yt2column/fixpr_docs_test.go::TestHandoffListingPrintsNoBody` として当てる（1.4 の 2 つめ）。偽の JSON は、要約のコメント、Codex のほかのコメント、著者の種類と名前の違い、本文が `null` のものを含む。
+-   [x] 設計書 3.1.2 の残す確認（`fixprguard head` の順序、`reviewThreads`・`comments(first:` の不在、`StopJudgedSetChanged`・`StopGitStateChanged`）を残し、フィルタの全文の確認とほかを取り除く。
+-   [x] このコミットで、検査のスクリプトの `coverage` を実行し、結果をコミットメッセージに記す（AC-10）。
+-   [x] 壊して確かめる（結果をコミットメッセージに記す）。次のそれぞれで確認が失敗すること。(a) issue のコメントの一覧のうち、Codex のほかのコメント・依頼・言及の各分かれ道の出力に `body` を加えた写し。(b) 行のコメントの一覧の出力に `body` を加えた写し。(c) レビューの一覧の出力に `body` を加えた写し。(d) 要約のコメントの `running` の分かれ道の出力に `$l[1]` を加えた写し。(e) step 3 に 4 つめの一覧を加えた写し。(f) `jq` を `PATH` から外した環境。
 
 **完了条件**: 上の確かめが済み、`make test` が通る。
 
@@ -311,14 +312,14 @@
 
 **変更するファイル**: `cmd/yt2column/fixpr_docs_test.go`、`cmd/yt2column/codex_review_docs_test.go`
 
--   [ ] `TestHandoffStartMarker` を削除する。
--   [ ] `TestAuthorizationSections` を削除する。
--   [ ] `TestGlossaryTerms` を削除する。
--   [ ] `TestRequestExemptFromMentionCheck` を削除する。
--   [ ] `TestNoCodeRabbitPRReview` を削除する。
--   [ ] `TestLocalCodeRabbitReviewKept` を削除する。
--   [ ] `TestDocsDescribeCodexReview` を削除する。
--   [ ] `TestCodexObservationRecord` を削除する。
+-   [x] `TestHandoffStartMarker` を削除する。
+-   [x] `TestAuthorizationSections` を削除する。
+-   [x] `TestGlossaryTerms` を削除する。
+-   [x] `TestRequestExemptFromMentionCheck` を削除する。
+-   [x] `TestNoCodeRabbitPRReview` を削除する。
+-   [x] `TestLocalCodeRabbitReviewKept` を削除する。
+-   [x] `TestDocsDescribeCodexReview` を削除する。
+-   [x] `TestCodexObservationRecord` を削除する。
 
 **完了条件**: 8 つがなく、`make test` が通る。
 
@@ -326,11 +327,11 @@
 
 **変更するファイル**: 同上
 
--   [ ] `TestFixprDocContract`: 設計書 3.1.2 の削除する確認と、サブテスト `ignored_file_stops`（1.3.2）を取り除く。round_counting と Phase 3.5 の確認は、設計書 3.1.8 の残す部分にする。
--   [ ] `TestContextAndCommandsAgree`: 設計書 3.1.2 の削除する確認を取り除き、PR レビュー依頼の行の説明の確認を、設計書 3.1.8 の残す部分にする。
--   [ ] `TestRemovedCommandLiterals`: 設計書 3.1.2 の D3 の語を取り除く。
--   [ ] `TestPostingPathsCheckMention`: 設計書 3.1.8 の残す部分（各節の `**Mention check.**` の行が言及の確認のコマンドを含むこと）にする。
--   [ ] `TestAgentsCodeReviewRules`: 設計書 3.1.3 の削除する確認を取り除く。
+-   [x] `TestFixprDocContract`: 設計書 3.1.2 の削除する確認と、サブテスト `ignored_file_stops`（1.3.2）を取り除く。round_counting と Phase 3.5 の確認は、設計書 3.1.8 の残す部分にする。
+-   [x] `TestContextAndCommandsAgree`: 設計書 3.1.2 の削除する確認を取り除き、PR レビュー依頼の行の説明の確認を、設計書 3.1.8 の残す部分にする。
+-   [x] `TestRemovedCommandLiterals`: 設計書 3.1.2 の D3 の語を取り除く。
+-   [x] `TestPostingPathsCheckMention`: 設計書 3.1.8 の残す部分（各節の `**Mention check.**` の行が言及の確認のコマンドを含むこと）にする。
+-   [x] `TestAgentsCodeReviewRules`: 設計書 3.1.3 の削除する確認を取り除く。
 
 **完了条件**: 残す確認だけが残り、`make test` が通る。
 
@@ -338,8 +339,8 @@
 
 **変更するファイル**: `cmd/yt2column/fixpr_docs_test.go`、`cmd/yt2column/codex_review_docs_test.go`
 
--   [ ] 設計書 3.2 の `handoffStep5` などの行の補助・定数・フィールドを、使い手がなくなったものから削除する。ステップ 3-2 で使わなくなったフィルタの定数（`reviewedCheck`・`reviewedRules`・`mentionListings`・`requestCommentFilter`・`requestCommand`・`lastReviewedRule`・`requestRules`・`arrivalRules`・`autoFixprCondition`）も含む。`runprStep5` は `TestPostingCommandsInventory` が読むので残す（設計書 3.4）。単体テストを持つ補助（`isPost` など）は、ステップ 2-4 と同じく使い手を数える。
--   [ ] ステップ 2-4 の 2 つめと 3 つめ（壊した確かめ、カバレッジの比較）を行う。K4・K5 の確認は、設計書 7.2 の例（`fixpr.md` にレビュアーの名前を書く、`git commit -m` を加える、`fixprguard head` の呼び出しを消す、言及の確認のコマンドを消す）で壊して確かめる。
+-   [x] 設計書 3.2 の `handoffStep5` などの行の補助・定数・フィールドを、使い手がなくなったものから削除する。ステップ 3-2 で使わなくなったフィルタの定数（`reviewedCheck`・`reviewedRules`・`mentionListings`・`requestCommentFilter`・`requestCommand`・`lastReviewedRule`・`requestRules`・`arrivalRules`・`autoFixprCondition`）も含む。`runprStep5` は `TestPostingCommandsInventory` が読むので残す（設計書 3.4）。単体テストを持つ補助（`isPost` など）は、ステップ 2-4 と同じく使い手を数える。
+-   [x] ステップ 2-4 の 2 つめと 3 つめ（壊した確かめ、カバレッジの比較）を行う。K4・K5 の確認は、設計書 7.2 の例（`fixpr.md` にレビュアーの名前を書く、`git commit -m` を加える、`fixprguard head` の呼び出しを消す、言及の確認のコマンドを消す）で壊して確かめる。
 
 **完了条件**: `check_pruning.sh removed 3 <PR の前の origin/main>` と `make lint` が通る。
 
@@ -347,8 +348,8 @@
 
 **変更するファイル**: 設計書 3.3.2 の表で PR-3 が担当するタスクの文書（0030、0031、0033、0034、0036）、`CLAUDE.md`
 
--   [ ] 各文書の AC の検証の行を、設計書 3.3.2 の規則で改め、`Comments` に記録する（AC-13・AC-14）。タスク 0034 の行は、1.3.2 の判定に従う。
--   [ ] `CLAUDE.md`「Development Notes」の、`make test` に要らないもの（`yt-dlp`）を述べる項の近くに、`make test` が `jq` を要することを記す（1.3.3）。
+-   [x] 各文書の AC の検証の行を、設計書 3.3.2 の規則で改め、`Comments` に記録する（AC-13・AC-14）。タスク 0034 の行は、1.3.2 の判定に従う。
+-   [x] `CLAUDE.md`「Development Notes」の、`make test` に要らないもの（`yt-dlp`）を述べる項の近くに、`make test` が `jq` を要することを記す（1.3.3）。
 
 **完了条件**: `check_pruning.sh records <PR-3 の前の origin/main>` が通る。
 
@@ -356,9 +357,9 @@
 
 **変更するファイル**: なし
 
--   [ ] ステップ 2-6 の 1〜3 つめを、`fixpr_docs_test.go`・`codex_review_docs_test.go` と `removed 3 <PR の前の origin/main>` について行う。
--   [ ] PR の説明に判定の一覧を書く（AC-09）。`ignored_file_stops` と `TestRequestExemptFromMentionCheck` などで読み合わせに任せる手順の文を、残余のリスクとして挙げる（7.1、設計書 5.1）。
--   [ ] CI の `test` ジョブと `doc-guard` ジョブの両方で、ステップ 3-2 の確認が `jq` を見つけて通ったことを確かめ、`jq` の版を記す（1.3.4）。見つからずに失敗したら、止まって利用者と扱いを決める。
+-   [x] ステップ 2-6 の 1〜3 つめを、`fixpr_docs_test.go`・`codex_review_docs_test.go` と `removed 3 <PR の前の origin/main>` について行う。
+-   [x] PR の説明に判定の一覧を書く（AC-09）。`ignored_file_stops` と `TestRequestExemptFromMentionCheck` などで読み合わせに任せる手順の文を、残余のリスクとして挙げる（7.1、設計書 5.1）。
+-   [x] CI の `test` ジョブと `doc-guard` ジョブの両方で、ステップ 3-2 の確認が `jq` を見つけて通ったことを確かめ、`jq` の版を記す（1.3.4）。見つからずに失敗したら、止まって利用者と扱いを決める。（2026-10-23、PR #474 の CI の実行 39949710426: 両方のジョブで `cmd/yt2column` が通った。`jq` がなければ失敗するので、両方で見つかった。ジョブのログは `jq` の版を出力しないので、ランナーのイメージ `ubuntu-24.04`（`20261012.334.1`）を記す）
 
 **完了条件**: 上の 3 つが済んでいる。
 
@@ -374,10 +375,10 @@
 
 **判定理由**: ステップ 3-2・3-5 は、`/fixpr`・`/runpr` の信頼の境界を守る確認（K4・K5）を作り直し、ほかを削除するセキュリティのゲートの変更で、`mkplan.md` step 8 の panel mode の契機に当たる。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/474
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 4: `cmd/yt2column` のほかのテスト（設計書 8 章の PR-4）
 
@@ -648,7 +649,7 @@
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5）
 - [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6）
-- [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7）
+- [x] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7）
 - [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6）
 - [ ] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6）
 - [ ] #440 を閉じた（AC-27）

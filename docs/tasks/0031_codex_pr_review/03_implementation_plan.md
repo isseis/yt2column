@@ -8,7 +8,7 @@
 | Created | 2026-10-22 |
 | Review date | 2026-10-22 |
 | Reviewer | isseis |
-| Comments | 2026-10-22 (editorial): ステップ 1-5 の `TestGuideDescribesMentionCheck` を、定数の値がガイドの 7.1・7.2 節にあることの確認だけに絞った。9 章の但し書きと 7.2 節の古い文の言い回しを固定する確認は、意味の正しさを確かめられないので外し、読み合わせに任せた。検証する AC と方針は変わらないので、承認を保つ（isseis がこのセッションで了承した）。2026-10-22 (editorial): ステップ 1-5 の読み合わせの項目と PR-1 のレビュー観点で、検査の時点を「GitHub に触れる前」から「GitHub への書き込み前」に改めた。PR 番号を省略すると、検査の前に今の PR を GitHub から読むためで、ガイドの記述とも合わせた。実装と方針は変わらず、決定は変わらないので、承認を保つ |
+| Comments | 2026-10-22 (editorial): ステップ 1-5 の `TestGuideDescribesMentionCheck` を、定数の値がガイドの 7.1・7.2 節にあることの確認だけに絞った。9 章の但し書きと 7.2 節の古い文の言い回しを固定する確認は、意味の正しさを確かめられないので外し、読み合わせに任せた。検証する AC と方針は変わらないので、承認を保つ（isseis がこのセッションで了承した）。2026-10-22 (editorial): ステップ 1-5 の読み合わせの項目と PR-1 のレビュー観点で、検査の時点を「GitHub に触れる前」から「GitHub への書き込み前」に改めた。PR 番号を省略すると、検査の前に今の PR を GitHub から読むためで、ガイドの記述とも合わせた。実装と方針は変わらず、決定は変わらないので、承認を保つ 2026-10-23 (decision): タスク 0038 の F-005 により、AC-01〜AC-15・AC-17・AC-22・AC-24・AC-26・AC-27・AC-29 の検証方法を改めた（`TestCodexObservationRecord`・`TestHandoffStartMarker`・`TestDocsDescribeCodexReview`・`TestNoCodeRabbitPRReview`・`TestLocalCodeRabbitReviewKept`・`TestGlossaryTerms` と、`TestRunprDocContract`・`TestFixprDocContract`・`TestAgentsCodeReviewRules` の語句の確認を削除し、`TestRunprDocContract/listings_print_no_body` を設けたため）。決定はタスク 0038 の要件の承認で得たので、`Status` は `approved` のままとする。 |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の、H-NN は [design_handoff.md](design_handoff.md) の項番を指す。設計書の「n.n」は設計書の節を指す。既存のファイルに関する記述は、コミット `419dec0` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。設計書が確かめたコミット `3ed049b` から `419dec0` までの差分は `docs/tasks/` の下だけなので（`git diff --stat 3ed049b 419dec0`。2026-10-22 に実行）、設計書の行番号もそのまま使える。
 
@@ -470,33 +470,33 @@ PR-1 を先にするのは、PR-2 の `/fixpr` を、メンションを拒否す
 
 種別は、`test`（実行され、誤った振る舞いで失敗する）、`static`（ガードのテストか `make` の対象）、`manual`（PR での観察、読み合わせ）である。
 
-**例外の記録。** AC-06・AC-08〜AC-15・AC-17 は手順の振る舞いだが、手順はコマンドの文書（エージェントへの指示）にあり、Go のテストで動かせない（設計書 7 章・要件書 4.2 の「センチネルエラー」）。そのため、これらの `static` は手順の記述の固定であり、振る舞いは `manual` の確かめで補う。AC-05 は手続きの条件（設計を始めない）なので、手続きの記録を根拠とする。
+**例外の記録。** AC-06・AC-08〜AC-15・AC-17 は手順の振る舞いだが、手順はコマンドの文書（エージェントへの指示）にあり、Go のテストで動かせない（設計書 7 章・要件書 4.2 の「センチネルエラー」）。そのため、これらの `static` は手順の記述の固定であり、振る舞いは `manual` の確かめで補う。タスク 0038 で手順の記述を固定する確認を削除したので、AC-09・AC-11・AC-15 の `static` は `jq` で実行する一覧のフィルタの確認だけになり、ほかの手順の記述は PR のレビューで読み合わせる。AC-05 は手続きの条件（設計を始めない）なので、手続きの記録を根拠とする。
 
 | AC | 実装のステップ | 検証 | 種別 |
 |---|---|---|---|
-| AC-01 | なし（観測は実施済み） | `cmd/yt2column/codex_review_docs_test.go::TestCodexObservationRecord`（項目 1〜9 と各項目の日付・根拠・観測の結果） | static |
-| AC-02 | 4-5（依頼したコミットの SHA を補う） | 同上（日付と根拠。PR での観測の PR の番号と、依頼したコミットの SHA または決められない理由） | static |
-| AC-03 | なし（同上） | 同上（項目 3 の 4 つの値） | static |
-| AC-04 | なし（同上） | 同上（指摘 0 件と 1 件以上の観測） | static |
-| AC-05 | なし（同上） | 同上（「AC-05 に当たる点」の節）。要件書の承認（PR #407 と Comments の再承認）の後に設計書が書かれ承認されたこと（各文書の Document Status） | static、manual |
-| AC-06 | 2-4、2-3 | `cmd/yt2column/fixpr_docs_test.go::TestHandoffStartMarker`、`TestRunprDocContract`（「始まらなかった」の規則）。切り替えの後の最初の PR（4.2） | static、manual |
-| AC-07 | 4-2 | `codex_review_docs_test.go::TestDocsDescribeCodexReview`（`CLAUDE.md` の Codex の設定）。PR-2 の `/fixpr` の push の後に Codex のレビューが走らないこと（4.2） | static、manual |
-| AC-08 | 2-2、2-3 | `fixpr_docs_test.go::TestRunprDocContract`（step 3 と step 4 の依頼の書き方）、`codex_review_docs_test.go::TestNoCodeRabbitPRReview` | static |
-| AC-09 | 2-3 | `fixpr_docs_test.go::TestRunprDocContract` の `reviewed_check`。PR-2 の `/runpr`（4.2） | static、manual |
-| AC-10 | 2-3 | `fixpr_docs_test.go::TestRunprDocContract`（`reviewed_check`、祖先の判定の向き、LAST_REVIEWED）。PR-2 の `/runpr`（4.2） | static、manual |
-| AC-11 | 2-3 | `fixpr_docs_test.go::TestRunprDocContract` の `reviewed_check`（`Bot` と `<awaited-reviewer>[bot]` の絞り込み、1 行目の一致）。PR-2 の確認の読み合わせ（4.2） | static、manual |
-| AC-12 | 2-3 | `fixpr_docs_test.go::TestRunprDocContract`（規則 3 と断りのコメントの但し書き、規則の順序、停止の文）。読み合わせ（4.2） | static、manual |
-| AC-13 | 2-3 | `fixpr_docs_test.go::TestRunprDocContract`（規則 4、停止の文）。読み合わせ（4.2） | static、manual |
-| AC-14 | 2-3 | `fixpr_docs_test.go::TestRunprDocContract`（止まって step 4 に進まない文）。読み合わせ（4.2） | static、manual |
-| AC-15 | 2-3 | `fixpr_docs_test.go::TestRunprDocContract`（「待っている」の間は依頼しない文、終わった依頼を依頼し直す文、依頼のコメントの絞り込み）。PR-2 での手の依頼の後の再実行（4.2） | static、manual |
-| AC-17 | 2-2、2-3、2-4 | `fixpr_docs_test.go::TestRunprDocContract`（`lastReviewedRule`、step 4 の質問）、`codex_review_docs_test.go::TestDocsDescribeCodexReview`（エスカレーションの説明）。PR-2 の `/runpr`（4.2） | static、manual |
-| AC-22 | 2-3、2-4、4-1 | `codex_review_docs_test.go::TestNoCodeRabbitPRReview`・`TestCodeRabbitConfigStopsReview`。切り替えの後の最初の PR で CodeRabbit の PR レビューが走らないこと（4.2） | static、manual |
-| AC-24 | 2-2、2-4、4-2 | `codex_review_docs_test.go::TestNoCodeRabbitPRReview`・`TestDocsDescribeCodexReview`・`TestLocalCodeRabbitReviewKept` | static |
+| AC-01 | なし（観測は実施済み） | 観測の記録の項目 1〜9 と各項目の日付・根拠・観測の結果を、PR のレビューで読み合わせる（タスク 0038 で `TestCodexObservationRecord` を削除した） | manual |
+| AC-02 | 4-5（依頼したコミットの SHA を補う） | 同上（日付と根拠。PR での観測の PR の番号と、依頼したコミットの SHA または決められない理由） | manual |
+| AC-03 | なし（同上） | 同上（項目 3 の 4 つの値） | manual |
+| AC-04 | なし（同上） | 同上（指摘 0 件と 1 件以上の観測） | manual |
+| AC-05 | なし（同上） | 同上（「AC-05 に当たる点」の節）。要件書の承認（PR #407 と Comments の再承認）の後に設計書が書かれ承認されたこと（各文書の Document Status） | manual |
+| AC-06 | 2-4、2-3 | `_lib/task-pr-handoff.md` の開始の印と `runpr.md` の「始まらなかった」の規則を、PR のレビューで読み合わせる（タスク 0038 で `TestHandoffStartMarker` と `TestRunprDocContract` のその確認を削除した）。切り替えの後の最初の PR（4.2） | manual |
+| AC-07 | 4-2 | `CLAUDE.md` の Codex の設定の記述を、PR のレビューで読み合わせる（タスク 0038 で `TestDocsDescribeCodexReview` を削除した）。PR-2 の `/fixpr` の push の後に Codex のレビューが走らないこと（4.2） | manual |
+| AC-08 | 2-2、2-3 | step 3 と step 4 の依頼の書き方を、PR のレビューで読み合わせる（タスク 0038 で `TestRunprDocContract` のその確認と `TestNoCodeRabbitPRReview` を削除した） | manual |
+| AC-09 | 2-3 | `fixpr_docs_test.go::TestRunprDocContract/listings_print_no_body`（要約のコメントの一覧を `jq` で実行し、`has_any_findings` が真偽値でない `completed` を `indeterminate` とすることを含めて、状態の導き方を確かめる）。完了の印の規則の文は PR のレビューで読み合わせる（タスク 0038 で `reviewed_check` を削除した）。PR-2 の `/runpr`（4.2） | static、manual |
+| AC-10 | 2-3 | 祖先の判定の向きと LAST_REVIEWED の記述を、PR のレビューで読み合わせる（タスク 0038 で `TestRunprDocContract` のその確認を削除した）。PR-2 の `/runpr`（4.2） | manual |
+| AC-11 | 2-3 | `fixpr_docs_test.go::TestRunprDocContract/listings_print_no_body`（`Bot` と `<awaited-reviewer>[bot]` の絞り込み、1 行目の一致を、一覧を `jq` で実行して確かめる）。PR-2 の確認の読み合わせ（4.2） | static、manual |
+| AC-12 | 2-3 | 規則 3 と断りのコメントの但し書き、規則の順序、停止の文を、PR のレビューで読み合わせる（4.2。タスク 0038 で `TestRunprDocContract` のその確認を削除した） | manual |
+| AC-13 | 2-3 | 規則 4 と停止の文を、PR のレビューで読み合わせる（4.2。タスク 0038 で `TestRunprDocContract` のその確認を削除した） | manual |
+| AC-14 | 2-3 | 止まって step 4 に進まない文を、PR のレビューで読み合わせる（4.2。タスク 0038 で `TestRunprDocContract` のその確認を削除した） | manual |
+| AC-15 | 2-3 | `fixpr_docs_test.go::TestRunprDocContract/listings_print_no_body`（依頼のコメントの絞り込みを、一覧を `jq` で実行して確かめる）。「待っている」の間は依頼しない文と、終わった依頼を依頼し直す文は、PR のレビューで読み合わせる（タスク 0038 でその確認を削除した）。PR-2 での手の依頼の後の再実行（4.2） | static、manual |
+| AC-17 | 2-2、2-3、2-4 | LAST_REVIEWED の定め、step 4 の質問、エスカレーションの説明を、PR のレビューで読み合わせる（タスク 0038 で `TestRunprDocContract` のその確認と `TestDocsDescribeCodexReview` を削除した）。PR-2 の `/runpr`（4.2） | manual |
+| AC-22 | 2-3、2-4、4-1 | `codex_review_docs_test.go::TestCodeRabbitConfigStopsReview`。コマンドの文書に CodeRabbit の PR レビューの手順が残らないことは、PR のレビューで読み合わせる（タスク 0038 で `TestNoCodeRabbitPRReview` を削除した）。切り替えの後の最初の PR で CodeRabbit の PR レビューが走らないこと（4.2） | static、manual |
+| AC-24 | 2-2、2-4、4-2 | コマンドの文書と `CLAUDE.md` の PR レビューとローカルの CLI レビューの説明を、PR のレビューで読み合わせる（タスク 0038 で `TestNoCodeRabbitPRReview`・`TestDocsDescribeCodexReview`・`TestLocalCodeRabbitReviewKept` を削除した） | manual |
 | AC-25 | 2-1、2-2、2-4 | `fixpr_docs_test.go::TestContextAndCommandsAgree`・`TestContextReviewerRowsMalformed` | static |
-| AC-26 | 4-2 | `codex_review_docs_test.go::TestAgentsCodeReviewRules` | static |
-| AC-27 | 4-2 | `fixpr_docs_test.go::TestGlossaryTerms` | static |
+| AC-26 | 4-2 | `codex_review_docs_test.go::TestAgentsCodeReviewRules`（見出しがちょうど 1 つあること）。節が `CLAUDE.md` を写さずに参照することは、PR のレビューで読み合わせる（タスク 0038 でその確認を削除した） | static、manual |
+| AC-27 | 4-2 | 用語集の 3 つの用語の行を、PR のレビューで読み合わせる（タスク 0038 で `TestGlossaryTerms` を削除した） | manual |
 | AC-28 | すべて | `make test`、`make lint`、CI の `doc-guard` のジョブ（PR-1・PR-2 の CI） | static、manual |
-| AC-29 | 1-1〜1-5、3-1〜3-3 | `internal/fixprguard/write_test.go::TestCheckPostText`・`TestReplyRejectsCodexMention`・`TestEditPRRejectsCodexMention`、`cmd/fixprguard/main_test.go::TestPostTextMentionExitsUsage`、`codex_review_docs_test.go::TestCodexMentionOnlyInRequestRow`・`TestPostingPathsCheckMention`・`TestPostingCommandsInventory`、`fixpr_docs_test.go::TestContextAndCommandsAgree`（`PR review request` の最初の語と `fixprguard.CodexMention` の一致）・`TestFixprDocContract`（エージェントへの規則） | test、static |
+| AC-29 | 1-1〜1-5、3-1〜3-3 | `internal/fixprguard/write_test.go::TestCheckPostText`・`TestReplyRejectsCodexMention`・`TestEditPRRejectsCodexMention`、`cmd/fixprguard/main_test.go::TestPostTextMentionExitsUsage`、`codex_review_docs_test.go::TestCodexMentionOnlyInRequestRow`・`TestPostingPathsCheckMention`・`TestPostingCommandsInventory`、`fixpr_docs_test.go::TestContextAndCommandsAgree`（`PR review request` の最初の語と `fixprguard.CodexMention` の一致）。エージェントへの規則は、PR のレビューで読み合わせる（タスク 0038 で `TestFixprDocContract` のその確認を削除した） | test、static、manual |
 
 AC-16・AC-18〜AC-21・AC-23 は要件書で削除された欠番である。
 

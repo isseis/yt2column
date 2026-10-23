@@ -8,7 +8,7 @@
 | Created | 2026-10-22 |
 | Review date | 2026-10-22 |
 | Reviewer | isseis |
-| Comments | 2026-10-22 (editorial): 7.4 の結合テストを「既存の流れのテストに場合を加える」から「新しいテストを加える」に改めた。`begin` から `reply` までを続けて実行する既存のテストが `cmd/fixprguard/main_test.go` にないことを、実装計画（`03_implementation_plan.md` 1.4）の調査で確かめたためである。加えるテストの内容は変わらず、決定は変わらない。2026-10-22 (editorial): 用語「待つ PR レビュアー」を「完了を待つ PR レビュアー」に改め、定義に、承認ではなくレビューの完了を待つことを書き足した。何を待つかが名前から読み取れるようにするためである。英語の awaited PR reviewer と `_context.md` の行の名前は変えない。内容と決定は変わらないので、承認を保つ（isseis がこのセッションで指示した） |
+| Comments | 2026-10-22 (editorial): 7.4 の結合テストを「既存の流れのテストに場合を加える」から「新しいテストを加える」に改めた。`begin` から `reply` までを続けて実行する既存のテストが `cmd/fixprguard/main_test.go` にないことを、実装計画（`03_implementation_plan.md` 1.4）の調査で確かめたためである。加えるテストの内容は変わらず、決定は変わらない。2026-10-22 (editorial): 用語「待つ PR レビュアー」を「完了を待つ PR レビュアー」に改め、定義に、承認ではなくレビューの完了を待つことを書き足した。何を待つかが名前から読み取れるようにするためである。英語の awaited PR reviewer と `_context.md` の行の名前は変えない。内容と決定は変わらないので、承認を保つ（isseis がこのセッションで指示した） 2026-10-23 (decision): タスク 0038 の F-005 により、7 章の表の AC-13 を PR のレビューでの読み合わせに改めた（`TestGlossaryTerms` を削除したため）。決定はタスク 0038 の要件の承認で得たので、`Status` は `approved` のままとする。 |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `e5db595` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md) の項番を指す。申し送り H-01〜H-04 への対応は付録 A にまとめる。
 
@@ -606,5 +606,5 @@ flowchart LR
 | AC-10 | 1.2（プレースホルダー、並びを 1 度だけ作る定め）、3.4（内容のガードの 6、呼び出しのガード）、3.5 |
 | AC-11 | 1.2（`<awaited-reviewer>`）、3.4（内容のガードの 5・6）、3.5 |
 | AC-12 | 3.5（`fixpr.md`、ガイド、`package_reference.md`） |
-| AC-13 | 2.2、3.4（`TestGlossaryTerms`） |
+| AC-13 | 2.2、PR のレビューでの読み合わせ（タスク 0038 で `TestGlossaryTerms` を削除した） |
 | AC-14 | 7.3、8 章 |

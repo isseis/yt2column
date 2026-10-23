@@ -52,6 +52,7 @@ guideBlock	func	cmd/fixprguard/docs_test.go	no	2	keep
 # PR-3: cmd/yt2column/fixpr_docs_test.go and codex_review_docs_test.go
 TestFixprDocContract	func	cmd/yt2column/fixpr_docs_test.go	yes	3	keep
 TestRunprDocContract	func	cmd/yt2column/fixpr_docs_test.go	yes	3	keep
+TestHandoffListingPrintsNoBody	func	cmd/yt2column/fixpr_docs_test.go	no	3	keep
 TestHandoffStartMarker	func	cmd/yt2column/fixpr_docs_test.go	yes	3	delete
 TestFixprguardCallSites	func	cmd/yt2column/fixpr_docs_test.go	yes	3	keep
 TestFixprBuildChecksMatchTool	func	cmd/yt2column/fixpr_docs_test.go	yes	3	keep
@@ -113,6 +114,10 @@ mentionCheck	const	cmd/yt2column/codex_review_docs_test.go	no	3	delete
 requestExemption	const	cmd/yt2column/codex_review_docs_test.go	yes	3	delete
 removedPRReviewPhrases	var	cmd/yt2column/codex_review_docs_test.go	yes	3	delete
 observationDate	var	cmd/yt2column/codex_review_docs_test.go	yes	3	delete
+fixprGuardTool	const	cmd/yt2column/fixpr_docs_test.go	no	3	delete
+fixprUntrusted	const	cmd/yt2column/fixpr_docs_test.go	no	3	delete
+fixprShared	const	cmd/yt2column/fixpr_docs_test.go	no	3	delete
+fixprFinal	const	cmd/yt2column/fixpr_docs_test.go	no	3	delete
 observationBasis	var	cmd/yt2column/codex_review_docs_test.go	yes	3	delete
 prNumber	var	cmd/yt2column/codex_review_docs_test.go	no	3	delete
 hexRun	var	cmd/yt2column/codex_review_docs_test.go	no	3	delete
