@@ -16,6 +16,15 @@
 | 計測したコミット | `fddb4f7`（`main`。本タスクの変更の前） |
 | 計測した日時 | 2026-10-23 07:01〜07:22（UTC）。プロファイル（3 章）は 07:22〜07:24（UTC） |
 
+### 1.2. CI
+
+| 項目 | 値 |
+|---|---|
+| runner | `ubuntu-latest`（イメージ `ubuntu24 20261012.334.1`）、4 コア。CPU の型名はジョブごとに違う（5.3） |
+| Go の版 | go1.26.5 linux/amd64（`actions/setup-go` の `go-version-file: go.mod`） |
+| 計測したコミット | `9f4065f`。`fddb4f7` に計測のワークフローの 1 ファイル（5.5）だけを加えたコミット |
+| 計測した日時 | 2026-10-23 07:00〜07:04 と 10:05〜10:08（UTC） |
+
 ## 2. 手元の計測（AC-01）
 
 ### 2.1. 実行したコマンド
@@ -205,3 +214,300 @@ GOTOOLCHAIN=go1.26.5 go tool pprof -sample_index=alloc_space -focus=parseCopiedT
 ### 4.4. まとめ
 
 CI で上限を超えた原因（`-race` 付きのビルドの時間）に効くのは 4.1 だけである。4.1〜4.3 のどれも、本番の解析（`-race` なしのビルド）の時間を、0015 の予算（30 秒）と目標（1 秒）に照らして意味のある分だけ縮めない。
+
+## 5. CI での計測（AC-02・AC-06）
+
+### 5.1. 実行
+
+計測のワークフロー（5.5）を、`origin/main`（`fddb4f7`）から作った一時的なブランチ `isseis/0039-measure-ci` に 1 ファイルだけ加えたコミット `9f4065f` で、push で起動した。5 つの条件を各 5 回、matrix のジョブとして実行し、3 時間あけて実行のし直しで 2 回めを実行した。各条件の標本は 10 である。計測の後、ブランチを `origin` とローカルから削除した。
+
+| 試行 | URL | 開始（UTC） | 結果 |
+|---|---|---|---|
+| 1 | https://github.com/isseis/yt2column/actions/runs/39915049143/attempts/1 | 2026-10-23 07:00:49 | 25 ジョブすべて成功 |
+| 2 | https://github.com/isseis/yt2column/actions/runs/39915049143/attempts/2 | 2026-10-23 10:05:08（`gh run rerun`） | 25 ジョブすべて成功 |
+
+どのジョブの出力にも `internal/transcript` の `(cached)` はなかった。今の上限（15 秒）を超えたサブテストはなかった。
+
+### 5.2. 結果
+
+各欄は 10 回の最小 / 中央 / 最大である。時間の単位は秒、メモリの確保量の単位は入力 1 バイトあたりのバイトである。
+
+**`race-cover-alone`（AC-02 (a)：`-race` 付き・カバレッジ付き・単独）**
+
+| 入力 | 回数 | 時間（秒） | 1 バイトあたりの確保量 |
+|---|---|---|---|
+| `shortest_form_A_lines` | 10 | 4.244 / 7.671 / 8.283 | 1710.72 / 1716.47 / 1722.84 |
+| `one_long_form_A_line` | 10 | 0.571 / 0.854 / 0.962 | 0.00 / 0.00 / 0.01 |
+| `textless_form_B_timestamps` | 10 | 4.777 / 8.497 / 9.318 | 1864.91 / 1871.12 / 1875.45 |
+| `trailing_zero-length_lines` | 10 | 2.802 / 3.718 / 4.553 | 16.01 / 16.02 / 16.03 |
+| `one-byte_prefix_lines` | 10 | 2.237 / 3.207 / 3.718 | 8.00 / 8.02 / 8.04 |
+| `form_A_headings_between_segments` | 10 | 1.918 / 3.366 / 3.604 | 589.26 / 591.29 / 593.47 |
+| `one-byte_form_B_headings` | 10 | 3.713 / 5.505 / 6.118 | 8.00 / 8.01 / 8.03 |
+
+**`race-alone`（AC-02 (b)：`-race` 付き・カバレッジなし・単独）**
+
+| 入力 | 回数 | 時間（秒） | 1 バイトあたりの確保量 |
+|---|---|---|---|
+| `shortest_form_A_lines` | 10 | 2.736 / 5.160 / 5.316 | 1713.74 / 1717.51 / 1719.09 |
+| `one_long_form_A_line` | 10 | 0.028 / 0.056 / 0.066 | 0.00 / 0.00 / 0.00 |
+| `textless_form_B_timestamps` | 10 | 2.675 / 5.214 / 5.449 | 1860.30 / 1870.07 / 1874.75 |
+| `trailing_zero-length_lines` | 10 | 0.180 / 0.309 / 0.363 | 16.01 / 16.01 / 16.03 |
+| `one-byte_prefix_lines` | 10 | 0.215 / 0.387 / 0.406 | 8.00 / 8.02 / 8.04 |
+| `form_A_headings_between_segments` | 10 | 1.013 / 2.022 / 2.072 | 588.04 / 589.70 / 592.90 |
+| `one-byte_form_B_headings` | 10 | 0.318 / 0.552 / 0.585 | 8.01 / 8.01 / 8.02 |
+
+**`race-cover-package`（AC-04 の切り分け：`internal/transcript` の全テスト、`-race` 付き・カバレッジ付き）**
+
+| 入力 | 回数 | 時間（秒） | 1 バイトあたりの確保量 |
+|---|---|---|---|
+| `shortest_form_A_lines` | 10 | 4.583 / 7.808 / 8.843 | 1710.27 / 1715.01 / 1722.37 |
+| `one_long_form_A_line` | 10 | 0.619 / 0.857 / 1.102 | 0.00 / 0.00 / 0.01 |
+| `textless_form_B_timestamps` | 10 | 5.094 / 8.668 / 9.885 | 1864.05 / 1869.06 / 1873.58 |
+| `trailing_zero-length_lines` | 10 | 2.921 / 3.760 / 5.122 | 16.00 / 16.02 / 16.03 |
+| `one-byte_prefix_lines` | 10 | 2.467 / 3.250 / 4.126 | 8.00 / 8.02 / 8.04 |
+| `form_A_headings_between_segments` | 10 | 2.067 / 3.411 / 3.889 | 587.70 / 590.94 / 595.65 |
+| `one-byte_form_B_headings` | 10 | 3.975 / 5.455 / 6.726 | 8.01 / 8.01 / 8.02 |
+
+**`ci-equivalent` の 1 つめの実行（AC-02 (c)：`make test-ci` と同じ条件）**
+
+| 入力 | 回数 | 時間（秒） | 1 バイトあたりの確保量 |
+|---|---|---|---|
+| `shortest_form_A_lines` | 10 | 9.209 / 14.480 / 14.628 | 1711.19 / 1717.66 / 1721.04 |
+| `one_long_form_A_line` | 10 | 0.893 / 0.945 / 1.305 | 0.00 / 0.00 / 0.01 |
+| `textless_form_B_timestamps` | 10 | 6.762 / 8.628 / 9.422 | 1865.72 / 1868.42 / 1874.35 |
+| `trailing_zero-length_lines` | 10 | 2.942 / 3.755 / 4.723 | 16.02 / 16.02 / 16.04 |
+| `one-byte_prefix_lines` | 10 | 2.496 / 3.237 / 3.823 | 8.01 / 8.02 / 8.04 |
+| `form_A_headings_between_segments` | 10 | 2.584 / 3.430 / 3.653 | 588.75 / 591.58 / 593.94 |
+| `one-byte_form_B_headings` | 10 | 4.203 / 5.475 / 6.280 | 8.00 / 8.01 / 8.02 |
+
+**`norace-alone`（AC-02 (d)：`-race` なし・カバレッジなし・単独）**
+
+| 入力 | 回数 | 時間（秒） | 1 バイトあたりの確保量 |
+|---|---|---|---|
+| `shortest_form_A_lines` | 10 | 0.100 / 0.240 / 0.340 | 18.66 / 18.67 / 18.69 |
+| `one_long_form_A_line` | 10 | 0.006 / 0.011 / 0.012 | 0.00 / 0.00 / 0.00 |
+| `textless_form_B_timestamps` | 10 | 0.088 / 0.176 / 0.214 | 12.80 / 12.81 / 12.81 |
+| `trailing_zero-length_lines` | 10 | 0.041 / 0.071 / 0.098 | 16.00 / 16.01 / 16.01 |
+| `one-byte_prefix_lines` | 10 | 0.030 / 0.054 / 0.057 | 8.00 / 8.00 / 8.01 |
+| `form_A_headings_between_segments` | 10 | 0.047 / 0.102 / 0.106 | 6.58 / 6.58 / 6.59 |
+| `one-byte_form_B_headings` | 10 | 0.042 / 0.080 / 0.086 | 8.00 / 8.00 / 8.01 |
+
+**`ci-equivalent` の 2 つめの実行（AC-06：`test-parse-norace` が行う予定の実行。同じジョブで 1 つめの後に実行）**
+
+| 入力 | 回数 | 時間（秒） | 1 バイトあたりの確保量 |
+|---|---|---|---|
+| `shortest_form_A_lines` | 10 | 0.138 / 0.221 / 0.254 | 18.66 / 18.67 / 18.68 |
+| `one_long_form_A_line` | 10 | 0.007 / 0.011 / 0.012 | 0.00 / 0.00 / 0.00 |
+| `textless_form_B_timestamps` | 10 | 0.113 / 0.175 / 0.210 | 12.80 / 12.80 / 12.81 |
+| `trailing_zero-length_lines` | 10 | 0.054 / 0.070 / 0.074 | 16.00 / 16.01 / 16.01 |
+| `one-byte_prefix_lines` | 10 | 0.041 / 0.054 / 0.058 | 8.00 / 8.00 / 8.01 |
+| `form_A_headings_between_segments` | 10 | 0.063 / 0.101 / 0.104 | 6.58 / 6.58 / 6.58 |
+| `one-byte_form_B_headings` | 10 | 0.057 / 0.079 / 0.088 | 8.00 / 8.01 / 8.01 |
+
+### 5.3. runner の情報
+
+各ジョブの開始の時刻、CPU の型名、コア数、runner のイメージ、Go の版と、時間の長い 2 つの入力（`shortest_form_A_lines` / `textless_form_B_timestamps`）の時間（秒）である。`ci-equivalent` は、1 つめの実行の値の後に、括弧の中に 2 つめの実行（後段）の値を書く。
+
+| 試行 | ジョブ | 開始 | CPU | コア数 | イメージ | Go | 時間（秒） |
+|---|---|---|---|---|---|---|---|
+| 1 | `ci-equivalent (1)` | 2026-10-23T07:01:07Z | AMD EPYC 7763 64-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 14.628 / 8.886（後段 0.222 / 0.179） |
+| 1 | `ci-equivalent (2)` | 2026-10-23T07:01:40Z | AMD EPYC 7763 64-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 14.569 / 8.636（後段 0.221 / 0.175） |
+| 1 | `ci-equivalent (3)` | 2026-10-23T07:01:03Z | INTEL(R) XEON(R) PLATINUM 8573C | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 11.880 / 9.422（後段 0.172 / 0.153） |
+| 1 | `ci-equivalent (4)` | 2026-10-23T07:01:05Z | AMD EPYC 7763 64-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 14.536 / 8.792（後段 0.254 / 0.210） |
+| 1 | `ci-equivalent (5)` | 2026-10-23T07:01:04Z | AMD EPYC 9V74 80-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 9.209 / 6.806（後段 0.138 / 0.125） |
+| 1 | `norace-alone (1)` | 2026-10-23T07:01:24Z | AMD EPYC 7763 64-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 0.224 / 0.178 |
+| 1 | `norace-alone (2)` | 2026-10-23T07:01:32Z | AMD EPYC 7763 64-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 0.262 / 0.186 |
+| 1 | `norace-alone (3)` | 2026-10-23T07:01:04Z | Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 0.196 / 0.172 |
+| 1 | `norace-alone (4)` | 2026-10-23T07:01:01Z | AMD EPYC 9V45 96-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 0.100 / 0.089 |
+| 1 | `norace-alone (5)` | 2026-10-23T07:01:03Z | AMD EPYC 9V45 96-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 0.100 / 0.088 |
+| 1 | `race-alone (1)` | 2026-10-23T07:01:04Z | AMD EPYC 7763 64-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 5.152 / 5.357 |
+| 1 | `race-alone (2)` | 2026-10-23T07:01:05Z | AMD EPYC 7763 64-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 5.316 / 5.449 |
+| 1 | `race-alone (3)` | 2026-10-23T07:01:05Z | AMD EPYC 7763 64-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 5.065 / 5.203 |
+| 1 | `race-alone (4)` | 2026-10-23T07:01:03Z | AMD EPYC 9V45 96-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 2.754 / 2.675 |
+| 1 | `race-alone (5)` | 2026-10-23T07:01:05Z | AMD EPYC 7763 64-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 5.167 / 5.179 |
+| 1 | `race-cover-alone (1)` | 2026-10-23T07:01:05Z | AMD EPYC 7763 64-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 7.696 / 8.519 |
+| 1 | `race-cover-alone (2)` | 2026-10-23T07:01:04Z | AMD EPYC 7763 64-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 7.726 / 8.475 |
+| 1 | `race-cover-alone (3)` | 2026-10-23T07:01:04Z | AMD EPYC 9V45 96-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 4.361 / 4.816 |
+| 1 | `race-cover-alone (4)` | 2026-10-23T07:01:03Z | Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 8.278 / 9.318 |
+| 1 | `race-cover-alone (5)` | 2026-10-23T07:01:24Z | AMD EPYC 7763 64-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 7.646 / 8.545 |
+| 1 | `race-cover-package (1)` | 2026-10-23T07:01:05Z | AMD EPYC 7763 64-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 7.837 / 8.749 |
+| 1 | `race-cover-package (2)` | 2026-10-23T07:01:04Z | AMD EPYC 7763 64-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 8.231 / 8.873 |
+| 1 | `race-cover-package (3)` | 2026-10-23T07:01:38Z | AMD EPYC 9V74 80-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 5.930 / 6.528 |
+| 1 | `race-cover-package (4)` | 2026-10-23T07:01:06Z | AMD EPYC 7763 64-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 7.755 / 8.587 |
+| 1 | `race-cover-package (5)` | 2026-10-23T07:01:02Z | AMD EPYC 9V45 96-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 4.597 / 5.266 |
+| 2 | `ci-equivalent (1)` | 2026-10-23T10:05:26Z | AMD EPYC 9V74 80-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 9.378 / 6.762（後段 0.139 / 0.126） |
+| 2 | `ci-equivalent (2)` | 2026-10-23T10:05:29Z | AMD EPYC 7763 64-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 14.424 / 8.619（後段 0.220 / 0.182） |
+| 2 | `ci-equivalent (3)` | 2026-10-23T10:05:27Z | AMD EPYC 7763 64-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 14.628 / 8.661（後段 0.248 / 0.180） |
+| 2 | `ci-equivalent (4)` | 2026-10-23T10:05:26Z | Intel(R) Xeon(R) 6973P-C | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 9.372 / 8.277（後段 0.140 / 0.113） |
+| 2 | `ci-equivalent (5)` | 2026-10-23T10:05:28Z | AMD EPYC 7763 64-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 14.607 / 8.572（後段 0.232 / 0.175） |
+| 2 | `norace-alone (1)` | 2026-10-23T10:05:29Z | AMD EPYC 7763 64-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 0.340 / 0.214 |
+| 2 | `norace-alone (2)` | 2026-10-23T10:05:30Z | AMD EPYC 7763 64-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 0.264 / 0.191 |
+| 2 | `norace-alone (3)` | 2026-10-23T10:06:00Z | AMD EPYC 7763 64-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 0.237 / 0.175 |
+| 2 | `norace-alone (4)` | 2026-10-23T10:05:29Z | AMD EPYC 7763 64-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 0.243 / 0.175 |
+| 2 | `norace-alone (5)` | 2026-10-23T10:05:30Z | AMD EPYC 7763 64-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 0.252 / 0.177 |
+| 2 | `race-alone (1)` | 2026-10-23T10:05:26Z | AMD EPYC 7763 64-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 4.971 / 5.138 |
+| 2 | `race-alone (2)` | 2026-10-23T10:05:53Z | AMD EPYC 7763 64-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 5.222 / 5.429 |
+| 2 | `race-alone (3)` | 2026-10-23T10:05:30Z | AMD EPYC 7763 64-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 5.248 / 5.293 |
+| 2 | `race-alone (4)` | 2026-10-23T10:05:28Z | AMD EPYC 9V45 96-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 2.736 / 2.865 |
+| 2 | `race-alone (5)` | 2026-10-23T10:05:53Z | AMD EPYC 7763 64-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 5.171 / 5.225 |
+| 2 | `race-cover-alone (1)` | 2026-10-23T10:05:30Z | Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 8.283 / 9.310 |
+| 2 | `race-cover-alone (2)` | 2026-10-23T10:05:26Z | AMD EPYC 7763 64-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 7.508 / 8.390 |
+| 2 | `race-cover-alone (3)` | 2026-10-23T10:05:25Z | AMD EPYC 9V45 96-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 4.244 / 4.777 |
+| 2 | `race-cover-alone (4)` | 2026-10-23T10:05:30Z | AMD EPYC 9V74 80-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 5.864 / 6.474 |
+| 2 | `race-cover-alone (5)` | 2026-10-23T10:05:30Z | AMD EPYC 7763 64-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 7.699 / 8.614 |
+| 2 | `race-cover-package (1)` | 2026-10-23T10:05:26Z | AMD EPYC 9V45 96-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 4.583 / 5.094 |
+| 2 | `race-cover-package (2)` | 2026-10-23T10:05:50Z | Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 8.431 / 9.614 |
+| 2 | `race-cover-package (3)` | 2026-10-23T10:05:26Z | AMD EPYC 7763 64-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 7.961 / 8.760 |
+| 2 | `race-cover-package (4)` | 2026-10-23T10:05:47Z | INTEL(R) XEON(R) PLATINUM 8573C | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 8.843 / 9.885 |
+| 2 | `race-cover-package (5)` | 2026-10-23T10:05:28Z | AMD EPYC 7763 64-Core Processor | 4 | ubuntu24 20261012.334.1 | go1.26.5 | 7.780 / 8.580 |
+
+CPU の型名は 6 種類あった（AMD EPYC 7763・9V45・9V74、Intel Xeon Platinum 8370C・Platinum 8573C・6973P-C）。50 ジョブのうち 31 が AMD EPYC 7763 である。同じ条件の値のばらつきの大半は、CPU の型の違いによる。たとえば `race-alone` の `shortest_form_A_lines` は、AMD EPYC 7763 で 4.971〜5.316 秒、AMD EPYC 9V45 で 2.736〜2.754 秒である。
+
+### 5.4. AC-06 の値
+
+AC-06 の値は、`ci-equivalent` の 2 つめの実行（5.2 の最後の表）である。7 つの入力の全計測（70 個）を通した最大は `shortest_form_A_lines` の 0.254 秒（試行 1 の `ci-equivalent (4)`、AMD EPYC 7763）である。同じ入力の最小は 0.138 秒（試行 1 の `ci-equivalent (5)`、AMD EPYC 9V74）である。
+
+### 5.5. 計測のワークフローの全文
+
+ブランチ `isseis/0039-measure-ci` の `.github/workflows/measure-0039.yml`（コミット `9f4065f`）の全文である。`actions/checkout`・`actions/setup-go` の版と `go-version-file: go.mod`・`cache: true` は `ci.yml:61-68` に揃えた。
+
+```yaml
+name: Measure 0039
+
+# Temporary measurement workflow for task 0039 (large-input parse test
+# timeout). It lives only on its own branch and is never merged.
+on:
+  push:
+    branches: [ isseis/0039-measure-ci ]
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    name: ${{ matrix.condition }} (${{ matrix.run }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        condition: [ race-cover-alone, race-alone, race-cover-package, ci-equivalent, norace-alone ]
+        run: [ 1, 2, 3, 4, 5 ]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Runner info
+        run: |
+          echo "start: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "cpu: $(grep -m 1 'model name' /proc/cpuinfo | cut -d: -f2- | sed 's/^ *//')"
+          echo "cores: $(nproc)"
+          echo "image: ${ImageOS:-unknown} ${ImageVersion:-unknown}"
+          go version
+
+      - name: Measure (race, coverage, alone)
+        if: matrix.condition == 'race-cover-alone'
+        run: go test -tags test -race -count=1 -v -coverprofile=coverage.out -run '^TestParseCopiedLargeInputs$' ./internal/transcript
+
+      - name: Measure (race, alone)
+        if: matrix.condition == 'race-alone'
+        run: go test -tags test -race -count=1 -v -run '^TestParseCopiedLargeInputs$' ./internal/transcript
+
+      - name: Measure (race, coverage, whole package)
+        if: matrix.condition == 'race-cover-package'
+        run: go test -tags test -race -count=1 -v -coverprofile=coverage.out ./internal/transcript
+
+      - name: Measure (make test-ci equivalent)
+        if: matrix.condition == 'ci-equivalent'
+        run: go test -tags test -race -count=1 -v -coverprofile=coverage.out ./...
+
+      - name: Measure (planned test-parse-norace, after test-ci)
+        if: ${{ !cancelled() && matrix.condition == 'ci-equivalent' }}
+        run: go test -tags test -count=1 -v -timeout 5m -run '^TestParseCopiedLargeInputs$' ./internal/transcript
+
+      - name: Measure (no race, alone)
+        if: matrix.condition == 'norace-alone'
+        run: go test -tags test -count=1 -v -run '^TestParseCopiedLargeInputs$' ./internal/transcript
+```
+
+## 6. 結論（AC-04）
+
+### 6.1. 要因ごとの比
+
+設計書 3.6.4 の比を、入力ごとの中央の値で求めた。「手元 (a)」は 2.2 の (a) である。
+
+| 入力 | パーサの処理：AC-02 (d) の中央（最小〜最大）と目標 1 秒 | `-race` の負担：(b) ÷ (d) | カバレッジの負担：(a) ÷ (b) | runner の速さ：(b) ÷ 手元 (a) | 先行のテスト：`race-cover-package` ÷ (a) | 並行の負荷：(c) ÷ `race-cover-package` |
+|---|---|---|---|---|---|---|
+| `shortest_form_A_lines` | 0.240（0.100〜0.340）秒 | 21.50 | 1.49 | 1.84 | 1.02 | 1.85 |
+| `one_long_form_A_line` | 0.011（0.006〜0.012）秒 | 5.09 | 15.25 | 1.75 | 1.00 | 1.10 |
+| `textless_form_B_timestamps` | 0.176（0.088〜0.214）秒 | 29.63 | 1.63 | 1.72 | 1.02 | 1.00 |
+| `trailing_zero-length_lines` | 0.071（0.041〜0.098）秒 | 4.35 | 12.03 | 2.81 | 1.01 | 1.00 |
+| `one-byte_prefix_lines` | 0.054（0.030〜0.057）秒 | 7.17 | 8.29 | 1.34 | 1.01 | 1.00 |
+| `form_A_headings_between_segments` | 0.102（0.047〜0.106）秒 | 19.82 | 1.66 | 1.75 | 1.01 | 1.01 |
+| `one-byte_form_B_headings` | 0.080（0.042〜0.086）秒 | 6.90 | 9.97 | 1.30 | 0.99 | 1.00 |
+
+ばらつき（各条件の最小と最大）は 5.2 と 2.2 の表のとおりである。最小と最大の差は、主に runner の CPU の型の違いによる（5.3）。CPU の型をそろえた比として、AMD EPYC 7763 のジョブだけで `shortest_form_A_lines` を比べると、`ci-equivalent` の 1 つめの実行（6 ジョブ）は 14.424〜14.628 秒（中央 14.588）、`race-cover-package`（5 ジョブ）は 7.755〜8.231 秒（中央 7.837）で、並行の比は 1.86 である。同じ CPU の `textless_form_B_timestamps` では、8.572〜8.886 秒（中央 8.648）と 8.580〜8.873 秒（中央 8.749）で、比は 0.99 である。
+
+### 6.2. 結論
+
+PR #461 で上限を超えたのは、`-race` 付き・カバレッジ付きのビルドを、遅い runner で、ほかのパッケージと並行に実行したときの `shortest_form_A_lines` である。各要因の効き方は次のとおりである。
+
+-   **パーサの処理:** 効いていない。`-race` なし・単独（AC-02 (d)）の全計測の最大は 0.340 秒、中央は 0.240 秒（`shortest_form_A_lines`）で、0015 の目標（1 秒）を満たす。
+-   **`-race` の負担:** 最も大きい要因である。`shortest_form_A_lines` で 21.5 倍、`textless_form_B_timestamps` で 29.6 倍、`form_A_headings_between_segments` で 19.8 倍である。この 3 つの入力は、`-race` 付きの確保量が大きい入力と一致する（3.2・3.4）。ほかの 4 つの入力は 4.4〜7.2 倍である。
+-   **カバレッジの負担:** 1.49〜1.66 倍（時間の長い 3 つの入力）。時間の短い入力では 8〜15 倍だが、絶対の時間は 6.2 秒以下である。
+-   **CI の runner の速さ:** 手元の約 1.7〜1.8 倍遅い（時間の長い 3 つの入力）。ただし runner の CPU の型で約 2 倍違い、AMD EPYC 9V45 は手元とほぼ同じ速さ、AMD EPYC 7763 は手元の約 1.8〜1.9 倍遅い（5.3）。
+-   **同じパッケージの先行のテストの影響:** ほとんどない（0.99〜1.02 倍）。
+-   **CI での並行の負荷:** `shortest_form_A_lines` だけに効き、1.85 倍（AMD EPYC 7763 のジョブだけで 1.86 倍）である。ほかの入力は 1.00〜1.10 倍である。`shortest_form_A_lines` は大きな入力のテストの最初のサブテストなので、ほかのパッケージのテストがまだ動いている時間に当たると見られるが、今回の計測では確かめていない。
+
+AMD EPYC 7763 の runner では、`make test-ci` と同じ条件の `shortest_form_A_lines` が 14.424〜14.628 秒で、今の上限（15 秒）まで 0.4〜0.6 秒しか余裕がない。PR #461 の失敗の値（15.02〜15.44 秒）は、この値の少しの揺れで説明できる。上限を超えた原因は、`-race`・カバレッジ・遅い runner・並行の負荷の積が上限に近づいたことであり、パーサの処理の劣化ではない。
+
+## 7. パーサの改善の判断（AC-05・AC-13）
+
+### 7.1. 設計書 3.7 の条件の判定
+
+| 条件 | 判定 | 根拠 |
+|---|---|---|
+| 条件 1: `-race` 付きのビルドのメモリの確保量と時間の増加が、`-race` に固有の仕組みによる（`-race` なしのビルドには現れない） | 成り立つ | 確保量の増加は、`-race` のときだけ `sync.Pool` が値を捨てる仕組み（3.4）によることを、標準ライブラリの箇所と確保の回数で確かめた。`-race` なしのビルドでは同じ確保は 1 回だけである。時間の増加は、検出器の実行時と GC に費やされ（3.3）、`-race` なしのビルドでは同じ入力が CI で 0.340 秒以下、手元で 0.113 秒以下である（2.2・5.2）。時間のうち確保による分は定量していない（3.4）が、増加が `-race` なしのビルドに現れないことは確かめた |
+| 条件 2: AC-02 (d) の全計測の最大が 1 秒未満 | 成り立つ | 最大は 0.340 秒（試行 2 の `norace-alone (1)`、`shortest_form_A_lines`、AMD EPYC 7763） |
+
+AC-05 (a) には当たらない（条件 2 が成り立つ）。AC-05 (b) にも当たらない（`-race` なしのビルドにも現れる劣化は原因に含まれない。6.2）。F-002 に進む。
+
+### 7.2. 判断と理由（AC-13）
+
+**パーサを改善しない。** 理由は次のとおりである。
+
+-   `CLAUDE.md`「Performance」は、最適化を実際の実行の絶対的な予算で正当化するよう求める。本番の `yt2column-server` は `-race` なしでビルドされ（`Makefile:60-64`）、その解析は 4 MiB 以下の入力を CI の runner で 0.340 秒以下、手元で 0.113 秒以下で終える。0015 の解析の予算（30 秒未満）の約 88 分の 1 以下、目標（1 秒未満）の約 3 分の 1 以下である。
+-   CI で上限を超えた原因は `-race` 付きのビルドの時間であり（6.2）、本番の解析の時間ではない。時間の確認を `-race` なしのビルドに移せば（F-002）、この原因は確認から外れる。
+-   4.1 の改善は `-race` 付きの時間を約 3 分の 1 にすると見込むが、本番の時間はほとんど変わらない（4.4）。一方で、時刻の文法を正規表現と同じに受け入れ、拒否することを新たに保証する負担（AC-14）が加わる。
+
+このため、フェーズ 4（パーサの改善）は行わず、PR-2 は作らない。
+
+## 8. 時間の上限（AC-08）
+
+### 8.1. 上限の値
+
+設計書 3.5 の規則（AC-06 の全計測を通した最大を 10 倍し、0.5 秒の単位に切り上げる）で求めた。
+
+| 項目 | 値 |
+|---|---|
+| AC-06 の最大の時間 | 0.254 秒（`shortest_form_A_lines`。5.4） |
+| AC-06 の最小の時間（同じ入力） | 0.138 秒（5.4）。最大 ÷ 最小 = 1.84 で、3 を超えない |
+| 規則で求めた上限 | 0.254 × 10 = 2.54 秒を 0.5 秒の単位に切り上げて **3.0 秒** |
+| 上限の倍率（上限 ÷ AC-06 の最大） | 11.8 |
+| 上限と 0015 の目標（1 秒）との比 | 3.0 |
+| 上限と 0015 の予算（30 秒）との比 | 0.10（上限は予算の 10 分の 1 で、30 秒未満を満たす） |
+
+### 8.2. 手元の条件との比
+
+-   手元の pre-commit のフックと同じ条件（2.2 の (e)）の最大は 0.107 秒で、上限の約 28 分の 1 である。上限を超えない。
+-   手元の `-race` なし・単独（2.2 の参考の値）の最大は 0.113 秒で、上限の約 27 分の 1 である。
+-   AC-02 (d) の最大（0.340 秒、5.2）は上限の約 9 分の 1 である。
+
+### 8.3. この上限が検出するもの
+
+設計書 3.5「この上限が検出するもの」のとおり、上限は 7 つの入力に共通の 1 つの値で、最も遅い入力の AC-06 の最大の約 12 倍である。最も遅い入力では、時間が約 12 倍未満に増える劣化は検出しない。検出するのは、入力の長さの 2 乗に比例するような、桁の違う劣化である。上限は 0015 の目標（1 秒）を超えるが、目標の達成は、AC-02 (d)・AC-06 の値として本書に残る。
