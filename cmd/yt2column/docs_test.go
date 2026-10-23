@@ -529,6 +529,11 @@ func TestCostDocsContract(t *testing.T) {
 	}
 	checkExampleLines(t, section, costPrefix, allowed, "README Estimated cost section")
 
+	overview := readDoc(t, projectOverviewPath)
+	if !strings.Contains(overview, costPrefix) {
+		t.Errorf("project_overview.md does not contain %q", costPrefix)
+	}
+
 	rates := readDoc(t, pricingRatesPath)
 	head, _, _ := strings.Cut(rates, "\npackage ")
 	if !strings.Contains(head, "pricing_update.md") {
