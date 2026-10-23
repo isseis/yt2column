@@ -628,20 +628,107 @@ func TestTask0030NotesScopeChange(t *testing.T) {
 			if status := singleLine(t, tc.rel, doc, "| Status |"); !strings.Contains(status, "`approved`") {
 				t.Errorf("%s: status is not approved: %q", tc.rel, status)
 			}
-			comments := singleLine(t, tc.rel, doc, "| Comments |")
-			starts := commentRecord.FindAllStringSubmatchIndex(comments, -1)
-			found := 0
-			for i, m := range starts {
-				end := len(comments)
-				if i+1 < len(starts) {
-					end = starts[i+1][0]
+			if !hasRecord(singleLine(t, tc.rel, doc, "| Comments |"), "editorial", "#425") {
+				t.Errorf("%s: Comments has no editorial record naming #425", tc.rel)
+			}
+		})
+	}
+}
+
+// hasRecord reports whether the Comments cell has a record of the kind whose
+// text names ref.
+func hasRecord(comments, kind, ref string) bool {
+	starts := commentRecord.FindAllStringSubmatchIndex(comments, -1)
+	for i, m := range starts {
+		end := len(comments)
+		if i+1 < len(starts) {
+			end = starts[i+1][0]
+		}
+		if comments[m[2]:m[3]] == kind && strings.Contains(comments[m[1]:end], ref) {
+			return true
+		}
+	}
+	return false
+}
+
+// task0034Requirements is the link task 0030's documents give to the
+// requirements of task 0034, relative to 0030's directory.
+const task0034Requirements = "../0034_fixprguard_ignored_files/01_requirements.md"
+
+// remainingIgnoredRisks are the phrases of the residual risks task 0034's
+// requirements 4.2 leaves for ignored files, in the wording both of task
+// 0030's documents use for them.
+var remainingIgnoredRisks = []string{
+	"監視の一覧に当たらない、git が無視するファイルを変えること",
+	"この作業ツリーの外のファイルを変えること",
+	"通常のファイルでないもの（FIFO・ソケット・デバイスなど）を新しく作ること",
+	"完全な大文字小文字の変換だけで監視の一覧の項目と同じになる名前",
+	"確認の前に元に戻すこと",
+	"`push` の後に変えること",
+	"検出の前に効く書き込み",
+	"まとめた値からの推測",
+	"中身を確かめずに `begin` を実行すること",
+}
+
+// TestTask0030DescribesIgnoredFiles: the "ignored files" item of task 0030's
+// architecture 5.3 and the ignored-file residual risk of its requirements 4.2
+// link task 0034's requirements, name its issue #424, and list each residual
+// risk 0034 leaves; the requirements item still names the network risk, and
+// the architecture item no longer says an ignored _test.go goes undetected.
+// Both documents stay approved, and each Comments cell has a decision record
+// naming #424. The guard checks that the words are there; whether the scope
+// matches 0034's requirements 4.2 is checked in review.
+func TestTask0030DescribesIgnoredFiles(t *testing.T) {
+	const dir = "docs/tasks/0030_fixpr_untrusted_threads/"
+	for _, tc := range []struct {
+		rel   string
+		name  string
+		item  func(doc string) string
+		more  []string
+		stale []string
+	}{
+		{
+			rel:  dir + "02_architecture.md",
+			name: "the 5.3 ignored files item",
+			// The item runs to the next top-level bullet; its sub-bullets
+			// are indented.
+			item: func(doc string) string {
+				return cutSection(subsection(doc, "### 5.3."), "-   **無視されるファイル。**", "\n-   ")
+			},
+			stale: []string{"`make test` が実行することは、検出できない"},
+		},
+		{
+			rel:  dir + "01_requirements.md",
+			name: "the 4.2 ignored-file residual risk",
+			// The item is the residual-risk bullet on ignored files, with its
+			// own line and its more-indented sub-bullets.
+			item: func(doc string) string {
+				sec := subsection(doc, "### 4.2.")
+				for line := range strings.Lines(sec) {
+					if strings.HasPrefix(line, "    -   ") && strings.Contains(line, "git が無視するファイル") {
+						return line + cutSection(sec, line, "\n    -   ")
+					}
 				}
-				if comments[m[2]:m[3]] == "editorial" && strings.Contains(comments[m[1]:end], "#425") {
-					found++
+				return ""
+			},
+			more:  []string{"ネットワークに接続すること"},
+			stale: []string{"git が無視するファイル（`.envrc` など）を変えること"},
+		},
+	} {
+		t.Run(filepath.Base(tc.rel), func(t *testing.T) {
+			doc := readRepoFile(t, tc.rel)
+			text := tc.item(doc)
+			requireAll(t, tc.rel, tc.name, text, append([]string{task0034Requirements, "#424"}, append(remainingIgnoredRisks, tc.more...)...)...)
+			for _, old := range tc.stale {
+				if strings.Contains(text, old) {
+					t.Errorf("%s: %s still says %q", tc.rel, tc.name, old)
 				}
 			}
-			if found == 0 {
-				t.Errorf("%s: Comments has no editorial record naming #425", tc.rel)
+			if status := singleLine(t, tc.rel, doc, "| Status |"); !strings.Contains(status, "`approved`") {
+				t.Errorf("%s: status is not approved: %q", tc.rel, status)
+			}
+			if !hasRecord(singleLine(t, tc.rel, doc, "| Comments |"), "decision", "#424") {
+				t.Errorf("%s: Comments has no decision record naming #424", tc.rel)
 			}
 		})
 	}
