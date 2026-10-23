@@ -8,7 +8,7 @@
 | Created | 2026-10-22 |
 | Review date | 2026-10-22 |
 | Reviewer | isseis |
-| Comments | 2026-10-22 (decision): AC-17 の確かめを、ガードのテスト（`static`）から PR のレビューでの読み合わせ（`manual`）に改めた。自然言語の記述はテストで保証できない（必須の語を含んでいても、否定を反転した文が通る。PR #438 のレビューの指摘）ため、ガードを書かない。PR #438 で、このセッションでレビュアーが指示し、承認した。AC-18 のガード（PR-1 でマージ済み）は変えていない。 2026-10-22 (editorial): ステップ 3-4 に、0033 の PR-2（#436）がステップ 2-0 を完了したので 0033 の計画の変更を取り下げたことを記録した。2026-10-22 (editorial): ステップ 3-4 の 2 つめの項目の前提を直した（0035 のツールは 0033 の PR-1 を含み、`--reviewer` の繰り返しを受け付ける）。1.3.4 の `[branch ""]` の観察を、失敗するコマンドに限って直した。2026-10-22 (editorial): ステップ 2-3 のテストの配置と名前を実装に合わせた（AC-01 の別の worktree の操作は流れのテストだけに置く。AC-11 の git を起動しないことは `TestBaselineDetectsChange` の層の確かめで、FIFO の行は `TestConfigFileTypeCheckedBeforeGit` で、タイムアウトは `TestConfigListFailureKinds` で確かめる）。1.3.4 に `[branch ""]` の観察を記録した。決定は変えていない。 |
+| Comments | 2026-10-22 (decision): AC-17 の確かめを、ガードのテスト（`static`）から PR のレビューでの読み合わせ（`manual`）に改めた。自然言語の記述はテストで保証できない（必須の語を含んでいても、否定を反転した文が通る。PR #438 のレビューの指摘）ため、ガードを書かない。PR #438 で、このセッションでレビュアーが指示し、承認した。AC-18 のガード（PR-1 でマージ済み）は変えていない。 2026-10-22 (editorial): ステップ 3-4 に、0033 の PR-2（#436）がステップ 2-0 を完了したので 0033 の計画の変更を取り下げたことを記録した。2026-10-22 (editorial): ステップ 3-4 の 2 つめの項目の前提を直した（0035 のツールは 0033 の PR-1 を含み、`--reviewer` の繰り返しを受け付ける）。1.3.4 の `[branch ""]` の観察を、失敗するコマンドに限って直した。2026-10-22 (editorial): ステップ 2-3 のテストの配置と名前を実装に合わせた（AC-01 の別の worktree の操作は流れのテストだけに置く。AC-11 の git を起動しないことは `TestBaselineDetectsChange` の層の確かめで、FIFO の行は `TestConfigFileTypeCheckedBeforeGit` で、タイムアウトは `TestConfigListFailureKinds` で確かめる）。1.3.4 に `[branch ""]` の観察を記録した。決定は変えていない。2026-10-23 (decision): タスク 0038 の F-005 により、AC-18 の検証方法を `manual` に改めた（`TestGuideDescribesConfigScope` を削除したため）。決定はタスク 0038 の要件の承認で得たので、`Status` は `approved` のままとする。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -429,10 +429,10 @@
 | AC-15 | test | `gitstate_test.go::TestBaselineMalformedRejected`（前の版の行）、`cmd/fixprguard/main_test.go::TestPreviousBaselineRejected`（終了コード `2`。`v2` のトークンの対照の行） |
 | AC-16 | test + static + manual | `cmd/fixprguard/main_test.go::TestConfigStopOmitsNames`、`configlist_test.go`（エラーの文字列）、`cmd/fixprguard/docs_test.go::TestGuideCoversStopKindsAndScope`（既存。止まり方の種類） |
 | AC-17 | manual | PR-2 のレビューで、設計書 3.5 の表の箇所を読み合わせる |
-| AC-18 | static | `cmd/fixprguard/docs_test.go::TestGuideDescribesConfigScope` |
+| AC-18 | manual | PR のレビューで、ガイドの config の比較の範囲の記述を読み合わせる（タスク 0038 で `TestGuideDescribesConfigScope` を削除した） |
 | AC-19 | static + test | `cmd/fixprguard/docs_test.go::TestDocumentedInvocationsParse`（既存）・`::TestDocumentedProtocolMatches`（ガイドとコマンドの文書のすべての番号）、`cmd/fixprguard/main_test.go::TestProtocolMismatch`（既存） |
 
--   AC-18 は、文書が何を述べるかを定めるので、`static` で確かめる。AC-17 は、自然言語の記述をテストで保証できないので、`manual` で確かめる（2026-10-22 の決定）。
+-   AC-18 は、ガイドの記述の意味を定める自然言語の AC なので、タスク 0038 の F-001・F-005 により `manual` で確かめる。AC-17 は、自然言語の記述をテストで保証できないので、`manual` で確かめる（2026-10-22 の決定）。
 -   AC-16 の「`parts` の値の集合は変わらない」は、`Part*` の定数を加えも消しもしないことを、PR-1 の差分で確かめる（`manual`）。ステップ 2-3 のテストは、止まったときの `parts` を既存の値で確かめる。
 -   AC-19 のうち「前の版の値より大きい」ことは、PR-1 の差分で `1` から `2` への変更を見て確かめる（`manual`）。定数をそれ自身のリテラルと比べるテストは書かない（`CLAUDE.md`「Testing Strategy」）。
 

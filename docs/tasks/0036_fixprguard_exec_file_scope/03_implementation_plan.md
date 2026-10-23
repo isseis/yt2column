@@ -8,7 +8,7 @@
 | Created | 2026-10-22 |
 | Review date | 2026-10-22 |
 | Reviewer | isseis |
-| Comments | 2026-10-22 (decision): AC-20 の確かめを `static + manual` から `manual` だけに改め、ステップ 3-4 の AC-20 のガードを取りやめた（1.4・5 章。理由: 7.2 の項目は自然言語の文で、ガードが固定できるのは項目の書き出しの語句だけである。語句を固定すると、言い回しを直すたびに失敗し、中身が誤っていても通るので、確かめとしての信頼性が低い）。PR-2 の実装の際に、このセッションでレビュアーが決めた。設計書 7.4 も同じ commit で改めた。 |
+| Comments | 2026-10-22 (decision): AC-20 の確かめを `static + manual` から `manual` だけに改め、ステップ 3-4 の AC-20 のガードを取りやめた（1.4・5 章。理由: 7.2 の項目は自然言語の文で、ガードが固定できるのは項目の書き出しの語句だけである。語句を固定すると、言い回しを直すたびに失敗し、中身が誤っていても通るので、確かめとしての信頼性が低い）。PR-2 の実装の際に、このセッションでレビュアーが決めた。設計書 7.4 も同じ commit で改めた。2026-10-23 (decision): タスク 0038 の F-005 により、AC-18 の検証方法を `manual` に改めた（`TestTask0030NotesScopeChange` を削除したため）。決定はタスク 0038 の要件の承認で得たので、`Status` は `approved` のままとする。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -390,7 +390,7 @@
 | AC-15 | static | `cmd/yt2column/fixpr_docs_test.go::TestFixprDocContract/out_of_scope_stop`・`::TestRunprDocContract/stop_without_merge`（どちらも既存。`fixpr.md`・`runpr.md` の手順を変えないことを確かめる） |
 | AC-16 | test + static + manual | `main_test.go::TestProtocolMismatch`（既存）、`cmd/fixprguard/docs_test.go::TestDocumentedInvocationsParse`・`::TestDocumentedProtocolMatches`（既存）、`docs/tasks/0032_japanese_pr_title/check_rules.sh fixpr_title`（ステップ 2-1 で実行）。インストール済みの前のツールでの確認（ステップ 2-2） |
 | AC-17 | static + manual | `docs_test.go::TestGuideCoversStopKindsAndScope`（表の項目）。説明の文は PR-1 のレビューで読み合わせる |
-| AC-18 | static + manual | `docs_test.go::TestTask0030NotesScopeChange`（注記・`Status`・`Comments`）。注記の中身は PR-2 のレビューで読み合わせる |
+| AC-18 | manual | 0030 の 2 つの文書の注記・`Status`・`Comments` を、PR のレビューで読み合わせる（タスク 0038 で `TestTask0030NotesScopeChange` を削除した） |
 | AC-19 | static | `docs_test.go::TestGuideCoversStopKindsAndScope`、`docs_test.go::TestGuideTable`（表の切り出しの関数のテスト）、`internal/fixprguard/scope_test.go::TestPatternRuleLiterals`（`.*`・`*.go` の出力。ステップ 1-2） |
 | AC-20 | manual | ガイド（日英）の 7.2 に 4 項目があることと、各項目の説明を、PR-2 のレビューで読み合わせる。`test`・`static` を持たない例外（1.4） |
 | AC-21 | static + manual | `cmd/yt2column/fixpr_docs_test.go::TestGlossaryTerms`（5 つの用語の行を加える）。訳語と説明は PR-2 のレビューで読み合わせる |
