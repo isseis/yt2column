@@ -1040,7 +1040,7 @@ func assertCopiedRejected(t *testing.T, input string, reason error) string {
 // inflates TotalAlloc, so the race build uses a loose bound.
 const (
 	copiedLargeInputLimit = 4 << 20
-	copiedParseDeadline   = 3 * time.Second
+	copiedParseDeadline   = time.Millisecond
 )
 
 // TestParseCopiedLargeInputs parses seven synthetic inputs of at most 4 MiB,
