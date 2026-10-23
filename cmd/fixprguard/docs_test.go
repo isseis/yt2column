@@ -690,9 +690,10 @@ func TestTask0030DescribesIgnoredFiles(t *testing.T) {
 		item  func(doc string) string
 		more  []string
 		stale []string
-		// other is the other passage on the ignored-file scope, and
-		// otherSays the phrase it must hold.
-		other     func(doc string) string
+		// other is the other passage on the ignored-file scope, otherName
+		// its name, and otherSays the phrase it must hold.
+		other     func(t *testing.T, rel, doc string) string
+		otherName string
 		otherSays string
 	}{
 		{
@@ -707,7 +708,8 @@ func TestTask0030DescribesIgnoredFiles(t *testing.T) {
 				"`make test` が実行することは、検出できない",
 				"グローバルの除外のファイルで新しいファイルを隠すことは、検出しない",
 			},
-			other:     func(doc string) string { return subsection(doc, "### 3.6.") },
+			other:     func(_ *testing.T, _, doc string) string { return subsection(doc, "### 3.6.") },
+			otherName: "3.6",
 			otherSays: "監視の一覧に当たるものはタスク 0034 が検出する",
 		},
 		{
@@ -724,9 +726,11 @@ func TestTask0030DescribesIgnoredFiles(t *testing.T) {
 				}
 				return ""
 			},
-			more:      []string{"ネットワークに接続すること"},
-			stale:     []string{"git が無視するファイル（`.envrc` など）を変えること"},
-			other:     func(doc string) string { return subsection(doc, "### 4.2.") },
+			more:  []string{"ネットワークに接続すること"},
+			stale: []string{"git が無視するファイル（`.envrc` など）を変えること"},
+			// The layer (3) sentence is in the paragraph after the layer list.
+			other:     func(t *testing.T, rel, doc string) string { return singleLine(t, rel, doc, "    層 (2) は LLM") },
+			otherName: "the layer (3) paragraph of 4.2",
 			otherSays: "タスク 0034 の後は、git が無視するファイルのうち監視の一覧に当たるものの変化も検出する",
 		},
 	} {
@@ -739,7 +743,7 @@ func TestTask0030DescribesIgnoredFiles(t *testing.T) {
 					t.Errorf("%s: %s still says %q", tc.rel, tc.name, old)
 				}
 			}
-			requireAll(t, tc.rel, "the other ignored-file passage", tc.other(doc), tc.otherSays)
+			requireAll(t, tc.rel, tc.otherName, tc.other(t, tc.rel, doc), tc.otherSays)
 			if status := singleLine(t, tc.rel, doc, "| Status |"); !strings.Contains(status, "`approved`") {
 				t.Errorf("%s: status is not approved: %q", tc.rel, status)
 			}
