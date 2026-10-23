@@ -238,7 +238,7 @@ The type-derived checklist below is applied when designing each boundary in `02_
 - Place tests in standard test files (`*_test.go`)
 - Follow normal test naming conventions based on what is being tested
 - Tests can be unit tests, integration tests, or any appropriate type
-- Each acceptance criterion must have at least one `test` or `static` verification (see "Acceptance Criteria Verification" in `03_implementation_plan.md`); a `static` check alone is sufficient only for criteria that are purely about textual/documentation presence. An AC that specifies only the natural-language content of a document is verified by a `manual` reading in the PR review instead; a mixed AC still needs the test or static verification for its value or structure
+- Each acceptance criterion must have at least one `test` or `static` verification (see "Acceptance Criteria Verification" in `03_implementation_plan.md`); a `static` check alone is sufficient only for criteria that are purely about textual presence or absence in code or configuration, never for the presence or absence of a word in a document. An AC that specifies only the natural-language content of a document is verified by a `manual` reading in the PR review instead; a mixed AC still needs the test or static verification for its value or structure
 - Tests must verify the actual behavior, not just the happy path
 - Link each verification to its acceptance criterion in the implementation plan
 
