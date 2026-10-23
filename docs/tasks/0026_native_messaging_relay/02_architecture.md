@@ -8,7 +8,7 @@
 | Created | 2026-10-18 |
 | Review date | 2026-10-19 |
 | Reviewer | isseis |
-| Comments | 実装（PR-6）で、§4.3 の注記に、`config.LoadHost` が失敗した場合も中継の長さの検査が先に行われること（上限を超える長さは `message_too_large`、長さ 0 は `protocol_error`、長さが読めなければ終了コード `1`）を加えた（ホストの応答を書くのを `Relay` の 1 か所に保つため、失敗する `Dialer` を渡す実装にした結果。どれも接続せず本文を読まない）。実装（PR-4）で、§3.5.2 のコードに `SocketDialer`（接続の時間の上限を持つ UDS の `Dialer`。中継のテストが実際のソケットで接続の失敗を確かめるのにも使う）を加え、§3.5.6 のログの errno の「名前」を「固定の説明（`syscall.Errno` の `Error()`）」に改めた（標準ライブラリは errno の名前を返す関数を持たないため）。§3.5.2 の時間の上限に、stdin が本文の途中で止まった場合は期限で打ち切れないことを、§3.5.3 の時間の上限の優先に、中継の `context` の期限による判定を加えた（どちらも `net/http` の振る舞いを確かめた結果）。`Relay` のコメントと §4.3 に、`RelayOptions` が欠けている場合を加えた。実装（PR-2）で、§3.1 の長さの上限を「`darwin` 以外の Unix で 107 バイト」から「`linux` で 107 バイト、`darwin` とそれ以外の Unix で 103 バイト」に編集上の訂正をした（FreeBSD などの `sun_path` は 104 バイトで、107 バイトの上限では bind に失敗するため）。 |
+| Comments | 実装（PR-6）で、§4.3 の注記に、`config.LoadHost` が失敗した場合も中継の長さの検査が先に行われること（上限を超える長さは `message_too_large`、長さ 0 は `protocol_error`、長さが読めなければ終了コード `1`）を加えた（ホストの応答を書くのを `Relay` の 1 か所に保つため、失敗する `Dialer` を渡す実装にした結果。どれも接続せず本文を読まない）。実装（PR-4）で、§3.5.2 のコードに `SocketDialer`（接続の時間の上限を持つ UDS の `Dialer`。中継のテストが実際のソケットで接続の失敗を確かめるのにも使う）を加え、§3.5.6 のログの errno の「名前」を「固定の説明（`syscall.Errno` の `Error()`）」に改めた（標準ライブラリは errno の名前を返す関数を持たないため）。§3.5.2 の時間の上限に、stdin が本文の途中で止まった場合は期限で打ち切れないことを、§3.5.3 の時間の上限の優先に、中継の `context` の期限による判定を加えた（どちらも `net/http` の振る舞いを確かめた結果）。`Relay` のコメントと §4.3 に、`RelayOptions` が欠けている場合を加えた。実装（PR-2）で、§3.1 の長さの上限を「`darwin` 以外の Unix で 107 バイト」から「`linux` で 107 バイト、`darwin` とそれ以外の Unix で 103 バイト」に編集上の訂正をした（FreeBSD などの `sun_path` は 104 バイトで、107 バイトの上限では bind に失敗するため）。 2026-10-24 (decision): タスク 0038 の F-005 により、AC-31・AC-32・AC-33 の検証方法を改めた（`TestServerDocsContract` の README と security.md の語句の検査と、CLAUDE.md のサブテストを削除したため）。決定はタスク 0038 の承認済みの要件で決めたので、`Status` は `approved` のままとする。 |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §3.11）を指す。I-NN は [implementation_handoff.md](implementation_handoff.md) の項目（対応は `03_implementation_plan.md`）を指す。既存のコードの行番号は、コミット `9e34229`（要件書の承認のコミット）で確かめたものである。
 
@@ -1438,9 +1438,9 @@ flowchart LR
 | AC-28 | §3.7.4（既存の表示） | `extension/test/renderSend.test.ts`、手動 |
 | AC-29 | §3.7.2・§7.3 | `extension/test/lintRules.test.ts`、静的な確認 |
 | AC-30 | §3.7.2 | `extension/test/prepare.test.ts`・`collect.test.ts`（既存） |
-| AC-31 | §3.9 | `cmd/yt2column-server/docs_test.go`・`cmd/yt2column/extension_docs_test.go` |
-| AC-32 | §3.9 | `cmd/yt2column-server/docs_test.go` |
-| AC-33 | §3.9 | `cmd/yt2column-server/docs_test.go`、`cmd/yt2column/makefile_test.go` の流儀の確認 |
+| AC-31 | §3.9 | `cmd/yt2column-server/docs_test.go`（`security.md` 8.2 の値）・`cmd/yt2column/extension_docs_test.go`（§8.1 の権限の一覧）、PR のレビューでの読み合わせ（§8 の文の記述。タスク 0038 で `TestServerDocsContract` の語句の検査を削除した） |
+| AC-32 | §3.9 | `cmd/yt2column-server/docs_test.go`（README のソケットのパス・curl の例・終了コードの表）、PR のレビューでの読み合わせ（README の手順の記述。タスク 0038 で語句の検査を削除した） |
+| AC-33 | §3.9 | `cmd/yt2column-server/docs_test.go`（`project_overview.md` の環境変数）、`cmd/yt2column/makefile_test.go` の流儀の確認、PR のレビューでの読み合わせ（CLAUDE.md の記述。タスク 0038 でそのサブテストを削除した） |
 | AC-34 | §3.9 | `make test` |
 | AC-35 | §7.2 | `cmd/yt2column-server/relay_e2e_test.go` |
 | AC-36 | §7.2 | `03_implementation_plan.md` の手動の確認の表 |

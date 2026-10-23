@@ -473,7 +473,7 @@
 
 **変更するファイル**: なし
 
--   [ ] ステップ 2-1 の 1 つめと 4 つめを、`cmd/yt2column-server/docs_test.go`・`relay_guard_test.go`・`extension/test/` について行う。
+-   [x] ステップ 2-1 の 1 つめと 4 つめを、`cmd/yt2column-server/docs_test.go`・`relay_guard_test.go`・`extension/test/` について行う。
 
 **完了条件**: 本フェーズを始められる。
 
@@ -481,11 +481,11 @@
 
 **変更するファイル**: `cmd/yt2column-server/docs_test.go`、`internal/pipeline/relay_guard_test.go`
 
--   [ ] `TestServerDocsContract`: 設計書 3.1.6 の削除する確認を取り除き、3.1.8 の 4 つの行の残す部分にする。README の残す確認は、更新の節を除いた節で確かめ続ける（設計書 3.1.6）。
--   [ ] `TestSharedTokenRemoved`: 文書を読む部分を取り除き、Go のソースと `extension/src`・`extension/static` を調べる部分を残す（設計書 3.1.6）。
--   [ ] `TestWithoutSection` を削除する。
--   [ ] 補助 `withoutSection`・`splitSection`・`upgradeHeading` と、使われなくなるパスの定数（`cmd/yt2column-server/docs_test.go` の `claudePath`・`glossaryPath` など）を削除する（設計書 3.2）。
--   [ ] ステップ 2-4 の 2 つめと 3 つめを行う。
+-   [x] `TestServerDocsContract`: 設計書 3.1.6 の削除する確認を取り除き、3.1.8 の 4 つの行の残す部分にする。README の残す確認は、更新の節を除いた節で確かめ続ける（設計書 3.1.6）。
+-   [x] `TestSharedTokenRemoved`: 文書を読む部分を取り除き、Go のソースと `extension/src`・`extension/static` を調べる部分を残す（設計書 3.1.6）。
+-   [x] `TestWithoutSection` を削除する。
+-   [x] 補助 `withoutSection`・`splitSection`・`upgradeHeading` と、使われなくなるパスの定数（`cmd/yt2column-server/docs_test.go` の `claudePath`・`glossaryPath` など）を削除する（設計書 3.2）。
+-   [x] ステップ 2-4 の 2 つめと 3 つめを行う。
 
 **完了条件**: `make test` と `make lint` が通る。
 
@@ -493,9 +493,9 @@
 
 **変更するファイル**: `extension/test/metadataDocs.test.ts`、`extension/scripts/has-extension-changes.sh`、`extension/test/ciChanges.test.ts`
 
--   [ ] `metadataDocs.test.ts` の「README says the extension sends the video metadata」と「security.md 8.1 records ...」の 2 つの確認を削除する（設計書 3.1.7）。
--   [ ] 同じコミットで、`has-extension-changes.sh` の冒頭の説明とパターンから `docs/dev/security.md` を外し、`ciChanges.test.ts` の `docs/dev/security.md` を `quiet` に移し、`x/docs/dev/security.md`・`docs/dev/security.md.orig` の行を取り除く（設計書 2.2、AC-28〜AC-30）。
--   [ ] `make ext-check` を通し、削除した確認が `extension/src` を読み込まないことを判定の一覧に記す（AC-12）。
+-   [x] `metadataDocs.test.ts` の「README says the extension sends the video metadata」と「security.md 8.1 records ...」の 2 つの確認を削除する（設計書 3.1.7）。
+-   [x] 同じコミットで、`has-extension-changes.sh` の冒頭の説明とパターンから `docs/dev/security.md` を外し、`ciChanges.test.ts` の `docs/dev/security.md` を `quiet` に移し、`x/docs/dev/security.md`・`docs/dev/security.md.orig` の行を取り除く（設計書 2.2、AC-28〜AC-30）。
+-   [x] `make ext-check` を通し、削除した確認が `extension/src` を読み込まないことを判定の一覧に記す（AC-12）。
 
 **完了条件**: `check_pruning.sh removed 5 <PR の前の origin/main>` と `make ext-check` が通る。
 
@@ -503,8 +503,8 @@
 
 **変更するファイル**: `CLAUDE.md`、設計書 3.3.2 の表で PR-5 が担当するタスクの文書（0011 の分、0021、0025、0026 の分、0027 の分）
 
--   [ ] `CLAUDE.md`「Development Notes」の、node のテストが読む文書を README.md だけにし、README で読むものを、残る確認（拒否理由の表と、展開の案内の文）に合わせる。`cmd/yt2column-nmhost` の `TestReadmeHostExitCodes` は `doc-guard` ジョブでなく、ローカルの `make test` と CI の `test` ジョブが走らせる、と記す（設計書 3.6、AC-20・AC-30）。`doc-guard` のコマンドは変えない（AC-21）。
--   [ ] 各文書の AC の検証の行を、設計書 3.3.2 の規則で改め、`Comments` に記録する（AC-13・AC-14）。
+-   [x] `CLAUDE.md`「Development Notes」の、node のテストが読む文書を README.md だけにし、README で読むものを、残る確認（拒否理由の表と、展開の案内の文）に合わせる。`cmd/yt2column-nmhost` の `TestReadmeHostExitCodes` は `doc-guard` ジョブでなく、ローカルの `make test` と CI の `test` ジョブが走らせる、と記す（設計書 3.6、AC-20・AC-30）。`doc-guard` のコマンドは変えない（AC-21）。
+-   [x] 各文書の AC の検証の行を、設計書 3.3.2 の規則で改め、`Comments` に記録する（AC-13・AC-14）。
 
 **完了条件**: `check_pruning.sh records <PR-5 の前の origin/main>` が通る。
 

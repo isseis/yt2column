@@ -8,7 +8,7 @@
 | Created | 2026-10-19 |
 | Review date | 2026-10-19 |
 | Reviewer | isseis |
-| Comments | 承認の後に `/mkplan2` で PR の境界を加えた（2026-10-19。判断は変えていない）。フェーズ 3 を 2 つの PR に分けるため、ステップ 3-1〜3-12 の順を入れ替えて番号を付け直し（旧 3-1・3-4・3-5・3-9・3-10・3-11・3-12・3-2・3-3・3-6・3-8・3-7 → 新 3-1〜3-12）、PR-3 の確認のステップ 3-13 を加えた。ほかの節の番号の参照も合わせた。PR のレビューを受けて、完了の行のないステップに、計画に既にある検査を述べ直す「対象」「完了」の行を加えた（2026-10-19。判断は変えていない）。PR のレビューを受けて、ステップ 1-1・6-3 に、`extension/` に変更したファイルも追跡していないファイルもないことの確かめを加え、§5.3 の基準の報告に、取ったときの作業ツリーがその状態だったことを記録した。比べるものと比べ方は変えていない（2026-10-19。判断は変えていない） 2026-10-23 (decision): タスク 0038 の F-005 により、AC-04・AC-09・AC-10・AC-11・AC-12 の検証方法を改めた（`TestContextMenuRemovalRecords`・`TestExtensionSendDocumentation` と §8.1 の語句の確認を削除したため）。決定はタスク 0038 の承認済みの要件で決めたので、`Status` は `approved` のままとする。 |
+| Comments | 承認の後に `/mkplan2` で PR の境界を加えた（2026-10-19。判断は変えていない）。フェーズ 3 を 2 つの PR に分けるため、ステップ 3-1〜3-12 の順を入れ替えて番号を付け直し（旧 3-1・3-4・3-5・3-9・3-10・3-11・3-12・3-2・3-3・3-6・3-8・3-7 → 新 3-1〜3-12）、PR-3 の確認のステップ 3-13 を加えた。ほかの節の番号の参照も合わせた。PR のレビューを受けて、完了の行のないステップに、計画に既にある検査を述べ直す「対象」「完了」の行を加えた（2026-10-19。判断は変えていない）。PR のレビューを受けて、ステップ 1-1・6-3 に、`extension/` に変更したファイルも追跡していないファイルもないことの確かめを加え、§5.3 の基準の報告に、取ったときの作業ツリーがその状態だったことを記録した。比べるものと比べ方は変えていない（2026-10-19。判断は変えていない） 2026-10-23 (decision): タスク 0038 の F-005 により、AC-04・AC-09・AC-10・AC-11・AC-12 の検証方法を改めた（`TestContextMenuRemovalRecords`・`TestExtensionSendDocumentation` と §8.1 の語句の確認を削除したため）。決定はタスク 0038 の承認済みの要件で決めたので、`Status` は `approved` のままとする。 2026-10-24 (decision): タスク 0038 の F-005 により、AC-11 の検証方法を改めた（`metadataDocs.test.ts` の README と security.md の語句の検査を削除したため）。決定はタスク 0038 の承認済みの要件で決めたので、`Status` は `approved` のままとする。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -530,7 +530,7 @@ PR はフェーズと対応させ、次の 3 か所だけ変える。フェー�
 | AC-08 | test | `extension/test/launch.test.ts::popup send > shows the sending notice and a disabled button while sending`（2 つの文の全体の検査） | 2-3 |
 | AC-09 | manual | §5.3 のカバレッジの比較 | 1-1・6-3 |
 | AC-10 | manual | §5.1 の「AC-10」の行（タスク 0038 で `TestContextMenuRemovalRecords` を削除した） | 6-4・7-3 |
-| AC-11 | static / manual | `extension/test/metadataDocs.test.ts::video metadata documentation`。README の語句は PR のレビューで読み合わせる（タスク 0038 で `TestExtensionSendDocumentation` を削除した） | 5-3・5-5 |
+| AC-11 | manual | README の「Browser extension」節の記述を PR のレビューで読み合わせる（タスク 0038 で `TestExtensionSendDocumentation` と `metadataDocs.test.ts` の語句の検査を削除した） | 5-3・5-5 |
 | AC-12 | static / manual | `cmd/yt2column/extension_docs_test.go::TestExtensionDocumentation`（manifest の権限と §8.1 の一覧の一致）、`extension/test/manifest.test.ts::host permissions > is recorded in the extension section of security.md`。加えた §8.1 の語句の禁止は PR のレビューで読み合わせる（タスク 0038 でその確認を削除した） | 3-2・5-4・5-5 |
 | AC-13 | static | `make ext-check`・`make test`・`make lint`（各フェーズの完了条件）と、`doc-guard` の CI ジョブ | 全フェーズ |
 

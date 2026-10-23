@@ -317,17 +317,17 @@ See [Test Organization Guide](docs/dev/developer_guide/test_organization.md) for
 - After editing files, make sure to run `make test` and `make lint` and fix errors.
 - After changing the browser extension under `extension/`, run `make ext-check`.
 - A change that touches only documents (`README.md`, `CLAUDE.md`, `docs/`) does
-  not need `make ext-test`, except `README.md` and `docs/dev/security.md`: the
-  extension's node tests read the README rejection-reason table
-  (`serverReasons.test.ts`) and the video-metadata statements in the README
-  "Browser extension" section and security.md 8.1 (`metadataDocs.test.ts`), so
-  a change to either needs `make ext-test`. The other
-  text-sync guards that read documents (the extension ID, the `ext-` targets in
-  this file, the manifest permissions, the `project_overview.md` notes (the
-  environment variable names, `costPrefix`, and `16,383`), the `/fixpr` and
-  `/runpr` command documents) are Go tests included in `make test` and need no
-  node. The `doc-guard`
-  CI job runs those guards
+  not need `make ext-test`, except `README.md`: the extension's node tests read
+  its rejection-reason table (`serverReasons.test.ts`) and the expand prompt in
+  its "Browser extension" section (`metadataDocs.test.ts`), so a change to it
+  needs `make ext-test`. The other text-sync guards that read documents (the
+  extension ID, the `ext-` targets in this file, the manifest permissions, the
+  `project_overview.md` notes (the environment variable names, `costPrefix`, and
+  `16,383`), the `/fixpr` and `/runpr` command documents) are Go tests included
+  in `make test` and need no node. `cmd/yt2column-nmhost`'s
+  `TestReadmeHostExitCodes` reads the README too, but the `doc-guard` job does
+  not run it: the local `make test` and the CI `test` job do. The `doc-guard`
+  CI job runs the other guards
   (`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`)
   on every pull request, so a documentation-only change is checked in CI even
   though `check-changes` classifies it as non-code.
