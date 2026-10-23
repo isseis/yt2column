@@ -67,6 +67,5 @@ update them yourself:
 - the README's configuration section and `project_overview.md` name the models,
   which change only when the set of models does.
 
-`package_reference.md`'s `internal/pricing` row lists the package's public types
-and is checked by `TestTokenUsageDocsContract` against the package table; a rate
-change leaves it alone.
+`package_reference.md`'s `internal/pricing` row lists the package's public types;
+a rate change leaves it alone. Check the row by reading it in the PR review.

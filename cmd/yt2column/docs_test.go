@@ -3,14 +3,10 @@
 package main
 
 import (
-	"bytes"
-	"context"
 	"flag"
-	"io"
 	"os"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -19,7 +15,6 @@ import (
 	"github.com/isseis/yt2column/internal/pricing"
 	"github.com/isseis/yt2column/internal/publisher"
 	publishertestutil "github.com/isseis/yt2column/internal/publisher/testutil"
-	"github.com/isseis/yt2column/internal/transcript"
 	"github.com/isseis/yt2column/internal/writer"
 )
 
@@ -28,17 +23,9 @@ const (
 	readmePath           = "../../README.md"
 	projectOverviewPath  = "../../docs/dev/project_overview.md"
 	securityPath         = "../../docs/dev/security.md"
-	reviewPlanPath       = "../../docs/tasks/0010_post_generation_review/03_implementation_plan.md"
 	reviewEvaluationPath = "../../docs/tasks/0010_post_generation_review/02_evaluation.md"
-	columnArticlesPath   = "../../docs/tasks/0008_column_prompt/02_evaluation.md"
-	pricingUpdatePath    = "../../docs/dev/developer_guide/pricing_update.md"
 	pricingRatesPath     = "../../internal/pricing/rates.go"
 )
-
-// evaluatedVideoCount is the number of videos the column-prompt task evaluated.
-// The record guard requires a record for each of them, so a dropped row in that
-// task's table does not silently shrink what is checked.
-const evaluatedVideoCount = 5
 
 // TestREADMEDocumentsFlags checks that README.md documents every flag run
 // defines. The flag names come from newFlagSet, not from a list kept here, so a
@@ -55,9 +42,6 @@ func TestREADMEDocumentsFlags(t *testing.T) {
 			t.Errorf("flags table does not document --%s", f.Name)
 		}
 	})
-	if !tableFlagContains(table, "--help") {
-		t.Error("flags table does not document --help")
-	}
 }
 
 // TestSlackDocsContract pins the machine-checkable contract values of webhook
@@ -104,15 +88,13 @@ func TestSlackDocsContract(t *testing.T) {
 }
 
 // TestClaudeDocsContract pins the machine-checkable contract values of the
-// Claude provider: the integration test's environment variables and make target.
-// The environment variables come from the claude test package's exported
-// constants, not from the documents.
+// Claude provider: the integration test's environment variables. They come
+// from the claude test package's exported constants, not from the documents.
 func TestClaudeDocsContract(t *testing.T) {
 	values := []string{
 		claudetestutil.APIKeyEnv,
 		claudetestutil.WorkspaceIDEnv,
 		claudetestutil.OptInEnv,
-		"test-integration-claude",
 	}
 	for _, doc := range []struct {
 		name, text string
@@ -124,117 +106,6 @@ func TestClaudeDocsContract(t *testing.T) {
 			if !strings.Contains(doc.text, value) {
 				t.Errorf("%s does not mention %q", doc.name, value)
 			}
-		}
-	}
-}
-
-// TestReviewEvaluationRecords checks the post-generation review evaluation
-// record. Until the real-API evaluation (step 6-3) is checked, the record is
-// not required. Once it is checked, each of the videos the column-prompt task
-// evaluated must have a row in the per-perspective judgment table, the run
-// conditions table, and the review-log item table. The video IDs are read from
-// the column-prompt task's document, never copied here, so this guard follows
-// that task's video list.
-func TestReviewEvaluationRecords(t *testing.T) {
-	_, done, found := stepBlock(readDoc(t, reviewPlanPath), "**ステップ 6-3**")
-	if !found {
-		t.Fatal("the plan has no step 6-3")
-	}
-	if !done {
-		return
-	}
-
-	records := sectionByHeading(readDoc(t, reviewEvaluationPath), "## 3. 記録")
-	if records == "" {
-		t.Fatal("02_evaluation.md has no 3. 記録 section")
-	}
-	judgments := findTable(records, "形式の選択")
-	conditions := findTable(records, "所要時間")
-	items := findTable(records, "新しいずれ")
-	for _, table := range []struct {
-		name string
-		rows [][]string
-	}{
-		{"per-perspective judgments", judgments},
-		{"run conditions", conditions},
-		{"review-log items", items},
-	} {
-		if table.rows == nil {
-			t.Errorf("3. 記録 has no %s table", table.name)
-		}
-	}
-	if judgments == nil || conditions == nil || items == nil {
-		return
-	}
-
-	for _, id := range columnEvaluationVideoIDs(t) {
-		if row := tableRow(judgments, id); row == nil {
-			t.Errorf("3. 記録 has no per-perspective row for video %s", id)
-		} else {
-			requireFilledRow(t, id, "per-perspective", row, 14)
-		}
-
-		row := tableRow(conditions, id)
-		if row == nil {
-			t.Errorf("3. 記録 has no run-conditions row for video %s", id)
-		} else {
-			requireFilledRow(t, id, "run-conditions", row, 8)
-			if !strings.Contains(row[1], "v5") {
-				t.Errorf("video %s does not record the v5 template: %q", id, row[1])
-			}
-		}
-
-		itemRows := tableRowsWithFirstCell(items, id)
-		if len(itemRows) == 0 {
-			t.Errorf("3. 記録 has no review-log item row for video %s", id)
-		}
-		for _, row := range itemRows {
-			requireFilledRow(t, id, "review-log item", row, 6)
-		}
-	}
-}
-
-// columnEvaluationVideoIDs reads the evaluated video IDs from the column-prompt
-// task's §3.2 video table. Only the numbered rows are evaluated videos; the
-// reserve row is not, so its first cell does not parse as an integer.
-func columnEvaluationVideoIDs(t *testing.T) []string {
-	t.Helper()
-	table := findTable(sectionByHeading(readDoc(t, columnArticlesPath), "## 3. 対象の動画"), "URL")
-	if table == nil {
-		t.Fatal("0008's evaluation has no video table with a URL column")
-	}
-	var ids []string
-	for _, row := range table[1:] {
-		if len(row) < 2 {
-			continue
-		}
-		if _, err := strconv.Atoi(row[0]); err != nil {
-			continue
-		}
-		id, _, err := transcript.ValidateVideoURL(row[1])
-		if err != nil {
-			t.Errorf("video row %q has an invalid video URL %q: %v", row[0], row[1], err)
-			continue
-		}
-		ids = append(ids, id)
-	}
-	if len(ids) != evaluatedVideoCount {
-		t.Fatalf("0008's evaluation lists %d numbered videos, want %d", len(ids), evaluatedVideoCount)
-	}
-	return ids
-}
-
-// requireFilledRow fails when row is shorter than want or has an empty cell
-// after its first, which is the video ID.
-func requireFilledRow(t *testing.T, id, what string, row []string, want int) {
-	t.Helper()
-	if len(row) < want {
-		t.Errorf("video %s %s row has %d cells, want at least %d", id, what, len(row), want)
-		return
-	}
-	for i := 1; i < len(row); i++ {
-		if strings.TrimSpace(row[i]) == "" {
-			t.Errorf("video %s %s row cell %d is empty", id, what, i+1)
 		}
 	}
 }
@@ -486,137 +357,6 @@ func sectionByHeading(doc, heading string) string {
 	return b.String()
 }
 
-// stepBlock returns the text after the plan line containing marker, up to the
-// next step marker or section heading, and whether that line is checked.
-func stepBlock(doc, marker string) (block string, checked, found bool) {
-	lines := strings.Split(doc, "\n")
-	start := -1
-	for i, line := range lines {
-		if strings.Contains(line, marker) {
-			start = i
-			checked = strings.Contains(line, "[x]")
-			break
-		}
-	}
-	if start < 0 {
-		return "", false, false
-	}
-	var b strings.Builder
-	for _, line := range lines[start+1:] {
-		if strings.Contains(line, "**ステップ ") || strings.HasPrefix(line, "### ") {
-			break
-		}
-		b.WriteString(line)
-		b.WriteString("\n")
-	}
-	return b.String(), checked, true
-}
-
-// TestArtifactDocsContract checks the documents' save-and-resume contract: the
-// README flags table and the -h usage state that --after requires --artifacts
-// and that --after review does not accept --review-log; project_overview.md
-// describes saving and resuming; security.md states the artifact file
-// permissions and the read boundary; and 0010's evaluation procedure names
-// --artifacts, --after, and --keep-cache.
-//
-// The behavior these documents describe is pinned by running tests, not by
-// this test: security.md's permission (0o600) is internal/artifact's
-// TestSaveFileMode, and its "outside the cache directory" rule and its
-// inside-cache-directory rejection are cmd/yt2column's
-// TestRunArtifactsInsideCacheDir.
-func TestArtifactDocsContract(t *testing.T) {
-	readme := readDoc(t, readmePath)
-	table := findTable(readme, "Flag")
-	if table == nil {
-		t.Fatal("README has no flags table")
-	}
-	for _, flag := range []string{"--artifacts", "--after"} {
-		if !tableFlagContains(table, flag) {
-			t.Errorf("README flags table does not document %s", flag)
-		}
-	}
-	var afterRow []string
-	for _, row := range table[1:] {
-		if len(row) > 0 && strings.Contains(row[0], "--after") {
-			afterRow = row
-			break
-		}
-	}
-	if afterRow == nil {
-		t.Fatal("README flags table has no --after row")
-	}
-	rowText := strings.Join(afterRow, " ")
-	for _, want := range []string{"--artifacts", "--review-log"} {
-		if !strings.Contains(rowText, want) {
-			t.Errorf("README --after row does not state the %s rule: %q", want, rowText)
-		}
-	}
-
-	var stdout bytes.Buffer
-	if code := run(context.Background(), []string{"-h"}, lookupFrom(nil), &stdout, io.Discard, productionDeps()); code != exitOK {
-		t.Fatalf("run(-h) exit code = %d, want %d", code, exitOK)
-	}
-	usage := stdout.String()
-	for _, want := range []string{"requires --artifacts", "--after review does not accept --review-log"} {
-		if !strings.Contains(usage, want) {
-			t.Errorf("-h usage does not state %q:\n%s", want, usage)
-		}
-	}
-
-	overview := readDoc(t, projectOverviewPath)
-	for _, want := range []string{"--artifacts", "--after"} {
-		if !strings.Contains(overview, want) {
-			t.Errorf("project_overview.md does not mention %s", want)
-		}
-	}
-
-	security := readDoc(t, securityPath)
-	cacheSection := sectionByHeading(security, "## 5. キャッシュディレクトリ")
-	if cacheSection == "" {
-		t.Fatal("security.md has no 5. キャッシュディレクトリ section")
-	}
-	artifactLine := bulletContaining(cacheSection, "--artifacts")
-	if artifactLine == "" {
-		t.Fatal("security.md 5. キャッシュディレクトリ has no --artifacts bullet")
-	}
-	if !strings.Contains(artifactLine, "0o600") {
-		t.Errorf("security.md's --artifacts bullet does not state the file mode 0o600: %q", artifactLine)
-	}
-	untrusted := sectionByHeading(security, "## 6. 信頼できないテキストの取り扱い")
-	if untrusted == "" {
-		t.Fatal("security.md has no 6. 信頼できないテキストの取り扱い section")
-	}
-	artifactContentLine := bulletContaining(untrusted, "--artifacts")
-	if artifactContentLine == "" {
-		t.Fatal("security.md 6. has no --artifacts bullet")
-	}
-	for _, want := range []string{"U+FEFF", "4 MiB"} {
-		if !strings.Contains(artifactContentLine, want) {
-			t.Errorf("security.md's --artifacts bullet does not state %q: %q", want, artifactContentLine)
-		}
-	}
-
-	evaluation := sectionByHeading(readDoc(t, reviewEvaluationPath), "### 2.6. 中間生成物を固定した比較（タスク 0017 以降）")
-	if evaluation == "" {
-		t.Fatal("02_evaluation.md has no 2.6 section")
-	}
-	for _, want := range []string{"--artifacts", "--after", "--keep-cache"} {
-		if !strings.Contains(evaluation, want) {
-			t.Errorf("02_evaluation.md 2.6 does not mention %s", want)
-		}
-	}
-}
-
-// bulletContaining returns the first line of section that contains term, or "".
-func bulletContaining(section, term string) string {
-	for line := range strings.SplitSeq(section, "\n") {
-		if strings.Contains(line, term) {
-			return line
-		}
-	}
-	return ""
-}
-
 // containsToken reports whether word appears in doc bounded by characters that
 // are not letters, digits, underscores, or hyphens, so "known" is not satisfied
 // by "unknown" or "recorded-unknown", and "run" is not satisfied by "runs".
@@ -658,12 +398,10 @@ func checkExampleLines(t *testing.T, section, prefix string, allowed map[string]
 	}
 }
 
-// TestTokenUsageDocsContract checks the token-usage documents: the README
-// section describes the line's words and every reason llm.Usage can produce,
-// project_overview.md and security.md describe the usage handling, and
-// package_reference.md lists the new types.
+// TestTokenUsageDocsContract checks that the README's Token usage section
+// contains the line's words and every reason llm.Usage can produce.
 //
-// The behavior these documents describe is pinned by running tests, not by this
+// The behavior these words describe is pinned by running tests, not by this
 // test: the line format by cmd/yt2column's TestRunTokenLinesGoldenFormat, and
 // the usage validation by the adapters' TestGenerateUsageUnknown and
 // internal/artifact's TestParseRecordRejectsUsage.
@@ -672,9 +410,6 @@ func TestTokenUsageDocsContract(t *testing.T) {
 	section := sectionByHeading(readme, "## Token usage")
 	if section == "" {
 		t.Fatal("README has no Token usage section")
-	}
-	if !strings.Contains(section, "version 3") {
-		t.Error("README Token usage section does not state the artifact format version 3")
 	}
 	// Every format word run.go defines, plus the three stage names. The
 	// value-carrying fields are matched as substrings; the fixed words are
@@ -718,103 +453,16 @@ func TestTokenUsageDocsContract(t *testing.T) {
 		allowed[stage.String()] = true
 	}
 	checkExampleLines(t, section, tokensPrefix, allowed, "README Token usage section")
-
-	overview := sectionByHeading(readDoc(t, projectOverviewPath), "## パイプライン")
-	if overview == "" {
-		t.Fatal("project_overview.md has no パイプライン section")
-	}
-	if !containsToken(overview, "Usage") {
-		t.Error("project_overview.md パイプライン does not mention Usage")
-	}
-
-	untrusted := sectionByHeading(readDoc(t, securityPath), "## 6. 信頼できないテキストの取り扱い")
-	if untrusted == "" {
-		t.Fatal("security.md has no 6. 信頼できないテキストの取り扱い section")
-	}
-	responseUsage := bulletContaining(untrusted, "応答の `usage`")
-	if responseUsage == "" {
-		t.Fatal("security.md 6. has no response-usage bullet")
-	}
-	for _, want := range []string{"不明", "redact.Line"} {
-		if !strings.Contains(responseUsage, want) {
-			t.Errorf("security.md's response-usage bullet does not state %q: %q", want, responseUsage)
-		}
-	}
-	artifactLine := bulletContaining(untrusted, "--artifacts")
-	if artifactLine == "" {
-		t.Fatal("security.md 6. has no --artifacts bullet")
-	}
-	for _, want := range []string{"usage", "トークン数"} {
-		if !strings.Contains(artifactLine, want) {
-			t.Errorf("security.md's --artifacts bullet does not mention %q: %q", want, artifactLine)
-		}
-	}
-
-	reference := readDoc(t, packageReferencePath)
-	table := findTable(reference, "Package")
-	if table == nil {
-		t.Fatal("package_reference.md has no package table")
-	}
-	for _, row := range []struct {
-		pkg  string
-		want []string
-	}{
-		{"internal/llm", []string{"TokenCounts", "UnknownRule", "Usage"}},
-		{"internal/strictjson", []string{"IsNull", "AsNonNegativeInt64"}},
-		{"internal/pricing", []string{"Estimate", "StageCost", "Total", "Totals", "Amount", "RateBasis", "UnknownReason", "Format"}},
-		{"internal/writer", []string{"UsageOrigin", "StageUsage", "RunUsage", "TokenUsageError"}},
-		{"internal/artifact", []string{"version 3", "usage", "call_time", "internal/llm"}},
-		{"internal/llm/deepseek", []string{"usage"}},
-		{"internal/llm/claude", []string{"usage"}},
-	} {
-		cells := tableRow(table, row.pkg)
-		if cells == nil {
-			t.Errorf("package_reference.md has no %s row", row.pkg)
-			continue
-		}
-		joined := strings.Join(cells, " ")
-		for _, want := range row.want {
-			if !containsToken(joined, want) {
-				t.Errorf("the package_reference.md %s row does not mention %s", row.pkg, want)
-			}
-		}
-	}
 }
 
-// TestPackageReferenceFixprguard: the internal/fixprguard row describes the
-// automated reviewer list the tool trusts (Reviewers, built by ParseReviewers),
-// not a single reviewer bot.
-func TestPackageReferenceFixprguard(t *testing.T) {
-	table := findTable(readDoc(t, packageReferencePath), "Package")
-	if table == nil {
-		t.Fatal("package_reference.md has no package table")
-	}
-	cells := tableRow(table, "internal/fixprguard")
-	if cells == nil {
-		t.Fatal("package_reference.md has no internal/fixprguard row")
-	}
-	row := strings.Join(cells, " ")
-	for _, want := range []string{"ParseReviewers", "Reviewers"} {
-		if !containsToken(row, want) {
-			t.Errorf("the internal/fixprguard row does not mention %s", want)
-		}
-	}
-	if strings.Contains(row, "reviewer bot") {
-		t.Error("the internal/fixprguard row still describes a single reviewer bot")
-	}
-}
-
-// TestCostDocsContract checks the cost documents: the README's Estimated cost
-// section uses every word run.go's cost format defines, its example lines use
-// only those words and the stage names in the fixed positions, and it names the
-// heading word of the Slack footnote's cost; the rate-update procedure
-// names the rate table and the hand-calculated tests, is linked from CLAUDE.md,
-// and is pointed at from the rate table's leading comment; project_overview.md
-// and security.md describe the cost line and the artifact call_time.
+// TestCostDocsContract checks that the README's Estimated cost section uses
+// every word run.go's cost format defines, that its example lines use only
+// those words and the stage names in the fixed positions, that
+// project_overview.md contains the cost prefix, and that the rate table's
+// leading comment points at the update procedure.
 //
-// The behavior these documents describe is pinned by running tests, not by this
-// test: the line format by cmd/yt2column's TestRunCostLinesGoldenFormat, and the
-// call_time validation by internal/artifact's TestParseRecordRejectsCallTime.
+// The behavior these words describe is pinned by running tests, not by this
+// test: the line format by cmd/yt2column's TestRunCostLinesGoldenFormat.
 func TestCostDocsContract(t *testing.T) {
 	readme := readDoc(t, readmePath)
 	section := sectionByHeading(readme, "## Estimated cost")
@@ -865,13 +513,6 @@ func TestCostDocsContract(t *testing.T) {
 			t.Errorf("README Estimated cost section does not contain the reason word %q", word)
 		}
 	}
-	// The heading word of the Slack footnote's cost is an unexported publisher
-	// literal, so the guard writes the spelling; TestRenderSlackPostCost pins the
-	// same spelling in internal/publisher.
-	const estimatedCostHeading = "Estimated cost"
-	if !strings.Contains(section, estimatedCostHeading) {
-		t.Errorf("README Estimated cost section does not contain the heading word %q", estimatedCostHeading)
-	}
 	// Each example line's first three words after the prefix are the stage, the
 	// origin, and the cost state.
 	allowed := map[string]bool{
@@ -882,43 +523,14 @@ func TestCostDocsContract(t *testing.T) {
 	}
 	checkExampleLines(t, section, costPrefix, allowed, "README Estimated cost section")
 
-	// The rate-update procedure names the table and the hand-calculated tests,
-	// is linked from CLAUDE.md, and is pointed at from the rate table's leading
-	// comment.
-	update := readDoc(t, pricingUpdatePath)
-	for _, want := range []string{
-		"rates.go", "TestEstimateCategories", "TestEstimatePeakWindow",
-		"TestEstimatePromptTier", "TestAmountFormat", "TestRateTableValid",
-		"TestValidateRejects", "TestRateTableSourceComments", "TestRateTableModels",
-	} {
-		if !strings.Contains(update, want) {
-			t.Errorf("pricing_update.md does not name %q", want)
-		}
+	overview := readDoc(t, projectOverviewPath)
+	if !strings.Contains(overview, costPrefix) {
+		t.Errorf("project_overview.md does not contain %q", costPrefix)
 	}
-	if !strings.Contains(readDoc(t, claudePath), "pricing_update.md") {
-		t.Error("CLAUDE.md does not link pricing_update.md")
-	}
+
 	rates := readDoc(t, pricingRatesPath)
 	head, _, _ := strings.Cut(rates, "\npackage ")
 	if !strings.Contains(head, "pricing_update.md") {
 		t.Error("internal/pricing/rates.go's leading comment does not point at pricing_update.md")
-	}
-
-	overview := readDoc(t, projectOverviewPath)
-	for _, want := range []string{costPrefix, "call_time"} {
-		if !strings.Contains(overview, want) {
-			t.Errorf("project_overview.md does not contain %q", want)
-		}
-	}
-	untrusted := sectionByHeading(readDoc(t, securityPath), "## 6. 信頼できないテキストの取り扱い")
-	if untrusted == "" {
-		t.Fatal("security.md has no 6. 信頼できないテキストの取り扱い section")
-	}
-	artifactLine := bulletContaining(untrusted, "--artifacts")
-	if artifactLine == "" {
-		t.Fatal("security.md 6. has no --artifacts bullet")
-	}
-	if !strings.Contains(artifactLine, "call_time") {
-		t.Errorf("security.md's --artifacts bullet does not mention call_time: %q", artifactLine)
 	}
 }

@@ -8,7 +8,7 @@
 | Created | 2026-10-14 |
 | Review date | 2026-10-14 |
 | Reviewer | isesis |
-| Comments | 2026-10-23 (decision): タスク 0039（#463）で決めた変更。ステップ 4-2・§5.1・リスクの表が前提とした architecture §7.3「時間」の決定（`TestParseCopiedLargeInputs` が `-race` 付きのビルドで 15 秒の上限を確かめる）を改め、時間の確認を `-race` なしのビルドだけで行い、`make test-parse-norace` で単独に実行するようにした（上限は 3 秒）。決定は人間のレビュアー（isseis）がタスク 0039 の要件書の承認（2026-10-23）で承認した。詳細は [0039 の要件書](../0039_large_input_test_timeout/01_requirements.md)と[設計書](../0039_large_input_test_timeout/02_architecture.md)を参照。本計画の本文は書き換えていない。決定はタスク 0039 の要件書の承認で得たので、`Status` は `approved` のままとする |
+| Comments | 2026-10-23 (decision): タスク 0039（#463）で決めた変更。ステップ 4-2・§5.1・リスクの表が前提とした architecture §7.3「時間」の決定（`TestParseCopiedLargeInputs` が `-race` 付きのビルドで 15 秒の上限を確かめる）を改め、時間の確認を `-race` なしのビルドだけで行い、`make test-parse-norace` で単独に実行するようにした（上限は 3 秒）。決定は人間のレビュアー（isseis）がタスク 0039 の要件書の承認（2026-10-23）で承認した。詳細は [0039 の要件書](../0039_large_input_test_timeout/01_requirements.md)と[設計書](../0039_large_input_test_timeout/02_architecture.md)を参照。本計画の本文は書き換えていない。決定はタスク 0039 の要件書の承認で得たので、`Status` は `approved` のままとする。 2026-10-23 (decision): タスク 0038 の F-005 により、AC-01・AC-01a・AC-01b・AC-03・AC-14 の検証方法を改めた（`TestCopiedTranscriptSurveyRecords` の調査の記録の確認と `TestClaudeMDCopiedTranscriptException` を削除したため）。決定はタスク 0038 の承認済みの要件で決めたので、`Status` は `approved` のままとする。 |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「requirements」）の項番、節番号は [02_architecture.md](02_architecture.md)（以下「architecture」）の節を指す。番号だけの「§N」は、断りがない限り architecture の節を指し、本計画自身の節は「本計画 §N」と書く。既存のファイルの行番号は、断りがない限り HEAD `d8f163e`（ブランチ `claude/task-dphh91`）で確かめた。Go のソースとテストデータは、`4fe06e0`（`main`）から変わっていない。
 
@@ -301,11 +301,11 @@ architecture §7.1 のとおり、すべて文字列の入力だけで行い、`
 
 | AC | 区分 | 検証 |
 |---|---|---|
-| AC-01 | static / test / manual | `cmd/yt2column/copied_transcript_docs_test.go::TestCopiedTranscriptSurveyRecords`（`testdata/README.md` の出典・ライセンス・取得日・取得方法・加工内容。ステップ 3-4）。`internal/transcript/copied_test.go::TestCopiedSourceRealSamples`（glob の集合が期待値の 3 つの動画 ID と一致し、形 A・形 B の両方を含むこと。ステップ 3-2）。security.md §7 の確認（manual。ステップ 3-6、本計画 §5.2） |
-| AC-01a | test / static | `internal/transcript/copied_test.go::TestCopiedSourceRealSamples`（`mbyG85GZ0PI` の `1:00:07` の `StartMs`。ステップ 3-2）。`cmd/yt2column/copied_transcript_docs_test.go::TestCopiedTranscriptSurveyRecords`（architecture §1.4.1 の `2:10:26`・`1:00:07`。ステップ 3-4） |
-| AC-01b | static | `cmd/yt2column/copied_transcript_docs_test.go::TestCopiedTranscriptSurveyRecords`（architecture §1.4.1 の 2 つの表の列と、言語・種類の 4 つの組み合わせの行。ステップ 3-4） |
+| AC-01 | test / manual | `cmd/yt2column/copied_transcript_docs_test.go::TestCopiedTranscriptSurveyRecords`（`testdata/README.md` のファイル名と URL）・`internal/transcript/copied_test.go::TestCopiedSourceRealSamples`（glob の集合が期待値の 3 つの動画 ID と一致し、形 A・形 B の両方を含むこと。ステップ 3-2）。`testdata/README.md` の出典・ライセンス・取得日・取得方法・加工内容と security.md §7 の記述は、タスク 0038 で確認を削除したので PR のレビューで読み合わせる（manual。ステップ 3-6、本計画 §5.2） |
+| AC-01a | test / manual | `internal/transcript/copied_test.go::TestCopiedSourceRealSamples`（`mbyG85GZ0PI` の `1:00:07` の `StartMs`。ステップ 3-2）。architecture §1.4.1 の `2:10:26`・`1:00:07` は、タスク 0038 で確認を削除したので PR のレビューで読み合わせる |
+| AC-01b | manual | architecture §1.4.1 の 2 つの表の列と、言語・種類の 4 つの組み合わせの行を PR のレビューで読み合わせる（タスク 0038 で `TestCopiedTranscriptSurveyRecords` の確認を削除した） |
 | AC-02 | test | `internal/transcript/copied_test.go::TestCopiedSourceRealSamples`（`testdata/` の各ファイルが書式に一致して解析されること。ステップ 3-2）。`internal/transcript/copied_format_test.go::TestParseCopiedRejects`（形 A・形 B のどちらにも合わない入力の拒否。ステップ 1-7）。利用者への案内は #108・#109 が実装し、そこで確かめる（architecture §4.4・§7.4） |
-| AC-03 | static | `cmd/yt2column/copied_transcript_docs_test.go::TestCopiedTranscriptSurveyRecords`（architecture §1.4.2 の、全体の選択の可否・調べた最長の長さ・CLI の手段。ステップ 3-4） |
+| AC-03 | manual | architecture §1.4.2 の、全体の選択の可否・調べた最長の長さ・CLI の手段を PR のレビューで読み合わせる（タスク 0038 で `TestCopiedTranscriptSurveyRecords` の確認を削除した） |
 | AC-04 | test | `internal/transcript/copied_test.go::TestCopiedSourceRealSamples`（ステップ 3-2） |
 | AC-04a | test | `internal/transcript/copied_format_test.go::TestParseCopiedAccepts`（`0:00\n0:05\nこんにちは\n`、形 A の本文のない行、時刻の行が 3 行続く形 B。ステップ 1-6）。`internal/transcript/copied_format_test.go::TestParseCopiedRejects`（`0:00\n0:05\n` の `errCopiedNoText`。ステップ 1-7） |
 | AC-04b | test | `internal/transcript/copied_format_test.go::TestCopiedLabels`（ステップ 1-5）。`internal/transcript/copied_format_test.go::TestParseCopiedAccepts`（requirements AC-04b の受理の例。ステップ 1-6）。`internal/transcript/copied_format_test.go::TestParseCopiedRejects`（カンマのないラベル、`0:24abc…`。ステップ 1-7） |
@@ -319,7 +319,7 @@ architecture §7.1 のとおり、すべて文字列の入力だけで行い、`
 | AC-11 | test | `internal/transcript/copied_test.go::TestCopiedSourceTranscript`（ステップ 2-3） |
 | AC-12 | test | `internal/transcript/copied_test.go::TestCopiedSourceTranscript`（ステップ 2-3） |
 | AC-13 | test | `internal/transcript/copied_test.go::TestCopiedSourceTranscript`（パーサの直接の結果との一致。ステップ 2-3） |
-| AC-14 | static | `cmd/yt2column/copied_transcript_docs_test.go::TestClaudeMDCopiedTranscriptException`（ステップ 5-8） |
+| AC-14 | manual | `CLAUDE.md` の「Declare, don't infer」の記述を PR のレビューで読み合わせる（タスク 0038 で `TestClaudeMDCopiedTranscriptException` を削除した） |
 
 ### 5.1. 計測と fuzz の記録
 

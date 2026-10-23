@@ -1224,8 +1224,10 @@ func TestRunExecutionPaths(t *testing.T) {
 }
 
 // TestRunHelp checks the usage in detail: every flag of the CLI is listed,
-// --slack names Mattermost as a target, the usage goes to standard output
-// only, and it needs no configuration.
+// --slack names Mattermost as a target, the --after description states that
+// it requires --artifacts and that --after review does not accept
+// --review-log, the usage goes to standard output only, and it needs no
+// configuration.
 func TestRunHelp(t *testing.T) {
 	for _, arg := range []string{"-h", "--help"} {
 		t.Run(arg, func(t *testing.T) {
@@ -1244,6 +1246,8 @@ func TestRunHelp(t *testing.T) {
 				"--shorten-system-prompt <path>", "--shorten-user-prompt <path>",
 				"--review-system-prompt <path>", "--review-user-prompt <path>",
 				"--artifacts <path>", "--after <stage>",
+				"requires --artifacts",
+				"--after review does not accept --review-log",
 				"-h, --help",
 			} {
 				if !strings.Contains(stdout.String(), flag) {
@@ -2638,9 +2642,6 @@ func TestRunEvaluationProcedureFlags(t *testing.T) {
 	}
 
 	for i, flags := range commands {
-		if !slices.Contains(flags, "--keep-cache") {
-			t.Errorf("the evaluation procedure's command %d does not carry --keep-cache: %v", i+1, flags)
-		}
 		e.args = procedureArgs(flags, e, artifacts, i, system, user)
 		code := e.run()
 		if code == exitUsage {

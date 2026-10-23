@@ -8,7 +8,7 @@
 | Created | 2026-10-16 |
 | Review date | 2026-10-16 |
 | Reviewer | isseis |
-| Comments | レビューでの修正: フェーズ 3 の対象ファイルと §3.2 の PR-5 の変更内容に、手動の確認（M-1〜M-3）の日時と結果を記録する `docs/tasks/0022_cost_estimate/03_implementation_plan.md` を加えた（AC-32・AC-34 の記録先を PR-5 の対象範囲と一致させた）。決定の変更はない。実装時の editorial correction（決定の変更はない）: ステップ 3-7 のテストの補助を `saveArtifactsOnce` から同形の `saveCostArtifacts` に改めた（共有の補助は setup の後に検証・推敲の client を上書きするため、レビューの段階に表にあるモデルと既知の使用量を与えられない）。`TestRunCostLinesOmitModel` の秘密情報の確認を、標準出力と標準エラーを見る形から標準エラーに限った（公開する記事の `- Model:` の行は本タスクの前から応答のモデル名をそのまま載せ、`requireSafeOutput` はその行を含む `--out` を見るため通らない。`--out` の行を赤くする変更は本タスクの対象外）。再利用した段階だけが不明な場合の確認を `TestRunCostLinesResumeUnknownStage` として分けた。 |
+| Comments | レビューでの修正: フェーズ 3 の対象ファイルと §3.2 の PR-5 の変更内容に、手動の確認（M-1〜M-3）の日時と結果を記録する `docs/tasks/0022_cost_estimate/03_implementation_plan.md` を加えた（AC-32・AC-34 の記録先を PR-5 の対象範囲と一致させた）。決定の変更はない。実装時の editorial correction（決定の変更はない）: ステップ 3-7 のテストの補助を `saveArtifactsOnce` から同形の `saveCostArtifacts` に改めた（共有の補助は setup の後に検証・推敲の client を上書きするため、レビューの段階に表にあるモデルと既知の使用量を与えられない）。`TestRunCostLinesOmitModel` の秘密情報の確認を、標準出力と標準エラーを見る形から標準エラーに限った（公開する記事の `- Model:` の行は本タスクの前から応答のモデル名をそのまま載せ、`requireSafeOutput` はその行を含む `--out` を見るため通らない。`--out` の行を赤くする変更は本タスクの対象外）。再利用した段階だけが不明な場合の確認を `TestRunCostLinesResumeUnknownStage` として分けた。 2026-10-23 (decision): タスク 0038 の F-005 により、AC-41・AC-42 の検証方法を改めた（`TestCostDocsContract` と `TestTokenUsageDocsContract` の `pricing_update.md`・`CLAUDE.md`・`project_overview.md`・`package_reference.md` の確認を削除したため）。決定はタスク 0038 の承認済みの要件で決めたので、`Status` は `approved` のままとする。 |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「requirements」）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目、節番号は [02_architecture.md](02_architecture.md)（以下「architecture」）の節を指す。既存のファイルの行番号は、断りがない限りコミット `c4eeaa6` で確かめた（その後のコミットは文書だけを変えている）。architecture が確かめたコミット `15d9b72` から `c4eeaa6` までの Go のファイルの差分は `cmd/yt2column-server` の `main.go` とそのテストだけで、本計画が変えるパッケージには差分がない（`git diff --stat 15d9b72 c4eeaa6 -- '*.go'` で確認）。Go のソースのコメント・識別子・文字列リテラルは英語で書き（`_context.md`）、`AC-NN`・`F-NNN`・`H-NN` は Go のソースに書かず本計画にだけ記録する（`requirements_process.md` §4）。
 
@@ -427,8 +427,8 @@ requirements AC-39 が認める変更は、architecture §1.3「要件 AC-39 と
 | AC-38 | static | `make test` が `internal/server` と `cmd/yt2column-server` の既存のテストを変えずに通す |
 | AC-39 | static / manual | `make test` が既存のテストを通す（static）。§4.5 の一覧の外の既存のテストを変えていないことを、各 PR の差分で確認する（manual） |
 | AC-40 | static / manual | `cmd/yt2column/docs_test.go::TestCostDocsContract`（static）。記述の内容がコードと architecture と一致することは、ステップ 4-7 で確認する（manual） |
-| AC-41 | static | `cmd/yt2column/docs_test.go::TestCostDocsContract`（`pricing_update.md`・`CLAUDE.md`・`rates.go` のコメント） |
-| AC-42 | static | `cmd/yt2column/docs_test.go::TestCostDocsContract`（`project_overview.md`）・`::TestTokenUsageDocsContract`（`package_reference.md` の `internal/pricing`・`internal/artifact` の行）、`internal/pipeline/pipeline_test.go::TestPackageReferenceListsPackages` |
+| AC-41 | static / manual | `cmd/yt2column/docs_test.go::TestCostDocsContract`（`rates.go` の冒頭のコメント）。`pricing_update.md` と `CLAUDE.md` の記述は PR のレビューで読み合わせる（タスク 0038 でそれらの確認を削除した） |
+| AC-42 | static / manual | `internal/pipeline/pipeline_test.go::TestPackageReferenceListsPackages`（`internal/pricing` のパッケージの行）。`project_overview.md` と `package_reference.md` の記述は PR のレビューで読み合わせる（タスク 0038 で `TestCostDocsContract` と `TestTokenUsageDocsContract` のそれらの確認を削除した） |
 
 ## 6. リスク管理 (Risk Management)
 

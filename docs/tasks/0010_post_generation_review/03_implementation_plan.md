@@ -8,7 +8,7 @@
 | Created | 2026-10-10 |
 | Review date | 2026-10-10 |
 | Reviewer | isseis |
-| Comments | 承認の後、`/mkplan2` で PR の区切り（§2 の `PR-N 作成ポイント`・§3.2・§7、旧 §3.2 は §3.3 へ。§1.2・§2 の冒頭・§9 も合わせた）を埋め込み、フェーズ 5 の壊して確かめる対象をステップ 5-11 から 5-4・5-8 に分けた。編集上の変更で、何を作るかは変えていない。 編集上の修正（2026-10-13、PR-9）: 散文を固定する文書のテスト（`configDocRows`、`TestProjectOverviewDocumentsConfig`、計画書の記録 guard、README の呼び出し形式・終了コードの確認）を `cmd/yt2column/docs_test.go` から外し、コードから導ける契約値（`newFlagSet` のフラグの表、`TestSlackDocsContract`・`TestClaudeDocsContract`）と本タスクの `TestReviewEvaluationRecords` だけを残した。§1.3・ステップ 5-5・5-9・5-11・§3.3 と design/architecture の該当箇所を合わせて直した。何を作るかは変えていない。 |
+| Comments | 承認の後、`/mkplan2` で PR の区切り（§2 の `PR-N 作成ポイント`・§3.2・§7、旧 §3.2 は §3.3 へ。§1.2・§2 の冒頭・§9 も合わせた）を埋め込み、フェーズ 5 の壊して確かめる対象をステップ 5-11 から 5-4・5-8 に分けた。編集上の変更で、何を作るかは変えていない。 編集上の修正（2026-10-13、PR-9）: 散文を固定する文書のテスト（`configDocRows`、`TestProjectOverviewDocumentsConfig`、計画書の記録 guard、README の呼び出し形式・終了コードの確認）を `cmd/yt2column/docs_test.go` から外し、コードから導ける契約値（`newFlagSet` のフラグの表、`TestSlackDocsContract`・`TestClaudeDocsContract`）と本タスクの `TestReviewEvaluationRecords` だけを残した。§1.3・ステップ 5-5・5-9・5-11・§3.3 と design/architecture の該当箇所を合わせて直した。何を作るかは変えていない。 2026-10-23 (decision): タスク 0038 の F-005 により、AC-28〜AC-30 の検証方法を `manual` に改めた（`TestReviewEvaluationRecords` を削除したため）。決定はタスク 0038 の承認済みの要件で決めたので、`Status` は `approved` のままとする。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -483,7 +483,7 @@ architecture §7.3 に従う。計画固有の事項は次のとおり。
 
 ## 5. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
-`test` は実行可能なテスト、`static` は guard テスト・`make` ターゲットを指す。`manual` は補助的な確認であり、`test` または `static` を置き換えない。パスは `internal/writer/` を `writer/`、`cmd/yt2column/` を `cmd/` と略す。
+`test` は実行可能なテスト、`static` は guard テスト・`make` ターゲットを指す。`manual` は補助的な確認であり、`test` または `static` を置き換えない。ただし、文書の自然言語の記述だけを定める AC は、タスク 0038 の規則により `manual` だけで確かめてよい（AC-28〜AC-30）。パスは `internal/writer/` を `writer/`、`cmd/yt2column/` を `cmd/` と略す。
 
 | AC | 内容 | 種別 | 検証の実行場所 |
 |---|---|---|---|
@@ -514,9 +514,9 @@ architecture §7.3 に従う。計画固有の事項は次のとおり。
 | AC-25 | 段階の前のキャンセルでその段階の LLM を呼ばない | test | `writer/steps_test.go::TestWriteStepContextDone`（2 つの段階の前の取り消しの 3 行。その段階の fake が呼ばれず、`context.Canceled`） |
 | AC-26 | ユニットテストは LLM の API もネットワークも呼ばない | test / static | フェーズ 3 のすべての `writer/` のテスト（fake の `LLMClient`）・`internal/pipeline/pipeline_test.go::TestWriterImports`・`cmd/run_test.go::TestTestDepsReviewClientBuildsNothing`（CLI のテストの既定の `newReviewLLMClient` が何も作らない） |
 | AC-27 | 段階を無効にした既存のテストがそのまま通る | test | `writer/` と `internal/job/` の既存のテスト（変更なし。`overrideTargets` も変えない）・`cmd/` の既存のテスト（ステップ 5-5 で段階を無効にする引数を加えるだけ）・`make test` |
-| AC-28 | 5 本の動画の観点ごとの判定の記録 | static / manual | `cmd/docs_test.go::TestReviewEvaluationRecords`・ステップ 6-3 の評価 |
-| AC-29 | 一覧の各項目の判定と新しい根拠のずれの有無の記録 | static / manual | `cmd/docs_test.go::TestReviewEvaluationRecords`・ステップ 6-3 の評価 |
-| AC-30 | プロバイダとモデル、呼び出しの回数、所要時間の記録 | static / manual | `cmd/docs_test.go::TestReviewEvaluationRecords`・ステップ 6-3 の評価 |
+| AC-28 | 5 本の動画の観点ごとの判定の記録 | manual | ステップ 6-3 の評価（タスク 0038 で `TestReviewEvaluationRecords` を削除した） |
+| AC-29 | 一覧の各項目の判定と新しい根拠のずれの有無の記録 | manual | ステップ 6-3 の評価（タスク 0038 で `TestReviewEvaluationRecords` を削除した） |
+| AC-30 | プロバイダとモデル、呼び出しの回数、所要時間の記録 | manual | ステップ 6-3 の評価（タスク 0038 で `TestReviewEvaluationRecords` を削除した） |
 
 ## 6. リスク管理 (Risk Management)
 

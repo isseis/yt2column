@@ -8,7 +8,7 @@
 | Created | 2026-10-16 |
 | Review date | 2026-10-16 |
 | Reviewer | isseis |
-| Comments | 3.3 の `StorageArea` のキーの型を `string \| readonly string[]` から `string \| string[]` に直した（`@types/chrome` の `get`・`remove` の型をそのまま受けられるようにするための編集上の訂正）。受け取る値の方針は変えておらず、判断は変わっていない。3.9・3.14・2.2 に `sendingMessage` を加えた（送信中の文言をポップアップの経路と結果のウィンドウで共有する。3.8・3.9 が既に求める振る舞いを公開したもので、判断は変わっていない） |
+| Comments | 3.3 の `StorageArea` のキーの型を `string \| readonly string[]` から `string \| string[]` に直した（`@types/chrome` の `get`・`remove` の型をそのまま受けられるようにするための編集上の訂正）。受け取る値の方針は変えておらず、判断は変わっていない。3.9・3.14・2.2 に `sendingMessage` を加えた（送信中の文言をポップアップの経路と結果のウィンドウで共有する。3.8・3.9 が既に求める振る舞いを公開したもので、判断は変わっていない） 2026-10-23 (decision): タスク 0038 の F-005 により、AC-30 の確かめ方を PR のレビューでの読み合わせに改めた（`TestExtensionSendDocumentation` を削除したため）。決定はタスク 0038 の承認済みの要件で決めたので、`Status` は `approved` のままとする。 |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `c4b656e` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指す。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-07）への対応は 3.13 にまとめる。
 
@@ -1400,7 +1400,7 @@ flowchart TD
 -   AC-32: `launch.test.ts`・`optionsPage.test.ts`・`resultView.test.ts` の、識別できるトークンの値の検索。
 -   AC-31: `manifest.test.ts`。
 -   AC-33: `secretsAbsent.test.ts`（静的な確認）。
--   AC-30: `cmd/yt2column/extension_docs_test.go`（静的な確認）。
+-   AC-30: PR のレビューでの読み合わせ（タスク 0038 で `TestExtensionSendDocumentation` を削除した）。
 
 ### 7.4. 受け入れ基準と設計の対応
 
@@ -1431,7 +1431,7 @@ flowchart TD
 | AC-27 | 3.5 | 手動（7.2） |
 | AC-28 | 3.6・3.9 | `response.test.ts`・`renderSend.test.ts` |
 | AC-29 | 3.6・3.9 | `renderSend.test.ts` |
-| AC-30 | 3.12・3.14 | `cmd/yt2column/extension_docs_test.go`（静的な確認） |
+| AC-30 | 3.12・3.14 | PR のレビューでの読み合わせ（タスク 0038 で `TestExtensionSendDocumentation` を削除した） |
 | AC-31 | 3.1 | `manifest.test.ts` |
 | AC-32 | 3.4・3.8・3.10 | `launch.test.ts`・`optionsPage.test.ts`・`resultView.test.ts` |
 | AC-33 | 3.12 | `secretsAbsent.test.ts`（静的な確認） |

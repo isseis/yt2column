@@ -386,7 +386,7 @@
 
 **変更するファイル**: なし
 
--   [ ] ステップ 2-1 の 1 つめと 4 つめを、`docs_test.go`・`output_layout_docs_test.go`・`run_test.go`・`copied_transcript_docs_test.go`・`extension_docs_test.go` について行う。
+-   [x] ステップ 2-1 の 1 つめと 4 つめを、`docs_test.go`・`output_layout_docs_test.go`・`run_test.go`・`copied_transcript_docs_test.go`・`extension_docs_test.go` について行う。
 
 **完了条件**: 本フェーズを始められる。
 
@@ -394,15 +394,15 @@
 
 **変更するファイル**: `cmd/yt2column/docs_test.go`、`copied_transcript_docs_test.go`、`extension_docs_test.go`
 
--   [ ] `TestReviewEvaluationRecords` を削除する。
--   [ ] `TestPackageReferenceFixprguard` を削除する。
--   [ ] `TestClaudeMDCopiedTranscriptException` を削除する。
--   [ ] `TestCopiedTranscriptDocsUpdated` を削除する。
--   [ ] `TestClaudeBullet` を削除する。
--   [ ] `TestExtensionSendDocumentation` を削除する。
--   [ ] `TestContextMenuRemovalRecords` を削除する。
--   [ ] `TestNativeMessagingRelayDocumentation` を削除する。
--   [ ] `TestSectionByHeadingPrefix` を削除する。
+-   [x] `TestReviewEvaluationRecords` を削除する。
+-   [x] `TestPackageReferenceFixprguard` を削除する。
+-   [x] `TestClaudeMDCopiedTranscriptException` を削除する。
+-   [x] `TestCopiedTranscriptDocsUpdated` を削除する。
+-   [x] `TestClaudeBullet` を削除する。
+-   [x] `TestExtensionSendDocumentation` を削除する。
+-   [x] `TestContextMenuRemovalRecords` を削除する。
+-   [x] `TestNativeMessagingRelayDocumentation` を削除する。
+-   [x] `TestSectionByHeadingPrefix` を削除する。
 
 **完了条件**: 9 つがなく、`make test` が通る。
 
@@ -410,15 +410,15 @@
 
 **変更するファイル**: `cmd/yt2column/docs_test.go`、`output_layout_docs_test.go`、`run_test.go`、`copied_transcript_docs_test.go`、`extension_docs_test.go`
 
--   [ ] `TestREADMEDocumentsFlags`: 設計書 3.1.4 の削除する確認を取り除く。
--   [ ] `TestClaudeDocsContract`: 同上。
--   [ ] `TestArtifactDocsContract`: 文書の確認をすべて取り除き、`run -h` の 2 つの文字列（`requires --artifacts`・`--after review does not accept --review-log`）を、1.3.3 の対応表のとおり `TestRunHelp` の一覧に加えて、テストを削除する。確かめる文字列は変えない（AC-04）。
--   [ ] `TestTokenUsageDocsContract`: 設計書 3.1.4 の削除する確認を取り除く。
--   [ ] `TestCostDocsContract`: 同上。
--   [ ] `TestOutputLayoutDocsContract`: 同上。
--   [ ] `TestRunEvaluationProcedureFlags`: 同上。
--   [ ] `TestCopiedTranscriptSurveyRecords`: 設計書 3.1.5 の削除する確認を取り除く。
--   [ ] `TestExtensionDocumentation`: 同上。
+-   [x] `TestREADMEDocumentsFlags`: 設計書 3.1.4 の削除する確認を取り除く。
+-   [x] `TestClaudeDocsContract`: 同上。
+-   [x] `TestArtifactDocsContract`: 文書の確認をすべて取り除き、`run -h` の 2 つの文字列（`requires --artifacts`・`--after review does not accept --review-log`）を、1.3.3 の対応表のとおり `TestRunHelp` の一覧に加えて、テストを削除する。確かめる文字列は変えない（AC-04）。
+-   [x] `TestTokenUsageDocsContract`: 設計書 3.1.4 の削除する確認を取り除く。
+-   [x] `TestCostDocsContract`: 同上。
+-   [x] `TestOutputLayoutDocsContract`: 同上。
+-   [x] `TestRunEvaluationProcedureFlags`: 同上。
+-   [x] `TestCopiedTranscriptSurveyRecords`: 設計書 3.1.5 の削除する確認を取り除く。
+-   [x] `TestExtensionDocumentation`: 同上。
 
 **完了条件**: 残す確認だけが残り、`make test` が通る。
 
@@ -426,8 +426,8 @@
 
 **変更するファイル**: 同上
 
--   [ ] 設計書 3.2 の `markdownBullet`・`sectionByHeadingPrefix`・`claudeBullet`・`stepBlock` などの行、`sampleRecordedSaved` などの行、`checkManualCheckTable` などの行の補助と定数を、使い手がなくなったものから削除する。単体テストを持つ補助（`sectionByHeading`・`firstCodeBlockAfter` など）は、ステップ 2-4 と同じく使い手を数える。
--   [ ] ステップ 2-4 の 2 つめと 3 つめを行う。`TestRunHelp` は、`run.go` の `--after` の説明から 2 つの文字列をそれぞれ消すと落ちることを確かめる。
+-   [x] 設計書 3.2 の `markdownBullet`・`sectionByHeadingPrefix`・`claudeBullet`・`stepBlock` などの行、`sampleRecordedSaved` などの行、`checkManualCheckTable` などの行の補助と定数を、使い手がなくなったものから削除する。単体テストを持つ補助（`sectionByHeading`・`firstCodeBlockAfter` など）は、ステップ 2-4 と同じく使い手を数える。
+-   [x] ステップ 2-4 の 2 つめと 3 つめを行う。`TestRunHelp` は、`run.go` の `--after` の説明から 2 つの文字列をそれぞれ消すと落ちることを確かめる。
 
 **完了条件**: `check_pruning.sh removed 4 <PR の前の origin/main>` と `make lint` が通る。
 
@@ -435,9 +435,9 @@
 
 **変更するファイル**: 設計書 3.3.2 の表で PR-4 が担当するタスクの文書（0005、0006、0010、0011 の分、0012、0015、0016、0017、0019、0020 の分、0022、0024、0026 の分、0027 の分、0028、0033 の分）、`docs/dev/developer_guide/pricing_update.md`、`CLAUDE.md`
 
--   [ ] 各文書の AC の検証の行を、設計書 3.3.2 の規則で改め、`Comments` に記録する（AC-13・AC-14）。タスク 0017 の行は、1.3.3 の対応表のとおりに改め、設計書 `:862`（AC-33）も規則で改める。
--   [ ] `pricing_update.md:69-71` の、`package_reference.md` の `internal/pricing` の行を `TestTokenUsageDocsContract` が確かめる、という記述を改める（設計書 3.6）。
--   [ ] `CLAUDE.md`「Development Notes」の text-sync guards の一覧から「the task records」を外し、「the `project_overview.md` notes」を残る確認（環境変数の名前、`costPrefix`、`16,383`）に合わせる（設計書 3.6、AC-20）。
+-   [x] 各文書の AC の検証の行を、設計書 3.3.2 の規則で改め、`Comments` に記録する（AC-13・AC-14）。タスク 0017 の行は、1.3.3 の対応表のとおりに改め、設計書 `:862`（AC-33）も規則で改める。
+-   [x] `pricing_update.md:69-71` の、`package_reference.md` の `internal/pricing` の行を `TestTokenUsageDocsContract` が確かめる、という記述を改める（設計書 3.6）。
+-   [x] `CLAUDE.md`「Development Notes」の text-sync guards の一覧から「the task records」を外し、「the `project_overview.md` notes」を残る確認（環境変数の名前、`costPrefix`、`16,383`）に合わせる（設計書 3.6、AC-20）。
 
 **完了条件**: `check_pruning.sh records <PR-4 の前の origin/main>` が通る。
 
@@ -445,8 +445,8 @@
 
 **変更するファイル**: なし
 
--   [ ] ステップ 2-6 の 1〜3 つめを、本フェーズのファイルと `removed 4 <PR の前の origin/main>` について行う。
--   [ ] PR の説明に判定の一覧を書く（AC-09）。
+-   [x] ステップ 2-6 の 1〜3 つめを、本フェーズのファイルと `removed 4 <PR の前の origin/main>` について行う。
+-   [x] PR の説明に判定の一覧を書く（AC-09）。
 
 **完了条件**: 上の 2 つが済んでいる。
 
@@ -462,10 +462,10 @@
 
 **判定理由**: 変更は多いが、判定と改め方は設計書と本書で決まっており、`mkplan2.md` step 4 の契機のどれにも当たらない。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/476
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 5: サーバ・`internal/pipeline`・拡張（設計書 8 章の PR-5）
 
@@ -650,7 +650,7 @@
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5）
 - [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6）
 - [x] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7）
-- [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6）
+- [x] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6）
 - [ ] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6）
 - [ ] #440 を閉じた（AC-27）
 

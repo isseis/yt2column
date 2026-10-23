@@ -8,7 +8,7 @@
 | Created | 2026-10-16 |
 | Review date | 2026-10-16 |
 | Reviewer | isseis |
-| Comments | 2026-10-16: 実装計画の作成時に editorial correction を 2 つ加えた（設計の決定は変えていない）。(1) §1.3 の例外 1 と §3.11 に、見出しのメタデータの形を読む評価のスクリプト `docs/tasks/0008_column_prompt/check_article.py` を加えた（料金の行を加えると `HEADER_RE` が一致しなくなる。0010 が段階のモデルの行を加えたときと同じ追従）。(2) §1.3 の `cmd/yt2column-server/run_test.go` の行番号を、0021 の変更の後の位置に改めた。(3) §3.8 の「CLI の統合テストは標準エラーをログに出しているので、コードの変更は要らない」が事実でなかったので、秘密情報の検査の後に料金の行をログに出す変更を §3.8 と §3.11 に加えた（requirements F-008・AC-32 の決定を実現するための追従）。(4) §8 のフェーズ 1 の「`Totals` は既存の型だけを使う」が事実でなかった（`Totals` は `StageUsage.CallTime` を読む）ので、フィールドの追加だけをフェーズ 1 に置くと改めた。 |
+| Comments | 2026-10-16: 実装計画の作成時に editorial correction を 2 つ加えた（設計の決定は変えていない）。(1) §1.3 の例外 1 と §3.11 に、見出しのメタデータの形を読む評価のスクリプト `docs/tasks/0008_column_prompt/check_article.py` を加えた（料金の行を加えると `HEADER_RE` が一致しなくなる。0010 が段階のモデルの行を加えたときと同じ追従）。(2) §1.3 の `cmd/yt2column-server/run_test.go` の行番号を、0021 の変更の後の位置に改めた。(3) §3.8 の「CLI の統合テストは標準エラーをログに出しているので、コードの変更は要らない」が事実でなかったので、秘密情報の検査の後に料金の行をログに出す変更を §3.8 と §3.11 に加えた（requirements F-008・AC-32 の決定を実現するための追従）。(4) §8 のフェーズ 1 の「`Totals` は既存の型だけを使う」が事実でなかった（`Totals` は `StageUsage.CallTime` を読む）ので、フィールドの追加だけをフェーズ 1 に置くと改めた。 2026-10-23 (decision): タスク 0038 の F-005 により、AC-40〜AC-42 の確かめ方を改めた（`TestCostDocsContract` と `TestTokenUsageDocsContract` の `package_reference.md` などの確認を削除したため）。決定はタスク 0038 の承認済みの要件で決めたので、`Status` は `approved` のままとする。 |
 
 本書の既存コードへの言及（`file:line`）は、コミット `15d9b72` で確かめた（`cmd/yt2column-server/run_test.go` の行番号だけは、コミット `51ba36e` で確かめた）。
 
@@ -892,7 +892,7 @@ flowchart TD
 | AC-35〜AC-37 | §7.1 の方針（手で計算した期待値、固定の時計、fake） | 各テスト |
 | AC-38 | §3.7（`Publisher` で算出）、§3.11（サーバを変えない） | サーバの既存のテスト |
 | AC-39 | §1.3「要件 AC-39 との関係」 | 一覧にないテストが変更なしで通ること |
-| AC-40〜AC-42 | §3.9 | `cmd/yt2column` の契約のテスト（README・`package_reference.md`）と、レビューでの確認（ほかの文書） |
+| AC-40〜AC-42 | §3.9 | `cmd/yt2column` の契約のテスト（README・`rates.go` の先頭のコメント）、`TestPackageReferenceListsPackages`（`package_reference.md` の行の存在）と、レビューでの確認（`project_overview.md`・`pricing_update.md`・`CLAUDE.md`。タスク 0038） |
 
 ## 8. 実装優先順位 (Implementation Priorities)
 

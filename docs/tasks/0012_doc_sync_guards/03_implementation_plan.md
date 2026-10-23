@@ -8,7 +8,7 @@
 | Created | 2026-10-13 |
 | Review date | 2026-10-13 |
 | Reviewer | isseis |
-| Comments | PR-1 の実装時、本計画が基準とした `f94ae62` より後に `cmd/yt2column/docs_test.go` が変わっており（`TestProjectOverviewDocumentsConfig`・`TestClaudePlanRecordsManualRun` は削除、`TestReviewEvaluationRecords` ほかに置き換え、`tableContains` は `tableFlagContains` に改名）、§1.3・§1.4・ステップ 1-1・1-11・PR-1 のレビュー観点・PR-1 の判定理由・§6.1 の参照が古くなっていた。これらを現在のコードに合わせて編集上訂正した。決定は変えていない。 |
+| Comments | PR-1 の実装時、本計画が基準とした `f94ae62` より後に `cmd/yt2column/docs_test.go` が変わっており（`TestProjectOverviewDocumentsConfig`・`TestClaudePlanRecordsManualRun` は削除、`TestReviewEvaluationRecords` ほかに置き換え、`tableContains` は `tableFlagContains` に改名）、§1.3・§1.4・ステップ 1-1・1-11・PR-1 のレビュー観点・PR-1 の判定理由・§6.1 の参照が古くなっていた。これらを現在のコードに合わせて編集上訂正した。決定は変えていない。 2026-10-23 (decision): タスク 0038 の F-005 により、AC-01・AC-02・AC-05〜AC-07・AC-11・AC-13 の検証方法を改めた（`extension_docs_test.go` の検査 4〜6 を削除し、残る 3 種に合わせたため）。決定はタスク 0038 の承認済みの要件で決めたので、`Status` は `approved` のままとする。 |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「requirements」）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目、節番号は [02_architecture.md](02_architecture.md)（以下「architecture」）の節を指す。既存のコードと文書の行番号は、断りがない限り HEAD `f94ae62`（ブランチ `doc-guard-refactor`）で確かめた。ただし `cmd/yt2column/docs_test.go` の行番号と既存の doc guard の名前は、PR-1 の実装時に現在の HEAD で確かめ直した。
 
@@ -259,19 +259,19 @@ Go の guard は macOS と Linux（CI）のどちらでも `make test` で動く
 
 | AC | 検証の区分 | 検証 |
 |---|---|---|
-| AC-01 | test | `cmd/yt2column/extension_docs_test.go` の 6 種のサブテスト。`make test`（`Makefile:68-69`）で実行され、node・npm を起動しない |
-| AC-02 | test | 検査 1・5 のサブテスト（導出値で照合）。ステップ 4-1 の壊し確認（文書の拡張 ID の 1 文字、manifest の `key`） |
+| AC-01 | test / manual | `cmd/yt2column/extension_docs_test.go` の残る 3 種（検査 1〜3）のサブテスト。`make test`（`Makefile:68-69`）で実行され、node・npm を起動しない。検査 4〜6 はタスク 0038 で削除したので、その記述は PR のレビューで読み合わせる |
+| AC-02 | test | 検査 1 のサブテスト（導出値で照合）。ステップ 4-1 の壊し確認（文書の拡張 ID の 1 文字、manifest の `key`） |
 | AC-03 | test | 検査 2 のサブテスト。ステップ 4-1 の壊し確認（`Makefile` の `ext-` ターゲット 1 つ、`CLAUDE.md` の一覧） |
 | AC-04 | test | 検査 3 のサブテスト。ステップ 4-1 の壊し確認（`manifest.json` の permission の追加と削除、`security.md` §8.1 の `要求する権限` の記載の削除） |
-| AC-05 | test | 検査 4 のサブテスト。ステップ 4-1 の壊し確認（`project_overview.md` の `TypeScript`・`extension/`） |
-| AC-06 | test | 検査 5 のサブテスト。ステップ 4-1 の壊し確認（`3.12.x` の見出しの削除、`3.12.2`・`3.12.3` の本文を空にする） |
-| AC-07 | test | 検査 6 のサブテスト。ステップ 4-1 の壊し確認（§5.1 の行の削除、セルを空にする） |
+| AC-05 | manual | 検査 4 はタスク 0038 で削除したので、`project_overview.md` の記述を PR のレビューで読み合わせる |
+| AC-06 | manual | 検査 5 はタスク 0038 で削除したので、`0007` の `02_architecture.md` の `3.12.x` の記述を PR のレビューで読み合わせる |
+| AC-07 | manual | 検査 6 はタスク 0038 で削除したので、`0007` の `03_implementation_plan.md` §5.1 の記録を PR のレビューで読み合わせる |
 | AC-08 | static / test | `extension/test/docs.test.ts` が存在せず、`extension/test/` に移した 6 種の検査（`extensionIdFromManifestKey` を文書と照合する、`CLAUDE.md`・`security.md`・`project_overview.md`・`0007` の文書を読む）が残っていないこと（static。差分と `git grep` で確かめる）。`make ext-check`（`Makefile:287-292`）が削除した状態で通ること（test。これは AC-09 の確認であり、検査が残っていても通るので AC-08 の不在の確認にはならない） |
 | AC-09 | test | `make ext-check`（`ext-typecheck`・`ext-lint`・`ext-fmt-check`・`ext-test`・`ext-build`） |
 | AC-10 | static | `CLAUDE.md`「Development Notes」の節が architecture §3.7 の (a)〜(c)（文書だけの変更は `make ext-test` 不要、移した guard は `make test`、`.gitignore` だけの変更は `make ext-test`）を明記していること（requirements §3.1 は静的確認とする） |
-| AC-11 | test / static | `extension_docs_test.go` の 6 種が `make test` で実行されること（test）と、`extension/test/repository.test.ts::go targets do not need node`（`make -n test` の出力に node・npm が現れない。static） |
+| AC-11 | test / static | `extension_docs_test.go` の残る 3 種が `make test` で実行されること（test）と、`extension/test/repository.test.ts::go targets do not need node`（`make -n test` の出力に node・npm が現れない。static） |
 | AC-12 | test / static | `extension/test/repository.test.ts::build outputs are ignored`（`git check-ignore`。`make ext-test` で実行）と、`CLAUDE.md` が `.gitignore` だけの変更で `make ext-test` を要求する旨を明記していること（static） |
-| AC-13 | test / static | ステップ 4-1 の 6 種の壊し確認（`extension_docs_test.go` の該当サブテストを壊した状態で実行）と、§5.1 の記録（静的確認） |
+| AC-13 | test / static | ステップ 4-1 の残る 3 種の壊し確認（`extension_docs_test.go` の該当サブテストを壊した状態で実行）と、§5.1 の記録（静的確認） |
 
 ### 5.1. 壊し確認の記録
 
