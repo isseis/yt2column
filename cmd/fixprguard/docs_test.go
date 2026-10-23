@@ -898,6 +898,10 @@ func TestGuideDescribesIgnoredFiles(t *testing.T) {
 	}
 }
 
+// diffLine is one line of the 8.1 block's diff of two records: a change
+// command, the separator, or a whole record line on either side.
+var diffLine = regexp.MustCompile(`^([0-9,]+[acd][0-9,]+|---|[<>] [0-9a-f]{64} "[ -~]*")$`)
+
 // guideBlock returns the first sh code block of the guide's subsection.
 func guideBlock(t *testing.T, rel, heading string) string {
 	t.Helper()
@@ -925,7 +929,7 @@ func TestGuideIgnoredCommands(t *testing.T) {
 	// the two SHA-256 commands, so the block takes that command's branch.
 	pathWith := func(sha string) (string, bool) {
 		dir := t.TempDir()
-		for _, tool := range []string{sha, "sed", "cut", "diff"} {
+		for _, tool := range []string{sha, "sed", "cut", "diff", "cat"} {
 			target, err := exec.LookPath(tool)
 			if err != nil {
 				return "", false
@@ -976,6 +980,13 @@ func TestGuideIgnoredCommands(t *testing.T) {
 		got := runBlock(path)
 		if !strings.HasPrefix(got, "begin record: matches the baseline\n") || !strings.Contains(got, `"build/changed.go"`) || strings.Contains(got, `"build/kept.go"`) {
 			t.Errorf("PATH %s: block output = %q, want the match and a diff naming build/changed.go only", path, got)
+		}
+		// Each diff line is whole: a tool that wraps long lines (GNU sed's
+		// l does) would split a record line inside its path.
+		for _, line := range strings.Split(strings.TrimSuffix(got, "\n"), "\n")[1:] {
+			if !diffLine.MatchString(line) {
+				t.Errorf("PATH %s: diff line %q is not a whole diff or record line", path, line)
+			}
 		}
 	}
 	f, err := os.OpenFile(beginRecordName, os.O_APPEND|os.O_WRONLY, 0)
