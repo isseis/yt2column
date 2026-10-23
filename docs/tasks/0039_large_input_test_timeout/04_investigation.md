@@ -1,6 +1,6 @@
 # 調査の記録：大きな入力の解析のテストが CI で時間の上限を超える原因
 
-本書は、タスク 0039 の調査の記録である（[02_architecture.md](02_architecture.md)（以下「設計書」）3.8）。[01_requirements.md](01_requirements.md)（以下「要件書」）の AC-01〜AC-04・AC-06・AC-08・AC-13（パーサを改善した場合は AC-15）の記録を置く。承認ではなく PR のレビューで中身を確かめる文書なので、`Document Status` を持たない。用語は要件書 6 章と設計書の冒頭の用語を同じ意味で使う。
+本書は、タスク 0039 の調査の記録である（[02_architecture.md](02_architecture.md)（以下「設計書」）3.8）。[01_requirements.md](01_requirements.md)（以下「要件書」）の AC-01〜AC-04・AC-06・AC-08・AC-13（パーサを改善した場合は AC-15）の記録と、AC-05 の判定を置く。承認ではなく PR のレビューで中身を確かめる文書なので、`Document Status` を持たない。用語は要件書 6 章と設計書の冒頭の用語を同じ意味で使う。
 
 値はすべて `TestParseCopiedLargeInputs` の `t.Logf` の行（`internal/transcript/copied_format_test.go:1088`。時間、メモリの確保量、1 バイトあたりの確保量）から読んだ。入力の名前は、サブテストの名前（`go test -v` の出力の形）で書く。
 
