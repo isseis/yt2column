@@ -482,7 +482,7 @@ PR-1 を先にするのは、PR-2 の `/fixpr` を、メンションを拒否す
 | AC-06 | 2-4、2-3 | `_lib/task-pr-handoff.md` の開始の印と `runpr.md` の「始まらなかった」の規則を、PR のレビューで読み合わせる（タスク 0038 で `TestHandoffStartMarker` と `TestRunprDocContract` のその確認を削除した）。切り替えの後の最初の PR（4.2） | manual |
 | AC-07 | 4-2 | `CLAUDE.md` の Codex の設定の記述を、PR のレビューで読み合わせる（タスク 0038 で `TestDocsDescribeCodexReview` を削除した）。PR-2 の `/fixpr` の push の後に Codex のレビューが走らないこと（4.2） | manual |
 | AC-08 | 2-2、2-3 | step 3 と step 4 の依頼の書き方を、PR のレビューで読み合わせる（タスク 0038 で `TestRunprDocContract` のその確認と `TestNoCodeRabbitPRReview` を削除した） | manual |
-| AC-09 | 2-3 | `fixpr_docs_test.go::TestRunprDocContract/listings_print_no_body`（要約のコメントの一覧を `jq` で実行し、`has_any_findings` が真偽値でない `completed` を `indeterminate` とすることを含めて、状態の導き方を確かめる）。完了の印の規則の文はPR のレビューで読み合わせる（タスク 0038 で `reviewed_check` を削除した）。PR-2 の `/runpr`（4.2） | static、manual |
+| AC-09 | 2-3 | `fixpr_docs_test.go::TestRunprDocContract/listings_print_no_body`（要約のコメントの一覧を `jq` で実行し、`has_any_findings` が真偽値でない `completed` を `indeterminate` とすることを含めて、状態の導き方を確かめる）。完了の印の規則の文は PR のレビューで読み合わせる（タスク 0038 で `reviewed_check` を削除した）。PR-2 の `/runpr`（4.2） | static、manual |
 | AC-10 | 2-3 | 祖先の判定の向きと LAST_REVIEWED の記述を、PR のレビューで読み合わせる（タスク 0038 で `TestRunprDocContract` のその確認を削除した）。PR-2 の `/runpr`（4.2） | manual |
 | AC-11 | 2-3 | `fixpr_docs_test.go::TestRunprDocContract/listings_print_no_body`（`Bot` と `<awaited-reviewer>[bot]` の絞り込み、1 行目の一致を、一覧を `jq` で実行して確かめる）。PR-2 の確認の読み合わせ（4.2） | static、manual |
 | AC-12 | 2-3 | 規則 3 と断りのコメントの但し書き、規則の順序、停止の文を、PR のレビューで読み合わせる（4.2。タスク 0038 で `TestRunprDocContract` のその確認を削除した） | manual |

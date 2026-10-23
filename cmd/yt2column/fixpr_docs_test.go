@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/isseis/yt2column/internal/fixprguard"
 )
@@ -147,7 +148,7 @@ func TestFixprDocContract(t *testing.T) {
 // TestRunprDocContract checks what runpr.md must hold for its trust boundary:
 // step 1 runs fixprguard head before gh pr checkout, the document never
 // queries review threads itself, step 3 names the stops fixpr reports, and
-// step 3's listings print no comment body (see runprListings).
+// step 3's listings print no comment body (see checkRunprListings).
 func TestRunprDocContract(t *testing.T) {
 	doc := readDoc(t, runprPath)
 	step3 := requireSection(t, "runpr.md", doc, runprStep3)
@@ -288,6 +289,7 @@ func runprListingFixtures() map[string]listingFixture {
 			{user, awaited, summaryBody(stateLine(completed)), "", ""},
 			{user, "other-user", marked(strings.ToUpper(fixprguard.CodexMention)+" please look") + "\n" + marked("Thanks."), "mention", ""},
 			{user, "other-user", marked("No mention here."), "", ""},
+			{bot, "other-bot[bot]", marked(fixprguard.CodexMention + " from another Bot"), "mention", ""},
 			{user, "other-user", nil, "", ""},
 		}},
 		"pulls/<number>/comments": {source: comments, items: []listingItem{
@@ -295,20 +297,25 @@ func runprListingFixtures() map[string]listingFixture {
 			{user, "other-user", marked("No mention here."), "", ""},
 			{user, "other-user", marked("Ask "+strings.ToUpper(fixprguard.CodexMention)) + "\n" + marked("again"), "mention", ""},
 			{user, awaited, marked(fixprguard.CodexMention + " from a User"), "mention", ""},
+			{bot, "other-bot[bot]", marked(fixprguard.CodexMention + " from another Bot"), "mention", ""},
 			{user, "other-user", nil, "", ""},
 		}},
 		"pulls/<number>/reviews": {source: map[string]string{"url": "html_url", "created_at": "submitted_at"}, items: []listingItem{
 			{bot, awaited, marked(fixprguard.CodexMention + " from Codex"), "", ""},
 			{user, "other-user", "", "", ""},
 			{user, "other-user", marked("Ask "+fixprguard.CodexMention) + "\n" + marked("again"), "mention", ""},
+			{bot, "other-bot[bot]", marked(fixprguard.CodexMention + " from another Bot"), "mention", ""},
 			{user, "other-user", nil, "", ""},
 		}},
 	}
 }
 
-// timeFieldMinutes gives each time field its own minute, so a value copied
+// timeFieldSeconds gives each time field its own second, so a value copied
 // from the wrong field differs from the right one.
-var timeFieldMinutes = map[string]int{"created_at": 10, "updated_at": 20, "submitted_at": 30}
+var timeFieldSeconds = map[string]int{"created_at": 10, "updated_at": 20, "submitted_at": 30}
+
+// fakeTimeBase is the time the fake items' times count from, a minute apart.
+var fakeTimeBase = time.Date(2026, 10, 23, 9, 0, 0, 0, time.UTC)
 
 // response is the fake GitHub response for fixture, one object per item, with
 // a distinct URL and distinct times for each.
@@ -321,8 +328,9 @@ func (f listingFixture) response() []map[string]any {
 			"html_url": fmt.Sprintf("https://github.test/item/%d", i),
 		}
 		for _, field := range f.source {
-			if minute, ok := timeFieldMinutes[field]; ok {
-				obj[field] = fmt.Sprintf("2026-10-23T%02d:%02d:00Z", i, minute)
+			if second, ok := timeFieldSeconds[field]; ok {
+				at := fakeTimeBase.Add(time.Duration(i)*time.Minute + time.Duration(second)*time.Second)
+				obj[field] = at.Format(time.RFC3339)
 			}
 		}
 		out = append(out, obj)
@@ -341,6 +349,7 @@ func checkRunprListings(t *testing.T, step3 string) {
 	if err != nil {
 		t.Fatal("unsupported test environment: jq is not installed")
 	}
+	checkStep3GhAPICalls(t, step3)
 	fixtures := runprListingFixtures()
 	matches := runprListing.FindAllStringSubmatch(step3, -1)
 	if n := strings.Count(step3, "gh api --paginate"); n != len(matches) || n != len(fixtures) {
@@ -370,9 +379,131 @@ func checkRunprListings(t *testing.T, step3 string) {
 			continue
 		}
 		t.Run(endpoint, func(t *testing.T) {
+			checkListingConstructors(t, filter)
 			checkListingOutput(t, fixture, runJQ(t, jq, filter, fixture.response()))
 		})
 	}
+}
+
+// step3ReadCalls are the gh api calls of runpr.md step 3 other than the
+// listings: reading the user's login and the Date header, and the two reads
+// that report a stop, which may print a body because the session reads it
+// only to report the stop.
+var step3ReadCalls = []string{
+	"gh api --paginate ",
+	"gh api user --jq .login",
+	"gh api -i repos/<owner>/<repo>/pulls/<number> | grep -i -m 1 '^date:'",
+	"gh api repos/<owner>/<repo>/issues/comments/<id> --jq .body",
+	`gh api repos/<owner>/<repo>/issues/comments/<id> --jq '(.body // "" | split("\n"))[1] // "" | .[:500]'`,
+}
+
+// checkStep3GhAPICalls fails t for a gh api call in step 3 that is neither a
+// listing nor one of step3ReadCalls, so a read that prints whole responses
+// cannot be added beside the listings unchecked.
+func checkStep3GhAPICalls(t *testing.T, step3 string) {
+	t.Helper()
+	rest := step3
+	for {
+		at := strings.Index(rest, "gh api ")
+		if at < 0 {
+			return
+		}
+		call := rest[at:]
+		if !slices.ContainsFunc(step3ReadCalls, func(c string) bool { return strings.HasPrefix(call, c) }) {
+			line, _, _ := strings.Cut(call, "\n")
+			t.Errorf("runpr.md step 3 runs %q, which is neither a listing nor a known read", line)
+		}
+		rest = call[len("gh api "):]
+	}
+}
+
+// checkListingConstructors checks every object a filter builds, whether or
+// not a fake item reaches it: each starts with a kind of listingKeys and holds
+// only keys that kind may hold, so a branch added to a filter later is checked
+// before any fixture takes it. A "{" followed by a digit is a regex
+// quantifier, not an object.
+func checkListingConstructors(t *testing.T, filter string) {
+	t.Helper()
+	for i := 0; i+1 < len(filter); i++ {
+		if filter[i] != '{' || '0' <= filter[i+1] && filter[i+1] <= '9' {
+			continue
+		}
+		body, ok := jqObjectBody(filter[i+1:])
+		if !ok {
+			t.Errorf("the filter has an unclosed object at %q", filter[i:])
+			return
+		}
+		entries := splitTopLevel(body)
+		kind, isKind := strings.CutPrefix(strings.TrimSpace(entries[0]), "kind: ")
+		allowed, known := listingKeys[strings.Trim(kind, `"`)]
+		if !isKind || !known {
+			t.Errorf("the filter builds {%s}, which does not start with a known kind", body)
+			continue
+		}
+		for _, entry := range entries {
+			key, _, _ := strings.Cut(entry, ":")
+			if !slices.Contains(allowed, strings.TrimSpace(key)) {
+				t.Errorf("the filter builds {%s}, whose entry %q its kind may not hold", body, strings.TrimSpace(entry))
+			}
+		}
+	}
+}
+
+// jqObjectBody returns the text of s up to the brace that closes the object
+// opened just before s, skipping nested brackets and string literals.
+func jqObjectBody(s string) (string, bool) {
+	depth := 0
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '"':
+			i = skipJQString(s, i)
+		case '(', '[', '{':
+			depth++
+		case ')', ']':
+			depth--
+		case '}':
+			if depth == 0 {
+				return s[:i], true
+			}
+			depth--
+		}
+	}
+	return "", false
+}
+
+// splitTopLevel splits an object body at its top-level commas.
+func splitTopLevel(body string) []string {
+	var out []string
+	depth, start := 0, 0
+	for i := 0; i < len(body); i++ {
+		switch body[i] {
+		case '"':
+			i = skipJQString(body, i)
+		case '(', '[', '{':
+			depth++
+		case ')', ']', '}':
+			depth--
+		case ',':
+			if depth == 0 {
+				out = append(out, body[start:i])
+				start = i + 1
+			}
+		}
+	}
+	return append(out, body[start:])
+}
+
+// skipJQString returns the index of the quote that closes the string literal
+// opening at s[open].
+func skipJQString(s string, open int) int {
+	i := open + 1
+	for i < len(s) && s[i] != '"' {
+		if s[i] == '\\' {
+			i++
+		}
+		i++
+	}
+	return i
 }
 
 // runJQ runs filter on input as gh --jq runs it on a page, and returns what

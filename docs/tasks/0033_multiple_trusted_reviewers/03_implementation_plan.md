@@ -438,22 +438,22 @@
 
 | AC | 検証 | 場所 |
 |---|---|---|
-| AC-01 | static + manual | `cmd/yt2column/fixpr_docs_test.go::TestContextAndCommandsAgree`（行の数、ちょうど 2 つの名前）、`::TestContextReviewerRowsMalformed`（写しの表。ステップ 2-1）。説明の文はPR のレビューで読み合わせる（タスク 0038 でその確認を削除した） |
+| AC-01 | static + manual | `cmd/yt2column/fixpr_docs_test.go::TestContextAndCommandsAgree`（行の数、ちょうど 2 つの名前）、`::TestContextReviewerRowsMalformed`（写しの表。ステップ 2-1）。説明の文は PR のレビューで読み合わせる（タスク 0038 でその確認を削除した） |
 | AC-02 | static | `cmd/yt2column/fixpr_docs_test.go::TestContextReviewerRowsMalformed`（空の行は名前の並びの形の種類の問題、文法違反と重複の行は `ParseReviewers` の種類の問題） |
-| AC-03 | static + manual | `cmd/yt2column/fixpr_docs_test.go::TestContextAndCommandsAgree`（値）、`::TestContextReviewerRowsMalformed`（完了を待つ PR レビュアーの行）。説明の文はPR のレビューで読み合わせる（タスク 0038 でその確認を削除した） |
+| AC-03 | static + manual | `cmd/yt2column/fixpr_docs_test.go::TestContextAndCommandsAgree`（値）、`::TestContextReviewerRowsMalformed`（完了を待つ PR レビュアーの行）。説明の文は PR のレビューで読み合わせる（タスク 0038 でその確認を削除した） |
 | AC-04 | test | `cmd/fixprguard/main_test.go::TestReviewerFlagRepeats`（違う名前の 2 回。ステップ 1-3）、`::TestReviewerOrderIrrelevant`（順序）、`::TestReviewerFlag` と `--reviewer` を 1 回だけ渡す既存のテスト、`internal/fixprguard` の 1 つの名前の `newTestGitHub` を使う既存のテスト |
 | AC-05 | test | `internal/fixprguard/trust_test.go::TestAssessAuthors`（1 つめ・2 つめ・混ざったスレッド・大文字と小文字）、`internal/fixprguard/github_test.go::TestThreadPathsRequiresTrustedOrNamed`、`internal/fixprguard/write_test.go::TestReplyTrustsEveryReviewer`、`cmd/fixprguard/main_test.go::TestSecondReviewerBeginReply` |
 | AC-06 | test | `internal/fixprguard/trust_test.go::TestAssessAuthors`（一致しない `Bot`、名前が一致する `User`、渡し忘れ）、`::TestAssessUnverifiableAuthor`（`bot_login_outside_grammar`）、`internal/fixprguard/write_test.go::TestReplyRefusesUntrustedThread` |
 | AC-07 | test | `internal/fixprguard/types_test.go::TestParseReviewers`、`cmd/fixprguard/main_test.go::TestAcceptThreadFlagParsing`（4 つのサブコマンドそれぞれの、`--reviewer` がない・重複・文法違反の行。標準エラーも確かめる）、`::TestReviewerFlag` |
 | AC-08 | test | `internal/fixprguard/github_test.go::TestBeginAuthorType` |
 | AC-09 | test | `cmd/fixprguard/main_test.go::TestReviewerFlag` |
-| AC-10 | static + manual | `cmd/fixprguard/docs_test.go::TestDocumentedInvocationsParse`（ちょうど 1 つの `<reviewer>`）、`::TestCheckDocumentedReviewer`（合成した呼び出しの表。ステップ 1-4）。`<reviewer>` の定義の文はPR のレビューで読み合わせる（タスク 0038 で `TestContextAndCommandsAgree` のその確認を削除した） |
-| AC-11 | static + manual | `cmd/yt2column/fixpr_docs_test.go::TestContextAndCommandsAgree`（名前が依頼のコメントの外に現れない）、`::TestRunprDocContract/listings_print_no_body`（step 3 の一覧の `<awaited-reviewer>[bot]` の絞り込み）。`<awaited-reviewer>` の定義の文はPR のレビューで読み合わせる（タスク 0038 で `TestContextAndCommandsAgree` のその確認と、`TestRemovedCommandLiterals` の `<reviewer>[bot]`・`"Automated reviewer"` の確認を削除した） |
+| AC-10 | static + manual | `cmd/fixprguard/docs_test.go::TestDocumentedInvocationsParse`（ちょうど 1 つの `<reviewer>`）、`::TestCheckDocumentedReviewer`（合成した呼び出しの表。ステップ 1-4）。`<reviewer>` の定義の文は PR のレビューで読み合わせる（タスク 0038 で `TestContextAndCommandsAgree` のその確認を削除した） |
+| AC-11 | static + manual | `cmd/yt2column/fixpr_docs_test.go::TestContextAndCommandsAgree`（名前が依頼のコメントの外に現れない）、`::TestRunprDocContract/listings_print_no_body`（step 3 の一覧の `<awaited-reviewer>[bot]` の絞り込み）。`<awaited-reviewer>` の定義の文は PR のレビューで読み合わせる（タスク 0038 で `TestContextAndCommandsAgree` のその確認と、`TestRemovedCommandLiterals` の `<reviewer>[bot]`・`"Automated reviewer"` の確認を削除した） |
 | AC-12 | static + manual | `cmd/yt2column/docs_test.go::TestPackageReferenceFixprguard`（`package_reference.md`）。`fixpr.md` とガイドの記述は、タスク 0038 で語句の確認を削除したので、PR のレビューで読み合わせる |
 | AC-13 | manual | 用語集の行を、PR のレビューで読み合わせる（タスク 0038 で `TestGlossaryTerms` を削除した） |
 | AC-14 | static + manual | `make test`・`make lint`、文書のガード（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`）。PR-1 と PR-2 の CI の `doc-guard` のジョブの結果、4.3 の観察 |
 
-AC-01〜AC-03・AC-10〜AC-13 は、`_context.md`・コマンドの文書・ガイド・用語集が何を述べるかを定めるので、`static` で確かめる。AC-12 のガイドの記述は、タスク 0038 が語句の確認を削除したので、PR のレビューでも読み合わせる（`manual`）。
+AC-01〜AC-03・AC-10〜AC-12 は、`_context.md`・コマンドの文書・ガイドが何を述べるかを定めるので、`static` で確かめる。AC-13 は、タスク 0038 で `TestGlossaryTerms` を削除したので、用語集の行を PR のレビューで読み合わせる（`manual`）。AC-12 のガイドの記述は、タスク 0038 が語句の確認を削除したので、PR のレビューでも読み合わせる（`manual`）。
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 

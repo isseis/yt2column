@@ -113,10 +113,6 @@ mentionCheck	const	cmd/yt2column/codex_review_docs_test.go	no	3	delete
 requestExemption	const	cmd/yt2column/codex_review_docs_test.go	yes	3	delete
 removedPRReviewPhrases	var	cmd/yt2column/codex_review_docs_test.go	yes	3	delete
 observationDate	var	cmd/yt2column/codex_review_docs_test.go	yes	3	delete
-observationBasis	var	cmd/yt2column/codex_review_docs_test.go	no	3	delete
-prNumber	var	cmd/yt2column/codex_review_docs_test.go	no	3	delete
-hexRun	var	cmd/yt2column/codex_review_docs_test.go	no	3	delete
-observationResults	var	cmd/yt2column/codex_review_docs_test.go	no	3	delete
 fixprGuardTool	const	cmd/yt2column/fixpr_docs_test.go	no	3	delete
 fixprUntrusted	const	cmd/yt2column/fixpr_docs_test.go	no	3	delete
 fixprShared	const	cmd/yt2column/fixpr_docs_test.go	no	3	delete
