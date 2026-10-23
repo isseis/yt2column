@@ -1023,14 +1023,24 @@ func assertCopiedRejected(t *testing.T, input string, reason error) string {
 
 // The server caps the request body at 4 MiB; the parser must finish such an
 // input within a small part of the server's request window and without
-// allocating super-linearly. The deadline is generous because make test builds
-// with the race detector (measured at most about 2.9s for the 4 MiB inputs under -race)
-// and CI may run on a slower, contended runner; the parse budget on the server
-// is under 30s. copiedParseAllocPerByte is defined per build: the race
-// detector's runtime inflates TotalAlloc, so the race build uses a loose bound.
+// allocating super-linearly. The parse budget on the server is under 30s.
+//
+// The parse time is compared with copiedParseDeadline only in the build without
+// the race detector (copiedParseChecksDeadline), which parses as the server
+// does; `make test-parse-norace` runs that check alone, so no other package's
+// tests or coverage instrumentation run alongside it. The deadline is ten times
+// the slowest of the CI runner measurements of that run, rounded up to half a
+// second; the measurements and the calculation are recorded in section 8 of
+// docs/tasks/0039_large_input_test_timeout/04_investigation.md. One deadline
+// covers all seven inputs, so it catches only an order-of-magnitude slowdown,
+// such as a parse that turns quadratic in the input length: the slowest input
+// may slow down about tenfold, and the faster ones far more, before it fails.
+//
+// copiedParseAllocPerByte is defined per build: the race detector's runtime
+// inflates TotalAlloc, so the race build uses a loose bound.
 const (
 	copiedLargeInputLimit = 4 << 20
-	copiedParseDeadline   = 15 * time.Second
+	copiedParseDeadline   = 3 * time.Second
 )
 
 // TestParseCopiedLargeInputs parses seven synthetic inputs of at most 4 MiB,
@@ -1043,9 +1053,10 @@ const (
 // the first heading is a prefix line); and one-byte headings after a form B
 // text (the form B heading skip at timestamp-expected positions). Form A and
 // form B headings cannot share an input, so each has its own. Each must parse
-// within the deadline and allocate at most copiedParseAllocPerByte bytes per
-// input byte. The test does not run in parallel, so TotalAlloc around the parse
-// measures only this parse.
+// and allocate at most copiedParseAllocPerByte bytes per input byte; only the
+// build without the race detector also requires it to parse within
+// copiedParseDeadline. The test does not run in parallel, so TotalAlloc around
+// the parse measures only this parse.
 func TestParseCopiedLargeInputs(t *testing.T) {
 	inputs := []struct {
 		name         string
@@ -1071,22 +1082,24 @@ func TestParseCopiedLargeInputs(t *testing.T) {
 			segments, err := parseCopiedTranscript(tc.input)
 			elapsed := time.Since(start)
 			runtime.ReadMemStats(&after)
+			// Logged before any check, so a failing input still reports its
+			// time and allocation.
+			allocated := after.TotalAlloc - before.TotalAlloc
+			t.Logf("%d bytes, %d segments, %s, %d allocated (%.2f per byte)",
+				len(tc.input), len(segments), elapsed, allocated, float64(allocated)/float64(len(tc.input)))
 			if err != nil {
 				t.Fatalf("parse error = %v", err)
 			}
 			if len(segments) != tc.wantSegments {
 				t.Errorf("parsed into %d segments, want %d", len(segments), tc.wantSegments)
 			}
-			if elapsed > copiedParseDeadline {
+			if copiedParseChecksDeadline && elapsed > copiedParseDeadline {
 				t.Errorf("parsed %d bytes in %s, want under %s", len(tc.input), elapsed, copiedParseDeadline)
 			}
-			allocated := after.TotalAlloc - before.TotalAlloc
 			if allocated > copiedParseAllocPerByte*uint64(len(tc.input)) {
 				t.Errorf("parse allocated %d bytes for %d input bytes, want at most %d per byte",
 					allocated, len(tc.input), copiedParseAllocPerByte)
 			}
-			t.Logf("%d bytes, %d segments, %s, %d allocated (%.2f per byte)",
-				len(tc.input), len(segments), elapsed, allocated, float64(allocated)/float64(len(tc.input)))
 		})
 	}
 }

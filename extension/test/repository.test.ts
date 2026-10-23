@@ -228,7 +228,7 @@ describe("secret scan always runs", () => {
 
 describe("go targets do not need node", () => {
   it("make -n build test lint deadcode succeeds without node or npm on PATH", () => {
-    const bin = mkdtempSync(path.join(tmpdir(), "no-node-bin-"));
+    const bin = mkdtempSync(path.join(tmpdir(), "go-only-bin-"));
     try {
       for (const tool of ["make", "sh"]) {
         const found = run("sh", ["-c", `command -v ${tool}`]).stdout.trim();

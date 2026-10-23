@@ -8,7 +8,7 @@
 | Created | 2026-10-23 |
 | Review date | 2026-10-23 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-23 (editorial): §1.4 の「拡張のテスト」の行を「変えない」から、一時ディレクトリの接頭辞を改めることに直した。PR-3 の CI で、`make -n` が出力する `$(MAKE)` の行の一時ディレクトリのパスが、テストの `node` の確認に一致したためである。テストが確かめる性質（レシピが `node`・`npm`・`npx` を呼ばないこと）は変えていない |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「要件書」）の項番を指す。節番号は [02_architecture.md](02_architecture.md)（以下「設計書」）の節を指し、本計画自身の節は「本計画 §N」と書く。用語は設計書の冒頭と要件書 6 章の用語（大きな入力のテスト、時間の確認、時間以外の確認、`-race` なしの確認のターゲット、レシピのガード、計測のワークフロー、調査の記録など）を同じ意味で使う。既存のファイルの行番号は、断りがない限りコミット `d6ea458`（`main`）で確かめた。
 
@@ -54,7 +54,7 @@
 | `make` のターゲットを確かめる補助 | `internal/maketestutil.RunTarget`（`internal/maketestutil/make.go:105`）。`//go:build test` のパッケージ。`MakeInvocation.Args` に最後の呼び出しの引数を返す。パッケージのコメント（`make.go:3-8`）は、対象を課金のある結合テストのターゲットとしている。`test-ci` は `$(GOCMD) tool cover` を直接呼ぶ（`Makefile:89`）ので、`RunTarget` では実行できない | 関数はそのまま使い、新しい補助は作らない。パッケージのコメントを、課金のないターゲットにも使うことがわかる形に改める（ステップ 5-5）。`test-ci` の `-count=1` はガードで確かめず、AC-16 の `(cached)` の確認で確かめる |
 | `ci.yml` を読むテストの先例 | `TestLintTagsIncludeIntegration`（`internal/transcript/ytdlp_test.go:1746`）。リポジトリのルートを `filepath.Join("..", "..")` で求め、行で読む | 同じ方法でレシピのガードの CI の確認を書く |
 | `make` の結合テストの先例 | `cmd/yt2column/makefile_test.go` は結合テストのターゲットと `make build` を確かめ（`:41`・`:55`・`:68`・`:331`）、`test`・`test-ci` は確かめない | 変えない |
-| 拡張のテスト | `extension/test/repository.test.ts:230-260` が `node`・`npm` のない `PATH` で `make -n build test lint deadcode` を実行する。`make -n` は `$(MAKE)` の行を実行して下位の `make` にも `-n` を渡す（本計画の作成時に確かめた） | 変えない。`Makefile` を変えるので `make ext-test` で確かめる（設計書 3.2） |
+| 拡張のテスト | `extension/test/repository.test.ts:230-260` が `node`・`npm` のない `PATH` で `make -n build test lint deadcode` を実行する。`make -n` は `$(MAKE)` の行を実行して下位の `make` にも `-n` を渡す（本計画の作成時に確かめた） | 一時ディレクトリの名前の接頭辞だけを `no-node-bin-` から `go-only-bin-` に改める。`make -n` は `$(MAKE)` の行を出力し、CI の GNU Make 4.x はその行に一時ディレクトリの中の `make` のパスを書く。そのため、接頭辞の `node` がテストの `\b(node\|npm\|npx)\b` に一致する（手元の GNU Make 3.81 は実体のパスを書くので一致しない）。`Makefile` を変えるので `make ext-test` で確かめる（設計書 3.2） |
 | 拡張の CI ジョブの起動 | `extension/scripts/has-extension-changes.sh` は `Makefile` と `.github/workflows/*` の変更で拡張のジョブを起動する | 変えない。PR-3 では拡張のジョブも走る |
 | `CLAUDE.md` | 「Test Commands」（`CLAUDE.md:69-72`）。`make test` は「Run all tests with race detection」 | `make test-parse-norace` の行を加え、`make test` の説明を改める（設計書 2.2） |
 | 0015 の文書 | 設計書の `Comments`（`docs/tasks/0015_copied_transcript_source/02_architecture.md:11`）、実装計画の `Comments`（同 `03_implementation_plan.md:11`、今は `-`） | それぞれに `(decision)` の注記を加える（設計書 3.9） |
@@ -163,30 +163,30 @@
 
 **変更するファイル:** `internal/transcript/copied_format_test.go`、`internal/transcript/copied_format_race_test.go`、`internal/transcript/copied_format_norace_test.go`、`internal/transcript/makefile_test.go`（新規）、`internal/maketestutil/make.go`、`Makefile`、`.github/workflows/ci.yml`、`CLAUDE.md`、`docs/tasks/0015_copied_transcript_source/02_architecture.md`、`docs/tasks/0015_copied_transcript_source/03_implementation_plan.md`
 
--   [ ] **ステップ 5-1**: `copied_format_race_test.go` に `copiedParseChecksDeadline = false`、`copied_format_norace_test.go` に `copiedParseChecksDeadline = true` を、`copiedParseAllocPerByte` と同じ `const` の組に加える（設計書 3.1）。それぞれのファイルのコメントに、時間の確認をそのビルドで行うか行わないかと、その理由（本番は `-race` なしでビルドされる）を英語で加える。race のファイルの `:12-15` の段落（norace の上限は lint だけが確かめるという記述）を、norace のファイルも `make test` と CI の `test-parse-norace` でビルドされ実行されることに合わせて改める。
--   [ ] **ステップ 5-2**: `TestParseCopiedLargeInputs`（`copied_format_test.go`）を次のように改める（設計書 2.3・3.1・3.5）。
+-   [x] **ステップ 5-1**: `copied_format_race_test.go` に `copiedParseChecksDeadline = false`、`copied_format_norace_test.go` に `copiedParseChecksDeadline = true` を、`copiedParseAllocPerByte` と同じ `const` の組に加える（設計書 3.1）。それぞれのファイルのコメントに、時間の確認をそのビルドで行うか行わないかと、その理由（本番は `-race` なしでビルドされる）を英語で加える。race のファイルの `:12-15` の段落（norace の上限は lint だけが確かめるという記述）を、norace のファイルも `make test` と CI の `test-parse-norace` でビルドされ実行されることに合わせて改める。
+-   [x] **ステップ 5-2**: `TestParseCopiedLargeInputs`（`copied_format_test.go`）を次のように改める（設計書 2.3・3.1・3.5）。
     -   `t.Logf` を、解析の直後、どの確認よりも前に移す。
     -   時間の確認を、`copiedParseChecksDeadline` が真のときだけ行う。失敗の形（`parsed %d bytes in %s, want under %s`）は変えない。
     -   `copiedParseDeadline` を、ステップ 3-3（改善した場合はステップ 4-4）で求めた値にする。
     -   上限の根拠のコメント（`:1024-1030`）を、時間は `-race` なしのビルドで確かめること、上限の決め方と調査の記録の節への参照、上限が検出するもの（設計書 3.5「この上限が検出するもの」）に書き換える。関数の説明（`:1045-1048`）の「each must parse within the deadline」を、時間の確認は `-race` なしのビルドだけで行うことがわかる文に改める。コメントは英語で書く。
--   [ ] **ステップ 5-3**: `Makefile` を次のように改める（設計書 3.2・3.4）。
+-   [x] **ステップ 5-3**: `Makefile` を次のように改める（設計書 3.2・3.4）。
     -   ターゲット `test-parse-norace` を加える。レシピは `$(GOTEST)` の 1 回の実行で、引数は `-tags test -count=1 -v -timeout 5m -run '^TestParseCopiedLargeInputs$$' ./internal/transcript`（`-race` も `-coverprofile` も付けない）。ターゲットの前に、何を確かめるかと、`make test` がレシピから呼ぶ理由（前提条件にすると `make -j` で並行に走る）を英語のコメントで書く。
     -   `test` のレシピの、今の `-race` 付きの行の後に、`ext-check`（`Makefile:302-307`）と同じ形の `@$(MAKE) --no-print-directory test-parse-norace` を加える。前提条件にはしない。
     -   `test-ci` の `go test` に `-count=1` を加える。
     -   `.PHONY`（`:53`）に `test-parse-norace` を加える。
--   [ ] **ステップ 5-4**: `.github/workflows/ci.yml` の `Test` ジョブの「Run tests (race, coverage)」と「Build」の間に、`make test-parse-norace` を実行する手順を加える。手順の名前は、`-race` なしの時間の確認であることがわかるものにする（設計書 4 章の最後から 2 行めの表の行）。`if:`・`continue-on-error:` は付けない（設計書 3.4）。
--   [ ] **ステップ 5-5**: レシピのガードを `internal/transcript/makefile_test.go`（`//go:build test`）に書く（設計書 3.3）。確かめることは次の 3 つで、テスト関数は 3 つに分ける。あわせて、`internal/maketestutil` のパッケージのコメント（`make.go:3-8`）を、課金のないターゲットにも使うことがわかる形に改める。
+-   [x] **ステップ 5-4**: `.github/workflows/ci.yml` の `Test` ジョブの「Run tests (race, coverage)」と「Build」の間に、`make test-parse-norace` を実行する手順を加える。手順の名前は、`-race` なしの時間の確認であることがわかるものにする（設計書 4 章の最後から 2 行めの表の行）。`if:`・`continue-on-error:` は付けない（設計書 3.4）。
+-   [x] **ステップ 5-5**: レシピのガードを `internal/transcript/makefile_test.go`（`//go:build test`）に書く（設計書 3.3）。確かめることは次の 3 つで、テスト関数は 3 つに分ける。あわせて、`internal/maketestutil` のパッケージのコメント（`make.go:3-8`）を、課金のないターゲットにも使うことがわかる形に改める。
     -   `test-parse-norace` のレシピ: `RunTarget` で実行し、記録した引数の並び全体が、`-tags test -count=1 -v -timeout <値> -run <値> ./internal/transcript` に等しいこと（`internal/publisher/makefile_test.go` と同じく、値の位置を置き換えてから並び全体を比べる。`-timeout` がなければ失敗する）。`-run` の値が `^` + テスト関数の名前 + `$` に等しいこと（名前は `TestParseCopiedLargeInputs` の関数の値から求め、文字列で書かない）。`-timeout` の値が 7 × `copiedParseDeadline` より長く、10 分より短いこと。`copiedParseDeadline` が 0015 の予算の 30 秒より短いこと（AC-07）。
     -   `make test`: `RunTarget` で実行し、記録した最後の呼び出しの引数が、`test-parse-norace` を実行したときの引数に等しいこと（本計画 §1.3）。
     -   CI: `ci.yml` を読み、次を確かめる。`test` ジョブ（空白 2 つで字下げした `test:` の行から、次の同じ深さのキーの直前まで）の中に、`run:` の値がちょうど `make test-parse-norace` である手順があり、その手順が、`run:` の値が `make test-ci` である手順より後にあること。その手順は、`run:` の前後のどこにも、手順の深さの `if:`・`continue-on-error:` を持たない。`test` ジョブはジョブの深さの `continue-on-error:` を持たない（ジョブの深さの `if:`（`ci.yml:59`）は今のまま持つ）。行の読み方は `TestLintTagsIncludeIntegration` に揃える。
--   [ ] **ステップ 5-6**: 次のそれぞれで、対象を一時的に壊してテストが失敗することを確かめ、元に戻し、確かめたことをコミットのメッセージに書く（設計書 7.1）。
+-   [x] **ステップ 5-6**: 次のそれぞれで、対象を一時的に壊してテストが失敗することを確かめ、元に戻し、確かめたことをコミットのメッセージに書く（設計書 7.1）。
     -   `copiedParseDeadline` を解析の時間より小さくすると、`make test-parse-norace` が時間の確認で失敗し、`-race` 付きの `go test -tags test -race -count=1 -run '^TestParseCopiedLargeInputs$' ./internal/transcript` は失敗しない（AC-07・AC-10）。
     -   `copied_format_norace_test.go` の `copiedParseAllocPerByte` を実測より小さくすると、`make test-parse-norace` がメモリの確保量の確認で失敗する（AC-12）。
     -   `copied_format_race_test.go` の `copiedParseAllocPerByte` を実測より小さくすると、`-race` 付きの上の `go test` がメモリの確保量の確認で失敗する（AC-11。ステップ 5-2 の書き換えの後も race のビルドで時間以外の確認が働くこと）。
     -   レシピから `-count=1` を外す、レシピに `-race` または `-cover` を加える、`-run` の名前を変える、`-timeout` を外すか 10 分以上にする、`copiedParseDeadline` を 30 秒にする、`make test` から `test-parse-norace` の呼び出しを消す、`ci.yml` から手順を消す、手順を `lint` ジョブに移す、手順の `run:` の前に `if:` を加える、手順に `continue-on-error: true` を付ける、`test` ジョブに `continue-on-error: true` を付ける、のそれぞれで、ステップ 5-5 の対応するテストが失敗することを確かめる。
--   [ ] **ステップ 5-7**: `CLAUDE.md` の「Test Commands」に `make test-parse-norace` の行（`TestParseCopiedLargeInputs` を `-race` なし・単独で実行し、時間の上限を確かめる）を加え、`make test` の行を、`-race` 付きの全テストの後に `test-parse-norace` も実行することがわかる説明に改める（設計書 2.2）。
--   [ ] **ステップ 5-8**: 0015 の設計書と実装計画の `Comments` に、`2026-MM-DD (decision):` で始まる注記を加える（設計書 3.9）。注記は、本タスクで時間の確認を `-race` なしのビルドに移したこと、この決定は人間のレビュアー（isseis）が本タスクの要件書の承認（2026-10-23）で承認したこと、本タスクの要件書・設計書への参照、`Status` を `approved` のまま変えないことを含める。日付は実装の日にする。設計書の `Comments` は今の記述の後に続け、実装計画の `Comments` は `-` を置き換える。0015 の本文と 0024 の文書は変えない。
--   [ ] **ステップ 5-9**: `make fmt`・`make test`・`make lint`・`make ext-test` を通す。`make lint` が `copiedParseChecksDeadline` の常に真の条件を指摘しないことを確かめる（設計書 3.1）。指摘した場合は、その行だけに `//nolint:<linter>` と理由のコメントを付け、そのことをコミットのメッセージに書く。`make test` の出力で、`-race` 付きの実行の後に `-race` なしの `TestParseCopiedLargeInputs` が実行され、7 つの入力のログが出ることを確かめる。
+-   [x] **ステップ 5-7**: `CLAUDE.md` の「Test Commands」に `make test-parse-norace` の行（`TestParseCopiedLargeInputs` を `-race` なし・単独で実行し、時間の上限を確かめる）を加え、`make test` の行を、`-race` 付きの全テストの後に `test-parse-norace` も実行することがわかる説明に改める（設計書 2.2）。
+-   [x] **ステップ 5-8**: 0015 の設計書と実装計画の `Comments` に、`2026-MM-DD (decision):` で始まる注記を加える（設計書 3.9）。注記は、本タスクで時間の確認を `-race` なしのビルドに移したこと、この決定は人間のレビュアー（isseis）が本タスクの要件書の承認（2026-10-23）で承認したこと、本タスクの要件書・設計書への参照、`Status` を `approved` のまま変えないことを含める。日付は実装の日にする。設計書の `Comments` は今の記述の後に続け、実装計画の `Comments` は `-` を置き換える。0015 の本文と 0024 の文書は変えない。
+-   [x] **ステップ 5-9**: `make fmt`・`make test`・`make lint`・`make ext-test` を通す。`make lint` が `copiedParseChecksDeadline` の常に真の条件を指摘しないことを確かめる（設計書 3.1）。指摘した場合は、その行だけに `//nolint:<linter>` と理由のコメントを付け、そのことをコミットのメッセージに書く。`make test` の出力で、`-race` 付きの実行の後に `-race` なしの `TestParseCopiedLargeInputs` が実行され、7 つの入力のログが出ることを確かめる。
 
 **完了の条件:** `make test && make lint` と `make ext-test` が通る。ステップ 5-6 の確かめがコミットのメッセージにある。
 
@@ -202,10 +202,10 @@
 
 **判定理由**: ステップ 5-3〜5-5 が CI のワークフローと `Makefile` のレシピを変え、それを確かめるガードを新たに書く（mkplan の step 8 のパネルの契機の CI の面）。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/475
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 6: PR-3 のマージの前の CI での確認（AC-09・AC-16）
 
@@ -337,8 +337,8 @@ PR-1・PR-4 は文書だけの PR なので、CI の `Test` ジョブは走ら�
 ## 7. 実装チェックリスト (Implementation Checklist)
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 2-1 / 2-2 / 2-3 / 2-4 / 3-1 / 3-2 / 3-3）
-- [ ] PR-2 マージ済み、または改善しないと判断して作らなかった（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4）
-- [ ] PR-3 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6 / 5-7 / 5-8 / 5-9）
+- [x] PR-2 マージ済み、または改善しないと判断して作らなかった（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4。ステップ 3-2 で改善しないと判断した）
+- [x] PR-3 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6 / 5-7 / 5-8 / 5-9）
 - [ ] PR-4 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3 / 6-4 / 6-5 / 7-1）
 - [x] 計測のワークフローの一時的なブランチが `origin` にもローカルにもない（ステップ 2-4）
 

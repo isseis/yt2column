@@ -67,7 +67,8 @@ structural consistency) and the glossary workflow live in
 - `make install-fixprguard` - Install the `fixprguard` guard tool (`go install ./cmd/fixprguard`); rerun it after a merge that changes the tool
 
 ### Test Commands
-- `make test` - Run all tests with race detection
+- `make test` - Run all tests with race detection, then `make test-parse-norace`
+- `make test-parse-norace` - Run `TestParseCopiedLargeInputs` alone without race detection; the parse-time deadline is checked only in builds without race detection, so this target and the plain `go test` commands below check it and `make test`'s race run does not
 - `go test -tags test -v ./...` - Run all tests directly
 - `go test -tags test -v ./internal/specific/package` - Run tests for specific package
 
