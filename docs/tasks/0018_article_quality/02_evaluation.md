@@ -622,6 +622,10 @@ LLM の API を呼ぶ実行（本番の CLI と試作の両方）は、実行の
 -   **本文の字数（スクリプト）:** roNZ-rLxhUE は 3,819 / 3,004、18tbwwPM91A は 2,660 / 2,806、zW1RBacSqjk は 2,590 / 2,590、leE02uqgaKg は 2,608 / 3,515、EqnGQDU71-Y は 2,591 / 2,542 で、10 件とも 2,500〜4,000 字に入った（B1 では 3 件が 2,500 字に届かなかった）。
 -   **検証・推敲が直した件数（CLI の要約）:** roNZ-rLxhUE-1 は 7 件（meaning_change 4、misrecognition 2、unintelligible 1）、roNZ-rLxhUE-2 は 7 件（meaning_change 4、misrecognition 3）、18tbwwPM91A-1 は 10 件（unsupported 1、meaning_change 4、speaker 5）、18tbwwPM91A-2 は 7 件（unsupported 1、meaning_change 2、speaker 4）、zW1RBacSqjk-1 は 1 件（meaning_change 1）、zW1RBacSqjk-2 は 3 件（unsupported 2、meaning_change 1）、leE02uqgaKg-1 は 1 件（meaning_change 1）、leE02uqgaKg-2 は 1 件（meaning_change 1）、EqnGQDU71-Y-1 は 2 件（misrecognition 2）、EqnGQDU71-Y-2 は 4 件（unsupported 1、meaning_change 1、speaker 2）。
 
+##### 人の判断（2026-10-23）
+
+-   **EqnGQDU71-Y-1 の冗長さ（人が 1 と判断、2026-10-23）:** 第 2 節「…町の誇りとして愛されてきた。動画は、発見から年月がたち、むかわ竜が町の誇りとして愛され続けていると伝える。」と、第 3 節「…別の業者らが実施設計を作っている。当初案に対して町民の納得が得られず、現在は別の業者による実施設計が進む。」は、直前の文を新しい情報なしに言い直す。人は、R-10 と同じく同じ節の中の言い直しを数え、2 つ以上に当たるので 1 とした。B1 の EqnGQDU71-Y-2 で 2 とした節の結びのまとめの言い換えとは違い、直前の文の単純な繰り返しである。記事は不合格（AC-11 の長さも不合格）。由来は生成。
+
 ### 4.8. 構成の比較（ステップ 8）
 
 （AC-19・AC-31）
