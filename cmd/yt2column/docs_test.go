@@ -399,12 +399,10 @@ func checkExampleLines(t *testing.T, section, prefix string, allowed map[string]
 	}
 }
 
-// TestTokenUsageDocsContract checks the token-usage documents: the README
-// section describes the line's words and every reason llm.Usage can produce,
-// project_overview.md and security.md describe the usage handling, and
-// package_reference.md lists the new types.
+// TestTokenUsageDocsContract checks that the README's Token usage section
+// contains the line's words and every reason llm.Usage can produce.
 //
-// The behavior these documents describe is pinned by running tests, not by this
+// The behavior these words describe is pinned by running tests, not by this
 // test: the line format by cmd/yt2column's TestRunTokenLinesGoldenFormat, and
 // the usage validation by the adapters' TestGenerateUsageUnknown and
 // internal/artifact's TestParseRecordRejectsUsage.
@@ -458,17 +456,14 @@ func TestTokenUsageDocsContract(t *testing.T) {
 	checkExampleLines(t, section, tokensPrefix, allowed, "README Token usage section")
 }
 
-// TestCostDocsContract checks the cost documents: the README's Estimated cost
-// section uses every word run.go's cost format defines, its example lines use
-// only those words and the stage names in the fixed positions, and it names the
-// heading word of the Slack footnote's cost; the rate-update procedure
-// names the rate table and the hand-calculated tests, is linked from CLAUDE.md,
-// and is pointed at from the rate table's leading comment; project_overview.md
-// and security.md describe the cost line and the artifact call_time.
+// TestCostDocsContract checks that the README's Estimated cost section uses
+// every word run.go's cost format defines, that its example lines use only
+// those words and the stage names in the fixed positions, that
+// project_overview.md contains the cost prefix, and that the rate table's
+// leading comment points at the update procedure.
 //
-// The behavior these documents describe is pinned by running tests, not by this
-// test: the line format by cmd/yt2column's TestRunCostLinesGoldenFormat, and the
-// call_time validation by internal/artifact's TestParseRecordRejectsCallTime.
+// The behavior these words describe is pinned by running tests, not by this
+// test: the line format by cmd/yt2column's TestRunCostLinesGoldenFormat.
 func TestCostDocsContract(t *testing.T) {
 	readme := readDoc(t, readmePath)
 	section := sectionByHeading(readme, "## Estimated cost")

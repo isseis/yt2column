@@ -1224,8 +1224,10 @@ func TestRunExecutionPaths(t *testing.T) {
 }
 
 // TestRunHelp checks the usage in detail: every flag of the CLI is listed,
-// --slack names Mattermost as a target, the usage goes to standard output
-// only, and it needs no configuration.
+// --slack names Mattermost as a target, the --after description states that
+// it requires --artifacts and that --after review does not accept
+// --review-log, the usage goes to standard output only, and it needs no
+// configuration.
 func TestRunHelp(t *testing.T) {
 	for _, arg := range []string{"-h", "--help"} {
 		t.Run(arg, func(t *testing.T) {
