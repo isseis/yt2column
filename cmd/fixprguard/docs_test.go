@@ -478,9 +478,9 @@ func TestGuideNamesGitStateParts(t *testing.T) {
 }
 
 // TestGuideDescribesIgnoredFiles: in 8.2 both guides list every rule
-// IgnoredFailureRules names, which the git-failed row points to. fixpr.md
-// recognizes an ignored-file rule by "contains ignored, or is .git name below
-// .claude", so every rule must fit that.
+// IgnoredFailureRules names. fixpr.md recognizes an ignored-file rule by
+// "contains ignored, or is .git name below .claude", so every rule must fit
+// that.
 func TestGuideDescribesIgnoredFiles(t *testing.T) {
 	const claudeGitRule = ".git name below .claude"
 	for _, rule := range fixprguard.IgnoredFailureRules() {
@@ -519,12 +519,14 @@ func guideBlock(t *testing.T, rel, heading string) string {
 	return block + "\n"
 }
 
-// TestGuideIgnoredCommands runs the record check of 8.1 as the user would,
-// on records begin and inspect wrote: with the token begin printed it reports
-// a match and diff names the path that changed; with the begin record
-// rewritten it reports no match and runs no diff. The block prefers
-// sha256sum and falls back to shasum, so it is run once with each alone on
-// PATH; each installed tool runs, and at least one must be installed.
+// TestGuideIgnoredCommands runs the Japanese guide's record check of 8.1 as
+// the user would, on records begin and inspect wrote: with the token begin
+// printed it reports a match and diff names the path that changed; with the
+// begin record rewritten it reports no match and runs no diff. The English
+// guide's block is neither compared with it nor run. The block prefers
+// sha256sum and falls
+// back to shasum, so it is run once with each alone on PATH; each installed
+// tool runs, and at least one must be installed.
 func TestGuideIgnoredCommands(t *testing.T) {
 	block := guideBlock(t, guideFiles[0], "### 8.1")
 	// pathWith is a PATH directory holding the block's tools and one of
