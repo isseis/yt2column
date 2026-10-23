@@ -58,7 +58,7 @@ trap 'exit 2' HUP INT TERM
 # status is 0 when it exists, 1 when it does not, and 2 when git fails.
 show_file() {
 	if [ -n "${CHECK_REV:-}" ]; then
-		git cat-file -e "${CHECK_REV}:$1" 2>/dev/null
+		git rev-parse --verify --quiet "${CHECK_REV}:$1" >/dev/null
 		case $? in
 		0) git show "${CHECK_REV}:$1" 2>/dev/null || return 2 ;;
 		1) return 1 ;;
