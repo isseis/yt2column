@@ -219,7 +219,9 @@ and the thing it builds is rarely load-bearing)
 - [ ] `03_implementation_plan.md`'s Acceptance Criteria Verification section
       still names real test locations (`path::TestName`) or real static
       commands for every AC this range claims to close — not a placeholder
-      or a description of a test that does not exist under that name.
+      or a description of a test that does not exist under that name. An AC
+      that specifies the natural-language content of a document may name a
+      `manual` reading in the PR review instead.
 
 **Approval-gate integrity**
 - [ ] No implementation commit in this range is dated/ordered before its
