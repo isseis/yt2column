@@ -42,7 +42,8 @@ func TestMakeTestParseNorace(t *testing.T) {
 	const (
 		timeoutPlaceholder = "<timeout>"
 		runPlaceholder     = "<run>"
-		// largeInputs is how many inputs TestParseCopiedLargeInputs parses.
+		// largeInputs is how many inputs TestParseCopiedLargeInputs parses;
+		// keep it in step with that test's table.
 		largeInputs    = 7
 		defaultTimeout = 10 * time.Minute
 		parseBudget    = 30 * time.Second
