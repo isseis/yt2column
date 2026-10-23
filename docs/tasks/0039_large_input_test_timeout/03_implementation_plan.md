@@ -227,7 +227,7 @@
 
 **変更するファイル:** `docs/tasks/0039_large_input_test_timeout/03_implementation_plan.md`
 
--   [ ] **ステップ 7-1**: 本計画 §8 の「AC-16 の記録」の表に、ステップ 6-4 の 3 回の試行の URL と試行の番号、ヘッドのコミット、`(cached)` がなかったことを書く。ステップ 6-2 の失敗の実行の URL も、AC-09 の確かめとして同じ節に書く。数え直しがあった場合は、その実行と分類も書く。フェーズ 6 の各ステップのチェックボックスを、PR-3 のコメントに控えた結果に従って `[x]` にする（PR-3 のブランチで印をつけるとヘッドが変わるので、ここでつける）。
+-   [x] **ステップ 7-1**: 本計画 §8 の「AC-16 の記録」の表に、ステップ 6-4 の 3 回の試行の URL と試行の番号、ヘッドのコミット、`(cached)` がなかったことを書く。ステップ 6-2 の失敗の実行の URL も、AC-09 の確かめとして同じ節に書く。数え直しがあった場合は、その実行と分類も書く。フェーズ 6 の各ステップのチェックボックスを、PR-3 のコメントに控えた結果に従って `[x]` にする（PR-3 のブランチで印をつけるとヘッドが変わるので、ここでつける）。
 
 **完了の条件:** 本計画 §8 に、AC-16 の 3 回の URL と AC-09 の確かめの URL がある。
 
@@ -352,15 +352,15 @@ PR-1・PR-4 は文書だけの PR なので、CI の `Test` ジョブは走ら�
 
 ### AC-16 の記録
 
-PR-3 のコメントに控えたフェーズ 6 の記録による。3 回の実行はどれも同じヘッドで続けて成功し、数え直しはなかった。
+PR-3 のコメントに控えたフェーズ 6 の記録による。3 回とも同じ実行 39955835942 の試行で、どれも同じヘッドで続けて成功し、数え直しはなかった。
 
 | 実行 | 試行の URL | 試行の番号 | ヘッドのコミット | `(cached)` がない |
 |---|---|---|---|---|
-| 1 | https://github.com/isseis/yt2column/actions/runs/39955835942/attempts/1 | 1 | 6b558c5a9f643bc04dd9ea21894bfe59e212f7af | はい |
-| 2 | https://github.com/isseis/yt2column/actions/runs/39955835942/attempts/2 | 2 | 6b558c5a9f643bc04dd9ea21894bfe59e212f7af | はい |
-| 3 | https://github.com/isseis/yt2column/actions/runs/39955835942/attempts/3 | 3 | 6b558c5a9f643bc04dd9ea21894bfe59e212f7af | はい |
+| 1 | https://github.com/isseis/yt2column/actions/runs/39955835942/attempts/1 | 1 | 6b558c5a9f643bc04dd9ea21894bfe59e212f7af | はい（`make test-ci`・`make test-parse-norace` の両方） |
+| 2 | https://github.com/isseis/yt2column/actions/runs/39955835942/attempts/2 | 2 | 6b558c5a9f643bc04dd9ea21894bfe59e212f7af | はい（`make test-ci`・`make test-parse-norace` の両方） |
+| 3 | https://github.com/isseis/yt2column/actions/runs/39955835942/attempts/3 | 3 | 6b558c5a9f643bc04dd9ea21894bfe59e212f7af | はい（`make test-ci`・`make test-parse-norace` の両方） |
 
-AC-09 の確かめ（ステップ 6-2）の実行: https://github.com/isseis/yt2column/actions/runs/39955148759/job/120419083484（一時的なコミット 2b7c8bf の `Test` ジョブで、「Check parse deadline (no race, alone)」が 7 つの入力すべての `want under 1ms` で失敗した）
+AC-09 の確かめ（ステップ 6-2）の実行: https://github.com/isseis/yt2column/actions/runs/39955148759（`Test` ジョブ: https://github.com/isseis/yt2column/actions/runs/39955148759/job/120419083484）。一時的なコミット 2b7c8bf の `Test` ジョブで、「Check parse deadline (no race, alone)」が 7 つの入力すべての `want under 1ms` で失敗した。
 
 ## 9. 次のステップ (Next Steps)
 
