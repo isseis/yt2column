@@ -161,7 +161,7 @@
 
 設計書 8 章の優先順位 5。設計書 3.1〜3.4・3.9 の変更を 1 つの PR にまとめる。
 
-**変更するファイル:** `internal/transcript/copied_format_test.go`、`internal/transcript/copied_format_race_test.go`、`internal/transcript/copied_format_norace_test.go`、`internal/transcript/makefile_test.go`（新規）、`Makefile`、`.github/workflows/ci.yml`、`CLAUDE.md`、`docs/tasks/0015_copied_transcript_source/02_architecture.md`、`docs/tasks/0015_copied_transcript_source/03_implementation_plan.md`
+**変更するファイル:** `internal/transcript/copied_format_test.go`、`internal/transcript/copied_format_race_test.go`、`internal/transcript/copied_format_norace_test.go`、`internal/transcript/makefile_test.go`（新規）、`internal/maketestutil/make.go`、`Makefile`、`.github/workflows/ci.yml`、`CLAUDE.md`、`docs/tasks/0015_copied_transcript_source/02_architecture.md`、`docs/tasks/0015_copied_transcript_source/03_implementation_plan.md`
 
 -   [ ] **ステップ 5-1**: `copied_format_race_test.go` に `copiedParseChecksDeadline = false`、`copied_format_norace_test.go` に `copiedParseChecksDeadline = true` を、`copiedParseAllocPerByte` と同じ `const` の組に加える（設計書 3.1）。それぞれのファイルのコメントに、時間の確認をそのビルドで行うか行わないかと、その理由（本番は `-race` なしでビルドされる）を英語で加える。race のファイルの `:12-15` の段落（norace の上限は lint だけが確かめるという記述）を、norace のファイルも `make test` と CI の `test-parse-norace` でビルドされ実行されることに合わせて改める。
 -   [ ] **ステップ 5-2**: `TestParseCopiedLargeInputs`（`copied_format_test.go`）を次のように改める（設計書 2.3・3.1・3.5）。
@@ -314,7 +314,7 @@ PR-1・PR-4 は文書だけの PR なので、CI の `Test` ジョブは走ら�
 | AC-15 | manual | 改善した場合だけ。`04_investigation.md` の改善の前後の節（PR-2 のレビュー） | 4-3 |
 | AC-16 | manual | 本計画 §8 の「AC-16 の記録」の 3 回の実行の URL と `(cached)` の確認（PR-4 のレビュー）。キャッシュの再利用を防ぐ `-count=1` のうち、`test-parse-norace` の分は `makefile_test.go` が確かめ、`test-ci` の分は各実行の `(cached)` の確認で確かめる | 6-3・6-4・6-5・7-1 |
 
-**mkplan の規則の例外:** AC-01〜AC-06・AC-08・AC-13・AC-15・AC-16 は `manual` だけで確かめる（AC-16 は一部を `static` が支える）。本計画 §1.3「記録の AC は `manual` で確かめる」のとおり、これらは計測・判断・CI の実行の結果を記録することを求める AC であり、記録があることを確かめる文書のテストはタスク 0038 が削除すると決めた種類に当たるためである。AC-05 は作業の進め方を定める AC で、確かめる対象のコードがない。
+**mkplan の規則の例外:** AC-01〜AC-06・AC-08・AC-13・AC-15・AC-16 は `manual` だけで確かめる（AC-16 は一部を `static` が支える）。本計画 §1.3「記録の AC は `manual` で確かめる」のとおり、これらは計測・判断・CI の実行の結果を記録することを求める AC であり、記録があることを確かめる文書のテストはタスク 0038 が削除すると決めた種類に当たるためである。AC-05 は作業の進め方を定める AC で、確かめる対象のコードがない。この例外は本計画の承認をもって承認されたものとし、`/runplan` のフェーズ群のレビューと最後の AC の確認は、これらの AC の `manual` を検証の欠落ではなく承認済みの例外として扱い、そのように報告する。先例はタスク 0037（#459 でマージ済み）の実装計画 5 章である。
 
 ## 6. リスク管理 (Risk Management)
 
