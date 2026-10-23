@@ -327,6 +327,19 @@ section_body() {
 	'
 }
 
+# check_ac18 FILE KIND LINES: LINES must be non-empty and each must say manual.
+check_ac18() {
+	if [ -z "$3" ]; then
+		printf 'FAIL records: %s has no AC-18 %s in the checked section\n' "$1" "$2"
+		return 1
+	fi
+	bad=$(printf '%s\n' "$3" | LC_ALL=C grep -v 'manual')
+	if [ -n "$bad" ]; then
+		printf 'FAIL records: %s does not check AC-18 by manual:\n%s\n' "$1" "$bad"
+		return 1
+	fi
+}
+
 cmd_records() {
 	[ $# -eq 1 ] || die 'usage: records <base>'
 	base=$(merge_base "$1") || exit 2
@@ -379,19 +392,19 @@ cmd_records() {
 		if [ -n "${CHECK_REV:-}" ] && ! git cat-file -e "${CHECK_REV}:$f" 2>/dev/null; then
 			continue
 		fi
-		section=$(section_body "$f" "$start" "$stop")
-		n=$(printf '%s\n' "$section" | LC_ALL=C grep -c -- 'AC-18')
-		if [ "$n" -eq 0 ]; then
-			printf 'FAIL records: %s has no AC-18 line in the checked section\n' "$f"
-			fail=1
-			continue
-		fi
-		bad=$(printf '%s\n' "$section" |
-			LC_ALL=C grep -- 'AC-18' | LC_ALL=C grep -v 'manual')
-		if [ -n "$bad" ]; then
-			printf 'FAIL records: %s does not check AC-18 by manual:\n%s\n' "$f" "$bad"
-			fail=1
-		fi
+		lines=$(section_body "$f" "$start" "$stop" | LC_ALL=C grep -- 'AC-18')
+		case $f in
+		*/03_implementation_plan.md)
+			# AC-15 names two plan records: the table row and the note.
+			check_ac18 "$f" 'table row' "$(printf '%s\n' "$lines" |
+				LC_ALL=C grep -- '^| AC-18 |')" || fail=1
+			check_ac18 "$f" 'note' "$(printf '%s\n' "$lines" |
+				LC_ALL=C grep -v -- '^|')" || fail=1
+			;;
+		*)
+			check_ac18 "$f" 'line' "$lines" || fail=1
+			;;
+		esac
 	done
 
 	if [ "$fail" -eq 0 ]; then
