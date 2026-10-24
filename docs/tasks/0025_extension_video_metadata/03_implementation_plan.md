@@ -8,7 +8,7 @@
 | Created | 2026-10-18 |
 | Review date | 2026-10-18 |
 | Reviewer | isesis |
-| Comments | 編集上の訂正（2026-10-18。判断は変えていない）。フェーズ 2 の対象ファイルに `extension/src/launch.ts` を加えた（ステップ 2-3 が既に `MetadataReader` を launch.ts の型としているため、フェーズ 2 の作業内容は変えず、対象の記載を合わせただけである）。ステップ 2-4・2-5 の確かめる手段を `document.body.outerHTML` から jsdom の直列化（`dom.serialize()`）に改めた（`outerHTML` は拡張の ESLint の `no-restricted-syntax` が許さないため。何を確かめるかは変えていない）。フェーズ 3 の対象ファイルに `extension/test/render.test.ts` と `extension/test/helpers/dom.ts` を加え、ステップ 3-2・3-3 に表示の上限の export と値のクラス名を記した（実装で決めるとしていた詳細を実行した結果の記載である。判断は変えていない） |
+| Comments | 編集上の訂正（2026-10-18。判断は変えていない）。フェーズ 2 の対象ファイルに `extension/src/launch.ts` を加えた（ステップ 2-3 が既に `MetadataReader` を launch.ts の型としているため、フェーズ 2 の作業内容は変えず、対象の記載を合わせただけである）。ステップ 2-4・2-5 の確かめる手段を `document.body.outerHTML` から jsdom の直列化（`dom.serialize()`）に改めた（`outerHTML` は拡張の ESLint の `no-restricted-syntax` が許さないため。何を確かめるかは変えていない）。フェーズ 3 の対象ファイルに `extension/test/render.test.ts` と `extension/test/helpers/dom.ts` を加え、ステップ 3-2・3-3 に表示の上限の export と値のクラス名を記した（実装で決めるとしていた詳細を実行した結果の記載である。判断は変えていない） 2026-10-24 (decision): タスク 0038 の F-005 により、AC-18 の検証方法を改めた（`metadataDocs.test.ts` の README と `security.md` §8.1 の語句の検査を削除したため）。決定はタスク 0038 の承認済みの要件で決めたので、`Status` は `approved` のままとする。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -376,7 +376,7 @@ PR は、設計書 8 章のフェーズ 3（経路と表示）を表示と経路
 | AC-16 | test | `launch.test.ts::video metadata log`（読み取りの失敗で起動が成功、フィールド名と理由、拒否の理由が増えない） | 4-1・4-3 |
 | AC-16a | test・manual | `launch.test.ts::video metadata log`（省略の理由、値がログに現れない）、`metadata.test.ts::acceptMetadata`（`omissions`）、§5.1 | 1-3・1-4・4-1・4-3 |
 | AC-17 | test | `launch.test.ts::launch paths`・`::menu send`（読み取りの失敗でも送信に進み、拒否の理由にならない） | 4-1・4-3 |
-| AC-18 | static・manual | `extension/test/metadataDocs.test.ts::video metadata documentation`（README・`docs/dev/security.md` の記載）、§5.1 | 5-2・5-3・5-5 |
+| AC-18 | manual | README・`docs/dev/security.md` の記載を PR のレビューで読み合わせる（タスク 0038 で `metadataDocs.test.ts` の語句の検査を削除した）、§5.1 | 5-2・5-3・5-5 |
 | AC-19 | test・static・manual | `extension/test/manifest.test.ts::permissions`・`::undeclared keys`・`::host permissions`（変更しない）、`chromeDeps.test.ts::page metadata injection`（注入が DOM を変えず、注入関数のソースがページを操作する呼び出しを含まない）、§5.1 | 2-4・5-1 |
 | AC-20 | test | `metadata.test.ts::parsePageMetadata`（不正な形・未知・重複を拒否）、`launch.test.ts::launch paths`（拒否でも起動が成功） | 1-3・1-4・2-3・4-1・4-3 |
 | AC-21 | test | `prepare.test.ts::buildArticleBody`（文字列として入る）、`renderMetadata.test.ts::renderMetadata`（要素にならない） | 3-2・3-4・4-4 |

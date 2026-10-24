@@ -25,16 +25,23 @@ describe("has-extension-changes", () => {
     [".github/workflows/ci.yml"],
     [".github/workflows/release.yml"],
     ["go.mod"],
-    ["docs/dev/security.md"],
     ["README.md"],
     ["internal/server/response.go"],
-    ["docs/dev/project_overview.md", "extension/package.json"],
   ];
   for (const files of triggering) {
     it(`runs the extension job for ${files.join(", ")}`, () => {
       assert.equal(classify(files), "true\n");
     });
   }
+
+  // A mixed list must read past the non-triggering first record to the
+  // triggering one; a loop that stops at the first non-match misses it.
+  it("reads a mixed list of non-triggering and triggering paths", () => {
+    assert.equal(
+      classify(["internal/transcript/ytdlp.go", "extension/package.json"]),
+      "true\n",
+    );
+  });
 
   // NUL-delimited input keeps a control character in the path, which git would
   // otherwise quote, from hiding an extension path from the ^ anchor.
@@ -64,12 +71,12 @@ describe("has-extension-changes", () => {
     // The document and server paths match whole paths only.
     ["docs/README.md"],
     ["README.md.bak"],
-    ["x/docs/dev/security.md"],
-    ["docs/dev/security.md.orig"],
     ["x/internal/server/response.go"],
     ["internal/server/response.go.orig"],
-    // Another file in a scanned directory.
+    // Documents under docs/dev that no extension test reads.
+    ["docs/dev/security.md"],
     ["docs/dev/project_overview.md"],
+    // Another file in a scanned directory.
     ["internal/server/handler.go"],
     [],
   ];

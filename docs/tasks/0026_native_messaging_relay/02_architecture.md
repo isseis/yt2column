@@ -8,7 +8,7 @@
 | Created | 2026-10-18 |
 | Review date | 2026-10-19 |
 | Reviewer | isseis |
-| Comments | 実装（PR-6）で、§4.3 の注記に、`config.LoadHost` が失敗した場合も中継の長さの検査が先に行われること（上限を超える長さは `message_too_large`、長さ 0 は `protocol_error`、長さが読めなければ終了コード `1`）を加えた（ホストの応答を書くのを `Relay` の 1 か所に保つため、失敗する `Dialer` を渡す実装にした結果。どれも接続せず本文を読まない）。実装（PR-4）で、§3.5.2 のコードに `SocketDialer`（接続の時間の上限を持つ UDS の `Dialer`。中継のテストが実際のソケットで接続の失敗を確かめるのにも使う）を加え、§3.5.6 のログの errno の「名前」を「固定の説明（`syscall.Errno` の `Error()`）」に改めた（標準ライブラリは errno の名前を返す関数を持たないため）。§3.5.2 の時間の上限に、stdin が本文の途中で止まった場合は期限で打ち切れないことを、§3.5.3 の時間の上限の優先に、中継の `context` の期限による判定を加えた（どちらも `net/http` の振る舞いを確かめた結果）。`Relay` のコメントと §4.3 に、`RelayOptions` が欠けている場合を加えた。実装（PR-2）で、§3.1 の長さの上限を「`darwin` 以外の Unix で 107 バイト」から「`linux` で 107 バイト、`darwin` とそれ以外の Unix で 103 バイト」に編集上の訂正をした（FreeBSD などの `sun_path` は 104 バイトで、107 バイトの上限では bind に失敗するため）。 |
+| Comments | 実装（PR-6）で、§4.3 の注記に、`config.LoadHost` が失敗した場合も中継の長さの検査が先に行われること（上限を超える長さは `message_too_large`、長さ 0 は `protocol_error`、長さが読めなければ終了コード `1`）を加えた（ホストの応答を書くのを `Relay` の 1 か所に保つため、失敗する `Dialer` を渡す実装にした結果。どれも接続せず本文を読まない）。実装（PR-4）で、§3.5.2 のコードに `SocketDialer`（接続の時間の上限を持つ UDS の `Dialer`。中継のテストが実際のソケットで接続の失敗を確かめるのにも使う）を加え、§3.5.6 のログの errno の「名前」を「固定の説明（`syscall.Errno` の `Error()`）」に改めた（標準ライブラリは errno の名前を返す関数を持たないため）。§3.5.2 の時間の上限に、stdin が本文の途中で止まった場合は期限で打ち切れないことを、§3.5.3 の時間の上限の優先に、中継の `context` の期限による判定を加えた（どちらも `net/http` の振る舞いを確かめた結果）。`Relay` のコメントと §4.3 に、`RelayOptions` が欠けている場合を加えた。実装（PR-2）で、§3.1 の長さの上限を「`darwin` 以外の Unix で 107 バイト」から「`linux` で 107 バイト、`darwin` とそれ以外の Unix で 103 バイト」に編集上の訂正をした（FreeBSD などの `sun_path` は 104 バイトで、107 バイトの上限では bind に失敗するため）。 2026-10-24 (decision): タスク 0038 の F-005 により、AC-05・AC-31・AC-32・AC-33 の検証方法を改めた（`TestSharedTokenRemoved` の文書の検査、`TestServerDocsContract` の README と security.md の語句の検査、CLAUDE.md のサブテストを削除したため）。決定はタスク 0038 の承認済みの要件で決めたので、`Status` は `approved` のままとする。 |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §3.11）を指す。I-NN は [implementation_handoff.md](implementation_handoff.md) の項目（対応は `03_implementation_plan.md`）を指す。既存のコードの行番号は、コミット `9e34229`（要件書の承認のコミット）で確かめたものである。
 
@@ -1399,7 +1399,7 @@ flowchart LR
 
 ### 7.3. セキュリティテスト
 
--   **静的な確認:** TCP のリスナーを作るコードが残っていないこと（`cmd/`・`internal/` の本番のコードに `net.Listen("tcp"`・`"127.0.0.1"`・`"[::1]"` がない。AC-01）。`internal/authtoken`・`YT2COLUMN_SERVER_PORT`・トークンのファイル名がコードと現在の文書にないこと（AC-05）。`.golangci.yml` の `depguard` に、`internal/server` が `internal/serversock` を、`internal/nmhost` が `internal/server`・`internal/config` を、`internal/nmhost` と `cmd/yt2column-nmhost` が `os/exec` を import しないことの規則を加える（AC-18、`make lint`）。ホストのコードが `os.Stdout`・`fmt.Print*` を `cmd/yt2column-nmhost/main.go` の外で参照しないことは、`internal/config/envaccess_test.go` と同じ構文木の走査で確かめる（AC-17）。
+-   **静的な確認:** TCP のリスナーを作るコードが残っていないこと（`cmd/`・`internal/` の本番のコードに `net.Listen("tcp"`・`"127.0.0.1"`・`"[::1]"` がない。AC-01）。`internal/authtoken`・`YT2COLUMN_SERVER_PORT`・トークンのファイル名がコードにないこと（AC-05）。現在の文書に語がないことは、タスク 0038 で文書の検査を削除したので PR のレビューで読み合わせる（manual）。`.golangci.yml` の `depguard` に、`internal/server` が `internal/serversock` を、`internal/nmhost` が `internal/server`・`internal/config` を、`internal/nmhost` と `cmd/yt2column-nmhost` が `os/exec` を import しないことの規則を加える（AC-18、`make lint`）。ホストのコードが `os.Stdout`・`fmt.Print*` を `cmd/yt2column-nmhost/main.go` の外で参照しないことは、`internal/config/envaccess_test.go` と同じ構文木の走査で確かめる（AC-17）。
 -   **拡張の lint（AC-23・AC-29）:** `fetch`・`XMLHttpRequest`・`WebSocket`・`EventSource` の使用と `connectNative` の参照を禁止し、`sendNativeMessage` の参照を `browser/chromeDeps.ts` に限る。`chrome.storage` の参照（ドット・計算されたメンバ・分割代入の形）を禁止する（既存の `chrome.storage.sync` の規則を置き換える）。`lintRules.test.ts` で、規則が違反を検出することを確かめる。
 -   **秘密の値:** サーバの応答・ログ・失敗の通知に、識別できる API キー・Webhook URL・字幕・メタデータが現れないこと（AC-11・AC-13、既存のテストを UDS に移す）。ホストの標準出力と標準エラー出力に識別できる字幕が現れないこと（AC-17）。拡張のログ・表示にトークンが現れないこと（AC-23、`secretsAbsent.test.ts`）。
 -   **権限:** §7.1 の `internal/serversock` のテスト（AC-02・AC-03）。
@@ -1412,7 +1412,7 @@ flowchart LR
 | AC-02 | §3.2.1・§3.2.3 | `internal/serversock` |
 | AC-03 | §3.2.2・§3.2.3 | `internal/serversock` |
 | AC-04 | §3.1・§3.3.2 | `internal/config`、`cmd/yt2column-server` の起動の失敗とログ |
-| AC-05 | §3.1・§3.3 | 静的な確認、`cmd/yt2column-server`（標準出力が空）、`internal/config`（エラーに値がない） |
+| AC-05 | §3.1・§3.3 | 静的な確認（コード）、PR のレビューでの読み合わせ（文書。タスク 0038 で文書の検査を削除した）、`cmd/yt2column-server`（標準出力が空）、`internal/config`（エラーに値がない） |
 | AC-06 | §3.2.2・§3.2.3・§3.3.2 | `cmd/yt2column-server` のシグナルのテスト、`internal/serversock` |
 | AC-07 | §3.3.1（既存） | `internal/server`（遅い writer）、§7.2 (1) |
 | AC-08 | §3.3.1（既存） | `internal/server/request_test.go`（既存） |
@@ -1438,9 +1438,9 @@ flowchart LR
 | AC-28 | §3.7.4（既存の表示） | `extension/test/renderSend.test.ts`、手動 |
 | AC-29 | §3.7.2・§7.3 | `extension/test/lintRules.test.ts`、静的な確認 |
 | AC-30 | §3.7.2 | `extension/test/prepare.test.ts`・`collect.test.ts`（既存） |
-| AC-31 | §3.9 | `cmd/yt2column-server/docs_test.go`・`cmd/yt2column/extension_docs_test.go` |
-| AC-32 | §3.9 | `cmd/yt2column-server/docs_test.go` |
-| AC-33 | §3.9 | `cmd/yt2column-server/docs_test.go`、`cmd/yt2column/makefile_test.go` の流儀の確認 |
+| AC-31 | §3.9 | `cmd/yt2column-server/docs_test.go`（`security.md` 8.2 の値）・`cmd/yt2column/extension_docs_test.go`（§8.1 の権限の一覧）、PR のレビューでの読み合わせ（§8 の文の記述。タスク 0038 で `TestServerDocsContract` の語句の検査を削除した） |
+| AC-32 | §3.9 | `cmd/yt2column-server/docs_test.go`（README のソケットのパス・curl の例・終了コードの表）、PR のレビューでの読み合わせ（README の手順の記述。タスク 0038 で語句の検査を削除した） |
+| AC-33 | §3.9 | `cmd/yt2column-server/docs_test.go`（`project_overview.md` の環境変数）、`cmd/yt2column/makefile_test.go` の流儀の確認、PR のレビューでの読み合わせ（CLAUDE.md の記述。タスク 0038 でそのサブテストを削除した） |
 | AC-34 | §3.9 | `make test` |
 | AC-35 | §7.2 | `cmd/yt2column-server/relay_e2e_test.go` |
 | AC-36 | §7.2 | `03_implementation_plan.md` の手動の確認の表 |

@@ -8,7 +8,7 @@
 | Created | 2026-10-18 |
 | Review date | 2026-10-19 |
 | Reviewer | isseis |
-| Comments | - 2026-10-23 (decision): タスク 0038 の F-005 により、AC-31・AC-32・AC-34・AC-36 の検証方法を改めた（`TestExtensionSendDocumentation` と `TestNativeMessagingRelayDocumentation` を削除したため）。決定はタスク 0038 の承認済みの要件で決めたので、`Status` は `approved` のままとする。 |
+| Comments | - 2026-10-23 (decision): タスク 0038 の F-005 により、AC-31・AC-32・AC-34・AC-36 の検証方法を改めた（`TestExtensionSendDocumentation` と `TestNativeMessagingRelayDocumentation` を削除したため）。決定はタスク 0038 の承認済みの要件で決めたので、`Status` は `approved` のままとする。 2026-10-24 (decision): タスク 0038 の F-005 により、AC-05・AC-31・AC-32・AC-33 の検証方法を改めた（`TestSharedTokenRemoved` の文書の検査、`TestServerDocsContract` の README と security.md の語句の検査、CLAUDE.md のサブテストを削除したため）。決定はタスク 0038 の承認済みの要件で決めたので、`Status` は `approved` のままとする。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -587,7 +587,7 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 | AC-02 | test | `internal/serversock/serversock_test.go`（ディレクトリの作成と `0700`、`0700` でない・symlink・他人の所有・親の書き込みのビットでの中止、作成後のソケットの `0600`） | ステップ 1-3・1-4 |
 | AC-03 | test | `internal/serversock/serversock_test.go`（stale の削除、`ErrInUse` と削除しないこと、通常ファイル・symlink・FIFO・ディレクトリの中止、`ErrAlreadyRunning`） | ステップ 1-3・1-4 |
 | AC-04 | test | `internal/config/socketpath_test.go`（パスの長さの境界、`HOME` の不備、値を含まないエラー）、`cmd/yt2column-server/run_test.go::TestStartupFailures`、`::TestRunLogsListeningAndStop`、`internal/serversock/serversock_test.go`（上限の定数と `RawSockaddrUnix` の一致） | ステップ 1-6・1-7・1-11・1-12 |
-| AC-05 | static | `internal/pipeline/relay_guard_test.go::TestSharedTokenRemoved` | ステップ 1-10・1-14・1-17・3-11 |
+| AC-05 | static / manual | `internal/pipeline/relay_guard_test.go::TestSharedTokenRemoved`（コードと拡張のソース）。現在の文書に語がないことは PR のレビューで読み合わせる（タスク 0038 で文書の検査を削除した） | ステップ 1-10・1-14・1-17・3-11 |
 | | test | `cmd/yt2column-server/signal_test.go::TestSignalStopsServer`（標準出力が空）、`internal/config/socketpath_test.go`（`HOME` の値がエラーに現れない）、`cmd/yt2column-server/run_test.go::TestOutputsOmitSecrets`（秘密の値が出力に現れない） | ステップ 1-6・1-7・1-11・1-12 |
 | AC-06 | test | `cmd/yt2column-server/signal_test.go::TestSignalWaitsForJob`、`cmd/yt2column-server/run_test.go::TestStartDuringShutdownRefused`、`internal/serversock/serversock_test.go`（閉じるとソケットが消えること、stale の削除） | ステップ 1-3・1-4・1-11・1-12 |
 | | manual | §5.1（`SIGKILL` で止めたサーバの次の起動） | - |
@@ -626,9 +626,9 @@ macOS の `t.TempDir()`（`/var/folders/...`）の下にソケットを置くと
 | AC-29 | static | `extension/test/lintRules.test.ts`（`fetch`・`XMLHttpRequest`・`WebSocket`・`EventSource`・`connectNative` の禁止、`sendNativeMessage` の限定）、`make ext-lint` | ステップ 3-13 |
 | | test | `extension/test/secretsAbsent.test.ts` | 既存・ステップ 3-9 |
 | AC-30 | test | `extension/test/prepare.test.ts`、`extension/test/collect.test.ts`（既存） | ステップ 3-4 |
-| AC-31 | static / manual | `cmd/yt2column-server/docs_test.go::TestServerDocsContract`（security.md のサブテスト。§8 の冒頭の相手ごとの排除の根拠、§8.2 の UDS の権限・ホストの標準出力・残余リスク）、`cmd/yt2column/extension_docs_test.go::TestExtensionDocumentation`（§8.1 の権限の一覧）。トークンの貼り付けの手順がないことは PR のレビューで読み合わせる（タスク 0038 で `TestExtensionSendDocumentation` を削除した） | ステップ 1-15・2-13 |
-| AC-32 | static / manual | `cmd/yt2column-server/docs_test.go::TestServerDocsContract`（README のサブテスト。ソケットのパス、install/uninstall、トークンが不要であること、ホスト未インストールとサーバ停止のトラブルシューティング、禁止する語句）。README の「Browser extension」節の記述は PR のレビューで読み合わせる（タスク 0038 で `TestExtensionSendDocumentation` を削除した） | ステップ 1-15・2-13 |
-| AC-33 | static | `cmd/yt2column-server/docs_test.go::TestServerDocsContract`（`project_overview.md`・CLAUDE.md のサブテスト。パッケージ名、install/uninstall のコマンド、`make build` の 3 つのバイナリ）、`internal/pipeline/pipeline_test.go::TestPackageReferenceListsPackages`（既存）、`cmd/yt2column/makefile_test.go::TestMakeBuildBuildsEveryBinary` | ステップ 1-15・2-11・2-13 |
+| AC-31 | static / manual | `cmd/yt2column-server/docs_test.go::TestServerDocsContract`（security.md 8.2 の値: 枠・本文の上限・許可オリジン）、`cmd/yt2column/extension_docs_test.go::TestExtensionDocumentation`（§8.1 の権限の一覧）。§8・§8.2 の文とトークンの貼り付けの手順がないことは PR のレビューで読み合わせる（タスク 0038 で語句の検査と `TestExtensionSendDocumentation` を削除した） | ステップ 1-15・2-13 |
+| AC-32 | static / manual | `cmd/yt2column-server/docs_test.go::TestServerDocsContract`（README のソケットのパス・curl の例・終了コードの表）。README の手順の記述と「Browser extension」節は PR のレビューで読み合わせる（タスク 0038 で語句の検査と `TestExtensionSendDocumentation` を削除した） | ステップ 1-15・2-13 |
+| AC-33 | static / manual | `cmd/yt2column-server/docs_test.go::TestServerDocsContract`（`project_overview.md` の環境変数の行）、`internal/pipeline/pipeline_test.go::TestPackageReferenceListsPackages`（既存）、`cmd/yt2column/makefile_test.go::TestMakeBuildBuildsEveryBinary`。CLAUDE.md の記述は PR のレビューで読み合わせる（タスク 0038 でそのサブテストを削除した） | ステップ 1-15・2-11・2-13 |
 | AC-34 | static | `make test`（`TestServerDocsContract`・`TestExtensionDocumentation`・`TestPackageReferenceListsPackages`・`TestNativeHostContract`）、`make ext-test`（`serverReasons.test.ts`・`manifest.test.ts`・`metadataDocs.test.ts`） | 各 PR |
 | AC-35 | test | `cmd/yt2column-server/relay_e2e_test.go::TestRelayEndToEnd` | ステップ 2-15 |
 | AC-36 | manual | §5.1（Chrome と Brave の手動の確認の記録）。タスク 0038 で `TestNativeMessagingRelayDocumentation` を削除した | ステップ 3-14 |

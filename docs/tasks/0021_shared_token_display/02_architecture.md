@@ -8,7 +8,7 @@
 | Created | 2026-10-16 |
 | Review date | 2026-10-16 |
 | Reviewer | isseis |
-| Comments | レビューでの修正: §2.1 の「`internal/authtoken` は契約・実装とも変更しない」を、トークンのファイルの生成・保存・読み込み・検査の振る舞いは変えない一方、`LoadOrCreate` と内部の `create` が `created` の戻り値を外し、`Token.Value` のコメントを改める（§3.2）旨に改めた。決定の変更はない。 |
+| Comments | レビューでの修正: §2.1 の「`internal/authtoken` は契約・実装とも変更しない」を、トークンのファイルの生成・保存・読み込み・検査の振る舞いは変えない一方、`LoadOrCreate` と内部の `create` が `created` の戻り値を外し、`Token.Value` のコメントを改める（§3.2）旨に改めた。決定の変更はない。 2026-10-24 (decision): タスク 0038 の F-005 により、AC-08・AC-09 の検証方法を改めた（`TestServerDocsContract` の README・`security.md` §8.2 の語句の検査を削除したため）。決定はタスク 0038 の承認済みの要件で決めたので、`Status` は `approved` のままとする。 |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。F-NNN・AC-NN は要件書の項番、H-NN は [design_handoff.md](design_handoff.md) の項目を指す（対応は §3.3）。既存のファイルの行番号は、コミット `3180ae3`（要件書を承認したコミット）で確かめたものである。
 
@@ -438,8 +438,8 @@ sequenceDiagram
 | AC-05 | `TestStartupFailures` の「model and webhook missing」の行 | 必要な設定が欠けている場合、トークンを表示せずに終了し、その出力に欠けている設定の値・API キー・Webhook URL・共有トークンが現れない |
 | AC-06 | `TestOutputsOmitSecrets`、`TestStartupFailures` の `requireNoSecret` の検査、`internal/server` の応答の検査 | 共有トークンが、標準出力への表示とトークンのファイルを除き、ログ・エラーメッセージ・応答・失敗の Slack への投稿に現れない（識別できる値を使う） |
 | AC-07 | `server_test.go` の `TestServerEndToEnd`（標準出力の 1 行を取り出して認証する） | 標準出力の 1 行の値だけを取り出して `Authorization: Bearer` に使うと、API の認証が通る |
-| AC-08 | `docs_test.go` の `TestServerDocsContract`（README の検査を追加） | README に、起動のたびの表示、貼り付け、再確認、ファイルを読む補足の手順、リダイレクトの注意が記載されている（静的な確認） |
-| AC-09 | `docs_test.go` の `TestServerDocsContract`（`security.md` §8.2 の検査を追加） | `security.md` §8.2 に、起動のたびの表示、露出の経路、ログへの非露出、標準出力と標準エラー出力の分離が記載されている（静的な確認） |
+| AC-08 | PR のレビューでの読み合わせ（タスク 0038 で `TestServerDocsContract` の README の語句の検査を削除した） | README に、起動のたびの表示、貼り付け、再確認、ファイルを読む補足の手順、リダイレクトの注意が記載されている（manual） |
+| AC-09 | PR のレビューでの読み合わせ（タスク 0038 で `TestServerDocsContract` の `security.md` §8.2 の語句の検査を削除した） | `security.md` §8.2 に、起動のたびの表示、露出の経路、ログへの非露出、標準出力と標準エラー出力の分離が記載されている（manual） |
 
 -   **表示に失敗しても待ち受けるテスト（要件書 4.3）。** 既存のトークンのファイルがある状態で、書き込みに失敗する標準出力を渡して `run` を起動する。標準エラー出力に失敗の 1 行（失敗の理由とファイルのパスを含み、トークン・API キー・Webhook URL を含まない）が出ること、トークンのファイルが書き換えられないこと、サーバがリクエストを受理すること、停止したときの終了コードが 0 であることを確かめる。`startServer`（`test_helpers.go:238-263`）は標準出力を `bytes.Buffer` に固定しているので、書き込みに失敗する `io.Writer` を渡せる補助を加える（実装で決める）。
 -   **標準出力が閉じたパイプでも待ち受けるテスト（SIGPIPE。要件書 4.3）。** SIGPIPE はプロセス全体に働くので、`run` を同じプロセスで呼ぶテストでは確かめられない。既存の子プロセスのテスト（`startServerChild` の `childModeMain`。本番の `main` をそのまま動かす）を使い、子の標準出力に読み手を閉じた `os.Pipe` の書き込み側を渡して起動する。子が待ち受けを開始すること、標準エラー出力に表示の失敗の 1 行が出ること、SIGTERM で停止したときの終了コードが 0 であることを確かめる。

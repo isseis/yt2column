@@ -17,10 +17,8 @@ import (
 // Paths from cmd/yt2column-server to the documents this test checks.
 const (
 	readmePath          = "../../README.md"
-	claudePath          = "../../CLAUDE.md"
 	projectOverviewPath = "../../docs/dev/project_overview.md"
 	securityPath        = "../../docs/dev/security.md"
-	glossaryPath        = "../../docs/translation_glossary.md"
 )
 
 // TestServerDocsContract pins the machine-checkable contract of the localhost
@@ -37,37 +35,26 @@ func TestServerDocsContract(t *testing.T) {
 	readme := readDoc(t, readmePath)
 	overview := readDoc(t, projectOverviewPath)
 	security := readDoc(t, securityPath)
-	glossary := readDoc(t, glossaryPath)
 
 	t.Run("README.md", func(t *testing.T) {
 		whole := sectionByHeading(readme, "## Localhost server")
 		if whole == "" {
 			t.Fatal("README.md has no '## Localhost server' section")
 		}
-		// The upgrade notes name the retired token file on purpose; every other
-		// part of the section must not describe the token or the port.
+		// The upgrade notes describe retired leftovers, not the current server,
+		// so the checks below read the section without them, as before. The
+		// heading is used only to find the range to exclude; the notes
+		// themselves are not checked.
 		const upgradeHeading = "### Upgrading from the shared-token version"
-		upgrade := sectionByHeading(whole, upgradeHeading)
-		if upgrade == "" {
-			t.Fatalf("README.md server section has no %q section", upgradeHeading)
-		}
-		if !strings.Contains(upgrade, "server-token") || !strings.Contains(upgrade, "can be deleted") {
-			t.Error("README.md upgrade notes do not say the server-token file can be deleted")
-		}
-		section := strings.Replace(whole, upgradeHeading+"\n"+upgrade, "", 1)
-		if section == whole {
-			t.Fatal("README.md server section: the upgrade notes were not excluded")
-		}
-		for _, want := range []string{
-			"yt2column-server",
-			"build/yt2column-server",
-			slackEnv,
-			"`0700`",
-			"`0600`",
-		} {
-			if !strings.Contains(section, want) {
-				t.Errorf("README.md server section does not mention %q", want)
+		section := whole
+		if upgrade := sectionByHeading(whole, upgradeHeading); upgrade != "" {
+			section = strings.Replace(whole, upgradeHeading+"\n"+upgrade, "", 1)
+			if section == whole {
+				t.Fatal("README.md server section: the upgrade notes were not excluded")
 			}
+		}
+		if !strings.Contains(section, slackEnv) {
+			t.Errorf("README.md server section does not mention %q", slackEnv)
 		}
 		// The socket path for each operating system, each on its own line; the
 		// curl recipe repeats them, so a bare Contains would pass without it.
@@ -75,27 +62,9 @@ func TestServerDocsContract(t *testing.T) {
 			!hasLineContainingAll(section, "other Unix:", "$HOME"+config.SocketPathTailForTest("linux")) {
 			t.Error("README.md server section does not state the socket path for macOS and for other Unix")
 		}
-		if !hasLineContainingAll(section, "needs no shared token") {
-			t.Error("README.md server section does not say the server needs no shared token")
-		}
-		// The curl example sends to the socket, with the path quoted because
-		// the macOS path holds a space.
-		if !hasLineContainingAll(section, "curl", `--unix-socket "$socket"`, server.ArticlesPath) {
-			t.Error("README.md server section has no curl --unix-socket example for " + server.ArticlesPath)
-		}
-		// The host is registered and removed by the user, one command each.
-		for _, command := range []string{"install", "uninstall"} {
-			for _, browser := range []string{"chrome", "brave"} {
-				if line := "./build/yt2column-nmhost " + command + " " + browser; !hasLineContainingAll(section, line) {
-					t.Errorf("README.md server section has no %q command", line)
-				}
-			}
-		}
-		troubleshooting := sectionByHeading(section, "### Troubleshooting")
-		for _, want := range []string{"The server is not running", "The native messaging host is not found", "Reading the host's log"} {
-			if !strings.Contains(troubleshooting, want) {
-				t.Errorf("README.md server troubleshooting has no %q item", want)
-			}
+		// The curl example names the articles endpoint.
+		if !hasLineContainingAll(section, "curl", server.ArticlesPath) {
+			t.Error("README.md server section has no curl example for " + server.ArticlesPath)
 		}
 		// The exit-code table must name every code the entry point defines.
 		exitCodes := findTable(section, "Code")
@@ -105,39 +74,6 @@ func TestServerDocsContract(t *testing.T) {
 		for _, code := range []int{exitOK, exitFailure, exitUsage} {
 			if tableRow(exitCodes, strconv.Itoa(code)) == nil {
 				t.Errorf("README.md server exit-code table has no code %d", code)
-			}
-		}
-		// The token and port of the TCP server must not come back. "port"
-		// alone is not checked: it is a substring of words such as "Support".
-		for _, retired := range []string{"YT2COLUMN_SERVER_PORT", "8765", "Authorization: Bearer", "options page"} {
-			if strings.Contains(section, retired) {
-				t.Errorf("README.md server section still mentions %q", retired)
-			}
-		}
-	})
-
-	t.Run("README.md development server", func(t *testing.T) {
-		section := sectionByHeading(sectionByHeading(readme, "## Development"), "### Running a separate server for development")
-		if section == "" {
-			t.Fatal("README.md has no '### Running a separate server for development' section under '## Development'")
-		}
-		if !hasLineContainingAll(section, "mktemp -d /tmp/") {
-			t.Error("README.md development server section does not create a short HOME under /tmp")
-		}
-		if !hasLineContainingAll(section, `HOME="$dev_home"`, "yt2column-server") {
-			t.Error("README.md development server section does not start the server with that HOME")
-		}
-		if !hasLineContainingAll(section, "curl", `--unix-socket "$socket"`) {
-			t.Error("README.md development server section has no curl --unix-socket example")
-		}
-		// The host limits, which span lines, are matched on the joined text.
-		joined := strings.Join(strings.Fields(section), " ")
-		for _, want := range []string{
-			"The extension cannot reach such a server.",
-			"The host manifest is one file per browser",
-		} {
-			if !strings.Contains(joined, want) {
-				t.Errorf("README.md development server section does not say %q", want)
 			}
 		}
 	})
@@ -171,52 +107,22 @@ func TestServerDocsContract(t *testing.T) {
 	})
 
 	t.Run("project_overview.md", func(t *testing.T) {
-		for _, want := range []string{"yt2column-server", "internal/server", "internal/serversock", "cmd/yt2column-nmhost", "internal/nmhost"} {
-			if !strings.Contains(overview, want) {
-				t.Errorf("project_overview.md does not mention %q", want)
-			}
-		}
-		if !hasLineContainingAll(overview, "`yt2column-nmhost install <browser>`", "`yt2column-nmhost uninstall <browser>`") {
-			t.Error("project_overview.md does not name the host's install and uninstall commands")
-		}
-		// The "does not read" claim must be one sentence; the variable names
-		// also appear in the configuration table, so a bare Contains would pass
-		// even without it.
-		if !hasLineContainingAll(overview, cacheDirEnv, ytDlpEnv, "読まない") {
-			t.Errorf("project_overview.md has no sentence saying the server does not read %s or %s", cacheDirEnv, ytDlpEnv)
+		// The variable names also appear in the configuration table, so the
+		// check looks for a line that holds both of them.
+		if !hasLineContainingAll(overview, cacheDirEnv, ytDlpEnv) {
+			t.Errorf("project_overview.md does not name %s and %s on one line", cacheDirEnv, ytDlpEnv)
 		}
 	})
 
 	t.Run("security.md", func(t *testing.T) {
-		section8 := sectionByHeading(security, "## 8. ブラウザ拡張と localhost サーバ（#43）")
-		intro, _, _ := strings.Cut(section8, "\n### ")
-		if intro == "" {
-			t.Fatal("security.md has no section 8 introduction")
-		}
-		// The reason each kind of client is excluded, the limit of the socket's
-		// permission, and the trusted same-user processes, each as a sentence.
-		for _, want := range [][]string{
-			{"他ユーザーのプロセス", "`0700`", "`0600`"},
-			{"ウェブページ", "TCP を待ち受けない"},
-			{"サンドボックス化された Agent", "サンドボックスのポリシー"},
-			{"UDS の権限は同じ uid のプロセスを区別しない"},
-			{"同一ユーザーのフル権限プロセスは信頼する"},
-			{"共有トークンを削除した理由"},
-		} {
-			if !hasLineContainingAll(intro, want...) {
-				t.Errorf("security.md section 8 introduction has no line with %q", want)
-			}
-		}
-
 		section := sectionByHeading(security, "### 8.2. localhost サーバ（#109）")
 		if section == "" {
 			t.Fatal("security.md has no 8.2 server section")
 		}
 		bodyMiB := fmt.Sprintf("%d MiB", server.MaxBodyBytesForTest>>20)
+		// The Japanese word for "slot" is kept as the hint word: the slots'
+		// number alone also matches other small values in 8.2.
 		for _, want := range []string{
-			"`0700`",
-			"`0600`",
-			"起動のロック",
 			"枠（`" + strconv.Itoa(server.MaxInFlightForTest) + "`）",
 			bodyMiB,
 		} {
@@ -224,83 +130,8 @@ func TestServerDocsContract(t *testing.T) {
 				t.Errorf("security.md 8.2 does not mention %q", want)
 			}
 		}
-		if !hasLineContainingAll(section, "stale", "接続できるソケット", "削除せずに中止") {
-			t.Error("security.md 8.2 does not say which socket is removed as stale and which is left in place")
-		}
-		if !hasLineContainingAll(section, "`unlink`", "bind", "同一ユーザー") {
-			t.Error("security.md 8.2 does not name the residual risk of a same-user unlink and bind")
-		}
-		// The host's items: only the fixed extension with the nativeMessaging
-		// permission starts it, the one allowed origin, standard output as the
-		// channel, and the residual risk of a replaced binary or manifest.
-		for _, want := range [][]string{
-			{"`nativeMessaging`", "`allowed_origins`", "固定の拡張だけ"},
-			{"`allowed_origins`", nmhost.ExtensionOrigin},
-			{"標準出力が通信路である"},
-			{"ホストのバイナリと manifest を置き換えられ"},
-		} {
-			if !hasLineContainingAll(section, want...) {
-				t.Errorf("security.md 8.2 has no line with %q", want)
-			}
-		}
-		for _, retired := range []string{"トークン", "server-token", "O_NOFOLLOW", "link(2)", "chrome.storage.local", "起動のたび"} {
-			if strings.Contains(section, retired) {
-				t.Errorf("security.md 8.2 still mentions %q", retired)
-			}
-		}
-	})
-
-	t.Run("CLAUDE.md", func(t *testing.T) {
-		claude := readDoc(t, claudePath)
-		for _, want := range []string{
-			"yt2column-server",
-			"internal/server",
-			"internal/serversock",
-			"internal/failure",
-			"internal/redact",
-			"internal/signalrun",
-			"internal/nmhost",
-		} {
-			if !strings.Contains(claude, want) {
-				t.Errorf("CLAUDE.md does not mention %q", want)
-			}
-		}
-		if !hasLineContainingAll(claude, "`make build`", "three binaries", "`yt2column-nmhost`") {
-			t.Error("CLAUDE.md does not say make build builds the three binaries, the host included")
-		}
-		if !hasLineContainingAll(claude, "yt2column-nmhost install <browser>", "yt2column-nmhost uninstall <browser>") {
-			t.Error("CLAUDE.md does not name the host's install and uninstall commands")
-		}
-		if strings.Contains(claude, "internal/authtoken") {
-			t.Error("CLAUDE.md still mentions internal/authtoken")
-		}
-	})
-
-	t.Run("translation_glossary.md", func(t *testing.T) {
-		table := findTable(glossary, "日本語")
-		if table == nil {
-			t.Fatal("translation_glossary.md has no glossary table")
-		}
-		for term, want := range map[string]string{
-			"起動のロック": "start lock",
-			"枠":      "slot",
-			"拒否の理由":  "reject reason",
-			"ホスト":    "host",
-			"ホスト名":   "host name",
-			"未送信":    "not sent",
-			"結果不明":   "result unknown",
-		} {
-			row := tableRow(table, term)
-			if row == nil {
-				t.Errorf("translation_glossary.md has no row for %q", term)
-				continue
-			}
-			if len(row) < 2 || row[1] != want {
-				t.Errorf("translation_glossary.md translates %q as %q, want %q", term, row[1], want)
-			}
-		}
-		if tableRow(table, "共有トークン") != nil {
-			t.Error("translation_glossary.md still has a row for 共有トークン")
+		if !hasLineContainingAll(section, "`allowed_origins`", nmhost.ExtensionOrigin) {
+			t.Error("security.md 8.2 does not name the host's allowed origin")
 		}
 	})
 }

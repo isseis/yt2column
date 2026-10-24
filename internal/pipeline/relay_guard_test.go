@@ -319,81 +319,12 @@ func TestNoTCPListenerInProduction(t *testing.T) {
 }
 
 // removedTokenWords are the identifiers and file names of the shared-token
-// version that no production code or current document may mention.
+// version that no production code or shipped extension file may mention.
 var removedTokenWords = []string{"authtoken", "YT2COLUMN_SERVER_PORT", "server-token"}
 
-// upgradeHeading is the README section that tells an upgrading user which
-// leftovers of the shared-token version to delete; it names the token file.
-const upgradeHeading = "### Upgrading from the shared-token version"
-
-// splitSection splits doc into the section that starts at the line equal to
-// heading and ends before the next heading of the same or a higher level, and
-// the rest of doc.
-func splitSection(doc, heading string) (rest, section string) {
-	level := len(heading) - len(strings.TrimLeft(heading, "#"))
-	var kept, cut strings.Builder
-	skipping := false
-	fenced := false
-	for line := range strings.Lines(doc) {
-		trimmed := strings.TrimRight(line, "\r\n")
-		if strings.HasPrefix(trimmed, "```") {
-			fenced = !fenced
-		}
-		if !fenced && trimmed == heading {
-			skipping = true
-			cut.WriteString(line)
-			continue
-		}
-		if skipping && !fenced {
-			n := len(trimmed) - len(strings.TrimLeft(trimmed, "#"))
-			if n > 0 && n <= level && strings.HasPrefix(trimmed[n:], " ") {
-				skipping = false
-			}
-		}
-		if skipping {
-			cut.WriteString(line)
-		} else {
-			kept.WriteString(line)
-		}
-	}
-	return kept.String(), cut.String()
-}
-
-// withoutSection returns doc without the section splitSection cuts.
-func withoutSection(doc, heading string) string {
-	rest, _ := splitSection(doc, heading)
-	return rest
-}
-
-func TestWithoutSection(t *testing.T) {
-	tests := []struct {
-		name, doc, want string
-	}{
-		{
-			"ends at the next heading of the same or higher level",
-			"## A\nkeep a\n### Skip\ndrop\n#### Sub\ndrop too\n### Next\nkeep next\n## B\nkeep b\n",
-			"## A\nkeep a\n### Next\nkeep next\n## B\nkeep b\n",
-		},
-		{
-			"a hash line in a fenced block does not end the section",
-			"### Skip\n```\n# comment\n```\ndrop\n## B\nkeep b\n",
-			"## B\nkeep b\n",
-		},
-		{"section at end of file", "keep\n### Skip\ndrop\n", "keep\n"},
-		{"absent heading", "keep\n", "keep\n"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := withoutSection(tt.doc, "### Skip"); got != tt.want {
-				t.Errorf("withoutSection() = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
-
-// TestSharedTokenRemoved checks that no production Go file, no current
-// document and no file the extension ships from (extension/src and
-// extension/static) names the shared-token version's identifiers or files.
+// TestSharedTokenRemoved checks that no production Go file and no file the
+// extension ships from (extension/src and extension/static) names the
+// shared-token version's identifiers or files.
 func TestSharedTokenRemoved(t *testing.T) {
 	// texts maps a repository-relative path to the text that must not name a
 	// removed word.
@@ -430,11 +361,6 @@ func TestSharedTokenRemoved(t *testing.T) {
 	for _, rel := range productionGoFiles(t) {
 		texts[rel] = read(rel)
 	}
-	readme := read("README.md")
-	texts["README.md"] = withoutSection(readme, upgradeHeading)
-	texts["CLAUDE.md"] = read("CLAUDE.md")
-	texts["docs/translation_glossary.md"] = read("docs/translation_glossary.md")
-	addTree("docs/dev", func(path string) bool { return strings.HasSuffix(path, ".md") })
 	beforeExtension := len(texts)
 	everyFile := func(string) bool { return true }
 	addTree("extension/src", everyFile)
@@ -442,21 +368,11 @@ func TestSharedTokenRemoved(t *testing.T) {
 	if len(texts) == beforeExtension {
 		t.Fatal("found no files under extension/src or extension/static")
 	}
-	_, upgrade := splitSection(readme, upgradeHeading)
-	if !strings.Contains(upgrade, "server-token") {
-		t.Fatalf("README.md %q section does not name server-token; the exemption is stale", upgradeHeading)
-	}
 	for _, rel := range slices.Sorted(maps.Keys(texts)) {
 		for _, word := range removedTokenWords {
 			if strings.Contains(strings.ToLower(texts[rel]), strings.ToLower(word)) {
 				t.Errorf("%s mentions %q, removed with the shared token", rel, word)
 			}
-		}
-	}
-	// The upgrade section may name the token file but not the other words.
-	for _, word := range removedTokenWords {
-		if word != "server-token" && strings.Contains(strings.ToLower(upgrade), strings.ToLower(word)) {
-			t.Errorf("README.md %q section mentions %q", upgradeHeading, word)
 		}
 	}
 }

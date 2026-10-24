@@ -8,7 +8,7 @@
 | Created | 2026-10-16 |
 | Review date | 2026-10-16 |
 | Reviewer | isseis |
-| Comments | レビューでの修正: §3.2 に、PR-1 と PR-2 を 1 つの出荷単位とする項目を加えた。PR-1 単独では F-001 を満たさない（閉じたパイプの扱いが PR-2 にあるため）ので、PR-1 を単独でマージせず、PR-1 と PR-2 を順にまとめてマージする。決定の変更はない。 |
+| Comments | レビューでの修正: §3.2 に、PR-1 と PR-2 を 1 つの出荷単位とする項目を加えた。PR-1 単独では F-001 を満たさない（閉じたパイプの扱いが PR-2 にあるため）ので、PR-1 を単独でマージせず、PR-1 と PR-2 を順にまとめてマージする。決定の変更はない。 2026-10-24 (decision): タスク 0038 の F-005 により、AC-08・AC-09 の検証方法を改めた（`TestServerDocsContract` の README・`security.md` §8.2 の語句の検査を削除したため）。決定はタスク 0038 の承認済みの要件で決めたので、`Status` は `approved` のままとする。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -316,8 +316,8 @@ PR は 4 つとする。各 PR は単一の関心事（起動のたびの表示 
 | AC-05 | test | `cmd/yt2column-server/run_test.go::TestStartupFailures`（「model and webhook missing」） | 変更なし（既存） |
 | AC-06 | test | `cmd/yt2column-server/run_test.go::TestOutputsOmitSecrets`、`cmd/yt2column-server/run_test.go::TestStartupFailures`（`requireNoSecret` の検査）、`cmd/yt2column-server/run_test.go::TestDisplayFailureKeepsServing`、`internal/server/response_test.go::TestResponseOmitsInputs`、`internal/server/job_test.go::TestNotifyNoticeFields` | ステップ 1-2・2-4 |
 | AC-07 | test | `cmd/yt2column-server/server_test.go::TestServerEndToEnd`（稼働中に標準出力から同期して取り出した 1 行を認証に使う） | ステップ 2-5 |
-| AC-08 | static | `cmd/yt2column-server/docs_test.go::TestServerDocsContract`（README の検査を追加） | ステップ 3-1・3-4 |
-| AC-09 | static | `cmd/yt2column-server/docs_test.go::TestServerDocsContract`（`security.md` §8.2 の検査を追加） | ステップ 3-2・3-4 |
+| AC-08 | manual | README の記述を PR のレビューで読み合わせる（タスク 0038 で `TestServerDocsContract` の README の語句の検査を削除した） | ステップ 3-1・3-4 |
+| AC-09 | manual | `security.md` §8.2 の記述を PR のレビューで読み合わせる（タスク 0038 で `TestServerDocsContract` の §8.2 の語句の検査を削除した） | ステップ 3-2・3-4 |
 
 -   `TestClosedStdoutPipeKeepsServing`（ステップ 2-2）と `TestDisplayFailureKeepsServing`（ステップ 2-4）は、要件書 4.3 に対応するが、単独の AC 番号を持たない。両テストは `TestStartupFailures` の表示失敗の行を外した後に加える（§2 のフェーズ 2）。
 
