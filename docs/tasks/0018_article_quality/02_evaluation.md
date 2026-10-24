@@ -305,6 +305,27 @@ LLM の API を呼ぶ実行（本番の CLI と試作の両方）は、実行の
 ### 3.11. 素材の違いの確認（ステップ 5a）
 
 -   **本番の経路の素材の取り方:** 要件定義書 F-010 のとおり、パネルで字幕の全体を選び、DevTools のコンソールで拡張と同じ式（`extension/src/browser/chromeDeps.ts`）を評価して `copy()` し、`pbpaste > <ファイル>` で `~/yt2column-eval/0018/material/<動画 ID>/` に保存する。保存するのは、選択範囲の字幕、動画タイトル、チャンネル名、概要欄（開いた状態と開かない状態）の 5 つである。リポジトリの外である（要件定義書 §4.2）。拡張のポップアップの表示から写さない。式の具体的な文字列は、ステップ 5a の最初に `chromeDeps.ts` から写して本節に書き足し、そのコミットを記録する。
+-   **式（2026-10-24、`chromeDeps.ts` はコミット `c12c3d2` の版）:** 拡張の `readSelection` と `readPageMetadata` の式を 1 つにまとめ、5 つの値を JSON の 1 つのオブジェクトとして `copy()` する。JSON の文字列は前後の空白・改行を変えずに運べるので、値ごとにファイルを分けない。セレクタと、概要欄の状態による要素の選び方は `readPageMetadata` と同じである。要素がない値はメンバーを置かない（拡張と同じ）。表示の言語と地域を記録するため、YouTube のページの `ytcfg` の `HL`・`GL` を加える。
+
+    ```js
+    copy(JSON.stringify((() => {
+      const m = { url: location.href, hl: window.ytcfg?.get?.("HL") ?? "", gl: window.ytcfg?.get?.("GL") ?? "", selection: window.getSelection()?.toString() ?? "", descriptionCollapsed: false };
+      const t = document.querySelector("ytd-watch-metadata #title h1 yt-formatted-string");
+      if (t !== null) m.title = t.textContent ?? "";
+      const c = document.querySelector("#owner #channel-name #text");
+      if (c !== null) m.channelName = c.textContent ?? "";
+      const e = document.querySelector("ytd-watch-metadata #description-inline-expander");
+      if (e !== null) {
+        const collapsed = !e.hasAttribute("is-expanded");
+        m.descriptionCollapsed = collapsed;
+        const s = e.querySelector(collapsed ? "#attributed-snippet-text" : "#expanded yt-attributed-string");
+        if (s !== null) m.description = s.textContent ?? "";
+      }
+      return m;
+    })()))
+    ```
+
+-   **取る順:** 動画ごとに、(1) 概要欄を開かない状態で、パネルの字幕の全体を選び、式を評価して `pbpaste > ~/yt2column-eval/0018/material/<動画 ID>/collapsed.json` とする。(2) 「…もっと見る」で概要欄を開き、もう一度式を評価して `expanded.json` とする。(2) では選択が外れてよい。比べる字幕は (1) の選択範囲である。拡張は、送るときの概要欄の状態にかかわらず同じ選択範囲を送るからである。
 -   **比べるスクリプト:** §3.9 の試作のコードと同じ規則に従い、`docs/tasks/0018_article_quality/_material_check/` に置く。評価の経路の素材は、評価用のキャッシュを `material/cache/` に `cp -Rp` で写したものから `YtDlpSource` で読む（§3.9 と同じ理由）。本番の経路の素材は `transcript.NewCopiedSource` で読む。出力は違いの種類と量と短い引用だけとし、`~/yt2column-eval/0018/material/` に書き出す（AC-34）。
 
 ## 4. 記録
