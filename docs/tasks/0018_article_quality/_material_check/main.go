@@ -137,6 +137,7 @@ func checkVideo(w io.Writer, cacheDir, materialDir, id string) error {
 	fmt.Fprintf(w, "- segments: evaluation %d (%s..%s), production %d (%s..%s)\n",
 		len(eval.Segments), firstStart(eval.Segments), lastStart(eval.Segments),
 		len(got.Segments), firstStart(got.Segments), lastStart(got.Segments))
+	reportBoundaries(w, eval.Segments, got.Segments)
 	compare(w, "transcript", joinSegments(eval.Segments), joinSegments(got.Segments))
 	compareOptional(w, "title", eval.Title, collapsed.title)
 	compareOptional(w, "channel name", eval.ChannelName, collapsed.channelName)
@@ -314,6 +315,11 @@ func compare(w io.Writer, name, eval, prod string) {
 			name, lineCount(eval), lineCount(prod))
 		return
 	}
+	if newlinesAsSpaces(eval) == newlinesAsSpaces(prod) {
+		fmt.Fprintf(w, "- %s: NEWLINE/SPACE ONLY (equal when each newline is read as a space; evaluation %d lines, production %d lines)\n",
+			name, lineCount(eval), lineCount(prod))
+		return
+	}
 	if p := dropNewlines(prod); p != "" && strings.HasPrefix(dropNewlines(eval), p) {
 		fmt.Fprintf(w, "- %s: CUT OFF (production is a prefix of evaluation ignoring newlines; %d of %d chars; missing %d chars)\n",
 			name, runes(p), runes(dropNewlines(eval)), runes(dropNewlines(eval))-runes(p))
@@ -415,6 +421,39 @@ func splitLines(s string) []string {
 
 func lineCount(s string) int {
 	return strings.Count(s, "\n") + 1
+}
+
+func newlinesAsSpaces(s string) string {
+	return strings.ReplaceAll(s, "\n", " ")
+}
+
+// reportBoundaries reports how the production segments line up with the
+// evaluation segments: how many production segments start at the same second
+// as an evaluation segment, and how many production segment texts hold a
+// newline (the copied panel text never does; a merged cue is joined by a
+// space).
+func reportBoundaries(w io.Writer, eval, prod []transcript.Segment) {
+	starts := make(map[int64]struct{}, len(eval))
+	for _, seg := range eval {
+		starts[seg.StartMs/1000] = struct{}{}
+	}
+	aligned, withNewline := 0, 0
+	for _, seg := range prod {
+		if _, ok := starts[seg.StartMs/1000]; ok {
+			aligned++
+		}
+		if strings.Contains(seg.Text, "\n") {
+			withNewline++
+		}
+	}
+	evalNewline := 0
+	for _, seg := range eval {
+		if strings.Contains(seg.Text, "\n") {
+			evalNewline++
+		}
+	}
+	fmt.Fprintf(w, "- segment starts: %d of %d production segments start at the second of an evaluation segment; segments holding a newline: evaluation %d, production %d\n",
+		aligned, len(prod), evalNewline, withNewline)
 }
 
 func dropNewlines(s string) string {
