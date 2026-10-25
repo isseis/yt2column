@@ -9,7 +9,7 @@ YouTube 動画の URL を受け取り、その文字起こしを元に LLM で�
 - **言語: Go**（ブラウザ拡張は TypeScript。詳細は §「想定ディレクトリ構成」と `docs/tasks/0007_browser_extension_skeleton/`）。依存関係を最小限にし、シングルバイナリで配布する。
 - **実行形式: ローカル実行の CLI と localhost サーバ**。コアロジックは `cmd/` から分離したパッケージとして実装し、両方の入口で共有する。localhost サーバ（`cmd/yt2column-server`・`internal/server`）は、ブラウザ拡張が YouTube の文字起こしパネルからコピーした字幕を受け取り、記事を生成して Slack へ投稿する（タスク `0011_localhost_server`）。サーバは TCP を待ち受けず、`HOME` だけから導出したパスの Unix ドメインソケットの上で HTTP を受ける（タスク `0026_native_messaging_relay`）。拡張からの送信は、ブラウザが起動する Native Messaging のホスト（`cmd/yt2column-nmhost`・`internal/nmhost`）がソケットへ中継する。ホストの manifest は、利用者が `yt2column-nmhost install <browser>` で登録し、`yt2column-nmhost uninstall <browser>` で削除する（`<browser>` は `chrome` か `brave`。`make build` は登録しない）。起動は手動とし、`yt-dlp` は呼ばない。
 - **字幕取得: 外部コマンドの `yt-dlp` に委譲する**。YouTube の非公式な仕様に依存する最も壊れやすい部分を、保守が活発なツールに任せるため。Go で字幕取得を自前実装しないこと。例外として、利用者が YouTube の文字起こしパネルからコピーした字幕の文字列を解析するパーサ（`internal/transcript` で `CopiedSource` が `Raw` を解析する箇所）は、パネルが出力する書式に依存する。依存はそのパーサに限り（Go から YouTube のページやパネルを取得・解析しない）、書式が変わって拒否が続く間は `yt-dlp` の経路を代わりの手段として残す。
-- **LLM: 初期実装は DeepSeek**（DeepSeek 公式 API を直接契約して使う）。API は OpenAI 互換の Chat Completions 形式（`POST https://api.deepseek.com/chat/completions`）で単純なため、SDK は使わず標準ライブラリ（`net/http`・`encoding/json`）で呼び出す。
+- **LLM: 既定は Claude（claude-opus-5-5）で、DeepSeek も選べる**。既定は、タスク 0008 の評価で本番の構成として決めたモデルである（`docs/tasks/0008_column_prompt/02_evaluation.md` §6.1）。どちらも SDK を使わず、標準ライブラリ（`net/http`・`encoding/json`）で呼び出す。Claude は Anthropic Messages API を、DeepSeek は公式 API を直接契約して使う。DeepSeek の API は OpenAI 互換の Chat Completions 形式（`POST https://api.deepseek.com/chat/completions`）である。
   - OpenCode Go 経由の利用は採用しない。利用条件が「コーディングエージェントのトラフィック」を前提としており、本ツールの用途に合わないため。
 - **LLM プロバイダは差し替え可能にする**。DeepSeek と Claude を実装済みで、Claude は公式 SDK を使わず標準ライブラリで Anthropic Messages API を呼ぶ（タスク `0009_claude_llm_client` の要件定義書 §2.3）。将来 Gemini（`google.golang.org/genai`）などを追加する前提。プロバイダとモデル名は設定で切り替える。Gemini を追加する場合、旧 SDK の `github.com/google/generative-ai-go` はレガシーなので使わないこと。
 - **LangChain 相当のフレームワークや、複数プロバイダを束ねる抽象化ライブラリは使わない**。自前の薄い interface で十分。
@@ -64,7 +64,7 @@ URL → TranscriptSource → Transcript → ArticleWriter → Article → Publis
 - DeepSeek の現行モデルは thinking（推論）モードがデフォルトで有効で、レイテンシとコストに影響する。推論過程は `reasoning_content` として本文（`content`）とは別に返るので、記事には `content` だけを使う。thinking モードでは `temperature` が無視される。初期は API のデフォルト（thinking 有効）のままにし、必要に応じて設定可能にする（リクエストの `thinking` パラメータで切り替えられる）。
 - DeepSeek は平日のピーク時間帯（UTC 01:00–04:00 と 06:00–10:00、日本時間では 10–13 時と 15–19 時）の料金が2倍になる。
 - DeepSeek の API への入力は中国で処理・保存され、プライバシーポリシー上はデフォルトでモデルの学習に使われる（オプトアウトあり）。送るのは公開動画の字幕・メタ情報とプロンプトであり、機密情報を送らないこと（[security.md](security.md) を参照）。
-- モデル名は頻繁に更新される。コードにハードコードせず設定で与える。再現性のため、`-latest` 系のエイリアスより具体的なモデル名を推奨。ただし DeepSeek の `deepseek-flash`（2026-09 時点で DeepSeek-V4.1-Flash を指す）は提供元が指し示すモデルを切り替えるエイリアスで、バージョンを固定した ID は提供されていない。どのモデルで生成したかを追えるよう、応答に含まれる `model` の値と、モデルの版の識別子（`ModelVersion`。DeepSeek では `system_fingerprint`）を記録すること。ただし `internal/pricing` の単価の表はこの方針の対象外である。単価の表は、応答が報告したモデル名に対する単価を引くためのコード内の参照表であり、使うモデルを選ぶ設定ではない。表にないモデルを選んでも生成と公開は変わらず、料金が不明になるだけである。
+- モデル名は頻繁に更新される。コードにハードコードせず設定で与える。ただし、既定のモデル名 `claude-opus-5-5`（`internal/config` の `defaultClaudeModel`）はこの方針の例外としてコードに持つ。範囲は、プロバイダが `claude` で、モデルの変数（`YT2COLUMN_MODEL`・`YT2COLUMN_REVIEW_MODEL`）が未設定のときの既定に限り、設定したモデル名はそのまま使う。何も設定しなければ本番の構成で動くようにするためで、値はタスク 0008 の評価で本番の構成として決めたモデルである。本番の構成を見直したときは、この値と README・本書の表を変える。再現性のため、`-latest` 系のエイリアスより具体的なモデル名を推奨。ただし DeepSeek の `deepseek-flash`（2026-09 時点で DeepSeek-V4.1-Flash を指す）は提供元が指し示すモデルを切り替えるエイリアスで、バージョンを固定した ID は提供されていない。どのモデルで生成したかを追えるよう、応答に含まれる `model` の値と、モデルの版の識別子（`ModelVersion`。DeepSeek では `system_fingerprint`）を記録すること。ただし `internal/pricing` の単価の表はこの方針の対象外である。単価の表は、応答が報告したモデル名に対する単価を引くためのコード内の参照表であり、使うモデルを選ぶ設定ではない。表にないモデルを選んでも生成と公開は変わらず、料金が不明になるだけである。
 
 ## 未確定事項
 
@@ -106,10 +106,10 @@ extension/                # ブラウザ拡張（TypeScript。開発環境・Man
 
 | 変数 | 説明 | 未設定のとき |
 |---|---|---|
-| `YT2COLUMN_LLM_PROVIDER` | `deepseek`／`claude` を受理。将来 `gemini` を追加 | `deepseek` |
-| `YT2COLUMN_MODEL` | LLM のモデル名。プロバイダに合ったものを指定（例: `deepseek-flash`・`claude-opus-5-5`） | エラー（必須） |
+| `YT2COLUMN_LLM_PROVIDER` | `deepseek`／`claude` を受理。将来 `gemini` を追加 | `claude` |
+| `YT2COLUMN_MODEL` | LLM のモデル名。プロバイダに合ったものを指定（例: `deepseek-flash`・`claude-opus-5-5`）。設定するときは `YT2COLUMN_LLM_PROVIDER` も設定する | `claude-opus-5-5`（プロバイダが `claude` のとき）。プロバイダが `deepseek` ならエラー（必須） |
 | `YT2COLUMN_REVIEW_PROVIDER` | 検証・推敲のプロバイダ。受理する値は `YT2COLUMN_LLM_PROVIDER` と同じ | 生成と同じ |
-| `YT2COLUMN_REVIEW_MODEL` | 検証・推敲のモデル名。`YT2COLUMN_REVIEW_PROVIDER` を設定した場合は必須 | 生成と同じ |
+| `YT2COLUMN_REVIEW_MODEL` | 検証・推敲のモデル名。`YT2COLUMN_REVIEW_PROVIDER` を設定せずに設定するときは `YT2COLUMN_LLM_PROVIDER` も設定する | `claude-opus-5-5`（`YT2COLUMN_REVIEW_PROVIDER` が `claude` のとき）。`deepseek` ならエラー（必須）。`YT2COLUMN_REVIEW_PROVIDER` も未設定なら生成と同じ |
 | `DEEPSEEK_API_KEY` | DeepSeek 用 | 生成または検証・推敲のプロバイダが `deepseek` ならエラー |
 | `ANTHROPIC_API_KEY` | Anthropic（Claude）用 | 生成または検証・推敲のプロバイダが `claude` ならエラー |
 | `YT2COLUMN_CLAUDE_EFFORT` | Claude の effort。`low`・`medium`・`high`・`xhigh`・`max` | 生成または検証・推敲のプロバイダが `claude` なら `high` |
@@ -123,7 +123,11 @@ extension/                # ブラウザ拡張（TypeScript。開発環境・Man
 
 `internal/config` の `LoadServer` は、localhost サーバの設定を読む。LLM の設定は CLI と共有し、`SLACK_WEBHOOK_URL` を必須とする。サーバは `yt-dlp` を呼ばないので、`YT2COLUMN_CACHE_DIR` と `YT2COLUMN_YTDLP_PATH` は読まない（不正な値でも起動を止めない）。ソケットのパスは `HOME` だけから導出し、`XDG_*`・`TMPDIR` は読まない。
 
-プロバイダ固有の変数は、生成と検証・推敲のどちらかが選んだプロバイダのものを読んで検査する。他のプロバイダの変数は、未設定・空・不正な値のいずれでも拒否しない。`YT2COLUMN_LLM_PROVIDER` 自体が不正で `YT2COLUMN_REVIEW_PROVIDER` も未設定の場合は、どのプロバイダ固有の変数も検査しない。`YT2COLUMN_REVIEW_PROVIDER` を設定した場合は `YT2COLUMN_REVIEW_MODEL` が必須で、どちらも未設定なら検証・推敲は生成と同じプロバイダとモデルを使う。`--no-review` を指定しても検証・推敲の設定は検査する。
+プロバイダ固有の変数は、生成と検証・推敲のどちらかが選んだプロバイダのものを読んで検査する。他のプロバイダの変数は、未設定・空・不正な値のいずれでも拒否しない。`YT2COLUMN_LLM_PROVIDER` 自体が不正で `YT2COLUMN_REVIEW_PROVIDER` も未設定の場合は、どのプロバイダ固有の変数も検査しない。LLM の変数が `ANTHROPIC_API_KEY` だけなら、生成・字数の調整・検証・推敲のすべてを `claude` の `claude-opus-5-5`（effort `high`）で行う。既定のモデルはプロバイダが `claude` のときだけ当てはめ、`deepseek` で `YT2COLUMN_MODEL` が未設定ならエラーにする。`YT2COLUMN_REVIEW_PROVIDER` だけを設定した場合は、そのプロバイダの既定のモデルを使い、生成のモデルは受け継がない（`claude` なら `claude-opus-5-5`。`deepseek` には既定がないので `YT2COLUMN_REVIEW_MODEL` が必須）。`YT2COLUMN_REVIEW_MODEL` だけを設定した場合は生成のプロバイダを使い、どちらも未設定なら検証・推敲は生成と同じプロバイダとモデル（既定を含む）を使う。`--no-review` を指定しても検証・推敲の設定は検査する。
+
+モデルの変数は、利用者が設定したプロバイダの変数と組にしてだけ受け付ける。`YT2COLUMN_LLM_PROVIDER` を設定せずに `YT2COLUMN_MODEL` を設定した場合と、`YT2COLUMN_REVIEW_PROVIDER` と `YT2COLUMN_LLM_PROVIDER` のどちらも設定せずに `YT2COLUMN_REVIEW_MODEL` を設定した場合は、`YT2COLUMN_LLM_PROVIDER` を挙げた設定エラーにする。あるプロバイダ向けに選んだモデル名を、既定のプロバイダへ送らないためである。このエラーは 1 回の実行で 1 件だけ報告し、`ANTHROPIC_API_KEY` の未設定などのほかのエラーと合わせて報告する。
+
+既定のプロバイダは以前は `deepseek` だった。`YT2COLUMN_LLM_PROVIDER` を設定せずに `YT2COLUMN_MODEL` と `DEEPSEEK_API_KEY` で DeepSeek を使っていた設定は、通信の前に `YT2COLUMN_LLM_PROVIDER` のエラーで止まる（`ANTHROPIC_API_KEY` が未設定なら、そのエラーも出る）。DeepSeek を使い続けるには `YT2COLUMN_LLM_PROVIDER=deepseek` を設定する。それ以外は今までどおり動く。`YT2COLUMN_MODEL` を消しても `YT2COLUMN_LLM_PROVIDER` のエラーは消えるが、字幕などを `claude-opus-5-5` で Anthropic へ送るようになるので、DeepSeek を使い続ける方法ではない。
 
 ## 開発ルール
 

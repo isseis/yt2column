@@ -642,6 +642,12 @@ the extension shows either one as an unexpected reply.
   example by restoring mode `0700` on the socket directory, and start again.
 - **`HOME: the socket path derived from HOME exceeds the operating system's
   limit`.** `HOME` is too long for the socket path; see the limit above.
+- **`configuration: YT2COLUMN_LLM_PROVIDER` after an update.** The default
+  provider is now `claude`, and a model variable set without a provider
+  variable is rejected, so a server that used DeepSeek without setting
+  `YT2COLUMN_LLM_PROVIDER` exits with `2` before it listens, and the extension
+  can only report that the server is not running. See
+  [Using DeepSeek](#using-deepseek).
 - **The native messaging host is not found.** The browser gives the extension
   `Specified native messaging host not found.` (shown in the extension's
   developer log) when there is no manifest for it, or the manifest's binary is
@@ -716,10 +722,10 @@ On other platforms, see the yt-dlp
 
 | Variable | Description | When unset |
 |---|---|---|
-| `YT2COLUMN_LLM_PROVIDER` | LLM provider; `deepseek` or `claude` | `deepseek` |
-| `YT2COLUMN_MODEL` | LLM model name (e.g. `deepseek-flash`, `claude-opus-5-5`) | Required (an error) |
+| `YT2COLUMN_LLM_PROVIDER` | LLM provider; `deepseek` or `claude` | `claude` |
+| `YT2COLUMN_MODEL` | LLM model name (e.g. `deepseek-flash`, `claude-opus-5-5`); setting it requires `YT2COLUMN_LLM_PROVIDER` | `claude-opus-5-5` when the provider is `claude`; required (an error) when it is `deepseek` |
 | `YT2COLUMN_REVIEW_PROVIDER` | Review step's LLM provider; same values as `YT2COLUMN_LLM_PROVIDER` | The generation provider |
-| `YT2COLUMN_REVIEW_MODEL` | Review step's LLM model name (required when `YT2COLUMN_REVIEW_PROVIDER` is set) | The generation model |
+| `YT2COLUMN_REVIEW_MODEL` | Review step's LLM model name; setting it without `YT2COLUMN_REVIEW_PROVIDER` requires `YT2COLUMN_LLM_PROVIDER` | `claude-opus-5-5` when `YT2COLUMN_REVIEW_PROVIDER` is `claude`; required (an error) when it is `deepseek`; the generation model when `YT2COLUMN_REVIEW_PROVIDER` is unset too |
 | `DEEPSEEK_API_KEY` | DeepSeek API key | Required when the generation or review provider is `deepseek` (an error) |
 | `ANTHROPIC_API_KEY` | Anthropic API key | Required when the generation or review provider is `claude` (an error) |
 | `YT2COLUMN_CLAUDE_EFFORT` | Claude effort; `low`, `medium`, `high`, `xhigh`, or `max` | `high` when the generation or review provider is `claude` |
@@ -736,9 +742,25 @@ calls `yt-dlp`. It derives its socket path from `HOME` alone (see
 The value of an environment variable is never trimmed or otherwise corrected;
 an empty value is treated as set and rejected, not as unset.
 
-Setting `YT2COLUMN_REVIEW_PROVIDER` requires `YT2COLUMN_REVIEW_MODEL`; setting
+With `ANTHROPIC_API_KEY` as the only LLM variable, generation, shortening, and
+review all use `claude` with `claude-opus-5-5` and the effort `high`. The
+default model applies only to `claude`: with `deepseek`, an unset
+`YT2COLUMN_MODEL` is an error.
+
+A model variable is accepted only together with a provider variable that you
+set. Setting `YT2COLUMN_MODEL` without `YT2COLUMN_LLM_PROVIDER`, or
+`YT2COLUMN_REVIEW_MODEL` when neither `YT2COLUMN_REVIEW_PROVIDER` nor
+`YT2COLUMN_LLM_PROVIDER` is set, is a configuration error naming
+`YT2COLUMN_LLM_PROVIDER`, so a model chosen for one provider is never sent to
+the default one. The error is reported once, together with any other error,
+such as an unset `ANTHROPIC_API_KEY`.
+
+Setting only `YT2COLUMN_REVIEW_PROVIDER` gives the review step that provider's
+default model: `claude-opus-5-5` for `claude`, never the generation model;
+`deepseek` has no default, so it requires `YT2COLUMN_REVIEW_MODEL`. Setting
 only `YT2COLUMN_REVIEW_MODEL` keeps the generation provider. With both unset,
-the review step reuses the generation provider and model.
+the review step reuses the generation provider and model, the defaults
+included, also in a resumed run that only reviews.
 
 Only the variables of the selected providers are read and checked: a provider's
 variables are read when the generation or the review provider is that provider.
@@ -756,6 +778,17 @@ The default effort `high` was chosen for `claude-opus-5-5`. With another model,
 such as `claude-sonnet-5-5`, `high` can also reach the output limit, and the run
 fails as truncated; in that case set `YT2COLUMN_CLAUDE_EFFORT` to a lower
 effort.
+
+### Using DeepSeek
+
+The default provider used to be `deepseek`. A configuration that relied on it,
+with `YT2COLUMN_MODEL` and `DEEPSEEK_API_KEY` set but `YT2COLUMN_LLM_PROVIDER`
+unset, now stops before any request with a `YT2COLUMN_LLM_PROVIDER` error, and
+also an `ANTHROPIC_API_KEY` error when that key is unset. Set
+`YT2COLUMN_LLM_PROVIDER=deepseek` to keep using DeepSeek as before. Removing
+`YT2COLUMN_MODEL` instead also clears the `YT2COLUMN_LLM_PROVIDER` error, but
+the run then sends the transcript to Anthropic with `claude-opus-5-5`, so it
+does not keep DeepSeek.
 
 ## Development
 

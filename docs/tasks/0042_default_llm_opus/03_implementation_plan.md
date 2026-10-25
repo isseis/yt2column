@@ -160,11 +160,11 @@
 
 **変更ファイル:** `README.md`、`docs/dev/project_overview.md`、`docs/dev/developer_guide/package_reference.md`、`cmd/yt2column/docs_test.go`、`internal/config/test_helpers.go`。
 
-- [ ] 設計書 §3.6 に挙げた表・説明・サーバのトラブル対処と、DeepSeek を使い続ける案内を更新する。`project_overview.md` の方針の 2 か所も改める。#171 の effort の記述を維持し、#488 が先に更新していれば、その版の説明に合わせる。
-- [ ] `test_helpers.go` に `DefaultProviderValueForTest`・`DefaultClaudeModelForTest` を追加する。先頭の `//go:build test` を維持する。
-- [ ] `TestLLMDefaultsDocsContract` を新設する。既存の Markdown の表を読む関数を再利用し、設計書 §7.3 に従い、未設定時の列の最初のコードスパンをコードの定数と比較する。文章の意味はテストにしない。
-- [ ] 新しい表の説明と本文を要件書 AC-25〜AC-29・実装した設定の解決と照合する。`package_reference.md` も実装を根拠に読む。モデルだけの設定を消すと送り先が変わることと、DeepSeek の明示を案内することを確認する。
-- [ ] `make test`・`make lint`・`make ext-test` を実行する。文書の値の変更も壊して対応するテストの失敗を確かめ、記録する。
+- [x] 設計書 §3.6 に挙げた表・説明・サーバのトラブル対処と、DeepSeek を使い続ける案内を更新する。`project_overview.md` の方針の 2 か所も改める。#171 の effort の記述を維持し、#488 が先に更新していれば、その版の説明に合わせる。
+- [x] `test_helpers.go` に `DefaultProviderValueForTest`・`DefaultClaudeModelForTest` を追加する。先頭の `//go:build test` を維持する。
+- [x] `TestLLMDefaultsDocsContract` を新設する。既存の Markdown の表を読む関数を再利用し、設計書 §7.3 に従い、未設定時の列の最初のコードスパンをコードの定数と比較する。文章の意味はテストにしない。
+- [x] 新しい表の説明と本文を要件書 AC-25〜AC-29・実装した設定の解決と照合する。`package_reference.md` も実装を根拠に読む。モデルだけの設定を消すと送り先が変わることと、DeepSeek の明示を案内することを確認する。
+- [x] `make test`・`make lint`・`make ext-test` を実行する。文書の値の変更も壊して対応するテストの失敗を確かめ、記録する。
 
 **完了条件:** 文書の値はコードと一致し、移行の案内を PR レビューで読んで確認できる。
 
@@ -308,3 +308,4 @@ AC-01〜AC-29 が §8 の対応で確認され、必要なテスト・lint・文
 - 壊して確かめたこと: 既定のモデルの `ProviderClaude` の枝を外すと `TestLoadGenerationDefaults`・`TestLoadReviewDefaults`・`TestLoadDefaultProviderVariables` が失敗する。モデルだけの設定の判定を外すと `TestLoadModelWithoutProvider`・`TestModelWithoutProvider`・`TestLoadServerLLMDefaults`・`TestLoadDefaultProviderVariables`・`TestRunModelWithoutProvider` が失敗する。判定を段階ごとに行うと `both models` などの件数の検査が失敗する。条件を「出どころが既定」に書き換えると `TestModelWithoutProvider` の出どころ「なし」の行が失敗する。生成を実行する実行で受け継ぐプロバイダの出どころを「変数」にすると、`TestLoadModelWithoutProvider` の `review model`・`review model empty` が失敗する。検証・推敲だけを実行する実行で、受け継ぐプロバイダまたはモデルの出どころを写さないと、AC-17・AC-18 の行が失敗する。拒否の理由に値を混ぜると `TestLoadErrorsOmitValues/model_without_provider` が失敗する。既定のプロバイダを `deepseek` に戻すと `TestRunDefaultLLMConfig` が失敗する。
 - AC-22: #171 が `loadClaudeEffort` に加えた既定の枝を一時的に外し（未設定を `ErrMissing` に戻し）、0042 の既定はそのままにして実行すると、`TestLoadProductionDefaults` は `YT2COLUMN_CLAUDE_EFFORT: is unset or empty` で失敗した（`internal/config` のテストで、ほかに失敗したのは #171 自身のテスト `TestLoadClaudeMissing`・`TestLoadClaudeEffortDefault` だけ）。したがって、このテストは #171 の effort の既定がない状態のマージを CI で止める。戻した状態で通る。
 - 4-1 の `DefaultProviderValueForTest`・`DefaultClaudeModelForTest` は、`TestRunDefaultLLMConfig` が既定のモデルを読むため、このグループで先に `internal/config/test_helpers.go` に加えた。
+- 4-1: README「Configuration」の表と本文、新しい「Using DeepSeek」の節、「Localhost server」の「Troubleshooting」の項目、`project_overview.md` の方針の 2 か所と「設定（環境変数）」の表と本文、`package_reference.md` の `internal/config` の行を改めた。#488 の文書はまだ `main` にないので、今の文書に合わせた。本文は `config.go` の解決（`resolveProvider`・`loadModel`・`loadModelOptional`・`loadReview`・`modelWithoutProvider`）と、サーバが設定の拒否で終了コード 2 を返すこと（`cmd/yt2column-server/run.go` の `exitUsage`）を根拠に書いた。`TestLLMDefaultsDocsContract` は、README の `YT2COLUMN_LLM_PROVIDER` の未設定の列を `deepseek` に戻すと失敗し、`defaultClaudeModel` の値を変えると両文書の 2 行で失敗する。最初のコードスパンの前に文を足しただけの変更では失敗しない（文の意味は PR レビューで読む）。`make test`・`make lint`・`make ext-test` が通る。
