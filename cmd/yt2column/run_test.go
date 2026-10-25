@@ -2013,10 +2013,12 @@ func TestRunModelWithoutProvider(t *testing.T) {
 	if code := e.run(); code != exitUsage {
 		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, e.stderr.String())
 	}
+	// The printed line is the contract here: it is all the user sees, and it
+	// must carry the model-only reason, not a plain missing-provider one.
 	stderr := e.stderr.String()
-	prefix := programName + ": configuration: YT2COLUMN_LLM_PROVIDER"
-	if !slices.ContainsFunc(strings.Split(stderr, "\n"), func(line string) bool { return strings.HasPrefix(line, prefix) }) {
-		t.Errorf("stderr has no line starting with %q:\n%s", prefix, stderr)
+	want := programName + ": configuration: " + config.ModelWithoutProviderErrorForTest()
+	if !slices.Contains(strings.Split(stderr, "\n"), want) {
+		t.Errorf("stderr has no line %q:\n%s", want, stderr)
 	}
 	if built != 0 {
 		t.Errorf("generation clients built = %d, want 0", built)

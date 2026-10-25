@@ -1557,7 +1557,7 @@ func TestLoadReviewDefaults(t *testing.T) {
 			nil,
 		},
 		{
-			"review provider claude, review model set", needReview,
+			"review only, review provider claude, review model set", needReview,
 			map[string]string{reviewProviderEnv: "claude", reviewModelEnv: otherModel},
 			want{ProviderUnset, "", ProviderClaude, otherModel},
 			nil,
@@ -1741,11 +1741,6 @@ func TestLoadModelWithoutProvider(t *testing.T) {
 			nil,
 		},
 		{
-			"review only, review provider set", needReview,
-			map[string]string{reviewProviderEnv: "claude", reviewModelEnv: "claude-other-test"},
-			nil,
-		},
-		{
 			"review only, review provider empty", needReview,
 			map[string]string{reviewProviderEnv: "", reviewModelEnv: "deepseek-review"},
 			[]VarError{wantMissing(reviewProviderEnv)},
@@ -1810,15 +1805,10 @@ func TestLoadDefaultProviderVariables(t *testing.T) {
 		env      map[string]string
 		wantErrs []VarError
 	}{
-		{"generation and review", needBoth, nil, nil},
-		{"generation only", needGeneration, nil, nil},
-		{"review only", needReview, nil, nil},
-		{"API key unset", needBoth, map[string]string{deepSeekAPIKeyEnv: "sk-test-key"}, []VarError{wantMissing(anthropicAPIKeyEnv)}},
-		{
-			"model without provider", needBoth,
-			map[string]string{modelEnv: "deepseek-chat", deepSeekAPIKeyEnv: "sk-test-key"},
-			[]VarError{wantModelOnly, wantMissing(anthropicAPIKeyEnv)},
-		},
+		{"generation and review", needBoth, map[string]string{anthropicAPIKeyEnv: "sk-ant-test-key"}, nil},
+		{"generation only", needGeneration, map[string]string{anthropicAPIKeyEnv: "sk-ant-test-key"}, nil},
+		{"review only", needReview, map[string]string{anthropicAPIKeyEnv: "sk-ant-test-key"}, nil},
+		{"API key unset", needBoth, nil, []VarError{wantMissing(anthropicAPIKeyEnv)}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1826,9 +1816,6 @@ func TestLoadDefaultProviderVariables(t *testing.T) {
 				claudeEffortEnv:   "high",
 				deepSeekAPIKeyEnv: "",
 				cacheDirEnv:       "/tmp/yt2column-test-cache",
-			}
-			if tc.wantErrs == nil {
-				env[anthropicAPIKeyEnv] = "sk-ant-test-key"
 			}
 			env = withVars(env, tc.env)
 			var read []string
