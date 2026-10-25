@@ -8,7 +8,7 @@
 | Created | 2026-10-25 |
 | Review date | 2026-10-25 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-25 (editorial): 実装計画の作成時に 2 か所を直した。3.5「How to measure」の検証・推敲の例に、字数の調整が走らなかった実行のあとの `--after generation --no-shorten` を加えた（字数の調整の中間生成物がないと `--after shorten` の読み込みが失敗する。`internal/artifact/store.go:139-151`）。3.4 と 3.8 の README の段落の呼び名を `--after` から `--no-review` に直した。段階ごとに 1 回ずつ呼んで前の段階の出力を再利用するという測り方と、README の書き換えの内容は変えておらず、決定は変わっていない |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルについての記述は、コミット `d92286a` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指し、先行タスクの項番は「0009 F-006」のようにタスクの番号を付けて書く。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-08）への対応は、付録 A にまとめる。
 
@@ -277,7 +277,7 @@ const defaultClaudeEffort = claudeparam.EffortHigh
 | README「Configuration」の表の `YT2COLUMN_CLAUDE_EFFORT` の行（`README.md:724`） | 「When unset」を「`high` when the generation or review provider is `claude`」に直す。空の値がエラーになることは、表の後の既存の文（`README.md:735-736`）が述べている（AC-14） |
 | README の表の後の `max` の注意（`README.md:750-752`） | 残す。「既定の出力の上限でも、`max` は推論だけで上限を使い切り、記事の本文を返さないと見込まれる」と書き、数値は挙げない。根拠は、0009 §1.4 で 64,000（V より大きい）でも推論だけで上限に達したことである（AC-15） |
 | README の `max` の注意の後 | 段落を足す。既定の `high` は claude-opus-5-5 に合わせて選んだ値であること、ほかのモデル（例: claude-sonnet-5-5）では `high` でも出力の上限に達して打ち切られうること、その場合は `YT2COLUMN_CLAUDE_EFFORT` で effort を下げられることを書く（AC-19） |
-| README の `--after` の段落（`README.md:116-121`） | 「`claude` its effort) are still required」を削り、API キーだけが必須である書き方にする（AC-14） |
+| README の `--no-review` の段落（`README.md:116-121`） | 「`claude` its effort) are still required」を削り、API キーだけが必須である書き方にする（AC-14） |
 | `docs/dev/project_overview.md`「設定（環境変数）」の表の `YT2COLUMN_CLAUDE_EFFORT` の行（`:115`） | 「未設定のとき」を「生成または検証・推敲のプロバイダが `claude` なら `high`」に直す（AC-16） |
 | `docs/dev/developer_guide/package_reference.md` の `internal/config` の行（`:27`） | 「the Claude effort via `claudeparam.ParseEffort`」に、未設定なら `high` であることを加える |
 
@@ -291,7 +291,7 @@ README の打ち切りの料金（H-05）は書かない。料金は単価の表
 |---|---|
 | When to re-measure | 本番の構成の 3 つの段階のいずれかで、テンプレート、effort（`defaultClaudeEffort` の変更を含む）、モデルを変えたとき |
 | Cost and approval | 測り直しは実 API を呼び、料金がかかる。人の承認を得てから行う（CLAUDE.md「Tool Execution Safety」）。評価の手順は 0008 評価記録 §2.3 と 0018 評価記録 §3 を参照する |
-| How to measure | 呼び出しごとの速さを得るため、1 回の CLI の実行で LLM を 1 回だけ呼ぶよう、段階ごとに実行する。字数の調整と検証・推敲は、`--artifacts` と `--after` で前の段階の出力を再利用する。字数の調整は本文が字数の上限を超えたときだけ走る。例: 生成は `--no-review --no-shorten`、字数の調整は `--after generation --no-review`、検証・推敲は `--after shorten` |
+| How to measure | 呼び出しごとの速さを得るため、1 回の CLI の実行で LLM を 1 回だけ呼ぶよう、段階ごとに実行する。字数の調整と検証・推敲は、`--artifacts` と `--after` で前の段階の出力を再利用する。字数の調整は本文が字数の上限を超えたときだけ走る。例: 生成は `--no-review --no-shorten`、字数の調整は `--after generation --no-review`、検証・推敲は、字数の調整が走った実行のあとなら `--after shorten`、走らなかった実行のあとなら `--after generation --no-shorten`（字数の調整の中間生成物は、字数の調整が走ったときだけ書かれる） |
 | What to collect | 段階ごとの出力のトークン数（README「Token usage」の `tokens:` の行の `output=`、`--artifacts` の中間生成物に記録したトークン数）、その実行の所要時間（実時間）、打ち切られた実行の有無（CLI の `generation truncated by the output token limit` などの打ち切りのエラー） |
 | How to judge | 要件書 F-002 の (a)・(b)・(c) と照らす。(a) 観測した出力の最大の 2 倍以上。(b) 出力のトークン数 ÷ 所要時間で速さを計算し（呼び出し以外の処理を含むので遅めに出る）、その最も遅い値で V トークンを出力する時間が 7.5 分以内。(c) 対象のモデルについて、V がモデルの出力の上限以下 |
 | What to update | 条件を満たさない場合: 定数 `defaultMaxOutputTokens`（`internal/llm/claude/request.go`）、(a)・(b) を固定するテストの名前付きの値（観測した出力の最大と最も遅い出力の速さ。`internal/llm/provider/provider_test.go`）、根拠の記録（その変更を扱うタスクの `02_architecture.md`）、このガイドが示す根拠の記録の場所、README の `max` の注意と既定の effort の案内 |
@@ -335,7 +335,7 @@ README の打ち切りの料金（H-05）は書かない。料金は単価の表
 
 ### 3.8. 文書を読む既存のテスト
 
-本書が変える文書を読む既存のテストと、本書の変更との関係は次のとおりである。どのテストも、本書が変える箇所（README の `YT2COLUMN_CLAUDE_EFFORT` の行、`max` の注意、`--after` の段落、`project_overview.md` の同じ変数の行、`package_reference.md` の `internal/config` の行、`CLAUDE.md` の Quick Links）の値を読まない。
+本書が変える文書を読む既存のテストと、本書の変更との関係は次のとおりである。どのテストも、本書が変える箇所（README の `YT2COLUMN_CLAUDE_EFFORT` の行、`max` の注意、`--no-review` の段落、`project_overview.md` の同じ変数の行、`package_reference.md` の `internal/config` の行、`CLAUDE.md` の Quick Links）の値を読まない。
 
 | テスト | 読む文書と値 |
 |---|---|
