@@ -281,7 +281,7 @@ Before considering a feature complete:
 - [ ] Architecture design document created with high-level design
 - [ ] Implementation plan created and updated during development
 - [ ] Acceptance criteria verification section present in implementation plan
-- [ ] At least one test per acceptance criterion (or a `diff` verification for an AC that states a before/after relation, or a `manual` reading for an AC that specifies only the natural-language content of a document)
+- [ ] At least one test or `static` verification per acceptance criterion (or a `diff` verification for an AC that states a before/after relation, or a `manual` reading for an AC that specifies only the natural-language content of a document)
 - [ ] All acceptance tests pass
 - [ ] Security requirements explicitly tested
 
