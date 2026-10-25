@@ -341,10 +341,10 @@ type Need struct {
 // other provider variable. It joins every rejection together and returns the
 // zero Config on any error. A need that is true reads and requires its stage's
 // provider and model variables and reads and validates the selected providers'
-// own variables; a
-// need that is false does not check them. When Review is true but Generation is
-// false, the generation provider and model are still read, without being
-// required, so the review step inherits them when its own variables are unset.
+// own variables; a need that is false does not check them. When Review is true
+// but Generation is false, the generation provider and model are still read,
+// without being required, so the review step inherits them when its own
+// variables are unset.
 func LoadFor(lookup LookupFunc, need Need) (Config, error) {
 	llm, errs := loadLLM(lookup, need)
 	var cfg Config

@@ -30,6 +30,8 @@ const (
 	testModel = "deepseek-flash"
 	// testClaudeModel is the model name of a claude test environment.
 	testClaudeModel = "claude-opus-5-5"
+	// testClaudeReviewModel is a review model distinct from testClaudeModel.
+	testClaudeReviewModel = "claude-sonnet-5-5"
 	// testAPIKey is a fixed, non-secret value. No test uses a real key.
 	testAPIKey = "sk-test-key-0123456789"
 	// testClaudeWorkspaceID is a fixed, non-secret workspace id.
@@ -353,6 +355,9 @@ func TestNewClaudeDefaultEffort(t *testing.T) {
 	}
 	claudeBoth := claudeValidEnv()
 	delete(claudeBoth, "YT2COLUMN_CLAUDE_EFFORT")
+	// A review model of its own shows that the review row built the review
+	// stage's adapter, not a second generation adapter.
+	claudeBoth["YT2COLUMN_REVIEW_MODEL"] = testClaudeReviewModel
 	reviewClaude := validEnv()
 	reviewClaude["YT2COLUMN_REVIEW_PROVIDER"] = "claude"
 	reviewClaude["YT2COLUMN_REVIEW_MODEL"] = testClaudeModel
@@ -366,22 +371,27 @@ func TestNewClaudeDefaultEffort(t *testing.T) {
 		env   map[string]string
 		stage string
 		pick  stageSelector
+		model string
 	}{
-		{"both stages claude", claudeBoth, "generation", generationStage},
-		{"both stages claude", claudeBoth, "review", reviewStage},
-		{"review claude only", reviewClaude, "review", reviewStage},
-		{"generation claude only", generationClaude, "generation", generationStage},
+		{"both stages claude", claudeBoth, "generation", generationStage, testClaudeModel},
+		{"both stages claude", claudeBoth, "review", reviewStage, testClaudeReviewModel},
+		{"review claude only", reviewClaude, "review", reviewStage, testClaudeModel},
+		{"generation claude only", generationClaude, "generation", generationStage, testClaudeModel},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name+" "+tc.stage, func(t *testing.T) {
 			recorded := claudeRequestFor(t, tc.env, body, tc.pick)
 			var decoded struct {
+				Model        string `json:"model"`
 				OutputConfig struct {
 					Effort string `json:"effort"`
 				} `json:"output_config"`
 			}
 			if err := json.Unmarshal(recorded.Body, &decoded); err != nil {
 				t.Fatalf("decode request body: %v", err)
+			}
+			if decoded.Model != tc.model {
+				t.Errorf("request model = %q, want %q", decoded.Model, tc.model)
 			}
 			if decoded.OutputConfig.Effort != "high" {
 				t.Errorf("output_config.effort = %q, want %q", decoded.OutputConfig.Effort, "high")
