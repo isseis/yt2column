@@ -11,6 +11,7 @@ import (
 	"maps"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -298,21 +299,30 @@ func TestLoadClaudeMissing(t *testing.T) {
 	t.Run("API key and effort unset", func(t *testing.T) {
 		_, err := Load(envLookup(without(validClaudeEnv(), anthropicAPIKeyEnv, claudeEffortEnv)))
 		assertVarError(t, err, ErrMissing, anthropicAPIKeyEnv)
-		var walk func(error)
-		walk = func(e error) {
-			if varErr, ok := e.(*VarError); ok && varErr.Name == claudeEffortEnv {
-				t.Errorf("Load() error = %v, names %s", err, claudeEffortEnv)
-			}
-			if multi, ok := e.(interface{ Unwrap() []error }); ok {
-				for _, child := range multi.Unwrap() {
-					walk(child)
-				}
-			} else if next := errors.Unwrap(e); next != nil {
-				walk(next)
-			}
+		if slices.Contains(varErrorNames(err), claudeEffortEnv) {
+			t.Errorf("Load() error = %v, names %s", err, claudeEffortEnv)
 		}
-		walk(err)
 	})
+}
+
+// varErrorNames returns the variable name of every *VarError in err's tree.
+// errors.AsType stops at the first match, and a joined load error holds one
+// *VarError per rejected variable, so the tree is walked node by node.
+func varErrorNames(err error) []string {
+	if err == nil {
+		return nil
+	}
+	var names []string
+	if varErr, ok := errors.AsType[*VarError](err); ok && varErr == err {
+		names = append(names, varErr.Name)
+	}
+	if multi, ok := err.(interface{ Unwrap() []error }); ok {
+		for _, child := range multi.Unwrap() {
+			names = append(names, varErrorNames(child)...)
+		}
+		return names
+	}
+	return append(names, varErrorNames(errors.Unwrap(err))...)
 }
 
 // TestLoadClaudeEffortDefault checks that an unset YT2COLUMN_CLAUDE_EFFORT
@@ -345,6 +355,8 @@ func TestLoadClaudeEffortDefault(t *testing.T) {
 		})
 	}
 
+	// LoadServer shares Load's LLM loading today; this pins the server entry
+	// point, so a server-specific loader would still get the default.
 	t.Run("LoadServer", func(t *testing.T) {
 		env := without(claudeBoth, cacheDirEnv)
 		env = with(env, "HOME", "/home/user")

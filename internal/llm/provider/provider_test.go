@@ -346,8 +346,11 @@ func claudeRequestFor(t *testing.T, env map[string]string, body []byte, pick sta
 	return recorder.Only(t)
 }
 
-// TestNewClaudeDefaultEffort verifies that, with YT2COLUMN_CLAUDE_EFFORT
-// unset, every claude stage's adapter sends the high effort.
+// TestNewClaudeDefaultEffort verifies end to end that, with
+// YT2COLUMN_CLAUDE_EFFORT unset, every claude stage's adapter sends the high
+// effort on the wire. The per-environment default itself is covered by
+// config's TestLoadClaudeEffortDefault; these rows check what the built
+// adapters send, and the request model shows which stage's adapter was built.
 func TestNewClaudeDefaultEffort(t *testing.T) {
 	body, err := os.ReadFile(claudeEndTurnFixture) //nolint:gosec // the path names a committed testdata fixture
 	if err != nil {
