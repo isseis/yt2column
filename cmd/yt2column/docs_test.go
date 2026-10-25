@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/isseis/yt2column/internal/config"
 	"github.com/isseis/yt2column/internal/llm"
 	claudetestutil "github.com/isseis/yt2column/internal/llm/claude/testutil"
 	"github.com/isseis/yt2column/internal/pricing"
@@ -107,6 +108,52 @@ func TestClaudeDocsContract(t *testing.T) {
 				t.Errorf("%s does not mention %q", doc.name, value)
 			}
 		}
+	}
+}
+
+// TestLLMDefaultsDocsContract checks that the configuration tables of
+// README.md and project_overview.md state the code's LLM defaults: the first
+// code span of the "when unset" cell of each row is the value the config
+// package applies. A stale value written as a code span in front of the new
+// one fails; prose in front of it, and the rest of the cell, are not checked
+// here but read in review.
+func TestLLMDefaultsDocsContract(t *testing.T) {
+	want := []struct{ name, value string }{
+		{"YT2COLUMN_LLM_PROVIDER", config.DefaultProviderValueForTest()},
+		{"YT2COLUMN_MODEL", config.DefaultClaudeModelForTest()},
+		{"YT2COLUMN_REVIEW_MODEL", config.DefaultClaudeModelForTest()},
+	}
+	codeSpan := regexp.MustCompile("`([^`]*)`")
+	for _, doc := range []struct {
+		name, path, nameHeader, unsetHeader string
+	}{
+		{"README.md", readmePath, "Variable", "When unset"},
+		{"project_overview.md", projectOverviewPath, "変数", "未設定のとき"},
+	} {
+		t.Run(doc.name, func(t *testing.T) {
+			table := findTable(readDoc(t, doc.path), doc.nameHeader)
+			if table == nil {
+				t.Fatalf("%s has no table with a %q column", doc.name, doc.nameHeader)
+			}
+			column := slices.Index(table[0], doc.unsetHeader)
+			if column < 0 {
+				t.Fatalf("%s: the %q table has no %q column", doc.name, doc.nameHeader, doc.unsetHeader)
+			}
+			for _, v := range want {
+				// A second row for the same variable would go unchecked, so
+				// exactly one is required.
+				rows := tableRowsWithFirstCell(table, v.name)
+				if len(rows) != 1 || len(rows[0]) <= column {
+					t.Errorf("%s: %d rows for %s, want exactly one with a %q cell", doc.name, len(rows), v.name, doc.unsetHeader)
+					continue
+				}
+				cell := rows[0][column]
+				match := codeSpan.FindStringSubmatch(cell)
+				if match == nil || match[1] != v.value {
+					t.Errorf("%s: %s %q cell = %q, want its first code span to be %q", doc.name, v.name, doc.unsetHeader, cell, v.value)
+				}
+			}
+		})
 	}
 }
 

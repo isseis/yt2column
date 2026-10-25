@@ -8,7 +8,7 @@
 | Created | 2026-10-25 |
 | Review date | 2026-10-25 |
 | Reviewer | isseis |
-| Comments | 2026-10-25、AC-24 の検証を、コードを読む確認から、`test` タグのテスト `TestIntegrationRunProviderSelection` を `make test` と CI で走らせる方式に改め、そのために `newIntegrationRun` を `test \|\| integration` のファイルへ移すことにした（3.5、7.4、7.5 の AC-24 の行）。また、要件書 §5 の変更に合わせ、#171 の後にマージするのを既定を変えるフェーズ 2〜4 に限り、フェーズ 1 は先にマージしてよいことにした（1.1、8 章の 6）。決定の変更なので本書を `draft` に戻し、PR の `/runpr` のマージの問いで改めて承認を受ける。それまでの承認は、レビュー日 2026-10-25、レビュアー isseis である。 |
+| Comments | 2026-10-25、AC-24 の検証を、コードを読む確認から、`test` タグのテスト `TestIntegrationRunProviderSelection` を `make test` と CI で走らせる方式に改め、そのために `newIntegrationRun` を `test \|\| integration` のファイルへ移すことにした（3.5、7.4、7.5 の AC-24 の行）。また、要件書 §5 の変更に合わせ、#171 の後にマージするのを既定を変えるフェーズ 2〜4 に限り、フェーズ 1 は先にマージしてよいことにした（1.1、8 章の 6）。決定の変更なので本書を `draft` に戻し、PR の `/runpr` のマージの問いで改めて承認を受ける。それまでの承認は、レビュー日 2026-10-25、レビュアー isseis である。 2026-10-25、実装（PR-2）で編集上の訂正を行った。3.5 の `provider_test.go` の行と 7.1 の「リクエストのモデル名」で加えるとしていた部分テストは、0041 の実装が加えた `TestNewClaudeDefaultEffort` と重なるので加えず、その参照に改めた。設計は変わらない。 |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルについての記述は、コミット `826fec2` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指し、先行タスクの受け入れ基準は「0010 AC-17」のようにタスクの番号を付けて書く。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-06）への対応は、付録 A にまとめる。
 
@@ -349,7 +349,7 @@ func DefaultClaudeModelForTest() string
 | `cmd/yt2column-server/test_helpers.go` | `newServerEnv` の環境（`test_helpers.go:121-128`）に `YT2COLUMN_LLM_PROVIDER=deepseek` を加える | H-01 |
 | `cmd/yt2column/docs_test.go` | 文書に書いた既定の値を確かめるテストを加える（7.3） | AC-25、H-02 |
 | `README.md` | 「Configuration」の表と本文、DeepSeek を使い続けるための案内、「Localhost server」の「Troubleshooting」の項目（3.6） | AC-25〜AC-27 |
-| `internal/llm/provider/provider_test.go` | `TestNewReviewUsesReviewModel` に、検証・推敲が `claude` のときモデルが Claude の構築に渡ることを確かめる部分テストを加える（7.1） | AC-10 |
+| `internal/llm/provider/provider_test.go` | 変えない。検証・推敲が `claude` のときモデルが Claude の構築に渡ることは、0041 が加えた `TestNewClaudeDefaultEffort` が確かめている（7.1） | AC-10 |
 | `docs/dev/developer_guide/package_reference.md` | `internal/config` の行を、既定のプロバイダとモデル、AC-10・AC-11 の規則、モデルだけの設定の拒否に合わせて直す（3.6） | AC-26 |
 | `docs/dev/project_overview.md` | 「決定済みの方針」の LLM の項、「前提・制約」のモデル名の方針、「設定（環境変数）」の表と本文、DeepSeek を使い続けるための案内（3.6） | AC-25〜AC-29 |
 
@@ -539,7 +539,7 @@ flowchart TD
 -   **値を含めない（AC-19・AC-21）:** モデルだけの設定の拒否で、`YT2COLUMN_MODEL` と `YT2COLUMN_REVIEW_MODEL` に目印の値を入れ、エラーの文字列に現れないことを確かめる（`TestLoadErrorsOmitValues`、`config_test.go:666` と同じ方法）。
 -   **LoadServer:** 2 つの設定を確かめる。何も設定しない LLM の変数（`ANTHROPIC_API_KEY` だけ）で既定が当たること。更新の前の DeepSeek の設定（`YT2COLUMN_MODEL` と `DEEPSEEK_API_KEY`、プロバイダなし）でモデルだけの設定の拒否が出ること。規則の網羅は `Load` のテストに任せる（`LoadServer` は同じ `loadLLM` を呼ぶ、`config.go:260`。既存の `TestLoadServerModelMissing` のコメント、`config_test.go:899-901` と同じ分担）。
 -   **effort の扱い:** AC-22 のテストのほかは、`ANTHROPIC_API_KEY` に加えて `YT2COLUMN_CLAUDE_EFFORT` を明示する。#171 の effort の既定に依存するテストを AC-22 のテストだけに限るためである。
--   **リクエストのモデル名（AC-03・AC-08・AC-10）:** `LLMConfig` の `Model()`・`ReviewModel()` が既定のモデルであることを上の表で確かめる。`provider.New` が `Model()` を Claude のリクエストのモデル名として送ることは、既存の `TestNewClaudeSendsConfiguredRequest`（`internal/llm/provider/provider_test.go:257`）が確かめている。`provider.NewReview` が `ReviewModel()` を構築に渡すことは、既存の `TestNewReviewUsesReviewModel`（同 `:442`）が DeepSeek で確かめているが、Claude のリクエストのモデル名までは確かめていない。そこで、`TestNewReviewUsesReviewModel` に、検証・推敲のプロバイダが `claude` のとき `ReviewModel()` が Claude の構築に渡ることを確かめる部分テストを 1 つ加える（`builders` の差し替え、`provider.go:43-46`）。
+-   **リクエストのモデル名（AC-03・AC-08・AC-10）:** `LLMConfig` の `Model()`・`ReviewModel()` が既定のモデルであることを上の表で確かめる。`provider.New` が `Model()` を Claude のリクエストのモデル名として送ることは、既存の `TestNewClaudeSendsConfiguredRequest`（`internal/llm/provider/provider_test.go:257`）が確かめている。`provider.NewReview` が `ReviewModel()` を構築に渡すことは、既存の `TestNewReviewUsesReviewModel`（同 `:442`）が DeepSeek で確かめているが、Claude のリクエストのモデル名までは確かめていない。これは、本書の作成の後に 0041 の実装が加えた `TestNewClaudeDefaultEffort` が確かめている。その `both stages claude review` の行は、生成と異なる検証・推敲のモデルを、`NewReview` と同じ段階の選び方で Claude の構築に渡し（`builders` の差し替え、`provider.go:43-46`）、リクエストのモデル名を確かめる。そのため部分テストは加えない。
 -   **AC-22:** `ANTHROPIC_API_KEY` だけを設定した環境で、`Provider()`・`ReviewProvider()` が `ProviderClaude`、`Model()`・`ReviewModel()` が既定のモデル、`ClaudeEffort()` が `claudeparam.EffortHigh` であることを確かめる。effort の部分は #171 の実装を前提にする。このテストは実装の PR に含める（8 章）。実装のときに、#171 の変更がない状態でこのテストを実行し、`YT2COLUMN_CLAUDE_EFFORT` の既定がないことを理由に失敗するかを確かめ、結果をコミットのメッセージと実装計画に記録する。意図した理由で失敗すると確かめられた場合に限り、このテストを #171 より先のマージを CI で止める仕掛けとして扱う。
 -   **書き直す・削る既存のテスト:** 1.4 の 3・5 の 4 つ。
     -   `TestLoadDefaults` は、LLM 以外の既定（Slack、`yt-dlp`、キャッシュディレクトリ）を確かめるテストとして残し、環境に `YT2COLUMN_LLM_PROVIDER=deepseek` を加える。LLM の既定は、上の生成の段階の表のテストで確かめる。

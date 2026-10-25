@@ -43,3 +43,22 @@ func SocketPathMaxForTest(goos string) int {
 	}
 	return limit
 }
+
+// The LLM defaults and the model-only rejection, exposed so the CLI tests and
+// the documentation guard in cmd/yt2column compare against the code instead of
+// copying the values.
+
+// DefaultProviderValueForTest returns the YT2COLUMN_LLM_PROVIDER value used
+// when the variable is unset.
+func DefaultProviderValueForTest() string { return defaultProviderValue }
+
+// DefaultClaudeModelForTest returns the model of a claude stage whose model
+// variable is unset.
+func DefaultClaudeModelForTest() string { return defaultClaudeModel }
+
+// ModelWithoutProviderErrorForTest returns the text of the rejection of a model
+// variable set without a provider variable, as a configuration error prints
+// it.
+func ModelWithoutProviderErrorForTest() string {
+	return missingVarWithReason(providerEnv, reasonModelWithoutProvider).Error()
+}
