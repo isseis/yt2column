@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Created | 2026-10-25 |
-| Review date | 2026-10-25 |
-| Reviewer | isseis |
-| Comments | - |
+| Review date | - |
+| Reviewer | - |
+| Comments | 2026-10-25、AC-24 の検証を、コードを読む確認から、`test` タグのテスト `TestIntegrationRunProviderSelection` を `make test` と CI で走らせる方式に改め、そのために `newIntegrationRun` を `test \|\| integration` のファイルへ移すことにした（3.5、7.4、7.5 の AC-24 の行）。また、要件書 §5 の変更に合わせ、#171 の後にマージするのを既定を変えるフェーズ 2〜4 に限り、フェーズ 1 は先にマージしてよいことにした（1.1、8 章の 6）。決定の変更なので本書を `draft` に戻し、PR の `/runpr` のマージの問いで改めて承認を受ける。それまでの承認は、レビュー日 2026-10-25、レビュアー isseis である。 |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルについての記述は、コミット `826fec2` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指し、先行タスクの受け入れ基準は「0010 AC-17」のようにタスクの番号を付けて書く。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-06）への対応は、付録 A にまとめる。
 
