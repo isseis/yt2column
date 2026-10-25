@@ -830,7 +830,6 @@ func TestLoadErrorsOmitValues(t *testing.T) {
 		// Both model variables without a provider: the model-only rejection
 		// must not carry either model's value.
 		{"model without provider", withVars(without(base, providerEnv), map[string]string{reviewModelEnv: markReviewModel}), nil},
-		{"review model empty without provider", withVars(without(base, providerEnv), map[string]string{reviewModelEnv: ""}), nil},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1440,8 +1439,9 @@ var (
 func TestLoadGenerationDefaults(t *testing.T) {
 	const otherModel = "claude-other-test"
 	cases := []struct {
-		name         string
-		vars         map[string]string
+		name string
+		vars map[string]string
+		// wantProvider and wantModel are checked only when wantErrs is nil.
 		wantProvider Provider
 		wantModel    string
 		wantErrs     []VarError
@@ -1587,6 +1587,24 @@ func TestLoadReviewDefaults(t *testing.T) {
 			[]VarError{wantMissing(reviewProviderEnv)},
 		},
 		{
+			"review only, review provider empty, review model unset", needReview,
+			map[string]string{reviewProviderEnv: ""},
+			want{},
+			[]VarError{wantMissing(reviewProviderEnv)},
+		},
+		{
+			"review provider invalid, review model unset", needBoth,
+			map[string]string{providerEnv: "claude", reviewProviderEnv: "gemini"},
+			want{},
+			[]VarError{wantInvalidProvider(reviewProviderEnv)},
+		},
+		{
+			"review only, review provider claude, review model empty", needReview,
+			map[string]string{reviewProviderEnv: "claude", reviewModelEnv: ""},
+			want{},
+			[]VarError{wantMissing(reviewModelEnv)},
+		},
+		{
 			"review only, review provider invalid, review model unset", needReview,
 			map[string]string{reviewProviderEnv: "gemini"},
 			want{},
@@ -1671,9 +1689,9 @@ func TestLoadModelWithoutProvider(t *testing.T) {
 		},
 		{
 			"default provider's variables are still checked", needBoth,
-			map[string]string{modelEnv: "deepseek-chat", anthropicAPIKeyEnv: "", claudeEffortEnv: "High"},
+			map[string]string{modelEnv: "deepseek-chat", anthropicAPIKeyEnv: "", claudeEffortEnv: "High", anthropicWorkspaceIDEnv: ""},
 			[]VarError{
-				wantModelOnly, wantMissing(anthropicAPIKeyEnv),
+				wantModelOnly, wantMissing(anthropicAPIKeyEnv), wantMissing(anthropicWorkspaceIDEnv),
 				{Name: claudeEffortEnv, Reason: reasonClaudeEffort, Err: ErrInvalid},
 			},
 		},
@@ -1695,6 +1713,28 @@ func TestLoadModelWithoutProvider(t *testing.T) {
 			map[string]string{providerEnv: "gemini", modelEnv: "deepseek-chat"},
 			[]VarError{wantInvalidProvider(providerEnv)},
 		},
+		{
+			"generation only, generation provider empty", needGeneration,
+			map[string]string{providerEnv: "", modelEnv: "deepseek-chat"},
+			[]VarError{wantMissing(providerEnv)},
+		},
+		{
+			"generation only, generation provider invalid", needGeneration,
+			map[string]string{providerEnv: "gemini", modelEnv: "deepseek-chat"},
+			[]VarError{wantInvalidProvider(providerEnv)},
+		},
+		{
+			"review only, inherited provider empty", needReview,
+			map[string]string{providerEnv: "", modelEnv: "deepseek-chat"},
+			[]VarError{wantMissing(providerEnv)},
+		},
+		{
+			"review only, inherited provider invalid", needReview,
+			map[string]string{providerEnv: "gemini", modelEnv: "deepseek-chat"},
+			[]VarError{wantInvalidProvider(providerEnv)},
+		},
+		// The review stage is not needed, so its model variable is not read.
+		{"generation only, review model", needGeneration, map[string]string{reviewModelEnv: "deepseek-review"}, nil},
 		{
 			"review provider set", needBoth,
 			map[string]string{reviewProviderEnv: "deepseek", reviewModelEnv: "deepseek-review"},

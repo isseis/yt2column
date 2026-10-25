@@ -527,7 +527,8 @@ func parseProvider(name, value string) (Provider, error) {
 // and their origins. A set provider with no model of its own uses that
 // provider's default model, never the generation model, and is rejected when
 // the provider has no default; only the model may be set on its own, to reuse
-// the generation provider. generationRuns reports whether the generation stage
+// the generation provider (when that provider was not set by a variable,
+// modelWithoutProvider rejects the run). generationRuns reports whether the generation stage
 // was resolved (generation holds its origins, and loadModel has already
 // reported a missing generation model); when it is false, the generation
 // provider and model are read here without being required, and a review model
