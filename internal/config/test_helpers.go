@@ -43,3 +43,14 @@ func SocketPathMaxForTest(goos string) int {
 	}
 	return limit
 }
+
+// The LLM defaults, exposed so the documentation guard in cmd/yt2column and
+// the CLI tests compare against the code instead of copying the values.
+
+// DefaultProviderValueForTest returns the YT2COLUMN_LLM_PROVIDER value used
+// when the variable is unset.
+func DefaultProviderValueForTest() string { return defaultProviderValue }
+
+// DefaultClaudeModelForTest returns the model of a claude stage whose model
+// variable is unset.
+func DefaultClaudeModelForTest() string { return defaultClaudeModel }

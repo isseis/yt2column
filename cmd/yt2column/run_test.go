@@ -1970,6 +1970,62 @@ func TestRunClaudeConfigurationErrorsOneLineEach(t *testing.T) {
 	}
 }
 
+// TestRunDefaultLLMConfig checks, at the CLI entry point, that a run with no
+// provider or model variable builds its generation client from the claude
+// provider and the default model.
+func TestRunDefaultLLMConfig(t *testing.T) {
+	e := newRunEnv(t)
+	delete(e.env, "YT2COLUMN_LLM_PROVIDER")
+	delete(e.env, "YT2COLUMN_MODEL")
+	delete(e.env, "DEEPSEEK_API_KEY")
+	e.env["ANTHROPIC_API_KEY"] = testAnthropicKey
+	e.env["YT2COLUMN_CLAUDE_EFFORT"] = "high"
+	var built []config.LLMConfig
+	e.d.newLLMClient = func(cfg config.LLMConfig) (llm.LLMClient, error) {
+		built = append(built, cfg)
+		return e.counter.wrap(e.client), nil
+	}
+	if code := e.run(); code != exitOK {
+		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
+	}
+	if len(built) != 1 {
+		t.Fatalf("generation clients built = %d, want 1", len(built))
+	}
+	if got := built[0].Provider(); got != config.ProviderClaude {
+		t.Errorf("Provider() = %v, want ProviderClaude", got)
+	}
+	if got, want := built[0].Model(), config.DefaultClaudeModelForTest(); got != want {
+		t.Errorf("Model() = %q, want %q", got, want)
+	}
+}
+
+// TestRunModelWithoutProvider checks that a DeepSeek setting that relied on
+// the old default provider (a model and a DeepSeek key, no provider) stops as
+// a configuration error before any LLM client is built or yt-dlp starts.
+func TestRunModelWithoutProvider(t *testing.T) {
+	e := newRunEnv(t)
+	delete(e.env, "YT2COLUMN_LLM_PROVIDER")
+	built := 0
+	e.d.newLLMClient = func(config.LLMConfig) (llm.LLMClient, error) {
+		built++
+		return e.counter.wrap(e.client), nil
+	}
+	if code := e.run(); code != exitUsage {
+		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, e.stderr.String())
+	}
+	stderr := e.stderr.String()
+	prefix := programName + ": configuration: YT2COLUMN_LLM_PROVIDER"
+	if !slices.ContainsFunc(strings.Split(stderr, "\n"), func(line string) bool { return strings.HasPrefix(line, prefix) }) {
+		t.Errorf("stderr has no line starting with %q:\n%s", prefix, stderr)
+	}
+	if built != 0 {
+		t.Errorf("generation clients built = %d, want 0", built)
+	}
+	if _, err := os.Stat(e.tripwireMarker); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("yt-dlp tripwire fired (stat err = %v), want no yt-dlp run", err)
+	}
+}
+
 // TestTestDepsSlackPublisherDoesNotSend checks that the default
 // newSlackPublisher of testDeps and of newRunEnv sends nothing: a --slack run
 // stops at building the publisher with the stub's error.

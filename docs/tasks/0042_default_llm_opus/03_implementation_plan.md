@@ -8,7 +8,7 @@
 | Created | 2026-10-25 |
 | Review date | 2026-10-25 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-25、PR-2 の実装で編集上の訂正を 1 つ行った。3-2 の「`TestNewReviewUsesReviewModel` に Claude の検証・推敲のモデルの検査を加える」は、本書の作成の後に 0041 の実装（#498）が加えた `TestNewClaudeDefaultEffort` の `both stages claude review` の行が同じことを確かめている（生成と異なる検証・推敲のモデルを、`NewReview` と同じ段階の選び方で Claude の構築に渡し、リクエストのモデル名を確かめる）。重複を避けて部分テストを加えず、§1.3・3-2・§8 の AC-08・AC-10・AC-22 の行の参照をこのテストに改めた。設計書 3.5・7.1 も同じく改めた。何を作るかは変わらない。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -40,7 +40,7 @@
 | 古い既定を使うテスト | `internal/config/config_test.go:108` の `TestLoadDefaults`、`:150` の欠落の行、`:1109`・`:1166` の `TestLoadFor` の部分テストが対象。残す検査と削る行を §2 に分ける | 2-2 |
 | DeepSeek を前提にした環境 | `cmd/yt2column/run_test.go:119` の `newRunEnv`、`signal_test.go:46` の `newChildSetup`、`integration_test.go:112` の `newIntegrationRun`、`cmd/yt2column-server/test_helpers.go:121` の `newServerEnv` が対象。`integration_slack_test.go:40` は共通の `newIntegrationRun` を使う | 1-1、1-2 |
 | 使い回す検査 | `internal/config/config_test.go:380` の `TestLoadIgnoresOtherProviderVars`、`:666` の `TestLoadErrorsOmitValues`、`:1015` の `TestLoadFor` を拡張・再利用する。`:578` の `assertVarError` は最初の `*VarError` を調べるため、複数の拒否の件数には全要素の検査が必要 | 2-2、3-1 |
-| API への受け渡し | `internal/llm/provider/provider_test.go:257` の `TestNewClaudeSendsConfiguredRequest` と `:314` の `claudeRequestFor` が生成のモデル・effort のリクエストを検査する。`:442` の `TestNewReviewUsesReviewModel` に Claude のモデルの受け渡しを加える。字数の調整が生成のクライアントを使う検査は `internal/writer/steps_test.go:43` の `TestWriteStepOrder` を再利用する | 3-2 |
+| API への受け渡し | `internal/llm/provider/provider_test.go:257` の `TestNewClaudeSendsConfiguredRequest` と `:314` の `claudeRequestFor` が生成のモデル・effort のリクエストを検査する。Claude の検証・推敲のモデルの受け渡しは、0041 が加えた `TestNewClaudeDefaultEffort` が確かめている。字数の調整が生成のクライアントを使う検査は `internal/writer/steps_test.go:43` の `TestWriteStepOrder` を再利用する | 3-2 |
 | 文書の値 | `cmd/yt2column/docs_test.go:184-280` に `readDoc`・`findTable`・`tableRow` などがある。`internal/config/test_helpers.go` の既存の `test` タグ付きファイルに既定を返すアクセサを加え、値の比較に使う | 4-1 |
 | 文書の説明 | `README.md:718-748`、`:626` 付近のサーバの案内、`docs/dev/project_overview.md:12`・`:67`・`:109-126`、`docs/dev/developer_guide/package_reference.md:27` が変更対象。履歴である過去のタスク文書・評価記録は書き換えない | 4-1 |
 
@@ -107,10 +107,10 @@
 
 **変更ファイル:** `internal/config/config.go`。
 
-- [ ] 設計書 §3.1〜§3.3 に従い、`defaultProviderValue`・`defaultClaudeModel` と `defaultModel` を加える。既定のモデルを選ぶ `switch` の `default` は既定なしとする。
-- [ ] §1.4 の表に従いプロバイダの解決をまとめ、全呼び出し側を更新する。未設定と空の区別を維持する。
-- [ ] 生成の段階、検証・推敲だけを実行する場合の受け継ぎ、検証・推敲のプロバイダだけを指定する場合の各経路で、同じモデルの既定を使う。空・不正なプロバイダや空のモデルに既定を当てはめない。
-- [ ] 出どころを値と一緒に返すための型と引数を設計書 §3.1 に合わせて準備する。コメントも新しい既定と受け継ぎに合わせる（§4.3）。
+- [x] 設計書 §3.1〜§3.3 に従い、`defaultProviderValue`・`defaultClaudeModel` と `defaultModel` を加える。既定のモデルを選ぶ `switch` の `default` は既定なしとする。
+- [x] §1.4 の表に従いプロバイダの解決をまとめ、全呼び出し側を更新する。未設定と空の区別を維持する。
+- [x] 生成の段階、検証・推敲だけを実行する場合の受け継ぎ、検証・推敲のプロバイダだけを指定する場合の各経路で、同じモデルの既定を使う。空・不正なプロバイダや空のモデルに既定を当てはめない。
+- [x] 出どころを値と一緒に返すための型と引数を設計書 §3.1 に合わせて準備する。コメントも新しい既定と受け継ぎに合わせる（§4.3）。
 
 **完了条件:** 2-2 の既定と既存の拒否のテストが通る。モデルだけの設定の拒否を含む行は 3-1 で検査する。このフェーズだけでは PR を開かず、3-1 の拒否を続けて加える。
 
@@ -118,12 +118,12 @@
 
 **変更ファイル:** `internal/config/config_test.go`。
 
-- [ ] 設計書 §3.2・§3.3 のうち、既定と既存の拒否を扱う行を、設計書 §7.1 の実行の種類で検査する `TestLoadGenerationDefaults`・`TestLoadReviewDefaults` を新設する。既定以外の生成モデルと、検証・推敲の既定のモデルも区別する。モデルだけの設定の拒否を含む行は 3-1 の `TestLoadModelWithoutProvider` で検査する。既存の検査と重複する行は同じテストにまとめる。
-- [ ] `TestLoadDefaults` に DeepSeek の明示を加え、Slack・`yt-dlp`・キャッシュディレクトリの既存の検査を残す。明示した値をそのまま確かめるだけになる `Provider()` の検査は削る（`CLAUDE.md`「Do not assert ... a struct field holds what was just assigned to it」）。
-- [ ] `TestLoadMissing` の `provider unset and API key unset` の行だけを削る。DeepSeek のキーがない場合の残る行を確認し、削除の直前・直後の関数ごとのカバレッジを比較して結果を記録する。
-- [ ] `TestLoadFor` の `review only requires a model` に DeepSeek の明示を加える。
-- [ ] `TestLoadFor` の `review only rejects an empty inherited model` に DeepSeek の明示を加える。
-- [ ] `TestLoadFor` の `no stage reads no LLM variable` を拡張し、全 LLM 変数の参照がなく、モデル・プロバイダのアクセサに既定が入らないことを検査する。
+- [x] 設計書 §3.2・§3.3 のうち、既定と既存の拒否を扱う行を、設計書 §7.1 の実行の種類で検査する `TestLoadGenerationDefaults`・`TestLoadReviewDefaults` を新設する。既定以外の生成モデルと、検証・推敲の既定のモデルも区別する。モデルだけの設定の拒否を含む行は 3-1 の `TestLoadModelWithoutProvider` で検査する。既存の検査と重複する行は同じテストにまとめる。
+- [x] `TestLoadDefaults` に DeepSeek の明示を加え、Slack・`yt-dlp`・キャッシュディレクトリの既存の検査を残す。明示した値をそのまま確かめるだけになる `Provider()` の検査は削る（`CLAUDE.md`「Do not assert ... a struct field holds what was just assigned to it」）。
+- [x] `TestLoadMissing` の `provider unset and API key unset` の行だけを削る。DeepSeek のキーがない場合の残る行を確認し、削除の直前・直後の関数ごとのカバレッジを比較して結果を記録する。
+- [x] `TestLoadFor` の `review only requires a model` に DeepSeek の明示を加える。
+- [x] `TestLoadFor` の `review only rejects an empty inherited model` に DeepSeek の明示を加える。
+- [x] `TestLoadFor` の `no stage reads no LLM variable` を拡張し、全 LLM 変数の参照がなく、モデル・プロバイダのアクセサに既定が入らないことを検査する。
 
 **完了条件:** 既定を当てはめる場合・当てはめない場合と、実行しない段階の扱いが §4 のテストで確認できる。
 
@@ -133,12 +133,12 @@
 
 **変更ファイル:** `internal/config/config.go`・`config_test.go`。
 
-- [ ] 設計書 §3.4・§4.1 に従い `reasonModelWithoutProvider` と `modelWithoutProvider` を加え、必要な段階の解決後に一度だけ判定する。拒否後もプロバイダ固有の変数を検査し、値を含まない固定の理由で報告する。理由の文言は設計書 §1.2・§4.2 を使う。
-- [ ] `TestLoadModelWithoutProvider`・`TestModelWithoutProvider` を新設する。複数の拒否は全要素を調べ、名前・番兵・理由・件数を検査する。空の変数の拒否と区別し、出どころが「なし」の場合も拒否する。
-- [ ] `TestLoadDefaultProviderVariables` を新設し、参照した変数を記録して、既定の Claude の変数だけを検査することを確認する。`TestLoadErrorsOmitValues` にモデルだけの設定と目印を加える。既定の Claude の実行で DeepSeek の変数を読まないことは `TestLoadDefaultProviderVariables` で検査する。既存の `TestLoadIgnoresOtherProviderVars` は、DeepSeek を明示した実行で Anthropic の変数を読まないこと（AC-23）の検査として再利用する。
-- [ ] `TestLoadServerLLMDefaults` を新設し、サーバの既定と更新前の DeepSeek の設定の拒否を検査する。サーバ固有の HOME・Webhook の必須条件を満たす環境で実行する。
-- [ ] 既定のモデルの枝、モデルだけの設定の判定、受け継ぐ出どころ、拒否を 1 件にまとめる処理をそれぞれ壊して対応するテストの失敗を確認する。受け継ぎの変更では、モデルの出どころが「変数」である経路を検査する。結果をコミットメッセージに記録する。
-- [ ] 2-1・3-1 の実装を入れた状態で、`internal/config/config_test.go` と `cmd/` のテストを基点の版に一時的に戻して `make test` を実行し、失敗する部分テストが設計書 §1.4 の 4 件に限られることを確認する。1-1 の切り替えでは見つからない、モデルの既定と拒否に依存するテストをここで洗い出す。一時的な変更は戻し、結果をコミットメッセージに記録する。
+- [x] 設計書 §3.4・§4.1 に従い `reasonModelWithoutProvider` と `modelWithoutProvider` を加え、必要な段階の解決後に一度だけ判定する。拒否後もプロバイダ固有の変数を検査し、値を含まない固定の理由で報告する。理由の文言は設計書 §1.2・§4.2 を使う。
+- [x] `TestLoadModelWithoutProvider`・`TestModelWithoutProvider` を新設する。複数の拒否は全要素を調べ、名前・番兵・理由・件数を検査する。空の変数の拒否と区別し、出どころが「なし」の場合も拒否する。
+- [x] `TestLoadDefaultProviderVariables` を新設し、参照した変数を記録して、既定の Claude の変数だけを検査することを確認する。`TestLoadErrorsOmitValues` にモデルだけの設定と目印を加える。既定の Claude の実行で DeepSeek の変数を読まないことは `TestLoadDefaultProviderVariables` で検査する。既存の `TestLoadIgnoresOtherProviderVars` は、DeepSeek を明示した実行で Anthropic の変数を読まないこと（AC-23）の検査として再利用する。
+- [x] `TestLoadServerLLMDefaults` を新設し、サーバの既定と更新前の DeepSeek の設定の拒否を検査する。サーバ固有の HOME・Webhook の必須条件を満たす環境で実行する。
+- [x] 既定のモデルの枝、モデルだけの設定の判定、受け継ぐ出どころ、拒否を 1 件にまとめる処理をそれぞれ壊して対応するテストの失敗を確認する。受け継ぎの変更では、モデルの出どころが「変数」である経路を検査する。結果をコミットメッセージに記録する。
+- [x] 2-1・3-1 の実装を入れた状態で、`internal/config/config_test.go` と `cmd/` のテストを基点の版に一時的に戻して `make test` を実行し、失敗する部分テストが設計書 §1.4 の 4 件に限られることを確認する。1-1 の切り替えでは見つからない、モデルの既定と拒否に依存するテストをここで洗い出す。一時的な変更は戻し、結果をコミットメッセージに記録する。
 
 **完了条件:** 2-2 のテストと合わせて設計書 §3.2・§3.3 の全行を確認できる。AC-16〜AC-21 の拒否の種類・件数・合わせて報告する拒否と、値を含まないことが確認できる。
 
@@ -146,11 +146,11 @@
 
 **変更ファイル:** `cmd/yt2column/run_test.go`、`internal/config/config_test.go`、`internal/llm/provider/provider_test.go`。
 
-- [ ] `TestRunDefaultLLMConfig` を新設する。既存の `newRunEnv` の LLM の変数を入れ替え、Anthropic の偽のキーと明示した effort で、既定のプロバイダ・モデルがクライアント構築に届くことを確認する。
-- [ ] `TestRunModelWithoutProvider` を新設する。終了コード 2、変数を挙げる標準エラー、クライアントを作らないこと、既存の tripwire が起動されないことを検査する。
-- [ ] `TestNewReviewUsesReviewModel` に、生成と異なるモデルを使う Claude の検証・推敲のモデルが構築に届く検査を加える。生成のリクエストと字数の調整の共有は既存のテストを使う（§4.1）。
-- [ ] `TestLoadProductionDefaults` を新設する。LLM の変数のうち Anthropic の偽のキーだけで、生成と検証・推敲のモデル・プロバイダと effort `high` を確認する。このテストだけは effort を明示しない。
-- [ ] AC-22 のテストを #171 の effort の既定がない状態でも実行し、`YT2COLUMN_CLAUDE_EFFORT` の未設定を理由に失敗するか確認して、本書とコミットメッセージに記録する。#171 のマージ前に作業していればその状態で実行する。マージ後なら、#171 が `loadClaudeEffort` に加えた既定の枝を一時的に外し（未設定を `ErrMissing` に戻す）、実行してから戻す。ほかの失敗で隠さないよう、0042 の既定はそのままにする。確認できた範囲だけを CI によるマージ順序の検査として扱う。
+- [x] `TestRunDefaultLLMConfig` を新設する。既存の `newRunEnv` の LLM の変数を入れ替え、Anthropic の偽のキーと明示した effort で、既定のプロバイダ・モデルがクライアント構築に届くことを確認する。
+- [x] `TestRunModelWithoutProvider` を新設する。終了コード 2、変数を挙げる標準エラー、クライアントを作らないこと、既存の tripwire が起動されないことを検査する。
+- [x] 生成と異なるモデルを使う Claude の検証・推敲のモデルが構築に届くことは、既存の `TestNewClaudeDefaultEffort`（0041 が追加）の `both stages claude review` の行で確かめる。重複するので部分テストは加えない。生成のリクエストと字数の調整の共有は既存のテストを使う（§4.1）。
+- [x] `TestLoadProductionDefaults` を新設する。LLM の変数のうち Anthropic の偽のキーだけで、生成と検証・推敲のモデル・プロバイダと effort `high` を確認する。このテストだけは effort を明示しない。
+- [x] AC-22 のテストを #171 の effort の既定がない状態でも実行し、`YT2COLUMN_CLAUDE_EFFORT` の未設定を理由に失敗するか確認して、本書とコミットメッセージに記録する。#171 のマージ前に作業していればその状態で実行する。マージ後なら、#171 が `loadClaudeEffort` に加えた既定の枝を一時的に外し（未設定を `ErrMissing` に戻す）、実行してから戻す。ほかの失敗で隠さないよう、0042 の既定はそのままにする。確認できた範囲だけを CI によるマージ順序の検査として扱う。
 
 **完了条件:** #171 の実装を含む状態で全テストが通り、§3.1 のマージ順序を確認できる。#171 が未マージなら、このフェーズを最終確認済みにはしない。2-1〜3-1 と、3-2 のうち AC-22 以外の作業は、#171 のマージ前に進めてよい。
 
@@ -266,9 +266,9 @@ AC-01〜AC-29 が §8 の対応で確認され、必要なテスト・lint・文
 | AC-05 | 2-1 / 2-2 | test | `internal/config/config_test.go::TestLoadGenerationDefaults` |
 | AC-06 | 2-1 / 2-2 | test | `internal/config/config_test.go::TestLoadGenerationDefaults` |
 | AC-07 | 2-1 / 2-2 | test | `internal/config/config_test.go::TestLoadReviewDefaults` |
-| AC-08 | 2-1 / 2-2 / 3-2 | test | `internal/config/config_test.go::TestLoadReviewDefaults`、`internal/llm/provider/provider_test.go::TestNewReviewUsesReviewModel`、`internal/llm/provider/provider_test.go::TestNewClaudeSendsConfiguredRequest` |
+| AC-08 | 2-1 / 2-2 / 3-2 | test | `internal/config/config_test.go::TestLoadReviewDefaults`、`internal/llm/provider/provider_test.go::TestNewClaudeDefaultEffort`、`internal/llm/provider/provider_test.go::TestNewClaudeSendsConfiguredRequest` |
 | AC-09 | 2-1 / 2-2 | test | `internal/config/config_test.go::TestLoadReviewDefaults` |
-| AC-10 | 2-1 / 2-2 / 3-2 | test | `internal/config/config_test.go::TestLoadReviewDefaults`、`internal/llm/provider/provider_test.go::TestNewReviewUsesReviewModel` |
+| AC-10 | 2-1 / 2-2 / 3-2 | test | `internal/config/config_test.go::TestLoadReviewDefaults`、`internal/llm/provider/provider_test.go::TestNewClaudeDefaultEffort` |
 | AC-11 | 2-1 / 2-2 | test | `internal/config/config_test.go::TestLoadReviewDefaults` |
 | AC-12 | 2-1 / 2-2 | test | `internal/config/config_test.go::TestLoadReviewDefaults` |
 | AC-13 | 2-1 / 2-2 | test | `internal/config/config_test.go::TestLoadReviewDefaults` |
@@ -280,7 +280,7 @@ AC-01〜AC-29 が §8 の対応で確認され、必要なテスト・lint・文
 | AC-19 | 3-1 | test | `internal/config/config_test.go::TestLoadModelWithoutProvider`、`internal/config/config_test.go::TestModelWithoutProvider`、`internal/config/config_test.go::TestLoadErrorsOmitValues` |
 | AC-20 | 3-1 | test | `internal/config/config_test.go::TestLoadModelWithoutProvider` |
 | AC-21 | 3-1 | test | `internal/config/config_test.go::TestLoadDefaultProviderVariables`、`internal/config/config_test.go::TestLoadErrorsOmitValues` |
-| AC-22 | 3-2 | test | `internal/config/config_test.go::TestLoadProductionDefaults`、`internal/llm/provider/provider_test.go::TestNewClaudeSendsConfiguredRequest`、`internal/llm/provider/provider_test.go::TestNewReviewUsesReviewModel`、`internal/writer/steps_test.go::TestWriteStepOrder` |
+| AC-22 | 3-2 | test | `internal/config/config_test.go::TestLoadProductionDefaults`、`internal/llm/provider/provider_test.go::TestNewClaudeSendsConfiguredRequest`、`internal/llm/provider/provider_test.go::TestNewClaudeDefaultEffort`、`internal/writer/steps_test.go::TestWriteStepOrder` |
 | AC-23 | 2-1 / 3-1 | test | `internal/config/config_test.go::TestLoadIgnoresOtherProviderVars`、`internal/config/config_test.go::TestLoadReview`、`internal/writer/steps_test.go::TestWriteStepOrder` |
 | AC-24 | 1-1 / 1-2 | test | `cmd/yt2column/integration_env_test.go::TestIntegrationRunProviderSelection`（通信なしで共通の環境を検査。`make test`・CI で実行） |
 | AC-25 | 4-1 | test、manual | `cmd/yt2column/docs_test.go::TestLLMDefaultsDocsContract`。分岐の説明は設定の実装・要件書と照合して PR レビューで読む |
@@ -299,3 +299,12 @@ AC-01〜AC-29 が §8 の対応で確認され、必要なテスト・lint・文
 
 - 1-1: `parseProvider` と `loadProviderOptional` の既定を一時的に `claude` に変えた `make test` では、`TestLoadDefaults` と `TestLoadMissing/provider_unset_and_API_key_unset` が失敗した（`TestLoadMissing` の部分テストは 1 件）。どちらも設計書 §1.4 の 4 件に含まれる。`TestLoadFor` の `review only requires a model`・`review only rejects an empty inherited model` は、`assertVarError` が最初の `*VarError` だけを調べるため失敗しなかった。設計書 §7.2 のとおり、この 2 件は 3-1 の確認で洗い出す。一時的な変更は戻し、`make test`・`make lint` が通ることを確かめた。
 - 1-2: `newIntegrationRun` から `YT2COLUMN_LLM_PROVIDER=deepseek` を外すと、`TestIntegrationRunProviderSelection` が「共通の環境にプロバイダの明示がない」の理由で失敗した。戻した状態で `make test`・`make lint`・`go vet -tags integration ./...` が通る。CLI と Slack の統合テストは同じ `newIntegrationRun` の環境を使い、関数の外で LLM の変数を組み立て直していないことを読んで確認した（Slack のテストが足すのは `SLACK_WEBHOOK_URL` だけである）。実 API を呼ぶ 2 つの統合テストは実行していない。
+
+**PR-2（2026-10-25）:**
+
+- フェーズ 2・3 を 1 つのグループとして実装した。フェーズ 2 だけでは出どころの型が未使用になって `make lint` が通らず、既定だけが入って拒否のない状態にもなるためである。
+- 3-1 の「基点の版」は PR-2 の作業の開始時点（コミット `05c1c92`。PR-1 と #171 を含む `main`）と解した。調査の基点 `68f4cb9` の `cmd/` のテストは PR-1 の DeepSeek の明示を含まず、既定の変更と無関係に失敗するからである。2-1・3-1 の実装を入れ、テストをこの版のままにした `make test` では、失敗は `TestLoadDefaults`、`TestLoadMissing/provider_unset_and_API_key_unset`、`TestLoadFor/review_only_requires_a_model` だけで、設計書 §1.4 の 4 件に含まれる。`TestLoadFor/review_only_rejects_an_empty_inherited_model` は、`assertVarError` が最初の `*VarError`（`YT2COLUMN_MODEL`）だけを調べるため失敗しなかったが、DeepSeek の明示を加えて意図を保った。`cmd/` のテストに失敗はなかった。
+- 削った `TestLoadMissing` の行について、新しいテストを入れた状態で、削る前（行を戻した状態）と後の `go tool cover -func` を比べ、関数ごとの値が同じであることを確かめた。
+- 壊して確かめたこと: 既定のモデルの `ProviderClaude` の枝を外すと `TestLoadGenerationDefaults`・`TestLoadReviewDefaults`・`TestLoadDefaultProviderVariables` が失敗する。モデルだけの設定の判定を外すと `TestLoadModelWithoutProvider`・`TestModelWithoutProvider`・`TestLoadServerLLMDefaults`・`TestLoadDefaultProviderVariables`・`TestRunModelWithoutProvider` が失敗する。判定を段階ごとに行うと `both models` などの件数の検査が失敗する。条件を「出どころが既定」に書き換えると `TestModelWithoutProvider` の出どころ「なし」の行が失敗する。生成を実行する実行で受け継ぐプロバイダの出どころを「変数」にすると、`TestLoadModelWithoutProvider` の `review model`・`review model empty` が失敗する。検証・推敲だけを実行する実行で、受け継ぐプロバイダまたはモデルの出どころを写さないと、AC-17・AC-18 の行が失敗する。拒否の理由に値を混ぜると `TestLoadErrorsOmitValues/model_without_provider` が失敗する。既定のプロバイダを `deepseek` に戻すと `TestRunDefaultLLMConfig` が失敗する。
+- AC-22: #171 が `loadClaudeEffort` に加えた既定の枝を一時的に外し（未設定を `ErrMissing` に戻し）、0042 の既定はそのままにして実行すると、`TestLoadProductionDefaults` は `YT2COLUMN_CLAUDE_EFFORT: is unset or empty` で失敗した（`internal/config` のテストで、ほかに失敗したのは #171 自身のテスト `TestLoadClaudeMissing`・`TestLoadClaudeEffortDefault` だけ）。したがって、このテストは #171 の effort の既定がない状態のマージを CI で止める。戻した状態で通る。
+- 4-1 の `DefaultProviderValueForTest`・`DefaultClaudeModelForTest` は、`TestRunDefaultLLMConfig` が既定のモデルを読むため、このグループで先に `internal/config/test_helpers.go` に加えた。
