@@ -29,6 +29,8 @@
 
 対応 issue: [#490](https://github.com/isseis/yt2column/issues/490)（前提: [#171](https://github.com/isseis/yt2column/issues/171)、関連: [#488](https://github.com/isseis/yt2column/issues/488)）
 
+#171 の要件は、タスク `0041_claude_effort_max_tokens` の [要件定義書](../0041_claude_effort_max_tokens/01_requirements.md) が定める。
+
 **本書の記述範囲:** 本書は、環境変数の既定、既定を当てはめる条件と当てはめない条件、拒否するときに利用者が見るもの、文書に書く内容を定める。既定のモデル名をコードのどこに持つか、既定を当てはめる処理の組み立て、拒否の理由の正確な文言、テストの手段は、設計（`02_architecture.md`）で決める。要件のレビューで挙がった設計事項は [design_handoff.md](design_handoff.md) に申し送る。
 
 **issue #490 で決めたこと:**
