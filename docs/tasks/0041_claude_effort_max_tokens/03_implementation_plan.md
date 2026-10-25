@@ -92,10 +92,10 @@
 -   [ ] **ステップ 1-3**: `internal/llm/provider/provider_test.go` を次のように改める（設計書 7.1）。
     -   `claudeRequestFor` を、生成のプロバイダとモデル（`cfg.LLM().Provider()`・`Model()`）でも、検証・推敲のプロバイダとモデル（`ReviewProvider()`・`ReviewModel()`）でもアダプタを作れるようにする。`claudeRequestFor` は `newClient` を直接呼ぶので、`New`・`NewReview` がどちらを選ぶかは確かめない。それは既存の `TestNewReviewUsesReviewModel`（`provider_test.go:442`）が確かめている。呼び出し元の `TestNewClaudeSendsConfiguredRequest` の期待する値は変えない。
     -   `TestNewClaudeDefaultEffort` を足す。ステップ 1-2 の `TestLoadClaudeEffortDefault` と同じ 3 つの環境（`YT2COLUMN_CLAUDE_EFFORT` を設定しない）で `config.Load` した設定から、`claude` の段階のアダプタを `claudeRequestFor` で作り、送ったリクエストの `output_config.effort` が `high` であることを確かめる。(1) では生成と検証・推敲の両方のアダプタを確かめる（AC-01）。(2) では検証・推敲のアダプタ、(3) では生成のアダプタを確かめる（AC-02）。
--   [ ] **ステップ 1-4**: 次のそれぞれで、対象を一時的に壊してテストが失敗することを確かめ、元に戻し、確かめたことをコミットのメッセージに書く。
-    -   `loadClaudeEffort` の未設定の分岐を、変更前の `missingVar(claudeEffortEnv)` を返す形に戻す。`TestLoadClaudeEffortDefault`・`TestNewClaudeDefaultEffort`・`TestLoadClaudeMissing` の AC-06 の副テストが失敗する。
-    -   `defaultClaudeEffort` を `claudeparam.EffortMedium` にする。`TestLoadClaudeEffortDefault` と `TestNewClaudeDefaultEffort` が失敗する。
-    -   既定を `loadClaudeEffort` の外に移し、`loadLLM` の最後で、`cfg.claudeEffort` が `claudeparam.EffortUnset` なら need によらず `defaultClaudeEffort` を入れるようにする。`TestLoadFor` の足した 2 つの副テストが失敗する（既定が、実行する段階に `claude` のない実行に及ぶことを検出する）。
+-   [ ] **ステップ 1-4**: 次のそれぞれの変更を一時的に加え、名指ししたテストを実行して、そのテストが述べた理由で失敗することを確かめる。確かめたら変更を元に戻し、結果をコミットのメッセージに書く。
+    -   `loadClaudeEffort` の未設定の分岐を、変更前の `missingVar(claudeEffortEnv)` を返す形に戻す。`TestLoadClaudeEffortDefault`・`TestNewClaudeDefaultEffort`・`TestLoadClaudeMissing` の AC-06 の副テストが失敗することを確かめる。
+    -   `defaultClaudeEffort` を `claudeparam.EffortMedium` にする。`TestLoadClaudeEffortDefault` と `TestNewClaudeDefaultEffort` が失敗することを確かめる。
+    -   既定を `loadClaudeEffort` の外に移し、`loadLLM` の最後で、`cfg.claudeEffort` が `claudeparam.EffortUnset` なら need によらず `defaultClaudeEffort` を入れるようにする。`TestLoadFor` の足した 2 つの副テストが失敗することを確かめる（既定が、実行する段階に `claude` のない実行に及ぶ変更を、この 2 つの副テストが捉えるかを確かめるためである）。
 
 **完了の条件:** `make test` と `make lint` が通る。ステップ 1-2 のカバレッジの比較と、ステップ 1-4 の確かめが、コミットのメッセージにある。ステップ 1-1 だけでは `TestLoadClaudeMissing` の `"effort unset"` の行が失敗するので、ステップ 1-1〜1-4 は 1 つのコミットにする（フェーズ 2・3 も、それぞれ 1 つのコミットにする）。
 
@@ -112,10 +112,10 @@
     -   観測した出力の最大（15,884 トークン）と、最も遅い出力の速さ（14.374 秒で 1,364 トークン）を、テストの名前付きの値にする。値の出典（0041 の設計書 1.4、0018 評価記録 §4.7.2・§4.7.4）をコメントに英語で書く。
     -   (a) 送った `max_tokens` が、観測した出力の最大の 2 倍以上であることを確かめる。(b) 送った `max_tokens` を最も遅い出力の速さで出力する時間が、`LLMTimeout` の半分以内であることを確かめる。(b) は、トークンあたりの時間を求める割り算をせず、`time.Duration` の掛け算で比べる（`max_tokens × 14.374 秒 ≤ 1,364 × (LLMTimeout ÷ 2)`）。両辺は約 6.1 × 10^14 ナノ秒で、int64 の範囲に収まる。
 -   [ ] **ステップ 2-4**: `internal/writer/steps_test.go` の `TestWriteStepOrder` の `"over the limit"` に、字数の調整の呼び出し（`gen.Calls[1]`）と検証・推敲の呼び出し（`review.Calls[0]`）の `Request.MaxOutputTokens` が 0 であることの確認を足す（AC-08 の writer の層。設計書 7.1）。
--   [ ] **ステップ 2-5**: 次のそれぞれで、対象を一時的に壊してテストが失敗することを確かめ、元に戻し、確かめたことをコミットのメッセージに書く（設計書 7.1 の最後の項目）。
-    -   `defaultMaxOutputTokens` を `31767` にする。`TestClaudeDefaultMaxTokensFitsBudget` が (a) の確認で失敗する。
-    -   `defaultMaxOutputTokens` を `42703` にする。`TestClaudeDefaultMaxTokensFitsBudget` が (b) の確認で失敗する。
-    -   `writer.go:463`・`shorten.go:28`・`review.go:256` の `MaxOutputTokens: 0` を、1 か所ずつ順に `1` にする。生成の箇所では `TestWriteCallsGenerateOnce` が、字数の調整と検証・推敲の箇所では `TestWriteStepOrder` が失敗する。
+-   [ ] **ステップ 2-5**: 次のそれぞれの変更を一時的に加え、名指ししたテストを実行して、そのテストが述べた理由で失敗することを確かめる。確かめたら変更を元に戻し、結果をコミットのメッセージに書く（設計書 7.1 の最後の項目）。
+    -   `defaultMaxOutputTokens` を `31767` にする。`TestClaudeDefaultMaxTokensFitsBudget` が (a) の確認で失敗することを確かめる。
+    -   `defaultMaxOutputTokens` を `42703` にする。`TestClaudeDefaultMaxTokensFitsBudget` が (b) の確認で失敗することを確かめる。
+    -   `writer.go:463`・`shorten.go:28`・`review.go:256` の `MaxOutputTokens: 0` を、1 か所ずつ順に `1` にする。生成の箇所では `TestWriteCallsGenerateOnce` が、字数の調整と検証・推敲の箇所では `TestWriteStepOrder` が失敗することを確かめる。
 
 **完了の条件:** `make test` と `make lint` が通る。ステップ 2-5 の確かめが、コミットのメッセージにある。
 
@@ -237,7 +237,7 @@ AC-13〜AC-19 は文書の文面を定める AC なので、`manual` の読み�
 |---|---|---|
 | タスク 0042 の実装が、同じ `config.go`・README・`project_overview.md` の箇所を変える | 取り込みの衝突 | 0042 は本タスクの後にマージし、衝突は本タスクの形を正として解く（0042 設計書 8 章の 6）。本タスクでは対策を要しない |
 | `TestLoadClaudeMissing` の行を外したことで、`loadClaudeEffort` の分岐のカバレッジが落ちる | 未設定の扱いの退行を検出できない | ステップ 1-2 で、変更の前後の `go tool cover -func` を比べる |
-| (b) の境界の判定を誤る（割り算の丸めなど） | ステップ 2-5 の `42703` の確かめが意図どおりに働かない | ステップ 2-3 で `time.Duration` の掛け算で比べる。この比べ方では、`42702` は 613,798,548 ≤ 613,800,000 で (b) を満たし、`42703` は 613,812,922 で (b) を満たさない（単位はミリ秒×トークン。計画のレビューで計算した）。ステップ 2-5 で境界の両側を確かめる |
+| (b) の境界の判定を誤る（割り算の丸めなど） | ステップ 2-5 で `42703` に変えても (b) の確認が失敗せず、境界を確かめられない | ステップ 2-3 で `time.Duration` の掛け算で比べる。この比べ方では、`42702` は 613,798,548 ≤ 613,800,000 で (b) を満たし、`42703` は 613,812,922 で (b) を満たさない（単位はミリ秒×トークン。計画のレビューで計算した）。ステップ 2-5 では、`42703` で (b) の確認が実際に失敗することを確かめる |
 | タスク 0042 が本タスクの PR-1 のマージを待つ（0042 設計書 8 章の 6） | PR-1 のレビューや CI が長引くと、0042 の実装も遅れる | PR を 1 つにして、待つのを 1 回のマージにした（本計画 §1.3）。PR-1 が長引く場合は、0042 の実装を先に進め、マージだけを PR-1 の後にする |
 | 上限のガイドの手順が、今の CLI のフラグの組み合わせ（とくに `--after shorten`）と食い違う | 測り直しの手順が実行できない | ステップ 3-4 で `--help` と README の再開の段落で確かめる。実 API での実行はしない（要件書 2.3） |
 | 長い非ストリーミングの呼び出しが、無通信で途中で切れる | 料金がかかり、記事が出ない | 設計書 1.2・3.6・4.3 のとおり受け入れる。本計画では仕組みを足さない |
