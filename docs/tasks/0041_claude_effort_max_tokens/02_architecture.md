@@ -16,7 +16,7 @@
 
 -   **モデルの出力の上限:** 公開文書がモデルごとに示す、同期の Messages API で 1 回に出力できるトークン数の最大（公開文書の「Max output」）。リクエストの `max_tokens` は、この値を超えられない。
 -   **既定の effort:** `YT2COLUMN_CLAUDE_EFFORT` が未設定のときに設定の読み込みが使う effort。本書では `high` である。
--   **既定の上限:** Claude アダプタが、`llm.GenerateRequest` の `MaxOutputTokens` が 0 のときに送る `max_tokens`。今は 16,000 で、本書の後は V（40,000）である。
+-   **既定の上限:** Claude アダプタが、`llm.GenerateRequest` の `MaxOutputTokens` が 0 のときに送る `max_tokens`。今は 16,000 で、本書の変更の後は V（40,000）である。
 -   **最も遅い出力の速さ:** 本番の構成の測定（0018 評価記録 §4.7.2・§4.7.4）から計算した出力の速さ（1 回の CLI の実行の出力のトークン数 ÷ その実行の所要時間）のうち、最も小さい値。本書では 94.9 トークン/秒である（1.4）。
 -   **上限のガイド:** 本タスクで新設する英語の開発者ガイド `docs/dev/developer_guide/claude_output_limit.md`。既定の上限の根拠を測り直す手順を書く（3.5）。
 
@@ -25,17 +25,17 @@
 ### 1.1. 設計原則
 
 -   **環境変数の解釈と既定値は `internal/config` だけが持つ。** 既定の effort は、`internal/config` の読み込みが、`YT2COLUMN_CLAUDE_EFFORT` が未設定のときに入れる。アダプタ（`internal/llm/claude`）とプロバイダの構築（`internal/llm/provider`）は、今までどおり検証済みの `config.LLMConfig` から値を受け取るだけである。既定のプロバイダ `deepseek` も `internal/config` が入れている（`loadProvider`・`loadProviderOptional`。`internal/config/config.go:382-411`）。
--   **既定の effort は、今は未設定がエラーになる条件の中だけで当てる。** 既定を入れるのは `loadClaudeEffort` で、この関数は、実行する段階のうちにプロバイダが `claude` の段階があるときだけ呼ばれる（`loadProviderVars`。`internal/config/config.go:525-542`）。CLI の `LoadFor` も、サーバの `LoadServer`（`config.go:259-260`）も、同じ `loadLLM` から `loadProviderVars` を通る。呼ばれる条件は変えないので、`--after` で実行しない段階や DeepSeek だけの実行では、今までどおりこの変数を読まない（AC-05）。
+-   **既定の effort は、今は未設定がエラーになる条件の中だけで当てる。** 既定を入れるのは `loadClaudeEffort` で、この関数は、実行する段階の中に、プロバイダが `claude` の段階があるときだけ呼ばれる（`loadProviderVars`。`internal/config/config.go:525-542`）。CLI の `LoadFor` も、サーバの `LoadServer`（`config.go:259-260`）も、同じ `loadLLM` から `loadProviderVars` を通る。呼ばれる条件は変えないので、`--after` で実行しない段階や DeepSeek だけの実行では、今までどおりこの変数を読まない（AC-05）。
 -   **ゼロ値の `EffortUnset` をアダプタに届けない仕組みは変えない。** 既定を入れた後も、`claudeparam.EffortUnset` はゼロ値のまま、アダプタの構築が拒否する（`internal/llm/claudeparam/claudeparam.go` の `Effort` の doc コメント）。本書は `EffortUnset` の意味を変えず、未設定のときに `EffortHigh` を代入するだけである（CLAUDE.md「Declare, don't infer」）。
 -   **既定の上限は、アダプタの 1 つの定数だけで決まる。** 3 つの段階は、どれも `MaxOutputTokens` を 0 にして呼ぶ（`internal/writer/writer.go:463`・`internal/writer/shorten.go:28`・`internal/writer/review.go:256`）。そのため、Claude アダプタの定数 `defaultMaxOutputTokens`（`internal/llm/claude/request.go:23-26`）を 1 か所変えれば、3 つの段階の上限が同じ値で変わる。段階ごとの値や、利用者が変える手段は作らない（要件書 2.3）。DeepSeek アダプタには触れない。
--   **非ストリーミングと 15 分のタイムアウトは変えない。** V は、`provider.LLMTimeout`（15 分）の半分に収まるように選ぶ（1.4）。新しい通信の仕組みは足さない（1.2 の 3 つ目）。
--   **数値は 1 か所に置き、文書には写さない。参照も 1 か所に集める。** V の値は定数 `defaultMaxOutputTokens` だけにある。README と上限のガイドは数値を書かない。数値を写すと、値の一致を確かめるテストが要り（CLAUDE.md「Document tests check values, structure, and executable examples, never prose」）、写した値がコードと食い違いうるためである。コードのコメントも、タスクの文書ではなく上限のガイドだけを指す。ガイドが、今の根拠の記録（本書 1.4）の場所を示す。V が満たすべき (a)・(b) の条件は、文書ではなくテストで固定する（7.1）。
+-   **非ストリーミングと 15 分のタイムアウトは変えない。** V は、V トークンの出力にかかる見積もりの時間が `provider.LLMTimeout`（15 分）の半分に収まるように選ぶ（1.4）。新しい通信の仕組みは足さない（1.2 の 3 つ目）。
+-   **数値は 1 か所に置き、文書には写さない。参照も 1 か所に集める。** V の値は定数 `defaultMaxOutputTokens` だけにある。README と上限のガイドは数値を書かない。数値を写すと、値の一致を確かめるテストが要り（CLAUDE.md「Document tests check values, structure, and executable examples, never prose」）、写した値がコードと食い違いうるためである。コードのコメントも、タスクの文書ではなく上限のガイドだけを指す。ガイドが、今の根拠の記録（本書 1.4）の場所を示す。V が満たすべき (a)・(b) の条件（定義は 1.4）は、文書ではなくテストで固定する（7.1）。
 
 ### 1.2. 設計の際に決めたこと（2026-10-25）
 
 人間のレビュアーが決めたもの:
 
--   **V は 40,000 にする。** 要件書 F-002 の (a)・(b) から決まる範囲は 31,768 以上、42,702 以下である（1.4）。範囲の下端に近い 32,000 ではなく 40,000 を選んだ。理由は 2 つある。1 つ目は、40 分前後の動画を v5 で測っていないことである（要件書 5. 制約条件）。2 つ目は、16,000 で打ち切られた実行（0018 評価記録 §4.7.4 の roNZ-rLxhUE-1-f2）の出力の真の値が、16,000 以上としか分からないことである。どちらの欠けにも、観測の最大の 2 倍より大きい余裕で備える。範囲の上端に近い値は、(b) の見積もりの時間が 7.5 分にほぼ等しく、混雑時の速さの低下に余裕がないので選ばなかった。
+-   **V は 40,000 にする。** 要件書 F-002 の (a)・(b) から決まる範囲は 31,768 以上、42,702 以下である（1.4）。範囲の下端に近い 32,000 ではなく 40,000 を選んだ。理由は 2 つある。1 つ目は、40 分前後の動画を v5 で測っていないことである（要件書 5. 制約条件）。2 つ目は、16,000 で打ち切られた実行（0018 評価記録 §4.7.4 の roNZ-rLxhUE-1-f2）の出力の真の値が、16,000 以上としか分からないことである。どちらの分からない点にも、観測した出力の最大の 2 倍より大きい余裕を取って備える。範囲の上端に近い値は、(b) の見積もりの時間が 7.5 分にほぼ等しく、混雑時の速さの低下に余裕がないので選ばなかった。
 -   **既定の effort は `internal/config` に置く。** `internal/config` に、既定の effort を表す名前付きの値を置き、その値は `claudeparam.EffortHigh` とする。`claudeparam` には足さない。既定は「環境変数が未設定のときにどう解釈するか」の規則であり、環境変数の解釈は `internal/config` の責務だからである（0009 F-006）。`claudeparam` の doc コメントは「effort の値の一覧はここだけにある」と定めるが、既定はその一覧の要素ではない。
 -   **非ストリーミングの長い無通信のリスクは受け入れ、仕組みを足さない。** HTTP/2 の PING（`ReadIdleTimeout`）は足さない。無通信で接続が切れたという観測がなく、CLAUDE.md「Performance」の「Do not close a review finding by adding a mechanism until the finding's premise is verified」に従う。リスクの範囲は 3.6 と 4.3 に書く。
 -   **README と上限のガイドに V の数値を書かない。** 1.1 の最後の原則のとおりである。README の `max` の注意は「既定の出力の上限でも」と書き、数値を挙げない（3.4）。
@@ -122,7 +122,7 @@ flowchart LR
 | 40 分前後の動画の扱い | v5 では測っていない。0018 でいちばん長い動画は roNZ-rLxhUE（32:29）で、v5 の出力は 10,986・11,122 だった。出力のトークン数は動画の長さの順に並ばない（要件書「要件定義の際に決めたこと」）。2.5 倍の余裕で備えるが、保証はしない（要件書 5. 制約条件） |
 | Sonnet 5.5 の扱い | 0008 §5.7 では、`high`・v5 で推論だけで 16,000 に達した実行がある。V で足りるかは測っていない。README で、既定の effort は claude-opus-5-5 に合わせた値であり、ほかのモデルでは打ち切られうると案内する（AC-19、3.4） |
 
-**ほかのモデルのモデルの出力の上限（H-02）。** 公開文書（各モデルの overview のページ、2026-10-25 に確認）で、次のモデルの出力の上限を確かめた。
+**ほかのモデルについて（H-02）。** 公開文書（各モデルの overview のページ、2026-10-25 に確認）で、次のモデルのモデルの出力の上限を確かめた。
 
 | モデル | モデルの出力の上限 |
 |---|---|
@@ -130,7 +130,7 @@ flowchart LR
 | 旧世代（Models overview の「Legacy models」に挙がるもの）: claude-fable-5、claude-opus-5、claude-opus-4-8、claude-opus-4-7、claude-opus-4-6、claude-sonnet-5、claude-sonnet-4-6 | 128K |
 | 旧世代: claude-opus-4-5、claude-haiku-4-5 | 64K |
 
-どのモデルも、モデルの出力の上限が V（40,000）以上である。そのため、要件書 4.4 の「V を超えて `400` で失敗しうるモデル」は、公開文書が挙げるモデルにはない。README には、この点についての案内を足さない。公開文書が挙げないモデル名を設定した場合に `400` が返れば、今までどおり HTTP の状態のエラーとして報告され、`errors.go` の案内文が `max_tokens` を確かめるよう促す（`internal/llm/claude/errors.go:60`）。
+どのモデルも、モデルの出力の上限が V（40,000）以上である。そのため、要件書 4.4 の「V を超えて `400` で失敗しうるモデル」は、公開文書が挙げるモデルにはない。README には、この点についての案内を足さない。公開文書が挙げないモデル名を設定した場合に `400` が返れば、今までどおり HTTP ステータスのエラーとして報告され、`errors.go` の案内文が `max_tokens` を確かめるよう促す（`internal/llm/claude/errors.go:60`）。
 
 ## 2. システム構成 (System Structure)
 
@@ -183,7 +183,7 @@ flowchart LR
     class L3 enhanced
 ```
 
-図の矢印は、すべて今のコードにある関係である（`internal/llm/provider/provider.go:26-39`・`:55-81`、`internal/writer/writer.go:463`・`shorten.go:28`・`review.go:256`、`internal/config/config.go:259-260`・`:346`）。本タスクは新しい関係を足さない。`internal/config` で変わるのは `loadClaudeEffort`、`internal/llm/claude` で変わるのは `request.go` の `defaultMaxOutputTokens` である。
+図の矢印は、すべて今のコードにある関係である（`internal/llm/provider/provider.go:27-39`・`:55-82`、`internal/writer/writer.go:463`・`shorten.go:28`・`review.go:256`、`internal/config/config.go:259-260`・`:346`）。本タスクは新しい関係を足さない。`internal/config` で変わるのは `loadClaudeEffort`、`internal/llm/claude` で変わるのは `request.go` の `defaultMaxOutputTokens` である。
 
 ### 2.2. コンポーネント配置
 
@@ -246,7 +246,7 @@ const defaultClaudeEffort = claudeparam.EffortHigh
 
 **`loadClaudeEffort` の規則。** 呼ばれる条件（`loadProviderVars` の `claude` の判定、`internal/config/config.go:525-542`）は変えない。呼ばれたときの規則を次のようにする。
 
-| `YT2COLUMN_CLAUDE_EFFORT` | 今 | 本書の後 |
+| `YT2COLUMN_CLAUDE_EFFORT` | 今 | 本書の変更後 |
 |---|---|---|
 | 未設定 | `ErrMissing`（変数名を持つ `*VarError`） | `defaultClaudeEffort`（`high`）を入れ、エラーにしない |
 | 空の値 | `ErrMissing` | 変えない（`ErrMissing`） |
@@ -264,7 +264,7 @@ const defaultClaudeEffort = claudeparam.EffortHigh
 
 ### 3.2. `internal/llm/claude`：既定の上限（F-002）
 
-`defaultMaxOutputTokens`（`internal/llm/claude/request.go:23-26`）の値を 16,000 から 40,000 に変える。doc コメントには、値は要件の条件（観測した出力の最大の 2 倍以上、最も遅い出力の速さでタイムアウトの半分以内）から決めたこと、根拠と測り直しの手順は上限のガイドにあることを書く。タスクの文書は指さない（1.1）。`effectiveMaxTokens`（`request.go:66-75`）の規則（正の `MaxOutputTokens` はその値、0 なら既定の上限）は変えない。打ち切りのエラーのメッセージは、`effectiveMaxTokens` が返す値を `requestSummary` 経由で使っている（`response.go:297-307`）ので、V を送ったリクエストのメッセージは自動的に 40,000 を示す（AC-10）。
+`defaultMaxOutputTokens`（`internal/llm/claude/request.go:23-26`）の値を 16,000 から 40,000 に変える。doc コメントには、値は要件の条件（観測した出力の最大の 2 倍以上、最も遅い出力の速さでタイムアウトの半分以内）から決めたこと、根拠と測り直しの手順は上限のガイドにあることを書く。タスクの文書は指さない（1.1）。`effectiveMaxTokens`（`request.go:66-75`）の規則（正の `MaxOutputTokens` はその値、0 なら既定の上限）は変えない。打ち切りのエラーのメッセージは、`requestSummary` 経由で `effectiveMaxTokens` が返す値を使っている（`response.go:297-307`）。そのため、V を送ったリクエストのメッセージは自動的に 40,000 を示す（AC-10）。
 
 ### 3.3. `internal/llm/provider`：タイムアウトの根拠（H-03・AC-12）
 
@@ -291,9 +291,9 @@ README の打ち切りの料金（H-05）は書かない。料金は単価の表
 |---|---|
 | When to re-measure | 本番の構成の 3 つの段階のいずれかで、テンプレート、effort（`defaultClaudeEffort` の変更を含む）、モデルを変えたとき |
 | Cost and approval | 測り直しは実 API を呼び、料金がかかる。人の承認を得てから行う（CLAUDE.md「Tool Execution Safety」）。評価の手順は 0008 評価記録 §2.3 と 0018 評価記録 §3 を参照する |
-| How to measure | 呼び出しごとの速さを得るため、1 回の CLI の実行で LLM を 1 回だけ呼ぶ。生成は `--no-review --no-shorten` で、字数の調整と検証・推敲は `--artifacts` と `--after` で前の段階の出力を再利用して、段階ごとに実行する。字数の調整は本文が字数の上限を超えたときだけ走る |
-| What to collect | 段階ごとの出力のトークン数（README「Token usage」の `tokens:` の行の `output=`、`--artifacts` の中間生成物に記録したトークン数）、その実行の壁時計の所要時間、打ち切られた実行の有無（CLI の `generation truncated by the output token limit` などの打ち切りのエラー） |
-| How to judge | 要件書 F-002 の (a)・(b)・(c) と照らす。(a) 出力の最大の 2 倍以上。(b) 出力のトークン数 ÷ 所要時間で計算した速さ（呼び出し以外の処理を含むので遅めに出る）の最も遅いもので、V の出力が 7.5 分以内。(c) 対象のモデルのモデルの出力の上限以下 |
+| How to measure | 呼び出しごとの速さを得るため、1 回の CLI の実行で LLM を 1 回だけ呼ぶよう、段階ごとに実行する。字数の調整と検証・推敲は、`--artifacts` と `--after` で前の段階の出力を再利用する。字数の調整は本文が字数の上限を超えたときだけ走る。例: 生成は `--no-review --no-shorten`、字数の調整は `--after generation --no-review`、検証・推敲は `--after shorten` |
+| What to collect | 段階ごとの出力のトークン数（README「Token usage」の `tokens:` の行の `output=`、`--artifacts` の中間生成物に記録したトークン数）、その実行の所要時間（実時間）、打ち切られた実行の有無（CLI の `generation truncated by the output token limit` などの打ち切りのエラー） |
+| How to judge | 要件書 F-002 の (a)・(b)・(c) と照らす。(a) 観測した出力の最大の 2 倍以上。(b) 出力のトークン数 ÷ 所要時間で速さを計算し（呼び出し以外の処理を含むので遅めに出る）、その最も遅い値で V トークンを出力する時間が 7.5 分以内。(c) 対象のモデルについて、V がモデルの出力の上限以下 |
 | What to update | 条件を満たさない場合: 定数 `defaultMaxOutputTokens`（`internal/llm/claude/request.go`）、(a)・(b) を固定するテストの名前付きの値（観測した出力の最大と最も遅い出力の速さ。`internal/llm/provider/provider_test.go`）、根拠の記録（その変更を扱うタスクの `02_architecture.md`）、このガイドが示す根拠の記録の場所、README の `max` の注意と既定の effort の案内 |
 | Current record | 今の根拠の記録の場所（本書 1.4）を示す。値は写さない |
 
@@ -310,10 +310,10 @@ README の打ち切りの料金（H-05）は書かない。料金は単価の表
 -   **0009 §3.6（既定の上限は、Anthropic の非ストリーミングの目安の約 16,000 を超えない）。**
     -   元の方針: 0009 `02_architecture.md` §3.6 の表の「`MaxOutputTokens` が 0 のときの `max_tokens`」の行。
     -   今の公開文書: API errors「Long requests」（https://platform.claude.com/docs/en/api/errors 、2026-10-25 に確認）は、16,000 という数値を挙げていない。大きな `max_tokens` にはストリーミングかバッチを勧め、10 分を超える呼び出しに特に注意を促す。直接 API を呼ぶ場合は TCP の keep-alive を勧め、公式 SDK は非ストリーミングの呼び出しが 10 分を超えると見込まれるかを確かめる、と書いている。
-    -   公式 SDK の確認の中身: anthropic-sdk-python の `_calculate_nonstreaming_timeout`（`src/anthropic/_base_client.py`、`main` を 2026-10-25 に確認）は、見込みの時間を 3,600 秒 × `max_tokens` ÷ 128,000 とし、600 秒を超えると非ストリーミングの呼び出しを拒否する。しきい値は約 21,333 で、V はその約 1.9 倍である。つまり V は、公式 SDK なら非ストリーミングでは送れない値である。この確認は SDK の中の仕組みで、標準ライブラリで HTTP を送る本アダプタには当てはまらない。API そのものは、0009 §1.4 で 64,000 の非ストリーミングを受け付けた。V の見積もりの時間（約 7.0 分）は 10 分に収まる。
-    -   無通信のリスクの範囲: HTTP クライアントは Transport を `nil` のままにしており（`internal/llm/llmhttp/llmhttp.go:29-38`）、Go 1.26.5 の `http.DefaultTransport` が使われる。その dialer は TCP の keep-alive（30 秒）を有効にする（Go 1.26.5 の `net/http/transport.go` の `DefaultTransport`）。ただし keep-alive は、利用者の端末から次の機器までの TCP 接続にしか効かない。プロキシの環境変数を設定した環境では、プロキシから Anthropic までの区間はプロキシの無通信のタイムアウトに従い、それが V の見積もりの時間より短ければ切れうる。また、0009 §1.4 の「約 9 分の無通信でも切れなかった」は、1 つのネットワークから `curl` で 1 回ずつ送った観測で、Go のクライアントでは確かめていない。切れた場合の振る舞いは 4.3 に書く。このリスクは受け入れる（1.2）。
+    -   公式 SDK の確認の中身: anthropic-sdk-python の `_calculate_nonstreaming_timeout`（`src/anthropic/_base_client.py`、`main` を 2026-10-25 に確認）は、見込みの時間を 3,600 秒 × `max_tokens` ÷ 128,000 とし、呼び出し元がタイムアウトを指定していないとき、600 秒を超えると非ストリーミングの呼び出しを拒否する。しきい値は約 21,333 で、V はその約 1.9 倍である。つまり V は、公式 SDK をタイムアウトの指定なしで使うと非ストリーミングでは送れない値である。この確認は SDK の中の仕組みで、標準ライブラリで HTTP を送る本アダプタには当てはまらない。API そのものは、0009 §1.4 で 64,000 の非ストリーミングを受け付けた。V の見積もりの時間（約 7.0 分）は 10 分に収まる。
+    -   無通信のリスクの範囲: HTTP クライアントは Transport を `nil` のままにしており（`internal/llm/llmhttp/llmhttp.go:29-38`）、Go 1.26.5 の `http.DefaultTransport` が使われる。その dialer は TCP の keep-alive（30 秒）を有効にする（Go 1.26.5 の `net/http/transport.go` の `DefaultTransport`）。ただし keep-alive は、利用者の端末から次の機器までの TCP 接続にしか効かない。プロキシの環境変数を設定した環境では、プロキシから Anthropic までの区間はプロキシの無通信のタイムアウトに従い、それが V の見積もりの時間より短ければ切れうる。また、0009 §1.4 の「約 9 分の無通信でも切れなかった」は、1 つのネットワークから `curl` で 1 回ずつ送った観測で、Go のクライアントでは確かめていない。なお 0018 評価記録 §4.7.4 では、並列に起動した 2 件が同じ時刻に HTTP `400` で失敗したが、原因は確かめられておらず、無通信による切断の観測ではない。切れた場合の振る舞いは 4.3 に書く。このリスクは受け入れる（1.2）。
     -   例外とする理由: v5 以降のテンプレートと effort `high` では 16,000 で打ち切られる（要件書 1. の背景）。
-    -   古い振る舞いを確かめているテスト: 値そのものを固定するテストはない。`internal/llm/claude/claude_test.go:340-372` の `TestGenerateMaxTokens` と `response_test.go:160-181` の `TestGenerateValidationOrder` は定数 `defaultMaxOutputTokens` を参照しているので、値を変えても通る。
+    -   古い振る舞いを確かめているテスト: 値そのものを固定するテストはない。`internal/llm/claude/claude_test.go:342-372` の `TestGenerateMaxTokens` と `response_test.go:160-181` の `TestGenerateValidationOrder` は定数 `defaultMaxOutputTokens` を参照しているので、値を変えても通る。
 
 ### 3.7. コンポーネントの責務
 
@@ -323,7 +323,7 @@ README の打ち切りの料金（H-05）は書かない。料金は単価の表
 | `internal/config/config_test.go` | 変更 | 既定のテストを足す（7.1） | — |
 | `internal/llm/claude/request.go` | 変更 | `defaultMaxOutputTokens` を 40,000 にし、doc コメントで上限のガイドを指す | なし（3.6） |
 | `internal/llm/provider/provider.go` | 変更 | `LLMTimeout` の doc コメントの根拠を直す。値は変えない | なし |
-| `internal/llm/provider/provider_test.go` | 変更 | effort を設定しない環境のテストと、V の (a)・(b) を固定するテストを足す（7.1）。`claudeRequestFor` を、検証・推敲のプロバイダとモデルでも作れるようにする | なし（既存の環境はどれも `YT2COLUMN_CLAUDE_EFFORT` を設定している） |
+| `internal/llm/provider/provider_test.go` | 変更 | effort を設定しない環境のテストと、V の (a)・(b) を固定するテストを足す（7.1）。`claudeRequestFor` を、検証・推敲のプロバイダとモデルでも作れるようにする | `claudeRequestFor` の呼び出し元（`TestNewClaudeSendsConfiguredRequest`）。期待する値は変わらない |
 | `internal/writer/steps_test.go` | 変更 | `TestWriteStepOrder`（`:43`）に、字数の調整と検証・推敲の呼び出しが `MaxOutputTokens` 0 を渡すことの確認を足す（7.1）。生成は `writer_test.go:153` がすでに確かめている | — |
 | `README.md` | 変更 | 3.4 | なし（3.8） |
 | `docs/dev/project_overview.md` | 変更 | 3.4 | なし（3.8） |
@@ -341,6 +341,7 @@ README の打ち切りの料金（H-05）は書かない。料金は単価の表
 |---|---|
 | `cmd/yt2column/docs_test.go` | README・`project_overview.md`・`security.md` のフラグ、Slack・Claude の統合テストの環境変数の名前、トークン数とコストの行の形 |
 | `cmd/yt2column/copied_transcript_docs_test.go`・`extension_docs_test.go`・`codex_review_docs_test.go` | README の拡張機能とコピーした字幕の節、`CLAUDE.md` の `ext-` のターゲットの一覧、コマンドの文書 |
+| `cmd/yt2column/output_layout_docs_test.go` | README の出力の例 |
 | `cmd/yt2column-server/docs_test.go` | README・`project_overview.md` のサーバの節 |
 | `cmd/yt2column-nmhost/main_test.go` | README の Native Messaging のホストの終了コード |
 | `internal/pipeline/pipeline_test.go:707`（`TestPackageReferenceListsPackages`） | `package_reference.md` のパッケージの一覧（パッケージ名だけ） |
@@ -359,7 +360,7 @@ README を変えるので、CLAUDE.md「Development Notes」に従い、実装�
 | `YT2COLUMN_CLAUDE_EFFORT` が空の値 | `config.ErrMissing` を包む `*config.VarError`（`Name` は変数名、値を含まない） |
 | `YT2COLUMN_CLAUDE_EFFORT` が 5 つの値以外 | `config.ErrInvalid` を包む `*config.VarError`（固定の理由 `reasonClaudeEffort`） |
 | 応答が V で打ち切られた | `llm.ErrTruncated`。メッセージは `max_tokens 40000` と effort を示し、`text` ブロックがなければ effort を下げるよう案内する（`response.go:297-307`） |
-| モデルが V を受け付けない | `200` 以外の状態のエラー。メッセージはモデル名、`max_tokens`、effort を示す（`internal/llm/claude/claude.go:134-142`）。公開文書が挙げるモデルでは起きない（1.4） |
+| モデルが V を受け付けない | HTTP ステータスが `200` 以外のエラー。メッセージはモデル名、`max_tokens`、effort を示す（`internal/llm/claude/claude.go:134-142`）。公開文書が挙げるモデルでは起きない（1.4） |
 | 無通信で接続が切れた、または 15 分を超えた | 今までどおり、通信の失敗（`ErrTransport`）か、`context.DeadlineExceeded` に当たるタイムアウト |
 
 ### 4.2. エラーメッセージ
@@ -380,7 +381,7 @@ README を変えるので、CLAUDE.md「Development Notes」に従い、実装�
 -   打ち切りの行の時間は、出力の速さを 0009 の Opus（114.5）または Sonnet（145）から最も遅い出力の速さ（94.9）までとして計算した。
 -   タイムアウトになるのは、実際の出力の速さが 40,000 ÷ 900 秒 ≒ 44.4 トークン/秒を下回り、しかも V 近くまで出力が続く場合である。16,000 では 17.8 トークン/秒を下回る場合だったので、出力が長い呼び出しでは、速さの低下に対する余裕が小さくなる。ただし、観測した出力の最大（15,884）までの呼び出しなら、タイムアウトになるのは速さが 17.6 トークン/秒を下回る場合で、今と変わらない。
 -   1 回の実行は最大 3 回 LLM を呼ぶ。後の段階で失敗した実行の料金は、前の段階の料金を含む。
--   localhost サーバは、同時に 2 件までのリクエストを受け付け、待ち行列を持たない（`maxInFlight`。`internal/server/job.go:16-19`）。長い呼び出しの間、その件は枠を 1 つ占め、ほかの送信は断られる。この上限は、1 回の呼び出しあたり 15 分のまま変わらない。
+-   localhost サーバは、同時に 2 件までのリクエストを受け付け、待ち行列を持たない（`maxInFlight`。`internal/server/job.go:16-19`）。長い呼び出しの間、その件は枠を 1 つ占め、ほかの送信は断られる。1 回の呼び出しが枠を占める時間の上限は 15 分で、今までどおり変わらない（1 件で最大 3 回呼ぶので、1 件では最大 45 分になりうる）。
 
 料金に上限は設けない（要件書 4.3）。effort `max` は、0009 §1.4 のとおり V まで推論に使って打ち切られると見込まれ、そのときの料金は上の表の値になる。
 
@@ -388,16 +389,16 @@ README を変えるので、CLAUDE.md「Development Notes」に従い、実装�
 
 本タスクは、フラグもモードも足さない。既定の effort によって、今まで `YT2COLUMN_CLAUDE_EFFORT` の未設定で送る前に止まっていた設定が、Anthropic へリクエストを送るようになる（要件書 4.2）。送る相手、送るデータの種類、書き込むファイル、投稿先は、その設定で effort に `high` を指定した場合と同じである。
 
-これは、今まで設定の誤りとして止まっていた実行が、`high` で進むことでもある。例えば、変数名を書き間違えた場合（`YT2COLUMN_CLAUDE_EFORT=low`）や、サーバを利用者のシェルの環境を引き継がない方法で起動した場合である。どちらも、意図した effort ではなく `high` で記事を作り、`low` などより料金が高い。要件書は、使った effort を出力（標準エラーの要約、`--out` のフロントマター、Slack の投稿）に出さないと決めており（要件書「要件定義の際に決めたこと」、2.3）、本書もサーバの起動の行（`cmd/yt2column-server/run.go:185-189`）に effort を足さない。この見えにくさは受け入れる。使った effort は、次の方法で確かめられる。
+これは、今まで設定の誤りとして止まっていた実行が、`high` で進むことでもある。例えば、変数名を書き間違えた場合（`YT2COLUMN_CLAUDE_EFORT=low`）や、サーバを利用者のシェルの環境を引き継がない方法で起動した場合である。どちらも、意図した effort ではなく `high` で記事を作り、`low` などより料金が高い。要件書は、使った effort を出力（標準エラーの要約、`--out` のフロントマター、Slack の投稿）に出さないと決めており（要件書「要件定義の際に決めたこと」、2.3）、本書もサーバの起動の行（`cmd/yt2column-server/run.go:185-189`）に effort を足さない。この見えにくさは受け入れる。使った effort は、成功した実行の出力からは分からない。分かるのは次の場合に限る。
 
--   設定: `YT2COLUMN_CLAUDE_EFFORT` が未設定なら `high` である（README の表）。
--   失敗の記録: 打ち切りと HTTP の状態のエラーのメッセージは、送った effort と `max_tokens` を示す（4.1）。
+-   設定を読める場合: `YT2COLUMN_CLAUDE_EFFORT` が未設定なら `high` である（README の表）。ただし、変数が実行の環境に届いていない場合は、設定を見ても分からない。
+-   失敗した場合: 打ち切りと HTTP ステータスのエラーのメッセージは、送った effort と `max_tokens` を示す（4.1）。
 
 ### 4.5. 元に戻す方法
 
 -   既定の上限で問題が起きた場合（`400` やタイムアウトが続くなど）、利用者が変える手段はない（要件書 2.3）。元に戻すには、定数 `defaultMaxOutputTokens` を戻したビルドが要る。設定やキャッシュの移行は要らない。
--   中間生成物の `id` は内容から計算した値で、`max_tokens` と effort を含まない（`internal/writer/artifact.go:133-151` の `Digest`・`MaterialID`）。そのため、本タスクの前に保存した中間生成物からも `--after` で再開できる。
--   localhost サーバは起動のときに設定を読むので、更新したビルドの振る舞いは、サーバを起動し直してから当たる。
+-   中間生成物の `id` は内容から計算した値で、`max_tokens` と effort を含まない（`internal/artifact/format.go:488-515` の `recordID`。`internal/writer/artifact.go:133-151` の `Digest`・`MaterialID` を使う）。そのため、本タスクの前に保存した中間生成物からも `--after` で再開できる。
+-   localhost サーバは起動のときに設定を読むので、更新したビルドの振る舞いは、サーバを起動し直してから反映される。
 -   利用者が実行のときに変えられるのは effort だけである。打ち切りが続く場合は、`YT2COLUMN_CLAUDE_EFFORT` で effort を下げられる（README、AC-19）。
 
 ## 5. セキュリティ考慮事項 (Security Considerations)
@@ -455,7 +456,7 @@ flowchart LR
 
 ### 5.5. 対象クライアント環境の検証
 
-N/A。本タスクは投稿先（Mattermost）への送り方を変えない。外部の API の新しい機能も使わない（`max_tokens` は 0009 から送っているメンバーで、値だけを変える）。値を受け付けることは 1.4 の (c) で確かめた。
+N/A。本タスクは投稿先（Mattermost）への送り方を変えない。外部の API の新しい機能も使わない（`max_tokens` は 0009 から送っているフィールドで、値だけを変える）。値を受け付けることは 1.4 の (c) で確かめた。
 
 ## 6. 処理フローの詳細 (Processing Flow Details)
 
@@ -492,7 +493,7 @@ flowchart LR
     class L2 enhanced
 ```
 
-実行する段階に claude の段階がないとき、`ClaudeEffort()` は `EffortUnset` のままで、Claude のアダプタは作られない（`internal/llm/provider/provider.go:55-81` は、そのときプロバイダが `deepseek` なので `claude` の分岐に入らない）。
+実行する段階に claude の段階がないとき、`ClaudeEffort()` は `EffortUnset` のままで、Claude アダプタは作られない（`internal/llm/provider/provider.go:55-82` は、そのときプロバイダが `deepseek` なので `claude` の分岐に入らない）。
 
 ### 6.2. 既定の上限が送られるまで
 
@@ -502,16 +503,16 @@ flowchart LR
 
 ### 7.1. 単体テスト
 
--   **既定の effort（AC-01・AC-02）。** `internal/llm/provider` のテストで、`YT2COLUMN_CLAUDE_EFFORT` を設定しない環境から `config.Load` した設定でアダプタを作り、ループバックの記録用サーバ（`claudeRequestFor`、`provider_test.go:310-334`）に送ったリクエストの `output_config.effort` が `high` であることを確かめる。生成が `claude` の環境（AC-01、生成と検証・推敲の両方）と、一方だけが `claude` の 2 つの組み合わせ（AC-02）を対象にする。検証・推敲のアダプタを確かめるために、`claudeRequestFor` を、生成のプロバイダとモデルだけでなく検証・推敲のものでも作れるようにする。`internal/config` のテストには、同じ 3 つの環境で `ClaudeEffort()` が `EffortHigh` になることを足す。サーバの読み込みの経路も、`LoadServer` で effort を設定しない環境の行を 1 つ足して確かめる。
--   **設定した値（AC-03）。** 既存の `TestLoadClaude`（`config_test.go:219-268`）と `TestNewClaudeSendsConfiguredRequest`（`provider_test.go:257-307`）が 5 つの値を確かめている。変えない。
--   **空の値と不正な値（AC-04）。** 既存の `TestLoadClaudeMissing` の `"effort empty"`、`TestLoadClaudeInvalid`（`config_test.go:300-317`）、値の目印を確かめるテスト（`config_test.go:720`）が確かめている。変えない。`TestLoadClaudeMissing` の `"effort unset"` の行は外す（3.6）。行を外す前後で `go tool cover -func ./internal/config` の関数ごとの値を比べ、`loadClaudeEffort` の被覆が新しい既定のテストで保たれていることを確かめる（CLAUDE.md「Deleting a test is a claim that must be checked」）。
+-   **既定の effort（AC-01・AC-02）。** `internal/llm/provider` のテストで、`YT2COLUMN_CLAUDE_EFFORT` を設定しない環境から `config.Load` した設定でアダプタを作り、ループバックの記録用サーバ（`claudeRequestFor`、`provider_test.go:310-332`）に送ったリクエストの `output_config.effort` が `high` であることを確かめる。生成と検証・推敲の両方が `claude` の環境（AC-01）と、一方だけが `claude` の 2 つの組み合わせ（AC-02）を対象にする。検証・推敲のアダプタを確かめるために、`claudeRequestFor` を、生成のプロバイダとモデルだけでなく検証・推敲のものでも作れるようにする。`internal/config` のテストには、同じ 3 つの環境で `ClaudeEffort()` が `EffortHigh` になることを足す。サーバの読み込みの経路も、`LoadServer` で effort を設定しない環境の行を 1 つ足して確かめる。
+-   **設定した値（AC-03）。** 既存の `TestLoadClaude`（`config_test.go:219-269`）と `TestNewClaudeSendsConfiguredRequest`（`provider_test.go:257-308`）が 5 つの値を確かめている。変えない。
+-   **空の値と不正な値（AC-04）。** 既存の `TestLoadClaudeMissing` の `"effort empty"`、`TestLoadClaudeInvalid`（`config_test.go:300-317`）、拒否した値がメッセージに漏れないことを確かめるテストの行（`config_test.go:720`）が確かめている。変えない。`TestLoadClaudeMissing` の `"effort unset"` の行は外す（3.6）。行を外す前後で `go tool cover -func ./internal/config` の関数ごとの値を比べ、`loadClaudeEffort` のカバレッジが新しい既定のテストで保たれていることを確かめる（CLAUDE.md「Deleting a test is a claim that must be checked」）。
 -   **claude の段階がない場合（AC-05）。** 既存の `TestLoadIgnoresOtherProviderVars`（`config_test.go:380-457`）が、DeepSeek の環境で effort の未設定・空・不正・有効のどれでも読み込みが成功することを確かめている。`--after` については、既存の `TestLoadFor` の `"no stage reads no LLM variable"`（`config_test.go:1119-1133`）が `Need{}` を確かめている。`TestLoadFor` に、次の 2 つの組み合わせを足す。1 つ目は、検証・推敲だけが `claude` で `Need{Generation: true}` の場合である。2 つ目は、生成が `claude` で検証・推敲が `deepseek`、`Need{Review: true}` の場合である。どちらも、effort の未設定・空・不正で結果が変わらないことを確かめる。
 -   **API キー（AC-06）。** effort を設定しない環境で `ANTHROPIC_API_KEY` が未設定の行を `TestLoadClaudeMissing` に足す。`assertVarError` が見るのは最初の `*VarError` だけなので、この行では、エラーのどの `*VarError` も `YT2COLUMN_CLAUDE_EFFORT` を名指ししないことも確かめる。
 -   **V の (a)・(b)（AC-07）。** `internal/llm/provider` のテストで、`MaxOutputTokens` 0 のリクエストを Claude アダプタからループバックに送り、送った `max_tokens` について次の 2 つを確かめる。(a) 観測した出力の最大の 2 倍以上である。(b) 最も遅い出力の速さで出力したときの時間が `LLMTimeout` の半分以内である。観測した出力の最大（15,884）と最も遅い出力の速さ（1,364 トークンを 14.374 秒）は、テストの名前付きの値とし、出典（本書 1.4）をコメントに書く。上限のガイドの「What to update」にこれらの値を挙げる（3.5）。定数を 31,767 以下にすると (a) が、42,703 以上にすると (b) が失敗する。定数とそれ自身の値を比べるテストではない（CLAUDE.md「Do not assert that a constant equals its own literal」に当たらない）。既存の `TestGenerateMaxTokens` の `"zero sends the default"` はそのまま残す。
 -   **3 つの段階（AC-08）。** 2 つの層に分けて確かめる（CLAUDE.md「A layered path needs inputs only one layer can handle」）。1 つ目の層は `internal/writer` で、偽の `LLMClient` が受け取った 3 つの段階のリクエストの `MaxOutputTokens` がどれも 0 であることを確かめる。生成は `writer_test.go:153` が確かめており、字数の調整と検証・推敲の確認を `TestWriteStepOrder`（`steps_test.go:43`）に足す。2 つ目の層は Claude アダプタで、0 を受け取ると V を送ることを `TestGenerateMaxTokens` が確かめる。偽の `LLMClient` は 0 を変換しないので 1 つ目の層だけを、`TestGenerateMaxTokens` は writer を通らないので 2 つ目の層だけを確かめる。
 -   **正の値（AC-09）。** 既存の `TestGenerateMaxTokens` の `"positive sends its value"` が確かめている。
--   **打ち切り（AC-10）。** 既存の `TestGenerateValidationOrder`（`response_test.go:160-181`）が、`text` ブロックのない打ち切りで `llm.ErrTruncated` になり、メッセージが既定の上限の値と effort を下げる案内を含むことを確かめている。定数を参照しているので、V に変えても V を確かめる。
--   **DeepSeek（AC-11）。** 本タスクは DeepSeek アダプタを変えない。既存の DeepSeek のテスト（`internal/llm/deepseek/deepseek_test.go:282-293` の、`MaxOutputTokens` 0 で `max_tokens` を送らないことの確認）がそのまま確かめる。
+-   **打ち切り（AC-10）。** 既存の `TestGenerateValidationOrder`（`response_test.go:160-181`）が、`text` ブロックのない打ち切りで `llm.ErrTruncated` になり、メッセージが既定の上限の値と effort を下げる案内を含むことを確かめている。定数を参照しているので、値を V に変えても、そのまま V を確かめることになる。
+-   **DeepSeek（AC-11）。** 本タスクは DeepSeek アダプタを変えない。既存の DeepSeek のテスト（`internal/llm/deepseek/deepseek_test.go:282-284` と、同じファイルの `TestGenerateMaxTokens`（`:287`）の、`MaxOutputTokens` 0 で `max_tokens` を送らないことの確認）がそのまま確かめる。
 -   **タイムアウト（AC-12）。** 既存のテストが確かめている。`claudeRequestFor` はアダプタが 15 分のタイムアウトを受け取ることを（`provider_test.go:318-320`）、`cmd/yt2column/run_test.go:633` は CLI のメッセージの「15-minute」を、`cmd/yt2column-server/run_test.go:426-427` は停止の通知の「about 45 minutes」を確かめている。変えない。
 -   **各テストが失敗しうること。** 実装では、次の変更でそれぞれ新しいテストが失敗することを確かめ、コミットメッセージに書く（CLAUDE.md「Every test must be able to fail for its stated reason」）。既定の effort の代入を外す。`defaultMaxOutputTokens` を 31,767 と 42,703 にする。writer の 3 か所の `MaxOutputTokens` を、1 か所ずつ順に 1 にする。
 
@@ -521,7 +522,7 @@ flowchart LR
 
 ### 7.3. セキュリティテスト
 
-新しいテストは要らない。effort の拒否のエラーが値を含まないことは、既存の目印のテスト（`config_test.go:720`）が確かめている。
+新しいテストは要らない。effort の拒否のエラーが値を含まないことは、既存の、拒否した値がメッセージに漏れないことを確かめるテストの行（`config_test.go:720`）が確かめている。
 
 ### 7.4. 受け入れ基準と設計要素の対応
 
@@ -530,7 +531,7 @@ flowchart LR
 | AC-01 | 3.1 | 7.1（provider と config の新しいテスト、`LoadServer` の行） |
 | AC-02 | 3.1 | 7.1（同上、一方だけが claude の 2 つの組み合わせ） |
 | AC-03 | 3.1（変えない） | 既存の `TestLoadClaude`・`TestNewClaudeSendsConfiguredRequest` |
-| AC-04 | 3.1（変えない） | 既存の `TestLoadClaudeMissing`・`TestLoadClaudeInvalid`・目印のテスト |
+| AC-04 | 3.1（変えない） | 既存の `TestLoadClaudeMissing`・`TestLoadClaudeInvalid`・値が漏れないことのテスト |
 | AC-05 | 1.1・6.1 | 既存の `TestLoadIgnoresOtherProviderVars`・`TestLoadFor`、足す 2 つの組み合わせ |
 | AC-06 | 3.1 | 7.1（足す行） |
 | AC-07 | 3.2・1.4 | 7.1（provider の (a)・(b) のテスト）、既存の `TestGenerateMaxTokens` |
@@ -573,5 +574,5 @@ AC-13〜AC-19 は文書の文面なので、テストでは確かめない（CLA
 | H-04 | 5.4。V の応答の本文は約 154 KB と見積もられ、8 MiB の上限に十分に収まる |
 | H-05 | 4.3。V で打ち切られた 1 回の推定コスト（Opus 0.895428 USD、Sonnet 0.447714 USD）を、16,000 での実測（0.415428 USD）と並べて記録した。タイムアウトと切断の費用は分からず、表示もされないことを記録した。README には料金を書かない（3.4） |
 | H-06 | 1.2・3.1。既定値は `internal/config` の `defaultClaudeEffort`（値は `claudeparam.EffortHigh`）に置く。`EffortUnset` の意味と、アダプタがそれを拒否する仕組みは変えない。アダプタには既定値を持たせない。doc コメント 2 か所を直す。既定は `loadClaudeEffort` の中だけで当てるので、`--after` で実行しない段階には及ばない |
-| H-07 | 3.6・3.7・7.1。`TestLoadClaudeMissing` の `"effort unset"` の行を外し、既定のテストに置き換える（被覆を `go tool cover -func` で比べる）。AC-08 は writer とアダプタの 2 つの層で確かめる。AC-07 は送った値を (a)・(b) の条件と比べる。AC-12 は既存のテストが確かめているので変えない |
+| H-07 | 3.6・3.7・7.1。`TestLoadClaudeMissing` の `"effort unset"` の行を外し、既定のテストに置き換える（カバレッジを `go tool cover -func` で比べる）。AC-08 は writer とアダプタの 2 つの層で確かめる。AC-07 は送った値を (a)・(b) の条件と比べる。AC-12 は既存のテストが確かめているので変えない |
 | H-08 | 3.5。ファイル名は `claude_output_limit.md` とした。人の承認と評価の手順への参照、段階ごとの測り方、集める値の出どころを書く。V の値と出力の速さは写さず、今の根拠の記録の場所を示すので、文書の値の一致を確かめるテストは要らない。(a)・(b) はテストの名前付きの値で固定し、ガイドの更新の対象に挙げる |
