@@ -71,7 +71,7 @@
 
 **変更するファイル:** `internal/config/config.go`、`internal/config/config_test.go`、`internal/llm/provider/provider_test.go`
 
--   [ ] **ステップ 1-1**: `internal/config/config.go` を次のように改める（設計書 3.1）。
+-   [x] **ステップ 1-1**: `internal/config/config.go` を次のように改める（設計書 3.1）。
     -   変更の前に、まだ何も変更していない状態（本計画の承認の後の `main`）で `go test -tags test -coverprofile=<スクラッチの場所>/before.out ./internal/config` と `go tool cover -func` を実行し、関数ごとの値を控える（ステップ 1-2 の比較に使う）。手元の変更を退ける必要があるときも、`git stash` は使わない（stash はほかの worktree と共有される）。
     -   設計書 3.1 のコードのとおりに、`defaultClaudeEffort` を doc コメントとともに足す。
     -   `loadClaudeEffort` で、未設定（`!ok`）のときは `cfg.claudeEffort` に `defaultClaudeEffort` を入れて `nil` を返す。空の値は今までどおり `missingVar(claudeEffortEnv)` を返す。
@@ -79,7 +79,7 @@
     -   `loadClaudeEffort` の doc コメントを、`// loadClaudeEffort validates YT2COLUMN_CLAUDE_EFFORT, which is required when` `// the generation or the review provider is claude. It is called only when one` `// of them is. The accepted values live in claudeparam and are not repeated` `// here.` から、`// loadClaudeEffort validates YT2COLUMN_CLAUDE_EFFORT when the generation or` `// the review provider is claude. It is called only when one of them is. Unset` `// selects defaultClaudeEffort; an empty value is rejected, not treated as` `// unset. The accepted values live in claudeparam and are not repeated here.` に変える。
     -   `LoadFor` の doc コメントの `// zero Config on any error. A need that is true reads and requires its stage's` `// provider and model variables and the selected providers' own variables; a` を、`// zero Config on any error. A need that is true reads and requires its stage's` `// provider and model variables and reads and validates the selected providers'` `// own variables; a` に変える。残りの行は変えない。
     -   （行の折り返しは `make fmt` の結果に従ってよい。文面は変えない。）
--   [ ] **ステップ 1-2**: `internal/config/config_test.go` を次のように改める（設計書 3.6・7.1）。
+-   [x] **ステップ 1-2**: `internal/config/config_test.go` を次のように改める（設計書 3.6・7.1）。
     -   `TestLoadClaudeMissing` から `"effort unset"` の行を外す。`"effort empty"` の行は残す。
     -   AC-06 の確認を、`TestLoadClaudeMissing` の表の行ではなく、同じテストの別の副テストとして足す（表の行は `assertVarError` だけを呼ぶので、追加の確認を `"effort empty"` などの行に加えない）。環境は `validClaudeEnv()` から `ANTHROPIC_API_KEY` と `YT2COLUMN_CLAUDE_EFFORT` の両方を外したもので、`assertVarError` で `ANTHROPIC_API_KEY` の `ErrMissing` を確かめる。加えて、結合したエラーを `Unwrap() []error` でたどり、どの `*VarError` の変数名も `YT2COLUMN_CLAUDE_EFFORT` でないことを確かめる（たどり方の先例は `internal/publisher/slack_test.go:224`）。
     -   `TestLoadClaudeEffortDefault` を足す。`YT2COLUMN_CLAUDE_EFFORT` を設定しない次の環境で、`Load` が成功し、`ClaudeEffort()` が `claudeparam.EffortHigh` であることを確かめる（AC-01・AC-02）。
@@ -89,10 +89,10 @@
         -   `LoadServer`: 同じことを `LoadServer` でも確かめる。環境は、(1) から `YT2COLUMN_CACHE_DIR` を外し、`HOME` と `SLACK_WEBHOOK_URL` を加えたものとする（`validServerEnv` は DeepSeek の環境から作るので、そのままは使えない）。
     -   `TestLoadFor` に 2 つの副テストを足す（AC-05）。1 つ目は、生成が `deepseek`・検証・推敲が `claude` で `Need{Generation: true}` の場合、2 つ目は、生成が `claude`・検証・推敲が `deepseek` で `Need{Review: true}` の場合である。どちらも、`YT2COLUMN_CLAUDE_EFFORT` が未設定・空・不正（`High`）のどれでも `LoadFor` が成功し、`ClaudeEffort()` が `claudeparam.EffortUnset` であることを確かめる。
     -   変更の後に、ステップ 1-1 と同じコマンドでカバレッジを取る。`loadClaudeEffort` は中身が変わるので、カバレッジが 100% であることを確かめる。ほかの関数は、値が変わっていないことを確かめる。比べた結果は、コミットのメッセージに書く。
--   [ ] **ステップ 1-3**: `internal/llm/provider/provider_test.go` を次のように改める（設計書 7.1）。
+-   [x] **ステップ 1-3**: `internal/llm/provider/provider_test.go` を次のように改める（設計書 7.1）。
     -   `claudeRequestFor` を、生成のプロバイダとモデル（`cfg.LLM().Provider()`・`Model()`）でも、検証・推敲のプロバイダとモデル（`ReviewProvider()`・`ReviewModel()`）でもアダプタを作れるようにする。`claudeRequestFor` は `newClient` を直接呼ぶので、`New`・`NewReview` がどちらを選ぶかは確かめない。それは既存の `TestNewReviewUsesReviewModel`（`provider_test.go:442`）が確かめている。呼び出し元の `TestNewClaudeSendsConfiguredRequest` の期待する値は変えない。
     -   `TestNewClaudeDefaultEffort` を足す。ステップ 1-2 の `TestLoadClaudeEffortDefault` と同じ 3 つの環境（`YT2COLUMN_CLAUDE_EFFORT` を設定しない）で `config.Load` した設定から、`claude` の段階のアダプタを `claudeRequestFor` で作り、送ったリクエストの `output_config.effort` が `high` であることを確かめる。(1) では生成と検証・推敲の両方のアダプタを確かめる（AC-01）。(2) では検証・推敲のアダプタ、(3) では生成のアダプタを確かめる（AC-02）。
--   [ ] **ステップ 1-4**: 次のそれぞれの変更を一時的に加え、名指ししたテストを実行して、そのテストが述べた理由で失敗することを確かめる。確かめたら変更を元に戻し、結果をコミットのメッセージに書く。
+-   [x] **ステップ 1-4**: 次のそれぞれの変更を一時的に加え、名指ししたテストを実行して、そのテストが述べた理由で失敗することを確かめる。確かめたら変更を元に戻し、結果をコミットのメッセージに書く。
     -   `loadClaudeEffort` の未設定の分岐を、変更前の `missingVar(claudeEffortEnv)` を返す形に戻す。`TestLoadClaudeEffortDefault`・`TestNewClaudeDefaultEffort`・`TestLoadClaudeMissing` の AC-06 の副テストが失敗することを確かめる。
     -   `defaultClaudeEffort` を `claudeparam.EffortMedium` にする。`TestLoadClaudeEffortDefault` と `TestNewClaudeDefaultEffort` が失敗することを確かめる。
     -   既定を `loadClaudeEffort` の外に移し、`loadLLM` の最後で、`cfg.claudeEffort` が `claudeparam.EffortUnset` なら need によらず `defaultClaudeEffort` を入れるようにする。`TestLoadFor` の足した 2 つの副テストが失敗することを確かめる（既定が、実行する段階に `claude` のない実行に及ぶ変更を、この 2 つの副テストが捉えるかを確かめるためである）。
@@ -105,14 +105,14 @@
 
 **変更するファイル:** `internal/llm/claude/request.go`、`internal/llm/provider/provider.go`、`internal/llm/provider/provider_test.go`、`internal/writer/steps_test.go`
 
--   [ ] **ステップ 2-1**: `internal/llm/claude/request.go` の `defaultMaxOutputTokens` を `16000` から `40000` に変える（設計書 1.2・3.2）。doc コメントを、`// defaultMaxOutputTokens is sent as max_tokens when the request leaves the` `// output limit to the provider (MaxOutputTokens 0). The Messages API` `// requires max_tokens, so a value must always be sent.` から、次の文面に変える。`// defaultMaxOutputTokens is sent as max_tokens when the request leaves the` `// output limit to the provider (MaxOutputTokens 0). The Messages API` `// requires max_tokens, so a value must always be sent. The value is at least` `// twice the largest observed output, and producing it at the slowest observed` `// output rate takes at most half of provider.LLMTimeout; a test in` `// internal/llm/provider pins both conditions.` `// docs/dev/developer_guide/claude_output_limit.md describes how to re-measure` `// them.` コメントはタスクの文書を指さない（設計書 1.1）。
--   [ ] **ステップ 2-2**: `internal/llm/provider/provider.go` の `LLMTimeout` の doc コメントを、`// LLMTimeout bounds one LLM call, for every provider. DeepSeek holds a request` `// for up to ten minutes before inference starts; the remaining five minutes` `// cover the generation itself. A non-streaming Claude call within the Claude` `// adapter's default output limit was measured to finish well inside it.` から、次の文面に変える（設計書 3.3）。`// LLMTimeout bounds one LLM call, for every provider. DeepSeek holds a request` `// for up to ten minutes before inference starts; the remaining five minutes` `// cover the generation itself. The Claude adapter's default output limit is` `// sized so that a non-streaming call producing that many tokens at the slowest` `// observed output rate finishes within half of this timeout; a test in this` `// package pins that relation, and` `// docs/dev/developer_guide/claude_output_limit.md describes how to re-measure` `// it.` 値（15 分）は変えない。
--   [ ] **ステップ 2-3**: `internal/llm/provider/provider_test.go` に `TestClaudeDefaultMaxTokensFitsBudget` を足す（設計書 7.1）。
+-   [x] **ステップ 2-1**: `internal/llm/claude/request.go` の `defaultMaxOutputTokens` を `16000` から `40000` に変える（設計書 1.2・3.2）。doc コメントを、`// defaultMaxOutputTokens is sent as max_tokens when the request leaves the` `// output limit to the provider (MaxOutputTokens 0). The Messages API` `// requires max_tokens, so a value must always be sent.` から、次の文面に変える。`// defaultMaxOutputTokens is sent as max_tokens when the request leaves the` `// output limit to the provider (MaxOutputTokens 0). The Messages API` `// requires max_tokens, so a value must always be sent. The value is at least` `// twice the largest observed output, and producing it at the slowest observed` `// output rate takes at most half of provider.LLMTimeout; a test in` `// internal/llm/provider pins both conditions.` `// docs/dev/developer_guide/claude_output_limit.md describes how to re-measure` `// them.` コメントはタスクの文書を指さない（設計書 1.1）。
+-   [x] **ステップ 2-2**: `internal/llm/provider/provider.go` の `LLMTimeout` の doc コメントを、`// LLMTimeout bounds one LLM call, for every provider. DeepSeek holds a request` `// for up to ten minutes before inference starts; the remaining five minutes` `// cover the generation itself. A non-streaming Claude call within the Claude` `// adapter's default output limit was measured to finish well inside it.` から、次の文面に変える（設計書 3.3）。`// LLMTimeout bounds one LLM call, for every provider. DeepSeek holds a request` `// for up to ten minutes before inference starts; the remaining five minutes` `// cover the generation itself. The Claude adapter's default output limit is` `// sized so that a non-streaming call producing that many tokens at the slowest` `// observed output rate finishes within half of this timeout; a test in this` `// package pins that relation, and` `// docs/dev/developer_guide/claude_output_limit.md describes how to re-measure` `// it.` 値（15 分）は変えない。
+-   [x] **ステップ 2-3**: `internal/llm/provider/provider_test.go` に `TestClaudeDefaultMaxTokensFitsBudget` を足す（設計書 7.1）。
     -   `claudeValidEnv()` の設定から `claudeRequestFor` で生成のアダプタを作り（`MaxOutputTokens` 0 の `Generate` を送る）、記録した本文の `max_tokens` を読む。
     -   観測した出力の最大（15,884 トークン）と、最も遅い出力の速さ（14.374 秒で 1,364 トークン）を、テストの名前付きの値にする。値の出典（0041 の設計書 1.4、0018 評価記録 §4.7.2・§4.7.4）をコメントに英語で書く。
     -   (a) 送った `max_tokens` が、観測した出力の最大の 2 倍以上であることを確かめる。(b) 送った `max_tokens` を最も遅い出力の速さで出力する時間が、`LLMTimeout` の半分以内であることを確かめる。(b) は、トークンあたりの時間を求める割り算をせず、`time.Duration` の掛け算で比べる（`max_tokens × 14.374 秒 ≤ 1,364 × (LLMTimeout ÷ 2)`）。両辺は約 6.1 × 10^14 ナノ秒で、int64 の範囲に収まる。
--   [ ] **ステップ 2-4**: `internal/writer/steps_test.go` の `TestWriteStepOrder` の `"over the limit"` に、字数の調整の呼び出し（`gen.Calls[1]`）と検証・推敲の呼び出し（`review.Calls[0]`）の `Request.MaxOutputTokens` が 0 であることの確認を足す（AC-08 の writer の層。設計書 7.1）。
--   [ ] **ステップ 2-5**: 次のそれぞれの変更を一時的に加え、名指ししたテストを実行して、そのテストが述べた理由で失敗することを確かめる。確かめたら変更を元に戻し、結果をコミットのメッセージに書く（設計書 7.1 の最後の項目）。
+-   [x] **ステップ 2-4**: `internal/writer/steps_test.go` の `TestWriteStepOrder` の `"over the limit"` に、字数の調整の呼び出し（`gen.Calls[1]`）と検証・推敲の呼び出し（`review.Calls[0]`）の `Request.MaxOutputTokens` が 0 であることの確認を足す（AC-08 の writer の層。設計書 7.1）。
+-   [x] **ステップ 2-5**: 次のそれぞれの変更を一時的に加え、名指ししたテストを実行して、そのテストが述べた理由で失敗することを確かめる。確かめたら変更を元に戻し、結果をコミットのメッセージに書く（設計書 7.1 の最後の項目）。
     -   `defaultMaxOutputTokens` を `31767` にする。`TestClaudeDefaultMaxTokensFitsBudget` が (a) の確認で失敗することを確かめる。
     -   `defaultMaxOutputTokens` を `42703` にする。`TestClaudeDefaultMaxTokensFitsBudget` が (b) の確認で失敗することを確かめる。
     -   `writer.go:463`・`shorten.go:28`・`review.go:256` の `MaxOutputTokens: 0` を、1 か所ずつ順に `1` にする。生成の箇所では `TestWriteCallsGenerateOnce` が、字数の調整と検証・推敲の箇所では `TestWriteStepOrder` が失敗することを確かめる。
@@ -125,20 +125,20 @@
 
 **変更するファイル:** `README.md`、`docs/dev/project_overview.md`、`docs/dev/developer_guide/package_reference.md`、`docs/dev/developer_guide/claude_output_limit.md`（新規）、`CLAUDE.md`
 
--   [ ] **ステップ 3-1**: `README.md` を、設計書 3.4 の表の README の 4 行のとおりに改める。
+-   [x] **ステップ 3-1**: `README.md` を、設計書 3.4 の表の README の 4 行のとおりに改める。
     -   「Configuration」の表の `YT2COLUMN_CLAUDE_EFFORT` の行の「When unset」を、``Required when the generation or review provider is `claude` (an error)`` から `` `high` when the generation or review provider is `claude` `` に変える（AC-14）。
     -   `max` の注意（`:750-752`）を残し、既定の出力の上限でも `max` は推論だけで上限を使い切って記事の本文を返さないと見込まれることを、数値を挙げずに書く（AC-15）。
     -   その後に、既定の `high` は claude-opus-5-5 に合わせて選んだ値であること、ほかのモデル（例: claude-sonnet-5-5）では `high` でも出力の上限に達して打ち切られうること、その場合は `YT2COLUMN_CLAUDE_EFFORT` で effort を下げられることを書く段落を足す（AC-19）。
     -   `--no-review` の段落（`:116-121`）の `that provider's variables (its API key, and for` `` `claude` its effort) are still required`` を、API キーだけが必須である書き方に直す（AC-14）。設定した effort は今までどおり確かめられる（空の値や不正な値は拒否される）ことが読み取れる書き方にする。これは、`--no-review` でも `--after` のない実行は検証・推敲の設定を読む（`resumeNeed`、`cmd/yt2column/run.go:482-484`）ためである。
--   [ ] **ステップ 3-2**: `docs/dev/project_overview.md` の「設定（環境変数）」の表の `YT2COLUMN_CLAUDE_EFFORT` の行（`:115`）の「未設定のとき」を、``生成または検証・推敲のプロバイダが `claude` ならエラー`` から ``生成または検証・推敲のプロバイダが `claude` なら `high` `` に変える（AC-16）。
--   [ ] **ステップ 3-3**: `docs/dev/developer_guide/package_reference.md` の `internal/config` の行（`:27`）の ``the Claude effort via `claudeparam.ParseEffort` `` に、未設定なら `high`（`defaultClaudeEffort`）であることを加える（設計書 3.4）。
--   [ ] **ステップ 3-4**: 上限のガイド `docs/dev/developer_guide/claude_output_limit.md` を英語で新設する（AC-17。設計書 3.5）。
+-   [x] **ステップ 3-2**: `docs/dev/project_overview.md` の「設定（環境変数）」の表の `YT2COLUMN_CLAUDE_EFFORT` の行（`:115`）の「未設定のとき」を、``生成または検証・推敲のプロバイダが `claude` ならエラー`` から ``生成または検証・推敲のプロバイダが `claude` なら `high` `` に変える（AC-16）。
+-   [x] **ステップ 3-3**: `docs/dev/developer_guide/package_reference.md` の `internal/config` の行（`:27`）の ``the Claude effort via `claudeparam.ParseEffort` `` に、未設定なら `high`（`defaultClaudeEffort`）であることを加える（設計書 3.4）。
+-   [x] **ステップ 3-4**: 上限のガイド `docs/dev/developer_guide/claude_output_limit.md` を英語で新設する（AC-17。設計書 3.5）。
     -   節は設計書 3.5 の表の 7 つ（When to re-measure、Cost and approval、How to measure、What to collect、How to judge、What to update、Current record）とし、各節に表の「内容」を書く。`pricing_update.md` の書き方（手順の番号付きの列挙、参照の書き方）に揃える。
     -   「What to update」には、ステップ 2-3 の名前付きの値（観測した出力の最大と最も遅い出力の速さ）とそのテストのファイルを挙げる。「Current record」は、今の根拠の記録として本タスクの設計書 1.4 を指し、値は写さない。
     -   「How to measure」のコマンドの例は、訂正した設計書 3.5 のとおりにする。生成は `--no-review --no-shorten`、字数の調整は `--after generation --no-review`、検証・推敲は、字数の調整が走った実行のあとなら `--after shorten`、走らなかった実行のあとなら `--after generation --no-shorten` である（本計画 §1.3）。どれも `--artifacts` を付ける。`--after generation --no-shorten` は字数の調整を飛ばし、最後の字数の確認も行わない（`internal/writer/writer.go:401`）ので、字数の調整が走らなかった実行のあとに限って使うことをガイドに書く。
     -   例のフラグと組み合わせを、コードで確かめる。フラグは `go run ./cmd/yt2column --help`（実 API は呼ばない）、組み合わせの受理は `checkResumeFlags`（`cmd/yt2column/run.go:502-526`）、実行する段階は `resumeNeed`（`:481-493`）と `internal/writer/writer.go:366-380`、中間生成物の読み込みは `internal/artifact/store.go:139-151` で確かめる。確かめたことをコミットのメッセージに書く。打ち切りのエラーの文（`generation truncated by the output token limit`）は、`internal/llm/llm.go:16` の `ErrTruncated` の文と照らす。
--   [ ] **ステップ 3-5**: `CLAUDE.md` の Quick Links の「Development Guides」に、上限のガイドへのリンクと 1 行の説明を足す（AC-18）。位置は `pricing_update.md` の行の後とする。
--   [ ] **ステップ 3-6**: `make fmt`・`make test`・`make lint`・`make ext-test` を通す（README を変えるので `make ext-test` も実行する。CLAUDE.md「Development Notes」）。本計画 §5 の横断の確認の項目を確かめる。
+-   [x] **ステップ 3-5**: `CLAUDE.md` の Quick Links の「Development Guides」に、上限のガイドへのリンクと 1 行の説明を足す（AC-18）。位置は `pricing_update.md` の行の後とする。
+-   [x] **ステップ 3-6**: `make fmt`・`make test`・`make lint`・`make ext-test` を通す（README を変えるので `make ext-test` も実行する。CLAUDE.md「Development Notes」）。本計画 §5 の横断の確認の項目を確かめる。
 
 **完了の条件:** `make test && make lint` と `make ext-test` が通る。本計画 §5 の横断の確認の項目を確かめた。
 
@@ -154,10 +154,10 @@
 
 **判定理由**: どのステップも設計書が手段を決めており、`既存コード調査結果` に競合する手段はない。CI のワークフローは変えず（走るのは既存のジョブ）、外部サービスもデータの移行もなく、mkplan の条件付きの確認の項目にも当たらない。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/498
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）（最後の PR のため該当しない）
 
 ## 3. 実装の順序とマイルストーン (Implementation Order and Milestones)
 
@@ -227,9 +227,9 @@ AC-13〜AC-19 は文書の文面を定める AC なので、`manual` の読み�
 
 **横断の確認（`make test`・`make lint` が検出しないもの。ステップ 3-6 で、PR の差分を読んで確かめる。文書の語の有無を `rg` で確かめる手段にはしない）:**
 
--   [ ] `README.md` と `docs/dev/project_overview.md` に、`YT2COLUMN_CLAUDE_EFFORT` を必須とする文やエラーとする文が残っていない（ステップ 3-1・3-2 の書き換えの漏れ。PR-1 のレビューでも読む）。
--   [ ] `README.md`・`docs/dev/project_overview.md`・上限のガイドに、V の値（40,000 またはその表記の揺れ）と出力の速さの数値が書かれていない（設計書 1.2）。
--   [ ] Go のコメントが、上限のガイドを指し、`docs/tasks/` を指さない（`request.go`・`provider.go`・`config.go` の変えたコメント。テストの名前付きの値の出典のコメントは、設計書 1.4 と評価記録を出典として挙げてよい）。
+-   [x] `README.md` と `docs/dev/project_overview.md` に、`YT2COLUMN_CLAUDE_EFFORT` を必須とする文やエラーとする文が残っていない（ステップ 3-1・3-2 の書き換えの漏れ。PR-1 のレビューでも読む）。
+-   [x] `README.md`・`docs/dev/project_overview.md`・上限のガイドに、V の値（40,000 またはその表記の揺れ）と出力の速さの数値が書かれていない（設計書 1.2）。
+-   [x] Go のコメントが、上限のガイドを指し、`docs/tasks/` を指さない（`request.go`・`provider.go`・`config.go` の変えたコメント。テストの名前付きの値の出典のコメントは、設計書 1.4 と評価記録を出典として挙げてよい）。
 
 ## 6. リスク管理 (Risk Management)
 
@@ -244,7 +244,7 @@ AC-13〜AC-19 は文書の文面を定める AC なので、`manual` の読み�
 
 ## 7. 実装チェックリスト (Implementation Checklist)
 
-- [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6）
+- [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6）
 
 ## 8. 成功の基準 (Success Criteria)
 

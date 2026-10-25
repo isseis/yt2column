@@ -115,8 +115,9 @@ what makes the resume work; see [Cache and concurrency](#cache-and-concurrency).
 
 The review step's configuration is validated even with `--no-review`, because
 the configuration is independent of the flags: if `YT2COLUMN_REVIEW_PROVIDER`
-selects a different provider, that provider's variables (its API key, and for
-`claude` its effort) are still required. A resumed run validates only the
+selects a different provider, that provider's variables are still checked. Its
+API key is required, and for `claude` a set effort must still be valid (an unset
+one selects `high`). A resumed run validates only the
 settings of the stages it executes, so `--after review` requires no LLM
 settings at all.
 
@@ -721,7 +722,7 @@ On other platforms, see the yt-dlp
 | `YT2COLUMN_REVIEW_MODEL` | Review step's LLM model name (required when `YT2COLUMN_REVIEW_PROVIDER` is set) | The generation model |
 | `DEEPSEEK_API_KEY` | DeepSeek API key | Required when the generation or review provider is `deepseek` (an error) |
 | `ANTHROPIC_API_KEY` | Anthropic API key | Required when the generation or review provider is `claude` (an error) |
-| `YT2COLUMN_CLAUDE_EFFORT` | Claude effort; `low`, `medium`, `high`, `xhigh`, or `max` | Required when the generation or review provider is `claude` (an error) |
+| `YT2COLUMN_CLAUDE_EFFORT` | Claude effort; `low`, `medium`, `high`, `xhigh`, or `max` | `high` when the generation or review provider is `claude` |
 | `ANTHROPIC_WORKSPACE_ID` | Anthropic workspace ID, for an API key not bound to a workspace | No workspace ID is sent |
 | `SLACK_WEBHOOK_URL` | Slack-compatible Incoming Webhook URL (Mattermost is the verified target) | Required with `--slack`; optional with `--out` (no value) |
 | `YT2COLUMN_CACHE_DIR` | Cache directory for subtitles and video metadata | `$HOME/Library/Caches/yt2column` on macOS; `$XDG_CACHE_HOME/yt2column` or `$HOME/.cache/yt2column` on other Unix |
@@ -747,9 +748,14 @@ The other provider's variables are ignored whatever their value, so exporting
 `YT2COLUMN_REVIEW_PROVIDER` is unset, no provider-specific variable is checked,
 but errors for common variables such as `YT2COLUMN_MODEL` are still reported.
 
-With `claude`, `max` is accepted but in this use case it spends the whole output
-budget on reasoning and returns no article text, so the run fails as truncated.
-Use `low` through `xhigh` for column generation.
+With `claude`, `max` is accepted, but in this use case it is expected to spend
+even the default output limit on reasoning alone and return no article text, so
+the run fails as truncated. Use `low` through `xhigh` for column generation.
+
+The default effort `high` was chosen for `claude-opus-5-5`. With another model,
+such as `claude-sonnet-5-5`, `high` can also reach the output limit, and the run
+fails as truncated; in that case set `YT2COLUMN_CLAUDE_EFFORT` to a lower
+effort.
 
 ## Development
 

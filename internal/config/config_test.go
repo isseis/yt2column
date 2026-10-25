@@ -11,6 +11,7 @@ import (
 	"maps"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -278,7 +279,6 @@ func TestLoadClaudeMissing(t *testing.T) {
 	}{
 		{"API key unset", without(validClaudeEnv(), anthropicAPIKeyEnv), anthropicAPIKeyEnv},
 		{"API key empty", with(validClaudeEnv(), anthropicAPIKeyEnv, ""), anthropicAPIKeyEnv},
-		{"effort unset", without(validClaudeEnv(), claudeEffortEnv), claudeEffortEnv},
 		{"effort empty", with(validClaudeEnv(), claudeEffortEnv, ""), claudeEffortEnv},
 		{"workspace id empty", with(validClaudeEnv(), anthropicWorkspaceIDEnv, ""), anthropicWorkspaceIDEnv},
 		{
@@ -293,6 +293,82 @@ func TestLoadClaudeMissing(t *testing.T) {
 			assertVarError(t, err, ErrMissing, tc.wantVar)
 		})
 	}
+
+	// The effort default must not make the API key optional, nor add a
+	// rejection of the unset effort next to the API key's.
+	t.Run("API key and effort unset", func(t *testing.T) {
+		_, err := Load(envLookup(without(validClaudeEnv(), anthropicAPIKeyEnv, claudeEffortEnv)))
+		assertVarError(t, err, ErrMissing, anthropicAPIKeyEnv)
+		if slices.Contains(varErrorNames(err), claudeEffortEnv) {
+			t.Errorf("Load() error = %v, names %s", err, claudeEffortEnv)
+		}
+	})
+}
+
+// varErrorNames returns the variable name of every *VarError in err's tree.
+// errors.AsType stops at the first match, and a joined load error holds one
+// *VarError per rejected variable, so the tree is walked node by node.
+func varErrorNames(err error) []string {
+	if err == nil {
+		return nil
+	}
+	var names []string
+	if varErr, ok := errors.AsType[*VarError](err); ok && varErr == err {
+		names = append(names, varErr.Name)
+	}
+	if multi, ok := err.(interface{ Unwrap() []error }); ok {
+		for _, child := range multi.Unwrap() {
+			names = append(names, varErrorNames(child)...)
+		}
+		return names
+	}
+	return append(names, varErrorNames(errors.Unwrap(err))...)
+}
+
+// TestLoadClaudeEffortDefault checks that an unset YT2COLUMN_CLAUDE_EFFORT
+// selects the high effort whenever a stage uses claude, for both entry points.
+func TestLoadClaudeEffortDefault(t *testing.T) {
+	claudeBoth := without(validClaudeEnv(), claudeEffortEnv)
+	reviewClaude := with(validEnv(), reviewProviderEnv, "claude")
+	reviewClaude = with(reviewClaude, reviewModelEnv, "claude-review")
+	reviewClaude = with(reviewClaude, anthropicAPIKeyEnv, "sk-ant-test-key")
+	generationClaude := with(claudeBoth, reviewProviderEnv, "deepseek")
+	generationClaude = with(generationClaude, reviewModelEnv, "deepseek-review")
+	generationClaude = with(generationClaude, deepSeekAPIKeyEnv, "sk-test-key")
+	cases := []struct {
+		name string
+		env  map[string]string
+	}{
+		{"both stages claude", claudeBoth},
+		{"review claude only", reviewClaude},
+		{"generation claude only", generationClaude},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg, err := Load(envLookup(tc.env))
+			if err != nil {
+				t.Fatalf("Load() error = %v, want nil", err)
+			}
+			if cfg.LLM().ClaudeEffort() != claudeparam.EffortHigh {
+				t.Errorf("ClaudeEffort() = %v, want EffortHigh", cfg.LLM().ClaudeEffort())
+			}
+		})
+	}
+
+	// LoadServer shares Load's LLM loading today; this pins the server entry
+	// point, so a server-specific loader would still get the default.
+	t.Run("LoadServer", func(t *testing.T) {
+		env := without(claudeBoth, cacheDirEnv)
+		env = with(env, "HOME", "/home/user")
+		env = with(env, slackEnv, "https://hooks.slack.com/services/T000/B000/XXXX")
+		cfg, err := LoadServer(envLookup(env))
+		if err != nil {
+			t.Fatalf("LoadServer() error = %v, want nil", err)
+		}
+		if cfg.LLM().ClaudeEffort() != claudeparam.EffortHigh {
+			t.Errorf("ClaudeEffort() = %v, want EffortHigh", cfg.LLM().ClaudeEffort())
+		}
+	})
 }
 
 // TestLoadClaudeInvalid checks that an unusable claude provider variable wraps
@@ -1115,6 +1191,50 @@ func TestLoadFor(t *testing.T) {
 		_, err := LoadFor(envLookup(env), Need{Review: true})
 		assertVarError(t, err, ErrMissing, reviewModelEnv)
 	})
+
+	// The effort is neither read nor defaulted when the claude stage is the
+	// one the run skips.
+	skippedClaude := []struct {
+		name string
+		env  map[string]string
+		need Need
+	}{
+		{
+			"generation only with a claude review",
+			with(with(with(validEnv(), reviewProviderEnv, "claude"), reviewModelEnv, "claude-review"), anthropicAPIKeyEnv, "sk-ant-test-key"),
+			Need{Generation: true},
+		},
+		{
+			"review only with a claude generation",
+			with(with(with(without(validClaudeEnv(), claudeEffortEnv), reviewProviderEnv, "deepseek"), reviewModelEnv, "deepseek-review"), deepSeekAPIKeyEnv, "sk-test-key"),
+			Need{Review: true},
+		},
+	}
+	for _, tc := range skippedClaude {
+		for _, effort := range []struct {
+			name  string
+			value string
+			set   bool
+		}{
+			{"unset", "", false},
+			{"empty", "", true},
+			{"invalid", "High", true},
+		} {
+			t.Run(tc.name+" effort "+effort.name, func(t *testing.T) {
+				env := without(tc.env, claudeEffortEnv)
+				if effort.set {
+					env = with(env, claudeEffortEnv, effort.value)
+				}
+				cfg, err := LoadFor(envLookup(env), tc.need)
+				if err != nil {
+					t.Fatalf("LoadFor() error = %v, want nil", err)
+				}
+				if cfg.LLM().ClaudeEffort() != claudeparam.EffortUnset {
+					t.Errorf("ClaudeEffort() = %v, want EffortUnset", cfg.LLM().ClaudeEffort())
+				}
+			})
+		}
+	}
 
 	t.Run("no stage reads no LLM variable", func(t *testing.T) {
 		// --after review: not even an invalid provider or model is read.

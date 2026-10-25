@@ -30,6 +30,8 @@ const (
 	testModel = "deepseek-flash"
 	// testClaudeModel is the model name of a claude test environment.
 	testClaudeModel = "claude-opus-5-5"
+	// testClaudeReviewModel is a review model distinct from testClaudeModel.
+	testClaudeReviewModel = "claude-sonnet-5-5"
 	// testAPIKey is a fixed, non-secret value. No test uses a real key.
 	testAPIKey = "sk-test-key-0123456789"
 	// testClaudeWorkspaceID is a fixed, non-secret workspace id.
@@ -264,7 +266,7 @@ func TestNewClaudeSendsConfiguredRequest(t *testing.T) {
 		t.Run(effort, func(t *testing.T) {
 			env := claudeValidEnv()
 			env["YT2COLUMN_CLAUDE_EFFORT"] = effort
-			recorded := claudeRequestFor(t, env, body)
+			recorded := claudeRequestFor(t, env, body, generationStage)
 			if got := recorded.Header.Get("x-api-key"); got != testAPIKey {
 				t.Errorf("x-api-key = %q, want the test key", got)
 			}
@@ -299,7 +301,7 @@ func TestNewClaudeSendsConfiguredRequest(t *testing.T) {
 			if workspace.value != "" {
 				env["ANTHROPIC_WORKSPACE_ID"] = workspace.value
 			}
-			recorded := claudeRequestFor(t, env, body)
+			recorded := claudeRequestFor(t, env, body, generationStage)
 			if got := recorded.Header.Get("anthropic-workspace-id"); got != workspace.value {
 				t.Errorf("anthropic-workspace-id = %q, want %q", got, workspace.value)
 			}
@@ -307,11 +309,24 @@ func TestNewClaudeSendsConfiguredRequest(t *testing.T) {
 	}
 }
 
-// claudeRequestFor builds the Claude adapter for env through newClient against a
-// recording loopback server that answers with body, sends one Generate, and
-// returns the recorded request. It checks the LLMTimeout the constructor
-// received, which no request field exposes.
-func claudeRequestFor(t *testing.T, env map[string]string, body []byte) llmhttptest.Recorded {
+// stageSelector picks the provider and model of one stage, as New and
+// NewReview do, so a test can build either stage's adapter through newClient.
+type stageSelector func(config.LLMConfig) (config.Provider, string)
+
+func generationStage(cfg config.LLMConfig) (config.Provider, string) {
+	return cfg.Provider(), cfg.Model()
+}
+
+func reviewStage(cfg config.LLMConfig) (config.Provider, string) {
+	return cfg.ReviewProvider(), cfg.ReviewModel()
+}
+
+// claudeRequestFor builds the Claude adapter of the stage that pick selects
+// for env through newClient against a recording loopback server that answers
+// with body, sends one Generate with MaxOutputTokens 0 (so the adapter sends
+// its default max_tokens), and returns the recorded request. It checks the
+// LLMTimeout the constructor received, which no request field exposes.
+func claudeRequestFor(t *testing.T, env map[string]string, body []byte, pick stageSelector) llmhttptest.Recorded {
 	t.Helper()
 	cfg := loadConfig(t, env)
 	server, recorder := llmhttptest.NewRecordingServer(t, body)
@@ -321,7 +336,8 @@ func claudeRequestFor(t *testing.T, env map[string]string, body []byte) llmhttpt
 		}
 		return claude.NewForLoopbackTest(t, opts, server.URL), nil
 	}
-	client, err := newClient(cfg.LLM().Provider(), cfg.LLM().Model(), cfg.LLM(), builders{claude: build})
+	provider, model := pick(cfg.LLM())
+	client, err := newClient(provider, model, cfg.LLM(), builders{claude: build})
 	if err != nil {
 		t.Fatalf("newClient() error = %v", err)
 	}
@@ -329,6 +345,107 @@ func claudeRequestFor(t *testing.T, env map[string]string, body []byte) llmhttpt
 		t.Fatalf("Generate() error = %v", err)
 	}
 	return recorder.Only(t)
+}
+
+// TestNewClaudeDefaultEffort verifies end to end that, with
+// YT2COLUMN_CLAUDE_EFFORT unset, every claude stage's adapter sends the high
+// effort on the wire. The per-environment default itself is covered by
+// config's TestLoadClaudeEffortDefault; these rows check what the built
+// adapters send, and the request model shows which stage's adapter was built.
+func TestNewClaudeDefaultEffort(t *testing.T) {
+	body, err := os.ReadFile(claudeEndTurnFixture) //nolint:gosec // the path names a committed testdata fixture
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+	claudeBoth := claudeValidEnv()
+	delete(claudeBoth, "YT2COLUMN_CLAUDE_EFFORT")
+	// A review model of its own shows that the review row built the review
+	// stage's adapter, not a second generation adapter.
+	claudeBoth["YT2COLUMN_REVIEW_MODEL"] = testClaudeReviewModel
+	reviewClaude := validEnv()
+	reviewClaude["YT2COLUMN_REVIEW_PROVIDER"] = "claude"
+	reviewClaude["YT2COLUMN_REVIEW_MODEL"] = testClaudeModel
+	reviewClaude["ANTHROPIC_API_KEY"] = testAPIKey
+	generationClaude := maps.Clone(claudeBoth)
+	generationClaude["YT2COLUMN_REVIEW_PROVIDER"] = "deepseek"
+	generationClaude["YT2COLUMN_REVIEW_MODEL"] = testModel
+	generationClaude["DEEPSEEK_API_KEY"] = testAPIKey
+	cases := []struct {
+		name  string
+		env   map[string]string
+		stage string
+		pick  stageSelector
+		model string
+	}{
+		{"both stages claude", claudeBoth, "generation", generationStage, testClaudeModel},
+		{"both stages claude", claudeBoth, "review", reviewStage, testClaudeReviewModel},
+		{"review claude only", reviewClaude, "review", reviewStage, testClaudeModel},
+		{"generation claude only", generationClaude, "generation", generationStage, testClaudeModel},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name+" "+tc.stage, func(t *testing.T) {
+			recorded := claudeRequestFor(t, tc.env, body, tc.pick)
+			var decoded struct {
+				Model        string `json:"model"`
+				OutputConfig struct {
+					Effort string `json:"effort"`
+				} `json:"output_config"`
+			}
+			if err := json.Unmarshal(recorded.Body, &decoded); err != nil {
+				t.Fatalf("decode request body: %v", err)
+			}
+			if decoded.Model != tc.model {
+				t.Errorf("request model = %q, want %q", decoded.Model, tc.model)
+			}
+			if decoded.OutputConfig.Effort != "high" {
+				t.Errorf("output_config.effort = %q, want %q", decoded.OutputConfig.Effort, "high")
+			}
+		})
+	}
+}
+
+// Measurements the Claude adapter's default output limit is sized against
+// (docs/tasks/0041_claude_effort_max_tokens/02_architecture.md section 1.4,
+// from docs/tasks/0018_article_quality/02_evaluation.md sections 4.7.2 and
+// 4.7.4). docs/dev/developer_guide/claude_output_limit.md says when and how to
+// re-measure them.
+const (
+	// largestObservedOutputTokens is the largest output of a successful
+	// claude-opus-5-5 run at effort high.
+	largestObservedOutputTokens = 15884
+	// slowestRateTokens over slowestRateDuration is the slowest observed output
+	// rate of a run that called the LLM once.
+	slowestRateTokens   = 1364
+	slowestRateDuration = 14374 * time.Millisecond
+)
+
+// TestClaudeDefaultMaxTokensFitsBudget verifies that the max_tokens the Claude
+// adapter sends for MaxOutputTokens 0 is at least twice the largest observed
+// output, and that producing it at the slowest observed rate takes at most half
+// of LLMTimeout.
+func TestClaudeDefaultMaxTokensFitsBudget(t *testing.T) {
+	body, err := os.ReadFile(claudeEndTurnFixture) //nolint:gosec // the path names a committed testdata fixture
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+	recorded := claudeRequestFor(t, claudeValidEnv(), body, generationStage)
+	var decoded struct {
+		MaxTokens int `json:"max_tokens"`
+	}
+	if err := json.Unmarshal(recorded.Body, &decoded); err != nil {
+		t.Fatalf("decode request body: %v", err)
+	}
+	if want := 2 * largestObservedOutputTokens; decoded.MaxTokens < want {
+		t.Errorf("max_tokens = %d, want at least %d (twice the largest observed output)", decoded.MaxTokens, want)
+	}
+	// Compare max_tokens * duration/tokens with LLMTimeout/2 by multiplying
+	// both sides by tokens, so no division rounds the boundary.
+	produce := time.Duration(decoded.MaxTokens) * slowestRateDuration
+	budget := time.Duration(slowestRateTokens) * (LLMTimeout / 2)
+	if produce > budget {
+		t.Errorf("max_tokens = %d takes %v at the slowest observed rate, want at most half of LLMTimeout (%v)",
+			decoded.MaxTokens, produce/time.Duration(slowestRateTokens), LLMTimeout/2)
+	}
 }
 
 // TestNewUsesClaudeAdapter verifies that New passes the production Claude

@@ -155,7 +155,8 @@ func (c LLMConfig) AnthropicAPIKey() secret.Secret {
 	return c.anthropicAPIKey
 }
 
-// ClaudeEffort returns the effort. It is not claudeparam.EffortUnset when
+// ClaudeEffort returns the effort: the value of YT2COLUMN_CLAUDE_EFFORT, or
+// defaultClaudeEffort when it is unset. It is not claudeparam.EffortUnset when
 // the generation or the review provider is ProviderClaude.
 func (c LLMConfig) ClaudeEffort() claudeparam.Effort {
 	return c.claudeEffort
@@ -339,10 +340,11 @@ type Need struct {
 // LoadFor reads and validates the variables the run needs, and rejects no
 // other provider variable. It joins every rejection together and returns the
 // zero Config on any error. A need that is true reads and requires its stage's
-// provider and model variables and the selected providers' own variables; a
-// need that is false does not check them. When Review is true but Generation is
-// false, the generation provider and model are still read, without being
-// required, so the review step inherits them when its own variables are unset.
+// provider and model variables and reads and validates the selected providers'
+// own variables; a need that is false does not check them. When Review is true
+// but Generation is false, the generation provider and model are still read,
+// without being required, so the review step inherits them when its own
+// variables are unset.
 func LoadFor(lookup LookupFunc, need Need) (Config, error) {
 	llm, errs := loadLLM(lookup, need)
 	var cfg Config
@@ -583,13 +585,23 @@ func loadAnthropicAPIKey(lookup LookupFunc, cfg *LLMConfig) error {
 	return nil
 }
 
-// loadClaudeEffort validates YT2COLUMN_CLAUDE_EFFORT, which is required when
-// the generation or the review provider is claude. It is called only when one
-// of them is. The accepted values live in claudeparam and are not repeated
-// here.
+// defaultClaudeEffort is the effort used when YT2COLUMN_CLAUDE_EFFORT is
+// unset and a stage the run needs uses the claude provider. The adapter's
+// default output limit was sized for this effort; changing it calls for the
+// re-measurement in docs/dev/developer_guide/claude_output_limit.md.
+const defaultClaudeEffort = claudeparam.EffortHigh
+
+// loadClaudeEffort validates YT2COLUMN_CLAUDE_EFFORT when the generation or
+// the review provider is claude. It is called only when one of them is. Unset
+// selects defaultClaudeEffort; an empty value is rejected, not treated as
+// unset. The accepted values live in claudeparam and are not repeated here.
 func loadClaudeEffort(lookup LookupFunc, cfg *LLMConfig) error {
 	value, ok := lookup(claudeEffortEnv)
-	if !ok || value == "" {
+	if !ok {
+		cfg.claudeEffort = defaultClaudeEffort
+		return nil
+	}
+	if value == "" {
 		return missingVar(claudeEffortEnv)
 	}
 	effort, err := claudeparam.ParseEffort(value)

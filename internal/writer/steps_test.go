@@ -100,6 +100,15 @@ func TestWriteStepOrder(t *testing.T) {
 		if len(review.Calls) != 1 {
 			t.Fatalf("review client called %d times, want 1", len(review.Calls))
 		}
+		// The shorten and review steps leave the output limit to the adapter,
+		// which sends its own default for 0; TestWriteCallsGenerateOnce checks
+		// the generation step.
+		if got := gen.Calls[1].Request.MaxOutputTokens; got != 0 {
+			t.Errorf("shorten MaxOutputTokens = %d, want 0", got)
+		}
+		if got := review.Calls[0].Request.MaxOutputTokens; got != 0 {
+			t.Errorf("review MaxOutputTokens = %d, want 0", got)
+		}
 		if !strings.Contains(gen.Calls[1].Request.UserPrompt, markGenBody) {
 			t.Errorf("shorten prompt = %q, want it to carry the generation body %q", gen.Calls[1].Request.UserPrompt, markGenBody)
 		}
