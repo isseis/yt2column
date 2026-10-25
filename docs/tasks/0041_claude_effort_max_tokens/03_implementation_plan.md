@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-25 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-25 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「要件書」）の項番を指す。節番号は [02_architecture.md](02_architecture.md)（以下「設計書」）の節を指し、本計画自身の節は「本計画 §N」と書く。次の語は、要件書 6 章と設計書の冒頭で定めた意味で使う（effort、出力の上限、V、段階、本番の構成、打ち切り、既定の effort、既定の上限、最も遅い出力の速さ、上限のガイド）。既存のファイルの行番号は、断りがない限りコミット `68f4cb9`（`main`）で確かめた。設計書が行番号を確かめたコミット `d92286a` から `68f4cb9` までに、`internal/`・`cmd/`・`README.md`・`docs/dev/`・`CLAUDE.md` の変更はない（`git diff --stat d92286a 68f4cb9 -- internal cmd README.md docs/dev CLAUDE.md` の出力は空だった）。
