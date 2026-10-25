@@ -77,7 +77,7 @@
 **変更ファイル:** `cmd/yt2column/integration_test.go`。
 
 - [ ] `TestIntegrationRunProviderSelection` を新設する。偽のテストキーとモデルで `newIntegrationRun` を呼び、共通の環境に生成のプロバイダが明示されていることを確認してから設定ローダーに渡す。生成と検証・推敲の両段階が DeepSeek と指定モデルを選び、Anthropic の変数を読まないことを検査する。LLM の生成と Webhook の投稿は呼ばない。
-- [ ] `test,integration` タグでこのテストだけを選んで実行する。CLI と Slack の統合テストが同じ環境を使うこともコードを読んで確認する。
+- [ ] テストを追加した後、`test,integration` タグでこのテストだけを選んで実行し、結果を記録する。CLI と Slack の統合テストが同じ環境を使うこともコードを読んで確認する。
 - [ ] `newIntegrationRun` の明示したプロバイダを外して、このテストの環境の検査が失敗することを確認する。一時的な変更を戻し、結果を記録する。
 
 **完了条件:** 統合テストのタグでコンパイルと選択実行が通る。実 API を呼ぶ 2 つの統合テストは実行していない。
@@ -215,7 +215,7 @@ PR-1 は本番の設定の解決を変えずに確認できる。PR-2 は設定�
 
 各 PR は `make test` と `make lint` を通す。文書を変える PR-2 は `make ext-test` も通す。`TestIntegrationRunProviderSelection` は通常の `make test` に含まれないので、PR-1 と PR-2 で `test,integration` タグを指定してこのテストだけを実行する。実 API を呼ぶテストを選ばない。
 
-ビルドタグとテスト選択はローカルの `go help testflag`、`Makefile:85-99`・`:128-181` と実際のビルドで確認した。2026-10-25、基点のコミットで `go test -tags test,integration -run '^$' ./cmd/yt2column` を実行し、`ok github.com/isseis/yt2column/cmd/yt2column [no tests to run]`、終了コード 0 を得た。`TestMain` のループバック待受けが必要なため、待受けを許可した環境で実行した。
+ビルドタグは `Makefile:85-99`・`:128-181`、テスト選択の指定方法はローカルの `go help testflag` で確認した。2026-10-25、基点のコミットで `go test -tags test,integration -run '^$' ./cmd/yt2column` を実行し、`ok github.com/isseis/yt2column/cmd/yt2column [no tests to run]`、終了コード 0 を得た。この実行はコンパイルの確認だけであり、新設するテストの選択実行は 1-2 で行う。`TestMain` のループバック待受けが必要なため、待受けを許可した環境で実行した。
 
 実 API を呼ぶ `make test-integration-cli`・`make test-integration-cli-slack` は承認後の補助確認とする。承認がなければ未実行と報告する。テスト専用のキー・Webhook と既存のオプトインを使い、本番の値は使わない。シェルから統合テストへ渡すモデル名は既定に影響されうるため、DeepSeek のテストモデルであることを事前に確認する（設計書 §7.4）。新しい外部サービス・CI の仕組みは加えない。
 
