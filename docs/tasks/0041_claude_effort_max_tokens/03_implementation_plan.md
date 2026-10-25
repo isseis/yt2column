@@ -125,20 +125,20 @@
 
 **変更するファイル:** `README.md`、`docs/dev/project_overview.md`、`docs/dev/developer_guide/package_reference.md`、`docs/dev/developer_guide/claude_output_limit.md`（新規）、`CLAUDE.md`
 
--   [ ] **ステップ 3-1**: `README.md` を、設計書 3.4 の表の README の 4 行のとおりに改める。
+-   [x] **ステップ 3-1**: `README.md` を、設計書 3.4 の表の README の 4 行のとおりに改める。
     -   「Configuration」の表の `YT2COLUMN_CLAUDE_EFFORT` の行の「When unset」を、``Required when the generation or review provider is `claude` (an error)`` から `` `high` when the generation or review provider is `claude` `` に変える（AC-14）。
     -   `max` の注意（`:750-752`）を残し、既定の出力の上限でも `max` は推論だけで上限を使い切って記事の本文を返さないと見込まれることを、数値を挙げずに書く（AC-15）。
     -   その後に、既定の `high` は claude-opus-5-5 に合わせて選んだ値であること、ほかのモデル（例: claude-sonnet-5-5）では `high` でも出力の上限に達して打ち切られうること、その場合は `YT2COLUMN_CLAUDE_EFFORT` で effort を下げられることを書く段落を足す（AC-19）。
     -   `--no-review` の段落（`:116-121`）の `that provider's variables (its API key, and for` `` `claude` its effort) are still required`` を、API キーだけが必須である書き方に直す（AC-14）。設定した effort は今までどおり確かめられる（空の値や不正な値は拒否される）ことが読み取れる書き方にする。これは、`--no-review` でも `--after` のない実行は検証・推敲の設定を読む（`resumeNeed`、`cmd/yt2column/run.go:482-484`）ためである。
--   [ ] **ステップ 3-2**: `docs/dev/project_overview.md` の「設定（環境変数）」の表の `YT2COLUMN_CLAUDE_EFFORT` の行（`:115`）の「未設定のとき」を、``生成または検証・推敲のプロバイダが `claude` ならエラー`` から ``生成または検証・推敲のプロバイダが `claude` なら `high` `` に変える（AC-16）。
--   [ ] **ステップ 3-3**: `docs/dev/developer_guide/package_reference.md` の `internal/config` の行（`:27`）の ``the Claude effort via `claudeparam.ParseEffort` `` に、未設定なら `high`（`defaultClaudeEffort`）であることを加える（設計書 3.4）。
--   [ ] **ステップ 3-4**: 上限のガイド `docs/dev/developer_guide/claude_output_limit.md` を英語で新設する（AC-17。設計書 3.5）。
+-   [x] **ステップ 3-2**: `docs/dev/project_overview.md` の「設定（環境変数）」の表の `YT2COLUMN_CLAUDE_EFFORT` の行（`:115`）の「未設定のとき」を、``生成または検証・推敲のプロバイダが `claude` ならエラー`` から ``生成または検証・推敲のプロバイダが `claude` なら `high` `` に変える（AC-16）。
+-   [x] **ステップ 3-3**: `docs/dev/developer_guide/package_reference.md` の `internal/config` の行（`:27`）の ``the Claude effort via `claudeparam.ParseEffort` `` に、未設定なら `high`（`defaultClaudeEffort`）であることを加える（設計書 3.4）。
+-   [x] **ステップ 3-4**: 上限のガイド `docs/dev/developer_guide/claude_output_limit.md` を英語で新設する（AC-17。設計書 3.5）。
     -   節は設計書 3.5 の表の 7 つ（When to re-measure、Cost and approval、How to measure、What to collect、How to judge、What to update、Current record）とし、各節に表の「内容」を書く。`pricing_update.md` の書き方（手順の番号付きの列挙、参照の書き方）に揃える。
     -   「What to update」には、ステップ 2-3 の名前付きの値（観測した出力の最大と最も遅い出力の速さ）とそのテストのファイルを挙げる。「Current record」は、今の根拠の記録として本タスクの設計書 1.4 を指し、値は写さない。
     -   「How to measure」のコマンドの例は、訂正した設計書 3.5 のとおりにする。生成は `--no-review --no-shorten`、字数の調整は `--after generation --no-review`、検証・推敲は、字数の調整が走った実行のあとなら `--after shorten`、走らなかった実行のあとなら `--after generation --no-shorten` である（本計画 §1.3）。どれも `--artifacts` を付ける。`--after generation --no-shorten` は字数の調整を飛ばし、最後の字数の確認も行わない（`internal/writer/writer.go:401`）ので、字数の調整が走らなかった実行のあとに限って使うことをガイドに書く。
     -   例のフラグと組み合わせを、コードで確かめる。フラグは `go run ./cmd/yt2column --help`（実 API は呼ばない）、組み合わせの受理は `checkResumeFlags`（`cmd/yt2column/run.go:502-526`）、実行する段階は `resumeNeed`（`:481-493`）と `internal/writer/writer.go:366-380`、中間生成物の読み込みは `internal/artifact/store.go:139-151` で確かめる。確かめたことをコミットのメッセージに書く。打ち切りのエラーの文（`generation truncated by the output token limit`）は、`internal/llm/llm.go:16` の `ErrTruncated` の文と照らす。
--   [ ] **ステップ 3-5**: `CLAUDE.md` の Quick Links の「Development Guides」に、上限のガイドへのリンクと 1 行の説明を足す（AC-18）。位置は `pricing_update.md` の行の後とする。
--   [ ] **ステップ 3-6**: `make fmt`・`make test`・`make lint`・`make ext-test` を通す（README を変えるので `make ext-test` も実行する。CLAUDE.md「Development Notes」）。本計画 §5 の横断の確認の項目を確かめる。
+-   [x] **ステップ 3-5**: `CLAUDE.md` の Quick Links の「Development Guides」に、上限のガイドへのリンクと 1 行の説明を足す（AC-18）。位置は `pricing_update.md` の行の後とする。
+-   [x] **ステップ 3-6**: `make fmt`・`make test`・`make lint`・`make ext-test` を通す（README を変えるので `make ext-test` も実行する。CLAUDE.md「Development Notes」）。本計画 §5 の横断の確認の項目を確かめる。
 
 **完了の条件:** `make test && make lint` と `make ext-test` が通る。本計画 §5 の横断の確認の項目を確かめた。
 
