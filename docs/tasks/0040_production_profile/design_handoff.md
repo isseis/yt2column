@@ -40,6 +40,8 @@ AC-22 で 0008 評価記録 §6 に加える参照を、§6 の冒頭に置く�
 
 主経路・補助の経路・本番の構成・品質の目標・製品の制約を `docs/translation_glossary.md` に加えるかを決める。README と `CLAUDE.md` の英語の書き方（"primary path"・"production profile" など）をそろえるために役立つ。用語集の更新の手順は `mktrans.md` に従う。
 
-## H-09: #490 の決定との整合
+## H-09: #490・#171 の決定との整合
 
-本タスクの文書は、#490 で既定が本番の構成になったことを前提に書く（01_requirements.md §1「要件定義の際に決めたこと」）。#490 の要件定義では、既定にする変数と値（`YT2COLUMN_MODEL`・`YT2COLUMN_CLAUDE_EFFORT` にも既定を持たせるか）、`project_overview.md` の「LLM」の方針と、モデル名をハードコードしない方針の改め方、DeepSeek を使っていた利用者の扱いを決める。設計の時点で #490 の決定を読み、AC-02・AC-04・AC-13・AC-14・AC-19 の書き方と、H-01 のテストが照合する既定の値（`internal/config` の既定）をそれに合わせる。#490 と本タスクが同じ文書（README「Configuration」・`project_overview.md`「設定（環境変数）」）を変える場合は、どちらのタスクがどこを変えるかを分ける。
+本タスクの文書は、#490 と #171 で既定が本番の構成になったことを前提に書く（01_requirements.md §1「要件定義の際に決めたこと」）。#171 は、effort の既定値 `high` をプログラムに持たせ、`YT2COLUMN_CLAUDE_EFFORT` で上書きできるようにする。また、`max_tokens` の上限を緩和する。#490 の要件定義では、次のことを決める。`YT2COLUMN_LLM_PROVIDER` の既定と、`YT2COLUMN_MODEL` に既定を持たせるか。`project_overview.md` の「LLM」の方針と、モデル名をハードコードしない方針の改め方。DeepSeek を使っていた利用者の扱い。
+
+設計の時点で #490 と #171 の決定を読み、次のものをそれに合わせる。AC-02・AC-04・AC-13・AC-14・AC-19 の書き方。H-01 のテストが照合する既定の値（`internal/config` の既定）。#171 で `max_tokens` の上限が緩和されると、出力の上限による打ち切りの起こりやすさが変わる。製品の制約の記述（AC-04）への影響も確かめる。#490・#171 と本タスクが同じ文書（README「Configuration」・`project_overview.md`「設定（環境変数）」）を変える場合は、どのタスクがどこを変えるかを分ける。
