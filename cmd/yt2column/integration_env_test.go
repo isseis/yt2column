@@ -32,7 +32,11 @@ func TestIntegrationRunProviderSelection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("secret.New: %v", err)
 	}
-	r := newIntegrationRun(t, deepseektestutil.IntegrationSettings{APIKey: key, Model: integrationEnvTestModel})
+	r := newIntegrationRun(t, deepseektestutil.IntegrationSettings{
+		Action: deepseektestutil.ActionRun,
+		APIKey: key,
+		Model:  integrationEnvTestModel,
+	})
 
 	// A default may select the same provider, so the loaded value alone cannot
 	// prove that the common environment names the provider. Check the map

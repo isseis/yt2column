@@ -136,6 +136,8 @@ func newRunEnv(t *testing.T) *runEnv {
 	}
 	tripwire, marker := transcripttestutil.NewTripwire(t, binDir)
 	e.tripwireMarker = marker
+	// The provider is explicit so the tests keep selecting DeepSeek after the
+	// default provider changes.
 	e.env = map[string]string{
 		"YT2COLUMN_LLM_PROVIDER": "deepseek",
 		"YT2COLUMN_MODEL":        "fake-model",
@@ -281,7 +283,9 @@ func (e *runEnv) run() int {
 }
 
 // videoEntries returns the cache entries of runVideoID; none when the cache
-// directory cannot exist.
+// directory cannot exist. It is not videoCacheEntries: this helper also
+// tolerates a cache path that is not a directory, because a test of this
+// package makes it a regular file.
 func videoEntries(t *testing.T, cacheDir string) []string {
 	t.Helper()
 	var entries []string

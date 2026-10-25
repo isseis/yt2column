@@ -193,7 +193,9 @@ func newIntegrationRun(t *testing.T, settings deepseektestutil.IntegrationSettin
 	}
 }
 
-// videoCacheEntries returns the cache directory's entries for the video.
+// videoCacheEntries returns the cache directory's entries for the video. It is
+// not videoEntries: that helper also tolerates a cache path that is not a
+// directory, because a test of this package makes it a regular file.
 func videoCacheEntries(t *testing.T, cacheDir string) []string {
 	t.Helper()
 	var entries []string

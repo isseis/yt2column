@@ -55,6 +55,8 @@ func newChildSetup(t *testing.T, ytDlpPath string, seed bool) *childSetup {
 	if seed {
 		seedCache(t, c.cacheDir, runVideoID, validSubtitles, infoFor(runVideoID))
 	}
+	// The provider is explicit so the tests keep selecting DeepSeek after the
+	// default provider changes.
 	c.env = map[string]string{
 		"YT2COLUMN_LLM_PROVIDER": "deepseek",
 		"YT2COLUMN_MODEL":        "fake-model",
