@@ -30,7 +30,7 @@
 -   **送り先を守る判定は、失敗したら止める側に倒す。** モデルだけの設定の拒否は、利用者の選んでいない事業者にデータを送らないための唯一の判定である（要件書 §4.2）。そのため、プロバイダの出どころが「変数」と記録されていなければ拒否する。出どころの記録を落とす誤りがあっても、データを送らずに止まる（3.4）。
 -   **読み込みの途中の値は、検査済みの設定に持ち込まない。** 出どころは、`loadLLM` の中でだけ使う値として持つ。`LLMConfig` にはフィールドもアクセサも加えない。読み込みの後に出どころを使う箇所はないからである（`CLAUDE.md`「YAGNI」）。
 -   **既定は 1 か所に書く。** 既定のプロバイダ（受理する値の文字列）と既定のモデルは、`internal/config` の非公開の定数としてそれぞれ 1 か所に持つ。今の `parseProvider`（`config.go:437-450`）と `loadProviderOptional`（`config.go:399-411`）が `ProviderDeepSeek` をそれぞれ書いている重複は、本書でなくす（H-03）。
--   **effort の既定は #171 に任せる。** `YT2COLUMN_CLAUDE_EFFORT` の扱い（`loadClaudeEffort`、`config.go:590-601`）は本書では変えない。本書の実装は #171 の実装の後にマージする（要件書 §5）。
+-   **effort の既定は #171 に任せる。** `YT2COLUMN_CLAUDE_EFFORT` の扱い（`loadClaudeEffort`、`config.go:590-601`）は本書では変えない。本書の実装のうち既定を変えるフェーズ 2〜4 は、#171 の実装の後にマージする（要件書 §5、8 章）。
 
 ### 1.2. 設計の際に決めたこと（2026-10-25）
 
@@ -344,7 +344,8 @@ func DefaultClaudeModelForTest() string
 | `internal/config/config_test.go` | 1.4 の 3・5 のテスト（`TestLoadDefaults`、`TestLoadMissing` の `provider unset and API key unset` の行、`TestLoadFor` の `review only requires a model`・`review only rejects an empty inherited model`）を、7.1 のとおり書き直す、または削る。7.1 のテストを加える | AC-01〜AC-21 |
 | `cmd/yt2column/run_test.go` | `newRunEnv` の環境（`run_test.go:139-145`）に `YT2COLUMN_LLM_PROVIDER=deepseek` を加える。何も設定しない CLI の実行が、既定のプロバイダとモデルで LLM のクライアントを作ることを確かめるテストを加える（7.2） | H-01、AC-01・AC-03 |
 | `cmd/yt2column/signal_test.go` | 子のプロセスの環境（`signal_test.go:58-66`）に `YT2COLUMN_LLM_PROVIDER=deepseek` を加える | H-01 |
-| `cmd/yt2column/integration_test.go` | 統合テストの環境（`integration_test.go:144-149`）に `YT2COLUMN_LLM_PROVIDER=deepseek` を加える。`integration_slack_test.go` は同じ `newIntegrationRun` の環境を使う（`integration_slack_test.go:46` の `r.env`）ので、直すのはこの 1 か所である | H-01、AC-24 |
+| `cmd/yt2column/integration_test.go`・`test_helpers_integration.go` | 統合テストの環境（`integration_test.go:144-149`）に `YT2COLUMN_LLM_PROVIDER=deepseek` を加える。`integration_slack_test.go` は同じ `newIntegrationRun` の環境を使う（`integration_slack_test.go:46` の `r.env`）ので、直すのはこの 1 か所である。`newIntegrationRun` と、それだけが使う型・定数・関数を、`integration` だけのファイルから `test \|\| integration` の `test_helpers_integration.go` へ移す。依存する `transcript.SeedCacheForTest`・`transcripttestutil.NewTripwire`・`deepseektestutil` はどれも `test \|\| integration` のファイルにあるので、移しても両方のビルドでコンパイルできる | H-01、AC-24 |
+| `cmd/yt2column/integration_env_test.go`（新設、`//go:build test`） | `newIntegrationRun` が組み立てる環境を設定の読み込みに渡し、生成と検証・推敲が DeepSeek を選ぶことを確かめるテストを置く（7.4）。`test` タグなので `make test` と CI で走る | AC-24 |
 | `cmd/yt2column-server/test_helpers.go` | `newServerEnv` の環境（`test_helpers.go:121-128`）に `YT2COLUMN_LLM_PROVIDER=deepseek` を加える | H-01 |
 | `cmd/yt2column/docs_test.go` | 文書に書いた既定の値を確かめるテストを加える（7.3） | AC-25、H-02 |
 | `README.md` | 「Configuration」の表と本文、DeepSeek を使い続けるための案内、「Localhost server」の「Troubleshooting」の項目（3.6） | AC-25〜AC-27 |
@@ -562,7 +563,7 @@ flowchart TD
 
 ### 7.4. 統合テスト
 
--   **AC-24:** `make test-integration-cli`・`make test-integration-cli-slack` は、`YT2COLUMN_LLM_PROVIDER=deepseek` を加えた環境（3.5）で、今までどおり DeepSeek だけを呼ぶ。CLI が読む環境は、テストが組み立てる map（`integration_test.go:144-149`）であり、プロセスの環境の `ANTHROPIC_API_KEY` は CLI に届かない。統合テストは料金がかかるので、`CLAUDE.md`「Tool Execution Safety」のとおり、実行は人間の承認を得てから行う。環境の map に `YT2COLUMN_LLM_PROVIDER=deepseek` があることは、統合テストを実行しなくても、コードを読んで確かめられる。
+-   **AC-24:** `make test-integration-cli`・`make test-integration-cli-slack` は、`YT2COLUMN_LLM_PROVIDER=deepseek` を加えた環境（3.5）で、今までどおり DeepSeek だけを呼ぶ。CLI が読む環境は、テストが組み立てる map（`integration_test.go:144-149`）であり、プロセスの環境の `ANTHROPIC_API_KEY` は CLI に届かない。統合テストは料金がかかるので、`CLAUDE.md`「Tool Execution Safety」のとおり、実行は人間の承認を得てから行う。そこで、送り先を決める部分は通信なしのテストで CI でも確かめる。`newIntegrationRun` を `test \|\| integration` のファイルへ移し（3.5）、`test` タグのテスト `TestIntegrationRunProviderSelection` が、偽のテスト用キーとモデルでそれを呼ぶ。テストは、組み立てた環境の map を、変数を読んだ記録を残す `LookupFunc` 越しに設定の読み込みに渡し、生成と検証・推敲がどちらも `ProviderDeepSeek` と指定のモデルを選ぶこと、Anthropic の変数（`ANTHROPIC_API_KEY`・`YT2COLUMN_CLAUDE_EFFORT`・`ANTHROPIC_WORKSPACE_ID`）を読まないことを確かめる。LLM のクライアントは作らず、Webhook にも投稿しない。このテストは `make test`・CI の `test` ジョブ・`doc-guard` ジョブ（`go test -tags test ./cmd/yt2column`）で走るので、`newIntegrationRun` からプロバイダの明示を外す変更は、既定を `claude` にした後は CI で失敗する。実 API を呼ぶ 2 つの統合テストがこの関数を使うことは、コードを読んで確かめる（同じ関数を呼ぶので、関数の外で環境を組み立て直さない限り食い違わない）。
 -   **プロセスの環境から来る値:** map のうちモデル名（`settings.Model`）は、プロセスの環境の `YT2COLUMN_MODEL` から来る（`Makefile:128` の `?=` で、シェルの値が優先される）。開発者のシェルが本番の構成の `YT2COLUMN_MODEL=claude-opus-5-5` をエクスポートしていると、Claude のモデル名をテスト用のキーで DeepSeek に送る。この問題は本書の変更の前からあり（前の既定も `deepseek` だった）、要件書 §2.3 が統合テストの既定をスコープ外としているので、残る範囲として記録するだけにする。
 -   Claude の統合テスト（`make test-integration-claude`）は、モデルを `YT2COLUMN_TEST_CLAUDE_MODEL` で与える別の経路で（`Makefile:150`）、本書の既定を通らないので変えない。
 
@@ -578,7 +579,7 @@ flowchart TD
 | AC-21 | 6.2 | 7.1（読む変数、値を含めない） |
 | AC-22 | 6.2 | 7.1（AC-22。#171 の前に実行した結果を実装のときに記録する） |
 | AC-23 | 6.2 | 7.1（読む変数。既存の `TestLoadIgnoresOtherProviderVars`） |
-| AC-24 | 3.5 | 7.4（コードを読む。実行は承認の後） |
+| AC-24 | 3.5 | 7.4（`TestIntegrationRunProviderSelection` を CI で実行する。実 API の統合テストの実行は承認の後） |
 | AC-25 | 3.6 | 7.3（文書のテスト）と PR のレビュー |
 | AC-26〜AC-29 | 3.6 | PR のレビュー（`manual`） |
 
@@ -589,7 +590,7 @@ flowchart TD
 3.  **フェーズ 3: モデルだけの設定の拒否（F-004）。** 出どころの記録、判定、理由の定数。7.1・7.2 のテスト。
 4.  **フェーズ 4: 文書（F-006）。** 3.6 の文書の変更と 7.3 のテスト。
 5.  **PR の分け方の制約:** フェーズ 2〜4 と AC-22 のテストは同じ PR に入れる。フェーズ 2 だけが入ると、モデルだけの設定の拒否のない既定の変更になり、要件書 §4.2 の経路を開く。フェーズ 4 が遅れると、`main` の文書が古い既定を述べ、DeepSeek を使い続ける案内（AC-27）がないまま利用者が更新する。フェーズ 1 は振る舞いを変えないので、先に別の PR に入れてもよい。
-6.  **マージの順序:** 本タスクの実装は、#171 の実装が `main` に入った後にマージする（要件書 §5）。この順序は実装計画の PR の手順で守る。AC-22 のテストが CI で止める仕掛けとして働くかは、実装のときに確かめて記録する（1.2・7.1）。#171 の実装が `internal/config/config.go`・README・`project_overview.md` の同じ箇所を変えるので、取り込みの衝突は、#171 の形を正として解く。
+6.  **マージの順序:** フェーズ 2〜4 は、#171 の実装が `main` に入った後にマージする（要件書 §5）。#171 が要るのは次の 3 か所で、どれもフェーズ 2〜4 にある。AC-22 のテスト（effort の既定 `high` を期待する）、文書（#171 が README・`project_overview.md` の effort の行を書き換える）、既定を変えた後の利用者の振る舞い（effort の既定がなければ何も設定しない実行は `YT2COLUMN_CLAUDE_EFFORT` の未設定で拒否され、上限の緩和がなければ長い動画で打ち切りに当たりうる）である。フェーズ 2・3 のコードとそのテストは effort を明示するので（7.1）、#171 の前に作業してよい。フェーズ 1 は振る舞いを変えず、#171 が変える箇所にも触れないので、#171 を待たずにマージしてよい。この順序は実装計画の PR の手順で守る。AC-22 のテストが CI で止める仕掛けとして働くかは、実装のときに確かめて記録する（1.2・7.1）。#171 の実装が `internal/config/config.go`・README・`project_overview.md` の同じ箇所を変えるので、取り込みの衝突は、#171 の形を正として解く。
 
 ## 9. 将来の拡張性 (Future Extensibility)
 

@@ -25,7 +25,8 @@
 
 - **実装を 2 PR に分ける（人間のレビュアーの選択）。** PR-1 はフェーズ 1 のテスト環境の修正、PR-2 はフェーズ 2〜4 とする。振る舞いを変えない準備を先にレビューし、送り先の変更と拒否・案内は一緒にレビューするためである。
 - **既定のモデルの定数は設計どおり `internal/config` に置く。** タスク 0041 の承認済み設計書 §1.2 も、effort の既定を同じパッケージに置くと決めている。0042 の設計書 §1.2 が留保した配置の調整は不要である。
-- **AC-24 に通信なしの検証を加える。** 共通の `newIntegrationRun` が組み立てる環境を設定ローダーに渡し、生成と検証・推敲が DeepSeek を選ぶことをテストする。実 API の実行を承認する前にも、この設定の検証を実行できるようにする。
+- **AC-24 を通信なしのテストで CI でも確かめる（人間のレビュアーの選択）。** 共通の `newIntegrationRun` を `integration` だけのファイルから `test || integration` のファイルへ移し、`test` タグのテストがそれを呼ぶ。組み立てた環境を設定ローダーに渡し、生成と検証・推敲が DeepSeek を選ぶことを確かめる。`integration` だけのファイルに置くと `make test` でも CI でも走らず、マージ後にプロバイダの明示が外れても検出できないからである（設計書 §3.5・§7.4）。
+- **#171 が要るのは PR-2 だけとする（人間のレビュアーの選択）。** PR-1 は振る舞いを変えず、#171 が変える `internal/config`・README・`project_overview.md` に触れないので、#171 を待たずにマージする。PR-2 のうち #171 が要るのは、AC-22 のテスト、4-1 の文書、既定を変えた後の利用者の振る舞いである（要件書 §5、設計書 §8）。
 
 ### 1.3. 既存コード調査結果
 
@@ -36,10 +37,10 @@
 | プロバイダの解決 | `internal/config/config.go:382-450` の `loadProvider`・`loadProviderOptional`・`parseProvider` に未設定時の処理がある。`loadLLM`（`:373`）と `loadReview`（`:482`）の呼び出しを共通の解決にまとめる | 2-1、3-1 |
 | モデルの解決と受け継ぎ | 同 `:417-429` の `loadModelOptional`、`:461-514` の `loadReview`、`:545-553` の `loadModel` が設定する。`loadReview` の受け継ぎは `:477`・`:485`・`:508`。値と出どころを一緒に扱い、`LLMConfig` のフィールドは増やさない | 2-1、3-1 |
 | 呼び出し側 | `LoadServer`（同 `:260`）と `LoadFor`（`:347`）が `loadLLM` を呼ぶ。`internal/llm/provider/provider.go:29-39` の `New`・`NewReview` はアクセサの値を渡す。設定の失敗時にゼロ値を返す既存の境界を保つ（`config.go:273-275`・`:355-357`） | 2-1、3-1、3-2 |
-| 古い既定を使うテスト | `internal/config/config_test.go:108` の `TestLoadDefaults`、`:150` の欠落の行、`:1108`・`:1164` の `TestLoadFor` の部分テストが対象。残す検査と削る行を §2 に分ける | 2-2 |
+| 古い既定を使うテスト | `internal/config/config_test.go:108` の `TestLoadDefaults`、`:150` の欠落の行、`:1109`・`:1166` の `TestLoadFor` の部分テストが対象。残す検査と削る行を §2 に分ける | 2-2 |
 | DeepSeek を前提にした環境 | `cmd/yt2column/run_test.go:119` の `newRunEnv`、`signal_test.go:46` の `newChildSetup`、`integration_test.go:112` の `newIntegrationRun`、`cmd/yt2column-server/test_helpers.go:121` の `newServerEnv` が対象。`integration_slack_test.go:40` は共通の `newIntegrationRun` を使う | 1-1、1-2 |
 | 使い回す検査 | `internal/config/config_test.go:380` の `TestLoadIgnoresOtherProviderVars`、`:666` の `TestLoadErrorsOmitValues`、`:1015` の `TestLoadFor` を拡張・再利用する。`:578` の `assertVarError` は最初の `*VarError` を調べるため、複数の拒否の件数には全要素の検査が必要 | 2-2、3-1 |
-| API への受け渡し | `internal/llm/provider/provider_test.go:257` の `TestNewClaudeSendsConfiguredRequest` と `:312` の `claudeRequestFor` が生成のモデル・effort のリクエストを検査する。`:442` の `TestNewReviewUsesReviewModel` に Claude のモデルの受け渡しを加える。字数の調整が生成のクライアントを使う検査は `internal/writer/steps_test.go:43` の `TestWriteStepOrder` を再利用する | 3-2 |
+| API への受け渡し | `internal/llm/provider/provider_test.go:257` の `TestNewClaudeSendsConfiguredRequest` と `:314` の `claudeRequestFor` が生成のモデル・effort のリクエストを検査する。`:442` の `TestNewReviewUsesReviewModel` に Claude のモデルの受け渡しを加える。字数の調整が生成のクライアントを使う検査は `internal/writer/steps_test.go:43` の `TestWriteStepOrder` を再利用する | 3-2 |
 | 文書の値 | `cmd/yt2column/docs_test.go:184-280` に `readDoc`・`findTable`・`tableRow` などがある。`internal/config/test_helpers.go` の既存の `test` タグ付きファイルに既定を返すアクセサを加え、値の比較に使う | 4-1 |
 | 文書の説明 | `README.md:718-748`、`:626` 付近のサーバの案内、`docs/dev/project_overview.md:12`・`:67`・`:109-126`、`docs/dev/developer_guide/package_reference.md:27` が変更対象。履歴である過去のタスク文書・評価記録は書き換えない | 4-1 |
 
@@ -68,19 +69,20 @@
 **変更ファイル:** `cmd/yt2column/run_test.go`・`signal_test.go`・`integration_test.go`、`cmd/yt2column-server/test_helpers.go`。
 
 - [ ] §1.3 の 4 つの環境に `YT2COLUMN_LLM_PROVIDER=deepseek` を加える。Slack の統合テストにも同じ環境が渡ることを確認する。
-- [ ] 設計書 §7.2 に従い、既存の 2 か所の既定を一時的に Claude に変えてテストを実行し、失敗する部分テストが設計書 §1.4 の 4 件に限られるか確認する。漏れは同じフェーズで直し、一時的な変更は戻す。結果をコミットメッセージに記録する。
+- [ ] 設計書 §7.2 に従い、既存の 2 か所の既定を一時的に Claude に変えてテストを実行し、失敗する部分テストが設計書 §1.4 の 4 件に含まれるか確認する。漏れは同じフェーズで直し、一時的な変更は戻す。結果をコミットメッセージに記録する。この切り替えはプロバイダの既定だけを模すので、モデルの既定やモデルだけの設定の拒否で初めて壊れるテストは見つからない。`assertVarError` は最初の `*VarError` だけを調べるため、`review only requires a model`・`review only rejects an empty inherited model` は切り替えだけでは失敗しないことがある。残りは 3-1 の確認で洗い出す。
 
 **完了条件:** 一時的な変更を戻した状態で `make test`・`make lint` が通り、本番の既定はまだ変わっていない。
 
 #### ステップ 1-2: 統合テストの設定を通信なしで確認する
 
-**変更ファイル:** `cmd/yt2column/integration_test.go`。
+**変更ファイル:** `cmd/yt2column/integration_test.go`・`test_helpers_integration.go`、`cmd/yt2column/integration_env_test.go`（新設）。
 
-- [ ] `TestIntegrationRunProviderSelection` を新設する。偽のテストキーとモデルで `newIntegrationRun` を呼び、共通の環境に生成のプロバイダが明示されていることを確認してから設定ローダーに渡す。生成と検証・推敲の両段階が DeepSeek と指定モデルを選び、Anthropic の変数を読まないことを検査する。LLM の生成と Webhook の投稿は呼ばない。
-- [ ] テストを追加した後、`test,integration` タグでこのテストだけを選んで実行し、結果を記録する。CLI と Slack の統合テストが同じ環境を使うこともコードを読んで確認する。
+- [ ] `newIntegrationRun` と、それだけが使う `integrationRun`・`videoCacheEntries`・`integrationVideoID`・`integrationTestdata` を、`integration_test.go` から `test || integration` の `test_helpers_integration.go` へ移す。統合テストだけが使う残り（`checkRun`・`integrationVideoURL` など）は移さない。移したものを両方のビルドが使うことを `make lint`（`test,integration` タグ）と CI の `go vet -tags integration ./...` で確かめる。
+- [ ] `integration_env_test.go`（`//go:build test`）に `TestIntegrationRunProviderSelection` を新設する。偽のテストキーとモデルで `newIntegrationRun` を呼び、共通の環境に生成のプロバイダが明示されていることを確認してから、変数を読んだ記録を残す `LookupFunc` 越しに設定ローダーに渡す。生成と検証・推敲の両段階が DeepSeek と指定モデルを選び、Anthropic の変数を読まないことを検査する。LLM のクライアントは作らず、Webhook の投稿もしない。このテストは `make test`・CI の `test` ジョブ・`doc-guard` ジョブで走る。
+- [ ] CLI と Slack の統合テストが同じ `newIntegrationRun` の環境を使い、関数の外で LLM の変数を組み立て直していないことをコードを読んで確認する。
 - [ ] `newIntegrationRun` の明示したプロバイダを外して、このテストの環境の検査が失敗することを確認する。一時的な変更を戻し、結果を記録する。
 
-**完了条件:** 統合テストのタグでコンパイルと選択実行が通る。実 API を呼ぶ 2 つの統合テストは実行していない。
+**完了条件:** `make test` で `TestIntegrationRunProviderSelection` が走って通り、`make lint` と `go vet -tags integration ./...` が通る。実 API を呼ぶ 2 つの統合テストは実行していない。
 
 ### PR-1 作成ポイント: explicit DeepSeek test environments
 
@@ -117,7 +119,7 @@
 **変更ファイル:** `internal/config/config_test.go`。
 
 - [ ] 設計書 §3.2・§3.3 のうち、既定と既存の拒否を扱う行を、設計書 §7.1 の実行の種類で検査する `TestLoadGenerationDefaults`・`TestLoadReviewDefaults` を新設する。既定以外の生成モデルと、検証・推敲の既定のモデルも区別する。モデルだけの設定の拒否を含む行は 3-1 の `TestLoadModelWithoutProvider` で検査する。既存の検査と重複する行は同じテストにまとめる。
-- [ ] `TestLoadDefaults` に DeepSeek の明示を加え、Slack・`yt-dlp`・キャッシュディレクトリの既存の検査を残す。
+- [ ] `TestLoadDefaults` に DeepSeek の明示を加え、Slack・`yt-dlp`・キャッシュディレクトリの既存の検査を残す。明示した値をそのまま確かめるだけになる `Provider()` の検査は削る（`CLAUDE.md`「Do not assert ... a struct field holds what was just assigned to it」）。
 - [ ] `TestLoadMissing` の `provider unset and API key unset` の行だけを削る。DeepSeek のキーがない場合の残る行を確認し、削除の直前・直後の関数ごとのカバレッジを比較して結果を記録する。
 - [ ] `TestLoadFor` の `review only requires a model` に DeepSeek の明示を加える。
 - [ ] `TestLoadFor` の `review only rejects an empty inherited model` に DeepSeek の明示を加える。
@@ -133,9 +135,10 @@
 
 - [ ] 設計書 §3.4・§4.1 に従い `reasonModelWithoutProvider` と `modelWithoutProvider` を加え、必要な段階の解決後に一度だけ判定する。拒否後もプロバイダ固有の変数を検査し、値を含まない固定の理由で報告する。理由の文言は設計書 §1.2・§4.2 を使う。
 - [ ] `TestLoadModelWithoutProvider`・`TestModelWithoutProvider` を新設する。複数の拒否は全要素を調べ、名前・番兵・理由・件数を検査する。空の変数の拒否と区別し、出どころが「なし」の場合も拒否する。
-- [ ] `TestLoadDefaultProviderVariables` を新設し、参照した変数を記録して、既定の Claude の変数だけを検査することを確認する。`TestLoadErrorsOmitValues` にモデルだけの設定と目印を加える。DeepSeek の非参照は既存の `TestLoadIgnoresOtherProviderVars` を再利用する。
+- [ ] `TestLoadDefaultProviderVariables` を新設し、参照した変数を記録して、既定の Claude の変数だけを検査することを確認する。`TestLoadErrorsOmitValues` にモデルだけの設定と目印を加える。既定の Claude の実行で DeepSeek の変数を読まないことは `TestLoadDefaultProviderVariables` で検査する。既存の `TestLoadIgnoresOtherProviderVars` は、DeepSeek を明示した実行で Anthropic の変数を読まないこと（AC-23）の検査として再利用する。
 - [ ] `TestLoadServerLLMDefaults` を新設し、サーバの既定と更新前の DeepSeek の設定の拒否を検査する。サーバ固有の HOME・Webhook の必須条件を満たす環境で実行する。
 - [ ] 既定のモデルの枝、モデルだけの設定の判定、受け継ぐ出どころ、拒否を 1 件にまとめる処理をそれぞれ壊して対応するテストの失敗を確認する。受け継ぎの変更では、モデルの出どころが「変数」である経路を検査する。結果をコミットメッセージに記録する。
+- [ ] 2-1・3-1 の実装を入れた状態で、`internal/config/config_test.go` と `cmd/` のテストを基点の版に一時的に戻して `make test` を実行し、失敗する部分テストが設計書 §1.4 の 4 件に限られることを確認する。1-1 の切り替えでは見つからない、モデルの既定と拒否に依存するテストをここで洗い出す。一時的な変更は戻し、結果をコミットメッセージに記録する。
 
 **完了条件:** 2-2 のテストと合わせて設計書 §3.2・§3.3 の全行を確認できる。AC-16〜AC-21 の拒否の種類・件数・合わせて報告する拒否と、値を含まないことが確認できる。
 
@@ -147,9 +150,9 @@
 - [ ] `TestRunModelWithoutProvider` を新設する。終了コード 2、変数を挙げる標準エラー、クライアントを作らないこと、既存の tripwire が起動されないことを検査する。
 - [ ] `TestNewReviewUsesReviewModel` に、生成と異なるモデルを使う Claude の検証・推敲のモデルが構築に届く検査を加える。生成のリクエストと字数の調整の共有は既存のテストを使う（§4.1）。
 - [ ] `TestLoadProductionDefaults` を新設する。LLM の変数のうち Anthropic の偽のキーだけで、生成と検証・推敲のモデル・プロバイダと effort `high` を確認する。このテストだけは effort を明示しない。
-- [ ] AC-22 のテストを #171 の変更がない状態でも実行し、effort の未設定を理由に失敗するか確認して、本書とコミットメッセージに記録する。ほかの失敗で隠さないよう設定の既定は 0042 のままにする。確認できた範囲だけを CI によるマージ順序の検査として扱う。
+- [ ] AC-22 のテストを #171 の effort の既定がない状態でも実行し、`YT2COLUMN_CLAUDE_EFFORT` の未設定を理由に失敗するか確認して、本書とコミットメッセージに記録する。#171 のマージ前に作業していればその状態で実行する。マージ後なら、#171 が `loadClaudeEffort` に加えた既定の枝を一時的に外し（未設定を `ErrMissing` に戻す）、実行してから戻す。ほかの失敗で隠さないよう、0042 の既定はそのままにする。確認できた範囲だけを CI によるマージ順序の検査として扱う。
 
-**完了条件:** #171 の実装を含む状態で全テストが通り、§3.1 のマージ順序を確認できる。#171 が未マージなら、このフェーズを最終確認済みにはしない。
+**完了条件:** #171 の実装を含む状態で全テストが通り、§3.1 のマージ順序を確認できる。#171 が未マージなら、このフェーズを最終確認済みにはしない。2-1〜3-1 と、3-2 のうち AC-22 以外の作業は、#171 のマージ前に進めてよい。
 
 ### フェーズ 4: 文書
 
@@ -188,9 +191,12 @@
 
 1-1 → 1-2 → 2-1 → 2-2 → 3-1 → 3-2 → 4-1 の順で進める。フェーズの名前と順序は設計書 §8 に従う。PR-1 で準備をマージし、PR-2 では設定の変更と拒否、文書をそろえて完了させる。
 
-本タスクの実装のマージは #171（タスク 0041）の実装のマージ後とする。PR-1 にもこの条件を適用する。各実装 PR の作成前とマージ前に、0041 の実装が `main` にあることを確認し、PR に根拠を記録する。0041 の設計の承認だけでは条件を満たさない。未マージなら待つ。
+#171（タスク 0041）の実装との順序は、PR ごとに次のとおりとする（要件書 §5、設計書 §8）。
 
-#171 の変更を取り込んでから AC-22 を最終確認する。`config.go`・README・`project_overview.md` の衝突は #171 の effort の設計を維持して解く。#488（タスク 0040）の実装は本タスクの後にマージする。順序が逆になった場合の文書の調整は 4-1 で行う。
+- **PR-1:** #171 に依存しない。振る舞いを変えず、#171 が変える `internal/config`・README・`project_overview.md` に触れないので、#171 のマージを待たずに作成・マージする。
+- **PR-2:** 作業は #171 と並行して進めてよい。PR の作成とマージは、0041 の実装（effort の既定 `high` と `max_tokens` の上限の緩和）が `main` に入った後とする。作成の前とマージの前に 0041 の実装が `main` にあることを確認し、PR に根拠を記録する。0041 の設計の承認だけでは条件を満たさない。未マージなら待つ。作成を待つのは、AC-22 のテストが #171 なしでは CI で失敗し、4-1 の文書が #171 の書き換えた effort の行を前提にするからである。
+
+#171 の変更を `main` から取り込んでから AC-22 を最終確認する。`config.go`・README・`project_overview.md` の衝突は #171 の effort の設計を維持して解く。#488（タスク 0040）の実装は本タスクの後にマージする。順序が逆になった場合の文書の調整は 4-1 で行う。
 
 ### 3.2 PR 構成
 
@@ -205,7 +211,7 @@ PR-1 は本番の設定の解決を変えずに確認できる。PR-2 は設定�
 
 ### 4.1. 検証の分担
 
-§8 の新設テストはすべて実行する。`internal/config/config_test.go` に `TestLoadGenerationDefaults`・`TestLoadReviewDefaults`・`TestLoadModelWithoutProvider`・`TestModelWithoutProvider`・`TestLoadDefaultProviderVariables`・`TestLoadServerLLMDefaults`・`TestLoadProductionDefaults`、`cmd/yt2column/run_test.go` に `TestRunDefaultLLMConfig`・`TestRunModelWithoutProvider`、`docs_test.go` に `TestLLMDefaultsDocsContract`、`integration_test.go` に `TestIntegrationRunProviderSelection` を新設する。
+§8 の新設テストはすべて実行する。`internal/config/config_test.go` に `TestLoadGenerationDefaults`・`TestLoadReviewDefaults`・`TestLoadModelWithoutProvider`・`TestModelWithoutProvider`・`TestLoadDefaultProviderVariables`・`TestLoadServerLLMDefaults`・`TestLoadProductionDefaults`、`cmd/yt2column/run_test.go` に `TestRunDefaultLLMConfig`・`TestRunModelWithoutProvider`、`docs_test.go` に `TestLLMDefaultsDocsContract`、`integration_env_test.go`（`test` タグ）に `TestIntegrationRunProviderSelection` を新設する。
 
 既存の `envLookup`・`validEnv`・`validClaudeEnv`・`with`・`without`、CLI の fake と tripwire、プロバイダの `builders`・`claudeRequestFor`、文書の表を読む関数を使う。複数の拒否を調べる共通関数が必要なら、`internal/config/test_helpers.go` に置き、`test` タグを維持する。新しい `testutil/` は作らない。
 
@@ -213,9 +219,9 @@ PR-1 は本番の設定の解決を変えずに確認できる。PR-2 は設定�
 
 ### 4.2. 実行範囲と外部の前提
 
-各 PR は `make test` と `make lint` を通す。文書を変える PR-2 は `make ext-test` も通す。`TestIntegrationRunProviderSelection` は通常の `make test` に含まれないので、PR-1 と PR-2 で `test,integration` タグを指定してこのテストだけを実行する。実 API を呼ぶテストを選ばない。
+各 PR は `make test` と `make lint` を通す。文書を変える PR-2 は `make ext-test` も通す。`TestIntegrationRunProviderSelection` は `test` タグのファイルに置くので `make test` と CI で走り、別に実行する手順は要らない。
 
-ビルドタグは `Makefile:85-99`・`:128-181`、テスト選択の指定方法はローカルの `go help testflag` で確認した。2026-10-25、基点のコミットで `go test -tags test,integration -run '^$' ./cmd/yt2column` を実行し、`ok github.com/isseis/yt2column/cmd/yt2column [no tests to run]`、終了コード 0 を得た。この実行はコンパイルの確認だけであり、新設するテストの選択実行は 1-2 で行う。`TestMain` のループバック待受けが必要なため、待受けを許可した環境で実行した。
+ビルドタグは `Makefile:85-99`・`:128-181` と `.github/workflows/ci.yml`（`make test-ci`、`go vet -tags integration ./...`、`doc-guard` の `go test -tags test ./cmd/yt2column`）で確認した。移す `newIntegrationRun` の依存（`transcript.SeedCacheForTest`・`transcripttestutil.NewTripwire`・`deepseektestutil.IntegrationSettings`・`lookupFrom`・`generateCounter`）は、どれも `test || integration` のファイルにある。
 
 実 API を呼ぶ `make test-integration-cli`・`make test-integration-cli-slack` は承認後の補助確認とする。承認がなければ未実行と報告する。テスト専用のキー・Webhook と既存のオプトインを使い、本番の値は使わない。シェルから統合テストへ渡すモデル名は既定に影響されうるため、DeepSeek のテストモデルであることを事前に確認する（設計書 §7.4）。新しい外部サービス・CI の仕組みは加えない。
 
@@ -232,7 +238,7 @@ PR-1 は本番の設定の解決を変えずに確認できる。PR-2 は設定�
 | 既定の送り先だけが変わり、旧設定のデータを送る | フェーズ 2〜4 を同じ PR に入れ、3-1・3-2 の拒否と通信前の停止を確認する。`docs/dev/security.md` §2〜§4・§8.2 に照らしてレビューする |
 | 出どころを失う、拒否を重複して加える | 受け継ぎの実行の種類を検査し、拒否の名前・理由だけでなく件数も確認する。出どころが「なし」の場合も単体で検査する |
 | API キーや設定値がエラーに混ざる | 固定の理由と既存の秘密情報の型を維持し、目印による検査と他プロバイダの非参照の検査を実行する |
-| #171 の実装がまだない | マージを待つ。先行実装との統合確認の時間をフェーズ 3 に確保し、AC-22 の結果を記録する。effort の既定を本タスクで先に実装しない |
+| #171 の実装がまだない | PR-1 は待たずに進める。PR-2 は 2-1〜3-1 を進め、作成とマージを待つ。先行実装との統合確認の時間をフェーズ 3 に確保し、AC-22 の結果を記録する。effort の既定を本タスクで先に実装しない |
 | 古い既定に依存するテストが残る | 1-1 の一時的な既定の切り替えで洗い出す。型検査には `integration` タグのファイルも含める |
 | 復旧時に実装と文書が食い違う | PR-2 を戻す必要があれば、既定・拒否・文書・対応テストを含む squash コミット全体を戻し、グリーンゲートを通す。既定の定数だけを戻さない |
 
@@ -276,7 +282,7 @@ AC-01〜AC-29 が §8 の対応で確認され、必要なテスト・lint・文
 | AC-21 | 3-1 | test | `internal/config/config_test.go::TestLoadDefaultProviderVariables`、`internal/config/config_test.go::TestLoadErrorsOmitValues` |
 | AC-22 | 3-2 | test | `internal/config/config_test.go::TestLoadProductionDefaults`、`internal/llm/provider/provider_test.go::TestNewClaudeSendsConfiguredRequest`、`internal/llm/provider/provider_test.go::TestNewReviewUsesReviewModel`、`internal/writer/steps_test.go::TestWriteStepOrder` |
 | AC-23 | 2-1 / 3-1 | test | `internal/config/config_test.go::TestLoadIgnoresOtherProviderVars`、`internal/config/config_test.go::TestLoadReview`、`internal/writer/steps_test.go::TestWriteStepOrder` |
-| AC-24 | 1-1 / 1-2 | test | `cmd/yt2column/integration_test.go::TestIntegrationRunProviderSelection`（通信なしで共通の環境を検査） |
+| AC-24 | 1-1 / 1-2 | test | `cmd/yt2column/integration_env_test.go::TestIntegrationRunProviderSelection`（通信なしで共通の環境を検査。`make test`・CI で実行） |
 | AC-25 | 4-1 | test、manual | `cmd/yt2column/docs_test.go::TestLLMDefaultsDocsContract`。分岐の説明は設定の実装・要件書と照合して PR レビューで読む |
 | AC-26 | 4-1 | manual | README・`project_overview.md` の表の説明と本文を、AC-10・AC-11・F-004 と照合して読む。`package_reference.md` の同じ規則も読む |
 | AC-27 | 4-1 | manual | README・`project_overview.md` の DeepSeek を使い続ける案内を要件書と照合して読む |
@@ -285,4 +291,4 @@ AC-01〜AC-29 が §8 の対応で確認され、必要なテスト・lint・文
 
 ## 9. 次のステップ (Next Steps)
 
-本計画の PR をレビューし、`/runpr` で承認・マージする。その後、#171 の実装のマージを確認し、承認済みの本計画に対して `/runplan 0042` を実行する。各 PR の検証結果と進捗は実装時に本書へ記録する。
+本計画の PR をレビューし、`/runpr` で承認・マージする。その後、承認済みの本計画に対して `/runplan 0042` を実行し、PR-1 を作る。PR-1 は #171 を待たない。PR-2 の作成の前に、#171 の実装のマージを確認する。各 PR の検証結果と進捗は実装時に本書へ記録する。
