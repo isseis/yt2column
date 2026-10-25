@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-25 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-25 |
+| Reviewer | isseis |
 | Comments | 2026-10-25、#171 を待つ範囲を、既定を変える変更（F-001〜F-004）とそれを述べる文書の変更（F-006）に狭めた（§1「#171 を前提にする」、§5）。振る舞いを変えない準備（テストの環境で DeepSeek を明示する変更と、その検査）は、#171 より先にマージしてよい。決定の変更なので本書を `draft` に戻し、PR の `/runpr` のマージの問いで改めて承認を受ける。それまでの承認は、レビュー日 2026-10-25、レビュアー isseis である。 |
 
 ## 1. 概要 (Overview)
