@@ -22,8 +22,13 @@ const (
 	anthropicVersion = "2023-06-01"
 	// defaultMaxOutputTokens is sent as max_tokens when the request leaves the
 	// output limit to the provider (MaxOutputTokens 0). The Messages API
-	// requires max_tokens, so a value must always be sent.
-	defaultMaxOutputTokens = 16000
+	// requires max_tokens, so a value must always be sent. The value is at least
+	// twice the largest observed output, and producing it at the slowest observed
+	// output rate takes at most half of provider.LLMTimeout; a test in
+	// internal/llm/provider pins both conditions.
+	// docs/dev/developer_guide/claude_output_limit.md describes how to re-measure
+	// them.
+	defaultMaxOutputTokens = 40000
 )
 
 // Request header names. The adapter sets exactly these; it never sets

@@ -403,6 +403,50 @@ func TestNewClaudeDefaultEffort(t *testing.T) {
 	}
 }
 
+// Measurements the Claude adapter's default output limit is sized against
+// (docs/tasks/0041_claude_effort_max_tokens/02_architecture.md section 1.4,
+// from docs/tasks/0018_article_quality/02_evaluation.md sections 4.7.2 and
+// 4.7.4). docs/dev/developer_guide/claude_output_limit.md says when and how to
+// re-measure them.
+const (
+	// largestObservedOutputTokens is the largest output of a successful
+	// claude-opus-5-5 run at effort high.
+	largestObservedOutputTokens = 15884
+	// slowestRateTokens over slowestRateDuration is the slowest observed output
+	// rate of a run that called the LLM once.
+	slowestRateTokens   = 1364
+	slowestRateDuration = 14374 * time.Millisecond
+)
+
+// TestClaudeDefaultMaxTokensFitsBudget verifies that the max_tokens the Claude
+// adapter sends for MaxOutputTokens 0 is at least twice the largest observed
+// output, and that producing it at the slowest observed rate takes at most half
+// of LLMTimeout.
+func TestClaudeDefaultMaxTokensFitsBudget(t *testing.T) {
+	body, err := os.ReadFile(claudeEndTurnFixture) //nolint:gosec // the path names a committed testdata fixture
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+	recorded := claudeRequestFor(t, claudeValidEnv(), body, generationStage)
+	var decoded struct {
+		MaxTokens int `json:"max_tokens"`
+	}
+	if err := json.Unmarshal(recorded.Body, &decoded); err != nil {
+		t.Fatalf("decode request body: %v", err)
+	}
+	if want := 2 * largestObservedOutputTokens; decoded.MaxTokens < want {
+		t.Errorf("max_tokens = %d, want at least %d (twice the largest observed output)", decoded.MaxTokens, want)
+	}
+	// Compare max_tokens * duration/tokens with LLMTimeout/2 by multiplying
+	// both sides by tokens, so no division rounds the boundary.
+	produce := time.Duration(decoded.MaxTokens) * slowestRateDuration
+	budget := time.Duration(slowestRateTokens) * (LLMTimeout / 2)
+	if produce > budget {
+		t.Errorf("max_tokens = %d takes %v at the slowest observed rate, want at most half of LLMTimeout (%v)",
+			decoded.MaxTokens, produce/time.Duration(slowestRateTokens), LLMTimeout/2)
+	}
+}
+
 // TestNewUsesClaudeAdapter verifies that New passes the production Claude
 // constructor to newClient by checking the dynamic type of the built client.
 func TestNewUsesClaudeAdapter(t *testing.T) {
