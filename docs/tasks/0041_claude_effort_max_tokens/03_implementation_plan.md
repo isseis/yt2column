@@ -71,7 +71,7 @@
 
 **変更するファイル:** `internal/config/config.go`、`internal/config/config_test.go`、`internal/llm/provider/provider_test.go`
 
--   [ ] **ステップ 1-1**: `internal/config/config.go` を次のように改める（設計書 3.1）。
+-   [x] **ステップ 1-1**: `internal/config/config.go` を次のように改める（設計書 3.1）。
     -   変更の前に、まだ何も変更していない状態（本計画の承認の後の `main`）で `go test -tags test -coverprofile=<スクラッチの場所>/before.out ./internal/config` と `go tool cover -func` を実行し、関数ごとの値を控える（ステップ 1-2 の比較に使う）。手元の変更を退ける必要があるときも、`git stash` は使わない（stash はほかの worktree と共有される）。
     -   設計書 3.1 のコードのとおりに、`defaultClaudeEffort` を doc コメントとともに足す。
     -   `loadClaudeEffort` で、未設定（`!ok`）のときは `cfg.claudeEffort` に `defaultClaudeEffort` を入れて `nil` を返す。空の値は今までどおり `missingVar(claudeEffortEnv)` を返す。
@@ -79,7 +79,7 @@
     -   `loadClaudeEffort` の doc コメントを、`// loadClaudeEffort validates YT2COLUMN_CLAUDE_EFFORT, which is required when` `// the generation or the review provider is claude. It is called only when one` `// of them is. The accepted values live in claudeparam and are not repeated` `// here.` から、`// loadClaudeEffort validates YT2COLUMN_CLAUDE_EFFORT when the generation or` `// the review provider is claude. It is called only when one of them is. Unset` `// selects defaultClaudeEffort; an empty value is rejected, not treated as` `// unset. The accepted values live in claudeparam and are not repeated here.` に変える。
     -   `LoadFor` の doc コメントの `// zero Config on any error. A need that is true reads and requires its stage's` `// provider and model variables and the selected providers' own variables; a` を、`// zero Config on any error. A need that is true reads and requires its stage's` `// provider and model variables and reads and validates the selected providers'` `// own variables; a` に変える。残りの行は変えない。
     -   （行の折り返しは `make fmt` の結果に従ってよい。文面は変えない。）
--   [ ] **ステップ 1-2**: `internal/config/config_test.go` を次のように改める（設計書 3.6・7.1）。
+-   [x] **ステップ 1-2**: `internal/config/config_test.go` を次のように改める（設計書 3.6・7.1）。
     -   `TestLoadClaudeMissing` から `"effort unset"` の行を外す。`"effort empty"` の行は残す。
     -   AC-06 の確認を、`TestLoadClaudeMissing` の表の行ではなく、同じテストの別の副テストとして足す（表の行は `assertVarError` だけを呼ぶので、追加の確認を `"effort empty"` などの行に加えない）。環境は `validClaudeEnv()` から `ANTHROPIC_API_KEY` と `YT2COLUMN_CLAUDE_EFFORT` の両方を外したもので、`assertVarError` で `ANTHROPIC_API_KEY` の `ErrMissing` を確かめる。加えて、結合したエラーを `Unwrap() []error` でたどり、どの `*VarError` の変数名も `YT2COLUMN_CLAUDE_EFFORT` でないことを確かめる（たどり方の先例は `internal/publisher/slack_test.go:224`）。
     -   `TestLoadClaudeEffortDefault` を足す。`YT2COLUMN_CLAUDE_EFFORT` を設定しない次の環境で、`Load` が成功し、`ClaudeEffort()` が `claudeparam.EffortHigh` であることを確かめる（AC-01・AC-02）。
@@ -89,10 +89,10 @@
         -   `LoadServer`: 同じことを `LoadServer` でも確かめる。環境は、(1) から `YT2COLUMN_CACHE_DIR` を外し、`HOME` と `SLACK_WEBHOOK_URL` を加えたものとする（`validServerEnv` は DeepSeek の環境から作るので、そのままは使えない）。
     -   `TestLoadFor` に 2 つの副テストを足す（AC-05）。1 つ目は、生成が `deepseek`・検証・推敲が `claude` で `Need{Generation: true}` の場合、2 つ目は、生成が `claude`・検証・推敲が `deepseek` で `Need{Review: true}` の場合である。どちらも、`YT2COLUMN_CLAUDE_EFFORT` が未設定・空・不正（`High`）のどれでも `LoadFor` が成功し、`ClaudeEffort()` が `claudeparam.EffortUnset` であることを確かめる。
     -   変更の後に、ステップ 1-1 と同じコマンドでカバレッジを取る。`loadClaudeEffort` は中身が変わるので、カバレッジが 100% であることを確かめる。ほかの関数は、値が変わっていないことを確かめる。比べた結果は、コミットのメッセージに書く。
--   [ ] **ステップ 1-3**: `internal/llm/provider/provider_test.go` を次のように改める（設計書 7.1）。
+-   [x] **ステップ 1-3**: `internal/llm/provider/provider_test.go` を次のように改める（設計書 7.1）。
     -   `claudeRequestFor` を、生成のプロバイダとモデル（`cfg.LLM().Provider()`・`Model()`）でも、検証・推敲のプロバイダとモデル（`ReviewProvider()`・`ReviewModel()`）でもアダプタを作れるようにする。`claudeRequestFor` は `newClient` を直接呼ぶので、`New`・`NewReview` がどちらを選ぶかは確かめない。それは既存の `TestNewReviewUsesReviewModel`（`provider_test.go:442`）が確かめている。呼び出し元の `TestNewClaudeSendsConfiguredRequest` の期待する値は変えない。
     -   `TestNewClaudeDefaultEffort` を足す。ステップ 1-2 の `TestLoadClaudeEffortDefault` と同じ 3 つの環境（`YT2COLUMN_CLAUDE_EFFORT` を設定しない）で `config.Load` した設定から、`claude` の段階のアダプタを `claudeRequestFor` で作り、送ったリクエストの `output_config.effort` が `high` であることを確かめる。(1) では生成と検証・推敲の両方のアダプタを確かめる（AC-01）。(2) では検証・推敲のアダプタ、(3) では生成のアダプタを確かめる（AC-02）。
--   [ ] **ステップ 1-4**: 次のそれぞれの変更を一時的に加え、名指ししたテストを実行して、そのテストが述べた理由で失敗することを確かめる。確かめたら変更を元に戻し、結果をコミットのメッセージに書く。
+-   [x] **ステップ 1-4**: 次のそれぞれの変更を一時的に加え、名指ししたテストを実行して、そのテストが述べた理由で失敗することを確かめる。確かめたら変更を元に戻し、結果をコミットのメッセージに書く。
     -   `loadClaudeEffort` の未設定の分岐を、変更前の `missingVar(claudeEffortEnv)` を返す形に戻す。`TestLoadClaudeEffortDefault`・`TestNewClaudeDefaultEffort`・`TestLoadClaudeMissing` の AC-06 の副テストが失敗することを確かめる。
     -   `defaultClaudeEffort` を `claudeparam.EffortMedium` にする。`TestLoadClaudeEffortDefault` と `TestNewClaudeDefaultEffort` が失敗することを確かめる。
     -   既定を `loadClaudeEffort` の外に移し、`loadLLM` の最後で、`cfg.claudeEffort` が `claudeparam.EffortUnset` なら need によらず `defaultClaudeEffort` を入れるようにする。`TestLoadFor` の足した 2 つの副テストが失敗することを確かめる（既定が、実行する段階に `claude` のない実行に及ぶ変更を、この 2 つの副テストが捉えるかを確かめるためである）。

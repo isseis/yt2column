@@ -264,7 +264,7 @@ func TestNewClaudeSendsConfiguredRequest(t *testing.T) {
 		t.Run(effort, func(t *testing.T) {
 			env := claudeValidEnv()
 			env["YT2COLUMN_CLAUDE_EFFORT"] = effort
-			recorded := claudeRequestFor(t, env, body)
+			recorded := claudeRequestFor(t, env, body, generationStage)
 			if got := recorded.Header.Get("x-api-key"); got != testAPIKey {
 				t.Errorf("x-api-key = %q, want the test key", got)
 			}
@@ -299,7 +299,7 @@ func TestNewClaudeSendsConfiguredRequest(t *testing.T) {
 			if workspace.value != "" {
 				env["ANTHROPIC_WORKSPACE_ID"] = workspace.value
 			}
-			recorded := claudeRequestFor(t, env, body)
+			recorded := claudeRequestFor(t, env, body, generationStage)
 			if got := recorded.Header.Get("anthropic-workspace-id"); got != workspace.value {
 				t.Errorf("anthropic-workspace-id = %q, want %q", got, workspace.value)
 			}
@@ -307,11 +307,23 @@ func TestNewClaudeSendsConfiguredRequest(t *testing.T) {
 	}
 }
 
-// claudeRequestFor builds the Claude adapter for env through newClient against a
-// recording loopback server that answers with body, sends one Generate, and
-// returns the recorded request. It checks the LLMTimeout the constructor
-// received, which no request field exposes.
-func claudeRequestFor(t *testing.T, env map[string]string, body []byte) llmhttptest.Recorded {
+// stageSelector picks the provider and model of one stage, as New and
+// NewReview do, so a test can build either stage's adapter through newClient.
+type stageSelector func(config.LLMConfig) (config.Provider, string)
+
+func generationStage(cfg config.LLMConfig) (config.Provider, string) {
+	return cfg.Provider(), cfg.Model()
+}
+
+func reviewStage(cfg config.LLMConfig) (config.Provider, string) {
+	return cfg.ReviewProvider(), cfg.ReviewModel()
+}
+
+// claudeRequestFor builds the Claude adapter of the stage that pick selects
+// for env through newClient against a recording loopback server that answers
+// with body, sends one Generate, and returns the recorded request. It checks
+// the LLMTimeout the constructor received, which no request field exposes.
+func claudeRequestFor(t *testing.T, env map[string]string, body []byte, pick stageSelector) llmhttptest.Recorded {
 	t.Helper()
 	cfg := loadConfig(t, env)
 	server, recorder := llmhttptest.NewRecordingServer(t, body)
@@ -321,7 +333,8 @@ func claudeRequestFor(t *testing.T, env map[string]string, body []byte) llmhttpt
 		}
 		return claude.NewForLoopbackTest(t, opts, server.URL), nil
 	}
-	client, err := newClient(cfg.LLM().Provider(), cfg.LLM().Model(), cfg.LLM(), builders{claude: build})
+	provider, model := pick(cfg.LLM())
+	client, err := newClient(provider, model, cfg.LLM(), builders{claude: build})
 	if err != nil {
 		t.Fatalf("newClient() error = %v", err)
 	}
@@ -329,6 +342,52 @@ func claudeRequestFor(t *testing.T, env map[string]string, body []byte) llmhttpt
 		t.Fatalf("Generate() error = %v", err)
 	}
 	return recorder.Only(t)
+}
+
+// TestNewClaudeDefaultEffort verifies that, with YT2COLUMN_CLAUDE_EFFORT
+// unset, every claude stage's adapter sends the high effort.
+func TestNewClaudeDefaultEffort(t *testing.T) {
+	body, err := os.ReadFile(claudeEndTurnFixture) //nolint:gosec // the path names a committed testdata fixture
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+	claudeBoth := claudeValidEnv()
+	delete(claudeBoth, "YT2COLUMN_CLAUDE_EFFORT")
+	reviewClaude := validEnv()
+	reviewClaude["YT2COLUMN_REVIEW_PROVIDER"] = "claude"
+	reviewClaude["YT2COLUMN_REVIEW_MODEL"] = testClaudeModel
+	reviewClaude["ANTHROPIC_API_KEY"] = testAPIKey
+	generationClaude := maps.Clone(claudeBoth)
+	generationClaude["YT2COLUMN_REVIEW_PROVIDER"] = "deepseek"
+	generationClaude["YT2COLUMN_REVIEW_MODEL"] = testModel
+	generationClaude["DEEPSEEK_API_KEY"] = testAPIKey
+	cases := []struct {
+		name  string
+		env   map[string]string
+		stage string
+		pick  stageSelector
+	}{
+		{"both stages claude", claudeBoth, "generation", generationStage},
+		{"both stages claude", claudeBoth, "review", reviewStage},
+		{"review claude only", reviewClaude, "review", reviewStage},
+		{"generation claude only", generationClaude, "generation", generationStage},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name+" "+tc.stage, func(t *testing.T) {
+			recorded := claudeRequestFor(t, tc.env, body, tc.pick)
+			var decoded struct {
+				OutputConfig struct {
+					Effort string `json:"effort"`
+				} `json:"output_config"`
+			}
+			if err := json.Unmarshal(recorded.Body, &decoded); err != nil {
+				t.Fatalf("decode request body: %v", err)
+			}
+			if decoded.OutputConfig.Effort != "high" {
+				t.Errorf("output_config.effort = %q, want %q", decoded.OutputConfig.Effort, "high")
+			}
+		})
+	}
 }
 
 // TestNewUsesClaudeAdapter verifies that New passes the production Claude
