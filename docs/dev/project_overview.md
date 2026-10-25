@@ -68,7 +68,6 @@ URL → TranscriptSource → Transcript → ArticleWriter → Article → Publis
 
 ## 未確定事項
 
-- コラム生成プロンプトの詳細（後で決める）。`prompts/` 以下のテンプレートファイルに分離し、`embed` で埋め込む。外部ファイルで上書きできるようにしておく。
 - Slack 以外の投稿先（Discord 等）は必要になったら追加する。
 - プロバイダごとにプロンプトの微調整が必要になった場合の扱い（共通テンプレート＋プロバイダ別の上書きなど）。
 
