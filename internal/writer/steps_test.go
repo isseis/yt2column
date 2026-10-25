@@ -100,8 +100,9 @@ func TestWriteStepOrder(t *testing.T) {
 		if len(review.Calls) != 1 {
 			t.Fatalf("review client called %d times, want 1", len(review.Calls))
 		}
-		// Every step leaves the output limit to the adapter, which sends its own
-		// default for 0.
+		// The shorten and review steps leave the output limit to the adapter,
+		// which sends its own default for 0; TestWriteCallsGenerateOnce checks
+		// the generation step.
 		if got := gen.Calls[1].Request.MaxOutputTokens; got != 0 {
 			t.Errorf("shorten MaxOutputTokens = %d, want 0", got)
 		}

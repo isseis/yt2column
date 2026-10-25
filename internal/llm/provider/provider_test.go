@@ -323,8 +323,9 @@ func reviewStage(cfg config.LLMConfig) (config.Provider, string) {
 
 // claudeRequestFor builds the Claude adapter of the stage that pick selects
 // for env through newClient against a recording loopback server that answers
-// with body, sends one Generate, and returns the recorded request. It checks
-// the LLMTimeout the constructor received, which no request field exposes.
+// with body, sends one Generate with MaxOutputTokens 0 (so the adapter sends
+// its default max_tokens), and returns the recorded request. It checks the
+// LLMTimeout the constructor received, which no request field exposes.
 func claudeRequestFor(t *testing.T, env map[string]string, body []byte, pick stageSelector) llmhttptest.Recorded {
 	t.Helper()
 	cfg := loadConfig(t, env)
