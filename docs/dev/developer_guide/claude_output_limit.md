@@ -30,8 +30,8 @@ evaluation set of videos, follow
 
 The rate is computed per LLM call, so each CLI run must call the LLM exactly
 once. Run each step separately and reuse the earlier step's saved output with
-`--after`. Give every run `--artifacts <dir>`, `--keep-cache`, and `--out` with
-a fresh path:
+`--after`. Give every run `--artifacts <dir>` (an existing directory outside
+the cache directory), `--keep-cache`, and `--out` with a fresh path:
 
 - `--keep-cache` keeps the video's cache after a successful run. Without it,
   the next run fetches the transcript again, which adds network time to the
@@ -77,7 +77,8 @@ Check the value against the three conditions of
   lower than the real one, which errs on the safe side. Producing the value at
   the slowest rate must take at most half of `provider.LLMTimeout`.
 - (c) For each model F-002 (c) names (today `claude-opus-5-5` and
-  `claude-sonnet-5-5`), the model accepts the value: it is at most the model's
+  `claude-sonnet-5-5`), the model accepts the value as `max_tokens` in a
+  non-streaming request: it is at most the model's
   maximum output in the Anthropic documentation, or an existing observation
   shows the model accepting it.
 
