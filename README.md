@@ -115,7 +115,7 @@ what makes the resume work; see [Cache and concurrency](#cache-and-concurrency).
 
 The review step's configuration is validated even with `--no-review`, because
 the configuration is independent of the flags: if `YT2COLUMN_REVIEW_PROVIDER`
-selects a different provider, that provider's variables are still checked: its
+selects a different provider, that provider's variables are still checked. Its
 API key is required, and for `claude` a set effort must still be valid (an unset
 one selects `high`). A resumed run validates only the
 settings of the stages it executes, so `--after review` requires no LLM

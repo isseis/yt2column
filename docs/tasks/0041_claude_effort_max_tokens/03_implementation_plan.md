@@ -227,9 +227,9 @@ AC-13〜AC-19 は文書の文面を定める AC なので、`manual` の読み�
 
 **横断の確認（`make test`・`make lint` が検出しないもの。ステップ 3-6 で、PR の差分を読んで確かめる。文書の語の有無を `rg` で確かめる手段にはしない）:**
 
--   [ ] `README.md` と `docs/dev/project_overview.md` に、`YT2COLUMN_CLAUDE_EFFORT` を必須とする文やエラーとする文が残っていない（ステップ 3-1・3-2 の書き換えの漏れ。PR-1 のレビューでも読む）。
--   [ ] `README.md`・`docs/dev/project_overview.md`・上限のガイドに、V の値（40,000 またはその表記の揺れ）と出力の速さの数値が書かれていない（設計書 1.2）。
--   [ ] Go のコメントが、上限のガイドを指し、`docs/tasks/` を指さない（`request.go`・`provider.go`・`config.go` の変えたコメント。テストの名前付きの値の出典のコメントは、設計書 1.4 と評価記録を出典として挙げてよい）。
+-   [x] `README.md` と `docs/dev/project_overview.md` に、`YT2COLUMN_CLAUDE_EFFORT` を必須とする文やエラーとする文が残っていない（ステップ 3-1・3-2 の書き換えの漏れ。PR-1 のレビューでも読む）。
+-   [x] `README.md`・`docs/dev/project_overview.md`・上限のガイドに、V の値（40,000 またはその表記の揺れ）と出力の速さの数値が書かれていない（設計書 1.2）。
+-   [x] Go のコメントが、上限のガイドを指し、`docs/tasks/` を指さない（`request.go`・`provider.go`・`config.go` の変えたコメント。テストの名前付きの値の出典のコメントは、設計書 1.4 と評価記録を出典として挙げてよい）。
 
 ## 6. リスク管理 (Risk Management)
 

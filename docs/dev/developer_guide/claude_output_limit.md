@@ -29,8 +29,18 @@ evaluation set of videos, follow
 ## How to measure
 
 The rate is computed per LLM call, so each CLI run must call the LLM exactly
-once. Run each step separately, with `--artifacts <dir>` on every run, and
-reuse the earlier step's saved output with `--after`:
+once. Run each step separately and reuse the earlier step's saved output with
+`--after`. Give every run `--artifacts <dir>`, `--keep-cache`, and `--out` with
+a fresh path:
+
+- `--keep-cache` keeps the video's cache after a successful run. Without it,
+  the next run fetches the transcript again, which adds network time to the
+  measured time, and a changed transcript makes the resume fail.
+- `--out` writes the article to a file, so a measurement never posts to the
+  Webhook.
+- Runs that share a cache directory run one at a time.
+
+The steps:
 
 1. Generation: `--no-review --no-shorten`.
 2. Shorten: `--after generation --no-review`. The shorten step runs only when
@@ -47,10 +57,12 @@ reuse the earlier step's saved output with `--after`:
 
 For each run:
 
-- the output token count of the step: `output=` on the `tokens:` line the CLI
-  writes (README, "Token usage"), or `usage.output` in the step's saved file
-  under the `--artifacts` directory;
-- the run's wall-clock time;
+- the output token count of the step: `output=` on the
+  `tokens: <stage> run` line of the step that called the LLM (README, "Token
+  usage"; a resumed run also writes `reused` lines for the earlier stages), or
+  `usage.output` in the step's saved file under the `--artifacts` directory;
+- the wall-clock time of the CLI invocation, for example with `time`, as the
+  recorded measurements were taken;
 - whether the run was truncated: the CLI reports an error that wraps
   `llm.ErrTruncated` ("generation truncated by the output token limit").
 
@@ -59,16 +71,22 @@ For each run:
 Check the value against the three conditions of
 `docs/tasks/0041_claude_effort_max_tokens/01_requirements.md` F-002:
 
-1. (a) The value is at least twice the largest observed output.
-2. (b) Compute each run's rate as its output tokens divided by its wall-clock
-   time. The time includes work besides the LLM call, so the rate comes out
-   lower than the real one, which errs on the safe side. Producing the value at
-   the slowest rate must take at most half of `provider.LLMTimeout`.
-3. (c) The value is at most the model's maximum output in the Anthropic
-   documentation, for each model the production configuration uses.
+- (a) The value is at least twice the largest observed output.
+- (b) Compute each run's rate as its output tokens divided by its wall-clock
+  time. The time includes work besides the LLM call, so the rate comes out
+  lower than the real one, which errs on the safe side. Producing the value at
+  the slowest rate must take at most half of `provider.LLMTimeout`.
+- (c) For each model F-002 (c) names (today `claude-opus-5-5` and
+  `claude-sonnet-5-5`), the model accepts the value: it is at most the model's
+  maximum output in the Anthropic documentation, or an existing observation
+  shows the model accepting it.
 
 A truncated run's output is known only to be at least the limit it was sent;
 record it as such.
+
+When no value meets both (a) and (b), do not pick one: changing the call
+itself (streaming, or `provider.LLMTimeout`) is a decision of its own, so raise
+it as a new task.
 
 ## What to update
 
