@@ -114,14 +114,14 @@ func TestClaudeDocsContract(t *testing.T) {
 // TestLLMDefaultsDocsContract checks that the configuration tables of
 // README.md and project_overview.md state the code's LLM defaults: the first
 // code span of the "when unset" cell of each row is the value the config
-// package applies. Only the first span is compared, so a stale value left in
-// front of the new one fails; the rest of the cell is prose, which is read in
-// review.
+// package applies. A stale value written as a code span in front of the new
+// one fails; prose in front of it, and the rest of the cell, are not checked
+// here but read in review.
 func TestLLMDefaultsDocsContract(t *testing.T) {
-	want := map[string]string{
-		"YT2COLUMN_LLM_PROVIDER": config.DefaultProviderValueForTest(),
-		"YT2COLUMN_MODEL":        config.DefaultClaudeModelForTest(),
-		"YT2COLUMN_REVIEW_MODEL": config.DefaultClaudeModelForTest(),
+	want := []struct{ name, value string }{
+		{"YT2COLUMN_LLM_PROVIDER", config.DefaultProviderValueForTest()},
+		{"YT2COLUMN_MODEL", config.DefaultClaudeModelForTest()},
+		{"YT2COLUMN_REVIEW_MODEL", config.DefaultClaudeModelForTest()},
 	}
 	codeSpan := regexp.MustCompile("`([^`]*)`")
 	for _, doc := range []struct {
@@ -139,15 +139,18 @@ func TestLLMDefaultsDocsContract(t *testing.T) {
 			if column < 0 {
 				t.Fatalf("%s: the %q table has no %q column", doc.name, doc.nameHeader, doc.unsetHeader)
 			}
-			for name, value := range want {
-				row := tableRow(table, name)
-				if row == nil || len(row) <= column {
-					t.Errorf("%s: no row with a %q cell for %s", doc.name, doc.unsetHeader, name)
+			for _, v := range want {
+				// A second row for the same variable would go unchecked, so
+				// exactly one is required.
+				rows := tableRowsWithFirstCell(table, v.name)
+				if len(rows) != 1 || len(rows[0]) <= column {
+					t.Errorf("%s: %d rows for %s, want exactly one with a %q cell", doc.name, len(rows), v.name, doc.unsetHeader)
 					continue
 				}
-				match := codeSpan.FindStringSubmatch(row[column])
-				if match == nil || match[1] != value {
-					t.Errorf("%s: %s %q cell = %q, want its first code span to be %q", doc.name, name, doc.unsetHeader, row[column], value)
+				cell := rows[0][column]
+				match := codeSpan.FindStringSubmatch(cell)
+				if match == nil || match[1] != v.value {
+					t.Errorf("%s: %s %q cell = %q, want its first code span to be %q", doc.name, v.name, doc.unsetHeader, cell, v.value)
 				}
 			}
 		})

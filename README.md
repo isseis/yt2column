@@ -643,8 +643,8 @@ the extension shows either one as an unexpected reply.
 - **`HOME: the socket path derived from HOME exceeds the operating system's
   limit`.** `HOME` is too long for the socket path; see the limit above.
 - **`configuration: YT2COLUMN_LLM_PROVIDER` after an update.** The default
-  provider is now `claude`, and a model variable set without a provider
-  variable is rejected, so a server that used DeepSeek without setting
+  provider is now `claude`, and a model variable set without the matching
+  provider variable is rejected (see [Configuration](#configuration)), so a server that used DeepSeek without setting
   `YT2COLUMN_LLM_PROVIDER` exits with `2` before it listens, and the extension
   can only report that the server is not running. See
   [Using DeepSeek](#using-deepseek).
@@ -753,7 +753,10 @@ set. Setting `YT2COLUMN_MODEL` without `YT2COLUMN_LLM_PROVIDER`, or
 `YT2COLUMN_LLM_PROVIDER` is set, is a configuration error naming
 `YT2COLUMN_LLM_PROVIDER`, so a model chosen for one provider is never sent to
 the default one. The error is reported once, together with any other error,
-such as an unset `ANTHROPIC_API_KEY`.
+such as an unset `ANTHROPIC_API_KEY`. As with the provider variables, a
+resumed run reads only the model variables of the steps it runs: a run that
+only reviews, with `YT2COLUMN_REVIEW_PROVIDER` set, does not read
+`YT2COLUMN_MODEL`.
 
 Setting only `YT2COLUMN_REVIEW_PROVIDER` gives the review step that provider's
 default model: `claude-opus-5-5` for `claude`, never the generation model;
