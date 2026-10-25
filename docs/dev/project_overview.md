@@ -127,7 +127,7 @@ extension/                # ブラウザ拡張（TypeScript。開発環境・Man
 
 モデルの変数は、利用者が設定したプロバイダの変数と組にしてだけ受け付ける。`YT2COLUMN_LLM_PROVIDER` を設定せずに `YT2COLUMN_MODEL` を設定した場合と、`YT2COLUMN_REVIEW_PROVIDER` と `YT2COLUMN_LLM_PROVIDER` のどちらも設定せずに `YT2COLUMN_REVIEW_MODEL` を設定した場合は、`YT2COLUMN_LLM_PROVIDER` を挙げた設定エラーにする。あるプロバイダ向けに選んだモデル名を、既定のプロバイダへ送らないためである。このエラーは 1 回の実行で 1 件だけ報告し、`ANTHROPIC_API_KEY` の未設定などのほかのエラーと合わせて報告する。中断した実行の再開では、実行する段階のモデルの変数だけを読む。`YT2COLUMN_REVIEW_PROVIDER` を設定して検証・推敲だけを実行する場合は、`YT2COLUMN_MODEL` を読まない。
 
-既定のプロバイダは以前は `deepseek` だった。`YT2COLUMN_LLM_PROVIDER` を設定せずに `YT2COLUMN_MODEL` と `DEEPSEEK_API_KEY` で DeepSeek を使っていた設定は、通信の前に `YT2COLUMN_LLM_PROVIDER` のエラーで止まる（`ANTHROPIC_API_KEY` が未設定なら、そのエラーも出る）。DeepSeek を使い続けるには `YT2COLUMN_LLM_PROVIDER=deepseek` を設定する。それ以外は今までどおり動く。`YT2COLUMN_MODEL` を消しても `YT2COLUMN_LLM_PROVIDER` のエラーは消えるが、字幕などを `claude-opus-5-5` で Anthropic へ送るようになるので、DeepSeek を使い続ける方法ではない。
+既定のプロバイダは以前は `deepseek` だった。`YT2COLUMN_LLM_PROVIDER` を設定せずに `YT2COLUMN_MODEL` と `DEEPSEEK_API_KEY` で DeepSeek を使っていた設定は、通信の前に `YT2COLUMN_LLM_PROVIDER` のエラーで止まる（`ANTHROPIC_API_KEY` が未設定なら、そのエラーも出る）。DeepSeek を使い続けるには `YT2COLUMN_LLM_PROVIDER=deepseek` を設定する。それ以外は今までどおり動く。`YT2COLUMN_MODEL` を消しても `YT2COLUMN_LLM_PROVIDER` のエラーは消えるが、`ANTHROPIC_API_KEY` が設定されていれば字幕などを `claude-opus-5-5` で Anthropic へ送るようになるので、DeepSeek を使い続ける方法ではない。
 
 ## 開発ルール
 

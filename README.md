@@ -790,8 +790,8 @@ unset, now stops before any request with a `YT2COLUMN_LLM_PROVIDER` error, and
 also an `ANTHROPIC_API_KEY` error when that key is unset. Set
 `YT2COLUMN_LLM_PROVIDER=deepseek` to keep using DeepSeek as before. Removing
 `YT2COLUMN_MODEL` instead also clears the `YT2COLUMN_LLM_PROVIDER` error, but
-the run then sends the transcript to Anthropic with `claude-opus-5-5`, so it
-does not keep DeepSeek.
+when `ANTHROPIC_API_KEY` is set the run then sends the transcript to Anthropic
+with `claude-opus-5-5`, so it does not keep DeepSeek.
 
 ## Development
 
