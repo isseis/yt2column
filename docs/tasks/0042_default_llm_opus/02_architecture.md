@@ -48,7 +48,7 @@
 -   **拒否の理由は新しい固定の定数にする（H-04）:** `reasonModelWithoutProvider` を、既存の理由の定数（`config.go:62-73`）に加える。文言は `must be set when YT2COLUMN_MODEL or YT2COLUMN_REVIEW_MODEL is set; when unset, the provider is claude` とする（4.2）。既定のプロバイダを文言に含めるのは、モデルの変数を消せば拒否は消えるが、その場合は Anthropic へ送ることになる、と拒否の行だけで分かるようにするためである。値は含まない（AC-19）。
 -   **文書に書いた既定の値をテストで確かめる（H-02・H-06）:** README「Configuration」と `project_overview.md`「設定（環境変数）」の表で、`YT2COLUMN_LLM_PROVIDER`・`YT2COLUMN_MODEL`・`YT2COLUMN_REVIEW_MODEL` の「未設定のとき」の列に、コードの既定の値が書かれていることを、`cmd/yt2column/docs_test.go` のテストで確かめる（7.3）。`CLAUDE.md`「Document tests check values ...」は、文書の値とコードの値の比較を許し、文書の値を変えるときは対応するテストを求めている。
 -   **既定に依存するテストの環境は、DeepSeek を明示する（H-01）:** `YT2COLUMN_LLM_PROVIDER` を設定せずに DeepSeek を前提としているテストの環境に、`YT2COLUMN_LLM_PROVIDER=deepseek` を加える（3.5）。既定を前提にしたテストの環境を `claude` に書き換える案は採らない。DeepSeek を明示する案のほうが、偽の LLM を使うテストの意図（どのプロバイダでもよい）を変えずに済み、差分も小さいからである。CLI の統合テストは、AC-24 のとおり DeepSeek だけを呼ぶ必要があるので、明示が必須である。
--   **文書と実装を同じ PR に入れ、#171 の後でなければ通らないテストを置く:** 既定を変えるコード、モデルだけの設定の拒否、文書、文書のテスト、AC-22 のテストを 1 つの PR に入れる（8 章）。既定だけが入って文書が古い期間や、案内（AC-27）がない期間を作らないためである。AC-22 のテストは #171 の effort の既定がなければ失敗するので、#171 より先にマージされることを CI が止める。
+-   **文書と実装を同じ PR に入れ、AC-22 のテストも含める:** 既定を変えるコード、モデルだけの設定の拒否、文書、文書のテスト、AC-22 のテストを 1 つの PR に入れる（8 章）。既定だけが入って文書が古い期間や、案内（AC-27）がない期間を作らないためである。AC-22 のテストは effort の既定 `high` を期待するので、#171 の実装を前提とする。このテストが #171 より先のマージを CI で止める仕掛けとして働くかは、まだ書かれていないテストについての主張なので、本書では確かめたこととして扱わない。実装のときに、#171 の変更がない状態でこのテストを実行し、effort の既定がないという意図した理由で失敗するかを確かめて記録する（7.1）。マージの順序は、それとは別に実装計画の PR の手順で守る（8 章）。
 -   **サーバの起動のログは変えない:** サーバの `listening` のログは `model` と `reviewModel` を出す（`cmd/yt2column-server/run.go:185-189`）。既定が当たったときもこの 2 つに `claude-opus-5-5` が出るので、使うモデルはログから分かる。ログにプロバイダを出すには `Provider` に文字列への変換を足す必要があり、要件書の範囲を越えるので加えない。
 -   **effort の既定の部分は #171 の設計に委ねる（H-05）:** 本書の作成の時点で、#171（タスク 0041）の設計書はない。effort の既定の置き場所と当てはめ方は 0041 の設計で決まる。本書は `loadClaudeEffort` を変えず、AC-22 の確かめ方だけを 7.1 に書く。0041 の申し送り（`docs/tasks/0041_claude_effort_max_tokens/design_handoff.md` H-06）は、effort の既定の置き場所の候補に `claudeparam` も挙げている。2 つの既定は、どちらも「変数が未設定のときに設定の読み込みが当てはめる値」なので、同じ `internal/config` に置くのが一貫する。0041 の設計が別の場所を選んだ場合は、本書の実装計画で、既定のモデルの定数をそれに合わせて移すかを決める。
 
@@ -537,9 +537,9 @@ flowchart TD
 -   **読む変数（AC-01・AC-21・AC-23）:** 何も設定しない実行で、`DEEPSEEK_API_KEY` に空の値を入れても拒否されないこと、`ANTHROPIC_API_KEY` の `ErrMissing` が出ること。`YT2COLUMN_LLM_PROVIDER=deepseek` の実行で、Anthropic の変数に不正な値を入れても拒否されないこと（既存の `TestLoadIgnoresOtherProviderVars`、`config_test.go:380` が `deepseek` を設定した環境で確かめている）。
 -   **値を含めない（AC-19・AC-21）:** モデルだけの設定の拒否で、`YT2COLUMN_MODEL` と `YT2COLUMN_REVIEW_MODEL` に目印の値を入れ、エラーの文字列に現れないことを確かめる（`TestLoadErrorsOmitValues`、`config_test.go:666` と同じ方法）。
 -   **LoadServer:** 2 つの設定を確かめる。何も設定しない LLM の変数（`ANTHROPIC_API_KEY` だけ）で既定が当たること。更新の前の DeepSeek の設定（`YT2COLUMN_MODEL` と `DEEPSEEK_API_KEY`、プロバイダなし）でモデルだけの設定の拒否が出ること。規則の網羅は `Load` のテストに任せる（`LoadServer` は同じ `loadLLM` を呼ぶ、`config.go:260`。既存の `TestLoadServerModelMissing` のコメント、`config_test.go:899-901` と同じ分担）。
--   **effort の扱い:** AC-22 のテストのほかは、`ANTHROPIC_API_KEY` に加えて `YT2COLUMN_CLAUDE_EFFORT` を明示する。#171 の前でも、AC-22 のテストだけが #171 に依存して失敗するようにするためである。
+-   **effort の扱い:** AC-22 のテストのほかは、`ANTHROPIC_API_KEY` に加えて `YT2COLUMN_CLAUDE_EFFORT` を明示する。#171 の effort の既定に依存するテストを AC-22 のテストだけに限るためである。
 -   **リクエストのモデル名（AC-03・AC-08・AC-10）:** `LLMConfig` の `Model()`・`ReviewModel()` が既定のモデルであることを上の表で確かめる。`provider.New` が `Model()` を Claude のリクエストのモデル名として送ることは、既存の `TestNewClaudeSendsConfiguredRequest`（`internal/llm/provider/provider_test.go:257`）が確かめている。`provider.NewReview` が `ReviewModel()` を構築に渡すことは、既存の `TestNewReviewUsesReviewModel`（同 `:442`）が DeepSeek で確かめているが、Claude のリクエストのモデル名までは確かめていない。そこで、`TestNewReviewUsesReviewModel` に、検証・推敲のプロバイダが `claude` のとき `ReviewModel()` が Claude の構築に渡ることを確かめる部分テストを 1 つ加える（`builders` の差し替え、`provider.go:43-46`）。
--   **AC-22:** `ANTHROPIC_API_KEY` だけを設定した環境で、`Provider()`・`ReviewProvider()` が `ProviderClaude`、`Model()`・`ReviewModel()` が既定のモデル、`ClaudeEffort()` が `claudeparam.EffortHigh` であることを確かめる。effort の部分は #171 の実装を前提にするので、#171 の前はこのテストが失敗する。実装の PR に含め、#171 より先にマージされることを CI で止める（8 章）。
+-   **AC-22:** `ANTHROPIC_API_KEY` だけを設定した環境で、`Provider()`・`ReviewProvider()` が `ProviderClaude`、`Model()`・`ReviewModel()` が既定のモデル、`ClaudeEffort()` が `claudeparam.EffortHigh` であることを確かめる。effort の部分は #171 の実装を前提にする。このテストは実装の PR に含める（8 章）。実装のときに、#171 の変更がない状態でこのテストを実行し、`YT2COLUMN_CLAUDE_EFFORT` の既定がないことを理由に失敗するかを確かめ、結果をコミットのメッセージと実装計画に記録する。意図した理由で失敗すると確かめられた場合に限り、このテストを #171 より先のマージを CI で止める仕掛けとして扱う。
 -   **書き直す・削る既存のテスト:** 1.4 の 3・5 の 4 つ。
     -   `TestLoadDefaults` は、LLM 以外の既定（Slack、`yt-dlp`、キャッシュディレクトリ）を確かめるテストとして残し、環境に `YT2COLUMN_LLM_PROVIDER=deepseek` を加える。LLM の既定は、上の生成の段階の表のテストで確かめる。
     -   `TestLoadMissing` の `provider unset and API key unset` の行は、`YT2COLUMN_LLM_PROVIDER=deepseek` を残したまま `DEEPSEEK_API_KEY` を外す行と重なるので、削る。削る前後で `go tool cover -func` の関数ごとの値が変わらないことを確かめる（`CLAUDE.md`「Deleting a test is a claim that must be checked」）。プロバイダを設定しない場合の拒否は、モデルだけの設定の拒否のテストで確かめる。
@@ -576,7 +576,7 @@ flowchart TD
 | AC-15 | 6.1 | 7.1（既存の `no stage reads no LLM variable`） |
 | AC-16〜AC-20 | 3.4 | 7.1（モデルだけの設定の拒否、LoadServer）、7.2（表示） |
 | AC-21 | 6.2 | 7.1（読む変数、値を含めない） |
-| AC-22 | 6.2 | 7.1（AC-22。#171 の後でなければ通らない） |
+| AC-22 | 6.2 | 7.1（AC-22。#171 の前に実行した結果を実装のときに記録する） |
 | AC-23 | 6.2 | 7.1（読む変数。既存の `TestLoadIgnoresOtherProviderVars`） |
 | AC-24 | 3.5 | 7.4（コードを読む。実行は承認の後） |
 | AC-25 | 3.6 | 7.3（文書のテスト）と PR のレビュー |
@@ -589,7 +589,7 @@ flowchart TD
 3.  **フェーズ 3: モデルだけの設定の拒否（F-004）。** 出どころの記録、判定、理由の定数。7.1・7.2 のテスト。
 4.  **フェーズ 4: 文書（F-006）。** 3.6 の文書の変更と 7.3 のテスト。
 5.  **PR の分け方の制約:** フェーズ 2〜4 と AC-22 のテストは同じ PR に入れる。フェーズ 2 だけが入ると、モデルだけの設定の拒否のない既定の変更になり、要件書 §4.2 の経路を開く。フェーズ 4 が遅れると、`main` の文書が古い既定を述べ、DeepSeek を使い続ける案内（AC-27）がないまま利用者が更新する。フェーズ 1 は振る舞いを変えないので、先に別の PR に入れてもよい。
-6.  **マージの順序:** 本タスクの実装は、#171 の実装が `main` に入った後にマージする（要件書 §5）。AC-22 のテストが、これを CI で止める（1.2）。#171 の実装が `internal/config/config.go`・README・`project_overview.md` の同じ箇所を変えるので、取り込みの衝突は、#171 の形を正として解く。
+6.  **マージの順序:** 本タスクの実装は、#171 の実装が `main` に入った後にマージする（要件書 §5）。この順序は実装計画の PR の手順で守る。AC-22 のテストが CI で止める仕掛けとして働くかは、実装のときに確かめて記録する（1.2・7.1）。#171 の実装が `internal/config/config.go`・README・`project_overview.md` の同じ箇所を変えるので、取り込みの衝突は、#171 の形を正として解く。
 
 ## 9. 将来の拡張性 (Future Extensibility)
 
@@ -605,5 +605,5 @@ flowchart TD
 | H-02 | 既定のモデル名を `internal/config` の非公開の定数 `defaultClaudeModel` に置く（人間のレビュアーの決定、1.2）。単価の表とはまとめない（1.2）。文書の値は 7.3 のテストで確かめる |
 | H-03 | 既定のプロバイダを `defaultProviderValue` の 1 か所に置き、`loadProvider` と `loadProviderOptional` を 1 つにまとめる（1.2・3.5）。設定した値か既定かの区別は、`loadLLM` の中だけの `settingOrigin` で持ち、`LLMConfig` には加えない（3.1）。既定のモデルは `Provider` の `switch` で選び、`default` は既定なしとする（1.3）。3 つの経路（生成、検証・推敲だけを実行する実行の受け継ぎ、`YT2COLUMN_REVIEW_PROVIDER` だけの設定）は同じ `switch` を呼ぶ（3.3）。AC-06・AC-13 の既定を当てはめない場合は 3.2・3.3 の表に、AC-19 の 1 件だけの報告は 3.4 に定める。コメントの見直しは 3.2・3.3 に挙げる |
 | H-04 | 理由の定数 `reasonModelWithoutProvider` を加え、文言は `must be set when YT2COLUMN_MODEL or YT2COLUMN_REVIEW_MODEL is set; when unset, the provider is claude` とする（1.2・4.2）。番兵は `ErrMissing`。テストは `errors.Is` と `*VarError` の `Name`・`Reason`（定数と比べる）で確かめる（7.1） |
-| H-05 | #171（タスク 0041）の設計は本書の作成の時点でないので、effort の既定に関わる部分は #171 に委ねる（1.2）。本書は `loadClaudeEffort` を変えない。AC-22 のテストは実装の PR に含め、#171 の effort の既定がなければ失敗することで、#171 より先のマージを CI で止める（1.2・8 章）。ほかのテストは `YT2COLUMN_CLAUDE_EFFORT` を明示し、#171 に依存しない（7.1）。AC-21 の拒否に #171 の前は effort の拒否が加わることを 6.2 に記す。#171 の実装との衝突は、#171 の形を正として解く（8 章） |
+| H-05 | #171（タスク 0041）の設計は本書の作成の時点でないので、effort の既定に関わる部分は #171 に委ねる（1.2）。本書は `loadClaudeEffort` を変えない。AC-22 のテストは実装の PR に含める。#171 の変更がない状態で意図した理由で失敗するかは、実装のときに確かめて記録し、その結果に限ってマージの順序を CI で止める仕掛けとして扱う（1.2・7.1・8 章）。ほかのテストは `YT2COLUMN_CLAUDE_EFFORT` を明示し、#171 に依存しない（7.1）。AC-21 の拒否に #171 の前は effort の拒否が加わることを 6.2 に記す。#171 の実装との衝突は、#171 の形を正として解く（8 章） |
 | H-06 | 文書を変えた後に `make test` と `make ext-test` を実行する（7.3）。#488 の文書が先に `main` にある場合は、それに合わせる（3.6） |
