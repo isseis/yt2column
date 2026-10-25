@@ -180,7 +180,7 @@
 
 **判定理由**: 2-1・3-1 は送り先の既定を変えると同時に旧設定を拒否する移行であり、mkplan のセキュリティの判定・移行の条件に該当する。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
@@ -246,8 +246,8 @@ PR-1 は本番の設定の解決を変えずに確認できる。PR-2 は設定�
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2）
 - [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 3-1 / 3-2 / 4-1）
-- [ ] §8 の検証を実行し、結果と壊して確かめた内容を記録した
-- [ ] #171 の実装とのマージ順序を確認した
+- [x] §8 の検証を実行し、結果と壊して確かめた内容を記録した
+- [x] #171 の実装とのマージ順序を確認した
 
 ## 7. 成功基準 (Success Criteria)
 
@@ -309,3 +309,4 @@ AC-01〜AC-29 が §8 の対応で確認され、必要なテスト・lint・文
 - AC-22: #171 が `loadClaudeEffort` に加えた既定の枝を一時的に外し（未設定を `ErrMissing` に戻し）、0042 の既定はそのままにして実行すると、`TestLoadProductionDefaults` は `YT2COLUMN_CLAUDE_EFFORT: is unset or empty` で失敗した（`internal/config` のテストで、ほかに失敗したのは #171 自身のテスト `TestLoadClaudeMissing`・`TestLoadClaudeEffortDefault` だけ）。したがって、このテストは #171 の effort の既定がない状態のマージを CI で止める。戻した状態で通る。
 - 4-1 の `DefaultProviderValueForTest`・`DefaultClaudeModelForTest` は、`TestRunDefaultLLMConfig` が既定のモデルを読むため、このグループで先に `internal/config/test_helpers.go` に加えた。
 - 4-1: README「Configuration」の表と本文、新しい「Using DeepSeek」の節、「Localhost server」の「Troubleshooting」の項目、`project_overview.md` の方針の 2 か所と「設定（環境変数）」の表と本文、`package_reference.md` の `internal/config` の行を改めた。#488 の文書はまだ `main` にないので、今の文書に合わせた。本文は `config.go` の解決（`resolveProvider`・`loadModel`・`loadModelOptional`・`loadReview`・`modelWithoutProvider`）と、サーバが設定の拒否で終了コード 2 を返すこと（`cmd/yt2column-server/run.go` の `exitUsage`）を根拠に書いた。`TestLLMDefaultsDocsContract` は、README の `YT2COLUMN_LLM_PROVIDER` の未設定の列を `deepseek` に戻すと失敗し、`defaultClaudeModel` の値を変えると両文書の 2 行で失敗する。最初のコードスパンの前に文を足しただけの変更では失敗しない（文の意味は PR レビューで読む）。`make test`・`make lint`・`make ext-test` が通る。
+- PR-2 の作成の前に、0041 の実装（#498、コミット `7abc0e1`）が `origin/main` にあることを確かめた。マージの前にも `/runpr` で確かめる。
