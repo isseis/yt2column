@@ -56,13 +56,14 @@ func newChildSetup(t *testing.T, ytDlpPath string, seed bool) *childSetup {
 		seedCache(t, c.cacheDir, runVideoID, validSubtitles, infoFor(runVideoID))
 	}
 	c.env = map[string]string{
-		"YT2COLUMN_MODEL":      "fake-model",
-		"DEEPSEEK_API_KEY":     testAPIKey,
-		"SLACK_WEBHOOK_URL":    testWebhook,
-		"YT2COLUMN_CACHE_DIR":  c.cacheDir,
-		"YT2COLUMN_YTDLP_PATH": ytDlpPath,
-		childReadyEnv:          c.ready,
-		childCtxDoneEnv:        c.ctxDone,
+		"YT2COLUMN_LLM_PROVIDER": "deepseek",
+		"YT2COLUMN_MODEL":        "fake-model",
+		"DEEPSEEK_API_KEY":       testAPIKey,
+		"SLACK_WEBHOOK_URL":      testWebhook,
+		"YT2COLUMN_CACHE_DIR":    c.cacheDir,
+		"YT2COLUMN_YTDLP_PATH":   ytDlpPath,
+		childReadyEnv:            c.ready,
+		childCtxDoneEnv:          c.ctxDone,
 	}
 	return c
 }

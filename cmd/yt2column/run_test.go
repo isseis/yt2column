@@ -137,11 +137,12 @@ func newRunEnv(t *testing.T) *runEnv {
 	tripwire, marker := transcripttestutil.NewTripwire(t, binDir)
 	e.tripwireMarker = marker
 	e.env = map[string]string{
-		"YT2COLUMN_MODEL":      "fake-model",
-		"DEEPSEEK_API_KEY":     testAPIKey,
-		"SLACK_WEBHOOK_URL":    testWebhook,
-		"YT2COLUMN_CACHE_DIR":  e.cacheDir,
-		"YT2COLUMN_YTDLP_PATH": tripwire,
+		"YT2COLUMN_LLM_PROVIDER": "deepseek",
+		"YT2COLUMN_MODEL":        "fake-model",
+		"DEEPSEEK_API_KEY":       testAPIKey,
+		"SLACK_WEBHOOK_URL":      testWebhook,
+		"YT2COLUMN_CACHE_DIR":    e.cacheDir,
+		"YT2COLUMN_YTDLP_PATH":   tripwire,
 	}
 	e.client = funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
 		return validResponse(), nil

@@ -68,8 +68,8 @@
 
 **変更ファイル:** `cmd/yt2column/run_test.go`・`signal_test.go`・`integration_test.go`、`cmd/yt2column-server/test_helpers.go`。
 
-- [ ] §1.3 の 4 つの環境に `YT2COLUMN_LLM_PROVIDER=deepseek` を加える。Slack の統合テストにも同じ環境が渡ることを確認する。
-- [ ] 設計書 §7.2 に従い、既存の 2 か所の既定を一時的に Claude に変えてテストを実行し、失敗する部分テストが設計書 §1.4 の 4 件に含まれるか確認する。漏れは同じフェーズで直し、一時的な変更は戻す。結果をコミットメッセージに記録する。この切り替えはプロバイダの既定だけを模すので、モデルの既定やモデルだけの設定の拒否で初めて壊れるテストは見つからない。`assertVarError` は最初の `*VarError` だけを調べるため、`review only requires a model`・`review only rejects an empty inherited model` は切り替えだけでは失敗しないことがある。残りは 3-1 の確認で洗い出す。
+- [x] §1.3 の 4 つの環境に `YT2COLUMN_LLM_PROVIDER=deepseek` を加える。Slack の統合テストにも同じ環境が渡ることを確認する。
+- [x] 設計書 §7.2 に従い、既存の 2 か所の既定を一時的に Claude に変えてテストを実行し、失敗する部分テストが設計書 §1.4 の 4 件に含まれるか確認する。漏れは同じフェーズで直し、一時的な変更は戻す。結果をコミットメッセージに記録する。この切り替えはプロバイダの既定だけを模すので、モデルの既定やモデルだけの設定の拒否で初めて壊れるテストは見つからない。`assertVarError` は最初の `*VarError` だけを調べるため、`review only requires a model`・`review only rejects an empty inherited model` は切り替えだけでは失敗しないことがある。残りは 3-1 の確認で洗い出す。
 
 **完了条件:** 一時的な変更を戻した状態で `make test`・`make lint` が通り、本番の既定はまだ変わっていない。
 
@@ -77,10 +77,10 @@
 
 **変更ファイル:** `cmd/yt2column/integration_test.go`・`test_helpers_integration.go`、`cmd/yt2column/integration_env_test.go`（新設）。
 
-- [ ] `newIntegrationRun` と、それだけが使う `integrationRun`・`videoCacheEntries`・`integrationVideoID`・`integrationTestdata` を、`integration_test.go` から `test || integration` の `test_helpers_integration.go` へ移す。統合テストだけが使う残り（`checkRun`・`integrationVideoURL` など）は移さない。移したものを両方のビルドが使うことを `make lint`（`test,integration` タグ）と CI の `go vet -tags integration ./...` で確かめる。
-- [ ] `integration_env_test.go`（`//go:build test`）に `TestIntegrationRunProviderSelection` を新設する。偽のテストキーとモデルで `newIntegrationRun` を呼び、共通の環境に生成のプロバイダが明示されていることを確認してから、変数を読んだ記録を残す `LookupFunc` 越しに設定ローダーに渡す。生成と検証・推敲の両段階が DeepSeek と指定モデルを選び、Anthropic の変数を読まないことを検査する。LLM のクライアントは作らず、Webhook の投稿もしない。このテストは `make test`・CI の `test` ジョブ・`doc-guard` ジョブで走る。
-- [ ] CLI と Slack の統合テストが同じ `newIntegrationRun` の環境を使い、関数の外で LLM の変数を組み立て直していないことをコードを読んで確認する。
-- [ ] `newIntegrationRun` の明示したプロバイダを外して、このテストの環境の検査が失敗することを確認する。一時的な変更を戻し、結果を記録する。
+- [x] `newIntegrationRun` と、それだけが使う `integrationRun`・`videoCacheEntries`・`integrationVideoID`・`integrationTestdata` を、`integration_test.go` から `test || integration` の `test_helpers_integration.go` へ移す。統合テストだけが使う残り（`checkRun`・`integrationVideoURL` など）は移さない。移したものを両方のビルドが使うことを `make lint`（`test,integration` タグ）と CI の `go vet -tags integration ./...` で確かめる。
+- [x] `integration_env_test.go`（`//go:build test`）に `TestIntegrationRunProviderSelection` を新設する。偽のテストキーとモデルで `newIntegrationRun` を呼び、共通の環境に生成のプロバイダが明示されていることを確認してから、変数を読んだ記録を残す `LookupFunc` 越しに設定ローダーに渡す。生成と検証・推敲の両段階が DeepSeek と指定モデルを選び、Anthropic の変数を読まないことを検査する。LLM のクライアントは作らず、Webhook の投稿もしない。このテストは `make test`・CI の `test` ジョブ・`doc-guard` ジョブで走る。
+- [x] CLI と Slack の統合テストが同じ `newIntegrationRun` の環境を使い、関数の外で LLM の変数を組み立て直していないことをコードを読んで確認する。
+- [x] `newIntegrationRun` の明示したプロバイダを外して、このテストの環境の検査が失敗することを確認する。一時的な変更を戻し、結果を記録する。
 
 **完了条件:** `make test` で `TestIntegrationRunProviderSelection` が走って通り、`make lint` と `go vet -tags integration ./...` が通る。実 API を呼ぶ 2 つの統合テストは実行していない。
 
@@ -292,3 +292,10 @@ AC-01〜AC-29 が §8 の対応で確認され、必要なテスト・lint・文
 ## 9. 次のステップ (Next Steps)
 
 本計画の PR をレビューし、`/runpr` で承認・マージする。その後、承認済みの本計画に対して `/runplan 0042` を実行し、PR-1 を作る。PR-1 は #171 を待たない。PR-2 の作成の前に、#171 の実装のマージを確認する。各 PR の検証結果と進捗は実装時に本書へ記録する。
+
+### 9.1. 実装の記録
+
+**PR-1（2026-10-25）:**
+
+- 1-1: `parseProvider` と `loadProviderOptional` の既定を一時的に `claude` に変えた `make test` では、`TestLoadDefaults` と `TestLoadMissing/provider_unset_and_API_key_unset` が失敗した（`TestLoadMissing` の部分テストは 1 件）。どちらも設計書 §1.4 の 4 件に含まれる。`TestLoadFor` の `review only requires a model`・`review only rejects an empty inherited model` は、`assertVarError` が最初の `*VarError` だけを調べるため失敗しなかった。設計書 §7.2 のとおり、この 2 件は 3-1 の確認で洗い出す。一時的な変更は戻し、`make test`・`make lint` が通ることを確かめた。
+- 1-2: `newIntegrationRun` から `YT2COLUMN_LLM_PROVIDER=deepseek` を外すと、`TestIntegrationRunProviderSelection` が「共通の環境にプロバイダの明示がない」の理由で失敗した。戻した状態で `make test`・`make lint`・`go vet -tags integration ./...` が通る。CLI と Slack の統合テストは同じ `newIntegrationRun` の環境を使い、関数の外で LLM の変数を組み立て直していないことを読んで確認した（Slack のテストが足すのは `SLACK_WEBHOOK_URL` だけである）。実 API を呼ぶ 2 つの統合テストは実行していない。

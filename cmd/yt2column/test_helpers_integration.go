@@ -4,6 +4,9 @@ package main
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -12,6 +15,16 @@ import (
 	deepseektestutil "github.com/isseis/yt2column/internal/llm/deepseek/testutil"
 	"github.com/isseis/yt2column/internal/nilcheck"
 	publishertestutil "github.com/isseis/yt2column/internal/publisher/testutil"
+	"github.com/isseis/yt2column/internal/transcript"
+	transcripttestutil "github.com/isseis/yt2column/internal/transcript/testutil"
+)
+
+const (
+	integrationVideoID = "2tcCWM-sRBw"
+
+	// integrationTestdata is the repository's testdata directory, which holds
+	// the video's subtitles and info.json.
+	integrationTestdata = "../../testdata"
 )
 
 // noStepsArgs disables both post-generation steps. A test that does not
@@ -92,6 +105,101 @@ func lookupFrom(env map[string]string) config.LookupFunc {
 		value, ok := env[name]
 		return value, ok
 	}
+}
+
+// integrationRun is one CLI run assembled for an integration test: a seeded
+// transcript cache, a yt-dlp tripwire, the environment run sees, and
+// productionDeps() with the Generate calls counted.
+type integrationRun struct {
+	base           string
+	cacheDir       string
+	tripwireMarker string
+	apiKey         string
+	env            map[string]string
+	deps           deps
+	counter        *generateCounter
+}
+
+// newIntegrationRun seeds the cache with the video's testdata, installs the
+// tripwire, and builds the environment and the deps. The environment is built
+// here and the process environment is not changed; the test API key is given
+// to run as DEEPSEEK_API_KEY. A caller adds the variables its run needs.
+func newIntegrationRun(t *testing.T, settings deepseektestutil.IntegrationSettings) integrationRun {
+	t.Helper()
+	key, err := settings.APIKey.Reveal()
+	if err != nil {
+		t.Fatal("the test API key cannot be revealed")
+	}
+
+	base := t.TempDir()
+	cacheDir := filepath.Join(base, "cache")
+	if err := os.Mkdir(cacheDir, 0o700); err != nil {
+		t.Fatalf("create cache dir: %v", err)
+	}
+	subtitles, err := os.ReadFile(filepath.Join(integrationTestdata, integrationVideoID+".ja.json3"))
+	if err != nil {
+		t.Fatalf("read subtitles: %v", err)
+	}
+	info, err := os.ReadFile(filepath.Join(integrationTestdata, integrationVideoID+".info.json"))
+	if err != nil {
+		t.Fatalf("read info.json: %v", err)
+	}
+	if err := transcript.SeedCacheForTest(cacheDir, integrationVideoID, subtitles, info); err != nil {
+		t.Fatalf("SeedCacheForTest: %v", err)
+	}
+	if len(videoCacheEntries(t, cacheDir)) == 0 {
+		t.Fatal("the seeded cache has no entry for the video, so its removal cannot be checked")
+	}
+	binDir := filepath.Join(base, "bin")
+	if err := os.Mkdir(binDir, 0o700); err != nil {
+		t.Fatalf("create bin dir: %v", err)
+	}
+	tripwire, tripwireMarker := transcripttestutil.NewTripwire(t, binDir)
+
+	env := map[string]string{
+		"YT2COLUMN_LLM_PROVIDER": "deepseek",
+		"YT2COLUMN_MODEL":        settings.Model,
+		"DEEPSEEK_API_KEY":       key,
+		"YT2COLUMN_CACHE_DIR":    cacheDir,
+		"YT2COLUMN_YTDLP_PATH":   tripwire,
+	}
+	// The real client is wrapped from the outside only, so the assembly stays
+	// productionDeps() and the Generate calls can be counted.
+	counter := &generateCounter{}
+	d := productionDeps()
+	newLLMClient := d.newLLMClient
+	d.newLLMClient = func(cfg config.LLMConfig) (llm.LLMClient, error) {
+		client, err := newLLMClient(cfg)
+		return counter.wrap(client), err
+	}
+	// The review client is counted too, so the Generate count proves the steps
+	// did not run: with them disabled only the generation client is built.
+	newReviewLLMClient := d.newReviewLLMClient
+	d.newReviewLLMClient = func(cfg config.LLMConfig) (llm.LLMClient, error) {
+		client, err := newReviewLLMClient(cfg)
+		return counter.wrap(client), err
+	}
+	return integrationRun{
+		base:           base,
+		cacheDir:       cacheDir,
+		tripwireMarker: tripwireMarker,
+		apiKey:         key,
+		env:            env,
+		deps:           d,
+		counter:        counter,
+	}
+}
+
+// videoCacheEntries returns the cache directory's entries for the video.
+func videoCacheEntries(t *testing.T, cacheDir string) []string {
+	t.Helper()
+	var entries []string
+	for _, name := range transcripttestutil.ListDir(t, cacheDir) {
+		if strings.HasPrefix(name, integrationVideoID+".") {
+			entries = append(entries, name)
+		}
+	}
+	return entries
 }
 
 // generateCounter counts the Generate calls of every client it wraps.

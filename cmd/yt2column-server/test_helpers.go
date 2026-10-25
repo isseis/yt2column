@@ -121,10 +121,11 @@ type serverEnv struct {
 func newServerEnv(t *testing.T) *serverEnv {
 	t.Helper()
 	return &serverEnv{vars: map[string]string{
-		"YT2COLUMN_MODEL":   testModel,
-		"DEEPSEEK_API_KEY":  testAPIKey,
-		"SLACK_WEBHOOK_URL": testWebhook,
-		"HOME":              udstest.Dir(t),
+		"YT2COLUMN_LLM_PROVIDER": "deepseek",
+		"YT2COLUMN_MODEL":        testModel,
+		"DEEPSEEK_API_KEY":       testAPIKey,
+		"SLACK_WEBHOOK_URL":      testWebhook,
+		"HOME":                   udstest.Dir(t),
 	}}
 }
 
