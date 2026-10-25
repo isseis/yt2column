@@ -120,11 +120,14 @@ type serverEnv struct {
 // limit and no two tests share it.
 func newServerEnv(t *testing.T) *serverEnv {
 	t.Helper()
+	// The provider is explicit so the tests keep selecting DeepSeek after the
+	// default provider changes.
 	return &serverEnv{vars: map[string]string{
-		"YT2COLUMN_MODEL":   testModel,
-		"DEEPSEEK_API_KEY":  testAPIKey,
-		"SLACK_WEBHOOK_URL": testWebhook,
-		"HOME":              udstest.Dir(t),
+		"YT2COLUMN_LLM_PROVIDER": "deepseek",
+		"YT2COLUMN_MODEL":        testModel,
+		"DEEPSEEK_API_KEY":       testAPIKey,
+		"SLACK_WEBHOOK_URL":      testWebhook,
+		"HOME":                   udstest.Dir(t),
 	}}
 }
 
