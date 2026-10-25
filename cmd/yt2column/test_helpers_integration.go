@@ -107,7 +107,7 @@ func lookupFrom(env map[string]string) config.LookupFunc {
 	}
 }
 
-// integrationRun is one CLI run assembled for an integration test: a seeded
+// integrationRun is one CLI run assembled for a test of the CLI: a seeded
 // transcript cache, a yt-dlp tripwire, the environment run sees, and
 // productionDeps() with the Generate calls counted.
 type integrationRun struct {
@@ -121,9 +121,12 @@ type integrationRun struct {
 }
 
 // newIntegrationRun seeds the cache with the video's testdata, installs the
-// tripwire, and builds the environment and the deps. The environment is built
-// here and the process environment is not changed; the test API key is given
-// to run as DEEPSEEK_API_KEY. A caller adds the variables its run needs.
+// tripwire, and builds the environment and the deps for an integration test or
+// the provider-selection test. The environment is built here and the process
+// environment is not changed; the test API key is given to run as
+// DEEPSEEK_API_KEY. The environment names YT2COLUMN_LLM_PROVIDER explicitly,
+// so the integration tests keep calling DeepSeek after the default provider
+// changes. A caller adds the variables its run needs.
 func newIntegrationRun(t *testing.T, settings deepseektestutil.IntegrationSettings) integrationRun {
 	t.Helper()
 	key, err := settings.APIKey.Reveal()

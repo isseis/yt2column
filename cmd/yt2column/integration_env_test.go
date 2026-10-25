@@ -15,8 +15,9 @@ const (
 	// integrationEnvTestKey is a fake DeepSeek key: this test never calls the
 	// API, it only reads the environment through the config loader.
 	integrationEnvTestKey = "sk-integration-env-test-0123456789"
-	// integrationEnvTestModel is a model name no other test environment uses,
-	// so a value inherited from the process environment cannot stand in for it.
+	// integrationEnvTestModel is the model name the test passes to
+	// newIntegrationRun, so the loaded model proves the argument reached the
+	// environment.
 	integrationEnvTestModel = "deepseek-integration-env-test"
 )
 
@@ -33,12 +34,12 @@ func TestIntegrationRunProviderSelection(t *testing.T) {
 	}
 	r := newIntegrationRun(t, deepseektestutil.IntegrationSettings{APIKey: key, Model: integrationEnvTestModel})
 
-	// The default provider is DeepSeek today, so the loader result alone cannot
-	// tell an explicit DeepSeek from the default. Check that the common
-	// environment names the provider, which is what keeps the integration tests
-	// on DeepSeek once the default becomes Claude.
-	if _, ok := r.env["YT2COLUMN_LLM_PROVIDER"]; !ok {
-		t.Fatal("the integration environment does not set YT2COLUMN_LLM_PROVIDER explicitly")
+	// A default may select the same provider, so the loaded value alone cannot
+	// prove that the common environment names the provider. Check the map
+	// directly: this is what keeps the integration tests on DeepSeek once the
+	// default becomes Claude.
+	if got, ok := r.env["YT2COLUMN_LLM_PROVIDER"]; !ok || got != "deepseek" {
+		t.Fatalf("YT2COLUMN_LLM_PROVIDER = %q (set: %t), want %q", got, ok, "deepseek")
 	}
 
 	env := lookupFrom(r.env)
@@ -63,6 +64,11 @@ func TestIntegrationRunProviderSelection(t *testing.T) {
 	}
 	if got := llmCfg.ReviewModel(); got != integrationEnvTestModel {
 		t.Errorf("review model = %q, want %q", got, integrationEnvTestModel)
+	}
+	// The positive check keeps the negative one below meaningful: a run that
+	// read no provider variable at all would pass it.
+	if !slices.Contains(read, "DEEPSEEK_API_KEY") {
+		t.Error("the environment read no DEEPSEEK_API_KEY, so it read no provider variable at all")
 	}
 	for _, name := range []string{"ANTHROPIC_API_KEY", "YT2COLUMN_CLAUDE_EFFORT", "ANTHROPIC_WORKSPACE_ID"} {
 		if slices.Contains(read, name) {
