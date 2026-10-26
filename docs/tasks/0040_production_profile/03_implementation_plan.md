@@ -212,8 +212,8 @@
 
 **変更するファイル:** `docs/translation_glossary.md`
 
--   [ ] 設計書 3.9 の 6 行を加え、「段階」の行（`docs/translation_glossary.md:39`）の備考に、`ArticleWriter` の中の生成・字数の調整・検証・推敲を指す用法を加える。
--   [ ] README・`CLAUDE.md` に書いた英語の言い方（primary path・development path・production profile・recommended configuration）が、加えた行の英訳と一致することを読んで確かめる。
+-   [x] 設計書 3.9 の 6 行を加え、「段階」の行（`docs/translation_glossary.md:39`）の備考に、`ArticleWriter` の中の生成・字数の調整・検証・推敲を指す用法を加える。
+-   [x] README・`CLAUDE.md` に書いた英語の言い方（primary path・development path・production profile・recommended configuration）が、加えた行の英訳と一致することを読んで確かめる。
 
 **完了の条件:** 用語集の変更だけを 1 つのコミットにする（`.claude/commands/mktrans.md` の手順。設計書 3.9）。
 
