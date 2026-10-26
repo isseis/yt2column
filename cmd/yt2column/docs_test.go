@@ -128,8 +128,8 @@ func sectionOutsideBlocks(doc, heading string) string {
 var numberedItemRE = regexp.MustCompile(`^\d+\.\s`)
 
 // numberedItems returns the top-level numbered list items of section. An item
-// starts at a line that begins with a number and a period at column 0, and
-// continues to the next item or the next blank line.
+// starts at a line outside a code block that begins with a number and a period
+// at column 0, and continues to the next item or the next blank line.
 func numberedItems(section string) []string {
 	var items, current []string
 	flush := func() {
@@ -138,16 +138,19 @@ func numberedItems(section string) []string {
 			current = nil
 		}
 	}
-	for line := range strings.Lines(section) {
-		line = strings.TrimSuffix(line, "\n")
+	for _, line := range scanDocLines(slices.Collect(strings.Lines(section))) {
 		switch {
-		case numberedItemRE.MatchString(line):
+		case line.block:
+			if current != nil {
+				current = append(current, line.text)
+			}
+		case numberedItemRE.MatchString(line.text):
 			flush()
-			current = []string{line}
-		case strings.TrimSpace(line) == "":
+			current = []string{line.text}
+		case strings.TrimSpace(line.text) == "":
 			flush()
 		case current != nil:
-			current = append(current, line)
+			current = append(current, line.text)
 		}
 	}
 	flush()
@@ -940,10 +943,11 @@ func TestQuickStartLinks(t *testing.T) {
 	}
 }
 
-// TestReadmeAnchorsResolveLinks checks the anchor helper against the README's
-// in-page links outside Quick start. GitHub resolves them, so the helper must
-// produce each anchor they use.
-func TestReadmeAnchorsResolveLinks(t *testing.T) {
+// TestReadmeLinks checks the README's links: every relative link points at an
+// existing path, and every in-page link outside Quick start resolves to an
+// anchor the helper produces. GitHub resolves those, so they are the oracle
+// for the anchor rule.
+func TestReadmeLinks(t *testing.T) {
 	readme := readDoc(t, readmePath)
 	quickStart := sectionOutsideBlocks(readme, quickStartHeading)
 	rest := strings.Replace(readme, quickStartHeading+"\n"+quickStart, "", 1)
@@ -951,18 +955,30 @@ func TestReadmeAnchorsResolveLinks(t *testing.T) {
 		t.Fatal("could not cut the Quick start section out of README")
 	}
 	anchors := headingAnchors(t, "README.md", readme)
-	links := 0
-	for _, target := range markdownLinkTargets(rest) {
-		anchor, ok := strings.CutPrefix(target, "#")
-		if !ok {
+	for _, target := range markdownLinkTargets(readme) {
+		if anchor, ok := strings.CutPrefix(target, "#"); ok {
+			if !anchors[anchor] {
+				t.Errorf("README links to %q, which the anchor helper does not produce", target)
+			}
 			continue
 		}
-		links++
-		if !anchors[anchor] {
-			t.Errorf("README links to %q, which the anchor helper does not produce", target)
+		if strings.Contains(target, "://") || strings.HasPrefix(target, "mailto:") {
+			continue
+		}
+		path, _, _ := strings.Cut(target, "#")
+		if _, err := os.Stat(filepath.Join(filepath.Dir(readmePath), path)); err != nil {
+			t.Errorf("README links to %q, which does not exist", target)
 		}
 	}
-	if links == 0 {
+	// Quick start's own anchors are newer than the README, so they are not
+	// evidence of GitHub's rule; check that the rest of the document has links.
+	anchorsOutside := 0
+	for _, target := range markdownLinkTargets(rest) {
+		if _, ok := strings.CutPrefix(target, "#"); ok {
+			anchorsOutside++
+		}
+	}
+	if anchorsOutside == 0 {
 		t.Fatal("README has no in-page link outside Quick start to check the anchor helper against")
 	}
 }
@@ -977,10 +993,22 @@ func TestAnchorFromHeading(t *testing.T) {
 		{"### The `--out` file", "the---out-file"},
 		{"### The Slack post", "the-slack-post"},
 		{"### Using DeepSeek", "using-deepseek"},
+		{"## Step 2", "step-2"},
+		{"## prompt_v2 notes", "prompt_v2-notes"},
 	} {
 		if got := anchorFromHeading(tc.heading); got != tc.want {
 			t.Errorf("anchorFromHeading(%q) = %q, want %q", tc.heading, got, tc.want)
 		}
+	}
+}
+
+// TestNumberedItems checks the numbered-list extraction: an item ends at a
+// blank line or the next item, and an indented number is not a top-level item.
+func TestNumberedItems(t *testing.T) {
+	const section = "intro\n1. first\n   continued\n2. second\n\n   3. indented\n\n```text\n3. not an item\n```\n3. third\n"
+	want := []string{"1. first\n   continued", "2. second", "3. third"}
+	if got := numberedItems(section); !slices.Equal(got, want) {
+		t.Errorf("numberedItems = %q, want %q", got, want)
 	}
 }
 

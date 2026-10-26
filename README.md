@@ -36,7 +36,8 @@ the section that has the details.
 2. Set `ANTHROPIC_API_KEY` and `SLACK_WEBHOOK_URL` in the shell that starts the
    server. No other LLM variable is needed: the default is the production
    profile (see [Recommended configuration](#recommended-configuration)). Unset
-   `YT2COLUMN_*` variables left from an earlier setup; see
+   `YT2COLUMN_*` variables left from an earlier setup: a model variable without
+   its provider variable stops the server with a configuration error. See
    [Configuration](#configuration).
 3. Start the server with `./build/yt2column-server 2>>server.log`. It keeps
    running in the foreground (stop it with a signal), so run the next steps in
