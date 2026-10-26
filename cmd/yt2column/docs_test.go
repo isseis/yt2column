@@ -4,6 +4,7 @@ package main
 
 import (
 	"flag"
+	"maps"
 	"os"
 	"regexp"
 	"slices"
@@ -21,12 +22,17 @@ import (
 
 // Paths from cmd/yt2column to the documents these tests check.
 const (
-	readmePath           = "../../README.md"
-	projectOverviewPath  = "../../docs/dev/project_overview.md"
-	securityPath         = "../../docs/dev/security.md"
-	reviewEvaluationPath = "../../docs/tasks/0010_post_generation_review/02_evaluation.md"
-	pricingRatesPath     = "../../internal/pricing/rates.go"
+	readmePath            = "../../README.md"
+	projectOverviewPath   = "../../docs/dev/project_overview.md"
+	securityPath          = "../../docs/dev/security.md"
+	productionProfilePath = "../../docs/dev/production_profile.md"
+	reviewEvaluationPath  = "../../docs/tasks/0010_post_generation_review/02_evaluation.md"
+	pricingRatesPath      = "../../internal/pricing/rates.go"
 )
+
+// The heading of the shared document's production-profile section, which test
+// (a) reads.
+const productionProfileSection = "## 本番の構成"
 
 // TestREADMEDocumentsFlags checks that README.md documents every flag run
 // defines. The flag names come from newFlagSet, not from a list kept here, so a
@@ -123,7 +129,6 @@ func TestLLMDefaultsDocsContract(t *testing.T) {
 		{"YT2COLUMN_MODEL", config.DefaultClaudeModelForTest()},
 		{"YT2COLUMN_REVIEW_MODEL", config.DefaultClaudeModelForTest()},
 	}
-	codeSpan := regexp.MustCompile("`([^`]*)`")
 	for _, doc := range []struct {
 		name, path, nameHeader, unsetHeader string
 	}{
@@ -148,8 +153,8 @@ func TestLLMDefaultsDocsContract(t *testing.T) {
 					continue
 				}
 				cell := rows[0][column]
-				match := codeSpan.FindStringSubmatch(cell)
-				if match == nil || match[1] != v.value {
+				value, ok := firstCodeSpan(cell)
+				if !ok || value != v.value {
 					t.Errorf("%s: %s %q cell = %q, want its first code span to be %q", doc.name, v.name, doc.unsetHeader, cell, v.value)
 				}
 			}
@@ -402,6 +407,270 @@ func sectionByHeading(doc, heading string) string {
 		}
 	}
 	return b.String()
+}
+
+// TestScanDocLines checks the fence scan: a fence line and the lines it
+// encloses are in a block, a '#' line inside a block stays in it, and an
+// unclosed fence keeps the rest of the document in the block.
+func TestScanDocLines(t *testing.T) {
+	lines := []string{"intro\n", "```sh\n", "# not a heading\n", "export A=1\n", "```\n", "## Heading\n", "```text\n", "tail"}
+	want := []docLine{
+		{text: "intro", fence: false, block: false},
+		{text: "```sh", fence: true, block: true},
+		{text: "# not a heading", fence: false, block: true},
+		{text: "export A=1", fence: false, block: true},
+		{text: "```", fence: true, block: true},
+		{text: "## Heading", fence: false, block: false},
+		{text: "```text", fence: true, block: true},
+		{text: "tail", fence: false, block: true},
+	}
+	if got := scanDocLines(lines); !slices.Equal(got, want) {
+		t.Errorf("scanDocLines = %#v, want %#v", got, want)
+	}
+}
+
+// codeSpanRE matches one Markdown code span and captures its content. These
+// documents do not nest code spans.
+var codeSpanRE = regexp.MustCompile("`([^`]*)`")
+
+// firstCodeSpan returns the content of the first code span in cell.
+func firstCodeSpan(cell string) (string, bool) {
+	match := codeSpanRE.FindStringSubmatch(cell)
+	if match == nil {
+		return "", false
+	}
+	return match[1], true
+}
+
+// docLine is one line of a Markdown document as the code-fence scan classifies
+// it: the text without its newline, whether the line is a fence, and whether
+// the line is part of a fenced code block. An opening fence, the lines it
+// encloses, and its closing fence are all part of the block.
+type docLine struct {
+	text  string
+	fence bool
+	block bool
+}
+
+// scanDocLines classifies lines, starting outside a code block. Passing only
+// the lines after a heading therefore scans them from their first line: a
+// fence opened earlier in the document does not change the result.
+func scanDocLines(lines []string) []docLine {
+	scanned := make([]docLine, 0, len(lines))
+	inBlock := false
+	for _, line := range lines {
+		text := strings.TrimSuffix(line, "\n")
+		fence := strings.HasPrefix(strings.TrimSpace(text), "```")
+		if fence {
+			inBlock = !inBlock
+		}
+		scanned = append(scanned, docLine{text: text, fence: fence, block: fence || inBlock})
+	}
+	return scanned
+}
+
+// fencedBlock is one fenced code block: the info string after its opening
+// fence's backticks and its content lines, without the fence lines.
+type fencedBlock struct {
+	info  string
+	lines []string
+}
+
+// fencedBlocks returns every fenced code block in lines, in order. A block with
+// no closing fence runs to the end of lines.
+func fencedBlocks(lines []string) []fencedBlock {
+	var blocks []fencedBlock
+	var current *fencedBlock
+	for _, line := range scanDocLines(lines) {
+		switch {
+		case line.fence && current == nil:
+			current = &fencedBlock{info: strings.TrimPrefix(strings.TrimSpace(line.text), "```")}
+		case line.fence:
+			blocks = append(blocks, *current)
+			current = nil
+		case current != nil:
+			current.lines = append(current.lines, line.text)
+		}
+	}
+	if current != nil {
+		blocks = append(blocks, *current)
+	}
+	return blocks
+}
+
+// exportLineRE matches one line of a configuration block: "export", one space,
+// an uppercase variable name, "=", and a value of letters, digits, ".", "_",
+// and "-".
+var exportLineRE = regexp.MustCompile(`^export ([A-Z][A-Z0-9_]*)=([A-Za-z0-9._-]+)$`)
+
+// checkExportBlock checks that section holds exactly one sh code block and that
+// every line of it has the export-line shape, names one of want, and does not
+// repeat a variable. It returns the block's values. The failure messages name
+// the document, section, line, and variable, never a line's value: a secret
+// written into the block by mistake must not reach the log.
+func checkExportBlock(t *testing.T, docName, sectionName, section string, want []string) map[string]string {
+	t.Helper()
+	var shBlocks []fencedBlock
+	for _, block := range fencedBlocks(slices.Collect(strings.Lines(section))) {
+		if block.info == "sh" {
+			shBlocks = append(shBlocks, block)
+		}
+	}
+	if len(shBlocks) != 1 {
+		t.Fatalf("%s %s: %d sh code blocks, want exactly one", docName, sectionName, len(shBlocks))
+	}
+	values := make(map[string]string, len(want))
+	for i, line := range shBlocks[0].lines {
+		match := exportLineRE.FindStringSubmatch(line)
+		if match == nil {
+			t.Errorf("%s %s: block line %d is not an export line of the form export <NAME>=<value>", docName, sectionName, i+1)
+			continue
+		}
+		name, value := match[1], match[2]
+		if _, repeated := values[name]; repeated {
+			t.Errorf("%s %s: block line %d repeats the variable %s", docName, sectionName, i+1, name)
+			continue
+		}
+		values[name] = value
+	}
+	for _, name := range want {
+		if _, ok := values[name]; !ok {
+			t.Errorf("%s %s: the block does not set the variable %s", docName, sectionName, name)
+		}
+	}
+	for _, name := range slices.Sorted(maps.Keys(values)) {
+		if !slices.Contains(want, name) {
+			t.Errorf("%s %s: the block sets the unexpected variable %s", docName, sectionName, name)
+		}
+	}
+	return values
+}
+
+// docsProfileEnv is the closed environment test (a) loads the server
+// configuration from: a dummy API key, a dummy Webhook URL under the reserved
+// .invalid domain, and a short fixed HOME, because the socket path derived from
+// it must fit the operating system's limit. No key of the process environment
+// reaches LoadServer through it.
+func docsProfileEnv() map[string]string {
+	return map[string]string{
+		config.AnthropicAPIKeyEnvForTest(): "docs-test-api-key",
+		config.SlackWebhookEnvForTest():    "https://example.invalid/webhook",
+		"HOME":                             "/tmp/yt2column-docs-test",
+	}
+}
+
+// checkExportBlockMatchesDefaults loads the server configuration without the
+// block's variables and with them, and fails unless both load and their
+// generation and review provider, model, and effort are equal. It returns the
+// configuration loaded without the block, which is the code's default profile.
+func checkExportBlockMatchesDefaults(t *testing.T, docName, sectionName string, block map[string]string) config.LLMConfig {
+	t.Helper()
+	without, err := config.LoadServer(lookupFrom(docsProfileEnv()))
+	if err != nil {
+		t.Fatalf("%s %s: LoadServer on the default variables: %v", docName, sectionName, err)
+	}
+	env := docsProfileEnv()
+	maps.Copy(env, block)
+	loaded, err := config.LoadServer(lookupFrom(env))
+	if err != nil {
+		t.Fatalf("%s %s: LoadServer rejected the block's variables: %v", docName, sectionName, err)
+	}
+	got, want := loaded.LLM(), without.LLM()
+	if got.Provider() != want.Provider() || got.Model() != want.Model() ||
+		got.ReviewProvider() != want.ReviewProvider() || got.ReviewModel() != want.ReviewModel() ||
+		got.ClaudeEffort() != want.ClaudeEffort() {
+		t.Errorf("%s %s: the block's profile differs from the code's default profile "+
+			"(provider %v/%v, model %q/%q, review provider %v/%v, review model %q/%q, effort %v/%v)",
+			docName, sectionName, got.Provider(), want.Provider(), got.Model(), want.Model(),
+			got.ReviewProvider(), want.ReviewProvider(), got.ReviewModel(), want.ReviewModel(),
+			got.ClaudeEffort(), want.ClaudeEffort())
+	}
+	return without.LLM()
+}
+
+// profileStages are the rows the shared document's profile table must hold,
+// in the order the article is written.
+var profileStages = []string{"生成", "字数の調整", "検証・推敲"}
+
+// checkProfileTable checks the shared document's profile table: each stage has
+// exactly one row, and the first code span of its provider, model, and effort
+// cells, loaded through LoadServer, gives the default profile's values for that
+// stage. The shortening stage calls the generation client, so its row is
+// compared with the generation values.
+func checkProfileTable(t *testing.T, section string, defaults config.LLMConfig) {
+	t.Helper()
+	table := findTable(section, "段階")
+	if table == nil {
+		t.Fatal("production_profile.md: the profile section has no table with a 段階 column")
+	}
+	names := []string{"プロバイダ", "モデル", "effort"}
+	columns := make([]int, len(names))
+	for i, name := range names {
+		if columns[i] = slices.Index(table[0], name); columns[i] < 0 {
+			t.Fatalf("production_profile.md: the profile table has no %s column", name)
+		}
+	}
+	vars := []string{
+		config.LLMProviderEnvForTest(),
+		config.ModelEnvForTest(),
+		config.ClaudeEffortEnvForTest(),
+	}
+	for _, stage := range profileStages {
+		rows := tableRowsWithFirstCell(table, stage)
+		if len(rows) != 1 {
+			t.Errorf("production_profile.md: the profile table has %d rows for %q, want exactly one", len(rows), stage)
+			continue
+		}
+		env := docsProfileEnv()
+		complete := true
+		for i, name := range names {
+			value, ok := firstCodeSpan(rows[0][columns[i]])
+			if !ok {
+				t.Errorf("production_profile.md: the %q row's %s cell has no code span", stage, name)
+				complete = false
+				continue
+			}
+			env[vars[i]] = value
+		}
+		if !complete {
+			continue
+		}
+		cfg, err := config.LoadServer(lookupFrom(env))
+		if err != nil {
+			t.Errorf("production_profile.md: LoadServer rejects the %q row's values: %v", stage, err)
+			continue
+		}
+		got := cfg.LLM()
+		wantProvider, wantModel := defaults.Provider(), defaults.Model()
+		if stage == "検証・推敲" {
+			wantProvider, wantModel = defaults.ReviewProvider(), defaults.ReviewModel()
+		}
+		if got.Provider() != wantProvider || got.Model() != wantModel || got.ClaudeEffort() != defaults.ClaudeEffort() {
+			t.Errorf("production_profile.md: the %q row gives provider %v, model %q, effort %v; the default profile gives %v, %q, %v",
+				stage, got.Provider(), got.Model(), got.ClaudeEffort(),
+				wantProvider, wantModel, defaults.ClaudeEffort())
+		}
+	}
+}
+
+// TestProductionProfileDocsContract checks the shared production-profile
+// document's profile section: its configuration block holds exactly the three
+// variables of the production profile and loads to the code's default profile,
+// and its table names the same profile for each stage.
+func TestProductionProfileDocsContract(t *testing.T) {
+	doc := readDoc(t, productionProfilePath)
+	section := sectionByHeading(doc, productionProfileSection)
+	if section == "" {
+		t.Fatalf("production_profile.md has no %q section", productionProfileSection)
+	}
+	want := []string{
+		config.LLMProviderEnvForTest(),
+		config.ModelEnvForTest(),
+		config.ClaudeEffortEnvForTest(),
+	}
+	values := checkExportBlock(t, "production_profile.md", productionProfileSection, section, want)
+	defaults := checkExportBlockMatchesDefaults(t, "production_profile.md", productionProfileSection, values)
+	checkProfileTable(t, section, defaults)
 }
 
 // containsToken reports whether word appears in doc bounded by characters that

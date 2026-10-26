@@ -56,6 +56,21 @@ func DefaultProviderValueForTest() string { return defaultProviderValue }
 // variable is unset.
 func DefaultClaudeModelForTest() string { return defaultClaudeModel }
 
+// The LLM variable names, exposed so the documentation guard in cmd/yt2column
+// derives them from the code instead of copying them.
+
+// LLMProviderEnvForTest returns the name of the generation provider variable.
+func LLMProviderEnvForTest() string { return providerEnv }
+
+// ModelEnvForTest returns the name of the generation model variable.
+func ModelEnvForTest() string { return modelEnv }
+
+// ClaudeEffortEnvForTest returns the name of the Claude effort variable.
+func ClaudeEffortEnvForTest() string { return claudeEffortEnv }
+
+// AnthropicAPIKeyEnvForTest returns the name of the Anthropic API key variable.
+func AnthropicAPIKeyEnvForTest() string { return anthropicAPIKeyEnv }
+
 // ModelWithoutProviderErrorForTest returns the text of the rejection of a model
 // variable set without a provider variable, as a configuration error prints
 // it.

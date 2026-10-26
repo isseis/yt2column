@@ -6,6 +6,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -54,27 +55,34 @@ func outputLayoutArticle() writer.Article {
 }
 
 // firstCodeBlockAfter returns the content of the first fenced code block after
-// the line that equals heading, and whether there is one before the next heading. It does not use
-// sectionByHeading, because a '#' line inside the block would end that section.
+// the line that equals heading, and whether there is one before the next heading.
+// The heading is found by comparing lines, and only the lines after it are
+// scanned for fences, so a fence opened earlier in the document cannot change
+// the result.
 func firstCodeBlockAfter(doc, heading string) (string, bool) {
-	var b strings.Builder
-	seenHeading, inBlock := false, false
-	for line := range strings.Lines(doc) {
-		trimmed := strings.TrimRight(line, "\n")
-		switch {
-		case inBlock && strings.HasPrefix(trimmed, "```"):
-			return b.String(), true
-		case inBlock:
-			b.WriteString(line)
-		case seenHeading && strings.HasPrefix(trimmed, "```"):
-			inBlock = true
-		case seenHeading && headingLevel(line) > 0:
-			// The next heading ends the search, so a deleted example does not
-			// pick up a later block.
-			return "", false
-		case strings.TrimSpace(trimmed) == heading:
-			seenHeading = true
+	lines := slices.Collect(strings.Lines(doc))
+	for i, line := range lines {
+		if strings.TrimSpace(line) != heading {
+			continue
 		}
+		var b strings.Builder
+		opened := false
+		for _, scanned := range scanDocLines(lines[i+1:]) {
+			switch {
+			case scanned.fence && opened:
+				return b.String(), true
+			case scanned.fence:
+				opened = true
+			case !scanned.block && headingLevel(scanned.text) > 0:
+				// The next heading ends the search, so a deleted example does
+				// not pick up a later block.
+				return "", false
+			case opened:
+				b.WriteString(scanned.text)
+				b.WriteString("\n")
+			}
+		}
+		return "", false
 	}
 	return "", false
 }
