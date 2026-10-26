@@ -429,6 +429,23 @@ func TestScanDocLines(t *testing.T) {
 	}
 }
 
+// TestFencedBlocks checks the block extraction: a closing fence ends a block,
+// an indented fence is a fence, blocks come back in order with their info
+// string, and a block left unclosed at the end is reported as not closed.
+func TestFencedBlocks(t *testing.T) {
+	doc := "intro\n```sh\nexport A=1\n```\ntext\n  ```text\nx\n  ```\n```json\n{}\n"
+	want := []fencedBlock{
+		{info: "sh", lines: []string{"export A=1"}, closed: true},
+		{info: "text", lines: []string{"x"}, closed: true},
+		{info: "json", lines: []string{"{}"}, closed: false},
+	}
+	if got := fencedBlocks(slices.Collect(strings.Lines(doc))); !slices.EqualFunc(got, want, func(a, b fencedBlock) bool {
+		return a.info == b.info && a.closed == b.closed && slices.Equal(a.lines, b.lines)
+	}) {
+		t.Errorf("fencedBlocks = %#v, want %#v", got, want)
+	}
+}
+
 // codeSpanRE matches one Markdown code span and captures its content. These
 // documents do not nest code spans.
 var codeSpanRE = regexp.MustCompile("`([^`]*)`")
@@ -470,14 +487,16 @@ func scanDocLines(lines []string) []docLine {
 }
 
 // fencedBlock is one fenced code block: the info string after its opening
-// fence's backticks and its content lines, without the fence lines.
+// fence's backticks, its content lines without the fence lines, and whether a
+// closing fence was found.
 type fencedBlock struct {
-	info  string
-	lines []string
+	info   string
+	lines  []string
+	closed bool
 }
 
 // fencedBlocks returns every fenced code block in lines, in order. A block with
-// no closing fence runs to the end of lines.
+// no closing fence runs to the end of lines and is returned with closed false.
 func fencedBlocks(lines []string) []fencedBlock {
 	var blocks []fencedBlock
 	var current *fencedBlock
@@ -486,6 +505,7 @@ func fencedBlocks(lines []string) []fencedBlock {
 		case line.fence && current == nil:
 			current = &fencedBlock{info: strings.TrimPrefix(strings.TrimSpace(line.text), "```")}
 		case line.fence:
+			current.closed = true
 			blocks = append(blocks, *current)
 			current = nil
 		case current != nil:
@@ -519,6 +539,9 @@ func checkExportBlock(t *testing.T, docName, sectionName, section string, want [
 	if len(shBlocks) != 1 {
 		t.Fatalf("%s %s: %d sh code blocks, want exactly one", docName, sectionName, len(shBlocks))
 	}
+	if !shBlocks[0].closed {
+		t.Fatalf("%s %s: the sh code block has no closing fence inside the section", docName, sectionName)
+	}
 	values := make(map[string]string, len(want))
 	for i, line := range shBlocks[0].lines {
 		match := exportLineRE.FindStringSubmatch(line)
@@ -543,7 +566,13 @@ func checkExportBlock(t *testing.T, docName, sectionName, section string, want [
 			t.Errorf("%s %s: the block sets the unexpected variable %s", docName, sectionName, name)
 		}
 	}
-	return values
+	accepted := make(map[string]string, len(want))
+	for _, name := range want {
+		if value, ok := values[name]; ok {
+			accepted[name] = value
+		}
+	}
+	return accepted
 }
 
 // docsProfileEnv is the closed environment test (a) loads the server
