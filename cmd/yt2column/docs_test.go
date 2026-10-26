@@ -44,12 +44,18 @@ const (
 // holds no nested bracket or closing parenthesis.
 var markdownLinkRE = regexp.MustCompile(`\[([^\]]*)\]\(([^)\s]+)\)`)
 
-// markdownLinkTargets returns the target of every inline Markdown link in text,
-// in order.
+// markdownLinkTargets returns the target of every inline Markdown link outside
+// a fenced code block in text, in order. A link-like string inside an example
+// is not a link.
 func markdownLinkTargets(text string) []string {
 	var targets []string
-	for _, match := range markdownLinkRE.FindAllStringSubmatch(text, -1) {
-		targets = append(targets, match[2])
+	for _, line := range scanDocLines(slices.Collect(strings.Lines(text))) {
+		if line.block {
+			continue
+		}
+		for _, match := range markdownLinkRE.FindAllStringSubmatch(line.text, -1) {
+			targets = append(targets, match[2])
+		}
 	}
 	return targets
 }
@@ -86,15 +92,15 @@ func headingsOutsideBlocks(doc string) []string {
 // headingAnchors returns the set of anchors the heading lines of doc outside
 // code blocks produce. It fails the test when two headings share an anchor:
 // the suffix GitHub adds to a repeated heading is not modelled.
-func headingAnchors(t *testing.T, docName, doc string) map[string]bool {
+func headingAnchors(t *testing.T, docName, doc string) map[string]struct{} {
 	t.Helper()
-	anchors := make(map[string]bool)
+	anchors := make(map[string]struct{})
 	for _, heading := range headingsOutsideBlocks(doc) {
 		anchor := anchorFromHeading(heading)
-		if anchors[anchor] {
+		if _, seen := anchors[anchor]; seen {
 			t.Errorf("%s has two headings with the anchor %q, which this helper does not model", docName, anchor)
 		}
-		anchors[anchor] = true
+		anchors[anchor] = struct{}{}
 	}
 	return anchors
 }
@@ -916,8 +922,10 @@ func TestQuickStartLinks(t *testing.T) {
 	for _, item := range items {
 		linked := false
 		for _, target := range markdownLinkTargets(item) {
-			if anchor, ok := strings.CutPrefix(target, "#"); ok && anchors[anchor] {
-				linked = true
+			if anchor, ok := strings.CutPrefix(target, "#"); ok {
+				if _, known := anchors[anchor]; known {
+					linked = true
+				}
 			}
 		}
 		if !linked {
@@ -925,20 +933,11 @@ func TestQuickStartLinks(t *testing.T) {
 			t.Errorf("README Quick start item %q has no link to a README heading", first)
 		}
 	}
+	// TestReadmeLinks checks that every link in the README, this section's
+	// included, resolves; only the step guidance's own rule is checked here.
 	for _, target := range markdownLinkTargets(section) {
-		if anchor, ok := strings.CutPrefix(target, "#"); ok {
-			if !anchors[anchor] {
-				t.Errorf("README Quick start links to %q, which no heading outside a code block produces", target)
-			}
-			continue
-		}
 		if strings.Contains(target, "://") {
 			t.Errorf("README Quick start links to the external URL %q; link to a README section instead", target)
-			continue
-		}
-		path, _, _ := strings.Cut(target, "#")
-		if _, err := os.Stat(filepath.Join(filepath.Dir(readmePath), path)); err != nil {
-			t.Errorf("README Quick start links to %q, which does not exist", target)
 		}
 	}
 }
@@ -955,9 +954,19 @@ func TestReadmeLinks(t *testing.T) {
 		t.Fatal("could not cut the Quick start section out of README")
 	}
 	anchors := headingAnchors(t, "README.md", readme)
-	for _, target := range markdownLinkTargets(readme) {
+	targets := markdownLinkTargets(readme)
+	openers := 0
+	for _, line := range scanDocLines(slices.Collect(strings.Lines(readme))) {
+		if !line.block {
+			openers += strings.Count(line.text, "](")
+		}
+	}
+	if len(targets) != openers {
+		t.Errorf("README has %d link openers outside code blocks but the extraction found %d targets; a link form it drops would go unchecked", openers, len(targets))
+	}
+	for _, target := range targets {
 		if anchor, ok := strings.CutPrefix(target, "#"); ok {
-			if !anchors[anchor] {
+			if _, known := anchors[anchor]; !known {
 				t.Errorf("README links to %q, which the anchor helper does not produce", target)
 			}
 			continue
@@ -971,20 +980,25 @@ func TestReadmeLinks(t *testing.T) {
 		}
 	}
 	// Quick start's own anchors are newer than the README, so they are not
-	// evidence of GitHub's rule; check that the rest of the document has links.
-	anchorsOutside := 0
-	for _, target := range markdownLinkTargets(rest) {
-		if _, ok := strings.CutPrefix(target, "#"); ok {
-			anchorsOutside++
+	// evidence of GitHub's rule. Require the links that were already there.
+	for _, anchor := range []string{"output-format", "setting-up-yt-dlp", "cache-and-concurrency"} {
+		found := false
+		for _, target := range markdownLinkTargets(rest) {
+			if target == "#"+anchor {
+				found = true
+			}
 		}
-	}
-	if anchorsOutside == 0 {
-		t.Fatal("README has no in-page link outside Quick start to check the anchor helper against")
+		if !found {
+			t.Errorf("README has no longer an in-page link to %q, so the anchor rule has lost an oracle it was checked against", anchor)
+		}
 	}
 }
 
-// TestAnchorFromHeading checks the anchor rule on headings with inline markup,
-// and on headings the README's own links resolve.
+// TestAnchorFromHeading pins the anchor rule: lowercase, markup punctuation
+// dropped, spaces turned into hyphens, digits and connector punctuation kept.
+// The rows for headings the README already has were checked against GitHub's
+// rendering of the README on 2026-10-26; the others pin the same rule for a
+// heading the README does not have yet.
 func TestAnchorFromHeading(t *testing.T) {
 	for _, tc := range []struct{ heading, want string }{
 		{"## Setting up yt-dlp", "setting-up-yt-dlp"},
@@ -1003,12 +1017,18 @@ func TestAnchorFromHeading(t *testing.T) {
 }
 
 // TestNumberedItems checks the numbered-list extraction: an item ends at a
-// blank line or the next item, and an indented number is not a top-level item.
+// blank line or the next item, a fenced block that belongs to an item stays in
+// it, and an indented number is not a top-level item.
 func TestNumberedItems(t *testing.T) {
 	const section = "intro\n1. first\n   continued\n2. second\n\n   3. indented\n\n```text\n3. not an item\n```\n3. third\n"
 	want := []string{"1. first\n   continued", "2. second", "3. third"}
 	if got := numberedItems(section); !slices.Equal(got, want) {
 		t.Errorf("numberedItems = %q, want %q", got, want)
+	}
+	const withBlock = "1. run this\n   ```sh\n   3. not an item\n\n   make test\n   ```\n2. next\n"
+	wantWithBlock := []string{"1. run this\n   ```sh\n   3. not an item\n\n   make test\n   ```", "2. next"}
+	if got := numberedItems(withBlock); !slices.Equal(got, wantWithBlock) {
+		t.Errorf("numberedItems with a block inside an item = %q, want %q", got, wantWithBlock)
 	}
 }
 
@@ -1016,15 +1036,18 @@ func TestNumberedItems(t *testing.T) {
 // '##' line inside a code block neither ends the section nor starts one.
 func TestSectionOutsideBlocks(t *testing.T) {
 	const doc = "# Top\ntop\n## Middle\nmiddle\n```text\n# not a heading\n## also not\n```\n### Deep\ndeep\n## Next\nnext\n"
-	want := "middle\n```text\n# not a heading\n## also not\n```\n### Deep\ndeep\n"
-	if got := sectionOutsideBlocks(doc, "## Middle"); got != want {
-		t.Errorf("sectionOutsideBlocks(doc, %q) = %q, want %q", "## Middle", got, want)
-	}
-	if got := sectionOutsideBlocks(doc, "## also not"); got != "" {
-		t.Errorf("sectionOutsideBlocks found a heading inside a code block: %q", got)
-	}
-	if got := sectionOutsideBlocks(doc, "## Absent"); got != "" {
-		t.Errorf("sectionOutsideBlocks(doc, missing heading) = %q, want the empty string", got)
+	for _, tc := range []struct {
+		name, heading, want string
+	}{
+		{"in-block headings do not end the section", "## Middle", "middle\n```text\n# not a heading\n## also not\n```\n### Deep\ndeep\n"},
+		{"an in-block heading is not a section start", "## also not", ""},
+		{"a missing heading yields the empty string", "## Absent", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := sectionOutsideBlocks(doc, tc.heading); got != tc.want {
+				t.Errorf("sectionOutsideBlocks(doc, %q) = %q, want %q", tc.heading, got, tc.want)
+			}
+		})
 	}
 }
 
