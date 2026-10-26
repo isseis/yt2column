@@ -225,9 +225,10 @@ The type-derived checklist below is applied when designing each boundary in `02_
 - **Actionable tasks**: Each checkbox should represent a concrete, completable action
 - **Update during implementation**: Mark tasks as complete in real-time
 - **AC traceability**: Include an explicit "Acceptance Criteria Verification" section
-  mapping each AC to the verification that proves it (`manual` when the AC
-  specifies only the natural-language content of a document; a mixed AC still
-  needs its test or static verification) (see § 4)
+  mapping each AC to the verification that proves it (`diff` when the AC
+  states a relation between the state before and after the change; `manual`
+  when the AC specifies only the natural-language content of a document; a
+  mixed AC still needs its test, static, or diff verification) (see § 4)
 - **Language**: Japanese (default)
 
 **Reference**: none yet — the first completed task's `03_implementation_plan.md` becomes the reference.
@@ -238,13 +239,15 @@ The type-derived checklist below is applied when designing each boundary in `02_
 - Place tests in standard test files (`*_test.go`)
 - Follow normal test naming conventions based on what is being tested
 - Tests can be unit tests, integration tests, or any appropriate type
-- Each acceptance criterion must have at least one `test` or `static` verification (see "Acceptance Criteria Verification" in `03_implementation_plan.md`); a `static` check alone is sufficient only for criteria that are purely about textual presence or absence in code or configuration, never for the presence or absence of a word in a document. An AC that specifies only the natural-language content of a document is verified by a `manual` reading in the PR review instead; a mixed AC still needs the test or static verification for its value or structure
+- Each acceptance criterion must have at least one `test`, `static`, or `diff` verification (see "Acceptance Criteria Verification" in `03_implementation_plan.md`); a `static` check alone is sufficient only for criteria that are purely about textual presence or absence in code or configuration, never for the presence or absence of a word in a document. An AC that specifies only the natural-language content of a document is verified by a `manual` reading in the PR review instead; a mixed AC still needs the test, static, or diff verification for its value or structure
+- A `diff` verification is for an AC that states a relation between the state before and after the change: something is preserved, unchanged, or still present in the same order (for example, a document's existing headings keep their wording and order). Such a property belongs to the change, not to the resulting state, so it is not a permanent test: a permanent test would have to pin a copy of the old values, which `CLAUDE.md` forbids ("Document tests check values, structure, and executable examples, never prose"), or read git history, which makes it depend on the checkout and blocks later changes once the "before" no longer means anything. Instead, a script committed under the task directory (`docs/tasks/NNNN_<name>/_checks/`; `go list ./...` ignores a directory whose name starts with `_`) compares the merge-base with the PR's head. It is run once on the PR branch, and its output and both commit IDs are recorded in the implementation plan's verification row. `make test` and CI do not run it, and it is not maintained after the merge
 - Tests must verify the actual behavior, not just the happy path
 - Link each verification to its acceptance criterion in the implementation plan
 
 **Traceability in implementation plan:**
 Document the verification for each acceptance criterion in `03_implementation_plan.md`
-(`test`, `static`, or `manual` for an AC that specifies prose alone):
+(`test`, `static`, `diff` for an AC that states a before/after relation, or
+`manual` for an AC that specifies prose alone):
 
 ```markdown
 **AC-01: [First acceptance criterion]**
@@ -278,7 +281,7 @@ Before considering a feature complete:
 - [ ] Architecture design document created with high-level design
 - [ ] Implementation plan created and updated during development
 - [ ] Acceptance criteria verification section present in implementation plan
-- [ ] At least one test per acceptance criterion (or a `manual` reading for an AC that specifies only the natural-language content of a document)
+- [ ] At least one test or `static` verification per acceptance criterion (or a `diff` verification for an AC that states a before/after relation, or a `manual` reading for an AC that specifies only the natural-language content of a document)
 - [ ] All acceptance tests pass
 - [ ] Security requirements explicitly tested
 
