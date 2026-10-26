@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-26 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-26 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルについての記述は、コミット `f87f2a1` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。要件書が挙げる行番号は、#490・#171 の変更が入る前のものなので、README のいくつかの行は本書の行番号と一致しない（たとえば、要件書の `README.md:818`「Browser extension」は、本書では `README.md:860`）。F-NNN・AC-NN は要件書の項番を指す。先行タスクの項番は「0008 F-006」のように、タスクの番号を付けて書く。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-09）への対応は付録 A に、設計で採らなかった案は付録 B にまとめる。
