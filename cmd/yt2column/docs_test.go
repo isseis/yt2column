@@ -409,9 +409,10 @@ func sectionByHeading(doc, heading string) string {
 	return b.String()
 }
 
-// TestScanDocLines checks the fence scan: a fence line and the lines it
-// encloses are in a block, a '#' line inside a block stays in it, and an
-// unclosed fence keeps the rest of the document in the block.
+// TestScanDocLines checks the flags of the fence scan: a fence line and the
+// lines it encloses are in a block, and a '#' line inside a block stays in it.
+// TestFencedBlocks and TestFirstCodeBlockAfter observe the same scan through
+// its consumers, so they cannot tell a wrong flag from a wrong consumer.
 func TestScanDocLines(t *testing.T) {
 	lines := []string{"intro\n", "```sh\n", "# not a heading\n", "export A=1\n", "```\n", "## Heading\n", "```text\n", "tail"}
 	want := []docLine{
@@ -540,7 +541,8 @@ func checkExportBlock(t *testing.T, docName, sectionName, section string, want [
 		t.Fatalf("%s %s: %d sh code blocks, want exactly one", docName, sectionName, len(shBlocks))
 	}
 	if !shBlocks[0].closed {
-		t.Fatalf("%s %s: the sh code block has no closing fence inside the section", docName, sectionName)
+		t.Fatalf("%s %s: the sh code block has no closing fence inside the section "+
+			"(a '#' line inside the block ends the section at that line)", docName, sectionName)
 	}
 	values := make(map[string]string, len(want))
 	for i, line := range shBlocks[0].lines {
@@ -621,6 +623,29 @@ func checkExportBlockMatchesDefaults(t *testing.T, docName, sectionName string, 
 // in the order the article is written.
 var profileStages = []string{"生成", "字数の調整", "検証・推敲"}
 
+// productionProfileVars returns the variables that describe the production
+// profile: the generation provider, the generation model, and the Claude
+// effort, which all three stages share.
+func productionProfileVars() []string {
+	return []string{
+		config.LLMProviderEnvForTest(),
+		config.ModelEnvForTest(),
+		config.ClaudeEffortEnvForTest(),
+	}
+}
+
+// tableColumn returns the index of the column whose header equals name,
+// ignoring case and backticks, or -1. It matches the way findTable and
+// tableRowsWithFirstCell read a header cell.
+func tableColumn(header []string, name string) int {
+	for i, cell := range header {
+		if strings.EqualFold(stripBackticks(cell), name) {
+			return i
+		}
+	}
+	return -1
+}
+
 // checkProfileTable checks the shared document's profile table: each stage has
 // exactly one row, and the first code span of its provider, model, and effort
 // cells, loaded through LoadServer, gives the default profile's values for that
@@ -635,14 +660,15 @@ func checkProfileTable(t *testing.T, section string, defaults config.LLMConfig) 
 	names := []string{"プロバイダ", "モデル", "effort"}
 	columns := make([]int, len(names))
 	for i, name := range names {
-		if columns[i] = slices.Index(table[0], name); columns[i] < 0 {
+		if columns[i] = tableColumn(table[0], name); columns[i] < 0 {
 			t.Fatalf("production_profile.md: the profile table has no %s column", name)
 		}
 	}
-	vars := []string{
-		config.LLMProviderEnvForTest(),
-		config.ModelEnvForTest(),
-		config.ClaudeEffortEnvForTest(),
+	vars := productionProfileVars()
+	for _, row := range table[1:] {
+		if len(row) > 0 && !slices.Contains(profileStages, stripBackticks(row[0])) {
+			t.Errorf("production_profile.md: the profile table has a row for %q, which is not a stage of the profile", row[0])
+		}
 	}
 	for _, stage := range profileStages {
 		rows := tableRowsWithFirstCell(table, stage)
@@ -653,6 +679,11 @@ func checkProfileTable(t *testing.T, section string, defaults config.LLMConfig) 
 		env := docsProfileEnv()
 		complete := true
 		for i, name := range names {
+			if len(rows[0]) <= columns[i] {
+				t.Errorf("production_profile.md: the %q row has %d cells, want more than %d", stage, len(rows[0]), columns[i])
+				complete = false
+				continue
+			}
 			value, ok := firstCodeSpan(rows[0][columns[i]])
 			if !ok {
 				t.Errorf("production_profile.md: the %q row's %s cell has no code span", stage, name)
@@ -692,11 +723,7 @@ func TestProductionProfileDocsContract(t *testing.T) {
 	if section == "" {
 		t.Fatalf("production_profile.md has no %q section", productionProfileSection)
 	}
-	want := []string{
-		config.LLMProviderEnvForTest(),
-		config.ModelEnvForTest(),
-		config.ClaudeEffortEnvForTest(),
-	}
+	want := productionProfileVars()
 	values := checkExportBlock(t, "production_profile.md", productionProfileSection, section, want)
 	defaults := checkExportBlockMatchesDefaults(t, "production_profile.md", productionProfileSection, values)
 	checkProfileTable(t, section, defaults)

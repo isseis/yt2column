@@ -149,4 +149,10 @@ func TestFirstCodeBlockAfter(t *testing.T) {
 	if _, ok := firstCodeBlockAfter("### Label\nno block\n", "### Label"); ok {
 		t.Error("firstCodeBlockAfter found a block where there is none")
 	}
+	if got, ok := firstCodeBlockAfter("### Label\n  ```text\nx\n  ```\n", "### Label"); !ok || got != "x\n" {
+		t.Errorf("firstCodeBlockAfter with an indented fence = %q, %v; want the block content", got, ok)
+	}
+	if _, ok := firstCodeBlockAfter("### Label\n```text\nunclosed\n", "### Label"); ok {
+		t.Error("firstCodeBlockAfter found a block that is never closed")
+	}
 }
