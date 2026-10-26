@@ -684,8 +684,7 @@ func checkExportBlock(t *testing.T, docName, sectionName, section string, want [
 		t.Fatalf("%s %s: %d sh code blocks, want exactly one", docName, sectionName, len(shBlocks))
 	}
 	if !shBlocks[0].closed {
-		t.Fatalf("%s %s: the sh code block has no closing fence inside the section "+
-			"(a '#' line inside the block ends the section at that line)", docName, sectionName)
+		t.Fatalf("%s %s: the sh code block has no closing fence; an unclosed fence runs to the end of the document", docName, sectionName)
 	}
 	values := make(map[string]string, len(want))
 	for i, line := range shBlocks[0].lines {
