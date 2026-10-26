@@ -414,12 +414,13 @@ func sectionByHeading(doc, heading string) string {
 // TestFencedBlocks and TestFirstCodeBlockAfter observe the same scan through
 // its consumers, so they cannot tell a wrong flag from a wrong consumer.
 func TestScanDocLines(t *testing.T) {
-	lines := []string{"intro\n", "```sh\n", "# not a heading\n", "export A=1\n", "```\n", "## Heading\n", "```text\n", "tail"}
+	lines := []string{"intro\n", "```sh\n", "# not a heading\n", "export A=1\n", "```not-closed\n", "```\n", "## Heading\n", "```text\n", "tail"}
 	want := []docLine{
 		{text: "intro", fence: false, block: false},
 		{text: "```sh", fence: true, block: true},
 		{text: "# not a heading", fence: false, block: true},
 		{text: "export A=1", fence: false, block: true},
+		{text: "```not-closed", fence: false, block: true},
 		{text: "```", fence: true, block: true},
 		{text: "## Heading", fence: false, block: false},
 		{text: "```text", fence: true, block: true},
@@ -472,19 +473,31 @@ type docLine struct {
 
 // scanDocLines classifies lines, starting outside a code block. Passing only
 // the lines after a heading therefore scans them from their first line: a
-// fence opened earlier in the document does not change the result.
+// fence opened earlier in the document does not change the result. An opening
+// fence may carry an info string; a closing fence is backticks alone, so a
+// line such as "```not-closed" inside a block stays part of the block.
 func scanDocLines(lines []string) []docLine {
 	scanned := make([]docLine, 0, len(lines))
 	inBlock := false
 	for _, line := range lines {
 		text := strings.TrimSuffix(line, "\n")
-		fence := strings.HasPrefix(strings.TrimSpace(text), "```")
-		if fence {
-			inBlock = !inBlock
+		trimmed := strings.TrimSpace(text)
+		fence := false
+		switch {
+		case !inBlock && strings.HasPrefix(trimmed, "```"):
+			fence, inBlock = true, true
+		case inBlock && isClosingFence(trimmed):
+			fence, inBlock = true, false
 		}
 		scanned = append(scanned, docLine{text: text, fence: fence, block: fence || inBlock})
 	}
 	return scanned
+}
+
+// isClosingFence reports whether line is a closing code fence: three or more
+// backticks and nothing else.
+func isClosingFence(line string) bool {
+	return len(line) >= 3 && strings.Trim(line, "`") == ""
 }
 
 // fencedBlock is one fenced code block: the info string after its opening
@@ -606,14 +619,19 @@ func checkExportBlockMatchesDefaults(t *testing.T, docName, sectionName string, 
 	if err != nil {
 		t.Fatalf("%s %s: LoadServer rejected the block's variables: %v", docName, sectionName, err)
 	}
+	// The model names are document values, so a mismatch says only whether
+	// they are equal: a secret pasted into the block by mistake must not reach
+	// the log.
 	got, want := loaded.LLM(), without.LLM()
-	if got.Provider() != want.Provider() || got.Model() != want.Model() ||
-		got.ReviewProvider() != want.ReviewProvider() || got.ReviewModel() != want.ReviewModel() ||
+	modelEqual := got.Model() == want.Model()
+	reviewModelEqual := got.ReviewModel() == want.ReviewModel()
+	if got.Provider() != want.Provider() || !modelEqual ||
+		got.ReviewProvider() != want.ReviewProvider() || !reviewModelEqual ||
 		got.ClaudeEffort() != want.ClaudeEffort() {
 		t.Errorf("%s %s: the block's profile differs from the code's default profile "+
-			"(provider %v/%v, model %q/%q, review provider %v/%v, review model %q/%q, effort %v/%v)",
-			docName, sectionName, got.Provider(), want.Provider(), got.Model(), want.Model(),
-			got.ReviewProvider(), want.ReviewProvider(), got.ReviewModel(), want.ReviewModel(),
+			"(provider %v/%v, model equal %t, review provider %v/%v, review model equal %t, effort %v/%v)",
+			docName, sectionName, got.Provider(), want.Provider(), modelEqual,
+			got.ReviewProvider(), want.ReviewProvider(), reviewModelEqual,
 			got.ClaudeEffort(), want.ClaudeEffort())
 	}
 	return without.LLM()
@@ -705,10 +723,13 @@ func checkProfileTable(t *testing.T, section string, defaults config.LLMConfig) 
 		if stage == "検証・推敲" {
 			wantProvider, wantModel = defaults.ReviewProvider(), defaults.ReviewModel()
 		}
-		if got.Provider() != wantProvider || got.Model() != wantModel || got.ClaudeEffort() != defaults.ClaudeEffort() {
-			t.Errorf("production_profile.md: the %q row gives provider %v, model %q, effort %v; the default profile gives %v, %q, %v",
-				stage, got.Provider(), got.Model(), got.ClaudeEffort(),
-				wantProvider, wantModel, defaults.ClaudeEffort())
+		// The model name comes from the document, so the diagnostic says only
+		// whether it matches: a secret pasted into the cell by mistake must not
+		// reach the log.
+		modelEqual := got.Model() == wantModel
+		if got.Provider() != wantProvider || !modelEqual || got.ClaudeEffort() != defaults.ClaudeEffort() {
+			t.Errorf("production_profile.md: the %q row gives provider %v, model equal %t, effort %v; the default profile gives provider %v, effort %v",
+				stage, got.Provider(), modelEqual, got.ClaudeEffort(), wantProvider, defaults.ClaudeEffort())
 		}
 	}
 }
