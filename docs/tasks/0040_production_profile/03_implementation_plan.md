@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-26 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-26 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番、「設計書 3.2」などは設計書の節を指す。既存のコードと文書についての記述は、コミット `59e1650` で確かめた。`file:line` はこのコミットの行番号を指す。設計書が引く行番号はコミット `f87f2a1` のもので、`CLAUDE.md` の 310 行より後ろは、その後の変更で 3 行ずれている（たとえば、設計書の `CLAUDE.md:324-328` は、本書では `CLAUDE.md:327-331`）。README・`project_overview.md`・`internal/config`・`cmd/yt2column` の行番号は、2 つのコミットで同じである。
