@@ -36,7 +36,7 @@
 | プロンプトテンプレート | prompt template | `prompts/` 以下のファイル |
 | キャッシュ | cache | 動画 ID ごとの字幕・info.json の保存 |
 | 動画 ID | video ID | YouTube の 11 文字の ID |
-| 段階 | stage | パイプラインを構成する処理の単位（`TranscriptSource`・`ArticleWriter`・`Publisher`）。`ArticleWriter` の中の生成・字数の調整・検証・推敲の 3 つ（`writer.Stage` の `StageGeneration`・`StageShorten`・`StageReview`）も指す。英語では、この 3 つを "post-generation steps" とも呼ぶ |
+| 段階 | stage | パイプラインを構成する処理の単位（`TranscriptSource`・`ArticleWriter`・`Publisher`）。`ArticleWriter` の中の生成・字数の調整・検証・推敲の 3 つ（`writer.Stage` の `StageGeneration`・`StageShorten`・`StageReview`）も指す。英語では、生成の後の 2 つ（字数の調整と検証・推敲）を "post-generation steps" と呼ぶ |
 | 主経路 | primary path | ブラウザ拡張がコピーした字幕を集め、Native Messaging のホストと localhost サーバを経て記事を生成・投稿する経路 |
 | 補助の経路 | development path | CLI が動画の URL を受け取り、yt-dlp で字幕を取得する経路。開発・検証に使う |
 | 本番の構成 | production profile | 生成・字数の調整・検証・推敲のテンプレート・プロバイダ・モデル・effort の組。`docs/dev/production_profile.md`。文脈により profile と略す |
