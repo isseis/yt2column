@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"unicode"
@@ -62,16 +63,17 @@ func markdownLinkTargets(text string) []string {
 }
 
 // anchorFromHeading returns the anchor GitHub derives from a heading line:
-// lowercase, with markup punctuation removed, spaces turned into hyphens, and
-// letters, digits, marks, connector punctuation, and hyphens kept.
+// lowercase, with markup punctuation removed, each ASCII space turned into a
+// hyphen, and letters, numbers, marks, connector punctuation, and hyphens kept.
+// Any other character, a non-ASCII space included, is dropped.
 func anchorFromHeading(heading string) string {
 	text := strings.TrimSpace(strings.TrimLeft(strings.TrimSpace(heading), "#"))
 	var b strings.Builder
 	for _, r := range strings.ToLower(text) {
 		switch {
-		case r == '-' || unicode.IsLetter(r) || unicode.IsDigit(r) || unicode.IsMark(r) || unicode.In(r, unicode.Pc):
+		case r == '-' || unicode.IsLetter(r) || unicode.IsNumber(r) || unicode.IsMark(r) || unicode.In(r, unicode.Pc):
 			b.WriteRune(r)
-		case unicode.Is(unicode.Zs, r):
+		case r == ' ':
 			b.WriteRune('-')
 		}
 	}
@@ -974,7 +976,11 @@ func TestProductionProfileLinks(t *testing.T) {
 					return
 				}
 			}
-			t.Errorf("%s has no link that resolves to %s in %q", tc.name, productionProfilePath, tc.heading)
+			where := "the whole document"
+			if tc.heading != "" {
+				where = strconv.Quote(tc.heading)
+			}
+			t.Errorf("%s has no link that resolves to %s in %s", tc.name, productionProfilePath, where)
 		})
 	}
 }
@@ -1046,6 +1052,7 @@ func TestAnchorFromHeading(t *testing.T) {
 		{"### Using DeepSeek", "using-deepseek"},
 		{"## Step 2", "step-2"},
 		{"## prompt_v2 notes", "prompt_v2-notes"},
+		{"## Step\u00a0²", "step²"},
 	} {
 		if got := anchorFromHeading(tc.heading); got != tc.want {
 			t.Errorf("anchorFromHeading(%q) = %q, want %q", tc.heading, got, tc.want)

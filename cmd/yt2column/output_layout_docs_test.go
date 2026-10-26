@@ -56,13 +56,13 @@ func outputLayoutArticle() writer.Article {
 
 // firstCodeBlockAfter returns the content of the first fenced code block after
 // the line that equals heading, and whether there is one before the next heading.
-// The heading is found by comparing lines, and only the lines after it are
-// scanned for fences, so a fence opened earlier in the document cannot change
-// the result.
+// The heading is matched only on a line outside a fenced code block, so a
+// line inside an example that equals heading is not taken for it; the lines
+// after the heading are then scanned for fences from their first line.
 func firstCodeBlockAfter(doc, heading string) (string, bool) {
 	lines := slices.Collect(strings.Lines(doc))
-	for i, line := range lines {
-		if strings.TrimSpace(line) != heading {
+	for i, line := range scanDocLines(lines) {
+		if line.block || strings.TrimSpace(line.text) != heading {
 			continue
 		}
 		var b strings.Builder
@@ -154,5 +154,8 @@ func TestFirstCodeBlockAfter(t *testing.T) {
 	}
 	if _, ok := firstCodeBlockAfter("### Label\n```text\nunclosed\n", "### Label"); ok {
 		t.Error("firstCodeBlockAfter found a block that is never closed")
+	}
+	if got, ok := firstCodeBlockAfter("```text\n### Label\n```\n### Label\n```text\nreal\n```\n", "### Label"); !ok || got != "real\n" {
+		t.Errorf("firstCodeBlockAfter with the heading text inside an earlier block = %q, %v; want the block under the real heading", got, ok)
 	}
 }
