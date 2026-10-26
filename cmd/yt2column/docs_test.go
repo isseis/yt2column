@@ -6,10 +6,12 @@ import (
 	"flag"
 	"maps"
 	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
 	"testing"
+	"unicode"
 
 	"github.com/isseis/yt2column/internal/config"
 	"github.com/isseis/yt2column/internal/llm"
@@ -30,9 +32,127 @@ const (
 	pricingRatesPath      = "../../internal/pricing/rates.go"
 )
 
-// The heading of the shared document's production-profile section, which test
-// (a) reads.
-const productionProfileSection = "## 本番の構成"
+// The headings test (a) and test (b) read.
+const (
+	productionProfileSection = "## 本番の構成"
+	quickStartHeading        = "## Quick start"
+	recommendedConfigHeading = "### Recommended configuration"
+)
+
+// markdownLinkRE matches an inline Markdown link and captures its text and
+// target. These documents use no reference links, and a link text or target
+// holds no nested bracket or closing parenthesis.
+var markdownLinkRE = regexp.MustCompile(`\[([^\]]*)\]\(([^)\s]+)\)`)
+
+// markdownLinkTargets returns the target of every inline Markdown link in text,
+// in order.
+func markdownLinkTargets(text string) []string {
+	var targets []string
+	for _, match := range markdownLinkRE.FindAllStringSubmatch(text, -1) {
+		targets = append(targets, match[2])
+	}
+	return targets
+}
+
+// anchorFromHeading returns the anchor GitHub derives from a heading line:
+// lowercase, with markup punctuation removed, spaces turned into hyphens, and
+// letters, digits, marks, connector punctuation, and hyphens kept.
+func anchorFromHeading(heading string) string {
+	text := strings.TrimSpace(strings.TrimLeft(strings.TrimSpace(heading), "#"))
+	var b strings.Builder
+	for _, r := range strings.ToLower(text) {
+		switch {
+		case r == '-' || unicode.IsLetter(r) || unicode.IsDigit(r) || unicode.IsMark(r) || unicode.In(r, unicode.Pc):
+			b.WriteRune(r)
+		case unicode.Is(unicode.Zs, r):
+			b.WriteRune('-')
+		}
+	}
+	return b.String()
+}
+
+// headingsOutsideBlocks returns the heading lines of doc that lie outside a
+// fenced code block, in order.
+func headingsOutsideBlocks(doc string) []string {
+	var headings []string
+	for _, line := range scanDocLines(slices.Collect(strings.Lines(doc))) {
+		if !line.block && headingLevel(line.text) > 0 {
+			headings = append(headings, line.text)
+		}
+	}
+	return headings
+}
+
+// headingAnchors returns the set of anchors the heading lines of doc outside
+// code blocks produce. It fails the test when two headings share an anchor:
+// the suffix GitHub adds to a repeated heading is not modelled.
+func headingAnchors(t *testing.T, docName, doc string) map[string]bool {
+	t.Helper()
+	anchors := make(map[string]bool)
+	for _, heading := range headingsOutsideBlocks(doc) {
+		anchor := anchorFromHeading(heading)
+		if anchors[anchor] {
+			t.Errorf("%s has two headings with the anchor %q, which this helper does not model", docName, anchor)
+		}
+		anchors[anchor] = true
+	}
+	return anchors
+}
+
+// sectionOutsideBlocks returns the lines after the first heading line equal to
+// heading and outside a fenced code block, up to the next heading line outside
+// a block whose level is the same or higher. It returns the empty string when
+// no such heading line exists.
+func sectionOutsideBlocks(doc, heading string) string {
+	scanned := scanDocLines(slices.Collect(strings.Lines(doc)))
+	want := strings.TrimSpace(heading)
+	for i, line := range scanned {
+		if line.block || strings.TrimSpace(line.text) != want {
+			continue
+		}
+		level := headingLevel(line.text)
+		var b strings.Builder
+		for _, rest := range scanned[i+1:] {
+			if l := headingLevel(rest.text); !rest.block && l > 0 && l <= level {
+				break
+			}
+			b.WriteString(rest.text)
+			b.WriteString("\n")
+		}
+		return b.String()
+	}
+	return ""
+}
+
+// numberedItemRE matches the first line of a top-level numbered list item.
+var numberedItemRE = regexp.MustCompile(`^\d+\.\s`)
+
+// numberedItems returns the top-level numbered list items of section. An item
+// starts at a line that begins with a number and a period at column 0, and
+// continues to the next item or the next blank line.
+func numberedItems(section string) []string {
+	var items, current []string
+	flush := func() {
+		if len(current) > 0 {
+			items = append(items, strings.Join(current, "\n"))
+			current = nil
+		}
+	}
+	for line := range strings.Lines(section) {
+		line = strings.TrimSuffix(line, "\n")
+		switch {
+		case numberedItemRE.MatchString(line):
+			flush()
+			current = []string{line}
+		case strings.TrimSpace(line) == "":
+			flush()
+		case current != nil:
+			current = append(current, line)
+		}
+	}
+	flush()
+	return items
+}
 
 // TestREADMEDocumentsFlags checks that README.md documents every flag run
 // defines. The flag names come from newFlagSet, not from a list kept here, so a
@@ -735,19 +855,149 @@ func checkProfileTable(t *testing.T, section string, defaults config.LLMConfig) 
 }
 
 // TestProductionProfileDocsContract checks the shared production-profile
-// document's profile section: its configuration block holds exactly the three
-// variables of the production profile and loads to the code's default profile,
-// and its table names the same profile for each stage.
+// document's profile section and the README's recommended configuration
+// section: each configuration block holds exactly the three variables of the
+// production profile and loads to the code's default profile, the README's
+// subsection lies inside Configuration, and the shared document's table names
+// the same profile for each stage.
 func TestProductionProfileDocsContract(t *testing.T) {
+	want := productionProfileVars()
+
 	doc := readDoc(t, productionProfilePath)
-	section := sectionByHeading(doc, productionProfileSection)
+	section := sectionOutsideBlocks(doc, productionProfileSection)
 	if section == "" {
 		t.Fatalf("production_profile.md has no %q section", productionProfileSection)
 	}
-	want := productionProfileVars()
 	values := checkExportBlock(t, "production_profile.md", productionProfileSection, section, want)
 	defaults := checkExportBlockMatchesDefaults(t, "production_profile.md", productionProfileSection, values)
 	checkProfileTable(t, section, defaults)
+
+	readme := readDoc(t, readmePath)
+	recommended := sectionOutsideBlocks(readme, recommendedConfigHeading)
+	if recommended == "" {
+		t.Fatalf("README has no %q section", recommendedConfigHeading)
+	}
+	configSection := sectionOutsideBlocks(readme, "## Configuration")
+	inConfiguration := false
+	for _, line := range scanDocLines(slices.Collect(strings.Lines(configSection))) {
+		if !line.block && strings.TrimSpace(line.text) == recommendedConfigHeading {
+			inConfiguration = true
+		}
+	}
+	if !inConfiguration {
+		t.Errorf("README: %q is not inside the Configuration section", recommendedConfigHeading)
+	}
+	readmeValues := checkExportBlock(t, "README.md", recommendedConfigHeading, recommended, want)
+	checkExportBlockMatchesDefaults(t, "README.md", recommendedConfigHeading, readmeValues)
+}
+
+// TestQuickStartLinks checks the README's Quick start section: it comes before
+// Requirements, every numbered item links to a README heading, and every link
+// in the section is either such an anchor or an existing relative path.
+func TestQuickStartLinks(t *testing.T) {
+	readme := readDoc(t, readmePath)
+	section := sectionOutsideBlocks(readme, quickStartHeading)
+	if section == "" {
+		t.Fatalf("README has no %q section", quickStartHeading)
+	}
+	headings := headingsOutsideBlocks(readme)
+	at, requirements := slices.Index(headings, quickStartHeading), slices.Index(headings, "## Requirements")
+	if at < 0 || requirements < 0 || at > requirements {
+		t.Errorf("README: %q is at heading %d, Requirements at %d; Quick start must come first", quickStartHeading, at, requirements)
+	}
+	anchors := headingAnchors(t, "README.md", readme)
+	items := numberedItems(section)
+	if len(items) == 0 {
+		t.Fatalf("README %s has no numbered list", quickStartHeading)
+	}
+	for _, item := range items {
+		linked := false
+		for _, target := range markdownLinkTargets(item) {
+			if anchor, ok := strings.CutPrefix(target, "#"); ok && anchors[anchor] {
+				linked = true
+			}
+		}
+		if !linked {
+			first, _, _ := strings.Cut(item, "\n")
+			t.Errorf("README Quick start item %q has no link to a README heading", first)
+		}
+	}
+	for _, target := range markdownLinkTargets(section) {
+		if anchor, ok := strings.CutPrefix(target, "#"); ok {
+			if !anchors[anchor] {
+				t.Errorf("README Quick start links to %q, which no heading outside a code block produces", target)
+			}
+			continue
+		}
+		if strings.Contains(target, "://") {
+			t.Errorf("README Quick start links to the external URL %q; link to a README section instead", target)
+			continue
+		}
+		path, _, _ := strings.Cut(target, "#")
+		if _, err := os.Stat(filepath.Join(filepath.Dir(readmePath), path)); err != nil {
+			t.Errorf("README Quick start links to %q, which does not exist", target)
+		}
+	}
+}
+
+// TestReadmeAnchorsResolveLinks checks the anchor helper against the README's
+// in-page links outside Quick start. GitHub resolves them, so the helper must
+// produce each anchor they use.
+func TestReadmeAnchorsResolveLinks(t *testing.T) {
+	readme := readDoc(t, readmePath)
+	quickStart := sectionOutsideBlocks(readme, quickStartHeading)
+	rest := strings.Replace(readme, quickStartHeading+"\n"+quickStart, "", 1)
+	if rest == readme {
+		t.Fatal("could not cut the Quick start section out of README")
+	}
+	anchors := headingAnchors(t, "README.md", readme)
+	links := 0
+	for _, target := range markdownLinkTargets(rest) {
+		anchor, ok := strings.CutPrefix(target, "#")
+		if !ok {
+			continue
+		}
+		links++
+		if !anchors[anchor] {
+			t.Errorf("README links to %q, which the anchor helper does not produce", target)
+		}
+	}
+	if links == 0 {
+		t.Fatal("README has no in-page link outside Quick start to check the anchor helper against")
+	}
+}
+
+// TestAnchorFromHeading checks the anchor rule on headings with inline markup,
+// and on headings the README's own links resolve.
+func TestAnchorFromHeading(t *testing.T) {
+	for _, tc := range []struct{ heading, want string }{
+		{"## Setting up yt-dlp", "setting-up-yt-dlp"},
+		{"### Installing the native messaging host", "installing-the-native-messaging-host"},
+		{"## Cache and concurrency", "cache-and-concurrency"},
+		{"### The `--out` file", "the---out-file"},
+		{"### The Slack post", "the-slack-post"},
+		{"### Using DeepSeek", "using-deepseek"},
+	} {
+		if got := anchorFromHeading(tc.heading); got != tc.want {
+			t.Errorf("anchorFromHeading(%q) = %q, want %q", tc.heading, got, tc.want)
+		}
+	}
+}
+
+// TestSectionOutsideBlocks checks the fence-aware section extraction: a '#' or
+// '##' line inside a code block neither ends the section nor starts one.
+func TestSectionOutsideBlocks(t *testing.T) {
+	const doc = "# Top\ntop\n## Middle\nmiddle\n```text\n# not a heading\n## also not\n```\n### Deep\ndeep\n## Next\nnext\n"
+	want := "middle\n```text\n# not a heading\n## also not\n```\n### Deep\ndeep\n"
+	if got := sectionOutsideBlocks(doc, "## Middle"); got != want {
+		t.Errorf("sectionOutsideBlocks(doc, %q) = %q, want %q", "## Middle", got, want)
+	}
+	if got := sectionOutsideBlocks(doc, "## also not"); got != "" {
+		t.Errorf("sectionOutsideBlocks found a heading inside a code block: %q", got)
+	}
+	if got := sectionOutsideBlocks(doc, "## Absent"); got != "" {
+		t.Errorf("sectionOutsideBlocks(doc, missing heading) = %q, want the empty string", got)
+	}
 }
 
 // containsToken reports whether word appears in doc bounded by characters that

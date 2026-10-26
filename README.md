@@ -1,32 +1,82 @@
 # yt2column
 
-A CLI tool that takes a YouTube video URL, generates a magazine-column-style
-article from the video's transcript with an LLM, and either writes it as
-Markdown to the `--out` path or posts it to the configured webhook with
-`--slack`.
+yt2column turns a YouTube video into a magazine-column-style article with an
+LLM. The primary path starts in the browser: the extension collects the
+transcript you copy from YouTube's transcript panel, the native messaging host
+relays it to the localhost server, and the server generates the article and
+posts it to the configured webhook. A CLI is included as a development path:
+it takes a video URL and fetches the transcript with
+[yt-dlp](https://github.com/yt-dlp/yt-dlp), which is how the LLM call and the
+posting are developed and checked.
 
 ```
-URL → TranscriptSource → Transcript → ArticleWriter → Article → Publisher
+Copied transcript (browser extension → native messaging host → localhost server) ─┐
+                                                                                  ├→ TranscriptSource → Transcript → ArticleWriter → Article → Publisher
+URL → yt-dlp (CLI, for development) ──────────────────────────────────────────────┘
 ```
 
-- Subtitles are fetched with [yt-dlp](https://github.com/yt-dlp/yt-dlp).
-- The initial LLM provider is DeepSeek (OpenAI-compatible API, called with the
-  Go standard library); providers are pluggable.
+- The primary path uses the transcript copied from the transcript panel; only
+  the CLI uses yt-dlp.
+- The default LLM profile is the production profile: `claude` with
+  `claude-opus-5-5` at effort `high` for generation, shortening, and review.
+  See [Recommended configuration](#recommended-configuration) and
+  [production_profile.md](docs/dev/production_profile.md) (Japanese).
+  DeepSeek is also available; providers are pluggable.
 - Designed for local execution.
 
 > **Status:** early development — no release yet.
 
+## Quick start
+
+These steps post a first article through the primary path. Each step links to
+the section that has the details.
+
+1. Build the binaries with `make build`; they go into `build/` and nothing is
+   installed. See [Localhost server](#localhost-server).
+2. Set `ANTHROPIC_API_KEY` and `SLACK_WEBHOOK_URL` in the shell that starts the
+   server. No other LLM variable is needed: the default is the production
+   profile (see [Recommended configuration](#recommended-configuration)). Unset
+   `YT2COLUMN_*` variables left from an earlier setup; see
+   [Configuration](#configuration).
+3. Start the server with `./build/yt2column-server 2>>server.log`. It keeps
+   running in the foreground (stop it with a signal), so run the next steps in
+   another terminal. See [Running the server](#running-the-server).
+4. Register the host with `./build/yt2column-nmhost install chrome` (or
+   `install brave`) after starting that browser once. On macOS, keep the built
+   binary outside `~/Desktop`, `~/Documents`, and `~/Downloads`. See
+   [Installing the native messaging host](#installing-the-native-messaging-host).
+5. Run `make ext-install` once, then `make ext-build`, and load
+   `extension/dist` with **Load unpacked** on the extensions page. See
+   [Browser extension](#browser-extension).
+6. Open a video's description ("...more") and its transcript panel, select the
+   caption lines, and send from the extension's toolbar icon. The article
+   arrives in the webhook's channel. See [Browser extension](#browser-extension).
+
 ## Requirements
 
+**For the primary path (browser extension and localhost server):**
+
 - Go (see `go.mod`)
+- Node.js, pinned in `extension/.node-version` (used to build the extension)
+- Chrome or Brave
+- `ANTHROPIC_API_KEY` for the default provider
+- `SLACK_WEBHOOK_URL` (the server requires it)
+
+**For the CLI only:**
+
 - `yt-dlp` on `PATH` (or set `YT2COLUMN_YTDLP_PATH`); see
   [Setting up yt-dlp](#setting-up-yt-dlp)
-- An API key for the selected provider: `DEEPSEEK_API_KEY` for `deepseek`,
-  `ANTHROPIC_API_KEY` for `claude`. When the review step uses a different
-  provider, that provider's key is required too. `SLACK_WEBHOOK_URL` is
-  required when `--slack` is used.
+- `SLACK_WEBHOOK_URL`, only when `--slack` is used
+
+An API key for the selected provider is required: `DEEPSEEK_API_KEY` for
+`deepseek`, `ANTHROPIC_API_KEY` for `claude`. When the review step uses a
+different provider, that provider's key is required too.
 
 ## Usage
+
+The CLI is the development path: use it to develop and check the LLM call and
+the posting, while the primary path is the one in
+[Quick start](#quick-start).
 
 ```
 yt2column [flags] <video URL>
@@ -742,11 +792,6 @@ calls `yt-dlp`. It derives its socket path from `HOME` alone (see
 The value of an environment variable is never trimmed or otherwise corrected;
 an empty value is treated as set and rejected, not as unset.
 
-With `ANTHROPIC_API_KEY` as the only LLM variable, generation, shortening, and
-review all use `claude` with `claude-opus-5-5` and the effort `high`. The
-default model applies only to `claude`: with `deepseek`, an unset
-`YT2COLUMN_MODEL` is an error.
-
 A model variable is accepted only together with a provider variable that you
 set. Setting `YT2COLUMN_MODEL` without `YT2COLUMN_LLM_PROVIDER`, or
 `YT2COLUMN_REVIEW_MODEL` when neither `YT2COLUMN_REVIEW_PROVIDER` nor
@@ -781,6 +826,32 @@ The default effort `high` was chosen for `claude-opus-5-5`. With another model,
 such as `claude-sonnet-5-5`, `high` can also reach the output limit, and the run
 fails as truncated; in that case set `YT2COLUMN_CLAUDE_EFFORT` to a lower
 effort.
+
+### Recommended configuration
+
+```sh
+export YT2COLUMN_LLM_PROVIDER=claude
+export YT2COLUMN_MODEL=claude-opus-5-5
+export YT2COLUMN_CLAUDE_EFFORT=high
+```
+
+These three values are the production profile: generation, shortening, and
+review all use `claude` with `claude-opus-5-5` and the effort `high`. They are
+also the code's defaults (see
+[#490](https://github.com/isseis/yt2column/issues/490) and
+[#171](https://github.com/isseis/yt2column/issues/171)), so they can be left
+unset: with `ANTHROPIC_API_KEY` as the only LLM variable, generation,
+shortening, and review all use this profile. Exporting them pins the profile in
+the shell even if a default changes later. The default model applies only to
+`claude`: with `deepseek`, an unset `YT2COLUMN_MODEL` is an error.
+
+`ANTHROPIC_API_KEY` is required. Leave `YT2COLUMN_REVIEW_PROVIDER` and
+`YT2COLUMN_REVIEW_MODEL` unset to review with the generation profile; to use
+another profile, set the environment variables instead of relying on the
+defaults.
+
+The quality target, the results, and the product limitations of this profile
+are in [production_profile.md](docs/dev/production_profile.md) (Japanese).
 
 ### Using DeepSeek
 
