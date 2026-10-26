@@ -28,6 +28,7 @@ const (
 	projectOverviewPath   = "../../docs/dev/project_overview.md"
 	securityPath          = "../../docs/dev/security.md"
 	productionProfilePath = "../../docs/dev/production_profile.md"
+	promptsReadmePath     = "../../prompts/README.md"
 	reviewEvaluationPath  = "../../docs/tasks/0010_post_generation_review/02_evaluation.md"
 	pricingRatesPath      = "../../internal/pricing/rates.go"
 )
@@ -939,6 +940,43 @@ func TestQuickStartLinks(t *testing.T) {
 		if strings.Contains(target, "://") {
 			t.Errorf("README Quick start links to the external URL %q; link to a README section instead", target)
 		}
+	}
+}
+
+// TestProductionProfileLinks checks that every document that describes the
+// production profile links to the shared document by a relative path that
+// resolves to the file the test reads. The expected target comes from the path
+// constant, not from a literal copied out of a document.
+func TestProductionProfileLinks(t *testing.T) {
+	want, err := filepath.Abs(productionProfilePath)
+	if err != nil {
+		t.Fatalf("resolve %s: %v", productionProfilePath, err)
+	}
+	for _, tc := range []struct{ name, path, heading string }{
+		{"README.md", readmePath, recommendedConfigHeading},
+		{"project_overview.md", projectOverviewPath, "## 決定済みの方針"},
+		{"CLAUDE.md", claudePath, "## Quick Links"},
+		{"prompts/README.md", promptsReadmePath, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			text := readDoc(t, tc.path)
+			if tc.heading != "" {
+				if text = sectionOutsideBlocks(text, tc.heading); text == "" {
+					t.Fatalf("%s has no %q section", tc.name, tc.heading)
+				}
+			}
+			for _, target := range markdownLinkTargets(text) {
+				if strings.Contains(target, "://") {
+					continue
+				}
+				path, _, _ := strings.Cut(target, "#")
+				got, err := filepath.Abs(filepath.Join(filepath.Dir(tc.path), path))
+				if err == nil && got == want {
+					return
+				}
+			}
+			t.Errorf("%s has no link that resolves to %s", tc.name, productionProfilePath)
+		})
 	}
 }
 

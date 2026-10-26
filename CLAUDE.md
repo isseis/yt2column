@@ -6,6 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Project:**
 - [Project Overview](docs/dev/project_overview.md) - Decided policies, pipeline, constraints, configuration (Japanese). **Read this before designing anything.**
+- [Production Profile](docs/dev/production_profile.md) - The production profile (the template, provider, model, and effort of each stage), the quality target and the results behind it, and the limitations of the articles it writes (Japanese)
 - [Security Considerations](docs/dev/security.md) - yt-dlp invocation, secrets, network, cache, untrusted text
 - [Cache Consistency](docs/dev/cache_consistency.md) - What the transcript cache guarantees across failures and power loss, and why (Japanese). Check its checklist before changing cache code.
 
@@ -132,16 +133,24 @@ refuses to run when `node --version` does not match.
 
 ## Architecture Overview
 
-A Go CLI that turns a YouTube video into a magazine-column-style article:
+yt2column turns a YouTube video into a magazine-column-style article with an
+LLM. The primary path runs in the browser: the extension collects the transcript
+copied from YouTube's transcript panel, the native messaging host relays it to
+the localhost server, and the server generates the article and posts it to the
+Webhook. The CLI is the development path: it takes a video URL and fetches the
+transcript with `yt-dlp`.
 
 ```
-URL → TranscriptSource → Transcript → ArticleWriter → Article → Publisher
+Copied transcript (browser extension → native messaging host → localhost server) ─┐
+                                                                                  ├→ TranscriptSource → Transcript → ArticleWriter → Article → Publisher
+URL → yt-dlp (CLI, for development) ──────────────────────────────────────────────┘
 ```
 
-- `TranscriptSource` (`internal/transcript`): fetches subtitles and info.json by
-  invoking the external `yt-dlp` command, parses json3, caches per video ID.
-  `CopiedSource` also implements it by parsing the copied transcript text a user
-  takes from YouTube's transcript panel.
+- `TranscriptSource` (`internal/transcript`): `CopiedSource` implements it by
+  parsing the copied transcript text a user takes from YouTube's transcript
+  panel, the primary path's source. `YtDlpSource` fetches subtitles and
+  info.json by invoking the external `yt-dlp` command, parses json3, and caches
+  per video ID; the CLI uses it.
 - `internal/strictjson`: strict JSON extraction shared by `internal/transcript`,
   `internal/llm/deepseek`, `internal/llm/claude`, `internal/publisher`, and
   `internal/writer`; rejects the byte sequences and structural shapes
@@ -327,7 +336,9 @@ See [Test Organization Guide](docs/dev/developer_guide/test_organization.md) for
   needs `make ext-test`. The other text-sync guards that read documents (the
   extension ID, the `ext-` targets in this file, the manifest permissions, the
   `project_overview.md` notes (the environment variable names, `costPrefix`, and
-  `16,383`), the `/fixpr` and `/runpr` command documents) are Go tests included
+  `16,383`), the production profile's configuration block and stage table in
+  `docs/dev/production_profile.md`, the README's configuration block and Quick
+  start links, the `/fixpr` and `/runpr` command documents) are Go tests included
   in `make test` and need no node. `cmd/yt2column-nmhost`'s
   `TestReadmeHostExitCodes` reads the README too, but the `doc-guard` job does
   not run it: the local `make test`, and the CI `test` job when the change
