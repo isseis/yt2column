@@ -1,6 +1,6 @@
 # yt2column プロジェクト概要
 
-ブラウザ拡張が YouTube の文字起こしパネルからコピーした字幕を集め、Native Messaging のホストと localhost サーバを経て記事を生成し、Slack 互換の Incoming Webhook（Mattermost など）に投稿するツール。CLI（`yt2column`）は、動画の URL を受け取り、その文字起こしを元に LLM で「雑誌コラム記事風」の文章を生成して `--out` で Markdown ファイルに書き出すか、`--slack` で投稿する、開発・検証用の補助の経路である。
+ブラウザ拡張が YouTube の文字起こしパネルからコピーした字幕を集め、Native Messaging のホストと localhost サーバを経て記事を生成し、Slack 互換の Incoming Webhook（Mattermost など）に投稿するツール。CLI（`yt2column`）は、動画の URL を受け取り、その動画の文字起こしを `yt-dlp` で取得して、それを元に LLM で「雑誌コラム記事風」の文章を生成し、`--out` で Markdown ファイルに書き出すか、`--slack` で投稿する。開発・検証用の補助の経路である。
 
 本書はプロジェクト全体の決定済み方針をまとめたもの。個々の機能は `docs/tasks/` 以下のタスクで要件 → 設計 → 実装計画の順に具体化する（[requirements_process.md](developer_guide/requirements_process.md)）。本書の方針を変更する場合は、タスクの要件定義書でその旨を明記し、本書も更新する。
 
@@ -25,7 +25,7 @@ URL → yt-dlp（CLI。開発用） ──────────────�
 
 各段階は interface で抽象化し、実装を差し替えられるようにする。
 
-- `TranscriptSource`: 主経路では、利用者が文字起こしパネルからコピーした字幕の文字列から `CopiedSource` が作る。localhost サーバは拡張から受け取った生の字幕を `CopiedSource` に渡す（`yt-dlp` を呼ばない）。CLI は `yt-dlp` で字幕を取得する `YtDlpSource` を使う。
+- `TranscriptSource`: 主経路では、利用者が文字起こしパネルからコピーした字幕の文字列と動画のメタ情報を `CopiedSource` に渡して `Transcript` を作る。localhost サーバは拡張から受け取った生の字幕を `CopiedSource` に渡す（`yt-dlp` を呼ばない）。CLI は `yt-dlp` で字幕を取得する `YtDlpSource` を使う。
   - `YtDlpSource` の例: `yt-dlp --ignore-config --no-plugin-dirs --skip-download --write-subs --write-auto-subs --sub-langs ja --sub-format json3 --write-info-json -P "<cache>" -o "%(id)s" -- <URL>`
   - json3 の `events[].segs[].utf8` を連結して本文にする。`tStartMs` も保持する（将来、見出しごとに動画の該当時刻へのリンクを付けるため）。
   - info.json からタイトル・チャンネル名・概要欄を取り出し、メタ情報として `Transcript` に含める。

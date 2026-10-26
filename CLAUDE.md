@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Project:**
 - [Project Overview](docs/dev/project_overview.md) - Decided policies, pipeline, constraints, configuration (Japanese). **Read this before designing anything.**
-- [Production Profile](docs/dev/production_profile.md) - The production profile (the template, provider, model, and effort of each stage), the quality target and the results behind it, and the limitations of the articles it writes (Japanese)
+- [Production Profile](docs/dev/production_profile.md) - The production profile (the template, provider, model, and effort of each stage), the quality target and the results behind it, and the product limitations of this profile (Japanese)
 - [Security Considerations](docs/dev/security.md) - yt-dlp invocation, secrets, network, cache, untrusted text
 - [Cache Consistency](docs/dev/cache_consistency.md) - What the transcript cache guarantees across failures and power loss, and why (Japanese). Check its checklist before changing cache code.
 
@@ -134,7 +134,7 @@ refuses to run when `node --version` does not match.
 ## Architecture Overview
 
 yt2column turns a YouTube video into a magazine-column-style article with an
-LLM. The primary path runs in the browser: the extension collects the transcript
+LLM. The primary path starts in the browser: the extension collects the transcript
 copied from YouTube's transcript panel, the native messaging host relays it to
 the localhost server, and the server generates the article and posts it to the
 Webhook. The CLI is the development path: it takes a video URL and fetches the
@@ -148,9 +148,9 @@ URL → yt-dlp (CLI, for development) ──────────────
 
 - `TranscriptSource` (`internal/transcript`): `CopiedSource` implements it by
   parsing the copied transcript text a user takes from YouTube's transcript
-  panel, the primary path's source. `YtDlpSource` fetches subtitles and
-  info.json by invoking the external `yt-dlp` command, parses json3, and caches
-  per video ID; the CLI uses it.
+  panel (the primary path). `YtDlpSource` fetches subtitles and info.json by
+  invoking the external `yt-dlp` command, parses json3, and caches per video ID
+  (the CLI uses it).
 - `internal/strictjson`: strict JSON extraction shared by `internal/transcript`,
   `internal/llm/deepseek`, `internal/llm/claude`, `internal/publisher`, and
   `internal/writer`; rejects the byte sequences and structural shapes

@@ -975,7 +975,7 @@ func TestProductionProfileLinks(t *testing.T) {
 					return
 				}
 			}
-			t.Errorf("%s has no link that resolves to %s", tc.name, productionProfilePath)
+			t.Errorf("%s has no link that resolves to %s in %q", tc.name, productionProfilePath, tc.heading)
 		})
 	}
 }
