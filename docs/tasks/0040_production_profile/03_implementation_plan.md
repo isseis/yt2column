@@ -8,7 +8,7 @@
 | Created | 2026-10-26 |
 | Review date | 2026-10-26 |
 | Reviewer | isseis |
-| Comments | 2026-10-26: ステップ 3-3 の壊し方の記述を正した。`# x` の行を持つコードブロックを Quick start の途中に入れたときは、節がそこで終わらず、テストは通る（切り出しが壊れたときは補助の単体テストが失敗する）。決定は変えない（編集上の修正）。 |
+| Comments | 2026-10-26: ステップ 3-3 の壊し方の記述を正した。`# x` の行を持つコードブロックを Quick start の途中に入れたときは、節がそこで終わらず、テストは通る（切り出しが壊れたときは補助の単体テストが失敗する）。7 章のまとめに、共通の文書から出典へのリンクと v5 への参照を manual で読む例外を書き足した。決定は変えない（編集上の修正）。 |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番、「設計書 3.2」などは設計書の節を指す。既存のコードと文書についての記述は、コミット `59e1650` で確かめた。`file:line` はこのコミットの行番号を指す。設計書が引く行番号はコミット `f87f2a1` のもので、`CLAUDE.md` の 310 行より後ろは、その後の変更で 3 行ずれている（たとえば、設計書の `CLAUDE.md:324-328` は、本書では `CLAUDE.md:327-331`）。README・`project_overview.md`・`internal/config`・`cmd/yt2column` の行番号は、2 つのコミットで同じである。
 
@@ -326,7 +326,7 @@ AC-12・AC-22・AC-26 は、`docs/tasks/0040_production_profile/_checks/main.go`
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
-`test` はテスト、`diff` は差分の確認のスクリプト、`manual` は PR のレビューでの読み取りを指す。テストの場所は `cmd/yt2column/docs_test.go` である。
+`test` はテスト、`diff` は差分の確認のスクリプト、`manual` は PR のレビューでの読み取りを指す。テストの場所は各 `test` の行に示す。
 
 | AC | 確かめ方 | 実装 | 内容 |
 |---|---|---|---|
@@ -357,7 +357,7 @@ AC-12・AC-22・AC-26 は、`docs/tasks/0040_production_profile/_checks/main.go`
 | AC-25 | manual | 1-1 | 共通の文書の評価の条件の記述 |
 | AC-26 | diff: `docs/tasks/0040_production_profile/_checks/main.go`（`security.md` の判定） ＋ manual | 4-3 | §1 以降が変わらないことは差分の確認。`:5` の新しい文はレビュー。実行の記録: merge-base `b295aa43ed11464ba3ac1c9c4d94674f629b6970`、head `21fc67a3d4049b7ad3a59e2002991f952f6f5ba3`、出力 `OK   security.md section 1 on`。 |
 
-`manual` だけの AC（AC-03〜AC-08・AC-10・AC-11・AC-16〜AC-18・AC-24・AC-25）は、文書の文面だけを定める AC である（要件書 §5、`requirements_process.md` §4）。値や構造の部分を持つ AC には、テストか差分の確認を当てた。
+`manual` だけの AC（AC-03〜AC-08・AC-10・AC-11・AC-16〜AC-18・AC-24・AC-25）は、文書の文面だけを定める AC である（要件書 §5、`requirements_process.md` §4）。値や構造の部分を持つ AC には、テストか差分の確認を当てた。例外は、共通の文書から出典へのリンク（AC-03・AC-25）と、`prompts/README.md` に残る v5 への参照（AC-21）で、設計書 1.2 と 7.2 のとおり manual で読む。
 
 **申し送りの対応:** `implementation_handoff.md` はない。`design_handoff.md` の H-01〜H-09 は、すべて設計書の付録 A に記録されている。
 

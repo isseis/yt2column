@@ -17,7 +17,7 @@ URL → yt-dlp (CLI, for development) ──────────────
 
 - The primary path uses the transcript copied from the transcript panel; only
   the CLI uses yt-dlp.
-- The default LLM profile is the production profile: `claude` with
+- The default is the production profile: `claude` with
   `claude-opus-5-5` at effort `high` for generation, shortening, and review.
   See [Recommended configuration](#recommended-configuration) and
   [production_profile.md](docs/dev/production_profile.md) (Japanese).

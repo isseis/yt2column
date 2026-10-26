@@ -114,20 +114,20 @@ func checkReadmeHeadings(base, head string) []string {
 	if err != nil {
 		return []string{err.Error()}
 	}
-	old := headings(before)
+	old, oldLines := headings(before)
 	added := []string{quickStartHeading, recommendedConfigHeading}
-	got := slices.DeleteFunc(headings(after), func(heading string) bool {
-		return slices.Contains(added, heading)
+	got := slices.DeleteFunc(headingLines(after), func(heading headingLine) bool {
+		return slices.Contains(added, heading.text)
 	})
 	var problems []string
 	for i := range max(len(old), len(got)) {
 		switch {
 		case i >= len(old):
-			problems = append(problems, fmt.Sprintf("heading %d is %q, which the old document does not have", i+1, got[i]))
+			problems = append(problems, fmt.Sprintf("line %d is the new heading %q, which the old document does not have", got[i].line, got[i].text))
 		case i >= len(got):
-			problems = append(problems, fmt.Sprintf("heading %d is missing: %q", i+1, old[i]))
-		case old[i] != got[i]:
-			problems = append(problems, fmt.Sprintf("heading %d is %q, want %q", i+1, got[i], old[i]))
+			problems = append(problems, fmt.Sprintf("heading %d is missing: %q (was on line %d)", i+1, old[i], oldLines[i]))
+		case old[i] != got[i].text:
+			problems = append(problems, fmt.Sprintf("line %d is %q, want %q", got[i].line, got[i].text, old[i]))
 		}
 	}
 	return problems
@@ -145,8 +145,8 @@ func checkEvaluationSection(base, head string) []string {
 	if err != nil {
 		return []string{err.Error()}
 	}
-	oldSection := sectionFrom(before, evaluationSectionPrefix)
-	newSection := sectionFrom(after, evaluationSectionPrefix)
+	start, oldSection := sectionFrom(before, evaluationSectionPrefix)
+	_, newSection := sectionFrom(after, evaluationSectionPrefix)
 	if oldSection == nil || newSection == nil {
 		return []string{"section 6 is missing"}
 	}
@@ -155,7 +155,7 @@ func checkEvaluationSection(base, head string) []string {
 	for i, line := range oldSection {
 		at := slices.Index(newSection[next:], line)
 		if at < 0 {
-			problems = append(problems, fmt.Sprintf("section 6 line %d is missing or changed: %q", i+1, line))
+			problems = append(problems, fmt.Sprintf("line %d of the section (document line %d) is missing or changed: %q", i+1, start+i, line))
 			continue
 		}
 		next += at + 1
@@ -185,23 +185,12 @@ func checkOverviewSection(base, head string) []string {
 	if err != nil {
 		return []string{err.Error()}
 	}
-	old := overviewSection(before)
-	got := overviewSection(after)
+	start, old := overviewSection(before)
+	_, got := overviewSection(after)
 	if old == nil || got == nil {
 		return []string{fmt.Sprintf("the %q section is missing", overviewHeading)}
 	}
-	var problems []string
-	for i := range max(len(old), len(got)) {
-		switch {
-		case i >= len(old):
-			problems = append(problems, fmt.Sprintf("line %d is added: %q", i+1, got[i]))
-		case i >= len(got):
-			problems = append(problems, fmt.Sprintf("line %d is missing: %q", i+1, old[i]))
-		case old[i] != got[i]:
-			problems = append(problems, fmt.Sprintf("line %d is %q, want %q", i+1, got[i], old[i]))
-		}
-	}
-	return problems
+	return compareLines(start, old, got)
 }
 
 // checkSectionUnchanged compares the section that starts at the line with
@@ -215,44 +204,67 @@ func checkSectionUnchanged(base, head, path, prefix string) []string {
 	if err != nil {
 		return []string{err.Error()}
 	}
-	old := sectionFrom(before, prefix)
-	got := sectionFrom(after, prefix)
+	start, old := sectionFrom(before, prefix)
+	_, got := sectionFrom(after, prefix)
 	if old == nil || got == nil {
 		return []string{fmt.Sprintf("the %q section is missing", prefix)}
 	}
+	return compareLines(start, old, got)
+}
+
+// compareLines reports how the new section differs from the old one, numbering
+// the lines as they are in the document that starts at startLine.
+func compareLines(startLine int, old, got []string) []string {
 	var problems []string
 	for i := range max(len(old), len(got)) {
+		line := startLine + i
 		switch {
 		case i >= len(old):
-			problems = append(problems, fmt.Sprintf("line %d is added: %q", i+1, got[i]))
+			problems = append(problems, fmt.Sprintf("line %d is added: %q", line, got[i]))
 		case i >= len(got):
-			problems = append(problems, fmt.Sprintf("line %d is missing: %q", i+1, old[i]))
+			problems = append(problems, fmt.Sprintf("line %d is missing: %q", line, old[i]))
 		case old[i] != got[i]:
-			problems = append(problems, fmt.Sprintf("line %d is %q, want %q", i+1, got[i], old[i]))
+			problems = append(problems, fmt.Sprintf("line %d is %q, want %q", line, got[i], old[i]))
 		}
 	}
 	return problems
 }
 
-// headings returns the level-one to level-three heading lines of doc that are
-// outside a fenced code block.
-func headings(doc string) []string {
-	var found []string
+// headingLine is a heading line of a document and the line it is on.
+type headingLine struct {
+	text string
+	line int
+}
+
+// headingLines returns the level-one to level-three heading lines of doc that
+// are outside a fenced code block.
+func headingLines(doc string) []headingLine {
+	var found []headingLine
 	inBlock := false
-	for line := range strings.Lines(doc) {
-		text := strings.TrimSuffix(line, "\n")
-		if strings.HasPrefix(strings.TrimSpace(text), "```") {
+	for i, line := range strings.Split(doc, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "```") {
 			inBlock = !inBlock
 			continue
 		}
 		if inBlock {
 			continue
 		}
-		if level := headingLevel(text); level > 0 && level <= 3 {
-			found = append(found, text)
+		if level := headingLevel(line); level > 0 && level <= 3 {
+			found = append(found, headingLine{text: line, line: i + 1})
 		}
 	}
 	return found
+}
+
+// headings returns the text and the line number of each heading line of doc.
+func headings(doc string) ([]string, []int) {
+	var texts []string
+	var lines []int
+	for _, heading := range headingLines(doc) {
+		texts = append(texts, heading.text)
+		lines = append(lines, heading.line)
+	}
+	return texts, lines
 }
 
 // headingLevel reports the level of a Markdown heading line, or zero when the
@@ -268,21 +280,22 @@ func headingLevel(line string) int {
 	return n
 }
 
-// sectionFrom returns the lines from the first line whose text starts with
-// prefix to the end of doc, or nil when there is none.
-func sectionFrom(doc, prefix string) []string {
+// sectionFrom returns the 1-based line number of the first line whose text
+// starts with prefix and the lines from there to the end of doc. It returns
+// zero and nil when there is none.
+func sectionFrom(doc, prefix string) (int, []string) {
 	lines := strings.Split(doc, "\n")
 	for i, line := range lines {
 		if strings.HasPrefix(strings.TrimSpace(line), prefix) {
-			return lines[i:]
+			return i + 1, lines[i:]
 		}
 	}
-	return nil
+	return 0, nil
 }
 
 // overviewSection returns the lines from the environment variable heading to
 // the next level-two heading, or nil when there is none.
-func overviewSection(doc string) []string {
+func overviewSection(doc string) (int, []string) {
 	lines := strings.Split(doc, "\n")
 	start := -1
 	for i, line := range lines {
@@ -293,7 +306,7 @@ func overviewSection(doc string) []string {
 		break
 	}
 	if start < 0 {
-		return nil
+		return 0, nil
 	}
 	end := len(lines)
 	for i := start + 1; i < len(lines); i++ {
@@ -302,7 +315,7 @@ func overviewSection(doc string) []string {
 			break
 		}
 	}
-	return lines[start:end]
+	return start + 1, lines[start:end]
 }
 
 // rowStartingWith returns the first line of doc whose text starts with prefix.
