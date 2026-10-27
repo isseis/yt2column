@@ -1,5 +1,5 @@
 import { expandPromptMessage, rejectionMessage } from "../core/messages.ts";
-import type { Message } from "../core/messages.ts";
+import type { Message } from "../core/i18n/catalog.ts";
 import type { MetadataField, MetadataResult } from "../core/metadata.ts";
 import { truncate } from "../core/summary.ts";
 import type { OutcomeSummary } from "../core/types.ts";

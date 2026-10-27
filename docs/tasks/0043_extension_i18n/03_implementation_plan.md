@@ -148,13 +148,13 @@
 
 **変更するファイル:** `src/core/types.ts`、`src/core/i18n/catalog.ts`・`en.ts`・`ja.ts`（新規）、`src/core/messages.ts`、`src/ui/render.ts`、`test/catalog.test.ts`（新規）、`test/typecheck.test.ts`
 
--   [ ] `src/core/types.ts` に `SummaryField` を加える（設計書 3.2）。
--   [ ] `catalog.ts` に `Message`・`Catalog`・`catalogs` を書く（設計書 3.2）。`Message` の定義を `messages.ts` から移し、`messages.ts` の `RejectionMessage` は `catalog.ts` の `Message` の別名にする（1.4 の台帳）。`src/ui/render.ts:2` の `Message` の import を `catalog.ts` からの import に変える。
--   [ ] `en.ts` に、1.4 の表の場所にある英語の文字列リテラルを、そのまま写す。欄の名前と送信ボタンの名前は設計書 3.4 の「英語（今の字句）」の列と照らす。この時点では、振り分けと表示の関数はまだ今の文字列リテラルを使う（ステップ 2-3 で `catalogs` に切り替える）。
--   [ ] `ja.ts` に、設計書 3.4 の表の日本語の文言をそのまま写す（AC-10・AC-11 の字句は設計書 3.4 が決めている）。
--   [ ] `test/catalog.test.ts::catalogs` に、`locales` の各言語について、すべての `Message` の本文と手順、すべての欄の名前と送信ボタンの名前が空でないことを確かめるテストを書く。あわせて、`en` と `ja` の同じ位置の `Message` を組にして、日本語の文言が手順を持つのは英語の文言が手順を持つときだけであることを確かめるテストを書く（設計書 3.9、AC-06）。
--   [ ] `test/typecheck.test.ts` に、既存の `describe` とは別の `describe`（`a Catalog missing an item fails typecheck`、自身の一時的なディレクトリを持つ）を加え、`Catalog` の値から項目を 1 つ除いた一時的なモジュールの型の検査が、そのモジュールの行の TS2741 で失敗し、すべての項目を持つ対照のモジュールの型の検査が通ることを確かめるテストを加える（1.3 の設定、エラーの確かめ方は `typecheck.test.ts:103-106` と同じ）。除く項目は、最上位の項目（例: `sendButton`）と、`Record` の節の 1 つのキー（例: `rejection` の 1 つの理由）の 2 つとする。
--   [ ] 壊して確かめる: `ja.ts` の 1 つの本文を空にする、`ja.ts` の 1 つの手順を空にする、英語が手順を持たない文言に日本語の手順を 1 つ加える、の 3 つで `catalogs` のテストが失敗することを確かめる。あわせて、`Catalog` の最上位の項目と `Record` の節を省略できる型（`?` や `Partial<…>`）にすると欠けのテストが失敗し、対照のモジュールから項目を除くと対照のテストが失敗することを確かめる。
+-   [x] `src/core/types.ts` に `SummaryField` を加える（設計書 3.2）。
+-   [x] `catalog.ts` に `Message`・`Catalog`・`catalogs` を書く（設計書 3.2）。`Message` の定義を `messages.ts` から移し、`messages.ts` の `RejectionMessage` は `catalog.ts` の `Message` の別名にする（1.4 の台帳）。`src/ui/render.ts:2` の `Message` の import を `catalog.ts` からの import に変える。
+-   [x] `en.ts` に、1.4 の表の場所にある英語の文字列リテラルを、そのまま写す。欄の名前と送信ボタンの名前は設計書 3.4 の「英語（今の字句）」の列と照らす。この時点では、振り分けと表示の関数はまだ今の文字列リテラルを使う（ステップ 2-3 で `catalogs` に切り替える）。
+-   [x] `ja.ts` に、設計書 3.4 の表の日本語の文言をそのまま写す（AC-10・AC-11 の字句は設計書 3.4 が決めている）。
+-   [x] `test/catalog.test.ts::catalogs` に、`locales` の各言語について、すべての `Message` の本文と手順、すべての欄の名前と送信ボタンの名前が空でないことを確かめるテストを書く。あわせて、`en` と `ja` の同じ位置の `Message` を組にして、日本語の文言が手順を持つのは英語の文言が手順を持つときだけであることを確かめるテストを書く（設計書 3.9、AC-06）。
+-   [x] `test/typecheck.test.ts` に、既存の `describe` とは別の `describe`（`a Catalog missing an item fails typecheck`、自身の一時的なディレクトリを持つ）を加え、`Catalog` の値から項目を 1 つ除いた一時的なモジュールの型の検査が、そのモジュールの行の TS2741 で失敗し、すべての項目を持つ対照のモジュールの型の検査が通ることを確かめるテストを加える（1.3 の設定、エラーの確かめ方は `typecheck.test.ts:103-106` と同じ）。除く項目は、最上位の項目（例: `sendButton`）と、`Record` の節の 1 つのキー（例: `rejection` の 1 つの理由）の 2 つとする。
+-   [x] 壊して確かめる: `ja.ts` の 1 つの本文を空にする、`ja.ts` の 1 つの手順を空にする、英語が手順を持たない文言に日本語の手順を 1 つ加える、の 3 つで `catalogs` のテストが失敗することを確かめる。あわせて、`Catalog` の最上位の項目と `Record` の節を省略できる型（`?` や `Partial<…>`）にすると欠けのテストが失敗し、対照のモジュールから項目を除くと対照のテストが失敗することを確かめる。
 
 **完了の条件:** `make ext-check` が通る。コミットする。
 

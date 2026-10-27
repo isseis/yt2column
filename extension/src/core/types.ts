@@ -17,6 +17,9 @@ export const rejectionReasons: Record<RejectionReason, true> = {
   "empty-title": true,
 };
 
+/** The fields of the collected summary. */
+export type SummaryField = "title" | "url" | "characters" | "lines" | "preview";
+
 /** What a launch path knows about the tab at the moment of the launch. */
 export interface LaunchContext {
   readonly tabId: number;

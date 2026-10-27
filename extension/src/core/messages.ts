@@ -1,12 +1,5 @@
+import type { Message } from "./i18n/catalog.ts";
 import type { RejectionReason } from "./types.ts";
-
-/** The shape of a message: a sentence and optional numbered steps. */
-export interface Message {
-  /** One-sentence statement of the situation. */
-  readonly text: string;
-  /** Steps that let the user succeed next time; empty when none apply. */
-  readonly steps: readonly string[];
-}
 
 /** A rejection reason's message. The name is kept; the shape is Message. */
 export type RejectionMessage = Message;
