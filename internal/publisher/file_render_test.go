@@ -241,8 +241,8 @@ func TestEscapeLeadingMarkdown(t *testing.T) {
 }
 
 // TestFileContentMatchesFilePublisher checks, for every golden article, that
-// FileContent returns byte for byte what FilePublisher writes, and that both
-// are the committed golden file, which predates FileContent.
+// FileContent returns byte for byte what FilePublisher writes. TestRenderGolden
+// pins the content itself.
 func TestFileContentMatchesFilePublisher(t *testing.T) {
 	for _, tc := range goldenCases() {
 		t.Run(tc.name, func(t *testing.T) {
@@ -264,9 +264,6 @@ func TestFileContentMatchesFilePublisher(t *testing.T) {
 			}
 			if got != string(written) {
 				t.Errorf("FileContent =\n%q\nwant the written file\n%q", got, written)
-			}
-			if want := readGolden(t, tc.name+".md"); got != want {
-				t.Errorf("FileContent differs from %s", tc.name+".md")
 			}
 		})
 	}

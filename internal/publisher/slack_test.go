@@ -1363,10 +1363,12 @@ func TestPostMessagesResumedWaits(t *testing.T) {
 
 	t.Run("no wait before the first message sent", func(t *testing.T) {
 		server := newSlackOKServer(t)
-		// An hour-long interval would block the test if the first message
-		// sent waited for it.
+		// A wait for the hour-long interval would outlast the context's
+		// deadline and fail the post.
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		t.Cleanup(cancel)
 		p := newTestSlackPublisher(t, server, SlackTestOptions{Interval: time.Hour})
-		if err := p.PostMessages(context.Background(), m, m.Len()-1, func(int) {}); err != nil {
+		if err := p.PostMessages(ctx, m, m.Len()-1, func(int) {}); err != nil {
 			t.Fatalf("PostMessages error = %v, want nil", err)
 		}
 		if n := server.recorder.count(); n != 1 {

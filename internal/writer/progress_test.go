@@ -161,12 +161,16 @@ func TestWriteWithProgressFailures(t *testing.T) {
 		ctx        func() context.Context
 		transcript func() transcript.Transcript
 		artifacts  ArtifactOptions
-		want       []progressEvent
+		// wantErr tells this row's failure from the other rows', so a row
+		// whose fixture drifted to another failure does not pass.
+		wantErr func(err error) bool
+		want    []progressEvent
 	}{
 		{
-			name:   "context done before generation",
-			gen:    func(t *testing.T) llm.LLMClient { return newStepClient(t) },
-			review: reviewOK(),
+			name:    "context done before generation",
+			wantErr: func(err error) bool { return errors.Is(err, context.Canceled) },
+			gen:     func(t *testing.T) llm.LLMClient { return newStepClient(t) },
+			review:  reviewOK(),
 			ctx: func() context.Context {
 				ctx, cancel := context.WithCancel(context.Background())
 				cancel()
@@ -175,9 +179,10 @@ func TestWriteWithProgressFailures(t *testing.T) {
 			want: nil,
 		},
 		{
-			name:   "invalid transcript",
-			gen:    func(t *testing.T) llm.LLMClient { return newStepClient(t) },
-			review: reviewOK(),
+			name:    "invalid transcript",
+			wantErr: func(err error) bool { return errors.Is(err, ErrInvalidTranscript) },
+			gen:     func(t *testing.T) llm.LLMClient { return newStepClient(t) },
+			review:  reviewOK(),
 			transcript: func() transcript.Transcript {
 				tr := validTranscript()
 				tr.Segments = nil
@@ -187,13 +192,15 @@ func TestWriteWithProgressFailures(t *testing.T) {
 		},
 		{
 			name:      "resume load",
+			wantErr:   isArtifactError(StageGeneration),
 			gen:       func(t *testing.T) llm.LLMClient { return newStepClient(t) },
 			review:    reviewOK(),
 			artifacts: ArtifactOptions{Store: &fakeArtifactStore{loadErr: failure}, Resume: StageGeneration},
 			want:      nil,
 		},
 		{
-			name: "generation artifact save",
+			name:    "generation artifact save",
+			wantErr: isArtifactError(StageGeneration),
 			gen: func(t *testing.T) llm.LLMClient {
 				return newStepClient(t, stepResult(llm.GenerateResponse{Text: stepResponseText(markGenTitle, markGenBody), Model: markOutModel}))
 			},
@@ -202,7 +209,8 @@ func TestWriteWithProgressFailures(t *testing.T) {
 			want:      []progressEvent{started(StageGeneration)},
 		},
 		{
-			name: "generation",
+			name:    "generation",
+			wantErr: func(err error) bool { return errors.Is(err, failure) && !isStepError(err) },
 			gen: func(t *testing.T) llm.LLMClient {
 				return newStepClient(t, llmtestutil.FakeLLMSequenceStep{Err: failure})
 			},
@@ -210,7 +218,8 @@ func TestWriteWithProgressFailures(t *testing.T) {
 			want:   []progressEvent{started(StageGeneration)},
 		},
 		{
-			name: "shorten",
+			name:    "shorten",
+			wantErr: func(err error) bool { return errors.Is(err, failure) && isStepErrorOf(err, StepShorten) },
 			gen: func(t *testing.T) llm.LLMClient {
 				return newStepClient(t,
 					stepResult(llm.GenerateResponse{Text: stepResponseText(markGenTitle, overLimitBody()), Model: markOutModel}),
@@ -224,7 +233,8 @@ func TestWriteWithProgressFailures(t *testing.T) {
 			},
 		},
 		{
-			name: "review",
+			name:    "review",
+			wantErr: func(err error) bool { return errors.Is(err, failure) && isStepErrorOf(err, StepReview) },
 			gen: func(t *testing.T) llm.LLMClient {
 				return newStepClient(t, stepResult(llm.GenerateResponse{Text: stepResponseText(markGenTitle, markGenBody), Model: markOutModel}))
 			},
@@ -238,7 +248,8 @@ func TestWriteWithProgressFailures(t *testing.T) {
 		{
 			// The review passes its own checks but lengthens the body past
 			// the limit, so the final length check fails it.
-			name: "final length check",
+			name:    "final length check",
+			wantErr: func(err error) bool { return errors.Is(err, ErrTooLong) && isStepErrorOf(err, StepReview) },
 			gen: func(t *testing.T) llm.LLMClient {
 				return newStepClient(t, stepResult(llm.GenerateResponse{Text: stepResponseText(markGenTitle, markGenBody), Model: markOutModel}))
 			},
@@ -269,8 +280,8 @@ func TestWriteWithProgressFailures(t *testing.T) {
 			observer := &recordingObserver{}
 
 			a, err := w.WriteWithProgress(ctx, tr, observer)
-			if err == nil {
-				t.Fatal("WriteWithProgress error = nil, want the failure")
+			if !tc.wantErr(err) {
+				t.Fatalf("WriteWithProgress error = %v, want this row's failure", err)
 			}
 			if a != (Article{}) {
 				t.Errorf("WriteWithProgress article = %+v, want the zero value", a)
@@ -280,6 +291,26 @@ func TestWriteWithProgressFailures(t *testing.T) {
 			}
 		})
 	}
+}
+
+// isArtifactError returns a check that err is a *ArtifactError for stage.
+func isArtifactError(stage Stage) func(error) bool {
+	return func(err error) bool {
+		artifactErr, ok := errors.AsType[*ArtifactError](err)
+		return ok && artifactErr.Stage == stage
+	}
+}
+
+// isStepError reports whether err is a *StepError.
+func isStepError(err error) bool {
+	_, ok := errors.AsType[*StepError](err)
+	return ok
+}
+
+// isStepErrorOf reports whether err is a *StepError for step.
+func isStepErrorOf(err error, step Step) bool {
+	stepErr, ok := errors.AsType[*StepError](err)
+	return ok && stepErr.Step == step
 }
 
 func TestWriteWithProgressNilObserver(t *testing.T) {
