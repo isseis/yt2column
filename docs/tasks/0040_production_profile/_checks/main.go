@@ -237,16 +237,22 @@ type headingLine struct {
 }
 
 // headingLines returns the level-one to level-three heading lines of doc that
-// are outside a fenced code block.
+// are outside a fenced code block. As in the documentation tests, an opening
+// fence may carry an info string, while a closing fence is backticks alone, so
+// a line such as "```not-closed" inside a block stays part of the block.
 func headingLines(doc string) []headingLine {
 	var found []headingLine
 	inBlock := false
 	for i, line := range strings.Split(doc, "\n") {
-		if strings.HasPrefix(strings.TrimSpace(line), "```") {
-			inBlock = !inBlock
+		trimmed := strings.TrimSpace(line)
+		switch {
+		case !inBlock && strings.HasPrefix(trimmed, "```"):
+			inBlock = true
 			continue
-		}
-		if inBlock {
+		case inBlock && isClosingFence(trimmed):
+			inBlock = false
+			continue
+		case inBlock:
 			continue
 		}
 		if level := headingLevel(line); level > 0 && level <= 3 {
@@ -254,6 +260,12 @@ func headingLines(doc string) []headingLine {
 		}
 	}
 	return found
+}
+
+// isClosingFence reports whether line is a closing code fence: three or more
+// backticks and nothing else.
+func isClosingFence(line string) bool {
+	return len(line) >= 3 && strings.Trim(line, "`") == ""
 }
 
 // headings returns the text and the line number of each heading line of doc.

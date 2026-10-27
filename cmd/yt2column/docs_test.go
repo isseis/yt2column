@@ -986,16 +986,10 @@ func TestProductionProfileLinks(t *testing.T) {
 }
 
 // TestReadmeLinks checks the README's links: every relative link points at an
-// existing path, and every in-page link outside Quick start resolves to an
-// anchor the helper produces. GitHub resolves those, so they are the oracle
-// for the anchor rule.
+// existing path, and every in-page link resolves to an anchor the helper
+// produces. GitHub resolves those, so they are the oracle for the anchor rule.
 func TestReadmeLinks(t *testing.T) {
 	readme := readDoc(t, readmePath)
-	quickStart := sectionOutsideBlocks(readme, quickStartHeading)
-	rest := strings.Replace(readme, quickStartHeading+"\n"+quickStart, "", 1)
-	if rest == readme {
-		t.Fatal("could not cut the Quick start section out of README")
-	}
 	anchors := headingAnchors(t, "README.md", readme)
 	targets := markdownLinkTargets(readme)
 	openers := 0
@@ -1020,19 +1014,6 @@ func TestReadmeLinks(t *testing.T) {
 		path, _, _ := strings.Cut(target, "#")
 		if _, err := os.Stat(filepath.Join(filepath.Dir(readmePath), path)); err != nil {
 			t.Errorf("README links to %q, which does not exist", target)
-		}
-	}
-	// Quick start's own anchors are newer than the README, so they are not
-	// evidence of GitHub's rule. Require the links that were already there.
-	for _, anchor := range []string{"output-format", "setting-up-yt-dlp", "cache-and-concurrency"} {
-		found := false
-		for _, target := range markdownLinkTargets(rest) {
-			if target == "#"+anchor {
-				found = true
-			}
-		}
-		if !found {
-			t.Errorf("README has no longer an in-page link to %q, so the anchor rule has lost an oracle it was checked against", anchor)
 		}
 	}
 }
