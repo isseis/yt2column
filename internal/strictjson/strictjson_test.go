@@ -223,6 +223,49 @@ func TestObjectHas(t *testing.T) {
 	if zero.Has("a") {
 		t.Error("zero Object.Has(a) = true, want false")
 	}
+
+	escaped, err := ParseObject([]byte(`{"\u0076":1}`))
+	if err != nil {
+		t.Fatalf("ParseObject error = %v", err)
+	}
+	if !escaped.Has("v") {
+		t.Error(`Has(v) = false, want true for a key written as "\u0076"`)
+	}
+	if escaped.Has(`\u0076`) {
+		t.Error(`Has("\\u0076") = true, want false: the key is compared decoded`)
+	}
+}
+
+func TestValueRaw(t *testing.T) {
+	const input = `{ "a" :  { "z" : "\u3042\n" ,  "b":[1, 2] } , "s": "x" }`
+	object, err := ParseObject([]byte(input))
+	if err != nil {
+		t.Fatalf("ParseObject error = %v", err)
+	}
+	consumed, err := object.Collect("a", "s")
+	if err != nil {
+		t.Fatalf("Collect error = %v", err)
+	}
+	cases := map[string]string{
+		"a": `{ "z" : "\u3042\n" ,  "b":[1, 2] }`,
+		"s": `"x"`,
+	}
+	for key, want := range cases {
+		if got := string(consumed[key].Raw()); got != want {
+			t.Errorf("Raw(%s) = %q, want %q", key, got, want)
+		}
+	}
+
+	raw := consumed["a"].Raw()
+	raw[0] = 'X'
+	if got := string(consumed["a"].Raw()); got != cases["a"] {
+		t.Errorf("Raw after modifying a returned copy = %q, want %q", got, cases["a"])
+	}
+
+	var zero Value
+	if got := zero.Raw(); got != nil {
+		t.Errorf("zero Value.Raw() = %q, want nil", got)
+	}
 }
 
 func TestRequiredAndRequiredString(t *testing.T) {
