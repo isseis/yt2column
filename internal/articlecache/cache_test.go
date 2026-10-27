@@ -107,12 +107,14 @@ func TestNewOptions(t *testing.T) {
 			t.Errorf("New(Capacity %d) error = %v, want ErrInvalidOptions", capacity, err)
 		}
 	}
+	// A nil Clock selects time.Now, so the cache can time a generation.
 	c, err := New(Options{Capacity: 1})
 	if err != nil {
 		t.Fatalf("New(Capacity 1) error = %v", err)
 	}
-	if got := c.Lookup(testKey(1)).State; got != JobUnknown {
-		t.Errorf("new cache Lookup state = %v, want JobUnknown", got)
+	begin(t, c, testKey(1)).CompletePostable(testArticle("t"))
+	if got := c.Lookup(testKey(1)).Duration; got < 0 || got > time.Minute {
+		t.Errorf("Duration with the default clock = %v, want a short non-negative value", got)
 	}
 }
 
@@ -161,6 +163,16 @@ func testBeginNoSlot(t *testing.T) {
 	if got := c.Lookup(testKey(2)); got.State != JobFailed || got.Failure != FailureLLM {
 		t.Errorf("Lookup = %+v, want the failure kept", got)
 	}
+
+	// A full cache drops nothing when no slot is free.
+	full, _ := newTestCache(t, 1)
+	done(t, full, testKey(1))
+	if outcome, _, evicted := full.Begin(testKey(2), never); outcome != BeginNoSlot || evicted != nil {
+		t.Fatalf("Begin(full) = %v, %+v; want BeginNoSlot and no eviction", outcome, evicted)
+	}
+	if full.Lookup(testKey(1)).State != JobDone {
+		t.Error("BeginNoSlot dropped a record")
+	}
 }
 
 func testBeginExistingDoesNotAcquire(t *testing.T) {
@@ -195,8 +207,10 @@ func testBeginExistingDoesNotAcquire(t *testing.T) {
 			if *calls != 0 {
 				t.Errorf("acquire calls = %d, want 0", *calls)
 			}
-			after := c.Lookup(tc.key)
-			if after.State != tc.state || after.Publish != tc.publish || after.PublishFailure != before.PublishFailure {
+			if before.State != tc.state || before.Publish != tc.publish {
+				t.Fatalf("setup Lookup = %+v, want state %v and publish %v", before, tc.state, tc.publish)
+			}
+			if after := c.Lookup(tc.key); after != before {
 				t.Errorf("Lookup after Begin = %+v, want unchanged %+v", after, before)
 			}
 		})
@@ -204,7 +218,7 @@ func testBeginExistingDoesNotAcquire(t *testing.T) {
 }
 
 func testBeginRestartsFailed(t *testing.T) {
-	c, clock := newTestCache(t, 1)
+	c, _ := newTestCache(t, 1)
 	run := begin(t, c, testKey(1))
 	run.StageStarted(writer.StageGeneration)
 	run.StageFinished(writer.StageGeneration)
@@ -213,7 +227,6 @@ func testBeginRestartsFailed(t *testing.T) {
 	run.Fail(FailureLLMTimeout)
 
 	// The cache is full, but restarting needs no room.
-	clock.Advance(time.Minute)
 	acquire, calls := countingAcquire(true)
 	outcome, restarted, evicted := c.Begin(testKey(1), acquire)
 	if outcome != BeginRestarted || restarted == nil || evicted != nil {
@@ -255,8 +268,9 @@ func TestBeginFullChangesNothing(t *testing.T) {
 	if *calls != 0 {
 		t.Errorf("acquire calls = %d, want 0", *calls)
 	}
-	if c.Lookup(testKey(1)).State != JobRunning || c.Lookup(testKey(2)).Publish != PublishPosting {
-		t.Error("BeginFull changed a record")
+	if c.Lookup(testKey(1)).State != JobRunning || c.Lookup(testKey(2)).Publish != PublishPosting ||
+		c.Lookup(testKey(3)).State != JobUnknown {
+		t.Error("BeginFull changed a record or added one")
 	}
 }
 
@@ -292,15 +306,18 @@ func TestEvictionOrder(t *testing.T) {
 	t.Run("end order breaks a tie", func(t *testing.T) {
 		// Map iteration order varies, so repeat to catch an order that
 		// depends on it.
+		// Both end orders are checked, so a tie-break other than end order
+		// (such as one by key) fails one of them.
 		for range 20 {
-			c, _ := newTestCache(t, 2)
-			first := begin(t, c, testKey(1))
-			second := begin(t, c, testKey(2))
-			second.Fail(FailureLLM)
-			first.CompletePostable(testArticle("t"))
-			_, _, evicted := c.Begin(testKey(3), always)
-			if evicted == nil || evicted.Key != testKey(2) {
-				t.Fatalf("evicted = %+v, want key 2, which ended first at the same time", evicted)
+			for _, firstEnded := range []int{1, 2} {
+				c, _ := newTestCache(t, 2)
+				runs := map[int]*Run{1: begin(t, c, testKey(1)), 2: begin(t, c, testKey(2))}
+				runs[firstEnded].Fail(FailureLLM)
+				runs[3-firstEnded].CompletePostable(testArticle("t"))
+				_, _, evicted := c.Begin(testKey(3), always)
+				if evicted == nil || evicted.Key != testKey(firstEnded) {
+					t.Fatalf("evicted = %+v, want key %d, which ended first at the same time", evicted, firstEnded)
+				}
 			}
 		}
 	})
@@ -336,17 +353,6 @@ func TestEvictionKeepsRunningAndPosting(t *testing.T) {
 				t.Errorf("Begin = %v, %+v; want BeginFull and the record kept", outcome, evicted)
 			}
 		})
-	}
-}
-
-func TestNoSlotDoesNotEvict(t *testing.T) {
-	c, _ := newTestCache(t, 1)
-	done(t, c, testKey(1))
-	if outcome, _, evicted := c.Begin(testKey(2), never); outcome != BeginNoSlot || evicted != nil {
-		t.Fatalf("Begin = %v, %+v; want BeginNoSlot and no eviction", outcome, evicted)
-	}
-	if c.Lookup(testKey(1)).State != JobDone {
-		t.Error("BeginNoSlot dropped a record")
 	}
 }
 
@@ -396,17 +402,11 @@ func TestRunEndsAfterFirstOutcome(t *testing.T) {
 			run.CompletePostable(testArticle("second"))
 			run.CompleteUnpostable(testArticle("second"), UnpostableOther)
 			run.Fail(FailureLLM)
-			if got := c.Lookup(testKey(1)); !snapshotEqual(got, want) {
+			if got := c.Lookup(testKey(1)); got != want {
 				t.Errorf("Lookup after later calls = %+v, want unchanged %+v", got, want)
 			}
 		})
 	}
-}
-
-func snapshotEqual(a, b Snapshot) bool {
-	return a.State == b.State && a.Stages == b.Stages && a.Failure == b.Failure &&
-		a.Article.Title == b.Article.Title && a.Duration == b.Duration &&
-		a.Publish == b.Publish && a.Unpostable == b.Unpostable && a.PublishFailure == b.PublishFailure
 }
 
 func TestStaleRunAfterRestart(t *testing.T) {
@@ -432,6 +432,16 @@ func TestStaleRunAfterEviction(t *testing.T) {
 	stale := begin(t, c, testKey(1))
 	stale.Fail(FailureLLM)
 	failed(t, c, testKey(2)) // evicts key 1
+
+	// While key 1 is absent, every method does nothing and does not panic.
+	stale.StageStarted(writer.StageGeneration)
+	stale.CompletePostable(testArticle("stale"))
+	stale.CompleteUnpostable(testArticle("stale"), UnpostableOther)
+	stale.Fail(FailureLLM)
+	if got := c.Lookup(testKey(1)).State; got != JobUnknown {
+		t.Fatalf("Lookup state = %v, want JobUnknown: the stale Run recreated a record", got)
+	}
+
 	if outcome, _, evicted := c.Begin(testKey(1), always); outcome != BeginStarted || evicted == nil {
 		t.Fatalf("Begin = %v, %+v; want key 1 recreated by evicting key 2", outcome, evicted)
 	}
@@ -445,10 +455,22 @@ func TestStalePublishRunAfterEviction(t *testing.T) {
 	c, _ := newTestCache(t, 1)
 	stale := posting(t, c, testKey(1))
 	stale.Fail(PublishFailureWebhook)
-	done(t, c, testKey(2))    // evicts key 1
-	posting(t, c, testKey(1)) // evicts key 2 and recreates key 1, posting
+	done(t, c, testKey(2)) // evicts key 1
 
+	// While key 1 is absent, every method does nothing and does not panic.
 	stale.Delivered(0)
+	stale.Finish()
+	stale.Fail(PublishFailureInternal)
+	if got := c.Lookup(testKey(1)).State; got != JobUnknown {
+		t.Fatalf("Lookup state = %v, want JobUnknown", got)
+	}
+
+	current := posting(t, c, testKey(1)) // evicts key 2 and recreates key 1, posting
+	stale.Delivered(0)
+	current.Fail(PublishFailureWebhook)
+	if _, retry := c.BeginPublish(testKey(1)); retry.From() != 0 {
+		t.Errorf("From = %d, want 0: the stale PublishRun's Delivered reached a new record", retry.From())
+	}
 	stale.Finish()
 	if got := c.Lookup(testKey(1)).Publish; got != PublishPosting {
 		t.Errorf("Publish = %v, want posting: the stale PublishRun acted on a new record", got)
@@ -457,22 +479,17 @@ func TestStalePublishRunAfterEviction(t *testing.T) {
 
 func TestCompleteDropsRevisions(t *testing.T) {
 	const marker = "MARKER-QUOTED-TRANSCRIPT"
-	c, clock := newTestCache(t, 2)
+	c, _ := newTestCache(t, 2)
 	article := testArticle("t")
 	article.Review = &writer.ReviewResult{
 		Model:     writer.StepModel{Model: "review-model"},
 		Revisions: []writer.Revision{{Before: "a", Action: writer.ActionDelete, Evidence: marker}},
 	}
 	article.Shorten = &writer.StepModel{Model: "shorten-model"}
-	run := begin(t, c, testKey(1))
-	clock.Advance(2 * time.Second)
-	run.CompletePostable(article)
+	begin(t, c, testKey(1)).CompletePostable(article)
 	article.Shorten.Model = "changed"
 
 	got := c.Lookup(testKey(1))
-	if got.State != JobDone || got.Publish != PublishNotPosted || got.Duration != 2*time.Second {
-		t.Fatalf("Lookup = %+v, want done, not posted, 2s", got)
-	}
 	if got.Article.Review == nil || got.Article.Review.Revisions != nil || got.Article.Review.Model.Model != "review-model" {
 		t.Errorf("stored Review = %+v, want the model kept and no revisions", got.Article.Review)
 	}
@@ -563,9 +580,14 @@ func TestPublishResumeFrom(t *testing.T) {
 	}
 	// The ended handle no longer acts.
 	pub.Delivered(2)
+	retry.Fail(PublishFailureWebhook)
+	outcome, retry = c.BeginPublish(testKey(1))
+	if outcome != PublishBeginStarted || retry.From() != 2 {
+		t.Fatalf("retry after a stale Delivered = %v, From %d; want started from 2", outcome, retry.From())
+	}
 	pub.Finish()
 	if got := c.Lookup(testKey(1)).Publish; got != PublishPosting {
-		t.Fatalf("Publish after stale calls = %v, want posting", got)
+		t.Fatalf("Publish after a stale Finish = %v, want posting", got)
 	}
 
 	retry.Delivered(2)

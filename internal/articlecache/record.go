@@ -196,10 +196,10 @@ func withoutRevisions(a writer.Article) writer.Article {
 }
 
 // Run is the handle a generation job reports through; its stage methods are
-// the ones writer's progress observer is to call. A Run acts only on the record generation it was
-// issued for: after CompletePostable, CompleteUnpostable, or Fail, or once the
-// record was replaced, every method does nothing. A stage outside the three
-// writer stages is ignored.
+// the ones writer's progress observer is to call. A Run acts only on the
+// record generation it was issued for: after CompletePostable,
+// CompleteUnpostable, or Fail, or once the record was replaced, every method
+// does nothing. A stage outside the three writer stages is ignored.
 type Run struct {
 	cache *Cache
 	key   Key
@@ -326,7 +326,8 @@ func (p *PublishRun) Delivered(index int) {
 	rec.delivered++
 }
 
-// Finish marks the article posted: every message was delivered.
+// Finish marks the article posted; the caller calls it once every message
+// was delivered.
 func (p *PublishRun) Finish() {
 	p.cache.mu.Lock()
 	defer p.cache.mu.Unlock()

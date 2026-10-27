@@ -97,7 +97,7 @@ func TestParseKey(t *testing.T) {
 	cases := map[string]string{
 		"63 characters":   valid[:63],
 		"65 characters":   valid + "0",
-		"uppercase":       strings.ToUpper(valid[:1]) + "A" + valid[2:],
+		"uppercase":       "A" + valid[1:],
 		"leading space":   " " + valid[1:],
 		"trailing space":  valid[:63] + " ",
 		"surrounded":      " " + valid + " ",
