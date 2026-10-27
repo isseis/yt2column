@@ -126,15 +126,15 @@ func TestMakeTargetsDoNotReadRetiredModelEnv(t *testing.T) {
 	}
 }
 
-// retiredModelEnvMentioned reports whether line names one of retiredLLMEnvs as
+// retiredLLMEnvMentioned reports whether line names one of retiredLLMEnvs as
 // a whole variable name. A longer name that only starts or ends with one, such
 // as YT2COLUMN_MODEL_OLD, is another variable and allowed.
-func retiredModelEnvMentioned(line string) bool {
-	return retiredModelEnvRE.MatchString(line)
+func retiredLLMEnvMentioned(line string) bool {
+	return retiredLLMEnvRE.MatchString(line)
 }
 
-// retiredModelEnvRE matches any of retiredLLMEnvs as a whole variable name.
-var retiredModelEnvRE = func() *regexp.Regexp {
+// retiredLLMEnvRE matches any of retiredLLMEnvs as a whole variable name.
+var retiredLLMEnvRE = func() *regexp.Regexp {
 	quoted := make([]string, 0, len(retiredLLMEnvs))
 	for _, name := range retiredLLMEnvs {
 		quoted = append(quoted, regexp.QuoteMeta(name))
@@ -142,28 +142,34 @@ var retiredModelEnvRE = func() *regexp.Regexp {
 	return regexp.MustCompile(`(^|[^A-Za-z0-9_])(` + strings.Join(quoted, "|") + `)([^A-Za-z0-9_]|$)`)
 }()
 
-// TestRetiredModelEnvMentioned pins the whole-name boundary of the guard's
-// matcher for each retired name: the name matches in the forms a Makefile line
-// or a Go source line holds it, and a longer name that contains it does not.
-func TestRetiredModelEnvMentioned(t *testing.T) {
-	for _, retired := range retiredLLMEnvs {
-		for _, tc := range []struct {
-			name string
-			line string
-			want bool
-		}{
-			{name: "assignment", line: retired + " ?= deepseek-flash", want: true},
-			{name: "export", line: "export " + retired + " := $(" + retired + ")", want: true},
-			{name: "make_reference", line: "$(" + retired + ")", want: true},
-			{name: "shell_reference", line: `"${` + retired + `}"`, want: true},
-			{name: "name_starts_with_identifier", line: "DEFAULT_" + retired, want: false},
-			{name: "name_ends_with_identifier", line: retired + "_OLD", want: false},
-		} {
-			t.Run(retired+"/"+tc.name, func(t *testing.T) {
-				if got := retiredModelEnvMentioned(tc.line); got != tc.want {
-					t.Errorf("retiredModelEnvMentioned(%q) = %t, want %t", tc.line, got, tc.want)
-				}
-			})
+// TestRetiredLLMEnvMentioned pins the whole-name boundary of the guard's
+// matcher: a retired name matches in the forms a Makefile line or a Go source
+// line holds it, and a longer name that contains it does not. The boundary is
+// shared by every alternative, so it is checked on one name, and each name is
+// checked to match.
+func TestRetiredLLMEnvMentioned(t *testing.T) {
+	retired := retiredLLMEnvs[0]
+	for _, tc := range []struct {
+		name string
+		line string
+		want bool
+	}{
+		{name: "assignment", line: retired + " ?= deepseek-flash", want: true},
+		{name: "export", line: "export " + retired + " := $(" + retired + ")", want: true},
+		{name: "make_reference", line: "$(" + retired + ")", want: true},
+		{name: "shell_reference", line: `"${` + retired + `}"`, want: true},
+		{name: "name_starts_with_identifier", line: "DEFAULT_" + retired, want: false},
+		{name: "name_ends_with_identifier", line: retired + "_OLD", want: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := retiredLLMEnvMentioned(tc.line); got != tc.want {
+				t.Errorf("retiredLLMEnvMentioned(%q) = %t, want %t", tc.line, got, tc.want)
+			}
+		})
+	}
+	for _, name := range retiredLLMEnvs {
+		if !retiredLLMEnvMentioned("$(" + name + ")") {
+			t.Errorf("retiredLLMEnvMentioned does not match %s", name)
 		}
 	}
 }
@@ -203,7 +209,7 @@ func TestRetiredModelEnvIsGone(t *testing.T) {
 					t.Fatalf("read %s: %v", file, err)
 				}
 				for i, line := range slices.Collect(strings.Lines(string(content))) {
-					if retiredModelEnvMentioned(line) {
+					if retiredLLMEnvMentioned(line) {
 						t.Errorf("%s:%d names a retired variable: %s", file, i+1, strings.TrimSpace(line))
 					}
 				}

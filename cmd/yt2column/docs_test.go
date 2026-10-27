@@ -816,7 +816,11 @@ func checkExportBlockMatchesDefaults(t *testing.T, docName, sectionName string, 
 
 // profileStages are the rows the shared document's profile table must hold,
 // in the order the article is written.
-var profileStages = []string{"生成", "字数の調整", "検証・推敲"}
+var profileStages = []string{"生成", "字数の調整", reviewProfileStage}
+
+// reviewProfileStage is the profile table's row for the review step, whose
+// values go into YT2COLUMN_REVIEW_LLM.
+const reviewProfileStage = "検証・推敲"
 
 // productionProfileVars returns the variables that describe the production
 // profile: the generation provider and model, which the review step inherits,
@@ -890,7 +894,7 @@ func checkProfileTable(t *testing.T, section string, defaults config.LLMConfig) 
 		if !complete {
 			continue
 		}
-		review := stage == "検証・推敲"
+		review := stage == reviewProfileStage
 		llmEnv := config.LLMEnvForTest()
 		if review {
 			llmEnv = config.ReviewLLMEnvForTest()
@@ -965,8 +969,8 @@ const migrationHeading = "### Migrating from the retired LLM variables"
 // TestMigrationDocsContract checks the README's migration example: the
 // section holds one text block of the retired generation variables and one sh
 // block setting YT2COLUMN_LLM alone, and the sh block loads, through
-// LoadServer, to the provider and model the retired block named, for both the
-// generation and the review step. The retired names come from the config
+// LoadServer, to the generation provider and model the retired block named.
+// The retired names come from the config
 // package, whose table orders the generation provider variable first and the
 // generation model variable second.
 func TestMigrationDocsContract(t *testing.T) {
@@ -1020,11 +1024,9 @@ func TestMigrationDocsContract(t *testing.T) {
 	// The model names come from the document, so the diagnostic says only
 	// whether they are equal: a secret pasted into the block by mistake must
 	// not reach the log.
-	if got.Provider() != want.Provider() || got.Model() != want.Model() ||
-		got.ReviewProvider() != want.ReviewProvider() || got.ReviewModel() != want.ReviewModel() {
-		t.Errorf("README %s: the new setting gives provider %v/%v (review %v/%v), model equal %t (review %t); want the retired setting's",
-			migrationHeading, got.Provider(), want.Provider(), got.ReviewProvider(), want.ReviewProvider(),
-			got.Model() == want.Model(), got.ReviewModel() == want.ReviewModel())
+	if got.Provider() != want.Provider() || got.Model() != want.Model() {
+		t.Errorf("README %s: the new setting gives provider %v (want %v), model equal %t; want the retired setting's",
+			migrationHeading, got.Provider(), want.Provider(), got.Model() == want.Model())
 	}
 }
 

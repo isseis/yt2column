@@ -724,13 +724,18 @@ the extension shows either one as an unexpected reply.
   step, and the four old variables are rejected whenever they are set, even
   empty. A CLI run exits with `2` before it starts; a server exits with `2`
   before it listens, and the extension can only report that the server is not
-  running. Unset each old variable and set `YT2COLUMN_LLM` (and
-  `YT2COLUMN_REVIEW_LLM` if the review step used its own settings) as
-  [Migrating from the retired LLM variables](#migrating-from-the-retired-llm-variables)
-  shows, then start the server again.
+  running. Unset each old variable and set `YT2COLUMN_LLM`; if you unset them
+  without setting it, the default `claude/claude-opus-5-5` is used and the
+  transcript goes to Anthropic. If any `YT2COLUMN_REVIEW_*` variable was set,
+  also set `YT2COLUMN_REVIEW_LLM` to the provider and model the review step
+  actually used. See
+  [Migrating from the retired LLM variables](#migrating-from-the-retired-llm-variables),
+  then start the server again.
 - **`build the LLM client` or `build the review LLM client` with a model
   error.** The provider's client rejects a model ID with surrounding white space
-  or invalid UTF-8 when it is built, without naming the variable. Fix the model
+  or invalid UTF-8 when it is built, without naming the variable. The server
+  builds both clients at startup, so it exits with `2` before it listens, and
+  the extension can only report that the server is not running. Fix the model
   ID in `YT2COLUMN_LLM` for the first; for the second, fix it in
   `YT2COLUMN_REVIEW_LLM`, or in `YT2COLUMN_LLM` when `YT2COLUMN_REVIEW_LLM` is
   unset.
@@ -833,8 +838,9 @@ including any further `/` (`claude/vendor/model-x` sends the model
 `vendor/model-x`). The model ID must not be empty, so `claude` and `claude/`
 are rejected, as are `/claude-opus-5-5`, `Claude/claude-opus-5-5`, and
 ` claude/claude-opus-5-5`. A model ID with surrounding white space is accepted
-here but rejected by the provider's client when the step that uses it is about
-to run, before any request.
+here but rejected, before any request, when a run that executes the step
+builds that step's client: the CLI builds its clients before the run starts,
+and the server builds both at startup, before it listens.
 
 With `YT2COLUMN_LLM` unset, generation and shortening use
 `claude/claude-opus-5-5`. With `YT2COLUMN_REVIEW_LLM` unset, the review step
@@ -915,8 +921,10 @@ becomes
 export YT2COLUMN_LLM=deepseek/deepseek-flash
 ```
 
-The review step needs a value of its own only when it used settings different
-from generation's. Two old settings carried a part that is now written out:
+If any `YT2COLUMN_REVIEW_*` variable was set, set `YT2COLUMN_REVIEW_LLM` to the
+provider and model the review step actually used; otherwise leave it unset, and
+the review step uses generation's. Two old settings carried a part that is now
+written out, even when the provider looks the same as generation's:
 
 | Old setting | New setting |
 |---|---|
@@ -929,8 +937,8 @@ Check every place that may set them: `.envrc`, `.env`, the shell's startup
 files, and the script that starts the server.
 
 Removing the old variables without setting `YT2COLUMN_LLM` selects the default
-`claude`, and the transcript is then sent to Anthropic. The error lines for the
-old variables say so, and when `ANTHROPIC_API_KEY` is unset an
+`claude`, and the transcript is then sent to Anthropic. The error lines for
+`YT2COLUMN_LLM_PROVIDER` and `YT2COLUMN_MODEL` say so, and when `ANTHROPIC_API_KEY` is unset an
 `ANTHROPIC_API_KEY` error appears next to them for the same reason. To keep
 using DeepSeek, set `YT2COLUMN_LLM` as above; setting an Anthropic key does not
 keep DeepSeek.

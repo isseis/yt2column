@@ -2673,10 +2673,11 @@ func TestResumeNeed(t *testing.T) {
 }
 
 // TestRunRejectsRetiredLLMVars checks that a retired LLM variable, set with a
-// value or empty, stops every kind of run as a configuration error, those that
-// load no LLM settings (--after review, --no-review's review stage) included:
-// exit code 2, the rejection's line, and neither yt-dlp nor an LLM client.
-// Each retired variable is used in every run kind.
+// value or empty, stops every kind of run as a configuration error, one for
+// each shape of the configuration the run needs, including --after review,
+// which loads no LLM setting: exit code 2, the rejection's line, and neither
+// yt-dlp nor an LLM client. Each retired variable is used in every run kind
+// with both values.
 func TestRunRejectsRetiredLLMVars(t *testing.T) {
 	kinds := []struct {
 		name string
@@ -2687,6 +2688,9 @@ func TestRunRejectsRetiredLLMVars(t *testing.T) {
 		{"--after generation", func(e *runEnv, dir string) []string {
 			return []string{"--artifacts", dir, "--after", "generation", "--out", e.outPath, runVideoURL}
 		}},
+		{"--after generation --no-review", func(e *runEnv, dir string) []string {
+			return []string{"--artifacts", dir, "--after", "generation", "--no-review", "--out", e.outPath, runVideoURL}
+		}},
 		{"--after shorten", func(e *runEnv, dir string) []string {
 			return []string{"--artifacts", dir, "--after", "shorten", "--out", e.outPath, runVideoURL}
 		}},
@@ -2695,46 +2699,42 @@ func TestRunRejectsRetiredLLMVars(t *testing.T) {
 		}},
 	}
 	for _, retired := range config.RetiredLLMVarsForTest() {
-		for i, kind := range kinds {
-			// Alternate the value so each kind meets both a set and an empty
-			// retired variable across the four names.
-			value := "deepseek"
-			if i%2 == 1 {
-				value = ""
+		for _, kind := range kinds {
+			for _, value := range []string{"deepseek", ""} {
+				t.Run(fmt.Sprintf("%s=%q %s", retired, value, kind.name), func(t *testing.T) {
+					e := newRunEnv(t)
+					e.withSteps = true
+					removeVideoCache(t, e.cacheDir)
+					e.env[retired] = value
+					// No artifacts are saved: the configuration is loaded before the
+					// artifacts directory is read, so the run must stop first.
+					e.args = kind.args(e, t.TempDir())
+					built := 0
+					e.d.newLLMClient = func(config.LLMConfig) (llm.LLMClient, error) {
+						built++
+						return e.counter.wrap(e.client), nil
+					}
+					e.d.newReviewLLMClient = func(config.LLMConfig) (llm.LLMClient, error) {
+						built++
+						return e.counter.wrap(e.client), nil
+					}
+					if code := e.run(); code != exitUsage {
+						t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, e.stderr.String())
+					}
+					// The printed line is the contract here: it is all the user
+					// sees, and it must name the replacement variable.
+					want := programName + ": configuration: " + config.RetiredLLMVarErrorForTest(retired)
+					if !slices.Contains(strings.Split(e.stderr.String(), "\n"), want) {
+						t.Errorf("stderr has no line %q:\n%s", want, e.stderr.String())
+					}
+					if built != 0 {
+						t.Errorf("LLM clients built = %d, want 0", built)
+					}
+					if _, err := os.Lstat(e.tripwireMarker); err == nil {
+						t.Error("yt-dlp was started")
+					}
+				})
 			}
-			t.Run(retired+" "+kind.name, func(t *testing.T) {
-				e := newRunEnv(t)
-				e.withSteps = true
-				removeVideoCache(t, e.cacheDir)
-				e.env[retired] = value
-				// No artifacts are saved: the configuration is loaded before the
-				// artifacts directory is read, so the run must stop first.
-				e.args = kind.args(e, t.TempDir())
-				built := 0
-				e.d.newLLMClient = func(config.LLMConfig) (llm.LLMClient, error) {
-					built++
-					return e.counter.wrap(e.client), nil
-				}
-				e.d.newReviewLLMClient = func(config.LLMConfig) (llm.LLMClient, error) {
-					built++
-					return e.counter.wrap(e.client), nil
-				}
-				if code := e.run(); code != exitUsage {
-					t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, e.stderr.String())
-				}
-				// The printed line is the contract here: it is all the user
-				// sees, and it must name the replacement variable.
-				want := programName + ": configuration: " + config.RetiredLLMVarErrorForTest(retired)
-				if !slices.Contains(strings.Split(e.stderr.String(), "\n"), want) {
-					t.Errorf("stderr has no line %q:\n%s", want, e.stderr.String())
-				}
-				if built != 0 {
-					t.Errorf("LLM clients built = %d, want 0", built)
-				}
-				if _, err := os.Lstat(e.tripwireMarker); err == nil {
-					t.Error("yt-dlp was started")
-				}
-			})
 		}
 	}
 

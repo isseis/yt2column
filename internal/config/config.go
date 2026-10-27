@@ -56,12 +56,15 @@ const llmSeparator = "/"
 // alone, so changing the default touches one line of code and the documents
 // that state it.
 const (
+	// defaultProvider is the provider part of the default selection. The
+	// retired variables' rejection names it too, so it is written once.
+	defaultProvider = providerClaude
 	// defaultClaudeModel is the model ID of the default selection.
 	defaultClaudeModel = "claude-opus-5-5"
 	// defaultLLMValue is the YT2COLUMN_LLM value used when the variable is
 	// unset. It goes through parseLLM like a present value, so the
 	// string-to-Provider mapping stays in one place.
-	defaultLLMValue = providerClaude + llmSeparator + defaultClaudeModel
+	defaultLLMValue = defaultProvider + llmSeparator + defaultClaudeModel
 )
 
 // The GODEBUG values that turn on the Go HTTP/2 transport's verbose log, which
@@ -92,7 +95,7 @@ const (
 	// user that removing the retired variable without setting its replacement
 	// sends the data to the default provider.
 	reasonRetiredLLM = "is no longer supported and must be unset (an empty value counts as set); set " +
-		llmEnv + "=<provider>/<model ID> instead; while " + llmEnv + " is unset, the provider is " + providerClaude
+		llmEnv + "=<provider>/<model ID> instead; while " + llmEnv + " is unset, the provider is " + defaultProvider
 	reasonRetiredReviewLLM = "is no longer supported and must be unset (an empty value counts as set); set " +
 		reviewLLMEnv + "=<provider>/<model ID> instead; while " + reviewLLMEnv + " is unset, the review step uses " + llmEnv
 )

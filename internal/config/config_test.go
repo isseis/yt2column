@@ -1163,23 +1163,6 @@ func TestLoadFor(t *testing.T) {
 		}
 	})
 
-	t.Run("review only does not require the generation settings", func(t *testing.T) {
-		// The review step has its own selection, so YT2COLUMN_LLM is not
-		// needed.
-		env := map[string]string{
-			reviewLLMEnv:      "deepseek/deepseek-review",
-			deepSeekAPIKeyEnv: "sk-test-key",
-			cacheDirEnv:       "/tmp/yt2column-test-cache",
-		}
-		cfg, err := LoadFor(envLookup(env), Need{Review: true})
-		if err != nil {
-			t.Fatalf("LoadFor() error = %v, want nil", err)
-		}
-		if cfg.LLM().ReviewProvider() != ProviderDeepSeek || cfg.LLM().ReviewModel() != "deepseek-review" {
-			t.Errorf("review = %v/%q, want deepseek/deepseek-review", cfg.LLM().ReviewProvider(), cfg.LLM().ReviewModel())
-		}
-	})
-
 	t.Run("review only checks the review provider's key", func(t *testing.T) {
 		env := map[string]string{
 			reviewLLMEnv: "deepseek/deepseek-review",
@@ -1187,17 +1170,6 @@ func TestLoadFor(t *testing.T) {
 		}
 		_, err := LoadFor(envLookup(env), Need{Review: true})
 		assertVarErrors(t, err, wantMissing(deepSeekAPIKeyEnv))
-	})
-
-	t.Run("review only inherits the generation selection", func(t *testing.T) {
-		cfg, err := LoadFor(envLookup(validEnv()), Need{Review: true})
-		if err != nil {
-			t.Fatalf("LoadFor() error = %v, want nil", err)
-		}
-		if cfg.LLM().ReviewProvider() != ProviderDeepSeek || cfg.LLM().ReviewModel() != "deepseek-chat" {
-			t.Errorf("review = %v/%q, want the inherited deepseek/deepseek-chat",
-				cfg.LLM().ReviewProvider(), cfg.LLM().ReviewModel())
-		}
 	})
 
 	t.Run("review only inherits a claude generation provider", func(t *testing.T) {
@@ -1786,39 +1758,49 @@ func TestLoadProviderVarsFollowSelection(t *testing.T) {
 	claudeVars := []string{anthropicAPIKeyEnv, claudeEffortEnv, anthropicWorkspaceIDEnv}
 	cases := []struct {
 		name        string
+		need        Need
 		vars        map[string]string
 		wantErrs    []VarError
 		wantRead    []string
 		wantNotRead []string
 	}{
 		{
-			"LLM empty, review inherits",
+			"LLM empty, review inherits", needBoth,
 			map[string]string{llmEnv: ""},
 			[]VarError{wantMissing(llmEnv)},
 			nil, append([]string{deepSeekAPIKeyEnv}, claudeVars...),
 		},
 		{
-			"LLM without a separator, review inherits",
+			"LLM without a separator, review inherits", needBoth,
 			map[string]string{llmEnv: "claude"},
 			[]VarError{wantInvalid(llmEnv, reasonLLMForm)},
 			nil, append([]string{deepSeekAPIKeyEnv}, claudeVars...),
 		},
 		{
-			"LLM with an empty model ID",
+			"LLM with an empty model ID", needBoth,
 			map[string]string{llmEnv: "claude/"},
 			[]VarError{wantInvalid(llmEnv, reasonLLMForm), wantMissing(anthropicAPIKeyEnv)},
 			claudeVars,
 			[]string{deepSeekAPIKeyEnv},
 		},
 		{
-			"LLM provider invalid, review set",
+			// The review step inherits the rejected generation value, whose
+			// accepted provider part still selects that provider's variables.
+			"review only, inherited LLM with an empty model ID", needReview,
+			map[string]string{llmEnv: "claude/"},
+			[]VarError{wantInvalid(llmEnv, reasonLLMForm), wantMissing(anthropicAPIKeyEnv)},
+			claudeVars,
+			[]string{deepSeekAPIKeyEnv},
+		},
+		{
+			"LLM provider invalid, review set", needBoth,
 			map[string]string{llmEnv: "gemini/x", reviewLLMEnv: "deepseek/deepseek-flash"},
 			[]VarError{wantInvalid(llmEnv, reasonLLMProvider), wantMissing(deepSeekAPIKeyEnv)},
 			[]string{deepSeekAPIKeyEnv},
 			claudeVars,
 		},
 		{
-			"review provider invalid",
+			"review provider invalid", needBoth,
 			map[string]string{llmEnv: "deepseek/deepseek-flash", reviewLLMEnv: "gemini/x"},
 			[]VarError{wantInvalid(reviewLLMEnv, reasonLLMProvider), wantMissing(deepSeekAPIKeyEnv)},
 			[]string{deepSeekAPIKeyEnv},
@@ -1831,7 +1813,7 @@ func TestLoadProviderVarsFollowSelection(t *testing.T) {
 			// missing; the rows list those reports in wantErrs.
 			env := withVars(map[string]string{cacheDirEnv: "/tmp/yt2column-test-cache"}, tc.vars)
 			var read []string
-			_, err := LoadFor(recordingLookup(env, &read), needBoth)
+			_, err := LoadFor(recordingLookup(env, &read), tc.need)
 			assertVarErrors(t, err, tc.wantErrs...)
 			for _, name := range tc.wantRead {
 				if !slices.Contains(read, name) {

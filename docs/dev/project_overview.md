@@ -153,7 +153,7 @@ extension/                # ブラウザ拡張（TypeScript。開発環境・Man
 
 中断した実行の再開では、実行する段階の LLM の変数だけを読む。`YT2COLUMN_REVIEW_LLM` を設定して検証・推敲だけを実行する場合は、`YT2COLUMN_LLM` を読まない。ただし、次に述べる旧変数の検査だけは例外で、実行する段階によらず行う。
 
-旧変数（`YT2COLUMN_LLM_PROVIDER`・`YT2COLUMN_MODEL`・`YT2COLUMN_REVIEW_PROVIDER`・`YT2COLUMN_REVIEW_MODEL`）は廃止した。いずれかが設定されていれば（空の値を含む）、CLI もサーバも、その変数を名指しする設定エラーで止まる。LLM の変数を読まない実行（`--after review` など）でも止まる。旧変数の値は使わず、ほかの設定エラーと合わせて報告する。旧変数の行は、代わりに設定する新しい変数と、それが未設定のときに使われるもの（`YT2COLUMN_LLM` なら `claude`）を示す。そのため、旧変数だけで DeepSeek を指定していた設定では、`ANTHROPIC_API_KEY` が未設定ならそのエラーも出る。DeepSeek を使い続けるには、旧変数を外し（unset）、`YT2COLUMN_LLM=deepseek/<モデル ID>` を設定する。移行の手順は README の「Migrating from the retired LLM variables」にある。ホスト（`yt2column-nmhost`）は LLM の設定を読まないので、旧変数があっても止まらない。
+旧変数（`YT2COLUMN_LLM_PROVIDER`・`YT2COLUMN_MODEL`・`YT2COLUMN_REVIEW_PROVIDER`・`YT2COLUMN_REVIEW_MODEL`）は廃止した。いずれかが設定されていれば（空の値を含む）、CLI もサーバも、その変数を名指しする設定エラーで止まる。LLM の変数を読まない実行（`--after review` など）でも止まる。旧変数の値は使わず、ほかの設定エラーと合わせて報告する。旧変数の値は使わないので、旧変数だけで DeepSeek を指定していた設定では `YT2COLUMN_LLM` が未設定として扱われ、既定の `claude` が選ばれる。生成または検証・推敲の設定を検査する実行では、`ANTHROPIC_API_KEY` が未設定ならそのエラーも出る。旧変数の行も、代わりに設定する新しい変数と、それが未設定のときに使われるもの（`YT2COLUMN_LLM` なら `claude`）を示す。DeepSeek を使い続けるには、旧変数を外し（unset）、`YT2COLUMN_LLM=deepseek/<モデル ID>` を設定する。移行の手順は README の「Migrating from the retired LLM variables」にある。ホスト（`yt2column-nmhost`）は LLM の設定を読まないので、旧変数があっても止まらない。
 
 ## 開発ルール
 

@@ -203,8 +203,9 @@ func TestLoadHost(t *testing.T) {
 
 // TestLoadHostHome checks that LoadHostHome reads HOME and nothing else,
 // returns it even when the socket path derived from it would exceed every OS
-// limit, ignores the retired LLM variables, and rejects an unset, empty, or relative HOME with an ErrMissing that
-// names HOME and does not hold its value.
+// limit, ignores the retired LLM variables, and rejects an unset, empty, or
+// relative HOME with an ErrMissing that names HOME and does not hold its
+// value.
 func TestLoadHostHome(t *testing.T) {
 	longHome := homeOfLength(t, linuxSocketLimit)
 	cases := []struct {
