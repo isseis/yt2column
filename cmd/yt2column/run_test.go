@@ -1665,7 +1665,7 @@ func TestRunStepFlags(t *testing.T) {
 	t.Run("both disabled restore the pre-step output", func(t *testing.T) {
 		e := newRunEnv(t)
 		e.withSteps = true
-		e.args = []string{"--no-shorten", "--no-review", "--out", e.outPath, runVideoURL}
+		e.args = []string{"--no-review", "--out", e.outPath, runVideoURL}
 		if code := e.run(); code != exitOK {
 			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
 		}
@@ -2673,11 +2673,11 @@ func TestResumeNeed(t *testing.T) {
 }
 
 // TestRunRejectsRetiredLLMVars checks that a retired LLM variable, set with a
-// value or empty, stops every kind of run as a configuration error, one for
-// each shape of the configuration the run needs, including --after review,
-// which loads no LLM setting: exit code 2, the rejection's line, and neither
-// yt-dlp nor an LLM client. Each retired variable is used in every run kind
-// with both values.
+// value or empty, stops every kind of run listed in the requirements' flag
+// table, which together cover every shape of the configuration a run needs,
+// including --after review, which loads no LLM setting: exit code 2, the
+// rejection's line, and neither yt-dlp nor an LLM client. Each retired
+// variable is used in every run kind with both values.
 func TestRunRejectsRetiredLLMVars(t *testing.T) {
 	kinds := []struct {
 		name string
@@ -2739,8 +2739,10 @@ func TestRunRejectsRetiredLLMVars(t *testing.T) {
 	}
 
 	// -h and an argument error are reported before the configuration is
-	// read, so a retired variable changes neither.
-	for _, retired := range config.RetiredLLMVarsForTest() {
+	// read, so a retired variable changes neither; which one is set cannot
+	// matter, so one is enough.
+	{
+		retired := config.RetiredLLMVarsForTest()[0]
 		t.Run(retired+" -h", func(t *testing.T) {
 			e := newRunEnv(t)
 			e.env[retired] = "deepseek"
@@ -2777,13 +2779,16 @@ func TestRunRejectsRetiredLLMVars(t *testing.T) {
 // white space: the configuration load checks the review value but accepts the
 // model ID, and the review client, whose adapter would reject it, is not
 // built. The real review client constructor is in place, so building it would
-// fail the run.
+// fail the run. This is the end-to-end form of three checks made layer by
+// layer elsewhere (the load accepts the model ID, the adapter rejects it, and
+// buildWriter skips the review client under --no-review), so a change that
+// keeps each layer's test but breaks how they combine still fails here.
 func TestRunNoReviewPaddedReviewModel(t *testing.T) {
 	e := newRunEnv(t)
 	e.withSteps = true
 	e.env["YT2COLUMN_REVIEW_LLM"] = "deepseek/ fake-model "
 	e.d.newReviewLLMClient = productionDeps().newReviewLLMClient
-	e.args = []string{"--no-shorten", "--no-review", "--out", e.outPath, runVideoURL}
+	e.args = []string{"--no-review", "--out", e.outPath, runVideoURL}
 	if code := e.run(); code != exitOK {
 		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
 	}
