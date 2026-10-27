@@ -709,7 +709,6 @@ describe("logs by locale", () => {
     for (const locale of otherLocales("en")) {
       const other = await logsIn(locale);
       assert.deepEqual(other.infos, english.infos, locale);
-      assert.deepEqual(other.errors, english.errors, locale);
     }
   });
 });

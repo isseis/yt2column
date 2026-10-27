@@ -74,6 +74,8 @@ describe("renderSummary", () => {
       }
     });
 
+    // en and ja group digits the same way, so this shows the grouping in each
+    // locale but cannot tell which locale reached formatCount.
     it(`groups the digits of the counts in ${locale}`, () => {
       const root = container();
       renderSummary(

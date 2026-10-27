@@ -66,6 +66,7 @@ describe("catalogs", () => {
   it("gives a Japanese message steps only where the English one has them", () => {
     const en = entries(catalogs.en).messages;
     const ja = entries(catalogs.ja).messages;
+    // Precondition: the messages pair up by path.
     assert.deepEqual([...ja.keys()].sort(), [...en.keys()].sort());
     for (const [path, message] of ja) {
       if (message.steps.length > 0) {

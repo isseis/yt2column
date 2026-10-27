@@ -102,6 +102,14 @@ describe("blockMessage", () => {
       assert.equal(new Set(texts).size, blockReasons.length);
     });
 
+    it(`gives the watch-page URL example as written in English in ${locale}`, () => {
+      assert.ok(
+        textOf(blockMessage("not-watch-page", locale)).includes(
+          "https://www.youtube.com/watch?v=...",
+        ),
+      );
+    });
+
     it(`names the limit for body-too-large in ${locale}`, () => {
       assert.ok(
         textOf(blockMessage("body-too-large", locale)).includes("4 MiB"),
@@ -245,6 +253,14 @@ describe("sendOutcomeMessage", () => {
       });
     }
 
+    it(`asks to check Slack before sending again in the sending notice in ${locale}`, () => {
+      // A closed popup leaves the result unknown, as the outcomes above do.
+      const text = textOf(catalogs[locale].sending);
+      for (const pattern of unknownResultGuidance[locale]) {
+        assert.match(text, pattern);
+      }
+    });
+
     it(`tells the user to check Slack after an accepted send and too_many_requests in ${locale}`, () => {
       assert.ok(
         textOf(sendOutcomeMessage(outcomeNamed("accepted"), locale)).includes(
@@ -263,14 +279,6 @@ describe("sendOutcomeMessage", () => {
         sendOutcomeMessage(outcomeNamed("host-failed"), locale),
       );
       assert.ok(text.includes("yt2column-nmhost install"));
-    });
-
-    it(`gives the watch-page URL example as written in English in ${locale}`, () => {
-      assert.ok(
-        textOf(blockMessage("not-watch-page", locale)).includes(
-          "https://www.youtube.com/watch?v=...",
-        ),
-      );
     });
 
     it(`names the server start for server-unavailable in ${locale}`, () => {
