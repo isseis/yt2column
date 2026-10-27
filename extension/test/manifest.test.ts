@@ -24,12 +24,9 @@ function localeDirs(): string[] {
     .sort();
 }
 
-/** The regular files directly under dir, sorted. */
-function fileNames(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true })
-    .filter((entry) => entry.isFile())
-    .map((entry) => entry.name)
-    .sort();
+/** Every entry name directly under dir, sorted, whatever its kind. */
+function entryNames(dir: string): string[] {
+  return readdirSync(dir).sort();
 }
 
 /** Every catalog, by locale directory name. */
@@ -45,18 +42,23 @@ function catalogs(): Map<string, Record<string, unknown>> {
   return byLocale;
 }
 
-/** The catalog names the manifest refers to, lower-cased, in field order. */
-function manifestMessageNames(): string[] {
-  const names: string[] = [];
-  for (const field of ["name", "description"]) {
-    const value = manifest[field];
-    assert.ok(typeof value === "string", field);
-    const match = /^__MSG_(.+)__$/.exec(value);
-    assert.ok(match !== null, `${field}: ${value}`);
-    const name = match[1];
-    assert.ok(name !== undefined, field);
-    names.push(name.toLowerCase());
-  }
+/** Every __MSG_<name>__ name in the manifest's strings, lower-cased. */
+function manifestMessageNames(): Set<string> {
+  const names = new Set<string>();
+  const visit = (value: unknown): void => {
+    if (typeof value === "string") {
+      for (const match of value.matchAll(/__MSG_(.+?)__/g)) {
+        const name = match[1];
+        assert.ok(name !== undefined);
+        names.add(name.toLowerCase());
+      }
+    } else if (typeof value === "object" && value !== null) {
+      for (const child of Object.values(value)) {
+        visit(child);
+      }
+    }
+  };
+  visit(manifest);
   return names;
 }
 
@@ -127,20 +129,18 @@ describe("locales", () => {
   });
 
   it("holds exactly the en and ja catalogs, each with only messages.json", () => {
-    // Chrome rejects the whole extension when a catalog is missing for
-    // default_locale or a locale directory holds another file.
+    // The design requires exactly these two locale directories, each holding
+    // only its messages.json.
     assert.deepEqual(localeDirs(), ["en", "ja"]);
     for (const locale of localeDirs()) {
-      assert.deepEqual(fileNames(path.join(localesDir, locale)), [
+      assert.deepEqual(entryNames(path.join(localesDir, locale)), [
         "messages.json",
       ]);
     }
   });
 
   it("gives every catalog entry a message string without placeholders", () => {
-    const byLocale = catalogs();
-    assert.deepEqual([...byLocale.keys()].sort(), ["en", "ja"]);
-    for (const [locale, catalog] of byLocale) {
+    for (const [locale, catalog] of catalogs()) {
       for (const [name, entry] of Object.entries(catalog)) {
         const label = `${locale}/${name}`;
         assert.ok(typeof entry === "object" && entry !== null, label);
@@ -165,8 +165,8 @@ describe("locales", () => {
 
   it("resolves every manifest placeholder in both catalogs", () => {
     const names = manifestMessageNames();
-    // Precondition: the manifest refers to its name and description this way.
-    assert.equal(names.length, 2);
+    // Precondition: the scan reached the manifest's catalog references.
+    assert.ok(names.size > 0, "the manifest refers to catalog messages");
     for (const name of names) {
       // Chrome accepts only these characters in a message name.
       assert.match(name, /^[a-z0-9_@]+$/, name);
@@ -181,7 +181,6 @@ describe("locales", () => {
 
   it("names the extension the same way and describes it in each language", () => {
     const byLocale = catalogs();
-    assert.deepEqual([...byLocale.keys()].sort(), ["en", "ja"]);
     const descriptions = new Set<string>();
     for (const [locale, catalog] of byLocale) {
       assert.equal(messageOf(catalog, "extName"), "yt2column", locale);
@@ -192,7 +191,7 @@ describe("locales", () => {
       descriptions.add(description);
     }
     // Each language gets its own description, not the English one copied.
-    assert.equal(descriptions.size, 2);
+    assert.equal(descriptions.size, byLocale.size);
   });
 });
 

@@ -8,7 +8,7 @@
 | Created | 2026-10-27 |
 | Review date | 2026-10-27 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-27: 3.7 の例外の列挙に `static/_locales/` を加え、AC-21 と同じ内容にした。レビュアーが本セッション（PR-3）で承認した。 |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `8a39cfc` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。拡張のファイルのパスは `extension/` を省いて書く（例: `src/core/messages.ts` は `extension/src/core/messages.ts`）。F-NNN・AC-NN は要件書の項番を指す。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-10）への対応は 3.10 にまとめる。
 
@@ -523,7 +523,7 @@ manifest の変更:
 ### 3.7. 文書（F-005・AC-21〜AC-23）
 
 -   **CLAUDE.md「Go Idioms」（`CLAUDE.md:397-400`）:** 拡張のソースのコメント・識別子・文字列リテラルは英語とする。例外は次の 3 つとする（AC-21）。
-    -   `src/core/i18n/` の、英語でない言語の文言の集合のファイル（今は `ja.ts`）の文言。
+    -   `src/core/i18n/` と `static/_locales/` の、英語でない言語の文言の集合のファイル（今は `ja.ts` と `_locales/ja/messages.json`）の文言。
     -   英語でない言語の文言の集合の性質を確かめるテストの文字列リテラル（3.9 の言語ごとの語の表）。
     -   日本語の文書の見出しや表のセルに一致させるガードのテストの文字列リテラル（今の規定のまま）。
 
