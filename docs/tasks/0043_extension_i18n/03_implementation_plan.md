@@ -8,7 +8,7 @@
 | Created | 2026-10-27 |
 | Review date | 2026-10-27 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-27: ステップ 3-6 の実機の確認は Chrome だけで行う。Chrome と Brave に固有のコードがないためで、レビュアーが本セッションで承認した（Brave は同じ結果と見込む）。 |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番、「設計書 3.2」などは設計書の節を指す。既存のコードと文書についての記述は、コミット `4efdddf` で確かめた。`file:line` はこのコミットの行番号を指す。拡張のファイルのパスは、設計書と同じく `extension/` を省いて書く。本書の「差分の確認」は、設計書の「`diff` の検証」と同じものを指す。
 
@@ -284,11 +284,11 @@
 
 **変更するファイル:** 本書
 
--   [ ] `make ext-build` でビルドした `extension/dist/` を Chrome と Brave で読み込み、ブラウザの表示言語を日本語と英語に切り替えて（設計書 7.2 の切り替え方）、次を確かめる。
+-   [x] `make ext-build` でビルドした `extension/dist/` を Chrome で読み込み（Brave は、Chrome と Brave に固有のコードがないため実施しない。2026-10-27、レビュアーの判断）、ブラウザの表示言語を日本語と英語に切り替えて（設計書 7.2 の切り替え方）、次を確かめる。
     -   日本語のとき、ポップアップが日本語で表示され、書体が日本語の書体になり、英語の文言が一瞬も表示されないこと。英語のとき、今と同じ英語で表示されること（AC-01〜AC-03・AC-14〜AC-16）。
     -   ポップアップのコンソールの表示言語のログと `document.documentElement.lang` の値。
     -   リクエスト ID が等幅の書体のままであること。リクエスト ID はサーバの応答（受け付けたか拒否した）でだけ表示される。LLM の API を呼ばずにリクエスト ID を得るには、字幕の書式でないテキストを選んで送り、サーバに `invalid_transcript` で拒否させる。拒否でもサーバが Slack に失敗の通知を投稿しうるので、この送信はレビュアーの承認を得てから行う（`CLAUDE.md`「Tool Execution Safety」）。承認されないときは、この項目を `style.test.ts`（`:lang(ja)` の規則が `html` と `body` にだけ当たること）に任せたと記録する。
--   [ ] ブラウザの操作はレビュアー（利用者）に依頼する。`/runplan` は、ステップ 3-5 の後、PR を開く前にここで止まり、操作を依頼する。結果（日付・ブラウザと版・表示言語・観察したこと）を 7 章の該当する AC の行に記録し、本書にコミットする。
+-   [x] ブラウザの操作はレビュアー（利用者）に依頼する。`/runplan` は、ステップ 3-5 の後、PR を開く前にここで止まり、操作を依頼する。結果（日付・ブラウザと版・表示言語・観察したこと）を 7 章の該当する AC の行に記録し、本書にコミットする。
 
 **完了の条件:** `make ext-check`・`make test`・`make lint` が通り、7 章に PR-2 の実機の確認の記録がある。
 
@@ -471,7 +471,7 @@ AC-07 は、`docs/tasks/0043_extension_i18n/_checks/english_text.ts` で確か�
 
 `manual` だけの AC は AC-10・AC-11・AC-21・AC-22 である。AC-21・AC-22 は文書の文面だけを定める AC である（`requirements_process.md` §4）。AC-10・AC-11 をテストにしない理由は 1.3 に書いた。
 
-**実機の確認の記録（PR-2、ステップ 3-6）:** 2026-10-27、レビュアー（isseis）が Chrome 156.0.8078.48（公式ビルド、arm64）で確認した。OS の環境設定は日本語とし、Chrome を既定の起動で開いた場合（日本語）と `open -a "Google Chrome" --args -AppleLanguages '(en)'` で起動した場合（英語）の 2 つを試した。日本語のときはポップアップが日本語で表示され、`document.documentElement.lang` が `ja`、コンソールの `yt2column ui language` のログが表示言語に一致した。英語のときは今までどおり英語で表示され、`lang` が `en` であった。どちらのときも、もう一方の言語の文言は表示されなかった。日本語のとき、書体が日本語の書体になり、行間が広く見えた（DevTools で `body:lang(ja) { line-height: 1.7; }` の適用を確認）。Brave は、Chrome と Brave に固有のコードがないため実施していない（レビュアーの判断）。
+**実機の確認の記録（PR-2、ステップ 3-6）:** 2026-10-27、レビュアー（isseis）が Chrome 156.0.8078.48（公式ビルド、arm64）で確認した。OS の環境設定は日本語とし、Chrome を既定の起動で開いた場合（日本語）と `open -a "Google Chrome" --args -AppleLanguages '(en)'` で起動した場合（英語）の 2 つを試した。日本語のときはポップアップが日本語で表示され、`document.documentElement.lang` が `ja`、コンソールの `yt2column ui language` のログが表示言語に一致した。英語のときは今までどおり英語で表示され、`lang` が `en` であった。どちらのときも、もう一方の言語の文言は表示されなかった。日本語のとき、書体が日本語の書体になり、行間が広く見えた（DevTools で `body:lang(ja) { line-height: 1.7; }` の適用を確認）。リクエスト ID は、字幕でないテキストを送って `invalid_transcript` の拒否を受け、DevTools で `.send-request-id` の `font-family: ui-monospace, monospace` が適用されていることを確認した。Brave は、Chrome と Brave に固有のコードがないため実施していない（レビュアーの判断）。
 
 ## 8. 成功基準 (Success Criteria)
 
