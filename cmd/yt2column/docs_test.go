@@ -251,20 +251,45 @@ func TestClaudeDocsContract(t *testing.T) {
 }
 
 // TestDeepSeekDocsContract pins the machine-checkable contract values of the
-// DeepSeek integration tests: the variables that arm them, the key they read,
-// and the model variable. They come from the deepseek test package's exported
-// constants, not from the documents.
+// DeepSeek integration tests: the key they read, the opt-in that arms each
+// one, and the model variable. Every integration-test section of README.md
+// names its own values, so a section left behind by a rename fails. The values
+// come from the deepseek test package's exported constants, not from the
+// document.
 func TestDeepSeekDocsContract(t *testing.T) {
 	readme := readDoc(t, readmePath)
-	for _, value := range []string{
-		deepseektestutil.APIKeyEnv,
-		deepseektestutil.DeepSeekOptInEnv,
-		deepseektestutil.CLIOptInEnv,
-		deepseektestutil.ModelEnv,
+	for _, section := range []struct {
+		name    string
+		heading string
+		values  []string
+	}{
+		{
+			name:    "deepseek",
+			heading: "### DeepSeek integration test",
+			values:  []string{deepseektestutil.APIKeyEnv, deepseektestutil.DeepSeekOptInEnv, deepseektestutil.ModelEnv},
+		},
+		{
+			name:    "cli",
+			heading: "### CLI integration test",
+			values:  []string{deepseektestutil.APIKeyEnv, deepseektestutil.CLIOptInEnv, deepseektestutil.ModelEnv},
+		},
+		{
+			name:    "cli_slack",
+			heading: "### CLI webhook integration test",
+			values:  []string{deepseektestutil.APIKeyEnv, deepseektestutil.ModelEnv},
+		},
 	} {
-		if !strings.Contains(readme, value) {
-			t.Errorf("README.md does not mention %q", value)
-		}
+		t.Run(section.name, func(t *testing.T) {
+			text := sectionOutsideBlocks(readme, section.heading)
+			if text == "" {
+				t.Fatalf("README.md has no %q section", section.heading)
+			}
+			for _, value := range section.values {
+				if !strings.Contains(text, value) {
+					t.Errorf("README.md %q does not mention %q", section.heading, value)
+				}
+			}
+		})
 	}
 }
 

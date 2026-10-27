@@ -86,14 +86,19 @@ func CheckChargedTarget(t *testing.T, c ChargedTarget) {
 }
 
 // CheckRetiredModelEnvNotRead runs target with retiredEnv set to a marker and
-// the model variable undefined, and checks that the target passed
-// deepSeekDefaultModel to go test. A target that still takes its model from
-// retiredEnv would pass the marker instead.
+// the model variable undefined, and checks that the marker reached make and
+// that the target passed deepSeekDefaultModel to go test anyway: a target that
+// still takes its model from retiredEnv would pass the marker instead.
 func CheckRetiredModelEnvNotRead(t *testing.T, root, target, retiredEnv string) {
 	t.Helper()
 	const marker = "retired-model-marker"
-	_, invocation := maketestutil.RunTarget(t, root, target, recordedEnv, nil,
+	_, invocation := maketestutil.RunTarget(t, root, target, recordedEnv, []string{retiredEnv},
 		map[string]string{retiredEnv: marker})
+	// The marker must reach make, or a target that still read retiredEnv
+	// would also see nothing there and pass.
+	if got, ok := invocation.Env[retiredEnv]; !ok || got != marker {
+		t.Fatalf("%s = %q (set %t), want %q: the marker did not reach the target", retiredEnv, got, ok, marker)
+	}
 	if got, ok := invocation.Env[ModelEnv]; !ok || got != deepSeekDefaultModel {
 		t.Errorf("%s = %q (set %t), want %q: the target must not take its model from %s",
 			ModelEnv, got, ok, deepSeekDefaultModel, retiredEnv)

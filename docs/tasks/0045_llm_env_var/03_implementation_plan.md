@@ -180,7 +180,7 @@
 - [ ] `TestRunModelWithoutProvider` を除く（カバレッジの比較は 2-1 で済んでいる）。確かめていた規則は、3-2 の CLI の旧変数のテストが引き継ぐ。
 - [ ] `TestIntegrationRunProviderSelection` は、環境の `YT2COLUMN_LLM` が `deepseek/` で始まり、残りが渡したモデルであることを確かめる形に変える。壊し方は、`newIntegrationRun` の環境から `YT2COLUMN_LLM` を外すこととする。
 - [ ] `docs_test.go` の除いた補助関数の呼び出しを、新しい補助関数に置き換える。`TestLLMDefaultsDocsContract` の `YT2COLUMN_LLM` の行は `LLMEnvForTest`・`DefaultLLMValueForTest` から作り、`productionProfileVars` は `LLMEnvForTest`・`ClaudeEffortEnvForTest` の 2 つにする。文書がまだ古いので、これらのガードは 4-1 まで失敗する。
-- [ ] 1-2 の `static` のガードの範囲に、`cmd/yt2column` の名前に `integration` を含む Go のファイルを加える（§1.2）。範囲ごとに 1 つ以上のファイルがあることの確認も、加えた範囲に適用する。
+- [ ] 1-2 の `static` のガードの範囲に、`cmd/yt2column` の名前に `integration` を含む Go のファイルを加える（§1.2）。範囲ごとに 1 つ以上のファイルがあることの確認も、加えた範囲に適用する。あわせて、ガードの `retiredModelEnv` の値を `config.RetiredLLMVarsForTest`（2-1）から取る。旧変数の名前をテストに書き写さないためである。
 
 **完了の条件**: `go vet -tags test ./cmd/yt2column` と `go vet -tags integration ./cmd/yt2column` が通る（`test_helpers_integration.go` は `test || integration` で作る）。`go test -tags test ./cmd/yt2column -skip 'DocsContract'` が通る。
 

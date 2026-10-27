@@ -126,10 +126,37 @@ func TestMakeTargetsDoNotReadRetiredModelEnv(t *testing.T) {
 // another variable and allowed.
 var retiredModelEnvRE = regexp.MustCompile(regexp.QuoteMeta(retiredModelEnv) + `([^A-Za-z0-9_]|$)`)
 
-// TestRetiredModelEnvIsGone checks that neither the Makefile's DeepSeek
-// integration targets nor the Go code they build names the retired model
-// variable. Every scope must hold at least one file to scan, so a scope that
-// stops matching is a failure rather than a scan of nothing that passes.
+// TestRetiredModelEnvRE pins the whole-name boundary of the guard's matcher:
+// the name matches in the forms a Makefile line or a Go source line holds it,
+// and a longer name that contains it does not.
+func TestRetiredModelEnvRE(t *testing.T) {
+	for _, tc := range []struct {
+		line string
+		want bool
+	}{
+		{line: retiredModelEnv, want: true},
+		{line: retiredModelEnv + " ?= deepseek-flash", want: true},
+		{line: "export " + retiredModelEnv + " := x", want: true},
+		{line: `"${` + retiredModelEnv + `}"`, want: true},
+		{line: "$" + retiredModelEnv, want: true},
+		{line: retiredModelEnv + "_OLD", want: false},
+		{line: "YT2COLUMN_TEST_DEEPSEEK_MODEL", want: false},
+	} {
+		t.Run(tc.line, func(t *testing.T) {
+			if got := retiredModelEnvRE.MatchString(tc.line); got != tc.want {
+				t.Errorf("retiredModelEnvRE.MatchString(%q) = %t, want %t", tc.line, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestRetiredModelEnvIsGone checks that the Makefile, where the DeepSeek
+// integration targets are defined, and the Go code under
+// internal/llm/deepseek that they build do not name the retired model
+// variable. The whole Makefile is scanned rather than the targets' lines, so a
+// mention anywhere in it fails. Every scope must hold at least one file to
+// scan, so a scope that stops matching is a failure rather than a scan of
+// nothing that passes.
 func TestRetiredModelEnvIsGone(t *testing.T) {
 	for _, scope := range []struct {
 		name  string
