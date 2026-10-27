@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Created | 2026-10-27 |
-| Review date | 2026-10-27 |
-| Reviewer | isseis |
-| Comments | 2026-10-27 (decision): 記事のキーを、秘密を使わない SHA-256 から、サーバのプロセスごとの秘密を鍵とする HMAC-SHA256 に改めた（§3.2・§5.2 の T-10）。誰でもキーを計算できると、生成を始めずに記事の有無を知る手段になり、キーが不透明であること（要件書 3.2）も保てないためである。レビュアー（isseis）が決め、承認した。 |
+| Review date | - |
+| Reviewer | - |
+| Comments | 2026-10-27 に isseis が承認した（PR #519）。2026-10-27 (decision): 記事のキーを、秘密を使わない SHA-256 から、サーバのプロセスごとの秘密を鍵とする HMAC-SHA256 に改めた（§3.2・§5.2 の T-10）。誰でもキーを計算できると、生成を始めずに記事の有無を知る手段になり、キーが不透明であること（要件書 3.2）も保てないためである。レビュアー（isseis）が決め、承認した。2026-10-27 (decision): `/mkplan` の計画の際に、レビュアー（isseis）がセッションの中で、ホストが今の形と新しい形を見分ける判定（§3.10.2）を、CLAUDE.md「Declare, don't infer」の例外として CLAUDE.md に書くと決め、§2.2・§3.15・§3.17 に CLAUDE.md を加えた。§3.14 の 6 は、#503 の後にこの例外を CLAUDE.md から取り除くとしており、加える作業がどこにもなかったためである。決定の変更なので `draft` に戻し、`03_implementation_plan.md` の PR で承認し直す（`requirements_process.md`「Editing an approved document」）。同じ PR で、§3.12 と §3.16 の H-02 の行に残っていた「SHA-256」を、§3.2 の決定（HMAC-SHA256）に合わせた。これは編集上の修正で、決定は変えていない。 |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §3.16）を指す。既存のコードの行番号は、コミット `c3d20a7`（要件書の承認を含む `main` の先頭）で確かめたものである。
 
@@ -212,7 +212,7 @@ flowchart LR
 | `internal/nmhost` | メッセージの全体の読み込み、形の判定、操作の送り先への対応づけ、応答の上限、ログの段階 |
 | `internal/strictjson` | `Value.Raw`、`Object.Has` の契約 |
 | `.golangci.yml` | `internal/articlecache` の依存の規則、`nmhost-boundaries` の説明の更新 |
-| 文書 | README の「Localhost server」節と設定、`docs/dev/security.md` §8、`docs/dev/project_overview.md`、`docs/translation_glossary.md`、`docs/dev/developer_guide/package_reference.md` |
+| 文書 | README の「Localhost server」節と設定、`docs/dev/security.md` §8、`docs/dev/project_overview.md`、`docs/translation_glossary.md`、`docs/dev/developer_guide/package_reference.md`、`CLAUDE.md`（§3.10.2 の例外） |
 
 `cmd/yt2column-nmhost` は変えない。中継の変更はすべて `internal/nmhost` の中にある。
 
@@ -1124,7 +1124,7 @@ const (
 ### 3.12. ログ（要件書 4.2、H-10）
 
 -   新しい操作のログも、今の方針（0011 の設計 §3.10）に従う。1 つの出来事を 1 行で、固定の属性だけを出し、`redact.Writer` を通す。本文、コピーした字幕、`videoUrl` の文字列、メタデータ、記事の本文、秘密の値を出さない。
--   **キーをログに出す（H-10）:** 属性 `key` に、サーバが計算したキー（生成の開始）と、`ParseKey` を通ったキー（状態の取得と投稿の操作）の 64 文字を出す。受理する形でないキーは、ログにも応答にも出さない。キーはコピーした字幕とメタデータの SHA-256 で、中身を復元できない。同じ入力を送ったことの照合はできるが、ログを読めるのはサーバと同じ利用者だけで、その利用者は入力そのものを持っている。開発者が、受け付けから生成のジョブの完了と投稿までを `grep <key>` でたどれるようにするためである。
+-   **キーをログに出す（H-10）:** 属性 `key` に、サーバが計算したキー（生成の開始）と、`ParseKey` を通ったキー（状態の取得と投稿の操作）の 64 文字を出す。受理する形でないキーは、ログにも応答にも出さない。キーはコピーした字幕とメタデータの HMAC-SHA256（§3.2）で、中身を復元できない。同じ入力を送ったことの照合はできるが、ログを読めるのはサーバと同じ利用者だけで、その利用者は入力そのものを持っている。開発者が、受け付けから生成のジョブの完了と投稿までを `grep <key>` でたどれるようにするためである。
 -   **要件書 3.2 との関係:** 要件書 3.2 は、受け取ったキーを「ログの書式などに埋め込まない」とする。`log/slog` の属性の値は、書式の文字列ではなく、ハンドラが引用して書く値なので、キーが書式として解釈されることはない。そのうえで、受け取ったキーは `ParseKey` を通った後にだけ、`Key.String()`（サーバが作った 64 文字）として出す。
 -   出す行と属性:
 
@@ -1192,14 +1192,15 @@ const (
 -   **`docs/dev/project_overview.md`:** 要件書 5. の 3 か所（実行形式、`LoadServer` の段落、キャッシュの段落）を更新する。`ArticleWriter` の項の出力の形式（`project_overview.md:60`）に、表示用の Markdown を加え、ファイルの中身がその整形を共有すること（§3.6.2）を書く。
 -   **`docs/translation_glossary.md`:** 記事のキー、記事のキャッシュ、記録、ジョブの状態、工程、工程の状態、投稿の状態、生成の枠、読み込みの枠、完了の時点の検査を加える。「枠」の今の行（`translation_glossary.md:55`）は、旧 API と新しい API の生成のジョブが合わせて数えることを書き加える。「段階」の今の行（`writer.Stage` を訳す）と「工程」の関係は、要件書 6. の用語集のとおり、パイプラインの段階（`pipeline.Stage`）と記事の生成の中の工程（`writer.Stage`）を分ける形に揃える。
 -   **`docs/dev/developer_guide/package_reference.md`:** `internal/articlecache` の行を加え、`internal/server`・`internal/writer`・`internal/publisher`・`internal/config`・`internal/nmhost`・`internal/strictjson`・`cmd/yt2column-server` の行を更新する。
--   **AC-43:** 上の文書の記述は、PR のレビューで読む（`manual`）。
+-   **`CLAUDE.md`:** 「Key Design Patterns」の「Declare, don't infer」に、§3.10.2 の例外を、今の例外（コピーした字幕の解析）と同じく方針・範囲・理由・境界の形で加える。範囲は `internal/nmhost` の 1 か所、境界は `v` を持つメッセージを今の形に戻さないこと、#503 の後に取り除くこと（§3.14 の 6）である。
+-   **AC-43:** 上の文書の記述は、PR のレビューで読む（`manual`）。`CLAUDE.md` の記述も同じく読む。
 
 ### 3.16. design_handoff の各項目への対応
 
 | 項目 | 本設計の対応 |
 |---|---|
 | H-01 パス・メソッド・形 | `POST /jobs`・`GET /jobs/{key}`・`POST /jobs/{key}/publish`。キーはパスに入れ、デコードする前の `RequestURI` を照合する（`/articles` と `/jobs` は完全一致、`/jobs/` の後はキーの部分と `/publish`）（§3.1） |
-| H-02 キーの符号化とハッシュ | 領域の文字列と長さを前に置く符号化、SHA-256、小文字の 16 進の 64 文字（§3.2） |
+| H-02 キーの符号化とハッシュ | 領域の文字列と長さを前に置く符号化、プロセスごとの秘密を鍵とする HMAC-SHA256、小文字の 16 進の 64 文字（§3.2） |
 | H-03 工程の進み具合 | `writer.ProgressWriter`・`ProgressObserver`・`NewProgressWriter`（§3.5、1.3 の決定） |
 | H-04 同時実行の上限 | 生成の枠は 2 のまま新旧で合算、読み込みの枠は 2、投稿のジョブは数えない（§3.4・§3.7、1.3 の決定） |
 | H-05 表示用の Markdown | `renderDisplayMarkdown` を新しい関数で書き、ファイルの中身がそれを共有する（例外の記述は §3.6.2） |
@@ -1247,7 +1248,7 @@ const (
 | `internal/strictjson/strictjson.go` | 変更 | `Value.Raw`、`Object.Has` の契約 |
 | `.golangci.yml` | 変更 | `internal/articlecache` の `depguard` の規則、`nmhost-boundaries` の説明 |
 | `cmd/yt2column-server/docs_test.go` | 変更 | コードの表のガード、新しい API の curl の例のガード |
-| `README.md`・`docs/dev/security.md`・`docs/dev/project_overview.md`・`docs/translation_glossary.md`・`docs/dev/developer_guide/package_reference.md` | 変更 | §3.15 |
+| `README.md`・`docs/dev/security.md`・`docs/dev/project_overview.md`・`docs/translation_glossary.md`・`docs/dev/developer_guide/package_reference.md`・`CLAUDE.md` | 変更 | §3.15 |
 
 ## 4. エラーハンドリング設計 (Error Handling Design)
 
@@ -1607,7 +1608,7 @@ sequenceDiagram
 4.  **設定と起動:** `LoadServer` の Webhook の任意化、`server.Options` の `WebhookOptions`、`deps` の型、旧 API の `webhook_not_configured`。
 5.  **サーバの新しい API:** 生成の開始と生成のジョブ、状態の取得、投稿の操作と投稿のジョブ、後始末、シャットダウンの取り消し、ログ。
 6.  **ホスト:** 全体の読み込み、形の判定、新しい形、応答の上限、ログ。
-7.  **文書とガード:** README・`security.md`・`project_overview.md`・`translation_glossary.md`・`package_reference.md`、コードの表のガード。
+7.  **文書とガード:** README・`security.md`・`project_overview.md`・`translation_glossary.md`・`package_reference.md`・`CLAUDE.md`、コードの表のガード。
 
 2 と 3 は互いに依存しない。5 は 2〜4 に、6 は 5 の送り先のパスに依存する。
 
