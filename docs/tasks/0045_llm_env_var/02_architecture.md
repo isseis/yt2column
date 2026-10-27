@@ -264,14 +264,9 @@ type retiredLLMVar struct {
 	reason string // reasonRetiredLLM or reasonRetiredReviewLLM
 }
 
-// retiredLLMVars lists the retired variables in the order their rejections
-// are reported.
-var retiredLLMVars = []retiredLLMVar{
-	{"YT2COLUMN_LLM_PROVIDER", reasonRetiredLLM},
-	{"YT2COLUMN_MODEL", reasonRetiredLLM},
-	{"YT2COLUMN_REVIEW_PROVIDER", reasonRetiredReviewLLM},
-	{"YT2COLUMN_REVIEW_MODEL", reasonRetiredReviewLLM},
-}
+// retiredLLMVars lists the four retired variables, each with its reason
+// (the table in section 4.1), in the order their rejections are reported.
+var retiredLLMVars []retiredLLMVar
 
 // llmSelection is one stage's provider and model ID. In an accepted
 // selection both are set. parseLLM also returns the provider of a rejected
