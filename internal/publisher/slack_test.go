@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -1248,6 +1249,149 @@ func TestSlackPublishErrorClasses(t *testing.T) {
 		}
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			t.Fatalf("err = %v must match exactly one classification, not a context error", err)
+		}
+	})
+}
+
+// postFrom runs PostMessages for m from index from against server and returns
+// the indices passed to delivered, the texts the server received, and the
+// error.
+func postFrom(t *testing.T, server *slackServer, m SlackMessages, from int) ([]int, []string, error) {
+	t.Helper()
+	p := newTestSlackPublisher(t, server, SlackTestOptions{})
+	var delivered []int
+	err := p.PostMessages(context.Background(), m, from, func(i int) { delivered = append(delivered, i) })
+	return delivered, slackMessageTexts(t, server), err
+}
+
+func TestPostMessagesResume(t *testing.T) {
+	article := threeMessageArticle(t)
+	m, err := PrepareSlackMessages(article)
+	if err != nil {
+		t.Fatalf("PrepareSlackMessages: %v", err)
+	}
+	texts, err := SlackMessagesForTest(article)
+	if err != nil {
+		t.Fatalf("SlackMessagesForTest: %v", err)
+	}
+	if m.Len() != 3 || len(texts) != 3 {
+		t.Fatalf("messages = %d and %d, want 3", m.Len(), len(texts))
+	}
+
+	// from is the number of messages delivered before: 0 resumes at the
+	// first message, and 1 < k resumes at message k with from = k - 1.
+	for _, from := range []int{0, 1, 2} {
+		t.Run(fmt.Sprintf("from %d", from), func(t *testing.T) {
+			delivered, got, err := postFrom(t, newSlackOKServer(t), m, from)
+			if err != nil {
+				t.Fatalf("PostMessages error = %v, want nil", err)
+			}
+			if !slices.Equal(got, texts[from:]) {
+				t.Errorf("server received messages %d.. = %d texts, want the %d from index %d", from, len(got), len(texts)-from, from)
+			}
+			wantDelivered := []int{0, 1, 2}[from:]
+			if !slices.Equal(delivered, wantDelivered) {
+				t.Errorf("delivered = %v, want %v", delivered, wantDelivered)
+			}
+		})
+	}
+
+	t.Run("from the total sends nothing", func(t *testing.T) {
+		server := newSlackOKServer(t)
+		delivered, got, err := postFrom(t, server, m, m.Len())
+		if err != nil {
+			t.Fatalf("PostMessages error = %v, want nil", err)
+		}
+		if len(got) != 0 || len(delivered) != 0 {
+			t.Errorf("sent %d messages and delivered %v, want none", len(got), delivered)
+		}
+	})
+}
+
+func TestPostMessagesFailureCountsFromFirst(t *testing.T) {
+	m, err := PrepareSlackMessages(threeMessageArticle(t))
+	if err != nil {
+		t.Fatalf("PrepareSlackMessages: %v", err)
+	}
+	cases := []struct {
+		name          string
+		from          int
+		failRequest   int // the server's request number that fails, from 1
+		wantPosted    int
+		wantDelivered []int
+	}{
+		{"first message of a fresh post", 0, 1, 0, nil},
+		{"third message of a fresh post", 0, 3, 2, []int{0, 1}},
+		{"first message of a resumed post", 1, 1, 1, nil},
+		{"second message of a resumed post", 1, 2, 2, []int{1}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			server := newSlackServer(t, func(w http.ResponseWriter, _ *http.Request, n int) {
+				if n == tc.failRequest {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				_, _ = io.WriteString(w, slackOKResponse)
+			})
+			delivered, got, err := postFrom(t, server, m, tc.from)
+			postErr, ok := errors.AsType[*SlackPostError](err)
+			if !ok {
+				t.Fatalf("PostMessages error = %v, want a *SlackPostError", err)
+			}
+			if postErr.Total != 3 || postErr.Posted != tc.wantPosted || !postErr.Attempted {
+				t.Errorf("SlackPostError = %+v, want Total 3, Posted %d, Attempted true", postErr, tc.wantPosted)
+			}
+			if !slices.Equal(delivered, tc.wantDelivered) {
+				t.Errorf("delivered = %v, want %v", delivered, tc.wantDelivered)
+			}
+			if len(got) != tc.failRequest {
+				t.Errorf("server received %d requests, want %d (nothing after the failure)", len(got), tc.failRequest)
+			}
+		})
+	}
+}
+
+func TestPostMessagesRejectsWithoutSending(t *testing.T) {
+	m, err := PrepareSlackMessages(threeMessageArticle(t))
+	if err != nil {
+		t.Fatalf("PrepareSlackMessages: %v", err)
+	}
+	nop := func(int) {}
+	cases := []struct {
+		name      string
+		m         SlackMessages
+		from      int
+		delivered func(int)
+		want      error
+	}{
+		{"from below zero", m, -1, nop, errSlackFromRange},
+		{"from past the total", m, m.Len() + 1, nop, errSlackFromRange},
+		{"messages not prepared", SlackMessages{}, 0, nop, errSlackNoMessages},
+		{"nil delivered", m, 0, nil, errSlackNilDelivered},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			server := newSlackOKServer(t)
+			p := newTestSlackPublisher(t, server, SlackTestOptions{})
+			err := p.PostMessages(context.Background(), tc.m, tc.from, tc.delivered)
+			if !errors.Is(err, tc.want) {
+				t.Errorf("PostMessages error = %v, want %v", err, tc.want)
+			}
+			if _, ok := errors.AsType[*SlackPostError](err); ok {
+				t.Errorf("PostMessages error = %v, must not be a *SlackPostError", err)
+			}
+			if n := server.recorder.count(); n != 0 {
+				t.Errorf("server received %d requests, want 0", n)
+			}
+		})
+	}
+
+	t.Run("zero value publisher", func(t *testing.T) {
+		var p SlackWebhookPublisher
+		err := p.PostMessages(context.Background(), m, 0, nop)
+		if !errors.Is(err, errZeroWebhookURL) {
+			t.Errorf("PostMessages error = %v, want errZeroWebhookURL", err)
 		}
 	})
 }

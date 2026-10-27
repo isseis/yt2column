@@ -200,12 +200,12 @@
 
 -   **ファイル:** `internal/publisher/slack_message.go`・`slack.go`・`test_helpers_slack.go`・`slack_test.go`、`internal/publisher/testutil/mocks.go`・`mocks_test.go`、`docs/dev/developer_guide/package_reference.md`
 -   **作業:**
-    -   [ ] `SlackMessages`・`PrepareSlackMessages` を加え、`SlackMessageCount` と `SlackMessagesForTest` をそれを呼ぶ形にする（設計書 §3.6.1）。
-    -   [ ] `PostMessages` を加え、`Publish` を `PrepareSlackMessages` と `PostMessages(ctx, m, 0, 何もしない関数)` の形にする（設計書 §3.7.1）。`PostMessages` も `Publish` と同じく、最初に Webhook の URL を持つかを確かめる。
-    -   [ ] `FakePublisher` に `PostMessages` を加え、記録を排他制御の下に置き、排他制御付きの読み出しを加える（1.3）。`mocks_test.go` で確かめる。
-    -   [ ] テスト（`NewSlackWebhookPublisherForLoopbackTest` を `Interval` 0 で使う）: N 通に分かれる記事で、k = 1 の再開（`from` が 0）と 1 < k の再開（`from` = k − 1）のそれぞれで k 通目から送り、`delivered` が届いた位置ごとに呼ばれること（AC-21）、n 通目の失敗で `*SlackPostError` の `Posted` が最初から数えた数になること、範囲外の `from` を送らずに拒否すること、`from` が全体の数なら何も送らずに `nil` を返すこと。`Publish` の今のテスト（`slack_test.go`）は変更なしで通る。
-    -   [ ] 壊し方: `PostMessages` が `from` を無視して最初から送ると、再開の行が失敗することを確かめる。
-    -   [ ] `package_reference.md` の `internal/writer`・`internal/publisher` の行を改める（1.3）。
+    -   [x] `SlackMessages`・`PrepareSlackMessages` を加え、`SlackMessageCount` と `SlackMessagesForTest` をそれを呼ぶ形にする（設計書 §3.6.1）。
+    -   [x] `PostMessages` を加え、`Publish` を `PrepareSlackMessages` と `PostMessages(ctx, m, 0, 何もしない関数)` の形にする（設計書 §3.7.1）。`PostMessages` も `Publish` と同じく、最初に Webhook の URL を持つかを確かめる。
+    -   [x] `FakePublisher` に `PostMessages` を加え、記録を排他制御の下に置き、排他制御付きの読み出しを加える（1.3）。`mocks_test.go` で確かめる。
+    -   [x] テスト（`NewSlackWebhookPublisherForLoopbackTest` を `Interval` 0 で使う）: N 通に分かれる記事で、k = 1 の再開（`from` が 0）と 1 < k の再開（`from` = k − 1）のそれぞれで k 通目から送り、`delivered` が届いた位置ごとに呼ばれること（AC-21）、n 通目の失敗で `*SlackPostError` の `Posted` が最初から数えた数になること、範囲外の `from` を送らずに拒否すること、`from` が全体の数なら何も送らずに `nil` を返すこと。`Publish` の今のテスト（`slack_test.go`）は変更なしで通る。
+    -   [x] 壊し方: `PostMessages` が `from` を無視して最初から送ると、再開の行が失敗することを確かめる。
+    -   [x] `package_reference.md` の `internal/writer`・`internal/publisher` の行を改める（1.3）。
 -   **完了の条件:** グリーンゲートが通る。
 
 ### PR-2 作成ポイント: writer progress and publisher rendering and resumable send
