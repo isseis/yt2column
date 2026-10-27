@@ -254,6 +254,11 @@ type nopPublisher struct{}
 // Publish implements publisher.Publisher.
 func (nopPublisher) Publish(context.Context, writer.Article) error { return nil }
 
+// PostMessages implements server.WebhookPublisher.
+func (nopPublisher) PostMessages(context.Context, publisher.SlackMessages, int, func(int)) error {
+	return nil
+}
+
 // nopNotifier is a notifier that accepts every notice and sends nothing.
 type nopNotifier struct{}
 
@@ -267,8 +272,8 @@ func testDeps(client llm.LLMClient) deps {
 	return deps{
 		newLLMClient:       func(config.LLMConfig) (llm.LLMClient, error) { return client, nil },
 		newReviewLLMClient: func(config.LLMConfig) (llm.LLMClient, error) { return reviewLLM(), nil },
-		newWriter:          writer.New,
-		newPublisher:       func(secret.Secret) (publisher.Publisher, error) { return nopPublisher{}, nil },
+		newWriter:          writer.NewProgressWriter,
+		newPublisher:       func(secret.Secret) (server.WebhookPublisher, error) { return nopPublisher{}, nil },
 		newNotifier:        func(secret.Secret) (failure.Notifier, error) { return nopNotifier{}, nil },
 	}
 }
@@ -285,7 +290,7 @@ func loopbackDeps(t *testing.T, client llm.LLMClient, serverURL string) deps {
 	pub := publisher.NewSlackWebhookPublisherForLoopbackTest(t, publisher.SlackTestOptions{Timeout: loopbackTimeout}, endpoint)
 	notifier := publisher.NewSlackFailureNotifierForLoopbackTest(t, loopbackTimeout, endpoint)
 	d := testDeps(client)
-	d.newPublisher = func(webhookURL secret.Secret) (publisher.Publisher, error) {
+	d.newPublisher = func(webhookURL secret.Secret) (server.WebhookPublisher, error) {
 		if err := requireTestWebhook(webhookURL); err != nil {
 			return nil, err
 		}

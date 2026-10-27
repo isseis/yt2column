@@ -81,19 +81,20 @@ func rejectRequest(t *testing.T, body string) *http.Request {
 	return newRequest(http.MethodPost, ArticlesPath, strings.NewReader(body))
 }
 
-// TestRejectReasonSet checks that the server answers with exactly these eight
+// TestRejectReasonSet checks that the server answers with exactly these nine
 // rejection reasons and statuses: the reasons of the header checks it no
 // longer runs (the Host, the content type, the origin, and the token) are gone.
 func TestRejectReasonSet(t *testing.T) {
 	want := map[RejectReasonForTest]struct{}{
-		{Value: "internal_error", Status: http.StatusInternalServerError}:   {},
-		{Value: "not_found", Status: http.StatusNotFound}:                   {},
-		{Value: "method_not_allowed", Status: http.StatusMethodNotAllowed}:  {},
-		{Value: "too_many_requests", Status: http.StatusTooManyRequests}:    {},
-		{Value: "body_too_large", Status: http.StatusRequestEntityTooLarge}: {},
-		{Value: "invalid_body", Status: http.StatusBadRequest}:              {},
-		{Value: "invalid_video_url", Status: http.StatusBadRequest}:         {},
-		{Value: "invalid_transcript", Status: http.StatusBadRequest}:        {},
+		{Value: "internal_error", Status: http.StatusInternalServerError}:        {},
+		{Value: "not_found", Status: http.StatusNotFound}:                        {},
+		{Value: "method_not_allowed", Status: http.StatusMethodNotAllowed}:       {},
+		{Value: "too_many_requests", Status: http.StatusTooManyRequests}:         {},
+		{Value: "body_too_large", Status: http.StatusRequestEntityTooLarge}:      {},
+		{Value: "invalid_body", Status: http.StatusBadRequest}:                   {},
+		{Value: "invalid_video_url", Status: http.StatusBadRequest}:              {},
+		{Value: "invalid_transcript", Status: http.StatusBadRequest}:             {},
+		{Value: "webhook_not_configured", Status: http.StatusServiceUnavailable}: {},
 	}
 	got := map[RejectReasonForTest]struct{}{}
 	for _, reason := range RejectReasonsForTest() {

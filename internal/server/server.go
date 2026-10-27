@@ -19,7 +19,6 @@ import (
 
 	"github.com/isseis/yt2column/internal/failure"
 	"github.com/isseis/yt2column/internal/nilcheck"
-	"github.com/isseis/yt2column/internal/publisher"
 	"github.com/isseis/yt2column/internal/redact"
 	"github.com/isseis/yt2column/internal/writer"
 )
@@ -42,29 +41,36 @@ var ErrInvalidOptions = errors.New("invalid server options")
 // The fixed reasons New rejects Options. Each names the missing or unusable
 // field, and none holds a value.
 var (
-	errNilArticleWriter = errors.New("writer is nil")
-	errNilPublisher     = errors.New("publisher is nil")
-	errNilNotifier      = errors.New("notifier is nil")
-	errNilLogOutput     = errors.New("log output is nil")
+	errNilArticleWriter    = errors.New("writer is nil")
+	errNilWebhookPublisher = errors.New("webhook publisher is nil")
+	errNilWebhookNotifier  = errors.New("webhook notifier is nil")
+	errNilLogOutput        = errors.New("log output is nil")
 )
 
-// Options configures a Server. Every field is required.
+// Options configures a Server. Writer and LogOutput are required.
 type Options struct {
-	Writer    writer.ArticleWriter
-	Publisher publisher.Publisher
-	Notifier  failure.Notifier
-	LogOutput io.Writer // usually os.Stderr; New wraps it in redact.Writer
-	Secrets   []string  // from redact.SecretStrings; redacted from every log line
+	Writer    writer.ProgressWriter
+	Webhook   *WebhookOptions // nil: SLACK_WEBHOOK_URL is not configured
+	LogOutput io.Writer       // usually os.Stderr; New wraps it in redact.Writer
+	Secrets   []string        // from redact.SecretStrings; redacted from every log line
+}
+
+// WebhookOptions holds what posts to the Webhook. Every field is required.
+type WebhookOptions struct {
+	Publisher WebhookPublisher // the legacy /articles job and the publish operation
+	Notifier  failure.Notifier // the legacy /articles failure notice
 }
 
 // Server is the article HTTP server. Build it with New and run it with Serve on
 // a listener the caller opened.
 type Server struct {
-	writer    writer.ArticleWriter
-	publisher publisher.Publisher
-	notifier  failure.Notifier
-	logger    *slog.Logger
-	http      *http.Server
+	writer writer.ProgressWriter
+	// webhook posts to the Webhook. It is nil when SLACK_WEBHOOK_URL is not
+	// configured, in which case the legacy endpoint rejects every request:
+	// there is nowhere to post the article or its failure notice.
+	webhook *WebhookOptions
+	logger  *slog.Logger
+	http    *http.Server
 
 	// slots bounds the requests in progress. A request takes one
 	// after the header checks and holds it until the end of its job or its
@@ -94,8 +100,7 @@ func New(opts Options) (*Server, error) {
 	jobCtx, jobCancel := context.WithCancel(context.Background())
 	s := &Server{
 		writer:    opts.Writer,
-		publisher: opts.Publisher,
-		notifier:  opts.Notifier,
+		webhook:   opts.Webhook,
 		logger:    logger,
 		slots:     make(chan struct{}, maxInFlight),
 		jobCtx:    jobCtx,
@@ -120,11 +125,13 @@ func validateOptions(opts Options) error {
 	if nilcheck.IsNil(opts.Writer) {
 		errs = append(errs, errNilArticleWriter)
 	}
-	if nilcheck.IsNil(opts.Publisher) {
-		errs = append(errs, errNilPublisher)
-	}
-	if nilcheck.IsNil(opts.Notifier) {
-		errs = append(errs, errNilNotifier)
+	if opts.Webhook != nil {
+		if nilcheck.IsNil(opts.Webhook.Publisher) {
+			errs = append(errs, errNilWebhookPublisher)
+		}
+		if nilcheck.IsNil(opts.Webhook.Notifier) {
+			errs = append(errs, errNilWebhookNotifier)
+		}
 	}
 	if nilcheck.IsNil(opts.LogOutput) {
 		errs = append(errs, errNilLogOutput)
@@ -133,6 +140,13 @@ func validateOptions(opts Options) error {
 		return fmt.Errorf("%w: %w", ErrInvalidOptions, err)
 	}
 	return nil
+}
+
+// webhookConfigured reports whether this server can post to the Webhook, which
+// is what SLACK_WEBHOOK_URL being set means. A server without it rejects the
+// legacy endpoint instead of starting a job nothing can post.
+func (s *Server) webhookConfigured() bool {
+	return s.webhook != nil
 }
 
 // Serve serves on listener until ctx is canceled or the listener fails, then

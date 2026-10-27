@@ -204,6 +204,8 @@ func TestReasonToKind(t *testing.T) {
 		reasonNotFound:          failure.KindUnknown,
 		reasonMethodNotAllowed:  failure.KindUnknown,
 		reasonTooManyRequests:   failure.KindUnknown,
+		// A server without a Webhook has no one to notify.
+		reasonWebhookNotConfigured: failure.KindUnknown,
 	}
 	for reason := range reasonCount {
 		expected, ok := want[reason]
@@ -296,8 +298,7 @@ func TestNotifyPanicLogged(t *testing.T) {
 	logs := &strings.Builder{}
 	s, err := New(Options{
 		Writer:    panickingWriter{},
-		Publisher: &publishertestutil.FakePublisher{},
-		Notifier:  panickingNotifier{},
+		Webhook:   &WebhookOptions{Publisher: &publishertestutil.FakePublisher{}, Notifier: panickingNotifier{}},
 		LogOutput: logs,
 	})
 	if err != nil {

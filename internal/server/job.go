@@ -60,7 +60,7 @@ func (s *Server) runJob(input jobInput) {
 		}
 	}()
 
-	p, err := pipeline.New(input.source, s.writer, s.publisher)
+	p, err := pipeline.New(input.source, s.writer, s.webhook.Publisher)
 	if err != nil {
 		s.logger.Error("pipeline construction failed", "requestId", input.requestID, "videoId", input.videoID, "error", err)
 		s.notify(input.requestID, input.videoID, failure.KindInternal)
@@ -81,6 +81,11 @@ func (s *Server) runJob(input jobInput) {
 // server keeps running. The recover keeps a notifier panic from escaping into
 // the caller's own recovery, where it would crash the process.
 func (s *Server) notify(requestID, videoID string, kind failure.Kind) {
+	if !s.webhookConfigured() {
+		// No Webhook is configured, so there is no one to notify. The legacy
+		// endpoint refuses such a request before it reaches a job.
+		return
+	}
 	defer func() {
 		if p := recover(); p != nil {
 			s.logger.Error("failure notice panicked", "requestId", requestID, "kind", int(kind), "panic", p, "stack", string(debug.Stack()))
@@ -89,7 +94,7 @@ func (s *Server) notify(requestID, videoID string, kind failure.Kind) {
 	ctx, cancel := context.WithTimeout(s.jobCtx, notifyTimeout)
 	defer cancel()
 	notice := failure.Notice{RequestID: requestID, VideoID: videoID, Kind: kind}
-	if err := s.notifier.Notify(ctx, notice); err != nil {
+	if err := s.webhook.Notifier.Notify(ctx, notice); err != nil {
 		s.logger.Error("failure notice failed", "requestId", requestID, "kind", int(kind), "error", err)
 	}
 }

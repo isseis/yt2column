@@ -56,8 +56,28 @@ func newTestServer(t *testing.T) *testServer {
 	logs := &bytes.Buffer{}
 	s, err := New(Options{
 		Writer:    fakeWriter,
-		Publisher: pub,
-		Notifier:  notifier,
+		Webhook:   &WebhookOptions{Publisher: pub, Notifier: notifier},
+		LogOutput: logs,
+		Secrets:   []string{testMarker},
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	return &testServer{Server: s, writer: fakeWriter, publisher: pub, notifier: notifier, logs: logs}
+}
+
+// newTestServerWithoutWebhook builds a Server the way run builds one without
+// SLACK_WEBHOOK_URL: with a recording writer and no Webhook options. The
+// publisher and notifier it records are not wired to the server, so a request
+// that reached them would be a bug this helper can still detect.
+func newTestServerWithoutWebhook(t *testing.T) *testServer {
+	t.Helper()
+	fakeWriter := &writertestutil.FakeArticleWriter{}
+	pub := &publishertestutil.FakePublisher{}
+	notifier := &failuretestutil.FakeNotifier{}
+	logs := &bytes.Buffer{}
+	s, err := New(Options{
+		Writer:    fakeWriter,
 		LogOutput: logs,
 		Secrets:   []string{testMarker},
 	})
@@ -69,12 +89,11 @@ func newTestServer(t *testing.T) *testServer {
 
 // newCustomServer builds a Server with the given collaborators, for tests that
 // need a writer or notifier with special behavior.
-func newCustomServer(t *testing.T, w writer.ArticleWriter, p publisher.Publisher, n failure.Notifier) *Server {
+func newCustomServer(t *testing.T, w writer.ProgressWriter, p WebhookPublisher, n failure.Notifier) *Server {
 	t.Helper()
 	s, err := New(Options{
 		Writer:    w,
-		Publisher: p,
-		Notifier:  n,
+		Webhook:   &WebhookOptions{Publisher: p, Notifier: n},
 		LogOutput: &bytes.Buffer{},
 	})
 	if err != nil {
@@ -94,6 +113,12 @@ func (p *countingPublisher) Publish(context.Context, writer.Article) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.calls++
+	return nil
+}
+
+// PostMessages implements WebhookPublisher. The legacy job never calls it, so
+// it adds no call to the count.
+func (p *countingPublisher) PostMessages(context.Context, publisher.SlackMessages, int, func(int)) error {
 	return nil
 }
 
@@ -122,11 +147,22 @@ func (g *gateWriter) Write(context.Context, transcript.Transcript) (writer.Artic
 	return writer.Article{}, nil
 }
 
+// WriteWithProgress implements writer.ProgressWriter by ignoring the observer:
+// these tests hold the job at the write stage, not at a stage notification.
+func (g *gateWriter) WriteWithProgress(ctx context.Context, t transcript.Transcript, _ writer.ProgressObserver) (writer.Article, error) {
+	return g.Write(ctx, t)
+}
+
 // panickingWriter panics on Write, to test the job goroutine's recovery.
 type panickingWriter struct{}
 
 func (panickingWriter) Write(context.Context, transcript.Transcript) (writer.Article, error) {
 	panic("test writer panic")
+}
+
+// WriteWithProgress implements writer.ProgressWriter.
+func (w panickingWriter) WriteWithProgress(ctx context.Context, t transcript.Transcript, _ writer.ProgressObserver) (writer.Article, error) {
+	return w.Write(ctx, t)
 }
 
 // panickingReader panics on Read, to test the handler's recovery.

@@ -25,6 +25,7 @@ const (
 	reasonInvalidBody
 	reasonInvalidVideoURL
 	reasonInvalidTranscript
+	reasonWebhookNotConfigured
 	// reasonCount is not a reason: it follows the last one, so the tests
 	// enumerate every reason, including one appended later.
 	reasonCount
@@ -48,6 +49,8 @@ func (r rejectReason) reasonValue() string {
 		return "invalid_video_url"
 	case reasonInvalidTranscript:
 		return "invalid_transcript"
+	case reasonWebhookNotConfigured:
+		return "webhook_not_configured"
 	default:
 		return "internal_error"
 	}
@@ -66,6 +69,8 @@ func (r rejectReason) statusCode() int {
 		return http.StatusRequestEntityTooLarge
 	case reasonInvalidBody, reasonInvalidVideoURL, reasonInvalidTranscript:
 		return http.StatusBadRequest
+	case reasonWebhookNotConfigured:
+		return http.StatusServiceUnavailable
 	default:
 		return http.StatusInternalServerError
 	}
@@ -86,14 +91,14 @@ func (r rejectReason) notify() bool {
 
 // forceClose reports whether the rejection adds `Connection: close`. Rejections
 // that did not read the whole body (the header checks, the slot and size
-// checks) close the connection, so net/http does not read and discard the body
-// to reuse it. A pre-slot internal error (a request ID failure or a panic
+// checks, and a server without a Webhook) close the connection, so net/http
+// does not read and discard the body to reuse it. A pre-slot internal error (a request ID failure or a panic
 // before the slot) also closes the connection, but the handler passes
 // closeConnection directly for those cases rather than using this method; the
 // post-slot internal error reads the body and does not force close.
 func (r rejectReason) forceClose() bool {
 	switch r {
-	case reasonNotFound, reasonMethodNotAllowed, reasonTooManyRequests, reasonBodyTooLarge:
+	case reasonNotFound, reasonMethodNotAllowed, reasonTooManyRequests, reasonBodyTooLarge, reasonWebhookNotConfigured:
 		return true
 	default:
 		return false
@@ -105,14 +110,15 @@ func (r rejectReason) forceClose() bool {
 type rejectDetail string
 
 const (
-	detailNotFound          rejectDetail = "not_found"
-	detailMethodNotAllowed  rejectDetail = "method_not_allowed"
-	detailTooManyRequests   rejectDetail = "too_many_requests"
-	detailBodyTooLarge      rejectDetail = "body_too_large"
-	detailInvalidBody       rejectDetail = "invalid_body"
-	detailInvalidVideoURL   rejectDetail = "invalid_video_url"
-	detailInvalidTranscript rejectDetail = "invalid_transcript"
-	detailInternalError     rejectDetail = "internal_error"
+	detailNotFound             rejectDetail = "not_found"
+	detailMethodNotAllowed     rejectDetail = "method_not_allowed"
+	detailTooManyRequests      rejectDetail = "too_many_requests"
+	detailBodyTooLarge         rejectDetail = "body_too_large"
+	detailInvalidBody          rejectDetail = "invalid_body"
+	detailInvalidVideoURL      rejectDetail = "invalid_video_url"
+	detailInvalidTranscript    rejectDetail = "invalid_transcript"
+	detailWebhookNotConfigured rejectDetail = "webhook_not_configured"
+	detailInternalError        rejectDetail = "internal_error"
 )
 
 // rejection is a response the handler writes plus the detail it logs. videoID

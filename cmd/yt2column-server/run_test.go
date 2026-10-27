@@ -21,6 +21,7 @@ import (
 	llmtestutil "github.com/isseis/yt2column/internal/llm/testutil"
 	"github.com/isseis/yt2column/internal/publisher"
 	"github.com/isseis/yt2column/internal/secret"
+	"github.com/isseis/yt2column/internal/server"
 	"github.com/isseis/yt2column/internal/udstest"
 	"github.com/isseis/yt2column/internal/writer"
 	writertestutil "github.com/isseis/yt2column/internal/writer/testutil"
@@ -137,7 +138,7 @@ func TestStartupFailures(t *testing.T) {
 		{
 			name: "writer not built",
 			setup: func(_ *testing.T, _ *serverEnv, d *deps) {
-				d.newWriter = func(llm.LLMClient, writer.Options) (writer.ArticleWriter, error) { return nil, errBuildRefused }
+				d.newWriter = func(llm.LLMClient, writer.Options) (writer.ProgressWriter, error) { return nil, errBuildRefused }
 			},
 			want:       exitUsage,
 			wantStderr: "build the article writer",
@@ -145,7 +146,7 @@ func TestStartupFailures(t *testing.T) {
 		{
 			name: "publisher not built",
 			setup: func(_ *testing.T, _ *serverEnv, d *deps) {
-				d.newPublisher = func(secret.Secret) (publisher.Publisher, error) { return nil, errBuildRefused }
+				d.newPublisher = func(secret.Secret) (server.WebhookPublisher, error) { return nil, errBuildRefused }
 			},
 			want:       exitUsage,
 			wantStderr: "build the publisher",
@@ -397,11 +398,11 @@ func TestWriterOptionsMatchCLIDefaults(t *testing.T) {
 	d := testDeps(validResponseLLM())
 	d.newReviewLLMClient = func(config.LLMConfig) (llm.LLMClient, error) { return review, nil }
 	var got []writer.Options
-	d.newWriter = func(client llm.LLMClient, opts writer.Options) (writer.ArticleWriter, error) {
+	d.newWriter = func(client llm.LLMClient, opts writer.Options) (writer.ProgressWriter, error) {
 		got = append(got, opts)
-		return writer.New(client, opts)
+		return writer.NewProgressWriter(client, opts)
 	}
-	d.newPublisher = func(secret.Secret) (publisher.Publisher, error) { return nil, errBuildRefused }
+	d.newPublisher = func(secret.Secret) (server.WebhookPublisher, error) { return nil, errBuildRefused }
 
 	var stderr strings.Builder
 	if code := run(t.Context(), nil, e.lookup(), &stderr, d); code != exitUsage {
@@ -413,6 +414,45 @@ func TestWriterOptionsMatchCLIDefaults(t *testing.T) {
 	if want := writertestutil.DefaultOptions(review); !reflect.DeepEqual(got[0], want) {
 		t.Errorf("writer options = %+v, want %+v", got[0], want)
 	}
+}
+
+// TestStartsWithoutWebhook checks that a server whose SLACK_WEBHOOK_URL is
+// unset starts, reports that no Webhook is configured and names what that
+// refuses, and never builds the publisher or the failure notifier.
+func TestStartsWithoutWebhook(t *testing.T) {
+	e := newServerEnv(t)
+	delete(e.vars, "SLACK_WEBHOOK_URL")
+	publisherCalls, notifierCalls := 0, 0
+	d := testDeps(validResponseLLM())
+	d.newPublisher = func(secret.Secret) (server.WebhookPublisher, error) {
+		publisherCalls++
+		return nopPublisher{}, nil
+	}
+	d.newNotifier = func(secret.Secret) (failure.Notifier, error) {
+		notifierCalls++
+		return nopNotifier{}, nil
+	}
+
+	srv := startServer(t, e, d)
+	if code := srv.stop(t); code != exitOK {
+		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, srv.stderr.String())
+	}
+	stderr := srv.stderr.String()
+	listening := stderrLine(stderr, "msg=listening")
+	if listening == "" {
+		t.Fatalf("stderr has no listening log line:\n%s", stderr)
+	}
+	if !strings.Contains(listening, "webhookConfigured=false") {
+		t.Errorf("the listening log does not report no Webhook: %s", listening)
+	}
+	warning := stderrLine(stderr, "level=WARN")
+	if warning == "" || !strings.Contains(warning, "webhook_not_configured") {
+		t.Errorf("stderr has no warning naming webhook_not_configured:\n%s", stderr)
+	}
+	if publisherCalls != 0 || notifierCalls != 0 {
+		t.Errorf("constructors called without a Webhook: publisher=%d notifier=%d", publisherCalls, notifierCalls)
+	}
+	requireNoSecret(t, "stderr", stderr)
 }
 
 // TestRunLogsListeningAndStop checks the lines run itself logs: the socket
@@ -431,6 +471,12 @@ func TestRunLogsListeningAndStop(t *testing.T) {
 	}
 	if !strings.Contains(listening, e.socketPath(t)) {
 		t.Errorf("the listening log does not name the socket %s: %s", e.socketPath(t), listening)
+	}
+	if !strings.Contains(listening, "webhookConfigured=true") {
+		t.Errorf("the listening log does not report the configured Webhook: %s", listening)
+	}
+	if warning := stderrLine(stderr, "level=WARN"); warning != "" {
+		t.Errorf("stderr warns although a Webhook is configured: %s", warning)
 	}
 	for _, want := range []string{
 		// Three LLM calls of at most 15 minutes each.

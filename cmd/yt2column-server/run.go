@@ -49,8 +49,8 @@ const llmCallsPerJob = 3
 type deps struct {
 	newLLMClient       func(config.LLMConfig) (llm.LLMClient, error)
 	newReviewLLMClient func(config.LLMConfig) (llm.LLMClient, error)
-	newWriter          func(llm.LLMClient, writer.Options) (writer.ArticleWriter, error)
-	newPublisher       func(webhookURL secret.Secret) (publisher.Publisher, error)
+	newWriter          func(llm.LLMClient, writer.Options) (writer.ProgressWriter, error)
+	newPublisher       func(webhookURL secret.Secret) (server.WebhookPublisher, error)
 	newNotifier        func(webhookURL secret.Secret) (failure.Notifier, error)
 }
 
@@ -59,16 +59,16 @@ func productionDeps() deps {
 	return deps{
 		newLLMClient:       provider.New,
 		newReviewLLMClient: provider.NewReview,
-		newWriter:          writer.New,
+		newWriter:          writer.NewProgressWriter,
 		newPublisher:       newPublisher,
 		newNotifier:        newNotifier,
 	}
 }
 
 // newPublisher builds the SlackWebhookPublisher, the publisher the CLI's
-// --slack uses. It returns a nil interface, never a typed nil, when
-// construction fails, so server.New's nil check is not misled.
-func newPublisher(webhookURL secret.Secret) (publisher.Publisher, error) {
+// --slack uses and the server posts with. It returns a nil interface, never a
+// typed nil, when construction fails, so server.New's nil check is not misled.
+func newPublisher(webhookURL secret.Secret) (server.WebhookPublisher, error) {
 	p, err := publisher.NewSlackWebhookPublisher(webhookURL)
 	if err != nil {
 		return nil, err
@@ -156,7 +156,7 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stderr io
 		return exitUsage
 	}
 	llmCfg := cfg.LLM()
-	webhookURL, _ := cfg.WebhookURL()
+	webhookURL, webhookConfigured := cfg.WebhookURL()
 	secrets := redact.SecretStrings(webhookURL, llmCfg.DeepSeekAPIKey(), llmCfg.AnthropicAPIKey())
 	errOut.secrets = secrets
 	if cfg.HTTP2DebugEnabled() {
@@ -187,7 +187,13 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stderr io
 		"socket", cfg.SocketPath(),
 		"model", llmCfg.Model(),
 		"reviewModel", llmCfg.ReviewModel(),
+		"webhookConfigured", webhookConfigured,
 	)
+	if !webhookConfigured {
+		// The server now starts without the Webhook, where it used to stop, so
+		// a forgotten setting has to show up here instead.
+		logger.Warn("no Webhook is configured, so the publish operation and /articles answer webhook_not_configured")
+	}
 
 	// 4: serve until ctx is canceled. The stop notice is logged as soon as
 	// the cancellation arrives, while Serve is still waiting for in-flight
@@ -288,22 +294,26 @@ func buildServer(d deps, cfg config.ServerConfig, logOutput io.Writer, secrets [
 	if err != nil {
 		return nil, fmt.Errorf("build the article writer: %w", err)
 	}
-	webhookURL, _ := cfg.WebhookURL()
-	pub, err := d.newPublisher(webhookURL)
-	if err != nil {
-		return nil, fmt.Errorf("build the publisher: %w", err)
-	}
-	notifier, err := d.newNotifier(webhookURL)
-	if err != nil {
-		return nil, fmt.Errorf("build the failure notifier: %w", err)
-	}
-	srv, err := server.New(server.Options{
+	opts := server.Options{
 		Writer:    articleWriter,
-		Publisher: pub,
-		Notifier:  notifier,
 		LogOutput: logOutput,
 		Secrets:   secrets,
-	})
+	}
+	// A server without SLACK_WEBHOOK_URL still serves the operations that do
+	// not post, so it is built with neither publisher nor notifier: the legacy
+	// endpoint and the publish operation reject what needs one.
+	if webhookURL, configured := cfg.WebhookURL(); configured {
+		pub, err := d.newPublisher(webhookURL)
+		if err != nil {
+			return nil, fmt.Errorf("build the publisher: %w", err)
+		}
+		notifier, err := d.newNotifier(webhookURL)
+		if err != nil {
+			return nil, fmt.Errorf("build the failure notifier: %w", err)
+		}
+		opts.Webhook = &server.WebhookOptions{Publisher: pub, Notifier: notifier}
+	}
+	srv, err := server.New(opts)
 	if err != nil {
 		return nil, fmt.Errorf("build the server: %w", err)
 	}
