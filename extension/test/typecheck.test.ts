@@ -146,3 +146,85 @@ describe("type errors fail typecheck and build", () => {
     assert.equal(existsSync(path.join(outDir, "mismatch.js")), false);
   });
 });
+
+describe("a Catalog missing an item fails typecheck", () => {
+  let dir = "";
+
+  // Each module assigns a value of a type to Catalog; only the type check
+  // runs, so the declared value needs no definition.
+  const modules = {
+    // The control: a value with every item is accepted.
+    complete: "export const c: Catalog = full;\n",
+    // A top-level item is missing.
+    missingTopLevel:
+      'export const c: Catalog = full as Omit<Catalog, "sendButton">;\n',
+    // One key of a Record section is missing.
+    missingRecordKey:
+      "export const c: Catalog = {\n" +
+      "  ...full,\n" +
+      '  rejection: full.rejection as Omit<Catalog["rejection"], "empty-title">,\n' +
+      "};\n",
+  };
+  type Module = keyof typeof modules;
+
+  before(() => {
+    dir = mkdtempSync(path.join(tmpdir(), "typecheck-catalog-"));
+    writeFileSync(path.join(dir, "package.json"), '{ "type": "module" }\n');
+    const catalog = path
+      .relative(
+        dir,
+        path.join(extensionDir, "src", "core", "i18n", "catalog.ts"),
+      )
+      .split(path.sep)
+      .join("/");
+    for (const [name, body] of Object.entries(modules)) {
+      writeFileSync(
+        path.join(dir, `${name}.ts`),
+        `import type { Catalog } from "${catalog}";\n` +
+          "declare const full: Catalog;\n" +
+          body,
+      );
+    }
+  });
+  after(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  // Unlike runTsc above, rootDir is not overridden: the module imports
+  // src/core/i18n/catalog.ts, which a rootDir of the temporary directory
+  // would reject with TS6059.
+  function typecheck(file: Module): { status: number | null; output: string } {
+    const config = path.join(dir, `tsconfig.${file}.json`);
+    writeFileSync(
+      config,
+      JSON.stringify({
+        extends: path.join(extensionDir, "tsconfig.json"),
+        compilerOptions: {
+          typeRoots: [path.join(extensionDir, "node_modules", "@types")],
+        },
+        include: [],
+        files: [path.join(dir, `${file}.ts`)],
+      }),
+    );
+    const result = spawnSync(process.execPath, [tsc, "-p", config], {
+      encoding: "utf8",
+    });
+    return { status: result.status, output: result.stdout + result.stderr };
+  }
+
+  it("accepts a Catalog with every item", () => {
+    const { status, output } = typecheck("complete");
+    assert.equal(status, 0, output);
+  });
+
+  for (const file of ["missingTopLevel", "missingRecordKey"] as const) {
+    it(`rejects ${file} with TS2741`, () => {
+      const { status, output } = typecheck(file);
+      assert.notEqual(status, 0, output);
+      assert.match(
+        output,
+        new RegExp(`${file}\\.ts\\(\\d+,\\d+\\): error TS2741:`),
+      );
+    });
+  }
+});

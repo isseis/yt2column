@@ -20,11 +20,14 @@ if (summaryRegion !== null && sendRegion !== null) {
       metadataReader: createMetadataReader(chrome.scripting),
       activeTab: createActiveTabQuery(chrome.tabs),
       log,
+      // English until the popup entry resolves the browser's UI language.
+      locale: "en",
     });
     await runPopupSend(sendRegion, launched, {
       send: createSendDeps(chrome.runtime),
       now: () => Date.now(),
       log,
+      locale: "en",
     });
   })();
 }

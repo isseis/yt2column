@@ -7,8 +7,10 @@ import type {
   PageSelection,
   SelectionReader,
 } from "../src/core/collect.ts";
-import { expandPromptMessage } from "../src/core/messages.ts";
-import type { RejectionMessage } from "../src/core/messages.ts";
+import { catalogs } from "../src/core/i18n/catalog.ts";
+import { locales } from "../src/core/i18n/locale.ts";
+import type { Locale } from "../src/core/i18n/locale.ts";
+import { expandPromptMessage, rejectionMessage } from "../src/core/messages.ts";
 import { emptyMetadataResult } from "../src/core/metadata.ts";
 import type { MetadataResult } from "../src/core/metadata.ts";
 import { nativeHostName } from "../src/core/native.ts";
@@ -17,7 +19,6 @@ import { maxBodyBytes } from "../src/core/prepare.ts";
 import type { RequestId, SendOutcome } from "../src/core/response.ts";
 import { blockMessage, sendOutcomeMessage } from "../src/core/sendMessages.ts";
 import { metadataDisplayLimit } from "../src/ui/render.ts";
-import { sendingMessage } from "../src/ui/renderSend.ts";
 import {
   launchContextFromTab,
   runPopupLaunch,
@@ -29,7 +30,15 @@ import type {
   PopupLaunchResult,
   PopupSendDeps,
 } from "../src/launch.ts";
-import { container, query } from "./helpers/dom.ts";
+import {
+  container,
+  expectAbsent,
+  expectLocaleMessage,
+  expectMessage,
+  otherLocales,
+  query,
+  valueOf,
+} from "./helpers/dom.ts";
 import { recordingLogger } from "./helpers/logger.ts";
 import type { RecordingLogger } from "./helpers/logger.ts";
 import {
@@ -47,6 +56,7 @@ const sendLabel = "yt2column send result";
 const requestId = "0123456789abcdef" as RequestId;
 const acceptedBody = JSON.stringify({ status: "accepted", requestId });
 const acceptedOutcome: SendOutcome = { kind: "accepted", requestId };
+const localeList = Object.keys(locales) as Locale[];
 
 /** Builds a chrome.tabs.Tab with the fields the code reads. */
 function fakeTab(overrides: Partial<chrome.tabs.Tab> = {}): chrome.tabs.Tab {
@@ -157,6 +167,7 @@ function popupHarness(overrides: Partial<PopupLaunchDeps> = {}): PopupHarness {
     metadataReader: metadataReader(metadataJson({})).reader,
     activeTab: async () => fakeTab(),
     log: recorder.log,
+    locale: "en",
     ...overrides,
   };
   return { deps, recorder };
@@ -167,15 +178,6 @@ function loggedOutcome(recorder: RecordingLogger): CollectOutcome {
   const entry = recorder.infos[0];
   assert.ok(entry !== undefined, "expected an info log");
   return (entry.data as { outcome: CollectOutcome }).outcome;
-}
-
-/** Asserts the container text shows the message and each of its steps. */
-function expectMessage(root: HTMLElement, message: RejectionMessage): void {
-  const text = root.textContent ?? "";
-  assert.ok(text.includes(message.text), message.text);
-  for (const step of message.steps) {
-    assert.ok(text.includes(step), step);
-  }
 }
 
 /**
@@ -261,6 +263,7 @@ describe("launch paths", () => {
       send: testSendDeps(popupNative.sendNative),
       now: () => 1000,
       log: recordingLogger().log,
+      locale: "en",
     });
     await clickSend(popupRoot);
 
@@ -367,6 +370,7 @@ describe("launch paths", () => {
         send: testSendDeps(popupNative.sendNative),
         now: () => 1000,
         log: recordingLogger().log,
+        locale: "en",
       });
       await clickSend(popupRoot);
       assert.deepEqual(popupNative.messages, [
@@ -417,122 +421,220 @@ describe("launch paths", () => {
 });
 
 describe("popup send", () => {
-  const deps = (
-    overrides: Partial<PopupSendDeps> = {},
-  ): { deps: PopupSendDeps; recorder: RecordingLogger } => {
-    const recorder = recordingLogger();
-    return {
-      deps: {
-        send: testSendDeps(acceptedNative().sendNative),
-        now: () => 1000,
-        log: recorder.log,
-        ...overrides,
-      },
-      recorder,
-    };
-  };
-
   const collected = (): PopupLaunchResult => launched(collectedOutcome());
 
-  it("shows a send button and does not send until it is clicked", async () => {
-    const native = acceptedNative();
-    const { deps: popupDeps } = deps({ send: testSendDeps(native.sendNative) });
-    const root = container();
-    await runPopupSend(root, collected(), popupDeps);
-    assert.ok(root.querySelector(".send-button") !== null);
-    assert.equal(native.messages.length, 0);
-  });
+  for (const locale of localeList) {
+    const catalog = catalogs[locale];
+    const deps = (
+      overrides: Partial<PopupSendDeps> = {},
+    ): { deps: PopupSendDeps; recorder: RecordingLogger } => {
+      const recorder = recordingLogger();
+      return {
+        deps: {
+          send: testSendDeps(acceptedNative().sendNative),
+          now: () => 1000,
+          log: recorder.log,
+          locale,
+          ...overrides,
+        },
+        recorder,
+      };
+    };
 
-  it("sends once, disables the button and shows the result", async () => {
-    const native = acceptedNative();
-    const { deps: popupDeps, recorder } = deps({
-      send: testSendDeps(native.sendNative),
+    it(`shows the ${locale} send button and does not send until it is clicked`, async () => {
+      const native = acceptedNative();
+      const { deps: popupDeps } = deps({
+        send: testSendDeps(native.sendNative),
+      });
+      const root = container();
+      await runPopupSend(root, collected(), popupDeps);
+      const button = query(root, ".send-button");
+      assert.equal(button.textContent, catalog.sendButton);
+      if (locale === "en") {
+        // The English label stays a literal: reading it from the catalog
+        // would let a changed English label pass unnoticed.
+        assert.equal(button.textContent, "Send to yt2column");
+      }
+      for (const other of otherLocales(locale)) {
+        expectAbsent(root, [catalogs[other].sendButton], [catalog.sendButton]);
+      }
+      assert.equal(native.messages.length, 0);
     });
-    const root = container();
-    await runPopupSend(root, collected(), popupDeps);
-    await clickSend(root);
-    assert.equal(native.messages.length, 1);
-    assert.equal(query<HTMLButtonElement>(root, ".send-button").disabled, true);
-    expectMessage(root, sendOutcomeMessage(acceptedOutcome));
-    assert.equal(
-      root.querySelector(".send-request-id")?.textContent,
-      requestId,
-    );
-    // An accepted send is normal: it is logged once at info and never at error.
-    assert.equal(
-      recorder.infos.filter((entry) => entry.label === sendLabel).length,
-      1,
-    );
-    assert.equal(
-      recorder.errors.some((entry) => entry.label === sendLabel),
-      false,
-    );
-  });
 
-  it("sends only once when the button is clicked repeatedly", async () => {
-    const native = acceptedNative();
-    const { deps: popupDeps } = deps({ send: testSendDeps(native.sendNative) });
-    const root = container();
-    await runPopupSend(root, collected(), popupDeps);
-    await clickSend(root);
-    await clickSend(root);
-    assert.equal(native.messages.length, 1);
-  });
-
-  it("shows the sending notice and a disabled button while sending", async () => {
-    const deferred = deferredNative();
-    const { deps: popupDeps } = deps({
-      send: testSendDeps(deferred.sendNative),
+    it(`sends once, disables the button and shows the ${locale} result`, async () => {
+      const native = acceptedNative();
+      const { deps: popupDeps, recorder } = deps({
+        send: testSendDeps(native.sendNative),
+      });
+      const root = container();
+      await runPopupSend(root, collected(), popupDeps);
+      await clickSend(root);
+      assert.equal(native.messages.length, 1);
+      assert.equal(
+        query<HTMLButtonElement>(root, ".send-button").disabled,
+        true,
+      );
+      expectLocaleMessage(root, locale, (l) =>
+        sendOutcomeMessage(acceptedOutcome, l),
+      );
+      assert.equal(
+        root.querySelector(".send-request-id")?.textContent,
+        requestId,
+      );
+      // An accepted send is normal: it is logged once at info and never at error.
+      assert.equal(
+        recorder.infos.filter((entry) => entry.label === sendLabel).length,
+        1,
+      );
+      assert.equal(
+        recorder.errors.some((entry) => entry.label === sendLabel),
+        false,
+      );
     });
-    const root = container();
-    await runPopupSend(root, collected(), popupDeps);
-    const button = query<HTMLButtonElement>(root, ".send-button");
-    button.click();
-    await flush();
-    assert.equal(button.disabled, true);
-    expectMessage(root, sendingMessage);
-    // The close guidance and the Slack warning are what the notice is for, so
-    // assert the whole sentences independently of the constant it renders.
-    const text = root.textContent ?? "";
-    for (const sentence of [
-      "Do not close this window until the result appears.",
-      "If you close it, check Slack before sending again.",
-    ]) {
-      assert.ok(text.includes(sentence), sentence);
+
+    it(`sends only once when the button is clicked repeatedly in ${locale}`, async () => {
+      const native = acceptedNative();
+      const { deps: popupDeps } = deps({
+        send: testSendDeps(native.sendNative),
+      });
+      const root = container();
+      await runPopupSend(root, collected(), popupDeps);
+      await clickSend(root);
+      await clickSend(root);
+      assert.equal(native.messages.length, 1);
+    });
+
+    it(`shows the ${locale} sending notice and a disabled button while sending`, async () => {
+      const deferred = deferredNative();
+      const { deps: popupDeps } = deps({
+        send: testSendDeps(deferred.sendNative),
+      });
+      const root = container();
+      await runPopupSend(root, collected(), popupDeps);
+      const button = query<HTMLButtonElement>(root, ".send-button");
+      button.click();
+      await flush();
+      assert.equal(button.disabled, true);
+      expectLocaleMessage(root, locale, (l) => catalogs[l].sending);
+      if (locale === "en") {
+        // The close guidance and the Slack warning are what the notice is
+        // for, so assert the whole English sentences independently of the
+        // catalog it renders.
+        const text = root.textContent ?? "";
+        for (const sentence of [
+          "Do not close this window until the result appears.",
+          "If you close it, check Slack before sending again.",
+        ]) {
+          assert.ok(text.includes(sentence), sentence);
+        }
+      }
+      deferred.resolve(responseReply(202, acceptedBody));
+      await flush();
+      assert.equal(
+        root.querySelector(".send-request-id")?.textContent,
+        requestId,
+      );
+    });
+
+    it(`keeps the button under the ${locale} expand prompt and sends the shown description`, async () => {
+      const native = acceptedNative();
+      const { deps: popupDeps } = deps({
+        send: testSendDeps(native.sendNative),
+      });
+      const summaryRoot = container();
+      const sendRoot = container();
+      const result = await runPopupLaunch(
+        summaryRoot,
+        popupHarness({
+          metadataReader: metadataReader(
+            metadataJson({ description: "first lines" }, true),
+          ).reader,
+          locale,
+        }).deps,
+      );
+      await runPopupSend(sendRoot, result, popupDeps);
+      expectLocaleMessage(summaryRoot, locale, expandPromptMessage);
+      assert.ok(sendRoot.querySelector(".send-button") !== null);
+      await clickSend(sendRoot);
+      assert.equal(native.messages.length, 1);
+      assert.equal(native.messages[0]?.["description"], "first lines");
+    });
+
+    it(`logs a host failure at error and shows the ${locale} host-failed result`, async () => {
+      const native = failingNative(
+        "Specified native messaging host not found.",
+      );
+      const { deps: popupDeps, recorder } = deps({
+        send: testSendDeps(native.sendNative),
+      });
+      const root = container();
+      await runPopupSend(root, collected(), popupDeps);
+      await clickSend(root);
+      assert.equal(native.messages.length, 1);
+      expectLocaleMessage(root, locale, (l) =>
+        sendOutcomeMessage({ kind: "host-failed" }, l),
+      );
+      assert.deepEqual(
+        recorder.errors.map((entry) => entry.label),
+        [sendLabel],
+      );
+      assert.equal(
+        recorder.infos.some((entry) => entry.label === sendLabel),
+        false,
+      );
+    });
+
+    const popupBlocks: {
+      // Tells apart rows that share the reason.
+      when: string;
+      result: PopupLaunchResult;
+    }[] = [
+      {
+        // The size count itself is prepare.test.ts's contract.
+        when: "the selection takes the body over the limit",
+        result: launched(collectedOutcome("a".repeat(maxBodyBytes))),
+      },
+      {
+        // The selection alone fits, so only the metadata can block the send.
+        when: "the metadata takes the body over the limit",
+        result: launched(collectedOutcome(), {
+          values: { description: "d".repeat(maxBodyBytes) },
+          showExpandPrompt: false,
+          omissions: [],
+        }),
+      },
+    ];
+    for (const { when, result } of popupBlocks) {
+      it(`shows the ${locale} body-too-large reason and no button without sending when ${when}`, async () => {
+        const native = acceptedNative();
+        const { deps: popupDeps, recorder } = deps({
+          send: testSendDeps(native.sendNative),
+        });
+        const root = container();
+        await runPopupSend(root, result, popupDeps);
+        assert.equal(root.querySelector(".send-button"), null);
+        expectLocaleMessage(root, locale, (l) =>
+          blockMessage("body-too-large", l),
+        );
+        assert.equal(native.messages.length, 0);
+        // A blocked launch is normal: logged at info, never at error.
+        assert.deepEqual(
+          recorder.infos.filter((entry) => entry.label === blockedLabel),
+          [{ label: blockedLabel, data: { reason: "body-too-large" } }],
+        );
+        assert.equal(
+          recorder.errors.some((entry) => entry.label === blockedLabel),
+          false,
+        );
+      });
     }
-    deferred.resolve(responseReply(202, acceptedBody));
-    await flush();
-    assert.equal(
-      root.querySelector(".send-request-id")?.textContent,
-      requestId,
-    );
-  });
-
-  it("keeps the button under the expand prompt and sends the shown description", async () => {
-    const native = acceptedNative();
-    const { deps: popupDeps } = deps({ send: testSendDeps(native.sendNative) });
-    const summaryRoot = container();
-    const sendRoot = container();
-    const result = await runPopupLaunch(
-      summaryRoot,
-      popupHarness({
-        metadataReader: metadataReader(
-          metadataJson({ description: "first lines" }, true),
-        ).reader,
-      }).deps,
-    );
-    await runPopupSend(sendRoot, result, popupDeps);
-    expectMessage(summaryRoot, expandPromptMessage);
-    assert.ok(sendRoot.querySelector(".send-button") !== null);
-    await clickSend(sendRoot);
-    assert.equal(native.messages.length, 1);
-    assert.equal(native.messages[0]?.["description"], "first lines");
-  });
+  }
 
   it("sends the full description while the popup shows it truncated", async () => {
     const description = "x".repeat(metadataDisplayLimit + 50);
-    const native = acceptedNative();
-    const { deps: popupDeps } = deps({ send: testSendDeps(native.sendNative) });
+    const native = recordingNative(async () =>
+      responseReply(202, acceptedBody),
+    );
     const summaryRoot = container();
     const result = await runPopupLaunch(
       summaryRoot,
@@ -544,87 +646,71 @@ describe("popup send", () => {
     // below tells the sent value apart from the displayed one.
     assert.equal(summaryRoot.textContent?.includes(description), false);
     const root = container();
-    await runPopupSend(root, result, popupDeps);
+    await runPopupSend(root, result, {
+      send: testSendDeps(native.sendNative),
+      now: () => 1000,
+      log: recordingLogger().log,
+      locale: "en",
+    });
     await clickSend(root);
     assert.equal(native.messages[0]?.["description"], description);
   });
 
   it("renders nothing and does not send for a rejected collection", async () => {
     const native = acceptedNative();
-    const { deps: popupDeps } = deps({ send: testSendDeps(native.sendNative) });
     const root = container();
     root.append(root.ownerDocument.createElement("p"));
     await runPopupSend(
       root,
       launched({ kind: "rejected", reason: "empty-selection" }),
-      popupDeps,
+      {
+        send: testSendDeps(native.sendNative),
+        now: () => 1000,
+        log: recordingLogger().log,
+        locale: "en",
+      },
     );
     assert.equal(root.childNodes.length, 0);
     assert.equal(native.messages.length, 0);
   });
+});
 
-  it("logs a host failure at error and shows the host-failed result", async () => {
-    const native = failingNative("Specified native messaging host not found.");
-    const { deps: popupDeps, recorder } = deps({
-      send: testSendDeps(native.sendNative),
-    });
+describe("logs by locale", () => {
+  /** Every log entry of one launch and one send, with only the locale set. */
+  async function logsIn(locale: Locale): Promise<RecordingLogger> {
+    const recorder = recordingLogger();
+    const values = { title: "t", channelName: "c", description: "d" };
+    const result = await runPopupLaunch(
+      container(),
+      popupHarness({
+        metadataReader: metadataReader(metadataJson(values, true)).reader,
+        log: recorder.log,
+        locale,
+      }).deps,
+    );
     const root = container();
-    await runPopupSend(root, collected(), popupDeps);
-    await clickSend(root);
-    assert.equal(native.messages.length, 1);
-    expectMessage(root, sendOutcomeMessage({ kind: "host-failed" }));
-    assert.deepEqual(
-      recorder.errors.map((entry) => entry.label),
-      [sendLabel],
-    );
-    assert.equal(
-      recorder.infos.some((entry) => entry.label === sendLabel),
-      false,
-    );
-  });
-
-  const popupBlocks: {
-    // Tells apart rows that share the reason.
-    when: string;
-    result: PopupLaunchResult;
-  }[] = [
-    {
-      // The size count itself is prepare.test.ts's contract.
-      when: "the selection takes the body over the limit",
-      result: launched(collectedOutcome("a".repeat(maxBodyBytes))),
-    },
-    {
-      // The selection alone fits, so only the metadata can block the send.
-      when: "the metadata takes the body over the limit",
-      result: launched(collectedOutcome(), {
-        values: { description: "d".repeat(maxBodyBytes) },
-        showExpandPrompt: false,
-        omissions: [],
-      }),
-    },
-  ];
-  for (const { when, result } of popupBlocks) {
-    it(`shows the body-too-large reason and no button without sending when ${when}`, async () => {
-      const native = acceptedNative();
-      const { deps: popupDeps, recorder } = deps({
-        send: testSendDeps(native.sendNative),
-      });
-      const root = container();
-      await runPopupSend(root, result, popupDeps);
-      assert.equal(root.querySelector(".send-button"), null);
-      expectMessage(root, blockMessage("body-too-large"));
-      assert.equal(native.messages.length, 0);
-      // A blocked launch is normal: logged at info, never at error.
-      assert.deepEqual(
-        recorder.infos.filter((entry) => entry.label === blockedLabel),
-        [{ label: blockedLabel, data: { reason: "body-too-large" } }],
-      );
-      assert.equal(
-        recorder.errors.some((entry) => entry.label === blockedLabel),
-        false,
-      );
+    await runPopupSend(root, result, {
+      send: testSendDeps(acceptedNative().sendNative),
+      now: () => 1000,
+      log: recorder.log,
+      locale,
     });
+    await clickSend(root);
+    return recorder;
   }
+
+  it("records the same labels and values in every locale", async () => {
+    const english = await logsIn("en");
+    // Precondition: the launch, metadata and send logs were all written.
+    assert.deepEqual(
+      english.infos.map((entry) => entry.label),
+      ["yt2column popup launch", metadataLabel, sendLabel],
+    );
+    for (const locale of otherLocales("en")) {
+      const other = await logsIn(locale);
+      assert.deepEqual(other.infos, english.infos, locale);
+    }
+  });
 });
 
 describe("video metadata log", () => {
@@ -643,6 +729,7 @@ describe("video metadata log", () => {
       send: testSendDeps(acceptedNative().sendNative),
       now: () => 1000,
       log: send.log,
+      locale: "en",
     });
     await clickSend(sendRoot);
     // The same metadata with a selection over the body limit blocks the send.
@@ -654,6 +741,7 @@ describe("video metadata log", () => {
         send: testSendDeps(acceptedNative().sendNative),
         now: () => 1000,
         log: blocked.log,
+        locale: "en",
       },
     );
     // Precondition: both send-control logs were written.
@@ -763,6 +851,7 @@ describe("send log", () => {
       send: testSendDeps(native.sendNative),
       now: () => 1000,
       log: recorder.log,
+      locale: "en",
     });
     await clickSend(root);
     return { recorder, root };
@@ -816,13 +905,33 @@ describe("send log", () => {
     });
     expectMessage(
       root,
-      sendOutcomeMessage({ kind: "unexpected", check: "status-pairing" }),
+      sendOutcomeMessage({ kind: "unexpected", check: "status-pairing" }, "en"),
     );
     assert.equal(root.textContent?.includes("404"), false);
   });
 });
 
 describe("display", () => {
+  for (const locale of localeList) {
+    it(`renders the launch summary in ${locale}`, async () => {
+      const labels = catalogs[locale].summaryLabels;
+      const collectedRoot = container();
+      await runPopupLaunch(collectedRoot, popupHarness({ locale }).deps);
+      assert.equal(valueOf(collectedRoot, labels.title), "A video");
+      const rejectedRoot = container();
+      await runPopupLaunch(
+        rejectedRoot,
+        popupHarness({
+          activeTab: async () => fakeTab({ url: "https://example.com/" }),
+          locale,
+        }).deps,
+      );
+      expectLocaleMessage(rejectedRoot, locale, (l) =>
+        rejectionMessage("not-watch-page", l),
+      );
+    });
+  }
+
   it("renders the popup summary as text, not elements", async () => {
     const root = container();
     await runPopupLaunch(

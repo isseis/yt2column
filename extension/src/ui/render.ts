@@ -1,8 +1,11 @@
+import { catalogs } from "../core/i18n/catalog.ts";
+import type { Message } from "../core/i18n/catalog.ts";
+import { formatCount } from "../core/i18n/locale.ts";
+import type { Locale } from "../core/i18n/locale.ts";
 import { expandPromptMessage, rejectionMessage } from "../core/messages.ts";
-import type { Message } from "../core/messages.ts";
 import type { MetadataField, MetadataResult } from "../core/metadata.ts";
 import { truncate } from "../core/summary.ts";
-import type { OutcomeSummary } from "../core/types.ts";
+import type { OutcomeSummary, SummaryField } from "../core/types.ts";
 
 /** Appended to a value that was shortened for display. */
 const ellipsis = "\u2026";
@@ -39,32 +42,33 @@ function field(
   return row;
 }
 
-/** The collected fields, in display order. */
+// A record keyed by every SummaryField, so adding a field fails the type check
+// here until it has a style; the key order is the display order.
+const summaryStyles: Record<SummaryField, FieldStyle> = {
+  title: { className: "summary-title", dirAuto: true },
+  url: { className: "summary-url" },
+  characters: { className: "summary-character-count" },
+  lines: { className: "summary-line-count" },
+  preview: { className: "summary-preview", dirAuto: true },
+};
+
+/** The collected fields, in display order; counts use the locale's number format. */
 function collectedNodes(
   doc: Document,
   summary: Extract<OutcomeSummary, { kind: "collected" }>,
+  locale: Locale,
 ): HTMLElement[] {
-  return [
-    field(doc, "Title", displayValue(summary.title, summary.titleTruncated), {
-      className: "summary-title",
-      dirAuto: true,
-    }),
-    field(doc, "URL", displayValue(summary.url, summary.urlTruncated), {
-      className: "summary-url",
-    }),
-    field(doc, "Characters", String(summary.characterCount), {
-      className: "summary-character-count",
-    }),
-    field(doc, "Lines", String(summary.lineCount), {
-      className: "summary-line-count",
-    }),
-    field(
-      doc,
-      "Preview",
-      displayValue(summary.preview, summary.previewTruncated),
-      { className: "summary-preview", dirAuto: true },
-    ),
-  ];
+  const values: Record<SummaryField, string> = {
+    title: displayValue(summary.title, summary.titleTruncated),
+    url: displayValue(summary.url, summary.urlTruncated),
+    characters: formatCount(summary.characterCount, locale),
+    lines: formatCount(summary.lineCount, locale),
+    preview: displayValue(summary.preview, summary.previewTruncated),
+  };
+  const labels = catalogs[locale].summaryLabels;
+  return (Object.keys(summaryStyles) as SummaryField[]).map((name) =>
+    field(doc, labels[name], values[name], summaryStyles[name]),
+  );
 }
 
 /** The message text and, when present, its numbered steps; textContent only. */
@@ -90,8 +94,9 @@ export function messageNodes(doc: Document, message: Message): HTMLElement[] {
 function rejectedNodes(
   doc: Document,
   summary: Extract<OutcomeSummary, { kind: "rejected" }>,
+  locale: Locale,
 ): HTMLElement[] {
-  return messageNodes(doc, rejectionMessage(summary.reason));
+  return messageNodes(doc, rejectionMessage(summary.reason, locale));
 }
 
 /**
@@ -102,30 +107,30 @@ function rejectedNodes(
 export function renderSummary(
   container: HTMLElement,
   summary: OutcomeSummary,
+  locale: Locale,
 ): void {
   const doc = container.ownerDocument;
   const nodes =
     summary.kind === "collected"
-      ? collectedNodes(doc, summary)
-      : rejectedNodes(doc, summary);
+      ? collectedNodes(doc, summary, locale)
+      : rejectedNodes(doc, summary, locale);
   container.replaceChildren(...nodes);
 }
 
 /** The display limit for one metadata value, in code points. */
 export const metadataDisplayLimit = 200;
 
-/** One metadata row's display label and its value-element class. */
+/** One metadata row's value-element class; its label is in the catalog. */
 interface MetadataRow {
-  readonly label: string;
   readonly className: string;
 }
 
 // A record keyed by every MetadataField, so adding a field fails the type check
 // here until it has a row; the key order is the display order.
 const metadataRows: Record<MetadataField, MetadataRow> = {
-  title: { label: "Video title", className: "metadata-title" },
-  channelName: { label: "Channel", className: "metadata-channel" },
-  description: { label: "Description", className: "metadata-description" },
+  title: { className: "metadata-title" },
+  channelName: { className: "metadata-channel" },
+  description: { className: "metadata-description" },
 };
 
 /**
@@ -138,8 +143,10 @@ const metadataRows: Record<MetadataField, MetadataRow> = {
 export function renderMetadata(
   container: HTMLElement,
   result: MetadataResult,
+  locale: Locale,
 ): void {
   const doc = container.ownerDocument;
+  const labels = catalogs[locale].metadataLabels;
   const nodes: HTMLElement[] = [];
   for (const name of Object.keys(metadataRows) as MetadataField[]) {
     const value = result.values[name];
@@ -151,7 +158,7 @@ export function renderMetadata(
     nodes.push(
       field(
         doc,
-        row.label,
+        labels[name],
         displayValue(shortened.value, shortened.truncated),
         {
           className: row.className,
@@ -161,7 +168,7 @@ export function renderMetadata(
     );
   }
   if (result.showExpandPrompt) {
-    nodes.push(...messageNodes(doc, expandPromptMessage));
+    nodes.push(...messageNodes(doc, expandPromptMessage(locale)));
   }
   container.append(...nodes);
 }

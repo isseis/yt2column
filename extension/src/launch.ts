@@ -7,6 +7,8 @@ import {
   readFailureResult,
 } from "./core/metadata.ts";
 import type { MetadataResult } from "./core/metadata.ts";
+import { catalogs } from "./core/i18n/catalog.ts";
+import type { Locale } from "./core/i18n/locale.ts";
 import { nativeHostName } from "./core/native.ts";
 import { prepareSend } from "./core/prepare.ts";
 import { toSendOutcome } from "./core/response.ts";
@@ -16,11 +18,7 @@ import type { LaunchContext } from "./core/types.ts";
 import { sendArticle } from "./send.ts";
 import type { SendDeps } from "./send.ts";
 import { messageNodes, renderMetadata, renderSummary } from "./ui/render.ts";
-import {
-  renderBlockReason,
-  renderSendOutcome,
-  sendingMessage,
-} from "./ui/renderSend.ts";
+import { renderBlockReason, renderSendOutcome } from "./ui/renderSend.ts";
 
 /** Developer-facing log. The first argument is always a fixed label. */
 export interface Logger {
@@ -39,6 +37,8 @@ export interface PopupLaunchDeps {
   readonly metadataReader: MetadataReader;
   activeTab(): Promise<chrome.tabs.Tab | undefined>;
   readonly log: Logger;
+  /** The display language; it selects displayed text only, never a log. */
+  readonly locale: Locale;
 }
 
 /** The popup launch's outcome and the metadata the send will carry. */
@@ -51,6 +51,8 @@ export interface PopupSendDeps {
   readonly send: SendDeps;
   readonly now: () => number;
   readonly log: Logger;
+  /** The display language; it selects displayed text only, never a log. */
+  readonly locale: Locale;
 }
 
 const popupLogLabel = "yt2column popup launch";
@@ -160,7 +162,7 @@ export async function runPopupLaunch(
   const launch = launchContextFromTab(tab);
   const outcome = await collect(launch, deps.reader);
   deps.log.info(popupLogLabel, { outcome });
-  renderSummary(container, summarize(outcome));
+  renderSummary(container, summarize(outcome), deps.locale);
   if (outcome.kind !== "collected" || launch === undefined) {
     return { outcome, metadata: emptyMetadataResult() };
   }
@@ -170,7 +172,7 @@ export async function runPopupLaunch(
     deps.metadataReader,
     deps.log,
   );
-  renderMetadata(container, metadata);
+  renderMetadata(container, metadata, deps.locale);
   return { outcome, metadata };
 }
 
@@ -195,16 +197,17 @@ export async function runPopupSend(
   if (prepared.kind === "blocked") {
     // A blocked launch is normal, not a defect.
     deps.log.info(blockedLabel, { reason: prepared.reason });
-    renderBlockReason(container, prepared.reason);
+    renderBlockReason(container, prepared.reason, deps.locale);
     return;
   }
+  const catalog = catalogs[deps.locale];
   const doc = container.ownerDocument;
   const status = doc.createElement("div");
   status.className = "send-message";
   const button = doc.createElement("button");
   button.type = "button";
   button.className = "send-button";
-  button.textContent = "Send to yt2column";
+  button.textContent = catalog.sendButton;
   container.replaceChildren(button, status);
 
   let state: "unused" | "sending" | "sent" = "unused";
@@ -215,12 +218,12 @@ export async function runPopupSend(
       }
       state = "sending";
       button.disabled = true;
-      status.replaceChildren(...messageNodes(doc, sendingMessage));
+      status.replaceChildren(...messageNodes(doc, catalog.sending));
       const startedAt = deps.now();
       const sendResult = await sendArticle(prepared.request, deps.send);
       logSend(deps.log, deps.now, startedAt, sendResult);
       state = "sent";
-      renderSendOutcome(status, toSendOutcome(sendResult));
+      renderSendOutcome(status, toSendOutcome(sendResult), deps.locale);
     })();
   });
 }

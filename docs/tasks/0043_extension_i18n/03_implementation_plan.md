@@ -126,8 +126,8 @@
 
 **変更するファイル:** `CLAUDE.md`
 
--   [ ] 「Go Idioms」の拡張の言語の規則（`CLAUDE.md:430-433`）を、設計書 3.7 の 1 つめの項目のとおりに書き直す。例外は 3 つ（`src/core/i18n/` の英語でない言語の文言の集合のファイルの文言、英語でない言語の文言の性質を確かめるテストの文字列リテラル、日本語の文書の見出しや表のセルに一致させるガードのテストの文字列リテラル）とし、利用者に表示する文言は文言の集合に置いて英語と日本語の両方を必須とすること、開発者向けのログは英語であることを書く（AC-21）。
--   [ ] 「Declare, don't infer」の `internal/transcript` の例外の記述（`CLAUDE.md:241-263`）の後に、言語の判定（`resolveLocale`）の例外を、同じ形（Scope・Reason・Boundary）で英語で書く（設計書 3.1・3.7）。
+-   [x] 「Go Idioms」の拡張の言語の規則（`CLAUDE.md:430-433`）を、設計書 3.7 の 1 つめの項目のとおりに書き直す。例外は 3 つ（`src/core/i18n/` の英語でない言語の文言の集合のファイルの文言、英語でない言語の文言の性質を確かめるテストの文字列リテラル、日本語の文書の見出しや表のセルに一致させるガードのテストの文字列リテラル）とし、利用者に表示する文言は文言の集合に置いて英語と日本語の両方を必須とすること、開発者向けのログは英語であることを書く（AC-21）。
+-   [x] 「Declare, don't infer」の `internal/transcript` の例外の記述（`CLAUDE.md:241-263`）の後に、言語の判定（`resolveLocale`）の例外を、同じ形（Scope・Reason・Boundary）で英語で書く（設計書 3.1・3.7）。
 
 **完了の条件:** `make test`（`CLAUDE.md` を読む Go のガードを含む）と `make lint` が通る。コミットする。
 
@@ -137,10 +137,10 @@
 
 **変更するファイル:** `src/core/i18n/locale.ts`（新規）、`test/locale.test.ts`（新規）
 
--   [ ] 設計書 3.1 のとおり、`Locale`・`locales`・`resolveLocale`・`formatCount` を書く。`resolveLocale` は `locales` のキーと比べる（設計書 3.1 の規則）。
--   [ ] `test/locale.test.ts::resolveLocale` に、要件書 AC-01・AC-02 の例の値（`ja`・`ja-JP`・`JA`・`en`・`en-US`・`fr`・`zh-CN`・`jam`・`jv`・`ja_JP`・空文字列・`undefined`）を渡して結果を確かめるテストを書く。
--   [ ] `test/locale.test.ts::formatCount` に、`Intl.NumberFormat.supportedLocalesOf` が `en` と `ja` の両方を返すことを前提として確かめてから、`formatCount(12345, "en")`・`formatCount(12345, "ja")` が `12,345` になることを確かめるテストを書く（設計書 3.3、H-10）。
--   [ ] 壊して確かめる: 判定を前方一致（`startsWith("ja")`）にする、小文字にしない、区切りに `_` も使う、`formatCount` を `String(value)` にする、の 4 つで、それぞれテストが失敗することを確かめる。
+-   [x] 設計書 3.1 のとおり、`Locale`・`locales`・`resolveLocale`・`formatCount` を書く。`resolveLocale` は `locales` のキーと比べる（設計書 3.1 の規則）。
+-   [x] `test/locale.test.ts::resolveLocale` に、要件書 AC-01・AC-02 の例の値（`ja`・`ja-JP`・`JA`・`en`・`en-US`・`fr`・`zh-CN`・`jam`・`jv`・`ja_JP`・空文字列・`undefined`）を渡して結果を確かめるテストを書く。
+-   [x] `test/locale.test.ts::formatCount` に、`Intl.NumberFormat.supportedLocalesOf` が `en` と `ja` の両方を返すことを前提として確かめてから、`formatCount(12345, "en")`・`formatCount(12345, "ja")` が `12,345` になることを確かめるテストを書く（設計書 3.3、H-10）。
+-   [x] 壊して確かめる: 判定を前方一致（`startsWith("ja")`）にする、小文字にしない、区切りに `_` も使う、`formatCount` を `String(value)` にする、の 4 つで、それぞれテストが失敗することを確かめる。
 
 **完了の条件:** `make ext-check` が通る。コミットする。
 
@@ -148,13 +148,13 @@
 
 **変更するファイル:** `src/core/types.ts`、`src/core/i18n/catalog.ts`・`en.ts`・`ja.ts`（新規）、`src/core/messages.ts`、`src/ui/render.ts`、`test/catalog.test.ts`（新規）、`test/typecheck.test.ts`
 
--   [ ] `src/core/types.ts` に `SummaryField` を加える（設計書 3.2）。
--   [ ] `catalog.ts` に `Message`・`Catalog`・`catalogs` を書く（設計書 3.2）。`Message` の定義を `messages.ts` から移し、`messages.ts` の `RejectionMessage` は `catalog.ts` の `Message` の別名にする（1.4 の台帳）。`src/ui/render.ts:2` の `Message` の import を `catalog.ts` からの import に変える。
--   [ ] `en.ts` に、1.4 の表の場所にある英語の文字列リテラルを、そのまま写す。欄の名前と送信ボタンの名前は設計書 3.4 の「英語（今の字句）」の列と照らす。この時点では、振り分けと表示の関数はまだ今の文字列リテラルを使う（ステップ 2-3 で `catalogs` に切り替える）。
--   [ ] `ja.ts` に、設計書 3.4 の表の日本語の文言をそのまま写す（AC-10・AC-11 の字句は設計書 3.4 が決めている）。
--   [ ] `test/catalog.test.ts::catalogs` に、`locales` の各言語について、すべての `Message` の本文と手順、すべての欄の名前と送信ボタンの名前が空でないことを確かめるテストを書く。あわせて、`en` と `ja` の同じ位置の `Message` を組にして、日本語の文言が手順を持つのは英語の文言が手順を持つときだけであることを確かめるテストを書く（設計書 3.9、AC-06）。
--   [ ] `test/typecheck.test.ts` に、既存の `describe` とは別の `describe`（`a Catalog missing an item fails typecheck`、自身の一時的なディレクトリを持つ）を加え、`Catalog` の値から項目を 1 つ除いた一時的なモジュールの型の検査が、そのモジュールの行の TS2741 で失敗し、すべての項目を持つ対照のモジュールの型の検査が通ることを確かめるテストを加える（1.3 の設定、エラーの確かめ方は `typecheck.test.ts:103-106` と同じ）。除く項目は、最上位の項目（例: `sendButton`）と、`Record` の節の 1 つのキー（例: `rejection` の 1 つの理由）の 2 つとする。
--   [ ] 壊して確かめる: `ja.ts` の 1 つの本文を空にする、`ja.ts` の 1 つの手順を空にする、英語が手順を持たない文言に日本語の手順を 1 つ加える、の 3 つで `catalogs` のテストが失敗することを確かめる。あわせて、`Catalog` の最上位の項目と `Record` の節を省略できる型（`?` や `Partial<…>`）にすると欠けのテストが失敗し、対照のモジュールから項目を除くと対照のテストが失敗することを確かめる。
+-   [x] `src/core/types.ts` に `SummaryField` を加える（設計書 3.2）。
+-   [x] `catalog.ts` に `Message`・`Catalog`・`catalogs` を書く（設計書 3.2）。`Message` の定義を `messages.ts` から移し、`messages.ts` の `RejectionMessage` は `catalog.ts` の `Message` の別名にする（1.4 の台帳）。`src/ui/render.ts:2` の `Message` の import を `catalog.ts` からの import に変える。
+-   [x] `en.ts` に、1.4 の表の場所にある英語の文字列リテラルを、そのまま写す。欄の名前と送信ボタンの名前は設計書 3.4 の「英語（今の字句）」の列と照らす。この時点では、振り分けと表示の関数はまだ今の文字列リテラルを使う（ステップ 2-3 で `catalogs` に切り替える）。
+-   [x] `ja.ts` に、設計書 3.4 の表の日本語の文言をそのまま写す（AC-10・AC-11 の字句は設計書 3.4 が決めている）。
+-   [x] `test/catalog.test.ts::catalogs` に、`locales` の各言語について、すべての `Message` の本文と手順、すべての欄の名前と送信ボタンの名前が空でないことを確かめるテストを書く。あわせて、`en` と `ja` の同じ位置の `Message` を組にして、日本語の文言が手順を持つのは英語の文言が手順を持つときだけであることを確かめるテストを書く（設計書 3.9、AC-06）。
+-   [x] `test/typecheck.test.ts` に、既存の `describe` とは別の `describe`（`a Catalog missing an item fails typecheck`、自身の一時的なディレクトリを持つ）を加え、`Catalog` の値から項目を 1 つ除いた一時的なモジュールの型の検査が、そのモジュールの行の TS2741 で失敗し、すべての項目を持つ対照のモジュールの型の検査が通ることを確かめるテストを加える（1.3 の設定、エラーの確かめ方は `typecheck.test.ts:103-106` と同じ）。除く項目は、最上位の項目（例: `sendButton`）と、`Record` の節の 1 つのキー（例: `rejection` の 1 つの理由）の 2 つとする。
+-   [x] 壊して確かめる: `ja.ts` の 1 つの本文を空にする、`ja.ts` の 1 つの手順を空にする、英語が手順を持たない文言に日本語の手順を 1 つ加える、の 3 つで `catalogs` のテストが失敗することを確かめる。あわせて、`Catalog` の最上位の項目と `Record` の節を省略できる型（`?` や `Partial<…>`）にすると欠けのテストが失敗し、対照のモジュールから項目を除くと対照のテストが失敗することを確かめる。
 
 **完了の条件:** `make ext-check` が通る。コミットする。
 
@@ -162,13 +162,13 @@
 
 **変更するファイル:** `src/core/messages.ts`、`src/core/sendMessages.ts`、`src/ui/render.ts`、`src/ui/renderSend.ts`、`src/launch.ts`、`src/popup.ts`、`test/messages.test.ts`・`test/sendMessages.test.ts`・`test/render.test.ts`・`test/renderMetadata.test.ts`・`test/renderSend.test.ts`・`test/launch.test.ts`・`test/metadataDocs.test.ts`
 
--   [ ] `messages.ts`・`sendMessages.ts` の関数を、設計書 3.2 の新しい形（言語を受け取り、`catalogs[locale]` から文言を返す）にする。`switch` を残す関数と `Record` の引き当てに置き換える関数は、設計書 3.2 のとおりに分ける。
--   [ ] `render.ts` の `renderSummary`・`renderMetadata` を、設計書 3.3 のとおり言語を受け取る形にする。要約の欄は `SummaryField` をキーにした表でクラス名と表示の向きを持ち、欄の名前を `summaryLabels` から、数を `formatCount` で表示する。`metadataRows` は `label` を持たない形にして、欄の名前を `metadataLabels` から取る（設計書 3.2・3.3）。
--   [ ] `renderSend.ts` から `sendingMessage` を除き、`renderSendOutcome`・`renderBlockReason` を言語を受け取る形にする（1.4 の台帳）。
--   [ ] `launch.ts` の `PopupLaunchDeps`・`PopupSendDeps` に `locale` を加え、表示の関数へ渡す。送信中の案内と送信ボタンの名前は `catalogs[deps.locale]` の `sending`・`sendButton` から取る。ログ（`logSend`・`readMetadata`・`deps.log.*`）は `deps.locale` を参照しない（設計書 3.3）。
--   [ ] `popup.ts` の 2 つの依存に `locale: "en"` を加える（1.3）。
--   [ ] 1.4 の古いコメント（`src/popup.ts:1-3` を除く）を、新しい形に合わせて書き直す。
--   [ ] 既存のテストの呼び出しに `"en"` を渡し、`sendingMessage` の import（`test/launch.test.ts:20`）を `catalogs.en.sending` に置き換えて、今の検査のまま通す。関数を `.map` に直接渡す呼び出し（`test/sendMessages.test.ts:207-211`）は、配列の添字が言語の引数に入るので、言語を渡す関数に書き換える。英語の欄の名前を文字列で書いているテスト（`test/render.test.ts:27-31`、`test/renderMetadata.test.ts:30-37`・`:56-58`）は文字列のまま残す（設計書 3.8）。`metadataDocs.test.ts` は `expandPromptMessage("en")` と比べる（AC-23、H-01）。
+-   [x] `messages.ts`・`sendMessages.ts` の関数を、設計書 3.2 の新しい形（言語を受け取り、`catalogs[locale]` から文言を返す）にする。`switch` を残す関数と `Record` の引き当てに置き換える関数は、設計書 3.2 のとおりに分ける。
+-   [x] `render.ts` の `renderSummary`・`renderMetadata` を、設計書 3.3 のとおり言語を受け取る形にする。要約の欄は `SummaryField` をキーにした表でクラス名と表示の向きを持ち、欄の名前を `summaryLabels` から、数を `formatCount` で表示する。`metadataRows` は `label` を持たない形にして、欄の名前を `metadataLabels` から取る（設計書 3.2・3.3）。
+-   [x] `renderSend.ts` から `sendingMessage` を除き、`renderSendOutcome`・`renderBlockReason` を言語を受け取る形にする（1.4 の台帳）。
+-   [x] `launch.ts` の `PopupLaunchDeps`・`PopupSendDeps` に `locale` を加え、表示の関数へ渡す。送信中の案内と送信ボタンの名前は `catalogs[deps.locale]` の `sending`・`sendButton` から取る。ログ（`logSend`・`readMetadata`・`deps.log.*`）は `deps.locale` を参照しない（設計書 3.3）。
+-   [x] `popup.ts` の 2 つの依存に `locale: "en"` を加える（1.3）。
+-   [x] 1.4 の古いコメント（`src/popup.ts:1-3` を除く）を、新しい形に合わせて書き直す。
+-   [x] 既存のテストの呼び出しに `"en"` を渡し、`sendingMessage` の import（`test/launch.test.ts:20`）を `catalogs.en.sending` に置き換えて、今の検査のまま通す。関数を `.map` に直接渡す呼び出し（`test/sendMessages.test.ts:207-211`）は、配列の添字が言語の引数に入るので、言語を渡す関数に書き換える。英語の欄の名前を文字列で書いているテスト（`test/render.test.ts:27-31`、`test/renderMetadata.test.ts:30-37`・`:56-58`）は文字列のまま残す（設計書 3.8）。`metadataDocs.test.ts` は `expandPromptMessage("en")` と比べる（AC-23、H-01）。
 
 **完了の条件:** `make ext-check` が通る。コミットする。
 
@@ -176,13 +176,13 @@
 
 **変更するファイル:** `test/helpers/dom.ts`、`test/messages.test.ts`・`test/sendMessages.test.ts`・`test/render.test.ts`・`test/renderMetadata.test.ts`・`test/renderSend.test.ts`・`test/launch.test.ts`
 
--   [ ] `expectMessage` を `test/helpers/dom.ts` へ移し（1.3）、`test/launch.test.ts`・`test/renderSend.test.ts` の 2 つの定義を除く。
--   [ ] `messages.test.ts::rejectionMessage` と `sendMessages.test.ts::blockMessage`・`::serverRejectMessage`・`::sendOutcomeMessage` のテストを、`locales` の各言語について繰り返す形にする。言語によらない語（`Slack`・`4 MiB`・`yt2column-nmhost install`・`yt2column-server`）の検査はそのまま両方の言語に当て、言語によって字句が異なる性質（結果不明の案内の語の並び、オプションページ・トークン・ポートの禁止する語）は、テストの中の言語ごとの表で確かめる（設計書 3.9、AC-09）。
--   [ ] 同じ `describe` に、各振り分けの関数がすべての理由と結果について、`catalogs[locale]` の対応する節の文言を返すことを、両方の言語で確かめるテストを加える。`blockMessage` の `body-too-large` は `preflight` の節、収集の拒否の理由は `rejection` の節と比べる。`messages.test.ts::expandPromptMessage` を加え、`catalogs[locale].expandPrompt` を返すことを確かめる（AC-05）。
--   [ ] `render.test.ts::renderSummary`・`renderMetadata.test.ts::renderMetadata`・`renderSend.test.ts::renderSendOutcome`・`::renderBlockReason`・`launch.test.ts::popup send` のテストを両方の言語で実行し、表示された文言と欄の名前・送信ボタンの名前・送信中の案内が `catalogs[locale]` のものと一致することを確かめる。値の検査は `catalogs[locale]` の欄の名前で値を探す（1.4）。もう一方の言語の文言を表示しないことの確認は、`en` と `ja` で字句が異なる項目に限る。その項目の字句が実際に異なることを先に確かめてから、もう一方の言語の文言が表示されないことを確かめる（設計書 3.9、AC-03・AC-05）。値をそのまま表示するテストと、マークアップを文字列として表示するテストも両方の言語で実行する（AC-08・AC-24）。
--   [ ] `render.test.ts::renderSummary` に、文字数が 4 桁以上の要約を両方の言語で描画し、桁区切りが入ることを確かめるテストを加える（AC-13）。
--   [ ] `launch.test.ts::logs by locale` に、同じ fake の依存で言語だけを `en` と `ja` に変えて `runPopupLaunch`・`runPopupSend`（送信まで）を実行し、記録したログ（ラベルと値）が一致することを確かめるテストを加える（AC-12）。
--   [ ] 壊して確かめる（各テストの経路に 1 つずつ）:
+-   [x] `expectMessage` を `test/helpers/dom.ts` へ移し（1.3）、`test/launch.test.ts`・`test/renderSend.test.ts` の 2 つの定義を除く。
+-   [x] `messages.test.ts::rejectionMessage` と `sendMessages.test.ts::blockMessage`・`::serverRejectMessage`・`::sendOutcomeMessage` のテストを、`locales` の各言語について繰り返す形にする。言語によらない語（`Slack`・`4 MiB`・`yt2column-nmhost install`・`yt2column-server`）の検査はそのまま両方の言語に当て、言語によって字句が異なる性質（結果不明の案内の語の並び、オプションページ・トークン・ポートの禁止する語）は、テストの中の言語ごとの表で確かめる（設計書 3.9、AC-09）。
+-   [x] 同じ `describe` に、各振り分けの関数がすべての理由と結果について、`catalogs[locale]` の対応する節の文言を返すことを、両方の言語で確かめるテストを加える。`blockMessage` の `body-too-large` は `preflight` の節、収集の拒否の理由は `rejection` の節と比べる。`messages.test.ts::expandPromptMessage` を加え、`catalogs[locale].expandPrompt` を返すことを確かめる（AC-05）。
+-   [x] `render.test.ts::renderSummary`・`renderMetadata.test.ts::renderMetadata`・`renderSend.test.ts::renderSendOutcome`・`::renderBlockReason`・`launch.test.ts::popup send` のテストを両方の言語で実行し、表示された文言と欄の名前・送信ボタンの名前・送信中の案内が `catalogs[locale]` のものと一致することを確かめる。値の検査は `catalogs[locale]` の欄の名前で値を探す（1.4）。もう一方の言語の文言を表示しないことの確認は、`en` と `ja` で字句が異なる項目に限る。その項目の字句が実際に異なることを先に確かめてから、もう一方の言語の文言が表示されないことを確かめる（設計書 3.9、AC-03・AC-05）。値をそのまま表示するテストと、マークアップを文字列として表示するテストも両方の言語で実行する（AC-08・AC-24）。
+-   [x] `render.test.ts::renderSummary` に、文字数が 4 桁以上の要約を両方の言語で描画し、桁区切りが入ることを確かめるテストを加える（AC-13）。
+-   [x] `launch.test.ts::logs by locale` に、同じ fake の依存で言語だけを `en` と `ja` に変えて `runPopupLaunch`・`runPopupSend`（送信まで）を実行し、記録したログ（ラベルと値）が一致することを確かめるテストを加える（AC-12）。
+-   [x] 壊して確かめる（各テストの経路に 1 つずつ）:
     -   振り分け: `blockMessage` の `body-too-large` に `preflight` 以外の節の文言を返させる。`serverRejectMessage` が言語を無視して `catalogs.en` から取る。`notSentMessage` の 2 つの原因のキーを入れ替える。
     -   表示: `renderSummary`・`renderMetadata`・`renderSendOutcome` が文言と欄の名前を常に `catalogs.en` から取る。`runPopupSend` が `sendButton`・`sending` を常に `catalogs.en` から取る。`renderSummary` の数を `String` に戻す。`ja` で値を書き換えて表示する（AC-08）。`ja` の表示で `textContent` の代わりに HTML として解釈する経路を作る（lint を一時的に外して確かめ、元に戻す。AC-24）。
     -   性質とログ: `ja.ts` の結果不明の 1 つの文言から「確かめて」を除く。`runPopupSend` のログに `deps.locale` を加える。
@@ -193,7 +193,7 @@
 
 **変更するファイル:** `docs/tasks/0043_extension_i18n/_checks/english_text.ts`（新規）、本書
 
--   [ ] 設計書 3.9 の「英語の文言が変わらないこと」のとおりに、merge-base と head の 2 つの版の表示された英語の文字列を同じ方法で取り出して比べるスクリプトを書く（1.3）。
+-   [x] 設計書 3.9 の「英語の文言が変わらないこと」のとおりに、merge-base と head の 2 つの版の表示された英語の文字列を同じ方法で取り出して比べるスクリプトを書く（1.3）。
     -   merge-base は `git merge-base origin/main HEAD`、head は `HEAD` とする。2 つの版の `extension/` のソースは、作業ツリーではなくコミットから一時的なディレクトリに取り出し、どちらも作業ツリーの `extension/node_modules` を使う。merge-base と head の `extension/package-lock.json` が同じことを、前提として先に確かめる。`extension/node_modules` は、実行の前に `make ext-install` で head の lockfile から入れたものとする。
     -   次の関数を、どちらの版も head の呼び出しの形で実行する（1.3）。
         -   `renderSummary`: すべての収集の拒否の理由と、文字数と行数が 1000 未満の要約。
@@ -203,8 +203,8 @@
         -   `runPopupSend`: ボタンの名前と、ボタンを押した後の送信中の案内。
     -   表示された文字列は、要素の境目が分かる形（欄の名前・値・本文の `p`・手順の `li` ごとに 1 行）で書き出す。
     -   一致すれば合格、一致しなければ違う行を出して 0 以外で終わる。判定の名前に AC の番号を使わない。
--   [ ] 壊して確かめる: push しない使い捨てのブランチで、`en.ts` の 1 つの文言の 1 文字を変えたコミット、1 つの欄の名前を変えたコミット、本文の末尾の 1 語を最初の手順の先頭へ移したコミットを作り、スクリプトがそれぞれ不合格になることを確かめてから、ブランチを消す。結果をスクリプトのコミットのメッセージに書く。
--   [ ] `git fetch origin main`（`_lib/task-pr-handoff.md` の Authorization が `/runplan` に認める）の後、PR-1 の head でスクリプトを実行し、出力と、merge-base と head の 2 つのコミットの ID を 7 章の AC-07 の行に記録する。記録を本書にコミットする。この後、`extension/src/` が変わったときや `main` を取り込んだときは、実行し直して記録を置き換える。
+-   [x] 壊して確かめる: push しない使い捨てのブランチで、`en.ts` の 1 つの文言の 1 文字を変えたコミット、1 つの欄の名前を変えたコミット、本文の末尾の 1 語を最初の手順の先頭へ移したコミットを作り、スクリプトがそれぞれ不合格になることを確かめてから、ブランチを消す。結果をスクリプトのコミットのメッセージに書く。
+-   [x] `git fetch origin main`（`_lib/task-pr-handoff.md` の Authorization が `/runplan` に認める）の後、PR-1 の head でスクリプトを実行し、出力と、merge-base と head の 2 つのコミットの ID を 7 章の AC-07 の行に記録する。記録を本書にコミットする。この後、`extension/src/` が変わったときや `main` を取り込んだときは、実行し直して記録を置き換える。
 
 **完了の条件:** `make ext-check`・`make test`・`make lint` が通り、7 章の AC-07 の行に PR-1 の記録がある。
 
@@ -220,10 +220,10 @@
 
 **判定理由**: 危険の大きい手順が 2 つある。ステップ 2-3 は文言を持つすべての関数と表示の経路を一度に書き換え、ステップ 2-5 は 2 つの版の拡張のコードを取り出して実行し、表示を比べる
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/520
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: 入口とページ
 
@@ -434,7 +434,7 @@ AC-07 は、`docs/tasks/0043_extension_i18n/_checks/english_text.ts` で確か�
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
--   [ ] PR-1 マージ済み（対象ステップ: 1-1 / 2-1 / 2-2 / 2-3 / 2-4 / 2-5）
+-   [x] PR-1 マージ済み（対象ステップ: 1-1 / 2-1 / 2-2 / 2-3 / 2-4 / 2-5）
 -   [ ] PR-2 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6）
 -   [ ] PR-3 マージ済み（対象ステップ: 4-1 / 5-1 / 5-2）
 
@@ -450,7 +450,7 @@ AC-07 は、`docs/tasks/0043_extension_i18n/_checks/english_text.ts` で確か�
 | AC-04 | test: `extension/test/manifest.test.ts::permissions`・`::undeclared keys`・`extension/test/lintRules.test.ts::chrome.storage`（既存） | 4-1 | 権限が 3 つのままで、`options_ui` がなく、`chrome.storage` を参照できないこと |
 | AC-05 | test: `extension/test/messages.test.ts::rejectionMessage`・`::expandPromptMessage`・`extension/test/sendMessages.test.ts::blockMessage`・`::serverRejectMessage`・`::sendOutcomeMessage` ＋ AC-03 の表示のテスト | 2-3・2-4 | 振り分けの関数がすべての理由と結果について選んだ言語の節の文言を返すこと、表示がそれを表示すること |
 | AC-06 | static: `make ext-typecheck` ＋ test: `extension/test/typecheck.test.ts::a Catalog missing an item fails typecheck`・`extension/test/catalog.test.ts::catalogs` | 2-2 | 欠けで型の検査が失敗すること、本文・手順が空でないこと、手順の規則 |
-| AC-07 | diff: `docs/tasks/0043_extension_i18n/_checks/english_text.ts` | 2-2・2-3・2-5・3-5 | 実行の記録（PR-1）: 未実行。実行の記録（PR-2）: 未実行。 |
+| AC-07 | diff: `docs/tasks/0043_extension_i18n/_checks/english_text.ts` | 2-2・2-3・2-5・3-5 | 実行の記録（PR-1）: 2026-10-27、merge-base `30dbae078cbdd267f2ca1ff1bb27bf3ef3cd6f5d`、head `5e3ab74d77d85ad0a7869ea74cc21081588ecb8c`、終了コード 0、出力 `PASS: 121 displayed elements identical`。実行の記録（PR-2）: 未実行。 |
 | AC-08 | test: `extension/test/render.test.ts::renderSummary`・`extension/test/renderMetadata.test.ts::renderMetadata`・`extension/test/renderSend.test.ts::renderSendOutcome` | 2-4 | 両方の言語で、値をそのまま表示すること |
 | AC-09 | test: `extension/test/messages.test.ts::rejectionMessage`・`extension/test/sendMessages.test.ts::blockMessage`・`::serverRejectMessage`・`::sendOutcomeMessage` | 2-4 | 両方の言語で、各性質を言語によらない語と言語ごとの語の表で確かめる |
 | AC-10 | manual | 2-2 | 日本語の文言の用語を用語集と照らす（PR-1 のレビュー。テストにしない理由は 1.3） |
