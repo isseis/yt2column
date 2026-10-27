@@ -17,10 +17,32 @@
 
 ## パイプライン
 
-```
-コピーした字幕（ブラウザ拡張 → Native Messaging のホスト → localhost サーバ） ─┐
-                                                                               ├→ TranscriptSource → Transcript → ArticleWriter → Article → Publisher
-URL → yt-dlp（CLI。開発用） ───────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    classDef data fill:#e6f7ff,stroke:#1f77b4,stroke-width:1px,color:#0b3d91;
+    classDef process fill:#fff1e6,stroke:#ff7f0e,stroke-width:1px,color:#8a3e00;
+
+    COPIED[("コピーした字幕<br>（ブラウザ拡張 → Native Messaging のホスト → localhost サーバ）")]
+    YTDLP[("URL<br>（CLI は yt-dlp で字幕を取得）")]
+    SRC["TranscriptSource"]
+    TR[("Transcript")]
+    WRITER["ArticleWriter"]
+    ART[("Article")]
+    PUB["Publisher"]
+
+    COPIED -->|"主経路"| SRC
+    YTDLP -->|"補助の経路（CLI）"| SRC
+    SRC --> TR --> WRITER --> ART --> PUB
+
+    class COPIED,YTDLP,TR,ART data
+    class SRC,WRITER,PUB process
+
+    subgraph Legend["凡例"]
+        L1[("入力と、段階の間で受け渡すデータ")]
+        L2["段階（interface）"]
+    end
+    class L1 data
+    class L2 process
 ```
 
 各段階は interface で抽象化し、実装を差し替えられるようにする。

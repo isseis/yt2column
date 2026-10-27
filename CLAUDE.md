@@ -140,10 +140,32 @@ the localhost server, and the server generates the article and posts it to the
 Webhook. The CLI is the development path: it takes a video URL and fetches the
 transcript with `yt-dlp`.
 
-```
-Copied transcript (browser extension → native messaging host → localhost server) ─┐
-                                                                                  ├→ TranscriptSource → Transcript → ArticleWriter → Article → Publisher
-URL → yt-dlp (CLI, for development) ──────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    classDef data fill:#e6f7ff,stroke:#1f77b4,stroke-width:1px,color:#0b3d91;
+    classDef process fill:#fff1e6,stroke:#ff7f0e,stroke-width:1px,color:#8a3e00;
+
+    COPIED[("Copied transcript<br>(browser extension → native messaging host → localhost server)")]
+    YTDLP[("URL<br>(the CLI fetches the transcript with yt-dlp)")]
+    SRC["TranscriptSource"]
+    TR[("Transcript")]
+    WRITER["ArticleWriter"]
+    ART[("Article")]
+    PUB["Publisher"]
+
+    COPIED -->|"primary path"| SRC
+    YTDLP -->|"development path (CLI)"| SRC
+    SRC --> TR --> WRITER --> ART --> PUB
+
+    class COPIED,YTDLP,TR,ART data
+    class SRC,WRITER,PUB process
+
+    subgraph Legend["Legend"]
+        L1[("Inputs and the data passed between stages")]
+        L2["Stage (interface)"]
+    end
+    class L1 data
+    class L2 process
 ```
 
 - `TranscriptSource` (`internal/transcript`): `CopiedSource` implements it by
