@@ -336,7 +336,8 @@
 
 **変更するファイル:** 本書
 
--   [ ] `make ext-build` でビルドした `extension/dist/` を Chrome と Brave で読み込み、ブラウザの表示言語を日本語と英語に切り替えて、拡張の管理ページ（`chrome://extensions/`）の名前が `yt2column`、説明がその言語の `extDescription` であること（AC-19）と、拡張 ID が `clfmbbcdpnjcefbdihdoahomaifbabkk` のままであること（AC-20）を確かめる。ステップ 3-6 と同じく、`/runplan` はここで止まり、ブラウザの操作をレビュアーに依頼する。結果を 7 章の AC-19・AC-20 の行に記録し、本書にコミットする。
+-   [x] `make ext-build` でビルドした `extension/dist/` を Chrome と Brave で読み込み、ブラウザの表示言語を日本語と英語に切り替えて、拡張の管理ページ（`chrome://extensions/`）の名前が `yt2column`、説明がその言語の `extDescription` であること（AC-19）と、拡張 ID が `clfmbbcdpnjcefbdihdoahomaifbabkk` のままであること（AC-20）を確かめる。ステップ 3-6 と同じく、`/runplan` はここで止まり、ブラウザの操作をレビュアーに依頼する。結果を 7 章の AC-19・AC-20 の行に記録し、本書にコミットする。
+-   [x] ブラウザの操作はレビュアー（利用者）に依頼する。`/runplan` は、ステップ 3-5 の後、PR を開く前にここで止まり、操作を依頼する。結果（日付・ブラウザと版・表示言語・観察したこと）を 7 章の該当する AC の行に記録し、本書にコミットする。
 
 **完了の条件:** `make ext-check`・`make test`・`make lint` が通り、7 章に PR-3 の実機の確認の記録がある。
 
@@ -462,8 +463,8 @@ AC-07 は、`docs/tasks/0043_extension_i18n/_checks/english_text.ts` で確か�
 | AC-16 | test: `extension/test/style.test.ts::Japanese typography` ＋ manual | 3-4・3-6 | `body:lang(ja)` の行間。実機（PR-2）: 行間が広く見え、DevTools で `body:lang(ja) { line-height: 1.7; }` の適用を確認した。 |
 | AC-17 | test: `extension/test/style.test.ts::Japanese typography` | 3-4 | 英語の書体が今のままで、ほかの規則が行間を持たないこと |
 | AC-18 | static: `make ext-build`（`check-dist`） ＋ test: `extension/test/manifest.test.ts::locales` | 4-1 | `dist/` が `_locales` の 2 つのファイルを含むこと、`default_locale` が `en` で `_locales` の形が正しいこと |
-| AC-19 | test: `extension/test/manifest.test.ts::fixed fields`・`::locales` ＋ manual | 4-1・5-2 | `name`・`description` が `_locales` を参照し、名前が両方の言語で `yt2column`、説明が言語ごとに異なること。拡張の管理ページの表示は実機の確認（ステップ 5-2） |
-| AC-20 | test: `extension/test/manifest.test.ts::undeclared keys`・`::key` ＋ manual | 4-1・5-2 | 最上位のキーの集合と、`key` から得る拡張 ID。拡張の管理ページの ID は実機の確認（ステップ 5-2） |
+| AC-19 | test: `extension/test/manifest.test.ts::fixed fields`・`::locales` ＋ manual | 4-1・5-2 | `name`・`description` が `_locales` を参照し、名前が両方の言語で `yt2column`、説明が言語ごとに異なること。実機（PR-3）: 2026-10-27、Chrome 156.0.8078.48 と Brave 156.1.98.60 の両方で、日本語の表示言語では名前が `yt2column` で説明が日本語、英語の表示言語では名前が `yt2column` で説明が英語であった。 |
+| AC-20 | test: `extension/test/manifest.test.ts::undeclared keys`・`::key` ＋ manual | 4-1・5-2 | 最上位のキーの集合と、`key` から得る拡張 ID。実機（PR-3）: 拡張の管理ページの拡張 ID が、どちらのブラウザでも `clfmbbcdpnjcefbdihdoahomaifbabkk` のままであった。 |
 | AC-21 | manual | 1-1 | `CLAUDE.md` の規則の文面（PR-1 のレビュー） |
 | AC-22 | manual | 5-1 | README の段落の文面（PR-3 のレビュー） |
 | AC-23 | test: `extension/test/metadataDocs.test.ts::video metadata documentation` | 2-3 | README の引用が `expandPromptMessage("en")` と一致すること |
@@ -472,6 +473,8 @@ AC-07 は、`docs/tasks/0043_extension_i18n/_checks/english_text.ts` で確か�
 `manual` だけの AC は AC-10・AC-11・AC-21・AC-22 である。AC-21・AC-22 は文書の文面だけを定める AC である（`requirements_process.md` §4）。AC-10・AC-11 をテストにしない理由は 1.3 に書いた。
 
 **実機の確認の記録（PR-2、ステップ 3-6）:** 2026-10-27、レビュアー（isseis）が Chrome 156.0.8078.48（公式ビルド、arm64）で確認した。OS の環境設定は日本語とし、Chrome を既定の起動で開いた場合（日本語）と `open -a "Google Chrome" --args -AppleLanguages '(en)'` で起動した場合（英語）の 2 つを試した。日本語のときはポップアップが日本語で表示され、`document.documentElement.lang` が `ja`、コンソールの `yt2column ui language` のログが表示言語に一致した。英語のときは今までどおり英語で表示され、`lang` が `en` であった。どちらのときも、もう一方の言語の文言は表示されなかった。日本語のとき、書体が日本語の書体になり、行間が広く見えた（DevTools で `body:lang(ja) { line-height: 1.7; }` の適用を確認）。リクエスト ID は、字幕でないテキストを送って `invalid_transcript` の拒否を受け、DevTools で `.send-request-id` の `font-family: ui-monospace, monospace` が適用されていることを確認した。Brave は、Chrome と Brave に固有のコードがないため実施していない（レビュアーの判断）。
+
+**実機の確認の記録（PR-3、ステップ 5-2）:** 2026-10-27、レビュアー（isseis）が Chrome 156.0.8078.48 と Brave 156.1.98.60 の両方で確認した。ブラウザの表示言語を日本語と英語に切り替え、拡張の管理ページの名前がどちらの言語でも `yt2column`、説明が日本語のときは日本語の `extDescription`、英語のときは英語の `extDescription` であること、拡張 ID が `clfmbbcdpnjcefbdihdoahomaifbabkk` のままであることを確かめた。
 
 ## 8. 成功基準 (Success Criteria)
 
