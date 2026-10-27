@@ -1,7 +1,6 @@
 package publisher
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -22,9 +21,18 @@ const (
 // costUnknown is the estimated_cost_usd value when the cost is not known.
 const costUnknown = "unknown"
 
+// FileContent returns the content FilePublisher writes for a, after the same
+// CheckPublishable check. It writes nothing.
+func FileContent(a writer.Article) (string, error) {
+	if err := a.CheckPublishable(); err != nil {
+		return "", err
+	}
+	return renderFileArticle(a), nil
+}
+
 // renderFileArticle returns the content of the --out file for a: YAML front
-// matter, the title heading, the channel name line when there is a channel
-// name, then the body.
+// matter, then the display Markdown (renderDisplayMarkdown), so the saved file
+// and the displayed article cannot drift apart.
 //
 // Contract: every front matter value is a double-quoted scalar written with
 // strconv.Quote, and a checked value (valid UTF-8, no control character, see
@@ -50,17 +58,12 @@ func renderFileArticle(a writer.Article) string {
 		writeFrontMatterValue(&b, "review_model_version", modelVersionOrNone(a.Review.Model.ModelVersion))
 	}
 	cost := costUnknown
-	if amount, known := articleCost(a.RunUsage); known {
-		cost = amount.Format(articleCostDecimals)
+	if usd, known := FormatArticleCost(a.RunUsage); known {
+		cost = usd
 	}
 	writeFrontMatterValue(&b, "estimated_cost_usd", cost)
 	b.WriteString(frontMatterDelimiter + "\n\n")
-
-	fmt.Fprintf(&b, "# %s\n\n", a.Title)
-	if a.ChannelName != "" {
-		fmt.Fprintf(&b, "%s\n\n", escapeLeadingMarkdown(a.ChannelName))
-	}
-	b.WriteString(a.Body)
+	b.WriteString(renderDisplayMarkdown(a))
 	return b.String()
 }
 

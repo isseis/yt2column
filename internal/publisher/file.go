@@ -103,11 +103,12 @@ func (p *FilePublisher) Publish(ctx context.Context, article writer.Article) err
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if err := article.CheckPublishable(); err != nil {
+	content, err := FileContent(article)
+	if err != nil {
 		return err
 	}
 
-	tempPath, err := p.file.writeTemp(ctx, renderFileArticle(article))
+	tempPath, err := p.file.writeTemp(ctx, content)
 	if err != nil {
 		return err
 	}

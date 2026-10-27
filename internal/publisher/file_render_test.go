@@ -3,6 +3,9 @@
 package publisher
 
 import (
+	"context"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -232,6 +235,54 @@ func TestEscapeLeadingMarkdown(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := escapeLeadingMarkdown(tc.in); got != tc.want {
 				t.Fatalf("escapeLeadingMarkdown(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestFileContentMatchesFilePublisher checks, for every golden article, that
+// FileContent returns byte for byte what FilePublisher writes.
+func TestFileContentMatchesFilePublisher(t *testing.T) {
+	for _, tc := range goldenCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			out := filepath.Join(t.TempDir(), "article.md")
+			p, err := NewFilePublisher(out)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := p.Publish(context.Background(), tc.article); err != nil {
+				t.Fatalf("Publish error = %v", err)
+			}
+			written, err := os.ReadFile(out) //nolint:gosec // a path under t.TempDir
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := FileContent(tc.article)
+			if err != nil {
+				t.Fatalf("FileContent error = %v", err)
+			}
+			if got != string(written) {
+				t.Errorf("FileContent =\n%q\nwant the written file\n%q", got, written)
+			}
+		})
+	}
+}
+
+func TestFormatArticleCost(t *testing.T) {
+	cases := []struct {
+		name      string
+		article   writer.Article
+		wantUSD   string
+		wantKnown bool
+	}{
+		{"known", costedArticle(), "0.0023", true},
+		{"unknown", unpricedArticle(), "", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			usd, known := FormatArticleCost(tc.article.RunUsage)
+			if usd != tc.wantUSD || known != tc.wantKnown {
+				t.Errorf("FormatArticleCost = %q, %v, want %q, %v", usd, known, tc.wantUSD, tc.wantKnown)
 			}
 		})
 	}

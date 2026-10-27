@@ -190,10 +190,10 @@
 
 -   **ファイル:** `internal/publisher/format.go`・`display_render.go`（新規）・`file_render.go`・`file.go`・`slack_render.go`、テストは `display_render_test.go`（新規）・`file_render_test.go`
 -   **作業:**
-    -   [ ] `FormatArticleCost` を加え、ファイルの整形と Slack の脚注をそれを呼ぶ形にする（設計書 §3.6.1）。
-    -   [ ] `renderDisplayMarkdown` と `DisplayMarkdown` を加え、`renderFileArticle` のフロントマターの後の部分をそれで書く形にする（設計書 §3.6.2）。
-    -   [ ] `FileContent` を加え、`FilePublisher.Publish` が書く中身をそれで作る（設計書 §3.6.1）。
-    -   [ ] テスト: `golden_test.go` の入力のそれぞれで、`FileContent` の結果が `FilePublisher` の書いたファイルとバイト単位で同じであること（AC-12）。`DisplayMarkdown` の並び（チャンネル名がある場合とない場合）と、`CheckPublishable` に通らない記事での拒否。`TestRenderGolden`・`TestRenderGoldenNeutralized` はゴールデンファイルを変えずに通る。
+    -   [x] `FormatArticleCost` を加え、ファイルの整形と Slack の脚注をそれを呼ぶ形にする（設計書 §3.6.1）。
+    -   [x] `renderDisplayMarkdown` と `DisplayMarkdown` を加え、`renderFileArticle` のフロントマターの後の部分をそれで書く形にする（設計書 §3.6.2）。
+    -   [x] `FileContent` を加え、`FilePublisher.Publish` が書く中身をそれで作る（設計書 §3.6.1）。
+    -   [x] テスト: `golden_test.go` の入力のそれぞれで、`FileContent` の結果が `FilePublisher` の書いたファイルとバイト単位で同じであること（AC-12）。`DisplayMarkdown` の並び（チャンネル名がある場合とない場合）と、`CheckPublishable` に通らない記事での拒否。`TestRenderGolden`・`TestRenderGoldenNeutralized` はゴールデンファイルを変えずに通る。
 -   **完了の条件:** グリーンゲートが通り、`internal/publisher/testdata/golden/` に差分がない。
 
 #### ステップ 3-3: 組み立て済みのメッセージと途中からの送信
