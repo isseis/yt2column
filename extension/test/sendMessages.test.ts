@@ -265,6 +265,14 @@ describe("sendOutcomeMessage", () => {
       assert.ok(text.includes("yt2column-nmhost install"));
     });
 
+    it(`gives the watch-page URL example as written in English in ${locale}`, () => {
+      assert.ok(
+        textOf(blockMessage("not-watch-page", locale)).includes(
+          "https://www.youtube.com/watch?v=...",
+        ),
+      );
+    });
+
     it(`names the server start for server-unavailable in ${locale}`, () => {
       const text = textOf(
         sendOutcomeMessage(outcomeNamed("server-unavailable"), locale),
@@ -295,6 +303,9 @@ describe("sendOutcomeMessage", () => {
         ...[...rejectionReasonsList, ...preflightReasonsList].map((reason) =>
           blockMessage(reason, locale),
         ),
+        // The messages no dispatch function returns.
+        catalogs[locale].sending,
+        catalogs[locale].expandPrompt,
       ];
       for (const message of messages) {
         const text = textOf(message);

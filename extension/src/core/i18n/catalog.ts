@@ -29,7 +29,8 @@ export interface Catalog {
   readonly serverReject: Readonly<Record<ServerRejectReason, Message>>;
   /** Causes of a request known not to have reached the server; no Slack check. */
   readonly notSent: Readonly<Record<NotSentCause, Message>>;
-  /** The other send outcomes. Every result that is not known asks to check Slack. */
+  // The other send outcomes. Every result that is not known (noResponse,
+  // hostFailed, unexpected) asks to check Slack before sending again.
   readonly accepted: Message;
   readonly noResponse: Message;
   readonly hostFailed: Message;

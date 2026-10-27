@@ -10,7 +10,7 @@ import type {
 import { catalogs } from "../src/core/i18n/catalog.ts";
 import { locales } from "../src/core/i18n/locale.ts";
 import type { Locale } from "../src/core/i18n/locale.ts";
-import { expandPromptMessage } from "../src/core/messages.ts";
+import { expandPromptMessage, rejectionMessage } from "../src/core/messages.ts";
 import { emptyMetadataResult } from "../src/core/metadata.ts";
 import type { MetadataResult } from "../src/core/metadata.ts";
 import { nativeHostName } from "../src/core/native.ts";
@@ -37,6 +37,7 @@ import {
   expectMessage,
   otherLocales,
   query,
+  valueOf,
 } from "./helpers/dom.ts";
 import { recordingLogger } from "./helpers/logger.ts";
 import type { RecordingLogger } from "./helpers/logger.ts";
@@ -449,6 +450,11 @@ describe("popup send", () => {
       await runPopupSend(root, collected(), popupDeps);
       const button = query(root, ".send-button");
       assert.equal(button.textContent, catalog.sendButton);
+      if (locale === "en") {
+        // The English label stays a literal: reading it from the catalog
+        // would let a changed English label pass unnoticed.
+        assert.equal(button.textContent, "Send to yt2column");
+      }
       for (const other of otherLocales(locale)) {
         expectAbsent(root, [catalogs[other].sendButton], [catalog.sendButton]);
       }
@@ -907,6 +913,26 @@ describe("send log", () => {
 });
 
 describe("display", () => {
+  for (const locale of localeList) {
+    it(`renders the launch summary in ${locale}`, async () => {
+      const labels = catalogs[locale].summaryLabels;
+      const collectedRoot = container();
+      await runPopupLaunch(collectedRoot, popupHarness({ locale }).deps);
+      assert.equal(valueOf(collectedRoot, labels.title), "A video");
+      const rejectedRoot = container();
+      await runPopupLaunch(
+        rejectedRoot,
+        popupHarness({
+          activeTab: async () => fakeTab({ url: "https://example.com/" }),
+          locale,
+        }).deps,
+      );
+      expectLocaleMessage(rejectedRoot, locale, (l) =>
+        rejectionMessage("not-watch-page", l),
+      );
+    });
+  }
+
   it("renders the popup summary as text, not elements", async () => {
     const root = container();
     await runPopupLaunch(

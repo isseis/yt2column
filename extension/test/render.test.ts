@@ -41,6 +41,13 @@ describe("renderSummary", () => {
     assert.equal(valueOf(root, "Characters"), "12");
     assert.equal(valueOf(root, "Lines"), "2");
     assert.equal(valueOf(root, "Preview"), collected.preview);
+    assert.deepEqual(
+      Array.from(
+        root.querySelectorAll(".summary-label"),
+        (node) => node.textContent,
+      ),
+      ["Title", "URL", "Characters", "Lines", "Preview"],
+    );
   });
 
   for (const locale of localeList) {

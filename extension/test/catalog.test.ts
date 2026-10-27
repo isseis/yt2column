@@ -66,7 +66,7 @@ describe("catalogs", () => {
   it("gives a Japanese message steps only where the English one has them", () => {
     const en = entries(catalogs.en).messages;
     const ja = entries(catalogs.ja).messages;
-    assert.deepEqual([...ja.keys()], [...en.keys()]);
+    assert.deepEqual([...ja.keys()].sort(), [...en.keys()].sort());
     for (const [path, message] of ja) {
       if (message.steps.length > 0) {
         assert.ok((en.get(path)?.steps.length ?? 0) > 0, path);

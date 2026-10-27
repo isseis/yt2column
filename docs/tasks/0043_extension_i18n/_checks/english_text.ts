@@ -111,7 +111,12 @@ function git(...args: string[]): string {
   return execFileSync("git", args, { encoding: "utf8" }).trim();
 }
 
+let workDir = "";
+
 function fail(message: string): never {
+  if (workDir !== "") {
+    rmSync(workDir, { recursive: true, force: true });
+  }
   process.stderr.write(`english_text: ${message}\n`);
   process.exit(2);
 }
@@ -119,6 +124,7 @@ function fail(message: string): never {
 /** Extracts rev's extension sources into a temporary directory and runs the driver there. */
 function render(rev: string, nodeModules: string): string {
   const dir = mkdtempSync(path.join(tmpdir(), "english-text-"));
+  workDir = dir;
   try {
     const archive = execFileSync("git", [
       "archive",
@@ -142,6 +148,7 @@ function render(rev: string, nodeModules: string): string {
     return result.stdout;
   } finally {
     rmSync(dir, { recursive: true, force: true });
+    workDir = "";
   }
 }
 
