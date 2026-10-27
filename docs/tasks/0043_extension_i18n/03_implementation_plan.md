@@ -137,10 +137,10 @@
 
 **変更するファイル:** `src/core/i18n/locale.ts`（新規）、`test/locale.test.ts`（新規）
 
--   [ ] 設計書 3.1 のとおり、`Locale`・`locales`・`resolveLocale`・`formatCount` を書く。`resolveLocale` は `locales` のキーと比べる（設計書 3.1 の規則）。
--   [ ] `test/locale.test.ts::resolveLocale` に、要件書 AC-01・AC-02 の例の値（`ja`・`ja-JP`・`JA`・`en`・`en-US`・`fr`・`zh-CN`・`jam`・`jv`・`ja_JP`・空文字列・`undefined`）を渡して結果を確かめるテストを書く。
--   [ ] `test/locale.test.ts::formatCount` に、`Intl.NumberFormat.supportedLocalesOf` が `en` と `ja` の両方を返すことを前提として確かめてから、`formatCount(12345, "en")`・`formatCount(12345, "ja")` が `12,345` になることを確かめるテストを書く（設計書 3.3、H-10）。
--   [ ] 壊して確かめる: 判定を前方一致（`startsWith("ja")`）にする、小文字にしない、区切りに `_` も使う、`formatCount` を `String(value)` にする、の 4 つで、それぞれテストが失敗することを確かめる。
+-   [x] 設計書 3.1 のとおり、`Locale`・`locales`・`resolveLocale`・`formatCount` を書く。`resolveLocale` は `locales` のキーと比べる（設計書 3.1 の規則）。
+-   [x] `test/locale.test.ts::resolveLocale` に、要件書 AC-01・AC-02 の例の値（`ja`・`ja-JP`・`JA`・`en`・`en-US`・`fr`・`zh-CN`・`jam`・`jv`・`ja_JP`・空文字列・`undefined`）を渡して結果を確かめるテストを書く。
+-   [x] `test/locale.test.ts::formatCount` に、`Intl.NumberFormat.supportedLocalesOf` が `en` と `ja` の両方を返すことを前提として確かめてから、`formatCount(12345, "en")`・`formatCount(12345, "ja")` が `12,345` になることを確かめるテストを書く（設計書 3.3、H-10）。
+-   [x] 壊して確かめる: 判定を前方一致（`startsWith("ja")`）にする、小文字にしない、区切りに `_` も使う、`formatCount` を `String(value)` にする、の 4 つで、それぞれテストが失敗することを確かめる。
 
 **完了の条件:** `make ext-check` が通る。コミットする。
 
