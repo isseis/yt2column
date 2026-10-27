@@ -1609,9 +1609,9 @@ sequenceDiagram
 4.  **設定と起動:** `LoadServer` の Webhook の任意化、`server.Options` の `WebhookOptions`、`deps` の型、旧 API の `webhook_not_configured`。
 5.  **サーバの新しい API:** 生成の開始と生成のジョブ、状態の取得、投稿の操作と投稿のジョブ、後始末、シャットダウンの取り消し、ログ。
 6.  **ホスト:** 全体の読み込み、形の判定、新しい形、応答の上限、ログ。
-7.  **文書:** README の説明の文・`security.md`・`project_overview.md`・`production_profile.md`・`translation_glossary.md`・`CLAUDE.md`。
+7.  **文書:** README の説明の文・`security.md`・`project_overview.md`・`production_profile.md`・`translation_glossary.md`。
 
-ガードが確かめる値は、その値を加える段階で文書にも加える。README の拒否の理由の表の行は、理由を加える 4・5 で、コードの表とそのガード（§3.15）は、コードを返す 5 で加える。`package_reference.md` は、同書の規則（パッケージを変えるコミットで更新する）に従い、2〜6 のそれぞれで更新する。
+ガードが確かめる値は、その値を加える段階で文書にも加える。README の拒否の理由の表の行は、理由を加える 4・5 で、コードの表とそのガード（§3.15）は、コードを返す 5 で加える。`package_reference.md` は、同書の規則（パッケージを変えるコミットで更新する）に従い、2〜6 のそれぞれで更新する。`CLAUDE.md` の例外（§3.10.2）は、判定を実装する 6 で書く。
 
 2 と 3 は互いに依存しない。5 は 2〜4 に、6 は 5 の送り先のパスに依存する。
 

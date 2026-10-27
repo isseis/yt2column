@@ -41,9 +41,9 @@
 ### 1.3. 計画の際に決めたこと（2026-10-27）
 
 -   **PR は 7 つに分ける（レビュアーが選んだ）:** PR-1 はフェーズ 1・2（issue と土台）、PR-2 はフェーズ 3（`writer` と `publisher`）、PR-3 はフェーズ 4（設定と起動）、PR-4 はフェーズ 5 の前半（生成の開始・状態の取得・生成のジョブ・シャットダウンの取り消し）、PR-5 はフェーズ 5 の後半（投稿の操作と投稿のジョブ）、PR-6 はフェーズ 6（ホスト）、PR-7 はフェーズ 7（文書）とする。サーバの新しい API は最も大きく、リスクも最も高いので、2 つの PR に分けてレビューできるようにするためである。サーバを 1 つの PR にする案と、文書をホストの PR に含める案は採らなかった。
--   **文書は、ガードが確かめる値をコードと同じ PR に、説明の文を最後の PR に置く（レビュアーが選んだ）:** `cmd/yt2column-server/docs_test.go:81-107` の `rejection_reasons` は、README の拒否の理由の表が `RejectReasonsForTest()` と過不足なく一致することを確かめる。このため、新しい拒否の理由の行は、その理由を加えるステップで README に加える（PR-3・PR-4・PR-5）。状態・工程・理由を表すコード（設計書 §3.11）の表とそのガード（AC-29）も、そのコードを返す PR-4 で加える。README の説明の文、`security.md`・`project_overview.md`・`production_profile.md`・`translation_glossary.md`・`CLAUDE.md` は PR-7 でまとめて更新する。PR-3 のマージから PR-7 のマージまでの間、README は `SLACK_WEBHOOK_URL` を必須と書いたままになる。利用者は 1 人で、Webhook を設定したまま使う限り振る舞いは変わらないので、この間を許す。設計書 §8 もこの置き方に合わせた。
+-   **文書は、ガードが確かめる値をコードと同じ PR に、説明の文を最後の PR に置く（レビュアーが選んだ）:** `cmd/yt2column-server/docs_test.go:81-107` の `rejection_reasons` は、README の拒否の理由の表が `RejectReasonsForTest()` と過不足なく一致することを確かめる。このため、新しい拒否の理由の行は、その理由を加えるステップで README に加える（PR-3・PR-4・PR-5）。状態・工程・理由を表すコード（設計書 §3.11）の表とそのガード（AC-29）も、そのコードを返す PR-4 で加える。README の説明の文、`security.md`・`project_overview.md`・`production_profile.md`・`translation_glossary.md` は PR-7 でまとめて更新する。PR-3 のマージから PR-7 のマージまでの間、README は `SLACK_WEBHOOK_URL` を必須と書いたままになる。利用者は 1 人で、Webhook を設定したまま使う限り振る舞いは変わらないので、この間を許す。設計書 §8 もこの置き方に合わせた。
 -   **`package_reference.md` は、パッケージを変える PR で更新する:** 同書は「パッケージを加える・取り除く・責務を変えるコミットで更新する」と定める（`docs/dev/developer_guide/package_reference.md:5-6`）。この規則に従い、上の決定の例外として、各 PR がその PR で変えるパッケージの行を更新する。
--   **ホストの形の判定を、CLAUDE.md の例外として書く（レビュアーが選んだ）:** 設計書 §3.14 の 6 は、#503 の後にこの例外を `CLAUDE.md` から取り除くとしたが、加える作業がどこにもなかった。設計書の §2.2・§3.15・§3.17・§8 に `CLAUDE.md` を加え、決定の変更として設計書を `draft` に戻した（設計書の `Comments`）。本計画の PR で設計書とともに承認し直す。同じ PR で、設計書 §3.12 と §3.16 の H-02 の行に残っていた「SHA-256」を §3.2 の HMAC-SHA256 に合わせ、`SLACK_WEBHOOK_URL` を必須と書く `docs/dev/production_profile.md:42` を設計書の更新する文書に加えた（編集上の修正）。
+-   **ホストの形の判定を、CLAUDE.md の例外として書く（レビュアーが選んだ）:** 設計書 §3.14 の 6 は、#503 の後にこの例外を `CLAUDE.md` から取り除くとしたが、加える作業がどこにもなかった。設計書の §2.2・§3.15・§3.17・§8 に `CLAUDE.md` を加え、決定の変更として設計書を `draft` に戻した（設計書の `Comments`）。本計画の PR で設計書とともに承認し直す。`CLAUDE.md` の例外は、判定を実装する PR-6（ステップ 6-2）で書く。規則の例外を、それに当たるコードより後に書くと、PR-6 が単独では `CLAUDE.md` に合わないためである（上の文書の置き方の決定の例外で、設計書 §8 も合わせた）。同じ PR で、設計書 §3.12 と §3.16 の H-02 の行に残っていた「SHA-256」を §3.2 の HMAC-SHA256 に合わせ、`SLACK_WEBHOOK_URL` を必須と書く `docs/dev/production_profile.md:42` を設計書の更新する文書に加えた（編集上の修正）。
 -   **issue の起票は、`/runplan` がステップ 1-1 で行う:** 起票はネットワークの操作なので、`/runplan` が実行の前に承認を求める。本計画の作成（`/mkplan`）では起票しない。
 -   **フェーズ 5 は、部品を先に作り、受け口を後に作る:** 生成のジョブと状態の応答の組み立て（ステップ 5-2）を、振り分けと受け口（ステップ 5-3）より先に作る。部品はハンドルを直接渡すテストで確かめられるので、各ステップの後でグリーンゲートが通る。
 -   **投稿の操作のパスは PR-5 で振り分けに加える:** PR-4 の振り分けは `/articles`・`/jobs`・`/jobs/{key}` だけを受け付け、`/jobs/{key}/publish` は `not_found` にする。PR-4 だけがマージされた状態でも、受け付けないパスは今と同じ `not_found` で、記録は変わらない。
@@ -309,7 +309,7 @@
     -   [ ] テスト（パスと境界）: 設計書 §7.3 のサーバ単体のパスの照合（`/jobs/<64 文字>/publish/x`・`?` を含むターゲット・大文字や `%` を含むキーの部分・空のキーの部分）、63 文字・65 文字・`%20` で前後を埋めたキーの拒否（AC-44、T-02）、メソッドの拒否と `Allow`、`Content-Length` が 0 でない状態の取得と `Transfer-Encoding` を持つ状態の取得の `invalid_body` と `Connection: close`、どの拒否でも記録が変わらないこと（AC-44）。`TestRejectHeaders` は期待値を変えずに通る。
     -   [ ] テスト（生成の開始）: 7 章の AC-01・AC-02・AC-03・AC-06・AC-07・AC-08・AC-09・AC-09a・AC-09b・AC-25・AC-26a・AC-37 の行のテスト。AC-03 は、メンバの順序・空白・エスケープ・宣言していないメンバ・`youtu.be` と `watch?v=` の URL・省略と空文字列の組を送り、同じキーが返ることを確かめる。AC-07 は、生成の枠を旧 API のジョブ（`gateWriter` で止める）と新しい API の生成のジョブ（進み具合の止める仕組みで止める）で埋め、新しいキーが拒否されて状態の取得が `unknown` を返し、処理中のキーと完了したキーがそれぞれキーを返すことを確かめる。AC-08 は、1.4 のとおりパッケージの変数に移した拒否の表で `/articles` と `/jobs` の両方を確かめ、拒否の後に記録がないことを確かめる。AC-09a は、読み込みに入ったことを知らせて止まる本文で読み込みの枠を埋め、3 つ目の要求の本文が読まれない（`recordingReader` の読んだ数が 0）ことを確かめる。AC-09b は、書き手を止めたまま同じ要求をすべて返させ、書き手の呼び出しが 1 回であることを、新しいキーと失敗したキーのそれぞれで確かめる。
     -   [ ] テスト（状態の取得）: 7 章の AC-12・AC-13・AC-14・AC-15・AC-17・AC-28・AC-31・AC-34（生成の開始と状態の取得）・AC-35 の行のテスト。AC-28 は、1 つ目のサーバで記事を `done` にしてから、新しいサーバの値に同じキーを問い合わせる。AC-31 は、fake のエラーの文言・秘密の値・コピーした字幕・`videoUrl`・メタデータに目印を入れ、生成の開始と状態の取得のすべての応答（拒否を含む）に、完了した記事の 2 つの文字列以外には目印が現れないことを確かめる。
-    -   [ ] テスト（後始末、T-09）: `Begin` の後でジョブに渡す前の差し込み口と、本文の検査の中の `panickingReader` で panic を起こし、生成の枠と読み込みの枠が空になり、記録が `失敗` になり、`internal_error` が返り、通知が送られないこと。生成のジョブが panic した後の要求にサーバが応答することを確かめる（AC-45）。
+    -   [ ] テスト（後始末、T-09）: `Begin` の後でジョブに渡す前の差し込み口の panic で、生成の枠と読み込みの枠が空になり、記録が `失敗` になり、`internal_error` が返り、通知が送られないこと。本文の検査の中の `panickingReader` の panic（`Begin` の前で、記録はまだない）で、読み込みの枠が空になり、`internal_error` が返り、記録が作られず、通知が送られないこと。生成のジョブが panic した後の要求にサーバが応答することを確かめる（AC-45）。
     -   [ ] 壊し方: 新しい API に別の生成の枠を持たせると AC-07 の行が、キーの部分をデコードしてから照合すると T-02 の行が失敗することを確かめる。
 -   **完了の条件:** グリーンゲートと `make ext-test` が通る。
 
@@ -393,11 +393,12 @@
 
 #### ステップ 6-2: 形の判定と新しい形
 
--   **ファイル:** `internal/nmhost/relay.go`・`relay_test.go`
+-   **ファイル:** `internal/nmhost/relay.go`・`relay_test.go`、`CLAUDE.md`
 -   **作業:**
     -   [ ] 設計書 §3.10.2 の判定、§3.10.3 の新しい形の検査・`Operation`・送り先・本文を加える。キーは `url.PathEscape` でエスケープし、送り先の形は `Operation` の網羅的な `switch` で選ぶ。ログの属性 `form`・`op`・`rule` と段階 `form` を加える（設計書 §3.10.5）。
     -   [ ] テスト: 7 章の AC-38・AC-39・AC-40・AC-40a・AC-41a の行のテスト。AC-40 は、拒否のどの場合でもテストのサーバにリクエストが届かないことを確かめる。AC-39 は、`v` らしい文字列を含む不正な UTF-8 と後続のデータを持つメッセージを含める。
     -   [ ] テスト（T-02）: キーが `abc/publish`・`?x=1` を含む・`..`・`%2F`・制御文字・ASCII でない文字のとき、テストのサーバが受け取る `RequestURI` が `/jobs/` とエスケープした 1 つのパスの部分だけからなること（1.4 の確認と同じ形）。
+    -   [ ] `CLAUDE.md` の「Declare, don't infer」に、この判定の例外を、今の例外（コピーした字幕の解析）と同じく方針・範囲・理由・境界の形で加える（設計書 §3.15、1.3）。
     -   [ ] 壊し方: キーをエスケープせずに埋め込むと T-02 の行が、`v` を持つメッセージを今の形に戻すと AC-40 の行が失敗することを確かめる。
 -   **完了の条件:** グリーンゲートが通る。
 
@@ -418,7 +419,7 @@
 
 **推奨タイトル**: `feat(0044): ホストが操作の値を新しい API の送り先に対応づける`
 
-**レビュー観点**: 今の形のバイト列と送り先が変わらないこと（今の拡張との互換） / キーのエスケープと、送り先を `Operation` だけで選ぶこと（T-02） / `v` を持つメッセージを今の形に戻さないこと（T-03）、読み込みの時間の上限
+**レビュー観点**: 今の形のバイト列と送り先が変わらないこと（今の拡張との互換） / キーのエスケープと、送り先を `Operation` だけで選ぶこと（T-02） / `v` を持つメッセージを今の形に戻さないこと（T-03）、読み込みの時間の上限 / `CLAUDE.md` の例外の範囲と境界が実装と合うこと
 
 **実装モデル要件**: frontier-required
 
@@ -443,10 +444,9 @@
 
 #### ステップ 7-2: そのほかの文書
 
--   **ファイル:** `docs/dev/security.md`・`docs/dev/project_overview.md`・`docs/dev/production_profile.md`・`docs/translation_glossary.md`・`CLAUDE.md`
+-   **ファイル:** `docs/dev/security.md`・`docs/dev/project_overview.md`・`docs/dev/production_profile.md`・`docs/translation_glossary.md`
 -   **作業:**
-    -   [ ] 設計書 §3.15 の `security.md` §8・`project_overview.md`・`production_profile.md`・`translation_glossary.md`・`CLAUDE.md` の項目のとおりに更新する。
-    -   [ ] `CLAUDE.md` の例外の記述は、今の例外（コピーした字幕の解析）と同じく方針・範囲・理由・境界の形にする。
+    -   [ ] 設計書 §3.15 の `security.md` §8・`project_overview.md`・`production_profile.md`・`translation_glossary.md` の項目のとおりに更新する（`CLAUDE.md` はステップ 6-2 で更新した）。
 -   **完了の条件:** グリーンゲートが通る。
 
 #### ステップ 7-3: 拡張が変わっていないことの差分の確認
@@ -464,7 +464,7 @@
 
 **推奨タイトル**: `docs(0044): 新しい API と記事のキャッシュを README・security.md などに書く`
 
-**レビュー観点**: 文書の記述が F-001〜F-008 の振る舞いと合っていること（AC-43） / `security.md` §8 の残るリスクの書き直しとホストの上限の記述 / `CLAUDE.md` の例外の範囲と境界 / curl の例のガードと、外部のサービスを呼ばない実行の結果
+**レビュー観点**: 文書の記述が F-001〜F-008 の振る舞いと合っていること（AC-43） / `security.md` §8 の残るリスクの書き直しとホストの上限の記述 / curl の例のガードと、外部のサービスを呼ばない実行の結果
 
 **実装モデル要件**: standard
 
@@ -501,7 +501,7 @@ PR-1 と PR-2 は互いに依存しないが、PR は番号の順にマージす
 | PR-4 | 5-1 / 5-2 / 5-3 / 5-4 / 5-5 | 組み立て、生成のジョブ、振り分け、生成の開始、状態の取得、コードの表、シャットダウンの取り消し | frontier-required |
 | PR-5 | 5-6 | 投稿の操作と投稿のジョブ | frontier-recommended |
 | PR-6 | 6-1 / 6-2 / 6-3 | ホストの全体の読み込み、形の判定、新しい形、応答の上限 | frontier-required |
-| PR-7 | 7-1 / 7-2 / 7-3 | README・`security.md`・`project_overview.md`・`production_profile.md`・用語集・`CLAUDE.md`、curl の例のガード、差分の確認 | standard |
+| PR-7 | 7-1 / 7-2 / 7-3 | README・`security.md`・`project_overview.md`・`production_profile.md`・用語集、curl の例のガード、差分の確認 | standard |
 
 ## 4. テスト戦略 (Test Strategy)
 
@@ -607,7 +607,7 @@ PR-1 と PR-2 は互いに依存しないが、PR は番号の順にマージす
 | AC-41 | test | `internal/server/generation_test.go::TestStatusResponseWithinLimit`、`internal/nmhost/relay_test.go::TestRelayResponseOverLimit`、`cmd/yt2column-server/relay_e2e_test.go::TestStatusResponseFitsRelay` | 5-2・6-3 |
 | AC-41a | test | `internal/nmhost/relay_test.go::TestRelayNewFormTimeout` | 6-2 |
 | AC-42 | static・diff | `cmd/yt2column-server/docs_test.go::TestServerDocsContract/rejection_reasons`、`make ext-test`（`extension/test/serverReasons.test.ts`）、`docs/tasks/0044_article_job_api/_checks/extension_unchanged.sh`（入力のコミットの一覧と出力はステップ 7-3 で記録する） | 4-2・5-3・5-6・7-3 |
-| AC-43 | manual | PR-7 のレビューで、README・`security.md`・`project_overview.md`・`production_profile.md`・`translation_glossary.md`・`CLAUDE.md` を F-001〜F-008 と照らして読む。各 PR のレビューで `package_reference.md` の行を読む | 7-1・7-2 |
+| AC-43 | manual | PR-7 のレビューで、README・`security.md`・`project_overview.md`・`production_profile.md`・`translation_glossary.md` を F-001〜F-008 と照らして読む。PR-6 のレビューで `CLAUDE.md` の例外を、各 PR のレビューで `package_reference.md` の行を読む | 6-2・7-1・7-2 |
 | AC-44 | test | `internal/articlecache/key_test.go::TestParseKey`、`internal/server/jobs_api_test.go::TestJobsTargetRejections`（状態の取得）、`internal/server/publish_test.go::TestPublishTargetRejections`（投稿の操作）。本文を使う新しい操作はない（本文を持つのは生成の開始だけで、その検査は AC-08 の表で確かめる）ので、要件書 AC-44 の本文を使う操作の部分は当てはまらない | 2-2・5-3・5-6 |
 | AC-45 | test | `internal/server/generation_test.go::TestGenerationPanic`（記録が内部の失敗になること）、`internal/server/jobs_api_test.go::TestGenerationPanicServerResponds`（その後の要求に応答すること） | 5-2・5-3 |
 | AC-45a | test | `internal/server/publish_test.go::TestPublishPanicResumes`、`internal/articlecache/cache_test.go::TestPublishResumeFrom` | 5-6・2-3 |
