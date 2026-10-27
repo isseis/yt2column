@@ -44,26 +44,26 @@ func SocketPathMaxForTest(goos string) int {
 	return limit
 }
 
-// The LLM defaults and the model-only rejection, exposed so the CLI tests and
-// the documentation guard in cmd/yt2column compare against the code instead of
-// copying the values.
+// The LLM default and the retired-variable rejection, exposed so the CLI
+// tests and the documentation guard in cmd/yt2column compare against the code
+// instead of copying the values.
 
-// DefaultProviderValueForTest returns the YT2COLUMN_LLM_PROVIDER value used
-// when the variable is unset.
-func DefaultProviderValueForTest() string { return defaultProviderValue }
-
-// DefaultClaudeModelForTest returns the model of a claude stage whose model
+// DefaultLLMValueForTest returns the YT2COLUMN_LLM value used when the
 // variable is unset.
+func DefaultLLMValueForTest() string { return defaultLLMValue }
+
+// DefaultClaudeModelForTest returns the model ID of the selection used when
+// YT2COLUMN_LLM is unset.
 func DefaultClaudeModelForTest() string { return defaultClaudeModel }
 
 // The LLM variable names, exposed so the documentation guard in cmd/yt2column
 // derives them from the code instead of copying them.
 
-// LLMProviderEnvForTest returns the name of the generation provider variable.
-func LLMProviderEnvForTest() string { return providerEnv }
+// LLMEnvForTest returns the name of the generation LLM variable.
+func LLMEnvForTest() string { return llmEnv }
 
-// ModelEnvForTest returns the name of the generation model variable.
-func ModelEnvForTest() string { return modelEnv }
+// ReviewLLMEnvForTest returns the name of the review LLM variable.
+func ReviewLLMEnvForTest() string { return reviewLLMEnv }
 
 // ClaudeEffortEnvForTest returns the name of the Claude effort variable.
 func ClaudeEffortEnvForTest() string { return claudeEffortEnv }
@@ -71,9 +71,27 @@ func ClaudeEffortEnvForTest() string { return claudeEffortEnv }
 // AnthropicAPIKeyEnvForTest returns the name of the Anthropic API key variable.
 func AnthropicAPIKeyEnvForTest() string { return anthropicAPIKeyEnv }
 
-// ModelWithoutProviderErrorForTest returns the text of the rejection of a model
-// variable set without a provider variable, as a configuration error prints
-// it.
-func ModelWithoutProviderErrorForTest() string {
-	return missingVarWithReason(providerEnv, reasonModelWithoutProvider).Error()
+// DeepSeekAPIKeyEnvForTest returns the name of the DeepSeek API key variable.
+func DeepSeekAPIKeyEnvForTest() string { return deepSeekAPIKeyEnv }
+
+// RetiredLLMVarsForTest returns the names of the retired LLM variables, in the
+// order their rejections are reported.
+func RetiredLLMVarsForTest() []string {
+	names := make([]string, 0, len(retiredLLMVars))
+	for _, v := range retiredLLMVars {
+		names = append(names, v.name)
+	}
+	return names
+}
+
+// RetiredLLMVarErrorForTest returns the text of the rejection of the retired
+// variable name, as a configuration error prints it. It panics for a name that
+// is not a retired variable.
+func RetiredLLMVarErrorForTest(name string) string {
+	for _, v := range retiredLLMVars {
+		if v.name == name {
+			return invalidVar(v.name, v.reason).Error()
+		}
+	}
+	panic("config: not a retired LLM variable: " + name)
 }

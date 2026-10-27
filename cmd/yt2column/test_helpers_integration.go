@@ -124,9 +124,9 @@ type integrationRun struct {
 // tripwire, and builds the environment and the deps for an integration test or
 // the provider-selection test. The environment is built here and the process
 // environment is not changed; the test API key is given to run as
-// DEEPSEEK_API_KEY. The environment names YT2COLUMN_LLM_PROVIDER explicitly,
-// so the integration tests keep calling DeepSeek after the default provider
-// changes. A caller adds the variables its run needs.
+// DEEPSEEK_API_KEY. The environment sets YT2COLUMN_LLM to deepseek explicitly,
+// so the integration tests call DeepSeek rather than the default provider. A
+// caller adds the variables its run needs.
 func newIntegrationRun(t *testing.T, settings deepseektestutil.IntegrationSettings) integrationRun {
 	t.Helper()
 	key, err := settings.APIKey.Reveal()
@@ -160,11 +160,10 @@ func newIntegrationRun(t *testing.T, settings deepseektestutil.IntegrationSettin
 	tripwire, tripwireMarker := transcripttestutil.NewTripwire(t, binDir)
 
 	env := map[string]string{
-		"YT2COLUMN_LLM_PROVIDER": "deepseek",
-		"YT2COLUMN_MODEL":        settings.Model,
-		"DEEPSEEK_API_KEY":       key,
-		"YT2COLUMN_CACHE_DIR":    cacheDir,
-		"YT2COLUMN_YTDLP_PATH":   tripwire,
+		"YT2COLUMN_LLM":        "deepseek/" + settings.Model,
+		"DEEPSEEK_API_KEY":     key,
+		"YT2COLUMN_CACHE_DIR":  cacheDir,
+		"YT2COLUMN_YTDLP_PATH": tripwire,
 	}
 	// The real client is wrapped from the outside only, so the assembly stays
 	// productionDeps() and the Generate calls can be counted.

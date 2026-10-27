@@ -28,17 +28,16 @@ LLM を呼ぶ 3 つの段階の構成を示す。値は [0008 評価記録](../t
 | 字数の調整 | 既定（`prompts/shorten_system.tmpl`・`prompts/shorten_user.tmpl`） | `claude` | `claude-opus-5-5` | `high` |
 | 検証・推敲 | 既定（`prompts/review_system.tmpl`・`prompts/review_user.tmpl`） | `claude` | `claude-opus-5-5` | `high` |
 
-本番の構成を表す環境変数は、次の 3 つである。
+本番の構成を表す環境変数は、次の 2 つである。プロバイダとモデルは、`YT2COLUMN_LLM` の 1 つの値 `<プロバイダ>/<モデル ID>` で指定する。
 
 ```sh
-export YT2COLUMN_LLM_PROVIDER=claude
-export YT2COLUMN_MODEL=claude-opus-5-5
+export YT2COLUMN_LLM=claude/claude-opus-5-5
 export YT2COLUMN_CLAUDE_EFFORT=high
 ```
 
-- 検証・推敲のプロバイダとモデルは、`YT2COLUMN_REVIEW_PROVIDER`・`YT2COLUMN_REVIEW_MODEL` を指定しなければ、生成と同じになる。
+- 検証・推敲のプロバイダとモデルは、`YT2COLUMN_REVIEW_LLM` を指定しなければ、生成と同じになる。
 - effort は 3 つの段階で共通である（`YT2COLUMN_CLAUDE_EFFORT`）。
-- 本番の構成はコード上の既定である（[#490](https://github.com/isseis/yt2column/issues/490)・[#171](https://github.com/isseis/yt2column/issues/171)）。上の 3 つの変数を指定しなくても、同じ構成で記事を作る。
+- 本番の構成はコード上の既定である（[#490](https://github.com/isseis/yt2column/issues/490)・[#171](https://github.com/isseis/yt2column/issues/171)）。上の 2 つの変数を指定しなくても、同じ構成で記事を作る。
 - 利用者が指定しなければならない変数は、`ANTHROPIC_API_KEY` と、主経路（localhost サーバ）では `SLACK_WEBHOOK_URL` である。値は、利用者が自分の環境で設定する。
 
 ## 品質の目標と結果

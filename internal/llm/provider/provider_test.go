@@ -88,10 +88,9 @@ func lookupFrom(env map[string]string) config.LookupFunc {
 // validEnv is an environment config.Load accepts with the deepseek provider.
 func validEnv() map[string]string {
 	return map[string]string{
-		"YT2COLUMN_LLM_PROVIDER": "deepseek",
-		"YT2COLUMN_MODEL":        testModel,
-		"DEEPSEEK_API_KEY":       testAPIKey,
-		"YT2COLUMN_CACHE_DIR":    "/tmp/yt2column-provider-test",
+		"YT2COLUMN_LLM":       "deepseek/" + testModel,
+		"DEEPSEEK_API_KEY":    testAPIKey,
+		"YT2COLUMN_CACHE_DIR": "/tmp/yt2column-provider-test",
 	}
 }
 
@@ -99,8 +98,7 @@ func validEnv() map[string]string {
 // provider.
 func claudeValidEnv() map[string]string {
 	return map[string]string{
-		"YT2COLUMN_LLM_PROVIDER":  "claude",
-		"YT2COLUMN_MODEL":         testClaudeModel,
+		"YT2COLUMN_LLM":           "claude/" + testClaudeModel,
 		"ANTHROPIC_API_KEY":       testAPIKey,
 		"YT2COLUMN_CLAUDE_EFFORT": "high",
 		"YT2COLUMN_CACHE_DIR":     "/tmp/yt2column-provider-test",
@@ -361,14 +359,12 @@ func TestNewClaudeDefaultEffort(t *testing.T) {
 	delete(claudeBoth, "YT2COLUMN_CLAUDE_EFFORT")
 	// A review model of its own shows that the review row built the review
 	// stage's adapter, not a second generation adapter.
-	claudeBoth["YT2COLUMN_REVIEW_MODEL"] = testClaudeReviewModel
+	claudeBoth["YT2COLUMN_REVIEW_LLM"] = "claude/" + testClaudeReviewModel
 	reviewClaude := validEnv()
-	reviewClaude["YT2COLUMN_REVIEW_PROVIDER"] = "claude"
-	reviewClaude["YT2COLUMN_REVIEW_MODEL"] = testClaudeModel
+	reviewClaude["YT2COLUMN_REVIEW_LLM"] = "claude/" + testClaudeModel
 	reviewClaude["ANTHROPIC_API_KEY"] = testAPIKey
 	generationClaude := maps.Clone(claudeBoth)
-	generationClaude["YT2COLUMN_REVIEW_PROVIDER"] = "deepseek"
-	generationClaude["YT2COLUMN_REVIEW_MODEL"] = testModel
+	generationClaude["YT2COLUMN_REVIEW_LLM"] = "deepseek/" + testModel
 	generationClaude["DEEPSEEK_API_KEY"] = testAPIKey
 	cases := []struct {
 		name  string
@@ -542,7 +538,7 @@ func TestUnitTestsCannotReachProductionEndpoint(t *testing.T) {
 // rejection so a caller can tell it apart with errors.Is.
 func TestNewPaddedModel(t *testing.T) {
 	env := validEnv()
-	env["YT2COLUMN_MODEL"] = " deepseek-flash"
+	env["YT2COLUMN_LLM"] = "deepseek/ deepseek-flash"
 	cfg := loadConfig(t, env)
 	client, err := New(cfg.LLM())
 	if !errors.Is(err, deepseek.ErrPaddedModel) {
@@ -557,9 +553,9 @@ func TestNewPaddedModel(t *testing.T) {
 // from the review provider and model, while New keeps using the generation
 // provider and model.
 func TestNewReviewUsesReviewModel(t *testing.T) {
-	t.Run("review model only", func(t *testing.T) {
+	t.Run("review model of its own", func(t *testing.T) {
 		env := validEnv()
-		env["YT2COLUMN_REVIEW_MODEL"] = " " + testModel
+		env["YT2COLUMN_REVIEW_LLM"] = "deepseek/ " + testModel
 		cfg := loadConfig(t, env)
 		client, err := NewReview(cfg.LLM())
 		if !errors.Is(err, deepseek.ErrPaddedModel) {
@@ -575,7 +571,7 @@ func TestNewReviewUsesReviewModel(t *testing.T) {
 
 	t.Run("generation model inherited", func(t *testing.T) {
 		env := validEnv()
-		env["YT2COLUMN_MODEL"] = " " + testModel
+		env["YT2COLUMN_LLM"] = "deepseek/ " + testModel
 		cfg := loadConfig(t, env)
 		client, err := NewReview(cfg.LLM())
 		if !errors.Is(err, deepseek.ErrPaddedModel) {
@@ -588,8 +584,7 @@ func TestNewReviewUsesReviewModel(t *testing.T) {
 
 	t.Run("review provider selects the adapter", func(t *testing.T) {
 		env := validEnv()
-		env["YT2COLUMN_REVIEW_PROVIDER"] = "claude"
-		env["YT2COLUMN_REVIEW_MODEL"] = testClaudeModel
+		env["YT2COLUMN_REVIEW_LLM"] = "claude/" + testClaudeModel
 		env["ANTHROPIC_API_KEY"] = testAPIKey
 		env["YT2COLUMN_CLAUDE_EFFORT"] = "high"
 		cfg := loadConfig(t, env)
