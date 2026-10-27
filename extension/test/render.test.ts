@@ -1,12 +1,22 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { catalogs } from "../src/core/i18n/catalog.ts";
+import { locales } from "../src/core/i18n/locale.ts";
+import type { Locale } from "../src/core/i18n/locale.ts";
 import { rejectionMessage } from "../src/core/messages.ts";
-import type { OutcomeSummary } from "../src/core/types.ts";
+import type { OutcomeSummary, SummaryField } from "../src/core/types.ts";
 import { renderSummary } from "../src/ui/render.ts";
-import { container, valueOf } from "./helpers/dom.ts";
+import {
+  container,
+  expectAbsent,
+  expectLocaleMessage,
+  otherLocales,
+  valueOf,
+} from "./helpers/dom.ts";
 
 const malicious = "<img src=x onerror=alert(1)>";
+const localeList = Object.keys(locales) as Locale[];
 
 const collected: Extract<OutcomeSummary, { kind: "collected" }> = {
   kind: "collected",
@@ -21,6 +31,8 @@ const collected: Extract<OutcomeSummary, { kind: "collected" }> = {
 };
 
 describe("renderSummary", () => {
+  // The English labels stay literal strings: reading them from the catalog
+  // would let a changed English label pass unnoticed.
   it("shows the title, URL, counts and preview with labels", () => {
     const root = container();
     renderSummary(root, collected, "en");
@@ -31,71 +43,111 @@ describe("renderSummary", () => {
     assert.equal(valueOf(root, "Preview"), collected.preview);
   });
 
-  it("marks the title and preview for automatic direction", () => {
-    const root = container();
-    renderSummary(root, collected, "en");
-    assert.equal(
-      root.querySelector(".summary-title")?.getAttribute("dir"),
-      "auto",
-    );
-    assert.equal(
-      root.querySelector(".summary-preview")?.getAttribute("dir"),
-      "auto",
-    );
-  });
+  for (const locale of localeList) {
+    const labels = catalogs[locale].summaryLabels;
 
-  it("marks a shortened title or preview with an ellipsis", () => {
-    const root = container();
-    renderSummary(
-      root,
-      {
-        ...collected,
-        titleTruncated: true,
-        previewTruncated: true,
-      },
-      "en",
-    );
-    assert.equal(valueOf(root, "Title"), `${collected.title}\u2026`);
-    assert.equal(valueOf(root, "Preview"), `${collected.preview}\u2026`);
-  });
+    it(`shows the values unchanged under the ${locale} labels`, () => {
+      const root = container();
+      renderSummary(root, collected, locale);
+      assert.equal(valueOf(root, labels.title), collected.title);
+      assert.equal(valueOf(root, labels.url), collected.url);
+      assert.equal(valueOf(root, labels.characters), "12");
+      assert.equal(valueOf(root, labels.lines), "2");
+      assert.equal(valueOf(root, labels.preview), collected.preview);
+      // Only the labels whose wording differs between locales can be shown
+      // absent; the absence check asserts that they differ first.
+      const shown = Object.values(labels);
+      for (const other of otherLocales(locale)) {
+        const otherLabels = catalogs[other].summaryLabels;
+        const differing = (Object.keys(labels) as SummaryField[])
+          .filter((name) => otherLabels[name] !== labels[name])
+          .map((name) => otherLabels[name]);
+        assert.ok(differing.length > 0, other);
+        expectAbsent(root, differing, shown);
+      }
+    });
 
-  it("displays markup in the title and preview as text, not elements", () => {
-    const root = container();
-    renderSummary(
-      root,
-      {
-        ...collected,
-        title: malicious,
-        preview: malicious,
-      },
-      "en",
-    );
-    assert.equal(root.querySelector("img"), null);
-    assert.ok(root.textContent?.includes(malicious));
-  });
+    it(`groups the digits of the counts in ${locale}`, () => {
+      const root = container();
+      renderSummary(
+        root,
+        { ...collected, characterCount: 12345, lineCount: 1234 },
+        locale,
+      );
+      assert.equal(valueOf(root, labels.characters), "12,345");
+      assert.equal(valueOf(root, labels.lines), "1,234");
+    });
 
-  it("shows the rejection message and its steps as a numbered list", () => {
-    const root = container();
-    renderSummary(root, { kind: "rejected", reason: "not-watch-page" }, "en");
-    const message = rejectionMessage("not-watch-page", "en");
-    assert.ok(root.textContent?.includes(message.text));
-    const items = root.querySelectorAll("ol.summary-steps > li");
-    assert.equal(items.length, message.steps.length);
-  });
+    it(`marks the title and preview for automatic direction in ${locale}`, () => {
+      const root = container();
+      renderSummary(root, collected, locale);
+      assert.equal(
+        root.querySelector(".summary-title")?.getAttribute("dir"),
+        "auto",
+      );
+      assert.equal(
+        root.querySelector(".summary-preview")?.getAttribute("dir"),
+        "auto",
+      );
+    });
 
-  it("shows no list when the rejection has no steps", () => {
-    const root = container();
-    renderSummary(root, { kind: "rejected", reason: "empty-title" }, "en");
-    assert.ok(
-      root.textContent?.includes(rejectionMessage("empty-title", "en").text),
-    );
-    assert.equal(root.querySelector("ol.summary-steps"), null);
-  });
+    it(`marks a shortened title or preview with an ellipsis in ${locale}`, () => {
+      const root = container();
+      renderSummary(
+        root,
+        { ...collected, titleTruncated: true, previewTruncated: true },
+        locale,
+      );
+      assert.equal(valueOf(root, labels.title), `${collected.title}…`);
+      assert.equal(valueOf(root, labels.preview), `${collected.preview}…`);
+    });
 
-  it("replaces the previous content on each call", () => {
-    const root = container();
-    renderSummary(root, collected, "en");
-    renderSummary(root, { kind: "rejected", reason: "empty-selection" }, "en");
-    assert.equal(root.querySelectorAll(".summary-field").length, 0);
-  });
+    it(`displays markup in the title and preview as text, not elements, in ${locale}`, () => {
+      const root = container();
+      renderSummary(
+        root,
+        { ...collected, title: malicious, preview: malicious },
+        locale,
+      );
+      assert.equal(root.querySelector("img"), null);
+      assert.ok(root.textContent?.includes(malicious));
+    });
+
+    it(`shows the ${locale} rejection message and its steps as a numbered list`, () => {
+      const root = container();
+      renderSummary(
+        root,
+        { kind: "rejected", reason: "not-watch-page" },
+        locale,
+      );
+      expectLocaleMessage(root, locale, (l) =>
+        rejectionMessage("not-watch-page", l),
+      );
+      const items = root.querySelectorAll("ol.summary-steps > li");
+      assert.equal(
+        items.length,
+        rejectionMessage("not-watch-page", locale).steps.length,
+      );
+    });
+
+    it(`shows no list when the rejection has no steps in ${locale}`, () => {
+      const root = container();
+      renderSummary(root, { kind: "rejected", reason: "empty-title" }, locale);
+      expectLocaleMessage(root, locale, (l) =>
+        rejectionMessage("empty-title", l),
+      );
+      assert.equal(root.querySelector("ol.summary-steps"), null);
+    });
+
+    it(`replaces the previous content on each call in ${locale}`, () => {
+      const root = container();
+      renderSummary(root, collected, locale);
+      renderSummary(
+        root,
+        { kind: "rejected", reason: "empty-selection" },
+        locale,
+      );
+      assert.equal(root.querySelectorAll(".summary-field").length, 0);
+    });
+  }
 });

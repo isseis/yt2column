@@ -176,13 +176,13 @@
 
 **変更するファイル:** `test/helpers/dom.ts`、`test/messages.test.ts`・`test/sendMessages.test.ts`・`test/render.test.ts`・`test/renderMetadata.test.ts`・`test/renderSend.test.ts`・`test/launch.test.ts`
 
--   [ ] `expectMessage` を `test/helpers/dom.ts` へ移し（1.3）、`test/launch.test.ts`・`test/renderSend.test.ts` の 2 つの定義を除く。
--   [ ] `messages.test.ts::rejectionMessage` と `sendMessages.test.ts::blockMessage`・`::serverRejectMessage`・`::sendOutcomeMessage` のテストを、`locales` の各言語について繰り返す形にする。言語によらない語（`Slack`・`4 MiB`・`yt2column-nmhost install`・`yt2column-server`）の検査はそのまま両方の言語に当て、言語によって字句が異なる性質（結果不明の案内の語の並び、オプションページ・トークン・ポートの禁止する語）は、テストの中の言語ごとの表で確かめる（設計書 3.9、AC-09）。
--   [ ] 同じ `describe` に、各振り分けの関数がすべての理由と結果について、`catalogs[locale]` の対応する節の文言を返すことを、両方の言語で確かめるテストを加える。`blockMessage` の `body-too-large` は `preflight` の節、収集の拒否の理由は `rejection` の節と比べる。`messages.test.ts::expandPromptMessage` を加え、`catalogs[locale].expandPrompt` を返すことを確かめる（AC-05）。
--   [ ] `render.test.ts::renderSummary`・`renderMetadata.test.ts::renderMetadata`・`renderSend.test.ts::renderSendOutcome`・`::renderBlockReason`・`launch.test.ts::popup send` のテストを両方の言語で実行し、表示された文言と欄の名前・送信ボタンの名前・送信中の案内が `catalogs[locale]` のものと一致することを確かめる。値の検査は `catalogs[locale]` の欄の名前で値を探す（1.4）。もう一方の言語の文言を表示しないことの確認は、`en` と `ja` で字句が異なる項目に限る。その項目の字句が実際に異なることを先に確かめてから、もう一方の言語の文言が表示されないことを確かめる（設計書 3.9、AC-03・AC-05）。値をそのまま表示するテストと、マークアップを文字列として表示するテストも両方の言語で実行する（AC-08・AC-24）。
--   [ ] `render.test.ts::renderSummary` に、文字数が 4 桁以上の要約を両方の言語で描画し、桁区切りが入ることを確かめるテストを加える（AC-13）。
--   [ ] `launch.test.ts::logs by locale` に、同じ fake の依存で言語だけを `en` と `ja` に変えて `runPopupLaunch`・`runPopupSend`（送信まで）を実行し、記録したログ（ラベルと値）が一致することを確かめるテストを加える（AC-12）。
--   [ ] 壊して確かめる（各テストの経路に 1 つずつ）:
+-   [x] `expectMessage` を `test/helpers/dom.ts` へ移し（1.3）、`test/launch.test.ts`・`test/renderSend.test.ts` の 2 つの定義を除く。
+-   [x] `messages.test.ts::rejectionMessage` と `sendMessages.test.ts::blockMessage`・`::serverRejectMessage`・`::sendOutcomeMessage` のテストを、`locales` の各言語について繰り返す形にする。言語によらない語（`Slack`・`4 MiB`・`yt2column-nmhost install`・`yt2column-server`）の検査はそのまま両方の言語に当て、言語によって字句が異なる性質（結果不明の案内の語の並び、オプションページ・トークン・ポートの禁止する語）は、テストの中の言語ごとの表で確かめる（設計書 3.9、AC-09）。
+-   [x] 同じ `describe` に、各振り分けの関数がすべての理由と結果について、`catalogs[locale]` の対応する節の文言を返すことを、両方の言語で確かめるテストを加える。`blockMessage` の `body-too-large` は `preflight` の節、収集の拒否の理由は `rejection` の節と比べる。`messages.test.ts::expandPromptMessage` を加え、`catalogs[locale].expandPrompt` を返すことを確かめる（AC-05）。
+-   [x] `render.test.ts::renderSummary`・`renderMetadata.test.ts::renderMetadata`・`renderSend.test.ts::renderSendOutcome`・`::renderBlockReason`・`launch.test.ts::popup send` のテストを両方の言語で実行し、表示された文言と欄の名前・送信ボタンの名前・送信中の案内が `catalogs[locale]` のものと一致することを確かめる。値の検査は `catalogs[locale]` の欄の名前で値を探す（1.4）。もう一方の言語の文言を表示しないことの確認は、`en` と `ja` で字句が異なる項目に限る。その項目の字句が実際に異なることを先に確かめてから、もう一方の言語の文言が表示されないことを確かめる（設計書 3.9、AC-03・AC-05）。値をそのまま表示するテストと、マークアップを文字列として表示するテストも両方の言語で実行する（AC-08・AC-24）。
+-   [x] `render.test.ts::renderSummary` に、文字数が 4 桁以上の要約を両方の言語で描画し、桁区切りが入ることを確かめるテストを加える（AC-13）。
+-   [x] `launch.test.ts::logs by locale` に、同じ fake の依存で言語だけを `en` と `ja` に変えて `runPopupLaunch`・`runPopupSend`（送信まで）を実行し、記録したログ（ラベルと値）が一致することを確かめるテストを加える（AC-12）。
+-   [x] 壊して確かめる（各テストの経路に 1 つずつ）:
     -   振り分け: `blockMessage` の `body-too-large` に `preflight` 以外の節の文言を返させる。`serverRejectMessage` が言語を無視して `catalogs.en` から取る。`notSentMessage` の 2 つの原因のキーを入れ替える。
     -   表示: `renderSummary`・`renderMetadata`・`renderSendOutcome` が文言と欄の名前を常に `catalogs.en` から取る。`runPopupSend` が `sendButton`・`sending` を常に `catalogs.en` から取る。`renderSummary` の数を `String` に戻す。`ja` で値を書き換えて表示する（AC-08）。`ja` の表示で `textContent` の代わりに HTML として解釈する経路を作る（lint を一時的に外して確かめ、元に戻す。AC-24）。
     -   性質とログ: `ja.ts` の結果不明の 1 つの文言から「確かめて」を除く。`runPopupSend` のログに `deps.locale` を加える。
