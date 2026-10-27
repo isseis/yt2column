@@ -2,6 +2,7 @@
 name: アクセシビリティの改善
 about: 後回しにしたアクセシビリティの基準を記録する（CLAUDE.md「Accessibility」）
 title: "拡張: <画面の名前> のアクセシビリティの改善"
+labels: accessibility
 ---
 
 ## 概要

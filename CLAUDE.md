@@ -324,8 +324,9 @@ Exception: a prototype, or a minimal UI built only to verify a function,
 may defer these criteria. When it does, before its PR is merged:
 
 1. File an accessibility issue that names the unmet criteria and the
-   screen, from the template `.github/ISSUE_TEMPLATE/accessibility.md`, and
-   link it to the issue under development (as a sub-issue where possible,
+   screen, from the template `.github/ISSUE_TEMPLATE/accessibility.md`,
+   with the `accessibility` label, and link it to the issue under
+   development (as a sub-issue where possible,
    otherwise by reference in both bodies).
 2. List the deferred criteria and the issue in the requirements
    document's out-of-scope section, and in the PR description.
