@@ -109,29 +109,22 @@ flowchart TD
 
     RVAR[("YT2COLUMN_REVIEW_LLM")]
     RSET{"設定されているか"}
-    NEEDG{"生成の段階も<br>必要な実行か"}
     RPARSE["値の解析<br>parseLLM"]
-    GDONE[("図 1 で決めた生成の組")]
-    GFLOW["図 1 をたどって<br>生成の組を決める"]
+    GSEL[("図 1 で決めた生成の組")]
     ROK[("検証・推敲の組")]
     RERR["YT2COLUMN_REVIEW_LLM を名指しする<br>設定のエラー"]
-    GERR2["YT2COLUMN_LLM を名指しする<br>設定のエラー"]
 
     RVAR --> RSET
     RSET -->|"設定されている（空を含む）"| RPARSE
-    RSET -->|"未設定"| NEEDG
+    RSET -->|"未設定"| GSEL
     RPARSE -->|"受理"| ROK
     RPARSE -->|"拒否"| RERR
-    NEEDG -->|"はい"| GDONE
-    NEEDG -->|"いいえ（--after shorten など）"| GFLOW
-    GDONE -->|"そのまま使う"| ROK
-    GFLOW -->|"受理"| ROK
-    GFLOW -->|"拒否"| GERR2
+    GSEL -->|"そのまま使う"| ROK
 
-    class RVAR,GDONE,ROK data
-    class RSET,NEEDG process
-    class RPARSE,GFLOW enhanced
-    class RERR,GERR2 problem
+    class RVAR,GSEL,ROK data
+    class RSET process
+    class RPARSE enhanced
+    class RERR problem
 
     subgraph Legend2["Legend"]
         M1[("変数・値")]
@@ -145,7 +138,7 @@ flowchart TD
     class M4 problem
 ```
 
-図 2 で `YT2COLUMN_REVIEW_LLM` が未設定のとき、検証・推敲の段階は生成の組を受け継ぐ。生成の段階も必要な実行では、図 1 で決めた組をそのまま使う。生成の組が拒否されていれば、その拒否は図 1 で 1 件報告するだけで、図 2 では重ねて報告しない。生成の段階が必要でない実行（`--after shorten` など）では、ここで図 1 と同じ規則で `YT2COLUMN_LLM` を読み、組を決める（3.3）。
+`YT2COLUMN_REVIEW_LLM` が未設定なら、検証・推敲の段階は、図 1 で決めた生成の組をいつもそのまま使う。図 1 は、生成の段階が必要な実行だけでなく、検証・推敲の段階が生成の組を受け継ぐ実行（`--after shorten` など、生成の段階が必要でない実行を含む）でも、1 回だけたどる。そのため、受け継ぐときは、どの実行でも `YT2COLUMN_LLM`（未設定なら既定値）を検査する。生成の組が拒否されていれば、その拒否は図 1 で 1 件だけ報告する。図 2 では重ねて報告しない。`YT2COLUMN_REVIEW_LLM` が設定されていれば、図 1 はたどらない（生成の段階も必要な実行を除く。AC-10）。
 
 ### 1.4. 既存の方針の例外
 
@@ -367,17 +360,21 @@ type LLMConfig struct {
 
 `loadLLM` は、必要な段階の組を次のとおりに決める。
 
-| `Need` | `YT2COLUMN_REVIEW_LLM` | 生成の組 | 検証・推敲の組 | `YT2COLUMN_LLM` を読むか |
+-   **生成の組を決めるとき:** `Need.Generation` が真のとき、または `Need.Review` が真で `YT2COLUMN_REVIEW_LLM` が未設定のとき（検証・推敲の段階が受け継ぐとき）。どちらに当たっても、1 回の読み込みで 1 回だけ決める（1.3 の図 1）。
+-   **検証・推敲の組:** `Need.Review` が真のとき、`YT2COLUMN_REVIEW_LLM` が設定されていればその値を解析し、未設定なら生成の組をそのまま使う（1.3 の図 2）。
+
+| `Need` | `YT2COLUMN_REVIEW_LLM` | 生成の組を決めるか | 検証・推敲の組 | `YT2COLUMN_LLM` を読むか |
 |---|---|---|---|---|
-| `Generation`・`Review` が真 | 設定されている | `YT2COLUMN_LLM`（未設定なら既定値）を解析 | `YT2COLUMN_REVIEW_LLM` を解析 | 読む |
-| `Generation`・`Review` が真 | 未設定 | 同上 | 生成の組を写す | 読む |
-| `Generation` だけが真 | 読まない | 同上 | 決めない | 読む |
+| `Generation`・`Review` が真 | 設定されている | 決める | `YT2COLUMN_REVIEW_LLM` を解析 | 読む |
+| `Generation`・`Review` が真 | 未設定 | 決める | 生成の組 | 読む |
+| `Generation` だけが真 | 読まない | 決める | 決めない | 読む |
 | `Review` だけが真 | 設定されている | 決めない | `YT2COLUMN_REVIEW_LLM` を解析 | 読まない（AC-10） |
-| `Review` だけが真 | 未設定 | 決めない | `YT2COLUMN_LLM`（未設定なら既定値）を解析した組 | 読む（AC-10） |
+| `Review` だけが真 | 未設定 | 決める | 生成の組 | 読む（AC-10） |
 | どちらも偽（`Need{}`） | 読まない | 決めない | 決めない | 読まない（AC-11） |
 
--   生成の組を決める処理（`YT2COLUMN_LLM` を読み、未設定なら既定値にして `parseLLM` に通す）は、1 つの関数にまとめる。上の表の 1〜3 行目と 5 行目は、どれもこの関数を呼ぶ。5 行目で `YT2COLUMN_LLM` が拒否された場合のエラーは `YT2COLUMN_LLM` を名指しする（AC-10）。
--   2 行目で生成の組を写すとき、生成の組が拒否された場合も写す。拒否は生成の段階で 1 回だけ報告する。生成のプロバイダが決まらない場合は、写した検証・推敲のプロバイダも決まらないので、プロバイダ固有の変数を検査しない。`claude/` のようにプロバイダだけが決まる場合は、写した組もそのプロバイダを持つので、その変数を検査する（AC-19）。
+-   生成の組を決める処理（`YT2COLUMN_LLM` を読み、未設定なら既定値にして `parseLLM` に通す）は、1 つの関数にまとめる。拒否のエラーは `YT2COLUMN_LLM` を名指しし、1 回だけ報告する（AC-10）。
+-   生成の組を `LLMConfig` の生成のアクセサに入れるのは、`Need.Generation` が真のときだけである（1.2・3.1）。表の 5 行目で決めた生成の組は、検証・推敲の組としてだけ使う。
+-   検証・推敲の段階が生成の組を使うときは、生成の組が拒否されていても使う。生成のプロバイダが決まらない場合は、検証・推敲のプロバイダも決まらないので、プロバイダ固有の変数を検査しない。`claude/` のようにプロバイダだけが決まる場合は、そのプロバイダの変数を検査する（AC-19）。
 -   `YT2COLUMN_REVIEW_LLM` が空の値なら、`parseLLM` が `ErrMissing` で拒否する。生成の組は受け継がない（AC-09）。
 
 ### 3.4. 旧変数の検査
@@ -591,31 +588,27 @@ flowchart TD
 
     START(["loadLLM(lookup, need)"])
     RET["旧変数 4 つの検査<br>Need によらない"]
-    NG{"need.Generation"}
+    NGP{"生成の組が要るか<br>need.Generation、または need.Review で<br>YT2COLUMN_REVIEW_LLM が未設定"}
     GEN["生成の組を決める<br>YT2COLUMN_LLM か既定値"]
     NR{"need.Review"}
     RSET{"YT2COLUMN_REVIEW_LLM<br>が設定されているか"}
     RPARSE["YT2COLUMN_REVIEW_LLM<br>を解析する"]
-    RG{"need.Generation"}
-    RCOPY["生成の組を写す"]
-    RGEN["生成の組を決めて<br>検証・推敲の組にする"]
+    RUSE["生成の組を<br>検証・推敲の組にする"]
     PV["プロバイダ固有の変数の検査<br>loadProviderVars"]
     OUT[("LLMConfig と拒否の列")]
 
-    START --> RET --> NG
-    NG -->|"真"| GEN --> NR
-    NG -->|"偽"| NR
+    START --> RET --> NGP
+    NGP -->|"要る"| GEN --> NR
+    NGP -->|"要らない"| NR
     NR -->|"偽"| PV
     NR -->|"真"| RSET
     RSET -->|"設定されている"| RPARSE --> PV
-    RSET -->|"未設定"| RG
-    RG -->|"真"| RCOPY --> PV
-    RG -->|"偽"| RGEN --> PV
+    RSET -->|"未設定"| RUSE --> PV
     PV --> OUT
 
     class OUT data
-    class NG,NR,RSET,RG,PV process
-    class RET,GEN,RPARSE,RCOPY,RGEN enhanced
+    class NGP,NR,RSET,PV process
+    class RET,GEN,RPARSE,RUSE enhanced
 
     subgraph Legend["Legend"]
         L1[("結果")]
