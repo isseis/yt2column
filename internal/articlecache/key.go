@@ -91,6 +91,8 @@ func ParseKey(s string) (Key, error) {
 		}
 	}
 	var key Key
+	// The loop above leaves nothing hex.Decode rejects; the check stays so a
+	// later change to the loop cannot turn a decode error into a zero key.
 	if _, err := hex.Decode(key.sum[:], []byte(s)); err != nil {
 		return Key{}, ErrInvalidKey
 	}

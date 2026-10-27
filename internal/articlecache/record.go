@@ -180,8 +180,13 @@ func (st *Stages) stage(s writer.Stage) *StageState {
 
 // withoutRevisions returns a copy of a whose Review, if any, is a new value
 // with no revisions, so the record never holds the quoted transcript the
-// revisions carry and a's own ReviewResult is left as it was.
+// revisions carry and a's own ReviewResult is left as it was. Shorten is
+// copied too, so the stored article shares no pointer with the caller.
 func withoutRevisions(a writer.Article) writer.Article {
+	if a.Shorten != nil {
+		shorten := *a.Shorten
+		a.Shorten = &shorten
+	}
 	if a.Review != nil {
 		review := *a.Review
 		review.Revisions = nil
@@ -190,8 +195,8 @@ func withoutRevisions(a writer.Article) writer.Article {
 	return a
 }
 
-// Run is the handle a generation job reports through. It implements
-// writer.ProgressObserver. A Run acts only on the record generation it was
+// Run is the handle a generation job reports through; its stage methods are
+// the ones writer's progress observer is to call. A Run acts only on the record generation it was
 // issued for: after CompletePostable, CompleteUnpostable, or Fail, or once the
 // record was replaced, every method does nothing. A stage outside the three
 // writer stages is ignored.
@@ -280,8 +285,9 @@ func (r *Run) Fail(reason FailureReason) {
 // PublishRun is the handle a post job reports through, with the same
 // generation rule as Run: after Finish or Fail, or once the record was
 // replaced, every method but Article and From does nothing. Delivered ignores
-// every index but the first message not yet delivered, so an index outside
-// the article's messages is ignored.
+// every index but the first message not yet delivered; the cache does not know
+// the message count, so the caller reports only indexes of the article's
+// messages.
 type PublishRun struct {
 	cache      *Cache
 	key        Key

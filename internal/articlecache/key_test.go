@@ -27,7 +27,7 @@ func TestKeySameInputSameKey(t *testing.T) {
 	}
 }
 
-func TestKeyChangesWithEachValue(t *testing.T) {
+func TestKeyDistinguishesEachValue(t *testing.T) {
 	keyer := NewKeyer(testSecret)
 	base := keyer.Key(baseKeyInput())
 	cases := map[string]func(*KeyInput){
@@ -50,7 +50,7 @@ func TestKeyChangesWithEachValue(t *testing.T) {
 
 // Each pair keeps the concatenation of every value the same and moves one
 // boundary, so only the length prefix tells the inputs apart.
-func TestKeyBoundaryShift(t *testing.T) {
+func TestKeyValueBoundary(t *testing.T) {
 	keyer := NewKeyer(testSecret)
 	cases := map[string][2]KeyInput{
 		"title and channel name": {
@@ -83,7 +83,7 @@ func TestKeyUsesSecret(t *testing.T) {
 	}
 }
 
-func TestParseKeyRoundTrip(t *testing.T) {
+func TestParseKey(t *testing.T) {
 	key := NewKeyer(testSecret).Key(baseKeyInput())
 	parsed, err := ParseKey(key.String())
 	if err != nil {
@@ -92,10 +92,8 @@ func TestParseKeyRoundTrip(t *testing.T) {
 	if parsed != key {
 		t.Errorf("ParseKey(String()) = %s, want %s", parsed, key)
 	}
-}
 
-func TestParseKeyRejects(t *testing.T) {
-	valid := NewKeyer(testSecret).Key(baseKeyInput()).String()
+	valid := key.String()
 	cases := map[string]string{
 		"63 characters":   valid[:63],
 		"65 characters":   valid + "0",
