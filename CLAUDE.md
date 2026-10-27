@@ -313,9 +313,12 @@ one does not apply:
   background, in both light and dark themes (1.4.3, 1.4.11).
 - **Not by color alone:** state is also conveyed by shape and text, and
   never depends on telling red from green (1.4.1).
-- **Targets and language:** interactive targets are at least 44×44 CSS
-  pixels; the page's `lang` matches the display language (3.1.1).
-- **Motion:** animation stops under `prefers-reduced-motion`.
+- **Language:** the page's `lang` matches the display language (3.1.1).
+- **Target size:** interactive targets are at least 44×44 CSS pixels. This
+  is stricter than Level AA (24×24, 2.5.8): the project adopts the AAA
+  value (2.5.5).
+- **Motion:** animation stops under `prefers-reduced-motion`. This goes
+  beyond Level AA: the project adopts the AAA criterion (2.3.3).
 
 Exception: a prototype, or a minimal UI built only to verify a function,
 may defer these criteria. When it does, before its PR is merged:
