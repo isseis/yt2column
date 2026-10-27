@@ -34,7 +34,7 @@
 -   **状態は 1 か所で持ち、遷移はメソッドで表す。** 記録の状態と遷移、件数の上限と破棄は、新しいパッケージ `internal/articlecache` が 1 つの排他制御の下で持つ。ジョブは、記録を直接書き換えずに、ハンドルのメソッドで遷移を知らせる。HTTP も LLM も Webhook も知らないので、時計を差し替えるだけで単体テストできる（§3.3）。
 -   **記事だけを持ち、整形はその都度行う。** 記録は `writer.Article`（検証・推敲の訂正の一覧を除いたもの、§3.3.2）を持ち、表示用の Markdown・ファイルの中身・Slack のメッセージは、必要なときに `internal/publisher` の関数で作る。これらの関数は、同じ記事から常に同じ結果を返す（`internal/publisher/slack_message.go:23-25` の契約）。整形した文字列を記録に二重に持たない（要件書 4.5「DRY」）。
 -   **型で宣言し、文字列から推し量らない。** ジョブの状態、工程の状態、投稿の状態、失敗の理由、拒否の理由、ホストの操作は列挙型にし、応答の値は網羅的な `switch` で選ぶ。`default` は安全側に倒す（CLAUDE.md「Declare, don't infer」）。例外は、ホストが今の形と新しい形を見分ける 1 か所だけである（要件書 5. の例外、§3.10.2）。
--   **キーは本文で運び、パスは固定にする。** 新しい API のパスは 3 つの固定の文字列で、今の `/articles` と同じく、リクエストのターゲットを完全一致で比べる（`internal/server/handler.go:119-127`）。キーはパスにもクエリにも入れず、本文の JSON で渡す。ホストは、拡張から受け取ったキーをパスに埋め込まない（§3.1、§5.2）。
+-   **キーはパスに入れ、デコードせずに照合する。** 新しい API は `POST /jobs`・`GET /jobs/{key}`・`POST /jobs/{key}/publish` の形をとる。サーバはリクエストのターゲットをデコードする前の形で照合し、キーの部分は小文字の 16 進の 64 文字のほかは受け付けない。ホストは、拡張から受け取ったキーをエスケープしてからパスに入れる。キーが別の操作やクエリを作ることはない（§3.1、§5.2）。
 -   **判断できないものは安全側に倒す。** 列挙の零値は、投稿を起こさず、完了や投稿済みを主張しない値にする（§3.11）。分類できない失敗は内部の失敗にする。ジョブを始める前の panic でも、記録を `処理中` や `投稿中` のまま残さない（§3.4.5）。
 -   **既存の部品を再利用する。** 本文の厳格な読み取りは `internal/strictjson`、ファイルの中身は `renderFileArticle`、送る前の検査と分割は `prepareSlackMessages`、送信は `webhookClient`、料金は `articleCost` を使う（§1.4）。
 
@@ -61,7 +61,7 @@ flowchart LR
     SLACK["Slack 互換の<br>Incoming Webhook"]
 
     EXT -->|"今の形・新しい形のメッセージ"| HOST
-    HOST -->|"操作ごとの固定のパスへの POST"| SRV
+    HOST -->|"操作ごとに決めたメソッドとパス"| SRV
     SRV -->|"検査を通った入力"| GEN
     SRV -->|"キー"| PUBJOB
     SRV -->|"検査を通った入力（/articles）"| LEGACY
@@ -121,7 +121,7 @@ flowchart LR
 | 既存の部品 | 本設計での扱い |
 |---|---|
 | 受け口の部品（`internal/server/handler.go:15-127` の `handler`・`reject`・`checkHeaders`、`response.go:139-188` のリクエスト ID と応答の書き込み） | 新しいパスへの振り分けを加え、新しい API の受け口でも使う。旧 API の受け口の振る舞いは変えない（§3.1・§3.9） |
-| 本文の読み込みと検査（`internal/server/request.go:34-49` の `readRequest`、`:57-110` の `validateBody`） | 生成の開始でもそのまま使う。`readRequest` は上限を引数に取る形にし、状態の取得と投稿の操作の本文（1 KiB）にも使う。`validateBody` の結果（`jobInput`）に、キーの計算に使う検査を通った値を加える（§3.2） |
+| 本文の読み込みと検査（`internal/server/request.go:34-49` の `readRequest`、`:57-110` の `validateBody`） | 生成の開始でもそのまま使う。`validateBody` の結果（`jobInput`）に、キーの計算に使う検査を通った値を加える（§3.2） |
 | 生成の枠（`job.go:16-39`） | 旧 API と新しい API の生成のジョブが合わせて使う。値（2）は変えない（§3.4.3） |
 | 生成の失敗の分類（`job.go:138-155` の `classifyWrite`） | 新しい API の失敗の理由（`articlecache.FailureReason`）を返す形に変える。旧 API の `classify` は、その結果を `failure.Kind` に対応づける（§3.11.3） |
 | 拒否の理由（`internal/server/response.go:14-72`） | 既存の値・状態コードは変えず、新しい理由を加える（§3.11.5） |
@@ -230,7 +230,7 @@ sequenceDiagram
     participant J as 生成のジョブ
     participant W as ProgressWriter
 
-    H->>S: POST /jobs/start（入力）
+    H->>S: POST /jobs（入力）
     S->>S: 読み込みの枠を取る・本文の読み込みと検査・キーの計算
     S->>C: Begin(キー, 生成の枠を取る関数)
     C-->>S: 生成を始める（Run ハンドル）
@@ -244,7 +244,7 @@ sequenceDiagram
         J->>C: Run.CompletePostable(記事)
         J->>J: 生成の枠を返す
     end
-    H->>S: POST /jobs/status（キー）
+    H->>S: GET /jobs/{key}
     S->>C: Lookup(キー)
     C-->>S: 記録の写し
     S-->>H: 200 ok（状態・工程・記事・投稿の状態）
@@ -260,7 +260,7 @@ sequenceDiagram
     participant P as 投稿のジョブ
     participant WH as Webhook
 
-    H->>S: POST /jobs/publish（キー）
+    H->>S: POST /jobs/{key}/publish
     S->>C: BeginPublish(キー)
     C-->>S: 投稿を始める（PublishRun ハンドル、再開の位置 k）
     S->>P: 投稿のジョブを始める
@@ -282,25 +282,35 @@ sequenceDiagram
 
 #### 3.1.1. パスとメソッド
 
-新しい API は 3 つの固定のパスで受ける。メソッドはどれも `POST` である。
+新しい API は、資源の作法に合わせて、記事のキーをリクエストのターゲットのパスに入れる。
 
-| 操作 | リクエストのターゲット | 本文 | 成功の応答 |
+| 操作 | メソッドとリクエストのターゲット | 本文 | 成功の応答 |
 |---|---|---|---|
-| 生成の開始 | `/jobs/start` | 今の `/articles` と同じ入力（`videoUrl`・`transcript`・`title`・`channelName`・`description`） | `202`、`{"status":"accepted","key":"…","requestId":"…"}` |
-| 状態の取得 | `/jobs/status` | `{"key":"…"}` | `200`、`{"status":"ok","requestId":"…","webhookConfigured":…,"job":{…}}`（§3.1.3） |
-| 投稿の操作 | `/jobs/publish` | `{"key":"…"}` | `202`、`{"status":"accepted","requestId":"…"}` |
+| 生成の開始 | `POST /jobs` | 今の `/articles` と同じ入力（`videoUrl`・`transcript`・`title`・`channelName`・`description`） | `202`、`{"status":"accepted","key":"…","requestId":"…"}` |
+| 状態の取得 | `GET /jobs/{key}` | なし | `200`、`{"status":"ok","requestId":"…","webhookConfigured":…,"job":{…}}`（§3.1.3） |
+| 投稿の操作 | `POST /jobs/{key}/publish` | なし | `202`、`{"status":"accepted","requestId":"…"}` |
 
--   **パスの照合:** 受け口は、`r.RequestURI` を、`/articles` と上の 3 つの文字列のどれかと、デコードの前に完全一致で比べる（今の `handler.go:119-127` と同じ方法）。どれにも一致しなければ `not_found`、一致してメソッドが `POST` でなければ `method_not_allowed`（`Allow: POST`）で拒否する。クエリを付けたターゲットは一致しないので `not_found` になる（要件書 3.2「クエリがあれば拒否する」）。
--   **キーを本文で運ぶ理由:** キーをパスに入れると、照合が完全一致でなくなり（H-01）、ホストが拡張から受け取った任意の文字列をリクエストのターゲットに埋め込むことになる。たとえば `abc/publish` というキーは、パスに埋め込むと状態の取得を投稿の操作に変えうる。キーを本文の JSON 文字列にすれば、どの文字列も JSON の符号化だけで運べ、ターゲットは常に固定の 3 つのどれかである（§5.2 の T-02）。
--   **状態の取得のメソッドを `POST` にする理由:** 本文でキーを渡すので `GET` は使えない（`GET` の本文は意味を持たない）。サーバは UDS 上で同じ利用者のプロセスだけから受け、応答をキャッシュする中継装置（プロキシなど）も間にないので、`GET` を使う利点がない。状態の取得は `POST` でも記録を変えない（要件書 F-002）。
+-   **パスの照合:** 受け口は、`r.RequestURI` を、デコードする前の文字列のまま次の順に照合する。`net/http` の `ServeMux` のパターン（`{key}` の取り出し）は使わない。`ServeMux` はパスをデコードしてから照合するので、`%2F` を含むキーが別の形に読まれうるためである。
+    1.  ターゲットが `?` を含めば `not_found`（今の `/articles` の完全一致と同じく、クエリを付けたターゲットは受け付けない。要件書 3.2「クエリがあれば拒否する」）。
+    2.  `/articles` と `/jobs` は完全一致で比べる（今の `handler.go:119-127` と同じ方法）。
+    3.  `/jobs/` で始まるターゲットは、残りを最初の `/` で 2 つに分ける。`/` がなければ残りの全体をキーの部分とし、状態の取得とする。`/` の後がちょうど `publish` なら、その前をキーの部分とし、投稿の操作とする。それ以外の形は `not_found`。
+    4.  メソッドが形に合わなければ `method_not_allowed` で拒否する（`Allow` は状態の取得で `GET`、ほかは `POST`）。
+    5.  本文がないこと: 状態の取得と投稿の操作は本文を使わない。`Content-Length` が 0 でないリクエストと、`Transfer-Encoding` を持つリクエストは、本文を読まずに `invalid_body` で拒否する（`Connection: close`、要件書 3.2 の 3 行目、AC-44）。
+    6.  キーの部分が §3.2 の受理する形（小文字の 16 進の 64 文字）でなければ `invalid_key`。キーの部分はデコードしないので、`%` によるエスケープ・大文字・空の文字列は、どれもこの検査で拒否される。本文がないことを先に確かめるので、`invalid_key` の拒否では読み残した本文がなく、接続を閉じる必要がない。
+    -   投稿の操作では、5 と 6 を Webhook の設定の検査（§3.7.2）の後に行う。
+    -   ターゲットの全体（キーの部分を含むリクエストの行）が `http.Server` の `MaxHeaderBytes`（64 KiB、`internal/server/server.go:35`）を超えると、`net/http` がハンドラを呼ぶ前に `431` と JSON でない本文で応答する。キャッシュは変わらないが、拒否の理由は `invalid_key` にならない。ホストはキーの長さを見ない約束（AC-40a）なので、64 KiB ほどを超えるキー（拡張の誤りでしか起きない）は、拡張には想定外の応答として見える。要件書 3.2 の 2 行目は、受理しないキーを `invalid_key` 相当の理由で拒否するとするので、この長さのキーについての例外として受け入れる。
+-   **キーの注入の防止:** キーをパスに入れると、ホストが拡張から受け取った任意の文字列をリクエストのターゲットに埋め込むことになる。たとえば `abc/publish` というキーをそのまま埋めると、状態の取得が投稿の操作に変わる。これを次の 2 つで防ぐ（§5.2 の T-02）。
+    -   ホストは、キーを `url.PathEscape` で 1 つのパスの区切りとしてエスケープしてから埋め込み、エスケープした形をそのままリクエストのターゲットにする（§3.10.3）。`/`・`?`・`%`・空白・制御文字・ASCII でない文字はエスケープされるので、キーがパスの区切りやクエリを作ることはない。
+    -   サーバは、上の 3 と 6 のとおり、デコードしないまま形を照合し、小文字の 16 進の 64 文字のほかは受け付けない。エスケープが要る文字を含むキーは、そもそも受理する形ではない。
+-   **接続を閉じるかどうか:** 本文を読まずに拒否するかどうかは、理由ではなく拒否ごとに決まる（同じ `invalid_body` でも、生成の開始では本文を読んだ後の拒否で、状態の取得と投稿の操作では本文を読まない拒否である）。このため、`rejection` に「本文を読み残した」ことを表す値を持たせ、5 の拒否で真にする。`Connection: close` は、この値と今の `forceClose`（`response.go:87-101`）のどちらかが真のときに付ける。
+-   **キャッシュを変えない:** パスの照合とキーの検査と本文の拒否のどれでも、キャッシュは変わらない（AC-44）。
 -   **応答を区別しない:** 生成の開始は、生成を始めた場合も、既存のジョブまたは記事のキーを返した場合も、同じ `202` と同じ形を返す（要件書 F-001 の「区別しない」）。
 
-#### 3.1.2. 状態の取得と投稿の操作の本文
+#### 3.1.2. 状態の取得と投稿の操作の資源の扱い
 
--   本文は、上限を引数に取る形にした `readRequest` で読む（上限 1 KiB、`maxKeyBodyBytes`）。`Content-Length` が上限を超えれば本文を読まずに `body_too_large`、`Content-Length` のない本文（chunked）が上限を超えれば `body_too_large`、読み込みの失敗（接続の切断など）は今と同じく応答を書かずに接続を閉じる（`handler.go:66-77`）。
--   本文は `strictjson.ParseObject`（UTF-8・対になっていないサロゲートのエスケープ・単一の値・後続のデータの検査）を通し、`CollectOnly("key")` で宣言していないメンバと重複するメンバを拒否し、`key` を必須の文字列として読む。どれかに失敗すれば `invalid_body` で拒否する（要件書 3.2 の 3 行目）。
--   `key` の文字列が §3.2 の受理する形でなければ `invalid_key` で拒否する。どの拒否でも、キャッシュは変わらない（AC-44）。1 KiB を超える長さのキーは、キーの形の検査より先に本文の上限で `body_too_large` になる。どちらも「キーが受理されなかった」ことを表すので、#503 の拡張は両方を同じに扱えばよい。
--   この 2 つの操作は、読み込みの枠も生成の枠も使わない。本文が 1 KiB に限られ、`http.Server` の `ReadTimeout`（30 秒、`internal/server/server.go:30-36`）で読み込みの時間も限られるためである。
+-   状態の取得と投稿の操作は、本文を読まないので、読み込みの枠も生成の枠も使わない。
+-   状態の取得は `GET` で、記録を変えない（要件書 F-002）。サーバは UDS 上で同じ利用者のプロセスだけから受け、応答をキャッシュする中継装置（プロキシなど）も間にない。それでも応答には今と同じく `Cache-Control: no-store`（`response.go:174`）を付ける。
+-   投稿の操作は、同じキーへの 2 回目以降も投稿し直さない（冪等、§3.7.2）。メソッドは記録を変えうるので `POST` にする。
 
 #### 3.1.3. 状態の取得の応答の形
 
@@ -814,7 +824,7 @@ type WebhookPublisher interface {
 
 #### 3.7.2. 投稿の操作と投稿のジョブ
 
--   **検査の順序:** パスとメソッド → `SLACK_WEBHOOK_URL` が設定されているか（未設定なら本文を読まずに `webhook_not_configured`、`Connection: close`。AC-34） → 本文の読み込みと検査（§3.1.2） → `Cache.BeginPublish`。
+-   **検査の順序:** パスとメソッド（§3.1.1 の 1〜4） → `SLACK_WEBHOOK_URL` が設定されているか（未設定なら `webhook_not_configured`、`Connection: close`。キーの状態にかかわらず拒否する。AC-34） → 本文がないこと（§3.1.1 の 5） → キーの部分の形（§3.1.1 の 6） → `Cache.BeginPublish`。
 -   **結果ごとの応答:**
 
 | `BeginPublish` の結果 | 応答 | Webhook |
@@ -894,7 +904,7 @@ type WebhookOptions struct {
     -   変わる性質: サーバが本文を読まずに拒否する場合も、ホストは標準入力の本文を読み終えている。拡張から見た応答は変わらない。標準入力が止まった場合は、今は打ち切れなかった（`relay.go:23-27` の注釈）が、時間の上限で `server_timeout` を返すようになる。止まった読み込みのゴルーチンは、応答を書いてホストが終了するときにプロセスとともに終わる。
     -   更新する既存のテスト（`internal/nmhost/relay_test.go`）: `TestRelayServerRejectsWithoutBody`（`:309-324`、本文が読まれないこと `bodyRead()==0` を確かめている。読み終えることに変える）、`TestRelayHostErrors` の本文が宣言より短い場合（接続はするが、リクエストを送らないことを期待値に加える）。接続できない 4 つの場合（`unread: true`、`:396-441`）と `dials == 1` の確認（`:512`）は、接続を先にするので変わらない。
 -   **メモリ:** メッセージの読み込みの領域、`ParseObject` が持つ値の写し（`internal/strictjson/strictjson.go:340-344` の `json.RawMessage`）、`Value.Raw` の写しを合わせて、1 回の中継で最大 100 MiB ほどを一時的に持つ。ホストは 1 回の起動で 1 つのメッセージしか扱わない短い寿命のプロセスで、生成の開始の入力はサーバの上限で 4 MiB までなので、実際の量はずっと小さい。
--   **今の形の送り方:** 今の形は、読んだバイト列を変えずに `POST /articles` の本文として送る。新しい形も、同じヘッダ（`Content-Length`・`Content-Type: application/json`・`Expect: 100-continue`）で送る。サーバが本文を読まずに拒否する場合（4 MiB を超える `Content-Length`、読み込みの枠の不足、Webhook の未設定）、本文を送る前に拒否の応答を受け取るので、ホストは書き込みの失敗ではなくサーバの拒否の応答を中継する（AC-39）。
+-   **今の形の送り方:** 今の形は、読んだバイト列を変えずに `POST /articles` の本文として送る。新しい形の生成の開始も、同じヘッダ（`Content-Length`・`Content-Type: application/json`・`Expect: 100-continue`）で送る。状態の取得と投稿の操作は本文を持たないので、`Content-Type` と `Expect` を付けない。サーバが本文を読まずに拒否する場合（4 MiB を超える `Content-Length`、読み込みの枠の不足、Webhook の未設定）、本文を送る前に拒否の応答を受け取るので、ホストは書き込みの失敗ではなくサーバの拒否の応答を中継する（AC-39）。
 
 #### 3.10.2. 形の判定（CLAUDE.md「Declare, don't infer」の例外）
 
@@ -982,16 +992,16 @@ type Operation int
 
 const (
 	OperationUnknown Operation = iota
-	OperationStart             // "start":   POST /jobs/start
-	OperationStatus            // "status":  POST /jobs/status
-	OperationPublish           // "publish": POST /jobs/publish
+	OperationStart             // "start":   POST /jobs
+	OperationStatus            // "status":  GET /jobs/{key}
+	OperationPublish           // "publish": POST /jobs/{key}/publish
 )
 ```
 
--   送り先のパスは、`Operation` ごとの固定の文字列を網羅的な `switch` で選び、`OperationUnknown` と範囲外の値は送らない。拡張がパスやメソッドを指定する手段はない（AC-38）。
+-   送り先のメソッドとパスの形は、`Operation` ごとに網羅的な `switch` で選び、`OperationUnknown` と範囲外の値は送らない。拡張がパスやメソッドを指定する手段はない（AC-38）。
 -   **サーバへ送る本文:**
     -   `start`: `input` の値の元のバイト列を、そのまま本文にする。ホストは中身を検査せず、サーバの境界（`validateBody`）に任せる（要件書 F-008）。元のバイト列を得るために、`strictjson.Value` に `Raw() []byte`（値の元のバイト列の写しを返す）を加える。`ParseObject` は値を `json.RawMessage` として元のバイト列のまま持つ（`strictjson.go:340-344`）ので、組み立て直しによる変化（メンバの並び、重複、エスケープ）は起きない。
-    -   `status`・`publish`: `{"key":<key の値の元のバイト列>}` を本文にする。キーの文字列を JSON の文字列として変えずに運ぶので、サーバは拡張が送った文字列そのものを `ParseKey` で検査する（AC-40a）。ホストはキーの長さや文字の種類を見ない。
+    -   `status`・`publish`: 本文を送らない（`GET` と、`Content-Length: 0` の `POST`）。キーの文字列は、`url.PathEscape` でエスケープしてパスの `{key}` の位置に入れ、エスケープした形をそのままリクエストのターゲットにする（HTTP のクライアントがパスを正規化したりエスケープし直したりしないことを、テストで確かめる）。ホストはキーの長さや文字の種類を見ない。エスケープは運ぶための符号化で、デコードすれば拡張が送った文字列に戻る。受理する形のキー（小文字の 16 進）はエスケープされないので、サーバは拡張が送った文字列そのものを照合する。エスケープが要る文字列は受理する形ではないので、サーバは `invalid_key` で拒否する（AC-40a）。
 -   **ホストの応答の形（H-08）:** 新しい形のメッセージへの応答も、今と同じ `{"v":1,"kind":"response","status":…,"body":"…"}` と `{"v":1,"kind":"error","error":"…"}` である（`relay.go:84-110`）。サーバの応答の本文を base64 で包むので、ホストはサーバの応答の形を知らずに済む。
 
 #### 3.10.4. 応答の大きさ（H-09）
@@ -1097,7 +1107,7 @@ const (
 -   既存の理由（`response.go:19-31`）の値と状態コードは変えない。新しい API は、そのうち `not_found`・`method_not_allowed`・`too_many_requests`・`body_too_large`・`invalid_body`・`invalid_video_url`・`invalid_transcript`・`internal_error` を、今と同じ意味で使う。
 -   **キーの形の拒否を新しい理由にする理由（H-07）:** `invalid_body` は本文が JSON として読めないことを表す。キーの形の誤りは、拡張がキーを保存し損ねた（または古い版のキーを持っている）ことを表し、拡張の表示も違う。
 -   **状態コードの理由:** `article_not_ready` と `article_not_postable` は、記録の今の状態と操作が合わないので 409 にする。`article_not_found` は記録がない（または記事を持たない）ので 404 にする。`not_found`（パスの誤り）と同じ 404 だが、`reason` で区別できる。`webhook_not_configured` は、サーバの設定のために操作を行えないので 503 にする。
--   `rejectReason` の零値は今と同じ `reasonInternal`（500）である。`forceClose`（`response.go:87-101`）は、本文を読まずに拒否する新しい場合（`webhook_not_configured`）で真にする。
+-   `rejectReason` の零値は今と同じ `reasonInternal`（500）である。`forceClose`（`response.go:87-101`）は、本文を読まずに拒否する新しい理由 `webhook_not_configured` で真にする。`invalid_body` は、拒否ごとの「本文を読み残した」値で接続を閉じる（§3.1.1）。
 
 ### 3.12. ログ（要件書 4.2、H-10）
 
@@ -1176,7 +1186,7 @@ const (
 
 | 項目 | 本設計の対応 |
 |---|---|
-| H-01 パス・メソッド・形 | 3 つの固定のパス、すべて `POST`、キーは本文で運ぶ。照合は今と同じ完全一致（§3.1） |
+| H-01 パス・メソッド・形 | `POST /jobs`・`GET /jobs/{key}`・`POST /jobs/{key}/publish`。キーはパスに入れ、デコードする前の `RequestURI` を照合する（`/articles` と `/jobs` は完全一致、`/jobs/` の後はキーの部分と `/publish`）（§3.1） |
 | H-02 キーの符号化とハッシュ | 領域の文字列と長さを前に置く符号化、SHA-256、小文字の 16 進の 64 文字（§3.2） |
 | H-03 工程の進み具合 | `writer.ProgressWriter`・`ProgressObserver`・`NewProgressWriter`（§3.5、1.3 の決定） |
 | H-04 同時実行の上限 | 生成の枠は 2 のまま新旧で合算、読み込みの枠は 2、投稿のジョブは数えない（§3.4・§3.7、1.3 の決定） |
@@ -1197,13 +1207,13 @@ const (
 | `internal/articlecache/key.go` | 新規 | `KeyInput`・`Key`・`NewKey`・`ParseKey`・`ErrInvalidKey` |
 | `internal/articlecache/cache.go` | 新規 | `Cache`・`Options`・`New`・`Begin`・`Lookup`・`BeginPublish`・`Eviction`、件数の上限と破棄 |
 | `internal/articlecache/record.go` | 新規 | 状態の列挙、`Stages`・`Snapshot`、`Run`・`PublishRun` の遷移と世代 |
-| `internal/server/handler.go` | 変更 | 4 つのパスへの振り分け、旧 API の Webhook 未設定の拒否 |
+| `internal/server/handler.go` | 変更 | デコードする前のターゲットによる振り分け（`/articles`・`/jobs`・`/jobs/{key}`・`/jobs/{key}/publish`）、旧 API の Webhook 未設定の拒否 |
 | `internal/server/jobs_api.go` | 新規 | 生成の開始・状態の取得・投稿の操作の受け口、読み込みの枠、ハンドルと枠の後始末（§3.4.5） |
 | `internal/server/generation.go` | 新規 | 生成のジョブ、完了の時点の検査、`genCtx` |
 | `internal/server/publish.go` | 新規 | 投稿のジョブ、`WebhookPublisher` |
 | `internal/server/status.go` | 新規 | 状態の取得の応答の組み立て、コードの選択、応答の大きさの上限 |
-| `internal/server/request.go` | 変更 | `readRequest` の上限の引数、`jobInput` に検査を通った値（キーの入力）を加える |
-| `internal/server/response.go` | 変更 | 新しい拒否の理由、`forceClose`、`too_many_requests` の `detail` |
+| `internal/server/request.go` | 変更 | `jobInput` に検査を通った値（キーの入力）を加える |
+| `internal/server/response.go` | 変更 | 新しい拒否の理由、`forceClose`、`rejection` の「本文を読み残した」値、`too_many_requests` の `detail` |
 | `internal/server/server.go` | 変更 | `Options`・`WebhookOptions`、`Cache` と読み込みの枠の保持、シャットダウンの取り消しとログ |
 | `internal/server/job.go` | 変更 | `classifyWrite` の戻り値、旧 API の `failure.Kind` への対応づけ |
 | `internal/server/test_helpers.go` | 変更 | キャッシュの上限と時計を渡す組み立て、`APICodesForTest`、fake の `WriteWithProgress` |
@@ -1293,7 +1303,7 @@ flowchart LR
 
     YT -->|"コピーした字幕（untrusted）"| EXT
     EXT -->|"メッセージ"| HOST
-    HOST -->|"固定のパスへの POST"| SRV
+    HOST -->|"操作ごとのメソッドとパス"| SRV
     OTHER -->|"UDS への任意のリクエスト"| SRV
     SRV -->|"プロンプト"| LLM
     LLM -->|"記事（untrusted）"| SRV
@@ -1328,9 +1338,9 @@ flowchart LR
 | ID | 脅威 | 対策 |
 |---|---|---|
 | T-01 | 同じ入力の再送や応答の取りこぼしで、記事が 2 回生成・投稿される | キーによる重複の排除（§3.3）、投稿の操作の冪等性（`PublishBeginAlready`）、届いたメッセージの記録による再開（§3.7.2）。残るリスクは §5.4 |
-| T-02 | 拡張から受け取ったキーで、ホストが別の操作やパスへ送ってしまう（パスの注入） | キーをパスに入れず、本文の JSON 文字列で運ぶ。送り先は `Operation` ごとの固定の文字列（§3.1.1・§3.10.3） |
+| T-02 | 拡張から受け取ったキーで、ホストが別の操作やパスへ送ってしまう（パスの注入） | ホストはキーを `url.PathEscape` でエスケープしてからパスに入れ、送り先の形は `Operation` で選ぶ。サーバはデコードする前のターゲットを照合し、キーの部分は小文字の 16 進の 64 文字だけを受け付ける（§3.1.1・§3.10.3） |
 | T-03 | 今の形と新しい形の取り違えで、新しい形のつもりのメッセージが `/articles` で記事を生成・投稿する | `v` を持つメッセージは新しい形として厳格に検査し、今の形に戻さない（§3.10.2）。読めないメッセージは今の形として送るが、サーバが `invalid_body` で拒否する。新しい形の生成の開始の入力は `input` の下にあるので、`v` を落としたメッセージも `/articles` の本文として受理されない（`videoUrl` と `transcript` が最上位にない） |
-| T-04 | 大きな本文や多数のリクエストで、メモリや LLM の呼び出しが際限なく増える | 読み込みの枠（2）、生成の枠（2）、キャッシュの件数の上限（100）、状態の取得の応答の上限（256 KiB）、キーの本文の上限（1 KiB）（§3.3.4・§3.4・§3.6.3） |
+| T-04 | 大きな本文や多数のリクエストで、メモリや LLM の呼び出しが際限なく増える | 読み込みの枠（2）、生成の枠（2）、キャッシュの件数の上限（100）、状態の取得の応答の上限（256 KiB）（§3.3.4・§3.4・§3.6.3） |
 | T-05 | 応答やログに、字幕・URL・秘密・エラーの文言が漏れる | 応答はコード・識別子・数値と完了した記事だけ（§3.1.3）、ログは固定の属性と `redact.Writer`（§3.12）、受理しないキーは出さない |
 | T-06 | プロンプトインジェクションで操作された記事が、利用者の画面や Webhook に届く | 完了の時点の検査（公開できるか、送る前の検査）を今の投稿と同じにする（§3.6.3）。表示の安全性は #503・#504 |
 | T-07 | 同じ利用者のほかのプロセスが、キーを知って投稿を求める | 信頼の境界は今と同じ（そのプロセスは今も `/articles` で投稿を求められる、要件書 4.2）。UDS の権限（`0700`・`0600`）は変えない |
@@ -1342,9 +1352,9 @@ flowchart LR
 | 境界 | 受理する形 | 上限 | 拒否 | 設計の箇所 |
 |---|---|---|---|---|
 | 生成の開始の本文 | 今の `/articles` と同じ（`validateBody`） | 4 MiB | 今と同じ理由。キャッシュに何も加えない | §3.4.1 |
-| 状態の取得と投稿の操作の本文 | `ParseObject` に通る 1 つのオブジェクトで、メンバは `key` だけ（重複・宣言していないメンバを拒否）。`key` は文字列 | 1 KiB | `body_too_large`・`invalid_body` | §3.1.2 |
-| キー | 小文字の 16 進の 64 文字だけ。補正しない | 64 文字 | `invalid_key`。キャッシュを変えない | §3.2 |
-| リクエストのターゲット | 4 つの固定の文字列との完全一致。クエリを含むものは一致しない | `http.Server` の `MaxHeaderBytes`（64 KiB） | `not_found`・`method_not_allowed` | §3.1.1 |
+| 状態の取得と投稿の操作の本文 | なし（`Content-Length` が 0 でないもの、`Transfer-Encoding` を持つものを拒否） | 0 | `invalid_body` | §3.1.1 |
+| キー（パスの部分） | デコードする前の文字列が小文字の 16 進の 64 文字だけ。補正しない | 64 文字 | `invalid_key`。キャッシュを変えない | §3.1.1・§3.2 |
+| リクエストのターゲット | `/articles`・`/jobs` との完全一致と、`/jobs/{key}`・`/jobs/{key}/publish` の形。`?` を含むものは受け付けない | `http.Server` の `MaxHeaderBytes`（64 KiB） | `not_found`・`method_not_allowed`。上限を超えるものは `net/http` の `431`（JSON でない、§3.1.1） | §3.1.1 |
 | ホストの新しい形のメッセージ | `ParseObject` に通り、`v`・`op`・`input`・`key` だけを持ち（重複・宣言していないメンバを拒否）、`v` は 1、`op` は 3 つのどれか、操作に要るメンバだけがある | 32 MiB | 送らずに `protocol_error` | §3.10.3 |
 | ホストの今の形のメッセージ | `v` を持たないオブジェクトと、オブジェクトとして読めないもの。中身は解析しない | 32 MiB | サーバの検査が境界 | §3.10.2 |
 | LLM が生成した記事 | `writer` の今の検査、`CheckPublishable`、応答の大きさ、送る前の検査 | 状態の取得の応答で 256 KiB | 生成の失敗または `投稿できない` | §3.6.3 |
@@ -1375,7 +1385,7 @@ flowchart TD
     classDef process fill:#fff1e6,stroke:#ff7f0e,stroke-width:1px,color:#8a3e00;
     classDef enhanced fill:#e8f5e8,stroke:#2e8b57,stroke-width:2px,color:#006400;
 
-    REQ(["POST /jobs/start"])
+    REQ(["POST /jobs"])
     READSLOT{"読み込みの枠を<br>待たずに取れる"}
     READ["本文の読み込みと検査<br>（readRequest・validateBody）"]
     REL["読み込みの枠を返す"]
@@ -1465,7 +1475,7 @@ sequenceDiagram
     alt 今の形
         H->>S: POST /articles（バイト列を変えずに）
     else 新しい形
-        H->>S: POST /jobs/start・status・publish（固定のパス）
+        H->>S: POST /jobs・GET /jobs/{key}・POST /jobs/{key}/publish
     end
     S->>H: 状態コードと本文（512 KiB 以下）
     H->>B: {"v":1,"kind":"response",…}
@@ -1483,7 +1493,7 @@ sequenceDiagram
 
 ### 7.1. ユニットテスト（H-13）
 
--   **`internal/articlecache`:** 時計を差し替え、上限を小さくした `Cache` で、遷移の表（§3.3.1）の各矢印、`Begin` の 5 つの結果、破棄の順序と対象（`投稿中` と `処理中` を捨てない）、`BeginPublish` の 5 つの結果、`Delivered` と `From` の関係、ハンドルの不変条件（同じキーで 2 つ目の有効な `Run`・`PublishRun` が作られない）、ハンドルの世代（破棄と作り直しの後の古いハンドルが何もしない）、範囲外の入力で panic しないこと、`Failed` から `Running` に戻るときに工程の状態が戻ること、記録の記事が訂正の一覧を持たないことを確かめる。並行の `Begin` を `-race` で走らせ、`acquire` が 1 回だけ呼ばれることを確かめる。キーは、AC-03〜AC-05 の入力の組と、`ParseKey` の拒否の表（短すぎる、長すぎる、大文字、空白、16 進でない文字）で確かめる。
+-   **`internal/articlecache`:** 時計を差し替え、上限を小さくした `Cache` で、遷移の表（§3.3.1）の各矢印、`Begin` の 5 つの結果、破棄の順序と対象（`投稿中` と `処理中` を捨てない）、`BeginPublish` の 5 つの結果、`Delivered` と `From` の関係、ハンドルの不変条件（同じキーで 2 つ目の有効な `Run`・`PublishRun` が作られない）、ハンドルの世代（破棄と作り直しの後の古いハンドルが何もしない）、範囲外の入力で panic しないこと、`Failed` から `Running` に戻るときに工程の状態が戻ること、記録の記事が訂正の一覧を持たないことを確かめる。並行の `Begin` を `-race` で走らせ、`acquire` が 1 回だけ呼ばれることを確かめる。キーは、AC-03〜AC-05 の入力の組と、`ParseKey` とサーバの受け口の拒否の表（短すぎる、長すぎる（65 文字。ヘッダの上限より短い長さで確かめる）、大文字、空白、16 進でない文字）で確かめる。
 -   **`internal/writer`:** fake の `LLMClient` で、工程の通知の順序（AC-10）、短縮の省略と実行の境目（4,000 字ちょうどと 4,001 字、AC-11）、失敗した工程の後に `StageFinished` が来ないこと、`Write` と `WriteWithProgress` が同じ記事を返すことを確かめる。
 -   **`internal/publisher`:** `FileContent` が `FilePublisher` の書いたファイルとバイト単位で同じであること（AC-12、`golden_test.go` の入力を使う）、`DisplayMarkdown` の並び、`PostMessages` の再開（k = 1 と 1 < k、AC-21）と `delivered` の呼び出し、範囲外の `from` の拒否、`from` が全体の数のときに何も送らないこと、`Publish` の今のテストがそのまま通ること。
 -   **`internal/server`:** 次の部品でテストを組み立てる。
@@ -1509,7 +1519,7 @@ sequenceDiagram
 
 ### 7.3. セキュリティテスト
 
--   パスの注入: ホストに `"key":"abc/publish"` や制御文字を含むキーを送り、サーバのリクエストのターゲットが `/jobs/status` のままで、サーバが `invalid_key` を返すことを確かめる（T-02）。
+-   パスの注入: ホストに `"key":"abc/publish"`、`?x=1` を含むキー、`..`、`%2F` を含むキー、制御文字や ASCII でない文字を含むキーを送り、サーバが受け取るターゲットが `/jobs/` と 1 つのエスケープしたパスの部分だけからなり（状態の取得のまま）、サーバが `invalid_key` を返すことを確かめる。サーバ単体でも、`/jobs/<64 文字>/publish/x`・`/jobs/<64 文字>?x`・大文字や `%` を含むキーの部分を拒否することを確かめる（T-02）。
 -   形の取り違え: `v` を持ち形の合わないメッセージが `/articles` へ送られないこと（T-03）。
 -   資源の上限: 読み込みの枠・生成の枠・キャッシュの上限で拒否され、記録が変わらないこと（T-04）。
 -   漏洩: AC-27・AC-31 のテスト（T-05・T-08）。
@@ -1569,7 +1579,7 @@ sequenceDiagram
 | AC-41a | §3.10.1 | `internal/nmhost` |
 | AC-42 | §3.15 | `cmd/yt2column-server/docs_test.go`、`make ext-test` |
 | AC-43 | §3.15 | PR のレビュー（`manual`） |
-| AC-44 | §3.1.2・§3.2 | `internal/articlecache`・`internal/server` |
+| AC-44 | §3.1.1・§3.2 | `internal/articlecache`・`internal/server` |
 | AC-45 | §3.4.4 | `internal/server` |
 | AC-45a | §3.7.2 | `internal/server` |
 | AC-46 | §6.4 | `internal/server` |
@@ -1592,4 +1602,4 @@ sequenceDiagram
 -   **拡張の新しい API への移行（#503）:** 拡張は、ホストの新しい形のメッセージと §3.11 のコードだけを使えばよい。新しい形の応答の上限と、コードごとの文言は #503・#506 で決める。
 -   **キーの計算の変更:** ドメイン分離の文字列の版（`v1`）を変えれば、前のキーと衝突しない。キーは不透明な値なので、拡張とホストは変わらない。
 -   **永続化:** 記録を `articlecache` の 1 か所で持つので、将来ディスクに保存することになっても、変えるのはこのパッケージと起動の手順である（親 issue #501 では行わないと決めた）。
--   **新しい操作:** ホストの `Operation` とサーバの固定のパスを 1 つずつ加える。拡張にパスを指定させない形は保つ。
+-   **新しい操作:** ホストの `Operation` と、サーバのメソッドとパスの形を 1 つずつ加える。拡張にパスを指定させない形は保つ。
