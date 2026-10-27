@@ -193,7 +193,7 @@
 
 **変更するファイル:** `docs/tasks/0043_extension_i18n/_checks/english_text.ts`（新規）、本書
 
--   [ ] 設計書 3.9 の「英語の文言が変わらないこと」のとおりに、merge-base と head の 2 つの版の表示された英語の文字列を同じ方法で取り出して比べるスクリプトを書く（1.3）。
+-   [x] 設計書 3.9 の「英語の文言が変わらないこと」のとおりに、merge-base と head の 2 つの版の表示された英語の文字列を同じ方法で取り出して比べるスクリプトを書く（1.3）。
     -   merge-base は `git merge-base origin/main HEAD`、head は `HEAD` とする。2 つの版の `extension/` のソースは、作業ツリーではなくコミットから一時的なディレクトリに取り出し、どちらも作業ツリーの `extension/node_modules` を使う。merge-base と head の `extension/package-lock.json` が同じことを、前提として先に確かめる。`extension/node_modules` は、実行の前に `make ext-install` で head の lockfile から入れたものとする。
     -   次の関数を、どちらの版も head の呼び出しの形で実行する（1.3）。
         -   `renderSummary`: すべての収集の拒否の理由と、文字数と行数が 1000 未満の要約。
@@ -203,8 +203,8 @@
         -   `runPopupSend`: ボタンの名前と、ボタンを押した後の送信中の案内。
     -   表示された文字列は、要素の境目が分かる形（欄の名前・値・本文の `p`・手順の `li` ごとに 1 行）で書き出す。
     -   一致すれば合格、一致しなければ違う行を出して 0 以外で終わる。判定の名前に AC の番号を使わない。
--   [ ] 壊して確かめる: push しない使い捨てのブランチで、`en.ts` の 1 つの文言の 1 文字を変えたコミット、1 つの欄の名前を変えたコミット、本文の末尾の 1 語を最初の手順の先頭へ移したコミットを作り、スクリプトがそれぞれ不合格になることを確かめてから、ブランチを消す。結果をスクリプトのコミットのメッセージに書く。
--   [ ] `git fetch origin main`（`_lib/task-pr-handoff.md` の Authorization が `/runplan` に認める）の後、PR-1 の head でスクリプトを実行し、出力と、merge-base と head の 2 つのコミットの ID を 7 章の AC-07 の行に記録する。記録を本書にコミットする。この後、`extension/src/` が変わったときや `main` を取り込んだときは、実行し直して記録を置き換える。
+-   [x] 壊して確かめる: push しない使い捨てのブランチで、`en.ts` の 1 つの文言の 1 文字を変えたコミット、1 つの欄の名前を変えたコミット、本文の末尾の 1 語を最初の手順の先頭へ移したコミットを作り、スクリプトがそれぞれ不合格になることを確かめてから、ブランチを消す。結果をスクリプトのコミットのメッセージに書く。
+-   [x] `git fetch origin main`（`_lib/task-pr-handoff.md` の Authorization が `/runplan` に認める）の後、PR-1 の head でスクリプトを実行し、出力と、merge-base と head の 2 つのコミットの ID を 7 章の AC-07 の行に記録する。記録を本書にコミットする。この後、`extension/src/` が変わったときや `main` を取り込んだときは、実行し直して記録を置き換える。
 
 **完了の条件:** `make ext-check`・`make test`・`make lint` が通り、7 章の AC-07 の行に PR-1 の記録がある。
 
@@ -450,7 +450,7 @@ AC-07 は、`docs/tasks/0043_extension_i18n/_checks/english_text.ts` で確か�
 | AC-04 | test: `extension/test/manifest.test.ts::permissions`・`::undeclared keys`・`extension/test/lintRules.test.ts::chrome.storage`（既存） | 4-1 | 権限が 3 つのままで、`options_ui` がなく、`chrome.storage` を参照できないこと |
 | AC-05 | test: `extension/test/messages.test.ts::rejectionMessage`・`::expandPromptMessage`・`extension/test/sendMessages.test.ts::blockMessage`・`::serverRejectMessage`・`::sendOutcomeMessage` ＋ AC-03 の表示のテスト | 2-3・2-4 | 振り分けの関数がすべての理由と結果について選んだ言語の節の文言を返すこと、表示がそれを表示すること |
 | AC-06 | static: `make ext-typecheck` ＋ test: `extension/test/typecheck.test.ts::a Catalog missing an item fails typecheck`・`extension/test/catalog.test.ts::catalogs` | 2-2 | 欠けで型の検査が失敗すること、本文・手順が空でないこと、手順の規則 |
-| AC-07 | diff: `docs/tasks/0043_extension_i18n/_checks/english_text.ts` | 2-2・2-3・2-5・3-5 | 実行の記録（PR-1）: 未実行。実行の記録（PR-2）: 未実行。 |
+| AC-07 | diff: `docs/tasks/0043_extension_i18n/_checks/english_text.ts` | 2-2・2-3・2-5・3-5 | 実行の記録（PR-1）: 2026-10-27、merge-base `30dbae078cbdd267f2ca1ff1bb27bf3ef3cd6f5d`、head `24e7f2992b40d71f53625b184dfe8d41302e009a`、終了コード 0、出力 `PASS: 121 displayed elements identical`。実行の記録（PR-2）: 未実行。 |
 | AC-08 | test: `extension/test/render.test.ts::renderSummary`・`extension/test/renderMetadata.test.ts::renderMetadata`・`extension/test/renderSend.test.ts::renderSendOutcome` | 2-4 | 両方の言語で、値をそのまま表示すること |
 | AC-09 | test: `extension/test/messages.test.ts::rejectionMessage`・`extension/test/sendMessages.test.ts::blockMessage`・`::serverRejectMessage`・`::sendOutcomeMessage` | 2-4 | 両方の言語で、各性質を言語によらない語と言語ごとの語の表で確かめる |
 | AC-10 | manual | 2-2 | 日本語の文言の用語を用語集と照らす（PR-1 のレビュー。テストにしない理由は 1.3） |
