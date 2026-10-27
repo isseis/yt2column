@@ -17,6 +17,7 @@ import (
 	"github.com/isseis/yt2column/internal/config"
 	"github.com/isseis/yt2column/internal/llm"
 	claudetestutil "github.com/isseis/yt2column/internal/llm/claude/testutil"
+	deepseektestutil "github.com/isseis/yt2column/internal/llm/deepseek/testutil"
 	"github.com/isseis/yt2column/internal/pricing"
 	"github.com/isseis/yt2column/internal/publisher"
 	publishertestutil "github.com/isseis/yt2column/internal/publisher/testutil"
@@ -208,11 +209,7 @@ func TestSlackDocsContract(t *testing.T) {
 		{"README.md", readme},
 		{"security.md", readDoc(t, securityPath)},
 	} {
-		for _, value := range values {
-			if !strings.Contains(doc.text, value) {
-				t.Errorf("%s does not mention %q", doc.name, value)
-			}
-		}
+		requireMentions(t, doc.name, doc.text, values)
 	}
 	for _, doc := range []struct {
 		name, text string
@@ -222,6 +219,16 @@ func TestSlackDocsContract(t *testing.T) {
 	} {
 		if !strings.Contains(doc.text, "16,383") {
 			t.Errorf("%s does not state the per-message limit 16,383", doc.name)
+		}
+	}
+}
+
+// requireMentions fails the test for each value that text does not contain.
+func requireMentions(t *testing.T, docName, text string, values []string) {
+	t.Helper()
+	for _, value := range values {
+		if !strings.Contains(text, value) {
+			t.Errorf("%s does not mention %q", docName, value)
 		}
 	}
 }
@@ -241,11 +248,46 @@ func TestClaudeDocsContract(t *testing.T) {
 		{"README.md", readDoc(t, readmePath)},
 		{"security.md", readDoc(t, securityPath)},
 	} {
-		for _, value := range values {
-			if !strings.Contains(doc.text, value) {
-				t.Errorf("%s does not mention %q", doc.name, value)
+		requireMentions(t, doc.name, doc.text, values)
+	}
+}
+
+// TestDeepSeekDocsContract pins the machine-checkable contract values of the
+// DeepSeek integration tests: the key they read, the opt-in that arms each
+// one, and the model variable. Every integration-test section of README.md
+// names its own values, so a section left behind by a rename fails. The values
+// come from the deepseek and publisher test packages' exported constants, not
+// from the document.
+func TestDeepSeekDocsContract(t *testing.T) {
+	readme := readDoc(t, readmePath)
+	for _, section := range []struct {
+		name    string
+		heading string
+		values  []string
+	}{
+		{
+			name:    "deepseek",
+			heading: "### DeepSeek integration test",
+			values:  []string{deepseektestutil.APIKeyEnv, deepseektestutil.DeepSeekOptInEnv, deepseektestutil.ModelEnv},
+		},
+		{
+			name:    "cli",
+			heading: "### CLI integration test",
+			values:  []string{deepseektestutil.APIKeyEnv, deepseektestutil.CLIOptInEnv, deepseektestutil.ModelEnv},
+		},
+		{
+			name:    "cli_slack",
+			heading: "### CLI webhook integration test",
+			values:  []string{deepseektestutil.APIKeyEnv, publishertestutil.CLISlackOptInEnv, deepseektestutil.ModelEnv},
+		},
+	} {
+		t.Run(section.name, func(t *testing.T) {
+			text := sectionOutsideBlocks(readme, section.heading)
+			if text == "" {
+				t.Fatalf("README.md has no %q section", section.heading)
 			}
-		}
+			requireMentions(t, "README.md "+section.heading, text, section.values)
+		})
 	}
 }
 

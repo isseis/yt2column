@@ -123,20 +123,20 @@ test-integration:
 # charges, so it is kept out of `make test` by the `integration` build tag and
 # skips unless the opt-in variable below is set. It reads its API key from
 # YT2COLUMN_TEST_DEEPSEEK_API_KEY, never from DEEPSEEK_API_KEY. The model
-# defaults to deepseek-flash only when YT2COLUMN_MODEL is undefined; an empty
-# value is passed through, and the test fails on it.
-YT2COLUMN_MODEL ?= deepseek-flash
+# defaults to deepseek-flash only when YT2COLUMN_TEST_DEEPSEEK_MODEL is
+# undefined; an empty value is passed through, and the test fails on it.
+YT2COLUMN_TEST_DEEPSEEK_MODEL ?= deepseek-flash
 # Two Generate calls of at most 15 minutes each, plus margin (see
 # internal/llm/deepseek/integration_test.go).
 DEEPSEEK_INTEGRATION_TIMEOUT ?= 40m
 
 # Exported to this target's recipe only; the recipe never splices the values
 # into shell text.
-test-integration-deepseek: export YT2COLUMN_MODEL := $(YT2COLUMN_MODEL)
+test-integration-deepseek: export YT2COLUMN_TEST_DEEPSEEK_MODEL := $(YT2COLUMN_TEST_DEEPSEEK_MODEL)
 test-integration-deepseek: export YT2COLUMN_DEEPSEEK_INTEGRATION := 1
 
 test-integration-deepseek:
-	@printf 'test-integration-deepseek: calls the real DeepSeek API, which incurs charges (model: %s)\n' "$$YT2COLUMN_MODEL"
+	@printf 'test-integration-deepseek: calls the real DeepSeek API, which incurs charges (model: %s)\n' "$$YT2COLUMN_TEST_DEEPSEEK_MODEL"
 	$(GOTEST) -tags integration -count=1 -timeout $(DEEPSEEK_INTEGRATION_TIMEOUT) -v ./internal/llm/deepseek
 
 # Claude integration test. Calls the real Anthropic API, which incurs
@@ -167,18 +167,19 @@ test-integration-claude:
 # the --out file with the real DeepSeek API, which incurs charges; yt-dlp is
 # never started. Like the DeepSeek integration test it is kept out of
 # `make test` by the `integration` build tag, reads its API key from
-# YT2COLUMN_TEST_DEEPSEEK_API_KEY, and uses the YT2COLUMN_MODEL default above;
-# unlike it, the test fails rather than skips when that key is missing.
+# YT2COLUMN_TEST_DEEPSEEK_API_KEY, and uses the
+# YT2COLUMN_TEST_DEEPSEEK_MODEL default above; unlike it, the test fails
+# rather than skips when that key is missing.
 # One Generate call of at most 15 minutes (provider.LLMTimeout), plus margin.
 CLI_INTEGRATION_TIMEOUT ?= 20m
 
 # Exported to this target's recipe only; the recipe never splices the values
 # into shell text.
-test-integration-cli: export YT2COLUMN_MODEL := $(YT2COLUMN_MODEL)
+test-integration-cli: export YT2COLUMN_TEST_DEEPSEEK_MODEL := $(YT2COLUMN_TEST_DEEPSEEK_MODEL)
 test-integration-cli: export YT2COLUMN_CLI_INTEGRATION := 1
 
 test-integration-cli:
-	@printf 'test-integration-cli: calls the real DeepSeek API, which incurs charges (model: %s)\n' "$$YT2COLUMN_MODEL"
+	@printf 'test-integration-cli: calls the real DeepSeek API, which incurs charges (model: %s)\n' "$$YT2COLUMN_TEST_DEEPSEEK_MODEL"
 	$(GOTEST) -tags integration -count=1 -timeout $(CLI_INTEGRATION_TIMEOUT) -v ./cmd/yt2column
 
 # Webhook integration test. Posts two fixed articles (no LLM call) to the real
@@ -207,11 +208,11 @@ CLI_SLACK_INTEGRATION_TIMEOUT ?= 30m
 
 # Exported to this target's recipe only; the recipe never splices the values
 # into shell text.
-test-integration-cli-slack: export YT2COLUMN_MODEL := $(YT2COLUMN_MODEL)
+test-integration-cli-slack: export YT2COLUMN_TEST_DEEPSEEK_MODEL := $(YT2COLUMN_TEST_DEEPSEEK_MODEL)
 test-integration-cli-slack: export YT2COLUMN_CLI_SLACK_INTEGRATION := 1
 
 test-integration-cli-slack:
-	@printf 'test-integration-cli-slack: calls the real DeepSeek API, which incurs charges, and posts to the real test Webhook (model: %s)\n' "$$YT2COLUMN_MODEL"
+	@printf 'test-integration-cli-slack: calls the real DeepSeek API, which incurs charges, and posts to the real test Webhook (model: %s)\n' "$$YT2COLUMN_TEST_DEEPSEEK_MODEL"
 	$(GOTEST) -tags integration -count=1 -timeout $(CLI_SLACK_INTEGRATION_TIMEOUT) -v ./cmd/yt2column
 
 # golangci-lint compiles the integration tests only together with the `test`

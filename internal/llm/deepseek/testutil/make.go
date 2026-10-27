@@ -61,6 +61,10 @@ type ChargedTarget struct {
 // before it calls the real API.
 const deepSeekChargeNotice = "calls the real DeepSeek API, which incurs charges"
 
+// deepSeekDefaultModel is the model a target passes when the model variable is
+// undefined.
+const deepSeekDefaultModel = "deepseek-flash"
+
 // CheckChargedTarget runs c.Target under the stub GOTEST with the model
 // variable undefined, empty, and set, and checks the DeepSeek charge notice,
 // the go test arguments, the -timeout bound, the opt-in, and the model name.
@@ -76,9 +80,29 @@ func CheckChargedTarget(t *testing.T, c ChargedTarget) {
 		OptInEnv:     c.OptInEnv,
 		OptInValue:   OptInValue,
 		ChargeNotice: deepSeekChargeNotice,
-		Vars:         []maketestutil.TargetVar{{Env: ModelEnv, Default: "deepseek-flash", Custom: "deepseek-custom"}},
+		Vars:         []maketestutil.TargetVar{{Env: ModelEnv, Default: deepSeekDefaultModel, Custom: "deepseek-custom"}},
 		Record:       recordedEnv,
 	})
+}
+
+// CheckRetiredModelEnvNotRead runs target with retiredEnv set to a marker and
+// the model variable undefined, and checks that the marker reached make and
+// that the target passed deepSeekDefaultModel to go test anyway: a target that
+// still takes its model from retiredEnv would pass the marker instead.
+func CheckRetiredModelEnvNotRead(t *testing.T, root, target, retiredEnv string) {
+	t.Helper()
+	const marker = "retired-model-marker"
+	_, invocation := maketestutil.RunTarget(t, root, target, recordedEnv, []string{retiredEnv},
+		map[string]string{retiredEnv: marker})
+	// The marker must reach make, or a target that still read retiredEnv
+	// would also see nothing there and pass.
+	if got, ok := invocation.Env[retiredEnv]; !ok || got != marker {
+		t.Fatalf("%s = %q (set %t), want %q: the marker did not reach the target", retiredEnv, got, ok, marker)
+	}
+	if got, ok := invocation.Env[ModelEnv]; !ok || got != deepSeekDefaultModel {
+		t.Errorf("%s = %q (set %t), want %q: the target must not take its model from %s",
+			ModelEnv, got, ok, deepSeekDefaultModel, retiredEnv)
+	}
 }
 
 // FirstLineIs reports an error unless the file at path exists and its first
