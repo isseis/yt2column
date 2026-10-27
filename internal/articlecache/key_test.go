@@ -104,7 +104,7 @@ func TestParseKeyRejects(t *testing.T) {
 		"trailing space":  valid[:63] + " ",
 		"surrounded":      " " + valid + " ",
 		"non-hexadecimal": "g" + valid[1:],
-		"non-ascii":       "é" + valid[2:],
+		"non-ascii":       "\u00e9" + valid[2:],
 		"empty":           "",
 	}
 	for name, input := range cases {
