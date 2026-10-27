@@ -336,7 +336,7 @@ export function serverRejectMessage(reason: ServerRejectReason, locale: Locale):
 export function sendOutcomeMessage(outcome: SendOutcome, locale: Locale): RejectionMessage;
 ```
 
--   どの関数も、言語に対応する文言の集合（`catalogs[locale]`）から文言を返す。文言の字句は持たない。
+-   どの関数も、言語に対応する文言の集合（`catalogs[locale]`）から文言を返す。文言の字句は持たない。export しない `notSentMessage`・`unexpectedMessage`（`src/core/sendMessages.ts:92`・`:115`）も同じく言語を受け取り、`sendOutcomeMessage` は受け取った言語をそのまま渡す。
 -   `blockMessage` は、今と同じく収集の拒否の理由を `rejectionMessage` に任せる（`src/core/sendMessages.ts:18-35`）。`body-too-large` は `preflight` の節から取る。キーが 2 つの型にまたがるので、`switch` を残す。
 -   `sendOutcomeMessage` の `kind` による `switch` と、`unexpectedMessage` の検査の種類による `switch`（`src/core/sendMessages.ts:115-179`）は、`never` による網羅の検査とともに残す。`SendOutcome` や `UnexpectedCheck` に値を加えたとき、その文言をどこから取るかを決めないと型の検査が失敗する性質を保つためである。
 -   `rejectionMessage`・`serverRejectMessage`・`notSentMessage`（`src/core/sendMessages.ts:92-112`）の `switch` は、`Record` の引き当てに置き換える。キーの網羅は `Catalog` の `Record` の型が保証するので、`switch` と `Record` の両方で網羅を確かめる必要はない。理由の値は、型に含まれる値しか作られない（サーバの拒否の理由は `isServerRejectReason` が `hasOwnProperty` で確かめる。`src/core/response.ts:32-39`）ので、引き当てに想定外のキーは来ない。
