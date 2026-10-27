@@ -1,0 +1,8 @@
+{
+  "extName": {
+    "message": "yt2column"
+  },
+  "extDescription": {
+    "message": "選択した YouTube の文字起こしをローカルの yt2column サーバに送り、コラム記事を書かせます。"
+  }
+}

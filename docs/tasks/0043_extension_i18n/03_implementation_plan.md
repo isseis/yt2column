@@ -315,10 +315,10 @@
 
 **変更するファイル:** `static/manifest.json`、`static/_locales/en/messages.json`・`static/_locales/ja/messages.json`（新規）、`test/manifest.test.ts`
 
--   [ ] 設計書 3.6 の 2 つの表のとおりに、manifest を変え、2 つの `messages.json` を書く。
--   [ ] `test/manifest.test.ts::undeclared keys`（`:28-41`）に `default_locale`・`description` を加え、`test/manifest.test.ts::fixed fields` の `name` の検査（`:57-60`）を `__MSG_extName__` にする。`test/manifest.test.ts::locales` を加え、設計書 3.9 の「manifest と `_locales`」の検査（`default_locale`、`description` の形、`_locales` のディレクトリと各 `messages.json` の形、`__MSG_*__` の名前の解決、`extName`・`extDescription` の値）を書く（AC-18〜AC-20）。
--   [ ] 壊して確かめる: `default_locale` を除く、`ja` の `messages.json` から `extDescription` を除く、`messages.json` を JSON として読めない形にする、`message` に `$` を入れる、manifest の `__MSG_extName__` を `messages.json` にない名前にする、`ja` の `extName` を `yt2column` 以外にする、`ja` の `extDescription` を `en` と同じにする、`extDescription` を 133 文字にする、`_locales` に 3 つめのディレクトリを加える、の 9 つで、それぞれテストが失敗することを確かめる。
--   [ ] `make ext-build` を実行し、`check-dist` が `dist/_locales/en/messages.json`・`dist/_locales/ja/messages.json` を含む `dist/` を受け入れることを確かめる（AC-18）。
+-   [x] 設計書 3.6 の 2 つの表のとおりに、manifest を変え、2 つの `messages.json` を書く。
+-   [x] `test/manifest.test.ts::undeclared keys`（`:28-41`）に `default_locale`・`description` を加え、`test/manifest.test.ts::fixed fields` の `name` の検査（`:57-60`）を `__MSG_extName__` にする。`test/manifest.test.ts::locales` を加え、設計書 3.9 の「manifest と `_locales`」の検査（`default_locale`、`description` の形、`_locales` のディレクトリと各 `messages.json` の形、`__MSG_*__` の名前の解決、`extName`・`extDescription` の値）を書く（AC-18〜AC-20）。
+-   [x] 壊して確かめる: `default_locale` を除く、`ja` の `messages.json` から `extDescription` を除く、`messages.json` を JSON として読めない形にする、`message` に `$` を入れる、manifest の `__MSG_extName__` を `messages.json` にない名前にする、`ja` の `extName` を `yt2column` 以外にする、`ja` の `extDescription` を `en` と同じにする、`extDescription` を 133 文字にする、`_locales` に 3 つめのディレクトリを加える、の 9 つで、それぞれテストが失敗することを確かめる。
+-   [x] `make ext-build` を実行し、`check-dist` が `dist/_locales/en/messages.json`・`dist/_locales/ja/messages.json` を含む `dist/` を受け入れることを確かめる（AC-18）。
 
 **完了の条件:** `make ext-check` が通る。コミットする。
 
