@@ -114,8 +114,9 @@
     -   [ ] 設計書 §3.14 の「削除するもの」8 項目と「簡素化するもの」6 項目を本文に書いた issue を、日本語で起票する。本文に、#503 の完了を待って着手することを書く。
     -   [ ] 起票の前に、本文のファイルでメンションの検査（`.claude/commands/_lib/task-pr-handoff.md`「Mention check」）を行う。
     -   [ ] issue を #501 の sub-issue にする（`task-pr-handoff.md` の「Choosing the issue to link」と同じ `sub_issues` の API）。
+    -   [ ] #503 を、起票した issue のブロッキング issue（blocked by）にする。GitHub の REST API `POST /repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocked_by` で、パスに起票した issue の番号を、本文の `issue_id` に #503 の数値の `id`（番号ではない）を渡す（GitHub REST API の「Issue dependencies」の文書で確かめた）。
     -   [ ] 起票した issue の番号を、本書 9 章に記録する。
--   **完了の条件:** issue が #501 の sub-issue として一覧に出る。
+-   **完了の条件:** issue が #501 の sub-issue として一覧に出て、#503 にブロックされていると表示される。
 
 ### フェーズ 2: 土台（`internal/strictjson`・`internal/articlecache`・`depguard`）
 
