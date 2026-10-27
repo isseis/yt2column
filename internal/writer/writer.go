@@ -382,10 +382,10 @@ func (w *templateWriter) Write(ctx context.Context, t transcript.Transcript) (Ar
 //   - a stage that neither runs nor is reused gets StageSkipped, right after
 //     the previous stage's last call;
 //   - a failure adds no call, and a failure before the generation stage
-//     (the context, the transcript, the resume load) makes none. When the
-//     review step did not run (disabled or reused), a failure of the final
-//     length check leaves no stage unfinished; the server always runs the
-//     review step and never resumes, so it does not meet this case.
+//     (the context, the transcript, the resume load) makes none. A reused
+//     review body over the limit is rejected with the resume load, so every
+//     failure after the first call leaves exactly one stage started and not
+//     finished: the stage that failed.
 //
 // A nil observer is rejected before anything runs.
 func (w *templateWriter) WriteWithProgress(ctx context.Context, t transcript.Transcript, observer ProgressObserver) (Article, error) {
@@ -406,6 +406,13 @@ func (w *templateWriter) WriteWithProgress(ctx context.Context, t transcript.Tra
 	chain, err := w.loadResume(ctx, t.VideoID, materialID)
 	if err != nil {
 		return Article{}, tokenUsageError(runUsage, err)
+	}
+	// A reused review body over the limit fails the final length check
+	// whatever runs before it. It is rejected here, before any call, because
+	// at the final check every stage would already be finished and the
+	// observer could not tell the failed one.
+	if err := w.checkReusedReviewLength(chain); err != nil {
+		return Article{}, tokenUsageError(reusedChainUsage(chain), err)
 	}
 
 	generation := chain.Generation
@@ -479,6 +486,30 @@ func (w *templateWriter) WriteWithProgress(ctx context.Context, t transcript.Tra
 		observer.StageFinished(StageReview)
 	}
 	return newArticle(title, t.ChannelName, body, sourceURL, generation.Model, generation.ModelVersion, shortenModel, reviewResult, runUsage), nil
+}
+
+// checkReusedReviewLength applies the final length check to the review body
+// a resume from the review stage reuses. Like the final check, it runs only
+// when shorten is enabled.
+func (w *templateWriter) checkReusedReviewLength(chain ArtifactChain) error {
+	if w.resume != StageReview || w.shorten == nil {
+		return nil
+	}
+	if chars := bodyChars(chain.Review.Body); chars > maxBodyChars {
+		return stepError(StepReview, tooLongError(chars))
+	}
+	return nil
+}
+
+// reusedChainUsage is the usage of a resume from the review stage, which
+// reuses every stage of chain.
+func reusedChainUsage(chain ArtifactChain) RunUsage {
+	usage := RunUsage{Generation: reusedUsage(chain.Generation)}
+	if chain.Shorten != nil {
+		usage.Shorten = reusedUsage(*chain.Shorten)
+	}
+	usage.Review = reusedUsage(*chain.Review)
+	return usage
 }
 
 // loadResume loads the artifact chain Write resumes from and checks its call

@@ -199,6 +199,19 @@ func TestWriteWithProgressFailures(t *testing.T) {
 			want:      nil,
 		},
 		{
+			// The reused review body fails the final length check, so it is
+			// rejected with the resume load, before any call.
+			name:    "reused review over the limit",
+			wantErr: func(err error) bool { return errors.Is(err, ErrTooLong) && isStepErrorOf(err, StepReview) },
+			gen:     func(*testing.T) llm.LLMClient { return nil }, // no stage runs
+			artifacts: ArtifactOptions{Store: &fakeArtifactStore{loadResult: func() ArtifactChain {
+				chain := resumeChainReview(nil)
+				chain.Review.Body = overLimitBody()
+				return chain
+			}()}, Resume: StageReview},
+			want: nil,
+		},
+		{
 			name:    "generation artifact save",
 			wantErr: isArtifactError(StageGeneration),
 			gen: func(t *testing.T) llm.LLMClient {
