@@ -373,15 +373,19 @@ func (w *templateWriter) Write(ctx context.Context, t transcript.Transcript) (Ar
 
 // WriteWithProgress is Write, reporting each stage to observer:
 //   - a stage that runs gets StageStarted before its first action and
-//     StageFinished after its result passed every check of that stage; the
-//     review step's checks include the final length check, so a body the
-//     review made too long is a failure of the review step;
+//     StageFinished after its result passed every check of that stage and
+//     its artifact was saved (when a store is configured); the review step's
+//     checks include the final length check, so a body the review made too
+//     long is a failure of the review step;
 //   - a stage reused from Artifacts.Resume gets StageFinished when it is
 //     reused;
 //   - a stage that neither runs nor is reused gets StageSkipped, right after
 //     the previous stage's last call;
 //   - a failure adds no call, and a failure before the generation stage
-//     (the context, the transcript, the resume load) makes none.
+//     (the context, the transcript, the resume load) makes none. When the
+//     review step did not run (disabled or reused), a failure of the final
+//     length check leaves no stage unfinished; the server always runs the
+//     review step and never resumes, so it does not meet this case.
 //
 // A nil observer is rejected before anything runs.
 func (w *templateWriter) WriteWithProgress(ctx context.Context, t transcript.Transcript, observer ProgressObserver) (Article, error) {

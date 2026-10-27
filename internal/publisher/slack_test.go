@@ -1352,6 +1352,52 @@ func TestPostMessagesFailureCountsFromFirst(t *testing.T) {
 	}
 }
 
+// TestPostMessagesResumedWaits checks the timing of a resumed post: it sends
+// its first message without waiting the interval, and a context done before
+// a later message stops it with the count of the messages delivered so far.
+func TestPostMessagesResumedWaits(t *testing.T) {
+	m, err := PrepareSlackMessages(threeMessageArticle(t))
+	if err != nil {
+		t.Fatalf("PrepareSlackMessages: %v", err)
+	}
+
+	t.Run("no wait before the first message sent", func(t *testing.T) {
+		server := newSlackOKServer(t)
+		// An hour-long interval would block the test if the first message
+		// sent waited for it.
+		p := newTestSlackPublisher(t, server, SlackTestOptions{Interval: time.Hour})
+		if err := p.PostMessages(context.Background(), m, m.Len()-1, func(int) {}); err != nil {
+			t.Fatalf("PostMessages error = %v, want nil", err)
+		}
+		if n := server.recorder.count(); n != 1 {
+			t.Errorf("server received %d requests, want 1", n)
+		}
+	})
+
+	t.Run("canceled before the next message", func(t *testing.T) {
+		// The context is canceled once the first resumed message is
+		// delivered, so the wait before the next one is interrupted.
+		ctx, cancel := context.WithCancel(context.Background())
+		server := newSlackOKServer(t)
+		p := newTestSlackPublisher(t, server, SlackTestOptions{Interval: time.Hour})
+		var delivered []int
+		err := p.PostMessages(ctx, m, 1, func(i int) {
+			delivered = append(delivered, i)
+			cancel()
+		})
+		postErr, ok := errors.AsType[*SlackPostError](err)
+		if !ok || postErr.Total != 3 || postErr.Posted != 2 || postErr.Attempted {
+			t.Fatalf("PostMessages error = %v (%+v), want a SlackPostError with Total 3, Posted 2, Attempted false", err, postErr)
+		}
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("PostMessages error = %v, want context.Canceled", err)
+		}
+		if !slices.Equal(delivered, []int{1}) {
+			t.Errorf("delivered = %v, want [1]", delivered)
+		}
+	})
+}
+
 func TestPostMessagesRejectsWithoutSending(t *testing.T) {
 	m, err := PrepareSlackMessages(threeMessageArticle(t))
 	if err != nil {

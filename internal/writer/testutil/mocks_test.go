@@ -116,50 +116,58 @@ func TestFakeArticleWriterHoldsAtStep(t *testing.T) {
 		}()
 		return done
 	}
-	newFake := func(release <-chan struct{}) *FakeArticleWriter {
+	newFake := func(reached chan<- struct{}, release <-chan struct{}) *FakeArticleWriter {
 		return &FakeArticleWriter{
 			Result: writer.Article{Title: "Title"},
 			Progress: []FakeProgressStep{
-				{Kind: FakeStageStarted, Stage: writer.StageGeneration, Reached: make(chan struct{}), Release: release},
+				{Kind: FakeStageStarted, Stage: writer.StageGeneration, Reached: reached, Release: release},
 				{Kind: FakeStageFinished, Stage: writer.StageGeneration},
 			},
 		}
 	}
 
 	t.Run("released", func(t *testing.T) {
-		release := make(chan struct{})
-		fake := newFake(release)
-		observer := &recordingObserver{}
-		done := start(context.Background(), fake, observer)
+		// Two calls are held at once, as the server's two generation jobs
+		// are; one close of release lets both go.
+		reached, release := make(chan struct{}), make(chan struct{})
+		fake := newFake(reached, release)
+		observers := []*recordingObserver{{}, {}}
+		dones := []<-chan outcome{start(context.Background(), fake, observers[0]), start(context.Background(), fake, observers[1])}
 
-		<-fake.Progress[0].Reached
-		// The call is held on release, so it cannot have returned yet, and
-		// the next notification has not been sent.
-		select {
-		case o := <-done:
-			t.Fatalf("WriteWithProgress returned %+v before the release", o)
-		default:
-		}
-		if want := []string{"started generation"}; !slices.Equal(observer.events, want) {
-			t.Errorf("events while held = %v, want %v", observer.events, want)
+		<-reached
+		<-reached
+		// Both calls are held on release, so neither can have returned yet,
+		// and neither has sent the next notification.
+		for i, done := range dones {
+			select {
+			case o := <-done:
+				t.Fatalf("call %d returned %+v before the release", i, o)
+			default:
+			}
+			if want := []string{"started generation"}; !slices.Equal(observers[i].events, want) {
+				t.Errorf("call %d events while held = %v, want %v", i, observers[i].events, want)
+			}
 		}
 		close(release)
-		o := <-done
-		if o.err != nil || o.article.Title != "Title" {
-			t.Errorf("WriteWithProgress = %+v, want the configured result", o)
-		}
-		if want := []string{"started generation", "finished generation"}; !slices.Equal(observer.events, want) {
-			t.Errorf("events = %v, want %v", observer.events, want)
+		for i, done := range dones {
+			o := <-done
+			if o.err != nil || o.article.Title != "Title" {
+				t.Errorf("call %d = %+v, want the configured result", i, o)
+			}
+			if want := []string{"started generation", "finished generation"}; !slices.Equal(observers[i].events, want) {
+				t.Errorf("call %d events = %v, want %v", i, observers[i].events, want)
+			}
 		}
 	})
 
 	t.Run("canceled", func(t *testing.T) {
-		fake := newFake(make(chan struct{}))
+		reached := make(chan struct{})
+		fake := newFake(reached, make(chan struct{}))
 		ctx, cancel := context.WithCancel(context.Background())
 		observer := &recordingObserver{}
 		done := start(ctx, fake, observer)
 
-		<-fake.Progress[0].Reached
+		<-reached
 		cancel()
 		o := <-done
 		if !errors.Is(o.err, context.Canceled) {
@@ -205,5 +213,21 @@ func TestFakeArticleWriterConcurrentCalls(t *testing.T) {
 	wg.Wait()
 	if got := len(fake.RecordedCalls()); got != calls {
 		t.Errorf("recorded %d calls, want %d", got, calls)
+	}
+}
+
+func TestFakeArticleWriterRejectsNilObserver(t *testing.T) {
+	fake := &FakeArticleWriter{Result: writer.Article{Title: "Title"}}
+	var typedNil *recordingObserver
+	for name, observer := range map[string]writer.ProgressObserver{"nil": nil, "typed nil": typedNil} {
+		t.Run(name, func(t *testing.T) {
+			a, err := fake.WriteWithProgress(context.Background(), transcript.Transcript{}, observer)
+			if !errors.Is(err, errNilObserver) {
+				t.Errorf("WriteWithProgress error = %v, want errNilObserver", err)
+			}
+			if a != (writer.Article{}) {
+				t.Errorf("WriteWithProgress article = %+v, want the zero value", a)
+			}
+		})
 	}
 }

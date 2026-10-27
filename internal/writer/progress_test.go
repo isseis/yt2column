@@ -12,6 +12,7 @@ import (
 
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/llm/testutil"
+	"github.com/isseis/yt2column/internal/transcript"
 )
 
 // progressCase builds a fresh writer for one run, so a test can run the same
@@ -68,8 +69,11 @@ func requireProgress(t *testing.T, cases []progressCase) {
 func TestWriteWithProgressOrder(t *testing.T) {
 	requireProgress(t, []progressCase{
 		{
-			name:  "both steps enabled",
-			build: func(t *testing.T) ProgressWriter { return stepsWriter(t, markGenBody, false) },
+			name: "only review enabled",
+			build: func(t *testing.T) ProgressWriter {
+				review := &llmtestutil.FakeLLMClient{Result: llm.GenerateResponse{Text: reviewResponse(), Model: markReviewModel}}
+				return mustNewProgress(t, newFakeClient(), Options{Review: ReviewOptions{Enabled: true, Client: review}, Clock: fixedClock(t)})
+			},
 			want: []progressEvent{
 				started(StageGeneration), finished(StageGeneration),
 				skipped(StageShorten),
@@ -151,11 +155,13 @@ func TestWriteWithProgressFailures(t *testing.T) {
 		return &llmtestutil.FakeLLMClient{Result: llm.GenerateResponse{Text: reviewResponse(), Model: markReviewModel}}
 	}
 	cases := []struct {
-		name   string
-		gen    func(t *testing.T) llm.LLMClient
-		review *llmtestutil.FakeLLMClient
-		ctx    func() context.Context
-		want   []progressEvent
+		name       string
+		gen        func(t *testing.T) llm.LLMClient
+		review     *llmtestutil.FakeLLMClient
+		ctx        func() context.Context
+		transcript func() transcript.Transcript
+		artifacts  ArtifactOptions
+		want       []progressEvent
 	}{
 		{
 			name:   "context done before generation",
@@ -167,6 +173,33 @@ func TestWriteWithProgressFailures(t *testing.T) {
 				return ctx
 			},
 			want: nil,
+		},
+		{
+			name:   "invalid transcript",
+			gen:    func(t *testing.T) llm.LLMClient { return newStepClient(t) },
+			review: reviewOK(),
+			transcript: func() transcript.Transcript {
+				tr := validTranscript()
+				tr.Segments = nil
+				return tr
+			},
+			want: nil,
+		},
+		{
+			name:      "resume load",
+			gen:       func(t *testing.T) llm.LLMClient { return newStepClient(t) },
+			review:    reviewOK(),
+			artifacts: ArtifactOptions{Store: &fakeArtifactStore{loadErr: failure}, Resume: StageGeneration},
+			want:      nil,
+		},
+		{
+			name: "generation artifact save",
+			gen: func(t *testing.T) llm.LLMClient {
+				return newStepClient(t, stepResult(llm.GenerateResponse{Text: stepResponseText(markGenTitle, markGenBody), Model: markOutModel}))
+			},
+			review:    reviewOK(),
+			artifacts: ArtifactOptions{Store: &fakeArtifactStore{saveErrs: map[Stage]error{StageGeneration: failure}}},
+			want:      []progressEvent{started(StageGeneration)},
 		},
 		{
 			name: "generation",
@@ -226,10 +259,16 @@ func TestWriteWithProgressFailures(t *testing.T) {
 			if tc.ctx != nil {
 				ctx = tc.ctx()
 			}
-			w := mustNewProgress(t, tc.gen(t), withStepsEnabled(tc.review))
+			tr := validTranscript()
+			if tc.transcript != nil {
+				tr = tc.transcript()
+			}
+			opts := withStepsEnabled(tc.review)
+			opts.Artifacts = tc.artifacts
+			w := mustNewProgress(t, tc.gen(t), opts)
 			observer := &recordingObserver{}
 
-			a, err := w.WriteWithProgress(ctx, validTranscript(), observer)
+			a, err := w.WriteWithProgress(ctx, tr, observer)
 			if err == nil {
 				t.Fatal("WriteWithProgress error = nil, want the failure")
 			}

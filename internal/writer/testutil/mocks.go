@@ -8,6 +8,7 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/isseis/yt2column/internal/nilcheck"
 	"github.com/isseis/yt2column/internal/transcript"
 	"github.com/isseis/yt2column/internal/writer"
 )
@@ -15,6 +16,10 @@ import (
 // errUnknownProgressKind is returned by WriteWithProgress for a progress step
 // whose Kind is not one of the FakeProgressKind values.
 var errUnknownProgressKind = errors.New("writertestutil: unknown progress kind")
+
+// errNilObserver is returned by WriteWithProgress for a nil or typed-nil
+// observer, as the real writer rejects one.
+var errNilObserver = errors.New("writertestutil: progress observer is nil")
 
 // FakeArticleWriter is a configurable writer.ProgressWriter that records its
 // calls. It implements the interface with pointer receivers so the recorded
@@ -50,13 +55,16 @@ const (
 type FakeProgressStep struct {
 	Kind  FakeProgressKind
 	Stage writer.Stage
-	// Reached, when non-nil, is closed right after the notification is sent,
-	// so a test can wait for the call to get there. It is closed once, so a
-	// step that sets it serves one call.
-	Reached chan struct{}
+	// Reached, when non-nil, receives one value from every call that sends
+	// the notification, right after sending it, so a test can wait for each
+	// call to get there. The send waits for a receiver (or buffer space) or
+	// for ctx to be done, so concurrent calls never panic on it; a test that
+	// does not receive from it gives it room for every call.
+	Reached chan<- struct{}
 	// Release, when non-nil, holds the call after the notification (and
-	// after Reached is closed) until Release is closed or ctx is done. When
-	// ctx is done first, the call returns the zero Article and ctx's error.
+	// after the Reached send) until Release is closed or ctx is done.
+	// Closing it releases every call held on it. When ctx is done first, the
+	// call returns the zero Article and ctx's error.
 	Release <-chan struct{}
 }
 
@@ -79,6 +87,9 @@ func (f *FakeArticleWriter) Write(ctx context.Context, t transcript.Transcript) 
 // order, and returns the configured result and error.
 func (f *FakeArticleWriter) WriteWithProgress(ctx context.Context, t transcript.Transcript, observer writer.ProgressObserver) (writer.Article, error) {
 	f.record(ctx, t)
+	if nilcheck.IsNil(observer) {
+		return writer.Article{}, errNilObserver
+	}
 	for _, step := range f.Progress {
 		switch step.Kind {
 		case FakeStageStarted:
@@ -91,7 +102,11 @@ func (f *FakeArticleWriter) WriteWithProgress(ctx context.Context, t transcript.
 			return writer.Article{}, errUnknownProgressKind
 		}
 		if step.Reached != nil {
-			close(step.Reached)
+			select {
+			case step.Reached <- struct{}{}:
+			case <-ctx.Done():
+				return writer.Article{}, ctx.Err()
+			}
 		}
 		if step.Release != nil {
 			select {

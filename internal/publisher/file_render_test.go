@@ -241,7 +241,8 @@ func TestEscapeLeadingMarkdown(t *testing.T) {
 }
 
 // TestFileContentMatchesFilePublisher checks, for every golden article, that
-// FileContent returns byte for byte what FilePublisher writes.
+// FileContent returns byte for byte what FilePublisher writes, and that both
+// are the committed golden file, which predates FileContent.
 func TestFileContentMatchesFilePublisher(t *testing.T) {
 	for _, tc := range goldenCases() {
 		t.Run(tc.name, func(t *testing.T) {
@@ -264,26 +265,18 @@ func TestFileContentMatchesFilePublisher(t *testing.T) {
 			if got != string(written) {
 				t.Errorf("FileContent =\n%q\nwant the written file\n%q", got, written)
 			}
+			if want := readGolden(t, tc.name+".md"); got != want {
+				t.Errorf("FileContent differs from %s", tc.name+".md")
+			}
 		})
 	}
 }
 
-func TestFormatArticleCost(t *testing.T) {
-	cases := []struct {
-		name      string
-		article   writer.Article
-		wantUSD   string
-		wantKnown bool
-	}{
-		{"known", costedArticle(), "0.0023", true},
-		{"unknown", unpricedArticle(), "", false},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			usd, known := FormatArticleCost(tc.article.RunUsage)
-			if usd != tc.wantUSD || known != tc.wantKnown {
-				t.Errorf("FormatArticleCost = %q, %v, want %q, %v", usd, known, tc.wantUSD, tc.wantKnown)
-			}
-		})
+// TestFormatArticleCostUnknown checks the unknown result, which each caller
+// replaces with its own placeholder. The known value reaches both callers and
+// is pinned by the golden files.
+func TestFormatArticleCostUnknown(t *testing.T) {
+	if usd, known := FormatArticleCost(unpricedArticle().RunUsage); usd != "" || known {
+		t.Errorf("FormatArticleCost = %q, %v, want \"\", false", usd, known)
 	}
 }

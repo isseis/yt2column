@@ -84,14 +84,20 @@ func TestFakePublisherPostMessages(t *testing.T) {
 		{"from the second", nil, 1, []int{1}},
 		{"from the total", nil, 2, nil},
 		{"failure", errors.New("post failed"), 0, nil},
+		{"from below zero", nil, -1, nil},
+		{"from past the total", nil, 3, nil},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			fake := &FakePublisher{PostErr: tc.postErr}
 			var delivered []int
 			err := fake.PostMessages(ctx, m, tc.from, func(i int) { delivered = append(delivered, i) })
-			if !errors.Is(err, tc.postErr) {
-				t.Errorf("PostMessages error = %v, want %v", err, tc.postErr)
+			wantErr := tc.postErr
+			if tc.from < 0 || tc.from > m.Len() {
+				wantErr = ErrFakePostRefused
+			}
+			if !errors.Is(err, wantErr) {
+				t.Errorf("PostMessages error = %v, want %v", err, wantErr)
 			}
 			if !slices.Equal(delivered, tc.wantDelivered) {
 				t.Errorf("delivered = %v, want %v", delivered, tc.wantDelivered)
@@ -102,6 +108,25 @@ func TestFakePublisherPostMessages(t *testing.T) {
 			}
 			if len(fake.RecordedCalls()) != 0 {
 				t.Errorf("recorded Publish calls = %+v, want none", fake.RecordedCalls())
+			}
+		})
+	}
+}
+
+func TestFakePublisherPostMessagesRefuses(t *testing.T) {
+	cases := []struct {
+		name      string
+		m         publisher.SlackMessages
+		delivered func(int)
+	}{
+		{"messages not prepared", publisher.SlackMessages{}, func(int) {}},
+		{"nil delivered", twoMessages(t), nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := &FakePublisher{}
+			if err := fake.PostMessages(context.Background(), tc.m, 0, tc.delivered); !errors.Is(err, ErrFakePostRefused) {
+				t.Errorf("PostMessages error = %v, want ErrFakePostRefused", err)
 			}
 		})
 	}
