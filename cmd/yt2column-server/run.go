@@ -156,7 +156,8 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stderr io
 		return exitUsage
 	}
 	llmCfg := cfg.LLM()
-	secrets := redact.SecretStrings(cfg.WebhookURL(), llmCfg.DeepSeekAPIKey(), llmCfg.AnthropicAPIKey())
+	webhookURL, _ := cfg.WebhookURL()
+	secrets := redact.SecretStrings(webhookURL, llmCfg.DeepSeekAPIKey(), llmCfg.AnthropicAPIKey())
 	errOut.secrets = secrets
 	if cfg.HTTP2DebugEnabled() {
 		errOut.line("%s: warning: GODEBUG enables http2debug, so the Go HTTP/2 log may write the API key and the Webhook URL path to standard error", programName)
@@ -287,11 +288,12 @@ func buildServer(d deps, cfg config.ServerConfig, logOutput io.Writer, secrets [
 	if err != nil {
 		return nil, fmt.Errorf("build the article writer: %w", err)
 	}
-	pub, err := d.newPublisher(cfg.WebhookURL())
+	webhookURL, _ := cfg.WebhookURL()
+	pub, err := d.newPublisher(webhookURL)
 	if err != nil {
 		return nil, fmt.Errorf("build the publisher: %w", err)
 	}
-	notifier, err := d.newNotifier(cfg.WebhookURL())
+	notifier, err := d.newNotifier(webhookURL)
 	if err != nil {
 		return nil, fmt.Errorf("build the failure notifier: %w", err)
 	}

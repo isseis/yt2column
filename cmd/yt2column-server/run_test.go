@@ -61,14 +61,14 @@ func TestStartupFailures(t *testing.T) {
 			// Which values config.LoadServer rejects is its own tests'
 			// concern; here every rejection takes the same path, so one row
 			// with two of them checks the exit code and one line each.
-			name: "LLM empty and webhook missing",
+			name: "LLM empty and HOME unset",
 			setup: func(_ *testing.T, e *serverEnv, _ *deps) {
 				e.vars["YT2COLUMN_LLM"] = ""
-				delete(e.vars, "SLACK_WEBHOOK_URL")
+				delete(e.vars, "HOME")
 			},
 			want:        exitUsage,
-			wantStderr:  "configuration: SLACK_WEBHOOK_URL",
-			hint:        "configuration: YT2COLUMN_LLM",
+			wantStderr:  "configuration: YT2COLUMN_LLM",
+			hint:        "configuration: HOME",
 			configLines: 2,
 		},
 		{
