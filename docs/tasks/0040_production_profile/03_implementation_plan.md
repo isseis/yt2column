@@ -341,7 +341,7 @@ AC-12・AC-22・AC-26 は、`docs/tasks/0040_production_profile/_checks/main.go`
 | AC-09 | test: `cmd/yt2column/docs_test.go::TestQuickStartLinks` ＋ manual | 3-2 | 節が Requirements より前にあること、各手順のリンクと解決はテスト。手順の順序と内容はレビュー |
 | AC-10 | manual | 3-1 | Requirements の書き分け |
 | AC-11 | manual | 3-1 | Usage の段落 |
-| AC-12 | diff: `docs/tasks/0040_production_profile/_checks/main.go`（README の見出しの判定） | 3-1・3-2 | 実行の記録: merge-base `b295aa43ed11464ba3ac1c9c4d94674f629b6970`、head `bc3bdaa11198bf9fcfea7d90b9404255c211860e`、出力 `OK   README headings`（4 つの判定はすべて OK）。 |
+| AC-12 | diff: `docs/tasks/0040_production_profile/_checks/main.go`（README の見出しの判定） | 3-1・3-2 | 実行の記録: merge-base `b295aa43ed11464ba3ac1c9c4d94674f629b6970`、head `1991b086352fbd544598e38453a26fd0624b8b77`、出力 `OK   README headings`（4 つの判定はすべて OK）。 |
 | AC-13 | test: `cmd/yt2column/docs_test.go::TestProductionProfileDocsContract` ＋ manual | 3-2 | 小節が「Configuration」の中にあること、3 つの変数と値はテスト。`ANTHROPIC_API_KEY` と検証・推敲の記述はレビュー |
 | AC-14 | test: `cmd/yt2column/docs_test.go::TestProductionProfileDocsContract`・`cmd/yt2column/docs_test.go::TestProductionProfileLinks` ＋ manual | 3-2 | 既定との一致は (a)、共通の文書へのリンクは (c)。文はレビュー |
 | AC-15 | test: `cmd/yt2column/docs_test.go::TestProductionProfileDocsContract` ＋ manual | 1-1・3-2 | ブロックの変数名の集合が 3 つの変数と等しいこと（秘密情報の変数がないこと）はテスト。文章の中の値の例がないことはレビュー |
@@ -349,13 +349,13 @@ AC-12・AC-22・AC-26 は、`docs/tasks/0040_production_profile/_checks/main.go`
 | AC-17 | manual | 4-1 | 設計書 3.3 の決定の対照表と差分を照らす |
 | AC-18 | manual | 4-1 | `project_overview.md` の図と説明 |
 | AC-19 | test: `cmd/yt2column/docs_test.go::TestProductionProfileLinks` ＋ manual | 4-1 | 共通の文書へのリンクはテスト。記述と #490・#171 のリンクはレビュー |
-| AC-20 | test: `cmd/yt2column-server/docs_test.go::TestServerDocsContract`・`cmd/yt2column/docs_test.go::TestCostDocsContract`・`cmd/yt2column/docs_test.go::TestSlackDocsContract`・`cmd/yt2column/docs_test.go::TestLLMDefaultsDocsContract`（既存） ＋ diff: `docs/tasks/0040_production_profile/_checks/main.go`（「設定（環境変数）」の節の判定） | 4-1 | 既存のテストが変えずに通ること（1.4）。既存のテストが読まない表の変数名（`DEEPSEEK_API_KEY` など）も残ることは、節が変わらないことの差分の確認。実行の記録: merge-base `b295aa43ed11464ba3ac1c9c4d94674f629b6970`、head `bc3bdaa11198bf9fcfea7d90b9404255c211860e`、出力 `OK   project_overview.md environment variable section`。 |
+| AC-20 | test: `cmd/yt2column-server/docs_test.go::TestServerDocsContract`・`cmd/yt2column/docs_test.go::TestCostDocsContract`・`cmd/yt2column/docs_test.go::TestSlackDocsContract`・`cmd/yt2column/docs_test.go::TestLLMDefaultsDocsContract`（既存） ＋ diff: `docs/tasks/0040_production_profile/_checks/main.go`（「設定（環境変数）」の節の判定） | 4-1 | 既存のテストが変えずに通ること（1.4）。既存のテストが読まない表の変数名（`DEEPSEEK_API_KEY` など）も残ることは、節が変わらないことの差分の確認。実行の記録: merge-base `b295aa43ed11464ba3ac1c9c4d94674f629b6970`、head `1991b086352fbd544598e38453a26fd0624b8b77`、出力 `OK   project_overview.md environment variable section`。 |
 | AC-21 | test: `cmd/yt2column/docs_test.go::TestProductionProfileLinks` ＋ manual | 4-3 | 共通の文書へのリンクはテスト。v5 へのリンクが残ることはレビュー |
-| AC-22 | diff: `docs/tasks/0040_production_profile/_checks/main.go`（0008 評価記録の判定） ＋ manual | 5-1 | §6 の差分が追加だけで、Document Status の 3 つの行が変わらないことは差分の確認。追記した参照と `Comments` はレビュー。実行の記録: merge-base `b295aa43ed11464ba3ac1c9c4d94674f629b6970`、head `bc3bdaa11198bf9fcfea7d90b9404255c211860e`、出力 `OK   evaluation record section 6`。 |
+| AC-22 | diff: `docs/tasks/0040_production_profile/_checks/main.go`（0008 評価記録の判定） ＋ manual | 5-1 | §6 の差分が追加だけで、Document Status の 3 つの行が変わらないことは差分の確認。追記した参照と `Comments` はレビュー。実行の記録: merge-base `b295aa43ed11464ba3ac1c9c4d94674f629b6970`、head `1991b086352fbd544598e38453a26fd0624b8b77`、出力 `OK   evaluation record section 6`。 |
 | AC-23 | test: `cmd/yt2column/docs_test.go::TestProductionProfileLinks` ＋ manual | 4-2 | リンクはテスト。説明の文はレビュー |
 | AC-24 | manual | 4-2 | `CLAUDE.md` の冒頭の一文と図 |
 | AC-25 | manual | 1-1 | 共通の文書の評価の条件の記述 |
-| AC-26 | diff: `docs/tasks/0040_production_profile/_checks/main.go`（`security.md` の判定） ＋ manual | 4-3 | §1 以降が変わらないことは差分の確認。`:5` の新しい文はレビュー。実行の記録: merge-base `b295aa43ed11464ba3ac1c9c4d94674f629b6970`、head `bc3bdaa11198bf9fcfea7d90b9404255c211860e`、出力 `OK   security.md section 1 on`。 |
+| AC-26 | diff: `docs/tasks/0040_production_profile/_checks/main.go`（`security.md` の判定） ＋ manual | 4-3 | §1 以降が変わらないことは差分の確認。`:5` の新しい文はレビュー。実行の記録: merge-base `b295aa43ed11464ba3ac1c9c4d94674f629b6970`、head `1991b086352fbd544598e38453a26fd0624b8b77`、出力 `OK   security.md section 1 on`。 |
 
 `manual` だけの AC（AC-03〜AC-08・AC-10・AC-11・AC-16〜AC-18・AC-24・AC-25）は、文書の文面だけを定める AC である（要件書 §5、`requirements_process.md` §4）。値や構造の部分を持つ AC には、テストか差分の確認を当てた。例外は、共通の文書から出典へのリンク（AC-03・AC-25）と、`prompts/README.md` に残る v5 への参照（AC-21）で、設計書 1.2 と 7.2 のとおり manual で読む。
 
