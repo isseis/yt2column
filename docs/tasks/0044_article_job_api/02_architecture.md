@@ -8,7 +8,7 @@
 | Created | 2026-10-27 |
 | Review date | - |
 | Reviewer | - |
-| Comments | - |
+| Comments | 2026-10-27 (decision): 記事のキーを、秘密を使わない SHA-256 から、サーバのプロセスごとの秘密を鍵とする HMAC-SHA256 に改めた（§3.2・§5.2 の T-10）。誰でもキーを計算できると、生成を始めずに記事の有無を知る手段になり、キーが不透明であること（要件書 3.2）も保てないためである。レビュアー（isseis）が決め、承認した。 |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §3.16）を指す。既存のコードの行番号は、コミット `c3d20a7`（要件書の承認を含む `main` の先頭）で確かめたものである。
 
@@ -203,7 +203,7 @@ flowchart LR
 
 | 置き場所 | 新しく置くもの・変えるもの |
 |---|---|
-| `internal/articlecache`（新規） | 記事のキー（`Key`・`NewKey`・`ParseKey`）、記録と状態の列挙、`Cache`（生成の開始・状態の取得・投稿の開始の遷移、件数の上限と破棄）、ハンドル（`Run`・`PublishRun`） |
+| `internal/articlecache`（新規） | 記事のキー（`Key`・`Keyer`・`NewKeyer`・`ParseKey`）、記録と状態の列挙、`Cache`（生成の開始・状態の取得・投稿の開始の遷移、件数の上限と破棄）、ハンドル（`Run`・`PublishRun`） |
 | `internal/server` | 新しい 3 つのパスの受け口、読み込みの枠、生成のジョブ、投稿のジョブ、状態の取得の応答の組み立て、新しい拒否の理由、`Options` の Webhook の任意化、旧 API の Webhook 未設定の拒否、ジョブの取り消し |
 | `internal/writer` | `ProgressWriter`・`ProgressObserver`・`NewProgressWriter`、`templateWriter` の進み具合の通知 |
 | `internal/publisher` | 表示用の Markdown の整形、ファイルの中身・組み立て済みのメッセージ・料金を返す公開の関数、途中から再開できる送信 |
@@ -357,11 +357,16 @@ sequenceDiagram
 ### 3.2. 記事のキー（F-001・AC-03〜AC-05・AC-44、H-02）
 
 -   **入力:** 検査を通った後の 5 つの値。`videoUrl` は `transcript.ValidateVideoURL` が返す正規化した URL（`request.go:92`）、`transcript` は受け取った文字列（検査は値を変えない）、`title`・`channelName`・`description` は、省略した場合は空文字列（`request.go:112-125` の `optionalMember`）である。宣言していないメンバ、メンバの順序、JSON の空白とエスケープは、この 5 つの値に届かないので、キーを変えない（AC-03）。
--   **入力の作り方:** `KeyInput` を作るのは `validateBody` だけで、検査を通った値を `jobInput` に入れて返す。受け口は `jobInput` の値をそのまま `NewKey` に渡し、ほかの場所で `KeyInput` を組み立てない。`KeyInput` の各フィールドが検査済みであることは、型ではなくこの 1 か所の作り方で保つ。キーの計算は検査の結果に依存し、検査の結果は `jobInput` を作る 1 か所にしかないためである。
+-   **入力の作り方:** `KeyInput` を作るのは `validateBody` だけで、検査を通った値を `jobInput` に入れて返す。受け口は `jobInput` の値をそのまま `Keyer.Key` に渡し、ほかの場所で `KeyInput` を組み立てない。`KeyInput` の各フィールドが検査済みであることは、型ではなくこの 1 か所の作り方で保つ。キーの計算は検査の結果に依存し、検査の結果は `jobInput` を作る 1 か所にしかないためである。
 -   **符号化:** ドメイン分離のための固定の文字列 `yt2column article key v1` と 1 バイトの `0x00` の後に、5 つの値を上の順に、それぞれ「バイト長を 8 バイトのビッグエンディアンで表したもの」と「値の UTF-8 のバイト列」の組として並べる。長さを前に置くので、2 つの値の境目を動かした入力は違うバイト列になる（AC-05）。この文字列は、将来キーの計算を変えるときに版を変えるためのものである。
--   **ハッシュ:** 標準ライブラリの SHA-256（`crypto/sha256`）。外部ライブラリを加えない（要件書 5.）。
--   **キーの文字列の形:** ハッシュの 32 バイトを小文字の 16 進で表した 64 文字。受理する形はこれだけで、`ParseKey` は、長さが 64 でない文字列、`0-9a-f` 以外の文字（大文字を含む）を含む文字列を拒否する。前後の空白や大文字を補正しない（AC-44、CLAUDE.md「Reject, don't normalize」）。
--   **型:** `Key` はフィールドを公開しない構造体で、`NewKey`（入力から計算）と `ParseKey`（受理する形の検査）でしか作れない。サーバは、受け取ったキーを `ParseKey` を通してからキャッシュを引く値にだけ使う（要件書 3.2）。
+-   **計算:** 上の符号化のバイト列の HMAC-SHA256 をキーとする（標準ライブラリの `crypto/hmac` と `crypto/sha256`）。外部ライブラリを加えない（要件書 5.）。HMAC の鍵は、サーバのプロセスごとの秘密である。
+-   **秘密:** `crypto/rand` の 32 バイトを、`server.New` が 1 回だけ作り、`articlecache.NewKeyer` に渡す。秘密はメモリにだけ持ち、ログにも応答にも出さず、ディスクにも書かない。
+    -   `server.New` で作る理由: 秘密の寿命は記事のキャッシュの寿命と同じで、キャッシュを作るのも `server.New` である。秘密を `cmd/yt2column-server` で作って渡す形にすると、組み立ての側が秘密を扱うことになり、秘密が生きる範囲が広がるだけで得るものがない。
+    -   テスト: `-tags test` の組み立て（`internal/server/test_helpers.go`）と `articlecache` のテストは、固定の秘密を渡す。
+    -   乱数を得られない場合: Go 1.26（`go.mod`）の `crypto/rand.Read` はエラーを返さず、乱数を得られなければプロセスを止める（標準ライブラリの約束）。このため、サーバは待ち受けずに終わり、固定の秘密に切り替えることはない。
+-   **秘密を使う理由:** 秘密を使わないハッシュだと、入力を知る者は誰でも、生成の開始を呼ばずにキーを計算できる。すると、状態の取得を呼ぶだけで、その入力の記事がキャッシュにあるかを知ることができ、記事の有無を調べる手段になる。また、要件書 3.2 はキーを拡張とホストにとって不透明な値とするが、誰でも計算できるキーでは、利用者や拡張が計算方法に依存しうる。秘密を鍵にすれば、キーは生成の開始の応答からしか得られない。
+-   **キーの文字列の形:** HMAC の 32 バイトを小文字の 16 進で表した 64 文字。受理する形はこれだけで、`ParseKey` は、長さが 64 でない文字列、`0-9a-f` 以外の文字（大文字を含む）を含む文字列を拒否する。前後の空白や大文字を補正しない（AC-44、CLAUDE.md「Reject, don't normalize」）。
+-   **型:** `Key` はフィールドを公開しない構造体で、`Keyer.Key`（入力から計算）と `ParseKey`（受理する形の検査）でしか作れない。`Keyer` もフィールドを公開しない構造体で、秘密を受け取る `NewKeyer` でしか作れない。サーバは、受け取ったキーを `ParseKey` を通してからキャッシュを引く値にだけ使う（要件書 3.2）。
 
 ```go
 // Package articlecache
@@ -376,20 +381,25 @@ type KeyInput struct {
 	Description string // "" when the member was absent
 }
 
-// Key identifies one article in the cache. It can only be built by NewKey or
-// ParseKey.
-type Key struct{ /* unexported: the 32-byte SHA-256 digest */ }
+// Key identifies one article in the cache. It can only be built by
+// Keyer.Key or ParseKey.
+type Key struct{ /* unexported: the 32-byte HMAC-SHA256 value */ }
+
+// Keyer computes keys with one per-process secret. It can only be built by
+// NewKeyer, and it never exposes the secret.
+type Keyer struct{ /* unexported: the 32-byte secret */ }
 
 // ErrInvalidKey is wrapped by ParseKey for a string that is not 64 lowercase
 // hexadecimal characters. It never holds the string.
 var ErrInvalidKey = errors.New("invalid article key")
 
-func NewKey(in KeyInput) Key
+func NewKeyer(secret [32]byte) Keyer
+func (k Keyer) Key(in KeyInput) Key
 func ParseKey(s string) (Key, error)
 func (k Key) String() string // 64 lowercase hexadecimal characters
 ```
 
--   **キーの性質:** 同じサーバのメモリの中だけで使う値で、サーバの設定（モデルなど）は含めない。記事のキャッシュはサーバの起動ごとに空から始まり、設定は起動の間変わらないので、設定の違う 2 つの記事が同じキーで並ぶことはない。
+-   **キーの性質:** 同じサーバのメモリの中だけで使う値で、サーバの設定（モデルなど）は含めない。記事のキャッシュはサーバの起動ごとに空から始まり、設定は起動の間変わらないので、設定の違う 2 つの記事が同じキーで並ぶことはない。1 つのプロセスの中では秘密が変わらないので、同じ入力は同じキーになり、重複の排除（#501、AC-03〜AC-05）は変わらない。秘密は起動ごとに作り直すので、再起動の前に得たキーは、再起動の後には同じ入力から得られない。キャッシュも起動ごとに空から始まる（AC-28）ので、キーが変わっても失うものはない。
 
 ### 3.3. 記事のキャッシュ（`internal/articlecache`、F-004、H-06）
 
@@ -879,6 +889,8 @@ type WebhookOptions struct {
 -   `cmd/yt2column-server` の `buildServer`（`run.go:277-309`）は、`cfg.WebhookURL()` が設定済みを返したときだけ `deps.newPublisher` と `deps.newNotifier` を呼び、`WebhookOptions` を渡す。未設定なら `Webhook` を `nil` にする。`deps.newPublisher` の戻り値の型を `server.WebhookPublisher` に変える。今の `newPublisher`（`run.go:68-77`）の「型付きの `nil` を返さない」約束は保つ。秘密の値の一覧（`redact.SecretStrings`）は、Webhook の URL のゼロ値を受け取ると何も加えない（`internal/redact/redact.go:90-100`）ので、そのまま渡す。
 -   **起動のログ:** `listening` の行（`run.go:185-189`）に `webhookConfigured`（真偽値）を加える。未設定のときは、続けて WARN の行を 1 行書き、投稿の操作と `/articles` が `webhook_not_configured` で拒否されることを伝える。今までは未設定なら起動が止まったが、今後は止まらなくなるので、設定し忘れに気づけるようにするためである。
 
+-   **キーの秘密:** `server.New` は、組み立ての中でキーの秘密を作る（§3.2）。乱数を得られなければプロセスが止まり、サーバは待ち受けない。
+
 ### 3.9. 旧 API（F-007・AC-36・AC-37）
 
 -   `SLACK_WEBHOOK_URL` が設定されているときの旧 API の振る舞い（検査・応答・非同期の生成と投稿・失敗の通知・生成の枠）は変えない。変わるのは、生成の枠を新しい API の生成のジョブと共有することだけである（§3.4.3）。新しい API の生成が走っていなければ、旧 API から見た振る舞いは今と同じである（AC-36）。旧 API のテストは、`New(Options{…})` の組み立てを `WebhookOptions` に移す変更（§3.13）のほかは、入力と期待値を変えない。
@@ -1204,7 +1216,7 @@ const (
 
 | ファイル | 新規・変更 | 責務 |
 |---|---|---|
-| `internal/articlecache/key.go` | 新規 | `KeyInput`・`Key`・`NewKey`・`ParseKey`・`ErrInvalidKey` |
+| `internal/articlecache/key.go` | 新規 | `KeyInput`・`Key`・`Keyer`・`NewKeyer`・`ParseKey`・`ErrInvalidKey` |
 | `internal/articlecache/cache.go` | 新規 | `Cache`・`Options`・`New`・`Begin`・`Lookup`・`BeginPublish`・`Eviction`、件数の上限と破棄 |
 | `internal/articlecache/record.go` | 新規 | 状態の列挙、`Stages`・`Snapshot`、`Run`・`PublishRun` の遷移と世代 |
 | `internal/server/handler.go` | 変更 | デコードする前のターゲットによる振り分け（`/articles`・`/jobs`・`/jobs/{key}`・`/jobs/{key}/publish`）、旧 API の Webhook 未設定の拒否 |
@@ -1214,9 +1226,9 @@ const (
 | `internal/server/status.go` | 新規 | 状態の取得の応答の組み立て、コードの選択、応答の大きさの上限 |
 | `internal/server/request.go` | 変更 | `jobInput` に検査を通った値（キーの入力）を加える |
 | `internal/server/response.go` | 変更 | 新しい拒否の理由、`forceClose`、`rejection` の「本文を読み残した」値、`too_many_requests` の `detail` |
-| `internal/server/server.go` | 変更 | `Options`・`WebhookOptions`、`Cache` と読み込みの枠の保持、シャットダウンの取り消しとログ |
+| `internal/server/server.go` | 変更 | `Options`・`WebhookOptions`、キーの秘密の生成と `Keyer`、`Cache` と読み込みの枠の保持、シャットダウンの取り消しとログ |
 | `internal/server/job.go` | 変更 | `classifyWrite` の戻り値、旧 API の `failure.Kind` への対応づけ |
-| `internal/server/test_helpers.go` | 変更 | キャッシュの上限と時計を渡す組み立て、`APICodesForTest`、fake の `WriteWithProgress` |
+| `internal/server/test_helpers.go` | 変更 | キャッシュの上限と時計とキーの秘密を渡す組み立て、`APICodesForTest`、fake の `WriteWithProgress` |
 | `internal/writer/writer.go` | 変更 | `ProgressObserver`・`ProgressWriter`・`NewProgressWriter`、`WriteWithProgress` と通知 |
 | `internal/publisher/testutil/mocks.go` | 変更 | `FakePublisher.PostMessages`（`server.WebhookPublisher` を満たす） |
 | `internal/writer/testutil/mocks.go` | 変更 | `FakeArticleWriter.WriteWithProgress` と工程ごとに止める仕組み |
@@ -1253,6 +1265,7 @@ var (
 )
 ```
 
+-   キーの秘密を作るための乱数が得られない場合、サーバは起動しない（§3.2）。`crypto/rand.Read` がプロセスを止めるので、`server.New` はこの場合のエラーを持たない。固定の秘密や別の乱数の源に切り替えない。
 -   新しい API の失敗は、Go のエラーとして呼び出し側へ返さず、記録の列挙（`FailureReason`・`PublishFailureReason`）と拒否の理由として表す。生成のジョブと投稿のジョブは、エラーをログの 1 行にだけ書く。
 -   失敗の理由は、`classifyWrite` と `errors.Is`/`errors.AsType` で選び、エラーの文言から推し量らない。投稿の失敗は `errors.AsType[*publisher.SlackPostError]` で `webhook` にし、それ以外は `internal` にする。
 
@@ -1345,6 +1358,7 @@ flowchart LR
 | T-06 | プロンプトインジェクションで操作された記事が、利用者の画面や Webhook に届く | 完了の時点の検査（公開できるか、送る前の検査）を今の投稿と同じにする（§3.6.3）。表示の安全性は #503・#504 |
 | T-07 | 同じ利用者のほかのプロセスが、キーを知って投稿を求める | 信頼の境界は今と同じ（そのプロセスは今も `/articles` で投稿を求められる、要件書 4.2）。UDS の権限（`0700`・`0600`）は変えない |
 | T-08 | コピーした字幕がメモリに残り続ける | コピーした字幕は生成のジョブの間だけ持ち、記録には訂正の一覧（コピーした字幕の引用を含む）を除いた記事だけを渡す（§3.3.2・§3.4.4、AC-27）。ディスクに書かない |
+| T-10 | 入力を知る者がキーを計算し、生成を始めずに状態の取得を呼んで、その入力の記事がキャッシュにあるかを知る（記事の有無を調べる手段）。また、計算できるキーに利用者や拡張が依存する | キーを、プロセスごとの秘密を鍵とする HMAC-SHA256 にする。秘密はメモリにだけ持ち、出力しない（§3.2）。残るリスク: 同じ利用者のプロセスは、同じ入力で生成の開始を呼べば今もキーを得られる（その場合は生成が始まりうる。信頼の境界は T-07 と同じ） |
 | T-09 | 受け口の panic で、生成の枠や記録が使えないまま残り、生成がすべて止まる | ハンドルと枠の持ち主を決め、panic でも後始末する（§3.4.5）。キャッシュのメソッドは排他制御を `defer` で解き、範囲外の入力で panic しない（§3.3.2） |
 
 ### 5.3. 信頼できない入力の境界
@@ -1493,7 +1507,7 @@ sequenceDiagram
 
 ### 7.1. ユニットテスト（H-13）
 
--   **`internal/articlecache`:** 時計を差し替え、上限を小さくした `Cache` で、遷移の表（§3.3.1）の各矢印、`Begin` の 5 つの結果、破棄の順序と対象（`投稿中` と `処理中` を捨てない）、`BeginPublish` の 5 つの結果、`Delivered` と `From` の関係、ハンドルの不変条件（同じキーで 2 つ目の有効な `Run`・`PublishRun` が作られない）、ハンドルの世代（破棄と作り直しの後の古いハンドルが何もしない）、範囲外の入力で panic しないこと、`Failed` から `Running` に戻るときに工程の状態が戻ること、記録の記事が訂正の一覧を持たないことを確かめる。並行の `Begin` を `-race` で走らせ、`acquire` が 1 回だけ呼ばれることを確かめる。キーは、AC-03〜AC-05 の入力の組と、`ParseKey` とサーバの受け口の拒否の表（短すぎる、長すぎる（65 文字。ヘッダの上限より短い長さで確かめる）、大文字、空白、16 進でない文字）で確かめる。
+-   **`internal/articlecache`:** 時計を差し替え、上限を小さくした `Cache` で、遷移の表（§3.3.1）の各矢印、`Begin` の 5 つの結果、破棄の順序と対象（`投稿中` と `処理中` を捨てない）、`BeginPublish` の 5 つの結果、`Delivered` と `From` の関係、ハンドルの不変条件（同じキーで 2 つ目の有効な `Run`・`PublishRun` が作られない）、ハンドルの世代（破棄と作り直しの後の古いハンドルが何もしない）、範囲外の入力で panic しないこと、`Failed` から `Running` に戻るときに工程の状態が戻ること、記録の記事が訂正の一覧を持たないことを確かめる。並行の `Begin` を `-race` で走らせ、`acquire` が 1 回だけ呼ばれることを確かめる。キーは、固定の秘密を渡した `Keyer` で、AC-03〜AC-05 の入力の組を確かめる。同じ入力を 2 つの違う秘密で計算すると違うキーになることを確かめ、秘密が計算に使われていることを確かめる（キーを 16 進の固定の値と比べるテストは書かない）。拒否は、`ParseKey` とサーバの受け口の拒否の表（短すぎる、長すぎる（65 文字。ヘッダの上限より短い長さで確かめる）、大文字、空白、16 進でない文字）で確かめる。
 -   **`internal/writer`:** fake の `LLMClient` で、工程の通知の順序（AC-10）、短縮の省略と実行の境目（4,000 字ちょうどと 4,001 字、AC-11）、失敗した工程の後に `StageFinished` が来ないこと、`Write` と `WriteWithProgress` が同じ記事を返すことを確かめる。
 -   **`internal/publisher`:** `FileContent` が `FilePublisher` の書いたファイルとバイト単位で同じであること（AC-12、`golden_test.go` の入力を使う）、`DisplayMarkdown` の並び、`PostMessages` の再開（k = 1 と 1 < k、AC-21）と `delivered` の呼び出し、範囲外の `from` の拒否、`from` が全体の数のときに何も送らないこと、`Publish` の今のテストがそのまま通ること。
 -   **`internal/server`:** 次の部品でテストを組み立てる。
@@ -1524,6 +1538,7 @@ sequenceDiagram
 -   資源の上限: 読み込みの枠・生成の枠・キャッシュの上限で拒否され、記録が変わらないこと（T-04）。
 -   漏洩: AC-27・AC-31 のテスト（T-05・T-08）。
 -   後始末: §7.1 の受け口の panic のテスト（T-09）。
+-   キーの予測: 違う秘密で違うキーになるテスト（§7.1、T-10）。秘密がログと応答に出ないことは、AC-31 のテストの目印に秘密の値を加えて確かめる。
 
 ### 7.4. 受け入れ基準と設計要素の対応
 
@@ -1600,6 +1615,6 @@ sequenceDiagram
 
 -   **旧 API の削除（#503 の後）:** §3.14 の一覧で行う。新しい API は旧 API の部品（`internal/failure`・`internal/pipeline`・失敗の通知）に依存しないので、削除で新しい API のコードは変わらない。
 -   **拡張の新しい API への移行（#503）:** 拡張は、ホストの新しい形のメッセージと §3.11 のコードだけを使えばよい。新しい形の応答の上限と、コードごとの文言は #503・#506 で決める。
--   **キーの計算の変更:** ドメイン分離の文字列の版（`v1`）を変えれば、前のキーと衝突しない。キーは不透明な値なので、拡張とホストは変わらない。
+-   **キーの計算の変更:** ドメイン分離の文字列の版（`v1`）を変えれば、前のキーと衝突しない。秘密はプロセスごとなので、計算を変えても再起動の前のキーを引き継ぐ必要はない。キーは不透明な値なので、拡張とホストは変わらない。
 -   **永続化:** 記録を `articlecache` の 1 か所で持つので、将来ディスクに保存することになっても、変えるのはこのパッケージと起動の手順である（親 issue #501 では行わないと決めた）。
 -   **新しい操作:** ホストの `Operation` と、サーバのメソッドとパスの形を 1 つずつ加える。拡張にパスを指定させない形は保つ。
