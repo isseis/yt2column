@@ -162,13 +162,13 @@
 
 **変更するファイル:** `src/core/messages.ts`、`src/core/sendMessages.ts`、`src/ui/render.ts`、`src/ui/renderSend.ts`、`src/launch.ts`、`src/popup.ts`、`test/messages.test.ts`・`test/sendMessages.test.ts`・`test/render.test.ts`・`test/renderMetadata.test.ts`・`test/renderSend.test.ts`・`test/launch.test.ts`・`test/metadataDocs.test.ts`
 
--   [ ] `messages.ts`・`sendMessages.ts` の関数を、設計書 3.2 の新しい形（言語を受け取り、`catalogs[locale]` から文言を返す）にする。`switch` を残す関数と `Record` の引き当てに置き換える関数は、設計書 3.2 のとおりに分ける。
--   [ ] `render.ts` の `renderSummary`・`renderMetadata` を、設計書 3.3 のとおり言語を受け取る形にする。要約の欄は `SummaryField` をキーにした表でクラス名と表示の向きを持ち、欄の名前を `summaryLabels` から、数を `formatCount` で表示する。`metadataRows` は `label` を持たない形にして、欄の名前を `metadataLabels` から取る（設計書 3.2・3.3）。
--   [ ] `renderSend.ts` から `sendingMessage` を除き、`renderSendOutcome`・`renderBlockReason` を言語を受け取る形にする（1.4 の台帳）。
--   [ ] `launch.ts` の `PopupLaunchDeps`・`PopupSendDeps` に `locale` を加え、表示の関数へ渡す。送信中の案内と送信ボタンの名前は `catalogs[deps.locale]` の `sending`・`sendButton` から取る。ログ（`logSend`・`readMetadata`・`deps.log.*`）は `deps.locale` を参照しない（設計書 3.3）。
--   [ ] `popup.ts` の 2 つの依存に `locale: "en"` を加える（1.3）。
--   [ ] 1.4 の古いコメント（`src/popup.ts:1-3` を除く）を、新しい形に合わせて書き直す。
--   [ ] 既存のテストの呼び出しに `"en"` を渡し、`sendingMessage` の import（`test/launch.test.ts:20`）を `catalogs.en.sending` に置き換えて、今の検査のまま通す。関数を `.map` に直接渡す呼び出し（`test/sendMessages.test.ts:207-211`）は、配列の添字が言語の引数に入るので、言語を渡す関数に書き換える。英語の欄の名前を文字列で書いているテスト（`test/render.test.ts:27-31`、`test/renderMetadata.test.ts:30-37`・`:56-58`）は文字列のまま残す（設計書 3.8）。`metadataDocs.test.ts` は `expandPromptMessage("en")` と比べる（AC-23、H-01）。
+-   [x] `messages.ts`・`sendMessages.ts` の関数を、設計書 3.2 の新しい形（言語を受け取り、`catalogs[locale]` から文言を返す）にする。`switch` を残す関数と `Record` の引き当てに置き換える関数は、設計書 3.2 のとおりに分ける。
+-   [x] `render.ts` の `renderSummary`・`renderMetadata` を、設計書 3.3 のとおり言語を受け取る形にする。要約の欄は `SummaryField` をキーにした表でクラス名と表示の向きを持ち、欄の名前を `summaryLabels` から、数を `formatCount` で表示する。`metadataRows` は `label` を持たない形にして、欄の名前を `metadataLabels` から取る（設計書 3.2・3.3）。
+-   [x] `renderSend.ts` から `sendingMessage` を除き、`renderSendOutcome`・`renderBlockReason` を言語を受け取る形にする（1.4 の台帳）。
+-   [x] `launch.ts` の `PopupLaunchDeps`・`PopupSendDeps` に `locale` を加え、表示の関数へ渡す。送信中の案内と送信ボタンの名前は `catalogs[deps.locale]` の `sending`・`sendButton` から取る。ログ（`logSend`・`readMetadata`・`deps.log.*`）は `deps.locale` を参照しない（設計書 3.3）。
+-   [x] `popup.ts` の 2 つの依存に `locale: "en"` を加える（1.3）。
+-   [x] 1.4 の古いコメント（`src/popup.ts:1-3` を除く）を、新しい形に合わせて書き直す。
+-   [x] 既存のテストの呼び出しに `"en"` を渡し、`sendingMessage` の import（`test/launch.test.ts:20`）を `catalogs.en.sending` に置き換えて、今の検査のまま通す。関数を `.map` に直接渡す呼び出し（`test/sendMessages.test.ts:207-211`）は、配列の添字が言語の引数に入るので、言語を渡す関数に書き換える。英語の欄の名前を文字列で書いているテスト（`test/render.test.ts:27-31`、`test/renderMetadata.test.ts:30-37`・`:56-58`）は文字列のまま残す（設計書 3.8）。`metadataDocs.test.ts` は `expandPromptMessage("en")` と比べる（AC-23、H-01）。
 
 **完了の条件:** `make ext-check` が通る。コミットする。
 

@@ -7,6 +7,7 @@ import type {
   PageSelection,
   SelectionReader,
 } from "../src/core/collect.ts";
+import { catalogs } from "../src/core/i18n/catalog.ts";
 import { expandPromptMessage } from "../src/core/messages.ts";
 import type { RejectionMessage } from "../src/core/messages.ts";
 import { emptyMetadataResult } from "../src/core/metadata.ts";
@@ -17,7 +18,6 @@ import { maxBodyBytes } from "../src/core/prepare.ts";
 import type { RequestId, SendOutcome } from "../src/core/response.ts";
 import { blockMessage, sendOutcomeMessage } from "../src/core/sendMessages.ts";
 import { metadataDisplayLimit } from "../src/ui/render.ts";
-import { sendingMessage } from "../src/ui/renderSend.ts";
 import {
   launchContextFromTab,
   runPopupLaunch,
@@ -157,6 +157,7 @@ function popupHarness(overrides: Partial<PopupLaunchDeps> = {}): PopupHarness {
     metadataReader: metadataReader(metadataJson({})).reader,
     activeTab: async () => fakeTab(),
     log: recorder.log,
+    locale: "en",
     ...overrides,
   };
   return { deps, recorder };
@@ -261,6 +262,7 @@ describe("launch paths", () => {
       send: testSendDeps(popupNative.sendNative),
       now: () => 1000,
       log: recordingLogger().log,
+      locale: "en",
     });
     await clickSend(popupRoot);
 
@@ -367,6 +369,7 @@ describe("launch paths", () => {
         send: testSendDeps(popupNative.sendNative),
         now: () => 1000,
         log: recordingLogger().log,
+        locale: "en",
       });
       await clickSend(popupRoot);
       assert.deepEqual(popupNative.messages, [
@@ -426,6 +429,7 @@ describe("popup send", () => {
         send: testSendDeps(acceptedNative().sendNative),
         now: () => 1000,
         log: recorder.log,
+        locale: "en",
         ...overrides,
       },
       recorder,
@@ -453,7 +457,7 @@ describe("popup send", () => {
     await clickSend(root);
     assert.equal(native.messages.length, 1);
     assert.equal(query<HTMLButtonElement>(root, ".send-button").disabled, true);
-    expectMessage(root, sendOutcomeMessage(acceptedOutcome));
+    expectMessage(root, sendOutcomeMessage(acceptedOutcome, "en"));
     assert.equal(
       root.querySelector(".send-request-id")?.textContent,
       requestId,
@@ -490,7 +494,7 @@ describe("popup send", () => {
     button.click();
     await flush();
     assert.equal(button.disabled, true);
-    expectMessage(root, sendingMessage);
+    expectMessage(root, catalogs.en.sending);
     // The close guidance and the Slack warning are what the notice is for, so
     // assert the whole sentences independently of the constant it renders.
     const text = root.textContent ?? "";
@@ -522,7 +526,7 @@ describe("popup send", () => {
       }).deps,
     );
     await runPopupSend(sendRoot, result, popupDeps);
-    expectMessage(summaryRoot, expandPromptMessage);
+    expectMessage(summaryRoot, expandPromptMessage("en"));
     assert.ok(sendRoot.querySelector(".send-button") !== null);
     await clickSend(sendRoot);
     assert.equal(native.messages.length, 1);
@@ -572,7 +576,7 @@ describe("popup send", () => {
     await runPopupSend(root, collected(), popupDeps);
     await clickSend(root);
     assert.equal(native.messages.length, 1);
-    expectMessage(root, sendOutcomeMessage({ kind: "host-failed" }));
+    expectMessage(root, sendOutcomeMessage({ kind: "host-failed" }, "en"));
     assert.deepEqual(
       recorder.errors.map((entry) => entry.label),
       [sendLabel],
@@ -612,7 +616,7 @@ describe("popup send", () => {
       const root = container();
       await runPopupSend(root, result, popupDeps);
       assert.equal(root.querySelector(".send-button"), null);
-      expectMessage(root, blockMessage("body-too-large"));
+      expectMessage(root, blockMessage("body-too-large", "en"));
       assert.equal(native.messages.length, 0);
       // A blocked launch is normal: logged at info, never at error.
       assert.deepEqual(
@@ -643,6 +647,7 @@ describe("video metadata log", () => {
       send: testSendDeps(acceptedNative().sendNative),
       now: () => 1000,
       log: send.log,
+      locale: "en",
     });
     await clickSend(sendRoot);
     // The same metadata with a selection over the body limit blocks the send.
@@ -654,6 +659,7 @@ describe("video metadata log", () => {
         send: testSendDeps(acceptedNative().sendNative),
         now: () => 1000,
         log: blocked.log,
+        locale: "en",
       },
     );
     // Precondition: both send-control logs were written.
@@ -763,6 +769,7 @@ describe("send log", () => {
       send: testSendDeps(native.sendNative),
       now: () => 1000,
       log: recorder.log,
+      locale: "en",
     });
     await clickSend(root);
     return { recorder, root };
@@ -816,7 +823,7 @@ describe("send log", () => {
     });
     expectMessage(
       root,
-      sendOutcomeMessage({ kind: "unexpected", check: "status-pairing" }),
+      sendOutcomeMessage({ kind: "unexpected", check: "status-pairing" }, "en"),
     );
     assert.equal(root.textContent?.includes("404"), false);
   });

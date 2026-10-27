@@ -31,8 +31,8 @@ describe("renderSendOutcome", () => {
   for (const outcome of withRequestId) {
     it(`shows the ${outcome.kind} message and its request id`, () => {
       const root = container();
-      renderSendOutcome(root, outcome);
-      expectMessage(root, sendOutcomeMessage(outcome));
+      renderSendOutcome(root, outcome, "en");
+      expectMessage(root, sendOutcomeMessage(outcome, "en"));
       assert.equal(query(root, ".send-request-id").textContent, requestId);
     });
   }
@@ -45,8 +45,8 @@ describe("renderSendOutcome", () => {
   for (const outcome of withoutRequestId) {
     it(`shows the ${outcome.kind} message and no request id`, () => {
       const root = container();
-      renderSendOutcome(root, outcome);
-      expectMessage(root, sendOutcomeMessage(outcome));
+      renderSendOutcome(root, outcome, "en");
+      expectMessage(root, sendOutcomeMessage(outcome, "en"));
       assert.equal(root.querySelector(".send-request-id"), null);
     });
   }
@@ -54,17 +54,17 @@ describe("renderSendOutcome", () => {
   it("shows the unexpected message but not the check", () => {
     const root = container();
     const outcome: SendOutcome = { kind: "unexpected", check: "json-shape" };
-    renderSendOutcome(root, outcome);
-    expectMessage(root, sendOutcomeMessage(outcome));
+    renderSendOutcome(root, outcome, "en");
+    expectMessage(root, sendOutcomeMessage(outcome, "en"));
     assert.equal((root.textContent ?? "").includes("json-shape"), false);
   });
 
   it("replaces the previous content on each call", () => {
     const root = container();
-    renderSendOutcome(root, accepted);
-    renderSendOutcome(root, { kind: "no-response" });
+    renderSendOutcome(root, accepted, "en");
+    renderSendOutcome(root, { kind: "no-response" }, "en");
     assert.equal(root.querySelectorAll(".send-request-id").length, 0);
-    expectMessage(root, sendOutcomeMessage({ kind: "no-response" }));
+    expectMessage(root, sendOutcomeMessage({ kind: "no-response" }, "en"));
   });
 });
 
@@ -76,8 +76,8 @@ describe("renderBlockReason", () => {
   for (const reason of blockReasons) {
     it(`shows the ${reason} block message`, () => {
       const root = container();
-      renderBlockReason(root, reason);
-      expectMessage(root, blockMessage(reason));
+      renderBlockReason(root, reason, "en");
+      expectMessage(root, blockMessage(reason, "en"));
     });
   }
 });

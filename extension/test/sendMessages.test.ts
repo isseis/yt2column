@@ -39,7 +39,10 @@ const preflightReasonsList = Object.keys(
 describe("blockMessage", () => {
   it("delegates a collection reason to rejectionMessage", () => {
     for (const reason of rejectionReasonsList) {
-      assert.deepEqual(blockMessage(reason), rejectionMessage(reason));
+      assert.deepEqual(
+        blockMessage(reason, "en"),
+        rejectionMessage(reason, "en"),
+      );
     }
   });
 
@@ -49,7 +52,7 @@ describe("blockMessage", () => {
       ...preflightReasonsList,
     ];
     for (const reason of blockReasons) {
-      assert.notEqual(blockMessage(reason).text, "", reason);
+      assert.notEqual(blockMessage(reason, "en").text, "", reason);
     }
   });
 
@@ -58,12 +61,12 @@ describe("blockMessage", () => {
       ...rejectionReasonsList,
       ...preflightReasonsList,
     ];
-    const texts = blockReasons.map((reason) => blockMessage(reason).text);
+    const texts = blockReasons.map((reason) => blockMessage(reason, "en").text);
     assert.equal(new Set(texts).size, blockReasons.length);
   });
 
   it("names the limit for body-too-large", () => {
-    assert.ok(textOf(blockMessage("body-too-large")).includes("4 MiB"));
+    assert.ok(textOf(blockMessage("body-too-large", "en")).includes("4 MiB"));
   });
 });
 
@@ -72,12 +75,14 @@ describe("serverRejectMessage", () => {
 
   it("gives every reason a non-empty text", () => {
     for (const reason of reasons) {
-      assert.notEqual(serverRejectMessage(reason).text, "", reason);
+      assert.notEqual(serverRejectMessage(reason, "en").text, "", reason);
     }
   });
 
   it("gives every reason a distinct text", () => {
-    const texts = reasons.map((reason) => serverRejectMessage(reason).text);
+    const texts = reasons.map(
+      (reason) => serverRejectMessage(reason, "en").text,
+    );
     assert.equal(new Set(texts).size, reasons.length);
   });
 });
@@ -90,8 +95,8 @@ describe("sendOutcomeMessage", () => {
       requestId,
     };
     assert.deepEqual(
-      sendOutcomeMessage(outcome),
-      serverRejectMessage("invalid_body"),
+      sendOutcomeMessage(outcome, "en"),
+      serverRejectMessage("invalid_body", "en"),
     );
   });
 
@@ -120,7 +125,7 @@ describe("sendOutcomeMessage", () => {
 
   it("gives every outcome a distinct text", () => {
     const texts = outcomes.map(
-      ({ outcome }) => sendOutcomeMessage(outcome).text,
+      ({ outcome }) => sendOutcomeMessage(outcome, "en").text,
     );
     assert.equal(new Set(texts).size, outcomes.length);
   });
@@ -131,7 +136,7 @@ describe("sendOutcomeMessage", () => {
       const entry = outcomes.find((row) => row.name === name);
       assert.ok(entry !== undefined);
       assert.equal(
-        textOf(sendOutcomeMessage(entry.outcome)).includes("Slack"),
+        textOf(sendOutcomeMessage(entry.outcome, "en")).includes("Slack"),
         false,
       );
     });
@@ -142,7 +147,9 @@ describe("sendOutcomeMessage", () => {
     it(`asks to check Slack before sending again when the result is unknown (${name})`, () => {
       const entry = outcomes.find((row) => row.name === name);
       assert.ok(entry !== undefined);
-      const text = textOf(sendOutcomeMessage(entry.outcome)).toLowerCase();
+      const text = textOf(
+        sendOutcomeMessage(entry.outcome, "en"),
+      ).toLowerCase();
       assert.ok(text.includes("check slack"), name);
       assert.ok(text.includes("before sending again"), name);
     });
@@ -150,23 +157,26 @@ describe("sendOutcomeMessage", () => {
 
   it("tells the user to check Slack after an accepted send and too_many_requests", () => {
     assert.ok(
-      textOf(sendOutcomeMessage({ kind: "accepted", requestId })).includes(
-        "Slack",
-      ),
+      textOf(
+        sendOutcomeMessage({ kind: "accepted", requestId }, "en"),
+      ).includes("Slack"),
     );
     assert.ok(
-      textOf(serverRejectMessage("too_many_requests")).includes("Slack"),
+      textOf(serverRejectMessage("too_many_requests", "en")).includes("Slack"),
     );
   });
 
   it("names the host install step for host-failed", () => {
-    const text = textOf(sendOutcomeMessage({ kind: "host-failed" }));
+    const text = textOf(sendOutcomeMessage({ kind: "host-failed" }, "en"));
     assert.ok(text.includes("yt2column-nmhost install"));
   });
 
   it("names the server start for server-unavailable", () => {
     const text = textOf(
-      sendOutcomeMessage({ kind: "not-sent", cause: "server-unavailable" }),
+      sendOutcomeMessage(
+        { kind: "not-sent", cause: "server-unavailable" },
+        "en",
+      ),
     );
     assert.ok(text.includes("yt2column-server"));
   });
@@ -189,13 +199,16 @@ describe("sendOutcomeMessage", () => {
   };
 
   it("shows one message for every unexpected check", () => {
-    const message = sendOutcomeMessage({
-      kind: "unexpected",
-      check: "extension-timeout",
-    });
+    const message = sendOutcomeMessage(
+      {
+        kind: "unexpected",
+        check: "extension-timeout",
+      },
+      "en",
+    );
     for (const check of Object.keys(unexpectedChecks) as UnexpectedCheck[]) {
       assert.deepEqual(
-        sendOutcomeMessage({ kind: "unexpected", check }),
+        sendOutcomeMessage({ kind: "unexpected", check }, "en"),
         message,
         check,
       );
@@ -204,11 +217,13 @@ describe("sendOutcomeMessage", () => {
 
   it("never mentions an options page, a token or a port", () => {
     const messages = [
-      ...outcomes.map(({ outcome }) => sendOutcomeMessage(outcome)),
+      ...outcomes.map(({ outcome }) => sendOutcomeMessage(outcome, "en")),
       ...(Object.keys(serverRejectStatus) as ServerRejectReason[]).map(
-        serverRejectMessage,
+        (reason) => serverRejectMessage(reason, "en"),
       ),
-      ...[...rejectionReasonsList, ...preflightReasonsList].map(blockMessage),
+      ...[...rejectionReasonsList, ...preflightReasonsList].map((reason) =>
+        blockMessage(reason, "en"),
+      ),
     ];
     for (const message of messages) {
       const text = textOf(message);

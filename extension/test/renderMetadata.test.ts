@@ -25,6 +25,7 @@ describe("renderMetadata", () => {
           description: "A description",
         },
       }),
+      "en",
     );
     assert.equal(valueOf(root, "Video title"), "A title");
     assert.equal(valueOf(root, "Channel"), "A channel");
@@ -40,7 +41,11 @@ describe("renderMetadata", () => {
 
   it("shows only the values that are present", () => {
     const root = container();
-    renderMetadata(root, result({ values: { channelName: "A channel" } }));
+    renderMetadata(
+      root,
+      result({ values: { channelName: "A channel" } }),
+      "en",
+    );
     assert.equal(valueOf(root, "Channel"), "A channel");
     assert.equal(valueOf(root, "Video title"), undefined);
     assert.equal(valueOf(root, "Description"), undefined);
@@ -51,6 +56,7 @@ describe("renderMetadata", () => {
     renderMetadata(
       root,
       result({ values: { title: "t", channelName: "c", description: "d" } }),
+      "en",
     );
     const cases = [
       { label: "Video title", className: "metadata-title" },
@@ -69,6 +75,7 @@ describe("renderMetadata", () => {
     renderMetadata(
       root,
       result({ values: { title: malicious, description: malicious } }),
+      "en",
     );
     assert.equal(root.querySelector("img"), null);
     assert.ok(root.textContent?.includes(malicious));
@@ -95,7 +102,7 @@ describe("renderMetadata", () => {
     ];
     for (const { name, value, shown } of cases) {
       const root = container();
-      renderMetadata(root, result({ values: { description: value } }));
+      renderMetadata(root, result({ values: { description: value } }), "en");
       assert.equal(valueOf(root, "Description"), shown, name);
     }
   });
@@ -105,7 +112,7 @@ describe("renderMetadata", () => {
     const kept = root.ownerDocument.createElement("p");
     kept.textContent = "kept";
     root.append(kept);
-    renderMetadata(root, result({ values: { title: "A title" } }));
+    renderMetadata(root, result({ values: { title: "A title" } }), "en");
     assert.equal(root.firstElementChild, kept);
     assert.equal(valueOf(root, "Video title"), "A title");
   });
@@ -120,6 +127,7 @@ describe("renderMetadata", () => {
       renderMetadata(
         root,
         result({ values: { description: "beginning" }, showExpandPrompt }),
+        "en",
       );
       const message = root.querySelector(".summary-message");
       assert.equal(message !== null, present, name);
@@ -127,13 +135,13 @@ describe("renderMetadata", () => {
         assert.equal(root.querySelector("ol.summary-steps"), null, name);
         continue;
       }
-      assert.equal(message?.textContent, expandPromptMessage.text, name);
+      assert.equal(message?.textContent, expandPromptMessage("en").text, name);
       assert.deepEqual(
         Array.from(
           root.querySelectorAll("ol.summary-steps > li"),
           (item) => item.textContent,
         ),
-        expandPromptMessage.steps,
+        expandPromptMessage("en").steps,
         name,
       );
     }
@@ -145,6 +153,7 @@ describe("renderMetadata", () => {
     renderMetadata(
       root,
       result({ values: { description }, showExpandPrompt: true }),
+      "en",
     );
     assert.notEqual(root.querySelector(".summary-message"), null);
     const promptText = Array.from(

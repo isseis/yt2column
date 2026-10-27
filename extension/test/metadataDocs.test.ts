@@ -29,8 +29,8 @@ describe("video metadata documentation", () => {
     // The README quotes the popup's prompt so a user can match what they see;
     // the wording is the contract, so it is compared as text.
     expectPhrases(readme, readmeWhere, [
-      expandPromptMessage.text,
-      ...expandPromptMessage.steps,
+      expandPromptMessage("en").text,
+      ...expandPromptMessage("en").steps,
     ]);
   });
 });
