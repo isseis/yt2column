@@ -290,6 +290,46 @@ the [README](README.md) and `docs/dev/security.md` §8.
   successful `yt-dlp` exit, or a truncated generation is reported as an error,
   never published.
 
+### Accessibility
+
+User-facing UI — the browser extension's popup and any page it opens
+(such as the Viewer) — meets WCAG 2.2 Level AA. A requirements document
+for such UI states acceptance criteria for the points below, or says why
+one does not apply:
+
+- **Keyboard:** every operation works without a pointing device (Tab,
+  Shift+Tab, Enter, Space); the focus order follows the visual order and
+  never traps focus (2.1.1, 2.1.2, 2.4.3).
+- **Visible focus:** the focused element is visibly marked, with a 3:1
+  contrast against adjacent colors (2.4.7, 1.4.11). Do not remove the
+  browser's focus outline without a replacement that meets this.
+- **Names, roles, and states:** every control has an accessible name that
+  matches its visible label, and its state (disabled, expanded) is
+  exposed (1.3.1, 2.5.3, 4.1.2). Prefer native HTML elements (`<button>`,
+  `<details>`, headings) to ARIA attributes.
+- **Status messages:** progress and results are announced without moving
+  focus (4.1.3).
+- **Contrast:** text 4.5:1 and meaningful graphics 3:1 against their
+  background, in both light and dark themes (1.4.3, 1.4.11).
+- **Not by color alone:** state is also conveyed by shape and text, and
+  never depends on telling red from green (1.4.1).
+- **Targets and language:** interactive targets are at least 44×44 CSS
+  pixels; the page's `lang` matches the display language (3.1.1).
+- **Motion:** animation stops under `prefers-reduced-motion`.
+
+Exception: a prototype, or a minimal UI built only to verify a function,
+may defer these criteria. When it does, before its PR is merged:
+
+1. File an accessibility issue that names the unmet criteria and the
+   screen, from the template `.github/ISSUE_TEMPLATE/accessibility.md`, and
+   link it to the issue under development (as a sub-issue where possible,
+   otherwise by reference in both bodies).
+2. List the deferred criteria and the issue in the requirements
+   document's out-of-scope section, and in the PR description.
+
+A deferral without a linked issue is not allowed; the review treats
+missing criteria without one as a defect.
+
 ### Performance
 
 - **A benchmark regression is not by itself a defect.** Justify an optimization
