@@ -401,27 +401,30 @@ describe("send dependencies", () => {
 });
 
 describe("readUiLanguage", () => {
-  it("returns the string the browser reported", () => {
-    assert.equal(readUiLanguage({ getUILanguage: () => "ja-JP" }), "ja-JP");
-  });
-
-  const unreadable: { name: string; i18n: I18nApi }[] = [
+  const cases: { name: string; i18n: I18nApi; want: string | undefined }[] = [
     {
-      name: "the browser throws",
+      name: "returns the string the browser reported",
+      i18n: { getUILanguage: () => "ja-JP" },
+      want: "ja-JP",
+    },
+    {
+      name: "returns undefined when the browser throws",
       i18n: {
         getUILanguage: () => {
           throw new Error("i18n unavailable");
         },
       },
+      want: undefined,
     },
     {
-      name: "the browser reports a non-string",
+      name: "returns undefined when the browser reports a non-string",
       i18n: { getUILanguage: () => 1 },
+      want: undefined,
     },
   ];
-  for (const { name, i18n } of unreadable) {
-    it(`returns undefined when ${name}`, () => {
-      assert.equal(readUiLanguage(i18n), undefined);
+  for (const { name, i18n, want } of cases) {
+    it(name, () => {
+      assert.equal(readUiLanguage(i18n), want);
     });
   }
 });

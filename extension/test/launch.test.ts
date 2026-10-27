@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, it } from "node:test";
 
 import { JSDOM } from "jsdom";
@@ -54,9 +56,12 @@ import {
   responseReply,
   testSendDeps,
 } from "./helpers/native.ts";
+import { extensionDir } from "./helpers/paths.ts";
 
 const watchUrl = "https://www.youtube.com/watch?v=abc";
 const malicious = "<img src=x onerror=alert(1)>";
+const launchLabel = "yt2column popup launch";
+const uiLanguageLabel = "yt2column ui language";
 const metadataLabel = "yt2column video metadata";
 const blockedLabel = "yt2column blocked";
 const sendLabel = "yt2column send result";
@@ -183,7 +188,7 @@ function popupHarness(overrides: Partial<PopupLaunchDeps> = {}): PopupHarness {
 /** The outcome the launch path logged for the developer. */
 function loggedOutcome(recorder: RecordingLogger): CollectOutcome {
   const entry = recorder.infos.find(
-    (recorded) => recorded.label === "yt2column popup launch",
+    (recorded) => recorded.label === launchLabel,
   );
   assert.ok(entry !== undefined, "expected the popup launch log");
   return (entry.data as { outcome: CollectOutcome }).outcome;
@@ -425,7 +430,7 @@ describe("launch paths", () => {
     const reader = readerReturning(page(`${malicious}\n`));
     const popup = popupHarness({ reader });
     await runPopupLaunch(container(), popup.deps);
-    assert.equal(popup.recorder.infos[0]?.label, "yt2column popup launch");
+    assert.equal(popup.recorder.infos[0]?.label, launchLabel);
   });
 });
 
@@ -953,10 +958,19 @@ describe("display", () => {
 });
 
 describe("startPopup", () => {
-  /** A document with the popup's two empty regions, as popup.html has them. */
+  /** The document static/popup.html defines, so its region ids are checked. */
   function popupDocument(): Document {
+    const html = readFileSync(
+      path.join(extensionDir, "static", "popup.html"),
+      "utf8",
+    );
+    return new JSDOM(html).window.document;
+  }
+
+  /** A document with the popup's two regions and the given initial lang. */
+  function popupMarkup(lang: string): Document {
     return new JSDOM(
-      "<!DOCTYPE html><html lang='en'><body><div id='summary'></div><div id='send'></div></body></html>",
+      `<!DOCTYPE html><html lang='${lang}'><body><div id='summary'></div><div id='send'></div></body></html>`,
     ).window.document;
   }
 
@@ -966,7 +980,6 @@ describe("startPopup", () => {
     log: Logger,
     overrides: {
       launch?: Partial<Omit<PopupLaunchDeps, "locale">>;
-      send?: Partial<Omit<PopupSendDeps, "locale">>;
     } = {},
   ): PopupStartDeps {
     return {
@@ -982,7 +995,6 @@ describe("startPopup", () => {
         send: testSendDeps(acceptedNative().sendNative),
         now: () => 1000,
         log,
-        ...overrides.send,
       },
     };
   }
@@ -994,6 +1006,7 @@ describe("startPopup", () => {
       doc,
       startDeps({ getUILanguage: () => "ja-JP" }, recorder.log),
     );
+    // The shipped document says lang="en", so only the entry point can make it ja.
     assert.equal(doc.documentElement.lang, "ja");
     const summary = query<HTMLElement>(doc, "#summary");
     assert.equal(valueOf(summary, catalogs.ja.summaryLabels.title), "A video");
@@ -1011,10 +1024,13 @@ describe("startPopup", () => {
   });
 
   it("falls back to English, as for en-US, when the UI language cannot be read", async () => {
-    /** One start over a fresh document; the recorder keeps its logs. */
+    /**
+     * One start over a fresh Japanese document: only the entry point can set
+     * lang="en", so the attribute checks the fallback rather than the fixture.
+     */
     async function run(i18n: I18nApi) {
       const recorder = recordingLogger();
-      const doc = popupDocument();
+      const doc = popupMarkup("ja");
       await startPopup(doc, startDeps(i18n, recorder.log));
       return { doc, recorder };
     }
@@ -1027,6 +1043,21 @@ describe("startPopup", () => {
     for (const { doc } of [unreadable, english]) {
       assert.equal(doc.documentElement.lang, "en");
     }
+    // The unreadable run shows English, not just the same as the en-US run.
+    assert.equal(
+      valueOf(
+        query<HTMLElement>(unreadable.doc, "#summary"),
+        catalogs.en.summaryLabels.title,
+      ),
+      "A video",
+    );
+    assert.deepEqual(loggedOutcome(unreadable.recorder), collectedOutcome());
+    const fallbackButton = query<HTMLButtonElement>(
+      unreadable.doc,
+      ".send-button",
+    );
+    assert.equal(fallbackButton.textContent, catalogs.en.sendButton);
+    // Both runs behave alike; the en-US run is the reference the plan names.
     assert.equal(
       query(unreadable.doc, "#summary").textContent,
       query(english.doc, "#summary").textContent,
@@ -1035,19 +1066,15 @@ describe("startPopup", () => {
       loggedOutcome(unreadable.recorder),
       loggedOutcome(english.recorder),
     );
-    const fallbackButton = query<HTMLButtonElement>(
-      unreadable.doc,
-      ".send-button",
+    assert.equal(
+      fallbackButton.textContent,
+      query<HTMLButtonElement>(english.doc, ".send-button").textContent,
     );
-    const englishButton = query<HTMLButtonElement>(english.doc, ".send-button");
-    assert.equal(fallbackButton.textContent, englishButton.textContent);
-    // The fallback shows the English button, not an empty one.
-    assert.equal(fallbackButton.textContent, "Send to yt2column");
   });
 
   it("sets the page language before the first render", async () => {
     const recorder = recordingLogger();
-    const doc = popupDocument();
+    const doc = popupMarkup("en");
     const seen: string[] = [];
     await startPopup(
       doc,
@@ -1063,10 +1090,10 @@ describe("startPopup", () => {
     assert.deepEqual(seen, ["ja"]);
   });
 
-  it("only sets the page language when a region is missing", async () => {
+  it("sets the page language and runs no path when a region is missing", async () => {
     const recorder = recordingLogger();
     const doc = new JSDOM(
-      "<!DOCTYPE html><html><body><div id='summary'></div></body></html>",
+      "<!DOCTYPE html><html lang='en'><body><div id='summary'></div></body></html>",
     ).window.document;
     // Resolving rather than rejecting also rules out a null region reaching
     // the launch path.
@@ -1077,7 +1104,7 @@ describe("startPopup", () => {
     assert.equal(doc.documentElement.lang, "ja");
     assert.deepEqual(
       recorder.infos.map((entry) => entry.label),
-      ["yt2column ui language"],
+      [uiLanguageLabel],
     );
   });
 
@@ -1096,12 +1123,10 @@ describe("startPopup", () => {
   for (const { name, i18n, data } of loggedValues) {
     it(`logs the UI language once, ${name}`, async () => {
       const recorder = recordingLogger();
-      await startPopup(popupDocument(), startDeps(i18n, recorder.log));
+      await startPopup(popupMarkup("en"), startDeps(i18n, recorder.log));
       assert.deepEqual(
-        recorder.infos.filter(
-          (entry) => entry.label === "yt2column ui language",
-        ),
-        [{ label: "yt2column ui language", data }],
+        recorder.infos.filter((entry) => entry.label === uiLanguageLabel),
+        [{ label: uiLanguageLabel, data }],
       );
     });
   }

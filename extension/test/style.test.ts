@@ -7,12 +7,25 @@ import { JSDOM } from "jsdom";
 
 import { extensionDir } from "./helpers/paths.ts";
 
+/** A rule that groups other rules, such as @media, @supports or @layer. */
+interface GroupingRule extends CSSRule {
+  readonly cssRules: CSSRuleList;
+}
+
+/** True when the rule groups other rules rather than declaring styles. */
+function isGroupingRule(rule: CSSRule): rule is GroupingRule {
+  return "cssRules" in rule;
+}
+
 /**
- * The style rules of static/style.css, parsed by jsdom's CSSOM, including the
- * rules of a media query. Other at-rules are not a place this guard reads: it
- * checks the declarations the page uses in every state.
+ * The style rules of static/style.css, parsed by jsdom's CSSOM. The top-level
+ * rules are the ones that apply unconditionally; all of them include the rules
+ * of conditional and layered blocks, so a rule there cannot escape the checks.
  */
-function styleRules(): CSSStyleRule[] {
+function parseStyleSheet(): {
+  topLevel: CSSStyleRule[];
+  all: CSSStyleRule[];
+} {
   const css = readFileSync(
     path.join(extensionDir, "static", "style.css"),
     "utf8",
@@ -22,23 +35,30 @@ function styleRules(): CSSStyleRule[] {
   );
   const sheet = dom.window.document.styleSheets[0];
   assert.ok(sheet !== undefined);
-  const rules: CSSStyleRule[] = [];
+  const all: CSSStyleRule[] = [];
   const collect = (list: CSSRuleList): void => {
     for (const rule of list) {
       if (rule instanceof dom.window.CSSStyleRule) {
-        rules.push(rule);
-      } else if (rule instanceof dom.window.CSSMediaRule) {
+        all.push(rule);
+      } else if (isGroupingRule(rule)) {
         collect(rule.cssRules);
       }
     }
   };
   collect(sheet.cssRules);
-  return rules;
+  const topLevel = [...sheet.cssRules].filter(
+    (rule): rule is CSSStyleRule => rule instanceof dom.window.CSSStyleRule,
+  );
+  return { topLevel, all };
 }
 
-/** The value the cascade gives property for selector, or "" when unset. */
-function declaredValue(
-  rules: CSSStyleRule[],
+/**
+ * The last declaration of property among the rules whose selector text is
+ * exactly selector, in document order; "" when none declares it. This is the
+ * value the sheet gives an element matched by that selector at the top level.
+ */
+function lastDeclaredValue(
+  rules: readonly CSSStyleRule[],
   selector: string,
   property: string,
 ): string {
@@ -61,11 +81,13 @@ function fontFamilies(value: string): string[] {
 }
 
 describe("Japanese typography", () => {
-  const rules = styleRules();
+  const { topLevel, all } = parseStyleSheet();
 
   it("puts the Japanese font candidates first on a Japanese page", () => {
     assert.deepEqual(
-      fontFamilies(declaredValue(rules, ":root:lang(ja)", "font-family")),
+      fontFamilies(
+        lastDeclaredValue(topLevel, ":root:lang(ja)", "font-family"),
+      ),
       [
         "Hiragino Sans",
         "Noto Sans JP",
@@ -77,27 +99,39 @@ describe("Japanese typography", () => {
   });
 
   it("gives a Japanese page an explicit line height", () => {
-    assert.equal(declaredValue(rules, "body:lang(ja)", "line-height"), "1.7");
+    assert.equal(
+      lastDeclaredValue(topLevel, "body:lang(ja)", "line-height"),
+      "1.7",
+    );
   });
 
   it("applies the Japanese rules to the root and body only", () => {
-    const selectors = rules
-      .map((rule) => rule.selectorText)
-      .filter((selector) => selector.includes(":lang(ja)"));
-    assert.deepEqual(selectors, [":root:lang(ja)", "body:lang(ja)"]);
+    // The set, not the order: a second block for the same selector is fine,
+    // while any other selector -- including one inside an at-rule -- is not.
+    const selectors = new Set(
+      all
+        .map((rule) => rule.selectorText)
+        .filter((selector) => selector.includes(":lang(ja)")),
+    );
+    assert.deepEqual([...selectors].sort(), [
+      ":root:lang(ja)",
+      "body:lang(ja)",
+    ]);
   });
 
   it("keeps the English font candidates", () => {
     assert.deepEqual(
-      fontFamilies(declaredValue(rules, ":root", "font-family")),
+      fontFamilies(lastDeclaredValue(topLevel, ":root", "font-family")),
       ["system-ui", "sans-serif"],
     );
   });
 
   it("sets a line height only on the Japanese body", () => {
-    const withLineHeight = rules
-      .filter((rule) => rule.style.getPropertyValue("line-height") !== "")
-      .map((rule) => rule.selectorText);
-    assert.deepEqual(withLineHeight, ["body:lang(ja)"]);
+    const selectors = new Set(
+      all
+        .filter((rule) => rule.style.getPropertyValue("line-height") !== "")
+        .map((rule) => rule.selectorText),
+    );
+    assert.deepEqual([...selectors], ["body:lang(ja)"]);
   });
 });
