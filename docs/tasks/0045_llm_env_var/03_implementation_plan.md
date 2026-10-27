@@ -190,7 +190,7 @@
 
 - [ ] **旧変数（AC-12）:** 要件書 §3.1 の表の各行の実行（`--after` なし、`--no-review`、`--after generation`、`--after shorten`、`--after review`）に旧変数を 1 つ加えたとき、次の 3 点を確かめるテストを加える。終了コード `2` で止まること。`yt2column: configuration: ` に `RetiredLLMVarErrorForTest` の結果をつないだ行を出すこと。tripwire が動かず、LLM のクライアントも作らないこと。`--after` の行には `--artifacts` を付ける（成果物は要らない。§1.3）。旧変数 4 つのそれぞれを少なくとも 1 回ずつ使う。`-h` は旧変数があっても終了コード `0` で使い方を出すこと、引数の誤りは使い方の誤りとして報告され、旧変数の行が出ないことも確かめる。
 - [ ] **エラーの順序（AC-20）:** 旧変数を設定し、`--slack` で `SLACK_WEBHOOK_URL` を未設定にした実行が、旧変数の行を出し、`configuration: SLACK_WEBHOOK_URL` の行を出さないことを確かめる行を加える。旧変数を設定し、`YT2COLUMN_LLM` のモデル ID の前後に空白を入れ、本物の `newLLMClient` を使う実行が、`build the LLM client` を出さないことを確かめる行も加える。
-- [ ] **前後の空白（AC-06）:** `--no-review` の実行で、`YT2COLUMN_REVIEW_LLM` のモデル ID の前後に空白があっても成功することを確かめるテストを加える。検証・推敲のクライアントは、本物の `newReviewLLMClient` を使うか、作った回数が 0 であることを確かめる。
+- [ ] **前後の空白（AC-06）:** `--after` なしで `--no-review` を付けた実行（設定の読み込みは `YT2COLUMN_REVIEW_LLM` も読む。要件書 AC-11）で、`YT2COLUMN_REVIEW_LLM` のモデル ID の前後に空白があっても成功することを確かめるテストを加える。検証・推敲のクライアントは、本物の `newReviewLLMClient` を使うか、作った回数が 0 であることを確かめる。
 - [ ] **クライアントの構築（設計書 §1.2・§7.2）:** `TestResumeNeed` を、`--after` の 4 通り（なし・`generation`・`shorten`・`review`）と `--no-shorten`・`--no-review` のすべての組み合わせに広げる（引数の検査が拒否する組み合わせは除く）。同じ組み合わせで、作ったクライアントの数を数える偽の依存を渡して `buildWriter` を呼び、生成のクライアントを作るのは `resumeNeed` の `Generation` が真のときだけ、検証・推敲のクライアントを作るのは `Review` が真のときだけであることを確かめるテストを加える。壊し方は、`buildWriter` が `--after shorten` でも生成のクライアントを作るようにすることとする。`Provider()` が `ProviderUnset` のときに `provider.New` が何も作らないことは、`New` が `newClient` に渡すだけなので（§1.3）、既存の `TestNewUnknownProvider` が確かめる。
 - [ ] 加えたテストのそれぞれについて、そのテストが対象とする仕組みを壊すと失敗することを確認し、コミットメッセージに書く（たとえば、`loadLLM` の旧変数の検査を `need` の分岐の中に移すと `--after review` の行が失敗する）。
 
