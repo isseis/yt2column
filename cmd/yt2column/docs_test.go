@@ -292,16 +292,17 @@ func TestDeepSeekDocsContract(t *testing.T) {
 }
 
 // TestLLMDefaultsDocsContract checks that the configuration tables of
-// README.md and project_overview.md state the code's LLM defaults: the first
-// code span of the "when unset" cell of each row is the value the config
-// package applies. A stale value written as a code span in front of the new
-// one fails; prose in front of it, and the rest of the cell, are not checked
-// here but read in review.
+// README.md and project_overview.md state the code's LLM default: each table
+// has exactly one row for each LLM variable, and the first code span of the
+// "when unset" cell of the YT2COLUMN_LLM row is the value the config package
+// applies. The YT2COLUMN_REVIEW_LLM row inherits the generation selection,
+// which no code constant spells, so only its presence is checked. A stale
+// value written as a code span in front of the new one fails; prose in front
+// of it, and the rest of the cell, are not checked here but read in review.
 func TestLLMDefaultsDocsContract(t *testing.T) {
 	want := []struct{ name, value string }{
-		{"YT2COLUMN_LLM_PROVIDER", config.DefaultProviderValueForTest()},
-		{"YT2COLUMN_MODEL", config.DefaultClaudeModelForTest()},
-		{"YT2COLUMN_REVIEW_MODEL", config.DefaultClaudeModelForTest()},
+		{config.LLMEnvForTest(), config.DefaultLLMValueForTest()},
+		{config.ReviewLLMEnvForTest(), ""}, // presence only
 	}
 	for _, doc := range []struct {
 		name, path, nameHeader, unsetHeader string
@@ -324,6 +325,9 @@ func TestLLMDefaultsDocsContract(t *testing.T) {
 				rows := tableRowsWithFirstCell(table, v.name)
 				if len(rows) != 1 || len(rows[0]) <= column {
 					t.Errorf("%s: %d rows for %s, want exactly one with a %q cell", doc.name, len(rows), v.name, doc.unsetHeader)
+					continue
+				}
+				if v.value == "" {
 					continue
 				}
 				cell := rows[0][column]
@@ -708,8 +712,8 @@ func fencedBlocks(lines []string) []fencedBlock {
 
 // exportLineRE matches one line of a configuration block: "export", one space,
 // an uppercase variable name, "=", and a value of letters, digits, ".", "_",
-// and "-".
-var exportLineRE = regexp.MustCompile(`^export ([A-Z][A-Z0-9_]*)=([A-Za-z0-9._-]+)$`)
+// "-", and "/" (the separator of an LLM variable's provider and model ID).
+var exportLineRE = regexp.MustCompile(`^export ([A-Z][A-Z0-9_]*)=([A-Za-z0-9._/-]+)$`)
 
 // checkExportBlock checks that section holds exactly one sh code block and that
 // every line of it has the export-line shape, names one of want, and does not
@@ -812,15 +816,18 @@ func checkExportBlockMatchesDefaults(t *testing.T, docName, sectionName string, 
 
 // profileStages are the rows the shared document's profile table must hold,
 // in the order the article is written.
-var profileStages = []string{"生成", "字数の調整", "検証・推敲"}
+var profileStages = []string{"生成", "字数の調整", reviewProfileStage}
+
+// reviewProfileStage is the profile table's row for the review step, whose
+// values go into YT2COLUMN_REVIEW_LLM.
+const reviewProfileStage = "検証・推敲"
 
 // productionProfileVars returns the variables that describe the production
-// profile: the generation provider, the generation model, and the Claude
-// effort, which all three stages share.
+// profile: the generation provider and model, which the review step inherits,
+// and the Claude effort, which all three stages share.
 func productionProfileVars() []string {
 	return []string{
-		config.LLMProviderEnvForTest(),
-		config.ModelEnvForTest(),
+		config.LLMEnvForTest(),
 		config.ClaudeEffortEnvForTest(),
 	}
 }
@@ -838,10 +845,12 @@ func tableColumn(header []string, name string) int {
 }
 
 // checkProfileTable checks the shared document's profile table: each stage has
-// exactly one row, and the first code span of its provider, model, and effort
-// cells, loaded through LoadServer, gives the default profile's values for that
-// stage. The shortening stage calls the generation client, so its row is
-// compared with the generation values.
+// exactly one row, and the first code spans of its provider and model cells,
+// joined by "/" into one LLM variable value, and of its effort cell, loaded
+// through LoadServer, give the default profile's values for that stage. The
+// review row's value goes into YT2COLUMN_REVIEW_LLM and the other rows' into
+// YT2COLUMN_LLM. The shortening stage calls the generation client, so its row
+// is compared with the generation values.
 func checkProfileTable(t *testing.T, section string, defaults config.LLMConfig) {
 	t.Helper()
 	table := findTable(section, "段階")
@@ -855,7 +864,6 @@ func checkProfileTable(t *testing.T, section string, defaults config.LLMConfig) 
 			t.Fatalf("production_profile.md: the profile table has no %s column", name)
 		}
 	}
-	vars := productionProfileVars()
 	for _, row := range table[1:] {
 		if len(row) > 0 && !slices.Contains(profileStages, stripBackticks(row[0])) {
 			t.Errorf("production_profile.md: the profile table has a row for %q, which is not a stage of the profile", row[0])
@@ -867,7 +875,7 @@ func checkProfileTable(t *testing.T, section string, defaults config.LLMConfig) 
 			t.Errorf("production_profile.md: the profile table has %d rows for %q, want exactly one", len(rows), stage)
 			continue
 		}
-		env := docsProfileEnv()
+		values := make([]string, len(names))
 		complete := true
 		for i, name := range names {
 			if len(rows[0]) <= columns[i] {
@@ -881,35 +889,45 @@ func checkProfileTable(t *testing.T, section string, defaults config.LLMConfig) 
 				complete = false
 				continue
 			}
-			env[vars[i]] = value
+			values[i] = value
 		}
 		if !complete {
 			continue
 		}
+		review := stage == reviewProfileStage
+		llmEnv := config.LLMEnvForTest()
+		if review {
+			llmEnv = config.ReviewLLMEnvForTest()
+		}
+		env := docsProfileEnv()
+		env[llmEnv] = values[0] + "/" + values[1]
+		env[config.ClaudeEffortEnvForTest()] = values[2]
 		cfg, err := config.LoadServer(lookupFrom(env))
 		if err != nil {
 			t.Errorf("production_profile.md: LoadServer rejects the %q row's values: %v", stage, err)
 			continue
 		}
 		got := cfg.LLM()
+		gotProvider, gotModel := got.Provider(), got.Model()
 		wantProvider, wantModel := defaults.Provider(), defaults.Model()
-		if stage == "検証・推敲" {
+		if review {
+			gotProvider, gotModel = got.ReviewProvider(), got.ReviewModel()
 			wantProvider, wantModel = defaults.ReviewProvider(), defaults.ReviewModel()
 		}
 		// The model name comes from the document, so the diagnostic says only
 		// whether it matches: a secret pasted into the cell by mistake must not
 		// reach the log.
-		modelEqual := got.Model() == wantModel
-		if got.Provider() != wantProvider || !modelEqual || got.ClaudeEffort() != defaults.ClaudeEffort() {
+		modelEqual := gotModel == wantModel
+		if gotProvider != wantProvider || !modelEqual || got.ClaudeEffort() != defaults.ClaudeEffort() {
 			t.Errorf("production_profile.md: the %q row gives provider %v, model equal %t, effort %v; the default profile gives provider %v, effort %v",
-				stage, got.Provider(), modelEqual, got.ClaudeEffort(), wantProvider, defaults.ClaudeEffort())
+				stage, gotProvider, modelEqual, got.ClaudeEffort(), wantProvider, defaults.ClaudeEffort())
 		}
 	}
 }
 
 // TestProductionProfileDocsContract checks the shared production-profile
 // document's profile section and the README's recommended configuration
-// section: each configuration block holds exactly the three variables of the
+// section: each configuration block holds exactly the variables of the
 // production profile and loads to the code's default profile, the README's
 // subsection lies inside Configuration, and the shared document's table names
 // the same profile for each stage.
@@ -942,6 +960,74 @@ func TestProductionProfileDocsContract(t *testing.T) {
 	}
 	readmeValues := checkExportBlock(t, "README.md", recommendedConfigHeading, recommended, want)
 	checkExportBlockMatchesDefaults(t, "README.md", recommendedConfigHeading, readmeValues)
+}
+
+// migrationHeading is the README section that shows how to move from the
+// retired LLM variables to the new ones.
+const migrationHeading = "### Migrating from the retired LLM variables"
+
+// TestMigrationDocsContract checks the README's migration example: the
+// section holds one text block of the retired generation variables and one sh
+// block setting YT2COLUMN_LLM alone, and the sh block loads, through
+// LoadServer, to the generation provider and model the retired block named.
+// The retired names come from the config
+// package, whose table orders the generation provider variable first and the
+// generation model variable second.
+func TestMigrationDocsContract(t *testing.T) {
+	section := sectionOutsideBlocks(readDoc(t, readmePath), migrationHeading)
+	if section == "" {
+		t.Fatalf("README has no %q section", migrationHeading)
+	}
+	after := checkExportBlock(t, "README.md", migrationHeading, section, []string{config.LLMEnvForTest()})
+
+	retired := config.RetiredLLMVarsForTest()
+	providerVar, modelVar := retired[0], retired[1]
+	var before map[string]string
+	for _, block := range fencedBlocks(slices.Collect(strings.Lines(section))) {
+		if block.info != "text" {
+			continue
+		}
+		if before != nil {
+			t.Fatalf("README %s: more than one text block, want exactly one", migrationHeading)
+		}
+		before = map[string]string{}
+		for i, line := range block.lines {
+			name, value, ok := strings.Cut(strings.TrimRight(line, "\n"), "=")
+			if !ok || !slices.Contains(retired, name) {
+				t.Errorf("README %s: text block line %d is not <retired variable>=<value>", migrationHeading, i+1)
+				continue
+			}
+			before[name] = value
+		}
+	}
+	if before == nil {
+		t.Fatalf("README %s: no text block of the retired variables", migrationHeading)
+	}
+	if len(before) != 2 || before[providerVar] == "" || before[modelVar] == "" {
+		t.Fatalf("README %s: the text block sets %d variables, want exactly %s and %s",
+			migrationHeading, len(before), providerVar, modelVar)
+	}
+
+	load := func(value string) config.LLMConfig {
+		t.Helper()
+		env := docsProfileEnv()
+		env[config.DeepSeekAPIKeyEnvForTest()] = "docs-test-api-key"
+		env[config.LLMEnvForTest()] = value
+		cfg, err := config.LoadServer(lookupFrom(env))
+		if err != nil {
+			t.Fatalf("README %s: LoadServer rejects a value of the example: %v", migrationHeading, err)
+		}
+		return cfg.LLM()
+	}
+	got := load(after[config.LLMEnvForTest()])
+	want := load(before[providerVar] + "/" + before[modelVar])
+	// The model names come from the document, so the diagnostic says only
+	// whether they are equal: a secret pasted into the block by mistake must
+	// not reach the log.
+	if got.Provider() != want.Provider() || got.Model() != want.Model() {
+		t.Errorf("README %s: the new setting gives provider %v (want %v), model equal %t; want the retired setting's",
+			migrationHeading, got.Provider(), want.Provider(), got.Model() == want.Model())
+	}
 }
 
 // TestQuickStartLinks checks the README's Quick start section: it comes before

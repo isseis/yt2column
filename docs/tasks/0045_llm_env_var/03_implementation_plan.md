@@ -8,7 +8,7 @@
 | Created | 2026-10-27 |
 | Review date | 2026-10-27 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-27（`/runplan`、PR-2 の実装時の訂正。(1)・(2) は編集上の訂正で、決定の変更はない。(3) はコミットの分け方だけを変え、実装の内容は変えない）: (1) 3-1 の AC-29 のガードと目印のテストは、名前を `config.RetiredLLMVarsForTest()` から取るため、旧変数 4 つのすべてを対象にした（`YT2COLUMN_MODEL` を含む上位集合。3-1 の記述を更新）。(2) 4-2 の移行の例のテストのために `config.DeepSeekAPIKeyEnvForTest` を加え、`internal/config` のテストの拒否の補助の名前を `wantInvalid` に決めた（§1.4 の表を更新）。(3) §3.1 の「ステップごとに 1 つのコミット」は、リポジトリの pre-commit フック（全テストを実行する）がビルドできない途中の版のコミットを拒むため、PR-2 のフェーズ 2〜4 を 1 つのコミットにまとめ、ステップごとの内容と壊し方の確認をコミットメッセージに書いた。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -62,11 +62,12 @@
 |---|---|---|
 | 結合テストの変数（値） | `YT2COLUMN_MODEL` | `YT2COLUMN_TEST_DEEPSEEK_MODEL`（定数 `deepseektestutil.ModelEnv` の名前は変えない） |
 | テスト補助（除く） | `DefaultProviderValueForTest`・`LLMProviderEnvForTest`・`ModelEnvForTest`・`ModelWithoutProviderErrorForTest` | - |
-| テスト補助（加える） | - | `LLMEnvForTest`（`YT2COLUMN_LLM`）・`ReviewLLMEnvForTest`（`YT2COLUMN_REVIEW_LLM`）・`DefaultLLMValueForTest`（`defaultLLMValue`）・`RetiredLLMVarsForTest`（旧変数 4 つの名前、報告の順）・`RetiredLLMVarErrorForTest`（旧変数 1 つの拒否を設定のエラーとして出したときの文字列） |
+| テスト補助（加える） | - | `LLMEnvForTest`（`YT2COLUMN_LLM`）・`ReviewLLMEnvForTest`（`YT2COLUMN_REVIEW_LLM`）・`DefaultLLMValueForTest`（`defaultLLMValue`）・`RetiredLLMVarsForTest`（旧変数 4 つの名前、報告の順）・`RetiredLLMVarErrorForTest`（旧変数 1 つの拒否を設定のエラーとして出したときの文字列）・`DeepSeekAPIKeyEnvForTest`（`DEEPSEEK_API_KEY`。4-2 の移行の例のテストが使う） |
+| `internal/config` のテストの補助（加える） | - | `wantInvalid`（理由を引数に取る拒否の補助） |
 | `internal/config` のテスト（名前を変える） | `TestLoadServerModelMissing` | `TestLoadServerLLMRejected` |
 | `internal/config` のテスト（除く） | `TestLoadModelWithoutProvider`・`TestModelWithoutProvider` | - |
 | `cmd/yt2column` のテスト（除く） | `TestRunModelWithoutProvider` | - |
-| `internal/config` のテストの補助（除く） | 関数 `wantInvalidProvider`・変数 `wantModelOnly` | 理由を引数に取る拒否の補助（名前は実装で決める） |
+| `internal/config` のテストの補助（除く） | 関数 `wantInvalidProvider`・変数 `wantModelOnly` | - |
 
 設計書 §3.1 の非公開の名前（`llmEnv`・`reviewLLMEnv`・`llmSeparator`・`defaultLLMValue`・`reasonLLMForm`・`reasonLLMProvider`・`reasonRetiredLLM`・`reasonRetiredReviewLLM`・`retiredLLMVar`・`retiredLLMVars`・`llmSelection`・`parseLLM`）は、設計書のとおりとする。
 
@@ -123,17 +124,17 @@
 
 **変えるファイル**: `internal/config/config.go`、`internal/config/test_helpers.go`、`internal/config/config_test.go`
 
-- [ ] 書き換えを始める前に、基点の版で、削除するテストを含めた場合と `-skip` で外した場合のカバレッジを関数ごとに比べる。外すのは、`internal/config` では `-skip '^(TestLoadModelWithoutProvider|TestModelWithoutProvider)$'`、`cmd/yt2column` では `-skip '^TestRunModelWithoutProvider$'` である。値が下がる関数が、2-1 で除く関数（設計書 §3.6 の表）だけであることを確かめ、結果をコミットメッセージに書く（`CLAUDE.md`「Deleting a test is a claim that must be checked」）。
-- [ ] 設計書 §3.1 の定数と型を加え、`LLMConfig` の 4 つのフィールドを `generation`・`review` の 2 つの `llmSelection` に置き換える。アクセサの名前と型は保ち、コメントを §3.1 の契約の表に合わせる。
-- [ ] `parseLLM` を設計書 §3.2 の表と契約のとおりに実装する（プロバイダが決まれば、エラーを返すときも組に入れる。`switch` の `default` は `reasonLLMProvider` の拒否）。
-- [ ] 生成の組を決める関数（`YT2COLUMN_LLM` を読み、未設定なら `defaultLLMValue` を `parseLLM` に通す）を加え、`loadLLM` を設計書 §3.3 の表と §6.1 の流れのとおりに書き直す。生成の組を `cfg.generation` に入れるのは `Need.Generation` が真のときだけとする。
-- [ ] `loadLLM` の最初で、`retiredLLMVars` の順に旧変数が設定されているかを `lookup` で確かめ、設定されていれば `invalidVar(name, reason)` をエラーの列にそれぞれ別の要素として加える（設計書 §3.4）。値は使わない。
-- [ ] `loadProviderVars` が参照するフィールドを `cfg.generation.provider`・`cfg.review.provider` に変える（設計書 §3.5）。
-- [ ] 設計書 §3.6 の表の仕組み（`settingOrigin`・`stageOrigins`・`modelWithoutProvider`・`reasonModelWithoutProvider`・`resolveProvider`・`parseProvider`・`reasonProvider`・`defaultModel`・`loadModel`・`loadModelOptional`・`loadReview`・`defaultProviderValue`・`providerEnv`・`modelEnv`・`reviewProviderEnv`・`reviewModelEnv`）を除く。
-- [ ] `TestLoadModelWithoutProvider` を除く。確かめていた規則（モデルの変数だけを設定した実行を止めること）は、`YT2COLUMN_MODEL`・`YT2COLUMN_REVIEW_MODEL` を設定した旧変数のテスト（2-3）が引き継ぐ。
-- [ ] `TestModelWithoutProvider` を除く。確かめていた仕組み（`modelWithoutProvider`）はこのステップで除いている。
-- [ ] コメントを書き換える: `Provider` の定数（`:20-23`）、受理する値の定数（`:46`）、既定値の定数のまとまり（`:52-63`）、`LoadServer`（`:276-281`。旧変数の検査は例外であること）、`LoadFor`（`:362-369`。同じ例外と、検証・推敲だけの実行で `YT2COLUMN_LLM` を読む条件）、`loadLLM`、`loadProviderVars`（`:612-620`）。
-- [ ] `test_helpers.go` から §1.4 の除く 4 つの関数を除き、加える 5 つの関数を加える。`RetiredLLMVarErrorForTest` は旧変数でない名前に対して panic する（既存の `SocketPathTailForTest` と同じ扱い）。まとまりのコメント（`:47-49`）と `DefaultClaudeModelForTest` のコメント（`:55-56`）を新しい規則に合わせる。
+- [x] 書き換えを始める前に、基点の版で、削除するテストを含めた場合と `-skip` で外した場合のカバレッジを関数ごとに比べる。外すのは、`internal/config` では `-skip '^(TestLoadModelWithoutProvider|TestModelWithoutProvider)$'`、`cmd/yt2column` では `-skip '^TestRunModelWithoutProvider$'` である。値が下がる関数が、2-1 で除く関数（設計書 §3.6 の表）だけであることを確かめ、結果をコミットメッセージに書く（`CLAUDE.md`「Deleting a test is a claim that must be checked」）。
+- [x] 設計書 §3.1 の定数と型を加え、`LLMConfig` の 4 つのフィールドを `generation`・`review` の 2 つの `llmSelection` に置き換える。アクセサの名前と型は保ち、コメントを §3.1 の契約の表に合わせる。
+- [x] `parseLLM` を設計書 §3.2 の表と契約のとおりに実装する（プロバイダが決まれば、エラーを返すときも組に入れる。`switch` の `default` は `reasonLLMProvider` の拒否）。
+- [x] 生成の組を決める関数（`YT2COLUMN_LLM` を読み、未設定なら `defaultLLMValue` を `parseLLM` に通す）を加え、`loadLLM` を設計書 §3.3 の表と §6.1 の流れのとおりに書き直す。生成の組を `cfg.generation` に入れるのは `Need.Generation` が真のときだけとする。
+- [x] `loadLLM` の最初で、`retiredLLMVars` の順に旧変数が設定されているかを `lookup` で確かめ、設定されていれば `invalidVar(name, reason)` をエラーの列にそれぞれ別の要素として加える（設計書 §3.4）。値は使わない。
+- [x] `loadProviderVars` が参照するフィールドを `cfg.generation.provider`・`cfg.review.provider` に変える（設計書 §3.5）。
+- [x] 設計書 §3.6 の表の仕組み（`settingOrigin`・`stageOrigins`・`modelWithoutProvider`・`reasonModelWithoutProvider`・`resolveProvider`・`parseProvider`・`reasonProvider`・`defaultModel`・`loadModel`・`loadModelOptional`・`loadReview`・`defaultProviderValue`・`providerEnv`・`modelEnv`・`reviewProviderEnv`・`reviewModelEnv`）を除く。
+- [x] `TestLoadModelWithoutProvider` を除く。確かめていた規則（モデルの変数だけを設定した実行を止めること）は、`YT2COLUMN_MODEL`・`YT2COLUMN_REVIEW_MODEL` を設定した旧変数のテスト（2-3）が引き継ぐ。
+- [x] `TestModelWithoutProvider` を除く。確かめていた仕組み（`modelWithoutProvider`）はこのステップで除いている。
+- [x] コメントを書き換える: `Provider` の定数（`:20-23`）、受理する値の定数（`:46`）、既定値の定数のまとまり（`:52-63`）、`LoadServer`（`:276-281`。旧変数の検査は例外であること）、`LoadFor`（`:362-369`。同じ例外と、検証・推敲だけの実行で `YT2COLUMN_LLM` を読む条件）、`loadLLM`、`loadProviderVars`（`:612-620`）。
+- [x] `test_helpers.go` から §1.4 の除く 4 つの関数を除き、加える 5 つの関数を加える。`RetiredLLMVarErrorForTest` は旧変数でない名前に対して panic する（既存の `SocketPathTailForTest` と同じ扱い）。まとまりのコメント（`:47-49`）と `DefaultClaudeModelForTest` のコメント（`:55-56`）を新しい規則に合わせる。
 
 **完了の条件**: `go build -tags test ./internal/config` が通る（`test_helpers.go` を同じタグで型検査する）。`internal/config` のテストは 2-2 の書き直しまで除いた定数を参照し、`cmd/` のテストは 3-1 まで古い補助関数を参照するので、この時点ではどちらもビルドできない。
 
@@ -141,12 +142,12 @@
 
 **変えるファイル**: `internal/config/config_test.go`
 
-- [ ] `validEnv` を `YT2COLUMN_LLM=deepseek/deepseek-chat`、`validClaudeEnv` を `YT2COLUMN_LLM=claude/claude-opus-5-5` に書き換え、旧変数の定数を使うテスト（§1.3 の表の 19 の関数のうち、2-1 で削除した 2 つを除く 17）を新しい変数で書き直す。確かめる内容は保ち、古い規則だけに意味があった行（モデルの変数の未設定・空、`deepseek` でモデルが必須であること、検証・推敲のプロバイダだけを設定するとそのプロバイダの既定のモデルになること）は、新しい規則の行に置き換える。
-- [ ] `TestLoadGenerationDefaults`・`TestLoadReviewDefaults` を、設計書 §3.3 の表の各行（AC-01・AC-07・AC-10・AC-11）を確かめる形に書き直す。
-- [ ] `TestLoadFor` の部分テスト「no stage reads no LLM variable」を設計書 §1.4 のとおりに書き換える。不正な値は新しい変数で与え、読まないことを確かめる一覧は新しい変数 2 つとプロバイダ固有の変数にし、旧変数 4 つは読むことを確かめる。
-- [ ] `TestLoadServerModelMissing` を `TestLoadServerLLMRejected` に改め、`YT2COLUMN_LLM` の空の値と `deepseek/` で `LoadServer` が `YT2COLUMN_LLM` を名指しして失敗することを確かめる。
-- [ ] `TestLoadServerLLMDefaults`・`TestLoadProductionDefaults`・`TestLoadDefaultProviderVariables` を、旧変数を含まない環境で保つ（AC-21）。`TestLoadServerLLMDefaults` の「古い既定に頼った deepseek の設定」の行は、旧変数を設定した行として 2-3 の旧変数のテストに移す。
-- [ ] `wantInvalidProvider`・`wantModelOnly` を除き、理由を引数に取る拒否の補助に置き換える。
+- [x] `validEnv` を `YT2COLUMN_LLM=deepseek/deepseek-chat`、`validClaudeEnv` を `YT2COLUMN_LLM=claude/claude-opus-5-5` に書き換え、旧変数の定数を使うテスト（§1.3 の表の 19 の関数のうち、2-1 で削除した 2 つを除く 17）を新しい変数で書き直す。確かめる内容は保ち、古い規則だけに意味があった行（モデルの変数の未設定・空、`deepseek` でモデルが必須であること、検証・推敲のプロバイダだけを設定するとそのプロバイダの既定のモデルになること）は、新しい規則の行に置き換える。
+- [x] `TestLoadGenerationDefaults`・`TestLoadReviewDefaults` を、設計書 §3.3 の表の各行（AC-01・AC-07・AC-10・AC-11）を確かめる形に書き直す。
+- [x] `TestLoadFor` の部分テスト「no stage reads no LLM variable」を設計書 §1.4 のとおりに書き換える。不正な値は新しい変数で与え、読まないことを確かめる一覧は新しい変数 2 つとプロバイダ固有の変数にし、旧変数 4 つは読むことを確かめる。
+- [x] `TestLoadServerModelMissing` を `TestLoadServerLLMRejected` に改め、`YT2COLUMN_LLM` の空の値と `deepseek/` で `LoadServer` が `YT2COLUMN_LLM` を名指しして失敗することを確かめる。
+- [x] `TestLoadServerLLMDefaults`・`TestLoadProductionDefaults`・`TestLoadDefaultProviderVariables` を、旧変数を含まない環境で保つ（AC-21）。`TestLoadServerLLMDefaults` の「古い既定に頼った deepseek の設定」の行は、旧変数を設定した行として 2-3 の旧変数のテストに移す。
+- [x] `wantInvalidProvider`・`wantModelOnly` を除き、理由を引数に取る拒否の補助に置き換える。
 
 **完了の条件**: `go test -tags test ./internal/config` が通る。
 
@@ -154,16 +155,16 @@
 
 **変えるファイル**: `internal/config/config_test.go`、`internal/config/socketpath_test.go`
 
-- [ ] **値の解析:** 設計書 §3.2 の表の各行の例を、`YT2COLUMN_LLM` と `YT2COLUMN_REVIEW_LLM` の両方で確かめるテストを加える。受理する値ではアクセサの組（`claude/vendor/model-x` のモデルは `vendor/model-x`）、拒否する値では `Name`・番兵・理由（AC-02〜AC-05・AC-08・AC-09）。`parseLLM` が、`claude/` ではエラーとともにプロバイダを返し、プロバイダの部分が不正な値では `ProviderUnset` を返すことも確かめる（§3.2 の契約）。
-- [ ] **前後の空白:** `claude/claude-opus-5-5 `・`claude/ claude-opus-5-5`・UTF-8 として不正なモデル ID を、設定の読み込みが受理し、モデルがそのまま入ることを確かめる（AC-06 の前半）。
-- [ ] **段階とアクセサ:** 記録する `lookup` を使い、`Review` だけが真で `YT2COLUMN_REVIEW_LLM` が設定されていれば `YT2COLUMN_LLM` を読まないこと（`YT2COLUMN_LLM` が不正な値でも成功すること）、未設定なら読むことを確かめる（AC-10）。`Need{Review: true}` で `Provider()`・`Model()` がゼロ値、`Need{Generation: true}` で検証・推敲のアクセサがゼロ値であることを確かめる（設計書 §3.1 の表）。
-- [ ] **旧変数の表:** 旧変数 4 つの名前と、それぞれの理由の定数（`YT2COLUMN_LLM_PROVIDER`・`YT2COLUMN_MODEL` は `reasonRetiredLLM`、`YT2COLUMN_REVIEW_PROVIDER`・`YT2COLUMN_REVIEW_MODEL` は `reasonRetiredReviewLLM`）を、テストの中に書いた表として持つ。この表を `retiredLLMVars` と比べ、旧変数のテストのケースもこの表から作る。`retiredLLMVars` から 1 つ消えても、テストが一緒に縮まないようにするためである（AC-14）。
-- [ ] **旧変数:** 4 つの旧変数のそれぞれを、値ありと空の値で、`Need` の 4 通りと `LoadServer` に渡し、旧変数を名指しする `ErrInvalid` と、代わりの変数に応じた理由が返ることを確かめる（AC-12〜AC-14）。旧変数と `YT2COLUMN_LLM` の両方を設定しても失敗すること（AC-16。設計書 §6.2 の 8 行目）。
-- [ ] **まとめて報告すること:** 1 回の読み込みで、2 つ以上の旧変数、不正な `YT2COLUMN_LLM`・`YT2COLUMN_REVIEW_LLM`、プロバイダ固有の変数の拒否、共通の変数（`YT2COLUMN_CACHE_DIR` など）の拒否が、別々の要素としてすべて返ることを確かめる（AC-15・AC-20）。旧変数だけで DeepSeek を指定した設定で、`ANTHROPIC_API_KEY` の未設定も報告されること（設計書 §6.2 の 7 行目）。
-- [ ] **値を含まないこと:** `TestLoadErrorsOmitValues` に、新しい変数 2 つと旧変数 4 つの値に目印を入れる行を加える（AC-05・AC-14）。
-- [ ] **プロバイダ固有の変数:** 設計書 §6.2 の 4〜6 行目と、`YT2COLUMN_REVIEW_LLM` からプロバイダが決まらない場合を、どのプロバイダ固有の変数を読み、どれを拒否するかで確かめる（AC-19）。`TestLoadIgnoresOtherProviderVars` は 2-2 の書き直しで保つ（AC-18）。
-- [ ] **ホスト:** `TestLoadHost`・`TestLoadHostHome` の環境に旧変数 4 つを加え、成功して `HOME` だけを読むことを確かめる（AC-17。設計書 §7.1）。
-- [ ] 加えたテストのそれぞれについて、そのテストが対象とする仕組みを壊すと失敗することを確認し、コミットメッセージに書く（たとえば、旧変数の検査を `need` の分岐の中に移す、`retiredLLMVars` から 1 つ消す、`parseLLM` で前後の空白を取り除く、`claude/` で `ProviderUnset` を返す、継承するときに `YT2COLUMN_LLM` を読まない）。
+- [x] **値の解析:** 設計書 §3.2 の表の各行の例を、`YT2COLUMN_LLM` と `YT2COLUMN_REVIEW_LLM` の両方で確かめるテストを加える。受理する値ではアクセサの組（`claude/vendor/model-x` のモデルは `vendor/model-x`）、拒否する値では `Name`・番兵・理由（AC-02〜AC-05・AC-08・AC-09）。`parseLLM` が、`claude/` ではエラーとともにプロバイダを返し、プロバイダの部分が不正な値では `ProviderUnset` を返すことも確かめる（§3.2 の契約）。
+- [x] **前後の空白:** `claude/claude-opus-5-5 `・`claude/ claude-opus-5-5`・UTF-8 として不正なモデル ID を、設定の読み込みが受理し、モデルがそのまま入ることを確かめる（AC-06 の前半）。
+- [x] **段階とアクセサ:** 記録する `lookup` を使い、`Review` だけが真で `YT2COLUMN_REVIEW_LLM` が設定されていれば `YT2COLUMN_LLM` を読まないこと（`YT2COLUMN_LLM` が不正な値でも成功すること）、未設定なら読むことを確かめる（AC-10）。`Need{Review: true}` で `Provider()`・`Model()` がゼロ値、`Need{Generation: true}` で検証・推敲のアクセサがゼロ値であることを確かめる（設計書 §3.1 の表）。
+- [x] **旧変数の表:** 旧変数 4 つの名前と、それぞれの理由の定数（`YT2COLUMN_LLM_PROVIDER`・`YT2COLUMN_MODEL` は `reasonRetiredLLM`、`YT2COLUMN_REVIEW_PROVIDER`・`YT2COLUMN_REVIEW_MODEL` は `reasonRetiredReviewLLM`）を、テストの中に書いた表として持つ。この表を `retiredLLMVars` と比べ、旧変数のテストのケースもこの表から作る。`retiredLLMVars` から 1 つ消えても、テストが一緒に縮まないようにするためである（AC-14）。
+- [x] **旧変数:** 4 つの旧変数のそれぞれを、値ありと空の値で、`Need` の 4 通りと `LoadServer` に渡し、旧変数を名指しする `ErrInvalid` と、代わりの変数に応じた理由が返ることを確かめる（AC-12〜AC-14）。旧変数と `YT2COLUMN_LLM` の両方を設定しても失敗すること（AC-16。設計書 §6.2 の 8 行目）。
+- [x] **まとめて報告すること:** 1 回の読み込みで、2 つ以上の旧変数、不正な `YT2COLUMN_LLM`・`YT2COLUMN_REVIEW_LLM`、プロバイダ固有の変数の拒否、共通の変数（`YT2COLUMN_CACHE_DIR` など）の拒否が、別々の要素としてすべて返ることを確かめる（AC-15・AC-20）。旧変数だけで DeepSeek を指定した設定で、`ANTHROPIC_API_KEY` の未設定も報告されること（設計書 §6.2 の 7 行目）。
+- [x] **値を含まないこと:** `TestLoadErrorsOmitValues` に、新しい変数 2 つと旧変数 4 つの値に目印を入れる行を加える（AC-05・AC-14）。
+- [x] **プロバイダ固有の変数:** 設計書 §6.2 の 4〜6 行目と、`YT2COLUMN_REVIEW_LLM` からプロバイダが決まらない場合を、どのプロバイダ固有の変数を読み、どれを拒否するかで確かめる（AC-19）。`TestLoadIgnoresOtherProviderVars` は 2-2 の書き直しで保つ（AC-18）。
+- [x] **ホスト:** `TestLoadHost`・`TestLoadHostHome` の環境に旧変数 4 つを加え、成功して `HOME` だけを読むことを確かめる（AC-17。設計書 §7.1）。
+- [x] 加えたテストのそれぞれについて、そのテストが対象とする仕組みを壊すと失敗することを確認し、コミットメッセージに書く（たとえば、旧変数の検査を `need` の分岐の中に移す、`retiredLLMVars` から 1 つ消す、`parseLLM` で前後の空白を取り除く、`claude/` で `ProviderUnset` を返す、継承するときに `YT2COLUMN_LLM` を読まない）。
 
 **完了の条件**: `go test -tags test ./internal/config` が通る。
 
@@ -173,14 +174,14 @@
 
 **変えるファイル**: `cmd/yt2column/run_test.go`、`signal_test.go`、`test_helpers_integration.go`、`integration_env_test.go`、`docs_test.go`、`makefile_test.go`
 
-- [ ] `newRunEnv`・`newChildSetup`・`newIntegrationRun` の環境を、`YT2COLUMN_LLM=deepseek/<モデル>` の 1 行にする。コメント（`test_helpers_integration.go:127`）も書き換える。
-- [ ] `run_test.go` で旧変数を書き換える行（§1.3 の表）を新しい変数に書き換える。設定のエラーの行は、`YT2COLUMN_LLM` の空の値、不正なプロバイダ（値に目印を含める）、両方の組み合わせにし、空白のある行は `YT2COLUMN_LLM="deepseek/ fake-model "` にする。
-- [ ] `TestRunDefaultLLMConfig` は、`YT2COLUMN_LLM` を除いて既定値を確かめる形に変える。確かめ方（`DefaultClaudeModelForTest` と比べる）は保つ。
-- [ ] `TestRunResumeConfigScoping` は、`YT2COLUMN_LLM` と `DEEPSEEK_API_KEY` を除いて `--after review` が成功することを確かめる形に変える（設計書 §1.4）。
-- [ ] `TestRunModelWithoutProvider` を除く（カバレッジの比較は 2-1 で済んでいる）。確かめていた規則は、3-2 の CLI の旧変数のテストが引き継ぐ。
-- [ ] `TestIntegrationRunProviderSelection` は、環境の `YT2COLUMN_LLM` が `deepseek/` で始まり、残りが渡したモデルであることを確かめる形に変える。壊し方は、`newIntegrationRun` の環境から `YT2COLUMN_LLM` を外すこととする。
-- [ ] `docs_test.go` の除いた補助関数の呼び出しを、新しい補助関数に置き換える。`TestLLMDefaultsDocsContract` の `YT2COLUMN_LLM` の行は `LLMEnvForTest`・`DefaultLLMValueForTest` から作り、`productionProfileVars` は `LLMEnvForTest`・`ClaudeEffortEnvForTest` の 2 つにする。文書がまだ古いので、これらのガードは 4-1 まで失敗する。
-- [ ] 1-2 の `static` のガードの範囲に、`cmd/yt2column` の名前に `integration` を含む Go のファイルを加える（§1.2）。範囲ごとに 1 つ以上のファイルがあることの確認も、加えた範囲に適用する。あわせて、ガードの `retiredModelEnv` の値を `config.RetiredLLMVarsForTest`（2-1）から取る。旧変数の名前をテストに書き写さないためである。
+- [x] `newRunEnv`・`newChildSetup`・`newIntegrationRun` の環境を、`YT2COLUMN_LLM=deepseek/<モデル>` の 1 行にする。コメント（`test_helpers_integration.go:127`）も書き換える。
+- [x] `run_test.go` で旧変数を書き換える行（§1.3 の表）を新しい変数に書き換える。設定のエラーの行は、`YT2COLUMN_LLM` の空の値、不正なプロバイダ（値に目印を含める）、両方の組み合わせにし、空白のある行は `YT2COLUMN_LLM="deepseek/ fake-model "` にする。
+- [x] `TestRunDefaultLLMConfig` は、`YT2COLUMN_LLM` を除いて既定値を確かめる形に変える。確かめ方（`DefaultClaudeModelForTest` と比べる）は保つ。
+- [x] `TestRunResumeConfigScoping` は、`YT2COLUMN_LLM` と `DEEPSEEK_API_KEY` を除いて `--after review` が成功することを確かめる形に変える（設計書 §1.4）。
+- [x] `TestRunModelWithoutProvider` を除く（カバレッジの比較は 2-1 で済んでいる）。確かめていた規則は、3-2 の CLI の旧変数のテストが引き継ぐ。
+- [x] `TestIntegrationRunProviderSelection` は、環境の `YT2COLUMN_LLM` が `deepseek/` で始まり、残りが渡したモデルであることを確かめる形に変える。壊し方は、`newIntegrationRun` の環境から `YT2COLUMN_LLM` を外すこととする。
+- [x] `docs_test.go` の除いた補助関数の呼び出しを、新しい補助関数に置き換える。`TestLLMDefaultsDocsContract` の `YT2COLUMN_LLM` の行は `LLMEnvForTest`・`DefaultLLMValueForTest` から作り、`productionProfileVars` は `LLMEnvForTest`・`ClaudeEffortEnvForTest` の 2 つにする。文書がまだ古いので、これらのガードは 4-1 まで失敗する。
+- [x] 1-2 の `static` のガードの範囲に、`cmd/yt2column` の名前に `integration` を含む Go のファイルを加える（§1.2）。範囲ごとに 1 つ以上のファイルがあることの確認も、加えた範囲に適用する。あわせて、ガードが探す名前を `config.RetiredLLMVarsForTest`（2-1）から取る。旧変数の名前をテストに書き写さないためである。1 つの名前を選び出すにも名前を書く必要があるので、ガードと目印のテストは旧変数 4 つのすべてを対象にする（`YT2COLUMN_MODEL` を含む上位集合）。
 
 **完了の条件**: `go vet -tags test ./cmd/yt2column` と `go vet -tags integration ./cmd/yt2column` が通る（`test_helpers_integration.go` は `test || integration` で作る）。`go test -tags test ./cmd/yt2column -skip 'DocsContract'` が通る。
 
@@ -188,11 +189,11 @@
 
 **変えるファイル**: `cmd/yt2column/run_test.go`
 
-- [ ] **旧変数（AC-12）:** 要件書 §3.1 の表の各行の実行（`--after` なし、`--no-review`、`--after generation`、`--after shorten`、`--after review`）に旧変数を 1 つ加えたとき、次の 3 点を確かめるテストを加える。終了コード `2` で止まること。`yt2column: configuration: ` に `RetiredLLMVarErrorForTest` の結果をつないだ行を出すこと。tripwire が動かず、LLM のクライアントも作らないこと。`--after` の行には `--artifacts` を付ける（成果物は要らない。§1.3）。旧変数 4 つのそれぞれを少なくとも 1 回ずつ使う。`-h` は旧変数があっても終了コード `0` で使い方を出すこと、引数の誤りは使い方の誤りとして報告され、旧変数の行が出ないことも確かめる。
-- [ ] **エラーの順序（AC-20）:** 旧変数を設定し、`--slack` で `SLACK_WEBHOOK_URL` を未設定にした実行が、旧変数の行を出し、`configuration: SLACK_WEBHOOK_URL` の行を出さないことを確かめる行を加える。旧変数を設定し、`YT2COLUMN_LLM` のモデル ID の前後に空白を入れ、本物の `newLLMClient` を使う実行が、`build the LLM client` を出さないことを確かめる行も加える。
-- [ ] **前後の空白（AC-06）:** `--after` なしで `--no-review` を付けた実行（設定の読み込みは `YT2COLUMN_REVIEW_LLM` も読む。要件書 AC-11）で、`YT2COLUMN_REVIEW_LLM` のモデル ID の前後に空白があっても成功することを確かめるテストを加える。検証・推敲のクライアントは、本物の `newReviewLLMClient` を使うか、作った回数が 0 であることを確かめる。
-- [ ] **クライアントの構築（設計書 §1.2・§7.2）:** `TestResumeNeed` を、`--after` の 4 通り（なし・`generation`・`shorten`・`review`）と `--no-shorten`・`--no-review` のすべての組み合わせに広げる（引数の検査が拒否する組み合わせは除く）。同じ組み合わせで、作ったクライアントの数を数える偽の依存を渡して `buildWriter` を呼び、生成のクライアントを作るのは `resumeNeed` の `Generation` が真のときだけ、検証・推敲のクライアントを作るのは `Review` が真のときだけであることを確かめるテストを加える。壊し方は、`buildWriter` が `--after shorten` でも生成のクライアントを作るようにすることとする。`Provider()` が `ProviderUnset` のときに `provider.New` が何も作らないことは、`New` が `newClient` に渡すだけなので（§1.3）、既存の `TestNewUnknownProvider` が確かめる。
-- [ ] 加えたテストのそれぞれについて、そのテストが対象とする仕組みを壊すと失敗することを確認し、コミットメッセージに書く（たとえば、`loadLLM` の旧変数の検査を `need` の分岐の中に移すと `--after review` の行が失敗する）。
+- [x] **旧変数（AC-12）:** 要件書 §3.1 の表の各行の実行（`--after` なし、`--no-review`、`--after generation`、`--after shorten`、`--after review`）に旧変数を 1 つ加えたとき、次の 3 点を確かめるテストを加える。終了コード `2` で止まること。`yt2column: configuration: ` に `RetiredLLMVarErrorForTest` の結果をつないだ行を出すこと。tripwire が動かず、LLM のクライアントも作らないこと。`--after` の行には `--artifacts` を付ける（成果物は要らない。§1.3）。旧変数 4 つのそれぞれを少なくとも 1 回ずつ使う。`-h` は旧変数があっても終了コード `0` で使い方を出すこと、引数の誤りは使い方の誤りとして報告され、旧変数の行が出ないことも確かめる。
+- [x] **エラーの順序（AC-20）:** 旧変数を設定し、`--slack` で `SLACK_WEBHOOK_URL` を未設定にした実行が、旧変数の行を出し、`configuration: SLACK_WEBHOOK_URL` の行を出さないことを確かめる行を加える。旧変数を設定し、`YT2COLUMN_LLM` のモデル ID の前後に空白を入れ、本物の `newLLMClient` を使う実行が、`build the LLM client` を出さないことを確かめる行も加える。
+- [x] **前後の空白（AC-06）:** `--after` なしで `--no-review` を付けた実行（設定の読み込みは `YT2COLUMN_REVIEW_LLM` も読む。要件書 AC-11）で、`YT2COLUMN_REVIEW_LLM` のモデル ID の前後に空白があっても成功することを確かめるテストを加える。検証・推敲のクライアントは、本物の `newReviewLLMClient` を使うか、作った回数が 0 であることを確かめる。
+- [x] **クライアントの構築（設計書 §1.2・§7.2）:** `TestResumeNeed` を、`--after` の 4 通り（なし・`generation`・`shorten`・`review`）と `--no-shorten`・`--no-review` のすべての組み合わせに広げる（引数の検査が拒否する組み合わせは除く）。同じ組み合わせで、作ったクライアントの数を数える偽の依存を渡して `buildWriter` を呼び、生成のクライアントを作るのは `resumeNeed` の `Generation` が真のときだけ、検証・推敲のクライアントを作るのは `Review` が真のときだけであることを確かめるテストを加える。壊し方は、`buildWriter` が `--after shorten` でも生成のクライアントを作るようにすることとする。`Provider()` が `ProviderUnset` のときに `provider.New` が何も作らないことは、`New` が `newClient` に渡すだけなので（§1.3）、既存の `TestNewUnknownProvider` が確かめる。
+- [x] 加えたテストのそれぞれについて、そのテストが対象とする仕組みを壊すと失敗することを確認し、コミットメッセージに書く（たとえば、`loadLLM` の旧変数の検査を `need` の分岐の中に移すと `--after review` の行が失敗する）。
 
 **完了の条件**: `go test -tags test ./cmd/yt2column -skip 'DocsContract'` が通る。
 
@@ -200,10 +201,10 @@
 
 **変えるファイル**: `cmd/yt2column-server/test_helpers.go`、`cmd/yt2column-server/run_test.go`、`cmd/yt2column-nmhost/main_test.go`
 
-- [ ] `newServerEnv` の環境を `YT2COLUMN_LLM=deepseek/<モデル>` にする。設定のエラーの行（`run_test.go:66-71`）は `YT2COLUMN_LLM` を空の値にし、`hint` を `configuration: YT2COLUMN_LLM` にする。`TestOutputsOmitSecrets` は `YT2COLUMN_REVIEW_LLM=claude/fake-review-model` にする。
-- [ ] 同じ設定のエラーの表に、旧変数を 1 つ加えた行を加え、ソケットを作る前に終了コード `2` で止まり、旧変数を名指しする行を出すことを確かめる（AC-13）。壊し方は、`loadLLM` の旧変数の検査を外すこととする。
-- [ ] ホストの `fullEnv` を新しい変数に書き換え、「サーバの設定を誤って読んでも成功する環境」という目的を保つ。
-- [ ] `fullEnv` に旧変数 4 つを加えた環境で、中継・`install`・`uninstall` が `fullEnv` のときと同じ結果になることを確かめるテストを加える（AC-17。設計書 §7.2）。`invoke` の読んだ変数の検査（`main_test.go:87-89`）がこのテストにも当たる。
+- [x] `newServerEnv` の環境を `YT2COLUMN_LLM=deepseek/<モデル>` にする。設定のエラーの行（`run_test.go:66-71`）は `YT2COLUMN_LLM` を空の値にし、`hint` を `configuration: YT2COLUMN_LLM` にする。`TestOutputsOmitSecrets` は `YT2COLUMN_REVIEW_LLM=claude/fake-review-model` にする。
+- [x] 同じ設定のエラーの表に、旧変数を 1 つ加えた行を加え、ソケットを作る前に終了コード `2` で止まり、旧変数を名指しする行を出すことを確かめる（AC-13）。壊し方は、`loadLLM` の旧変数の検査を外すこととする。
+- [x] ホストの `fullEnv` を新しい変数に書き換え、「サーバの設定を誤って読んでも成功する環境」という目的を保つ。
+- [x] `fullEnv` に旧変数 4 つを加えた環境で、中継・`install`・`uninstall` が `fullEnv` のときと同じ結果になることを確かめるテストを加える（AC-17。設計書 §7.2）。`invoke` の読んだ変数の検査（`main_test.go:87-89`）がこのテストにも当たる。
 
 **完了の条件**: `go test -tags test ./cmd/yt2column-server ./cmd/yt2column-nmhost` が通る。
 
@@ -211,8 +212,8 @@
 
 **変えるファイル**: `internal/llm/provider/provider_test.go`
 
-- [ ] `validEnv`・`claudeValidEnv` を `YT2COLUMN_LLM` の 1 行にし、`TestNewClaudeDefaultEffort` の環境を `YT2COLUMN_REVIEW_LLM` で組み立て直す。
-- [ ] `TestNewPaddedModel` と `TestNewReviewUsesReviewModel` の部分テストを、`YT2COLUMN_LLM=deepseek/ deepseek-flash` や `YT2COLUMN_REVIEW_LLM=deepseek/ <モデル>` のような値に変え、アダプタの構築が失敗して送信がないことを保つ（AC-06 の後半）。
+- [x] `validEnv`・`claudeValidEnv` を `YT2COLUMN_LLM` の 1 行にし、`TestNewClaudeDefaultEffort` の環境を `YT2COLUMN_REVIEW_LLM` で組み立て直す。
+- [x] `TestNewPaddedModel` と `TestNewReviewUsesReviewModel` の部分テストを、`YT2COLUMN_LLM=deepseek/ deepseek-flash` や `YT2COLUMN_REVIEW_LLM=deepseek/ <モデル>` のような値に変え、アダプタの構築が失敗して送信がないことを保つ（AC-06 の後半）。
 
 **完了の条件**: `go test -tags test ./internal/llm/provider` が通る。
 
@@ -222,10 +223,10 @@
 
 **変えるファイル**: `README.md`、`docs/dev/project_overview.md`、`docs/dev/production_profile.md`、`docs/dev/security.md`、`docs/dev/developer_guide/package_reference.md`
 
-- [ ] 設計書 §3.8 の表の各行（README の Configuration・Recommended configuration・Using DeepSeek（移行の節）・トラブルシューティング・段階の説明・再開の説明、`project_overview.md` の 3 か所、`production_profile.md`、`security.md` §3・§4、`package_reference.md`）のとおりに書き換える。結合テストの説明は 1-2 で書き換えている。
-- [ ] README の移行の節の、書き換えた後の設定の例は、4-2 のガードが読み取れる形（`export` の行だけの `sh` のコードブロック）で書く。書き換える前の例は、`sh` 以外の情報文字列のコードブロックか表で書く（`checkExportBlock` は節の中の `sh` のブロックを 1 つだけ受け付ける。`docs_test.go:685`）。
-- [ ] README の見出しを変えた場合は、その節へのリンク（`README.md:718-723` など）も直す。
-- [ ] 書き換えた説明が、2-1 の実装（`parseLLM` の表、段階の解決、旧変数の理由の文言）と一致することを、実装と突き合わせて確かめる。トラブルシューティングが設定のエラーの行を引用するなら、`RetiredLLMVarErrorForTest` の結果と一致させる。
+- [x] 設計書 §3.8 の表の各行（README の Configuration・Recommended configuration・Using DeepSeek（移行の節）・トラブルシューティング・段階の説明・再開の説明、`project_overview.md` の 3 か所、`production_profile.md`、`security.md` §3・§4、`package_reference.md`）のとおりに書き換える。結合テストの説明は 1-2 で書き換えている。
+- [x] README の移行の節の、書き換えた後の設定の例は、4-2 のガードが読み取れる形（`export` の行だけの `sh` のコードブロック）で書く。書き換える前の例は、`sh` 以外の情報文字列のコードブロックか表で書く（`checkExportBlock` は節の中の `sh` のブロックを 1 つだけ受け付ける。`docs_test.go:685`）。
+- [x] README の見出しを変えた場合は、その節へのリンク（`README.md:718-723` など）も直す。
+- [x] 書き換えた説明が、2-1 の実装（`parseLLM` の表、段階の解決、旧変数の理由の文言）と一致することを、実装と突き合わせて確かめる。トラブルシューティングが設定のエラーの行を引用するなら、`RetiredLLMVarErrorForTest` の結果と一致させる。
 
 **完了の条件**: 4-2 のガードテストが通る。
 
@@ -233,12 +234,12 @@
 
 **変えるファイル**: `cmd/yt2column/docs_test.go`
 
-- [ ] `TestLLMDefaultsDocsContract` を、README と `project_overview.md` の表に `YT2COLUMN_LLM` の行がちょうど 1 つあり、「未設定のとき」の列の最初のコードスパンが `DefaultLLMValueForTest` であること、`YT2COLUMN_REVIEW_LLM` の行がちょうど 1 つあることを検査する形に仕上げる（AC-22・AC-27。設計書 §7.3）。旧変数の 3 行の検査は除く。
-- [ ] `TestProductionProfileDocsContract` のコメントの「three variables」を、3-1 で 2 つにした `productionProfileVars` に合わせる。
-- [ ] `checkProfileTable` を、プロバイダの列とモデルの列の最初のコードスパンを `/` でつなぎ、「生成」「字数の調整」の行は `YT2COLUMN_LLM`、「検証・推敲」の行は `YT2COLUMN_REVIEW_LLM` に入れて `LoadServer` で読み込む形に変える（設計書 §1.2・§7.3）。
-- [ ] README の移行の節の、書き換えた後の設定の例を `checkExportBlock` と同じ方法で読み取り、`LoadServer` で読み込んで、要件書 AC-24 が述べる組（`YT2COLUMN_LLM=deepseek/deepseek-flash` なら生成と検証・推敲が `deepseek` の `deepseek-flash`）になることを確かめるテストを加える（AC-24）。
-- [ ] 変えた、または加えたガードのそれぞれについて、文書の値を壊すと失敗することを確かめ、コミットメッセージに書く（たとえば、README の `YT2COLUMN_LLM` の既定値を `claude/claude-sonnet-5-5` にする、`production_profile.md` の段階の表の検証・推敲のモデルを変える、`export` の例に旧変数を足す、移行の例のプロバイダを `Deepseek` にする）。
-- [ ] README を変えたので `make ext-test` を動かす。
+- [x] `TestLLMDefaultsDocsContract` を、README と `project_overview.md` の表に `YT2COLUMN_LLM` の行がちょうど 1 つあり、「未設定のとき」の列の最初のコードスパンが `DefaultLLMValueForTest` であること、`YT2COLUMN_REVIEW_LLM` の行がちょうど 1 つあることを検査する形に仕上げる（AC-22・AC-27。設計書 §7.3）。旧変数の 3 行の検査は除く。
+- [x] `TestProductionProfileDocsContract` のコメントの「three variables」を、3-1 で 2 つにした `productionProfileVars` に合わせる。
+- [x] `checkProfileTable` を、プロバイダの列とモデルの列の最初のコードスパンを `/` でつなぎ、「生成」「字数の調整」の行は `YT2COLUMN_LLM`、「検証・推敲」の行は `YT2COLUMN_REVIEW_LLM` に入れて `LoadServer` で読み込む形に変える（設計書 §1.2・§7.3）。
+- [x] README の移行の節の、書き換えた後の設定の例を `checkExportBlock` と同じ方法で読み取り、`LoadServer` で読み込んで、要件書 AC-24 が述べる組（`YT2COLUMN_LLM=deepseek/deepseek-flash` なら生成と検証・推敲が `deepseek` の `deepseek-flash`）になることを確かめるテストを加える（AC-24）。
+- [x] 変えた、または加えたガードのそれぞれについて、文書の値を壊すと失敗することを確かめ、コミットメッセージに書く（たとえば、README の `YT2COLUMN_LLM` の既定値を `claude/claude-sonnet-5-5` にする、`production_profile.md` の段階の表の検証・推敲のモデルを変える、`export` の例に旧変数を足す、移行の例のプロバイダを `Deepseek` にする）。
+- [x] README を変えたので `make ext-test` を動かす。
 
 **完了の条件**: グリーンゲート（`make test && make lint`）と `make ext-test` が通る。§5 の横断検索を行い、結果を記録する。
 
@@ -254,10 +255,10 @@
 
 **判定理由**: 2-1 は、旧変数を拒否する新しい規則を入れると同時に既存の拒否（モデルだけの設定）を外す移行であり、送り先の選択というセキュリティの境界を変える（`mkplan.md` step 8 の panel mode の条件に当たる）。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した（[#531](https://github.com/isseis/yt2column/pull/531)）
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
 
@@ -276,7 +277,7 @@
     - 旧変数の環境のために失敗する: 2-1 から 3-3 までの `cmd/yt2column-server`、2-1 から 3-4 までの `internal/llm/provider`。
     - 文書が古いために失敗する: 3-1 から 4-1 までの文書のガード。
 
-  レビューしやすいように、ステップごとに 1 つのコミットにする。各ステップの完了の条件は、その時点でビルドできるものだけを挙げている。グリーンゲートは PR-2 の作成ポイントで確かめる。
+  レビューしやすいように、ステップごとに 1 つのコミットにする（実装では、pre-commit フックのため PR-2 のフェーズ 2〜4 を 1 つのコミットにした。Document Status の Comments の (3)）。各ステップの完了の条件は、その時点でビルドできるものだけを挙げている。グリーンゲートは PR-2 の作成ポイントで確かめる。
 - PR-2 の説明には、移行の手順（README の移行の節）と、移行の後に動いているサーバを起動し直すことを書く（設計書 §8）。
 
 ### 3.2 PR 構成
@@ -318,9 +319,14 @@
 
 `make lint` と `make test` が見つけられないものだけを挙げる。PR-2 の 4-2 の後に行い、結果を PR-2 の説明に書く。
 
-- [ ] 旧変数の名前（`YT2COLUMN_LLM_PROVIDER`・`YT2COLUMN_MODEL`・`YT2COLUMN_REVIEW_PROVIDER`・`YT2COLUMN_REVIEW_MODEL`）が `docs/tasks/` の外で現れる箇所を検索する。残ってよいのは、`retiredLLMVars` の表、旧変数を設定するテスト（`internal/config`・`cmd/yt2column`・`cmd/yt2column-server`・`cmd/yt2column-nmhost`）、README の移行の節とトラブルシューティング、`docs/dev/project_overview.md` の拒否の説明、`internal/maketestutil/make_test.go:12`、1-2 のガードテストと目印のテストだけである。Go のコメントに残っていないことも、この検索で確かめる。
-- [ ] 除いた仕組みの名前（`settingOrigin`・`modelWithoutProvider`・`resolveProvider`・`parseProvider`・`defaultModel`・`loadModelOptional`・`loadReview`）が、`internal/config` のコメントと `docs/dev/developer_guide/package_reference.md` に残っていないことを確かめる。`internal/artifact/store.go` の `loadReview` は別の関数なので対象外である。
-- [ ] 文書の用語と文章の整合（旧変数を現行の設定として説明しないこと）は、PR のレビューで読んで確かめる（§9 の `manual`）。
+- [x] 旧変数の名前（`YT2COLUMN_LLM_PROVIDER`・`YT2COLUMN_MODEL`・`YT2COLUMN_REVIEW_PROVIDER`・`YT2COLUMN_REVIEW_MODEL`）が `docs/tasks/` の外で現れる箇所を検索する。残ってよいのは、`retiredLLMVars` の表、旧変数を設定するテスト（`internal/config`・`cmd/yt2column`・`cmd/yt2column-server`・`cmd/yt2column-nmhost`）、README の移行の節とトラブルシューティング、`docs/dev/project_overview.md` の拒否の説明、`internal/maketestutil/make_test.go:12`、1-2 のガードテストと目印のテストだけである。Go のコメントに残っていないことも、この検索で確かめる。
+- [x] 除いた仕組みの名前（`settingOrigin`・`modelWithoutProvider`・`resolveProvider`・`parseProvider`・`defaultModel`・`loadModelOptional`・`loadReview`）が、`internal/config` のコメントと `docs/dev/developer_guide/package_reference.md` に残っていないことを確かめる。`internal/artifact/store.go` の `loadReview` は別の関数なので対象外である。
+- [x] 文書の用語と文章の整合（旧変数を現行の設定として説明しないこと）は、PR のレビューで読んで確かめる（§9 の `manual`）。
+
+**結果（2026-10-27、PR-2 のブランチ）:**
+
+- 旧変数の名前が `docs/tasks/` の外で現れるのは、`README.md`（12 行。再開の説明の例外、トラブルシューティング、Configuration の拒否の説明、移行の節）、`docs/dev/project_overview.md`（1 行。拒否の説明）、`docs/dev/developer_guide/package_reference.md`（1 行。`internal/config` の行の拒否の説明）、`internal/config/config.go`（4 行。`retiredLLMVars` の表）、`internal/config/config_test.go`（12 行。旧変数の表と旧変数のテスト）、`internal/maketestutil/make_test.go:12` だけである。`cmd/` のテストと 1-2 のガードは、名前を `config.RetiredLLMVarsForTest()` から取るので、名前を書かない。`package_reference.md` の行は、許可した一覧にないが、拒否の説明であり、AC-26 に合う。
+- 除いた仕組みの名前は、`internal/config` と `package_reference.md` のどちらにも現れない（`rg` の出力が空）。
 
 ## 6. リスク管理 (Risk Management)
 
@@ -338,14 +344,14 @@
 フェーズごと:
 
 - [x] フェーズ 1 完了（1-1 / 1-2）
-- [ ] フェーズ 2 完了（2-1 / 2-2 / 2-3）
-- [ ] フェーズ 3 完了（3-1 / 3-2 / 3-3 / 3-4）
-- [ ] フェーズ 4 完了（4-1 / 4-2）、§5 の横断検索の結果を記録した
+- [x] フェーズ 2 完了（2-1 / 2-2 / 2-3）
+- [x] フェーズ 3 完了（3-1 / 3-2 / 3-3 / 3-4）
+- [x] フェーズ 4 完了（4-1 / 4-2）、§5 の横断検索の結果を記録した
 
 PR ごと:
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2）
-- [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 3-1 / 3-2 / 3-3 / 3-4 / 4-1 / 4-2）
+- [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 3-1 / 3-2 / 3-3 / 3-4 / 4-1 / 4-2）
 
 ## 8. 成功基準 (Success Criteria)
 
@@ -361,29 +367,29 @@ PR ごと:
 | AC | 種別 | 検証 | 実装 |
 |---|---|---|---|
 | AC-01 | test | `internal/config/config_test.go::TestLoadGenerationDefaults`、`cmd/yt2column/run_test.go::TestRunDefaultLLMConfig` | 2-1 |
-| AC-02 | test | `internal/config/config_test.go` の値の解析のテスト（新設、2-3） | 2-1 |
+| AC-02 | test | `internal/config/config_test.go::TestLoadParsesLLMValue`（新設、2-3） | 2-1 |
 | AC-03 | test | 同上（`claude/vendor/model-x`） | 2-1 |
-| AC-04 | test | 同上（空の値）、`internal/config/config_test.go::TestLoadServerLLMRejected`、`cmd/yt2column/run_test.go` の設定のエラーの行（3-1） | 2-1 |
-| AC-05 | test | 同上（構文の誤り）、`internal/config/config_test.go::TestLoadErrorsOmitValues`、`cmd/yt2column/run_test.go` の設定のエラーの行（3-1） | 2-1 |
-| AC-06 | test | `internal/config/config_test.go` の前後の空白のテスト（新設、2-3）、`internal/llm/provider/provider_test.go::TestNewPaddedModel`・`TestNewReviewUsesReviewModel`、`cmd/yt2column/run_test.go` の `--no-review` の空白のテスト（新設、3-2）と空白の行（3-1） | 2-1 |
+| AC-04 | test | 同上（空の値）、`internal/config/config_test.go::TestLoadGenerationDefaults`・`TestLoadServerLLMRejected`、`cmd/yt2column/run_test.go::TestRunExecutionPaths` の設定のエラーの行（3-1） | 2-1 |
+| AC-05 | test | 同上（構文の誤り）、`internal/config/config_test.go::TestParseLLMProvider`・`TestLoadErrorsOmitValues`、`cmd/yt2column/run_test.go::TestRunExecutionPaths` の設定のエラーの行（3-1） | 2-1 |
+| AC-06 | test | `internal/config/config_test.go::TestLoadParsesLLMValue` の前後の空白と UTF-8 として不正な値の行（新設、2-3）、`internal/llm/provider/provider_test.go::TestNewPaddedModel`・`TestNewReviewUsesReviewModel`、`cmd/yt2column/run_test.go::TestRunNoReviewPaddedReviewModel`（新設、3-2）と `TestRunExecutionPaths` の空白の行（3-1） | 2-1 |
 | AC-07 | test | `internal/config/config_test.go::TestLoadReviewDefaults` | 2-1 |
-| AC-08 | test | `internal/config/config_test.go` の値の解析のテスト（新設、2-3）、`internal/llm/provider/provider_test.go::TestNewReviewUsesReviewModel` | 2-1 |
-| AC-09 | test | `internal/config/config_test.go` の値の解析のテスト（新設、2-3。`YT2COLUMN_REVIEW_LLM` の行） | 2-1 |
-| AC-10 | test | `internal/config/config_test.go::TestLoadReviewDefaults`、段階とアクセサのテスト（新設、2-3。記録する `lookup`） | 2-1 |
+| AC-08 | test | `internal/config/config_test.go::TestLoadParsesLLMValue`（新設、2-3）・`TestLoadReview`、`internal/llm/provider/provider_test.go::TestNewReviewUsesReviewModel` | 2-1 |
+| AC-09 | test | `internal/config/config_test.go::TestLoadParsesLLMValue`（新設、2-3。`YT2COLUMN_REVIEW_LLM` の行）・`TestLoadReviewDefaults`（空の値を受け継がないこと） | 2-1 |
+| AC-10 | test | `internal/config/config_test.go::TestLoadReviewDefaults`（アクセサの契約を含む）、`TestLoadReviewOnlyReadsLLM`（新設、2-3。記録する `lookup`） | 2-1 |
 | AC-11 | test | `internal/config/config_test.go::TestLoadFor`（「no stage reads no LLM variable」）、`cmd/yt2column/run_test.go::TestResumeNeed`（`--after` なしで `--no-review` でも検証・推敲の設定を検査すること）・`TestRunResumeConfigScoping` | 2-1 |
-| AC-12 | test | `internal/config/config_test.go` の旧変数のテスト（新設、2-3）、`cmd/yt2column/run_test.go` の旧変数のテスト（新設、3-2） | 2-1 |
-| AC-13 | test | `internal/config/config_test.go` の旧変数のテスト（新設、2-3。`LoadServer`）、`cmd/yt2column-server/run_test.go` の設定のエラーの表の旧変数の行（新設、3-3） | 2-1 |
-| AC-14 | test | `internal/config/config_test.go` の旧変数の表と旧変数のテスト（新設、2-3）、`TestLoadErrorsOmitValues` | 2-1 |
-| AC-15 | test | `internal/config/config_test.go` のまとめて報告することのテスト（新設、2-3） | 2-1 |
-| AC-16 | test | `internal/config/config_test.go` の旧変数のテスト（新設、2-3。旧変数と `YT2COLUMN_LLM` の両方） | 2-1 |
-| AC-17 | test | `internal/config/socketpath_test.go::TestLoadHost`・`TestLoadHostHome`、`cmd/yt2column-nmhost/main_test.go` の旧変数のテスト（新設、3-3） | 2-1（旧変数の検査は `loadLLM` だけにあり、`LoadHost`・`LoadHostHome` はそれを呼ばない） |
+| AC-12 | test | `internal/config/config_test.go::TestLoadRejectsRetiredLLMVars`（新設、2-3）、`cmd/yt2column/run_test.go::TestRunRejectsRetiredLLMVars`（新設、3-2） | 2-1 |
+| AC-13 | test | `internal/config/config_test.go::TestLoadRejectsRetiredLLMVars`（新設、2-3。`LoadServer`）、`cmd/yt2column-server/run_test.go::TestStartupFailures` の「a retired LLM variable」の行（新設、3-3） | 2-1 |
+| AC-14 | test | `internal/config/config_test.go::TestRetiredLLMVars`・`TestLoadRejectsRetiredLLMVars`（新設、2-3）、`TestLoadErrorsOmitValues` | 2-1 |
+| AC-15 | test | `internal/config/config_test.go::TestLoadReportsAllInvalid`（2-3 で書き直し） | 2-1 |
+| AC-16 | test | `internal/config/config_test.go::TestLoadRejectsRetiredLLMVars`（新設、2-3。「LLM set」の行） | 2-1 |
+| AC-17 | test | `internal/config/socketpath_test.go::TestLoadHost`・`TestLoadHostHome`、`cmd/yt2column-nmhost/main_test.go::TestRelayUsesDerivedSocket`・`TestInstallAndUninstall` の「retired LLM variables」の環境（3-3） | 2-1（旧変数の検査は `loadLLM` だけにあり、`LoadHost`・`LoadHostHome` はそれを呼ばない） |
 | AC-18 | test | `internal/config/config_test.go::TestLoadIgnoresOtherProviderVars` | 2-1 |
-| AC-19 | test | `internal/config/config_test.go` のプロバイダ固有の変数のテスト（新設、2-3） | 2-1 |
-| AC-20 | test | `internal/config/config_test.go` のまとめて報告することのテスト（新設、2-3）、`cmd/yt2column/run_test.go` のエラーの順序の行（新設、3-2） | 2-1 |
+| AC-19 | test | `internal/config/config_test.go::TestLoadProviderVarsFollowSelection`（新設、2-3） | 2-1 |
+| AC-20 | test | `internal/config/config_test.go::TestLoadReportsAllInvalid`（2-3）、`cmd/yt2column/run_test.go::TestRunExecutionPaths` のエラーの順序の 2 行（新設、3-2） | 2-1 |
 | AC-21 | test | `internal/config/config_test.go::TestLoadProductionDefaults`・`TestLoadServerLLMDefaults` | 2-1 |
 | AC-22 | test、manual | test: `cmd/yt2column/docs_test.go::TestLLMDefaultsDocsContract`・`TestProductionProfileDocsContract`。manual: 旧変数を現行の設定として載せないこと、例の変数の数を述べる文（「次の 3 つ」「These three values」など）が例に合うことを PR-2 のレビューで読む | 4-1、4-2 |
 | AC-23 | manual | 値の構文、既定値と継承、空の値と旧変数の拒否、再開の記述の例外、「前提・制約」の例外の範囲を、PR-2 のレビューで読む | 4-1 |
-| AC-24 | test、manual | test: `cmd/yt2column/docs_test.go` の移行の例のテスト（新設、4-2）。manual: 移行の説明の文章を PR-2 のレビューで読む | 4-1、4-2 |
+| AC-24 | test、manual | test: `cmd/yt2column/docs_test.go::TestMigrationDocsContract`（新設、4-2）。manual: 移行の説明の文章を PR-2 のレビューで読む | 4-1、4-2 |
 | AC-25 | manual | README のトラブルシューティングを PR-2 のレビューで読む | 4-1 |
 | AC-26 | manual | 5 つの文書が旧変数を現行の設定として説明しないことを PR-2 のレビューで読む（§5 の横断検索の結果を手がかりにする） | 4-1 |
 | AC-27 | test | `cmd/yt2column/docs_test.go::TestLLMDefaultsDocsContract`・`TestProductionProfileDocsContract`（`checkProfileTable` を含む） | 3-1、4-2 |

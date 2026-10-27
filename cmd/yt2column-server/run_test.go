@@ -61,15 +61,26 @@ func TestStartupFailures(t *testing.T) {
 			// Which values config.LoadServer rejects is its own tests'
 			// concern; here every rejection takes the same path, so one row
 			// with two of them checks the exit code and one line each.
-			name: "model and webhook missing",
+			name: "LLM empty and webhook missing",
 			setup: func(_ *testing.T, e *serverEnv, _ *deps) {
-				delete(e.vars, "YT2COLUMN_MODEL")
+				e.vars["YT2COLUMN_LLM"] = ""
 				delete(e.vars, "SLACK_WEBHOOK_URL")
 			},
 			want:        exitUsage,
 			wantStderr:  "configuration: SLACK_WEBHOOK_URL",
-			hint:        "configuration: YT2COLUMN_MODEL",
+			hint:        "configuration: YT2COLUMN_LLM",
 			configLines: 2,
+		},
+		{
+			// A retired variable stops the server before it listens, even
+			// with an otherwise valid configuration.
+			name: "a retired LLM variable",
+			setup: func(_ *testing.T, e *serverEnv, _ *deps) {
+				e.vars[config.RetiredLLMVarsForTest()[0]] = ""
+			},
+			want:        exitUsage,
+			wantStderr:  "configuration: " + config.RetiredLLMVarErrorForTest(config.RetiredLLMVarsForTest()[0]),
+			configLines: 1,
 		},
 		{
 			name: "HOME unset",
@@ -314,8 +325,7 @@ func (n noticeSignal) Notify(_ context.Context, notice failure.Notice) error {
 // the "job failed" line that carries that error shows none of them.
 func TestOutputsOmitSecrets(t *testing.T) {
 	e := newServerEnv(t)
-	e.vars["YT2COLUMN_REVIEW_PROVIDER"] = "claude"
-	e.vars["YT2COLUMN_REVIEW_MODEL"] = "fake-review-model"
+	e.vars["YT2COLUMN_REVIEW_LLM"] = "claude/fake-review-model"
 	e.vars["ANTHROPIC_API_KEY"] = testAnthropicKey
 	e.vars["YT2COLUMN_CLAUDE_EFFORT"] = "low"
 	leaking := funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {

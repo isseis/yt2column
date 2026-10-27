@@ -136,15 +136,14 @@ func newRunEnv(t *testing.T) *runEnv {
 	}
 	tripwire, marker := transcripttestutil.NewTripwire(t, binDir)
 	e.tripwireMarker = marker
-	// The provider is explicit so the tests keep selecting DeepSeek after the
-	// default provider changes.
+	// The provider is explicit so the tests keep selecting DeepSeek, not the
+	// default provider.
 	e.env = map[string]string{
-		"YT2COLUMN_LLM_PROVIDER": "deepseek",
-		"YT2COLUMN_MODEL":        "fake-model",
-		"DEEPSEEK_API_KEY":       testAPIKey,
-		"SLACK_WEBHOOK_URL":      testWebhook,
-		"YT2COLUMN_CACHE_DIR":    e.cacheDir,
-		"YT2COLUMN_YTDLP_PATH":   tripwire,
+		"YT2COLUMN_LLM":        "deepseek/fake-model",
+		"DEEPSEEK_API_KEY":     testAPIKey,
+		"SLACK_WEBHOOK_URL":    testWebhook,
+		"YT2COLUMN_CACHE_DIR":  e.cacheDir,
+		"YT2COLUMN_YTDLP_PATH": tripwire,
 	}
 	e.client = funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
 		return validResponse(), nil
@@ -518,27 +517,40 @@ func executionPathRows() []pathRow {
 		}, "invalid video URL"),
 		usageRow("-rf after --", func(e *runEnv) []string { return []string{"--out", e.outPath, "--", "-rf"} }, "invalid video URL"),
 
-		envRow("YT2COLUMN_MODEL unset", func(env map[string]string) { delete(env, "YT2COLUMN_MODEL") }, "YT2COLUMN_MODEL"),
+		envRow("YT2COLUMN_LLM empty", func(env map[string]string) { env["YT2COLUMN_LLM"] = "" }, "YT2COLUMN_LLM"),
 		envRow("DEEPSEEK_API_KEY empty", func(env map[string]string) { env["DEEPSEEK_API_KEY"] = "" }, "DEEPSEEK_API_KEY"),
-		envRow("YT2COLUMN_LLM_PROVIDER invalid", func(env map[string]string) { env["YT2COLUMN_LLM_PROVIDER"] = "MARKER-PROVIDER" }, "YT2COLUMN_LLM_PROVIDER"),
+		envRow("YT2COLUMN_LLM invalid provider", func(env map[string]string) { env["YT2COLUMN_LLM"] = "MARKER-PROVIDER/fake-model" }, "YT2COLUMN_LLM"),
 		envRow("SLACK_WEBHOOK_URL invalid", func(env map[string]string) {
 			env["SLACK_WEBHOOK_URL"] = "http://hooks.slack.com/services/MARKER-WEBHOOK"
 		}, "SLACK_WEBHOOK_URL"),
 		envRow("YT2COLUMN_CACHE_DIR relative", func(env map[string]string) { env["YT2COLUMN_CACHE_DIR"] = "MARKER-CACHE" }, "YT2COLUMN_CACHE_DIR"),
 		envRow("YT2COLUMN_YTDLP_PATH empty", func(env map[string]string) { env["YT2COLUMN_YTDLP_PATH"] = "" }, "YT2COLUMN_YTDLP_PATH"),
 		envRow("several invalid variables", func(env map[string]string) {
-			delete(env, "YT2COLUMN_MODEL")
-			env["YT2COLUMN_LLM_PROVIDER"] = "MARKER-PROVIDER"
-		}, "YT2COLUMN_MODEL", "YT2COLUMN_LLM_PROVIDER"),
+			env["YT2COLUMN_LLM"] = "MARKER-PROVIDER/fake-model"
+			env["YT2COLUMN_REVIEW_LLM"] = ""
+		}, "YT2COLUMN_LLM", "YT2COLUMN_REVIEW_LLM"),
 
 		{
-			name: "YT2COLUMN_MODEL with surrounding whitespace",
+			name: "YT2COLUMN_LLM model ID with surrounding whitespace",
 			setup: func(_ *testing.T, e *runEnv) {
-				e.env["YT2COLUMN_MODEL"] = " fake-model "
+				e.env["YT2COLUMN_LLM"] = "deepseek/ fake-model "
 				e.d.newLLMClient = productionDeps().newLLMClient
 			},
 			wantCode:   exitUsage,
 			wantStderr: []string{"build the LLM client", "yt2column -h"},
+		},
+		{
+			// The adapter's rejection is reported only when no client is built
+			// on a failed configuration load.
+			name: "YT2COLUMN_LLM model ID with surrounding whitespace and a retired variable",
+			setup: func(_ *testing.T, e *runEnv) {
+				e.env["YT2COLUMN_LLM"] = "deepseek/ fake-model "
+				e.env[config.RetiredLLMVarsForTest()[1]] = ""
+				e.d.newLLMClient = productionDeps().newLLMClient
+			},
+			wantCode:   exitUsage,
+			wantStderr: []string{"configuration: " + config.RetiredLLMVarErrorForTest(config.RetiredLLMVarsForTest()[1]), "yt2column -h"},
+			notStderr:  []string{"build the LLM client"},
 		},
 		{
 			name: "missing --system-prompt file",
@@ -617,7 +629,7 @@ func executionPathRows() []pathRow {
 			name: "write failure whose message holds the Anthropic API key",
 			setup: func(_ *testing.T, e *runEnv) {
 				delete(e.env, "DEEPSEEK_API_KEY")
-				e.env["YT2COLUMN_LLM_PROVIDER"] = "claude"
+				e.env["YT2COLUMN_LLM"] = "claude/fake-model"
 				e.env["ANTHROPIC_API_KEY"] = testAnthropicKey
 				e.env["YT2COLUMN_CLAUDE_EFFORT"] = "low"
 				e.client = funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
@@ -976,6 +988,19 @@ func executionPathRows() []pathRow {
 			},
 			wantCode:   exitUsage,
 			wantStderr: []string{"configuration: SLACK_WEBHOOK_URL", "yt2column -h"},
+		},
+		{
+			// The missing Webhook is reported only after the configuration
+			// loads, so a retired variable hides it.
+			name: "--slack with SLACK_WEBHOOK_URL unset and a retired variable",
+			setup: func(t *testing.T, e *runEnv) {
+				e.useWebhook(t, nil)
+				delete(e.env, "SLACK_WEBHOOK_URL")
+				e.env[config.RetiredLLMVarsForTest()[0]] = "deepseek"
+			},
+			wantCode:   exitUsage,
+			wantStderr: []string{"configuration: " + config.RetiredLLMVarErrorForTest(config.RetiredLLMVarsForTest()[0]), "yt2column -h"},
+			notStderr:  []string{"configuration: SLACK_WEBHOOK_URL"},
 		},
 		{
 			name:       "--slack first message fails",
@@ -1953,7 +1978,7 @@ func TestRunInvalidStepTemplate(t *testing.T) {
 // them as one line with an escaped newline.
 func TestRunClaudeConfigurationErrorsOneLineEach(t *testing.T) {
 	e := newRunEnv(t)
-	e.env["YT2COLUMN_LLM_PROVIDER"] = "claude"
+	e.env["YT2COLUMN_LLM"] = "claude/fake-model"
 	delete(e.env, "DEEPSEEK_API_KEY")
 	delete(e.env, "ANTHROPIC_API_KEY")
 	e.env["YT2COLUMN_CLAUDE_EFFORT"] = "High"
@@ -1970,13 +1995,12 @@ func TestRunClaudeConfigurationErrorsOneLineEach(t *testing.T) {
 	}
 }
 
-// TestRunDefaultLLMConfig checks, at the CLI entry point, that a run with no
-// provider or model variable builds its generation client from the claude
-// provider and the default model.
+// TestRunDefaultLLMConfig checks, at the CLI entry point, that a run with
+// YT2COLUMN_LLM unset builds its generation client from the claude provider
+// and the default model.
 func TestRunDefaultLLMConfig(t *testing.T) {
 	e := newRunEnv(t)
-	delete(e.env, "YT2COLUMN_LLM_PROVIDER")
-	delete(e.env, "YT2COLUMN_MODEL")
+	delete(e.env, "YT2COLUMN_LLM")
 	delete(e.env, "DEEPSEEK_API_KEY")
 	e.env["ANTHROPIC_API_KEY"] = testAnthropicKey
 	e.env["YT2COLUMN_CLAUDE_EFFORT"] = "high"
@@ -1996,35 +2020,6 @@ func TestRunDefaultLLMConfig(t *testing.T) {
 	}
 	if got, want := built[0].Model(), config.DefaultClaudeModelForTest(); got != want {
 		t.Errorf("Model() = %q, want %q", got, want)
-	}
-}
-
-// TestRunModelWithoutProvider checks that a DeepSeek setting that relied on
-// the old default provider (a model and a DeepSeek key, no provider) stops as
-// a configuration error before any LLM client is built or yt-dlp starts.
-func TestRunModelWithoutProvider(t *testing.T) {
-	e := newRunEnv(t)
-	delete(e.env, "YT2COLUMN_LLM_PROVIDER")
-	built := 0
-	e.d.newLLMClient = func(config.LLMConfig) (llm.LLMClient, error) {
-		built++
-		return e.counter.wrap(e.client), nil
-	}
-	if code := e.run(); code != exitUsage {
-		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, e.stderr.String())
-	}
-	// The printed line is the contract here: it is all the user sees, and it
-	// must carry the model-only reason, not a plain missing-provider one.
-	stderr := e.stderr.String()
-	want := programName + ": configuration: " + config.ModelWithoutProviderErrorForTest()
-	if !slices.Contains(strings.Split(stderr, "\n"), want) {
-		t.Errorf("stderr has no line %q:\n%s", want, stderr)
-	}
-	if built != 0 {
-		t.Errorf("generation clients built = %d, want 0", built)
-	}
-	if _, err := os.Stat(e.tripwireMarker); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("yt-dlp tripwire fired (stat err = %v), want no yt-dlp run", err)
 	}
 }
 
@@ -2267,16 +2262,18 @@ func TestRunAfterReview(t *testing.T) {
 }
 
 func TestRunResumeConfigScoping(t *testing.T) {
-	// --after review runs no LLM, so its configuration is not required.
+	// --after review runs no LLM, so its configuration is not required. The
+	// retired variables, which it still rejects, are in
+	// TestRunRejectsRetiredLLMVars.
 	dir := saveArtifactsOnce(t, shortGeneration)
 	e := newRunEnv(t)
 	e.withSteps = true
-	delete(e.env, "YT2COLUMN_MODEL")
+	delete(e.env, "YT2COLUMN_LLM")
 	delete(e.env, "DEEPSEEK_API_KEY")
 	e.args = []string{"--artifacts", dir, "--after", "review", "--out", e.outPath, runVideoURL}
 
 	if code := e.run(); code != exitOK {
-		t.Fatalf("exit code = %d, want %d with the generation model and key unset\nstderr:\n%s", code, exitOK, e.stderr.String())
+		t.Fatalf("exit code = %d, want %d with YT2COLUMN_LLM and the key unset\nstderr:\n%s", code, exitOK, e.stderr.String())
 	}
 }
 
@@ -2596,33 +2593,204 @@ func TestRunArtifactExitCodes(t *testing.T) {
 	}
 }
 
-// TestResumeNeed pins the configuration each resume and step combination needs
-// (architecture section 3.7).
+// TestResumeNeed checks, for every combination of --after and the step flags,
+// the configuration the run needs and the clients buildWriter builds, and that
+// a client is built only for a stage whose configuration was loaded: the
+// generation accessors are empty unless Need.Generation is true, so a client
+// built outside it would be built from no selection. No combination of these
+// flags is rejected by the argument checks.
 func TestResumeNeed(t *testing.T) {
 	cases := []struct {
-		name                       string
-		after                      string
+		after                      string // "" means no --after
 		noShorten, noReview        bool
-		afterGiven                 bool
 		wantGeneration, wantReview bool
+		buildsGeneration           bool
+		buildsReview               bool
 	}{
-		{"no resume", "", false, false, false, true, true},
-		{"no resume ignores --no-review", "", false, true, false, true, true},
-		{"after generation", "generation", false, false, true, true, true},
-		{"after generation --no-shorten", "generation", true, false, true, false, true},
-		{"after generation --no-review", "generation", false, true, true, true, false},
-		{"after shorten", "shorten", false, false, true, false, true},
-		{"after shorten --no-review", "shorten", false, true, true, false, false},
-		{"after review", "review", false, true, true, false, false},
+		{"", false, false, true, true, true, true},
+		{"", true, false, true, true, true, true},
+		{"", false, true, true, true, true, false},
+		{"", true, true, true, true, true, false},
+		{"generation", false, false, true, true, true, true},
+		{"generation", true, false, false, true, false, true},
+		{"generation", false, true, true, false, true, false},
+		{"generation", true, true, false, false, false, false},
+		{"shorten", false, false, false, true, false, true},
+		{"shorten", true, false, false, true, false, true},
+		{"shorten", false, true, false, false, false, false},
+		{"shorten", true, true, false, false, false, false},
+		{"review", false, false, false, false, false, false},
+		{"review", true, false, false, false, false, false},
+		{"review", false, true, false, false, false, false},
+		{"review", true, true, false, false, false, false},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			need := resumeNeed(tc.after, tc.noShorten, tc.noReview, tc.afterGiven)
+		name := fmt.Sprintf("after=%q noShorten=%v noReview=%v", tc.after, tc.noShorten, tc.noReview)
+		t.Run(name, func(t *testing.T) {
+			afterGiven := tc.after != ""
+			need := resumeNeed(tc.after, tc.noShorten, tc.noReview, afterGiven)
 			if need.Generation != tc.wantGeneration || need.Review != tc.wantReview {
-				t.Errorf("resumeNeed(%q, noShorten=%v, noReview=%v, afterGiven=%v) = %+v, want generation=%v review=%v",
-					tc.after, tc.noShorten, tc.noReview, tc.afterGiven, need, tc.wantGeneration, tc.wantReview)
+				t.Errorf("resumeNeed() = %+v, want generation=%v review=%v", need, tc.wantGeneration, tc.wantReview)
+			}
+
+			resume := writer.StageUnset
+			if afterGiven {
+				var ok bool
+				if resume, ok = afterStage(tc.after); !ok {
+					t.Fatalf("afterStage(%q) rejected a valid stage", tc.after)
+				}
+			}
+			var generationBuilt, reviewBuilt int
+			d := deps{
+				newLLMClient: func(config.LLMConfig) (llm.LLMClient, error) {
+					generationBuilt++
+					return validResponseLLM(), nil
+				},
+				newReviewLLMClient: func(config.LLMConfig) (llm.LLMClient, error) {
+					reviewBuilt++
+					return validResponseLLM(), nil
+				},
+				newWriter: func(llm.LLMClient, writer.Options) (writer.ArticleWriter, error) { return nil, nil },
+			}
+			opts := &cliOptions{after: tc.after, noShorten: tc.noShorten, noReview: tc.noReview}
+			if _, _, err := buildWriter(d, config.Config{}, opts, false, nil, resume); err != nil {
+				t.Fatalf("buildWriter() error = %v", err)
+			}
+			if got := generationBuilt == 1; got != tc.buildsGeneration || generationBuilt > 1 {
+				t.Errorf("generation clients built = %d, want built %v", generationBuilt, tc.buildsGeneration)
+			}
+			if got := reviewBuilt == 1; got != tc.buildsReview || reviewBuilt > 1 {
+				t.Errorf("review clients built = %d, want built %v", reviewBuilt, tc.buildsReview)
+			}
+			if generationBuilt > 0 && !need.Generation {
+				t.Error("built the generation client for a run whose generation configuration was not loaded")
+			}
+			if reviewBuilt > 0 && !need.Review {
+				t.Error("built the review client for a run whose review configuration was not loaded")
 			}
 		})
+	}
+}
+
+// TestRunRejectsRetiredLLMVars checks that a retired LLM variable, set with a
+// value or empty, stops every kind of run listed in the requirements' flag
+// table, which together cover every shape of the configuration a run needs,
+// including --after review, which loads no LLM setting: exit code 2, the
+// rejection's line, and neither yt-dlp nor an LLM client. Each retired
+// variable is used in every run kind with both values.
+func TestRunRejectsRetiredLLMVars(t *testing.T) {
+	kinds := []struct {
+		name string
+		args func(e *runEnv, artifacts string) []string
+	}{
+		{"no --after", func(e *runEnv, _ string) []string { return []string{"--out", e.outPath, runVideoURL} }},
+		{"--no-review", func(e *runEnv, _ string) []string { return []string{"--no-review", "--out", e.outPath, runVideoURL} }},
+		{"--after generation", func(e *runEnv, dir string) []string {
+			return []string{"--artifacts", dir, "--after", "generation", "--out", e.outPath, runVideoURL}
+		}},
+		{"--after generation --no-review", func(e *runEnv, dir string) []string {
+			return []string{"--artifacts", dir, "--after", "generation", "--no-review", "--out", e.outPath, runVideoURL}
+		}},
+		{"--after shorten", func(e *runEnv, dir string) []string {
+			return []string{"--artifacts", dir, "--after", "shorten", "--out", e.outPath, runVideoURL}
+		}},
+		{"--after review", func(e *runEnv, dir string) []string {
+			return []string{"--artifacts", dir, "--after", "review", "--out", e.outPath, runVideoURL}
+		}},
+	}
+	for _, retired := range config.RetiredLLMVarsForTest() {
+		for _, kind := range kinds {
+			for _, value := range []string{"deepseek", ""} {
+				t.Run(fmt.Sprintf("%s=%q %s", retired, value, kind.name), func(t *testing.T) {
+					e := newRunEnv(t)
+					e.withSteps = true
+					removeVideoCache(t, e.cacheDir)
+					e.env[retired] = value
+					// No artifacts are saved: the configuration is loaded before the
+					// artifacts directory is read, so the run must stop first.
+					e.args = kind.args(e, t.TempDir())
+					built := 0
+					e.d.newLLMClient = func(config.LLMConfig) (llm.LLMClient, error) {
+						built++
+						return e.counter.wrap(e.client), nil
+					}
+					e.d.newReviewLLMClient = func(config.LLMConfig) (llm.LLMClient, error) {
+						built++
+						return e.counter.wrap(e.client), nil
+					}
+					if code := e.run(); code != exitUsage {
+						t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, e.stderr.String())
+					}
+					// The printed line is the contract here: it is all the user
+					// sees, and it must name the replacement variable.
+					want := programName + ": configuration: " + config.RetiredLLMVarErrorForTest(retired)
+					if !slices.Contains(strings.Split(e.stderr.String(), "\n"), want) {
+						t.Errorf("stderr has no line %q:\n%s", want, e.stderr.String())
+					}
+					if built != 0 {
+						t.Errorf("LLM clients built = %d, want 0", built)
+					}
+					if _, err := os.Lstat(e.tripwireMarker); err == nil {
+						t.Error("yt-dlp was started")
+					}
+				})
+			}
+		}
+	}
+
+	// -h and an argument error are reported before the configuration is
+	// read, so a retired variable changes neither; which one is set cannot
+	// matter, so one is enough.
+	{
+		retired := config.RetiredLLMVarsForTest()[0]
+		t.Run(retired+" -h", func(t *testing.T) {
+			e := newRunEnv(t)
+			e.env[retired] = "deepseek"
+			e.args = []string{"-h"}
+			if code := e.run(); code != exitOK {
+				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
+			}
+			if !strings.Contains(e.stdout.String(), "Usage: yt2column") {
+				t.Errorf("stdout does not hold the usage:\n%s", e.stdout.String())
+			}
+			if strings.Contains(e.stderr.String(), "configuration:") {
+				t.Errorf("stderr reports a configuration error for -h:\n%s", e.stderr.String())
+			}
+		})
+		t.Run(retired+" usage error", func(t *testing.T) {
+			e := newRunEnv(t)
+			e.env[retired] = "deepseek"
+			e.args = []string{"--out", e.outPath}
+			if code := e.run(); code != exitUsage {
+				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, e.stderr.String())
+			}
+			if !strings.Contains(e.stderr.String(), "expected exactly one video URL") {
+				t.Errorf("stderr does not report the argument error:\n%s", e.stderr.String())
+			}
+			if strings.Contains(e.stderr.String(), "configuration:") {
+				t.Errorf("stderr reports a configuration error before the argument error:\n%s", e.stderr.String())
+			}
+		})
+	}
+}
+
+// TestRunNoReviewPaddedReviewModel checks that a run without --after and with
+// --no-review succeeds when YT2COLUMN_REVIEW_LLM's model ID has surrounding
+// white space: the configuration load checks the review value but accepts the
+// model ID, and the review client, whose adapter would reject it, is not
+// built. The real review client constructor is in place, so building it would
+// fail the run. This is the end-to-end form of three checks made layer by
+// layer elsewhere (the load accepts the model ID, the adapter rejects it, and
+// buildWriter skips the review client under --no-review), so a change that
+// keeps each layer's test but breaks how they combine still fails here.
+func TestRunNoReviewPaddedReviewModel(t *testing.T) {
+	e := newRunEnv(t)
+	e.withSteps = true
+	e.env["YT2COLUMN_REVIEW_LLM"] = "deepseek/ fake-model "
+	e.d.newReviewLLMClient = productionDeps().newReviewLLMClient
+	e.args = []string{"--no-review", "--out", e.outPath, runVideoURL}
+	if code := e.run(); code != exitOK {
+		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
 	}
 }
 

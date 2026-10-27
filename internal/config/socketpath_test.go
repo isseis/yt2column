@@ -4,6 +4,7 @@ package config
 
 import (
 	"errors"
+	"maps"
 	"strings"
 	"testing"
 )
@@ -146,16 +147,27 @@ func requireReadOnlyHome(t *testing.T, fn string, read []string) {
 	}
 }
 
+// withRetiredLLMVars returns a copy of env with every retired LLM variable set,
+// which the CLI and the server reject and the host must not read.
+func withRetiredLLMVars(env map[string]string) map[string]string {
+	out := maps.Clone(env)
+	for _, v := range retiredLLMVars {
+		out[v.name] = "deepseek"
+	}
+	return out
+}
+
 // TestLoadHost checks that LoadHost reads HOME and nothing else, derives the
 // same socket path as LoadServer from an environment that sets every variable
-// the server reads, and returns a *VarError naming HOME
+// the server reads (and the retired LLM variables the server would reject),
+// and returns a *VarError naming HOME
 // and the zero HostConfig when no path can be derived. TestSocketPath fixes
 // the derivation itself.
 func TestLoadHost(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
 		env := validServerEnv()
 		var read []string
-		cfg, err := LoadHost(recordingLookup(env, &read))
+		cfg, err := LoadHost(recordingLookup(withRetiredLLMVars(env), &read))
 		if err != nil {
 			t.Fatalf("LoadHost() error = %v, want nil", err)
 		}
@@ -179,7 +191,7 @@ func TestLoadHost(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			var read []string
-			cfg, err := LoadHost(recordingLookup(tc.env, &read))
+			cfg, err := LoadHost(recordingLookup(withRetiredLLMVars(tc.env), &read))
 			assertVarError(t, err, tc.sentinel, "HOME")
 			requireReadOnlyHome(t, "LoadHost", read)
 			if cfg != (HostConfig{}) {
@@ -191,8 +203,9 @@ func TestLoadHost(t *testing.T) {
 
 // TestLoadHostHome checks that LoadHostHome reads HOME and nothing else,
 // returns it even when the socket path derived from it would exceed every OS
-// limit, and rejects an unset, empty, or relative HOME with an ErrMissing that
-// names HOME and does not hold its value.
+// limit, ignores the retired LLM variables, and rejects an unset, empty, or
+// relative HOME with an ErrMissing that names HOME and does not hold its
+// value.
 func TestLoadHostHome(t *testing.T) {
 	longHome := homeOfLength(t, linuxSocketLimit)
 	cases := []struct {
@@ -210,7 +223,7 @@ func TestLoadHostHome(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			var read []string
-			got, err := LoadHostHome(recordingLookup(tc.env, &read))
+			got, err := LoadHostHome(recordingLookup(withRetiredLLMVars(tc.env), &read))
 			requireReadOnlyHome(t, "LoadHostHome", read)
 			if !tc.wantErr {
 				if err != nil {

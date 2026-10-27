@@ -30,8 +30,7 @@ func envLookup(env map[string]string) LookupFunc {
 // validEnv is an environment every rule accepts.
 func validEnv() map[string]string {
 	return map[string]string{
-		providerEnv:       "deepseek",
-		modelEnv:          "deepseek-chat",
+		llmEnv:            "deepseek/deepseek-chat",
 		deepSeekAPIKeyEnv: "sk-test-key",
 		slackEnv:          "https://hooks.slack.com/services/T000/B000/XXXX",
 		cacheDirEnv:       "/tmp/yt2column-test-cache",
@@ -43,8 +42,7 @@ func validEnv() map[string]string {
 // is optional, so it is absent here.
 func validClaudeEnv() map[string]string {
 	return map[string]string{
-		providerEnv:             "claude",
-		modelEnv:                "claude-opus-5-5",
+		llmEnv:                  "claude/claude-opus-5-5",
 		anthropicAPIKeyEnv:      "sk-ant-test-key",
 		claudeEffortEnv:         "high",
 		anthropicWorkspaceIDEnv: "wrkspc_test0123456789",
@@ -77,8 +75,8 @@ func TestLoadValid(t *testing.T) {
 	if cfg.LLM().Provider() != ProviderDeepSeek {
 		t.Errorf("Provider() = %v, want ProviderDeepSeek", cfg.LLM().Provider())
 	}
-	if cfg.LLM().Model() != env[modelEnv] {
-		t.Errorf("Model() = %q, want %q", cfg.LLM().Model(), env[modelEnv])
+	if cfg.LLM().Model() != "deepseek-chat" {
+		t.Errorf("Model() = %q, want deepseek-chat", cfg.LLM().Model())
 	}
 	key, err := cfg.LLM().DeepSeekAPIKey().Reveal()
 	if err != nil {
@@ -112,8 +110,7 @@ func TestLoadValid(t *testing.T) {
 func TestLoadDefaults(t *testing.T) {
 	home := "/home/user"
 	env := map[string]string{
-		providerEnv:       "deepseek",
-		modelEnv:          "deepseek-chat",
+		llmEnv:            "deepseek/deepseek-chat",
 		deepSeekAPIKeyEnv: "sk-test-key",
 		"HOME":            home,
 		// XDG_CACHE_HOME is set so the test exercises the default on both
@@ -147,7 +144,9 @@ func TestLoadMissing(t *testing.T) {
 		env     map[string]string
 		wantVar string
 	}{
-		{"model unset", without(base, modelEnv), modelEnv},
+		// An unset YT2COLUMN_LLM selects the default claude, whose key is
+		// absent from the deepseek environment.
+		{"LLM unset selects claude, whose API key is unset", without(base, llmEnv), anthropicAPIKeyEnv},
 		{"API key unset with deepseek", without(base, deepSeekAPIKeyEnv), deepSeekAPIKeyEnv},
 	}
 	for _, tc := range cases {
@@ -164,7 +163,7 @@ func TestLoadMissing(t *testing.T) {
 }
 
 func TestLoadEmpty(t *testing.T) {
-	vars := []string{providerEnv, modelEnv, deepSeekAPIKeyEnv, slackEnv, cacheDirEnv, ytDlpEnv}
+	vars := []string{llmEnv, reviewLLMEnv, deepSeekAPIKeyEnv, slackEnv, cacheDirEnv, ytDlpEnv}
 	for _, name := range vars {
 		t.Run(name, func(t *testing.T) {
 			_, err := Load(envLookup(with(validEnv(), name, "")))
@@ -186,7 +185,6 @@ func TestLoadInvalid(t *testing.T) {
 		vr   string
 		bad  []string
 	}{
-		{"provider", providerEnv, []string{"DeepSeek", " deepseek", "deepseek ", "gemini", "Claude", "anthropic"}},
 		{"slack webhook", slackEnv, []string{
 			"http://mattermost.example.com/hooks/x",
 			"mattermost.example.com/hooks/x",
@@ -360,11 +358,9 @@ func assertVarErrors(t *testing.T, err error, want ...VarError) {
 // selects the high effort whenever a stage uses claude, for both entry points.
 func TestLoadClaudeEffortDefault(t *testing.T) {
 	claudeBoth := without(validClaudeEnv(), claudeEffortEnv)
-	reviewClaude := with(validEnv(), reviewProviderEnv, "claude")
-	reviewClaude = with(reviewClaude, reviewModelEnv, "claude-review")
+	reviewClaude := with(validEnv(), reviewLLMEnv, "claude/claude-review")
 	reviewClaude = with(reviewClaude, anthropicAPIKeyEnv, "sk-ant-test-key")
-	generationClaude := with(claudeBoth, reviewProviderEnv, "deepseek")
-	generationClaude = with(generationClaude, reviewModelEnv, "deepseek-review")
+	generationClaude := with(claudeBoth, reviewLLMEnv, "deepseek/deepseek-review")
 	generationClaude = with(generationClaude, deepSeekAPIKeyEnv, "sk-test-key")
 	cases := []struct {
 		name string
@@ -483,7 +479,7 @@ func TestLoadClaudeIgnoresDeepSeekKey(t *testing.T) {
 
 // TestLoadIgnoresOtherProviderVars checks that, with the deepseek provider,
 // each claude provider variable is neither read nor rejected whatever its
-// value, and that an invalid provider is reported alone.
+// value, and that a rejected provider part is reported alone.
 func TestLoadIgnoresOtherProviderVars(t *testing.T) {
 	type variant struct {
 		name  string
@@ -543,106 +539,58 @@ func TestLoadIgnoresOtherProviderVars(t *testing.T) {
 		}
 	}
 
-	t.Run("invalid provider reports only the provider", func(t *testing.T) {
-		env := with(validEnv(), providerEnv, "gemini")
+	t.Run("invalid provider reports only the LLM variable", func(t *testing.T) {
+		env := with(validEnv(), llmEnv, "gemini/x")
 		env = with(env, anthropicAPIKeyEnv, "sk-ant-key")
 		env = with(env, claudeEffortEnv, "High")
 		env = with(env, anthropicWorkspaceIDEnv, " wrkspc_x")
 		_, err := Load(envLookup(env))
-		if !errors.Is(err, ErrInvalid) {
-			t.Fatalf("Load() error = %v, want ErrInvalid", err)
-		}
-		if !strings.Contains(err.Error(), providerEnv) {
-			t.Errorf("Load() error = %q, want it to name %q", err, providerEnv)
-		}
-		for _, name := range []string{anthropicAPIKeyEnv, claudeEffortEnv, anthropicWorkspaceIDEnv} {
-			if strings.Contains(err.Error(), name) {
-				t.Errorf("Load() error = %q, must not name %q", err, name)
-			}
-		}
+		assertVarErrors(t, err, wantInvalid(llmEnv, reasonLLMProvider))
 	})
 }
 
-// TestLoadReview checks the review provider and model selection rules: both
-// variables unset inherit the generation settings, a model alone reuses the
-// generation provider, and a provider of its own requires a model.
+// TestLoadReview checks the review selection: YT2COLUMN_REVIEW_LLM unset
+// inherits the generation selection, and a value of its own selects the review
+// provider and model without changing the generation's. The rejected values
+// are in TestLoadParsesLLMValue.
 func TestLoadReview(t *testing.T) {
-	t.Run("both unset inherit the generation settings", func(t *testing.T) {
+	t.Run("unset inherits the generation selection", func(t *testing.T) {
 		cfg, err := Load(envLookup(validEnv()))
 		if err != nil {
 			t.Fatalf("Load() error = %v, want nil", err)
 		}
-		if cfg.LLM().ReviewProvider() != cfg.LLM().Provider() {
-			t.Errorf("ReviewProvider() = %v, want Provider() = %v", cfg.LLM().ReviewProvider(), cfg.LLM().Provider())
-		}
-		if cfg.LLM().ReviewModel() != cfg.LLM().Model() {
-			t.Errorf("ReviewModel() = %q, want Model() = %q", cfg.LLM().ReviewModel(), cfg.LLM().Model())
+		if cfg.LLM().ReviewProvider() != ProviderDeepSeek || cfg.LLM().ReviewModel() != "deepseek-chat" {
+			t.Errorf("review = %v/%q, want the generation's deepseek/deepseek-chat",
+				cfg.LLM().ReviewProvider(), cfg.LLM().ReviewModel())
 		}
 	})
 
-	t.Run("model only reuses the generation provider", func(t *testing.T) {
-		const reviewModel = "deepseek-review"
-		env := with(validEnv(), reviewModelEnv, reviewModel)
-		cfg, err := Load(envLookup(env))
-		if err != nil {
-			t.Fatalf("Load() error = %v, want nil", err)
-		}
-		if cfg.LLM().ReviewProvider() != ProviderDeepSeek {
-			t.Errorf("ReviewProvider() = %v, want ProviderDeepSeek", cfg.LLM().ReviewProvider())
-		}
-		if cfg.LLM().ReviewModel() != reviewModel {
-			t.Errorf("ReviewModel() = %q, want %q", cfg.LLM().ReviewModel(), reviewModel)
-		}
-	})
-
-	t.Run("provider and model set to a different provider", func(t *testing.T) {
-		const reviewModel = "claude-review"
-		env := validEnv()
-		env = with(env, reviewProviderEnv, "claude")
-		env = with(env, reviewModelEnv, reviewModel)
-		env = with(env, anthropicAPIKeyEnv, "sk-ant-review-key")
-		env = with(env, claudeEffortEnv, "high")
-		cfg, err := Load(envLookup(env))
-		if err != nil {
-			t.Fatalf("Load() error = %v, want nil", err)
-		}
-		if cfg.LLM().Provider() != ProviderDeepSeek {
-			t.Errorf("Provider() = %v, want ProviderDeepSeek", cfg.LLM().Provider())
-		}
-		if cfg.LLM().Model() != env[modelEnv] {
-			t.Errorf("Model() = %q, want %q", cfg.LLM().Model(), env[modelEnv])
-		}
-		if cfg.LLM().ReviewProvider() != ProviderClaude {
-			t.Errorf("ReviewProvider() = %v, want ProviderClaude", cfg.LLM().ReviewProvider())
-		}
-		if cfg.LLM().ReviewModel() != reviewModel {
-			t.Errorf("ReviewModel() = %q, want %q", cfg.LLM().ReviewModel(), reviewModel)
-		}
-	})
-
-	t.Run("provider without model", func(t *testing.T) {
-		env := with(validEnv(), reviewProviderEnv, "deepseek")
-		_, err := Load(envLookup(env))
-		assertVarError(t, err, ErrMissing, reviewModelEnv)
-	})
-
-	t.Run("invalid provider", func(t *testing.T) {
-		env := with(validEnv(), reviewProviderEnv, "gemini")
-		_, err := Load(envLookup(env))
-		assertVarError(t, err, ErrInvalid, reviewProviderEnv)
-	})
-
-	t.Run("empty provider", func(t *testing.T) {
-		env := with(validEnv(), reviewProviderEnv, "")
-		_, err := Load(envLookup(env))
-		assertVarError(t, err, ErrMissing, reviewProviderEnv)
-	})
-
-	t.Run("empty model", func(t *testing.T) {
-		env := with(validEnv(), reviewModelEnv, "")
-		_, err := Load(envLookup(env))
-		assertVarError(t, err, ErrMissing, reviewModelEnv)
-	})
+	cases := []struct {
+		name         string
+		value        string
+		wantProvider Provider
+		wantModel    string
+	}{
+		{"same provider, another model", "deepseek/deepseek-review", ProviderDeepSeek, "deepseek-review"},
+		{"another provider", "claude/claude-review", ProviderClaude, "claude-review"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := with(validEnv(), reviewLLMEnv, tc.value)
+			env = with(env, anthropicAPIKeyEnv, "sk-ant-review-key")
+			cfg, err := Load(envLookup(env))
+			if err != nil {
+				t.Fatalf("Load() error = %v, want nil", err)
+			}
+			if cfg.LLM().Provider() != ProviderDeepSeek || cfg.LLM().Model() != "deepseek-chat" {
+				t.Errorf("generation = %v/%q, want deepseek/deepseek-chat", cfg.LLM().Provider(), cfg.LLM().Model())
+			}
+			if cfg.LLM().ReviewProvider() != tc.wantProvider || cfg.LLM().ReviewModel() != tc.wantModel {
+				t.Errorf("review = %v/%q, want %v/%q",
+					cfg.LLM().ReviewProvider(), cfg.LLM().ReviewModel(), tc.wantProvider, tc.wantModel)
+			}
+		})
+	}
 }
 
 // TestLoadReviewProviderRequiresItsKey checks that when the review provider
@@ -651,16 +599,12 @@ func TestLoadReview(t *testing.T) {
 func TestLoadReviewProviderRequiresItsKey(t *testing.T) {
 	claudeReview := func() map[string]string {
 		env := validEnv()
-		env = with(env, reviewProviderEnv, "claude")
-		env = with(env, reviewModelEnv, "claude-review")
+		env = with(env, reviewLLMEnv, "claude/claude-review")
 		env = with(env, claudeEffortEnv, "high")
 		return env
 	}
 	deepseekReview := func() map[string]string {
-		env := validClaudeEnv()
-		env = with(env, reviewProviderEnv, "deepseek")
-		env = with(env, reviewModelEnv, "deepseek-review")
-		return env
+		return with(validClaudeEnv(), reviewLLMEnv, "deepseek/deepseek-review")
 	}
 	cases := []struct {
 		name    string
@@ -772,10 +716,10 @@ func TestRequireSlackWebhookURL(t *testing.T) {
 // the value, its mark, or its tail.
 func TestLoadErrorsOmitValues(t *testing.T) {
 	const (
-		markProvider        = "MARK-PROVIDER-A1"
+		markLLM             = "MARK-LLM-A1"
 		markModel           = "MARK-MODEL-B2"
-		markReviewProvider  = "MARK-REVIEW-PROVIDER-I9"
-		markReviewModel     = "MARK-REVIEW-MODEL-J0"
+		markReviewLLM       = "MARK-REVIEW-LLM-I9"
+		markRetired         = "MARK-RETIRED-J0"
 		markAPIKey          = "MARK-APIKEY-C3"
 		markSlack           = "MARK-SLACK-D4"
 		markCache           = "MARK-CACHE-E5"
@@ -784,12 +728,11 @@ func TestLoadErrorsOmitValues(t *testing.T) {
 		markClaudeWorkspace = "MARK-CLAUDE-WKS-C8"
 	)
 	marks := []string{
-		markProvider, markModel, markReviewProvider, markReviewModel, markAPIKey, markSlack,
+		markLLM, markModel, markReviewLLM, markRetired, markAPIKey, markSlack,
 		markCache, markYtDlp, markClaudeEffort, markClaudeWorkspace,
 	}
 	base := map[string]string{
-		providerEnv:       "deepseek",
-		modelEnv:          markModel,
+		llmEnv:            "deepseek/" + markModel,
 		deepSeekAPIKeyEnv: markAPIKey,
 		slackEnv:          "https://hooks.slack.com/services/" + markSlack,
 		cacheDirEnv:       "/tmp/" + markCache,
@@ -798,8 +741,7 @@ func TestLoadErrorsOmitValues(t *testing.T) {
 	// claudeBase selects the claude provider, whose own variables are the ones
 	// under test in the claude rows below.
 	claudeBase := map[string]string{
-		providerEnv:             "claude",
-		modelEnv:                markModel,
+		llmEnv:                  "claude/" + markModel,
 		anthropicAPIKeyEnv:      markAPIKey,
 		claudeEffortEnv:         "high",
 		anthropicWorkspaceIDEnv: "wrkspc_ok",
@@ -811,9 +753,12 @@ func TestLoadErrorsOmitValues(t *testing.T) {
 		env   map[string]string
 		tails []string
 	}{
-		{"provider invalid", with(base, providerEnv, "gemini-"+markProvider), nil},
-		{"review provider invalid", with(base, reviewProviderEnv, "gemini-"+markReviewProvider), nil},
-		{"model empty", with(base, modelEnv, ""), nil},
+		{"LLM provider invalid", with(base, llmEnv, "gemini-"+markLLM+"/x"), nil},
+		{"LLM without a separator", with(base, llmEnv, markLLM), nil},
+		{"LLM with an empty model ID", with(base, llmEnv, "deepseek/"), nil},
+		{"LLM empty", with(base, llmEnv, ""), nil},
+		{"review LLM provider invalid", with(base, reviewLLMEnv, "gemini/"+markReviewLLM), nil},
+		{"review LLM without a separator", with(base, reviewLLMEnv, markReviewLLM), nil},
 		{"API key empty", with(base, deepSeekAPIKeyEnv, ""), nil},
 		// Each slack webhook row also names the last 8 bytes of its value, so a
 		// rejection that leaked only the tail would still be caught.
@@ -827,9 +772,13 @@ func TestLoadErrorsOmitValues(t *testing.T) {
 		{"yt-dlp path empty", with(base, ytDlpEnv, ""), nil},
 		{"claude effort invalid", with(claudeBase, claudeEffortEnv, "High-"+markClaudeEffort), nil},
 		{"claude workspace invalid", with(claudeBase, anthropicWorkspaceIDEnv, " "+markClaudeWorkspace), nil},
-		// Both model variables without a provider: the model-only rejection
-		// must not carry either model's value.
-		{"model without provider", withVars(without(base, providerEnv), map[string]string{reviewModelEnv: markReviewModel}), nil},
+	}
+	for _, v := range retiredLLMVars {
+		cases = append(cases, struct {
+			name  string
+			env   map[string]string
+			tails []string
+		}{"retired " + v.name, with(base, v.name, "deepseek-"+markRetired), nil})
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -851,23 +800,69 @@ func TestLoadErrorsOmitValues(t *testing.T) {
 	}
 }
 
+// TestLoadReportsAllInvalid checks that one load reports every rejection, each
+// as its own element of the joined error: the retired variables, both LLM
+// variables, a provider variable, and a common variable. A nested join would
+// reach a caller that prints one error per line as a single line.
 func TestLoadReportsAllInvalid(t *testing.T) {
-	env := validEnv()
-	env = with(env, modelEnv, "")
-	env = with(env, providerEnv, "gemini")
-	env = with(env, slackEnv, "http://hooks.slack.com/services/x")
-
-	_, err := Load(envLookup(env))
-	if !errors.Is(err, ErrMissing) {
-		t.Errorf("Load() error = %v, want it to wrap ErrMissing", err)
+	cases := []struct {
+		name string
+		env  map[string]string
+		want []VarError
+	}{
+		{
+			"every kind of rejection",
+			map[string]string{
+				"YT2COLUMN_LLM_PROVIDER": "deepseek",
+				"YT2COLUMN_REVIEW_MODEL": "",
+				llmEnv:                   "gemini/x",
+				// The review provider part is accepted, so claude's own
+				// variables are still checked.
+				reviewLLMEnv:    "claude/",
+				claudeEffortEnv: "High",
+				cacheDirEnv:     "relative",
+			},
+			[]VarError{
+				wantInvalid("YT2COLUMN_LLM_PROVIDER", reasonRetiredLLM),
+				wantInvalid("YT2COLUMN_REVIEW_MODEL", reasonRetiredReviewLLM),
+				wantInvalid(llmEnv, reasonLLMProvider),
+				wantInvalid(reviewLLMEnv, reasonLLMForm),
+				wantMissing(anthropicAPIKeyEnv),
+				wantInvalid(claudeEffortEnv, reasonClaudeEffort),
+				wantInvalid(cacheDirEnv, reasonDirRelative),
+			},
+		},
+		{
+			// A deepseek setting in the retired variables: their values are not
+			// used, so the default claude is selected and its key is required.
+			"retired deepseek setting",
+			map[string]string{
+				"YT2COLUMN_LLM_PROVIDER": "deepseek",
+				"YT2COLUMN_MODEL":        "deepseek-flash",
+				deepSeekAPIKeyEnv:        "sk-test-key",
+				cacheDirEnv:              "/tmp/yt2column-test-cache",
+			},
+			[]VarError{
+				wantInvalid("YT2COLUMN_LLM_PROVIDER", reasonRetiredLLM),
+				wantInvalid("YT2COLUMN_MODEL", reasonRetiredLLM),
+				wantMissing(anthropicAPIKeyEnv),
+			},
+		},
 	}
-	if !errors.Is(err, ErrInvalid) {
-		t.Errorf("Load() error = %v, want it to wrap ErrInvalid", err)
-	}
-	for _, name := range []string{modelEnv, providerEnv, slackEnv} {
-		if !strings.Contains(err.Error(), name) {
-			t.Errorf("Load() error = %q, want it to name %q", err, name)
-		}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := Load(envLookup(tc.env))
+			assertVarErrors(t, err, tc.want...)
+			multi, ok := err.(interface{ Unwrap() []error })
+			if !ok {
+				t.Fatalf("Load() error = %T, want a joined error", err)
+			}
+			for _, child := range multi.Unwrap() {
+				if _, ok := child.(*VarError); !ok {
+					t.Errorf("joined element %T (%v), want each rejection as its own *VarError", child, child)
+				}
+			}
+		})
 	}
 }
 
@@ -985,8 +980,8 @@ func TestLoadServerValid(t *testing.T) {
 	if cfg.LLM().Provider() != ProviderDeepSeek {
 		t.Errorf("LLM().Provider() = %v, want ProviderDeepSeek", cfg.LLM().Provider())
 	}
-	if cfg.LLM().Model() != env[modelEnv] {
-		t.Errorf("LLM().Model() = %q, want %q", cfg.LLM().Model(), env[modelEnv])
+	if cfg.LLM().Model() != "deepseek-chat" {
+		t.Errorf("LLM().Model() = %q, want deepseek-chat", cfg.LLM().Model())
 	}
 	webhook, err := cfg.WebhookURL().Reveal()
 	if err != nil {
@@ -1007,21 +1002,22 @@ func TestLoadServerValid(t *testing.T) {
 	}
 }
 
-// TestLoadServerModelMissing checks that a missing or empty model ends the
-// load with an ErrMissing that names the variable. The claude provider and the
-// other LLM rules are covered by the Load tests, which LoadServer shares.
-func TestLoadServerModelMissing(t *testing.T) {
+// TestLoadServerLLMRejected checks that an empty YT2COLUMN_LLM, or one with an
+// empty model ID, ends the server load with a rejection naming the variable
+// instead of falling back to the default. The other LLM rules are covered by
+// the Load tests, which LoadServer shares.
+func TestLoadServerLLMRejected(t *testing.T) {
 	cases := []struct {
-		name string
-		env  map[string]string
+		value string
+		want  VarError
 	}{
-		{"unset", without(validServerEnv(), modelEnv)},
-		{"empty", with(validServerEnv(), modelEnv, "")},
+		{"", wantMissing(llmEnv)},
+		{"deepseek/", wantInvalid(llmEnv, reasonLLMForm)},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			_, err := LoadServer(envLookup(tc.env))
-			assertVarError(t, err, ErrMissing, modelEnv)
+		t.Run(fmt.Sprintf("%q", tc.value), func(t *testing.T) {
+			_, err := LoadServer(envLookup(with(validServerEnv(), llmEnv, tc.value)))
+			assertVarErrors(t, err, tc.want)
 		})
 	}
 }
@@ -1135,10 +1131,9 @@ func TestLoadFor(t *testing.T) {
 	})
 
 	t.Run("generation only leaves the review settings unread", func(t *testing.T) {
-		// A review provider and an empty review model that would be rejected if
-		// read are neither required nor read when the review step does not run.
-		env := with(validEnv(), reviewProviderEnv, "gemini")
-		env = with(env, reviewModelEnv, "")
+		// A review value that would be rejected if read is neither required
+		// nor read when the review step does not run.
+		env := with(validEnv(), reviewLLMEnv, "gemini/")
 		cfg, err := LoadFor(envLookup(env), Need{Generation: true})
 		if err != nil {
 			t.Fatalf("LoadFor() error = %v, want nil", err)
@@ -1152,54 +1147,29 @@ func TestLoadFor(t *testing.T) {
 	})
 
 	t.Run("generation only requires the generation settings", func(t *testing.T) {
-		for _, name := range []string{modelEnv, deepSeekAPIKeyEnv} {
-			t.Run(name, func(t *testing.T) {
-				_, err := LoadFor(envLookup(without(validEnv(), name)), Need{Generation: true})
-				assertVarError(t, err, ErrMissing, name)
+		cases := []struct {
+			name string
+			env  map[string]string
+			want VarError
+		}{
+			{"LLM empty", with(validEnv(), llmEnv, ""), wantMissing(llmEnv)},
+			{"API key unset", without(validEnv(), deepSeekAPIKeyEnv), wantMissing(deepSeekAPIKeyEnv)},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				_, err := LoadFor(envLookup(tc.env), Need{Generation: true})
+				assertVarErrors(t, err, tc.want)
 			})
-		}
-	})
-
-	t.Run("review only does not require the generation settings", func(t *testing.T) {
-		// The review step has its own provider and model, so neither
-		// YT2COLUMN_MODEL nor the generation provider is needed.
-		env := map[string]string{
-			reviewProviderEnv: "deepseek",
-			reviewModelEnv:    "deepseek-review",
-			deepSeekAPIKeyEnv: "sk-test-key",
-			cacheDirEnv:       "/tmp/yt2column-test-cache",
-		}
-		cfg, err := LoadFor(envLookup(env), Need{Review: true})
-		if err != nil {
-			t.Fatalf("LoadFor() error = %v, want nil", err)
-		}
-		if cfg.LLM().ReviewProvider() != ProviderDeepSeek || cfg.LLM().ReviewModel() != "deepseek-review" {
-			t.Errorf("review = %v/%q, want deepseek/deepseek-review", cfg.LLM().ReviewProvider(), cfg.LLM().ReviewModel())
 		}
 	})
 
 	t.Run("review only checks the review provider's key", func(t *testing.T) {
 		env := map[string]string{
-			reviewProviderEnv: "deepseek",
-			reviewModelEnv:    "deepseek-review",
-			cacheDirEnv:       "/tmp/yt2column-test-cache",
+			reviewLLMEnv: "deepseek/deepseek-review",
+			cacheDirEnv:  "/tmp/yt2column-test-cache",
 		}
 		_, err := LoadFor(envLookup(env), Need{Review: true})
-		assertVarError(t, err, ErrMissing, deepSeekAPIKeyEnv)
-	})
-
-	t.Run("review only inherits the generation provider and model", func(t *testing.T) {
-		env := without(validEnv(), reviewProviderEnv, reviewModelEnv)
-		cfg, err := LoadFor(envLookup(env), Need{Review: true})
-		if err != nil {
-			t.Fatalf("LoadFor() error = %v, want nil", err)
-		}
-		if cfg.LLM().ReviewProvider() != ProviderDeepSeek {
-			t.Errorf("ReviewProvider() = %v, want the inherited deepseek", cfg.LLM().ReviewProvider())
-		}
-		if cfg.LLM().ReviewModel() != env[modelEnv] {
-			t.Errorf("ReviewModel() = %q, want the inherited %q", cfg.LLM().ReviewModel(), env[modelEnv])
-		}
+		assertVarErrors(t, err, wantMissing(deepSeekAPIKeyEnv))
 	})
 
 	t.Run("review only inherits a claude generation provider", func(t *testing.T) {
@@ -1209,24 +1179,12 @@ func TestLoadFor(t *testing.T) {
 		if err != nil {
 			t.Fatalf("LoadFor() error = %v, want nil", err)
 		}
-		if cfg.LLM().ReviewProvider() != ProviderClaude || cfg.LLM().ReviewModel() != validClaudeEnv()[modelEnv] {
-			t.Errorf("review = %v/%q, want claude/%q", cfg.LLM().ReviewProvider(), cfg.LLM().ReviewModel(), validClaudeEnv()[modelEnv])
+		if cfg.LLM().ReviewProvider() != ProviderClaude || cfg.LLM().ReviewModel() != "claude-opus-5-5" {
+			t.Errorf("review = %v/%q, want claude/claude-opus-5-5", cfg.LLM().ReviewProvider(), cfg.LLM().ReviewModel())
 		}
 		if cfg.LLM().ClaudeEffort() == claudeparam.EffortUnset {
 			t.Error("ClaudeEffort() is unset, want the checked value")
 		}
-	})
-
-	t.Run("review only requires a model", func(t *testing.T) {
-		// With no model anywhere and a provider that has no default model, the
-		// review step has none.
-		env := map[string]string{
-			providerEnv:       "deepseek",
-			deepSeekAPIKeyEnv: "sk-test-key",
-			cacheDirEnv:       "/tmp/yt2column-test-cache",
-		}
-		_, err := LoadFor(envLookup(env), Need{Review: true})
-		assertVarError(t, err, ErrMissing, reviewModelEnv)
 	})
 
 	// The effort is neither read nor defaulted when the claude stage is the
@@ -1238,12 +1196,12 @@ func TestLoadFor(t *testing.T) {
 	}{
 		{
 			"generation only with a claude review",
-			with(with(with(validEnv(), reviewProviderEnv, "claude"), reviewModelEnv, "claude-review"), anthropicAPIKeyEnv, "sk-ant-test-key"),
+			with(with(validEnv(), reviewLLMEnv, "claude/claude-review"), anthropicAPIKeyEnv, "sk-ant-test-key"),
 			Need{Generation: true},
 		},
 		{
 			"review only with a claude generation",
-			with(with(with(without(validClaudeEnv(), claudeEffortEnv), reviewProviderEnv, "deepseek"), reviewModelEnv, "deepseek-review"), deepSeekAPIKeyEnv, "sk-test-key"),
+			with(with(without(validClaudeEnv(), claudeEffortEnv), reviewLLMEnv, "deepseek/deepseek-review"), deepSeekAPIKeyEnv, "sk-test-key"),
 			Need{Review: true},
 		},
 	}
@@ -1274,12 +1232,13 @@ func TestLoadFor(t *testing.T) {
 	}
 
 	t.Run("no stage reads no LLM variable", func(t *testing.T) {
-		// --after review: not even an invalid provider or model is read, and
-		// with no LLM variable at all no default is applied.
+		// --after review: not even an invalid LLM value is read, and with no
+		// LLM variable at all no default is applied. Only the presence of the
+		// retired variables is checked, whatever the stages.
 		envs := map[string]map[string]string{
 			"invalid values": {
-				providerEnv:     "gemini",
-				modelEnv:        "",
+				llmEnv:          "gemini/x",
+				reviewLLMEnv:    "",
 				claudeEffortEnv: "High",
 				cacheDirEnv:     "/tmp/yt2column-test-cache",
 			},
@@ -1288,24 +1247,25 @@ func TestLoadFor(t *testing.T) {
 			},
 		}
 		llmVars := []string{
-			providerEnv, modelEnv, reviewProviderEnv, reviewModelEnv,
+			llmEnv, reviewLLMEnv,
 			deepSeekAPIKeyEnv, anthropicAPIKeyEnv, claudeEffortEnv, anthropicWorkspaceIDEnv,
 		}
 		for name, env := range envs {
 			t.Run(name, func(t *testing.T) {
 				var read []string
-				lookup := func(name string) (string, bool) {
-					read = append(read, name)
-					return envLookup(env)(name)
-				}
-				cfg, err := LoadFor(lookup, Need{})
+				cfg, err := LoadFor(recordingLookup(env, &read), Need{})
 				if err != nil {
 					t.Fatalf("LoadFor() error = %v, want nil", err)
 				}
-				// The positive check keeps the negative one meaningful: a lookup
+				// The positive checks keep the negative one meaningful: a lookup
 				// that recorded nothing would pass it.
 				if !slices.Contains(read, cacheDirEnv) {
 					t.Fatalf("read = %v, want it to include %s", read, cacheDirEnv)
+				}
+				for _, v := range retiredLLMVars {
+					if !slices.Contains(read, v.name) {
+						t.Errorf("LoadFor(Need{}) did not check the retired %s", v.name)
+					}
 				}
 				for _, name := range llmVars {
 					if slices.Contains(read, name) {
@@ -1329,49 +1289,13 @@ func TestLoadFor(t *testing.T) {
 		assertVarError(t, err, ErrInvalid, cacheDirEnv)
 	})
 
-	t.Run("review only rejects an empty inherited provider", func(t *testing.T) {
-		// The review step inherits the generation provider, so a present-empty
-		// one is rejected rather than silently defaulted.
-		env := map[string]string{
-			providerEnv:       "",
-			reviewModelEnv:    "deepseek-review",
-			deepSeekAPIKeyEnv: "sk-test-key",
-			cacheDirEnv:       "/tmp/yt2column-test-cache",
-		}
-		_, err := LoadFor(envLookup(env), Need{Review: true})
-		assertVarError(t, err, ErrMissing, providerEnv)
-	})
-
-	t.Run("review only rejects an invalid inherited provider", func(t *testing.T) {
-		env := map[string]string{
-			providerEnv:       "gemini",
-			reviewModelEnv:    "deepseek-review",
-			deepSeekAPIKeyEnv: "sk-test-key",
-			cacheDirEnv:       "/tmp/yt2column-test-cache",
-		}
-		_, err := LoadFor(envLookup(env), Need{Review: true})
-		assertVarError(t, err, ErrInvalid, providerEnv)
-	})
-
-	t.Run("review only rejects an empty inherited model", func(t *testing.T) {
-		env := map[string]string{
-			providerEnv:       "deepseek",
-			modelEnv:          "",
-			deepSeekAPIKeyEnv: "sk-test-key",
-			cacheDirEnv:       "/tmp/yt2column-test-cache",
-		}
-		_, err := LoadFor(envLookup(env), Need{Review: true})
-		assertVarError(t, err, ErrMissing, modelEnv)
-	})
-
 	t.Run("review only ignores an unused generation provider's variables", func(t *testing.T) {
-		// The review step has its own deepseek provider, so the claude
+		// The review step has its own deepseek selection, so the claude
 		// generation provider and its API key, effort, and workspace are not
-		// read even though YT2COLUMN_LLM_PROVIDER is set.
+		// read even though YT2COLUMN_LLM is set.
 		env := map[string]string{
-			providerEnv:       "claude",
-			reviewProviderEnv: "deepseek",
-			reviewModelEnv:    "deepseek-review",
+			llmEnv:            "claude/claude-opus-5-5",
+			reviewLLMEnv:      "deepseek/deepseek-review",
 			deepSeekAPIKeyEnv: "sk-test-key",
 			cacheDirEnv:       "/tmp/yt2column-test-cache",
 		}
@@ -1385,10 +1309,10 @@ func TestLoadFor(t *testing.T) {
 	})
 }
 
-// defaultsBaseEnv is an environment with no provider or model variable: the
-// API keys of both providers, an explicit effort (so the tests do not depend
-// on the effort default), and the non-LLM variable Load needs. A row adds the
-// provider and model variables it is about.
+// defaultsBaseEnv is an environment with no LLM variable: the API keys of both
+// providers, an explicit effort (so the tests do not depend on the effort
+// default), and the non-LLM variable Load needs. A row adds the LLM variables
+// it is about.
 func defaultsBaseEnv() map[string]string {
 	return map[string]string{
 		anthropicAPIKeyEnv: "sk-ant-test-key",
@@ -1410,15 +1334,10 @@ func wantMissing(name string) VarError {
 	return VarError{Name: name, Reason: reasonUnset, Err: ErrMissing}
 }
 
-// wantInvalidProvider is the rejection of a provider variable whose value is
-// not an accepted provider.
-func wantInvalidProvider(name string) VarError {
-	return VarError{Name: name, Reason: reasonProvider, Err: ErrInvalid}
+// wantInvalid is the rejection of a present variable with the fixed reason.
+func wantInvalid(name, reason string) VarError {
+	return VarError{Name: name, Reason: reason, Err: ErrInvalid}
 }
-
-// wantModelOnly is the rejection of a model variable set without a provider
-// variable for the stage that uses it.
-var wantModelOnly = VarError{Name: providerEnv, Reason: reasonModelWithoutProvider, Err: ErrMissing}
 
 // The Need values of the run kinds: a run that generates (with the review
 // configuration read, as without --after), a generation-only run, and a
@@ -1429,13 +1348,12 @@ var (
 	needReview     = Need{Review: true}
 )
 
-// TestLoadGenerationDefaults checks how the generation stage's provider and
-// model are resolved: an unset YT2COLUMN_LLM_PROVIDER selects claude, an unset
-// YT2COLUMN_MODEL selects the default model only when the provider is claude,
-// and an empty or invalid variable is rejected rather than defaulted. Each row
-// runs both with and without the review stage, which does not change how the
-// generation stage resolves. The rows that set a model without a provider are
-// in TestLoadModelWithoutProvider.
+// TestLoadGenerationDefaults checks how the generation selection is resolved:
+// an unset YT2COLUMN_LLM selects the default, a set one selects its own
+// provider and model, and an empty one is rejected rather than defaulted. Each
+// row runs both with and without the review stage, which does not change how
+// the generation stage resolves. The value shapes are in
+// TestLoadParsesLLMValue.
 func TestLoadGenerationDefaults(t *testing.T) {
 	const otherModel = "claude-other-test"
 	cases := []struct {
@@ -1446,46 +1364,10 @@ func TestLoadGenerationDefaults(t *testing.T) {
 		wantModel    string
 		wantErrs     []VarError
 	}{
-		{"provider and model unset", nil, ProviderClaude, defaultClaudeModel, nil},
-		{"claude, model unset", map[string]string{providerEnv: "claude"}, ProviderClaude, defaultClaudeModel, nil},
-		{"claude, other model", map[string]string{providerEnv: "claude", modelEnv: otherModel}, ProviderClaude, otherModel, nil},
-		{"deepseek, model set", map[string]string{providerEnv: "deepseek", modelEnv: "deepseek-chat"}, ProviderDeepSeek, "deepseek-chat", nil},
-		{
-			"deepseek, model unset",
-			map[string]string{providerEnv: "deepseek"},
-			ProviderUnset, "",
-			[]VarError{wantMissing(modelEnv)},
-		},
-		{
-			"claude, model empty",
-			map[string]string{providerEnv: "claude", modelEnv: ""},
-			ProviderUnset, "",
-			[]VarError{wantMissing(modelEnv)},
-		},
-		{
-			"deepseek, model empty",
-			map[string]string{providerEnv: "deepseek", modelEnv: ""},
-			ProviderUnset, "",
-			[]VarError{wantMissing(modelEnv)},
-		},
-		{
-			"provider empty, model unset",
-			map[string]string{providerEnv: ""},
-			ProviderUnset, "",
-			[]VarError{wantMissing(providerEnv), wantMissing(modelEnv)},
-		},
-		{
-			"provider invalid, model unset",
-			map[string]string{providerEnv: "gemini"},
-			ProviderUnset, "",
-			[]VarError{wantInvalidProvider(providerEnv), wantMissing(modelEnv)},
-		},
-		{
-			"provider invalid, model empty",
-			map[string]string{providerEnv: "gemini", modelEnv: ""},
-			ProviderUnset, "",
-			[]VarError{wantInvalidProvider(providerEnv), wantMissing(modelEnv)},
-		},
+		{"unset", nil, ProviderClaude, defaultClaudeModel, nil},
+		{"claude, other model", map[string]string{llmEnv: "claude/" + otherModel}, ProviderClaude, otherModel, nil},
+		{"deepseek", map[string]string{llmEnv: "deepseek/deepseek-chat"}, ProviderDeepSeek, "deepseek-chat", nil},
+		{"empty", map[string]string{llmEnv: ""}, ProviderUnset, "", []VarError{wantMissing(llmEnv)}},
 	}
 	for _, need := range []Need{needBoth, needGeneration} {
 		for _, tc := range cases {
@@ -1506,21 +1388,21 @@ func TestLoadGenerationDefaults(t *testing.T) {
 	}
 }
 
-// TestLoadReviewDefaults checks how the review stage's provider and model are
-// resolved in a run that generates and in a review-only resume: both review
-// variables unset inherit the generation stage, the defaults included; a
-// review provider of its own uses that provider's default model, never the
-// generation model; and an empty or invalid variable is rejected rather than
-// defaulted. The rows that set a model without a provider are in
-// TestLoadModelWithoutProvider.
+// TestLoadReviewDefaults checks how each stage's selection is resolved for
+// each Need (architecture section 3.3), through all four accessors: a stage
+// the run does not need holds the zero selection; an unset
+// YT2COLUMN_REVIEW_LLM inherits the generation selection, the default
+// included, and an inherited rejection is reported once, naming
+// YT2COLUMN_LLM; a set YT2COLUMN_REVIEW_LLM is used on its own, and an empty
+// one is rejected rather than inherited. Need{} is in TestLoadFor.
 func TestLoadReviewDefaults(t *testing.T) {
-	const otherModel = "claude-other-test"
 	type want struct {
 		provider       Provider
 		model          string
 		reviewProvider Provider
 		reviewModel    string
 	}
+	const reviewValue = "deepseek/deepseek-review"
 	allDefault := want{ProviderClaude, defaultClaudeModel, ProviderClaude, defaultClaudeModel}
 	cases := []struct {
 		name     string
@@ -1529,99 +1411,59 @@ func TestLoadReviewDefaults(t *testing.T) {
 		want     want
 		wantErrs []VarError
 	}{
-		{"all unset", needBoth, nil, allDefault, nil},
-		{"review only, all unset", needReview, nil, allDefault, nil},
-		{"review only, generation claude", needReview, map[string]string{providerEnv: "claude"}, allDefault, nil},
+		{"both, all unset", needBoth, nil, allDefault, nil},
 		{
-			"review only, generation deepseek without a model", needReview,
-			map[string]string{providerEnv: "deepseek"},
-			want{},
-			[]VarError{wantMissing(reviewModelEnv)},
-		},
-		{
-			"review provider claude, generation deepseek", needBoth,
-			map[string]string{providerEnv: "deepseek", modelEnv: "deepseek-chat", reviewProviderEnv: "claude"},
-			want{ProviderDeepSeek, "deepseek-chat", ProviderClaude, defaultClaudeModel},
+			"both, review set", needBoth,
+			map[string]string{reviewLLMEnv: reviewValue},
+			want{ProviderClaude, defaultClaudeModel, ProviderDeepSeek, "deepseek-review"},
 			nil,
 		},
 		{
-			"review provider claude, generation claude with another model", needBoth,
-			map[string]string{providerEnv: "claude", modelEnv: otherModel, reviewProviderEnv: "claude"},
-			want{ProviderClaude, otherModel, ProviderClaude, defaultClaudeModel},
+			"both, review unset inherits LLM", needBoth,
+			map[string]string{llmEnv: "deepseek/deepseek-chat"},
+			want{ProviderDeepSeek, "deepseek-chat", ProviderDeepSeek, "deepseek-chat"},
 			nil,
 		},
 		{
-			"review only, review provider claude", needReview,
-			map[string]string{reviewProviderEnv: "claude"},
-			want{ProviderUnset, "", ProviderClaude, defaultClaudeModel},
+			"both, review unset, LLM rejected once", needBoth,
+			map[string]string{llmEnv: "gemini/x"},
+			want{},
+			[]VarError{wantInvalid(llmEnv, reasonLLMProvider)},
+		},
+		{"both, review empty", needBoth, map[string]string{reviewLLMEnv: ""}, want{}, []VarError{wantMissing(reviewLLMEnv)}},
+		{
+			"generation only, review not read", needGeneration,
+			map[string]string{reviewLLMEnv: ""},
+			want{ProviderClaude, defaultClaudeModel, ProviderUnset, ""},
 			nil,
 		},
 		{
-			"review only, review provider claude, review model set", needReview,
-			map[string]string{reviewProviderEnv: "claude", reviewModelEnv: otherModel},
-			want{ProviderUnset, "", ProviderClaude, otherModel},
+			"review only, review set, LLM not read", needReview,
+			map[string]string{reviewLLMEnv: reviewValue, llmEnv: "gemini/x"},
+			want{ProviderUnset, "", ProviderDeepSeek, "deepseek-review"},
 			nil,
 		},
+		{"review only, all unset", needReview, nil, want{ProviderUnset, "", ProviderClaude, defaultClaudeModel}, nil},
 		{
-			"review provider deepseek, review model unset", needBoth,
-			map[string]string{providerEnv: "deepseek", modelEnv: "deepseek-chat", reviewProviderEnv: "deepseek"},
+			"review only, review unset inherits LLM", needReview,
+			map[string]string{llmEnv: "deepseek/deepseek-chat"},
+			want{ProviderUnset, "", ProviderDeepSeek, "deepseek-chat"},
+			nil,
+		},
+		{"review only, review unset, LLM empty", needReview, map[string]string{llmEnv: ""}, want{}, []VarError{wantMissing(llmEnv)}},
+		{
+			"review only, review unset, LLM provider invalid", needReview,
+			map[string]string{llmEnv: "gemini/x"},
 			want{},
-			[]VarError{wantMissing(reviewModelEnv)},
+			[]VarError{wantInvalid(llmEnv, reasonLLMProvider)},
 		},
 		{
-			"review only, review provider deepseek, review model unset", needReview,
-			map[string]string{reviewProviderEnv: "deepseek"},
+			"review only, review unset, LLM model ID empty", needReview,
+			map[string]string{llmEnv: "deepseek/"},
 			want{},
-			[]VarError{wantMissing(reviewModelEnv)},
+			[]VarError{wantInvalid(llmEnv, reasonLLMForm)},
 		},
-		{
-			"review provider claude, review model empty", needBoth,
-			map[string]string{providerEnv: "claude", reviewProviderEnv: "claude", reviewModelEnv: ""},
-			want{},
-			[]VarError{wantMissing(reviewModelEnv)},
-		},
-		{
-			"review provider empty, review model unset", needBoth,
-			map[string]string{providerEnv: "claude", reviewProviderEnv: ""},
-			want{},
-			[]VarError{wantMissing(reviewProviderEnv)},
-		},
-		{
-			"review only, review provider empty, review model unset", needReview,
-			map[string]string{reviewProviderEnv: ""},
-			want{},
-			[]VarError{wantMissing(reviewProviderEnv)},
-		},
-		{
-			"review provider invalid, review model unset", needBoth,
-			map[string]string{providerEnv: "claude", reviewProviderEnv: "gemini"},
-			want{},
-			[]VarError{wantInvalidProvider(reviewProviderEnv)},
-		},
-		{
-			"review only, review provider claude, review model empty", needReview,
-			map[string]string{reviewProviderEnv: "claude", reviewModelEnv: ""},
-			want{},
-			[]VarError{wantMissing(reviewModelEnv)},
-		},
-		{
-			"review only, review provider invalid, review model unset", needReview,
-			map[string]string{reviewProviderEnv: "gemini"},
-			want{},
-			[]VarError{wantInvalidProvider(reviewProviderEnv)},
-		},
-		{
-			"review provider invalid, review model empty", needBoth,
-			map[string]string{providerEnv: "claude", reviewProviderEnv: "gemini", reviewModelEnv: ""},
-			want{},
-			[]VarError{wantInvalidProvider(reviewProviderEnv), wantMissing(reviewModelEnv)},
-		},
-		{
-			"review only, generation provider empty", needReview,
-			map[string]string{providerEnv: ""},
-			want{},
-			[]VarError{wantMissing(providerEnv), wantMissing(reviewModelEnv)},
-		},
+		{"review only, review empty", needReview, map[string]string{reviewLLMEnv: ""}, want{}, []VarError{wantMissing(reviewLLMEnv)}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1635,162 +1477,6 @@ func TestLoadReviewDefaults(t *testing.T) {
 			if got != tc.want {
 				t.Errorf("provider/model/review provider/review model = %+v, want %+v", got, tc.want)
 			}
-		})
-	}
-}
-
-// TestLoadModelWithoutProvider checks the rejection of a model variable set
-// for a stage whose provider was not set by a variable: before the default
-// provider became claude such a setting used deepseek, so it must stop before
-// any request instead of reaching Anthropic. The rejection is reported once
-// per run, next to the other rejections, and is distinct from the rejection of
-// an empty provider variable.
-func TestLoadModelWithoutProvider(t *testing.T) {
-	cases := []struct {
-		name     string
-		need     Need
-		vars     map[string]string
-		wantErrs []VarError
-	}{
-		{"generation model", needBoth, map[string]string{modelEnv: "deepseek-chat"}, []VarError{wantModelOnly}},
-		{"generation only, generation model", needGeneration, map[string]string{modelEnv: "deepseek-chat"}, []VarError{wantModelOnly}},
-		{
-			"generation model empty", needBoth,
-			map[string]string{modelEnv: ""},
-			[]VarError{wantModelOnly, wantMissing(modelEnv)},
-		},
-		{
-			"generation only, generation model empty", needGeneration,
-			map[string]string{modelEnv: ""},
-			[]VarError{wantModelOnly, wantMissing(modelEnv)},
-		},
-		{"review model", needBoth, map[string]string{reviewModelEnv: "deepseek-chat"}, []VarError{wantModelOnly}},
-		{"review only, review model", needReview, map[string]string{reviewModelEnv: "deepseek-chat"}, []VarError{wantModelOnly}},
-		{
-			"review model empty", needBoth,
-			map[string]string{reviewModelEnv: ""},
-			[]VarError{wantModelOnly, wantMissing(reviewModelEnv)},
-		},
-		{
-			"review only, review model empty", needReview,
-			map[string]string{reviewModelEnv: ""},
-			[]VarError{wantModelOnly, wantMissing(reviewModelEnv)},
-		},
-		{"review only, inherited model", needReview, map[string]string{modelEnv: "deepseek-chat"}, []VarError{wantModelOnly}},
-		{
-			"review only, inherited model empty", needReview,
-			map[string]string{modelEnv: ""},
-			[]VarError{wantModelOnly, wantMissing(modelEnv), wantMissing(reviewModelEnv)},
-		},
-		{
-			"both models", needBoth,
-			map[string]string{modelEnv: "deepseek-chat", reviewModelEnv: "deepseek-review"},
-			[]VarError{wantModelOnly},
-		},
-		{
-			"default provider's variables are still checked", needBoth,
-			map[string]string{modelEnv: "deepseek-chat", anthropicAPIKeyEnv: "", claudeEffortEnv: "High", anthropicWorkspaceIDEnv: ""},
-			[]VarError{
-				wantModelOnly, wantMissing(anthropicAPIKeyEnv), wantMissing(anthropicWorkspaceIDEnv),
-				{Name: claudeEffortEnv, Reason: reasonClaudeEffort, Err: ErrInvalid},
-			},
-		},
-		// A provider variable that is present, whatever its value, decides the
-		// provider, so the model-only rejection does not occur.
-		{
-			"generation provider deepseek", needBoth,
-			map[string]string{providerEnv: "deepseek", modelEnv: "deepseek-chat", reviewModelEnv: "deepseek-review"},
-			nil,
-		},
-		{"generation provider claude", needBoth, map[string]string{providerEnv: "claude", modelEnv: "claude-other-test"}, nil},
-		{
-			"generation provider empty", needBoth,
-			map[string]string{providerEnv: "", modelEnv: "deepseek-chat"},
-			[]VarError{wantMissing(providerEnv)},
-		},
-		{
-			"generation provider invalid", needBoth,
-			map[string]string{providerEnv: "gemini", modelEnv: "deepseek-chat"},
-			[]VarError{wantInvalidProvider(providerEnv)},
-		},
-		{
-			"generation only, generation provider empty", needGeneration,
-			map[string]string{providerEnv: "", modelEnv: "deepseek-chat"},
-			[]VarError{wantMissing(providerEnv)},
-		},
-		{
-			"generation only, generation provider invalid", needGeneration,
-			map[string]string{providerEnv: "gemini", modelEnv: "deepseek-chat"},
-			[]VarError{wantInvalidProvider(providerEnv)},
-		},
-		{
-			"review only, inherited provider empty", needReview,
-			map[string]string{providerEnv: "", modelEnv: "deepseek-chat"},
-			[]VarError{wantMissing(providerEnv)},
-		},
-		{
-			"review only, inherited provider invalid", needReview,
-			map[string]string{providerEnv: "gemini", modelEnv: "deepseek-chat"},
-			[]VarError{wantInvalidProvider(providerEnv)},
-		},
-		// The review stage is not needed, so its model variable is not read.
-		{"generation only, review model", needGeneration, map[string]string{reviewModelEnv: "deepseek-review"}, nil},
-		{
-			"review provider set", needBoth,
-			map[string]string{reviewProviderEnv: "deepseek", reviewModelEnv: "deepseek-review"},
-			nil,
-		},
-		{
-			"review only, review provider empty", needReview,
-			map[string]string{reviewProviderEnv: "", reviewModelEnv: "deepseek-review"},
-			[]VarError{wantMissing(reviewProviderEnv)},
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			_, err := LoadFor(envLookup(withVars(defaultsBaseEnv(), tc.vars)), tc.need)
-			assertVarErrors(t, err, tc.wantErrs...)
-		})
-	}
-}
-
-// TestModelWithoutProvider checks the decision over the origins of the stages
-// a run needs, including the origin no resolver should leave (originNone for a
-// provider), which must reject rather than let the model through.
-func TestModelWithoutProvider(t *testing.T) {
-	cases := []struct {
-		name   string
-		stages []stageOrigins
-		reject bool
-	}{
-		{"no stage", nil, false},
-		{"both from variables", []stageOrigins{{originVariable, originVariable}}, false},
-		{"model variable, default provider", []stageOrigins{{originDefault, originVariable}}, true},
-		{"model variable, unrecorded provider", []stageOrigins{{originNone, originVariable}}, true},
-		{"default model", []stageOrigins{{originDefault, originDefault}}, false},
-		{"provider variable, default model", []stageOrigins{{originVariable, originDefault}}, false},
-		{"no model", []stageOrigins{{originDefault, originNone}}, false},
-		{
-			"only the second stage matches",
-			[]stageOrigins{{originVariable, originVariable}, {originDefault, originVariable}},
-			true,
-		},
-		{
-			"both stages match",
-			[]stageOrigins{{originDefault, originVariable}, {originDefault, originVariable}},
-			true,
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			err := modelWithoutProvider(tc.stages...)
-			if !tc.reject {
-				if err != nil {
-					t.Errorf("modelWithoutProvider() = %v, want nil", err)
-				}
-				return
-			}
-			assertVarErrors(t, err, wantModelOnly)
 		})
 	}
 }
@@ -1837,35 +1523,28 @@ func TestLoadDefaultProviderVariables(t *testing.T) {
 	}
 }
 
-// TestLoadServerLLMDefaults checks the server entry point with no provider or
-// model variable and with a deepseek setting that relied on the old default.
-// The rules themselves are covered by the Load tests, which LoadServer shares.
+// TestLoadServerLLMDefaults checks the server entry point with no LLM
+// variable. The rules themselves are covered by the Load tests, which
+// LoadServer shares; the retired variables at the server entry point are in
+// TestLoadRejectsRetiredLLMVars.
 func TestLoadServerLLMDefaults(t *testing.T) {
-	base := map[string]string{
+	env := map[string]string{
 		"HOME":             "/home/user",
 		slackEnv:           "https://hooks.slack.com/services/T000/B000/XXXX",
 		claudeEffortEnv:    "high",
 		anthropicAPIKeyEnv: "sk-ant-test-key",
 	}
-	t.Run("defaults", func(t *testing.T) {
-		cfg, err := LoadServer(envLookup(base))
-		if err != nil {
-			t.Fatalf("LoadServer() error = %v, want nil", err)
-		}
-		llm := cfg.LLM()
-		if llm.Provider() != ProviderClaude || llm.ReviewProvider() != ProviderClaude {
-			t.Errorf("providers = %v/%v, want ProviderClaude/ProviderClaude", llm.Provider(), llm.ReviewProvider())
-		}
-		if llm.Model() != defaultClaudeModel || llm.ReviewModel() != defaultClaudeModel {
-			t.Errorf("models = %q/%q, want %q", llm.Model(), llm.ReviewModel(), defaultClaudeModel)
-		}
-	})
-	t.Run("deepseek setting without a provider", func(t *testing.T) {
-		env := without(base, anthropicAPIKeyEnv)
-		env = withVars(env, map[string]string{modelEnv: "deepseek-chat", deepSeekAPIKeyEnv: "sk-test-key"})
-		_, err := LoadServer(envLookup(env))
-		assertVarErrors(t, err, wantModelOnly, wantMissing(anthropicAPIKeyEnv))
-	})
+	cfg, err := LoadServer(envLookup(env))
+	if err != nil {
+		t.Fatalf("LoadServer() error = %v, want nil", err)
+	}
+	llm := cfg.LLM()
+	if llm.Provider() != ProviderClaude || llm.ReviewProvider() != ProviderClaude {
+		t.Errorf("providers = %v/%v, want ProviderClaude/ProviderClaude", llm.Provider(), llm.ReviewProvider())
+	}
+	if llm.Model() != defaultClaudeModel || llm.ReviewModel() != defaultClaudeModel {
+		t.Errorf("models = %q/%q, want %q", llm.Model(), llm.ReviewModel(), defaultClaudeModel)
+	}
 }
 
 // TestLoadProductionDefaults checks that, with the Anthropic API key as the
@@ -1891,5 +1570,261 @@ func TestLoadProductionDefaults(t *testing.T) {
 	}
 	if llm.ClaudeEffort() != claudeparam.EffortHigh {
 		t.Errorf("ClaudeEffort() = %v, want EffortHigh", llm.ClaudeEffort())
+	}
+}
+
+// TestLoadParsesLLMValue checks each value shape of architecture section 3.2
+// for both LLM variables: an accepted value selects its provider and the
+// model ID after the first "/" as it is, white space and invalid UTF-8
+// included (the adapters reject those when a client is built); a rejected
+// value names the variable with its sentinel and fixed reason.
+func TestLoadParsesLLMValue(t *testing.T) {
+	cases := []struct {
+		value        string
+		wantProvider Provider
+		wantModel    string
+		wantErr      *VarError // nil when accepted; Name is filled per variable
+	}{
+		{"deepseek/deepseek-flash", ProviderDeepSeek, "deepseek-flash", nil},
+		{"claude/claude-sonnet-5-5", ProviderClaude, "claude-sonnet-5-5", nil},
+		{"claude/vendor/model-x", ProviderClaude, "vendor/model-x", nil},
+		{"claude/claude-opus-5-5 ", ProviderClaude, "claude-opus-5-5 ", nil},
+		{"claude/ claude-opus-5-5", ProviderClaude, " claude-opus-5-5", nil},
+		{"claude/\xffmodel", ProviderClaude, "\xffmodel", nil},
+		{"", 0, "", &VarError{Reason: reasonUnset, Err: ErrMissing}},
+		{"claude", 0, "", &VarError{Reason: reasonLLMForm, Err: ErrInvalid}},
+		{"claude/", 0, "", &VarError{Reason: reasonLLMForm, Err: ErrInvalid}},
+		{"deepseek/", 0, "", &VarError{Reason: reasonLLMForm, Err: ErrInvalid}},
+		{"/claude-opus-5-5", 0, "", &VarError{Reason: reasonLLMProvider, Err: ErrInvalid}},
+		{"gemini/x", 0, "", &VarError{Reason: reasonLLMProvider, Err: ErrInvalid}},
+		{"gemini/", 0, "", &VarError{Reason: reasonLLMProvider, Err: ErrInvalid}},
+		{"Claude/claude-opus-5-5", 0, "", &VarError{Reason: reasonLLMProvider, Err: ErrInvalid}},
+		{" claude/claude-opus-5-5", 0, "", &VarError{Reason: reasonLLMProvider, Err: ErrInvalid}},
+		{"claude /claude-opus-5-5", 0, "", &VarError{Reason: reasonLLMProvider, Err: ErrInvalid}},
+	}
+	stages := []struct {
+		name     string
+		selected func(LLMConfig) (Provider, string)
+	}{
+		{llmEnv, func(c LLMConfig) (Provider, string) { return c.Provider(), c.Model() }},
+		{reviewLLMEnv, func(c LLMConfig) (Provider, string) { return c.ReviewProvider(), c.ReviewModel() }},
+	}
+	for _, stage := range stages {
+		for _, tc := range cases {
+			t.Run(fmt.Sprintf("%s=%q", stage.name, tc.value), func(t *testing.T) {
+				cfg, err := Load(envLookup(with(defaultsBaseEnv(), stage.name, tc.value)))
+				if tc.wantErr != nil {
+					want := *tc.wantErr
+					want.Name = stage.name
+					assertVarErrors(t, err, want)
+					return
+				}
+				if err != nil {
+					t.Fatalf("Load() error = %v, want nil", err)
+				}
+				provider, model := stage.selected(cfg.LLM())
+				if provider != tc.wantProvider || model != tc.wantModel {
+					t.Errorf("selection = %v/%q, want %v/%q", provider, model, tc.wantProvider, tc.wantModel)
+				}
+			})
+		}
+	}
+}
+
+// TestParseLLMProvider checks parseLLM's contract on a rejected value: the
+// selection keeps a provider part that was accepted, so that provider's own
+// variables are still checked, and holds ProviderUnset otherwise.
+func TestParseLLMProvider(t *testing.T) {
+	cases := []struct {
+		value string
+		want  Provider
+	}{
+		{"claude/", ProviderClaude},
+		{"deepseek/", ProviderDeepSeek},
+		{"", ProviderUnset},
+		{"claude", ProviderUnset},
+		{"gemini/x", ProviderUnset},
+	}
+	for _, tc := range cases {
+		t.Run(fmt.Sprintf("%q", tc.value), func(t *testing.T) {
+			selection, err := parseLLM(llmEnv, tc.value)
+			if err == nil {
+				t.Fatal("parseLLM() error = nil, want a rejection")
+			}
+			if selection.provider != tc.want || selection.model != "" {
+				t.Errorf("parseLLM() = %+v, want provider %v and no model", selection, tc.want)
+			}
+		})
+	}
+}
+
+// TestLoadReviewOnlyReadsLLM checks, by the variables read, when a review-only
+// run reads YT2COLUMN_LLM: not when YT2COLUMN_REVIEW_LLM is set, and when it
+// is unset, because the review step inherits the generation selection.
+func TestLoadReviewOnlyReadsLLM(t *testing.T) {
+	cases := []struct {
+		name     string
+		env      map[string]string
+		wantRead bool
+	}{
+		{"review set", with(defaultsBaseEnv(), reviewLLMEnv, "deepseek/deepseek-review"), false},
+		{"review unset", defaultsBaseEnv(), true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var read []string
+			if _, err := LoadFor(recordingLookup(tc.env, &read), needReview); err != nil {
+				t.Fatalf("LoadFor() error = %v, want nil", err)
+			}
+			if !slices.Contains(read, reviewLLMEnv) {
+				t.Fatalf("read = %v, want it to include %s", read, reviewLLMEnv)
+			}
+			if got := slices.Contains(read, llmEnv); got != tc.wantRead {
+				t.Errorf("read %s = %v, want %v (read = %v)", llmEnv, got, tc.wantRead, read)
+			}
+		})
+	}
+}
+
+// retiredLLMVarsWant is the retired variables and the replacement each one's
+// reason names, written out here rather than read from retiredLLMVars, so a
+// variable dropped from that table fails TestRetiredLLMVars instead of
+// shrinking the cases of TestLoadRejectsRetiredLLMVars with it.
+var retiredLLMVarsWant = []retiredLLMVar{
+	{"YT2COLUMN_LLM_PROVIDER", reasonRetiredLLM},
+	{"YT2COLUMN_MODEL", reasonRetiredLLM},
+	{"YT2COLUMN_REVIEW_PROVIDER", reasonRetiredReviewLLM},
+	{"YT2COLUMN_REVIEW_MODEL", reasonRetiredReviewLLM},
+}
+
+// TestRetiredLLMVars checks the table of retired variables against the list
+// above, the reporting order included.
+func TestRetiredLLMVars(t *testing.T) {
+	if !slices.Equal(retiredLLMVars, retiredLLMVarsWant) {
+		t.Errorf("retiredLLMVars = %v, want %v", retiredLLMVars, retiredLLMVarsWant)
+	}
+}
+
+// TestLoadRejectsRetiredLLMVars checks that a retired variable, set with a
+// value or empty, stops every load whatever the stages, and the server load,
+// with one ErrInvalid naming it and the reason naming its replacement. The
+// rows with YT2COLUMN_LLM set check that the retired variable is rejected
+// even when the new one is present, so its value can never decide anything.
+func TestLoadRejectsRetiredLLMVars(t *testing.T) {
+	loaders := []struct {
+		name string
+		load func(map[string]string) error
+	}{
+		{"LoadFor both", func(env map[string]string) error { _, err := LoadFor(envLookup(env), needBoth); return err }},
+		{"LoadFor generation", func(env map[string]string) error { _, err := LoadFor(envLookup(env), needGeneration); return err }},
+		{"LoadFor review", func(env map[string]string) error { _, err := LoadFor(envLookup(env), needReview); return err }},
+		{"LoadFor none", func(env map[string]string) error { _, err := LoadFor(envLookup(env), Need{}); return err }},
+		{"LoadServer", func(env map[string]string) error {
+			env = withVars(without(env, cacheDirEnv), map[string]string{
+				"HOME":   "/home/user",
+				slackEnv: "https://hooks.slack.com/services/T000/B000/XXXX",
+			})
+			_, err := LoadServer(envLookup(env))
+			return err
+		}},
+	}
+	bases := []struct {
+		name string
+		env  map[string]string
+	}{
+		{"LLM unset", defaultsBaseEnv()},
+		{"LLM set", with(defaultsBaseEnv(), llmEnv, "claude/claude-opus-5-5")},
+	}
+	for _, v := range retiredLLMVarsWant {
+		for _, value := range []string{"deepseek", ""} {
+			for _, base := range bases {
+				for _, loader := range loaders {
+					t.Run(fmt.Sprintf("%s=%q %s %s", v.name, value, base.name, loader.name), func(t *testing.T) {
+						err := loader.load(with(base.env, v.name, value))
+						assertVarErrors(t, err, wantInvalid(v.name, v.reason))
+					})
+				}
+			}
+		}
+	}
+}
+
+// TestLoadProviderVarsFollowSelection checks which provider variables a load
+// reads when an LLM variable is rejected: none for a stage whose provider part
+// was rejected, and the provider's own when the provider part was accepted
+// (an empty model ID). The selection that is accepted still has its provider's
+// variables checked.
+func TestLoadProviderVarsFollowSelection(t *testing.T) {
+	claudeVars := []string{anthropicAPIKeyEnv, claudeEffortEnv, anthropicWorkspaceIDEnv}
+	cases := []struct {
+		name        string
+		need        Need
+		vars        map[string]string
+		wantErrs    []VarError
+		wantRead    []string
+		wantNotRead []string
+	}{
+		{
+			"LLM empty, review inherits", needBoth,
+			map[string]string{llmEnv: ""},
+			[]VarError{wantMissing(llmEnv)},
+			nil, append([]string{deepSeekAPIKeyEnv}, claudeVars...),
+		},
+		{
+			"LLM without a separator, review inherits", needBoth,
+			map[string]string{llmEnv: "claude"},
+			[]VarError{wantInvalid(llmEnv, reasonLLMForm)},
+			nil, append([]string{deepSeekAPIKeyEnv}, claudeVars...),
+		},
+		{
+			"LLM with an empty model ID", needBoth,
+			map[string]string{llmEnv: "claude/"},
+			[]VarError{wantInvalid(llmEnv, reasonLLMForm), wantMissing(anthropicAPIKeyEnv)},
+			claudeVars,
+			[]string{deepSeekAPIKeyEnv},
+		},
+		{
+			// The review step inherits the rejected generation value, whose
+			// accepted provider part still selects that provider's variables.
+			"review only, inherited LLM with an empty model ID", needReview,
+			map[string]string{llmEnv: "claude/"},
+			[]VarError{wantInvalid(llmEnv, reasonLLMForm), wantMissing(anthropicAPIKeyEnv)},
+			claudeVars,
+			[]string{deepSeekAPIKeyEnv},
+		},
+		{
+			"LLM provider invalid, review set", needBoth,
+			map[string]string{llmEnv: "gemini/x", reviewLLMEnv: "deepseek/deepseek-flash"},
+			[]VarError{wantInvalid(llmEnv, reasonLLMProvider), wantMissing(deepSeekAPIKeyEnv)},
+			[]string{deepSeekAPIKeyEnv},
+			claudeVars,
+		},
+		{
+			"review provider invalid", needBoth,
+			map[string]string{llmEnv: "deepseek/deepseek-flash", reviewLLMEnv: "gemini/x"},
+			[]VarError{wantInvalid(reviewLLMEnv, reasonLLMProvider), wantMissing(deepSeekAPIKeyEnv)},
+			[]string{deepSeekAPIKeyEnv},
+			claudeVars,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// No provider variable is set, so each one read is also reported
+			// missing; the rows list those reports in wantErrs.
+			env := withVars(map[string]string{cacheDirEnv: "/tmp/yt2column-test-cache"}, tc.vars)
+			var read []string
+			_, err := LoadFor(recordingLookup(env, &read), tc.need)
+			assertVarErrors(t, err, tc.wantErrs...)
+			for _, name := range tc.wantRead {
+				if !slices.Contains(read, name) {
+					t.Errorf("LoadFor() did not read %s", name)
+				}
+			}
+			for _, name := range tc.wantNotRead {
+				if slices.Contains(read, name) {
+					t.Errorf("LoadFor() read %s", name)
+				}
+			}
+		})
 	}
 }

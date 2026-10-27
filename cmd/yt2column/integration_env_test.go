@@ -23,8 +23,8 @@ const (
 
 // TestIntegrationRunProviderSelection checks, without calling the API, that the
 // environment newIntegrationRun builds sends both the generation and the review
-// stage to DeepSeek. The CLI integration tests must keep calling only DeepSeek
-// after the default provider changes to Claude. The environment is read through
+// stage to DeepSeek. The CLI integration tests must call only DeepSeek, not the
+// default provider, Claude. The environment is read through
 // a recording LookupFunc, so the test also proves that no Anthropic variable is
 // read. No LLM client is built and nothing is posted to a webhook.
 func TestIntegrationRunProviderSelection(t *testing.T) {
@@ -38,12 +38,11 @@ func TestIntegrationRunProviderSelection(t *testing.T) {
 		Model:  integrationEnvTestModel,
 	})
 
-	// A default may select the same provider, so the loaded value alone cannot
-	// prove that the common environment names the provider. Check the map
-	// directly: this is what keeps the integration tests on DeepSeek once the
-	// default becomes Claude.
-	if got, ok := r.env["YT2COLUMN_LLM_PROVIDER"]; !ok || got != "deepseek" {
-		t.Fatalf("YT2COLUMN_LLM_PROVIDER = %q (set: %t), want %q", got, ok, "deepseek")
+	// Check the map directly as well: it is the value newIntegrationRun
+	// writes, deepseek followed by the model it was given, which keeps the
+	// integration tests off the default provider, Claude.
+	if got, ok := r.env["YT2COLUMN_LLM"]; !ok || got != "deepseek/"+integrationEnvTestModel {
+		t.Fatalf("YT2COLUMN_LLM = %q (set: %t), want %q", got, ok, "deepseek/"+integrationEnvTestModel)
 	}
 
 	env := lookupFrom(r.env)

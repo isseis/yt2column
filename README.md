@@ -156,8 +156,8 @@ After the article is generated, two steps run by default.
    speaker attributions, copied speech-recognition errors, and sentences whose
    meaning cannot be made out. The writer applies the list to the article. The
    review step can use a provider and a model of its own, set in
-   `YT2COLUMN_REVIEW_PROVIDER` and `YT2COLUMN_REVIEW_MODEL`; by default it uses
-   the generation provider and model.
+   `YT2COLUMN_REVIEW_LLM`; by default it uses the generation provider and
+   model.
 
 Both steps call the LLM (the shorten step only when the body is over the
 limit), so the default uses up to two more calls, and more cost, than
@@ -187,12 +187,15 @@ lives outside the cache directory and is still there on the next run, which is
 what makes the resume work; see [Cache and concurrency](#cache-and-concurrency).
 
 The review step's configuration is validated even with `--no-review`, because
-the configuration is independent of the flags: if `YT2COLUMN_REVIEW_PROVIDER`
-selects a different provider, that provider's variables are still checked. Its
-API key is required, and for `claude` a set effort must still be valid (an unset
-one selects `high`). A resumed run validates only the
+the configuration is independent of the flags: `YT2COLUMN_REVIEW_LLM` is still
+checked, and if it selects a different provider, that provider's variables are
+checked too. Its API key is required, and for `claude` a set effort must still
+be valid (an unset one selects `high`). A resumed run validates only the
 settings of the stages it executes, so `--after review` requires no LLM
-settings at all.
+settings at all. The one exception is the retired LLM variables
+(`YT2COLUMN_LLM_PROVIDER`, `YT2COLUMN_MODEL`, `YT2COLUMN_REVIEW_PROVIDER`,
+`YT2COLUMN_REVIEW_MODEL`): every run, `--after review` included, stops when
+one of them is set (see [Configuration](#configuration)).
 
 ## Token usage
 
@@ -715,12 +718,27 @@ the extension shows either one as an unexpected reply.
   example by restoring mode `0700` on the socket directory, and start again.
 - **`HOME: the socket path derived from HOME exceeds the operating system's
   limit`.** `HOME` is too long for the socket path; see the limit above.
-- **`configuration: YT2COLUMN_LLM_PROVIDER` after an update.** The default
-  provider is now `claude`, and a model variable set without the matching
-  provider variable is rejected (see [Configuration](#configuration)), so a server that used DeepSeek without setting
-  `YT2COLUMN_LLM_PROVIDER` exits with `2` before it listens, and the extension
-  can only report that the server is not running. See
-  [Using DeepSeek](#using-deepseek).
+- **`configuration: YT2COLUMN_LLM_PROVIDER: is no longer supported` (or
+  `YT2COLUMN_MODEL`, `YT2COLUMN_REVIEW_PROVIDER`, `YT2COLUMN_REVIEW_MODEL`)
+  after an update.** The provider and model are now set in one variable per
+  step, and the four old variables are rejected whenever they are set, even
+  empty. A CLI run exits with `2` before it starts; a server exits with `2`
+  before it listens, and the extension can only report that the server is not
+  running. Unset each old variable and set `YT2COLUMN_LLM`; if you unset them
+  without setting it, the default `claude/claude-opus-5-5` is used and the
+  transcript goes to Anthropic. If any `YT2COLUMN_REVIEW_*` variable was set,
+  also set `YT2COLUMN_REVIEW_LLM` to the provider and model the review step
+  actually used. See
+  [Migrating from the retired LLM variables](#migrating-from-the-retired-llm-variables),
+  then start the server again.
+- **`build the LLM client` or `build the review LLM client` with a model
+  error.** The provider's client rejects a model ID with surrounding white space
+  or invalid UTF-8 when it is built, without naming the variable. The server
+  builds both clients at startup, so it exits with `2` before it listens, and
+  the extension can only report that the server is not running. Fix the model
+  ID in `YT2COLUMN_LLM` for the first; for the second, fix it in
+  `YT2COLUMN_REVIEW_LLM`, or in `YT2COLUMN_LLM` when `YT2COLUMN_REVIEW_LLM` is
+  unset.
 - **The native messaging host is not found.** The browser gives the extension
   `Specified native messaging host not found.` (shown in the extension's
   developer log) when there is no manifest for it, or the manifest's binary is
@@ -795,10 +813,8 @@ On other platforms, see the yt-dlp
 
 | Variable | Description | When unset |
 |---|---|---|
-| `YT2COLUMN_LLM_PROVIDER` | LLM provider; `deepseek` or `claude` | `claude` |
-| `YT2COLUMN_MODEL` | LLM model name (e.g. `deepseek-flash`, `claude-opus-5-5`); setting it requires `YT2COLUMN_LLM_PROVIDER` | `claude-opus-5-5` when the provider is `claude`; required (an error) when it is `deepseek` |
-| `YT2COLUMN_REVIEW_PROVIDER` | Review step's LLM provider; same values as `YT2COLUMN_LLM_PROVIDER` | The generation provider |
-| `YT2COLUMN_REVIEW_MODEL` | Review step's LLM model name; setting it without `YT2COLUMN_REVIEW_PROVIDER` requires `YT2COLUMN_LLM_PROVIDER` | `claude-opus-5-5` when `YT2COLUMN_REVIEW_PROVIDER` is `claude`; required (an error) when it is `deepseek`; the generation model when `YT2COLUMN_REVIEW_PROVIDER` is unset too |
+| `YT2COLUMN_LLM` | Provider and model of generation and shortening, as `<provider>/<model ID>`; the provider is `deepseek` or `claude` (e.g. `deepseek/deepseek-flash`, `claude/claude-sonnet-5-5`) | `claude/claude-opus-5-5` |
+| `YT2COLUMN_REVIEW_LLM` | Provider and model of the review step, in the same form as `YT2COLUMN_LLM` | The same as generation (`YT2COLUMN_LLM`, or its default) |
 | `DEEPSEEK_API_KEY` | DeepSeek API key | Required when the generation or review provider is `deepseek` (an error) |
 | `ANTHROPIC_API_KEY` | Anthropic API key | Required when the generation or review provider is `claude` (an error) |
 | `YT2COLUMN_CLAUDE_EFFORT` | Claude effort; `low`, `medium`, `high`, `xhigh`, or `max` | `high` when the generation or review provider is `claude` |
@@ -815,31 +831,43 @@ calls `yt-dlp`. It derives its socket path from `HOME` alone (see
 The value of an environment variable is never trimmed or otherwise corrected;
 an empty value is treated as set and rejected, not as unset.
 
-A model variable is accepted only together with a provider variable that you
-set. Setting `YT2COLUMN_MODEL` without `YT2COLUMN_LLM_PROVIDER`, or
-`YT2COLUMN_REVIEW_MODEL` when neither `YT2COLUMN_REVIEW_PROVIDER` nor
-`YT2COLUMN_LLM_PROVIDER` is set, is a configuration error naming
-`YT2COLUMN_LLM_PROVIDER`, so a model chosen for one provider is never sent to
-the default one. The error is reported once, together with any other error,
-such as an unset `ANTHROPIC_API_KEY`. As with the provider variables, a
-resumed run reads only the model variables of the steps it runs: a run that
-only reviews, with `YT2COLUMN_REVIEW_PROVIDER` set, does not read
-`YT2COLUMN_MODEL`.
+`YT2COLUMN_LLM` and `YT2COLUMN_REVIEW_LLM` are split at the first `/`: the
+part before it is the provider, which must be exactly `deepseek` or `claude`,
+and everything after it is the model ID, sent to the provider's API as it is,
+including any further `/` (`claude/vendor/model-x` sends the model
+`vendor/model-x`). The model ID must not be empty, so `claude` and `claude/`
+are rejected, as are `/claude-opus-5-5`, `Claude/claude-opus-5-5`, and
+` claude/claude-opus-5-5`. A model ID with surrounding white space is accepted
+here but rejected, before any request, when a run that executes the step
+builds that step's client: the CLI builds its clients before the run starts,
+and the server builds both at startup, before it listens.
 
-Setting only `YT2COLUMN_REVIEW_PROVIDER` gives the review step that provider's
-default model: `claude-opus-5-5` for `claude`, never the generation model;
-`deepseek` has no default, so it requires `YT2COLUMN_REVIEW_MODEL`. Setting
-only `YT2COLUMN_REVIEW_MODEL` keeps the generation provider. With both unset,
-the review step reuses the generation provider and model, the defaults
-included, also in a resumed run that only reviews.
+With `YT2COLUMN_LLM` unset, generation and shortening use
+`claude/claude-opus-5-5`. With `YT2COLUMN_REVIEW_LLM` unset, the review step
+uses the same provider and model as generation, the default included, also in
+a resumed run that only reviews; a resumed run that only reviews and has
+`YT2COLUMN_REVIEW_LLM` set does not read `YT2COLUMN_LLM`. An empty value of
+either variable is rejected and never replaced by the default or by the
+generation setting.
+
+The variables `YT2COLUMN_LLM_PROVIDER`, `YT2COLUMN_MODEL`,
+`YT2COLUMN_REVIEW_PROVIDER`, and `YT2COLUMN_REVIEW_MODEL` are retired. When any
+of them is set, even to an empty value, the CLI and the server stop with a
+configuration error naming it, on every run, including runs that read no LLM
+setting such as `--after review`; their values are never used. Each error is
+reported together with the other configuration errors of the run. See
+[Migrating from the retired LLM variables](#migrating-from-the-retired-llm-variables).
 
 Only the variables of the selected providers are read and checked: a provider's
 variables are read when the generation or the review provider is that provider.
 The other provider's variables are ignored whatever their value, so exporting
 `ANTHROPIC_API_KEY=` for another tool does not stop a run that uses only
-`deepseek`; when `YT2COLUMN_LLM_PROVIDER` itself is invalid and
-`YT2COLUMN_REVIEW_PROVIDER` is unset, no provider-specific variable is checked,
-but errors for common variables such as `YT2COLUMN_MODEL` are still reported.
+`deepseek`. When the provider part of `YT2COLUMN_LLM` is rejected (an empty
+value, no `/`, or a provider that is not accepted) and `YT2COLUMN_REVIEW_LLM`
+is unset, no provider-specific variable is checked, but errors for common
+variables are still reported. A value whose provider is accepted but whose
+model ID is empty, such as `claude/`, still has that provider's variables
+checked.
 
 With `claude`, `max` is accepted, but in this use case it is expected to spend
 even the default output limit on reasoning alone and return no article text, so
@@ -853,39 +881,71 @@ effort.
 ### Recommended configuration
 
 ```sh
-export YT2COLUMN_LLM_PROVIDER=claude
-export YT2COLUMN_MODEL=claude-opus-5-5
+export YT2COLUMN_LLM=claude/claude-opus-5-5
 export YT2COLUMN_CLAUDE_EFFORT=high
 ```
 
-These three values are the production profile: generation, shortening, and
+These two values are the production profile: generation, shortening, and
 review all use `claude` with `claude-opus-5-5` and the effort `high`. They are
 also the code's defaults (see
 [#490](https://github.com/isseis/yt2column/issues/490) and
 [#171](https://github.com/isseis/yt2column/issues/171)), so they can be left
 unset: with `ANTHROPIC_API_KEY` as the only LLM variable, generation,
 shortening, and review all use this profile. Exporting them pins the profile in
-the shell even if a default changes later. The default model applies only to
-`claude`: with `deepseek`, an unset `YT2COLUMN_MODEL` is an error.
+the shell even if a default changes later.
 
-`ANTHROPIC_API_KEY` is required. Leave `YT2COLUMN_REVIEW_PROVIDER` and
-`YT2COLUMN_REVIEW_MODEL` unset to review with the generation profile; to use
-another profile, set the environment variables instead of relying on the
-defaults.
+`ANTHROPIC_API_KEY` is required. Leave `YT2COLUMN_REVIEW_LLM` unset to review
+with the generation profile; to use another profile, set the environment
+variables instead of relying on the defaults.
 
 The quality target, the results, and the product limitations of this profile
 are in [production_profile.md](docs/dev/production_profile.md) (Japanese).
 
-### Using DeepSeek
+### Migrating from the retired LLM variables
 
-The default provider used to be `deepseek`. A configuration that relied on it,
-with `YT2COLUMN_MODEL` and `DEEPSEEK_API_KEY` set but `YT2COLUMN_LLM_PROVIDER`
-unset, now stops before any request with a `YT2COLUMN_LLM_PROVIDER` error, and
-also an `ANTHROPIC_API_KEY` error when that key is unset. Set
-`YT2COLUMN_LLM_PROVIDER=deepseek` to keep using DeepSeek as before. Removing
-`YT2COLUMN_MODEL` instead also clears the `YT2COLUMN_LLM_PROVIDER` error, but
-when `ANTHROPIC_API_KEY` is set the run then sends the transcript to Anthropic
-with `claude-opus-5-5`, so it does not keep DeepSeek.
+The provider and model of each step used to be set in two variables:
+`YT2COLUMN_LLM_PROVIDER` and `YT2COLUMN_MODEL` for generation and shortening,
+and `YT2COLUMN_REVIEW_PROVIDER` and `YT2COLUMN_REVIEW_MODEL` for the review
+step. They are now one variable per step, `YT2COLUMN_LLM` and
+`YT2COLUMN_REVIEW_LLM`, and the old variables are rejected. For example, a
+DeepSeek setting that was
+
+```text
+YT2COLUMN_LLM_PROVIDER=deepseek
+YT2COLUMN_MODEL=deepseek-flash
+```
+
+becomes
+
+```sh
+export YT2COLUMN_LLM=deepseek/deepseek-flash
+```
+
+If any `YT2COLUMN_REVIEW_*` variable was set, set `YT2COLUMN_REVIEW_LLM` to the
+provider and model the review step actually used; otherwise leave it unset, and
+the review step uses generation's. Two old settings carried a part that is now
+written out, even when the provider looks the same as generation's:
+
+| Old setting | New setting |
+|---|---|
+| `YT2COLUMN_REVIEW_PROVIDER` alone (the review step used that provider's default model) | `YT2COLUMN_REVIEW_LLM=<provider>/<model ID>`, with the model ID written out, for example `claude/claude-opus-5-5` |
+| `YT2COLUMN_REVIEW_MODEL` alone (the review step used the generation provider) | `YT2COLUMN_REVIEW_LLM=<generation provider>/<model ID>`, with the generation provider written out, for example `deepseek/deepseek-chat` |
+
+Unset the old variables rather than only deleting them from a file: a shell
+that already exported them keeps them, and an empty value is rejected too.
+Check every place that may set them: `.envrc`, `.env`, the shell's startup
+files, and the script that starts the server.
+
+Removing the old variables without setting `YT2COLUMN_LLM` selects the default
+`claude`, and the transcript is then sent to Anthropic. The error lines for
+`YT2COLUMN_LLM_PROVIDER` and `YT2COLUMN_MODEL` say so, and when `ANTHROPIC_API_KEY` is unset an
+`ANTHROPIC_API_KEY` error appears next to them for the same reason. To keep
+using DeepSeek, set `YT2COLUMN_LLM` as above; setting an Anthropic key does not
+keep DeepSeek.
+
+A running server keeps the configuration it started with. After changing the
+variables, stop the server and start it again; it then checks them before it
+listens.
 
 ## Development
 

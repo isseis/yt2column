@@ -122,16 +122,35 @@ func (inv invocation) reply(t *testing.T) map[string]any {
 // they are set.
 func fullEnv(home string) map[string]string {
 	env := map[string]string{
-		"YT2COLUMN_LLM_PROVIDER": "deepseek",
-		"YT2COLUMN_MODEL":        "deepseek-chat",
-		"DEEPSEEK_API_KEY":       "sk-test-key",
-		"SLACK_WEBHOOK_URL":      "https://hooks.slack.com/services/T000/B000/XXXX",
-		"XDG_STATE_HOME":         "/xdg-state",
+		"YT2COLUMN_LLM":     "deepseek/deepseek-chat",
+		"DEEPSEEK_API_KEY":  "sk-test-key",
+		"SLACK_WEBHOOK_URL": "https://hooks.slack.com/services/T000/B000/XXXX",
+		"XDG_STATE_HOME":    "/xdg-state",
 	}
 	if home != "" {
 		env["HOME"] = home
 	}
 	return env
+}
+
+// hostEnvs returns fullEnv and fullEnv with every retired LLM variable set as
+// well. The CLI and the server reject the retired variables; the host does not
+// read the LLM configuration, so it must give the same result with both.
+func hostEnvs(home string) []struct {
+	name string
+	env  map[string]string
+} {
+	retired := fullEnv(home)
+	for _, name := range config.RetiredLLMVarsForTest() {
+		retired[name] = "deepseek"
+	}
+	return []struct {
+		name string
+		env  map[string]string
+	}{
+		{"server variables", fullEnv(home)},
+		{"retired LLM variables", retired},
+	}
 }
 
 // TestUsageErrors checks that every argument shape other than the extension's
@@ -232,7 +251,7 @@ func TestRelayConfigFailure(t *testing.T) {
 
 // TestRelayUsesDerivedSocket checks that the relay connects to the socket
 // path derived from HOME, reading no other variable, and relays the server's
-// response.
+// response, whether or not the retired LLM variables are set.
 func TestRelayUsesDerivedSocket(t *testing.T) {
 	home := udstest.Dir(t)
 	sock := home + config.SocketPathTailForTest(runtime.GOOS)
@@ -248,21 +267,26 @@ func TestRelayUsesDerivedSocket(t *testing.T) {
 	go func() { _ = srv.Serve(listener) }()
 	t.Cleanup(func() { _ = srv.Close() })
 
-	inv := invoke(t, []string{nmhost.ExtensionOrigin}, fullEnv(home), message([]byte(`{}`)), fixedExecutable(testExecutable))
-	if inv.code != exitOK {
-		t.Fatalf("exit code = %d, want %d; stderr = %q", inv.code, exitOK, inv.stderr)
-	}
-	want := map[string]any{
-		"v": float64(1), "kind": "response", "status": float64(http.StatusAccepted),
-		"body": base64.StdEncoding.EncodeToString([]byte(`{"requestId":"r1"}`)),
-	}
-	if got := inv.reply(t); !maps.Equal(got, want) {
-		t.Errorf("reply = %v, want %v", got, want)
-	}
-	// The log names the derived socket, so a user can compare it with the
-	// server's first log line when the browser passes a different HOME.
-	if !strings.Contains(inv.stderr, sock) {
-		t.Errorf("stderr = %q, want the derived socket path %s", inv.stderr, sock)
+	for _, variant := range hostEnvs(home) {
+		t.Run(variant.name, func(t *testing.T) {
+			inv := invoke(t, []string{nmhost.ExtensionOrigin}, variant.env, message([]byte(`{}`)), fixedExecutable(testExecutable))
+			if inv.code != exitOK {
+				t.Fatalf("exit code = %d, want %d; stderr = %q", inv.code, exitOK, inv.stderr)
+			}
+			want := map[string]any{
+				"v": float64(1), "kind": "response", "status": float64(http.StatusAccepted),
+				"body": base64.StdEncoding.EncodeToString([]byte(`{"requestId":"r1"}`)),
+			}
+			if got := inv.reply(t); !maps.Equal(got, want) {
+				t.Errorf("reply = %v, want %v", got, want)
+			}
+			// The log names the derived socket, so a user can compare it with
+			// the server's first log line when the browser passes a different
+			// HOME.
+			if !strings.Contains(inv.stderr, sock) {
+				t.Errorf("stderr = %q, want the derived socket path %s", inv.stderr, sock)
+			}
+		})
 	}
 }
 
@@ -290,7 +314,8 @@ func manifestRel(t *testing.T) (manifest, chromeDir string) {
 // TestInstallAndUninstall checks that install writes the Chrome manifest
 // pointing at the executable the lookup reported, and that install and
 // uninstall exit 0, leave stdout empty, and write the manifest path to stderr,
-// with the shared-file note on macOS only.
+// with the shared-file note on macOS only. Each step gives the same result
+// whether or not the retired LLM variables are set.
 func TestInstallAndUninstall(t *testing.T) {
 	manifest, chromeDir := manifestRel(t)
 	home := t.TempDir()
@@ -313,36 +338,39 @@ func TestInstallAndUninstall(t *testing.T) {
 		{"uninstall", []string{"uninstall", "chrome"}, false},
 		{"uninstall again", []string{"uninstall", "chrome"}, false},
 	}
-	for _, step := range steps {
-		inv := invoke(t, step.args, fullEnv(home), &stdinFake{}, fixedExecutable(testExecutable))
-		if inv.code != exitOK {
-			t.Fatalf("%s: exit code = %d, want %d; stderr = %q", step.name, inv.code, exitOK, inv.stderr)
-		}
-		if len(inv.stdout) != 0 {
-			t.Errorf("%s: stdout = %q, want empty", step.name, inv.stdout)
-		}
-		if !strings.Contains(inv.stderr, path) {
-			t.Errorf("%s: stderr = %q, want the manifest path %s", step.name, inv.stderr, path)
-		}
-		requireNote(t, inv.stderr)
-		data, err := os.ReadFile(path)
-		if !step.manifestExists {
-			if !errors.Is(err, os.ErrNotExist) {
-				t.Errorf("%s: manifest read error = %v, want it removed", step.name, err)
+	for _, variant := range hostEnvs(home) {
+		for _, step := range steps {
+			name := variant.name + ": " + step.name
+			inv := invoke(t, step.args, variant.env, &stdinFake{}, fixedExecutable(testExecutable))
+			if inv.code != exitOK {
+				t.Fatalf("%s: exit code = %d, want %d; stderr = %q", name, inv.code, exitOK, inv.stderr)
 			}
-			continue
-		}
-		if err != nil {
-			t.Fatalf("install: read the manifest: %v", err)
-		}
-		var got struct {
-			Path string `json:"path"`
-		}
-		if err := json.Unmarshal(data, &got); err != nil {
-			t.Fatalf("install: decode the manifest: %v", err)
-		}
-		if got.Path != testExecutable {
-			t.Errorf("install: manifest path = %q, want %q", got.Path, testExecutable)
+			if len(inv.stdout) != 0 {
+				t.Errorf("%s: stdout = %q, want empty", name, inv.stdout)
+			}
+			if !strings.Contains(inv.stderr, path) {
+				t.Errorf("%s: stderr = %q, want the manifest path %s", name, inv.stderr, path)
+			}
+			requireNote(t, inv.stderr)
+			data, err := os.ReadFile(path)
+			if !step.manifestExists {
+				if !errors.Is(err, os.ErrNotExist) {
+					t.Errorf("%s: manifest read error = %v, want it removed", name, err)
+				}
+				continue
+			}
+			if err != nil {
+				t.Fatalf("install: read the manifest: %v", err)
+			}
+			var got struct {
+				Path string `json:"path"`
+			}
+			if err := json.Unmarshal(data, &got); err != nil {
+				t.Fatalf("install: decode the manifest: %v", err)
+			}
+			if got.Path != testExecutable {
+				t.Errorf("install: manifest path = %q, want %q", got.Path, testExecutable)
+			}
 		}
 	}
 }

@@ -19,8 +19,8 @@ type Provider int
 
 // The supported Provider values. ProviderUnset is the zero value, which no
 // factory accepts. Load never stores it in a Config it returns; LoadFor stores
-// it only for a run that reads no generation provider (Need{}, or a review-only
-// run with its own YT2COLUMN_REVIEW_PROVIDER), where no factory is built.
+// it only for a stage the run does not need (Need.Generation or Need.Review is
+// false), whose client is never built.
 const (
 	ProviderUnset Provider = iota
 	ProviderDeepSeek
@@ -29,10 +29,8 @@ const (
 
 // Names of the environment variables Load reads.
 const (
-	providerEnv             = "YT2COLUMN_LLM_PROVIDER"
-	modelEnv                = "YT2COLUMN_MODEL"
-	reviewProviderEnv       = "YT2COLUMN_REVIEW_PROVIDER"
-	reviewModelEnv          = "YT2COLUMN_REVIEW_MODEL"
+	llmEnv                  = "YT2COLUMN_LLM"
+	reviewLLMEnv            = "YT2COLUMN_REVIEW_LLM"
 	deepSeekAPIKeyEnv       = "DEEPSEEK_API_KEY"  //nolint:gosec // the variable's name, not a credential value
 	anthropicAPIKeyEnv      = "ANTHROPIC_API_KEY" //nolint:gosec // the variable's name, not a credential value
 	claudeEffortEnv         = "YT2COLUMN_CLAUDE_EFFORT"
@@ -43,23 +41,30 @@ const (
 	godebugEnv              = "GODEBUG"
 )
 
-// The accepted values of providerEnv.
+// The accepted provider parts of llmEnv and reviewLLMEnv.
 const (
 	providerDeepSeek = "deepseek"
 	providerClaude   = "claude"
 )
 
-// The defaults applied when a provider or model variable is unset. Each value
-// is written here alone, so changing a default touches one line of code and
-// the documents that state it.
+// llmSeparator separates the provider from the model ID in an LLM variable.
+// Only its first occurrence separates them; a later one belongs to the model
+// ID.
+const llmSeparator = "/"
+
+// The default applied when YT2COLUMN_LLM is unset. Each value is written here
+// alone, so changing the default touches one line of code and the documents
+// that state it.
 const (
-	// defaultProviderValue is the YT2COLUMN_LLM_PROVIDER value used when the
-	// variable is unset. It goes through parseProvider like a present value,
-	// so the string-to-Provider mapping stays in one place.
-	defaultProviderValue = providerClaude
-	// defaultClaudeModel is the model of a stage whose provider is
-	// ProviderClaude and whose model variable is unset.
+	// defaultProvider is the provider part of the default selection. The
+	// retired variables' rejection names it too, so it is written once.
+	defaultProvider = providerClaude
+	// defaultClaudeModel is the model ID of the default selection.
 	defaultClaudeModel = "claude-opus-5-5"
+	// defaultLLMValue is the YT2COLUMN_LLM value used when the variable is
+	// unset. It goes through parseLLM like a present value, so the
+	// string-to-Provider mapping stays in one place.
+	defaultLLMValue = defaultProvider + llmSeparator + defaultClaudeModel
 )
 
 // The GODEBUG values that turn on the Go HTTP/2 transport's verbose log, which
@@ -74,7 +79,8 @@ const (
 // error message.
 const (
 	reasonUnset                = "is unset or empty"
-	reasonProvider             = `must be exactly "deepseek" or "claude"`
+	reasonLLMForm              = `must be "<provider>/<model ID>" with a non-empty model ID`
+	reasonLLMProvider          = `the provider before the first "/" must be exactly "` + providerDeepSeek + `" or "` + providerClaude + `"`
 	reasonClaudeEffort         = "must be a supported effort value"
 	reasonAnthropicWorkspaceID = "must be a non-empty string of printable ASCII characters other than space"
 	reasonSlackWebhook         = "must be an https URL with a host"
@@ -83,13 +89,33 @@ const (
 	reasonSocketPathAbsent     = "no absolute socket path could be derived from HOME"
 	reasonSocketPathTooLong    = "the socket path derived from HOME exceeds the operating system's limit"
 	reasonHomeAbsent           = "must be set to an absolute path"
-	// reasonModelWithoutProvider rejects YT2COLUMN_LLM_PROVIDER when a model
-	// variable is present but the provider of the stage using it was not set
-	// by a variable. It names the default provider, so the line alone tells a
-	// user that removing the model variable sends the data to that provider.
-	reasonModelWithoutProvider = "must be set when " + modelEnv + " or " + reviewModelEnv +
-		" is set; when unset, the provider is " + defaultProviderValue
+	// reasonRetiredLLM and reasonRetiredReviewLLM reject a retired variable.
+	// Each says the variable must be unset, which variable replaces it, and
+	// what is used while the replacement is unset, so the line alone tells a
+	// user that removing the retired variable without setting its replacement
+	// sends the data to the default provider.
+	reasonRetiredLLM = "is no longer supported and must be unset (an empty value counts as set); set " +
+		llmEnv + "=<provider>/<model ID> instead; while " + llmEnv + " is unset, the provider is " + defaultProvider
+	reasonRetiredReviewLLM = "is no longer supported and must be unset (an empty value counts as set); set " +
+		reviewLLMEnv + "=<provider>/<model ID> instead; while " + reviewLLMEnv + " is unset, the review step uses " + llmEnv
 )
+
+// retiredLLMVar is a variable that selected a provider or a model before
+// YT2COLUMN_LLM and YT2COLUMN_REVIEW_LLM. Its presence is a rejection; its
+// value is never used.
+type retiredLLMVar struct {
+	name   string
+	reason string // reasonRetiredLLM or reasonRetiredReviewLLM
+}
+
+// retiredLLMVars lists the retired variables, each with the reason naming its
+// replacement, in the order their rejections are reported.
+var retiredLLMVars = []retiredLLMVar{
+	{"YT2COLUMN_LLM_PROVIDER", reasonRetiredLLM},
+	{"YT2COLUMN_MODEL", reasonRetiredLLM},
+	{"YT2COLUMN_REVIEW_PROVIDER", reasonRetiredReviewLLM},
+	{"YT2COLUMN_REVIEW_MODEL", reasonRetiredReviewLLM},
+}
 
 // LookupFunc has the signature of os.LookupEnv. Load reads every variable
 // through one, so a test can supply an environment without changing the
@@ -122,47 +148,56 @@ func (e *VarError) Unwrap() error {
 	return e.Err
 }
 
+// llmSelection is one stage's provider and model ID. In an accepted selection
+// both are set. parseLLM also returns the provider of a rejected value whose
+// provider part was accepted (an empty model ID), so that provider's own
+// variables are still checked; such a selection never leaves loadLLM, because
+// the load then fails. ProviderUnset means the stage was not resolved or its
+// provider part was rejected.
+type llmSelection struct {
+	provider Provider
+	model    string
+}
+
 // LLMConfig is the validated configuration of the generation and review LLM
 // calls. Its fields are unexported, so a non-zero LLMConfig can only come from
 // Load, LoadFor, or LoadServer.
 type LLMConfig struct {
-	provider             Provider
-	model                string
-	reviewProvider       Provider
-	reviewModel          string
+	generation           llmSelection
+	review               llmSelection
 	deepSeekAPIKey       secret.Secret
 	anthropicAPIKey      secret.Secret
 	claudeEffort         claudeparam.Effort
 	anthropicWorkspaceID claudeparam.WorkspaceID
 }
 
-// Provider returns the LLM provider of the generation.
+// Provider returns the LLM provider of the generation and the shorten step:
+// the provider of YT2COLUMN_LLM, or of defaultLLMValue when the variable is
+// unset. It is set only when the run needs the generation stage
+// (Need.Generation); otherwise it is ProviderUnset and no generation client is
+// built.
 func (c LLMConfig) Provider() Provider {
-	return c.provider
+	return c.generation.provider
 }
 
-// Model returns the model name of the generation: the value of
-// YT2COLUMN_MODEL, or defaultClaudeModel when the variable is unset and the
-// provider is ProviderClaude. It is non-empty when the generation or the
-// shorten step runs (Need.Generation), or when a review-only run inherits the
-// generation model, the default included; otherwise it is empty and no
-// generation client is built.
+// Model returns the model ID of the generation and the shorten step, from the
+// same value as Provider. It is non-empty exactly when Provider is set.
 func (c LLMConfig) Model() string {
-	return c.model
+	return c.generation.model
 }
 
-// ReviewProvider returns the provider of the review step. It equals
-// Provider() when YT2COLUMN_REVIEW_PROVIDER is unset.
+// ReviewProvider returns the provider of the review step: the provider of
+// YT2COLUMN_REVIEW_LLM, or, when that variable is unset, the generation
+// selection (YT2COLUMN_LLM or its default). It is set only when the run needs
+// the review stage (Need.Review); otherwise it is ProviderUnset.
 func (c LLMConfig) ReviewProvider() Provider {
-	return c.reviewProvider
+	return c.review.provider
 }
 
-// ReviewModel returns the model name of the review step. It is non-empty.
-// It equals Model() when both YT2COLUMN_REVIEW_PROVIDER and
-// YT2COLUMN_REVIEW_MODEL are unset. When only YT2COLUMN_REVIEW_PROVIDER is set
-// and it is claude, it is defaultClaudeModel, never the generation model.
+// ReviewModel returns the model ID of the review step, from the same value as
+// ReviewProvider. It is non-empty exactly when ReviewProvider is set.
 func (c LLMConfig) ReviewModel() string {
-	return c.reviewModel
+	return c.review.model
 }
 
 // DeepSeekAPIKey returns the API key. It is non-zero when the generation or the
@@ -278,7 +313,9 @@ func (c ServerConfig) HTTP2DebugEnabled() bool {
 // which the socket path is derived. It joins every rejection together and
 // returns the zero ServerConfig on any error, so a value that did not pass
 // validation never reaches a caller. It reads no variable the server does not
-// use.
+// use, with one exception: it checks whether each retired LLM variable is
+// present (never its value), so a leftover setting stops the server instead of
+// silently changing the provider.
 func LoadServer(lookup LookupFunc) (ServerConfig, error) {
 	llm, errs := loadLLM(lookup, Need{Generation: true, Review: true})
 	var cfg ServerConfig
@@ -362,11 +399,14 @@ type Need struct {
 // LoadFor reads and validates the variables the run needs, and rejects no
 // other provider variable. It joins every rejection together and returns the
 // zero Config on any error. A need that is true resolves its stage's provider
-// and model, from the variables or their defaults, and reads and validates the
+// and model, from its variable or the default, and reads and validates the
 // selected providers' own variables; a need that is false does not check them.
-// When Review is true but Generation is false, the generation provider and
-// model are still read, without being required, so the review step inherits
-// them when its own variables are unset.
+// When Review is true but Generation is false and YT2COLUMN_REVIEW_LLM is
+// unset, YT2COLUMN_LLM is still read and validated, because the review step
+// inherits its selection. The one exception to reading only what the run
+// needs: whatever need is, LoadFor checks whether each retired LLM variable is
+// present (never its value) and rejects the run if one is, so a leftover
+// setting is noticed even by a run that calls no LLM.
 func LoadFor(lookup LookupFunc, need Need) (Config, error) {
 	llm, errs := loadLLM(lookup, need)
 	var cfg Config
@@ -385,228 +425,105 @@ func LoadFor(lookup LookupFunc, need Need) (Config, error) {
 	return cfg, nil
 }
 
-// settingOrigin says what decided a stage's provider or model while loadLLM
-// runs. It never leaves loadLLM. The zero value assumes the least: nothing
-// decided it.
-type settingOrigin int
-
-const (
-	originNone     settingOrigin = iota // not decided: not read, or no default exists
-	originVariable                      // the variable was present (its value may have been rejected)
-	originDefault                       // the variable was unset and a default applied
-)
-
-// stageOrigins is what decided one stage's provider and model.
-type stageOrigins struct {
-	provider settingOrigin
-	model    settingOrigin
-}
-
 // loadLLM reads and validates the LLM variables the run needs: the generation
-// and review providers and models, and the variables of the selected
-// providers. It returns the validated LLMConfig and each rejection separately,
-// so LoadFor and LoadServer report them the same way. A need that is false
-// leaves its stage's settings unchecked. Contract: a model variable is never
-// sent to a provider the user did not set by a variable; modelWithoutProvider
-// rejects such a run once, after both stages are resolved, before any client
-// can be built.
+// and review selections, and the variables of the selected providers. It
+// returns the validated LLMConfig and each rejection separately, so LoadFor and
+// LoadServer report them the same way.
+//
+// Contract: the retired variables are checked first, whatever need is, and
+// their values are never read; every other variable is read only for a stage
+// the run needs. A rejected value is never replaced by a default, so a run
+// with any rejection sends nothing to a provider. The generation selection is
+// resolved at most once: for the generation stage, or for a review stage that
+// inherits it because YT2COLUMN_REVIEW_LLM is unset; it is stored in the
+// generation accessors only when need.Generation is true.
 func loadLLM(lookup LookupFunc, need Need) (LLMConfig, []error) {
 	var cfg LLMConfig
-	var errs []error
-	var stages []stageOrigins
-	var generation stageOrigins
-	if need.Generation {
+	errs := retiredLLMErrors(lookup)
+
+	reviewValue, reviewSet := "", false
+	if need.Review {
+		reviewValue, reviewSet = lookup(reviewLLMEnv)
+	}
+	var generation llmSelection
+	if need.Generation || (need.Review && !reviewSet) {
 		var err error
-		cfg.provider, generation.provider, err = resolveProvider(lookup)
+		generation, err = resolveGeneration(lookup)
 		errs = append(errs, err)
-		generation.model, err = loadModel(lookup, &cfg)
-		errs = append(errs, err)
-		stages = append(stages, generation)
+	}
+	if need.Generation {
+		cfg.generation = generation
 	}
 	if need.Review {
-		review, reviewErrs := loadReview(lookup, &cfg, generation, need.Generation)
-		errs = append(errs, reviewErrs...)
-		stages = append(stages, review)
+		if reviewSet {
+			var err error
+			cfg.review, err = parseLLM(reviewLLMEnv, reviewValue)
+			errs = append(errs, err)
+		} else {
+			// The inherited selection's rejection, if any, was reported once
+			// by resolveGeneration.
+			cfg.review = generation
+		}
 	}
-	errs = append(errs, modelWithoutProvider(stages...))
 	errs = append(errs, loadProviderVars(lookup, &cfg, need)...)
 	return cfg, errs
 }
 
-// resolveProvider reads YT2COLUMN_LLM_PROVIDER. When it is unset, it parses
-// defaultProviderValue instead, with the same parseProvider as a present
-// value. It returns the Provider (ProviderUnset on a rejection), what decided
-// it, and the rejection. Both the generation stage and a review-only run that
-// inherits the generation provider call it, so the default is applied the same
-// way on both paths.
-func resolveProvider(lookup LookupFunc) (Provider, settingOrigin, error) {
-	value, ok := lookup(providerEnv)
-	if !ok {
-		provider, err := parseProvider(providerEnv, defaultProviderValue)
-		return provider, originDefault, err
-	}
-	provider, err := parseProvider(providerEnv, value)
-	return provider, originVariable, err
-}
-
-// defaultModel returns the model a stage uses when its model variable is
-// unset, and false when provider has no default model. Only ProviderClaude has
-// one; every other Provider, ProviderUnset included, has none, so a provider
-// added later requires its model variable until a case is added here.
-func defaultModel(provider Provider) (string, bool) {
-	switch provider {
-	case ProviderClaude:
-		return defaultClaudeModel, true
-	default:
-		return "", false
-	}
-}
-
-// modelWithoutProvider returns the rejection of a run in which a stage it needs
-// has a model set by a variable but a provider that was not set by a variable,
-// or nil. Before the default provider became claude, such a run used deepseek,
-// so accepting it would send that model, and the transcript, to a provider the
-// user never chose. It fails secure: any provider origin but originVariable
-// rejects, so an origin a resolver forgot to record stops the run instead of
-// sending data. It returns at most one rejection however many stages match.
-func modelWithoutProvider(stages ...stageOrigins) error {
-	for _, stage := range stages {
-		if stage.model == originVariable && stage.provider != originVariable {
-			return missingVarWithReason(providerEnv, reasonModelWithoutProvider)
-		}
-	}
-	return nil
-}
-
-// loadModelOptional reads YT2COLUMN_MODEL without requiring it, for a
-// review-only run that inherits the generation model: a present value (an empty
-// one included) follows loadModel's rule, and unset selects the default model
-// of the inherited provider, if it has one. With no default the model stays
-// empty and the review step reports its own missing model. It returns what
-// decided the model.
-func loadModelOptional(lookup LookupFunc, cfg *LLMConfig) (settingOrigin, error) {
-	value, ok := lookup(modelEnv)
-	switch {
-	case !ok:
-		model, found := defaultModel(cfg.provider)
-		if !found {
-			return originNone, nil
-		}
-		cfg.model = model
-		return originDefault, nil
-	case value == "":
-		return originVariable, missingVar(modelEnv)
-	default:
-		cfg.model = value
-		return originVariable, nil
-	}
-}
-
-// parseProvider converts a present provider variable's value into a Provider.
-// An empty value is rejected, not defaulted. name is the variable being read,
-// so a rejection names it. The accepted values are shared by every provider
-// variable; what an unset variable means is decided by the caller
-// (resolveProvider applies defaultProviderValue, and YT2COLUMN_REVIEW_PROVIDER
-// inherits the generation provider).
-func parseProvider(name, value string) (Provider, error) {
-	switch value {
-	case "":
-		return ProviderUnset, missingVar(name)
-	case providerDeepSeek:
-		return ProviderDeepSeek, nil
-	case providerClaude:
-		return ProviderClaude, nil
-	default:
-		return ProviderUnset, invalidVar(name, reasonProvider)
-	}
-}
-
-// loadReview reads YT2COLUMN_REVIEW_PROVIDER and YT2COLUMN_REVIEW_MODEL, which
-// select the review step's provider and model, and returns what decided them.
-// Both unset means the review step reuses the generation provider and model,
-// and their origins. A set provider with no model of its own uses that
-// provider's default model, never the generation model, and is rejected when
-// the provider has no default; only the model may be set on its own, to reuse
-// the generation provider (when that provider was not set by a variable,
-// modelWithoutProvider rejects the run). generationRuns reports whether the generation stage
-// was resolved (generation holds its origins, and loadModel has already
-// reported a missing generation model); when it is false, the generation
-// provider and model are read here without being required, and a review model
-// that still resolves to empty is reported here. It returns each rejection as
-// a separate element so LoadFor joins them flat.
-func loadReview(lookup LookupFunc, cfg *LLMConfig, generation stageOrigins, generationRuns bool) (stageOrigins, []error) {
+// retiredLLMErrors returns one rejection for each retired variable that is
+// present, an empty value included, in the order of retiredLLMVars. It reads
+// whether each is present and never uses its value.
+func retiredLLMErrors(lookup LookupFunc) []error {
 	var errs []error
-	var origins stageOrigins
-	providerValue, providerPresent := lookup(reviewProviderEnv)
-	modelValue, modelPresent := lookup(reviewModelEnv)
-
-	providerOK := true
-	switch {
-	case providerPresent:
-		origins.provider = originVariable
-		provider, err := parseProvider(reviewProviderEnv, providerValue)
-		if err != nil {
-			errs = append(errs, err)
-			providerOK = false
-		} else {
-			cfg.reviewProvider = provider
-		}
-	case generationRuns:
-		cfg.reviewProvider = cfg.provider
-		origins.provider = generation.provider
-	default:
-		// The review step inherits the generation provider, which the run did
-		// not read because generation does not run. Read it here with the
-		// generation stage's rule, the default included.
-		provider, origin, err := resolveProvider(lookup)
-		origins.provider = origin
-		if err != nil {
-			errs = append(errs, err)
-		} else {
-			cfg.provider = provider
-			cfg.reviewProvider = provider
+	for _, v := range retiredLLMVars {
+		if _, ok := lookup(v.name); ok {
+			errs = append(errs, invalidVar(v.name, v.reason))
 		}
 	}
+	return errs
+}
 
-	switch {
-	case modelPresent && modelValue == "":
-		origins.model = originVariable
-		errs = append(errs, missingVar(reviewModelEnv))
-	case modelPresent:
-		origins.model = originVariable
-		cfg.reviewModel = modelValue
-	case providerPresent:
-		if !providerOK {
-			break
-		}
-		model, found := defaultModel(cfg.reviewProvider)
-		if !found {
-			// A review provider with no model of its own and no default is
-			// incomplete.
-			errs = append(errs, missingVar(reviewModelEnv))
-			break
-		}
-		cfg.reviewModel = model
-		origins.model = originDefault
-	default:
-		// The review step inherits the generation model. When generation does
-		// not run, read that model here, without requiring it, and report a
-		// still-empty inherited model because the review step needs one.
-		if generationRuns {
-			origins.model = generation.model
-		} else {
-			origin, err := loadModelOptional(lookup, cfg)
-			origins.model = origin
-			if err != nil {
-				errs = append(errs, err)
-			}
-		}
-		cfg.reviewModel = cfg.model
-		if !generationRuns && cfg.reviewModel == "" {
-			errs = append(errs, missingVar(reviewModelEnv))
-		}
+// resolveGeneration reads YT2COLUMN_LLM. When it is unset, it parses
+// defaultLLMValue instead, with the same parseLLM as a present value, so the
+// default goes through the one string-to-Provider mapping. A rejection names
+// YT2COLUMN_LLM.
+func resolveGeneration(lookup LookupFunc) (llmSelection, error) {
+	value, ok := lookup(llmEnv)
+	if !ok {
+		value = defaultLLMValue
 	}
-	return origins, errs
+	return parseLLM(llmEnv, value)
+}
+
+// parseLLM converts a present LLM variable's value, "<provider>/<model ID>",
+// into a selection. name is the variable being read, so a rejection names it.
+// The value is split at its first "/"; the model ID is the rest, kept as it is
+// (a later "/" and surrounding white space included; the adapters reject a
+// model ID they cannot send). Nothing is trimmed or case-folded.
+//
+// Contract: when the provider part is accepted, the returned selection holds
+// that provider even with an error (an empty model ID), so the provider's own
+// variables are still checked; otherwise its provider is ProviderUnset.
+func parseLLM(name, value string) (llmSelection, error) {
+	if value == "" {
+		return llmSelection{}, missingVar(name)
+	}
+	providerPart, model, found := strings.Cut(value, llmSeparator)
+	if !found {
+		return llmSelection{}, invalidVar(name, reasonLLMForm)
+	}
+	var provider Provider
+	switch providerPart {
+	case providerDeepSeek:
+		provider = ProviderDeepSeek
+	case providerClaude:
+		provider = ProviderClaude
+	default:
+		return llmSelection{}, invalidVar(name, reasonLLMProvider)
+	}
+	if model == "" {
+		return llmSelection{provider: provider}, invalidVar(name, reasonLLMForm)
+	}
+	return llmSelection{provider: provider, model: model}, nil
 }
 
 // loadProviderVars returns the rejections of the selected providers' variables
@@ -614,19 +531,19 @@ func loadReview(lookup LookupFunc, cfg *LLMConfig, generation stageOrigins, gene
 // run needs (need) uses that provider, so a key shared by the generation and
 // review stages is read once and a stage that does not run contributes
 // nothing. It returns nothing when no needed stage uses either provider, so an
-// invalid generation provider is reported once by resolveProvider and no provider
-// variable rejects a value the user did not intend to use. Each rejection is a
-// separate element so LoadFor joins them flat; a nested join would reach a
-// caller that prints one error per line as a single line.
+// LLM variable whose provider part was rejected is reported once by parseLLM
+// and no provider variable rejects a value the user did not intend to use. Each
+// rejection is a separate element so LoadFor joins them flat; a nested join
+// would reach a caller that prints one error per line as a single line.
 func loadProviderVars(lookup LookupFunc, cfg *LLMConfig, need Need) []error {
 	var errs []error
-	deepSeek := (need.Generation && cfg.provider == ProviderDeepSeek) ||
-		(need.Review && cfg.reviewProvider == ProviderDeepSeek)
+	deepSeek := (need.Generation && cfg.generation.provider == ProviderDeepSeek) ||
+		(need.Review && cfg.review.provider == ProviderDeepSeek)
 	if deepSeek {
 		errs = append(errs, loadDeepSeekAPIKey(lookup, cfg))
 	}
-	claude := (need.Generation && cfg.provider == ProviderClaude) ||
-		(need.Review && cfg.reviewProvider == ProviderClaude)
+	claude := (need.Generation && cfg.generation.provider == ProviderClaude) ||
+		(need.Review && cfg.review.provider == ProviderClaude)
 	if claude {
 		errs = append(errs,
 			loadAnthropicAPIKey(lookup, cfg),
@@ -635,29 +552,6 @@ func loadProviderVars(lookup LookupFunc, cfg *LLMConfig, need Need) []error {
 		)
 	}
 	return errs
-}
-
-// loadModel validates YT2COLUMN_MODEL for the generation stage and returns
-// what decided the model. A present value must be non-empty and is used as it
-// is. Unset selects the default model of the generation provider resolved
-// before it; with no default (deepseek, or a provider that was rejected) the
-// variable is reported missing.
-func loadModel(lookup LookupFunc, cfg *LLMConfig) (settingOrigin, error) {
-	value, ok := lookup(modelEnv)
-	switch {
-	case !ok:
-		model, found := defaultModel(cfg.provider)
-		if !found {
-			return originNone, missingVar(modelEnv)
-		}
-		cfg.model = model
-		return originDefault, nil
-	case value == "":
-		return originVariable, missingVar(modelEnv)
-	default:
-		cfg.model = value
-		return originVariable, nil
-	}
 }
 
 // loadDeepSeekAPIKey validates DEEPSEEK_API_KEY, which is required when the
