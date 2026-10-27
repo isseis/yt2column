@@ -1,8 +1,15 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { formatCount, resolveLocale } from "../src/core/i18n/locale.ts";
+import { JSDOM } from "jsdom";
+
+import {
+  formatCount,
+  locales,
+  resolveLocale,
+} from "../src/core/i18n/locale.ts";
 import type { Locale } from "../src/core/i18n/locale.ts";
+import { applyPageLocale } from "../src/ui/pageLocale.ts";
 
 describe("resolveLocale", () => {
   const cases: { uiLanguage: string | undefined; want: Locale }[] = [
@@ -39,4 +46,15 @@ describe("formatCount", () => {
     assert.equal(formatCount(12345, "en"), "12,345");
     assert.equal(formatCount(12345, "ja"), "12,345");
   });
+});
+
+describe("applyPageLocale", () => {
+  for (const locale of Object.keys(locales) as Locale[]) {
+    it(`sets the html element's lang attribute to ${locale}`, () => {
+      const document = new JSDOM("<!DOCTYPE html><html><body></body></html>")
+        .window.document;
+      applyPageLocale(document, locale);
+      assert.equal(document.documentElement.lang, locale);
+    });
+  }
 });
