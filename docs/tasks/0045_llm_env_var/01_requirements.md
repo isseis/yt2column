@@ -148,15 +148,19 @@ CLI が検査する設定は、フラグの組み合わせで決まる（現行�
 
 #### F-005: 文書の更新
 
+利用者と開発者が読む文書の環境変数の記載を、新しい変数と規則に合わせる。旧変数のままの記載が残ると、文書のとおりに設定した利用者の実行が F-003 で止まるためである。旧変数を使っていた利用者には、移行の方法を示す。
+
 **Acceptance Criteria**:
 - **AC-22**: README の Configuration の表と `docs/dev/project_overview.md` の「設定（環境変数）」の表は、`YT2COLUMN_LLM` と `YT2COLUMN_REVIEW_LLM` を載せ、旧変数を現行の設定として載せない。本番の構成を表す環境変数の例（`docs/dev/production_profile.md`「本番の構成」、README の Recommended configuration）は、プロバイダとモデルを `YT2COLUMN_LLM=claude/claude-opus-5-5` で表し、例の変数の数を述べる文（「次の 3 つ」「These three values」）を例に合わせる。
 - **AC-23**: README の Configuration と `docs/dev/project_overview.md` は、値の構文（最初の `/` で区切ること、モデル ID の中の `/` を保持すること、前後の空白を取り除かないこと）、未設定のときの既定値と継承、空の値を拒否すること、旧変数を拒否すること（LLM の変数を読まない実行でも拒否すること）を説明する。「`--after review` は LLM の設定を必要としない」「再開の実行では実行する段階の変数だけを読む」という現行の記述（`README.md:193-195`・`docs/dev/project_overview.md`「設定（環境変数）」）は、旧変数の検査だけは例外であることがわかる形にする。`docs/dev/project_overview.md`「前提・制約」の既定のモデル名の例外は、範囲を「`YT2COLUMN_LLM` が未設定のとき（`YT2COLUMN_REVIEW_LLM` が受け継ぐ場合を含む）」に書き換える（4.5）。
 - **AC-24**: README は、旧変数を使っていた利用者が新しい変数に移る方法を示す。少なくとも、生成のプロバイダとモデル（`YT2COLUMN_LLM_PROVIDER=deepseek` と `YT2COLUMN_MODEL=deepseek-flash`）を `YT2COLUMN_LLM=deepseek/deepseek-flash` に書き換える例を示す。あわせて、次の 2 つの場合の書き換えを示す。`YT2COLUMN_REVIEW_PROVIDER` だけを設定していた場合（そのプロバイダの既定のモデルを使っていた場合）は、`YT2COLUMN_REVIEW_LLM` にモデル ID も書く必要がある。`YT2COLUMN_REVIEW_MODEL` だけを設定していた場合（生成のプロバイダを使っていた場合）は、`YT2COLUMN_REVIEW_LLM` に生成のプロバイダも書く必要がある。
 - **AC-25**: README のトラブルシューティングは、旧変数を名指しする設定エラーで CLI またはサーバが止まった場合（サーバなら、拡張からは「サーバが動いていない」としか見えない場合）の対処を示す。現行の `configuration: YT2COLUMN_LLM_PROVIDER` の項目は、この内容に置き換える。
-- **AC-26**: README、`docs/dev/project_overview.md`、`docs/dev/production_profile.md`、`docs/dev/security.md`、`docs/dev/developer_guide/package_reference.md` は、旧変数を現行の設定として説明しない（旧変数に触れるのは、拒否と移行の説明だけである）。
+- **AC-26**: README、`docs/dev/project_overview.md`、`docs/dev/production_profile.md`、`docs/dev/security.md`、`docs/dev/developer_guide/package_reference.md` は、旧変数を現行の設定として説明しない（旧変数に触れるのは、拒否と移行の説明だけである）。旧変数を現行の設定として説明している箇所（`docs/dev/security.md` の検証・推敲のプロバイダの記述、`docs/dev/developer_guide/package_reference.md` の `internal/config` の行を含む）は、新しい変数と本書の規則で書き直す。
 - **AC-27**: 文書の環境変数の名前と既定値を検査している既存のガードテスト（CLAUDE.md「Development Notes」の `project_overview.md` の注記、`production_profile.md` の設定の例、README の設定の例）は、新しい変数の名前と既定値を検査する。
 
 #### F-006: DeepSeek の結合テストのモデルの変数
+
+DeepSeek の結合テストを動かす 3 つの make ターゲットが、テストのモデルを旧変数と同じ名前の変数から取るのをやめ、テスト専用の名前の変数から取るようにする（1 章「要件定義の際に決めたこと」）。
 
 **Acceptance Criteria**:
 - **AC-28**: `make test-integration-deepseek`・`make test-integration-cli`・`make test-integration-cli-slack` は、DeepSeek のモデルを `YT2COLUMN_TEST_DEEPSEEK_MODEL` から取る。この変数が未定義なら `deepseek-flash` を使う。空の値はそのまま渡し、テストは失敗する（現行の `YT2COLUMN_MODEL` の振る舞いと同じ。`Makefile:122-128`）。
