@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-27 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-27 |
+| Reviewer | isseis |
 | Comments | 2026-10-27 (decision): 記事のキーを、秘密を使わない SHA-256 から、サーバのプロセスごとの秘密を鍵とする HMAC-SHA256 に改めた（§3.2・§5.2 の T-10）。誰でもキーを計算できると、生成を始めずに記事の有無を知る手段になり、キーが不透明であること（要件書 3.2）も保てないためである。レビュアー（isseis）が決め、承認した。 |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §3.16）を指す。既存のコードの行番号は、コミット `c3d20a7`（要件書の承認を含む `main` の先頭）で確かめたものである。
