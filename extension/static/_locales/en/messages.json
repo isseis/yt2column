@@ -1,0 +1,8 @@
+{
+  "extName": {
+    "message": "yt2column"
+  },
+  "extDescription": {
+    "message": "Sends the selected YouTube transcript to the local yt2column server to write a column article."
+  }
+}

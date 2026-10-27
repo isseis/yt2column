@@ -8,7 +8,7 @@
 | Created | 2026-10-27 |
 | Review date | 2026-10-27 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-27: 3.7 の例外の列挙に `static/_locales/` を加え、AC-21 と同じ内容にした。3.9 の manifest の検査に、`extDescription` がその言語の文字で書かれていることを加えた。いずれもレビュアーが本セッション（PR-3）で承認した。 |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `8a39cfc` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。拡張のファイルのパスは `extension/` を省いて書く（例: `src/core/messages.ts` は `extension/src/core/messages.ts`）。F-NNN・AC-NN は要件書の項番を指す。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-10）への対応は 3.10 にまとめる。
 
@@ -523,7 +523,7 @@ manifest の変更:
 ### 3.7. 文書（F-005・AC-21〜AC-23）
 
 -   **CLAUDE.md「Go Idioms」（`CLAUDE.md:397-400`）:** 拡張のソースのコメント・識別子・文字列リテラルは英語とする。例外は次の 3 つとする（AC-21）。
-    -   `src/core/i18n/` の、英語でない言語の文言の集合のファイル（今は `ja.ts`）の文言。
+    -   `src/core/i18n/` と `static/_locales/` の、英語でない言語の文言の集合のファイル（今は `ja.ts` と `_locales/ja/messages.json`）の文言。
     -   英語でない言語の文言の集合の性質を確かめるテストの文字列リテラル（3.9 の言語ごとの語の表）。
     -   日本語の文書の見出しや表のセルに一致させるガードのテストの文字列リテラル（今の規定のまま）。
 
@@ -568,7 +568,7 @@ manifest の変更:
     -   `static/_locales/` のディレクトリがちょうど `en` と `ja` で、それぞれが `messages.json` だけを持つこと。
     -   各 `messages.json` が JSON として読め、各項目が文字列の `message`（と任意の文字列の `description`）だけを持ち、`message` が `$` を含まないこと（置き換えの書式を使わないため）。
     -   manifest の中の `__MSG_*__` の名前が、大文字・小文字を区別せずに、どちらの `messages.json` にもあること。
-    -   `extName` がどちらも `yt2column` であること、`extDescription` が空でなく 132 文字以下で、言語ごとに異なること。
+    -   `extName` がどちらも `yt2column` であること、`extDescription` が空でなく 132 文字以下で、言語ごとに異なり、日本語の説明は日本語の文字を含み英語の説明は含まないこと。
 
     `dist/` が `_locales` を含むことは、ビルドの `check-dist`（3.6）が確かめる。
 -   **README のガード（AC-23、H-01）:** `metadataDocs.test.ts` は `expandPromptMessage("en")` と比べる。

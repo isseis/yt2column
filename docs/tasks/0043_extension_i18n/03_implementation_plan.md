@@ -8,7 +8,7 @@
 | Created | 2026-10-27 |
 | Review date | 2026-10-27 |
 | Reviewer | isseis |
-| Comments | 2026-10-27: ステップ 3-6 の実機の確認は Chrome だけで行う。Chrome と Brave に固有のコードがないためで、レビュアーが本セッションで承認した（Brave は同じ結果と見込む）。 |
+| Comments | 2026-10-27: ステップ 3-6 の実機の確認は Chrome だけで行う。Chrome と Brave に固有のコードがないためで、レビュアーが本セッションで承認した（Brave は同じ結果と見込む）。2026-10-27: ステップ 4-1 で `static/_locales/ja/messages.json` に日本語の文言を加えるため、AC-21・設計書 3.7・`CLAUDE.md` の例外の列挙に `static/_locales/` を加えた。あわせてステップ 4-1 の変更するファイルに `CLAUDE.md` を加え、ステップ 5-2 の「ステップ 3-5 の後」を「ステップ 5-1 の後」に直した（ステップ 3-6 からの写し間違い）。いずれもレビュアーが本セッション（PR-3）で承認した。2026-10-27: ステップ 4-1 のテストに、`extDescription` がその言語の文字で書かれていることの検査を加え、設計書 3.9 と本章 AC-19 の行を同じ変更で直した（レビューで、テストの名前が確かめていない性質を主張していたため）。 |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番、「設計書 3.2」などは設計書の節を指す。既存のコードと文書についての記述は、コミット `4efdddf` で確かめた。`file:line` はこのコミットの行番号を指す。拡張のファイルのパスは、設計書と同じく `extension/` を省いて書く。本書の「差分の確認」は、設計書の「`diff` の検証」と同じものを指す。
 
@@ -313,12 +313,12 @@
 
 #### ステップ 4-1: manifest と `_locales` を変える
 
-**変更するファイル:** `static/manifest.json`、`static/_locales/en/messages.json`・`static/_locales/ja/messages.json`（新規）、`test/manifest.test.ts`
+**変更するファイル:** `static/manifest.json`、`static/_locales/en/messages.json`・`static/_locales/ja/messages.json`（新規）、`test/manifest.test.ts`、`CLAUDE.md`（例外の列挙に `static/_locales/` を加える）
 
--   [ ] 設計書 3.6 の 2 つの表のとおりに、manifest を変え、2 つの `messages.json` を書く。
--   [ ] `test/manifest.test.ts::undeclared keys`（`:28-41`）に `default_locale`・`description` を加え、`test/manifest.test.ts::fixed fields` の `name` の検査（`:57-60`）を `__MSG_extName__` にする。`test/manifest.test.ts::locales` を加え、設計書 3.9 の「manifest と `_locales`」の検査（`default_locale`、`description` の形、`_locales` のディレクトリと各 `messages.json` の形、`__MSG_*__` の名前の解決、`extName`・`extDescription` の値）を書く（AC-18〜AC-20）。
--   [ ] 壊して確かめる: `default_locale` を除く、`ja` の `messages.json` から `extDescription` を除く、`messages.json` を JSON として読めない形にする、`message` に `$` を入れる、manifest の `__MSG_extName__` を `messages.json` にない名前にする、`ja` の `extName` を `yt2column` 以外にする、`ja` の `extDescription` を `en` と同じにする、`extDescription` を 133 文字にする、`_locales` に 3 つめのディレクトリを加える、の 9 つで、それぞれテストが失敗することを確かめる。
--   [ ] `make ext-build` を実行し、`check-dist` が `dist/_locales/en/messages.json`・`dist/_locales/ja/messages.json` を含む `dist/` を受け入れることを確かめる（AC-18）。
+-   [x] 設計書 3.6 の 2 つの表のとおりに、manifest を変え、2 つの `messages.json` を書く。
+-   [x] `test/manifest.test.ts::undeclared keys`（`:28-41`）に `default_locale`・`description` を加え、`test/manifest.test.ts::fixed fields` の `name` の検査（`:57-60`）を `__MSG_extName__` にする。`test/manifest.test.ts::locales` を加え、設計書 3.9 の「manifest と `_locales`」の検査（`default_locale`、`description` の形、`_locales` のディレクトリと各 `messages.json` の形、`__MSG_*__` の名前の解決、`extName`・`extDescription` の値）を書く（AC-18〜AC-20）。
+-   [x] 壊して確かめる: `default_locale` を除く、`ja` の `messages.json` から `extDescription` を除く、`messages.json` を JSON として読めない形にする、`message` に `$` を入れる、manifest の `__MSG_extName__` を `messages.json` にない名前にする、`ja` の `extName` を `yt2column` 以外にする、`ja` の `extDescription` を `en` と同じにする、`extDescription` を 133 文字にする、`_locales` に 3 つめのディレクトリを加える、の 9 つで、それぞれテストが失敗することを確かめる。
+-   [x] `make ext-build` を実行し、`check-dist` が `dist/_locales/en/messages.json`・`dist/_locales/ja/messages.json` を含む `dist/` を受け入れることを確かめる（AC-18）。
 
 **完了の条件:** `make ext-check` が通る。コミットする。
 
@@ -328,7 +328,7 @@
 
 **変更するファイル:** `README.md`
 
--   [ ] 「Browser extension」の節の、拡張に設定がないことを述べる段落（`README.md:1002-1006`）の後に、設計書 3.7 の段落（表示言語が日本語なら日本語、それ以外は英語で表示されること、拡張の中に言語の設定がないこと、README が引用するポップアップの文言は英語版であること）を英語で加える（AC-22）。促しのメッセージの引用（`README.md:1016-1020`）は変えない（AC-23）。
+-   [x] 「Browser extension」の節の、拡張に設定がないことを述べる段落（`README.md:1002-1006`）の後に、設計書 3.7 の段落（表示言語が日本語なら日本語、それ以外は英語で表示されること、拡張の中に言語の設定がないこと、README が引用するポップアップの文言は英語版であること）を英語で加える（AC-22）。促しのメッセージの引用（`README.md:1016-1020`）は変えない（AC-23）。
 
 **完了の条件:** `make ext-test`（README を読む拡張のテスト）と `make test`（`TestReadmeHostExitCodes`）が通る。コミットする。
 
@@ -336,7 +336,8 @@
 
 **変更するファイル:** 本書
 
--   [ ] `make ext-build` でビルドした `extension/dist/` を Chrome と Brave で読み込み、ブラウザの表示言語を日本語と英語に切り替えて、拡張の管理ページ（`chrome://extensions/`）の名前が `yt2column`、説明がその言語の `extDescription` であること（AC-19）と、拡張 ID が `clfmbbcdpnjcefbdihdoahomaifbabkk` のままであること（AC-20）を確かめる。ステップ 3-6 と同じく、`/runplan` はここで止まり、ブラウザの操作をレビュアーに依頼する。結果を 7 章の AC-19・AC-20 の行に記録し、本書にコミットする。
+-   [x] `make ext-build` でビルドした `extension/dist/` を Chrome と Brave で読み込み、ブラウザの表示言語を日本語と英語に切り替えて、拡張の管理ページ（`chrome://extensions/`）の名前が `yt2column`、説明がその言語の `extDescription` であること（AC-19）と、拡張 ID が `clfmbbcdpnjcefbdihdoahomaifbabkk` のままであること（AC-20）を確かめる。ステップ 3-6 と同じく、`/runplan` はここで止まり、ブラウザの操作をレビュアーに依頼する。結果を 7 章の AC-19・AC-20 の行に記録し、本書にコミットする。
+-   [x] ブラウザの操作はレビュアー（利用者）に依頼する。`/runplan` は、ステップ 5-1 の後、PR を開く前にここで止まり、操作を依頼する。結果（日付・ブラウザと版・表示言語・観察したこと）を 7 章の該当する AC の行に記録し、本書にコミットする。
 
 **完了の条件:** `make ext-check`・`make test`・`make lint` が通り、7 章に PR-3 の実機の確認の記録がある。
 
@@ -352,10 +353,10 @@
 
 **判定理由**: 前例のない設計判断も競合する実装案もなく、条件付きの検査に 2 つ以上当たる手順もない
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/529
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（最終 PR のため該当なし）
 
 ## 3. 実装の順序とマイルストーン (Implementation Order and Milestones)
 
@@ -436,7 +437,7 @@ AC-07 は、`docs/tasks/0043_extension_i18n/_checks/english_text.ts` で確か�
 
 -   [x] PR-1 マージ済み（対象ステップ: 1-1 / 2-1 / 2-2 / 2-3 / 2-4 / 2-5）
 -   [x] PR-2 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6）
--   [ ] PR-3 マージ済み（対象ステップ: 4-1 / 5-1 / 5-2）
+-   [x] PR-3 マージ済み（対象ステップ: 4-1 / 5-1 / 5-2）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -462,9 +463,9 @@ AC-07 は、`docs/tasks/0043_extension_i18n/_checks/english_text.ts` で確か�
 | AC-16 | test: `extension/test/style.test.ts::Japanese typography` ＋ manual | 3-4・3-6 | `body:lang(ja)` の行間。実機（PR-2）: 行間が広く見え、DevTools で `body:lang(ja) { line-height: 1.7; }` の適用を確認した。 |
 | AC-17 | test: `extension/test/style.test.ts::Japanese typography` | 3-4 | 英語の書体が今のままで、ほかの規則が行間を持たないこと |
 | AC-18 | static: `make ext-build`（`check-dist`） ＋ test: `extension/test/manifest.test.ts::locales` | 4-1 | `dist/` が `_locales` の 2 つのファイルを含むこと、`default_locale` が `en` で `_locales` の形が正しいこと |
-| AC-19 | test: `extension/test/manifest.test.ts::fixed fields`・`::locales` ＋ manual | 4-1・5-2 | `name`・`description` が `_locales` を参照し、名前が両方の言語で `yt2column`、説明が言語ごとに異なること。拡張の管理ページの表示は実機の確認（ステップ 5-2） |
-| AC-20 | test: `extension/test/manifest.test.ts::undeclared keys`・`::key` ＋ manual | 4-1・5-2 | 最上位のキーの集合と、`key` から得る拡張 ID。拡張の管理ページの ID は実機の確認（ステップ 5-2） |
-| AC-21 | manual | 1-1 | `CLAUDE.md` の規則の文面（PR-1 のレビュー） |
+| AC-19 | test: `extension/test/manifest.test.ts::fixed fields`・`::locales` ＋ manual | 4-1・5-2 | `name`・`description` が `_locales` を参照し、名前が両方の言語で `yt2column`、説明が言語ごとに異なり、日本語の説明は日本語の文字を含み、英語の説明は含まないこと。実機（PR-3）: 2026-10-27、Chrome 156.0.8078.48 と Brave 156.1.98.60 の両方で、日本語の表示言語では名前が `yt2column` で説明が日本語、英語の表示言語では名前が `yt2column` で説明が英語であった。 |
+| AC-20 | test: `extension/test/manifest.test.ts::undeclared keys`・`::key` ＋ manual | 4-1・5-2 | 最上位のキーの集合と、`key` から得る拡張 ID。実機（PR-3）: 拡張の管理ページの拡張 ID が、どちらのブラウザでも `clfmbbcdpnjcefbdihdoahomaifbabkk` のままであった。 |
+| AC-21 | manual | 1-1・4-1 | `CLAUDE.md` の規則の文面（PR-1・PR-3 のレビュー。PR-3 で例外の列挙に `static/_locales/` を加えた） |
 | AC-22 | manual | 5-1 | README の段落の文面（PR-3 のレビュー） |
 | AC-23 | test: `extension/test/metadataDocs.test.ts::video metadata documentation` | 2-3 | README の引用が `expandPromptMessage("en")` と一致すること |
 | AC-24 | test: `extension/test/lintRules.test.ts::html parsing APIs`（既存）・`extension/test/render.test.ts::renderSummary`・`extension/test/renderMetadata.test.ts::renderMetadata`・`extension/test/renderSend.test.ts::renderSendOutcome`・`::renderBlockReason` | 2-4 | lint の規則と、両方の言語で文言と値を文字列として表示すること |
@@ -472,6 +473,8 @@ AC-07 は、`docs/tasks/0043_extension_i18n/_checks/english_text.ts` で確か�
 `manual` だけの AC は AC-10・AC-11・AC-21・AC-22 である。AC-21・AC-22 は文書の文面だけを定める AC である（`requirements_process.md` §4）。AC-10・AC-11 をテストにしない理由は 1.3 に書いた。
 
 **実機の確認の記録（PR-2、ステップ 3-6）:** 2026-10-27、レビュアー（isseis）が Chrome 156.0.8078.48（公式ビルド、arm64）で確認した。OS の環境設定は日本語とし、Chrome を既定の起動で開いた場合（日本語）と `open -a "Google Chrome" --args -AppleLanguages '(en)'` で起動した場合（英語）の 2 つを試した。日本語のときはポップアップが日本語で表示され、`document.documentElement.lang` が `ja`、コンソールの `yt2column ui language` のログが表示言語に一致した。英語のときは今までどおり英語で表示され、`lang` が `en` であった。どちらのときも、もう一方の言語の文言は表示されなかった。日本語のとき、書体が日本語の書体になり、行間が広く見えた（DevTools で `body:lang(ja) { line-height: 1.7; }` の適用を確認）。リクエスト ID は、字幕でないテキストを送って `invalid_transcript` の拒否を受け、DevTools で `.send-request-id` の `font-family: ui-monospace, monospace` が適用されていることを確認した。Brave は、Chrome と Brave に固有のコードがないため実施していない（レビュアーの判断）。
+
+**実機の確認の記録（PR-3、ステップ 5-2）:** 2026-10-27、レビュアー（isseis）が Chrome 156.0.8078.48 と Brave 156.1.98.60 の両方で確認した。ブラウザの表示言語を日本語と英語に切り替え、拡張の管理ページの名前がどちらの言語でも `yt2column`、説明が日本語のときは日本語の `extDescription`、英語のときは英語の `extDescription` であること、拡張 ID が `clfmbbcdpnjcefbdihdoahomaifbabkk` のままであることを確かめた。
 
 ## 8. 成功基準 (Success Criteria)
 

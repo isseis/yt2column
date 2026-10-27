@@ -443,12 +443,13 @@ Only the conventions a linter does not check are worth stating:
 - The same rule applies to the browser extension: its comments, identifiers,
   and string literals are English. There are three exceptions: the messages in
   a catalog file for a language other than English under
-  `extension/src/core/i18n/` (today `ja.ts`); a string literal in a test that
-  checks the properties of such a catalog's messages (a per-language word
-  table); and a guard test's literal that must match a Japanese document
-  heading or table cell. Every string shown to the user lives in the message
-  catalogs, and both the English and the Japanese catalog must have it. Logs
-  written for developers stay in English.
+  `extension/src/core/i18n/` or `extension/static/_locales/` (today `ja.ts`
+  and `ja/messages.json`); a string literal in a test that checks the
+  properties of such a catalog's messages (a per-language word table); and a
+  guard test's literal that must match a Japanese document heading or table
+  cell. Every string shown to the user lives in the message catalogs, and both
+  the English and the Japanese catalog must have it. Logs written for
+  developers stay in English.
 
 ## Requirements and Acceptance Criteria
 
