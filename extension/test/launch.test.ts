@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { JSDOM } from "jsdom";
+
+import { readUiLanguage } from "../src/browser/chromeDeps.ts";
+import type { I18nApi } from "../src/browser/chromeDeps.ts";
 import type {
   CollectedInput,
   CollectOutcome,
@@ -23,12 +27,15 @@ import {
   launchContextFromTab,
   runPopupLaunch,
   runPopupSend,
+  startPopup,
 } from "../src/launch.ts";
 import type {
+  Logger,
   MetadataReader,
   PopupLaunchDeps,
   PopupLaunchResult,
   PopupSendDeps,
+  PopupStartDeps,
 } from "../src/launch.ts";
 import {
   container,
@@ -173,10 +180,12 @@ function popupHarness(overrides: Partial<PopupLaunchDeps> = {}): PopupHarness {
   return { deps, recorder };
 }
 
-/** The outcome the path logged for the developer. */
+/** The outcome the launch path logged for the developer. */
 function loggedOutcome(recorder: RecordingLogger): CollectOutcome {
-  const entry = recorder.infos[0];
-  assert.ok(entry !== undefined, "expected an info log");
+  const entry = recorder.infos.find(
+    (recorded) => recorded.label === "yt2column popup launch",
+  );
+  assert.ok(entry !== undefined, "expected the popup launch log");
   return (entry.data as { outcome: CollectOutcome }).outcome;
 }
 
@@ -941,4 +950,141 @@ describe("display", () => {
     assert.equal(root.querySelector("img"), null);
     assert.ok(root.textContent?.includes(malicious));
   });
+});
+
+describe("startPopup", () => {
+  /** A document with the popup's two empty regions, as popup.html has them. */
+  function popupDocument(): Document {
+    return new JSDOM(
+      "<!DOCTYPE html><html lang='en'><body><div id='summary'></div><div id='send'></div></body></html>",
+    ).window.document;
+  }
+
+  /** Start dependencies over fake services, with one recording log. */
+  function startDeps(
+    i18n: I18nApi,
+    log: Logger,
+    overrides: {
+      launch?: Partial<Omit<PopupLaunchDeps, "locale">>;
+      send?: Partial<Omit<PopupSendDeps, "locale">>;
+    } = {},
+  ): PopupStartDeps {
+    return {
+      uiLanguage: () => readUiLanguage(i18n),
+      launch: {
+        reader: readerReturning(page("selection")),
+        metadataReader: metadataReader(metadataJson({})).reader,
+        activeTab: async () => fakeTab(),
+        log,
+        ...overrides.launch,
+      },
+      send: {
+        send: testSendDeps(acceptedNative().sendNative),
+        now: () => 1000,
+        log,
+        ...overrides.send,
+      },
+    };
+  }
+
+  it("displays Japanese after reading a Japanese UI language", async () => {
+    const recorder = recordingLogger();
+    const doc = popupDocument();
+    await startPopup(
+      doc,
+      startDeps({ getUILanguage: () => "ja-JP" }, recorder.log),
+    );
+    assert.equal(doc.documentElement.lang, "ja");
+    const summary = query<HTMLElement>(doc, "#summary");
+    assert.equal(valueOf(summary, catalogs.ja.summaryLabels.title), "A video");
+    expectAbsent(
+      summary,
+      [catalogs.en.summaryLabels.title],
+      [catalogs.ja.summaryLabels.title],
+    );
+    const send = query<HTMLElement>(doc, "#send");
+    assert.equal(
+      query(send, ".send-button").textContent,
+      catalogs.ja.sendButton,
+    );
+    expectAbsent(send, [catalogs.en.sendButton], [catalogs.ja.sendButton]);
+  });
+
+  it("falls back to English, as for en-US, when the UI language cannot be read", async () => {
+    /** One start over a fresh document; the recorder keeps its logs. */
+    async function run(i18n: I18nApi) {
+      const recorder = recordingLogger();
+      const doc = popupDocument();
+      await startPopup(doc, startDeps(i18n, recorder.log));
+      return { doc, recorder };
+    }
+    const unreadable = await run({
+      getUILanguage: () => {
+        throw new Error("i18n unavailable");
+      },
+    });
+    const english = await run({ getUILanguage: () => "en-US" });
+    for (const { doc } of [unreadable, english]) {
+      assert.equal(doc.documentElement.lang, "en");
+    }
+    assert.equal(
+      query(unreadable.doc, "#summary").textContent,
+      query(english.doc, "#summary").textContent,
+    );
+    assert.deepEqual(
+      loggedOutcome(unreadable.recorder),
+      loggedOutcome(english.recorder),
+    );
+    const fallbackButton = query<HTMLButtonElement>(
+      unreadable.doc,
+      ".send-button",
+    );
+    const englishButton = query<HTMLButtonElement>(english.doc, ".send-button");
+    assert.equal(fallbackButton.textContent, englishButton.textContent);
+    // The fallback shows the English button, not an empty one.
+    assert.equal(fallbackButton.textContent, "Send to yt2column");
+  });
+
+  it("sets the page language before the first render", async () => {
+    const recorder = recordingLogger();
+    const doc = popupDocument();
+    const seen: string[] = [];
+    await startPopup(
+      doc,
+      startDeps({ getUILanguage: () => "ja-JP" }, recorder.log, {
+        launch: {
+          activeTab: async () => {
+            seen.push(doc.documentElement.lang);
+            return fakeTab();
+          },
+        },
+      }),
+    );
+    assert.deepEqual(seen, ["ja"]);
+  });
+
+  const loggedValues: { name: string; i18n: I18nApi; data: unknown }[] = [
+    { name: "as read", i18n: { getUILanguage: () => "ja-JP" }, data: "ja-JP" },
+    {
+      name: "as undefined when unreadable",
+      i18n: {
+        getUILanguage: () => {
+          throw new Error("i18n unavailable");
+        },
+      },
+      data: undefined,
+    },
+  ];
+  for (const { name, i18n, data } of loggedValues) {
+    it(`logs the UI language once, ${name}`, async () => {
+      const recorder = recordingLogger();
+      await startPopup(popupDocument(), startDeps(i18n, recorder.log));
+      assert.deepEqual(
+        recorder.infos.filter(
+          (entry) => entry.label === "yt2column ui language",
+        ),
+        [{ label: "yt2column ui language", data }],
+      );
+    });
+  }
 });

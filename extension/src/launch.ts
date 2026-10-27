@@ -8,6 +8,7 @@ import {
 } from "./core/metadata.ts";
 import type { MetadataResult } from "./core/metadata.ts";
 import { catalogs } from "./core/i18n/catalog.ts";
+import { resolveLocale } from "./core/i18n/locale.ts";
 import type { Locale } from "./core/i18n/locale.ts";
 import { nativeHostName } from "./core/native.ts";
 import { prepareSend } from "./core/prepare.ts";
@@ -17,6 +18,7 @@ import { summarize } from "./core/summary.ts";
 import type { LaunchContext } from "./core/types.ts";
 import { sendArticle } from "./send.ts";
 import type { SendDeps } from "./send.ts";
+import { applyPageLocale } from "./ui/pageLocale.ts";
 import { messageNodes, renderMetadata, renderSummary } from "./ui/render.ts";
 import { renderBlockReason, renderSendOutcome } from "./ui/renderSend.ts";
 
@@ -55,11 +57,20 @@ export interface PopupSendDeps {
   readonly locale: Locale;
 }
 
+/** What the popup entry needs; popup.ts builds it from the chrome APIs. */
+export interface PopupStartDeps {
+  /** Reads the browser's UI language; readUiLanguage(chrome.i18n) in production. */
+  uiLanguage(): string | undefined;
+  readonly launch: Omit<PopupLaunchDeps, "locale">;
+  readonly send: Omit<PopupSendDeps, "locale">;
+}
+
 const popupLogLabel = "yt2column popup launch";
 const metadataLogLabel = "yt2column video metadata";
 const activeTabLabel = "yt2column active tab";
 const blockedLabel = "yt2column blocked";
 const sendLabel = "yt2column send result";
+const uiLanguageLabel = "yt2column ui language";
 
 /** Copies id, url and title verbatim; undefined when there is no tab or no tab id. */
 export function launchContextFromTab(
@@ -226,4 +237,32 @@ export async function runPopupSend(
       renderSendOutcome(status, toSendOutcome(sendResult), deps.locale);
     })();
   });
+}
+
+/**
+ * Popup entry. Reads the browser's UI language and logs it as read, decides
+ * the locale from it, and sets the page language before the first render so
+ * the Japanese typography rules are in place from the first frame. Then runs
+ * the launch path into the summary region and the send path into the send
+ * region. The UI-language log keeps its fixed label in every locale, and the
+ * value it records is never displayed or sent.
+ */
+export async function startPopup(
+  doc: Document,
+  deps: PopupStartDeps,
+): Promise<void> {
+  const uiLanguage = deps.uiLanguage();
+  deps.launch.log.info(uiLanguageLabel, uiLanguage);
+  const locale = resolveLocale(uiLanguage);
+  applyPageLocale(doc, locale);
+  const summaryRegion = doc.getElementById("summary");
+  const sendRegion = doc.getElementById("send");
+  if (summaryRegion === null || sendRegion === null) {
+    return;
+  }
+  const launched = await runPopupLaunch(summaryRegion, {
+    ...deps.launch,
+    locale,
+  });
+  await runPopupSend(sendRegion, launched, { ...deps.send, locale });
 }
