@@ -231,9 +231,9 @@
 
 **変更するファイル:** `src/browser/chromeDeps.ts`、`test/chromeDeps.test.ts`
 
--   [ ] 設計書 3.1 のとおり、`I18nApi` と `readUiLanguage` を加える。
--   [ ] `test/chromeDeps.test.ts::readUiLanguage` に、文字列を返す fake でその値を返すこと、例外を投げる fake と文字列でない値を返す fake で `undefined` を返し例外を投げないことを確かめるテストを加える（AC-02）。
--   [ ] 壊して確かめる: `try`/`catch` を除く、文字列かどうかの確かめを除く、の 2 つでテストが失敗することを確かめる。
+-   [x] 設計書 3.1 のとおり、`I18nApi` と `readUiLanguage` を加える。
+-   [x] `test/chromeDeps.test.ts::readUiLanguage` に、文字列を返す fake でその値を返すこと、例外を投げる fake と文字列でない値を返す fake で `undefined` を返し例外を投げないことを確かめるテストを加える（AC-02）。
+-   [x] 壊して確かめる: `try`/`catch` を除く、文字列かどうかの確かめを除く、の 2 つでテストが失敗することを確かめる。
 
 **完了の条件:** `make ext-check` が通る。コミットする。
 
@@ -241,9 +241,9 @@
 
 **変更するファイル:** `src/ui/pageLocale.ts`（新規）、`test/locale.test.ts`
 
--   [ ] 設計書 3.5 のとおり、`applyPageLocale` を書く。
--   [ ] `test/locale.test.ts::applyPageLocale` に、jsdom の文書に `en`・`ja` のそれぞれを適用して、`html` 要素の `lang` 属性がその値になることを確かめるテストを加える（AC-14）。
--   [ ] 壊して確かめる: `lang` 属性を `html` 要素ではなく `body` 要素に設定する、常に `en` を設定する、の 2 つでテストが失敗することを確かめる。
+-   [x] 設計書 3.5 のとおり、`applyPageLocale` を書く。
+-   [x] `test/locale.test.ts::applyPageLocale` に、jsdom の文書に `en`・`ja` のそれぞれを適用して、`html` 要素の `lang` 属性がその値になることを確かめるテストを加える（AC-14）。
+-   [x] 壊して確かめる: `lang` 属性を `html` 要素ではなく `body` 要素に設定する、常に `en` を設定する、の 2 つでテストが失敗することを確かめる。
 
 **完了の条件:** `make ext-check` が通る。コミットする。
 
@@ -251,14 +251,14 @@
 
 **変更するファイル:** `src/launch.ts`、`src/popup.ts`、`test/launch.test.ts`
 
--   [ ] 設計書 3.3 のとおり、`PopupStartDeps` と `startPopup` を `launch.ts` に加える。表示言語を読んだ直後に、固定のラベル（`yt2column ui language`）で読んだ値をログに出し、`resolveLocale`・`applyPageLocale` の後に `runPopupLaunch`・`runPopupSend` を呼ぶ（設計書 6 章の順序）。
--   [ ] `popup.ts` を、ブラウザの API から `PopupStartDeps` を組み立てて `startPopup(document, …)` を呼ぶだけの形にする。ステップ 2-3 の `locale: "en"` を除く。表示言語は `readUiLanguage(chrome.i18n)` で読む。ファイルの冒頭のコメント（`src/popup.ts:1-3`）を新しい形に合わせる。
--   [ ] `test/launch.test.ts::startPopup` に、`startPopup` を jsdom の文書（`#summary`・`#send` を持つ）と fake の依存で実行するテストを加える（設計書 3.9 の「入口の組み立て」）。表示言語の依存は、`getUILanguage` を差し替えた `I18nApi` の fake を `readUiLanguage` に渡す関数（`() => readUiLanguage(fake)`）として作る。
+-   [x] 設計書 3.3 のとおり、`PopupStartDeps` と `startPopup` を `launch.ts` に加える。表示言語を読んだ直後に、固定のラベル（`yt2column ui language`）で読んだ値をログに出し、`resolveLocale`・`applyPageLocale` の後に `runPopupLaunch`・`runPopupSend` を呼ぶ（設計書 6 章の順序）。
+-   [x] `popup.ts` を、ブラウザの API から `PopupStartDeps` を組み立てて `startPopup(document, …)` を呼ぶだけの形にする。ステップ 2-3 の `locale: "en"` を除く。表示言語は `readUiLanguage(chrome.i18n)` で読む。ファイルの冒頭のコメント（`src/popup.ts:1-3`）を新しい形に合わせる。
+-   [x] `test/launch.test.ts::startPopup` に、`startPopup` を jsdom の文書（`#summary`・`#send` を持つ）と fake の依存で実行するテストを加える（設計書 3.9 の「入口の組み立て」）。表示言語の依存は、`getUILanguage` を差し替えた `I18nApi` の fake を `readUiLanguage` に渡す関数（`() => readUiLanguage(fake)`）として作る。
     -   `getUILanguage` が `ja-JP` を返すとき、`lang` 属性が `ja` で、表示が `catalogs.ja` の文言であること（AC-01・AC-03）。
     -   `getUILanguage` が例外を投げるとき、`lang` 属性が `en` で、英語で表示され、収集の結果・ログの収集の結果・送信のボタンの表示が、`getUILanguage` が `en-US` を返すときと同じであること（AC-02）。
     -   fake の `activeTab` が呼ばれた時点で `lang` 属性が設定済みであること（AC-14）。
     -   表示言語のログが固定のラベルで 1 つだけ、読んだ値のまま（例外のときは `undefined`）記録されること（AC-12）。
--   [ ] 壊して確かめる: `applyPageLocale` を `runPopupLaunch` の後に呼ぶ、`startPopup` が `runPopupLaunch`・`runPopupSend` に常に `"en"` を渡す、表示言語のログのラベルに言語を含める、の 3 つでテストが失敗することを確かめる。
+-   [x] 壊して確かめる: `applyPageLocale` を `runPopupLaunch` の後に呼ぶ、`startPopup` が `runPopupLaunch`・`runPopupSend` に常に `"en"` を渡す、表示言語のログのラベルに言語を含める、の 3 つでテストが失敗することを確かめる。
 
 **完了の条件:** `make ext-check` が通る。コミットする。
 
@@ -266,9 +266,9 @@
 
 **変更するファイル:** `static/style.css`、`test/style.test.ts`（新規）
 
--   [ ] 設計書 3.5 のとおり、`:root:lang(ja)`（書体の候補）と `body:lang(ja)`（`line-height: 1.7`）の 2 つの規則を `style.css` の末尾に加える。今の規則は変えない。
--   [ ] `test/style.test.ts::Japanese typography` に、`style.css` を jsdom の CSSOM で読み、設計書 3.9 の「ページの言語・書体・行間」の 4 つの性質を確かめるテストを書く（AC-15〜AC-17）。
--   [ ] 壊して確かめる: 書体の候補の順を入れ替える、行間を `1.5` にする、セレクタを `:lang(ja)` だけにする、`:root` の書体を変える、`body` の規則に `line-height` を加える、の 5 つで、それぞれテストが失敗することを確かめる。
+-   [x] 設計書 3.5 のとおり、`:root:lang(ja)`（書体の候補）と `body:lang(ja)`（`line-height: 1.7`）の 2 つの規則を `style.css` の末尾に加える。今の規則は変えない。
+-   [x] `test/style.test.ts::Japanese typography` に、`style.css` を jsdom の CSSOM で読み、設計書 3.9 の「ページの言語・書体・行間」の 4 つの性質を確かめるテストを書く（AC-15〜AC-17）。
+-   [x] 壊して確かめる: 書体の候補の順を入れ替える、行間を `1.5` にする、セレクタを `:lang(ja)` だけにする、`:root` の書体を変える、`body` の規則に `line-height` を加える、の 5 つで、それぞれテストが失敗することを確かめる。
 
 **完了の条件:** `make ext-check` が通る。コミットする。
 
@@ -276,7 +276,7 @@
 
 **変更するファイル:** 本書
 
--   [ ] `git fetch origin main` の後、PR-2 の head でステップ 2-5 のスクリプトを実行し、出力と 2 つのコミットの ID を 7 章の AC-07 の行に加える。記録を本書にコミットする。この後、`extension/src/` が変わったときや `main` を取り込んだときは、実行し直して記録を置き換える。
+-   [x] `git fetch origin main` の後、PR-2 の head でステップ 2-5 のスクリプトを実行し、出力と 2 つのコミットの ID を 7 章の AC-07 の行に加える。記録を本書にコミットする。この後、`extension/src/` が変わったときや `main` を取り込んだときは、実行し直して記録を置き換える。
 
 **完了の条件:** 7 章の AC-07 の行に PR-2 の記録がある。
 
@@ -450,7 +450,7 @@ AC-07 は、`docs/tasks/0043_extension_i18n/_checks/english_text.ts` で確か�
 | AC-04 | test: `extension/test/manifest.test.ts::permissions`・`::undeclared keys`・`extension/test/lintRules.test.ts::chrome.storage`（既存） | 4-1 | 権限が 3 つのままで、`options_ui` がなく、`chrome.storage` を参照できないこと |
 | AC-05 | test: `extension/test/messages.test.ts::rejectionMessage`・`::expandPromptMessage`・`extension/test/sendMessages.test.ts::blockMessage`・`::serverRejectMessage`・`::sendOutcomeMessage` ＋ AC-03 の表示のテスト | 2-3・2-4 | 振り分けの関数がすべての理由と結果について選んだ言語の節の文言を返すこと、表示がそれを表示すること |
 | AC-06 | static: `make ext-typecheck` ＋ test: `extension/test/typecheck.test.ts::a Catalog missing an item fails typecheck`・`extension/test/catalog.test.ts::catalogs` | 2-2 | 欠けで型の検査が失敗すること、本文・手順が空でないこと、手順の規則 |
-| AC-07 | diff: `docs/tasks/0043_extension_i18n/_checks/english_text.ts` | 2-2・2-3・2-5・3-5 | 実行の記録（PR-1）: 2026-10-27、merge-base `30dbae078cbdd267f2ca1ff1bb27bf3ef3cd6f5d`、head `5e3ab74d77d85ad0a7869ea74cc21081588ecb8c`、終了コード 0、出力 `PASS: 121 displayed elements identical`。実行の記録（PR-2）: 未実行。 |
+| AC-07 | diff: `docs/tasks/0043_extension_i18n/_checks/english_text.ts` | 2-2・2-3・2-5・3-5 | 実行の記録（PR-1）: 2026-10-27、merge-base `30dbae078cbdd267f2ca1ff1bb27bf3ef3cd6f5d`、head `5e3ab74d77d85ad0a7869ea74cc21081588ecb8c`、終了コード 0、出力 `PASS: 121 displayed elements identical`。実行の記録（PR-2）: 2026-10-27、merge-base `9b4c0ef6794f0469244780869d42e8ec25275fca`、head `73a3999bf7f287a6d6e7925cdd7482f97e6ca1b6`、終了コード 0、出力 `PASS: 121 displayed elements identical`。 |
 | AC-08 | test: `extension/test/render.test.ts::renderSummary`・`extension/test/renderMetadata.test.ts::renderMetadata`・`extension/test/renderSend.test.ts::renderSendOutcome` | 2-4 | 両方の言語で、値をそのまま表示すること |
 | AC-09 | test: `extension/test/messages.test.ts::rejectionMessage`・`extension/test/sendMessages.test.ts::blockMessage`・`::serverRejectMessage`・`::sendOutcomeMessage` | 2-4 | 両方の言語で、各性質を言語によらない語と言語ごとの語の表で確かめる |
 | AC-10 | manual | 2-2 | 日本語の文言の用語を用語集と照らす（PR-1 のレビュー。テストにしない理由は 1.3） |
