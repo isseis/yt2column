@@ -8,7 +8,7 @@
 | Created | 2026-10-27 |
 | Review date | 2026-10-27 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-27 (editorial): `/runplan` の実装で、ステップ 2-3 の件数の上限の定数の名前を `defaultCapacity` から `DefaultCapacity` に改めた（設計書 §3.3.4 も同じ）。`internal/server` が別のパッケージから `articlecache.New` に渡すために公開が要るためで、値と決定は変えていない。 |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番、「設計書 §3.2」などは設計書の節を指す。既存のコードと文書についての記述は、コミット `c2ce520` で確かめた。`file:line` はこのコミットの行番号である。設計書が行番号を確かめたコミット `c3d20a7` と `c2ce520` の間では `docs/` の外のファイルが変わっていない（`git diff --stat c3d20a7 c2ce520 -- . ':!docs'` の出力が空）ので、設計書のコードの行番号はそのまま使える。用語は設計書の冒頭の「用語」に従う。
 
@@ -124,37 +124,37 @@
 
 -   **ファイル:** `internal/strictjson/strictjson.go`・`strictjson_test.go`
 -   **作業:**
-    -   [ ] `Value.Raw() []byte` を加える。元のバイト列の写しを返す（設計書 §3.10.3）。
-    -   [ ] `Object.Has` の注釈を、エスケープを解いた名前の完全一致を約束し、振る舞いの選択に使えるものに改める（設計書 §3.10.2）。
-    -   [ ] テスト: `Raw` が値の中の空白・エスケープ・メンバの並びを変えずに返すこと、返した写しを書き換えても `Value` が変わらないこと。`Has` が `"v"` と書いた名前を `v` として見つけること。
+    -   [x] `Value.Raw() []byte` を加える。元のバイト列の写しを返す（設計書 §3.10.3）。
+    -   [x] `Object.Has` の注釈を、エスケープを解いた名前の完全一致を約束し、振る舞いの選択に使えるものに改める（設計書 §3.10.2）。
+    -   [x] テスト: `Raw` が値の中の空白・エスケープ・メンバの並びを変えずに返すこと、返した写しを書き換えても `Value` が変わらないこと。`Has` が `"v"` と書いた名前を `v` として見つけること。
 -   **完了の条件:** グリーンゲートが通る。
 
 #### ステップ 2-2: 記事のキー
 
 -   **ファイル:** `internal/articlecache/key.go`・`key_test.go`（新規）
 -   **作業:**
-    -   [ ] 設計書 §3.2 の `KeyInput`・`Key`・`Keyer`・`NewKeyer`・`ParseKey`・`Key.String`・`ErrInvalidKey` を加える。符号化・HMAC・文字列の形は設計書 §3.2 のとおりである。
-    -   [ ] テスト（固定の秘密）: 5 つの値のどれか 1 つだけが違えば違うキーになること（AC-04）、2 つの値の境目だけを動かした入力が違うキーになること（AC-05）、同じ入力を違う秘密で計算すると違うキーになること（T-10）、`ParseKey` が `Key.String` の結果を受け付けて同じキーに戻すこと、`ParseKey` が 63 文字・65 文字・大文字・前後の空白・16 進でない文字・空の文字列を `ErrInvalidKey` で拒否し、エラーの文言が受け取った文字列を含まないこと（AC-44）。キーを固定の 16 進の値と比べるテストは書かない（設計書 §7.1）。
-    -   [ ] 壊し方: 長さの前置きを外すと AC-05 の行が、秘密を計算に使わないと T-10 の行が失敗することを確かめる。
+    -   [x] 設計書 §3.2 の `KeyInput`・`Key`・`Keyer`・`NewKeyer`・`ParseKey`・`Key.String`・`ErrInvalidKey` を加える。符号化・HMAC・文字列の形は設計書 §3.2 のとおりである。
+    -   [x] テスト（固定の秘密）: 5 つの値のどれか 1 つだけが違えば違うキーになること（AC-04）、2 つの値の境目だけを動かした入力が違うキーになること（AC-05）、同じ入力を違う秘密で計算すると違うキーになること（T-10）、`ParseKey` が `Key.String` の結果を受け付けて同じキーに戻すこと、`ParseKey` が 63 文字・65 文字・大文字・前後の空白・16 進でない文字・空の文字列を `ErrInvalidKey` で拒否し、エラーの文言が受け取った文字列を含まないこと（AC-44）。キーを固定の 16 進の値と比べるテストは書かない（設計書 §7.1）。
+    -   [x] 壊し方: 長さの前置きを外すと AC-05 の行が、秘密を計算に使わないと T-10 の行が失敗することを確かめる。
 -   **完了の条件:** グリーンゲートが通る。
 
 #### ステップ 2-3: 記録・遷移・件数の上限・ハンドル
 
 -   **ファイル:** `internal/articlecache/record.go`・`cache.go`・`cache_test.go`・`test_helpers.go`（新規。`test_helpers.go` は `//go:build test`）
 -   **作業:**
-    -   [ ] 設計書 §3.3.2 の列挙・`Stages`・`Snapshot`・`Options`・`New`・`ErrInvalidOptions`・`Begin`・`BeginOutcome`・`Lookup`・`BeginPublish`・`PublishBegin`・`Eviction`・`Run`・`PublishRun` を加える。遷移は設計書 §3.3.1、時刻は §3.3.3、上限と破棄は §3.3.4、排他制御・記事の写し・世代・不変条件は §3.3.2 の箇条書きに従う。`defaultCapacity` は 100 である。
-    -   [ ] `test_helpers.go` に、記録の全体を文字列にする関数を加える。サーバのテストが記録に目印がないことを確かめるために使う（設計書 §7.1 の AC-27）。記録の公開しないフィールドを読むので、`test_helpers.go` に置く。記録の構造体の全体から文字列を作り、後で加えたフィールドも含まれるようにする。
-    -   [ ] テスト（差し替えた時計と小さい上限）: 設計書 §7.1 の「`internal/articlecache`」の項目をすべて確かめる。とくに、`Begin` の 5 つの結果と `acquire` を呼ぶかどうか（AC-02・AC-06・AC-07・AC-26a）、`BeginExisting` が投稿の状態を変えないこと（AC-09c）、破棄の順序と対象（AC-25・AC-26）、`BeginPublish` の 5 つの結果（AC-20・AC-22・AC-23）、`Delivered` と `From` の関係（AC-21・AC-45a）、所要時間がやり直しの受け付けから数えられること（AC-14）、記録の記事の `Review.Revisions` が `nil` で、渡した記事が書き換えられないこと（AC-27）、新しいキーと `Failed` のキーのそれぞれで並行の `Begin` を `-race` で走らせ、`acquire` が 1 回だけ呼ばれ、`BeginStarted` または `BeginRestarted` が 1 つだけ返ること（AC-09b）、古い世代のハンドルと範囲外の入力が何もせず panic しないこと（T-09）。
-    -   [ ] 壊し方: 破棄の対象から `PublishPosting` を除く条件を外す、世代の比較を外す、`Begin` が `BeginExisting` でも `acquire` を呼ぶ、の 3 つでそれぞれのテストが失敗することを確かめる。
+    -   [x] 設計書 §3.3.2 の列挙・`Stages`・`Snapshot`・`Options`・`New`・`ErrInvalidOptions`・`Begin`・`BeginOutcome`・`Lookup`・`BeginPublish`・`PublishBegin`・`Eviction`・`Run`・`PublishRun` を加える。遷移は設計書 §3.3.1、時刻は §3.3.3、上限と破棄は §3.3.4、排他制御・記事の写し・世代・不変条件は §3.3.2 の箇条書きに従う。`DefaultCapacity`（別のパッケージのサーバが `New` に渡すので公開する）は 100 である。
+    -   [x] `test_helpers.go` に、記録の全体を文字列にする関数を加える。サーバのテストが記録に目印がないことを確かめるために使う（設計書 §7.1 の AC-27）。記録の公開しないフィールドを読むので、`test_helpers.go` に置く。記録の構造体の全体から文字列を作り、後で加えたフィールドも含まれるようにする。
+    -   [x] テスト（差し替えた時計と小さい上限）: 設計書 §7.1 の「`internal/articlecache`」の項目をすべて確かめる。とくに、`Begin` の 5 つの結果と `acquire` を呼ぶかどうか（AC-02・AC-06・AC-07・AC-26a）、`BeginExisting` が投稿の状態を変えないこと（AC-09c）、破棄の順序と対象（AC-25・AC-26）、`BeginPublish` の 5 つの結果（AC-20・AC-22・AC-23）、`Delivered` と `From` の関係（AC-21・AC-45a）、所要時間がやり直しの受け付けから数えられること（AC-14）、記録の記事の `Review.Revisions` が `nil` で、渡した記事が書き換えられないこと（AC-27）、新しいキーと `Failed` のキーのそれぞれで並行の `Begin` を `-race` で走らせ、`acquire` が 1 回だけ呼ばれ、`BeginStarted` または `BeginRestarted` が 1 つだけ返ること（AC-09b）、古い世代のハンドルと範囲外の入力が何もせず panic しないこと（T-09）。
+    -   [x] 壊し方: 破棄の対象から `PublishPosting` を除く条件を外す、世代の比較を外す、`Begin` が `BeginExisting` でも `acquire` を呼ぶ、の 3 つでそれぞれのテストが失敗することを確かめる。
 -   **完了の条件:** グリーンゲートが通る。
 
 #### ステップ 2-4: `depguard` の規則と `package_reference.md`
 
 -   **ファイル:** `.golangci.yml`・`docs/dev/developer_guide/package_reference.md`
 -   **作業:**
-    -   [ ] `internal/articlecache` が `net/http`・`internal/llm`・`internal/publisher`・`internal/server` を import することを禁じる規則を加える（設計書 §2.1）。
-    -   [ ] 一時的に `_ "net/http"` を import して、`make lint` の出力が新しい規則の名前で失敗することを確かめ、元に戻す。結果をコミットのメッセージに書く。
-    -   [ ] `package_reference.md` に `internal/articlecache` の行を加え、`internal/strictjson` の行を改める（1.3）。
+    -   [x] `internal/articlecache` が `net/http`・`internal/llm`・`internal/publisher`・`internal/server` を import することを禁じる規則を加える（設計書 §2.1）。
+    -   [x] 一時的に `_ "net/http"` を import して、`make lint` の出力が新しい規則の名前で失敗することを確かめ、元に戻す。結果をコミットのメッセージに書く。
+    -   [x] `package_reference.md` に `internal/articlecache` の行を加え、`internal/strictjson` の行を改める（1.3）。
 -   **完了の条件:** グリーンゲートが通る。
 
 ### PR-1 作成ポイント: legacy removal issue and article cache foundation

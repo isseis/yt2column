@@ -120,8 +120,9 @@ func (o Object) CollectOnly(keys ...string) (map[string]Value, error) {
 	return consumed, nil
 }
 
-// Has reports whether a member with the key exists. It is meant for
-// diagnostics only and never rejects.
+// Has reports whether a member whose key, with its escapes decoded, equals key
+// exactly. A key written as "\u0076" is found as "v". Callers may choose
+// behavior by its result. It never rejects.
 func (o Object) Has(key string) bool {
 	for _, member := range o.members {
 		if member.key == key {
@@ -173,6 +174,13 @@ func OptionalString(members map[string]Value, key string) (value string, present
 		return "", false, fmt.Errorf("%w: %s", errEmptyField, key)
 	}
 	return text, true, nil
+}
+
+// Raw returns a copy of the value's bytes as they appear in the document:
+// whitespace, escapes, and member order inside the value are unchanged. The
+// zero Value returns nil.
+func (v Value) Raw() []byte {
+	return bytes.Clone(v.raw)
 }
 
 // IsNull reports whether the value is the JSON literal null. The zero Value
