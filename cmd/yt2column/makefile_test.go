@@ -121,30 +121,35 @@ func TestMakeTargetsDoNotReadRetiredModelEnv(t *testing.T) {
 	}
 }
 
-// retiredModelEnvRE matches retiredModelEnv as a whole variable name. A longer
-// name that contains it, such as the test variable that replaced it, is
-// another variable and allowed.
-var retiredModelEnvRE = regexp.MustCompile(regexp.QuoteMeta(retiredModelEnv) + `([^A-Za-z0-9_]|$)`)
+// retiredModelEnvMentioned reports whether line names retiredModelEnv as a
+// whole variable name. A longer name that only starts or ends with it, such as
+// YT2COLUMN_MODEL_OLD, is another variable and allowed.
+func retiredModelEnvMentioned(line string) bool {
+	return retiredModelEnvRE.MatchString(line)
+}
 
-// TestRetiredModelEnvRE pins the whole-name boundary of the guard's matcher:
-// the name matches in the forms a Makefile line or a Go source line holds it,
-// and a longer name that contains it does not.
-func TestRetiredModelEnvRE(t *testing.T) {
+// retiredModelEnvRE matches retiredModelEnv as a whole variable name.
+var retiredModelEnvRE = regexp.MustCompile(`(^|[^A-Za-z0-9_])` + regexp.QuoteMeta(retiredModelEnv) + `([^A-Za-z0-9_]|$)`)
+
+// TestRetiredModelEnvMentioned pins the whole-name boundary of the guard's
+// matcher: the name matches in the forms a Makefile line or a Go source line
+// holds it, and a longer name that contains it does not.
+func TestRetiredModelEnvMentioned(t *testing.T) {
 	for _, tc := range []struct {
+		name string
 		line string
 		want bool
 	}{
-		{line: retiredModelEnv, want: true},
-		{line: retiredModelEnv + " ?= deepseek-flash", want: true},
-		{line: "export " + retiredModelEnv + " := x", want: true},
-		{line: `"${` + retiredModelEnv + `}"`, want: true},
-		{line: "$" + retiredModelEnv, want: true},
-		{line: retiredModelEnv + "_OLD", want: false},
-		{line: "YT2COLUMN_TEST_DEEPSEEK_MODEL", want: false},
+		{name: "assignment", line: retiredModelEnv + " ?= deepseek-flash", want: true},
+		{name: "export", line: "export " + retiredModelEnv + " := $(" + retiredModelEnv + ")", want: true},
+		{name: "make_reference", line: "$(" + retiredModelEnv + ")", want: true},
+		{name: "shell_reference", line: `"${` + retiredModelEnv + `}"`, want: true},
+		{name: "name_starts_with_identifier", line: "DEFAULT_" + retiredModelEnv, want: false},
+		{name: "name_ends_with_identifier", line: retiredModelEnv + "_OLD", want: false},
 	} {
-		t.Run(tc.line, func(t *testing.T) {
-			if got := retiredModelEnvRE.MatchString(tc.line); got != tc.want {
-				t.Errorf("retiredModelEnvRE.MatchString(%q) = %t, want %t", tc.line, got, tc.want)
+		t.Run(tc.name, func(t *testing.T) {
+			if got := retiredModelEnvMentioned(tc.line); got != tc.want {
+				t.Errorf("retiredModelEnvMentioned(%q) = %t, want %t", tc.line, got, tc.want)
 			}
 		})
 	}
@@ -155,27 +160,28 @@ func TestRetiredModelEnvRE(t *testing.T) {
 // internal/llm/deepseek that they build do not name the retired model
 // variable. The whole Makefile is scanned rather than the targets' lines, so a
 // mention anywhere in it fails. Every scope must hold at least one file to
-// scan, so a scope that stops matching is a failure rather than a scan of
-// nothing that passes.
+// scan, so a scope that finds none is a failure rather than a scan of nothing
+// that passes.
 func TestRetiredModelEnvIsGone(t *testing.T) {
 	for _, scope := range []struct {
 		name  string
-		files []string
+		files func(t *testing.T) []string
 	}{
-		{name: "Makefile", files: []string{"Makefile"}},
-		{name: "internal/llm/deepseek", files: goFilesUnder(t, "internal/llm/deepseek")},
+		{name: "Makefile", files: func(*testing.T) []string { return []string{"Makefile"} }},
+		{name: "internal/llm/deepseek", files: func(t *testing.T) []string { return goFilesUnder(t, "internal/llm/deepseek") }},
 	} {
 		t.Run(scope.name, func(t *testing.T) {
-			if len(scope.files) == 0 {
+			files := scope.files(t)
+			if len(files) == 0 {
 				t.Fatalf("found no files in %s to scan", scope.name)
 			}
-			for _, file := range scope.files {
+			for _, file := range files {
 				content, err := os.ReadFile(filepath.Join(repositoryRoot, file))
 				if err != nil {
 					t.Fatalf("read %s: %v", file, err)
 				}
 				for i, line := range slices.Collect(strings.Lines(string(content))) {
-					if retiredModelEnvRE.MatchString(line) {
+					if retiredModelEnvMentioned(line) {
 						t.Errorf("%s:%d names %s: %s", file, i+1, retiredModelEnv, strings.TrimSpace(line))
 					}
 				}
