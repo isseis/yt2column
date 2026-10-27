@@ -111,11 +111,11 @@
 #### ステップ 1-1: issue を起票する
 
 -   **作業:**
-    -   [ ] 設計書 §3.14 の「削除するもの」8 項目と「簡素化するもの」6 項目を本文に書いた issue を、日本語で起票する。本文に、#503 の完了を待って着手することを書く。
-    -   [ ] 起票の前に、本文のファイルでメンションの検査（`.claude/commands/_lib/task-pr-handoff.md`「Mention check」）を行う。
-    -   [ ] issue を #501 の sub-issue にする（`task-pr-handoff.md` の「Choosing the issue to link」と同じ `sub_issues` の API）。
-    -   [ ] #503 を、起票した issue のブロッキング issue（blocked by）にする。GitHub の REST API `POST /repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocked_by` で、パスに起票した issue の番号を、本文の `issue_id` に #503 の数値の `id`（番号ではない）を渡す（GitHub REST API の「Issue dependencies」の文書で確かめた）。
-    -   [ ] 起票した issue の番号を、本書 9 章に記録する。
+    -   [x] 設計書 §3.14 の「削除するもの」8 項目と「簡素化するもの」6 項目を本文に書いた issue を、日本語で起票する。本文に、#503 の完了を待って着手することを書く。
+    -   [x] 起票の前に、本文のファイルでメンションの検査（`.claude/commands/_lib/task-pr-handoff.md`「Mention check」）を行う。
+    -   [x] issue を #501 の sub-issue にする（`task-pr-handoff.md` の「Choosing the issue to link」と同じ `sub_issues` の API）。
+    -   [x] #503 を、起票した issue のブロッキング issue（blocked by）にする。GitHub の REST API `POST /repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocked_by` で、パスに起票した issue の番号を、本文の `issue_id` に #503 の数値の `id`（番号ではない）を渡す（GitHub REST API の「Issue dependencies」の文書で確かめた）。
+    -   [x] 起票した issue の番号を、本書 9 章に記録する。
 -   **完了の条件:** issue が #501 の sub-issue として一覧に出て、#503 にブロックされていると表示される。
 
 ### フェーズ 2: 土台（`internal/strictjson`・`internal/articlecache`・`depguard`）
@@ -623,7 +623,7 @@ PR-1 と PR-2 は互いに依存しないが、PR は番号の順にマージす
 
 ## 9. 次のステップ
 
--   **起票した issue:** （ステップ 1-1 で記録する）
+-   **起票した issue:** [#526](https://github.com/isseis/yt2column/issues/526)（#501 の sub-issue、#503 にブロックされている。2026-10-27 に起票）
 -   `/runplan` は、本書と設計書の両方が `approved` になってから始める（設計書は本書の PR で承認し直す、1.3）。
 -   PR-7 のマージの後、#502 を閉じる（`/runpr` が最後の計画の PR の後に提案する）。
 -   #503 で拡張が新しい API に移った後、ステップ 1-1 の issue の作業を行う。
