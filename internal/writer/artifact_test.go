@@ -496,6 +496,20 @@ func TestResumeFinalLengthCheck(t *testing.T) {
 		})
 		a, err := w.Write(context.Background(), validTranscript())
 		requireStepError(t, err, ErrTooLong, StepReview, a)
+		// The failure still reports the reused stages' usage.
+		usageErr, ok := errors.AsType[*TokenUsageError](err)
+		if !ok {
+			t.Fatalf("Write error = %v, want a *TokenUsageError", err)
+		}
+		for name, got := range map[string]StageUsage{
+			"Generation": usageErr.RunUsage.Generation,
+			"Shorten":    usageErr.RunUsage.Shorten,
+			"Review":     usageErr.RunUsage.Review,
+		} {
+			if got.Origin != OriginReused {
+				t.Errorf("RunUsage.%s.Origin = %v, want OriginReused", name, got.Origin)
+			}
+		}
 	})
 
 	t.Run("shorten disabled accepts", func(t *testing.T) {

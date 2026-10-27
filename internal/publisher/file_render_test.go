@@ -3,6 +3,9 @@
 package publisher
 
 import (
+	"context"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -234,5 +237,43 @@ func TestEscapeLeadingMarkdown(t *testing.T) {
 				t.Fatalf("escapeLeadingMarkdown(%q) = %q, want %q", tc.in, got, tc.want)
 			}
 		})
+	}
+}
+
+// TestFileContentMatchesFilePublisher checks, for every golden article, that
+// FileContent returns byte for byte what FilePublisher writes. TestRenderGolden
+// pins the content itself.
+func TestFileContentMatchesFilePublisher(t *testing.T) {
+	for _, tc := range goldenCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			out := filepath.Join(t.TempDir(), "article.md")
+			p, err := NewFilePublisher(out)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := p.Publish(context.Background(), tc.article); err != nil {
+				t.Fatalf("Publish error = %v", err)
+			}
+			written, err := os.ReadFile(out) //nolint:gosec // a path under t.TempDir
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := FileContent(tc.article)
+			if err != nil {
+				t.Fatalf("FileContent error = %v", err)
+			}
+			if got != string(written) {
+				t.Errorf("FileContent =\n%q\nwant the written file\n%q", got, written)
+			}
+		})
+	}
+}
+
+// TestFormatArticleCostUnknown checks the unknown result, which each caller
+// replaces with its own placeholder. The known value reaches both callers and
+// is pinned by the golden files.
+func TestFormatArticleCostUnknown(t *testing.T) {
+	if usd, known := FormatArticleCost(unpricedArticle().RunUsage); usd != "" || known {
+		t.Errorf("FormatArticleCost = %q, %v, want \"\", false", usd, known)
 	}
 }

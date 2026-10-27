@@ -4,6 +4,7 @@ package publisher
 
 import (
 	"net/http"
+	"slices"
 	"testing"
 	"time"
 
@@ -96,7 +97,11 @@ func newSlackFailureNotifierForLoopbackTest(t testing.TB, timeout time.Duration,
 // another package can pin the length and shape of the messages. Built only
 // with the test tag.
 func SlackMessagesForTest(article writer.Article) ([]string, error) {
-	return prepareSlackMessages(article)
+	messages, err := PrepareSlackMessages(article)
+	if err != nil {
+		return nil, err
+	}
+	return slices.Clone(messages.texts), nil
 }
 
 // Limits of the preparation stage, for tests in other packages that size an

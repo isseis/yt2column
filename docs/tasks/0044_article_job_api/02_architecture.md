@@ -8,7 +8,7 @@
 | Created | 2026-10-27 |
 | Review date | 2026-10-27 |
 | Reviewer | isseis |
-| Comments | 2026-10-27 に isseis が承認した（PR #519）。2026-10-27 (decision): 記事のキーを、秘密を使わない SHA-256 から、サーバのプロセスごとの秘密を鍵とする HMAC-SHA256 に改めた（§3.2・§5.2 の T-10）。誰でもキーを計算できると、生成を始めずに記事の有無を知る手段になり、キーが不透明であること（要件書 3.2）も保てないためである。レビュアー（isseis）が決め、承認した。2026-10-27 (decision): `/mkplan` の計画の際に、レビュアー（isseis）がセッションの中で、ホストが今の形と新しい形を見分ける判定（§3.10.2）を、CLAUDE.md「Declare, don't infer」の例外として CLAUDE.md に書くと決め、§2.2・§3.15・§3.17 に CLAUDE.md を加えた。§3.14 の 6 は、#503 の後にこの例外を CLAUDE.md から取り除くとしており、加える作業がどこにもなかったためである。決定の変更なので `draft` に戻し、`03_implementation_plan.md` の PR で承認し直す（`requirements_process.md`「Editing an approved document」）。同じ PR で、§3.12 と §3.16 の H-02 の行に残っていた「SHA-256」を、§3.2 の決定（HMAC-SHA256）に合わせた。これは編集上の修正で、決定は変えていない。また、計画のレビューで、§8 の文書の段階を計画の決定（ガードが確かめる値はその値を加える段階で、`package_reference.md` はパッケージを変える段階で更新する）に合わせ、`SLACK_WEBHOOK_URL` を必須と書く `docs/dev/production_profile.md:42` を §2.2・§3.15・§3.17 の更新する文書に加えた。 2026-10-27 (editorial): `/runplan` の実装で、§3.3.4 の件数の上限の定数の名前を `defaultCapacity` から `DefaultCapacity` に改めた。`internal/server` が別のパッケージから `articlecache.New` に渡すために公開が要るためで、値（100）と決定は変えていない。 |
+| Comments | 2026-10-27 に isseis が承認した（PR #519）。2026-10-27 (decision): 記事のキーを、秘密を使わない SHA-256 から、サーバのプロセスごとの秘密を鍵とする HMAC-SHA256 に改めた（§3.2・§5.2 の T-10）。誰でもキーを計算できると、生成を始めずに記事の有無を知る手段になり、キーが不透明であること（要件書 3.2）も保てないためである。レビュアー（isseis）が決め、承認した。2026-10-27 (decision): `/mkplan` の計画の際に、レビュアー（isseis）がセッションの中で、ホストが今の形と新しい形を見分ける判定（§3.10.2）を、CLAUDE.md「Declare, don't infer」の例外として CLAUDE.md に書くと決め、§2.2・§3.15・§3.17 に CLAUDE.md を加えた。§3.14 の 6 は、#503 の後にこの例外を CLAUDE.md から取り除くとしており、加える作業がどこにもなかったためである。決定の変更なので `draft` に戻し、`03_implementation_plan.md` の PR で承認し直す（`requirements_process.md`「Editing an approved document」）。同じ PR で、§3.12 と §3.16 の H-02 の行に残っていた「SHA-256」を、§3.2 の決定（HMAC-SHA256）に合わせた。これは編集上の修正で、決定は変えていない。また、計画のレビューで、§8 の文書の段階を計画の決定（ガードが確かめる値はその値を加える段階で、`package_reference.md` はパッケージを変える段階で更新する）に合わせ、`SLACK_WEBHOOK_URL` を必須と書く `docs/dev/production_profile.md:42` を §2.2・§3.15・§3.17 の更新する文書に加えた。 2026-10-27 (editorial): `/runplan` の実装で、§3.3.4 の件数の上限の定数の名前を `defaultCapacity` から `DefaultCapacity` に改めた。`internal/server` が別のパッケージから `articlecache.New` に渡すために公開が要るためで、値（100）と決定は変えていない。 2026-10-27 (editorial): `/runplan` の PR-2 の実装で、§3.5 の `StageGeneration` の `StageFinished` を「出力の検査が通り、成果物を保存した（保存先があるとき）後」と書き改めた。短縮・検証・推敲と同じく、保存の失敗をその工程の失敗として表すためで、サーバは保存先を使わないので振る舞いは変わらない。§3.7.1 の `PostMessages` の説明に、空のメッセージ・`nil` の `delivered`・Webhook の URL のない発行者を送らずに拒否することを加えた。いずれも `*SlackPostError` ではないので、投稿のジョブは §3.7.2 のとおり内部の失敗とする。決定は変えていない。 |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §3.16）を指す。既存のコードの行番号は、コミット `c3d20a7`（要件書の承認を含む `main` の先頭）で確かめたものである。
 
@@ -723,7 +723,7 @@ func NewProgressWriter(client llm.LLMClient, opts Options) (ProgressWriter, erro
 ```
 
 -   **通知の約束:**
-    -   `StageGeneration`: 生成のテンプレートの展開の前に `StageStarted`、生成の出力の検査（`checkResponse`）が通った後に `StageFinished`。
+    -   `StageGeneration`: 生成のテンプレートの展開の前に `StageStarted`、生成の出力の検査（`checkResponse`）が通り、成果物を保存した（`Options.Artifacts.Store` があるとき）後に `StageFinished`。保存の失敗は、短縮・検証・推敲と同じく、その工程の失敗である。
     -   `StageShorten`: 本文の短縮を行うとき（`writer.go:367` の条件。本文が 4,000 字を超える）は、その前に `StageStarted`、短縮の結果の検査が通った後に `StageFinished`。行わないとき（本文が 4,000 字以下、または短縮の工程が無効）は、下書きの `StageFinished` の直後に `StageSkipped`（AC-11）。
     -   `StageReview`: 検証・推敲を行うときは、その前に `StageStarted`。`StageFinished` は、検証・推敲の結果の検査と、`Write` の最後の長さの検査（`writer.go:401-405`）が通った後に呼ぶ。検証・推敲の後の本文が長すぎるときの失敗（`stepError(StepReview, …)`）を、検証・推敲の工程の失敗として表せるようにするためである。検証・推敲が無効なとき（CLI の `--no-review`）は `StageSkipped`。サーバは常に有効にするので、サーバでは `StageSkipped` にならない（`cmd/yt2column-server/run.go:93-98`）。
     -   失敗したときは、通知を追加しない。どの工程が失敗したかは、`StageStarted` の後に `StageFinished` が来なかった工程として、受け手（`articlecache.Run`）が決める（§3.3.2 の `Fail`）。
@@ -812,7 +812,9 @@ func FormatArticleCost(runUsage writer.RunUsage) (usd string, known bool)
 // message's index. A from outside 0..m.Len() is rejected without sending;
 // from == m.Len() sends nothing and returns nil. Every send failure is a
 // *SlackPostError whose Posted counts the messages delivered before it, from
-// the first message.
+// the first message. It sends nothing and returns a plain error when the
+// publisher holds no webhook URL, m is empty (not built by
+// PrepareSlackMessages), or delivered is nil.
 func (p *SlackWebhookPublisher) PostMessages(ctx context.Context, m SlackMessages, from int, delivered func(index int)) error
 ```
 

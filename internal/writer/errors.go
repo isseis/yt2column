@@ -35,6 +35,9 @@ var (
 	// exported: a missing dependency is a programming error, not a condition
 	// callers branch on.
 	errNilLLMClient = errors.New("LLM client is nil")
+	// errNilProgressObserver rejects a nil or typed-nil observer in
+	// WriteWithProgress.
+	errNilProgressObserver = errors.New("progress observer is nil")
 	// errReviewClientNil, errReviewClientSet, and errDisabledStepTemplate
 	// reject the step combinations New must not accept (an enabled review
 	// step without a client, a client set while the step is disabled, and a

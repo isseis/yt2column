@@ -57,15 +57,38 @@ func prepareSlackMessages(article writer.Article) ([]string, error) {
 	return messages, nil
 }
 
+// SlackMessages are the messages SlackWebhookPublisher.Publish sends for one
+// article, after every pre-send check passed. Only PrepareSlackMessages
+// builds a non-empty one, so PostMessages, which takes nothing else, never
+// sends a text that skipped the checks. A copy shares the texts, which
+// nothing mutates.
+type SlackMessages struct {
+	texts []string
+}
+
+// Len returns how many messages there are.
+func (m SlackMessages) Len() int { return len(m.texts) }
+
+// PrepareSlackMessages runs every pre-send check on a and returns its
+// messages, or the pre-send error Publish would return. It touches no network
+// and returns the same result for the same article.
+func PrepareSlackMessages(a writer.Article) (SlackMessages, error) {
+	texts, err := prepareSlackMessages(a)
+	if err != nil {
+		return SlackMessages{}, err
+	}
+	return SlackMessages{texts: texts}, nil
+}
+
 // SlackMessageCount returns how many messages Publish sends for article. It
 // performs the same preparation as Publish, touches no network, and returns
 // the same pre-send errors.
 func SlackMessageCount(article writer.Article) (int, error) {
-	messages, err := prepareSlackMessages(article)
+	messages, err := PrepareSlackMessages(article)
 	if err != nil {
 		return 0, err
 	}
-	return len(messages), nil
+	return messages.Len(), nil
 }
 
 // splitSlackText breaks post into the message texts Publish sends. A text

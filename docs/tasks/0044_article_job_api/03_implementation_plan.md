@@ -180,32 +180,32 @@
 
 -   **ファイル:** `internal/writer/writer.go`・`progress_test.go`（新規）、`internal/writer/testutil/mocks.go`・`mocks_test.go`
 -   **作業:**
-    -   [ ] 設計書 §3.5 の `ProgressObserver`・`ProgressWriter`・`NewProgressWriter` を加える。`templateWriter` が `WriteWithProgress` を実装し、`Write` は何もしない通知先でそれを呼ぶ。通知の時点は設計書 §3.5「通知の約束」に従う。
-    -   [ ] `FakeArticleWriter` に `WriteWithProgress` を加える。指定した工程の通知を順に送り、工程ごとに止められる仕組みを持たせる。止める仕組みは解放のチャネルと `ctx.Done()` の両方を待ち、取り消されたら `ctx` のエラーを返す。記録を排他制御の下に置き、排他制御付きの読み出しを加える（1.3）。これらを `mocks_test.go` で確かめる。
-    -   [ ] テスト（fake の `LLMClient`）: 通知の順序（AC-10）、下書きの本文が 4,000 字ちょうどで `StageSkipped`、4,001 字で短縮の `StageStarted`・`StageFinished`（AC-11）、各工程の失敗の後にその工程の `StageFinished` が来ないこと、最後の長さの検査が失敗したときに検証・推敲の `StageFinished` が来ないこと、`Write` と `WriteWithProgress` が同じ記事を返すこと。
-    -   [ ] 壊し方: 検証・推敲の `StageFinished` を最後の長さの検査の前に移すと、該当の行が失敗することを確かめる。
+    -   [x] 設計書 §3.5 の `ProgressObserver`・`ProgressWriter`・`NewProgressWriter` を加える。`templateWriter` が `WriteWithProgress` を実装し、`Write` は何もしない通知先でそれを呼ぶ。通知の時点は設計書 §3.5「通知の約束」に従う。
+    -   [x] `FakeArticleWriter` に `WriteWithProgress` を加える。指定した工程の通知を順に送り、工程ごとに止められる仕組みを持たせる。止める仕組みは解放のチャネルと `ctx.Done()` の両方を待ち、取り消されたら `ctx` のエラーを返す。記録を排他制御の下に置き、排他制御付きの読み出しを加える（1.3）。これらを `mocks_test.go` で確かめる。
+    -   [x] テスト（fake の `LLMClient`）: 通知の順序（AC-10）、下書きの本文が 4,000 字ちょうどで `StageSkipped`、4,001 字で短縮の `StageStarted`・`StageFinished`（AC-11）、各工程の失敗の後にその工程の `StageFinished` が来ないこと、最後の長さの検査が失敗したときに検証・推敲の `StageFinished` が来ないこと、`Write` と `WriteWithProgress` が同じ記事を返すこと。
+    -   [x] 壊し方: 検証・推敲の `StageFinished` を最後の長さの検査の前に移すと、該当の行が失敗することを確かめる。
 -   **完了の条件:** グリーンゲートが通り、`writer` の今のテストが変更なしで通る。
 
 #### ステップ 3-2: 表示用の Markdown・ファイルの中身・料金の書式
 
 -   **ファイル:** `internal/publisher/format.go`・`display_render.go`（新規）・`file_render.go`・`file.go`・`slack_render.go`、テストは `display_render_test.go`（新規）・`file_render_test.go`
 -   **作業:**
-    -   [ ] `FormatArticleCost` を加え、ファイルの整形と Slack の脚注をそれを呼ぶ形にする（設計書 §3.6.1）。
-    -   [ ] `renderDisplayMarkdown` と `DisplayMarkdown` を加え、`renderFileArticle` のフロントマターの後の部分をそれで書く形にする（設計書 §3.6.2）。
-    -   [ ] `FileContent` を加え、`FilePublisher.Publish` が書く中身をそれで作る（設計書 §3.6.1）。
-    -   [ ] テスト: `golden_test.go` の入力のそれぞれで、`FileContent` の結果が `FilePublisher` の書いたファイルとバイト単位で同じであること（AC-12）。`DisplayMarkdown` の並び（チャンネル名がある場合とない場合）と、`CheckPublishable` に通らない記事での拒否。`TestRenderGolden`・`TestRenderGoldenNeutralized` はゴールデンファイルを変えずに通る。
+    -   [x] `FormatArticleCost` を加え、ファイルの整形と Slack の脚注をそれを呼ぶ形にする（設計書 §3.6.1）。
+    -   [x] `renderDisplayMarkdown` と `DisplayMarkdown` を加え、`renderFileArticle` のフロントマターの後の部分をそれで書く形にする（設計書 §3.6.2）。
+    -   [x] `FileContent` を加え、`FilePublisher.Publish` が書く中身をそれで作る（設計書 §3.6.1）。
+    -   [x] テスト: `golden_test.go` の入力のそれぞれで、`FileContent` の結果が `FilePublisher` の書いたファイルとバイト単位で同じであること（AC-12）。`DisplayMarkdown` の並び（チャンネル名がある場合とない場合）と、`CheckPublishable` に通らない記事での拒否。`TestRenderGolden`・`TestRenderGoldenNeutralized` はゴールデンファイルを変えずに通る。
 -   **完了の条件:** グリーンゲートが通り、`internal/publisher/testdata/golden/` に差分がない。
 
 #### ステップ 3-3: 組み立て済みのメッセージと途中からの送信
 
 -   **ファイル:** `internal/publisher/slack_message.go`・`slack.go`・`test_helpers_slack.go`・`slack_test.go`、`internal/publisher/testutil/mocks.go`・`mocks_test.go`、`docs/dev/developer_guide/package_reference.md`
 -   **作業:**
-    -   [ ] `SlackMessages`・`PrepareSlackMessages` を加え、`SlackMessageCount` と `SlackMessagesForTest` をそれを呼ぶ形にする（設計書 §3.6.1）。
-    -   [ ] `PostMessages` を加え、`Publish` を `PrepareSlackMessages` と `PostMessages(ctx, m, 0, 何もしない関数)` の形にする（設計書 §3.7.1）。`PostMessages` も `Publish` と同じく、最初に Webhook の URL を持つかを確かめる。
-    -   [ ] `FakePublisher` に `PostMessages` を加え、記録を排他制御の下に置き、排他制御付きの読み出しを加える（1.3）。`mocks_test.go` で確かめる。
-    -   [ ] テスト（`NewSlackWebhookPublisherForLoopbackTest` を `Interval` 0 で使う）: N 通に分かれる記事で、k = 1 の再開（`from` が 0）と 1 < k の再開（`from` = k − 1）のそれぞれで k 通目から送り、`delivered` が届いた位置ごとに呼ばれること（AC-21）、n 通目の失敗で `*SlackPostError` の `Posted` が最初から数えた数になること、範囲外の `from` を送らずに拒否すること、`from` が全体の数なら何も送らずに `nil` を返すこと。`Publish` の今のテスト（`slack_test.go`）は変更なしで通る。
-    -   [ ] 壊し方: `PostMessages` が `from` を無視して最初から送ると、再開の行が失敗することを確かめる。
-    -   [ ] `package_reference.md` の `internal/writer`・`internal/publisher` の行を改める（1.3）。
+    -   [x] `SlackMessages`・`PrepareSlackMessages` を加え、`SlackMessageCount` と `SlackMessagesForTest` をそれを呼ぶ形にする（設計書 §3.6.1）。
+    -   [x] `PostMessages` を加え、`Publish` を `PrepareSlackMessages` と `PostMessages(ctx, m, 0, 何もしない関数)` の形にする（設計書 §3.7.1）。`PostMessages` も `Publish` と同じく、最初に Webhook の URL を持つかを確かめる。
+    -   [x] `FakePublisher` に `PostMessages` を加え、記録を排他制御の下に置き、排他制御付きの読み出しを加える（1.3）。`mocks_test.go` で確かめる。
+    -   [x] テスト（`NewSlackWebhookPublisherForLoopbackTest` を `Interval` 0 で使う）: N 通に分かれる記事で、k = 1 の再開（`from` が 0）と 1 < k の再開（`from` = k − 1）のそれぞれで k 通目から送り、`delivered` が届いた位置ごとに呼ばれること（AC-21）、n 通目の失敗で `*SlackPostError` の `Posted` が最初から数えた数になること、範囲外の `from` を送らずに拒否すること、`from` が全体の数なら何も送らずに `nil` を返すこと。`Publish` の今のテスト（`slack_test.go`）は変更なしで通る。
+    -   [x] 壊し方: `PostMessages` が `from` を無視して最初から送ると、再開の行が失敗することを確かめる。
+    -   [x] `package_reference.md` の `internal/writer`・`internal/publisher` の行を改める（1.3）。
 -   **完了の条件:** グリーンゲートが通る。
 
 ### PR-2 作成ポイント: writer progress and publisher rendering and resumable send
@@ -220,10 +220,10 @@
 
 **判定理由**: ステップ 3-3 の `PostMessages` が、投稿の再開（AC-21・AC-45a）が依存する回復の手順の土台で、誤ると重複や欠落の投稿になる。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/530
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 4: 設定と起動
 
@@ -538,7 +538,7 @@ PR-1 と PR-2 は互いに依存しないが、PR は番号の順にマージす
 ## 6. 実装チェックリスト (Implementation Checklist)
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 2-1 / 2-2 / 2-3 / 2-4）
-- [ ] PR-2 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3）
+- [x] PR-2 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3）
 - [ ] PR-3 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3）
 - [ ] PR-4 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5）
 - [ ] PR-5 マージ済み（対象ステップ: 5-6）

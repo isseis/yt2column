@@ -47,6 +47,14 @@ var (
 	errSlackPostTimeout  = errors.New("webhook: the post timeout elapsed")
 )
 
+// Static errors PostMessages returns for a call it refuses before sending.
+// Each is a caller mistake, not a condition to branch on, so none is exported.
+var (
+	errSlackNoMessages   = errors.New("webhook: there are no messages to post")
+	errSlackFromRange    = errors.New("webhook: the first message to post is outside the messages")
+	errSlackNilDelivered = errors.New("webhook: the delivered callback is nil")
+)
+
 // Response body members read to name a Mattermost AppError.
 const (
 	keySlackErrorID        = "id"
@@ -159,15 +167,41 @@ func (p *SlackWebhookPublisher) Publish(ctx context.Context, article writer.Arti
 	if err := p.client.configured(); err != nil {
 		return err
 	}
-	messages, err := prepareSlackMessages(article)
+	messages, err := PrepareSlackMessages(article)
 	if err != nil {
 		return err
 	}
+	return p.PostMessages(ctx, messages, 0, func(int) {})
+}
 
-	total := len(messages)
-	posted := 0
-	for i, message := range messages {
-		if i > 0 {
+// PostMessages posts the messages from index from on, in order and with silent
+// set, waiting the interval before every message but the first one it sends.
+// After each message the Webhook acknowledged, it calls delivered with that
+// message's index. A from outside 0..m.Len() is rejected without sending;
+// from == m.Len() sends nothing and returns nil. Every send failure is a
+// *SlackPostError whose Posted counts the messages delivered before it, from
+// the first message. It sends nothing and returns a plain error when the
+// publisher holds no webhook URL, m is empty (not built by
+// PrepareSlackMessages), or delivered is nil.
+func (p *SlackWebhookPublisher) PostMessages(ctx context.Context, m SlackMessages, from int, delivered func(index int)) error {
+	if err := p.client.configured(); err != nil {
+		return err
+	}
+	total := m.Len()
+	switch {
+	case total == 0:
+		return errSlackNoMessages
+	case from < 0 || from > total:
+		return errSlackFromRange
+	case delivered == nil:
+		return errSlackNilDelivered
+	}
+
+	// The messages before from were delivered by an earlier call, so the
+	// count a failure reports starts there.
+	posted := from
+	for i := from; i < total; i++ {
+		if i > from {
 			if err := waitContext(ctx, p.interval); err != nil {
 				return &SlackPostError{Total: total, Posted: posted, Attempted: false, Err: err}
 			}
@@ -175,10 +209,11 @@ func (p *SlackWebhookPublisher) Publish(ctx context.Context, article writer.Arti
 		if err := ctx.Err(); err != nil {
 			return &SlackPostError{Total: total, Posted: posted, Attempted: false, Err: err}
 		}
-		if err := p.client.post(ctx, message); err != nil {
+		if err := p.client.post(ctx, m.texts[i]); err != nil {
 			return &SlackPostError{Total: total, Posted: posted, Attempted: true, Err: err}
 		}
 		posted++
+		delivered(i)
 	}
 	return nil
 }

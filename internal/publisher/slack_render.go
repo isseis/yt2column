@@ -100,8 +100,8 @@ func slackFootnote(a writer.Article) string {
 		parts = append(parts, neutralizeMentions(m.Model)+" ("+strings.Join(names, ", ")+")")
 	}
 	cost := "unknown"
-	if amount, known := articleCost(a.RunUsage); known {
-		cost = amount.Format(articleCostDecimals) + " USD"
+	if usd, known := FormatArticleCost(a.RunUsage); known {
+		cost = usd + " USD"
 	}
 	parts = append(parts, footnoteSeparator+"Estimated cost: "+cost)
 	return strings.Join(parts, "")

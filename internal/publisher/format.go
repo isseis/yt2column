@@ -19,6 +19,18 @@ func articleCost(runUsage writer.RunUsage) (pricing.Amount, bool) {
 	return article.Amount()
 }
 
+// FormatArticleCost returns the article's cost as the --out file's
+// estimated_cost_usd value and the Slack footnote amount, and whether it is
+// known. When it is not known, usd is "" and each caller writes its own
+// placeholder.
+func FormatArticleCost(runUsage writer.RunUsage) (usd string, known bool) {
+	amount, known := articleCost(runUsage)
+	if !known {
+		return "", false
+	}
+	return amount.Format(articleCostDecimals), true
+}
+
 // modelVersionOrNone returns version, or the "(none)" placeholder shown when a
 // provider reports no version, for the model entries of the output and the
 // review log.
