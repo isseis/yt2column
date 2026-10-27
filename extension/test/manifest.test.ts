@@ -156,7 +156,7 @@ describe("locales", () => {
     }
   });
 
-  it("gives every catalog entry a message string and no other field, without placeholders", () => {
+  it("gives every catalog entry a message string and no unexpected fields, without placeholders", () => {
     const byLocale = catalogs();
     // Precondition: the walk reached the catalogs.
     assert.ok(byLocale.size > 0, "found no catalogs");
