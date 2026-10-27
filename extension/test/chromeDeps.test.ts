@@ -8,6 +8,8 @@ import {
   createMetadataReader,
   createSelectionReader,
   createSendDeps,
+  readUiLanguage,
+  type I18nApi,
   type NativeMessagingApi,
   type ScriptingApi,
 } from "../src/browser/chromeDeps.ts";
@@ -396,4 +398,30 @@ describe("send dependencies", () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
     assert.deepEqual(ran, ["kept"]);
   });
+});
+
+describe("read ui language", () => {
+  it("returns the string the browser reported", () => {
+    assert.equal(readUiLanguage({ getUILanguage: () => "ja-JP" }), "ja-JP");
+  });
+
+  const unreadable: { name: string; i18n: I18nApi }[] = [
+    {
+      name: "the browser throws",
+      i18n: {
+        getUILanguage: () => {
+          throw new Error("i18n unavailable");
+        },
+      },
+    },
+    {
+      name: "the browser reports a non-string",
+      i18n: { getUILanguage: () => 1 },
+    },
+  ];
+  for (const { name, i18n } of unreadable) {
+    it(`returns undefined when ${name}`, () => {
+      assert.equal(readUiLanguage(i18n), undefined);
+    });
+  }
 });
