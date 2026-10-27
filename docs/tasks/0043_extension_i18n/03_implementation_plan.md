@@ -444,9 +444,9 @@ AC-07 は、`docs/tasks/0043_extension_i18n/_checks/english_text.ts` で確か�
 
 | AC | 確かめ方 | 実装 | 内容 |
 |---|---|---|---|
-| AC-01 | test: `extension/test/locale.test.ts::resolveLocale`・`extension/test/launch.test.ts::startPopup` ＋ manual | 2-1・3-3・3-6 | 日本語と判定する値と、入口が日本語で表示することはテスト。実機の確認（ステップ 3-6） |
-| AC-02 | test: `extension/test/locale.test.ts::resolveLocale`・`extension/test/chromeDeps.test.ts::readUiLanguage`・`extension/test/launch.test.ts::startPopup` ＋ manual | 2-1・3-1・3-3・3-6 | 英語と判定する値、読み取りの失敗、失敗しても収集と送信が変わらないことはテスト。実機の確認（ステップ 3-6） |
-| AC-03 | test: `extension/test/render.test.ts::renderSummary`・`extension/test/renderMetadata.test.ts::renderMetadata`・`extension/test/renderSend.test.ts::renderSendOutcome`・`::renderBlockReason`・`extension/test/launch.test.ts::popup send`・`::startPopup` ＋ manual | 2-4・3-3・3-6 | 選んだ言語の文言を表示し、もう一方の言語の文言を表示しないこと。実機の確認（ステップ 3-6） |
+| AC-01 | test: `extension/test/locale.test.ts::resolveLocale`・`extension/test/launch.test.ts::startPopup` ＋ manual | 2-1・3-3・3-6 | 日本語と判定する値と、入口が日本語で表示することはテスト。実機（PR-2、下の確認の記録）: 日本語の表示言語で日本語で表示された。 |
+| AC-02 | test: `extension/test/locale.test.ts::resolveLocale`・`extension/test/chromeDeps.test.ts::readUiLanguage`・`extension/test/launch.test.ts::startPopup` ＋ manual | 2-1・3-1・3-3・3-6 | 英語と判定する値、読み取りの失敗、失敗しても収集と送信が変わらないことはテスト。実機（PR-2）: 英語の表示言語で英語で表示された。 |
+| AC-03 | test: `extension/test/render.test.ts::renderSummary`・`extension/test/renderMetadata.test.ts::renderMetadata`・`extension/test/renderSend.test.ts::renderSendOutcome`・`::renderBlockReason`・`extension/test/launch.test.ts::popup send`・`::startPopup` ＋ manual | 2-4・3-3・3-6 | 選んだ言語の文言を表示し、もう一方の言語の文言を表示しないこと。実機（PR-2）: どちらの言語でも、もう一方の言語の文言は表示されなかった。 |
 | AC-04 | test: `extension/test/manifest.test.ts::permissions`・`::undeclared keys`・`extension/test/lintRules.test.ts::chrome.storage`（既存） | 4-1 | 権限が 3 つのままで、`options_ui` がなく、`chrome.storage` を参照できないこと |
 | AC-05 | test: `extension/test/messages.test.ts::rejectionMessage`・`::expandPromptMessage`・`extension/test/sendMessages.test.ts::blockMessage`・`::serverRejectMessage`・`::sendOutcomeMessage` ＋ AC-03 の表示のテスト | 2-3・2-4 | 振り分けの関数がすべての理由と結果について選んだ言語の節の文言を返すこと、表示がそれを表示すること |
 | AC-06 | static: `make ext-typecheck` ＋ test: `extension/test/typecheck.test.ts::a Catalog missing an item fails typecheck`・`extension/test/catalog.test.ts::catalogs` | 2-2 | 欠けで型の検査が失敗すること、本文・手順が空でないこと、手順の規則 |
@@ -455,11 +455,11 @@ AC-07 は、`docs/tasks/0043_extension_i18n/_checks/english_text.ts` で確か�
 | AC-09 | test: `extension/test/messages.test.ts::rejectionMessage`・`extension/test/sendMessages.test.ts::blockMessage`・`::serverRejectMessage`・`::sendOutcomeMessage` | 2-4 | 両方の言語で、各性質を言語によらない語と言語ごとの語の表で確かめる |
 | AC-10 | manual | 2-2 | 日本語の文言の用語を用語集と照らす（PR-1 のレビュー。テストにしない理由は 1.3） |
 | AC-11 | manual | 2-2 | 日本語の文言の YouTube のボタンの表記を、設計書 3.4 の観測の記録と照らす（PR-1 のレビュー。テストにしない理由は 1.3） |
-| AC-12 | test: `extension/test/launch.test.ts::logs by locale`・`::startPopup` | 2-4・3-3 | 言語だけを変えて記録したログが一致すること、表示言語のログのラベルが固定であること |
+| AC-12 | test: `extension/test/launch.test.ts::logs by locale`・`::startPopup` | 2-4・3-3 | 言語だけを変えて記録したログが一致すること、表示言語のログのラベルが固定であること。実機（PR-2）: コンソールの `yt2column ui language` のログが表示言語に一致した。 |
 | AC-13 | test: `extension/test/locale.test.ts::formatCount`・`extension/test/render.test.ts::renderSummary` | 2-1・2-4 | 両方の言語で `12,345`、要約の表示に桁区切りが入ること |
-| AC-14 | test: `extension/test/locale.test.ts::applyPageLocale`・`extension/test/launch.test.ts::startPopup` ＋ manual | 3-2・3-3・3-6 | `lang` 属性と、最初の描画の前に設定されること。実機の確認（ステップ 3-6） |
-| AC-15 | test: `extension/test/style.test.ts::Japanese typography` ＋ manual | 3-4・3-6 | `:root:lang(ja)` の書体の候補の順。実機の確認（ステップ 3-6） |
-| AC-16 | test: `extension/test/style.test.ts::Japanese typography` ＋ manual | 3-4・3-6 | `body:lang(ja)` の行間。実機の確認（ステップ 3-6） |
+| AC-14 | test: `extension/test/locale.test.ts::applyPageLocale`・`extension/test/launch.test.ts::startPopup` ＋ manual | 3-2・3-3・3-6 | `lang` 属性と、最初の描画の前に設定されること。実機（PR-2）: `document.documentElement.lang` が `ja` / `en` であった。 |
+| AC-15 | test: `extension/test/style.test.ts::Japanese typography` ＋ manual | 3-4・3-6 | `:root:lang(ja)` の書体の候補の順。実機（PR-2）: 日本語のとき、書体が日本語の書体になった。 |
+| AC-16 | test: `extension/test/style.test.ts::Japanese typography` ＋ manual | 3-4・3-6 | `body:lang(ja)` の行間。実機（PR-2）: 行間が広く見え、DevTools で `body:lang(ja) { line-height: 1.7; }` の適用を確認した。 |
 | AC-17 | test: `extension/test/style.test.ts::Japanese typography` | 3-4 | 英語の書体が今のままで、ほかの規則が行間を持たないこと |
 | AC-18 | static: `make ext-build`（`check-dist`） ＋ test: `extension/test/manifest.test.ts::locales` | 4-1 | `dist/` が `_locales` の 2 つのファイルを含むこと、`default_locale` が `en` で `_locales` の形が正しいこと |
 | AC-19 | test: `extension/test/manifest.test.ts::fixed fields`・`::locales` ＋ manual | 4-1・5-2 | `name`・`description` が `_locales` を参照し、名前が両方の言語で `yt2column`、説明が言語ごとに異なること。拡張の管理ページの表示は実機の確認（ステップ 5-2） |
@@ -470,6 +470,8 @@ AC-07 は、`docs/tasks/0043_extension_i18n/_checks/english_text.ts` で確か�
 | AC-24 | test: `extension/test/lintRules.test.ts::html parsing APIs`（既存）・`extension/test/render.test.ts::renderSummary`・`extension/test/renderMetadata.test.ts::renderMetadata`・`extension/test/renderSend.test.ts::renderSendOutcome`・`::renderBlockReason` | 2-4 | lint の規則と、両方の言語で文言と値を文字列として表示すること |
 
 `manual` だけの AC は AC-10・AC-11・AC-21・AC-22 である。AC-21・AC-22 は文書の文面だけを定める AC である（`requirements_process.md` §4）。AC-10・AC-11 をテストにしない理由は 1.3 に書いた。
+
+**実機の確認の記録（PR-2、ステップ 3-6）:** 2026-10-27、レビュアー（isseis）が Chrome 156.0.8078.48（公式ビルド、arm64）で確認した。OS の環境設定は日本語とし、Chrome を既定の起動で開いた場合（日本語）と `open -a "Google Chrome" --args -AppleLanguages '(en)'` で起動した場合（英語）の 2 つを試した。日本語のときはポップアップが日本語で表示され、`document.documentElement.lang` が `ja`、コンソールの `yt2column ui language` のログが表示言語に一致した。英語のときは今までどおり英語で表示され、`lang` が `en` であった。どちらのときも、もう一方の言語の文言は表示されなかった。日本語のとき、書体が日本語の書体になり、行間が広く見えた（DevTools で `body:lang(ja) { line-height: 1.7; }` の適用を確認）。Brave は、Chrome と Brave に固有のコードがないため実施していない（レビュアーの判断）。
 
 ## 8. 成功基準 (Success Criteria)
 
