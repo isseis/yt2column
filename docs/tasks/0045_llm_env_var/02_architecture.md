@@ -56,7 +56,9 @@
 
 ### 1.3. 概念モデル
 
-1 つの段階の組がどう決まるかを示す。矢印 A → B は、処理が A から B へ進むこと（A がデータなら、B がそれを読むこと）を表す。判定から出る矢印のラベルは、判定の結果である。旧変数の検査は段階より前に 1 回だけ行うので、この図には含めない（6.1 に示す）。
+段階の組がどう決まるかを、生成の段階と検証・推敲の段階に分けて示す。2 つの図で、矢印 A → B は、処理が A から B へ進むこと（A がデータなら、B がそれを読むこと）を表す。判定から出る矢印のラベルは、判定の結果である。旧変数の検査は段階より前に 1 回だけ行うので、どちらの図にも含めない（6.1 に示す）。
+
+**図 1: 生成の組（`YT2COLUMN_LLM`）**
 
 ```mermaid
 flowchart TD
@@ -65,31 +67,26 @@ flowchart TD
     classDef enhanced fill:#e8f5e8,stroke:#2e8b57,stroke-width:2px,color:#006400;
     classDef problem fill:#ffe6e6,stroke:#d62728,stroke-width:2px,color:#7b0000;
 
-    VAR[("段階の変数<br>YT2COLUMN_LLM または YT2COLUMN_REVIEW_LLM")]
-    SET{"変数が設定されているか"}
-    INHERIT{"検証・推敲の段階か"}
-    GENSEL[("生成の組<br>YT2COLUMN_LLM でこの図をたどった結果")]
+    GVAR[("YT2COLUMN_LLM")]
+    GSET{"設定されているか"}
     DEF[("既定値<br>claude/claude-opus-5-5")]
-    PARSE["値の解析<br>parseLLM"]
-    OK[("段階の組<br>Provider とモデル ID")]
-    ERR["設定のエラー<br>*VarError"]
+    GPARSE["値の解析<br>parseLLM"]
+    GOK[("生成の組")]
+    GERR["YT2COLUMN_LLM を名指しする<br>設定のエラー"]
 
-    VAR --> SET
-    SET -->|"設定されている（空を含む）"| PARSE
-    SET -->|"未設定"| INHERIT
-    INHERIT -->|"はい"| GENSEL
-    INHERIT -->|"いいえ（生成）"| DEF
-    GENSEL -->|"そのまま使う"| OK
-    DEF --> PARSE
-    PARSE -->|"受理"| OK
-    PARSE -->|"拒否"| ERR
+    GVAR --> GSET
+    GSET -->|"設定されている（空を含む）"| GPARSE
+    GSET -->|"未設定"| DEF
+    DEF --> GPARSE
+    GPARSE -->|"受理"| GOK
+    GPARSE -->|"拒否"| GERR
 
-    class VAR,DEF,GENSEL,OK data
-    class SET,INHERIT process
-    class PARSE enhanced
-    class ERR problem
+    class GVAR,DEF,GOK data
+    class GSET process
+    class GPARSE enhanced
+    class GERR problem
 
-    subgraph Legend["Legend"]
+    subgraph Legend1["Legend"]
         L1[("変数・値")]
         L2{"判定"}
         L3["本書で加える処理"]
@@ -101,7 +98,54 @@ flowchart TD
     class L4 problem
 ```
 
-検証・推敲の段階が受け継ぐ生成の組は、`YT2COLUMN_LLM` についてこの図をたどった結果である。生成の段階が必要な実行では、生成の段階で決めた組をそのまま写す（生成の組が拒否されていれば、その拒否は生成の段階で 1 件報告するだけで、検証・推敲の段階では重ねて報告しない）。必要でない実行（`--after shorten` など）では、ここで `YT2COLUMN_LLM` を読んで組を決める（3.3）。
+**図 2: 検証・推敲の組（`YT2COLUMN_REVIEW_LLM`）**
+
+```mermaid
+flowchart TD
+    classDef data fill:#e6f7ff,stroke:#1f77b4,stroke-width:1px,color:#0b3d91;
+    classDef process fill:#fff1e6,stroke:#ff7f0e,stroke-width:1px,color:#8a3e00;
+    classDef enhanced fill:#e8f5e8,stroke:#2e8b57,stroke-width:2px,color:#006400;
+    classDef problem fill:#ffe6e6,stroke:#d62728,stroke-width:2px,color:#7b0000;
+
+    RVAR[("YT2COLUMN_REVIEW_LLM")]
+    RSET{"設定されているか"}
+    NEEDG{"生成の段階も<br>必要な実行か"}
+    RPARSE["値の解析<br>parseLLM"]
+    GDONE[("図 1 で決めた生成の組")]
+    GFLOW["図 1 をたどって<br>生成の組を決める"]
+    ROK[("検証・推敲の組")]
+    RERR["YT2COLUMN_REVIEW_LLM を名指しする<br>設定のエラー"]
+    GERR2["YT2COLUMN_LLM を名指しする<br>設定のエラー"]
+
+    RVAR --> RSET
+    RSET -->|"設定されている（空を含む）"| RPARSE
+    RSET -->|"未設定"| NEEDG
+    RPARSE -->|"受理"| ROK
+    RPARSE -->|"拒否"| RERR
+    NEEDG -->|"はい"| GDONE
+    NEEDG -->|"いいえ（--after shorten など）"| GFLOW
+    GDONE -->|"そのまま使う"| ROK
+    GFLOW -->|"受理"| ROK
+    GFLOW -->|"拒否"| GERR2
+
+    class RVAR,GDONE,ROK data
+    class RSET,NEEDG process
+    class RPARSE,GFLOW enhanced
+    class RERR,GERR2 problem
+
+    subgraph Legend2["Legend"]
+        M1[("変数・値")]
+        M2{"判定"}
+        M3["本書で加える処理"]
+        M4["設定のエラー"]
+    end
+    class M1 data
+    class M2 process
+    class M3 enhanced
+    class M4 problem
+```
+
+図 2 で `YT2COLUMN_REVIEW_LLM` が未設定のとき、検証・推敲の段階は生成の組を受け継ぐ。生成の段階も必要な実行では、図 1 で決めた組をそのまま使う。生成の組が拒否されていれば、その拒否は図 1 で 1 件報告するだけで、図 2 では重ねて報告しない。生成の段階が必要でない実行（`--after shorten` など）では、ここで図 1 と同じ規則で `YT2COLUMN_LLM` を読み、組を決める（3.3）。
 
 ### 1.4. 既存の方針の例外
 
