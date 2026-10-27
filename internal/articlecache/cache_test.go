@@ -572,6 +572,8 @@ func TestPublishResumeFrom(t *testing.T) {
 	if got := c.Lookup(testKey(1)); got.Publish != PublishFailed || got.PublishFailure != PublishFailureWebhook {
 		t.Fatalf("Lookup = %+v, want publish failed by the Webhook", got)
 	}
+	// A handle that has failed no longer records deliveries.
+	pub.Delivered(2)
 
 	// The retry starts at the first message not delivered.
 	outcome, retry := c.BeginPublish(testKey(1))
