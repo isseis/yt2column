@@ -1665,7 +1665,7 @@ func TestRunStepFlags(t *testing.T) {
 	t.Run("both disabled restore the pre-step output", func(t *testing.T) {
 		e := newRunEnv(t)
 		e.withSteps = true
-		e.args = []string{"--no-review", "--out", e.outPath, runVideoURL}
+		e.args = []string{"--no-shorten", "--no-review", "--out", e.outPath, runVideoURL}
 		if code := e.run(); code != exitOK {
 			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
 		}
