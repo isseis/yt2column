@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Created | 2026-10-27 |
-| Review date | 2026-10-27 |
-| Reviewer | isseis |
-| Comments | 2026-10-27 (decision): `/mkarch` の設計の際に、レビュアー（isseis）がセッションの中で、シャットダウンで新しい API の処理中の生成のジョブを取り消すと決めた。4.3 の該当の項目と AC-46 を改めた。レビュアーの明示の回答を再承認とし、`Status` は `approved` のままとする（`requirements_process.md`「Editing an approved document」の `/runplan` の例外に倣った）。 |
+| Review date | - |
+| Reviewer | - |
+| Comments | 2026-10-27 に isseis が承認した（PR #515）。2026-10-27 (decision): `/mkarch` の設計の際に、レビュアー（isseis）がセッションの中で、シャットダウンで新しい API の処理中の生成のジョブを取り消すと決め、4.3 の該当の項目と AC-46 を改め、2.3 の「取り消し」の項目に利用者の操作による取り消しであることを書き足した。決定の変更なので `draft` に戻し、PR #519 で `02_architecture.md` とともに承認し直す（`requirements_process.md`「Editing an approved document」）。 |
 
 ## 1. 概要 (Overview)
 
