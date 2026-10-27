@@ -8,7 +8,7 @@
 | Created | 2026-10-27 |
 | Review date | 2026-10-27 |
 | Reviewer | isseis |
-| Comments | 2026-10-27: ステップ 3-6 の実機の確認は Chrome だけで行う。Chrome と Brave に固有のコードがないためで、レビュアーが本セッションで承認した（Brave は同じ結果と見込む）。2026-10-27: ステップ 4-1 で `static/_locales/ja/messages.json` に日本語の文言を加えるため、AC-21・設計書 3.7・`CLAUDE.md` の例外の列挙に `static/_locales/` を加えた。あわせてステップ 4-1 の変更するファイルに `CLAUDE.md` を加え、ステップ 5-2 の「ステップ 3-5 の後」を「ステップ 5-1 の後」に直した（ステップ 3-6 からの写し間違い）。いずれもレビュアーが本セッション（PR-3）で承認した。 |
+| Comments | 2026-10-27: ステップ 3-6 の実機の確認は Chrome だけで行う。Chrome と Brave に固有のコードがないためで、レビュアーが本セッションで承認した（Brave は同じ結果と見込む）。2026-10-27: ステップ 4-1 で `static/_locales/ja/messages.json` に日本語の文言を加えるため、AC-21・設計書 3.7・`CLAUDE.md` の例外の列挙に `static/_locales/` を加えた。あわせてステップ 4-1 の変更するファイルに `CLAUDE.md` を加え、ステップ 5-2 の「ステップ 3-5 の後」を「ステップ 5-1 の後」に直した（ステップ 3-6 からの写し間違い）。いずれもレビュアーが本セッション（PR-3）で承認した。2026-10-27: ステップ 4-1 のテストに、`extDescription` がその言語の文字で書かれていることの検査を加え、設計書 3.9 と本章 AC-19 の行を同じ変更で直した（レビューで、テストの名前が確かめていない性質を主張していたため）。 |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番、「設計書 3.2」などは設計書の節を指す。既存のコードと文書についての記述は、コミット `4efdddf` で確かめた。`file:line` はこのコミットの行番号を指す。拡張のファイルのパスは、設計書と同じく `extension/` を省いて書く。本書の「差分の確認」は、設計書の「`diff` の検証」と同じものを指す。
 
@@ -463,7 +463,7 @@ AC-07 は、`docs/tasks/0043_extension_i18n/_checks/english_text.ts` で確か�
 | AC-16 | test: `extension/test/style.test.ts::Japanese typography` ＋ manual | 3-4・3-6 | `body:lang(ja)` の行間。実機（PR-2）: 行間が広く見え、DevTools で `body:lang(ja) { line-height: 1.7; }` の適用を確認した。 |
 | AC-17 | test: `extension/test/style.test.ts::Japanese typography` | 3-4 | 英語の書体が今のままで、ほかの規則が行間を持たないこと |
 | AC-18 | static: `make ext-build`（`check-dist`） ＋ test: `extension/test/manifest.test.ts::locales` | 4-1 | `dist/` が `_locales` の 2 つのファイルを含むこと、`default_locale` が `en` で `_locales` の形が正しいこと |
-| AC-19 | test: `extension/test/manifest.test.ts::fixed fields`・`::locales` ＋ manual | 4-1・5-2 | `name`・`description` が `_locales` を参照し、名前が両方の言語で `yt2column`、説明が言語ごとに異なること。実機（PR-3）: 2026-10-27、Chrome 156.0.8078.48 と Brave 156.1.98.60 の両方で、日本語の表示言語では名前が `yt2column` で説明が日本語、英語の表示言語では名前が `yt2column` で説明が英語であった。 |
+| AC-19 | test: `extension/test/manifest.test.ts::fixed fields`・`::locales` ＋ manual | 4-1・5-2 | `name`・`description` が `_locales` を参照し、名前が両方の言語で `yt2column`、説明が言語ごとに異なり、日本語の説明は日本語の文字を含むこと。実機（PR-3）: 2026-10-27、Chrome 156.0.8078.48 と Brave 156.1.98.60 の両方で、日本語の表示言語では名前が `yt2column` で説明が日本語、英語の表示言語では名前が `yt2column` で説明が英語であった。 |
 | AC-20 | test: `extension/test/manifest.test.ts::undeclared keys`・`::key` ＋ manual | 4-1・5-2 | 最上位のキーの集合と、`key` から得る拡張 ID。実機（PR-3）: 拡張の管理ページの拡張 ID が、どちらのブラウザでも `clfmbbcdpnjcefbdihdoahomaifbabkk` のままであった。 |
 | AC-21 | manual | 1-1・4-1 | `CLAUDE.md` の規則の文面（PR-1・PR-3 のレビュー。PR-3 で例外の列挙に `static/_locales/` を加えた） |
 | AC-22 | manual | 5-1 | README の段落の文面（PR-3 のレビュー） |

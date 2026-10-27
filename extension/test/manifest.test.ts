@@ -47,10 +47,10 @@ function manifestMessageNames(): Set<string> {
   const names = new Set<string>();
   const visit = (value: unknown): void => {
     if (typeof value === "string") {
-      for (const match of value.matchAll(/__MSG_(.+?)__/g)) {
-        const name = match[1];
-        assert.ok(name !== undefined);
-        names.add(name.toLowerCase());
+      for (const [text] of value.matchAll(/__MSG_(.+?)__/g)) {
+        names.add(
+          text.slice("__MSG_".length, text.length - "__".length).toLowerCase(),
+        );
       }
     } else if (typeof value === "object" && value !== null) {
       for (const child of Object.values(value)) {
@@ -62,12 +62,28 @@ function manifestMessageNames(): Set<string> {
   return names;
 }
 
+/** Chrome accepts only ASCII letters and digits, `_` and `@`, and reserves @@. */
+function assertValidMessageName(name: string): void {
+  assert.match(name, /^[A-Za-z0-9_@]+$/, name);
+  assert.ok(!name.startsWith("@@"), name);
+}
+
+/** True when text contains Japanese script: hiragana, katakana or kanji. */
+function hasJapaneseScript(text: string): boolean {
+  return /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u.test(text);
+}
+
 /** The message string of one catalog entry. */
-function messageOf(catalog: Record<string, unknown>, name: string): string {
+function messageOf(
+  catalog: Record<string, unknown>,
+  name: string,
+  locale: string,
+): string {
+  const label = `${locale}/${name}`;
   const entry = catalog[name];
-  assert.ok(typeof entry === "object" && entry !== null, name);
+  assert.ok(typeof entry === "object" && entry !== null, label);
   const message = (entry as Record<string, unknown>)["message"];
-  assert.ok(typeof message === "string", name);
+  assert.ok(typeof message === "string", label);
   return message;
 }
 
@@ -131,18 +147,24 @@ describe("locales", () => {
   it("holds exactly the en and ja catalogs, each with only messages.json", () => {
     // The design requires exactly these two locale directories, each holding
     // only its messages.json.
-    assert.deepEqual(localeDirs(), ["en", "ja"]);
-    for (const locale of localeDirs()) {
+    const locales = localeDirs();
+    assert.deepEqual(locales, ["en", "ja"]);
+    for (const locale of locales) {
       assert.deepEqual(entryNames(path.join(localesDir, locale)), [
         "messages.json",
       ]);
     }
   });
 
-  it("gives every catalog entry a message string without placeholders", () => {
-    for (const [locale, catalog] of catalogs()) {
+  it("gives every catalog entry a message string and no other field, without placeholders", () => {
+    const byLocale = catalogs();
+    // Precondition: the walk reached the catalogs.
+    assert.ok(byLocale.size > 0, "found no catalogs");
+    for (const [locale, catalog] of byLocale) {
+      assert.notEqual(Object.keys(catalog).length, 0, locale);
       for (const [name, entry] of Object.entries(catalog)) {
         const label = `${locale}/${name}`;
+        assertValidMessageName(name);
         assert.ok(typeof entry === "object" && entry !== null, label);
         const fields = entry as Record<string, unknown>;
         assert.deepEqual(
@@ -163,15 +185,16 @@ describe("locales", () => {
     }
   });
 
-  it("resolves every manifest placeholder in both catalogs", () => {
+  it("resolves every manifest placeholder in both catalogs under Chrome's name rule", () => {
     const names = manifestMessageNames();
     // Precondition: the scan reached the manifest's catalog references.
     assert.ok(names.size > 0, "the manifest refers to catalog messages");
     for (const name of names) {
-      // Chrome accepts only these characters in a message name.
-      assert.match(name, /^[a-z0-9_@]+$/, name);
+      assertValidMessageName(name);
     }
-    for (const [locale, catalog] of catalogs()) {
+    const byLocale = catalogs();
+    assert.ok(byLocale.size > 0, "found no catalogs");
+    for (const [locale, catalog] of byLocale) {
       const keys = Object.keys(catalog).map((key) => key.toLowerCase());
       for (const name of names) {
         assert.ok(keys.includes(name), `${locale}: ${name}`);
@@ -181,14 +204,19 @@ describe("locales", () => {
 
   it("names the extension the same way and describes it in each language", () => {
     const byLocale = catalogs();
+    // Precondition: the walk reached the catalogs.
+    assert.ok(byLocale.size > 0, "found no catalogs");
     const descriptions = new Set<string>();
     for (const [locale, catalog] of byLocale) {
-      assert.equal(messageOf(catalog, "extName"), "yt2column", locale);
-      const description = messageOf(catalog, "extDescription");
+      assert.equal(messageOf(catalog, "extName", locale), "yt2column", locale);
+      const description = messageOf(catalog, "extDescription", locale);
       assert.notEqual(description.trim(), "", locale);
       // Chrome rejects a manifest description longer than 132 characters.
       assert.ok(description.length <= 132, locale);
-      descriptions.add(description);
+      // The description is written in its own language: Japanese has
+      // Japanese script, English has none.
+      assert.equal(hasJapaneseScript(description), locale === "ja", locale);
+      descriptions.add(description.trim());
     }
     // Each language gets its own description, not the English one copied.
     assert.equal(descriptions.size, byLocale.size);
