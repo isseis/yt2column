@@ -6,6 +6,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -54,27 +55,34 @@ func outputLayoutArticle() writer.Article {
 }
 
 // firstCodeBlockAfter returns the content of the first fenced code block after
-// the line that equals heading, and whether there is one before the next heading. It does not use
-// sectionByHeading, because a '#' line inside the block would end that section.
+// the line that equals heading, and whether there is one before the next heading.
+// The heading is matched only on a line outside a fenced code block, so a
+// line inside an example that equals heading is not taken for it; the lines
+// after the heading are then scanned for fences from their first line.
 func firstCodeBlockAfter(doc, heading string) (string, bool) {
-	var b strings.Builder
-	seenHeading, inBlock := false, false
-	for line := range strings.Lines(doc) {
-		trimmed := strings.TrimRight(line, "\n")
-		switch {
-		case inBlock && strings.HasPrefix(trimmed, "```"):
-			return b.String(), true
-		case inBlock:
-			b.WriteString(line)
-		case seenHeading && strings.HasPrefix(trimmed, "```"):
-			inBlock = true
-		case seenHeading && headingLevel(line) > 0:
-			// The next heading ends the search, so a deleted example does not
-			// pick up a later block.
-			return "", false
-		case strings.TrimSpace(trimmed) == heading:
-			seenHeading = true
+	lines := slices.Collect(strings.Lines(doc))
+	for i, line := range scanDocLines(lines) {
+		if line.block || strings.TrimSpace(line.text) != heading {
+			continue
 		}
+		var b strings.Builder
+		opened := false
+		for _, scanned := range scanDocLines(lines[i+1:]) {
+			switch {
+			case scanned.fence && opened:
+				return b.String(), true
+			case scanned.fence:
+				opened = true
+			case !scanned.block && headingLevel(scanned.text) > 0:
+				// The next heading ends the search, so a deleted example does
+				// not pick up a later block.
+				return "", false
+			case opened:
+				b.WriteString(scanned.text)
+				b.WriteString("\n")
+			}
+		}
+		return "", false
 	}
 	return "", false
 }
@@ -140,5 +148,14 @@ func TestFirstCodeBlockAfter(t *testing.T) {
 	}
 	if _, ok := firstCodeBlockAfter("### Label\nno block\n", "### Label"); ok {
 		t.Error("firstCodeBlockAfter found a block where there is none")
+	}
+	if got, ok := firstCodeBlockAfter("### Label\n  ```text\nx\n  ```\n", "### Label"); !ok || got != "x\n" {
+		t.Errorf("firstCodeBlockAfter with an indented fence = %q, %v; want the block content", got, ok)
+	}
+	if _, ok := firstCodeBlockAfter("### Label\n```text\nunclosed\n", "### Label"); ok {
+		t.Error("firstCodeBlockAfter found a block that is never closed")
+	}
+	if got, ok := firstCodeBlockAfter("```text\n### Label\n```\n### Label\n```text\nreal\n```\n", "### Label"); !ok || got != "real\n" {
+		t.Errorf("firstCodeBlockAfter with the heading text inside an earlier block = %q, %v; want the block under the real heading", got, ok)
 	}
 }

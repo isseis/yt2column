@@ -8,7 +8,7 @@
 | Created | 2026-10-26 |
 | Review date | 2026-10-26 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-26: 7.1 の (b) の壊し方の記述を正した。`# x` の行を持つコードブロックを Quick start の途中に入れたときは、節がそこで終わらず、テストは通る（切り出しが壊れたときは補助の単体テストが失敗する）。決定は変えない（編集上の修正）。2026-10-27: レビュアーの指示で、3 つのパイプラインの図を Mermaid の `flowchart LR` に改めた（等幅フォントの罫線は環境によって崩れるため）。決定を変えるもので、レビュアーがこのセッションで承認した。 |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルについての記述は、コミット `f87f2a1` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。要件書が挙げる行番号は、#490・#171 の変更が入る前のものなので、README のいくつかの行は本書の行番号と一致しない（たとえば、要件書の `README.md:818`「Browser extension」は、本書では `README.md:860`）。F-NNN・AC-NN は要件書の項番を指す。先行タスクの項番は「0008 F-006」のように、タスクの番号を付けて書く。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-09）への対応は付録 A に、設計で採らなかった案は付録 B にまとめる。
 
@@ -307,16 +307,38 @@ README は英語で書く（`CLAUDE.md`「Documents」）。主経路は "primar
 
 ### 3.3. `docs/dev/project_overview.md`（F-004、H-04・H-06）
 
-**図の形（3 つの図に共通）。** README（`README.md:8-10`）・`project_overview.md`（`docs/dev/project_overview.md:20-22`）・`CLAUDE.md`（`CLAUDE.md:137-139`）の図を、次の形にそろえる（AC-08・AC-18・AC-24）。README と `CLAUDE.md` は英語のラベル、`project_overview.md` は日本語のラベルで書く。型の名前（`TranscriptSource` など）は 3 つとも英語のままにする。
+**図の形（3 つの図に共通）。** README・`project_overview.md`・`CLAUDE.md` の図を、次の形にそろえる（AC-08・AC-18・AC-24）。README と `CLAUDE.md` は英語のラベル、`project_overview.md` は日本語のラベルで書く。型の名前（`TranscriptSource` など）は 3 つとも英語のままにする。図は等幅フォントの罫線ではなく、環境のフォントに依存しない Mermaid の `flowchart LR` で書く（`mermaid_reference.md` の `classDef` と凡例に従う。2026-10-27 のレビュアーの指示）。
 
-```
-Copied transcript (browser extension → native messaging host → localhost server) ─┐
-                                                                                   ├→ TranscriptSource → Transcript → ArticleWriter → Article → Publisher
-URL → yt-dlp (CLI, for development) ───────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    classDef data fill:#e6f7ff,stroke:#1f77b4,stroke-width:1px,color:#0b3d91;
+    classDef process fill:#fff1e6,stroke:#ff7f0e,stroke-width:1px,color:#8a3e00;
+
+    COPIED[("Copied transcript<br>(browser extension → native messaging host → localhost server)")]
+    YTDLP[("URL<br>(the CLI fetches the transcript with yt-dlp)")]
+    SRC["TranscriptSource"]
+    TR[("Transcript")]
+    WRITER["ArticleWriter"]
+    ART[("Article")]
+    PUB["Publisher"]
+
+    COPIED -->|"primary path"| SRC
+    YTDLP -->|"development path (CLI)"| SRC
+    SRC --> TR --> WRITER --> ART --> PUB
+
+    class COPIED,YTDLP,TR,ART data
+    class SRC,WRITER,PUB process
+
+    subgraph Legend["Legend"]
+        L1[("Inputs and the data passed between stages")]
+        L2["Stage (interface)"]
+    end
+    class L1 data
+    class L2 process
 ```
 
--   上の行が主経路の入力、下の行が補助の経路の入力である。どの行も `#` で始まらない（3.6）。
--   罫線の文字の幅は、等幅のフォントで揃うように実装で調整する。
+-   上の入力が主経路の入力、下の入力が補助の経路の入力である。どちらも `TranscriptSource` で合流する。
+-   図はコードブロックなので、`#` で始まる行を持たない（3.6）。
 
 **書き直す箇所。**
 
@@ -535,7 +557,7 @@ flowchart TD
 -   **置き場所:** 3 つとも、README と `project_overview.md` を読む既存のテストと同じ `cmd/yt2column/docs_test.go` に置く。`doc-guard` CI ジョブが `./cmd/yt2column` を `test` タグで走らせる（`.github/workflows/ci.yml:187`）ので、文書だけの変更でも CI で確かめられる。`lookupFrom` は `test || integration` のタグのファイルにあり、`test` タグのテストから使える。
 -   **失敗することの確認:** `CLAUDE.md`「Every test must be able to fail for its stated reason」に従い、実装のときに次のように壊して失敗を確かめ、コミットのメッセージに書く。
     -   (a): ブロックの変数名を書き誤る。モデル名を変える。3 つの変数の 1 つを消す。4 行目（例: `export GODEBUG=http2debug=2`）を加える。値を引用符で囲む。共通の文書の「本番の構成」の節の表の effort のセルを変える。
-    -   (b): リンクを存在しないアンカーに変える。リンクをコードブロックの中の `#` の行のアンカーに変える。1 つの手順のリンクを外す。Quick start の途中に `# x` の行を持つコードブロックを入れる。
+    -   (b): リンクを存在しないアンカーに変える。リンクをコードブロックの中の `#` の行のアンカーに変える。1 つの手順のリンクを外す。Quick start の途中に `# x` の行を持つコードブロックを入れると、節はそこで終わらず、テストは通る（切り出しが壊れたときは、補助の単体テストが失敗する）。
     -   (c): 1 つの文書のリンクのパスを書き誤る。
 -   **加えないテスト:** 評価の数値（AC-04・AC-05）は、評価記録の値でコードが定める値ではないので、PR のレビューで照らす。モデル名 `claude-opus-5-5` が単価の表にあることは、`internal/pricing/rates_test.go:35` がすでに確かめており、共通の文書はそれを主張しない。README の既存の見出しの保存（AC-12）は、`diff` で確かめる（7.2）。0008 評価記録に足す参照（AC-22）は、タスクの記録を確かめることになるので、テストにしない（1.2）。
 

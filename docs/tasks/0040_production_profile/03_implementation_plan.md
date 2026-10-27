@@ -8,7 +8,7 @@
 | Created | 2026-10-26 |
 | Review date | 2026-10-26 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-26: ステップ 3-3 の壊し方の記述を正した。`# x` の行を持つコードブロックを Quick start の途中に入れたときは、節がそこで終わらず、テストは通る（切り出しが壊れたときは補助の単体テストが失敗する）。7 章のまとめに、共通の文書から出典へのリンクと v5 への参照を manual で読む例外を書き足した。決定は変えない（編集上の修正）。2026-10-27: レビュアーの指示で、3 つのパイプラインの図を Mermaid の `flowchart LR` に改めた（等幅フォントの罫線は環境によって崩れるため）。ステップ 3-1・4-1 の記述を合わせ、レビュアーがこのセッションで承認した。 |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番、「設計書 3.2」などは設計書の節を指す。既存のコードと文書についての記述は、コミット `59e1650` で確かめた。`file:line` はこのコミットの行番号を指す。設計書が引く行番号はコミット `f87f2a1` のもので、`CLAUDE.md` の 310 行より後ろは、その後の変更で 3 行ずれている（たとえば、設計書の `CLAUDE.md:324-328` は、本書では `CLAUDE.md:327-331`）。README・`project_overview.md`・`internal/config`・`cmd/yt2column` の行番号は、2 つのコミットで同じである。
 
@@ -92,11 +92,11 @@
 
 **変更するファイル:** `docs/dev/production_profile.md`（新規）
 
--   [ ] 設計書 3.1 の表のとおり、題「本番の構成と品質」、冒頭の段落、5 つの `##` の節（`## パイプライン`・`## 本番の構成`・`## 品質の目標と結果`・`## 製品の制約`・`## 構成の比較と、構成を決めた理由`）を、この順序と文言で書く。
--   [ ] 「本番の構成」の節に、設計書 3.1 の 5 列の表（段階のセルは「生成」「字数の調整」「検証・推敲」、値はコードの書式）と、設計書 3.2 の形の構成のブロック（`sh`、`export` の 3 行）を置く。
--   [ ] 「製品の制約」の 8 項目を、設計書 3.1 の「写し方」の表のとおりに 0008 評価記録 §6.3 から写す。項目 5 は、設計書 3.1 の箇条書きの 4 点（受理と失敗の通知、通知が長さの失敗を区別しないことと `requestId`、送り直しの費用、通知の投稿の失敗）を主経路の結果として先に書く。
--   [ ] 「品質の目標と結果」の節に、評価の条件（yt-dlp の字幕で生成したこと、0018 評価記録 §4.9.1 への参照、`max_tokens` 16,000 と本番の上限 40,000）を書く（設計書 1.2・3.1）。
--   [ ] 写した数値（件数・頻度・金額・倍率）を、出典の 0008 評価記録 §6.2〜§6.4 と 1 つずつ照らす。「パイプライン」の表の部品の名前は、コード（`internal/transcript`・`internal/writer`・`internal/publisher`）と照らす。項目 5 のコードについての記述は、設計書 3.1 が引く箇所（`internal/server/job.go:138-155`・`internal/publisher/slack_failure.go:111-112`・`README.md:76-79`・`:941-942`・`:953-955`）と照らす。評価の条件は、出典（`docs/tasks/0041_claude_effort_max_tokens/01_requirements.md:19`、0018 評価記録 §4.9.1・§4.7.2）と照らす。秘密情報の変数は名前だけで書く（AC-15）。未解決の issue の節や一覧を置かない（AC-07）。
+-   [x] 設計書 3.1 の表のとおり、題「本番の構成と品質」、冒頭の段落、5 つの `##` の節（`## パイプライン`・`## 本番の構成`・`## 品質の目標と結果`・`## 製品の制約`・`## 構成の比較と、構成を決めた理由`）を、この順序と文言で書く。
+-   [x] 「本番の構成」の節に、設計書 3.1 の 5 列の表（段階のセルは「生成」「字数の調整」「検証・推敲」、値はコードの書式）と、設計書 3.2 の形の構成のブロック（`sh`、`export` の 3 行）を置く。
+-   [x] 「製品の制約」の 8 項目を、設計書 3.1 の「写し方」の表のとおりに 0008 評価記録 §6.3 から写す。項目 5 は、設計書 3.1 の箇条書きの 4 点（受理と失敗の通知、通知が長さの失敗を区別しないことと `requestId`、送り直しの費用、通知の投稿の失敗）を主経路の結果として先に書く。
+-   [x] 「品質の目標と結果」の節に、評価の条件（yt-dlp の字幕で生成したこと、0018 評価記録 §4.9.1 への参照、`max_tokens` 16,000 と本番の上限 40,000）を書く（設計書 1.2・3.1）。
+-   [x] 写した数値（件数・頻度・金額・倍率）を、出典の 0008 評価記録 §6.2〜§6.4 と 1 つずつ照らす。「パイプライン」の表の部品の名前は、コード（`internal/transcript`・`internal/writer`・`internal/publisher`）と照らす。項目 5 のコードについての記述は、設計書 3.1 が引く箇所（`internal/server/job.go:138-155`・`internal/publisher/slack_failure.go:111-112`・`README.md:76-79`・`:941-942`・`:953-955`）と照らす。評価の条件は、出典（`docs/tasks/0041_claude_effort_max_tokens/01_requirements.md:19`、0018 評価記録 §4.9.1・§4.7.2）と照らす。秘密情報の変数は名前だけで書く（AC-15）。未解決の issue の節や一覧を置かない（AC-07）。
 
 **完了の条件:** ファイルがあり、5 つの節の見出しが設計書 3.1 の文言と一致する。この時点ではテストはまだない（フェーズ 2 で加える）。コミットする。
 
@@ -106,27 +106,27 @@
 
 **変更するファイル:** `internal/config/test_helpers.go`
 
--   [ ] 設計書 3.10 の `LLMProviderEnvForTest`・`ModelEnvForTest`・`ClaudeEffortEnvForTest`・`AnthropicAPIKeyEnvForTest` を、既存の `...ForTest` 関数と同じ形（それぞれ対応する定数を返す 1 行の関数と英語の doc コメント）で加える。
+-   [x] 設計書 3.10 の `LLMProviderEnvForTest`・`ModelEnvForTest`・`ClaudeEffortEnvForTest`・`AnthropicAPIKeyEnvForTest` を、既存の `...ForTest` 関数と同じ形（それぞれ対応する定数を返す 1 行の関数と英語の doc コメント）で加える。
 
 #### ステップ 2-2: フェンスを区別する走査の補助を加える
 
 **変更するファイル:** `cmd/yt2column/docs_test.go`、`cmd/yt2column/output_layout_docs_test.go`
 
--   [ ] 文書の行を、各行がコードブロックの中かどうかとともに走査する補助を `docs_test.go` に加え、フェンスの行・ブロックの中の `#` 行・閉じていないフェンスを確かめる単体テストを加える。
--   [ ] `firstCodeBlockAfter` を、見出しの後の行だけをその補助に渡す形に書き換える（1.3）。`TestFirstCodeBlockAfter` と `TestOutputLayoutDocsContract` を変えずに通す。
+-   [x] 文書の行を、各行がコードブロックの中かどうかとともに走査する補助を `docs_test.go` に加え、フェンスの行・ブロックの中の `#` 行・閉じていないフェンスを確かめる単体テストを加える。
+-   [x] `firstCodeBlockAfter` を、見出しの後の行だけをその補助に渡す形に書き換える（1.3）。`TestFirstCodeBlockAfter` と `TestOutputLayoutDocsContract` を変えずに通す。
 
 #### ステップ 2-3: テスト (a) を共通の文書に当てる
 
 **変更するファイル:** `cmd/yt2column/docs_test.go`
 
--   [ ] 共通の文書のパスの定数を、既存のパスの定数（`docs_test.go:22-29`）に加える。
--   [ ] `TestProductionProfileDocsContract` を加える。設計書 6.2 の (a) の契約のとおり、共通の文書の `## 本番の構成` の節について次を確かめる。この時点では README の節は対象にしない（ステップ 3-3 で加える）。
+-   [x] 共通の文書のパスの定数を、既存のパスの定数（`docs_test.go:22-29`）に加える。
+-   [x] `TestProductionProfileDocsContract` を加える。設計書 6.2 の (a) の契約のとおり、共通の文書の `## 本番の構成` の節について次を確かめる。この時点では README の節は対象にしない（ステップ 3-3 で加える）。
     -   節がある。節の中の `sh` のコードブロックがちょうど 1 つで、各行が設計書 3.2 の行の形に合い、同じ変数の行が 2 つない。
     -   ブロックの変数名の集合が、ステップ 2-1 の関数で得る 3 つの変数名（プロバイダ・モデル・effort）と等しい。
     -   閉じた map（ダミーの `ANTHROPIC_API_KEY`、`.invalid` のドメインの `https` のダミーの Webhook URL、短い固定の絶対パスの `HOME`。変数名は `AnthropicAPIKeyEnvForTest`・`SlackWebhookEnvForTest` から得る）を `LoadServer` に通した構成と、その map にブロックの変数を加えて通した構成を比べ、生成と検証・推敲のプロバイダ・モデル、effort が等しい。後者は拒否されない。
     -   「本番の構成」の表に、「生成」「字数の調整」「検証・推敲」の行がそれぞれちょうど 1 つある。各行のプロバイダ・モデル・effort のセルから最初のコードの書式の値を取り出し、1.3 の方法で `LoadServer` に通す。得られた構成が、ブロックを加えずに読み込んだ構成の同じ段階の値（「字数の調整」は生成の値）と等しい。コードの書式の値がないセルと、`LoadServer` が拒否した行は失敗にする。
--   [ ] 失敗の文言には、文書・節・行番号・変数名を書き、ブロックの行の値を書かない（設計書 4 章）。
--   [ ] 壊して失敗を確かめる: 設計書 7.1 の (a) の壊し方（変数名の書き誤り、モデル名の変更、3 つの変数の 1 つの削除、4 行目の追加、値の引用符、表の effort のセルの変更）に加え、同じ変数の行の重複、`sh` のブロックを 2 つにする・なくす、節の見出しの変更、表の段階の行の重複、表のセルを、受理されない値（例: `hgh`）に変える、を 1 つずつ当て、それぞれでテストが失敗することを確かめる。結果をコミットのメッセージに書く。
+-   [x] 失敗の文言には、文書・節・行番号・変数名を書き、ブロックの行の値を書かない（設計書 4 章）。
+-   [x] 壊して失敗を確かめる: 設計書 7.1 の (a) の壊し方（変数名の書き誤り、モデル名の変更、3 つの変数の 1 つの削除、4 行目の追加、値の引用符、表の effort のセルの変更）に加え、同じ変数の行の重複、`sh` のブロックを 2 つにする・なくす、節の見出しの変更、表の段階の行の重複、表のセルを、受理されない値（例: `hgh`）に変える、を 1 つずつ当て、それぞれでテストが失敗することを確かめる。結果をコミットのメッセージに書く。
 
 **完了の条件:** `make fmt`、`make test`、`make lint` が通る。コミットする。
 
@@ -136,28 +136,28 @@
 
 **変更するファイル:** `README.md`
 
--   [ ] 冒頭（`README.md:3-15`）を設計書 3.2 の 1 のとおりに書き直し、図を設計書 3.3 の形（英語のラベル）にする。
--   [ ] Requirements（`README.md:19-27`）を、設計書 3.2 の 3 のとおり、見出しを加えずに太字の導入の行で 2 つのまとまりに分ける。
--   [ ] Usage の見出し（`README.md:29`）の直後に、設計書 3.2 の 4 の段落を加える。
+-   [x] 冒頭（`README.md:3-15`）を設計書 3.2 の 1 のとおりに書き直し、図を設計書 3.3 の Mermaid の形（英語のラベル）にする。
+-   [x] Requirements（`README.md:19-27`）を、設計書 3.2 の 3 のとおり、見出しを加えずに太字の導入の行で 2 つのまとまりに分ける。
+-   [x] Usage の見出し（`README.md:29`）の直後に、設計書 3.2 の 4 の段落を加える。
 
 #### ステップ 3-2: Quick start と推奨構成の小節を加える
 
 **変更するファイル:** `README.md`
 
--   [ ] 状態の注記（`README.md:17`）と `## Requirements` の間に `## Quick start` を加え、設計書 3.2 の 2 の表の 6 つの手順を番号付きの箇条書きで書く。コードブロックと表は使わない。
--   [ ] 「Configuration」の変数の表と、それに続く段落の後、`### Using DeepSeek`（`README.md:785`）の前に `### Recommended configuration` を加え、設計書 3.2 の 5 のとおり、構成のブロックとブロックの後の文を書く。
--   [ ] 既定の構成の段落（`README.md:745-748`）を推奨構成の小節の中へ移し、「指定しなくても同じ構成になる」の文と 1 つにまとめる（設計書 3.2 の 5）。
--   [ ] Quick start と Requirements に書いたコマンドとパスを、正本と照らす。`make` のターゲットは `Makefile`、バイナリの名前と `build/` は `make build` と `cmd/`、`extension/dist` は `make ext-build` の出力先、Node.js のバージョンのファイルは `extension/.node-version`、各手順の前提の句はリンク先の README の節（設計書 3.2 の 2 の表が引く行）と照らす。
+-   [x] 状態の注記（`README.md:17`）と `## Requirements` の間に `## Quick start` を加え、設計書 3.2 の 2 の表の 6 つの手順を番号付きの箇条書きで書く。コードブロックと表は使わない。
+-   [x] 「Configuration」の変数の表と、それに続く段落の後、`### Using DeepSeek`（`README.md:785`）の前に `### Recommended configuration` を加え、設計書 3.2 の 5 のとおり、構成のブロックとブロックの後の文を書く。
+-   [x] 既定の構成の段落（`README.md:745-748`）を推奨構成の小節の中へ移し、「指定しなくても同じ構成になる」の文と 1 つにまとめる（設計書 3.2 の 5）。
+-   [x] Quick start と Requirements に書いたコマンドとパスを、正本と照らす。`make` のターゲットは `Makefile`、バイナリの名前と `build/` は `make build` と `cmd/`、`extension/dist` は `make ext-build` の出力先、Node.js のバージョンのファイルは `extension/.node-version`、各手順の前提の句はリンク先の README の節（設計書 3.2 の 2 の表が引く行）と照らす。
 
 #### ステップ 3-3: テスト (a) を README に当て、テスト (b) を加える
 
 **変更するファイル:** `cmd/yt2column/docs_test.go`
 
--   [ ] `TestProductionProfileDocsContract` の対象に、README の `### Recommended configuration` の節を加える。ブロックの形・変数名の集合・`LoadServer` の照合を、共通の文書と同じ手順で当てる（表の照合は共通の文書だけ）。あわせて、その見出しが、コードブロックの外の `## Configuration` と、その次の、`#` または `##` の見出しの間にあることを確かめる（AC-13 の構造の部分）。
--   [ ] 見出しから GitHub のアンカーを作る補助と、Markdown のリンクの取り出しの補助を加える。アンカーの規則は設計書 6.2 に従い、本書には写さない。補助が作るアンカーが、GitHub がその見出しに対して実際に解決するアンカーと一致することを、README のコードブロックの外の見出し（インラインマークアップを含む見出しも含む）についてテストで確かめる。同じ見出しに付く接尾辞は扱わないので、コードブロックの外の見出しに重複がないことも確かめる。
--   [ ] `TestQuickStartLinks` を加える。設計書 6.2 の (b) の契約のとおり、README の `## Quick start` の節（終わりは、コードブロックの外の次の、`#` または `##` の見出し）について、節があること、その見出しがコードブロックの外の `## Requirements` より前にあること（AC-09 の構造の部分）、番号付きの各項目が README の見出しへのリンクを 1 つ以上持つこと、各アンカーがコードブロックの外の見出しから作るアンカーのどれかと一致すること、節の中のほかのリンクが README の中のアンカーか存在する相対パスであることを確かめる。
--   [ ] 節の切り出しとアンカーの補助に、単体テストを加える。節の切り出しは、コードブロックの中の `#` 行で節が終わらないことを確かめる。アンカーは、README の Quick start の外にある既存のページ内リンク（`](#...)`。GitHub で解決しているものとして扱う）がすべて、補助で作るアンカーのどれかと一致することを確かめる。
--   [ ] 壊して失敗を確かめる: (a) は README のブロックについて設計書 7.1 の壊し方のうち表以外を当てる。(b) は設計書 7.1 の (b) の壊し方（存在しないアンカー、コードブロックの中の `#` 行のアンカー、1 つの手順のリンクを外す、Quick start の途中に `# x` の行を持つコードブロックを入れる）に加え、存在しない相対パスへのリンク、`## Quick start` の見出しの変更と `## Requirements` の後ろへの移動、`### Recommended configuration` の `## Configuration` の外への移動を当てる。結果をコミットのメッセージに書く。
+-   [x] `TestProductionProfileDocsContract` の対象に、README の `### Recommended configuration` の節を加える。ブロックの形・変数名の集合・`LoadServer` の照合を、共通の文書と同じ手順で当てる（表の照合は共通の文書だけ）。あわせて、その見出しが、コードブロックの外の `## Configuration` と、その次の、`#` または `##` の見出しの間にあることを確かめる（AC-13 の構造の部分）。
+-   [x] 見出しから GitHub のアンカーを作る補助と、Markdown のリンクの取り出しの補助を加える。アンカーの規則は設計書 6.2 に従い、本書には写さない。補助が作るアンカーが、GitHub がその見出しに対して実際に解決するアンカーと一致することを、README のコードブロックの外の見出し（インラインマークアップを含む見出しも含む）についてテストで確かめる。同じ見出しに付く接尾辞は扱わないので、コードブロックの外の見出しに重複がないことも確かめる。
+-   [x] `TestQuickStartLinks` を加える。設計書 6.2 の (b) の契約のとおり、README の `## Quick start` の節（終わりは、コードブロックの外の次の、`#` または `##` の見出し）について、節があること、その見出しがコードブロックの外の `## Requirements` より前にあること（AC-09 の構造の部分）、番号付きの各項目が README の見出しへのリンクを 1 つ以上持つこと、各アンカーがコードブロックの外の見出しから作るアンカーのどれかと一致すること、節の中のほかのリンクが README の中のアンカーか存在する相対パスであることを確かめる。
+-   [x] 節の切り出しとアンカーの補助に、単体テストを加える。節の切り出しは、コードブロックの中の `#` 行で節が終わらないことを確かめる。アンカーは、README の Quick start の外にある既存のページ内リンク（`](#...)`。GitHub で解決しているものとして扱う）がすべて、補助で作るアンカーのどれかと一致することを確かめる。
+-   [x] 壊して失敗を確かめる: (a) は README のブロックについて設計書 7.1 の壊し方のうち表以外を当てる。(b) は設計書 7.1 の (b) の壊し方（存在しないアンカー、コードブロックの中の `#` 行のアンカー、1 つの手順のリンクを外す）に加え、存在しない相対パスへのリンク、`## Quick start` の見出しの変更と `## Requirements` の後ろへの移動、`### Recommended configuration` の `## Configuration` の外への移動を当てる。`# x` の行を持つコードブロックを Quick start の途中に入れたときは、節がそこで終わらず、テストは通る（切り出しが壊れたときは、補助の単体テストが失敗する）。結果をコミットのメッセージに書く。
 
 **完了の条件:** `make fmt`、`make test`、`make ext-test`、`make lint` が通る（README を変えるので `make ext-test` も走らせる）。コミットする。
 
@@ -167,31 +167,31 @@
 
 **変更するファイル:** `docs/dev/project_overview.md`
 
--   [ ] 設計書 3.3 の「書き直す箇所」の 1〜5（冒頭、「実行形式」、「字幕取得」、「LLM」、パイプラインの図と説明）を、そのとおりに書き直す。図は日本語のラベルで、設計書 3.3 の形にする。「LLM」の項には、#490・#171 の issue へのリンクと、共通の文書へのリンク（`project_overview.md` からの相対パス `production_profile.md`）を書き足す。
--   [ ] 設計書 3.3 の「変えない箇所」（`:105-130`）と、既存のテストが読む行（`:36`・`:52`・`:60`・`:124`）を変えない。
--   [ ] 書き直した「実行形式」「字幕取得」を、設計書 3.3 の決定の対照表の 12 行と 1 行ずつ照らし、すべての決定が残っていることを確かめる。
+-   [x] 設計書 3.3 の「書き直す箇所」の 1〜5（冒頭、「実行形式」、「字幕取得」、「LLM」、パイプラインの図と説明）を、そのとおりに書き直す。図は日本語のラベルで、設計書 3.3 の Mermaid の形にする。「LLM」の項には、#490・#171 の issue へのリンクと、共通の文書へのリンク（`project_overview.md` からの相対パス `production_profile.md`）を書き足す。
+-   [x] 設計書 3.3 の「変えない箇所」（`:105-130`）と、既存のテストが読む行（`:36`・`:52`・`:60`・`:124`）を変えない。
+-   [x] 書き直した「実行形式」「字幕取得」を、設計書 3.3 の決定の対照表の 12 行と 1 行ずつ照らし、すべての決定が残っていることを確かめる。
 
 #### ステップ 4-2: `CLAUDE.md` を書き直す
 
 **変更するファイル:** `CLAUDE.md`
 
--   [ ] 設計書 3.4 の 1〜5 のとおりに書き直す。Quick Links の「Project」に共通の文書へのリンクと英語の説明を加える。Architecture Overview の冒頭の一文（`CLAUDE.md:135`）と図（`:137-139`）を改める。`TranscriptSource` の説明（`:141-144`）の順序を入れ替える。Development Notes の文書のテストの一覧（`CLAUDE.md:327-331`）に、新しいテストが読む対象を加える。
--   [ ] "- `make ext-…`" の形の行と、PR のレビューの依頼の言及を加えない（設計書 3.6 の表）。
+-   [x] 設計書 3.4 の 1〜5 のとおりに書き直す。Quick Links の「Project」に共通の文書へのリンクと英語の説明を加える。Architecture Overview の冒頭の一文（`CLAUDE.md:135`）と図（`:137-139`）を改める。`TranscriptSource` の説明（`:141-144`）の順序を入れ替える。Development Notes の文書のテストの一覧（`CLAUDE.md:327-331`）に、新しいテストが読む対象を加える。
+-   [x] "- `make ext-…`" の形の行と、PR のレビューの依頼の言及を加えない（設計書 3.6 の表）。
 
 #### ステップ 4-3: `docs/dev/security.md` と `prompts/README.md` を改める
 
 **変更するファイル:** `docs/dev/security.md`、`prompts/README.md`
 
--   [ ] `docs/dev/security.md:5` を、設計書 3.5 の 3 つを述べる文に改める。§1 以降は変えない。
--   [ ] `prompts/README.md:9` の評価と製品の制約の参照を、共通の文書へのリンクに改める。v5 へのリンクは残す（設計書 3.7）。
+-   [x] `docs/dev/security.md:5` を、設計書 3.5 の 3 つを述べる文に改める。§1 以降は変えない。
+-   [x] `prompts/README.md:9` の評価と製品の制約の参照を、共通の文書へのリンクに改める。v5 へのリンクは残す（設計書 3.7）。
 
 #### ステップ 4-4: テスト (c) を加える
 
 **変更するファイル:** `cmd/yt2column/docs_test.go`
 
--   [ ] `prompts/README.md` のパスの定数を加える。
--   [ ] `TestProductionProfileLinks` を加える。設計書 6.2 の (c) の契約のとおり、README の `### Recommended configuration`、`project_overview.md` の `## 決定済みの方針`、`CLAUDE.md` の `## Quick Links` の各節と、`prompts/README.md` の全体に、相対パスを解決すると共通の文書のパスの定数と同じファイルになるリンクがあることを確かめる。リンクの取り出しは、ステップ 3-3 の補助を使う。期待するリンク先は、パスの定数から導き、文書から写したリテラルを置かない。
--   [ ] 壊して失敗を確かめる: 4 つの文書のそれぞれで、リンクのパスを書き誤るとテストが失敗することを確かめる。結果をコミットのメッセージに書く。
+-   [x] `prompts/README.md` のパスの定数を加える。
+-   [x] `TestProductionProfileLinks` を加える。設計書 6.2 の (c) の契約のとおり、README の `### Recommended configuration`、`project_overview.md` の `## 決定済みの方針`、`CLAUDE.md` の `## Quick Links` の各節と、`prompts/README.md` の全体に、相対パスを解決すると共通の文書のパスの定数と同じファイルになるリンクがあることを確かめる。リンクの取り出しは、ステップ 3-3 の補助を使う。期待するリンク先は、パスの定数から導き、文書から写したリテラルを置かない。
+-   [x] 壊して失敗を確かめる: 4 つの文書のそれぞれで、リンクのパスを書き誤るとテストが失敗することを確かめる。結果をコミットのメッセージに書く。
 
 **完了の条件:** `make fmt`、`make test`、`make lint` が通る。コミットする。
 
@@ -201,8 +201,8 @@
 
 **変更するファイル:** `docs/tasks/0008_column_prompt/02_evaluation.md`
 
--   [ ] 設計書 3.8 の 1〜3 のとおりに書き足す。§6 の見出しの直後に引用のブロックを 1 つ加える。§6.5 の最後の項目の文の後に、リンクと日付の新しい文を加える。`Comments` に、参照を足した日付と、編集上の修正で決定を変えていないこと（`(editorial)`）を書く。
--   [ ] §6 の既存の行と、Document Status の `Status`・`Review date`・`Reviewer` の行を変えない。
+-   [x] 設計書 3.8 の 1〜3 のとおりに書き足す。§6 の見出しの直後に引用のブロックを 1 つ加える。§6.5 の最後の項目の文の後に、リンクと日付の新しい文を加える。`Comments` に、参照を足した日付と、編集上の修正で決定を変えていないこと（`(editorial)`）を書く。
+-   [x] §6 の既存の行と、Document Status の `Status`・`Review date`・`Reviewer` の行を変えない。
 
 **完了の条件:** コミットする（確かめはフェーズ 7 の差分の確認と、PR のレビューで行う）。
 
@@ -212,8 +212,8 @@
 
 **変更するファイル:** `docs/translation_glossary.md`
 
--   [ ] 設計書 3.9 の 6 行を加え、「段階」の行（`docs/translation_glossary.md:39`）の備考に、`ArticleWriter` の中の生成・字数の調整・検証・推敲を指す用法を加える。
--   [ ] README・`CLAUDE.md` に書いた英語の言い方（primary path・development path・production profile・recommended configuration）が、加えた行の英訳と一致することを読んで確かめる。
+-   [x] 設計書 3.9 の 6 行を加え、「段階」の行（`docs/translation_glossary.md:39`）の備考に、`ArticleWriter` の中の生成・字数の調整・検証・推敲を指す用法を加える。
+-   [x] README・`CLAUDE.md` に書いた英語の言い方（primary path・development path・production profile・recommended configuration）が、加えた行の英訳と一致することを読んで確かめる。
 
 **完了の条件:** 用語集の変更だけを 1 つのコミットにする（`.claude/commands/mktrans.md` の手順。設計書 3.9）。
 
@@ -223,18 +223,18 @@
 
 **変更するファイル:** `docs/tasks/0040_production_profile/_checks/main.go`（新規）、本書
 
--   [ ] 設計書 7.2 の 3 つの判定（README の見出し、0008 評価記録の §6 と Document Status の 3 行、`security.md` の §1 以降）に、`project_overview.md` の `## 設定（環境変数）` の節（設計書 3.3 の「変えない箇所」）が変わらないことの判定を加え、4 つの判定を行うスクリプトを Go で書く（1.3）。
+-   [x] 設計書 7.2 の 3 つの判定（README の見出し、0008 評価記録の §6 と Document Status の 3 行、`security.md` の §1 以降）に、`project_overview.md` の `## 設定（環境変数）` の節（設計書 3.3 の「変えない箇所」）が変わらないことの判定を加え、4 つの判定を行うスクリプトを Go で書く（1.3）。
     -   この節は、見出しの行 `## 設定（環境変数）` から次の `## ` の行までとする。見出しの文字列は、1.2 の例外（日本語の文書の見出しと一致しなければならないリテラル）として書く。
     -   スクリプトは、merge-base（`git merge-base origin/main HEAD`）と `HEAD` の 2 つの版のファイルを `git show` で読み、判定ごとに合否を出す。合わなかった行は、行番号と内容も出す。コードブロックの判定はフェンスの行で切り替える。いずれかの判定が不合格なら 0 以外で終わる。
     -   判定の名前に AC の番号を使わない。ソースは、この見出しのリテラルのほかは ASCII だけで書く（1.2）。環境変数を読む関数と秘密情報の変数名を参照しない（1.3）。
--   [ ] 壊して失敗を確かめる: スクリプトは head のコミットを読むので、push しない使い捨てのブランチに壊したコミットを作って実行し、確かめた後にブランチを消す。既存の見出しを 1 つ変える、§6 の既存の 1 行を変える、§1 の 1 行を変える、「設定（環境変数）」の節の 1 行を変える、の 4 つで、それぞれの判定が不合格になることを確かめる。結果をスクリプトのコミットのメッセージに書く。
--   [ ] `go vet ./docs/tasks/0040_production_profile/_checks/` と `make fmt` を通し、`make test`（`TestEnvAccessConfined` がスクリプトを読む）を通す。
--   [ ] `git fetch origin main`（`_lib/task-pr-handoff.md` の Authorization が `/runplan` に認める）を実行する。すべての文書の変更をコミットしたら、PR の head でスクリプトを実行し、出力と、merge-base と head の 2 つのコミットの ID を、7 章の AC-12・AC-20・AC-22・AC-26 の行に記録する。記録を本書にコミットする（記録のコミットは文書の変更を含まないので、判定の結果は変わらない）。この後、判定する 4 つのファイルのどれかが変わったとき（`/fixpr` などの修正）や、`main` をブランチに取り込んだときは、実行し直して記録を置き換える。
+-   [x] 壊して失敗を確かめる: スクリプトは head のコミットを読むので、push しない使い捨てのブランチに壊したコミットを作って実行し、確かめた後にブランチを消す。既存の見出しを 1 つ変える、§6 の既存の 1 行を変える、§1 の 1 行を変える、「設定（環境変数）」の節の 1 行を変える、の 4 つで、それぞれの判定が不合格になることを確かめる。結果をスクリプトのコミットのメッセージに書く。
+-   [x] `go vet ./docs/tasks/0040_production_profile/_checks/` と `make fmt` を通し、`make test`（`TestEnvAccessConfined` がスクリプトを読む）を通す。
+-   [x] `git fetch origin main`（`_lib/task-pr-handoff.md` の Authorization が `/runplan` に認める）を実行する。すべての文書の変更をコミットしたら、PR の head でスクリプトを実行し、出力と、merge-base と head の 2 つのコミットの ID を、7 章の AC-12・AC-20・AC-22・AC-26 の行に記録する。記録を本書にコミットする（記録のコミットは文書の変更を含まないので、判定の結果は変わらない）。この後、判定する 4 つのファイルのどれかが変わったとき（`/fixpr` などの修正）や、`main` をブランチに取り込んだときは、実行し直して記録を置き換える。
 
 #### ステップ 7-2: 最後の確かめ
 
--   [ ] `make test`、`make ext-test`、`make lint`、`make deadcode` を走らせ、すべて通ることを確かめる。
--   [ ] 新しいテストを含む `doc-guard` の CI ジョブの対象（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`、`.github/workflows/ci.yml:187`）が通ることを確かめる。
+-   [x] `make test`、`make ext-test`、`make lint`、`make deadcode` を走らせ、すべて通ることを確かめる。
+-   [x] 新しいテストを含む `doc-guard` の CI ジョブの対象（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`、`.github/workflows/ci.yml:187`）が通ることを確かめる。
 
 **完了の条件:** 上のコマンドがすべて通り、7 章の `diff` の行に記録がある。
 
@@ -250,10 +250,10 @@
 
 **判定理由**: 前例のない設計判断も、競合する実装案もない。条件付きの検査に当たるのはステップ 2-1（`test` タグだけでコンパイルするファイル）とステップ 2-3（同じ検証を通る `LoadServer` の繰り返しの呼び出し）で、それぞれ 1 つずつであり、2 つ以上に当たるステップはない
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/513
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装の順序とマイルストーン (Implementation Order and Milestones)
 
@@ -322,11 +322,11 @@ AC-12・AC-22・AC-26 は、`docs/tasks/0040_production_profile/_checks/main.go`
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
--   [ ] PR-1 マージ済み（対象ステップ: 1-1 / 2-1 / 2-2 / 2-3 / 3-1 / 3-2 / 3-3 / 4-1 / 4-2 / 4-3 / 4-4 / 5-1 / 6-1 / 7-1 / 7-2）
+-   [x] PR-1 マージ済み（対象ステップ: 1-1 / 2-1 / 2-2 / 2-3 / 3-1 / 3-2 / 3-3 / 4-1 / 4-2 / 4-3 / 4-4 / 5-1 / 6-1 / 7-1 / 7-2）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
-`test` はテスト、`diff` は差分の確認のスクリプト、`manual` は PR のレビューでの読み取りを指す。テストの場所は `cmd/yt2column/docs_test.go` である。
+`test` はテスト、`diff` は差分の確認のスクリプト、`manual` は PR のレビューでの読み取りを指す。テストの場所は各 `test` の行に示す。
 
 | AC | 確かめ方 | 実装 | 内容 |
 |---|---|---|---|
@@ -341,7 +341,7 @@ AC-12・AC-22・AC-26 は、`docs/tasks/0040_production_profile/_checks/main.go`
 | AC-09 | test: `cmd/yt2column/docs_test.go::TestQuickStartLinks` ＋ manual | 3-2 | 節が Requirements より前にあること、各手順のリンクと解決はテスト。手順の順序と内容はレビュー |
 | AC-10 | manual | 3-1 | Requirements の書き分け |
 | AC-11 | manual | 3-1 | Usage の段落 |
-| AC-12 | diff: `docs/tasks/0040_production_profile/_checks/main.go`（README の見出しの判定） | 3-1・3-2 | 実行の記録: （ステップ 7-1 で記録する。merge-base と head のコミットの ID、出力） |
+| AC-12 | diff: `docs/tasks/0040_production_profile/_checks/main.go`（README の見出しの判定） | 3-1・3-2 | 実行の記録: merge-base `b295aa43ed11464ba3ac1c9c4d94674f629b6970`、head `1991b086352fbd544598e38453a26fd0624b8b77`、出力 `OK   README headings`（4 つの判定はすべて OK）。 |
 | AC-13 | test: `cmd/yt2column/docs_test.go::TestProductionProfileDocsContract` ＋ manual | 3-2 | 小節が「Configuration」の中にあること、3 つの変数と値はテスト。`ANTHROPIC_API_KEY` と検証・推敲の記述はレビュー |
 | AC-14 | test: `cmd/yt2column/docs_test.go::TestProductionProfileDocsContract`・`cmd/yt2column/docs_test.go::TestProductionProfileLinks` ＋ manual | 3-2 | 既定との一致は (a)、共通の文書へのリンクは (c)。文はレビュー |
 | AC-15 | test: `cmd/yt2column/docs_test.go::TestProductionProfileDocsContract` ＋ manual | 1-1・3-2 | ブロックの変数名の集合が 3 つの変数と等しいこと（秘密情報の変数がないこと）はテスト。文章の中の値の例がないことはレビュー |
@@ -349,15 +349,15 @@ AC-12・AC-22・AC-26 は、`docs/tasks/0040_production_profile/_checks/main.go`
 | AC-17 | manual | 4-1 | 設計書 3.3 の決定の対照表と差分を照らす |
 | AC-18 | manual | 4-1 | `project_overview.md` の図と説明 |
 | AC-19 | test: `cmd/yt2column/docs_test.go::TestProductionProfileLinks` ＋ manual | 4-1 | 共通の文書へのリンクはテスト。記述と #490・#171 のリンクはレビュー |
-| AC-20 | test: `cmd/yt2column-server/docs_test.go::TestServerDocsContract`・`cmd/yt2column/docs_test.go::TestCostDocsContract`・`cmd/yt2column/docs_test.go::TestSlackDocsContract`・`cmd/yt2column/docs_test.go::TestLLMDefaultsDocsContract`（既存） ＋ diff: `docs/tasks/0040_production_profile/_checks/main.go`（「設定（環境変数）」の節の判定） | 4-1 | 既存のテストが変えずに通ること（1.4）。既存のテストが読まない表の変数名（`DEEPSEEK_API_KEY` など）も残ることは、節が変わらないことの差分の確認。実行の記録: （ステップ 7-1 で記録する） |
+| AC-20 | test: `cmd/yt2column-server/docs_test.go::TestServerDocsContract`・`cmd/yt2column/docs_test.go::TestCostDocsContract`・`cmd/yt2column/docs_test.go::TestSlackDocsContract`・`cmd/yt2column/docs_test.go::TestLLMDefaultsDocsContract`（既存） ＋ diff: `docs/tasks/0040_production_profile/_checks/main.go`（「設定（環境変数）」の節の判定） | 4-1 | 既存のテストが変えずに通ること（1.4）。既存のテストが読まない表の変数名（`DEEPSEEK_API_KEY` など）も残ることは、節が変わらないことの差分の確認。実行の記録: merge-base `b295aa43ed11464ba3ac1c9c4d94674f629b6970`、head `1991b086352fbd544598e38453a26fd0624b8b77`、出力 `OK   project_overview.md environment variable section`。 |
 | AC-21 | test: `cmd/yt2column/docs_test.go::TestProductionProfileLinks` ＋ manual | 4-3 | 共通の文書へのリンクはテスト。v5 へのリンクが残ることはレビュー |
-| AC-22 | diff: `docs/tasks/0040_production_profile/_checks/main.go`（0008 評価記録の判定） ＋ manual | 5-1 | §6 の差分が追加だけで、Document Status の 3 つの行が変わらないことは差分の確認。追記した参照と `Comments` はレビュー。実行の記録: （ステップ 7-1 で記録する） |
+| AC-22 | diff: `docs/tasks/0040_production_profile/_checks/main.go`（0008 評価記録の判定） ＋ manual | 5-1 | §6 の差分が追加だけで、Document Status の 3 つの行が変わらないことは差分の確認。追記した参照と `Comments` はレビュー。実行の記録: merge-base `b295aa43ed11464ba3ac1c9c4d94674f629b6970`、head `1991b086352fbd544598e38453a26fd0624b8b77`、出力 `OK   evaluation record section 6`。 |
 | AC-23 | test: `cmd/yt2column/docs_test.go::TestProductionProfileLinks` ＋ manual | 4-2 | リンクはテスト。説明の文はレビュー |
 | AC-24 | manual | 4-2 | `CLAUDE.md` の冒頭の一文と図 |
 | AC-25 | manual | 1-1 | 共通の文書の評価の条件の記述 |
-| AC-26 | diff: `docs/tasks/0040_production_profile/_checks/main.go`（`security.md` の判定） ＋ manual | 4-3 | §1 以降が変わらないことは差分の確認。`:5` の新しい文はレビュー。実行の記録: （ステップ 7-1 で記録する） |
+| AC-26 | diff: `docs/tasks/0040_production_profile/_checks/main.go`（`security.md` の判定） ＋ manual | 4-3 | §1 以降が変わらないことは差分の確認。`:5` の新しい文はレビュー。実行の記録: merge-base `b295aa43ed11464ba3ac1c9c4d94674f629b6970`、head `1991b086352fbd544598e38453a26fd0624b8b77`、出力 `OK   security.md section 1 on`。 |
 
-`manual` だけの AC（AC-03〜AC-08・AC-10・AC-11・AC-16〜AC-18・AC-24・AC-25）は、文書の文面だけを定める AC である（要件書 §5、`requirements_process.md` §4）。値や構造の部分を持つ AC には、テストか差分の確認を当てた。
+`manual` だけの AC（AC-03〜AC-08・AC-10・AC-11・AC-16〜AC-18・AC-24・AC-25）は、文書の文面だけを定める AC である（要件書 §5、`requirements_process.md` §4）。値や構造の部分を持つ AC には、テストか差分の確認を当てた。例外は、共通の文書から出典へのリンク（AC-03・AC-25）と、`prompts/README.md` に残る v5 への参照（AC-21）で、設計書 1.2 と 7.2 のとおり manual で読む。
 
 **申し送りの対応:** `implementation_handoff.md` はない。`design_handoff.md` の H-01〜H-09 は、すべて設計書の付録 A に記録されている。
 
