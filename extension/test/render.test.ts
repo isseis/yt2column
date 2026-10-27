@@ -98,8 +98,8 @@ describe("renderSummary", () => {
         { ...collected, titleTruncated: true, previewTruncated: true },
         locale,
       );
-      assert.equal(valueOf(root, labels.title), `${collected.title}…`);
-      assert.equal(valueOf(root, labels.preview), `${collected.preview}…`);
+      assert.equal(valueOf(root, labels.title), `${collected.title}\u2026`);
+      assert.equal(valueOf(root, labels.preview), `${collected.preview}\u2026`);
     });
 
     it(`displays markup in the title and preview as text, not elements, in ${locale}`, () => {

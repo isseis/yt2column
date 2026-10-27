@@ -53,7 +53,8 @@ const unknownResultGuidance: Record<Locale, readonly RegExp[]> = {
   ja: [/送り直す前に[^。\n]*Slack[^。\n]*確かめて/u],
 };
 // No message mentions an options page, a token or a port. The ja words are
-// whole terms: a bare "ポート" would also match words such as "サポート".
+// whole terms: the bare katakana for "port" would also match words such as
+// "support" and "report".
 const forbiddenWords: Record<Locale, RegExp> = {
   en: /option|token|\bport\b/iu,
   ja: /オプション|トークン|ポート番号/u,

@@ -178,12 +178,12 @@ describe("renderMetadata", () => {
       {
         name: "one over the limit",
         value: "a".repeat(metadataDisplayLimit + 1),
-        shown: `${"a".repeat(metadataDisplayLimit)}…`,
+        shown: `${"a".repeat(metadataDisplayLimit)}\u2026`,
       },
       {
         name: "a surrogate pair at the boundary",
         value: `${"a".repeat(metadataDisplayLimit - 1)}${pair}b`,
-        shown: `${"a".repeat(metadataDisplayLimit - 1)}${pair}…`,
+        shown: `${"a".repeat(metadataDisplayLimit - 1)}${pair}\u2026`,
       },
     ];
     for (const { name, value, shown } of cases) {
