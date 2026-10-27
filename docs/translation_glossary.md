@@ -52,7 +52,7 @@
 | 動画タイトル | video title | 動画ページの DOM にある動画のタイトル。タブのタイトル（tab title）とは別 |
 | チャンネル名 | channel name | 動画を投稿したチャンネルの名前 |
 | 概要欄 | description | 動画の説明文。文脈が曖昧なときは "video description" とする |
-| 促しのメッセージ | expand prompt | 概要欄が折りたたまれているとき、ポップアップで「…もっと見る」（"...more"）を開いてから開き直すよう促す固定の文言（`expandPromptMessage`） |
+| 促しのメッセージ | expand prompt | 概要欄が折りたたまれているとき、ポップアップで「もっと見る」（"...more"）を開いてから開き直すよう促す固定の文言（`expandPromptMessage`） |
 | リクエスト ID | request ID | サーバがリクエストごとに生成する 16 文字の識別子。応答・ログ・失敗の通知を結び付ける |
 | Unix ドメインソケット（UDS） | Unix domain socket (UDS) | ファイルシステム上のパスを介したプロセス間通信。localhost サーバの待ち受け手段。初出で「Unix ドメインソケット（UDS）」と書き、以降は「UDS」とする |
 | 片付け | cleanup | `/mergepr` のマージ後処理（base の更新、ローカル head ブランチの削除） |
