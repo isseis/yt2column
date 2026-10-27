@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-27 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-27 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番、「設計書 §3.2」などは設計書の節を指す。既存のコードと文書についての記述は、コミット `c2ce520` で確かめた。`file:line` はこのコミットの行番号である。設計書が行番号を確かめたコミット `c3d20a7` と `c2ce520` の間では `docs/` の外のファイルが変わっていない（`git diff --stat c3d20a7 c2ce520 -- . ':!docs'` の出力が空）ので、設計書のコードの行番号はそのまま使える。用語は設計書の冒頭の「用語」に従う。
