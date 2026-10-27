@@ -29,6 +29,11 @@ export interface TabsApi {
   }): Promise<chrome.tabs.Tab[]>;
 }
 
+/** The chrome.i18n surface used. The result is checked at run time. */
+export interface I18nApi {
+  getUILanguage(): unknown;
+}
+
 /**
  * Runs in the tab's top frame. It must not reference any name from this
  * module: chrome.scripting serializes the function's source and runs it in the
@@ -160,6 +165,20 @@ export function createActiveTabQuery(
     const [tab] = await tabs.query({ active: true, currentWindow: true });
     return tab;
   };
+}
+
+/**
+ * The browser's UI language, or undefined when it cannot be read. A throw or a
+ * value that is not a string both resolve as undefined; the caller decides the
+ * display language from the result and never has to handle a failure.
+ */
+export function readUiLanguage(i18n: I18nApi): string | undefined {
+  try {
+    const language = i18n.getUILanguage();
+    return typeof language === "string" ? language : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**

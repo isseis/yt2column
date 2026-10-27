@@ -8,7 +8,7 @@
 | Created | 2026-10-27 |
 | Review date | 2026-10-27 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-27: ステップ 3-6 の実機の確認は Chrome だけで行う。Chrome と Brave に固有のコードがないためで、レビュアーが本セッションで承認した（Brave は同じ結果と見込む）。 |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番、「設計書 3.2」などは設計書の節を指す。既存のコードと文書についての記述は、コミット `4efdddf` で確かめた。`file:line` はこのコミットの行番号を指す。拡張のファイルのパスは、設計書と同じく `extension/` を省いて書く。本書の「差分の確認」は、設計書の「`diff` の検証」と同じものを指す。
 
@@ -231,9 +231,9 @@
 
 **変更するファイル:** `src/browser/chromeDeps.ts`、`test/chromeDeps.test.ts`
 
--   [ ] 設計書 3.1 のとおり、`I18nApi` と `readUiLanguage` を加える。
--   [ ] `test/chromeDeps.test.ts::readUiLanguage` に、文字列を返す fake でその値を返すこと、例外を投げる fake と文字列でない値を返す fake で `undefined` を返し例外を投げないことを確かめるテストを加える（AC-02）。
--   [ ] 壊して確かめる: `try`/`catch` を除く、文字列かどうかの確かめを除く、の 2 つでテストが失敗することを確かめる。
+-   [x] 設計書 3.1 のとおり、`I18nApi` と `readUiLanguage` を加える。
+-   [x] `test/chromeDeps.test.ts::readUiLanguage` に、文字列を返す fake でその値を返すこと、例外を投げる fake と文字列でない値を返す fake で `undefined` を返し例外を投げないことを確かめるテストを加える（AC-02）。
+-   [x] 壊して確かめる: `try`/`catch` を除く、文字列かどうかの確かめを除く、の 2 つでテストが失敗することを確かめる。
 
 **完了の条件:** `make ext-check` が通る。コミットする。
 
@@ -241,9 +241,9 @@
 
 **変更するファイル:** `src/ui/pageLocale.ts`（新規）、`test/locale.test.ts`
 
--   [ ] 設計書 3.5 のとおり、`applyPageLocale` を書く。
--   [ ] `test/locale.test.ts::applyPageLocale` に、jsdom の文書に `en`・`ja` のそれぞれを適用して、`html` 要素の `lang` 属性がその値になることを確かめるテストを加える（AC-14）。
--   [ ] 壊して確かめる: `lang` 属性を `html` 要素ではなく `body` 要素に設定する、常に `en` を設定する、の 2 つでテストが失敗することを確かめる。
+-   [x] 設計書 3.5 のとおり、`applyPageLocale` を書く。
+-   [x] `test/locale.test.ts::applyPageLocale` に、jsdom の文書に `en`・`ja` のそれぞれを適用して、`html` 要素の `lang` 属性がその値になることを確かめるテストを加える（AC-14）。
+-   [x] 壊して確かめる: `lang` 属性を `html` 要素ではなく `body` 要素に設定する、常に `en` を設定する、の 2 つでテストが失敗することを確かめる。
 
 **完了の条件:** `make ext-check` が通る。コミットする。
 
@@ -251,14 +251,14 @@
 
 **変更するファイル:** `src/launch.ts`、`src/popup.ts`、`test/launch.test.ts`
 
--   [ ] 設計書 3.3 のとおり、`PopupStartDeps` と `startPopup` を `launch.ts` に加える。表示言語を読んだ直後に、固定のラベル（`yt2column ui language`）で読んだ値をログに出し、`resolveLocale`・`applyPageLocale` の後に `runPopupLaunch`・`runPopupSend` を呼ぶ（設計書 6 章の順序）。
--   [ ] `popup.ts` を、ブラウザの API から `PopupStartDeps` を組み立てて `startPopup(document, …)` を呼ぶだけの形にする。ステップ 2-3 の `locale: "en"` を除く。表示言語は `readUiLanguage(chrome.i18n)` で読む。ファイルの冒頭のコメント（`src/popup.ts:1-3`）を新しい形に合わせる。
--   [ ] `test/launch.test.ts::startPopup` に、`startPopup` を jsdom の文書（`#summary`・`#send` を持つ）と fake の依存で実行するテストを加える（設計書 3.9 の「入口の組み立て」）。表示言語の依存は、`getUILanguage` を差し替えた `I18nApi` の fake を `readUiLanguage` に渡す関数（`() => readUiLanguage(fake)`）として作る。
+-   [x] 設計書 3.3 のとおり、`PopupStartDeps` と `startPopup` を `launch.ts` に加える。表示言語を読んだ直後に、固定のラベル（`yt2column ui language`）で読んだ値をログに出し、`resolveLocale`・`applyPageLocale` の後に `runPopupLaunch`・`runPopupSend` を呼ぶ（設計書 6 章の順序）。
+-   [x] `popup.ts` を、ブラウザの API から `PopupStartDeps` を組み立てて `startPopup(document, …)` を呼ぶだけの形にする。ステップ 2-3 の `locale: "en"` を除く。表示言語は `readUiLanguage(chrome.i18n)` で読む。ファイルの冒頭のコメント（`src/popup.ts:1-3`）を新しい形に合わせる。
+-   [x] `test/launch.test.ts::startPopup` に、`startPopup` を jsdom の文書（`#summary`・`#send` を持つ）と fake の依存で実行するテストを加える（設計書 3.9 の「入口の組み立て」）。表示言語の依存は、`getUILanguage` を差し替えた `I18nApi` の fake を `readUiLanguage` に渡す関数（`() => readUiLanguage(fake)`）として作る。
     -   `getUILanguage` が `ja-JP` を返すとき、`lang` 属性が `ja` で、表示が `catalogs.ja` の文言であること（AC-01・AC-03）。
     -   `getUILanguage` が例外を投げるとき、`lang` 属性が `en` で、英語で表示され、収集の結果・ログの収集の結果・送信のボタンの表示が、`getUILanguage` が `en-US` を返すときと同じであること（AC-02）。
     -   fake の `activeTab` が呼ばれた時点で `lang` 属性が設定済みであること（AC-14）。
     -   表示言語のログが固定のラベルで 1 つだけ、読んだ値のまま（例外のときは `undefined`）記録されること（AC-12）。
--   [ ] 壊して確かめる: `applyPageLocale` を `runPopupLaunch` の後に呼ぶ、`startPopup` が `runPopupLaunch`・`runPopupSend` に常に `"en"` を渡す、表示言語のログのラベルに言語を含める、の 3 つでテストが失敗することを確かめる。
+-   [x] 壊して確かめる: `applyPageLocale` を `runPopupLaunch` の後に呼ぶ、`startPopup` が `runPopupLaunch`・`runPopupSend` に常に `"en"` を渡す、表示言語のログのラベルに言語を含める、の 3 つでテストが失敗することを確かめる。
 
 **完了の条件:** `make ext-check` が通る。コミットする。
 
@@ -266,9 +266,9 @@
 
 **変更するファイル:** `static/style.css`、`test/style.test.ts`（新規）
 
--   [ ] 設計書 3.5 のとおり、`:root:lang(ja)`（書体の候補）と `body:lang(ja)`（`line-height: 1.7`）の 2 つの規則を `style.css` の末尾に加える。今の規則は変えない。
--   [ ] `test/style.test.ts::Japanese typography` に、`style.css` を jsdom の CSSOM で読み、設計書 3.9 の「ページの言語・書体・行間」の 4 つの性質を確かめるテストを書く（AC-15〜AC-17）。
--   [ ] 壊して確かめる: 書体の候補の順を入れ替える、行間を `1.5` にする、セレクタを `:lang(ja)` だけにする、`:root` の書体を変える、`body` の規則に `line-height` を加える、の 5 つで、それぞれテストが失敗することを確かめる。
+-   [x] 設計書 3.5 のとおり、`:root:lang(ja)`（書体の候補）と `body:lang(ja)`（`line-height: 1.7`）の 2 つの規則を `style.css` の末尾に加える。今の規則は変えない。
+-   [x] `test/style.test.ts::Japanese typography` に、`style.css` を jsdom の CSSOM で読み、設計書 3.9 の「ページの言語・書体・行間」の 4 つの性質を確かめるテストを書く（AC-15〜AC-17）。
+-   [x] 壊して確かめる: 書体の候補の順を入れ替える、行間を `1.5` にする、セレクタを `:lang(ja)` だけにする、`:root` の書体を変える、`body` の規則に `line-height` を加える、の 5 つで、それぞれテストが失敗することを確かめる。
 
 **完了の条件:** `make ext-check` が通る。コミットする。
 
@@ -276,7 +276,7 @@
 
 **変更するファイル:** 本書
 
--   [ ] `git fetch origin main` の後、PR-2 の head でステップ 2-5 のスクリプトを実行し、出力と 2 つのコミットの ID を 7 章の AC-07 の行に加える。記録を本書にコミットする。この後、`extension/src/` が変わったときや `main` を取り込んだときは、実行し直して記録を置き換える。
+-   [x] `git fetch origin main` の後、PR-2 の head でステップ 2-5 のスクリプトを実行し、出力と 2 つのコミットの ID を 7 章の AC-07 の行に加える。記録を本書にコミットする。この後、`extension/src/` が変わったときや `main` を取り込んだときは、実行し直して記録を置き換える。
 
 **完了の条件:** 7 章の AC-07 の行に PR-2 の記録がある。
 
@@ -284,11 +284,11 @@
 
 **変更するファイル:** 本書
 
--   [ ] `make ext-build` でビルドした `extension/dist/` を Chrome と Brave で読み込み、ブラウザの表示言語を日本語と英語に切り替えて（設計書 7.2 の切り替え方）、次を確かめる。
+-   [x] `make ext-build` でビルドした `extension/dist/` を Chrome で読み込み（Brave は、Chrome と Brave に固有のコードがないため実施しない。2026-10-27、レビュアーの判断）、ブラウザの表示言語を日本語と英語に切り替えて（設計書 7.2 の切り替え方）、次を確かめる。
     -   日本語のとき、ポップアップが日本語で表示され、書体が日本語の書体になり、英語の文言が一瞬も表示されないこと。英語のとき、今と同じ英語で表示されること（AC-01〜AC-03・AC-14〜AC-16）。
     -   ポップアップのコンソールの表示言語のログと `document.documentElement.lang` の値。
     -   リクエスト ID が等幅の書体のままであること。リクエスト ID はサーバの応答（受け付けたか拒否した）でだけ表示される。LLM の API を呼ばずにリクエスト ID を得るには、字幕の書式でないテキストを選んで送り、サーバに `invalid_transcript` で拒否させる。拒否でもサーバが Slack に失敗の通知を投稿しうるので、この送信はレビュアーの承認を得てから行う（`CLAUDE.md`「Tool Execution Safety」）。承認されないときは、この項目を `style.test.ts`（`:lang(ja)` の規則が `html` と `body` にだけ当たること）に任せたと記録する。
--   [ ] ブラウザの操作はレビュアー（利用者）に依頼する。`/runplan` は、ステップ 3-5 の後、PR を開く前にここで止まり、操作を依頼する。結果（日付・ブラウザと版・表示言語・観察したこと）を 7 章の該当する AC の行に記録し、本書にコミットする。
+-   [x] ブラウザの操作はレビュアー（利用者）に依頼する。`/runplan` は、ステップ 3-5 の後、PR を開く前にここで止まり、操作を依頼する。結果（日付・ブラウザと版・表示言語・観察したこと）を 7 章の該当する AC の行に記録し、本書にコミットする。
 
 **完了の条件:** `make ext-check`・`make test`・`make lint` が通り、7 章に PR-2 の実機の確認の記録がある。
 
@@ -304,10 +304,10 @@
 
 **判定理由**: 前例のない設計判断も競合する実装案もなく、条件付きの検査に 2 つ以上当たる手順もない
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/525
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 4: manifest と `_locales`
 
@@ -435,7 +435,7 @@ AC-07 は、`docs/tasks/0043_extension_i18n/_checks/english_text.ts` で確か�
 ## 6. 実装チェックリスト (Implementation Checklist)
 
 -   [x] PR-1 マージ済み（対象ステップ: 1-1 / 2-1 / 2-2 / 2-3 / 2-4 / 2-5）
--   [ ] PR-2 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6）
+-   [x] PR-2 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6）
 -   [ ] PR-3 マージ済み（対象ステップ: 4-1 / 5-1 / 5-2）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
@@ -444,22 +444,22 @@ AC-07 は、`docs/tasks/0043_extension_i18n/_checks/english_text.ts` で確か�
 
 | AC | 確かめ方 | 実装 | 内容 |
 |---|---|---|---|
-| AC-01 | test: `extension/test/locale.test.ts::resolveLocale`・`extension/test/launch.test.ts::startPopup` ＋ manual | 2-1・3-3・3-6 | 日本語と判定する値と、入口が日本語で表示することはテスト。実機の確認（ステップ 3-6） |
-| AC-02 | test: `extension/test/locale.test.ts::resolveLocale`・`extension/test/chromeDeps.test.ts::readUiLanguage`・`extension/test/launch.test.ts::startPopup` ＋ manual | 2-1・3-1・3-3・3-6 | 英語と判定する値、読み取りの失敗、失敗しても収集と送信が変わらないことはテスト。実機の確認（ステップ 3-6） |
-| AC-03 | test: `extension/test/render.test.ts::renderSummary`・`extension/test/renderMetadata.test.ts::renderMetadata`・`extension/test/renderSend.test.ts::renderSendOutcome`・`::renderBlockReason`・`extension/test/launch.test.ts::popup send`・`::startPopup` ＋ manual | 2-4・3-3・3-6 | 選んだ言語の文言を表示し、もう一方の言語の文言を表示しないこと。実機の確認（ステップ 3-6） |
+| AC-01 | test: `extension/test/locale.test.ts::resolveLocale`・`extension/test/launch.test.ts::startPopup` ＋ manual | 2-1・3-3・3-6 | 日本語と判定する値と、入口が日本語で表示することはテスト。実機（PR-2、下の確認の記録）: 日本語の表示言語で日本語で表示された。 |
+| AC-02 | test: `extension/test/locale.test.ts::resolveLocale`・`extension/test/chromeDeps.test.ts::readUiLanguage`・`extension/test/launch.test.ts::startPopup` ＋ manual | 2-1・3-1・3-3・3-6 | 英語と判定する値、読み取りの失敗、失敗しても収集と送信が変わらないことはテスト。実機（PR-2）: 英語の表示言語で英語で表示された。 |
+| AC-03 | test: `extension/test/render.test.ts::renderSummary`・`extension/test/renderMetadata.test.ts::renderMetadata`・`extension/test/renderSend.test.ts::renderSendOutcome`・`::renderBlockReason`・`extension/test/launch.test.ts::popup send`・`::startPopup` ＋ manual | 2-4・3-3・3-6 | 選んだ言語の文言を表示し、もう一方の言語の文言を表示しないこと。実機（PR-2）: どちらの言語でも、もう一方の言語の文言は表示されなかった。 |
 | AC-04 | test: `extension/test/manifest.test.ts::permissions`・`::undeclared keys`・`extension/test/lintRules.test.ts::chrome.storage`（既存） | 4-1 | 権限が 3 つのままで、`options_ui` がなく、`chrome.storage` を参照できないこと |
 | AC-05 | test: `extension/test/messages.test.ts::rejectionMessage`・`::expandPromptMessage`・`extension/test/sendMessages.test.ts::blockMessage`・`::serverRejectMessage`・`::sendOutcomeMessage` ＋ AC-03 の表示のテスト | 2-3・2-4 | 振り分けの関数がすべての理由と結果について選んだ言語の節の文言を返すこと、表示がそれを表示すること |
 | AC-06 | static: `make ext-typecheck` ＋ test: `extension/test/typecheck.test.ts::a Catalog missing an item fails typecheck`・`extension/test/catalog.test.ts::catalogs` | 2-2 | 欠けで型の検査が失敗すること、本文・手順が空でないこと、手順の規則 |
-| AC-07 | diff: `docs/tasks/0043_extension_i18n/_checks/english_text.ts` | 2-2・2-3・2-5・3-5 | 実行の記録（PR-1）: 2026-10-27、merge-base `30dbae078cbdd267f2ca1ff1bb27bf3ef3cd6f5d`、head `5e3ab74d77d85ad0a7869ea74cc21081588ecb8c`、終了コード 0、出力 `PASS: 121 displayed elements identical`。実行の記録（PR-2）: 未実行。 |
+| AC-07 | diff: `docs/tasks/0043_extension_i18n/_checks/english_text.ts` | 2-2・2-3・2-5・3-5 | 実行の記録（PR-1）: 2026-10-27、merge-base `30dbae078cbdd267f2ca1ff1bb27bf3ef3cd6f5d`、head `5e3ab74d77d85ad0a7869ea74cc21081588ecb8c`、終了コード 0、出力 `PASS: 121 displayed elements identical`。実行の記録（PR-2）: 2026-10-27、merge-base `9b4c0ef6794f0469244780869d42e8ec25275fca`、head `44b9822687c00618a0b8b235d5eb2f6bab0c7d92`、終了コード 0、出力 `PASS: 121 displayed elements identical`。 |
 | AC-08 | test: `extension/test/render.test.ts::renderSummary`・`extension/test/renderMetadata.test.ts::renderMetadata`・`extension/test/renderSend.test.ts::renderSendOutcome` | 2-4 | 両方の言語で、値をそのまま表示すること |
 | AC-09 | test: `extension/test/messages.test.ts::rejectionMessage`・`extension/test/sendMessages.test.ts::blockMessage`・`::serverRejectMessage`・`::sendOutcomeMessage` | 2-4 | 両方の言語で、各性質を言語によらない語と言語ごとの語の表で確かめる |
 | AC-10 | manual | 2-2 | 日本語の文言の用語を用語集と照らす（PR-1 のレビュー。テストにしない理由は 1.3） |
 | AC-11 | manual | 2-2 | 日本語の文言の YouTube のボタンの表記を、設計書 3.4 の観測の記録と照らす（PR-1 のレビュー。テストにしない理由は 1.3） |
-| AC-12 | test: `extension/test/launch.test.ts::logs by locale`・`::startPopup` | 2-4・3-3 | 言語だけを変えて記録したログが一致すること、表示言語のログのラベルが固定であること |
+| AC-12 | test: `extension/test/launch.test.ts::logs by locale`・`::startPopup` | 2-4・3-3 | 言語だけを変えて記録したログが一致すること、表示言語のログのラベルが固定であること。実機（PR-2）: コンソールの `yt2column ui language` のログが表示言語に一致した。 |
 | AC-13 | test: `extension/test/locale.test.ts::formatCount`・`extension/test/render.test.ts::renderSummary` | 2-1・2-4 | 両方の言語で `12,345`、要約の表示に桁区切りが入ること |
-| AC-14 | test: `extension/test/locale.test.ts::applyPageLocale`・`extension/test/launch.test.ts::startPopup` ＋ manual | 3-2・3-3・3-6 | `lang` 属性と、最初の描画の前に設定されること。実機の確認（ステップ 3-6） |
-| AC-15 | test: `extension/test/style.test.ts::Japanese typography` ＋ manual | 3-4・3-6 | `:root:lang(ja)` の書体の候補の順。実機の確認（ステップ 3-6） |
-| AC-16 | test: `extension/test/style.test.ts::Japanese typography` ＋ manual | 3-4・3-6 | `body:lang(ja)` の行間。実機の確認（ステップ 3-6） |
+| AC-14 | test: `extension/test/locale.test.ts::applyPageLocale`・`extension/test/launch.test.ts::startPopup` ＋ manual | 3-2・3-3・3-6 | `lang` 属性と、最初の描画の前に設定されること。実機（PR-2）: `document.documentElement.lang` が `ja` / `en` であった。 |
+| AC-15 | test: `extension/test/style.test.ts::Japanese typography` ＋ manual | 3-4・3-6 | `:root:lang(ja)` の書体の候補の順。実機（PR-2）: 日本語のとき、書体が日本語の書体になった。 |
+| AC-16 | test: `extension/test/style.test.ts::Japanese typography` ＋ manual | 3-4・3-6 | `body:lang(ja)` の行間。実機（PR-2）: 行間が広く見え、DevTools で `body:lang(ja) { line-height: 1.7; }` の適用を確認した。 |
 | AC-17 | test: `extension/test/style.test.ts::Japanese typography` | 3-4 | 英語の書体が今のままで、ほかの規則が行間を持たないこと |
 | AC-18 | static: `make ext-build`（`check-dist`） ＋ test: `extension/test/manifest.test.ts::locales` | 4-1 | `dist/` が `_locales` の 2 つのファイルを含むこと、`default_locale` が `en` で `_locales` の形が正しいこと |
 | AC-19 | test: `extension/test/manifest.test.ts::fixed fields`・`::locales` ＋ manual | 4-1・5-2 | `name`・`description` が `_locales` を参照し、名前が両方の言語で `yt2column`、説明が言語ごとに異なること。拡張の管理ページの表示は実機の確認（ステップ 5-2） |
@@ -470,6 +470,8 @@ AC-07 は、`docs/tasks/0043_extension_i18n/_checks/english_text.ts` で確か�
 | AC-24 | test: `extension/test/lintRules.test.ts::html parsing APIs`（既存）・`extension/test/render.test.ts::renderSummary`・`extension/test/renderMetadata.test.ts::renderMetadata`・`extension/test/renderSend.test.ts::renderSendOutcome`・`::renderBlockReason` | 2-4 | lint の規則と、両方の言語で文言と値を文字列として表示すること |
 
 `manual` だけの AC は AC-10・AC-11・AC-21・AC-22 である。AC-21・AC-22 は文書の文面だけを定める AC である（`requirements_process.md` §4）。AC-10・AC-11 をテストにしない理由は 1.3 に書いた。
+
+**実機の確認の記録（PR-2、ステップ 3-6）:** 2026-10-27、レビュアー（isseis）が Chrome 156.0.8078.48（公式ビルド、arm64）で確認した。OS の環境設定は日本語とし、Chrome を既定の起動で開いた場合（日本語）と `open -a "Google Chrome" --args -AppleLanguages '(en)'` で起動した場合（英語）の 2 つを試した。日本語のときはポップアップが日本語で表示され、`document.documentElement.lang` が `ja`、コンソールの `yt2column ui language` のログが表示言語に一致した。英語のときは今までどおり英語で表示され、`lang` が `en` であった。どちらのときも、もう一方の言語の文言は表示されなかった。日本語のとき、書体が日本語の書体になり、行間が広く見えた（DevTools で `body:lang(ja) { line-height: 1.7; }` の適用を確認）。リクエスト ID は、字幕でないテキストを送って `invalid_transcript` の拒否を受け、DevTools で `.send-request-id` の `font-family: ui-monospace, monospace` が適用されていることを確認した。Brave は、Chrome と Brave に固有のコードがないため実施していない（レビュアーの判断）。
 
 ## 8. 成功基準 (Success Criteria)
 
