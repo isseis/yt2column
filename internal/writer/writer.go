@@ -78,6 +78,31 @@ type ArticleWriter interface {
 	Write(ctx context.Context, t transcript.Transcript) (Article, error)
 }
 
+// ProgressObserver receives the progress of one Write. The calls for one
+// Write are made from the goroutine that runs it, in order. A stage that
+// failed gets no StageFinished: the receiver tells the failed stage as the one
+// that was started and never finished.
+type ProgressObserver interface {
+	StageStarted(s Stage)  // before the stage's first action
+	StageFinished(s Stage) // after the stage's result passed every check of that stage
+	StageSkipped(s Stage)  // the stage will not run in this Write
+}
+
+// ProgressWriter is an ArticleWriter that also reports its progress.
+// WriteWithProgress behaves exactly as Write, and in addition calls observer,
+// which must not be nil.
+type ProgressWriter interface {
+	ArticleWriter
+	WriteWithProgress(ctx context.Context, t transcript.Transcript, observer ProgressObserver) (Article, error)
+}
+
+// nopObserver is the ProgressObserver Write passes: it ignores every call.
+type nopObserver struct{}
+
+func (nopObserver) StageStarted(Stage)  {}
+func (nopObserver) StageFinished(Stage) {}
+func (nopObserver) StageSkipped(Stage)  {}
+
 // Options configures the ArticleWriter returned by New. An empty template path
 // selects the embedded default template; a non-empty path names an override
 // file that New reads once. The zero value generates the article only:
@@ -175,8 +200,28 @@ func stageRuns(resume Stage, shortenEnabled, reviewEnabled bool) (generation, sh
 // New validates client, the options, and the templates of the enabled steps,
 // and returns an ArticleWriter. It never reads environment variables. The
 // concrete type is unexported, so an ArticleWriter can only be obtained
-// through New.
+// through New or NewProgressWriter.
 func New(client llm.LLMClient, opts Options) (ArticleWriter, error) {
+	w, err := newTemplateWriter(client, opts)
+	if err != nil {
+		return nil, err
+	}
+	return w, nil
+}
+
+// NewProgressWriter validates the same Options as New and returns the same
+// writer as a ProgressWriter.
+func NewProgressWriter(client llm.LLMClient, opts Options) (ProgressWriter, error) {
+	w, err := newTemplateWriter(client, opts)
+	if err != nil {
+		return nil, err
+	}
+	return w, nil
+}
+
+// newTemplateWriter is the validation and construction New and
+// NewProgressWriter share.
+func newTemplateWriter(client llm.LLMClient, opts Options) (*templateWriter, error) {
 	if err := validateOptions(client, opts); err != nil {
 		return nil, err
 	}
@@ -323,6 +368,26 @@ func loadStepTemplates[T any](system, user templateSpec) (stepTemplates[T], erro
 // every store failure is a *ArtifactError, and every failure carries the
 // stages' usage in a *TokenUsageError.
 func (w *templateWriter) Write(ctx context.Context, t transcript.Transcript) (Article, error) {
+	return w.WriteWithProgress(ctx, t, nopObserver{})
+}
+
+// WriteWithProgress is Write, reporting each stage to observer:
+//   - a stage that runs gets StageStarted before its first action and
+//     StageFinished after its result passed every check of that stage; the
+//     review step's checks include the final length check, so a body the
+//     review made too long is a failure of the review step;
+//   - a stage reused from Artifacts.Resume gets StageFinished when it is
+//     reused;
+//   - a stage that neither runs nor is reused gets StageSkipped, right after
+//     the previous stage's last call;
+//   - a failure adds no call, and a failure before the generation stage
+//     (the context, the transcript, the resume load) makes none.
+//
+// A nil observer is rejected before anything runs.
+func (w *templateWriter) WriteWithProgress(ctx context.Context, t transcript.Transcript, observer ProgressObserver) (Article, error) {
+	if nilcheck.IsNil(observer) {
+		return Article{}, tokenUsageError(RunUsage{}, errNilProgressObserver)
+	}
 	if err := ctx.Err(); err != nil {
 		return Article{}, tokenUsageError(RunUsage{}, fmt.Errorf("article generation not started: %w", err))
 	}
@@ -334,23 +399,14 @@ func (w *templateWriter) Write(ctx context.Context, t transcript.Transcript) (Ar
 	data := newTemplateData(t)
 
 	var runUsage RunUsage
-	var chain ArtifactChain
-	if w.resume != StageUnset {
-		if err := ctx.Err(); err != nil {
-			return Article{}, tokenUsageError(runUsage, artifactError(w.resume, err))
-		}
-		loaded, err := w.store.Load(ctx, t.VideoID, w.resume, materialID)
-		if err != nil {
-			return Article{}, tokenUsageError(runUsage, artifactError(w.resume, err))
-		}
-		chain = loaded
-		if err := checkChainCallTimes(chain); err != nil {
-			return Article{}, tokenUsageError(runUsage, err)
-		}
+	chain, err := w.loadResume(ctx, t.VideoID, materialID)
+	if err != nil {
+		return Article{}, tokenUsageError(runUsage, err)
 	}
 
 	generation := chain.Generation
 	if w.generationRuns() {
+		observer.StageStarted(StageGeneration)
 		var usage StageUsage
 		generation, usage, err = w.generateStage(ctx, t.VideoID, data, materialID)
 		runUsage.Generation = usage
@@ -360,29 +416,38 @@ func (w *templateWriter) Write(ctx context.Context, t transcript.Transcript) (Ar
 	} else {
 		runUsage.Generation = reusedUsage(chain.Generation)
 	}
+	observer.StageFinished(StageGeneration)
 	title, body, previousID := generation.Title, generation.Body, generation.ID
 
 	var shortenModel *StepModel
 	switch {
 	case w.shortenRuns() && bodyChars(body) > maxBodyChars:
+		observer.StageStarted(StageShorten)
 		var usage StageUsage
 		title, body, shortenModel, previousID, usage, err = w.shortenStage(ctx, t.VideoID, title, body, previousID)
 		runUsage.Shorten = usage
 		if err != nil {
 			return Article{}, tokenUsageError(runUsage, err)
 		}
+		observer.StageFinished(StageShorten)
 	case chain.Shorten != nil:
+		observer.StageFinished(StageShorten)
 		shortenModel = &StepModel{Model: chain.Shorten.Model, ModelVersion: chain.Shorten.ModelVersion}
 		previousID = chain.Shorten.ID
 		runUsage.Shorten = reusedUsage(*chain.Shorten)
 		if w.resume == StageShorten {
 			title, body = chain.Shorten.Title, chain.Shorten.Body
 		}
+	default:
+		observer.StageSkipped(StageShorten)
 	}
 
 	var reviewResult *ReviewResult
+	reviewRan := false
 	switch {
 	case w.reviewRuns():
+		observer.StageStarted(StageReview)
+		reviewRan = true
 		var usage StageUsage
 		title, body, reviewResult, usage, err = w.reviewStage(ctx, t.VideoID, data, title, body, previousID)
 		runUsage.Review = usage
@@ -390,12 +455,15 @@ func (w *templateWriter) Write(ctx context.Context, t transcript.Transcript) (Ar
 			return Article{}, tokenUsageError(runUsage, err)
 		}
 	case w.resume == StageReview:
+		observer.StageFinished(StageReview)
 		title, body = chain.Review.Title, chain.Review.Body
 		reviewResult = &ReviewResult{
 			Model:     StepModel{Model: chain.Review.Model, ModelVersion: chain.Review.ModelVersion},
 			Revisions: chain.Review.Revisions,
 		}
 		runUsage.Review = reusedUsage(*chain.Review)
+	default:
+		observer.StageSkipped(StageReview)
 	}
 
 	if w.shorten != nil {
@@ -403,7 +471,29 @@ func (w *templateWriter) Write(ctx context.Context, t transcript.Transcript) (Ar
 			return Article{}, tokenUsageError(runUsage, stepError(StepReview, tooLongError(chars)))
 		}
 	}
+	if reviewRan {
+		observer.StageFinished(StageReview)
+	}
 	return newArticle(title, t.ChannelName, body, sourceURL, generation.Model, generation.ModelVersion, shortenModel, reviewResult, runUsage), nil
+}
+
+// loadResume loads the artifact chain Write resumes from and checks its call
+// times. It returns the zero chain when Write does not resume.
+func (w *templateWriter) loadResume(ctx context.Context, videoID, materialID string) (ArtifactChain, error) {
+	if w.resume == StageUnset {
+		return ArtifactChain{}, nil
+	}
+	if err := ctx.Err(); err != nil {
+		return ArtifactChain{}, artifactError(w.resume, err)
+	}
+	chain, err := w.store.Load(ctx, videoID, w.resume, materialID)
+	if err != nil {
+		return ArtifactChain{}, artifactError(w.resume, err)
+	}
+	if err := checkChainCallTimes(chain); err != nil {
+		return ArtifactChain{}, err
+	}
+	return chain, nil
 }
 
 // stageUsage is the usage of a stage that called Generate: OriginRun, the

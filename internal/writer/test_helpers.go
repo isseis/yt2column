@@ -330,3 +330,37 @@ func (f *fakeArtifactStore) saveFor(stage Stage) fakeSaveCall {
 	}
 	return fakeSaveCall{}
 }
+
+// progressEvent is one call a recordingObserver received.
+type progressEvent struct {
+	kind  string // "started", "finished", or "skipped"
+	stage Stage
+}
+
+func (e progressEvent) String() string { return e.kind + " " + e.stage.String() }
+
+// Shorthands for the expected events of a progress test.
+func started(s Stage) progressEvent  { return progressEvent{"started", s} }
+func finished(s Stage) progressEvent { return progressEvent{"finished", s} }
+func skipped(s Stage) progressEvent  { return progressEvent{"skipped", s} }
+
+// recordingObserver records every ProgressObserver call, in order.
+type recordingObserver struct {
+	events []progressEvent
+}
+
+var _ ProgressObserver = (*recordingObserver)(nil)
+
+func (r *recordingObserver) StageStarted(s Stage)  { r.events = append(r.events, started(s)) }
+func (r *recordingObserver) StageFinished(s Stage) { r.events = append(r.events, finished(s)) }
+func (r *recordingObserver) StageSkipped(s Stage)  { r.events = append(r.events, skipped(s)) }
+
+// mustNewProgress builds a ProgressWriter or fails the test.
+func mustNewProgress(t *testing.T, client llm.LLMClient, opts Options) ProgressWriter {
+	t.Helper()
+	w, err := NewProgressWriter(client, opts)
+	if err != nil {
+		t.Fatalf("NewProgressWriter error = %v", err)
+	}
+	return w
+}

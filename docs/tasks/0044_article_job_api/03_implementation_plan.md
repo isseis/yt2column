@@ -180,10 +180,10 @@
 
 -   **ファイル:** `internal/writer/writer.go`・`progress_test.go`（新規）、`internal/writer/testutil/mocks.go`・`mocks_test.go`
 -   **作業:**
-    -   [ ] 設計書 §3.5 の `ProgressObserver`・`ProgressWriter`・`NewProgressWriter` を加える。`templateWriter` が `WriteWithProgress` を実装し、`Write` は何もしない通知先でそれを呼ぶ。通知の時点は設計書 §3.5「通知の約束」に従う。
-    -   [ ] `FakeArticleWriter` に `WriteWithProgress` を加える。指定した工程の通知を順に送り、工程ごとに止められる仕組みを持たせる。止める仕組みは解放のチャネルと `ctx.Done()` の両方を待ち、取り消されたら `ctx` のエラーを返す。記録を排他制御の下に置き、排他制御付きの読み出しを加える（1.3）。これらを `mocks_test.go` で確かめる。
-    -   [ ] テスト（fake の `LLMClient`）: 通知の順序（AC-10）、下書きの本文が 4,000 字ちょうどで `StageSkipped`、4,001 字で短縮の `StageStarted`・`StageFinished`（AC-11）、各工程の失敗の後にその工程の `StageFinished` が来ないこと、最後の長さの検査が失敗したときに検証・推敲の `StageFinished` が来ないこと、`Write` と `WriteWithProgress` が同じ記事を返すこと。
-    -   [ ] 壊し方: 検証・推敲の `StageFinished` を最後の長さの検査の前に移すと、該当の行が失敗することを確かめる。
+    -   [x] 設計書 §3.5 の `ProgressObserver`・`ProgressWriter`・`NewProgressWriter` を加える。`templateWriter` が `WriteWithProgress` を実装し、`Write` は何もしない通知先でそれを呼ぶ。通知の時点は設計書 §3.5「通知の約束」に従う。
+    -   [x] `FakeArticleWriter` に `WriteWithProgress` を加える。指定した工程の通知を順に送り、工程ごとに止められる仕組みを持たせる。止める仕組みは解放のチャネルと `ctx.Done()` の両方を待ち、取り消されたら `ctx` のエラーを返す。記録を排他制御の下に置き、排他制御付きの読み出しを加える（1.3）。これらを `mocks_test.go` で確かめる。
+    -   [x] テスト（fake の `LLMClient`）: 通知の順序（AC-10）、下書きの本文が 4,000 字ちょうどで `StageSkipped`、4,001 字で短縮の `StageStarted`・`StageFinished`（AC-11）、各工程の失敗の後にその工程の `StageFinished` が来ないこと、最後の長さの検査が失敗したときに検証・推敲の `StageFinished` が来ないこと、`Write` と `WriteWithProgress` が同じ記事を返すこと。
+    -   [x] 壊し方: 検証・推敲の `StageFinished` を最後の長さの検査の前に移すと、該当の行が失敗することを確かめる。
 -   **完了の条件:** グリーンゲートが通り、`writer` の今のテストが変更なしで通る。
 
 #### ステップ 3-2: 表示用の Markdown・ファイルの中身・料金の書式

@@ -5,30 +5,115 @@ package writertestutil
 
 import (
 	"context"
+	"errors"
+	"sync"
 
 	"github.com/isseis/yt2column/internal/transcript"
 	"github.com/isseis/yt2column/internal/writer"
 )
 
-// FakeArticleWriter is a configurable writer.ArticleWriter that records its
+// errUnknownProgressKind is returned by WriteWithProgress for a progress step
+// whose Kind is not one of the FakeProgressKind values.
+var errUnknownProgressKind = errors.New("writertestutil: unknown progress kind")
+
+// FakeArticleWriter is a configurable writer.ProgressWriter that records its
 // calls. It implements the interface with pointer receivers so the recorded
-// calls are visible to the caller.
+// calls are visible to the caller. Calls may be made from several goroutines:
+// the record is kept under a mutex, and RecordedCalls reads it while calls
+// are running. A test that reads Calls directly does so after every call
+// returned.
 type FakeArticleWriter struct {
 	Result writer.Article
 	Err    error
-	Calls  []FakeArticleWriterCall
+	// Progress lists the notifications WriteWithProgress sends, in order,
+	// before it returns Result and Err. Write sends none.
+	Progress []FakeProgressStep
+	Calls    []FakeArticleWriterCall
+
+	mu sync.Mutex
 }
 
-// FakeArticleWriterCall records the arguments of one Write call.
+// FakeProgressKind selects the ProgressObserver method a FakeProgressStep
+// calls. The zero value is not a kind: WriteWithProgress rejects it.
+type FakeProgressKind int
+
+const (
+	// FakeStageStarted calls StageStarted.
+	FakeStageStarted FakeProgressKind = iota + 1
+	// FakeStageFinished calls StageFinished.
+	FakeStageFinished
+	// FakeStageSkipped calls StageSkipped.
+	FakeStageSkipped
+)
+
+// FakeProgressStep is one notification of FakeArticleWriter.WriteWithProgress.
+type FakeProgressStep struct {
+	Kind  FakeProgressKind
+	Stage writer.Stage
+	// Reached, when non-nil, is closed right after the notification is sent,
+	// so a test can wait for the call to get there. It is closed once, so a
+	// step that sets it serves one call.
+	Reached chan struct{}
+	// Release, when non-nil, holds the call after the notification (and
+	// after Reached is closed) until Release is closed or ctx is done. When
+	// ctx is done first, the call returns the zero Article and ctx's error.
+	Release <-chan struct{}
+}
+
+// FakeArticleWriterCall records the arguments of one Write or
+// WriteWithProgress call.
 type FakeArticleWriterCall struct {
 	Ctx        context.Context
 	Transcript transcript.Transcript
 }
 
-var _ writer.ArticleWriter = (*FakeArticleWriter)(nil)
+var _ writer.ProgressWriter = (*FakeArticleWriter)(nil)
 
 // Write records the call and returns the configured result and error.
 func (f *FakeArticleWriter) Write(ctx context.Context, t transcript.Transcript) (writer.Article, error) {
-	f.Calls = append(f.Calls, FakeArticleWriterCall{Ctx: ctx, Transcript: t})
+	f.record(ctx, t)
 	return f.Result, f.Err
+}
+
+// WriteWithProgress records the call, sends each Progress step to observer in
+// order, and returns the configured result and error.
+func (f *FakeArticleWriter) WriteWithProgress(ctx context.Context, t transcript.Transcript, observer writer.ProgressObserver) (writer.Article, error) {
+	f.record(ctx, t)
+	for _, step := range f.Progress {
+		switch step.Kind {
+		case FakeStageStarted:
+			observer.StageStarted(step.Stage)
+		case FakeStageFinished:
+			observer.StageFinished(step.Stage)
+		case FakeStageSkipped:
+			observer.StageSkipped(step.Stage)
+		default:
+			return writer.Article{}, errUnknownProgressKind
+		}
+		if step.Reached != nil {
+			close(step.Reached)
+		}
+		if step.Release != nil {
+			select {
+			case <-step.Release:
+			case <-ctx.Done():
+				return writer.Article{}, ctx.Err()
+			}
+		}
+	}
+	return f.Result, f.Err
+}
+
+// RecordedCalls returns a copy of the calls recorded so far. It is safe to
+// call while other calls are running.
+func (f *FakeArticleWriter) RecordedCalls() []FakeArticleWriterCall {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]FakeArticleWriterCall(nil), f.Calls...)
+}
+
+func (f *FakeArticleWriter) record(ctx context.Context, t transcript.Transcript) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.Calls = append(f.Calls, FakeArticleWriterCall{Ctx: ctx, Transcript: t})
 }
