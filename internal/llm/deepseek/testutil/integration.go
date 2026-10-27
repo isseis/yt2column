@@ -23,7 +23,7 @@ const (
 	// `make test-integration-cli` exports it.
 	CLIOptInEnv = "YT2COLUMN_CLI_INTEGRATION"
 	APIKeyEnv   = "YT2COLUMN_TEST_DEEPSEEK_API_KEY" //nolint:gosec // the name of the variable holding the test key, not a key
-	ModelEnv    = "YT2COLUMN_MODEL"
+	ModelEnv    = "YT2COLUMN_TEST_DEEPSEEK_MODEL"
 	GODEBUGEnv  = "GODEBUG"
 
 	// OptInValue is the only opt-in value that runs a test.

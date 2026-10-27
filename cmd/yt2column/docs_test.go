@@ -17,6 +17,7 @@ import (
 	"github.com/isseis/yt2column/internal/config"
 	"github.com/isseis/yt2column/internal/llm"
 	claudetestutil "github.com/isseis/yt2column/internal/llm/claude/testutil"
+	deepseektestutil "github.com/isseis/yt2column/internal/llm/deepseek/testutil"
 	"github.com/isseis/yt2column/internal/pricing"
 	"github.com/isseis/yt2column/internal/publisher"
 	publishertestutil "github.com/isseis/yt2column/internal/publisher/testutil"
@@ -245,6 +246,24 @@ func TestClaudeDocsContract(t *testing.T) {
 			if !strings.Contains(doc.text, value) {
 				t.Errorf("%s does not mention %q", doc.name, value)
 			}
+		}
+	}
+}
+
+// TestDeepSeekDocsContract pins the machine-checkable contract values of the
+// DeepSeek integration tests: the variables that arm them, the key they read,
+// and the model variable. They come from the deepseek test package's exported
+// constants, not from the documents.
+func TestDeepSeekDocsContract(t *testing.T) {
+	readme := readDoc(t, readmePath)
+	for _, value := range []string{
+		deepseektestutil.APIKeyEnv,
+		deepseektestutil.DeepSeekOptInEnv,
+		deepseektestutil.CLIOptInEnv,
+		deepseektestutil.ModelEnv,
+	} {
+		if !strings.Contains(readme, value) {
+			t.Errorf("README.md does not mention %q", value)
 		}
 	}
 }

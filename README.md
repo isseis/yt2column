@@ -1091,9 +1091,9 @@ charges. It needs `YT2COLUMN_TEST_DEEPSEEK_API_KEY` set to a DeepSeek API key
 for testing; this is separate from the production `DEEPSEEK_API_KEY`, which the
 test never reads. A missing or empty `YT2COLUMN_TEST_DEEPSEEK_API_KEY` skips
 the test with a message naming the variable, so setting only `DEEPSEEK_API_KEY`
-does not run it. The model comes from `YT2COLUMN_MODEL`, defaulting to
-`deepseek-flash` when that variable is undefined (an empty value is passed
-through and fails the test). The target exports the opt-in variable
+does not run it. The model comes from `YT2COLUMN_TEST_DEEPSEEK_MODEL`,
+defaulting to `deepseek-flash` when that variable is undefined (an empty value
+is passed through and fails the test). The target exports the opt-in variable
 `YT2COLUMN_DEEPSEEK_INTEGRATION=1` for the integration test alone; without it
 the test skips with a message naming the variable, so a plain
 `go test -tags integration` or an IDE run does not call the API. A run makes two
@@ -1125,10 +1125,11 @@ bounded by a 5-minute timeout, so the target's `-timeout` is 15 minutes.
 `make test-integration-cli` runs the CLI's own assembly from a seeded transcript
 cache to the `--out` file, calling the real DeepSeek API (so it incurs charges)
 and never starting `yt-dlp`. Like the DeepSeek integration test it reads
-`YT2COLUMN_TEST_DEEPSEEK_API_KEY`, defaults `YT2COLUMN_MODEL` to `deepseek-flash`
-when undefined, and exports its opt-in variable `YT2COLUMN_CLI_INTEGRATION=1`
-for its target alone; unlike it, a missing test API key fails the test rather
-than skipping it, so an opted-in run cannot pass without calling the API.
+`YT2COLUMN_TEST_DEEPSEEK_API_KEY`, defaults `YT2COLUMN_TEST_DEEPSEEK_MODEL` to
+`deepseek-flash` when undefined, and exports its opt-in variable
+`YT2COLUMN_CLI_INTEGRATION=1` for its target alone; unlike it, a missing test
+API key fails the test rather than skipping it, so an opted-in run cannot pass
+without calling the API.
 
 ### Webhook integration test
 
@@ -1152,5 +1153,5 @@ generating the article with the real DeepSeek API (so it incurs charges) and
 posting it to the real test Webhook; it never starts `yt-dlp`. It needs both
 `YT2COLUMN_TEST_DEEPSEEK_API_KEY` and `YT2COLUMN_TEST_SLACK_WEBHOOK_URL` and
 fails when either is missing. Like the other CLI targets it defaults
-`YT2COLUMN_MODEL` to `deepseek-flash` when undefined, and it exports
-`YT2COLUMN_CLI_SLACK_INTEGRATION=1` for its target alone.
+`YT2COLUMN_TEST_DEEPSEEK_MODEL` to `deepseek-flash` when undefined, and it
+exports `YT2COLUMN_CLI_SLACK_INTEGRATION=1` for its target alone.

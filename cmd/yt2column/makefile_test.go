@@ -4,9 +4,12 @@ package main
 
 import (
 	"fmt"
+	"io/fs"
 	"maps"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -21,6 +24,12 @@ import (
 const (
 	// repositoryRoot is where the Makefile lives, relative to this package.
 	repositoryRoot = "../.."
+
+	// retiredModelEnv is the model variable the DeepSeek integration targets
+	// used before the rename. A target, or the code it builds, that still
+	// names it would take the model from a value a user set for the
+	// production variable instead of the test's own variable.
+	retiredModelEnv = "YT2COLUMN_MODEL"
 
 	// deepSeekIntegrationTarget is the make target that runs the DeepSeek
 	// adapter's charged integration test.
@@ -94,6 +103,84 @@ func TestMakeOptInsAreTargetSpecific(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestMakeTargetsDoNotReadRetiredModelEnv checks that the three targets that
+// run the DeepSeek integration tests take the model from the test's own
+// variable: with only the retired variable set and the test variable
+// undefined, each target passes the default to go test.
+func TestMakeTargetsDoNotReadRetiredModelEnv(t *testing.T) {
+	for _, target := range []string{
+		deepSeekIntegrationTarget,
+		cliIntegrationOptions.MakeTarget,
+		publishertestutil.CLISlackIntegrationOptions.MakeTarget,
+	} {
+		t.Run(target, func(t *testing.T) {
+			deepseektestutil.CheckRetiredModelEnvNotRead(t, repositoryRoot, target, retiredModelEnv)
+		})
+	}
+}
+
+// retiredModelEnvRE matches retiredModelEnv as a whole variable name. A longer
+// name that contains it, such as the test variable that replaced it, is
+// another variable and allowed.
+var retiredModelEnvRE = regexp.MustCompile(regexp.QuoteMeta(retiredModelEnv) + `([^A-Za-z0-9_]|$)`)
+
+// TestRetiredModelEnvIsGone checks that neither the Makefile's DeepSeek
+// integration targets nor the Go code they build names the retired model
+// variable. Every scope must hold at least one file to scan, so a scope that
+// stops matching is a failure rather than a scan of nothing that passes.
+func TestRetiredModelEnvIsGone(t *testing.T) {
+	for _, scope := range []struct {
+		name  string
+		files []string
+	}{
+		{name: "Makefile", files: []string{"Makefile"}},
+		{name: "internal/llm/deepseek", files: goFilesUnder(t, "internal/llm/deepseek")},
+	} {
+		t.Run(scope.name, func(t *testing.T) {
+			if len(scope.files) == 0 {
+				t.Fatalf("found no files in %s to scan", scope.name)
+			}
+			for _, file := range scope.files {
+				content, err := os.ReadFile(filepath.Join(repositoryRoot, file))
+				if err != nil {
+					t.Fatalf("read %s: %v", file, err)
+				}
+				for i, line := range slices.Collect(strings.Lines(string(content))) {
+					if retiredModelEnvRE.MatchString(line) {
+						t.Errorf("%s:%d names %s: %s", file, i+1, retiredModelEnv, strings.TrimSpace(line))
+					}
+				}
+			}
+		})
+	}
+}
+
+// goFilesUnder returns the paths of the Go files under dir, relative to the
+// repository root, in order.
+func goFilesUnder(t *testing.T, dir string) []string {
+	t.Helper()
+	var files []string
+	err := filepath.WalkDir(filepath.Join(repositoryRoot, dir), func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") {
+			return nil
+		}
+		rel, err := filepath.Rel(repositoryRoot, path)
+		if err != nil {
+			return err
+		}
+		files = append(files, filepath.ToSlash(rel))
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk %s: %v", dir, err)
+	}
+	slices.Sort(files)
+	return files
 }
 
 // gateRecorder is a testing.TB that records Skip and Fatal instead of ending

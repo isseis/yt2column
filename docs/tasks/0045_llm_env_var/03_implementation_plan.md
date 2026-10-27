@@ -82,9 +82,9 @@
 
 **変えるファイル**: `Makefile`、`internal/llm/deepseek/testutil/integration.go`
 
-- [ ] `Makefile` の `YT2COLUMN_MODEL` を、すべて `YT2COLUMN_TEST_DEEPSEEK_MODEL` に変える（変数の定義、3 つのターゲットの `export`、`printf` の `$$YT2COLUMN_MODEL`、コメント）。`?=` と `export ... :=` の形は変えない（設計書 §3.9）。
-- [ ] `deepseektestutil.ModelEnv` の値を `"YT2COLUMN_TEST_DEEPSEEK_MODEL"` に変える。
-- [ ] `ModelEnv` を使う既存のテスト（`TestRecordedEnv`・`TestModelEnv`・`TestSettingsFrom`・`TestCLIIntegrationSettings`・`TestCLISlackIntegrationSettings`・`internal/publisher/makefile_test.go`、3 つの `CheckChargedTarget`）が、変更なしで通ることを確かめる。
+- [x] `Makefile` の `YT2COLUMN_MODEL` を、すべて `YT2COLUMN_TEST_DEEPSEEK_MODEL` に変える（変数の定義、3 つのターゲットの `export`、`printf` の `$$YT2COLUMN_MODEL`、コメント）。`?=` と `export ... :=` の形は変えない（設計書 §3.9）。
+- [x] `deepseektestutil.ModelEnv` の値を `"YT2COLUMN_TEST_DEEPSEEK_MODEL"` に変える。
+- [x] `ModelEnv` を使う既存のテスト（`TestRecordedEnv`・`TestModelEnv`・`TestSettingsFrom`・`TestCLIIntegrationSettings`・`TestCLISlackIntegrationSettings`・`internal/publisher/makefile_test.go`、3 つの `CheckChargedTarget`）が、変更なしで通ることを確かめる。
 
 **完了の条件**: `go test -tags test ./internal/llm/deepseek/... ./internal/publisher` と `go test -tags test ./cmd/yt2column -run 'Make|IntegrationSettings'` が通る。
 
@@ -92,11 +92,11 @@
 
 **変えるファイル**: `cmd/yt2column/makefile_test.go`、`cmd/yt2column/docs_test.go`、`README.md`
 
-- [ ] **目印のテスト（AC-29）:** `cmd/yt2column/makefile_test.go` に、3 つのターゲットのそれぞれについて、`maketestutil.RunTarget` の `set` に `YT2COLUMN_MODEL=<目印>` だけを置き（`ModelEnv` は未定義）、記録する変数に `ModelEnv` を含めて `make` のスタブを動かすテストを加える。記録された `ModelEnv` が `deepseek-flash` であることを確かめる。壊し方は、`Makefile` の既定値を `$(or $(YT2COLUMN_MODEL),deepseek-flash)` にすることとする。このとき既存の `CheckChargedTarget` は通り（子の環境に `YT2COLUMN_MODEL` がない）、目印のテストだけが失敗することを確かめ、両方の結果をコミットメッセージに書く。
-- [ ] **`static` のガード（AC-29）:** 同じファイルに、`Makefile` と `internal/llm/deepseek/` の下の Go のファイルに、`YT2COLUMN_MODEL` という語（後ろに識別子の文字が続かないもの）が現れないことを確かめるガードテストを加える。走査の範囲ごとに、走査したファイルが 1 つ以上あることも確かめる。`cmd/yt2column` の `*integration*` のファイルは、3-1 で範囲に加える（§1.2）。壊し方は、`Makefile` のコメントに旧名を書き戻すこととする。
-- [ ] **文書のテスト（AC-30）:** `cmd/yt2column/docs_test.go` に、README が `deepseektestutil` の結合テストの変数（`ModelEnv`・`APIKeyEnv`・`DeepSeekOptInEnv`・`CLIOptInEnv`）の名前を含むことを、`TestClaudeDocsContract` と同じ形で確かめるテストを加える（設計書 §7.3）。壊し方は、README の名前を旧名に戻すこととする。
-- [ ] README の結合テストの説明（`README.md:1094`・`:1128`・`:1155` 付近）の `YT2COLUMN_MODEL` を `YT2COLUMN_TEST_DEEPSEEK_MODEL` に書き換える（AC-30）。Makefile のコメントは 1-1 で書き換えている。
-- [ ] README を変えたので `make ext-test` を動かす（`CLAUDE.md`「Development Notes」）。
+- [x] **目印のテスト（AC-29）:** `cmd/yt2column/makefile_test.go` に、3 つのターゲットのそれぞれについて、`maketestutil.RunTarget` の `set` に `YT2COLUMN_MODEL=<目印>` だけを置き（`ModelEnv` は未定義）、記録する変数に `ModelEnv` を含めて `make` のスタブを動かすテストを加える。記録された `ModelEnv` が `deepseek-flash` であることを確かめる。壊し方は、`Makefile` の既定値を `$(or $(YT2COLUMN_MODEL),deepseek-flash)` にすることとする。このとき既存の `CheckChargedTarget` は通り（子の環境に `YT2COLUMN_MODEL` がない）、目印のテストだけが失敗することを確かめ、両方の結果をコミットメッセージに書く。
+- [x] **`static` のガード（AC-29）:** 同じファイルに、`Makefile` と `internal/llm/deepseek/` の下の Go のファイルに、`YT2COLUMN_MODEL` という語（後ろに識別子の文字が続かないもの）が現れないことを確かめるガードテストを加える。走査の範囲ごとに、走査したファイルが 1 つ以上あることも確かめる。`cmd/yt2column` の `*integration*` のファイルは、3-1 で範囲に加える（§1.2）。壊し方は、`Makefile` のコメントに旧名を書き戻すこととする。
+- [x] **文書のテスト（AC-30）:** `cmd/yt2column/docs_test.go` に、README が `deepseektestutil` の結合テストの変数（`ModelEnv`・`APIKeyEnv`・`DeepSeekOptInEnv`・`CLIOptInEnv`）の名前を含むことを、`TestClaudeDocsContract` と同じ形で確かめるテストを加える（設計書 §7.3）。壊し方は、README の名前を旧名に戻すこととする。
+- [x] README の結合テストの説明（`README.md:1094`・`:1128`・`:1155` 付近）の `YT2COLUMN_MODEL` を `YT2COLUMN_TEST_DEEPSEEK_MODEL` に書き換える（AC-30）。Makefile のコメントは 1-1 で書き換えている。
+- [x] README を変えたので `make ext-test` を動かす（`CLAUDE.md`「Development Notes」）。
 
 **完了の条件**: グリーンゲート（`make test && make lint`）と `make ext-test` が通る。
 
@@ -337,7 +337,7 @@
 
 フェーズごと:
 
-- [ ] フェーズ 1 完了（1-1 / 1-2）
+- [x] フェーズ 1 完了（1-1 / 1-2）
 - [ ] フェーズ 2 完了（2-1 / 2-2 / 2-3）
 - [ ] フェーズ 3 完了（3-1 / 3-2 / 3-3 / 3-4）
 - [ ] フェーズ 4 完了（4-1 / 4-2）、§5 の横断検索の結果を記録した
@@ -388,8 +388,8 @@ PR ごと:
 | AC-26 | manual | 5 つの文書が旧変数を現行の設定として説明しないことを PR-2 のレビューで読む（§5 の横断検索の結果を手がかりにする） | 4-1 |
 | AC-27 | test | `cmd/yt2column/docs_test.go::TestLLMDefaultsDocsContract`・`TestProductionProfileDocsContract`（`checkProfileTable` を含む） | 3-1、4-2 |
 | AC-28 | test | `internal/llm/deepseek/makefile_test.go`・`cmd/yt2column/makefile_test.go::TestMakeTestIntegrationCLI`・`TestMakeTestIntegrationCLISlack`（`CheckChargedTarget` の `undefined_uses_default`・`empty_is_kept`・`value_is_kept`）、`internal/llm/deepseek/testutil/integration_settings_test.go::TestSettingsFrom`（空の値でテストが失敗すること） | 1-1 |
-| AC-29 | test、static | test: `cmd/yt2column/makefile_test.go` の目印のテスト（新設、1-2）。static: `cmd/yt2column/makefile_test.go` のガードテスト（新設、1-2。3-1 で範囲を広げる） | 1-1、3-1 |
-| AC-30 | test、manual | test: `cmd/yt2column/docs_test.go` の DeepSeek の結合テストの変数のテスト（新設、1-2）。manual: README と Makefile の結合テストの説明を PR-1 のレビューで読む | 1-1、1-2 |
+| AC-29 | test、static | test: `cmd/yt2column/makefile_test.go::TestMakeTargetsDoNotReadRetiredModelEnv`（1-2）。static: `cmd/yt2column/makefile_test.go::TestRetiredModelEnvIsGone`（1-2。3-1 で範囲を広げる） | 1-1、3-1 |
+| AC-30 | test、manual | test: `cmd/yt2column/docs_test.go::TestDeepSeekDocsContract`（1-2）。manual: README と Makefile の結合テストの説明を PR-1 のレビューで読む | 1-1、1-2 |
 
 ## 10. 次のステップ (Next Steps)
 
