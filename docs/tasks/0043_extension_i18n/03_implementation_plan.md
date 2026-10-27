@@ -467,7 +467,7 @@ AC-07 は、`docs/tasks/0043_extension_i18n/_checks/english_text.ts` で確か�
 | AC-21 | manual | 1-1 | `CLAUDE.md` の規則の文面（PR-1 のレビュー） |
 | AC-22 | manual | 5-1 | README の段落の文面（PR-3 のレビュー） |
 | AC-23 | test: `extension/test/metadataDocs.test.ts::video metadata documentation` | 2-3 | README の引用が `expandPromptMessage("en")` と一致すること |
-| AC-24 | test: `extension/test/lintRules.test.ts::html parsing APIs`（既存）・`extension/test/render.test.ts::renderSummary`・`extension/test/renderMetadata.test.ts::renderMetadata`・`extension/test/renderSend.test.ts::renderSendOutcome` | 2-4 | lint の規則と、両方の言語で文言と値を文字列として表示すること |
+| AC-24 | test: `extension/test/lintRules.test.ts::html parsing APIs`（既存）・`extension/test/render.test.ts::renderSummary`・`extension/test/renderMetadata.test.ts::renderMetadata`・`extension/test/renderSend.test.ts::renderSendOutcome`・`::renderBlockReason` | 2-4 | lint の規則と、両方の言語で文言と値を文字列として表示すること |
 
 `manual` だけの AC は AC-10・AC-11・AC-21・AC-22 である。AC-21・AC-22 は文書の文面だけを定める AC である（`requirements_process.md` §4）。AC-10・AC-11 をテストにしない理由は 1.3 に書いた。
 
