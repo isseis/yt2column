@@ -1005,6 +1005,11 @@ host is most often not installed for that browser, or its binary was moved
 since it was installed: run `yt2column-nmhost install` again from the built
 binary (see [Troubleshooting](#troubleshooting)).
 
+The popup is displayed in Japanese when the browser's UI language is Japanese,
+and in English otherwise. There is no language setting in the extension. The
+popup text quoted in this README, such as the collapsed-description message
+below, is the English version.
+
 To send, open the transcript panel on a video page, select the caption lines,
 and click the extension's toolbar icon to open the popup. The popup shows what
 was collected, the video metadata, and a **Send to yt2column** button. It sends
