@@ -400,7 +400,7 @@ describe("send dependencies", () => {
   });
 });
 
-describe("read ui language", () => {
+describe("readUiLanguage", () => {
   it("returns the string the browser reported", () => {
     assert.equal(readUiLanguage({ getUILanguage: () => "ja-JP" }), "ja-JP");
   });

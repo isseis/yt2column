@@ -7,7 +7,11 @@ import { JSDOM } from "jsdom";
 
 import { extensionDir } from "./helpers/paths.ts";
 
-/** The style rules of static/style.css, parsed by jsdom's CSSOM. */
+/**
+ * The style rules of static/style.css, parsed by jsdom's CSSOM, including the
+ * rules of a media query. Other at-rules are not a place this guard reads: it
+ * checks the declarations the page uses in every state.
+ */
 function styleRules(): CSSStyleRule[] {
   const css = readFileSync(
     path.join(extensionDir, "static", "style.css"),
@@ -18,51 +22,62 @@ function styleRules(): CSSStyleRule[] {
   );
   const sheet = dom.window.document.styleSheets[0];
   assert.ok(sheet !== undefined);
-  return [...sheet.cssRules].map((rule) => {
-    if (rule instanceof dom.window.CSSStyleRule) {
-      return rule;
+  const rules: CSSStyleRule[] = [];
+  const collect = (list: CSSRuleList): void => {
+    for (const rule of list) {
+      if (rule instanceof dom.window.CSSStyleRule) {
+        rules.push(rule);
+      } else if (rule instanceof dom.window.CSSMediaRule) {
+        collect(rule.cssRules);
+      }
     }
-    assert.fail(
-      `style.css holds a rule that is not a style rule: ${rule.cssText}`,
-    );
-  });
+  };
+  collect(sheet.cssRules);
+  return rules;
 }
 
-/** The font families a rule lists, in order, without their quotes. */
-function fontFamilies(rule: CSSStyleRule): string[] {
-  return rule.style
-    .getPropertyValue("font-family")
-    .split(",")
-    .map((family) => family.trim().replace(/^"|"$/g, ""));
+/** The value the cascade gives property for selector, or "" when unset. */
+function declaredValue(
+  rules: CSSStyleRule[],
+  selector: string,
+  property: string,
+): string {
+  let value = "";
+  for (const rule of rules) {
+    if (rule.selectorText !== selector) {
+      continue;
+    }
+    const declared = rule.style.getPropertyValue(property);
+    if (declared !== "") {
+      value = declared;
+    }
+  }
+  return value;
 }
 
-/** The one rule whose selector text is selector. */
-function ruleFor(rules: CSSStyleRule[], selector: string): CSSStyleRule {
-  const matching = rules.filter((rule) => rule.selectorText === selector);
-  assert.equal(matching.length, 1, selector);
-  const [rule] = matching;
-  assert.ok(rule !== undefined);
-  return rule;
+/** The font families a font-family value lists, in order, without quotes. */
+function fontFamilies(value: string): string[] {
+  return value.split(",").map((family) => family.trim().replace(/^"|"$/g, ""));
 }
 
 describe("Japanese typography", () => {
   const rules = styleRules();
 
   it("puts the Japanese font candidates first on a Japanese page", () => {
-    assert.deepEqual(fontFamilies(ruleFor(rules, ":root:lang(ja)")), [
-      "Hiragino Sans",
-      "Noto Sans JP",
-      "Yu Gothic UI",
-      "system-ui",
-      "sans-serif",
-    ]);
+    assert.deepEqual(
+      fontFamilies(declaredValue(rules, ":root:lang(ja)", "font-family")),
+      [
+        "Hiragino Sans",
+        "Noto Sans JP",
+        "Yu Gothic UI",
+        "system-ui",
+        "sans-serif",
+      ],
+    );
   });
 
   it("gives a Japanese page an explicit line height", () => {
-    assert.equal(
-      ruleFor(rules, "body:lang(ja)").style.getPropertyValue("line-height"),
-      "1.7",
-    );
+    assert.equal(declaredValue(rules, "body:lang(ja)", "line-height"), "1.7");
   });
 
   it("applies the Japanese rules to the root and body only", () => {
@@ -73,10 +88,10 @@ describe("Japanese typography", () => {
   });
 
   it("keeps the English font candidates", () => {
-    assert.deepEqual(fontFamilies(ruleFor(rules, ":root")), [
-      "system-ui",
-      "sans-serif",
-    ]);
+    assert.deepEqual(
+      fontFamilies(declaredValue(rules, ":root", "font-family")),
+      ["system-ui", "sans-serif"],
+    );
   });
 
   it("sets a line height only on the Japanese body", () => {

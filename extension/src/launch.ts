@@ -59,7 +59,11 @@ export interface PopupSendDeps {
 
 /** What the popup entry needs; popup.ts builds it from the chrome APIs. */
 export interface PopupStartDeps {
-  /** Reads the browser's UI language; readUiLanguage(chrome.i18n) in production. */
+  /**
+   * Reads the browser's UI language; readUiLanguage(chrome.i18n) in
+   * production. An unreadable language is reported as undefined, never as a
+   * throw, so the entry point needs no failure path.
+   */
   uiLanguage(): string | undefined;
   readonly launch: Omit<PopupLaunchDeps, "locale">;
   readonly send: Omit<PopupSendDeps, "locale">;
@@ -245,7 +249,7 @@ export async function runPopupSend(
  * the Japanese typography rules are in place from the first frame. Then runs
  * the launch path into the summary region and the send path into the send
  * region. The UI-language log keeps its fixed label in every locale, and the
- * value it records is never displayed or sent.
+ * value it records is never displayed or sent. Never throws.
  */
 export async function startPopup(
   doc: Document,

@@ -1063,6 +1063,24 @@ describe("startPopup", () => {
     assert.deepEqual(seen, ["ja"]);
   });
 
+  it("only sets the page language when a region is missing", async () => {
+    const recorder = recordingLogger();
+    const doc = new JSDOM(
+      "<!DOCTYPE html><html><body><div id='summary'></div></body></html>",
+    ).window.document;
+    // Resolving rather than rejecting also rules out a null region reaching
+    // the launch path.
+    await startPopup(
+      doc,
+      startDeps({ getUILanguage: () => "ja-JP" }, recorder.log),
+    );
+    assert.equal(doc.documentElement.lang, "ja");
+    assert.deepEqual(
+      recorder.infos.map((entry) => entry.label),
+      ["yt2column ui language"],
+    );
+  });
+
   const loggedValues: { name: string; i18n: I18nApi; data: unknown }[] = [
     { name: "as read", i18n: { getUILanguage: () => "ja-JP" }, data: "ja-JP" },
     {
