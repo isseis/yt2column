@@ -261,6 +261,19 @@ the [README](README.md) and `docs/dev/security.md` §8.
   prefix or form B heading-position line that could be a damaged timestamp (a
   digit-colon-digit run, a control character, or in form B a whitespace-only
   line) is rejected, not skipped.
+  Exception: the browser extension's locale resolution (`resolveLocale` in
+  `extension/src/core/i18n/locale.ts`) chooses the display language by
+  inspecting the content of the browser's UI-language string. Scope: it compares
+  the part of that string before the first `-`, lowercased, with the keys of
+  `locales`; this is the only place the UI-language string's content selects
+  behavior, and everything after it passes only a `Locale` value and chooses
+  behavior by `switch` or `Record` key. Reason: the UI language is an external
+  value returned by the browser (`chrome.i18n.getUILanguage()`), which the
+  extension cannot express in a type. Boundary: the exception covers only
+  `resolveLocale`; a value that matches no locale is not interpreted more
+  widely but resolves to English. "Reject, don't normalize" does not apply: a
+  UI language other than Japanese is not malformed input but a valid one that
+  the extension shows in English.
 - **Enforce invariants with the type, not with convention**: if a value must pass
   validation before use (e.g. a video ID), make the compiler the thing that
   guarantees it — unexported fields plus a mandatory constructor — rather than
@@ -428,9 +441,14 @@ Only the conventions a linter does not check are worth stating:
   `os.MkdirTemp` + `defer os.RemoveAll`.
 - Go comments, identifiers, and string literals are English.
 - The same rule applies to the browser extension: its comments, identifiers,
-  and string literals are English, including the strings shown to the user. The
-  exception is a guard test's literal that must match a Japanese document
-  heading or table cell.
+  and string literals are English. There are three exceptions: the messages in
+  a catalog file for a language other than English under
+  `extension/src/core/i18n/` (today `ja.ts`); a string literal in a test that
+  checks the properties of such a catalog's messages (a per-language word
+  table); and a guard test's literal that must match a Japanese document
+  heading or table cell. Every string shown to the user lives in the message
+  catalogs, and both the English and the Japanese catalog must have it. Logs
+  written for developers stay in English.
 
 ## Requirements and Acceptance Criteria
 
