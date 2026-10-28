@@ -31,8 +31,15 @@ This command runs in one of two ways:
 
 - **Standalone**: a person runs `/mktrans README.md`.
 - **Sub-step**: another command runs it as one of its own steps (the README
-  sync of `_lib/task-pr-handoff.md` Part B, `fixpr.md`, and `runpr.md`). The
-  caller passes only `README.md`.
+  sync of `_lib/task-pr-handoff.md` Part B, `runplan.md`, `fixpr.md`, and
+  `runpr.md`). The caller passes only `README.md`.
+
+**When a caller runs it.** The caller runs `make readme-sync-check`. When it
+passes, the caller does nothing more. When it fails, the caller runs this
+command on `README.md` as a sub-step and acts on the result as "Sub-step
+results" says. A result of `already in sync` or `not applicable` after a failed
+check means the check failed for another reason: the caller stops and reports
+the check's output.
 
 They differ in four ways; every other step is the same.
 
@@ -66,6 +73,13 @@ the `README.md` content the English version was translated from:
 - The file holds exactly one marker, on its first line. GitHub does not show
   the comment, and it is neither a heading nor a code block, so it does not
   change the structure the README structure test compares.
+
+`TestReadmeSyncMarker` (`cmd/yt2column/readme_sync_test.go`) checks the
+marker deterministically: it fails unless the first line is the one marker and
+it names the blob of the `README.md` beside it. It runs in `make test`, in CI's
+`doc-guard` job on every pull request, and in the pre-commit hook for the two
+READMEs; `make readme-sync-check` runs it alone. While `README.en.md` does not
+exist, it passes.
 
 The marker names a blob, not a commit, so a commit that changes only
 `README.en.md` does not move the sync point: a `README.md` change not yet

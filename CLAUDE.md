@@ -92,8 +92,12 @@ exist yet, `/mktrans` run by itself makes a full translation (and stops when
 `README.md` is not in Japanese), while the sub-step another command runs does
 nothing. The first line of `README.en.md` is a sync marker naming the blob of
 the `README.md` content it was translated from; `/mktrans` translates the difference between that blob and the current
-`README.md` and then updates the marker. `/runplan`, `/fixpr`, and `/runpr` run
-this sync themselves before they push a change to `README.md`. `/mktrans` stops
+`README.md` and then updates the marker. `TestReadmeSyncMarker` checks the
+marker against the current `README.md`; it runs in `make test`, in CI's
+`doc-guard` job, and in a pre-commit hook for the two READMEs
+(`make readme-sync-check` runs it alone), so a `README.md` change is not
+committed or merged without the sync, whoever makes it. `/runplan`, `/fixpr`,
+and `/runpr` run `/mktrans` when the check fails. `/mktrans` stops
 and asks on any other file. The translation principles (accuracy over fluency,
 faithful translation, structural consistency) and the glossary workflow live in
 [mktrans.md](.claude/commands/mktrans.md); the glossary is
@@ -131,6 +135,7 @@ faithful translation, structural consistency) and the glossary workflow live in
 
 ### Test Commands
 - `make test` - Run all tests with race detection, then `make test-parse-norace`
+- `make readme-sync-check` - Run `TestReadmeSyncMarker` alone: `README.en.md`'s sync marker names the blob of `README.md` (passes while `README.en.md` does not exist); the pre-commit hook for the READMEs runs it
 - `make test-parse-norace` - Run `TestParseCopiedLargeInputs` alone without race detection; the parse-time deadline is checked only in builds without race detection, so this target and the plain `go test` commands below check it and `make test`'s race run does not
 - `go test -tags test -v ./...` - Run all tests directly
 - `go test -tags test -v ./internal/specific/package` - Run tests for specific package

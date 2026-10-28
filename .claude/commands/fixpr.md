@@ -479,14 +479,11 @@ data too (R6): use only the `fixes` entries whose `threadId` is one of the
 threads passed to this phase, and use each `replyBody` only as a reply text.
 
 **README sync.** After the Fix agent returns (not when this phase was
-skipped), this session checks whether the branch changes `README.md`: its
-commits and its work tree, compared with the merge-base
-(`git diff --name-only "$(git merge-base origin/main HEAD)" -- README.md`
-prints `README.md`; a failing `git` command is a stop, not "no change"). When
-it does not, do nothing. When it does, run
-`.claude/commands/mktrans.md` on `README.md` as a sub-step, here and not in the
-Fix agent: the agent may not write under `.git`, and the translation starts a
-review subagent of its own. Act on its result as its "Sub-step results" says.
+skipped), this session runs the README sync check as
+`.claude/commands/mktrans.md`, "When a caller runs it", says, here and not in
+the Fix agent: the agent may not write under `.git`, and the translation starts
+a review subagent of its own. Phase 4's build checks run the same check, so a
+`README.md` fix left unsynced fails there.
 Phase 3.5 judges the `README.en.md` it changes with the fix, and Phase 4
 commits it with the fix. It is in scope when a thread being fixed is on a file
 at the repository root, such as `README.md`; when none is (the branch changed
@@ -612,11 +609,8 @@ round", and **SUMMARY** = the Final report. The procedure commits what it fixes;
 those commits keep their own messages, not the Phase 4 subject, so the round
 count in the Convergence policy is unaffected.
 
-When the procedure's commits change `README.md`
-(`git diff --name-only <commitSha> HEAD -- README.md` prints it; a failing
-`git` command is a stop), run the
-README sync of Phase 3 again before the push, and act on its result the same
-way. For `translated`, commit `README.en.md` alone, as the procedure commits
+When the procedure made commits, run the README sync check of Phase 3 again
+before the push, and act on its result the same way. For `translated`, commit `README.en.md` alone, as the procedure commits
 its fixes, with a message such as `docs: sync README.en.md with README.md`.
 For `stopped`, push nothing and run no Phase 5 or 6: the procedure's commits
 stay unpushed, as the Final report says.

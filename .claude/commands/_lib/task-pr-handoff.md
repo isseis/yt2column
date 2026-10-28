@@ -178,15 +178,9 @@ Run this after the calling command's last commit, with a clean working tree.
    **SUMMARY** = REPORT.
 
    **README sync.** Run this paragraph even when the sentence above does not
-   apply (LOCAL_REVIEW is `done`). Check whether the branch
-   changes `README.md`: its commits and its work tree, compared with the
-   merge-base (`git diff --name-only "$(git merge-base origin/main HEAD)" -- README.md`
-   prints `README.md`; a failing `git` command is a stop, not "no change").
-   Use the whole branch, not only this run's commits, so
-   a change made in an earlier session or phase group is not missed. When it
-   does not, do nothing. When it does, run `.claude/commands/mktrans.md` on
-   `README.md` as a sub-step and act on its result as its "Sub-step results"
-   says. For `translated`, commit `README.en.md` alone, with a message such as
+   apply (LOCAL_REVIEW is `done`). Run the README sync check as
+   `.claude/commands/mktrans.md`, "When a caller runs it", says. For
+   `translated`, commit `README.en.md` alone, with a message such as
    `docs: sync README.en.md with README.md`, which also carries any
    `CodeRabbit local review:` lines step 1 has not yet recorded; CHECKS then
    runs on that commit, and step 3 lists the reported terms in the PR body.

@@ -117,22 +117,15 @@ Every `fixpr.md` and `mergepr.md` run below is given the resolved PR number
     `$(git merge-base origin/main HEAD)`, **SCOPE** = branch, **SUMMARY** = the
     final report. (The review reads the local checkout, so skip it for another
     branch.)
-  - **README sync.** When that branch is the checked-out one, check whether it
-    changes `README.md`: its commits and its work tree, compared with the
-    merge-base (`git diff --name-only "$(git merge-base origin/main HEAD)" -- README.md`
-    prints `README.md`; a failing `git` command is a stop, not "no change").
-    When it does not, do nothing. When it does, run
-    `.claude/commands/mktrans.md` on `README.md` as a sub-step and act on its
-    result as its "Sub-step results" says. For `translated`, commit
+  - **README sync.** When that branch is the checked-out one, run the README
+    sync check as `.claude/commands/mktrans.md`, "When a caller runs it",
+    says. For `translated`, commit
     `README.en.md` alone, with a message such as
     `docs: sync README.en.md with README.md`, and list the terms it reported as
     missing from the glossary in the PR body. For `stopped`, stop before the
-    push. For another branch, the sync cannot run either (it changes the
-    checkout): when
-    `git diff --name-only "$(git merge-base origin/main <branch>)" <branch> -- README.md`
-    prints `README.md` and `git cat-file -e <branch>:README.en.md` exits `0`
-    (a failing `git diff` is a stop too), stop and report that the branch changes `README.md`
-    and must be synced from its own checkout.
+    push. For another branch, the sync cannot run (it changes the checkout);
+    CI's `TestReadmeSyncMarker` fails the PR if it is out of sync, and step 3
+    stops on that failure.
   - Write the PR title and body to files first, as the paragraph after the
     commands says, then run the mention check on both files:
     **Mention check.** Before posting, run `grep -qiF -- '<review-mention>' <file>`
@@ -533,25 +526,6 @@ rather than once per decision.
    For the task's final plan PR, the body ends with `Closes #<issue>` for the
    issue the requirements document names as its own (`対応 issue`); a task
    without one gets no such line.
-
-   **README marker check.** Then, before asking, check that `README.en.md`
-   carries the PR's `README.md`, using the `headRefOid` that `prepare`
-   recorded. Check only when the PR changes `README.md`
-   (`git diff --name-only "$(git merge-base origin/main <headRefOid>)" <headRefOid> -- README.md`
-   prints it) and `README.en.md` exists at that commit
-   (`git cat-file -e <headRefOid>:README.en.md` exits `0`). A `git` command
-   that fails (other than `cat-file -e` reporting that the file is absent) is
-   a failed check, never a skipped one. The check passes
-   when the first line of `git show <headRefOid>:README.en.md` is exactly
-   `<!-- translated-from: README.md <id> -->` with `<id>` the output of
-   `git rev-parse <headRefOid>:README.md` (`mktrans.md`, "The sync marker").
-   Otherwise run `mergepr discard --state <state-file>`, do not ask, and stop:
-   report that `README.en.md` does not carry the PR's `README.md`, to be
-   synced with `/mktrans README.md` and pushed before this command runs again.
-   Only check here; do not translate or commit: a commit in this step is
-   PRE_MERGE's alone. Every PR, a person's included, merges through this
-   step, so the marker on `main` keeps naming its `README.md`, whose blob
-   every clone can then read.
 2. Ask with one `AskUserQuestion` call. In your message, show what
    `mergepr.md` step 3 requires (PR URL, base branch, CI result, the full
    subject and body, the record of which rule decided the subject's prefix,
