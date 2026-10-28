@@ -3,10 +3,9 @@ import { describe, it } from "node:test";
 
 import { locales } from "../src/core/i18n/locale.ts";
 import type { Locale } from "../src/core/i18n/locale.ts";
-import type { BlockReason } from "../src/core/prepare.ts";
 import type { RequestId, SendOutcome } from "../src/core/response.ts";
-import { blockMessage, sendOutcomeMessage } from "../src/core/sendMessages.ts";
-import { renderBlockReason, renderSendOutcome } from "../src/ui/renderSend.ts";
+import { sendOutcomeMessage } from "../src/core/sendMessages.ts";
+import { renderSendOutcome } from "../src/ui/renderSend.ts";
 import { container, expectLocaleMessage, query } from "./helpers/dom.ts";
 
 const requestId = "0123456789abcdef" as RequestId;
@@ -80,21 +79,5 @@ describe("renderSendOutcome", () => {
         sendOutcomeMessage({ kind: "no-response" }, l),
       );
     });
-  }
-});
-
-describe("renderBlockReason", () => {
-  // The rendering does not vary by reason, so two reasons suffice here; the
-  // popup's body-too-large display is covered in launch.test.ts, and the
-  // message content is sendMessages.test.ts's contract.
-  const blockReasons: BlockReason[] = ["empty-selection", "body-too-large"];
-  for (const locale of localeList) {
-    for (const reason of blockReasons) {
-      it(`shows the ${locale} ${reason} block message`, () => {
-        const root = container();
-        renderBlockReason(root, reason, locale);
-        expectLocaleMessage(root, locale, (l) => blockMessage(reason, l));
-      });
-    }
   }
 });

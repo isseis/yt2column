@@ -41,6 +41,15 @@ describe("rejectionMessage", () => {
         );
       }
     });
+
+    it(`gives the watch-page URL example as written in English in ${locale}`, () => {
+      const message = rejectionMessage("not-watch-page", locale);
+      assert.ok(
+        [message.text, ...message.steps]
+          .join("\n")
+          .includes("https://www.youtube.com/watch?v=..."),
+      );
+    });
   }
 });
 

@@ -74,4 +74,14 @@ describe("catalogs", () => {
       }
     }
   });
+
+  it("names the 4 MiB limit for body-too-large in every locale", () => {
+    for (const locale of localeList) {
+      const message = catalogs[locale].preflight["body-too-large"];
+      assert.ok(
+        [message.text, ...message.steps].join("\n").includes("4 MiB"),
+        locale,
+      );
+    }
+  });
 });

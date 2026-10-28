@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import type { CollectedInput, CollectOutcome } from "../src/core/collect.ts";
+import type { CollectedInput } from "../src/core/collect.ts";
 import {
   buildArticleBody,
   maxBodyBytes,
@@ -18,11 +18,6 @@ function collectedInput(
   title = "a tab title",
 ): CollectedInput {
   return { selection, url, title } as CollectedInput;
-}
-
-/** A collected outcome from a selection. */
-function collected(selection: string): CollectOutcome {
-  return { kind: "collected", input: collectedInput(selection) };
 }
 
 /** The blocked reason of an outcome, asserting it is blocked. */
@@ -119,7 +114,7 @@ describe("buildArticleBody", () => {
 
 describe("prepareSend", () => {
   it("builds the request from the collected values without reading anything else", () => {
-    const outcome = prepareSend(collected("x"), {});
+    const outcome = prepareSend(collectedInput("x"), {});
     // Synchronous: a send never waits on a stored setting.
     assert.equal(outcome instanceof Promise, false);
     assert.ok(outcome.kind === "ready");
@@ -130,39 +125,11 @@ describe("prepareSend", () => {
     });
   });
 
-  it("passes a collection reason through without its cause", () => {
-    const outcome: CollectOutcome = {
-      kind: "rejected",
-      reason: "collection-failed",
-      cause: new Error("boom"),
-    };
-    assert.deepEqual(prepareSend(outcome, {}), {
-      kind: "blocked",
-      reason: "collection-failed",
-    });
-  });
-
-  it("checks the collection before the body size", () => {
-    // Metadata alone over the limit: a rejected collection still wins.
-    const outcome: CollectOutcome = {
-      kind: "rejected",
-      reason: "empty-selection",
-    };
-    const metadata = { description: "d".repeat(maxBodyBytes) };
-    assert.equal(
-      blockedReason(prepareSend(outcome, metadata)),
-      "empty-selection",
-    );
-  });
-
   it("counts the metadata toward the body limit", () => {
     const base = buildArticleBody(collectedInput(""), {}).byteLength;
     const input = collectedInput("a".repeat(maxBodyBytes - base));
-    assert.equal(prepareSend({ kind: "collected", input }, {}).kind, "ready");
-    const withMetadata = prepareSend(
-      { kind: "collected", input },
-      { description: "d" },
-    );
+    assert.equal(prepareSend(input, {}).kind, "ready");
+    const withMetadata = prepareSend(input, { description: "d" });
     assert.equal(blockedReason(withMetadata), "body-too-large");
   });
 
@@ -183,14 +150,8 @@ describe("prepareSend", () => {
       maxBodyBytes + 1,
     );
 
-    assert.equal(
-      prepareSend({ kind: "collected", input: at(maxBodyBytes) }, {}).kind,
-      "ready",
-    );
-    const over = prepareSend(
-      { kind: "collected", input: at(maxBodyBytes + 1) },
-      {},
-    );
+    assert.equal(prepareSend(at(maxBodyBytes), {}).kind, "ready");
+    const over = prepareSend(at(maxBodyBytes + 1), {});
     assert.equal(blockedReason(over), "body-too-large");
   });
 });

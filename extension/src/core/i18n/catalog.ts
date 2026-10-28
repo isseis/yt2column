@@ -23,7 +23,7 @@ export interface Message {
 export interface Catalog {
   /** Collection rejection reasons. */
   readonly rejection: Readonly<Record<RejectionReason, Message>>;
-  /** Block reasons that are not collection reasons. */
+  /** Blocked sends: the body size check. */
   readonly preflight: Readonly<Record<PreflightReason, Message>>;
   /** Server rejection reasons. */
   readonly serverReject: Readonly<Record<ServerRejectReason, Message>>;

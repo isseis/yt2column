@@ -20,7 +20,7 @@ import { sendArticle } from "./send.ts";
 import type { SendDeps } from "./send.ts";
 import { applyPageLocale } from "./ui/pageLocale.ts";
 import { messageNodes, renderMetadata, renderSummary } from "./ui/render.ts";
-import { renderBlockReason, renderSendOutcome } from "./ui/renderSend.ts";
+import { renderSendOutcome } from "./ui/renderSend.ts";
 
 /** Developer-facing log. The first argument is always a fixed label. */
 export interface Logger {
@@ -208,15 +208,17 @@ export async function runPopupSend(
     container.replaceChildren();
     return;
   }
-  const prepared = prepareSend(outcome, result.metadata.values);
+  const prepared = prepareSend(outcome.input, result.metadata.values);
+  const catalog = catalogs[deps.locale];
+  const doc = container.ownerDocument;
   if (prepared.kind === "blocked") {
     // A blocked launch is normal, not a defect.
     deps.log.info(blockedLabel, { reason: prepared.reason });
-    renderBlockReason(container, prepared.reason, deps.locale);
+    container.replaceChildren(
+      ...messageNodes(doc, catalog.preflight[prepared.reason]),
+    );
     return;
   }
-  const catalog = catalogs[deps.locale];
-  const doc = container.ownerDocument;
   const status = doc.createElement("div");
   status.className = "send-message";
   const button = doc.createElement("button");

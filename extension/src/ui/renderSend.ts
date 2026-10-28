@@ -1,11 +1,10 @@
-// Renders a send outcome and a block reason as text-only elements. Every
-// string is set with textContent, so a value that reached this layer as a
-// string is never parsed as HTML; the response body's text never reaches here.
+// Renders a send outcome as text-only elements. Every string is set with
+// textContent, so a value that reached this layer as a string is never parsed
+// as HTML; the response body's text never reaches here.
 
 import type { Locale } from "../core/i18n/locale.ts";
-import type { BlockReason } from "../core/prepare.ts";
 import type { SendOutcome } from "../core/response.ts";
-import { blockMessage, sendOutcomeMessage } from "../core/sendMessages.ts";
+import { sendOutcomeMessage } from "../core/sendMessages.ts";
 import { messageNodes } from "./render.ts";
 
 /** The message, plus the request id when the outcome has one. */
@@ -32,14 +31,4 @@ export function renderSendOutcome(
 ): void {
   const doc = container.ownerDocument;
   container.replaceChildren(...outcomeNodes(doc, outcome, locale));
-}
-
-/** Replaces the children of container with the text-only message for a block reason. */
-export function renderBlockReason(
-  container: HTMLElement,
-  reason: BlockReason,
-  locale: Locale,
-): void {
-  const doc = container.ownerDocument;
-  container.replaceChildren(...messageNodes(doc, blockMessage(reason, locale)));
 }

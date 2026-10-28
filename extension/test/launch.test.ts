@@ -23,7 +23,7 @@ import { nativeHostName } from "../src/core/native.ts";
 import type { NativeReply } from "../src/core/native.ts";
 import { maxBodyBytes } from "../src/core/prepare.ts";
 import type { RequestId, SendOutcome } from "../src/core/response.ts";
-import { blockMessage, sendOutcomeMessage } from "../src/core/sendMessages.ts";
+import { sendOutcomeMessage } from "../src/core/sendMessages.ts";
 import { metadataDisplayLimit } from "../src/ui/render.ts";
 import {
   launchContextFromTab,
@@ -627,8 +627,10 @@ describe("popup send", () => {
         const root = container();
         await runPopupSend(root, result, popupDeps);
         assert.equal(root.querySelector(".send-button"), null);
-        expectLocaleMessage(root, locale, (l) =>
-          blockMessage("body-too-large", l),
+        expectLocaleMessage(
+          root,
+          locale,
+          (l) => catalogs[l].preflight["body-too-large"],
         );
         assert.equal(native.messages.length, 0);
         // A blocked launch is normal: logged at info, never at error.
