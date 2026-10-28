@@ -306,16 +306,25 @@ func startChildCommand(t *testing.T, mode string, env map[string]string, cmd *ex
 
 // childEnv builds a child's environment from the allowlist, env, and mode.
 func childEnv(mode string, env map[string]string) []string {
+	out := allowlistedEnv()
+	for name, value := range env {
+		out = append(out, name+"="+value)
+	}
+	return append(out, childModeEnv+"="+mode)
+}
+
+// allowlistedEnv returns the allowlisted parent variables that are set, as
+// NAME=value entries in childEnvAllowlist's order. A child that is not this
+// test binary takes this as its environment; a caller that needs a different
+// value for one of the variables replaces that entry.
+func allowlistedEnv() []string {
 	var out []string
 	for _, name := range childEnvAllowlist {
 		if value, ok := os.LookupEnv(name); ok {
 			out = append(out, name+"="+value)
 		}
 	}
-	for name, value := range env {
-		out = append(out, name+"="+value)
-	}
-	return append(out, childModeEnv+"="+mode)
+	return out
 }
 
 // signal sends sig to the child.
