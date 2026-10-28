@@ -336,8 +336,8 @@
 
 **変更するファイル:** `README.md`、`test/metadataDocs.test.ts`
 
--   [ ] 「Browser extension」の節のポップアップの説明（`README.md:1129-1152`）を、設計書 3.8 のとおりに書き直す。主ボタンを **Generate article** と書き、動画のセクション・確認のセクション（選択範囲の行と概要欄の行、⚠ のときの理由と手順）・主ボタン・詳細を説明し、値が取れないときの説明に、概要欄の行が ⚠ になることと見出しがタブのタイトルになることを加える。
--   [ ] `test/metadataDocs.test.ts` に、README の節が `catalogs.en.primaryButton` を含むことの確認を加える（設計書 3.8）。促しのメッセージの比較は残す。README が画面の文言をほかにも引用するとき（行の名前、`Details` など）は、その文言ごとに同じ確認を加える。
+-   [x] 「Browser extension」の節のポップアップの説明（`README.md:1129-1152`）を、設計書 3.8 のとおりに書き直す。主ボタンを **Generate article** と書き、動画のセクション・確認のセクション（選択範囲の行と概要欄の行、⚠ のときの理由と手順）・主ボタン・詳細を説明し、値が取れないときの説明に、概要欄の行が ⚠ になることと見出しがタブのタイトルになることを加える。
+-   [x] `test/metadataDocs.test.ts` に、README の節が `catalogs.en.primaryButton` を含むことの確認を加える（設計書 3.8）。促しのメッセージの比較は残す。README が画面の文言をほかにも引用するとき（行の名前、`Details` など）は、その文言ごとに同じ確認を加える。
 
 **完了の条件:** `make ext-test` が通る。README の主ボタンの名前を `Send to yt2column` に戻して壊し、追加した確認が失敗することを確かめる。
 
@@ -345,7 +345,7 @@
 
 **変更するファイル:** `docs/translation_glossary.md`
 
--   [ ] 要件書 6 章の用語を加え、「字幕」の行に UI の文言での使い方を注記する（設計書 3.8）。
+-   [x] 要件書 6 章の用語を加え、「字幕」の行に UI の文言での使い方を注記する（設計書 3.8）。
 
 **完了の条件:** PR のレビューで、加えた用語と要件書 6 章を照らす。
 
@@ -353,15 +353,15 @@
 
 **変更するファイル:** `scripts/popup-preview.ts`（新規）、`test/popupPreview.test.ts`（新規）
 
--   [ ] `scripts/popup-preview.ts` を書く（1.3）。手動の確認（ステップ 5-4）に使う状態を、名前を付けた入力の組として持ち、それぞれを `buildCollectedView`（拒否は `RejectedView`）と、出荷する `popup.html` の骨格への `renderPopup` で描き、描く前に `applyPageLocale` でその入力の組の言語をページに設定し（日本語の行間 1.7 は `body:lang(ja)` で決まる、`static/style.css:71-73`）、静的な HTML のファイルとして引数のディレクトリに書き出す。`style.css` も同じディレクトリに写す。入力の組には、少なくとも次を含める。
+-   [x] `scripts/popup-preview.ts` を書く（1.3）。手動の確認（ステップ 5-4）に使う状態を、名前を付けた入力の組として持ち、それぞれを `buildCollectedView`（拒否は `RejectedView`）と、出荷する `popup.html` の骨格への `renderPopup` で描き、描く前に `applyPageLocale` でその入力の組の言語をページに設定し（日本語の行間 1.7 は `body:lang(ja)` で決まる、`static/style.css:71-73`）、静的な HTML のファイルとして引数のディレクトリに書き出す。`style.css` も同じディレクトリに写す。入力の組には、少なくとも次を含める。
     -   AC-17 の最悪の場合: 本文が 4 MiB を超え、概要欄が折りたたまれ、見出しが 2 行を超え、チャンネル名が 200 コードポイントの日本語。
     -   AC-09: 末尾が左から右だけ・右から左だけ・向きが混ざった文・U+200F を含むもの。
     -   AC-33: U+202E を含む値。
     -   拒否。
     -   英語と日本語の両方。
--   [ ] `eslint.config.js:238-249` が `scripts/` でも `CollectedInput`・`PreparedRequest` への型の断定を禁じるので、入力は本番の関数で作る。`CollectedInput` は受け付ける URL と偽の `SelectionReader` を渡した `collect` で、動画メタデータは `acceptMetadata`（読み取りの失敗は `readFailureResult`）で、リクエストは `prepareSend` で作る。本文が大きすぎる状態は、4 MiB を超える選択範囲を実際に渡して作る。HTML は `JSDOM` の `serialize()` で書き出す（`outerHTML` は lint が禁じる）。
--   [ ] 書き出す HTML は、外部の資源を読み込まず、スクリプトを含まない。骨格の `<script src="popup.js">` は取り除き、`style.css` への相対の `<link>` は残す。
--   [ ] `test/popupPreview.test.ts` に、スクリプトを一時的なディレクトリに対して実行し、終了コードが 0 で、入力の組ごとの HTML のファイルと `style.css` ができ、各ファイルが主ボタンを持ち `<script>` を持たず、日本語の組のファイルの `<html>` が `lang="ja"` であることを確かめるテストを書く。
+-   [x] `eslint.config.js:238-249` が `scripts/` でも `CollectedInput`・`PreparedRequest` への型の断定を禁じるので、入力は本番の関数で作る。`CollectedInput` は受け付ける URL と偽の `SelectionReader` を渡した `collect` で、動画メタデータは `acceptMetadata`（読み取りの失敗は `readFailureResult`）で、リクエストは `prepareSend` で作る。本文が大きすぎる状態は、4 MiB を超える選択範囲を実際に渡して作る。HTML は `JSDOM` の `serialize()` で書き出す（`outerHTML` は lint が禁じる）。
+-   [x] 書き出す HTML は、外部の資源を読み込まず、スクリプトを含まない。骨格の `<script src="popup.js">` は取り除き、`style.css` への相対の `<link>` は残す。
+-   [x] `test/popupPreview.test.ts` に、スクリプトを一時的なディレクトリに対して実行し、終了コードが 0 で、入力の組ごとの HTML のファイルと `style.css` ができ、各ファイルが主ボタンを持ち `<script>` を持たず、日本語の組のファイルの `<html>` が `lang="ja"` であることを確かめるテストを書く。
 
 **完了の条件:** `make ext-check` が通る。`make ext-build` の後の `dist/` に `popup-preview` を名前に含むファイルがない（`make ext-build` が呼ぶ `check-dist` が通ることと合わせて、ステップ 5-4 の前に確かめる）。
 
@@ -369,9 +369,9 @@
 
 **変更するファイル:** 本書、`static/style.css`、`test/style.test.ts`
 
--   [ ] 手動の確認で、Chrome が拡張のページに注入する `extension_fonts.css` の `body { font-family: …; font-size: 75% }` が `:root` の 14px と日本語の書体を打ち消し、日本語が 10.5px で表示されることを見つけた。`static/style.css` の `body` の規則に `font-family: inherit` と `font-size: 1rem` を加え、`test/style.test.ts` でその宣言を確かめる（設計書 3.7）。直したビルドで手動の確認をやり直す。
--   [ ] 設計書 7.2 の表のすべての行を、Chrome と Brave、ライトとダーク、英語と日本語の組み合わせで確かめる。倍率は 100% とする。AC-04・AC-09・AC-17・AC-33・AC-40 は、ステップ 5-3 のスクリプトの出力を幅 360px のウィンドウで開いて確かめる。AC-17 は、通常のウィンドウにはポップアップの高さの上限がないので、開発者ツールで主ボタンの `getBoundingClientRect().bottom` を測り、英語と日本語の最悪の場合の組で 600 CSS ピクセル以下であることを合格の条件とする。そのうえで、実際のポップアップでも見出しが長い動画で AC-04 を確かめる。AC-25・AC-28・AC-36〜AC-39 は、ビルドした拡張を読み込んだ実際のポップアップで確かめる。
--   [ ] 結果を、確かめた日付・ブラウザのバージョン・確かめた人と一緒に 7 章の「手動の確認の記録」に書く。
+-   [x] 手動の確認で、Chrome が拡張のページに注入する `extension_fonts.css` の `body { font-family: …; font-size: 75% }` が `:root` の 14px と日本語の書体を打ち消し、日本語が 10.5px で表示されることを見つけた。`static/style.css` の `body` の規則に `font-family: inherit` と `font-size: 1rem` を加え、`test/style.test.ts` でその宣言を確かめる（設計書 3.7）。直したビルドで手動の確認をやり直す。
+-   [x] 設計書 7.2 の表のすべての行を、Chrome と Brave、ライトとダーク、英語と日本語の組み合わせで確かめる。倍率は 100% とする。AC-04・AC-09・AC-17・AC-33・AC-40 は、ステップ 5-3 のスクリプトの出力を幅 360px のウィンドウで開いて確かめる。AC-17 は、通常のウィンドウにはポップアップの高さの上限がないので、開発者ツールで主ボタンの `getBoundingClientRect().bottom` を測り、英語と日本語の最悪の場合の組で 600 CSS ピクセル以下であることを合格の条件とする。そのうえで、実際のポップアップでも見出しが長い動画で AC-04 を確かめる。AC-25・AC-28・AC-36〜AC-39 は、ビルドした拡張を読み込んだ実際のポップアップで確かめる。
+-   [x] 結果を、確かめた日付・ブラウザのバージョン・確かめた人と一緒に 7 章の「手動の確認の記録」に書く。
 
 **完了の条件:** 設計書 7.2 の表のすべての行に結果が記録されている。
 
@@ -540,7 +540,21 @@ AC-36 のキーボードでの操作と AC-40 の色覚の模擬は、テスト�
     PASS: extension/static/manifest.json is identical (sha256 47091ca6796f153ed03ffbbb55573067a88da30bbae1ea20186407b2e2bed8d5)
     ```
 
-**手動の確認の記録:** （ステップ 5-4 で記録する）
+**手動の確認の記録（2026-10-28、確かめた人: isseis）:**
+
+Chrome 156.0.8078.48（公式ビルド、arm64）と Brave 1.98.60（Chromium 156.0.8078.48、公式ビルド、arm64）で、ライトとダーク、英語と日本語、倍率 100% で確かめた。プレビューは Brave で全ファイルを確かめ、AC-17 の高さは Chrome と Brave の両方で測った。実ポップアップは Chrome と Brave の両方で確かめた。
+
+| 確かめること | AC | 結果 |
+|---|---|---|
+| 見出しが長い動画で、見出しが 2 行に収まり、省略記号が付く | AC-04 | 合格（`worst-case-en`・`worst-case-ja`。見出しは 2 行で、2 行目の終わりに省略記号） |
+| 先頭と末尾のプレビューが 1 行で、先頭は最初の文字、末尾は最後の文字が見える。左から右だけ・右から左だけ・向きが混ざった文・U+200F を含む末尾で試す | AC-09 | 合格（`tail-ltr-en`・`tail-rtl-en`）。向きが混ざった文（`tail-mixed-en`）と U+200F（`tail-mark-en`）は保証の外で、想定どおりの見え方 |
+| 見出し 2 行、200 コードポイントのチャンネル名、確認の 2 行が ⚠ で手順を持つ画面で、スクロールせず主ボタンの全体が見える | AC-17 | 合格。`worst-case-en` の主ボタンの下端は 366px、`worst-case-ja` は 559.47px（上限 600px）。Chrome と Brave で同じ値 |
+| ライトとダークの配色で表示される | AC-25 | 合格（Chrome・Brave） |
+| 主ボタンと `<summary>` の大きさが 44×44 CSS ピクセル以上である | AC-28 | 合格（Chrome・Brave） |
+| U+202E を含む値でも、ほかの値・行の名前・状態の並びが変わらない | AC-33 | 合格（`bidi-control-en`） |
+| キーボードだけで、Tab・Shift+Tab で主ボタンと詳細の間を移動でき、Enter と Space で押せ、開閉できる。フォーカスの表示が見える | AC-36・AC-37 | 合格（Chrome・Brave） |
+| VoiceOver で、主ボタン（名前・押せない状態）、詳細（名前・開閉の状態）、見出し、確認の行（名前・状態の語・内容の順）、拒否のカード、送信中の案内と結果が伝わる | AC-38・AC-39 | 合格（Mac VoiceOver、Chrome・Brave）。VoiceOver は、表示の先頭・末尾の 100 コードポイントより長い文章を読む。見えない部分も要素に残しているため（設計書 3.4）で、意図どおり |
+| protanopia・deuteranopia の模擬で、⚠ の行と ✓ の行の区別がつき、記号の形を見分けられる | AC-40 | 合格（`worst-case-*`） |
 
 ## 8. 横断の確認 (Cross-Search Checklist)
 
@@ -548,8 +562,8 @@ AC-36 のキーボードでの操作と AC-40 の色覚の模擬は、テスト�
 
 -   [x] 1.4 の表の部品の名前（`summarize`・`OutcomeSummary`・`SummaryField`・`renderSummary`・`renderMetadata`・`summaryLabels`・`metadataLabels`・`sendButton`・`PopupLaunchResult`・`valueOf`・`valueElement`）と、フェーズ 1 でなくす名前（`BlockReason`・`blockMessage`・`renderBlockReason`）が、`extension/src`・`extension/test`・`extension/static` のコードとコメントに残っていない。
 -   [x] 古い class の名前（`summary-field`・`summary-label`・`summary-value`・`summary-title`・`summary-url`・`summary-preview`・`summary-message`・`summary-steps`・`metadata-title`・`metadata-channel`・`metadata-description`・`send-button`・`send-message`）と、古い入れ物の `id`（`summary`・`send`）が、`extension/src`・`extension/test`・`extension/static` に残っていない。
--   [ ] `src/popup.ts`・`src/launch.ts`・`src/ui/render.ts`・`src/ui/renderSend.ts`・`src/core/sendMessages.ts` の先頭のコメントと関数の説明が、新しい骨格と経路の処理を述べている（PR-3 のレビューで読む）。
--   [ ] 日本語の文言（`ja.ts` の新しい項目）が、用語集の用語（ステップ 5-2 で加える用語を含む）と一致する（PR-1・PR-4 のレビューで読む）。
+-   [x] `src/popup.ts`・`src/launch.ts`・`src/ui/render.ts`・`src/ui/renderSend.ts`・`src/core/sendMessages.ts` の先頭のコメントと関数の説明が、新しい骨格と経路の処理を述べている（PR-3 のレビューで読む）。
+-   [x] 日本語の文言（`ja.ts` の新しい項目）が、用語集の用語（ステップ 5-2 で加える用語を含む）と一致する（PR-1・PR-4 のレビューで読む）。
 
 ## 9. 成功基準 (Success Criteria)
 
