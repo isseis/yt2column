@@ -626,7 +626,7 @@ flowchart LR
 
 ### 6.1. 1 つの範囲のローカルの CLI レビュー
 
-矢印は処理の順序を表す。
+矢印は処理の順序を表す。分岐の矢印のラベルは、その矢印を辿る条件を表す。
 
 ```mermaid
 flowchart TD
@@ -638,13 +638,13 @@ flowchart TD
     CR --> CROK{"成功の形か（3.2）"}
     CROK -->|"はい"| TRIAGE["指摘をトリアージし、must-fix を直す"]
     CROK -->|"いいえ"| TOOL["codexreview を実行"]
-    TOOL --> KIND{"ツールの結果の扱い（4 章）"}
-    KIND -->|"止める"| STOP(["止めて利用者に報告"])
-    KIND -->|"findings・no_findings"| TRIAGE
-    KIND -->|"記録して先へ進む"| NONE["試行の結果: 異系統のレビューなし"]
-    TRIAGE --> FIXED{"1 回目で修正したか"}
-    FIXED -->|"はい（1 回目のとき）"| CLEAN
-    FIXED -->|"いいえ、または 2 回目"| REC["記録の行を作る（3.6）"]
+    TOOL --> KIND{"ツールの結果は何か（4 章）"}
+    KIND -->|"kind が state_changed<br>または precondition の dirty_tree<br>または結果がない・知らない種類<br>・終了コードと食い違う"| STOP(["止めて利用者に報告"])
+    KIND -->|"kind が findings<br>または no_findings"| TRIAGE
+    KIND -->|"kind がそれ以外の種類<br>または未インストール<br>（終了コード 127 で出力が空）"| NONE["試行の結果: 異系統のレビューなし"]
+    TRIAGE --> FIXED{"1 回目の試行で修正したか"}
+    FIXED -->|"はい"| CLEAN
+    FIXED -->|"いいえ<br>（2 回目の試行のときも）"| REC["記録の行を作る（3.6）"]
     NONE --> REC
     REC --> END(["SUMMARY を呼び出し元に返す"])
 
