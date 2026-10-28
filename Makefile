@@ -9,6 +9,10 @@ GOTEST=$(GOCMD) test
 GOLANGCI_VERSION?=v2.13.2
 GOLINT=$(GOCMD) run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_VERSION) run --build-tags test,integration
 GOFUMPTCMD=gofumpt
+# A single command, quoted wherever the recipe uses it, so a path with spaces
+# works. Use `=` rather than `?=`: only a command-line assignment should
+# replace the default, not a stale environment variable.
+DEADCODECMD=deadcode
 
 BINARY=build/yt2column
 MAIN_PKG=./cmd/yt2column
@@ -241,8 +245,40 @@ fmt-all:
 	$(call check_gofumpt)
 	@$(call format_files_from_list,find . -name '*.go' -not -path './vendor/*' -not -path './extension/*')
 
+# Report unreachable functions across the whole module, with the test and
+# integration build tags, so a function reached from any main package or any
+# package's tests counts as reachable. Any output, or a non-zero exit status,
+# fails the target: the verdict is the exit status and the byte count only, so
+# a change to deadcode's report format cannot turn a failure into a success.
+# Output goes to two temporary files rather than a pipe, so deadcode's own exit
+# status survives (POSIX sh has no pipefail); each stream is shown again on a
+# failure. A signal exits the shell so the EXIT trap removes the files: some
+# shells (dash) do not run an EXIT trap when a signal kills them.
 deadcode:
-	deadcode -test -tags test $(MAIN_PKG)
+	@if ! command -v "$(DEADCODECMD)" >/dev/null 2>&1; then \
+		echo "Error: $(DEADCODECMD) is required but not found"; \
+		echo "Please install deadcode: go install golang.org/x/tools/cmd/deadcode@latest"; \
+		exit 1; \
+	fi; \
+	OUT=$$(mktemp) || { echo "Error: cannot create a temporary file for deadcode output" >&2; exit 1; }; \
+	trap 'rm -f "$$OUT"' EXIT; \
+	ERR=$$(mktemp) || { echo "Error: cannot create a temporary file for deadcode output" >&2; exit 1; }; \
+	trap 'rm -f "$$OUT" "$$ERR"' EXIT; \
+	trap 'exit 1' HUP INT TERM; \
+	status=0; \
+	"$(DEADCODECMD)" -test -tags test,integration ./... >"$$OUT" 2>"$$ERR" || status=$$?; \
+	if [ "$$status" -ne 0 ]; then \
+		cat "$$OUT"; \
+		cat "$$ERR" >&2; \
+		echo "Error: deadcode failed with exit status $$status" >&2; \
+		exit 1; \
+	fi; \
+	if [ -s "$$OUT" ] || [ -s "$$ERR" ]; then \
+		cat "$$OUT"; \
+		cat "$$ERR" >&2; \
+		echo "Error: deadcode reported unreachable functions or produced unexpected output" >&2; \
+		exit 1; \
+	fi
 
 tidy:
 	$(GOCMD) mod tidy

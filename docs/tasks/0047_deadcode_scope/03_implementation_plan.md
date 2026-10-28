@@ -8,7 +8,7 @@
 | Created | 2026-10-28 |
 | Review date | 2026-10-28 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-28（実装時の編集上の訂正。決定の変更はない）: ステップ 2-1 の (3) を、4 つの関数ごとのサブテストから、書き出したままのフィクスチャの 1 回の実行に改めた。同じ入力を 4 回実行しても追加の証拠は得られず、失敗を関数に帰せないため。確かめること（4 つの関数が届くと数えられ、報告がないこと）は変えない。あわせて (4) に `internal/other` の行を加え、解析のパッケージの並びが狭められたときに検出できるようにした。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -65,14 +65,14 @@
 
 **変えるファイル**: `cmd/yt2column/test_helpers.go`、`cmd/yt2column/deadcode_test.go`（新設、`//go:build test`）
 
-- [ ] `childEnv` から、`childEnvAllowlist` の変数を読む部分を関数に切り出す。`childEnv` はその関数を呼ぶ形にし、振る舞いは変えない（1.2）。
-- [ ] `deadcode_test.go` に、`make deadcode DEADCODECMD=<スタブ>` を `repositoryRoot` で実行するテスト `TestMakeDeadcodeVerdict` を加える。ケースは設計書 7.1 の表のすべての行と、1.2 で加えたケース（2 つ目の `mktemp` だけが失敗する）である。各ケースで、`make` の終了コード（0 か 0 以外か）、標準出力と標準エラーの中身、スタブが実行されたかどうかと受け取った引数を確かめる。標準出力は、期待するバイト列と完全に一致することを確かめる（レシピの行には `@` が付き、`make` は標準出力に何も足さない）。期待するバイト列は、スタブが実行されるケースではスタブが標準出力に書いたもの、「見つからない」ケースでは設計書 4.2 の 2 行、一時ファイルを作れないケースでは空である。標準エラーは、`make` が自身のエラーの行を足すので、期待する行を含むかどうかで確かめる。
-- [ ] スタブは、テストが決めたバイト列を標準出力と標準エラーに書き、決めた終了コードで終わり、受け取った引数をファイルに記録するシェルスクリプトとする（設計書 7.1）。空白を含むディレクトリに置く（1.2）。
-- [ ] 子の環境は、切り出した関数の結果に、ケースごとの `PATH` を加えて作る。すべての `make` の起動に同じ作り方を使う。
-- [ ] 「見つからない」ケースを除くすべてのケースで、`PATH` の先頭に記録する `mktemp` を置く（1.2）。「見つからない」ケースは `mktemp` を呼ぶ前に終わる。本物の `mktemp` の絶対パスは、`PATH` を変える前に `exec.LookPath` で得る。記録のファイルと、呼び出しの回数を数えるファイルは、スタブの引数の記録と同じく、レシピが一時ファイルを作る場所の外に置く。ケースの後に、記録したパスがすべて消えていることを確かめる。「一時ファイルを作れない」ケースは 1 回目で、2 つ目だけが失敗するケースは 2 回目で失敗させる。
-- [ ] 成功のケースは `-s` を付けずに `make` を実行し、標準出力も標準エラーも空であることを確かめる（設計書 1.2「成功したときは何も出さない」）。
-- [ ] 「見つからない」ケースは、`make` と `sh` へのシンボリックリンクだけを置いたディレクトリを `PATH` にして、`make` を絶対パスで実行する（設計書 7.1、`repository.test.ts:230-258` と同じ形）。
-- [ ] テストのプロセスで `Makefile` を開いてから `make` を実行する（1.2）。
+- [x] `childEnv` から、`childEnvAllowlist` の変数を読む部分を関数に切り出す。`childEnv` はその関数を呼ぶ形にし、振る舞いは変えない（1.2）。
+- [x] `deadcode_test.go` に、`make deadcode DEADCODECMD=<スタブ>` を `repositoryRoot` で実行するテスト `TestMakeDeadcodeVerdict` を加える。ケースは設計書 7.1 の表のすべての行と、1.2 で加えたケース（2 つ目の `mktemp` だけが失敗する）である。各ケースで、`make` の終了コード（0 か 0 以外か）、標準出力と標準エラーの中身、スタブが実行されたかどうかと受け取った引数を確かめる。標準出力は、期待するバイト列と完全に一致することを確かめる（レシピの行には `@` が付き、`make` は標準出力に何も足さない）。期待するバイト列は、スタブが実行されるケースではスタブが標準出力に書いたもの、「見つからない」ケースでは設計書 4.2 の 2 行、一時ファイルを作れないケースでは空である。標準エラーは、`make` が自身のエラーの行を足すので、期待する行を含むかどうかで確かめる。
+- [x] スタブは、テストが決めたバイト列を標準出力と標準エラーに書き、決めた終了コードで終わり、受け取った引数をファイルに記録するシェルスクリプトとする（設計書 7.1）。空白を含むディレクトリに置く（1.2）。
+- [x] 子の環境は、切り出した関数の結果に、ケースごとの `PATH` を加えて作る。すべての `make` の起動に同じ作り方を使う。
+- [x] 「見つからない」ケースを除くすべてのケースで、`PATH` の先頭に記録する `mktemp` を置く（1.2）。「見つからない」ケースは `mktemp` を呼ぶ前に終わる。本物の `mktemp` の絶対パスは、`PATH` を変える前に `exec.LookPath` で得る。記録のファイルと、呼び出しの回数を数えるファイルは、スタブの引数の記録と同じく、レシピが一時ファイルを作る場所の外に置く。ケースの後に、記録したパスがすべて消えていることを確かめる。「一時ファイルを作れない」ケースは 1 回目で、2 つ目だけが失敗するケースは 2 回目で失敗させる。
+- [x] 成功のケースは `-s` を付けずに `make` を実行し、標準出力も標準エラーも空であることを確かめる（設計書 1.2「成功したときは何も出さない」）。
+- [x] 「見つからない」ケースは、`make` と `sh` へのシンボリックリンクだけを置いたディレクトリを `PATH` にして、`make` を絶対パスで実行する（設計書 7.1、`repository.test.ts:230-258` と同じ形）。
+- [x] テストのプロセスで `Makefile` を開いてから `make` を実行する（1.2）。
 
 **完了の条件**: `go test -tags test ./cmd/yt2column -run 'TestMakeDeadcodeVerdict' -count=1` を実行し、今のレシピで失敗することを確かめる（ステップ 1-2 の前の状態）。
 
@@ -80,9 +80,9 @@
 
 **変えるファイル**: `Makefile`
 
-- [ ] `GOFUMPTCMD` の近くに `DEADCODECMD=deadcode` を `=` で加える（設計書 1.2・3.2）。
-- [ ] `deadcode` ターゲットのレシピを、設計書 1.1・3.2・4.2・6 章のとおりに書き換える。表示する行は設計書 4.2 の文面とする。`$(shell ...)` など、`Makefile` を読むときに評価される式を加えない（設計書 3.2）。レシピに、`check_gofumpt` と同じ程度のコメントを付ける。
-- [ ] `TestMakeDeadcodeVerdict` を壊して確かめる。次のそれぞれで、括弧の中のケースが失敗することを確かめ、結果をコミットメッセージに書く。
+- [x] `GOFUMPTCMD` の近くに `DEADCODECMD=deadcode` を `=` で加える（設計書 1.2・3.2）。
+- [x] `deadcode` ターゲットのレシピを、設計書 1.1・3.2・4.2・6 章のとおりに書き換える。表示する行は設計書 4.2 の文面とする。`$(shell ...)` など、`Makefile` を読むときに評価される式を加えない（設計書 3.2）。レシピに、`check_gofumpt` と同じ程度のコメントを付ける。
+- [x] `TestMakeDeadcodeVerdict` を壊して確かめる。次のそれぞれで、括弧の中のケースが失敗することを確かめ、結果をコミットメッセージに書く。
   - 合否の判定を終了コードだけにし、出力のバイト数を見ない（報告あり・標準エラーだけ・改行だけ）。
   - 合否の判定をバイト数だけにし、終了コードを見ない（終了コードだけ）。
   - 引数から `-test` を外す（引数）。
@@ -103,21 +103,21 @@
 
 **変えるファイル**: `cmd/yt2column/deadcode_test.go`
 
-- [ ] テスト `TestMakeDeadcodeScope` を加える。`exec.LookPath("deadcode")` で見つからなければ、理由を示して `t.Skip` する（設計書 1.2）。スキップの判断は `PATH` の検索だけで行い、環境変数を読まない。
-- [ ] フィクスチャを、テストのコードの中の内容から、実行のたびに `t.TempDir()` の下に書き出す（設計書 1.2・7.2 のパッケージの構成）。`go.mod` は `require` と `toolchain` の行を持たず、`go` の行の版は、リポジトリの `go.mod` の `go` の行の版以下とする。
-- [ ] `make -s -C <フィクスチャ> -f <リポジトリの Makefile の絶対パス> deadcode` を、ステップ 1-1 の関数から作った環境で実行する。前提の確認のための `deadcode` コマンドの直接の実行にも、同じ環境を使う（設計書 7.2「環境」）。
-- [ ] 設計書 7.2 の順に、それぞれ独立したサブテストで確かめる。1 つが失敗しても、ほかのサブテストは走るようにする。
+- [x] テスト `TestMakeDeadcodeScope` を加える。`exec.LookPath("deadcode")` で見つからなければ、理由を示して `t.Skip` する（設計書 1.2）。スキップの判断は `PATH` の検索だけで行い、環境変数を読まない。
+- [x] フィクスチャを、テストのコードの中の内容から、実行のたびに `t.TempDir()` の下に書き出す（設計書 1.2・7.2 のパッケージの構成）。`go.mod` は `require` と `toolchain` の行を持たず、`go` の行の版は、リポジトリの `go.mod` の `go` の行の版以下とする。
+- [x] `make -s -C <フィクスチャ> -f <リポジトリの Makefile の絶対パス> deadcode` を、ステップ 1-1 の関数から作った環境で実行する。前提の確認のための `deadcode` コマンドの直接の実行にも、同じ環境を使う（設計書 7.2「環境」）。
+- [x] 設計書 7.2 の順にサブテストで確かめる。1 つが失敗しても、ほかのサブテストは走るようにする。
   - (1) 書き出したままのフィクスチャで、`make` が終了コード 0 で終わり、何も出力しない。
   - (2) 「入力の分離」の 5 つの前提。`deadcode` コマンドを直接実行し、標準出力にその関数の名前が現れることを確かめる。`OnlySrv` は次の 2 通りで確かめる。(a) `cmd/srv` を除いたパッケージの並び（`./cmd/cli ./internal/...`）を `-test -tags test,integration` で解析する。(b) 今のレシピの形（`-test -tags test ./cmd/cli`）で解析する。`Helper` と `OnlyTest` は `-tags test,integration ./...`（`-test` なし）で、`OnlyIntegration` は `-test -tags test ./...` で解析して確かめる。
-  - (3) 「届く経路」の表の 4 つの関数のそれぞれで、`make deadcode` が終了コード 0 で終わり、出力にその関数の名前が現れない。関数ごとのサブテストにする。終了コード 0 も確かめるのは、解析が走らずに名前が現れない場合と区別するためである。
-  - (4) 「報告されるべき関数」の 3 つの行を 1 つずつ加え、`make` が 0 以外で終わり、報告に加えた関数のファイル、行、名前が含まれる。
+  - (3) 書き出したままのフィクスチャで、`make deadcode` が終了コード 0 で終わり、何も出力しないことを確かめる。これで「届く経路」の表の 4 つの関数（`OnlySrv`・`Helper`・`OnlyTest`・`OnlyIntegration`）が届くと数えられていることになる（報告があれば、その名前が出力に現れる）。(1) と同じ実行で確かめられるので、関数ごとのサブテストにはしない（4 つの入力は同一で、実行を分けても証拠は増えない）。何も出力しないことは、解析が走ったうえで報告が 0 件だったことを示す（失敗すれば理由の行が出る）。
+  - (4) 「報告されるべき関数」の 3 つの行と、`internal/other`（どの `main` パッケージからも、それが import するパッケージからも離れたパッケージ）の行の、4 つの行を 1 つずつ加え、`make` が 0 以外で終わり、報告に加えた関数のファイル、行、名前が含まれる。`internal/other` の行は設計書 7.2 の表にない、テストだけの追加の防具で、解析のパッケージの並びが CLI とその import 先だけに狭められたときに検出するために加えた。
   - (5) コンパイルできないファイルを加え、`make` が 0 以外で終わり、`deadcode` コマンドのエラーが標準エラーに出る。
-  - (4)・(5) は、ケースごとに新しく書き出したフィクスチャを使う。
-- [ ] 失敗のメッセージに、`make` と `deadcode` コマンドの出力、`go version -m` で読んだ `deadcode` コマンドのモジュールの版、設計書が前提にした版（v0.47.0）を含める（設計書 7.2）。
-- [ ] 壊して確かめる。次のそれぞれで、括弧の中のサブテストが失敗することを確かめ、結果をコミットメッセージに書く。
-  - `Makefile` の引数から `-test` を外す（(3) の `Helper` と `OnlyTest`）。
-  - タグから `integration` を外す（(3) の `OnlyIntegration`、(4) のビルドタグ `integration` のファイル）。
-  - `./...` を、フィクスチャの CLI の役の `main` パッケージ `./cmd/cli` に変える（(3) の `OnlySrv`、(4) の `cmd/srv` に加えた関数）。`$(MAIN_PKG)` に戻す形は使わない。フィクスチャに `./cmd/yt2column` はないので、解析そのものが失敗するからである（本書のレビューの際に確かめた）。
+  - (1) と (3) は 1 つのサブテストで確かめる。(2) は 1 つのフィクスチャを共有し、(4)・(5) は、ケースごとに新しく書き出したフィクスチャを使う。
+- [x] 失敗のメッセージに、`make` と `deadcode` コマンドの出力、`go version -m` で読んだ `deadcode` コマンドのモジュールの版、設計書が前提にした版（v0.47.0）を含める（設計書 7.2）。
+- [x] 壊して確かめる。次のそれぞれで、括弧の中のサブテストが失敗することを確かめ、結果をコミットメッセージに書く。
+  - `Makefile` の引数から `-test` を外す（`silent_success`。`Helper`・`OnlyTest`・`OnlyIntegration` と、`internal/other` のテストだけが呼ぶ `Other` が報告される）。
+  - タグから `integration` を外す（`silent_success`。`OnlyIntegration` が報告される。および (4) のビルドタグ `integration` のファイル）。
+  - `./...` を、フィクスチャの CLI の役の `main` パッケージ `./cmd/cli` に変える（`silent_success`。`OnlySrv` が報告される。(4) の `cmd/srv` と `internal/other` に加えた関数）。`$(MAIN_PKG)` に戻す形は使わない。フィクスチャに `./cmd/yt2column` はないので、解析そのものが失敗するからである（本書のレビューの際に確かめた）。
 
 **完了の条件**: `go test -tags test ./cmd/yt2column -run 'TestMakeDeadcodeScope' -v -count=1` が、手元でスキップされずに通る。`make lint` が通る。
 
@@ -127,8 +127,8 @@
 
 **変えるファイル**: `CLAUDE.md`、`.claude/commands/runplan.md`
 
-- [ ] `CLAUDE.md:80` の `` - `make deadcode` - Report unreachable functions `` を、次の 2 点を述べる 1 項目に書き換える（AC-14）。解析の範囲（モジュール全体と、そのテスト。ビルドタグ `test`・`integration`）と、報告が 1 件以上あれば失敗すること。ほかの項目と同じく英語で、1〜2 行に収める。
-- [ ] `.claude/commands/runplan.md:117` の step 6 を、次の 2 点を加えて書き換える（AC-15）。`make deadcode` が通ること。意図した足場を残すなら、テストから届くようにすること。テストから届かない足場は、使う PR まで加えないこと。このフェーズ群で到達できなくなった関数を削除することと、変えたら `make fmt && make test && make lint` を実行してコミットすることは残す。
+- [x] `CLAUDE.md:80` の `` - `make deadcode` - Report unreachable functions `` を、次の 2 点を述べる 1 項目に書き換える（AC-14）。解析の範囲（モジュール全体と、そのテスト。ビルドタグ `test`・`integration`）と、報告が 1 件以上あれば失敗すること。ほかの項目と同じく英語で、1〜2 行に収める。
+- [x] `.claude/commands/runplan.md:117` の step 6 を、次の 2 点を加えて書き換える（AC-15）。`make deadcode` が通ること。意図した足場を残すなら、テストから届くようにすること。テストから届かない足場は、使う PR まで加えないこと。このフェーズ群で到達できなくなった関数を削除することと、変えたら `make fmt && make test && make lint` を実行してコミットすることは残す。
 
 **完了の条件**: `make test` が通る（`CLAUDE.md` を読むガードを含む）。
 
@@ -138,10 +138,10 @@
 
 **変えるファイル**: `docs/tasks/0047_deadcode_scope/03_implementation_plan.md`（本書の 9 章）
 
-- [ ] `make fmt`、`make test`、`make lint` を実行し、通ることを確かめる。
-- [ ] `Makefile` を変えたので、`make ext-test` を実行し、`repository.test.ts` の `make -n` の検査が通ることを確かめる（設計書 7.3）。
-- [ ] このリポジトリで `make deadcode` を変数の指定なしに実行する。実行したコマンドとその終了コード、`command -v deadcode` の結果、`go version -m "$(command -v deadcode)"` の結果（モジュールの版と、ビルドした Go の版）、実行したコミットを、本書の 9 章の AC-01 の行の下に記録する（設計書 7.3）。
-- [ ] `go test -tags test ./cmd/yt2column -run 'TestMakeDeadcodeScope' -v -count=1` を実行し、スキップされずに PASS したことを、出力の要約（各サブテストの PASS の行）と実行したコミットとともに、本書の 9 章に記録する（設計書 7.3）。
+- [x] `make fmt`、`make test`、`make lint` を実行し、通ることを確かめる。
+- [x] `Makefile` を変えたので、`make ext-test` を実行し、`repository.test.ts` の `make -n` の検査が通ることを確かめる（設計書 7.3）。
+- [x] このリポジトリで `make deadcode` を変数の指定なしに実行する。実行したコマンドとその終了コード、`command -v deadcode` の結果、`go version -m "$(command -v deadcode)"` の結果（モジュールの版と、ビルドした Go の版）、実行したコミットを、本書の 9 章の AC-01 の行の下に記録する（設計書 7.3）。
+- [x] `go test -tags test ./cmd/yt2column -run 'TestMakeDeadcodeScope' -v -count=1` を実行し、スキップされずに PASS したことを、出力の要約（各サブテストの PASS の行）と実行したコミットとともに、本書の 9 章に記録する（設計書 7.3）。
 
 **完了の条件**: グリーンゲート（`make test && make lint`）と `make ext-test` が通り、上の 2 つの記録が本書にある。
 
@@ -157,8 +157,8 @@
 
 **判定理由**: 1-1 は mkplan の Conditional checks の 2 つに当たる（何度も起動する `make` のすべてに同じ環境を与えること、`t.TempDir` の外に作る一時ファイルの後片付けを確かめること）。また、1-2 のレシピは、POSIX の sh（dash を含む）と GNU Make 3.81・4.x の両方で、どの種類の失敗も成功と取り違えず、失敗として扱う必要がある。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/546
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
@@ -225,7 +225,7 @@
 
 ## 7. 実装チェックリスト (Implementation Checklist)
 
-- [ ] 9 章の AC-01 とフィクスチャのテストの記録を書いた（4-1）
+- [x] 9 章の AC-01 とフィクスチャのテストの記録を書いた（4-1）
 - [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 2-1 / 3-1 / 4-1）
 
 ## 8. 成功基準 (Success Criteria)
@@ -257,9 +257,33 @@
 | AC-14 | manual | `CLAUDE.md` の「Code Quality」の `make deadcode` の項目を PR のレビューで読む | 3-1 |
 | AC-15 | manual | `.claude/commands/runplan.md` の step 6 を PR のレビューで読む | 3-1 |
 
-**AC-01 の記録（4-1 で書く）:** 未実施。
+**AC-01 の記録（4-1）:** コミット `0b356d49` の作業ツリーで `make deadcode` を変数の指定なしに実行した。終了コードは 0 で、標準出力も標準エラーも空だった（報告 0 件）。
 
-**`TestMakeDeadcodeScope` の記録（4-1 で書く）:** 未実施。
+- 実行したコマンド: `make deadcode`
+- 終了コード: 0
+- `command -v deadcode`: `/Users/issei/go/bin/deadcode`
+- `go version -m "$(command -v deadcode)"`: `mod golang.org/x/tools v0.47.0`（ビルドした Go は go1.27.1）
+- 実行したコミット: `0b356d49`
+
+同じコミットで `make ext-test`（Node.js 24.21.0）も実行し、`tests 894`・`pass 894`・`fail 0` だった。`extension/test/repository.test.ts` の `make -n build test lint deadcode` の検査を含む。
+
+**`TestMakeDeadcodeScope` の記録（4-1）:** コミット `0b356d49` で `go test -tags test ./cmd/yt2column -run 'TestMakeDeadcodeScope' -v -count=1` を実行し、スキップされずに PASS した（`PASS`、`ok github.com/isseis/yt2column/cmd/yt2column 3.384s`）。その後の変更はテストのコメントとケースのまとめ方だけで、この記録を加えた時点で同じサブテストが PASS することを確かめた。出力の `--- PASS:` の行は次のとおりである。
+
+```
+--- PASS: TestMakeDeadcodeScope (3.10s)
+    --- PASS: TestMakeDeadcodeScope/silent_success (0.42s)
+    --- PASS: TestMakeDeadcodeScope/isolation (0.85s)
+        --- PASS: TestMakeDeadcodeScope/isolation/other_entry_point_excluded (0.37s)
+        --- PASS: TestMakeDeadcodeScope/isolation/cli_entry_point_only (0.06s)
+        --- PASS: TestMakeDeadcodeScope/isolation/tests_excluded (0.06s)
+        --- PASS: TestMakeDeadcodeScope/isolation/integration_tag_excluded (0.37s)
+    --- PASS: TestMakeDeadcodeScope/reported (1.55s)
+        --- PASS: TestMakeDeadcodeScope/reported/package_function (0.38s)
+        --- PASS: TestMakeDeadcodeScope/reported/other_entry_point_function (0.39s)
+        --- PASS: TestMakeDeadcodeScope/reported/integration_tagged_function (0.39s)
+        --- PASS: TestMakeDeadcodeScope/reported/package_outside_the_entry_points (0.39s)
+    --- PASS: TestMakeDeadcodeScope/compile_error (0.26s)
+```
 
 ## 10. 次のステップ (Next Steps)
 

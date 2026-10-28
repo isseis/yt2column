@@ -114,7 +114,11 @@ Work in order.
   again for the next PR. PRs are squash-merged (`_context.md`, "PR merge
   method").
 
-6. Run `make deadcode`. Remove functions made unreachable by this phase group; keep intentional scaffolding for future phases or tasks. If changes were made, run `make fmt && make test && make lint` and commit.
+6. Run `make deadcode`. Remove functions made unreachable by this phase group,
+   and re-run it until it passes: intentional scaffolding for future phases or
+   tasks must be reachable from a test, and do not add scaffolding that no test
+   reaches until the PR that uses it. If changes were made, run
+   `make fmt && make test && make lint` and commit.
 
 6.5. Run programmatic pre-checks on the changed Go files before spawning the review agent. These checks are deterministic and cheaper than AI review — catch them here rather than in the review loop.
 
