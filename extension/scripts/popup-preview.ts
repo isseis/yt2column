@@ -44,7 +44,7 @@ const watchUrl = "https://www.youtube.com/watch?v=preview";
 /** A selection whose request body is over the 4 MiB limit. */
 const oversizedSelection = "a".repeat(4_200_000);
 
-/** A response line at the start of a selection whose tail is above 100 code points. */
+/** A caption line put before each tail, so the head preview differs from the tail preview. */
 const selectionPrefix = `00:00 ${"a".repeat(120)}\n`;
 
 /** Japanese "a long video title", past two lines at 360 CSS pixels. */
@@ -62,10 +62,10 @@ const japaneseTabTitle = "\u30bf\u30d6\u306e\u30bf\u30a4\u30c8\u30eb";
 /** Hebrew "shalom", for a right-to-left tail. */
 const hebrewWord = "\u05e9\u05dc\u05d5\u05dd";
 
-/** Left-to-right, right-to-left, mixed and marked tails, each longer than 100 code points. */
+/** Left-to-right, right-to-left, mixed and marked tails, each at least 100 code points. */
 const tailCases: readonly { readonly name: string; readonly tail: string }[] = [
   { name: "tail-ltr-en", tail: `${"left to right ".repeat(10)}END` },
-  { name: "tail-rtl-en", tail: `${hebrewWord.repeat(30)}` },
+  { name: "tail-rtl-en", tail: hebrewWord.repeat(30) },
   { name: "tail-mixed-en", tail: `${"a".repeat(50)}\u05e9`.repeat(2) },
   { name: "tail-mark-en", tail: `${"a".repeat(99)}\u200f` },
 ];
@@ -198,11 +198,7 @@ async function buildView(previewCase: PreviewCase): Promise<PopupView> {
 }
 
 /** The page for one view: the shipped skeleton, the locale, and the render. */
-function renderPage(view: PopupView, locale: Locale): string {
-  const skeleton = readFileSync(
-    path.join(extensionDir, "static", "popup.html"),
-    "utf8",
-  );
+function renderPage(skeleton: string, view: PopupView, locale: Locale): string {
   const dom = new JSDOM(skeleton);
   const doc = dom.window.document;
   applyPageLocale(doc, locale);
@@ -225,11 +221,15 @@ async function writePreviews(outputDir: string): Promise<void> {
     path.join(extensionDir, "static", "style.css"),
     path.join(outputDir, "style.css"),
   );
+  const skeleton = readFileSync(
+    path.join(extensionDir, "static", "popup.html"),
+    "utf8",
+  );
   for (const previewCase of previewCases) {
     const view = await buildView(previewCase);
     writeFileSync(
       path.join(outputDir, `${previewCase.name}.html`),
-      renderPage(view, previewCase.locale),
+      renderPage(skeleton, view, previewCase.locale),
     );
   }
 }
@@ -238,7 +238,7 @@ if (import.meta.main) {
   const outputDir = process.argv[2];
   if (outputDir === undefined) {
     process.stderr.write(
-      "usage: node scripts/popup-preview.ts <output-directory>\n",
+      "usage: node extension/scripts/popup-preview.ts <output-directory>\n",
     );
     process.exit(2);
   }

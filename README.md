@@ -1273,7 +1273,7 @@ request (a channel name that is not blank but has a control character or is
 longer than 200 code points is not left out: the server rejects the request with
 `invalid_body`). A missing video title makes the tab title the heading, a
 missing description makes the **Description** row ⚠ and says the description
-will not be sent, and a missing channel name leaves the channel-name row out.
+will not be sent, and a missing channel name is left out of the video section.
 When the page cannot be read at all — or the tab has moved to another video
 since the selection was read — all three are left out. The extension still
 sends the selection and the URL, and the article is generated from them.
