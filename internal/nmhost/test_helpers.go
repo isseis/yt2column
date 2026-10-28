@@ -81,10 +81,10 @@ func WireValuesForTest(t *testing.T) HostWireValuesForTest {
 const MaxResponseBytesForTest = maxResponseBytes
 
 // LargestReplyForTest marshals the response reply that carries a server
-// response body of MaxResponseBytesForTest bytes with the largest status net/http names (511),
-// and returns its size and the browser's message limit it must fit. It
-// marshals the reply directly, because encodeReply would replace one over the
-// limit with the protocol_error reply.
+// response body of MaxResponseBytesForTest bytes with the largest status
+// net/http names (511), and returns its size and the browser's message limit
+// it must fit. It marshals the reply directly, because encodeReply would
+// replace one over the limit with the protocol_error reply.
 func LargestReplyForTest(t *testing.T) (replyBytes, frameLimit int) {
 	t.Helper()
 	payload, err := json.Marshal(newResponseReply(http.StatusNetworkAuthenticationRequired, bytes.Repeat([]byte{0xff}, maxResponseBytes)))

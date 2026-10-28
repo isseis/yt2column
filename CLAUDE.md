@@ -276,15 +276,17 @@ the [README](README.md) and `docs/dev/security.md` §8.
   the extension shows in English.
   Exception: the Native Messaging host chooses between the current message
   form and the new form by inspecting the content of the message
-  (`route` in `internal/nmhost/relay.go`). Scope: it checks whether the
-  message is one JSON object that passes `strictjson.ParseObject` and, if so,
-  whether its top level has a `v` member (compared after decoding escapes);
-  this is the only place the message's content selects behavior. Inside the
-  new form the operation is the declared `op` value, mapped to an `Operation`
-  enum and dispatched by a `switch`, and the current form's content is not
-  parsed beyond its top-level member names. Reason: the current extension's
-  message declares nothing, and the extension does not change until #503, so
-  the current form can only be told apart by the absence of a declaration.
+  (`route` in `internal/nmhost/relay.go`). Scope: the whole message is
+  validated by `strictjson.ParseObject`, and the choice is made only by
+  whether it passes and, if so, whether its top level has a `v` member
+  (compared after decoding escapes); this is the only place the message's
+  content selects behavior. Inside the new form the operation is the
+  declared `op` value, mapped to an `Operation` enum and dispatched by a
+  `switch`; the host checks only that a start's `input` is an object and a
+  key is a string. A current-form message's bytes are sent unchanged.
+  Reason: the current extension's message declares nothing, and the
+  extension does not change until #503, so the current form can only be told
+  apart by the absence of a declaration.
   Boundary: a message with `v` is checked strictly as the new form and
   rejected with `protocol_error`, without sending, when it breaks a rule; it
   is never retried as the current form. A message that is not one strict

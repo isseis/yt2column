@@ -123,10 +123,10 @@ linters:
               desc: "internal/articlecache knows nothing of the Webhook; the server renders and posts"
             - pkg: github.com/isseis/yt2column/internal/server
               desc: "internal/articlecache must not import internal/server (the server imports the cache)"
-        # The Native Messaging host relays bytes, reading only a message's
-        # top-level members to choose the server's path for it (the article
-        # input and the server's reply stay uninterpreted): it must not know
-        # the server's types, it is handed the socket path
+        # The Native Messaging host relays bytes, parsing a message only to
+        # choose the server's path for it (it checks only that the article
+        # input is an object, and leaves the server's reply uninterpreted): it
+        # must not know the server's types, it is handed the socket path
         # and HOME by its entry point instead of reading the configuration,
         # and it starts no other program.
         nmhost-boundaries:

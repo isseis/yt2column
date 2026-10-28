@@ -110,7 +110,8 @@ func TestRelayEndToEnd(t *testing.T) {
 	// The new form's three operations go through the real host: a
 	// generation start, a status request, and a publish operation. A key
 	// that would turn a status request into a publish operation if the host
-	// embedded it unescaped is rejected as invalid_key, and publishes nothing.
+	// embedded it unescaped, or that would point outside the key's segment, is
+	// rejected as invalid_key by both operations, and publishes nothing.
 	t.Run("new_form_operations", func(t *testing.T) {
 		webhook, webhookURL := newWebhookServer(t)
 		e := newServerEnv(t)
@@ -127,13 +128,22 @@ func TestRelayEndToEnd(t *testing.T) {
 			t.Fatalf("job status = %+v, want done and not posted", status.Job)
 		}
 
-		for _, key := range []string{started.Key + "/publish", started.Key + "?x=1", "../articles"} {
-			if rejected := requireServerReply(t, runHost(t, host, e, newFormKeyMessage(t, "status", key)), 400); rejected.Reason != "invalid_key" {
-				t.Errorf("status of %q = %+v, want reason invalid_key", key, rejected)
+		injected := []string{
+			started.Key + "/publish", started.Key + "?x=1", "../articles", "../" + started.Key,
+			started.Key + "/x", "%2F", "\u3042",
+		}
+		for _, op := range []string{"status", "publish"} {
+			for _, key := range injected {
+				if rejected := requireServerReply(t, runHost(t, host, e, newFormKeyMessage(t, op, key)), 400); rejected.Reason != "invalid_key" {
+					t.Errorf("%s of %q = %+v, want reason invalid_key", op, key, rejected)
+				}
 			}
 		}
 		if after := doJobs(t, socket, http.MethodGet, server.JobsPath+"/"+started.Key, nil, http.StatusOK); after.Job.Publish == nil || after.Job.Publish.State != "not_posted" {
 			t.Fatalf("job after the injected keys = %+v, want still not posted", after.Job)
+		}
+		if got := webhook.messages(); len(got) != 0 {
+			t.Fatalf("messages after the injected keys = %q, want none", got)
 		}
 
 		published := requireJobReply(t, runHost(t, host, e, newFormKeyMessage(t, "publish", started.Key)), 202)

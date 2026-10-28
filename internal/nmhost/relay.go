@@ -197,9 +197,9 @@ func hostFailure(s stage, e HostError, cause error) outcome {
 
 // Relay reads one Native Messaging message from stdin, forwards it to the
 // server, and writes exactly one reply frame to stdout. It reads nothing from
-// stdin beyond that one message. It returns a non-nil error only when no reply frame could
-// be written (the options are incomplete, the length could not be read, or
-// stdout failed); a host error is a reply, not a returned error.
+// stdin beyond that one message. It returns a non-nil error only when no reply
+// frame could be written (the options are incomplete, the length could not be
+// read, or stdout failed); a host error is a reply, not a returned error.
 //
 // Contract: stdout receives nothing but that one frame, and the log never
 // receives the message or the server's response, only fixed values.
