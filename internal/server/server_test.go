@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -478,13 +479,7 @@ func TestServeShutdownCancelsGeneration(t *testing.T) {
 	<-reached
 
 	cancel()
-	deadline := time.Now().Add(5 * time.Second)
-	for ts.cache.Lookup(key).State != articlecache.JobFailed {
-		if time.Now().After(deadline) {
-			t.Fatalf("the generation was not canceled: state %d", ts.cache.Lookup(key).State)
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+	waitFor(t, "the generation to be canceled", func() bool { return ts.cache.Lookup(key).State == articlecache.JobFailed })
 	select {
 	case <-done:
 		t.Fatal("Serve returned before the legacy job finished")
@@ -506,5 +501,89 @@ func TestServeShutdownCancelsGeneration(t *testing.T) {
 	logs := ts.logs.String()
 	if !strings.Contains(logs, "generation job canceled by the shutdown") || strings.Contains(logs, "generation job failed") {
 		t.Errorf("want the cancellation line and no failure line:\n%s", logs)
+	}
+}
+
+// TestServeShutdownCancelsLateStart checks a generation start that reaches
+// the cache only after the shutdown began: its request is held inside the body
+// read while Serve cancels the generations, and once the body arrives the start
+// is still accepted, but its job begins already canceled. The record fails, the
+// writer is never called, only the cancellation line is logged, and Serve
+// returns with every slot free.
+func TestServeShutdownCancelsLateStart(t *testing.T) {
+	ts := newJobsTestServer(t, jobsServerOptions{})
+	listener, path := listenUnix(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- ts.Serve(ctx, listener) }()
+
+	body := bodyWith("late")
+	conn := dialUnix(t, path)
+	header := "POST " + JobsPath + " HTTP/1.1\r\n" +
+		"Host: yt2column\r\n" +
+		"Content-Type: application/json\r\n" +
+		"Content-Length: " + strconv.Itoa(len(body)) + "\r\n\r\n"
+	if _, err := conn.Write([]byte(header)); err != nil {
+		t.Fatalf("write the header: %v", err)
+	}
+	// The handler holds a reading slot while it waits for the body.
+	waitFor(t, "the handler to start reading the body", func() bool { return len(ts.reading) == 1 })
+
+	cancel()
+	waitFor(t, "the generations to be canceled", func() bool { return ts.genCtx.Err() != nil })
+	if _, err := conn.Write([]byte(body)); err != nil {
+		t.Fatalf("write the body: %v", err)
+	}
+	resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
+	if err != nil {
+		t.Fatalf("read the response: %v", err)
+	}
+	var accepted responseBody
+	err = json.NewDecoder(resp.Body).Decode(&accepted)
+	_ = resp.Body.Close()
+	if err != nil {
+		t.Fatalf("decode the response: %v", err)
+	}
+	if resp.StatusCode != http.StatusAccepted || accepted.Key == "" {
+		t.Fatalf("response = %d %+v, want 202 with a key", resp.StatusCode, accepted)
+	}
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("Serve error = %v, want nil after cancellation", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Serve did not return")
+	}
+	key, err := articlecache.ParseKey(accepted.Key)
+	if err != nil {
+		t.Fatalf("ParseKey: %v", err)
+	}
+	if state := ts.cache.Lookup(key).State; state != articlecache.JobFailed {
+		t.Errorf("the late start's state = %d, want failed", state)
+	}
+	if calls := len(ts.writer.Calls); calls != 0 {
+		t.Errorf("writer calls = %d, want 0 for a canceled generation", calls)
+	}
+	logs := ts.logs.String()
+	if !strings.Contains(logs, "generation job canceled by the shutdown") || strings.Contains(logs, "generation job failed") {
+		t.Errorf("want the cancellation line and no failure line:\n%s", logs)
+	}
+	if len(ts.slots) != 0 || len(ts.reading) != 0 {
+		t.Errorf("slots held: generation %d, reading %d, want 0", len(ts.slots), len(ts.reading))
+	}
+}
+
+// waitFor polls cond until it holds, failing the test after five seconds.
+func waitFor(t *testing.T, what string, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for !cond() {
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %s", what)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }

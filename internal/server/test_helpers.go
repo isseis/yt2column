@@ -389,10 +389,13 @@ func RejectReasonsForTest() []RejectReasonForTest {
 }
 
 // APICodeSetForTest is one set of codes the job API's status response uses,
-// with the name the documentation's table of the set carries.
+// with the name the documentation's table of the set carries. States is set
+// only for the publish reasons: it maps each reason to the publish state code
+// that carries it.
 type APICodeSetForTest struct {
-	Name  string
-	Codes []string
+	Name   string
+	Codes  []string
+	States map[string]string
 }
 
 // APICodesForTest returns every code of the six sets the status response
@@ -406,11 +409,16 @@ func APICodesForTest() []APICodeSetForTest {
 		steps = append(steps, field.Tag.Get("json"))
 	}
 	var publishReasons []string
+	reasonStates := map[string]string{}
 	for _, r := range articlecache.UnpostableReasons() {
-		publishReasons = append(publishReasons, unpostableCode(r))
+		code := unpostableCode(r)
+		publishReasons = append(publishReasons, code)
+		reasonStates[code] = publishStateCode(articlecache.PublishUnpostable)
 	}
 	for _, r := range articlecache.PublishFailureReasons() {
-		publishReasons = append(publishReasons, publishFailureCode(r))
+		code := publishFailureCode(r)
+		publishReasons = append(publishReasons, code)
+		reasonStates[code] = publishStateCode(articlecache.PublishFailed)
 	}
 	return []APICodeSetForTest{
 		{Name: "job state", Codes: codesOf(articlecache.JobStatesForTest(), jobStateCode)},
@@ -418,7 +426,7 @@ func APICodesForTest() []APICodeSetForTest {
 		{Name: "step state", Codes: codesOf(articlecache.StageStates(), stageStateCode)},
 		{Name: "failure", Codes: codesOf(articlecache.FailureReasonsForTest(), failureCode)},
 		{Name: "publish state", Codes: codesOf(articlecache.PublishStates(), publishStateCode)},
-		{Name: "publish reason", Codes: publishReasons},
+		{Name: "publish reason", Codes: publishReasons, States: reasonStates},
 	}
 }
 

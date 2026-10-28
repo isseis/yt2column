@@ -118,8 +118,24 @@ func TestServerDocsContract(t *testing.T) {
 			}
 			documented := map[string]struct{}{}
 			for _, row := range tables[0][1:] {
-				if len(row) > 0 {
-					documented[stripBackticks(row[0])] = struct{}{}
+				if len(row) == 0 {
+					continue
+				}
+				code := stripBackticks(row[0])
+				if _, dup := documented[code]; dup {
+					t.Errorf("README.md %q table lists %q twice", set.Name, code)
+				}
+				documented[code] = struct{}{}
+				// A set that names each code's state documents it in the
+				// second column.
+				if want, ok := set.States[code]; ok {
+					got := ""
+					if len(row) > 1 {
+						got = stripBackticks(row[1])
+					}
+					if got != want {
+						t.Errorf("README.md %q table gives %q the state %q, want %q", set.Name, code, got, want)
+					}
 				}
 			}
 			defined := map[string]struct{}{}
