@@ -414,6 +414,51 @@ describe("colour variables", () => {
       );
     }
   });
+
+  it("takes every colour from a variable", () => {
+    // A literal would pass a contrast check of the variable it shadows while
+    // the page shows something else.
+    const literal = /#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i;
+    const properties = [
+      "color",
+      "background-color",
+      "border-color",
+      "border-top-color",
+      "border-bottom-color",
+      "outline-color",
+      "text-decoration-color",
+      "fill",
+      "stroke",
+      "border",
+      "border-top",
+      "outline",
+      "background",
+    ];
+    for (const entry of onScreen) {
+      if (selectorsOf(entry).includes(":root")) {
+        continue;
+      }
+      for (const property of properties) {
+        const value = entry.rule.style.getPropertyValue(property);
+        assert.ok(
+          !literal.test(value),
+          `${entry.rule.selectorText} ${property}: ${value}`,
+        );
+      }
+    }
+  });
+
+  it("declares the dark variables after the light ones", () => {
+    // The dark block only overrides: placed before the light one, the light
+    // values would win in both themes.
+    const roots = onScreen.filter((entry) =>
+      selectorsOf(entry).includes(":root"),
+    );
+    const lightIndex = roots.findIndex((entry) => !isDark(entry));
+    const darkIndex = roots.findIndex(isDark);
+    assert.ok(lightIndex >= 0, "no light :root");
+    assert.ok(darkIndex > lightIndex, "the dark :root comes first");
+  });
 });
 
 describe("layout", () => {
@@ -424,7 +469,7 @@ describe("layout", () => {
     assert.equal(importantValue(onScreen, "[hidden]", "display"), "none");
   });
 
-  it("fixes the popup's width at 360 CSS pixels", () => {
+  it("fixes the body's width at 360 CSS pixels", () => {
     assert.equal(effectiveValue(onScreen, "body", "width"), "360px");
     assert.equal(effectiveValue(onScreen, "body", "min-width"), "");
   });
@@ -461,7 +506,33 @@ describe("layout", () => {
         "hidden",
         selector,
       );
+      // A value with no break opportunity must still wrap, or the clamp never
+      // engages and the value is clipped without an ellipsis.
+      assert.equal(
+        effectiveValue(onScreen, selector, "overflow-wrap"),
+        "anywhere",
+        selector,
+      );
     }
+  });
+
+  it("keeps bidirectional control characters inside their own value", () => {
+    for (const selector of [
+      ".video-heading",
+      ".channel-name",
+      ".detail-value",
+      ".preview-head",
+    ]) {
+      assert.equal(
+        effectiveValue(onScreen, selector, "unicode-bidi"),
+        "plaintext",
+        selector,
+      );
+    }
+    assert.equal(
+      effectiveValue(onScreen, ".preview-tail-value", "unicode-bidi"),
+      "isolate",
+    );
   });
 
   it("keeps each preview on one line", () => {

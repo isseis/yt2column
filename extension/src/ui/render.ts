@@ -212,7 +212,7 @@ export interface PopupElements extends ActionControls {
   readonly details: HTMLDetailsElement;
 }
 
-/** A paragraph holding one display value; the caller adds its class and dir. */
+/** A paragraph with its class and text set; the caller adds any dir attribute. */
 function valueParagraph(
   doc: Document,
   className: string,

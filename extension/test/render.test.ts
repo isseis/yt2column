@@ -212,8 +212,9 @@ const watchUrl = "https://www.youtube.com/watch?v=abc";
 function collectedInput(
   selection = "selection",
   title = "A tab title",
+  url = watchUrl,
 ): CollectedInput {
-  return { selection, url: watchUrl, title } as CollectedInput;
+  return { selection, url, title } as CollectedInput;
 }
 
 /** The collected view for an input and the metadata it accepts. */
@@ -295,6 +296,37 @@ describe("renderPopup", () => {
       );
     });
 
+    it(`draws the video title and the channel name under it in ${locale}`, () => {
+      const elements = popupElements();
+      renderPopup(
+        elements,
+        collectedView(collectedInput(), {
+          title: "Video",
+          channelName: "Channel",
+        }),
+        locale,
+      );
+      const [heading, channelName] = Array.from(elements.video.children);
+      assert.equal(heading?.tagName, "H1");
+      assert.equal(heading?.textContent, "Video");
+      assert.equal(channelName?.tagName, "P");
+      assert.equal(channelName?.textContent, "Channel");
+    });
+
+    it(`uses the tab title for the heading when the video title is not sent in ${locale}`, () => {
+      const elements = popupElements();
+      renderPopup(
+        elements,
+        collectedView(collectedInput("selection", "A tab title")),
+        locale,
+      );
+      assert.equal(
+        elements.video.querySelector("h1")?.textContent,
+        "A tab title",
+      );
+      assert.equal(elements.video.querySelector("p"), null);
+    });
+
     it(`draws the primary button's name without enabling it in ${locale}`, () => {
       const elements = popupElements();
       renderPopup(elements, collectedView(), locale);
@@ -321,6 +353,51 @@ describe("renderPopup", () => {
       const inside = elements.details.textContent ?? "";
       assert.ok(inside.includes(view.details.url.value));
       assert.ok(inside.includes(view.details.tabTitle.value));
+    });
+
+    it(`names the details toggle and pairs each value with its own name in ${locale}`, () => {
+      const elements = popupElements();
+      const view = collectedView(collectedInput("selection", "A tab title"), {
+        title: "Video",
+      });
+      renderPopup(elements, view, locale);
+      assert.equal(
+        elements.details.querySelector("summary")?.textContent,
+        catalog.details.summary,
+      );
+      const rows = Array.from(
+        elements.details.querySelectorAll(".details-list > *"),
+        (node) => [node.tagName, node.textContent],
+      );
+      assert.deepEqual(rows, [
+        ["DT", catalog.details.url],
+        ["DD", view.details.url.value],
+        ["DT", catalog.details.tabTitle],
+        ["DD", view.details.tabTitle.value],
+      ]);
+    });
+
+    it(`marks a truncated heading and truncated details with an ellipsis in ${locale}`, () => {
+      const elements = popupElements();
+      const view = collectedView(
+        collectedInput("selection", "t".repeat(1001), "u".repeat(1001)),
+        { title: "v".repeat(201) },
+      );
+      assert.equal(view.video.heading.truncated, true);
+      renderPopup(elements, view, locale);
+      assert.ok(
+        (elements.video.querySelector("h1")?.textContent ?? "").endsWith(
+          "\u2026",
+        ),
+      );
+      const values = Array.from(
+        elements.details.querySelectorAll(".detail-value"),
+        (node) => node.textContent ?? "",
+      );
+      assert.equal(values.length, 2);
+      for (const value of values) {
+        assert.ok(value.endsWith("\u2026"), value);
+      }
     });
 
     it(`orders each check row's parts and shows its state word in ${locale}`, () => {
@@ -363,6 +440,12 @@ describe("renderPopup", () => {
       assert.equal(
         description.querySelector(".check-state")?.textContent,
         catalog.checkStates.warning,
+      );
+      // The state word is the row's state for assistive technology: hiding it
+      // from the tree would leave only the aria-hidden symbol.
+      assert.equal(
+        selection.querySelector(".check-state")?.getAttribute("aria-hidden"),
+        null,
       );
     });
 
@@ -439,9 +522,12 @@ describe("renderPopup", () => {
 
     it(`displays markup in every value as text in ${locale}`, () => {
       const elements = popupElements();
+      // Six values, each with the markup at both ends of the selection so the
+      // head and the tail previews both carry it.
+      const selection = `${malicious}${"a".repeat(100)}${malicious}`;
       renderPopup(
         elements,
-        collectedView(collectedInput(malicious, malicious), {
+        collectedView(collectedInput(selection, malicious, malicious), {
           title: malicious,
           channelName: malicious,
           description: malicious,
@@ -450,7 +536,19 @@ describe("renderPopup", () => {
       );
       const doc = elements.video.ownerDocument;
       assert.equal(doc.querySelector("img"), null);
-      assert.ok(doc.body.textContent?.includes(malicious));
+      for (const selector of [
+        ".video-heading",
+        ".channel-name",
+        ".preview-head",
+        ".preview-tail-value",
+        ".detail-value",
+      ]) {
+        const shown = Array.from(doc.querySelectorAll(selector));
+        assert.ok(shown.length > 0, selector);
+        for (const element of shown) {
+          assert.ok(element.textContent?.includes(malicious), selector);
+        }
+      }
     });
 
     it(`marks every shown value for automatic direction in ${locale}`, () => {
@@ -552,7 +650,7 @@ describe("renderPopup", () => {
       );
     });
 
-    it(`shows the full description's wording and count in ${locale}`, () => {
+    it(`shows the full description's wording and count with the ok state in ${locale}`, () => {
       // "A description" is 13 code points; the count is the view's, not the
       // text's.
       const elements = popupElements();
@@ -566,6 +664,11 @@ describe("renderPopup", () => {
       assert.equal(
         description.querySelector(".message-text")?.textContent,
         catalog.descriptionFull(13),
+      );
+      assert.equal(description.classList.contains("check-row-warning"), false);
+      assert.equal(
+        description.querySelector(".check-state")?.textContent,
+        catalog.checkStates.ok,
       );
     });
 
@@ -586,9 +689,13 @@ describe("renderPopup", () => {
         ),
         [...expandPromptMessage(locale).steps],
       );
+      // The collapsed row shows no count: only the prompt and its steps.
+      const shown =
+        description.querySelector(".check-content")?.textContent ?? "";
+      assert.ok(!shown.includes(catalog.descriptionFull(13)), shown);
     });
 
-    it(`shows the not-sent wording without steps in the description row in ${locale}`, () => {
+    it(`shows the not-sent wording without steps with the warning state in ${locale}`, () => {
       const elements = popupElements();
       renderPopup(elements, collectedView(collectedInput()), locale);
       const description = checkRows(elements)[1];
@@ -598,6 +705,11 @@ describe("renderPopup", () => {
         catalog.descriptionNotSent.text,
       );
       assert.equal(description.querySelector("ol"), null);
+      assert.equal(description.classList.contains("check-row-warning"), true);
+      assert.equal(
+        description.querySelector(".check-state")?.textContent,
+        catalog.checkStates.warning,
+      );
     });
 
     it(`shows the rejection card and no other section in ${locale}`, () => {

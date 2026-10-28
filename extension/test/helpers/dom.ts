@@ -25,11 +25,10 @@ function byId<T extends HTMLElement = HTMLElement>(
 }
 
 /**
- * The popup's skeleton in a fresh document, as the shipped popup.html holds
- * it: five containers, all hidden, the primary button disabled, and the status
- * region inside the action section after the button. The markup is written
- * here until the popup reads the shipped popup.html; both must keep this
- * shape.
+ * The popup's skeleton in a fresh document: five containers, all hidden, the
+ * primary button disabled, and the status region inside the action section
+ * after the button. The markup is written here until the step that ships
+ * popup.html makes this helper read that file; both must keep this shape.
  */
 export function popupElements(): PopupElements {
   const dom = new JSDOM(`<!DOCTYPE html><html lang="en"><body>

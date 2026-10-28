@@ -44,6 +44,8 @@
   display: none !important;
 }
 
+/* The body's width is the content width: the padding sits outside it, so the
+   popup is 392px wide, well inside Chrome's 800px limit. */
 body {
   margin: 0;
   padding: 0.75rem 1rem;
@@ -54,7 +56,8 @@ body {
 
 /* The video section: the heading and, when sent, the channel name. Both stay
    at two lines; the full text remains in the element for assistive
-   technology. */
+   technology. A value with no break opportunity is broken so that the clamp
+   still ends it with an ellipsis instead of clipping it. */
 .video-heading {
   margin: 0;
   font-size: 1.15rem;
@@ -62,6 +65,7 @@ body {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  overflow-wrap: anywhere;
 }
 
 .channel-name {
@@ -71,6 +75,7 @@ body {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  overflow-wrap: anywhere;
 }
 
 /* Keep bidirectional control characters in a value from reordering the
