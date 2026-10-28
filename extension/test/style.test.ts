@@ -563,6 +563,16 @@ describe("layout", () => {
     }
   });
 
+  it("lets a long preview shrink to the check row's width", () => {
+    // A 1fr column has an automatic minimum, so the whole preview would become
+    // the column's minimum width and push the card past the popup; with a 0
+    // minimum the preview is cut off with its ellipsis instead.
+    assert.equal(
+      effectiveValue(onScreen, ".check-row", "grid-template-columns"),
+      "1.25rem minmax(0, 1fr)",
+    );
+  });
+
   it("shows the tail preview's end by running its container right to left", () => {
     assert.equal(effectiveValue(onScreen, ".preview-tail", "direction"), "rtl");
     const reversed = rulesFor(onScreen, ".preview-tail:has(> :dir(rtl))");

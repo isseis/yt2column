@@ -119,10 +119,12 @@ body {
 }
 
 /* One check row: the symbol in the first column, the name and the content
-   stacked in the second. */
+   stacked in the second. The content column's minimum is 0, not the automatic
+   minimum: without it a long preview would widen the column past the popup
+   instead of being cut off with an ellipsis. */
 .check-row {
   display: grid;
-  grid-template-columns: 1.25rem 1fr;
+  grid-template-columns: 1.25rem minmax(0, 1fr);
   column-gap: 0.5rem;
   align-items: start;
   padding: 0.5rem 0.75rem;
