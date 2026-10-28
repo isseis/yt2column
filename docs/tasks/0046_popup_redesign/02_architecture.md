@@ -24,7 +24,7 @@
 ### 1.1. 設計原則
 
 -   **画面の内容を先に決め、そのあとで描く。** 経路の処理は、収集・動画メタデータの読み取り・本文の大きさの判定をすべて終えてから画面の内容を作り、`renderPopup` で骨格に描く。画面の内容ができる前は何も描かないので、表示した見出しと確認の状態は後で別の値に差し替わらない（AC-05）。
--   **状態と操作は画面の内容の型で宣言する。** 選択範囲の行・概要欄の行の理由（`SelectionStatus`・`DescriptionStatus`）と確認の状態（`CheckState`）は、画面の内容の中に持つ。主ボタンを押せるかも、画面の内容だけで決まる。押せるのは、画面の内容が `collected` で、選択範囲の行の理由が `sendable` のときだけで、送るリクエスト（`PreparedRequest`）はその `sendable` の値の中にある。✓ と押せる主ボタンが同じ 1 つの値から決まるので、食い違わない。表示する文字列の中身を調べて状態を決めることはしない（`CLAUDE.md`「Declare, don't infer」「Enforce invariants with the type」、H-02）。
+-   **状態と操作は画面の内容の型で宣言する。** 選択範囲の行・概要欄の行の理由（`SelectionStatus`・`DescriptionStatus`）は画面の内容の中に持ち、確認の状態（`CheckState`）は理由の型の各 `kind` にリテラル型で結び付ける。主ボタンを押せるかも、画面の内容だけで決まる。押せるのは、画面の内容が `collected` で、選択範囲の行の理由が `sendable` のときだけで、送るリクエスト（`PreparedRequest`）はその `sendable` の値の中にある。✓ と押せる主ボタンが同じ 1 つの値から決まるので、食い違わない。表示する文字列の中身を調べて状態を決めることはしない（`CLAUDE.md`「Declare, don't infer」「Enforce invariants with the type」、H-02）。
 -   **画面の内容を作る処理と、描く処理を分ける。** 画面の内容を作る関数（`buildCollectedView`）は DOM もブラウザの API も使わない純粋な関数で、状態・プレビュー・見出しの代替をすべてここで決める。`renderPopup` は画面の内容を骨格へ写すだけで、判断を持たない。判断のテストは DOM なしで書け、描く処理のテストは画面の内容を直接渡して書ける。
 -   **後続タスク #503 の状態（9 章）は、画面の内容の種類として加え、骨格の同じ入れ物に描く。** 画面の内容は `kind` で区別する判別共用体にし、#503 は種類（生成中・生成済み・失敗）を加える。収集に成功したときの 4 つの入れ物（動画のセクション・確認のセクション・操作のセクション・詳細）は変えず、#503 は確認のセクションに状態の表示を描き、操作のセクションの主ボタンを別の操作に変える（9 章、H-01）。
 -   **表示の安全の規則は変えない。** 値はすべて `textContent` で設定する。記号（✓・⚠）は、文字列を HTML として解釈せず、DOM の API（`createElementNS`）で作る SVG で描く。ESLint の、文字列を HTML として解釈する API の禁止（`eslint.config.js:7-15`）はそのまま適用される（AC-32・AC-34）。
@@ -275,12 +275,11 @@ export interface VideoView {
 
 /** Why the selection row is ✓ or ⚠; declared, never inferred from text. */
 export type SelectionStatus =
-  | { readonly kind: "sendable"; readonly request: PreparedRequest }
-  | { readonly kind: "blocked"; readonly reason: PreflightReason };
+  | { readonly kind: "sendable"; readonly state: "ok"; readonly request: PreparedRequest }
+  | { readonly kind: "blocked"; readonly state: "warning"; readonly reason: PreflightReason };
 
 export interface SelectionCheck {
   readonly status: SelectionStatus;
-  readonly state: CheckState;
   readonly characterCount: number;
   readonly lineCount: number;
   /** The first 100 code points, each line break shown as one space. */
@@ -291,13 +290,12 @@ export interface SelectionCheck {
 
 /** Why the description row is ✓ or ⚠; declared, never inferred from text. */
 export type DescriptionStatus =
-  | { readonly kind: "full"; readonly characterCount: number }
-  | { readonly kind: "collapsed" }
-  | { readonly kind: "not-sent" };
+  | { readonly kind: "full"; readonly state: "ok"; readonly characterCount: number }
+  | { readonly kind: "collapsed"; readonly state: "warning" }
+  | { readonly kind: "not-sent"; readonly state: "warning" };
 
 export interface DescriptionCheck {
   readonly status: DescriptionStatus;
-  readonly state: CheckState;
 }
 
 export interface DetailsView {
@@ -331,7 +329,7 @@ export function buildCollectedView(
 -   **見出し（AC-02・AC-03）:** 動画タイトルを送るとき（`metadata.values.title` があるとき）は動画タイトルを、送らないときはタブのタイトルを見出しにする。表示の上限は今と同じで、動画タイトルは 200 コードポイント（`metadataDisplayLimit`、`src/ui/render.ts:121`。`popupView.ts` へ移す）、タブのタイトルは 1000 コードポイントである。チャンネル名は、`metadata.values.channelName` があるときだけ持ち、200 コードポイントで切り詰める。
 -   **選択範囲の行（AC-07・AC-08・AC-10・AC-11）:** `prepared` が `ready` なら `sendable`（そのリクエストを持つ）、`blocked` なら `blocked`（その理由を持つ）とする。主ボタンを押せるのは `sendable` のときだけである（3.3）。
 -   **概要欄の行（AC-12〜AC-14）:** `metadata.values.description` がなければ `not-sent`、あって `metadata.showExpandPrompt` が真なら `collapsed`、それ以外は `full` とし、`full` のときだけ文字数（コードポイントの数）を持つ。`showExpandPrompt` は「概要欄が折りたたまれ、かつ受理した概要欄がある」ときに真になる（`src/core/metadata.ts:188-189`）。概要欄の文章そのものは画面の内容に入れない（AC-15）。
--   **確認の状態（AC-07・AC-11〜AC-14・AC-16）:** `buildCollectedView` が、理由の `kind` の `switch` で決める。`sendable` と `full` は `ok`、`blocked`・`collapsed`・`not-sent` は `warning` である。`default` は `never` の検査にし、理由の `kind` を加えたときは型の検査が失敗するようにする。
+-   **確認の状態（AC-07・AC-11〜AC-14・AC-16）:** 理由の型の各 `kind` に、確認の状態をリテラル型で結び付ける。`sendable` と `full` は `ok`、`blocked`・`collapsed`・`not-sent` は `warning` である。`sendable` なのに `warning`、`blocked` なのに `ok` という値は型の検査を通らないので、記号を描く `renderPopup` と主ボタンを押せるようにする `runPopupSend` は、同じ理由の値から食い違わない判断を得る。
 -   **詳細（AC-06）:** URL とタブのタイトルを、今と同じ 1000 コードポイントの上限で持つ。
 
 ### 3.3. 経路の処理（F-004・AC-05・AC-11・AC-13・AC-14・AC-17〜AC-21・AC-24、H-05）
@@ -410,7 +408,7 @@ export function renderPopup(elements: PopupElements, view: PopupView, locale: Lo
 
 両方の型を `src/ui/render.ts` に置き、`src/launch.ts` がそれを使う。UI の層が経路の処理を参照しないようにするためである。
 
--   `renderPopup` は、作る中身を `replaceChildren` で置き換え、要素を付け足さない。何度呼んでも、同じ画面の内容なら同じ表示になる。
+-   `renderPopup` は、作る中身を `replaceChildren` で置き換え、要素を付け足さない。`details` の開閉の状態は、利用者の操作に任せ、`renderPopup` は変えない。
 -   `collected` のとき: `video`・`checks`・`action`・`details` を表示し、`rejection` を隠す。主ボタンの名前を描く。`disabled` は外さない（外すのは `runPopupSend`）。`details` は閉じたまま（`open` を付けない、AC-01）。
 -   `rejected` のとき: `rejection`・`action` を表示し、`video`・`checks`・`details` を隠す（AC-22）。カードには `rejectionMessage` の文と手順を `messageNodes` で描き、最初の文の要素に `id="rejection-text"` を付けて、太字で示す（AC-23・AC-38）。主ボタンは名前を描き、`disabled` のままにする。
 -   **動画のセクション:** `<h1>` に見出しを、チャンネル名があれば `<p>` に描く（AC-02・AC-03）。どちらも `dir="auto"` を付け、CSS で `unicode-bidi: plaintext` を当てる（今の規則、`static/style.css:31-39`、AC-33）。見出しは CSS の `-webkit-line-clamp: 2` で 2 行に制限し、収まらない分は省略記号で示す（AC-04）。要素の中の文字列は CSS では切り詰めないので、見えない部分も支援技術に伝わる（AC-38）。表示の上限（3.2）を超えて切り詰めた値には、今と同じく末尾に `…` を付ける（`src/ui/render.ts:14-16`）。
