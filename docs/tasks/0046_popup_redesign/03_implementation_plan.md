@@ -326,7 +326,7 @@
 **判定理由**: ステップ 4-1 が、送信の状態の遷移（設計書 6.2）と、主ボタンを押せるようにする fail secure の判断を、新しい非同期の順序の後ろへ移す。`mkplan2.md` の「isolated high-risk/complex step（state machines）」に当たる。ステップ 4-1 は骨格（3-4）と呼び出しの形を変えるテスト（4-2）と同じコミットでしか通らないので、PR の中で切り離せない。
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/556
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
