@@ -15,7 +15,7 @@
 
 ## 料金表を更新する
 
-1. `internal/pricing/rates.go` の `rateTable` にある該当の項目について、料金と、その方式が使うフィールドだけを編集する。方式が使わないフィールドは 0 のままにする。0 以外の値は `validate` が拒否する。
+1. `internal/pricing/rates.go` の `rateTable` にある該当の項目について、料金と、その方式が使うフィールドだけを編集する。方式が使わないフィールドは 0 のままにする。0 以外の値があると検証で拒否される。
 2. 項目の上の `Source: <url> (checked <date>)` のコメントと、時刻で変わるモデルのピークの規則の上のコメントを、確かめたページと日付に書き換える。`TestRateTableSourceComments` が、各項目に出どころの行と確認した日付があることを確かめる。
 3. 新しいモデルでは、方式とその方式が使うフィールドを持つ項目を加え、モデルを列挙するテスト（`TestRateTableModels`）にモデル名を加える。`TestRateTableValid`（実際の料金表に `validate` をかける）と `TestValidateRejects`（`validate` の各規則を、その規則だけに違反する表にかける）を実行する。
 
