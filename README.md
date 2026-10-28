@@ -55,8 +55,9 @@ the section that has the details.
 
 1. Build the binaries with `make build`; they go into `build/` and nothing is
    installed. See [Localhost server](#localhost-server).
-2. Set `ANTHROPIC_API_KEY` and `SLACK_WEBHOOK_URL` in the shell that starts the
-   server. No other LLM variable is needed: the default is the production
+2. Set `ANTHROPIC_API_KEY` and, because these steps post the article,
+   `SLACK_WEBHOOK_URL` in the shell that starts the server. No other LLM
+   variable is needed: the default is the production
    profile (see [Recommended configuration](#recommended-configuration)). Unset
    `YT2COLUMN_*` variables left from an earlier setup: a model variable without
    its provider variable stops the server with a configuration error. See
@@ -83,7 +84,7 @@ the section that has the details.
 - Node.js, pinned in `extension/.node-version` (used to build the extension)
 - Chrome or Brave
 - `ANTHROPIC_API_KEY` for the default provider
-- `SLACK_WEBHOOK_URL` (the server requires it)
+- `SLACK_WEBHOOK_URL` (needed to post; the server starts without it)
 
 **For the CLI only:**
 
@@ -524,18 +525,24 @@ of the old article and all of the new one.
 
 ## Localhost server
 
-`yt2column-server` accepts the transcript the browser extension collects and
-posts the generated article to the same Webhook as the CLI. The extension does
-not connect to the server itself: the browser starts the native messaging host,
+`yt2column-server` accepts the transcript the browser extension collects,
+generates the article, and returns it, keeping it in memory. Posting it to the
+Slack-compatible Webhook is an operation of its own: the extension's current
+`/articles` request generates and posts in one go as before, and the job API
+below generates, returns, and posts on request. The extension does not connect
+to the server itself: the browser starts the native messaging host,
 `yt2column-nmhost`, which relays the request to the server's socket (see
 [Installing the native messaging host](#installing-the-native-messaging-host)).
 `make build` builds `build/yt2column`, `build/yt2column-server`, and
 `build/yt2column-nmhost`; it installs nothing.
 
-It reads the same LLM variables as the CLI and requires `SLACK_WEBHOOK_URL`. It
-never calls `yt-dlp` and reads neither `YT2COLUMN_CACHE_DIR` nor
-`YT2COLUMN_YTDLP_PATH`. It listens on a Unix domain socket only, never on a TCP
-port, at a path derived from `HOME` alone:
+It reads the same LLM variables as the CLI. `SLACK_WEBHOOK_URL` is optional for
+the server: without it the server still starts and generates articles, but
+posting (the job API's publish operation and `/articles`) is refused with
+`webhook_not_configured`, and the current extension shows that refusal as an
+unexpected reply. It never calls `yt-dlp` and reads neither `YT2COLUMN_CACHE_DIR`
+nor `YT2COLUMN_YTDLP_PATH`. It listens on a Unix domain socket only, never on a
+TCP port, at a path derived from `HOME` alone:
 
 - macOS: `$HOME/Library/Application Support/yt2column/run/server.sock`
 - other Unix: `$HOME/.local/state/yt2column/run/server.sock`
@@ -548,7 +555,8 @@ server trusts them. It checks only the request path and method, not the
 
 ### Running the server
 
-Start it with the provider and Webhook variables set:
+Start it with the provider variables set, and `SLACK_WEBHOOK_URL` if you want to
+post:
 
 ```sh
 ./build/yt2column-server 2>>server.log
@@ -556,8 +564,10 @@ Start it with the provider and Webhook variables set:
 
 The server writes nothing to standard output; the logs go to standard error,
 so `2>>server.log` keeps a record. The first log line names the socket. Every
-request and job log line carries the `requestId` the response returns, so you
-can find a request's log with `grep <requestId> server.log`.
+request line carries the `requestId` the response returns, as do the `/articles`
+job lines, so `grep "$requestId" server.log` finds them. The job API's generation
+and post jobs log the article key instead, so follow one with
+`grep "$key" server.log`.
 
 On start the server creates the socket directory (`run`) with mode `0700` when
 it is missing, takes the start lock (the file `.yt2column.lock` in the socket
@@ -585,9 +595,12 @@ Exit codes:
 
 The server logs to standard error. The first `SIGINT`, `SIGTERM`, or `SIGHUP`
 (one ignored at startup is not subscribed) stops accepting connections, removes
-the socket, and lets the in-flight jobs finish, which can take up to about 45
-minutes (three LLM calls of 15 minutes each); a second signal exits at once.
-Until the jobs have finished, a new server refuses to start.
+the socket, cancels the job API's in-flight generations (their LLM calls stop
+and their articles are lost, because the cache goes away with the server), and
+lets the other in-flight jobs finish: the `/articles` jobs, which can take up to
+about 45 minutes (three LLM calls of 15 minutes each), and the publish jobs. A
+second signal exits at once. Until the jobs have finished, a new server refuses
+to start.
 
 ### Installing the native messaging host
 
@@ -702,8 +715,103 @@ A rejected request answers a `4xx` or `5xx` with
 | `internal_error` | 500 | fixed message (unexpected reply when `requestId` is empty) |
 
 `not_found` and `method_not_allowed` answer a wrong path or method; they start
-no job and post no failure notice. The host always sends `POST /articles`, so
-the extension shows either one as an unexpected reply.
+no job and post no failure notice. The current extension's message declares no
+`v` member, so the host relays it to `POST /articles` unchanged and the
+extension shows either rejection as an unexpected reply.
+
+### The job API
+
+Besides `/articles`, the server accepts three operations that keep generation
+and posting apart, so that a viewer can show the article and post it only when
+the user asks. The current extension does not use them yet (#503 moves it);
+`/articles` keeps working until then and is removed afterwards.
+
+| operation | request | success response |
+|---|---|---|
+| generation start | `POST /jobs`, the same JSON object as `/articles` | `202`, `{"status":"accepted","key":"…","requestId":"…"}` |
+| status | `GET /jobs/<key>`, no body | `200`, `{"status":"ok","requestId":"…","webhookConfigured":true,"job":{…}}` |
+| publish | `POST /jobs/<key>/publish`, no body | `202`, `{"status":"accepted","requestId":"…"}` |
+
+`<key>` is the article key. It is an opaque value: send back the one a
+generation start returned, and do not depend on its shape or on how it is
+computed. It is also specific to the server process: after a restart, the same
+input gets a new key, so use the key a new generation start returns. A status or
+publish target whose key is not the accepted shape is rejected with
+`invalid_key`; neither operation takes a body, and any job API target with a
+query answers `not_found`.
+
+The status response reports the job as one of the codes below. A `running` job
+carries `steps`; a `done` job carries `steps` (only `done` or `skipped`),
+`article`, and `publish`; a `failed` job carries `steps` and `failure`, the
+failure code. A step is `failed` only when the generation failed in that step; a
+completion-check failure (`article_invalid`, `article_too_large`) or a failure
+before the steps marks none. An unknown key carries no member besides `state`.
+The `article` member holds `markdown` (the display Markdown),
+`file` (byte for byte what `--out` writes), `cost`, and `durationMs` (from the
+accepted start that generated the article, or from the accepted retry after a
+failure). `cost` is `{"state":"known","usd":"…"}` or `{"state":"unknown"}`.
+`publish` is `{"state":"…"}`, with a `reason` for `failed` and `unpostable`.
+`webhookConfigured` says whether this server can post.
+
+```json
+{
+  "status": "ok",
+  "requestId": "0123456789abcdef",
+  "webhookConfigured": true,
+  "job": {
+    "state": "done",
+    "steps": { "draft": "done", "shorten": "skipped", "review": "done" },
+    "article": {
+      "markdown": "# …",
+      "file": "---\n…",
+      "cost": { "state": "known", "usd": "0.1234" },
+      "durationMs": 81234
+    },
+    "publish": { "state": "not_posted" }
+  }
+}
+```
+
+Sending the same input again returns the same key without calling the LLM
+while that article is being generated or is done; a failed key is generated
+again. At most two generations run at once, counting the `/articles` jobs. A
+generation start reads its body under two reading slots, and the `/articles`
+endpoint reads a body only while it holds one of its generation slots, so at
+most four bodies are read at once. A start refused for a full reading slot, a
+full set of generations, or a full cache with no record to drop answers
+`too_many_requests`, and no job starts.
+
+The articles live in the server's memory only. The cache holds at most 100
+records; when it is full it drops the oldest completed article or failure, and
+never a record that is being generated or posted. A restart loses every article
+and every publish state, so a status request then answers `unknown`. An article
+whose pre-send checks refuse it has the publish state `unpostable` and cannot be
+posted: it still comes back as `done` (it can be displayed and saved), and only
+generating it again after a restart or after its record was dropped makes a
+postable article.
+
+The publish operation answers `202` without waiting for the Webhook's reply and
+does not post an article twice: publishing a `posting` or `posted` article again
+sends nothing, and a `failed` post resumes from the first message not delivered
+(that one message may arrive twice). Posting needs `SLACK_WEBHOOK_URL`; without
+it the operation answers `webhook_not_configured`, the status response carries
+`"webhookConfigured": false`, and `/articles` is refused the same way.
+
+A status request that answers is not logged, because a viewer polls it every few
+seconds, so its `requestId` has no line in the log; a rejected status request
+logs the rejection. Every other operation logs a line with its `requestId`, and
+the job API's jobs log the key.
+
+With the socket from the previous section and the body in `request.json`, the
+three operations are:
+
+```sh
+curl -sS --unix-socket "$socket" -X POST http://localhost/jobs --data-binary @request.json
+curl -sS --unix-socket "$socket" -X GET "http://localhost/jobs/$key"
+curl -sS --unix-socket "$socket" -X POST "http://localhost/jobs/$key/publish"
+```
+
+`$key` is the key the generation start returned.
 
 ### Job API codes
 
@@ -875,11 +983,12 @@ On other platforms, see the yt-dlp
 | `ANTHROPIC_API_KEY` | Anthropic API key | Required when the generation or review provider is `claude` (an error) |
 | `YT2COLUMN_CLAUDE_EFFORT` | Claude effort; `low`, `medium`, `high`, `xhigh`, or `max` | `high` when the generation or review provider is `claude` |
 | `ANTHROPIC_WORKSPACE_ID` | Anthropic workspace ID, for an API key not bound to a workspace | No workspace ID is sent |
-| `SLACK_WEBHOOK_URL` | Slack-compatible Incoming Webhook URL (Mattermost is the verified target) | Required with `--slack`; optional with `--out` (no value) |
+| `SLACK_WEBHOOK_URL` | Slack-compatible Incoming Webhook URL (Mattermost is the verified target) | Required with `--slack`; optional with `--out` (no value); the server starts without it, but then cannot post |
 | `YT2COLUMN_CACHE_DIR` | Cache directory for subtitles and video metadata | `$HOME/Library/Caches/yt2column` on macOS; `$XDG_CACHE_HOME/yt2column` or `$HOME/.cache/yt2column` on other Unix |
 | `YT2COLUMN_YTDLP_PATH` | Path to `yt-dlp` | `yt-dlp` on `PATH` |
 
-`yt2column-server` reads the LLM variables and requires `SLACK_WEBHOOK_URL`; it
+`yt2column-server` reads the LLM variables; it needs `SLACK_WEBHOOK_URL` only to
+post, and starts without it (see [Localhost server](#localhost-server)). It
 reads neither `YT2COLUMN_CACHE_DIR` nor `YT2COLUMN_YTDLP_PATH`, because it never
 calls `yt-dlp`. It derives its socket path from `HOME` alone (see
 [Localhost server](#localhost-server)).

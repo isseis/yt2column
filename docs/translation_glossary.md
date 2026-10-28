@@ -35,8 +35,18 @@
 | プロバイダ | provider | LLM の提供元（DeepSeek, Gemini, Claude など） |
 | プロンプトテンプレート | prompt template | `prompts/` 以下のファイル |
 | キャッシュ | cache | 動画 ID ごとの字幕・info.json の保存 |
+| 記事のキャッシュ | article cache | localhost サーバがメモリに持つ、キーごとのジョブ・工程・投稿の状態と記事（`internal/articlecache`）。ディスクの「キャッシュ」とは別のもの |
+| 記事のキー | article key | サーバが生成の開始の入力から計算する、記事を指す不透明な値（64 文字の小文字の 16 進）。拡張とホストは、その形にも計算方法にも依存しない |
+| 記録 | record | 記事のキャッシュが 1 つのキーについて持つ値の組（ジョブ・工程・投稿の状態、記事、失敗の理由、時刻） |
+| ジョブの状態 | job state | `running`・`done`・`failed`・`unknown` |
+| 工程 | step | 記事の生成の中の 3 つの処理（下書き・本文の短縮・検証・推敲。`writer.Stage`）。API の `steps` のメンバ。パイプラインの「段階」（stage）とは区別する |
+| 工程の状態 | step state | `pending`・`running`・`done`・`skipped`・`failed` |
+| 投稿の状態 | publish state | `not_posted`・`posting`・`posted`・`failed`・`unpostable` |
+| 生成の枠 | generation slot | 同時に走る記事の生成の数の上限（`2`）。旧 API のジョブと新しい API の生成が合算する |
+| 読み込みの枠 | reading slot | 生成の開始の本文を同時に読み込んで検査する数の上限（`2`） |
+| 完了の時点の検査 | completion check | 生成のジョブが記事を `done` にする前に行う検査（公開できる形か、状態の取得の応答に収まるか、Slack へ送る前の検査に通るか） |
 | 動画 ID | video ID | YouTube の 11 文字の ID |
-| 段階 | stage | パイプラインを構成する処理の単位（`TranscriptSource`・`ArticleWriter`・`Publisher`）。`ArticleWriter` の中の生成・字数の調整・検証・推敲の 3 つ（`writer.Stage` の `StageGeneration`・`StageShorten`・`StageReview`）も指す。英語では、生成の後の 2 つ（字数の調整と検証・推敲）を "post-generation steps" と呼ぶ |
+| 段階 | stage | パイプラインを構成する処理の単位（`TranscriptSource`・`ArticleWriter`・`Publisher`。`pipeline.Stage` の `transcript`・`write`・`publish`）。`ArticleWriter` の中の生成・字数の調整・検証・推敲の 3 つは、API の `steps` として返すとき「工程」（step、`writer.Stage`）と呼び、区別する。英語では、生成の後の 2 つ（字数の調整と検証・推敲）を "post-generation steps" と呼ぶ |
 | 主経路 | primary path | ブラウザ拡張がコピーした字幕を集め、Native Messaging のホストと localhost サーバを経て記事を生成・投稿する経路 |
 | 補助の経路 | development path | CLI が動画の URL を受け取り、yt-dlp で字幕を取得する経路。開発・検証に使う |
 | 本番の構成 | production profile | 生成・字数の調整・検証・推敲のテンプレート・プロバイダ・モデル・effort の組。`docs/dev/production_profile.md`。文脈により profile と略す |
@@ -52,7 +62,7 @@
 | ホストの応答 | host reply | ホストが標準出力に書く 1 つのフレーム。サーバの応答を包む形（`kind` が `response`）とホストのエラーの形（`kind` が `error`）がある |
 | 未送信 | not sent | 拡張の送信の結果のうち、リクエストがサーバに届いていないと確定するもの（ホストが返す `server_unavailable`・`message_too_large`）。Slack の確認を求めない |
 | 結果不明 | result unknown | 拡張の送信の結果のうち、リクエストがサーバに届いた可能性があるもの（応答なし・ホストの失敗・想定外の応答）。送り直す前に Slack を確かめるよう案内する |
-| 枠 | slot | localhost サーバが同時に処理するリクエストの数を数える単位（`maxInFlight`） |
+| 枠 | slot | localhost サーバが同時に処理するリクエストの数を数える単位。生成の枠（`maxInFlight`）は、旧 API のジョブと新しい API の生成のジョブが合算して数える。新しい API の生成の開始は、本文の読み込みと検査に別の読み込みの枠を使う |
 | 拒否の理由 | reject reason | 応答の本文の `reason` に載せる固定の値（`rejectReason`） |
 | 動画メタデータ | video metadata | 拡張が動画ページの DOM から読む動画タイトル・チャンネル名・概要欄の総称。API の任意フィールド `title`・`channelName`・`description` |
 | 動画タイトル | video title | 動画ページの DOM にある動画のタイトル。タブのタイトル（tab title）とは別 |
