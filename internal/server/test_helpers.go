@@ -12,7 +12,9 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 
+	"github.com/isseis/yt2column/internal/articlecache"
 	"github.com/isseis/yt2column/internal/failure"
 	failuretestutil "github.com/isseis/yt2column/internal/failure/testutil"
 	"github.com/isseis/yt2column/internal/publisher"
@@ -82,6 +84,99 @@ func newTestServerWithoutWebhook(t *testing.T) *testServer {
 		t.Fatalf("New: %v", err)
 	}
 	return &testServer{Server: s, writer: fakeWriter, logs: logs}
+}
+
+// testKeySecret is the fixed key secret of the servers newJobsTestServer
+// builds, so a test can look for it in a response or a log.
+var testKeySecret = [32]byte{
+	0x4d, 0x41, 0x52, 0x4b, 0x45, 0x52, 0x2d, 0x4b, 0x45, 0x59, 0x2d, 0x53, 0x45, 0x43, 0x52, 0x45,
+	0x54, 0x2d, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x61, 0x62, 0x63, 0x64,
+}
+
+// jobsServerOptions selects what newJobsTestServer changes from
+// newTestServer: the cache limit (0 selects articlecache.DefaultCapacity),
+// the cache clock (nil selects time.Now), and no Webhook at all.
+type jobsServerOptions struct {
+	capacity  int
+	clock     func() time.Time
+	noWebhook bool
+}
+
+// newJobsTestServer builds a Server like newTestServer, through
+// newWithInternals with the fixed key secret and the options' cache limit and
+// clock.
+func newJobsTestServer(t *testing.T, o jobsServerOptions) *testServer {
+	t.Helper()
+	fakeWriter := &writertestutil.FakeArticleWriter{Result: testArticle()}
+	ts := &testServer{writer: fakeWriter, logs: &bytes.Buffer{}}
+	opts := Options{Writer: fakeWriter, LogOutput: ts.logs, Secrets: []string{testMarker}}
+	if !o.noWebhook {
+		ts.publisher = &publishertestutil.FakePublisher{}
+		ts.notifier = &failuretestutil.FakeNotifier{}
+		opts.Webhook = &WebhookOptions{Publisher: ts.publisher, Notifier: ts.notifier}
+	}
+	capacity := o.capacity
+	if capacity == 0 {
+		capacity = articlecache.DefaultCapacity
+	}
+	s, err := newWithInternals(opts, internals{capacity: capacity, clock: o.clock, secret: testKeySecret})
+	if err != nil {
+		t.Fatalf("newWithInternals: %v", err)
+	}
+	ts.Server = s
+	return ts
+}
+
+// testArticle returns an article the completion check accepts as postable.
+func testArticle() writer.Article {
+	return writer.Article{
+		Title:       "Title",
+		ChannelName: "Channel",
+		Body:        "Body text.\n\n" + "Source: " + testValidVideoURL + "\n",
+		SourceURL:   testValidVideoURL,
+		Model:       "model",
+	}
+}
+
+// validInput validates body as the start handler does, failing the test when
+// it is rejected.
+func (ts *testServer) validInput(t *testing.T, body string) jobInput {
+	t.Helper()
+	input, rej := ts.validateBody([]byte(body), "0123456789abcdef")
+	if rej != nil {
+		t.Fatalf("validateBody rejected the body: %+v", *rej)
+	}
+	return *input
+}
+
+// beginGeneration begins body's key in the cache and starts its generation
+// job, as the start handler does after the body checks, and returns the key.
+// It fails the test unless the cache starts or restarts a generation.
+func (ts *testServer) beginGeneration(t *testing.T, body string) articlecache.Key {
+	t.Helper()
+	input := ts.validInput(t, body)
+	key := ts.keyer.Key(input.key)
+	outcome, run, _ := ts.cache.Begin(key, ts.acquireSlot)
+	if outcome != articlecache.BeginStarted && outcome != articlecache.BeginRestarted {
+		t.Fatalf("Begin outcome = %d, want started or restarted", outcome)
+	}
+	ts.startGeneration(run, key, input)
+	return key
+}
+
+// statusOf renders key's status response with the server's state and decodes
+// it.
+func (ts *testServer) statusOf(t *testing.T, key articlecache.Key) statusResponse {
+	t.Helper()
+	data, err := renderStatus("0123456789abcdef", ts.webhookConfigured(), ts.cache.Lookup(key))
+	if err != nil {
+		t.Fatalf("renderStatus: %v", err)
+	}
+	var resp statusResponse
+	if err := json.Unmarshal(data, &resp); err != nil {
+		t.Fatalf("decode the status response %s: %v", data, err)
+	}
+	return resp
 }
 
 // newCustomServer builds a Server with the given collaborators, for tests that
@@ -232,6 +327,10 @@ func (rr *recordingReader) Read(p []byte) (int, error) {
 // MaxBodyBytesForTest is the body size limit, for tests in other packages that
 // build a body just over it. Built only with the test tag.
 const MaxBodyBytesForTest = maxBodyBytes
+
+// MaxStatusResponseBytesForTest is the status response size limit, for the
+// test in another package that checks the host relays a response this large.
+const MaxStatusResponseBytesForTest = maxStatusResponseBytes
 
 // MaxInFlightForTest is the number of requests allowed in flight
 // at once, for documentation guards in other packages.

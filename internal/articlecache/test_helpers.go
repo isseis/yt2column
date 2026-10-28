@@ -8,6 +8,17 @@ import (
 	"strings"
 )
 
+// JobStatesForTest returns every JobState value, in declaration order, so a
+// test in another package enumerates them all, one appended later included.
+func JobStatesForTest() []JobState { return enumerate(jobStateEnd) }
+
+// StageStatesForTest returns every StageState value, in declaration order.
+func StageStatesForTest() []StageState { return enumerate(stageStateEnd) }
+
+// FailureReasonsForTest returns every FailureReason value, in declaration
+// order.
+func FailureReasonsForTest() []FailureReason { return enumerate(failureReasonEnd) }
+
 // DumpRecordsForTest renders every record the cache holds, every field
 // included and every pointer followed, so a test can check that no record
 // holds a given string. It walks the record type by reflection, so a field

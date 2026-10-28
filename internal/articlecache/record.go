@@ -16,6 +16,9 @@ const (
 	JobRunning                 // a generation job is running
 	JobDone                    // the article is stored
 	JobFailed                  // the generation failed
+	// jobStateEnd is not a state: it follows the last one, so an enumeration
+	// of the values includes one appended later.
+	jobStateEnd
 )
 
 // StageState is the state of one step (a writer.Stage) of a generation. The
@@ -24,11 +27,12 @@ type StageState int
 
 // The StageState values.
 const (
-	StagePending StageState = iota // not started
-	StageRunning                   // started and not finished
-	StageDone                      // finished
-	StageSkipped                   // not needed for this article
-	StageFailed                    // running when the generation failed
+	StagePending  StageState = iota // not started
+	StageRunning                    // started and not finished
+	StageDone                       // finished
+	StageSkipped                    // not needed for this article
+	StageFailed                     // running when the generation failed
+	stageStateEnd                   // not a state: follows the last one
 )
 
 // Stages holds the state of each step.
@@ -52,6 +56,7 @@ const (
 	FailureLLM                                    // any other LLM failure
 	FailureArticleInvalid                         // the article fails writer.Article.CheckPublishable
 	FailureArticleTooLarge                        // the status response would exceed its limit
+	failureReasonEnd                              // not a reason: follows the last one
 )
 
 // PublishState is a completed article's publish state. The zero value is
@@ -65,6 +70,7 @@ const (
 	PublishPosting                        // a post job is sending
 	PublishPosted                         // every message was delivered
 	PublishFailed                         // the last post stopped before the end
+	publishStateEnd                       // not a state: follows the last one
 )
 
 // UnpostableReason is why the pre-send checks reject an article. The zero
@@ -73,8 +79,9 @@ type UnpostableReason int
 
 // The UnpostableReason values.
 const (
-	UnpostableOther   UnpostableReason = iota // any rejection but a mention
-	UnpostableMention                         // the article contains a mention
+	UnpostableOther     UnpostableReason = iota // any rejection but a mention
+	UnpostableMention                           // the article contains a mention
+	unpostableReasonEnd                         // not a reason: follows the last one
 )
 
 // PublishFailureReason is why a post failed after it started. The zero value
@@ -83,9 +90,30 @@ type PublishFailureReason int
 
 // The PublishFailureReason values.
 const (
-	PublishFailureInternal PublishFailureReason = iota // unclassified, a panic included
-	PublishFailureWebhook                              // the Webhook did not acknowledge a message
+	PublishFailureInternal  PublishFailureReason = iota // unclassified, a panic included
+	PublishFailureWebhook                               // the Webhook did not acknowledge a message
+	publishFailureReasonEnd                             // not a reason: follows the last one
 )
+
+// PublishStates returns every PublishState value, in declaration order.
+func PublishStates() []PublishState { return enumerate(publishStateEnd) }
+
+// UnpostableReasons returns every UnpostableReason value, in declaration
+// order.
+func UnpostableReasons() []UnpostableReason { return enumerate(unpostableReasonEnd) }
+
+// PublishFailureReasons returns every PublishFailureReason value, in
+// declaration order.
+func PublishFailureReasons() []PublishFailureReason { return enumerate(publishFailureReasonEnd) }
+
+// enumerate returns the values from the zero value up to, not including, end.
+func enumerate[E ~int](end E) []E {
+	values := make([]E, 0, int(end))
+	for v := range end {
+		values = append(values, v)
+	}
+	return values
+}
 
 // Snapshot is a copy of one record, taken under the cache's lock. Article is
 // never modified after CompletePostable or CompleteUnpostable stores it, so
