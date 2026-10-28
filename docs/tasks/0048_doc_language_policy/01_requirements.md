@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Created | 2026-10-28 |
-| Review date | 2026-10-28 |
-| Reviewer | isseis |
-| Comments | - |
+| Review date | - |
+| Reviewer | - |
+| Comments | 2026-10-28 に isseis が承認した。同日、設計のレビューで、README に残す文のうち CLI を主語や比較の対象にした文の扱いを AC-27 の例外に加えた（決定の変更のため `draft` に戻した） |
 
 ## 1. 概要 (Overview)
 
@@ -200,7 +200,8 @@ README を拡張の利用者のための文書にする。CLI を使ったとき
 `README.md` を日本語の正本にし、英語版の `README.en.md` を新設する。両版の対応を、テストと手順で保つ。
 
 **Acceptance Criteria**:
-- **AC-27**: `README.md` は日本語で、その内容は AC-19 で README に残す内容の翻訳である。内容を加えも削りもしない（`/japrose` による文章の整理、AC-25 のリンクの付け替え、AC-31a の引用の言語の変更を除く）。`README.en.md` は `README.md` の全文を `/mktrans` で翻訳したものである。
+- **AC-27**: `README.md` は日本語で、その内容は AC-19 で README に残す内容の翻訳である。内容を加えも削りもしない（`/japrose` による文章の整理、AC-25 のリンクの付け替え、AC-31a の引用の言語の変更、AC-27a の書き換えを除く）。`README.en.md` は `README.md` の全文を `/mktrans` で翻訳したものである。
+- **AC-27a**: README に残す文のうち、CLI を主語や比較の対象にしているが、内容が主経路にも当てはまる文は、主語をサーバに改め、CLI との比較を外す。例は、推定の料金が請求額と異なりうる理由（今の README の「The CLI judges the window…」など）と、サーバが読む LLM の変数の説明（「It reads the same LLM variables as the CLI.」）である。書き換えで新しい事実は加えない。CLI とサーバの両方を並べて述べる文（例：旧変数があれば CLI もサーバも止まること）と、冒頭の概要は変えない。README は CLI を扱わないので、CLI を主語にした文は README の読み手に意味が通らないためである。
 - **AC-28**: `README.md` の先頭に `README.en.md` へのリンクが、`README.en.md` の先頭に `README.md` へのリンクがある。
 - **AC-29**: `README.md` と `README.en.md` で、見出しのレベルの並びと数が一致しないとき、テストが失敗する。このテストは、README だけを変えた PR でも CI が走らせる。コードブロックの数が一致しない場合と、どちらかのファイルがない場合も失敗する（スキップしない）。見出しの文言の違いでは失敗しない。両版の構造が一致していれば通る。コードブロックの中の行は、見出しとして数えない。失敗のメッセージは、一致しなかった項目（見出しの並びかコードブロックの数か）と、最初に食い違った見出しの位置を示す。
 - **AC-30**: AC-29 のテストは、`make test` に含まれる。
@@ -256,7 +257,7 @@ README を拡張の利用者のための文書にする。CLI を使ったとき
 -   文書を読むテストは、値・構造・実行できる例を確かめ、文の意味は確かめない（CLAUDE.md、Testing Strategy の "Document tests check values, structure, and executable examples, never prose"）。AC-29 の構造の一致のテストは、構造を確かめるテストに当たる。次の AC は、文の意味に関わるので、PR のレビューでの読み合わせ（`manual`）で確かめる。
     -   AC-01〜AC-04a・AC-07: CLAUDE.md の記述
     -   AC-03・AC-40・AC-41: ほかの記述と矛盾しないこと
-    -   AC-10・AC-27: 翻訳の内容
+    -   AC-10・AC-27・AC-27a: 翻訳の内容
     -   AC-11: 英語版の手引きの内容が日本語版の手引きに含まれること
     -   AC-19〜AC-22: 内容の振り分け
     -   AC-34: 訳語の使い方
