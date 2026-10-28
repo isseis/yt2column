@@ -8,7 +8,7 @@
 | Created | 2026-10-28 |
 | Review date | 2026-10-28 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-28（`/mkplan` の際の編集上の訂正。決定の変更はない）: 7.2「環境」の、子プロセスの `go list` が開発者の設定を受け継がないという記述を訂正した。受け継がないのは環境変数に置いた設定だけで、`go env -w` で書いた設定は `HOME` から決まる設定ファイルから読まれるので受け継ぐ。設計（`childEnvAllowlist` から環境を作ること）は変えない。 |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。このリポジトリのファイルについての記述は、コミット `9dbc1f4` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。`deadcode` についての記述は、`golang.org/x/tools` v0.47.0 のソース（Go のモジュールキャッシュにあるもの）と、手元の macOS（GNU Make 3.81、`/bin/sh` と `/bin/dash`）で v0.47.0 を実行した結果で確かめた。F-NNN（機能要件）・AC-NN（受け入れ基準）は要件書の項番を指す。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-04）への対応は、付録 A にまとめる。
 
@@ -368,7 +368,7 @@ AC-09 は「`deadcode` ターゲットを変えずに、新しい `main` パッ�
 
 **解析の失敗:** 書き出したフィクスチャにコンパイルできないファイルを加えて `make deadcode` を実行し、0 以外で終わり、`deadcode` コマンドのエラーのメッセージが標準エラーに出ることを確かめる（AC-12）。
 
-**環境:** このテストも `childEnvAllowlist` から作った環境で `make` を実行する。そのため、`go list` は開発者の `GOFLAGS`・`GOCACHE`・`GOMODCACHE`・`GOTOOLCHAIN` などを受け継がず、既定の値で動く。また、`cmd/yt2column` の `TestMain` がプロキシの変数を閉じたポートに向けるので（`cmd/yt2column/main_test.go:22-46`）、ネットワークには出られない。フィクスチャはネットワークを要らない形にしてあるので（上の `go.mod`）、この環境で動く。前提が崩れて `go list` がダウンロードを試みたときは、テストはスキップせずに失敗する。手元の `make deadcode` は開発者の環境で動くので（9 章）、このテストの環境とは異なりうる。
+**環境:** このテストも `childEnvAllowlist` から作った環境で `make` を実行する。そのため、`go list` は、開発者が環境変数に置いた `GOFLAGS`・`GOCACHE`・`GOMODCACHE`・`GOTOOLCHAIN` などを受け継がない。ただし、`go env -w` で書いた設定は受け継ぐ。この設定は、`HOME` から決まる設定ファイル（`go env GOENV` が示すもの）から読まれるからである。また、`cmd/yt2column` の `TestMain` がプロキシの変数を閉じたポートに向けるので（`cmd/yt2column/main_test.go:22-46`）、ネットワークには出られない。フィクスチャはネットワークを要らない形にしてあるので（上の `go.mod`）、この環境で動く。前提が崩れて `go list` がダウンロードを試みたときは、テストはスキップせずに失敗する。手元の `make deadcode` は開発者の環境で動くので（9 章）、このテストの環境とは異なりうる。
 
 ### 7.3. 既存のテストとほかの確認
 
