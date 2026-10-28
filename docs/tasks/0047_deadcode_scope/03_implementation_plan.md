@@ -138,10 +138,10 @@
 
 **変えるファイル**: `docs/tasks/0047_deadcode_scope/03_implementation_plan.md`（本書の 9 章）
 
-- [ ] `make fmt`、`make test`、`make lint` を実行し、通ることを確かめる。
-- [ ] `Makefile` を変えたので、`make ext-test` を実行し、`repository.test.ts` の `make -n` の検査が通ることを確かめる（設計書 7.3）。
-- [ ] このリポジトリで `make deadcode` を変数の指定なしに実行する。実行したコマンドとその終了コード、`command -v deadcode` の結果、`go version -m "$(command -v deadcode)"` の結果（モジュールの版と、ビルドした Go の版）、実行したコミットを、本書の 9 章の AC-01 の行の下に記録する（設計書 7.3）。
-- [ ] `go test -tags test ./cmd/yt2column -run 'TestMakeDeadcodeScope' -v -count=1` を実行し、スキップされずに PASS したことを、出力の要約（各サブテストの PASS の行）と実行したコミットとともに、本書の 9 章に記録する（設計書 7.3）。
+- [x] `make fmt`、`make test`、`make lint` を実行し、通ることを確かめる。
+- [x] `Makefile` を変えたので、`make ext-test` を実行し、`repository.test.ts` の `make -n` の検査が通ることを確かめる（設計書 7.3）。
+- [x] このリポジトリで `make deadcode` を変数の指定なしに実行する。実行したコマンドとその終了コード、`command -v deadcode` の結果、`go version -m "$(command -v deadcode)"` の結果（モジュールの版と、ビルドした Go の版）、実行したコミットを、本書の 9 章の AC-01 の行の下に記録する（設計書 7.3）。
+- [x] `go test -tags test ./cmd/yt2column -run 'TestMakeDeadcodeScope' -v -count=1` を実行し、スキップされずに PASS したことを、出力の要約（各サブテストの PASS の行）と実行したコミットとともに、本書の 9 章に記録する（設計書 7.3）。
 
 **完了の条件**: グリーンゲート（`make test && make lint`）と `make ext-test` が通り、上の 2 つの記録が本書にある。
 
@@ -225,7 +225,7 @@
 
 ## 7. 実装チェックリスト (Implementation Checklist)
 
-- [ ] 9 章の AC-01 とフィクスチャのテストの記録を書いた（4-1）
+- [x] 9 章の AC-01 とフィクスチャのテストの記録を書いた（4-1）
 - [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 2-1 / 3-1 / 4-1）
 
 ## 8. 成功基準 (Success Criteria)
@@ -257,9 +257,21 @@
 | AC-14 | manual | `CLAUDE.md` の「Code Quality」の `make deadcode` の項目を PR のレビューで読む | 3-1 |
 | AC-15 | manual | `.claude/commands/runplan.md` の step 6 を PR のレビューで読む | 3-1 |
 
-**AC-01 の記録（4-1 で書く）:** 未実施。
+**AC-01 の記録（4-1）:** コミット `28149686` の作業ツリーで `make deadcode` を変数の指定なしに実行した。終了コードは 0 で、標準出力も標準エラーも空だった（報告 0 件）。
 
-**`TestMakeDeadcodeScope` の記録（4-1 で書く）:** 未実施。
+- 実行したコマンド: `make deadcode`
+- 終了コード: 0
+- `command -v deadcode`: `/Users/issei/go/bin/deadcode`
+- `go version -m "$(command -v deadcode)"`: `mod golang.org/x/tools v0.47.0`（ビルドした Go は go1.27.1）
+- 実行したコミット: `28149686`（この記録を加えるコミットの親）
+
+**`TestMakeDeadcodeScope` の記録（4-1）:** コミット `28149686` で `go test -tags test ./cmd/yt2column -run 'TestMakeDeadcodeScope' -v -count=1` を実行し、スキップされずに PASS した（`ok github.com/isseis/yt2column/cmd/yt2column 4.612s`、`PASS`）。PASS したサブテストは次のとおりである。
+
+- `silent_success`
+- `isolation`: `other_entry_point_excluded`・`cli_entry_point_only`・`tests_excluded_helper`・`tests_excluded_only_test`・`integration_tag_excluded`
+- `reachable`: `OnlySrv`・`Helper`・`OnlyTest`・`OnlyIntegration`
+- `reported`: `package_function`・`other_entry_point_function`・`integration_tagged_function`
+- `compile_error`
 
 ## 10. 次のステップ (Next Steps)
 
