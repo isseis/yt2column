@@ -51,7 +51,7 @@ what changes under which condition:
 | PR merge method | Squash merge, run with `/mergepr`. The squash commit is the only commit of a PR that reaches `main`, so its message carries what CLAUDE.md requires commit messages to record |
 | Document language | Japanese |
 | Translation glossary | `docs/translation_glossary.md` |
-| Translation language pair | Japanese (primary) ⇄ English *(reference only — `mktrans.md` determines direction from file extension, not this value)* |
+| Translation language pair | `README.md` (Japanese, primary) → `README.en.md` (English), the only pair `mktrans.md` translates; it stops and asks on any other file *(reference only — `mktrans.md` defines the pair itself, not from this value)* |
 
 ### PR marker conventions
 

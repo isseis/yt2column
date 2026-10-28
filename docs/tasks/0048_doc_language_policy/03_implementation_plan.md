@@ -208,10 +208,10 @@ AGENTS.md の変更（リンクのパス）は、ステップ 1-3 の置換に�
 
 **変更するファイル:** `CLAUDE.md`
 
--   [ ] "Documents" 節に、3 つの原則（AC-01）、ディレクトリごとの言語（AC-02）、例外（AC-04・AC-04a。範囲と理由を含む）を書き、`CLAUDE.md:25` の例外の列挙を消す（設計書 1.2）。`README.en.md` は名前だけを書き、リンクにしない。`docs/dev/guides/cli.md`・`development.md` のパスは書かない（1.3）。
--   [ ] "Language" 節を、原則と矛盾しない形にする（AC-03）。
--   [ ] Go Idioms の例外（`CLAUDE.md:507-516`）を、1.3 の範囲（Go のガードテストと `internal/doctestutil`、4 種類のリテラル）で明記する（AC-05）。
--   [ ] "Translation Guidelines" 節を、`README.md` を先に変えて `/mktrans` で `README.en.md` に反映する流れに改める（AC-40）。
+-   [x] "Documents" 節に、3 つの原則（AC-01）、ディレクトリごとの言語（AC-02）、例外（AC-04・AC-04a。範囲と理由を含む）を書き、`CLAUDE.md:25` の例外の列挙を消す（設計書 1.2）。`README.en.md` は名前だけを書き、リンクにしない。`docs/dev/guides/cli.md`・`development.md` のパスは書かない（1.3）。
+-   [x] "Language" 節を、原則と矛盾しない形にする（AC-03）。
+-   [x] Go Idioms の例外（`CLAUDE.md:507-516`）を、1.3 の範囲（Go のガードテストと `internal/doctestutil`、4 種類のリテラル）で明記する（AC-05）。
+-   [x] "Translation Guidelines" 節を、`README.md` を先に変えて `/mktrans` で `README.en.md` に反映する流れに改める（AC-40）。
 
 **完了の条件:** `make test` が通る（`TestInstructionDocPaths` を含む）。
 
@@ -219,7 +219,7 @@ AGENTS.md の変更（リンクのパス）は、ステップ 1-3 の置換に�
 
 **変更するファイル:** `.claude/commands/_context.md`
 
--   [ ] 「Translation language pair」の行（`:54`）を、`README.md` → `README.en.md` の組だけを扱う `/mktrans` に合わせる。
+-   [x] 「Translation language pair」の行（`:54`）を、`README.md` → `README.en.md` の組だけを扱う `/mktrans` に合わせる。
 
 **完了の条件:** `make test` が通る（`_context.md` を読む `fixpr_docs_test.go` のテストを含む）。
 
