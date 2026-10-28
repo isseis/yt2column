@@ -263,6 +263,7 @@ func TestHasCurlCommand(t *testing.T) {
 		{"wrong method", "curl -X POST http://localhost/jobs/abc\n", false},
 		{"query", "curl -X GET \"http://localhost/jobs/abc?x=1\"\n", false},
 		{"quoted command", "echo 'curl -X GET http://localhost/jobs/abc'\n", false},
+		{"curl as another command's argument", "echo curl -X GET http://localhost/jobs/abc\n", false},
 		{"other path", "curl -X GET http://localhost/articles\n", false},
 		{"no curl", "wget -X GET http://localhost/jobs/abc\n", false},
 	} {
@@ -297,15 +298,13 @@ func hasCurlCommand(doc, method, path string) bool {
 }
 
 // commandRunsCurl reports whether fields run curl with the given method on a
-// URL whose path has the given form. The method and the URL must belong to the
-// same curl invocation; a quoted command given to another program does not
-// count.
+// URL whose path has the given form. curl must be the command the line runs, so
+// a command only quoted to another program does not count.
 func commandRunsCurl(fields []string, method, path string) bool {
-	start := slices.Index(fields, "curl")
-	if start < 0 {
+	if len(fields) == 0 || fields[0] != "curl" {
 		return false
 	}
-	args := fields[start+1:]
+	args := fields[1:]
 	var hasMethod, hasURL bool
 	for i := 0; i < len(args); i++ {
 		arg := strings.Trim(args[i], "\"'")

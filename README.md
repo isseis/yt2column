@@ -565,9 +565,9 @@ post:
 The server writes nothing to standard output; the logs go to standard error,
 so `2>>server.log` keeps a record. The first log line names the socket. Every
 request line carries the `requestId` the response returns, as do the `/articles`
-job lines, so `grep <requestId> server.log` finds them. The job API's generation
+job lines, so `grep "$requestId" server.log` finds them. The job API's generation
 and post jobs log the article key instead, so follow one with
-`grep <key> server.log`.
+`grep "$key" server.log`.
 
 On start the server creates the socket directory (`run`) with mode `0700` when
 it is missing, takes the start lock (the file `.yt2column.lock` in the socket
