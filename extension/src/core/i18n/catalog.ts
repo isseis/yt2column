@@ -1,7 +1,12 @@
 import type { MetadataField } from "../metadata.ts";
 import type { PreflightReason } from "../prepare.ts";
 import type { NotSentCause, ServerRejectReason } from "../response.ts";
-import type { RejectionReason, SummaryField } from "../types.ts";
+import type {
+  CheckName,
+  CheckState,
+  RejectionReason,
+  SummaryField,
+} from "../types.ts";
 import { en } from "./en.ts";
 import { ja } from "./ja.ts";
 import type { Locale } from "./locale.ts";
@@ -43,6 +48,24 @@ export interface Catalog {
    * it never holds page text such as the description itself.
    */
   readonly expandPrompt: Message;
+  /** The check rows' names. */
+  readonly checkNames: Readonly<Record<CheckName, string>>;
+  /** The word that tells a check row's state; given to assistive technology only. */
+  readonly checkStates: Readonly<Record<CheckState, string>>;
+  /** The selection row's counts; formats the numbers in its own locale. */
+  readonly selectionSize: (characters: number, lines: number) => string;
+  /** The description row when the full description is sent. */
+  readonly descriptionFull: (characters: number) => string;
+  /** The description row when no description is sent; no steps. */
+  readonly descriptionNotSent: Message;
+  /** The details' toggle and its value names. */
+  readonly details: {
+    readonly summary: string;
+    readonly url: string;
+    readonly tabTitle: string;
+  };
+  /** The primary button's name. */
+  readonly primaryButton: string;
   /** Field labels. */
   readonly summaryLabels: Readonly<Record<SummaryField, string>>;
   readonly metadataLabels: Readonly<Record<MetadataField, string>>;

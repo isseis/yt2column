@@ -256,6 +256,7 @@ describe("sendOutcomeMessage", () => {
         // The messages no dispatch function returns.
         catalogs[locale].sending,
         catalogs[locale].expandPrompt,
+        catalogs[locale].descriptionNotSent,
       ];
       for (const message of messages) {
         const text = textOf(message);

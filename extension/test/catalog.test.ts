@@ -11,8 +11,10 @@ const localeList = Object.keys(locales) as Locale[];
 interface Entries {
   /** Every Message in the catalog, by its path such as "rejection.empty-title". */
   readonly messages: Map<string, Message>;
-  /** Every label string, by its path such as "summaryLabels.url". */
+  /** Every label string, by its path such as "details.summary". */
   readonly labels: Map<string, string>;
+  /** Every function item, by its path, wrapped to take the row's numbers. */
+  readonly counts: Map<string, (count: number, second: number) => string>;
 }
 
 function isMessage(value: unknown): value is Message {
@@ -28,11 +30,19 @@ function isMessage(value: unknown): value is Message {
 function entries(catalog: Catalog): Entries {
   const messages = new Map<string, Message>();
   const labels = new Map<string, string>();
+  const counts = new Map<string, (count: number, second: number) => string>();
   const walk = (value: unknown, path: string): void => {
     if (typeof value === "string") {
       labels.set(path, value);
     } else if (isMessage(value)) {
       messages.set(path, value);
+    } else if (typeof value === "function") {
+      // A function item embeds numbers into its text; its declared parameter
+      // count says whether it takes the second count as well.
+      const call = value as (...args: number[]) => unknown;
+      counts.set(path, (count, second) =>
+        String(call.length > 1 ? call(count, second) : call(count)),
+      );
     } else {
       assert.ok(typeof value === "object" && value !== null, path);
       for (const [key, child] of Object.entries(value)) {
@@ -41,16 +51,17 @@ function entries(catalog: Catalog): Entries {
     }
   };
   walk(catalog, "");
-  return { messages, labels };
+  return { messages, labels, counts };
 }
 
 describe("catalogs", () => {
   for (const locale of localeList) {
-    it(`gives every message and label a non-empty text in ${locale}`, () => {
-      const { messages, labels } = entries(catalogs[locale]);
-      // Precondition: the walk reached the messages and the labels.
+    it(`gives every message, label and count a non-empty text in ${locale}`, () => {
+      const { messages, labels, counts } = entries(catalogs[locale]);
+      // Precondition: the walk reached the messages, the labels and the counts.
       assert.ok(messages.size > 0);
       assert.ok(labels.size > 0);
+      assert.ok(counts.size > 0);
       for (const [path, message] of messages) {
         assert.notEqual(message.text.trim(), "", path);
         for (const step of message.steps) {
@@ -60,6 +71,46 @@ describe("catalogs", () => {
       for (const [path, label] of labels) {
         assert.notEqual(label.trim(), "", path);
       }
+      for (const [path, count] of counts) {
+        // One and more than one, as the singular form is chosen by the number.
+        for (const [first, second] of [
+          [1, 1],
+          [12345, 420],
+        ]) {
+          assert.notEqual(count(first ?? 0, second ?? 0).trim(), "", path);
+        }
+      }
+    });
+  }
+
+  it("uses the English singular form for a count of one", () => {
+    assert.equal(catalogs.en.selectionSize(1, 1), "1 character \u00b7 1 line");
+    assert.equal(
+      catalogs.en.selectionSize(2, 2),
+      "2 characters \u00b7 2 lines",
+    );
+    assert.equal(
+      catalogs.en.descriptionFull(1),
+      "Full text \u00b7 1 character",
+    );
+    assert.equal(
+      catalogs.en.descriptionFull(2),
+      "Full text \u00b7 2 characters",
+    );
+  });
+
+  // The YouTube button's name on YouTube, per the extension's language.
+  const youtubeButton: Record<Locale, string> = {
+    en: '"...more"',
+    ja: "もっと見る",
+  };
+  for (const locale of localeList) {
+    it(`names the YouTube button in the ${locale} expand prompt steps`, () => {
+      const steps = catalogs[locale].expandPrompt.steps;
+      assert.ok(
+        steps.some((step) => step.includes(youtubeButton[locale])),
+        youtubeButton[locale],
+      );
     });
   }
 

@@ -1,4 +1,5 @@
 import type { Catalog } from "./catalog.ts";
+import { formatCount } from "./locale.ts";
 
 /**
  * The Japanese catalog. Its terms follow docs/translation_glossary.md, and
@@ -118,12 +119,34 @@ export const ja: Catalog = {
     ],
   },
   expandPrompt: {
-    text: "概要欄が折りたたまれているため、冒頭だけが送信されます。",
+    text: "折りたたまれているため、冒頭だけが送られます。",
     steps: [
-      "動画の下の「もっと見る」をクリックして、概要欄をすべて表示してください。",
-      "このポップアップを開き直してから、送信してください。",
+      "動画の下の「もっと見る」をクリックしてください。",
+      "このポップアップを開き直してください。",
     ],
   },
+  checkNames: {
+    selection: "選択した字幕",
+    description: "概要欄",
+  },
+  checkStates: {
+    ok: "問題なし",
+    warning: "注意",
+  },
+  selectionSize: (characters, lines) =>
+    `${formatCount(characters, "ja")} 文字・${formatCount(lines, "ja")} 行`,
+  descriptionFull: (characters) =>
+    `全文・${formatCount(characters, "ja")} 文字`,
+  descriptionNotSent: {
+    text: "取得できないため、送られません。",
+    steps: [],
+  },
+  details: {
+    summary: "詳細",
+    url: "URL",
+    tabTitle: "タブのタイトル",
+  },
+  primaryButton: "記事を生成する",
   summaryLabels: {
     title: "タブのタイトル",
     url: "URL",

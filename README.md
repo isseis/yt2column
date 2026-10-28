@@ -1134,11 +1134,11 @@ send (whatever the result) it stays disabled: reopen the popup to send again.
 
 The extension reads the video metadata from the page without changing it, so a
 collapsed description is read only up to what the page shows. When the
-description is collapsed, the popup says "The video description is collapsed,
-so only its beginning will be sent." with these steps:
+description is collapsed, the popup says "Collapsed, so only the beginning
+will be sent." with these steps:
 
-1. Click "...more" below the video to show the full description.
-2. Reopen this popup, then send.
+1. Click "...more" below the video.
+2. Reopen this popup.
 
 The button stays usable: pressing it sends the beginning that the page shows.
 
