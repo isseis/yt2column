@@ -48,7 +48,10 @@ where it lives. Three principles decide it:
   repository.** `CLAUDE.md`, `AGENTS.md`, the command definitions under
   `.claude/commands/`, the conventions under `docs/dev/conventions/` that agents
   follow, and source code with its comments, identifiers, and string literals
-  ("Language" below, and "Go Idioms" for the literal exceptions).
+  ("Language" below, and "Go Idioms" for the literal exceptions). The
+  principle governs the language of the instruction text itself: an
+  instruction may give an agent a principle-(a) document to read as material,
+  such as a task document to implement or `security.md` to check against.
 - **(c) The end-user document: Japanese primary, English kept in sync.** The
   end users are the users of the browser extension, and their document is the
   README: `README.md` is the primary version, in Japanese, and `README.en.md`
@@ -68,22 +71,26 @@ Exceptions:
   `README.md`, not under `docs/`. Reason: an English reader moves from the link
   at the top of `README.md` to the English version at the same level, and
   GitHub lists it next to the README it shows at the root.
-- **Japanese guides an agent reads.** A command definition may have an agent
-  read a Japanese guide under `docs/dev/guides/` (today `fixpr.md` reads
-  `fixprguard_guide.md` and `mergepr.md` reads `mergepr_guide.md`), an
-  exception to principle (b). Scope: only a command definition's reference to a
-  guide under `docs/dev/guides/`; every other instruction an agent follows stays
-  English. Reason: a guide is written for a human using a tool, and keeping the
-  same content in English as well would bring back the double maintenance the
+- **Japanese guides an agent reads.** A command definition under
+  `.claude/commands/` (`_context.md` and `_lib/` included) may refer an agent to
+  a Japanese guide under `docs/dev/guides/` as the manual of a tool the command
+  drives (today `fixpr.md` and `_context.md` refer to `fixprguard_guide.md`, and
+  `mergepr.md` to `mergepr_guide.md`), an exception to principle (b), because
+  the agent follows the guide as instructions rather than reading it as
+  material. Scope: only a command definition's reference to a guide under
+  `docs/dev/guides/`; every other instruction an agent follows stays English.
+  Reason: a guide is written for a human using a tool, and keeping the same
+  content in English as well would bring back the double maintenance the
   guides left behind. An agent reads Japanese.
 
 ### Translation Guidelines (Japanese to English)
 
 The only translation pair is `README.md` (Japanese, primary) → `README.en.md`
 (English). Change and commit `README.md` first, then run `/mktrans README.md`,
-which carries the change into `README.en.md` (a full translation when
-`README.en.md` does not exist yet). The first line of `README.en.md` is a sync
-marker naming the blob of the `README.md` content it was translated from;
+which carries the change into `README.en.md`. When `README.en.md` does not
+exist yet, `/mktrans` run by itself makes a full translation (and stops when
+`README.md` is not in Japanese), while the sub-step another command runs does
+nothing. The first line of `README.en.md` is a sync marker naming the blob of the `README.md` content it was translated from;
 `/mktrans` translates the difference between that blob and the current
 `README.md` and then updates the marker. `/runplan`, `/fixpr`, and `/runpr` run
 this sync themselves before they push a change to `README.md`. `/mktrans` stops
@@ -96,8 +103,9 @@ faithful translation, structural consistency) and the glossary workflow live in
 
 - **Conversation in a Claude Code session: Japanese.** This includes the
   explanation of test results, tool output, and review findings.
-- **Code in the git repository: English** — source code, comments,
-  identifiers, string literals, and commit messages. A squash commit's subject
+- **Code and commit messages in the git repository: English** — source code,
+  comments, identifiers, string literals (with the literal exceptions in "Go
+  Idioms"), and commit messages. A squash commit's subject
   and body are English too: `/mergepr` writes the subject from the PR material
   (`.claude/commands/mergepr.md` step 2), not by copying the PR title.
   Documents in the repository (under `docs/`, the README, and the instruction
@@ -146,7 +154,7 @@ Project-specific values these commands depend on are defined once in
 - `/fixpr [PR]` - Resolve unresolved PR review threads
 - `/mergepr [PR]` - Squash-merge a PR with a generated commit message and clean up its branch
 - `/japrose <file>` - Japanese prose-quality pass
-- `/mktrans <file>` - Japanese ⇄ English translation
+- `/mktrans README.md` - Carry `README.md` changes into `README.en.md` (the only translation pair)
 
 Each task PR is handled by two commands. The command that produces it —
 `/mkreq`, `/mkarch`, `/mkplan`, `/mkplan2`, or `/runplan` — works on its own
@@ -556,13 +564,14 @@ Only the conventions a linter does not check are worth stating:
 - Use `map[T]struct{}` rather than `map[T]bool` for set semantics.
 - In tests, prefer `t.Cleanup` over manual `defer` chains and `t.TempDir` over
   `os.MkdirTemp` + `defer os.RemoveAll`.
-- Go comments, identifiers, and string literals are English. One exception: a
-  guard test's literal that must match text in a Japanese document. Scope: the
-  Go guard tests (`_test.go` files that read a document) and the test-only
-  package `internal/doctestutil` that holds their locators (the headings and
+- Go comments, identifiers, and string literals are English. One exception, the
+  guard-test literal exception: a guard test's literal that must match text in
+  a Japanese document. Scope: the Go guard tests (`_test.go` files that read a
+  document) and the test-only package `internal/doctestutil` that holds their
+  locators (the headings and
   column names they find a section or table by); the literal is a heading, a
-  table cell, an item label at the start of a line (such as the `macOS:` label
-  `TestServerDocsContract` finds), or a bold marker (such as
+  table cell, an item label at the start of a line (such as the socket-path
+  labels `TestServerDocsContract` finds), or a bold marker (such as
   `**実行関連ファイル。**` in `cmd/fixprguard/docs_test.go`). Reason: the
   literal has to equal the document's text, and the document is Japanese
   ("Document language" above). Comments and identifiers in those files stay
@@ -572,10 +581,11 @@ Only the conventions a linter does not check are worth stating:
   a catalog file for a language other than English under
   `extension/src/core/i18n/` or `extension/static/_locales/` (today `ja.ts`
   and `ja/messages.json`); a string literal in a test that checks the
-  properties of such a catalog's messages (a per-language word table); and a
-  guard test's literal that must match a Japanese document heading or table
-  cell. Every string shown to the user lives in the message catalogs, and both
-  the English and the Japanese catalog must have it. Logs written for
+  properties of such a catalog's messages (a per-language word table); and the
+  guard-test literal exception above, applied to the extension's guard tests
+  and their helpers under `extension/test/`. Every string shown to the user
+  lives in the message catalogs, and both the English and the Japanese catalog
+  must have it. Logs written for
   developers stay in English.
 
 ## Requirements and Acceptance Criteria
