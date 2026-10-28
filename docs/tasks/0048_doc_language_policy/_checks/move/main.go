@@ -107,13 +107,13 @@ func main() {
 		name string
 		run  func(base string, tree []string) (notes, problems []string)
 	}{
-		{"conventions unchanged (AC-08)", checkConventions},
-		{"guides renamed from the Japanese originals (AC-09)", checkGuides},
-		{"old directory is gone (AC-12)", checkOldDirectory},
-		{"no old file path remains (AC-13)", checkNoOldPaths},
-		{"past task documents changed only at paths (AC-14)", checkPastTasks},
-		{"relative links resolve (AC-15)", checkRelativeLinks},
-		{"translations keep the structure (AC-10)", checkTranslations},
+		{"conventions unchanged", checkConventions},
+		{"guides renamed from the Japanese originals", checkGuides},
+		{"old directory is gone", checkOldDirectory},
+		{"no old file path remains", checkNoOldPaths},
+		{"past task documents changed only at paths", checkPastTasks},
+		{"relative links resolve", checkRelativeLinks},
+		{"translations keep the structure", checkTranslations},
 	}
 	failed := 0
 	for _, check := range checks {
@@ -242,7 +242,7 @@ func checkGuides(base string, tree []string) (notes, problems []string) {
 			notes = append(notes, fmt.Sprintf("%s: %s", newPath, line))
 		}
 		if len(diffs) > 0 {
-			notes = append(notes, fmt.Sprintf("%s: %d differing line(s), read them against AC-09", newPath, len(diffs)))
+			notes = append(notes, fmt.Sprintf("%s: %d differing line(s), read them as the guide comparison", newPath, len(diffs)))
 		}
 	}
 	return notes, problems
