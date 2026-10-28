@@ -243,7 +243,7 @@
 **判定理由**: 描き方と CSS は設計書と試作（設計書 6.3）が決めており、既存の部品を置き換えない追加で、`mkplan.md` の Conditional checks にも当たらない。
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/552
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
