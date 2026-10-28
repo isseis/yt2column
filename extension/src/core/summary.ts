@@ -5,15 +5,18 @@ const titleLimit = 1000;
 const urlLimit = 1000;
 const previewLimit = 200;
 
+/** A value shortened for display; the ellipsis is added when it is rendered. */
+export interface DisplayText {
+  readonly value: string;
+  readonly truncated: boolean;
+}
+
 /**
- * Cuts text to at most limit code points. Iterating the string yields code
+ * Cuts text to its first limit code points. Iterating the string yields code
  * points, so a surrogate pair at the boundary is never split. Exported so the
  * popup's metadata display truncates the same way.
  */
-export function truncate(
-  text: string,
-  limit: number,
-): { value: string; truncated: boolean } {
+export function truncate(text: string, limit: number): DisplayText {
   const points = Array.from(text);
   if (points.length <= limit) {
     return { value: text, truncated: false };
@@ -21,13 +24,28 @@ export function truncate(
   return { value: points.slice(0, limit).join(""), truncated: true };
 }
 
+/**
+ * Cuts text to its last limit code points. Like truncate, it walks code
+ * points, so a surrogate pair at the boundary is never split.
+ */
+export function truncateTail(text: string, limit: number): DisplayText {
+  const points = Array.from(text);
+  if (points.length <= limit) {
+    return { value: text, truncated: false };
+  }
+  return {
+    value: points.slice(points.length - limit).join(""),
+    truncated: true,
+  };
+}
+
 /** Counts code points, so a surrogate pair counts as one character. */
-function countCharacters(text: string): number {
+export function countCharacters(text: string): number {
   return Array.from(text).length;
 }
 
 /** Counts lines split on \r\n, \r or \n; leading and trailing blanks count. */
-function countLines(text: string): number {
+export function countLines(text: string): number {
   return text.split(/\r\n|\r|\n/).length;
 }
 
