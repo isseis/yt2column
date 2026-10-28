@@ -70,16 +70,16 @@ func TestServerDocsContract(t *testing.T) {
 		}
 		// The job API's examples name each operation's method and its exact
 		// target, built from the server's path constants so a route or method
-		// change fails here. A target is a whitespace-separated token, with
-		// its shell quotes trimmed, so the example's quoting and line
-		// continuation do not decide the check.
+		// change fails here. A command is read as the tokens of its lines,
+		// with a backslash continuation joined and shell quotes trimmed, so
+		// the example's quoting and line breaks do not decide the check.
 		for _, example := range []struct{ operation, method, target string }{
-			{"generation start", "-X POST", "http://localhost" + server.JobsPath},
-			{"status", "-X GET", "http://localhost" + server.JobsPath + "/$key"},
-			{"publish", "-X POST", "http://localhost" + server.JobsPath + "/$key" + server.PublishSuffix},
+			{"generation start", "POST", "http://localhost" + server.JobsPath},
+			{"status", "GET", "http://localhost" + server.JobsPath + "/$key"},
+			{"publish", "POST", "http://localhost" + server.JobsPath + "/$key" + server.PublishSuffix},
 		} {
-			if !hasCurlLine(section, example.method, example.target) {
-				t.Errorf("README.md server section has no curl example for the job API's %s (%s %s)", example.operation, example.method, example.target)
+			if !hasCurlCommand(section, example.method, example.target) {
+				t.Errorf("README.md server section has no curl example for the job API's %s (-X %s %s)", example.operation, example.method, example.target)
 			}
 		}
 		// The exit-code table must name every code the entry point defines.
@@ -245,22 +245,48 @@ func hasLineContainingAll(doc string, subs ...string) bool {
 	return false
 }
 
-// hasCurlLine reports whether one line of doc contains curl and method, and
-// has target as one of its whitespace-separated tokens once the shell quotes
-// are trimmed. A verification command is checked as the whole line it is, so a
-// method or a target that a copy of the example would not send fails.
-func hasCurlLine(doc, method, target string) bool {
+// hasCurlCommand reports whether doc has a shell command that runs curl with
+// the given HTTP method and target as its URL. A trailing backslash joins the
+// next line, and shell quotes are trimmed from each token, so the example's
+// quoting and line breaks do not decide the check.
+func hasCurlCommand(doc, method, target string) bool {
+	var command strings.Builder
 	for line := range strings.Lines(doc) {
-		if !strings.Contains(line, "curl") || !strings.Contains(line, method) {
+		line = strings.TrimSuffix(strings.TrimSuffix(line, "\n"), "\r")
+		trimmed := strings.TrimRight(line, " \t")
+		if before, ok := strings.CutSuffix(trimmed, `\`); ok {
+			command.WriteString(before)
+			command.WriteString(" ")
 			continue
 		}
-		for token := range strings.FieldsSeq(line) {
-			if strings.Trim(token, "\"'") == target {
-				return true
-			}
+		command.WriteString(line)
+		if hasCurlWords(strings.Fields(command.String()), method, target) {
+			return true
+		}
+		command.Reset()
+	}
+	return hasCurlWords(strings.Fields(command.String()), method, target)
+}
+
+// hasCurlWords reports whether fields run curl with the given method and
+// target.
+func hasCurlWords(fields []string, method, target string) bool {
+	var hasCurl, hasMethod, hasTarget bool
+	for i := range fields {
+		field := strings.Trim(fields[i], "\"'")
+		switch {
+		case field == "curl":
+			hasCurl = true
+		case field == "-X" && i+1 < len(fields) && strings.Trim(fields[i+1], "\"'") == method:
+			hasMethod = true
+		case field == "-X"+method:
+			hasMethod = true
+		}
+		if field == target {
+			hasTarget = true
 		}
 	}
-	return false
+	return hasCurl && hasMethod && hasTarget
 }
 
 // The Markdown helpers below are duplicated from cmd/yt2column/docs_test.go.
