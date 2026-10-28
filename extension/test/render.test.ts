@@ -6,6 +6,7 @@ import { locales } from "../src/core/i18n/locale.ts";
 import type { Locale } from "../src/core/i18n/locale.ts";
 import { rejectionMessage } from "../src/core/messages.ts";
 import type { OutcomeSummary, SummaryField } from "../src/core/types.ts";
+import { checkIcon } from "../src/ui/icons.ts";
 import { renderSummary } from "../src/ui/render.ts";
 import {
   container,
@@ -17,6 +18,37 @@ import {
 
 const malicious = "<img src=x onerror=alert(1)>";
 const localeList = Object.keys(locales) as Locale[];
+
+/** The tag names of the symbol's shapes, in document order. */
+function shapeNames(icon: SVGSVGElement): string[] {
+  return Array.from(icon.children, (child) => child.tagName.toLowerCase());
+}
+
+describe("checkIcon", () => {
+  const doc = container().ownerDocument;
+
+  it("draws a check in a circle for ok and an exclamation mark in a triangle for warning", () => {
+    // The two states must be told apart by shape, not by colour alone.
+    assert.deepEqual(shapeNames(checkIcon(doc, "ok")), ["circle", "polyline"]);
+    assert.deepEqual(shapeNames(checkIcon(doc, "warning")), [
+      "polygon",
+      "rect",
+      "circle",
+    ]);
+  });
+
+  for (const state of ["ok", "warning"] as const) {
+    it(`hides the ${state} symbol from assistive technology`, () => {
+      assert.equal(checkIcon(doc, state).getAttribute("aria-hidden"), "true");
+    });
+
+    it(`draws the ${state} symbol without a text character`, () => {
+      const icon = checkIcon(doc, state);
+      assert.equal(icon.textContent, "");
+      assert.equal(icon.querySelector("text"), null);
+    });
+  }
+});
 
 const collected: Extract<OutcomeSummary, { kind: "collected" }> = {
   kind: "collected",

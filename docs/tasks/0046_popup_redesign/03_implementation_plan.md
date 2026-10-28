@@ -193,8 +193,8 @@
 
 **変更するファイル:** `src/ui/icons.ts`（新規）、`test/render.test.ts`
 
--   [ ] `checkIcon` を、`createElementNS` で SVG を作る関数として書く（設計書 3.4「記号」）。`ok` は円の中のチェック、`warning` は三角の中の感嘆符で、どちらも `aria-hidden="true"` を持つ。色は CSS の変数で付けるので、SVG に色の値を書かない。
--   [ ] `test/render.test.ts` に `checkIcon` の describe を加え、2 つの状態で形の要素が異なること、`aria-hidden` を持つこと、文字（`✓`・`⚠`）を含まないことを確かめる。
+-   [x] `checkIcon` を、`createElementNS` で SVG を作る関数として書く（設計書 3.4「記号」）。`ok` は円の中のチェック、`warning` は三角の中の感嘆符で、どちらも `aria-hidden="true"` を持つ。色は CSS の変数で付けるので、SVG に色の値を書かない。
+-   [x] `test/render.test.ts` に `checkIcon` の describe を加え、2 つの状態で形の要素が異なること、`aria-hidden` を持つこと、文字（`✓`・`⚠`）を含まないことを確かめる。
 
 **完了の条件:** `make ext-check` が通る。
 
