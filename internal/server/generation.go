@@ -3,6 +3,7 @@ package server
 import (
 	"errors"
 	"runtime/debug"
+	"time"
 
 	"github.com/isseis/yt2column/internal/articlecache"
 	"github.com/isseis/yt2column/internal/publisher"
@@ -81,23 +82,23 @@ func (s *Server) completeGeneration(run *articlecache.Run, key articlecache.Key,
 		return
 	}
 	publish := articlecache.PublishNotPosted
+	var duration time.Duration
 	if _, err := publisher.PrepareSlackMessages(article); err != nil {
 		reason := articlecache.UnpostableOther
 		if errors.Is(err, publisher.ErrSlackMention) {
 			reason = articlecache.UnpostableMention
 		}
-		run.CompleteUnpostable(article, reason)
+		duration, _ = run.CompleteUnpostable(article, reason)
 		publish = articlecache.PublishUnpostable
 	} else {
-		run.CompletePostable(article)
+		duration, _ = run.CompletePostable(article)
 	}
-	snap := s.cache.Lookup(key)
 	s.logger.Info("generation job succeeded",
 		"key", key.String(),
 		"videoId", input.videoID,
 		"model", article.Model,
 		"modelVersion", article.ModelVersion,
-		"duration", snap.Duration,
+		"duration", duration,
 		"publish", publishStateCode(publish),
 	)
 }
@@ -108,9 +109,10 @@ var errStatusTooLarge = errors.New("the status response would exceed its size li
 
 // failGeneration fails run with reason and writes the one line for it: the
 // failure line, or, when genCtx was canceled, the cancellation line alone. The
-// failed step is read back from the record, where Fail marked it.
+// failed step is the one Fail marked, as Fail returns it: the record is not
+// read back, since a retry may already have reset its stages.
 func (s *Server) failGeneration(run *articlecache.Run, key articlecache.Key, input jobInput, reason articlecache.FailureReason, err error) {
-	run.Fail(reason)
+	stages, _ := run.Fail(reason)
 	if s.genCtx.Err() != nil {
 		s.logger.Info("generation job canceled by the shutdown", "key", key.String(), "videoId", input.videoID)
 		return
@@ -119,7 +121,7 @@ func (s *Server) failGeneration(run *articlecache.Run, key articlecache.Key, inp
 		"key", key.String(),
 		"videoId", input.videoID,
 		"failure", failureCode(reason),
-		"step", failedStep(s.cache.Lookup(key).Stages),
+		"step", failedStep(stages),
 		"error", err,
 	)
 }

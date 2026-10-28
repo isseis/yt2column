@@ -8,7 +8,7 @@
 | Created | 2026-10-27 |
 | Review date | 2026-10-27 |
 | Reviewer | isseis |
-| Comments | 2026-10-27 に isseis が承認した（PR #519）。2026-10-27 (decision): 記事のキーを、秘密を使わない SHA-256 から、サーバのプロセスごとの秘密を鍵とする HMAC-SHA256 に改めた（§3.2・§5.2 の T-10）。誰でもキーを計算できると、生成を始めずに記事の有無を知る手段になり、キーが不透明であること（要件書 3.2）も保てないためである。レビュアー（isseis）が決め、承認した。2026-10-27 (decision): `/mkplan` の計画の際に、レビュアー（isseis）がセッションの中で、ホストが今の形と新しい形を見分ける判定（§3.10.2）を、CLAUDE.md「Declare, don't infer」の例外として CLAUDE.md に書くと決め、§2.2・§3.15・§3.17 に CLAUDE.md を加えた。§3.14 の 6 は、#503 の後にこの例外を CLAUDE.md から取り除くとしており、加える作業がどこにもなかったためである。決定の変更なので `draft` に戻し、`03_implementation_plan.md` の PR で承認し直す（`requirements_process.md`「Editing an approved document」）。同じ PR で、§3.12 と §3.16 の H-02 の行に残っていた「SHA-256」を、§3.2 の決定（HMAC-SHA256）に合わせた。これは編集上の修正で、決定は変えていない。また、計画のレビューで、§8 の文書の段階を計画の決定（ガードが確かめる値はその値を加える段階で、`package_reference.md` はパッケージを変える段階で更新する）に合わせ、`SLACK_WEBHOOK_URL` を必須と書く `docs/dev/production_profile.md:42` を §2.2・§3.15・§3.17 の更新する文書に加えた。 2026-10-27 (editorial): `/runplan` の実装で、§3.3.4 の件数の上限の定数の名前を `defaultCapacity` から `DefaultCapacity` に改めた。`internal/server` が別のパッケージから `articlecache.New` に渡すために公開が要るためで、値（100）と決定は変えていない。 2026-10-27 (editorial): `/runplan` の PR-2 の実装で、§3.5 の `StageGeneration` の `StageFinished` を「出力の検査が通り、成果物を保存した（保存先があるとき）後」と書き改めた。短縮・検証・推敲と同じく、保存の失敗をその工程の失敗として表すためで、サーバは保存先を使わないので振る舞いは変わらない。§3.7.1 の `PostMessages` の説明に、空のメッセージ・`nil` の `delivered`・Webhook の URL のない発行者を送らずに拒否することを加えた。いずれも `*SlackPostError` ではないので、投稿のジョブは §3.7.2 のとおり内部の失敗とする。決定は変えていない。 2026-10-28 (editorial): `/runplan` の PR-4 の実装で、§3.3.2 に、6 つの列挙のすべての値を返す関数を加えた。§3.6.3 の「最も長くなる場合」を投稿の状態とその理由のすべての値でたどり、§3.15 のガードが列挙のすべての値をたどるために要るもので、決定は変えていない。 |
+| Comments | 2026-10-27 に isseis が承認した（PR #519）。2026-10-27 (decision): 記事のキーを、秘密を使わない SHA-256 から、サーバのプロセスごとの秘密を鍵とする HMAC-SHA256 に改めた（§3.2・§5.2 の T-10）。誰でもキーを計算できると、生成を始めずに記事の有無を知る手段になり、キーが不透明であること（要件書 3.2）も保てないためである。レビュアー（isseis）が決め、承認した。2026-10-27 (decision): `/mkplan` の計画の際に、レビュアー（isseis）がセッションの中で、ホストが今の形と新しい形を見分ける判定（§3.10.2）を、CLAUDE.md「Declare, don't infer」の例外として CLAUDE.md に書くと決め、§2.2・§3.15・§3.17 に CLAUDE.md を加えた。§3.14 の 6 は、#503 の後にこの例外を CLAUDE.md から取り除くとしており、加える作業がどこにもなかったためである。決定の変更なので `draft` に戻し、`03_implementation_plan.md` の PR で承認し直す（`requirements_process.md`「Editing an approved document」）。同じ PR で、§3.12 と §3.16 の H-02 の行に残っていた「SHA-256」を、§3.2 の決定（HMAC-SHA256）に合わせた。これは編集上の修正で、決定は変えていない。また、計画のレビューで、§8 の文書の段階を計画の決定（ガードが確かめる値はその値を加える段階で、`package_reference.md` はパッケージを変える段階で更新する）に合わせ、`SLACK_WEBHOOK_URL` を必須と書く `docs/dev/production_profile.md:42` を §2.2・§3.15・§3.17 の更新する文書に加えた。 2026-10-27 (editorial): `/runplan` の実装で、§3.3.4 の件数の上限の定数の名前を `defaultCapacity` から `DefaultCapacity` に改めた。`internal/server` が別のパッケージから `articlecache.New` に渡すために公開が要るためで、値（100）と決定は変えていない。 2026-10-27 (editorial): `/runplan` の PR-2 の実装で、§3.5 の `StageGeneration` の `StageFinished` を「出力の検査が通り、成果物を保存した（保存先があるとき）後」と書き改めた。短縮・検証・推敲と同じく、保存の失敗をその工程の失敗として表すためで、サーバは保存先を使わないので振る舞いは変わらない。§3.7.1 の `PostMessages` の説明に、空のメッセージ・`nil` の `delivered`・Webhook の URL のない発行者を送らずに拒否することを加えた。いずれも `*SlackPostError` ではないので、投稿のジョブは §3.7.2 のとおり内部の失敗とする。決定は変えていない。 2026-10-28 (editorial): `/runplan` の PR-4 の実装で、§3.3.2 に、6 つの列挙のすべての値を返す関数を加えた。§3.6.3 の「最も長くなる場合」を投稿の状態とその理由のすべての値でたどり、§3.15 のガードが列挙のすべての値をたどるために要るもので、決定は変えていない。 2026-10-28 (decision): PR-4 のローカルのレビューで残した指摘について、レビュアー（isseis）が 2026-10-28 のセッションで、ジョブのログを遷移の後に記録を読み直して書かないと決めた（`03_implementation_plan.md` の `Comments`）。この決定に従い、`/runplan` の PR-5 の実装で、§3.3.2 の `Run` と `PublishRun` の遷移のメソッドが遷移の時点の値を返す形に改め、「遷移の時点の値」の項を加えた。 |
 
 本書の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番、H-NN は [design_handoff.md](design_handoff.md) の項目（対応は §3.16）を指す。既存のコードの行番号は、コミット `c3d20a7`（要件書の承認を含む `main` の先頭）で確かめたものである。
 
@@ -596,12 +596,15 @@ type Run struct{ /* unexported */ }
 func (r *Run) StageStarted(s writer.Stage)
 func (r *Run) StageFinished(s writer.Stage)
 func (r *Run) StageSkipped(s writer.Stage)
-// CompletePostable stores a, with Review.Revisions dropped, as done and not posted.
-func (r *Run) CompletePostable(a writer.Article)
-// CompleteUnpostable stores a, with Review.Revisions dropped, as done and unpostable.
-func (r *Run) CompleteUnpostable(a writer.Article, reason UnpostableReason)
+// CompletePostable stores a, with Review.Revisions dropped, as done and not
+// posted, and returns the duration it stored; false: the Run is no longer valid.
+func (r *Run) CompletePostable(a writer.Article) (time.Duration, bool)
+// CompleteUnpostable stores a, with Review.Revisions dropped, as done and
+// unpostable, and returns what CompletePostable returns.
+func (r *Run) CompleteUnpostable(a writer.Article, reason UnpostableReason) (time.Duration, bool)
 // Fail marks the record failed; the running stage, if any, becomes StageFailed.
-func (r *Run) Fail(reason FailureReason)
+// It returns the stages as it left them; false: the Run is no longer valid.
+func (r *Run) Fail(reason FailureReason) (Stages, bool)
 
 // PublishRun is the handle a post job reports through, with the same
 // generation rule as Run. An index outside the article's messages is ignored.
@@ -610,9 +613,11 @@ type PublishRun struct{ /* unexported */ }
 func (p *PublishRun) Article() writer.Article
 func (p *PublishRun) From() int            // the index of the first message not delivered
 func (p *PublishRun) Delivered(index int)  // message index reached the Webhook
-func (p *PublishRun) Finish()              // every message was delivered: posted
-func (p *PublishRun) Fail(reason PublishFailureReason)
+func (p *PublishRun) Finish() (int, bool)  // every message was delivered: posted
+func (p *PublishRun) Fail(reason PublishFailureReason) (int, bool)
 ```
+
+-   **遷移の時点の値:** `Run` の `CompletePostable`・`CompleteUnpostable` は所要時間を、`Fail` は失敗した工程に `StageFailed` を付けた後の工程の状態を、`PublishRun` の `Finish`・`Fail` は届いたと記録したメッセージの数を、遷移と同じ排他制御の区間の中で読んで返す。ハンドルが無効で何もしなかったときは、零値と偽を返す。排他制御を解いた後には、同じキーのやり直しや破棄で記録が変わりうるので、ジョブはログを書くために記録を読み直さず、これらの戻り値を使う（§3.12）。
 
 -   **列挙のすべての値:** 6 つの列挙は、最後の値の次を表す公開しない値を持つ。工程の状態・投稿の状態・`投稿できない` の理由・投稿の失敗の理由のすべての値を返す `StageStates`・`PublishStates`・`UnpostableReasons`・`PublishFailureReasons` を公開し、完了の時点の検査（§3.6.3）が、それぞれのすべての値で最も長い応答を組み立てる。ほかの 2 つ（ジョブの状態・生成の失敗の理由）は `-tags test` の関数で返し、コードの表のガード（§3.15）が使う。後で値を加えても、これらの関数がその値を含む。
 -   **排他制御:** `Cache` は 1 つの `sync.Mutex` で、記録の表と、破棄のための順序をまとめて守る。`Run` と `PublishRun` のメソッドも同じ排他制御の下で記録を書き換える。どのメソッドも、排他制御の解除を `defer` で行い、範囲外の入力（`writer.Stage` の範囲外の値、範囲外のメッセージの位置）では panic せずに何もしない。排他制御の区間の中で panic して、ほかの受け口がすべて止まることを防ぐためである。`Lookup` は記録の写しを返すので、呼び出し側は排他制御の外で応答を組み立てられる。
