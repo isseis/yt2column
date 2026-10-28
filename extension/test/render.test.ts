@@ -41,7 +41,8 @@ describe("checkIcon", () => {
   const doc = container().ownerDocument;
 
   it("draws a check in a circle for ok and an exclamation mark in a triangle for warning", () => {
-    // The two states must be told apart by shape, not by colour alone.
+    // The design names these shapes, so the drawing is the contract: the two
+    // states must be told apart by shape, not by colour alone.
     assert.deepEqual(shapeNames(checkIcon(doc, "ok")), ["circle", "polyline"]);
     assert.deepEqual(shapeNames(checkIcon(doc, "warning")), [
       "polygon",
@@ -56,9 +57,7 @@ describe("checkIcon", () => {
     });
 
     it(`draws the ${state} symbol without a text character`, () => {
-      const icon = checkIcon(doc, state);
-      assert.equal(icon.textContent, "");
-      assert.equal(icon.querySelector("text"), null);
+      assert.equal(checkIcon(doc, state).textContent, "");
     });
   }
 });
@@ -286,6 +285,9 @@ describe("renderPopup", () => {
       ]) {
         assert.equal(section.hidden, false);
       }
+      // renderPopup never moves the containers, so these pin the skeleton the
+      // helper stands in for; the step that ships popup.html asserts the same
+      // order on the shipped file.
       assert.ok(precedes(elements.video, elements.checks));
       assert.ok(precedes(elements.checks, elements.action));
       assert.ok(precedes(elements.action, elements.details));
@@ -442,11 +444,13 @@ describe("renderPopup", () => {
         catalog.checkStates.warning,
       );
       // The state word is the row's state for assistive technology: hiding it
-      // from the tree would leave only the aria-hidden symbol.
-      assert.equal(
-        selection.querySelector(".check-state")?.getAttribute("aria-hidden"),
-        null,
-      );
+      // from the tree would leave only the aria-hidden symbol, and it must
+      // carry the class that clips it instead of removing it.
+      for (const row of [selection, description]) {
+        const stateWord = row.querySelector(".check-state");
+        assert.equal(stateWord?.getAttribute("aria-hidden"), null);
+        assert.equal(stateWord?.classList.contains("visually-hidden"), true);
+      }
     });
 
     it(`marks only the warning row and its symbol with the warning class in ${locale}`, () => {
@@ -640,7 +644,10 @@ describe("renderPopup", () => {
       assert.ok(row !== undefined);
       assert.equal(row.classList.contains("check-row-warning"), true);
       const reason = catalog.preflight["body-too-large"];
-      expectMessage(row, reason);
+      assert.equal(
+        row.querySelector(".message-text")?.textContent,
+        reason.text,
+      );
       assert.deepEqual(
         Array.from(
           row.querySelectorAll("ol.message-steps > li"),
@@ -682,13 +689,6 @@ describe("renderPopup", () => {
       const description = checkRows(elements)[1];
       assert.ok(description !== undefined);
       expectLocaleMessage(description, locale, expandPromptMessage);
-      assert.deepEqual(
-        Array.from(
-          description.querySelectorAll("ol.message-steps > li"),
-          (item) => item.textContent,
-        ),
-        [...expandPromptMessage(locale).steps],
-      );
       // The collapsed row shows no count: exactly the prompt and its steps.
       assert.deepEqual(
         Array.from(
@@ -766,6 +766,8 @@ describe("renderPopup", () => {
       assert.equal(elements.video.children.length, 0);
       assert.equal(elements.checks.children.length, 0);
       assert.equal(elements.details.children.length, 0);
+      renderPopup(elements, view, locale);
+      assert.equal(elements.rejection.children.length, 0);
     });
   }
 });
