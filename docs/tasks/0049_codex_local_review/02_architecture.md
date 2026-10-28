@@ -8,7 +8,7 @@
 | Created | 2026-10-28 |
 | Review date | 2026-10-28 |
 | Reviewer | isseis |
-| Comments | 2026-10-29（実装計画の作成の際の編集上の訂正。決定の変更はない）: 3.3 が実装計画に委ねた共有の場所を、実装計画（`03_implementation_plan.md` の 1.2）が `internal/cmdrunner` に決めた。それに伴う `fixprguard` の参照の付け替えと、`cmd/fixprguard/docs_test.go` の `TestDocumentedProtocolMatches` の変更を 2.2 の表に加え、「変えないもの」の `fixprguard` の項目と 3.3 の該当の文をそれに合わせた |
+| Comments | 2026-10-29（実装計画の作成の際の編集上の訂正。決定の変更はない）: 3.3 が実装計画に委ねた共有の場所を、実装計画（`03_implementation_plan.md` の 1.2）が `internal/cmdrunner` に決めた。それに伴う `fixprguard` の参照の付け替えと、`cmd/fixprguard/docs_test.go` の `TestDocumentedProtocolMatches` の変更を 2.2 の表と 7.1 の改めるテストに加え、「変えないもの」の `fixprguard` の項目と 3.3 の該当の文をそれに合わせた。8 章の 1 に共有の移動を加え、7 に、3.9 の項目のうちテストや方針の上で前の項目で書くもの（`package_reference.md` の行、`CLAUDE.md` の 2 つの例外と Commands の節と `doc-guard` の列挙）を書き添えた。どの項目を書くかは変えていない |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。要件書の 1 節の決定の 1 つ、AC-09、4.2 の「センチネルエラー」、4.3 は、本書を書く際に改めた（要件書の Comments、本書の 1.2）。本書は改めた後の要件書に従う。既存のファイルに関する記述は、コミット `c76eec2` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md) の項番を指す。`codex` CLI と CodeRabbit CLI の振る舞いに関する記述は、[observations.md](observations.md)（観測の記録）の項目番号と実行の番号（R1〜R5、O1・O2）で根拠を示す。申し送りへの対応は付録 A に、受け入れ基準との対応は付録 B にまとめる。
 
@@ -690,7 +690,7 @@ flowchart TD
     -   コマンドの文書のコードの中（コードブロックと、コマンドとして書いたコードスパン）に、コマンドの位置にある `codex` の語（`codexreview` を除く。`env codex` や引用符で囲んだ `"codex"` も含む）がない。
     -   `Makefile` に `install-codexreview` があり、`CLAUDE.md` の Commands の節の記述と一致する。
 -   **CI:** `cmd/codexreview` の文書のガードは、`doc-guard` の job でも実行する。文書だけを変える PR（共通手順や `.claude/settings.json` の変更）こそ、このガードが守る対象だからである。
--   **改めるテスト:** `TestCodeRabbitConfigStopsReview`（`cmd/yt2column/codex_review_docs_test.go:351-356`）が求める `.coderabbit.yaml` の文を、改めた注釈の文に合わせる（3.9）。
+-   **改めるテスト:** `TestCodeRabbitConfigStopsReview`（`cmd/yt2column/codex_review_docs_test.go:351-356`）が求める `.coderabbit.yaml` の文を、改めた注釈の文に合わせる（3.9）。`cmd/fixprguard/docs_test.go` の `TestDocumentedProtocolMatches` は、`codexreview` の呼び出しの `--protocol` を照合から除く。`internal/fixprguard/gitstate_test.go` の `TestGitEnvDropsInheritedGitVariables` のうち、環境の変数の確かめは `internal/cmdrunner` に移す。
 
 どのテストも、確かめる対象を 1 つずつ外して失敗することを確かめる（`CLAUDE.md`「Every test must be able to fail for its stated reason」）。
 
@@ -709,13 +709,13 @@ flowchart TD
 
 ツールが先にあれば、文書は存在するツールを参照できる。また、`main` からインストールするツールは、文書が参照する前にマージされている必要がある。次の順に実装する。PR の区切りは実装計画で決める。
 
-1.  `internal/cmdrunner` のプロセスグループのオプション（3.3、7.1）。
+1.  `internal/cmdrunner` のプロセスグループのオプション（3.3、7.1）と、`GitEnv` と git の設定の上書きの移動（3.3）。
 2.  `internal/codexreview` と `cmd/codexreview`、`Makefile` の `install-codexreview`（3.3・3.4、7.1）。
 3.  `.claude/settings.json` の許可と、文書のガード、`doc-guard` の job の対象（3.8、7.1）。
 4.  ツールのマージの後、利用者が `make install-codexreview` で入れる。
 5.  共通手順の改名と書き換え（3.1〜3.6）。参照の付け替えを同じ変更で行う（3.9）。
 6.  呼び出し元の変更（3.7）と承認の記述（3.8）。
-7.  `CLAUDE.md`、`.coderabbit.yaml`、`_lib/pr-review-escalation.md`、`_lib/triage-pattern.md`、`package_reference.md` の記述（3.9）と、`TestCodeRabbitConfigStopsReview` の文の更新。
+7.  `CLAUDE.md`、`.coderabbit.yaml`、`_lib/pr-review-escalation.md`、`_lib/triage-pattern.md`、`package_reference.md` の記述（3.9）と、`TestCodeRabbitConfigStopsReview` の文の更新。このうち、`package_reference.md` の行（パッケージと同じコミットでテストが求める）、`CLAUDE.md` の 2 つの例外と Commands の節と `doc-guard` の列挙（それに頼るコードやガードと同じ変更で読めるようにする）は、1〜3 で書く。
 8.  手動の確かめ（7.2）。
 
 ## 9. 将来の拡張 (Future Extensibility)
