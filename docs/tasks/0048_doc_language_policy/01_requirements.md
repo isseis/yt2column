@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-28 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-28 |
+| Reviewer | isseis |
 | Comments | 2026-10-28 に isseis が承認した。同日、設計のレビューで、README に残す文のうち CLI を主語や比較の対象にした文の扱いを AC-27 の例外に加えた（決定の変更のため `draft` に戻した） |
 
 ## 1. 概要 (Overview)

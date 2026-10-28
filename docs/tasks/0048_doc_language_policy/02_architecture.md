@@ -4,13 +4,13 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-28 |
-| Review date | - |
-| Reviewer | - |
-| Comments | - |
+| Review date | 2026-10-28 |
+| Reviewer | isseis |
+| Comments | 2026-10-28: 冒頭の要件定義の状態の記述を承認後の状態に直した（決定の変更なし。編集上の修正） |
 
-本書は [01_requirements.md](01_requirements.md) の設計である。要件定義は、本書のレビューで AC-27a を加えたため `draft` に戻っており、本書と一緒に承認し直す。要件定義から申し送られた設計事項は [design_handoff.md](design_handoff.md) にあり、各項目への対応は 10 章にまとめる。本書が引用するファイルの行番号は、特に断らない限り、コミット `364c95b8`（本書の作成時の `main`）のものである。
+本書は [01_requirements.md](01_requirements.md) の設計である。要件定義は、本書のレビューで AC-27a を加えたため一度 `draft` に戻し、本書と一緒に承認し直した。要件定義から申し送られた設計事項は [design_handoff.md](design_handoff.md) にあり、各項目への対応は 10 章にまとめる。本書が引用するファイルの行番号は、特に断らない限り、コミット `364c95b8`（本書の作成時の `main`）のものである。
 
 ## 1. 設計の全体像 (Design Overview)
 
