@@ -256,15 +256,39 @@ func requireError(t *testing.T, members map[string]any, want HostError) {
 
 // requireResponse checks that the reply is the response shape carrying status
 // and exactly body.
+// The body is compared decoded and reported by its length only, so a failure
+// with a body near the response limit stays readable.
 func requireResponse(t *testing.T, members map[string]any, status int, body []byte) {
 	t.Helper()
-	wantMembers := map[string]any{
-		"v": float64(protocolVersion), "kind": "response", "status": float64(status),
-		"body": base64.StdEncoding.EncodeToString(body),
+	wantMembers := map[string]any{"v": float64(protocolVersion), "kind": "response", "status": float64(status)}
+	encoded, isString := members["body"].(string)
+	others := maps.Clone(members)
+	delete(others, "body")
+	if !isString || !maps.Equal(others, wantMembers) {
+		// Every member but the body is short; the body's type alone tells
+		// whether it is present.
+		t.Errorf("reply members = %v and a body of type %T, want %v and a string body", others, members["body"], wantMembers)
+		return
 	}
-	if !maps.Equal(members, wantMembers) {
-		t.Errorf("reply = %v, want %v", members, wantMembers)
+	got, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		t.Errorf("the reply body of %d characters is not standard base64: %v", len(encoded), err)
+		return
 	}
+	if !bytes.Equal(got, body) {
+		t.Errorf("the reply body is %d bytes, want %d bytes; they differ from byte %d", len(got), len(body), firstDifference(got, body))
+	}
+}
+
+// firstDifference returns the offset of the first byte where a and b differ,
+// or the shorter length when one is a prefix of the other.
+func firstDifference(a, b []byte) int {
+	for i := range min(len(a), len(b)) {
+		if a[i] != b[i] {
+			return i
+		}
+	}
+	return min(len(a), len(b))
 }
 
 func TestRelayForwardsOneRequest(t *testing.T) {
@@ -333,21 +357,48 @@ func TestRelayLengthChecks(t *testing.T) {
 	}
 }
 
-func TestRelayServerRejectsWithoutBody(t *testing.T) {
+// TestRelayServerEarlyRejection checks a server that answers from the
+// request head alone, as the server does for a Content-Length over its limit:
+// the host relays that answer, not a write failure, and sends no body bytes,
+// because the body waits for 100 Continue. It has still read the whole
+// message from stdin, since it reads before sending.
+func TestRelayServerEarlyRejection(t *testing.T) {
 	rejected := []byte(`{"status":"rejected","reason":"body_too_large","requestId":"0123456789abcdef"}`)
-	path := serveHTTP(t, func(w http.ResponseWriter, _ *http.Request) {
-		// Answer from the head alone, as the server does for a
-		// Content-Length over its limit.
-		w.Header().Set("Connection", "close")
-		w.WriteHeader(http.StatusRequestEntityTooLarge)
-		_, _ = w.Write(rejected)
-	})
+	path := filepath.Join(udstest.Dir(t), "s.sock")
+	listener := udstest.Listen(t, path)
+	// sent receives the number of body bytes the host sent after the head.
+	sent := make(chan int64, 1)
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		defer func() { _ = conn.Close() }()
+		// The head is read through the same buffer the rest is counted
+		// from, so no body byte can hide in it.
+		br := bufio.NewReader(conn)
+		if _, err := http.ReadRequest(br); err != nil {
+			sent <- -1
+			return
+		}
+		_, _ = io.WriteString(conn, "HTTP/1.1 413 Request Entity Too Large\r\nConnection: close\r\n"+
+			"Content-Length: "+strconv.Itoa(len(rejected))+"\r\n\r\n"+string(rejected))
+		// The host closes the connection once it has the answer.
+		n, _ := io.Copy(io.Discard, br)
+		sent <- n
+	}()
 	body := bytes.Repeat([]byte("a"), 64<<10)
 	stdin := message(body)
 
 	requireResponse(t, runRelay(stdin, SocketDialer(path), testTimeout).reply(t), http.StatusRequestEntityTooLarge, rejected)
-	// The host reads the whole message before it sends, so the server's
-	// early answer no longer leaves the body unread.
+	select {
+	case n := <-sent:
+		if n != 0 {
+			t.Errorf("the host sent %d bytes after the request head, want none", n)
+		}
+	case <-time.After(testTimeout):
+		t.Fatal("the server did not see the host close the connection")
+	}
 	if n := stdin.bodyRead(); n != len(body) {
 		t.Errorf("read %d body bytes, want the whole message of %d", n, len(body))
 	}
