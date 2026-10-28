@@ -37,15 +37,16 @@ func parseSyncMarker(en string) (string, error) {
 	if m == nil {
 		return "", errNoSyncMarker
 	}
-	if strings.Contains(rest, "translated-from:") {
+	if strings.Contains(rest, "<!-- translated-from:") {
 		return "", errSecondSyncMarker
 	}
 	return m[1], nil
 }
 
 // gitBlobID returns the ID git gives a blob holding content
-// (git hash-object). No .gitattributes rule applies to README.md, so the
-// bytes in the work tree are the bytes git stores.
+// (git hash-object). .gitattributes checks both READMEs out with LF line
+// endings whatever core.autocrlf says, so the bytes in the work tree are the
+// bytes git stores.
 func gitBlobID(content []byte) string {
 	h := sha1.New()
 	fmt.Fprintf(h, "blob %d\x00", len(content))
@@ -71,20 +72,19 @@ func checkReadmeSync(readme []byte, en string) error {
 // It runs in make test, in CI's doc-guard job for every pull request, and in
 // the pre-commit hook for the two READMEs, so a README.md change cannot be
 // committed or merged without the README.en.md sync, whoever makes it. While
-// README.en.md does not exist (before the README becomes bilingual) there is
-// nothing to check.
+// README.en.md does not exist (before the README becomes bilingual) it skips;
+// once it exists, the README structure test fails when it is missing.
 func TestReadmeSyncMarker(t *testing.T) {
 	readme := []byte(readDoc(t, readmePath))
 	en, err := os.ReadFile(readmeEnPath)
 	if errors.Is(err, os.ErrNotExist) {
-		t.Log("README.en.md does not exist; nothing to check")
-		return
+		t.Skip("README.en.md does not exist; nothing to check")
 	}
 	if err != nil {
 		t.Fatalf("read README.en.md: %v", err)
 	}
 	if err := checkReadmeSync(readme, string(en)); err != nil {
-		t.Fatalf("README.en.md is not in sync with README.md (%v); run /mktrans README.md and commit README.en.md", err)
+		t.Fatalf("README.en.md is not in sync with README.md (%v); run /mktrans README.md and commit README.en.md together with README.md", err)
 	}
 }
 
@@ -110,6 +110,7 @@ func TestCheckReadmeSync(t *testing.T) {
 		{"trailing_space", "<!-- translated-from: README.md " + id + " --> " + body, errNoSyncMarker},
 		{"carriage_return", "<!-- translated-from: README.md " + id + " -->\r" + body, errNoSyncMarker},
 		{"marker_on_line_2", "\n<!-- translated-from: README.md " + id + " -->" + body, errNoSyncMarker},
+		{"prose_names_the_marker_word", "<!-- translated-from: README.md " + id + " -->" + body + "The `translated-from:` comment.\n", nil},
 		{
 			"second_marker_in_code_block",
 			"<!-- translated-from: README.md " + id + " -->" + body + "```\n<!-- translated-from: README.md " + id + " -->\n```\n",

@@ -176,9 +176,9 @@ Every `fixpr.md` and `mergepr.md` run below is given the resolved PR number
 - **Taking in `main`.** Whenever `main` is merged into the PR's branch during
   this command (for example, to resolve a conflict before CI can run) and
   `README.en.md` conflicts, resolve it as `mktrans.md`, "Taking in `main`",
-  says: take `main`'s `README.en.md` whole, resolve `README.md`, then run the
-  README sync that the standalone-change bullet above describes, on the
-  checked-out branch, and commit its result before pushing.
+  says: take `main`'s `README.en.md` whole, resolve `README.md`, run the
+  README sync that the standalone-change bullet above describes on the
+  checked-out branch, and conclude the merge commit with its result included.
 
 ## 2. Decide the PR's bookkeeping and next command
 

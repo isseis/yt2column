@@ -34,7 +34,14 @@ This command runs in one of two ways:
   sync of `_lib/task-pr-handoff.md` Part B, `runplan.md`, `fixpr.md`, and
   `runpr.md`). The caller passes only `README.md`.
 
-**When a caller runs it.** The caller runs `make readme-sync-check`. When it
+**One commit for both.** A commit that changes `README.md` also carries the
+`README.en.md` sync of that change: `make test` and the pre-commit hook for the
+READMEs fail on a `README.md` the marker does not name. So the sync runs
+before the commit that changes `README.md`, and that commit includes
+`README.en.md`. The marker then names a blob the same commit holds.
+
+**When a caller runs it.** Before committing a change to `README.md`, and as a
+final check before pushing, the caller runs `make readme-sync-check`. When it
 passes, the caller does nothing more. When it fails, the caller runs this
 command on `README.md` as a sub-step and acts on the result as "Sub-step
 results" says. A result of `already in sync` or `not applicable` after a failed
@@ -64,9 +71,9 @@ the `README.md` content the English version was translated from:
 ```
 
 - `<object-id>` is the ID of the blob of that `README.md` content: the full ID
-  in lowercase hexadecimal, as long as the repository's object format makes it
-  (`git rev-parse --show-object-format`: 40 characters for `sha1`, 64 for
-  `sha256`).
+  in lowercase hexadecimal: 40 characters, since the repository's object
+  format is `sha1` (`git rev-parse --show-object-format`). A change of format
+  changes this command and `TestReadmeSyncMarker` together.
 - Compute it with `git hash-object -w README.md`. Passing the path applies the
   same attributes (line-ending conversion and the like) as a checkout, and `-w`
   writes the blob into the object database so the later diff can read it.
@@ -87,12 +94,6 @@ carried over stays in the diff from the marker's blob.
 
 ## Mode Selection
 
-0. **Standalone only: `README.md` is committed.** When `README.md` differs from
-   `HEAD` (`git diff --quiet HEAD -- README.md` does not exit `0`), stop and ask
-   the user to commit it first: the marker would otherwise name content no
-   commit holds, and `README.en.md` would be committed against it. As a
-   sub-step, the caller commits `README.md` itself (`fixpr.md` commits it with
-   `README.en.md` in Phase 4), so this check does not apply.
 1. **`README.en.md` does not exist.** Standalone: go to "Full Translation". As
    a sub-step: change nothing; the result is `not applicable`.
 2. **Read the marker.** Stop without translating — the result is `stopped` —
@@ -238,9 +239,10 @@ merging `main` into one of them always conflicts on the marker line of
 `README.en.md`. Do not pick either side's marker: the branch's marker would
 translate `main`'s change a second time, and `main`'s would translate the
 branch's change a second time. Replace `README.en.md` wholesale with `main`'s
-version (marker and text), resolve the conflict in `README.md`, and conclude
-the merge commit first; then run this command and commit its result
-separately. The diff from `main`'s marker is then only the branch's change. An
+version (marker and text), resolve the conflict in `README.md`, then run this
+command, and conclude the merge commit with its result included (the
+pre-commit hook refuses a merge commit whose `README.md` the marker does not
+name). The diff from `main`'s marker is then only the branch's change. An
 edit the branch made to `README.en.md` alone (a translation fix) is lost this
 way: reapply it after the sync.
 
@@ -264,7 +266,7 @@ stays). What the caller does with each is in the second column.
 Commit only after all review passes are complete and all Critical and Major issues are resolved.
 
 Commit in the following order:
-1. Commit the translated file only (do not include glossary changes).
+1. Commit the translated file together with the `README.md` change it carries, if that change is not yet committed (do not include glossary changes).
 2. If the glossary was updated, commit that as a separate commit.
 
 (No need to wait for user confirmation before committing.)

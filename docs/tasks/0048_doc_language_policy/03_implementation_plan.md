@@ -260,7 +260,7 @@ AGENTS.md の変更（リンクのパス）は、ステップ 1-3 の置換に�
 
 **変更するファイル:** `.claude/commands/runpr.md`
 
--   [x] 手順 1 の単独の変更の PR を作る項で、ローカルのレビューの後、push の前に同期の手順を加える。チェックアウトしていないブランチで `README.md` の変更があれば止まると書く（設計書 4.3 の `/runpr` の項）。
+-   [x] 手順 1 の単独の変更の PR を作る項で、ローカルのレビューの後、push の前に同期の手順を加える。チェックアウトしていないブランチでは同期できないので、CI の検査に任せると書く（設計書 4.3 の `/runpr` の項。2026-10-29 の決定で、止まる形から改めた）。
 -   [-] 手順 4 のマージの質問の前に、印の検査を加える。ステップ 3-6 のテストが CI ですべての PR を検査するので、加えない（2026-10-29 の決定。1.3）。
 -   [x] `runpr.md` には `main` を取り込む手順がないので、手順 1 に、`main` を取り込むときに従う段落（「Taking in `main`」）を加え、`README.en.md` の衝突の規則（設計書 4.3）を `mktrans.md` の同名の段落に書いて参照する。
 -   [x] 手順の見出し（`fixpr_docs_test.go:38-40`・`codex_review_docs_test.go:83` の定数）は変えない。
@@ -279,7 +279,7 @@ AGENTS.md の変更（リンクのパス）は、ステップ 1-3 の置換に�
 **変更するファイル:** `cmd/yt2column/readme_sync_test.go`（新規）、`Makefile`、`.pre-commit-config.yaml`、`.claude/commands/` の同期の手順、CLAUDE.md
 
 -   [x] `TestReadmeSyncMarker` を加える。`README.en.md` の 1 行目が同期の印の形で、印が 1 つだけで、印の ID が `README.md` の内容のブロブの ID と一致することを確かめる（設計書 2.4。ID の長さは 1.3）。`README.en.md` がないときは通る。印を読んで比べる部分を文字列だけを受け取る関数にし、表のテストを持たせる。行は、一致、古い ID、印がない、短い ID、41 文字の ID、大文字の 16 進、`README.md` の語がない、余分な空白、行末の空白、CR、2 行目の印、コードブロックの中の 2 つ目の印である。ブロブの ID の計算は、`git hash-object` が出す既知の値と比べる。
--   [x] 検査だけを走らせる `make readme-sync-check` と、`README.md`・`README.en.md` を変えたコミットで走る pre-commit のフックを加える。
+-   [x] 検査だけを走らせる `make readme-sync-check`（テストが走らなければ失敗する）と、`README.md`・`README.en.md` を変えたコミットで走る pre-commit のフックを加え、`.gitattributes` で両方の README の改行を LF に固定する。`README.md` を変えるコミットに同期を含める規則を、`mktrans.md` と `_lib/coderabbit-local-review.md` に書く。
 -   [x] 3 つのコマンドの同期の手順を、検査が失敗したら `/mktrans` を呼ぶ形にし（呼び方は `mktrans.md` の 1 か所に書く）、`/runpr` の手順 4 の印の検査を消す。
 -   [x] 印のある `README.en.md` を一時的に置いて通り、`README.md` を 1 文字変えると失敗すること、2 つ目の印の検査とブロブの ID の計算を壊すと表のテストが失敗することを確かめる。
 

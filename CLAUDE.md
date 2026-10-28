@@ -86,8 +86,8 @@ Exceptions:
 ### Translation Guidelines (Japanese to English)
 
 The only translation pair is `README.md` (Japanese, primary) → `README.en.md`
-(English). Change and commit `README.md` first, then run `/mktrans README.md`,
-which carries the change into `README.en.md`. When `README.en.md` does not
+(English). Change `README.md` first, then run `/mktrans README.md`, which
+carries the change into `README.en.md`, and commit both in one commit. When `README.en.md` does not
 exist yet, `/mktrans` run by itself makes a full translation (and stops when
 `README.md` is not in Japanese), while the sub-step another command runs does
 nothing. The first line of `README.en.md` is a sync marker naming the blob of

@@ -189,15 +189,15 @@ flowchart LR
 sequenceDiagram
     participant C as 呼び出し元のコマンド<br>(/runplan・/fixpr・/runpr)
     participant T as /mktrans
-    participant G as git
+    participant G as git・同期の印の検査
     participant E as README.en.md
 
-    C->>G: この実行の変更に README.md があるか
-    alt README.md を変えていない
-        G-->>C: ない
+    C->>G: make readme-sync-check
+    alt 検査が通る
+        G-->>C: 通る
         Note over C: 何もしない
-    else README.md を変えた
-        G-->>C: ある
+    else 検査が失敗する
+        G-->>C: 失敗
         C->>T: README.md (下位の手順として)
         alt README.en.md がない
             T-->>C: 対象外
@@ -230,7 +230,7 @@ sequenceDiagram
 
 **印のブロブを取り出せることの保ち方。** PR は squash でマージされ、ブランチのコミットは `main` に残らない。`main` に残るのは、PR の先頭のコミットの `README.md` の内容のブロブである。そのため、印が `main` の `README.md` の内容と一致していれば、印のブロブはどの複製でも取り出せる。これを次の 2 つで保つ。
 
--   同期の印の検査をテスト `TestReadmeSyncMarker`（`cmd/yt2column/readme_sync_test.go`）にする。テストは、`README.en.md` の 1 行目が唯一の印で、印の ID が隣の `README.md` の内容のブロブの ID（Go の中で `git hash-object` と同じ方法で計算する）と一致することを確かめる。`README.en.md` がないときは通る（消えた場合は構造の一致のテストが失敗させる。4.1 節）。テストは `make test`、CI の `doc-guard` のジョブ（README だけを変えた PR を含むすべての PR）、`README.md`・`README.en.md` を変えたコミットの pre-commit のフック（`make readme-sync-check`）で走る。CI が PR の先頭のコミットで一致を確かめるので、squash の後の `main` でも印は `README.md` の内容と一致する。人間が直接変えた PR も、`README.en.md` だけを変えた PR も、同じ検査を通る。
+-   同期の印の検査をテスト `TestReadmeSyncMarker`（`cmd/yt2column/readme_sync_test.go`）にする。テストは、`README.en.md` の 1 行目が唯一の印で、印の ID が隣の `README.md` の内容のブロブの ID（Go の中で `git hash-object` と同じ方法で計算する）と一致することを確かめる。`README.en.md` がないときは通る（消えた場合は構造の一致のテストが失敗させる。4.1 節）。テストは `make test`、CI の `doc-guard` のジョブ（README だけを変えた PR を含むすべての PR）、`README.md`・`README.en.md` を変えたコミットの pre-commit のフック（`make readme-sync-check`）で走る。CI は PR のマージの結果（その時点の `main` に取り込んだ形）で一致を確かめるので、squash の後の `main` でも印は `README.md` の内容と一致する。CI の後に `main` が `README.md` を変えた場合は、`README.en.md` の 1 行目が衝突するので、取り込み直して CI が走り直す。`README.md` を変えるコミットは、同じコミットに `README.en.md` の同期を含める（pre-commit のフックと `make test` がそうでないコミットを断る）。両方の README は `.gitattributes` で LF に固定し、作業ツリーのバイトがブロブのバイトと同じになるようにする。人間が直接変えた PR も、`README.en.md` だけを変えた PR も、同じ検査を通る。
 -   同期の手順（4.3 節）は、この検査が失敗したときに `/mktrans` を呼ぶ。検査は決定的なので、いつ同期するかをプロンプトの判定に頼らない。
 
 検査が確かめるのは印と `README.md` の対応だけで、`README.en.md` の本文が翻訳されているかは確かめない。印だけを書き換えた変更は、構造の一致のテスト（4.1 節）と PR のレビューで見つける。pre-commit のフックは飛ばせるので、確実な関門は CI である。
@@ -280,7 +280,7 @@ sequenceDiagram
 | `cmd/yt2column/*_test.go`（`docs_test.go`・`output_layout_docs_test.go`・`extension_docs_test.go`・`fixpr_docs_test.go`・`codex_review_docs_test.go`・`copied_transcript_docs_test.go`）、`cmd/yt2column-server/docs_test.go`、`cmd/yt2column-nmhost/main_test.go` | 3.7 節のとおり、読む文書とロケータを改める。共有パッケージに移した補助関数の呼び出し元を改める。サーバのパッケージの補助関数のコピー（`docs_test.go:363-522`）と、その一致を固定する `TestSectionByHeading`（同 `:213`）は消す（3.3 節） | 変更 |
 | `cmd/yt2column/readme_structure_test.go`（新設、名前は計画で決める） | 構造の一致のテスト（AC-29。4.1 節） | 新設 |
 | `cmd/yt2column/readme_sync_test.go`（新設） | 同期の印の検査 `TestReadmeSyncMarker`（2.4 節） | 新設 |
-| `Makefile`・`.pre-commit-config.yaml` | 同期の印の検査を単独で走らせるターゲット `readme-sync-check` と、`README.md`・`README.en.md` を変えたコミットで走る pre-commit のフック（2.4 節） | 変更 |
+| `Makefile`・`.pre-commit-config.yaml`・`.gitattributes` | 同期の印の検査を単独で走らせるターゲット `readme-sync-check`（テストが走らなければ失敗する）、`README.md`・`README.en.md` を変えたコミットで走る pre-commit のフック、両方の README の改行を LF に固定する規則（2.4 節） | 変更 |
 | `cmd/yt2column/docpaths_test.go`（新設、名前は計画で決める） | 文書が示すパスの存在の検査（4.2 節） | 新設 |
 | `cmd/fixprguard/docs_test.go` | `guideFiles`（`:27-30`）を 1 つのファイル `docs/dev/guides/fixprguard_guide.md` にし、英語の手引きの印（`"**Execution-related files.**"` など）の行を消す（AC-17） | 変更 |
 | `extension/test/serverReasons.test.ts`・`metadataDocs.test.ts`、`extension/test/helpers/` | 3.5 節・3.7 節のとおり改める | 変更 |
@@ -592,7 +592,7 @@ var ErrUnsupportedHeading = errors.New("unsupported heading")
 | `/mktrans` の結果 | 呼び出し元の振る舞い |
 |---|---|
 | 反映した | `README.en.md` を自分のコミットに含める。用語集にない語を最終の報告と PR の本文に挙げる。手順を続ける |
-| 反映済み・対象外 | 何もせずに続ける |
+| 反映済み・対象外 | 検査が失敗したのにこの結果なら、検査はほかの理由で失敗しているので、止まって検査の出力を報告する |
 | 止まった（理由） | push せずに止まり、理由と復旧の手順を報告する。`/mktrans` が書きかけた `README.en.md` の変更は、`/mktrans` が書く前に取った写しで自分で戻す（呼び出し元の作業ツリーにあった `README.en.md` の変更は消さない）。`/runplan` と `/runpr` では、`README.md` を変えたコミットは push されずに手元に残る。`/fixpr` では、Phase 3 の修正はまだコミットされていないので、作業ツリーに残る。そのため、次の `/fixpr` は、Phase 3.5 で範囲の外の変更を断って止まったときと同じく、汚れた作業ツリーで止まる。報告に、残った変更とその扱い（コミットするか捨てるか）を人間が決めることを書く |
 
 各コマンドで手順を置く場所は、`README.md` を変えうる最後の手順の後、検査と push の前である。

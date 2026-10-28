@@ -111,8 +111,12 @@ test-parse-norace:
 # English README carries the current README.md. make test runs the same test;
 # this target runs it alone, for the pre-commit hook and the commands' README
 # sync step.
+# It fails when the test did not run (renamed or moved), since go test exits 0
+# when -run matches nothing.
 readme-sync-check:
-	$(GOTEST) -tags test -count=1 -run '^TestReadmeSyncMarker$$' ./cmd/yt2column
+	@out=$$($(GOTEST) -tags test -count=1 -v -run '^TestReadmeSyncMarker$$' ./cmd/yt2column 2>&1); status=$$?; \
+	printf '%s\n' "$$out"; \
+	[ $$status -eq 0 ] && printf '%s\n' "$$out" | grep -Eq -- '--- (PASS|SKIP): TestReadmeSyncMarker'
 
 # Integration test. Runs the real yt-dlp against the network, so it is kept
 # out of `make test` by the `integration` build tag. The video defaults below
