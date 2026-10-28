@@ -73,30 +73,59 @@ describe("catalogs", () => {
       }
       for (const [path, count] of counts) {
         // One and more than one, as the singular form is chosen by the number.
-        for (const [first, second] of [
+        const pairs: readonly (readonly [number, number])[] = [
           [1, 1],
           [12345, 420],
-        ]) {
-          assert.notEqual(count(first ?? 0, second ?? 0).trim(), "", path);
+        ];
+        for (const [first, second] of pairs) {
+          assert.notEqual(count(first, second).trim(), "", path);
         }
       }
     });
   }
 
-  it("uses the English singular form for a count of one", () => {
-    assert.equal(catalogs.en.selectionSize(1, 1), "1 character \u00b7 1 line");
-    assert.equal(
-      catalogs.en.selectionSize(2, 2),
-      "2 characters \u00b7 2 lines",
-    );
-    assert.equal(
-      catalogs.en.descriptionFull(1),
-      "Full text \u00b7 1 character",
-    );
-    assert.equal(
-      catalogs.en.descriptionFull(2),
-      "Full text \u00b7 2 characters",
-    );
+  it("formats the counts exactly as the wording table writes them", () => {
+    const cases: {
+      name: string;
+      actual: (catalog: Catalog) => string;
+      expected: Record<Locale, string>;
+    }[] = [
+      {
+        name: "a long selection",
+        actual: (catalog) => catalog.selectionSize(12345, 420),
+        expected: {
+          en: "12,345 characters \u00b7 420 lines",
+          ja: "12,345 文字・420 行",
+        },
+      },
+      {
+        name: "a long description",
+        actual: (catalog) => catalog.descriptionFull(1203),
+        expected: {
+          en: "Full text \u00b7 1,203 characters",
+          ja: "全文・1,203 文字",
+        },
+      },
+      {
+        name: "one character and one line",
+        actual: (catalog) => catalog.selectionSize(1, 1),
+        expected: { en: "1 character \u00b7 1 line", ja: "1 文字・1 行" },
+      },
+      {
+        name: "one description character",
+        actual: (catalog) => catalog.descriptionFull(1),
+        expected: { en: "Full text \u00b7 1 character", ja: "全文・1 文字" },
+      },
+    ];
+    for (const { name, actual, expected } of cases) {
+      for (const locale of localeList) {
+        assert.equal(
+          actual(catalogs[locale]),
+          expected[locale],
+          `${name}: ${locale}`,
+        );
+      }
+    }
   });
 
   // The YouTube button's name on YouTube, per the extension's language.

@@ -84,6 +84,13 @@ describe("countLines", () => {
 });
 
 describe("summarize", () => {
+  it("previews the first 200 code points of the selection", () => {
+    const summary = summarize(collected("x".repeat(201)));
+    assert.ok(summary.kind === "collected");
+    assert.equal(summary.preview, "x".repeat(200));
+    assert.equal(summary.previewTruncated, true);
+  });
+
   it("keeps a title and URL at exactly the limit intact", () => {
     const long = "t".repeat(1000);
     const summary = summarize(collected("body", long, long));

@@ -123,53 +123,63 @@ function dumpValues(rev: string): string {
   }
 }
 
-/** The bytes and sha256 of the manifest committed at rev. */
-function manifest(rev: string): { bytes: Buffer; sha256: string } {
+/** The sha256 of the manifest committed at rev. */
+function manifestSha(rev: string): string {
   const bytes = execFileSync("git", [
     "show",
     `${rev}:extension/static/manifest.json`,
   ]);
-  return { bytes, sha256: createHash("sha256").update(bytes).digest("hex") };
+  return createHash("sha256").update(bytes).digest("hex");
 }
 
-const root = git("rev-parse", "--show-toplevel");
-process.chdir(root);
-const head = git("rev-parse", "HEAD");
-const base = git("merge-base", "origin/main", "HEAD");
+function check(): void {
+  const root = git("rev-parse", "--show-toplevel");
+  process.chdir(root);
+  const head = git("rev-parse", "HEAD");
+  const base = git("merge-base", "origin/main", "HEAD");
 
-const before = dumpValues(base).split("\n");
-const after = dumpValues(head).split("\n");
-process.stdout.write(`merge-base ${base}\nhead       ${head}\n`);
+  const before = dumpValues(base).split("\n");
+  const after = dumpValues(head).split("\n");
+  process.stdout.write(`merge-base ${base}\nhead       ${head}\n`);
 
-const differing: string[] = [];
-for (let i = 0; i < Math.max(before.length, after.length); i++) {
-  if (before[i] !== after[i]) {
-    differing.push(
-      `line ${i + 1}\n  merge-base: ${before[i] ?? "(none)"}\n  head:       ${after[i] ?? "(none)"}`,
+  const differing: string[] = [];
+  for (let i = 0; i < Math.max(before.length, after.length); i++) {
+    if (before[i] !== after[i]) {
+      differing.push(
+        `line ${i + 1}\n  merge-base: ${before[i] ?? "(none)"}\n  head:       ${after[i] ?? "(none)"}`,
+      );
+    }
+  }
+
+  const baseManifest = manifestSha(base);
+  const headManifest = manifestSha(head);
+
+  let failed = false;
+  if (differing.length > 0) {
+    failed = true;
+    process.stdout.write(
+      `FAIL: the unchanged catalog items or the built bodies differ\n${differing.join("\n")}\n`,
+    );
+  } else {
+    process.stdout.write(
+      "PASS: the unchanged catalog items and the built bodies are identical\n",
     );
   }
+  if (baseManifest !== headManifest) {
+    failed = true;
+    process.stdout.write(
+      `FAIL: extension/static/manifest.json differs\n  merge-base: ${baseManifest}\n  head:       ${headManifest}\n`,
+    );
+  } else {
+    process.stdout.write(
+      `PASS: extension/static/manifest.json is identical (sha256 ${headManifest})\n`,
+    );
+  }
+  process.exit(failed ? 1 : 0);
 }
 
-const beforeManifest = manifest(base);
-const afterManifest = manifest(head);
-
-let failed = false;
-if (differing.length > 0) {
-  failed = true;
-  process.stdout.write(
-    `FAIL: the unchanged catalog items or the built bodies differ\n${differing.join("\n")}\n`,
-  );
-} else {
-  process.stdout.write("PASS: the unchanged catalog items and the built bodies are identical\n");
+try {
+  check();
+} catch (error) {
+  fail(error instanceof Error ? error.message : String(error));
 }
-if (beforeManifest.sha256 !== afterManifest.sha256) {
-  failed = true;
-  process.stdout.write(
-    `FAIL: extension/static/manifest.json differs\n  merge-base: ${beforeManifest.sha256}\n  head:       ${afterManifest.sha256}\n`,
-  );
-} else {
-  process.stdout.write(
-    `PASS: extension/static/manifest.json is identical (sha256 ${afterManifest.sha256})\n`,
-  );
-}
-process.exit(failed ? 1 : 0);

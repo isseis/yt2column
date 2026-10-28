@@ -8,7 +8,7 @@
 | Created | 2026-10-28 |
 | Review date | 2026-10-28 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-28 (editorial): `/runplan` の PR-1 のレビューの指摘で、ステップ 1-4 の概要欄の文章の確認を改めた。画面の内容は、押せる主ボタンのために送るリクエスト（本文に概要欄を含む）を持つので、「画面の内容のどこにも入らない」とは言えない。概要欄の行が文章を持つ場所を持たないことを設計（3.2）のとおりにし、表示の確認はステップ 3-2 の描き方のテストで行う。7 章の AC-15 の行も、描き方のテストだけを挙げる形に直した。決定は変えていない。 |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番、「設計書 3.2」などは設計書の節を指す。既存のコードと文書についての記述は、コミット `a04e5d82` で確かめた。`file:line` はこのコミットの行番号を指す。拡張のファイルのパスは、設計書と同じく `extension/` を省いて書く（例: `src/launch.ts`）。テストの場所は `path::describe の名前` で示す。
 
@@ -140,7 +140,7 @@
 -   [x] `src/core/popupView.ts` に、設計書 3.2 の型（`VideoView`・`SelectionStatus`・`SelectionCheck`・`DescriptionStatus`・`DescriptionCheck`・`DetailsView`・`CollectedView`・`RejectedView`・`PopupView`）と `buildCollectedView` を書く。表示の上限は、`metadataDisplayLimit`（200）を `src/ui/render.ts:121` から移し、タブのタイトルと URL の上限（1000）をここに定義する。`summary.ts` の `titleLimit`・`urlLimit` は、ステップ 4-3 で `summarize` と一緒になくすまで残る（その間だけ、同じ値の定数が 2 か所にある）。
 -   [x] `src/ui/render.ts` の `renderMetadata` が `metadataDisplayLimit` を `popupView.ts` から import する形にし、`test/renderMetadata.test.ts:9` と `test/launch.test.ts:27` の import 元を変える。
 -   [x] 改行の置き換えは、切り詰めた後に画面の内容の中で行う（設計書 3.1 の順序）。
--   [x] `test/popupView.test.ts` に `buildCollectedView` のテストを書く（設計書 3.10 の行）。見出しをタブのタイトルで代えることとチャンネル名の有無（AC-02・AC-03）、選択範囲の理由と確認の状態（AC-07・AC-11）、プレビューの切り詰めと改行の置き換えの順序と境界（AC-08・AC-10）、概要欄の 3 つの理由と文字数と確認の状態（AC-12〜AC-14・AC-16）、詳細の値と上限（AC-06）、概要欄の文章が画面の内容のどこにも入らないこと（AC-15）。`sendable` の理由が持つリクエストが、渡した `prepareSend` の結果のリクエストと同じであることも確かめる。
+-   [x] `test/popupView.test.ts` に `buildCollectedView` のテストを書く（設計書 3.10 の行）。見出しをタブのタイトルで代えることとチャンネル名の有無（AC-02・AC-03）、選択範囲の理由と確認の状態（AC-07・AC-11）、プレビューの切り詰めと改行の置き換えの順序と境界（AC-08・AC-10）、概要欄の 3 つの理由と文字数と確認の状態（AC-12〜AC-14・AC-16）、詳細の値と上限（AC-06）。`sendable` の理由が持つリクエストが、渡した `prepareSend` の結果のリクエストと同じであることも確かめる。概要欄の文章を表示しないこと（AC-15）は、概要欄の行が文章を持つ場所を持たない型であることにし、表示の確認は描き方のテスト（ステップ 3-2）で行う。
 
 **完了の条件:** `make ext-check` が通る。改行の置き換えを切り詰めの前に移して壊し、境界のテスト（100 コードポイントの中に改行がある場合）が失敗することを確かめる。
 
@@ -490,7 +490,7 @@ AC-11・AC-20・AC-23 の文言、AC-19 のリクエストの本文、AC-35 の 
 | AC-12 | test: `extension/test/popupView.test.ts::buildCollectedView`・`extension/test/render.test.ts::renderPopup` | 1-4・3-2 | ✓ と全文と文字数 |
 | AC-13 | test: `extension/test/popupView.test.ts::buildCollectedView`・`extension/test/render.test.ts::renderPopup`・`extension/test/launch.test.ts::popup send` | 1-4・3-2・4-2 | ⚠ と手順、文字数がないこと、主ボタンが押せて冒頭を送ること |
 | AC-14 | test: `extension/test/popupView.test.ts::buildCollectedView`・`extension/test/render.test.ts::renderPopup`・`extension/test/launch.test.ts::popup send` | 1-4・3-2・4-2 | ⚠ と手順がないこと、主ボタンが押せること |
-| AC-15 | test: `extension/test/popupView.test.ts::buildCollectedView`・`extension/test/render.test.ts::renderPopup` | 1-4・3-2 | 概要欄の文章が画面の内容にも表示にもないこと |
+| AC-15 | test: `extension/test/render.test.ts::renderPopup` | 3-2 | 概要欄の文章を表示しないこと |
 | AC-16 | test: `extension/test/render.test.ts::renderPopup`・`extension/test/style.test.ts` | 3-2・3-3 | ⚠ の行だけが警告の class を持ち、その規則だけが `--warn-bg` を参照すること |
 | AC-17 | test: `extension/test/render.test.ts::renderPopup`（名前）・`extension/test/style.test.ts`（幅と 2 行の宣言）＋ manual | 3-2・3-3・5-3・5-4 | 名前と宣言はテスト。主ボタンが見えることは、プレビューのスクリプトの最悪の場合で手動 |
 | AC-18 | test: `extension/test/launch.test.ts::popup send` | 4-2 | 1 回だけ送り、送信中と送信の後は押せないこと |
