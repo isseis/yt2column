@@ -83,7 +83,12 @@ body {
 .video-heading,
 .channel-name,
 .detail-value,
-.preview-head {
+.preview-head,
+.summary-title,
+.summary-preview,
+.metadata-title,
+.metadata-channel,
+.metadata-description {
   unicode-bidi: plaintext;
 }
 
@@ -92,10 +97,19 @@ body {
 #checks,
 #rejection {
   margin-top: 0.75rem;
-  padding: 0.25rem 0.75rem;
   background-color: var(--bg);
   border: 1px solid var(--border);
   border-radius: 0.5rem;
+}
+
+/* The checks list has no padding of its own, so a warning row's background
+   reaches the card's border; each row pads itself. */
+#checks {
+  overflow: hidden;
+}
+
+#rejection {
+  padding: 0.25rem 0.75rem;
 }
 
 .check-list {
@@ -111,7 +125,7 @@ body {
   grid-template-columns: 1.25rem 1fr;
   column-gap: 0.5rem;
   align-items: start;
-  padding: 0.5rem 0;
+  padding: 0.5rem 0.75rem;
   color: var(--text);
 }
 
@@ -172,14 +186,6 @@ body {
 
 .summary-value {
   overflow-wrap: anywhere;
-}
-
-.summary-title,
-.summary-preview,
-.metadata-title,
-.metadata-channel,
-.metadata-description {
-  unicode-bidi: plaintext;
 }
 
 .summary-preview,
@@ -297,8 +303,9 @@ body {
   overflow-wrap: anywhere;
 }
 
-/* The outline sits outside a ring of the page's background, so the colour
-   next to it is the page background. */
+/* A 2px outline kept 2px clear of the element. The colour next to it is the
+   page background, or the warning background inside a warning row; --focus
+   keeps 3:1 against both in each theme. */
 :focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
