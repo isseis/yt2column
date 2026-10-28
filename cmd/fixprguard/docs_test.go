@@ -31,16 +31,19 @@ func readRepoFile(t *testing.T, rel string) string {
 	return string(data)
 }
 
-// TestGuidePathExists: the parse diagnostic points at the guide in
-// docs/dev/guides, and that file exists, so a user who sees the diagnostic
-// can open it.
+// TestGuidePathExists: a usage error's diagnostic names the guide, and that
+// file exists, so a user who sees the diagnostic can open it.
 func TestGuidePathExists(t *testing.T) {
-	const want = "docs/dev/guides/fixprguard_guide.md"
-	if guidePath != want {
-		t.Errorf("guidePath = %q, want %q", guidePath, want)
+	const guide = "docs/dev/guides/fixprguard_guide.md"
+	r := newTestRun(t, nil)
+	if code := r.Run(t); code != exitUsage {
+		t.Fatalf("no arguments: exit %d, want %d (%s)", code, exitUsage, r.Stderr)
 	}
-	if _, err := os.Stat(filepath.Join(repoRoot, guidePath)); err != nil {
-		t.Errorf("guidePath %q does not exist: %v", guidePath, err)
+	if want := "(see " + guide + ")"; !strings.Contains(r.Stderr.String(), want) {
+		t.Errorf("stderr = %q, want it to contain %q", r.Stderr, want)
+	}
+	if _, err := os.Stat(filepath.Join(repoRoot, guide)); err != nil {
+		t.Errorf("the guide %q does not exist: %v", guide, err)
 	}
 }
 
@@ -432,11 +435,12 @@ func TestGuideNamesGitStateParts(t *testing.T) {
 	list, _, closed := strings.Cut(rest, "）")
 	if !ok || !closed {
 		t.Errorf("%s: the git-state-changed row has no list after %q", guidePath, "`parts`（")
-	}
-	spans := codeSpans(list)
-	for _, part := range fixprguard.GitStateParts() {
-		if _, ok := spans[part]; !ok {
-			t.Errorf("%s: the git-state-changed row's parts do not name `%s`", guidePath, part)
+	} else {
+		spans := codeSpans(list)
+		for _, part := range fixprguard.GitStateParts() {
+			if _, ok := spans[part]; !ok {
+				t.Errorf("%s: the git-state-changed row's parts do not name `%s`", guidePath, part)
+			}
 		}
 	}
 	const fixprDoc = ".claude/commands/fixpr.md"

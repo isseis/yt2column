@@ -12,9 +12,6 @@ import (
 	"testing"
 )
 
-// docRepoRoot is the repository root relative to this package's directory.
-const docRepoRoot = "../.."
-
 // docRef is one path a document must resolve: a relative Markdown link
 // target, or a repository path written in a code span. relative tells the
 // caller which directory the path is written from.
@@ -33,9 +30,9 @@ var lineSuffixRE = regexp.MustCompile(`:[0-9]+(?:-[0-9]+)?$`)
 // docPathRefs returns the paths outside fenced code blocks that doc must
 // resolve: the target of each relative Markdown link, without its anchor, and
 // each path under docs/dev/ written in a code span. A link to an external URL,
-// a mailto: link, an anchor in the same document, and a <...> placeholder are
-// not paths to a file. A link or a path inside a code block is an example, not
-// a reference.
+// a mailto: link, an anchor in the same document, a <...> placeholder, and a
+// link or path written inside a code span or a code block are examples, not
+// references.
 func docPathRefs(doc string) []docRef {
 	var refs []docRef
 	for _, line := range scanDocLines(slices.Collect(strings.Lines(doc))) {
@@ -51,15 +48,15 @@ func docPathRefs(doc string) []docRef {
 			if !isRelativeLinkTarget(target) {
 				continue
 			}
-			path, _, _ := strings.Cut(target, "#")
-			refs = append(refs, docRef{path: path, relative: true})
+			file, _, _ := strings.Cut(target, "#")
+			refs = append(refs, docRef{path: file, relative: true})
 		}
-		for _, span := range inlineCodeSpans(line.text) {
-			span = strings.TrimSpace(span)
-			if !repoDocPathRE.MatchString(span) {
+		for _, span := range spans {
+			content := strings.TrimSpace(line.text[span[0]+1 : span[1]-1])
+			if !repoDocPathRE.MatchString(content) {
 				continue
 			}
-			refs = append(refs, docRef{path: lineSuffixRE.ReplaceAllString(span, "")})
+			refs = append(refs, docRef{path: lineSuffixRE.ReplaceAllString(content, "")})
 		}
 	}
 	return refs
@@ -89,28 +86,6 @@ func inCodeSpan(spans [][]int, offset int) bool {
 	return false
 }
 
-// linkOpenerCount returns how many Markdown link openers doc has outside
-// fenced code blocks. A link form the extraction drops would leave the count
-// above the number of targets it found.
-func linkOpenerCount(doc string) int {
-	openers := 0
-	for _, line := range scanDocLines(slices.Collect(strings.Lines(doc))) {
-		if !line.block {
-			openers += strings.Count(line.text, "](")
-		}
-	}
-	return openers
-}
-
-// inlineCodeSpans returns the contents of the inline code spans of line.
-func inlineCodeSpans(line string) []string {
-	var spans []string
-	for _, match := range codeSpanRE.FindAllStringSubmatch(line, -1) {
-		spans = append(spans, match[1])
-	}
-	return spans
-}
-
 // instructionDocs returns the documents that tell an agent what to do, from
 // the repository root: CLAUDE.md, AGENTS.md, the command definitions, and the
 // documents under docs/dev/. Past task documents are records of the work when
@@ -119,14 +94,14 @@ func instructionDocs(t *testing.T) []string {
 	t.Helper()
 	docs := []string{"CLAUDE.md", "AGENTS.md"}
 	for _, root := range []string{".claude/commands", "docs/dev"} {
-		err := filepath.WalkDir(filepath.Join(docRepoRoot, root), func(path string, d fs.DirEntry, err error) error {
+		err := filepath.WalkDir(filepath.Join(repositoryRoot, root), func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
 			if d.IsDir() || !strings.HasSuffix(path, ".md") {
 				return nil
 			}
-			rel, relErr := filepath.Rel(docRepoRoot, path)
+			rel, relErr := filepath.Rel(repositoryRoot, path)
 			if relErr != nil {
 				return relErr
 			}
@@ -150,25 +125,18 @@ func instructionDocs(t *testing.T) []string {
 func TestInstructionDocPaths(t *testing.T) {
 	for _, rel := range instructionDocs(t) {
 		t.Run(rel, func(t *testing.T) {
-			path := filepath.Join(docRepoRoot, rel)
+			path := filepath.Join(repositoryRoot, rel)
 			doc := readDoc(t, path)
-			targets := markdownLinkTargets(doc)
-			openers := linkOpenerCount(doc)
-			if len(targets) != openers {
-				t.Errorf("%s has %d link openers outside code blocks but the extraction found %d targets; a link form it drops would go unchecked", rel, openers, len(targets))
-			}
-			refs := docPathRefs(doc)
-			for _, ref := range refs {
-				base := docRepoRoot
+			checkLinkCount(t, rel, doc, len(markdownLinkTargets(doc)))
+			for _, ref := range docPathRefs(doc) {
+				base := repositoryRoot
+				verb := "names"
 				if ref.relative {
 					base = filepath.Dir(path)
+					verb = "links to"
 				}
 				if _, err := os.Stat(filepath.Join(base, filepath.FromSlash(ref.path))); err != nil {
-					if ref.relative {
-						t.Errorf("%s links to %q, which does not exist", rel, ref.path)
-					} else {
-						t.Errorf("%s names %q, which does not exist", rel, ref.path)
-					}
+					t.Errorf("%s %s %q, which does not exist", rel, verb, ref.path)
 				}
 			}
 		})
@@ -176,37 +144,76 @@ func TestInstructionDocPaths(t *testing.T) {
 }
 
 // TestDocPathRefs: the extraction keeps the paths a document must resolve and
-// drops the forms that are not references to a file: an external URL, a
-// mailto: link, an anchor in the same document, a <...> placeholder, and
-// anything inside a code block.
+// drops the forms that are not references to a file.
 func TestDocPathRefs(t *testing.T) {
-	doc := strings.Join([]string{
-		"[a](docs/dev/security.md)",
-		"[b](../project_overview.md#top)",
-		"[c](https://example.com/x.md)",
-		"[d](mailto:someone@example.com)",
-		"[e](#section)",
-		"[f](<url>)",
-		"`[g](docs/dev/missing.md)` is an example, not a link",
-		"[h](docs/dev/production_profile.md)",
-		"`docs/dev/security.md`",
-		"`docs/dev/conventions/requirements_process.md:12`",
-		"`docs/dev/guides/cli.md:3-5`",
-		"`docs/dev/`",
-		"```text",
-		"[i](docs/dev/missing.md)",
-		"`docs/dev/missing.md`",
-		"```",
-	}, "\n")
-	want := []docRef{
-		{path: "docs/dev/security.md", relative: true},
-		{path: "../project_overview.md", relative: true},
-		{path: "docs/dev/production_profile.md", relative: true},
-		{path: "docs/dev/security.md"},
-		{path: "docs/dev/conventions/requirements_process.md"},
-		{path: "docs/dev/guides/cli.md"},
+	for _, tc := range []struct {
+		name string
+		doc  string
+		want []docRef
+	}{
+		{
+			name: "relative link",
+			doc:  "[a](docs/dev/security.md)",
+			want: []docRef{{path: "docs/dev/security.md", relative: true}},
+		},
+		{
+			name: "link with an anchor",
+			doc:  "[a](../project_overview.md#top)",
+			want: []docRef{{path: "../project_overview.md", relative: true}},
+		},
+		{
+			name: "external URL, mailto, anchor and placeholder",
+			doc:  "[a](https://example.com/x.md) [b](mailto:someone@example.com) [c](#section) [d](<url>)",
+		},
+		{
+			name: "link written in a code span",
+			doc:  "`[a](docs/dev/missing.md)` is an example",
+		},
+		{
+			name: "fenced code block",
+			doc:  "```text\n[a](docs/dev/missing.md)\n`docs/dev/missing.md`\n```",
+		},
+		{
+			name: "repository path in a code span",
+			doc:  "`docs/dev/security.md`",
+			want: []docRef{{path: "docs/dev/security.md"}},
+		},
+		{
+			name: "repository path with a line or a line range",
+			doc:  "`docs/dev/conventions/requirements_process.md:12` `docs/dev/guides/cli.md:3-5`",
+			want: []docRef{
+				{path: "docs/dev/conventions/requirements_process.md"},
+				{path: "docs/dev/guides/cli.md"},
+			},
+		},
+		{
+			name: "directory path in a code span",
+			doc:  "`docs/dev/`",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := docPathRefs(tc.doc)
+			slices.SortFunc(got, compareDocRef)
+			want := slices.Clone(tc.want)
+			slices.SortFunc(want, compareDocRef)
+			if !slices.Equal(got, want) {
+				t.Errorf("docPathRefs = %v, want %v", got, tc.want)
+			}
+		})
 	}
-	if got := docPathRefs(doc); !slices.Equal(got, want) {
-		t.Errorf("docPathRefs = %v, want %v", got, want)
+}
+
+// compareDocRef orders refs by path, then by whether the path is relative.
+func compareDocRef(a, b docRef) int {
+	if c := strings.Compare(a.path, b.path); c != 0 {
+		return c
+	}
+	switch {
+	case a.relative == b.relative:
+		return 0
+	case a.relative:
+		return -1
+	default:
+		return 1
 	}
 }
