@@ -408,11 +408,11 @@
 
 -   **ファイル:** `internal/nmhost/relay.go`・`frame.go`・`relay_test.go`・`test_helpers.go`、`.golangci.yml`、`cmd/yt2column-server/relay_e2e_test.go`、`docs/dev/developer_guide/package_reference.md`
 -   **作業:**
-    -   [ ] `maxResponseBytes` を 512 KiB にする（設計書 §3.10.4）。`TestRelayResponseOverLimit` が新しい上限ちょうどの応答を切り詰めずに中継することを確かめる（AC-41）。
-    -   [ ] 設計書 §3.10.2「説明の更新」の注釈と `.golangci.yml` の `nmhost-boundaries` の説明を改める。
-    -   [ ] ホストの応答の上限を `-tags test` の定数で公開し、`cmd/yt2column-server` に、サーバの状態の取得の応答の上限（ステップ 5-2）がホストの上限以下で、ホストの上限の base64 と固定のメンバがフレームの上限に収まることを確かめる `TestStatusResponseFitsRelay` を加える（1.3、AC-41）。サーバの上限をホストの上限より大きくすると失敗することを確かめる。
-    -   [ ] `TestRelayEndToEnd` に、新しい形の 3 つの操作と、T-02 の注入のキー（`abc/publish` など）を実際のホストとサーバで通し、注入のキーに `invalid_key` が返る場合を加える（設計書 §7.2・§7.3）。
-    -   [ ] `package_reference.md` の `internal/nmhost` の行を改める（1.3）。
+    -   [x] `maxResponseBytes` を 512 KiB にする（設計書 §3.10.4）。`TestRelayResponseOverLimit` が新しい上限ちょうどの応答を切り詰めずに中継することを確かめる（AC-41）。
+    -   [x] 設計書 §3.10.2「説明の更新」の注釈と `.golangci.yml` の `nmhost-boundaries` の説明を改める。
+    -   [x] ホストの応答の上限を `-tags test` の定数で公開し、`cmd/yt2column-server` に、サーバの状態の取得の応答の上限（ステップ 5-2）がホストの上限以下で、ホストの上限の base64 と固定のメンバがフレームの上限に収まることを確かめる `TestStatusResponseFitsRelay` を加える（1.3、AC-41）。サーバの上限をホストの上限より大きくすると失敗することを確かめる。
+    -   [x] `TestRelayEndToEnd` に、新しい形の 3 つの操作と、T-02 の注入のキー（`abc/publish` など）を実際のホストとサーバで通し、注入のキーに `invalid_key` が返る場合を加える（設計書 §7.2・§7.3）。
+    -   [x] `package_reference.md` の `internal/nmhost` の行を改める（1.3）。
 -   **完了の条件:** グリーンゲートが通る。
 
 ### PR-6 作成ポイント: host operation routing
@@ -551,7 +551,7 @@ PR-1 と PR-2 は互いに依存しないが、PR は番号の順にマージす
 - [ ] 1.5 の表の今の名前（`TestLoadServerWebhookRequired`・`errNilPublisher`・`errNilNotifier`）が、コードと文書に残っていない（PR-3）。
 - [ ] Webhook を必須とする注釈（`always set`・`required`）が `internal/config` と `cmd/yt2column-server` に残っていない（PR-3）。
 - [x] 1.4 の「注釈」の行の `internal/server` の注釈が、新しい API の生成のジョブと取り消しに合っている（PR-4）。
-- [ ] 設計書 §3.10.2「説明の更新」の注釈に、メッセージを解析しない・標準入力の残りを読まない・64 KiB という記述が残っていない（PR-6）。
+- [x] 設計書 §3.10.2「説明の更新」の注釈に、メッセージを解析しない・標準入力の残りを読まない・64 KiB という記述が残っていない（PR-6）。
 - [ ] `package_reference.md` の各行が、その PR で変えたパッケージの責務と合っている（各 PR）。
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)

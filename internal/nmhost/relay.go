@@ -37,7 +37,10 @@ const (
 	// send to a host.
 	maxMessageBytes = 32 << 20
 	// maxResponseBytes is the largest server response body the host relays.
-	maxResponseBytes = 64 << 10
+	// It is twice the server's 256 KiB status response limit, so a status
+	// response with the largest article is relayed whole, and its base64
+	// with the fixed members stays within maxFrameBytes.
+	maxResponseBytes = 512 << 10
 	// dialTimeout bounds the connection attempt. A Unix socket with a
 	// listener accepts at once and one without refuses at once; the limit is
 	// only for an abnormal backlog.
@@ -132,7 +135,7 @@ func encodeReply(reply any) []byte {
 	payload, err := json.Marshal(reply)
 	if err != nil || len(payload) > maxFrameBytes {
 		// Neither happens: both shapes are fixed structs of strings and
-		// ints, and the largest response reply is about 88 KiB.
+		// ints, and the largest response reply is about 683 KiB.
 		payload, _ = json.Marshal(newErrorReply(HostErrorProtocol)) //nolint:errchkjson // an int and two strings always marshal
 	}
 	return payload
@@ -193,8 +196,8 @@ func hostFailure(s stage, e HostError, cause error) outcome {
 }
 
 // Relay reads one Native Messaging message from stdin, forwards it to the
-// server, and writes exactly one reply frame to stdout without reading the
-// rest of stdin. It returns a non-nil error only when no reply frame could
+// server, and writes exactly one reply frame to stdout. It reads nothing from
+// stdin beyond that one message. It returns a non-nil error only when no reply frame could
 // be written (the options are incomplete, the length could not be read, or
 // stdout failed); a host error is a reply, not a returned error.
 //

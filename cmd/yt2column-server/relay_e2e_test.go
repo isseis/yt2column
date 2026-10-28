@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -103,6 +104,47 @@ func TestRelayEndToEnd(t *testing.T) {
 		reply := runHost(t, host, e, requestBody(testValidRaw))
 		if reply.Kind != "error" || reply.Error != "server_unavailable" {
 			t.Fatalf("reply = %+v, want the server_unavailable error", reply)
+		}
+	})
+
+	// The new form's three operations go through the real host: a
+	// generation start, a status request, and a publish operation. A key
+	// that would turn a status request into a publish operation if the host
+	// embedded it unescaped is rejected as invalid_key, and publishes nothing.
+	t.Run("new_form_operations", func(t *testing.T) {
+		webhook, webhookURL := newWebhookServer(t)
+		e := newServerEnv(t)
+		startServer(t, e, loopbackDeps(t, validResponseLLM(), webhookURL))
+		socket := e.socketPath(t)
+
+		started := requireJobReply(t, runHost(t, host, e, `{"v":1,"op":"start","input":`+requestBody(testValidRaw)+`}`), 202)
+		if started.Status != "accepted" || started.Key == "" {
+			t.Fatalf("generation start response = %+v, want accepted with a key", started)
+		}
+		waitJobDone(t, socket, started.Key)
+		status := requireJobReply(t, runHost(t, host, e, newFormKeyMessage(t, "status", started.Key)), 200)
+		if status.Job.State != "done" || status.Job.Publish == nil || status.Job.Publish.State != "not_posted" {
+			t.Fatalf("job status = %+v, want done and not posted", status.Job)
+		}
+
+		for _, key := range []string{started.Key + "/publish", started.Key + "?x=1", "../articles"} {
+			if rejected := requireServerReply(t, runHost(t, host, e, newFormKeyMessage(t, "status", key)), 400); rejected.Reason != "invalid_key" {
+				t.Errorf("status of %q = %+v, want reason invalid_key", key, rejected)
+			}
+		}
+		if after := doJobs(t, socket, http.MethodGet, server.JobsPath+"/"+started.Key, nil, http.StatusOK); after.Job.Publish == nil || after.Job.Publish.State != "not_posted" {
+			t.Fatalf("job after the injected keys = %+v, want still not posted", after.Job)
+		}
+
+		published := requireJobReply(t, runHost(t, host, e, newFormKeyMessage(t, "publish", started.Key)), 202)
+		if published.Status != "accepted" {
+			t.Errorf("publish response = %+v, want accepted", published)
+		}
+		if state := waitPublished(t, socket, started.Key); state != "posted" {
+			t.Errorf("publish state = %q, want posted", state)
+		}
+		if got := webhook.messages(); len(got) != 1 || !strings.Contains(got[0], "A title") {
+			t.Errorf("messages = %q, want the one article", got)
 		}
 	})
 
@@ -237,6 +279,49 @@ func decodeOneFrame(t *testing.T, out []byte, stderr string) hostReply {
 		t.Fatalf("reply = %+v, want version 1", reply)
 	}
 	return reply
+}
+
+// newFormKeyMessage returns a new-form message for op (status or publish)
+// naming key.
+func newFormKeyMessage(t *testing.T, op, key string) string {
+	t.Helper()
+	data, err := json.Marshal(map[string]any{"v": 1, "op": op, "key": key})
+	if err != nil {
+		t.Fatalf("marshal the message: %v", err)
+	}
+	return string(data)
+}
+
+// requireJobReply fails the test unless reply relays a server response with
+// status want, and returns the decoded job API response.
+func requireJobReply(t *testing.T, reply hostReply, want int) jobResponse {
+	t.Helper()
+	if reply.Kind != "response" || reply.Status != want {
+		t.Fatalf("reply = %+v, want a relayed server response with status %d", reply, want)
+	}
+	body, err := base64.StdEncoding.DecodeString(reply.Body)
+	if err != nil {
+		t.Fatalf("decode the relayed body %q: %v", reply.Body, err)
+	}
+	var resp jobResponse
+	if err := json.Unmarshal(body, &resp); err != nil {
+		t.Fatalf("decode the server response %q: %v", body, err)
+	}
+	return resp
+}
+
+// TestStatusResponseFitsRelay checks that the host relays every status
+// response whole: the server's status response limit is within the host's
+// response limit, and the host's reply for a response at its limit fits the
+// browser's message limit.
+func TestStatusResponseFitsRelay(t *testing.T) {
+	if server.MaxStatusResponseBytesForTest > nmhost.MaxResponseBytesForTest {
+		t.Errorf("the server's status response limit %d exceeds the host's response limit %d",
+			server.MaxStatusResponseBytesForTest, nmhost.MaxResponseBytesForTest)
+	}
+	if reply, limit := nmhost.LargestReplyForTest(t); reply > limit {
+		t.Errorf("the host's largest reply is %d bytes, over the browser's message limit of %d", reply, limit)
+	}
 }
 
 // requireServerReply fails the test unless reply relays a server response
