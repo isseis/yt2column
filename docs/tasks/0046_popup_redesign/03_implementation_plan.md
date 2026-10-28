@@ -309,7 +309,7 @@
 
 **変更するファイル:** 本書
 
--   [ ] PR-3 のブランチで `docs/tasks/0046_popup_redesign/_checks/unchanged_values.ts` を実行し、終了コードと出力を、merge-base と確かめたコミットの ID と一緒に 7 章に記録する（記録のコミットは本書だけを変える）。
+-   [x] PR-3 のブランチで `docs/tasks/0046_popup_redesign/_checks/unchanged_values.ts` を実行し、終了コードと出力を、merge-base と確かめたコミットの ID と一緒に 7 章に記録する（記録のコミットは本書だけを変える）。
 
 **完了の条件:** スクリプトが終了コード 0 で終わる。
 
@@ -530,14 +530,23 @@ AC-36 のキーボードでの操作と AC-40 の色覚の模擬は、テスト�
     PASS: extension/static/manifest.json is identical (sha256 47091ca6796f153ed03ffbbb55573067a88da30bbae1ea20186407b2e2bed8d5)
     ```
 
+- PR-3（2026-10-28）: リポジトリのルートで `node docs/tasks/0046_popup_redesign/_checks/unchanged_values.ts` を実行し、終了コード 0。merge-base は `5489cf952c5a27acc52da462d8a46e24ef3022d0`、確かめたコミットは `f10554557d0886b77beaf1d5ee53aeec2d960ff4`（記録のコミットは本書だけを変える。ステップ 4-4）。出力は次の 4 行である。
+
+    ```
+    merge-base 5489cf952c5a27acc52da462d8a46e24ef3022d0
+    head       f10554557d0886b77beaf1d5ee53aeec2d960ff4
+    PASS: the unchanged catalog items and the built bodies are identical
+    PASS: extension/static/manifest.json is identical (sha256 47091ca6796f153ed03ffbbb55573067a88da30bbae1ea20186407b2e2bed8d5)
+    ```
+
 **手動の確認の記録:** （ステップ 5-4 で記録する）
 
 ## 8. 横断の確認 (Cross-Search Checklist)
 
 `make lint`・`make ext-check` では見つからない残りを、ステップ 4-3 で確かめる。
 
--   [ ] 1.4 の表の部品の名前（`summarize`・`OutcomeSummary`・`SummaryField`・`renderSummary`・`renderMetadata`・`summaryLabels`・`metadataLabels`・`sendButton`・`PopupLaunchResult`・`valueOf`・`valueElement`）と、フェーズ 1 でなくす名前（`BlockReason`・`blockMessage`・`renderBlockReason`）が、`extension/src`・`extension/test`・`extension/static` のコードとコメントに残っていない。
--   [ ] 古い class の名前（`summary-field`・`summary-label`・`summary-value`・`summary-title`・`summary-url`・`summary-preview`・`summary-message`・`summary-steps`・`metadata-title`・`metadata-channel`・`metadata-description`・`send-button`・`send-message`）と、古い入れ物の `id`（`summary`・`send`）が、`extension/src`・`extension/test`・`extension/static` に残っていない。
+-   [x] 1.4 の表の部品の名前（`summarize`・`OutcomeSummary`・`SummaryField`・`renderSummary`・`renderMetadata`・`summaryLabels`・`metadataLabels`・`sendButton`・`PopupLaunchResult`・`valueOf`・`valueElement`）と、フェーズ 1 でなくす名前（`BlockReason`・`blockMessage`・`renderBlockReason`）が、`extension/src`・`extension/test`・`extension/static` のコードとコメントに残っていない。
+-   [x] 古い class の名前（`summary-field`・`summary-label`・`summary-value`・`summary-title`・`summary-url`・`summary-preview`・`summary-message`・`summary-steps`・`metadata-title`・`metadata-channel`・`metadata-description`・`send-button`・`send-message`）と、古い入れ物の `id`（`summary`・`send`）が、`extension/src`・`extension/test`・`extension/static` に残っていない。
 -   [ ] `src/popup.ts`・`src/launch.ts`・`src/ui/render.ts`・`src/ui/renderSend.ts`・`src/core/sendMessages.ts` の先頭のコメントと関数の説明が、新しい骨格と経路の処理を述べている（PR-3 のレビューで読む）。
 -   [ ] 日本語の文言（`ja.ts` の新しい項目）が、用語集の用語（ステップ 5-2 で加える用語を含む）と一致する（PR-1・PR-4 のレビューで読む）。
 
