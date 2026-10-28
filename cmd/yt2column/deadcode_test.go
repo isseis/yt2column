@@ -391,7 +391,7 @@ type recordingMktemp struct {
 	recordPath string
 }
 
-// writeRecordingMktemp writes the wrapper into dir, which must not exist yet.
+// writeRecordingMktemp writes the wrapper into dir, creating it.
 // failAt is the 1-based call to fail at; 0 never fails.
 func writeRecordingMktemp(t *testing.T, dir, realMktemp string, failAt int) *recordingMktemp {
 	t.Helper()

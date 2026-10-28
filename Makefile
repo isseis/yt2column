@@ -252,7 +252,8 @@ fmt-all:
 # a change to deadcode's report format cannot turn a failure into a success.
 # Output goes to two temporary files rather than a pipe, so deadcode's own exit
 # status survives (POSIX sh has no pipefail); each stream is shown again on a
-# failure.
+# failure. A signal exits the shell so the EXIT trap removes the files: some
+# shells (dash) do not run an EXIT trap when a signal kills them.
 deadcode:
 	@if ! command -v "$(DEADCODECMD)" >/dev/null 2>&1; then \
 		echo "Error: $(DEADCODECMD) is required but not found"; \
@@ -263,6 +264,7 @@ deadcode:
 	trap 'rm -f "$$OUT"' EXIT; \
 	ERR=$$(mktemp) || { echo "Error: cannot create a temporary file for deadcode output" >&2; exit 1; }; \
 	trap 'rm -f "$$OUT" "$$ERR"' EXIT; \
+	trap 'exit 1' HUP INT TERM; \
 	status=0; \
 	"$(DEADCODECMD)" -test -tags test,integration ./... >"$$OUT" 2>"$$ERR" || status=$$?; \
 	if [ "$$status" -ne 0 ]; then \
